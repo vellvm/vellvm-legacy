@@ -1,0 +1,54 @@
+% Syntax and Semantics of Static Single Assignment(SSA)
+
+metavar N ::= {{ com a natural number }}
+  {{ coq nat }} {{ lex numeral  }}
+metavar value, v ::= {{ com value names }}
+  {{ coq nat }} {{ lex numeral  }}
+metavar ident    ::= {{ com identities }}
+  {{ coq nat }} {{ lex numeral  }}
+indexvar index, j, n ::= {{ com index }}
+  {{ coq nat }}
+
+grammar
+
+t {{ tex \tau }} :: 't_' ::=            {{ com type }}
+  | int N                ::   :: int      {{ com integer }}
+  | void                 ::   :: void     {{ com void }}
+  | [ N * t ]            ::   :: array    {{ com array }} {{ tex [ [[N]] * [[t]]] }}
+  | { </ tj // j /> }    ::   :: struct   {{ com structure }}
+  | t *                  ::   :: pointer  {{ com pointer }}
+  | t ( </ tj // j /> )  ::   :: function {{ com function }}
+
+ll :: 'll_'              ::=		{{ com label }}
+  | N 	 	  	 ::   :: label
+
+i :: 'i_'                ::=		{{ com instruction }}
+ | ret t v		 ::   :: return      {{ com return }}
+ | ret void             ::   :: returnVoid  {{ com return void }}
+ | v = phi t </ [ vj , llj ] // j /> ::  :: phi
+
+b :: 'b_'     	      	 ::=		{{ com block }}
+  | empty                ::   :: empty
+  | b , i                ::   :: instruction
+
+fa :: 'fa_'		 ::=		{{ com function argument }}
+  | empty   		 ::   :: empty
+  | fa , t               ::   :: type
+
+f :: 'f_'     		 ::=		{{ com function }}
+  | define t ident ( fa ) b ::  :: def
+
+m :: 'm_'    	         ::=            {{ com module }}
+  | empty                ::   :: empty
+  | m , f                ::   :: function
+
+terminals :: 'terminals_' ::=
+  | =                   ::   :: assignment      {{ tex = }}
+
+formula :: 'formula_' ::=
+  | formula1 .. formulan     ::   :: dots
+
+% parsing
+
+% subrules
+
