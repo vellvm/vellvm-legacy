@@ -1,0 +1,181 @@
+
+% Static Semantics of Static Single Assignment(SSA)
+
+defns
+Jwf_typ :: '' ::=
+      defn
+      |- typ :: :: wf_typ :: '' {{ com [[typ]] is well-formed }} by  
+
+      -------------------- :: wf_typ_int
+      |- int N
+
+      -------------------- :: wf_typ_float
+      |- float
+
+      -------------------- :: wf_typ_double
+      |- double
+
+      -------------------- :: wf_typ_fp128
+      |- fp128
+
+      -------------------- :: wf_typ_void
+      |- void
+
+      -------------------- :: wf_typ_label
+      |- label
+
+      -------------------- :: wf_typ_metadate
+      |- metadata
+
+      -------------------- :: wf_typ_opaque
+      |- opaque
+
+      isValidReturnType typ     
+      |- typ
+      </ isValidArgumentType typj // j />
+      </ |- typj // j /> 
+      -------------------------------------------------- :: wf_typ_function
+      |- typ ( </ typj // j /> ) 
+     
+      </ isValidElementType typj // j />
+      </ |- typj // j /> 
+      -------------------------------------------------- :: wf_typ_structure
+      |- { </ typj // j /> }
+
+      |- typ
+      isValidElementType typ
+      ------------------- :: wf_typ_array
+      |- [ N * typ ]
+
+      |- typ
+      isValidElementType typ
+      ------------------- :: wf_typ_pointer
+      |- typ * 
+
+      |- typ
+      isValidElementType typ
+      ------------------- :: wf_typ_vector
+      |- < N * typ >
+
+defns
+Jtyping :: '' ::=
+      defn
+      module , fdef , block |- inst :: :: wf_inst :: '' 
+      {{ com [[inst]] is well-formed w.r.t [[block]] in [[fdef]] in [[module]] }} by  
+
+      getReturnType fdef = typ
+      not typ == void
+      ------------------------------------------------------ :: wf_inst_return
+      module , fdef , block |- ret typ value
+
+      getReturnType fdef = void
+      ------------------------------------------------------ :: wf_inst_return_void
+      module , fdef , block |- ret void
+
+
+      ------------------------------------------------------ :: wf_inst_br
+      module , fdef , block |- br value , ll1 , ll2				        
+
+      defn
+      module , fdef , block |- instl :: :: wf_instl :: ''
+      {{ com [[instl]] is well-formed w.r.t [[block]] in [[fdef]] in [[module]] }} by  
+
+      ------------------------ :: wf_instl_nil
+      module , fdef , block |- nil
+
+      module , fdef , block |- inst 
+      module , fdef , block |- instl
+      ---------------------------------- :: wf_instl_cons
+      module , fdef , block |- instl , inst
+
+
+      defn
+      module , fdef |- block :: :: wf_block :: '' 
+      {{ com [[block]] is well-formed w.r.t. [[fdef]] in [[module]] }} by
+
+      module , fdef , ll instl |- instl 
+      instlChecksTerminatorInst instl
+      instlStartsWithPhiInst instl
+      ---------------------------------------- :: wf_block_with_label
+      module , fdef |- ll instl
+
+      module , fdef , instl |- instl 
+      instlChecksTerminatorInst instl
+      instlStartsWithPhiInst instl
+      --------------------------------------- :: wf_block_without_label
+      module , fdef |- instl
+
+
+      defn
+      module , fdef |- blockl :: :: wf_blockl :: ''
+      {{ com [[blockl]] is well-formed w.r.t. [[fdef]] in [[module]] }} by
+
+      ------------------------ :: wf_blockl_nil
+      module , fdef |- nil
+
+      module , fdef |- block
+      module , fdef |- blockl
+      ---------------------------------- :: wf_blockl_cons
+      module , fdef |- blockl , block
+ 
+
+      defn
+      module |- fdef :: :: wf_fdef :: ''
+      {{ com [[fdef]] is well-formed w.r.t. [[module]] }} by
+
+      module , define fheader { blockl } |- blockl      
+      ------------------------------------------------------ :: wf_fdef_intro
+      module |- define fheader { blockl }
+
+      defn
+      |- module :: :: wf_module :: ''
+      {{ com [[module]] is well-formed }} by 
+
+      ------------------------ :: wf_module_nil
+      |- nil
+
+      |- module 
+      ------------------------ :: wf_module_global_var
+      |- module , g
+
+      module |- fdef
+      ------------------------ :: wf_module_function_def
+      |- module , fdef   
+
+      |- module
+      ------------------------ :: wf_module_namedtype
+      |- module , namedt     
+
+% inst :: 'inst_'					    	::=			{{ com instruction }}
+%   | ret typ value             			    	::   :: return      	{{ com return }}
+%   | ret void                   			    	::   :: return_void  	{{ com return void }}
+%   | br value , ll1 , ll2				::   :: br              {{ com br }}        
+%   | br ll        	    	  			::   :: br_uncond       {{ com unconditional br }}        
+%   | switch value , ll </ [ constj , llj ] // j />	::   :: switch		{{ com switch }}
+%   | id = invoke t id0 paraml to ll1 unwind ll2   	::   :: invoke		{{ com invoke }} 
+%   | unreachable	     	   	     	 		::   :: unreachable	{{ com unreachable }}
+%   | id = add typ value1 value2				::   :: add		{{ com add }}
+%   | id = fadd typ value1 value2				::   :: fadd		{{ com fadd }}
+%   | id = udiv typ value1 value2				::   :: udiv		{{ com udiv }}
+%   | id = fdiv typ value1 value2				::   :: fdiv		{{ com fdiv }}
+%   | id = or typ value1 value2				::   :: or 		{{ com or }}
+%   | id = and typ value1 value2				::   :: and 		{{ com and }}
+%   | id = extractelement < N0 * typ0 > id0 , const1	::   :: extractelement  {{ com extractelement }}
+%   | id = insertelement < N0 * typ0 > id0 , typ1 value1 , const2	    ::   :: insertelement       {{ com insertelement }}
+%   | id = extractvalue { </ typj // j /> } id0 , const1              ::   :: extractvalue	{{ com extractvalue }}
+%   | id = insertvalue { </ typj // j /> } id0 , typ1 value1 , const2 ::   :: insertvalue		{{ com insertvalue }}
+%   | id = alloca typ N  	     	       	     	       	::   :: alloca		{{ com alloca }}
+%   | id = load typ1 id1					::   :: load		{{ com load }}
+%   | store typ1 value1 , typ2 id2			::   :: store		{{ com store }}
+%   | id = trunc typ1 value1 to typ2			::   :: trunc		{{ com trunc }}
+%   | id = fptrunc typ1 value1 to typ2			::   :: fptrunc		{{ com fptrunc }}
+%   | id = fptoui typ1 value1 to typ2			::   :: fptoui		{{ com fptoui }}
+%   | id = fptosi typ1 value1 to typ2			::   :: fptosi		{{ com fptosi }}
+%   | id = uitofp typ1 value1 to typ2			::   :: uitofp		{{ com uitofp }}
+%   | id = sitofp typ1 value1 to typ2			::   :: sitofp		{{ com sitofp }}
+%   | id = ptrtoint typ1 value1 to typ2			::   :: ptrtoint	{{ com ptrtoint }}
+%   | id = inttoptr typ1 value1 to typ2			::   :: inttoptr	{{ com inttoptr }}
+%   | id = bitcast typ1 value1 to typ2			::   :: bitcase		{{ com bitcast }}
+%   | id = icmp cond typ value1 , value2			::   :: icmp		{{ com icmp }}
+%   | id = fcmp cond typ value1 , value2			::   :: fcmp		{{ com fcmp }}
+%   | id = phi typ </ [ idj , llj ] // j />		::   :: phi  	    	{{ com phi }}

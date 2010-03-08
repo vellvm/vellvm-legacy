@@ -1,0 +1,182 @@
+
+% Syntax of Static Single Assignment(SSA)
+
+metavar N ::= {{ com a natural number }}
+  {{ coq nat }} {{ lex numeral  }}
+indexvar index, i, j, n ::= {{ com index }}
+  {{ coq nat }}
+ 
+grammar
+
+id :: 'id_'						::=			{{ com identidiers }}
+  | N							::   :: intro
+  | ( id )						:: S :: paren           {{ coq [[ id ]] }}
+
+const :: 'const_'					::=  			{{ com constant }}
+  | N 	 						::   :: val		{{ com val }}	
+  | undef						::   :: undef		{{ com undef }}
+  | ( const )						:: S :: paren           {{ coq [[ const ]] }}
+
+value :: 'value_'					::=  			{{ com values }}
+  | id	 						::   :: id		{{ com id }}
+  | const						::   :: constant	{{ com constant }}
+  | ( value )						:: S :: paren           {{ coq [[ value ]] }}
+
+typ :: 'typ_'						::=			{{ com type }}
+  | int N                    				::   :: int         	{{ com integer }}
+  | float						::   :: float		{{ com float }}
+  | double						::   :: double          {{ com double }}
+  | fp128						::   :: fp128           {{ com fp128 }}
+  | void                      				::   :: void        	{{ com void }}
+  | label                                               ::   :: label           {{ com label }}
+  | metadata                                            ::   :: metadata        {{ com metadata }}
+  | [ N * typ ]               				::   :: array       	{{ com array }}
+  | typ ( </ typj // j /> )  				::   :: function    	{{ com function }}
+  | { </ typj // j /> }       				::   :: struct      	{{ com structure }}
+  | typ *                     				::   :: pointer     	{{ com pointer }}
+  | < N * typ >               				::   :: vector       	{{ com vector }}
+  | opaque  						::   :: opaque          {{ com opaque }}
+  % x86_fp80
+  % ppc_fp128
+  % union
+  | ( typ )						:: S :: paren           {{ coq [[ typ ]] }}
+
+
+argl :: 'argl_'						::=  			{{ com argument list }}
+  | nil   		 				::   :: nil
+  | argl , typ 						::   :: cons
+  | ( argl )						:: S :: paren           {{ coq [[ argl ]] }}
+
+paraml :: 'paraml_'					::=			{{ com parameter list }}
+  | nil 						::   :: nil
+  | paraml , typ value                                  ::   :: cons
+  | ( paraml )						:: S :: paren           {{ coq [[ paraml ]] }}
+
+ll :: 'll_'						::=		    	{{ com label }}
+  | N 	 	  	 				::   :: intro
+
+cond :: 'cond_'						::=			{{ com condition code }}
+  | eq							::   :: eq		{{ com eq }}
+  | ne							::   :: ne		{{ com ne }}
+  | ugt							::   :: ugt		{{ com ugt }}
+  | uge							::   :: uge		{{ com uge }}
+  | ult							::   :: ult		{{ com ult }}
+  | ule							::   :: ule		{{ com ule }}
+  | sgt							::   :: sgt		{{ com sgt }}
+  | sge							::   :: sge		{{ com sge }}
+  | slt							::   :: slt		{{ com slt }}
+  | sle							::   :: sle		{{ com sle }}
+
+inst :: 'inst_'					    	::=			{{ com instruction }}
+  | ret typ value             			    	::   :: return      	{{ com return }}
+  | ret void                   			    	::   :: return_void  	{{ com return void }}
+  | br value , ll1 , ll2				::   :: br              {{ com br }}        
+  | br ll        	    	  			::   :: br_uncond       {{ com unconditional br }}        
+  | switch value , ll </ [ constj , llj ] // j />	::   :: switch		{{ com switch }}
+  | id = invoke t id0 paraml to ll1 unwind ll2   	::   :: invoke		{{ com invoke }} 
+  | unreachable	     	   	     	 		::   :: unreachable	{{ com unreachable }}
+  | id = add typ value1 value2				::   :: add		{{ com add }}
+  | id = fadd typ value1 value2				::   :: fadd		{{ com fadd }}
+  | id = udiv typ value1 value2				::   :: udiv		{{ com udiv }}
+  | id = fdiv typ value1 value2				::   :: fdiv		{{ com fdiv }}
+  | id = or typ value1 value2				::   :: or 		{{ com or }}
+  | id = and typ value1 value2				::   :: and 		{{ com and }}
+  | id = extractelement < N0 * typ0 > id0 , const1	::   :: extractelement  {{ com extractelement }}
+  | id = insertelement < N0 * typ0 > id0 , typ1 value1 , const2	    ::   :: insertelement       {{ com insertelement }}
+  | id = extractvalue { </ typj // j /> } id0 , const1              ::   :: extractvalue	{{ com extractvalue }}
+  | id = insertvalue { </ typj // j /> } id0 , typ1 value1 , const2 ::   :: insertvalue		{{ com insertvalue }}
+  | id = alloca typ N  	     	       	     	       	::   :: alloca		{{ com alloca }}
+  | id = load typ1 id1					::   :: load		{{ com load }}
+  | store typ1 value1 , typ2 id2			::   :: store		{{ com store }}
+  | id = trunc typ1 value1 to typ2			::   :: trunc		{{ com trunc }}
+  | id = fptrunc typ1 value1 to typ2			::   :: fptrunc		{{ com fptrunc }}
+  | id = fptoui typ1 value1 to typ2			::   :: fptoui		{{ com fptoui }}
+  | id = fptosi typ1 value1 to typ2			::   :: fptosi		{{ com fptosi }}
+  | id = uitofp typ1 value1 to typ2			::   :: uitofp		{{ com uitofp }}
+  | id = sitofp typ1 value1 to typ2			::   :: sitofp		{{ com sitofp }}
+  | id = ptrtoint typ1 value1 to typ2			::   :: ptrtoint	{{ com ptrtoint }}
+  | id = inttoptr typ1 value1 to typ2			::   :: inttoptr	{{ com inttoptr }}
+  | id = bitcast typ1 value1 to typ2			::   :: bitcase		{{ com bitcast }}
+  | id = icmp cond typ value1 , value2			::   :: icmp		{{ com icmp }}
+  | id = fcmp cond typ value1 , value2			::   :: fcmp		{{ com fcmp }}
+  | id = phi typ </ [ idj , llj ] // j />		::   :: phi  	    	{{ com phi }}
+  | ( inst )						:: S :: paren           {{ coq [[ inst ]] }}
+
+instl :: 'instl_'   	      	  	      		::=			{{ com instruction list }}
+  | nil                 				::   :: nil
+  | instl , inst               				::   :: cins
+  | ( instl )						:: S :: paren           {{ coq [[ instl ]] }}
+
+block :: 'block_' 					::=			{{ com block }}
+  | ll instl						::   :: with_label
+  | instl						::   :: without_label
+  | ( block )						:: S :: paren           {{ coq [[ block ]] }}
+
+blockl :: 'blockl_'					::=			{{ com block list }}
+  | nil 						::   :: nil
+  | blockl , block					::   :: cons
+  | ( blockl )						:: S :: paren           {{ coq [[ blockl ]] }}
+
+fheader :: 'fheader_'    				::=			{{ com function header }}
+  | typ ident ( argl ) 					::   :: intro
+  | ( fheader )						:: S :: paren           {{ coq [[ fheader ]] }}
+
+fdec :: 'fdec_'       					::=			{{ com function declaration }}
+  | declare fheader     				::  :: intro
+  | ( fdec )						:: S :: paren           {{ coq [[ fdec ]] }}
+
+fdef :: 'fdef_'          				::=			{{ com function definition }}
+  | define fheader { blockl } 				::  :: intro
+  | ( fdef )						:: S :: paren           {{ coq [[ fdef ]] }}
+
+namedt :: 'namedt_'         				::=			{{ com named type }}
+  | id = type typ   					::   :: intro 
+
+g :: 'g_'   	 					::=			{{ com global }}
+  | id = global typ const				::   :: intro  
+
+module :: 'module_'    	    				::=			{{ com module }}
+  | nil   						::   :: nil        	{{ com nil }}
+  | module , g						::   :: global_var      {{ com global variable }}
+  | module , fdec             				::   :: function_dec   	{{ com function declaration }}
+  | module , fdef             				::   :: function_def   	{{ com function definition }}
+  | module , namedt           				::   :: namedtype     	{{ com named types }}
+
+terminals :: 'terminals_' ::=
+  | =                   ::   :: assignment      {{ tex = }}
+  | == 			::   :: eq		{{ tex == }}
+  | |-			::   :: shows           {{ tex \vdash }}
+
+formula :: 'formula_' ::=
+  | judgement			::   :: judgement
+  | formula1 ... formulan     	::   :: dots
+  | not formula                 :: M :: not
+      				{{ tex \neg [[formula]] }}
+				{{ coq (not ([[formula]])) }}
+  | ( formula )                 :: M :: brackets
+      	      			{{ tex ([[formula]]\!) }} 
+      				{{ coq ([[ formula ]]) }}
+  | exists u . formula          ::   :: exists 
+      	       			{{ tex \exists [[u]]. [[formula]] }}
+      				{{ coq ( exists [[ u ]] , [[ formula ]] ) }}
+  | formula /\ formula'         :: M :: and
+               			{{ tex [[formula]] \wedge [[formula']] }}
+	  			{{ coq [[formula]] /\ [[ formula' ]] }}
+  | foreach C . formula         :: M :: forall 
+              			{{ tex \forall [[C]]. [[ formula ]] }}
+	  			{{ coq ( forall [[C]], [[ formula ]] ) }}
+  | formula implies formula'    :: M :: implies
+            	    		{{ tex [[formula]] \mathit{implies} [[formula']] }}
+	  			{{ coq [[formula]] -> [[ formula' ]] }}
+  | formula \/ formula'         :: M :: or
+               			{{ tex [[formula]] \vee [[formula']] }}
+	  			{{ coq [[formula]] \/ [[ formula' ]] }} 
+  | N1 == N2 			::   :: eqN
+				{{ tex [[N1]] == [[N2]] }}
+				{{ coq [[N1]] = [[N2]] }}
+
+parsing
+formula_and left formula_and
+
+% subrules
+
