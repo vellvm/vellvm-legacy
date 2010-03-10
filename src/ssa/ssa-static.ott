@@ -81,7 +81,7 @@ Jtyping :: '' ::=
       {{ com [[instl]] is well-formed w.r.t [[block]] in [[fdef]] in [[module]] }} by  
 
       ------------------------ :: wf_instl_nil
-      module , fdef , block |- nil
+      module , fdef , block |- []
 
       module , fdef , block |- inst 
       module , fdef , block |- instl
@@ -95,15 +95,9 @@ Jtyping :: '' ::=
 
       module , fdef , ll instl |- instl 
       instlChecksTerminatorInst instl
-      instlStartsWithPhiInst instl
-      ---------------------------------------- :: wf_block_with_label
+      instlStartsWithPhiNode instl
+      ---------------------------------------- :: wf_block_intro
       module , fdef |- ll instl
-
-      module , fdef , instl |- instl 
-      instlChecksTerminatorInst instl
-      instlStartsWithPhiInst instl
-      --------------------------------------- :: wf_block_without_label
-      module , fdef |- instl
 
 
       defn
@@ -111,7 +105,7 @@ Jtyping :: '' ::=
       {{ com [[blockl]] is well-formed w.r.t. [[fdef]] in [[module]] }} by
 
       ------------------------ :: wf_blockl_nil
-      module , fdef |- nil
+      module , fdef |- []
 
       module , fdef |- block
       module , fdef |- blockl

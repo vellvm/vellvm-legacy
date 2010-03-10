@@ -1,16 +1,43 @@
 
 % Syntax of Static Single Assignment(SSA)
 
+embed {{ coq
+Require Import Coq.Logic.DecidableTypeEx.
+Require Import ListSet.
+
+Module NatDT <: UsualDecidableType with Definition t := nat.
+
+  Definition t := nat.
+
+  Definition eq := @eq nat.
+  Definition eq_refl := @refl_equal nat.
+  Definition eq_sym := @sym_eq nat.
+  Definition eq_trans := @trans_eq nat.
+
+  Definition eq_dec := eq_nat_dec.
+
+End NatDT.
+
+Require Import FSets FSetWeakList.
+
+Module NSet := FSetWeakList.Make(NatDT).
+Module NSetP := FSetProperties.Properties NSet.
+Export NSetP.
+
+Notation nset := NSet.t.
+
+}}
+
 metavar N ::= {{ com a natural number }}
+  {{ coq nat }} {{ lex numeral  }}
+metavar id ::= {{ com identities }}
+  {{ coq nat }} {{ lex numeral  }}
+metavar ll ::= {{ com labels }}
   {{ coq nat }} {{ lex numeral  }}
 indexvar index, i, j, n ::= {{ com index }}
   {{ coq nat }}
  
 grammar
-
-id :: 'id_'						::=			{{ com identidiers }}
-  | N							::   :: intro
-  | ( id )						:: S :: paren           {{ coq [[ id ]] }}
 
 const :: 'const_'					::=  			{{ com constant }}
   | N 	 						::   :: val		{{ com val }}	
@@ -43,17 +70,22 @@ typ :: 'typ_'						::=			{{ com type }}
 
 
 argl :: 'argl_'						::=  			{{ com argument list }}
-  | nil   		 				::   :: nil
+  | []   		 				::   :: nil
   | argl , typ 						::   :: cons
   | ( argl )						:: S :: paren           {{ coq [[ argl ]] }}
 
 paraml :: 'paraml_'					::=			{{ com parameter list }}
-  | nil 						::   :: nil
+  | []  						::   :: nil
   | paraml , typ value                                  ::   :: cons
   | ( paraml )						:: S :: paren           {{ coq [[ paraml ]] }}
 
-ll :: 'll_'						::=		    	{{ com label }}
-  | N 	 	  	 				::   :: intro
+lls {{ tex \mathit{\overline{ll} } }} :: 'lls_'		::=			{{ com label list }}
+       	   			      	 					{{ coq (list ll) }}
+  | empty						::   :: empty		{{ coq (empty_set ll) }}
+  | ll1 .. lln						::   :: list		{{ coq [[ll1 .. lln]] }}
+  | lls , ll						::   :: cons		{{ coq (set_add eq_nat_dec [[ll]] [[lls]]) }}
+  | lls ; lls'						::   :: append		{{ coq (set_union eq_nat_dec [[lls]] [[lls']]) }}
+  | ( lls )						:: S :: paren		{{ coq [[ lls ]] }}
 
 cond :: 'cond_'						::=			{{ com condition code }}
   | eq							::   :: eq		{{ com eq }}
@@ -102,18 +134,25 @@ inst :: 'inst_'					    	::=			{{ com instruction }}
   | id = phi typ </ [ idj , llj ] // j />		::   :: phi  	    	{{ com phi }}
   | ( inst )						:: S :: paren           {{ coq [[ inst ]] }}
 
+inst_opt {{ tex \mathit{inst_{opt} } }} :: 'inst_opt_' ::=			{{ com option inst }} {{ coq option inst }}
+  |  none 						:: M :: none		{{ com none }} {{ coq None }}
+  |  inst						:: M :: some  		{{ com some }} {{ coq (Some [[inst]]) }}
+		   
 instl :: 'instl_'   	      	  	      		::=			{{ com instruction list }}
-  | nil                 				::   :: nil
+  | []	                  				::   :: nil
   | instl , inst               				::   :: cins
   | ( instl )						:: S :: paren           {{ coq [[ instl ]] }}
 
 block :: 'block_' 					::=			{{ com block }}
-  | ll instl						::   :: with_label
-  | instl						::   :: without_label
+  | ll instl						::   :: def
   | ( block )						:: S :: paren           {{ coq [[ block ]] }}
 
+block_opt {{ tex \mathit{block_{opt} } }} :: 'block_opt_' ::=			{{ com option block }} {{ coq option block }}
+  |  none 						:: M :: none		{{ com none }} {{ coq None }}
+  |  block						:: M :: some  		{{ com some }} {{ coq (Some [[block]]) }}
+		   
 blockl :: 'blockl_'					::=			{{ com block list }}
-  | nil 						::   :: nil
+  | []  						::   :: nil
   | blockl , block					::   :: cons
   | ( blockl )						:: S :: paren           {{ coq [[ blockl ]] }}
 
@@ -174,6 +213,9 @@ formula :: 'formula_' ::=
   | N1 == N2 			::   :: eqN
 				{{ tex [[N1]] == [[N2]] }}
 				{{ coq [[N1]] = [[N2]] }}
+  | ll1 == ll2 			::   :: eqLabel
+				{{ tex [[ll1]] == [[ll2]] }}
+				{{ coq [[ll1]] = [[ll2]] }}
 
 parsing
 formula_and left formula_and

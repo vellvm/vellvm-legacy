@@ -97,7 +97,7 @@ getReturnType_def :: '' ::=
       getReturnType fdef = typ :: :: getReturnType :: '' 
       {{ com [[fdef]]'s return type is [[typ]] }} by
 
-      ----------------------------------------------------------------- :: def
+      ----------------------------------------------------------------- :: getReturnType_intro
       getReturnType (define (typ ident (argl)) { blockl }) = typ
 
 
@@ -155,6 +155,10 @@ typeEq_def :: '' ::=
        ----------------------------------------------------- :: typeEq_structure
        { </ typj // j /> } == { </ typ'j // j /> }  
 
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+%       Check Terminator						 %
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+
 defns
 isTerminatorInst_def :: '' ::=
       defn
@@ -176,23 +180,39 @@ isTerminatorInst_def :: '' ::=
       ----------------------------------------------------------------- :: isTerminatorInst_switch
       isTerminatorInst (switch value , ll </ [ constj , llj ] // j />)
 
+      ----------------------------------------------------------------- :: isTerminatorInst_invoke
+      isTerminatorInst (id = invoke t id0 paraml to ll1 unwind ll2)
+
+      ----------------------------------------------------------------- :: isTerminatorInst_unreachable
+      isTerminatorInst unreachable
+
+defns
+instlGetLast_def :: '' ::=
+      defn
+      instlGetLast instl = inst_opt :: :: instlGetLast :: ''
+      {{ com [[inst_opt]] is the last inst of [[instl]] }} by
+      
+      ----------------------------------- :: instlGetLast_nil
+      instlGetLast [] = none 
+
+      ----------------------------------- :: instlGetLast_true
+      instlGetLast ([] , inst) = inst
+
+      instlGetLast (instl, inst1) = inst_opt
+      ----------------------------------------------- :: instlGetLast_rec
+      instlGetLast (instl, inst1, inst2) = inst_opt      
+
 defns
 instlEndsWithTerminatorInst_def :: '' ::=
       defn
       instlEndsWithTerminatorInst instl :: :: instlEndsWithTerminatorInst :: ''
       {{ com [[instl]] ends with terminator instruction }} by
-
-      --------------------------------------- :: instlEndsWithTerminatorInst_nil
-      instlEndsWithTerminatorInst nil
-
-      isTerminatorInst inst
-      ----------------------------------------------- :: instlEndsWithTerminatorInst_last
-      instlEndsWithTerminatorInst nil , inst 
       
-      instlEndsWithTerminatorInst instl
-      ----------------------------------------------- :: instlEndsWithTerminatorInst_cons
-      instlEndsWithTerminatorInst instl , inst
-
+      instlGetLast instl = inst
+      isTerminatorInst inst
+      ----------------------------------------------- :: instlEndsWithTerminatorInst_intro
+      instlEndsWithTerminatorInst instl 
+    
 defns
 instlDoesntContainTerminatorInst_def :: '' ::=
       defn
@@ -200,7 +220,7 @@ instlDoesntContainTerminatorInst_def :: '' ::=
       {{ com [[instl]] doesnt contain terminator instruction }} by
 
       --------------------------------------- :: instlDoesntContainTerminatorInst_nil
-      instlDoesntContainTerminatorInst nil
+      instlDoesntContainTerminatorInst []
 
       instlDoesntContainTerminatorInst instl
       not isTerminatorInst inst
@@ -214,13 +234,13 @@ instlRemovesLast_def :: '' ::=
       {{ com [[inst']] is the list without the last element from [[instl]] }} by
  
       ----------------------------------------------- :: instlRemovesLast_nil
-      instlRemovesLast nil = nil
+      instlRemovesLast [] = []
 
-      ----------------------------------------------- :: instlRemovesLast_remove
-      instlRemovesLast (nil, inst) = nil
+      ----------------------------------------------- :: instlRemovesLast_true
+      instlRemovesLast ([], inst) = []
 
       instlRemovesLast (instl, inst1) = instl'
-      ----------------------------------------------- :: instlRemovesLast_cons
+      ----------------------------------------------- :: instlRemovesLast_rec
       instlRemovesLast (instl, inst1, inst2) = (instl', inst2)
 
 defns
@@ -235,42 +255,203 @@ instlChecksTerminatorInst_def :: '' ::=
       ----------------------------------------------- :: instlChecksTerminatorInst_intro
       instlChecksTerminatorInst instl
 
-defns
-isPhiInst_def :: '' ::=
-      defn
-      isPhiInst inst :: :: isPhiInst :: ''
-      {{ com check is [[inst]] is a phi inst }} by
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+%        Check Phi							%
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
-      --------------------------------------- :: isPhiInst_intro
-      isPhiInst (id = phi typ </ [ idj , llj ] // j />) 
+defns
+isPhiNode_def :: '' ::=
+      defn
+      isPhiNode inst :: :: isPhiNode :: ''
+      {{ com check is [[inst]] is a phi node }} by
+
+      --------------------------------------- :: isPhiNode_intro
+      isPhiNode (id = phi typ </ [ idj , llj ] // j />) 
       
 defns
-instlStartsWithPhiInst_def :: '' ::=
+instlStartsWithPhiNode_def :: '' ::=
       defn
-      instlStartsWithPhiInst instl :: :: instlStartsWithPhiInst :: ''
+      instlStartsWithPhiNode instl :: :: instlStartsWithPhiNode :: ''
       {{ com [[instl]] starts with phi instruction }} by
 
-      ----------------------------------------------- :: instlStartsWithPhiInst_nil
-      instlStartsWithPhiInst nil
+      ----------------------------------------------- :: instlStartsWithPhiNode_nil
+      instlStartsWithPhiNode []
 
-      instlStartsWithPhiInst instl      
-      isPhiInst inst
-      ---------------------------------------------------------------------- :: instlStartsWithPhiInst_cons_phi
-      instlStartsWithPhiInst (instl, inst)
+      instlStartsWithPhiNode instl      
+      isPhiNode inst
+      ---------------------------------------------------------------------- :: instlStartsWithPhiNode_cons_phi
+      instlStartsWithPhiNode (instl, inst)
       
-      instlDoesntContainPhiInst instl      
-      not isPhiInst inst
-      ---------------------------------------------------------------------- :: instlStartsWithPhiInst_cons_nophi
-      instlStartsWithPhiInst (instl, inst)
+      instlDoesntContainPhiNode instl      
+      not isPhiNode inst
+      ---------------------------------------------------------------------- :: instlStartsWithPhiNode_cons_nophi
+      instlStartsWithPhiNode (instl, inst)
 
       defn
-      instlDoesntContainPhiInst instl :: :: instlDoesntContainPhiInst :: ''
+      instlDoesntContainPhiNode instl :: :: instlDoesntContainPhiNode :: ''
       {{ com [[instl]] doesnt contain phi instruction }} by
 
-      --------------------------------------- :: instlDoesntContainPhiInst_nil
-      instlDoesntContainPhiInst nil
+      --------------------------------------- :: instlDoesntContainPhiNode_nil
+      instlDoesntContainPhiNode []
 
-      instlDoesntContainPhiInst instl
-      not isPhiInst inst 
-      ----------------------------------------------------- :: instlDoesntContainPhiInst_cons
-      instlDoesntContainPhiInst instl , inst
+      instlDoesntContainPhiNode instl
+      not isPhiNode inst 
+      ----------------------------------------------------- :: instlDoesntContainPhiNode_cons
+      instlDoesntContainPhiNode instl , inst
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+%             succ of blocks                                       %
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+
+defns
+getTerminator_def :: '' ::=
+      defn
+      getTerminator block = inst_opt :: :: getTerminator :: ''
+      {{ com [[inst]] is the terminator instruction of [[block]] }} by
+ 
+      instlGetLast instl = inst_opt      
+      -------------------------------- :: getTerminator_intro
+      getTerminator (ll instl) = inst_opt
+
+defns
+getLabelsFromTerminator_def :: '' ::=
+      defn
+      getLabelsFromTerminator inst = lls :: :: getLabelsFromTerminator :: ''
+      {{ com [[lls]] is the set of labels from terminator [[inst]] }} by
+
+      --------------------------------------------------------------- :: getLabelsFromTerminator_br
+      getLabelsFromTerminator (br value , ll1 , ll2) = empty , ll1 , ll2     
+
+
+      --------------------------------------------------------------- :: getLabelsFromTerminator_br_uncond
+      getLabelsFromTerminator (br ll) = empty , ll
+
+
+      ---------------------------------------------------------------- :: getLabelsFromTerminator_switch
+      getLabelsFromTerminator (switch value , ll </ [ constj , llj ] // j /> ) = empty
+
+
+      ---------------------------------------------------------------- :: getLabelsFromTerminator_invoke
+      getLabelsFromTerminator (id = invoke t id0 paraml to ll1 unwind ll2) = empty , ll1 , ll2  
+
+defns
+succOfBlock_def :: '' ::= 
+     defn
+     succOfBlock block = lls :: :: succOfBlock :: ''
+     {{ com [[block]] has succesors [[lls]] }} by
+
+     
+     getTerminator block = none
+     ------------------------------ :: succOfBlock_none
+     succOfBlock block = empty
+
+     getTerminator block = inst     
+     getLabelsFromTerminator inst = lls
+     ------------------------------------ :: succOfBlock_inst
+     succOfBlock block = lls
+
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+%         get block from label                                  %
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+
+defns
+getBlockAtLableFromBlockl_def :: '' ::=
+      defn 
+      getBlockAtLableFromBlockl blockl ll = block_opt :: :: getBlockAtLableFromBlockl :: ''
+      {{ com [[block_opt]] is of label [[ll]] in [[blockl]] }} by
+
+      ---------------------------------------------------- :: getBlockAtLableFromBlockl_nil
+      getBlockAtLableFromBlockl [] ll = none
+
+      ll1 == ll2 
+      -------------------------------------------------------------- :: getBlockAtLableFromBlockl_true
+      getBlockAtLableFromBlockl (blockl, (ll1 instl1)) ll2 = ll1 instl1
+
+      not ll1 == ll2
+      getBlockAtLableFromBlockl blockl ll2 = block_opt
+      -------------------------------------------------------------- :: getBlockAtLableFromBlockl_rec1
+      getBlockAtLableFromBlockl (blockl, (ll1 instl1)) ll2 = block_opt
+			      
+    
+defns
+getBlockAtLableFromFdef_def :: '' ::=
+      defn
+      getBlockAtLableFromFdef fdef ll = block_opt :: :: getBlockAtLableFromFdef :: ''
+      {{ com [[block_opt]] is of label [[ll]] in [[fdef]] }} by
+
+      getBlockAtLableFromBlockl blockl ll = block_opt
+      ---------------------------------------------------- :: getBlockAtLableFromFdef_intro
+      getBlockAtLableFromFdef (define fheader { blockl }) ll = block_opt
+
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+%         pred of blocks                                        %
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+
+defns
+getPhiNodesFromInstl_def :: '' ::=
+      defn
+      getPhiNodesFromInstl instl = instl' :: :: getPhiNodesFromInstl :: ''
+      {{ com [[instl']] are the Phi nodes in [[instl]] }} by
+ 
+      -------------------------------- :: getPhiNodesFromInstl_nil
+      getPhiNodesFromInstl [] = []
+
+      getPhiNodesFromInstl instl = instl'
+      isPhiNode inst       
+      --------------------------------------------------- :: getPhiNodesFromInstl_rec_true
+      getPhiNodesFromInstl (instl, inst) = instl',inst
+
+      getPhiNodesFromInstl instl = instl'
+      not isPhiNode inst       
+      --------------------------------------------------- :: getPhiNodesFromInstl_rec_false
+      getPhiNodesFromInstl (instl, inst) = instl'
+
+defns
+getPhiNodesFromBlock_def :: '' ::=
+      defn
+      getPhiNodesFromBlock block = instl :: :: getPhiNodesFromBlock :: ''
+      {{ com [[instl]] are the Phi nodes in [[block]] }} by
+ 
+      getPhiNodesFromInstl instl = instl'
+      ---------------------------------------- :: getPhiNodesFromBlockInstl_intro
+      getPhiNodesFromBlock (ll instl) = instl'
+
+
+defns
+getLabelsFromPhiNode_def :: '' ::=
+      defn
+      getLabelsFromPhiNode inst = lls :: :: getLabelsFromPhiNode :: ''
+      {{ com [[lls]] is the set of labels from phi [[inst]] }} by
+
+      -------------------------------------------------------------------------------- :: getLabelsFromPhiNode_intro
+      getLabelsFromPhiNode (id = phi typ </ [ idj , llj ] // j />) = empty
+ 
+defns
+getLabelsFromPhiNodes_def :: '' ::=
+      defn
+      getLabelsFromPhiNodes instl = lls :: :: getLabelsFromPhiNodes :: ''
+      {{ com [[lls]] is the set of labels from phis [[instl]] }} by
+
+      -------------------------------------------------------------------------------- :: getLabelsFromPhiNodes_nil
+      getLabelsFromPhiNodes [] = empty
+
+      getLabelsFromPhiNodes instl = lls
+      getLabelsFromPhiNode inst = lls'
+      -------------------------------------------------------------------------------- :: getLabelsFromPhiNodes_cons
+      getLabelsFromPhiNodes (instl, inst) = lls ; lls' 
+
+
+defns
+predOfBlock_def :: '' ::= 
+      defn
+      predOfBlock block = lls :: :: predOfBlock :: ''
+      {{ com [[block]] has pred [[lls]] }} by
+     
+      getPhiNodesFromBlock block = instl     
+      getLabelsFromPhiNodes instl = lls
+      ------------------------------------ :: predOfBlock_intro
+      predOfBlock block = lls
+
+
