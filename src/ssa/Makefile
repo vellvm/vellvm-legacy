@@ -11,7 +11,7 @@ ssa_def.v : ssa_def.ott Makefile
             ssa_def.ott 
 	$(COQC) -I ./ott ssa_def.v
 
-ssa.v : ssa_def.ott ssa_coq.ott ssa_lib.ott ssa_static.ott ssa_dynamic.ott Makefile
+ssa.v : ssa_def.ott ssa_coq.ott ssa_lib.ott ssa_static.ott ssa_dynamic.ott Makefile ssa_def.v ssa_lib.vo
 	./coq2ott.py
 	mv merge.ott ssa_coq.ott       
 	ott -merge true -coq_expand_list_types false -coq ssa.v \
