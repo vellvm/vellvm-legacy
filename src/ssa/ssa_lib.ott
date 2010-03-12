@@ -1,0 +1,428 @@
+
+% Supporting Defs of Static Single Assignment(SSA)
+
+
+% isValidReturnType - Return true if the specified type is valid as a return type. 
+% lib/VMCore/Type
+defns
+isNotValidReturnType_def :: '' ::=
+      defn
+      isNotValidReturnType typ :: :: isNotValidReturnType :: '' {{ com [[typ]] isnt a valid return type }} by  
+      
+      --------------------------------- :: isNotValidReturnType_label
+      isNotValidReturnType label
+
+
+      --------------------------------- :: isNotValidReturnType_metadata
+      isNotValidReturnType metadata      
+
+defns
+isValidReturnType_def :: '' ::=
+      defn
+      isValidReturnType typ :: :: isValidReturnType :: '' {{ com [[typ]] is a valid return type }} by  
+
+      not isNotValidReturnType typ
+      --------------------------------- :: isValidReturnType_intro
+      isValidReturnType typ
+
+% isFirstClassType - Return true if the type is "first class", meaning it is a valid 
+% type for a Value. lib/VMCore/Type 
+defns
+isNotFirstClassType_def :: '' ::=
+      defn
+      isNotFirstClassType typ :: :: isNotFirstClassType :: '' {{ com [[typ]] isnt a first class type }} by
+
+      ---------------------------------- :: isNotFirstClassType_void
+      isNotFirstClassType void
+
+      ---------------------------------- :: isNotFirstClassType_opaque
+      isNotFirstClassType opaque
+
+      --------------------------------------------- :: isNotFirstClassType_function
+      isNotFirstClassType typ ( </ typj // j /> )
+
+defns
+isFirstClassType_def :: '' ::=
+      defn
+      isFirstClassType typ :: :: isFirstClassType :: '' {{ com [[typ]] is a first class type }} by
+
+      not isNotFirstClassType typ
+      ----------------------------------- :: isFirstClassType_intro
+      isFirstClassType typ
+
+% isValidArgumentType - Return true if the specified type is valid as an
+% argument type. lib/VMCore/Type.cpp
+defns
+isValidArgumentType_def :: '' ::=
+      defn
+      isValidArgumentType typ :: :: isValidArgumentType :: '' {{ com [[typ]] is a valid argument type }} by
+ 
+      ----------------------------------- :: isValidArgumentType_opaque
+      isValidArgumentType opaque
+
+      isFirstClassType typ
+      ----------------------------------- :: isValidArgumentType_firstclass
+      isValidArgumentType typ
+
+defns 
+isNotValidElementType_def :: '' ::=
+      defn
+      isNotValidElementType typ :: :: isNotValidElementType :: '' {{ com [[typ]] isnt a valid elment type }} by
+
+      ----------------------------------- :: isNotValidElementType_void
+      isNotValidElementType void
+
+      ----------------------------------- :: isNotValidElementType_label
+      isNotValidElementType label
+ 
+      ----------------------------------- :: isNotValidElementType_metadata
+      isNotValidElementType metadata
+
+      --------------------------------------------- :: isNotValidElementType_function
+      isNotValidElementType typ ( </ typj // j /> )
+
+defns 
+isValidElementType_def :: '' ::=
+      defn
+      isValidElementType typ :: :: isValidElementType :: '' {{ com [[typ]] is a valid elment type }} by
+
+      not isNotValidElementType typ
+      ----------------------------------- :: isValidElementType_intro
+      isValidElementType typ
+
+
+defns
+getReturnType_def :: '' ::=
+      defn
+      getReturnType fdef = typ :: :: getReturnType :: '' 
+      {{ com [[fdef]]'s return type is [[typ]] }} by
+
+      ----------------------------------------------------------------- :: getReturnType_intro
+      getReturnType (define (typ ident (list_arg)) { list_block }) = typ
+
+
+defns
+typeEq_def :: '' ::=
+       defn
+       typ == typ' :: :: typeEq :: ''
+       {{ com check if [[typ]] equals to [[typ']] }} by
+
+       N == N'
+       ------------------------- :: typeEq_int
+       int N == int N'
+
+       ------------------------- :: typeEq_float
+       float == float
+
+       ------------------------- :: typeEq_double
+       double == double
+
+       ------------------------- :: typeEq_fp128
+       fp128 == fp128
+
+       ------------------------- :: typeEq_void       
+       void == void
+
+       ------------------------- :: typeEq_label
+       label == label
+
+       ------------------------- :: typeEq_metadata
+       metadata == metadata
+
+       ------------------------- :: typeEq_opaque
+       opaque == opaque
+
+       N == N'
+       typ == typ'
+       --------------------------------- :: typeEq_array
+       [ N * typ ] == [ N' * typ' ] 
+
+       N == N'
+       typ == typ'
+       --------------------------------- :: typeEq_vector
+       < N * typ > == < N' * typ' > 
+
+       typ == typ'
+       --------------------------------- :: typeEq_pointer
+       typ * == typ' *
+
+       typ == typ'
+       </ typj == typ'j // j />
+       ----------------------------------------------------- :: typeEq_function
+       typ ( </ typj // j /> ) == typ' ( </ typ'j // j /> )  
+
+       </ typj == typ'j // j />
+       ----------------------------------------------------- :: typeEq_structure
+       { </ typj // j /> } == { </ typ'j // j /> }  
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+%       Check Terminator						 %
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+
+defns
+isTerminatorInsn_def :: '' ::=
+      defn
+      isTerminatorInsn insn :: :: isTerminatorInsn :: ''
+      {{ com check is [[insn]] is a terminator insn }} by
+
+      --------------------------------------- :: isTerminatorInsn_return
+      isTerminatorInsn (ret typ value) 
+      
+      --------------------------------------- :: isTerminatorInsn_return_void
+      isTerminatorInsn (ret void)
+
+      --------------------------------------- :: isTerminatorInsn_br
+      isTerminatorInsn (br value , l1 , l2)
+
+      --------------------------------------- :: isTerminatorInsn_br_uncond
+      isTerminatorInsn (br l)
+
+      ----------------------------------------------------------------- :: isTerminatorInsn_switch
+      isTerminatorInsn (switch value , l </ [ constj , lj ] // j />)
+
+      ----------------------------------------------------------------- :: isTerminatorInsn_invoke
+      isTerminatorInsn (id = invoke t id0 list_param to l1 unwind l2)
+
+      ----------------------------------------------------------------- :: isTerminatorInsn_unreachable
+      isTerminatorInsn unreachable
+
+defns
+insnsEndsWithTerminatorInsn_def :: '' ::=
+      defn
+      insnsEndsWithTerminatorInsn list_insn :: :: insnsEndsWithTerminatorInsn :: ''
+      {{ com [[list_insn]] ends with terminator insnruction }} by
+      
+      insnsGetLast list_insn = insn
+      isTerminatorInsn insn
+      ----------------------------------------------- :: insnsEndsWithTerminatorInsn_intro
+      insnsEndsWithTerminatorInsn list_insn 
+    
+defns
+insnsDoesntContainTerminatorInsn_def :: '' ::=
+      defn
+      insnsDoesntContainTerminatorInsn list_insn :: :: insnsDoesntContainTerminatorInsn :: ''
+      {{ com [[list_insn]] doesnt contain terminator insnruction }} by
+
+      --------------------------------------- :: insnsDoesntContainTerminatorInsn_nil
+      insnsDoesntContainTerminatorInsn []
+
+      insnsDoesntContainTerminatorInsn list_insn
+      not isTerminatorInsn insn
+      ----------------------------------------------- :: insnsDoesntContainTerminatorInsn_cons
+      insnsDoesntContainTerminatorInsn list_insn , insn
+
+defns
+insnsChecksTerminatorInsn_def :: '' ::=
+      defn
+      insnsChecksTerminatorInsn list_insn :: :: insnsChecksTerminatorInsn :: ''
+      {{ com check if [[list_insn]] is well-formed }} by
+
+      insnsEndsWithTerminatorInsn list_insn
+      insnsRemovesLast list_insn = list_insn'    
+      insnsDoesntContainTerminatorInsn list_insn'
+      ----------------------------------------------- :: insnsChecksTerminatorInsn_intro
+      insnsChecksTerminatorInsn list_insn
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+%        Check Phi							%
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+
+defns
+isPhiNode_def :: '' ::=
+      defn
+      isPhiNode insn :: :: isPhiNode :: ''
+      {{ com check is [[insn]] is a phi node }} by
+
+      --------------------------------------- :: isPhiNode_intro
+      isPhiNode (id = phi typ </ [ idj , lj ] // j />) 
+      
+defns
+insnsStartsWithPhiNode_def :: '' ::=
+      defn
+      insnsStartsWithPhiNode list_insn :: :: insnsStartsWithPhiNode :: ''
+      {{ com [[list_insn]] starts with phi insnruction }} by
+
+      ----------------------------------------------- :: insnsStartsWithPhiNode_nil
+      insnsStartsWithPhiNode []
+
+      insnsStartsWithPhiNode list_insn      
+      isPhiNode insn
+      ---------------------------------------------------------------------- :: insnsStartsWithPhiNode_cons_phi
+      insnsStartsWithPhiNode (list_insn, insn)
+      
+      insnsDoesntContainPhiNode list_insn      
+      not isPhiNode insn
+      ---------------------------------------------------------------------- :: insnsStartsWithPhiNode_cons_nophi
+      insnsStartsWithPhiNode (list_insn, insn)
+
+      defn
+      insnsDoesntContainPhiNode list_insn :: :: insnsDoesntContainPhiNode :: ''
+      {{ com [[list_insn]] doesnt contain phi insnruction }} by
+
+      --------------------------------------- :: insnsDoesntContainPhiNode_nil
+      insnsDoesntContainPhiNode []
+
+      insnsDoesntContainPhiNode list_insn
+      not isPhiNode insn 
+      ----------------------------------------------------- :: insnsDoesntContainPhiNode_cons
+      insnsDoesntContainPhiNode list_insn , insn
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+%             succ of blocks                                       %
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+
+defns
+getTerminator_def :: '' ::=
+      defn
+      getTerminator block = opt_insn :: :: getTerminator :: ''
+      {{ com [[opt_insn]] is the terminator insnruction of [[block]] }} by
+ 
+      insnsGetLast list_insn = opt_insn      
+      -------------------------------- :: getTerminator_intro
+      getTerminator (l list_insn) = opt_insn
+
+defns
+getLabelsFromTerminator_def :: '' ::=
+      defn
+      getLabelsFromTerminator insn = ls :: :: getLabelsFromTerminator :: ''
+      {{ com [[ls]] is the set of labels from terminator [[insn]] }} by
+
+      --------------------------------------------------------------- :: getLabelsFromTerminator_br
+      getLabelsFromTerminator (br value , l1 , l2) = empty , l1 , l2     
+
+
+      --------------------------------------------------------------- :: getLabelsFromTerminator_br_uncond
+      getLabelsFromTerminator (br l) = empty , l
+
+
+      ---------------------------------------------------------------- :: getLabelsFromTerminator_switch
+      getLabelsFromTerminator (switch value , l </ [ constj , lj ] // j /> ) = </lj//j/>
+
+
+      ---------------------------------------------------------------- :: getLabelsFromTerminator_invoke
+      getLabelsFromTerminator (id = invoke t id0 list_param to l1 unwind l2) = empty , l1 , l2  
+
+defns
+succOfBlock_def :: '' ::= 
+     defn
+     succOfBlock block = ls :: :: succOfBlock :: ''
+     {{ com [[block]] has succesors [[ls]] }} by
+
+     
+     getTerminator block = none
+     ------------------------------ :: succOfBlock_none
+     succOfBlock block = empty
+
+     getTerminator block = insn     
+     getLabelsFromTerminator insn = ls
+     ------------------------------------ :: succOfBlock_insn
+     succOfBlock block = ls
+
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+%         get block from label                                  %
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+
+defns
+getBlockAtLableFromBlocks_def :: '' ::=
+      defn 
+      getBlockAtLableFromBlocks list_block l = opt_block :: :: getBlockAtLableFromBlocks :: ''
+      {{ com [[opt_block]] is of label [[l]] in [[list_block]] }} by
+
+      ---------------------------------------------------- :: getBlockAtLableFromBlocks_nil
+      getBlockAtLableFromBlocks [] l = none
+
+      l1 == l2 
+      -------------------------------------------------------------- :: getBlockAtLableFromBlocks_true
+      getBlockAtLableFromBlocks (list_block, (l1 list_insn1)) l2 = l1 list_insn1
+
+      not l1 == l2
+      getBlockAtLableFromBlocks list_block l2 = opt_block
+      -------------------------------------------------------------- :: getBlockAtLableFromBlocks_rec1
+      getBlockAtLableFromBlocks (list_block, (l1 list_insn1)) l2 = opt_block
+			      
+    
+defns
+getBlockAtLableFromFdef_def :: '' ::=
+      defn
+      getBlockAtLableFromFdef fdef l = opt_block :: :: getBlockAtLableFromFdef :: ''
+      {{ com [[opt_block]] is of label [[l]] in [[fdef]] }} by
+
+      getBlockAtLableFromBlocks list_block l = opt_block
+      ---------------------------------------------------- :: getBlockAtLableFromFdef_intro
+      getBlockAtLableFromFdef (define fheader { list_block }) l = opt_block
+
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+%         pred of blocks                                        %
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+
+defns
+getPhiNodesFromListInsn_def :: '' ::=
+      defn
+      getPhiNodesFromListInsn list_insn = list_insn' :: :: getPhiNodesFromListInsn :: ''
+      {{ com [[list_insn']] are the Phi nodes in [[list_insn]] }} by
+ 
+      -------------------------------- :: getPhiNodesFromListInsn_nil
+      getPhiNodesFromListInsn [] = []
+
+      getPhiNodesFromListInsn list_insn = list_insn'
+      isPhiNode insn       
+      --------------------------------------------------- :: getPhiNodesFromListInsn_rec_true
+      getPhiNodesFromListInsn (list_insn, insn) = list_insn', insn
+
+      getPhiNodesFromListInsn list_insn = list_insn'
+      not isPhiNode insn       
+      --------------------------------------------------- :: getPhiNodesFromListInsn_rec_false
+      getPhiNodesFromListInsn (list_insn, insn) = list_insn'
+
+defns
+getPhiNodesFromBlock_def :: '' ::=
+      defn
+      getPhiNodesFromBlock block = list_insn :: :: getPhiNodesFromBlock :: ''
+      {{ com [[list_insn]] are the Phi nodes in [[block]] }} by
+ 
+      getPhiNodesFromListInsn list_insn = list_insn'
+      ---------------------------------------- :: getPhiNodesFromBlocks_Insn_intro
+      getPhiNodesFromBlock (l list_insn) = list_insn'
+
+
+defns
+getLabelsFromPhiNode_def :: '' ::=
+      defn
+      getLabelsFromPhiNode insn = ls :: :: getLabelsFromPhiNode :: ''
+      {{ com [[ls]] is the set of labels from phi [[insn]] }} by
+
+      -------------------------------------------------------------------------------- :: getLabelsFromPhiNode_intro
+      getLabelsFromPhiNode (id = phi typ </ [ idj , lj ] // j />) = </lj//j/> 
+ 
+defns
+getLabelsFromPhiNodes_def :: '' ::=
+      defn
+      getLabelsFromPhiNodes list_insn = ls :: :: getLabelsFromPhiNodes :: ''
+      {{ com [[ls]] is the set of labels from phis [[list_insn]] }} by
+
+      -------------------------------------------------------------------------------- :: getLabelsFromPhiNodes_nil
+      getLabelsFromPhiNodes [] = empty
+
+      getLabelsFromPhiNodes list_insn = ls
+      getLabelsFromPhiNode insn = ls'
+      -------------------------------------------------------------------------------- :: getLabelsFromPhiNodes_cons
+      getLabelsFromPhiNodes (list_insn, insn) = ls ; ls' 
+
+
+defns
+predOfBlock_def :: '' ::= 
+      defn
+      predOfBlock block = ls :: :: predOfBlock :: ''
+      {{ com [[block]] has pred [[ls]] }} by
+     
+      getPhiNodesFromBlock block = list_insn     
+      getLabelsFromPhiNodes list_insn = ls
+      ------------------------------------ :: predOfBlock_intro
+      predOfBlock block = ls
+
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+%          Dominator                                                          %
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%

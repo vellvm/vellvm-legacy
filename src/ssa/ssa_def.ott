@@ -1,38 +1,16 @@
 
 % Syntax of Static Single Assignment(SSA)
 
-embed {{ coq
-Require Import Coq.Logic.DecidableTypeEx.
+embed 
+{{ coq
 Require Import ListSet.
-
-Module NatDT <: UsualDecidableType with Definition t := nat.
-
-  Definition t := nat.
-
-  Definition eq := @eq nat.
-  Definition eq_refl := @refl_equal nat.
-  Definition eq_sym := @sym_eq nat.
-  Definition eq_trans := @trans_eq nat.
-
-  Definition eq_dec := eq_nat_dec.
-
-End NatDT.
-
-Require Import FSets FSetWeakList.
-
-Module NSet := FSetWeakList.Make(NatDT).
-Module NSetP := FSetProperties.Properties NSet.
-Export NSetP.
-
-Notation nset := NSet.t.
-
 }}
 
 metavar N ::= {{ com a natural number }}
   {{ coq nat }} {{ lex numeral  }}
 metavar id ::= {{ com identities }}
   {{ coq nat }} {{ lex numeral  }}
-metavar ll ::= {{ com labels }}
+metavar l ::= {{ com labels }}
   {{ coq nat }} {{ lex numeral  }}
 indexvar index, i, j, n ::= {{ com index }}
   {{ coq nat }}
@@ -69,23 +47,27 @@ typ :: 'typ_'						::=			{{ com type }}
   | ( typ )						:: S :: paren           {{ coq [[ typ ]] }}
 
 
-argl :: 'argl_'						::=  			{{ com argument list }}
-  | []   		 				::   :: nil
-  | argl , typ 						::   :: cons
-  | ( argl )						:: S :: paren           {{ coq [[ argl ]] }}
+list_arg {{ tex \mathit{\overline{arg} } }} :: 'list_arg_'	::=  			{{ com argument list }}
+     	    			     	   					{{ coq (list typ) }}
+  | []   		 				::   :: nil		{{ coq nil }}
+  | list_arg , typ 					::   :: cons		{{ coq ([[typ]]::[[list_arg]]) }}
+  | list_arg ; list_arg'				::   :: append		{{ coq ([[list_arg]]++[[list_arg']]) }}
+  | ( list_arg )					:: S :: paren           {{ coq [[ list_arg ]] }}
 
-paraml :: 'paraml_'					::=			{{ com parameter list }}
-  | []  						::   :: nil
-  | paraml , typ value                                  ::   :: cons
-  | ( paraml )						:: S :: paren           {{ coq [[ paraml ]] }}
+list_param {{ tex \mathit{\overline{param} } }} :: 'list_param_'::=			{{ com parameter list }}
+       	      			       	       					{{ coq (list (typ*value)) }}
+  | []  						::   :: nil		{{ coq nil }}
+  | list_param , typ value                              ::   :: cons		{{ coq (([[typ]],[[value]])::[[list_param]]) }}
+  | list_param ; list_param'				::   :: append		{{ coq ([[list_param]]++[[list_param']]) }}
+  | ( list_param )					:: S :: paren           {{ coq [[ list_param ]] }}
 
-lls {{ tex \mathit{\overline{ll} } }} :: 'lls_'		::=			{{ com label list }}
-       	   			      	 					{{ coq (list ll) }}
-  | empty						::   :: empty		{{ coq (empty_set ll) }}
-  | ll1 .. lln						::   :: list		{{ coq [[ll1 .. lln]] }}
-  | lls , ll						::   :: cons		{{ coq (set_add eq_nat_dec [[ll]] [[lls]]) }}
-  | lls ; lls'						::   :: append		{{ coq (set_union eq_nat_dec [[lls]] [[lls']]) }}
-  | ( lls )						:: S :: paren		{{ coq [[ lls ]] }}
+ls {{ tex \mathit{\{l\} } }} :: 'ls_'			::=			{{ com label set }}
+       	   			      	 					{{ coq (list l) }}
+  | empty						::   :: empty		{{ coq (empty_set l) }}
+  | l1 .. ln						::   :: set		{{ coq [[l1 .. ln]] }}
+  | ls , l						::   :: cons		{{ coq (set_add eq_nat_dec [[l]] [[ls]]) }}
+  | ls ; ls'						::   :: append		{{ coq (set_union eq_nat_dec [[ls]] [[ls']]) }}
+  | ( ls )						:: S :: paren		{{ coq [[ ls ]] }}
 
 cond :: 'cond_'						::=			{{ com condition code }}
   | eq							::   :: eq		{{ com eq }}
@@ -99,13 +81,13 @@ cond :: 'cond_'						::=			{{ com condition code }}
   | slt							::   :: slt		{{ com slt }}
   | sle							::   :: sle		{{ com sle }}
 
-inst :: 'inst_'					    	::=			{{ com instruction }}
+insn :: 'insn_'					    	::=			{{ com insnruction }}
   | ret typ value             			    	::   :: return      	{{ com return }}
   | ret void                   			    	::   :: return_void  	{{ com return void }}
-  | br value , ll1 , ll2				::   :: br              {{ com br }}        
-  | br ll        	    	  			::   :: br_uncond       {{ com unconditional br }}        
-  | switch value , ll </ [ constj , llj ] // j />	::   :: switch		{{ com switch }}
-  | id = invoke t id0 paraml to ll1 unwind ll2   	::   :: invoke		{{ com invoke }} 
+  | br value , l1 , l2					::   :: br              {{ com br }}        
+  | br l        	    	  			::   :: br_uncond       {{ com unconditional br }}        
+  | switch value , l </ [ constj , lj ] // j />		::   :: switch		{{ com switch }}
+  | id = invoke t id0 list_param to l1 unwind l2 	::   :: invoke		{{ com invoke }} 
   | unreachable	     	   	     	 		::   :: unreachable	{{ com unreachable }}
   | id = add typ value1 value2				::   :: add		{{ com add }}
   | id = fadd typ value1 value2				::   :: fadd		{{ com fadd }}
@@ -131,33 +113,37 @@ inst :: 'inst_'					    	::=			{{ com instruction }}
   | id = bitcast typ1 value1 to typ2			::   :: bitcase		{{ com bitcast }}
   | id = icmp cond typ value1 , value2			::   :: icmp		{{ com icmp }}
   | id = fcmp cond typ value1 , value2			::   :: fcmp		{{ com fcmp }}
-  | id = phi typ </ [ idj , llj ] // j />		::   :: phi  	    	{{ com phi }}
-  | ( inst )						:: S :: paren           {{ coq [[ inst ]] }}
+  | id = phi typ </ [ idj , lj ] // j />		::   :: phi  	    	{{ com phi }}
+  | ( insn )						:: S :: paren           {{ coq [[ insn ]] }}
 
-inst_opt {{ tex \mathit{inst_{opt} } }} :: 'inst_opt_' ::=			{{ com option inst }} {{ coq option inst }}
+opt_insn {{ tex \mathit{opt_{insn} } }} :: 'opt_insn_'  ::=			{{ com option insn }} {{ coq option insn }}
   |  none 						:: M :: none		{{ com none }} {{ coq None }}
-  |  inst						:: M :: some  		{{ com some }} {{ coq (Some [[inst]]) }}
+  |  insn						:: M :: some  		{{ com some }} {{ coq (Some [[insn]]) }}
 		   
-instl :: 'instl_'   	      	  	      		::=			{{ com instruction list }}
-  | []	                  				::   :: nil
-  | instl , inst               				::   :: cins
-  | ( instl )						:: S :: paren           {{ coq [[ instl ]] }}
+list_insn {{ tex \mathit{\overline{insn} } }} :: 'list_insn_'	::=			{{ com insnruction list }}
+      	     			       	     					{{ coq (list insn) }}
+  | []	                  				::   :: nil		{{ coq nil }}
+  | list_insn , insn           				::   :: cons		{{ coq ([[insn]]::[[list_insn]]) }}
+  | list_insn ; list_insn'				::   :: append		{{ coq ([[list_insn]]++[[list_insn']]) }}
+  | ( list_insn )					:: S :: paren           {{ coq [[ list_insn ]] }}
 
 block :: 'block_' 					::=			{{ com block }}
-  | ll instl						::   :: def
+  | l list_insn						::   :: def
   | ( block )						:: S :: paren           {{ coq [[ block ]] }}
 
-block_opt {{ tex \mathit{block_{opt} } }} :: 'block_opt_' ::=			{{ com option block }} {{ coq option block }}
+opt_block {{ tex \mathit{opt_{block} } }} :: 'opt_block_' ::=			{{ com option block }} {{ coq option block }}
   |  none 						:: M :: none		{{ com none }} {{ coq None }}
   |  block						:: M :: some  		{{ com some }} {{ coq (Some [[block]]) }}
 		   
-blockl :: 'blockl_'					::=			{{ com block list }}
-  | []  						::   :: nil
-  | blockl , block					::   :: cons
-  | ( blockl )						:: S :: paren           {{ coq [[ blockl ]] }}
+list_block {{ tex \mathit{\overline{block} } }} :: 'list_block_'::=			{{ com block list }}
+      	     			       	     					{{ coq (list block) }}
+  | []  						::   :: nil		{{ coq nil }}
+  | list_block , block					::   :: cons		{{ coq ([[block]]::[[list_block]]) }}
+  | list_block ; list_block'				::   :: append		{{ coq ([[list_block]]++[[list_block']]) }}
+  | ( list_block )					:: S :: paren           {{ coq [[ list_block ]] }}
 
 fheader :: 'fheader_'    				::=			{{ com function header }}
-  | typ ident ( argl ) 					::   :: intro
+  | typ ident ( list_arg ) 				::   :: intro
   | ( fheader )						:: S :: paren           {{ coq [[ fheader ]] }}
 
 fdec :: 'fdec_'       					::=			{{ com function declaration }}
@@ -165,7 +151,7 @@ fdec :: 'fdec_'       					::=			{{ com function declaration }}
   | ( fdec )						:: S :: paren           {{ coq [[ fdec ]] }}
 
 fdef :: 'fdef_'          				::=			{{ com function definition }}
-  | define fheader { blockl } 				::  :: intro
+  | define fheader { list_block } 			::  :: intro
   | ( fdef )						:: S :: paren           {{ coq [[ fdef ]] }}
 
 namedt :: 'namedt_'         				::=			{{ com named type }}
@@ -180,6 +166,9 @@ module :: 'module_'    	    				::=			{{ com module }}
   | module , fdec             				::   :: function_dec   	{{ com function declaration }}
   | module , fdef             				::   :: function_def   	{{ com function definition }}
   | module , namedt           				::   :: namedtype     	{{ com named types }}
+
+dt :: 'dt_'						::=  			{{ com dominator }}
+       										{{ coq (list (prod l ls)) }}
 
 terminals :: 'terminals_' ::=
   | =                   ::   :: assignment      {{ tex = }}
@@ -213,12 +202,11 @@ formula :: 'formula_' ::=
   | N1 == N2 			::   :: eqN
 				{{ tex [[N1]] == [[N2]] }}
 				{{ coq [[N1]] = [[N2]] }}
-  | ll1 == ll2 			::   :: eqLabel
-				{{ tex [[ll1]] == [[ll2]] }}
-				{{ coq [[ll1]] = [[ll2]] }}
+  | l1 == l2 			::   :: eqLabel
+				{{ tex [[l1]] == [[l2]] }}
+				{{ coq [[l1]] = [[l2]] }}
 
 parsing
 formula_and left formula_and
 
-% subrules
-
+ 

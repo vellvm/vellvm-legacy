@@ -1,0 +1,65 @@
+
+grammar
+
+formula :: 'formula_' ::=
+  | insnsRemovesLast list_insn = list_insn'
+    		     	        ::   :: insnsRemovesLast
+    		     		{{ coq (removelast [[list_insn]] = [[list_insn']]) }}
+  | insnsGetLast list_insn = opt_insn
+				::   :: insnsGetLast
+				{{ coq (last_opt insn [[list_insn]] = [[opt_insn]]) }}
+  | genDominatorTree fdef = dt 
+    		      	    	::   :: genDominatorTree
+				{{ coq (genDominatorTree [[fdef]] = [[dt]]) }}				
+  | blockDominates dt block1 block2 
+    		       	        ::   :: blockDominates
+				{{ coq (blockDominates [[dt]] [[block1]] [[block2]]) }} 			
+  | insnDominates dt insn1 insn2 
+    		       	        ::   :: insnDominates
+				{{ coq (insnDominates [[dt]] [[insn1]] [[insn2]]) }} 			
+
+parsing
+
+embed 
+{{ coq
+
+(*BEGINCOPY*)
+
+Require Import List.
+Require Import Bool.
+
+Section SSALists.
+
+  Variable A : Type.
+
+  Fixpoint last_opt (l:list A) {struct l} : option A := 
+  match l with 
+    | nil => None 
+    | a :: nil => Some a 
+    | a :: l => last_opt l
+  end.
+
+End SSALists. 
+
+Section Dominator.
+
+  Parameter genDominatorTree : fdef -> dt.
+
+  Parameter blockDominates : dt -> block -> block -> Prop.
+  Parameter insnDominates : dt -> insn -> insn -> Prop.
+
+End Dominator.
+
+Section UseDef.
+
+  Definition insnUseDef := insn -> option (insn * block * fdef * module) % type.
+  Definition blockUseDef := block -> option (insn * block * fdef * module) % type.
+  
+  Definition genInsnUse := module -> insnUseDef.
+  Definition genBlockUse := module -> blockUseDef.
+
+End UseDef.
+
+(*ENDCOPY*)
+
+}}

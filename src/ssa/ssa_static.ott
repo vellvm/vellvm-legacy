@@ -60,66 +60,69 @@ Jwf_typ :: '' ::=
 defns
 Jtyping :: '' ::=
       defn
-      module , fdef , block |- inst :: :: wf_inst :: '' 
-      {{ com [[inst]] is well-formed w.r.t [[block]] in [[fdef]] in [[module]] }} by  
+      module , fdef , block |- insn :: :: wf_insn :: '' 
+      {{ com [[insn]] is well-formed w.r.t [[block]] in [[fdef]] in [[module]] }} by  
 
       getReturnType fdef = typ
       not typ == void
-      ------------------------------------------------------ :: wf_inst_return
+      ------------------------------------------------------ :: wf_insn_return
       module , fdef , block |- ret typ value
 
       getReturnType fdef = void
-      ------------------------------------------------------ :: wf_inst_return_void
+      ------------------------------------------------------ :: wf_insn_return_void
       module , fdef , block |- ret void
 
 
-      ------------------------------------------------------ :: wf_inst_br
-      module , fdef , block |- br value , ll1 , ll2				        
+      genDominatorTree fdef = dt
+      blockDominates dt block block
+      insnDominates dt (ret void) (ret void)
+      ------------------------------------------------------ :: wf_insn_br
+      module , fdef , block |- br value , l1 , l2				        
 
       defn
-      module , fdef , block |- instl :: :: wf_instl :: ''
-      {{ com [[instl]] is well-formed w.r.t [[block]] in [[fdef]] in [[module]] }} by  
+      module , fdef , block |- list_insn :: :: wf_list_insn :: ''
+      {{ com [[list_insn]] is well-formed w.r.t [[block]] in [[fdef]] in [[module]] }} by  
 
-      ------------------------ :: wf_instl_nil
+      ------------------------ :: wf_list_insn_nil
       module , fdef , block |- []
 
-      module , fdef , block |- inst 
-      module , fdef , block |- instl
-      ---------------------------------- :: wf_instl_cons
-      module , fdef , block |- instl , inst
+      module , fdef , block |- insn 
+      module , fdef , block |- list_insn
+      ---------------------------------- :: wf_list_insn_cons
+      module , fdef , block |- list_insn , insn
 
 
       defn
       module , fdef |- block :: :: wf_block :: '' 
       {{ com [[block]] is well-formed w.r.t. [[fdef]] in [[module]] }} by
 
-      module , fdef , ll instl |- instl 
-      instlChecksTerminatorInst instl
-      instlStartsWithPhiNode instl
+      module , fdef , l list_insn |- list_insn 
+      insnsChecksTerminatorInsn list_insn
+      insnsStartsWithPhiNode list_insn
       ---------------------------------------- :: wf_block_intro
-      module , fdef |- ll instl
+      module , fdef |- l list_insn
 
 
       defn
-      module , fdef |- blockl :: :: wf_blockl :: ''
-      {{ com [[blockl]] is well-formed w.r.t. [[fdef]] in [[module]] }} by
+      module , fdef |- list_block :: :: wf_list_block :: ''
+      {{ com [[list_block]] is well-formed w.r.t. [[fdef]] in [[module]] }} by
 
-      ------------------------ :: wf_blockl_nil
+      ------------------------ :: wf_list_block_nil
       module , fdef |- []
 
       module , fdef |- block
-      module , fdef |- blockl
-      ---------------------------------- :: wf_blockl_cons
-      module , fdef |- blockl , block
+      module , fdef |- list_block
+      ---------------------------------- :: wf_list_block_cons
+      module , fdef |- list_block , block
  
 
       defn
       module |- fdef :: :: wf_fdef :: ''
       {{ com [[fdef]] is well-formed w.r.t. [[module]] }} by
 
-      module , define fheader { blockl } |- blockl      
+      module , define fheader { list_block } |- list_block      
       ------------------------------------------------------ :: wf_fdef_intro
-      module |- define fheader { blockl }
+      module |- define fheader { list_block }
 
       defn
       |- module :: :: wf_module :: ''
@@ -140,7 +143,7 @@ Jtyping :: '' ::=
       ------------------------ :: wf_module_namedtype
       |- module , namedt     
 
-% inst :: 'inst_'					    	::=			{{ com instruction }}
+% insn :: 'insn_'					    	::=			{{ com insnruction }}
 %   | ret typ value             			    	::   :: return      	{{ com return }}
 %   | ret void                   			    	::   :: return_void  	{{ com return void }}
 %   | br value , ll1 , ll2				::   :: br              {{ com br }}        
