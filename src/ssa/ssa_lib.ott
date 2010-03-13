@@ -267,58 +267,6 @@ insnsStartsWithPhiNode_def :: '' ::=
       ----------------------------------------------------- :: insnsDoesntContainPhiNode_cons
       insnsDoesntContainPhiNode list_insn , insn
 
-%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-%             succ of blocks                                       %
-%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-
-defns
-getTerminator_def :: '' ::=
-      defn
-      getTerminator block = opt_insn :: :: getTerminator :: ''
-      {{ com [[opt_insn]] is the terminator insnruction of [[block]] }} by
- 
-      insnsGetLast list_insn = opt_insn      
-      -------------------------------- :: getTerminator_intro
-      getTerminator (l list_insn) = opt_insn
-
-defns
-getLabelsFromTerminator_def :: '' ::=
-      defn
-      getLabelsFromTerminator insn = ls :: :: getLabelsFromTerminator :: ''
-      {{ com [[ls]] is the set of labels from terminator [[insn]] }} by
-
-      --------------------------------------------------------------- :: getLabelsFromTerminator_br
-      getLabelsFromTerminator (br value , l1 , l2) = empty , l1 , l2     
-
-
-      --------------------------------------------------------------- :: getLabelsFromTerminator_br_uncond
-      getLabelsFromTerminator (br l) = empty , l
-
-
-      ---------------------------------------------------------------- :: getLabelsFromTerminator_switch
-      getLabelsFromTerminator (switch value , l </ [ constj , lj ] // j /> ) = </lj//j/>
-
-
-      ---------------------------------------------------------------- :: getLabelsFromTerminator_invoke
-      getLabelsFromTerminator (id = invoke t id0 list_param to l1 unwind l2) = empty , l1 , l2  
-
-defns
-succOfBlock_def :: '' ::= 
-     defn
-     succOfBlock block = ls :: :: succOfBlock :: ''
-     {{ com [[block]] has succesors [[ls]] }} by
-
-     
-     getTerminator block = none
-     ------------------------------ :: succOfBlock_none
-     succOfBlock block = empty
-
-     getTerminator block = insn     
-     getLabelsFromTerminator insn = ls
-     ------------------------------------ :: succOfBlock_insn
-     succOfBlock block = ls
-
-
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 %         get block from label                                  %
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
@@ -354,7 +302,7 @@ getBlockAtLableFromFdef_def :: '' ::=
 
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-%         pred of blocks                                        %
+%         phi                                                   %
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
 defns
@@ -410,19 +358,57 @@ getLabelsFromPhiNodes_def :: '' ::=
       -------------------------------------------------------------------------------- :: getLabelsFromPhiNodes_cons
       getLabelsFromPhiNodes (list_insn, insn) = ls ; ls' 
 
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+%             succ of blocks                                       %
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
-defns
-predOfBlock_def :: '' ::= 
-      defn
-      predOfBlock block = ls :: :: predOfBlock :: ''
-      {{ com [[block]] has pred [[ls]] }} by
+% defns
+% getTerminator_def :: '' ::=
+%       defn
+%       getTerminator block = opt_insn :: :: getTerminator :: ''
+%       {{ com [[opt_insn]] is the terminator insnruction of [[block]] }} by
+ 
+%       insnsGetLast list_insn = opt_insn      
+%       -------------------------------- :: getTerminator_intro
+%       getTerminator (l list_insn) = opt_insn
+
+% defns
+% getLabelsFromTerminator_def :: '' ::=
+%       defn
+%       getLabelsFromTerminator insn = ls :: :: getLabelsFromTerminator :: ''
+%       {{ com [[ls]] is the set of labels from terminator [[insn]] }} by
+
+%       --------------------------------------------------------------- :: getLabelsFromTerminator_br
+%       getLabelsFromTerminator (br value , l1 , l2) = empty , l1 , l2     
+
+
+%       --------------------------------------------------------------- :: getLabelsFromTerminator_br_uncond
+%       getLabelsFromTerminator (br l) = empty , l
+
+
+%       ---------------------------------------------------------------- :: getLabelsFromTerminator_switch
+%       getLabelsFromTerminator (switch value , l </ [ constj , lj ] // j /> ) = </lj//j/>
+
+
+%       ---------------------------------------------------------------- :: getLabelsFromTerminator_invoke
+%       getLabelsFromTerminator (id = invoke t id0 list_param to l1 unwind l2) = empty , l1 , l2  
+
+
+% defns
+% succOfBlock_def :: '' ::= 
+%     defn
+%     succOfBlock block = ls :: :: succOfBlock :: ''
+%     {{ com [[block]] has succesors [[ls]] }} by
+
      
-      getPhiNodesFromBlock block = list_insn     
-      getLabelsFromPhiNodes list_insn = ls
-      ------------------------------------ :: predOfBlock_intro
-      predOfBlock block = ls
+%     getTerminator block = none
+%     ------------------------------ :: succOfBlock_none
+%     succOfBlock block = empty
+
+%     getTerminator block = insn     
+%     getLabelsFromTerminator insn = ls
+%     ------------------------------------ :: succOfBlock_insn
+%     succOfBlock block = ls
 
 
-%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-%          Dominator                                                          %
-%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+

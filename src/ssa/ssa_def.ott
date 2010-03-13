@@ -4,6 +4,20 @@
 embed 
 {{ coq
 Require Import ListSet.
+Require Import List.
+
+Section Lists.
+
+  Variable A : Type.
+
+  Fixpoint last_opt (l:list A) {struct l} : option A := 
+  match l with 
+    | nil => None 
+    | a :: nil => Some a 
+    | a :: l' => last_opt l'
+  end.
+
+End Lists. 
 }}
 
 metavar N ::= {{ com a natural number }}
@@ -110,7 +124,7 @@ insn :: 'insn_'					    	::=			{{ com insnruction }}
   | id = sitofp typ1 value1 to typ2			::   :: sitofp		{{ com sitofp }}
   | id = ptrtoint typ1 value1 to typ2			::   :: ptrtoint	{{ com ptrtoint }}
   | id = inttoptr typ1 value1 to typ2			::   :: inttoptr	{{ com inttoptr }}
-  | id = bitcast typ1 value1 to typ2			::   :: bitcase		{{ com bitcast }}
+  | id = bitcast typ1 value1 to typ2			::   :: bitcast		{{ com bitcast }}
   | id = icmp cond typ value1 , value2			::   :: icmp		{{ com icmp }}
   | id = fcmp cond typ value1 , value2			::   :: fcmp		{{ com fcmp }}
   | id = phi typ </ [ idj , lj ] // j />		::   :: phi  	    	{{ com phi }}
@@ -168,7 +182,13 @@ module :: 'module_'    	    				::=			{{ com module }}
   | module , namedt           				::   :: namedtype     	{{ com named types }}
 
 dt :: 'dt_'						::=  			{{ com dominator }}
-       										{{ coq (list (prod l ls)) }}
+       										{{ coq (l -> ls) }}
+
+usedef_insn :: 'usedef_insn_'				::=			{{ com insn usedef }}
+       	  									{{ coq (insn -> (list (prod insn block))) }} 
+
+usedef_block :: 'usedef_block_'				::=			{{ com block usedef }}
+       	  									{{ coq (block -> (list (prod insn block))) }} 
 
 terminals :: 'terminals_' ::=
   | =                   ::   :: assignment      {{ tex = }}
@@ -206,7 +226,9 @@ formula :: 'formula_' ::=
 				{{ tex [[l1]] == [[l2]] }}
 				{{ coq [[l1]] = [[l2]] }}
 
+
 parsing
 formula_and left formula_and
+
 
  

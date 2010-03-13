@@ -140,7 +140,9 @@ Jtyping :: '' ::=
       |- module , fdef   
 
       |- module
-      ------------------------ :: wf_module_namedtype
+      genInsnUseDef module = usedef_insn	
+      genBlockUseDef module = usedef_block
+      -------------------------------------- :: wf_module_namedtype
       |- module , namedt     
 
 % insn :: 'insn_'					    	::=			{{ com insnruction }}

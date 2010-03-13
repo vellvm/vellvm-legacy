@@ -1,7 +1,7 @@
 OTT=ott
 COQC=coqc
 
-all: main.pdf ssa.v ssa_def.v ssa_lib.vo
+all: ssa_def.v ssa_lib.vo main.pdf ssa.v 
 
 ssa_lib.vo : ssa_lib.v
 	$(COQC) -I ./ott ssa_lib.v
@@ -11,9 +11,11 @@ ssa_def.v : ssa_def.ott Makefile
             ssa_def.ott 
 	$(COQC) -I ./ott ssa_def.v
 
-ssa.v : ssa_def.ott ssa_coq.ott ssa_lib.ott ssa_static.ott ssa_dynamic.ott Makefile ssa_def.v ssa_lib.vo
+ssa_coq.ott : ssa_lib.v ssa_def.ott Makefile coq2ott.py
 	./coq2ott.py
 	mv merge.ott ssa_coq.ott       
+
+ssa.v : ssa_def.ott ssa_coq.ott ssa_lib.ott ssa_static.ott ssa_dynamic.ott Makefile ssa_def.v ssa_lib.vo
 	ott -merge true -coq_expand_list_types false -coq ssa.v \
             ssa_def.ott ssa_coq.ott ssa_lib.ott ssa_static.ott ssa_dynamic.ott
 	$(COQC) -I ./ott ssa.v
