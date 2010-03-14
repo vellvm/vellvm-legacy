@@ -73,9 +73,9 @@ Jtyping :: '' ::=
       module , fdef , block |- ret void
 
 
-      genDominatorTree fdef = dt
+      genDominatorTree fdef module = dt
       blockDominates dt block block
-      insnDominates dt (ret void) (ret void)
+      insnDominates (ret void) (ret void)
       ------------------------------------------------------ :: wf_insn_br
       module , fdef , block |- br value , l1 , l2				        
 
