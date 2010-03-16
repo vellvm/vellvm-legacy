@@ -187,18 +187,20 @@ product  :: 'product_'					::=			{{ com prodoct }}
   | fdef             					::   :: function_def   	{{ com function definition }}
   | namedt           					::   :: namedtype     	{{ com named types }}
 
-products {{ tex \mathit{\overline{product} } }} :: 'products_'::=			{{ com products }}
+list_product {{ tex \mathit{\overline{product} } }} :: 'list_product_'::=	{{ com list product }}
 	    				     	   				{{ coq (list product) }}	   
   | []   						::   :: nil        	{{ com nil }}
     							     			{{ coq nil }}
-  | products , product					::   :: cons            {{ com cons }}
-    	       						     			{{ coq ([[product]]::[[products]]) }}
-  | ( products )					:: S :: paren		{{ coq [[ products ]] }}			
+  | list_product , product				::   :: cons            {{ com cons }}
+    	       						     			{{ coq ([[product]]::[[list_product]]) }}
+  | ( list_product )					:: S :: paren		{{ coq [[ list_product ]] }}			
 
 module :: 'module_'					::=  			{{ com module }}
-  | products 						::   :: products	{{ com prods }}
+       	  									{{ coq list_product }}
+  | list_product 					::   :: products	{{ com prods }}
+    							     			{{ coq [[list_product]] }} 
 
-list_module {{ tex \mathit{\overline{module} } }} :: 'list_module_'::=  		{{ com list module }}
+list_module {{ tex \mathit{\overline{module} } }} :: 'list_module_'::=  	{{ com list module }}
       	     			       	     					{{ coq (list module) }}
   | []  						::   :: nil		{{ coq nil }}
   | list_module , module				::   :: cons		{{ coq ([[module]]::[[list_module]]) }}
@@ -206,7 +208,9 @@ list_module {{ tex \mathit{\overline{module} } }} :: 'list_module_'::=  		{{ com
   | ( list_module )					:: S :: paren           {{ coq [[ list_module ]] }}
 
 system :: 'system_'					::=  			{{ com system }}
+       	  									{{ coq list_module }}
   | list_module						::   :: def		{{ com list of modules }}
+    							     			{{ coq [[list_module]] }}
 
 dt :: 'dt_'						::=  			{{ com dominator }}
        										{{ coq (l -> list l) }}
@@ -236,6 +240,7 @@ terminals :: 'terminals_' ::=
   | |-i			::   :: ishows          {{ tex \vdash_{i} }}
   | |-t			::   :: tshows          {{ tex \vdash_{t} }}
   | |-f			::   :: fshows          {{ tex \vdash_{f} }}
+  | in			::   :: in		{{ tex \in }}
 
 formula :: 'formula_' ::=
   | judgement			::   :: judgement
@@ -270,10 +275,28 @@ formula :: 'formula_' ::=
   | id1 == id2 			::   :: eqID
 				{{ tex [[id1]] == [[id2]] }}
 				{{ coq [[id1]] = [[id2]] }}
-
-  | l notin ls			::   :: notinl
+  | l notin ls			::   :: l_notin_ls
       	    			{{ tex [[l]] \not\in [[ls]] }}
 				{{ coq ( ~ set_In eq_nat_dec [[l]] [[ls]]) }}
+  | module in system		::   :: module_in_system
+    	       			{{ tex [[module]] \in [[system]] }}
+				{{ coq In [[module]] [[system]] }}
+  | product in module		::   :: product_in_module
+    	       			{{ tex [[product]] \in [[module]] }}
+				{{ coq In [[product]] [[module]] }}
+  | block in list_block		::   :: block_in_blocks
+    	       			{{ tex [[block]] \in [[list_block]] }}
+				{{ coq In [[block]] [[list_block]] }}
+  | insn in list_insn		::   :: insn_in_insns
+    	       			{{ tex [[insn]] \in [[list_insn]] }}
+				{{ coq In [[insn]] [[list_insn]] }}
+  | module = module'            :: M :: module_alias
+    	     			{{ com module alias }} 
+				{{ coq [[module]] = [[module']] }}
+  | system = system'            :: M :: system_alias
+    	     			{{ com system alias }} 
+				{{ coq [[system]] = [[system']] }}
+
 
 parsing
 formula_and left formula_and

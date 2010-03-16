@@ -106,16 +106,14 @@ Section SSA.
   | product_namedtype nt => fun _ => None
   end.
 
-  Fixpoint genLabel2Block_products (ps:products) (m:module) : l2block :=
+  Fixpoint genLabel2Block_products (ps:list_product) (m:module) : l2block :=
   match ps with
   | nil => fun _ => None
   | p::ps' => mergel2block (genLabel2Block_products ps' m) (genLabel2Block_product p m)
   end.
 
   Definition genLabel2Block (m: module) : l2block :=
-  match m with
-  | module_products ps => genLabel2Block_products ps m
-  end.
+  genLabel2Block_products m m.
 
   Definition getEntryOfFdef (f:fdef) : option block :=
   match f with
@@ -287,16 +285,14 @@ Section UseDef.
   | product_namedtype nt => fun _ => nil
   end.
 
-  Fixpoint genInsnUseDef_products (ps:products) (m:module) : usedef_insn :=
+  Fixpoint genInsnUseDef_products (ps:list_product) (m:module) : usedef_insn :=
   match ps with
   | nil => fun _ => nil
   | p::ps' => (genInsnUseDef_products ps' m) +++ (genInsnUseDef_product p m) 
   end.
 
   Definition genInsnUseDef (m: module) : usedef_insn :=
-  match m with
-  | module_products ps => genInsnUseDef_products ps m
-  end.
+  genInsnUseDef_products m m.
 
   (* generate block use-def *)
 
@@ -396,16 +392,14 @@ Section UseDef.
   | product_namedtype nt => fun _ => nil 
   end.
 
-  Fixpoint genBlockUseDef_products (ps:products) (m:module) : usedef_block :=
+  Fixpoint genBlockUseDef_products (ps:list_product) (m:module) : usedef_block :=
   match ps with
   | nil => fun _ => nil
   | p::ps' => (genBlockUseDef_products ps' m) ++++ (genBlockUseDef_product p m) 
   end.
 
   Definition genBlockUseDef (m: module) : usedef_block :=
-  match m with
-  | module_products ps => genBlockUseDef_products ps m
-  end.
+  genBlockUseDef_products m m.
 
 End UseDef.
 

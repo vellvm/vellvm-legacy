@@ -1,7 +1,6 @@
 
 % Supporting Defs of Static Single Assignment(SSA)
 
-
 % isValidReturnType - Return true if the specified type is valid as a return type. 
 % lib/VMCore/Type
 defns
@@ -562,8 +561,8 @@ getProductID_def :: '' ::=
 defns
 productNotinProducts_def :: '' ::=
      defn
-     productNotinProducts product products :: :: productNotinProducts :: ''
-     {{ com the ID of [[product]] isnt in Ids of [[products]] }} by
+     productNotinProducts product list_product :: :: productNotinProducts :: ''
+     {{ com the ID of [[product]] isnt in Ids of [[list_product]] }} by
 
      ------------------------------- :: productNotinProducts_nil
      productNotinProducts product []    	      
@@ -571,9 +570,9 @@ productNotinProducts_def :: '' ::=
      getProductID product = id
      getProductID product' = id'
      not id == id'
-     productNotinProducts product products'
+     productNotinProducts product list_product'
      ------------------------------------ :: productNotinProducts_cons
-     productNotinProducts product (products', product')    	      
+     productNotinProducts product (list_product', product')    	      
 defns
 uniqProduct_def :: '' ::=
      defn 
@@ -597,27 +596,28 @@ uniqProduct_def :: '' ::=
 defns
 uniqProducts_def :: '' ::=
      defn
-     uniqProducts products :: :: uniqProducts :: ''
-     {{ com IDs in [[products]] are uniq }} by
+     uniqProducts list_product :: :: uniqProducts :: ''
+     {{ com IDs in [[list_product]] are uniq }} by
 
      --------------------- :: uniqProducts_nil
      uniqProducts []
 
-     productNotinProducts product products
-     uniqProducts products
+     productNotinProducts product list_product
+     uniqProducts list_product
      uniqProduct product
      -------------------------------------- :: uniqProducts_cons
-     uniqProducts (products, product)
+     uniqProducts (list_product, product)
 
 defns 
 uniqModule_def :: '' ::=
      defn
      uniqModule module :: :: uniqModule :: ''
      {{ com IDs in [[module]] are uniq }} by
-     
-     uniqProducts products 
-     ---------------------- :: uniqModule_intro
-     uniqModule products
+       
+     module = list_product
+     uniqProducts list_product
+     ---------------------------- :: uniqModule_intro
+     uniqModule module
 
 defns 
 uniqModules_def :: '' ::=
@@ -639,6 +639,68 @@ uniqSystem_def :: '' ::=
      uniqSystem system :: :: uniqSystem :: ''
      {{ com IDs in [[system]] are uniq }} by
 
+     system = list_module
      uniqModules list_module
      --------------------------- :: uniqSystem_intro
-     uniqSystem list_module
+     uniqSystem system
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+%    inclusion                                        %
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+
+defns
+insnInBlock_def :: '' ::=
+     defn
+     insnInBlock insn block :: :: insnInBlock :: ''
+     {{ com [[block]] includes [[insn]] }} by
+
+     insn in list_insn
+     ------------------------------------------------- :: insnInBlock_with_label
+     insnInBlock insn (l list_insn)
+
+     insn in list_insn
+     ------------------------------------------------- :: insnInBlock_without_label
+     insnInBlock insn list_insn
+
+defns
+blockInFdef_def :: '' ::=
+     defn
+     blockInFdef block fdef :: :: blockInFdef :: ''
+     {{ com [[fdef]] includes [[block]] }} by
+
+     block in list_block
+     ------------------------------------------------- :: blockInFdef_intro
+     blockInFdef block (define fheader {list_block})
+
+defns
+productInSystemModule_info :: '' ::=
+     defn
+     product in system , module_info :: :: productInSystemModule :: ''
+     {{ com [[system]] [[module_info]] includes [[product]] }} by
+
+     module in system
+     product in module
+     ------------------------------------------------------- :: productInSystemModule_intro
+     product in system , (module, usedef_insn, usedef_block)   
+
+defns
+blockInSystemModuleFdef_info :: '' ::=
+     defn
+     block in system , module_info , fdef_info :: :: blockInSystemModuleFdef :: ''
+     {{ com [[system]] [[module_info]] [[fdef_info]] includes [[block]] }} by
+
+     blockInFdef block fdef
+     fdef in system , module_info
+     ------------------------------------------------------- :: blockInSystemModuleFdef_intro
+     block in system , module_info , (fdef, dt) 
+
+defns
+insnInSystemModuleFdefBlock_info :: '' ::=
+     defn
+     insn in system , module_info , fdef_info , block :: :: insnInSystemModuleFdefBlock :: ''
+     {{ com [[system]] [[module_info]] [[fdef_info]] [[block]] includes [[insn]] }} by
+
+     insnInBlock insn block
+     block in system , module_info , fdef_info
+     ------------------------------------------------------- :: insnInSystemModuleFdefBlock_intro
+     insn in system , module_info , fdef_info , block 
