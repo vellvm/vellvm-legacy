@@ -98,7 +98,7 @@ getReturnType_def :: '' ::=
       {{ com [[fdef]]'s return type is [[typ]] }} by
 
       ----------------------------------------------------------------- :: getReturnType_intro
-      getReturnType (define (typ ident (list_arg)) { list_block }) = typ
+      getReturnType (define (typ id (list_arg)) { list_block }) = typ
 
 
 defns
@@ -331,9 +331,12 @@ getPhiNodesFromBlock_def :: '' ::=
       {{ com [[list_insn]] are the Phi nodes in [[block]] }} by
  
       getPhiNodesFromListInsn list_insn = list_insn'
-      ---------------------------------------- :: getPhiNodesFromBlocks_Insn_intro
+      ---------------------------------------- :: getPhiNodesFromBlocks_Insn_with_label
       getPhiNodesFromBlock (l list_insn) = list_insn'
 
+      getPhiNodesFromListInsn list_insn = list_insn'
+      ---------------------------------------- :: getPhiNodesFromBlocks_Insn_without_label
+      getPhiNodesFromBlock list_insn = list_insn'
 
 defns
 getLabelsFromPhiNode_def :: '' ::=
@@ -358,57 +361,284 @@ getLabelsFromPhiNodes_def :: '' ::=
       -------------------------------------------------------------------------------- :: getLabelsFromPhiNodes_cons
       getLabelsFromPhiNodes (list_insn, insn) = ls ; ls' 
 
-%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-%             succ of blocks                                       %
-%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+%         Uniq                              %
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
-% defns
-% getTerminator_def :: '' ::=
-%       defn
-%       getTerminator block = opt_insn :: :: getTerminator :: ''
-%       {{ com [[opt_insn]] is the terminator insnruction of [[block]] }} by
- 
-%       insnsGetLast list_insn = opt_insn      
-%       -------------------------------- :: getTerminator_intro
-%       getTerminator (l list_insn) = opt_insn
+defns
+insnNotinInsns_def :: '' ::=
+     defn
+     insnNotinInsns insn list_insn :: :: insnNotinInsns :: ''
+     {{ com the ID of [[insn]] isnt in Ids of [[list_insn]] }} by
 
-% defns
-% getLabelsFromTerminator_def :: '' ::=
-%       defn
-%       getLabelsFromTerminator insn = ls :: :: getLabelsFromTerminator :: ''
-%       {{ com [[ls]] is the set of labels from terminator [[insn]] }} by
+     getInsnID insn = none
+     ------------------------------ :: insnNotinInsns_none
+     insnNotinInsns insn list_insn    	      
 
-%       --------------------------------------------------------------- :: getLabelsFromTerminator_br
-%       getLabelsFromTerminator (br value , l1 , l2) = empty , l1 , l2     
+     getInsnID insn = id
+     ----------------------- :: insnNotinInsns_some_nil
+     insnNotinInsns insn []    	      
+
+     getInsnID insn = id
+     getInsnID insn' = none
+     insnNotinInsns insn list_insn'
+     ------------------------------------ :: insnNotinInsns_some_none_cons
+     insnNotinInsns insn (list_insn', insn')    	      
+
+     getInsnID insn = id
+     getInsnID insn' = id'
+     not id == id'
+     insnNotinInsns insn list_insn'
+     ------------------------------------ :: insnNotinInsns_some_cons
+     insnNotinInsns insn (list_insn', insn')    	      
+
+defns
+uniqInsns_def :: '' ::=
+     defn
+     uniqInsns list_insn :: :: uniqInsns :: ''
+     {{ com IDs in [[list_insn]] are uniq }} by
+
+     --------------------- :: uniqInsns_nil
+     uniqInsns []
+
+     insnNotinInsns insn list_insn
+     uniqInsns list_insn
+     ---------------------------- :: uniqInsns_cons
+     uniqInsns (list_insn, insn)
+
+defns
+getInsnsFromBlock_def :: '' ::=
+     defn
+     getInsnsFromBlock block = list_insn :: :: getInsnsFromBlock :: ''
+     {{ com the instructions of [[block]] are [[list_insn]] }} by
+
+     ------------------------------------------------------ :: getInsnsFromBlock_with_label
+     getInsnsFromBlock (l list_insn) = list_insn
+
+     ------------------------------------------------------ :: getInsnsFromBlock_without_label
+     getInsnsFromBlock list_insn = list_insn
+
+defns
+getInsnsFromBlocks_def :: '' ::=
+     defn
+     getInsnsFromBlocks list_block = list_insn :: :: getInsnsFromBlocks :: ''
+     {{ com the instructions of [[list_block]] are [[list_insn]] }} by
+
+     ---------------------------- :: getInsnsFromBlocks_nil
+     getInsnsFromBlocks [] = []
+
+     getInsnsFromBlocks list_block = list_insn
+     getInsnsFromBlock block = list_insn' 
+     ------------------------------------------------- :: getInsnsFromBlocks_cons
+     getInsnsFromBlocks (list_block, block) = list_insn;list_insn'
+
+defns
+blockNotinBlocks_def :: '' ::=
+     defn
+     blockNotinBlocks block list_block :: :: blockNotinBlocks :: ''
+     {{ com the label of [[block]] isnt in labels of [[list_block]] }} by
+
+     ------------------------------------ :: blockNotinBlocks_none
+     blockNotinBlocks list_insn list_block    	     
+
+     --------------------------------- :: blockNotinBlocks_some_nil
+     blockNotinBlocks (l list_insn) []    	      
+
+     blockNotinBlocks (l list_insn) list_block'
+     ------------------------------------ :: blockNotinBlocks_some_none_cons
+     blockNotinBlocks (l list_insn) (list_block', list_insn')    	      
+
+     not l == l'
+     blockNotinBlocks (l list_insn) list_block'
+     ------------------------------------ :: blockNotinBlocks_some_cons
+     blockNotinBlocks (l list_insn) (list_block', l' list_insn')    	      
 
 
-%       --------------------------------------------------------------- :: getLabelsFromTerminator_br_uncond
-%       getLabelsFromTerminator (br l) = empty , l
+defns 
+uniqLabels_def :: '' ::=
+     defn
+     uniqLabels list_block :: :: uniqLabels :: ''
+     {{ com the labels in [[list_block]] are uniq}} by
 
+     --------------------- :: uniqLabels_nil
+     uniqLabels []
 
-%       ---------------------------------------------------------------- :: getLabelsFromTerminator_switch
-%       getLabelsFromTerminator (switch value , l </ [ constj , lj ] // j /> ) = </lj//j/>
+     blockNotinBlocks block list_block
+     uniqLabels list_block
+     ---------------------------- :: uniqLabels_cons
+     uniqLabels (list_block, block)
 
-
-%       ---------------------------------------------------------------- :: getLabelsFromTerminator_invoke
-%       getLabelsFromTerminator (id = invoke t id0 list_param to l1 unwind l2) = empty , l1 , l2  
-
-
-% defns
-% succOfBlock_def :: '' ::= 
-%     defn
-%     succOfBlock block = ls :: :: succOfBlock :: ''
-%     {{ com [[block]] has succesors [[ls]] }} by
-
+defns
+uniqBlocks_def :: '' ::=
+     defn
+     uniqBlocks list_block :: :: uniqBlocks :: ''
+     {{ com the IDs and labels in [[list_block]] are uniq}} by
      
-%     getTerminator block = none
-%     ------------------------------ :: succOfBlock_none
-%     succOfBlock block = empty
+     getInsnsFromBlocks list_block = list_insn
+     uniqInsns list_insn
+     uniqLabels list_block
+     ------------------------------------------------ :: uniqBlocks_intro
+     uniqBlocks list_block
 
-%     getTerminator block = insn     
-%     getLabelsFromTerminator insn = ls
-%     ------------------------------------ :: succOfBlock_insn
-%     succOfBlock block = ls
+defns
+uniqFdef_def :: '' ::=
+     defn
+     uniqFdef fdef :: :: uniqFdef :: ''
+     {{ com the IDs in [[fdef]] are uniq}} by
+   
+     uniqBlocks list_block	
+     ------------------------------------------------ :: uniqFdef_intro
+     uniqFdef (define fheader { list_block })
+
+defns
+getFheaderID_def :: '' ::=
+     defn
+     getFheaderID fheader = id :: :: getFheaderID :: ''
+     {{ com return [[id]] from [[fheader]] }} by
+
+     ---------------------------------------- :: getFheaderID_intro
+     getFheaderID (typ id ( list_arg )) = id
+
+defns
+getFdecID_def :: '' ::=
+     defn
+     getFdecID fdec = id :: :: getFdecID :: ''
+     {{ com return [[id]] from [[fdec]] }} by
+
+     getFheaderID fheader = id
+     ---------------------------------------- :: getFdecID_intro
+     getFdecID (declare fheader) = id
+
+defns
+getFdefID_def :: '' ::=
+     defn
+     getFdefID fdef = id :: :: getFdefID :: ''
+     {{ com return [[id]] from [[fdef]] }} by
+
+     getFheaderID fheader = id
+     ---------------------------------------------- :: getFdefID_intro
+     getFdefID (define fheader {list_block}) = id
+
+defns
+getNamedtID_def :: '' ::=
+     defn
+     getNamedtID namedt = id :: :: getNamedtID :: ''
+     {{ com return [[id]] from [[namedt]] }} by
+
+     ----------------------------------- :: getNamedtID_intro
+     getNamedtID (id = type typ) = id   			
+
+defns
+getGID_def :: '' ::=
+     defn
+     getGID g = id :: :: getgID :: ''
+     {{ com return [[id]] from [[g]] }} by
+
+     ------------------------------------ :: getGID_intro
+     getGID (id = global typ const) = id 
+
+defns
+getProductID_def :: '' ::=
+     defn 
+     getProductID product = id :: :: getProductID :: ''
+     {{ com return [[id]] from [[product]] }} by
+
+     getGID g = id
+     ------------------------------------ :: getProductID_g
+     getProductID g = id
+
+     getFdecID fdec = id
+     ------------------------------------ :: getProductID_fdec
+     getProductID fdec = id
+
+     getFdefID fdef = id     
+     ------------------------------------ :: getProductID_fdef
+     getProductID fdef = id
+
+     getNamedtID namedt = id
+     ------------------------------------ :: getProductID_namedt
+     getProductID namedt = id
+
+defns
+productNotinProducts_def :: '' ::=
+     defn
+     productNotinProducts product products :: :: productNotinProducts :: ''
+     {{ com the ID of [[product]] isnt in Ids of [[products]] }} by
+
+     ------------------------------- :: productNotinProducts_nil
+     productNotinProducts product []    	      
+
+     getProductID product = id
+     getProductID product' = id'
+     not id == id'
+     productNotinProducts product products'
+     ------------------------------------ :: productNotinProducts_cons
+     productNotinProducts product (products', product')    	      
+defns
+uniqProduct_def :: '' ::=
+     defn 
+     uniqProduct product :: :: uniqProduct :: ''
+     {{ com ids in [[product]] are uniq }} by
+
+     ------------------------------------ :: uniqProduct_g
+     uniqProduct g 
+
+     ------------------------------------ :: uniqProduct_fdec
+     uniqProduct fdec 
+
+     uniqFdef fdef     
+     ------------------------------------ :: uniqProduct_fdef
+     uniqProduct fdef
+
+     ------------------------------------ :: uniqProduct_namedt
+     uniqProduct namedt
 
 
+defns
+uniqProducts_def :: '' ::=
+     defn
+     uniqProducts products :: :: uniqProducts :: ''
+     {{ com IDs in [[products]] are uniq }} by
 
+     --------------------- :: uniqProducts_nil
+     uniqProducts []
+
+     productNotinProducts product products
+     uniqProducts products
+     uniqProduct product
+     -------------------------------------- :: uniqProducts_cons
+     uniqProducts (products, product)
+
+defns 
+uniqModule_def :: '' ::=
+     defn
+     uniqModule module :: :: uniqModule :: ''
+     {{ com IDs in [[module]] are uniq }} by
+     
+     uniqProducts products 
+     ---------------------- :: uniqModule_intro
+     uniqModule products
+
+defns 
+uniqModules_def :: '' ::=
+     defn
+     uniqModules list_module :: :: uniqModules :: ''
+     {{ com IDs in [[list_module]] are uniq }} by
+      
+     ---------------------- :: uniqModules_nil
+     uniqModules []
+
+     uniqModules list_module
+     uniqModule module
+     ----------------------------------- :: uniqModules_cons
+     uniqModules (list_module, module)
+
+defns
+uniqSystem_def :: '' ::=
+     defn
+     uniqSystem system :: :: uniqSystem :: ''
+     {{ com IDs in [[system]] are uniq }} by
+
+     uniqModules list_module
+     --------------------------- :: uniqSystem_intro
+     uniqSystem list_module

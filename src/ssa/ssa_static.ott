@@ -57,93 +57,150 @@ Jwf_typ :: '' ::=
       ------------------- :: wf_typ_vector
       |- < N * typ >
 
+
 defns
 Jtyping :: '' ::=
       defn
-      module , fdef , block |- insn :: :: wf_insn :: '' 
-      {{ com [[insn]] is well-formed w.r.t [[block]] in [[fdef]] in [[module]] }} by  
+      system , module_info , fdef_info , block |-i insn :: :: wf_insn_base :: '' 
+      {{ com [[insn]] is well-formed w.r.t [[block]] in [[fdef_info]] in [[module_info]] [[system]] }} by  
+      % Verifier::visitInstruction
 
+      (isPhiNode insn) implies (isReachableFromEntry (fdef, dt) block)
+      ----------------------------------------------------------------- :: wf_insn_base_intro
+      system , module_info , (fdef, dt) , block |-i insn
+
+      defn
+      system , module_info , fdef_info , block |- insn :: :: wf_insn :: '' 
+      {{ com [[insn]] is well-formed w.r.t [[block]] in [[fdef_info]] in [[module_info]] [[system]] }} by  
+
+      system , module_info , (fdef, dt) , block |-i ret typ value
       getReturnType fdef = typ
       not typ == void
       ------------------------------------------------------ :: wf_insn_return
-      module , fdef , block |- ret typ value
+      system , module_info , (fdef, dt) , block |- ret typ value
 
+      system , module_info , (fdef, dt) , block |-i ret void
       getReturnType fdef = void
       ------------------------------------------------------ :: wf_insn_return_void
-      module , fdef , block |- ret void
+      system , module_info , (fdef, dt) , block |- ret void
 
-
-      genDominatorTree fdef module = dt
+      system , (module, usedef_insn, usedef_block), fdef_info , block |-i br value , l1 , l2				        
       blockDominates dt block block
       insnDominates (ret void) (ret void)
-      ------------------------------------------------------ :: wf_insn_br
-      module , fdef , block |- br value , l1 , l2				        
+      -------------------------------------------------------------------------------------- :: wf_insn_br
+      system , (module, usedef_insn, usedef_block), fdef_info , block |- br value , l1 , l2				        
 
       defn
-      module , fdef , block |- list_insn :: :: wf_list_insn :: ''
-      {{ com [[list_insn]] is well-formed w.r.t [[block]] in [[fdef]] in [[module]] }} by  
+      system , module_info , fdef_info , block |- list_insn :: :: wf_list_insn :: ''
+      {{ com [[list_insn]] is well-formed w.r.t [[block]] in [[fdef_info]] in [[module_info]] [[system]] }} by  
 
-      ------------------------ :: wf_list_insn_nil
-      module , fdef , block |- []
+      ----------------------------------------------- :: wf_list_insn_nil
+      system , module_info , fdef_info , block |- []
 
-      module , fdef , block |- insn 
-      module , fdef , block |- list_insn
-      ---------------------------------- :: wf_list_insn_cons
-      module , fdef , block |- list_insn , insn
+      system , module_info , fdef_info , block |- insn 
+      system , module_info , fdef_info , block |- list_insn
+      ------------------------------------------------------------- :: wf_list_insn_cons
+      system , module_info , fdef_info , block |- list_insn , insn
 
 
       defn
-      module , fdef |- block :: :: wf_block :: '' 
-      {{ com [[block]] is well-formed w.r.t. [[fdef]] in [[module]] }} by
+      system , module_info , fdef_info |- block :: :: wf_block :: '' 
+      {{ com [[block]] is well-formed w.r.t. [[fdef_info]] in [[module_info]] [[system]] }} by
 
-      module , fdef , l list_insn |- list_insn 
+      system , module_info , fdef_info , l list_insn |- list_insn 
       insnsChecksTerminatorInsn list_insn
       insnsStartsWithPhiNode list_insn
-      ---------------------------------------- :: wf_block_intro
-      module , fdef |- l list_insn
+      --------------------------------------------------------- :: wf_block_with_label
+      system , module_info , fdef_info |- l list_insn
 
+      system , module_info , fdef_info , list_insn |- list_insn 
+      insnsChecksTerminatorInsn list_insn
+      insnsStartsWithPhiNode list_insn
+      --------------------------------------------------------- :: wf_block_without_label
+      system , module_info , fdef_info |- list_insn
 
       defn
-      module , fdef |- list_block :: :: wf_list_block :: ''
-      {{ com [[list_block]] is well-formed w.r.t. [[fdef]] in [[module]] }} by
+      system , module_info , fdef_info |- list_block :: :: wf_list_block :: ''
+      {{ com [[list_block]] is well-formed w.r.t. [[fdef_info]] in [[module_info]] [[system]] }} by
 
-      ------------------------ :: wf_list_block_nil
-      module , fdef |- []
+      --------------------------------------- :: wf_list_block_nil
+      system , module_info , fdef_info |- []
 
-      module , fdef |- block
-      module , fdef |- list_block
-      ---------------------------------- :: wf_list_block_cons
-      module , fdef |- list_block , block
+      system , module_info , fdef_info |- block
+      system , module_info , fdef_info |- list_block
+      ------------------------------------------------------- :: wf_list_block_cons
+      system , module_info , fdef_info |- list_block , block
  
 
       defn
-      module |- fdef :: :: wf_fdef :: ''
-      {{ com [[fdef]] is well-formed w.r.t. [[module]] }} by
+      system , module_info |-f fdef :: :: wf_fdef :: ''
+      {{ com [[fdef]] is well-formed w.r.t. [[module_info]] [[system]] }} by
 
-      module , define fheader { list_block } |- list_block      
+      genDominatorTree (define fheader { list_block }) module = dt
+      system , (module, usedef_insn, usedef_block) , (define fheader { list_block }, dt) |- list_block      
       ------------------------------------------------------ :: wf_fdef_intro
-      module |- define fheader { list_block }
+      system , (module, usedef_insn, usedef_block) |-f define fheader { list_block }
 
       defn
-      |- module :: :: wf_module :: ''
-      {{ com [[module]] is well-formed }} by 
+      system , module_info |- product :: :: wf_prod :: ''
+      {{ com [[product]] is well-formed w.r.t. [[module_info]] [[system]]}} by 
 
-      ------------------------ :: wf_module_nil
-      |- nil
+      ----------------------------- :: wf_prod_global_var
+      system , module_info |- g
 
-      |- module 
-      ------------------------ :: wf_module_global_var
-      |- module , g
+      ----------------------------- :: wf_prod_function_dec
+      system , module_info |- fdec
 
-      module |- fdef
-      ------------------------ :: wf_module_function_def
-      |- module , fdef   
+      system , module_info |-f fdef
+      ----------------------------- :: wf_prod_function_def
+      system , module_info |- fdef   
 
-      |- module
-      genInsnUseDef module = usedef_insn	
-      genBlockUseDef module = usedef_block
-      -------------------------------------- :: wf_module_namedtype
-      |- module , namedt     
+      -------------------------------------- :: wf_prod_namedtype
+      system , module_info |- namedt     
+
+      defn
+      system , module_info |- products :: :: wf_prods :: ''
+      {{ com [[products]] is well-formed w.r.t. [[module_info]] [[system]]}} by 
+
+      --------------------------- :: wf_prods_nil
+      system , module_info |- []
+
+      system , module_info |- products
+      system , module_info |- product
+      ------------------------------------------- :: wf_prods_cons
+      system , module_info |- products , product
+
+      defn
+      system |- module :: :: wf_module :: ''
+      {{ com [[module]] is well-formed w.r.t. [[system]] }} by
+
+      genInsnUseDef products = usedef_insn
+      genBlockUseDef products = usedef_block
+      system , (products, usedef_insn, usedef_block) |- products
+      ----------------------------------------------------- :: wf_module_intro
+      system |- products
+
+      defn
+      system |- list_module :: :: wf_list_module :: ''
+      {{ com [[list_module]] is well-formed w.r.t. [[system]] }} by  
+
+      ------------------------ :: wf_list_module_nil
+      system |- []
+
+      system |- module 
+      system |- list_module
+      ---------------------------------- :: wf_list_module_cons
+      system |- list_module , module
+ 
+      defn
+      |- system :: :: wf_system :: ''
+      {{ com [[system]] is well-formed }} by
+
+      list_module |- list_module
+      uniqSystem list_module
+      ------------------------------ :: wf_system_intro
+      |- list_module 
+     
 
 % insn :: 'insn_'					    	::=			{{ com insnruction }}
 %   | ret typ value             			    	::   :: return      	{{ com return }}

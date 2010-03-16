@@ -31,6 +31,10 @@ indexvar index, i, j, n ::= {{ com index }}
  
 grammar
 
+opt_id {{ tex \mathit{opt_{id} } }} :: 'opt_id_'	::=			{{ com option id }} {{ coq option id }}
+  |  none 						:: M :: none		{{ com none }} {{ coq None }}
+  |  id							:: M :: some  		{{ com some }} {{ coq (Some [[id]]) }}
+
 const :: 'const_'					::=  			{{ com constant }}
   | N 	 						::   :: val		{{ com val }}	
   | undef						::   :: undef		{{ com undef }}
@@ -142,7 +146,8 @@ list_insn {{ tex \mathit{\overline{insn} } }} :: 'list_insn_'	::=			{{ com insnr
   | ( list_insn )					:: S :: paren           {{ coq [[ list_insn ]] }}
 
 block :: 'block_' 					::=			{{ com block }}
-  | l list_insn						::   :: def
+  | l list_insn						::   :: with_label
+  | list_insn						::   :: without_label
   | ( block )						:: S :: paren           {{ coq [[ block ]] }}
 
 opt_block {{ tex \mathit{opt_{block} } }} :: 'opt_block_' ::=			{{ com option block }} {{ coq option block }}
@@ -157,7 +162,7 @@ list_block {{ tex \mathit{\overline{block} } }} :: 'list_block_'::=			{{ com blo
   | ( list_block )					:: S :: paren           {{ coq [[ list_block ]] }}
 
 fheader :: 'fheader_'    				::=			{{ com function header }}
-  | typ ident ( list_arg ) 				::   :: intro
+  | typ id ( list_arg ) 				::   :: intro
   | ( fheader )						:: S :: paren           {{ coq [[ fheader ]] }}
 
 fdec :: 'fdec_'       					::=			{{ com function declaration }}
@@ -170,19 +175,41 @@ fdef :: 'fdef_'          				::=			{{ com function definition }}
 
 namedt :: 'namedt_'         				::=			{{ com named type }}
   | id = type typ   					::   :: intro 
+  | ( namedt )						:: S :: paren		{{ coq [[ namedt ]] }}
 
 g :: 'g_'   	 					::=			{{ com global }}
   | id = global typ const				::   :: intro  
+  | ( g )	    					:: S :: paren		{{ coq [[ g ]] }}
 
-module :: 'module_'    	    				::=			{{ com module }}
-  | nil   						::   :: nil        	{{ com nil }}
-  | module , g						::   :: global_var      {{ com global variable }}
-  | module , fdec             				::   :: function_dec   	{{ com function declaration }}
-  | module , fdef             				::   :: function_def   	{{ com function definition }}
-  | module , namedt           				::   :: namedtype     	{{ com named types }}
+product  :: 'product_'					::=			{{ com prodoct }}
+  | g							::   :: global_var      {{ com global variable }}
+  | fdec             					::   :: function_dec   	{{ com function declaration }}
+  | fdef             					::   :: function_def   	{{ com function definition }}
+  | namedt           					::   :: namedtype     	{{ com named types }}
+
+products {{ tex \mathit{\overline{product} } }} :: 'products_'::=			{{ com products }}
+	    				     	   				{{ coq (list product) }}	   
+  | []   						::   :: nil        	{{ com nil }}
+    							     			{{ coq nil }}
+  | products , product					::   :: cons            {{ com cons }}
+    	       						     			{{ coq ([[product]]::[[products]]) }}
+  | ( products )					:: S :: paren		{{ coq [[ products ]] }}			
+
+module :: 'module_'					::=  			{{ com module }}
+  | products 						::   :: products	{{ com prods }}
+
+list_module {{ tex \mathit{\overline{module} } }} :: 'list_module_'::=  		{{ com list module }}
+      	     			       	     					{{ coq (list module) }}
+  | []  						::   :: nil		{{ coq nil }}
+  | list_module , module				::   :: cons		{{ coq ([[module]]::[[list_module]]) }}
+  | list_module ; list_module'				::   :: append		{{ coq ([[list_module]]++[[list_module']]) }}
+  | ( list_module )					:: S :: paren           {{ coq [[ list_module ]] }}
+
+system :: 'system_'					::=  			{{ com system }}
+  | list_module						::   :: def		{{ com list of modules }}
 
 dt :: 'dt_'						::=  			{{ com dominator }}
-       										{{ coq (l -> ls) }}
+       										{{ coq (l -> list l) }}
 
 usedef_insn :: 'usedef_insn_'				::=			{{ com insn usedef }}
        	  									{{ coq (insn -> (list (prod insn block))) }} 
@@ -190,10 +217,25 @@ usedef_insn :: 'usedef_insn_'				::=			{{ com insn usedef }}
 usedef_block :: 'usedef_block_'				::=			{{ com block usedef }}
        	  									{{ coq (block -> (list (prod insn block))) }} 
 
+module_info :: 'module_info_'				::=			{{ com module information }}
+	       									{{ coq (prod module (prod usedef_insn usedef_block)) }}		
+  | module , usedef_insn , usedef_block			::   ::	def		{{ com def }} 
+   	     		  				     			{{ coq ([[module]], ([[usedef_insn]], [[usedef_block]])) }}	
+  | ( module_info )					:: S :: paren           {{ coq [[ module_info ]] }}
+
+fdef_info :: 'fdef_info_'				::=  			{{ com fdef information }}
+	     									{{ coq (prod fdef dt) }}
+  | fdef , dt						::   :: def		{{ com def }}
+    	   						     			{{ coq ([[fdef]], [[dt]]) }}
+  | ( fdef_info )					:: S :: paren		{{ coq [[ fdef_info ]] }}						
+
 terminals :: 'terminals_' ::=
   | =                   ::   :: assignment      {{ tex = }}
   | == 			::   :: eq		{{ tex == }}
   | |-			::   :: shows           {{ tex \vdash }}
+  | |-i			::   :: ishows          {{ tex \vdash_{i} }}
+  | |-t			::   :: tshows          {{ tex \vdash_{t} }}
+  | |-f			::   :: fshows          {{ tex \vdash_{f} }}
 
 formula :: 'formula_' ::=
   | judgement			::   :: judgement
@@ -225,7 +267,13 @@ formula :: 'formula_' ::=
   | l1 == l2 			::   :: eqLabel
 				{{ tex [[l1]] == [[l2]] }}
 				{{ coq [[l1]] = [[l2]] }}
+  | id1 == id2 			::   :: eqID
+				{{ tex [[id1]] == [[id2]] }}
+				{{ coq [[id1]] = [[id2]] }}
 
+  | l notin ls			::   :: notinl
+      	    			{{ tex [[l]] \not\in [[ls]] }}
+				{{ coq ( ~ set_In eq_nat_dec [[l]] [[ls]]) }}
 
 parsing
 formula_and left formula_and

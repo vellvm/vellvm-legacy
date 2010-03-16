@@ -44,11 +44,12 @@ Section SSA.
 
   Definition genLabel2Block_block (b:block) (f:fdef) (m:module) : l2block :=
   match b with
-  | block_def l _ => fun l' => 
+  | block_with_label l _ => fun l' => 
     match lt_eq_lt_dec l' l with 
     | inleft (right _) => Some b
     | _ => None
     end 
+  | block_without_label _ => fun l' => None
   end.  
 
   Fixpoint genLabel2Block_blocks (bs:list_block) (f:fdef) (m:module) : l2block :=
@@ -62,13 +63,23 @@ Section SSA.
   | fdef_intro fheader blocks => genLabel2Block_blocks blocks f m 
   end.
 
-  Fixpoint genLabel2Block (m: module) : l2block :=
-  match m with 
-  | module_nil => fun _ => None
-  | module_global_var m' g => genLabel2Block m'
-  | module_function_def m' f => mergel2block (genLabel2Block m') (genLabel2Block_fdef f m)
-  | module_function_dec m' f => genLabel2Block m'
-  | module_namedtype m' nt => genLabel2Block m'
+  Fixpoint genLabel2Block_product (p:product) (m: module) : l2block :=
+  match p with 
+  | product_global_var g => fun _ => None
+  | product_function_def f => (genLabel2Block_fdef f m)
+  | product_function_dec f => fun _ => None
+  | product_namedtype nt => fun _ => None
+  end.
+
+  Fixpoint genLabel2Block_products (ps:products) (m:module) : l2block :=
+  match ps with
+  | nil => fun _ => None
+  | p::ps' => mergel2block (genLabel2Block_products ps' m) (genLabel2Block_product p m)
+  end.
+
+  Definition genLabel2Block (m: module) : l2block :=
+  match m with
+  | module_products ps => genLabel2Block_products ps m
   end.
 
   Definition getEntryOfFdef (f:fdef) : option block :=
@@ -218,7 +229,8 @@ Section UseDef.
 
   Definition genInsnUseDef_block (b:block) (f:fdef) (m:module) : usedef_insn :=
   match b with
-  | block_def l is => genInsnUseDef_insns is b f m
+  | block_with_label l is => genInsnUseDef_insns is b f m
+  | block_without_label is => genInsnUseDef_insns is b f m
   end.  
 
   Fixpoint genInsnUseDef_blocks (bs:list_block) (f:fdef) (m:module) : usedef_insn :=
@@ -232,27 +244,42 @@ Section UseDef.
   | fdef_intro fheader blocks => genInsnUseDef_blocks blocks f m 
   end.
 
-  Fixpoint genInsnUseDef (m: module) : usedef_insn :=
-  match m with 
-  | module_nil => fun _ => nil
-  | module_global_var m' g => genInsnUseDef m'
-  | module_function_def m' f => (genInsnUseDef m') +++ (genInsnUseDef_fdef f m)
-  | module_function_dec m' f => genInsnUseDef m'
-  | module_namedtype m' nt => genInsnUseDef m'
+  Fixpoint genInsnUseDef_product (p:product) (m: module) : usedef_insn :=
+  match p with 
+  | product_global_var g => fun _ => nil
+  | product_function_def f => (genInsnUseDef_fdef f m)
+  | product_function_dec f => fun _ => nil
+  | product_namedtype nt => fun _ => nil
+  end.
+
+  Fixpoint genInsnUseDef_products (ps:products) (m:module) : usedef_insn :=
+  match ps with
+  | nil => fun _ => nil
+  | p::ps' => (genInsnUseDef_products ps' m) +++ (genInsnUseDef_product p m) 
+  end.
+
+  Definition genInsnUseDef (m: module) : usedef_insn :=
+  match m with
+  | module_products ps => genInsnUseDef_products ps m
   end.
 
   (* generate block use-def *)
 
-  Definition getBlockLabel (b:block) : l :=
+  Definition getBlockLabel (b:block) : option l :=
   match b with
-  | block_def l b => l
+  | block_with_label l b => Some l
+  | block_without_label b => None
   end.
 
   Definition genBlockUseDef_label (l0:l) (i:insn) (b:block) (f:fdef) (m:module) : usedef_block :=
   fun b' => 
-  match lt_eq_lt_dec (getBlockLabel b') l0 with 
-  | inleft (right _) => (i, b)::nil
-  | _ => nil
+  match (getBlockLabel b') with
+  | None => nil
+  | Some l0' =>
+    match lt_eq_lt_dec l0' l0 with 
+    | inleft (right _) => (i, b)::nil
+    | _ => nil
+    end
   end.
 
   Fixpoint genBlockUseDef_switch_cases (cs:list (const * l)) (i:insn) (b:block) (f:fdef) (m:module) : usedef_block :=
@@ -311,7 +338,8 @@ Section UseDef.
 
   Definition genBlockUseDef_block (b:block) (f:fdef) (m:module) : usedef_block :=
   match b with
-  | block_def l is => genBlockUseDef_insns is b f m
+  | block_with_label l is => genBlockUseDef_insns is b f m
+  | block_without_label is => genBlockUseDef_insns is b f m
   end.  
 
   Fixpoint genBlockUseDef_blocks (bs:list_block) (f:fdef) (m:module) : usedef_block :=
@@ -325,24 +353,33 @@ Section UseDef.
   | fdef_intro fheader blocks => genBlockUseDef_blocks blocks f m 
   end.
 
-  Fixpoint genBlockUseDef (m: module) : usedef_block :=
-  match m with 
-  | module_nil => fun _ => nil
-  | module_global_var m' g => genBlockUseDef m'
-  | module_function_def m' f => (genBlockUseDef m') ++++ (genBlockUseDef_fdef f m)
-  | module_function_dec m' f => genBlockUseDef m'
-  | module_namedtype m' nt => genBlockUseDef m'
+  Fixpoint genBlockUseDef_product (p:product) (m: module) : usedef_block :=
+  match p with 
+  | product_global_var g => fun _ => nil
+  | product_function_def f => (genBlockUseDef_fdef f m)
+  | product_function_dec f => fun _ => nil
+  | product_namedtype nt => fun _ => nil 
+  end.
+
+  Fixpoint genBlockUseDef_products (ps:products) (m:module) : usedef_block :=
+  match ps with
+  | nil => fun _ => nil
+  | p::ps' => (genBlockUseDef_products ps' m) ++++ (genBlockUseDef_product p m) 
+  end.
+
+  Definition genBlockUseDef (m: module) : usedef_block :=
+  match m with
+  | module_products ps => genBlockUseDef_products ps m
   end.
 
 End UseDef.
-
-
 
 Section CFG.
 
   Definition getTerminator (b:block) : option insn := 
   match b with
-  | block_def l is => last_opt insn is
+  | block_with_label l is => last_opt insn is
+  | block_without_label is => last_opt insn is
   end. 
 
   Fixpoint getLabelsFromSwitchCases (cs:list (const*l)) : ls :=
@@ -394,12 +431,14 @@ Section Dominator.
   Fixpoint inputFromPred (bs:list_block) (output:dt) : ls :=
   match bs with
   | nil => lempty_set
-  | (block_def l0 _)::bs' => lset_union (output l0) (inputFromPred bs' output)
+  | (block_with_label l0 _)::bs' => lset_union (output l0) (inputFromPred bs' output)
+  | (block_without_label _)::bs' => (inputFromPred bs' output)
   end.
 
   Definition outputFromInput (b:block) (input:ls) : ls :=
   match b with
-  | block_def l0 _ => lset_add l0 input
+  | block_with_label l0 _ => lset_add l0 input
+  | block_without_label _ => input
   end.
 
   Definition update_dt (d1:dt) (l0:l) (ls0:ls) : dt :=
@@ -415,10 +454,12 @@ Section Dominator.
   Fixpoint genDominatorTree_blocks_innerloop (bs:list_block) (udb:usedef_block) (output:dt) : dt :=
   match bs with 
   | nil => output
-  | (block_def l is)::bs' => 
-    match (outputFromInput (block_def l is) (inputFromPred (predOfBlock (block_def l is) udb) output)) with 
+  | (block_with_label l is)::bs' => 
+    match (outputFromInput (block_with_label l is) (inputFromPred (predOfBlock (block_with_label l is) udb) output)) with 
     | ls' => genDominatorTree_blocks_innerloop bs' udb (update_dt output l ls') 
     end
+  | (block_without_label is)::bs' => 
+    genDominatorTree_blocks_innerloop bs' udb output 
   end.  
 
   (*
@@ -427,17 +468,19 @@ Section Dominator.
   Fixpoint eq_dt (d0 d1:dt) (bs:list_block) : bool :=
   match bs with
   | nil => true
-  | (block_def l0 _)::bs' =>
+  | (block_with_label l0 _)::bs' =>
     match (lset_eq (d0 l0) (d1 l0)) with
     | true => eq_dt d0 d1 bs'
     | false => false
     end
+  | _::bs' => eq_dt d0 d1 bs'
   end.
 
   Fixpoint sizeOfDT (bs:list_block) (output:dt) : nat :=
   match bs with
   | nil => 0
-  | (block_def l0 _)::bs' => length (output l0) + sizeOfDT bs' output
+  | (block_with_label l0 _)::bs' => length (output l0) + sizeOfDT bs' output
+  | _::bs'=> sizeOfDT bs' output
   end.
 
   Definition size (arg:(list_block*dt)) : nat :=
@@ -462,7 +505,8 @@ Section Dominator.
   Fixpoint initialize_genDominatorTree_blocks (bs:list_block) (U:ls) (d0:dt) : dt :=
   match bs with
   | nil => d0
-  | (block_def l0 _)::bs' => initialize_genDominatorTree_blocks bs' U (update_dt d0 l0 U)
+  | (block_with_label l0 _)::bs' => initialize_genDominatorTree_blocks bs' U (update_dt d0 l0 U)
+  | _::bs' => initialize_genDominatorTree_blocks bs' U d0
   end.
 
   Definition genEmptyDT : dt := fun _ => nil. 
@@ -470,7 +514,8 @@ Section Dominator.
   Definition initialize_genDominatorTree_entry (f:fdef) : dt :=
   match (getEntryOfFdef f) with
   | None => genEmptyDT
-  | Some (block_def l0 _) => update_dt genEmptyDT l0 (lset_single l0)
+  | Some (block_with_label l0 _) => update_dt genEmptyDT l0 (lset_single l0)
+  | Some  _ => genEmptyDT
   end.
 
   Definition initialize_genDominatorTree (f:fdef) (U:ls) : dt :=
@@ -484,17 +529,19 @@ Section Dominator.
 
   Definition blockDominates (d:dt) (b1 b2: block) : Prop :=
   match b1 with
-  | block_def l1 _ =>
+  | block_with_label l1 _ =>
     match (d l1) with
     | ls1 => 
       match b2 with
-      | block_def l2 _ => 
+      | block_with_label l2 _ => 
         match (lset_mem l2 ls1) with
         | true => True
         | false => False
         end
+      | _ => False
       end
     end 
+  | _ => False
   end.
 
   Definition insnDominates (i1 i2:insn) : Prop :=
@@ -505,6 +552,13 @@ Section Dominator.
     | right _ => (*id2 < id2*) False
     end
   | _ => False
+  end.
+
+  Definition isReachableFromEntry (fi:fdef_info) (b:block) : Prop :=
+  let (f, d) := fi in   
+  match (getEntryOfFdef f) with
+  | None => False
+  | Some be => blockDominates d be b
   end.
 
 End Dominator.
