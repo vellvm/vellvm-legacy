@@ -65,10 +65,12 @@ Jtyping :: '' ::=
       {{ com [[insn]] is well-formed w.r.t [[block]] in [[fdef_info]] in [[module_info]] [[system]] }} by  
       % Verifier::visitInstruction
 
-      insn in system , module_info , (fdef, dt) , block
-      (isPhiNode insn) implies (isReachableFromEntry (fdef, dt) block)
+      insn in system , (module, usedef_insn, usedef_block) , (fdef, dt) , block
+      getInsnUseDef usedef_insn insn = list_insn 
+      list_insn = </ insnj // j />
+      (isPhiNode insn) implies </ (isPhiNode insnj) implies (((getInsnID insn = id) /\ (getInsnID insnj = idj) /\ (not id == id')) \/ (isReachableFromEntry (fdef, dt) block)) // j />
       ----------------------------------------------------------------- :: wf_insn_base_intro
-      system , module_info , (fdef, dt) , block |-i insn
+      system , (module, usedef_insn, usedef_block) , (fdef, dt) , block |-i insn
 
       defn
       system , module_info , fdef_info , block |- insn :: :: wf_insn :: '' 
@@ -85,11 +87,11 @@ Jtyping :: '' ::=
       ------------------------------------------------------ :: wf_insn_return_void
       system , module_info , (fdef, dt) , block |- ret void
 
-      system , (module, usedef_insn, usedef_block), fdef_info , block |-i br value , l1 , l2				        
+      system , (module, usedef_insn, usedef_block), fdef_info , block |-i br typ value , l1 , l2				        
       blockDominates dt block block
       insnDominates (ret void) (ret void)
       -------------------------------------------------------------------------------------- :: wf_insn_br
-      system , (module, usedef_insn, usedef_block), fdef_info , block |- br value , l1 , l2				        
+      system , (module, usedef_insn, usedef_block), fdef_info , block |- br typ value , l1 , l2				        
 
       defn
       system , module_info , fdef_info , block |- list_insn :: :: wf_list_insn :: ''

@@ -64,6 +64,9 @@ typ :: 'typ_'						::=			{{ com type }}
   % union
   | ( typ )						:: S :: paren           {{ coq [[ typ ]] }}
 
+opt_typ {{ tex \mathit{opt_{typ} } }} :: 'opt_typ_'	::=			{{ com option typ }} {{ coq option typ }}
+  |  none 						:: M :: none		{{ com none }} {{ coq None }}
+  |  typ						:: M :: some  		{{ com some }} {{ coq (Some [[typ]]) }}
 
 list_arg {{ tex \mathit{\overline{arg} } }} :: 'list_arg_'	::=  			{{ com argument list }}
      	    			     	   					{{ coq (list typ) }}
@@ -102,10 +105,10 @@ cond :: 'cond_'						::=			{{ com condition code }}
 insn :: 'insn_'					    	::=			{{ com insnruction }}
   | ret typ value             			    	::   :: return      	{{ com return }}
   | ret void                   			    	::   :: return_void  	{{ com return void }}
-  | br value , l1 , l2					::   :: br              {{ com br }}        
+  | br typ value , l1 , l2					::   :: br              {{ com br }}        
   | br l        	    	  			::   :: br_uncond       {{ com unconditional br }}        
-  | switch value , l </ [ constj , lj ] // j />		::   :: switch		{{ com switch }}
-  | id = invoke t id0 list_param to l1 unwind l2 	::   :: invoke		{{ com invoke }} 
+  | switch typ value , l </ [ constj , lj ] // j />		::   :: switch		{{ com switch }}
+  | id = invoke typ0 id0 list_param to l1 unwind l2 	::   :: invoke		{{ com invoke }} 
   | unreachable	     	   	     	 		::   :: unreachable	{{ com unreachable }}
   | id = add typ value1 value2				::   :: add		{{ com add }}
   | id = fadd typ value1 value2				::   :: fadd		{{ com fadd }}
@@ -113,10 +116,10 @@ insn :: 'insn_'					    	::=			{{ com insnruction }}
   | id = fdiv typ value1 value2				::   :: fdiv		{{ com fdiv }}
   | id = or typ value1 value2				::   :: or 		{{ com or }}
   | id = and typ value1 value2				::   :: and 		{{ com and }}
-  | id = extractelement < N0 * typ0 > id0 , const1	::   :: extractelement  {{ com extractelement }}
-  | id = insertelement < N0 * typ0 > id0 , typ1 value1 , const2	    ::   :: insertelement       {{ com insertelement }}
-  | id = extractvalue { </ typj // j /> } id0 , const1              ::   :: extractvalue	{{ com extractvalue }}
-  | id = insertvalue { </ typj // j /> } id0 , typ1 value1 , const2 ::   :: insertvalue		{{ com insertvalue }}
+  | id = extractelement typ0 id0 , const1		::   :: extractelement  {{ com extractelement }}
+  | id = insertelement typ0 id0 , typ1 value1 , const2	::   :: insertelement   {{ com insertelement }}
+  | id = extractvalue typ0 id0 , const1              	::   :: extractvalue	{{ com extractvalue }}
+  | id = insertvalue typ0 id0 , typ1 value1 , const2 	::   :: insertvalue	{{ com insertvalue }}
   | id = alloca typ N  	     	       	     	       	::   :: alloca		{{ com alloca }}
   | id = load typ1 id1					::   :: load		{{ com load }}
   | store typ1 value1 , typ2 id2			::   :: store		{{ com store }}
@@ -216,10 +219,10 @@ dt :: 'dt_'						::=  			{{ com dominator }}
        										{{ coq (l -> list l) }}
 
 usedef_insn :: 'usedef_insn_'				::=			{{ com insn usedef }}
-       	  									{{ coq (insn -> (list (prod insn block))) }} 
+       	  									{{ coq (insn -> (list insn)) }} 
 
 usedef_block :: 'usedef_block_'				::=			{{ com block usedef }}
-       	  									{{ coq (block -> (list (prod insn block))) }} 
+       	  									{{ coq (block -> (list block)) }} 
 
 module_info :: 'module_info_'				::=			{{ com module information }}
 	       									{{ coq (prod module (prod usedef_insn usedef_block)) }}		
@@ -232,7 +235,6 @@ fdef_info :: 'fdef_info_'				::=  			{{ com fdef information }}
   | fdef , dt						::   :: def		{{ com def }}
     	   						     			{{ coq ([[fdef]], [[dt]]) }}
   | ( fdef_info )					:: S :: paren		{{ coq [[ fdef_info ]] }}						
-
 terminals :: 'terminals_' ::=
   | =                   ::   :: assignment      {{ tex = }}
   | == 			::   :: eq		{{ tex == }}
@@ -296,7 +298,15 @@ formula :: 'formula_' ::=
   | system = system'            :: M :: system_alias
     	     			{{ com system alias }} 
 				{{ coq [[system]] = [[system']] }}
-
+  | list_arg = </ typj // j />	:: M :: args_alias
+    	       			{{ com args alias }}
+				{{ coq [[list_arg]] = [[ </ typj // j /> ]] }}
+  | list_insn = </ insnj // j /> :: M :: insns_alias
+    	      	   	        {{ com insns alias }}
+				{{ coq [[list_insn]] = [[ </ insnj // j /> ]] }}
+  | getNthTyp </ typj // j /> N = opt_typ ::   :: getNthTyp
+    	      	       	   	{{ com getNthTyp }}
+				{{ coq nth_error [[ </ typj // j /> ]] [[N]] = [[opt_typ]] }}  
 
 parsing
 formula_and left formula_and

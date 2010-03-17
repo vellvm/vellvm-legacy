@@ -1,3 +1,4 @@
+
 Require Import ssa_def.
 
 (*BEGINCOPY*)
@@ -115,10 +116,10 @@ Section UseDef.
   match i with
   | insn_return t v => None
   | insn_return_void  => None
-  | insn_br v l1 l2 => None
+  | insn_br t v l1 l2 => None
   | insn_br_uncond l => None
-  | insn_switch v l _ => None
-  | insn_invoke id id0 paraml l1 l2 => Some id
+  | insn_switch t v l _ => None
+  | insn_invoke id typ id0 paraml l1 l2 => Some id
   | insn_unreachable => None
   | insn_add id typ v1 v2 => Some id
   | insn_fadd id typ v1 v2 => Some id
@@ -126,8 +127,8 @@ Section UseDef.
   | insn_fdiv id typ v1 v2 => Some id
   | insn_or id typ v1 v2 => Some id
   | insn_and id typ v1 v2 =>Some id
-  | insn_extractelement id N0 typ0 id0 const => Some id
-  | insn_insertelement id N0 typ0 id0 typ1 v1 const2 => Some id
+  | insn_extractelement id typ0 id0 const => Some id
+  | insn_insertelement id typ0 id0 typ1 v1 const2 => Some id
   | insn_extractvalue id typs id0 const1 => Some id
   | insn_insertvalue id typs id0 typ1 v1 const2 => Some id
   | insn_alloca id typ N => None
@@ -160,7 +161,7 @@ Section UseDef.
   match (getInsnID i', getValueID v) with
   | (Some id', Some id) => 
     match lt_eq_lt_dec id' id with 
-    | inleft (right _) => (i, b)::nil
+    | inleft (right _) => i::nil
     | _ => nil
     end 
   |( _, _) => nil
@@ -171,7 +172,7 @@ Section UseDef.
   match (getInsnID i') with
   | Some id' => 
     match lt_eq_lt_dec id' id0 with 
-    | inleft (right _) => (i, b)::nil
+    | inleft (right _) => i::nil
     | _ => nil
     end 
   | _ => nil
@@ -187,10 +188,10 @@ Section UseDef.
   match i with
   | insn_return t v => genInsnUseDef_value v i b f m
   | insn_return_void  => fun _ => nil 
-  | insn_br v l1 l2 => genInsnUseDef_value v i b f m        
+  | insn_br t v l1 l2 => genInsnUseDef_value v i b f m        
   | insn_br_uncond l => fun _ => nil
-  | insn_switch v l _ => genInsnUseDef_value v i b f m
-  | insn_invoke id id0 paraml l1 l2 => (genInsnUseDef_id id0 i b f m)+++(genInsnUseDef_params paraml i b f m)
+  | insn_switch t v l _ => genInsnUseDef_value v i b f m
+  | insn_invoke id typ id0 paraml l1 l2 => (genInsnUseDef_id id0 i b f m)+++(genInsnUseDef_params paraml i b f m)
   | insn_unreachable => fun _ => nil
   | insn_add id typ v1 v2 => (genInsnUseDef_value v1 i b f m)+++(genInsnUseDef_value v2 i b f m) 
   | insn_fadd id typ v1 v2 => (genInsnUseDef_value v1 i b f m)+++(genInsnUseDef_value v2 i b f m) 	
@@ -198,8 +199,8 @@ Section UseDef.
   | insn_fdiv id typ v1 v2 => (genInsnUseDef_value v1 i b f m)+++(genInsnUseDef_value v2 i b f m) 
   | insn_or id typ v1 v2 => (genInsnUseDef_value v1 i b f m)+++(genInsnUseDef_value v2 i b f m) 
   | insn_and id typ v1 v2 => (genInsnUseDef_value v1 i b f m)+++(genInsnUseDef_value v2 i b f m) 
-  | insn_extractelement id N0 typ0 id0 const => genInsnUseDef_id id0 i b f m
-  | insn_insertelement id N0 typ0 id0 typ1 v1 const2 => (genInsnUseDef_id id0 i b f m)+++(genInsnUseDef_value v1 i b f m)	
+  | insn_extractelement id typ0 id0 const => genInsnUseDef_id id0 i b f m
+  | insn_insertelement id typ0 id0 typ1 v1 const2 => (genInsnUseDef_id id0 i b f m)+++(genInsnUseDef_value v1 i b f m)	
   | insn_extractvalue id typs id0 const1 => genInsnUseDef_id id0 i b f m
   | insn_insertvalue id typs id0 typ1 v1 const2 => (genInsnUseDef_id id0 i b f m)+++(genInsnUseDef_value v1 i b f m)	 
   | insn_alloca id typ N => fun _ => nil
@@ -259,6 +260,9 @@ Section UseDef.
   Definition genInsnUseDef (m: module) : usedef_insn :=
   genInsnUseDef_products m m.
 
+  Definition getInsnUseDef (udi:usedef_insn) (i:insn) : list_insn :=
+  udi i. 
+
   (* generate block use-def *)
 
   Definition getBlockLabel (b:block) : option l :=
@@ -273,7 +277,7 @@ Section UseDef.
   | None => nil
   | Some l0' =>
     match lt_eq_lt_dec l0' l0 with 
-    | inleft (right _) => (i, b)::nil
+    | inleft (right _) => b::nil
     | _ => nil
     end
   end.
@@ -294,10 +298,10 @@ Section UseDef.
   match i with
   | insn_return t v => fun _ => nil
   | insn_return_void  => fun _ => nil 
-  | insn_br v l1 l2 => genBlockUseDef_label l1 i b f m ++++ genBlockUseDef_label l2 i b f m       
+  | insn_br t v l1 l2 => genBlockUseDef_label l1 i b f m ++++ genBlockUseDef_label l2 i b f m       
   | insn_br_uncond l => genBlockUseDef_label l i b f m
-  | insn_switch v l ls => genBlockUseDef_label l i b f m ++++ genBlockUseDef_switch_cases ls i b f m
-  | insn_invoke id id0 paraml l1 l2 => (genBlockUseDef_label l1 i b f m)++++(genBlockUseDef_label l2 i b f m)
+  | insn_switch t v l ls => genBlockUseDef_label l i b f m ++++ genBlockUseDef_switch_cases ls i b f m
+  | insn_invoke id typ id0 paraml l1 l2 => (genBlockUseDef_label l1 i b f m)++++(genBlockUseDef_label l2 i b f m)
   | insn_unreachable => fun _ => nil
   | insn_add id typ v1 v2 => fun _ => nil
   | insn_fadd id typ v1 v2 => fun _ => nil
@@ -305,8 +309,8 @@ Section UseDef.
   | insn_fdiv id typ v1 v2 => fun _ => nil
   | insn_or id typ v1 v2 => fun _ => nil
   | insn_and id typ v1 v2 => fun _ => nil
-  | insn_extractelement id N0 typ0 id0 const => fun _ => nil
-  | insn_insertelement id N0 typ0 id0 typ1 v1 const2 => fun _ => nil
+  | insn_extractelement id typ0 id0 const => fun _ => nil
+  | insn_insertelement id typ0 id0 typ1 v1 const2 => fun _ => nil
   | insn_extractvalue id typs id0 const1 => fun _ => nil
   | insn_insertvalue id typs id0 typ1 v1 const2 => fun _ => nil
   | insn_alloca id typ N => fun _ => nil
@@ -366,6 +370,9 @@ Section UseDef.
   Definition genBlockUseDef (m: module) : usedef_block :=
   genBlockUseDef_products m m.
 
+  Definition getBlockUseDef (udb:usedef_block) (b:block) : list_block :=
+  udb b. 
+
 End UseDef.
 
 Section CFG.
@@ -384,10 +391,10 @@ Section CFG.
 
   Definition getLabelsFromTerminator (i:insn) : ls := 
   match i with
-  | insn_br v l1 l2 => lset_add l1 (lset_add l2 lempty_set)
+  | insn_br t v l1 l2 => lset_add l1 (lset_add l2 lempty_set)
   | insn_br_uncond l0 => lset_add l0 lempty_set 
-  | insn_switch v l0 cls => lset_add l0 (getLabelsFromSwitchCases cls)
-  | insn_invoke id id0 ps l1 l2 => lset_add l1 (lset_add l2 lempty_set)
+  | insn_switch t v l0 cls => lset_add l0 (getLabelsFromSwitchCases cls)
+  | insn_invoke id typ id0 ps l1 l2 => lset_add l1 (lset_add l2 lempty_set)
   | _ => empty_set l
   end.
 
@@ -407,10 +414,10 @@ Section CFG.
   | Some i => getBlocksFromLabels (getLabelsFromTerminator i) (genLabel2Block m)
   end.
   
-  Fixpoint predOfBlock_rec (ls:list (prod insn block)) : list_block :=
+  Fixpoint predOfBlock_rec (ls:list block) : list_block :=
   match ls with
   | nil => nil
-  | (i, b)::ls' => b::predOfBlock_rec ls'
+  | b::ls' => b::predOfBlock_rec ls'
   end.
 
   Definition predOfBlock (b:block) (udb:usedef_block) : list_block :=
