@@ -99,6 +99,19 @@ Section SSA.
     end 
   end.  
 
+  Definition lookupBlockViaLabelFromModule (m:module) (l0:l) : option block :=
+  genLabel2Block m l0.  
+
+  Fixpoint lookupBlockViaLabelFromSystem (s:system) (l0:l) : option block :=
+  match s with 
+  | nil => None
+  | m::s' =>
+    match (genLabel2Block m l0) with
+    | Some b => Some b
+    | None => lookupBlockViaLabelFromSystem s' l0
+    end  
+  end.
+
 End SSA.
 
 Section UseDef.
@@ -120,6 +133,7 @@ Section UseDef.
   | insn_br_uncond l => None
   | insn_switch t v l _ => None
   | insn_invoke id typ id0 paraml l1 l2 => Some id
+  | insn_call id typ id0 paraml => Some id
   | insn_unreachable => None
   | insn_add id typ v1 v2 => Some id
   | insn_fadd id typ v1 v2 => Some id
@@ -127,10 +141,10 @@ Section UseDef.
   | insn_fdiv id typ v1 v2 => Some id
   | insn_or id typ v1 v2 => Some id
   | insn_and id typ v1 v2 =>Some id
-  | insn_extractelement id typ0 id0 const => Some id
-  | insn_insertelement id typ0 id0 typ1 v1 const2 => Some id
-  | insn_extractvalue id typs id0 const1 => Some id
-  | insn_insertvalue id typs id0 typ1 v1 const2 => Some id
+  | insn_extractelement id typ0 id0 c1 => Some id
+  | insn_insertelement id typ0 id0 typ1 v1 c2 => Some id
+  | insn_extractvalue id typs id0 c1 => Some id
+  | insn_insertvalue id typs id0 typ1 v1 c2 => Some id
   | insn_alloca id typ N => None
   | insn_load id typ1 id1 => Some id
   | insn_store typ1 v1 typ2 id2 => None
@@ -192,6 +206,7 @@ Section UseDef.
   | insn_br_uncond l => fun _ => nil
   | insn_switch t v l _ => genInsnUseDef_value v i b f m
   | insn_invoke id typ id0 paraml l1 l2 => (genInsnUseDef_id id0 i b f m)+++(genInsnUseDef_params paraml i b f m)
+  | insn_call id typ id0 paraml => fun _ => nil
   | insn_unreachable => fun _ => nil
   | insn_add id typ v1 v2 => (genInsnUseDef_value v1 i b f m)+++(genInsnUseDef_value v2 i b f m) 
   | insn_fadd id typ v1 v2 => (genInsnUseDef_value v1 i b f m)+++(genInsnUseDef_value v2 i b f m) 	
@@ -199,13 +214,17 @@ Section UseDef.
   | insn_fdiv id typ v1 v2 => (genInsnUseDef_value v1 i b f m)+++(genInsnUseDef_value v2 i b f m) 
   | insn_or id typ v1 v2 => (genInsnUseDef_value v1 i b f m)+++(genInsnUseDef_value v2 i b f m) 
   | insn_and id typ v1 v2 => (genInsnUseDef_value v1 i b f m)+++(genInsnUseDef_value v2 i b f m) 
-  | insn_extractelement id typ0 id0 const => genInsnUseDef_id id0 i b f m
-  | insn_insertelement id typ0 id0 typ1 v1 const2 => (genInsnUseDef_id id0 i b f m)+++(genInsnUseDef_value v1 i b f m)	
-  | insn_extractvalue id typs id0 const1 => genInsnUseDef_id id0 i b f m
-  | insn_insertvalue id typs id0 typ1 v1 const2 => (genInsnUseDef_id id0 i b f m)+++(genInsnUseDef_value v1 i b f m)	 
+  | insn_extractelement id typ0 value0 c1 => 
+    (genInsnUseDef_value value0 i b f m)
+  | insn_insertelement id typ0 value0 typ1 v1 c2 => 
+    (genInsnUseDef_value value0 i b f m)+++(genInsnUseDef_value v1 i b f m)
+  | insn_extractvalue id typ0 value0 c1 => 
+    (genInsnUseDef_value value0 i b f m)
+  | insn_insertvalue id typs value0 typ1 v1 c2 => 
+    (genInsnUseDef_value value0 i b f m)+++(genInsnUseDef_value v1 i b f m)
   | insn_alloca id typ N => fun _ => nil
-  | insn_load id typ1 id1 => genInsnUseDef_id id1 i b f m
-  | insn_store typ1 v1 typ2 id2 => (genInsnUseDef_value v1 i b f m)+++(genInsnUseDef_id id2 i b f m)	 
+  | insn_load id typ1 v1 => genInsnUseDef_value v1 i b f m
+  | insn_store typ1 v1 typ2 v2 => (genInsnUseDef_value v1 i b f m)+++(genInsnUseDef_value v2 i b f m)	 
   | insn_trunc id typ1 v1 typ2 => (genInsnUseDef_value v1 i b f m)			
   | insn_fptrunc id typ1 v1 typ2 => (genInsnUseDef_value v1 i b f m)			
   | insn_fptoui id typ1 v1 typ2 => (genInsnUseDef_value v1 i b f m)			
@@ -302,6 +321,7 @@ Section UseDef.
   | insn_br_uncond l => genBlockUseDef_label l i b f m
   | insn_switch t v l ls => genBlockUseDef_label l i b f m ++++ genBlockUseDef_switch_cases ls i b f m
   | insn_invoke id typ id0 paraml l1 l2 => (genBlockUseDef_label l1 i b f m)++++(genBlockUseDef_label l2 i b f m)
+  | insn_call id typ id0 paraml => fun _ => nil
   | insn_unreachable => fun _ => nil
   | insn_add id typ v1 v2 => fun _ => nil
   | insn_fadd id typ v1 v2 => fun _ => nil
@@ -309,13 +329,13 @@ Section UseDef.
   | insn_fdiv id typ v1 v2 => fun _ => nil
   | insn_or id typ v1 v2 => fun _ => nil
   | insn_and id typ v1 v2 => fun _ => nil
-  | insn_extractelement id typ0 id0 const => fun _ => nil
-  | insn_insertelement id typ0 id0 typ1 v1 const2 => fun _ => nil
-  | insn_extractvalue id typs id0 const1 => fun _ => nil
-  | insn_insertvalue id typs id0 typ1 v1 const2 => fun _ => nil
+  | insn_extractelement id typ0 v0 c1 => fun _ => nil
+  | insn_insertelement id typ0 v0 typ1 v1 c2 => fun _ => nil
+  | insn_extractvalue id typ0 v0 c1 => fun _ => nil
+  | insn_insertvalue id typ0 v0 typ1 v1 c2 => fun _ => nil
   | insn_alloca id typ N => fun _ => nil
-  | insn_load id typ1 id1 => fun _ => nil
-  | insn_store typ1 v1 typ2 id2 => fun _ => nil
+  | insn_load id typ1 v1 => fun _ => nil
+  | insn_store typ1 v1 typ2 v2 => fun _ => nil
   | insn_trunc id typ1 v1 typ2 => fun _ => nil
   | insn_fptrunc id typ1 v1 typ2 => fun _ => nil
   | insn_fptoui id typ1 v1 typ2 => fun _ => nil

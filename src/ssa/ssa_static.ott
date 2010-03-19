@@ -59,19 +59,81 @@ Jwf_typ :: '' ::=
 
 
 defns
-Jtyping :: '' ::=
+Jwf_operand :: '' ::=
+      defn
+      system , module_info , fdef_info , block , insn |- id' :: :: wf_operand :: ''
+      {{ com [[id']] is well-formed w.r.t [[insn]] [[block]] in [[fdef_info]] in [[module_info]] [[system]] }} by
+
+      insn in system , (module, usedef_insn, usedef_block) , (fdef, dt) , block
+      getInsnOperands insn = ids
+      id' in ids
+      lookupInsnViaIDFromSystem system id' = insn'
+      % Check to make sure that only first-class-values are operands to instructions.
+      getInsnTyp insn' = typ'     
+      isFirstClassType typ'
+      % Valid use of metadata pointer.
+      (getPointerEltTyp typ = typ') implies (not typ' == metadata)
+      ----------------------------------------------------------------------- :: wf_operand_intro
+      system , module_info , fdef_info , block , insn |- id'
+
+defns
+Jwf_label :: '' ::=
+      defn
+      system , module_info , fdef_info , block , insn |- l :: :: wf_label :: ''
+      {{ com [[l]] is well-formed w.r.t [[insn]] [[block]] in [[fdef_info]] in [[module_info]] [[system]] }} by
+
+      insn in system , (module, usedef_insn, usedef_block) , (fdef, dt) , block
+      getInsnLabels insn = ls
+      l in ls
+      lookupBlockViaLabelFromSystem system l = block
+      ----------------------------------------------------------------------- :: wf_label_intro
+      system , module_info , fdef_info , block , insn |- l
+
+defns
+Jwf_insn_base :: '' ::=
       defn
       system , module_info , fdef_info , block |-i insn :: :: wf_insn_base :: '' 
       {{ com [[insn]] is well-formed w.r.t [[block]] in [[fdef_info]] in [[module_info]] [[system]] }} by  
       % Verifier::visitInstruction
 
+      %%%% Instruction must be embedded in basic block!
       insn in system , (module, usedef_insn, usedef_block) , (fdef, dt) , block
+      %%%% Check that non-phi nodes are not self referential
       getInsnUseDef usedef_insn insn = list_insn 
-      list_insn = </ insnj // j />
-      (isPhiNode insn) implies </ (isPhiNode insnj) implies (((getInsnID insn = id) /\ (getInsnID insnj = idj) /\ (not id == id')) \/ (isReachableFromEntry (fdef, dt) block)) // j />
-      ----------------------------------------------------------------- :: wf_insn_base_intro
+      list_insn <-> </ insnj // j />
+      (isPhiNode insn) implies </ (isPhiNode insnj) implies ((not insn =id= insnj) \/ (isReachableFromEntry (fdef, dt) block)) // j />
+      %%%% Verify that if this is a terminator that it is at the end of the block
+      (isTerminatorInsn insn /\ getTerminator block = insn') implies (insn =id= insn')
+      %%%% Check that void typed values don't have names
+      %%%% We dont need to check this in Ott
+      %%%%
+      %%%% Check that the return value of the instruction is either void or a legal value type.
+      getInsnTyp insn = typ
+      typ == void \/ isFirstClassType typ
+      %%%% Check that the instruction doesn't produce metadata or metadata*. Calls
+      %%%% all already checked against the callee type.
+      (not typ == metadata) \/ isInvokeInsn insn \/ isCallInsn insn 
+      %%%% Instructions may not produce pointer to metadata.
+      (isPointerTyp typ) implies (getPointerEltTyp typ = typ' /\ (not typ' == metadata)) 
+      %%%% Check that all uses of the instruction, if they are instructions
+      %%%% themselves, actually have parent basic blocks.  If the use is not an
+      %%%% instruction, it is an error!
+      %%%% We should prove a lemma for this later.
+      %%%%
+      %%%% Check operands
+      getInsnOperands insn = ids
+      ids <-> </ idj // j />
+      </ system , module_info , fdef_info , block , insn |- idj // j />
+      %%%%
+      %%%% Check labels
+      getInsnLabels insn = ls
+      ls <-> </ lj // j />
+      </ system , module_info , fdef_info , block , insn |- lj // j />
+      -------------------------------------------------------------------------------------- :: wf_insn_base_intro
       system , (module, usedef_insn, usedef_block) , (fdef, dt) , block |-i insn
 
+defns
+Jwf_insn :: '' ::=
       defn
       system , module_info , fdef_info , block |- insn :: :: wf_insn :: '' 
       {{ com [[insn]] is well-formed w.r.t [[block]] in [[fdef_info]] in [[module_info]] [[system]] }} by  
@@ -82,48 +144,46 @@ Jtyping :: '' ::=
       ------------------------------------------------------ :: wf_insn_return
       system , module_info , (fdef, dt) , block |- ret typ value
 
-      system , module_info , (fdef, dt) , block |-i ret void
+      system , module_info , (fdef, dt) , block |- ret void
       getReturnType fdef = void
       ------------------------------------------------------ :: wf_insn_return_void
       system , module_info , (fdef, dt) , block |- ret void
 
-      system , (module, usedef_insn, usedef_block), fdef_info , block |-i br typ value , l1 , l2				        
+      system , (module, usedef_insn, usedef_block), fdef_info , block |-i br typ value , l1 , l2
       blockDominates dt block block
       insnDominates (ret void) (ret void)
       -------------------------------------------------------------------------------------- :: wf_insn_br
       system , (module, usedef_insn, usedef_block), fdef_info , block |- br typ value , l1 , l2				        
-
+defns
+Jwf_list_insn :: '' ::=
       defn
       system , module_info , fdef_info , block |- list_insn :: :: wf_list_insn :: ''
-      {{ com [[list_insn]] is well-formed w.r.t [[block]] in [[fdef_info]] in [[module_info]] [[system]] }} by  
+      {{ com [[list_insn]] is well-formed w.r.t. [[block]] [[fdef_info]] in [[module_info]] [[system]] }} by
 
-      ----------------------------------------------- :: wf_list_insn_nil
+      --------------------------------------- :: wf_list_insn_nil
       system , module_info , fdef_info , block |- []
 
-      system , module_info , fdef_info , block |- insn 
+      system , module_info , fdef_info , block |- insn
       system , module_info , fdef_info , block |- list_insn
-      ------------------------------------------------------------- :: wf_list_insn_cons
+      ------------------------------------------------------- :: wf_list_insn_cons
       system , module_info , fdef_info , block |- list_insn , insn
-
-
+ 
+defns
+Jwf_block :: '' ::=
       defn
       system , module_info , fdef_info |- block :: :: wf_block :: '' 
       {{ com [[block]] is well-formed w.r.t. [[fdef_info]] in [[module_info]] [[system]] }} by
 
       (l list_insn) in system , module_info , fdef_info
-      system , module_info , fdef_info , l list_insn |- list_insn 
+      getInsnsFromBlock block = list_insn
+      system , module_info , fdef_info , block |- list_insn
       insnsChecksTerminatorInsn list_insn
       insnsStartsWithPhiNode list_insn
-      --------------------------------------------------------- :: wf_block_with_label
-      system , module_info , fdef_info |- l list_insn
+      --------------------------------------------------------- :: wf_block_intro
+      system , module_info , fdef_info |- block
 
-      list_insn in system , module_info , fdef_info
-      system , module_info , fdef_info , list_insn |- list_insn 
-      insnsChecksTerminatorInsn list_insn
-      insnsStartsWithPhiNode list_insn
-      --------------------------------------------------------- :: wf_block_without_label
-      system , module_info , fdef_info |- list_insn
-
+defns
+Jwf_list_block :: '' ::=
       defn
       system , module_info , fdef_info |- list_block :: :: wf_list_block :: ''
       {{ com [[list_block]] is well-formed w.r.t. [[fdef_info]] in [[module_info]] [[system]] }} by
@@ -137,6 +197,8 @@ Jtyping :: '' ::=
       system , module_info , fdef_info |- list_block , block
  
 
+defns
+Jwf_fdef :: '' ::=
       defn
       system , module_info |-f fdef :: :: wf_fdef :: ''
       {{ com [[fdef]] is well-formed w.r.t. [[module_info]] [[system]] }} by
@@ -147,6 +209,8 @@ Jtyping :: '' ::=
       ------------------------------------------------------ :: wf_fdef_intro
       system , (module, usedef_insn, usedef_block) |-f define fheader { list_block }
 
+defns
+Jwf_prod :: '' ::=
       defn
       system , module_info |- product :: :: wf_prod :: ''
       {{ com [[product]] is well-formed w.r.t. [[module_info]] [[system]]}} by 
@@ -164,6 +228,8 @@ Jtyping :: '' ::=
       -------------------------------------- :: wf_prod_namedtype
       system , module_info |- namedt     
 
+defns
+Jwf_prods :: '' ::=
       defn
       system , module_info |- list_product :: :: wf_prods :: ''
       {{ com [[list_product]] is well-formed w.r.t. [[module_info]] [[system]]}} by 
@@ -176,6 +242,8 @@ Jtyping :: '' ::=
       ------------------------------------------- :: wf_prods_cons
       system , module_info |- list_product , product
 
+defns
+Jwf_module :: '' ::=
       defn
       system |- module :: :: wf_module :: ''
       {{ com [[module]] is well-formed w.r.t. [[system]] }} by
@@ -187,6 +255,8 @@ Jtyping :: '' ::=
       ----------------------------------------------------- :: wf_module_intro
       system |- list_product
 
+defns
+Jwf_list_module :: '' ::=
       defn
       system |- list_module :: :: wf_list_module :: ''
       {{ com [[list_module]] is well-formed w.r.t. [[system]] }} by  
@@ -199,6 +269,8 @@ Jtyping :: '' ::=
       ---------------------------------- :: wf_list_module_cons
       system |- list_module , module
  
+defns
+Jwf_system :: '' ::=
       defn
       |- system :: :: wf_system :: ''
       {{ com [[system]] is well-formed }} by

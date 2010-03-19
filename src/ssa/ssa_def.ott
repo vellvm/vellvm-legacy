@@ -35,6 +35,14 @@ opt_id {{ tex \mathit{opt_{id} } }} :: 'opt_id_'	::=			{{ com option id }} {{ co
   |  none 						:: M :: none		{{ com none }} {{ coq None }}
   |  id							:: M :: some  		{{ com some }} {{ coq (Some [[id]]) }}
 
+ids {{ tex \mathit{\{id\} } }} :: 'ids_'		::=			{{ com id set }}
+       	   			      	 					{{ coq (list id) }}
+  | empty						::   :: empty		{{ coq (empty_set id) }}
+  | id1 .. idn						::   :: set		{{ coq [[id1 .. idn]] }}
+  | ids , id						::   :: cons		{{ coq (set_add eq_nat_dec [[id]] [[ids]]) }}
+  | ids ; ids'						::   :: append		{{ coq (set_union eq_nat_dec [[ids]] [[ids']]) }}
+  | ( ids )						:: S :: paren		{{ coq [[ ids ]] }}
+
 const :: 'const_'					::=  			{{ com constant }}
   | N 	 						::   :: val		{{ com val }}	
   | undef						::   :: undef		{{ com undef }}
@@ -105,10 +113,11 @@ cond :: 'cond_'						::=			{{ com condition code }}
 insn :: 'insn_'					    	::=			{{ com insnruction }}
   | ret typ value             			    	::   :: return      	{{ com return }}
   | ret void                   			    	::   :: return_void  	{{ com return void }}
-  | br typ value , l1 , l2					::   :: br              {{ com br }}        
+  | br typ value , l1 , l2				::   :: br              {{ com br }}        
   | br l        	    	  			::   :: br_uncond       {{ com unconditional br }}        
-  | switch typ value , l </ [ constj , lj ] // j />		::   :: switch		{{ com switch }}
+  | switch typ value , l </ [ constj , lj ] // j />	::   :: switch		{{ com switch }}
   | id = invoke typ0 id0 list_param to l1 unwind l2 	::   :: invoke		{{ com invoke }} 
+  | id = call typ0 id0 list_param	       	 	::   :: call		{{ com call }} 
   | unreachable	     	   	     	 		::   :: unreachable	{{ com unreachable }}
   | id = add typ value1 value2				::   :: add		{{ com add }}
   | id = fadd typ value1 value2				::   :: fadd		{{ com fadd }}
@@ -116,13 +125,13 @@ insn :: 'insn_'					    	::=			{{ com insnruction }}
   | id = fdiv typ value1 value2				::   :: fdiv		{{ com fdiv }}
   | id = or typ value1 value2				::   :: or 		{{ com or }}
   | id = and typ value1 value2				::   :: and 		{{ com and }}
-  | id = extractelement typ0 id0 , const1		::   :: extractelement  {{ com extractelement }}
-  | id = insertelement typ0 id0 , typ1 value1 , const2	::   :: insertelement   {{ com insertelement }}
-  | id = extractvalue typ0 id0 , const1              	::   :: extractvalue	{{ com extractvalue }}
-  | id = insertvalue typ0 id0 , typ1 value1 , const2 	::   :: insertvalue	{{ com insertvalue }}
+  | id = extractelement typ0 value0 , const1		::   :: extractelement  {{ com extractelement }}
+  | id = insertelement typ0 value0 , typ1 value1 , const2	::   :: insertelement   {{ com insertelement }}
+  | id = extractvalue typ0 value0 , const1             	::   :: extractvalue	{{ com extractvalue }}
+  | id = insertvalue typ0 value0 , typ1 value1 , const2 	::   :: insertvalue	{{ com insertvalue }}
   | id = alloca typ N  	     	       	     	       	::   :: alloca		{{ com alloca }}
-  | id = load typ1 id1					::   :: load		{{ com load }}
-  | store typ1 value1 , typ2 id2			::   :: store		{{ com store }}
+  | id = load typ1 value1				::   :: load		{{ com load }}
+  | store typ1 value1 , typ2 value2			::   :: store		{{ com store }}
   | id = trunc typ1 value1 to typ2			::   :: trunc		{{ com trunc }}
   | id = fptrunc typ1 value1 to typ2			::   :: fptrunc		{{ com fptrunc }}
   | id = fptoui typ1 value1 to typ2			::   :: fptoui		{{ com fptoui }}
@@ -146,6 +155,7 @@ list_insn {{ tex \mathit{\overline{insn} } }} :: 'list_insn_'	::=			{{ com insnr
   | []	                  				::   :: nil		{{ coq nil }}
   | list_insn , insn           				::   :: cons		{{ coq ([[insn]]::[[list_insn]]) }}
   | list_insn ; list_insn'				::   :: append		{{ coq ([[list_insn]]++[[list_insn']]) }}
+%  | insn1 .. insnn					::   :: def		{{ coq ([[ insn1 .. insnn ]]) }}
   | ( list_insn )					:: S :: paren           {{ coq [[ list_insn ]] }}
 
 block :: 'block_' 					::=			{{ com block }}
@@ -162,6 +172,7 @@ list_block {{ tex \mathit{\overline{block} } }} :: 'list_block_'::=			{{ com blo
   | []  						::   :: nil		{{ coq nil }}
   | list_block , block					::   :: cons		{{ coq ([[block]]::[[list_block]]) }}
   | list_block ; list_block'				::   :: append		{{ coq ([[list_block]]++[[list_block']]) }}
+%  | block1 ... blockn					::   :: def		{{ coq ([[ block1 ... blockn ]]) }}
   | ( list_block )					:: S :: paren           {{ coq [[ list_block ]] }}
 
 fheader :: 'fheader_'    				::=			{{ com function header }}
@@ -184,6 +195,11 @@ g :: 'g_'   	 					::=			{{ com global }}
   | id = global typ const				::   :: intro  
   | ( g )	    					:: S :: paren		{{ coq [[ g ]] }}
 
+id_binding :: 'id_binding_'  				::=			{{ com id binding }} 
+  |  none 						::  :: none		{{ com none }} 
+  |  insn						::  :: insn  		{{ com insn }} 
+  |  g							::  :: g  		{{ com g }} 
+		   
 product  :: 'product_'					::=			{{ com prodoct }}
   | g							::   :: global_var      {{ com global variable }}
   | fdec             					::   :: function_dec   	{{ com function declaration }}
@@ -196,6 +212,7 @@ list_product {{ tex \mathit{\overline{product} } }} :: 'list_product_'::=	{{ com
     							     			{{ coq nil }}
   | list_product , product				::   :: cons            {{ com cons }}
     	       						     			{{ coq ([[product]]::[[list_product]]) }}
+%  | product1 ... productn				::   :: def		{{ coq ([[ product1 ... productn ]]) }}
   | ( list_product )					:: S :: paren		{{ coq [[ list_product ]] }}			
 
 module :: 'module_'					::=  			{{ com module }}
@@ -208,6 +225,7 @@ list_module {{ tex \mathit{\overline{module} } }} :: 'list_module_'::=  	{{ com 
   | []  						::   :: nil		{{ coq nil }}
   | list_module , module				::   :: cons		{{ coq ([[module]]::[[list_module]]) }}
   | list_module ; list_module'				::   :: append		{{ coq ([[list_module]]++[[list_module']]) }}
+%  | module1 ... modulen					::   :: def		{{ coq ([[ module1 ... modulen ]]) }}
   | ( list_module )					:: S :: paren           {{ coq [[ list_module ]] }}
 
 system :: 'system_'					::=  			{{ com system }}
@@ -237,6 +255,7 @@ fdef_info :: 'fdef_info_'				::=  			{{ com fdef information }}
   | ( fdef_info )					:: S :: paren		{{ coq [[ fdef_info ]] }}						
 terminals :: 'terminals_' ::=
   | =                   ::   :: assignment      {{ tex = }}
+  | <->                 ::   :: alias		{{ tex <-> }}
   | == 			::   :: eq		{{ tex == }}
   | |-			::   :: shows           {{ tex \vdash }}
   | |-i			::   :: ishows          {{ tex \vdash_{i} }}
@@ -279,7 +298,13 @@ formula :: 'formula_' ::=
 				{{ coq [[id1]] = [[id2]] }}
   | l notin ls			::   :: l_notin_ls
       	    			{{ tex [[l]] \not\in [[ls]] }}
-				{{ coq ( ~ set_In eq_nat_dec [[l]] [[ls]]) }}
+				{{ coq ( ~ set_In [[l]] [[ls]]) }}
+  | l in ls			::   :: l_in_ls
+      	    			{{ tex [[l]] \in [[ls]] }}
+				{{ coq ( set_In [[l]] [[ls]]) }}
+  | id in ids			::   :: id_in_ids
+      	    			{{ tex [[id]] \in [[ids]] }}
+				{{ coq ( set_In [[id]] [[ids]]) }}
   | module in system		::   :: module_in_system
     	       			{{ tex [[module]] \in [[system]] }}
 				{{ coq In [[module]] [[system]] }}
@@ -292,24 +317,44 @@ formula :: 'formula_' ::=
   | insn in list_insn		::   :: insn_in_insns
     	       			{{ tex [[insn]] \in [[list_insn]] }}
 				{{ coq In [[insn]] [[list_insn]] }}
-  | module = module'            :: M :: module_alias
+  | module <-> module'          :: M :: module_alias
     	     			{{ com module alias }} 
 				{{ coq [[module]] = [[module']] }}
-  | system = system'            :: M :: system_alias
+  | system <-> system'          :: M :: system_alias
     	     			{{ com system alias }} 
 				{{ coq [[system]] = [[system']] }}
-  | list_arg = </ typj // j />	:: M :: args_alias
+  | list_arg <-> </ typj // j /> :: M :: args_alias
     	       			{{ com args alias }}
 				{{ coq [[list_arg]] = [[ </ typj // j /> ]] }}
-  | list_insn = </ insnj // j /> :: M :: insns_alias
+  | ids <-> </ idj // j /> 	:: M :: ids_alias
+    	      	   	        {{ com ids alias }}
+				{{ coq [[ids]] = [[ </ idj // j /> ]] }}
+  | ls <-> </ lj // j /> 	:: M :: ls_alias
+    	      	   	        {{ com ls alias }}
+				{{ coq [[ls]] = [[ </ lj // j /> ]] }}
+  | list_insn <-> </ insnj // j /> :: M :: insns_alias
     	      	   	        {{ com insns alias }}
 				{{ coq [[list_insn]] = [[ </ insnj // j /> ]] }}
+  | list_block <-> </ blockj // j /> :: M :: blocks_alias
+    	      	   	        {{ com blocks alias }}
+				{{ coq [[list_block]] = [[ </ blockj // j /> ]] }}
+  | list_product <-> </ productj // j /> :: M :: products_alias
+    	      	   	        {{ com products alias }}
+				{{ coq [[list_product]] = [[ </ productj // j /> ]] }}
+  | list_module <-> </ modulej // j /> :: M :: modules_alias
+    	      	   	        {{ com modules alias }}
+				{{ coq [[list_module]] = [[ </ modulej // j /> ]] }}
   | getNthTyp </ typj // j /> N = opt_typ ::   :: getNthTyp
     	      	       	   	{{ com getNthTyp }}
 				{{ coq nth_error [[ </ typj // j /> ]] [[N]] = [[opt_typ]] }}  
+  | insn =id= insn'        :: M :: getInsnID_eq
+    	      	      	      	{{ tex [[insn]] =id= [[insn']] }}
+				{{ coq getInsnID [[insn]] = getInsnID [[insn']] }}
 
 parsing
 formula_and left formula_and
-
+formula_or left formula_or
+formula_not left formula_or
+formula_not left formula_and
 
  
