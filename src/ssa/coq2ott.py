@@ -1,5 +1,4 @@
 #! /usr/bin/env python
-# the first argument is the stat file, the snd one if there were is the ssize
 
 import sys, string, os, commands, shutil, re
 from math import sqrt, log10, log
