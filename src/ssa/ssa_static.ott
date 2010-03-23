@@ -30,69 +30,144 @@ Jwf_typ :: '' ::=
       -------------------- :: wf_typ_opaque
       |- opaque
 
-      isValidReturnType typ     
+      isValidReturnTyp typ     
       |- typ
-      </ isValidArgumentType typj // j />
+      </ isValidArgumentTyp typj // j />
       </ |- typj // j /> 
       -------------------------------------------------- :: wf_typ_function
       |- typ ( </ typj // j /> ) 
      
-      </ isValidElementType typj // j />
+      </ isValidElementTyp typj // j />
       </ |- typj // j /> 
       -------------------------------------------------- :: wf_typ_structure
       |- { </ typj // j /> }
 
       |- typ
-      isValidElementType typ
+      isValidElementTyp typ
       ------------------- :: wf_typ_array
       |- [ N * typ ]
 
       |- typ
-      isValidElementType typ
+      isValidElementTyp typ
       ------------------- :: wf_typ_pointer
       |- typ * 
 
       |- typ
-      isValidElementType typ
+      isValidElementTyp typ
       ------------------- :: wf_typ_vector
       |- < N * typ >
 
 
 defns
+Jwf_operand_insn :: '' ::=
+      defn
+      intrinsic_funs , system , module_info , fdef_info , block , insn |- insn' :: :: wf_operand_insn :: ''
+      {{ com [[insn']] is well-formed w.r.t [[insn]] [[block]] in [[fdef_info]] in [[module_info]] [[system]] }} by
+
+      getInsnID insn' = id'
+      lookupBlockViaIDFromFdef fdef id' = block'
+%       isInvokeInsn insn' 
+%       getNormalDestFromInvokeInsn insn' = l1
+%       getUnwindDestFromInvokeInsn insn' = l2
+%       not l1 == l2
+%        // Check that a definition dominates all of its uses.
+% 1352       if (InvokeInst *II = dyn_cast<InvokeInst>(Op)) {
+% 1353         // Invoke results are only usable in the normal destination, not in the
+% 1354         // exceptional destination.
+% 1355         BasicBlock *NormalDest = II->getNormalDest();
+% 1356
+% 1357         Assert2(NormalDest != II->getUnwindDest(),
+% 1358                 "No uses of invoke possible due to dominance structure!",
+% 1359                 Op, &I);
+% 1360
+% 1361         // PHI nodes differ from other nodes because they actually "use" the
+% 1362         // value in the predecessor basic blocks they correspond to.
+% 1363         BasicBlock *UseBlock = BB;
+% 1364         if (isa<PHINode>(I))
+% 1365           UseBlock = cast<BasicBlock>(I.getOperand(i+1));
+% 1366
+% 1367         if (isa<PHINode>(I) && UseBlock == OpBlock) {
+% 1368           // Special case of a phi node in the normal destination or the unwind
+% 1369           // destination.
+% 1370           Assert2(BB == NormalDest || !DT->isReachableFromEntry(UseBlock),
+% 1371                   "Invoke result not available in the unwind destination!",
+% 1372                   Op, &I);
+% 1373         } else {
+% 1374           Assert2(DT->dominates(NormalDest, UseBlock) ||
+% 1375                   !DT->isReachableFromEntry(UseBlock),
+% 1376                   "Invoke result does not dominate all uses!", Op, &I);
+% 1377
+% 1378           // If the normal successor of an invoke instruction has multiple
+% 1379           // predecessors, then the normal edge from the invoke is critical,
+% 1380           // so the invoke value can only be live if the destination block
+% 1381           // dominates all of it's predecessors (other than the invoke).
+% 1382           if (!NormalDest->getSinglePredecessor() &&
+% 1383               DT->isReachableFromEntry(UseBlock))
+% 1384             // If it is used by something non-phi, then the other case is that
+% 1385             // 'NormalDest' dominates all of its predecessors other than the
+% 1386             // invoke.  In this case, the invoke value can still be used.
+% 1387             for (pred_iterator PI = pred_begin(NormalDest),
+% 1388                  E = pred_end(NormalDest); PI != E; ++PI)
+% 1389               if (*PI != II->getParent() && !DT->dominates(NormalDest, *PI) &&
+% 1390                   DT->isReachableFromEntry(*PI)) {
+% 1391                 CheckFailed("Invoke result does not dominate all uses!", Op,&I);
+% 1392                 return;
+% 1393               }
+% 1394         }
+      % PHI nodes are more difficult than other nodes because they actually
+      % "use" the value in the predecessor basic blocks they correspond to.
+      (isPhiNode insn) implies (getLabelViaIDPhiNode insn id' = l'' /\ lookupBlockViaLabelFromSystem system l'' = block'' /\ (blockDominates dt block' block'' \/ (not (isReachableFromEntry (fdef, dt) block )) ) )
+      % if insn is not PhiNode, make sure that the definition comes before the use
+      (not isPhiNode insn) implies (insnDominates insn' insn \/ (not (isReachableFromEntry (fdef, dt) block)))
+      ------------------------------------------------------------------------------------------------------------- :: wf_operand_insn_intro
+      intrinsic_funs , system , module_info , (fdef, dt) , block , insn |- insn' 
+
+defns
 Jwf_operand :: '' ::=
       defn
-      system , module_info , fdef_info , block , insn |- id' :: :: wf_operand :: ''
+      intrinsic_funs , system , module_info , fdef_info , block , insn |- id' :: :: wf_operand :: ''
       {{ com [[id']] is well-formed w.r.t [[insn]] [[block]] in [[fdef_info]] in [[module_info]] [[system]] }} by
 
       insn in system , (module, usedef_insn, usedef_block) , (fdef, dt) , block
       getInsnOperands insn = ids
       id' in ids
-      lookupInsnViaIDFromSystem system id' = insn'
+      lookupBindingViaIDFromSystem system id' = id_binding'
       % Check to make sure that only first-class-values are operands to instructions.
-      getInsnTyp insn' = typ'     
-      isFirstClassType typ'
+      getBindingTyp id_binding' = typ'     
+      isFirstClassTyp typ'
       % Valid use of metadata pointer.
-      (getPointerEltTyp typ = typ') implies (not typ' == metadata)
-      ----------------------------------------------------------------------- :: wf_operand_intro
-      system , module_info , fdef_info , block , insn |- id'
+      (getPointerEltTyp typ' = typ'') implies (not typ'' == metadata)
+      % Check to make sure that the "address of" an intrinsic function is never
+      % taken, and referencing function exists in current module!
+      (isBindingFdec id_binding' = fdec) implies (getFdecID fdec = id0 /\ (id0 notin intrinsic_funs \/ getCallName insn = id0) /\ fdec in module)
+      % Referring to an argument in the current function
+      (isBindingArg id_binding' = arg) implies (argInFdef arg fdef)
+      % Referencing global in the current module
+      (isBindingG id_binding' = g) implies (g in module)
+      % Check when id_binding' is insn
+      (isBindingInsn id_binding' = insn') implies (intrinsic_funs , system , module_info , fdef_info , block , insn |- insn')
+      ----------------------------------------------------------------------------------------------------------------------- :: wf_operand_intro
+      intrinsic_funs , system , (module, usedef_insn, usedef_block) , (fdef, dt) , block , insn |- id'
 
 defns
 Jwf_label :: '' ::=
       defn
-      system , module_info , fdef_info , block , insn |- l :: :: wf_label :: ''
+      intrinsic_funs , system , module_info , fdef_info , block , insn |- l :: :: wf_label :: ''
       {{ com [[l]] is well-formed w.r.t [[insn]] [[block]] in [[fdef_info]] in [[module_info]] [[system]] }} by
 
       insn in system , (module, usedef_insn, usedef_block) , (fdef, dt) , block
       getInsnLabels insn = ls
       l in ls
       lookupBlockViaLabelFromSystem system l = block
+      % Referring to a basic block in the current function
+      blockInFdef block fdef
       ----------------------------------------------------------------------- :: wf_label_intro
-      system , module_info , fdef_info , block , insn |- l
+      intrinsic_funs , system , (module, usedef_insn, usedef_block) , (fdef, dt) , block , insn |- l
 
 defns
 Jwf_insn_base :: '' ::=
       defn
-      system , module_info , fdef_info , block |-i insn :: :: wf_insn_base :: '' 
+      intrinsic_funs , system , module_info , fdef_info , block |-i insn :: :: wf_insn_base :: '' 
       {{ com [[insn]] is well-formed w.r.t [[block]] in [[fdef_info]] in [[module_info]] [[system]] }} by  
       % Verifier::visitInstruction
 
@@ -109,7 +184,7 @@ Jwf_insn_base :: '' ::=
       %%%%
       %%%% Check that the return value of the instruction is either void or a legal value type.
       getInsnTyp insn = typ
-      typ == void \/ isFirstClassType typ
+      typ == void \/ isFirstClassTyp typ
       %%%% Check that the instruction doesn't produce metadata or metadata*. Calls
       %%%% all already checked against the callee type.
       (not typ == metadata) \/ isInvokeInsn insn \/ isCallInsn insn 
@@ -123,162 +198,162 @@ Jwf_insn_base :: '' ::=
       %%%% Check operands
       getInsnOperands insn = ids
       ids <-> </ idj // j />
-      </ system , module_info , fdef_info , block , insn |- idj // j />
+      </ intrinsic_funs , system , module_info , fdef_info , block , insn |- idj // j />
       %%%%
       %%%% Check labels
       getInsnLabels insn = ls
       ls <-> </ lj // j />
-      </ system , module_info , fdef_info , block , insn |- lj // j />
+      </ intrinsic_funs , system , module_info , fdef_info , block , insn |- lj // j />
       -------------------------------------------------------------------------------------- :: wf_insn_base_intro
-      system , (module, usedef_insn, usedef_block) , (fdef, dt) , block |-i insn
+      intrinsic_funs , system , (module, usedef_insn, usedef_block) , (fdef, dt) , block |-i insn
 
 defns
 Jwf_insn :: '' ::=
       defn
-      system , module_info , fdef_info , block |- insn :: :: wf_insn :: '' 
+      intrinsic_funs , system , module_info , fdef_info , block |- insn :: :: wf_insn :: '' 
       {{ com [[insn]] is well-formed w.r.t [[block]] in [[fdef_info]] in [[module_info]] [[system]] }} by  
 
-      system , module_info , (fdef, dt) , block |-i ret typ value
-      getReturnType fdef = typ
+      intrinsic_funs , system , module_info , (fdef, dt) , block |-i ret typ value
+      getReturnTyp fdef = typ
       not typ == void
       ------------------------------------------------------ :: wf_insn_return
-      system , module_info , (fdef, dt) , block |- ret typ value
+      intrinsic_funs , system , module_info , (fdef, dt) , block |- ret typ value
 
-      system , module_info , (fdef, dt) , block |- ret void
-      getReturnType fdef = void
+      intrinsic_funs , system , module_info , (fdef, dt) , block |- ret void
+      getReturnTyp fdef = void
       ------------------------------------------------------ :: wf_insn_return_void
-      system , module_info , (fdef, dt) , block |- ret void
+      intrinsic_funs , system , module_info , (fdef, dt) , block |- ret void
 
-      system , (module, usedef_insn, usedef_block), fdef_info , block |-i br typ value , l1 , l2
+      intrinsic_funs , system , (module, usedef_insn, usedef_block), fdef_info , block |-i br typ value , l1 , l2
       blockDominates dt block block
       insnDominates (ret void) (ret void)
       -------------------------------------------------------------------------------------- :: wf_insn_br
-      system , (module, usedef_insn, usedef_block), fdef_info , block |- br typ value , l1 , l2				        
+      intrinsic_funs , system , (module, usedef_insn, usedef_block), fdef_info , block |- br typ value , l1 , l2				        
 defns
 Jwf_list_insn :: '' ::=
       defn
-      system , module_info , fdef_info , block |- list_insn :: :: wf_list_insn :: ''
+      intrinsic_funs , system , module_info , fdef_info , block |- list_insn :: :: wf_list_insn :: ''
       {{ com [[list_insn]] is well-formed w.r.t. [[block]] [[fdef_info]] in [[module_info]] [[system]] }} by
 
       --------------------------------------- :: wf_list_insn_nil
-      system , module_info , fdef_info , block |- []
+      intrinsic_funs , system , module_info , fdef_info , block |- []
 
-      system , module_info , fdef_info , block |- insn
-      system , module_info , fdef_info , block |- list_insn
+      intrinsic_funs , system , module_info , fdef_info , block |- insn
+      intrinsic_funs , system , module_info , fdef_info , block |- list_insn
       ------------------------------------------------------- :: wf_list_insn_cons
-      system , module_info , fdef_info , block |- list_insn , insn
+      intrinsic_funs , system , module_info , fdef_info , block |- list_insn , insn
  
 defns
 Jwf_block :: '' ::=
       defn
-      system , module_info , fdef_info |- block :: :: wf_block :: '' 
+      intrinsic_funs , system , module_info , fdef_info |- block :: :: wf_block :: '' 
       {{ com [[block]] is well-formed w.r.t. [[fdef_info]] in [[module_info]] [[system]] }} by
 
       (l list_insn) in system , module_info , fdef_info
       getInsnsFromBlock block = list_insn
-      system , module_info , fdef_info , block |- list_insn
+      intrinsic_funs , system , module_info , fdef_info , block |- list_insn
       insnsChecksTerminatorInsn list_insn
       insnsStartsWithPhiNode list_insn
       --------------------------------------------------------- :: wf_block_intro
-      system , module_info , fdef_info |- block
+      intrinsic_funs , system , module_info , fdef_info |- block
 
 defns
 Jwf_list_block :: '' ::=
       defn
-      system , module_info , fdef_info |- list_block :: :: wf_list_block :: ''
+      intrinsic_funs , system , module_info , fdef_info |- list_block :: :: wf_list_block :: ''
       {{ com [[list_block]] is well-formed w.r.t. [[fdef_info]] in [[module_info]] [[system]] }} by
 
       --------------------------------------- :: wf_list_block_nil
-      system , module_info , fdef_info |- []
+      intrinsic_funs , system , module_info , fdef_info |- []
 
-      system , module_info , fdef_info |- block
-      system , module_info , fdef_info |- list_block
+      intrinsic_funs , system , module_info , fdef_info |- block
+      intrinsic_funs , system , module_info , fdef_info |- list_block
       ------------------------------------------------------- :: wf_list_block_cons
-      system , module_info , fdef_info |- list_block , block
+      intrinsic_funs , system , module_info , fdef_info |- list_block , block
  
 
 defns
 Jwf_fdef :: '' ::=
       defn
-      system , module_info |-f fdef :: :: wf_fdef :: ''
+      intrinsic_funs , system , module_info |-f fdef :: :: wf_fdef :: ''
       {{ com [[fdef]] is well-formed w.r.t. [[module_info]] [[system]] }} by
 
       (define fheader { list_block} ) in system , (module, usedef_insn, usedef_block)
       genDominatorTree (define fheader { list_block }) module = dt
-      system , (module, usedef_insn, usedef_block) , (define fheader { list_block }, dt) |- list_block      
+      intrinsic_funs , system , (module, usedef_insn, usedef_block) , (define fheader { list_block }, dt) |- list_block      
       ------------------------------------------------------ :: wf_fdef_intro
-      system , (module, usedef_insn, usedef_block) |-f define fheader { list_block }
+      intrinsic_funs , system , (module, usedef_insn, usedef_block) |-f define fheader { list_block }
 
 defns
 Jwf_prod :: '' ::=
       defn
-      system , module_info |- product :: :: wf_prod :: ''
+      intrinsic_funs , system , module_info |- product :: :: wf_prod :: ''
       {{ com [[product]] is well-formed w.r.t. [[module_info]] [[system]]}} by 
 
       ----------------------------- :: wf_prod_global_var
-      system , module_info |- g
+      intrinsic_funs , system , module_info |- g
 
       ----------------------------- :: wf_prod_function_dec
-      system , module_info |- fdec
+      intrinsic_funs , system , module_info |- fdec
 
-      system , module_info |-f fdef
+      intrinsic_funs , system , module_info |-f fdef
       ----------------------------- :: wf_prod_function_def
-      system , module_info |- fdef   
+      intrinsic_funs , system , module_info |- fdef   
 
       -------------------------------------- :: wf_prod_namedtype
-      system , module_info |- namedt     
+      intrinsic_funs , system , module_info |- namedt     
 
 defns
 Jwf_prods :: '' ::=
       defn
-      system , module_info |- list_product :: :: wf_prods :: ''
+      intrinsic_funs , system , module_info |- list_product :: :: wf_prods :: ''
       {{ com [[list_product]] is well-formed w.r.t. [[module_info]] [[system]]}} by 
 
       --------------------------- :: wf_prods_nil
-      system , module_info |- []
+      intrinsic_funs , system , module_info |- []
 
-      system , module_info |- list_product
-      system , module_info |- product
+      intrinsic_funs , system , module_info |- list_product
+      intrinsic_funs , system , module_info |- product
       ------------------------------------------- :: wf_prods_cons
-      system , module_info |- list_product , product
+      intrinsic_funs , system , module_info |- list_product , product
 
 defns
 Jwf_module :: '' ::=
       defn
-      system |- module :: :: wf_module :: ''
+      intrinsic_funs , system |- module :: :: wf_module :: ''
       {{ com [[module]] is well-formed w.r.t. [[system]] }} by
 
       list_product in system
       genInsnUseDef list_product = usedef_insn
       genBlockUseDef list_product = usedef_block
-      system , (list_product, usedef_insn, usedef_block) |- list_product
+      intrinsic_funs , system , (list_product, usedef_insn, usedef_block) |- list_product
       ----------------------------------------------------- :: wf_module_intro
-      system |- list_product
+      intrinsic_funs , system |- list_product
 
 defns
 Jwf_list_module :: '' ::=
       defn
-      system |- list_module :: :: wf_list_module :: ''
+      intrinsic_funs , system |- list_module :: :: wf_list_module :: ''
       {{ com [[list_module]] is well-formed w.r.t. [[system]] }} by  
 
       ------------------------ :: wf_list_module_nil
-      system |- []
+      intrinsic_funs , system |- []
 
-      system |- module 
-      system |- list_module
+      intrinsic_funs , system |- module 
+      intrinsic_funs , system |- list_module
       ---------------------------------- :: wf_list_module_cons
-      system |- list_module , module
+      intrinsic_funs, system |- list_module , module
  
 defns
 Jwf_system :: '' ::=
       defn
-      |- system :: :: wf_system :: ''
+      intrinsic_funs |- system :: :: wf_system :: ''
       {{ com [[system]] is well-formed }} by
 
-      list_module |- list_module
+      intrinsic_funs , list_module |- list_module
       uniqSystem list_module
       ------------------------------ :: wf_system_intro
-      |- list_module 
+      intrinsic_funs |- list_module 
      
 
 % insn :: 'insn_'					    	::=			{{ com insnruction }}

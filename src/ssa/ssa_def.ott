@@ -31,6 +31,10 @@ indexvar index, i, j, n ::= {{ com index }}
  
 grammar
 
+opt_l {{ tex \mathit{opt_{l} } }} :: 'opt_l_'		::=			{{ com option l }} {{ coq option l }}
+  |  none 						:: M :: none		{{ com none }} {{ coq None }}
+  |  l							:: M :: some  		{{ com some }} {{ coq (Some [[l]]) }}
+
 opt_id {{ tex \mathit{opt_{id} } }} :: 'opt_id_'	::=			{{ com option id }} {{ coq option id }}
   |  none 						:: M :: none		{{ com none }} {{ coq None }}
   |  id							:: M :: some  		{{ com some }} {{ coq (Some [[id]]) }}
@@ -76,14 +80,26 @@ opt_typ {{ tex \mathit{opt_{typ} } }} :: 'opt_typ_'	::=			{{ com option typ }} {
   |  none 						:: M :: none		{{ com none }} {{ coq None }}
   |  typ						:: M :: some  		{{ com some }} {{ coq (Some [[typ]]) }}
 
-list_arg {{ tex \mathit{\overline{arg} } }} :: 'list_arg_'	::=  			{{ com argument list }}
+list_typ {{ tex \mathit{\overline{typ} } }} :: 'list_typ_'	::=  		{{ com typ list }}
      	    			     	   					{{ coq (list typ) }}
   | []   		 				::   :: nil		{{ coq nil }}
-  | list_arg , typ 					::   :: cons		{{ coq ([[typ]]::[[list_arg]]) }}
+  | list_typ , typ 					::   :: cons		{{ coq ([[typ]]::[[list_typ]]) }}
+  | list_typ ; list_typ'				::   :: append		{{ coq ([[list_typ]]++[[list_typ']]) }}
+  | ( list_typ )					:: S :: paren           {{ coq [[ list_typ ]] }}
+
+arg :: 'arg_'  						::=  			{{ com argument }}
+       										{{ coq (prod typ id) }}
+  | typ id						::   :: def		{{ coq ([[typ]],[[id]]) }}
+  | ( arg )						:: S :: paren		{{ coq [[ arg ]] }} 			
+
+list_arg {{ tex \mathit{\overline{arg} } }} :: 'list_arg_'	::=  		{{ com argument list }}
+     	    			     	   					{{ coq (list (typ*id)) }}
+  | []   		 				::   :: nil		{{ coq nil }}
+  | list_arg , arg 					::   :: cons		{{ coq ([[arg]]::[[list_arg]]) }}
   | list_arg ; list_arg'				::   :: append		{{ coq ([[list_arg]]++[[list_arg']]) }}
   | ( list_arg )					:: S :: paren           {{ coq [[ list_arg ]] }}
 
-list_param {{ tex \mathit{\overline{param} } }} :: 'list_param_'::=			{{ com parameter list }}
+list_param {{ tex \mathit{\overline{param} } }} :: 'list_param_'::=		{{ com parameter list }}
        	      			       	       					{{ coq (list (typ*value)) }}
   | []  						::   :: nil		{{ coq nil }}
   | list_param , typ value                              ::   :: cons		{{ coq (([[typ]],[[value]])::[[list_param]]) }}
@@ -146,6 +162,12 @@ insn :: 'insn_'					    	::=			{{ com insnruction }}
   | id = phi typ </ [ idj , lj ] // j />		::   :: phi  	    	{{ com phi }}
   | ( insn )						:: S :: paren           {{ coq [[ insn ]] }}
 
+id_labels :: 'id_labels_'				::=  			{{ com id labels }}
+	      									{{ coq list (id*l) }}
+  | []	      						::   :: nil		{{ coq nil }}
+  | id_labels , id l                                    ::   :: cons            {{ coq (([[id]],[[l]])::[[id_labels]]) }}
+  | ( id_labels )                                       :: S :: paren           {{ coq [[ id_labels ]] }}
+
 opt_insn {{ tex \mathit{opt_{insn} } }} :: 'opt_insn_'  ::=			{{ com option insn }} {{ coq option insn }}
   |  none 						:: M :: none		{{ com none }} {{ coq None }}
   |  insn						:: M :: some  		{{ com some }} {{ coq (Some [[insn]]) }}
@@ -167,7 +189,7 @@ opt_block {{ tex \mathit{opt_{block} } }} :: 'opt_block_' ::=			{{ com option bl
   |  none 						:: M :: none		{{ com none }} {{ coq None }}
   |  block						:: M :: some  		{{ com some }} {{ coq (Some [[block]]) }}
 		   
-list_block {{ tex \mathit{\overline{block} } }} :: 'list_block_'::=			{{ com block list }}
+list_block {{ tex \mathit{\overline{block} } }} :: 'list_block_'::=		{{ com block list }}
       	     			       	     					{{ coq (list block) }}
   | []  						::   :: nil		{{ coq nil }}
   | list_block , block					::   :: cons		{{ coq ([[block]]::[[list_block]]) }}
@@ -180,12 +202,22 @@ fheader :: 'fheader_'    				::=			{{ com function header }}
   | ( fheader )						:: S :: paren           {{ coq [[ fheader ]] }}
 
 fdec :: 'fdec_'       					::=			{{ com function declaration }}
-  | declare fheader     				::  :: intro
+  | declare fheader     				::   :: intro
   | ( fdec )						:: S :: paren           {{ coq [[ fdec ]] }}
 
 fdef :: 'fdef_'          				::=			{{ com function definition }}
-  | define fheader { list_block } 			::  :: intro
+  | define fheader { list_block } 			::   :: intro
   | ( fdef )						:: S :: paren           {{ coq [[ fdef ]] }}
+
+opt_fdec {{ tex \mathit{opt_{fdec} } }} :: 'opt_fdec_'	::=  			{{ com option fdec }} {{ coq option fdec }}
+  | none 						::   :: none		{{ coq None }}
+  | fdec						::   :: fdec		{{ coq (Some [[fdec]]) }}
+  | ( opt_fdec )					:: S :: paren		{{ coq [[ opt_fdec ]] }}
+
+opt_fdef {{ tex \mathit{opt_{fdef} } }} :: 'opt_fdef_'	::=  			{{ com option fdef }} {{ coq option fdef }}
+  | none 						::   :: none		{{ coq None }}
+  | fdef						::   :: fdec		{{ coq (Some [[fdef]]) }}
+  | ( opt_fdef )					:: S :: paren		{{ coq [[ opt_fdef ]] }}
 
 namedt :: 'namedt_'         				::=			{{ com named type }}
   | id = type typ   					::   :: intro 
@@ -199,6 +231,8 @@ id_binding :: 'id_binding_'  				::=			{{ com id binding }}
   |  none 						::  :: none		{{ com none }} 
   |  insn						::  :: insn  		{{ com insn }} 
   |  g							::  :: g  		{{ com g }} 
+  |  fdec						::  :: fdec		{{ com fdec }}
+  |  arg 						::  :: arg		{{ com arg }}
 		   
 product  :: 'product_'					::=			{{ com prodoct }}
   | g							::   :: global_var      {{ com global variable }}
@@ -253,6 +287,10 @@ fdef_info :: 'fdef_info_'				::=  			{{ com fdef information }}
   | fdef , dt						::   :: def		{{ com def }}
     	   						     			{{ coq ([[fdef]], [[dt]]) }}
   | ( fdef_info )					:: S :: paren		{{ coq [[ fdef_info ]] }}						
+
+intrinsic_funs :: 'intrinsic_funs_'			::=  			{{ com intrinsic functions }}
+	      	 								{{ coq ids }}
+
 terminals :: 'terminals_' ::=
   | =                   ::   :: assignment      {{ tex = }}
   | <->                 ::   :: alias		{{ tex <-> }}
@@ -287,6 +325,9 @@ formula :: 'formula_' ::=
   | formula \/ formula'         :: M :: or
                			{{ tex [[formula]] \vee [[formula']] }}
 	  			{{ coq [[formula]] \/ [[ formula' ]] }} 
+  | block1 == block2 		::   :: eqBlock
+				{{ tex [[block1]] == [[block2]] }}
+				{{ coq [[block1]] = [[block2]] }}
   | N1 == N2 			::   :: eqN
 				{{ tex [[N1]] == [[N2]] }}
 				{{ coq [[N1]] = [[N2]] }}
@@ -305,6 +346,12 @@ formula :: 'formula_' ::=
   | id in ids			::   :: id_in_ids
       	    			{{ tex [[id]] \in [[ids]] }}
 				{{ coq ( set_In [[id]] [[ids]]) }}
+  | id in intrinsic_funs	::   :: id_in_intrinsic_funs
+      	    			{{ tex [[id]] \in [[intrinsic_funs]] }}
+				{{ coq ( set_In [[id]] [[intrinsic_funs]]) }}
+  | id notin intrinsic_funs	::   :: id_notin_intrinsic_funs
+      	    			{{ tex [[id]] \notin [[intrinsic_funs]] }}
+				{{ coq ( ~ set_In [[id]] [[intrinsic_funs]]) }}
   | module in system		::   :: module_in_system
     	       			{{ tex [[module]] \in [[system]] }}
 				{{ coq In [[module]] [[system]] }}
@@ -317,21 +364,27 @@ formula :: 'formula_' ::=
   | insn in list_insn		::   :: insn_in_insns
     	       			{{ tex [[insn]] \in [[list_insn]] }}
 				{{ coq In [[insn]] [[list_insn]] }}
+  | arg in list_arg		::   :: arg_in_args
+    	       			{{ tex [[arg]] \in [[list_arg]] }}
+				{{ coq In [[arg]] [[list_arg]] }}
+  | insn <-> insn'  		:: M :: insn_alias
+    	     			{{ com insn alias }} 
+				{{ coq [[insn]] = [[insn']] }}
   | module <-> module'          :: M :: module_alias
     	     			{{ com module alias }} 
 				{{ coq [[module]] = [[module']] }}
   | system <-> system'          :: M :: system_alias
     	     			{{ com system alias }} 
 				{{ coq [[system]] = [[system']] }}
-  | list_arg <-> </ typj // j /> :: M :: args_alias
-    	       			{{ com args alias }}
-				{{ coq [[list_arg]] = [[ </ typj // j /> ]] }}
   | ids <-> </ idj // j /> 	:: M :: ids_alias
     	      	   	        {{ com ids alias }}
 				{{ coq [[ids]] = [[ </ idj // j /> ]] }}
   | ls <-> </ lj // j /> 	:: M :: ls_alias
     	      	   	        {{ com ls alias }}
 				{{ coq [[ls]] = [[ </ lj // j /> ]] }}
+  | list_typ <-> </ typj // j /> :: M :: typs_alias
+    	      	   	        {{ com typs alias }}
+				{{ coq [[list_typ]] = [[ </ typj // j /> ]] }}
   | list_insn <-> </ insnj // j /> :: M :: insns_alias
     	      	   	        {{ com insns alias }}
 				{{ coq [[list_insn]] = [[ </ insnj // j /> ]] }}
@@ -344,6 +397,9 @@ formula :: 'formula_' ::=
   | list_module <-> </ modulej // j /> :: M :: modules_alias
     	      	   	        {{ com modules alias }}
 				{{ coq [[list_module]] = [[ </ modulej // j /> ]] }}
+  | id_labels <-> </ [ idj , lj ] // j /> :: M :: id_labels_alias
+    	      	     	        {{ com id_labels alias }}
+				{{ coq [[id_labels]] = [[ </ [ idj , lj ] // j /> ]] }}
   | getNthTyp </ typj // j /> N = opt_typ ::   :: getNthTyp
     	      	       	   	{{ com getNthTyp }}
 				{{ coq nth_error [[ </ typj // j /> ]] [[N]] = [[opt_typ]] }}  
