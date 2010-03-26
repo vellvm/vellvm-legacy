@@ -300,10 +300,17 @@ terminals :: 'terminals_' ::=
   | |-t			::   :: tshows          {{ tex \vdash_{t} }}
   | |-f			::   :: fshows          {{ tex \vdash_{f} }}
   | in			::   :: in		{{ tex \in }}
+  | ;			::   :: colon		{{ tex ; }}
 
 formula :: 'formula_' ::=
   | judgement			::   :: judgement
   | formula1 ... formulan     	::   :: dots
+  | True     	 		:: M :: true
+    				{{ tex True }}
+				{{ coq [[True]] }}
+  | False     	 		:: M :: false
+    				{{ tex False }}
+				{{ coq [[False]] }}
   | not formula                 :: M :: not
       				{{ tex \neg [[formula]] }}
 				{{ coq (not ([[formula]])) }}
@@ -325,6 +332,13 @@ formula :: 'formula_' ::=
   | formula \/ formula'         :: M :: or
                			{{ tex [[formula]] \vee [[formula']] }}
 	  			{{ coq [[formula]] \/ [[ formula' ]] }} 
+  | if formula0 then formula1 else formula2 endif
+       	       	    	    	:: M :: ifthenelse
+				{{ tex if [[formula0]] then [[formula1]] else [[formula2]] }}
+				{{ coq ([[formula0]] -> [[formula1]]) /\ ((~[[formula0]]) -> [[formula2]]) }}
+  | formula ; formula'		:: M :: seq
+    	      			{{ tex [[formula]] ; [[formula']] }}
+				{{ coq [[formula]] -> [[formula']] }}
   | block1 == block2 		::   :: eqBlock
 				{{ tex [[block1]] == [[block2]] }}
 				{{ coq [[block1]] = [[block2]] }}
@@ -408,9 +422,14 @@ formula :: 'formula_' ::=
 				{{ coq getInsnID [[insn]] = getInsnID [[insn']] }}
 
 parsing
+formula_true left formula_not
+formula_false left formula_not
 formula_and left formula_and
 formula_or left formula_or
 formula_not left formula_or
 formula_not left formula_and
-
+formula_or left formula_seq
+formula_seq left formula_seq
+formula_or left formula_ifthenelse
+formula_ifthenelse left formula_seq
  

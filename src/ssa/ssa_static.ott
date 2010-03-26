@@ -66,10 +66,16 @@ Jwf_operand_insn :: '' ::=
 
       getInsnID insn' = id'
       lookupBlockViaIDFromFdef fdef id' = block'
-%       isInvokeInsn insn' 
-%       getNormalDestFromInvokeInsn insn' = l1
-%       getUnwindDestFromInvokeInsn insn' = l2
-%       not l1 == l2
+<<
+      if (isInvokeInsn insn') 
+      then 
+        getNormalDestFromInvokeInsn insn' = l1 ;
+        getUnwindDestFromInvokeInsn insn' = l2 ;
+        not l1 == l2
+      else 
+        True
+      endif
+>>
 %        // Check that a definition dominates all of its uses.
 % 1352       if (InvokeInst *II = dyn_cast<InvokeInst>(Op)) {
 % 1353         // Invoke results are only usable in the normal destination, not in the

@@ -107,39 +107,36 @@ formula :: 'formula_' ::=
 	  			{{ coq [[formula]] \/ [[ formula' ]] }} 
   | monads		        :: M :: monads
     				{{ coq [[monads]] }}
-  | list_B_statements <-> </ case Bj => statementsj // j />
-                                :: M :: alias
-				{{ coq [[list_B_statements]] = [[ </ case Bj => statementsj // j /> ]] }}
 
-defns
-test_def :: '' ::=
-     defn
-     test :: :: test :: ''
-     {{ com aaa }} by
-
+%defns
+%test_def :: '' ::=
+%     defn
+%     test :: :: test :: ''
+%     {{ com aaa }} by
+%
 %     ([] , case B => B) <-> </ case Bj => statementsj // j />
 %     do switch </ case Bj => statementsj // j /> default => B endswitch
-     do if B then B else B endif
-<<
-     do x1 <- B ; 
-        x2 <- B ; 
-        if B 
-        then 
-          x1 <- B 
-        else 
-          x1 <- B 
-        endif ; 
-        x2 <- x1 ; 
-        if B 
-        then 
-          x2 <- B 
-        else 
-          x2 <- B 
-        endif ; 
-        x2
->>
-     -------------------------------- :: test_intro 
-     test
+%     do if B then B else B endif
+%<<
+%     do x1 <- B ; 
+%        x2 <- B ; 
+%        if B 
+%        then 
+%          x1 <- B 
+%        else 
+%          x1 <- B 
+%        endif ; 
+%        x2 <- x1 ; 
+%        if B 
+%        then 
+%          x2 <- B 
+%        else 
+%          x2 <- B 
+%        endif ; 
+%        x2
+%>>
+%     -------------------------------- :: test_intro 
+%     test
 
 embed 
 {{ coq

@@ -4,9 +4,9 @@ import sys, string, os, commands, shutil, re
 from math import sqrt, log10, log
 from operator import itemgetter
 
-def read_file(filename):
-  fott=open(filename, 'r')
-  fmott=open("m_"+filename, 'w')
+def read_file(input, output):
+  fott=open(input, 'r')
+  fmott=open(output, 'w')
 
   spanlines = False
   linenums = 0
@@ -36,4 +36,4 @@ def read_file(filename):
 
 # main 
 
-read_file("monad.ott")
+read_file(sys.argv[1], "m_"+sys.argv[1])
