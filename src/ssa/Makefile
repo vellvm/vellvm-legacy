@@ -3,28 +3,30 @@ COQC=coqc
 
 all: ssa_def.v ssa_lib.vo main.pdf ssa.v 
 
-ssa_lib.vo : ssa_lib.v
+ssa_lib.vo : ssa_lib.v ssa_def.vo
 	$(COQC) -I ./ott ssa_lib.v
 
-ssa_def.v : ssa_def.ott Makefile
-	ott -coq_expand_list_types false -coq ssa_def.v \
-            ssa_def.ott 
+ssa_def.vo : ssa_def.v
 	$(COQC) -I ./ott ssa_def.v
+
+ssa_def.v : ssa_def.ott Makefile
+	ott -coq_expand_list_types false -o ssa_def.v \
+            ssa_def.ott 
 
 ssa_coq.ott : ssa_lib.v ssa_def.ott Makefile coq2ott.py
 	./coq2ott.py
 	cp merge.ott ssa_coq.ott       
 
-m_ssa_static.ott :: ssa_static.ott spanlines.py
+m_ssa_static.ott : ssa_static.ott spanlines.py
 	./spanlines.py ssa_static.ott
 
 ssa.v : ssa_def.ott ssa_coq.ott ssa_lib.ott m_ssa_static.ott ssa_dynamic.ott Makefile ssa_def.v ssa_lib.vo
-	ott -merge true -coq_expand_list_types false -coq ssa.v \
+	ott -merge true -coq_expand_list_types false -o ssa.v \
             ssa_def.ott ssa_coq.ott ssa_lib.ott m_ssa_static.ott ssa_dynamic.ott
 	$(COQC) -I ./ott ssa.v
 
 ssa.tex: ssa_def.ott ssa_coq.ott ssa_lib.ott m_ssa_static.ott ssa_dynamic.ott omain.tex Makefile
-	$(OTT) -merge true -tex ssa.tex \
+	$(OTT) -merge true -o ssa.tex \
           -tex_show_meta false \
           -tex_wrap false \
           -tex_filter omain.tex main.tex \
