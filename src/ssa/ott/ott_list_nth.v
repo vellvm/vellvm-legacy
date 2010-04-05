@@ -42,8 +42,8 @@ Implicit Arguments nth_safe [].
 Lemma nth_safe_eq_nth_error :
   forall l n H, value (nth_safe l n H) = nth_error l n.
 Proof.
-  induction l; intro n; pose (F := le_Sn_O n); destruct n; try tauto.
-  simpl length; intro H.
+  induction l; intro n; pose (F := le_Sn_O n); destruct n; try (contradiction || tauto).
+  simpl length; intro H. 
   simpl nth_error; rewrite <- (IHl n (le_S_n _ _ H)).
   reflexivity.
 Qed.

@@ -1,23 +1,28 @@
 OTT=ott
 COQC=coqc
 
-all: ssa_def.v ssa_lib.vo main.pdf ssa.v 
+all:
+	+make -C ./monads
+	+make -C ./ott
+	+make ott
 
-ssa_lib.vo : ssa_lib.v ssa_def.vo
+ott: ssa_def.v ssa_lib.vo main.pdf ssa.v Makefile
+
+ssa_lib.vo : ssa_lib.v ssa_def.vo Makefile
 	$(COQC) -I ./ott ssa_lib.v
 
-ssa_def.vo : ssa_def.v
+ssa_def.vo : ssa_def.v Makefile
 	$(COQC) -I ./ott ssa_def.v
 
 ssa_def.v : ssa_def.ott Makefile
 	ott -coq_expand_list_types false -o ssa_def.v \
             ssa_def.ott 
 
-ssa_coq.ott : ssa_lib.v ssa_def.ott Makefile coq2ott.py
+ssa_coq.ott : ssa_lib.v ssa_def.ott Makefile coq2ott.py Makefile
 	./coq2ott.py
 	cp merge.ott ssa_coq.ott       
 
-m_ssa_static.ott : ssa_static.ott spanlines.py
+m_ssa_static.ott : ssa_static.ott spanlines.py Makefile
 	./spanlines.py ssa_static.ott
 
 ssa.v : ssa_def.ott ssa_coq.ott ssa_lib.ott m_ssa_static.ott ssa_dynamic.ott Makefile ssa_def.v ssa_lib.vo
@@ -31,7 +36,7 @@ ssa.tex: ssa_def.ott ssa_coq.ott ssa_lib.ott m_ssa_static.ott ssa_dynamic.ott om
           -tex_wrap false \
           -tex_filter omain.tex main.tex \
             ssa_def.ott ssa_coq.ott ssa_lib.ott m_ssa_static.ott ssa_dynamic.ott
-          
+
 main.pdf: ssa.tex main.tex macros.sty Makefile
 	pdflatex main.tex
 	pdflatex main.tex

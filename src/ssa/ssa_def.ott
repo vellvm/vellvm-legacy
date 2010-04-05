@@ -59,18 +59,18 @@ value :: 'value_'					::=  			{{ com values }}
 
 typ :: 'typ_'						::=			{{ com type }}
   | int N                    				::   :: int         	{{ com integer }}
-  | float						::   :: float		{{ com float }}
-  | double						::   :: double          {{ com double }}
-  | fp128						::   :: fp128           {{ com fp128 }}
+  %| float						::   :: float		{{ com float }}
+  %| double						::   :: double          {{ com double }}
+  %| fp128						::   :: fp128           {{ com fp128 }}
   | void                      				::   :: void        	{{ com void }}
   | label                                               ::   :: label           {{ com label }}
   | metadata                                            ::   :: metadata        {{ com metadata }}
   | [ N * typ ]               				::   :: array       	{{ com array }}
   | typ ( </ typj // j /> )  				::   :: function    	{{ com function }}
-  | { </ typj // j /> }       				::   :: struct      	{{ com structure }}
+  %| { </ typj // j /> }       				::   :: struct      	{{ com structure }}
   | typ *                     				::   :: pointer     	{{ com pointer }}
-  | < N * typ >               				::   :: vector       	{{ com vector }}
-  | opaque  						::   :: opaque          {{ com opaque }}
+  %| < N * typ >               				::   :: vector       	{{ com vector }}
+  %| opaque  						::   :: opaque          {{ com opaque }}
   % x86_fp80
   % ppc_fp128
   % union
@@ -114,51 +114,51 @@ ls {{ tex \mathit{\{l\} } }} :: 'ls_'			::=			{{ com label set }}
   | ls ; ls'						::   :: append		{{ coq (set_union eq_nat_dec [[ls]] [[ls']]) }}
   | ( ls )						:: S :: paren		{{ coq [[ ls ]] }}
 
-cond :: 'cond_'						::=			{{ com condition code }}
-  | eq							::   :: eq		{{ com eq }}
-  | ne							::   :: ne		{{ com ne }}
-  | ugt							::   :: ugt		{{ com ugt }}
-  | uge							::   :: uge		{{ com uge }}
-  | ult							::   :: ult		{{ com ult }}
-  | ule							::   :: ule		{{ com ule }}
-  | sgt							::   :: sgt		{{ com sgt }}
-  | sge							::   :: sge		{{ com sge }}
-  | slt							::   :: slt		{{ com slt }}
-  | sle							::   :: sle		{{ com sle }}
+%cond :: 'cond_'						::=			{{ com condition code }}
+  %| eq							::   :: eq		{{ com eq }}
+  %| ne							::   :: ne		{{ com ne }}
+  %| ugt							::   :: ugt		{{ com ugt }}
+  %| uge							::   :: uge		{{ com uge }}
+  %| ult							::   :: ult		{{ com ult }}
+  %| ule							::   :: ule		{{ com ule }}
+  %| sgt							::   :: sgt		{{ com sgt }}
+  %| sge							::   :: sge		{{ com sge }}
+  %| slt							::   :: slt		{{ com slt }}
+  %| sle							::   :: sle		{{ com sle }}
 
 insn :: 'insn_'					    	::=			{{ com insnruction }}
   | ret typ value             			    	::   :: return      	{{ com return }}
   | ret void                   			    	::   :: return_void  	{{ com return void }}
   | br typ value , l1 , l2				::   :: br              {{ com br }}        
   | br l        	    	  			::   :: br_uncond       {{ com unconditional br }}        
-  | switch typ value , l </ [ constj , lj ] // j />	::   :: switch		{{ com switch }}
+  %| switch typ value , l </ [ constj , lj ] // j />	::   :: switch		{{ com switch }}
   | id = invoke typ0 id0 list_param to l1 unwind l2 	::   :: invoke		{{ com invoke }} 
   | id = call typ0 id0 list_param	       	 	::   :: call		{{ com call }} 
   | unreachable	     	   	     	 		::   :: unreachable	{{ com unreachable }}
   | id = add typ value1 value2				::   :: add		{{ com add }}
-  | id = fadd typ value1 value2				::   :: fadd		{{ com fadd }}
-  | id = udiv typ value1 value2				::   :: udiv		{{ com udiv }}
-  | id = fdiv typ value1 value2				::   :: fdiv		{{ com fdiv }}
-  | id = or typ value1 value2				::   :: or 		{{ com or }}
-  | id = and typ value1 value2				::   :: and 		{{ com and }}
-  | id = extractelement typ0 value0 , const1		::   :: extractelement  {{ com extractelement }}
-  | id = insertelement typ0 value0 , typ1 value1 , const2	::   :: insertelement   {{ com insertelement }}
-  | id = extractvalue typ0 value0 , const1             	::   :: extractvalue	{{ com extractvalue }}
-  | id = insertvalue typ0 value0 , typ1 value1 , const2 	::   :: insertvalue	{{ com insertvalue }}
-  | id = alloca typ N  	     	       	     	       	::   :: alloca		{{ com alloca }}
-  | id = load typ1 value1				::   :: load		{{ com load }}
-  | store typ1 value1 , typ2 value2			::   :: store		{{ com store }}
-  | id = trunc typ1 value1 to typ2			::   :: trunc		{{ com trunc }}
-  | id = fptrunc typ1 value1 to typ2			::   :: fptrunc		{{ com fptrunc }}
-  | id = fptoui typ1 value1 to typ2			::   :: fptoui		{{ com fptoui }}
-  | id = fptosi typ1 value1 to typ2			::   :: fptosi		{{ com fptosi }}
-  | id = uitofp typ1 value1 to typ2			::   :: uitofp		{{ com uitofp }}
-  | id = sitofp typ1 value1 to typ2			::   :: sitofp		{{ com sitofp }}
-  | id = ptrtoint typ1 value1 to typ2			::   :: ptrtoint	{{ com ptrtoint }}
-  | id = inttoptr typ1 value1 to typ2			::   :: inttoptr	{{ com inttoptr }}
-  | id = bitcast typ1 value1 to typ2			::   :: bitcast		{{ com bitcast }}
-  | id = icmp cond typ value1 , value2			::   :: icmp		{{ com icmp }}
-  | id = fcmp cond typ value1 , value2			::   :: fcmp		{{ com fcmp }}
+  %| id = fadd typ value1 value2				::   :: fadd		{{ com fadd }}
+  %| id = udiv typ value1 value2				::   :: udiv		{{ com udiv }}
+  %| id = fdiv typ value1 value2				::   :: fdiv		{{ com fdiv }}
+  %| id = or typ value1 value2				::   :: or 		{{ com or }}
+  %| id = and typ value1 value2				::   :: and 		{{ com and }}
+  %| id = extractelement typ0 value0 , const1		::   :: extractelement  {{ com extractelement }}
+  %| id = insertelement typ0 value0 , typ1 value1 , const2	::   :: insertelement   {{ com insertelement }}
+  %| id = extractvalue typ0 value0 , const1             	::   :: extractvalue	{{ com extractvalue }}
+  %| id = insertvalue typ0 value0 , typ1 value1 , const2 	::   :: insertvalue	{{ com insertvalue }}
+  %| id = alloca typ N  	     	       	     	       	::   :: alloca		{{ com alloca }}
+  %| id = load typ1 value1				::   :: load		{{ com load }}
+  %| store typ1 value1 , typ2 value2			::   :: store		{{ com store }}
+  %| id = trunc typ1 value1 to typ2			::   :: trunc		{{ com trunc }}
+  %| id = fptrunc typ1 value1 to typ2			::   :: fptrunc		{{ com fptrunc }}
+  %| id = fptoui typ1 value1 to typ2			::   :: fptoui		{{ com fptoui }}
+  %| id = fptosi typ1 value1 to typ2			::   :: fptosi		{{ com fptosi }}
+  %| id = uitofp typ1 value1 to typ2			::   :: uitofp		{{ com uitofp }}
+  %| id = sitofp typ1 value1 to typ2			::   :: sitofp		{{ com sitofp }}
+  %| id = ptrtoint typ1 value1 to typ2			::   :: ptrtoint	{{ com ptrtoint }}
+  %| id = inttoptr typ1 value1 to typ2			::   :: inttoptr	{{ com inttoptr }}
+  %| id = bitcast typ1 value1 to typ2			::   :: bitcast		{{ com bitcast }}
+  %| id = icmp cond typ value1 , value2			::   :: icmp		{{ com icmp }}
+  %| id = fcmp cond typ value1 , value2			::   :: fcmp		{{ com fcmp }}
   | id = phi typ </ [ idj , lj ] // j />		::   :: phi  	    	{{ com phi }}
   | ( insn )						:: S :: paren           {{ coq [[ insn ]] }}
 
@@ -177,7 +177,6 @@ list_insn {{ tex \mathit{\overline{insn} } }} :: 'list_insn_'	::=			{{ com insnr
   | []	                  				::   :: nil		{{ coq nil }}
   | list_insn , insn           				::   :: cons		{{ coq ([[insn]]::[[list_insn]]) }}
   | list_insn ; list_insn'				::   :: append		{{ coq ([[list_insn]]++[[list_insn']]) }}
-%  | insn1 .. insnn					::   :: def		{{ coq ([[ insn1 .. insnn ]]) }}
   | ( list_insn )					:: S :: paren           {{ coq [[ list_insn ]] }}
 
 block :: 'block_' 					::=			{{ com block }}
@@ -194,7 +193,6 @@ list_block {{ tex \mathit{\overline{block} } }} :: 'list_block_'::=		{{ com bloc
   | []  						::   :: nil		{{ coq nil }}
   | list_block , block					::   :: cons		{{ coq ([[block]]::[[list_block]]) }}
   | list_block ; list_block'				::   :: append		{{ coq ([[list_block]]++[[list_block']]) }}
-%  | block1 ... blockn					::   :: def		{{ coq ([[ block1 ... blockn ]]) }}
   | ( list_block )					:: S :: paren           {{ coq [[ list_block ]] }}
 
 fheader :: 'fheader_'    				::=			{{ com function header }}
@@ -219,26 +217,26 @@ opt_fdef {{ tex \mathit{opt_{fdef} } }} :: 'opt_fdef_'	::=  			{{ com option fde
   | fdef						::   :: fdec		{{ coq (Some [[fdef]]) }}
   | ( opt_fdef )					:: S :: paren		{{ coq [[ opt_fdef ]] }}
 
-namedt :: 'namedt_'         				::=			{{ com named type }}
-  | id = type typ   					::   :: intro 
-  | ( namedt )						:: S :: paren		{{ coq [[ namedt ]] }}
+% namedt :: 'namedt_'         				::=			{{ com named type }}
+%   | id = type typ   					::   :: intro 
+%   | ( namedt )						:: S :: paren		{{ coq [[ namedt ]] }}
 
-g :: 'g_'   	 					::=			{{ com global }}
-  | id = global typ const				::   :: intro  
-  | ( g )	    					:: S :: paren		{{ coq [[ g ]] }}
+% g :: 'g_'   	 					::=			{{ com global }}
+%   | id = global typ const				::   :: intro  
+%   | ( g )	    					:: S :: paren		{{ coq [[ g ]] }}
 
 id_binding :: 'id_binding_'  				::=			{{ com id binding }} 
   |  none 						::  :: none		{{ com none }} 
   |  insn						::  :: insn  		{{ com insn }} 
-  |  g							::  :: g  		{{ com g }} 
+%  |  g							::  :: g  		{{ com g }} 
   |  fdec						::  :: fdec		{{ com fdec }}
   |  arg 						::  :: arg		{{ com arg }}
 		   
 product  :: 'product_'					::=			{{ com prodoct }}
-  | g							::   :: global_var      {{ com global variable }}
+%  | g							::   :: global_var      {{ com global variable }}
   | fdec             					::   :: function_dec   	{{ com function declaration }}
   | fdef             					::   :: function_def   	{{ com function definition }}
-  | namedt           					::   :: namedtype     	{{ com named types }}
+%  | namedt           					::   :: namedtype     	{{ com named types }}
 
 list_product {{ tex \mathit{\overline{product} } }} :: 'list_product_'::=	{{ com list product }}
 	    				     	   				{{ coq (list product) }}	   
@@ -246,7 +244,6 @@ list_product {{ tex \mathit{\overline{product} } }} :: 'list_product_'::=	{{ com
     							     			{{ coq nil }}
   | list_product , product				::   :: cons            {{ com cons }}
     	       						     			{{ coq ([[product]]::[[list_product]]) }}
-%  | product1 ... productn				::   :: def		{{ coq ([[ product1 ... productn ]]) }}
   | ( list_product )					:: S :: paren		{{ coq [[ list_product ]] }}			
 
 module :: 'module_'					::=  			{{ com module }}
@@ -259,7 +256,6 @@ list_module {{ tex \mathit{\overline{module} } }} :: 'list_module_'::=  	{{ com 
   | []  						::   :: nil		{{ coq nil }}
   | list_module , module				::   :: cons		{{ coq ([[module]]::[[list_module]]) }}
   | list_module ; list_module'				::   :: append		{{ coq ([[list_module]]++[[list_module']]) }}
-%  | module1 ... modulen					::   :: def		{{ coq ([[ module1 ... modulen ]]) }}
   | ( list_module )					:: S :: paren           {{ coq [[ list_module ]] }}
 
 system :: 'system_'					::=  			{{ com system }}

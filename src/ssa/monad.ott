@@ -4,13 +4,6 @@
 embed 
 {{ coq
 Require Import Monad.
-
-Definition unmonad (m:monad bool) : Prop :=
-match m with 
-| munit true => True
-| munit false => False
-end.
-
 }}
 
 metavar N ::= {{ coq nat }}
@@ -73,7 +66,7 @@ statements :: 'statements_'				::=  			{{ com statements }}
 
 monads :: 'monads_'					::=  			{{ com monads }}
   | do statements					::   ::	def		{{ com def }}
-       							{{ coq unmonad(
+       							{{ coq monad2prop(
                                                                  [[statements]] 
                                                                  enddo) }}
 terminals :: 'terminals_' ::=

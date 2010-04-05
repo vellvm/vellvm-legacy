@@ -9,26 +9,26 @@ Jwf_typ :: '' ::=
       -------------------- :: wf_typ_int
       |- int N
 
-      -------------------- :: wf_typ_float
-      |- float
+      % -------------------- :: wf_typ_float
+      % |- float
 
-      -------------------- :: wf_typ_double
-      |- double
+      % -------------------- :: wf_typ_double
+      % |- double
 
-      -------------------- :: wf_typ_fp128
-      |- fp128
+      % -------------------- :: wf_typ_fp128
+      % |- fp128
 
-      -------------------- :: wf_typ_void
-      |- void
+      % -------------------- :: wf_typ_void
+      % |- void
 
-      -------------------- :: wf_typ_label
-      |- label
+      % -------------------- :: wf_typ_label
+      % |- label
 
       -------------------- :: wf_typ_metadate
       |- metadata
 
-      -------------------- :: wf_typ_opaque
-      |- opaque
+      % -------------------- :: wf_typ_opaque
+      % |- opaque
 
       isValidReturnTyp typ     
       |- typ
@@ -37,25 +37,25 @@ Jwf_typ :: '' ::=
       -------------------------------------------------- :: wf_typ_function
       |- typ ( </ typj // j /> ) 
      
-      </ isValidElementTyp typj // j />
-      </ |- typj // j /> 
-      -------------------------------------------------- :: wf_typ_structure
-      |- { </ typj // j /> }
+      % </ isValidElementTyp typj // j />
+      % </ |- typj // j /> 
+      % -------------------------------------------------- :: wf_typ_structure
+      % |- { </ typj // j /> }
 
-      |- typ
-      isValidElementTyp typ
-      ------------------- :: wf_typ_array
-      |- [ N * typ ]
+      % |- typ
+      % isValidElementTyp typ
+      % ------------------- :: wf_typ_array
+      % |- [ N * typ ]
 
-      |- typ
-      isValidElementTyp typ
-      ------------------- :: wf_typ_pointer
-      |- typ * 
+      % |- typ
+      % isValidElementTyp typ
+      % ------------------- :: wf_typ_pointer
+      % |- typ * 
 
-      |- typ
-      isValidElementTyp typ
-      ------------------- :: wf_typ_vector
-      |- < N * typ >
+      % |- typ
+      % isValidElementTyp typ
+      % ------------------- :: wf_typ_vector
+      % |- < N * typ >
 
 
 defns
@@ -74,7 +74,7 @@ Jwf_operand_insn :: '' ::=
         not l1 == l2
       else 
         True
-      endif
+      endif  
 >>
 %        // Check that a definition dominates all of its uses.
 % 1352       if (InvokeInst *II = dyn_cast<InvokeInst>(Op)) {
@@ -122,7 +122,16 @@ Jwf_operand_insn :: '' ::=
 % 1394         }
       % PHI nodes are more difficult than other nodes because they actually
       % "use" the value in the predecessor basic blocks they correspond to.
-      (isPhiNode insn) implies (getLabelViaIDPhiNode insn id' = l'' /\ lookupBlockViaLabelFromSystem system l'' = block'' /\ (blockDominates dt block' block'' \/ (not (isReachableFromEntry (fdef, dt) block )) ) )
+<<
+      (isPhiNode insn) implies 
+        (getLabelViaIDPhiNode insn id' = l'' /\ 
+         lookupBlockViaLabelFromSystem system l'' = block'' /\ 
+         (
+          (blockDominates dt block' block'') \/ 
+          (not (isReachableFromEntry (fdef, dt) block )) 
+         ) 
+        )
+>>
       % if insn is not PhiNode, make sure that the definition comes before the use
       (not isPhiNode insn) implies (insnDominates insn' insn \/ (not (isReachableFromEntry (fdef, dt) block)))
       ------------------------------------------------------------------------------------------------------------- :: wf_operand_insn_intro
@@ -149,7 +158,7 @@ Jwf_operand :: '' ::=
       % Referring to an argument in the current function
       (isBindingArg id_binding' = arg) implies (argInFdef arg fdef)
       % Referencing global in the current module
-      (isBindingG id_binding' = g) implies (g in module)
+      % (isBindingG id_binding' = g) implies (g in module)
       % Check when id_binding' is insn
       (isBindingInsn id_binding' = insn') implies (intrinsic_funs , system , module_info , fdef_info , block , insn |- insn')
       ----------------------------------------------------------------------------------------------------------------------- :: wf_operand_intro
@@ -285,7 +294,7 @@ Jwf_fdef :: '' ::=
       {{ com [[fdef]] is well-formed w.r.t. [[module_info]] [[system]] }} by
 
       (define fheader { list_block} ) in system , (module, usedef_insn, usedef_block)
-      genDominatorTree (define fheader { list_block }) module = dt
+      {{ genDominatorTree [[:user_syntax__fdef:define fheader { list_block }]] [[module]] = [[dt]] }}
       intrinsic_funs , system , (module, usedef_insn, usedef_block) , (define fheader { list_block }, dt) |- list_block      
       ------------------------------------------------------ :: wf_fdef_intro
       intrinsic_funs , system , (module, usedef_insn, usedef_block) |-f define fheader { list_block }
@@ -296,8 +305,8 @@ Jwf_prod :: '' ::=
       intrinsic_funs , system , module_info |- product :: :: wf_prod :: ''
       {{ com [[product]] is well-formed w.r.t. [[module_info]] [[system]]}} by 
 
-      ----------------------------- :: wf_prod_global_var
-      intrinsic_funs , system , module_info |- g
+      % ----------------------------- :: wf_prod_global_var
+      % intrinsic_funs , system , module_info |- g
 
       ----------------------------- :: wf_prod_function_dec
       intrinsic_funs , system , module_info |- fdec
@@ -306,8 +315,8 @@ Jwf_prod :: '' ::=
       ----------------------------- :: wf_prod_function_def
       intrinsic_funs , system , module_info |- fdef   
 
-      -------------------------------------- :: wf_prod_namedtype
-      intrinsic_funs , system , module_info |- namedt     
+      % -------------------------------------- :: wf_prod_namedtype
+      % intrinsic_funs , system , module_info |- namedt     
 
 defns
 Jwf_prods :: '' ::=
@@ -330,8 +339,8 @@ Jwf_module :: '' ::=
       {{ com [[module]] is well-formed w.r.t. [[system]] }} by
 
       list_product in system
-      genInsnUseDef list_product = usedef_insn
-      genBlockUseDef list_product = usedef_block
+      {{ genInsnUseDef [[:user_syntax__module:list_product]] = [[usedef_insn]] }}
+      {{ genBlockUseDef [[:user_syntax__module:list_product]] = [[usedef_block]] }}
       intrinsic_funs , system , (list_product, usedef_insn, usedef_block) |- list_product
       ----------------------------------------------------- :: wf_module_intro
       intrinsic_funs , system |- list_product

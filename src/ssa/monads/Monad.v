@@ -5,6 +5,7 @@ Implicit Type X Y Z W : Set.
 
 Inductive monad (X:Set) : Set :=
 | munit : forall (x:X), monad X
+| merror : monad X
 .
 
 Hint Constructors monad.
@@ -12,6 +13,7 @@ Hint Constructors monad.
 Definition mbind (X:Set) (Y:Set) (f:X -> monad Y) (mx:monad X) : monad Y :=
 match mx with
 | munit x => f x
+| merror => merror Y
 end.
 
 Definition mif (X:Set) (c:bool) (tclause : monad X) (fclause : monad X) : monad X :=
@@ -144,7 +146,7 @@ Lemma mmap_id : forall X (f : X -> X) (x : monad X),
   (forall a, f a = a) -> x >>- f = x.
 Proof.
 unfold mmap; monad. 
-unfold mbind. destruct x. rewrite H. reflexivity.
+unfold mbind. destruct x; try solve [rewrite H; reflexivity | reflexivity].
 Qed.
 
 Hint Resolve mmap_id : monad.
@@ -205,4 +207,11 @@ Hint Resolve munit_mbind_match mbind_congr mmap_congr mmap_id : monad.
 
 Hint Rewrite mmap_munit mmap_mmap mmap_mbind mbind_mmap
              mjoin_mjoin mjoin_munit munit_mjoin mjoin_mmap : monad.
+
+Definition monad2prop (X:Set) (m:monad X) : Prop :=
+match m with 
+| munit _ => True
+| merror => False
+end.
+
 
