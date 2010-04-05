@@ -5,6 +5,7 @@ embed
 {{ coq
 Require Import ListSet.
 Require Import List.
+Require Import Logic_Type.
 
 Section Lists.
 
@@ -310,6 +311,9 @@ formula :: 'formula_' ::=
   | not formula                 :: M :: not
       				{{ tex \neg [[formula]] }}
 				{{ coq (not ([[formula]])) }}
+  | notT formula                :: M :: notT
+      				{{ tex \neg [[formula]] }}
+				{{ coq (notT ([[formula]])) }}
   | ( formula )                 :: M :: brackets
       	      			{{ tex ([[formula]]\!) }} 
       				{{ coq ([[ formula ]]) }}

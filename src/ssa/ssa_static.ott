@@ -133,7 +133,7 @@ Jwf_operand_insn :: '' ::=
         )
 >>
       % if insn is not PhiNode, make sure that the definition comes before the use
-      (not isPhiNode insn) implies (insnDominates insn' insn \/ (not (isReachableFromEntry (fdef, dt) block)))
+      (notT isPhiNode insn) implies (insnDominates insn' insn \/ (not (isReachableFromEntry (fdef, dt) block)))
       ------------------------------------------------------------------------------------------------------------- :: wf_operand_insn_intro
       intrinsic_funs , system , module_info , (fdef, dt) , block , insn |- insn' 
 
@@ -191,7 +191,7 @@ Jwf_insn_base :: '' ::=
       %%%% Check that non-phi nodes are not self referential
       getInsnUseDef usedef_insn insn = list_insn 
       list_insn <-> </ insnj // j />
-      (isPhiNode insn) implies </ (isPhiNode insnj) implies ((not insn =id= insnj) \/ (isReachableFromEntry (fdef, dt) block)) // j />
+      (notT isPhiNode insn) implies </ (not insn =id= insnj) \/ (isReachableFromEntry (fdef, dt) block) // j />
       %%%% Verify that if this is a terminator that it is at the end of the block
       (isTerminatorInsn insn /\ getTerminator block = insn') implies (insn =id= insn')
       %%%% Check that void typed values don't have names

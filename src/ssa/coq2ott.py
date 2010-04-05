@@ -6,7 +6,7 @@ from operator import itemgetter
 
 def read_file():
   fott=open("ssa_coq.ott", 'r')
-  fcoq=open("ssa_lib.v", 'r')
+  fcoq=open("ssa_coq_lib.v", 'r')
   fmerge=open("merge.ott", 'w')
 
   from_ott = True

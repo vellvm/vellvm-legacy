@@ -630,6 +630,85 @@ Section Dominator.
 
 End Dominator.
 
+Section Classes.
+
+Definition isPointerTypS (t:typ) : bool :=
+match t with
+| typ_pointer _ => true
+| _ => false
+end.
+
+Definition isInvokeInsnS (i:insn) : bool :=
+match i with
+| insn_invoke _ _ _ _ _ _ => true
+| _ => false
+end.
+
+Definition isCallInsnS (i:insn) : bool :=
+match i with
+| insn_call _ _ _ _ => true
+| _ => false
+end.
+
+Definition isNotValidReturnTypS (t:typ) : bool :=
+match t with
+| typ_label => true
+| typ_metadata => true
+| _ => false
+end.
+
+Definition isValidReturnTypS (t:typ) : bool :=
+negb (isNotValidReturnTypS t).
+
+Definition isNotFirstClassTypS (t:typ) : bool :=
+match t with
+| typ_void => true
+(* | typ_opaque => true *)
+| typ_function _ _ => true
+| _ => false
+end.
+
+Definition isFirstClassTypS (t:typ) : bool :=
+negb (isNotFirstClassTypS t).
+
+Definition isValidArgumentTypS (t:typ) : bool :=
+match t with
+(*| typ_opaque => true *)
+| _ => isFirstClassTypS t
+end.
+
+Definition isNotValidElementTypS (t:typ) : bool :=
+match t with
+| typ_void => true
+| typ_label => true
+| typ_metadata => true
+| typ_function _ _ => true
+| _ => false
+end.
+
+Definition isValidElementTypS (t:typ) : bool :=
+negb (isNotValidElementTypS t).
+
+Definition isPhiNodeS (i:insn) : bool :=
+match i with
+| insn_phi _ _ _ => true
+| _ => false
+end.
+
+Definition isTerminatorInsnS (i:insn) : bool :=
+match i with
+| insn_return _ _ => true
+| insn_return_void => true
+| insn_br _ _ _ _ => true
+| insn_br_uncond _ => true
+(* | insn_switch _ _ _ => true *)
+| insn_invoke _ _ _ _ _ _ => true
+| insn_unreachable => true
+| _ => false
+end.
+
+End Classes.
+
 (*ENDCOPY*)
 
 }}

@@ -812,8 +812,8 @@ isNotFirstClassTyp_def :: '' ::=
 %       ---------------------------------- :: isNotFirstClassTyp_opaque
 %       isNotFirstClassTyp opaque
 
-%       --------------------------------------------- :: isNotFirstClassTyp_function
-%       isNotFirstClassTyp typ ( </ typj // j /> )
+       --------------------------------------------- :: isNotFirstClassTyp_function
+       isNotFirstClassTyp typ ( </ typj // j /> )
 
 defns
 isFirstClassTyp_def :: '' ::=
@@ -865,7 +865,7 @@ isValidElementTyp_def :: '' ::=
       isValidElementTyp typ
 
 defns
-isPhiNode_def :: '' ::=
+isPhiNode_def :: '' ::= {{coq-universe Type}} 
       defn
       isPhiNode insn :: :: isPhiNode :: ''
       {{ com check is [[insn]] is a phi node }} by
@@ -1054,7 +1054,7 @@ insnsStartsWithPhiNode_def :: '' ::=
       insnsStartsWithPhiNode (list_insn, insn)
       
       insnsDoesntContainPhiNode list_insn      
-      not isPhiNode insn
+      notT isPhiNode insn
       ---------------------------------------------------------------------- :: insnsStartsWithPhiNode_cons_nophi
       insnsStartsWithPhiNode (list_insn, insn)
 
@@ -1066,7 +1066,7 @@ insnsStartsWithPhiNode_def :: '' ::=
       insnsDoesntContainPhiNode []
 
       insnsDoesntContainPhiNode list_insn
-      not isPhiNode insn 
+      notT isPhiNode insn 
       ----------------------------------------------------- :: insnsDoesntContainPhiNode_cons
       insnsDoesntContainPhiNode list_insn , insn
 
@@ -1123,7 +1123,7 @@ getPhiNodesFromListInsn_def :: '' ::=
       getPhiNodesFromListInsn (list_insn, insn) = list_insn', insn
 
       getPhiNodesFromListInsn list_insn = list_insn'
-      not isPhiNode insn       
+      notT isPhiNode insn       
       --------------------------------------------------- :: getPhiNodesFromListInsn_rec_false
       getPhiNodesFromListInsn (list_insn, insn) = list_insn'
 

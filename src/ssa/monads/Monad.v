@@ -3,26 +3,26 @@ Require Import List.
 
 Implicit Type X Y Z W : Set.
 
-Inductive monad (X:Set) : Set :=
+Inductive monad (X:Type) : Type :=
 | munit : forall (x:X), monad X
 | merror : monad X
 .
 
 Hint Constructors monad.
 
-Definition mbind (X:Set) (Y:Set) (f:X -> monad Y) (mx:monad X) : monad Y :=
+Definition mbind (X:Type) (Y:Type) (f:X -> monad Y) (mx:monad X) : monad Y :=
 match mx with
 | munit x => f x
 | merror => merror Y
 end.
 
-Definition mif (X:Set) (c:bool) (tclause : monad X) (fclause : monad X) : monad X :=
+Definition mif (X:Type) (c:bool) (tclause : monad X) (fclause : monad X) : monad X :=
 match c with
 | true => tclause
 | false => fclause
 end.
 
-Fixpoint mswitch (X:Set) (cases : list (bool*monad X)) (default_case : monad X) : monad X :=
+Fixpoint mswitch (X:Type) (cases : list (bool*monad X)) (default_case : monad X) : monad X :=
 match cases with
 | nil => default_case
 | (true, action)::cases' => action
@@ -36,6 +36,7 @@ Notation "'do' x <- a ; b" := ( a >>= (fun x => b) ) (at level 42, left associat
 Notation "'do' a ; b" := ( a >> b ) (at level 42, left associativity).
 Notation "'do' a 'enddo'" := ( a ) (at level 42, left associativity).
 Notation "'If' b 'then' t 'else' f 'endif'" := (mif _ b t f) (at level 43).
+Notation "'If' b 'then' t 'endif'" := (mif _ b t (munit _ True)) (at level 43).
 Notation "'switch' cases 'default' default 'endswitch'" := ( mswitch _ cases default ) (at level 44). 
 
 Definition mifk (X Y:Set) (c:bool) (tclause : monad X) (fclause : monad X) (con : X -> monad Y) : monad Y :=
@@ -208,7 +209,7 @@ Hint Resolve munit_mbind_match mbind_congr mmap_congr mmap_id : monad.
 Hint Rewrite mmap_munit mmap_mmap mmap_mbind mbind_mmap
              mjoin_mjoin mjoin_munit munit_mjoin mjoin_mmap : monad.
 
-Definition monad2prop (X:Set) (m:monad X) : Prop :=
+Definition monad2prop (X:Type) (m:monad X) : Prop :=
 match m with 
 | munit _ => True
 | merror => False
