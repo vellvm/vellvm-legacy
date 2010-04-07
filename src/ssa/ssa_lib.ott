@@ -75,11 +75,8 @@ getInsnsFromBlock_def :: '' ::=
       getInsnsFromBlock block = list_insn :: :: getInsnsFromBlock :: ''
       {{ com return [[list_insn]] in [[block]] }} by
 
-      ------------------------------------------- :: getInsnsFromBlock_with_label
+      ------------------------------------------- :: getInsnsFromBlock_def
       getInsnsFromBlock (l list_insn) = list_insn
-
-      ------------------------------------------- :: getInsnsFromBlock_without_label
-      getInsnsFromBlock list_insn = list_insn
 
 defns
 getFheaderID_def :: '' ::=
@@ -305,13 +302,13 @@ getInsnTyp_def :: '' ::=
      {{ com return typs of [[insn]] }} by
 
      ----------------------------------------------- :: getInsnTyp_return
-     getInsnTyp (ret typ value) = none
+     getInsnTyp (ret typ value) = typ
 
      ----------------------------------------------- :: getInsnTyp_return_void
      getInsnTyp (ret void) = none 
 
      ------------------------------------------------------ :: getInsnTyp_br
-     getInsnTyp (br typ value , l1 , l2) = none 
+     getInsnTyp (br typ value , l1 , l2) = none
 
      ------------------------------------------------------ :: getInsnTyp_uncond
      getInsnTyp (br l) = none 
@@ -1227,15 +1224,15 @@ blockNotinBlocks_def :: '' ::=
      blockNotinBlocks block list_block :: :: blockNotinBlocks :: ''
      {{ com the label of [[block]] isnt in labels of [[list_block]] }} by
 
-     ------------------------------------ :: blockNotinBlocks_none
-     blockNotinBlocks list_insn list_block    	     
+%     ------------------------------------ :: blockNotinBlocks_none
+%     blockNotinBlocks list_insn list_block    	     
 
      --------------------------------- :: blockNotinBlocks_some_nil
      blockNotinBlocks (l list_insn) []    	      
 
-     blockNotinBlocks (l list_insn) list_block'
-     ------------------------------------ :: blockNotinBlocks_some_none_cons
-     blockNotinBlocks (l list_insn) (list_block', list_insn')    	      
+%     blockNotinBlocks (l list_insn) list_block'
+%     ------------------------------------ :: blockNotinBlocks_some_none_cons
+%     blockNotinBlocks (l list_insn) (list_block', list_insn')    	      
 
      not l == l'
      blockNotinBlocks (l list_insn) list_block'
@@ -2152,6 +2149,10 @@ lookupBindingViaIDFromProducts_def :: '' ::=
      % ------------------------------------------------------------- :: lookupBindingViaIDFromProducts_true_g
      % lookupBindingViaIDFromProducts (list_product, product) id = g
 
+     lookupBindingViaIDFromProduct product id = fdec
+     ------------------------------------------------------------- :: lookupBindingViaIDFromProducts_true_fdec
+     lookupBindingViaIDFromProducts (list_product, product) id = fdec
+
      lookupBindingViaIDFromProduct product id = none
      lookupBindingViaIDFromProducts list_product id = id_binding
      ---------------------------------------------------------------- :: lookupBindingViaIDFromProducts_false
@@ -2185,6 +2186,10 @@ lookupBindingViaIDFromModules_def :: '' ::=
      % ------------------------------------------------------------- :: lookupBindingViaIDFromModules_true_g
      % lookupBindingViaIDFromModules (list_module, module) id = g
 
+     lookupBindingViaIDFromModule module id = fdec
+     ------------------------------------------------------------- :: lookupBindingViaIDFromModules_true_fdec
+     lookupBindingViaIDFromModules (list_module, module) id = fdec
+
      lookupBindingViaIDFromModule module id = none
      lookupBindingViaIDFromModules list_module id = id_binding
      ---------------------------------------------------------------- :: lookupBindingViaIDFromModules_false
@@ -2208,12 +2213,12 @@ lookupBindingViaIDFromSystem_def :: '' ::=
 defns
 isIDInBlock_def :: '' ::=
      defn
-     isIDInBloc id block :: :: isIDInBlock :: ''
+     isIDInBlock id block :: :: isIDInBlock :: ''
      {{ com if the insn [[id]] is in [[block]] }} by
 
      lookupBindingViaIDFromBlock block id = insn     
      --------------------------------------- :: isIDInBloc_intro
-     isIDInBloc id block
+     isIDInBlock id block
 
 defns
 lookupBlockViaIDFromBlocks_def :: '' ::=
@@ -2224,11 +2229,11 @@ lookupBlockViaIDFromBlocks_def :: '' ::=
      --------------------------------------- :: lookupBlockViaIDFromBlocks_nil
      lookupBlockViaIDFromBlocks [] id = none		 
 
-     isIDInBloc id block
+     isIDInBlock id block
      ---------------------------------------------------------- :: lookupBlockViaIDFromBlocks_cons_true
      lookupBlockViaIDFromBlocks (list_block, block) id = block
 
-     not (isIDInBloc id block)
+     not (isIDInBlock id block)
      lookupBlockViaIDFromBlocks list_block id = opt_block
      -------------------------------------------------------------- :: lookupBlockViaIDFromBlocks_cons_false
      lookupBlockViaIDFromBlocks (list_block, block) id = opt_block

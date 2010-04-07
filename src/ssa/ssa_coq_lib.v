@@ -45,12 +45,11 @@ Section SSA.
 
   Definition genLabel2Block_block (b:block) (f:fdef) (m:module) : l2block :=
   match b with
-  | block_with_label l _ => fun l' => 
+  | block_intro l _ => fun l' => 
     match lt_eq_lt_dec l' l with 
     | inleft (right _) => Some b
     | _ => None
     end 
-  | block_without_label _ => fun l' => None
   end.  
 
   Fixpoint genLabel2Block_blocks (bs:list_block) (f:fdef) (m:module) : l2block :=
@@ -247,8 +246,7 @@ Section UseDef.
 
   Definition genInsnUseDef_block (b:block) (f:fdef) (m:module) : usedef_insn :=
   match b with
-  | block_with_label l is => genInsnUseDef_insns is b f m
-  | block_without_label is => genInsnUseDef_insns is b f m
+  | block_intro l is => genInsnUseDef_insns is b f m
   end.  
 
   Fixpoint genInsnUseDef_blocks (bs:list_block) (f:fdef) (m:module) : usedef_insn :=
@@ -284,21 +282,16 @@ Section UseDef.
 
   (* generate block use-def *)
 
-  Definition getBlockLabel (b:block) : option l :=
+  Definition getBlockLabel (b:block) : l :=
   match b with
-  | block_with_label l b => Some l
-  | block_without_label b => None
+  | block_intro l b => l
   end.
 
   Definition genBlockUseDef_label (l0:l) (i:insn) (b:block) (f:fdef) (m:module) : usedef_block :=
   fun b' => 
-  match (getBlockLabel b') with
-  | None => nil
-  | Some l0' =>
-    match lt_eq_lt_dec l0' l0 with 
-    | inleft (right _) => b::nil
-    | _ => nil
-    end
+  match lt_eq_lt_dec (getBlockLabel b') l0 with 
+  | inleft (right _) => b::nil
+  | _ => nil
   end.
 
   Fixpoint genBlockUseDef_switch_cases (cs:list (const * l)) (i:insn) (b:block) (f:fdef) (m:module) : usedef_block :=
@@ -358,8 +351,7 @@ Section UseDef.
 
   Definition genBlockUseDef_block (b:block) (f:fdef) (m:module) : usedef_block :=
   match b with
-  | block_with_label l is => genBlockUseDef_insns is b f m
-  | block_without_label is => genBlockUseDef_insns is b f m
+  | block_intro l is => genBlockUseDef_insns is b f m
   end.  
 
   Fixpoint genBlockUseDef_blocks (bs:list_block) (f:fdef) (m:module) : usedef_block :=
@@ -399,8 +391,7 @@ Section CFG.
 
   Definition getTerminator (b:block) : option insn := 
   match b with
-  | block_with_label l is => last_opt insn is
-  | block_without_label is => last_opt insn is
+  | block_intro l is => last_opt insn is
   end. 
 
   Fixpoint getLabelsFromSwitchCases (cs:list (const*l)) : ls :=
@@ -452,14 +443,12 @@ Section Dominator.
   Fixpoint inputFromPred (bs:list_block) (output:dt) : ls :=
   match bs with
   | nil => lempty_set
-  | (block_with_label l0 _)::bs' => lset_union (output l0) (inputFromPred bs' output)
-  | (block_without_label _)::bs' => (inputFromPred bs' output)
+  | (block_intro l0 _)::bs' => lset_union (output l0) (inputFromPred bs' output)
   end.
 
   Definition outputFromInput (b:block) (input:ls) : ls :=
   match b with
-  | block_with_label l0 _ => lset_add l0 input
-  | block_without_label _ => input
+  | block_intro l0 _ => lset_add l0 input
   end.
 
   Definition update_dt (d1:dt) (l0:l) (ls0:ls) : dt :=
@@ -475,12 +464,12 @@ Section Dominator.
   Fixpoint genDominatorTree_blocks_innerloop (bs:list_block) (udb:usedef_block) (output:dt) : dt :=
   match bs with 
   | nil => output
-  | (block_with_label l is)::bs' => 
-    match (outputFromInput (block_with_label l is) (inputFromPred (predOfBlock (block_with_label l is) udb) output)) with 
+  | (block_intro l is)::bs' => 
+    match (outputFromInput (block_intro l is) (inputFromPred (predOfBlock (block_intro l is) udb) output)) with 
     | ls' => genDominatorTree_blocks_innerloop bs' udb (update_dt output l ls') 
     end
-  | (block_without_label is)::bs' => 
-    genDominatorTree_blocks_innerloop bs' udb output 
+(*  | (block_without_label is)::bs' => 
+    genDominatorTree_blocks_innerloop bs' udb output  *)
   end.  
 
   (*
@@ -489,19 +478,19 @@ Section Dominator.
   Fixpoint eq_dt (d0 d1:dt) (bs:list_block) : bool :=
   match bs with
   | nil => true
-  | (block_with_label l0 _)::bs' =>
+  | (block_intro l0 _)::bs' =>
     match (lset_eq (d0 l0) (d1 l0)) with
     | true => eq_dt d0 d1 bs'
     | false => false
     end
-  | _::bs' => eq_dt d0 d1 bs'
+(*  | _::bs' => eq_dt d0 d1 bs' *)
   end.
 
   Fixpoint sizeOfDT (bs:list_block) (output:dt) : nat :=
   match bs with
   | nil => 0
-  | (block_with_label l0 _)::bs' => length (output l0) + sizeOfDT bs' output
-  | _::bs'=> sizeOfDT bs' output
+  | (block_intro l0 _)::bs' => length (output l0) + sizeOfDT bs' output
+(*  | _::bs'=> sizeOfDT bs' output *)
   end.
 
   Definition size (arg:(list_block*dt)) : nat :=
@@ -526,8 +515,8 @@ Section Dominator.
   Fixpoint initialize_genDominatorTree_blocks (bs:list_block) (U:ls) (d0:dt) : dt :=
   match bs with
   | nil => d0
-  | (block_with_label l0 _)::bs' => initialize_genDominatorTree_blocks bs' U (update_dt d0 l0 U)
-  | _::bs' => initialize_genDominatorTree_blocks bs' U d0
+  | (block_intro l0 _)::bs' => initialize_genDominatorTree_blocks bs' U (update_dt d0 l0 U)
+(*  | _::bs' => initialize_genDominatorTree_blocks bs' U d0 *)
   end.
 
   Definition genEmptyDT : dt := fun _ => nil. 
@@ -535,8 +524,8 @@ Section Dominator.
   Definition initialize_genDominatorTree_entry (f:fdef) : dt :=
   match (getEntryOfFdef f) with
   | None => genEmptyDT
-  | Some (block_with_label l0 _) => update_dt genEmptyDT l0 (lset_single l0)
-  | Some  _ => genEmptyDT
+  | Some (block_intro l0 _) => update_dt genEmptyDT l0 (lset_single l0)
+(*  | Some  _ => genEmptyDT *)
   end.
 
   Definition initialize_genDominatorTree (f:fdef) (U:ls) : dt :=
@@ -550,19 +539,19 @@ Section Dominator.
 
   Definition blockDominates (d:dt) (b1 b2: block) : Prop :=
   match b1 with
-  | block_with_label l1 _ =>
+  | block_intro l1 _ =>
     match (d l1) with
     | ls1 => 
       match b2 with
-      | block_with_label l2 _ => 
+      | block_intro l2 _ => 
         match (lset_mem l2 ls1) with
         | true => True
         | false => False
         end
-      | _ => False
+(*      | _ => False *)
       end
     end 
-  | _ => False
+(*  | _ => False *)
   end.
 
   Definition insnDominates (i1 i2:insn) : Prop :=
@@ -586,35 +575,35 @@ End Dominator.
 
 Section Classes.
 
-Definition isPointerTypS (t:typ) : bool :=
+Definition isPointerTypB (t:typ) : bool :=
 match t with
 | typ_pointer _ => true
 | _ => false
 end.
 
-Definition isInvokeInsnS (i:insn) : bool :=
+Definition isInvokeInsnB (i:insn) : bool :=
 match i with
 | insn_invoke _ _ _ _ _ _ => true
 | _ => false
 end.
 
-Definition isCallInsnS (i:insn) : bool :=
+Definition isCallInsnB (i:insn) : bool :=
 match i with
 | insn_call _ _ _ _ => true
 | _ => false
 end.
 
-Definition isNotValidReturnTypS (t:typ) : bool :=
+Definition isNotValidReturnTypB (t:typ) : bool :=
 match t with
 | typ_label => true
 | typ_metadata => true
 | _ => false
 end.
 
-Definition isValidReturnTypS (t:typ) : bool :=
-negb (isNotValidReturnTypS t).
+Definition isValidReturnTypB (t:typ) : bool :=
+negb (isNotValidReturnTypB t).
 
-Definition isNotFirstClassTypS (t:typ) : bool :=
+Definition isNotFirstClassTypB (t:typ) : bool :=
 match t with
 | typ_void => true
 (* | typ_opaque => true *)
@@ -622,16 +611,16 @@ match t with
 | _ => false
 end.
 
-Definition isFirstClassTypS (t:typ) : bool :=
-negb (isNotFirstClassTypS t).
+Definition isFirstClassTypB (t:typ) : bool :=
+negb (isNotFirstClassTypB t).
 
-Definition isValidArgumentTypS (t:typ) : bool :=
+Definition isValidArgumentTypB (t:typ) : bool :=
 match t with
 (*| typ_opaque => true *)
-| _ => isFirstClassTypS t
+| _ => isFirstClassTypB t
 end.
 
-Definition isNotValidElementTypS (t:typ) : bool :=
+Definition isNotValidElementTypB (t:typ) : bool :=
 match t with
 | typ_void => true
 | typ_label => true
@@ -640,16 +629,16 @@ match t with
 | _ => false
 end.
 
-Definition isValidElementTypS (t:typ) : bool :=
-negb (isNotValidElementTypS t).
+Definition isValidElementTypB (t:typ) : bool :=
+negb (isNotValidElementTypB t).
 
-Definition isPhiNodeS (i:insn) : bool :=
+Definition isPhiNodeB (i:insn) : bool :=
 match i with
 | insn_phi _ _ _ => true
 | _ => false
 end.
 
-Definition isTerminatorInsnS (i:insn) : bool :=
+Definition isTerminatorInsnB (i:insn) : bool :=
 match i with
 | insn_return _ _ => true
 | insn_return_void => true
@@ -661,7 +650,420 @@ match i with
 | _ => false
 end.
 
+Definition isBindingFdecB (ib:id_binding) : bool :=
+match ib with
+| id_binding_fdec fdec => true
+| _ => false
+end.
+
+Definition isBindingArgB (ib:id_binding) : bool :=
+match ib with
+| id_binding_arg arg => true
+| _ => false
+end.
+
+Definition isBindingInsnB (ib:id_binding) : bool :=
+match ib with
+| id_binding_insn _ => true
+| _ => false
+end.
+
 End Classes.
+
+Section Inversion.
+
+Definition getInsnTypC (i:insn) : option typ :=
+match i with
+| insn_return typ _ => Some typ
+| insn_return_void => None
+| insn_br typ _ _ _ => None 
+| insn_br_uncond _ => None
+(* | insn_switch typ _ _ _ => None *)
+| insn_invoke _ typ _ _ _ _ => Some typ
+| insn_call _ typ _ _ => Some typ
+| insn_unreachable => None
+| insn_add _ typ _ _ => Some typ
+(*| insn_fadd _ typ _ _ => Some typ
+| insn_udiv _ typ _ _ => Some typ
+| insn_fdiv _ typ _ _ => Some typ
+| insn_or _ typ _ _ => Some typ
+| insn_and _ typ _ _ => Some typ
+| insn_extractelement _ typ _ _ => getElementTyp typ
+| insn_insertelement _ typ _ _ _ _ => typ
+| insn_extractvalue _ typ _ const1 => getFieldTyp typ const1
+| insn_insertvalue _ typ _ _ _ _ => typ
+| insn_alloca _ typ _ => Some (typ_pointer typ)
+| insn_load _ typ _ => getLoadTyp typ
+| insn_store _ _ _ _ => None
+| insn_trunc _ _ _ typ => Some typ
+| insn_fptrunc _ _ _ typ => Some typ
+| insn_fptoui _ _ _ typ => Some typ
+| insn_fptosi _ _ _ typ => Some typ
+| insn_uitofp _ _ _ typ => Some typ
+| insn_sitofp _ _ _ typ => Some typ
+| insn_ptrtoint _ _ _ typ => Some typ
+| insn_inttoptr _ _ _ typ => Some typ
+| insn_bitcase _ _ _ typ => Some typ
+| insn_icmp _ _ _ _ _ => Some (typ_int 1)
+| insn_fcmp _ _ _ _ _ => Some (typ_int 1) *)
+| insn_phi _ typ _ => Some typ
+end.
+
+Definition getPointerEltTypC (t:typ) : option typ :=
+match t with
+| typ_pointer t' => Some t' 
+| _ => None
+end.
+
+Definition getValueIDsC (v:value) : ids :=
+match (getValueID v) with
+| None => nil
+| Some id => id::nil
+end.
+
+Fixpoint getParamsOperandC (lp:list_param) : ids :=
+match lp with
+| nil => nil
+| (t, v)::lp' => (getValueIDsC v) ++ (getParamsOperandC lp')
+end.
+
+Fixpoint list_prj1 (X Y:Type) (ls : list (X*Y)) : list X :=
+match ls with
+| nil => nil
+| (x, y)::ls' => x::list_prj1 X Y ls'
+end.
+
+Fixpoint list_prj2 (X Y:Type) (ls : list (X*Y)) : list Y :=
+match ls with
+| nil => nil
+| (x, y)::ls' => y::list_prj2 X Y ls'
+end.
+
+Definition getInsnOperandsC (i:insn) : ids :=
+match i with
+| insn_return _ v => getValueIDsC v
+| insn_return_void => nil
+| insn_br _ v _ _ => getValueIDsC v
+| insn_br_uncond _ => nil
+(* | insn_switch _ value _ _ => getValueIDs value *)
+| insn_invoke _ _ _ lp _ _ => getParamsOperandC lp
+| insn_call _ _ _ lp => getParamsOperandC lp
+| insn_unreachable => nil
+| insn_add _ _ v1 v2 => getValueIDsC v1 ++ getValueIDsC v2
+(*| insn_fadd _ _ v1 v2 => getValueIDsC v1 ++ getValueIDsC v2
+| insn_udiv _ _ v1 v2 => getValueIDsC v1 ++ getValueIDsC v2
+| insn_fdiv _ _ v1 v2 => getValueIDsC v1 ++ getValueIDsC v2
+| insn_or _ _ v1 v2 => getValueIDsC v1 ++ getValueIDsC v2
+| insn_and _ _ v1 v2 => getValueIDsC v1 ++ getValueIDsC v2
+| insn_extractelement _ _ v _ => getValueIDsC v
+| insn_insertelement _ _ v1 _ v2 _ => getValueIDsC v1 ++ getValueIDsC v2
+| insn_extractvalue _ _ v _ => getValueIDsC v
+| insn_insertvalue _ _ v1 _ v2 _ => getValueIDsC v1 ++ getValueIDsC v2
+| insn_alloca _ _ _ => nil
+| insn_load _ _ v => getValueIDsC v
+| insn_store _ v1 _ v2 => getValueIDsC v1 ++ getValueIDsC v2
+| insn_trunc _ _ v _ => getValueIDsC v
+| insn_fptrunc _ _ v _ => getValueIDsC v
+| insn_fptoui _ _ v _ => getValueIDsC v
+| insn_fptosi _ _ v _ => getValueIDsC v
+| insn_uitofp _ _ v _ => getValueIDsC v
+| insn_sitofp _ _ v _ => getValueIDsC v
+| insn_ptrtoint _ _ v _ => getValueIDsC v
+| insn_inttoptr _ _ v _ => getValueIDsC v
+| insn_bitcase _ _ v _ => getValueIDsC v
+| insn_icmp _ _ _ v1 v2 => getValueIDsC v1 ++ getValueIDsC v2
+| insn_fcmp _ _ _ v1 v2 => getValueIDsC v1 ++ getValueIDsC v2 *)
+| insn_phi _ _ ls => list_prj1 _ _ ls
+end.
+
+Definition getInsnLabelsC (i:insn) : ls :=
+match i with
+| insn_return _ _ => nil
+| insn_return_void => nil
+| insn_br _ _ l1 l2 => l1::l2::nil
+| insn_br_uncond l => l::nil
+(* | insn_switch _ _ l ls => l::list_prj2 _ _ ls *)
+| insn_invoke _ _ _ _ l1 l2 => l1::l2::nil
+| insn_call _ _ _ _ => nil
+| insn_unreachable => nil
+| insn_add _ _ _ _ => nil
+(*| insn_fadd _ _ _ _ => nil
+| insn_udiv _ _ _ _ => nil
+| insn_fdiv _ _ _ _ => nil
+| insn_or _ _ _ _ => nil
+| insn_and _ _ _ _ => nil
+| insn_extractelement _ _ _ _ => nil
+| insn_insertelement _ _ _ _ _ _ => nil
+| insn_extractvalue _ _ _ _ => nil
+| insn_insertvalue _ _ _ _ _ _ => nil
+| insn_alloca _ _ _ => nil
+| insn_load _ _ _ => nil
+| insn_store _ _ _ _ => nil
+| insn_trunc _ _ _ _ => nil
+| insn_fptrunc _ _ _ _ => nil
+| insn_fptoui _ _ _ _ => nil
+| insn_fptosi _ _ _ _ => nil
+| insn_uitofp _ _ _ _ => nil
+| insn_sitofp _ _ _ _ => nil
+| insn_ptrtoint _ _ _ _ => nil
+| insn_inttoptr _ _ _ _ => nil
+| insn_bitcase _ _ _ _ => nil
+| insn_icmp _ _ _ _ _ => nil
+| insn_fcmp _ _ _ _ _ => nil *)
+| insn_phi _ _ ls => list_prj2 _ _ ls
+end.
+
+Fixpoint args2TypsC (la:list_arg) : list_typ :=
+match la with
+| nil => nil
+| (t, id)::la' => t::args2TypsC la'
+end.
+
+Definition getFheaderTypC (fh:fheader) : typ :=
+match fh with
+| fheader_intro t _ la => typ_function t (args2TypsC la)
+end.
+
+Definition getFdecTypC (fdec:fdec) : typ :=
+match fdec with
+| fdec_intro fheader => getFheaderTypC fheader
+end.
+
+Definition getFdefTypC (fdef:fdef) : typ :=
+match fdef with
+| fdef_intro fheader _ => getFheaderTypC fheader
+end.
+
+Definition getBindingTypC (ib:id_binding) : option typ :=
+match ib with
+| id_binding_insn i => getInsnTypC i
+(* | id_binding_g _ t _ => Some t *)
+| id_binding_arg (t, id) => Some t
+| id_binding_fdec fdec => Some (getFdecTypC fdec)
+| id_binding_none => None
+end.
+
+Definition getInsnsFromBlockC (b:block) : list_insn :=
+match b with
+| block_intro l li => li
+(* | block_without_label li => li *)
+end.
+
+Definition getBindingFdecC (ib:id_binding) : option fdec :=
+match ib with
+| id_binding_fdec fdec => Some fdec
+| _ => None
+end.
+
+Definition getBindingArgC (ib:id_binding) : option arg :=
+match ib with
+| id_binding_arg arg => Some arg
+| _ => None
+end.
+
+(*
+Definition getBindingGC (ib:id_binding) : option g :=
+match ib with
+| id_binding_g g => Some g
+| _ => None
+end.
+*)
+
+Definition getBindingInsnC (ib:id_binding) : option insn :=
+match ib with
+| id_binding_insn i => Some i
+| _ => None
+end.
+
+Definition getFheaderIDC (fh:fheader) : id :=
+match fh with
+| fheader_intro _ id _ => id
+end.
+
+Definition getFdecIDC (fd:fdec) : id :=
+match fd with
+| fdec_intro fh => getFheaderIDC fh
+end.
+
+Definition getFdefIDC (fd:fdef) : id :=
+match fd with
+| fdef_intro fh _ => getFheaderIDC fh
+end.
+
+Definition getNormalDestFromInvokeInsnC (i:insn) : option l :=
+match i with
+| insn_invoke _ _ _ _ l1 _ => Some l1
+| _ => None
+end.
+
+Definition getUnwindDestFromInvokeInsnC (i:insn) : option l :=
+match i with
+| insn_invoke _ _ _ _ _ l2 => Some l2
+| _ => None
+end.
+
+Fixpoint getLabelViaIDFromList (ls:list (id*l)) (branch:id) : option l :=
+match ls with
+| nil => None
+| (id, l)::ls' => 
+  match (eq_nat_dec id branch) with
+  | left _ => Some l
+  | right _ => getLabelViaIDFromList ls' branch
+  end
+end.
+
+Definition getLabelViaIDFromPhiNode (phi:insn) (branch:id) : option l :=
+match phi with
+| insn_phi _ _ ls => getLabelViaIDFromList ls branch
+| _ => None
+end.
+
+End Inversion.
+
+Section Lookup.
+
+(* ID binding lookup *)
+
+Definition lookupBindingViaIDFromInsnC (i:insn) (id:id) : id_binding :=
+match (getInsnID i) with
+| None => id_binding_none
+| Some id' =>
+  match (eq_nat_dec id id') with
+  | left _ => id_binding_insn i
+  | right _ => id_binding_none
+  end
+end.
+
+Fixpoint lookupBindingViaIDFromInsnsC (li:list_insn) (id:id) : id_binding :=
+match li with
+| nil => id_binding_none
+| i::li' =>
+  match (lookupBindingViaIDFromInsnC i id) with
+  | id_binding_insn _ => id_binding_insn i
+  | _ => lookupBindingViaIDFromInsnsC li' id
+  end
+end.
+
+Definition lookupBindingViaIDFromBlockC (b:block) (id:id) : id_binding :=
+let list_insn := getInsnsFromBlockC b in
+lookupBindingViaIDFromInsnsC list_insn id.
+
+Fixpoint lookupBindingViaIDFromBlocksC (lb:list_block) (id:id) : id_binding :=
+match lb with
+| nil => id_binding_none
+| b::lb' => 
+  match (lookupBindingViaIDFromBlockC b id) with
+  | id_binding_insn i => id_binding_insn i
+  | _ => lookupBindingViaIDFromBlocksC lb' id
+  end
+end.
+
+Definition lookupBindingViaIDFromArgC (a:arg) (id:id) : id_binding :=
+let (t, id') := a in
+match (eq_nat_dec id id') with
+| left _ => id_binding_arg a
+| right _ => id_binding_none
+end.
+
+Fixpoint lookupBindingViaIDFromArgsC (la:list_arg) (id:id) : id_binding :=
+match la with 
+| nil => id_binding_none
+| a::la' => 
+  match (lookupBindingViaIDFromArgC a id) with
+  | id_binding_arg a' => id_binding_arg a'
+  | _ => lookupBindingViaIDFromArgsC la' id
+  end
+end.
+
+Definition lookupBindingViaIDFromFdecC (fd:fdec) (id:id) : id_binding :=
+let '(fdec_intro (fheader_intro t id' la)) := fd in
+match (eq_nat_dec id id') with
+| left _ => id_binding_fdec fd
+| right _ => lookupBindingViaIDFromArgsC la id
+end.
+
+Definition lookupBindingViaIDFromFdefC (fd:fdef) (id:id) : id_binding :=
+let '(fdef_intro fh lb) := fd in
+lookupBindingViaIDFromBlocksC lb id.
+
+Definition lookupBindingViaIDFromProductC (p:product) (id:id) : id_binding :=
+match p with
+(*
+| product_global id' t c =>
+  match (eq_nat_dec id id') with
+  | left _ => id_binding_global id' t c
+  | right _ => id_binding_none
+  end
+*)
+| product_function_dec fdec => lookupBindingViaIDFromFdecC fdec id
+(* | product_namedt _ => id_binding_none *)
+| product_function_def fdef => lookupBindingViaIDFromFdefC fdef id
+end.  
+
+Fixpoint lookupBindingViaIDFromProductsC (lp:list_product) (id:id) : id_binding :=
+match lp with
+| nil => id_binding_none
+| p::lp' => 
+  match (lookupBindingViaIDFromProductC p id) with
+  | id_binding_insn i => id_binding_insn i
+  | id_binding_fdec f => id_binding_fdec f
+  (* | id_binding_global g => id_binding_global g *)
+  | _ => lookupBindingViaIDFromProductsC lp' id
+  end
+end.
+  
+Definition lookupBindingViaIDFromModuleC (m:module) (id:id) : id_binding :=
+lookupBindingViaIDFromProductsC m id.
+
+Fixpoint lookupBindingViaIDFromModulesC (lm:list_module) (id:id) : id_binding :=
+match lm with
+| nil => id_binding_none
+| m::lm' =>
+  match (lookupBindingViaIDFromModuleC m id) with
+  | id_binding_insn i => id_binding_insn i
+  | id_binding_fdec f => id_binding_fdec f
+  (* | id_binding_global g => id_binding_global g *)
+  | _ => lookupBindingViaIDFromModulesC lm' id
+  end
+end.
+
+Definition lookupBindingViaIDFromSystemC (s:system) (id:id) : id_binding :=
+lookupBindingViaIDFromModulesC s id.
+
+(* Block lookup from ID *)
+
+Definition isIDInBlockB (id:id) (b:block) : bool :=
+match (lookupBindingViaIDFromBlockC b id) with
+| id_binding_insn i => true
+| _ => false
+end.
+
+Fixpoint lookupBlockViaIDFromBlocksC (lb:list_block) (id:id) : option block :=
+match lb with
+| nil => None  
+| b::lb' => 
+  match (isIDInBlockB id b) with
+  | true => Some b
+  | false => lookupBlockViaIDFromBlocksC lb' id
+  end
+end.
+
+Definition lookupBlockViaIDFromFdefC (fd:fdef) (id:id) : option block :=
+match fd with
+| fdef_intro fh lb => lookupBlockViaIDFromBlocksC lb id
+end.
+
+End Lookup.
+
+Section Eq.
+
+Definition blockEq (b1 b2:block) : bool :=
+match (eq_nat_dec (getBlockLabel b1) (getBlockLabel b2)) with
+| left _ => true
+| right _ => false
+end.
+
+End Eq.
 
 (*ENDCOPY*)
 

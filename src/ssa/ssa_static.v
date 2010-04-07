@@ -18,190 +18,54 @@ Inductive wf_typ : typ -> Prop :=    (* defn wf_typ *)
      wf_typ (typ_function typ_5 typ_list).
 
 (* defns Jwf_operand_insn *)
-Inductive wf_operand_insn : intrinsic_funs -> system -> module_info -> fdef_info -> block -> insn -> insn -> Prop :=    (* defn wf_operand_insn *)
- | wf_operand_insn_intro : forall (intrinsic_funs5:intrinsic_funs) (system5:system) (module_info5:module_info) (fdef5:fdef) (dt5:dt) (block5:block) (insn5 insn':insn) (id':id) (block':block) (l1 l2 l'':l) (block'':block),
-      (getInsnID  insn'  =   (Some  id' )  )  ->
-     lookupBlockViaIDFromFdef fdef5 id'  (Some  block' )  ->
-      (  ( isInvokeInsn insn' )   ->    getNormalDestFromInvokeInsn insn' l1  ->  getUnwindDestFromInvokeInsn insn' l2   ->   (not (  l1  =  l2  ))   ) /\ ((~  ( isInvokeInsn insn' )  ) ->   True  )  ->
-       ( isPhiNode insn5 )   ->   (   getLabelViaIDPhiNode insn5 id'  (Some  l'' )   /\   (lookupBlockViaLabelFromSystem  system5   l''  =   (Some  block'' )  )    /\   (   (  (blockDominates  dt5   block'   block'' )  )   \/   (  (not (  (  (isReachableFromEntry    ( fdef5 ,  dt5 )     block5 )  )  ))  )   )   )   ->
-       (  (notT ( isPhiNode insn5 ))  )   ->   (   (insnDominates  insn'   insn5 )   \/   (  (not (  (  (isReachableFromEntry    ( fdef5 ,  dt5 )     block5 )  )  ))  )   )   ->
-     wf_operand_insn intrinsic_funs5 system5 module_info5   ( fdef5 ,  dt5 )   block5 insn5 insn'.
-
-(* defns Jwf_operand *)
-Inductive wf_operand : intrinsic_funs -> system -> module_info -> fdef_info -> block -> insn -> id -> Prop :=    (* defn wf_operand *)
- | wf_operand_intro : forall (intrinsic_funs5:intrinsic_funs) (system5:system) (module5:module) (usedef_insn5:usedef_insn) (usedef_block5:usedef_block) (fdef5:fdef) (dt5:dt) (block5:block) (insn5:insn) (id':id) (ids5:ids) (id_binding':id_binding) (typ' typ'':typ) (fdec5:fdec) (id0:id) (arg5:arg) (insn':insn) (module_info5:module_info) (fdef_info5:fdef_info),
-     insnInSystemModuleFdefBlock insn5 system5   ( module5 , ( usedef_insn5 ,  usedef_block5 ))     ( fdef5 ,  dt5 )   block5 ->
-     getInsnOperands insn5 ids5 ->
-      ( set_In  id'   ids5 )  ->
-     lookupBindingViaIDFromSystem system5 id' id_binding' ->
-     getBindingTyp id_binding'  (Some  typ' )  ->
-     isFirstClassTyp typ' ->
-       ( getPointerEltTyp typ' typ'' )   ->   (  (not ( typeEq typ'' typ_metadata ))  )   ->
-       ( isBindingFdec id_binding' fdec5 )   ->   (   getFdecID fdec5 id0  /\   (   ( ~ set_In  id0   intrinsic_funs5 )   \/  getCallName insn5 id0  )    /\   In  (product_function_dec fdec5)   module5   )   ->
-       ( isBindingArg id_binding' arg5 )   ->   ( argInFdef arg5 fdef5 )   ->
-       ( isBindingInsn id_binding' insn' )   ->   ( wf_operand_insn intrinsic_funs5 system5 module_info5 fdef_info5 block5 insn5 insn' )   ->
-     wf_operand intrinsic_funs5 system5   ( module5 , ( usedef_insn5 ,  usedef_block5 ))     ( fdef5 ,  dt5 )   block5 insn5 id'.
-
-(* defns Jwf_label *)
-Inductive wf_label : intrinsic_funs -> system -> module_info -> fdef_info -> block -> insn -> l -> Prop :=    (* defn wf_label *)
- | wf_label_intro : forall (intrinsic_funs5:intrinsic_funs) (system5:system) (module5:module) (usedef_insn5:usedef_insn) (usedef_block5:usedef_block) (fdef5:fdef) (dt5:dt) (block5:block) (insn5:insn) (l5:l) (ls5:ls),
-     insnInSystemModuleFdefBlock insn5 system5   ( module5 , ( usedef_insn5 ,  usedef_block5 ))     ( fdef5 ,  dt5 )   block5 ->
-     getInsnLabels insn5 ls5 ->
-      ( set_In  l5   ls5 )  ->
-      (lookupBlockViaLabelFromSystem  system5   l5  =   (Some  block5 )  )  ->
-     blockInFdef block5 fdef5 ->
-     wf_label intrinsic_funs5 system5   ( module5 , ( usedef_insn5 ,  usedef_block5 ))     ( fdef5 ,  dt5 )   block5 insn5 l5.
-
-Fixpoint nonPhiNodes_arent_selfRef (list_insn5:list_insn) (fdef5:fdef) (dt5:dt) (block5:block) (insn5:insn): Prop :=
-match list_insn5 with
-| nil => True
-| insn_ :: list_insn5' => 
-  ((not ( getInsnID insn5 = getInsnID insn_ ) )   \/   
-   (isReachableFromEntry ( fdef5 , dt5 ) block5 ) ) /\
-  nonPhiNodes_arent_selfRef list_insn5' fdef5 dt5 block5 insn5
-end.
-
-Definition visitInstruction (intrinsic_funs5:intrinsic_funs) 
-                            (system5:system)
-                            (module_info5:module_info)
-                            (fdef_info5:fdef_info)
-                            (block5:block)
-                            (insn5:insn) : Prop :=
+Definition wf_operand_insn (intrinsic_funs5:intrinsic_funs) 
+                           (system5:system)
+                           (module_info5:module_info)
+                           (fdef_info5:fdef_info)
+                           (block5:block)
+                           (insn5 insn':insn) : Prop :=
   let '(module5, (usedef_insn5, usedef_block5)) := module_info5 in
   let (fdef5, dt5) := fdef_info5 in 
   monad2prop _ (
-  (* Instruction must be embedded in basic block! *)
-  do ret 
-  (insnInSystemModuleFdefBlock 
-    insn5   
-    system5   
-    ( module5 , ( usedef_insn5 ,  usedef_block5 ))     
-    ( fdef5 ,  dt5 )   
-    block5);
-  (* Check that non-phi nodes are not self referential *)
-  do If (isPhiNodeS insn5)
+  do id' <- (getInsnID  insn');
+  do OpBlock <- (lookupBlockViaIDFromFdefC fdef5 id');
+
+  (* Check that a definition dominates all of its uses *)
+  do If (isInvokeInsnB insn')
      then 
-     do list_insn5 <- ret (getInsnUseDef  usedef_insn5 insn5);
-        ret (nonPhiNodes_arent_selfRef list_insn5 fdef5 dt5 block5 insn5)
-     endif;
-     ret True
-  ).
+     (* Invoke results are only usable in the normal destination, not in the
+        exceptional destination. *)
+     do ln <- getNormalDestFromInvokeInsnC insn';
+     do NormalDest <- lookupBlockViaLabelFromSystem system5 ln;
+     do lu <- getUnwindDestFromInvokeInsnC insn';
+     do UnwindDest <- lookupBlockViaLabelFromSystem system5 lu;
+     do ret (not (NormalDest = UnwindDest));
 
-(*
-/// verifyInstruction - Verify that an instruction is well formed.
-///
-void Verifier::visitInstruction(Instruction &I) {  
-  BasicBlock *BB = I.getParent();
-  Assert1(BB, "Instruction not embedded in basic block!", &I);
+     (* PHI nodes differ from other nodes because they actually "use" the
+        value in the predecessor basic blocks they correspond to. *)
+     do UseBlock <- 
+        If (isPhiNodeB insn5) 
+        then 
+        do l <- getLabelViaIDFromPhiNode insn5 id';
+           lookupBlockViaLabelFromSystem system5 l
+        else
+           ret block5
+        endif;
+     do If (isPhiNodeB insn5 && blockEq UseBlock OpBlock)
+        then
+        (* Special case of a phi node in the normal destination or the unwind
+           destination *)
+           ret (block5 = NormalDest /\ isReachableFromEntry fdef_info5 UseBlock)
+        else
+        (* Invoke result does dominate all uses! *)
+        do ret (blockDominates dt5 NormalDest UseBlock \/ 
+                isReachableFromEntry fdef_info5 UseBlock);
 
-  if (!isa<PHINode>(I)) {   // Check that non-phi nodes are not self referential
-    for (Value::use_iterator UI = I.use_begin(), UE = I.use_end();
-         UI != UE; ++UI)
-      Assert1( *UI != (User* )&I || !DT->isReachableFromEntry(BB),
-              "Only PHI nodes may reference their own value!", &I);
-  }
-
-  // Verify that if this is a terminator that it is at the end of the block.
-  if (isa<TerminatorInst>(I))
-    Assert1(BB->getTerminator() == &I, "Terminator not at end of block!", &I);
-
-  // Check that void typed values don't have names
-  Assert1(I.getType() != Type::getVoidTy(I.getContext()) || !I.hasName(),
-          "Instruction has a name, but provides a void value!", &I);
-
-  // Check that the return value of the instruction is either void or a legal
-  // value type.
-  Assert1(I.getType() == Type::getVoidTy(I.getContext()) ||
-          I.getType()->isFirstClassType()
-          || ((isa<CallInst>(I) || isa<InvokeInst>(I))
-              && isa<StructType>(I.getType())),
-          "Instruction returns a non-scalar type!", &I);
-
-  // Check that the instruction doesn't produce metadata or metadata*. Calls
-  // all already checked against the callee type.
-  Assert1(I.getType() != Type::getMetadataTy(I.getContext()) ||
-          isa<CallInst>(I) || isa<InvokeInst>(I),
-
- if (const PointerType *PTy = dyn_cast<PointerType>(I.getType()))
-    Assert1(PTy->getElementType() != Type::getMetadataTy(I.getContext()),
-            "Instructions may not produce pointer to metadata.", &I);
-
-
-  // Check that all uses of the instruction, if they are instructions
-  // themselves, actually have parent basic blocks.  If the use is not an
-  // instruction, it is an error!
-  for (User::use_iterator UI = I.use_begin(), UE = I.use_end();
-       UI != UE; ++UI) {
-    Assert1(isa<Instruction>( *UI), "Use of instruction is not an instruction!",
-            *UI);
-    Instruction *Used = cast<Instruction>( *UI);
-    Assert2(Used->getParent() != 0, "Instruction referencing instruction not"
-            " embedded in a basic block!", &I, Used);
-  }
-
-  for (unsigned i = 0, e = I.getNumOperands(); i != e; ++i) {
-    Assert1(I.getOperand(i) != 0, "Instruction has null operand!", &I);
-
-    // Check to make sure that only first-class-values are operands to
-    // instructions.
-    if (!I.getOperand(i)->getType()->isFirstClassType()) {
-      Assert1(0, "Instruction operands must be first-class values!", &I);
-    }
-
-    if (const PointerType *PTy =
-            dyn_cast<PointerType>(I.getOperand(i)->getType()))
-      Assert1(PTy->getElementType() != Type::getMetadataTy(I.getContext()),
-              "Invalid use of metadata pointer.", &I);
-    if (Function *F = dyn_cast<Function>(I.getOperand(i))) {
-      // Check to make sure that the "address of" an intrinsic function is never
-      // taken.
-      Assert1(!F->isIntrinsic() || (i == 0 && isa<CallInst>(I)),
-              "Cannot take the address of an intrinsic!", &I);
-      Assert1(F->getParent() == Mod, "Referencing function in another module!",
-              &I);
-    } else if (BasicBlock *OpBB = dyn_cast<BasicBlock>(I.getOperand(i))) {
-      Assert1(OpBB->getParent() == BB->getParent(),
-              "Referring to a basic block in another function!", &I);
-    } else if (Argument *OpArg = dyn_cast<Argument>(I.getOperand(i))) {
-      Assert1(OpArg->getParent() == BB->getParent(),
-              "Referring to an argument in another function!", &I);
-    } else if (GlobalValue *GV = dyn_cast<GlobalValue>(I.getOperand(i))) {
-      Assert1(GV->getParent() == Mod, "Referencing global in another module!",
-              &I);
-    } else if (Instruction *Op = dyn_cast<Instruction>(I.getOperand(i))) {
-      BasicBlock *OpBlock = Op->getParent();
-
-      // Check that a definition dominates all of its uses.
-      if (InvokeInst *II = dyn_cast<InvokeInst>(Op)) {
-        // Invoke results are only usable in the normal destination, not in the
-        // exceptional destination.
-        BasicBlock *NormalDest = II->getNormalDest();
-
-        Assert2(NormalDest != II->getUnwindDest(),
-                "No uses of invoke possible due to dominance structure!",
-                Op, &I);
-
-        // PHI nodes differ from other nodes because they actually "use" the
-        // value in the predecessor basic blocks they correspond to.
-        BasicBlock *UseBlock = BB;
-        if (isa<PHINode>(I))
-          UseBlock = cast<BasicBlock>(I.getOperand(i+1));
-
-        if (isa<PHINode>(I) && UseBlock == OpBlock) {
-          // Special case of a phi node in the normal destination or the unwind
-          // destination.
-          Assert2(BB == NormalDest || !DT->isReachableFromEntry(UseBlock),
-                  "Invoke result not available in the unwind destination!",
-                  Op, &I);
-        } else {
-          Assert2(DT->dominates(NormalDest, UseBlock) ||
-                  !DT->isReachableFromEntry(UseBlock),
-                  "Invoke result does not dominate all uses!", Op, &I);
-
-          // If the normal successor of an invoke instruction has multiple
-          // predecessors, then the normal edge from the invoke is critical,
-          // so the invoke value can only be live if the destination block
-          // dominates all of it's predecessors (other than the invoke).
+        (* If the normal successor of an invoke instruction has multiple
+           predecessors, then the normal edge from the invoke is critical,
+           so the invoke value can only be live if the destination block
+           dominates all of it's predecessors (other than the invoke). *)
+(*        
           if (!NormalDest->getSinglePredecessor() &&
               DT->isReachableFromEntry(UseBlock))
             // If it is used by something non-phi, then the other case is that
@@ -210,19 +74,27 @@ void Verifier::visitInstruction(Instruction &I) {
             for (pred_iterator PI = pred_begin(NormalDest),
                  E = pred_end(NormalDest); PI != E; ++PI)
               if ( *PI != II->getParent() && !DT->dominates(NormalDest, *PI) &&
-                  DT->isReachableFromEntry( *PI)) {
+                  DT->isReachableFromEntry ( *PI)) {
                 CheckFailed("Invoke result does not dominate all uses!", Op,&I);
                 return;
               }
-        }
-      } else if (isa<PHINode>(I)) {
+*)
+           ret True
+        endif;
+        ret True
+     else If (isPhiNodeB insn')
+     then
+(*
         // PHI nodes are more difficult than other nodes because they actually
         // "use" the value in the predecessor basic blocks they correspond to.
         BasicBlock *PredBB = cast<BasicBlock>(I.getOperand(i+1));
         Assert2(DT->dominates(OpBlock, PredBB) ||
                 !DT->isReachableFromEntry(PredBB),
                 "Instruction does not dominate all uses!", Op, &I);
-      } else {
+*)
+       ret True
+     else       
+(*
         if (OpBlock == BB) {
           // If they are in the same basic block, make sure that the definition
           // comes before the use.
@@ -234,35 +106,165 @@ void Verifier::visitInstruction(Instruction &I) {
         Assert2(InstsInThisBlock.count(Op) || DT->dominates(Op, &I) ||
                 !DT->isReachableFromEntry(BB),
                 "Instruction does not dominate all uses!", Op, &I);
-      }
-    } else if (isa<InlineAsm>(I.getOperand(i))) {
-      Assert1(i == 0 && (isa<CallInst>(I) || isa<InvokeInst>(I)),
-              "Cannot take the address of an inline asm!", &I);
-    }
-  }
-  InstsInThisBlock.insert(&I);
-}
 *)
+       ret True
+     endif endif;
+     ret True
+  ).
+
+(* defns Jwf_operand *)
+Definition wf_operand (intrinsic_funs5:intrinsic_funs) 
+                            (system5:system)
+                            (module_info5:module_info)
+                            (fdef_info5:fdef_info)
+                            (block5:block)
+                            (insn5:insn) 
+                            (id':id): Prop :=
+  let '(module5, (usedef_insn5, usedef_block5)) := module_info5 in
+  let (fdef5, dt5) := fdef_info5 in 
+  monad2prop _ (
+  do ret (insnInSystemModuleFdefBlock 
+            insn5 
+            system5  
+            ( module5 , ( usedef_insn5 ,  usedef_block5 )) 
+            ( fdef5 ,  dt5 )   
+            block5);
+  do ids5 <- ret (getInsnOperandsC insn5);
+  do ret ( set_In  id' ids5 );
+
+  do id_binding' <- ret (lookupBindingViaIDFromSystemC system5 id');
+  (* Check to make sure that only first-class-values are operands to instructions. *)
+  do typ' <- (getBindingTypC id_binding');
+  do ret (isFirstClassTyp typ');
+  
+  (* Valid use of metadata pointer. *)
+  do If (isPointerTypB typ')
+     then 
+     do typ'' <- (getPointerEltTypC typ');
+        ret (not (typeEq typ'' typ_metadata))
+     endif;
+
+  do If (isBindingFdecB id_binding')
+     then
+     do fdec5 <- (getBindingFdecC id_binding');
+     (* Check to make sure that the "address of" an intrinsic function is never
+        taken *)
+     do id0 <- ret (getFdecIDC fdec5);
+     do ret (( ~ set_In id0 intrinsic_funs5) \/  getCallName insn5 id0);
+
+     (* Referencing function exists in current module *)
+        ret (In  (product_function_dec fdec5) module5)
+     endif;
+
+  do If (isBindingArgB id_binding')
+     then 
+     do arg <- getBindingArgC id_binding';
+     (* Referring to an argument in the current function *)
+        ret (argInFdef arg fdef5)
+     endif;
+(*
+  do If (isBindingGB id_binding')
+     then 
+     (* Referencing global in the current module *)
+     do g <- getBindingGC id_binding';
+        ret True
+     endif
+*)        
+     
+  do If (isBindingInsnB id_binding')
+     then 
+     (*  Check when id_binding' is insn *)
+     do insn' <- getBindingInsnC id_binding';
+        ret (wf_operand_insn intrinsic_funs5 system5 module_info5 fdef_info5 block5 insn5 insn')
+     endif;
+
+     ret True
+  ).
+  
+(* defns Jwf_label *)
+Inductive wf_label : intrinsic_funs -> system -> module_info -> fdef_info -> block -> insn -> l -> Prop :=    (* defn wf_label *)
+ | wf_label_intro : forall (intrinsic_funs5:intrinsic_funs) (system5:system) (module5:module) (usedef_insn5:usedef_insn) (usedef_block5:usedef_block) (fdef5:fdef) (dt5:dt) (block5:block) (insn5:insn) (l5:l) (ls5:ls),
+     insnInSystemModuleFdefBlock insn5 system5   ( module5 , ( usedef_insn5 ,  usedef_block5 ))     ( fdef5 ,  dt5 )   block5 ->
+     getInsnLabels insn5 ls5 ->
+      ( set_In  l5   ls5 )  ->
+      (lookupBlockViaLabelFromSystem  system5   l5  =   (Some  block5 )  )  ->
+     blockInFdef block5 fdef5 ->
+     wf_label intrinsic_funs5 system5   ( module5 , ( usedef_insn5 ,  usedef_block5 ))     ( fdef5 ,  dt5 )   block5 insn5 l5.
 
 (* defns Jwf_insn_base *)
-Inductive wf_insn_base : intrinsic_funs -> system -> module_info -> fdef_info -> block -> insn -> Prop :=    (* defn wf_insn_base *)
- | wf_insn_base_intro : forall (insn_id_l_list:list (insn*id*l)) (intrinsic_funs5:intrinsic_funs) (system5:system) (module5:module) (usedef_insn5:usedef_insn) (usedef_block5:usedef_block) (fdef5:fdef) (dt5:dt) (block5:block) (insn_5:insn) (list_insn5:list_insn) (insn':insn) (typ5 typ':typ) (ids5:ids) (module_info5:module_info) (fdef_info5:fdef_info) (ls5:ls),
-     insnInSystemModuleFdefBlock insn_5 system5   ( module5 , ( usedef_insn5 ,  usedef_block5 ))     ( fdef5 ,  dt5 )   block5 ->
-      (getInsnUseDef  usedef_insn5   insn_5  =  list_insn5 )  ->
-      list_insn5  =  (map (fun (pat_:(insn*id*l)) => match pat_ with (insn_,id_,l_) => insn_ end ) insn_id_l_list)  ->
-       ( isPhiNode insn_5 )   ->  (forall insn_, In (insn_) (map (fun (pat_:insn*id*l) => match pat_ with (insn_,id_,l_) => (insn_) end) insn_id_l_list) ->   ( isPhiNode insn_ )   ->   (   (  (not (  getInsnID  insn_5  = getInsnID  insn_  ))  )   \/   (  (isReachableFromEntry    ( fdef5 ,  dt5 )     block5 )  )   )  )  ->
-       (  isTerminatorInsn insn_5  /\   (getTerminator  block5  =   (Some  insn' )  )   )   ->   (  getInsnID  insn_5  = getInsnID  insn'  )   ->
-     getInsnTyp insn_5  (Some  typ5 )  ->
-      typeEq typ5 typ_void  \/  isFirstClassTyp typ5  ->
-        (  (not ( typeEq typ5 typ_metadata ))  )   \/  isInvokeInsn insn_5   \/  isCallInsn insn_5  ->
-       ( isPointerTyp typ5 )   ->   (  getPointerEltTyp typ5 typ'  /\   (  (not ( typeEq typ' typ_metadata ))  )   )   ->
-     getInsnOperands insn_5 ids5 ->
-      ids5  =  (map (fun (pat_:(insn*id*l)) => match pat_ with (insn_,id_,l_) => id_ end ) insn_id_l_list)  ->
-     (forall id_, In (id_) (map (fun (pat_:insn*id*l) => match pat_ with (insn_,id_,l_) => (id_) end) insn_id_l_list) -> (wf_operand intrinsic_funs5 system5 module_info5 fdef_info5 block5 insn_5 id_)) ->
-     getInsnLabels insn_5 ls5 ->
-      ls5  =  (map (fun (pat_:(insn*id*l)) => match pat_ with (insn_,id_,l_) => l_ end ) insn_id_l_list)  ->
-     (forall l_, In (l_) (map (fun (pat_:insn*id*l) => match pat_ with (insn_,id_,l_) => (l_) end) insn_id_l_list) -> (wf_label intrinsic_funs5 system5 module_info5 fdef_info5 block5 insn_5 l_)) ->
-     wf_insn_base intrinsic_funs5 system5   ( module5 , ( usedef_insn5 ,  usedef_block5 ))     ( fdef5 ,  dt5 )   block5 insn_5.
+Definition wf_insn_base (intrinsic_funs5:intrinsic_funs) 
+                            (system5:system)
+                            (module_info5:module_info)
+                            (fdef_info5:fdef_info)
+                            (block5:block)
+                            (insn5:insn) : Prop :=
+  let '(module5, (usedef_insn5, usedef_block5)) := module_info5 in
+  let (fdef5, dt5) := fdef_info5 in 
+  monad2prop _ (
+  (* Instruction must be embedded in basic block! *)
+  do ret (insnInSystemModuleFdefBlock 
+            insn5   
+            system5   
+            ( module5 , ( usedef_insn5 ,  usedef_block5 ))     
+            ( fdef5 ,  dt5 )   
+            block5);
+
+  (* Check that non-phi nodes are not self referential *)
+  do If (isPhiNodeB insn5)
+     then 
+       for insn in (getInsnUseDef usedef_insn5 insn5) do
+         ret ((not (getInsnID insn5 = getInsnID insn)) \/ 
+              (isReachableFromEntry (fdef5, dt5) block5))
+       endfor
+     endif;
+
+  (* Verify that if this is a terminator that it is at the end of the block. *)
+  do If (isTerminatorInsnB insn5)
+     then 
+     do insn' <- (getTerminator block5);
+        ret (getInsnID insn5 = getInsnID insn')
+     endif;
+
+  (* Check that void typed values don't have names 
+     We dont need to check this in Coq. *)
+
+  (* Check that the return value of the instruction is either void or a legal
+     value type. *)
+  do typ5 <- (getInsnTypC insn5);
+  do ret (typeEq typ5 typ_void  \/  isFirstClassTyp typ5);
+
+  (* Check that the instruction doesn't produce metadata or metadata*. Calls
+     all already checked against the callee type. *)
+  do ret ((not (typeEq typ5 typ_metadata ))   \/  
+          isInvokeInsn insn5   \/  
+          isCallInsn insn5 );
+
+  (* Instructions may not produce pointer to metadata *)
+  do If (isPointerTypB typ5 )
+     then  
+     do typ' <- (getPointerEltTypC typ5);
+        ret (not (typeEq typ' typ_metadata ))
+     endif;
+
+  (* Check that all uses of the instruction, if they are instructions
+     themselves, actually have parent basic blocks.  If the use is not an
+     instruction, it is an error!
+     We should prove a lemma for this later *)
+  
+  (* Check operands *)
+  do for insn in (getInsnOperandsC insn5) do
+     (* Check to make sure that only first-class-values are operands to
+        instructions. *)
+       ret (wf_operand intrinsic_funs5 system5 module_info5 fdef_info5 block5 insn5 insn)
+     endfor;
+
+  (* Check labels *)
+  do for l in (getInsnLabelsC insn5) do
+       ret (wf_label intrinsic_funs5 system5 module_info5 fdef_info5 block5 insn5 l)
+     endfor;
+
+     ret True
+  ).
 
 (* defns Jwf_insn *)
 Inductive wf_insn : intrinsic_funs -> system -> module_info -> fdef_info -> block -> insn -> Prop :=    (* defn wf_insn *)
@@ -293,7 +295,7 @@ Inductive wf_list_insn : intrinsic_funs -> system -> module_info -> fdef_info ->
 (* defns Jwf_block *)
 Inductive wf_block : intrinsic_funs -> system -> module_info -> fdef_info -> block -> Prop :=    (* defn wf_block *)
  | wf_block_intro : forall (intrinsic_funs5:intrinsic_funs) (system5:system) (module_info5:module_info) (fdef_info5:fdef_info) (block5:block) (l5:l) (list_insn5:list_insn),
-     blockInSystemModuleFdef  (block_with_label l5 list_insn5)  system5 module_info5 fdef_info5 ->
+     blockInSystemModuleFdef  (block_intro l5 list_insn5)  system5 module_info5 fdef_info5 ->
      getInsnsFromBlock block5 list_insn5 ->
      wf_list_insn intrinsic_funs5 system5 module_info5 fdef_info5 block5 list_insn5 ->
      insnsChecksTerminatorInsn list_insn5 ->

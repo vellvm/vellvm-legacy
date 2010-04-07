@@ -6,6 +6,7 @@ embed
 Require Import ListSet.
 Require Import List.
 Require Import Logic_Type.
+Require Import Monad.
 
 Section Lists.
 
@@ -27,7 +28,7 @@ metavar id ::= {{ com identities }}
   {{ coq nat }} {{ lex numeral  }}
 metavar l ::= {{ com labels }}
   {{ coq nat }} {{ lex numeral  }}
-indexvar index, i, j, n ::= {{ com index }}
+indexvar i, j, n ::= {{ com index }}
   {{ coq nat }}
  
 grammar
@@ -181,8 +182,7 @@ list_insn {{ tex \mathit{\overline{insn} } }} :: 'list_insn_'	::=			{{ com insnr
   | ( list_insn )					:: S :: paren           {{ coq [[ list_insn ]] }}
 
 block :: 'block_' 					::=			{{ com block }}
-  | l list_insn						::   :: with_label
-  | list_insn						::   :: without_label
+  | l list_insn						::   :: intro
   | ( block )						:: S :: paren           {{ coq [[ block ]] }}
 
 opt_block {{ tex \mathit{opt_{block} } }} :: 'opt_block_' ::=			{{ com option block }} {{ coq option block }}

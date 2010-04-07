@@ -11,10 +11,10 @@ ott: ssa_def.v ssa_coq_lib.vo main.pdf ssa_lib.v Makefile ssa_static.vo
 allott: ott ssa_all.v Makefile
 
 ssa_coq_lib.vo : ssa_coq_lib.v ssa_def.vo Makefile
-	$(COQC) -I ./ott ssa_coq_lib.v
+	$(COQC) -I ./ott -I ./monads ssa_coq_lib.v
 
-ssa_def.vo : ssa_def.v Makefile
-	$(COQC) -I ./ott ssa_def.v
+ssa_def.vo : ssa_def.v Makefile ./monads/Monad.vo
+	$(COQC) -I ./ott -I ./monads ssa_def.v
 
 ssa_def.v : ssa_def.ott Makefile
 	ott -coq_expand_list_types false -i ssa_def.ott -o ssa_def.v
@@ -26,16 +26,16 @@ ssa_coq.ott : ssa_coq_lib.vo ssa_def.ott Makefile coq2ott.py Makefile
 m_ssa_static.ott : ssa_static.ott spanlines.py Makefile
 	./spanlines.py ssa_static.ott
 
-ssa_lib.v: ssa_def.ott ssa_coq.ott ssa_lib.ott Makefile ssa_def.v ssa_coq_lib.vo 
+ssa_lib.v: ssa_def.ott ssa_coq.ott ssa_lib.ott Makefile ssa_def.v ssa_coq_lib.vo ./monads/Monad.vo
 	ott -merge true -coq_expand_list_types false \
             -i ssa_def.ott -i ssa_coq.ott -i ssa_lib.ott -o ssa_lib.v
-	$(COQC) -I ./ott ssa_lib.v
+	$(COQC) -I ./ott -I ./monads ssa_lib.v
 
-ssa_all.v: ssa_def.ott ssa_coq.ott ssa_lib.ott m_ssa_static.ott ssa_dynamic.ott Makefile ssa_def.v ssa_coq_lib.vo 
+ssa_all.v: ssa_def.ott ssa_coq.ott ssa_lib.ott m_ssa_static.ott ssa_dynamic.ott Makefile ssa_def.v ssa_coq_lib.vo ./monads/Monad.vo
 	ott -merge true -coq_expand_list_types false \
             -i ssa_def.ott -i ssa_coq.ott -i ssa_lib.ott \
 	    -i m_ssa_static.ott -i ssa_dynamic.ott -o ssa_all.v
-	$(COQC) -I ./ott ssa_all.v
+	$(COQC) -I ./ott -I ./monads ssa_all.v
 
 ssa_static.vo: ssa_static.v ssa_lib.v ./monads/Monad.vo
 	$(COQC) -I ./ott -I ./monads ssa_static.v

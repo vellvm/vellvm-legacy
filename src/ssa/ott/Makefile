@@ -29,7 +29,7 @@ all_vo: $(ott_list:=.vo)
 
 clean:
 	rm -f *.tmp
-	rm -f *.vo
+	rm -f *.vo *.glob
 	rm -f .Makefile.old .depend
 
 dep: .depend

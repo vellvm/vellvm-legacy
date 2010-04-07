@@ -1,19 +1,27 @@
 Require Import Coq.Logic.FunctionalExtensionality.
 Require Import List.
 
-Implicit Type X Y Z W : Set.
+Implicit Type X Y Z W : Type.
 
+Notation monad := option.
+
+Notation munit := Some.
+
+Notation merror := None.
+
+(*
 Inductive monad (X:Type) : Type :=
 | munit : forall (x:X), monad X
 | merror : monad X
 .
 
 Hint Constructors monad.
+*)
 
 Definition mbind (X:Type) (Y:Type) (f:X -> monad Y) (mx:monad X) : monad Y :=
 match mx with
 | munit x => f x
-| merror => merror Y
+| merror => merror
 end.
 
 Definition mif (X:Type) (c:bool) (tclause : monad X) (fclause : monad X) : monad X :=
@@ -29,6 +37,16 @@ match cases with
 | (false, action)::cases' => mswitch _ cases' default_case
 end.
 
+Fixpoint mfor (X:Type) (li:list X) (f:X->monad Prop) : monad Prop :=
+match li with
+| nil => munit True
+| i::li' => 
+  match (f i) with
+  | munit True => mfor _ li' f
+  | _ => merror
+  end
+end.
+
 Notation "'ret' x" := (@munit _ x) (at level 41).
 Notation "x >>= f" := (@mbind _ _ f x) (at level 42, left associativity).
 Notation "e1 >> e2" := (e1 >>= (fun _ => e2)) (at level 42, left associativity).
@@ -36,16 +54,17 @@ Notation "'do' x <- a ; b" := ( a >>= (fun x => b) ) (at level 42, left associat
 Notation "'do' a ; b" := ( a >> b ) (at level 42, left associativity).
 Notation "'do' a 'enddo'" := ( a ) (at level 42, left associativity).
 Notation "'If' b 'then' t 'else' f 'endif'" := (mif _ b t f) (at level 43).
-Notation "'If' b 'then' t 'endif'" := (mif _ b t (munit _ True)) (at level 43).
+Notation "'If' b 'then' t 'endif'" := (mif _ b t (ret True)) (at level 43).
 Notation "'switch' cases 'default' default 'endswitch'" := ( mswitch _ cases default ) (at level 44). 
+Notation "'for' i 'in' li 'do' block 'endfor'" := (mfor _ li (fun i => block)) (at level 44).
 
-Definition mifk (X Y:Set) (c:bool) (tclause : monad X) (fclause : monad X) (con : X -> monad Y) : monad Y :=
+Definition mifk (X Y:Type) (c:bool) (tclause : monad X) (fclause : monad X) (con : X -> monad Y) : monad Y :=
 match c with
 | true => tclause >>= con
 | false => fclause >>= con
 end.
 
-Fixpoint mswitchk (X Y:Set) (cases : list (bool*monad X)) (default_case : monad X) (con : X -> monad Y) : monad Y :=
+Fixpoint mswitchk (X Y:Type) (cases : list (bool*monad X)) (default_case : monad X) (con : X -> monad Y) : monad Y :=
 match cases with
 | nil => default_case >>= con
 | (true, action)::cases' => action >>= con
@@ -129,7 +148,7 @@ Lemma munit_mbind_match : forall X
 Proof.
 intros. transitivity (x >>= @munit X).
 apply mbind_congr; trivial.
-auto with monad.
+unfold mbind. destruct x; auto.
 Qed.
 
 Hint Resolve mbind_congr munit_mbind_match : monad.
@@ -161,19 +180,19 @@ Qed.
 Lemma mmap_mmap : forall X Y Z (f : X -> Y) (g : Y -> Z) (x : monad X),
   (x >>- f) >>- g = x >>- (fun u => g (f u)).
 Proof.
-unfold mmap; monad.
+unfold mmap. unfold mbind; monad. destruct x; auto.
 Qed.
 
 Lemma mmap_mbind : forall X Y Z (f : X -> Y) (g : Y -> monad Z) (x : monad X),
   x >>- f >>= g = x >>= (fun u => g (f u)).
 Proof.
-unfold mmap; monad.
+unfold mmap. unfold mbind; monad. destruct x; auto.
 Qed.
 
 Lemma mbind_mmap : forall X Y Z (f : X -> monad Y) (g : Y -> Z) (x : monad X),
   x >>= f >>- g = x >>= (fun u => f u >>- g).
 Proof.
-unfold mmap; monad.
+unfold mmap. unfold mbind; monad. destruct x; auto.
 Qed.
 
 Hint Rewrite mmap_munit mmap_mmap mmap_mbind mbind_mmap : monad.
@@ -181,7 +200,7 @@ Hint Rewrite mmap_munit mmap_mmap mmap_mbind mbind_mmap : monad.
 Lemma mjoin_mjoin : forall X (x : monad (monad (monad X))),
   mjoin X (mjoin (monad X) x) = mjoin X (x >>- (mjoin X)).
 Proof.
-unfold mjoin; monad.
+unfold mjoin. unfold mbind; monad. destruct x; auto.
 Qed.
 
 Lemma mjoin_munit : forall X (x : monad X),
@@ -191,9 +210,9 @@ unfold mjoin; monad.
 Qed.
 
 Lemma munit_mjoin : forall X (x : monad X),
-  mjoin X (x >>- munit X) = x.
+  mjoin X (x >>- @munit X) = x.
 Proof.
-unfold mjoin; monad.
+unfold mjoin. unfold mbind; monad. destruct x; auto.
 Qed.
 
 Lemma mjoin_mmap : forall X Y (f : X -> monad Y) (x : monad X),
