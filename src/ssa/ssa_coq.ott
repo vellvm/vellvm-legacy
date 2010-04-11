@@ -480,6 +480,12 @@ Section CFG.
   Definition predOfBlock (b:block) (udb:usedef_block) : list_block :=
   predOfBlock_rec (udb b).
 
+  Definition hasSinglePredecessor (b:block) (udb:usedef_block) : bool :=
+  match (eq_nat_dec (length (predOfBlock b udb)) 1) with
+  | left _ => true
+  | right _ => false
+  end.
+
 End CFG.
 
 Section Dominator.
@@ -600,6 +606,23 @@ Section Dominator.
 (*  | _ => False *)
   end.
 
+  Definition blockDominatesB (d:dt) (b1 b2: block) : bool :=
+  match b1 with
+  | block_intro l1 _ =>
+    match (d l1) with
+    | ls1 => 
+      match b2 with
+      | block_intro l2 _ => 
+        match (lset_mem l2 ls1) with
+        | true => true
+        | false => false
+        end
+(*      | _ => false *)
+      end
+    end 
+(*  | _ => false *)
+  end.
+
   Definition insnDominates (i1 i2:insn) : Prop :=
   match (getInsnID i1, getInsnID i2) with
   | (Some id1, Some id2) =>
@@ -615,6 +638,13 @@ Section Dominator.
   match (getEntryOfFdef f) with
   | None => False
   | Some be => blockDominates d be b
+  end.
+
+  Definition isReachableFromEntryB (fi:fdef_info) (b:block) : bool :=
+  let (f, d) := fi in   
+  match (getEntryOfFdef f) with
+  | None => false
+  | Some be => blockDominatesB d be b
   end.
 
 End Dominator.
@@ -1103,6 +1133,153 @@ End Lookup.
 
 Section Eq.
 
+(*
+Inductive tree : Set :=
+| def: forall (t:tree) (f:forest), tree
+with forest : Set :=
+| nil: forest
+| cons: forall (t:tree) (f:forest), forest
+.
+
+Check tree_ind.
+Check forest_ind.
+
+
+Fixpoint tree_size (t:tree) : nat :=
+  match t with
+  | def t' f' => tree_size t' + forest_size f'
+  end
+with forest_size (f:forest) : nat :=
+  match f with
+  | nil => 0
+  | cons t f' => (tree_size t + forest_size f')
+  end.
+
+Inductive tree : Set :=
+| def: forall (t:tree) (f:list tree), tree
+.
+
+Definition forest := list tree.
+
+Fixpoint tree_size (a:nat) (t:tree) : nat :=
+  match t with
+  | def t' f' => tree_size a t' + fold_left plus (map (tree_size a) f') 0
+  end.
+
+Fixpoint map2 (A B C:Type) (f:A->B->C) (la:list A) (lb:list B) : list C :=
+match (la, lb) with
+| (a::la', b::lb') => f a b :: map2 _ _ _ f la' lb'
+| (_, _) => nil
+end.
+
+Fixpoint tree2_size (t:tree*tree) : nat :=
+  match t with
+  | (def t1' f1', def t2' f2') => 
+    tree2_size (t1', t2') + 
+    fold_left plus (map tree2_size (combine f1' f2')) 0
+  end.
+
+    fold_left plus (map2 _ _ _ tree2_size f1' f2') 0
+
+Fixpoint tree_size (t:tree) : nat :=
+  match t with
+  | def t' f' => tree_size t' + forest_size f'
+  end
+with forest_size (f:forest) : nat :=
+  match f with
+  | nil => 0
+  | cons t' f' => (tree_size t' + forest_size f')
+  end.
+
+Fixpoint typ_size (t:typ) : nat :=
+  match t with
+  | typ_int n => 1
+  | typ_metadata => 1
+  | typ_function t1 lt2 => typ_size t1 + fold_left plus (map typ_size lt2) 0
+  | typ_void => 1
+  | typ_label => 1
+  | typ_array _ t' => 1 + typ_size t'
+  | typ_pointer t' => 1 + typ_size t'
+  end.
+
+Definition typ2_size (txy:typ*typ) : nat :=
+  let (tx, ty) := txy in
+  typ_size tx + typ_size ty.
+
+Check map.
+Check map2.
+
+Fixpoint typeEqB (tx ty:typ) {struct tx}: bool :=
+match (tx, ty) with 
+| (typ_int n, typ_int n') => 
+  match (eq_nat_dec n n') with
+  | left _ => true 
+  | right _ => false
+  end 
+| (typ_metadata, typ_metadata) => true
+| (typ_function t1 lt1, typ_function t1' lt1') =>
+(*  typeEqB t1 t1' &&  *)
+  fold_left andb (@map typ bool typeEqB lt1 lt1') true
+| (_, _) => false
+end.
+
+Fixpoint typeEqB (t t':typ) {struct t} : bool :=
+match (t, t') with 
+| (typ_int n, typ_int n') => 
+  match (eq_nat_dec n n') with
+  | left _ => true 
+  | right _ => false
+  end 
+| (typ_metadata, typ_metadata) => true
+| (typ_function t1 lt1, typ_function t1' lt1') =>
+  let typeEqB_pair := 
+    fun txy:(typ*typ) => 
+      let (tx, ty) := txy in
+      typeEqB tx ty
+  in
+  typeEqB t1 t1' && 
+  fold_left andb (map typeEqB_pair (combine lt1 lt1')) true
+| (_, _) => false
+end.
+
+Definition insnEq (i1 i2:insn) : bool :=
+
+
+  | insn_return t v => None
+  | insn_return_void  => None
+  | insn_br t v l1 l2 => None
+  | insn_br_uncond l => None
+  (* | insn_switch t v l _ => None *)
+  | insn_invoke id typ id0 paraml l1 l2 => Some id
+  | insn_call id typ id0 paraml => Some id
+  | insn_unreachable => None
+  | insn_add id typ v1 v2 => Some id
+  (* | insn_fadd id typ v1 v2 => Some id *)
+  (* | insn_udiv id typ v1 v2 => Some id *)
+  (* | insn_fdiv id typ v1 v2 => Some id *)
+  (* | insn_or id typ v1 v2 => Some id *)
+  (* | insn_and id typ v1 v2 =>Some id *)
+  (* | insn_extractelement id typ0 id0 c1 => Some id *)
+  (* | insn_insertelement id typ0 id0 typ1 v1 c2 => Some id *)
+  (* | insn_extractvalue id typs id0 c1 => Some id *)
+  (* | insn_insertvalue id typs id0 typ1 v1 c2 => Some id *)
+  (* | insn_alloca id typ N => None *)
+  (* | insn_load id typ1 id1 => Some id *)
+  (* | insn_store typ1 v1 typ2 id2 => None *)
+  (* | insn_trunc id typ1 v1 typ2 => Some id *)
+  (* | insn_fptrunc id typ1 v1 typ2 =>Some id *)
+  (* | insn_fptoui id typ1 v1 typ2 => Some id *)
+  (* | insn_fptosi id typ1 v1 typ2 =>Some id *)
+  (* | insn_uitofp id typ1 v1 typ2 =>Some id *)
+  (* | insn_sitofp id typ1 v1 typ2 =>Some id *)
+  (* | insn_ptrtoint id typ1 v1 typ2 => Some id *)
+  (* | insn_inttoptr id typ1 v1 typ2 => Some id *)
+  (* | insn_bitcast id typ1 v1 typ2 => Some id *)
+  (* | insn_icmp id cond typ v1 v2 => Some id *)
+  (* | insn_fcmp id cond typ v1 v2 => Some id *)
+  | insn_phi id typ idls => None
+*)
+
 Definition blockEq (b1 b2:block) : bool :=
 match (eq_nat_dec (getBlockLabel b1) (getBlockLabel b2)) with
 | left _ => true
@@ -1110,6 +1287,18 @@ match (eq_nat_dec (getBlockLabel b1) (getBlockLabel b2)) with
 end.
 
 End Eq.
+
+Section Inclusion.
+
+(*
+Fixpoint InInsn (i:insn) (li:list_insn) {struct li} : bool :=
+match li with
+| nil => false
+| i' :: li' => b = a || InInsn i li
+end.
+*)
+
+End Inclusion.
 
 (*ENDCOPY*)
 

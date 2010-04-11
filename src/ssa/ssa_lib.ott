@@ -956,11 +956,11 @@ typeEq_def :: '' ::=
        % ------------------------- :: typeEq_fp128
        % fp128 == fp128
 
-       % ------------------------- :: typeEq_void       
-       % void == void
+       ------------------------- :: typeEq_void       
+       void == void
 
-       % ------------------------- :: typeEq_label
-       % label == label
+       ------------------------- :: typeEq_label
+       label == label
 
        ------------------------- :: typeEq_metadata
        metadata == metadata
@@ -968,19 +968,19 @@ typeEq_def :: '' ::=
        % ------------------------- :: typeEq_opaque
        % opaque == opaque
 
-       % N == N'
-       % typ == typ'
-       % --------------------------------- :: typeEq_array
-       % [ N * typ ] == [ N' * typ' ] 
+       N == N'
+       typ == typ'
+       --------------------------------- :: typeEq_array
+       [ N * typ ] == [ N' * typ' ] 
 
        % N == N'
        % typ == typ'
        % --------------------------------- :: typeEq_vector
        % < N * typ > == < N' * typ' > 
 
-       % typ == typ'
-       % --------------------------------- :: typeEq_pointer
-       % typ * == typ' *
+       typ == typ'
+       --------------------------------- :: typeEq_pointer
+       typ * == typ' *
 
        typ == typ'
        </ typj == typ'j // j />

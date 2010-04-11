@@ -65,7 +65,18 @@ Definition wf_operand_insn (intrinsic_funs5:intrinsic_funs)
            predecessors, then the normal edge from the invoke is critical,
            so the invoke value can only be live if the destination block
            dominates all of it's predecessors (other than the invoke). *)
-(*        
+        do If (negb (hasSinglePredecessor NormalDest usedef_block5) &&
+               (isReachableFromEntryB fdef_info5 UseBlock)
+              )
+           then
+           (* If it is used by something non-phi, then the other case is that
+              'NormalDest' dominates all of its predecessors other than the
+              invoke.  In this case, the invoke value can still be used. *)
+             for PI in (predOfBlock NormalDest usedef_block5) do
+               ret True
+             endfor
+           endif;
+(*
           if (!NormalDest->getSinglePredecessor() &&
               DT->isReachableFromEntry(UseBlock))
             // If it is used by something non-phi, then the other case is that
