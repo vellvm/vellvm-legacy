@@ -22,7 +22,7 @@ Section Lists.
 End Lists. 
 }}
 
-metavar N ::= {{ com a natural number }}
+metavar INT ::= {{ com a natural number }}
   {{ coq nat }} {{ lex numeral  }}
 metavar id ::= {{ com identities }}
   {{ coq nat }} {{ lex numeral  }}
@@ -50,7 +50,7 @@ ids {{ tex \mathit{\{id\} } }} :: 'ids_'		::=			{{ com id set }}
   | ( ids )						:: S :: paren		{{ coq [[ ids ]] }}
 
 const :: 'const_'					::=  			{{ com constant }}
-  | N 	 						::   :: val		{{ com val }}	
+  | INT	 						::   :: val		{{ com val }}	
   | undef						::   :: undef		{{ com undef }}
   | ( const )						:: S :: paren           {{ coq [[ const ]] }}
 
@@ -60,18 +60,18 @@ value :: 'value_'					::=  			{{ com values }}
   | ( value )						:: S :: paren           {{ coq [[ value ]] }}
 
 typ :: 'typ_'						::=			{{ com type }}
-  | int N                    				::   :: int         	{{ com integer }}
+  | int INT                    				::   :: int         	{{ com integer }}
   %| float						::   :: float		{{ com float }}
   %| double						::   :: double          {{ com double }}
   %| fp128						::   :: fp128           {{ com fp128 }}
   | void                      				::   :: void        	{{ com void }}
   | label                                               ::   :: label           {{ com label }}
   | metadata                                            ::   :: metadata        {{ com metadata }}
-  | [ N * typ ]               				::   :: array       	{{ com array }}
+  | [ INT * typ ]              				::   :: array       	{{ com array }}
   | typ ( </ typj // j /> )  				::   :: function    	{{ com function }}
   %| { </ typj // j /> }       				::   :: struct      	{{ com structure }}
   | typ *                     				::   :: pointer     	{{ com pointer }}
-  %| < N * typ >               				::   :: vector       	{{ com vector }}
+  %| < INT * typ >             				::   :: vector       	{{ com vector }}
   %| opaque  						::   :: opaque          {{ com opaque }}
   % x86_fp80
   % ppc_fp128
@@ -147,7 +147,7 @@ insn :: 'insn_'					    	::=			{{ com insnruction }}
   %| id = insertelement typ0 value0 , typ1 value1 , const2	::   :: insertelement   {{ com insertelement }}
   %| id = extractvalue typ0 value0 , const1             	::   :: extractvalue	{{ com extractvalue }}
   %| id = insertvalue typ0 value0 , typ1 value1 , const2 	::   :: insertvalue	{{ com insertvalue }}
-  %| id = alloca typ N  	     	       	     	       	::   :: alloca		{{ com alloca }}
+  %| id = alloca typ INT  	     	       	     	       	::   :: alloca		{{ com alloca }}
   %| id = load typ1 value1				::   :: load		{{ com load }}
   %| store typ1 value1 , typ2 value2			::   :: store		{{ com store }}
   %| id = trunc typ1 value1 to typ2			::   :: trunc		{{ com trunc }}
@@ -342,9 +342,9 @@ formula :: 'formula_' ::=
   | block1 == block2 		::   :: eqBlock
 				{{ tex [[block1]] == [[block2]] }}
 				{{ coq [[block1]] = [[block2]] }}
-  | N1 == N2 			::   :: eqN
-				{{ tex [[N1]] == [[N2]] }}
-				{{ coq [[N1]] = [[N2]] }}
+  | INT1 == INT2 		::   :: eqINT
+				{{ tex [[INT1]] == [[INT2]] }}
+				{{ coq [[INT1]] = [[INT2]] }}
   | l1 == l2 			::   :: eqLabel
 				{{ tex [[l1]] == [[l2]] }}
 				{{ coq [[l1]] = [[l2]] }}
@@ -414,9 +414,9 @@ formula :: 'formula_' ::=
   | id_labels <-> </ [ idj , lj ] // j /> :: M :: id_labels_alias
     	      	     	        {{ com id_labels alias }}
 				{{ coq [[id_labels]] = [[ </ [ idj , lj ] // j /> ]] }}
-  | getNthTyp </ typj // j /> N = opt_typ ::   :: getNthTyp
+  | getNthTyp </ typj // j /> INT = opt_typ ::   :: getNthTyp
     	      	       	   	{{ com getNthTyp }}
-				{{ coq nth_error [[ </ typj // j /> ]] [[N]] = [[opt_typ]] }}  
+				{{ coq nth_error [[ </ typj // j /> ]] [[INT]] = [[opt_typ]] }}  
   | insn =id= insn'        :: M :: getInsnID_eq
     	      	      	      	{{ tex [[insn]] =id= [[insn']] }}
 				{{ coq getInsnID [[insn]] = getInsnID [[insn']] }}

@@ -163,7 +163,7 @@ getLoadTyp_def :: '' ::=
      {{ com get the typ to load from [[typ]] }} by
 
      --------------------------- :: getLoadTyp_int
-     getLoadTyp (int N) = none                    
+     getLoadTyp (int INT) = none                    
 
      % --------------------------- :: getLoadTyp_float
      % getLoadTyp float = none
@@ -184,7 +184,7 @@ getLoadTyp_def :: '' ::=
      getLoadTyp metadata = none
      
      % ------------------------------ :: getLoadTyp_array
-     % getLoadTyp [ N * typ ] = none               	
+     % getLoadTyp [ INT * typ ] = none               	
 
      % -------------------------------------------- :: getLoadTyp_function
      % getLoadTyp (typ ( </ typj // j /> )) = none 				
@@ -196,7 +196,7 @@ getLoadTyp_def :: '' ::=
      % getLoadTyp (typ *) = typ                     	
 
      % ----------------------------- :: getLoadTyp_verctor
-     % getLoadTyp < N * typ > = none               	
+     % getLoadTyp < INT * typ > = none               	
 
      % ---------------------------- :: getLoadTyp_opaque
      % getLoadTyp opaque = none  				
@@ -208,7 +208,7 @@ getElementTyp_def :: '' ::=
      {{ com get the typ of element from [[typ]] }} by
 
      --------------------------- :: getElementTyp_int
-     getElementTyp (int N) = none                    
+     getElementTyp (int INT) = none                    
 
      % --------------------------- :: getElementTyp_float
      % getElementTyp float = none
@@ -229,7 +229,7 @@ getElementTyp_def :: '' ::=
      getElementTyp metadata = none
      
      % ------------------------------ :: getElementTyp_array
-     % getElementTyp [ N * typ ] = typ               	
+     % getElementTyp [ INT * typ ] = typ               	
 
      % -------------------------------------------- :: getElementTyp_function
      % getElementTyp (typ ( </ typj // j /> )) = none 				
@@ -241,7 +241,7 @@ getElementTyp_def :: '' ::=
      % getElementTyp (typ *) = none                     	
 
      % ----------------------------- :: getElementTyp_verctor
-     % getElementTyp < N * typ > = none               	
+     % getElementTyp < INT * typ > = none               	
 
      % ---------------------------- :: getElementTyp_opaque
      % getElementTyp opaque = none  				
@@ -253,7 +253,7 @@ getFieldTyp_def :: '' ::=
      {{ com get the typ of element from [[typ]] }} by
 
      ------------------------------------ :: getFieldTyp_int
-     getFieldTyp (int N) const = none                    
+     getFieldTyp (int INT) const = none                    
 
      % ------------------------------------ :: getFieldTyp_float
      % getFieldTyp float const = none
@@ -274,14 +274,14 @@ getFieldTyp_def :: '' ::=
      getFieldTyp metadata const = none
      
      % ------------------------------------ :: getFieldTyp_array
-     % getFieldTyp [ N * typ ] const = none               	
+     % getFieldTyp [ INT * typ ] const = none               	
 
      % --------------------------------------------------- :: getFieldTyp_function
      % getFieldTyp (typ ( </ typj // j /> )) const = none 				
 
-     % getNthTyp </ typj // j /> N = typ
+     % getNthTyp </ typj // j /> INT = typ
      % ----------------------------------------- :: getFieldTyp_struct_N
-     % getFieldTyp { </ typj // j /> } N = typ       		
+     % getFieldTyp { </ typj // j /> } INT = typ       		
 
      % --------------------------------------------- :: getFieldTyp_struct_undef
      % getFieldTyp { </ typj // j /> } undef = none       		
@@ -290,7 +290,7 @@ getFieldTyp_def :: '' ::=
      % getFieldTyp (typ *) const = none                     	
 
      % ------------------------------------- :: getFieldTyp_verctor
-     % getFieldTyp < N * typ > const = none               	
+     % getFieldTyp < INT * typ > const = none               	
 
      % ------------------------------- :: getFieldTyp_opaque
      % getFieldTyp opaque const = none  				
@@ -359,7 +359,7 @@ getInsnTyp_def :: '' ::=
      % getInsnTyp (id = insertvalue typ0 value0 , typ1 value1 , const2) = typ0
 
      % -------------------------------------- :: getInsnTyp_alloca
-     % getInsnTyp (id = alloca typ N) = typ *  	     	       	
+     % getInsnTyp (id = alloca typ INT) = typ *  	     	       	
 
      % getLoadTyp typ1 = opt_typ
      % ---------------------------------------- :: getInsnTyp_load
@@ -529,7 +529,7 @@ getInsnOperands_def :: '' ::=
      % getInsnOperands (id = insertvalue typ0 value0 , typ value1 , const2) = ids0;ids1
 
      % -------------------------------------- :: getInsnOperands_alloca
-     % getInsnOperands (id = alloca typ N) = empty  	     	       	
+     % getInsnOperands (id = alloca typ INT) = empty  	     	       	
 
      % getValueIDs value1 = ids1
      % ---------------------------------------- :: getInsnOperands_load
@@ -650,7 +650,7 @@ getInsnLabels_def :: '' ::=
      % getInsnLabels (id = insertvalue typ0 value0 , typ value1 , const2) = empty
 
      % -------------------------------------- :: getInsnLabels_alloca
-     % getInsnLabels (id = alloca typ N) = empty
+     % getInsnLabels (id = alloca typ INT) = empty
 
      % ---------------------------------------- :: getInsnLabels_load
      % getInsnLabels (id = load typ1 value1) = empty
@@ -938,14 +938,14 @@ isBindingInsn_def :: '' ::=
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
 defns
-typeEq_def :: '' ::=
+typEq_def :: '' ::=
        defn
-       typ == typ' :: :: typeEq :: ''
+       typ == typ' :: :: typEq :: ''
        {{ com check if [[typ]] equals to [[typ']] }} by
 
-       N == N'
+       INT == INT'
        ------------------------- :: typeEq_int
-       int N == int N'
+       int INT == int INT'
 
        % ------------------------- :: typeEq_float
        % float == float
@@ -968,15 +968,15 @@ typeEq_def :: '' ::=
        % ------------------------- :: typeEq_opaque
        % opaque == opaque
 
-       N == N'
+       INT == INT'
        typ == typ'
        --------------------------------- :: typeEq_array
-       [ N * typ ] == [ N' * typ' ] 
+       [ INT * typ ] == [ INT' * typ' ] 
 
-       % N == N'
+       % INT == INT'
        % typ == typ'
        % --------------------------------- :: typeEq_vector
-       % < N * typ > == < N' * typ' > 
+       % < INT * typ > == < INT' * typ' > 
 
        typ == typ'
        --------------------------------- :: typeEq_pointer

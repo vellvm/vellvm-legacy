@@ -3,10 +3,11 @@ Require Import List.
 Require Import ListSet.
 Require Import Monad.
 Require Import Logic_Type.
+Require Import reflect.
 
 (* defns Jwf_typ *)
 Inductive wf_typ : typ -> Prop :=    (* defn wf_typ *)
- | wf_typ_int : forall (N5:N),
+ | wf_typ_int : forall (N5:INT),
      wf_typ (typ_int N5)
  | wf_typ_metadate : 
      wf_typ typ_metadata
@@ -51,7 +52,7 @@ Definition wf_operand_insn (intrinsic_funs5:intrinsic_funs)
         else
            ret block5
         endif;
-     do If (isPhiNodeB insn5 && blockEq UseBlock OpBlock)
+        If (isPhiNodeB insn5 && blockEqB UseBlock OpBlock)
         then
         (* Special case of a phi node in the normal destination or the unwind
            destination *)
@@ -59,13 +60,13 @@ Definition wf_operand_insn (intrinsic_funs5:intrinsic_funs)
         else
         (* Invoke result does dominate all uses! *)
         do ret (blockDominates dt5 NormalDest UseBlock \/ 
-                isReachableFromEntry fdef_info5 UseBlock);
+                ~ (isReachableFromEntry fdef_info5 UseBlock));
 
         (* If the normal successor of an invoke instruction has multiple
            predecessors, then the normal edge from the invoke is critical,
            so the invoke value can only be live if the destination block
            dominates all of it's predecessors (other than the invoke). *)
-        do If (negb (hasSinglePredecessor NormalDest usedef_block5) &&
+           If (negb (hasSinglePredecessor NormalDest usedef_block5) &&
                (isReachableFromEntryB fdef_info5 UseBlock)
               )
            then
@@ -73,52 +74,42 @@ Definition wf_operand_insn (intrinsic_funs5:intrinsic_funs)
               'NormalDest' dominates all of its predecessors other than the
               invoke.  In this case, the invoke value can still be used. *)
              for PI in (predOfBlock NormalDest usedef_block5) do
-               ret True
+               (* Invoke result must dominate all uses! *)
+               If (insnHasParent insn' system5)
+               then
+               do parentOfInsn' <- getParentOfInsnFromSystemC insn' system5;
+                  If (negb (blockDominatesB dt5 NormalDest PI) && 
+                      isReachableFromEntryB fdef_info5 PI)
+                  then ret False
+                  endif
+               else
+                  ret True
+               endif
              endfor
-           endif;
-(*
-          if (!NormalDest->getSinglePredecessor() &&
-              DT->isReachableFromEntry(UseBlock))
-            // If it is used by something non-phi, then the other case is that
-            // 'NormalDest' dominates all of its predecessors other than the
-            // invoke.  In this case, the invoke value can still be used.
-            for (pred_iterator PI = pred_begin(NormalDest),
-                 E = pred_end(NormalDest); PI != E; ++PI)
-              if ( *PI != II->getParent() && !DT->dominates(NormalDest, *PI) &&
-                  DT->isReachableFromEntry ( *PI)) {
-                CheckFailed("Invoke result does not dominate all uses!", Op,&I);
-                return;
-              }
-*)
-           ret True
-        endif;
-        ret True
-     else If (isPhiNodeB insn')
+           endif
+        endif
+     else If (isPhiNodeB insn5)
      then
-(*
-        // PHI nodes are more difficult than other nodes because they actually
-        // "use" the value in the predecessor basic blocks they correspond to.
-        BasicBlock *PredBB = cast<BasicBlock>(I.getOperand(i+1));
-        Assert2(DT->dominates(OpBlock, PredBB) ||
-                !DT->isReachableFromEntry(PredBB),
-                "Instruction does not dominate all uses!", Op, &I);
-*)
-       ret True
+     (* PHI nodes are more difficult than other nodes because they actually
+        "use" the value in the predecessor basic blocks they correspond to. *)
+     do predl <- getLabelViaIDFromPhiNode insn5 id';
+     do PredBB <- lookupBlockViaLabelFromSystem system5 predl;
+        (* Instruction must dominate all uses! *) 
+        ret (blockDominates dt5 OpBlock PredBB \/ ~ isReachableFromEntry fdef_info5 PredBB)
      else       
-(*
-        if (OpBlock == BB) {
-          // If they are in the same basic block, make sure that the definition
-          // comes before the use.
-          Assert2(InstsInThisBlock.count(Op) || !DT->isReachableFromEntry(BB),
+     do If (blockEqB OpBlock block5)
+        then
+          (* If they are in the same basic block, make sure that the definition
+             comes before the use. *)
+          ret (insnDominates insn' insn5 \/ ~ isReachableFromEntry fdef_info5 block5)
+        endif;
+        (* Definition must dominate use unless use is unreachable! *)
+        ret (insnDominates insn' insn5 \/ ~ isReachableFromEntry fdef_info5 block5)
+        (* !! FIXME
+          Assert2(InstsInThisBlock.count(Op) || DT->dominates(Op, &I) ||
+                  !DT->isReachableFromEntry(BB),
                   "Instruction does not dominate all uses!", Op, &I);
-        }
-
-        // Definition must dominate use unless use is unreachable!
-        Assert2(InstsInThisBlock.count(Op) || DT->dominates(Op, &I) ||
-                !DT->isReachableFromEntry(BB),
-                "Instruction does not dominate all uses!", Op, &I);
-*)
-       ret True
+          *)
      endif endif;
      ret True
   ).
@@ -152,7 +143,7 @@ Definition wf_operand (intrinsic_funs5:intrinsic_funs)
   do If (isPointerTypB typ')
      then 
      do typ'' <- (getPointerEltTypC typ');
-        ret (not (typeEq typ'' typ_metadata))
+        ret (not (typEq typ'' typ_metadata))
      endif;
 
   do If (isBindingFdecB id_binding')
@@ -242,11 +233,11 @@ Definition wf_insn_base (intrinsic_funs5:intrinsic_funs)
   (* Check that the return value of the instruction is either void or a legal
      value type. *)
   do typ5 <- (getInsnTypC insn5);
-  do ret (typeEq typ5 typ_void  \/  isFirstClassTyp typ5);
+  do ret (typEq typ5 typ_void  \/  isFirstClassTyp typ5);
 
   (* Check that the instruction doesn't produce metadata or metadata*. Calls
      all already checked against the callee type. *)
-  do ret ((not (typeEq typ5 typ_metadata ))   \/  
+  do ret ((not (typEq typ5 typ_metadata ))   \/  
           isInvokeInsn insn5   \/  
           isCallInsn insn5 );
 
@@ -254,7 +245,7 @@ Definition wf_insn_base (intrinsic_funs5:intrinsic_funs)
   do If (isPointerTypB typ5 )
      then  
      do typ' <- (getPointerEltTypC typ5);
-        ret (not (typeEq typ' typ_metadata ))
+        ret (not (typEq typ' typ_metadata ))
      endif;
 
   (* Check that all uses of the instruction, if they are instructions
@@ -282,7 +273,7 @@ Inductive wf_insn : intrinsic_funs -> system -> module_info -> fdef_info -> bloc
  | wf_insn_return : forall (intrinsic_funs5:intrinsic_funs) (system5:system) (module_info5:module_info) (fdef5:fdef) (dt5:dt) (block5:block) (typ5:typ) (value5:value),
      wf_insn_base intrinsic_funs5 system5 module_info5   ( fdef5 ,  dt5 )   block5 (insn_return typ5 value5) ->
      getReturnTyp fdef5 typ5 ->
-      (not ( typeEq typ5 typ_void ))  ->
+      (not ( typEq typ5 typ_void ))  ->
      wf_insn intrinsic_funs5 system5 module_info5   ( fdef5 ,  dt5 )   block5 (insn_return typ5 value5)
  | wf_insn_return_void : forall (intrinsic_funs5:intrinsic_funs) (system5:system) (module_info5:module_info) (fdef5:fdef) (dt5:dt) (block5:block),
      wf_insn intrinsic_funs5 system5 module_info5   ( fdef5 ,  dt5 )   block5 insn_return_void ->

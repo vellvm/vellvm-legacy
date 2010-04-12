@@ -7,7 +7,7 @@ Jwf_typ :: '' ::=
       |- typ :: :: wf_typ :: '' {{ com [[typ]] is well-formed }} by  
 
       -------------------- :: wf_typ_int
-      |- int N
+      |- int INT
 
       % -------------------- :: wf_typ_float
       % |- float
@@ -45,7 +45,7 @@ Jwf_typ :: '' ::=
       % |- typ
       % isValidElementTyp typ
       % ------------------- :: wf_typ_array
-      % |- [ N * typ ]
+      % |- [ INT * typ ]
 
       % |- typ
       % isValidElementTyp typ
@@ -55,7 +55,7 @@ Jwf_typ :: '' ::=
       % |- typ
       % isValidElementTyp typ
       % ------------------- :: wf_typ_vector
-      % |- < N * typ >
+      % |- < INT * typ >
 
 
 defns
