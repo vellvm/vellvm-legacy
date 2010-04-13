@@ -174,26 +174,26 @@ getLoadTyp_def :: '' ::=
      % --------------------------- :: getLoadTyp_fp128
      % getLoadTyp fp128 = none
 
-     % --------------------------- :: getLoadTyp_void
-     % getLoadTyp void = none
+     --------------------------- :: getLoadTyp_void
+     getLoadTyp void = none
 
-     % --------------------------- :: getLoadTyp_label
-     % getLoadTyp label = none
+     --------------------------- :: getLoadTyp_label
+     getLoadTyp label = none
 
      --------------------------- :: getLoadTyp_metadata
      getLoadTyp metadata = none
      
-     % ------------------------------ :: getLoadTyp_array
-     % getLoadTyp [ INT * typ ] = none               	
+     ------------------------------ :: getLoadTyp_array
+     getLoadTyp [ INT * typ ] = none               	
 
-     % -------------------------------------------- :: getLoadTyp_function
-     % getLoadTyp (typ ( </ typj // j /> )) = none 				
+     -------------------------------------------- :: getLoadTyp_function
+     getLoadTyp (typ ( </ typj // j /> )) = none 				
 
      % -------------------------------------- :: getLoadTyp_struct
      % getLoadTyp { </ typj // j /> } = none       		
 
-     % ------------------------- :: getLoadTyp_pointer
-     % getLoadTyp (typ *) = typ                     	
+     ------------------------- :: getLoadTyp_pointer
+     getLoadTyp (typ *) = typ                     	
 
      % ----------------------------- :: getLoadTyp_verctor
      % getLoadTyp < INT * typ > = none               	
@@ -219,26 +219,26 @@ getElementTyp_def :: '' ::=
      % --------------------------- :: getElementTyp_fp128
      % getElementTyp fp128 = none
 
-     % --------------------------- :: getElementTyp_void
-     % getElementTyp void = none
+     --------------------------- :: getElementTyp_void
+     getElementTyp void = none
 
-     % --------------------------- :: getElementTyp_label
-     % getElementTyp label = none
+     --------------------------- :: getElementTyp_label
+     getElementTyp label = none
 
      --------------------------- :: getElementTyp_metadata
      getElementTyp metadata = none
      
-     % ------------------------------ :: getElementTyp_array
-     % getElementTyp [ INT * typ ] = typ               	
+     ------------------------------ :: getElementTyp_array
+     getElementTyp [ INT * typ ] = typ               	
 
-     % -------------------------------------------- :: getElementTyp_function
-     % getElementTyp (typ ( </ typj // j /> )) = none 				
+     -------------------------------------------- :: getElementTyp_function
+     getElementTyp (typ ( </ typj // j /> )) = none 				
 
      % -------------------------------------- :: getElementTyp_struct
      % getElementTyp { </ typj // j /> } = none       		
 
-     % ------------------------- :: getElementTyp_pointer
-     % getElementTyp (typ *) = none                     	
+     ------------------------- :: getElementTyp_pointer
+     getElementTyp (typ *) = none                     	
 
      % ----------------------------- :: getElementTyp_verctor
      % getElementTyp < INT * typ > = none               	
@@ -264,20 +264,20 @@ getFieldTyp_def :: '' ::=
      % ------------------------------------ :: getFieldTyp_fp128
      % getFieldTyp fp128 const = none
 
-     % ------------------------------------ :: getFieldTyp_void
-     % getFieldTyp void const = none
+     ------------------------------------ :: getFieldTyp_void
+     getFieldTyp void const = none
 
-     % ------------------------------------ :: getFieldTyp_label
-     % getFieldTyp label const = none
+     ------------------------------------ :: getFieldTyp_label
+     getFieldTyp label const = none
 
      ------------------------------------ :: getFieldTyp_metadata
      getFieldTyp metadata const = none
      
-     % ------------------------------------ :: getFieldTyp_array
-     % getFieldTyp [ INT * typ ] const = none               	
+     ------------------------------------ :: getFieldTyp_array
+     getFieldTyp [ INT * typ ] const = none               	
 
-     % --------------------------------------------------- :: getFieldTyp_function
-     % getFieldTyp (typ ( </ typj // j /> )) const = none 				
+     --------------------------------------------------- :: getFieldTyp_function
+     getFieldTyp (typ ( </ typj // j /> )) const = none 				
 
      % getNthTyp </ typj // j /> INT = typ
      % ----------------------------------------- :: getFieldTyp_struct_N
@@ -286,8 +286,8 @@ getFieldTyp_def :: '' ::=
      % --------------------------------------------- :: getFieldTyp_struct_undef
      % getFieldTyp { </ typj // j /> } undef = none       		
 
-     % --------------------------------- :: getFieldTyp_pointer
-     % getFieldTyp (typ *) const = none                     	
+     --------------------------------- :: getFieldTyp_pointer
+     getFieldTyp (typ *) const = none                     	
 
      % ------------------------------------- :: getFieldTyp_verctor
      % getFieldTyp < INT * typ > const = none               	
@@ -2281,3 +2281,4 @@ getParentOfFdef_def :: '' ::=
      fdef in module
      ------------------------------------- :: getParentOfFdef_intro
      getParentOfFdef fdef = module
+

@@ -16,6 +16,8 @@ Qed.
 
 End Decidable.
 
+Coercion is_true (b:bool) := b = true.
+
 Inductive reflect (P:Prop) : bool -> Set :=
 | ReflectT : P -> reflect P true
 | ReflectF : ~P -> reflect P false
@@ -36,7 +38,7 @@ Proof.
     apply ReflectF; auto.
 Qed.
 
-Require Import Monad.
+Require Import monad.
 
 Definition ifP d b1 b2 (X:Type) (t f : monad X) :=
 match (reflect_blockDominates d b1 b2) with

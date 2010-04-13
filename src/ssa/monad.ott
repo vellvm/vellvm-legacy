@@ -3,7 +3,7 @@
 
 embed 
 {{ coq
-Require Import Monad.
+Require Import monad.
 }}
 
 metavar N ::= {{ coq nat }}

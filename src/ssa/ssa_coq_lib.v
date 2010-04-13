@@ -614,6 +614,12 @@ match t with
 | _ => false
 end.
 
+Definition isArrayTypB (t:typ) : bool :=
+match t with
+| typ_array _ _ => true
+| _ => false
+end.
+
 Definition isInvokeInsnB (i:insn) : bool :=
 match i with
 | insn_invoke _ _ _ _ _ _ => true
@@ -1538,6 +1544,10 @@ match (getParentOfInsnFromSystemC i s) with
 | Some _ => true
 | None => false
 end.
+
+Notation "t =t= t' " := (typEqB t t') (at level 50).
+Notation "n =n= n'" := (beq_nat n n') (at level 50).
+Notation "b =b= b'" := (blockEqB b b') (at level 50).
 
 (*ENDCOPY*)
 

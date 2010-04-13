@@ -1,5 +1,8 @@
 Require Import Coq.Logic.FunctionalExtensionality.
 Require Import List.
+Require Import Arith.
+Require Import Recdef.
+Require Import Omega.
 
 Implicit Type X Y Z W : Type.
 
@@ -47,7 +50,44 @@ match li with
   end
 end.
 
+Record Range : Type := mkRange
+{
+  Range_b : nat;
+  Range_e : nat;
+  Range_d : nat;
+  Range_P : Range_d > 0
+}.
+
+Function _range2list (i:Range) 
+         {measure 
+           (fun x =>
+           match x with
+           | (mkRange b e d P) =>
+             e - b
+           end)
+         } : list nat :=
+match i with
+| (mkRange b e d P) =>
+  match (le_lt_dec e b) with
+  | left _ =>   (* e <= b *)
+    nil
+  | right _ =>  (* b < e *)
+    b::_range2list (mkRange (b+1) e d P) 
+  end
+end.
+Proof.
+  intros i b e d P l H1 H2.
+  destruct i.
+  inversion l; subst.
+  omega.
+Qed.
+
+Lemma one_gt_zero : 1 > 0. omega. Qed.
+
+Definition range2list_1 (b e:nat) := _range2list (mkRange b e 1 one_gt_zero).
+
 Notation "'ret' x" := (@munit _ x) (at level 41).
+Notation "'Assert' x" := (@munit Prop x) (at level 41).
 Notation "x >>= f" := (@mbind _ _ f x) (at level 42, left associativity).
 Notation "e1 >> e2" := (e1 >>= (fun _ => e2)) (at level 42, left associativity).
 Notation "'do' x <- a ; b" := ( a >>= (fun x => b) ) (at level 42, left associativity).
@@ -55,8 +95,13 @@ Notation "'do' a ; b" := ( a >> b ) (at level 42, left associativity).
 Notation "'do' a 'enddo'" := ( a ) (at level 42, left associativity).
 Notation "'If' b 'then' t 'else' f 'endif'" := (mif _ b t f) (at level 43).
 Notation "'If' b 'then' t 'endif'" := (mif _ b t (ret True)) (at level 43).
+Notation "'If' b1 'then' t1 'elseif' b2 'then' t2 'else' f2 'endif'" := (mif _ b1 t1 (mif _ b2 t2 f2)) (at level 43).
+Notation "'If' b1 'then' t1 'elseif' b2 'then' t2 'elseif' b3 'then' t3 'else' f3 'endif'" := (mif _ b1 t1 (mif _ b2 t2 (mif _ b3 t3 f3))) (at level 43).
+Notation "'If' b1 'then' t1 'elseif' b2 'then' t2 'elseif' b3 'then' t3 'elseif' b4 'then' t4 'else' f4 'endif'" := (mif _ b1 t1 (mif _ b2 t2 (mif _ b3 t3 (mif _ b4 t4 f4)))) (at level 43).
+Notation "'If' b1 'then' t1 'elseif' b2 'then' t2 'endif'" := (mif _ b1 t1 (mif _ b2 t2 (ret True))) (at level 43).
 Notation "'switch' cases 'default' default 'endswitch'" := ( mswitch _ cases default ) (at level 44). 
 Notation "'for' i 'in' li 'do' block 'endfor'" := (mfor _ li (fun i => block)) (at level 44).
+Notation "'for' i 'from' b 'to' e 'do' block 'endfor'" := (mfor _ (range2list_1 b e) (fun i => block)) (at level 44).
 
 Definition mifk (X Y:Type) (c:bool) (tclause : monad X) (fclause : monad X) (con : X -> monad Y) : monad Y :=
 match c with
