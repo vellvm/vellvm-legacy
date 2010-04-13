@@ -12,6 +12,7 @@ Require Import Recdef.
 Require Import Coq.Program.Wf.
 Require Import Omega.
 
+(**********************************)
 (* LabelSet. *)
 
   Definition lempty_set := empty_set l.
@@ -32,6 +33,7 @@ Require Import Omega.
   Definition lset_mem (l0:l) (ls0:ls) := set_mem eq_nat_dec l0 ls0.
 
 
+(**********************************)
 (* SSA. *)
 
   Definition l2block := l -> option block.
@@ -112,6 +114,7 @@ Require Import Omega.
     end  
   end.
 
+(**********************************)
 (* UseDef *)
 
   Definition mergeInsnUseDef (udi1:usedef_insn) (udi2:usedef_insn) : usedef_insn :=
@@ -384,6 +387,7 @@ Require Import Omega.
   Definition getBlockUseDef (udb:usedef_block) (b:block) : list_block :=
   udb b. 
 
+(**********************************)
 (* CFG. *)
 
   Definition getTerminator (b:block) : option insn := 
@@ -437,6 +441,7 @@ Require Import Omega.
   | right _ => false
   end.
 
+(**********************************)
 (* Dominator. *)
 
   Parameter genLabelsFromFdef : fdef -> ls.
@@ -606,6 +611,7 @@ Require Import Omega.
   | Some be => blockDominatesB d be b
   end.
 
+(**********************************)
 (* Classes. *)
 
 Definition isPointerTypB (t:typ) : bool :=
@@ -707,6 +713,7 @@ match ib with
 | _ => false
 end.
 
+(**********************************)
 (* Inversion. *)
 
 Definition getInsnTypC (i:insn) : option typ :=
@@ -955,6 +962,7 @@ match phi with
 | _ => None
 end.
 
+(**********************************)
 (* Lookup. *)
 
 (* ID binding lookup *)
@@ -1088,6 +1096,150 @@ match fd with
 | fdef_intro fh lb => lookupBlockViaIDFromBlocksC lb id
 end.
 
+(* Fun lookup from ID *)
+
+Definition lookupFdecViaIDFromProductC (p:product) (i:id) : option fdec :=
+match p with
+| (product_function_dec fd) => if beq_nat (getFdecIDC fd) i then Some fd else None
+| _ => None
+end.
+
+Fixpoint lookupFdecViaIDFromProductsC (lp:list_product) (i:id) : option fdec :=
+match lp with
+| nil => None
+| p::lp' => 
+  match (lookupFdecViaIDFromProductC p i) with
+  | Some fd => Some fd
+  | None => lookupFdecViaIDFromProductsC lp' i
+  end
+end.
+
+Definition lookupFdecViaIDFromModuleC (m:module) (i:id) : option fdec :=
+lookupFdecViaIDFromProductsC m i.
+
+Fixpoint lookupFdecViaIDFromModulesC (lm:list_module) (i:id) : option fdec :=
+match lm with
+| nil => None
+| m::lm' => 
+  match (lookupFdecViaIDFromModuleC m i) with
+  | Some fd => Some fd
+  | None => lookupFdecViaIDFromModulesC lm' i
+  end
+end.
+
+Definition lookupFdecViaIDFromSystemC (s:system) (i:id) : option fdec :=
+lookupFdecViaIDFromModulesC s i.
+
+Definition lookupFdefViaIDFromProductC (p:product) (i:id) : option fdef :=
+match p with
+| (product_function_def fd) => if beq_nat (getFdefIDC fd) i then Some fd else None
+| _ => None
+end.
+
+Fixpoint lookupFdefViaIDFromProductsC (lp:list_product) (i:id) : option fdef :=
+match lp with
+| nil => None
+| p::lp' => 
+  match (lookupFdefViaIDFromProductC p i) with
+  | Some fd => Some fd
+  | None => lookupFdefViaIDFromProductsC lp' i
+  end
+end.
+
+Definition lookupFdefViaIDFromModuleC (m:module) (i:id) : option fdef :=
+lookupFdefViaIDFromProductsC m i.
+
+Fixpoint lookupFdefViaIDFromModulesC (lm:list_module) (i:id) : option fdef :=
+match lm with
+| nil => None
+| m::lm' => 
+  match (lookupFdefViaIDFromModuleC m i) with
+  | Some fd => Some fd
+  | None => lookupFdefViaIDFromModulesC lm' i
+  end
+end.
+
+Definition lookupFdefViaIDFromSystemC (s:system) (i:id) : option fdef :=
+lookupFdefViaIDFromModulesC s i.
+
+(*     ID type lookup                                    *)
+
+Definition lookupTypViaIDFromInsnC (i:insn) (id0:id) : option typ :=
+match (getInsnTypC i) with
+| None => None
+| Some t => 
+  match (getInsnID i) with
+  | None => None
+  | Some id0' => 
+    if (beq_nat id0 id0') 
+    then Some t
+    else None
+  end
+end.
+
+Fixpoint lookupTypViaIDFromInsnsC (li:list_insn) (id0:id) : option typ :=
+match li with
+| nil => None
+| i::li' =>
+  match (lookupTypViaIDFromInsnC i id0) with
+  | Some t => Some t
+  | None => lookupTypViaIDFromInsnsC li' id0
+  end
+end.
+    
+Definition lookupTypViaIDFromBlockC (b:block) (id0:id) : option typ :=
+match b with
+| (block_intro _ li) => lookupTypViaIDFromInsnsC li id0
+end.
+
+Fixpoint lookupTypViaIDFromBlocksC (lb:list_block) (id0:id) : option typ :=
+match lb with
+| nil => None
+| b::lb' =>
+  match (lookupTypViaIDFromBlockC b id0) with
+  | Some t => Some t
+  | None => lookupTypViaIDFromBlocksC lb' id0
+  end
+end.
+
+Definition lookupTypViaIDFromFdefC (fd:fdef) (id0:id) : option typ :=
+match fd with
+| (fdef_intro _ lb) => lookupTypViaIDFromBlocksC lb id0
+end.
+
+Definition lookupTypViaIDFromProductC (p:product) (id0:id) : option typ :=
+match p with
+| (product_function_dec _) => None
+| (product_function_def fd) => lookupTypViaIDFromFdefC fd id0
+end.
+
+Fixpoint lookupTypViaIDFromProductsC (lp:list_product) (id0:id) : option typ :=
+match lp with
+| nil => None
+| p::lp' =>
+  match (lookupTypViaIDFromProductC p id0) with
+  | Some t => Some t
+  | None => lookupTypViaIDFromProductsC lp' id0
+  end
+end.
+
+Definition lookupTypViaIDFromModuleC (m:module) (id0:id) : option typ :=
+lookupTypViaIDFromProductsC m id0.
+     
+Fixpoint lookupTypViaIDFromModulesC (lm:list_module) (id0:id) : option typ :=
+match lm with
+| nil => None
+| m::lm' =>
+  match (lookupTypViaIDFromModuleC m id0) with
+  | Some t => Some t
+  | None => lookupTypViaIDFromModulesC lm' id0
+  end
+end.
+
+Definition lookupTypViaIDFromSystemC (s:system) (id0:id) : option typ :=
+lookupTypViaIDFromModulesC s id0.
+
+(**********************************)
 (* Eq. *)
 
 Fixpoint typ_size (t:typ) : nat :=
@@ -1408,6 +1560,7 @@ Definition modulesEqB (lm lm':list_module) :=
 
 Definition systemEqB (s s':system) := modulesEqB s s'.
 
+(**********************************)
 (* Inclusion. *)
 
 Fixpoint InInsnsB (i:insn) (li:list_insn) {struct li} : bool :=
@@ -1491,6 +1644,7 @@ Definition insnInSystemModuleFdefBlockB
   (i:insn) (s:system) (mi:module_info) (fi:fdef_info) (b:block) : bool :=
 insnInBlockB i b && blockInSystemModuleFdefB b s mi fi.
 
+(**********************************)
 (* parent *)
 
 Fixpoint getParentOfInsnFromBlocksC (i:insn) (lb:list_block) {struct lb} : option block :=
@@ -1548,6 +1702,7 @@ end.
 Notation "t =t= t' " := (typEqB t t') (at level 50).
 Notation "n =n= n'" := (beq_nat n n') (at level 50).
 Notation "b =b= b'" := (blockEqB b b') (at level 50).
+Notation "i =i= i'" := (insnEqB i i') (at level 50).
 
 (*ENDCOPY*)
 

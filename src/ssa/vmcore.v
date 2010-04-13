@@ -1,7 +1,7 @@
 Require Import ssa_lib.
 Require Import List.
 
-(* Signature *)
+(* Instruction Signature *)
 
 Module Type SigValue.
 
@@ -44,12 +44,58 @@ Module Type SigReturnInst.
 
 End SigReturnInst.
 
+Module Type SigCallSite.
+ Parameter getCalledFunction : insn -> system -> option fdef.
+ Parameter getFdefTyp : fdef -> typ.
+ Parameter arg_size : fdef -> nat.
+ Parameter getArgument : fdef -> nat -> option arg.
+ Parameter getArgumentType : fdef -> nat -> option typ.
+
+End SigCallSite.
+
+Module Type SigCallInst.
+ Include Type SigInstruction.
+
+End SigCallInst.
+
+Module Type SigInvokeInst.
+ Include Type SigInstruction.
+
+End SigInvokeInst.
+
+Module Type SigBinaryOperator.
+ Include Type SigInstruction.
+
+ Parameter getFirstOperandType : insn -> option typ.
+ Parameter getSecondOperandType : insn -> option typ.
+ Parameter getResultType : insn -> option typ.
+
+End SigBinaryOperator.
+
+Module Type SigPHINode.
+ Include Type SigInstruction.
+
+ Parameter getNumIncomingValues : insn -> option nat.
+ Parameter getIncomingValueType : system  -> insn -> i -> option typ.
+End SigPHINode.
+
+(* Type Signature *)
+
 Module Type SigType.
+ Parameter isIntOrIntVector : typ -> bool.
 End SigType.
 
 Module Type SigDerivedType.
  Include Type SigType.
 End SigDerivedType.
+
+Module Type SigFunctionType.
+ Include Type SigDerivedType.
+
+ Parameter getNumParams : typ -> option nat.
+ Parameter isVarArg : typ -> bool.
+ Parameter getParamType : typ -> nat -> option typ.
+End SigFunctionType.
 
 Module Type SigCompositeType.
  Include Type SigDerivedType.
@@ -70,7 +116,7 @@ Module Type SigArrayType.
 
 End SigArrayType.
 
-(* Instantiation *)
+(* Instruction Instantiation *)
 
 Module Value <: SigValue.
 
@@ -125,12 +171,116 @@ Module ReturnInst <: SigReturnInst.
 
 End ReturnInst.
 
+Module CallSite <: SigCallSite.
+
+ Definition getCalledFunction (i:insn) (s:system) : option fdef :=
+ match i with 
+ | insn_invoke _ _ fid _ _ _ => lookupFdefViaIDFromSystemC s fid
+ | insn_call _ _ fid _ => lookupFdefViaIDFromSystemC s fid
+ | _ => None
+ end.
+
+ Definition getFdefTyp (fd:fdef) : typ := getFdefTypC fd.
+
+ Definition arg_size (fd:fdef) : nat :=
+ match fd with
+ | (fdef_intro (fheader_intro _ _ la) _) => length la
+ end.
+
+ Definition getArgument (fd:fdef) (i:nat) : option arg :=
+ match fd with
+ | (fdef_intro (fheader_intro _ _ la) _) => 
+    match (nth_error la i) with
+    | Some a => Some a
+    | None => None
+    end
+ end. 
+
+ Definition getArgumentType (fd:fdef) (i:nat) : option typ :=
+ match (getArgument fd i) with
+ | Some (t, _) => Some t
+ | None => None
+ end.
+
+End CallSite.
+
+Module CallInst <: SigCallInst.
+ Include Instruction.
+
+End CallInst.
+
+Module InvokeInst <: SigInvokeInst.
+ Include Instruction.
+
+End InvokeInst.
+
+Module BinaryOperator <: SigBinaryOperator.
+ Include Instruction.
+
+ Definition getFirstOperandType (i:insn) : option typ := None. (* FIXME *)
+ Definition getSecondOperandType (i:insn) : option typ := None. (* FIXME *)
+ Definition getResultType (i:insn) : option typ := getInsnTypC i.
+
+End BinaryOperator.
+
+Module PHINode <: SigPHINode.
+ Include Instruction.
+
+ Definition getNumIncomingValues (i:insn) : option nat :=
+ match i with
+ | (insn_phi _ _ ln) => Some (length ln)
+ | _ => None
+ end.
+
+ Definition getIncomingValueType (s:system) (i:insn) (n:nat) : option typ :=
+ match i with
+ | (insn_phi _ _ ln) => 
+    match (nth_error ln n) with
+    | Some (id, _) => lookupTypViaIDFromSystemC s id
+    | None => None
+    end
+ | _ => None
+ end.
+
+End PHINode.
+
+(* Type Instantiation *)
+
 Module Typ <: SigType.
+ Definition isIntOrIntVector (t:typ) : bool :=
+ match t with
+ | typ_int _ => true
+ | _ => false
+ end.
+
 End Typ.
 
 Module DerivedType <: SigDerivedType.
  Include Typ.
 End DerivedType.
+
+Module FunctionType <: SigFunctionType.
+ Include DerivedType.
+
+ Definition getNumParams (t:typ) : option nat :=
+ match t with
+ | (typ_function _ lt) => Some (length lt)
+ | _ => None
+ end.
+
+ Definition isVarArg (t:typ) : bool := false.
+
+ Definition getParamType (t:typ) (i:nat) : option typ :=
+ match t with
+ | (typ_function _ lt) => 
+    match (nth_error lt i) with
+    | Some t => Some t
+    | None => None
+    end
+ | _ => None
+ end.
+
+End FunctionType.
 
 Module CompositeType <: SigCompositeType.
  Include DerivedType.

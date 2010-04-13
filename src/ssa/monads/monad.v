@@ -99,6 +99,11 @@ Notation "'If' b1 'then' t1 'elseif' b2 'then' t2 'else' f2 'endif'" := (mif _ b
 Notation "'If' b1 'then' t1 'elseif' b2 'then' t2 'elseif' b3 'then' t3 'else' f3 'endif'" := (mif _ b1 t1 (mif _ b2 t2 (mif _ b3 t3 f3))) (at level 43).
 Notation "'If' b1 'then' t1 'elseif' b2 'then' t2 'elseif' b3 'then' t3 'elseif' b4 'then' t4 'else' f4 'endif'" := (mif _ b1 t1 (mif _ b2 t2 (mif _ b3 t3 (mif _ b4 t4 f4)))) (at level 43).
 Notation "'If' b1 'then' t1 'elseif' b2 'then' t2 'endif'" := (mif _ b1 t1 (mif _ b2 t2 (ret True))) (at level 43).
+Notation "'If' x <- mx 'then' t 'else' f 'endif'" := 
+  (match mx with
+   | merror => f
+   | munit _ => (do x <- mx ; t)
+   end) (at level 43).
 Notation "'switch' cases 'default' default 'endswitch'" := ( mswitch _ cases default ) (at level 44). 
 Notation "'for' i 'in' li 'do' block 'endfor'" := (mfor _ li (fun i => block)) (at level 44).
 Notation "'for' i 'from' b 'to' e 'do' block 'endfor'" := (mfor _ (range2list_1 b e) (fun i => block)) (at level 44).
@@ -278,5 +283,7 @@ match m with
 | munit _ => True
 | merror => False
 end.
+
+Notation "{{ m }}" := (@monad2prop _ m) (at level 50).
 
 

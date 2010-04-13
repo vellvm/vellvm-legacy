@@ -29,7 +29,7 @@ Definition wf_operand_insn (intrinsic_funs5:intrinsic_funs)
                            (insn5 insn':insn) : Prop :=
   let '(module5, (usedef_insn5, usedef_block5)) := module_info5 in
   let (fdef5, dt5) := fdef_info5 in 
-  monad2prop _ (
+  {{
   do id' <- (getInsnID  insn');
   do OpBlock <- (lookupBlockViaIDFromFdefC fdef5 id');
 
@@ -112,7 +112,7 @@ Definition wf_operand_insn (intrinsic_funs5:intrinsic_funs)
                   "Instruction does not dominate all uses!", Op, &I);
           *)
      endif
-  ).
+  }}.
 
 (* defns Jwf_operand *)
 Definition wf_operand (intrinsic_funs5:intrinsic_funs) 
@@ -124,7 +124,7 @@ Definition wf_operand (intrinsic_funs5:intrinsic_funs)
                             (id':id): Prop :=
   let '(module5, (usedef_insn5, usedef_block5)) := module_info5 in
   let (fdef5, dt5) := fdef_info5 in 
-  monad2prop _ (
+  {{
   do ret (insnInSystemModuleFdefBlock 
             insn5 
             system5  
@@ -181,7 +181,7 @@ Definition wf_operand (intrinsic_funs5:intrinsic_funs)
      endif;
 
      ret True
-  ).
+  }}.
   
 (* defns Jwf_label *)
 Inductive wf_label : intrinsic_funs -> system -> module_info -> fdef_info -> block -> insn -> l -> Prop :=    (* defn wf_label *)
@@ -202,7 +202,7 @@ Definition visitInstruction (intrinsic_funs5:intrinsic_funs)
                             (insn5:insn) : Prop :=
   let '(module5, (usedef_insn5, usedef_block5)) := module_info5 in
   let (fdef5, dt5) := fdef_info5 in 
-  monad2prop _ (
+  {{
   (* Instruction must be embedded in basic block! *)
   do ret (insnInSystemModuleFdefBlock 
             insn5   
@@ -264,7 +264,7 @@ Definition visitInstruction (intrinsic_funs5:intrinsic_funs)
      for l in (getInsnLabelsC insn5) do
        ret (wf_label intrinsic_funs5 system5 module_info5 fdef_info5 block5 insn5 l)
      endfor
-  ).
+  }}.
 
 (* defns JvisittTerminatorInst *)
 Definition visitTerminatorInst (intrinsic_funs5:intrinsic_funs) 
@@ -274,11 +274,11 @@ Definition visitTerminatorInst (intrinsic_funs5:intrinsic_funs)
                                (block5:block)
                                (insn5:insn) : Prop :=
   (* Ensure that terminators only exist at the end of the basic block. *)
-  monad2prop _ (
+  {{
   do tI <- getTerminator block5;
-     ret (insnEqB insn5 tI = true)
-  ) /\ 
-  visitInstruction intrinsic_funs5 system5 module_info5 fdef_info5 block5 insn5.
+  do Assert (insn5 =i= tI);
+     ret (visitInstruction intrinsic_funs5 system5 module_info5 fdef_info5 block5 insn5)
+  }}.
 
 Definition visitReturnInst (intrinsic_funs5:intrinsic_funs) 
                            (system5:system)
@@ -289,7 +289,7 @@ Definition visitReturnInst (intrinsic_funs5:intrinsic_funs)
                            : Prop :=
   let '(module5, (usedef_insn5, usedef_block5)) := module_info5 in
   let (F, dt5) := fdef_info5 in 
-  monad2prop _ (
+  {{
   do N <- ret (ReturnInst.getNumOperands RI);
   do If ((Function.getReturnType F) =t= typ_void)
      then
@@ -334,80 +334,138 @@ Definition visitReturnInst (intrinsic_funs5:intrinsic_funs)
   (* Check to make sure that the return value has necessary properties for
      terminators... *)
      ret (visitTerminatorInst intrinsic_funs5 system5 module_info5 fdef_info5 block5 RI)
-  ) .
+  }}.
 
+Definition verifyCallSite (intrinsic_funs5:intrinsic_funs) 
+                           (system5:system)
+                           (module_info5:module_info)
+                           (fdef_info5:fdef_info)
+                           (block5:block)                              
+                           (CS:insn)                              (* CallSite *)
+                           : Prop :=
+  let '(module5, (usedef_insn5, usedef_block5)) := module_info5 in
+  let (F, dt5) := fdef_info5 in 
+  {{
+  do I <- ret CS;
+  (* LLVM checks that 
+       "Called function must be a pointer!"
+       "Called function is not pointer to function type!"
+     We don't need to check this, but only ensure Call and FTy are valid
+     *)
+  do Call <- CallSite.getCalledFunction CS system5;
+  do FTy <- ret CallSite.getFdefTyp Call;
+
+  (* Verify that the correct number of arguments are being passed *)
+  do If (FunctionType.isVarArg FTy)
+     then 
+     (* Called function requires less parameters. *)
+     do numParams <- (FunctionType.getNumParams FTy);
+        Assert(CallSite.arg_size Call >= numParams)
+     else
+     (* Correct number of arguments passed to called function! *)
+     do numParams <- (FunctionType.getNumParams FTy);     
+        Assert(CallSite.arg_size Call =n= numParams)   
+     endif;
+
+  (* Verify that all arguments to the call match the function type... *)
+  do numParams <- (FunctionType.getNumParams FTy);
+  do for i from 0 to numParams do
+     (* Call parameter type should match function signature. *)
+       do argt <- CallSite.getArgumentType Call i;
+       do part <- FunctionType.getParamType FTy i;
+          Assert (argt =t= part)
+     endfor;
+
+  (* Will Verify call attributes later... *)
+
+  (* Verify that there's no metadata unless it's a direct call to an intrinsic. 
+     Open soooon... *)
+
+     ret (visitInstruction intrinsic_funs5 system5 module_info5 fdef_info5 block5 CS)
+  }}.  
+
+
+Definition visitCallInst (intrinsic_funs5:intrinsic_funs) 
+                           (system5:system)
+                           (module_info5:module_info)
+                           (fdef_info5:fdef_info)
+                           (block5:block)                              
+                           (CI:insn)                              (* CallInst *)
+                           : Prop :=
 (*
-void Verifier::VerifyCallSite(CallSite CS) {
-  Instruction *I = CS.getInstruction();
-
-  Assert1(isa<PointerType>(CS.getCalledValue()->getType()),
-          "Called function must be a pointer!", I);
-  const PointerType *FPTy = cast<PointerType>(CS.getCalledValue()->getType());
-  Assert1(isa<FunctionType>(FPTy->getElementType()),
-          "Called function is not pointer to function type!", I);
-
-  const FunctionType *FTy = cast<FunctionType>(FPTy->getElementType());
-
-  // Verify that the correct number of arguments are being passed
-  if (FTy->isVarArg())
-    Assert1(CS.arg_size() >= FTy->getNumParams(),
-            "Called function requires more parameters than were provided!",I);
-  else
-    Assert1(CS.arg_size() == FTy->getNumParams(),
-            "Incorrect number of arguments passed to called function!", I);
-
-  // Verify that all arguments to the call match the function type...
-  for (unsigned i = 0, e = FTy->getNumParams(); i != e; ++i)
-    Assert3(CS.getArgument(i)->getType() == FTy->getParamType(i),
-            "Call parameter type does not match function signature!",
-            CS.getArgument(i), FTy->getParamType(i), I);
-
-  const AttrListPtr &Attrs = CS.getAttributes();
-
-  Assert1(VerifyAttributeCount(Attrs, CS.arg_size()),
-          "Attributes after last parameter!", I);
-
-  // Verify call attributes.
-  VerifyFunctionAttrs(FTy, Attrs, I);
-
-  if (FTy->isVarArg())
-    // Check attributes on the varargs part.
-    for (unsigned Idx = 1 + FTy->getNumParams(); Idx <= CS.arg_size(); ++Idx) {
-      Attributes Attr = Attrs.getParamAttributes(Idx);
-
-      VerifyParameterAttrs(Attr, CS.getArgument(Idx-1)->getType(), false, I);
-
-      Attributes VArgI = Attr & Attribute::VarArgsIncompatible;
-      Assert1(!VArgI, "Attribute " + Attribute::getAsString(VArgI) +
-              " cannot be used for vararg call arguments!", I);
-    }
-
-  // Verify that there's no metadata unless it's a direct call to an intrinsic.
-  if (!CS.getCalledFunction() || CS.getCalledFunction()->getName().size() < 5 ||
-      CS.getCalledFunction()->getName().substr(0, 5) != "llvm.") {
-    Assert1(FTy->getReturnType() != Type::getMetadataTy(I->getContext()),
-            "Only intrinsics may return metadata", I);
-    for (FunctionType::param_iterator PI = FTy->param_begin(),
-           PE = FTy->param_end(); PI != PE; ++PI)
-      Assert1(PI->get() != Type::getMetadataTy(I->getContext()),
-              "Function has metadata parameter but isn't an intrinsic", I);
-  }
-
-  visitInstruction( *I);
-}                                  
-
-void Verifier::visitCallInst(CallInst &CI) {
-  VerifyCallSite(&CI);
-
   if (Function *F = CI.getCalledFunction())
     if (Intrinsic::ID ID = (Intrinsic::ID)F->getIntrinsicID())
       visitIntrinsicFunctionCall(ID, CI);
-}
-
-void Verifier::visitInvokeInst(InvokeInst &II) {
-  VerifyCallSite(&II);
-}
 *)
+  verifyCallSite intrinsic_funs5 system5 module_info5 fdef_info5 block5 CI.
+
+
+Definition visitInvokeInst (intrinsic_funs5:intrinsic_funs) 
+                           (system5:system)
+                           (module_info5:module_info)
+                           (fdef_info5:fdef_info)
+                           (block5:block)                              
+                           (II:insn)                              (* InvokeInst *)
+                           : Prop :=
+  verifyCallSite intrinsic_funs5 system5 module_info5 fdef_info5 block5 II.
+
+Definition visitBinaryOperator (intrinsic_funs5:intrinsic_funs) 
+                           (system5:system)
+                           (module_info5:module_info)
+                           (fdef_info5:fdef_info)
+                           (block5:block)                              
+                           (B:insn)                              (* BinaryOperator *)
+                           : Prop :=
+  {{
+  (* "Both operands to a binary operator are of the same type" *)
+  do firstT <- BinaryOperator.getFirstOperandType B;
+  do secondT <- BinaryOperator.getSecondOperandType B;
+  do Assert (firstT =t= secondT);
+
+  (* Check that integer arithmetic operators are only used with
+     integral operands. *)
+  do rT <- BinaryOperator.getResultType B;
+  (* Integer arithmetic operators only work with integral types *)
+  do Assert (Typ.isIntOrIntVector rT);
+  (* Integer arithmetic operators must have same type for operands and result *)
+  do Assert (rT =t= firstT);
+
+     ret (visitInstruction intrinsic_funs5 system5 module_info5 fdef_info5 block5 B)
+  }}.  
+
+Definition visitPHINode (intrinsic_funs5:intrinsic_funs) 
+                           (system5:system)
+                           (module_info5:module_info)
+                           (fdef_info5:fdef_info)
+                           (block5:block)                              
+                           (PN:insn)                              (* PHINode *)
+                           : Prop :=
+  {{
+  (* Ensure that the PHI nodes are all grouped together at the top of the block.
+     This can be tested by checking whether the instruction before this is
+     either nonexistent (because this is begin()) or is a PHI node.  If not,
+     then there is some other instruction before a PHI. *)
+
+  (*
+    Assert2(&PN == &PN.getParent()->front() ||
+            isa<PHINode>(--BasicBlock::iterator(&PN)),
+            "PHI nodes not grouped at top of basic block!",
+            &PN, PN.getParent());
+  *)
+  do Assert (blockStartsWithPhiNode block5);
+
+  (* Check that all of the operands of the PHI node have the same type as the
+     result. *)
+  do nIncomingValues <- PHINode.getNumIncomingValues PN;
+  do for i from 0 to nIncomingValues do
+     do rT <- getInsnTypC PN;
+     do iT <- PHINode.getIncomingValueType system5 PN i;
+        Assert (rT =t= iT)
+     endfor;
+
+  (* All other PHI node constraints are checked in the visitBasicBlock method. *)
+     ret (visitInstruction intrinsic_funs5 system5 module_info5 fdef_info5 block5 PN)
+  }}.
 
 (* defns Jwf_insn *)
 Inductive wf_insn : intrinsic_funs -> system -> module_info -> fdef_info -> block -> insn -> Prop :=    (* defn wf_insn *)
@@ -424,19 +482,19 @@ Inductive wf_insn : intrinsic_funs -> system -> module_info -> fdef_info -> bloc
      visitTerminatorInst intrinsic_funs5 system5 module_info5   ( fdef5 ,  dt5 )   block5 (insn_br_uncond l5) ->
      wf_insn intrinsic_funs5 system5   ( module5 , ( usedef_insn5 ,  usedef_block5 ))   fdef_info5 block5 (insn_br_uncond l5)
  | wf_insn_invoke : forall (intrinsic_funs5:intrinsic_funs) (system5:system) (module5:module) (usedef_insn5:usedef_insn) (usedef_block5:usedef_block) (fdef_info5:fdef_info) (block5:block) (id_5:id) (typ0:typ) (id0:id) (list_param5:list_param) (l1 l2:l) (module_info5:module_info) (fdef5:fdef) (dt5:dt),
-     visitInstruction intrinsic_funs5 system5 module_info5   ( fdef5 ,  dt5 )   block5 (insn_invoke id_5 typ0 id0 list_param5 l1 l2) ->
+     visitInvokeInst intrinsic_funs5 system5 module_info5   ( fdef5 ,  dt5 )   block5 (insn_invoke id_5 typ0 id0 list_param5 l1 l2) ->
      wf_insn intrinsic_funs5 system5   ( module5 , ( usedef_insn5 ,  usedef_block5 ))   fdef_info5 block5 (insn_invoke id_5 typ0 id0 list_param5 l1 l2)
  | wf_insn_call : forall (intrinsic_funs5:intrinsic_funs) (system5:system) (module5:module) (usedef_insn5:usedef_insn) (usedef_block5:usedef_block) (fdef_info5:fdef_info) (block5:block) (id_5:id) (typ0:typ) (id0:id) (list_param5:list_param) (module_info5:module_info) (fdef5:fdef) (dt5:dt),
-     visitInstruction intrinsic_funs5 system5 module_info5   ( fdef5 ,  dt5 )   block5 (insn_call id_5 typ0 id0 list_param5) ->
+     visitCallInst intrinsic_funs5 system5 module_info5   ( fdef5 ,  dt5 )   block5 (insn_call id_5 typ0 id0 list_param5) ->
      wf_insn intrinsic_funs5 system5   ( module5 , ( usedef_insn5 ,  usedef_block5 ))   fdef_info5 block5 (insn_call id_5 typ0 id0 list_param5)
  | wf_insn_unreachable : forall (intrinsic_funs5:intrinsic_funs) (system5:system) (module5:module) (usedef_insn5:usedef_insn) (usedef_block5:usedef_block) (fdef_info5:fdef_info) (block5:block) (module_info5:module_info) (fdef5:fdef) (dt5:dt),
-     visitInstruction intrinsic_funs5 system5 module_info5   ( fdef5 ,  dt5 )   block5 insn_unreachable ->
+     visitTerminatorInst intrinsic_funs5 system5 module_info5   ( fdef5 ,  dt5 )   block5 insn_unreachable ->
      wf_insn intrinsic_funs5 system5   ( module5 , ( usedef_insn5 ,  usedef_block5 ))   fdef_info5 block5 insn_unreachable
  | wf_insn_add : forall (intrinsic_funs5:intrinsic_funs) (system5:system) (module5:module) (usedef_insn5:usedef_insn) (usedef_block5:usedef_block) (fdef_info5:fdef_info) (block5:block) (id5:id) (typ5:typ) (value1 value2:value) (module_info5:module_info) (fdef5:fdef) (dt5:dt),
-     visitInstruction intrinsic_funs5 system5 module_info5   ( fdef5 ,  dt5 )   block5 (insn_add id5 typ5 value1 value2) ->
+     visitBinaryOperator intrinsic_funs5 system5 module_info5   ( fdef5 ,  dt5 )   block5 (insn_add id5 typ5 value1 value2) ->
      wf_insn intrinsic_funs5 system5   ( module5 , ( usedef_insn5 ,  usedef_block5 ))   fdef_info5 block5 (insn_add id5 typ5 value1 value2)
  | wf_insn_phi : forall (id_l_list:list (id*l)) (intrinsic_funs5:intrinsic_funs) (system5:system) (module5:module) (usedef_insn5:usedef_insn) (usedef_block5:usedef_block) (fdef_info5:fdef_info) (block5:block) (id_5:id) (typ5:typ) (module_info5:module_info) (fdef5:fdef) (dt5:dt),
-     visitInstruction intrinsic_funs5 system5 module_info5   ( fdef5 ,  dt5 )   block5 (insn_phi id_5 typ5 id_l_list) ->
+     visitPHINode intrinsic_funs5 system5 module_info5   ( fdef5 ,  dt5 )   block5 (insn_phi id_5 typ5 id_l_list) ->
      wf_insn intrinsic_funs5 system5   ( module5 , ( usedef_insn5 ,  usedef_block5 ))   fdef_info5 block5 (insn_phi id_5 typ5 id_l_list)
  .
 

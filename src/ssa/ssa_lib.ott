@@ -1067,6 +1067,16 @@ insnsStartsWithPhiNode_def :: '' ::=
       ----------------------------------------------------- :: insnsDoesntContainPhiNode_cons
       insnsDoesntContainPhiNode list_insn , insn
 
+defns
+blockStartsWithPhiNode_def :: '' ::=
+      defn
+      blockStartsWithPhiNode block :: :: blockStartsWithPhiNode :: ''
+      {{ com [[block]] starts with phi insnruction }} by
+
+      insnsStartsWithPhiNode list_insn
+      ----------------------------------------------- :: blockStartsWithPhiNode_def
+      blockStartsWithPhiNode (l list_insn)
+
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 %         get block from label                                  %
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
