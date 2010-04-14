@@ -114,6 +114,12 @@ Require Import Omega.
     end  
   end.
 
+  Fixpoint getLabelsFromBlocks (lb:list_block) : ls :=
+  match lb with
+  | nil => lempty_set
+  | (block_intro l0 _)::lb' => lset_add l0 (getLabelsFromBlocks lb')
+  end.
+
 (**********************************)
 (* UseDef *)
 
@@ -960,6 +966,18 @@ Definition getLabelViaIDFromPhiNode (phi:insn) (branch:id) : option l :=
 match phi with
 | insn_phi _ _ ls => getLabelViaIDFromList ls branch
 | _ => None
+end.
+
+Fixpoint getLabelsFromIdls (idls:list (id*l)) : ls :=
+match idls with
+| nil => lempty_set
+| (_, l)::idls' => lset_add l (getLabelsFromIdls idls')
+end.
+
+Definition getLabelsFromPhiNodeC (phi:insn) : ls :=
+match phi with
+| insn_phi _ _ ls => getLabelsFromIdls ls
+| _ => lempty_set
 end.
 
 (**********************************)

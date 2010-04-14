@@ -27,8 +27,14 @@ End SigGlobalValue.
 Module Type SigFunction.
  Include Type SigGlobalValue.
 
- Parameter getReturnType : fdef -> typ.
+ Parameter getDefReturnType : fdef -> typ.
+ Parameter getDefFunctionType : fdef -> typ.
+ Parameter def_arg_size : fdef -> nat.
  
+ Parameter getDecReturnType : fdec -> typ.
+ Parameter getDecFunctionType : fdec -> typ.
+ Parameter dec_arg_size : fdec -> nat.
+
 End SigFunction.
 
 Module Type SigInstruction.
@@ -66,8 +72,8 @@ End SigInvokeInst.
 Module Type SigBinaryOperator.
  Include Type SigInstruction.
 
- Parameter getFirstOperandType : insn -> option typ.
- Parameter getSecondOperandType : insn -> option typ.
+ Parameter getFirstOperandType : system -> insn -> option typ.
+ Parameter getSecondOperandType : system -> insn -> option typ.
  Parameter getResultType : insn -> option typ.
 
 End SigBinaryOperator.
@@ -142,9 +148,28 @@ End GlobalValue.
 Module Function <: SigFunction.
  Include GlobalValue.
 
- Definition getReturnType (fd:fdef) : typ :=
+ Definition getDefReturnType (fd:fdef) : typ :=
  match fd with
  | fdef_intro (fheader_intro t _ _) _ => t
+ end.
+
+ Definition getDefFunctionType (fd:fdef) : typ := getFdefTypC fd.
+
+ Definition def_arg_size (fd:fdef) : nat :=
+ match fd with
+ | (fdef_intro (fheader_intro _ _ la) _) => length la
+ end.
+
+ Definition getDecReturnType (fd:fdec) : typ :=
+ match fd with
+ | fdec_intro (fheader_intro t _ _) => t
+ end.
+
+ Definition getDecFunctionType (fd:fdec) : typ := getFdecTypC fd.
+
+ Definition dec_arg_size (fd:fdec) : nat :=
+ match fd with
+ | (fdec_intro (fheader_intro _ _ la)) => length la
  end.
 
 End Function.
@@ -217,8 +242,26 @@ End InvokeInst.
 Module BinaryOperator <: SigBinaryOperator.
  Include Instruction.
 
- Definition getFirstOperandType (i:insn) : option typ := None. (* FIXME *)
- Definition getSecondOperandType (i:insn) : option typ := None. (* FIXME *)
+ Definition getFirstOperandType (s:system) (i:insn) : option typ := 
+ match i with
+ | insn_add _ _ v1 _ => 
+   match v1 with
+   | value_id id1 => lookupTypViaIDFromSystemC s id1
+   | _ => Some (typ_int 0) (* FIXME: how to set the type of const*)
+   end
+ | _ => None
+ end.
+
+ Definition getSecondOperandType (s:system) (i:insn) : option typ := 
+ match i with
+ | insn_add _ _ _ v2 => 
+   match v2 with
+   | value_id id2 => lookupTypViaIDFromSystemC s id2
+   | _ => Some (typ_int 0) (* FIXME: how to set the type of const*)
+   end
+ | _ => None
+ end.
+
  Definition getResultType (i:insn) : option typ := getInsnTypC i.
 
 End BinaryOperator.

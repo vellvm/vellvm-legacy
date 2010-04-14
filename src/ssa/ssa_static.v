@@ -6,6 +6,8 @@ Require Import Logic_Type.
 Require Import reflect.
 Require Import vmcore.
 Require Import Arith.
+Require Import Bool.
+Require Import Compare_dec.
 
 (* defns Jwf_typ *)
 Inductive wf_typ : typ -> Prop :=    (* defn wf_typ *)
@@ -291,7 +293,7 @@ Definition visitReturnInst (intrinsic_funs5:intrinsic_funs)
   let (F, dt5) := fdef_info5 in 
   {{
   do N <- ret (ReturnInst.getNumOperands RI);
-  do If ((Function.getReturnType F) =t= typ_void)
+  do If ((Function.getDefReturnType F) =t= typ_void)
      then
      (* return instr that returns non-void in Function cannot be of void return type! *)
        Assert (N =n= 0)
@@ -299,7 +301,7 @@ Definition visitReturnInst (intrinsic_funs5:intrinsic_funs)
      then
      do rt <- ReturnInst.getReturnType RI;
      (* Exactly one return value and it matches the return type. Good. *)
-        Assert ((Function.getReturnType F) =t= rt)
+        Assert ((Function.getDefReturnType F) =t= rt)
      elseif (false)
      then
      (*
@@ -314,9 +316,9 @@ Definition visitReturnInst (intrinsic_funs5:intrinsic_funs)
                  "type of return inst!", &RI, F->getReturnType());
      *)
        ret True
-     elseif (isArrayTypB (Function.getReturnType F))
+     elseif (isArrayTypB (Function.getDefReturnType F))
      then
-     do ATy <- ret (Function.getReturnType F);
+     do ATy <- ret (Function.getDefReturnType F);
      (* The return type is an array; check for multiple return values. *)
      do Assert ((ArrayType.getNumElements ATy) =n= N);
         for i from 0 to N do
@@ -418,8 +420,8 @@ Definition visitBinaryOperator (intrinsic_funs5:intrinsic_funs)
                            : Prop :=
   {{
   (* "Both operands to a binary operator are of the same type" *)
-  do firstT <- BinaryOperator.getFirstOperandType B;
-  do secondT <- BinaryOperator.getSecondOperandType B;
+  do firstT <- BinaryOperator.getFirstOperandType system5 B;
+  do secondT <- BinaryOperator.getSecondOperandType system5 B;
   do Assert (firstT =t= secondT);
 
   (* Check that integer arithmetic operators are only used with
@@ -433,6 +435,32 @@ Definition visitBinaryOperator (intrinsic_funs5:intrinsic_funs)
      ret (visitInstruction intrinsic_funs5 system5 module_info5 fdef_info5 block5 B)
   }}.  
 
+(* Check to make sure that if there is more than one entry for a
+   particular basic block in this PHI node, that the incoming values 
+   are all identical. *)
+Fixpoint lookupIdsViaLabelFromIdls (idls:list (id*l)) (l0:l) : list id :=
+match idls with
+| nil => nil
+| (id1,l1)::idls' =>
+  if (beq_nat l0 l1) 
+  then set_add eq_nat_dec id1 (lookupIdsViaLabelFromIdls idls' l0)
+  else (lookupIdsViaLabelFromIdls idls' l0)
+end.
+
+Fixpoint _checkIdenticalIncomingValues (idls idls0:list (id*l)) : Prop :=
+match idls with
+| nil => True
+| (id, l)::idls' => 
+  (length (lookupIdsViaLabelFromIdls idls0 l) <= 1) /\
+  (_checkIdenticalIncomingValues idls' idls0)
+end.
+
+Definition checkIdenticalIncomingValues (PN:insn) : Prop :=
+match PN with
+| insn_phi _ _ idls => _checkIdenticalIncomingValues idls idls
+| _ => False
+end.
+
 Definition visitPHINode (intrinsic_funs5:intrinsic_funs) 
                            (system5:system)
                            (module_info5:module_info)
@@ -440,23 +468,41 @@ Definition visitPHINode (intrinsic_funs5:intrinsic_funs)
                            (block5:block)                              
                            (PN:insn)                              (* PHINode *)
                            : Prop :=
+  let '(module5, (usedef_insn5, usedef_block5)) := module_info5 in
+  let (F, dt5) := fdef_info5 in 
   {{
   (* Ensure that the PHI nodes are all grouped together at the top of the block.
      This can be tested by checking whether the instruction before this is
      either nonexistent (because this is begin()) or is a PHI node.  If not,
      then there is some other instruction before a PHI. *)
-
-  (*
-    Assert2(&PN == &PN.getParent()->front() ||
-            isa<PHINode>(--BasicBlock::iterator(&PN)),
-            "PHI nodes not grouped at top of basic block!",
-            &PN, PN.getParent());
-  *)
+  (* This checking is easier than the one in LLVM *)
   do Assert (blockStartsWithPhiNode block5);
+
+  (* The following properties 1-4 are checked in visitBlock by LLVM,
+     but we check them here. *)
+  (* 1 Ensure that PHI nodes have at least one entry! *)
+  do nIncomingValues <- PHINode.getNumIncomingValues PN;
+  do Assert (nIncomingValues >0);
+
+  (* 2 PHINode should have one entry for each predecessor of its 
+     parent basic block! *)
+  do preds <- ret (predOfBlock block5 usedef_block5);
+  do preds_size <- ret (length preds);
+  do Assert (nIncomingValues =n= preds_size);
+
+  (* 3 Check to make sure that the predecessors and PHI node entries are
+     matched up. *)
+  do ls1 <- ret (getLabelsFromBlocks preds);
+  do ls2 <- ret (getLabelsFromPhiNodeC PN);
+  do Assert (lset_eq ls1 ls2);
+
+  (* 4 Check to make sure that if there is more than one entry for a
+     particular basic block in this PHI node, that the incoming values are
+     all identical. *)
+  do Assert (checkIdenticalIncomingValues PN);
 
   (* Check that all of the operands of the PHI node have the same type as the
      result. *)
-  do nIncomingValues <- PHINode.getNumIncomingValues PN;
   do for i from 0 to nIncomingValues do
      do rT <- getInsnTypC PN;
      do iT <- PHINode.getIncomingValueType system5 PN i;
@@ -507,36 +553,151 @@ Inductive wf_list_insn : intrinsic_funs -> system -> module_info -> fdef_info ->
      wf_list_insn intrinsic_funs5 system5 module_info5 fdef_info5 block5 list_insn5 ->
      wf_list_insn intrinsic_funs5 system5 module_info5 fdef_info5 block5  ( insn5 :: list_insn5 ) .
 
-(* defns Jwf_block *)
-Inductive wf_block : intrinsic_funs -> system -> module_info -> fdef_info -> block -> Prop :=    (* defn wf_block *)
- | wf_block_intro : forall (intrinsic_funs5:intrinsic_funs) (system5:system) (module_info5:module_info) (fdef_info5:fdef_info) (block5:block) (l5:l) (list_insn5:list_insn),
+(* verifyBasicBlock - Verify that a basic block is well formed... *)
+Inductive verifyBasicBlock : intrinsic_funs -> system -> module_info -> fdef_info -> block -> Prop :=    (* defn wf_block *)
+ | verifyBasicBlock_intro : forall (intrinsic_funs5:intrinsic_funs) (system5:system) (module_info5:module_info) (fdef_info5:fdef_info) (block5:block) (l5:l) (list_insn5:list_insn),
      blockInSystemModuleFdef  (block_intro l5 list_insn5)  system5 module_info5 fdef_info5 ->
+
      getInsnsFromBlock block5 list_insn5 ->
      wf_list_insn intrinsic_funs5 system5 module_info5 fdef_info5 block5 list_insn5 ->
+
+     (* Ensure that basic blocks have terminators! *)
      insnsChecksTerminatorInsn list_insn5 ->
-     insnsStartsWithPhiNode list_insn5 ->
-     wf_block intrinsic_funs5 system5 module_info5 fdef_info5 block5.
+
+     (* Ensure that the PHI nodes are all grouped together at the top of the block. *)
+     (* LLVM checks this only in visitPHINode, we pull it up to block checking. 
+        But the checking in visitPHINode is still retained.
+        *)
+     insnsStartsWithPhiNode list_insn5 ->   
+
+     (* We moved some assertions to visitPhiNode *)
+
+     verifyBasicBlock intrinsic_funs5 system5 module_info5 fdef_info5 block5.
 
 (* defns Jwf_list_block *)
 Inductive wf_list_block : intrinsic_funs -> system -> module_info -> fdef_info -> list_block -> Prop :=    (* defn wf_list_block *)
  | wf_list_block_nil : forall (intrinsic_funs5:intrinsic_funs) (system5:system) (module_info5:module_info) (fdef_info5:fdef_info),
      wf_list_block intrinsic_funs5 system5 module_info5 fdef_info5  nil 
  | wf_list_block_cons : forall (intrinsic_funs5:intrinsic_funs) (system5:system) (module_info5:module_info) (fdef_info5:fdef_info) (list_block5:list_block) (block5:block),
-     wf_block intrinsic_funs5 system5 module_info5 fdef_info5 block5 ->
+     verifyBasicBlock intrinsic_funs5 system5 module_info5 fdef_info5 block5 ->
      wf_list_block intrinsic_funs5 system5 module_info5 fdef_info5 list_block5 ->
      wf_list_block intrinsic_funs5 system5 module_info5 fdef_info5  ( block5 :: list_block5 ) .
+
+(* visitFunctionDef - Verify that a function def is ok. *)
+Definition visitFunctionDef (intrinsic_funs5:intrinsic_funs) 
+                            (system5:system)
+                            (module_info5:module_info)
+                            (F:fdef)
+                            : Prop :=
+  let '(module5, (usedef_insn5, usedef_block5)) := module_info5 in
+  {{
+  (* Check function arguments. *)
+  do FT <- ret (Function.getDefFunctionType F);
+  do NumArgs <- ret (Function.def_arg_size F);
+  do NumParams <- FunctionType.getNumParams FT;
+
+  (* Functions may not have common linkage *)
+ 
+  (* Formal arguments must match # of arguments for function type! *)
+  do Assert (NumArgs =n= NumParams);
+  
+  (* Functions cannot return aggregate values *)
+  do rT <- ret (Function.getDefReturnType F);
+  do Assert ((isFirstClassTypB rT) ||
+             (rT =t= typ_void) ); (* or struct type *)
+
+  (* "Invalid struct return type!" *)
+
+  (* Attributes after last parameter! *)
+
+  (* Check function attributes. *)
+
+  (* Check that this function meets the restrictions on this calling convention. *)
+
+  (* Function may not return metadata unless it's an intrinsic *)
+
+  (* Check that the argument values match the function type for this function... *)
+     (* Argument value does not match function argument type! *)
+     (* Function arguments must have first-class types! *)
+     (* Function takes metadata but isn't an intrinsic *)
+
+  (* Verify that this function (which has a body) is not named "llvm.*".  It
+     is not legal to define intrinsics. *)
+
+  (* Check the entry node 
+     Entry block to function must not have predecessors! *)
+  do Entry <- getEntryOfFdef F;
+  do preds <- ret (predOfBlock Entry usedef_block5);
+     Assert (length preds > 0)
+  }}.
+
+(* visitFunctionDec - Verify that a function dec is ok. *)
+Definition visitFunctionDec (intrinsic_funs5:intrinsic_funs) 
+                            (system5:system)
+                            (module_info5:module_info)
+                            (F:fdec)
+                            : Prop :=
+  let '(module5, (usedef_insn5, usedef_block5)) := module_info5 in
+  {{
+  (* Check function arguments. *)
+  do FT <- ret (Function.getDecFunctionType F);
+  do NumArgs <- ret (Function.dec_arg_size F);
+  do NumParams <- FunctionType.getNumParams FT;
+
+  (* Functions may not have common linkage *)
+ 
+  (* Formal arguments must match # of arguments for function type! *)
+  do Assert (NumArgs =n= NumParams);
+  
+  (* Functions cannot return aggregate values *)
+  do rT <- ret (Function.getDecReturnType F);
+     Assert ((isFirstClassTypB rT) ||
+             (rT =t= typ_void) ) (* or struct type *)
+
+  (* "Invalid struct return type!" *)
+
+  (* Attributes after last parameter! *)
+
+  (* Check function attributes. *)
+
+  (* Check that this function meets the restrictions on this calling convention. *)
+
+  (* Function may not return metadata unless it's an intrinsic *)
+
+  (* Check that the argument values match the function type for this function... *)
+     (* Argument value does not match function argument type! *)
+     (* Function arguments must have first-class types! *)
+     (* Function takes metadata but isn't an intrinsic *)
+
+  (* Verify that this function (which has a body) is not named "llvm.*".  It
+     is not legal to define intrinsics. *)
+
+  (* Check invalid linkage type for function declaration *)
+  }}.
+
 
 (* defns Jwf_fdef *)
 Inductive wf_fdef : intrinsic_funs -> system -> module_info -> fdef -> Prop :=    (* defn wf_fdef *)
  | wf_fdef_intro : forall (intrinsic_funs5:intrinsic_funs) (system5:system) (module5:module) (usedef_insn5:usedef_insn) (usedef_block5:usedef_block) (fheader5:fheader) (list_block5:list_block) (dt5:dt),
      productInSystemModule (product_function_def  (fdef_intro fheader5 list_block5) ) system5   ( module5 , ( usedef_insn5 ,  usedef_block5 ))   ->
+
+     visitFunctionDef intrinsic_funs5 system5 ( module5 , ( usedef_insn5 ,  usedef_block5 )) (fdef_intro fheader5 list_block5) ->
+
      genDominatorTree (fdef_intro fheader5 list_block5) module5 = dt5  ->
      wf_list_block intrinsic_funs5 system5   ( module5 , ( usedef_insn5 ,  usedef_block5 ))     ( (fdef_intro fheader5 list_block5) ,  dt5 )   list_block5 ->
      wf_fdef intrinsic_funs5 system5   ( module5 , ( usedef_insn5 ,  usedef_block5 ))   (fdef_intro fheader5 list_block5).
 
+(* defns Jwf_fdec *)
+Inductive wf_fdec : intrinsic_funs -> system -> module_info -> fdec -> Prop :=    (* defn wf_fdef *)
+ | wf_fdec_intro : forall (intrinsic_funs5:intrinsic_funs) (system5:system) (module5:module) (usedef_insn5:usedef_insn) (usedef_block5:usedef_block) (fheader5:fheader) (list_block5:list_block) (dt5:dt),
+     productInSystemModule (product_function_def  (fdef_intro fheader5 list_block5) ) system5   ( module5 , ( usedef_insn5 ,  usedef_block5 ))   ->
+     visitFunctionDec intrinsic_funs5 system5 ( module5 , ( usedef_insn5 ,  usedef_block5 )) (fdec_intro fheader5) ->
+     wf_fdec intrinsic_funs5 system5   ( module5 , ( usedef_insn5 ,  usedef_block5 ))   (fdec_intro fheader5).
+
 (* defns Jwf_prod *)
 Inductive wf_prod : intrinsic_funs -> system -> module_info -> product -> Prop :=    (* defn wf_prod *)
  | wf_prod_function_dec : forall (intrinsic_funs5:intrinsic_funs) (system5:system) (module_info5:module_info) (fdec5:fdec),
+     wf_fdec intrinsic_funs5 system5 module_info5 fdec5 ->
      wf_prod intrinsic_funs5 system5 module_info5 (product_function_dec fdec5)
  | wf_prod_function_def : forall (intrinsic_funs5:intrinsic_funs) (system5:system) (module_info5:module_info) (fdef5:fdef),
      wf_fdef intrinsic_funs5 system5 module_info5 fdef5 ->
