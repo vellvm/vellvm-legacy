@@ -40,6 +40,9 @@ End SigFunction.
 Module Type SigInstruction.
  Include Type SigUser.
 
+ Parameter isInvokeInst : insn -> bool.
+ Parameter isCallInst : insn -> bool.
+
 End SigInstruction.
 
 Module Type SigReturnInst.
@@ -67,6 +70,8 @@ End SigCallInst.
 Module Type SigInvokeInst.
  Include Type SigInstruction.
 
+ Parameter getNormalDest : system -> insn -> option block.
+
 End SigInvokeInst.
 
 Module Type SigBinaryOperator.
@@ -89,6 +94,7 @@ End SigPHINode.
 
 Module Type SigType.
  Parameter isIntOrIntVector : typ -> bool.
+ Parameter isInteger : typ -> bool.
 End SigType.
 
 Module Type SigDerivedType.
@@ -177,6 +183,9 @@ End Function.
 Module Instruction <: SigInstruction.
  Include User.
 
+ Definition isInvokeInst (i:insn) : bool := isInvokeInsnB i.
+ Definition isCallInst (i:insn) : bool := isCallInsnB i.
+
 End Instruction.
 
 Module ReturnInst <: SigReturnInst.
@@ -237,6 +246,12 @@ End CallInst.
 Module InvokeInst <: SigInvokeInst.
  Include Instruction.
 
+ Definition getNormalDest (s:system) (i:insn) : option block :=
+ match (getNormalDestFromInvokeInsnC i) with
+ | None => None
+ | Some l => lookupBlockViaLabelFromSystem s l
+ end.
+
 End InvokeInst.
 
 Module BinaryOperator <: SigBinaryOperator.
@@ -291,6 +306,12 @@ End PHINode.
 
 Module Typ <: SigType.
  Definition isIntOrIntVector (t:typ) : bool :=
+ match t with
+ | typ_int _ => true
+ | _ => false
+ end.
+
+ Definition isInteger (t:typ) : bool :=
  match t with
  | typ_int _ => true
  | _ => false

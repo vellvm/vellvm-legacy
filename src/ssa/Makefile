@@ -6,7 +6,7 @@ all:
 	+make -C ./ott
 	+make ott
 
-ott: ssa_def.v ssa_coq_lib.vo main.pdf ssa_lib.v Makefile ssa_static.vo
+ott: ssa_def.v ssa_coq_lib.vo main.pdf ssa_lib.v Makefile ssa_static.vo ssa_dynamic.vo
 
 allott: ott ssa_all.v Makefile
 
@@ -47,6 +47,9 @@ vmcore.vo: vmcore.v ssa_lib.vo
 
 ssa_static.vo: ssa_static.v ssa_lib.vo ./monads/monad.vo reflect.vo vmcore.vo
 	$(COQC) -I ./ott -I ./monads ssa_static.v
+
+ssa_dynamic.vo: ssa_dynamic.v ssa_lib.vo ./monads/monad.vo reflect.vo vmcore.vo
+	$(COQC) -I ./ott -I ./monads ssa_dynamic.v
 
 ssa.tex: ssa_def.ott ssa_coq.ott ssa_lib.ott m_ssa_static.ott ssa_dynamic.ott omain.tex Makefile
 	$(OTT) -merge true -o ssa.tex \
