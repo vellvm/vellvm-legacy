@@ -4,10 +4,8 @@ Require Import Arith.
 Require Import vmcore.
 Require Import reflect.
 
-Inductive CallSite : Set := .
-
 Inductive GenericValue : Set := 
-| GenericValue_value : forall (v:value), GenericValue
+| GenericValue_int : forall (n:nat), GenericValue
 | GenericValue_untyped : forall (n:nat), GenericValue
 .
 
@@ -31,10 +29,10 @@ Caller      : insn
 
 Definition ECStack := list ExecutionContext.
 
-Record Contexts : Set := mkContexts {
+Record State : Set := mkState {
 CurSystem   : system;
 CurModule   : module;
-ExitValue   : GenericValue;
+ExistValue  : option GenericValue;
 ECS         : ECStack
 }.
 
@@ -55,10 +53,10 @@ Inductive wfECStack : ECStack -> Prop :=
   wfECStack (EC::ECS)
 .
 
-Inductive wfContexts : Contexts -> Prop :=
-| wfContexts_intro : forall ECS s m ExitValue,
+Inductive wfContexts : State -> Prop :=
+| wfContexts_intro : forall ECS ExistValue s m,
   wfECStack ECS ->
-  wfContexts (mkContexts s m ExitValue ECS)
+  wfContexts (mkState s m ExistValue ECS)
 .
 
 Definition getCallerReturnID (Caller:insn) : option id :=
@@ -124,6 +122,12 @@ match li with
 | i'::li' => Some i'
 end.
 
+Definition getEntryBlock (fd:fdef) : option block :=
+match fd with
+| fdef_intro _ (b::_) => Some b
+| _ => None
+end.
+
 Definition getEntryInsn (b:block) : option insn :=
 match b with
 | block_intro _ li => getEntryInsnFromInsns li
@@ -162,7 +166,61 @@ Definition switchToNewBasicBlock (Dest:block) (PrevBB:block) (Values:Mem): (bloc
   let ResultValues := getIncomingValuesForBlockFromPHINodes PNs Dest Values in
   (Dest, updateValusForNewBlock ResultValues Values).
 
-Inductive visitInst : Contexts -> Contexts -> Prop :=
+(* FIXME: Interpreter::getOperandValue is more complicated than this definition...
+*)
+Definition getOperandValue (v:value) (Values:Mem) : option GenericValue := 
+match v with
+| value_id id => Values id
+| value_constant (const_val n) => Some (GenericValue_int n)
+| value_constant const_undef => Some (GenericValue_int 0)
+end.
+
+Fixpoint params2OpGenericValues (lp:list_param) (Values:Mem) : list (option GenericValue):=
+match lp with
+| nil => nil
+| (_, v)::lp' => getOperandValue v Values::params2OpGenericValues lp' Values
+end.
+
+Fixpoint _initializeFrameValues (la:list_arg) (lg:list GenericValue) (Values:Mem) : Mem :=
+match (la, lg) with
+| ((_, id)::la', g::lg') => updateMem (_initializeFrameValues la' lg' Values) id g
+| _ => Values
+end.
+
+Definition initializeFrameValues (la:list_arg) (lg:list GenericValue): Mem := 
+_initializeFrameValues la lg (fun _ => None).
+
+Fixpoint opGenericValues2GenericValues (lg:list (option GenericValue)) : list GenericValue :=
+match lg with
+| nil => nil
+| (Some g)::lg' => g::opGenericValues2GenericValues lg'
+| _::lg' => opGenericValues2GenericValues lg'
+end.
+
+Record Event : Set := mkEvent {}.
+
+Inductive trace : Set :=
+| trace_nil : trace
+| trace_cons : Event -> trace -> trace
+.
+
+CoInductive Trace : Set :=
+| Trace_cons : Event -> Trace -> Trace
+.
+
+Fixpoint trace_app (t1 t2:trace) : trace :=
+match t1 with
+| trace_nil => t2
+| trace_cons t t1' => trace_cons t (trace_app t1' t2)
+end.
+
+Fixpoint Trace_app (t1:trace) (t2:Trace) : Trace :=
+match t1 with
+| trace_nil => t2
+| trace_cons t t1' => Trace_cons t (Trace_app t1' t2)
+end.
+
+Inductive visitInst : State -> State -> trace -> Prop :=
 (* 
   Save away the return value... (if we are not 'ret void')
   Pop the last stack frame off of ECStack and then copy the result
@@ -173,17 +231,17 @@ Inductive visitInst : Contexts -> Contexts -> Prop :=
   care of switching to the normal destination BB, if we are returning
   from an invoke.  
 *)
-| visitReturn_finished : forall CurSystem CurModule CurFunction CurBB RetTy Result Values VarArgs Caller ExitValue ExitValue',
+| visitReturn_finished : forall CurSystem CurModule CurFunction CurBB RetTy Result Values VarArgs Caller ExitValue,
   (* Finished main.  Put result into exit code... *)
-  ExitValue' = 
+  ExitValue = 
         (if (Typ.isInteger RetTy)  (* Nonvoid return type? *)
-        then GenericValue_value Result (* Capture the exit value of the program *)
-        else GenericValue_untyped 0) ->
+        then getOperandValue Result Values (* Capture the exit value of the program *)
+        else (Some (GenericValue_untyped 0))) ->
   visitInst 
-    (mkContexts 
+    (mkState 
       CurSystem
       CurModule
-      ExitValue
+      None
       ((mkExecutionContext 
           CurFunction 
           CurBB 
@@ -194,28 +252,25 @@ Inductive visitInst : Contexts -> Contexts -> Prop :=
        )
        ::nil) 
      )
-    (mkContexts 
-      CurSystem
-      CurModule
-      ExitValue'
-      nil
-    )
-| visitReturn_call : forall CurSystem CurModule CurFunction CurBB RetTy Result Values VarArgs Caller ExitValue id
-                            CurFunction' CurBB' CurInst' Values' VarArgs' Caller' ECS' 
+    (mkState CurSystem CurModule ExitValue nil)
+    trace_nil 
+| visitReturn_call : forall CurSystem CurModule CurFunction CurBB RetTy Result Values VarArgs Caller id
+                            CurFunction' CurBB' CurInst' Values' VarArgs' Caller' ECS' gvalue
                             CurInst'' Values'',   
   (* If we have a previous stack frame, and we have a previous call,
           fill in the return value... *)
   getCallerReturnID CurInst' = Some id ->
+  getOperandValue Result Values = Some gvalue -> 
   Values'' = (if (RetTy =t= typ_void) 
              then Values' 
-             else (updateMem Values' id (GenericValue_value Result))) ->
+             else (updateMem Values' id gvalue)) ->
   Instruction.isCallInst CurInst' ->
   getNextInsnFrom CurInst' CurBB' = Some CurInst'' ->
   visitInst 
-    (mkContexts 
+    (mkState 
       CurSystem
       CurModule
-      ExitValue
+      None
       ((mkExecutionContext 
           CurFunction 
           CurBB 
@@ -233,10 +288,10 @@ Inductive visitInst : Contexts -> Contexts -> Prop :=
           Caller'
       )::ECS')
     )
-    (mkContexts 
+    (mkState
       CurSystem
       CurModule
-      ExitValue
+      None
       ((mkExecutionContext 
           CurFunction' 
           CurBB'
@@ -246,15 +301,17 @@ Inductive visitInst : Contexts -> Contexts -> Prop :=
           Caller'
       )::ECS')
     )
-| visitReturn_invoke : forall CurSystem CurModule CurFunction CurBB RetTy Result Values VarArgs Caller ExitValue id
+    trace_nil 
+| visitReturn_invoke : forall CurSystem CurModule CurFunction CurBB RetTy Result Values VarArgs Caller id
                               CurFunction' CurBB' CurInst' Values' VarArgs' Caller' ECS' 
-                              Dest CurBB'' CurInst'' Values'' Values0'',   
+                              Dest CurBB'' CurInst'' Values'' Values0'' gvalue,   
   (* If we have a previous stack frame, and we have a previous call,
           fill in the return value... *)
   getCallerReturnID CurInst' = Some id ->
+  getOperandValue Result Values = Some gvalue -> 
   Values0'' = (if (RetTy =t= typ_void) 
              then Values' 
-             else (updateMem Values' id (GenericValue_value Result))) ->
+             else (updateMem Values' id gvalue)) ->
   Instruction.isInvokeInst CurInst' ->
   InvokeInst.getNormalDest CurSystem CurInst' = Some Dest -> 
   (CurBB'', Values'') = 
@@ -263,10 +320,10 @@ Inductive visitInst : Contexts -> Contexts -> Prop :=
               else (CurBB', Values0'')) ->
   getEntryInsn CurBB' = Some CurInst'' ->
   visitInst 
-    (mkContexts 
+    (mkState
       CurSystem
       CurModule
-      ExitValue
+      None
       ((mkExecutionContext 
           CurFunction 
           CurBB 
@@ -284,10 +341,10 @@ Inductive visitInst : Contexts -> Contexts -> Prop :=
           Caller'
       )::ECS')
     )
-    (mkContexts 
+    (mkState 
       CurSystem
       CurModule
-      ExitValue
+      None
       ((mkExecutionContext 
           CurFunction' 
           CurBB''
@@ -297,14 +354,15 @@ Inductive visitInst : Contexts -> Contexts -> Prop :=
           Caller'
       )::ECS')
     )
-| visitReturnVoid_finished : forall CurSystem CurModule CurFunction CurBB Values VarArgs Caller ExitValue ExitValue',
+    trace_nil 
+| visitReturnVoid_finished : forall CurSystem CurModule CurFunction CurBB Values VarArgs Caller ExitValue,
   (* Finished main.  Put result into exit code... *)
-  ExitValue' = GenericValue_untyped 0 ->
+  ExitValue = (Some (GenericValue_untyped 0)) ->
   visitInst 
-    (mkContexts 
+    (mkState 
       CurSystem
       CurModule
-      ExitValue
+      None
       ((mkExecutionContext 
           CurFunction 
           CurBB 
@@ -315,12 +373,13 @@ Inductive visitInst : Contexts -> Contexts -> Prop :=
        )
        ::nil) 
      )
-    (mkContexts 
+    (mkState
       CurSystem
       CurModule
-      ExitValue'
+      ExitValue
       nil
     )
+    trace_nil
 | visitReturnVoid_call : forall CurSystem CurModule CurFunction CurBB Values VarArgs Caller ExitValue id
                             CurFunction' CurBB' CurInst' Values' VarArgs' Caller' ECS' 
                             CurInst'',   
@@ -330,7 +389,7 @@ Inductive visitInst : Contexts -> Contexts -> Prop :=
   Instruction.isCallInst CurInst' ->
   getNextInsnFrom CurInst' CurBB' = Some CurInst'' ->
   visitInst 
-    (mkContexts 
+    (mkState
       CurSystem
       CurModule
       ExitValue
@@ -351,7 +410,7 @@ Inductive visitInst : Contexts -> Contexts -> Prop :=
           Caller'
       )::ECS')
     )
-    (mkContexts 
+    (mkState 
       CurSystem
       CurModule
       ExitValue
@@ -364,12 +423,12 @@ Inductive visitInst : Contexts -> Contexts -> Prop :=
           Caller'
       )::ECS')
     )
-| visitReturnVoid_invoke : forall CurSystem CurModule CurFunction CurBB Values VarArgs Caller ExitValue id
+    trace_nil 
+| visitReturnVoid_invoke : forall CurSystem CurModule CurFunction CurBB Values VarArgs Caller ExitValue
                               CurFunction' CurBB' CurInst' Values' VarArgs' Caller' ECS' 
                               Dest CurBB'' CurInst'' Values'',   
   (* If we have a previous stack frame, and we have a previous call,
           fill in the return value... *)
-  getCallerReturnID CurInst' = Some id ->
   Instruction.isInvokeInst CurInst' ->
   InvokeInst.getNormalDest CurSystem CurInst' = Some Dest -> 
   (CurBB'', Values'') = 
@@ -378,7 +437,7 @@ Inductive visitInst : Contexts -> Contexts -> Prop :=
               else (CurBB', Values')) ->
   getEntryInsn CurBB' = Some CurInst'' ->
   visitInst 
-    (mkContexts 
+    (mkState
       CurSystem
       CurModule
       ExitValue
@@ -399,7 +458,7 @@ Inductive visitInst : Contexts -> Contexts -> Prop :=
           Caller'
       )::ECS')
     )
-    (mkContexts 
+    (mkState
       CurSystem
       CurModule
       ExitValue
@@ -412,8 +471,277 @@ Inductive visitInst : Contexts -> Contexts -> Prop :=
           Caller'
       )::ECS')
     )
+    trace_nil 
+| visitBranch : forall CurSystem CurModule CurFunction CurBB Values VarArgs Caller ExitValue t Cond l1 l2 c
+                              CurBB' CurInst' Values' Dest ECS,   
+  getOperandValue Cond Values = Some (GenericValue_int c) ->
+  Some Dest = (if c 
+               then lookupBlockViaLabelFromSystem CurSystem l1
+               else lookupBlockViaLabelFromSystem CurSystem l2) ->
+  (CurBB', Values') = (switchToNewBasicBlock Dest CurBB Values) ->
+  getEntryInsn CurBB = Some CurInst' ->
+  visitInst 
+    (mkState 
+      CurSystem
+      CurModule
+      ExitValue
+      ((mkExecutionContext 
+          CurFunction 
+          CurBB 
+          (insn_br t Cond l1 l2) 
+          Values 
+          VarArgs 
+          Caller
+      )::ECS)
+    )
+    (mkState
+      CurSystem
+      CurModule
+      ExitValue
+      ((mkExecutionContext 
+          CurFunction
+          CurBB'
+          CurInst'
+          Values'
+          VarArgs 
+          Caller
+      )::ECS)
+    )
+    trace_nil 
+| visitBranch_uncond : forall CurSystem CurModule CurFunction CurBB Values VarArgs Caller ExitValue l
+                              CurBB' CurInst' Values' Dest ECS,   
+  Some Dest = (lookupBlockViaLabelFromSystem CurSystem l) ->
+  (CurBB', Values') = (switchToNewBasicBlock Dest CurBB Values) ->
+  getEntryInsn CurBB = Some CurInst' ->
+  visitInst 
+    (mkState
+      CurSystem
+      CurModule
+      ExitValue
+      ((mkExecutionContext 
+          CurFunction 
+          CurBB 
+          (insn_br_uncond l) 
+          Values 
+          VarArgs 
+          Caller
+      )::ECS)
+    )
+    (mkState
+      CurSystem
+      CurModule
+      ExitValue
+      ((mkExecutionContext 
+          CurFunction
+          CurBB'
+          CurInst'
+          Values'
+          VarArgs 
+          Caller
+      )::ECS)
+    )
+    trace_nil 
+| visitInvokeInsnt : forall CurSystem CurModule CurFunction CurBB Values VarArgs Caller ExitValue rid t fid lp l1 l2
+                            OpVarArgs' VarArgs' CurFunction' CurBB' CurInst' ECS rt id la lb Values',
+  params2OpGenericValues lp Values = OpVarArgs' ->   
+  opGenericValues2GenericValues OpVarArgs' = VarArgs' ->   
+  lookupFdefViaIDFromSystemC CurSystem fid = Some CurFunction' ->
+  getEntryBlock CurFunction' = Some CurBB' ->
+  getEntryInsn CurBB' = Some CurInst' ->
+  CurFunction' = fdef_intro (fheader_intro rt id la) lb ->
+  initializeFrameValues la VarArgs' = Values' ->
+  visitInst 
+    (mkState 
+      CurSystem
+      CurModule
+      ExitValue
+      ((mkExecutionContext 
+          CurFunction 
+          CurBB 
+          (insn_invoke rid t fid lp l1 l2) 
+          Values 
+          VarArgs 
+          Caller
+      )::ECS)
+    )
+    (mkState
+      CurSystem
+      CurModule
+      ExitValue
+      ((mkExecutionContext 
+          CurFunction'
+          CurBB' 
+          CurInst'
+          Values' 
+          VarArgs' 
+          (insn_invoke rid t fid lp l1 l2) 
+      )::(mkExecutionContext 
+          CurFunction 
+          CurBB 
+          (insn_invoke rid t fid lp l1 l2) 
+          Values 
+          VarArgs 
+          Caller
+      )::ECS)
+    )
+    trace_nil 
+| visitCallInsnt : forall CurSystem CurModule CurFunction CurBB Values VarArgs Caller ExitValue rid t fid lp
+                            OpVarArgs' VarArgs' CurFunction' CurBB' CurInst' ECS rt id la lb Values',
+  params2OpGenericValues lp Values = OpVarArgs' ->   
+  opGenericValues2GenericValues OpVarArgs' = VarArgs' ->   
+  lookupFdefViaIDFromSystemC CurSystem fid = Some CurFunction' ->
+  getEntryBlock CurFunction' = Some CurBB' ->
+  getEntryInsn CurBB' = Some CurInst' ->
+  CurFunction' = fdef_intro (fheader_intro rt id la) lb ->
+  initializeFrameValues la VarArgs' = Values' ->
+  visitInst 
+    (mkState
+      CurSystem
+      CurModule
+      ExitValue
+      ((mkExecutionContext 
+          CurFunction 
+          CurBB 
+          (insn_call rid t fid lp) 
+          Values 
+          VarArgs 
+          Caller
+      )::ECS)
+    )
+    (mkState
+      CurSystem
+      CurModule
+      ExitValue
+      ((mkExecutionContext 
+          CurFunction'
+          CurBB' 
+          CurInst'
+          Values' 
+          VarArgs' 
+          (insn_call rid t fid lp) 
+      )::(mkExecutionContext 
+          CurFunction 
+          CurBB 
+          (insn_call rid t fid lp) 
+          Values 
+          VarArgs 
+          Caller
+      )::ECS)
+    )
+    trace_nil 
+| visitAddInsnt : forall CurSystem CurModule CurFunction CurBB Values VarArgs Caller ExitValue id t v1 v2 ECS i1 i2 CurInst',
+  getOperandValue v1 Values = Some (GenericValue_int i1) ->
+  getOperandValue v2 Values = Some (GenericValue_int i2) ->
+  getNextInsnFrom (insn_add id t v1 v2) CurBB = Some CurInst' ->
+  visitInst 
+    (mkState
+      CurSystem
+      CurModule
+      ExitValue
+      ((mkExecutionContext 
+          CurFunction 
+          CurBB 
+          (insn_add id t v1 v2) 
+          Values 
+          VarArgs 
+          Caller
+      )::ECS)
+    ) 
+    (mkState
+      CurSystem
+      CurModule
+      ExitValue
+      ((mkExecutionContext 
+          CurFunction 
+          CurBB 
+          CurInst'
+          (updateMem Values id (GenericValue_int (i1+i2)))
+          VarArgs 
+          Caller
+      )::ECS)
+    )
+    trace_nil 
 .
 
+Inductive op_converges : State -> State -> trace -> Prop :=
+| op_converges_nil : forall S, op_converges S S trace_nil
+| op_converges_cons : forall S1 S2 S3 t1 t2,
+    visitInst S1 S2 t1 ->
+    op_converges S2 S3 t2 ->
+    op_converges S1 S3 (trace_app t1 t2)
+.
+
+CoInductive op_diverges : State -> State -> Trace -> Prop :=
+| op_diverges_intro : forall S1 S2 S3 t1 t2,
+    visitInst S1 S2 t1 ->
+    op_diverges S2 S3 t2 ->
+    op_diverges S1 S3 (Trace_app t1 t2)
+.
+
+Definition genInitState (s:system) (main:id) (VarArgs:list GenericValue) :=
+match (lookupFdefViaIDFromSystemC s main) with
+| None => None
+| Some CurFunction =>
+  match (getParentOfFdefFromSystemC CurFunction s) with
+  | None => None
+  | Some CurModule =>
+    match (getEntryBlock CurFunction) with
+    | None => None
+    | Some CurBB => 
+      match (getEntryInsn CurBB) with
+      | None => None
+      | Some CurInst =>
+        match CurFunction with 
+        | fdef_intro (fheader_intro rt _ la) _ =>
+          let Values := initializeFrameValues la VarArgs in
+          Some
+            (mkState
+              s
+              CurModule
+              None
+              ((mkExecutionContext 
+                CurFunction 
+                CurBB 
+                CurInst
+                Values 
+                VarArgs 
+                (insn_call 0 rt main nil) 
+              )::nil)
+           )          
+        end
+      end
+    end
+  end
+end.
+
+Definition isFinialState (S:State) : bool :=
+match S with
+| (mkState _ _ _ nil) => true
+| _ => false
+end.
+
+Inductive converges : system -> id -> list GenericValue -> Prop :=
+| converges_intro : forall (s:system) (main:id) (VarArgs:list GenericValue) (IS FS:State) t,
+  genInitState s main VarArgs = Some IS ->
+  op_converges IS FS t ->
+  isFinialState FS ->
+  converges s main VarArgs
+.
+
+Inductive diverges : system -> id -> list GenericValue -> Prop :=
+| diverges_intro : forall (s:system) (main:id) (VarArgs:list GenericValue) (IS S:State) t,
+  genInitState s main VarArgs = Some IS ->
+  op_diverges IS S t ->
+  diverges s main VarArgs
+.
+
+Inductive goeswrong : system -> id -> list GenericValue -> Prop :=
+| goeswrong_intro : forall (s:system) (main:id) (VarArgs:list GenericValue) (IS FS:State) t,
+  genInitState s main VarArgs = Some IS ->
+  op_converges IS FS t ->
+  ~ isFinialState FS ->
+  goeswrong s main VarArgs
+.
 
 (*
 *** Local Variables: ***

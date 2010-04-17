@@ -511,7 +511,7 @@ Definition visitPHINode (intrinsic_funs5:intrinsic_funs)
 
   (* All other PHI node constraints are checked in the visitBasicBlock method. *)
      ret (visitInstruction intrinsic_funs5 system5 module_info5 fdef_info5 block5 PN)
-  }}.
+  }}. 
 
 (* defns Jwf_insn *)
 Inductive wf_insn : intrinsic_funs -> system -> module_info -> fdef_info -> block -> insn -> Prop :=    (* defn wf_insn *)
@@ -522,6 +522,7 @@ Inductive wf_insn : intrinsic_funs -> system -> module_info -> fdef_info -> bloc
      visitReturnInst intrinsic_funs5 system5 module_info5   ( fdef5 ,  dt5 )   block5 insn_return_void ->
      wf_insn intrinsic_funs5 system5 module_info5   ( fdef5 ,  dt5 )   block5 insn_return_void
  | wf_insn_br : forall (intrinsic_funs5:intrinsic_funs) (system5:system) (module5:module) (usedef_insn5:usedef_insn) (usedef_block5:usedef_block) (fdef_info5:fdef_info) (block5:block) (typ5:typ) (value5:value) (l1 l2:l) (module_info5:module_info) (fdef5:fdef) (dt5:dt),
+     typ5 =t= (typ_int 1) ->
      visitTerminatorInst intrinsic_funs5 system5 module_info5   ( fdef5 ,  dt5 )   block5 (insn_br typ5 value5 l1 l2) ->
      wf_insn intrinsic_funs5 system5   ( module5 , ( usedef_insn5 ,  usedef_block5 ))   fdef_info5 block5 (insn_br typ5 value5 l1 l2)
  | wf_insn_br_uncond : forall (intrinsic_funs5:intrinsic_funs) (system5:system) (module5:module) (usedef_insn5:usedef_insn) (usedef_block5:usedef_block) (fdef_info5:fdef_info) (block5:block) (l5:l) (module_info5:module_info) (fdef5:fdef) (dt5:dt),

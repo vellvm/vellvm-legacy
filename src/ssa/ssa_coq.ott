@@ -1763,6 +1763,18 @@ match (getParentOfInsnFromSystemC i s) with
 | None => false
 end.
 
+Fixpoint getParentOfFdefFromModulesC (fd:fdef) (lm:list_module) {struct lm} : option module :=
+match lm with
+| nil => None
+| m::lm' => 
+  if (productInModuleB (product_function_def fd) m) 
+  then Some m
+  else getParentOfFdefFromModulesC fd lm'
+end.
+
+Definition getParentOfFdefFromSystemC (fd:fdef) (s:system) : option module := 
+  getParentOfFdefFromModulesC fd s.
+
 Notation "t =t= t' " := (typEqB t t') (at level 50).
 Notation "n =n= n'" := (beq_nat n n') (at level 50).
 Notation "b =b= b'" := (blockEqB b b') (at level 50).
