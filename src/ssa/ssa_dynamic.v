@@ -720,12 +720,12 @@ match S with
 | _ => false
 end.
 
-Inductive converges : system -> id -> list GenericValue -> Prop :=
+Inductive converges : system -> id -> list GenericValue -> State -> Prop :=
 | converges_intro : forall (s:system) (main:id) (VarArgs:list GenericValue) (IS FS:State) t,
   genInitState s main VarArgs = Some IS ->
   op_converges IS FS t ->
   isFinialState FS ->
-  converges s main VarArgs
+  converges s main VarArgs FS
 .
 
 Inductive diverges : system -> id -> list GenericValue -> Prop :=
@@ -735,12 +735,12 @@ Inductive diverges : system -> id -> list GenericValue -> Prop :=
   diverges s main VarArgs
 .
 
-Inductive goeswrong : system -> id -> list GenericValue -> Prop :=
+Inductive goeswrong : system -> id -> list GenericValue -> State -> Prop :=
 | goeswrong_intro : forall (s:system) (main:id) (VarArgs:list GenericValue) (IS FS:State) t,
   genInitState s main VarArgs = Some IS ->
   op_converges IS FS t ->
   ~ isFinialState FS ->
-  goeswrong s main VarArgs
+  goeswrong s main VarArgs FS
 .
 
 (*

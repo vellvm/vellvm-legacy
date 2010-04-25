@@ -63,5 +63,7 @@ main.pdf: ssa.tex main.tex macros.sty Makefile
 	pdflatex main.tex
 
 clean: 
+	+make -C ./ott clean
+	+make -C ./monads clean	
 	rm -rf ssa.tex main.pdf main.log main.aux main.log main.tex ssa_def.v ssa_lib.v ssa_all.v *.vo *.glob merge.ott m_*.ott
 
