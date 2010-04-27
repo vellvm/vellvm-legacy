@@ -556,11 +556,10 @@ Inductive wf_list_insn : intrinsic_funs -> system -> module_info -> fdef_info ->
 
 (* verifyBasicBlock - Verify that a basic block is well formed... *)
 Inductive verifyBasicBlock : intrinsic_funs -> system -> module_info -> fdef_info -> block -> Prop :=    (* defn wf_block *)
- | verifyBasicBlock_intro : forall (intrinsic_funs5:intrinsic_funs) (system5:system) (module_info5:module_info) (fdef_info5:fdef_info) (block5:block) (l5:l) (list_insn5:list_insn),
-     blockInSystemModuleFdef  (block_intro l5 list_insn5)  system5 module_info5 fdef_info5 ->
+ | verifyBasicBlock_intro : forall (intrinsic_funs5:intrinsic_funs) (system5:system) (module_info5:module_info) (fdef_info5:fdef_info) (l5:l) (list_insn5:list_insn),
+     blockInSystemModuleFdef (block_intro l5 list_insn5)  system5 module_info5 fdef_info5 ->
 
-     getInsnsFromBlock block5 list_insn5 ->
-     wf_list_insn intrinsic_funs5 system5 module_info5 fdef_info5 block5 list_insn5 ->
+     wf_list_insn intrinsic_funs5 system5 module_info5 fdef_info5 (block_intro l5 list_insn5) list_insn5 ->
 
      (* Ensure that basic blocks have terminators! *)
      insnsChecksTerminatorInsn list_insn5 ->
@@ -573,7 +572,7 @@ Inductive verifyBasicBlock : intrinsic_funs -> system -> module_info -> fdef_inf
 
      (* We moved some assertions to visitPhiNode *)
 
-     verifyBasicBlock intrinsic_funs5 system5 module_info5 fdef_info5 block5.
+     verifyBasicBlock intrinsic_funs5 system5 module_info5 fdef_info5 (block_intro l5 list_insn5).
 
 (* defns Jwf_list_block *)
 Inductive wf_list_block : intrinsic_funs -> system -> module_info -> fdef_info -> list_block -> Prop :=    (* defn wf_list_block *)
