@@ -638,6 +638,13 @@ match i with
 | _ => false
 end.
 
+Definition isReturnInsnB (i:insn) : bool :=
+match i with
+| insn_return _ _ => true
+| insn_return_void => true
+| _ => false
+end.
+
 Definition isCallInsnB (i:insn) : bool :=
 match i with
 | insn_call _ _ _ _ => true
@@ -697,6 +704,7 @@ match i with
 | insn_br_uncond _ => true
 (* | insn_switch _ _ _ => true *)
 | insn_invoke _ _ _ _ _ _ => true
+| insn_call _ _ _ _ => true
 | insn_unreachable => true
 | _ => false
 end.

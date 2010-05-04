@@ -763,6 +763,16 @@ isInvokeInsn_def :: '' ::=
      ------------------------------------------------------------- :: isInvokeInsn_intro
      isInvokeInsn (id = invoke typ0 id0 list_param to l1 unwind l2) 
 
+defns
+isReturnInsn_def :: '' ::=
+     defn
+     isReturnInsn insn :: :: isReturnInsn :: '' {{ com is [[insn]] a return instruction }} by
+
+     --------------------------------- :: isReturnInsn_nonvoid
+     isReturnInsn (ret typ value) 
+
+     --------------------------------- :: isReturnInsn_void
+     isReturnInsn (ret void) 
 
 defns
 isCallInsn_def :: '' ::=
@@ -772,6 +782,31 @@ isCallInsn_def :: '' ::=
      ------------------------------------------------------------- :: isCallInsn_intro
      isCallInsn (id = call typ0 id0 list_param) 
 
+defns
+isTerminatorInsn_def :: '' ::=
+     defn
+     isTerminatorInsn insn :: :: isTerminatorInsn :: '' {{ com is [[insn]] a terminator instruction }} by
+
+     --------------------------------- :: isTerminator_ret
+     isTerminatorInsn (ret typ value)
+
+     --------------------------------- :: isTerminator_ret_void
+     isTerminatorInsn (ret void)
+
+     ---------------------------------------- :: isTerminator_br
+     isTerminatorInsn (br typ value , l1, l2)
+
+     ----------------------- :: isTerminator_br_uncond
+     isTerminatorInsn (br l)
+ 
+     ------------------------------------------------------------------ :: isTerminator_invoke
+     isTerminatorInsn (id = invoke typ0 id0 list_param to l1 unwind l2)
+
+     ------------------------------------------------ :: isTerminator_call
+     isTerminatorInsn (id = call typ0 id0 list_param)
+
+     ----------------------------- :: isTerminator_unreachable
+     isTerminatorInsn unreachable
 
 % isValidReturnTyp - Return true if the specified type is valid as a return type. 
 % lib/VMCore/Typ

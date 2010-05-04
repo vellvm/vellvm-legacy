@@ -521,28 +521,28 @@ Inductive wf_insn : intrinsic_funs -> system -> module_info -> fdef_info -> bloc
  | wf_insn_return_void : forall (intrinsic_funs5:intrinsic_funs) (system5:system) (module_info5:module_info) (fdef5:fdef) (dt5:dt) (block5:block),
      visitReturnInst intrinsic_funs5 system5 module_info5   ( fdef5 ,  dt5 )   block5 insn_return_void ->
      wf_insn intrinsic_funs5 system5 module_info5   ( fdef5 ,  dt5 )   block5 insn_return_void
- | wf_insn_br : forall (intrinsic_funs5:intrinsic_funs) (system5:system) (module5:module) (usedef_insn5:usedef_insn) (usedef_block5:usedef_block) (fdef_info5:fdef_info) (block5:block) (typ5:typ) (value5:value) (l1 l2:l) (module_info5:module_info) (fdef5:fdef) (dt5:dt),
+ | wf_insn_br : forall (intrinsic_funs5:intrinsic_funs) (system5:system) (module_info5:module_info) (block5:block) (typ5:typ) (value5:value) (l1 l2:l) (fdef5:fdef) (dt5:dt) ,
      typ5 =t= (typ_int 1) ->
      visitTerminatorInst intrinsic_funs5 system5 module_info5   ( fdef5 ,  dt5 )   block5 (insn_br typ5 value5 l1 l2) ->
-     wf_insn intrinsic_funs5 system5   ( module5 , ( usedef_insn5 ,  usedef_block5 ))   fdef_info5 block5 (insn_br typ5 value5 l1 l2)
- | wf_insn_br_uncond : forall (intrinsic_funs5:intrinsic_funs) (system5:system) (module5:module) (usedef_insn5:usedef_insn) (usedef_block5:usedef_block) (fdef_info5:fdef_info) (block5:block) (l5:l) (module_info5:module_info) (fdef5:fdef) (dt5:dt),
+     wf_insn intrinsic_funs5 system5   module_info5  ( fdef5 ,  dt5 ) block5 (insn_br typ5 value5 l1 l2)
+ | wf_insn_br_uncond : forall (intrinsic_funs5:intrinsic_funs) (system5:system) (block5:block) (l5:l) (module_info5:module_info) (fdef5:fdef) (dt5:dt),
      visitTerminatorInst intrinsic_funs5 system5 module_info5   ( fdef5 ,  dt5 )   block5 (insn_br_uncond l5) ->
-     wf_insn intrinsic_funs5 system5   ( module5 , ( usedef_insn5 ,  usedef_block5 ))   fdef_info5 block5 (insn_br_uncond l5)
- | wf_insn_invoke : forall (intrinsic_funs5:intrinsic_funs) (system5:system) (module5:module) (usedef_insn5:usedef_insn) (usedef_block5:usedef_block) (fdef_info5:fdef_info) (block5:block) (id_5:id) (typ0:typ) (id0:id) (list_param5:list_param) (l1 l2:l) (module_info5:module_info) (fdef5:fdef) (dt5:dt),
+     wf_insn intrinsic_funs5 system5   module_info5   ( fdef5 ,  dt5 ) block5 (insn_br_uncond l5)
+ | wf_insn_invoke : forall (intrinsic_funs5:intrinsic_funs) (system5:system) (block5:block) (id_5:id) (typ0:typ) (id0:id) (list_param5:list_param) (l1 l2:l) (module_info5:module_info) (fdef5:fdef) (dt5:dt),
      visitInvokeInst intrinsic_funs5 system5 module_info5   ( fdef5 ,  dt5 )   block5 (insn_invoke id_5 typ0 id0 list_param5 l1 l2) ->
-     wf_insn intrinsic_funs5 system5   ( module5 , ( usedef_insn5 ,  usedef_block5 ))   fdef_info5 block5 (insn_invoke id_5 typ0 id0 list_param5 l1 l2)
- | wf_insn_call : forall (intrinsic_funs5:intrinsic_funs) (system5:system) (module5:module) (usedef_insn5:usedef_insn) (usedef_block5:usedef_block) (fdef_info5:fdef_info) (block5:block) (id_5:id) (typ0:typ) (id0:id) (list_param5:list_param) (module_info5:module_info) (fdef5:fdef) (dt5:dt),
+     wf_insn intrinsic_funs5 system5   module_info5   ( fdef5 ,  dt5 ) block5 (insn_invoke id_5 typ0 id0 list_param5 l1 l2)
+ | wf_insn_call : forall (intrinsic_funs5:intrinsic_funs) (system5:system) (block5:block) (id_5:id) (typ0:typ) (id0:id) (list_param5:list_param) (module_info5:module_info) (fdef5:fdef) (dt5:dt),
      visitCallInst intrinsic_funs5 system5 module_info5   ( fdef5 ,  dt5 )   block5 (insn_call id_5 typ0 id0 list_param5) ->
-     wf_insn intrinsic_funs5 system5   ( module5 , ( usedef_insn5 ,  usedef_block5 ))   fdef_info5 block5 (insn_call id_5 typ0 id0 list_param5)
- | wf_insn_unreachable : forall (intrinsic_funs5:intrinsic_funs) (system5:system) (module5:module) (usedef_insn5:usedef_insn) (usedef_block5:usedef_block) (fdef_info5:fdef_info) (block5:block) (module_info5:module_info) (fdef5:fdef) (dt5:dt),
+     wf_insn intrinsic_funs5 system5   module_info5   ( fdef5 ,  dt5 ) block5 (insn_call id_5 typ0 id0 list_param5)
+ | wf_insn_unreachable : forall (intrinsic_funs5:intrinsic_funs) (system5:system) (fdef_info5:fdef_info) (block5:block) (module_info5:module_info) (fdef5:fdef) (dt5:dt),
      visitTerminatorInst intrinsic_funs5 system5 module_info5   ( fdef5 ,  dt5 )   block5 insn_unreachable ->
-     wf_insn intrinsic_funs5 system5   ( module5 , ( usedef_insn5 ,  usedef_block5 ))   fdef_info5 block5 insn_unreachable
- | wf_insn_add : forall (intrinsic_funs5:intrinsic_funs) (system5:system) (module5:module) (usedef_insn5:usedef_insn) (usedef_block5:usedef_block) (fdef_info5:fdef_info) (block5:block) (id5:id) (typ5:typ) (value1 value2:value) (module_info5:module_info) (fdef5:fdef) (dt5:dt),
+     wf_insn intrinsic_funs5 system5   module_info5   ( fdef5 ,  dt5 ) block5 insn_unreachable
+ | wf_insn_add : forall (intrinsic_funs5:intrinsic_funs) (system5:system) (fdef_info5:fdef_info) (block5:block) (id5:id) (typ5:typ) (value1 value2:value) (module_info5:module_info) (fdef5:fdef) (dt5:dt),
      visitBinaryOperator intrinsic_funs5 system5 module_info5   ( fdef5 ,  dt5 )   block5 (insn_add id5 typ5 value1 value2) ->
-     wf_insn intrinsic_funs5 system5   ( module5 , ( usedef_insn5 ,  usedef_block5 ))   fdef_info5 block5 (insn_add id5 typ5 value1 value2)
- | wf_insn_phi : forall (id_l_list:list (id*l)) (intrinsic_funs5:intrinsic_funs) (system5:system) (module5:module) (usedef_insn5:usedef_insn) (usedef_block5:usedef_block) (fdef_info5:fdef_info) (block5:block) (id_5:id) (typ5:typ) (module_info5:module_info) (fdef5:fdef) (dt5:dt),
+     wf_insn intrinsic_funs5 system5   module_info5   ( fdef5 ,  dt5 ) block5 (insn_add id5 typ5 value1 value2)
+ | wf_insn_phi : forall (id_l_list:list (id*l)) (intrinsic_funs5:intrinsic_funs) (system5:system) (fdef_info5:fdef_info) (block5:block) (id_5:id) (typ5:typ) (module_info5:module_info) (fdef5:fdef) (dt5:dt),
      visitPHINode intrinsic_funs5 system5 module_info5   ( fdef5 ,  dt5 )   block5 (insn_phi id_5 typ5 id_l_list) ->
-     wf_insn intrinsic_funs5 system5   ( module5 , ( usedef_insn5 ,  usedef_block5 ))   fdef_info5 block5 (insn_phi id_5 typ5 id_l_list)
+     wf_insn intrinsic_funs5 system5   module_info5   ( fdef5 ,  dt5 ) block5 (insn_phi id_5 typ5 id_l_list)
  .
 
 (* defns Jwf_list_insn *)
