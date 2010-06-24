@@ -746,6 +746,6 @@ Inductive goeswrong : system -> id -> list GenericValue -> State -> Prop :=
 (*
 *** Local Variables: ***
 *** coq-prog-name: "coqtop" ***
-*** coq-prog-args: ("-emacs-U" "-I" "./monads" "-I" "./ott") ***
+*** coq-prog-args: ("-emacs-U" "-I" "../monads" "-I" "../ott" "-I" "../") ***
 *** End: ***
  *)

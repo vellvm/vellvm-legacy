@@ -740,7 +740,7 @@ Inductive wf_system : intrinsic_funs -> system -> Prop :=    (* defn wf_system *
 (*
 *** Local Variables: ***
 *** coq-prog-name: "coqtop" ***
-*** coq-prog-args: ("-emacs-U" "-I" "./monads" "-I" "./ott") ***
+*** coq-prog-args: ("-emacs-U" "-I" "../monads" "-I" "../ott" "-I" "../") ***
 *** End: ***
  *)
 
