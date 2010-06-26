@@ -238,7 +238,8 @@ Jwf_insn :: '' ::=
       % LLVM::visitInstruction checks that non-phi nodes are not self referential 
       getInsnUseDef usedef_insn (id = phi typ </ [ idj , lj ] // j />) = list_insn
       list_insn <-> </ insni // i />
-      </ (not (id = phi typ </ [ idj , lj ] // j />) =id= insni) \/ (not (isReachableFromEntry fdef_info block)) // i />
+      insn = (id = phi typ </ [ idj , lj ] // j />)
+      </ (not insn =id= insni) \/ (not (isReachableFromEntry fdef_info block)) // i />
       % The following properties 1-4 are checked in visitBlock by LLVM, but we check them here. 
       % 1 Ensure that PHI nodes have at least one entry! 
       PHINode.getNumIncomingValues (id = phi typ </ [ idj , lj ] // j />) = INT

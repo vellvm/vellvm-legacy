@@ -7,7 +7,7 @@ all:
 	+make ott 
 	+make -C ./llvm_op
 
-ott: ssa_def.v ssa_coq_lib.vo main.pdf ssa.vo Makefile
+ott: ssa_def.v ssa_coq_lib.vo main.pdf ssa.vo Makefile ssa_dynamic.vo
 
 ssa_coq_lib.vo : ssa_coq_lib.v ssa_def.vo Makefile
 	$(COQC) -I ./ott -I ./monads ssa_coq_lib.v
@@ -31,6 +31,9 @@ ssa.v: ssa_def.ott ssa_coq.ott ssa_lib.ott m_ssa_static.ott emacs.ott Makefile s
 
 ssa.vo: ssa.v
 	$(COQC) -I ./ott -I ./monads ssa.v
+
+ssa_dynamic.vo: ssa_dynamic.v ssa.vo
+	$(COQC) -I ./ott -I ./monads ssa_dynamic.v
 
 ssa.tex: ssa_def.ott ssa_coq.ott ssa_lib.ott m_ssa_static.ott omain.tex Makefile
 	$(OTT) -merge true -o ssa.tex \
