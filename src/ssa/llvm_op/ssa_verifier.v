@@ -3,8 +3,6 @@ Require Import List.
 Require Import ListSet.
 Require Import monad.
 Require Import Logic_Type.
-Require Import reflect.
-Require Import vmcore.
 Require Import Arith.
 Require Import Bool.
 Require Import Compare_dec.
@@ -28,21 +26,22 @@ Definition wf_operand_insn (intrinsic_funs5:intrinsic_funs)
                            (module_info5:module_info)
                            (fdef_info5:fdef_info)
                            (block5:block)
-                           (insn5 insn':insn) : Prop :=
+                           (insn5 op:insn) : Prop :=
   let '(module5, (usedef_insn5, usedef_block5)) := module_info5 in
   let (fdef5, dt5) := fdef_info5 in 
   {{
-  do id' <- (getInsnID  insn');
+  do id' <- (getInsnID  op);
   do OpBlock <- (lookupBlockViaIDFromFdefC fdef5 id');
 
-  (* Check that a definition dominates all of its uses *)
-     If (isInvokeInsnB insn')
+     (* Check that a definition dominates all of its uses *)
+     (*
+     If (isInvokeInsnB op)
      then 
      (* Invoke results are only usable in the normal destination, not in the
         exceptional destination. *)
-     do ln <- getNormalDestFromInvokeInsnC insn';
+     do ln <- getNormalDestFromInvokeInsnC op;
      do NormalDest <- lookupBlockViaLabelFromSystem system5 ln;
-     do lu <- getUnwindDestFromInvokeInsnC insn';
+     do lu <- getUnwindDestFromInvokeInsnC op;
      do UnwindDest <- lookupBlockViaLabelFromSystem system5 lu;
      do Assert (not (NormalDest = UnwindDest));
 
@@ -80,9 +79,9 @@ Definition wf_operand_insn (intrinsic_funs5:intrinsic_funs)
               invoke.  In this case, the invoke value can still be used. *)
              for PI in (predOfBlock NormalDest usedef_block5) do
                (* Invoke result must dominate all uses! *)
-               If (insnHasParent insn' system5)
+               If (insnHasParent op system5)
                then
-               do parentOfInsn' <- getParentOfInsnFromSystemC insn' system5;
+               do parentOfOp <- getParentOfInsnFromSystemC op system5;
                   If (negb (blockDominatesB dt5 NormalDest PI) && 
                       isReachableFromEntryB fdef_info5 PI)
                   then ret False
@@ -91,7 +90,8 @@ Definition wf_operand_insn (intrinsic_funs5:intrinsic_funs)
              endfor
            endif
         endif
-     elseif (isPhiNodeB insn5)
+     *)
+     If (isPhiNodeB insn5)
      then
      (* PHI nodes are more difficult than other nodes because they actually
         "use" the value in the predecessor basic blocks they correspond to. *)
@@ -100,19 +100,27 @@ Definition wf_operand_insn (intrinsic_funs5:intrinsic_funs)
         (* Instruction must dominate all uses! *) 
         Assert (blockDominates dt5 OpBlock PredBB \/ ~ isReachableFromEntry fdef_info5 PredBB)
      else       
-     do If (OpBlock =b= block5)
-        then
-          (* If they are in the same basic block, make sure that the definition
-             comes before the use. *)
-          Assert (insnDominates insn' insn5 \/ ~ isReachableFromEntry fdef_info5 block5)
-        endif;
-        (* Definition must dominate use unless use is unreachable! *)
-        Assert (insnDominates insn' insn5 \/ ~ isReachableFromEntry fdef_info5 block5)
-        (* !! FIXME
-          Assert2(InstsInThisBlock.count(Op) || DT->dominates(Op, &I) ||
-                  !DT->isReachableFromEntry(BB),
+     (* 
+        LLVM uses InstsInThisBlock to remember checked insns within the currren block,
+        such that it doesn't need to call DT (that is costly) every time. And LLVM also
+        optimizes it when OpBlock = BB:
+
+        if (OpBlock == BB) {
+          // If they are in the same basic block, make sure that the definition
+          // comes before the use.
+          Assert2(InstsInThisBlock.count(Op) || !DT->isReachableFromEntry(BB),
                   "Instruction does not dominate all uses!", Op, &I);
-          *)
+        }
+
+        // Definition must dominate use unless use is unreachable!
+        Assert2(InstsInThisBlock.count(Op) || DT->dominates(Op, &I) ||
+                !DT->isReachableFromEntry(BB),
+                "Instruction does not dominate all uses!", Op, &I);
+
+        But we don't do this in Coq, and check Dominance everytime.
+     *)
+        (* Definition must dominate use unless use is unreachable! *)
+        Assert (insnDominates op insn5 \/ ~ isReachableFromEntry fdef_info5 block5)
      endif
   }}.
 
@@ -240,7 +248,7 @@ Definition visitInstruction (intrinsic_funs5:intrinsic_funs)
   (* Check that the instruction doesn't produce metadata or metadata*. Calls
      all already checked against the callee type. *)
   do Assert ((not (typEq typ5 typ_metadata ))   \/  
-             isInvokeInsn insn5   \/  
+             (*isInvokeInsn insn5   \/  *)
              isCallInsn insn5 );
 
   (* Instructions may not produce pointer to metadata *)
@@ -316,6 +324,7 @@ Definition visitReturnInst (intrinsic_funs5:intrinsic_funs)
                  "type of return inst!", &RI, F->getReturnType());
      *)
        ret True
+     (* The support for multiple return values is already absolete.
      elseif (isArrayTypB (Function.getDefReturnType F))
      then
      do ATy <- ret (Function.getDefReturnType F);
@@ -328,6 +337,7 @@ Definition visitReturnInst (intrinsic_funs5:intrinsic_funs)
         (* !! FIXME: RI.getOperand(i)->getType() *)
            Assert (et =t= rt)
         endfor
+     *)
      else
      (* Function return type does not match operand type of return inst! *)
         ret False
@@ -357,8 +367,11 @@ Definition verifyCallSite (intrinsic_funs5:intrinsic_funs)
   do Call <- CallSite.getCalledFunction CS system5;
   do FTy <- ret CallSite.getFdefTyp Call;
 
-  (* Verify that the correct number of arguments are being passed *)
-  do If (FunctionType.isVarArg FTy)
+  (* Verify that the correct number of arguments are being passed 
+     not supporing variant arguments *)
+  (*
+  do 
+     If (FunctionType.isVarArg FTy)
      then 
      (* Called function requires less parameters. *)
      do numParams <- (FunctionType.getNumParams FTy);
@@ -368,6 +381,9 @@ Definition verifyCallSite (intrinsic_funs5:intrinsic_funs)
      do numParams <- (FunctionType.getNumParams FTy);     
         Assert(CallSite.arg_size Call =n= numParams)   
      endif;
+  *)
+  do numParams <- (FunctionType.getNumParams FTy);     
+  do Assert(CallSite.arg_size Call =n= numParams);
 
   (* Verify that all arguments to the call match the function type... *)
   do numParams <- (FunctionType.getNumParams FTy);
@@ -528,9 +544,11 @@ Inductive wf_insn : intrinsic_funs -> system -> module_info -> fdef_info -> bloc
  | wf_insn_br_uncond : forall (intrinsic_funs5:intrinsic_funs) (system5:system) (block5:block) (l5:l) (module_info5:module_info) (fdef5:fdef) (dt5:dt),
      visitTerminatorInst intrinsic_funs5 system5 module_info5   ( fdef5 ,  dt5 )   block5 (insn_br_uncond l5) ->
      wf_insn intrinsic_funs5 system5   module_info5   ( fdef5 ,  dt5 ) block5 (insn_br_uncond l5)
+(*
  | wf_insn_invoke : forall (intrinsic_funs5:intrinsic_funs) (system5:system) (block5:block) (id_5:id) (typ0:typ) (id0:id) (list_param5:list_param) (l1 l2:l) (module_info5:module_info) (fdef5:fdef) (dt5:dt),
      visitInvokeInst intrinsic_funs5 system5 module_info5   ( fdef5 ,  dt5 )   block5 (insn_invoke id_5 typ0 id0 list_param5 l1 l2) ->
      wf_insn intrinsic_funs5 system5   module_info5   ( fdef5 ,  dt5 ) block5 (insn_invoke id_5 typ0 id0 list_param5 l1 l2)
+*)
  | wf_insn_call : forall (intrinsic_funs5:intrinsic_funs) (system5:system) (block5:block) (id_5:id) (typ0:typ) (id0:id) (list_param5:list_param) (module_info5:module_info) (fdef5:fdef) (dt5:dt),
      visitCallInst intrinsic_funs5 system5 module_info5   ( fdef5 ,  dt5 )   block5 (insn_call id_5 typ0 id0 list_param5) ->
      wf_insn intrinsic_funs5 system5   module_info5   ( fdef5 ,  dt5 ) block5 (insn_call id_5 typ0 id0 list_param5)
@@ -561,14 +579,17 @@ Inductive verifyBasicBlock : intrinsic_funs -> system -> module_info -> fdef_inf
 
      wf_list_insn intrinsic_funs5 system5 module_info5 fdef_info5 (block_intro l5 list_insn5) list_insn5 ->
 
+    (* Ensure that the PHI nodes are all grouped together at the top of the block.
+       This can be tested by checking whether the instruction before this is
+       either nonexistent (because this is begin()) or is a PHI node.  If not,
+       then there is some other instruction before a PHI.
+       LLVM checks this only in visitPHINode, we pull it up to block checking. 
+       It is easier than the one in LLVM::visitPHINode.
+     *)
+     blockStartsWithPhiNode (block_intro l5 list_insn5) ->
+     
      (* Ensure that basic blocks have terminators! *)
-     insnsChecksTerminatorInsn list_insn5 ->
-
-     (* Ensure that the PHI nodes are all grouped together at the top of the block. *)
-     (* LLVM checks this only in visitPHINode, we pull it up to block checking. 
-        But the checking in visitPHINode is still retained.
-        *)
-     insnsStartsWithPhiNode list_insn5 ->   
+     blockChecksTerminatorInsn (block_intro l5 list_insn5) ->
 
      (* We moved some assertions to visitPhiNode *)
 
@@ -628,7 +649,7 @@ Definition visitFunctionDef (intrinsic_funs5:intrinsic_funs)
      Entry block to function must not have predecessors! *)
   do Entry <- getEntryOfFdef F;
   do preds <- ret (predOfBlock Entry usedef_block5);
-     Assert (length preds > 0)
+     Assert (length preds = 0)
   }}.
 
 (* visitFunctionDec - Verify that a function dec is ok. *)

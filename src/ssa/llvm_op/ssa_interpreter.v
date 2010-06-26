@@ -1,8 +1,6 @@
 Require Import ssa_lib.
 Require Import List.
 Require Import Arith.
-Require Import vmcore.
-Require Import reflect.
 
 Inductive GenericValue : Set := 
 | GenericValue_int : forall (n:nat), GenericValue
@@ -61,7 +59,7 @@ Inductive wfContexts : State -> Prop :=
 
 Definition getCallerReturnID (Caller:insn) : option id :=
 match Caller with
-| insn_invoke i _ _ _ _ _ => Some i
+(* | insn_invoke i _ _ _ _ _ => Some i *)
 | insn_call i _ _ _ => Some i
 | _ => None
 end.
@@ -302,6 +300,7 @@ Inductive visitInst : State -> State -> trace -> Prop :=
       )::ECS')
     )
     trace_nil 
+(*
 | visitReturn_invoke : forall CurSystem CurModule CurFunction CurBB RetTy Result Values VarArgs Caller id
                               CurFunction' CurBB' CurInst' Values' VarArgs' Caller' ECS' 
                               Dest CurBB'' CurInst'' Values'' Values0'' gvalue,   
@@ -355,6 +354,7 @@ Inductive visitInst : State -> State -> trace -> Prop :=
       )::ECS')
     )
     trace_nil 
+*)
 | visitReturnVoid_finished : forall CurSystem CurModule CurFunction CurBB Values VarArgs Caller ExitValue,
   (* Finished main.  Put result into exit code... *)
   ExitValue = (Some (GenericValue_untyped 0)) ->
@@ -424,6 +424,7 @@ Inductive visitInst : State -> State -> trace -> Prop :=
       )::ECS')
     )
     trace_nil 
+(*
 | visitReturnVoid_invoke : forall CurSystem CurModule CurFunction CurBB Values VarArgs Caller ExitValue
                               CurFunction' CurBB' CurInst' Values' VarArgs' Caller' ECS' 
                               Dest CurBB'' CurInst'' Values'',   
@@ -472,6 +473,7 @@ Inductive visitInst : State -> State -> trace -> Prop :=
       )::ECS')
     )
     trace_nil 
+*)
 | visitBranch : forall CurSystem CurModule CurFunction CurBB Values VarArgs Caller ExitValue t Cond l1 l2 c
                               CurBB' CurInst' Values' Dest ECS,   
   getOperandValue Cond Values = Some (GenericValue_int c) ->
@@ -541,6 +543,7 @@ Inductive visitInst : State -> State -> trace -> Prop :=
       )::ECS)
     )
     trace_nil 
+(*
 | visitInvokeInsnt : forall CurSystem CurModule CurFunction CurBB Values VarArgs Caller ExitValue rid t fid lp l1 l2
                             OpVarArgs' VarArgs' CurFunction' CurBB' CurInst' ECS rt id la lb Values',
   params2OpGenericValues lp Values = OpVarArgs' ->   
@@ -585,6 +588,7 @@ Inductive visitInst : State -> State -> trace -> Prop :=
       )::ECS)
     )
     trace_nil 
+*)
 | visitCallInsnt : forall CurSystem CurModule CurFunction CurBB Values VarArgs Caller ExitValue rid t fid lp
                             OpVarArgs' VarArgs' CurFunction' CurBB' CurInst' ECS rt id la lb Values',
   params2OpGenericValues lp Values = OpVarArgs' ->   

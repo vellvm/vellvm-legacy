@@ -139,7 +139,7 @@ Require Import Omega.
   | insn_br t v l1 l2 => None
   | insn_br_uncond l => None
   (* | insn_switch t v l _ => None *)
-  | insn_invoke id typ id0 paraml l1 l2 => Some id
+  (* | insn_invoke id typ id0 paraml l1 l2 => Some id *)
   | insn_call id typ id0 paraml => Some id
   | insn_unreachable => None
   | insn_add id typ v1 v2 => Some id
@@ -212,7 +212,7 @@ Require Import Omega.
   | insn_br t v l1 l2 => genInsnUseDef_value v i b f m        
   | insn_br_uncond l => fun _ => nil
   (* | insn_switch t v l _ => genInsnUseDef_value v i b f m *)
-  | insn_invoke id typ id0 paraml l1 l2 => (genInsnUseDef_id id0 i b f m)+++(genInsnUseDef_params paraml i b f m)
+  (* | insn_invoke id typ id0 paraml l1 l2 => (genInsnUseDef_id id0 i b f m)+++(genInsnUseDef_params paraml i b f m) *)
   | insn_call id typ id0 paraml => fun _ => nil
   | insn_unreachable => fun _ => nil
   | insn_add id typ v1 v2 => (genInsnUseDef_value v1 i b f m)+++(genInsnUseDef_value v2 i b f m)
@@ -321,7 +321,7 @@ Require Import Omega.
   | insn_br t v l1 l2 => genBlockUseDef_label l1 i b f m ++++ genBlockUseDef_label l2 i b f m       
   | insn_br_uncond l => genBlockUseDef_label l i b f m
   (* | insn_switch t v l ls => genBlockUseDef_label l i b f m ++++ genBlockUseDef_switch_cases ls i b f m *)
-  | insn_invoke id typ id0 paraml l1 l2 => (genBlockUseDef_label l1 i b f m)++++(genBlockUseDef_label l2 i b f m)
+  (* | insn_invoke id typ id0 paraml l1 l2 => (genBlockUseDef_label l1 i b f m)++++(genBlockUseDef_label l2 i b f m) *)
   | insn_call id typ id0 paraml => fun _ => nil
   | insn_unreachable => fun _ => nil 
   | insn_add id typ v1 v2 => fun _ => nil 
@@ -412,7 +412,7 @@ Require Import Omega.
   | insn_br t v l1 l2 => lset_add l1 (lset_add l2 lempty_set)
   | insn_br_uncond l0 => lset_add l0 lempty_set 
   (* | insn_switch t v l0 cls => lset_add l0 (getLabelsFromSwitchCases cls) *)
-  | insn_invoke id typ id0 ps l1 l2 => lset_add l1 (lset_add l2 lempty_set)
+  (* | insn_invoke id typ id0 ps l1 l2 => lset_add l1 (lset_add l2 lempty_set) *)
   | _ => empty_set l
   end.
 
@@ -632,11 +632,13 @@ match t with
 | _ => false
 end.
 
+(*
 Definition isInvokeInsnB (i:insn) : bool :=
 match i with
 | insn_invoke _ _ _ _ _ _ => true
 | _ => false
 end.
+*)
 
 Definition isReturnInsnB (i:insn) : bool :=
 match i with
@@ -703,7 +705,7 @@ match i with
 | insn_br _ _ _ _ => true
 | insn_br_uncond _ => true
 (* | insn_switch _ _ _ => true *)
-| insn_invoke _ _ _ _ _ _ => true
+(* | insn_invoke _ _ _ _ _ _ => true *)
 | insn_call _ _ _ _ => true
 | insn_unreachable => true
 | _ => false
@@ -737,7 +739,7 @@ match i with
 | insn_br typ _ _ _ => None 
 | insn_br_uncond _ => None
 (* | insn_switch typ _ _ _ => None *)
-| insn_invoke _ typ _ _ _ _ => Some typ
+(* | insn_invoke _ typ _ _ _ _ => Some typ *)
 | insn_call _ typ _ _ => Some typ
 | insn_unreachable => None
 | insn_add _ typ _ _ => Some typ
@@ -804,7 +806,7 @@ match i with
 | insn_br _ v _ _ => getValueIDsC v
 | insn_br_uncond _ => nil
 (* | insn_switch _ value _ _ => getValueIDs value *)
-| insn_invoke _ _ _ lp _ _ => getParamsOperandC lp
+(* | insn_invoke _ _ _ lp _ _ => getParamsOperandC lp *)
 | insn_call _ _ _ lp => getParamsOperandC lp
 | insn_unreachable => nil
 | insn_add _ _ v1 v2 => getValueIDsC v1 ++ getValueIDsC v2
@@ -841,7 +843,7 @@ match i with
 | insn_br _ _ l1 l2 => l1::l2::nil
 | insn_br_uncond l => l::nil
 (* | insn_switch _ _ l ls => l::list_prj2 _ _ ls *)
-| insn_invoke _ _ _ _ l1 l2 => l1::l2::nil
+(* | insn_invoke _ _ _ _ l1 l2 => l1::l2::nil *)
 | insn_call _ _ _ _ => nil
 | insn_unreachable => nil
 | insn_add _ _ _ _ => nil
@@ -948,6 +950,7 @@ match fd with
 | fdef_intro fh _ => getFheaderIDC fh
 end.
 
+(*
 Definition getNormalDestFromInvokeInsnC (i:insn) : option l :=
 match i with
 | insn_invoke _ _ _ _ l1 _ => Some l1
@@ -959,6 +962,7 @@ match i with
 | insn_invoke _ _ _ _ _ l2 => Some l2
 | _ => None
 end.
+*)
 
 Fixpoint getLabelViaIDFromList (ls:list (id*l)) (branch:id) : option l :=
 match ls with
@@ -1479,6 +1483,7 @@ match (i, i') with
   beq_nat l1 l1' && beq_nat l2 l2'
 | (insn_br_uncond l, insn_br_uncond l') =>
   beq_nat l l'
+(*
 | (insn_invoke id typ id0 paraml l1 l2,
    insn_invoke id' typ' id0' paraml' l1' l2') =>
   beq_nat id id' &&
@@ -1487,6 +1492,7 @@ match (i, i') with
   list_param_EqB paraml paraml' &&
   beq_nat l1 l1' &&
   beq_nat l2 l2'
+*)
 | (insn_call id typ id0 paraml,
    insn_call id' typ' id0' paraml') =>
   beq_nat id id' &&
@@ -1741,6 +1747,467 @@ Notation "t =t= t' " := (typEqB t t') (at level 50).
 Notation "n =n= n'" := (beq_nat n n') (at level 50).
 Notation "b =b= b'" := (blockEqB b b') (at level 50).
 Notation "i =i= i'" := (insnEqB i i') (at level 50).
+
+(**********************************)
+(* Check to make sure that if there is more than one entry for a
+   particular basic block in this PHI node, that the incoming values 
+   are all identical. *)
+Fixpoint lookupIdsViaLabelFromIdls (idls:list (id*l)) (l0:l) : list id :=
+match idls with
+| nil => nil
+| (id1,l1)::idls' =>
+  if (beq_nat l0 l1) 
+  then set_add eq_nat_dec id1 (lookupIdsViaLabelFromIdls idls' l0)
+  else (lookupIdsViaLabelFromIdls idls' l0)
+end.
+
+Fixpoint _checkIdenticalIncomingValues (idls idls0:list (id*l)) : Prop :=
+match idls with
+| nil => True
+| (id, l)::idls' => 
+  (length (lookupIdsViaLabelFromIdls idls0 l) <= 1) /\
+  (_checkIdenticalIncomingValues idls' idls0)
+end.
+
+Definition checkIdenticalIncomingValues (PN:insn) : Prop :=
+match PN with
+| insn_phi _ _ idls => _checkIdenticalIncomingValues idls idls
+| _ => False
+end.
+
+(**********************************)
+(* Instruction Signature *)
+
+Module Type SigValue.
+
+ Parameter getNumOperands : insn -> nat.
+
+End SigValue.
+
+Module Type SigUser. 
+ Include Type SigValue.
+
+End SigUser.
+
+Module Type SigConstant.
+ Include Type SigValue.
+
+End SigConstant.
+
+Module Type SigGlobalValue.
+ Include Type SigConstant.
+
+End SigGlobalValue.
+
+Module Type SigFunction.
+ Include Type SigGlobalValue.
+
+ Parameter getDefReturnType : fdef -> typ.
+ Parameter getDefFunctionType : fdef -> typ.
+ Parameter def_arg_size : fdef -> nat.
+ 
+ Parameter getDecReturnType : fdec -> typ.
+ Parameter getDecFunctionType : fdec -> typ.
+ Parameter dec_arg_size : fdec -> nat.
+
+End SigFunction.
+
+Module Type SigInstruction.
+ Include Type SigUser.
+
+(* Parameter isInvokeInst : insn -> bool. *)
+ Parameter isCallInst : insn -> bool.
+
+End SigInstruction.
+
+Module Type SigReturnInst.
+ Include Type SigInstruction.
+
+ Parameter hasReturnType : insn -> bool.
+ Parameter getReturnType : insn -> option typ.
+
+End SigReturnInst.
+
+Module Type SigCallSite.
+ Parameter getCalledFunction : insn -> system -> option fdef.
+ Parameter getFdefTyp : fdef -> typ.
+ Parameter arg_size : fdef -> nat.
+ Parameter getArgument : fdef -> nat -> option arg.
+ Parameter getArgumentType : fdef -> nat -> option typ.
+
+End SigCallSite.
+
+Module Type SigCallInst.
+ Include Type SigInstruction.
+
+End SigCallInst.
+
+(*
+Module Type SigInvokeInst.
+ Include Type SigInstruction.
+
+ Parameter getNormalDest : system -> insn -> option block.
+
+End SigInvokeInst.
+*)
+
+Module Type SigBinaryOperator.
+ Include Type SigInstruction.
+
+ Parameter getFirstOperandType : system -> insn -> option typ.
+ Parameter getSecondOperandType : system -> insn -> option typ.
+ Parameter getResultType : insn -> option typ.
+
+End SigBinaryOperator.
+
+Module Type SigPHINode.
+ Include Type SigInstruction.
+
+ Parameter getNumIncomingValues : insn -> option nat.
+ Parameter getIncomingValueType : system  -> insn -> i -> option typ.
+End SigPHINode.
+
+(* Type Signature *)
+
+Module Type SigType.
+ Parameter isIntOrIntVector : typ -> bool.
+ Parameter isInteger : typ -> bool.
+End SigType.
+
+Module Type SigDerivedType.
+ Include Type SigType.
+End SigDerivedType.
+
+Module Type SigFunctionType.
+ Include Type SigDerivedType.
+
+ Parameter getNumParams : typ -> option nat.
+ Parameter isVarArg : typ -> bool.
+ Parameter getParamType : typ -> nat -> option typ.
+End SigFunctionType.
+
+Module Type SigCompositeType.
+ Include Type SigDerivedType.
+End SigCompositeType.
+
+Module Type SigSequentialType.
+ Include Type SigCompositeType.
+
+ Parameter hasElementType : typ -> bool.
+ Parameter getElementType : typ -> option typ.
+
+End SigSequentialType.
+
+Module Type SigArrayType.
+ Include Type SigSequentialType.
+
+ Parameter getNumElements : typ -> nat.
+
+End SigArrayType.
+
+(* Instruction Instantiation *)
+
+Module Value <: SigValue.
+
+ Definition getNumOperands (i:insn) : nat := 
+   length (getInsnOperandsC i).  
+
+End Value.
+
+Module User <: SigUser. Include Value.
+
+End User.
+
+Module Constant <: SigConstant.
+ Include Value.
+
+End Constant.
+
+Module GlobalValue <: SigGlobalValue.
+ Include Constant.
+
+End GlobalValue.
+
+Module Function <: SigFunction.
+ Include GlobalValue.
+
+ Definition getDefReturnType (fd:fdef) : typ :=
+ match fd with
+ | fdef_intro (fheader_intro t _ _) _ => t
+ end.
+
+ Definition getDefFunctionType (fd:fdef) : typ := getFdefTypC fd.
+
+ Definition def_arg_size (fd:fdef) : nat :=
+ match fd with
+ | (fdef_intro (fheader_intro _ _ la) _) => length la
+ end.
+
+ Definition getDecReturnType (fd:fdec) : typ :=
+ match fd with
+ | fdec_intro (fheader_intro t _ _) => t
+ end.
+
+ Definition getDecFunctionType (fd:fdec) : typ := getFdecTypC fd.
+
+ Definition dec_arg_size (fd:fdec) : nat :=
+ match fd with
+ | (fdec_intro (fheader_intro _ _ la)) => length la
+ end.
+
+End Function.
+
+Module Instruction <: SigInstruction.
+ Include User.
+
+(* Definition isInvokeInst (i:insn) : bool := isInvokeInsnB i. *)
+ Definition isCallInst (i:insn) : bool := isCallInsnB i.
+
+End Instruction.
+
+Module ReturnInst <: SigReturnInst.
+ Include Instruction.
+
+ Definition hasReturnType (i:insn) : bool :=
+ match i with
+ | insn_return t v => true
+ | _ => false
+ end.
+
+ Definition getReturnType (i:insn) : option typ :=
+ match i with
+ | insn_return t v => Some t
+ | _ => None
+ end.
+
+End ReturnInst.
+
+Module CallSite <: SigCallSite.
+
+ Definition getCalledFunction (i:insn) (s:system) : option fdef :=
+ match i with 
+ (* | insn_invoke _ _ fid _ _ _ => lookupFdefViaIDFromSystemC s fid *)
+ | insn_call _ _ fid _ => lookupFdefViaIDFromSystemC s fid
+ | _ => None
+ end.
+
+ Definition getFdefTyp (fd:fdef) : typ := getFdefTypC fd.
+
+ Definition arg_size (fd:fdef) : nat :=
+ match fd with
+ | (fdef_intro (fheader_intro _ _ la) _) => length la
+ end.
+
+ Definition getArgument (fd:fdef) (i:nat) : option arg :=
+ match fd with
+ | (fdef_intro (fheader_intro _ _ la) _) => 
+    match (nth_error la i) with
+    | Some a => Some a
+    | None => None
+    end
+ end. 
+
+ Definition getArgumentType (fd:fdef) (i:nat) : option typ :=
+ match (getArgument fd i) with
+ | Some (t, _) => Some t
+ | None => None
+ end.
+
+End CallSite.
+
+Module CallInst <: SigCallInst.
+ Include Instruction.
+
+End CallInst.
+
+(*
+Module InvokeInst <: SigInvokeInst.
+ Include Instruction.
+
+ Definition getNormalDest (s:system) (i:insn) : option block :=
+ match (getNormalDestFromInvokeInsnC i) with
+ | None => None
+ | Some l => lookupBlockViaLabelFromSystem s l
+ end.
+
+End InvokeInst.
+*)
+
+Module BinaryOperator <: SigBinaryOperator.
+ Include Instruction.
+
+ Definition getFirstOperandType (s:system) (i:insn) : option typ := 
+ match i with
+ | insn_add _ _ v1 _ => 
+   match v1 with
+   | value_id id1 => lookupTypViaIDFromSystemC s id1
+   | _ => Some (typ_int 0) (* FIXME: how to set the type of const*)
+   end
+ | _ => None
+ end.
+
+ Definition getSecondOperandType (s:system) (i:insn) : option typ := 
+ match i with
+ | insn_add _ _ _ v2 => 
+   match v2 with
+   | value_id id2 => lookupTypViaIDFromSystemC s id2
+   | _ => Some (typ_int 0) (* FIXME: how to set the type of const*)
+   end
+ | _ => None
+ end.
+
+ Definition getResultType (i:insn) : option typ := getInsnTypC i.
+
+End BinaryOperator.
+
+Module PHINode <: SigPHINode.
+ Include Instruction.
+
+ Definition getNumIncomingValues (i:insn) : option nat :=
+ match i with
+ | (insn_phi _ _ ln) => Some (length ln)
+ | _ => None
+ end.
+
+ Definition getIncomingValueType (s:system) (i:insn) (n:nat) : option typ :=
+ match i with
+ | (insn_phi _ _ ln) => 
+    match (nth_error ln n) with
+    | Some (id, _) => lookupTypViaIDFromSystemC s id
+    | None => None
+    end
+ | _ => None
+ end.
+
+End PHINode.
+
+(* Type Instantiation *)
+
+Module Typ <: SigType.
+ Definition isIntOrIntVector (t:typ) : bool :=
+ match t with
+ | typ_int _ => true
+ | _ => false
+ end.
+
+ Definition isInteger (t:typ) : bool :=
+ match t with
+ | typ_int _ => true
+ | _ => false
+ end.
+
+End Typ.
+
+Module DerivedType <: SigDerivedType.
+ Include Typ.
+End DerivedType.
+
+Module FunctionType <: SigFunctionType.
+ Include DerivedType.
+
+ Definition getNumParams (t:typ) : option nat :=
+ match t with
+ | (typ_function _ lt) => Some (length lt)
+ | _ => None
+ end.
+
+ Definition isVarArg (t:typ) : bool := false.
+
+ Definition getParamType (t:typ) (i:nat) : option typ :=
+ match t with
+ | (typ_function _ lt) => 
+    match (nth_error lt i) with
+    | Some t => Some t
+    | None => None
+    end
+ | _ => None
+ end.
+
+End FunctionType.
+
+Module CompositeType <: SigCompositeType.
+ Include DerivedType.
+End CompositeType.
+
+Module SequentialType <: SigSequentialType.
+ Include CompositeType.
+
+ Definition hasElementType (t:typ) : bool :=
+ match t with
+ | typ_array _ t' => true
+ | _ => false
+ end.
+
+ Definition getElementType (t:typ) : option typ :=
+ match t with
+ | typ_array _ t' => Some t'
+ | _ => None
+ end.
+
+End SequentialType.
+
+Module ArrayType <: SigArrayType.
+ Include SequentialType.
+
+ Definition getNumElements (t:typ) : nat :=
+ match t with
+ | typ_array N _ => N
+ | _ => 0
+ end.
+
+End ArrayType.
+
+(**********************************)
+(* reflect *)
+
+Require Import Decidable.
+
+Section Decidable.
+
+Lemma dec_blockDominates : forall (d:dt) (b1 b2: block),
+  decidable (blockDominates d b1 b2).
+Proof.
+  intros d b1 b2.
+  unfold decidable. unfold blockDominates.
+  destruct b1 as [l1 insns1].
+  destruct b2 as [l2 insns2].
+  remember (lset_mem l2 (d l1)) as c.
+  destruct c; auto.
+Qed.
+
+End Decidable.
+
+Coercion is_true (b:bool) := b = true.
+
+Inductive reflect (P:Prop) : bool -> Set :=
+| ReflectT : P -> reflect P true
+| ReflectF : ~P -> reflect P false
+.
+
+Section Reflect.
+
+Lemma reflect_blockDominates : forall d b1 b2,
+  reflect (blockDominates d b1 b2) (blockDominatesB d b1 b2).
+Proof.
+  intros d b1 b2.
+  unfold blockDominates. unfold blockDominatesB.
+  destruct b1 as [l1 insns1].
+  destruct b2 as [l2 insns2].
+  remember (lset_mem l2 (d l1)) as c.
+  destruct c; auto.
+    apply ReflectT; auto.
+    apply ReflectF; auto.
+Qed.
+
+Require Import monad.
+
+Definition ifP d b1 b2 (X:Type) (t f : monad X) :=
+match (reflect_blockDominates d b1 b2) with
+| ReflectT _ => t
+| ReflectF _ => f
+end.
+
+End Reflect.
 
 (*ENDCOPY*)
 

@@ -66,73 +66,6 @@ Jwf_operand_insn :: '' ::=
 
       getInsnID insn' = id'
       lookupBlockViaIDFromFdef fdef id' = block'
-<<
-      if (isInvokeInsn insn') 
-      then 
-        getNormalDestFromInvokeInsn insn' = l1 ;
-        getUnwindDestFromInvokeInsn insn' = l2 ;
-        not l1 == l2
-      else 
-        True
-      endif  
->>
-%        // Check that a definition dominates all of its uses.
-% 1352       if (InvokeInst *II = dyn_cast<InvokeInst>(Op)) {
-% 1353         // Invoke results are only usable in the normal destination, not in the
-% 1354         // exceptional destination.
-% 1355         BasicBlock *NormalDest = II->getNormalDest();
-% 1356
-% 1357         Assert2(NormalDest != II->getUnwindDest(),
-% 1358                 "No uses of invoke possible due to dominance structure!",
-% 1359                 Op, &I);
-% 1360
-% 1361         // PHI nodes differ from other nodes because they actually "use" the
-% 1362         // value in the predecessor basic blocks they correspond to.
-% 1363         BasicBlock *UseBlock = BB;
-% 1364         if (isa<PHINode>(I))
-% 1365           UseBlock = cast<BasicBlock>(I.getOperand(i+1));
-% 1366
-% 1367         if (isa<PHINode>(I) && UseBlock == OpBlock) {
-% 1368           // Special case of a phi node in the normal destination or the unwind
-% 1369           // destination.
-% 1370           Assert2(BB == NormalDest || !DT->isReachableFromEntry(UseBlock),
-% 1371                   "Invoke result not available in the unwind destination!",
-% 1372                   Op, &I);
-% 1373         } else {
-% 1374           Assert2(DT->dominates(NormalDest, UseBlock) ||
-% 1375                   !DT->isReachableFromEntry(UseBlock),
-% 1376                   "Invoke result does not dominate all uses!", Op, &I);
-% 1377
-% 1378           // If the normal successor of an invoke instruction has multiple
-% 1379           // predecessors, then the normal edge from the invoke is critical,
-% 1380           // so the invoke value can only be live if the destination block
-% 1381           // dominates all of it's predecessors (other than the invoke).
-% 1382           if (!NormalDest->getSinglePredecessor() &&
-% 1383               DT->isReachableFromEntry(UseBlock))
-% 1384             // If it is used by something non-phi, then the other case is that
-% 1385             // 'NormalDest' dominates all of its predecessors other than the
-% 1386             // invoke.  In this case, the invoke value can still be used.
-% 1387             for (pred_iterator PI = pred_begin(NormalDest),
-% 1388                  E = pred_end(NormalDest); PI != E; ++PI)
-% 1389               if (*PI != II->getParent() && !DT->dominates(NormalDest, *PI) &&
-% 1390                   DT->isReachableFromEntry(*PI)) {
-% 1391                 CheckFailed("Invoke result does not dominate all uses!", Op,&I);
-% 1392                 return;
-% 1393               }
-% 1394         }
-      % PHI nodes are more difficult than other nodes because they actually
-      % "use" the value in the predecessor basic blocks they correspond to.
-<<
-      (isPhiNode insn) implies 
-        (getLabelViaIDPhiNode insn id' = l'' /\ 
-         lookupBlockViaLabelFromSystem system l'' = block'' /\ 
-         (
-          (blockDominates dt block' block'') \/ 
-          (not (isReachableFromEntry (fdef, dt) block )) 
-         ) 
-        )
->>
-      % if insn is not PhiNode, make sure that the definition comes before the use
       (notT isPhiNode insn) implies (insnDominates insn' insn \/ (not (isReachableFromEntry (fdef, dt) block)))
       ------------------------------------------------------------------------------------------------------------- :: wf_operand_insn_intro
       intrinsic_funs , system , module_info , (fdef, dt) , block , insn |- insn' 
@@ -202,7 +135,8 @@ JvisitInstruction :: '' ::=
       typ == void \/ isFirstClassTyp typ
       %%%% Check that the instruction doesn't produce metadata or metadata*. Calls
       %%%% all already checked against the callee type.
-      (not typ == metadata) \/ isInvokeInsn insn \/ isCallInsn insn 
+      % (not typ == metadata) \/ isInvokeInsn insn \/ isCallInsn insn 
+      (not typ == metadata) \/ isCallInsn insn 
       %%%% Instructions may not produce pointer to metadata.
       (isPointerTyp typ) implies (getPointerEltTyp typ = typ' /\ (not typ' == metadata)) 
       %%%% Check that all uses of the instruction, if they are instructions
@@ -244,9 +178,9 @@ Jwf_insn :: '' ::=
       -------------------------------------------------------------------------------------- :: wf_insn_br_uncond
       intrinsic_funs , system , (module, usedef_insn, usedef_block), fdef_info , block |- br l		
 
-      intrinsic_funs , system , module_info , (fdef, dt) , block |-i id = invoke typ0 id0 list_param to l1 unwind l2
-      -------------------------------------------------------------------------------------- :: wf_insn_invoke
-      intrinsic_funs , system , (module, usedef_insn, usedef_block), fdef_info , block |- id = invoke typ0 id0 list_param to l1 unwind l2
+      % intrinsic_funs , system , module_info , (fdef, dt) , block |-i id = invoke typ0 id0 list_param to l1 unwind l2
+      % -------------------------------------------------------------------------------------- :: wf_insn_invoke
+      % intrinsic_funs , system , (module, usedef_insn, usedef_block), fdef_info , block |- id = invoke typ0 id0 list_param to l1 unwind l2
 
       intrinsic_funs , system , module_info , (fdef, dt) , block |-i id = call typ0 id0 list_param
       -------------------------------------------------------------------------------------- :: wf_insn_call
@@ -391,36 +325,3 @@ Jwf_system :: '' ::=
       intrinsic_funs |- list_module 
      
 
-% insn :: 'insn_'					    	::=			{{ com insnruction }}
-%   | ret typ value             			    	::   :: return      	{{ com return }}
-%   | ret void                   			    	::   :: return_void  	{{ com return void }}
-%   | br value , ll1 , ll2				::   :: br              {{ com br }}        
-%   | br ll        	    	  			::   :: br_uncond       {{ com unconditional br }}        
-%   | switch value , ll </ [ constj , llj ] // j />	::   :: switch		{{ com switch }}
-%   | id = invoke t id0 paraml to ll1 unwind ll2   	::   :: invoke		{{ com invoke }} 
-%   | unreachable	     	   	     	 		::   :: unreachable	{{ com unreachable }}
-%   | id = add typ value1 value2				::   :: add		{{ com add }}
-%   | id = fadd typ value1 value2				::   :: fadd		{{ com fadd }}
-%   | id = udiv typ value1 value2				::   :: udiv		{{ com udiv }}
-%   | id = fdiv typ value1 value2				::   :: fdiv		{{ com fdiv }}
-%   | id = or typ value1 value2				::   :: or 		{{ com or }}
-%   | id = and typ value1 value2				::   :: and 		{{ com and }}
-%   | id = extractelement < N0 * typ0 > id0 , const1	::   :: extractelement  {{ com extractelement }}
-%   | id = insertelement < N0 * typ0 > id0 , typ1 value1 , const2	    ::   :: insertelement       {{ com insertelement }}
-%   | id = extractvalue { </ typj // j /> } id0 , const1              ::   :: extractvalue	{{ com extractvalue }}
-%   | id = insertvalue { </ typj // j /> } id0 , typ1 value1 , const2 ::   :: insertvalue		{{ com insertvalue }}
-%   | id = alloca typ N  	     	       	     	       	::   :: alloca		{{ com alloca }}
-%   | id = load typ1 id1					::   :: load		{{ com load }}
-%   | store typ1 value1 , typ2 id2			::   :: store		{{ com store }}
-%   | id = trunc typ1 value1 to typ2			::   :: trunc		{{ com trunc }}
-%   | id = fptrunc typ1 value1 to typ2			::   :: fptrunc		{{ com fptrunc }}
-%   | id = fptoui typ1 value1 to typ2			::   :: fptoui		{{ com fptoui }}
-%   | id = fptosi typ1 value1 to typ2			::   :: fptosi		{{ com fptosi }}
-%   | id = uitofp typ1 value1 to typ2			::   :: uitofp		{{ com uitofp }}
-%   | id = sitofp typ1 value1 to typ2			::   :: sitofp		{{ com sitofp }}
-%   | id = ptrtoint typ1 value1 to typ2			::   :: ptrtoint	{{ com ptrtoint }}
-%   | id = inttoptr typ1 value1 to typ2			::   :: inttoptr	{{ com inttoptr }}
-%   | id = bitcast typ1 value1 to typ2			::   :: bitcase		{{ com bitcast }}
-%   | id = icmp cond typ value1 , value2			::   :: icmp		{{ com icmp }}
-%   | id = fcmp cond typ value1 , value2			::   :: fcmp		{{ com fcmp }}
-%   | id = phi typ </ [ idj , llj ] // j />		::   :: phi  	    	{{ com phi }}

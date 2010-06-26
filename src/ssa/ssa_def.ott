@@ -33,6 +33,10 @@ indexvar i, j, n ::= {{ com index }}
  
 grammar
 
+opt_INT {{ tex \mathit{opt_{INT} } }} :: 'opt_INT_'	::=			{{ com option INT }} {{ coq option INT }}
+  |  none 						:: M :: none		{{ com none }} {{ coq None }}
+  |  INT						:: M :: some  		{{ com some }} {{ coq (Some [[INT]]) }}
+
 opt_l {{ tex \mathit{opt_{l} } }} :: 'opt_l_'		::=			{{ com option l }} {{ coq option l }}
   |  none 						:: M :: none		{{ com none }} {{ coq None }}
   |  l							:: M :: some  		{{ com some }} {{ coq (Some [[l]]) }}
@@ -101,10 +105,15 @@ list_arg {{ tex \mathit{\overline{arg} } }} :: 'list_arg_'	::=  		{{ com argumen
   | list_arg ; list_arg'				::   :: append		{{ coq ([[list_arg]]++[[list_arg']]) }}
   | ( list_arg )					:: S :: paren           {{ coq [[ list_arg ]] }}
 
+param :: 'param_'  					::=  			{{ com argument }}
+       										{{ coq (prod typ value) }}
+  | typ value						::   :: def		{{ coq ([[typ]],[[value]]) }}
+  | ( param )						:: S :: paren		{{ coq [[ param ]] }} 			
+
 list_param {{ tex \mathit{\overline{param} } }} :: 'list_param_'::=		{{ com parameter list }}
        	      			       	       					{{ coq (list (typ*value)) }}
   | []  						::   :: nil		{{ coq nil }}
-  | list_param , typ value                              ::   :: cons		{{ coq (([[typ]],[[value]])::[[list_param]]) }}
+  | list_param , param           			::   :: cons		{{ coq (([[param]])::[[list_param]]) }}
   | list_param ; list_param'				::   :: append		{{ coq ([[list_param]]++[[list_param']]) }}
   | ( list_param )					:: S :: paren           {{ coq [[ list_param ]] }}
 
@@ -134,7 +143,7 @@ insn :: 'insn_'					    	::=			{{ com insnruction }}
   | br typ value , l1 , l2				::   :: br              {{ com br }}        
   | br l        	    	  			::   :: br_uncond       {{ com unconditional br }}        
   %| switch typ value , l </ [ constj , lj ] // j />	::   :: switch		{{ com switch }}
-  | id = invoke typ0 id0 list_param to l1 unwind l2 	::   :: invoke		{{ com invoke }} 
+  %| id = invoke typ0 id0 list_param to l1 unwind l2 	::   :: invoke		{{ com invoke }} 
   | id = call typ0 id0 list_param	       	 	::   :: call		{{ com call }} 
   | unreachable	     	   	     	 		::   :: unreachable	{{ com unreachable }}
   | id = add typ value1 value2				::   :: add		{{ com add }}
@@ -332,6 +341,16 @@ formula :: 'formula_' ::=
   | formula \/ formula'         :: M :: or
                			{{ tex [[formula]] \vee [[formula']] }}
 	  			{{ coq [[formula]] \/ [[ formula' ]] }} 
+  |  [multiline] formula        :: M :: multiline
+                                {{ com allow \LaTeX{} output in multiple lines }}
+                                {{ coq [[formula]] }}
+                                {{ tex \begin{array}{l}[[formula]]\end{array} }}
+  |  [newline] formula          :: M :: formula_n
+                                {{ com add a newline to the \LaTeX{} output }}
+                                {{ coq [[formula]] }} {{ tex \\[[formula]] }}
+  |  [tab] formula              :: M :: formula_t
+                                {{ com add a tab to the \LaTeX{} output }}
+                                {{ coq [[formula]] }} {{ tex \qquad[[formula]] }}
   | if formula0 then formula1 else formula2 endif
        	       	    	    	:: M :: ifthenelse
 				{{ tex if [[formula0]] then [[formula1]] else [[formula2]] }}
@@ -339,18 +358,21 @@ formula :: 'formula_' ::=
   | formula ; formula'		:: M :: seq
     	      			{{ tex [[formula]] ; [[formula']] }}
 				{{ coq [[formula]] -> [[formula']] }}
-  | block1 == block2 		::   :: eqBlock
-				{{ tex [[block1]] == [[block2]] }}
+  | block1 = block2 		::   :: eqBlock
+				{{ tex [[block1]] = [[block2]] }}
 				{{ coq [[block1]] = [[block2]] }}
-  | INT1 == INT2 		::   :: eqINT
-				{{ tex [[INT1]] == [[INT2]] }}
+  | INT1 = INT2 		::   :: eqINT
+				{{ tex [[INT1]] = [[INT2]] }}
 				{{ coq [[INT1]] = [[INT2]] }}
-  | l1 == l2 			::   :: eqLabel
-				{{ tex [[l1]] == [[l2]] }}
+  | l1 = l2 			::   :: eqLabel
+				{{ tex [[l1]] = [[l2]] }}
 				{{ coq [[l1]] = [[l2]] }}
-  | id1 == id2 			::   :: eqID
-				{{ tex [[id1]] == [[id2]] }}
+  | id1 = id2			::   :: eqID
+				{{ tex [[id1]] = [[id2]] }}
 				{{ coq [[id1]] = [[id2]] }}
+  | ls1 == ls2                  ::   :: eqLabels
+				{{ tex [[ls1]] = [[ls2]] }}       
+                                {{ coq lset_eq [[ls1]] [[ls2]] }}
   | l notin ls			::   :: l_notin_ls
       	    			{{ tex [[l]] \not\in [[ls]] }}
 				{{ coq ( ~ set_In [[l]] [[ls]]) }}
@@ -381,13 +403,16 @@ formula :: 'formula_' ::=
   | arg in list_arg		::   :: arg_in_args
     	       			{{ tex [[arg]] \in [[list_arg]] }}
 				{{ coq In [[arg]] [[list_arg]] }}
-  | insn <-> insn'  		:: M :: insn_alias
+  | typ = typ'  		:: M :: typ_alias
+    	     			{{ com typ alias }} 
+				{{ coq [[typ]] = [[typ']] }}
+  | insn = insn'  		:: M :: insn_alias
     	     			{{ com insn alias }} 
 				{{ coq [[insn]] = [[insn']] }}
-  | module <-> module'          :: M :: module_alias
+  | module = module'          :: M :: module_alias
     	     			{{ com module alias }} 
 				{{ coq [[module]] = [[module']] }}
-  | system <-> system'          :: M :: system_alias
+  | system = system'          :: M :: system_alias
     	     			{{ com system alias }} 
 				{{ coq [[system]] = [[system']] }}
   | ids <-> </ idj // j /> 	:: M :: ids_alias
@@ -396,6 +421,9 @@ formula :: 'formula_' ::=
   | ls <-> </ lj // j /> 	:: M :: ls_alias
     	      	   	        {{ com ls alias }}
 				{{ coq [[ls]] = [[ </ lj // j /> ]] }}
+  | list_arg <-> </ argj // j /> :: M :: args_alias
+    	      	   	        {{ com args alias }}
+				{{ coq [[list_arg]] = [[ </ argj // j /> ]] }}
   | list_typ <-> </ typj // j /> :: M :: typs_alias
     	      	   	        {{ com typs alias }}
 				{{ coq [[list_typ]] = [[ </ typj // j /> ]] }}
@@ -405,7 +433,7 @@ formula :: 'formula_' ::=
   | list_block <-> </ blockj // j /> :: M :: blocks_alias
     	      	   	        {{ com blocks alias }}
 				{{ coq [[list_block]] = [[ </ blockj // j /> ]] }}
-  | list_product <-> </ productj // j /> :: M :: products_alias
+  | list_product = </ productj // j /> :: M :: products_alias
     	      	   	        {{ com products alias }}
 				{{ coq [[list_product]] = [[ </ productj // j /> ]] }}
   | list_module <-> </ modulej // j /> :: M :: modules_alias
@@ -414,6 +442,9 @@ formula :: 'formula_' ::=
   | id_labels <-> </ [ idj , lj ] // j /> :: M :: id_labels_alias
     	      	     	        {{ com id_labels alias }}
 				{{ coq [[id_labels]] = [[ </ [ idj , lj ] // j /> ]] }}
+  | list_param <-> </ paramj // j /> :: M :: list_param_alias
+                                {{ com list_param_alias }}
+                                {{ coq [[list_param]] = [[ </ paramj // j /> ]] }}
   | getNthTyp </ typj // j /> INT = opt_typ ::   :: getNthTyp
     	      	       	   	{{ com getNthTyp }}
 				{{ coq nth_error [[ </ typj // j /> ]] [[INT]] = [[opt_typ]] }}  
@@ -432,5 +463,9 @@ formula_or left formula_seq
 formula_seq left formula_seq
 formula_or left formula_ifthenelse
 formula_ifthenelse left formula_seq
+formula_and left formula_and
+formula_multiline <= formula_and
+formula_multiline <= formula_or
+
  
 
