@@ -4,15 +4,16 @@ Require Import Arith.
 
 Inductive GenericValue : Set := 
 | GV_int : forall (n:nat), GenericValue
+| GV_ptr : forall (n:nat), GenericValue
 | GV_undef : GenericValue
 .
 
-Definition Mem := id -> option GenericValue.
+Definition GVMap := id -> option GenericValue.
 
-Definition updateMem (m:Mem) (i:id) (v:GenericValue) : Mem :=
+Definition updateGVMap (m:GVMap) (i:id) (v:option GenericValue) : GVMap :=
 fun i' =>
   if (beq_nat i i')
-  then Some v
+  then v
   else m i'
 .
 
@@ -20,7 +21,7 @@ Record ExecutionContext : Set := mkEC {
 CurFunction : fdef;
 CurBB       : block;
 CurInst     : insn;
-Values      : Mem;
+Locals      : GVMap;
 VarArgs     : list GenericValue
 }.
 
@@ -30,8 +31,24 @@ Record State : Set := mkState {
 CurSystem   : system;
 CurModule   : module;
 ExistValue  : option GenericValue;
-ECS         : ECStack
+ECS         : ECStack;
+Globals     : GVMap
 }.
+
+Definition updateLocals := updateGVMap.
+Definition updateGlobals := updateGVMap.
+
+Definition updateMem (locals globals:GVMap) (i:id) (v:option GenericValue) : GVMap*GVMap :=
+(updateLocals locals i v,
+ fun i' =>
+  if (beq_nat i i')
+  then 
+    match (locals i) with
+    | Some _ => None
+    | None => v
+    end
+  else globals i')
+.
 
 Inductive wfState : State -> Prop :=
 | wfState_intro : forall state,
@@ -57,9 +74,9 @@ Inductive wfECStack : ECStack -> Prop :=
 .
 
 Inductive wfContexts : State -> Prop :=
-| wfContexts_intro : forall ECS ExistValue s m,
+| wfContexts_intro : forall ECS ExistValue s m g,
   wfECStack ECS ->
-  wfContexts (mkState s m ExistValue ECS)
+  wfContexts (mkState s m ExistValue ECS g)
 .
 
 Definition getCallerReturnID (Caller:insn) : option id :=
@@ -101,21 +118,23 @@ match b with
 | (block_intro _ li) => getPHINodesFromListInsn li
 end.
 
-Fixpoint getIncomingValuesForBlockFromPHINodes (PNs:list_insn) (b:block) (Values:Mem) : list (id*(option GenericValue)) :=
+(* This function is used by switchToNewBasicBlock, which only checks local variables (from PHI) *)
+Fixpoint getIncomingValuesForBlockFromPHINodes (PNs:list_insn) (b:block) (locals:GVMap) : list (id*(option GenericValue)) :=
 match PNs with
 | nil => nil
 | PN::PNs => 
   match (getIdViaBlockFromPHINode PN b) with
-  | None => getIncomingValuesForBlockFromPHINodes PNs b Values
-  | Some id => (id, Values id)::getIncomingValuesForBlockFromPHINodes PNs b Values
+  | None => getIncomingValuesForBlockFromPHINodes PNs b locals
+  | Some id => (id, locals id)::getIncomingValuesForBlockFromPHINodes PNs b locals
   end
 end.
 
-Fixpoint updateValusForNewBlock (ResultValues:list (id*(option GenericValue))) (Values:Mem) : Mem :=
+(* This function is used by switchToNewBasicBlock, which only updates local variables (from PHI) *)
+Fixpoint updateValusForNewBlock (ResultValues:list (id*(option GenericValue))) (locals:GVMap) : GVMap :=
 match ResultValues with
-| nil => Values
-| (id, Some v)::ResultValues' => updateMem (updateValusForNewBlock ResultValues' Values) id v
-| _::ResultValues' => updateValusForNewBlock ResultValues' Values
+| nil => locals
+| (id, Some v)::ResultValues' => updateLocals (updateValusForNewBlock ResultValues' locals) id (Some v)
+| _::ResultValues' => updateValusForNewBlock ResultValues' locals
 end.
 
 Fixpoint getEntryInsnFromInsns (li:list_insn) : option insn :=
@@ -163,34 +182,41 @@ end.
   doing this can cause problems if the PHI nodes depend on other PHI nodes for
   their inputs.  If the input PHI node is updated before it is read, incorrect
   results can happen.  Thus we use a two phase approach.
+
+  It only checks and update local variables. I don't think PHInode can refer to
+  a global. !!!
 *)
-Definition switchToNewBasicBlock (Dest:block) (PrevBB:block) (Values:Mem): (block*Mem) :=
+Definition switchToNewBasicBlock (Dest:block) (PrevBB:block) (locals:GVMap): (block*GVMap) :=
   let PNs := getPHINodesFromBlock Dest in
-  let ResultValues := getIncomingValuesForBlockFromPHINodes PNs PrevBB Values in
-  (Dest, updateValusForNewBlock ResultValues Values).
+  let ResultValues := getIncomingValuesForBlockFromPHINodes PNs PrevBB locals in
+  (Dest, updateValusForNewBlock ResultValues locals).
 
 (* FIXME: Interpreter::getOperandValue is more complicated than this definition...
 *)
-Definition getOperandValue (v:value) (Values:Mem) : option GenericValue := 
+Definition getOperandValue (v:value) (locals:GVMap) (globals:GVMap) : option GenericValue := 
 match v with
-| value_id id => Values id
+| value_id id => 
+  match locals id with
+  | Some gv => Some gv
+  | None => globals id
+  end
 | value_constant (const_val n) => Some (GV_int n)
 | value_constant const_undef => Some GV_undef
 end.
 
-Fixpoint params2OpGenericValues (lp:list_param) (Values:Mem) : list (option GenericValue):=
+Fixpoint params2OpGenericValues (lp:list_param) (locals:GVMap) (globals:GVMap) : list (option GenericValue):=
 match lp with
 | nil => nil
-| (_, v)::lp' => getOperandValue v Values::params2OpGenericValues lp' Values
+| (_, v)::lp' => getOperandValue v locals globals::params2OpGenericValues lp' locals globals
 end.
 
-Fixpoint _initializeFrameValues (la:list_arg) (lg:list GenericValue) (Values:Mem) : Mem :=
+Fixpoint _initializeFrameValues (la:list_arg) (lg:list GenericValue) (locals:GVMap) : GVMap :=
 match (la, lg) with
-| ((_, id)::la', g::lg') => updateMem (_initializeFrameValues la' lg' Values) id g
-| _ => Values
+| ((_, id)::la', g::lg') => updateLocals (_initializeFrameValues la' lg' locals) id (Some g)
+| _ => locals
 end.
 
-Definition initializeFrameValues (la:list_arg) (lg:list GenericValue): Mem := 
+Definition initializeFrameValues (la:list_arg) (lg:list GenericValue): GVMap := 
 _initializeFrameValues la lg (fun _ => None).
 
 Fixpoint opGenericValues2GenericValues (lg:list (option GenericValue)) : list GenericValue :=
@@ -227,51 +253,40 @@ end.
 (* deterministic small-step *)
 
 Inductive dsInst : State -> State -> trace -> Prop :=
-| dsReturn_finished : forall S M F B RetTy Result mem arg ExitValue,
+| dsReturn_finished : forall S M F B RetTy Result lc gl arg ExitValue,
   (* Finished main.  Put result into exit code... *)
   ExitValue =  (if (Typ.isInteger RetTy)  (* Nonvoid return type? *)
-               then getOperandValue Result mem (* Capture the exit value of the program *)
+               then getOperandValue Result lc gl (* Capture the exit value of the program *)
                else Some GV_undef) ->
   dsInst 
-    (mkState S M None ((mkEC F B (insn_return RetTy Result) mem arg)::nil))
-    (mkState S M ExitValue nil)
+    (mkState S M None ((mkEC F B (insn_return RetTy Result) lc arg)::nil) gl)
+    (mkState S M ExitValue nil gl)
     trace_nil 
-| dsReturn_call : forall S M F B RetTy Result mem arg id
-                            F' B' I' mem' arg' EC gv
-                            I'' mem'',   
+| dsReturn_call : forall S M F B RetTy Result lc gl arg id
+                            F' B' I' lc' arg' EC gv
+                            I'' lc'' gl'',   
   (* If we have a previous stack frame, and we have a previous call,
           fill in the return value... *)
   Instruction.isCallInst I' ->
   getCallerReturnID I' = Some id ->
-  getOperandValue Result mem = Some gv -> 
-  mem'' = (if (RetTy =t= typ_void) 
-           then mem' 
-           else (updateMem mem' id gv)) ->
+  getOperandValue Result lc gl = Some gv -> 
+  (lc'', gl'') = (if (RetTy =t= typ_void) 
+                  then (lc', gl) 
+                  else (updateMem lc' gl id (Some gv))) ->
   getNextInsnFrom I' B' = Some I'' ->
   dsInst 
-    (mkState S M None
-      ((mkEC F B (insn_return RetTy Result) mem arg)::
-       (mkEC F' B' I' mem' arg')::
-       EC)
-    )
-    (mkState S M None
-      ((mkEC F' B' I'' mem'' arg')
-       ::EC)
-    )
+    (mkState S M None ((mkEC F B (insn_return RetTy Result) lc arg)::(mkEC F' B' I' lc' arg')::EC) gl)
+    (mkState S M None ((mkEC F' B' I'' lc'' arg')::EC) gl'')
     trace_nil 
-| dsReturnVoid_finished : forall S M F B mem arg ExitValue,
+| dsReturnVoid_finished : forall S M F B lc gl arg ExitValue,
   (* Finished main.  Put result into exit code... *)
   ExitValue = Some GV_undef ->
   dsInst 
-    (mkState S M None
-      ((mkEC F B (insn_return_void) mem arg
-       )
-       ::nil) 
-     )
-    (mkState S M ExitValue nil)
+    (mkState S M None ((mkEC F B (insn_return_void) lc arg)::nil) gl)
+    (mkState S M ExitValue nil gl)
     trace_nil
-| dsReturnVoid_call : forall S M F B mem arg ExitValue id
-                            F' B' I' mem' arg' EC
+| dsReturnVoid_call : forall S M F B lc gl arg ExitValue id
+                            F' B' I' lc' arg' EC
                             I'',   
   (* If we have a previous stack frame, and we have a previous call,
           fill in the return value... *)
@@ -279,83 +294,62 @@ Inductive dsInst : State -> State -> trace -> Prop :=
   getCallerReturnID I' = Some id ->
   getNextInsnFrom I' B' = Some I'' ->
   dsInst 
-    (mkState S M ExitValue
-      ((mkEC F B insn_return_void mem arg)::
-       (mkEC F' B' I' mem' arg')::
-       EC)
-    )
-    (mkState S M ExitValue
-      ((mkEC F' B' I'' mem' arg')::
-      EC)
-    )
+    (mkState S M ExitValue ((mkEC F B insn_return_void lc arg)::(mkEC F' B' I' lc' arg')::EC) gl)
+    (mkState S M ExitValue ((mkEC F' B' I'' lc' arg')::EC) gl)
     trace_nil 
-| dsBranch : forall S M F B mem arg ExitValue t Cond l1 l2 c
-                              B' I' mem' Dest EC,   
-  getOperandValue Cond mem = Some (GV_int c) ->
+| dsBranch : forall S M F B lc gl arg ExitValue t Cond l1 l2 c
+                              B' I' lc' Dest EC,   
+  getOperandValue Cond lc gl = Some (GV_int c) ->
   Some Dest = (if c 
                then lookupBlockViaLabelFromSystem S l1
                else lookupBlockViaLabelFromSystem S l2) ->
-  (B', mem') = (switchToNewBasicBlock Dest B mem) ->
+  (B', lc') = (switchToNewBasicBlock Dest B lc) ->
   getEntryInsn B' = Some I' ->
   dsInst 
-    (mkState S M ExitValue
-      ((mkEC F B (insn_br t Cond l1 l2) mem arg)::EC)
-    )
-    (mkState S M ExitValue
-      ((mkEC F B' I' mem' arg)::EC)
-    )
+    (mkState S M ExitValue ((mkEC F B (insn_br t Cond l1 l2) lc arg)::EC) gl)
+    (mkState S M ExitValue ((mkEC F B' I' lc' arg)::EC) gl)
     trace_nil 
-| dsBranch_uncond : forall S M F B mem arg ExitValue l
-                              B' I' mem' Dest EC,   
+| dsBranch_uncond : forall S M F B lc gl arg ExitValue l
+                              B' I' lc' Dest EC,   
   Some Dest = (lookupBlockViaLabelFromSystem S l) ->
-  (B', mem') = (switchToNewBasicBlock Dest B mem) ->
+  (B', lc') = (switchToNewBasicBlock Dest B lc) ->
   getEntryInsn B = Some I' ->
   dsInst 
-    (mkState S M ExitValue
-      ((mkEC F B (insn_br_uncond l) mem arg)::EC)
-    )
-    (mkState S M ExitValue
-      ((mkEC F B' I' mem' arg)::EC)
-    )
+    (mkState S M ExitValue ((mkEC F B (insn_br_uncond l) lc arg)::EC) gl)
+    (mkState S M ExitValue ((mkEC F B' I' lc' arg)::EC) gl)
     trace_nil 
-| dsCallInsnt : forall S M F B mem arg ExitValue rid t fid lp
-                            Oparg' arg' F' B' I' EC rt id la lb mem',
-  params2OpGenericValues lp mem = Oparg' ->   
+| dsCallInsnt : forall S M F B lc gl arg ExitValue rid t fid lp
+                            Oparg' arg' F' B' I' EC rt id la lb lc',
+  params2OpGenericValues lp lc gl = Oparg' ->   
   opGenericValues2GenericValues Oparg' = arg' ->   
   lookupFdefViaIDFromSystemC S fid = Some F' ->
   getEntryBlock F' = Some B' ->
   getEntryInsn B' = Some I' ->
   F' = fdef_intro (fheader_intro rt id la) lb ->
-  initializeFrameValues la arg' = mem' ->
+  initializeFrameValues la arg' = lc' ->
   dsInst 
-    (mkState S M ExitValue
-      ((mkEC F B (insn_call rid t fid lp) mem arg)::EC)
-    )
-    (mkState S M ExitValue
-      ((mkEC F' B' I' mem' arg')::
-       (mkEC F  B  (insn_call rid t fid lp) mem arg)::
-       EC)
-    )
+    (mkState S M ExitValue ((mkEC F B (insn_call rid t fid lp) lc arg)::EC) gl)
+    (mkState S M ExitValue ((mkEC F' B' I' lc' arg')::(mkEC F B (insn_call rid t fid lp) lc arg)::EC) gl)
     trace_nil 
-| dsAddInsnt : forall S M F B mem arg ExitValue id t v1 v2 EC i1 i2 I',
-  getOperandValue v1 mem = Some (GV_int i1) ->
-  getOperandValue v2 mem = Some (GV_int i2) ->
+| dsAddInsnt : forall S M F B lc gl lc' gl' arg ExitValue id t v1 v2 EC i1 i2 I',
+  getOperandValue v1 lc gl = Some (GV_int i1) ->
+  getOperandValue v2 lc gl = Some (GV_int i2) ->
   getNextInsnFrom (insn_add id t v1 v2) B = Some I' ->
+  updateMem lc gl id (Some (GV_int (i1+i2))) = (lc', gl') -> 
   dsInst 
-    (mkState S M ExitValue
-      ((mkEC F B (insn_add id t v1 v2) mem arg)::EC)
-    ) 
-    (mkState S M ExitValue
-      ((mkEC F B I' (updateMem mem id (GV_int (i1+i2))) arg)::EC)
-    )
+    (mkState S M ExitValue ((mkEC F B (insn_add id t v1 v2) lc arg)::EC) gl) 
+    (mkState S M ExitValue ((mkEC F B I' lc' arg)::EC) gl')
     trace_nil 
 .
 
-Definition ds_genInitState (s:system) (main:id) (VarArgs:list GenericValue) :=
-match (lookupFdefViaIDFromSystemC s main) with
+(* A fake generation of global, we have not support globals yet. *)
+Definition genGlobal (s:system) (main:id) : GVMap := fun _ => None.
+
+Definition ds_genInitState (S:system) (main:id) (VarArgs:list GenericValue) :=
+match (lookupFdefViaIDFromSystemC S main) with
 | None => None
 | Some CurFunction =>
-  match (getParentOfFdefFromSystemC CurFunction s) with
+  match (getParentOfFdefFromSystemC CurFunction S) with
   | None => None
   | Some CurModule =>
     match (getEntryBlock CurFunction) with
@@ -369,7 +363,7 @@ match (lookupFdefViaIDFromSystemC s main) with
           let Values := initializeFrameValues la VarArgs in
           Some
             (mkState
-              s
+              S
               CurModule
               None
               ((mkEC
@@ -379,7 +373,8 @@ match (lookupFdefViaIDFromSystemC s main) with
                 Values 
                 VarArgs 
               )::nil)
-           )          
+              (genGlobal S main)
+            )          
         end
       end
     end
@@ -388,7 +383,7 @@ end.
 
 Definition ds_isFinialState (S:State) : bool :=
 match S with
-| (mkState _ _ _ nil) => true
+| (mkState _ _ _ nil _) => true
 | _ => false
 end.
 
@@ -408,25 +403,25 @@ CoInductive dsop_diverges : State -> State -> Trace -> Prop :=
 .
 
 Inductive ds_converges : system -> id -> list GenericValue -> State -> Prop :=
-| ds_converges_intro : forall (s:system) (main:id) (VarArgs:list GenericValue) (IS FS:State) t,
+| ds_converges_intro : forall (s:system) (main:id) (VarArgs:list GenericValue) (IS FS:State) tr,
   ds_genInitState s main VarArgs = Some IS ->
-  dsop IS FS t ->
+  dsop IS FS tr ->
   ds_isFinialState FS ->
   ds_converges s main VarArgs FS
 .
 
 Inductive ds_diverges : system -> id -> list GenericValue -> Prop :=
-| ds_diverges_intro : forall (s:system) (main:id) (VarArgs:list GenericValue) (IS S:State) t,
+| ds_diverges_intro : forall (s:system) (main:id) (VarArgs:list GenericValue) (IS S:State) tr,
   ds_genInitState s main VarArgs = Some IS ->
-  dsop_diverges IS S t ->
+  dsop_diverges IS S tr ->
   ds_diverges s main VarArgs
 .
 
 
 Inductive ds_goeswrong : system -> id -> list GenericValue -> State -> Prop :=
-| ds_goeswrong_intro : forall (s:system) (main:id) (VarArgs:list GenericValue) (IS FS:State) t,
+| ds_goeswrong_intro : forall (s:system) (main:id) (VarArgs:list GenericValue) (IS FS:State) tr,
   ds_genInitState s main VarArgs = Some IS ->
-  dsop IS FS t ->
+  dsop IS FS tr ->
   ~ ds_isFinialState FS ->
   ds_goeswrong s main VarArgs FS
 .
@@ -448,48 +443,37 @@ Inductive wfStates : States -> Prop :=
 .
 
 Inductive nsInst : State*trace -> States -> Prop :=
-| nsReturn_finished : forall S M F B RetTy Result mem arg ExitValue tr,
+| nsReturn_finished : forall S M F B RetTy Result lc gl arg ExitValue tr,
   (* Finished main.  Put result into exit code... *)
   ExitValue =  (if (Typ.isInteger RetTy)  (* Nonvoid return type? *)
-               then getOperandValue Result mem (* Capture the exit value of the program *)
+               then getOperandValue Result lc gl (* Capture the exit value of the program *)
                else Some GV_undef) ->
   nsInst 
-    (mkState S M None ((mkEC F B (insn_return RetTy Result) mem arg)::nil), tr)
-    ((mkState S M ExitValue nil, tr)::nil)
-| nsReturn_call : forall S M F B RetTy Result mem arg id
-                            F' B' I' mem' arg' EC gv
-                            I'' mem'' tr,   
+    (mkState S M None ((mkEC F B (insn_return RetTy Result) lc arg)::nil) gl, tr)
+    ((mkState S M ExitValue nil gl, tr)::nil)
+| nsReturn_call : forall S M F B RetTy Result lc gl arg id
+                            F' B' I' lc' arg' EC gv
+                            I'' lc'' gl'' tr,   
   (* If we have a previous stack frame, and we have a previous call,
           fill in the return value... *)
   Instruction.isCallInst I' ->
   getCallerReturnID I' = Some id ->
-  getOperandValue Result mem = Some gv -> 
-  mem'' = (if (RetTy =t= typ_void) 
-           then mem' 
-           else (updateMem mem' id gv)) ->
+  getOperandValue Result lc gl = Some gv -> 
+  (lc'', gl'') = (if (RetTy =t= typ_void) 
+                  then (lc', gl) 
+                  else (updateMem lc' gl id (Some gv))) ->
   getNextInsnFrom I' B' = Some I'' ->
   nsInst 
-    (mkState S M None
-      ((mkEC F B (insn_return RetTy Result) mem arg)::
-       (mkEC F' B' I' mem' arg')::
-       EC), tr
-    )
-    ((mkState S M None
-      ((mkEC F' B' I'' mem'' arg')
-       ::EC), tr
-    )::nil)
-| nsReturnVoid_finished : forall S M F B mem arg ExitValue tr,
+    (mkState S M None ((mkEC F B (insn_return RetTy Result) lc arg)::(mkEC F' B' I' lc' arg')::EC) gl, tr)
+    ((mkState S M None ((mkEC F' B' I'' lc'' arg')::EC) gl'', tr)::nil)
+| nsReturnVoid_finished : forall S M F B lc gl arg ExitValue tr,
   (* Finished main.  Put result into exit code... *)
   ExitValue = Some GV_undef ->
   nsInst 
-    (mkState S M None
-      ((mkEC F B (insn_return_void) mem arg
-       )
-       ::nil), tr
-     )
-    ((mkState S M ExitValue nil, tr)::nil)
-| nsReturnVoid_call : forall S M F B mem arg ExitValue id
-                            F' B' I' mem' arg' EC
+    (mkState S M None ((mkEC F B (insn_return_void) lc arg)::nil) gl, tr)
+    ((mkState S M ExitValue nil gl, tr)::nil)
+| nsReturnVoid_call : forall S M F B lc gl arg ExitValue id
+                            F' B' I' lc' arg' EC
                             I'' tr,   
   (* If we have a previous stack frame, and we have a previous call,
           fill in the return value... *)
@@ -497,93 +481,63 @@ Inductive nsInst : State*trace -> States -> Prop :=
   getCallerReturnID I' = Some id ->
   getNextInsnFrom I' B' = Some I'' ->
   nsInst 
-    (mkState S M ExitValue
-      ((mkEC F B insn_return_void mem arg)::
-       (mkEC F' B' I' mem' arg')::
-       EC), tr
-    )
-    ((mkState S M ExitValue
-      ((mkEC F' B' I'' mem' arg')::
-      EC), tr
-    )::nil)
-| nsBranch_def : forall S M F B mem arg ExitValue t Cond l1 l2 c
-                              B' I' mem' Dest EC tr,   
-  getOperandValue Cond mem = Some (GV_int c) ->
+    (mkState S M ExitValue ((mkEC F B insn_return_void lc arg)::(mkEC F' B' I' lc' arg')::EC) gl, tr)
+    ((mkState S M ExitValue ((mkEC F' B' I'' lc' arg')::EC) gl, tr)::nil)
+| nsBranch_def : forall S M F B lc gl arg ExitValue t Cond l1 l2 c
+                              B' I' lc' Dest EC tr,   
+  getOperandValue Cond lc gl = Some (GV_int c) ->
   Some Dest = (if c 
                then lookupBlockViaLabelFromSystem S l1
                else lookupBlockViaLabelFromSystem S l2) ->
-  (B', mem') = (switchToNewBasicBlock Dest B mem) ->
+  (B', lc') = (switchToNewBasicBlock Dest B lc) ->
   getEntryInsn B' = Some I' ->
   nsInst 
-    (mkState S M ExitValue
-      ((mkEC F B (insn_br t Cond l1 l2) mem arg)::EC), tr
-    )
-    ((mkState S M ExitValue
-      ((mkEC F B' I' mem' arg)::EC), tr
-    )::nil)
-| nsBranch_undef : forall S M F B mem arg ExitValue t Cond l1 l2
-                              B1' I1' mem1' B2' I2' mem2' Dest1 Dest2 EC tr,   
-  getOperandValue Cond mem = Some GV_undef ->
+    (mkState S M ExitValue ((mkEC F B (insn_br t Cond l1 l2) lc arg)::EC) gl, tr)
+    ((mkState S M ExitValue ((mkEC F B' I' lc' arg)::EC) gl, tr)::nil)
+| nsBranch_undef : forall S M F B lc arg ExitValue t Cond l1 l2
+                              B1' I1' lc1' B2' I2' lc2' Dest1 Dest2 EC gl tr,   
+  getOperandValue Cond lc gl = Some GV_undef ->
   Some Dest1 = lookupBlockViaLabelFromSystem S l1 ->
   Some Dest2 = lookupBlockViaLabelFromSystem S l2 ->
-  (B1', mem1') = (switchToNewBasicBlock Dest1 B mem) ->
-  (B2', mem2') = (switchToNewBasicBlock Dest2 B mem) ->
+  (B1', lc1') = (switchToNewBasicBlock Dest1 B lc) ->
+  (B2', lc2') = (switchToNewBasicBlock Dest2 B lc) ->
   getEntryInsn B1' = Some I1' ->
   getEntryInsn B2' = Some I2' ->
   nsInst 
-    (mkState S M ExitValue
-      ((mkEC F B (insn_br t Cond l1 l2) mem arg)::EC), tr
-    )
-    ((mkState S M ExitValue
-      ((mkEC F B1' I1' mem1' arg)::EC), tr
-    )::
-    (mkState S M ExitValue
-      ((mkEC F B2' I2' mem2' arg)::EC), tr
-    )::nil)
-| nsBranch_uncond : forall S M F B mem arg ExitValue l
-                              B' I' mem' Dest EC tr,   
+    (mkState S M ExitValue ((mkEC F B (insn_br t Cond l1 l2) lc arg)::EC) gl, tr)
+    ((mkState S M ExitValue ((mkEC F B1' I1' lc1' arg)::EC) gl, tr)::
+     (mkState S M ExitValue ((mkEC F B2' I2' lc2' arg)::EC) gl, tr)::nil)
+| nsBranch_uncond : forall S M F B lc gl arg ExitValue l
+                              B' I' lc' Dest EC tr,   
   Some Dest = (lookupBlockViaLabelFromSystem S l) ->
-  (B', mem') = (switchToNewBasicBlock Dest B mem) ->
+  (B', lc') = (switchToNewBasicBlock Dest B lc) ->
   getEntryInsn B = Some I' ->
   nsInst 
-    (mkState S M ExitValue
-      ((mkEC F B (insn_br_uncond l) mem arg)::EC), tr
-    )
-    ((mkState S M ExitValue
-      ((mkEC F B' I' mem' arg)::EC), tr
-    )::nil)
-| nsCallInsnt : forall S M F B mem arg ExitValue rid t fid lp
-                            Oparg' arg' F' B' I' EC rt id la lb mem' tr,
-  params2OpGenericValues lp mem = Oparg' ->   
+    (mkState S M ExitValue ((mkEC F B (insn_br_uncond l) lc arg)::EC) gl, tr)
+    ((mkState S M ExitValue ((mkEC F B' I' lc' arg)::EC) gl, tr)::nil)
+| nsCallInsnt : forall S M F B lc gl arg ExitValue rid t fid lp
+                            Oparg' arg' F' B' I' EC rt id la lb lc' tr,
+  params2OpGenericValues lp lc gl = Oparg' ->   
   opGenericValues2GenericValues Oparg' = arg' ->   
   lookupFdefViaIDFromSystemC S fid = Some F' ->
   getEntryBlock F' = Some B' ->
   getEntryInsn B' = Some I' ->
   F' = fdef_intro (fheader_intro rt id la) lb ->
-  initializeFrameValues la arg' = mem' ->
+  initializeFrameValues la arg' = lc' ->
   nsInst 
-    (mkState S M ExitValue
-      ((mkEC F B (insn_call rid t fid lp) mem arg)::EC), tr
-    )
-    ((mkState S M ExitValue
-      ((mkEC F' B' I' mem' arg')::
-       (mkEC F  B  (insn_call rid t fid lp) mem arg)::
-       EC), tr
-    )::nil)
-| nsAddInsnt : forall S M F B mem arg ExitValue id t v1 v2 EC i1 i2 I' tr,
-  getOperandValue v1 mem = Some (GV_int i1) ->
-  getOperandValue v2 mem = Some (GV_int i2) ->
+    (mkState S M ExitValue ((mkEC F B (insn_call rid t fid lp) lc arg)::EC) gl, tr)
+    ((mkState S M ExitValue ((mkEC F' B' I' lc' arg')::(mkEC F B (insn_call rid t fid lp) lc arg)::EC) gl, tr)::nil)
+| nsAddInsnt : forall S M F B lc gl lc' gl' arg ExitValue id t v1 v2 EC i1 i2 I' tr,
+  getOperandValue v1 lc gl = Some (GV_int i1) ->
+  getOperandValue v2 lc gl = Some (GV_int i2) ->
   getNextInsnFrom (insn_add id t v1 v2) B = Some I' ->
+  updateMem lc gl id (Some (GV_int (i1+i2))) = (lc', gl') -> 
   nsInst 
-    (mkState S M ExitValue
-      ((mkEC F B (insn_add id t v1 v2) mem arg)::EC), tr
-    ) 
-    ((mkState S M ExitValue
-      ((mkEC F B I' (updateMem mem id (GV_int (i1+i2))) arg)::EC), tr
-    )::nil)
+    (mkState S M ExitValue ((mkEC F B (insn_add id t v1 v2) lc arg)::EC) gl, tr) 
+    ((mkState S M ExitValue ((mkEC F B I' lc' arg)::EC) gl', tr)::nil)
 .
 
-Definition ns_genInitState (S:system) (main:id) (VarArgs:list GenericValue) : option States:=
+Definition ns_genInitState (S:system) (main:id) (VarArgs:list GenericValue) : option States :=
 match (lookupFdefViaIDFromSystemC S main) with
 | None => None
 | Some CurFunction =>
@@ -610,9 +564,10 @@ match (lookupFdefViaIDFromSystemC S main) with
                 CurInst
                 Values 
                 VarArgs 
-              )::nil),
-             trace_nil
-            )::nil)          
+              )::nil)
+              (genGlobal S main),
+              trace_nil
+            )::nil)
         end
       end
     end
@@ -621,17 +576,25 @@ end.
 
 Fixpoint ns_isFinialState (states:States) : bool :=
 match states with
-| (mkState _ _ _ nil, _)::states' => true
-| (mkState _ _ _ _, _)::states' => ns_isFinialState states'
+| (mkState _ _ _ nil _, _)::states' => true
+| (mkState _ _ _ _ _, _)::states' => ns_isFinialState states'
 | _ => false
 end.
 
+Inductive nsInstMerge : States -> States -> Prop :=
+| nsInstMerge_nil : nsInstMerge nil nil
+| nsInstMerge_cons : forall state tr states states1 states2,
+  nsInst (state, tr) states1 ->
+  nsInstMerge states states2 ->
+  nsInstMerge ((state, tr)::states) (states1++states2)
+.
+
 Inductive nsop : States -> States -> Prop :=
 | nsop_nil : nsop nil nil
-| nsop_cons : forall state tr states states1 states2,
-  nsInst (state,tr) states1 ->
-  nsop states states2 ->
-  nsop ((state, tr)::states) (states1++states2)
+| nsop_cons : forall states1 states2 states3,
+  nsInstMerge states1 states2 ->
+  nsop states2 states3 ->
+  nsop states1 states3
 .
 
 CoInductive nsop_diverges : States -> States -> Prop :=
@@ -668,51 +631,40 @@ Inductive ns_goeswrong : system -> id -> list GenericValue -> States -> Prop :=
 (* deterministic big-step *)
 
 Inductive dbInst : State -> State -> trace -> Prop :=
-| dbReturn_finished : forall S M F B RetTy Result mem arg ExitValue,
+| dbReturn_finished : forall S M F B RetTy Result lc gl arg ExitValue,
   (* Finished main.  Put result into exit code... *)
   ExitValue =  (if (Typ.isInteger RetTy)  (* Nonvoid return type? *)
-               then getOperandValue Result mem (* Capture the exit value of the program *)
+               then getOperandValue Result lc gl (* Capture the exit value of the program *)
                else Some GV_undef) ->
   dbInst 
-    (mkState S M None ((mkEC F B (insn_return RetTy Result) mem arg)::nil))
-    (mkState S M ExitValue nil)
+    (mkState S M None ((mkEC F B (insn_return RetTy Result) lc arg)::nil) gl)
+    (mkState S M ExitValue nil gl)
     trace_nil 
-| dbReturn_call : forall S M F B RetTy Result mem arg id
-                            F' B' I' mem' arg' EC gv
-                            I'' mem'',   
+| dbReturn_call : forall S M F B RetTy Result lc gl arg id
+                            F' B' I' lc' arg' EC gv
+                            I'' lc'' gl'',   
   (* If we have a previous stack frame, and we have a previous call,
           fill in the return value... *)
   Instruction.isCallInst I' ->
   getCallerReturnID I' = Some id ->
-  getOperandValue Result mem = Some gv -> 
-  mem'' = (if (RetTy =t= typ_void) 
-           then mem' 
-           else (updateMem mem' id gv)) ->
+  getOperandValue Result lc gl = Some gv -> 
+  (lc'', gl'') = (if (RetTy =t= typ_void) 
+                  then (lc', gl) 
+                  else (updateMem lc' gl id (Some gv))) ->
   getNextInsnFrom I' B' = Some I'' ->
   dbInst 
-    (mkState S M None
-      ((mkEC F B (insn_return RetTy Result) mem arg)::
-       (mkEC F' B' I' mem' arg')::
-       EC)
-    )
-    (mkState S M None
-      ((mkEC F' B' I'' mem'' arg')
-       ::EC)
-    )
+    (mkState S M None ((mkEC F B (insn_return RetTy Result) lc arg)::(mkEC F' B' I' lc' arg')::EC) gl)
+    (mkState S M None ((mkEC F' B' I'' lc'' arg')::EC) gl'')
     trace_nil 
-| dbReturnVoid_finished : forall S M F B mem arg ExitValue,
+| dbReturnVoid_finished : forall S M F B lc gl arg ExitValue,
   (* Finished main.  Put result into exit code... *)
   ExitValue = Some GV_undef ->
   dbInst 
-    (mkState S M None
-      ((mkEC F B (insn_return_void) mem arg
-       )
-       ::nil) 
-     )
-    (mkState S M ExitValue nil)
+    (mkState S M None ((mkEC F B (insn_return_void) lc arg)::nil) gl)
+    (mkState S M ExitValue nil gl)
     trace_nil
-| dbReturnVoid_call : forall S M F B mem arg ExitValue id
-                            F' B' I' mem' arg' EC
+| dbReturnVoid_call : forall S M F B lc gl arg ExitValue id
+                            F' B' I' lc' arg' EC
                             I'',   
   (* If we have a previous stack frame, and we have a previous call,
           fill in the return value... *)
@@ -720,68 +672,50 @@ Inductive dbInst : State -> State -> trace -> Prop :=
   getCallerReturnID I' = Some id ->
   getNextInsnFrom I' B' = Some I'' ->
   dbInst 
-    (mkState S M ExitValue
-      ((mkEC F B insn_return_void mem arg)::
-       (mkEC F' B' I' mem' arg')::
-       EC)
-    )
-    (mkState S M ExitValue
-      ((mkEC F' B' I'' mem' arg')::
-      EC)
-    )
+    (mkState S M ExitValue ((mkEC F B insn_return_void lc arg)::(mkEC F' B' I' lc' arg')::EC) gl)
+    (mkState S M ExitValue ((mkEC F' B' I'' lc' arg')::EC) gl)
     trace_nil 
-| dbBranch : forall S M F B mem arg ExitValue t Cond l1 l2 c
-                              B' I' mem' Dest EC,   
-  getOperandValue Cond mem = Some (GV_int c) ->
+| dbBranch : forall S M F B lc gl arg ExitValue t Cond l1 l2 c
+                              B' I' lc' Dest EC,   
+  getOperandValue Cond lc gl = Some (GV_int c) ->
   Some Dest = (if c 
                then lookupBlockViaLabelFromSystem S l1
                else lookupBlockViaLabelFromSystem S l2) ->
-  (B', mem') = (switchToNewBasicBlock Dest B mem) ->
+  (B', lc') = (switchToNewBasicBlock Dest B lc) ->
   getEntryInsn B' = Some I' ->
   dbInst 
-    (mkState S M ExitValue
-      ((mkEC F B (insn_br t Cond l1 l2) mem arg)::EC)
-    )
-    (mkState S M ExitValue
-      ((mkEC F B' I' mem' arg)::EC)
-    )
+    (mkState S M ExitValue ((mkEC F B (insn_br t Cond l1 l2) lc arg)::EC) gl)
+    (mkState S M ExitValue ((mkEC F B' I' lc' arg)::EC) gl)
     trace_nil 
-| dbBranch_uncond : forall S M F B mem arg ExitValue l
-                              B' I' mem' Dest EC,   
+| dbBranch_uncond : forall S M F B lc gl arg ExitValue l
+                              B' I' lc' Dest EC,   
   Some Dest = (lookupBlockViaLabelFromSystem S l) ->
-  (B', mem') = (switchToNewBasicBlock Dest B mem) ->
+  (B', lc') = (switchToNewBasicBlock Dest B lc) ->
   getEntryInsn B = Some I' ->
   dbInst 
-    (mkState S M ExitValue
-      ((mkEC F B (insn_br_uncond l) mem arg)::EC)
-    )
-    (mkState S M ExitValue
-      ((mkEC F B' I' mem' arg)::EC)
-    )
+    (mkState S M ExitValue ((mkEC F B (insn_br_uncond l) lc arg)::EC) gl)
+    (mkState S M ExitValue ((mkEC F B' I' lc' arg)::EC) gl)
     trace_nil 
-| dbCallInsnt : forall S M F B mem arg ExitValue rid t fid lp
-                       EC states' tr,
+| dbCallInsnt : forall S M F B lc gl arg rid t fid lp gl' gl''
+                       EC ExitValue ReturnValue tr I',
   dbFdef fid lp
-    (mkState S M ExitValue
-      ((mkEC F B (insn_call rid t fid lp) mem arg)::EC)
-    ) states' tr ->
+    (mkState S M None ((mkEC F B (insn_call rid t fid lp) lc arg)::nil) gl) 
+    (mkState S M ReturnValue nil gl') 
+    tr ->
+  updateGlobals gl' rid ReturnValue = gl'' -> 
+  getNextInsnFrom (insn_call rid t fid lp) B = Some I' ->
   dbInst 
-    (mkState S M ExitValue
-      ((mkEC F B (insn_call rid t fid lp) mem arg)::EC)
-    )
-    states'
+    (mkState S M ExitValue ((mkEC F B (insn_call rid t fid lp) lc arg)::EC) gl) 
+    (mkState S M ExitValue ((mkEC F B I' lc arg)::EC) gl'') 
     tr
-| dbAddInsnt : forall S M F B mem arg ExitValue id t v1 v2 EC i1 i2 I',
-  getOperandValue v1 mem = Some (GV_int i1) ->
-  getOperandValue v2 mem = Some (GV_int i2) ->
+| dbAddInsnt : forall S M F B lc gl lc' gl' arg ExitValue id t v1 v2 EC i1 i2 I',
+  getOperandValue v1 lc gl = Some (GV_int i1) ->
+  getOperandValue v2 lc gl = Some (GV_int i2) ->
   getNextInsnFrom (insn_add id t v1 v2) B = Some I' ->
+  updateMem lc gl id (Some (GV_int (i1+i2))) = (lc', gl') -> 
   dbInst 
-    (mkState S M ExitValue
-      ((mkEC F B (insn_add id t v1 v2) mem arg)::EC)
-    ) 
-    (mkState S M ExitValue
-      ((mkEC F B I' (updateMem mem id (GV_int (i1+i2))) arg)::EC)
-    )
+    (mkState S M ExitValue ((mkEC F B (insn_add id t v1 v2) lc arg)::EC) gl) 
+    (mkState S M ExitValue ((mkEC F B I' lc' arg)::EC) gl')
     trace_nil 
 with dbop : State -> State -> trace -> Prop :=
 | dbop_nil : forall S, dbop S S trace_nil
@@ -790,58 +724,82 @@ with dbop : State -> State -> trace -> Prop :=
     dbop S2 S3 t2 ->
     dbop S1 S3 (trace_app t1 t2)
 with dbFdef : id -> list_param -> State -> State -> trace -> Prop :=
-| dbFdef_intro : forall S M F B mem arg ExitValue rid t fid lp
-                            Oparg' arg' F' B' I' EC rt id la lb mem' state' tr,
-  params2OpGenericValues lp mem = Oparg' ->   
+| dbFdef_intro : forall S M F B lc gl arg ExitValue rid t fid lp
+                            Oparg' arg' F' B' I' EC rt id la lb lc' state' tr,
+  params2OpGenericValues lp lc gl = Oparg' ->   
   opGenericValues2GenericValues Oparg' = arg' ->   
   lookupFdefViaIDFromSystemC S fid = Some F' ->
   getEntryBlock F' = Some B' ->
   getEntryInsn B' = Some I' ->
   F' = fdef_intro (fheader_intro rt id la) lb ->
-  initializeFrameValues la arg' = mem' ->
+  initializeFrameValues la arg' = lc' ->
   dbop 
-    (mkState S M ExitValue
-      ((mkEC F' B' I' mem' arg')::
-       (mkEC F  B  (insn_call rid t fid lp) mem arg)::
-       EC)
-    )
+    (mkState S M ExitValue ((mkEC F' B' I' lc' arg')::(mkEC F B (insn_call rid t fid lp) lc arg)::EC) gl)
     state'
     tr ->
   dbFdef fid lp 
-    (mkState S M ExitValue
-      ((mkEC F  B  (insn_call rid t fid lp) mem arg)::EC)
-    ) state' tr
+    (mkState S M ExitValue ((mkEC F B (insn_call rid t fid lp) lc arg)::EC) gl) state' tr
+.
+
+CoInductive dbInstInf : State -> Trace -> Prop :=
+| dbCallInsntInf : forall S M F B lc gl arg rid t fid lp gl' gl''
+                       EC ExitValue ReturnValue tr I',
+  dbFdefInf fid lp
+    (mkState S M None ((mkEC F B (insn_call rid t fid lp) lc arg)::nil) gl) 
+    tr ->
+  updateGlobals gl' rid ReturnValue = gl'' -> 
+  getNextInsnFrom (insn_call rid t fid lp) B = Some I' ->
+  dbInstInf 
+    (mkState S M ExitValue ((mkEC F B (insn_call rid t fid lp) lc arg)::EC) gl) 
+    tr
+with dbopInf : State -> Trace -> Prop :=
+| dbopInf_cons1 : forall S1 t1,
+    dbInstInf S1 t1 ->
+    dbopInf S1 t1
+| dbopInf_cons2 : forall S1 S2 t1 t2,
+    dbInst S1 S2 t1 ->
+    dbopInf S2 t2 ->
+    dbopInf S1 (Trace_app t1 t2)
+with dbFdefInf : id -> list_param -> State -> Trace -> Prop :=
+| dbFdefInf_intro : forall S M F B lc gl arg ExitValue rid t fid lp
+                            Oparg' arg' F' B' I' EC rt id la lb lc' tr,
+  params2OpGenericValues lp lc gl = Oparg' ->   
+  opGenericValues2GenericValues Oparg' = arg' ->   
+  lookupFdefViaIDFromSystemC S fid = Some F' ->
+  getEntryBlock F' = Some B' ->
+  getEntryInsn B' = Some I' ->
+  F' = fdef_intro (fheader_intro rt id la) lb ->
+  initializeFrameValues la arg' = lc' ->
+  dbopInf 
+    (mkState S M ExitValue ((mkEC F' B' I' lc' arg')::(mkEC F B (insn_call rid t fid lp) lc arg)::EC) gl)
+    tr ->
+  dbFdefInf fid lp 
+    (mkState S M ExitValue ((mkEC F B (insn_call rid t fid lp) lc arg)::EC) gl) 
+    tr
 .
 
 Definition db_genInitState := ds_genInitState.
 Definition db_isFinialState := ds_isFinialState.
 
-CoInductive dbop_diverges : State -> State -> Trace -> Prop :=
-| dbop_diverges_intro : forall S1 S2 S3 t1 t2,
-    dbInst S1 S2 t1 ->
-    dbop_diverges S2 S3 t2 ->
-    dbop_diverges S1 S3 (Trace_app t1 t2)
-.
-
 Inductive db_converges : system -> id -> list GenericValue -> State -> Prop :=
-| db_converges_intro : forall (s:system) (main:id) (VarArgs:list GenericValue) (IS FS:State) t,
+| db_converges_intro : forall (s:system) (main:id) (VarArgs:list GenericValue) (IS FS:State) tr,
   db_genInitState s main VarArgs = Some IS ->
-  dbop IS FS t ->
+  dbop IS FS tr ->
   db_isFinialState FS ->
   db_converges s main VarArgs FS
 .
 
 Inductive db_diverges : system -> id -> list GenericValue -> Prop :=
-| db_diverges_intro : forall (s:system) (main:id) (VarArgs:list GenericValue) (IS S:State) t,
+| db_diverges_intro : forall (s:system) (main:id) (VarArgs:list GenericValue) (IS S:State) tr,
   db_genInitState s main VarArgs = Some IS ->
-  dbop_diverges IS S t ->
+  dbopInf IS tr ->
   db_diverges s main VarArgs
 .
 
 Inductive db_goeswrong : system -> id -> list GenericValue -> State -> Prop :=
-| db_goeswrong_intro : forall (s:system) (main:id) (VarArgs:list GenericValue) (IS FS:State) t,
+| db_goeswrong_intro : forall (s:system) (main:id) (VarArgs:list GenericValue) (IS FS:State) tr,
   db_genInitState s main VarArgs = Some IS ->
-  dbop IS FS t ->
+  dbop IS FS tr ->
   ~ db_isFinialState FS ->
   db_goeswrong s main VarArgs FS
 .
@@ -849,49 +807,52 @@ Inductive db_goeswrong : system -> id -> list GenericValue -> State -> Prop :=
 (***************************************************************)
 (* non-deterministic big-step *)
 
+Fixpoint returnStatesFromFdef S M (gls_ev_tr : list (GVMap*(option GenericValue)*trace)) : States :=
+match gls_ev_tr with
+| nil => nil
+| (gl, ev, tr)::gls_ev_tr' => (mkState S M ev nil gl, tr)::(returnStatesFromFdef S M gls_ev_tr')
+end.
+
+Fixpoint updateStatesFromReturns S M F B I' ExitValue lc arg EC rid gls_ev_tr : States :=
+match gls_ev_tr with 
+| nil => nil
+| (gl, ev, tr)::gls_ev_tr' => 
+  (mkState S M ExitValue ((mkEC F B I' lc arg)::EC) (updateGlobals gl rid ev), tr)::
+  (updateStatesFromReturns S M F B I' ExitValue lc arg EC rid gls_ev_tr')
+end.
+
 Inductive nbInst : State*trace -> States -> Prop :=
-| nbReturn_finished : forall S M F B RetTy Result mem arg ExitValue tr,
+| nbReturn_finished : forall S M F B RetTy Result lc gl arg ExitValue tr,
   (* Finished main.  Put result into exit code... *)
   ExitValue =  (if (Typ.isInteger RetTy)  (* Nonvoid return type? *)
-               then getOperandValue Result mem (* Capture the exit value of the program *)
+               then getOperandValue Result lc gl (* Capture the exit value of the program *)
                else Some GV_undef) ->
   nbInst 
-    (mkState S M None ((mkEC F B (insn_return RetTy Result) mem arg)::nil), tr)
-    ((mkState S M ExitValue nil, tr)::nil)
-| nbReturn_call : forall S M F B RetTy Result mem arg id
-                            F' B' I' mem' arg' EC gv
-                            I'' mem'' tr,   
+    (mkState S M None ((mkEC F B (insn_return RetTy Result) lc arg)::nil) gl, tr)
+    ((mkState S M ExitValue nil gl, tr)::nil)
+| nbReturn_call : forall S M F B RetTy Result lc gl arg id
+                            F' B' I' lc' arg' EC gv
+                            I'' lc'' gl'' tr,   
   (* If we have a previous stack frame, and we have a previous call,
           fill in the return value... *)
   Instruction.isCallInst I' ->
   getCallerReturnID I' = Some id ->
-  getOperandValue Result mem = Some gv -> 
-  mem'' = (if (RetTy =t= typ_void) 
-           then mem' 
-           else (updateMem mem' id gv)) ->
+  getOperandValue Result lc gl = Some gv -> 
+  (lc'', gl'') = (if (RetTy =t= typ_void) 
+                  then (lc', gl) 
+                  else (updateMem lc' gl id (Some gv))) ->
   getNextInsnFrom I' B' = Some I'' ->
   nbInst 
-    (mkState S M None
-      ((mkEC F B (insn_return RetTy Result) mem arg)::
-       (mkEC F' B' I' mem' arg')::
-       EC), tr
-    )
-    ((mkState S M None
-      ((mkEC F' B' I'' mem'' arg')
-       ::EC), tr
-    )::nil)
-| nbReturnVoid_finished : forall S M F B mem arg ExitValue tr,
+    (mkState S M None ((mkEC F B (insn_return RetTy Result) lc arg)::(mkEC F' B' I' lc' arg')::EC) gl, tr)
+    ((mkState S M None ((mkEC F' B' I'' lc'' arg')::EC) gl'', tr)::nil)
+| nbReturnVoid_finished : forall S M F B lc gl arg ExitValue tr,
   (* Finished main.  Put result into exit code... *)
   ExitValue = Some GV_undef ->
   nbInst 
-    (mkState S M None
-      ((mkEC F B (insn_return_void) mem arg
-       )
-       ::nil), tr
-     )
-    ((mkState S M ExitValue nil, tr)::nil)
-| nbReturnVoid_call : forall S M F B mem arg ExitValue id
-                            F' B' I' mem' arg' EC
+    (mkState S M None ((mkEC F B (insn_return_void) lc arg)::nil) gl, tr)
+    ((mkState S M ExitValue nil gl, tr)::nil)
+| nbReturnVoid_call : forall S M F B lc gl arg ExitValue id
+                            F' B' I' lc' arg' EC
                             I'' tr,   
   (* If we have a previous stack frame, and we have a previous call,
           fill in the return value... *)
@@ -899,121 +860,139 @@ Inductive nbInst : State*trace -> States -> Prop :=
   getCallerReturnID I' = Some id ->
   getNextInsnFrom I' B' = Some I'' ->
   nbInst 
-    (mkState S M ExitValue
-      ((mkEC F B insn_return_void mem arg)::
-       (mkEC F' B' I' mem' arg')::
-       EC), tr
-    )
-    ((mkState S M ExitValue
-      ((mkEC F' B' I'' mem' arg')::
-      EC), tr
-    )::nil)
-| nbBranch_def : forall S M F B mem arg ExitValue t Cond l1 l2 c
-                              B' I' mem' Dest EC tr,   
-  getOperandValue Cond mem = Some (GV_int c) ->
+    (mkState S M ExitValue ((mkEC F B insn_return_void lc arg)::(mkEC F' B' I' lc' arg')::EC) gl, tr)
+    ((mkState S M ExitValue ((mkEC F' B' I'' lc' arg')::EC) gl, tr)::nil)
+| nbBranch_def : forall S M F B lc gl arg ExitValue t Cond l1 l2 c
+                              B' I' lc' Dest EC tr,   
+  getOperandValue Cond lc gl = Some (GV_int c) ->
   Some Dest = (if c 
                then lookupBlockViaLabelFromSystem S l1
                else lookupBlockViaLabelFromSystem S l2) ->
-  (B', mem') = (switchToNewBasicBlock Dest B mem) ->
+  (B', lc') = (switchToNewBasicBlock Dest B lc) ->
   getEntryInsn B' = Some I' ->
   nbInst 
-    (mkState S M ExitValue
-      ((mkEC F B (insn_br t Cond l1 l2) mem arg)::EC), tr
-    )
-    ((mkState S M ExitValue
-      ((mkEC F B' I' mem' arg)::EC), tr
-    )::nil)
-| nbBranch_undef : forall S M F B mem arg ExitValue t Cond l1 l2
-                              B1' I1' mem1' B2' I2' mem2' Dest1 Dest2 EC tr,   
-  getOperandValue Cond mem = Some GV_undef ->
+    (mkState S M ExitValue ((mkEC F B (insn_br t Cond l1 l2) lc arg)::EC) gl, tr)
+    ((mkState S M ExitValue ((mkEC F B' I' lc' arg)::EC) gl, tr)::nil)
+| nbBranch_undef : forall S M F B lc arg ExitValue t Cond l1 l2
+                              B1' I1' lc1' B2' I2' lc2' Dest1 Dest2 EC tr gl,   
+  getOperandValue Cond lc gl = Some GV_undef ->
   Some Dest1 = lookupBlockViaLabelFromSystem S l1 ->
   Some Dest2 = lookupBlockViaLabelFromSystem S l2 ->
-  (B1', mem1') = (switchToNewBasicBlock Dest1 B mem) ->
-  (B2', mem2') = (switchToNewBasicBlock Dest2 B mem) ->
+  (B1', lc1') = (switchToNewBasicBlock Dest1 B lc) ->
+  (B2', lc2') = (switchToNewBasicBlock Dest2 B lc) ->
   getEntryInsn B1' = Some I1' ->
   getEntryInsn B2' = Some I2' ->
   nbInst 
-    (mkState S M ExitValue
-      ((mkEC F B (insn_br t Cond l1 l2) mem arg)::EC), tr
-    )
-    ((mkState S M ExitValue
-      ((mkEC F B1' I1' mem1' arg)::EC), tr
-    )::
-    (mkState S M ExitValue
-      ((mkEC F B2' I2' mem2' arg)::EC), tr
-    )::nil)
-| nbBranch_uncond : forall S M F B mem arg ExitValue l
-                              B' I' mem' Dest EC tr,   
+    (mkState S M ExitValue ((mkEC F B (insn_br t Cond l1 l2) lc arg)::EC) gl, tr)
+    ((mkState S M ExitValue ((mkEC F B1' I1' lc1' arg)::EC) gl, tr)::
+     (mkState S M ExitValue ((mkEC F B2' I2' lc2' arg)::EC) gl, tr)::nil)
+| nbBranch_uncond : forall S M F B lc gl arg ExitValue l
+                              B' I' lc' Dest EC tr,   
   Some Dest = (lookupBlockViaLabelFromSystem S l) ->
-  (B', mem') = (switchToNewBasicBlock Dest B mem) ->
+  (B', lc') = (switchToNewBasicBlock Dest B lc) ->
   getEntryInsn B = Some I' ->
   nbInst 
-    (mkState S M ExitValue
-      ((mkEC F B (insn_br_uncond l) mem arg)::EC), tr
-    )
-    ((mkState S M ExitValue
-      ((mkEC F B' I' mem' arg)::EC), tr
-    )::nil)
-| nbCallInsnt : forall S M F B mem arg ExitValue rid t fid lp
-                            EC tr states',
+    (mkState S M ExitValue ((mkEC F B (insn_br_uncond l) lc arg)::EC) gl, tr)
+    ((mkState S M ExitValue ((mkEC F B' I' lc' arg)::EC) gl, tr)::nil)
+| nbCallInsnt : forall S M F B lc gl arg ExitValue rid t fid lp
+                            EC tr gls_ev_tr I', 
   nbFdef fid lp
-    (mkState S M ExitValue
-      ((mkEC F B (insn_call rid t fid lp) mem arg)::EC), tr
-    ) states' ->
+    (mkState S M None ((mkEC F B (insn_call rid t fid lp) lc arg)::nil) gl, tr) 
+    (returnStatesFromFdef S M gls_ev_tr) ->
+  getNextInsnFrom (insn_call rid t fid lp) B = Some I' ->
   nbInst 
-    (mkState S M ExitValue
-      ((mkEC F B (insn_call rid t fid lp) mem arg)::EC), tr
-    )
-    states'
-| nbAddInsnt : forall S M F B mem arg ExitValue id t v1 v2 EC i1 i2 I' tr,
-  getOperandValue v1 mem = Some (GV_int i1) ->
-  getOperandValue v2 mem = Some (GV_int i2) ->
+    (mkState S M ExitValue ((mkEC F B (insn_call rid t fid lp) lc arg)::EC) gl, tr) 
+    (updateStatesFromReturns S M F B I' ExitValue lc arg EC rid gls_ev_tr)
+| nbAddInsnt : forall S M F B lc gl lc' gl' arg ExitValue id t v1 v2 EC i1 i2 I' tr,
+  getOperandValue v1 lc gl = Some (GV_int i1) ->
+  getOperandValue v2 lc gl = Some (GV_int i2) ->
   getNextInsnFrom (insn_add id t v1 v2) B = Some I' ->
+  updateMem lc gl id (Some (GV_int (i1+i2))) = (lc', gl') -> 
   nbInst 
-    (mkState S M ExitValue
-      ((mkEC F B (insn_add id t v1 v2) mem arg)::EC), tr
-    ) 
-    ((mkState S M ExitValue
-      ((mkEC F B I' (updateMem mem id (GV_int (i1+i2))) arg)::EC), tr
-    )::nil)
+    (mkState S M ExitValue ((mkEC F B (insn_add id t v1 v2) lc arg)::EC) gl, tr) 
+    ((mkState S M ExitValue ((mkEC F B I' lc' arg)::EC) gl', tr)::nil)
+with nbInstMerge : States -> States -> Prop :=
+| nbInstMerge_nil : nbInstMerge nil nil
+| nbInstMerge_cons : forall state tr states states1 states2,
+  nbInst (state, tr) states1 ->
+  nbInstMerge states states2 ->
+  nbInstMerge ((state, tr)::states) (states1++states2)
 with nbop : States -> States -> Prop :=
 | nbop_nil : nbop nil nil
-| nbop_cons : forall state tr states states1 states2,
-  nbInst (state,tr) states1 ->
-  nbop states states2 ->
-  nbop ((state, tr)::states) (states1++states2)
+| nbop_cons : forall states1 states2 states3,
+  nbInstMerge states1 states2 ->
+  nbop states2 states3 ->
+  nbop states1 states3 
 with nbFdef : id -> list_param -> State*trace -> States -> Prop :=
-| nbFdef_intro : forall S M F B mem arg ExitValue rid t fid lp
-                            Oparg' arg' F' B' I' EC rt id la lb mem' states' tr,
-  params2OpGenericValues lp mem = Oparg' ->   
+| nbFdef_intro : forall S M F B lc gl arg ExitValue rid t fid lp
+                            Oparg' arg' F' B' I' EC rt id la lb lc' states' tr,
+  params2OpGenericValues lp lc gl = Oparg' ->   
   opGenericValues2GenericValues Oparg' = arg' ->   
   lookupFdefViaIDFromSystemC S fid = Some F' ->
   getEntryBlock F' = Some B' ->
   getEntryInsn B' = Some I' ->
   F' = fdef_intro (fheader_intro rt id la) lb ->
-  initializeFrameValues la arg' = mem' ->
+  initializeFrameValues la arg' = lc' ->
   nbop 
-    ((mkState S M ExitValue
-      ((mkEC F' B' I' mem' arg')::
-       (mkEC F  B  (insn_call rid t fid lp) mem arg)::
-       EC), tr
-    )::nil)
+    ((mkState S M ExitValue ((mkEC F' B' I' lc' arg')::(mkEC F B (insn_call rid t fid lp) lc arg)::EC) gl, tr)::nil)
     states' ->
   nbFdef fid lp 
-    (mkState S M ExitValue
-      ((mkEC F  B  (insn_call rid t fid lp) mem arg)::EC), tr
-    ) states'
+    (mkState S M ExitValue ((mkEC F B (insn_call rid t fid lp) lc arg)::EC) gl, tr) states'
+.
+
+Definition StatesInf := list (State*Trace).
+
+Inductive wfStatesInf : StatesInf -> Prop :=
+| wfStatesInf_nil : wfStatesInf nil
+| wfStatesInf_cons : forall state t states,
+  wfState state ->
+  wfStatesInf states ->
+  wfStatesInf ((state, t)::states)
+.
+
+CoInductive nbInstInf : State*trace -> list Trace -> Prop :=
+| nbCallInsntInf : forall S M F B lc gl arg ExitValue rid t fid lp
+                            EC tr trs, 
+  nbFdefInf fid lp
+    (mkState S M None ((mkEC F B (insn_call rid t fid lp) lc arg)::nil) gl, tr) 
+    trs ->
+  nbInstInf 
+    (mkState S M ExitValue ((mkEC F B (insn_call rid t fid lp) lc arg)::EC) gl, tr)
+    trs
+with nbInstInfMerge : States -> list Trace -> Prop :=
+| nbInstInfMerge_nil : nbInstInfMerge nil nil
+| nbInstInfMerge_cons : forall state states tr1 tr2,
+  nbInstInf state tr1 ->
+  nbInstInfMerge states tr2 ->
+  nbInstInfMerge (state::states) (tr1++tr2)
+with nbopInf : States -> list Trace -> Prop :=
+| nbopInf_cons1 : forall states trs,
+  nbInstInfMerge states trs ->
+  nbopInf states trs
+| nbopInf_cons2 : forall states1 states2 states3,
+  nbInstMerge states1 states2 ->
+  nbopInf states2 states3 ->
+  nbopInf states1 states3 
+with nbFdefInf : id -> list_param -> State*trace -> list Trace -> Prop :=
+| nbFdefInf_intro : forall S M F B lc gl arg ExitValue rid t fid lp
+                            Oparg' arg' F' B' I' EC rt id la lb lc' tr tr',
+  params2OpGenericValues lp lc gl = Oparg' ->   
+  opGenericValues2GenericValues Oparg' = arg' ->   
+  lookupFdefViaIDFromSystemC S fid = Some F' ->
+  getEntryBlock F' = Some B' ->
+  getEntryInsn B' = Some I' ->
+  F' = fdef_intro (fheader_intro rt id la) lb ->
+  initializeFrameValues la arg' = lc' ->
+  nbopInf 
+    ((mkState S M ExitValue ((mkEC F' B' I' lc' arg')::(mkEC F B (insn_call rid t fid lp) lc arg)::EC) gl, tr)::nil) 
+    tr' ->
+  nbFdefInf fid lp 
+    (mkState S M ExitValue ((mkEC F B (insn_call rid t fid lp) lc arg)::EC) gl, tr)
+    tr'
 .
 
 Definition nb_genInitState := ns_genInitState.
 Definition nb_isFinialState := ns_isFinialState.
-
-CoInductive nbop_diverges : States -> States -> Prop :=
-| nbop_diverges_intro : forall state tr states states1 states2,
-    nbInst (state,tr) states1 ->
-    nbop_diverges states states2 ->
-    nbop_diverges ((state, tr)::states) (states1++states2)
-.
 
 Inductive nb_converges : system -> id -> list GenericValue -> States -> Prop :=
 | nb_converges_intro : forall (s:system) (main:id) (VarArgs:list GenericValue) (IS FS:States),
@@ -1023,11 +1002,11 @@ Inductive nb_converges : system -> id -> list GenericValue -> States -> Prop :=
   nb_converges s main VarArgs FS
 .
 
-Inductive nb_diverges : system -> id -> list GenericValue -> Prop :=
-| nb_diverges_intro : forall (s:system) (main:id) (VarArgs:list GenericValue) (IS S:States),
+Inductive nb_diverges : system -> id -> list GenericValue -> list Trace -> Prop :=
+| nb_diverges_intro : forall (s:system) (main:id) (VarArgs:list GenericValue) (IS:States) trs,
   nb_genInitState s main VarArgs = Some IS ->
-  nbop_diverges IS S ->
-  nb_diverges s main VarArgs
+  nbopInf IS trs ->
+  nb_diverges s main VarArgs trs
 .
 
 Inductive nb_goeswrong : system -> id -> list GenericValue -> States -> Prop :=
