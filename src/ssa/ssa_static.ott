@@ -107,7 +107,7 @@ Jwf_operand :: '' ::=
       % (isBindingG id_binding' = g) implies (g in module)
       %
       % Check when id_binding' is insn
-      (isBindingInsn id_binding' = insn') implies (intrinsic_funs , system , module_info , fdef_info , block , insn |- insn')
+      (isBindingInsn id_binding' = insn') implies (intrinsic_funs , system , (module, usedef_insn, usedef_block), (fdef, dt), block , insn |- insn')
       ----------------------------------------------------------------------------------------------------------------------- :: wf_operand_intro
       intrinsic_funs , system , (module, usedef_insn, usedef_block) , (fdef, dt) , block , insn |- id'
 
