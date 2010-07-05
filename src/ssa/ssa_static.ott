@@ -161,13 +161,13 @@ Jwf_insn :: '' ::=
       ------------------------------------------------------ :: wf_insn_return
       intrinsic_funs , system , module_info , (fdef, dt) , block |- ret typ value
 
-      % return instr that returns void in Function can be of void return type! 
-      Function.getDefReturnType fdef = typ
-      typ == void
+      %% return instr that returns void in Function can be of void return type! 
+      %Function.getDefReturnType fdef = typ
+      %typ == void
       % Check invariance for instructions
-      intrinsic_funs , system , module_info , (fdef, dt) , block |-i ret void
-      ------------------------------------------------------ :: wf_insn_return_void
-      intrinsic_funs , system , module_info , (fdef, dt) , block |- ret void
+      %intrinsic_funs , system , module_info , (fdef, dt) , block |-i ret void
+      %------------------------------------------------------ :: wf_insn_return_void
+      %intrinsic_funs , system , module_info , (fdef, dt) , block |- ret void
 
       % Check labels
       lookupBlockViaLabelFromSystem system l1 = block1

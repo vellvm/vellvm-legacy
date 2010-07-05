@@ -139,7 +139,7 @@ ls {{ tex \mathit{\{l\} } }} :: 'ls_'			::=			{{ com label set }}
 
 insn :: 'insn_'					    	::=			{{ com insnruction }}
   | ret typ value             			    	::   :: return      	{{ com return }}
-  | ret void                   			    	::   :: return_void  	{{ com return void }}
+  %| ret void                   			    	::   :: return_void  	{{ com return void }}
   | br typ value , l1 , l2				::   :: br              {{ com br }}        
   | br l        	    	  			::   :: br_uncond       {{ com unconditional br }}        
   %| switch typ value , l </ [ constj , lj ] // j />	::   :: switch		{{ com switch }}

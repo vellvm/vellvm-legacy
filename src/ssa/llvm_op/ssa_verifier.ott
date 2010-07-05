@@ -166,9 +166,9 @@ Jwf_insn :: '' ::=
       ------------------------------------------------------ :: wf_insn_return
       intrinsic_funs , system , module_info , (fdef, dt) , block |- ret typ value
 
-      intrinsic_funs , system , module_info , (fdef, dt) , block |-i ret void
-      ------------------------------------------------------ :: wf_insn_return_void
-      intrinsic_funs , system , module_info , (fdef, dt) , block |- ret void
+      % intrinsic_funs , system , module_info , (fdef, dt) , block |-i ret void
+      % ------------------------------------------------------ :: wf_insn_return_void
+      % intrinsic_funs , system , module_info , (fdef, dt) , block |- ret void
 
       intrinsic_funs , system , module_info , (fdef, dt) , block |-i br typ value , l1 , l2
       -------------------------------------------------------------------------------------- :: wf_insn_br

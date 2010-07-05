@@ -304,8 +304,8 @@ getInsnTyp_def :: '' ::=
      ----------------------------------------------- :: getInsnTyp_return
      getInsnTyp (ret typ value) = typ
 
-     ----------------------------------------------- :: getInsnTyp_return_void
-     getInsnTyp (ret void) = none 
+     % ----------------------------------------------- :: getInsnTyp_return_void
+     % getInsnTyp (ret void) = none 
 
      ------------------------------------------------------ :: getInsnTyp_br
      getInsnTyp (br typ value , l1 , l2) = none
@@ -455,8 +455,8 @@ getInsnOperands_def :: '' ::=
      ----------------------------------------------- :: getInsnOperands_return
      getInsnOperands (ret typ value) = ids
 
-     ----------------------------------------------- :: getInsnOperands_return_void
-     getInsnOperands (ret void) = empty
+     % ----------------------------------------------- :: getInsnOperands_return_void
+     % getInsnOperands (ret void) = empty
 
      getValueIDs value = ids
      ------------------------------------------------------ :: getInsnOperands_br
@@ -598,8 +598,8 @@ getInsnLabels_def :: '' ::=
      ----------------------------------------------- :: getInsnLabels_return
      getInsnLabels (ret typ value) = empty
 
-     ----------------------------------------------- :: getInsnLabels_return_void
-     getInsnLabels (ret void) = empty
+     % ----------------------------------------------- :: getInsnLabels_return_void
+     % getInsnLabels (ret void) = empty
 
      ------------------------------------------------------ :: getInsnLabels_br
      getInsnLabels (br typ value , l1 , l2) = l1,l2
@@ -771,8 +771,8 @@ isReturnInsn_def :: '' ::=
      --------------------------------- :: isReturnInsn_nonvoid
      isReturnInsn (ret typ value) 
 
-     --------------------------------- :: isReturnInsn_void
-     isReturnInsn (ret void) 
+     % --------------------------------- :: isReturnInsn_void
+     % isReturnInsn (ret void) 
 
 defns
 isCallInsn_def :: '' ::=
@@ -790,8 +790,8 @@ isTerminatorInsn_def :: '' ::=
      --------------------------------- :: isTerminator_ret
      isTerminatorInsn (ret typ value)
 
-     --------------------------------- :: isTerminator_ret_void
-     isTerminatorInsn (ret void)
+     % --------------------------------- :: isTerminator_ret_void
+     % isTerminatorInsn (ret void)
 
      ---------------------------------------- :: isTerminator_br
      isTerminatorInsn (br typ value , l1, l2)
@@ -914,8 +914,8 @@ isTerminatorInsn_def :: '' ::=
       --------------------------------------- :: isTerminatorInsn_return
       isTerminatorInsn (ret typ value) 
       
-      --------------------------------------- :: isTerminatorInsn_return_void
-      isTerminatorInsn (ret void)
+      % --------------------------------------- :: isTerminatorInsn_return_void
+      % isTerminatorInsn (ret void)
 
       --------------------------------------- :: isTerminatorInsn_br
       isTerminatorInsn (br typ value , l1 , l2)

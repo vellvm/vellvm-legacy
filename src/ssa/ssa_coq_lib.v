@@ -135,7 +135,7 @@ Require Import Omega.
   Definition getInsnID (i:insn) : option id :=
   match i with
   | insn_return t v => None
-  | insn_return_void  => None
+  (* | insn_return_void  => None *)
   | insn_br t v l1 l2 => None
   | insn_br_uncond l => None
   (* | insn_switch t v l _ => None *)
@@ -208,7 +208,7 @@ Require Import Omega.
   Definition genInsnUseDef_insn (i:insn) (b:block) (f:fdef) (m:module) : usedef_insn :=
   match i with
   | insn_return t v => genInsnUseDef_value v i b f m
-  | insn_return_void  => fun _ => nil 
+  (* | insn_return_void  => fun _ => nil *)
   | insn_br t v l1 l2 => genInsnUseDef_value v i b f m        
   | insn_br_uncond l => fun _ => nil
   (* | insn_switch t v l _ => genInsnUseDef_value v i b f m *)
@@ -317,7 +317,7 @@ Require Import Omega.
   Definition genBlockUseDef_insn (i:insn) (b:block) (f:fdef) (m:module) : usedef_block :=
   match i with
   | insn_return t v => fun _ => nil
-  | insn_return_void  => fun _ => nil 
+  (* | insn_return_void  => fun _ => nil *)
   | insn_br t v l1 l2 => genBlockUseDef_label l1 i b f m ++++ genBlockUseDef_label l2 i b f m       
   | insn_br_uncond l => genBlockUseDef_label l i b f m
   (* | insn_switch t v l ls => genBlockUseDef_label l i b f m ++++ genBlockUseDef_switch_cases ls i b f m *)
@@ -643,7 +643,7 @@ end.
 Definition isReturnInsnB (i:insn) : bool :=
 match i with
 | insn_return _ _ => true
-| insn_return_void => true
+(* | insn_return_void => true *)
 | _ => false
 end.
 
@@ -701,7 +701,7 @@ end.
 Definition isTerminatorInsnB (i:insn) : bool :=
 match i with
 | insn_return _ _ => true
-| insn_return_void => true
+(* | insn_return_void => true *)
 | insn_br _ _ _ _ => true
 | insn_br_uncond _ => true
 (* | insn_switch _ _ _ => true *)
@@ -735,7 +735,7 @@ end.
 Definition getInsnTypC (i:insn) : option typ :=
 match i with
 | insn_return typ _ => Some typ
-| insn_return_void => None
+(* | insn_return_void => None *)
 | insn_br typ _ _ _ => None 
 | insn_br_uncond _ => None
 (* | insn_switch typ _ _ _ => None *)
@@ -802,7 +802,7 @@ end.
 Definition getInsnOperandsC (i:insn) : ids :=
 match i with
 | insn_return _ v => getValueIDsC v
-| insn_return_void => nil
+(* | insn_return_void => nil *)
 | insn_br _ v _ _ => getValueIDsC v
 | insn_br_uncond _ => nil
 (* | insn_switch _ value _ _ => getValueIDs value *)
@@ -839,7 +839,7 @@ end.
 Definition getInsnLabelsC (i:insn) : ls :=
 match i with
 | insn_return _ _ => nil
-| insn_return_void => nil
+(* | insn_return_void => nil *)
 | insn_br _ _ l1 l2 => l1::l2::nil
 | insn_br_uncond l => l::nil
 (* | insn_switch _ _ l ls => l::list_prj2 _ _ ls *)
@@ -1477,7 +1477,7 @@ Definition insnEqB (i i':insn) : bool :=
 match (i, i') with
 | (insn_return t v, insn_return t' v') =>
   typEqB t t' && valueEqB v v'
-| (insn_return_void, insn_return_void) => true
+(* | (insn_return_void, insn_return_void) => true *)
 | (insn_br t v l1 l2, insn_br t' v' l1' l2') =>
   typEqB t t' && valueEqB v v' &&
   beq_nat l1 l1' && beq_nat l2 l2'

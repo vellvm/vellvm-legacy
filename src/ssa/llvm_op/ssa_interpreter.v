@@ -354,7 +354,6 @@ Inductive visitInst : State -> State -> trace -> Prop :=
       )::ECS')
     )
     trace_nil 
-*)
 | visitReturnVoid_finished : forall CurSystem CurModule CurFunction CurBB Values VarArgs Caller ExitValue,
   (* Finished main.  Put result into exit code... *)
   ExitValue = (Some (GenericValue_untyped 0)) ->
@@ -424,7 +423,6 @@ Inductive visitInst : State -> State -> trace -> Prop :=
       )::ECS')
     )
     trace_nil 
-(*
 | visitReturnVoid_invoke : forall CurSystem CurModule CurFunction CurBB Values VarArgs Caller ExitValue
                               CurFunction' CurBB' CurInst' Values' VarArgs' Caller' ECS' 
                               Dest CurBB'' CurInst'' Values'',   
