@@ -403,11 +403,11 @@ Inductive ds_converges : system -> id -> list GenericValue -> State -> Prop :=
   ds_converges s main VarArgs FS
 .
 
-Inductive ds_diverges : system -> id -> list GenericValue -> Prop :=
+Inductive ds_diverges : system -> id -> list GenericValue -> Trace -> Prop :=
 | ds_diverges_intro : forall (s:system) (main:id) (VarArgs:list GenericValue) (IS:State) tr,
   ds_genInitState s main VarArgs = Some IS ->
   dsop_diverges IS tr ->
-  ds_diverges s main VarArgs
+  ds_diverges s main VarArgs tr
 .
 
 Inductive ds_goeswrong : system -> id -> list GenericValue -> State -> Prop :=
@@ -558,38 +558,41 @@ match states with
 | _ => false
 end.
 
-Inductive nsInsnMerge : States -> States -> Prop :=
-| nsInsnMerge_nil : nsInsnMerge nil nil
-| nsInsnMerge_cons : forall state tr states states1 states2,
-  nsInsn (state, tr) states1 ->
-  nsInsnMerge states states2 ->
-  nsInsnMerge ((state, tr)::states) (states1++states2)
-| nssnsnMerge_final : forall state tr states states',
-  ds_isFinialState state ->
-  nsInsnMerge states states' ->
-  nsInsnMerge ((state, tr)::states) ((state, tr)::states')
-.
-
 Inductive nsop_star : States -> States -> Prop :=
-| nsop_star_nil : nsop_star nil nil
-| nsop_star_cons : forall states1 states2 states3,
-  nsInsnMerge states1 states2 ->
+| nsop_star_nil : forall states, nsop_star states states
+| nsop_star_refl : forall state tr states states',
+  nsop_star states states' ->
+  nsop_star ((state, tr)::states) ((state, tr)::states')
+| nsop_star_cons : forall state tr states states1 states2,
+  nsInsn (state, tr) states1 ->
+  nsop_star states states2 ->
+  nsop_star ((state, tr)::states) (states1++states2)
+| nsop_star_trans : forall states1 states2 states3,
+  nsop_star states1 states2 ->
   nsop_star states2 states3 ->
   nsop_star states1 states3
 .
 
 Inductive nsop_plus : States -> States -> Prop :=
-| nsop_plus_cons : forall states1 states2 states3,
-  nsInsnMerge states1 states2 ->
-  nsop_plus states2 states3 ->
+| nsop_plus_cons : forall state tr states states1 states2,
+  nsInsn (state, tr) states1 ->
+  nsop_star states states2 ->
+  nsop_plus ((state, tr)::states) (states1++states2)
+| nsop_plus_trans : forall states1 states2 states3,
+  nsop_plus states1 states2 ->
+  nsop_star states2 states3 ->
   nsop_plus states1 states3
 .
 
-CoInductive nsop_diverges : States -> Prop :=
-| nsop_diverges_intro : forall states states',
+CoInductive nsop_diverges : States -> list Trace -> Prop :=
+| nsop_diverges_cons : forall state_tr states trs1 trs2,
+  nsop_diverges (state_tr::nil) trs1 ->
+  nsop_diverges states trs2 ->
+  nsop_diverges (state_tr::states) (trs1++trs2)
+| nsop_diverges_trans : forall states states' trs,
     nsop_plus states states' ->
-    nsop_diverges states' ->
-    nsop_diverges states
+    nsop_diverges states' trs ->
+    nsop_diverges states trs
 .
 
 Inductive ns_converges : system -> id -> list GenericValue -> States -> Prop :=
@@ -600,11 +603,11 @@ Inductive ns_converges : system -> id -> list GenericValue -> States -> Prop :=
   ns_converges s main VarArgs FS
 .
 
-Inductive ns_diverges : system -> id -> list GenericValue -> Prop :=
-| ns_diverges_intro : forall (s:system) (main:id) (VarArgs:list GenericValue) (IS:States),
+Inductive ns_diverges : system -> id -> list GenericValue -> list Trace -> Prop :=
+| ns_diverges_intro : forall (s:system) (main:id) (VarArgs:list GenericValue) (IS:States) trs,
   ns_genInitState s main VarArgs = Some IS ->
-  nsop_diverges IS ->
-  ns_diverges s main VarArgs
+  nsop_diverges IS trs ->
+  ns_diverges s main VarArgs trs
 .
 
 Inductive ns_goeswrong : system -> id -> list GenericValue -> States -> Prop :=
@@ -724,11 +727,11 @@ Inductive db_converges : system -> id -> list GenericValue -> State -> Prop :=
   db_converges s main VarArgs FS
 .
 
-Inductive db_diverges : system -> id -> list GenericValue -> Prop :=
+Inductive db_diverges : system -> id -> list GenericValue -> Trace -> Prop :=
 | db_diverges_intro : forall (s:system) (main:id) (VarArgs:list GenericValue) (IS S:State) tr,
   db_genInitState s main VarArgs = Some IS ->
   dbopInf IS tr ->
-  db_diverges s main VarArgs
+  db_diverges s main VarArgs tr
 .
 
 Inductive db_goeswrong : system -> id -> list GenericValue -> State -> Prop :=
@@ -812,29 +815,26 @@ Inductive nbInsn : State*trace -> States -> Prop :=
   nbInsn 
     (mkState S M ((mkEC F B (insn_add id t v1 v2) lc arg)::EC) gl, tr) 
     ((mkState S M ((mkEC F B I' lc' arg)::EC) gl', tr)::nil)
-with nbInsnMerge : States -> States -> Prop :=
-| nbInsnMerge_nil : nbInsnMerge nil nil
-| nbInsnMerge_cons : forall state tr states states1 states2,
+with nbop_star : States -> States -> Prop :=
+| nbop_star_nil : nbop_star nil nil
+| nbop_star_refl : forall state_tr states states',
+  nbop_star states states' ->
+  nbop_star (state_tr::states) (state_tr::states')
+| nbop_star_cons : forall state tr states states1 states2,
   nbInsn (state, tr) states1 ->
-  nbInsnMerge states states2 ->
-  nbInsnMerge ((state, tr)::states) (states1++states2)
-| nbInsnMerge_final : forall state tr states states',
-  ds_isFinialState state ->
-  nbInsnMerge states states' ->
-  nbInsnMerge ((state, tr)::states) ((state, tr)::states')
-with nbop : States -> States -> Prop :=
-| nbop_nil : nbop nil nil
-| nbop_cons : forall states1 states2 states3,
-  nbInsnMerge states1 states2 ->
-  nbop states2 states3 ->
-  nbop states1 states3 
+  nbop_star states states2 ->
+  nbop_star ((state, tr)::states) (states1++states2)
+| nbop_star_trans : forall states1 states2 states3,
+  nbop_star states1 states2 ->
+  nbop_star states2 states3 ->
+  nbop_star states1 states3 
 with nbFdef : id -> typ -> list_param -> system -> module -> list ExecutionContext -> GVMap -> GVMap -> trace -> list (GVMap*GVMap*block*value*trace) -> Prop :=
 | nbFdef_intro : forall S M lc gl fid lp
                             B' I' rt la lb tr lc_gl_block_re_trs ECs,
   lookupFdefViaIDFromSystemC S fid = Some (fdef_intro (fheader_intro rt fid la) lb) ->
   getEntryBlock (fdef_intro (fheader_intro rt fid la) lb) = Some B' ->
   getEntryInsn B' = Some I' ->
-  nbop 
+  nbop_star 
     ((mkState S M ((mkEC (fdef_intro (fheader_intro rt fid la) lb) 
                          B' I' (initLocals la (params2GVs lp lc gl)) 
                          (params2GVs lp lc gl))::ECs) gl, tr)::nil)
@@ -852,32 +852,38 @@ Inductive wfStatesInf : StatesInf -> Prop :=
   wfStatesInf ((state, t)::states)
 .
 
+Inductive nbop_plus : States -> States -> Prop :=
+| nbop_plus_cons : forall state_tr states states1 states2,
+  nbInsn state_tr states1 ->
+  nbop_star states states2 ->
+  nbop_plus (state_tr::states) (states1++states2)
+| nbop_plus_trans : forall states1 states2 states3,
+  nbop_plus states1 states2 ->
+  nbop_star states2 states3 ->
+  nbop_plus states1 states3 
+.
+
 CoInductive nbInsnInf : State*trace -> list Trace -> Prop :=
 | nbCallInsnInf : forall S M F B lc gl arg rid rt fid lp
                             EC tr trs, 
   nbFdefInf fid rt lp S M 
-    ((mkEC F B (insn_call rid rt fid lp) lc arg)::nil)      
+    ((mkEC F B (insn_call rid rt fid lp) lc arg)::EC)      
     lc gl tr trs ->
   nbInsnInf 
     (mkState S M ((mkEC F B (insn_call rid rt fid lp) lc arg)::EC) gl, tr)
     trs
-with nbInsnInfMerge : States -> list Trace -> Prop :=
-| nbInsnInfMerge_nil : nbInsnInfMerge nil nil
-| nbInsnInfMerge_cons : forall state states tr1 tr2,
-  nbInsnInf state tr1 ->
-  nbInsnInfMerge states tr2 ->
-  nbInsnInfMerge (state::states) (tr1++tr2)
 with nbopInf : States -> list Trace -> Prop :=
-| nbopInf_cons1 : forall states trs,
-  nbInsnInfMerge states trs ->
-  nbopInf states trs
-| nbopInf_cons2 : forall states1 states2 states3,
-  nbInsnMerge states1 states2 ->
-  nbopInf states2 states3 ->
-  nbopInf states1 states3 
+| nbopInf_cons : forall state_tr states tr1 tr2,
+  nbInsnInf state_tr tr1 ->
+  nbopInf states tr2 ->
+  nbopInf (state_tr::states) (tr1++tr2)
+| nbopInf_trans : forall states1 states2 trs,
+  nbop_plus states1 states2 ->
+  nbopInf states2 trs ->
+  nbopInf states1 trs 
 with nbFdefInf : id -> typ -> list_param -> system -> module -> list ExecutionContext -> GVMap -> GVMap -> trace -> list Trace -> Prop :=
 | nbFdefInf_intro : forall S M lc gl fid lp
-                            B' I' ECs rt la lb tr tr',
+                            B' I' ECs rt la lb tr trs',
   lookupFdefViaIDFromSystemC S fid = Some (fdef_intro (fheader_intro rt fid la) lb) ->
   getEntryBlock (fdef_intro (fheader_intro rt fid la) lb) = Some B' ->
   getEntryInsn B' = Some I' ->
@@ -885,8 +891,8 @@ with nbFdefInf : id -> typ -> list_param -> system -> module -> list ExecutionCo
     ((mkState S M ((mkEC (fdef_intro (fheader_intro rt fid la) lb) 
                           B' I' (initLocals la (params2GVs lp lc gl)) 
                           (params2GVs lp lc gl))::ECs) gl, tr)::nil) 
-    tr' ->
-  nbFdefInf fid rt lp S M ECs lc gl tr tr'
+    trs' ->
+  nbFdefInf fid rt lp S M ECs lc gl tr trs'
 .
 
 Definition nb_genInitState := ns_genInitState.
@@ -895,7 +901,7 @@ Definition nb_isFinialState := ns_isFinialState.
 Inductive nb_converges : system -> id -> list GenericValue -> States -> Prop :=
 | nb_converges_intro : forall (s:system) (main:id) (VarArgs:list GenericValue) (IS FS:States),
   nb_genInitState s main VarArgs = Some IS ->
-  nbop IS FS ->
+  nbop_star IS FS ->
   nb_isFinialState FS ->
   nb_converges s main VarArgs FS
 .
@@ -910,7 +916,7 @@ Inductive nb_diverges : system -> id -> list GenericValue -> list Trace -> Prop 
 Inductive nb_goeswrong : system -> id -> list GenericValue -> States -> Prop :=
 | nb_goeswrong_intro : forall (s:system) (main:id) (VarArgs:list GenericValue) (IS FS:States),
   nb_genInitState s main VarArgs = Some IS ->
-  nbop IS FS ->
+  nbop_star IS FS ->
   ~ nb_isFinialState FS ->
   nb_goeswrong s main VarArgs FS
 .
@@ -920,6 +926,12 @@ Scheme dbInsn_ind2 := Induction for dbInsn Sort Prop
   with dbFdef_ind2 := Induction for dbFdef Sort Prop.
 
 Combined Scheme db_mutind from dbInsn_ind2, dbop_ind2, dbFdef_ind2.
+
+Scheme nbInsn_ind2 := Induction for nbInsn Sort Prop
+  with nbop_star_ind2 := Induction for nbop_star Sort Prop
+  with nbFdef_ind2 := Induction for nbFdef Sort Prop.
+
+Combined Scheme nb_mutind from nbInsn_ind2, nbop_star_ind2, nbFdef_ind2.
 
 Tactic Notation "db_mutind_cases" tactic(first) tactic(c) :=
   first;
@@ -936,9 +948,29 @@ Tactic Notation "dsop_star_cases" tactic(first) tactic(c) :=
   first;
   [ c "dsop_star_nil" | c "dsop_star_cons" ].
 
-Hint Constructors dbInsn dbop dbFdef.
-Hint Constructors dsInsn dsop_star dsop_diverges dsop_plus.
+Tactic Notation "nb_mutind_cases" tactic(first) tactic(c) :=
+  first;
+  [ c "nbBranch_def" | c "nbBranch_undef" | c "nbBranch_uncond" | c "nbCallInsn" |
+    c "nbAddInsn" | c "nbop_star_nil" | c "nbop_star_refl" | c "nbop_star_cons" | 
+    c "nbop_star_trans" | c "nbFdef_intro" ].
 
+Tactic Notation "nsInsn_cases" tactic(first) tactic(c) :=
+  first;
+  [ c "nsReturn" | c "nsBranch_def" | c "nsBranch_undef" | 
+    c "nsBranch_uncond" | c "nsCallInsn" | c "nsAddInsn" ].
+
+Tactic Notation "nsop_star_cases" tactic(first) tactic(c) :=
+  first;
+  [ c "nsop_star_nil" | c "nsop_star_refl" | 
+    c "nsop_star_cons" | c "nsop_star_trans" ].
+
+Tactic Notation "nsop_plus_cases" tactic(first) tactic(c) :=
+  first;
+  [ c "nsop_plus_cons" | c "nsop_plus_trans" ].
+
+
+Hint Constructors dbInsn dbop dbFdef dsInsn dsop_star dsop_diverges dsop_plus
+                  nbInsn nbop_star nbop_plus nbFdef nsInsn nsop_star nsop_diverges nsop_plus.
 
 (*****************************)
 (*
