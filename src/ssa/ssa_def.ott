@@ -28,8 +28,6 @@ metavar id ::= {{ com identities }}
   {{ coq nat }} {{ lex numeral  }}
 metavar l ::= {{ com labels }}
   {{ coq nat }} {{ lex numeral  }}
-metavar idx ::= {{ com indices }}
-  {{ coq nat }} {{ lex numeral  }}
 metavar align ::= {{ com align }}
   {{ coq nat }} {{ lex numeral }}
 metavar sz ::= {{ com sz }}
@@ -75,7 +73,7 @@ list_layout {{ tex \mathit{\overline{layout} } }} :: 'list_layout_'	::=  	{{ com
   | ( list_layout )					:: S :: paren           {{ coq [[ list_layout ]] }}
 
 typ :: 'typ_'						::=			{{ com type }}
-  | int INT                    				::   :: int         	{{ com integer }}
+  | int sz                    				::   :: int         	{{ com integer }}
   %| float						::   :: float		{{ com float }}
   %| double						::   :: double          {{ com double }}
   %| fp128						::   :: fp128           {{ com fp128 }}
@@ -117,17 +115,22 @@ tconst :: 'tconst_'					::=  			{{ com tconst }}
   | typ const 						::   :: def          	{{ coq ([[typ]],[[const]]) }}
   | ( tconst )						:: S :: paren		{{ coq [[ tconst ]] }}
 
-list_tconst {{ tex \mathit{\overline{tconst} } }} :: 'list_tconst_'	::=  		{{ com tconst list }}
-     	    			     	   					{{ coq (list (typ*const)) }}
+list_const {{ tex \mathit{\overline{const} } }} :: 'list_const_'	::=  		{{ com const list }}
+     	    			     	   					{{ coq (list (const)) }}
   | []   		 				::   :: nil		{{ coq nil }}
-  | list_tconst , tconst 				::   :: cons		{{ coq ([[tconst]]::[[list_tconst]]) }}
-  | list_tconst ; list_tconst'				::   :: append		{{ coq ([[list_tconst]]++[[list_tconst']]) }}
-  | ( list_tconst )					:: S :: paren           {{ coq [[ list_tconst ]] }}
+  | list_const , const 					::   :: cons		{{ coq ([[const]]::[[list_const]]) }}
+  | list_const ; list_const'				::   :: append		{{ coq ([[list_const]]++[[list_const']]) }}
+  | ( list_const )					:: S :: paren           {{ coq [[ list_const ]] }}
 
 value :: 'value_'					::=  			{{ com values }}
   | id	 						::   :: id		{{ com id }}
   | const						::   :: constant	{{ com constant }}
   | ( value )						:: S :: paren           {{ coq [[ value ]] }}
+
+idx :: 'idx_'						::=  			{{ com idxs }}
+  | id	 						::   :: id		{{ com id }}
+  | INT							::   :: int		{{ com int }}
+  | ( idx )						:: S :: paren           {{ coq [[ idx ]] }}
 
 arg :: 'arg_'  						::=  			{{ com argument }}
        										{{ coq (prod typ id) }}
@@ -176,7 +179,7 @@ ls {{ tex \mathit{\{l\} } }} :: 'ls_'			::=			{{ com label set }}
 insn :: 'insn_'					    	::=			{{ com insnruction }}
   | ret typ value             			    	::   :: return      	{{ com return }}
   %| ret void                   		    	::   :: return_void  	{{ com return void }}
-  | br typ value , l1 , l2			        ::   :: br              {{ com br }}        
+  | br value , l1 , l2		 			::   :: br              {{ com br }}        
   | br l        	    	  			::   :: br_uncond       {{ com unconditional br }}        
   %| switch typ value , l </ [ constj , lj ] // j />	::   :: switch		{{ com switch }}
   %| id = invoke typ0 id0 list_param to l1 unwind l2 	::   :: invoke		{{ com invoke }} 
@@ -193,10 +196,10 @@ insn :: 'insn_'					    	::=			{{ com insnruction }}
   | id = extractvalue typ0 value0 , </ idxj // j />   	::   :: extractvalue	        {{ com extractvalue }}
   | id = insertvalue typ0 value0 , typ1 value1 , </ idxj // j /> ::   :: insertvalue	{{ com insertvalue }}
   | id = alloca typ sz align     	       	     	::   :: alloca		{{ com alloca }}
-  | id = load typ1 value1				::   :: load		{{ com load }}
-  | store typ1 value1 , typ2 value2			::   :: store		{{ com store }}
-  | id = getelementptr typ value , </ idxj // j />    	      ::  :: gep        {{ com getelementptr }}
-  | id = getelementptr inbounds typ value , </ idxj // j />   ::  :: bgep       {{ com inboundsgetelementptr }}
+  | id = load ( typ * ) value1				::   :: load		{{ com load }}
+  | store typ value1 , value2				::   :: store		{{ com store }}
+  | id = getelementptr ( typ * ) value , </ idxj // j />    	      ::  :: gep        {{ com getelementptr }}
+  | id = getelementptr inbounds ( typ * ) value , </ idxj // j />     ::  :: bgep       {{ com inboundsgetelementptr }}
   %| id = trunc typ1 value1 to typ2			::   :: trunc		{{ com trunc }}
   %| id = fptrunc typ1 value1 to typ2			::   :: fptrunc		{{ com fptrunc }}
   %| id = fptoui typ1 value1 to typ2			::   :: fptoui		{{ com fptoui }}
@@ -399,6 +402,10 @@ formula :: 'formula_' ::=
   | block1 = block2 		::   :: eqBlock
 				{{ tex [[block1]] = [[block2]] }}
 				{{ coq [[block1]] = [[block2]] }}
+  | sz = 1			::   :: isOne
+       	 			{{ coq [[sz]] = 1 }}
+  | sz > 0			::   :: gtZero
+       	 			{{ coq [[sz]] > 0 }}
   | sz1 = sz2 			::   :: eqSize
 				{{ tex [[sz1]] = [[sz2]] }}
 				{{ coq [[sz1]] = [[sz2]] }}
@@ -456,15 +463,17 @@ formula :: 'formula_' ::=
   | system = system'          :: M :: system_alias
     	     			{{ com system alias }} 
 				{{ coq [[system]] = [[system']] }}
+  | length </ constj // j /> = sz :: M :: length_of_consts_is_sz
+                                {{ coq length [[ </ constj // j /> ]] = [[sz]] }}
   | ids <-> </ idj // j /> 	:: M :: ids_alias
     	      	   	        {{ com ids alias }}
 				{{ coq [[ids]] = [[ </ idj // j /> ]] }}
   | ls <-> </ lj // j /> 	:: M :: ls_alias
     	      	   	        {{ com ls alias }}
 				{{ coq [[ls]] = [[ </ lj // j /> ]] }}
-  | list_tconst <-> </ tconstj // j /> :: M :: tconsts_alias
-    	      	   	        {{ com tconsts alias }}
-				{{ coq [[list_tconst]] = [[ </ tconstj // j /> ]] }}
+  | list_const <-> </ constj // j /> :: M :: consts_alias
+    	      	   	        {{ com consts alias }}
+				{{ coq [[list_const]] = [[ </ constj // j /> ]] }}
   | list_arg <-> </ argj // j /> :: M :: args_alias
     	      	   	        {{ com args alias }}
 				{{ coq [[list_arg]] = [[ </ argj // j /> ]] }}

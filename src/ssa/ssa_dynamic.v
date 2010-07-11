@@ -308,7 +308,7 @@ Inductive dsInsn : State -> State -> trace -> Prop :=
     (mkState S M ((mkEC F' B' I'' lc' arg')::EC) gl)
     trace_nil 
 *)
-| dsBranch : forall S M F B lc gl arg t Cond l1 l2 c
+| dsBranch : forall S M F B lc gl arg Cond l1 l2 c
                               B' I' lc' Dest EC Mem,   
   getOperandValue Cond lc gl = Some (GV_int c) ->
   Some Dest = (if c 
@@ -317,7 +317,7 @@ Inductive dsInsn : State -> State -> trace -> Prop :=
   (B', lc') = (switchToNewBasicBlock Dest B lc) ->
   getEntryInsn B' = Some I' ->
   dsInsn 
-    (mkState S M ((mkEC F B (insn_br t Cond l1 l2) lc arg)::EC) gl Mem)
+    (mkState S M ((mkEC F B (insn_br Cond l1 l2) lc arg)::EC) gl Mem)
     (mkState S M ((mkEC F B' I' lc' arg)::EC) gl Mem)
     trace_nil 
 | dsBranch_uncond : forall S M F B lc gl arg l
@@ -486,7 +486,7 @@ Inductive nsInsn : State*trace -> States -> Prop :=
     (mkState S M ((mkEC F B insn_return_void lc arg)::(mkEC F' B' I' lc' arg')::EC) gl, tr)
     ((mkState S M ((mkEC F' B' I'' lc' arg')::EC) gl, tr)::nil)
 *)
-| nsBranch_def : forall S M F B lc gl arg t Cond l1 l2 c
+| nsBranch_def : forall S M F B lc gl arg Cond l1 l2 c
                               B' I' lc' Dest EC tr Mem,   
   getOperandValue Cond lc gl = Some (GV_int c) ->
   Some Dest = (if c 
@@ -495,9 +495,9 @@ Inductive nsInsn : State*trace -> States -> Prop :=
   (B', lc') = (switchToNewBasicBlock Dest B lc) ->
   getEntryInsn B' = Some I' ->
   nsInsn 
-    (mkState S M ((mkEC F B (insn_br t Cond l1 l2) lc arg)::EC) gl Mem, tr)
+    (mkState S M ((mkEC F B (insn_br Cond l1 l2) lc arg)::EC) gl Mem, tr)
     ((mkState S M ((mkEC F B' I' lc' arg)::EC) gl Mem, tr)::nil)
-| nsBranch_undef : forall S M F B lc arg t Cond l1 l2
+| nsBranch_undef : forall S M F B lc arg Cond l1 l2
                               B1' I1' lc1' B2' I2' lc2' Dest1 Dest2 EC gl tr Mem,   
   getOperandValue Cond lc gl = Some GV_undef ->
   Some Dest1 = lookupBlockViaLabelFromSystem S l1 ->
@@ -507,7 +507,7 @@ Inductive nsInsn : State*trace -> States -> Prop :=
   getEntryInsn B1' = Some I1' ->
   getEntryInsn B2' = Some I2' ->
   nsInsn 
-    (mkState S M ((mkEC F B (insn_br t Cond l1 l2) lc arg)::EC) gl Mem, tr)
+    (mkState S M ((mkEC F B (insn_br Cond l1 l2) lc arg)::EC) gl Mem, tr)
     ((mkState S M ((mkEC F B1' I1' lc1' arg)::EC) gl Mem, tr)::
      (mkState S M ((mkEC F B2' I2' lc2' arg)::EC) gl Mem, tr)::nil)
 | nsBranch_uncond : forall S M F B lc gl arg l
@@ -649,7 +649,7 @@ Inductive ns_goeswrong : system -> id -> list GenericValue -> States -> Prop :=
 (* deterministic big-step *)
 
 Inductive dbInsn : State -> State -> trace -> Prop :=
-| dbBranch : forall S M F B lc gl arg t Cond l1 l2 c
+| dbBranch : forall S M F B lc gl arg Cond l1 l2 c
                               B' I' lc' Dest EC Mem,   
   getOperandValue Cond lc gl = Some (GV_int c) ->
   Some Dest = (if c 
@@ -658,7 +658,7 @@ Inductive dbInsn : State -> State -> trace -> Prop :=
   (B', lc') = (switchToNewBasicBlock Dest B lc) ->
   getEntryInsn B' = Some I' ->
   dbInsn 
-    (mkState S M ((mkEC F B (insn_br t Cond l1 l2) lc arg)::EC) gl Mem)
+    (mkState S M ((mkEC F B (insn_br Cond l1 l2) lc arg)::EC) gl Mem)
     (mkState S M ((mkEC F B' I' lc' arg)::EC) gl Mem)
     trace_nil 
 | dbBranch_uncond : forall S M F B lc gl arg l
@@ -795,7 +795,7 @@ match lc_gl_Mem_block_re_trs with
 end.
 
 Inductive nbInsn : State*trace -> States -> Prop :=
-| nbBranch_def : forall S M F B lc gl arg t Cond l1 l2 c
+| nbBranch_def : forall S M F B lc gl arg  Cond l1 l2 c
                               B' I' lc' Dest EC tr Mem,   
   getOperandValue Cond lc gl = Some (GV_int c) ->
   Some Dest = (if c 
@@ -804,9 +804,9 @@ Inductive nbInsn : State*trace -> States -> Prop :=
   (B', lc') = (switchToNewBasicBlock Dest B lc) ->
   getEntryInsn B' = Some I' ->
   nbInsn 
-    (mkState S M ((mkEC F B (insn_br t Cond l1 l2) lc arg)::EC) gl Mem, tr)
+    (mkState S M ((mkEC F B (insn_br Cond l1 l2) lc arg)::EC) gl Mem, tr)
     ((mkState S M ((mkEC F B' I' lc' arg)::EC) gl Mem, tr)::nil)
-| nbBranch_undef : forall S M F B lc arg t Cond l1 l2
+| nbBranch_undef : forall S M F B lc arg Cond l1 l2
                               B1' I1' lc1' B2' I2' lc2' Dest1 Dest2 EC tr gl Mem,   
   getOperandValue Cond lc gl = Some GV_undef ->
   Some Dest1 = lookupBlockViaLabelFromSystem S l1 ->
@@ -816,7 +816,7 @@ Inductive nbInsn : State*trace -> States -> Prop :=
   getEntryInsn B1' = Some I1' ->
   getEntryInsn B2' = Some I2' ->
   nbInsn 
-    (mkState S M ((mkEC F B (insn_br t Cond l1 l2) lc arg)::EC) gl Mem, tr)
+    (mkState S M ((mkEC F B (insn_br Cond l1 l2) lc arg)::EC) gl Mem, tr)
     ((mkState S M ((mkEC F B1' I1' lc1' arg)::EC) gl Mem, tr)::
      (mkState S M ((mkEC F B2' I2' lc2' arg)::EC) gl Mem, tr)::nil)
 | nbBranch_uncond : forall S M F B lc gl arg l

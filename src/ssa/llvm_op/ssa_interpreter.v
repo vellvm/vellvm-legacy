@@ -473,7 +473,7 @@ Inductive visitInst : State -> State -> trace -> Prop :=
     )
     trace_nil 
 *)
-| visitBranch : forall CurSystem CurModule CurFunction CurBB Values VarArgs Caller ExitValue t Cond l1 l2 c
+| visitBranch : forall CurSystem CurModule CurFunction CurBB Values VarArgs Caller ExitValue Cond l1 l2 c
                               CurBB' CurInst' Values' Dest ECS,   
   getOperandValue Cond Values = Some (GenericValue_int c) ->
   Some Dest = (if c 
@@ -489,7 +489,7 @@ Inductive visitInst : State -> State -> trace -> Prop :=
       ((mkExecutionContext 
           CurFunction 
           CurBB 
-          (insn_br t Cond l1 l2) 
+          (insn_br Cond l1 l2) 
           Values 
           VarArgs 
           Caller

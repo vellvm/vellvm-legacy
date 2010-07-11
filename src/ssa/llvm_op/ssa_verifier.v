@@ -197,7 +197,7 @@ Definition wf_operand (intrinsic_funs5:intrinsic_funs)
 Inductive wf_label : intrinsic_funs -> system -> module_info -> fdef_info -> block -> insn -> l -> Prop :=    (* defn wf_label *)
  | wf_label_intro : forall (intrinsic_funs5:intrinsic_funs) (system5:system) (module5:module) (usedef_insn5:usedef_insn) (usedef_block5:usedef_block) (fdef5:fdef) (dt5:dt) (block5:block) (insn5:insn) (l5:l) (ls5:ls),
      insnInSystemModuleFdefBlock insn5 system5   ( module5 , ( usedef_insn5 ,  usedef_block5 ))     ( fdef5 ,  dt5 )   block5 ->
-     getInsnLabels insn5 ls5 ->
+     getInsnLabelsC insn5 = ls5 ->
       ( set_In  l5   ls5 )  ->
       (lookupBlockViaLabelFromSystem  system5   l5  =   (Some  block5 )  )  ->
      blockInFdef block5 fdef5 ->
@@ -539,10 +539,9 @@ Inductive wf_insn : intrinsic_funs -> system -> module_info -> fdef_info -> bloc
      visitReturnInst intrinsic_funs5 system5 module_info5   ( fdef5 ,  dt5 )   block5 insn_return_void ->
      wf_insn intrinsic_funs5 system5 module_info5   ( fdef5 ,  dt5 )   block5 insn_return_void
 *)
- | wf_insn_br : forall (intrinsic_funs5:intrinsic_funs) (system5:system) (module_info5:module_info) (block5:block) (typ5:typ) (value5:value) (l1 l2:l) (fdef5:fdef) (dt5:dt) ,
-     typ5 =t= (typ_int 1) ->
-     visitTerminatorInst intrinsic_funs5 system5 module_info5   ( fdef5 ,  dt5 )   block5 (insn_br typ5 value5 l1 l2) ->
-     wf_insn intrinsic_funs5 system5   module_info5  ( fdef5 ,  dt5 ) block5 (insn_br typ5 value5 l1 l2)
+ | wf_insn_br : forall (intrinsic_funs5:intrinsic_funs) (system5:system) (module_info5:module_info) (block5:block) (value5:value) (l1 l2:l) (fdef5:fdef) (dt5:dt) ,
+     visitTerminatorInst intrinsic_funs5 system5 module_info5   ( fdef5 ,  dt5 )   block5 (insn_br value5 l1 l2) ->
+     wf_insn intrinsic_funs5 system5   module_info5  ( fdef5 ,  dt5 ) block5 (insn_br value5 l1 l2)
  | wf_insn_br_uncond : forall (intrinsic_funs5:intrinsic_funs) (system5:system) (block5:block) (l5:l) (module_info5:module_info) (fdef5:fdef) (dt5:dt),
      visitTerminatorInst intrinsic_funs5 system5 module_info5   ( fdef5 ,  dt5 )   block5 (insn_br_uncond l5) ->
      wf_insn intrinsic_funs5 system5   module_info5   ( fdef5 ,  dt5 ) block5 (insn_br_uncond l5)
