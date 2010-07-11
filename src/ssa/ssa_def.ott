@@ -28,6 +28,12 @@ metavar id ::= {{ com identities }}
   {{ coq nat }} {{ lex numeral  }}
 metavar l ::= {{ com labels }}
   {{ coq nat }} {{ lex numeral  }}
+metavar idx ::= {{ com indices }}
+  {{ coq nat }} {{ lex numeral  }}
+metavar align ::= {{ com align }}
+  {{ coq nat }} {{ lex numeral }}
+metavar sz ::= {{ com sz }}
+  {{ coq nat }} {{ lex numeral }}
 indexvar i, j, n ::= {{ com index }}
   {{ coq nat }}
  
@@ -53,15 +59,20 @@ ids {{ tex \mathit{\{id\} } }} :: 'ids_'		::=			{{ com id set }}
   | ids ; ids'						::   :: append		{{ coq (set_union eq_nat_dec [[ids]] [[ids']]) }}
   | ( ids )						:: S :: paren		{{ coq [[ ids ]] }}
 
-const :: 'const_'					::=  			{{ com constant }}
-  | INT	 						::   :: val		{{ com val }}	
-  | undef						::   :: undef		{{ com undef }}
-  | ( const )						:: S :: paren           {{ coq [[ const ]] }}
+layout :: 'layout_'					::=  			{{ com data layout }}
+  | bigendian						::   :: be 		{{ com bigendian }}
+  | littleendian					::   :: le	 	{{ com littleendian }}
+  | ptr sz align0 align1				::   :: ptr		{{ com ptr }}
+  | int sz align0 align1				::   :: int		{{ com int }}
+  | aggr sz align0 align1			     	::   :: aggr		{{ com aggregate }}
+  | stack sz align0 align1				::   :: stack		{{ com stack }}
 
-value :: 'value_'					::=  			{{ com values }}
-  | id	 						::   :: id		{{ com id }}
-  | const						::   :: constant	{{ com constant }}
-  | ( value )						:: S :: paren           {{ coq [[ value ]] }}
+list_layout {{ tex \mathit{\overline{layout} } }} :: 'list_layout_'	::=  	{{ com layout list }}
+     	    			     	   					{{ coq (list layout) }}
+  | []   		 				::   :: nil		{{ coq nil }}
+  | list_layout , layout				::   :: cons		{{ coq ([[layout]]::[[list_layout]]) }}
+  | list_layout ; list_layout'				::   :: append		{{ coq ([[list_layout]]++[[list_layout']]) }}
+  | ( list_layout )					:: S :: paren           {{ coq [[ list_layout ]] }}
 
 typ :: 'typ_'						::=			{{ com type }}
   | int INT                    				::   :: int         	{{ com integer }}
@@ -71,11 +82,11 @@ typ :: 'typ_'						::=			{{ com type }}
   | void                      				::   :: void        	{{ com void }}
   | label                                               ::   :: label           {{ com label }}
   | metadata                                            ::   :: metadata        {{ com metadata }}
-  | [ INT * typ ]              				::   :: array       	{{ com array }}
+  | [ sz * typ ]              				::   :: array       	{{ com array }}
   | typ ( </ typj // j /> )  				::   :: function    	{{ com function }}
-  %| { </ typj // j /> }       				::   :: struct      	{{ com structure }}
+  | { </ typj // j /> }       				::   :: struct      	{{ com structure }}
   | typ *                     				::   :: pointer     	{{ com pointer }}
-  %| < INT * typ >             				::   :: vector       	{{ com vector }}
+  %| < sz * typ >             				::   :: vector       	{{ com vector }}
   %| opaque  						::   :: opaque          {{ com opaque }}
   % x86_fp80
   % ppc_fp128
@@ -92,6 +103,31 @@ list_typ {{ tex \mathit{\overline{typ} } }} :: 'list_typ_'	::=  		{{ com typ lis
   | list_typ , typ 					::   :: cons		{{ coq ([[typ]]::[[list_typ]]) }}
   | list_typ ; list_typ'				::   :: append		{{ coq ([[list_typ]]++[[list_typ']]) }}
   | ( list_typ )					:: S :: paren           {{ coq [[ list_typ ]] }}
+
+const :: 'const_'					::=  			{{ com constant }}
+  | INT	 						::   :: int		{{ com int }}	
+  | undef						::   :: undef		{{ com undef }}
+  | null						::   :: null		{{ com null }}
+  | [ </ constj // j /> ]				::   :: arr             {{ com array }}
+  | { </ constj // j /> }				::   :: struct          {{ com struct }}
+  | ( const )						:: S :: paren           {{ coq [[ const ]] }}
+
+tconst :: 'tconst_'					::=  			{{ com tconst }}
+	     									{{ coq (prod typ const) }}
+  | typ const 						::   :: def          	{{ coq ([[typ]],[[const]]) }}
+  | ( tconst )						:: S :: paren		{{ coq [[ tconst ]] }}
+
+list_tconst {{ tex \mathit{\overline{tconst} } }} :: 'list_tconst_'	::=  		{{ com tconst list }}
+     	    			     	   					{{ coq (list (typ*const)) }}
+  | []   		 				::   :: nil		{{ coq nil }}
+  | list_tconst , tconst 				::   :: cons		{{ coq ([[tconst]]::[[list_tconst]]) }}
+  | list_tconst ; list_tconst'				::   :: append		{{ coq ([[list_tconst]]++[[list_tconst']]) }}
+  | ( list_tconst )					:: S :: paren           {{ coq [[ list_tconst ]] }}
+
+value :: 'value_'					::=  			{{ com values }}
+  | id	 						::   :: id		{{ com id }}
+  | const						::   :: constant	{{ com constant }}
+  | ( value )						:: S :: paren           {{ coq [[ value ]] }}
 
 arg :: 'arg_'  						::=  			{{ com argument }}
        										{{ coq (prod typ id) }}
@@ -139,8 +175,8 @@ ls {{ tex \mathit{\{l\} } }} :: 'ls_'			::=			{{ com label set }}
 
 insn :: 'insn_'					    	::=			{{ com insnruction }}
   | ret typ value             			    	::   :: return      	{{ com return }}
-  %| ret void                   			    	::   :: return_void  	{{ com return void }}
-  | br typ value , l1 , l2				::   :: br              {{ com br }}        
+  %| ret void                   		    	::   :: return_void  	{{ com return void }}
+  | br typ value , l1 , l2			        ::   :: br              {{ com br }}        
   | br l        	    	  			::   :: br_uncond       {{ com unconditional br }}        
   %| switch typ value , l </ [ constj , lj ] // j />	::   :: switch		{{ com switch }}
   %| id = invoke typ0 id0 list_param to l1 unwind l2 	::   :: invoke		{{ com invoke }} 
@@ -154,11 +190,13 @@ insn :: 'insn_'					    	::=			{{ com insnruction }}
   %| id = and typ value1 value2				::   :: and 		{{ com and }}
   %| id = extractelement typ0 value0 , const1		::   :: extractelement  {{ com extractelement }}
   %| id = insertelement typ0 value0 , typ1 value1 , const2	::   :: insertelement   {{ com insertelement }}
-  %| id = extractvalue typ0 value0 , const1             	::   :: extractvalue	{{ com extractvalue }}
-  %| id = insertvalue typ0 value0 , typ1 value1 , const2 	::   :: insertvalue	{{ com insertvalue }}
-  %| id = alloca typ INT  	     	       	     	       	::   :: alloca		{{ com alloca }}
-  %| id = load typ1 value1				::   :: load		{{ com load }}
-  %| store typ1 value1 , typ2 value2			::   :: store		{{ com store }}
+  | id = extractvalue typ0 value0 , </ idxj // j />   	::   :: extractvalue	        {{ com extractvalue }}
+  | id = insertvalue typ0 value0 , typ1 value1 , </ idxj // j /> ::   :: insertvalue	{{ com insertvalue }}
+  | id = alloca typ sz align     	       	     	::   :: alloca		{{ com alloca }}
+  | id = load typ1 value1				::   :: load		{{ com load }}
+  | store typ1 value1 , typ2 value2			::   :: store		{{ com store }}
+  | id = getelementptr typ value , </ idxj // j />    	      ::  :: gep        {{ com getelementptr }}
+  | id = getelementptr inbounds typ value , </ idxj // j />   ::  :: bgep       {{ com inboundsgetelementptr }}
   %| id = trunc typ1 value1 to typ2			::   :: trunc		{{ com trunc }}
   %| id = fptrunc typ1 value1 to typ2			::   :: fptrunc		{{ com fptrunc }}
   %| id = fptoui typ1 value1 to typ2			::   :: fptoui		{{ com fptoui }}
@@ -231,21 +269,22 @@ opt_fdef {{ tex \mathit{opt_{fdef} } }} :: 'opt_fdef_'	::=  			{{ com option fde
 %   | id = type typ   					::   :: intro 
 %   | ( namedt )						:: S :: paren		{{ coq [[ namedt ]] }}
 
-% g :: 'g_'   	 					::=			{{ com global }}
-%   | id = global typ const				::   :: intro  
-%   | ( g )	    					:: S :: paren		{{ coq [[ g ]] }}
+% global id is also taken as constant addresses
+gvar :: 'gvar_'   	 				::=			{{ com global variables }}
+  | id = global typ value				::   :: intro           
+  | ( gvar )	    					:: S :: paren		{{ coq [[ gvar ]] }}
 
 id_binding :: 'id_binding_'  				::=			{{ com id binding }} 
   |  none 						::  :: none		{{ com none }} 
   |  insn						::  :: insn  		{{ com insn }} 
-%  |  g							::  :: g  		{{ com g }} 
+  |  gvar						::  :: gvar             {{ com gvar }} 
   |  fdec						::  :: fdec		{{ com fdec }}
   |  arg 						::  :: arg		{{ com arg }}
 		   
 product  :: 'product_'					::=			{{ com prodoct }}
-%  | g							::   :: global_var      {{ com global variable }}
-  | fdec             					::   :: function_dec   	{{ com function declaration }}
-  | fdef             					::   :: function_def   	{{ com function definition }}
+  | gvar						::   :: gvar     	{{ com global variable }}
+  | fdec             					::   :: fdec   		{{ com function declaration }}
+  | fdef             					::   :: fdef		{{ com function definition }}
 %  | namedt           					::   :: namedtype     	{{ com named types }}
 
 list_product {{ tex \mathit{\overline{product} } }} :: 'list_product_'::=	{{ com list product }}
@@ -257,9 +296,8 @@ list_product {{ tex \mathit{\overline{product} } }} :: 'list_product_'::=	{{ com
   | ( list_product )					:: S :: paren		{{ coq [[ list_product ]] }}			
 
 module :: 'module_'					::=  			{{ com module }}
-       	  									{{ coq list_product }}
-  | list_product 					::   :: products	{{ com prods }}
-    							     			{{ coq [[list_product]] }} 
+  | list_layout list_product 				::   :: intro		{{ com prods }}
+  | ( module )					        :: S :: paren           {{ coq [[ module ]] }}
 
 list_module {{ tex \mathit{\overline{module} } }} :: 'list_module_'::=  	{{ com list module }}
       	     			       	     					{{ coq (list module) }}
@@ -361,6 +399,9 @@ formula :: 'formula_' ::=
   | block1 = block2 		::   :: eqBlock
 				{{ tex [[block1]] = [[block2]] }}
 				{{ coq [[block1]] = [[block2]] }}
+  | sz1 = sz2 			::   :: eqSize
+				{{ tex [[sz1]] = [[sz2]] }}
+				{{ coq [[sz1]] = [[sz2]] }}
   | INT1 = INT2 		::   :: eqINT
 				{{ tex [[INT1]] = [[INT2]] }}
 				{{ coq [[INT1]] = [[INT2]] }}
@@ -391,9 +432,9 @@ formula :: 'formula_' ::=
   | module in system		::   :: module_in_system
     	       			{{ tex [[module]] \in [[system]] }}
 				{{ coq In [[module]] [[system]] }}
-  | product in module		::   :: product_in_module
-    	       			{{ tex [[product]] \in [[module]] }}
-				{{ coq In [[product]] [[module]] }}
+  | product in list_product	::   :: product_in_products
+    	       			{{ tex [[product]] \in [[list_product]] }}
+				{{ coq In [[product]] [[list_product]] }}
   | block in list_block		::   :: block_in_blocks
     	       			{{ tex [[block]] \in [[list_block]] }}
 				{{ coq In [[block]] [[list_block]] }}
@@ -421,6 +462,9 @@ formula :: 'formula_' ::=
   | ls <-> </ lj // j /> 	:: M :: ls_alias
     	      	   	        {{ com ls alias }}
 				{{ coq [[ls]] = [[ </ lj // j /> ]] }}
+  | list_tconst <-> </ tconstj // j /> :: M :: tconsts_alias
+    	      	   	        {{ com tconsts alias }}
+				{{ coq [[list_tconst]] = [[ </ tconstj // j /> ]] }}
   | list_arg <-> </ argj // j /> :: M :: args_alias
     	      	   	        {{ com args alias }}
 				{{ coq [[list_arg]] = [[ </ argj // j /> ]] }}

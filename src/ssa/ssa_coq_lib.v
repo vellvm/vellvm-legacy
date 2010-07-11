@@ -1,4 +1,5 @@
-
+Add LoadPath "./ott".
+Add LoadPath "./monads".
 Require Import ssa_def.
 
 (*BEGINCOPY*)
@@ -68,9 +69,9 @@ Require Import Omega.
 
   Fixpoint genLabel2Block_product (p:product) (m: module) : l2block :=
   match p with 
-  (*  | product_global_var g => fun _ => None *)
-  | product_function_def f => (genLabel2Block_fdef f m)
-  | product_function_dec f => fun _ => None 
+  | product_gvar g => fun _ => None
+  | product_fdef f => (genLabel2Block_fdef f m)
+  | product_fdec f => fun _ => None 
   (*  | product_namedtype nt => fun _ => None *)
   end.
 
@@ -81,7 +82,8 @@ Require Import Omega.
   end.
 
   Definition genLabel2Block (m: module) : l2block :=
-  genLabel2Block_products m m.
+  let (os, ps) := m in
+  genLabel2Block_products ps m.
 
   Definition getEntryOfFdef (f:fdef) : option block :=
   match f with
@@ -150,11 +152,13 @@ Require Import Omega.
   (* | insn_and id typ v1 v2 =>Some id *)
   (* | insn_extractelement id typ0 id0 c1 => Some id *)
   (* | insn_insertelement id typ0 id0 typ1 v1 c2 => Some id *)
-  (* | insn_extractvalue id typs id0 c1 => Some id *)
-  (* | insn_insertvalue id typs id0 typ1 v1 c2 => Some id *)
-  (* | insn_alloca id typ N => None *)
-  (* | insn_load id typ1 id1 => Some id *)
-  (* | insn_store typ1 v1 typ2 id2 => None *)
+  | insn_extractvalue id typs id0 c1 => Some id
+  | insn_insertvalue id typs id0 typ1 v1 c2 => Some id 
+  | insn_alloca id _ _ _ => None
+  | insn_load id typ1 id1 => Some id
+  | insn_store typ1 v1 typ2 id2 => None
+  | insn_gep id _ _ _ => Some id
+  | insn_bgep id _ _ _ => Some id
   (* | insn_trunc id typ1 v1 typ2 => Some id *)
   (* | insn_fptrunc id typ1 v1 typ2 =>Some id *)
   (* | insn_fptoui id typ1 v1 typ2 => Some id *)
@@ -225,13 +229,14 @@ Require Import Omega.
   (*   (genInsnUseDef_value value0 i b f m) *)
   (* | insn_insertelement id typ0 value0 typ1 v1 c2 =>  *)
   (*   (genInsnUseDef_value value0 i b f m)+++(genInsnUseDef_value v1 i b f m) *)
-  (* | insn_extractvalue id typ0 value0 c1 =>  *)
-  (*   (genInsnUseDef_value value0 i b f m) *)
-  (* | insn_insertvalue id typs value0 typ1 v1 c2 =>  *)
-  (*   (genInsnUseDef_value value0 i b f m)+++(genInsnUseDef_value v1 i b f m) *)
-  (* | insn_alloca id typ N => fun _ => nil *)
-  (* | insn_load id typ1 v1 => genInsnUseDef_value v1 i b f m *)
-  (* | insn_store typ1 v1 typ2 v2 => (genInsnUseDef_value v1 i b f m)+++(genInsnUseDef_value v2 i b f m)	  *)
+  | insn_extractvalue id typ0 value0 _ => (genInsnUseDef_value value0 i b f m)
+  | insn_insertvalue id typs v0 typ1 v1 c2 => 
+    (genInsnUseDef_value v0 i b f m)+++(genInsnUseDef_value v1 i b f m)
+  | insn_alloca id typ _ _ => fun _ => nil
+  | insn_load id typ1 v1 => genInsnUseDef_value v1 i b f m 
+  | insn_store typ1 v1 typ2 v2 => (genInsnUseDef_value v1 i b f m)+++(genInsnUseDef_value v2 i b f m)
+  | insn_gep id typ0 value0 _ => (genInsnUseDef_value value0 i b f m)
+  | insn_bgep id typ0 value0 _ => (genInsnUseDef_value value0 i b f m)
   (* | insn_trunc id typ1 v1 typ2 => (genInsnUseDef_value v1 i b f m)			 *)
   (* | insn_fptrunc id typ1 v1 typ2 => (genInsnUseDef_value v1 i b f m)			 *)
   (* | insn_fptoui id typ1 v1 typ2 => (genInsnUseDef_value v1 i b f m)			 *)
@@ -270,9 +275,9 @@ Require Import Omega.
 
   Fixpoint genInsnUseDef_product (p:product) (m: module) : usedef_insn :=
   match p with 
-  (* | product_global_var g => fun _ => nil *)
-  | product_function_def f => (genInsnUseDef_fdef f m)
-  | product_function_dec f => fun _ => nil
+  | product_gvar g => fun _ => nil
+  | product_fdef f => (genInsnUseDef_fdef f m)
+  | product_fdec f => fun _ => nil
   (* | product_namedtype nt => fun _ => nil *)
   end.
 
@@ -283,7 +288,8 @@ Require Import Omega.
   end.
 
   Definition genInsnUseDef (m: module) : usedef_insn :=
-  genInsnUseDef_products m m.
+  let (os, ps) := m in 
+  genInsnUseDef_products ps m.
 
   Definition getInsnUseDef (udi:usedef_insn) (i:insn) : list_insn :=
   udi i. 
@@ -332,11 +338,13 @@ Require Import Omega.
   (* | insn_and id typ v1 v2 => fun _ => nil *)
   (* | insn_extractelement id typ0 v0 c1 => fun _ => nil *)
   (* | insn_insertelement id typ0 v0 typ1 v1 c2 => fun _ => nil *)
-  (* | insn_extractvalue id typ0 v0 c1 => fun _ => nil *)
-  (* | insn_insertvalue id typ0 v0 typ1 v1 c2 => fun _ => nil *)
-  (* | insn_alloca id typ N => fun _ => nil *)
-  (* | insn_load id typ1 v1 => fun _ => nil *)
-  (* | insn_store typ1 v1 typ2 v2 => fun _ => nil *)
+  | insn_extractvalue id typ0 v0 c1 => fun _ => nil 
+  | insn_insertvalue id typ0 v0 typ1 v1 c2 => fun _ => nil 
+  | insn_alloca id typ _ _ => fun _ => nil 
+  | insn_load id typ1 v1 => fun _ => nil 
+  | insn_store typ1 v1 typ2 v2 => fun _ => nil 
+  | insn_gep id typ0 v0 c1 => fun _ => nil 
+  | insn_bgep id typ0 v0 c1 => fun _ => nil 
   (* | insn_trunc id typ1 v1 typ2 => fun _ => nil *)
   (* | insn_fptrunc id typ1 v1 typ2 => fun _ => nil *)
   (* | insn_fptoui id typ1 v1 typ2 => fun _ => nil *)
@@ -375,9 +383,9 @@ Require Import Omega.
 
   Fixpoint genBlockUseDef_product (p:product) (m: module) : usedef_block :=
   match p with 
-  (* | product_global_var g => fun _ => nil *)
-  | product_function_def f => (genBlockUseDef_fdef f m)
-  | product_function_dec f => fun _ => nil
+  | product_gvar g => fun _ => nil
+  | product_fdef f => (genBlockUseDef_fdef f m)
+  | product_fdec f => fun _ => nil
   (* | product_namedtype nt => fun _ => nil *)
   end.
 
@@ -388,7 +396,8 @@ Require Import Omega.
   end.
 
   Definition genBlockUseDef (m: module) : usedef_block :=
-  genBlockUseDef_products m m.
+  let (os, ps) := m in 
+  genBlockUseDef_products ps m.
 
   Definition getBlockUseDef (udb:usedef_block) (b:block) : list_block :=
   udb b. 
@@ -732,6 +741,41 @@ end.
 (**********************************)
 (* Inversion. *)
 
+Fixpoint getSubTyp (idxs : list idx) (t : typ) : option typ :=
+match idxs with
+| nil => Some t 
+| idx::idxs' => 
+  match t with
+  | typ_array sz t' => 
+    match (le_gt_dec sz idx) with
+    | left _ (* sz <= idx *) => None
+    | right _ (* sz > idx *) => getSubTyp idxs' t'
+    end
+  | typ_struct lt => 
+    match (nth_error lt idx) with
+    | Some t' => getSubTyp idxs' t'
+    | None => None
+    end
+  | _ => None
+  end
+end.
+
+Definition getGEPTyp (idxs : list idx) (t : typ) : option typ :=
+match idxs with
+| nil => None
+| (idx::idxs') =>
+  match t with
+  | typ_pointer t' => getSubTyp idxs' t'
+  | _ => None
+  end
+end.
+
+Definition getLoadTyp (t:typ) : option typ :=
+match t with
+| typ_pointer t' => Some t'
+| _ => None
+end.
+
 Definition getInsnTypC (i:insn) : option typ :=
 match i with
 | insn_return typ _ => Some typ
@@ -747,15 +791,17 @@ match i with
 | insn_udiv _ typ _ _ => Some typ
 | insn_fdiv _ typ _ _ => Some typ
 | insn_or _ typ _ _ => Some typ
-| insn_and _ typ _ _ => Some typ
+| insn_and _ typ _ _ => Some typ 
 | insn_extractelement _ typ _ _ => getElementTyp typ
-| insn_insertelement _ typ _ _ _ _ => typ
-| insn_extractvalue _ typ _ const1 => getFieldTyp typ const1
-| insn_insertvalue _ typ _ _ _ _ => typ
-| insn_alloca _ typ _ => Some (typ_pointer typ)
+| insn_insertelement _ typ _ _ _ _ => typ *)
+| insn_extractvalue _ typ _ idxs => getSubTyp idxs typ
+| insn_insertvalue _ typ _ _ _ _ => Some typ
+| insn_alloca _ typ _ _ => Some (typ_pointer typ)
 | insn_load _ typ _ => getLoadTyp typ
 | insn_store _ _ _ _ => None
-| insn_trunc _ _ _ typ => Some typ
+| insn_gep _ typ _ idxs => getGEPTyp idxs typ
+| insn_bgep _ typ _ idxs => getGEPTyp idxs typ
+(* | insn_trunc _ _ _ typ => Some typ
 | insn_fptrunc _ _ _ typ => Some typ
 | insn_fptoui _ _ _ typ => Some typ
 | insn_fptosi _ _ _ typ => Some typ
@@ -817,11 +863,15 @@ match i with
 | insn_and _ _ v1 v2 => getValueIDsC v1 ++ getValueIDsC v2
 | insn_extractelement _ _ v _ => getValueIDsC v
 | insn_insertelement _ _ v1 _ v2 _ => getValueIDsC v1 ++ getValueIDsC v2
+*)
 | insn_extractvalue _ _ v _ => getValueIDsC v
 | insn_insertvalue _ _ v1 _ v2 _ => getValueIDsC v1 ++ getValueIDsC v2
-| insn_alloca _ _ _ => nil
+| insn_alloca _ _ _ _ => nil
 | insn_load _ _ v => getValueIDsC v
 | insn_store _ v1 _ v2 => getValueIDsC v1 ++ getValueIDsC v2
+| insn_gep _ _ v  _ => getValueIDsC v
+| insn_bgep _ _ v _ => getValueIDsC v
+(*
 | insn_trunc _ _ v _ => getValueIDsC v
 | insn_fptrunc _ _ v _ => getValueIDsC v
 | insn_fptoui _ _ v _ => getValueIDsC v
@@ -854,11 +904,15 @@ match i with
 | insn_and _ _ _ _ => nil
 | insn_extractelement _ _ _ _ => nil
 | insn_insertelement _ _ _ _ _ _ => nil
+*)
 | insn_extractvalue _ _ _ _ => nil
 | insn_insertvalue _ _ _ _ _ _ => nil
-| insn_alloca _ _ _ => nil
+| insn_alloca _ _ _ _ => nil
 | insn_load _ _ _ => nil
 | insn_store _ _ _ _ => nil
+| insn_gep _ _ v  _ => nil
+| insn_bgep _ _ v _ => nil
+(*
 | insn_trunc _ _ _ _ => nil
 | insn_fptrunc _ _ _ _ => nil
 | insn_fptoui _ _ _ _ => nil
@@ -897,7 +951,7 @@ end.
 Definition getBindingTypC (ib:id_binding) : option typ :=
 match ib with
 | id_binding_insn i => getInsnTypC i
-(* | id_binding_g _ t _ => Some t *)
+| id_binding_gvar (gvar_intro _ t _) => Some (typ_pointer t)
 | id_binding_arg (t, id) => Some t
 | id_binding_fdec fdec => Some (getFdecTypC fdec)
 | id_binding_none => None
@@ -1061,16 +1115,14 @@ lookupBindingViaIDFromBlocksC lb id.
 
 Definition lookupBindingViaIDFromProductC (p:product) (id:id) : id_binding :=
 match p with
-(*
-| product_global id' t c =>
+| product_gvar (gvar_intro id' t c) =>
   match (eq_nat_dec id id') with
-  | left _ => id_binding_global id' t c
+  | left _ => id_binding_gvar (gvar_intro id' t c)
   | right _ => id_binding_none
   end
-*)
-| product_function_dec fdec => lookupBindingViaIDFromFdecC fdec id
+| product_fdec fdec => lookupBindingViaIDFromFdecC fdec id
 (* | product_namedt _ => id_binding_none *)
-| product_function_def fdef => lookupBindingViaIDFromFdefC fdef id
+| product_fdef fdef => lookupBindingViaIDFromFdefC fdef id
 end.  
 
 Fixpoint lookupBindingViaIDFromProductsC (lp:list_product) (id:id) : id_binding :=
@@ -1086,7 +1138,8 @@ match lp with
 end.
   
 Definition lookupBindingViaIDFromModuleC (m:module) (id:id) : id_binding :=
-lookupBindingViaIDFromProductsC m id.
+  let (os, ps) := m in 
+  lookupBindingViaIDFromProductsC ps id.
 
 Fixpoint lookupBindingViaIDFromModulesC (lm:list_module) (id:id) : id_binding :=
 match lm with
@@ -1130,7 +1183,7 @@ end.
 
 Definition lookupFdecViaIDFromProductC (p:product) (i:id) : option fdec :=
 match p with
-| (product_function_dec fd) => if beq_nat (getFdecIDC fd) i then Some fd else None
+| (product_fdec fd) => if beq_nat (getFdecIDC fd) i then Some fd else None
 | _ => None
 end.
 
@@ -1145,7 +1198,8 @@ match lp with
 end.
 
 Definition lookupFdecViaIDFromModuleC (m:module) (i:id) : option fdec :=
-lookupFdecViaIDFromProductsC m i.
+  let (os, ps) := m in 
+  lookupFdecViaIDFromProductsC ps i.
 
 Fixpoint lookupFdecViaIDFromModulesC (lm:list_module) (i:id) : option fdec :=
 match lm with
@@ -1162,7 +1216,7 @@ lookupFdecViaIDFromModulesC s i.
 
 Definition lookupFdefViaIDFromProductC (p:product) (i:id) : option fdef :=
 match p with
-| (product_function_def fd) => if beq_nat (getFdefIDC fd) i then Some fd else None
+| (product_fdef fd) => if beq_nat (getFdefIDC fd) i then Some fd else None
 | _ => None
 end.
 
@@ -1177,7 +1231,8 @@ match lp with
 end.
 
 Definition lookupFdefViaIDFromModuleC (m:module) (i:id) : option fdef :=
-lookupFdefViaIDFromProductsC m i.
+  let (os, ps) := m in 
+  lookupFdefViaIDFromProductsC ps i.
 
 Fixpoint lookupFdefViaIDFromModulesC (lm:list_module) (i:id) : option fdef :=
 match lm with
@@ -1239,8 +1294,8 @@ end.
 
 Definition lookupTypViaIDFromProductC (p:product) (id0:id) : option typ :=
 match p with
-| (product_function_dec _) => None
-| (product_function_def fd) => lookupTypViaIDFromFdefC fd id0
+| (product_fdef fd) => lookupTypViaIDFromFdefC fd id0
+| _ => None
 end.
 
 Fixpoint lookupTypViaIDFromProductsC (lp:list_product) (id0:id) : option typ :=
@@ -1254,7 +1309,8 @@ match lp with
 end.
 
 Definition lookupTypViaIDFromModuleC (m:module) (id0:id) : option typ :=
-lookupTypViaIDFromProductsC m id0.
+  let (os, ps) := m in 
+ lookupTypViaIDFromProductsC ps id0.
      
 Fixpoint lookupTypViaIDFromModulesC (lm:list_module) (id0:id) : option typ :=
 match lm with
@@ -1281,6 +1337,7 @@ Fixpoint typ_size (t:typ) : nat :=
   | typ_label => 1
   | typ_array _ t' => 1 + typ_size t'
   | typ_pointer t' => 1 + typ_size t'
+  | typ_struct lt1 => 1 + fold_left plus (map typ_size lt1) 0
   end.
 
 Definition typ2_size (txy:typ*typ) : nat :=
@@ -1299,7 +1356,10 @@ Qed.
 Lemma typ_size__ge__zero : forall t,
   typ_size t >= 0.
 Proof.
-  induction t as [ | | | | | t H l0 | ]; simpl; auto.
+  induction t as [ | | | | | t H l0 | l0 | ]; simpl; auto.
+    assert (J:=@list_typ_size__inc l0 0 0).
+    omega.
+
     assert (J:=@list_typ_size__inc l0 0 0).
     omega.
 Qed.
@@ -1316,7 +1376,7 @@ Proof.
       apply IHlt; auto.
 Qed.
 
-Lemma list_typ2_size__gt__typ2_size : forall t1 lt1 t1' lt1' t2 t2',
+Lemma flist_typ2_size__gt__typ2_size : forall t1 lt1 t1' lt1' t2 t2',
   In t2 lt1 ->
   In t2' lt1' ->
   typ2_size (t2, t2') < typ2_size (typ_function t1 lt1, typ_function t1' lt1').
@@ -1328,7 +1388,7 @@ Proof.
   omega.
 Qed. 
 
-Definition create_elt tt t1 lt1 t1' lt1' t2 t2'
+Definition create_felt tt t1 lt1 t1' lt1' t2 t2'
                 (H1:In t2 lt1)
                 (H2:In t2' lt1') 
                 (H:(typ_function t1 lt1, typ_function t1' lt1') = tt):
@@ -1336,7 +1396,7 @@ Definition create_elt tt t1 lt1 t1' lt1' t2 t2'
 Proof.
   intros. subst.
   exists (t2, t2'). 
-  apply list_typ2_size__gt__typ2_size; auto.
+  apply flist_typ2_size__gt__typ2_size; auto.
 Qed.
 
 Lemma head_in_incl : forall A (x:A) (l1' l1 l2:list A),
@@ -1369,7 +1429,7 @@ Proof.
   apply incl_refl.
 Qed.  
 
-Fixpoint create_elts tt t1 lt1 t2 lt2 ltl ltr 
+Fixpoint create_felts tt t1 lt1 t2 lt2 ltl ltr 
               (Hl:incl lt1 ltl) 
               (Hr:incl lt2 ltr)
               (H:(typ_function t1 ltl, typ_function t2 ltr) = tt ) 
@@ -1380,11 +1440,11 @@ Fixpoint create_elts tt t1 lt1 t2 lt2 ltl ltr
   fun Ha:(lt1,lt2) = (x::lt1', y::lt2') =>
   match (prod_eq_inv typ x y lt1' lt1 lt2' lt2 Ha) with
   | conj Hal Har  =>
-    (create_elt tt t1 ltl t2 ltr x y 
+    (create_felt tt t1 ltl t2 ltr x y 
           (head_in_incl typ x lt1' lt1 ltl Hal Hl) 
           (head_in_incl typ y lt2' lt2 ltr Har Hr)  
           H)::
-    (create_elts tt t1 lt1' t2 lt2' ltl ltr 
+    (create_felts tt t1 lt1' t2 lt2' ltl ltr 
            (tail_incl_incl typ x lt1' lt1 ltl Hal Hl) 
            (tail_incl_incl typ y lt2' lt2 ltr Har Hr) 
            H)
@@ -1394,9 +1454,61 @@ Fixpoint create_elts tt t1 lt1 t2 lt2 ltl ltr
   nil
 end) (refl_equal (lt1, lt2)).
 
-Definition combine_with_measure tt t1 lt1 t1' lt1' (H:(typ_function t1 lt1, typ_function t1' lt1') = tt ) :
+Definition fcombine_with_measure tt t1 lt1 t1' lt1' (H:(typ_function t1 lt1, typ_function t1' lt1') = tt ) :
   list {t: typ*typ | typ2_size t < typ2_size tt } := 
-  create_elts tt t1 lt1 t1' lt1' lt1 lt1' (incl_refl lt1) (incl_refl lt1') H.
+  create_felts tt t1 lt1 t1' lt1' lt1 lt1' (incl_refl lt1) (incl_refl lt1') H.
+
+Lemma slist_typ2_size__gt__typ2_size : forall lt1 lt1' t2 t2',
+  In t2 lt1 ->
+  In t2' lt1' ->
+  typ2_size (t2, t2') < typ2_size (typ_struct lt1, typ_struct lt1').
+Proof.
+  intros.
+  simpl.
+  assert (J:=@list_typ_size__ge__typ_size lt1 t2 0 H).
+  assert (J':=@list_typ_size__ge__typ_size lt1' t2' 0 H0).
+  omega.
+Qed. 
+
+Definition create_selt tt lt1 lt1' t2 t2'
+                (H1:In t2 lt1)
+                (H2:In t2' lt1') 
+                (H:(typ_struct lt1, typ_struct lt1') = tt):
+  { t | typ2_size t < typ2_size tt }.
+Proof.
+  intros. subst.
+  exists (t2, t2'). 
+  apply slist_typ2_size__gt__typ2_size; auto.
+Qed.
+
+Fixpoint create_selts tt lt1 lt2 ltl ltr 
+              (Hl:incl lt1 ltl) 
+              (Hr:incl lt2 ltr)
+              (H:(typ_struct ltl, typ_struct ltr) = tt ) 
+              {struct lt1} :
+  list {t: typ*typ | typ2_size t < typ2_size tt } := 
+(match (lt1,lt2) as r return ((lt1, lt2) = r -> _) with
+| (x::lt1', y::lt2') => 
+  fun Ha:(lt1,lt2) = (x::lt1', y::lt2') =>
+  match (prod_eq_inv typ x y lt1' lt1 lt2' lt2 Ha) with
+  | conj Hal Har  =>
+    (create_selt tt ltl ltr x y 
+          (head_in_incl typ x lt1' lt1 ltl Hal Hl) 
+          (head_in_incl typ y lt2' lt2 ltr Har Hr)  
+          H)::
+    (create_selts tt lt1' lt2' ltl ltr 
+           (tail_incl_incl typ x lt1' lt1 ltl Hal Hl) 
+           (tail_incl_incl typ y lt2' lt2 ltr Har Hr) 
+           H)
+  end
+| (_, _) => 
+  fun _ =>
+  nil
+end) (refl_equal (lt1, lt2)).
+
+Definition scombine_with_measure tt lt1 lt1' (H:(typ_struct lt1, typ_struct lt1') = tt ) :
+  list {t: typ*typ | typ2_size t < typ2_size tt } := 
+  create_selts tt lt1 lt1' lt1 lt1' (incl_refl lt1) (incl_refl lt1') H.
 
 Program Fixpoint _typEqB (tt:typ*typ) {measure typ2_size} : bool :=
 (match tt as r return (tt = r -> _) with 
@@ -1420,7 +1532,14 @@ Program Fixpoint _typEqB (tt:typ*typ) {measure typ2_size} : bool :=
   match (eq_nat_dec (length lt1) (length lt1')) with
   | left _ => 
     _typEqB (t1, t1') &&
-    fold_left andb (map _typEqB (combine_with_measure tt t1 lt1 t1' lt1' Ha)) true 
+    fold_left andb (map _typEqB (fcombine_with_measure tt t1 lt1 t1' lt1' Ha)) true 
+  | right _ => false
+  end
+| (typ_struct lt1, typ_struct lt1') =>
+  fun Ha:(tt = (typ_struct lt1, typ_struct lt1')) =>
+  match (eq_nat_dec (length lt1) (length lt1')) with
+  | left _ => 
+    fold_left andb (map _typEqB (scombine_with_measure tt lt1 lt1' Ha)) true 
   | right _ => false
   end
 | (_, _) => fun _ => false
@@ -1435,14 +1554,186 @@ Next Obligation.
   simpl. omega.
 Qed.
 
+
 Definition typEqB (t t':typ) : bool := _typEqB (t, t').
 
-Definition constEqB (c c':const) : bool :=
-match (c, c') with
-| (const_val i, const_val i') => beq_nat i i'
-| (const_undef, const_undec) => true
-| (_, _) => false
-end.
+Fixpoint const_size (c:const) : nat :=
+  match c with
+  | const_int n => 1
+  | const_undef => 1
+  | const_null => 1
+  | const_arr lc => 1 + fold_left plus (map const_size lc) 0
+  | const_struct lc => 1 + fold_left plus (map const_size lc) 0
+  end.
+
+Definition const2_size (cxy:const*const) : nat :=
+  let (cx, cy) := cxy in
+  const_size cx + const_size cy.
+
+Lemma list_const_size__inc : forall lc n n',
+  n <= n' ->
+  n <= fold_left plus (map const_size lc) n'.
+Proof.
+  induction lc; intros; simpl; auto.
+    apply IHlc; auto.
+      omega.
+Qed.
+
+Lemma const_size__ge__zero : forall c,
+  const_size c >= 0.
+Proof.
+  induction c as [ | | | l0 | l0 ]; simpl; auto.
+    assert (J:=@list_const_size__inc l0 0 0).
+    omega.
+
+    assert (J:=@list_const_size__inc l0 0 0).
+    omega.
+Qed.
+
+Lemma list_const_size__ge__const_size : forall lc c n,
+  In c lc ->
+  const_size c <= fold_left plus (map const_size lc) n.
+Proof.
+  induction lc; intros; simpl.
+    inversion H.
+
+    simpl in H. inversion H.
+      subst. apply list_const_size__inc. omega.
+      apply IHlc; auto.
+Qed.
+
+Lemma alist_const2_size__gt__const2_size : forall lc1 lc1' c2 c2',
+  In c2 lc1 ->
+  In c2' lc1' ->
+  const2_size (c2, c2') < const2_size (const_arr lc1, const_arr lc1').
+Proof.
+  intros.
+  simpl.
+  assert (J:=@list_const_size__ge__const_size lc1 c2 0 H).
+  assert (J':=@list_const_size__ge__const_size lc1' c2' 0 H0).
+  omega.
+Qed. 
+
+Definition create_ca_elt cc lc1 lc1' c2 c2'
+                (H1:In c2 lc1)
+                (H2:In c2' lc1') 
+                (H:(const_arr lc1, const_arr lc1') = cc):
+  { c | const2_size c < const2_size cc }.
+Proof.
+  intros. subst.
+  exists (c2, c2'). 
+  apply alist_const2_size__gt__const2_size; auto.
+Qed.
+
+Fixpoint create_ca_elts cc lc1 lc2 lcl lcr 
+              (Hl:incl lc1 lcl) 
+              (Hr:incl lc2 lcr)
+              (H:(const_arr lcl, const_arr lcr) = cc ) 
+              {struct lc1} :
+  list {c: const*const | const2_size c < const2_size cc } := 
+(match (lc1,lc2) as r return ((lc1, lc2) = r -> _) with
+| (x::lc1', y::lc2') => 
+  fun Ha:(lc1,lc2) = (x::lc1', y::lc2') =>
+  match (prod_eq_inv const x y lc1' lc1 lc2' lc2 Ha) with
+  | conj Hal Har  =>
+    (create_ca_elt cc lcl lcr x y 
+          (head_in_incl const x lc1' lc1 lcl Hal Hl) 
+          (head_in_incl const y lc2' lc2 lcr Har Hr)  
+          H)::
+    (create_ca_elts cc lc1' lc2' lcl lcr 
+           (tail_incl_incl const x lc1' lc1 lcl Hal Hl) 
+           (tail_incl_incl const y lc2' lc2 lcr Har Hr) 
+           H)
+  end
+| (_, _) => 
+  fun _ =>
+  nil
+end) (refl_equal (lc1, lc2)).
+
+Definition ca_combine_with_measure cc lc1 lc1' (H:(const_arr lc1, const_arr lc1') = cc ) :
+  list {c: const*const | const2_size c < const2_size cc } := 
+  create_ca_elts cc lc1 lc1' lc1 lc1' (incl_refl lc1) (incl_refl lc1') H.
+
+Lemma slist_const2_size__gt__const2_size : forall lc1 lc1' c2 c2',
+  In c2 lc1 ->
+  In c2' lc1' ->
+  const2_size (c2, c2') < const2_size (const_struct lc1, const_struct lc1').
+Proof.
+  intros.
+  simpl.
+  assert (J:=@list_const_size__ge__const_size lc1 c2 0 H).
+  assert (J':=@list_const_size__ge__const_size lc1' c2' 0 H0).
+  omega.
+Qed. 
+
+Definition create_cs_elt cc lc1 lc1' c2 c2'
+                (H1:In c2 lc1)
+                (H2:In c2' lc1') 
+                (H:(const_struct lc1, const_struct lc1') = cc):
+  { c | const2_size c < const2_size cc }.
+Proof.
+  intros. subst.
+  exists (c2, c2'). 
+  apply slist_const2_size__gt__const2_size; auto.
+Qed.
+
+Fixpoint create_cs_elts cc lc1 lc2 lcl lcr 
+              (Hl:incl lc1 lcl) 
+              (Hr:incl lc2 lcr)
+              (H:(const_struct lcl, const_struct lcr) = cc ) 
+              {struct lc1} :
+  list {c: const*const | const2_size c < const2_size cc } := 
+(match (lc1,lc2) as r return ((lc1, lc2) = r -> _) with
+| (x::lc1', y::lc2') => 
+  fun Ha:(lc1,lc2) = (x::lc1', y::lc2') =>
+  match (prod_eq_inv const x y lc1' lc1 lc2' lc2 Ha) with
+  | conj Hal Har  =>
+    (create_cs_elt cc lcl lcr x y 
+          (head_in_incl const x lc1' lc1 lcl Hal Hl) 
+          (head_in_incl const y lc2' lc2 lcr Har Hr)  
+          H)::
+    (create_cs_elts cc lc1' lc2' lcl lcr 
+           (tail_incl_incl const x lc1' lc1 lcl Hal Hl) 
+           (tail_incl_incl const y lc2' lc2 lcr Har Hr) 
+           H)
+  end
+| (_, _) => 
+  fun _ =>
+  nil
+end) (refl_equal (lc1, lc2)).
+
+Definition cs_combine_with_measure cc lc1 lc1' (H:(const_struct lc1, const_struct lc1') = cc ) :
+  list {c: const*const | const2_size c < const2_size cc } := 
+  create_cs_elts cc lc1 lc1' lc1 lc1' (incl_refl lc1) (incl_refl lc1') H.
+
+Program Fixpoint _constEqB (cc:const*const) {measure const2_size} : bool :=
+(match cc as r return (cc = r -> _) with 
+| (const_int n, const_int n') => 
+  fun _ =>
+  match (eq_nat_dec n n') with
+  | left _ => true 
+  | right _ => false
+  end 
+| (const_null, const_null) => fun _ => true
+| (const_undef, const_undef) => fun _ => true
+| (const_struct lc1, const_struct lc1') =>
+  fun Ha:(cc = (const_struct lc1, const_struct lc1')) =>
+  match (eq_nat_dec (length lc1) (length lc1')) with
+  | left _ => 
+    fold_left andb (map _constEqB (cs_combine_with_measure cc lc1 lc1' Ha)) true 
+  | right _ => false
+  end
+| (const_arr lc1, const_arr lc1') =>
+  fun Ha:(cc = (const_arr lc1, const_arr lc1')) =>
+  match (eq_nat_dec (length lc1) (length lc1')) with
+  | left _ => 
+    fold_left andb (map _constEqB (ca_combine_with_measure cc lc1 lc1' Ha)) true 
+  | right _ => false
+  end
+| (_, _) => fun _ => false
+end) (refl_equal cc).
+
+Definition constEqB (c c':const) : bool := _constEqB (c, c').
 
 Definition valueEqB (v v':value) : bool :=
 match (v, v') with
@@ -1472,6 +1763,17 @@ end.
 
 Definition id_labels_EqB (idls idls':id_labels) :=
   _id_labels_EqB idls idls' && beq_nat (length idls) (length idls').
+
+Fixpoint _idxs_EqB (idxs idxs':list idx) {struct idxs} : bool :=
+match (idxs, idxs') with
+| (idx::idxs, idx'::idxs') =>
+  beq_nat idx idx' && 
+  _idxs_EqB idxs idxs'
+| (_, _) => true
+end.
+
+Definition idxs_EqB (idxs idxs' : list idx) :=
+  _idxs_EqB idxs idxs' && beq_nat (length idxs) (length idxs').
 
 Definition insnEqB (i i':insn) : bool :=
 match (i, i') with
@@ -1506,6 +1808,43 @@ match (i, i') with
   typEqB typ typ' &&
   valueEqB v1 v1' &&
   valueEqB v2 v2'
+| (insn_extractvalue id typ0 v0 idxs, insn_extractvalue id' typ0' v0' idxs') => 
+  beq_nat id id' &&
+  typEqB typ0 typ0' &&
+  valueEqB v0 v0' &&
+  idxs_EqB idxs idxs'  
+| (insn_insertvalue id typ0 v0 typ1 v1 idxs, 
+   insn_insertvalue id' typ0' v0' typ1' v1' idxs') =>
+  beq_nat id id' &&
+  typEqB typ0 typ0' &&
+  valueEqB v0 v0' &&
+  typEqB typ1 typ1' &&
+  valueEqB v1 v1' &&
+  idxs_EqB idxs idxs'  
+| (insn_alloca id typ sz align, insn_alloca id' typ' sz' align') =>
+  beq_nat id id' &&
+  typEqB typ typ' &&
+  beq_nat sz sz' &&
+  beq_nat align align' 
+| (insn_load id typ v, insn_load id' typ' v') =>
+  beq_nat id id' &&
+  typEqB typ typ' &&
+  valueEqB v v'
+| (insn_store typ0 v0 typ1 v1, insn_store typ0' v0' typ1' v1') =>
+  typEqB typ0 typ0' &&
+  valueEqB v0 v0' &&
+  typEqB typ1 typ1' &&
+  valueEqB v1 v1'
+| (insn_gep id typ v idxs, insn_gep id' typ' v' idxs') =>
+  beq_nat id id' &&
+  typEqB typ typ' &&
+  valueEqB v v' &&
+  idxs_EqB idxs idxs'  
+| (insn_bgep id typ v idxs, insn_bgep id' typ' v' idxs') =>
+  beq_nat id id' &&
+  typEqB typ typ' &&
+  valueEqB v v' &&
+  idxs_EqB idxs idxs'  
 | (insn_phi id typ idls,
    insn_phi id' typ' idls') =>
   beq_nat id id' &&
@@ -1559,10 +1898,17 @@ match (fd, fd') with
   fheaderEqB fh fh' && blocksEqB lb lb'
 end.
 
+Definition gvarEqB (gv gv' : gvar) : bool :=
+match (gv, gv') with
+| (gvar_intro id t v, gvar_intro id' t' v') =>
+  beq_nat id id' && typEqB t t' && valueEqB v v'
+end.
+
 Definition productEqB (p p' : product) : bool :=
 match (p, p') with
-| (product_function_dec fd, product_function_dec fd') => fdecEqB fd fd'  
-| (product_function_def fd, product_function_def fd') => fdefEqB fd fd'
+| (product_fdec fd, product_fdec fd') => fdecEqB fd fd'  
+| (product_fdef fd, product_fdef fd') => fdefEqB fd fd'
+| (product_gvar gv, product_gvar gv') => gvarEqB gv gv'
 | (_, _) => false
 end.
 
@@ -1577,7 +1923,37 @@ end.
 Definition productsEqB (lp lp':list_product) :=
   _productsEqB lp lp' && beq_nat (length lp) (length lp').
 
-Definition moduleEqB (m m':module) := productsEqB m m'.
+Fixpoint layoutEqB (o o' : layout) : bool :=
+match (o, o') with
+| (layout_be, layout_be) => true
+| (layout_le, layout_le) => true
+| (layout_ptr sz align0 align1, layout_ptr sz' align0' align1') =>
+  beq_nat sz sz' && beq_nat align0 align0' && beq_nat align1 align1'
+| (layout_int sz align0 align1, layout_int sz' align0' align1') =>
+  beq_nat sz sz' && beq_nat align0 align0' && beq_nat align1 align1'
+| (layout_aggr sz align0 align1, layout_aggr sz' align0' align1') =>
+  beq_nat sz sz' && beq_nat align0 align0' && beq_nat align1 align1'
+| (layout_stack sz align0 align1, layout_stack sz' align0' align1') =>
+  beq_nat sz sz' && beq_nat align0 align0' && beq_nat align1 align1'
+| (_, _) => false
+end.
+
+Fixpoint _layoutsEqB (lo lo':list_layout) {struct lo} : bool :=
+match (lo, lo') with
+| (o::lo0, o'::lo0') =>
+  layoutEqB o o' &&
+  _layoutsEqB lo0 lo0'
+| (_, _) => true
+end.
+
+Definition layoutsEqB (lo lo':list_layout) :=
+  _layoutsEqB lo lo' && beq_nat (length lo) (length lo').
+
+Definition moduleEqB (m m':module) := 
+  let (os, ps) := m in 
+  let (os', ps') := m' in 
+  productsEqB ps ps' &&
+  layoutsEqB os os'.
 
 Fixpoint _modulesEqB (lm lm':list_module) {struct lm} : bool :=
 match (lm, lm') with
@@ -1649,7 +2025,8 @@ match lp with
 end.
 
 Definition productInModuleB (p:product) (m:module) : bool :=
-InProductsB p m.
+let (os, ps) := m in
+InProductsB p ps.
 
 Fixpoint InModulesB (m:module) (lm:list_module) {struct lm} : bool :=
 match lm with
@@ -1669,7 +2046,7 @@ end.
 Definition blockInSystemModuleFdefB (b:block) (s:system) (mi:module_info) (fi:fdef_info) : bool :=
 match fi with
 | (fd, dt) =>
-  blockInFdefB b fd && productInSystemModuleB (product_function_def fd) s mi
+  blockInFdefB b fd && productInSystemModuleB (product_fdef fd) s mi
 end.
 
 Definition insnInSystemModuleFdefBlockB 
@@ -1695,8 +2072,8 @@ end.
 
 Definition getParentOfInsnFromProductC (i:insn) (p:product) : option block :=
 match p with
-| (product_function_def fd) => getParentOfInsnFromFdefC i fd
-| (product_function_dec _) => None
+| (product_fdef fd) => getParentOfInsnFromFdefC i fd
+| _ => None
 end.
 
 Fixpoint getParentOfInsnFromProductsC (i:insn) (lp:list_product) {struct lp} : option block :=
@@ -1710,7 +2087,8 @@ match lp with
 end.
 
 Definition getParentOfInsnFromModuleC (i:insn) (m:module) : option block := 
-  getParentOfInsnFromProductsC i m.
+  let (os, ps) := m in
+  getParentOfInsnFromProductsC i ps.
 
 Fixpoint getParentOfInsnFromModulesC (i:insn) (lm:list_module) {struct lm} : option block :=
 match lm with
@@ -1735,7 +2113,7 @@ Fixpoint getParentOfFdefFromModulesC (fd:fdef) (lm:list_module) {struct lm} : op
 match lm with
 | nil => None
 | m::lm' => 
-  if (productInModuleB (product_function_def fd) m) 
+  if (productInModuleB (product_fdef fd) m) 
   then Some m
   else getParentOfFdefFromModulesC fd lm'
 end.

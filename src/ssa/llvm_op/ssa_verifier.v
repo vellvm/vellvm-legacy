@@ -132,13 +132,13 @@ Definition wf_operand (intrinsic_funs5:intrinsic_funs)
                             (block5:block)
                             (insn5:insn) 
                             (id':id): Prop :=
-  let '(module5, (usedef_insn5, usedef_block5)) := module_info5 in
+  let '((module_intro list_layout5 list_product5), (usedef_insn5, usedef_block5)) := module_info5 in
   let (fdef5, dt5) := fdef_info5 in 
   {{
   do ret (insnInSystemModuleFdefBlock 
             insn5 
             system5  
-            ( module5 , ( usedef_insn5 ,  usedef_block5 )) 
+            ( (module_intro list_layout5 list_product5) , ( usedef_insn5 ,  usedef_block5 )) 
             ( fdef5 ,  dt5 )   
             block5);
   do ids5 <- ret (getInsnOperandsC insn5);
@@ -165,7 +165,7 @@ Definition wf_operand (intrinsic_funs5:intrinsic_funs)
      do Assert (( ~ set_In id0 intrinsic_funs5) \/  getCallName insn5 id0);
 
      (* Referencing function exists in current module *)
-        Assert (In  (product_function_dec fdec5) module5)
+        Assert (In  (product_fdec fdec5) list_product5)
      endif;
 
   do If (isBindingArgB id_binding')
@@ -702,7 +702,7 @@ Definition visitFunctionDec (intrinsic_funs5:intrinsic_funs)
 (* defns Jwf_fdef *)
 Inductive wf_fdef : intrinsic_funs -> system -> module_info -> fdef -> Prop :=    (* defn wf_fdef *)
  | wf_fdef_intro : forall (intrinsic_funs5:intrinsic_funs) (system5:system) (module5:module) (usedef_insn5:usedef_insn) (usedef_block5:usedef_block) (fheader5:fheader) (list_block5:list_block) (dt5:dt),
-     productInSystemModule (product_function_def  (fdef_intro fheader5 list_block5) ) system5   ( module5 , ( usedef_insn5 ,  usedef_block5 ))   ->
+     productInSystemModule (product_fdef  (fdef_intro fheader5 list_block5) ) system5   ( module5 , ( usedef_insn5 ,  usedef_block5 ))   ->
 
      visitFunctionDef intrinsic_funs5 system5 ( module5 , ( usedef_insn5 ,  usedef_block5 )) (fdef_intro fheader5 list_block5) ->
 
@@ -713,7 +713,7 @@ Inductive wf_fdef : intrinsic_funs -> system -> module_info -> fdef -> Prop :=  
 (* defns Jwf_fdec *)
 Inductive wf_fdec : intrinsic_funs -> system -> module_info -> fdec -> Prop :=    (* defn wf_fdef *)
  | wf_fdec_intro : forall (intrinsic_funs5:intrinsic_funs) (system5:system) (module5:module) (usedef_insn5:usedef_insn) (usedef_block5:usedef_block) (fheader5:fheader) (list_block5:list_block) (dt5:dt),
-     productInSystemModule (product_function_def  (fdef_intro fheader5 list_block5) ) system5   ( module5 , ( usedef_insn5 ,  usedef_block5 ))   ->
+     productInSystemModule (product_fdef  (fdef_intro fheader5 list_block5) ) system5   ( module5 , ( usedef_insn5 ,  usedef_block5 ))   ->
      visitFunctionDec intrinsic_funs5 system5 ( module5 , ( usedef_insn5 ,  usedef_block5 )) (fdec_intro fheader5) ->
      wf_fdec intrinsic_funs5 system5   ( module5 , ( usedef_insn5 ,  usedef_block5 ))   (fdec_intro fheader5).
 
@@ -721,10 +721,10 @@ Inductive wf_fdec : intrinsic_funs -> system -> module_info -> fdec -> Prop :=  
 Inductive wf_prod : intrinsic_funs -> system -> module_info -> product -> Prop :=    (* defn wf_prod *)
  | wf_prod_function_dec : forall (intrinsic_funs5:intrinsic_funs) (system5:system) (module_info5:module_info) (fdec5:fdec),
      wf_fdec intrinsic_funs5 system5 module_info5 fdec5 ->
-     wf_prod intrinsic_funs5 system5 module_info5 (product_function_dec fdec5)
+     wf_prod intrinsic_funs5 system5 module_info5 (product_fdec fdec5)
  | wf_prod_function_def : forall (intrinsic_funs5:intrinsic_funs) (system5:system) (module_info5:module_info) (fdef5:fdef),
      wf_fdef intrinsic_funs5 system5 module_info5 fdef5 ->
-     wf_prod intrinsic_funs5 system5 module_info5 (product_function_def fdef5).
+     wf_prod intrinsic_funs5 system5 module_info5 (product_fdef fdef5).
 
 (* defns Jwf_prods *)
 Inductive wf_prods : intrinsic_funs -> system -> module_info -> list_product -> Prop :=    (* defn wf_prods *)
@@ -737,12 +737,12 @@ Inductive wf_prods : intrinsic_funs -> system -> module_info -> list_product -> 
 
 (* defns Jwf_module *)
 Inductive wf_module : intrinsic_funs -> system -> module -> Prop :=    (* defn wf_module *)
- | wf_module_intro : forall (intrinsic_funs5:intrinsic_funs) (system5:system) (list_product5:list_product) (usedef_insn5:usedef_insn) (usedef_block5:usedef_block),
-      In   list_product5    system5  ->
-     genInsnUseDef  list_product5  = usedef_insn5  ->
-     genBlockUseDef  list_product5  = usedef_block5  ->
-     wf_prods intrinsic_funs5 system5   (  list_product5  , ( usedef_insn5 ,  usedef_block5 ))   list_product5 ->
-     wf_module intrinsic_funs5 system5  list_product5 .
+ | wf_module_intro : forall (intrinsic_funs5:intrinsic_funs) (system5:system) list_layout5 (list_product5:list_product) (usedef_insn5:usedef_insn) (usedef_block5:usedef_block),
+     In  (module_intro list_layout5 list_product5)   system5  ->
+     genInsnUseDef  (module_intro list_layout5 list_product5)  = usedef_insn5  ->
+     genBlockUseDef  (module_intro list_layout5 list_product5)  = usedef_block5  ->
+     wf_prods intrinsic_funs5 system5   (  (module_intro list_layout5 list_product5)  , ( usedef_insn5 ,  usedef_block5 ))   list_product5 ->
+     wf_module intrinsic_funs5 system5  (module_intro list_layout5 list_product5) .
 
 (* defns Jwf_list_module *)
 Inductive wf_list_module : intrinsic_funs -> system -> list_module -> Prop :=    (* defn wf_list_module *)

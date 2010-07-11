@@ -18,11 +18,11 @@ Jwf_typ :: '' ::=
       % -------------------- :: wf_typ_fp128
       % |- fp128
 
-      % -------------------- :: wf_typ_void
-      % |- void
+      -------------------- :: wf_typ_void
+      |- void
 
-      % -------------------- :: wf_typ_label
-      % |- label
+      -------------------- :: wf_typ_label
+      |- label
 
       -------------------- :: wf_typ_metadate
       |- metadata
@@ -37,20 +37,20 @@ Jwf_typ :: '' ::=
       -------------------------------------------------- :: wf_typ_function
       |- typ ( </ typj // j /> ) 
      
-      % </ isValidElementTyp typj // j />
-      % </ |- typj // j /> 
-      % -------------------------------------------------- :: wf_typ_structure
-      % |- { </ typj // j /> }
+      </ isValidElementTyp typj // j />
+      </ |- typj // j /> 
+      -------------------------------------------------- :: wf_typ_structure
+      |- { </ typj // j /> }
 
-      % |- typ
-      % isValidElementTyp typ
-      % ------------------- :: wf_typ_array
-      % |- [ INT * typ ]
+      |- typ
+      isValidElementTyp typ
+      ------------------- :: wf_typ_array
+      |- [ sz * typ ]
 
-      % |- typ
-      % isValidElementTyp typ
-      % ------------------- :: wf_typ_pointer
-      % |- typ * 
+      |- typ
+      isValidElementTyp typ
+      ------------------- :: wf_typ_pointer
+      |- typ * 
 
       % |- typ
       % isValidElementTyp typ
@@ -76,6 +76,7 @@ Jwf_operand :: '' ::=
       intrinsic_funs , system , module_info , fdef_info , block , insn |- id' :: :: wf_operand :: ''
       {{ com [[id']] is well-formed w.r.t [[insn]] [[block]] in [[fdef_info]] in [[module_info]] [[system]] }} by
 
+      module = (list_layout list_product)
       insn in system , (module, usedef_insn, usedef_block) , (fdef, dt) , block
       getInsnOperands insn = ids
       id' in ids
@@ -87,7 +88,7 @@ Jwf_operand :: '' ::=
       (getPointerEltTyp typ' = typ'') implies (not typ'' == metadata)
       % Check to make sure that the "address of" an intrinsic function is never
       % taken, and referencing function exists in current module!
-      (isBindingFdec id_binding' = fdec) implies (getFdecID fdec = id0 /\ (id0 notin intrinsic_funs \/ getCallName insn = id0) /\ fdec in module)
+      (isBindingFdec id_binding' = fdec) implies (getFdecID fdec = id0 /\ (id0 notin intrinsic_funs \/ getCallName insn = id0) /\ fdec in list_product)
       % Referring to an argument in the current function
       (isBindingArg id_binding' = arg) implies (argInFdef arg fdef)
       % Referencing global in the current module
@@ -292,12 +293,12 @@ Jwf_module :: '' ::=
       intrinsic_funs , system |- module :: :: wf_module :: ''
       {{ com [[module]] is well-formed w.r.t. [[system]] }} by
 
-      list_product in system
-      {{ genInsnUseDef [[:user_syntax__module:list_product]] = [[usedef_insn]] }}
-      {{ genBlockUseDef [[:user_syntax__module:list_product]] = [[usedef_block]] }}
-      intrinsic_funs , system , (list_product, usedef_insn, usedef_block) |- list_product
+      (list_layout list_product) in system
+      {{ genInsnUseDef [[:user_syntax__module:(list_layout list_product)]] = [[usedef_insn]] }}
+      {{ genBlockUseDef [[:user_syntax__module:(list_layout list_product)]] = [[usedef_block]] }}
+      intrinsic_funs , system , ((list_layout list_product), usedef_insn, usedef_block) |- list_product
       ----------------------------------------------------- :: wf_module_intro
-      intrinsic_funs , system |- list_product
+      intrinsic_funs , system |- list_layout list_product
 
 defns
 Jwf_list_module :: '' ::=

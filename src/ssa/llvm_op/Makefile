@@ -38,5 +38,5 @@ main.pdf: ssa.tex main.tex macros.sty Makefile
 	pdflatex main.tex
 
 clean: 
-	rm -rf ssa.tex main.pdf main.log main.aux main.log main.tex ssa_all.v *.vo *.glob merge.ott m_*.ott
+	rm -rf ssa.tex main.pdf main.log main.aux main.log main.tex ssa_all.v ssa_lib.v *.vo *.glob merge.ott m_*.ott
 

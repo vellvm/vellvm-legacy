@@ -116,14 +116,14 @@ getFdefID_def :: '' ::=
 %      ----------------------------------- :: getNamedtID_intro
 %      getNamedtID (id = type typ) = id   			
 
-% defns
-% getGID_def :: '' ::=
-%      defn
-%      getGID g = id :: :: getgID :: ''
-%      {{ com return [[id]] from [[g]] }} by
+defns
+getGID_def :: '' ::=
+     defn
+     getGID gvar = id :: :: getGID :: ''
+     {{ com return [[id]] from [[gvar]] }} by
 
-%      ------------------------------------ :: getGID_intro
-%      getGID (id = global typ const) = id 
+     ------------------------------------ :: getGID_intro
+     getGID (id = global typ value) = id 
 
 defns
 getFheaderTyp_def :: '' ::=
@@ -155,258 +155,6 @@ getFdefTyp_def :: '' ::=
      getFheaderTyp fheader = typ
      ------------------------------------------------------------------- :: getFdefTyp_intro
      getFdefTyp (define fheader {list_block}) = typ
-
-defns
-getLoadTyp_def :: '' ::=
-     defn
-     getLoadTyp typ = opt_typ :: :: getLoadTyp :: ''
-     {{ com get the typ to load from [[typ]] }} by
-
-     --------------------------- :: getLoadTyp_int
-     getLoadTyp (int INT) = none                    
-
-     % --------------------------- :: getLoadTyp_float
-     % getLoadTyp float = none
-
-     % --------------------------- :: getLoadTyp_double
-     % getLoadTyp double = none
-
-     % --------------------------- :: getLoadTyp_fp128
-     % getLoadTyp fp128 = none
-
-     --------------------------- :: getLoadTyp_void
-     getLoadTyp void = none
-
-     --------------------------- :: getLoadTyp_label
-     getLoadTyp label = none
-
-     --------------------------- :: getLoadTyp_metadata
-     getLoadTyp metadata = none
-     
-     ------------------------------ :: getLoadTyp_array
-     getLoadTyp [ INT * typ ] = none               	
-
-     -------------------------------------------- :: getLoadTyp_function
-     getLoadTyp (typ ( </ typj // j /> )) = none 				
-
-     % -------------------------------------- :: getLoadTyp_struct
-     % getLoadTyp { </ typj // j /> } = none       		
-
-     ------------------------- :: getLoadTyp_pointer
-     getLoadTyp (typ *) = typ                     	
-
-     % ----------------------------- :: getLoadTyp_verctor
-     % getLoadTyp < INT * typ > = none               	
-
-     % ---------------------------- :: getLoadTyp_opaque
-     % getLoadTyp opaque = none  				
-
-defns
-getElementTyp_def :: '' ::=
-     defn
-     getElementTyp typ = opt_typ :: :: getElementTyp :: ''
-     {{ com get the typ of element from [[typ]] }} by
-
-     --------------------------- :: getElementTyp_int
-     getElementTyp (int INT) = none                    
-
-     % --------------------------- :: getElementTyp_float
-     % getElementTyp float = none
-
-     % --------------------------- :: getElementTyp_double
-     % getElementTyp double = none
-
-     % --------------------------- :: getElementTyp_fp128
-     % getElementTyp fp128 = none
-
-     --------------------------- :: getElementTyp_void
-     getElementTyp void = none
-
-     --------------------------- :: getElementTyp_label
-     getElementTyp label = none
-
-     --------------------------- :: getElementTyp_metadata
-     getElementTyp metadata = none
-     
-     ------------------------------ :: getElementTyp_array
-     getElementTyp [ INT * typ ] = typ               	
-
-     -------------------------------------------- :: getElementTyp_function
-     getElementTyp (typ ( </ typj // j /> )) = none 				
-
-     % -------------------------------------- :: getElementTyp_struct
-     % getElementTyp { </ typj // j /> } = none       		
-
-     ------------------------- :: getElementTyp_pointer
-     getElementTyp (typ *) = none                     	
-
-     % ----------------------------- :: getElementTyp_verctor
-     % getElementTyp < INT * typ > = none               	
-
-     % ---------------------------- :: getElementTyp_opaque
-     % getElementTyp opaque = none  				
-
-defns
-getFieldTyp_def :: '' ::=
-     defn
-     getFieldTyp typ const = opt_typ :: :: getFieldTyp :: ''
-     {{ com get the typ of element from [[typ]] }} by
-
-     ------------------------------------ :: getFieldTyp_int
-     getFieldTyp (int INT) const = none                    
-
-     % ------------------------------------ :: getFieldTyp_float
-     % getFieldTyp float const = none
-
-     % ------------------------------------ :: getFieldTyp_double
-     % getFieldTyp double const = none
-
-     % ------------------------------------ :: getFieldTyp_fp128
-     % getFieldTyp fp128 const = none
-
-     ------------------------------------ :: getFieldTyp_void
-     getFieldTyp void const = none
-
-     ------------------------------------ :: getFieldTyp_label
-     getFieldTyp label const = none
-
-     ------------------------------------ :: getFieldTyp_metadata
-     getFieldTyp metadata const = none
-     
-     ------------------------------------ :: getFieldTyp_array
-     getFieldTyp [ INT * typ ] const = none               	
-
-     --------------------------------------------------- :: getFieldTyp_function
-     getFieldTyp (typ ( </ typj // j /> )) const = none 				
-
-     % getNthTyp </ typj // j /> INT = typ
-     % ----------------------------------------- :: getFieldTyp_struct_N
-     % getFieldTyp { </ typj // j /> } INT = typ       		
-
-     % --------------------------------------------- :: getFieldTyp_struct_undef
-     % getFieldTyp { </ typj // j /> } undef = none       		
-
-     --------------------------------- :: getFieldTyp_pointer
-     getFieldTyp (typ *) const = none                     	
-
-     % ------------------------------------- :: getFieldTyp_verctor
-     % getFieldTyp < INT * typ > const = none               	
-
-     % ------------------------------- :: getFieldTyp_opaque
-     % getFieldTyp opaque const = none  				
-
-defns
-getInsnTyp_def :: '' ::=
-     defn
-     getInsnTyp insn = opt_typ :: :: getInsnTyp :: ''
-     {{ com return typs of [[insn]] }} by
-
-     ----------------------------------------------- :: getInsnTyp_return
-     getInsnTyp (ret typ value) = typ
-
-     % ----------------------------------------------- :: getInsnTyp_return_void
-     % getInsnTyp (ret void) = none 
-
-     ------------------------------------------------------ :: getInsnTyp_br
-     getInsnTyp (br typ value , l1 , l2) = none
-
-     ------------------------------------------------------ :: getInsnTyp_uncond
-     getInsnTyp (br l) = none 
-        
-     % -------------------------------------------------------------------------------- :: getInsnTyp_switch
-     % getInsnTyp (switch typ value , l </ [ constj , lj ] // j />) = none
-
-     % ------------------------------------------------------------------------------- :: getInsnTyp_invoke
-     % getInsnTyp (id = invoke typ id0 list_param to l1 unwind l2) = typ
-
-     ------------------------------------------------------------------------------- :: getInsnTyp_call
-     getInsnTyp (id = call typ id0 list_param) = typ
-
-     ------------------------------------------- :: getInsnTyp_unreachable
-     getInsnTyp unreachable = none	     	   	     	 		
-
-     ------------------------------------------------------------ :: getInsnTyp_add
-     getInsnTyp (id = add typ value1 value2) = typ
-
-     % ------------------------------------------------------------ :: getInsnTyp_fadd
-     % getInsnTyp (id = fadd typ value1 value2) = typ
-
-     % ------------------------------------------------------------ :: getInsnTyp_udiv
-     % getInsnTyp (id = udiv typ value1 value2) = typ			
-
-     % ------------------------------------------------------------ :: getInsnTyp_fdiv
-     % getInsnTyp (id = fdiv typ value1 value2) = typ
-
-
-     % ----------------------------------------------------------- :: getInsnTyp_or
-     % getInsnTyp (id = or typ value1 value2) = typ				
-
-     % ----------------------------------------------------------- :: getInsnTyp_and
-     % getInsnTyp (id = and typ value1 value2) = typ				
-
-     % getElementTyp typ0 = typ
-     % --------------------------------------------------------------------------- :: getInsnTyp_extractelement
-     % getInsnTyp (id = extractelement typ0 value0 , const1) = typ
-
-     % ---------------------------------------------------------------------------------------- :: getInsnTyp_insertelement
-     % getInsnTyp (id = insertelement typ0 value0 , typ1 value1 , const2) = typ0
-
-     % getFieldTyp typ0 const1 = typ
-     % --------------------------------------------------------------------- :: getInsnTyp_extractvalue
-     % getInsnTyp (id = extractvalue typ0 value0 , const1) = typ              
-
-     % ---------------------------------------------------------------------------------------------- :: getInsnTyp_insertvalue
-     % getInsnTyp (id = insertvalue typ0 value0 , typ1 value1 , const2) = typ0
-
-     % -------------------------------------- :: getInsnTyp_alloca
-     % getInsnTyp (id = alloca typ INT) = typ *  	     	       	
-
-     % getLoadTyp typ1 = opt_typ
-     % ---------------------------------------- :: getInsnTyp_load
-     % getInsnTyp (id = load typ1 id1) = opt_typ			
-
-     % ------------------------------------------------ :: getInsnTyp_store
-     % getInsnTyp (store typ1 value1 , typ2 id2) = none			
-
-     % -------------------------------------------------- :: getInsnTyp_trunc
-     % getInsnTyp (id = trunc typ1 value1 to typ2) = typ2 			
-
-     % ---------------------------------------------------- :: getInsnTyp_fptrunc
-     % getInsnTyp (id = fptrunc typ1 value1 to typ2) = typ2			
-
-     % ----------------------------------------------------- :: getInsnTyp_fptoui
-     % getInsnTyp (id = fptoui typ1 value1 to typ2) = typ2
-
-     % ---------------------------------------------------- :: getInsnTyp_fptosi
-     % getInsnTyp (id = fptosi typ1 value1 to typ2) = typ2
-
-
-     % --------------------------------------------------- :: getInsnTyp_uitofp
-     % getInsnTyp (id = uitofp typ1 value1 to typ2) = typ2			
-
-     % --------------------------------------------------- :: getInsnTyp_sitofp
-     % getInsnTyp (id = sitofp typ1 value1 to typ2) = typ2			
-
-     % ----------------------------------------------------- :: getInsnTyp_ptrtoint
-     % getInsnTyp (id = ptrtoint typ1 value1 to typ2) = typ2 			
-
-
-     % ----------------------------------------------------- :: getInsnTyp_inttoptr
-     % getInsnTyp (id = inttoptr typ1 value1 to typ2) = typ2 			
-
-     % ---------------------------------------------------- :: getInsnTyp_bitcase
-     % getInsnTyp (id = bitcast typ1 value1 to typ2) = typ2 			
-
-
-     % ------------------------------------------------------ :: getInsnTyp_icmp
-     % getInsnTyp (id = icmp cond typ value1 , value2) = int 1			
-
-     % ------------------------------------------------------ :: getInsnTyp_fcmp
-     % getInsnTyp (id = fcmp cond typ value1 , value2) = int 1		
-
-     --------------------------------------------------------- :: getInsnTyp_phi
-     getInsnTyp (id = phi typ </ [ idj , lj ] // j />) = typ 		
-
 
 defns
 getPointerEltTyp_def :: '' ::=
@@ -704,8 +452,8 @@ getBindingTyp_def :: '' ::=
       ---------------------------- :: getBindingTyp_insn
       getBindingTyp insn = opt_typ
 
-      % ---------------------------- :: getBindingTyp_g
-      % getBindingTyp (id = global typ const) = typ
+      --------------------------------------------- :: getBindingTyp_g
+      getBindingTyp (id = global typ value) = typ *
 
       ---------------------------- :: getBindingTyp_arg
       getBindingTyp (typ id) = typ
@@ -1003,10 +751,10 @@ typEq_def :: '' ::=
        % ------------------------- :: typeEq_opaque
        % opaque == opaque
 
-       INT = INT'
+       sz = sz'
        typ == typ'
        --------------------------------- :: typeEq_array
-       [ INT * typ ] == [ INT' * typ' ] 
+       [ sz * typ ] == [ sz' * typ' ] 
 
        % INT == INT'
        % typ == typ'
@@ -1022,9 +770,9 @@ typEq_def :: '' ::=
        ----------------------------------------------------- :: typeEq_function
        typ ( </ typj // j /> ) == typ' ( </ typ'j // j /> )  
 
-       % </ typj == typ'j // j />
-       % ----------------------------------------------------- :: typeEq_structure
-       % { </ typj // j /> } == { </ typ'j // j /> }  
+       </ typj == typ'j // j />
+       ----------------------------------------------------- :: typeEq_structure
+       { </ typj // j /> } == { </ typ'j // j /> }  
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 %       Check Terminator						 %
@@ -1409,10 +1157,9 @@ uniqModule_def :: '' ::=
      uniqModule module :: :: uniqModule :: ''
      {{ com IDs in [[module]] are uniq }} by
        
-     module = list_product
      uniqProducts list_product
      ---------------------------- :: uniqModule_intro
-     uniqModule module
+     uniqModule (list_layout list_product)
 
 defns 
 uniqModules_def :: '' ::=
@@ -1500,10 +1247,10 @@ productInSystemModule_info :: '' ::=
      product in system , module_info :: :: productInSystemModule :: ''
      {{ com [[system]] [[module_info]] includes [[product]] }} by
 
-     module in system
-     product in module
-     ------------------------------------------------------- :: productInSystemModule_intro
-     product in system , (module, usedef_insn, usedef_block)   
+     (list_layout list_product) in system
+     product in list_product
+     --------------------------------------------------------------------------- :: productInSystemModule_intro
+     product in system , ((list_layout list_product), usedef_insn, usedef_block)   
 
 defns
 blockInSystemModuleFdef_info :: '' ::=
@@ -1616,13 +1363,13 @@ lookupTypViaIDFromProduct_def :: '' ::=
      lookupTypViaIDFromProduct product id = opt_typ :: :: lookupTypViaIDFromProduct :: ''
      {{ com look up [[id]]'s typ from [[product]] }} by
 
-     % id = id'
-     % ------------------------------------------------------------- :: lookupTypViaIDFromProduct_g_true
-     % lookupTypViaIDFromProduct (id = global typ const) id' = typ 
+     id = id'
+     ------------------------------------------------------------- :: lookupTypViaIDFromProduct_g_true
+     lookupTypViaIDFromProduct (id = global typ value) id' = typ *
 
-     % not id = id'
-     % ------------------------------------------------------------- :: lookupTypViaIDFromProduct_g_false
-     % lookupTypViaIDFromProduct (id = global typ const) id' = none
+     not id = id'
+     ------------------------------------------------------------- :: lookupTypViaIDFromProduct_g_false
+     lookupTypViaIDFromProduct (id = global typ value) id' = none
 
      -------------------------------------- :: lookupTypViaIDFromProduct_fdec
      lookupTypViaIDFromProduct fdec id = none
@@ -1658,10 +1405,9 @@ lookupTypViaIDFromModule_def :: '' ::=
      lookupTypViaIDFromModule module id = opt_typ :: :: lookupTypViaIDFromModule :: ''
      {{ com look up [[id]]'s typ from [[module]] }} by
 
-     module = list_product
      lookupTypViaIDFromProducts list_product id = opt_typ
      -------------------------------------------------------- :: lookupTypViaIDFromModule_intro
-     lookupTypViaIDFromModule module id = opt_typ
+     lookupTypViaIDFromModule (list_layout list_product) id = opt_typ
      
 defns
 lookupTypViaIDFromModules_def :: '' ::=
@@ -1790,10 +1536,9 @@ lookupFdecTypViaIDFromModule_def :: '' ::=
      lookupFdecTypViaIDFromModule module id = opt_typ :: :: lookupFdecTypViaIDFromModule :: ''
      {{ com look up [[id]]'s fdec typ from [[module]] }} by
 
-     module = list_product
      lookupFdecTypViaIDFromProducts list_product id = opt_typ
      -------------------------------------------------------- :: lookupFdecTypViaIDFromModule_intro
-     lookupFdecTypViaIDFromModule module id = opt_typ
+     lookupFdecTypViaIDFromModule (list_layout list_product) id = opt_typ
      
 defns
 lookupFdefTypViaIDFromModule_def :: '' ::=
@@ -1801,10 +1546,9 @@ lookupFdefTypViaIDFromModule_def :: '' ::=
      lookupFdefTypViaIDFromModule module id = opt_typ :: :: lookupFdefTypViaIDFromModule :: ''
      {{ com look up [[id]]'s fdef typ from [[module]] }} by
 
-     module = list_product
      lookupFdefTypViaIDFromProducts list_product id = opt_typ
      -------------------------------------------------------- :: lookupFdefTypViaIDFromModule_intro
-     lookupFdefTypViaIDFromModule module id = opt_typ
+     lookupFdefTypViaIDFromModule (list_layout list_product) id = opt_typ
 
 defns
 lookupFdecTypViaIDFromModules_def :: '' ::=
@@ -1917,10 +1661,9 @@ lookupFdecViaIDFromModule_def :: '' ::=
      lookupFdecViaIDFromModule module id = opt_fdec :: :: lookupFdecViaIDFromModule :: ''
      {{ com look up [[id]]'s fdec from [[module]] }} by
 
-     module = list_product
      lookupFdecViaIDFromProducts list_product id = opt_fdec
      -------------------------------------------------------- :: lookupFdecViaIDFromModule_intro
-     lookupFdecViaIDFromModule module id = opt_fdec
+     lookupFdecViaIDFromModule (list_layout list_product) id = opt_fdec
      
 defns
 lookupFdecViaIDFromModules_def :: '' ::=
@@ -2000,10 +1743,9 @@ lookupFdefViaIDFromModule_def :: '' ::=
      lookupFdefViaIDFromModule module id = opt_fdef :: :: lookupFdefViaIDFromModule :: ''
      {{ com look up [[id]]'s fdef from [[module]] }} by
 
-     module = list_product
      lookupFdefViaIDFromProducts list_product id = opt_fdef
      -------------------------------------------------------- :: lookupFdefViaIDFromModule_intro
-     lookupFdefViaIDFromModule module id = opt_fdef
+     lookupFdefViaIDFromModule (list_layout list_product) id = opt_fdef
      
 defns
 lookupFdefViaIDFromModules_def :: '' ::=
@@ -2168,13 +1910,13 @@ lookupBindingViaIDFromProduct_def :: '' ::=
      lookupBindingViaIDFromProduct product id = id_binding :: :: lookupBindingViaIDFromProduct :: ''
      {{ com look up [[id]]'s binding from [[product]] }} by
 
-     % id = id'
-     % ------------------------------------------------------------- :: lookupBindingViaIDFromProduct_g_true
-     % lookupBindingViaIDFromProduct (id = global typ const) id' = (id = global typ const) 
+     id = id'
+     ---------------------------------------------------------------------------------- :: lookupBindingViaIDFromProduct_g_true
+     lookupBindingViaIDFromProduct (id = global typ value) id' = (id = global typ value) 
 
-     % not id = id'
-     % ------------------------------------------------------------- :: lookupBindingViaIDFromProduct_g_false
-     % lookupBindingViaIDFromProduct (id = global typ const) id' = none
+     not id = id'
+     ----------------------------------------------------------------- :: lookupBindingViaIDFromProduct_g_false
+     lookupBindingViaIDFromProduct (id = global typ value) id' = none
 
      lookupBindingViaIDFromFdec fdec id = id_binding
      --------------------------------------------------------- :: lookupBindingViaIDFromProduct_fdec
@@ -2219,10 +1961,9 @@ lookupBindingViaIDFromModule_def :: '' ::=
      lookupBindingViaIDFromModule module id = id_binding :: :: lookupBindingViaIDFromModule :: ''
      {{ com look up [[id]]'s binding from [[module]] }} by
 
-     module = list_product
      lookupBindingViaIDFromProducts list_product id = id_binding
      --------------------------------------------------------- :: lookupBindingViaIDFromModule_intro
-     lookupBindingViaIDFromModule module id = id_binding
+     lookupBindingViaIDFromModule (list_layout list_product) id = id_binding
      
 defns
 lookupBindingViaIDFromModules_def :: '' ::=
@@ -2333,7 +2074,7 @@ getParentOfFdef_def :: '' ::=
      getParentOfFdef fdef = module :: :: getParentOfFdef :: ''
      {{ com [[module]] is the parent of [[fdef]] }} by
 
-     fdef in module
+     fdef in list_product
      ------------------------------------- :: getParentOfFdef_intro
-     getParentOfFdef fdef = module
+     getParentOfFdef fdef = (list_layout list_product)
 

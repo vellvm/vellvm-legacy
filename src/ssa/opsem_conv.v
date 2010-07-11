@@ -208,8 +208,8 @@ Definition dbInsn__implies__dsop_plus_prop state state' tr (db:dbInsn state stat
   dsop_plus state state' tr.
 Definition dbop__implies__dsop_star_prop state state' tr (db:dbop state state' tr) := 
   dsop_star state state' tr.
-Definition dbFdef__implies__dsop_star_prop fid rt lp S M ECs lc gl lc' gl' B'' Result tr 
-           (db:dbFdef fid rt lp S M ECs lc gl lc' gl' B'' Result tr) := 
+Definition dbFdef__implies__dsop_star_prop fid rt lp S M ECs lc gl Mem lc' gl' Mem' B'' Result tr 
+           (db:dbFdef fid rt lp S M ECs lc gl Mem lc' gl' Mem' B'' Result tr) := 
   forall B' I' la lb,
   lookupFdefViaIDFromSystemC S fid = Some (fdef_intro (fheader_intro rt fid la) lb) ->
   getEntryBlock (fdef_intro (fheader_intro rt fid la) lb) = Some B' ->
@@ -217,18 +217,18 @@ Definition dbFdef__implies__dsop_star_prop fid rt lp S M ECs lc gl lc' gl' B'' R
   dsop_star
     (mkState S M ((mkEC (fdef_intro (fheader_intro rt fid la) lb) 
                              B' I' (initLocals la (params2GVs lp lc gl))
-                            (params2GVs lp lc gl))::ECs) gl)
+                            (params2GVs lp lc gl))::ECs) gl Mem)
     (mkState S M ((mkEC (fdef_intro (fheader_intro rt fid la) lb) 
                              B'' (insn_return rt Result) lc'
-                            (params2GVs lp lc gl))::ECs) gl')
+                            (params2GVs lp lc gl))::ECs) gl' Mem')
     tr
   .
 
 Lemma db__implies__ds:
   (forall state state' t  db, @dbInsn__implies__dsop_plus_prop state state' t db) /\
   (forall state state' t  db, @dbop__implies__dsop_star_prop state state' t db) /\
-  (forall fid rt lp S M ECs lc gl lc' gl' B'' ret tr db, 
-     @dbFdef__implies__dsop_star_prop fid rt lp S M ECs lc gl lc' gl' B'' ret tr db).
+  (forall fid rt lp S M ECs lc gl Mem lc' gl' Mem' B'' ret tr db, 
+     @dbFdef__implies__dsop_star_prop fid rt lp S M ECs lc gl Mem lc' gl' Mem' B'' ret tr db).
 Proof.
 (db_mutind_cases
   apply db_mutind with
@@ -250,14 +250,14 @@ Proof.
                                B'0 I'0 (initLocals la (params2GVs lp lc gl)) 
                                (params2GVs lp lc gl))::
                         (mkEC F B (insn_call rid rt fid lp) lc arg)::EC) 
-                        gl); auto.
+                        gl Mem); auto.
     rewrite <- trace_app_nil__eq__trace.
     apply dsop_star_trans with 
       (state2:=mkState S M ((mkEC (fdef_intro (fheader_intro rt fid la) lb) 
                                B' (insn_return rt Result) lc'
                                (params2GVs lp lc gl))::
                         (mkEC F B (insn_call rid rt fid lp) lc arg)::EC) 
-                        gl'); auto.
+                        gl' Mem'); auto.
       apply dsInsn__implies__dsop_star.
       eapply dsReturn; simpl; eauto.
   
@@ -293,22 +293,22 @@ Proof.
   destruct db__implies__ds as [_ [J _]]. eauto.
 Qed.
 
-Lemma dbFdef__implies__dsop_star : forall fid rt lp S M ECs lc gl lc' gl' B'' Result tr B' I' la lb,
-  dbFdef fid rt lp S M ECs lc gl lc' gl' B'' Result tr ->
+Lemma dbFdef__implies__dsop_star : forall fid rt lp S M ECs lc gl Mem lc' gl' Mem' B'' Result tr B' I' la lb,
+  dbFdef fid rt lp S M ECs lc gl Mem lc' gl' Mem' B'' Result tr ->
   lookupFdefViaIDFromSystemC S fid = Some (fdef_intro (fheader_intro rt fid la) lb) ->
   getEntryBlock (fdef_intro (fheader_intro rt fid la) lb) = Some B' ->
   getEntryInsn B' = Some I' ->
   dsop_star 
     (mkState S M ((mkEC (fdef_intro (fheader_intro rt fid la) lb) 
                              B' I' (initLocals la (params2GVs lp lc gl))
-                            (params2GVs lp lc gl))::ECs) gl)
+                            (params2GVs lp lc gl))::ECs) gl Mem)
     (mkState S M ((mkEC (fdef_intro (fheader_intro rt fid la) lb) 
                              B'' (insn_return rt Result) lc'
-                            (params2GVs lp lc gl))::ECs) gl')
+                            (params2GVs lp lc gl))::ECs) gl' Mem')
     tr.
 Proof.
-  intros fid rt lp S M EC lc gl lc' gl' B'' Result tr B' I' la lb H.
-  revert fid rt lp S M EC lc gl lc' gl' B'' Result tr H B' I' la lb.
+  intros fid rt lp S M EC lc gl Mem lc' gl' Mem' B'' Result tr B' I' la lb H.
+  revert fid rt lp S M EC lc gl Mem lc' gl' Mem' B'' Result tr H B' I' la lb.
   destruct db__implies__ds as [_ [_ J]]. eauto.
 Qed.
 
@@ -340,15 +340,15 @@ Qed.
 (** First,we prove that dbInsn, dbop and dbFdef imply small-step semantics,
     by nested coinduction. *)
 
-Lemma dbFdefInf__implies__dsop_diverges : forall fid rt lp S M ECs lc gl tr B' I' la lb,
-  dbFdefInf fid rt lp S M ECs lc gl tr ->
+Lemma dbFdefInf__implies__dsop_diverges : forall fid rt lp S M ECs lc gl Mem tr B' I' la lb,
+  dbFdefInf fid rt lp S M ECs lc gl Mem tr ->
   lookupFdefViaIDFromSystemC S fid = Some (fdef_intro (fheader_intro rt fid la) lb) ->
   getEntryBlock (fdef_intro (fheader_intro rt fid la) lb) = Some B' ->
   getEntryInsn B' = Some I' ->
   dsop_diverges 
     (mkState S M ((mkEC (fdef_intro (fheader_intro rt fid la) lb) B' I' 
                         (initLocals la (params2GVs lp lc gl)) 
-                        (params2GVs lp lc gl))::ECs) gl)
+                        (params2GVs lp lc gl))::ECs) gl Mem)
     tr.
 Proof.
   cofix CIH_dbFdefInf.
@@ -368,7 +368,7 @@ Proof.
                                B' I' (initLocals la (params2GVs lp lc gl)) 
                                (params2GVs lp lc gl))::
                         (mkEC F B (insn_call rid rt fid lp) lc arg)::EC) 
-                        gl); 
+                        gl Mem); 
       try solve [clear CIH_dbFdefInf CIH_dbInsnInf; auto].
       apply CIH_dbFdefInf with (B':=B')(I':=I')(la:=la)(lb:=lb) in HdbFdefInf; auto.
 
@@ -387,7 +387,7 @@ Proof.
         apply CIH_dbopInf in H0. clear CIH_dbopInf.
         apply dsop_diverges_intro with (state2:=state2); auto.
 
-  intros fid rt lp S M ECs lc gl tr B' I' la lb 
+  intros fid rt lp S M ECs lc gl Mem tr B' I' la lb 
     HdbFdefInf Hlookup HgetEntryBlock HgetEntryInsn.
   inversion HdbFdefInf; subst.
   rewrite Hlookup in H. inversion H; subst.
@@ -412,7 +412,7 @@ Proof.
                              B' I' (initLocals la (params2GVs lp lc gl)) 
                              (params2GVs lp lc gl))::
                       (mkEC F B (insn_call rid rt fid lp) lc arg)::EC) 
-                      gl); 
+                      gl Mem); 
     try solve [clear CIH_dbInsnInf; auto].
     apply dbFdefInf__implies__dsop_diverges with (B':=B')(I':=I')(la:=la)(lb:=lb) in HdbFdefInf; auto.
 Qed.
@@ -455,8 +455,8 @@ Definition nbInsn__implies__nsop_plus_prop state_tr states' (nb:nbInsn state_tr 
   nsop_plus (state_tr::nil) states'.
 Definition nbop_star__implies__nsop_star_prop states states' (nb:nbop_star states states') := 
   nsop_star states states'.
-Definition nbFdef__implies__nsop_star_prop fid rt lp S M ECs lc gl tr lc_gl_block_re_trs 
-           (nb:nbFdef fid rt lp S M ECs lc gl tr lc_gl_block_re_trs) := 
+Definition nbFdef__implies__nsop_star_prop fid rt lp S M ECs lc gl Mem tr lc_gl_Mem_block_re_trs 
+           (nb:nbFdef fid rt lp S M ECs lc gl Mem tr lc_gl_Mem_block_re_trs) := 
   forall B' I' la lb,
   lookupFdefViaIDFromSystemC S fid = Some (fdef_intro (fheader_intro rt fid la) lb) ->
   getEntryBlock (fdef_intro (fheader_intro rt fid la) lb) = Some B' ->
@@ -464,30 +464,31 @@ Definition nbFdef__implies__nsop_star_prop fid rt lp S M ECs lc gl tr lc_gl_bloc
   nsop_star
     ((mkState S M ((mkEC (fdef_intro (fheader_intro rt fid la) lb) 
                              B' I' (initLocals la (params2GVs lp lc gl))
-                            (params2GVs lp lc gl))::ECs) gl, tr)::nil)
-    (returnStatesFromOp S M ECs lp lc gl rt fid la lb lc_gl_block_re_trs)
+                            (params2GVs lp lc gl))::ECs) gl Mem, tr)::nil)
+    (returnStatesFromOp S M ECs lp lc gl rt fid la lb lc_gl_Mem_block_re_trs)
   .
 
-Lemma returnStatesFromOp__nsop_star__updateStatesFromReturns : forall lc_gl_block_re_trs S M F B rid (rt:typ) (fid:id) lp (lc:GVMap) arg EC I' lc gl rt fid la lb,
+Lemma returnStatesFromOp__nsop_star__updateStatesFromReturns : forall lc_gl_Mem_block_re_trs S M F B rid (rt:typ) (fid:id) lp (lc:GVMap) arg EC I' lc gl rt fid la lb,
   getNextInsnFrom (insn_call rid rt fid lp) B = Some I' ->
   nsop_star
     (returnStatesFromOp S M (mkEC F B (insn_call rid rt fid lp) lc arg::EC)
-                        lp lc gl rt fid la lb lc_gl_block_re_trs)
-    (updateStatesFromReturns S M F B I' lc rt arg EC rid lc_gl_block_re_trs).
+                        lp lc gl rt fid la lb lc_gl_Mem_block_re_trs)
+    (updateStatesFromReturns S M F B I' lc rt arg EC rid lc_gl_Mem_block_re_trs).
 Proof.
-  induction lc_gl_block_re_trs; simpl; intros; auto.
+  induction lc_gl_Mem_block_re_trs; simpl; intros; auto.
   destruct a as [p tr]. 
   destruct p as [p re]. 
   destruct p as [p B'']. 
+  destruct p as [p Mem']. 
   destruct p as [lc' gl'].
   remember (rt0 =t= typ_void) as rt0_eq_void.
   destruct rt0_eq_void.
   Case "rt0_is_void".
     assert (
-      (mkState S M (mkEC F B I' lc0 arg::EC) gl', tr)::
-      (updateStatesFromReturns S M F B I' lc0 rt0 arg EC rid lc_gl_block_re_trs) = 
-      ((mkState S M (mkEC F B I' lc0 arg::EC) gl', tr)::nil) ++
-      (updateStatesFromReturns S M F B I' lc0 rt0 arg EC rid lc_gl_block_re_trs)
+      (mkState S M (mkEC F B I' lc0 arg::EC) gl' Mem', tr)::
+      (updateStatesFromReturns S M F B I' lc0 rt0 arg EC rid lc_gl_Mem_block_re_trs) = 
+      ((mkState S M (mkEC F B I' lc0 arg::EC) gl' Mem', tr)::nil) ++
+      (updateStatesFromReturns S M F B I' lc0 rt0 arg EC rid lc_gl_Mem_block_re_trs)
     ) as EQ. auto.
     rewrite EQ.
     apply nsop_star_cons; auto.
@@ -496,13 +497,13 @@ Proof.
         rewrite <- Heqrt0_eq_void. auto.
 
   Case "rt0_isnt_void".
-    remember (updateMem lc0 gl' rid (getOperandValue re lc' gl')) as lc_gl.
+    remember (updateEnv lc0 gl' rid (getOperandValue re lc' gl')) as lc_gl.
     destruct lc_gl as [lc'' gl''].
     assert (
-      (mkState S M (mkEC F B I' lc'' arg::EC) gl'', tr)::
-      (updateStatesFromReturns S M F B I' lc0 rt0 arg EC rid lc_gl_block_re_trs) = 
-      ((mkState S M (mkEC F B I' lc'' arg::EC) gl'', tr)::nil) ++
-      (updateStatesFromReturns S M F B I' lc0 rt0 arg EC rid lc_gl_block_re_trs)
+      (mkState S M (mkEC F B I' lc'' arg::EC) gl'' Mem', tr)::
+      (updateStatesFromReturns S M F B I' lc0 rt0 arg EC rid lc_gl_Mem_block_re_trs) = 
+      ((mkState S M (mkEC F B I' lc'' arg::EC) gl'' Mem', tr)::nil) ++
+      (updateStatesFromReturns S M F B I' lc0 rt0 arg EC rid lc_gl_Mem_block_re_trs)
     ) as EQ. auto.
     rewrite EQ.
     apply nsop_star_cons; auto.
@@ -514,8 +515,8 @@ Qed.
 Lemma nb__implies__ns:
   (forall state_tr states' nb, @nbInsn__implies__nsop_plus_prop state_tr states' nb) /\
   (forall states states' nb, @nbop_star__implies__nsop_star_prop states states' nb) /\
-  (forall fid rt lp S M ECs lc gl tr lc_gl_block_re_trs nb, 
-     @nbFdef__implies__nsop_star_prop fid rt lp S M ECs lc gl tr lc_gl_block_re_trs nb).
+  (forall fid rt lp S M ECs lc gl Mem tr lc_gl_Mem_block_re_trs nb, 
+     @nbFdef__implies__nsop_star_prop fid rt lp S M ECs lc gl Mem tr lc_gl_Mem_block_re_trs nb).
 Proof.
 (nb_mutind_cases
   apply nb_mutind with
@@ -528,14 +529,14 @@ Proof.
          nbFdef__implies__nsop_star_prop; 
   intros; subst; simpl; intuition.
   Case "nbBranch_def".
-    apply nsop_plus_trans with (states2:=(mkState S M (mkEC F B' I' lc' arg::EC) gl, tr)::nil); auto.
+    apply nsop_plus_trans with (states2:=(mkState S M (mkEC F B' I' lc' arg::EC) gl Mem, tr)::nil); auto.
       rewrite app_nil_end; eauto.
   Case "nbBranch_undef".
-    apply nsop_plus_trans with (states2:=(mkState S M (mkEC F B1' I1' lc1' arg::EC) gl, tr)::
-                                        (mkState S M (mkEC F B2' I2' lc2' arg::EC) gl, tr)::nil); auto.
+    apply nsop_plus_trans with (states2:=(mkState S M (mkEC F B1' I1' lc1' arg::EC) gl Mem, tr)::
+                                        (mkState S M (mkEC F B2' I2' lc2' arg::EC) gl Mem, tr)::nil); auto.
       rewrite app_nil_end; eauto.
   Case "nbBranch_uncond".
-    apply nsop_plus_trans with (states2:=(mkState S M (mkEC F B' I' lc' arg::EC) gl, tr)::nil); auto.
+    apply nsop_plus_trans with (states2:=(mkState S M (mkEC F B' I' lc' arg::EC) gl Mem, tr)::nil); auto.
       rewrite app_nil_end; eauto.
   Case "nbCallInsn".
     inversion n. subst.
@@ -546,15 +547,15 @@ Proof.
                                B' I'0 (initLocals la (params2GVs lp lc gl)) 
                                (params2GVs lp lc gl))::
                               (mkEC F B (insn_call rid rt fid lp) lc arg)::EC) 
-                               gl, tr)::nil); auto.
+                               gl Mem, tr)::nil); auto.
       rewrite app_nil_end; eauto.
 
       apply nsop_star_trans with 
         (states2:=returnStatesFromOp S M (mkEC F B (insn_call rid rt fid lp) lc arg::EC)
-                              lp lc gl rt fid la lb lc_gl_block_re_trs); auto.
+                              lp lc gl rt fid la lb lc_gl_Mem_block_re_trs); auto.
       apply returnStatesFromOp__nsop_star__updateStatesFromReturns; auto.
   Case "nbAddInsn".
-    apply nsop_plus_trans with (states2:=(mkState S M (mkEC F B I' lc' arg::EC) gl', tr)::nil); auto.
+    apply nsop_plus_trans with (states2:=(mkState S M (mkEC F B I' lc' arg::EC) gl' Mem, tr)::nil); auto.
       rewrite app_nil_end; eauto.
   
   Case "nbop_star_cons".
@@ -610,20 +611,20 @@ Proof.
     apply nsop_plus_trans with (states2:=states2); auto.
 Qed.
 
-Lemma nbFdef__implies__nsop_star : forall fid rt lp S M ECs lc gl tr lc_gl_block_re_trs B' I' la lb,
-  nbFdef fid rt lp S M ECs lc gl tr lc_gl_block_re_trs ->
+Lemma nbFdef__implies__nsop_star : forall fid rt lp S M ECs lc gl Mem tr lc_gl_Mem_block_re_trs B' I' la lb,
+  nbFdef fid rt lp S M ECs lc gl Mem tr lc_gl_Mem_block_re_trs ->
   lookupFdefViaIDFromSystemC S fid = Some (fdef_intro (fheader_intro rt fid la) lb) ->
   getEntryBlock (fdef_intro (fheader_intro rt fid la) lb) = Some B' ->
   getEntryInsn B' = Some I' ->
   nsop_star
     ((mkState S M ((mkEC (fdef_intro (fheader_intro rt fid la) lb) 
                              B' I' (initLocals la (params2GVs lp lc gl))
-                            (params2GVs lp lc gl))::ECs) gl, tr)::nil)
-    (returnStatesFromOp S M ECs lp lc gl rt fid la lb lc_gl_block_re_trs)
+                            (params2GVs lp lc gl))::ECs) gl Mem, tr)::nil)
+    (returnStatesFromOp S M ECs lp lc gl rt fid la lb lc_gl_Mem_block_re_trs)
   .
 Proof.
-  intros fid rt lp S M ECs lc gl tr lc_gl_block_re_trs B' I' la lb H.
-  revert fid rt lp S M ECs lc gl tr lc_gl_block_re_trs H B' I' la lb.
+  intros fid rt lp S M ECs lc gl Mem tr lc_gl_Mem_block_re_trs B' I' la lb H.
+  revert fid rt lp S M ECs lc gl Mem tr lc_gl_Mem_block_re_trs H B' I' la lb.
   destruct nb__implies__ns as [_ [_ J]]. eauto.
 Qed.
 
@@ -655,15 +656,15 @@ Qed.
 (** First,we prove that nbInsn, nbop and nbFdef imply small-step semantics,
     by nested coinduction. *)
 
-Lemma nbFdefInf__implies__nsop_diverges : forall fid rt lp S M ECs lc gl tr B' I' la lb trs',
-  nbFdefInf fid rt lp S M ECs lc gl tr trs' ->
+Lemma nbFdefInf__implies__nsop_diverges : forall fid rt lp S M ECs lc gl Mem tr B' I' la lb trs',
+  nbFdefInf fid rt lp S M ECs lc gl Mem tr trs' ->
   lookupFdefViaIDFromSystemC S fid = Some (fdef_intro (fheader_intro rt fid la) lb) ->
   getEntryBlock (fdef_intro (fheader_intro rt fid la) lb) = Some B' ->
   getEntryInsn B' = Some I' ->
   nsop_diverges 
     ((mkState S M ((mkEC (fdef_intro (fheader_intro rt fid la) lb) B' I' 
                         (initLocals la (params2GVs lp lc gl)) 
-                        (params2GVs lp lc gl))::ECs) gl, tr)::nil) trs'.
+                        (params2GVs lp lc gl))::ECs) gl Mem, tr)::nil) trs'.
 Proof.
   cofix CIH_nbFdefInf.
 
@@ -681,13 +682,13 @@ Proof.
                                B' I' (initLocals la (params2GVs lp lc gl)) 
                                (params2GVs lp lc gl))::
                         (mkEC F B (insn_call rid rt fid lp) lc arg)::EC) 
-                        gl, tr)::nil).
+                        gl Mem, tr)::nil).
       apply nsop_plus_trans 
         with (states2:=(mkState S M ((mkEC (fdef_intro (fheader_intro rt fid la) lb)
                                          B' I' (initLocals la (params2GVs lp lc gl)) 
                                          (params2GVs lp lc gl))::
                                      (mkEC F B (insn_call rid rt fid lp) lc arg)::EC) 
-                                     gl, tr)::nil); auto.
+                                     gl Mem, tr)::nil); auto.
         rewrite app_nil_end; eauto.
       
       apply CIH_nbFdefInf with (B':=B')(I':=I')(la:=la)(lb:=lb) in HnbFdefInf; auto.
@@ -705,7 +706,7 @@ Proof.
       apply CIH_nbopInf in H0.
       apply nsop_diverges_trans with (states':=states2); auto.
 
-  intros fid rt lp S M ECs lc gl tr B' I' la lb trs 
+  intros fid rt lp S M ECs lc gl Mem tr B' I' la lb trs 
     HnbFdefInf Hlookup HgetEntryBlock HgetEntryInsn.
   inversion HnbFdefInf; subst.
   rewrite Hlookup in H. inversion H; subst.
@@ -730,13 +731,13 @@ Proof.
                              B' I' (initLocals la (params2GVs lp lc gl)) 
                              (params2GVs lp lc gl))::
                       (mkEC F B (insn_call rid rt fid lp) lc arg)::EC) 
-                      gl, tr)::nil).
+                      gl Mem, tr)::nil).
     apply nsop_plus_trans 
       with (states2:=(mkState S M ((mkEC (fdef_intro (fheader_intro rt fid la) lb)
                                        B' I' (initLocals la (params2GVs lp lc gl)) 
                                        (params2GVs lp lc gl))::
                                    (mkEC F B (insn_call rid rt fid lp) lc arg)::EC) 
-                                   gl, tr)::nil); auto.
+                                   gl Mem, tr)::nil); auto.
       rewrite app_nil_end; eauto.
     
     apply nbFdefInf__implies__nsop_diverges with (B':=B')(I':=I')(la:=la)(lb:=lb) in HnbFdefInf; auto.
