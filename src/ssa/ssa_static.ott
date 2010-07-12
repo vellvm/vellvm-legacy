@@ -279,23 +279,25 @@ Jwf_insn :: '' ::=
 
 
       % Check typs
-      system |- value0 : typ0
+      system |- value : typ
+      </ system |- valuej : int sz /\ sz = 32 // j />
       % Check indexs
-      getSubTyp </ idxj // j /> typ0 = typ1
+      getSubTyp </ valuej // j /> typ = typ'
       % Check invariance for instructions
-      intrinsic_funs , system , module_info , fdef_info , block |-i id = extractvalue typ0 value0 , </ idxj // j />
+      intrinsic_funs , system , module_info , fdef_info , block |-i id = extractvalue typ value , </ valuej // j />
       -------------------------------------------------------------------------------------- :: wf_insn_extractvalue
-      intrinsic_funs , system , module_info , fdef_info , block |- id = extractvalue typ0 value0 , </ idxj // j />
+      intrinsic_funs , system , module_info , fdef_info , block |- id = extractvalue typ value , </ valuej // j />
 
       % Check typs
-      system |- value0 : typ0
-      system |- value1 : typ1
+      system |- value : typ
+      system |- value' : typ'
+      </ system |- valuej : int sz /\ sz = 32 // j />
       % Check indexs
-      getSubTyp </ idxj // j /> typ0 = typ1
+      getSubTyp </ valuej // j /> typ = typ'
       % Check invariance for instructions
-      intrinsic_funs , system , module_info , fdef_info , block |-i id = insertvalue typ0 value0, typ1 value1, </ idxj // j />
+      intrinsic_funs , system , module_info , fdef_info , block |-i id = insertvalue typ value, typ' value', </ valuej // j />
       -------------------------------------------------------------------------------------- :: wf_insn_insertvalue
-      intrinsic_funs , system , module_info , fdef_info , block |- id = insertvalue typ0 value0, typ1 value1, </ idxj // j />
+      intrinsic_funs , system , module_info , fdef_info , block |- id = insertvalue typ value, typ' value', </ valuej // j />
 
 
       % Allocation instruction pointer not in the generic address space!
@@ -328,21 +330,23 @@ Jwf_insn :: '' ::=
 
       % Check typs
       system |- value : typ*
+      </ system |- valuej : int sz /\ sz = 32 // j />
       % Check indexs
-      getGEPTyp </ idxj // j /> (typ*) = typ1
+      getGEPTyp </ valuej // j /> (typ*) = typ'
       % Check invariance for instructions
-      intrinsic_funs , system , module_info , fdef_info , block |-i id = getelementptr (typ*) value , </ idxj // j />
+      intrinsic_funs , system , module_info , fdef_info , block |-i id = getelementptr (typ*) value , </ valuej // j />
       ---------------------------------------------------------------------------------------- :: wf_insn_gep
-      intrinsic_funs , system , module_info , fdef_info , block |- id = getelementptr (typ*) value , </ idxj // j />
+      intrinsic_funs , system , module_info , fdef_info , block |- id = getelementptr (typ*) value , </ valuej // j />
 
       % Check typs
       system |- value : typ*
+      </ system |- valuej : int sz /\ sz = 32 // j />
       % Check indexs
-      getGEPTyp </ idxj // j /> (typ*) = typ1
+      getGEPTyp </ valuej // j /> (typ*) = typ'
       % Check invariance for instructions
-      intrinsic_funs , system , module_info , fdef_info , block |-i id = getelementptr inbounds (typ*) value , </ idxj // j />
+      intrinsic_funs , system , module_info , fdef_info , block |-i id = getelementptr inbounds (typ*) value , </ valuej // j />
       -------------------------------------------------------------------------------------------- :: wf_insn_bgep
-      intrinsic_funs , system , module_info , fdef_info , block |- id = getelementptr inbounds (typ*) value , </ idxj // j />
+      intrinsic_funs , system , module_info , fdef_info , block |- id = getelementptr inbounds (typ*) value , </ valuej // j />
 
       % LLVM::visitInstruction checks that non-phi nodes are not self referential 
       getInsnUseDef usedef_insn (id = phi typ </ [ idj , lj ] // j />) = list_insn

@@ -124,13 +124,8 @@ list_const {{ tex \mathit{\overline{const} } }} :: 'list_const_'	::=  		{{ com c
 
 value :: 'value_'					::=  			{{ com values }}
   | id	 						::   :: id		{{ com id }}
-  | const						::   :: constant	{{ com constant }}
+  | const						::   :: const   	{{ com constant }}
   | ( value )						:: S :: paren           {{ coq [[ value ]] }}
-
-idx :: 'idx_'						::=  			{{ com idxs }}
-  | id	 						::   :: id		{{ com id }}
-  | INT							::   :: int		{{ com int }}
-  | ( idx )						:: S :: paren           {{ coq [[ idx ]] }}
 
 arg :: 'arg_'  						::=  			{{ com argument }}
        										{{ coq (prod typ id) }}
@@ -193,13 +188,13 @@ insn :: 'insn_'					    	::=			{{ com insnruction }}
   %| id = and typ value1 value2				::   :: and 		{{ com and }}
   %| id = extractelement typ0 value0 , const1		::   :: extractelement  {{ com extractelement }}
   %| id = insertelement typ0 value0 , typ1 value1 , const2	::   :: insertelement   {{ com insertelement }}
-  | id = extractvalue typ0 value0 , </ idxj // j />   	::   :: extractvalue	        {{ com extractvalue }}
-  | id = insertvalue typ0 value0 , typ1 value1 , </ idxj // j /> ::   :: insertvalue	{{ com insertvalue }}
+  | id = extractvalue typ value , </ valuej // j />       	 ::   :: extractvalue	        {{ com extractvalue }}
+  | id = insertvalue typ value , typ' value' , </ valuej // j /> ::   :: insertvalue	{{ com insertvalue }}
   | id = alloca typ sz align     	       	     	::   :: alloca		{{ com alloca }}
   | id = load ( typ * ) value1				::   :: load		{{ com load }}
   | store typ value1 , value2				::   :: store		{{ com store }}
-  | id = getelementptr ( typ * ) value , </ idxj // j />    	      ::  :: gep        {{ com getelementptr }}
-  | id = getelementptr inbounds ( typ * ) value , </ idxj // j />     ::  :: bgep       {{ com inboundsgetelementptr }}
+  | id = getelementptr ( typ * ) value , </ valuej // j />    	      ::  :: gep        {{ com getelementptr }}
+  | id = getelementptr inbounds ( typ * ) value , </ valuej // j />     ::  :: bgep       {{ com inboundsgetelementptr }}
   %| id = trunc typ1 value1 to typ2			::   :: trunc		{{ com trunc }}
   %| id = fptrunc typ1 value1 to typ2			::   :: fptrunc		{{ com fptrunc }}
   %| id = fptoui typ1 value1 to typ2			::   :: fptoui		{{ com fptoui }}
@@ -403,7 +398,9 @@ formula :: 'formula_' ::=
 				{{ tex [[block1]] = [[block2]] }}
 				{{ coq [[block1]] = [[block2]] }}
   | sz = 1			::   :: isOne
-       	 			{{ coq [[sz]] = 1 }}
+       	 			{{ coq [[sz]] = 1 }} 
+  | sz = 32			::   :: isThirtyTwo
+       	 			{{ coq [[sz]] = 32 }}
   | sz > 0			::   :: gtZero
        	 			{{ coq [[sz]] > 0 }}
   | sz1 = sz2 			::   :: eqSize

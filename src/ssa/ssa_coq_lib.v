@@ -47,7 +47,7 @@ Require Import Omega.
   | (_, _) => None 
   end.
 
-  Definition genLabel2Block_block (b:block) (f:fdef) (m:module) : l2block :=
+  Definition genLabel2Block_block (b:block) (f:fdef) : l2block :=
   match b with
   | block_intro l _ => fun l' => 
     match lt_eq_lt_dec l' l with 
@@ -56,34 +56,34 @@ Require Import Omega.
     end 
   end.  
 
-  Fixpoint genLabel2Block_blocks (bs:list_block) (f:fdef) (m:module) : l2block :=
+  Fixpoint genLabel2Block_blocks (bs:list_block) (f:fdef) : l2block :=
   match bs with 
   | nil => fun _ => None
-  | b::bs' => mergel2block (genLabel2Block_blocks bs' f m) (genLabel2Block_block b f m)
+  | b::bs' => mergel2block (genLabel2Block_blocks bs' f) (genLabel2Block_block b f)
   end.
 
-  Definition genLabel2Block_fdef (f:fdef) (m:module) : l2block := 
+  Definition genLabel2Block_fdef (f:fdef) : l2block := 
   match f with
-  | fdef_intro fheader blocks => genLabel2Block_blocks blocks f m 
+  | fdef_intro fheader blocks => genLabel2Block_blocks blocks f
   end.
 
-  Fixpoint genLabel2Block_product (p:product) (m: module) : l2block :=
+  Fixpoint genLabel2Block_product (p:product) : l2block :=
   match p with 
   | product_gvar g => fun _ => None
-  | product_fdef f => (genLabel2Block_fdef f m)
+  | product_fdef f => (genLabel2Block_fdef f)
   | product_fdec f => fun _ => None 
   (*  | product_namedtype nt => fun _ => None *)
   end.
 
-  Fixpoint genLabel2Block_products (ps:list_product) (m:module) : l2block :=
+  Fixpoint genLabel2Block_products (ps:list_product) : l2block :=
   match ps with
   | nil => fun _ => None
-  | p::ps' => mergel2block (genLabel2Block_products ps' m) (genLabel2Block_product p m)
+  | p::ps' => mergel2block (genLabel2Block_products ps') (genLabel2Block_product p)
   end.
 
   Definition genLabel2Block (m: module) : l2block :=
   let (os, ps) := m in
-  genLabel2Block_products ps m.
+  genLabel2Block_products ps.
 
   Definition getEntryOfFdef (f:fdef) : option block :=
   match f with
@@ -102,6 +102,9 @@ Require Import Omega.
     | b::blocks' => blocks'
     end 
   end.  
+
+  Definition lookupBlockViaLabelFromFdef (f:fdef) (l0:l) : option block :=
+  genLabel2Block_fdef f l0.  
 
   Definition lookupBlockViaLabelFromModule (m:module) (l0:l) : option block :=
   genLabel2Block m l0.  
@@ -176,7 +179,7 @@ Require Import Omega.
   Definition getValueID (v:value) : option id :=
   match v with
   | value_id id => Some id
-  | value_constant _ => None
+  | value_const _ => None
   end.
 
   (* generate insn use-def *)
@@ -743,7 +746,7 @@ end.
 
 (** Statically idx for struct must be int, and idx for arr can be
     anything without checking bounds. *)
-Fixpoint getSubTyp (idxs : list idx) (t : typ) : option typ :=
+Fixpoint getSubTyp (idxs : list value) (t : typ) : option typ :=
 match idxs with
 | nil => Some t 
 | idx::idxs' => 
@@ -751,7 +754,7 @@ match idxs with
   | typ_array sz t' => getSubTyp idxs' t'
   | typ_struct lt => 
     match idx with
-    | idx_int i =>
+    | value_const (const_int i) =>
       match (nth_error lt i) with
       | Some t' => getSubTyp idxs' t'
       | None => None
@@ -762,7 +765,7 @@ match idxs with
   end
 end.
 
-Definition getGEPTyp (idxs : list idx) (t : typ) : option typ :=
+Definition getGEPTyp (idxs : list value) (t : typ) : option typ :=
 match idxs with
 | nil => None
 | (idx::idxs') =>
@@ -1744,7 +1747,7 @@ Definition constEqB (c c':const) : bool := _constEqB (c, c').
 Definition valueEqB (v v':value) : bool :=
 match (v, v') with
 | (value_id i, value_id i') => beq_nat i i'
-| (value_constant c, value_constant c') => constEqB c c'
+| (value_const c, value_const c') => constEqB c c'
 | (_, _) => false
 end.
 
@@ -1770,22 +1773,15 @@ end.
 Definition id_labels_EqB (idls idls':id_labels) :=
   _id_labels_EqB idls idls' && beq_nat (length idls) (length idls').
 
-Definition idx_EqB (idx1 idx2 : idx) : bool :=
-match (idx1, idx2) with
-| (idx_int i1, idx_int i2) => beq_nat i1 i2
-| (idx_id id1, idx_id id2) => beq_nat id1 id2
-| _ => false
-end.
-
-Fixpoint _idxs_EqB (idxs idxs':list idx) {struct idxs} : bool :=
+Fixpoint _idxs_EqB (idxs idxs':list value) {struct idxs} : bool :=
 match (idxs, idxs') with
 | (idx::idxs, idx'::idxs') =>
-  idx_EqB idx idx' && 
+  valueEqB idx idx' && 
   _idxs_EqB idxs idxs'
 | (_, _) => true
 end.
 
-Definition idxs_EqB (idxs idxs' : list idx) :=
+Definition idxs_EqB (idxs idxs' : list value) :=
   _idxs_EqB idxs idxs' && beq_nat (length idxs) (length idxs').
 
 Definition insnEqB (i i':insn) : bool :=

@@ -169,8 +169,8 @@ Definition switchToNewBasicBlock (Dest:block) (PrevBB:block) (Values:Mem): (bloc
 Definition getOperandValue (v:value) (Values:Mem) : option GenericValue := 
 match v with
 | value_id id => Values id
-| value_constant (const_int n) => Some (GenericValue_int n)
-| value_constant const_undef => Some (GenericValue_int 0)
+| value_const (const_int n) => Some (GenericValue_int n)
+| value_const const_undef => Some (GenericValue_int 0)
 | _ => None
 end.
 
