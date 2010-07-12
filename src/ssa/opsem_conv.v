@@ -1,6 +1,7 @@
 Add LoadPath "./ott".
 Add LoadPath "./monads".
 Add LoadPath "../../../theory/metatheory".
+Require Import ssa_mem.
 Require Import ssa_dynamic.
 Require Import ssa.
 Require Import List.

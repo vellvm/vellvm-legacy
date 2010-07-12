@@ -35,7 +35,13 @@ ssa.vo: ssa.v
 tactics.vo: tactics.v
 	$(COQC) tactics.v
 
-ssa_dynamic.vo: ssa_dynamic.v ssa.vo tactics.vo
+targetdata.vo: targetdata.v ssa.vo
+	$(COQC) -I ./ott -I ./monads targetdata.v
+
+ssa_mem.vo: ssa_mem.v ssa.vo tactics.vo targetdata.vo
+	$(COQC) -I ./ott -I ./monads ssa_mem.v
+
+ssa_dynamic.vo: ssa_dynamic.v ssa.vo tactics.vo ssa_mem.vo
 	$(COQC) -I ./ott -I ./monads ssa_dynamic.v
 
 opsem_conv.vo: opsem_conv.v ssa_dynamic.vo ssa.vo
