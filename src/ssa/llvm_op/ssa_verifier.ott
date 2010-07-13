@@ -191,9 +191,9 @@ Jwf_insn :: '' ::=
       -------------------------------------------------------------------------------------- :: wf_insn_unreachable
       intrinsic_funs , system , (module, usedef_insn, usedef_block), fdef_info , block |- unreachable
 
-      intrinsic_funs , system , module_info , (fdef, dt) , block |-i id = add typ value1 value2
+      intrinsic_funs , system , module_info , (fdef, dt) , block |-i id = add sz value1 value2
       -------------------------------------------------------------------------------------- :: wf_insn_add
-      intrinsic_funs , system , (module, usedef_insn, usedef_block), fdef_info , block |- id = add typ value1 value2
+      intrinsic_funs , system , (module, usedef_insn, usedef_block), fdef_info , block |- id = add sz value1 value2
 
       intrinsic_funs , system , module_info , (fdef, dt) , block |-i id = phi typ </ [ idj , lj ] // j />
       -------------------------------------------------------------------------------------- :: wf_insn_phi

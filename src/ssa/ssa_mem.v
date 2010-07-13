@@ -17,10 +17,11 @@ Definition moffset := nat.
 Definition maddr := (mblock * moffset)%type.
 
 Definition null := (0, 0) : maddr.
+Definition uninitptr := maddr.
 
 Inductive mdata : Set :=
 | mdata_byte : nat -> mdata   (* We only need 8 bits. *) 
-| mdata_unint  : mdata  
+| mdata_uninit  : mdata  
 | mdata_ptr : maddr -> mdata
 .
 
@@ -29,7 +30,7 @@ Definition mvalue := list mdata.
 Definition mem := mblock -> option mvalue.
 
 (** allocate memory with size and alignment *)
-Variable malloc : list layout -> mem -> nat -> nat -> option (mem * mblock)%type.
+Variable malloc : layouts -> mem -> nat -> nat -> option (mem * mblock)%type.
 
 Variable free : mem -> mblock -> option mem.
 
@@ -43,9 +44,37 @@ match allocas with
   end
 end.
 
-Variable mload : list layout -> mem -> maddr -> typ -> option mvalue.
+Variable mload : layouts -> mem -> maddr -> typ -> option mvalue.
 
-Variable mstore : list layout -> mem -> maddr -> typ -> mvalue -> option mem.
+Variable mstore : layouts -> mem -> maddr -> typ -> mvalue -> option mem.
 
-Variable mgep : list layout -> typ -> maddr -> list nat -> bool -> option maddr.
+(** translating list of bytes to nat w.r.t typ *)
+Variable mvalue2nat : layouts -> sz -> mvalue -> option nat.
+
+(** translating nat to mvalue with StoreSize*)
+Variable nat2mvalue : layouts -> sz -> nat -> mvalue.
+
+(** checking if list of bytes or uninit is undef, should all elements in list be uninits? *)
+Variable isMvalueUndef : list layout -> typ -> mvalue -> Prop.
+
+(** translating undef to mvalue with StoreSize*)
+Variable undef2mvalue : list layout -> typ -> mvalue.
+
+(** compute offset in typ with list of idxs, typ and its subtypes cannot be ptr, and
+    out-of-bounds is disallowed. *)
+Variable mgetoffset : layouts -> typ -> list nat -> bool -> option moffset.
+
+(** FIXME: we should also check if sz out-of-bounds. *)
+Definition mgep (TD:layouts) (t:typ) (ma:maddr) (idxs:list nat) (inbounds:bool) : option maddr :=
+match ma with
+| (mb, mo) => 
+  match idxs with
+  | nil => None
+  | (idx::idxs') =>
+    match (getTypeAllocSize TD t, mgetoffset TD t idxs' inbounds) with
+    | (Some sz, Some offset) => Some (mb, mo+sz*idx+offset)
+    | _ => None
+    end
+  end
+end.
 

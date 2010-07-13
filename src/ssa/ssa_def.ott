@@ -103,17 +103,12 @@ list_typ {{ tex \mathit{\overline{typ} } }} :: 'list_typ_'	::=  		{{ com typ lis
   | ( list_typ )					:: S :: paren           {{ coq [[ list_typ ]] }}
 
 const :: 'const_'					::=  			{{ com constant }}
-  | INT	 						::   :: int		{{ com int }}	
-  | undef						::   :: undef		{{ com undef }}
-  | null						::   :: null		{{ com null }}
+  | ( int sz ) INT					::   :: int		{{ com int }}	
+  | typ undef						::   :: undef		{{ com undef }}
+  | ( typ * ) null					::   :: null		{{ com null }}
   | [ </ constj // j /> ]				::   :: arr             {{ com array }}
   | { </ constj // j /> }				::   :: struct          {{ com struct }}
   | ( const )						:: S :: paren           {{ coq [[ const ]] }}
-
-tconst :: 'tconst_'					::=  			{{ com tconst }}
-	     									{{ coq (prod typ const) }}
-  | typ const 						::   :: def          	{{ coq ([[typ]],[[const]]) }}
-  | ( tconst )						:: S :: paren		{{ coq [[ tconst ]] }}
 
 list_const {{ tex \mathit{\overline{const} } }} :: 'list_const_'	::=  		{{ com const list }}
      	    			     	   					{{ coq (list (const)) }}
@@ -180,7 +175,7 @@ insn :: 'insn_'					    	::=			{{ com insnruction }}
   %| id = invoke typ0 id0 list_param to l1 unwind l2 	::   :: invoke		{{ com invoke }} 
   | id = call typ0 id0 list_param	       	 	::   :: call		{{ com call }} 
   | unreachable	     	   	     	 		::   :: unreachable	{{ com unreachable }}
-  | id = add typ value1 value2				::   :: add		{{ com add }}
+  | id = add sz value1 value2				::   :: add		{{ com add }}
   %| id = fadd typ value1 value2				::   :: fadd		{{ com fadd }}
   %| id = udiv typ value1 value2				::   :: udiv		{{ com udiv }}
   %| id = fdiv typ value1 value2				::   :: fdiv		{{ com fdiv }}
@@ -188,8 +183,8 @@ insn :: 'insn_'					    	::=			{{ com insnruction }}
   %| id = and typ value1 value2				::   :: and 		{{ com and }}
   %| id = extractelement typ0 value0 , const1		::   :: extractelement  {{ com extractelement }}
   %| id = insertelement typ0 value0 , typ1 value1 , const2	::   :: insertelement   {{ com insertelement }}
-  | id = extractvalue typ value , </ valuej // j />       	 ::   :: extractvalue	        {{ com extractvalue }}
-  | id = insertvalue typ value , typ' value' , </ valuej // j /> ::   :: insertvalue	{{ com insertvalue }}
+  | id = extractvalue typ value , </ constj // j />       	 ::   :: extractvalue	        {{ com extractvalue }}
+  | id = insertvalue typ value , typ' value' , </ constj // j /> ::   :: insertvalue	{{ com insertvalue }}
   | id = alloca typ sz align     	       	     	::   :: alloca		{{ com alloca }}
   | id = load ( typ * ) value1				::   :: load		{{ com load }}
   | store typ value1 , value2				::   :: store		{{ com store }}

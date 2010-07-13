@@ -63,14 +63,17 @@ Jwf_const :: '' ::=
       |- const : typ :: :: wf_const :: ''
       {{ com [[const]] has [[typ]] }} by
 
-      ----------------- :: wf_const_int
-      |- INT : int sz
+      |- int sz
+      ----------------------------- :: wf_const_int
+      |- (int sz) INT : int sz
 
-      ----------------- :: wf_const_undef
-      |- undef : typ
+      |- typ
+      -------------------- :: wf_const_undef
+      |- typ undef : typ
 
-      ----------------- :: wf_const_null
-      |- null : typ*
+      |- typ*
+      ---------------------- :: wf_const_null
+      |- (typ*) null : typ*
 
 
       </ |- constj : typ // j />
@@ -267,37 +270,37 @@ Jwf_insn :: '' ::=
       intrinsic_funs , system , module_info, fdef_info , block |- unreachable
 
       % Check typs
-      system |- value1 : typ
-      system |- value2 : typ
+      system |- value1 : int sz
+      system |- value2 : int sz
       % Check that integer arithmetic operators are only used with integral operands.
       % Integer arithmetic operators only work with integral types 
-      Typ.isIntOrIntVector typ
+      % Typ.isIntOrIntVector typ
       % Check invariance for instructions
-      intrinsic_funs , system , module_info , fdef_info , block |-i id = add typ value1 value2
+      intrinsic_funs , system , module_info , fdef_info , block |-i id = add sz value1 value2
       -------------------------------------------------------------------------------------- :: wf_insn_add
-      intrinsic_funs , system , module_info, fdef_info , block |- id = add typ value1 value2
+      intrinsic_funs , system , module_info, fdef_info , block |- id = add sz value1 value2
 
 
       % Check typs
       system |- value : typ
-      </ system |- valuej : int sz /\ sz = 32 // j />
+      </ system |- constj : int sz /\ sz = 32 // j />
       % Check indexs
-      getSubTyp </ valuej // j /> typ = typ'
+      getSubTypFromConstIdxs </ constj // j /> typ = typ'
       % Check invariance for instructions
-      intrinsic_funs , system , module_info , fdef_info , block |-i id = extractvalue typ value , </ valuej // j />
+      intrinsic_funs , system , module_info , fdef_info , block |-i id = extractvalue typ value , </ constj // j />
       -------------------------------------------------------------------------------------- :: wf_insn_extractvalue
-      intrinsic_funs , system , module_info , fdef_info , block |- id = extractvalue typ value , </ valuej // j />
+      intrinsic_funs , system , module_info , fdef_info , block |- id = extractvalue typ value , </ constj // j />
 
       % Check typs
       system |- value : typ
       system |- value' : typ'
-      </ system |- valuej : int sz /\ sz = 32 // j />
+      </ system |- constj : int sz /\ sz = 32 // j />
       % Check indexs
-      getSubTyp </ valuej // j /> typ = typ'
+      getSubTypFromConstIdxs </ constj // j /> typ = typ'
       % Check invariance for instructions
-      intrinsic_funs , system , module_info , fdef_info , block |-i id = insertvalue typ value, typ' value', </ valuej // j />
+      intrinsic_funs , system , module_info , fdef_info , block |-i id = insertvalue typ value, typ' value', </ constj // j />
       -------------------------------------------------------------------------------------- :: wf_insn_insertvalue
-      intrinsic_funs , system , module_info , fdef_info , block |- id = insertvalue typ value, typ' value', </ valuej // j />
+      intrinsic_funs , system , module_info , fdef_info , block |- id = insertvalue typ value, typ' value', </ constj // j />
 
 
       % Allocation instruction pointer not in the generic address space!

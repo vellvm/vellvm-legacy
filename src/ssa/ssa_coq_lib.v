@@ -746,17 +746,36 @@ end.
 
 (** Statically idx for struct must be int, and idx for arr can be
     anything without checking bounds. *)
-Fixpoint getSubTyp (idxs : list value) (t : typ) : option typ :=
+Fixpoint getSubTypFromConstIdxs (idxs : list const) (t : typ) : option typ :=
 match idxs with
 | nil => Some t 
 | idx::idxs' => 
   match t with
-  | typ_array sz t' => getSubTyp idxs' t'
+  | typ_array sz t' => getSubTypFromConstIdxs idxs' t'
   | typ_struct lt => 
     match idx with
-    | value_const (const_int i) =>
+    | (const_int sz i) =>
       match (nth_error lt i) with
-      | Some t' => getSubTyp idxs' t'
+      | Some t' => getSubTypFromConstIdxs idxs' t'
+      | None => None
+      end
+    | _ => None
+    end
+  | _ => None
+  end
+end.
+
+Fixpoint getSubTypFromValueIdxs (idxs : list value) (t : typ) : option typ :=
+match idxs with
+| nil => Some t 
+| idx::idxs' => 
+  match t with
+  | typ_array sz t' => getSubTypFromValueIdxs idxs' t'
+  | typ_struct lt => 
+    match idx with
+    | value_const (const_int sz i) =>
+      match (nth_error lt i) with
+      | Some t' => getSubTypFromValueIdxs idxs' t'
       | None => None
       end
     | _ => None
@@ -769,14 +788,11 @@ Definition getGEPTyp (idxs : list value) (t : typ) : option typ :=
 match idxs with
 | nil => None
 | (idx::idxs') =>
-  match t with
-  | typ_pointer t' => 
-     match (getSubTyp idxs' t') with
-     | Some t'' => Some (typ_pointer t'')
+     (* The input t is already an element of a pointer typ *)
+     match (getSubTypFromValueIdxs idxs' t) with
+     | Some t' => Some (typ_pointer t')
      | _ => None
      end
-  | _ => None
-  end
 end.
 
 Definition getLoadTyp (t:typ) : option typ :=
@@ -795,7 +811,7 @@ match i with
 (* | insn_invoke _ typ _ _ _ _ => Some typ *)
 | insn_call _ typ _ _ => Some typ
 | insn_unreachable => None
-| insn_add _ typ _ _ => Some typ
+| insn_add _ sz _ _ => Some (typ_int sz)
 (*| insn_fadd _ typ _ _ => Some typ
 | insn_udiv _ typ _ _ => Some typ
 | insn_fdiv _ typ _ _ => Some typ
@@ -803,7 +819,7 @@ match i with
 | insn_and _ typ _ _ => Some typ 
 | insn_extractelement _ typ _ _ => getElementTyp typ
 | insn_insertelement _ typ _ _ _ _ => typ *)
-| insn_extractvalue _ typ _ idxs => getSubTyp idxs typ
+| insn_extractvalue _ typ _ idxs => getSubTypFromConstIdxs idxs typ
 | insn_insertvalue _ typ _ _ _ _ => Some typ
 | insn_alloca _ typ _ _ => Some (typ_pointer typ)
 | insn_load _ typ _ => getLoadTyp typ
@@ -1568,9 +1584,9 @@ Definition typEqB (t t':typ) : bool := _typEqB (t, t').
 
 Fixpoint const_size (c:const) : nat :=
   match c with
-  | const_int n => 1
-  | const_undef => 1
-  | const_null => 1
+  | const_int _ n => 1
+  | const_undef _ => 1
+  | const_null _ => 1
   | const_arr lc => 1 + fold_left plus (map const_size lc) 0
   | const_struct lc => 1 + fold_left plus (map const_size lc) 0
   end.
@@ -1717,14 +1733,10 @@ Definition cs_combine_with_measure cc lc1 lc1' (H:(const_struct lc1, const_struc
 
 Program Fixpoint _constEqB (cc:const*const) {measure const2_size} : bool :=
 (match cc as r return (cc = r -> _) with 
-| (const_int n, const_int n') => 
-  fun _ =>
-  match (eq_nat_dec n n') with
-  | left _ => true 
-  | right _ => false
-  end 
-| (const_null, const_null) => fun _ => true
-| (const_undef, const_undef) => fun _ => true
+| (const_int sz n, const_int sz' n') => 
+  fun _ => beq_nat n n' && beq_nat sz sz'
+| (const_null t, const_null t') => fun _ => typEqB t t'
+| (const_undef t, const_undef t') => fun _ => typEqB t t'
 | (const_struct lc1, const_struct lc1') =>
   fun Ha:(cc = (const_struct lc1, const_struct lc1')) =>
   match (eq_nat_dec (length lc1) (length lc1')) with
@@ -1784,6 +1796,17 @@ end.
 Definition idxs_EqB (idxs idxs' : list value) :=
   _idxs_EqB idxs idxs' && beq_nat (length idxs) (length idxs').
 
+Fixpoint _cidxs_EqB (cidxs cidxs':list const) {struct cidxs} : bool :=
+match (cidxs, cidxs') with
+| (cidx::cidxs, cidx'::cidxs') =>
+  constEqB cidx cidx' && 
+  _cidxs_EqB cidxs cidxs'
+| (_, _) => true
+end.
+
+Definition cidxs_EqB (cidxs cidxs' : list const) :=
+  _cidxs_EqB cidxs cidxs' && beq_nat (length cidxs) (length cidxs').
+
 Definition insnEqB (i i':insn) : bool :=
 match (i, i') with
 | (insn_return t v, insn_return t' v') =>
@@ -1811,25 +1834,25 @@ match (i, i') with
   beq_nat id0 id0' &&
   list_param_EqB paraml paraml'
 | (insn_unreachable, insn_unreachable) => true
-| (insn_add id typ v1 v2,
-   insn_add id' typ' v1' v2') =>
+| (insn_add id sz v1 v2,
+   insn_add id' sz' v1' v2') =>
   beq_nat id id' &&
-  typEqB typ typ' &&
+  beq_nat sz sz' &&
   valueEqB v1 v1' &&
   valueEqB v2 v2'
-| (insn_extractvalue id typ0 v0 idxs, insn_extractvalue id' typ0' v0' idxs') => 
+| (insn_extractvalue id typ0 v0 cidxs, insn_extractvalue id' typ0' v0' cidxs') => 
   beq_nat id id' &&
   typEqB typ0 typ0' &&
   valueEqB v0 v0' &&
-  idxs_EqB idxs idxs'  
-| (insn_insertvalue id typ0 v0 typ1 v1 idxs, 
-   insn_insertvalue id' typ0' v0' typ1' v1' idxs') =>
+  cidxs_EqB cidxs cidxs'  
+| (insn_insertvalue id typ0 v0 typ1 v1 cidxs, 
+   insn_insertvalue id' typ0' v0' typ1' v1' cidxs') =>
   beq_nat id id' &&
   typEqB typ0 typ0' &&
   valueEqB v0 v0' &&
   typEqB typ1 typ1' &&
   valueEqB v1 v1' &&
-  idxs_EqB idxs idxs'  
+  cidxs_EqB cidxs cidxs'  
 | (insn_alloca id typ sz align, insn_alloca id' typ' sz' align') =>
   beq_nat id id' &&
   typEqB typ typ' &&

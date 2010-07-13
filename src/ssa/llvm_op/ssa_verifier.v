@@ -556,9 +556,9 @@ Inductive wf_insn : intrinsic_funs -> system -> module_info -> fdef_info -> bloc
  | wf_insn_unreachable : forall (intrinsic_funs5:intrinsic_funs) (system5:system) (fdef_info5:fdef_info) (block5:block) (module_info5:module_info) (fdef5:fdef) (dt5:dt),
      visitTerminatorInst intrinsic_funs5 system5 module_info5   ( fdef5 ,  dt5 )   block5 insn_unreachable ->
      wf_insn intrinsic_funs5 system5   module_info5   ( fdef5 ,  dt5 ) block5 insn_unreachable
- | wf_insn_add : forall (intrinsic_funs5:intrinsic_funs) (system5:system) (fdef_info5:fdef_info) (block5:block) (id5:id) (typ5:typ) (value1 value2:value) (module_info5:module_info) (fdef5:fdef) (dt5:dt),
-     visitBinaryOperator intrinsic_funs5 system5 module_info5   ( fdef5 ,  dt5 )   block5 (insn_add id5 typ5 value1 value2) ->
-     wf_insn intrinsic_funs5 system5   module_info5   ( fdef5 ,  dt5 ) block5 (insn_add id5 typ5 value1 value2)
+ | wf_insn_add : forall (intrinsic_funs5:intrinsic_funs) (system5:system) (fdef_info5:fdef_info) (block5:block) (id5:id) (sz5:nat) (value1 value2:value) (module_info5:module_info) (fdef5:fdef) (dt5:dt),
+     visitBinaryOperator intrinsic_funs5 system5 module_info5   ( fdef5 ,  dt5 )   block5 (insn_add id5 sz5 value1 value2) ->
+     wf_insn intrinsic_funs5 system5   module_info5   ( fdef5 ,  dt5 ) block5 (insn_add id5 sz5 value1 value2)
  | wf_insn_phi : forall (id_l_list:list (id*l)) (intrinsic_funs5:intrinsic_funs) (system5:system) (fdef_info5:fdef_info) (block5:block) (id_5:id) (typ5:typ) (module_info5:module_info) (fdef5:fdef) (dt5:dt),
      visitPHINode intrinsic_funs5 system5 module_info5   ( fdef5 ,  dt5 )   block5 (insn_phi id_5 typ5 id_l_list) ->
      wf_insn intrinsic_funs5 system5   module_info5   ( fdef5 ,  dt5 ) block5 (insn_phi id_5 typ5 id_l_list)

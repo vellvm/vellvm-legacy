@@ -169,8 +169,8 @@ Definition switchToNewBasicBlock (Dest:block) (PrevBB:block) (Values:Mem): (bloc
 Definition getOperandValue (v:value) (Values:Mem) : option GenericValue := 
 match v with
 | value_id id => Values id
-| value_const (const_int n) => Some (GenericValue_int n)
-| value_const const_undef => Some (GenericValue_int 0)
+| value_const (const_int _ n) => Some (GenericValue_int n)
+| value_const (const_undef _) => Some (GenericValue_int 0)
 | _ => None
 end.
 
@@ -632,10 +632,10 @@ Inductive visitInst : State -> State -> trace -> Prop :=
       )::ECS)
     )
     trace_nil 
-| visitAddInsnt : forall CurSystem CurModule CurFunction CurBB Values VarArgs Caller ExitValue id t v1 v2 ECS i1 i2 CurInst',
+| visitAddInsnt : forall CurSystem CurModule CurFunction CurBB Values VarArgs Caller ExitValue id sz v1 v2 ECS i1 i2 CurInst',
   getOperandValue v1 Values = Some (GenericValue_int i1) ->
   getOperandValue v2 Values = Some (GenericValue_int i2) ->
-  getNextInsnFrom (insn_add id t v1 v2) CurBB = Some CurInst' ->
+  getNextInsnFrom (insn_add id sz v1 v2) CurBB = Some CurInst' ->
   visitInst 
     (mkState
       CurSystem
@@ -644,7 +644,7 @@ Inductive visitInst : State -> State -> trace -> Prop :=
       ((mkExecutionContext 
           CurFunction 
           CurBB 
-          (insn_add id t v1 v2) 
+          (insn_add id sz v1 v2) 
           Values 
           VarArgs 
           Caller
