@@ -467,6 +467,17 @@ isBindingInsn_def :: '' ::=
       ------------------------- :: isBindingInsn_intro
       isBindingInsn insn = insn
 
+defns
+isAggregateTyp_def :: '' ::=
+      defn
+      isAggregateTyp typ :: :: isAggregateTyp :: '' {{ com [[typ]] is an aggregate type }} by
+
+      -------------------------------------------- :: isAggregateTyp_struct
+      isAggregateTyp {</ typj // j />}
+
+      --------------------------------------------- :: isAggregateTyp_array
+      isAggregateTyp [sz * typ] 
+
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 %       Eq              						 %
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%

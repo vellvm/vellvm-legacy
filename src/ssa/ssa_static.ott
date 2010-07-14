@@ -276,9 +276,9 @@ Jwf_insn :: '' ::=
       % Integer arithmetic operators only work with integral types 
       % Typ.isIntOrIntVector typ
       % Check invariance for instructions
-      intrinsic_funs , system , module_info , fdef_info , block |-i id = add sz value1 value2
+      intrinsic_funs , system , module_info , fdef_info , block |-i id = add (int sz) value1 value2
       -------------------------------------------------------------------------------------- :: wf_insn_add
-      intrinsic_funs , system , module_info, fdef_info , block |- id = add sz value1 value2
+      intrinsic_funs , system , module_info, fdef_info , block |- id = add (int sz) value1 value2
 
 
       % Check typs
@@ -350,6 +350,30 @@ Jwf_insn :: '' ::=
       intrinsic_funs , system , module_info , fdef_info , block |-i id = getelementptr inbounds (typ*) value , </ valuej // j />
       -------------------------------------------------------------------------------------------- :: wf_insn_bgep
       intrinsic_funs , system , module_info , fdef_info , block |- id = getelementptr inbounds (typ*) value , </ valuej // j />
+
+
+      intrinsic_funs , system , module_info , fdef_info , block |-i id = ptrtoint ( typ * ) value1 ( int sz )
+      ------------------------------------------------------------------------------------------------------- :: wf_insn_ptrtoint
+      intrinsic_funs , system , module_info , fdef_info , block |- id = ptrtoint ( typ * ) value1 ( int sz )	
+
+
+      intrinsic_funs , system , module_info , fdef_info , block |-i id = inttoptr ( int sz ) value1 to ( typ * )	
+      ------------------------------------------------------------------------------------------------------------ :: wf_insn_inttoptr
+      intrinsic_funs , system , module_info , fdef_info , block |- id = inttoptr ( int sz ) value1 to ( typ * )
+
+
+      % BitCast implies a no-op cast of type only. No bits change.
+      % However, you can't cast pointers to anything but pointers.
+      Typ.getPrimitiveSizeInBits typ1 = sz1 /\ Typ.getPrimitiveSizeInBits typ2 = sz2 /\ sz1 = sz2
+      % Bitcast requires types of same width.
+      isPointerTyp typ1 iff isPointerTyp typ2 
+      % Disallow aggregates.
+      (not isAggregateTyp typ1) /\ (not isAggregateTyp typ2)
+      % Check invariance for instructions 
+      intrinsic_funs , system , module_info , fdef_info , block |-i id = bitcast typ1 value1 to typ2		
+      ----------------------------------------------------------------------------------------------- :: wf_insn_bitcast
+      intrinsic_funs , system , module_info , fdef_info , block |- id = bitcast typ1 value1 to typ2		
+
 
       % LLVM::visitInstruction checks that non-phi nodes are not self referential 
       getInsnUseDef usedef_insn (id = phi typ </ [ idj , lj ] // j />) = list_insn

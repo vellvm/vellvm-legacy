@@ -168,9 +168,9 @@ Require Import Omega.
   (* | insn_fptosi id typ1 v1 typ2 =>Some id *)
   (* | insn_uitofp id typ1 v1 typ2 =>Some id *)
   (* | insn_sitofp id typ1 v1 typ2 =>Some id *)
-  (* | insn_ptrtoint id typ1 v1 typ2 => Some id *)
-  (* | insn_inttoptr id typ1 v1 typ2 => Some id *)
-  (* | insn_bitcast id typ1 v1 typ2 => Some id *)
+  | insn_ptrtoint id typ1 v1 sz2 => Some id
+  | insn_inttoptr id sz1 v1 typ2 => Some id
+  | insn_bitcast id typ1 v1 typ2 => Some id
   (* | insn_icmp id cond typ v1 v2 => Some id *)
   (* | insn_fcmp id cond typ v1 v2 => Some id *)
   | insn_phi id typ idls => None
@@ -246,9 +246,9 @@ Require Import Omega.
   (* | insn_fptosi id typ1 v1 typ2 => (genInsnUseDef_value v1 i b f m)			 *)
   (* | insn_uitofp id typ1 v1 typ2 => (genInsnUseDef_value v1 i b f m)			 *)
   (* | insn_sitofp id typ1 v1 typ2 => (genInsnUseDef_value v1 i b f m)			 *)
-  (* | insn_ptrtoint id typ1 v1 typ2 => (genInsnUseDef_value v1 i b f m)			 *)
-  (* | insn_inttoptr id typ1 v1 typ2 => (genInsnUseDef_value v1 i b f m)			 *)
-  (* | insn_bitcast id typ1 v1 typ2 => (genInsnUseDef_value v1 i b f m)			 *)
+  | insn_ptrtoint id typ1 v1 sz2 => (genInsnUseDef_value v1 i b f m)			 
+  | insn_inttoptr id sz1 v1 typ2 => (genInsnUseDef_value v1 i b f m)			 
+  | insn_bitcast id typ1 v1 typ2 => (genInsnUseDef_value v1 i b f m)			 
   (* | insn_icmp id cond typ v1 v2 => (genInsnUseDef_value v1 i b f m)+++(genInsnUseDef_value v2 i b f m)  *)
   (* | insn_fcmp id cond typ v1 v2 => (genInsnUseDef_value v1 i b f m)+++(genInsnUseDef_value v2 i b f m)  *)
   | insn_phi id typ idls => fun _ => nil
@@ -354,9 +354,9 @@ Require Import Omega.
   (* | insn_fptosi id typ1 v1 typ2 => fun _ => nil *)
   (* | insn_uitofp id typ1 v1 typ2 => fun _ => nil *)
   (* | insn_sitofp id typ1 v1 typ2 => fun _ => nil *)
-  (* | insn_ptrtoint id typ1 v1 typ2 => fun _ => nil *)
-  (* | insn_inttoptr id typ1 v1 typ2 =>fun _ => nil *)
-  (* | insn_bitcast id typ1 v1 typ2 => fun _ => nil *)
+  | insn_ptrtoint id typ1 v1 sz2 => fun _ => nil 
+  | insn_inttoptr id sz1 v1 typ2 =>fun _ => nil 
+  | insn_bitcast id typ1 v1 typ2 => fun _ => nil 
   (* | insn_icmp id cond typ v1 v2 => fun _ => nil *)
   (* | insn_fcmp id cond typ v1 v2 => fun _ => nil *)
   | insn_phi id typ idls => genBlockUseDef_phi_cases idls i b f m
@@ -831,11 +831,11 @@ match i with
 | insn_fptoui _ _ _ typ => Some typ
 | insn_fptosi _ _ _ typ => Some typ
 | insn_uitofp _ _ _ typ => Some typ
-| insn_sitofp _ _ _ typ => Some typ
-| insn_ptrtoint _ _ _ typ => Some typ
-| insn_inttoptr _ _ _ typ => Some typ
-| insn_bitcase _ _ _ typ => Some typ
-| insn_icmp _ _ _ _ _ => Some (typ_int 1)
+| insn_sitofp _ _ _ typ => Some typ *)
+| insn_ptrtoint _ _ _ sz => Some (typ_int sz)
+| insn_inttoptr _ _ _ typ => Some (typ_pointer typ)
+| insn_bitcast _ _ _ typ => Some typ
+(* | insn_icmp _ _ _ _ _ => Some (typ_int 1)
 | insn_fcmp _ _ _ _ _ => Some (typ_int 1) *)
 | insn_phi _ typ _ => Some typ
 end.
@@ -902,11 +902,11 @@ match i with
 | insn_fptoui _ _ v _ => getValueIDsC v
 | insn_fptosi _ _ v _ => getValueIDsC v
 | insn_uitofp _ _ v _ => getValueIDsC v
-| insn_sitofp _ _ v _ => getValueIDsC v
+| insn_sitofp _ _ v _ => getValueIDsC v *)
 | insn_ptrtoint _ _ v _ => getValueIDsC v
 | insn_inttoptr _ _ v _ => getValueIDsC v
-| insn_bitcase _ _ v _ => getValueIDsC v
-| insn_icmp _ _ _ v1 v2 => getValueIDsC v1 ++ getValueIDsC v2
+| insn_bitcast _ _ v _ => getValueIDsC v
+(* | insn_icmp _ _ _ v1 v2 => getValueIDsC v1 ++ getValueIDsC v2
 | insn_fcmp _ _ _ v1 v2 => getValueIDsC v1 ++ getValueIDsC v2 *)
 | insn_phi _ _ ls => list_prj1 _ _ ls
 end.
@@ -944,9 +944,11 @@ match i with
 | insn_fptosi _ _ _ _ => nil
 | insn_uitofp _ _ _ _ => nil
 | insn_sitofp _ _ _ _ => nil
+*)
 | insn_ptrtoint _ _ _ _ => nil
 | insn_inttoptr _ _ _ _ => nil
-| insn_bitcase _ _ _ _ => nil
+| insn_bitcast _ _ _ _ => nil
+(*
 | insn_icmp _ _ _ _ _ => nil
 | insn_fcmp _ _ _ _ _ => nil *)
 | insn_phi _ _ ls => list_prj2 _ _ ls
@@ -2282,6 +2284,7 @@ Module Type SigType.
  Parameter isIntOrIntVector : typ -> bool.
  Parameter isInteger : typ -> bool.
  Parameter isSized : typ -> bool.
+ Parameter getPrimitiveSizeInBits : typ -> nat.
 End SigType.
 
 Module Type SigDerivedType.
@@ -2520,6 +2523,12 @@ Module Typ <: SigType.
  | typ_struct lt => fold_left andb (map isSized lt) true 
  | _ => false
  end.
+
+  Definition getPrimitiveSizeInBits (t:typ) : nat :=
+  match t with
+  | typ_int sz => sz
+  | _ => 0
+  end.
 
 End Typ.
 

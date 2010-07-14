@@ -50,6 +50,8 @@ Variable mstore : layouts -> mem -> maddr -> typ -> mvalue -> option mem.
 
 (** translating list of bytes to nat w.r.t typ *)
 Variable mvalue2nat : layouts -> sz -> mvalue -> option nat.
+Variable mvalue2mptr : layouts -> sz -> mvalue -> maddr.
+Variable mptr2mvalue : layouts -> maddr -> sz -> mvalue.
 
 (** translating nat to mvalue with StoreSize*)
 Variable nat2mvalue : layouts -> sz -> nat -> mvalue.

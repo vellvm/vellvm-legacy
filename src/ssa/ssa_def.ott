@@ -175,7 +175,7 @@ insn :: 'insn_'					    	::=			{{ com insnruction }}
   %| id = invoke typ0 id0 list_param to l1 unwind l2 	::   :: invoke		{{ com invoke }} 
   | id = call typ0 id0 list_param	       	 	::   :: call		{{ com call }} 
   | unreachable	     	   	     	 		::   :: unreachable	{{ com unreachable }}
-  | id = add sz value1 value2				::   :: add		{{ com add }}
+  | id = add ( int sz ) value1 value2			::   :: add		{{ com add }}
   %| id = fadd typ value1 value2				::   :: fadd		{{ com fadd }}
   %| id = udiv typ value1 value2				::   :: udiv		{{ com udiv }}
   %| id = fdiv typ value1 value2				::   :: fdiv		{{ com fdiv }}
@@ -196,9 +196,9 @@ insn :: 'insn_'					    	::=			{{ com insnruction }}
   %| id = fptosi typ1 value1 to typ2			::   :: fptosi		{{ com fptosi }}
   %| id = uitofp typ1 value1 to typ2			::   :: uitofp		{{ com uitofp }}
   %| id = sitofp typ1 value1 to typ2			::   :: sitofp		{{ com sitofp }}
-  %| id = ptrtoint typ1 value1 to typ2			::   :: ptrtoint	{{ com ptrtoint }}
-  %| id = inttoptr typ1 value1 to typ2			::   :: inttoptr	{{ com inttoptr }}
-  %| id = bitcast typ1 value1 to typ2			::   :: bitcast		{{ com bitcast }}
+  | id = ptrtoint ( typ * ) value1 ( int sz )		::   :: ptrtoint	{{ com ptrtoint }}
+  | id = inttoptr ( int sz ) value1 to ( typ * )	::   :: inttoptr	{{ com inttoptr }}
+  | id = bitcast typ1 value1 to typ2			::   :: bitcast		{{ com bitcast }}
   %| id = icmp cond typ value1 , value2			::   :: icmp		{{ com icmp }}
   %| id = fcmp cond typ value1 , value2			::   :: fcmp		{{ com fcmp }}
   | id = phi typ </ [ idj , lj ] // j />		::   :: phi  	    	{{ com phi }}
@@ -369,6 +369,9 @@ formula :: 'formula_' ::=
   | formula implies formula'    :: M :: implies
             	    		{{ tex [[formula]] \mathit{implies} [[formula']] }}
 	  			{{ coq [[formula]] -> [[ formula' ]] }}
+  | formula iff formula'        :: M :: iff
+            	    		{{ tex [[formula]] \mathit{iff} [[formula']] }}
+	  			{{ coq ([[formula]] <-> [[ formula' ]]) }}
   | formula \/ formula'         :: M :: or
                			{{ tex [[formula]] \vee [[formula']] }}
 	  			{{ coq [[formula]] \/ [[ formula' ]] }} 

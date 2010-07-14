@@ -564,6 +564,29 @@ Inductive dsInsn : State -> State -> trace -> Prop :=
     (mkState S TD Ps ((mkEC F B (insn_bgep id t v idxs) lc arg als)::EC) gl Mem) 
     (mkState S TD Ps ((mkEC F B I' lc' arg als)::EC) gl' Mem)
     trace_nil 
+| dsInttoptr : forall S TD Ps F B lc gl arg id sz1 v1 gv1 typ2 EC I' lc' gl' Mem als,
+  getOperandValue TD v1 lc gl = Some gv1 ->
+  getNextInsnFrom (insn_inttoptr id sz1 v1 typ2) B = Some I' ->
+  updateEnv lc gl id (Some (gptr (mvalue2mptr TD sz1 gv1))) = (lc', gl') -> 
+  dsInsn 
+    (mkState S TD Ps ((mkEC F B (insn_inttoptr id sz1 v1 typ2) lc arg als)::EC) gl Mem) 
+    (mkState S TD Ps ((mkEC F B I' lc' arg als)::EC) gl' Mem)
+    trace_nil
+| dsPtrtoint : forall S TD Ps F B lc gl arg id t1 v1 ma1 sz2 EC I' lc' gl' Mem als,
+  getOperandValue TD v1 lc gl = Some (gptr ma1) ->
+  getNextInsnFrom (insn_ptrtoint id t1 v1 sz2) B = Some I' ->
+  updateEnv lc gl id (Some (mptr2mvalue TD ma1 sz2)) = (lc', gl') -> 
+  dsInsn 
+    (mkState S TD Ps ((mkEC F B (insn_ptrtoint id t1 v1 sz2) lc arg als)::EC) gl Mem) 
+    (mkState S TD Ps ((mkEC F B I' lc' arg als)::EC) gl' Mem)
+    trace_nil
+| dsBitcast : forall S TD Ps F B lc gl arg id t1 v1 t2 EC I' lc' gl' Mem als,
+  getNextInsnFrom (insn_bitcast id t1 v1 t2) B = Some I' ->
+  updateEnv lc gl id (getOperandValue TD v1 lc gl) = (lc', gl') -> 
+  dsInsn 
+    (mkState S TD Ps ((mkEC F B (insn_bitcast id t1 v1 t2) lc arg als)::EC) gl Mem) 
+    (mkState S TD Ps ((mkEC F B I' lc' arg als)::EC) gl' Mem)
+    trace_nil
 .
 
 (* A fake generation of global, we have not support globals yet. *)
@@ -800,6 +823,26 @@ Inductive nsInsn : State*trace -> States -> Prop :=
   nsInsn 
     (mkState S TD Ps ((mkEC F B (insn_bgep id t v idxs) lc arg als)::EC) gl Mem, tr) 
     ((mkState S TD Ps ((mkEC F B I' lc' arg als)::EC) gl' Mem, tr)::nil)
+| nsInttoptr : forall S TD Ps F B lc gl arg id sz1 v1 gv1 typ2 EC I' lc' gl' Mem als tr,
+  getOperandValue TD v1 lc gl = Some gv1 ->
+  getNextInsnFrom (insn_inttoptr id sz1 v1 typ2) B = Some I' ->
+  updateEnv lc gl id (Some (gptr (mvalue2mptr TD sz1 gv1))) = (lc', gl') -> 
+  nsInsn 
+    (mkState S TD Ps ((mkEC F B (insn_inttoptr id sz1 v1 typ2) lc arg als)::EC) gl Mem, tr) 
+    ((mkState S TD Ps ((mkEC F B I' lc' arg als)::EC) gl' Mem, tr)::nil)
+| nsPtrtoint : forall S TD Ps F B lc gl arg id t1 v1 ma1 sz2 EC I' lc' gl' Mem als tr,
+  getOperandValue TD v1 lc gl = Some (gptr ma1) ->
+  getNextInsnFrom (insn_ptrtoint id t1 v1 sz2) B = Some I' ->
+  updateEnv lc gl id (Some (mptr2mvalue TD ma1 sz2)) = (lc', gl') -> 
+  nsInsn 
+    (mkState S TD Ps ((mkEC F B (insn_ptrtoint id t1 v1 sz2) lc arg als)::EC) gl Mem, tr) 
+    ((mkState S TD Ps ((mkEC F B I' lc' arg als)::EC) gl' Mem, tr)::nil)
+| nsBitcast : forall S TD Ps F B lc gl arg id t1 v1 t2 EC I' lc' gl' Mem als tr,
+  getNextInsnFrom (insn_bitcast id t1 v1 t2) B = Some I' ->
+  updateEnv lc gl id (getOperandValue TD v1 lc gl) = (lc', gl') -> 
+  nsInsn 
+    (mkState S TD Ps ((mkEC F B (insn_bitcast id t1 v1 t2) lc arg als)::EC) gl Mem, tr) 
+    ((mkState S TD Ps ((mkEC F B I' lc' arg als)::EC) gl' Mem, tr)::nil)
 .
 
 Definition ns_genInitState (S:system) (main:id) (Args:list GenericValue) : option States :=
@@ -1020,6 +1063,29 @@ Inductive dbInsn : State -> State -> trace -> Prop :=
     (mkState S TD Ps ((mkEC F B (insn_bgep id t v idxs) lc arg als)::EC) gl Mem) 
     (mkState S TD Ps ((mkEC F B I' lc' arg als)::EC) gl' Mem)
     trace_nil 
+| dbInttoptr : forall S TD Ps F B lc gl arg id sz1 v1 gv1 typ2 EC I' lc' gl' Mem als,
+  getOperandValue TD v1 lc gl = Some gv1 ->
+  getNextInsnFrom (insn_inttoptr id sz1 v1 typ2) B = Some I' ->
+  updateEnv lc gl id (Some (gptr (mvalue2mptr TD sz1 gv1))) = (lc', gl') -> 
+  dbInsn 
+    (mkState S TD Ps ((mkEC F B (insn_inttoptr id sz1 v1 typ2) lc arg als)::EC) gl Mem) 
+    (mkState S TD Ps ((mkEC F B I' lc' arg als)::EC) gl' Mem)
+    trace_nil
+| dbPtrtoint : forall S TD Ps F B lc gl arg id t1 v1 ma1 sz2 EC I' lc' gl' Mem als,
+  getOperandValue TD v1 lc gl = Some (gptr ma1) ->
+  getNextInsnFrom (insn_ptrtoint id t1 v1 sz2) B = Some I' ->
+  updateEnv lc gl id (Some (mptr2mvalue TD ma1 sz2)) = (lc', gl') -> 
+  dbInsn 
+    (mkState S TD Ps ((mkEC F B (insn_ptrtoint id t1 v1 sz2) lc arg als)::EC) gl Mem) 
+    (mkState S TD Ps ((mkEC F B I' lc' arg als)::EC) gl' Mem)
+    trace_nil
+| dbBitcast : forall S TD Ps F B lc gl arg id t1 v1 t2 EC I' lc' gl' Mem als,
+  getNextInsnFrom (insn_bitcast id t1 v1 t2) B = Some I' ->
+  updateEnv lc gl id (getOperandValue TD v1 lc gl) = (lc', gl') -> 
+  dbInsn 
+    (mkState S TD Ps ((mkEC F B (insn_bitcast id t1 v1 t2) lc arg als)::EC) gl Mem) 
+    (mkState S TD Ps ((mkEC F B I' lc' arg als)::EC) gl' Mem)
+    trace_nil
 with dbop : State -> State -> trace -> Prop :=
 | dbop_nil : forall S, dbop S S trace_nil
 | dbop_cons : forall S1 S2 S3 t1 t2,
@@ -1236,6 +1302,26 @@ Inductive nbInsn : State*trace -> States -> Prop :=
   nbInsn 
     (mkState S TD Ps ((mkEC F B (insn_bgep id t v idxs) lc arg als)::EC) gl Mem, tr) 
     ((mkState S TD Ps ((mkEC F B I' lc' arg als)::EC) gl' Mem, tr)::nil)
+| nbInttoptr : forall S TD Ps F B lc gl arg id sz1 v1 gv1 typ2 EC I' lc' gl' Mem als tr,
+  getOperandValue TD v1 lc gl = Some gv1 ->
+  getNextInsnFrom (insn_inttoptr id sz1 v1 typ2) B = Some I' ->
+  updateEnv lc gl id (Some (gptr (mvalue2mptr TD sz1 gv1))) = (lc', gl') -> 
+  nbInsn 
+    (mkState S TD Ps ((mkEC F B (insn_inttoptr id sz1 v1 typ2) lc arg als)::EC) gl Mem, tr) 
+    ((mkState S TD Ps ((mkEC F B I' lc' arg als)::EC) gl' Mem, tr)::nil)
+| nbPtrtoint : forall S TD Ps F B lc gl arg id t1 v1 ma1 sz2 EC I' lc' gl' Mem als tr,
+  getOperandValue TD v1 lc gl = Some (gptr ma1) ->
+  getNextInsnFrom (insn_ptrtoint id t1 v1 sz2) B = Some I' ->
+  updateEnv lc gl id (Some (mptr2mvalue TD ma1 sz2)) = (lc', gl') -> 
+  nbInsn 
+    (mkState S TD Ps ((mkEC F B (insn_ptrtoint id t1 v1 sz2) lc arg als)::EC) gl Mem, tr) 
+    ((mkState S TD Ps ((mkEC F B I' lc' arg als)::EC) gl' Mem, tr)::nil)
+| nbBitcast : forall S TD Ps F B lc gl arg id t1 v1 t2 EC I' lc' gl' Mem als tr,
+  getNextInsnFrom (insn_bitcast id t1 v1 t2) B = Some I' ->
+  updateEnv lc gl id (getOperandValue TD v1 lc gl) = (lc', gl') -> 
+  nbInsn 
+    (mkState S TD Ps ((mkEC F B (insn_bitcast id t1 v1 t2) lc arg als)::EC) gl Mem, tr) 
+    ((mkState S TD Ps ((mkEC F B I' lc' arg als)::EC) gl' Mem, tr)::nil)
 with nbop_star : States -> States -> Prop :=
 | nbop_star_nil : nbop_star nil nil
 | nbop_star_refl : forall state_tr states states',
@@ -1359,13 +1445,15 @@ Tactic Notation "db_mutind_cases" tactic(first) tactic(c) :=
   [ c "dbBranch" | c "dbBranch_uncond" | c "dbCallInsn" |
     c "dbAdd" | c "dbExtractValue" | c "dbInsertValue" |
     c "dbAlloca" | c "dbLoad" | c "dbStore" | c "dbGEP" | c "dbBGEP" |
+    c "dbPtrtoint" | c "dbInttoptr" | c "dbBitcast" |
     c "dbop_nil" | c "dbop_cons" | c "dbFdef_intro" ].
 
 Tactic Notation "dsInsn_cases" tactic(first) tactic(c) :=
   first;
   [ c "dsReturn" | c "dsBranch" | c "dsBranch_uncond" | c "dsCall" |
     c "dsAdd" | c "dsExtractValue" | c "dsInsertValue" |
-    c "dsAlloca" | c "dsLoad" | c "dsStore" | c "dsGEP" | c "dsBGEP" ].
+    c "dsAlloca" | c "dsLoad" | c "dsStore" | c "dsGEP" | c "dsBGEP" |
+        c "dsPtrtoint" | c "dsInttoptr" | c "dsBitcast" ].
 
 Tactic Notation "dsop_star_cases" tactic(first) tactic(c) :=
   first;
@@ -1376,6 +1464,7 @@ Tactic Notation "nb_mutind_cases" tactic(first) tactic(c) :=
   [ c "nbBranch_def" | c "nbBranch_undef" | c "nbBranch_uncond" | c "nbCall" |
     c "nbAdd" | c "nbExtractValue" | c "nbInsertValue" |
     c "nbAlloca" | c "nbLoad" | c "nbStore" | c "nbGEP" | c "nbBGEP" |
+    c "nbPtrtoint" | c "nbInttoptr" | c "nbBitcast" |
     c "nbop_star_nil" | c "nbop_star_refl" | c "nbop_star_cons" | 
     c "nbop_star_trans" | c "nbFdef_intro" ].
 
@@ -1383,7 +1472,8 @@ Tactic Notation "nsInsn_cases" tactic(first) tactic(c) :=
   first;
   [ c "nsReturn" | c "nsBranch_def" | c "nsBranch_undef" | 
     c "nsBranch_uncond" | c "nsCall" | c "nsAdd" | c "nsExtractValue" | c "nsInsertValue" |
-    c "nsAlloca" | c "nsLoad" | c "nsStore" | c "nsGEP" | c "nsBGEP" ].
+    c "nsAlloca" | c "nsLoad" | c "nsStore" | c "nsGEP" | c "nsBGEP" |
+        c "nsPtrtoint" | c "nsInttoptr" | c "nsBitcast" ].
 
 Tactic Notation "nsop_star_cases" tactic(first) tactic(c) :=
   first;
