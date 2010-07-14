@@ -106,7 +106,7 @@ Notation "'If' x <- mx 'then' t 'else' f 'endif'" :=
    end) (at level 43).
 Notation "'switch' cases 'default' default 'endswitch'" := ( mswitch _ cases default ) (at level 44). 
 Notation "'for' i 'in' li 'do' block 'endfor'" := (mfor _ li (fun i => block)) (at level 44).
-Notation "'for' i 'from' b 'to' e 'do' block 'endfor'" := (mfor _ (range2list_1 b e) (fun i => block)) (at level 44).
+Notation "'for' i 'From' b 'to' e 'do' block 'endfor'" := (mfor _ (range2list_1 b e) (fun i => block)) (at level 44).
 
 Definition mifk (X Y:Type) (c:bool) (tclause : monad X) (fclause : monad X) (con : X -> monad Y) : monad Y :=
 match c with

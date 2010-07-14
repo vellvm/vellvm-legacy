@@ -978,7 +978,7 @@ end.
 Definition getBindingTypC (ib:id_binding) : option typ :=
 match ib with
 | id_binding_insn i => getInsnTypC i
-| id_binding_gvar (gvar_intro _ t _) => Some (typ_pointer t)
+| id_binding_gvar (gvar_intro _ t _ _) => Some (typ_pointer t)
 | id_binding_arg (t, id) => Some t
 | id_binding_fdec fdec => Some (getFdecTypC fdec)
 | id_binding_none => None
@@ -1142,9 +1142,9 @@ lookupBindingViaIDFromBlocksC lb id.
 
 Definition lookupBindingViaIDFromProductC (p:product) (id:id) : id_binding :=
 match p with
-| product_gvar (gvar_intro id' t c) =>
+| product_gvar (gvar_intro id' t c a) =>
   match (eq_nat_dec id id') with
-  | left _ => id_binding_gvar (gvar_intro id' t c)
+  | left _ => id_binding_gvar (gvar_intro id' t c a)
   | right _ => id_binding_none
   end
 | product_fdec fdec => lookupBindingViaIDFromFdecC fdec id
@@ -1933,8 +1933,8 @@ end.
 
 Definition gvarEqB (gv gv' : gvar) : bool :=
 match (gv, gv') with
-| (gvar_intro id t v, gvar_intro id' t' v') =>
-  beq_nat id id' && typEqB t t' && valueEqB v v'
+| (gvar_intro id t v a, gvar_intro id' t' v' a') =>
+  beq_nat id id' && typEqB t t' && valueEqB v v' && beq_nat a a'
 end.
 
 Definition productEqB (p p' : product) : bool :=

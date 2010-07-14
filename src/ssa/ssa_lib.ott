@@ -122,8 +122,8 @@ getGID_def :: '' ::=
      getGID gvar = id :: :: getGID :: ''
      {{ com return [[id]] from [[gvar]] }} by
 
-     ------------------------------------ :: getGID_intro
-     getGID (id = global typ value) = id 
+     ------------------------------------------ :: getGID_intro
+     getGID (id = global typ value align) = id 
 
 defns
 getFheaderTyp_def :: '' ::=
@@ -203,8 +203,8 @@ getBindingTyp_def :: '' ::=
       ---------------------------- :: getBindingTyp_insn
       getBindingTyp insn = opt_typ
 
-      --------------------------------------------- :: getBindingTyp_g
-      getBindingTyp (id = global typ value) = typ *
+      ---------------------------------------------------- :: getBindingTyp_g
+      getBindingTyp (id = global typ value align) = typ *
 
       ---------------------------- :: getBindingTyp_arg
       getBindingTyp (typ id) = typ
@@ -1509,12 +1509,12 @@ lookupBindingViaIDFromProduct_def :: '' ::=
      {{ com look up [[id]]'s binding from [[product]] }} by
 
      id = id'
-     ---------------------------------------------------------------------------------- :: lookupBindingViaIDFromProduct_g_true
-     lookupBindingViaIDFromProduct (id = global typ value) id' = (id = global typ value) 
+     ------------------------------------------------------------------------------------------------ :: lookupBindingViaIDFromProduct_g_true
+     lookupBindingViaIDFromProduct (id = global typ value align) id' = (id = global typ value align) 
 
      not id = id'
-     ----------------------------------------------------------------- :: lookupBindingViaIDFromProduct_g_false
-     lookupBindingViaIDFromProduct (id = global typ value) id' = none
+     -------------------------------------------------------------------------- :: lookupBindingViaIDFromProduct_g_false
+     lookupBindingViaIDFromProduct (id = global typ value align) id' = none
 
      lookupBindingViaIDFromFdec fdec id = id_binding
      --------------------------------------------------------- :: lookupBindingViaIDFromProduct_fdec

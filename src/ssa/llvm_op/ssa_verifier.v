@@ -387,7 +387,7 @@ Definition verifyCallSite (intrinsic_funs5:intrinsic_funs)
 
   (* Verify that all arguments to the call match the function type... *)
   do numParams <- (FunctionType.getNumParams FTy);
-  do for i from 0 to numParams do
+  do for i From 0 to numParams do
      (* Call parameter type should match function signature. *)
        do argt <- CallSite.getArgumentType Call i;
        do part <- FunctionType.getParamType FTy i;
@@ -519,7 +519,7 @@ Definition visitPHINode (intrinsic_funs5:intrinsic_funs)
 
   (* Check that all of the operands of the PHI node have the same type as the
      result. *)
-  do for i from 0 to nIncomingValues do
+  do for i From 0 to nIncomingValues do
      do rT <- getInsnTypC PN;
      do iT <- PHINode.getIncomingValueType system5 PN i;
         Assert (rT =t= iT)

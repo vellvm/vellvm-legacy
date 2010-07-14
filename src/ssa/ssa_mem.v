@@ -28,6 +28,7 @@ Inductive mdata : Set :=
 Definition mvalue := list mdata.
 
 Definition mem := mblock -> option mvalue.
+Variable initmem : mem.
 
 (** allocate memory with size and alignment *)
 Variable malloc : layouts -> mem -> nat -> nat -> option (mem * mblock)%type.

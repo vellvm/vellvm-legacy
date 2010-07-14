@@ -6,6 +6,7 @@ Require Import List.
 Require Import Arith.
 Require Import tactics.
 Require Import ssa_mem.
+Require Import monad.
 
 Definition GenericValue := mvalue.
 Definition gptr ma := mdata_ptr ma::nil.
@@ -200,10 +201,10 @@ Definition switchToNewBasicBlock (Dest:block) (PrevBB:block) (locals:GVMap): (bl
   let ResultValues := getIncomingValuesForBlockFromPHINodes PNs PrevBB locals in
   (Dest, updateValusForNewBlock ResultValues locals).
 
-Fixpoint mpadding (TD:layouts) (sz:nat) : mvalue :=
+Fixpoint muninits (TD:layouts) (sz:nat) : mvalue :=
 match sz with
 | 0 => nil
-| S sz' => mdata_uninit::mpadding TD sz'
+| S sz' => mdata_uninit::muninits TD sz'
 end.
 
 (** Convert const to GV with storesize *)
@@ -218,7 +219,7 @@ match c with
           match (ogvt, ogvt0) with
           | (Some (gv, t), Some (gv0,t0)) =>
              match (getTypeAllocSize TD t0) with
-             | Some sz0 => Some ((gv++gv0)++mpadding TD (sz0 - length gv0), t0)
+             | Some sz0 => Some ((gv++gv0)++muninits TD (sz0 - length gv0), t0)
              | None => None 
              end
           | _ => None
@@ -237,18 +238,18 @@ match c with
                | left _ (* struct_al <= sub_al *) =>
                  Some (
                   (gv++
-                  (mpadding TD (sub_al - length gv0))++
+                  (muninits TD (sub_al - length gv0))++
                   gv0++
-                  (mpadding TD (sub_sz - length gv0)),
+                  (muninits TD (sub_sz - length gv0)),
                   t0),
                   sub_al
                  )
                | right _ (* sub_al < struct_al *) =>
                  Some (
                   (gv++
-                  (mpadding TD (sub_al - length gv0))++
+                  (muninits TD (sub_al - length gv0))++
                   gv0++
-                  (mpadding TD (sub_sz - length gv0)),
+                  (muninits TD (sub_sz - length gv0)),
                   t0),
                   struct_al
                  )
@@ -262,8 +263,8 @@ match c with
          | None => None
          | Some ((gv, t), al) => 
            match (length gv) with
-           | 0 => Some (mpadding TD al, t)
-           | _ => Some (gv++mpadding TD (al-length gv), t)
+           | 0 => Some (muninits TD al, t)
+           | _ => Some (gv++muninits TD (al-length gv), t)
            end
          end
 end.
@@ -367,49 +368,65 @@ match lv with
 | _ => None
 end.
 
-Fixpoint _mextract (TD:list layout) (GV:mvalue) (o:moffset) (len:nat) : option mvalue :=
-match len with
-| 0 => Some GV
-| S len' => 
-  match (nth_error GV o) with
-  | Some d => 
-     match (_mextract TD GV (o+1) len') with
-     | Some ds => Some (d::ds)
-     | None => None
-     end
-  | None => None
-  end
+Fixpoint firstn_mvalue (TD:list layout) (n:nat)(l:mvalue) {struct n} : option mvalue :=
+match n with
+| 0 => Some nil
+| S n => match l with
+         | nil => Some nil
+         | (mdata_byte b)::l => 
+            do tail <- (firstn_mvalue TD n l) ; 
+               ret (mdata_byte b::tail)
+         | (mdata_ptr ma)::l => 
+           let ps := getPointerSize TD in
+           if (le_lt_dec ps n) 
+           then 
+           do tail <- (firstn_mvalue TD (n-ps) l) ; 
+              ret (mdata_ptr ma::tail)
+           else None
+         | (mdata_uninit)::l =>
+            do tail <- (firstn_mvalue TD n l) ; 
+               ret (mdata_uninit::tail)
+         end
 end.
 
-Definition mextract (TD:list layout) (GV:mvalue) (o:moffset) (t:typ) : option mvalue :=
-match (getTypeStoreSize TD t) with
-| Some s => _mextract TD GV o s
-| None => None
+Fixpoint skipn_mvalue (TD:list layout) (n:nat)(l:mvalue) { struct n } : option mvalue :=
+match n with
+| 0 => Some l
+| S n => match l with
+         | nil => Some nil
+         | (mdata_byte b)::l => (skipn_mvalue TD n l) 
+         | (mdata_ptr ma)::l => 
+           let ps := getPointerSize TD in
+           if (le_lt_dec ps n) 
+           then (skipn_mvalue TD (n-ps) l) 
+           else None
+         | (mdata_uninit)::l => (skipn_mvalue TD n l) 
+         end
 end.
+
+Definition mget (TD:list layout) (GV:mvalue) (o:moffset) (t:typ) : option mvalue :=
+do s <- getTypeStoreSize TD t;
+do tail <- skipn_mvalue TD o GV;
+   firstn_mvalue TD s tail.
 
 Definition extractGenericValue (TD:list layout) (locals globals:GVMap) (t:typ) (gv : GenericValue) (cidxs : list const) : option GenericValue :=
 match (intConsts2Nats TD cidxs locals globals) with
 | None => None 
 | Some idxs =>
   match (mgetoffset TD t idxs true) with
-  | Some o => mextract TD gv o t
+  | Some o => mget TD gv o t
   | None => None
   end
 end.
 
-Fixpoint _minsert (TD:list layout) (GV:mvalue) (o:moffset) (len:nat) (GV0:mvalue) : option mvalue :=
-match (len, GV0) with
-| (0, nil) => Some GV
-| (S len', d::GV0') => 
-   _minsert TD (firstn (o-1) GV ++ ( d:: skipn o GV)) (o+1) len' GV0'
-| _ => None
-end.
-
-Definition minsert (TD:list layout) (GV:mvalue) (o:moffset) (t0:typ) (GV0:mvalue) : option mvalue :=
-match (getTypeStoreSize TD t0) with
-| Some s => _minsert TD GV o s GV0
-| None => None
-end.
+Definition mset (TD:list layout) (GV:mvalue) (o:moffset) (t0:typ) (GV0:mvalue) : option mvalue :=
+do s <- getTypeStoreSize TD t0;
+do tail <- skipn_mvalue TD o GV;
+do front <- firstn_mvalue TD s tail;
+   If (beq_nat s (length GV0))
+   then ret (front++GV0++tail)
+   else None
+   endif.
 
 Definition insertGenericValue (TD:list layout) (t:typ) (gv:GenericValue) (locals globals:GVMap) 
   (cidxs:list const) (t0:typ) (gv0:GenericValue) : option GenericValue :=
@@ -417,7 +434,7 @@ match (intConsts2Nats TD cidxs locals globals) with
 | None => None 
 | Some idxs =>
   match (mgetoffset TD t idxs true) with
-  | Some o => minsert TD gv o t0 gv0
+  | Some o => mset TD gv o t0 gv0
   | None => None
   end
 end.
@@ -589,10 +606,29 @@ Inductive dsInsn : State -> State -> trace -> Prop :=
     trace_nil
 .
 
-(* A fake generation of global, we have not support globals yet. *)
-Definition genGlobal (s:system) (main:id) : GVMap := fun _ => None.
-Variable initmem : mem.
-Definition genMem (s:system) (main:id) : mem := initmem.
+Fixpoint genGlobalAndInitMem (TD:layouts)(Ps:list product)(gl:GVMap)(Mem:mem) : option (GVMap*mem) :=
+match Ps with
+| nil => Some (gl, Mem)
+| (product_gvar (gvar_intro id t (value_const c) align))::Ps' =>
+  do tsz <- getTypeAllocSize TD t;
+  do gv <- const2GV TD c;
+     match (malloc TD Mem tsz align) with
+     | Some (Mem', mb) => 
+       do Mem'' <- mstore TD Mem' (mb, 0) t gv;
+       ret (updateGlobals gl id (Some (gptr (mb, 0))), Mem'')
+     | None => None
+     end
+| (product_gvar (gvar_intro id t (value_id id') align))::Ps' =>
+  do tsz <- getTypeAllocSize TD t;
+  do gv <- gl id';
+     match (malloc TD Mem tsz align) with
+     | Some (Mem', mb) => 
+       do Mem'' <- mstore TD Mem' (mb, 0) t gv;
+       ret (updateGlobals gl id (Some (gptr (mb, 0))), Mem'')
+     | None => None
+     end
+| _::Ps' => genGlobalAndInitMem TD Ps' gl Mem
+end.
 
 Definition ds_genInitState (S:system) (main:id) (Args:list GenericValue) :=
 match (lookupFdefViaIDFromSystemC S main) with
@@ -601,31 +637,35 @@ match (lookupFdefViaIDFromSystemC S main) with
   match (getParentOfFdefFromSystemC CurFunction S) with
   | None => None
   | Some (module_intro CurTargetData CurProducts) =>
-    match (getEntryBlock CurFunction) with
+    match (genGlobalAndInitMem CurTargetData CurProducts (fun _ => None) initmem) with
     | None => None
-    | Some CurBB => 
-      match (getEntryInsn CurBB) with
+    | Some (initGlobal, initMem) =>
+      match (getEntryBlock CurFunction) with
       | None => None
-      | Some CurInst =>
-        match CurFunction with 
-        | fdef_intro (fheader_intro rt _ la) _ =>
-          let Values := initLocals la Args in
-          Some
-            (mkState
-              S
-              CurTargetData 
-              CurProducts
-              ((mkEC
-                CurFunction 
-                CurBB 
-                CurInst
-                Values 
-                Args 
-                nil
-              )::nil)
-              (genGlobal S main)
-              (genMem S main)
+      | Some CurBB => 
+        match (getEntryInsn CurBB) with
+        | None => None
+        | Some CurInst =>
+          match CurFunction with 
+          | fdef_intro (fheader_intro rt _ la) _ =>
+            let Values := initLocals la Args in
+              Some
+              (mkState
+                S
+                CurTargetData 
+                CurProducts
+                ((mkEC
+                  CurFunction 
+                  CurBB 
+                  CurInst
+                  Values 
+                  Args 
+                  nil
+                )::nil)
+                initGlobal
+                initMem
             )          
+        end
         end
       end
     end
@@ -852,32 +892,36 @@ match (lookupFdefViaIDFromSystemC S main) with
   match (getParentOfFdefFromSystemC CurFunction S) with
   | None => None
   | Some (module_intro CurTD CurPs) =>
-    match (getEntryBlock CurFunction) with
+    match (genGlobalAndInitMem CurTD CurPs (fun _ => None) initmem) with
     | None => None
-    | Some CurBB => 
-      match (getEntryInsn CurBB) with
+    | Some (initGlobal, initMem) =>
+      match (getEntryBlock CurFunction) with
       | None => None
-      | Some CurInst =>
-        match CurFunction with 
-        | fdef_intro (fheader_intro rt _ la) _ =>
-          let Values := initLocals la Args in
-          Some
-            ((mkState
-              S
-              CurTD
-              CurPs
-              ((mkEC
-                CurFunction 
-                CurBB 
-                CurInst
-                Values 
-                Args 
-                nil
+      | Some CurBB => 
+        match (getEntryInsn CurBB) with
+        | None => None
+        | Some CurInst =>
+          match CurFunction with 
+          | fdef_intro (fheader_intro rt _ la) _ =>
+            let Values := initLocals la Args in
+            Some
+              ((mkState
+                S
+                CurTD
+                CurPs
+                ((mkEC
+                  CurFunction 
+                  CurBB 
+                  CurInst
+                  Values 
+                  Args 
+                  nil
+                )::nil)
+                initGlobal
+                initMem,
+                trace_nil
               )::nil)
-              (genGlobal S main)
-              (genMem S main),
-              trace_nil
-            )::nil)
+          end
         end
       end
     end
@@ -1495,3 +1539,4 @@ Hint Constructors dbInsn dbop dbFdef dsInsn dsop_star dsop_diverges dsop_plus
 *** coq-prog-args: ("-emacs-U" "-I" "../monads" "-I" "../ott" "-I" "../") ***
 *** End: ***
  *)
+

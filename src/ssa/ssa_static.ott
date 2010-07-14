@@ -563,8 +563,8 @@ Jwf_gvar :: '' ::=  % visitGlobalVariable
       {{ com [[gvar]] is well-formed w.r.t. [[module_info]] [[system]]}} by 
 
       system |- value : typ
-      -------------------------------------------------- :: wf_v_intro
-      intrinsic_funs , system , module_info |-v id = global typ value
+      ------------------------------------------------------------------------- :: wf_v_intro
+      intrinsic_funs , system , module_info |-v id = global typ value align
 
 defns
 Jwf_prod :: '' ::=

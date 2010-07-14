@@ -264,7 +264,7 @@ opt_fdef {{ tex \mathit{opt_{fdef} } }} :: 'opt_fdef_'	::=  			{{ com option fde
 
 % global id is also taken as constant addresses
 gvar :: 'gvar_'   	 				::=			{{ com global variables }}
-  | id = global typ value				::   :: intro           
+  | id = global typ value align				::   :: intro           
   | ( gvar )	    					:: S :: paren		{{ coq [[ gvar ]] }}
 
 id_binding :: 'id_binding_'  				::=			{{ com id binding }} 
