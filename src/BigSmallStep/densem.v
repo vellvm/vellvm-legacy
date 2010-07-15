@@ -10,6 +10,9 @@ Require Export lang_inf.
 Require Export lang_more.
 Require Export soundness.
 Require Export Coq.Logic.Classical_Prop.
+Require Import Omega.
+Require Import Coq.Arith.Compare_dec.
+Require Import Coq.Arith.Max.
 
 (** Objects in the denotational domain include :
       object_const, object_abs :  normal termination with const or abs as final value;
@@ -18,6 +21,8 @@ Require Export Coq.Logic.Classical_Prop.
       object_bot : the computation cannot complete within n recursive steps.
 
     object_bot is lesseq than any object, and any object is lesseq than itself.    
+
+    We can show that only values in the calculus have corresponding objects.
 *)
 
 Fixpoint exp_to_object (e:exp) : option object :=
@@ -39,10 +44,10 @@ Qed.
 
 Fixpoint C (n:nat) (e:exp) : object :=
 match (n, e) with
-| (0, _) => object_bot            (* The computation cannot be done by 0 step *)
+| (0, _) => object_bot            (* no computation can be done by 0 step *)
 | (S n', const) => object_const   (* reach normal forms *)
 | (S n', abs e') => object_abs e' (* reach normal forms *)
-| (S n', app e1 e2) => 
+| (S n', app e1 e2) =>            (* application case is monadic *)
   match (C n' e1) with
   | object_const => 
      match (C n' e2) with
@@ -68,7 +73,21 @@ end.
 
 (** Notice that n is the recursive steps, but not the real computation steps. *)
 
-Require Import Omega.
+(** We say that a term e executes with result o, or in other terms that o
+    is the denotation of e, and we write D e o, if C n e = o for almost all n:
+*)  
+
+Definition D e o := exists p, forall n, n >= p -> C n e = o.
+
+(** Intuitively, if e is converging, then there must exists a p, s.t. C p e <> object_bot. If
+     C is monotone, then with any n recursion depth that is not less than p, 
+     C n e should equal to the same object; 
+
+    If e is diverging, with any n recursion depth, C n e should equal to object_bot.
+    This is the case that D e object_bot holds.
+
+    In the following, we are verifying this intuition. First, some trivial facts:
+*)
 
 (** const always computes to const with non-zero step. *)
 Lemma C_const_is_const : forall n,
@@ -160,8 +179,21 @@ Qed.
 
 Hint Resolve C_regular.
 
+Lemma uniq_denotation : forall e o1 o2,
+  D e o1 ->
+  D e o2 ->
+  o1 = o2.
+Proof.
+  intros e o1 o2 o1_denotes_e o2_denotes_e.
+  destruct o1_denotes_e as [p1 o1_denotes_e].
+  destruct o2_denotes_e as [p2 o2_denotes_e].
+  rewrite <- (@o1_denotes_e (max p1 p2)); auto.
+  rewrite <- (@o2_denotes_e (max p1 p2)); auto.
+    assert (J:=@le_max_r p1 p2). auto.
+    assert (J:=@le_max_l p1 p2). auto.
+Qed.
 
-(** We check that C is monotone w.r.t objects order. *)
+(** We then check that C is monotone w.r.t objects order. *)
 
 Notation " o <<= o' " := (objects_order o o') (at level 50, left associativity).
 
@@ -171,19 +203,22 @@ Tactic Notation "object_cases" tactic(first) tactic(c) :=
 
 (** if C returns values or errors by smaller steps, it returns the same
     resule by bigger steps. *)
-Lemma C_preserves : forall m n e,
+Lemma C_preserves_normalforms : forall m n e,
   n <= m ->
   (C n e = object_const -> C m e = object_const) /\
   (forall e', C n e = object_abs e' -> C m e = object_abs e') /\
   (C n e = object_err -> C m e = object_err).
 Proof.
-  (** By induction over m. n cannot be 0, otherwise C n e must be bottom. 
+  (** By induction over m. 
+
+      The base case is trivial, because n cannot be 0, 
+      otherwise C n e must be bottom. 
 
       At the inductive case, the proofs go by case analysis on e. The
       interesting case is application e1 e2, where we do case analysis
       over (C n e1) and (C n e2), and conclude by induction hyp. *)
   induction m; intros n e n_lesseq_m; simpl; auto.
-  Case "m=0".
+  Case "m=0". (* Contradictory case *)
     assert (n = 0) as n_is_0. omega. 
     subst. 
     split. intro Cn_const. simpl in Cn_const. inversion Cn_const.
@@ -191,7 +226,7 @@ Proof.
            intro Cn_err. simpl in Cn_err. inversion Cn_err.
   Case "m=S m".
     destruct n.
-    SCase "n=0".
+    SCase "n=0".  (* Contradictory case *)
       split. intro Cn_const. simpl in Cn_const. inversion Cn_const.
       split. intros e' Cn_abs. simpl in Cn_abs. inversion Cn_abs.
              intro Cn_err. simpl in Cn_err. inversion Cn_err.
@@ -331,7 +366,7 @@ Lemma C_preserves_err : forall m n e,
   C m e = object_err.
 Proof.
   intros m n e n_lesseq_m.
-  eapply C_preserves; eauto.
+  eapply C_preserves_normalforms; eauto.
 Qed.
 
 Lemma C_preserves_const : forall m n e,
@@ -340,7 +375,7 @@ Lemma C_preserves_const : forall m n e,
   C m e = object_const.
 Proof.
   intros m n e n_lesseq_m.
-  eapply C_preserves; eauto.
+  eapply C_preserves_normalforms; eauto.
 Qed.
 
 Lemma C_preserves_abs : forall m n e,
@@ -350,10 +385,10 @@ Lemma C_preserves_abs : forall m n e,
   C m e = object_abs e'.
 Proof.
   intros m n e n_lesseq_m.
-  eapply C_preserves; eauto.
+  eapply C_preserves_normalforms; eauto.
 Qed.
 
-(** Some facts when computing applications *)
+(** Some facts when computing applications by [C_preserves_normalforms]. *)
 
 Lemma err_applies_arguments_is_err : forall m n e1 e2,
   C n e1 = object_err ->
@@ -525,15 +560,7 @@ Proof.
           apply lc_body_exp_wrt_exp; eauto.
 Qed.
 
-(** We say that a term e executes with result o, or in other terms that o
-    is the denotation of e, and we write D e o, if C n e = o for almost all n:
-*)  
-
-Definition D e o := exists p, forall n, n >= p -> C n e = o.
-
 (** Since C is monotone, the following properties hold: *)
-
-Require Import Coq.Arith.Compare_dec.
 
 Lemma o_denotes_e__implies__e_computes_to_o_or_bot : forall e o n,
   lc_exp e ->
@@ -547,7 +574,9 @@ Proof.
       otherwise by D, we have C p e = o
         then we do case analysis over C n e
         if it is bot, we are done;
-        otherwise, by [C_is_monotone], we know C n e must be o.
+        otherwise, by [C_is_monotone], 
+           C n e <<= C p e
+         we know C n e must be o.
   *)
   destruct (@le_lt_dec p n) as [p_le_n | p_lt_n].
   Case "p <= n".
@@ -613,22 +642,6 @@ Proof.
     destruct e_converges as [n e_converges].
     exists (C n e).
     apply e_computes_to_o_finitely__implies__o_denotes_e with (p:=n); auto.
-Qed.
-
-Require Import Coq.Arith.Max.
-
-Lemma uniq_denotation : forall e o1 o2,
-  D e o1 ->
-  D e o2 ->
-  o1 = o2.
-Proof.
-  intros e o1 o2 o1_denotes_e o2_denotes_e.
-  destruct o1_denotes_e as [p1 o1_denotes_e].
-  destruct o2_denotes_e as [p2 o2_denotes_e].
-  rewrite <- (@o1_denotes_e (max p1 p2)); auto.
-  rewrite <- (@o2_denotes_e (max p1 p2)); auto.
-    assert (J:=@le_max_r p1 p2). auto.
-    assert (J:=@le_max_l p1 p2). auto.
 Qed.
 
 (** We now relate this denotational semantics with the big-step operational semantics *)  
@@ -858,7 +871,7 @@ Proof.
     apply finite_compuations__implies__evaluations with (v:=v) in J; auto. 
 Qed.
 
-(** If there exists p s.t. C p e = v, then e ===> v. *)
+(** If e ===>o, then for any recursion depth n, C n e must be object_bot. *)
 Lemma bigstep_diverging__implies__infinite_compuations : forall n e,
   lc_exp e ->
   e ===>o ->
@@ -866,7 +879,7 @@ Lemma bigstep_diverging__implies__infinite_compuations : forall n e,
 Proof.
   (** By induction on n, and case analysis over [e===>o].
       In all three cases, e = e1 e2.
-      if e1 ===>o. C n e1 = C (n-1) e = bot by IH.
+      if e1 ===>o, C n e = C (n-1) e1 = bot by IH.
       if e1 ===> v1, and e2 ===>o, we have D e1 v1 by [evaluations__iff__value_denotations].
         By IH, C (n-1) e2 = bot.
         By [o_denotes_e__implies__e_computes_to_o_or_bot], 
@@ -936,10 +949,14 @@ Proof.
          trivially contradict the hyp that D e bot. Therefore, t must be the case
          that e = e1 e2. Let o1 and o2 denote e1 e2 by [denotation_exists].
 
-         We then argue by case over o1 and o2 with sufficiently large n. There are
-         only there cases that dont contradict the hyp the D e bot: 1) o1 = bot,
-         2) o1 is value, o2 is bot, 3) o1 and o2 are values \x.e1' and v2, and 
-         D ({v2/x}e1') bot. We conclude by coind for [===>o] premises, and by 
+         We then argue by case over o1 and o2 with sufficiently large n =
+            max (p, p1, p2) + 1
+         where p, p1 and p2 are corresponding to the donotation of e, e1 and e2.
+         There are only three cases that dont contradict the hyp the D e bot: 
+           1) o1 = bot,
+           2) o1 is value, o2 is bot, 
+           3) o1 and o2 are values \x.e1' and v2, and D ({v2/x}e1') bot. 
+         We conclude by coind for [===>o] premises, and by 
          [finite_compuations__implies__evaluations] for [===>] premises.
     *)
     generalize dependent e.
