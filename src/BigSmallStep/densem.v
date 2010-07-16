@@ -14,17 +14,6 @@ Require Import Omega.
 Require Import Coq.Arith.Compare_dec.
 Require Import Coq.Arith.Max.
 
-(** Objects in the denotational domain include :
-      object_const, object_abs :  normal termination with const or abs as final value;
-      object_err : abrupt termination on a run-time error, such as encountering a free variable
-                   or an application of a constant;
-      object_bot : the computation cannot complete within n recursive steps.
-
-    object_bot is lesseq than any object, and any object is lesseq than itself.    
-
-    We can show that only values in the calculus have corresponding objects.
-*)
-
 Fixpoint exp_to_object (e:exp) : option object :=
 match e with
 | const => Some object_const
@@ -36,11 +25,23 @@ Lemma value_to_some_object : forall v o,
   exp_to_object v = Some o -> is_value_of_exp v.
 Proof.
   intros v o EQ.
-  (exp_cases (destruct v) SSSSCase); simpl in EQ; inversion EQ; simpl; auto.
+  (exp_cases (destruct v) Case); simpl in EQ; inversion EQ; simpl; auto.
 Qed.
 
-(** First, we define the computation C n e of a term e at maximal recursion
-    depth n by recursion over n, as follow: *)
+(** Objects in the denotational domain include :
+      object_const, object_abs :  normal termination with const or abs as final value;
+      object_err : abrupt termination on a run-time error, such as encountering a free variable
+                   or an application of a constant;
+      object_bot : the computation cannot complete within n recursive steps.
+
+    Objects Order:
+      object_bot is lesseq than any object, and any object is lesseq than itself.    
+
+    First, we define the computation C n e of a term e at maximal recursion
+    depth n by recursion over n, as follow: 
+
+    Notice that n is the recursive steps, but not the real computation steps.
+*)
 
 Fixpoint C (n:nat) (e:exp) : object :=
 match (n, e) with
@@ -71,17 +72,15 @@ match (n, e) with
 | (S n', _) => object_err         (* stuck at variables *)
 end.
 
-(** Notice that n is the recursive steps, but not the real computation steps. *)
-
 (** We say that a term e executes with result o, or in other terms that o
     is the denotation of e, and we write D e o, if C n e = o for almost all n:
 *)  
 
 Definition D e o := exists p, forall n, n >= p -> C n e = o.
 
-(** Intuitively, if e is converging, then there must exists a p, s.t. C p e <> object_bot. If
-     C is monotone, then with any n recursion depth that is not less than p, 
-     C n e should equal to the same object; 
+(** Intuitively, if e is converging, then there must exists a p, s.t. C p e <> object_bot. 
+     If C is monotone, then with any n recursion depth that is not less than p, 
+     C n e should equal to the same object, namely D e (C p e); 
 
     If e is diverging, with any n recursion depth, C n e should equal to object_bot.
     This is the case that D e object_bot holds.

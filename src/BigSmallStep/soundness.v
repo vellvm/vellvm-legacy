@@ -494,7 +494,10 @@ Qed.
 
     Consider another reductions. It considers all safe reductions: either
     stopping at values, or running infinitely, but never being stuck finitely.
-    It is equivalent to --->o + normalizing --->* or -o->* - stuck --->*.
+    It is equivalent to 
+        --->o + --->* to value
+    or 
+        -o->* - stuck --->*.
 *)
 
 Reserved Notation " e --->s " (at level 50, left associativity).
@@ -543,6 +546,17 @@ Proof.
   intros e v e_evaluates_to_v.
   (bigstep_converging_cases (induction e_evaluates_to_v) Case); simpl; auto.
 Qed.
+
+Lemma value_is_bigstep_converging : forall v,
+  is_value_of_exp v ->
+  lc_exp v ->
+  v ===> v.
+Proof.
+  intros v v_is_val v_is_lc.
+  destruct v; try solve [simpl in v_is_val; inversion v_is_val | auto].
+Qed.
+
+Hint Resolve value_is_bigstep_converging.
 
 (** It doesnt consider the cases where evaluation diverges or goes wrong,
     because they do not stop at values. So we cannot prove that
@@ -608,17 +622,6 @@ Hint Constructors bigstep_diverging.
 
     Obviously, values are not in non-termination cases.
 *)
-
-Lemma value_is_bigstep_converging : forall v,
-  is_value_of_exp v ->
-  lc_exp v ->
-  v ===> v.
-Proof.
-  intros v v_is_val v_is_lc.
-  destruct v; try solve [simpl in v_is_val; inversion v_is_val | auto].
-Qed.
-
-Hint Resolve value_is_bigstep_converging.
 
 (** We expect that [===>o] is complete, namely it defines all the diverging cases
     well-typed closed terms can go into. In other words, if well-typed closed terms
@@ -800,17 +803,22 @@ Qed.
     wellformed terms can only be normalizing or diverge.
 
     This approach is not fully satisfactory for two reasons: 
+
     1) extra rules must be provided to define ===>x, which increases the 
        size of the semanstics
+
     2) there is a risk that the rules for e ===>x are incomplete and miss
        some cases of 'going wrong', in which cases the typing soundness 
        statement does not guarantee that well-typed terms either evaluate to
        a value or diverge.
 
+       In our case, [===>] at least missed one case that free and bound variables 
+       cannot evaluate. 
+
     [typesoundness5] is an alternative to this approach of showing 
     ~ (e ===>x) for all well-typed terms e. From a methodological standpoint,
     [typesoundness5] addresses one of the above shortcominges, namely
-    the risk of not putting in enough error rules. If [===>o] forget some
+    the risk of not putting in enough error rules. If [===>o] forgets some
     divergences rules, the proof of [bigstep_progress] will not go through.
     Therefore, this approach appears rather robust with respect to mistakes
     in the specficaion of the semantics.
@@ -891,7 +899,7 @@ Qed.
 
     At case [bigstep_co_app], when e1 diverges, [=co=>] still checks e2,
     in the case where e2 is stuck, [=co=>] is stuck. But [===>o] skips e2
-    in this case, e1 e2 still diverges.
+    in this case, e1 e2 still diverges. For example, omega (0 0).
 
     Therefore, [=co=>] is not the union of [===>] and [===>o].
     But, we can prove the union of [===>] and [===>o] includes [=co=>].
@@ -907,7 +915,7 @@ Proof.
   intros e v e_coevaluates_to_v e_doesnt_evaluate.
   (** The proof goes by coinduction and case analysis on e.
       The cases of var, const, and abs are trivial because they
-      are contradictory to that e does not evaluate. xs*)
+      are contradictory to that e does not evaluate. *)
   (exp_cases (destruct e) Case); try solve [inversion e_coevaluates_to_v].
   Case "const".
     assert False as FALSE.
