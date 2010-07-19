@@ -227,40 +227,36 @@ Require Import Omega.
   Definition getInsnID (i:insn) : option id :=
   match i with
   | insn_return t v => None
-  (* | insn_return_void  => None *)
+  | insn_return_void  => None
   | insn_br v l1 l2 => None
   | insn_br_uncond l => None
   (* | insn_switch t v l _ => None *)
   (* | insn_invoke id typ id0 paraml l1 l2 => Some id *)
-  | insn_call id typ id0 paraml => Some id
   | insn_unreachable => None
-  | insn_add id typ v1 v2 => Some id
-  (* | insn_fadd id typ v1 v2 => Some id *)
-  (* | insn_udiv id typ v1 v2 => Some id *)
-  (* | insn_fdiv id typ v1 v2 => Some id *)
-  (* | insn_or id typ v1 v2 => Some id *)
-  (* | insn_and id typ v1 v2 =>Some id *)
+  | insn_bop id _ sz v1 v2 => Some id
   (* | insn_extractelement id typ0 id0 c1 => Some id *)
   (* | insn_insertelement id typ0 id0 typ1 v1 c2 => Some id *)
   | insn_extractvalue id typs id0 c1 => Some id
   | insn_insertvalue id typs id0 typ1 v1 c2 => Some id 
-  | insn_alloca id _ _ _ => None
+  | insn_malloc id _ _ _ => Some id
+  | insn_free _ _ => None
+  | insn_alloca id _ _ _ => Some id
   | insn_load id typ1 v1 => Some id
   | insn_store typ1 v1 v2 => None
-  | insn_gep id _ _ _ => Some id
-  | insn_bgep id _ _ _ => Some id
+  | insn_gep id _ _ _ _ => Some id
   (* | insn_trunc id typ1 v1 typ2 => Some id *)
+  | insn_ext id _ sz1 v1 sz2 => Some id
   (* | insn_fptrunc id typ1 v1 typ2 =>Some id *)
   (* | insn_fptoui id typ1 v1 typ2 => Some id *)
   (* | insn_fptosi id typ1 v1 typ2 =>Some id *)
   (* | insn_uitofp id typ1 v1 typ2 =>Some id *)
   (* | insn_sitofp id typ1 v1 typ2 =>Some id *)
-  | insn_ptrtoint id typ1 v1 sz2 => Some id
-  | insn_inttoptr id sz1 v1 typ2 => Some id
-  | insn_bitcast id typ1 v1 typ2 => Some id
-  (* | insn_icmp id cond typ v1 v2 => Some id *)
+  | insn_cast id _ typ1 v1 typ2 => Some id
+  | insn_icmp id cond typ v1 v2 => Some id
   (* | insn_fcmp id cond typ v1 v2 => Some id *)
   | insn_phi id typ idls => None
+  | insn_select id v0 typ v1 v2 => Some id
+  | insn_call opt_id _ typ id0 paraml => opt_id
   end.
  
   Definition getValueID (v:value) : option id :=
@@ -302,19 +298,13 @@ Require Import Omega.
   Definition genInsnUseDef_insn (i:insn) (b:block) (f:fdef) (m:module) : usedef_insn :=
   match i with
   | insn_return t v => genInsnUseDef_value v i b f m
-  (* | insn_return_void  => fun _ => nil *)
+  | insn_return_void  => fun _ => nil
   | insn_br v l1 l2 => genInsnUseDef_value v i b f m        
   | insn_br_uncond l => fun _ => nil
   (* | insn_switch t v l _ => genInsnUseDef_value v i b f m *)
   (* | insn_invoke id typ id0 paraml l1 l2 => (genInsnUseDef_id id0 i b f m)+++(genInsnUseDef_params paraml i b f m) *)
-  | insn_call id typ id0 paraml => fun _ => nil
   | insn_unreachable => fun _ => nil
-  | insn_add id typ v1 v2 => (genInsnUseDef_value v1 i b f m)+++(genInsnUseDef_value v2 i b f m)
-  (* | insn_fadd id typ v1 v2 => (genInsnUseDef_value v1 i b f m)+++(genInsnUseDef_value v2 i b f m) 	 *)
-  (* | insn_udiv id typ v1 v2 => (genInsnUseDef_value v1 i b f m)+++(genInsnUseDef_value v2 i b f m)  *)
-  (* | insn_fdiv id typ v1 v2 => (genInsnUseDef_value v1 i b f m)+++(genInsnUseDef_value v2 i b f m)  *)
-  (* | insn_or id typ v1 v2 => (genInsnUseDef_value v1 i b f m)+++(genInsnUseDef_value v2 i b f m)  *)
-  (* | insn_and id typ v1 v2 => (genInsnUseDef_value v1 i b f m)+++(genInsnUseDef_value v2 i b f m)  *)
+  | insn_bop id _ sz v1 v2 => (genInsnUseDef_value v1 i b f m)+++(genInsnUseDef_value v2 i b f m)
   (* | insn_extractelement id typ0 value0 c1 =>  *)
   (*   (genInsnUseDef_value value0 i b f m) *)
   (* | insn_insertelement id typ0 value0 typ1 v1 c2 =>  *)
@@ -322,23 +312,26 @@ Require Import Omega.
   | insn_extractvalue id typ0 value0 _ => (genInsnUseDef_value value0 i b f m)
   | insn_insertvalue id typs v0 typ1 v1 c2 => 
     (genInsnUseDef_value v0 i b f m)+++(genInsnUseDef_value v1 i b f m)
+  | insn_malloc id typ _ _ => fun _ => nil
+  | insn_free typ v => genInsnUseDef_value v i b f m 
   | insn_alloca id typ _ _ => fun _ => nil
   | insn_load id typ1 v1 => genInsnUseDef_value v1 i b f m 
   | insn_store typ1 v1 v2 => (genInsnUseDef_value v1 i b f m)+++(genInsnUseDef_value v2 i b f m)
-  | insn_gep id typ0 value0 _ => (genInsnUseDef_value value0 i b f m)
-  | insn_bgep id typ0 value0 _ => (genInsnUseDef_value value0 i b f m)
+  | insn_gep id _ typ0 value0 _ => (genInsnUseDef_value value0 i b f m)
   (* | insn_trunc id typ1 v1 typ2 => (genInsnUseDef_value v1 i b f m)			 *)
+  | insn_ext id _ sz1 v1 sz2 => (genInsnUseDef_value v1 i b f m)			 
   (* | insn_fptrunc id typ1 v1 typ2 => (genInsnUseDef_value v1 i b f m)			 *)
   (* | insn_fptoui id typ1 v1 typ2 => (genInsnUseDef_value v1 i b f m)			 *)
   (* | insn_fptosi id typ1 v1 typ2 => (genInsnUseDef_value v1 i b f m)			 *)
   (* | insn_uitofp id typ1 v1 typ2 => (genInsnUseDef_value v1 i b f m)			 *)
   (* | insn_sitofp id typ1 v1 typ2 => (genInsnUseDef_value v1 i b f m)			 *)
-  | insn_ptrtoint id typ1 v1 sz2 => (genInsnUseDef_value v1 i b f m)			 
-  | insn_inttoptr id sz1 v1 typ2 => (genInsnUseDef_value v1 i b f m)			 
-  | insn_bitcast id typ1 v1 typ2 => (genInsnUseDef_value v1 i b f m)			 
-  (* | insn_icmp id cond typ v1 v2 => (genInsnUseDef_value v1 i b f m)+++(genInsnUseDef_value v2 i b f m)  *)
+  | insn_cast id _ typ1 v1 typ2 => (genInsnUseDef_value v1 i b f m)			 
+  | insn_icmp id cond typ v1 v2 => (genInsnUseDef_value v1 i b f m)+++(genInsnUseDef_value v2 i b f m)
   (* | insn_fcmp id cond typ v1 v2 => (genInsnUseDef_value v1 i b f m)+++(genInsnUseDef_value v2 i b f m)  *)
   | insn_phi id typ idls => fun _ => nil
+  | insn_select id v0 typ v1 v2 => 
+    (genInsnUseDef_value v0 i b f m)+++(genInsnUseDef_value v1 i b f m)+++(genInsnUseDef_value v2 i b f m)
+  | insn_call opt_id _ typ id0 paraml => (genInsnUseDef_id id0 i b f m)+++(genInsnUseDef_params paraml i b f m)
   end.
  
   Fixpoint genInsnUseDef_insns (is:list_insn) (b:block) (f:fdef) (m:module) : usedef_insn :=
@@ -413,40 +406,31 @@ Require Import Omega.
   Definition genBlockUseDef_insn (i:insn) (b:block) (f:fdef) (m:module) : usedef_block :=
   match i with
   | insn_return t v => fun _ => nil
-  (* | insn_return_void  => fun _ => nil *)
+  | insn_return_void  => fun _ => nil
   | insn_br v l1 l2 => genBlockUseDef_label l1 i b f m ++++ genBlockUseDef_label l2 i b f m       
   | insn_br_uncond l => genBlockUseDef_label l i b f m
   (* | insn_switch t v l ls => genBlockUseDef_label l i b f m ++++ genBlockUseDef_switch_cases ls i b f m *)
   (* | insn_invoke id typ id0 paraml l1 l2 => (genBlockUseDef_label l1 i b f m)++++(genBlockUseDef_label l2 i b f m) *)
-  | insn_call id typ id0 paraml => fun _ => nil
   | insn_unreachable => fun _ => nil 
-  | insn_add id typ v1 v2 => fun _ => nil 
-  (* | insn_fadd id typ v1 v2 => fun _ => nil *)
-  (* | insn_udiv id typ v1 v2 => fun _ => nil *)
-  (* | insn_fdiv id typ v1 v2 => fun _ => nil *)
-  (* | insn_or id typ v1 v2 => fun _ => nil *)
-  (* | insn_and id typ v1 v2 => fun _ => nil *)
+  | insn_bop id _ sz v1 v2 => fun _ => nil 
   (* | insn_extractelement id typ0 v0 c1 => fun _ => nil *)
   (* | insn_insertelement id typ0 v0 typ1 v1 c2 => fun _ => nil *)
   | insn_extractvalue id typ0 v0 c1 => fun _ => nil 
   | insn_insertvalue id typ0 v0 typ1 v1 c2 => fun _ => nil 
+  | insn_malloc id typ _ _ => fun _ => nil 
+  | insn_free typ _ => fun _ => nil 
   | insn_alloca id typ _ _ => fun _ => nil 
   | insn_load id typ1 v1 => fun _ => nil 
   | insn_store typ1 v1 v2 => fun _ => nil 
-  | insn_gep id typ0 v0 c1 => fun _ => nil 
-  | insn_bgep id typ0 v0 c1 => fun _ => nil 
+  | insn_gep id _ typ0 v0 c1 => fun _ => nil 
   (* | insn_trunc id typ1 v1 typ2 => fun _ => nil *)
-  (* | insn_fptrunc id typ1 v1 typ2 => fun _ => nil *)
-  (* | insn_fptoui id typ1 v1 typ2 => fun _ => nil *)
-  (* | insn_fptosi id typ1 v1 typ2 => fun _ => nil *)
-  (* | insn_uitofp id typ1 v1 typ2 => fun _ => nil *)
-  (* | insn_sitofp id typ1 v1 typ2 => fun _ => nil *)
-  | insn_ptrtoint id typ1 v1 sz2 => fun _ => nil 
-  | insn_inttoptr id sz1 v1 typ2 =>fun _ => nil 
-  | insn_bitcast id typ1 v1 typ2 => fun _ => nil 
-  (* | insn_icmp id cond typ v1 v2 => fun _ => nil *)
+  | insn_ext id _ sz1 v1 sz2 => fun _ => nil
+  | insn_cast id _ typ1 v1 typ2 => fun _ => nil 
+  | insn_icmp id cond typ v1 v2 => fun _ => nil
   (* | insn_fcmp id cond typ v1 v2 => fun _ => nil *)
   | insn_phi id typ idls => genBlockUseDef_phi_cases idls i b f m
+  | insn_select id v0 t v1 v2 => fun _ => nil
+  | insn_call oid _ typ id0 paraml => fun _ => nil 
   end.
  
   Fixpoint genBlockUseDef_insns (is:list_insn) (b:block) (f:fdef) (m:module) : usedef_block :=
@@ -742,13 +726,13 @@ end.
 Definition isReturnInsnB (i:insn) : bool :=
 match i with
 | insn_return _ _ => true
-(* | insn_return_void => true *)
+| insn_return_void => true
 | _ => false
 end.
 
 Definition isCallInsnB (i:insn) : bool :=
 match i with
-| insn_call _ _ _ _ => true
+| insn_call _ _ _ _ _ => true
 | _ => false
 end.
 
@@ -805,7 +789,6 @@ match i with
 | insn_br_uncond _ => true
 (* | insn_switch _ _ _ => true *)
 (* | insn_invoke _ _ _ _ _ _ => true *)
-| insn_call _ _ _ _ => true
 | insn_unreachable => true
 | _ => false
 end.
@@ -891,40 +874,32 @@ end.
 Definition getInsnTypC (i:insn) : option typ :=
 match i with
 | insn_return typ _ => Some typ
-(* | insn_return_void => None *)
+| insn_return_void => Some typ_void
 | insn_br _ _ _ => None 
 | insn_br_uncond _ => None
 (* | insn_switch typ _ _ _ => None *)
 (* | insn_invoke _ typ _ _ _ _ => Some typ *)
-| insn_call _ typ _ _ => Some typ
 | insn_unreachable => None
-| insn_add _ sz _ _ => Some (typ_int sz)
-(*| insn_fadd _ typ _ _ => Some typ
-| insn_udiv _ typ _ _ => Some typ
-| insn_fdiv _ typ _ _ => Some typ
-| insn_or _ typ _ _ => Some typ
-| insn_and _ typ _ _ => Some typ 
+| insn_bop _ _ sz _ _ => Some (typ_int sz)
+(*
 | insn_extractelement _ typ _ _ => getElementTyp typ
 | insn_insertelement _ typ _ _ _ _ => typ *)
 | insn_extractvalue _ typ _ idxs => getSubTypFromConstIdxs idxs typ
 | insn_insertvalue _ typ _ _ _ _ => Some typ
+| insn_malloc _ typ _ _ => Some (typ_pointer typ)
+| insn_free typ _ => None
 | insn_alloca _ typ _ _ => Some (typ_pointer typ)
 | insn_load _ typ _ => getLoadTyp typ
 | insn_store _ _ _ => None
-| insn_gep _ typ _ idxs => getGEPTyp idxs typ
-| insn_bgep _ typ _ idxs => getGEPTyp idxs typ
-(* | insn_trunc _ _ _ typ => Some typ
-| insn_fptrunc _ _ _ typ => Some typ
-| insn_fptoui _ _ _ typ => Some typ
-| insn_fptosi _ _ _ typ => Some typ
-| insn_uitofp _ _ _ typ => Some typ
-| insn_sitofp _ _ _ typ => Some typ *)
-| insn_ptrtoint _ _ _ sz => Some (typ_int sz)
-| insn_inttoptr _ _ _ typ => Some (typ_pointer typ)
-| insn_bitcast _ _ _ typ => Some typ
-(* | insn_icmp _ _ _ _ _ => Some (typ_int 1)
-| insn_fcmp _ _ _ _ _ => Some (typ_int 1) *)
+| insn_gep _ _ typ _ idxs => getGEPTyp idxs typ
+(* | insn_trunc _ _ _ typ => Some typ *)
+| insn_ext _ _ _ _ typ2 => Some typ2
+| insn_cast _ _ _ _ typ => Some typ
+| insn_icmp _ _ _ _ _ => Some (typ_int 1)
+(* | insn_fcmp _ _ _ _ _ => Some (typ_int 1) *)
 | insn_phi _ typ _ => Some typ
+| insn_select _ _ typ _ _ => Some typ
+| insn_call _ _ typ _ _ => Some typ
 end.
 
 Definition getPointerEltTypC (t:typ) : option typ :=
@@ -960,85 +935,63 @@ end.
 Definition getInsnOperandsC (i:insn) : ids :=
 match i with
 | insn_return _ v => getValueIDsC v
-(* | insn_return_void => nil *)
+| insn_return_void => nil
 | insn_br v _ _ => getValueIDsC v
 | insn_br_uncond _ => nil
 (* | insn_switch _ value _ _ => getValueIDs value *)
 (* | insn_invoke _ _ _ lp _ _ => getParamsOperandC lp *)
-| insn_call _ _ _ lp => getParamsOperandC lp
 | insn_unreachable => nil
-| insn_add _ _ v1 v2 => getValueIDsC v1 ++ getValueIDsC v2
-(*| insn_fadd _ _ v1 v2 => getValueIDsC v1 ++ getValueIDsC v2
-| insn_udiv _ _ v1 v2 => getValueIDsC v1 ++ getValueIDsC v2
-| insn_fdiv _ _ v1 v2 => getValueIDsC v1 ++ getValueIDsC v2
-| insn_or _ _ v1 v2 => getValueIDsC v1 ++ getValueIDsC v2
-| insn_and _ _ v1 v2 => getValueIDsC v1 ++ getValueIDsC v2
-| insn_extractelement _ _ v _ => getValueIDsC v
+| insn_bop _ _ _ v1 v2 => getValueIDsC v1 ++ getValueIDsC v2
+(* | insn_extractelement _ _ v _ => getValueIDsC v
 | insn_insertelement _ _ v1 _ v2 _ => getValueIDsC v1 ++ getValueIDsC v2
 *)
 | insn_extractvalue _ _ v _ => getValueIDsC v
 | insn_insertvalue _ _ v1 _ v2 _ => getValueIDsC v1 ++ getValueIDsC v2
+| insn_malloc _ _ _ _ => nil
+| insn_free _ v => getValueIDsC v
 | insn_alloca _ _ _ _ => nil
 | insn_load _ _ v => getValueIDsC v
 | insn_store _ v1 v2 => getValueIDsC v1 ++ getValueIDsC v2
-| insn_gep _ _ v  _ => getValueIDsC v
-| insn_bgep _ _ v _ => getValueIDsC v
-(*
-| insn_trunc _ _ v _ => getValueIDsC v
-| insn_fptrunc _ _ v _ => getValueIDsC v
-| insn_fptoui _ _ v _ => getValueIDsC v
-| insn_fptosi _ _ v _ => getValueIDsC v
-| insn_uitofp _ _ v _ => getValueIDsC v
-| insn_sitofp _ _ v _ => getValueIDsC v *)
-| insn_ptrtoint _ _ v _ => getValueIDsC v
-| insn_inttoptr _ _ v _ => getValueIDsC v
-| insn_bitcast _ _ v _ => getValueIDsC v
-(* | insn_icmp _ _ _ v1 v2 => getValueIDsC v1 ++ getValueIDsC v2
-| insn_fcmp _ _ _ v1 v2 => getValueIDsC v1 ++ getValueIDsC v2 *)
+| insn_gep _ _ _ v  _ => getValueIDsC v
+(* | insn_trunc _ _ v _ => getValueIDsC v *)
+| insn_ext _ _ _ v1 typ2 => getValueIDsC v1
+| insn_cast _ _ _ v _ => getValueIDsC v
+| insn_icmp _ _ _ v1 v2 => getValueIDsC v1 ++ getValueIDsC v2
+(* | insn_fcmp _ _ _ v1 v2 => getValueIDsC v1 ++ getValueIDsC v2 *)
 | insn_phi _ _ ls => list_prj1 _ _ ls
+| insn_select _ v0 _ v1 v2 => getValueIDsC v0 ++ getValueIDsC v1 ++ getValueIDsC v2
+| insn_call _ _ _ _ lp => getParamsOperandC lp
 end.
 
 Definition getInsnLabelsC (i:insn) : ls :=
 match i with
 | insn_return _ _ => nil
-(* | insn_return_void => nil *)
+| insn_return_void => nil
 | insn_br _ l1 l2 => l1::l2::nil
 | insn_br_uncond l => l::nil
 (* | insn_switch _ _ l ls => l::list_prj2 _ _ ls *)
 (* | insn_invoke _ _ _ _ l1 l2 => l1::l2::nil *)
-| insn_call _ _ _ _ => nil
 | insn_unreachable => nil
-| insn_add _ _ _ _ => nil
-(*| insn_fadd _ _ _ _ => nil
-| insn_udiv _ _ _ _ => nil
-| insn_fdiv _ _ _ _ => nil
-| insn_or _ _ _ _ => nil
-| insn_and _ _ _ _ => nil
-| insn_extractelement _ _ _ _ => nil
+| insn_bop _ _ _ _ _ => nil
+(* | insn_extractelement _ _ _ _ => nil
 | insn_insertelement _ _ _ _ _ _ => nil
 *)
 | insn_extractvalue _ _ _ _ => nil
 | insn_insertvalue _ _ _ _ _ _ => nil
+| insn_malloc _ _ _ _ => nil
+| insn_free _ _ => nil
 | insn_alloca _ _ _ _ => nil
 | insn_load _ _ _ => nil
 | insn_store _ _ _ => nil
-| insn_gep _ _ v  _ => nil
-| insn_bgep _ _ v _ => nil
-(*
-| insn_trunc _ _ _ _ => nil
-| insn_fptrunc _ _ _ _ => nil
-| insn_fptoui _ _ _ _ => nil
-| insn_fptosi _ _ _ _ => nil
-| insn_uitofp _ _ _ _ => nil
-| insn_sitofp _ _ _ _ => nil
-*)
-| insn_ptrtoint _ _ _ _ => nil
-| insn_inttoptr _ _ _ _ => nil
-| insn_bitcast _ _ _ _ => nil
-(*
+| insn_gep _ _ _ v  _ => nil
+(* | insn_trunc _ _ _ _ => nil *)
+| insn_ext _ _ _ _ _ => nil
+| insn_cast _ _ _ _ _ => nil
 | insn_icmp _ _ _ _ _ => nil
-| insn_fcmp _ _ _ _ _ => nil *)
+(* | insn_fcmp _ _ _ _ _ => nil *)
 | insn_phi _ _ ls => list_prj2 _ _ ls
+| insn_select _ _ _ _ _ => nil
+| insn_call _ _ _ _ _ => nil
 end.
 
 Fixpoint args2TypsC (la:list_arg) : list_typ :=
@@ -1896,11 +1849,54 @@ end.
 Definition cidxs_EqB (cidxs cidxs' : list const) :=
   _cidxs_EqB cidxs cidxs' && beq_nat (length cidxs) (length cidxs').
 
+Definition bopEqB (op op':bop) : bool :=
+match (op, op') with
+| (bop_add, bop_add) => true
+| (bop_lshr, bop_lshr) => true
+| (bop_and, bop_and) => true
+| (bop_or, bop_or) => true
+| _ => false
+end.
+
+Definition extopEqB (op op':extop) : bool :=
+match (op, op') with
+| (extop_z, extop_z) => true
+| (extop_s, extop_s) => true
+| _ => false
+end.
+
+Definition condEqB (c c':cond) : bool :=
+match (c, c') with
+| (cond_eq, cond_eq) => true
+| (cond_ne, cond_ne) => true
+| (cond_ugt, cond_ugt) => true
+| (cond_uge, cond_uge) => true
+| (cond_ult, cond_ult) => true
+| (cond_ule, cond_ule) => true
+| (cond_sgt, cond_sgt) => true
+| (cond_sge, cond_sge) => true
+| (cond_slt, cond_slt) => true
+| (cond_sle, cond_sle) => true
+| _ => false
+end.
+
+Definition castopEqB (c c':castop) : bool :=
+match (c, c') with
+| (castop_fptoui, castop_fptoui) => true
+| (castop_fptosi, castop_fptosi) => true
+| (castop_uitofp, castop_uitofp) => true
+| (castop_sitofp, castop_sitofp) => true
+| (castop_ptrtoint, castop_ptrtoint) => true
+| (castop_inttoptr, castop_inttoptr) => true
+| (castop_bitcast, castop_bitcast) => true
+| _ => false
+end.
+
 Definition insnEqB (i i':insn) : bool :=
 match (i, i') with
 | (insn_return t v, insn_return t' v') =>
   typEqB t t' && valueEqB v v'
-(* | (insn_return_void, insn_return_void) => true *)
+| (insn_return_void, insn_return_void) => true 
 | (insn_br v l1 l2, insn_br v' l1' l2') =>
   valueEqB v v' &&
   beq_nat l1 l1' && beq_nat l2 l2'
@@ -1916,16 +1912,11 @@ match (i, i') with
   beq_nat l1 l1' &&
   beq_nat l2 l2'
 *)
-| (insn_call id typ id0 paraml,
-   insn_call id' typ' id0' paraml') =>
-  beq_nat id id' &&
-  typEqB typ typ' &&
-  beq_nat id0 id0' &&
-  list_param_EqB paraml paraml'
 | (insn_unreachable, insn_unreachable) => true
-| (insn_add id sz v1 v2,
-   insn_add id' sz' v1' v2') =>
+| (insn_bop id op sz v1 v2,
+   insn_bop id' op' sz' v1' v2') =>
   beq_nat id id' &&
+  bopEqB op op' &&
   beq_nat sz sz' &&
   valueEqB v1 v1' &&
   valueEqB v2 v2'
@@ -1942,6 +1933,14 @@ match (i, i') with
   typEqB typ1 typ1' &&
   valueEqB v1 v1' &&
   cidxs_EqB cidxs cidxs'  
+| (insn_malloc id typ sz align, insn_malloc id' typ' sz' align') =>
+  beq_nat id id' &&
+  typEqB typ typ' &&
+  beq_nat sz sz' &&
+  beq_nat align align' 
+| (insn_free typ v, insn_free typ' v') =>
+  typEqB typ typ' &&
+  valueEqB v v'
 | (insn_alloca id typ sz align, insn_alloca id' typ' sz' align') =>
   beq_nat id id' &&
   typEqB typ typ' &&
@@ -1955,21 +1954,56 @@ match (i, i') with
   typEqB typ0 typ0' &&
   valueEqB v0 v0' &&
   valueEqB v1 v1'
-| (insn_gep id typ v idxs, insn_gep id' typ' v' idxs') =>
+| (insn_gep id inbounds typ v idxs, insn_gep id' inbounds' typ' v' idxs') =>
   beq_nat id id' &&
+  eqb inbounds inbounds' &&
   typEqB typ typ' &&
   valueEqB v v' &&
   idxs_EqB idxs idxs'  
-| (insn_bgep id typ v idxs, insn_bgep id' typ' v' idxs') =>
+| (insn_ext id op t1 v1 t2,
+   insn_ext id' op' t1' v1' t2') =>
   beq_nat id id' &&
+  extopEqB op op' &&
+  typEqB t1 t1' &&
+  valueEqB v1 v1' &&
+  typEqB t2 t2'
+| (insn_cast id op t1 v1 t2,
+   insn_cast id' op' t1' v1' t2') =>
+  beq_nat id id' &&
+  castopEqB op op' &&
+  typEqB t1 t1' &&
+  valueEqB v1 v1' &&
+  typEqB t2 t2'
+| (insn_icmp id c typ v1 v2,
+   insn_icmp id' c' typ' v1' v2') =>
+  beq_nat id id' &&
+  condEqB c c' &&
   typEqB typ typ' &&
-  valueEqB v v' &&
-  idxs_EqB idxs idxs'  
+  valueEqB v1 v1' &&
+  valueEqB v2 v2'
 | (insn_phi id typ idls,
    insn_phi id' typ' idls') =>
   beq_nat id id' &&
   typEqB typ typ' &&
   id_labels_EqB idls idls'
+| (insn_select id v0 typ v1 v2,
+   insn_select id' v0' typ' v1' v2') =>
+  beq_nat id id' &&
+  valueEqB v0 v0' &&
+  typEqB typ typ' &&
+  valueEqB v1 v1' &&
+  valueEqB v2 v2'
+| (insn_call oid tail typ id0 paraml,
+   insn_call oid' tail' typ' id0' paraml') =>
+  match (oid, oid') with 
+  | (Some id, Some id') => beq_nat id id'
+  | (None, None) => true
+  | _ => false
+  end &&
+  eqb tail tail' &&
+  typEqB typ typ' &&
+  beq_nat id0 id0' &&
+  list_param_EqB paraml paraml'
 | (_, _) => false
 end.
 
@@ -2176,13 +2210,22 @@ insnInBlockB i b && blockInSystemModuleFdefB b s mi fi.
 (**********************************)
 (* parent *)
 
+(* matching (insnInBlockB i b) in getParentOfInsnFromBlocksC directly makes
+   the compilation very slow, so we define this dec lemma first... *)
+Lemma insnInBlockB_dec : forall i b,
+  {insnInBlockB i b = true} + {insnInBlockB i b = false}.
+Proof.
+  intros i0 b. destruct (insnInBlockB i0 b); auto.
+Qed.
+
 Fixpoint getParentOfInsnFromBlocksC (i:insn) (lb:list_block) {struct lb} : option block :=
 match lb with
 | nil => None
 | b::lb' => 
-  if (insnInBlockB i b) 
-  then Some b
-  else getParentOfInsnFromBlocksC i lb'
+  match (insnInBlockB_dec i b) with
+  | left _ => Some b
+  | right _ => getParentOfInsnFromBlocksC i lb'
+  end
 end.
 
 Definition getParentOfInsnFromFdefC (i:insn) (fd:fdef) : option block :=
@@ -2289,6 +2332,8 @@ End SigUser.
 
 Module Type SigConstant.
  Include Type SigValue.
+
+ Parameter getTyp : const -> typ.
 
 End SigConstant.
 
@@ -2421,6 +2466,19 @@ End User.
 Module Constant <: SigConstant.
  Include Value.
 
+ Fixpoint getTyp (c:const) : typ :=
+ match c with
+ | const_int sz _ => typ_int sz
+ | const_undef t => t
+ | const_null t => typ_pointer t
+ | const_arr lc => 
+   match lc with
+   | nil => typ_array 0 (typ_int 0)
+   | c'::lc' => typ_array (length lc) (getTyp c')
+   end
+ | const_struct lc => typ_struct (map getTyp lc)
+ end.
+
 End Constant.
 
 Module GlobalValue <: SigGlobalValue.
@@ -2487,7 +2545,7 @@ Module CallSite <: SigCallSite.
  Definition getCalledFunction (i:insn) (s:system) : option fdef :=
  match i with 
  (* | insn_invoke _ _ fid _ _ _ => lookupFdefViaIDFromSystemC s fid *)
- | insn_call _ _ fid _ => lookupFdefViaIDFromSystemC s fid
+ | insn_call _ _ _ fid _ => lookupFdefViaIDFromSystemC s fid
  | _ => None
  end.
 
@@ -2538,20 +2596,20 @@ Module BinaryOperator <: SigBinaryOperator.
 
  Definition getFirstOperandType (s:system) (i:insn) : option typ := 
  match i with
- | insn_add _ _ v1 _ => 
+ | insn_bop _ _ _ v1 _ => 
    match v1 with
    | value_id id1 => lookupTypViaIDFromSystemC s id1
-   | _ => Some (typ_int 0) (* FIXME: how to set the type of const*)
+   | value_const c => Some (Constant.getTyp c)
    end
  | _ => None
  end.
 
  Definition getSecondOperandType (s:system) (i:insn) : option typ := 
  match i with
- | insn_add _ _ _ v2 => 
+ | insn_bop _ _ _ _ v2 => 
    match v2 with
    | value_id id2 => lookupTypViaIDFromSystemC s id2
-   | _ => Some (typ_int 0) (* FIXME: how to set the type of const*)
+   | value_const c => Some (Constant.getTyp c)
    end
  | _ => None
  end.

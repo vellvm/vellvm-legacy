@@ -47,13 +47,13 @@ Definition initmem := mkMem (fun _ => mbyte_uninit) (fun _ => None) : mem.
 (** allocate memory with size and alignment *)
 Variable malloc : layouts -> mem -> nat -> nat -> option (mem * mblock)%type.
 
-Variable free : mem -> mblock -> option mem.
+Variable free : mem -> mptr -> option mem.
 
 Fixpoint free_allocas (Mem:mem) (allocas:list mblock) : option mem :=
 match allocas with
 | nil => Some Mem
 | alloca::allocas' =>
-  match (free Mem alloca) with
+  match (free Mem (alloca, 0)) with
   | Some Mem' => free_allocas Mem' allocas'
   | None => None
   end

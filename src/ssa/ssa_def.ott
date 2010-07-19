@@ -154,54 +154,79 @@ ls {{ tex \mathit{\{l\} } }} :: 'ls_'			::=			{{ com label set }}
   | ls ; ls'						::   :: append		{{ coq (set_union eq_nat_dec [[ls]] [[ls']]) }}
   | ( ls )						:: S :: paren		{{ coq [[ ls ]] }}
 
-%cond :: 'cond_'						::=			{{ com condition code }}
-  %| eq							::   :: eq		{{ com eq }}
-  %| ne							::   :: ne		{{ com ne }}
-  %| ugt							::   :: ugt		{{ com ugt }}
-  %| uge							::   :: uge		{{ com uge }}
-  %| ult							::   :: ult		{{ com ult }}
-  %| ule							::   :: ule		{{ com ule }}
-  %| sgt							::   :: sgt		{{ com sgt }}
-  %| sge							::   :: sge		{{ com sge }}
-  %| slt							::   :: slt		{{ com slt }}
-  %| sle							::   :: sle		{{ com sle }}
+cond :: 'cond_'						::=			{{ com condition code }}
+  | eq							::   :: eq		{{ com eq }}
+  | ne							::   :: ne		{{ com ne }}
+  | ugt							::   :: ugt		{{ com ugt }}
+  | uge							::   :: uge		{{ com uge }}
+  | ult							::   :: ult		{{ com ult }}
+  | ule							::   :: ule		{{ com ule }}
+  | sgt							::   :: sgt		{{ com sgt }}
+  | sge							::   :: sge		{{ com sge }}
+  | slt							::   :: slt		{{ com slt }}
+  | sle							::   :: sle		{{ com sle }}
+
+bop :: 'bop_'						::=  			{{ com binary operators }}
+  | add							::   :: add             {{ com add }}
+  | lshr						::   :: lshr            {{ com lshr }}
+  | and							::   :: and             {{ com and }}
+  | or							::   :: or              {{ com or }}
+
+extop :: 'extop_'					::=  			{{ com ext operators }}
+  | zext						::   :: z               {{ com zext }}
+  | sext						::   :: s               {{ com sext }}
+
+castop :: 'castop_'					::=  			{{ com cast operators }}
+  | fptoui 						::   :: fptoui		{{ com fptoui }}
+  | fptosi 						::   :: fptosi		{{ com fptosi }}
+  | uitofp 						::   :: uitofp		{{ com uitofp }}
+  | sitofp 						::   :: sitofp		{{ com sitofp }}
+  | ptrtoint						::   :: ptrtoint	{{ com ptrtoint }}
+  | inttoptr						::   :: inttoptr	{{ com inttoptr }}
+  | bitcast 						::   :: bitcast		{{ com bitcast }}
+
+inbounds :: 'inbounds_'					::=  			{{ com inbounds }} {{ coq bool }}
+  | inbounds_yes					::   :: yes		{{ com yes }} {{ coq true }}
+  | inbounds_no						::   :: no              {{ com no }} {{ coq false }}
+
+tailc :: 'tailc_'					::=  			{{ com tailcall }} {{ coq bool }}
+  | tailc_yes						::   :: yes		{{ com yes }} {{ coq true }}
+  | tailc_no						::   :: no              {{ com no }} {{ coq false }}
 
 insn :: 'insn_'					    	::=			{{ com insnruction }}
+%% Terminator Instructions
   | ret typ value             			    	::   :: return      	{{ com return }}
-  %| ret void                   		    	::   :: return_void  	{{ com return void }}
-  | br value , l1 , l2		 			::   :: br              {{ com br }}        
+  | ret void   						::   :: return_void  	{{ com return void }}
+  | br value l1 l2		 			::   :: br              {{ com br }}        
   | br l        	    	  			::   :: br_uncond       {{ com unconditional br }}        
   %| switch typ value , l </ [ constj , lj ] // j />	::   :: switch		{{ com switch }}
   %| id = invoke typ0 id0 list_param to l1 unwind l2 	::   :: invoke		{{ com invoke }} 
-  | id = call typ0 id0 list_param	       	 	::   :: call		{{ com call }} 
   | unreachable	     	   	     	 		::   :: unreachable	{{ com unreachable }}
-  | id = add ( int sz ) value1 value2			::   :: add		{{ com add }}
-  %| id = fadd typ value1 value2				::   :: fadd		{{ com fadd }}
-  %| id = udiv typ value1 value2				::   :: udiv		{{ com udiv }}
-  %| id = fdiv typ value1 value2				::   :: fdiv		{{ com fdiv }}
-  %| id = or typ value1 value2				::   :: or 		{{ com or }}
-  %| id = and typ value1 value2				::   :: and 		{{ com and }}
+%% Binary Operations and Bitwise Binary Operations
+  | id = bop ( int sz ) value1 value2			::   :: bop		{{ com bop }}
+%% Vector Operations
   %| id = extractelement typ0 value0 , const1		::   :: extractelement  {{ com extractelement }}
   %| id = insertelement typ0 value0 , typ1 value1 , const2	::   :: insertelement   {{ com insertelement }}
-  | id = extractvalue typ value , </ constj // j />       	 ::   :: extractvalue	        {{ com extractvalue }}
-  | id = insertvalue typ value , typ' value' , </ constj // j /> ::   :: insertvalue	{{ com insertvalue }}
+%% Aggregate Operations
+  | id = extractvalue typ value </ constj // j />       	 ::   :: extractvalue	        {{ com extractvalue }}
+  | id = insertvalue typ value typ' value' </ constj // j /> ::   :: insertvalue	{{ com insertvalue }}
+%% Memory Access and Addressing Operations
+  | id = malloc typ sz align  	         	     	::   :: malloc		{{ com malloc }}
+  | free ( typ * ) value     	       	     		::   :: free		{{ com free }}
   | id = alloca typ sz align     	       	     	::   :: alloca		{{ com alloca }}
   | id = load ( typ * ) value1				::   :: load		{{ com load }}
-  | store typ value1 , value2				::   :: store		{{ com store }}
-  | id = getelementptr ( typ * ) value , </ valuej // j />    	      ::  :: gep        {{ com getelementptr }}
-  | id = getelementptr inbounds ( typ * ) value , </ valuej // j />     ::  :: bgep       {{ com inboundsgetelementptr }}
+  | store typ value1 value2				::   :: store		{{ com store }}
+  | id = getelementptr inbounds ( typ * ) value </ valuej // j />    	      ::  :: gep        {{ com getelementptr }}
+%% Conversion Operations
   %| id = trunc typ1 value1 to typ2			::   :: trunc		{{ com trunc }}
-  %| id = fptrunc typ1 value1 to typ2			::   :: fptrunc		{{ com fptrunc }}
-  %| id = fptoui typ1 value1 to typ2			::   :: fptoui		{{ com fptoui }}
-  %| id = fptosi typ1 value1 to typ2			::   :: fptosi		{{ com fptosi }}
-  %| id = uitofp typ1 value1 to typ2			::   :: uitofp		{{ com uitofp }}
-  %| id = sitofp typ1 value1 to typ2			::   :: sitofp		{{ com sitofp }}
-  | id = ptrtoint ( typ * ) value1 ( int sz )		::   :: ptrtoint	{{ com ptrtoint }}
-  | id = inttoptr ( int sz ) value1 to ( typ * )	::   :: inttoptr	{{ com inttoptr }}
-  | id = bitcast typ1 value1 to typ2			::   :: bitcast		{{ com bitcast }}
-  %| id = icmp cond typ value1 , value2			::   :: icmp		{{ com icmp }}
+  | id = extop typ1 value to typ2                   	::   :: ext             {{ com ext }}
+  | id = castop typ1 value1 to typ2		    	::   :: cast		{{ com cast }}
+%% Other Operations
+  | id = icmp cond typ value1 value2			::   :: icmp		{{ com icmp }}
   %| id = fcmp cond typ value1 , value2			::   :: fcmp		{{ com fcmp }}
   | id = phi typ </ [ idj , lj ] // j />		::   :: phi  	    	{{ com phi }}
+  | id = select value0 typ value1 value2                ::   :: select          {{ com select }}
+  | opt_id = tailc call typ0 id0 list_param   	 	::   :: call		{{ com call }} 
   | ( insn )						:: S :: paren           {{ coq [[ insn ]] }}
 
 id_labels :: 'id_labels_'				::=  			{{ com id labels }}
@@ -404,6 +429,9 @@ formula :: 'formula_' ::=
   | sz1 = sz2 			::   :: eqSize
 				{{ tex [[sz1]] = [[sz2]] }}
 				{{ coq [[sz1]] = [[sz2]] }}
+  | sz1 < sz2 			::   :: ltSize
+				{{ tex [[sz1]] < [[sz2]] }}
+				{{ coq [[sz1]] < [[sz2]] }}
   | INT1 = INT2 		::   :: eqINT
 				{{ tex [[INT1]] = [[INT2]] }}
 				{{ coq [[INT1]] = [[INT2]] }}
@@ -458,6 +486,9 @@ formula :: 'formula_' ::=
   | system = system'          :: M :: system_alias
     	     			{{ com system alias }} 
 				{{ coq [[system]] = [[system']] }}
+  | opt_id <-> opt_id' 		:: M :: opt_id_alias
+    	     			{{ com opt_id alias }} 
+				{{ coq [[opt_id]] = [[opt_id']] }}
   | length </ constj // j /> = sz :: M :: length_of_consts_is_sz
                                 {{ coq length [[ </ constj // j /> ]] = [[sz]] }}
   | ids <-> </ idj // j /> 	:: M :: ids_alias

@@ -60,7 +60,7 @@ Inductive wfContexts : State -> Prop :=
 Definition getCallerReturnID (Caller:insn) : option id :=
 match Caller with
 (* | insn_invoke i _ _ _ _ _ => Some i *)
-| insn_call i _ _ _ => Some i
+| insn_call oid _ _ _ _ => oid
 | _ => None
 end.
 
@@ -605,7 +605,7 @@ Inductive visitInst : State -> State -> trace -> Prop :=
       ((mkExecutionContext 
           CurFunction 
           CurBB 
-          (insn_call rid t fid lp) 
+          (insn_call rid false t fid lp) 
           Values 
           VarArgs 
           Caller
@@ -621,11 +621,11 @@ Inductive visitInst : State -> State -> trace -> Prop :=
           CurInst'
           Values' 
           VarArgs' 
-          (insn_call rid t fid lp) 
+          (insn_call rid false t fid lp) 
       )::(mkExecutionContext 
           CurFunction 
           CurBB 
-          (insn_call rid t fid lp) 
+          (insn_call rid false t fid lp) 
           Values 
           VarArgs 
           Caller
@@ -635,7 +635,7 @@ Inductive visitInst : State -> State -> trace -> Prop :=
 | visitAddInsnt : forall CurSystem CurModule CurFunction CurBB Values VarArgs Caller ExitValue id sz v1 v2 ECS i1 i2 CurInst',
   getOperandValue v1 Values = Some (GenericValue_int i1) ->
   getOperandValue v2 Values = Some (GenericValue_int i2) ->
-  getNextInsnFrom (insn_add id sz v1 v2) CurBB = Some CurInst' ->
+  getNextInsnFrom (insn_bop id bop_add sz v1 v2) CurBB = Some CurInst' ->
   visitInst 
     (mkState
       CurSystem
@@ -644,7 +644,7 @@ Inductive visitInst : State -> State -> trace -> Prop :=
       ((mkExecutionContext 
           CurFunction 
           CurBB 
-          (insn_add id sz v1 v2) 
+          (insn_bop id bop_add sz v1 v2) 
           Values 
           VarArgs 
           Caller
@@ -708,7 +708,7 @@ match (lookupFdefViaIDFromSystemC s main) with
                 CurInst
                 Values 
                 VarArgs 
-                (insn_call 0 rt main nil) 
+                (insn_call (Some 0) false rt main nil) 
               )::nil)
            )          
         end

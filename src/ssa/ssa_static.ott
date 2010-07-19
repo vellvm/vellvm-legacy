@@ -194,6 +194,68 @@ Jwf_insn_base :: '' ::=
       intrinsic_funs , system , module_info , fdef_info , block |-i insn
 
 defns
+Jwf_cast :: '' ::=
+      defn
+      intrinsic_funs , system , module_info , fdef_info , block |-cast insn :: :: wf_cast :: '' 
+      {{ com cast [[insn]] is well-formed w.r.t [[block]] in [[fdef_info]] in [[module_info]] [[system]] }} by  
+
+      % Check typs
+      system |- value1 : typ *
+      % Check invariance for instructions 
+      intrinsic_funs , system , module_info , fdef_info , block |-i id = ptrtoint ( typ * ) value1 to ( int sz )
+      ------------------------------------------------------------------------------------------------------- :: wf_cast_ptrtoint
+      intrinsic_funs , system , module_info , fdef_info , block |-cast id = ptrtoint ( typ * ) value1 to ( int sz )	
+
+
+      % Check typs
+      system |- value1 : int sz
+      % Check invariance for instructions 
+      intrinsic_funs , system , module_info , fdef_info , block |-i id = inttoptr ( int sz ) value1 to ( typ * )	
+      ------------------------------------------------------------------------------------------------------------ :: wf_cast_inttoptr
+      intrinsic_funs , system , module_info , fdef_info , block |-cast id = inttoptr ( int sz ) value1 to ( typ * )
+
+
+      % Check typs
+      system |- value1 : typ1
+      % BitCast implies a no-op cast of type only. No bits change.
+      % However, you can't cast pointers to anything but pointers.
+      Typ.getPrimitiveSizeInBits typ1 = sz1 /\ Typ.getPrimitiveSizeInBits typ2 = sz2 /\ sz1 = sz2
+      % Bitcast requires types of same width.
+      isPointerTyp typ1 iff isPointerTyp typ2 
+      % Disallow aggregates.
+      (not isAggregateTyp typ1) /\ (not isAggregateTyp typ2)
+      % Check invariance for instructions 
+      intrinsic_funs , system , module_info , fdef_info , block |-i id = bitcast typ1 value1 to typ2		
+      ----------------------------------------------------------------------------------------------- :: wf_cast_bitcast
+      intrinsic_funs , system , module_info , fdef_info , block |-cast id = bitcast typ1 value1 to typ2		
+
+
+defns
+Jwf_ext :: '' ::=
+      defn
+      intrinsic_funs , system , module_info , fdef_info , block |-ext insn :: :: wf_ext :: '' 
+      {{ com ext [[insn]] is well-formed w.r.t [[block]] in [[fdef_info]] in [[module_info]] [[system]] }} by  
+
+      % Check typs
+      system |- value1 : int sz1 
+      % bitwidth of src typ is less then dest typ
+      sz1 < sz2
+      % Check invariance for instructions 
+      intrinsic_funs , system , module_info , fdef_info , block |-i id = zext ( int sz1 ) value1 to ( int sz2 )
+      ------------------------------------------------------------------------------------------------------- :: wf_ext_z
+      intrinsic_funs , system , module_info , fdef_info , block |-ext id = zext ( int sz1 ) value1 to ( int sz2 )	
+
+      % Check typs
+      system |- value1 : int sz1 
+      % bitwidth of src typ is less then dest typ
+      sz1 < sz2
+      % Check invariance for instructions 
+      intrinsic_funs , system , module_info , fdef_info , block |-i id = sext ( int sz1 ) value1 to ( int sz2 )
+      ------------------------------------------------------------------------------------------------------- :: wf_ext_s
+      intrinsic_funs , system , module_info , fdef_info , block |-ext id = sext ( int sz1 ) value1 to ( int sz2 )	
+
+
+defns
 Jwf_insn :: '' ::=
       defn
       intrinsic_funs , system , module_info , fdef_info , block |- insn :: :: wf_insn :: '' 
@@ -208,12 +270,12 @@ Jwf_insn :: '' ::=
       ------------------------------------------------------ :: wf_insn_return
       intrinsic_funs , system , module_info , (fdef, dt) , block |- ret typ value
 
-      %% return instr that returns void in Function can be of void return type! 
-      %Function.getDefReturnType fdef = void
+      % return instr that returns void in Function can be of void return type! 
+      Function.getDefReturnType fdef = void
       % Check invariance for instructions
-      %intrinsic_funs , system , module_info , (fdef, dt) , block |-i ret void
-      %------------------------------------------------------ :: wf_insn_return_void
-      %intrinsic_funs , system , module_info , (fdef, dt) , block |- ret void
+      intrinsic_funs , system , module_info , (fdef, dt) , block |-i ret void
+      ------------------------------------------------------- :: wf_insn_return_void
+      intrinsic_funs , system , module_info , (fdef, dt) , block |- ret void
 
       % Check typs
       system |- value : int sz /\ sz = 1
@@ -223,9 +285,9 @@ Jwf_insn :: '' ::=
       lookupBlockViaLabelFromSystem system l2 = block2
       blockInFdef block2 fdef
       % Check invariance for instructions
-      intrinsic_funs , system , module_info , (fdef, dt) , block |-i br value , l1 , l2
+      intrinsic_funs , system , module_info , (fdef, dt) , block |-i br value l1 l2
       -------------------------------------------------------------------------------------- :: wf_insn_br
-      intrinsic_funs , system , module_info , (fdef, dt) , block |- br value , l1 , l2	
+      intrinsic_funs , system , module_info , (fdef, dt) , block |- br value l1 l2	
 
       % Check labels
       lookupBlockViaLabelFromSystem system l = block1
@@ -239,31 +301,6 @@ Jwf_insn :: '' ::=
       % -------------------------------------------------------------------------------------- :: wf_insn_invoke
       % intrinsic_funs , system , module_info, fdef_info , block |- id = invoke typ0 id0 list_param to l1 unwind l2
 
-      % LLVM checks that 
-      %   "Called function must be a pointer!"
-      %   "Called function is not pointer to function type!"
-      %   We don't need to check this, but only ensure Call and FTy are valid
-      CallSite.getCalledFunction (id = call typ0 id0 list_param) system = fdef1
-      CallSite.getFdefTyp fdef1 = typ1
-      % Verify that the correct number of arguments are being passed 
-      % Correct number of arguments passed to called function! 
-      FunctionType.getNumParams typ1 = INT1
-      CallSite.arg_size fdef1 = INT2
-      INT1 = INT2
-      % Verify that all arguments to the call match the function type... 
-      list_param <-> </ (typj'' valuej'') // j />
-      typ1 = typ0 ( </ typj' // j /> )
-      </ typj'' == typj' // j />
-      % Will Verify call attributes later... 
-      %
-      % Verify that there's no metadata unless it's a direct call to an intrinsic. 
-      %   Open soooon...
-      %  
-      % Check invariance for instructions
-      intrinsic_funs , system , module_info , fdef_info , block |-i id = call typ0 id0 list_param
-      -------------------------------------------------------------------------------------- :: wf_insn_call
-      intrinsic_funs , system , module_info , fdef_info , block |- id = call typ0 id0 list_param
-
       % Check invariance for instructions
       intrinsic_funs , system , module_info , fdef_info , block |-i unreachable
       -------------------------------------------------------------------------------------- :: wf_insn_unreachable
@@ -276,9 +313,9 @@ Jwf_insn :: '' ::=
       % Integer arithmetic operators only work with integral types 
       % Typ.isIntOrIntVector typ
       % Check invariance for instructions
-      intrinsic_funs , system , module_info , fdef_info , block |-i id = add (int sz) value1 value2
-      -------------------------------------------------------------------------------------- :: wf_insn_add
-      intrinsic_funs , system , module_info, fdef_info , block |- id = add (int sz) value1 value2
+      intrinsic_funs , system , module_info , fdef_info , block |-i id = bop (int sz) value1 value2
+      -------------------------------------------------------------------------------------- :: wf_insn_bop
+      intrinsic_funs , system , module_info, fdef_info , block |- id = bop (int sz) value1 value2
 
 
       % Check typs
@@ -287,9 +324,9 @@ Jwf_insn :: '' ::=
       % Check indexs
       getSubTypFromConstIdxs </ constj // j /> typ = typ'
       % Check invariance for instructions
-      intrinsic_funs , system , module_info , fdef_info , block |-i id = extractvalue typ value , </ constj // j />
+      intrinsic_funs , system , module_info , fdef_info , block |-i id = extractvalue typ value </ constj // j />
       -------------------------------------------------------------------------------------- :: wf_insn_extractvalue
-      intrinsic_funs , system , module_info , fdef_info , block |- id = extractvalue typ value , </ constj // j />
+      intrinsic_funs , system , module_info , fdef_info , block |- id = extractvalue typ value </ constj // j />
 
       % Check typs
       system |- value : typ
@@ -298,16 +335,35 @@ Jwf_insn :: '' ::=
       % Check indexs
       getSubTypFromConstIdxs </ constj // j /> typ = typ'
       % Check invariance for instructions
-      intrinsic_funs , system , module_info , fdef_info , block |-i id = insertvalue typ value, typ' value', </ constj // j />
+      intrinsic_funs , system , module_info , fdef_info , block |-i id = insertvalue typ value typ' value' </ constj // j />
       -------------------------------------------------------------------------------------- :: wf_insn_insertvalue
-      intrinsic_funs , system , module_info , fdef_info , block |- id = insertvalue typ value, typ' value', </ constj // j />
-
+      intrinsic_funs , system , module_info , fdef_info , block |- id = insertvalue typ value typ' value' </ constj // j />
 
       % Allocation instruction pointer not in the generic address space!
       %
       % Alloca array size must be i32
       %
       % Cannot allocate unsized type"
+      |- typ
+      Typ.isSized typ
+      % Check invariance for instructions
+      intrinsic_funs , system , module_info , fdef_info , block |-i id = malloc typ sz align 
+      -------------------------------------------------------------------------------------- :: wf_insn_malloc
+      intrinsic_funs , system , module_info , fdef_info , block |- id = malloc typ sz align 
+
+      % Check typs
+      system |- value : typ*
+      % Check invariance for instructions
+      intrinsic_funs , system , module_info , fdef_info , block |-i free (typ*) value
+      -------------------------------------------------------------------------------------- :: wf_insn_free
+      intrinsic_funs , system , module_info , fdef_info , block |- free (typ*) value
+
+      % Allocation instruction pointer not in the generic address space!
+      %
+      % Alloca array size must be i32
+      %
+      % Cannot allocate unsized type"
+      |- typ
       Typ.isSized typ
       % Check invariance for instructions
       intrinsic_funs , system , module_info , fdef_info , block |-i id = alloca typ sz align 
@@ -327,9 +383,9 @@ Jwf_insn :: '' ::=
       system |- value1 : typ
       system |- value2 : typ*
       % Check invariance for instructions
-      intrinsic_funs , system , module_info , fdef_info , block |-i store typ value1 , value2	
+      intrinsic_funs , system , module_info , fdef_info , block |-i store typ value1 value2	
       -------------------------------------------------------------------------------------- :: wf_insn_store
-      intrinsic_funs , system , module_info , fdef_info , block |- store typ value1 , value2
+      intrinsic_funs , system , module_info , fdef_info , block |- store typ value1 value2
 
       % Check typs
       system |- value : typ*
@@ -337,44 +393,34 @@ Jwf_insn :: '' ::=
       % Check indexs
       getGEPTyp </ valuej // j /> (typ*) = typ'
       % Check invariance for instructions
-      intrinsic_funs , system , module_info , fdef_info , block |-i id = getelementptr (typ*) value , </ valuej // j />
+      intrinsic_funs , system , module_info , fdef_info , block |-i id = getelementptr inbounds (typ*) value </ valuej // j />
       ---------------------------------------------------------------------------------------- :: wf_insn_gep
-      intrinsic_funs , system , module_info , fdef_info , block |- id = getelementptr (typ*) value , </ valuej // j />
+      intrinsic_funs , system , module_info , fdef_info , block |- id = getelementptr inbounds (typ*) value </ valuej // j />
+
+
+      intrinsic_funs , system , module_info , fdef_info , block |-ext id = extop typ1 value1 to typ2
+      ------------------------------------------------------------------------------------------------------- :: wf_insn_ext
+      intrinsic_funs , system , module_info , fdef_info , block |- id = extop typ1 value1 to typ2
+
+
+      intrinsic_funs , system , module_info , fdef_info , block |-cast id = castop typ1 value1 to typ2
+      ------------------------------------------------------------------------------------------------------- :: wf_insn_cast
+      intrinsic_funs , system , module_info , fdef_info , block |- id = castop typ1 value1 to typ2
+
 
       % Check typs
-      system |- value : typ*
-      </ system |- valuej : int sz /\ sz = 32 // j />
-      % Check indexs
-      getGEPTyp </ valuej // j /> (typ*) = typ'
+      system |- value1 : typ
+      system |- value2 : typ
+      % types can only be int, vector or ptr
+      Typ.isIntOrIntVector typ \/ isPointerTyp typ
       % Check invariance for instructions
-      intrinsic_funs , system , module_info , fdef_info , block |-i id = getelementptr inbounds (typ*) value , </ valuej // j />
-      -------------------------------------------------------------------------------------------- :: wf_insn_bgep
-      intrinsic_funs , system , module_info , fdef_info , block |- id = getelementptr inbounds (typ*) value , </ valuej // j />
+      intrinsic_funs , system , module_info , fdef_info , block |-i id = icmp cond typ value1 value2
+      ------------------------------------------------------------------------------------------------------- :: wf_insn_icmp
+      intrinsic_funs , system , module_info , fdef_info , block |- id = icmp cond typ value1 value2
 
 
-      intrinsic_funs , system , module_info , fdef_info , block |-i id = ptrtoint ( typ * ) value1 ( int sz )
-      ------------------------------------------------------------------------------------------------------- :: wf_insn_ptrtoint
-      intrinsic_funs , system , module_info , fdef_info , block |- id = ptrtoint ( typ * ) value1 ( int sz )	
-
-
-      intrinsic_funs , system , module_info , fdef_info , block |-i id = inttoptr ( int sz ) value1 to ( typ * )	
-      ------------------------------------------------------------------------------------------------------------ :: wf_insn_inttoptr
-      intrinsic_funs , system , module_info , fdef_info , block |- id = inttoptr ( int sz ) value1 to ( typ * )
-
-
-      % BitCast implies a no-op cast of type only. No bits change.
-      % However, you can't cast pointers to anything but pointers.
-      Typ.getPrimitiveSizeInBits typ1 = sz1 /\ Typ.getPrimitiveSizeInBits typ2 = sz2 /\ sz1 = sz2
-      % Bitcast requires types of same width.
-      isPointerTyp typ1 iff isPointerTyp typ2 
-      % Disallow aggregates.
-      (not isAggregateTyp typ1) /\ (not isAggregateTyp typ2)
-      % Check invariance for instructions 
-      intrinsic_funs , system , module_info , fdef_info , block |-i id = bitcast typ1 value1 to typ2		
-      ----------------------------------------------------------------------------------------------- :: wf_insn_bitcast
-      intrinsic_funs , system , module_info , fdef_info , block |- id = bitcast typ1 value1 to typ2		
-
-
+      % Check typs
+      </ system |- idj : typ // j />
       % LLVM::visitInstruction checks that non-phi nodes are not self referential 
       getInsnUseDef usedef_insn (id = phi typ </ [ idj , lj ] // j />) = list_insn
       list_insn <-> </ insni // i />
@@ -407,6 +453,43 @@ Jwf_insn :: '' ::=
       ------------------------------------------------------------------------------------------------ :: wf_insn_phi
       intrinsic_funs , system , (module, usedef_insn, usedef_block), (fdef, dt) , block |- id = phi typ </ [ idj , lj ] // j />
 			        
+
+      % Check typs
+      system |- value0 : int sz /\ sz = 1
+      system |- value1 : typ
+      system |- value2 : typ
+      % Check invariance for instructions
+      intrinsic_funs , system , module_info , fdef_info , block |-i id = select value0 typ value1 value2
+      ------------------------------------------------------------------------------------------------------- :: wf_insn_select
+      intrinsic_funs , system , module_info , fdef_info , block |- id = select value0 typ value1 value2
+
+      % LLVM checks that 
+      %   "Called function must be a pointer!"
+      %   "Called function is not pointer to function type!"
+      %   We don't need to check this, but only ensure Call and FTy are valid
+      CallSite.getCalledFunction (opt_id = tailc call typ0 id0 list_param) system = fdef1
+      CallSite.getFdefTyp fdef1 = typ1
+      % Verify that the correct number of arguments are being passed 
+      % Correct number of arguments passed to called function! 
+      FunctionType.getNumParams typ1 = INT1
+      CallSite.arg_size fdef1 = INT2
+      INT1 = INT2
+      % Verify that all arguments to the call match the function type... 
+      list_param <-> </ (typj' valuej'') // j />
+      typ1 = typ0 ( </ typj' // j /> )
+      </ system |- value'' : typj' // j />
+      % instructions returning void cannot have a name
+      typ0 == void implies opt_id <-> none
+      % Will Verify call attributes later... 
+      %
+      % Verify that there's no metadata unless it's a direct call to an intrinsic. 
+      %   Open soooon...
+      %  
+      % Check invariance for instructions
+      intrinsic_funs , system , module_info , fdef_info , block |-i opt_id = tailc call typ0 id0 list_param
+      -------------------------------------------------------------------------------------------------- :: wf_insn_call
+      intrinsic_funs , system , module_info , fdef_info , block |- opt_id = tailc call typ0 id0 list_param
+
 defns
 Jwf_list_insn :: '' ::=
       defn

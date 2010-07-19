@@ -221,8 +221,9 @@ getCallName_def :: '' ::=
      defn
      getCallName insn = id :: :: getCallName :: '' {{ com }} by
 
-     ------------------------------------------------ :: getCallName_def
-     getCallName (id = call typ id0 list_param) = id0
+     ------------------------------------------------ :: getCallName_intro
+     getCallName (id = tailc call typ id0 list_param) = id0
+
 
 % defns
 % getNormalDestFromInvokeInsn_def :: '' ::=
@@ -279,7 +280,8 @@ isCallInsn_def :: '' ::=
      isCallInsn insn :: :: isCallInsn :: '' {{ com is [[insn]] a call instruction }} by
 
      ------------------------------------------------------------- :: isCallInsn_intro
-     isCallInsn (id = call typ0 id0 list_param) 
+     isCallInsn (id = tailc call typ0 id0 list_param) 
+
 
 defns
 isTerminatorInsn_def :: '' ::=
@@ -289,20 +291,17 @@ isTerminatorInsn_def :: '' ::=
      --------------------------------- :: isTerminator_ret
      isTerminatorInsn (ret typ value)
 
-     % --------------------------------- :: isTerminator_ret_void
-     % isTerminatorInsn (ret void)
+     --------------------------------- :: isTerminator_ret_void
+     isTerminatorInsn (ret void)
 
      ---------------------------------------- :: isTerminator_br
-     isTerminatorInsn (br value , l1, l2)
+     isTerminatorInsn (br value l1 l2)
 
      ----------------------- :: isTerminator_br_uncond
      isTerminatorInsn (br l)
  
 %      ------------------------------------------------------------------ :: isTerminator_invoke
 %      isTerminatorInsn (id = invoke typ0 id0 list_param to l1 unwind l2)
-
-     ------------------------------------------------ :: isTerminator_call
-     isTerminatorInsn (id = call typ0 id0 list_param)
 
      ----------------------------- :: isTerminator_unreachable
      isTerminatorInsn unreachable
@@ -404,33 +403,6 @@ isPhiNode_def :: '' ::= {{coq-universe Type}}
       --------------------------------------- :: isPhiNode_intro
       isPhiNode (id = phi typ </ [ idj , lj ] // j />) 
       
-defns
-isTerminatorInsn_def :: '' ::=
-      defn
-      isTerminatorInsn insn :: :: isTerminatorInsn :: ''
-      {{ com check is [[insn]] is a terminator insn }} by
-
-      --------------------------------------- :: isTerminatorInsn_return
-      isTerminatorInsn (ret typ value) 
-      
-      % --------------------------------------- :: isTerminatorInsn_return_void
-      % isTerminatorInsn (ret void)
-
-      --------------------------------------- :: isTerminatorInsn_br
-      isTerminatorInsn (br value , l1 , l2)
-
-      --------------------------------------- :: isTerminatorInsn_br_uncond
-      isTerminatorInsn (br l)
-
-%      ----------------------------------------------------------------- :: isTerminatorInsn_switch
-%      isTerminatorInsn (switch typ value , l </ [ constj , lj ] // j />)
-
-%       ----------------------------------------------------------------- :: isTerminatorInsn_invoke
-%       isTerminatorInsn (id = invoke typ id0 list_param to l1 unwind l2)
-
-      ----------------------------------------------------------------- :: isTerminatorInsn_unreachable
-      isTerminatorInsn unreachable
-
 defns
 isBindingFdec_def :: '' ::=
       defn

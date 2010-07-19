@@ -171,9 +171,9 @@ Jwf_insn :: '' ::=
       % ------------------------------------------------------ :: wf_insn_return_void
       % intrinsic_funs , system , module_info , (fdef, dt) , block |- ret void
 
-      intrinsic_funs , system , module_info , (fdef, dt) , block |-i br value , l1 , l2
+      intrinsic_funs , system , module_info , (fdef, dt) , block |-i br value l1 l2
       -------------------------------------------------------------------------------------- :: wf_insn_br
-      intrinsic_funs , system , (module, usedef_insn, usedef_block), fdef_info , block |- br value , l1 , l2	
+      intrinsic_funs , system , (module, usedef_insn, usedef_block), fdef_info , block |- br value l1 l2	
 
       intrinsic_funs , system , module_info , (fdef, dt) , block |-i br l
       -------------------------------------------------------------------------------------- :: wf_insn_br_uncond
@@ -183,9 +183,9 @@ Jwf_insn :: '' ::=
       % -------------------------------------------------------------------------------------- :: wf_insn_invoke
       % intrinsic_funs , system , (module, usedef_insn, usedef_block), fdef_info , block |- id = invoke typ0 id0 list_param to l1 unwind l2
 
-      intrinsic_funs , system , module_info , (fdef, dt) , block |-i id = call typ0 id0 list_param
+      intrinsic_funs , system , module_info , (fdef, dt) , block |-i id = tailc call typ0 id0 list_param
       -------------------------------------------------------------------------------------- :: wf_insn_call
-      intrinsic_funs , system , (module, usedef_insn, usedef_block), fdef_info , block |- id = call typ0 id0 list_param
+      intrinsic_funs , system , (module, usedef_insn, usedef_block), fdef_info , block |- id = tailc call typ0 id0 list_param
 
       intrinsic_funs , system , module_info , (fdef, dt) , block |-i unreachable
       -------------------------------------------------------------------------------------- :: wf_insn_unreachable
