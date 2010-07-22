@@ -33,6 +33,842 @@ Require Import Omega.
   Definition lset_single (l0:l) := lset_add l0 (lempty_set). 
   Definition lset_mem (l0:l) (ls0:ls) := set_mem eq_nat_dec l0 ls0.
 
+(**********************************)
+(* Inversion. *)
+
+  Definition getCmdID (i:cmd) : id :=
+  match i with
+  | insn_bop id _ sz v1 v2 => id
+  (* | insn_extractelement id typ0 id0 c1 => id *)
+  (* | insn_insertelement id typ0 id0 typ1 v1 c2 => id *)
+  | insn_extractvalue id typs id0 c1 => id
+  | insn_insertvalue id typs id0 typ1 v1 c2 => id 
+  | insn_malloc id _ _ _ => id
+  | insn_free id _ _ => id
+  | insn_alloca id _ _ _ => id
+  | insn_load id typ1 v1 => id
+  | insn_store id typ1 v1 v2 => id
+  | insn_gep id _ _ _ _ => id
+  (* | insn_trunc id typ1 v1 typ2 => id *)
+  | insn_ext id _ sz1 v1 sz2 => id
+  (* | insn_fptrunc id typ1 v1 typ2 => id *)
+  (* | insn_fptoui id typ1 v1 typ2 => id *)
+  (* | insn_fptosi id typ1 v1 typ2 => id *)
+  (* | insn_uitofp id typ1 v1 typ2 => id *)
+  (* | insn_sitofp id typ1 v1 typ2 => id *)
+  | insn_cast id _ typ1 v1 typ2 => id
+  | insn_icmp id cond typ v1 v2 => id
+  (* | insn_fcmp id cond typ v1 v2 => id *)
+  | insn_select id v0 typ v1 v2 => id
+  | insn_call id _ _ typ id0 paraml => id
+  end.
+ 
+  Definition getTerminatorID (i:terminator) : id :=
+  match i with
+  | insn_return id t v => id
+  | insn_return_void id => id
+  | insn_br id v l1 l2 => id
+  | insn_br_uncond id l => id
+  (* | insn_switch id t v l _ => id *)
+  (* | insn_invoke id typ id0 paraml l1 l2 => id *)
+  | insn_unreachable id => id
+  end.
+
+  Definition getPhiNodeID (i:phinode) : id :=
+  match i with
+  | insn_phi id _ _ => id
+  end.
+
+  Definition getValueID (v:value) : option id :=
+  match v with
+  | value_id id => Some id
+  | value_const _ => None
+  end.
+
+  Definition getInsnID (i:insn) : id :=
+  match i with
+  | insn_phinode p => getPhiNodeID p
+  | insn_cmd c => getCmdID c
+  | insn_terminator t => getTerminatorID t
+  end.
+
+  Definition isPhiNodeB (i:insn) : bool :=
+  match i with
+  | insn_phinode p => true
+  | insn_cmd c => false
+  | insn_terminator t => false
+  end.  
+
+  Definition isPhiNode (i:insn) : Prop :=
+  match i with
+  | insn_phinode p => True
+  | insn_cmd c => False
+  | insn_terminator t => False
+  end.  
+
+(** Statically idx for struct must be int, and idx for arr can be
+    anything without checking bounds. *)
+Fixpoint getSubTypFromConstIdxs (idxs : list const) (t : typ) : option typ :=
+match idxs with
+| nil => Some t 
+| idx::idxs' => 
+  match t with
+  | typ_array sz t' => getSubTypFromConstIdxs idxs' t'
+  | typ_struct lt => 
+    match idx with
+    | (const_int sz i) =>
+      match (nth_error lt i) with
+      | Some t' => getSubTypFromConstIdxs idxs' t'
+      | None => None
+      end
+    | _ => None
+    end
+  | _ => None
+  end
+end.
+
+Fixpoint getSubTypFromValueIdxs (idxs : list value) (t : typ) : option typ :=
+match idxs with
+| nil => Some t 
+| idx::idxs' => 
+  match t with
+  | typ_array sz t' => getSubTypFromValueIdxs idxs' t'
+  | typ_struct lt => 
+    match idx with
+    | value_const (const_int sz i) =>
+      match (nth_error lt i) with
+      | Some t' => getSubTypFromValueIdxs idxs' t'
+      | None => None
+      end
+    | _ => None
+    end
+  | _ => None
+  end
+end.
+
+Definition getGEPTyp (idxs : list value) (t : typ) : option typ :=
+match idxs with
+| nil => None
+| (idx::idxs') =>
+     (* The input t is already an element of a pointer typ *)
+     match (getSubTypFromValueIdxs idxs' t) with
+     | Some t' => Some (typ_pointer t')
+     | _ => None
+     end
+end.
+
+Definition getLoadTyp (t:typ) : option typ :=
+match t with
+| typ_pointer t' => Some t'
+| _ => None
+end.
+
+Definition getCmdTyp (i:cmd) : option typ :=
+match i with
+| insn_bop _ _ sz _ _ => Some (typ_int sz)
+(*
+| insn_extractelement _ typ _ _ => getElementTyp typ
+| insn_insertelement _ typ _ _ _ _ => typ *)
+| insn_extractvalue _ typ _ idxs => getSubTypFromConstIdxs idxs typ
+| insn_insertvalue _ typ _ _ _ _ => Some typ
+| insn_malloc _ typ _ _ => Some (typ_pointer typ)
+| insn_free _ typ _ => Some typ_void
+| insn_alloca _ typ _ _ => Some (typ_pointer typ)
+| insn_load _ typ _ => getLoadTyp typ
+| insn_store _ _ _ _ => Some typ_void
+| insn_gep _ _ typ _ idxs => getGEPTyp idxs typ
+(* | insn_trunc _ _ _ typ => Some typ *)
+| insn_ext _ _ _ _ typ2 => Some typ2
+| insn_cast _ _ _ _ typ => Some typ
+| insn_icmp _ _ _ _ _ => Some (typ_int 1)
+(* | insn_fcmp _ _ _ _ _ => Some (typ_int 1) *)
+| insn_select _ _ typ _ _ => Some typ
+| insn_call _ true _ typ _ _ => Some typ_void
+| insn_call _ false _ typ _ _ => Some typ
+end.
+
+Definition getTerminatorTyp (i:terminator) : typ :=
+match i with
+| insn_return _ typ _ => typ
+| insn_return_void _ => typ_void
+| insn_br _ _ _ _ => typ_void
+| insn_br_uncond _ _ => typ_void
+(* | insn_switch _ typ _ _ _ => typ_void *)
+(* | insn_invoke _ typ _ _ _ _ => typ *)
+| insn_unreachable _ => typ_void
+end.
+
+Definition getPhiNodeTyp (i:phinode) : typ :=
+match i with
+| insn_phi _ typ _ => typ
+end.
+
+Definition getInsnTyp (i:insn) : option typ :=
+match i with
+| insn_phinode p => Some (getPhiNodeTyp p)
+| insn_cmd c => getCmdTyp c
+| insn_terminator t => Some (getTerminatorTyp t)
+end.
+
+Definition getPointerEltTyp (t:typ) : option typ :=
+match t with
+| typ_pointer t' => Some t' 
+| _ => None
+end.
+
+Definition getValueIDs (v:value) : ids :=
+match (getValueID v) with
+| None => nil
+| Some id => id::nil
+end.
+
+Fixpoint getParamsOperand (lp:list_param) : ids :=
+match lp with
+| nil => nil
+| (t, v)::lp' => (getValueIDs v) ++ (getParamsOperand lp')
+end.
+
+Fixpoint list_prj1 (X Y:Type) (ls : list (X*Y)) : list X :=
+match ls with
+| nil => nil
+| (x, y)::ls' => x::list_prj1 X Y ls'
+end.
+
+Fixpoint list_prj2 (X Y:Type) (ls : list (X*Y)) : list Y :=
+match ls with
+| nil => nil
+| (x, y)::ls' => y::list_prj2 X Y ls'
+end.
+
+Definition getCmdOperands (i:cmd) : ids :=
+match i with
+| insn_bop _ _ _ v1 v2 => getValueIDs v1 ++ getValueIDs v2
+(* | insn_extractelement _ _ v _ => getValueIDs v
+| insn_insertelement _ _ v1 _ v2 _ => getValueIDs v1 ++ getValueIDs v2
+*)
+| insn_extractvalue _ _ v _ => getValueIDs v
+| insn_insertvalue _ _ v1 _ v2 _ => getValueIDs v1 ++ getValueIDs v2
+| insn_malloc _ _ _ _ => nil
+| insn_free _ _ v => getValueIDs v
+| insn_alloca _ _ _ _ => nil
+| insn_load _ _ v => getValueIDs v
+| insn_store _ _ v1 v2 => getValueIDs v1 ++ getValueIDs v2
+| insn_gep _ _ _ v  _ => getValueIDs v
+(* | insn_trunc _ _ v _ => getValueIDs v *)
+| insn_ext _ _ _ v1 typ2 => getValueIDs v1
+| insn_cast _ _ _ v _ => getValueIDs v
+| insn_icmp _ _ _ v1 v2 => getValueIDs v1 ++ getValueIDs v2
+(* | insn_fcmp _ _ _ v1 v2 => getValueIDs v1 ++ getValueIDs v2 *)
+| insn_select _ v0 _ v1 v2 => getValueIDs v0 ++ getValueIDs v1 ++ getValueIDs v2
+| insn_call _ _ _ _ _ lp => getParamsOperand lp
+end.
+
+Definition getTerminatorOperands (i:terminator) : ids :=
+match i with
+| insn_return _ _ v => getValueIDs v
+| insn_return_void _ => nil
+| insn_br _ v _ _ => getValueIDs v
+| insn_br_uncond _ _ => nil
+(* | insn_switch _ _ value _ _ => getValueIDs value *)
+(* | insn_invoke _ _ _ lp _ _ => getParamsOperand lp *)
+| insn_unreachable _ => nil
+end.
+
+Definition getPhiNodeOperands (i:phinode) : ids :=
+match i with
+| insn_phi _ _ ls => list_prj1 _ _ ls
+end.
+
+Definition getInsnOperands (i:insn) : ids :=
+match i with
+| insn_phinode p => getPhiNodeOperands p
+| insn_cmd c => getCmdOperands c
+| insn_terminator t => getTerminatorOperands t
+end.
+
+Definition getCmdLabels (i:cmd) : ls :=
+match i with
+| insn_bop _ _ _ _ _ => nil
+(* | insn_extractelement _ _ _ _ => nil
+| insn_insertelement _ _ _ _ _ _ => nil
+*)
+| insn_extractvalue _ _ _ _ => nil
+| insn_insertvalue _ _ _ _ _ _ => nil
+| insn_malloc _ _ _ _ => nil
+| insn_free _ _ _ => nil
+| insn_alloca _ _ _ _ => nil
+| insn_load _ _ _ => nil
+| insn_store _ _ _ _ => nil
+| insn_gep _ _ _ v  _ => nil
+(* | insn_trunc _ _ _ _ => nil *)
+| insn_ext _ _ _ _ _ => nil
+| insn_cast _ _ _ _ _ => nil
+| insn_icmp _ _ _ _ _ => nil
+(* | insn_fcmp _ _ _ _ _ => nil *)
+| insn_select _ _ _ _ _ => nil
+| insn_call _ _ _ _ _ _ => nil
+end.
+
+Definition getTerminatorLabels (i:terminator) : ls :=
+match i with
+| insn_return _ _ _ => nil
+| insn_return_void _ => nil
+| insn_br _ _ l1 l2 => l1::l2::nil
+| insn_br_uncond _ l => l::nil
+(* | insn_switch _ _ _ l ls => l::list_prj2 _ _ ls *)
+(* | insn_invoke _ _ _ _ l1 l2 => l1::l2::nil *)
+| insn_unreachable _ => nil
+end.
+
+Definition getPhiNodeLabels (i:phinode) : ls :=
+match i with
+| insn_phi _ _ ls => list_prj2 _ _ ls
+end.
+
+Definition getInsnLabels (i:insn) : ls :=
+match i with
+| insn_phinode p => getPhiNodeLabels p
+| insn_cmd c => getCmdLabels c
+| insn_terminator tmn => getTerminatorLabels tmn
+end.
+
+Fixpoint args2Typs (la:list_arg) : list_typ :=
+match la with
+| nil => nil
+| (t, id)::la' => t::args2Typs la'
+end.
+
+Definition getFheaderTyp (fh:fheader) : typ :=
+match fh with
+| fheader_intro t _ la => typ_function t (args2Typs la)
+end.
+
+Definition getFdecTyp (fdec:fdec) : typ :=
+match fdec with
+| fdec_intro fheader => getFheaderTyp fheader
+end.
+
+Definition getFdefTyp (fdef:fdef) : typ :=
+match fdef with
+| fdef_intro fheader _ => getFheaderTyp fheader
+end.
+
+Definition getBindingTyp (ib:id_binding) : option typ :=
+match ib with
+| id_binding_cmd i => getCmdTyp i
+| id_binding_terminator i => Some (getTerminatorTyp i)
+| id_binding_phinode i => Some (getPhiNodeTyp i)
+| id_binding_gvar (gvar_intro _ t _ _) => Some (typ_pointer t)
+| id_binding_arg (t, id) => Some t
+| id_binding_fdec fdec => Some (getFdecTyp fdec)
+| id_binding_none => None
+end.
+
+Definition getCmdsFromBlock (b:block) : list_cmd :=
+match b with
+| block_intro l _ li _ => li
+(* | block_without_label li => li *)
+end.
+
+Definition getPhiNodesFromBlock (b:block) : list_phinode :=
+match b with
+| block_intro l li _ _ => li
+(* | block_without_label li => li *)
+end.
+
+Definition getTerminatorFromBlock (b:block) : terminator :=
+match b with
+| block_intro l _ _ t => t
+(* | block_without_label li => li *)
+end.
+
+Definition getBindingFdec (ib:id_binding) : option fdec :=
+match ib with
+| id_binding_fdec fdec => Some fdec
+| _ => None
+end.
+
+Definition getBindingArg (ib:id_binding) : option arg :=
+match ib with
+| id_binding_arg arg => Some arg
+| _ => None
+end.
+
+Definition getBindingGvar (ib:id_binding) : option gvar :=
+match ib with
+| id_binding_gvar g => Some g
+| _ => None
+end.
+
+Definition getBindingCmd (ib:id_binding) : option cmd :=
+match ib with
+| id_binding_cmd i => Some i
+| _ => None
+end.
+
+Definition getBindingInsn (ib:id_binding) : option insn :=
+match ib with
+| id_binding_cmd c => Some (insn_cmd c)
+| id_binding_phinode p => Some (insn_phinode p)
+| id_binding_terminator tmn => Some (insn_terminator tmn)
+| _ => None
+end.
+
+
+Definition getBindingPhiNode (ib:id_binding) : option phinode :=
+match ib with
+| id_binding_phinode i => Some i
+| _ => None
+end.
+
+Definition getBindingTerminator (ib:id_binding) : option terminator :=
+match ib with
+| id_binding_terminator i => Some i
+| _ => None
+end.
+
+Definition getFheaderID (fh:fheader) : id :=
+match fh with
+| fheader_intro _ id _ => id
+end.
+
+Definition getFdecID (fd:fdec) : id :=
+match fd with
+| fdec_intro fh => getFheaderID fh
+end.
+
+Definition getFdefID (fd:fdef) : id :=
+match fd with
+| fdef_intro fh _ => getFheaderID fh
+end.
+
+(*
+Definition getNormalDestFromInvokeInsnC (i:insn) : option l :=
+match i with
+| insn_invoke _ _ _ _ l1 _ => Some l1
+| _ => None
+end.
+
+Definition getUnwindDestFromInvokeInsnC (i:insn) : option l :=
+match i with
+| insn_invoke _ _ _ _ _ l2 => Some l2
+| _ => None
+end.
+*)
+
+Fixpoint getLabelViaIDFromList (ls:list (id*l)) (branch:id) : option l :=
+match ls with
+| nil => None
+| (id, l)::ls' => 
+  match (eq_nat_dec id branch) with
+  | left _ => Some l
+  | right _ => getLabelViaIDFromList ls' branch
+  end
+end.
+
+Definition getLabelViaIDFromPhiNode (phi:phinode) (branch:id) : option l :=
+match phi with
+| insn_phi _ _ ls => getLabelViaIDFromList ls branch
+end.
+
+Fixpoint getLabelsFromIdls (idls:list (id*l)) : ls :=
+match idls with
+| nil => lempty_set
+| (_, l)::idls' => lset_add l (getLabelsFromIdls idls')
+end.
+
+Definition getLabelsFromPhiNode (phi:phinode) : ls :=
+match phi with
+| insn_phi _ _ ls => getLabelsFromIdls ls
+end.
+
+Definition getIDLabelsFromPhiNode p : id_labels :=
+match p with
+| insn_phi _ _ idls => idls
+end.
+
+Fixpoint getLabelViaIDFromIDLabels idls id : option l :=
+match idls with
+| nil => None
+| (id0, l0)::idls' => if beq_nat id id0 then Some l0 else getLabelViaIDFromIDLabels idls' id
+end.
+
+Definition _getLabelViaIDPhiNode p id : option l :=
+match p with
+| insn_phi _ _ ls => getLabelViaIDFromIDLabels ls id
+end.
+
+Definition getLabelViaIDPhiNode (phi:insn) id : option l :=
+match phi with
+| insn_phinode p => _getLabelViaIDPhiNode p id
+| _ => None
+end.
+
+Definition getReturnTyp fdef : typ :=
+match fdef with
+| fdef_intro (fheader_intro t _ _) _ => t
+end.
+
+Definition getGvarID g : id :=
+match g with
+| gvar_intro id _ _ _ => id
+end.
+
+Definition getCallName i : option id :=
+match i with
+| insn_cmd (insn_call _ _ _ _ id0 _) => Some id0
+| _ => None
+end.
+
+(**********************************)
+(* Lookup. *)
+
+(* ID binding lookup *)
+
+Definition lookupBindingViaIDFromCmd (i:cmd) (id:id) : id_binding :=
+match (getCmdID i) with
+| id' =>
+  match (eq_nat_dec id id') with
+  | left _ => id_binding_cmd i
+  | right _ => id_binding_none
+  end
+end.
+
+Fixpoint lookupBindingViaIDFromCmds (li:list_cmd) (id:id) : id_binding :=
+match li with
+| nil => id_binding_none
+| i::li' =>
+  match (lookupBindingViaIDFromCmd i id) with
+  | id_binding_cmd _ => id_binding_cmd i
+  | _ => lookupBindingViaIDFromCmds li' id
+  end
+end.
+
+Definition lookupBindingViaIDFromPhiNode (i:phinode) (id:id) : id_binding :=
+match (getPhiNodeID i) with
+| id' =>
+  match (eq_nat_dec id id') with
+  | left _ => id_binding_phinode i
+  | right _ => id_binding_none
+  end
+end.
+
+Fixpoint lookupBindingViaIDFromPhiNodes (li:list_phinode) (id:id) : id_binding :=
+match li with
+| nil => id_binding_none
+| i::li' =>
+  match (lookupBindingViaIDFromPhiNode i id) with
+  | id_binding_phinode _ => id_binding_phinode i
+  | _ => lookupBindingViaIDFromPhiNodes li' id
+  end
+end.
+
+Definition lookupBindingViaIDFromTerminator (i:terminator) (id:id) : id_binding :=
+match (getTerminatorID i) with
+| id' =>
+  match (eq_nat_dec id id') with
+  | left _ => id_binding_terminator i
+  | right _ => id_binding_none
+  end
+end.
+
+Definition lookupBindingViaIDFromBlock (b:block) (id:id) : id_binding :=
+match b with
+| block_intro l ps cs t =>
+  match (lookupBindingViaIDFromPhiNodes ps id) with
+  | id_binding_none => 
+    match (lookupBindingViaIDFromCmds cs id) with
+    | id_binding_none => lookupBindingViaIDFromTerminator t id
+    | re => re
+    end
+  | re => re    
+  end
+end.
+
+Fixpoint lookupBindingViaIDFromBlocks (lb:list_block) (id:id) : id_binding :=
+match lb with
+| nil => id_binding_none
+| b::lb' => 
+  match (lookupBindingViaIDFromBlock b id) with
+  | id_binding_none => lookupBindingViaIDFromBlocks lb' id
+  | re => re
+  end
+end.
+
+Definition lookupBindingViaIDFromArg (a:arg) (id:id) : id_binding :=
+let (t, id') := a in
+match (eq_nat_dec id id') with
+| left _ => id_binding_arg a
+| right _ => id_binding_none
+end.
+
+Fixpoint lookupBindingViaIDFromArgs (la:list_arg) (id:id) : id_binding :=
+match la with 
+| nil => id_binding_none
+| a::la' => 
+  match (lookupBindingViaIDFromArg a id) with
+  | id_binding_arg a' => id_binding_arg a'
+  | _ => lookupBindingViaIDFromArgs la' id
+  end
+end.
+
+Definition lookupBindingViaIDFromFdec (fd:fdec) (id:id) : id_binding :=
+let '(fdec_intro (fheader_intro t id' la)) := fd in
+match (eq_nat_dec id id') with
+| left _ => id_binding_fdec fd
+| right _ => lookupBindingViaIDFromArgs la id
+end.
+
+Definition lookupBindingViaIDFromFdef (fd:fdef) (id:id) : id_binding :=
+let '(fdef_intro fh lb) := fd in
+lookupBindingViaIDFromBlocks lb id.
+
+Definition lookupBindingViaIDFromProduct (p:product) (id:id) : id_binding :=
+match p with
+| product_gvar (gvar_intro id' t c a) =>
+  match (eq_nat_dec id id') with
+  | left _ => id_binding_gvar (gvar_intro id' t c a)
+  | right _ => id_binding_none
+  end
+| product_fdec fdec => lookupBindingViaIDFromFdec fdec id
+(* | product_namedt _ => id_binding_none *)
+| product_fdef fdef => lookupBindingViaIDFromFdef fdef id
+end.  
+
+Fixpoint lookupBindingViaIDFromProducts (lp:list_product) (id:id) : id_binding :=
+match lp with
+| nil => id_binding_none
+| p::lp' => 
+  match (lookupBindingViaIDFromProduct p id) with
+  | id_binding_none => lookupBindingViaIDFromProducts lp' id
+  | re => re
+  end
+end.
+  
+Definition lookupBindingViaIDFromModule (m:module) (id:id) : id_binding :=
+  let (os, ps) := m in 
+  lookupBindingViaIDFromProducts ps id.
+
+Fixpoint lookupBindingViaIDFromModules (lm:list_module) (id:id) : id_binding :=
+match lm with
+| nil => id_binding_none
+| m::lm' =>
+  match (lookupBindingViaIDFromModule m id) with
+  | id_binding_none => lookupBindingViaIDFromModules lm' id
+  | re => re
+  end
+end.
+
+Definition lookupBindingViaIDFromSystem (s:system) (id:id) : id_binding :=
+lookupBindingViaIDFromModules s id.
+
+(* Block lookup from ID *)
+
+Definition isIDInBlockB (id:id) (b:block) : bool :=
+match (lookupBindingViaIDFromBlock b id) with
+| id_binding_none => false
+| _ => true
+end.
+
+Fixpoint lookupBlockViaIDFromBlocks (lb:list_block) (id:id) : option block :=
+match lb with
+| nil => None  
+| b::lb' => 
+  match (isIDInBlockB id b) with
+  | true => Some b
+  | false => lookupBlockViaIDFromBlocks lb' id
+  end
+end.
+
+Definition lookupBlockViaIDFromFdef (fd:fdef) (id:id) : option block :=
+match fd with
+| fdef_intro fh lb => lookupBlockViaIDFromBlocks lb id
+end.
+
+(* Fun lookup from ID *)
+
+Definition lookupFdecViaIDFromProduct (p:product) (i:id) : option fdec :=
+match p with
+| (product_fdec fd) => if beq_nat (getFdecID fd) i then Some fd else None
+| _ => None
+end.
+
+Fixpoint lookupFdecViaIDFromProducts (lp:list_product) (i:id) : option fdec :=
+match lp with
+| nil => None
+| p::lp' => 
+  match (lookupFdecViaIDFromProduct p i) with
+  | Some fd => Some fd
+  | None => lookupFdecViaIDFromProducts lp' i
+  end
+end.
+
+Definition lookupFdecViaIDFromModule (m:module) (i:id) : option fdec :=
+  let (os, ps) := m in 
+  lookupFdecViaIDFromProducts ps i.
+
+Fixpoint lookupFdecViaIDFromModules (lm:list_module) (i:id) : option fdec :=
+match lm with
+| nil => None
+| m::lm' => 
+  match (lookupFdecViaIDFromModule m i) with
+  | Some fd => Some fd
+  | None => lookupFdecViaIDFromModules lm' i
+  end
+end.
+
+Definition lookupFdecViaIDFromSystem (s:system) (i:id) : option fdec :=
+lookupFdecViaIDFromModules s i.
+
+Definition lookupFdefViaIDFromProduct (p:product) (i:id) : option fdef :=
+match p with
+| (product_fdef fd) => if beq_nat (getFdefID fd) i then Some fd else None
+| _ => None
+end.
+
+Fixpoint lookupFdefViaIDFromProducts (lp:list_product) (i:id) : option fdef :=
+match lp with
+| nil => None
+| p::lp' => 
+  match (lookupFdefViaIDFromProduct p i) with
+  | Some fd => Some fd
+  | None => lookupFdefViaIDFromProducts lp' i
+  end
+end.
+
+Definition lookupFdefViaIDFromModule (m:module) (i:id) : option fdef :=
+  let (os, ps) := m in 
+  lookupFdefViaIDFromProducts ps i.
+
+Fixpoint lookupFdefViaIDFromModules (lm:list_module) (i:id) : option fdef :=
+match lm with
+| nil => None
+| m::lm' => 
+  match (lookupFdefViaIDFromModule m i) with
+  | Some fd => Some fd
+  | None => lookupFdefViaIDFromModules lm' i
+  end
+end.
+
+Definition lookupFdefViaIDFromSystem (s:system) (i:id) : option fdef :=
+lookupFdefViaIDFromModules s i.
+
+(*     ID type lookup                                    *)
+
+Definition lookupTypViaIDFromCmd (i:cmd) (id0:id) : option typ :=
+match (getCmdTyp i) with
+| None => None
+| Some t => 
+  match (getCmdID i) with
+  | id0' => 
+    if (beq_nat id0 id0') 
+    then Some t
+    else None
+  end
+end.
+
+Fixpoint lookupTypViaIDFromCmds (li:list_cmd) (id0:id) : option typ :=
+match li with
+| nil => None
+| i::li' =>
+  match (lookupTypViaIDFromCmd i id0) with
+  | Some t => Some t
+  | None => lookupTypViaIDFromCmds li' id0
+  end
+end.
+    
+Definition lookupTypViaIDFromPhiNode (i:phinode) (id0:id) : option typ :=
+match (getPhiNodeTyp i) with
+| t => 
+  match (getPhiNodeID i) with
+  | id0' => 
+    if (beq_nat id0 id0') 
+    then Some t
+    else None
+  end
+end.
+
+Fixpoint lookupTypViaIDFromPhiNodes (li:list_phinode) (id0:id) : option typ :=
+match li with
+| nil => None
+| i::li' =>
+  match (lookupTypViaIDFromPhiNode i id0) with
+  | Some t => Some t
+  | None => lookupTypViaIDFromPhiNodes li' id0
+  end
+end.
+
+Definition lookupTypViaIDFromTerminator (i:terminator) (id0:id) : option typ :=
+match (getTerminatorTyp i) with
+| t => 
+  match (getTerminatorID i) with
+  | id0' => 
+    if (beq_nat id0 id0') 
+    then Some t
+    else None
+  end
+end.
+
+Definition lookupTypViaIDFromBlock (b:block) (id0:id) : option typ :=
+match b with
+| block_intro l ps cs t =>
+  match (lookupTypViaIDFromPhiNodes ps id0) with
+  | None => 
+    match (lookupTypViaIDFromCmds cs id0) with
+    | None => lookupTypViaIDFromTerminator t id0
+    | re => re
+    end
+  | re => re    
+  end
+end.
+
+Fixpoint lookupTypViaIDFromBlocks (lb:list_block) (id0:id) : option typ :=
+match lb with
+| nil => None
+| b::lb' =>
+  match (lookupTypViaIDFromBlock b id0) with
+  | Some t => Some t
+  | None => lookupTypViaIDFromBlocks lb' id0
+  end
+end.
+
+Definition lookupTypViaIDFromFdef (fd:fdef) (id0:id) : option typ :=
+match fd with
+| (fdef_intro _ lb) => lookupTypViaIDFromBlocks lb id0
+end.
+
+Definition lookupTypViaIDFromProduct (p:product) (id0:id) : option typ :=
+match p with
+| (product_fdef fd) => lookupTypViaIDFromFdef fd id0
+| _ => None
+end.
+
+Fixpoint lookupTypViaIDFromProducts (lp:list_product) (id0:id) : option typ :=
+match lp with
+| nil => None
+| p::lp' =>
+  match (lookupTypViaIDFromProduct p id0) with
+  | Some t => Some t
+  | None => lookupTypViaIDFromProducts lp' id0
+  end
+end.
+
+Definition lookupTypViaIDFromModule (m:module) (id0:id) : option typ :=
+  let (os, ps) := m in 
+ lookupTypViaIDFromProducts ps id0.
+     
+Fixpoint lookupTypViaIDFromModules (lm:list_module) (id0:id) : option typ :=
+match lm with
+| nil => None
+| m::lm' =>
+  match (lookupTypViaIDFromModule m id0) with
+  | Some t => Some t
+  | None => lookupTypViaIDFromModules lm' id0
+  end
+end.
+
+Definition lookupTypViaIDFromSystem (s:system) (id0:id) : option typ :=
+lookupTypViaIDFromModules s id0.
 
 (**********************************)
 (* SSA. *)
@@ -49,7 +885,7 @@ Require Import Omega.
 
   Definition genLabel2Block_block (b:block) (f:fdef) : l2block :=
   match b with
-  | block_intro l _ => fun l' => 
+  | block_intro l _ _ _ => fun l' => 
     match lt_eq_lt_dec l' l with 
     | inleft (right _) => Some b
     | _ => None
@@ -122,13 +958,13 @@ Require Import Omega.
   Fixpoint getLabelsFromBlocks (lb:list_block) : ls :=
   match lb with
   | nil => lempty_set
-  | (block_intro l0 _)::lb' => lset_add l0 (getLabelsFromBlocks lb')
+  | (block_intro l0 _ _ _)::lb' => lset_add l0 (getLabelsFromBlocks lb')
   end.
 
 (**********************************)
 (* UseDef *)
 
-  Definition mergeInsnUseDef (udi1:usedef_insn) (udi2:usedef_insn) : usedef_insn :=
+  Definition mergeInsnUseDef (udi1:usedef_id) (udi2:usedef_id) : usedef_id :=
   fun i => (udi1 i) ++ (udi2 i).
 
   Definition mergeBlockUseDef (udb1:usedef_block) (udb2:usedef_block) : usedef_block :=
@@ -137,264 +973,279 @@ Require Import Omega.
   Infix "+++" := mergeInsnUseDef (right associativity, at level 60).
   Infix "++++" := mergeBlockUseDef (right associativity, at level 60).
 
-  Definition getInsnID (i:insn) : option id :=
-  match i with
-  | insn_return t v => None
-  | insn_return_void  => None
-  | insn_br v l1 l2 => None
-  | insn_br_uncond l => None
-  (* | insn_switch t v l _ => None *)
-  (* | insn_invoke id typ id0 paraml l1 l2 => Some id *)
-  | insn_unreachable => None
-  | insn_bop id _ sz v1 v2 => Some id
-  (* | insn_extractelement id typ0 id0 c1 => Some id *)
-  (* | insn_insertelement id typ0 id0 typ1 v1 c2 => Some id *)
-  | insn_extractvalue id typs id0 c1 => Some id
-  | insn_insertvalue id typs id0 typ1 v1 c2 => Some id 
-  | insn_malloc id _ _ _ => Some id
-  | insn_free _ _ => None
-  | insn_alloca id _ _ _ => Some id
-  | insn_load id typ1 v1 => Some id
-  | insn_store typ1 v1 v2 => None
-  | insn_gep id _ _ _ _ => Some id
-  (* | insn_trunc id typ1 v1 typ2 => Some id *)
-  | insn_ext id _ sz1 v1 sz2 => Some id
-  (* | insn_fptrunc id typ1 v1 typ2 =>Some id *)
-  (* | insn_fptoui id typ1 v1 typ2 => Some id *)
-  (* | insn_fptosi id typ1 v1 typ2 =>Some id *)
-  (* | insn_uitofp id typ1 v1 typ2 =>Some id *)
-  (* | insn_sitofp id typ1 v1 typ2 =>Some id *)
-  | insn_cast id _ typ1 v1 typ2 => Some id
-  | insn_icmp id cond typ v1 v2 => Some id
-  (* | insn_fcmp id cond typ v1 v2 => Some id *)
-  | insn_phi id typ idls => None
-  | insn_select id v0 typ v1 v2 => Some id
-  | insn_call opt_id _ typ id0 paraml => opt_id
-  end.
- 
-  Definition getValueID (v:value) : option id :=
-  match v with
-  | value_id id => Some id
-  | value_const _ => None
-  end.
+  (* generate id use-def *)
 
-  (* generate insn use-def *)
-
-  Definition genInsnUseDef_value (v:value) (i:insn) (b:block) (f:fdef) (m:module) : usedef_insn :=
-  fun i' => 
-  match (getInsnID i', getValueID v) with
-  | (Some id', Some id) => 
-    match lt_eq_lt_dec id' id with 
-    | inleft (right _) => i::nil
-    | _ => nil
-    end 
-  |( _, _) => nil
-  end.     
-
-  Definition genInsnUseDef_id (id0:id) (i:insn) (b:block) (f:fdef) (m:module) : usedef_insn :=
-  fun i' => 
-  match (getInsnID i') with
-  | Some id' => 
-    match lt_eq_lt_dec id' id0 with 
-    | inleft (right _) => i::nil
-    | _ => nil
-    end 
+  Definition genIdUseDef_id_uses_value (v:value) (id0:id): usedef_id :=
+  fun id' => 
+  match (getValueID v) with
+  | Some id => if beq_nat id' id then id0::nil else nil
   | _ => nil
   end.     
 
-  Fixpoint genInsnUseDef_params (ps:list_param) (i:insn) (b:block) (f:fdef) (m:module) : usedef_insn :=
+  Definition genIdUseDef_id_uses_id (id0:id) (id1:id) : usedef_id :=
+  fun id' => if beq_nat id' id0 then id1::nil else nil.
+
+  Fixpoint genIdUseDef_id_uses_params (ps:list_param) (id0:id) : usedef_id :=
   match ps with
   | nil => fun _ => nil
-  | (_, v)::ps' => (genInsnUseDef_value v i b f m)+++(genInsnUseDef_params ps' i b f m)
+  | (_, v)::ps' => (genIdUseDef_id_uses_value v id0)+++(genIdUseDef_id_uses_params ps' id0)
   end.
 
-  Definition genInsnUseDef_insn (i:insn) (b:block) (f:fdef) (m:module) : usedef_insn :=
+  Definition genIdUseDef_cmd_uses_value (v:value) (i:cmd) : usedef_id :=
+  genIdUseDef_id_uses_value v (getCmdID i).
+
+  Definition genIdUseDef_terminator_uses_value (v:value) (i:terminator) : usedef_id :=
+  genIdUseDef_id_uses_value v (getTerminatorID i).
+
+  Definition genIdUseDef_phinode_uses_value (v:value) (i:phinode) : usedef_id :=
+  genIdUseDef_id_uses_value v (getPhiNodeID i).
+
+  Definition genIdUseDef_cmd_uses_id (id0:id) (i:cmd) : usedef_id :=
+  genIdUseDef_id_uses_id id0 (getCmdID i).
+
+  Definition genIdUseDef_terminator_uses_id (id0:id) (i:terminator) : usedef_id :=
+  genIdUseDef_id_uses_id id0 (getTerminatorID i).
+
+  Definition genIdUseDef_phinode_uses_id (id0:id) (i:phinode) : usedef_id :=
+  genIdUseDef_id_uses_id id0 (getPhiNodeID i).
+
+  Definition genIdUseDef_cmd_uses_params (ps:list_param) (i:cmd) : usedef_id :=
+  genIdUseDef_id_uses_params ps (getCmdID i).
+
+  Definition genIdUseDef_terminator_uses_params (ps:list_param) (i:terminator) : usedef_id :=
+  genIdUseDef_id_uses_params ps (getTerminatorID i).
+
+  Definition genIdUseDef_phinode_uses_params (ps:list_param) (i:phinode) : usedef_id :=
+  genIdUseDef_id_uses_params ps (getPhiNodeID i).
+
+  Definition genIdUseDef_cmd (i:cmd): usedef_id :=
   match i with
-  | insn_return t v => genInsnUseDef_value v i b f m
-  | insn_return_void  => fun _ => nil
-  | insn_br v l1 l2 => genInsnUseDef_value v i b f m        
-  | insn_br_uncond l => fun _ => nil
-  (* | insn_switch t v l _ => genInsnUseDef_value v i b f m *)
-  (* | insn_invoke id typ id0 paraml l1 l2 => (genInsnUseDef_id id0 i b f m)+++(genInsnUseDef_params paraml i b f m) *)
-  | insn_unreachable => fun _ => nil
-  | insn_bop id _ sz v1 v2 => (genInsnUseDef_value v1 i b f m)+++(genInsnUseDef_value v2 i b f m)
+  | insn_bop id _ sz v1 v2 => (genIdUseDef_id_uses_value v1 id)+++
+                              (genIdUseDef_id_uses_value v2 id)
   (* | insn_extractelement id typ0 value0 c1 =>  *)
-  (*   (genInsnUseDef_value value0 i b f m) *)
+  (*   (genIdUseDef_id_uses_value value0 id) *)
   (* | insn_insertelement id typ0 value0 typ1 v1 c2 =>  *)
-  (*   (genInsnUseDef_value value0 i b f m)+++(genInsnUseDef_value v1 i b f m) *)
-  | insn_extractvalue id typ0 value0 _ => (genInsnUseDef_value value0 i b f m)
+  (*   (genIdUseDef_od_uses_value value0 id)+++(genIdUseDef_id_uses_value v1 id) *)
+  | insn_extractvalue id typ0 value0 _ => (genIdUseDef_id_uses_value value0 id)
   | insn_insertvalue id typs v0 typ1 v1 c2 => 
-    (genInsnUseDef_value v0 i b f m)+++(genInsnUseDef_value v1 i b f m)
+    (genIdUseDef_cmd_uses_value v0 i)+++(genIdUseDef_id_uses_value v1 id)
   | insn_malloc id typ _ _ => fun _ => nil
-  | insn_free typ v => genInsnUseDef_value v i b f m 
+  | insn_free id typ v => genIdUseDef_id_uses_value v id
   | insn_alloca id typ _ _ => fun _ => nil
-  | insn_load id typ1 v1 => genInsnUseDef_value v1 i b f m 
-  | insn_store typ1 v1 v2 => (genInsnUseDef_value v1 i b f m)+++(genInsnUseDef_value v2 i b f m)
-  | insn_gep id _ typ0 value0 _ => (genInsnUseDef_value value0 i b f m)
-  (* | insn_trunc id typ1 v1 typ2 => (genInsnUseDef_value v1 i b f m)			 *)
-  | insn_ext id _ sz1 v1 sz2 => (genInsnUseDef_value v1 i b f m)			 
-  (* | insn_fptrunc id typ1 v1 typ2 => (genInsnUseDef_value v1 i b f m)			 *)
-  (* | insn_fptoui id typ1 v1 typ2 => (genInsnUseDef_value v1 i b f m)			 *)
-  (* | insn_fptosi id typ1 v1 typ2 => (genInsnUseDef_value v1 i b f m)			 *)
-  (* | insn_uitofp id typ1 v1 typ2 => (genInsnUseDef_value v1 i b f m)			 *)
-  (* | insn_sitofp id typ1 v1 typ2 => (genInsnUseDef_value v1 i b f m)			 *)
-  | insn_cast id _ typ1 v1 typ2 => (genInsnUseDef_value v1 i b f m)			 
-  | insn_icmp id cond typ v1 v2 => (genInsnUseDef_value v1 i b f m)+++(genInsnUseDef_value v2 i b f m)
-  (* | insn_fcmp id cond typ v1 v2 => (genInsnUseDef_value v1 i b f m)+++(genInsnUseDef_value v2 i b f m)  *)
-  | insn_phi id typ idls => fun _ => nil
-  | insn_select id v0 typ v1 v2 => 
-    (genInsnUseDef_value v0 i b f m)+++(genInsnUseDef_value v1 i b f m)+++(genInsnUseDef_value v2 i b f m)
-  | insn_call opt_id _ typ id0 paraml => (genInsnUseDef_id id0 i b f m)+++(genInsnUseDef_params paraml i b f m)
+  | insn_load id typ1 v1 => genIdUseDef_id_uses_value v1 id
+  | insn_store id typ1 v1 v2 => (genIdUseDef_id_uses_value v1 id)+++
+                               (genIdUseDef_id_uses_value v2 id)
+  | insn_gep id _ typ0 value0 _ => (genIdUseDef_id_uses_value value0 id)
+  (* | insn_trunc id typ1 v1 typ2 => (genIdUseDef_id_uses_value v1 id)			 *)
+  | insn_ext id _ sz1 v1 sz2 => (genIdUseDef_id_uses_value v1 id)			 
+  (* | insn_fptrunc id typ1 v1 typ2 => (genIdUseDef_id_uses_value v1 id)          	 *)
+  (* | insn_fptoui id typ1 v1 typ2 => (genIdUseDef_id_uses_value v1 id)			 *)
+  (* | insn_fptosi id typ1 v1 typ2 => (genIdUseDef_id_uses_value v1 id)			 *)
+  (* | insn_uitofp id typ1 v1 typ2 => (genIdUseDef_id_uses_value v1 id)			 *)
+  (* | insn_sitofp id typ1 v1 typ2 => (genIdUseDef_id_uses_value v1 id)			 *)
+  | insn_cast id _ typ1 v1 typ2 => (genIdUseDef_id_uses_value v1 id)			 
+  | insn_icmp id cond typ v1 v2 => (genIdUseDef_id_uses_value v1 id)+++
+                                   (genIdUseDef_id_uses_value v2 id)
+  (* | insn_fcmp id cond typ v1 v2 => (genIdUseDef_id_uses_value v1 id)+++(genIdUseDef_id_uses_value v2 id)  *)
+  | insn_select id v0 typ v1 v2 => (genIdUseDef_id_uses_value v0 id)+++
+                                   (genIdUseDef_id_uses_value v1 id)+++
+                                   (genIdUseDef_id_uses_value v2 id)
+  | insn_call id _ _ typ id0 paraml => (genIdUseDef_id_uses_id id0 id)+++
+                                       (genIdUseDef_id_uses_params paraml id)
   end.
  
-  Fixpoint genInsnUseDef_insns (is:list_insn) (b:block) (f:fdef) (m:module) : usedef_insn :=
+  Definition genIdUseDef_terminator (i:terminator) : usedef_id :=
+  match i with
+  | insn_return id t v => genIdUseDef_id_uses_value v id
+  | insn_return_void  _ => fun _ => nil
+  | insn_br id v l1 l2 => genIdUseDef_id_uses_value v id
+  | insn_br_uncond _ l => fun _ => nil
+  (* | insn_switch id t v l _ => genIdUseDef_id_uses_value v id *)
+  (* | insn_invoke id typ id0 paraml l1 l2 => (genIdUseDef_id_uses_id id0 id)+++ *)
+  (*                                          (genIdUseDef_id_uses_params paraml id) *)
+  | insn_unreachable _ => fun _ => nil
+  end.
+
+  Fixpoint genIdUseDef_id_uses_idls (idls:id_labels) (id0:id) : usedef_id :=
+  match idls with
+  | nil => fun _ => nil
+  | (id1, _)::idls' => (genIdUseDef_id_uses_id id1 id0)+++
+                       (genIdUseDef_id_uses_idls idls' id0)
+  end.
+
+  Definition genIdUseDef_phinode (i:phinode) : usedef_id :=
+  match i with
+  | insn_phi id typ idls => genIdUseDef_id_uses_idls idls id
+  end.
+
+  Fixpoint genIdUseDef_cmds (is:list_cmd) : usedef_id :=
   match is with
   | nil => fun _ => nil
-  | i::is' => (genInsnUseDef_insn i b f m)+++(genInsnUseDef_insns is' b f m)
+  | i::is' => (genIdUseDef_cmd i)+++(genIdUseDef_cmds is')
   end.  
 
-  Definition genInsnUseDef_block (b:block) (f:fdef) (m:module) : usedef_insn :=
+  Fixpoint genIdUseDef_phinodes (is:list_phinode) : usedef_id :=
+  match is with
+  | nil => fun _ => nil
+  | i::is' => (genIdUseDef_phinode i)+++(genIdUseDef_phinodes is')
+  end.  
+
+  Definition genIdUseDef_block (b:block) : usedef_id :=
   match b with
-  | block_intro l is => genInsnUseDef_insns is b f m
+  | block_intro l ps cs t => (genIdUseDef_phinodes ps)+++
+                             (genIdUseDef_cmds cs)+++
+                             (genIdUseDef_terminator t)
   end.  
 
-  Fixpoint genInsnUseDef_blocks (bs:list_block) (f:fdef) (m:module) : usedef_insn :=
+  Fixpoint genIdUseDef_blocks (bs:list_block) : usedef_id :=
   match bs with 
   | nil => fun _ => nil
-  | b::bs' => (genInsnUseDef_blocks bs' f m)+++(genInsnUseDef_block b f m)
+  | b::bs' => (genIdUseDef_blocks bs')+++(genIdUseDef_block b)
   end.
 
-  Definition genInsnUseDef_fdef (f:fdef) (m:module) : usedef_insn := 
+  Definition genIdUseDef_fdef (f:fdef) : usedef_id := 
   match f with
-  | fdef_intro fheader blocks => genInsnUseDef_blocks blocks f m 
+  | fdef_intro fheader blocks => genIdUseDef_blocks blocks 
   end.
 
-  Fixpoint genInsnUseDef_product (p:product) (m: module) : usedef_insn :=
+  Definition genIdUseDef_product (p:product) : usedef_id :=
   match p with 
-  | product_gvar g => fun _ => nil
-  | product_fdef f => (genInsnUseDef_fdef f m)
+  | product_gvar (gvar_intro id t v a) => genIdUseDef_id_uses_value v id
+  | product_fdef f => (genIdUseDef_fdef f)
   | product_fdec f => fun _ => nil
   (* | product_namedtype nt => fun _ => nil *)
   end.
 
-  Fixpoint genInsnUseDef_products (ps:list_product) (m:module) : usedef_insn :=
+  Fixpoint genIdUseDef_products (ps:list_product) : usedef_id :=
   match ps with
   | nil => fun _ => nil
-  | p::ps' => (genInsnUseDef_products ps' m) +++ (genInsnUseDef_product p m) 
+  | p::ps' => (genIdUseDef_products ps') +++ (genIdUseDef_product p) 
   end.
 
-  Definition genInsnUseDef (m: module) : usedef_insn :=
+  Definition genIdUseDef (m: module) : usedef_id :=
   let (os, ps) := m in 
-  genInsnUseDef_products ps m.
+  genIdUseDef_products ps.
 
-  Definition getInsnUseDef (udi:usedef_insn) (i:insn) : list_insn :=
+  Definition getIdUseDef (udi:usedef_id) (i:id) : list id :=
   udi i. 
 
   (* generate block use-def *)
 
   Definition getBlockLabel (b:block) : l :=
   match b with
-  | block_intro l b => l
+  | block_intro l _ _ _ => l
   end.
 
-  Definition genBlockUseDef_label (l0:l) (i:insn) (b:block) (f:fdef) (m:module) : usedef_block :=
-  fun b' => 
-  match lt_eq_lt_dec (getBlockLabel b') l0 with 
-  | inleft (right _) => b::nil
-  | _ => nil
-  end.
+  Definition genBlockUseDef_label (l0:l) (b:block) : usedef_block :=
+  fun b' => if beq_nat (getBlockLabel b') l0 then b::nil else nil.
 
-  Fixpoint genBlockUseDef_switch_cases (cs:list (const * l)) (i:insn) (b:block) (f:fdef) (m:module) : usedef_block :=
+  Fixpoint genBlockUseDef_switch_cases (cs:list (const * l)) (b:block) : usedef_block :=
   match cs with
   | nil => fun _ => nil
-  | (_, l0)::cs' => (genBlockUseDef_label l0 i b f m)++++(genBlockUseDef_switch_cases cs' i b f m)
+  | (_, l0)::cs' => (genBlockUseDef_label l0 b)++++(genBlockUseDef_switch_cases cs' b)
   end.
 
-  Fixpoint genBlockUseDef_phi_cases (ps:list (id * l)) (i:insn) (b:block) (f:fdef) (m:module) : usedef_block :=
+  Fixpoint genBlockUseDef_phi_cases (ps:list (id * l)) (b:block) : usedef_block :=
   match ps with
   | nil => fun _ => nil
-  | (_, l0)::ps' => (genBlockUseDef_label l0 i b f m)++++(genBlockUseDef_phi_cases ps' i b f m)
+  | (_, l0)::ps' => (genBlockUseDef_label l0 b)++++(genBlockUseDef_phi_cases ps' b)
   end.
 
-  Definition genBlockUseDef_insn (i:insn) (b:block) (f:fdef) (m:module) : usedef_block :=
+  Definition genBlockUseDef_cmd (i:cmd) (b:block) : usedef_block :=
   match i with
-  | insn_return t v => fun _ => nil
-  | insn_return_void  => fun _ => nil
-  | insn_br v l1 l2 => genBlockUseDef_label l1 i b f m ++++ genBlockUseDef_label l2 i b f m       
-  | insn_br_uncond l => genBlockUseDef_label l i b f m
-  (* | insn_switch t v l ls => genBlockUseDef_label l i b f m ++++ genBlockUseDef_switch_cases ls i b f m *)
-  (* | insn_invoke id typ id0 paraml l1 l2 => (genBlockUseDef_label l1 i b f m)++++(genBlockUseDef_label l2 i b f m) *)
-  | insn_unreachable => fun _ => nil 
   | insn_bop id _ sz v1 v2 => fun _ => nil 
   (* | insn_extractelement id typ0 v0 c1 => fun _ => nil *)
   (* | insn_insertelement id typ0 v0 typ1 v1 c2 => fun _ => nil *)
   | insn_extractvalue id typ0 v0 c1 => fun _ => nil 
   | insn_insertvalue id typ0 v0 typ1 v1 c2 => fun _ => nil 
   | insn_malloc id typ _ _ => fun _ => nil 
-  | insn_free typ _ => fun _ => nil 
+  | insn_free _ typ _ => fun _ => nil 
   | insn_alloca id typ _ _ => fun _ => nil 
   | insn_load id typ1 v1 => fun _ => nil 
-  | insn_store typ1 v1 v2 => fun _ => nil 
+  | insn_store _ typ1 v1 v2 => fun _ => nil 
   | insn_gep id _ typ0 v0 c1 => fun _ => nil 
   (* | insn_trunc id typ1 v1 typ2 => fun _ => nil *)
   | insn_ext id _ sz1 v1 sz2 => fun _ => nil
   | insn_cast id _ typ1 v1 typ2 => fun _ => nil 
   | insn_icmp id cond typ v1 v2 => fun _ => nil
   (* | insn_fcmp id cond typ v1 v2 => fun _ => nil *)
-  | insn_phi id typ idls => genBlockUseDef_phi_cases idls i b f m
   | insn_select id v0 t v1 v2 => fun _ => nil
-  | insn_call oid _ typ id0 paraml => fun _ => nil 
+  | insn_call _ _ _ typ id0 paraml => fun _ => nil 
   end.
  
-  Fixpoint genBlockUseDef_insns (is:list_insn) (b:block) (f:fdef) (m:module) : usedef_block :=
+  Definition genBlockUseDef_terminator (i:terminator) (b:block) : usedef_block :=
+  match i with
+  | insn_return _ t v => fun _ => nil
+  | insn_return_void _ => fun _ => nil
+  | insn_br _ v l1 l2 => genBlockUseDef_label l1 b ++++ genBlockUseDef_label l2 b
+  | insn_br_uncond _ l => genBlockUseDef_label l b
+  (* | insn_switch _ t v l ls => genBlockUseDef_label l b ++++ genBlockUseDef_switch_cases ls b*)
+  (* | insn_invoke id typ id0 paraml l1 l2 => (genBlockUseDef_label l1 b)++++(genBlockUseDef_label l2 b) *)
+  | insn_unreachable _ => fun _ => nil 
+  end.
+
+  Definition genBlockUseDef_phinode (i:phinode) (b:block) : usedef_block :=
+  match i with
+  | insn_phi id typ idls => genBlockUseDef_phi_cases idls b
+  end.
+
+  Fixpoint genBlockUseDef_cmds (is:list_cmd) (b:block) : usedef_block :=
   match is with
   | nil => fun _ => nil
-  | i::is' => (genBlockUseDef_insn i b f m)++++(genBlockUseDef_insns is' b f m)
+  | i::is' => (genBlockUseDef_cmd i b)++++(genBlockUseDef_cmds is' b)
   end.  
 
-  Definition genBlockUseDef_block (b:block) (f:fdef) (m:module) : usedef_block :=
+  Fixpoint genBlockUseDef_phinodes (is:list_phinode) (b:block) : usedef_block :=
+  match is with
+  | nil => fun _ => nil
+  | i::is' => (genBlockUseDef_phinode i b)++++(genBlockUseDef_phinodes is' b)
+  end.  
+
+  Definition genBlockUseDef_block (b:block) : usedef_block :=
   match b with
-  | block_intro l is => genBlockUseDef_insns is b f m
+  | block_intro l ps cs t => genBlockUseDef_phinodes ps b++++
+                             genBlockUseDef_cmds cs b++++
+                             genBlockUseDef_terminator t b
   end.  
 
-  Fixpoint genBlockUseDef_blocks (bs:list_block) (f:fdef) (m:module) : usedef_block :=
+  Fixpoint genBlockUseDef_blocks (bs:list_block) : usedef_block :=
   match bs with 
   | nil => fun _ => nil
-  | b::bs' => (genBlockUseDef_blocks bs' f m)++++(genBlockUseDef_block b f m)
+  | b::bs' => (genBlockUseDef_blocks bs')++++(genBlockUseDef_block b)
   end.
 
-  Definition genBlockUseDef_fdef (f:fdef) (m:module) : usedef_block := 
+  Definition genBlockUseDef_fdef (f:fdef) : usedef_block := 
   match f with
-  | fdef_intro fheader blocks => genBlockUseDef_blocks blocks f m 
+  | fdef_intro fheader blocks => genBlockUseDef_blocks blocks
   end.
 
-  Fixpoint genBlockUseDef_product (p:product) (m: module) : usedef_block :=
+  Fixpoint genBlockUseDef_product (p:product) : usedef_block :=
   match p with 
   | product_gvar g => fun _ => nil
-  | product_fdef f => (genBlockUseDef_fdef f m)
+  | product_fdef f => (genBlockUseDef_fdef f)
   | product_fdec f => fun _ => nil
   (* | product_namedtype nt => fun _ => nil *)
   end.
 
-  Fixpoint genBlockUseDef_products (ps:list_product) (m:module) : usedef_block :=
+  Fixpoint genBlockUseDef_products (ps:list_product) : usedef_block :=
   match ps with
   | nil => fun _ => nil
-  | p::ps' => (genBlockUseDef_products ps' m) ++++ (genBlockUseDef_product p m) 
+  | p::ps' => (genBlockUseDef_products ps') ++++ (genBlockUseDef_product p) 
   end.
 
   Definition genBlockUseDef (m: module) : usedef_block :=
   let (os, ps) := m in 
-  genBlockUseDef_products ps m.
+  genBlockUseDef_products ps.
 
-  Definition getBlockUseDef (udb:usedef_block) (b:block) : list_block :=
+  Definition getBlockUseDef (udb:usedef_block) (b:block) : list block :=
   udb b. 
 
 (**********************************)
 (* CFG. *)
 
-  Definition getTerminator (b:block) : option insn := 
+  Definition getTerminator (b:block) : terminator := 
   match b with
-  | block_intro l is => last_opt insn is
+  | block_intro l _ _ t => t
   end. 
 
   Fixpoint getLabelsFromSwitchCases (cs:list (const*l)) : ls :=
@@ -403,11 +1254,11 @@ Require Import Omega.
   | (_, l0)::cs' => lset_add l0 (getLabelsFromSwitchCases cs')
   end.
 
-  Definition getLabelsFromTerminator (i:insn) : ls := 
+  Definition getLabelsFromTerminator (i:terminator) : ls := 
   match i with
-  | insn_br v l1 l2 => lset_add l1 (lset_add l2 lempty_set)
-  | insn_br_uncond l0 => lset_add l0 lempty_set 
-  (* | insn_switch t v l0 cls => lset_add l0 (getLabelsFromSwitchCases cls) *)
+  | insn_br _ v l1 l2 => lset_add l1 (lset_add l2 lempty_set)
+  | insn_br_uncond _ l0 => lset_add l0 lempty_set 
+  (* | insn_switch _ t v l0 cls => lset_add l0 (getLabelsFromSwitchCases cls) *)
   (* | insn_invoke id typ id0 ps l1 l2 => lset_add l1 (lset_add l2 lempty_set) *)
   | _ => empty_set l
   end.
@@ -424,18 +1275,11 @@ Require Import Omega.
 
   Definition succOfBlock (b:block) (m:module) : list_block :=
   match (getTerminator b) with
-  | None => nil
-  | Some i => getBlocksFromLabels (getLabelsFromTerminator i) (genLabel2Block m)
+  | i => getBlocksFromLabels (getLabelsFromTerminator i) (genLabel2Block m)
   end.
   
-  Fixpoint predOfBlock_rec (ls:list block) : list_block :=
-  match ls with
-  | nil => nil
-  | b::ls' => b::predOfBlock_rec ls'
-  end.
-
   Definition predOfBlock (b:block) (udb:usedef_block) : list_block :=
-  predOfBlock_rec (udb b).
+  udb b.
 
   Definition hasSinglePredecessor (b:block) (udb:usedef_block) : bool :=
   match (eq_nat_dec (length (predOfBlock b udb)) 1) with
@@ -451,12 +1295,12 @@ Require Import Omega.
   Fixpoint inputFromPred (bs:list_block) (output:dt) : ls :=
   match bs with
   | nil => lempty_set
-  | (block_intro l0 _)::bs' => lset_union (output l0) (inputFromPred bs' output)
+  | (block_intro l0 _ _ _)::bs' => lset_union (output l0) (inputFromPred bs' output)
   end.
 
   Definition outputFromInput (b:block) (input:ls) : ls :=
   match b with
-  | block_intro l0 _ => lset_add l0 input
+  | block_intro l0 _ _ _=> lset_add l0 input
   end.
 
   Definition update_dt (d1:dt) (l0:l) (ls0:ls) : dt :=
@@ -472,8 +1316,8 @@ Require Import Omega.
   Fixpoint genDominatorTree_blocks_innerloop (bs:list_block) (udb:usedef_block) (output:dt) : dt :=
   match bs with 
   | nil => output
-  | (block_intro l is)::bs' => 
-    match (outputFromInput (block_intro l is) (inputFromPred (predOfBlock (block_intro l is) udb) output)) with 
+  | (block_intro l ps cs t)::bs' => 
+    match (outputFromInput (block_intro l ps cs t) (inputFromPred (predOfBlock (block_intro l ps cs t) udb) output)) with 
     | ls' => genDominatorTree_blocks_innerloop bs' udb (update_dt output l ls') 
     end
 (*  | (block_without_label is)::bs' => 
@@ -486,7 +1330,7 @@ Require Import Omega.
   Fixpoint eq_dt (d0 d1:dt) (bs:list_block) : bool :=
   match bs with
   | nil => true
-  | (block_intro l0 _)::bs' =>
+  | (block_intro l0 _ _ _)::bs' =>
     match (lset_eq (d0 l0) (d1 l0)) with
     | true => eq_dt d0 d1 bs'
     | false => false
@@ -497,7 +1341,7 @@ Require Import Omega.
   Fixpoint sizeOfDT (bs:list_block) (output:dt) : nat :=
   match bs with
   | nil => 0
-  | (block_intro l0 _)::bs' => length (output l0) + sizeOfDT bs' output
+  | (block_intro l0 _ _ _)::bs' => length (output l0) + sizeOfDT bs' output
 (*  | _::bs'=> sizeOfDT bs' output *)
   end.
 
@@ -523,7 +1367,7 @@ Require Import Omega.
   Fixpoint initialize_genDominatorTree_blocks (bs:list_block) (U:ls) (d0:dt) : dt :=
   match bs with
   | nil => d0
-  | (block_intro l0 _)::bs' => initialize_genDominatorTree_blocks bs' U (update_dt d0 l0 U)
+  | (block_intro l0 _ _ _)::bs' => initialize_genDominatorTree_blocks bs' U (update_dt d0 l0 U)
 (*  | _::bs' => initialize_genDominatorTree_blocks bs' U d0 *)
   end.
 
@@ -532,7 +1376,7 @@ Require Import Omega.
   Definition initialize_genDominatorTree_entry (f:fdef) : dt :=
   match (getEntryOfFdef f) with
   | None => genEmptyDT
-  | Some (block_intro l0 _) => update_dt genEmptyDT l0 (lset_single l0)
+  | Some (block_intro l0 _ _ _) => update_dt genEmptyDT l0 (lset_single l0)
 (*  | Some  _ => genEmptyDT *)
   end.
 
@@ -547,11 +1391,11 @@ Require Import Omega.
 
   Definition blockDominates (d:dt) (b1 b2: block) : Prop :=
   match b1 with
-  | block_intro l1 _ =>
+  | block_intro l1 _ _ _=>
     match (d l1) with
     | ls1 => 
       match b2 with
-      | block_intro l2 _ => 
+      | block_intro l2 _ _ _=> 
         match (lset_mem l2 ls1) with
         | true => True
         | false => False
@@ -564,11 +1408,11 @@ Require Import Omega.
 
   Definition blockDominatesB (d:dt) (b1 b2: block) : bool :=
   match b1 with
-  | block_intro l1 _ =>
+  | block_intro l1 _ _ _=>
     match (d l1) with
     | ls1 => 
       match b2 with
-      | block_intro l2 _ => 
+      | block_intro l2 _ _ _ => 
         match (lset_mem l2 ls1) with
         | true => true
         | false => false
@@ -579,24 +1423,21 @@ Require Import Omega.
 (*  | _ => false *)
   end.
 
-  Definition insnDominates (i1 i2:insn) : Prop :=
-  match (getInsnID i1, getInsnID i2) with
-  | (Some id1, Some id2) =>
-    match (le_lt_dec id1 id2) with
-    | left _ => (*id1 <= id2*) True
-    | right _ => (*id2 < id2*) False
-    end
-  | _ => False
+  Definition idDominates (id1 id2:id) : Prop :=
+  match (le_lt_dec id1 id2) with
+  | left _ => (*id1 <= id2*) True
+  | right _ => (*id2 < id2*) False
   end.
 
-  Definition insnDominatesB (i1 i2:insn) : bool :=
+  Definition idDominatesB (id1 id2:id) : bool :=
+  match (le_lt_dec id1 id2) with
+  | left _ => (*id1 <= id2*) true
+  | right _ => (*id2 < id2*) false
+  end.
+
+  Definition insnDominates (i1 i2:insn) : Prop :=
   match (getInsnID i1, getInsnID i2) with
-  | (Some id1, Some id2) =>
-    match (le_lt_dec id1 id2) with
-    | left _ => (*id1 <= id2*) true
-    | right _ => (*id2 < id2*) false
-    end
-  | _ => false
+  | (id1, id2) => idDominates id1 id2
   end.
 
   Definition isReachableFromEntry (fi:fdef_info) (b:block) : Prop :=
@@ -636,16 +1477,22 @@ match i with
 end.
 *)
 
-Definition isReturnInsnB (i:insn) : bool :=
+Definition isReturnInsnB (i:terminator) : bool :=
 match i with
-| insn_return _ _ => true
-| insn_return_void => true
+| insn_return _ _ _ => true
+| insn_return_void _ => true
+| _ => false
+end.
+
+Definition _isCallInsnB (i:cmd) : bool :=
+match i with
+| insn_call _ _ _ _ _ _ => true
 | _ => false
 end.
 
 Definition isCallInsnB (i:insn) : bool :=
 match i with
-| insn_call _ _ _ _ _ => true
+| insn_cmd c => _isCallInsnB c
 | _ => false
 end.
 
@@ -688,27 +1535,15 @@ end.
 Definition isValidElementTypB (t:typ) : bool :=
 negb (isNotValidElementTypB t).
 
-Definition isPhiNodeB (i:insn) : bool :=
-match i with
-| insn_phi _ _ _ => true
-| _ => false
-end.
-
-Definition isTerminatorInsnB (i:insn) : bool :=
-match i with
-| insn_return _ _ => true
-(* | insn_return_void => true *)
-| insn_br _ _ _ => true
-| insn_br_uncond _ => true
-(* | insn_switch _ _ _ => true *)
-(* | insn_invoke _ _ _ _ _ _ => true *)
-| insn_unreachable => true
-| _ => false
-end.
-
 Definition isBindingFdecB (ib:id_binding) : bool :=
 match ib with
 | id_binding_fdec fdec => true
+| _ => false
+end.
+
+Definition isBindingGvarB (ib:id_binding) : bool :=
+match ib with
+| id_binding_gvar _ => true
 | _ => false
 end.
 
@@ -718,592 +1553,106 @@ match ib with
 | _ => false
 end.
 
+Definition isBindingCmdB (ib:id_binding) : bool :=
+match ib with
+| id_binding_cmd _ => true
+| _ => false
+end.
+
+Definition isBindingTerminatorB (ib:id_binding) : bool :=
+match ib with
+| id_binding_terminator _ => true
+| _ => false
+end.
+
+Definition isBindingPhiNodeB (ib:id_binding) : bool :=
+match ib with
+| id_binding_phinode _ => true
+| _ => false
+end.
+
 Definition isBindingInsnB (ib:id_binding) : bool :=
-match ib with
-| id_binding_insn _ => true
-| _ => false
-end.
+isBindingCmdB ib || isBindingTerminatorB ib || isBindingPhiNodeB ib.
 
-(**********************************)
-(* Inversion. *)
+(*************************************************)
+(*         Uniq                                  *)
 
-(** Statically idx for struct must be int, and idx for arr can be
-    anything without checking bounds. *)
-Fixpoint getSubTypFromConstIdxs (idxs : list const) (t : typ) : option typ :=
-match idxs with
-| nil => Some t 
-| idx::idxs' => 
-  match t with
-  | typ_array sz t' => getSubTypFromConstIdxs idxs' t'
-  | typ_struct lt => 
-    match idx with
-    | (const_int sz i) =>
-      match (nth_error lt i) with
-      | Some t' => getSubTypFromConstIdxs idxs' t'
-      | None => None
-      end
-    | _ => None
-    end
-  | _ => None
-  end
-end.
-
-Fixpoint getSubTypFromValueIdxs (idxs : list value) (t : typ) : option typ :=
-match idxs with
-| nil => Some t 
-| idx::idxs' => 
-  match t with
-  | typ_array sz t' => getSubTypFromValueIdxs idxs' t'
-  | typ_struct lt => 
-    match idx with
-    | value_const (const_int sz i) =>
-      match (nth_error lt i) with
-      | Some t' => getSubTypFromValueIdxs idxs' t'
-      | None => None
-      end
-    | _ => None
-    end
-  | _ => None
-  end
-end.
-
-Definition getGEPTyp (idxs : list value) (t : typ) : option typ :=
-match idxs with
-| nil => None
-| (idx::idxs') =>
-     (* The input t is already an element of a pointer typ *)
-     match (getSubTypFromValueIdxs idxs' t) with
-     | Some t' => Some (typ_pointer t')
-     | _ => None
-     end
-end.
-
-Definition getLoadTyp (t:typ) : option typ :=
-match t with
-| typ_pointer t' => Some t'
-| _ => None
-end.
-
-Definition getInsnTypC (i:insn) : option typ :=
-match i with
-| insn_return typ _ => Some typ
-| insn_return_void => Some typ_void
-| insn_br _ _ _ => None 
-| insn_br_uncond _ => None
-(* | insn_switch typ _ _ _ => None *)
-(* | insn_invoke _ typ _ _ _ _ => Some typ *)
-| insn_unreachable => None
-| insn_bop _ _ sz _ _ => Some (typ_int sz)
-(*
-| insn_extractelement _ typ _ _ => getElementTyp typ
-| insn_insertelement _ typ _ _ _ _ => typ *)
-| insn_extractvalue _ typ _ idxs => getSubTypFromConstIdxs idxs typ
-| insn_insertvalue _ typ _ _ _ _ => Some typ
-| insn_malloc _ typ _ _ => Some (typ_pointer typ)
-| insn_free typ _ => None
-| insn_alloca _ typ _ _ => Some (typ_pointer typ)
-| insn_load _ typ _ => getLoadTyp typ
-| insn_store _ _ _ => None
-| insn_gep _ _ typ _ idxs => getGEPTyp idxs typ
-(* | insn_trunc _ _ _ typ => Some typ *)
-| insn_ext _ _ _ _ typ2 => Some typ2
-| insn_cast _ _ _ _ typ => Some typ
-| insn_icmp _ _ _ _ _ => Some (typ_int 1)
-(* | insn_fcmp _ _ _ _ _ => Some (typ_int 1) *)
-| insn_phi _ typ _ => Some typ
-| insn_select _ _ typ _ _ => Some typ
-| insn_call _ _ typ _ _ => Some typ
-end.
-
-Definition getPointerEltTypC (t:typ) : option typ :=
-match t with
-| typ_pointer t' => Some t' 
-| _ => None
-end.
-
-Definition getValueIDsC (v:value) : ids :=
-match (getValueID v) with
-| None => nil
-| Some id => id::nil
-end.
-
-Fixpoint getParamsOperandC (lp:list_param) : ids :=
-match lp with
+Fixpoint getCmdsIDs (cs:list cmd) : ids :=
+match cs with
 | nil => nil
-| (t, v)::lp' => (getValueIDsC v) ++ (getParamsOperandC lp')
+| c::cs' => getCmdID c::getCmdsIDs cs'
 end.
 
-Fixpoint list_prj1 (X Y:Type) (ls : list (X*Y)) : list X :=
-match ls with
+Fixpoint getPhiNodesIDs (ps:list phinode) : ids :=
+match ps with
 | nil => nil
-| (x, y)::ls' => x::list_prj1 X Y ls'
+| p::ps' => getPhiNodeID p::getPhiNodesIDs ps'
 end.
 
-Fixpoint list_prj2 (X Y:Type) (ls : list (X*Y)) : list Y :=
-match ls with
+Definition getBlockIDs b : ids :=
+match b with
+| block_intro l ps cs t =>
+  getPhiNodesIDs ps++getCmdsIDs cs++(getTerminatorID t::nil)
+end.
+
+Fixpoint getBlocksIDs bs : ids :=
+match bs with
 | nil => nil
-| (x, y)::ls' => y::list_prj2 X Y ls'
+| b::bs' => getBlockIDs b++getBlocksIDs bs'
 end.
 
-Definition getInsnOperandsC (i:insn) : ids :=
-match i with
-| insn_return _ v => getValueIDsC v
-| insn_return_void => nil
-| insn_br v _ _ => getValueIDsC v
-| insn_br_uncond _ => nil
-(* | insn_switch _ value _ _ => getValueIDs value *)
-(* | insn_invoke _ _ _ lp _ _ => getParamsOperandC lp *)
-| insn_unreachable => nil
-| insn_bop _ _ _ v1 v2 => getValueIDsC v1 ++ getValueIDsC v2
-(* | insn_extractelement _ _ v _ => getValueIDsC v
-| insn_insertelement _ _ v1 _ v2 _ => getValueIDsC v1 ++ getValueIDsC v2
-*)
-| insn_extractvalue _ _ v _ => getValueIDsC v
-| insn_insertvalue _ _ v1 _ v2 _ => getValueIDsC v1 ++ getValueIDsC v2
-| insn_malloc _ _ _ _ => nil
-| insn_free _ v => getValueIDsC v
-| insn_alloca _ _ _ _ => nil
-| insn_load _ _ v => getValueIDsC v
-| insn_store _ v1 v2 => getValueIDsC v1 ++ getValueIDsC v2
-| insn_gep _ _ _ v  _ => getValueIDsC v
-(* | insn_trunc _ _ v _ => getValueIDsC v *)
-| insn_ext _ _ _ v1 typ2 => getValueIDsC v1
-| insn_cast _ _ _ v _ => getValueIDsC v
-| insn_icmp _ _ _ v1 v2 => getValueIDsC v1 ++ getValueIDsC v2
-(* | insn_fcmp _ _ _ v1 v2 => getValueIDsC v1 ++ getValueIDsC v2 *)
-| insn_phi _ _ ls => list_prj1 _ _ ls
-| insn_select _ v0 _ v1 v2 => getValueIDsC v0 ++ getValueIDsC v1 ++ getValueIDsC v2
-| insn_call _ _ _ _ lp => getParamsOperandC lp
-end.
-
-Definition getInsnLabelsC (i:insn) : ls :=
-match i with
-| insn_return _ _ => nil
-| insn_return_void => nil
-| insn_br _ l1 l2 => l1::l2::nil
-| insn_br_uncond l => l::nil
-(* | insn_switch _ _ l ls => l::list_prj2 _ _ ls *)
-(* | insn_invoke _ _ _ _ l1 l2 => l1::l2::nil *)
-| insn_unreachable => nil
-| insn_bop _ _ _ _ _ => nil
-(* | insn_extractelement _ _ _ _ => nil
-| insn_insertelement _ _ _ _ _ _ => nil
-*)
-| insn_extractvalue _ _ _ _ => nil
-| insn_insertvalue _ _ _ _ _ _ => nil
-| insn_malloc _ _ _ _ => nil
-| insn_free _ _ => nil
-| insn_alloca _ _ _ _ => nil
-| insn_load _ _ _ => nil
-| insn_store _ _ _ => nil
-| insn_gep _ _ _ v  _ => nil
-(* | insn_trunc _ _ _ _ => nil *)
-| insn_ext _ _ _ _ _ => nil
-| insn_cast _ _ _ _ _ => nil
-| insn_icmp _ _ _ _ _ => nil
-(* | insn_fcmp _ _ _ _ _ => nil *)
-| insn_phi _ _ ls => list_prj2 _ _ ls
-| insn_select _ _ _ _ _ => nil
-| insn_call _ _ _ _ _ => nil
-end.
-
-Fixpoint args2TypsC (la:list_arg) : list_typ :=
-match la with
+Fixpoint getBlocksLabels bs : ls :=
+match bs with
 | nil => nil
-| (t, id)::la' => t::args2TypsC la'
+| (block_intro l _ _ _)::bs' => l::getBlocksLabels bs'
 end.
 
-Definition getFheaderTypC (fh:fheader) : typ :=
-match fh with
-| fheader_intro t _ la => typ_function t (args2TypsC la)
-end.
+Definition uniqBlocks bs : Prop :=
+let ls := getBlocksLabels bs in
+let ids := getBlocksIDs bs in
+NoDup ls /\ NoDup ids.
 
-Definition getFdecTypC (fdec:fdec) : typ :=
-match fdec with
-| fdec_intro fheader => getFheaderTypC fheader
-end.
 
-Definition getFdefTypC (fdef:fdef) : typ :=
+Definition uniqFdef fdef : Prop :=
 match fdef with
-| fdef_intro fheader _ => getFheaderTypC fheader
+| (fdef_intro _ bs) => uniqBlocks bs
 end.
 
-Definition getBindingTypC (ib:id_binding) : option typ :=
-match ib with
-| id_binding_insn i => getInsnTypC i
-| id_binding_gvar (gvar_intro _ t _ _) => Some (typ_pointer t)
-| id_binding_arg (t, id) => Some t
-| id_binding_fdec fdec => Some (getFdecTypC fdec)
-| id_binding_none => None
+Definition getProductID product : id :=
+match product with
+| product_gvar g => getGvarID g
+| product_fdec f => getFdecID f
+| product_fdef f => getFdefID f
 end.
 
-Definition getInsnsFromBlockC (b:block) : list_insn :=
-match b with
-| block_intro l li => li
-(* | block_without_label li => li *)
+Fixpoint getProductsIDs ps : ids :=
+match ps with
+| nil => nil
+| p::ps' => getProductID p::getProductsIDs ps'
+end.
+   
+Definition uniqProduct product : Prop :=
+match product with
+| product_gvar g => True
+| product_fdec f => True
+| product_fdef f => uniqFdef f
 end.
 
-Definition getBindingFdecC (ib:id_binding) : option fdec :=
-match ib with
-| id_binding_fdec fdec => Some fdec
-| _ => None
+Definition uniqProducts ps : Prop :=
+NoDup (getProductsIDs ps).
+
+Definition uniqModule m : Prop :=
+match m with
+| module_intro _ ps => uniqProducts ps
 end.
 
-Definition getBindingArgC (ib:id_binding) : option arg :=
-match ib with
-| id_binding_arg arg => Some arg
-| _ => None
+Fixpoint uniqModules ms : Prop :=
+match ms with
+| nil => True
+| m::ms' => uniqModule m /\ uniqModules ms'
 end.
 
-(*
-Definition getBindingGC (ib:id_binding) : option g :=
-match ib with
-| id_binding_g g => Some g
-| _ => None
-end.
-*)
-
-Definition getBindingInsnC (ib:id_binding) : option insn :=
-match ib with
-| id_binding_insn i => Some i
-| _ => None
-end.
-
-Definition getFheaderIDC (fh:fheader) : id :=
-match fh with
-| fheader_intro _ id _ => id
-end.
-
-Definition getFdecIDC (fd:fdec) : id :=
-match fd with
-| fdec_intro fh => getFheaderIDC fh
-end.
-
-Definition getFdefIDC (fd:fdef) : id :=
-match fd with
-| fdef_intro fh _ => getFheaderIDC fh
-end.
-
-(*
-Definition getNormalDestFromInvokeInsnC (i:insn) : option l :=
-match i with
-| insn_invoke _ _ _ _ l1 _ => Some l1
-| _ => None
-end.
-
-Definition getUnwindDestFromInvokeInsnC (i:insn) : option l :=
-match i with
-| insn_invoke _ _ _ _ _ l2 => Some l2
-| _ => None
-end.
-*)
-
-Fixpoint getLabelViaIDFromList (ls:list (id*l)) (branch:id) : option l :=
-match ls with
-| nil => None
-| (id, l)::ls' => 
-  match (eq_nat_dec id branch) with
-  | left _ => Some l
-  | right _ => getLabelViaIDFromList ls' branch
-  end
-end.
-
-Definition getLabelViaIDFromPhiNode (phi:insn) (branch:id) : option l :=
-match phi with
-| insn_phi _ _ ls => getLabelViaIDFromList ls branch
-| _ => None
-end.
-
-Fixpoint getLabelsFromIdls (idls:list (id*l)) : ls :=
-match idls with
-| nil => lempty_set
-| (_, l)::idls' => lset_add l (getLabelsFromIdls idls')
-end.
-
-Definition getLabelsFromPhiNodeC (phi:insn) : ls :=
-match phi with
-| insn_phi _ _ ls => getLabelsFromIdls ls
-| _ => lempty_set
-end.
-
-(**********************************)
-(* Lookup. *)
-
-(* ID binding lookup *)
-
-Definition lookupBindingViaIDFromInsnC (i:insn) (id:id) : id_binding :=
-match (getInsnID i) with
-| None => id_binding_none
-| Some id' =>
-  match (eq_nat_dec id id') with
-  | left _ => id_binding_insn i
-  | right _ => id_binding_none
-  end
-end.
-
-Fixpoint lookupBindingViaIDFromInsnsC (li:list_insn) (id:id) : id_binding :=
-match li with
-| nil => id_binding_none
-| i::li' =>
-  match (lookupBindingViaIDFromInsnC i id) with
-  | id_binding_insn _ => id_binding_insn i
-  | _ => lookupBindingViaIDFromInsnsC li' id
-  end
-end.
-
-Definition lookupBindingViaIDFromBlockC (b:block) (id:id) : id_binding :=
-let list_insn := getInsnsFromBlockC b in
-lookupBindingViaIDFromInsnsC list_insn id.
-
-Fixpoint lookupBindingViaIDFromBlocksC (lb:list_block) (id:id) : id_binding :=
-match lb with
-| nil => id_binding_none
-| b::lb' => 
-  match (lookupBindingViaIDFromBlockC b id) with
-  | id_binding_insn i => id_binding_insn i
-  | _ => lookupBindingViaIDFromBlocksC lb' id
-  end
-end.
-
-Definition lookupBindingViaIDFromArgC (a:arg) (id:id) : id_binding :=
-let (t, id') := a in
-match (eq_nat_dec id id') with
-| left _ => id_binding_arg a
-| right _ => id_binding_none
-end.
-
-Fixpoint lookupBindingViaIDFromArgsC (la:list_arg) (id:id) : id_binding :=
-match la with 
-| nil => id_binding_none
-| a::la' => 
-  match (lookupBindingViaIDFromArgC a id) with
-  | id_binding_arg a' => id_binding_arg a'
-  | _ => lookupBindingViaIDFromArgsC la' id
-  end
-end.
-
-Definition lookupBindingViaIDFromFdecC (fd:fdec) (id:id) : id_binding :=
-let '(fdec_intro (fheader_intro t id' la)) := fd in
-match (eq_nat_dec id id') with
-| left _ => id_binding_fdec fd
-| right _ => lookupBindingViaIDFromArgsC la id
-end.
-
-Definition lookupBindingViaIDFromFdefC (fd:fdef) (id:id) : id_binding :=
-let '(fdef_intro fh lb) := fd in
-lookupBindingViaIDFromBlocksC lb id.
-
-Definition lookupBindingViaIDFromProductC (p:product) (id:id) : id_binding :=
-match p with
-| product_gvar (gvar_intro id' t c a) =>
-  match (eq_nat_dec id id') with
-  | left _ => id_binding_gvar (gvar_intro id' t c a)
-  | right _ => id_binding_none
-  end
-| product_fdec fdec => lookupBindingViaIDFromFdecC fdec id
-(* | product_namedt _ => id_binding_none *)
-| product_fdef fdef => lookupBindingViaIDFromFdefC fdef id
-end.  
-
-Fixpoint lookupBindingViaIDFromProductsC (lp:list_product) (id:id) : id_binding :=
-match lp with
-| nil => id_binding_none
-| p::lp' => 
-  match (lookupBindingViaIDFromProductC p id) with
-  | id_binding_insn i => id_binding_insn i
-  | id_binding_fdec f => id_binding_fdec f
-  (* | id_binding_global g => id_binding_global g *)
-  | _ => lookupBindingViaIDFromProductsC lp' id
-  end
-end.
-  
-Definition lookupBindingViaIDFromModuleC (m:module) (id:id) : id_binding :=
-  let (os, ps) := m in 
-  lookupBindingViaIDFromProductsC ps id.
-
-Fixpoint lookupBindingViaIDFromModulesC (lm:list_module) (id:id) : id_binding :=
-match lm with
-| nil => id_binding_none
-| m::lm' =>
-  match (lookupBindingViaIDFromModuleC m id) with
-  | id_binding_insn i => id_binding_insn i
-  | id_binding_fdec f => id_binding_fdec f
-  (* | id_binding_global g => id_binding_global g *)
-  | _ => lookupBindingViaIDFromModulesC lm' id
-  end
-end.
-
-Definition lookupBindingViaIDFromSystemC (s:system) (id:id) : id_binding :=
-lookupBindingViaIDFromModulesC s id.
-
-(* Block lookup from ID *)
-
-Definition isIDInBlockB (id:id) (b:block) : bool :=
-match (lookupBindingViaIDFromBlockC b id) with
-| id_binding_insn i => true
-| _ => false
-end.
-
-Fixpoint lookupBlockViaIDFromBlocksC (lb:list_block) (id:id) : option block :=
-match lb with
-| nil => None  
-| b::lb' => 
-  match (isIDInBlockB id b) with
-  | true => Some b
-  | false => lookupBlockViaIDFromBlocksC lb' id
-  end
-end.
-
-Definition lookupBlockViaIDFromFdefC (fd:fdef) (id:id) : option block :=
-match fd with
-| fdef_intro fh lb => lookupBlockViaIDFromBlocksC lb id
-end.
-
-(* Fun lookup from ID *)
-
-Definition lookupFdecViaIDFromProductC (p:product) (i:id) : option fdec :=
-match p with
-| (product_fdec fd) => if beq_nat (getFdecIDC fd) i then Some fd else None
-| _ => None
-end.
-
-Fixpoint lookupFdecViaIDFromProductsC (lp:list_product) (i:id) : option fdec :=
-match lp with
-| nil => None
-| p::lp' => 
-  match (lookupFdecViaIDFromProductC p i) with
-  | Some fd => Some fd
-  | None => lookupFdecViaIDFromProductsC lp' i
-  end
-end.
-
-Definition lookupFdecViaIDFromModuleC (m:module) (i:id) : option fdec :=
-  let (os, ps) := m in 
-  lookupFdecViaIDFromProductsC ps i.
-
-Fixpoint lookupFdecViaIDFromModulesC (lm:list_module) (i:id) : option fdec :=
-match lm with
-| nil => None
-| m::lm' => 
-  match (lookupFdecViaIDFromModuleC m i) with
-  | Some fd => Some fd
-  | None => lookupFdecViaIDFromModulesC lm' i
-  end
-end.
-
-Definition lookupFdecViaIDFromSystemC (s:system) (i:id) : option fdec :=
-lookupFdecViaIDFromModulesC s i.
-
-Definition lookupFdefViaIDFromProductC (p:product) (i:id) : option fdef :=
-match p with
-| (product_fdef fd) => if beq_nat (getFdefIDC fd) i then Some fd else None
-| _ => None
-end.
-
-Fixpoint lookupFdefViaIDFromProductsC (lp:list_product) (i:id) : option fdef :=
-match lp with
-| nil => None
-| p::lp' => 
-  match (lookupFdefViaIDFromProductC p i) with
-  | Some fd => Some fd
-  | None => lookupFdefViaIDFromProductsC lp' i
-  end
-end.
-
-Definition lookupFdefViaIDFromModuleC (m:module) (i:id) : option fdef :=
-  let (os, ps) := m in 
-  lookupFdefViaIDFromProductsC ps i.
-
-Fixpoint lookupFdefViaIDFromModulesC (lm:list_module) (i:id) : option fdef :=
-match lm with
-| nil => None
-| m::lm' => 
-  match (lookupFdefViaIDFromModuleC m i) with
-  | Some fd => Some fd
-  | None => lookupFdefViaIDFromModulesC lm' i
-  end
-end.
-
-Definition lookupFdefViaIDFromSystemC (s:system) (i:id) : option fdef :=
-lookupFdefViaIDFromModulesC s i.
-
-(*     ID type lookup                                    *)
-
-Definition lookupTypViaIDFromInsnC (i:insn) (id0:id) : option typ :=
-match (getInsnTypC i) with
-| None => None
-| Some t => 
-  match (getInsnID i) with
-  | None => None
-  | Some id0' => 
-    if (beq_nat id0 id0') 
-    then Some t
-    else None
-  end
-end.
-
-Fixpoint lookupTypViaIDFromInsnsC (li:list_insn) (id0:id) : option typ :=
-match li with
-| nil => None
-| i::li' =>
-  match (lookupTypViaIDFromInsnC i id0) with
-  | Some t => Some t
-  | None => lookupTypViaIDFromInsnsC li' id0
-  end
-end.
-    
-Definition lookupTypViaIDFromBlockC (b:block) (id0:id) : option typ :=
-match b with
-| (block_intro _ li) => lookupTypViaIDFromInsnsC li id0
-end.
-
-Fixpoint lookupTypViaIDFromBlocksC (lb:list_block) (id0:id) : option typ :=
-match lb with
-| nil => None
-| b::lb' =>
-  match (lookupTypViaIDFromBlockC b id0) with
-  | Some t => Some t
-  | None => lookupTypViaIDFromBlocksC lb' id0
-  end
-end.
-
-Definition lookupTypViaIDFromFdefC (fd:fdef) (id0:id) : option typ :=
-match fd with
-| (fdef_intro _ lb) => lookupTypViaIDFromBlocksC lb id0
-end.
-
-Definition lookupTypViaIDFromProductC (p:product) (id0:id) : option typ :=
-match p with
-| (product_fdef fd) => lookupTypViaIDFromFdefC fd id0
-| _ => None
-end.
-
-Fixpoint lookupTypViaIDFromProductsC (lp:list_product) (id0:id) : option typ :=
-match lp with
-| nil => None
-| p::lp' =>
-  match (lookupTypViaIDFromProductC p id0) with
-  | Some t => Some t
-  | None => lookupTypViaIDFromProductsC lp' id0
-  end
-end.
-
-Definition lookupTypViaIDFromModuleC (m:module) (id0:id) : option typ :=
-  let (os, ps) := m in 
- lookupTypViaIDFromProductsC ps id0.
-     
-Fixpoint lookupTypViaIDFromModulesC (lm:list_module) (id0:id) : option typ :=
-match lm with
-| nil => None
-| m::lm' =>
-  match (lookupTypViaIDFromModuleC m id0) with
-  | Some t => Some t
-  | None => lookupTypViaIDFromModulesC lm' id0
-  end
-end.
-
-Definition lookupTypViaIDFromSystemC (s:system) (id0:id) : option typ :=
-lookupTypViaIDFromModulesC s id0.
+Definition uniqSystem s : Prop := uniqModules s.
 
 (**********************************)
 (* Eq. *)
@@ -1805,27 +2154,8 @@ match (c, c') with
 | _ => false
 end.
 
-Definition insnEqB (i i':insn) : bool :=
+Definition cmdEqB (i i':cmd) : bool :=
 match (i, i') with
-| (insn_return t v, insn_return t' v') =>
-  typEqB t t' && valueEqB v v'
-| (insn_return_void, insn_return_void) => true 
-| (insn_br v l1 l2, insn_br v' l1' l2') =>
-  valueEqB v v' &&
-  beq_nat l1 l1' && beq_nat l2 l2'
-| (insn_br_uncond l, insn_br_uncond l') =>
-  beq_nat l l'
-(*
-| (insn_invoke id typ id0 paraml l1 l2,
-   insn_invoke id' typ' id0' paraml' l1' l2') =>
-  beq_nat id id' &&
-  typEqB typ typ' &&
-  beq_nat id0 id0' &&
-  list_param_EqB paraml paraml' &&
-  beq_nat l1 l1' &&
-  beq_nat l2 l2'
-*)
-| (insn_unreachable, insn_unreachable) => true
 | (insn_bop id op sz v1 v2,
    insn_bop id' op' sz' v1' v2') =>
   beq_nat id id' &&
@@ -1851,7 +2181,8 @@ match (i, i') with
   typEqB typ typ' &&
   beq_nat sz sz' &&
   beq_nat align align' 
-| (insn_free typ v, insn_free typ' v') =>
+| (insn_free id typ v, insn_free id' typ' v') =>
+  beq_nat id id' &&
   typEqB typ typ' &&
   valueEqB v v'
 | (insn_alloca id typ sz align, insn_alloca id' typ' sz' align') =>
@@ -1863,7 +2194,8 @@ match (i, i') with
   beq_nat id id' &&
   typEqB typ typ' &&
   valueEqB v v'
-| (insn_store typ0 v0 v1, insn_store typ0' v0' v1') =>
+| (insn_store id typ0 v0 v1, insn_store id' typ0' v0' v1') =>
+  beq_nat id id' &&
   typEqB typ0 typ0' &&
   valueEqB v0 v0' &&
   valueEqB v1 v1'
@@ -1894,11 +2226,6 @@ match (i, i') with
   typEqB typ typ' &&
   valueEqB v1 v1' &&
   valueEqB v2 v2'
-| (insn_phi id typ idls,
-   insn_phi id' typ' idls') =>
-  beq_nat id id' &&
-  typEqB typ typ' &&
-  id_labels_EqB idls idls'
 | (insn_select id v0 typ v1 v2,
    insn_select id' v0' typ' v1' v2') =>
   beq_nat id id' &&
@@ -1906,18 +2233,51 @@ match (i, i') with
   typEqB typ typ' &&
   valueEqB v1 v1' &&
   valueEqB v2 v2'
-| (insn_call oid tail typ id0 paraml,
-   insn_call oid' tail' typ' id0' paraml') =>
-  match (oid, oid') with 
-  | (Some id, Some id') => beq_nat id id'
-  | (None, None) => true
-  | _ => false
-  end &&
+| (insn_call id r tail typ id0 paraml,
+   insn_call id' r' tail' typ' id0' paraml') =>
+  beq_nat id id' &&
+  eqb r r' &&
   eqb tail tail' &&
   typEqB typ typ' &&
   beq_nat id0 id0' &&
   list_param_EqB paraml paraml'
 | (_, _) => false
+end.
+
+Definition terminatorEqB (i i':terminator) : bool :=
+match (i, i') with
+| (insn_return id t v, insn_return id' t' v') =>
+  beq_nat id id' && typEqB t t' && valueEqB v v'
+| (insn_return_void id, insn_return_void id') => beq_nat id id'
+| (insn_br id v l1 l2, insn_br id' v' l1' l2') =>
+  beq_nat id id' && 
+  valueEqB v v' &&
+  beq_nat l1 l1' && beq_nat l2 l2'
+| (insn_br_uncond id l, insn_br_uncond id' l') =>
+  beq_nat id id' && 
+  beq_nat l l'
+(*
+| (insn_invoke id typ id0 paraml l1 l2,
+   insn_invoke id' typ' id0' paraml' l1' l2') =>
+  beq_nat id id' &&
+  typEqB typ typ' &&
+  beq_nat id0 id0' &&
+  list_param_EqB paraml paraml' &&
+  beq_nat l1 l1' &&
+  beq_nat l2 l2'
+*)
+| (insn_unreachable id, insn_unreachable id') =>
+  beq_nat id id'
+| (_, _) => false
+end.
+
+Definition phinodeEqB (i i':phinode) : bool :=
+match (i, i') with
+| (insn_phi id typ idls,
+   insn_phi id' typ' idls') =>
+  beq_nat id id' &&
+  typEqB typ typ' &&
+  id_labels_EqB idls idls'
 end.
 
 Definition blockEqB (b1 b2:block) : bool :=
@@ -2038,15 +2398,31 @@ Definition systemEqB (s s':system) := modulesEqB s s'.
 (**********************************)
 (* Inclusion. *)
 
-Fixpoint InInsnsB (i:insn) (li:list_insn) {struct li} : bool :=
+Fixpoint InCmdsB (i:cmd) (li:list_cmd) {struct li} : bool :=
 match li with
 | nil => false
-| i' :: li' => insnEqB i i' || InInsnsB i li'
+| i' :: li' => cmdEqB i i' || InCmdsB i li'
 end.
 
-Definition insnInBlockB (i:insn) (b:block) : bool :=
+Fixpoint InPhiNodesB (i:phinode) (li:list_phinode) {struct li} : bool :=
+match li with
+| nil => false
+| i' :: li' => phinodeEqB i i' || InPhiNodesB i li'
+end.
+
+Definition cmdInBlockB (i:cmd) (b:block) : bool :=
 match b with
-| block_intro l insns => InInsnsB i insns
+| block_intro l _ cmds _ => InCmdsB i cmds
+end.
+
+Definition phinodeInBlockB (i:phinode) (b:block) : bool :=
+match b with
+| block_intro l ps _ _ => InPhiNodesB i ps
+end.
+
+Definition terminatorInBlockB (i:terminator) (b:block) : bool :=
+match b with
+| block_intro l _ _ t => terminatorEqB i t
 end.
 
 Fixpoint InArgsB (a:arg) (la:list_arg) {struct la} : bool :=
@@ -2116,91 +2492,236 @@ match fi with
   blockInFdefB b fd && productInSystemModuleB (product_fdef fd) s mi
 end.
 
+Definition cmdInSystemModuleFdefBlockB 
+  (i:cmd) (s:system) (mi:module_info) (fi:fdef_info) (b:block) : bool :=
+cmdInBlockB i b && blockInSystemModuleFdefB b s mi fi.
+
+Definition phinodeInSystemModuleFdefBlockB 
+  (i:phinode) (s:system) (mi:module_info) (fi:fdef_info) (b:block) : bool :=
+phinodeInBlockB i b && blockInSystemModuleFdefB b s mi fi.
+
+Definition terminatorInSystemModuleFdefBlockB 
+  (i:terminator) (s:system) (mi:module_info) (fi:fdef_info) (b:block) : bool :=
+terminatorInBlockB i b && blockInSystemModuleFdefB b s mi fi.
+
 Definition insnInSystemModuleFdefBlockB 
   (i:insn) (s:system) (mi:module_info) (fi:fdef_info) (b:block) : bool :=
-insnInBlockB i b && blockInSystemModuleFdefB b s mi fi.
+match i with
+| insn_phinode p => phinodeInSystemModuleFdefBlockB p s mi fi b
+| insn_cmd c => cmdInSystemModuleFdefBlockB c s mi fi b
+| insn_terminator t => terminatorInSystemModuleFdefBlockB t s mi fi b
+end.
 
 (**********************************)
 (* parent *)
 
-(* matching (insnInBlockB i b) in getParentOfInsnFromBlocksC directly makes
+(* matching (cmdInBlockB i b) in getParentOfCmdFromBlocksC directly makes
    the compilation very slow, so we define this dec lemma first... *)
-Lemma insnInBlockB_dec : forall i b,
-  {insnInBlockB i b = true} + {insnInBlockB i b = false}.
+Lemma cmdInBlockB_dec : forall i b,
+  {cmdInBlockB i b = true} + {cmdInBlockB i b = false}.
 Proof.
-  intros i0 b. destruct (insnInBlockB i0 b); auto.
+  intros i0 b. destruct (cmdInBlockB i0 b); auto.
 Qed.
 
-Fixpoint getParentOfInsnFromBlocksC (i:insn) (lb:list_block) {struct lb} : option block :=
+Lemma phinodeInBlockB_dec : forall i b,
+  {phinodeInBlockB i b = true} + {phinodeInBlockB i b = false}.
+Proof.
+  intros i0 b. destruct (phinodeInBlockB i0 b); auto.
+Qed.
+
+Lemma terminatorInBlockB_dec : forall i b,
+  {terminatorInBlockB i b = true} + {terminatorInBlockB i b = false}.
+Proof.
+  intros i0 b. destruct (terminatorInBlockB i0 b); auto.
+Qed.
+
+Fixpoint getParentOfCmdFromBlocks (i:cmd) (lb:list_block) {struct lb} : option block :=
 match lb with
 | nil => None
 | b::lb' => 
-  match (insnInBlockB_dec i b) with
+  match (cmdInBlockB_dec i b) with
   | left _ => Some b
-  | right _ => getParentOfInsnFromBlocksC i lb'
+  | right _ => getParentOfCmdFromBlocks i lb'
   end
 end.
 
-Definition getParentOfInsnFromFdefC (i:insn) (fd:fdef) : option block :=
+Definition getParentOfCmdFromFdef (i:cmd) (fd:fdef) : option block :=
 match fd with
-| (fdef_intro _ lb) => getParentOfInsnFromBlocksC i lb
+| (fdef_intro _ lb) => getParentOfCmdFromBlocks i lb
 end.
 
-Definition getParentOfInsnFromProductC (i:insn) (p:product) : option block :=
+Definition getParentOfCmdFromProduct (i:cmd) (p:product) : option block :=
 match p with
-| (product_fdef fd) => getParentOfInsnFromFdefC i fd
+| (product_fdef fd) => getParentOfCmdFromFdef i fd
 | _ => None
 end.
 
-Fixpoint getParentOfInsnFromProductsC (i:insn) (lp:list_product) {struct lp} : option block :=
+Fixpoint getParentOfCmdFromProducts (i:cmd) (lp:list_product) {struct lp} : option block :=
 match lp with
 | nil => None
 | p::lp' =>
-  match (getParentOfInsnFromProductC i p) with
+  match (getParentOfCmdFromProduct i p) with
   | Some b => Some b
-  | None => getParentOfInsnFromProductsC i lp'
+  | None => getParentOfCmdFromProducts i lp'
   end
 end.
 
-Definition getParentOfInsnFromModuleC (i:insn) (m:module) : option block := 
+Definition getParentOfCmdFromModule (i:cmd) (m:module) : option block := 
   let (os, ps) := m in
-  getParentOfInsnFromProductsC i ps.
+  getParentOfCmdFromProducts i ps.
 
-Fixpoint getParentOfInsnFromModulesC (i:insn) (lm:list_module) {struct lm} : option block :=
+Fixpoint getParentOfCmdFromModules (i:cmd) (lm:list_module) {struct lm} : option block :=
 match lm with
 | nil => None
 | m::lm' =>
-  match (getParentOfInsnFromModuleC i m) with
+  match (getParentOfCmdFromModule i m) with
   | Some b => Some b
-  | None => getParentOfInsnFromModulesC i lm'
+  | None => getParentOfCmdFromModules i lm'
   end
 end.
 
-Definition getParentOfInsnFromSystemC (i:insn) (s:system) : option block := 
-  getParentOfInsnFromModulesC i s.
+Definition getParentOfCmdFromSystem (i:cmd) (s:system) : option block := 
+  getParentOfCmdFromModules i s.
 
-Definition insnHasParent (i:insn) (s:system) : bool :=
-match (getParentOfInsnFromSystemC i s) with
+Definition cmdHasParent (i:cmd) (s:system) : bool :=
+match (getParentOfCmdFromSystem i s) with
 | Some _ => true
 | None => false
 end.
 
-Fixpoint getParentOfFdefFromModulesC (fd:fdef) (lm:list_module) {struct lm} : option module :=
+Fixpoint getParentOfPhiNodeFromBlocks (i:phinode) (lb:list_block) {struct lb} : option block :=
+match lb with
+| nil => None
+| b::lb' => 
+  match (phinodeInBlockB_dec i b) with
+  | left _ => Some b
+  | right _ => getParentOfPhiNodeFromBlocks i lb'
+  end
+end.
+
+Definition getParentOfPhiNodeFromFdef (i:phinode) (fd:fdef) : option block :=
+match fd with
+| (fdef_intro _ lb) => getParentOfPhiNodeFromBlocks i lb
+end.
+
+Definition getParentOfPhiNodeFromProduct (i:phinode) (p:product) : option block :=
+match p with
+| (product_fdef fd) => getParentOfPhiNodeFromFdef i fd
+| _ => None
+end.
+
+Fixpoint getParentOfPhiNodeFromProducts (i:phinode) (lp:list_product) {struct lp} : option block :=
+match lp with
+| nil => None
+| p::lp' =>
+  match (getParentOfPhiNodeFromProduct i p) with
+  | Some b => Some b
+  | None => getParentOfPhiNodeFromProducts i lp'
+  end
+end.
+
+Definition getParentOfPhiNodeFromModule (i:phinode) (m:module) : option block := 
+  let (os, ps) := m in
+  getParentOfPhiNodeFromProducts i ps.
+
+Fixpoint getParentOfPhiNodeFromModules (i:phinode) (lm:list_module) {struct lm} : option block :=
+match lm with
+| nil => None
+| m::lm' =>
+  match (getParentOfPhiNodeFromModule i m) with
+  | Some b => Some b
+  | None => getParentOfPhiNodeFromModules i lm'
+  end
+end.
+
+Definition getParentOfPhiNodeFromSystem (i:phinode) (s:system) : option block := 
+  getParentOfPhiNodeFromModules i s.
+
+Definition phinodeHasParent (i:phinode) (s:system) : bool :=
+match (getParentOfPhiNodeFromSystem i s) with
+| Some _ => true
+| None => false
+end.
+
+Fixpoint getParentOfTerminatorFromBlocks (i:terminator) (lb:list_block) {struct lb} : option block :=
+match lb with
+| nil => None
+| b::lb' => 
+  match (terminatorInBlockB_dec i b) with
+  | left _ => Some b
+  | right _ => getParentOfTerminatorFromBlocks i lb'
+  end
+end.
+
+Definition getParentOfTerminatorFromFdef (i:terminator) (fd:fdef) : option block :=
+match fd with
+| (fdef_intro _ lb) => getParentOfTerminatorFromBlocks i lb
+end.
+
+Definition getParentOfTerminatorFromProduct (i:terminator) (p:product) : option block :=
+match p with
+| (product_fdef fd) => getParentOfTerminatorFromFdef i fd
+| _ => None
+end.
+
+Fixpoint getParentOfTerminatorFromProducts (i:terminator) (lp:list_product) {struct lp} : option block :=
+match lp with
+| nil => None
+| p::lp' =>
+  match (getParentOfTerminatorFromProduct i p) with
+  | Some b => Some b
+  | None => getParentOfTerminatorFromProducts i lp'
+  end
+end.
+
+Definition getParentOfTerminatorFromModule (i:terminator) (m:module) : option block := 
+  let (os, ps) := m in
+  getParentOfTerminatorFromProducts i ps.
+
+Fixpoint getParentOfTerminatorFromModules (i:terminator) (lm:list_module) {struct lm} : option block :=
+match lm with
+| nil => None
+| m::lm' =>
+  match (getParentOfTerminatorFromModule i m) with
+  | Some b => Some b
+  | None => getParentOfTerminatorFromModules i lm'
+  end
+end.
+
+Definition getParentOfTerminatorFromSystem (i:terminator) (s:system) : option block := 
+  getParentOfTerminatorFromModules i s.
+
+Definition terminatoreHasParent (i:terminator) (s:system) : bool :=
+match (getParentOfTerminatorFromSystem i s) with
+| Some _ => true
+| None => false
+end.
+
+Lemma productInModuleB_dec : forall b m,
+  {productInModuleB b m = true} + {productInModuleB b m = false}.
+Proof.
+  intros b m. destruct (productInModuleB b m); auto.
+Qed.
+
+Fixpoint getParentOfFdefFromModules (fd:fdef) (lm:list_module) {struct lm} : option module :=
 match lm with
 | nil => None
 | m::lm' => 
-  if (productInModuleB (product_fdef fd) m) 
-  then Some m
-  else getParentOfFdefFromModulesC fd lm'
+  match (productInModuleB_dec (product_fdef fd) m) with
+  | left _ => Some m
+  | right _ => getParentOfFdefFromModules fd lm'
+  end
 end.
 
-Definition getParentOfFdefFromSystemC (fd:fdef) (s:system) : option module := 
-  getParentOfFdefFromModulesC fd s.
+Definition getParentOfFdefFromSystem (fd:fdef) (s:system) : option module := 
+  getParentOfFdefFromModules fd s.
 
 Notation "t =t= t' " := (typEqB t t') (at level 50).
 Notation "n =n= n'" := (beq_nat n n') (at level 50).
 Notation "b =b= b'" := (blockEqB b b') (at level 50).
-Notation "i =i= i'" := (insnEqB i i') (at level 50).
+Notation "i =cmd= i'" := (cmdEqB i i') (at level 50).
+Notation "i =phi= i'" := (phinodeEqB i i') (at level 50).
+Notation "i =tmn= i'" := (terminatorEqB i i') (at level 50).
 
 (**********************************)
 (* Check to make sure that if there is more than one entry for a
@@ -2223,10 +2744,9 @@ match idls with
   (_checkIdenticalIncomingValues idls' idls0)
 end.
 
-Definition checkIdenticalIncomingValues (PN:insn) : Prop :=
+Definition checkIdenticalIncomingValues (PN:phinode) : Prop :=
 match PN with
 | insn_phi _ _ idls => _checkIdenticalIncomingValues idls idls
-| _ => False
 end.
 
 (**********************************)
@@ -2272,20 +2792,20 @@ Module Type SigInstruction.
  Include Type SigUser.
 
 (* Parameter isInvokeInst : insn -> bool. *)
- Parameter isCallInst : insn -> bool.
+ Parameter isCallInst : cmd -> bool.
 
 End SigInstruction.
 
 Module Type SigReturnInst.
  Include Type SigInstruction.
 
- Parameter hasReturnType : insn -> bool.
- Parameter getReturnType : insn -> option typ.
+ Parameter hasReturnType : terminator -> bool.
+ Parameter getReturnType : terminator -> option typ.
 
 End SigReturnInst.
 
 Module Type SigCallSite.
- Parameter getCalledFunction : insn -> system -> option fdef.
+ Parameter getCalledFunction : cmd -> system -> option fdef.
  Parameter getFdefTyp : fdef -> typ.
  Parameter arg_size : fdef -> nat.
  Parameter getArgument : fdef -> nat -> option arg.
@@ -2310,17 +2830,17 @@ End SigInvokeInst.
 Module Type SigBinaryOperator.
  Include Type SigInstruction.
 
- Parameter getFirstOperandType : system -> insn -> option typ.
- Parameter getSecondOperandType : system -> insn -> option typ.
- Parameter getResultType : insn -> option typ.
+ Parameter getFirstOperandType : system -> cmd -> option typ.
+ Parameter getSecondOperandType : system -> cmd -> option typ.
+ Parameter getResultType : cmd -> option typ.
 
 End SigBinaryOperator.
 
 Module Type SigPHINode.
  Include Type SigInstruction.
 
- Parameter getNumIncomingValues : insn -> option nat.
- Parameter getIncomingValueType : system  -> insn -> i -> option typ.
+ Parameter getNumIncomingValues : phinode -> nat.
+ Parameter getIncomingValueType : system  -> phinode -> i -> option typ.
 End SigPHINode.
 
 (* Type Signature *)
@@ -2368,7 +2888,7 @@ End SigArrayType.
 Module Value <: SigValue.
 
  Definition getNumOperands (i:insn) : nat := 
-   length (getInsnOperandsC i).  
+   length (getInsnOperands i).  
 
 End Value.
 
@@ -2407,7 +2927,7 @@ Module Function <: SigFunction.
  | fdef_intro (fheader_intro t _ _) _ => t
  end.
 
- Definition getDefFunctionType (fd:fdef) : typ := getFdefTypC fd.
+ Definition getDefFunctionType (fd:fdef) : typ := getFdefTyp fd.
 
  Definition def_arg_size (fd:fdef) : nat :=
  match fd with
@@ -2419,7 +2939,7 @@ Module Function <: SigFunction.
  | fdec_intro (fheader_intro t _ _) => t
  end.
 
- Definition getDecFunctionType (fd:fdec) : typ := getFdecTypC fd.
+ Definition getDecFunctionType (fd:fdec) : typ := getFdecTyp fd.
 
  Definition dec_arg_size (fd:fdec) : nat :=
  match fd with
@@ -2432,22 +2952,22 @@ Module Instruction <: SigInstruction.
  Include User.
 
 (* Definition isInvokeInst (i:insn) : bool := isInvokeInsnB i. *)
- Definition isCallInst (i:insn) : bool := isCallInsnB i.
+ Definition isCallInst (i:cmd) : bool := _isCallInsnB i.
 
 End Instruction.
 
 Module ReturnInst <: SigReturnInst.
  Include Instruction.
 
- Definition hasReturnType (i:insn) : bool :=
+ Definition hasReturnType (i:terminator) : bool :=
  match i with
- | insn_return t v => true
+ | insn_return _ t v => true
  | _ => false
  end.
 
- Definition getReturnType (i:insn) : option typ :=
+ Definition getReturnType (i:terminator) : option typ :=
  match i with
- | insn_return t v => Some t
+ | insn_return _ t v => Some t
  | _ => None
  end.
 
@@ -2455,14 +2975,14 @@ End ReturnInst.
 
 Module CallSite <: SigCallSite.
 
- Definition getCalledFunction (i:insn) (s:system) : option fdef :=
+ Definition getCalledFunction (i:cmd) (s:system) : option fdef :=
  match i with 
  (* | insn_invoke _ _ fid _ _ _ => lookupFdefViaIDFromSystemC s fid *)
- | insn_call _ _ _ fid _ => lookupFdefViaIDFromSystemC s fid
+ | insn_call _ _ _ _ fid _ => lookupFdefViaIDFromSystem s fid
  | _ => None
  end.
 
- Definition getFdefTyp (fd:fdef) : typ := getFdefTypC fd.
+ Definition getFdefTyp (fd:fdef) : typ := getFdefTyp fd.
 
  Definition arg_size (fd:fdef) : nat :=
  match fd with
@@ -2507,47 +3027,45 @@ End InvokeInst.
 Module BinaryOperator <: SigBinaryOperator.
  Include Instruction.
 
- Definition getFirstOperandType (s:system) (i:insn) : option typ := 
+ Definition getFirstOperandType (s:system) (i:cmd) : option typ := 
  match i with
  | insn_bop _ _ _ v1 _ => 
    match v1 with
-   | value_id id1 => lookupTypViaIDFromSystemC s id1
+   | value_id id1 => lookupTypViaIDFromSystem s id1
    | value_const c => Some (Constant.getTyp c)
    end
  | _ => None
  end.
 
- Definition getSecondOperandType (s:system) (i:insn) : option typ := 
+ Definition getSecondOperandType (s:system) (i:cmd) : option typ := 
  match i with
  | insn_bop _ _ _ _ v2 => 
    match v2 with
-   | value_id id2 => lookupTypViaIDFromSystemC s id2
+   | value_id id2 => lookupTypViaIDFromSystem s id2
    | value_const c => Some (Constant.getTyp c)
    end
  | _ => None
  end.
 
- Definition getResultType (i:insn) : option typ := getInsnTypC i.
+ Definition getResultType (i:cmd) : option typ := getCmdTyp i.
 
 End BinaryOperator.
 
 Module PHINode <: SigPHINode.
  Include Instruction.
 
- Definition getNumIncomingValues (i:insn) : option nat :=
+ Definition getNumIncomingValues (i:phinode) : nat :=
  match i with
- | (insn_phi _ _ ln) => Some (length ln)
- | _ => None
+ | (insn_phi _ _ ln) => (length ln)
  end.
 
- Definition getIncomingValueType (s:system) (i:insn) (n:nat) : option typ :=
+ Definition getIncomingValueType (s:system) (i:phinode) (n:nat) : option typ :=
  match i with
  | (insn_phi _ _ ln) => 
     match (nth_error ln n) with
-    | Some (id, _) => lookupTypViaIDFromSystemC s id
+    | Some (id, _) => lookupTypViaIDFromSystem s id
     | None => None
     end
- | _ => None
  end.
 
 End PHINode.

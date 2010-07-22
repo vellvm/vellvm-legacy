@@ -193,29 +193,25 @@ tailc :: 'tailc_'					::=  			{{ com tailcall }} {{ coq bool }}
   | tailc_yes						::   :: yes		{{ com yes }} {{ coq true }}
   | tailc_no						::   :: no              {{ com no }} {{ coq false }}
 
-insn :: 'insn_'					    	::=			{{ com insnruction }}
-%% Terminator Instructions
-  | ret typ value             			    	::   :: return      	{{ com return }}
-  | ret void   						::   :: return_void  	{{ com return void }}
-  | br value l1 l2		 			::   :: br              {{ com br }}        
-  | br l        	    	  			::   :: br_uncond       {{ com unconditional br }}        
-  %| switch typ value , l </ [ constj , lj ] // j />	::   :: switch		{{ com switch }}
-  %| id = invoke typ0 id0 list_param to l1 unwind l2 	::   :: invoke		{{ com invoke }} 
-  | unreachable	     	   	     	 		::   :: unreachable	{{ com unreachable }}
+noret :: 'noret_'					::=  			{{ com noret }} {{ coq bool }}
+  | noret_yes						::   :: yes		{{ com yes }} {{ coq true }}
+  | noret_no						::   :: no              {{ com no }} {{ coq false }}
+
+cmd :: 'insn_'					    	::=			{{ com commands }}
 %% Binary Operations and Bitwise Binary Operations
   | id = bop ( int sz ) value1 value2			::   :: bop		{{ com bop }}
 %% Vector Operations
   %| id = extractelement typ0 value0 , const1		::   :: extractelement  {{ com extractelement }}
   %| id = insertelement typ0 value0 , typ1 value1 , const2	::   :: insertelement   {{ com insertelement }}
 %% Aggregate Operations
-  | id = extractvalue typ value </ constj // j />       	 ::   :: extractvalue	        {{ com extractvalue }}
+  | id = extractvalue typ value </ constj // j />       ::   :: extractvalue	        {{ com extractvalue }}
   | id = insertvalue typ value typ' value' </ constj // j /> ::   :: insertvalue	{{ com insertvalue }}
 %% Memory Access and Addressing Operations
   | id = malloc typ sz align  	         	     	::   :: malloc		{{ com malloc }}
-  | free ( typ * ) value     	       	     		::   :: free		{{ com free }}
+  | id = free ( typ * ) value     	       	     	::   :: free		{{ com free }}
   | id = alloca typ sz align     	       	     	::   :: alloca		{{ com alloca }}
   | id = load ( typ * ) value1				::   :: load		{{ com load }}
-  | store typ value1 value2				::   :: store		{{ com store }}
+  | id = store typ value1 value2			::   :: store		{{ com store }}
   | id = getelementptr inbounds ( typ * ) value </ valuej // j />    	      ::  :: gep        {{ com getelementptr }}
 %% Conversion Operations
   %| id = trunc typ1 value1 to typ2			::   :: trunc		{{ com trunc }}
@@ -224,10 +220,28 @@ insn :: 'insn_'					    	::=			{{ com insnruction }}
 %% Other Operations
   | id = icmp cond typ value1 value2			::   :: icmp		{{ com icmp }}
   %| id = fcmp cond typ value1 , value2			::   :: fcmp		{{ com fcmp }}
-  | id = phi typ </ [ idj , lj ] // j />		::   :: phi  	    	{{ com phi }}
   | id = select value0 typ value1 value2                ::   :: select          {{ com select }}
-  | opt_id = tailc call typ0 id0 list_param   	 	::   :: call		{{ com call }} 
+  | id = noret tailc call typ0 id0 list_param  	 	::   :: call		{{ com call }} 
   | ( insn )						:: S :: paren           {{ coq [[ insn ]] }}
+
+terminator :: 'insn_'					::=  			{{ com termniators }}
+  | id = ret typ value        			    	::   :: return      	{{ com return }}
+  | id = ret void   					::   :: return_void  	{{ com return void }}
+  | id = br value l1 l2		 			::   :: br              {{ com br }}        
+  | id = br l        	    	  			::   :: br_uncond       {{ com unconditional br }}        
+  %| id = switch typ value , l </ [ constj , lj ] // j />	::   :: switch		{{ com switch }}
+  %| id = invoke typ0 id0 list_param to l1 unwind l2 	::   :: invoke		{{ com invoke }} 
+  | id = unreachable   	   	     	 		::   :: unreachable	{{ com unreachable }}
+  | ( terminator )					:: S :: paren1          {{ coq [[ terminator ]] }}
+
+phinode :: 'insn_'					::=  			{{ com phinodes }}
+  | id = phi typ </ [ idj , lj ] // j />		::   :: phi  	    	{{ com def }}
+  | ( phinode )						:: S :: paren2          {{ coq [[ phinode ]] }}
+
+insn :: 'insn_'						::=  			{{ com instructions }}
+  | phinode						::   :: phinode         {{ com phinodes }}
+  | cmd							::   :: cmd		{{ com commands }}
+  | terminator						::   :: terminator	{{ com terminator }}
 
 id_labels :: 'id_labels_'				::=  			{{ com id labels }}
 	      									{{ coq list (id*l) }}
@@ -235,19 +249,29 @@ id_labels :: 'id_labels_'				::=  			{{ com id labels }}
   | id_labels , id l                                    ::   :: cons            {{ coq (([[id]],[[l]])::[[id_labels]]) }}
   | ( id_labels )                                       :: S :: paren           {{ coq [[ id_labels ]] }}
 
-opt_insn {{ tex \mathit{opt_{insn} } }} :: 'opt_insn_'  ::=			{{ com option insn }} {{ coq option insn }}
-  |  none 						:: M :: none		{{ com none }} {{ coq None }}
-  |  insn						:: M :: some  		{{ com some }} {{ coq (Some [[insn]]) }}
-		   
-list_insn {{ tex \mathit{\overline{insn} } }} :: 'list_insn_'	::=			{{ com insnruction list }}
+list_insn {{ tex \mathit{\overline{insn} } }} :: 'list_insn_'	::=		{{ com insn list }}
       	     			       	     					{{ coq (list insn) }}
   | []	                  				::   :: nil		{{ coq nil }}
   | list_insn , insn           				::   :: cons		{{ coq ([[insn]]::[[list_insn]]) }}
   | list_insn ; list_insn'				::   :: append		{{ coq ([[list_insn]]++[[list_insn']]) }}
-  | ( list_insn )					:: S :: paren           {{ coq [[ list_insn ]] }}
+  | ( list_insn )					:: S :: paren           {{ coq [[ list_insn]] }}
+
+list_cmd {{ tex \mathit{\overline{cmd} } }} :: 'list_cmd_'	::=		{{ com cmd list }}
+      	     			       	     					{{ coq (list cmd) }}
+  | []	                  				::   :: nil		{{ coq nil }}
+  | list_cmd , cmd           				::   :: cons		{{ coq ([[cmd]]::[[list_cmd]]) }}
+  | list_cmd ; list_cmd'				::   :: append		{{ coq ([[list_cmd]]++[[list_cmd']]) }}
+  | ( list_cmd )					:: S :: paren           {{ coq [[ list_cmd ]] }}
+
+list_phinode {{ tex \mathit{\overline{phinode} } }} :: 'list_phinode_'	::=	{{ com phinode list }}
+      	     			       	     					{{ coq (list phinode) }}
+  | []	                  				::   :: nil		{{ coq nil }}
+  | list_phinode , phinode     				::   :: cons		{{ coq ([[phinode]]::[[list_phinode]]) }}
+  | list_phinode ; list_phinode'			::   :: append		{{ coq ([[list_phinde]]++[[list_phinode']]) }}
+  | ( list_phinode )					:: S :: paren           {{ coq [[ list_phinode ]] }}
 
 block :: 'block_' 					::=			{{ com block }}
-  | l list_insn						::   :: intro
+  | l list_phinode list_cmd terminator			::   :: intro
   | ( block )						:: S :: paren           {{ coq [[ block ]] }}
 
 opt_block {{ tex \mathit{opt_{block} } }} :: 'opt_block_' ::=			{{ com option block }} {{ coq option block }}
@@ -294,7 +318,9 @@ gvar :: 'gvar_'   	 				::=			{{ com global variables }}
 
 id_binding :: 'id_binding_'  				::=			{{ com id binding }} 
   |  none 						::  :: none		{{ com none }} 
-  |  insn						::  :: insn  		{{ com insn }} 
+  |  cmd						::  :: cmd  		{{ com cmd }} 
+  |  phinode						::  :: phinode		{{ com phinode }}
+  |  terminator						::  :: terminator	{{ com terminator }}
   |  gvar						::  :: gvar             {{ com gvar }} 
   |  fdec						::  :: fdec		{{ com fdec }}
   |  arg 						::  :: arg		{{ com arg }}
@@ -332,16 +358,16 @@ system :: 'system_'					::=  			{{ com system }}
 dt :: 'dt_'						::=  			{{ com dominator }}
        										{{ coq (l -> list l) }}
 
-usedef_insn :: 'usedef_insn_'				::=			{{ com insn usedef }}
-       	  									{{ coq (insn -> (list insn)) }} 
+usedef_id :: 'usedef_id_'				::=			{{ com id usedef }}
+       	  									{{ coq (id -> (list id)) }} 
 
-usedef_block :: 'usedef_block_'				::=			{{ com block usedef }}
+usedef_block :: 'usedef_block_'				::=			{{ com label usedef }}
        	  									{{ coq (block -> (list block)) }} 
 
 module_info :: 'module_info_'				::=			{{ com module information }}
-	       									{{ coq (prod module (prod usedef_insn usedef_block)) }}		
-  | module , usedef_insn , usedef_block			::   ::	def		{{ com def }} 
-   	     		  				     			{{ coq ([[module]], ([[usedef_insn]], [[usedef_block]])) }}	
+	       									{{ coq (prod module (prod usedef_id usedef_block)) }}		
+  | module , usedef_id , usedef_block			::   ::	def		{{ com def }} 
+   	     		  				     			{{ coq ([[module]], ([[usedef_id]], [[usedef_block]])) }}	
   | ( module_info )					:: S :: paren           {{ coq [[ module_info ]] }}
 
 fdef_info :: 'fdef_info_'				::=  			{{ com fdef information }}
@@ -474,6 +500,9 @@ formula :: 'formula_' ::=
   | arg in list_arg		::   :: arg_in_args
     	       			{{ tex [[arg]] \in [[list_arg]] }}
 				{{ coq In [[arg]] [[list_arg]] }}
+  | noret = yes  		:: M :: noret_alias
+    	     			{{ com noret alias }} 
+				{{ coq [[noret]] = true }}
   | typ = typ'  		:: M :: typ_alias
     	     			{{ com typ alias }} 
 				{{ coq [[typ]] = [[typ']] }}
@@ -509,6 +538,9 @@ formula :: 'formula_' ::=
   | list_insn <-> </ insnj // j /> :: M :: insns_alias
     	      	   	        {{ com insns alias }}
 				{{ coq [[list_insn]] = [[ </ insnj // j /> ]] }}
+  | list_phi <-> </ phij // j /> :: M :: phis_alias
+    	      	   	        {{ com phis alias }}
+				{{ coq [[list_phi]] = [[ </ phij // j /> ]] }}
   | list_block <-> </ blockj // j /> :: M :: blocks_alias
     	      	   	        {{ com blocks alias }}
 				{{ coq [[list_block]] = [[ </ blockj // j /> ]] }}

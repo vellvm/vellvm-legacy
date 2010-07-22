@@ -1,7 +1,7 @@
 OTT=ott
 COQC=coqc
 
-all: main.pdf Makefile ssa_verifier.vo ssa_interpreter.vo ssa_all.v
+all: main.pdf Makefile ssa_verifier.vo ssa_interpreter.vo ssa_all.vo
 
 m_ssa_verifier.ott : ssa_verifier.ott ../spanlines.py Makefile
 	../spanlines.py ssa_verifier.ott
@@ -18,6 +18,8 @@ ssa_all.v: ../ssa_def.ott ../ssa_coq.ott ../ssa_lib.ott m_ssa_verifier.ott ssa_i
 	ott -merge true -coq_expand_list_types false \
             -i ../ssa_def.ott -i ../ssa_coq.ott -i ../ssa_lib.ott \
 	    -i m_ssa_verifier.ott -i ssa_interpreter.ott -i emacs.ott -o ssa_all.v
+
+ssa_all.vo: ssa_all.v
 	$(COQC) -I ../ott -I ../monads ssa_all.v
 
 ssa_verifier.vo: ssa_verifier.v ../ssa.vo ../monads/monad.vo ssa_lib.vo
