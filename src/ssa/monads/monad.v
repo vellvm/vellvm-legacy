@@ -284,6 +284,6 @@ match m with
 | merror => False
 end.
 
-Notation "{{ m }}" := (@monad2prop _ m) (at level 50).
+Notation "{{{ m }}}" := (@monad2prop _ m) (at level 50).
 
 

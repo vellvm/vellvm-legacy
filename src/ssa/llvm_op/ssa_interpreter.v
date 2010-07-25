@@ -1,6 +1,7 @@
 Require Import ssa_lib.
 Require Import List.
 Require Import Arith.
+Require Import Metatheory.
 
 Inductive GenericValue : Set := 
 | GenericValue_int : forall (n:nat), GenericValue
@@ -11,7 +12,7 @@ Definition Mem := id -> option GenericValue.
 
 Definition updateMem (m:Mem) (i:id) (v:GenericValue) : Mem :=
 fun i' =>
-  if (beq_nat i i')
+  if (eq_dec i i')
   then Some v
   else m i'
 .
@@ -70,7 +71,7 @@ Fixpoint getIdViaLabelFromIdls (idls:list (id*l)) (l0:l) : option id :=
 match idls with
 | nil => None
 | (id1, l1)::idls'=>
-  if (beq_nat l1 l0)
+  if (eq_dec l1 l0)
   then Some id1
   else None
 end.
@@ -166,7 +167,7 @@ match lg with
 | _::lg' => opGenericValues2GenericValues lg'
 end.
 
-Record Event : Set := mkEvent {}.
+Record Event : Set := mkEvent { }.
 
 Inductive trace : Set :=
 | trace_nil : trace
@@ -231,7 +232,7 @@ match (lookupFdefViaIDFromSystem s main) with
                 tmn
                 Values 
                 VarArgs 
-                (insn_cmd (insn_call 0 false false rt main nil))
+                (insn_cmd (insn_call main false false rt main nil))
               )::nil)
            )          
         end

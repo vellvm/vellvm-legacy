@@ -1,4 +1,5 @@
 % Static Semantics of Static Single Assignment(SSA)
+
 defns
 Jwf_typ :: '' ::=
       defn
@@ -124,7 +125,7 @@ Jwf_ssa :: '' ::=
         )
 >>
       % if insn is not PhiNode, make sure that the definition comes before the use
-      (notT isPhiNode insn) implies (insnDominates insn' insn \/ (not (isReachableFromEntry (fdef, dt) block)))
+      (notT isPhiNode insn) implies (insnDominates insn' insn block \/ (not (isReachableFromEntry (fdef, dt) block)))
       ------------------------------------------------------------------------------------------------------------- :: wf_ssa_intro
       intrinsic_funs , system , module_info , (fdef, dt) , block , insn |- insn' 
 

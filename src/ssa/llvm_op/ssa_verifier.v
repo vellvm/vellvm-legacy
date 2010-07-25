@@ -6,6 +6,7 @@ Require Import Logic_Type.
 Require Import Arith.
 Require Import Bool.
 Require Import Compare_dec.
+Require Import Metatheory.
 
 (* defns Jwf_typ *)
 Inductive wf_typ : typ -> Prop :=    (* defn wf_typ *)
@@ -29,7 +30,7 @@ Definition wf_operand_insn (intrinsic_funs5:intrinsic_funs)
                            (insn5 op:insn) : Prop :=
   let '(module5, (usedef_insn5, usedef_block5)) := module_info5 in
   let (fdef5, dt5) := fdef_info5 in 
-  {{
+  {{{
   do id' <- ret (getInsnID  op);
   do OpBlock <- (lookupBlockViaIDFromFdef fdef5 id');
 
@@ -120,9 +121,9 @@ Definition wf_operand_insn (intrinsic_funs5:intrinsic_funs)
         But we don't do this in Coq, and check Dominance everytime.
      *)
         (* Definition must dominate use unless use is unreachable! *)
-        Assert (insnDominates op insn5 \/ ~ isReachableFromEntry fdef_info5 block5)
+        Assert (insnDominates op insn5 block5 \/ ~ isReachableFromEntry fdef_info5 block5)
      endif
-  }}.
+  }}}.
 
 (* defns Jwf_operand *)
 Definition wf_operand (intrinsic_funs5:intrinsic_funs) 
@@ -134,7 +135,7 @@ Definition wf_operand (intrinsic_funs5:intrinsic_funs)
                             (id':id): Prop :=
   let '((module_intro list_layout5 list_product5), (usedef_insn5, usedef_block5)) := module_info5 in
   let (fdef5, dt5) := fdef_info5 in 
-  {{
+  {{{
   do ret (insnInSystemModuleFdefBlockB
             insn5 
             system5  
@@ -190,7 +191,7 @@ Definition wf_operand (intrinsic_funs5:intrinsic_funs)
      endif;
 
      ret True
-  }}.
+  }}}.
   
 (* defns Jwf_label *)
 Inductive wf_label : intrinsic_funs -> system -> module_info -> fdef_info -> block -> insn -> l -> Prop :=    (* defn wf_label *)
@@ -211,7 +212,7 @@ Definition visitInstruction (intrinsic_funs5:intrinsic_funs)
                             (insn5:insn) : Prop :=
   let '(module5, (usedef_insn5, usedef_block5)) := module_info5 in
   let (fdef5, dt5) := fdef_info5 in 
-  {{
+  {{{
   (* Instruction must be embedded in basic block! *)
   do ret (insnInSystemModuleFdefBlockB 
             insn5   
@@ -269,7 +270,7 @@ Definition visitInstruction (intrinsic_funs5:intrinsic_funs)
      for l in (getInsnLabels insn5) do
        ret (wf_label intrinsic_funs5 system5 module_info5 fdef_info5 block5 insn5 l)
      endfor
-  }}.
+  }}}.
 
 (* defns JvisittTerminatorInst *)
 Definition visitTerminatorInst (intrinsic_funs5:intrinsic_funs) 
@@ -279,9 +280,9 @@ Definition visitTerminatorInst (intrinsic_funs5:intrinsic_funs)
                                (block5:block)
                                (insn5:insn) : Prop :=
   (* Ensure that terminators only exist at the end of the basic block. *)
-  {{
+  {{{
      ret (visitInstruction intrinsic_funs5 system5 module_info5 fdef_info5 block5 insn5)
-  }}.
+  }}}.
 
 Definition visitReturnInst (intrinsic_funs5:intrinsic_funs) 
                            (system5:system)
@@ -292,7 +293,7 @@ Definition visitReturnInst (intrinsic_funs5:intrinsic_funs)
                            : Prop :=
   let '(module5, (usedef_insn5, usedef_block5)) := module_info5 in
   let (F, dt5) := fdef_info5 in 
-  {{
+  {{{
   do N <- ret (ReturnInst.getNumOperands (insn_terminator RI));
   do If ((Function.getDefReturnType F) =t= typ_void)
      then
@@ -339,7 +340,7 @@ Definition visitReturnInst (intrinsic_funs5:intrinsic_funs)
   (* Check to make sure that the return value has necessary properties for
      terminators... *)
      ret (visitTerminatorInst intrinsic_funs5 system5 module_info5 fdef_info5 block5 (insn_terminator RI))
-  }}.
+  }}}.
 
 Definition verifyCallSite (intrinsic_funs5:intrinsic_funs) 
                            (system5:system)
@@ -350,7 +351,7 @@ Definition verifyCallSite (intrinsic_funs5:intrinsic_funs)
                            : Prop :=
   let '(module5, (usedef_insn5, usedef_block5)) := module_info5 in
   let (F, dt5) := fdef_info5 in 
-  {{
+  {{{
   do I <- ret CS;
   (* LLVM checks that 
        "Called function must be a pointer!"
@@ -393,7 +394,7 @@ Definition verifyCallSite (intrinsic_funs5:intrinsic_funs)
      Open soooon... *)
 
      ret (visitInstruction intrinsic_funs5 system5 module_info5 fdef_info5 block5 (insn_cmd CS))
-  }}.  
+  }}}.  
 
 
 Definition visitCallInst (intrinsic_funs5:intrinsic_funs) 
@@ -427,7 +428,7 @@ Definition visitBinaryOperator (intrinsic_funs5:intrinsic_funs)
                            (block5:block)                              
                            (B:cmd)                              (* BinaryOperator *)
                            : Prop :=
-  {{
+  {{{
   (* "Both operands to a binary operator are of the same type" *)
   do firstT <- BinaryOperator.getFirstOperandType system5 B;
   do secondT <- BinaryOperator.getSecondOperandType system5 B;
@@ -442,7 +443,7 @@ Definition visitBinaryOperator (intrinsic_funs5:intrinsic_funs)
   do Assert (rT =t= firstT);
 
      ret (visitInstruction intrinsic_funs5 system5 module_info5 fdef_info5 block5 (insn_cmd B))
-  }}.  
+  }}}.  
 
 (* Check to make sure that if there is more than one entry for a
    particular basic block in this PHI node, that the incoming values 
@@ -451,8 +452,8 @@ Fixpoint lookupIdsViaLabelFromIdls (idls:list (id*l)) (l0:l) : list id :=
 match idls with
 | nil => nil
 | (id1,l1)::idls' =>
-  if (beq_nat l0 l1) 
-  then set_add eq_nat_dec id1 (lookupIdsViaLabelFromIdls idls' l0)
+  if (eq_dec l0 l1) 
+  then set_add eq_dec id1 (lookupIdsViaLabelFromIdls idls' l0)
   else (lookupIdsViaLabelFromIdls idls' l0)
 end.
 
@@ -478,7 +479,7 @@ Definition visitPHINode (intrinsic_funs5:intrinsic_funs)
                            : Prop :=
   let '(module5, (usedef_insn5, usedef_block5)) := module_info5 in
   let (F, dt5) := fdef_info5 in 
-  {{
+  {{{
   (* Ensure that the PHI nodes are all grouped together at the top of the block.
      This can be tested by checking whether the instruction before this is
      either nonexistent (because this is begin()) or is a PHI node.  If not,
@@ -518,7 +519,7 @@ Definition visitPHINode (intrinsic_funs5:intrinsic_funs)
 
   (* All other PHI node constraints are checked in the visitBasicBlock method. *)
      ret (visitInstruction intrinsic_funs5 system5 module_info5 fdef_info5 block5 (insn_phinode PN))
-  }}. 
+  }}}. 
 
 (* defns Jwf_insn *)
 Inductive wf_insn : intrinsic_funs -> system -> module_info -> fdef_info -> block -> insn -> Prop :=    (* defn wf_insn *)
@@ -611,7 +612,7 @@ Definition visitFunctionDef (intrinsic_funs5:intrinsic_funs)
                             (F:fdef)
                             : Prop :=
   let '(module5, (usedef_insn5, usedef_block5)) := module_info5 in
-  {{
+  {{{
   (* Check function arguments. *)
   do FT <- ret (Function.getDefFunctionType F);
   do NumArgs <- ret (Function.def_arg_size F);
@@ -650,7 +651,7 @@ Definition visitFunctionDef (intrinsic_funs5:intrinsic_funs)
   do Entry <- getEntryOfFdef F;
   do preds <- ret (predOfBlock Entry usedef_block5);
      Assert (length preds = 0)
-  }}.
+  }}}.
 
 (* visitFunctionDec - Verify that a function dec is ok. *)
 Definition visitFunctionDec (intrinsic_funs5:intrinsic_funs) 
@@ -659,7 +660,7 @@ Definition visitFunctionDec (intrinsic_funs5:intrinsic_funs)
                             (F:fdec)
                             : Prop :=
   let '(module5, (usedef_insn5, usedef_block5)) := module_info5 in
-  {{
+  {{{
   (* Check function arguments. *)
   do FT <- ret (Function.getDecFunctionType F);
   do NumArgs <- ret (Function.dec_arg_size F);
@@ -694,7 +695,7 @@ Definition visitFunctionDec (intrinsic_funs5:intrinsic_funs)
      is not legal to define intrinsics. *)
 
   (* Check invalid linkage type for function declaration *)
-  }}.
+  }}}.
 
 
 (* defns Jwf_fdef *)

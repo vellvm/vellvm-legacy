@@ -1,5 +1,6 @@
 OTT=ott
 COQC=coqc
+COQARG=-I ./ott -I ./monads -I ../../../theory/metatheory/
 
 all:
 	+make -C ./monads
@@ -7,13 +8,13 @@ all:
 	+make ott 
 	+make -C ./llvm_op
 
-ott: ssa_def.v ssa_coq_lib.vo main.pdf ssa.vo Makefile ssa_dynamic.vo opsem_conv.vo
+ott: main.pdf ssa.vo Makefile ssa_dynamic.vo opsem_conv.vo
 
 ssa_coq_lib.vo : ssa_coq_lib.v ssa_def.vo Makefile
-	$(COQC) -I ./ott -I ./monads ssa_coq_lib.v
+	$(COQC) $(COQARG) ssa_coq_lib.v
 
 ssa_def.vo : ssa_def.v Makefile ./monads/monad.vo
-	$(COQC) -I ./ott -I ./monads ssa_def.v
+	$(COQC) $(COQARG) ssa_def.v
 
 ssa_def.v : ssa_def.ott emacs.ott Makefile
 	ott -coq_expand_list_types false -i ssa_def.ott -i emacs.ott -o ssa_def.v
@@ -25,33 +26,33 @@ ssa_coq.ott : ssa_coq_lib.vo ssa_def.ott Makefile coq2ott.py Makefile
 m_ssa_static.ott : ssa_static.ott spanlines.py Makefile
 	./spanlines.py ssa_static.ott
 
-ssa.v: ssa_def.ott ssa_coq.ott ssa_lib.ott m_ssa_static.ott emacs.ott Makefile ssa_def.v ssa_coq_lib.vo ./monads/monad.vo
-	ott -merge true -coq_expand_list_types false \
+ssa.v: ssa_def.ott ssa_coq_lib.vo ssa_coq.ott ssa_lib.ott m_ssa_static.ott emacs.ott Makefile ./monads/monad.vo
+	ott -merge false -coq_expand_list_types false \
             -i ssa_def.ott -i ssa_coq.ott -i ssa_lib.ott -i m_ssa_static.ott -i emacs.ott -o ssa.v
 
 ssa.vo: ssa.v
-	$(COQC) -I ./ott -I ./monads ssa.v
+	$(COQC) $(COQARG) ssa.v
 
 tactics.vo: tactics.v
 	$(COQC) tactics.v
 
 targetdata.vo: targetdata.v ssa.vo
-	$(COQC) -I ./ott -I ./monads targetdata.v
+	$(COQC) $(COQARG) targetdata.v
 
 ssa_mem.vo: ssa_mem.v ssa.vo tactics.vo targetdata.vo
-	$(COQC) -I ./ott -I ./monads ssa_mem.v
+	$(COQC) $(COQARG) ssa_mem.v
 
 trace.vo: trace.v
 	$(COQC) trace.v
 
 ssa_dynamic.vo: ssa_dynamic.v ssa.vo tactics.vo ssa_mem.vo trace.vo
-	$(COQC) -I ./ott -I ./monads ssa_dynamic.v
+	$(COQC) $(COQARG) ssa_dynamic.v
 
 opsem_conv.vo: opsem_conv.v ssa_dynamic.vo ssa.vo trace.vo
-	$(COQC) -I ./ott -I ./monads opsem_conv.v
+	$(COQC) $(COQARG) opsem_conv.v
 
 ssa.tex: ssa_def.ott ssa_coq.ott ssa_lib.ott m_ssa_static.ott omain.tex Makefile
-	$(OTT) -merge true -o ssa.tex \
+	$(OTT) -merge false -o ssa.tex \
           -tex_show_meta false \
           -tex_wrap false \
           -tex_filter omain.tex main.tex \

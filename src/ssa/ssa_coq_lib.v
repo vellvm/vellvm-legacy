@@ -1,6 +1,14 @@
+(* These libs are only used when typechecking ssa_coq_lib.v alone.
+   They are not copied into the final ssa.v, otherwise the definitions in ssa_def,
+   and ssa are conflict, since they define same syntax. For example, we may have
+   ssa_def.insn and insn in ssa, but they are same. This is fixed if we dont copy
+   the libs below into ssa_coq.ott.
+*)
 Add LoadPath "./ott".
 Add LoadPath "./monads".
+Add LoadPath "../../../theory/metatheory".
 Require Import ssa_def.
+Require Import Metatheory.
 
 (*BEGINCOPY*)
 
@@ -17,9 +25,9 @@ Require Import Omega.
 (* LabelSet. *)
 
   Definition lempty_set := empty_set l.
-  Definition lset_add (l1:l) (ls2:ls) := set_add eq_nat_dec l1 ls2.
-  Definition lset_union (ls1 ls2:ls) := set_union eq_nat_dec ls1 ls2.
-  Definition lset_inter (ls1 ls2:ls) := set_inter eq_nat_dec ls1 ls2.
+  Definition lset_add (l1:l) (ls2:ls) := set_add eq_dec l1 ls2.
+  Definition lset_union (ls1 ls2:ls) := set_union eq_dec ls1 ls2.
+  Definition lset_inter (ls1 ls2:ls) := set_inter eq_dec ls1 ls2.
   Definition lset_eq (ls1 ls2:ls) := 
     match (lset_inter ls1 ls2) with
     | nil => true
@@ -31,7 +39,7 @@ Require Import Omega.
     | _ => true
     end.
   Definition lset_single (l0:l) := lset_add l0 (lempty_set). 
-  Definition lset_mem (l0:l) (ls0:ls) := set_mem eq_nat_dec l0 ls0.
+  Definition lset_mem (l0:l) (ls0:ls) := set_mem eq_dec l0 ls0.
 
 (**********************************)
 (* Inversion. *)
@@ -460,7 +468,7 @@ Fixpoint getLabelViaIDFromList (ls:list (id*l)) (branch:id) : option l :=
 match ls with
 | nil => None
 | (id, l)::ls' => 
-  match (eq_nat_dec id branch) with
+  match (eq_dec id branch) with
   | left _ => Some l
   | right _ => getLabelViaIDFromList ls' branch
   end
@@ -482,6 +490,13 @@ match phi with
 | insn_phi _ _ ls => getLabelsFromIdls ls
 end.
 
+Fixpoint getLabelsFromPhiNodes (phis:list phinode) : ls :=
+match phis with
+| nil => lempty_set
+| phi::phis' => lset_union (getLabelsFromPhiNode phi) (getLabelsFromPhiNodes phis')
+end.
+
+
 Definition getIDLabelsFromPhiNode p : id_labels :=
 match p with
 | insn_phi _ _ idls => idls
@@ -490,7 +505,7 @@ end.
 Fixpoint getLabelViaIDFromIDLabels idls id : option l :=
 match idls with
 | nil => None
-| (id0, l0)::idls' => if beq_nat id id0 then Some l0 else getLabelViaIDFromIDLabels idls' id
+| (id0, l0)::idls' => if eq_dec id id0 then Some l0 else getLabelViaIDFromIDLabels idls' id
 end.
 
 Definition _getLabelViaIDPhiNode p id : option l :=
@@ -528,7 +543,7 @@ end.
 Definition lookupBindingViaIDFromCmd (i:cmd) (id:id) : id_binding :=
 match (getCmdID i) with
 | id' =>
-  match (eq_nat_dec id id') with
+  match (eq_dec id id') with
   | left _ => id_binding_cmd i
   | right _ => id_binding_none
   end
@@ -547,7 +562,7 @@ end.
 Definition lookupBindingViaIDFromPhiNode (i:phinode) (id:id) : id_binding :=
 match (getPhiNodeID i) with
 | id' =>
-  match (eq_nat_dec id id') with
+  match (eq_dec id id') with
   | left _ => id_binding_phinode i
   | right _ => id_binding_none
   end
@@ -566,7 +581,7 @@ end.
 Definition lookupBindingViaIDFromTerminator (i:terminator) (id:id) : id_binding :=
 match (getTerminatorID i) with
 | id' =>
-  match (eq_nat_dec id id') with
+  match (eq_dec id id') with
   | left _ => id_binding_terminator i
   | right _ => id_binding_none
   end
@@ -597,7 +612,7 @@ end.
 
 Definition lookupBindingViaIDFromArg (a:arg) (id:id) : id_binding :=
 let (t, id') := a in
-match (eq_nat_dec id id') with
+match (eq_dec id id') with
 | left _ => id_binding_arg a
 | right _ => id_binding_none
 end.
@@ -614,7 +629,7 @@ end.
 
 Definition lookupBindingViaIDFromFdec (fd:fdec) (id:id) : id_binding :=
 let '(fdec_intro (fheader_intro t id' la)) := fd in
-match (eq_nat_dec id id') with
+match (eq_dec id id') with
 | left _ => id_binding_fdec fd
 | right _ => lookupBindingViaIDFromArgs la id
 end.
@@ -626,7 +641,7 @@ lookupBindingViaIDFromBlocks lb id.
 Definition lookupBindingViaIDFromProduct (p:product) (id:id) : id_binding :=
 match p with
 | product_gvar (gvar_intro id' t c a) =>
-  match (eq_nat_dec id id') with
+  match (eq_dec id id') with
   | left _ => id_binding_gvar (gvar_intro id' t c a)
   | right _ => id_binding_none
   end
@@ -689,7 +704,7 @@ end.
 
 Definition lookupFdecViaIDFromProduct (p:product) (i:id) : option fdec :=
 match p with
-| (product_fdec fd) => if beq_nat (getFdecID fd) i then Some fd else None
+| (product_fdec fd) => if eq_dec (getFdecID fd) i then Some fd else None
 | _ => None
 end.
 
@@ -722,7 +737,7 @@ lookupFdecViaIDFromModules s i.
 
 Definition lookupFdefViaIDFromProduct (p:product) (i:id) : option fdef :=
 match p with
-| (product_fdef fd) => if beq_nat (getFdefID fd) i then Some fd else None
+| (product_fdef fd) => if eq_dec (getFdefID fd) i then Some fd else None
 | _ => None
 end.
 
@@ -761,7 +776,7 @@ match (getCmdTyp i) with
 | Some t => 
   match (getCmdID i) with
   | id0' => 
-    if (beq_nat id0 id0') 
+    if (eq_dec id0 id0') 
     then Some t
     else None
   end
@@ -782,7 +797,7 @@ match (getPhiNodeTyp i) with
 | t => 
   match (getPhiNodeID i) with
   | id0' => 
-    if (beq_nat id0 id0') 
+    if (eq_dec id0 id0') 
     then Some t
     else None
   end
@@ -803,7 +818,7 @@ match (getTerminatorTyp i) with
 | t => 
   match (getTerminatorID i) with
   | id0' => 
-    if (beq_nat id0 id0') 
+    if (eq_dec id0 id0') 
     then Some t
     else None
   end
@@ -886,10 +901,7 @@ lookupTypViaIDFromModules s id0.
   Definition genLabel2Block_block (b:block) (f:fdef) : l2block :=
   match b with
   | block_intro l _ _ _ => fun l' => 
-    match lt_eq_lt_dec l' l with 
-    | inleft (right _) => Some b
-    | _ => None
-    end 
+    if eq_dec l' l then Some b else None
   end.  
 
   Fixpoint genLabel2Block_blocks (bs:list_block) (f:fdef) : l2block :=
@@ -978,12 +990,12 @@ lookupTypViaIDFromModules s id0.
   Definition genIdUseDef_id_uses_value (v:value) (id0:id): usedef_id :=
   fun id' => 
   match (getValueID v) with
-  | Some id => if beq_nat id' id then id0::nil else nil
+  | Some id => if eq_dec id' id then id0::nil else nil
   | _ => nil
   end.     
 
   Definition genIdUseDef_id_uses_id (id0:id) (id1:id) : usedef_id :=
-  fun id' => if beq_nat id' id0 then id1::nil else nil.
+  fun id' => if eq_dec id' id0 then id1::nil else nil.
 
   Fixpoint genIdUseDef_id_uses_params (ps:list_param) (id0:id) : usedef_id :=
   match ps with
@@ -1137,7 +1149,7 @@ lookupTypViaIDFromModules s id0.
   end.
 
   Definition genBlockUseDef_label (l0:l) (b:block) : usedef_block :=
-  fun b' => if beq_nat (getBlockLabel b') l0 then b::nil else nil.
+  fun b' => if eq_dec (getBlockLabel b') l0 then b::nil else nil.
 
   Fixpoint genBlockUseDef_switch_cases (cs:list (const * l)) (b:block) : usedef_block :=
   match cs with
@@ -1304,11 +1316,7 @@ lookupTypViaIDFromModules s id0.
   end.
 
   Definition update_dt (d1:dt) (l0:l) (ls0:ls) : dt :=
-  fun l1 =>
-  match lt_eq_lt_dec l1 l0 with 
-  | inleft (right _) => ls0
-  | _ => d1 l1
-  end. 
+  fun l1 => if eq_dec l1 l0 then ls0 else d1 l1.
 
   Definition inter_dt (d1 d2:dt) : dt :=
   fun l0 => lset_inter (d1 l0) (d2 l0).
@@ -1423,21 +1431,19 @@ lookupTypViaIDFromModules s id0.
 (*  | _ => false *)
   end.
 
-  Definition idDominates (id1 id2:id) : Prop :=
-  match (le_lt_dec id1 id2) with
-  | left _ => (*id1 <= id2*) True
-  | right _ => (*id2 < id2*) False
-  end.
-
-  Definition idDominatesB (id1 id2:id) : bool :=
-  match (le_lt_dec id1 id2) with
-  | left _ => (*id1 <= id2*) true
-  | right _ => (*id2 < id2*) false
-  end.
-
-  Definition insnDominates (i1 i2:insn) : Prop :=
-  match (getInsnID i1, getInsnID i2) with
-  | (id1, id2) => idDominates id1 id2
+  Definition insnDominates (i1 i2:insn) (b:block) : Prop :=
+  match b with 
+  | (block_intro l5 ps cs tmn) =>
+    match (i1, i2) with
+    | (insn_cmd _, insn_terminator _) => True  
+    | (insn_phinode _, insn_terminator _) => True
+    | (insn_phinode _, insn_cmd _) => True
+    | (insn_cmd c1, insn_cmd c2) => 
+      (exists cs1, exists cs2, exists cs3, cs = cs1++(c1::cs2)++(c2::cs3))
+    | (insn_phinode p1, insn_phinode p2) => 
+      (exists ps1, exists ps2, exists ps3, ps = ps1++(p1::ps2)++(p2::ps3))
+    | _ => False
+    end
   end.
 
   Definition isReachableFromEntry (fi:fdef_info) (b:block) : Prop :=
@@ -1573,6 +1579,77 @@ end.
 
 Definition isBindingInsnB (ib:id_binding) : bool :=
 isBindingCmdB ib || isBindingTerminatorB ib || isBindingPhiNodeB ib.
+
+Definition isPointerTyp typ := isPointerTypB typ = true.
+
+(* Definition isInvokeInsn insn := isInvokeInsnB insn = true. *)
+
+Definition isReturnTerminator tmn := isReturnInsnB tmn = true.
+
+Definition isNotValidReturnTyp typ := isNotValidReturnTypB typ = true.
+      
+Definition isValidReturnTyp typ := isValidReturnTypB typ = true.
+
+Definition isNotFirstClassTyp typ := isNotFirstClassTypB typ = true.
+
+Definition isFirstClassTyp typ := isFirstClassTypB typ = true.
+
+Definition isValidArgumentTyp typ := isValidArgumentTypB typ = true.
+
+Definition isNotValidElementTyp typ := isNotValidElementTypB typ = true.
+
+Definition isValidElementTyp typ := isValidElementTypB typ = true.
+
+Definition isBindingFdec ib : option fdec :=
+match ib with
+| id_binding_fdec f => Some f
+| _ => None
+end.
+
+Definition isBindingArg ib : option arg :=
+match ib with
+| id_binding_arg a => Some a
+| _ => None
+end.
+
+Definition isBindingGvar ib : option gvar :=
+match ib with
+| id_binding_gvar g => Some g
+| _ => None
+end.
+
+Definition isBindingCmd ib : option cmd :=
+match ib with
+| id_binding_cmd c => Some c
+| _ => None
+end.
+
+Definition isBindingPhiNode ib : option phinode :=
+match ib with
+| id_binding_phinode p => Some p
+| _ => None
+end.
+
+Definition isBindingTerminator ib : option terminator :=
+match ib with
+| id_binding_terminator tmn => Some tmn
+| _ => None
+end.
+
+Definition isBindingInsn ib : option insn :=
+match ib with
+| id_binding_cmd c => Some (insn_cmd c)
+| id_binding_phinode p => Some (insn_phinode p)
+| id_binding_terminator tmn => Some (insn_terminator tmn)
+| _ => None
+end.
+
+Definition isAggregateTyp t := 
+match t with
+| typ_struct _ => True
+| typ_array _ _ => True 
+| _ => False
+end.
 
 (*************************************************)
 (*         Uniq                                  *)
@@ -2060,9 +2137,11 @@ end) (refl_equal cc).
 
 Definition constEqB (c c':const) : bool := _constEqB (c, c').
 
+Definition idEqB (i i':id) : bool := if i == i' then true else false.
+
 Definition valueEqB (v v':value) : bool :=
 match (v, v') with
-| (value_id i, value_id i') => beq_nat i i'
+| (value_id i, value_id i') =>idEqB i i'
 | (value_const c, value_const c') => constEqB c c'
 | (_, _) => false
 end.
@@ -2078,10 +2157,12 @@ end.
 Definition list_param_EqB (lp lp':list_param) :=
   _list_param_EqB lp lp' && beq_nat (length lp) (length lp').
 
+Definition lEqB (i i':l) : bool := if i == i' then true else false.
+
 Fixpoint _id_labels_EqB (idls idls':id_labels) {struct idls} : bool :=
 match (idls, idls') with
 | ((id,l)::idls0, (id',l')::idls0') =>
-  beq_nat id id' && beq_nat l l' &&
+  idEqB id id' && lEqB l l' &&
   _id_labels_EqB idls0 idls0'
 | (_, _) => true
 end.
@@ -2158,88 +2239,88 @@ Definition cmdEqB (i i':cmd) : bool :=
 match (i, i') with
 | (insn_bop id op sz v1 v2,
    insn_bop id' op' sz' v1' v2') =>
-  beq_nat id id' &&
+  idEqB id id' &&
   bopEqB op op' &&
   beq_nat sz sz' &&
   valueEqB v1 v1' &&
   valueEqB v2 v2'
 | (insn_extractvalue id typ0 v0 cidxs, insn_extractvalue id' typ0' v0' cidxs') => 
-  beq_nat id id' &&
+  idEqB id id' &&
   typEqB typ0 typ0' &&
   valueEqB v0 v0' &&
   cidxs_EqB cidxs cidxs'  
 | (insn_insertvalue id typ0 v0 typ1 v1 cidxs, 
    insn_insertvalue id' typ0' v0' typ1' v1' cidxs') =>
-  beq_nat id id' &&
+  idEqB id id' &&
   typEqB typ0 typ0' &&
   valueEqB v0 v0' &&
   typEqB typ1 typ1' &&
   valueEqB v1 v1' &&
   cidxs_EqB cidxs cidxs'  
 | (insn_malloc id typ sz align, insn_malloc id' typ' sz' align') =>
-  beq_nat id id' &&
+  idEqB id id' &&
   typEqB typ typ' &&
   beq_nat sz sz' &&
   beq_nat align align' 
 | (insn_free id typ v, insn_free id' typ' v') =>
-  beq_nat id id' &&
+  idEqB id id' &&
   typEqB typ typ' &&
   valueEqB v v'
 | (insn_alloca id typ sz align, insn_alloca id' typ' sz' align') =>
-  beq_nat id id' &&
+  idEqB id id' &&
   typEqB typ typ' &&
   beq_nat sz sz' &&
   beq_nat align align' 
 | (insn_load id typ v, insn_load id' typ' v') =>
-  beq_nat id id' &&
+  idEqB id id' &&
   typEqB typ typ' &&
   valueEqB v v'
 | (insn_store id typ0 v0 v1, insn_store id' typ0' v0' v1') =>
-  beq_nat id id' &&
+  idEqB id id' &&
   typEqB typ0 typ0' &&
   valueEqB v0 v0' &&
   valueEqB v1 v1'
 | (insn_gep id inbounds typ v idxs, insn_gep id' inbounds' typ' v' idxs') =>
-  beq_nat id id' &&
+  idEqB id id' &&
   eqb inbounds inbounds' &&
   typEqB typ typ' &&
   valueEqB v v' &&
   idxs_EqB idxs idxs'  
 | (insn_ext id op t1 v1 t2,
    insn_ext id' op' t1' v1' t2') =>
-  beq_nat id id' &&
+  idEqB id id' &&
   extopEqB op op' &&
   typEqB t1 t1' &&
   valueEqB v1 v1' &&
   typEqB t2 t2'
 | (insn_cast id op t1 v1 t2,
    insn_cast id' op' t1' v1' t2') =>
-  beq_nat id id' &&
+  idEqB id id' &&
   castopEqB op op' &&
   typEqB t1 t1' &&
   valueEqB v1 v1' &&
   typEqB t2 t2'
 | (insn_icmp id c typ v1 v2,
    insn_icmp id' c' typ' v1' v2') =>
-  beq_nat id id' &&
+  idEqB id id' &&
   condEqB c c' &&
   typEqB typ typ' &&
   valueEqB v1 v1' &&
   valueEqB v2 v2'
 | (insn_select id v0 typ v1 v2,
    insn_select id' v0' typ' v1' v2') =>
-  beq_nat id id' &&
+  idEqB id id' &&
   valueEqB v0 v0' &&
   typEqB typ typ' &&
   valueEqB v1 v1' &&
   valueEqB v2 v2'
 | (insn_call id r tail typ id0 paraml,
    insn_call id' r' tail' typ' id0' paraml') =>
-  beq_nat id id' &&
+  idEqB id id' &&
   eqb r r' &&
   eqb tail tail' &&
   typEqB typ typ' &&
-  beq_nat id0 id0' &&
+  idEqB id0 id0' &&
   list_param_EqB paraml paraml'
 | (_, _) => false
 end.
@@ -2247,27 +2328,27 @@ end.
 Definition terminatorEqB (i i':terminator) : bool :=
 match (i, i') with
 | (insn_return id t v, insn_return id' t' v') =>
-  beq_nat id id' && typEqB t t' && valueEqB v v'
-| (insn_return_void id, insn_return_void id') => beq_nat id id'
+  idEqB id id' && typEqB t t' && valueEqB v v'
+| (insn_return_void id, insn_return_void id') => idEqB id id'
 | (insn_br id v l1 l2, insn_br id' v' l1' l2') =>
-  beq_nat id id' && 
+  idEqB id id' && 
   valueEqB v v' &&
-  beq_nat l1 l1' && beq_nat l2 l2'
+  lEqB l1 l1' && lEqB l2 l2'
 | (insn_br_uncond id l, insn_br_uncond id' l') =>
-  beq_nat id id' && 
-  beq_nat l l'
+  idEqB id id' && 
+  lEqB l l'
 (*
 | (insn_invoke id typ id0 paraml l1 l2,
    insn_invoke id' typ' id0' paraml' l1' l2') =>
-  beq_nat id id' &&
+  idEqB id id' &&
   typEqB typ typ' &&
-  beq_nat id0 id0' &&
+  idEqB id0 id0' &&
   list_param_EqB paraml paraml' &&
   beq_nat l1 l1' &&
   beq_nat l2 l2'
 *)
 | (insn_unreachable id, insn_unreachable id') =>
-  beq_nat id id'
+  idEqB id id'
 | (_, _) => false
 end.
 
@@ -2275,13 +2356,13 @@ Definition phinodeEqB (i i':phinode) : bool :=
 match (i, i') with
 | (insn_phi id typ idls,
    insn_phi id' typ' idls') =>
-  beq_nat id id' &&
+  idEqB id id' &&
   typEqB typ typ' &&
   id_labels_EqB idls idls'
 end.
 
 Definition blockEqB (b1 b2:block) : bool :=
-match (eq_nat_dec (getBlockLabel b1) (getBlockLabel b2)) with
+match (eq_dec (getBlockLabel b1) (getBlockLabel b2)) with
 | left _ => true
 | right _ => false
 end.
@@ -2289,7 +2370,7 @@ end.
 Fixpoint _list_arg_EqB (la la':list_arg) {struct la} : bool :=
 match (la, la') with
 | ((t,id)::la0, (t',id')::la0') =>
-  typEqB t t' && beq_nat id id' &&
+  typEqB t t' && idEqB id id' &&
   _list_arg_EqB la0 la0'
 | (_, _) => true
 end.
@@ -2300,7 +2381,7 @@ Definition list_arg_EqB (la la':list_arg) :=
 Definition fheaderEqB (fh fh' : fheader) : bool :=
 match (fh, fh') with
 | (fheader_intro t id la, fheader_intro t' id' la') =>
-  typEqB t t' && beq_nat id id' && list_arg_EqB la la'
+  typEqB t t' && idEqB id id' && list_arg_EqB la la'
 end.
 
 Fixpoint _blocksEqB (lb lb':list_block) {struct lb} : bool :=
@@ -2328,7 +2409,7 @@ end.
 Definition gvarEqB (gv gv' : gvar) : bool :=
 match (gv, gv') with
 | (gvar_intro id t v a, gvar_intro id' t' v' a') =>
-  beq_nat id id' && typEqB t t' && valueEqB v v' && beq_nat a a'
+  idEqB id id' && typEqB t t' && valueEqB v v' && beq_nat a a'
 end.
 
 Definition productEqB (p p' : product) : bool :=
@@ -2430,7 +2511,7 @@ match la with
 | nil => false
 | a' :: la' => 
   match (a, a') with
-  | ((t, id), (t', id')) => typEqB t t' && beq_nat id id'
+  | ((t, id), (t', id')) => typEqB t t' && idEqB id id'
   end ||
   InArgsB a la'
 end.
@@ -2731,8 +2812,8 @@ Fixpoint lookupIdsViaLabelFromIdls (idls:list (id*l)) (l0:l) : list id :=
 match idls with
 | nil => nil
 | (id1,l1)::idls' =>
-  if (beq_nat l0 l1) 
-  then set_add eq_nat_dec id1 (lookupIdsViaLabelFromIdls idls' l0)
+  if (eq_dec l0 l1) 
+  then set_add eq_dec id1 (lookupIdsViaLabelFromIdls idls' l0)
   else (lookupIdsViaLabelFromIdls idls' l0)
 end.
 

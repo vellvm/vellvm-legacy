@@ -8,6 +8,7 @@ Require Import tactics.
 Require Import ssa_mem.
 Require Import monad.
 Require Import trace.
+Require Import Metatheory.
 
 (**************************************)
 (** Execution contexts *)
@@ -73,7 +74,7 @@ Inductive wfContexts : State -> Prop :=
 
 Definition updateGVMap (m:GVMap) (i:id) (v:option GenericValue) : GVMap :=
 fun i' =>
-  if (beq_nat i i')
+  if (eq_dec i i')
   then v
   else m i'
 .
@@ -84,7 +85,7 @@ Definition updateGlobals := updateGVMap.
 Definition updateEnv (locals globals:GVMap) (i:id) (v:option GenericValue) : GVMap*GVMap :=
 (updateLocals locals i v,
  fun i' =>
-  if (beq_nat i i')
+  if (eq_dec i i')
   then 
     match (locals i) with
     | Some _ => None
@@ -108,7 +109,7 @@ Fixpoint getIdViaLabelFromIdls (idls:list (id*l)) (l0:l) : option id :=
 match idls with
 | nil => None
 | (id1, l1)::idls'=>
-  if (beq_nat l1 l0)
+  if (eq_dec l1 l0)
   then Some id1
   else None
 end.
@@ -177,7 +178,7 @@ match c with
 | const_arr lc => 
          fold_left 
          (fun ogvt ogvt0 =>
-          match (ogvt, ogvt0) with
+          match (ogvt, ogvt0) return option (GenericValue*typ) with
           | (Some (gv, t), Some (gv0,t0)) =>
              match (getTypeAllocSize TD t0) with
              | Some sz0 => Some ((gv++gv0)++muninits (sz0 - length gv0), t0)
@@ -186,7 +187,7 @@ match c with
           | _ => None
           end
          )
-         (map (_const2GV TD) lc)
+         (Coq.Lists.List.map (_const2GV TD) lc)
          (Some (nil, typ_int 0))
 | const_struct lc =>
          match (fold_left 
@@ -219,7 +220,7 @@ match c with
              end
          | _ => None
          end)
-         (map (_const2GV TD) lc)
+         (Coq.Lists.List.map (_const2GV TD) lc)
          (Some ((nil, typ_int 0), 0))) with
          | None => None
          | Some ((gv, t), al) => 
@@ -236,13 +237,15 @@ match (_const2GV TD c) with
 | Some (gv, t) => Some gv
 end.
 
+Definition lookupEnv (TD:layouts) (i:id) (locals:GVMap) (globals:GVMap) : option GenericValue := 
+match locals i with
+| Some gv => Some gv
+| None => globals i
+end.
+
 Definition getOperandValue (TD:layouts) (v:value) (locals:GVMap) (globals:GVMap) : option GenericValue := 
 match v with
-| value_id id => 
-  match locals id with
-  | Some gv => Some gv
-  | None => globals id
-  end
+| value_id id => lookupEnv TD id locals globals
 | value_const c => (const2GV TD c)
 end.
 
@@ -374,22 +377,29 @@ match (intValues2Nats TD vidxs locals globals) with
 | Some idxs => mgep TD t ma idxs
 end.
 
-Definition BOP (TD:layouts) (lc gl:GVMap) (op:bop) (bsz:sz) (v1 v2:value) : option mvalue :=
+Definition mbop (TD:layouts) (op:bop) (bsz:sz) (gv1 gv2:mvalue) : option mvalue :=
 match op with
 | bop_add => 
-  match (getOperandInt TD bsz v1 lc gl, getOperandInt TD bsz v2 lc gl) with
+  match (GV2nat TD bsz gv1, GV2nat TD bsz gv2) with
   | (Some i1, Some i2) => Some (nat2mvalue TD bsz (i1+i2))
   | _ => None
   end
 | _ => None
 end.
 
-Definition CAST (TD:layouts) (lc gl:GVMap) (op:castop) (t1:typ) (v1:value) (t2:typ) : option mvalue :=
+Definition BOP (TD:layouts) (lc gl:GVMap) (op:bop) (bsz:sz) (v1 v2:value) : option mvalue :=
+match (getOperandValue TD v1 lc gl, getOperandValue TD v2 lc gl) with
+| (Some gv1, Some gv2) => mbop TD op bsz gv1 gv2
+| _ => None
+end
+.
+
+Definition mcast (TD:layouts) (op:castop) (t1:typ) (gv1:mvalue) (t2:typ) : option mvalue :=
 match op with
 | castop_inttoptr => 
   match (t1, t2) with
   | (typ_int sz1, typ_pointer _) => 
-    match (getOperandPtrInBits TD sz1 v1 lc gl) with
+    match (GV2ptr TD sz1 gv1) with
     | Some mp1 => Some (ptr2GV TD mp1)
     | None => None
     end
@@ -398,30 +408,44 @@ match op with
 | castop_ptrtoint =>
   match (t1, t2) with
   | (typ_pointer _, typ_int sz2) => 
-    match (getOperandPtr TD v1 lc gl) with
+    match (GV2ptr TD (getPointerSize TD) gv1) with
     | Some mp1 => Some (mptr2mvalue TD mp1 sz2)
     | None => None
     end
   | _ => None
   end
-| castop_bitcase => getOperandValue TD v1 lc gl
+| castop_bitcase => Some gv1
 end.
 
-Definition EXT (TD:layouts) (lc gl:GVMap) (op:extop) (t1:typ) (v1:value) (t2:typ) : option mvalue :=
+Definition CAST (TD:layouts) (lc gl:GVMap) (op:castop) (t1:typ) (v1:value) (t2:typ) : option mvalue :=
+match (getOperandValue TD v1 lc gl) with
+| (Some gv1) => mcast TD op t1 gv1 t2
+| _ => None
+end
+.
+
+Definition mext (TD:layouts) (op:extop) (t1:typ) (gv1:mvalue) (t2:typ) : option mvalue :=
 match op with
 | extop_z => 
   match (t1, t2) with
-  | (typ_int sz1, typ_int sz2) => getOperandValue TD v1 lc gl
+  | (typ_int sz1, typ_int sz2) => Some gv1
   | _ => None
   end
 | extop_s => 
   match (t1, t2) with
-  | (typ_int sz1, typ_int sz2) => getOperandValue TD v1 lc gl
+  | (typ_int sz1, typ_int sz2) => Some gv1
   | _ => None
   end
 end.
 
-Definition ICMP (TD:layouts) (lc gl:GVMap) (c:cond) (t:typ) (v1 v2:value) : option mvalue :=
+Definition EXT (TD:layouts) (lc gl:GVMap) (op:extop) (t1:typ) (v1:value) (t2:typ) : option mvalue :=
+match (getOperandValue TD v1 lc gl) with
+| (Some gv1) => mext TD op t1 gv1 t2
+| _ => None
+end
+.
+
+Definition micmp (TD:layouts) (c:cond) (t:typ) (gv1 gv2:mvalue) : option mvalue :=
 match c with
 | cond_eq =>
   match t with
@@ -438,6 +462,12 @@ match c with
 | cond_sge => None
 | cond_slt => None
 | cond_sle => None
+end.
+
+Definition ICMP (TD:layouts) (lc gl:GVMap) (c:cond) (t:typ) (v1 v2:value) : option mvalue :=
+match (getOperandValue TD v1 lc gl, getOperandValue TD v2 lc gl) with
+| (Some gv1, Some gv2) => micmp TD c t gv1 gv2
+| _ => None
 end.
 
 (***************************************************************)

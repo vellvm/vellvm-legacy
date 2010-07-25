@@ -66,7 +66,7 @@ Jwf_operand_insn :: '' ::=
 
       getInsnID insn' = id'
       lookupBlockViaIDFromFdef fdef id' = block'
-      (notT isPhiNode insn) implies (insnDominates insn' insn \/ (not (isReachableFromEntry (fdef, dt) block)))
+      (notT isPhiNode insn) implies (insnDominates insn' insn block \/ (not (isReachableFromEntry (fdef, dt) block)))
       ------------------------------------------------------------------------------------------------------------- :: wf_operand_insn_intro
       intrinsic_funs , system , module_info , (fdef, dt) , block , insn |- insn' 
 
