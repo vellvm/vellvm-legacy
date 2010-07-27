@@ -3,6 +3,11 @@ Require Import List.
 Require Import Arith.
 Require Import Metatheory.
 
+Module LLVMinterpreter.
+
+Export LLVMsyntax.
+Export LLVMlib.
+
 Inductive GenericValue : Set := 
 | GenericValue_int : forall (n:nat), GenericValue
 | GenericValue_untyped : forall (n:nat), GenericValue
@@ -268,6 +273,8 @@ Inductive goeswrong : system -> id -> list GenericValue -> State -> Prop :=
   ~ isFinialState FS ->
   goeswrong s main VarArgs FS
 .
+
+End LLVMinterpreter.
 
 (*
 *** Local Variables: ***

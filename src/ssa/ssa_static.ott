@@ -1,5 +1,14 @@
 % Static Semantics of Static Single Assignment(SSA)
 
+embed
+{{coq
+
+Module LLVMwf.
+Export LLVMsyntax.
+Export LLVMlib.
+
+}}
+
 defns
 Jwf_typ :: '' ::=
       defn
@@ -741,4 +750,9 @@ Jwf_system :: '' ::=
       ------------------------------ :: wf_system_intro
       intrinsic_funs |- list_module 
      
+embed
+{{coq
 
+End LLVMwf.
+
+}}

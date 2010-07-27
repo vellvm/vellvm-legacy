@@ -8,6 +8,12 @@ Require Import Bool.
 Require Import Compare_dec.
 Require Import Metatheory.
 
+Module LLVMverifier.
+
+Export LLVMsyntax.
+Export LLVMlib.
+
+
 (* defns Jwf_typ *)
 Inductive wf_typ : typ -> Prop :=    (* defn wf_typ *)
  | wf_typ_int : forall (N5:INT),
@@ -758,6 +764,8 @@ Inductive wf_system : intrinsic_funs -> system -> Prop :=    (* defn wf_system *
      wf_list_module intrinsic_funs5  list_module5  list_module5 ->
      uniqSystem  list_module5  ->
      wf_system intrinsic_funs5  list_module5 .
+
+End LLVMverifier.
 
 (*
 *** Local Variables: ***

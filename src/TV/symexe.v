@@ -9,7 +9,334 @@ Require Import monad.
 Require Import Arith.
 Require Import Metatheory.
 Require Import ssa_mem.
+Require Import genericvalues.
 Require Import ssa_dynamic.
+Require Import trace.
+
+(* Syntax easy to be proved with symbolic execution. *)
+
+Module SimpleSE.
+
+Inductive cmd : Set := 
+ | insn_bop : id -> bop -> sz -> value -> value -> cmd
+ | insn_extractvalue : id -> typ -> value -> list const -> cmd
+ | insn_insertvalue : id -> typ -> value -> typ -> value -> list const -> cmd
+ | insn_malloc : id -> typ -> sz -> align -> cmd
+ | insn_free : id -> typ -> value -> cmd
+ | insn_alloca : id -> typ -> sz -> align -> cmd
+ | insn_load : id -> typ -> value -> cmd
+ | insn_store : id -> typ -> value -> value -> cmd
+ | insn_gep : id -> inbounds -> typ -> value -> list value -> cmd
+ | insn_ext : id -> extop -> typ -> value -> typ -> cmd
+ | insn_cast : id -> castop -> typ -> value -> typ -> cmd
+ | insn_icmp : id -> cond -> typ -> value -> value -> cmd
+ | insn_select : id -> value -> typ -> value -> value -> cmd
+.
+
+Tactic Notation "cmd_cases" tactic(first) tactic(c) :=
+  first;
+  [ c "insn_bop" | c "insn_extractvalue" | c "insn_insertvalue" |
+    c "insn_malloc" | c "insn_free" |
+    c "insn_alloca" | c "insn_load" | c "insn_store" | c "insn_gep" |
+    c "insn_ext" | c "insn_cast" | c "insn_icmp" |  c "insn_select" ].
+
+Inductive call : Set := 
+ | insn_call : id -> noret -> tailc -> typ -> id -> list_param -> call.
+
+Inductive subblock : Set :=
+ | subblock_intro : list cmd -> call -> subblock.
+
+Inductive block : Set :=
+ | block_intro : l -> list phinode -> list subblock -> terminator -> block.
+
+Inductive fdef : Set := 
+ | fdef_intro : fheader -> list block -> fdef.
+
+Inductive product : Set := 
+ | product_gvar : gvar -> product
+ | product_fdec : fdec -> product
+ | product_fdef : fdef -> product.
+
+Inductive module : Set := 
+ | module_intro : list_layout -> list product -> module.
+
+Definition system : Set := list module.
+
+(***************************************************************)
+
+Record ExecutionContext : Set := mkEC {
+CurFunction : fdef;
+CurBB       : block;
+CurCmds     : list subblock;         (* subblock to run within CurBB *)
+Terminator  : terminator;
+Locals      : GVMap;                 (* LLVM values used in this invocation *)
+Args        : list GenericValue;      
+Allocas     : list mblock            (* Track memory allocated by alloca *)
+}.
+
+Definition ECStack := list ExecutionContext.
+
+Record State : Set := mkState {
+CurSystem      : system;
+CurTatgetData  : layouts;
+CurProducts    : list product;
+ECS            : ECStack;
+Globals        : GVMap;
+Mem            : mem
+}.
+
+(* deterministic big-step for this new syntax with subblocks. *)
+
+Variable lookupBlockViaLabelFromSystem : system -> l -> option block.
+Variable switchToNewBasicBlock : block -> block -> GVMap -> GVMap.
+Variable lookupFdefViaIDFromSystem : system -> id -> option fdef.
+Variable getEntryBlock : fdef -> option block.
+
+Inductive dbCmd : State -> State -> trace -> Prop :=
+| dbBop: forall S TD Ps F B lc gl lc' gl' arg id bop sz v1 v2 gv3 EC cs c sbs tmn Mem als,
+  BOP TD lc gl bop sz v1 v2 = Some gv3 ->
+  updateEnv lc gl id gv3 = (lc', gl') -> 
+  dbCmd 
+    (mkState S TD Ps ((mkEC F B ((subblock_intro ((insn_bop id bop sz v1 v2)::cs) c)::sbs) tmn lc arg als)::EC) gl Mem) 
+    (mkState S TD Ps ((mkEC F B ((subblock_intro cs c)::sbs) tmn lc' arg als)::EC) gl' Mem)
+    trace_nil 
+| dbExtractValue : forall S TD Ps F B lc gl lc' gl' arg id t v gv gv' idxs EC cs c sbs tmn Mem als,
+  getOperandValue TD v lc gl = Some gv ->
+  extractGenericValue TD t gv idxs = Some gv' ->
+  updateEnv lc gl id gv' = (lc', gl') -> 
+  dbCmd 
+    (mkState S TD Ps ((mkEC F B ((subblock_intro ((insn_extractvalue id t v idxs)::cs) c)::sbs) tmn lc arg als)::EC) gl Mem) 
+    (mkState S TD Ps ((mkEC F B ((subblock_intro cs c)::sbs) tmn lc' arg als)::EC) gl' Mem)
+    trace_nil 
+| dbInsertValue : forall S TD Ps F B lc gl lc' gl' arg id t v t' v' gv gv' gv'' idxs EC cs c sbs tmn Mem als,
+  getOperandValue TD v lc gl = Some gv ->
+  getOperandValue TD v' lc gl = Some gv' ->
+  insertGenericValue TD t gv idxs t' gv' = Some gv'' ->
+  updateEnv lc gl id gv'' = (lc', gl') -> 
+  dbCmd 
+    (mkState S TD Ps ((mkEC F B ((subblock_intro ((insn_insertvalue id t v t' v' idxs)::cs) c)::sbs) tmn lc arg als)::EC) gl Mem) 
+    (mkState S TD Ps ((mkEC F B ((subblock_intro cs c)::sbs) tmn lc' arg als)::EC) gl' Mem)
+    trace_nil 
+| dbMalloc : forall S TD Ps F B lc gl lc' gl' arg id t sz align EC cs c sbs tmn Mem als Mem' tsz mb,
+  getTypeAllocSize TD t = Some tsz ->
+  malloc TD Mem (tsz * sz) align = Some (Mem', mb) ->
+  updateEnv lc gl id (ptr2GV TD (mb, 0)) = (lc', gl') -> 
+  dbCmd 
+    (mkState S TD Ps ((mkEC F B ((subblock_intro ((insn_malloc id t sz align)::cs) c)::sbs) tmn lc arg als)::EC) gl Mem) 
+    (mkState S TD Ps ((mkEC F B ((subblock_intro cs c)::sbs) tmn lc' arg als)::EC) gl' Mem')
+    trace_nil
+| dbFree : forall S TD Ps F B lc gl arg fid t v EC cs c sbs tmn Mem als Mem' mptr,
+  getOperandPtr TD v lc gl = Some mptr ->
+  free Mem mptr = Some Mem'->
+  dbCmd 
+    (mkState S TD Ps ((mkEC F B ((subblock_intro ((insn_free fid t v)::cs) c)::sbs) tmn lc arg als)::EC) gl Mem) 
+    (mkState S TD Ps ((mkEC F B ((subblock_intro cs c)::sbs) tmn lc arg als)::EC) gl Mem')
+    trace_nil
+| dbAlloca : forall S TD Ps F B lc gl lc' gl' arg id t sz align EC cs c sbs tmn Mem als Mem' tsz mb,
+  getTypeAllocSize TD t = Some tsz ->
+  malloc TD Mem (tsz * sz) align = Some (Mem', mb) ->
+  updateEnv lc gl id (ptr2GV TD (mb, 0)) = (lc', gl') -> 
+  dbCmd 
+    (mkState S TD Ps ((mkEC F B ((subblock_intro ((insn_alloca id t sz align)::cs) c)::sbs) tmn lc arg als)::EC) gl Mem) 
+    (mkState S TD Ps ((mkEC F B ((subblock_intro cs c)::sbs) tmn lc' arg (mb::als))::EC) gl' Mem')
+    trace_nil
+| dbLoad : forall S TD Ps F B lc gl lc' gl' arg id t v EC cs c sbs tmn Mem als mp gv,
+  getOperandPtr TD v lc gl = Some mp ->
+  mload TD Mem mp t = Some gv ->
+  updateEnv lc gl id gv = (lc', gl') -> 
+  dbCmd 
+    (mkState S TD Ps ((mkEC F B ((subblock_intro ((insn_load id t v)::cs) c)::sbs) tmn lc arg als)::EC) gl Mem) 
+    (mkState S TD Ps ((mkEC F B ((subblock_intro cs c)::sbs) tmn lc' arg als)::EC) gl' Mem)
+    trace_nil
+| dbStore : forall S TD Ps F B lc gl arg sid t v1 v2 EC cs c sbs tmn Mem als mp2 gv1 Mem',
+  getOperandValue TD v1 lc gl = Some gv1 ->
+  getOperandPtr TD v2 lc gl = Some mp2 ->
+  mstore TD Mem mp2 t gv1 = Some Mem' ->
+  dbCmd 
+    (mkState S TD Ps ((mkEC F B ((subblock_intro ((insn_store sid t v1 v2)::cs) c)::sbs) tmn lc arg als)::EC) gl Mem) 
+    (mkState S TD Ps ((mkEC F B ((subblock_intro cs c)::sbs) tmn lc arg als)::EC) gl Mem')
+    trace_nil
+| dbGEP : forall S TD Ps F B lc gl lc' gl' arg id inbounds t v idxs EC mp mp' cs c sbs tmn Mem als,
+  getOperandPtr TD v lc gl = Some mp ->
+  GEP TD lc gl t mp idxs inbounds = Some mp' ->
+  updateEnv lc gl id (ptr2GV TD mp') = (lc', gl') -> 
+  dbCmd 
+    (mkState S TD Ps ((mkEC F B ((subblock_intro ((insn_gep id inbounds t v idxs)::cs) c)::sbs) tmn lc arg als)::EC) gl Mem) 
+    (mkState S TD Ps ((mkEC F B ((subblock_intro cs c)::sbs) tmn lc' arg als)::EC) gl' Mem)
+    trace_nil 
+| dbExt : forall S TD Ps F B lc gl arg id extop t1 v1 t2 gv2 EC cs c sbs tmn lc' gl' Mem als,
+  EXT TD lc gl extop t1 v1 t2 = Some gv2 ->
+  updateEnv lc gl id gv2 = (lc', gl') -> 
+  dbCmd 
+    (mkState S TD Ps ((mkEC F B ((subblock_intro ((insn_ext id extop t1 v1 t2)::cs) c)::sbs) tmn lc arg als)::EC) gl Mem) 
+    (mkState S TD Ps ((mkEC F B ((subblock_intro cs c)::sbs) tmn lc' arg als)::EC) gl' Mem)
+    trace_nil
+| dbCast : forall S TD Ps F B lc gl arg id castop t1 v1 t2 gv2 EC cs c sbs tmn lc' gl' Mem als,
+  CAST TD lc gl castop t1 v1 t2 = Some gv2 ->
+  updateEnv lc gl id gv2 = (lc', gl') -> 
+  dbCmd 
+    (mkState S TD Ps ((mkEC F B ((subblock_intro ((insn_cast id castop t1 v1 t2)::cs) c)::sbs) tmn lc arg als)::EC) gl Mem) 
+    (mkState S TD Ps ((mkEC F B ((subblock_intro cs c)::sbs) tmn lc' arg als)::EC) gl' Mem)
+    trace_nil
+| dbIcmp : forall S TD Ps F B lc gl arg id cond t v1 v2 gv3 EC cs c sbs tmn lc' gl' Mem als,
+  ICMP TD lc gl cond t v1 v2 = Some gv3 ->
+  updateEnv lc gl id gv3 = (lc', gl') -> 
+  dbCmd 
+    (mkState S TD Ps ((mkEC F B ((subblock_intro ((insn_icmp id cond t v1 v2)::cs) c)::sbs) tmn lc arg als)::EC) gl Mem) 
+    (mkState S TD Ps ((mkEC F B ((subblock_intro cs c)::sbs) tmn lc' arg als)::EC) gl' Mem)
+    trace_nil
+| dbSelect : forall S TD Ps F B lc gl arg id v0 t v1 v2 cond EC cs c sbs tmn lc' gl' Mem als gv1 gv2,
+  getOperandInt TD 1 v0 lc gl = Some cond ->
+  getOperandValue TD v1 lc gl = Some gv1 ->
+  getOperandValue TD v2 lc gl = Some gv2 ->
+  (lc', gl') = (if cond
+               then updateEnv lc gl id gv1
+               else updateEnv lc gl id gv2) ->
+  dbCmd 
+    (mkState S TD Ps ((mkEC F B ((subblock_intro ((insn_select id v0 t v1 v2)::cs) c)::sbs) tmn lc arg als)::EC) gl Mem) 
+    (mkState S TD Ps ((mkEC F B ((subblock_intro cs c)::sbs) tmn lc' arg als)::EC) gl' Mem)
+    trace_nil
+.
+
+Inductive dbTerminator : State -> State -> trace -> Prop :=
+| dbBranch : forall S TD Ps F B lc gl arg bid Cond l1 l2 c
+                              l' ps' sbs' tmn' lc' EC Mem als,   
+  getOperandInt TD 1 Cond lc gl = Some c ->
+  Some (block_intro l' ps' sbs' tmn') = (if c 
+               then lookupBlockViaLabelFromSystem S l1
+               else lookupBlockViaLabelFromSystem S l2) ->
+  lc' = switchToNewBasicBlock (block_intro l' ps' sbs' tmn') B lc ->
+  dbTerminator 
+    (mkState S TD Ps ((mkEC F B nil (insn_br bid Cond l1 l2) lc arg als)::EC) gl Mem)
+    (mkState S TD Ps ((mkEC F (block_intro l' ps' sbs' tmn') sbs' tmn' lc' arg als)::EC) gl Mem)
+    trace_nil 
+| dbBranch_uncond : forall S TD Ps F B lc gl arg l bid
+                              l' ps' sbs' tmn' lc' EC Mem als,   
+  Some (block_intro l' ps' sbs' tmn') = (lookupBlockViaLabelFromSystem S l) ->
+  lc' = switchToNewBasicBlock (block_intro l' ps' sbs' tmn') B lc ->
+  dbTerminator 
+    (mkState S TD Ps ((mkEC F B nil (insn_br_uncond bid l) lc arg als)::EC) gl Mem)
+    (mkState S TD Ps ((mkEC F (block_intro l' ps' sbs' tmn') sbs' tmn' lc' arg als)::EC) gl Mem)
+    trace_nil 
+.
+
+Inductive dbCmds : State -> State -> trace -> Prop :=
+| dbCmds_nil : forall S, dbCmds S S trace_nil
+| dbCmds_cons : forall S1 S2 S3 t1 t2,
+    dbCmd S1 S2 t1 ->
+    dbCmds S2 S3 t2 ->
+    dbCmds S1 S3 (trace_app t1 t2).
+
+Inductive dbCall : State -> State -> trace -> Prop :=
+| dbCall_intro : forall S TD Ps F B lc gl arg rid noret tailc rt fid lp gl' gl'' sbs tmn
+                       EC Rid oResult tr lc'' B' lc' Mem Mem' als' als Mem'',
+  dbFdef fid rt lp S TD Ps ((mkEC F B ((subblock_intro nil (insn_call rid noret tailc rt fid lp))::sbs) tmn lc arg als)::EC) lc gl Mem lc' gl' als' Mem' B' Rid oResult tr ->
+  (lc'', gl'') = 
+    match noret with
+    | false =>
+      if (LLVMlib.typEqB rt typ_void) 
+      then (lc, gl') 
+      else 
+        match oResult with
+        | None => (lc, gl')
+        | Some Result => 
+          match (getOperandValue TD Result lc' gl') with
+          | Some gr => updateEnv lc gl' rid gr
+          | None => (lc, gl')
+          end
+        end
+    | true => (lc, gl')
+    end ->
+  free_allocas Mem' als' = Some Mem'' ->
+  dbCall 
+    (mkState S TD Ps ((mkEC F B ((subblock_intro nil (insn_call rid noret tailc rt fid lp))::sbs) tmn lc arg als)::EC) gl Mem) 
+    (mkState S TD Ps ((mkEC F B sbs tmn lc'' arg als)::EC) gl'' Mem'') 
+    tr
+with dbSubblock : State -> State -> trace -> Prop :=
+| dbSubblock_intro : forall state1 state2 tr1 state3 tr2,
+  dbCmds state1 state2 tr1 ->
+  dbCall state2 state3 tr2 ->
+  dbSubblock state1 state3 (trace_app tr1 tr2)
+with dbSubblocks : State -> State -> trace -> Prop :=
+| dbSubblocks_nil : forall S, dbSubblocks S S trace_nil
+| dbSubblocks_cond : forall S1 S2 S3 t1 t2,
+    dbSubblock S1 S2 t1 ->
+    dbSubblocks S2 S3 t2 ->
+    dbSubblocks S1 S3 (trace_app t1 t2)
+with dbBlock : State -> State -> trace -> Prop :=
+| dbBlock_intro : forall state1 state2 tr1 state3 tr2,
+  dbSubblocks state1 state2 tr1 ->
+  dbTerminator state2 state3 tr2 ->
+  dbBlock state1 state3 (trace_app tr1 tr2)
+with dbBlocks : State -> State -> trace -> Prop :=
+| dbBlocks_nil : forall S, dbBlocks S S trace_nil
+| dbBlocks_cons : forall S1 S2 S3 t1 t2,
+    dbBlock S1 S2 t1 ->
+    dbBlocks S2 S3 t2 ->
+    dbBlocks S1 S3 (trace_app t1 t2)
+with dbFdef : id -> typ -> list_param -> system -> layouts -> list product -> list ExecutionContext -> GVMap -> GVMap -> mem -> GVMap -> GVMap -> list mblock -> mem -> block -> id -> option value -> trace -> Prop :=
+| dbFdef_func : forall S TD Ps gl fid lp lc rid
+                            l' ps' cs' tmn' rt la lb B'' Result lc' gl' tr ECs Mem Mem' als',
+  lookupFdefViaIDFromSystem S fid = Some (fdef_intro (fheader_intro rt fid la) lb) ->
+  getEntryBlock (fdef_intro (fheader_intro rt fid la) lb) = Some (block_intro l' ps' cs' tmn') ->
+  dbBlocks 
+    (mkState S TD Ps ((mkEC (fdef_intro (fheader_intro rt fid la) lb) 
+                             (block_intro l' ps' cs' tmn') cs' tmn' (initLocals la (params2GVs TD lp lc gl))
+                            (params2GVs TD lp lc gl) nil)::ECs) gl Mem)
+    (mkState S TD Ps ((mkEC (fdef_intro (fheader_intro rt fid la) lb) 
+                             B'' nil (insn_return rid rt Result) lc'
+                            (params2GVs TD lp lc gl) als')::ECs) gl' Mem')
+    tr ->
+  dbFdef fid rt lp S TD Ps ECs lc gl Mem lc' gl' als' Mem' B'' rid (Some Result) tr
+| dbFdef_proc : forall S TD Ps gl fid lp lc rid
+                            l' ps' cs' tmn' rt la lb B'' lc' gl' tr ECs Mem Mem' als',
+  lookupFdefViaIDFromSystem S fid = Some (fdef_intro (fheader_intro rt fid la) lb) ->
+  getEntryBlock (fdef_intro (fheader_intro rt fid la) lb) = Some (block_intro l' ps' cs' tmn') ->
+  dbBlocks 
+    (mkState S TD Ps ((mkEC (fdef_intro (fheader_intro rt fid la) lb) 
+                             (block_intro l' ps' cs' tmn') cs' tmn' (initLocals la (params2GVs TD lp lc gl))
+                            (params2GVs TD lp lc gl) nil)::ECs) gl Mem)
+    (mkState S TD Ps ((mkEC (fdef_intro (fheader_intro rt fid la) lb) 
+                             B'' nil (insn_return_void rid) lc'
+                            (params2GVs TD lp lc gl) als')::ECs) gl' Mem')
+    tr ->
+  dbFdef fid  rt lp S TD Ps ECs lc gl Mem lc' gl' als' Mem' B'' rid None tr
+.
+
+Scheme dbCall_ind2 := Induction for dbCall Sort Prop
+  with dbSubblock_ind2 := Induction for dbSubblock Sort Prop
+  with dbSubblocks_ind2 := Induction for dbSubblocks Sort Prop
+  with dbBlock_ind2 := Induction for dbBlock Sort Prop
+  with dbBlocks_ind2 := Induction for dbBlocks Sort Prop
+  with dbFdef_ind2 := Induction for dbFdef Sort Prop.
+
+Combined Scheme db_mutind from dbCall_ind2, dbSubblock_ind2, dbSubblocks_ind2,
+                               dbBlock_ind2, dbBlocks_ind2, dbFdef_ind2.
+
+Tactic Notation "db_mutind_cases" tactic(first) tactic(c) :=
+  first;
+  [ c "dbCall_intro" | 
+    c "dbSubblock_intro" | c "dbSubblocks_nil" | c "dbSubblocks_cons" | 
+    c "dbBlock_intro" | c "dbBlocks_nil" | c "dbBlocks_cons" | 
+    c "dbFdef_func" | c "dbFdef_proc" ].
+
+Tactic Notation "dbCmd_cases" tactic(first) tactic(c) :=
+  first;
+  [ c "dbBop" | c "dbExtractValue" | c "dbInsertValue" |
+    c "dbMalloc" | c "dbFree" |
+    c "dbAlloca" | c "dbLoad" | c "dbStore" | c "dbGEP" |
+    c "dbExt" | c "dbCast" | c "dbIcmp" |  c "dbSelect" ].
+
+Tactic Notation "dbTerminator_cases" tactic(first) tactic(c) :=
+  first;
+  [ c "dbBranch" | c "dbBranch_uncond" ].
+
+Tactic Notation "dbCmds_cases" tactic(first) tactic(c) :=
+  first;
+  [ c "dbCmds_nil" | c "dbCmds_cons" ].
+
+Hint Constructors dbCmd dbCmds dbTerminator dbCall 
+                  dbSubblock dbSubblocks dbBlock dbBlocks dbFdef.
 
 (** symbolic terms and memories. *)
 Inductive sterm : Set := 
@@ -26,7 +353,6 @@ Inductive sterm : Set :=
 | sterm_icmp : cond -> typ -> sterm -> sterm -> sterm
 | sterm_phi : typ -> list (sterm*l) -> sterm
 | sterm_select : sterm -> typ -> sterm -> sterm -> sterm
-| sterm_call : noret -> tailc -> typ -> id -> list (typ*sterm) -> sterm
 with smem : Set :=
 | smem_init : smem
 | smem_malloc : smem -> typ -> sz -> align -> smem
@@ -37,21 +363,23 @@ with smem : Set :=
 .
 
 Inductive sterminator : Set :=
-| stmn_return : typ -> sterm -> sterminator
-| stmn_return_void : sterminator
-| stmn_br : sterm -> l -> l -> sterminator
-| stmn_br_uncond : l -> sterminator
-| stmn_unreachable : sterminator
+| stmn_return : id -> typ -> sterm -> sterminator
+| stmn_return_void : id -> sterminator
+| stmn_br : id -> sterm -> l -> l -> sterminator
+| stmn_br_uncond : id -> l -> sterminator
+| stmn_unreachable : id -> sterminator
+.
+
+Inductive scall : Set :=
+| stmn_call : id -> noret -> tailc -> typ -> id -> list (typ*sterm) -> scall
 .
 
 Definition smap := list (atom*sterm).
-Definition effects := list sterm.
 
 Record sstate : Set := mkSstate 
 {
   STerms : smap;
-  SMem : smem;
-  Effects : effects
+  SMem : smem
 }.
 
 Fixpoint updateSmap (sm:smap) (id0:id) (s0:sterm) : smap :=
@@ -96,14 +424,6 @@ match s with
                    lsl1)
 | sterm_select s1 t1 s2 s3 => 
     sterm_select (subst_tt id0 s0 s1) t1 (subst_tt id0 s0 s2) (subst_tt id0 s0 s3)
-| sterm_call noret tailc t1 id1 lts1 => 
-    sterm_call noret tailc t1 id1 
-                 (List.map 
-                   (fun (ts1:typ*sterm) => 
-                    let (t1,s1):=ts1 in 
-                    (t1, (subst_tt id0 s0 s1))
-                   ) 
-                   lts1)
 end
 with subst_tm (id0:id) (s0:sterm) (m:smem) : smem :=
 match m with 
@@ -141,15 +461,13 @@ match i with
                    (sterm_bop op0 sz0 
                      (subst_mt st.(STerms) (sterm_val v1))
                      (subst_mt st.(STerms) (sterm_val v2))))
-                 st.(SMem)
-                 st.(Effects))
+                 st.(SMem))
 | insn_extractvalue id0 t1 v1 cs3 =>
        (mkSstate (updateSmap st.(STerms) id0 
                    (sterm_extractvalue t1 
                      (subst_mt st.(STerms) (sterm_val v1))
                      cs3))
-                 st.(SMem) 
-                 st.(Effects))
+                 st.(SMem))
 | insn_insertvalue id0 t1 v1 t2 v2 cs3 =>  
        (mkSstate (updateSmap st.(STerms) id0 
                    (sterm_insertvalue 
@@ -158,8 +476,7 @@ match i with
                      t2 
                      (subst_mt st.(STerms) (sterm_val v2))
                      cs3))
-                 st.(SMem) 
-                 st.(Effects))
+                 st.(SMem))
 | insn_malloc id0 t1 sz1 al1 =>  
        (mkSstate (updateSmap st.(STerms) id0 
                    (sterm_malloc 
@@ -167,20 +484,17 @@ match i with
                      t1 sz1 al1))
                  (smem_malloc 
                    (subst_mm st.(STerms) st.(SMem)) 
-                   t1 sz1 al1)
-                 st.(Effects))
+                   t1 sz1 al1))
 | insn_free id0 t0 v0 =>  
        (mkSstate st.(STerms)
                 (smem_free st.(SMem) t0 
-                  (subst_mt st.(STerms) (sterm_val v0)))
-                 st.(Effects))
+                  (subst_mt st.(STerms) (sterm_val v0))))
 | insn_alloca id0 t1 sz1 al1 =>  
        (mkSstate (updateSmap st.(STerms) id0 
                    (sterm_alloca 
                      (subst_mm st.(STerms) st.(SMem)) t1 sz1 al1))
                  (smem_alloca 
-                   (subst_mm st.(STerms) st.(SMem)) t1 sz1 al1)
-                 st.(Effects))
+                   (subst_mm st.(STerms) st.(SMem)) t1 sz1 al1))
 | insn_load id0 t2 v2 =>  
        (mkSstate (updateSmap st.(STerms) id0 
                    (sterm_load 
@@ -190,44 +504,38 @@ match i with
                  (smem_load 
                    (subst_mm st.(STerms) st.(SMem))
                    t2 
-                   (subst_mt st.(STerms) (sterm_val v2)))
-                 st.(Effects))
+                   (subst_mt st.(STerms) (sterm_val v2))))
 | insn_store id0 t0 v1 v2 =>  
        (mkSstate st.(STerms)
                  (smem_store 
                    (subst_mm st.(STerms) st.(SMem))
                    t0 
                    (subst_mt st.(STerms) (sterm_val v1))
-                   (subst_mt st.(STerms) (sterm_val v2)))
-                 st.(Effects))
+                   (subst_mt st.(STerms) (sterm_val v2))))
 | insn_gep id0 inbounds0 t1 v1 lv2 =>  
        (mkSstate (updateSmap st.(STerms) id0 
                    (sterm_gep inbounds0 t1 
                      (subst_mt st.(STerms) (sterm_val v1))
                      (List.map (subst_mt st.(STerms)) (List.map sterm_val lv2))))
-                 st.(SMem) 
-                 st.(Effects))
+                 st.(SMem))
 | insn_ext id0 op0 t1 v1 t2 =>  
        (mkSstate (updateSmap st.(STerms) id0 
                    (sterm_ext op0 t1 
                      (subst_mt st.(STerms) (sterm_val v1))
                      t2))
-                 st.(SMem) 
-                 st.(Effects))
+                 st.(SMem))
 | insn_cast id0 op0 t1 v1 t2 =>  
        (mkSstate (updateSmap st.(STerms) id0 
                    (sterm_cast op0 t1 
                      (subst_mt st.(STerms) (sterm_val v1))
                      t2))
-                 st.(SMem) 
-                 st.(Effects))
+                 st.(SMem))
 | insn_icmp id0 c0 t0 v1 v2 =>  
        (mkSstate (updateSmap st.(STerms) id0 
                    (sterm_icmp c0 t0 
                      (subst_mt st.(STerms) (sterm_val v1))
                      (subst_mt st.(STerms) (sterm_val v2))))
-                 st.(SMem) 
-                 st.(Effects))
+                 st.(SMem))
 | insn_select id0 v0 t0 v1 v2 =>  
        (mkSstate (updateSmap st.(STerms) id0 
                    (sterm_select 
@@ -235,20 +543,9 @@ match i with
                      t0 
                      (subst_mt st.(STerms) (sterm_val v1))
                      (subst_mt st.(STerms) (sterm_val v2))))
-                 st.(SMem) 
-                 st.(Effects))
-| insn_call id0 false tailc0 t1 id1 list_param1 =>  
-       (mkSstate (updateSmap st.(STerms) id0 
-                   (sterm_call false tailc0 t1 id1 
-                      (list_param__list_typ_subst_sterm list_param1 st.(STerms))))
-                 st.(SMem) 
-                 st.(Effects))
-| insn_call id0 true tailc0 t1 id1 list_param1 =>  
-       (mkSstate st.(STerms)
-                 st.(SMem) 
-                 ((sterm_call true tailc0 t1 id1 
-                    (list_param__list_typ_subst_sterm list_param1 st.(STerms)))::st.(Effects)))
+                 st.(SMem))
 end.
+
 
 Fixpoint _se_phinodes (st st0: sstate) (ps:list phinode) : sstate :=
 match ps with
@@ -267,8 +564,7 @@ match ps with
                    )
                  )
                )
-               st.(SMem)
-               st.(Effects))
+               st.(SMem))
      st0
      ps'
 end.
@@ -283,37 +579,18 @@ end.
 
 Definition se_terminator (st : sstate) (i:terminator) : sterminator :=
 match i with 
-| insn_return id0 t0 v0 => stmn_return t0 (subst_mt st.(STerms) (sterm_val v0))
-| insn_return_void id0 => stmn_return_void
-| insn_br id0 v0 l1 l2 => stmn_br (subst_mt st.(STerms) (sterm_val v0)) l1 l2
-| insn_br_uncond id0 l0 => stmn_br_uncond l0
-| insn_unreachable id0 => stmn_unreachable
+| insn_return id0 t0 v0 => stmn_return id0 t0 (subst_mt st.(STerms) (sterm_val v0))
+| insn_return_void id0 => stmn_return_void id0 
+| insn_br id0 v0 l1 l2 => stmn_br id0 (subst_mt st.(STerms) (sterm_val v0)) l1 l2
+| insn_br_uncond id0 l0 => stmn_br_uncond id0 l0
+| insn_unreachable id0 => stmn_unreachable id0 
 end.
 
-Definition se_block (st : sstate) (b:block) : sstate*sterminator :=
-match b with
-| block_intro l0 ps cs tmn =>
-  let st0 := se_cmds (se_phinodes st ps) cs in
-  (st0, se_terminator st0 tmn)
-end.
-
-Definition tv_block (b1 b2:block) :=
-let (st1, tmn1) := se_block (mkSstate nil smem_init nil) b1 in
-let (st2, tmn2) := se_block (mkSstate nil smem_init nil) b2 in
-st1 = st2 /\ tmn1 = tmn2.
-
-Fixpoint GVs2Nats (TD:layouts) (lgv:list GenericValue) (locals:GVMap) (globals:GVMap) : option (list nat):=
-match lgv with
-| nil => Some nil
-| gv::lgv' => 
-    match (GV2nat TD 32 gv) with
-    | Some n =>
-      match (GVs2Nats TD lgv' locals globals) with
-      | Some ns => Some (n::ns)
-      | None => None
-      end
-    | None => None
-    end
+Definition se_call (st : sstate) (i:call) : scall :=
+match i with
+| insn_call id0 noret tailc0 t1 id1 list_param1 =>  
+                   (stmn_call id0 noret tailc0 t1 id1 
+                      (list_param__list_typ_subst_sterm list_param1 st.(STerms)))
 end.
 
 Inductive sterm_denotes_genericvalue : 
@@ -325,7 +602,7 @@ Inductive sterm_denotes_genericvalue :
    GenericValue ->          (* value that denotes sterm *)
    Prop :=
 | sterm_val_denotes : forall TD lc gl Mem v gv,
-  getOperandValue TD v lc gl = Some gv ->
+  getOperandValue TD v lc gl = Some gv ->  
   sterm_denotes_genericvalue TD lc gl Mem (sterm_val v) gv
 | sterm_bop_denotes : forall TD lc gl Mem op0 sz0 st1 st2 gv1 gv2 gv3,
   sterm_denotes_genericvalue TD lc gl Mem st1 gv1 ->
@@ -334,26 +611,29 @@ Inductive sterm_denotes_genericvalue :
   sterm_denotes_genericvalue TD lc gl Mem (sterm_bop op0 sz0 st1 st2) gv3
 | sterm_extractvalue_denotes : forall TD lc gl Mem t1 st1 idxs0 gv1 gv2,
   sterm_denotes_genericvalue TD lc gl Mem st1 gv1 ->
-  extractGenericValue TD lc gl t1 gv1 idxs0 = Some gv2 ->
+  extractGenericValue TD t1 gv1 idxs0 = Some gv2 ->
   sterm_denotes_genericvalue TD lc gl Mem (sterm_extractvalue t1 st1 idxs0) gv2
 | sterm_insertvalue_denotes : forall TD lc gl Mem t1 st1 t2 st2 idxs0 gv1 gv2 gv3,
   sterm_denotes_genericvalue TD lc gl Mem st1 gv1 ->
   sterm_denotes_genericvalue TD lc gl Mem st2 gv2 ->
-  insertGenericValue TD t1 gv1 lc gl idxs0 t2 gv2 = Some gv3 ->
+  insertGenericValue TD t1 gv1 idxs0 t2 gv2 = Some gv3 ->
   sterm_denotes_genericvalue TD lc gl Mem (sterm_insertvalue t1 st1 t2 st2 idxs0) gv3
-| sterm_malloc_denotes : forall TD lc gl Mem sm0 t0 sz0 align0 tsz0 Mem' mb,
+| sterm_malloc_denotes : forall TD lc gl Mem0 Mem1 sm0 t0 sz0 align0 tsz0 Mem2 mb,
+  smem_denotes_mem TD lc gl Mem0 sm0 Mem1 ->
   getTypeAllocSize TD t0 = Some tsz0 ->
-  malloc TD Mem (tsz0 * sz0) align0 = Some (Mem', mb) ->
-  sterm_denotes_genericvalue TD lc gl Mem (sterm_malloc sm0 t0 sz0 align0) (ptr2GV TD (mb, 0))
-| sterm_alloca_denotes : forall TD lc gl Mem sm0 t0 sz0 align0 tsz0 Mem' mb,
+  malloc TD Mem1 (tsz0 * sz0) align0 = Some (Mem2, mb) ->
+  sterm_denotes_genericvalue TD lc gl Mem0 (sterm_malloc sm0 t0 sz0 align0) (ptr2GV TD (mb, 0))
+| sterm_alloca_denotes : forall TD lc gl Mem0 Mem1 sm0 t0 sz0 align0 tsz0 Mem2 mb,
+  smem_denotes_mem TD lc gl Mem0 sm0 Mem1 ->
   getTypeAllocSize TD t0 = Some tsz0 ->
-  malloc TD Mem (tsz0 * sz0) align0 = Some (Mem', mb) ->
-  sterm_denotes_genericvalue TD lc gl Mem (sterm_alloca sm0 t0 sz0 align0) (ptr2GV TD (mb, 0))
-| sterm_load_denotes : forall TD lc gl Mem sm0 t0 st0 gv0 mp0 gv1,
-  sterm_denotes_genericvalue TD lc gl Mem st0 gv0 ->
+  malloc TD Mem1 (tsz0 * sz0) align0 = Some (Mem2, mb) ->
+  sterm_denotes_genericvalue TD lc gl Mem0 (sterm_alloca sm0 t0 sz0 align0) (ptr2GV TD (mb, 0))
+| sterm_load_denotes : forall TD lc gl Mem0 Mem1 sm0 t0 st0 gv0 mp0 gv1,
+  sterm_denotes_genericvalue TD lc gl Mem0 st0 gv0 ->
+  smem_denotes_mem TD lc gl Mem0 sm0 Mem1 ->
   GV2ptr TD (getPointerSize TD) gv0 = Some mp0 ->
-  mload TD Mem mp0 t0 = Some gv1 ->
-  sterm_denotes_genericvalue TD lc gl Mem (sterm_load sm0 t0 st0) gv1
+  mload TD Mem1 mp0 t0 = Some gv1 ->
+  sterm_denotes_genericvalue TD lc gl Mem0 (sterm_load sm0 t0 st0) gv1
 | sterm_gep_denotes : forall TD lc gl Mem ib0 t0 st0 sts0 gv0 gvs0 ns0 mp0 mp1,
   sterm_denotes_genericvalue TD lc gl Mem st0 gv0 ->
   sterms_denote_genericvalues TD lc gl Mem sts0 gvs0 ->
@@ -374,12 +654,13 @@ Inductive sterm_denotes_genericvalue :
   sterm_denotes_genericvalue TD lc gl Mem st2 gv2 ->
   micmp TD cond0 t0 gv1 gv2 = Some gv3 ->
   sterm_denotes_genericvalue TD lc gl Mem (sterm_icmp cond0 t0 st1 st2) gv3
-| sterm_select_denotes : forall TD lc gl Mem st0 t0 st1 st2 gv0 gv1 gv2 c0,
+| sterm_select_denotes : forall TD lc gl Mem st0 t0 st1 st2 gv0 gv1 gv2 c0 gv3,
   sterm_denotes_genericvalue TD lc gl Mem st0 gv0 ->
   sterm_denotes_genericvalue TD lc gl Mem st1 gv1 ->
   sterm_denotes_genericvalue TD lc gl Mem st2 gv2 ->
   GV2nat TD 1 gv0 = Some c0 ->
-  sterm_denotes_genericvalue TD lc gl Mem (sterm_select st0 t0 st1 st2) (if c0 then gv1 else gv2)
+  (if c0 then gv1 else gv2) = gv3 -> 
+  sterm_denotes_genericvalue TD lc gl Mem (sterm_select st0 t0 st1 st2) gv3
 with sterms_denote_genericvalues : 
    layouts ->               (* CurTatgetData *)
    GVMap ->                 (* local registers *)
@@ -403,38 +684,911 @@ with smem_denotes_mem :
    mem ->                   (* value that denotes smem *)
    Prop :=
 | smem_init_denotes : forall TD lc gl Mem,
-  smem_denotes_mem TD lc gl Mem smem_init initmem
-| smem_malloc_denotes : forall TD lc gl Mem sm0 t0 sz0 align0 tsz0 Mem' mb,
+  smem_denotes_mem TD lc gl Mem smem_init Mem
+| smem_malloc_denotes : forall TD lc gl Mem0 Mem1 sm0 t0 sz0 align0 tsz0 Mem2 mb,
+  smem_denotes_mem TD lc gl Mem0 sm0 Mem1 ->
   getTypeAllocSize TD t0 = Some tsz0 ->
-  malloc TD Mem (tsz0 * sz0) align0 = Some (Mem', mb) ->
-  smem_denotes_mem TD lc gl Mem (smem_malloc sm0 t0 sz0 align0) Mem'
-| smem_free_denotes : forall TD lc gl Mem sm0 t0 st0 gv0 mptr0 Mem',
-  sterm_denotes_genericvalue TD lc gl Mem st0 gv0 ->
+  malloc TD Mem1 (tsz0 * sz0) align0 = Some (Mem2, mb) ->
+  smem_denotes_mem TD lc gl Mem0 (smem_malloc sm0 t0 sz0 align0) Mem2
+| smem_free_denotes : forall TD lc gl Mem0 Mem1 sm0 t0 st0 gv0 mptr0 Mem2,
+  sterm_denotes_genericvalue TD lc gl Mem0 st0 gv0 ->
+  smem_denotes_mem TD lc gl Mem0 sm0 Mem1 ->
   GV2ptr TD (getPointerSize TD) gv0 = Some mptr0 ->
-  free Mem mptr0 = Some Mem'->
-  smem_denotes_mem TD lc gl Mem (smem_free sm0 t0 st0) Mem'
-| smem_alloca_denotes : forall TD lc gl Mem sm0 t0 sz0 align0 tsz0 Mem' mb,
+  free Mem1 mptr0 = Some Mem2->
+  smem_denotes_mem TD lc gl Mem0 (smem_free sm0 t0 st0) Mem2
+| smem_alloca_denotes : forall TD lc gl Mem0 Mem1 sm0 t0 sz0 align0 tsz0 Mem2 mb,
+  smem_denotes_mem TD lc gl Mem0 sm0 Mem1 ->
   getTypeAllocSize TD t0 = Some tsz0 ->
-  malloc TD Mem (tsz0 * sz0) align0 = Some (Mem', mb) ->
-  smem_denotes_mem TD lc gl Mem (smem_alloca sm0 t0 sz0 align0) Mem
-| smem_load_denotes : forall TD lc gl Mem sm0 t0 st0 Mem0,
-  smem_denotes_mem TD lc gl Mem sm0 Mem0 ->
-  smem_denotes_mem TD lc gl Mem (smem_load sm0 t0 st0) Mem0
-| smem_store_denotes : forall TD lc gl Mem sm0 t0 st1 st2 gv1 gv2 mptr2 Mem',
-  sterm_denotes_genericvalue TD lc gl Mem st1 gv1 ->
-  sterm_denotes_genericvalue TD lc gl Mem st2 gv2 ->
+  malloc TD Mem1 (tsz0 * sz0) align0 = Some (Mem2, mb) ->
+  smem_denotes_mem TD lc gl Mem0 (smem_alloca sm0 t0 sz0 align0) Mem2
+| smem_load_denotes : forall TD lc gl Mem0 sm0 t0 st0 Mem1,
+  smem_denotes_mem TD lc gl Mem0 sm0 Mem1 ->
+  smem_denotes_mem TD lc gl Mem0 (smem_load sm0 t0 st0) Mem1
+| smem_store_denotes : forall TD lc gl Mem0 Mem1 sm0 t0 st1 st2 gv1 gv2 mptr2 Mem2,
+  sterm_denotes_genericvalue TD lc gl Mem0 st1 gv1 ->
+  sterm_denotes_genericvalue TD lc gl Mem0 st2 gv2 ->
+  smem_denotes_mem TD lc gl Mem0 sm0 Mem1 ->
   GV2ptr TD (getPointerSize TD) gv2 = Some mptr2 ->
-  mstore TD Mem mptr2 t0 gv1 = Some Mem' ->
-  smem_denotes_mem TD lc gl Mem (smem_store sm0 t0 st1 st2) Mem'
+  mstore TD Mem1 mptr2 t0 gv1 = Some Mem2 ->
+  smem_denotes_mem TD lc gl Mem0 (smem_store sm0 t0 st1 st2) Mem2
 .
 
-Definition sstate_denotes_state TD lc gl Mem sstate0 lc' gl' mem' :=
-(forall id0 st0 gv',  
-  binds id0 st0 sstate0.(STerms) ->
-  lookupEnv TD id0 lc' gl' = Some gv' ->
-  sterm_denotes_genericvalue TD lc gl Mem st0 gv') /\
-smem_denotes_mem TD lc gl Mem sstate0.(SMem) mem' /\
-(forall st0,
-  In st0 sstate0.(Effects) ->
-  exists gv', sterm_denotes_genericvalue TD lc gl Mem st0 gv'
-  ).
+Hint Constructors sterm_denotes_genericvalue sterms_denote_genericvalues smem_denotes_mem.
+
+Definition smap_denotes_gvmap TD lc gl Mem sstate' lc' gl' :=
+(forall id' st' gv',  
+  binds id' st' sstate'.(STerms) ->
+  sterm_denotes_genericvalue TD lc gl Mem st' gv' ->
+  lookupEnv id' lc' gl' = Some gv') /\
+(forall id' gv',  
+  lookupEnv id' lc' gl' = Some gv' ->
+  exists st',
+   binds id' st' sstate'.(STerms) /\
+   sterm_denotes_genericvalue TD lc gl Mem st' gv'
+).
+
+Definition sstate_denotes_state TD lc gl Mem sstate' lc' gl' mem' :=
+smap_denotes_gvmap TD lc gl Mem sstate' lc' gl' /\
+smem_denotes_mem TD lc gl Mem sstate'.(SMem) mem'.
+
+Lemma subst_mt_in : forall sm id0 st0,
+  uniq sm ->
+  binds id0 st0 sm ->
+  subst_mt sm (sterm_val (value_id id0)) = st0.
+Admitted.
+
+Lemma subst_mt_notin : forall sm id0,
+  uniq sm ->
+  id0 `notin` dom sm ->
+  subst_mt sm (sterm_val (value_id id0)) = sterm_val (value_id id0).
+Admitted.
+
+Lemma subst_mt_const : forall sm c,
+  subst_mt sm (sterm_val (value_const c)) = sterm_val (value_const c).
+Admitted.
+
+       
+Lemma updateSmap_inversion : forall sm id0 st0 id1 st1,
+  uniq sm ->
+  binds id1 st1 (updateSmap sm id0 st0) ->
+  (id0 <> id1 /\ binds id1 st1 sm) \/ (id0 = id1 /\ st0 = st1).
+Proof.
+  induction sm; intros id0 st0 id1 st1 Uniq Binds; simpl in Binds.
+    analyze_binds Binds.
+
+    destruct a.
+    inversion Uniq; subst.
+    destruct (a==id0); subst.
+      analyze_binds Binds.
+      left. split; auto.
+        apply binds_In in BindsTac.
+        fsetdec.
+
+      analyze_binds Binds.
+      apply IHsm in BindsTac; auto.
+        destruct BindsTac; auto.
+          destruct H; auto.
+Qed.
+
+            
+Lemma binds_updateSmap_eq : forall sm id0 st0,
+  binds id0 st0 (updateSmap sm id0 st0).
+Proof.
+  induction sm; intros id0 st0; simpl; auto.
+    destruct a.
+    destruct (a == id0); subst; auto.
+Qed.
+
+Lemma binds_updateSmap_neq : forall sm id0 st0 id1 st1,
+  binds id1 st1 sm ->
+  id0 <> id1 ->
+  binds id1 st1 (updateSmap sm id0 st0).
+Proof.
+  induction sm; intros id0 st0 id1 st1 Hbinds id0_neq_id1; simpl; auto.
+    destruct a.
+    simpl_env in Hbinds.
+    analyze_binds Hbinds.
+      destruct (a == id0); subst; auto.
+        contradict id0_neq_id1; auto.
+
+      destruct (a == id0); subst; auto.
+Qed.
+
+Lemma genericvalue__implies__subst_mt_val_denotes : forall TD lc0 gl0 Mem0 sstate1 lc gl v gv,
+  uniq (STerms sstate1) ->
+  smap_denotes_gvmap TD lc0 gl0 Mem0 sstate1 lc gl ->
+  getOperandValue TD v lc gl = Some gv ->
+  sterm_denotes_genericvalue TD lc0 gl0 Mem0 (subst_mt (STerms sstate1) (sterm_val v)) gv.
+Proof.
+  intros D lc0 gl0 Mem0 sstate1 lc gl v gv Huniq Hdenotes J.
+  unfold getOperandValue in J.
+  unfold smap_denotes_gvmap in Hdenotes.
+  destruct Hdenotes as [J1 J2].
+  destruct v.
+    apply J2 in J.
+    destruct J as [st0 [J3 J4]].
+    rewrite subst_mt_in with (st0:=st0); auto.
+
+    rewrite subst_mt_const; auto.
+Qed.
+
+Lemma subst_mt_val_denotes__implies__genericvalue : forall TD lc0 gl0 Mem0 sstate1 lc gl v gv,
+  uniq (STerms sstate1) ->
+  (dom lc0 `union` dom gl0) [<=] dom (STerms sstate1) ->
+  smap_denotes_gvmap TD lc0 gl0 Mem0 sstate1 lc gl ->
+  sterm_denotes_genericvalue TD lc0 gl0 Mem0 (subst_mt (STerms sstate1) (sterm_val v)) gv ->
+  getOperandValue TD v lc gl = Some gv.
+Proof.
+  intros D lc0 gl0 Mem0 sstate1 lc gl v gv Huniq Hsub Hdenotes J.
+  unfold smap_denotes_gvmap in Hdenotes.
+  destruct Hdenotes as [J1 J2].
+  destruct v.
+    destruct (@AtomSetProperties.In_dec i0 (dom sstate1.(STerms))) as [i0_in_sstate1 | i0_notin_sstate1].
+      apply binds_In_inv in i0_in_sstate1.
+      destruct i0_in_sstate1 as [st0 Binds].
+      rewrite subst_mt_in with (st0:=st0) in J; auto.
+      apply J1 with (id':=i0) in J; auto.
+
+      rewrite subst_mt_notin in J; auto.
+      inversion J; subst.
+      simpl in H4.
+      apply lookupEnv__indom in H4.
+      clear - i0_notin_sstate1 H4 Hsub.
+      contradict H4; fsetdec.
+    rewrite subst_mt_const in J.
+    inversion J. auto.
+Qed.
+
+Lemma se_cmd__denotes__op_cmd__case1 : forall lc gl i0 gv3 lc' gl' id' st' sstate1 TD lc0 gl0 Mem0 gv',
+  updateEnv lc gl i0 gv3 = (lc', gl') ->
+  i0 <> id' ->
+  binds id' st' (STerms sstate1) ->
+  smap_denotes_gvmap TD lc0 gl0 Mem0 sstate1 lc gl ->
+  sterm_denotes_genericvalue TD lc0 gl0 Mem0 st' gv' ->
+  lookupEnv id' lc' gl' = Some gv'.
+Proof.
+  intros lc gl i0 gv3 lc' gl' id' st' sstate1 TD lc0 gl0 Mem0 gv' H25 nEQ Hbinds Hsterm_denotes Hdenotes.
+  apply lookupEnv_updateEnv_neq with (id1:=id') in H25; auto.
+  rewrite <- H25. 
+  unfold smap_denotes_gvmap in Hsterm_denotes.
+  destruct Hsterm_denotes as [J1 J2].
+  apply J1 with (st':=st'); auto.
+Qed.
+
+Lemma se_cmd__denotes__op_cmd__case2 : forall lc gl i0 gv3 lc' gl' id' sstate1 TD lc0 gl0 Mem0 gv' st0,
+  updateEnv lc gl i0 gv3 = (lc', gl') ->
+  smap_denotes_gvmap TD lc0 gl0 Mem0 sstate1 lc gl ->
+  lookupEnv id' lc' gl' = Some gv' ->
+  id' <> i0 ->
+  exists st', binds id' st' (updateSmap (STerms sstate1) i0 st0) /\ 
+              sterm_denotes_genericvalue TD lc0 gl0 Mem0 st' gv'.
+Proof.
+  intros lc gl i0 gv3 lc' gl' id' sstate1 TD lc0 gl0 Mem0 gv' st0 H25 Hsterm_denotes HlookupEnv n.
+  apply lookupEnv_updateEnv_neq with (id1:=id') in H25; auto.
+  rewrite <- H25 in HlookupEnv.
+  destruct Hsterm_denotes as [J1 J2].
+  apply J2 in HlookupEnv; auto.
+  destruct HlookupEnv as [st' [J3 J4]].
+  exists st'. split; auto.
+    apply binds_updateSmap_neq; auto.
+Qed.
+
+Lemma subst_mm_init : forall m0,
+  subst_mm m0 smem_init = smem_init.
+Proof.
+  induction m0; simpl; auto.
+    destruct a. auto.
+Qed.
+
+Lemma subst_mm_malloc : forall m0 sm1 t1 sz1 a1,
+  subst_mm m0 (smem_malloc sm1 t1 sz1 a1) = smem_malloc (subst_mm m0 sm1) t1 sz1 a1.
+Proof.
+  induction m0; simpl; intros; auto.
+    destruct a. auto.
+Qed.
+
+Lemma subst_mm_free : forall m0 sm1 t1 st1,
+  subst_mm m0 (smem_free sm1 t1 st1) = smem_free (subst_mm m0 sm1) t1 (subst_mt m0 st1).
+Proof.
+  induction m0; simpl; intros; auto.
+    destruct a. auto.
+Qed.
+
+Lemma subst_mm_alloca : forall m0 sm1 t1 sz1 a1,
+  subst_mm m0 (smem_alloca sm1 t1 sz1 a1) = smem_alloca (subst_mm m0 sm1) t1 sz1 a1.
+Proof.
+  induction m0; simpl; intros; auto.
+    destruct a. auto.
+Qed.
+
+Lemma subst_mm_smem_denotes_mem : forall TD lc gl Mem0 smem0 Mem1 smap0,
+  smem_denotes_mem TD lc gl Mem0 smem0 Mem1 <->
+  smem_denotes_mem TD lc gl Mem0 (subst_mm smap0 smem0) Mem1.
+Proof.
+  intros TD lc gl Mem0 smem0 Mem1 smap0.
+Admitted.
+
+Lemma smem_denotes_mem__implies__subst_mm : forall TD lc gl Mem0 smem0 Mem1 smap0,
+  smem_denotes_mem TD lc gl Mem0 smem0 Mem1 ->
+  smem_denotes_mem TD lc gl Mem0 (subst_mm smap0 smem0) Mem1.
+Admitted.
+
+Lemma subst_mm__implies__smem_denotes_mem : forall TD lc gl Mem0 smem0 Mem1 smap0,
+  smem_denotes_mem TD lc gl Mem0 (subst_mm smap0 smem0) Mem1 ->
+  smem_denotes_mem TD lc gl Mem0 smem0 Mem1.
+Admitted.
+
+Lemma smem_denotes_mem_det : forall TD lc gl Mem0 smem0 Mem1 Mem2,
+  smem_denotes_mem TD lc gl Mem0 smem0 Mem1 ->
+  smem_denotes_mem TD lc gl Mem0 smem0 Mem2 ->
+  Mem1 = Mem2.
+Admitted.
+
+Lemma se_cmd__denotes__op_cmd : forall S TD Ps F B c cs call0 sbs tmn lc arg als ECs gl lc0 gl0 Mem0 lc' als' gl' Mem1 Mem2 sstate1 tr,
+  dbCmd (mkState S TD Ps ((mkEC F B ((subblock_intro (c::cs) call0)::sbs) tmn lc arg als)::ECs) gl Mem1)
+         (mkState S TD Ps ((mkEC F B ((subblock_intro cs call0)::sbs) tmn lc' arg als')::ECs) gl' Mem2)
+         tr -> 
+  uniq sstate1.(STerms) ->
+  (dom lc0 `union` dom gl0) [<=] dom (STerms sstate1) ->
+  sstate_denotes_state TD lc0 gl0 Mem0 sstate1 lc gl Mem1 ->
+  sstate_denotes_state TD lc0 gl0 Mem0 (se_cmd sstate1 c) lc' gl' Mem2.
+Proof.
+  intros S TD Ps F B c cs call0 sbs tmn lc arg0 als ECs gl lc0 gl0 Mem0 lc' als' gl' Mem1 Mem2 sstate1 tr HdsInsn Huniq Hsub Hdenotes.
+  (cmd_cases (destruct c;
+              inversion HdsInsn; subst;
+              destruct Hdenotes as [Hsterm_denotes Hsmem_denotes]) Case).
+  Case "insn_bop".
+    split; auto.
+      split.
+        intros id' st' gv' Hbinds Hdenotes.
+        simpl in Hbinds. simpl_env in Hbinds.
+        analyze_binds Hbinds.
+        apply updateSmap_inversion in Hbinds; auto.
+        destruct Hbinds as [[nEQ Hbinds] | [EQ1 EQ2]]; subst.
+          eapply se_cmd__denotes__op_cmd__case1; eauto.
+
+          apply lookupEnv_updateEnv_eq in H25; auto.
+          rewrite H25.
+          inversion Hdenotes; subst.
+          unfold BOP in H24.
+          apply subst_mt_val_denotes__implies__genericvalue with (lc:=lc)(gl:=gl) in H8; auto.
+          apply subst_mt_val_denotes__implies__genericvalue with (lc:=lc)(gl:=gl) in H9; auto.
+          rewrite H8 in H24. rewrite H9 in H24.
+          rewrite H24 in H10. auto.
+
+        intros id' gv' HlookupEnv.
+        simpl. 
+        destruct (id'==i0); subst.
+          exists (sterm_bop b s (subst_mt (STerms sstate1) (sterm_val v)) (subst_mt (STerms sstate1) (sterm_val v0))).
+          split. 
+            apply binds_updateSmap_eq; auto.
+
+            apply lookupEnv_updateEnv_eq in H25; auto.
+            rewrite H25 in HlookupEnv.
+            inversion HlookupEnv; subst.
+            apply BOP_inversion in H24.
+            destruct H24 as [gv1 [gv2 [J1 [J2 J3]]]].
+            apply sterm_bop_denotes with (gv1:=gv1)(gv2:=gv2); eauto using genericvalue__implies__subst_mt_val_denotes.
+
+          eapply se_cmd__denotes__op_cmd__case2; eauto.
+
+  Case "insn_extractvalue".
+    split; auto.
+      split.
+        intros id' st' gv'0 Hbinds Hdenotes.
+        simpl in Hbinds. simpl_env in Hbinds.
+        analyze_binds Hbinds.
+        apply updateSmap_inversion in Hbinds; auto.
+        destruct Hbinds as [[nEQ Hbinds] | [EQ1 EQ2]]; subst.
+          eapply se_cmd__denotes__op_cmd__case1; eauto.
+
+          apply lookupEnv_updateEnv_eq in H25; auto.
+          rewrite H25.
+          inversion Hdenotes; subst.
+          apply subst_mt_val_denotes__implies__genericvalue with (lc:=lc)(gl:=gl) in H7; auto.
+          rewrite H7 in H23. inversion H23; subst.
+          rewrite H24 in H8. auto.
+
+        intros id' gv'0 HlookupEnv.
+        simpl. 
+        destruct (id'==i0); subst.
+          exists (sterm_extractvalue t (subst_mt (STerms sstate1) (sterm_val v)) l0).
+          split. 
+            apply binds_updateSmap_eq; auto.
+
+            apply lookupEnv_updateEnv_eq in H25; auto.
+            rewrite H25 in HlookupEnv.
+            inversion HlookupEnv; subst.
+            apply sterm_extractvalue_denotes with (gv1:=gv); eauto using genericvalue__implies__subst_mt_val_denotes.
+
+          eapply se_cmd__denotes__op_cmd__case2; eauto.
+
+  Case "insn_insertvalue".
+    split; auto.
+      split.
+        intros id' st' gv'0 Hbinds Hdenotes.
+        simpl in Hbinds. simpl_env in Hbinds.
+        analyze_binds Hbinds.
+        apply updateSmap_inversion in Hbinds; auto.
+        destruct Hbinds as [[nEQ Hbinds] | [EQ1 EQ2]]; subst.
+          eapply se_cmd__denotes__op_cmd__case1; eauto.
+
+          apply lookupEnv_updateEnv_eq in H28; auto.
+          rewrite H28.
+          inversion Hdenotes; subst.
+          apply subst_mt_val_denotes__implies__genericvalue with (lc:=lc)(gl:=gl) in H9; auto.
+          apply subst_mt_val_denotes__implies__genericvalue with (lc:=lc)(gl:=gl) in H10; auto.
+          rewrite H9 in H25. inversion H25; subst.
+          rewrite H10 in H26. inversion H26; subst.
+          rewrite H27 in H11. auto.
+
+        intros id' gv'0 HlookupEnv.
+        simpl. 
+        destruct (id'==i0); subst.
+          exists (sterm_insertvalue t (subst_mt (STerms sstate1) (sterm_val v)) t0 (subst_mt (STerms sstate1) (sterm_val v0)) l0).
+          split. 
+            apply binds_updateSmap_eq; auto.
+
+            apply lookupEnv_updateEnv_eq in H28; auto.
+            rewrite H28 in HlookupEnv.
+            inversion HlookupEnv; subst.
+            eapply sterm_insertvalue_denotes; eauto using genericvalue__implies__subst_mt_val_denotes.
+
+          eapply se_cmd__denotes__op_cmd__case2; eauto.
+
+  Case "insn_malloc".
+    split.
+      split.
+        intros id' st' gv'0 Hbinds Hdenotes.
+        simpl in Hbinds. simpl_env in Hbinds.
+        analyze_binds Hbinds.
+        apply updateSmap_inversion in Hbinds; auto.
+        destruct Hbinds as [[nEQ Hbinds] | [EQ1 EQ2]]; subst.
+          eapply se_cmd__denotes__op_cmd__case1; eauto.
+
+          apply lookupEnv_updateEnv_eq in H25; auto.
+          rewrite H25.
+          inversion Hdenotes; subst. 
+          apply subst_mm__implies__smem_denotes_mem in H8; auto.
+          apply smem_denotes_mem_det with (Mem2:=Mem1) in H8; auto.
+          subst.
+          rewrite H9 in H23. inversion H23; subst.
+          rewrite H10 in H24. inversion H24; auto.
+     
+        intros id' gv'0 HlookupEnv.
+        simpl.
+        destruct (id'==i0); subst.
+          exists (sterm_malloc (subst_mm (STerms sstate1) (SMem sstate1)) t s a).
+          split. 
+            apply binds_updateSmap_eq; auto.
+
+            apply lookupEnv_updateEnv_eq in H25; auto.
+            rewrite H25 in HlookupEnv.
+            inversion HlookupEnv; subst.
+            eapply sterm_malloc_denotes; eauto using smem_denotes_mem__implies__subst_mm.
+
+          eapply se_cmd__denotes__op_cmd__case2; eauto.
+
+      simpl. eauto using smem_denotes_mem__implies__subst_mm.
+
+  Case "insn_free".
+    split; simpl.
+      destruct Hsterm_denotes as [J1 J2].
+      split; auto.
+     
+      apply getOperandPtr_inversion in H22.
+      destruct H22 as [gv [J1 J2]].
+      apply smem_free_denotes with (Mem1:=Mem1)(gv0:=gv)(mptr0:=mptr); auto.
+        eapply genericvalue__implies__subst_mt_val_denotes; eauto.
+    
+  Case "insn_alloca".
+    split.
+      split.
+        intros id' st' gv'0 Hbinds Hdenotes.
+        simpl in Hbinds. simpl_env in Hbinds.
+        analyze_binds Hbinds.
+        apply updateSmap_inversion in Hbinds; auto.
+        destruct Hbinds as [[nEQ Hbinds] | [EQ1 EQ2]]; subst.
+          eapply se_cmd__denotes__op_cmd__case1; eauto.
+
+          apply lookupEnv_updateEnv_eq in H25; auto.
+          rewrite H25.
+          inversion Hdenotes; subst. 
+          apply subst_mm__implies__smem_denotes_mem in H8; auto.
+          apply smem_denotes_mem_det with (Mem2:=Mem1) in H8; auto.
+          subst.
+          rewrite H9 in H23. inversion H23; subst.
+          rewrite H10 in H24. inversion H24; auto.
+     
+        intros id' gv'0 HlookupEnv.
+        simpl.
+        destruct (id'==i0); subst.
+          exists (sterm_alloca (subst_mm (STerms sstate1) (SMem sstate1)) t s a).
+          split. 
+            apply binds_updateSmap_eq; auto.
+
+            apply lookupEnv_updateEnv_eq in H25; auto.
+            rewrite H25 in HlookupEnv.
+            inversion HlookupEnv; subst.
+            eapply sterm_alloca_denotes; eauto using smem_denotes_mem__implies__subst_mm.
+
+          eapply se_cmd__denotes__op_cmd__case2; eauto.
+
+      simpl. eauto using smem_denotes_mem__implies__subst_mm.
+
+  Case "insn_load".
+    split.
+      apply getOperandPtr_inversion in H22.
+      destruct H22 as [gv2 [J1 J2]].
+      split.
+        intros id' st' gv'0 Hbinds Hdenotes.
+        simpl in Hbinds. simpl_env in Hbinds.
+        analyze_binds Hbinds.
+        apply updateSmap_inversion in Hbinds; auto.
+        destruct Hbinds as [[nEQ Hbinds] | [EQ1 EQ2]]; subst.
+          eapply se_cmd__denotes__op_cmd__case1; eauto.
+
+          apply lookupEnv_updateEnv_eq in H24; auto.
+          rewrite H24.
+          inversion Hdenotes; subst. 
+          apply subst_mm__implies__smem_denotes_mem in H7; auto.
+          apply smem_denotes_mem_det with (Mem2:=Mem2) in H7; auto.
+          subst.
+          apply subst_mt_val_denotes__implies__genericvalue with (lc:=lc)(gl:=gl) in H2; auto.
+          rewrite J1 in H2. inversion H2; subst.
+          rewrite H9 in J2. inversion J2; subst.
+          rewrite H23 in H10. auto.
+     
+        intros id' gv'0 HlookupEnv.
+        simpl.
+        destruct (id'==i0); subst.
+          exists (sterm_load (subst_mm (STerms sstate1) (SMem sstate1)) t (subst_mt (STerms sstate1) (sterm_val v))).
+          split. 
+            apply binds_updateSmap_eq; auto.
+
+            apply lookupEnv_updateEnv_eq in H24; auto.
+            rewrite H24 in HlookupEnv.
+            inversion HlookupEnv; subst.
+            apply sterm_load_denotes with (Mem1:=Mem2)(gv0:=gv2)(mp0:=mp); eauto using smem_denotes_mem__implies__subst_mm.
+              eapply genericvalue__implies__subst_mt_val_denotes; eauto.
+
+          eapply se_cmd__denotes__op_cmd__case2; eauto.
+
+      simpl. eauto using smem_denotes_mem__implies__subst_mm.
+
+  Case "insn_store".
+    split; simpl.
+      destruct Hsterm_denotes as [J1 J2].
+      split; auto.
+
+      apply getOperandPtr_inversion in H24.
+      destruct H24 as [gv2 [J1 J2]].
+      eapply smem_store_denotes; 
+        eauto using smem_denotes_mem__implies__subst_mm, 
+                    genericvalue__implies__subst_mt_val_denotes.
+
+  Case "insn_gep". 
+    split; auto.
+      split.
+        intros id' st' gv' Hbinds Hdenotes.
+        simpl in Hbinds. simpl_env in Hbinds.
+        analyze_binds Hbinds.
+        apply updateSmap_inversion in Hbinds; auto.
+        apply getOperandPtr_inversion in H24.
+        destruct H24 as [gv0 [J1 J2]].
+        destruct Hbinds as [[nEQ Hbinds] | [EQ1 EQ2]]; subst.
+          eapply se_cmd__denotes__op_cmd__case1; eauto.
+
+          apply lookupEnv_updateEnv_eq in H26; auto.
+          rewrite H26.
+          inversion Hdenotes; subst.
+          unfold GEP in H25.
+          apply subst_mt_val_denotes__implies__genericvalue with (lc:=lc)(gl:=gl) in H3; auto.
+          rewrite H3 in J1. inversion J1; subst.
+          admit.
+
+        intros id' gv' HlookupEnv.
+        simpl. 
+        destruct (id'==i0); subst.
+          exists (sterm_gep i1 t (subst_mt (STerms sstate1) (sterm_val v)) (List.map (subst_mt (STerms sstate1)) (List.map sterm_val l0))).
+          split. 
+            apply binds_updateSmap_eq; auto.
+
+            apply lookupEnv_updateEnv_eq in H26; auto.
+            rewrite H26 in HlookupEnv.
+            inversion HlookupEnv; subst.
+            apply getOperandPtr_inversion in H24.
+            destruct H24 as [gv0 [J1 J2]].
+(*
+            eapply sterm_gep_denotes; eauto using genericvalue__implies__subst_mt_val_denotes.
+*)
+            admit.
+
+          eapply se_cmd__denotes__op_cmd__case2; eauto.
+
+  Case "insn_ext".
+    split; auto.
+      split.
+        intros id' st' gv' Hbinds Hdenotes.
+        simpl in Hbinds. simpl_env in Hbinds.
+        analyze_binds Hbinds.
+        apply updateSmap_inversion in Hbinds; auto.
+        destruct Hbinds as [[nEQ Hbinds] | [EQ1 EQ2]]; subst.
+          eapply se_cmd__denotes__op_cmd__case1; eauto.
+
+          apply lookupEnv_updateEnv_eq in H25; auto.
+          rewrite H25.
+          inversion Hdenotes; subst.
+          unfold EXT in H24.
+          apply subst_mt_val_denotes__implies__genericvalue with (lc:=lc)(gl:=gl) in H8; auto.
+          rewrite H8 in H24.
+          rewrite H24 in H9. auto.
+
+        intros id' gv' HlookupEnv.
+        simpl. 
+        destruct (id'==i0); subst.
+          exists (sterm_ext e t (subst_mt (STerms sstate1) (sterm_val v)) t0).
+          split. 
+            apply binds_updateSmap_eq; auto.
+
+            apply lookupEnv_updateEnv_eq in H25; auto.
+            rewrite H25 in HlookupEnv.
+            inversion HlookupEnv; subst.
+            apply EXT_inversion in H24.
+            destruct H24 as [gv1 [J1 J2]].
+            apply sterm_ext_denotes with (gv1:=gv1); eauto using genericvalue__implies__subst_mt_val_denotes.
+
+          eapply se_cmd__denotes__op_cmd__case2; eauto.
+
+  Case "insn_cast".
+    split; auto.
+      split.
+        intros id' st' gv' Hbinds Hdenotes.
+        simpl in Hbinds. simpl_env in Hbinds.
+        analyze_binds Hbinds.
+        apply updateSmap_inversion in Hbinds; auto.
+        destruct Hbinds as [[nEQ Hbinds] | [EQ1 EQ2]]; subst.
+          eapply se_cmd__denotes__op_cmd__case1; eauto.
+
+          apply lookupEnv_updateEnv_eq in H25; auto.
+          rewrite H25.
+          inversion Hdenotes; subst.
+          unfold CAST in H24.
+          apply subst_mt_val_denotes__implies__genericvalue with (lc:=lc)(gl:=gl) in H8; auto.
+          rewrite H8 in H24.
+          rewrite H24 in H9. auto.
+
+        intros id' gv' HlookupEnv.
+        simpl. 
+        destruct (id'==i0); subst.
+          exists (sterm_cast c t (subst_mt (STerms sstate1) (sterm_val v)) t0).
+          split. 
+            apply binds_updateSmap_eq; auto.
+
+            apply lookupEnv_updateEnv_eq in H25; auto.
+            rewrite H25 in HlookupEnv.
+            inversion HlookupEnv; subst.
+            apply CAST_inversion in H24.
+            destruct H24 as [gv1 [J1 J2]].
+            apply sterm_cast_denotes with (gv1:=gv1); eauto using genericvalue__implies__subst_mt_val_denotes.
+
+          eapply se_cmd__denotes__op_cmd__case2; eauto.
+
+  Case "insn_icmp".
+    split; auto.
+      split.
+        intros id' st' gv' Hbinds Hdenotes.
+        simpl in Hbinds. simpl_env in Hbinds.
+        analyze_binds Hbinds.
+        apply updateSmap_inversion in Hbinds; auto.
+        destruct Hbinds as [[nEQ Hbinds] | [EQ1 EQ2]]; subst.
+          eapply se_cmd__denotes__op_cmd__case1; eauto.
+
+          apply lookupEnv_updateEnv_eq in H25; auto.
+          rewrite H25.
+          inversion Hdenotes; subst.
+          unfold ICMP in H24.
+          apply subst_mt_val_denotes__implies__genericvalue with (lc:=lc)(gl:=gl) in H8; auto.
+          apply subst_mt_val_denotes__implies__genericvalue with (lc:=lc)(gl:=gl) in H9; auto.
+          rewrite H8 in H24. rewrite H9 in H24.
+          rewrite H24 in H10. auto.
+
+        intros id' gv' HlookupEnv.
+        simpl. 
+        destruct (id'==i0); subst.
+          exists (sterm_icmp c t (subst_mt (STerms sstate1) (sterm_val v)) (subst_mt (STerms sstate1) (sterm_val v0))).
+          split. 
+            apply binds_updateSmap_eq; auto.
+
+            apply lookupEnv_updateEnv_eq in H25; auto.
+            rewrite H25 in HlookupEnv.
+            inversion HlookupEnv; subst.
+            apply ICMP_inversion in H24.
+            destruct H24 as [gv1 [gv2 [J1 [J2 J3]]]].
+            apply sterm_icmp_denotes with (gv1:=gv1)(gv2:=gv2); eauto using genericvalue__implies__subst_mt_val_denotes.
+
+          eapply se_cmd__denotes__op_cmd__case2; eauto.
+
+  Case "insn_select".
+    split; auto.
+      split.
+        intros id' st' gv' Hbinds Hdenotes.
+        simpl in Hbinds. simpl_env in Hbinds.
+        analyze_binds Hbinds.
+        apply updateSmap_inversion in Hbinds; auto.
+        destruct Hbinds as [[nEQ Hbinds] | [EQ1 EQ2]]; subst.
+          destruct cond0; eapply se_cmd__denotes__op_cmd__case1; eauto.
+
+          symmetry in H27.
+          inversion Hdenotes; subst.
+          apply subst_mt_val_denotes__implies__genericvalue with (lc:=lc)(gl:=gl) in H3; auto.
+          apply subst_mt_val_denotes__implies__genericvalue with (lc:=lc)(gl:=gl) in H8; auto.
+          apply subst_mt_val_denotes__implies__genericvalue with (lc:=lc)(gl:=gl) in H10; auto.
+          apply getOperandInt_inversion in H24. destruct H24 as [gv5 [J1 J2]].
+          rewrite H3 in J1. inversion J1; subst.
+          rewrite H8 in H25. inversion H25; subst.
+          rewrite H10 in H26. inversion H26; subst.
+          rewrite H11 in J2. inversion J2; subst.
+          destruct cond0; apply lookupEnv_updateEnv_eq in H27; auto.
+
+        intros id' gv' HlookupEnv.
+        simpl. 
+        destruct (id'==i0); subst.
+          exists (sterm_select (subst_mt (STerms sstate1) (sterm_val v)) t (subst_mt (STerms sstate1) (sterm_val v0))  (subst_mt (STerms sstate1) (sterm_val v1))).
+          split. 
+            apply binds_updateSmap_eq; auto.
+
+            apply getOperandInt_inversion in H24. destruct H24 as [gv5 [J1 J2]].
+            apply sterm_select_denotes with (c0:=cond0)(gv0:=gv5)(gv1:=gv1)(gv2:=gv2); eauto using genericvalue__implies__subst_mt_val_denotes.
+            symmetry in H27.
+            destruct cond0;
+              apply lookupEnv_updateEnv_eq in H27; auto;
+              rewrite H27 in HlookupEnv;
+              inversion HlookupEnv; subst; auto.
+
+          destruct cond0; eapply se_cmd__denotes__op_cmd__case2; eauto.
+Qed.
+
+Lemma dbCmd_inversion : forall a cs S TD Ps F B call0 sbs tmn arg als ECs lc gl Mem1 state2 tr,
+  dbCmd (mkState S TD Ps ((mkEC F B ((subblock_intro (a::cs) call0)::sbs) tmn lc arg als)::ECs) gl Mem1)
+        state2
+        tr ->
+  exists lc', exists gl', exists als', exists Mem2,
+    state2 = (mkState S TD Ps ((mkEC F B ((subblock_intro cs call0)::sbs) tmn lc' arg als')::ECs) gl' Mem2).
+Proof.
+  intros a cs S TD Ps F B call0 sbs tmn arg0 als ECs lc gl Mem1 state2 tr HdbCmd.
+  inversion HdbCmd; subst; 
+  try solve [
+    exists lc'; exists gl'; exists als; exists Mem1; auto |
+    exists lc'; exists gl'; exists als; exists Mem'; auto |
+    exists lc; exists gl; exists als; exists Mem'; auto |
+    exists lc'; exists gl'; exists (mb::als); exists Mem'; auto
+  ].
+Qed.
+
+Lemma updateSmap_dom_eq : forall sm id0 st0,
+  dom (updateSmap sm id0 st0) [=] dom sm `union` {{id0}}.
+Proof.
+  induction sm; intros; simpl; try solve [fsetdec].
+    destruct a. 
+    destruct (a==id0); simpl; try solve [fsetdec].
+      assert (J:=@IHsm id0 st0). fsetdec.
+Qed.
+
+Lemma updateSmap_uniq : forall sm id0 st0,
+  uniq sm ->
+  uniq (updateSmap sm id0 st0).
+Proof.
+  induction sm; intros; simpl; auto.
+    destruct a.
+
+    destruct_uniq.
+    destruct (a==id0); subst; try solve [solve_uniq].
+      apply IHsm with (id0:=id0)(st0:=st0) in H. 
+      assert (J:=@updateSmap_dom_eq sm id0 st0).
+      solve_uniq.
+Qed.
+
+Lemma se_cmd_uniq : forall sstate0 c,
+  uniq (STerms sstate0) ->
+  uniq (STerms (se_cmd sstate0 c)).
+Proof.
+  intros sstate0 c Huniq.
+  destruct c; simpl; try solve [apply updateSmap_uniq; auto | auto].
+Qed.
+
+Lemma se_cmd_dom_mono : forall sstate0 c,
+  dom (STerms sstate0) [<=] dom (STerms (se_cmd sstate0 c)).
+Proof.
+  intros sstate0 c.
+  assert (forall sm id0 st0, dom sm [<=] dom (updateSmap sm id0 st0)) as J.
+    intros. assert (J:=@updateSmap_dom_eq sm id0 st0). fsetdec. 
+  destruct c; simpl; try solve [eauto using J| fsetdec].
+Qed.
+
+Lemma aux__se_cmds__denotes__op_cmds : forall cs S TD Ps F B call0 sbs tmn lc0 arg als ECs gl0 Mem0 lc als' gl Mem1 sstate1 lc' gl' Mem2 tr,
+  dbCmds (mkState S TD Ps ((mkEC F B ((subblock_intro cs call0)::sbs) tmn lc arg als)::ECs) gl Mem1)
+         (mkState S TD Ps ((mkEC F B ((subblock_intro nil call0)::sbs) tmn lc' arg als')::ECs) gl' Mem2)
+         tr ->
+  uniq sstate1.(STerms) ->
+  (dom lc0 `union` dom gl0) [<=] dom (STerms sstate1) ->
+  sstate_denotes_state TD lc0 gl0 Mem0 sstate1 lc gl Mem1 ->
+  sstate_denotes_state TD lc0 gl0 Mem0 (se_cmds sstate1 cs) lc' gl' Mem2.
+Proof.
+  induction cs; 
+    intros S TD Ps F B call0 sbs tmn lc0 arg0 als ECs gl0 Mem0 lc als' gl Mem1 sstate1 lc' gl' Mem2 tr HdbCmds Huniq Hsub Hdenotes.
+
+    inversion HdbCmds; subst; auto.
+      inversion H.
+
+    inversion HdbCmds; subst.
+    assert (Hcmd:=H).
+    apply dbCmd_inversion in H.
+    destruct H as [lc3 [gl3 [als3 [Mem3 H]]]]; subst.
+    simpl.
+    apply se_cmd__denotes__op_cmd with (lc0:=lc0)(gl0:=gl0)(sstate1:=sstate1)(Mem0:=Mem0) in Hcmd; auto.
+    apply IHcs with (lc0:=lc0)(gl0:=gl0)(sstate1:=se_cmd sstate1 a)(Mem0:=Mem0) in H0; auto.
+      apply se_cmd_uniq; auto.
+
+      assert (J:=@se_cmd_dom_mono sstate1 a).
+      clear - J Hsub. fsetdec.
+Qed.
+
+Fixpoint globals_to_smap (gl:GVMap) : smap :=
+match gl with
+| nil => nil
+| (id0, _)::gl' => updateSmap (globals_to_smap gl') id0 (sterm_val (value_id id0)) 
+end.
+
+Fixpoint locals_to_smap (lc:GVMap) (m0:smap) : smap :=
+match lc with
+| nil => m0
+| (id0, _)::lc' => updateSmap (locals_to_smap lc' m0) id0 (sterm_val (value_id id0)) 
+end.
+
+Definition env_to_smap (gl lc:GVMap) : smap :=
+locals_to_smap lc (globals_to_smap gl).
+
+Lemma globals_to_smap_dom_eq : forall gl,
+  dom (globals_to_smap gl) [=] dom gl.
+Proof.
+  induction gl; simpl.
+    fsetdec.
+
+    destruct a.
+    rewrite <- IHgl. clear IHgl.
+    rewrite updateSmap_dom_eq. fsetdec.
+Qed.
+
+Lemma locals_to_smap_dom_eq : forall lc m0,
+  dom (locals_to_smap lc m0) [=] dom lc `union` dom m0.
+Proof.
+  induction lc; intros m0; simpl.
+    fsetdec.
+
+    destruct a.
+    rewrite updateSmap_dom_eq. 
+    rewrite IHlc.
+    fsetdec.
+Qed.
+
+Lemma env_to_smap_dom_eq : forall gl lc,
+  dom (env_to_smap gl lc) [=] dom gl `union` dom lc.
+Proof.
+  intros gl lc.
+  unfold env_to_smap.
+  rewrite locals_to_smap_dom_eq.
+  rewrite globals_to_smap_dom_eq.
+  fsetdec.
+Qed.
+
+Lemma globals_to_smap_uniq : forall gl,
+  uniq (globals_to_smap gl).
+Proof.
+  induction gl; simpl; auto.
+    destruct a.
+    apply updateSmap_uniq; auto.
+Qed.
+
+Lemma locals_to_smap_uniq : forall lc m0,
+  uniq m0 ->
+  uniq (locals_to_smap lc m0).
+Proof.
+  induction lc; simpl; intros; auto.
+    destruct a.
+    apply updateSmap_uniq; auto.
+Qed.
+
+Lemma env_to_smap_uniq : forall gl lc,
+  uniq (env_to_smap gl lc).
+Proof.
+  intros gl lc.
+  unfold env_to_smap.
+  apply locals_to_smap_uniq.
+  apply globals_to_smap_uniq.
+Qed.
+
+Lemma binds_env_to_smap : forall id0 st0 gl lc,
+  binds id0 st0 (env_to_smap gl lc) ->
+  st0 = sterm_val (value_id id0).
+Proof.
+Admitted.
+
+Lemma env_to_smap_denotes__imples__gv : forall id0 st0 TD Mem0 gl lc gv0,
+  binds id0 st0 (env_to_smap gl lc) ->
+  sterm_denotes_genericvalue TD lc gl Mem0 st0 gv0 ->
+  lookupEnv id0 lc gl = Some gv0.
+Proof.
+  intros id0 st0 TD Mem0 gl lc gv0 Binds Denotes.
+  apply binds_env_to_smap in Binds.
+  rewrite Binds in Denotes.
+  inversion Denotes; subst.
+  simpl in H4. auto.
+Qed.
+
+Lemma lookupEnv_env_to_smap : forall id0 gv0 gl lc,
+  lookupEnv id0 lc gl = Some gv0 ->
+  binds id0 (sterm_val (value_id id0)) (env_to_smap gl lc).
+Proof.
+Admitted.
+
+Lemma gv__imples__env_to_smap_denotes : forall id0 TD Mem0 gl lc gv0,
+  lookupEnv id0 lc gl = Some gv0 ->
+  binds id0 (sterm_val (value_id id0)) (env_to_smap gl lc) /\
+  sterm_denotes_genericvalue TD lc gl Mem0 (sterm_val (value_id id0)) gv0.
+Proof.
+  intros id0 TD Mem0 gl lc gv0 Binds.
+  split.
+    eapply lookupEnv_env_to_smap; eauto.
+
+    apply sterm_val_denotes; auto.
+Qed.
+
+Lemma se_cmds__denotes__op_cmds : forall S TD Ps F B cs call0 sbs tmn lc arg als ECs gl Mem lc' als' gl' Mem' tr,
+  dbCmds (mkState S TD Ps ((mkEC F B ((subblock_intro cs call0)::sbs) tmn lc arg als)::ECs) gl Mem)
+         (mkState S TD Ps ((mkEC F B ((subblock_intro nil call0)::sbs) tmn lc' arg als')::ECs) gl' Mem')
+         tr ->
+  sstate_denotes_state TD lc gl Mem (se_cmds (mkSstate (env_to_smap gl lc) smem_init) cs) lc' gl' Mem'.
+Proof.
+  intros S TD Ps F B cs call0 sbs tmn lc arg0 als ECs gl Mem0 lc' als' gl' Mem' tr HdbCmds.
+  apply aux__se_cmds__denotes__op_cmds with (lc0:=lc)(gl0:=gl)(Mem0:=Mem0)(sstate1:=mkSstate (env_to_smap gl lc) smem_init) in HdbCmds; simpl; auto.
+    apply env_to_smap_uniq.
+
+    rewrite env_to_smap_dom_eq. fsetdec.
+
+    split; simpl; auto.
+      unfold smap_denotes_gvmap.
+      split; intros.
+        simpl in H.
+        apply env_to_smap_denotes__imples__gv with (id0:=id') in H0; auto.
+
+        exists (sterm_val (value_id id')).
+        apply gv__imples__env_to_smap_denotes; auto.
+Qed.           
+
+Definition se_subblock (st : sstate) (b:subblock) : sstate*scall :=
+match b with
+| subblock_intro cs call0 =>
+  let st0 := se_cmds st cs in
+  (st0, se_call st0 call0)
+end.
+
+Definition tv_subblock (b1 b2:subblock) :=
+match (b1, b2) with
+| (subblock_intro cs1 call1, subblock_intro cs2 call2) =>
+  match (call1, call2) with
+  | (insn_call id1 _ _ _ _ _, insn_call id2 _ _ _ _ _) => 
+    if id1==id2 
+    then
+      let st1 := se_cmds (mkSstate nil smem_init) cs1 in
+      let st2 := se_cmds (mkSstate nil smem_init) cs2 in
+      let cl1 := se_call st1 call1 in
+      let cl2 := se_call st2 call2 in
+      st1 = st2 /\ cl1 = cl2
+    else
+      False
+  end
+end.
+
+End SimpleSE.
+

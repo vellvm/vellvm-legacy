@@ -6,6 +6,8 @@ Require Import Zdiv.
 Require Import List.
 Require Import ssa.
 
+Export LLVMsyntax.
+
 Definition nat_of_Z (z: Z) : nat :=
   match z with
   | Z0 => O

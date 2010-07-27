@@ -21,6 +21,10 @@ Require Import Recdef.
 Require Import Coq.Program.Wf.
 Require Import Omega.
 
+Module LLVMlib.
+
+Export LLVMsyntax.
+
 (**********************************)
 (* LabelSet. *)
 
@@ -3299,6 +3303,8 @@ match (reflect_blockDominates d b1 b2) with
 end.
 
 End Reflect.
+
+End LLVMlib.
 
 (*ENDCOPY*)
 

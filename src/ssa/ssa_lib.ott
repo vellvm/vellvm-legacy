@@ -327,38 +327,6 @@ formula_and left formula_and
 formula_multiline <= formula_and
 formula_multiline <= formula_or
 
-%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-%         get block from label                                  %
-%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-
-defns
-getBlockAtLableFromBlocks_def :: '' ::=
-      defn 
-      getBlockAtLableFromBlocks list_block l = opt_block :: :: getBlockAtLableFromBlocks :: ''
-      {{ com [[opt_block]] is of label [[l]] in [[list_block]] }} by
-
-      ---------------------------------------------------- :: getBlockAtLableFromBlocks_nil
-      getBlockAtLableFromBlocks [] l = none
-
-      l1 = l2 
-      -------------------------------------------------------------- :: getBlockAtLableFromBlocks_true
-      getBlockAtLableFromBlocks (list_block, (l1 list_phinode1 list_cmd1 terminator1)) l2 = l1 list_phinode1 list_cmd1 terminator1
-
-      not l1 = l2
-      getBlockAtLableFromBlocks list_block l2 = opt_block
-      -------------------------------------------------------------- :: getBlockAtLableFromBlocks_rec1
-      getBlockAtLableFromBlocks (list_block, (l1 list_phinode1 list_cmd1 terminator1)) l2 = opt_block
-			      
-    
-defns
-getBlockAtLableFromFdef_def :: '' ::=
-      defn
-      getBlockAtLableFromFdef fdef l = opt_block :: :: getBlockAtLableFromFdef :: ''
-      {{ com [[opt_block]] is of label [[l]] in [[fdef]] }} by
-
-      getBlockAtLableFromBlocks list_block l = opt_block
-      ---------------------------------------------------- :: getBlockAtLableFromFdef_intro
-      getBlockAtLableFromFdef (define fheader { list_block }) l = opt_block
 
  
 

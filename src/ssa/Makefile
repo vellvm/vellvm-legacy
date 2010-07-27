@@ -45,7 +45,10 @@ ssa_mem.vo: ssa_mem.v ssa.vo tactics.vo targetdata.vo
 trace.vo: trace.v
 	$(COQC) trace.v
 
-ssa_dynamic.vo: ssa_dynamic.v ssa.vo tactics.vo ssa_mem.vo trace.vo
+genericvalues.vo: ssa.vo tactics.vo ssa_mem.vo trace.vo genericvalues.v
+	$(COQC) $(COQARG) genericvalues.v
+
+ssa_dynamic.vo: ssa_dynamic.v ssa.vo tactics.vo ssa_mem.vo trace.vo genericvalues.vo
 	$(COQC) $(COQARG) ssa_dynamic.v
 
 opsem_conv.vo: opsem_conv.v ssa_dynamic.vo ssa.vo trace.vo

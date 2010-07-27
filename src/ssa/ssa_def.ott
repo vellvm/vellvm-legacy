@@ -8,6 +8,8 @@ Require Import Logic_Type.
 Require Import monad.
 Require Import Metatheory.
 
+Module LLVMsyntax.
+
 Section Lists.
 
   Variable A : Type.
@@ -390,3 +392,9 @@ terminals :: 'terminals_' ::=
   | in			::   :: in		{{ tex \in }}
   | ;			::   :: colon		{{ tex ; }}
 
+embed 
+{{ coq
+
+End LLVMsyntax.
+
+}}

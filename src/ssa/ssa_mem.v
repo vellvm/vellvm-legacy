@@ -10,6 +10,8 @@ Require Export targetdata.
 Require Import monad.
 Require Import Arith.
 
+Export LLVMsyntax.
+
 (** memory address *)
 Definition maddr := nat.
 
