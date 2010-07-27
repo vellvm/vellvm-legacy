@@ -346,6 +346,20 @@ end.
 Definition params2GVs (TD:layouts) (lp:list_param) (locals:GVMap) (globals:GVMap) := 
   opGVs2GVs (params2OpGVs TD lp locals globals).
 
+Fixpoint values2GVs (TD:layouts) (lv:list value) (locals:GVMap) (globals:GVMap) : option (list GenericValue):=
+match lv with
+| nil => Some nil
+| v::lv' => 
+  match (getOperandValue TD v locals globals) with
+  | Some GV => 
+    match (values2GVs TD lv' locals globals) with
+    | Some GVs => Some (GV::GVs)
+    | None => None
+    end
+  | None => None
+  end
+end.
+
 Fixpoint intValues2Nats (TD:layouts) (lv:list value) (locals:GVMap) (globals:GVMap) : option (list nat):=
 match lv with
 | nil => Some nil
@@ -379,13 +393,13 @@ match lv with
 | _ => None
 end.
 
-Fixpoint GVs2Nats (TD:layouts) (lgv:list GenericValue) (locals:GVMap) (globals:GVMap) : option (list nat):=
+Fixpoint GVs2Nats (TD:layouts) (lgv:list GenericValue) : option (list nat):=
 match lgv with
 | nil => Some nil
 | gv::lgv' => 
     match (GV2nat TD 32 gv) with
     | Some n =>
-      match (GVs2Nats TD lgv' locals globals) with
+      match (GVs2Nats TD lgv') with
       | Some ns => Some (n::ns)
       | None => None
       end
@@ -628,3 +642,52 @@ Proof.
       destruct R; inversion HICMP; subst.
         exists g. exists g0. auto.
 Qed.
+
+Lemma GEP_inversion : forall (TD:layouts) (lc gl:GVMap) (t:typ) (ma:mptr) (vidxs:list value) ib mptr0,
+  GEP TD lc gl t ma vidxs ib = Some mptr0 ->
+  exists idxs, intValues2Nats TD vidxs lc gl = Some idxs /\ mgep TD t ma idxs = Some mptr0.
+Proof.
+  intros.
+  unfold GEP in H.
+  remember (intValues2Nats TD vidxs lc gl) as oidxs.
+  destruct oidxs; inversion H; subst.
+  exists l0. auto.
+Qed.
+
+Lemma intValues2Nats_inversion : forall l0 lc gl TD ns0,
+  intValues2Nats TD l0 lc gl = Some ns0 ->
+  exists gvs0, 
+    values2GVs TD l0 lc gl = Some gvs0 /\
+    GVs2Nats TD gvs0 = Some ns0.
+Proof.
+  induction l0; intros; simpl in *.
+    inversion H. exists nil. auto.
+
+    remember (getOperandValue TD a lc gl) as ogv.
+    destruct ogv; try solve [inversion H].
+    remember (GV2nat TD 32 g) as on.
+    destruct on; try solve [inversion H].
+    remember (intValues2Nats TD l0 lc gl) as ons.
+    destruct ons; inversion H; subst.
+    symmetry in Heqons.
+    apply IHl0 in Heqons.
+    destruct Heqons as [gvs [J1 J2]].
+    exists (g::gvs).
+    rewrite J1. 
+    split; auto.
+      simpl. rewrite J2. rewrite <- Heqon. auto.
+Qed.
+
+Lemma values2GVs_GVs2Nats__intValues2Nats : forall l0 lc gl TD gvs0,
+  values2GVs TD l0 lc gl = Some gvs0 ->
+  GVs2Nats TD gvs0 = intValues2Nats TD l0 lc gl.
+Proof.
+  induction l0; intros lc gl TD gvs0 H; simpl in *.
+    inversion H. auto.
+
+    destruct (getOperandValue TD a lc gl); try solve [inversion H].
+      remember (values2GVs TD l0 lc gl)as ogv.
+      destruct ogv; inversion H; subst.
+        rewrite <- IHl0 with (gvs0:=l1); auto.
+Qed.
+
