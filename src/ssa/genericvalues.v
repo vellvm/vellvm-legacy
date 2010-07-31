@@ -19,6 +19,8 @@ Definition ptr2GV TD p := mptr2mvalue TD p (getPointerSizeInBits TD).
 
 Definition GVMap := list (id*GenericValue).
 
+Variable deleteEnv : id -> GVMap -> GVMap -> GVMap*GVMap.
+
 (* update if exists, add it otherwise *)
 Fixpoint updateAddGVMap (m:GVMap) (i:id) (gv:GenericValue) : GVMap :=
 match m with
@@ -226,6 +228,52 @@ Proof.
 
     apply lookupGVMap__indom in H; auto.
 Qed.
+
+Lemma exists_updateEnv : forall lc gl i0 gv3,
+  exists lc2, exists gl2, updateEnv lc gl i0 gv3 = (lc2, gl2).
+Proof.
+  intros lc gl i0 gv3.
+  unfold updateEnv.
+  destruct (AtomSetProperties.In_dec i0 (dom lc)).
+    exists (updateGVMap lc i0 gv3). exists gl. auto.
+    destruct (AtomSetProperties.In_dec i0 (dom gl)).
+      exists lc. exists (updateGVMap gl i0 gv3). auto.
+      exists (updateAddGVMap lc i0 gv3). exists gl. auto.
+Qed.    
+
+Lemma exists_deleteEnv : forall lc gl i0,
+  exists lc2, exists gl2, deleteEnv i0 lc gl = (lc2, gl2).
+Admitted.
+
+Lemma updateEnv_deleteEnv_eq : forall lc gl id0 gv0 lc' gl',
+  updateEnv lc gl id0 gv0 = (lc', gl') ->
+  deleteEnv id0 lc' gl' = (lc, gl).
+Admitted.
+
+Lemma lookupEnv_deleteEnv_neq : forall lc gl id0 id1 lc' gl',
+  deleteEnv id1 lc gl = (lc', gl') ->
+  id0 <> id1 ->
+  lookupEnv id0 lc gl = lookupEnv id0 lc' gl'.
+Admitted.
+
+Lemma lookupEnv_deleteEnv_eq : forall lc gl id0 lc' gl',
+  deleteEnv id0 lc gl = (lc', gl') ->
+  lookupEnv id0 lc' gl' = None.
+Admitted.
+
+Lemma lookupEnv_deleteEnv_inv : forall lc gl id0 id1 lc' gl' gv,
+  deleteEnv id0 lc gl = (lc', gl') ->
+  lookupEnv id1 lc' gl' = Some gv ->
+  lookupEnv id1 lc gl = Some gv /\ id0 <> id1.
+Admitted.
+
+Lemma deleteEnv_uniq : forall id0 lc gl lc' gl',
+  uniq lc ->
+  uniq gl ->
+  deleteEnv id0 lc gl = (lc', gl') ->
+  uniq lc' /\ uniq gl'.
+Admitted.
+
 
 (**************************************)
 (** Convert const to GV with storesize, and look up GV from operands. *)
@@ -691,3 +739,28 @@ Proof.
         rewrite <- IHl0 with (gvs0:=l1); auto.
 Qed.
 
+(* eq *)
+
+Definition eqEnv lc1 gl1 lc2 gl2 := 
+  forall i, lookupEnv i lc1 gl1 = lookupEnv i lc2 gl2.
+
+Lemma eqEnv_refl : forall lc gl,
+  eqEnv lc gl lc gl.
+Proof. unfold eqEnv. auto. Qed.
+
+Lemma eqEnv_sym : forall lc1 gl1 lc2 gl2,
+  eqEnv lc1 gl1 lc2 gl2 ->
+  eqEnv lc2 gl2 lc1 gl1.
+Proof. unfold eqEnv. auto. Qed.
+
+Lemma eqEnv_trans : forall lc1 gl1 lc2 gl2 lc3 gl3,
+  eqEnv lc1 gl1 lc2 gl2 ->
+  eqEnv lc2 gl2 lc3 gl3 ->
+  eqEnv lc1 gl1 lc3 gl3.
+Proof. 
+  unfold eqEnv. 
+  intros.
+  assert (J1:=@H i0).
+  assert (J2:=@H0 i0).
+  rewrite J1. auto.
+Qed.
