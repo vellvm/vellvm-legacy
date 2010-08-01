@@ -19,8 +19,6 @@ Definition ptr2GV TD p := mptr2mvalue TD p (getPointerSizeInBits TD).
 
 Definition GVMap := list (id*GenericValue).
 
-Variable deleteEnv : id -> GVMap -> GVMap -> GVMap*GVMap.
-
 (* update if exists, add it otherwise *)
 Fixpoint updateAddGVMap (m:GVMap) (i:id) (gv:GenericValue) : GVMap :=
 match m with
@@ -50,6 +48,12 @@ match m with
   else lookupGVMap m' i
 end.
 
+Fixpoint deleteGVMap (m:GVMap) (i:id) : GVMap :=
+match m with
+| nil => nil
+| (id0, gv0)::m' => if (i == id0) then m' else (id0, gv0)::deleteGVMap m' i
+end.
+
 (* Globals are fixed at runtime, only changed when genGlobalAndInitMem;
    but locals can be changed. 
    Update Locals if id exists locally,
@@ -67,10 +71,32 @@ else (* i isnt in locals, *)
     (updateAddGVMap locals i gv, globals)
 .
 
-Definition lookupEnv (i:id) (locals:GVMap) (globals:GVMap) : option GenericValue := 
+Definition lookupEnv (locals:GVMap) (globals:GVMap) (i:id) : option GenericValue := 
 match lookupGVMap locals i with
 | Some gv => Some gv
 | None => lookupGVMap globals i
+end.
+
+(* replace only if exists, do nothing otherwise *)
+Definition replaceEnv (locals globals : GVMap) (i:id) (gv:GenericValue) : GVMap*GVMap :=
+if (@AtomSetProperties.In_dec i (dom locals))
+then (* i is in locals *) 
+  (updateGVMap locals i gv, globals)
+else (* i isnt in locals, *)
+  if (@AtomSetProperties.In_dec i (dom globals))
+  then (* but i is in globals *) 
+    (locals, updateGVMap globals i gv)
+  else (* i is fresh. *) 
+    (locals, globals)
+.
+
+Definition deleteEnv (locals globals : GVMap) (i:id) : GVMap*GVMap :=
+(deleteGVMap locals i, deleteGVMap globals i).
+
+Definition rollbackEnv (locals globals : GVMap) (i:id) (lc0 gl0 : GVMap) : GVMap*GVMap :=
+match (lookupEnv lc0 gl0 i) with
+| Some gv0 => replaceEnv locals globals i gv0
+| None => deleteEnv locals globals i
 end.
 
 Lemma lookupGVMap_updateGVMap_in : forall m id0 gv0,
@@ -121,7 +147,7 @@ Qed.
 
 Lemma lookupEnv_updateEnv_eq : forall id0 lc gl gv0 lc' gl',
   updateEnv lc gl id0 gv0 = (lc', gl') ->
-  lookupEnv id0 lc' gl' = Some gv0.
+  lookupEnv lc' gl' id0 = Some gv0.
 Proof.
   intros id0 lc gl gv0 lc' gl' HupdateEnv.
   unfold lookupEnv.
@@ -185,7 +211,7 @@ Qed.
 Lemma lookupEnv_updateEnv_neq : forall id0 id1 lc gl gv0 lc' gl',
   updateEnv lc gl id0 gv0 = (lc', gl') ->
   id1 <> id0 ->
-  lookupEnv id1 lc gl = lookupEnv id1 lc' gl'.
+  lookupEnv lc gl id1 = lookupEnv lc' gl' id1.
 Proof.
   intros id0 id1 lc gl ogv0 lc' gl' HupdateEnv id1_isnt_id0.
   unfold updateEnv in HupdateEnv.
@@ -216,7 +242,7 @@ Proof.
 Qed.  
 
 Lemma lookupEnv__indom : forall id0 lc gl gv,
-  lookupEnv id0 lc gl = Some gv ->
+  lookupEnv lc gl id0 = Some gv ->
   id0 `in` dom lc `union` dom gl.
 Proof.
   intros id0 lc gl gv H.
@@ -241,39 +267,342 @@ Proof.
       exists (updateAddGVMap lc i0 gv3). exists gl. auto.
 Qed.    
 
-Lemma exists_deleteEnv : forall lc gl i0,
-  exists lc2, exists gl2, deleteEnv i0 lc gl = (lc2, gl2).
-Admitted.
+Lemma lookupGVMap_deleteGVMap_eq : forall m id0,
+  uniq m ->
+  lookupGVMap (deleteGVMap m id0) id0 = None.
+Proof.
+  induction m; intros id0 Uniq; simpl; auto.
+  destruct a.
+  inversion Uniq; subst.
+  destruct (id0==a); subst.
+    apply lookupGVMap_notin; auto.
 
-Lemma updateEnv_deleteEnv_eq : forall lc gl id0 gv0 lc' gl',
-  updateEnv lc gl id0 gv0 = (lc', gl') ->
-  deleteEnv id0 lc' gl' = (lc, gl).
-Admitted.
+    simpl.
+    destruct (id0==a); subst; auto.
+      contradict n; auto.
+Qed.
 
-Lemma lookupEnv_deleteEnv_neq : forall lc gl id0 id1 lc' gl',
-  deleteEnv id1 lc gl = (lc', gl') ->
-  id0 <> id1 ->
-  lookupEnv id0 lc gl = lookupEnv id0 lc' gl'.
-Admitted.
+Lemma exists_replaceEnv : forall lc gl i0 gv0, 
+  exists lc2, exists gl2, replaceEnv lc gl i0 gv0 = (lc2, gl2).
+Proof.
+  intros lc gl i0 gv3.
+  unfold replaceEnv.
+  destruct (AtomSetProperties.In_dec i0 (dom lc)).
+    exists (updateGVMap lc i0 gv3). exists gl. auto.
+    destruct (AtomSetProperties.In_dec i0 (dom gl)).
+      exists lc. exists (updateGVMap gl i0 gv3). auto.
+      exists lc. exists gl. auto.
+Qed.   
 
-Lemma lookupEnv_deleteEnv_eq : forall lc gl id0 lc' gl',
-  deleteEnv id0 lc gl = (lc', gl') ->
-  lookupEnv id0 lc' gl' = None.
-Admitted.
+Lemma lookupEnv_replaceEnv_Some_eq : forall lc gl id0 gv0 lc' gl' gv1,
+  lookupEnv lc gl id0 = Some gv0 ->
+  replaceEnv lc gl id0 gv1 = (lc', gl') ->
+  lookupEnv lc' gl' id0 = Some gv1.
+Proof.
+  intros lc gl id0 gv0 lc' gl' gv1 Hl Hr.
+  unfold replaceEnv in Hr.
+  unfold lookupEnv in *.
+  destruct (AtomSetProperties.In_dec id0 (dom lc)).
+    inversion Hr; subst.
+    rewrite lookupGVMap_updateGVMap_in; auto.
 
-Lemma lookupEnv_deleteEnv_inv : forall lc gl id0 id1 lc' gl' gv,
-  deleteEnv id0 lc gl = (lc', gl') ->
-  lookupEnv id1 lc' gl' = Some gv ->
-  lookupEnv id1 lc gl = Some gv /\ id0 <> id1.
-Admitted.
+    destruct (AtomSetProperties.In_dec id0 (dom gl)).
+      inversion Hr; subst. clear Hr.
+      rewrite lookupGVMap_notin; auto.
+      rewrite lookupGVMap_updateGVMap_in; auto. 
 
-Lemma deleteEnv_uniq : forall id0 lc gl lc' gl',
+      inversion Hr; subst. clear Hr.
+      rewrite lookupGVMap_notin in Hl; auto.
+      rewrite lookupGVMap_notin in Hl; auto.
+      inversion Hl.
+Qed.
+
+Lemma lookupGVMap_in : forall m id0,
+  id0 `in` dom m ->
+  exists gv0, lookupGVMap m id0 = Some gv0.
+Proof.
+  induction m; intros.
+    simpl in H.
+    contradict H; auto.
+
+    destruct a.
+    simpl in H.
+    assert (id0 = a \/ id0 `in` dom m) as J.
+      fsetdec.
+    destruct J as [EQ | J]; subst.
+      simpl.
+      exists g.
+      destruct (@eq_dec id (@EqDec_eq_of_EqDec id EqDec_atom) a a); auto.
+        contradict n; auto.
+
+      simpl.
+      destruct (@eq_dec id (@EqDec_eq_of_EqDec id EqDec_atom) id0 a); subst; auto.
+        exists g. auto.
+Qed.
+
+Lemma lookupEnv_replaceEnv_None_eq : forall lc gl id0 lc' gl' gv1,
+  lookupEnv lc gl id0 = None ->
+  replaceEnv lc gl id0 gv1 = (lc', gl') ->
+  lookupEnv lc' gl' id0 = None.
+Proof.
+  intros lc gl id0 lc' gl' gv1 Hl Hr.
+  unfold replaceEnv in Hr.
+  unfold lookupEnv in *.
+  destruct (AtomSetProperties.In_dec id0 (dom lc)).
+    inversion Hr; subst.
+    apply lookupGVMap_in in i0.
+    destruct i0 as [gv0 i0].
+    rewrite i0 in Hl. 
+    inversion Hl.
+
+    rewrite lookupGVMap_notin in Hl; auto.
+    destruct (AtomSetProperties.In_dec id0 (dom gl)).
+      apply lookupGVMap_in in i0.
+      destruct i0 as [gv0 i0].
+      rewrite i0 in Hl. 
+      inversion Hl.
+
+      inversion Hr; subst. clear Hr.
+      rewrite lookupGVMap_notin; auto.
+Qed.
+
+Lemma lookupEnv_replaceEnv_neq : forall id0 id1 lc gl gv0 lc' gl',
+  replaceEnv lc gl id0 gv0 = (lc', gl') ->
+  id1 <> id0 ->
+  lookupEnv lc gl id1 = lookupEnv lc' gl' id1.
+Proof.
+  intros id0 id1 lc gl ogv0 lc' gl' HreplaceEnv id1_isnt_id0.
+  unfold replaceEnv in HreplaceEnv.
+  unfold lookupEnv.
+  destruct (@AtomSetProperties.In_dec id0 (dom lc)) as [id0_in_lc | id0_notin_lc].
+    inversion HreplaceEnv; subst. clear HreplaceEnv.
+    rewrite <- lookupGVMap_updateGVMap_neq; auto.
+
+    destruct (@AtomSetProperties.In_dec id0 (dom gl)) as [id0_in_gl | id0_notin_gl].
+      inversion HreplaceEnv; subst. clear HreplaceEnv.
+      rewrite <- lookupGVMap_updateGVMap_neq; auto.
+    
+      inversion HreplaceEnv; subst. auto.
+Qed. 
+
+Lemma updateGVMap_in_dom_eq : forall m id0 gv0,
+  id0 `in` dom m ->
+  dom m [=] dom (updateGVMap m id0 gv0).
+Proof.
+  induction m; intros; simpl.
+    fsetdec.
+
+    destruct a.
+    assert (id0 = a \/ id0 `in` dom m) as J.
+      simpl in H.
+      fsetdec.
+    destruct J as [EQ | J]; subst.
+      destruct (@eq_dec id (@EqDec_eq_of_EqDec id EqDec_atom) a a).
+        simpl. fsetdec.
+        contradict n; auto.
+      destruct (@eq_dec id (@EqDec_eq_of_EqDec id EqDec_atom) id0 a); subst.
+        simpl. fsetdec.
+
+        simpl. rewrite <- IHm; auto. fsetdec.
+Qed.
+
+Lemma updateGVMap_in_uniq : forall m id0 gv0,
+  uniq m ->
+  id0 `in` dom m ->
+  uniq (updateGVMap m id0 gv0).
+Proof.
+  intros m id0 gv0 Uniq InDom.
+  induction Uniq; simpl; auto.
+  destruct (@eq_dec id (@EqDec_eq_of_EqDec id EqDec_atom) id0 x); subst; auto.
+    assert (id0 = x \/ id0 `in` dom E) as J.
+      simpl in InDom.
+      fsetdec.
+    destruct J as [EQ | J]; subst.
+      contradict n; auto.
+      simpl_env.
+      apply uniq_push; auto.
+        rewrite <- updateGVMap_in_dom_eq; auto.
+Qed.
+
+Lemma replaceEnv_uniq : forall id0 gv0 lc gl lc' gl',
   uniq lc ->
   uniq gl ->
-  deleteEnv id0 lc gl = (lc', gl') ->
+  replaceEnv lc gl id0 gv0 = (lc', gl') ->
   uniq lc' /\ uniq gl'.
-Admitted.
+Proof.
+  intros id0 gv0 lc gl lc' gl' Uniqc Uniqg Hr.
+  unfold replaceEnv in Hr.
+  destruct (@AtomSetProperties.In_dec id0 (dom lc)) as [id0_in_lc | id0_notin_lc].
+    inversion Hr; subst. clear Hr.
+    split; auto using updateGVMap_in_uniq.
 
+    destruct (@AtomSetProperties.In_dec id0 (dom gl)) as [id0_in_gl | id0_notin_gl].
+      inversion Hr; subst. clear Hr.
+      split; auto using updateGVMap_in_uniq.
+
+      inversion Hr; subst. split; auto.
+Qed.
+
+Lemma exists_deleteEnv : forall lc gl i0, 
+  exists lc2, exists gl2, deleteEnv lc gl i0 = (lc2, gl2).
+Proof.
+  intros lc gl i0.
+  unfold deleteEnv.
+  exists (deleteGVMap lc i0). 
+  exists (deleteGVMap gl i0). auto.
+Qed.   
+
+Lemma lookupEnv_deleteEnv_eq : forall lc gl id0 lc' gl',
+  uniq gl ->
+  uniq lc ->
+  deleteEnv lc gl id0 = (lc', gl') ->
+  lookupEnv lc' gl' id0 = None.
+Proof.
+  intros lc gl id0 lc' gl' Huniqc Huniqg HdeleteEnv.
+  unfold deleteEnv in HdeleteEnv.
+  unfold lookupEnv.
+  inversion HdeleteEnv; subst. clear HdeleteEnv.
+  rewrite lookupGVMap_deleteGVMap_eq; auto.
+  rewrite lookupGVMap_deleteGVMap_eq; auto.
+Qed.  
+
+Lemma lookupGVMap_deleteGVMap_neq : forall m id0 id1,
+  id0 <> id1 ->
+  lookupGVMap (deleteGVMap m id0) id1 = lookupGVMap m id1.
+Proof.
+  induction m; intros id0 id1 id0_isnt_id1; simpl; auto.
+  destruct a.
+  destruct (@eq_dec id (@EqDec_eq_of_EqDec id EqDec_atom) id0 i0); subst.
+    destruct (@eq_dec id (@EqDec_eq_of_EqDec id EqDec_atom) id1 i0); subst; auto.
+      contradict id0_isnt_id1; auto.
+    destruct (@eq_dec id (@EqDec_eq_of_EqDec id EqDec_atom) id1 i0); subst; simpl.
+      destruct (@eq_dec id (@EqDec_eq_of_EqDec id EqDec_atom) i0 i0); subst; auto.
+        contradict n0; auto.
+      destruct (@eq_dec id (@EqDec_eq_of_EqDec id EqDec_atom) id1 i0); subst; auto.
+        contradict n0; auto.
+Qed.
+
+Lemma lookupEnv_deleteEnv_neq : forall lc gl id0 lc' gl' id1,
+  deleteEnv lc gl id0 = (lc', gl') ->
+  id0 <> id1 ->
+  lookupEnv lc gl id1 = lookupEnv lc' gl' id1.
+Proof.
+  intros lc gl id0 lc' gl' id1 HdeleteEnv id0_isnt_id1.
+  unfold deleteEnv in HdeleteEnv.
+  inversion HdeleteEnv; subst. clear HdeleteEnv.
+  unfold lookupEnv.
+  rewrite lookupGVMap_deleteGVMap_neq; auto.
+  rewrite lookupGVMap_deleteGVMap_neq; auto.
+Qed.  
+
+Lemma deleteGVMap_dom_sub : forall m id0,
+  dom (deleteGVMap m id0) [<=] dom m.
+Proof.
+  induction m; intros; simpl.
+    fsetdec.
+
+    destruct a.
+    destruct (@eq_dec id (@EqDec_eq_of_EqDec id EqDec_atom) id0 i0); subst.
+      fsetdec.
+
+      simpl. 
+      assert (J:=@IHm id0).
+      fsetdec.
+Qed.
+
+Lemma deleteGVMap_uniq : forall m id0,
+  uniq m ->
+  uniq (deleteGVMap m id0).
+Proof.
+  intros m id0 Uniq.
+  induction Uniq; simpl; auto.
+  destruct (@eq_dec id (@EqDec_eq_of_EqDec id EqDec_atom) id0 x); subst; auto.
+    simpl_env.
+    assert (J:=@deleteGVMap_dom_sub E id0).
+    apply uniq_push; auto.
+Qed.
+
+Lemma deleteEnv_uniq : forall lc gl id0 lc' gl',
+  uniq lc ->
+  uniq gl ->
+  deleteEnv lc gl id0 = (lc', gl') ->
+  uniq lc' /\ uniq gl'.
+Proof.
+  intros lc gl id0 lc' gl' Huniqc Huniqg Hd.
+  unfold deleteEnv in Hd.  
+  inversion Hd; subst.
+  split; auto using deleteGVMap_uniq.
+Qed.
+
+Lemma exists_rollbackEnv : forall lc gl i0 lc0 gl0, 
+  exists lc2, exists gl2, rollbackEnv lc gl i0 lc0 gl0 = (lc2, gl2).
+Proof.
+  intros lc gl i0 lc0 gl0.
+  unfold rollbackEnv.
+  destruct (lookupEnv lc0 gl0 i0).
+    apply exists_replaceEnv.
+    apply exists_deleteEnv.
+Qed.   
+
+Lemma rollbackEnv_uniq : forall id0 lc0 gl0 lc gl lc' gl',
+  uniq lc ->
+  uniq gl ->
+  rollbackEnv lc gl id0 lc0 gl0 = (lc', gl') ->
+  uniq lc' /\ uniq gl'.
+Proof.
+  intros id0 lc0 gl0 lc gl lc' gl' Huniqc Huniqg Hr.
+  unfold rollbackEnv in Hr.
+  destruct (lookupEnv lc0 gl0 id0).
+    apply replaceEnv_uniq in Hr; auto.
+    apply deleteEnv_uniq in Hr; auto.
+Qed.     
+
+Lemma lookupEnv_rollbackEnv_neq : forall lc gl id0 lc0 gl0 lc' gl' id1,
+  rollbackEnv lc gl id0 lc0 gl0 = (lc', gl') ->
+  id0 <> id1 ->
+  lookupEnv lc gl id1 = lookupEnv lc' gl' id1.
+Proof.
+  intros lc gl id0 lc0 gl0 lc' gl' id1 Hrollback id0_isnt_id1.
+  unfold rollbackEnv in Hrollback.
+  remember (lookupEnv lc0 gl0 id0) as ogv0.
+  destruct ogv0.
+    eapply lookupEnv_replaceEnv_neq; eauto.
+    eapply lookupEnv_deleteEnv_neq; eauto.
+Qed.
+
+Lemma lookupEnv_rollbackEnv_Some_eq : forall lc gl id0 lc0 gl0 lc' gl' gv0,
+  uniq lc ->
+  uniq gl ->
+  rollbackEnv lc gl id0 lc0 gl0 = (lc', gl') ->
+  lookupEnv lc gl id0 = Some gv0 ->
+  lookupEnv lc' gl' id0 = lookupEnv lc0 gl0 id0.
+Proof.
+  intros lc gl id0 lc0 gl0 lc' gl' gv0 Huniqc Huniqg Hrollback HlookupEnv.
+  unfold rollbackEnv in Hrollback.
+  remember (lookupEnv lc0 gl0 id0) as ogv0.
+  destruct ogv0.
+    rewrite Heqogv0.
+    apply lookupEnv_replaceEnv_Some_eq with (gv0:=gv0) in Hrollback; auto.
+    rewrite Hrollback. auto.
+
+    apply lookupEnv_deleteEnv_eq in Hrollback; auto.
+Qed.
+
+Lemma lookupEnv_rollbackEnv_None_eq : forall lc gl id0 lc0 gl0 lc' gl',
+  uniq lc ->
+  uniq gl ->
+  rollbackEnv lc gl id0 lc0 gl0 = (lc', gl') ->
+  lookupEnv lc gl id0 = None ->
+  lookupEnv lc' gl' id0 = None.
+Proof.
+  intros lc gl id0 lc0 gl0 lc' gl' Huniqc Huniqg Hrollback HlookupEnv.
+  unfold rollbackEnv in Hrollback.
+  remember (lookupEnv lc0 gl0 id0) as ogv0.
+  destruct ogv0.
+    apply lookupEnv_replaceEnv_None_eq in Hrollback; auto.
+
+    apply lookupEnv_deleteEnv_eq in Hrollback; auto.
+Qed.
 
 (**************************************)
 (** Convert const to GV with storesize, and look up GV from operands. *)
@@ -347,7 +676,7 @@ end.
 
 Definition getOperandValue (TD:layouts) (v:value) (locals:GVMap) (globals:GVMap) : option GenericValue := 
 match v with
-| value_id id => lookupEnv id locals globals
+| value_id id => lookupEnv locals globals id 
 | value_const c => (const2GV TD c)
 end.
 
@@ -742,7 +1071,7 @@ Qed.
 (* eq *)
 
 Definition eqEnv lc1 gl1 lc2 gl2 := 
-  forall i, lookupEnv i lc1 gl1 = lookupEnv i lc2 gl2.
+  forall i, lookupEnv lc1 gl1 i = lookupEnv lc2 gl2 i.
 
 Lemma eqEnv_refl : forall lc gl,
   eqEnv lc gl lc gl.

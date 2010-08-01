@@ -63,6 +63,27 @@ Inductive module : Set :=
 
 Definition system : Set := list module.
 
+Definition getCmdID (c:cmd) : id :=
+match c with
+| insn_bop i0 _ _ _ _ => i0
+| insn_extractvalue i0 _ _ _ => i0
+| insn_insertvalue i0 _ _ _ _ _ => i0
+| insn_malloc i0 _ _ _ => i0
+| insn_free i0 _ _  => i0
+| insn_alloca i0 _ _ _ => i0
+| insn_load i0 _ _ => i0
+| insn_store i0 _ _ _ => i0
+| insn_gep i0 _ _ _ _ => i0
+| insn_ext i0 _ _ _ _ => i0
+| insn_cast i0 _ _ _ _ => i0
+| insn_icmp i0 _ _ _ _ => i0
+| insn_select i0 _ _ _ _ => i0
+end.
+
+Inductive wf_cmds : list cmd -> Prop :=
+| wf_cmds_intro : forall cs, wf_cmds cs.
+
+
 (***************************************************************)
 (* deterministic big-step for this new syntax with subblocks. *)
 
@@ -384,6 +405,17 @@ Lemma dbCmds_uniq : forall S TD Ps F B cs cs' call0 sbs tmn lc1 arg als1 ECs gl1
         tr ->
   uniq gl2 /\ uniq lc2.
 Admitted.
+
+Lemma wf_cmds__decomposes__app : forall cs1 cs2,
+  wf_cmds (cs1++cs2) ->
+  wf_cmds cs1 /\ wf_cmds cs2.
+Admitted.
+
+Lemma wf_cmds__inv : forall c cs,
+  wf_cmds (c::cs) ->
+  wf_cmds cs.
+Admitted.
+
 
 (***************************************************************)
 (** symbolic terms and memories. *)
@@ -778,11 +810,6 @@ Proof.
   apply _se_cmds_uniq; auto. 
 Qed.
 
-Lemma se_cmds_dom_sub: forall smap0 sm0 sf0 se0 cs,
-  dom smap0 [<=]
-    dom (STerms (se_cmds (mkSstate smap0 sm0 sf0 se0) cs)).
-Admitted.
-
 Lemma se_cmds_rev_cons : forall cs c sstate0,
   se_cmds sstate0 (cs++c::nil) = se_cmd (se_cmds sstate0 cs) c.
 Proof.
@@ -801,6 +828,37 @@ Proof.
   induction cs; intros; simpl; auto.
 Qed.
 
+Lemma se_cmd_dom_mono' : forall sstate0 c,
+  dom (STerms sstate0) [<=] dom (STerms (se_cmd sstate0 c)).
+Proof.
+  intros [smap0 sm0 sf0 se0] c. 
+  simpl.
+  apply se_cmd_dom_mono; auto.
+Qed.
+
+Definition se_cmds_dom_mono_prop (cs:list cmd) :=
+  forall smap0 sm0 sf0 se0,
+  dom smap0 [<=]
+    dom (STerms (se_cmds (mkSstate smap0 sm0 sf0 se0) cs)).
+
+Lemma se_cmds_dom_mono: forall cs, se_cmds_dom_mono_prop cs.
+Proof.
+  apply (@rev_ind cmd); unfold se_cmds_dom_mono_prop; intros; simpl.
+    fsetdec.
+
+    rewrite se_cmds_rev_cons.
+    assert (J:=@se_cmd_dom_mono' (se_cmds (mkSstate smap0 sm0 sf0 se0) l0) x).
+    assert (J':=@H smap0 sm0 sf0 se0).
+    fsetdec.
+Qed.
+
+Lemma se_cmds_dom_mono' : forall sstate0 cs,
+  dom (STerms sstate0) [<=] dom (STerms (se_cmds sstate0 cs)).
+Proof.
+  intros [smap0 sm0 sf0 se0] cs. 
+  simpl.
+  apply se_cmds_dom_mono; auto.
+Qed.
 
 (***************************************************************)
 (* Denotational semantics of symbolic exe *)
@@ -991,9 +1049,9 @@ Definition smap_denotes_gvmap TD lc gl Mem smap' lc' gl' :=
   binds id' st' smap' ->
   exists gv',
     sterm_denotes_genericvalue TD lc gl Mem st' gv' /\
-    lookupEnv id' lc' gl' = Some gv') /\
+    lookupEnv lc' gl' id' = Some gv') /\
 (forall id' gv',  
-  lookupEnv id' lc' gl' = Some gv' ->
+  lookupEnv lc' gl' id' = Some gv' ->
   exists st',
     binds id' st' smap' /\
     sterm_denotes_genericvalue TD lc gl Mem st' gv'
@@ -1149,7 +1207,7 @@ Lemma env_to_smap_denotes__imples__gv : forall id0 st0 TD Mem0 gl lc,
   binds id0 st0 (env_to_smap gl lc) ->
   exists gv0,
     sterm_denotes_genericvalue TD lc gl Mem0 st0 gv0 /\
-    lookupEnv id0 lc gl = Some gv0.
+    lookupEnv lc gl id0 = Some gv0.
 Proof.
   intros id0 st0 TD Mem0 gl lc Uniqg Uniqc Binds.
   apply binds_env_to_smap with (TD:=TD) in Binds; auto.
@@ -1198,7 +1256,7 @@ Proof.
 Qed.
 
 Lemma lookupEnv_env_to_smap : forall id0 gv0 gl lc,
-  lookupEnv id0 lc gl = Some gv0 ->
+  lookupEnv lc gl id0 = Some gv0 ->
   binds id0 (sterm_val (value_id id0)) (env_to_smap gl lc).
 Proof.
   intros.
@@ -1214,7 +1272,7 @@ Proof.
 Qed.
 
 Lemma gv__imples__env_to_smap_denotes : forall id0 TD Mem0 gl lc gv0,
-  lookupEnv id0 lc gl = Some gv0 ->
+  lookupEnv lc gl id0 = Some gv0 ->
   binds id0 (sterm_val (value_id id0)) (env_to_smap gl lc) /\
   sterm_denotes_genericvalue TD lc gl Mem0 (sterm_val (value_id id0)) gv0.
 Proof.
@@ -1251,7 +1309,11 @@ Qed.
 Lemma se_cmds_env_to_smap_dom_sub: forall lc0 gl0 cs,
   union (dom lc0) (dom gl0) [<=]
     dom (STerms (se_cmds (mkSstate (env_to_smap gl0 lc0) smem_init sframe_init nil) cs)).
-Admitted.
+Proof.
+  intros.
+  assert (J:=@se_cmds_dom_mono cs (env_to_smap gl0 lc0) smem_init sframe_init nil).
+  rewrite env_to_smap_dom_eq in J. fsetdec.
+Qed.
 
 (* The denotational rules are determinastic. *)
 
@@ -1452,8 +1514,8 @@ Proof.
   destruct J1 as [J11 J12].
   destruct J2 as [J21 J22].
   intros id0.
-  remember (lookupEnv id0 lc1 gl1) as ogv1.
-  remember (lookupEnv id0 lc2 gl2) as ogv2.
+  remember (lookupEnv lc1 gl1 id0) as ogv1.
+  remember (lookupEnv lc2 gl2 id0) as ogv2.
   destruct ogv1 as [gv1 | ].
     symmetry in Heqogv1.
     apply J12 in Heqogv1.

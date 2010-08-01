@@ -63,7 +63,7 @@ Lemma se_cmd__denotes__op_cmd__case1 : forall lc gl i0 gv3 lc' gl' id' st' smap1
   smap_denotes_gvmap TD lc0 gl0 Mem0 smap1 lc gl ->
   exists gv',
     sterm_denotes_genericvalue TD lc0 gl0 Mem0 st' gv' /\
-    lookupEnv id' lc' gl' = Some gv'.
+    lookupEnv lc' gl' id' = Some gv'.
 Proof.
   intros lc gl i0 gv3 lc' gl' id' st' smap1 TD lc0 gl0 Mem0 H25 nEQ Hbinds Hsterm_denotes.
   apply lookupEnv_updateEnv_neq with (id1:=id') in H25; auto.
@@ -78,7 +78,7 @@ Qed.
 Lemma se_cmd__denotes__op_cmd__case2 : forall lc gl i0 gv3 lc' gl' id' smap1 TD lc0 gl0 Mem0 gv' st0,
   updateEnv lc gl i0 gv3 = (lc', gl') ->
   smap_denotes_gvmap TD lc0 gl0 Mem0 smap1 lc gl ->
-  lookupEnv id' lc' gl' = Some gv' ->
+  lookupEnv lc' gl' id' = Some gv' ->
   id' <> i0 ->
   exists st', binds id' st' (updateSmap smap1 i0 st0) /\ 
               sterm_denotes_genericvalue TD lc0 gl0 Mem0 st' gv'.
