@@ -69,18 +69,16 @@ Proof.
     erewrite IHl0; eauto.
 Qed.
 
-Lemma aux__se_cmd__denotes__exists_op_cmd : forall S TD Ps F B c cs call0 sbs tmn lc arg0 als ECs gl Mem1 lc' gl' als' Mem2 lc0 gl0 als0 Mem0 sstate1 tr1 tr2,
+Lemma aux__se_cmd__denotes__exists_op_cmd : forall TD c lc als gl Mem1 lc' gl' als' Mem2 lc0 gl0 als0 Mem0 sstate1 tr1 tr2,
   uniq sstate1.(STerms) ->
   (dom lc0 `union` dom gl0) [<=] dom (STerms sstate1) ->
   sstate_denotes_state TD lc0 gl0 als0 Mem0 sstate1 lc gl als Mem1 tr1 ->
   sstate_denotes_state TD lc0 gl0 als0 Mem0 (se_cmd sstate1 c) lc' gl' als' Mem2 tr2 ->
   exists lc', exists gl', exists als', exists Mem2, exists tr,
-    dbCmd (mkState S TD Ps ((mkEC F B ((subblock_intro (c::cs) call0)::sbs) tmn lc arg0 als)::ECs) gl Mem1)
-          (mkState S TD Ps ((mkEC F B ((subblock_intro cs call0)::sbs) tmn lc' arg0 als')::ECs) gl' Mem2) 
-          tr /\
+    dbCmd TD lc als gl Mem1 c lc' als' gl' Mem2 tr /\
     tr2 = trace_app tr1 tr.
 Proof.
-  intros S TD Ps F B c cs call0 sbs tmn lc arg0 als ECs gl Mem1 lc' gl' als' Mem2 lc0 gl0 als0 Mem0 sstate1 tr1 tr2 Huniq Hsub Hdenotes1 Hdenotes2.
+  intros TD c lc als gl Mem1 lc' gl' als' Mem2 lc0 gl0 als0 Mem0 sstate1 tr1 tr2 Huniq Hsub Hdenotes1 Hdenotes2.
   destruct Hdenotes2 as [[Hsterms_denote21 Hsterms_denote22] [Hsmem_denotes2 [Hsframe_denotes2 Hseffects_denote2]]].
   destruct Hdenotes1 as [Hsterms_denote1 [Hsmem_denotes1 [Hsframe_denotes1 Hseffects_denote1]]].
   inversion Hseffects_denote1; subst.
@@ -308,22 +306,19 @@ Proof.
     eapply dbSelect; eauto.
 Qed.
 
-Lemma aux__se_cmd__denotes__op_cmd : forall S TD Ps F B c cs call0 sbs tmn lc arg0 als ECs gl Mem1 lc' gl' als' Mem2 lc0 gl0 als0 Mem0 sstate1 tr1 tr2,
+Lemma aux__se_cmd__denotes__op_cmd : forall TD c lc als gl Mem1 lc' gl' als' Mem2 lc0 gl0 als0 Mem0 sstate1 tr1 tr2,
   uniq sstate1.(STerms) ->
   (dom lc0 `union` dom gl0) [<=] dom (STerms sstate1) ->
   sstate_denotes_state TD lc0 gl0 als0 Mem0 sstate1 lc gl als Mem1 tr1 ->
   sstate_denotes_state TD lc0 gl0 als0 Mem0 (se_cmd sstate1 c) lc' gl' als' Mem2 tr2 ->
   exists tr,
-    dbCmd (mkState S TD Ps ((mkEC F B ((subblock_intro (c::cs) call0)::sbs) tmn lc arg0 als)::ECs) gl Mem1)
-          (mkState S TD Ps ((mkEC F B ((subblock_intro cs call0)::sbs) tmn lc' arg0 als')::ECs) gl' Mem2)
-          tr /\
+    dbCmd TD lc als gl Mem1 c lc' als' gl' Mem2 tr /\
     tr2 = trace_app tr1 tr.
 Proof.
-  intros S TD Ps F B c cs call0 sbs tmn lc arg0 als ECs gl Mem1 lc' gl' als' Mem2 lc0 gl0 als0 Mem0 sstate1 tr1 tr2 Huniq Hsub Hdenotes1 Hdenotes2.
+  intros TD c lc als gl Mem1 lc' gl' als' Mem2 lc0 gl0 als0 Mem0 sstate1 tr1 tr2 Huniq Hsub Hdenotes1 Hdenotes2.
   assert (J:=Hdenotes2).
   apply aux__se_cmd__denotes__exists_op_cmd with
-    (S:=S)(Ps:=Ps)(F:=F)(B:=B)(cs:=cs)(call0:=call0)(sbs:=sbs)(tmn:=tmn)(lc:=lc)
-    (arg0:=arg0)(als:=als)(ECs:=ECs)(gl:=gl)(Mem1:=Mem1)(tr1:=tr1) in J; simpl; auto.
+    (lc:=lc)(als:=als)(gl:=gl)(Mem1:=Mem1)(tr1:=tr1) in J; simpl; auto.
   destruct J as [lc'' [gl'' [als'' [Mem2' [tr [HdbCmd EQ]]]]]]; subst.
   exists tr. split; auto.
   assert (Hdenotes2':=HdbCmd).
@@ -333,19 +328,16 @@ Proof.
   eapply dbCmd_eqEnv; eauto.
 Qed.
 
-Lemma se_cmd__denotes__op_cmd : forall S TD Ps F B c cs call0 sbs tmn lc arg0 als ECs gl Mem1 lc' gl' als' Mem2 tr,
+Lemma se_cmd__denotes__op_cmd : forall TD c lc als gl Mem1 lc' gl' als' Mem2 tr,
   uniq gl ->
   uniq lc ->
   sstate_denotes_state TD lc gl als Mem1 (se_cmd (mkSstate (env_to_smap gl lc) smem_init sframe_init nil) c) lc' gl' als' Mem2 tr ->
-  dbCmd (mkState S TD Ps ((mkEC F B ((subblock_intro (c::cs) call0)::sbs) tmn lc arg0 als)::ECs) gl Mem1)
-        (mkState S TD Ps ((mkEC F B ((subblock_intro cs call0)::sbs) tmn lc' arg0 als')::ECs) gl' Mem2)
-        tr. 
+  dbCmd TD lc als gl Mem1 c lc' als' gl' Mem2 tr. 
 Proof.
-  intros S TD Ps F B c cs call0 sbs tmn lc arg0 als ECs gl Mem1 lc' gl' als' Mem2 tr Huniqg Huniqc Hdenotes.
+  intros TD c lc als gl Mem1 lc' gl' als' Mem2 tr Huniqg Huniqc Hdenotes.
   assert (J:=Hdenotes).
   apply aux__se_cmd__denotes__op_cmd with
-    (lc:=lc)(gl:=gl)(Mem1:=Mem1)(tr1:=trace_nil)(call0:=call0)(sbs:=sbs)(tmn:=tmn)(als:=als)
-    (S:=S)(Ps:=Ps)(F:=F)(B:=B)(cs:=cs)(arg0:=arg0)(ECs:=ECs) in J; simpl; auto.
+    (lc:=lc)(gl:=gl)(Mem1:=Mem1)(tr1:=trace_nil)(als:=als) in J; simpl; auto.
     simpl in J. destruct J as [tr0 [J1 J2]]; subst; auto.
     apply env_to_smap_uniq.
     rewrite env_to_smap_dom_eq. fsetdec.
@@ -2038,7 +2030,7 @@ Proof.
   apply se_cmds_denotes__decomposes__app in Hdenotes; auto.
 Qed.    
   
-Lemma se_cmds__denote__exists_op_cmds : forall cs S TD Ps F B call0 sbs tmn lc1 arg als1 ECs gl1 Mem1 lc2 gl2 als2 Mem2 tr,
+Lemma se_cmds__denote__exists_op_cmds : forall cs TD lc1 als1 gl1 Mem1 lc2 gl2 als2 Mem2 tr,
   uniq gl1 ->
   uniq lc1 ->
   uniq gl2 ->
@@ -2046,12 +2038,10 @@ Lemma se_cmds__denote__exists_op_cmds : forall cs S TD Ps F B call0 sbs tmn lc1 
   wf_cmds cs ->
   sstate_denotes_state TD lc1 gl1 als1 Mem1 (se_cmds (mkSstate (env_to_smap gl1 lc1) smem_init sframe_init nil) cs) lc2 gl2 als2 Mem2 tr ->
   exists lc2', exists gl2', exists als2, exists Mem2', exists tr', 
-    dbCmds (mkState S TD Ps ((mkEC F B ((subblock_intro cs call0)::sbs) tmn lc1 arg als1)::ECs) gl1 Mem1)
-           (mkState S TD Ps ((mkEC F B ((subblock_intro nil call0)::sbs) tmn lc2' arg als2)::ECs) gl2' Mem2')
-           tr'.
+    dbCmds TD lc1 als1 gl1 Mem1 cs lc2' als2 gl2' Mem2' tr'.
 Proof.
   induction cs; 
-    intros S TD Ps F B call0 sbs tmn lc1 arg0 als1 ECs gl1 Mem1 lc2 gl2 als2 Mem2 tr Uniqg1 Uniqc1 Uniqg2 Uniqc2 Wf Hdenotes.
+    intros TD lc1 als1 gl1 Mem1 lc2 gl2 als2 Mem2 tr Uniqg1 Uniqc1 Uniqg2 Uniqc2 Wf Hdenotes.
 
     simpl in *. 
     exists lc1. exists gl1. exists als1. exists Mem2. exists trace_nil. 
@@ -2063,33 +2053,27 @@ Proof.
     apply se_cmds_denotes__decomposes__head_tail in Hdenotes; auto.
     destruct Hdenotes as [lc3 [gl3 [als3 [Mem3 [tr3 [tr3' [J1 [J2 [EQ [Huniqg3 Huniqc3]]]]]]]]]]; subst.
     apply se_cmd__denotes__op_cmd with
-      (S:=S)(Ps:=Ps)(F:=F)(B:=B)(cs:=cs)(call0:=call0)(sbs:=sbs)(tmn:=tmn)(lc:=lc1)
-     (arg0:=arg0)(als:=als1)(ECs:=ECs)(gl:=gl1)(Mem1:=Mem1) in J1; simpl; auto.
+      (lc:=lc1)(als:=als1)(gl:=gl1)(Mem1:=Mem1) in J1; simpl; auto.
     apply wf_cmds__inv in Wf.
-    apply IHcs with
-      (S:=S)(Ps:=Ps)(F:=F)(B:=B)(call0:=call0)(sbs:=sbs)(tmn:=tmn)
-      (arg:=arg0)(ECs:=ECs) in J2; simpl; auto.
+    apply IHcs in J2; simpl; auto.
       destruct J2 as [lc4 [gl4 [als4 [Mem4 [tr4 HdbCmds]]]]].
       exists lc4. exists gl4. exists als4. exists Mem4. exists (trace_app tr3 tr4).
-      apply dbCmds_cons with (S2:=mkState S TD Ps ((mkEC F B (subblock_intro cs call0::sbs) tmn lc3 arg0 als3)::ECs) gl3 Mem3); eauto.
+      apply dbCmds_cons with (lc2:=lc3)(als2:=als3)(gl2:=gl3)(Mem2:=Mem3); eauto.
 Qed.
 
-Lemma se_cmds__denote__op_cmds : forall S TD Ps F B cs call0 sbs tmn lc1 arg ECs gl1 als1 Mem1 lc2 als2 gl2 Mem2 tr,
+Lemma se_cmds__denote__op_cmds : forall TD cs lc1 gl1 als1 Mem1 lc2 als2 gl2 Mem2 tr,
   uniq gl1 ->
   uniq lc1 ->
   uniq gl2 ->
   uniq lc2 ->
   wf_cmds cs ->
   sstate_denotes_state TD lc1 gl1 als1 Mem1 (se_cmds (mkSstate (env_to_smap gl1 lc1) smem_init sframe_init nil) cs) lc2 gl2 als2 Mem2 tr ->
-  dbCmds (mkState S TD Ps ((mkEC F B ((subblock_intro cs call0)::sbs) tmn lc1 arg als1)::ECs) gl1 Mem1)
-         (mkState S TD Ps ((mkEC F B ((subblock_intro nil call0)::sbs) tmn lc2 arg als2)::ECs) gl2 Mem2)
-         tr. 
+  dbCmds TD lc1 als1 gl1 Mem1 cs lc2 als2 gl2 Mem2 tr. 
 Proof.
-  intros S TD Ps F B cs call0 sbs tmn lc1 arg0 ECs gl1 als1 Mem1 lc2 als2 gl2 Mem2 tr Huniqg1 Huniqc1 Huniqg2 Huniqc2 Wf Hdenotes.
+  intros TD cs lc1 gl1 als1 Mem1 lc2 als2 gl2 Mem2 tr Huniqg1 Huniqc1 Huniqg2 Huniqc2 Wf Hdenotes.
   assert (J:=Hdenotes).
   apply se_cmds__denote__exists_op_cmds with
-    (S:=S)(Ps:=Ps)(F:=F)(B:=B)(cs:=cs)(call0:=call0)(sbs:=sbs)(tmn:=tmn)(lc1:=lc1)
-    (arg:=arg0)(als1:=als1)(ECs:=ECs)(gl1:=gl1)(Mem1:=Mem1) in J; simpl; auto.
+     (lc1:=lc1)(als1:=als1)(gl1:=gl1)(Mem1:=Mem1) in J; simpl; auto.
   destruct J as [lc2' [gl2' [als2' [Mem2' [tr' HdbCmds]]]]].
   assert (Hdenotes':=HdbCmds).
   apply op_cmds__satisfy__se_cmds in Hdenotes'; auto.
@@ -2097,107 +2081,3 @@ Proof.
   destruct Hdenotes' as [EQ1 [EQ2 [EQ3 EQ4]]]; subst.
   eapply dbCmds_eqEnv; eauto.
 Qed.
-
-(* Correctness of the cmds validator *)
-
-Definition tv_cmds (cs1 cs2 : list cmd) (lc gl:GVMap) :=
-se_cmds (mkSstate (env_to_smap gl lc) smem_init sframe_init nil) cs1 =
-se_cmds (mkSstate (env_to_smap gl lc) smem_init sframe_init nil) cs2.
-
-Lemma tv_cmds__is__correct : forall S TD Ps F B cs cs' call0 sbs tmn lc1 arg als1 ECs gl1 Mem1 lc2 als2 gl2 Mem2 tr,
-  uniq gl1 ->
-  uniq lc1 ->  
-  wf_cmds cs' ->
-  tv_cmds cs cs' lc1 gl1 ->
-  dbCmds (mkState S TD Ps ((mkEC F B ((subblock_intro cs call0)::sbs) tmn lc1 arg als1)::ECs) gl1 Mem1)
-        (mkState S TD Ps ((mkEC F B ((subblock_intro nil call0)::sbs) tmn lc2 arg als2)::ECs) gl2 Mem2)
-        tr ->
-  dbCmds (mkState S TD Ps ((mkEC F B ((subblock_intro cs' call0)::sbs) tmn lc1 arg als1)::ECs) gl1 Mem1)
-        (mkState S TD Ps ((mkEC F B ((subblock_intro nil call0)::sbs) tmn lc2 arg als2)::ECs) gl2 Mem2)
-        tr.
-Proof.
-  intros S TD Ps F B cs cs' call0 sbs tmn lc1 arg0 als1 ECs gl1 Mem1 lc2 als2 gl2 Mem2 tr Huniqg Huniqc Wf Htv_cmds HdbCmds.
-  unfold tv_cmds in Htv_cmds.
-  assert (Uniqs:=HdbCmds).
-  apply dbCmds_uniq in Uniqs; auto.
-  destruct Uniqs as [Uniqg2 Uniqc2].
-  apply op_cmds__satisfy__se_cmds in HdbCmds; auto.
-  rewrite Htv_cmds in HdbCmds.
-  apply se_cmds__denote__op_cmds; auto.
-Qed.
-
-Definition tv_subblock (b1 b2:subblock) (lc gl:GVMap) :=
-match (b1, b2) with
-| (subblock_intro cs1 call1, subblock_intro cs2 call2) =>
-  match (call1, call2) with
-  | (insn_call id1 _ _ _ _ _, insn_call id2 _ _ _ _ _) => 
-    if id1==id2 
-    then
-      let st1 := se_cmds (mkSstate (env_to_smap gl lc) smem_init sframe_init nil) cs1 in
-      let st2 := se_cmds (mkSstate (env_to_smap gl lc) smem_init sframe_init nil) cs2 in
-      let cl1 := se_call st1 call1 in
-      let cl2 := se_call st2 call2 in
-      st1 = st2 /\ cl1 = cl2
-    else
-      False
-  end
-end.
-
-(* Definions below have not been used yet. *)
-
-Fixpoint subst_tt (id0:id) (s0:sterm) (s:sterm) : sterm :=
-match s with
-| sterm_val (value_id id1) => if id0 == id1 then s0 else s
-| sterm_val (value_const c) => sterm_val (value_const c)
-| sterm_bop op sz s1 s2 => 
-    sterm_bop op sz (subst_tt id0 s0 s1) (subst_tt id0 s0 s2)
-| sterm_extractvalue t1 s1 cs => 
-    sterm_extractvalue t1 (subst_tt id0 s0 s1) cs
-| sterm_insertvalue t1 s1 t2 s2 cs => 
-    sterm_insertvalue t1 (subst_tt id0 s0 s1) t2 (subst_tt id0 s0 s2) cs
-| sterm_malloc m1 t1 sz align => 
-    sterm_malloc (subst_tm id0 s0 m1) t1 sz align
-| sterm_alloca m1 t1 sz align => 
-    sterm_alloca (subst_tm id0 s0 m1) t1 sz align
-| sterm_load m1 t1 s1 => 
-    sterm_load (subst_tm id0 s0 m1) t1 (subst_tt id0 s0 s1)
-| sterm_gep inbounds t1 s1 ls2 =>
-    sterm_gep inbounds t1 (subst_tt id0 s0 s1) (List.map (subst_tt id0 s0) ls2)
-| sterm_ext extop t1 s1 t2 => 
-    sterm_ext extop t1 (subst_tt id0 s0 s1) t2
-| sterm_cast castop t1 s1 t2 => 
-    sterm_cast castop t1 (subst_tt id0 s0 s1) t2
-| sterm_icmp cond t1 s1 s2 => 
-    sterm_icmp cond t1 (subst_tt id0 s0 s1) (subst_tt id0 s0 s2)
-| sterm_phi t1 lsl1 => 
-    sterm_phi t1 (List.map 
-                   (fun (sl1:sterm*l) => 
-                    let (s1,l1):=sl1 in 
-                    ((subst_tt id0 s0 s1), l1)
-                   ) 
-                   lsl1)
-| sterm_select s1 t1 s2 s3 => 
-    sterm_select (subst_tt id0 s0 s1) t1 (subst_tt id0 s0 s2) (subst_tt id0 s0 s3)
-end
-with subst_tm (id0:id) (s0:sterm) (m:smem) : smem :=
-match m with 
-| smem_init => smem_init
-| smem_malloc m1 t1 sz align => smem_malloc (subst_tm id0 s0 m1) t1 sz align
-| smem_free m1 t1 s1 => smem_free (subst_tm id0 s0 m1) t1 (subst_tt id0 s0 s1)
-| smem_alloca m1 t1 sz align => smem_alloca (subst_tm id0 s0 m1) t1 sz align
-| smem_load m1 t1 s1 => smem_load (subst_tm id0 s0 m1) t1 (subst_tt id0 s0 s1)
-| smem_store m1 t1 s1 s2 => smem_store (subst_tm id0 s0 m1) t1 (subst_tt id0 s0 s1) (subst_tt id0 s0 s2)
-end
-.
-
-Fixpoint subst_mt (sm:smap) (s:sterm) : sterm :=
-match sm with
-| nil => s
-| (id0, s0)::sm' => subst_mt sm' (subst_tt id0 s0 s)
-end.
-
-Fixpoint subst_mm (sm:smap) (m:smem) : smem :=
-match sm with
-| nil => m
-| (id0, s0)::sm' => subst_mm sm' (subst_tm id0 s0 m)
-end.

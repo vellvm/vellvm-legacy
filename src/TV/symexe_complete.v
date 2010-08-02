@@ -93,16 +93,14 @@ Proof.
     apply binds_updateSmap_neq; auto.
 Qed.
 
-Lemma op_cmd__satisfies__se_cmd : forall S TD Ps F B c cs call0 sbs tmn lc arg als ECs gl lc0 gl0 als0 Mem0 lc' als' gl' Mem1 Mem2 sstate1 tr tr1,
-  dbCmd (mkState S TD Ps ((mkEC F B ((subblock_intro (c::cs) call0)::sbs) tmn lc arg als)::ECs) gl Mem1)
-         (mkState S TD Ps ((mkEC F B ((subblock_intro cs call0)::sbs) tmn lc' arg als')::ECs) gl' Mem2)
-         tr -> 
+Lemma op_cmd__satisfies__se_cmd : forall TD c lc als gl lc0 gl0 als0 Mem0 lc' als' gl' Mem1 Mem2 sstate1 tr tr1,
+  dbCmd TD lc als gl Mem1 c lc' als' gl' Mem2 tr -> 
   uniq sstate1.(STerms) ->
   (dom lc0 `union` dom gl0) [<=] dom (STerms sstate1) ->
   sstate_denotes_state TD lc0 gl0 als0 Mem0 sstate1 lc gl als Mem1 tr1 ->
   sstate_denotes_state TD lc0 gl0 als0 Mem0 (se_cmd sstate1 c) lc' gl' als' Mem2 (trace_app tr1 tr).
 Proof.
-  intros S TD Ps F B c cs call0 sbs tmn lc arg0 als ECs gl lc0 gl0 als0 Mem0 lc' als' gl' Mem1 Mem2 sstate1 tr tr1 HdsInsn Huniq Hsub Hdenotes.
+  intros TD c lc als gl lc0 gl0 als0 Mem0 lc' als' gl' Mem1 Mem2 sstate1 tr tr1 HdsInsn Huniq Hsub Hdenotes.
   (cmd_cases (destruct c;
               inversion HdsInsn; subst;
               destruct Hdenotes as [Hsterm_denotes [Hsmem_denotes [Hsframe_denotes Hseffects_denote]]];
@@ -117,10 +115,10 @@ Proof.
         destruct Hbinds as [[nEQ Hbinds] | [EQ1 EQ2]]; subst.
           eapply se_cmd__denotes__op_cmd__case1; eauto.
 
-          apply lookupEnv_updateEnv_eq in H25; auto.
-          rewrite H25.
-          apply BOP_inversion in H24.
-          destruct H24 as [gv1 [gv2 [J1 [J2 J3]]]].
+          apply lookupEnv_updateEnv_eq in H15; auto.
+          rewrite H15.
+          apply BOP_inversion in H14.
+          destruct H14 as [gv1 [gv2 [J1 [J2 J3]]]].
           exists gv3. split; auto.
           apply sterm_bop_denotes with (gv1:=gv1)(gv2:=gv2); eauto using genericvalue__implies__value2Sterm_denotes.
 
@@ -131,11 +129,11 @@ Proof.
           split. 
             apply binds_updateSmap_eq; auto.
 
-            apply lookupEnv_updateEnv_eq in H25; auto.
-            rewrite H25 in HlookupEnv.
+            apply lookupEnv_updateEnv_eq in H15; auto.
+            rewrite H15 in HlookupEnv.
             inversion HlookupEnv; subst.
-            apply BOP_inversion in H24.
-            destruct H24 as [gv1 [gv2 [J1 [J2 J3]]]].
+            apply BOP_inversion in H14.
+            destruct H14 as [gv1 [gv2 [J1 [J2 J3]]]].
             apply sterm_bop_denotes with (gv1:=gv1)(gv2:=gv2); eauto using genericvalue__implies__value2Sterm_denotes.
 
           eapply se_cmd__denotes__op_cmd__case2; eauto.
@@ -150,8 +148,8 @@ Proof.
         destruct Hbinds as [[nEQ Hbinds] | [EQ1 EQ2]]; subst.
           eapply se_cmd__denotes__op_cmd__case1; eauto.
 
-          apply lookupEnv_updateEnv_eq in H25; auto.
-          rewrite H25.
+          apply lookupEnv_updateEnv_eq in H15; auto.
+          rewrite H15.
           exists gv'. split; auto.
           apply sterm_extractvalue_denotes with (gv1:=gv); eauto using genericvalue__implies__value2Sterm_denotes.
 
@@ -162,8 +160,8 @@ Proof.
           split. 
             apply binds_updateSmap_eq; auto.
 
-            apply lookupEnv_updateEnv_eq in H25; auto.
-            rewrite H25 in HlookupEnv.
+            apply lookupEnv_updateEnv_eq in H15; auto.
+            rewrite H15 in HlookupEnv.
             inversion HlookupEnv; subst.
             apply sterm_extractvalue_denotes with (gv1:=gv); eauto using genericvalue__implies__value2Sterm_denotes.
 
@@ -179,8 +177,8 @@ Proof.
         destruct Hbinds as [[nEQ Hbinds] | [EQ1 EQ2]]; subst.
           eapply se_cmd__denotes__op_cmd__case1; eauto.
 
-          apply lookupEnv_updateEnv_eq in H28; auto.
-          rewrite H28.
+          apply lookupEnv_updateEnv_eq in H18; auto.
+          rewrite H18.
           exists gv''. split; auto.
           eapply sterm_insertvalue_denotes; eauto using genericvalue__implies__value2Sterm_denotes.
 
@@ -191,8 +189,8 @@ Proof.
           split. 
             apply binds_updateSmap_eq; auto.
 
-            apply lookupEnv_updateEnv_eq in H28; auto.
-            rewrite H28 in HlookupEnv.
+            apply lookupEnv_updateEnv_eq in H18; auto.
+            rewrite H18 in HlookupEnv.
             inversion HlookupEnv; subst.
             eapply sterm_insertvalue_denotes; eauto using genericvalue__implies__value2Sterm_denotes.
 
@@ -208,8 +206,8 @@ Proof.
         destruct Hbinds as [[nEQ Hbinds] | [EQ1 EQ2]]; subst.
           eapply se_cmd__denotes__op_cmd__case1; eauto.
 
-          apply lookupEnv_updateEnv_eq in H25; auto.
-          rewrite H25.
+          apply lookupEnv_updateEnv_eq in H15; auto.
+          rewrite H15.
           exists (ptr2GV TD (mb, 0)).
           split; auto.
             eapply sterm_malloc_denotes; eauto.
@@ -221,8 +219,8 @@ Proof.
           split. 
             apply binds_updateSmap_eq; auto.
 
-            apply lookupEnv_updateEnv_eq in H25; auto.
-            rewrite H25 in HlookupEnv.
+            apply lookupEnv_updateEnv_eq in H15; auto.
+            rewrite H15 in HlookupEnv.
             inversion HlookupEnv; subst.
             eapply sterm_malloc_denotes; eauto.
 
@@ -233,8 +231,8 @@ Proof.
       destruct Hsterm_denotes as [J1 J2].
       split; auto.
     split; auto.     
-      apply getOperandPtr_inversion in H22.
-      destruct H22 as [gv [J1 J2]].
+      apply getOperandPtr_inversion in H12.
+      destruct H12 as [gv [J1 J2]].
       apply smem_free_denotes with (Mem1:=Mem1)(gv0:=gv)(mptr0:=mptr); auto.
         eapply genericvalue__implies__value2Sterm_denotes; eauto.
     
@@ -248,8 +246,8 @@ Proof.
         destruct Hbinds as [[nEQ Hbinds] | [EQ1 EQ2]]; subst.
           eapply se_cmd__denotes__op_cmd__case1; eauto.
 
-          apply lookupEnv_updateEnv_eq in H25; auto.
-          rewrite H25.
+          apply lookupEnv_updateEnv_eq in H15; auto.
+          rewrite H15.
           exists (ptr2GV TD (mb, 0)).
           split; auto.
           eapply sterm_alloca_denotes; eauto.
@@ -261,8 +259,8 @@ Proof.
           split. 
             apply binds_updateSmap_eq; auto.
 
-            apply lookupEnv_updateEnv_eq in H25; auto.
-            rewrite H25 in HlookupEnv.
+            apply lookupEnv_updateEnv_eq in H15; auto.
+            rewrite H15 in HlookupEnv.
             inversion HlookupEnv; subst.
             eapply sterm_alloca_denotes; eauto.
 
@@ -270,8 +268,8 @@ Proof.
 
   Case "insn_load".
     split; simpl; eauto.
-      apply getOperandPtr_inversion in H22.
-      destruct H22 as [gv2 [J1 J2]].
+      apply getOperandPtr_inversion in H7.
+      destruct H7 as [gv2 [J1 J2]].
       split.
         intros id' st' Hbinds.
         simpl in Hbinds. simpl_env in Hbinds.
@@ -280,8 +278,8 @@ Proof.
         destruct Hbinds as [[nEQ Hbinds] | [EQ1 EQ2]]; subst.
           eapply se_cmd__denotes__op_cmd__case1; eauto.
 
-          apply lookupEnv_updateEnv_eq in H24; auto.
-          rewrite H24.
+          apply lookupEnv_updateEnv_eq in H14; auto.
+          rewrite H14.
           exists gv.
           split; auto.
           apply sterm_load_denotes with (Mem1:=Mem2)(gv0:=gv2)(mp0:=mp); eauto.
@@ -294,8 +292,8 @@ Proof.
           split. 
             apply binds_updateSmap_eq; auto.
 
-            apply lookupEnv_updateEnv_eq in H24; auto.
-            rewrite H24 in HlookupEnv.
+            apply lookupEnv_updateEnv_eq in H14; auto.
+            rewrite H14 in HlookupEnv.
             inversion HlookupEnv; subst.
             apply sterm_load_denotes with (Mem1:=Mem2)(gv0:=gv2)(mp0:=mp); eauto.
               eapply genericvalue__implies__value2Sterm_denotes; eauto.
@@ -307,8 +305,8 @@ Proof.
       destruct Hsterm_denotes as [J1 J2].
       split; auto.
     split; auto.
-      apply getOperandPtr_inversion in H24.
-      destruct H24 as [gv2 [J1 J2]].
+      apply getOperandPtr_inversion in H14.
+      destruct H14 as [gv2 [J1 J2]].
       eapply smem_store_denotes; 
         eauto using genericvalue__implies__value2Sterm_denotes.
 
@@ -319,15 +317,15 @@ Proof.
         simpl in Hbinds. simpl_env in Hbinds.
         analyze_binds Hbinds.
         apply updateSmap_inversion in Hbinds; auto.
-        apply getOperandPtr_inversion in H24.
-        destruct H24 as [gv0 [J1 J2]].
+        apply getOperandPtr_inversion in H14.
+        destruct H14 as [gv0 [J1 J2]].
         destruct Hbinds as [[nEQ Hbinds] | [EQ1 EQ2]]; subst.
           eapply se_cmd__denotes__op_cmd__case1; eauto.
 
-          apply lookupEnv_updateEnv_eq in H26; auto.
-          rewrite H26.
-          apply GEP_inversion in H25.
-          destruct H25 as [idxs [J3 J4]].
+          apply lookupEnv_updateEnv_eq in H16; auto.
+          rewrite H16.
+          apply GEP_inversion in H15.
+          destruct H15 as [idxs [J3 J4]].
           apply intValues2Nats_inversion in J3.
           destruct J3 as [gvs0 [J31 J32]].
           exists (ptr2GV TD mp').
@@ -341,13 +339,13 @@ Proof.
           split. 
             apply binds_updateSmap_eq; auto.
 
-            apply lookupEnv_updateEnv_eq in H26; auto.
-            rewrite H26 in HlookupEnv.
+            apply lookupEnv_updateEnv_eq in H16; auto.
+            rewrite H16 in HlookupEnv.
             inversion HlookupEnv; subst.
-            apply getOperandPtr_inversion in H24.
-            destruct H24 as [gv0 [J1 J2]].
-            apply GEP_inversion in H25.
-            destruct H25 as [idxs [J3 J4]].
+            apply getOperandPtr_inversion in H14.
+            destruct H14 as [gv0 [J1 J2]].
+            apply GEP_inversion in H15.
+            destruct H15 as [idxs [J3 J4]].
             apply intValues2Nats_inversion in J3.
             destruct J3 as [gvs0 [J31 J32]].
             eapply sterm_gep_denotes; eauto using genericvalue__implies__value2Sterm_denotes, genericvalues__imply__value2Sterm_denote.
@@ -364,10 +362,10 @@ Proof.
         destruct Hbinds as [[nEQ Hbinds] | [EQ1 EQ2]]; subst.
           eapply se_cmd__denotes__op_cmd__case1; eauto.
 
-          apply lookupEnv_updateEnv_eq in H25; auto.
-          rewrite H25.
-          apply EXT_inversion in H24.
-          destruct H24 as [gv1 [J1 J2]].
+          apply lookupEnv_updateEnv_eq in H15; auto.
+          rewrite H15.
+          apply EXT_inversion in H14.
+          destruct H14 as [gv1 [J1 J2]].
           exists gv2. split; auto.
             apply sterm_ext_denotes with (gv1:=gv1); eauto using genericvalue__implies__value2Sterm_denotes.
 
@@ -378,11 +376,11 @@ Proof.
           split. 
             apply binds_updateSmap_eq; auto.
 
-            apply lookupEnv_updateEnv_eq in H25; auto.
-            rewrite H25 in HlookupEnv.
+            apply lookupEnv_updateEnv_eq in H15; auto.
+            rewrite H15 in HlookupEnv.
             inversion HlookupEnv; subst.
-            apply EXT_inversion in H24.
-            destruct H24 as [gv1 [J1 J2]].
+            apply EXT_inversion in H14.
+            destruct H14 as [gv1 [J1 J2]].
             apply sterm_ext_denotes with (gv1:=gv1); eauto using genericvalue__implies__value2Sterm_denotes.
 
           eapply se_cmd__denotes__op_cmd__case2; eauto.
@@ -397,10 +395,10 @@ Proof.
         destruct Hbinds as [[nEQ Hbinds] | [EQ1 EQ2]]; subst.
           eapply se_cmd__denotes__op_cmd__case1; eauto.
 
-          apply lookupEnv_updateEnv_eq in H25; auto.
-          rewrite H25.
-          apply CAST_inversion in H24.
-          destruct H24 as [gv1 [J1 J2]].
+          apply lookupEnv_updateEnv_eq in H15; auto.
+          rewrite H15.
+          apply CAST_inversion in H14.
+          destruct H14 as [gv1 [J1 J2]].
           exists gv2. split; auto.
             apply sterm_cast_denotes with (gv1:=gv1); eauto using genericvalue__implies__value2Sterm_denotes.
 
@@ -411,11 +409,11 @@ Proof.
           split. 
             apply binds_updateSmap_eq; auto.
 
-            apply lookupEnv_updateEnv_eq in H25; auto.
-            rewrite H25 in HlookupEnv.
+            apply lookupEnv_updateEnv_eq in H15; auto.
+            rewrite H15 in HlookupEnv.
             inversion HlookupEnv; subst.
-            apply CAST_inversion in H24.
-            destruct H24 as [gv1 [J1 J2]].
+            apply CAST_inversion in H14.
+            destruct H14 as [gv1 [J1 J2]].
             apply sterm_cast_denotes with (gv1:=gv1); eauto using genericvalue__implies__value2Sterm_denotes.
 
           eapply se_cmd__denotes__op_cmd__case2; eauto.
@@ -430,10 +428,10 @@ Proof.
         destruct Hbinds as [[nEQ Hbinds] | [EQ1 EQ2]]; subst.
           eapply se_cmd__denotes__op_cmd__case1; eauto.
 
-          apply lookupEnv_updateEnv_eq in H25; auto.
-          rewrite H25.
-          apply ICMP_inversion in H24.
-          destruct H24 as [gv1 [gv2 [J1 [J2 J3]]]].
+          apply lookupEnv_updateEnv_eq in H15; auto.
+          rewrite H15.
+          apply ICMP_inversion in H14.
+          destruct H14 as [gv1 [gv2 [J1 [J2 J3]]]].
           exists gv3. split; auto.
             apply sterm_icmp_denotes with (gv1:=gv1)(gv2:=gv2); eauto using genericvalue__implies__value2Sterm_denotes.
 
@@ -444,11 +442,11 @@ Proof.
           split. 
             apply binds_updateSmap_eq; auto.
 
-            apply lookupEnv_updateEnv_eq in H25; auto.
-            rewrite H25 in HlookupEnv.
+            apply lookupEnv_updateEnv_eq in H15; auto.
+            rewrite H15 in HlookupEnv.
             inversion HlookupEnv; subst.
-            apply ICMP_inversion in H24.
-            destruct H24 as [gv1 [gv2 [J1 [J2 J3]]]].
+            apply ICMP_inversion in H14.
+            destruct H14 as [gv1 [gv2 [J1 [J2 J3]]]].
             apply sterm_icmp_denotes with (gv1:=gv1)(gv2:=gv2); eauto using genericvalue__implies__value2Sterm_denotes.
 
           eapply se_cmd__denotes__op_cmd__case2; eauto.
@@ -463,9 +461,9 @@ Proof.
         destruct Hbinds as [[nEQ Hbinds] | [EQ1 EQ2]]; subst.
           destruct cond0; eapply se_cmd__denotes__op_cmd__case1; eauto.
 
-          symmetry in H27.
-          apply getOperandInt_inversion in H24. destruct H24 as [gv5 [J1 J2]].
-          destruct cond0; apply lookupEnv_updateEnv_eq in H27; auto.
+          symmetry in H17.
+          apply getOperandInt_inversion in H14. destruct H14 as [gv5 [J1 J2]].
+          destruct cond0; apply lookupEnv_updateEnv_eq in H17; auto.
             exists gv1.
             split; auto.
               apply sterm_select_denotes with (c0:=0)(gv0:=gv5)(gv1:=gv1)(gv2:=gv2); eauto using genericvalue__implies__value2Sterm_denotes.
@@ -481,40 +479,34 @@ Proof.
           split. 
             apply binds_updateSmap_eq; auto.
 
-            apply getOperandInt_inversion in H24. destruct H24 as [gv5 [J1 J2]].
+            apply getOperandInt_inversion in H14. destruct H14 as [gv5 [J1 J2]].
             apply sterm_select_denotes with (c0:=cond0)(gv0:=gv5)(gv1:=gv1)(gv2:=gv2); eauto using genericvalue__implies__value2Sterm_denotes.
-            symmetry in H27.
+            symmetry in H17.
             destruct cond0;
-              apply lookupEnv_updateEnv_eq in H27; auto;
-              rewrite H27 in HlookupEnv;
+              apply lookupEnv_updateEnv_eq in H17; auto;
+              rewrite H17 in HlookupEnv;
               inversion HlookupEnv; subst; auto.
 
           destruct cond0; eapply se_cmd__denotes__op_cmd__case2; eauto.
 Qed.
 
-Lemma aux__op_cmds__satisfy__se_cmds : forall cs S TD Ps F B call0 sbs tmn lc0 arg als ECs gl0 als0 Mem0 lc als' gl Mem1 sstate1 lc' gl' Mem2 tr tr1,
-  dbCmds (mkState S TD Ps ((mkEC F B ((subblock_intro cs call0)::sbs) tmn lc arg als)::ECs) gl Mem1)
-         (mkState S TD Ps ((mkEC F B ((subblock_intro nil call0)::sbs) tmn lc' arg als')::ECs) gl' Mem2)
-         tr ->
+Lemma aux__op_cmds__satisfy__se_cmds : forall cs TD lc0 als gl0 als0 Mem0 lc als' gl Mem1 sstate1 lc' gl' Mem2 tr tr1,
+  dbCmds TD lc als gl Mem1 cs lc' als' gl' Mem2 tr ->
   uniq sstate1.(STerms) ->
   (dom lc0 `union` dom gl0) [<=] dom (STerms sstate1) ->
   sstate_denotes_state TD lc0 gl0 als0 Mem0 sstate1 lc gl als Mem1 tr1 ->
   sstate_denotes_state TD lc0 gl0 als0 Mem0 (se_cmds sstate1 cs) lc' gl' als' Mem2 (trace_app tr1 tr).
 Proof.
   induction cs; 
-    intros S TD Ps F B call0 sbs tmn lc0 arg0 als ECs gl0 als0 Mem0 lc als' gl Mem1 sstate1 lc' gl' Mem2 tr tr1 HdbCmds Huniq Hsub Hdenotes.
+    intros TD lc0 als gl0 als0 Mem0 lc als' gl Mem1 sstate1 lc' gl' Mem2 tr tr1 HdbCmds Huniq Hsub Hdenotes.
 
     inversion HdbCmds; subst; try solve [rewrite trace_app_nil__eq__trace; auto].
-      inversion H.
 
     inversion HdbCmds; subst.
-    assert (Hcmd:=H).
-    apply dbCmd_inversion in H.
-    destruct H as [lc3 [gl3 [als3 [Mem3 H]]]]; subst.
     simpl.
-    apply op_cmd__satisfies__se_cmd with (lc0:=lc0)(gl0:=gl0)(sstate1:=sstate1)(als0:=als0)(Mem0:=Mem0)(tr1:=tr1) in Hcmd; auto.
+    apply op_cmd__satisfies__se_cmd with (lc0:=lc0)(gl0:=gl0)(sstate1:=sstate1)(als0:=als0)(Mem0:=Mem0)(tr1:=tr1) in H6; auto.
     rewrite trace_app_commute.
-    apply IHcs with (lc0:=lc0)(gl0:=gl0)(sstate1:=se_cmd sstate1 a)(als0:=als0)(Mem0:=Mem0)(tr1:=trace_app tr1 t1) in H0; auto.
+    apply IHcs with (lc0:=lc0)(gl0:=gl0)(sstate1:=se_cmd sstate1 a)(als0:=als0)(Mem0:=Mem0)(tr1:=trace_app tr1 t1) in H12; auto.
       apply se_cmd_uniq; auto.
 
       destruct sstate1 as [smap1 sm1 sf1 se1].
@@ -522,15 +514,13 @@ Proof.
       clear - J Hsub. fsetdec.
 Qed.
 
-Lemma op_cmds__satisfy__se_cmds : forall S TD Ps F B cs call0 sbs tmn lc arg als ECs gl Mem lc' als' gl' Mem' tr,
+Lemma op_cmds__satisfy__se_cmds : forall TD cs lc als gl Mem lc' als' gl' Mem' tr,
   uniq gl ->
   uniq lc ->
-  dbCmds (mkState S TD Ps ((mkEC F B ((subblock_intro cs call0)::sbs) tmn lc arg als)::ECs) gl Mem)
-         (mkState S TD Ps ((mkEC F B ((subblock_intro nil call0)::sbs) tmn lc' arg als')::ECs) gl' Mem')
-         tr ->
+  dbCmds TD lc als gl Mem cs lc' als' gl' Mem' tr ->
   sstate_denotes_state TD lc gl als Mem (se_cmds (mkSstate (env_to_smap gl lc) smem_init sframe_init nil) cs) lc' gl' als' Mem' tr.
 Proof.
-  intros S TD Ps F B cs call0 sbs tmn lc arg0 als ECs gl Mem0 lc' als' gl' Mem' tr Uniqg Uniqc HdbCmds.
+  intros TD cs lc als gl Mem0 lc' als' gl' Mem' tr Uniqg Uniqc HdbCmds.
   apply aux__op_cmds__satisfy__se_cmds with (lc0:=lc)(gl0:=gl)(als0:=als)(Mem0:=Mem0)(sstate1:=mkSstate (env_to_smap gl lc) smem_init sframe_init nil) (tr1:=trace_nil) in HdbCmds; simpl; auto.
     apply env_to_smap_uniq.
     rewrite env_to_smap_dom_eq. fsetdec.
