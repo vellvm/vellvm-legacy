@@ -13,76 +13,14 @@ Require Import genericvalues.
 Require Import ssa_dynamic.
 Require Import trace.
 
+Export LLVMsyntax.
+Export LLVMlib.
+Export LLVMopsem.
+
 (***************************************************************)
 (* Syntax easy to be proved with symbolic execution. *)
 
 Module SimpleSE.
-
-Inductive cmd : Set := 
- | insn_bop : id -> bop -> sz -> value -> value -> cmd
- | insn_extractvalue : id -> typ -> value -> list const -> cmd
- | insn_insertvalue : id -> typ -> value -> typ -> value -> list const -> cmd
- | insn_malloc : id -> typ -> sz -> align -> cmd
- | insn_free : id -> typ -> value -> cmd
- | insn_alloca : id -> typ -> sz -> align -> cmd
- | insn_load : id -> typ -> value -> cmd
- | insn_store : id -> typ -> value -> value -> cmd
- | insn_gep : id -> inbounds -> typ -> value -> list value -> cmd
- | insn_ext : id -> extop -> typ -> value -> typ -> cmd
- | insn_cast : id -> castop -> typ -> value -> typ -> cmd
- | insn_icmp : id -> cond -> typ -> value -> value -> cmd
- | insn_select : id -> value -> typ -> value -> value -> cmd
-.
-
-Tactic Notation "cmd_cases" tactic(first) tactic(c) :=
-  first;
-  [ c "insn_bop" | c "insn_extractvalue" | c "insn_insertvalue" |
-    c "insn_malloc" | c "insn_free" |
-    c "insn_alloca" | c "insn_load" | c "insn_store" | c "insn_gep" |
-    c "insn_ext" | c "insn_cast" | c "insn_icmp" |  c "insn_select" ].
-
-Inductive call : Set := 
- | insn_call : id -> noret -> tailc -> typ -> id -> list_param -> call.
-
-Inductive subblock : Set :=
- | subblock_intro : list cmd -> call -> subblock.
-
-Inductive block : Set :=
- | block_intro : l -> list phinode -> list subblock -> terminator -> block.
-
-Inductive fdef : Set := 
- | fdef_intro : fheader -> list block -> fdef.
-
-Inductive product : Set := 
- | product_gvar : gvar -> product
- | product_fdec : fdec -> product
- | product_fdef : fdef -> product.
-
-Inductive module : Set := 
- | module_intro : list_layout -> list product -> module.
-
-Definition system : Set := list module.
-
-Definition getCmdID (c:cmd) : id :=
-match c with
-| insn_bop i0 _ _ _ _ => i0
-| insn_extractvalue i0 _ _ _ => i0
-| insn_insertvalue i0 _ _ _ _ _ => i0
-| insn_malloc i0 _ _ _ => i0
-| insn_free i0 _ _  => i0
-| insn_alloca i0 _ _ _ => i0
-| insn_load i0 _ _ => i0
-| insn_store i0 _ _ _ => i0
-| insn_gep i0 _ _ _ _ => i0
-| insn_ext i0 _ _ _ _ => i0
-| insn_cast i0 _ _ _ _ => i0
-| insn_icmp i0 _ _ _ _ => i0
-| insn_select i0 _ _ _ _ => i0
-end.
-
-Inductive wf_cmds : list cmd -> Prop :=
-| wf_cmds_intro : forall cs, wf_cmds cs.
-
 
 (***************************************************************)
 (* deterministic big-step for this new syntax with subblocks. *)
@@ -98,11 +36,6 @@ Frame          : ExecutionContext;
 Globals        : GVMap;
 Mem            : mem
 }.
-
-Variable lookupBlockViaLabelFromFdef : fdef -> l -> option block.
-Variable switchToNewBasicBlock : block -> block -> GVMap -> GVMap.
-Variable lookupFdefViaIDFromProducts : list product -> id -> option fdef.
-Variable getEntryBlock : fdef -> option block.
 
 Inductive dbCmd : layouts -> 
                   GVMap -> list mblock -> GVMap -> mem -> 
@@ -270,7 +203,7 @@ Inductive dbCmds : layouts ->
 
 Inductive dbCall : system -> layouts -> list product ->
                    GVMap -> GVMap -> mem -> 
-                   call -> 
+                   cmd -> 
                    GVMap -> GVMap -> mem -> 
                    trace -> Prop :=
 | dbCall_intro : forall S TD Ps lc gl rid noret tailc rt fid lp gl' gl''
@@ -300,7 +233,7 @@ Inductive dbCall : system -> layouts -> list product ->
     tr
 with dbSubblock : system -> layouts -> list product ->
                   GVMap -> list mblock -> GVMap -> mem -> 
-                  subblock -> 
+                  list cmd -> 
                   GVMap -> list mblock -> GVMap -> mem -> 
                   trace -> Prop :=
 | dbSubblock_intro : forall S TD Ps lc1 als1 gl1 Mem1 cs call0 lc2 als2 gl2 Mem2 tr1 
@@ -309,37 +242,38 @@ with dbSubblock : system -> layouts -> list product ->
   dbCall S TD Ps lc2 gl2 Mem2 call0 lc3 gl3 Mem3 tr2 ->
   dbSubblock S TD Ps
              lc1 als1 gl1 Mem1
-             (subblock_intro cs call0) 
+             (cs++call0::nil) 
              lc3 als2 gl3 Mem3
              (trace_app tr1 tr2)
 with dbSubblocks : system -> layouts -> list product ->
                    GVMap -> list mblock -> GVMap -> mem -> 
-                   list subblock -> 
+                   list cmd -> 
                    GVMap -> list mblock -> GVMap -> mem -> 
                    trace -> Prop :=
 | dbSubblocks_nil : forall S TD Ps lc als gl Mem, 
     dbSubblocks S TD Ps lc als gl Mem nil lc als gl Mem trace_nil
-| dbSubblocks_cond : forall S TD Ps lc1 als1 gl1 Mem1 lc2 als2 gl2 Mem2 lc3 als3 gl3 Mem3 sb sbs t1 t2,
-    dbSubblock S TD Ps lc1 als1 gl1 Mem1 sb lc2 als2 gl2 Mem2 t1 ->
-    dbSubblocks S TD Ps lc2 als2 gl2 Mem2 sbs lc3 als3 gl3 Mem3 t2 ->
-    dbSubblocks S TD Ps lc1 als1 gl1 Mem1 (sb::sbs) lc3 als3 gl3 Mem3 (trace_app t1 t2)
+| dbSubblocks_cond : forall S TD Ps lc1 als1 gl1 Mem1 lc2 als2 gl2 Mem2 lc3 als3 gl3 Mem3 cs cs' t1 t2,
+    dbSubblock S TD Ps lc1 als1 gl1 Mem1 cs lc2 als2 gl2 Mem2 t1 ->
+    dbSubblocks S TD Ps lc2 als2 gl2 Mem2 cs' lc3 als3 gl3 Mem3 t2 ->
+    dbSubblocks S TD Ps lc1 als1 gl1 Mem1 (cs++cs') lc3 als3 gl3 Mem3 (trace_app t1 t2)
 with dbBlock : system -> layouts -> list product -> fdef -> list GenericValue -> State -> State -> trace -> Prop :=
-| dbBlock_intro : forall S TD Ps F tr1 tr2 l ps sbs tmn lc1 als1 gl1 Mem1
-                         lc2 als2 gl2 Mem2 lc3 B' arg,
+| dbBlock_intro : forall S TD Ps F tr1 tr2 l ps cs cs' tmn lc1 als1 gl1 Mem1
+                         lc2 als2 gl2 Mem2 lc3 als3 gl3 Mem3 lc4 B' arg tr3,
   dbSubblocks S TD Ps
     lc1 als1 gl1 Mem1
-    sbs
+    cs
     lc2 als2 gl2 Mem2
     tr1 ->
+  dbCmds TD lc2 als2 gl2 Mem2 cs' lc3 als3 gl3 Mem3 tr2 ->
   dbTerminator TD F
-    (block_intro l ps sbs tmn) lc2 gl2
+    (block_intro l ps (cs++cs') tmn) lc3 gl3
     tmn
-    B' lc3
-    tr2 ->
+    B' lc4
+    tr3 ->
   dbBlock S TD Ps F arg
-    (mkState (mkEC (block_intro l ps sbs tmn) lc1 als1) gl1 Mem1)
-    (mkState (mkEC B' lc3 als2) gl2 Mem2)
-    (trace_app tr1 tr2)
+    (mkState (mkEC (block_intro l ps (cs++cs') tmn) lc1 als1) gl1 Mem1)
+    (mkState (mkEC B' lc4 als3) gl3 Mem3)
+    (trace_app (trace_app tr1 tr2) tr3)
 with dbBlocks : system -> layouts -> list product -> fdef -> list GenericValue -> State -> State -> trace -> Prop :=
 | dbBlocks_nil : forall S TD Ps F arg state, dbBlocks S TD Ps F arg state state trace_nil
 | dbBlocks_cons : forall S TD Ps F arg S1 S2 S3 t1 t2,
@@ -348,35 +282,45 @@ with dbBlocks : system -> layouts -> list product -> fdef -> list GenericValue -
     dbBlocks S TD Ps F arg S1 S3 (trace_app t1 t2)
 with dbFdef : id -> typ -> list_param -> system -> layouts -> list product -> GVMap -> GVMap -> mem -> GVMap -> GVMap -> list mblock -> mem -> id -> option value -> trace -> Prop :=
 | dbFdef_func : forall S TD Ps gl fid lp lc rid
-                       l1 ps1 sbs1 tmn1 rt la lb Result lc1 gl1 tr1 Mem Mem1 als1
-                       l2 ps2 sbs2 lc2 als2 gl2 Mem2 tr2,
+                       l1 ps1 cs1 tmn1 rt la lb Result lc1 gl1 tr1 Mem Mem1 als1
+                       l2 ps2 cs21 cs22 lc2 als2 gl2 Mem2 tr2 lc3 als3 gl3 Mem3 tr3,
   lookupFdefViaIDFromProducts Ps fid = Some (fdef_intro (fheader_intro rt fid la) lb) ->
-  getEntryBlock (fdef_intro (fheader_intro rt fid la) lb) = Some (block_intro l1 ps1 sbs1 tmn1) ->
+  getEntryBlock (fdef_intro (fheader_intro rt fid la) lb) = Some (block_intro l1 ps1 cs1 tmn1) ->
   dbBlocks S TD Ps (fdef_intro (fheader_intro rt fid la) lb) (params2GVs TD lp lc gl)
-    (mkState (mkEC (block_intro l1 ps1 sbs1 tmn1) (initLocals la (params2GVs TD lp lc gl)) nil) gl Mem)
-    (mkState (mkEC (block_intro l2 ps2 sbs2 (insn_return rid rt Result)) lc1 als1) gl1 Mem1)
+    (mkState (mkEC (block_intro l1 ps1 cs1 tmn1) (initLocals la (params2GVs TD lp lc gl)) nil) gl Mem)
+    (mkState (mkEC (block_intro l2 ps2 (cs21++cs22) (insn_return rid rt Result)) lc1 als1) gl1 Mem1)
     tr1 ->
-  dbSubblocks S TD Ps 
+  dbSubblocks S TD Ps
     lc1 als1 gl1 Mem1
-    sbs2
+    cs21
     lc2 als2 gl2 Mem2
     tr2 ->
-  dbFdef fid rt lp S TD Ps lc gl Mem lc2 gl2 als2 Mem2 rid (Some Result) (trace_app tr1 tr2)
+  dbCmds TD
+    lc2 als2 gl2 Mem2
+    cs22
+    lc3 als3 gl3 Mem3
+    tr3 ->
+  dbFdef fid rt lp S TD Ps lc gl Mem lc2 gl2 als2 Mem2 rid (Some Result) (trace_app (trace_app tr1 tr2) tr3)
 | dbFdef_proc : forall S TD Ps gl fid lp lc rid
-                       l1 ps1 sbs1 tmn1 rt la lb lc1 gl1 tr1 Mem Mem1 als1
-                       l2 ps2 sbs2 lc2 als2 gl2 Mem2 tr2,
+                       l1 ps1 cs1 tmn1 rt la lb lc1 gl1 tr1 Mem Mem1 als1
+                       l2 ps2 cs21 cs22 lc2 als2 gl2 Mem2 tr2 lc3 als3 gl3 Mem3 tr3,
   lookupFdefViaIDFromProducts Ps fid = Some (fdef_intro (fheader_intro rt fid la) lb) ->
-  getEntryBlock (fdef_intro (fheader_intro rt fid la) lb) = Some (block_intro l1 ps1 sbs1 tmn1) ->
+  getEntryBlock (fdef_intro (fheader_intro rt fid la) lb) = Some (block_intro l1 ps1 cs1 tmn1) ->
   dbBlocks S TD Ps (fdef_intro (fheader_intro rt fid la) lb) (params2GVs TD lp lc gl) 
-    (mkState (mkEC (block_intro l1 ps1 sbs1 tmn1) (initLocals la (params2GVs TD lp lc gl)) nil) gl Mem)
-    (mkState (mkEC (block_intro l2 ps2 sbs2 (insn_return_void rid)) lc1 als1) gl1 Mem1)
+    (mkState (mkEC (block_intro l1 ps1 cs1 tmn1) (initLocals la (params2GVs TD lp lc gl)) nil) gl Mem)
+    (mkState (mkEC (block_intro l2 ps2 (cs21++cs22) (insn_return_void rid)) lc1 als1) gl1 Mem1)
     tr1 ->
-  dbSubblocks S TD Ps 
+  dbSubblocks S TD Ps
     lc1 als1 gl1 Mem1
-    sbs2
+    cs21
     lc2 als2 gl2 Mem2
     tr2 ->
-  dbFdef fid  rt lp S TD Ps lc gl Mem lc2 gl2 als2 Mem2 rid None (trace_app tr1 tr2)
+  dbCmds TD
+    lc2 als2 gl2 Mem2
+    cs22
+    lc3 als3 gl3 Mem3
+    tr3 ->
+  dbFdef fid  rt lp S TD Ps lc gl Mem lc2 gl2 als2 Mem2 rid None (trace_app (trace_app tr1 tr2) tr3)
 .
 
 Scheme dbCall_ind2 := Induction for dbCall Sort Prop
@@ -434,16 +378,119 @@ Lemma dbCmds_uniq : forall TD cs lc1 als1 gl1 Mem1 lc2 als2 gl2 Mem2 tr,
   uniq gl2 /\ uniq lc2.
 Admitted.
 
-Lemma wf_cmds__decomposes__app : forall cs1 cs2,
-  wf_cmds (cs1++cs2) ->
-  wf_cmds cs1 /\ wf_cmds cs2.
+(* nonbranching cmd *)
+Record nbranch := mkNB
+{ nbranching_cmd:cmd;
+  notcall:Instruction.isCallInst nbranching_cmd = false
+}.
+
+Lemma isCallInst_dec : forall c, 
+  {Instruction.isCallInst c = false} + {Instruction.isCallInst c = true}.
+Proof.
+  destruct c; simpl; auto.
+Qed.
+
+Definition cmd2nbranch (c:cmd) : option nbranch :=
+match (isCallInst_dec c) with 
+| left H => Some (mkNB c H)
+| right _ => None
+end.
+
+Lemma dbCmd_isNotCallInst : forall TD lc als gl Mem1 c lc' als' gl' Mem2 tr,
+  dbCmd TD lc als gl Mem1 c lc' als' gl' Mem2 tr ->
+  Instruction.isCallInst c = false.
+Proof.
+  intros TD lc als gl Mem1 c lc' als' gl' Mem2 tr HdbCmd.
+  induction HdbCmd; auto.
+Qed.
+
+Definition dbCmd2nbranch : forall TD lc als gl Mem1 c lc' als' gl' Mem2 tr, 
+  dbCmd TD lc als gl Mem1 c lc' als' gl' Mem2 tr ->
+  exists nb, cmd2nbranch c = Some nb.
+Proof.
+  intros.
+  apply dbCmd_isNotCallInst in H.
+  unfold cmd2nbranch.
+  destruct (isCallInst_dec).
+    exists (mkNB c e). auto.
+    rewrite H in e. inversion e.
+Qed.
+
+(* This may not work sometimes. This function creates a proof
+   that a cmd is not a call, which can only be proved to eual to
+   the same proof in the context by proof-irrevelance axiom. *)
+Fixpoint cmds2nbranchs (cs:list cmd) : option (list nbranch) :=
+match cs with
+| nil => Some nil
+| c::cs' =>
+  match (cmd2nbranch c, cmds2nbranchs cs') with
+  | (Some nb, Some nbs') => Some (nb::nbs')
+  | _ => None
+  end
+end.
+
+Fixpoint nbranchs2cmds (nbs:list nbranch) : list cmd :=
+match nbs with
+| nil => nil
+| (mkNB c nc)::nbs' =>c::nbranchs2cmds nbs'
+end.
+
+Definition dbCmds2nbranchs : forall cs TD lc als gl Mem1 lc' als' gl' Mem2 tr, 
+  dbCmds TD lc als gl Mem1 cs lc' als' gl' Mem2 tr ->
+  exists nbs, cmds2nbranchs cs = Some nbs.
+Proof.
+  induction cs; intros.
+    exists nil. simpl. auto.
+
+    inversion H; subst.
+    apply dbCmd2nbranch in H7.
+    apply IHcs in H13.
+    destruct H7 as [nb J1].
+    destruct H13 as [nbs J2].
+    exists (nb::nbs).
+    simpl. 
+    rewrite J1.
+    rewrite J2.
+    auto.
+Qed.
+
+Lemma cmds_cons2nbranchs_inv : forall c cs' nbs,
+  cmds2nbranchs (c::cs') = Some nbs ->
+  exists nb, exists nbs',
+    cmd2nbranch c = Some nb /\
+    cmds2nbranchs cs' = Some nbs' /\
+    nbs = nb::nbs'.
+Proof.
+  intros.
+  simpl in H.
+  destruct (cmd2nbranch c); try solve [inversion H].
+  destruct (cmds2nbranchs cs'); inversion H; subst.
+  exists n. exists l0. auto.
+Qed.
+
+Lemma cmd2nbranch_Some_isCallInst : forall c nb,
+  cmd2nbranch c = Some nb ->
+  exists H, nb = mkNB c H.
+Proof.
+  intros.
+  unfold cmd2nbranch in H.
+  destruct nb.
+  destruct (isCallInst_dec c); inversion H; subst.
+    exists notcall0. auto. 
+Qed.
+
+Inductive wf_nbranchs : list nbranch -> Prop :=
+| wf_nbranchs_intro : forall nbs, wf_nbranchs nbs.
+
+Lemma wf_nbranchs__decomposes__app : forall nbs1 nbs2,
+  wf_nbranchs (nbs1++nbs2) ->
+  wf_nbranchs nbs1 /\ wf_nbranchs nbs2.
 Admitted.
 
-Lemma wf_cmds__inv : forall c cs,
-  wf_cmds (c::cs) ->
-  wf_cmds cs.
+Lemma wf_nbranchs__inv : forall nb nbs,
+  wf_nbranchs (nb::nbs) ->
+  wf_nbranchs nbs.
 Admitted.
-
 
 (***************************************************************)
 (** symbolic terms and memories. *)
@@ -523,9 +570,19 @@ match list_param1 with
 | (t, v)::list_param1' => (t, (value2Sterm sm v))::(list_param__list_typ_subst_sterm list_param1' sm)
 end.
 
-Definition se_cmd (st : sstate) (i:cmd) : sstate :=
-match i with 
-| insn_bop id0 op0 sz0 v1 v2 => 
+Lemma se_cmd_false_elim : forall i id0 noret0 tailc0 rt fid lp,
+  i=insn_call id0 noret0 tailc0 rt fid lp ->
+  Instruction.isCallInst i = false ->
+  False.
+Proof.
+  intros; subst. simpl in H0. inversion H0.
+Qed.
+
+Definition se_cmd (st : sstate) (c:nbranch) : sstate :=
+match c with 
+| mkNB i notcall =>
+  (match i as r return (i = r -> _) with 
+  | insn_bop id0 op0 sz0 v1 v2 => fun _ => 
        (mkSstate (updateSmap st.(STerms) id0 
                    (sterm_bop op0 sz0 
                      (value2Sterm st.(STerms) v1)
@@ -533,7 +590,7 @@ match i with
                  st.(SMem)
                  st.(SFrame)
                  st.(SEffects))
-| insn_extractvalue id0 t1 v1 cs3 =>
+ | insn_extractvalue id0 t1 v1 cs3 => fun _ => 
        (mkSstate (updateSmap st.(STerms) id0 
                    (sterm_extractvalue t1 
                      (value2Sterm st.(STerms) v1)
@@ -541,7 +598,7 @@ match i with
                  st.(SMem)
                  st.(SFrame)
                  st.(SEffects))
-| insn_insertvalue id0 t1 v1 t2 v2 cs3 =>  
+  | insn_insertvalue id0 t1 v1 t2 v2 cs3 => fun _ => 
        (mkSstate (updateSmap st.(STerms) id0 
                    (sterm_insertvalue 
                      t1 
@@ -552,25 +609,25 @@ match i with
                  st.(SMem)
                  st.(SFrame)
                  st.(SEffects))
-| insn_malloc id0 t1 sz1 al1 =>  
+  | insn_malloc id0 t1 sz1 al1 => fun _ => 
        (mkSstate (updateSmap st.(STerms) id0 
                    (sterm_malloc st.(SMem) t1 sz1 al1))
                  (smem_malloc st.(SMem) t1 sz1 al1)
                  st.(SFrame)
                  st.(SEffects))
-| insn_free id0 t0 v0 =>  
+  | insn_free id0 t0 v0 => fun _ =>  
        (mkSstate st.(STerms)
                  (smem_free st.(SMem) t0 
                    (value2Sterm st.(STerms) v0))
                  st.(SFrame)
                  st.(SEffects))
-| insn_alloca id0 t1 sz1 al1 =>  
+  | insn_alloca id0 t1 sz1 al1 => fun _ =>   
        (mkSstate (updateSmap st.(STerms) id0 
                    (sterm_alloca st.(SMem) t1 sz1 al1))
                  (smem_alloca st.(SMem) t1 sz1 al1)
                  (sframe_alloca st.(SMem) st.(SFrame) t1 sz1 al1)
                  st.(SEffects))
-| insn_load id0 t2 v2 =>  
+  | insn_load id0 t2 v2 => fun _ =>   
        (mkSstate (updateSmap st.(STerms) id0 
                    (sterm_load st.(SMem) t2 
                      (value2Sterm st.(STerms) v2)))
@@ -578,14 +635,14 @@ match i with
                    (value2Sterm st.(STerms) v2))
                  st.(SFrame)
                  st.(SEffects))
-| insn_store id0 t0 v1 v2 =>  
+  | insn_store id0 t0 v1 v2 => fun _ =>  
        (mkSstate st.(STerms)
                  (smem_store st.(SMem) t0 
                    (value2Sterm st.(STerms) v1)
                    (value2Sterm st.(STerms) v2))
                  st.(SFrame)
                  st.(SEffects))
-| insn_gep id0 inbounds0 t1 v1 lv2 =>  
+  | insn_gep id0 inbounds0 t1 v1 lv2 => fun _ =>  
        (mkSstate (updateSmap st.(STerms) id0 
                    (sterm_gep inbounds0 t1 
                      (value2Sterm st.(STerms) v1)
@@ -593,7 +650,7 @@ match i with
                  st.(SMem)
                  st.(SFrame)
                  st.(SEffects))
-| insn_ext id0 op0 t1 v1 t2 =>  
+  | insn_ext id0 op0 t1 v1 t2 => fun _ => 
        (mkSstate (updateSmap st.(STerms) id0 
                    (sterm_ext op0 t1 
                      (value2Sterm st.(STerms) v1)
@@ -601,7 +658,7 @@ match i with
                  st.(SMem)
                  st.(SFrame)
                  st.(SEffects))
-| insn_cast id0 op0 t1 v1 t2 =>  
+  | insn_cast id0 op0 t1 v1 t2 => fun _ => 
        (mkSstate (updateSmap st.(STerms) id0 
                    (sterm_cast op0 t1 
                      (value2Sterm st.(STerms) v1)
@@ -609,7 +666,7 @@ match i with
                  st.(SMem)
                  st.(SFrame)
                  st.(SEffects))
-| insn_icmp id0 c0 t0 v1 v2 =>  
+  | insn_icmp id0 c0 t0 v1 v2 => fun _ => 
        (mkSstate (updateSmap st.(STerms) id0 
                    (sterm_icmp c0 t0 
                      (value2Sterm st.(STerms) v1)
@@ -617,7 +674,7 @@ match i with
                  st.(SMem)
                  st.(SFrame)
                  st.(SEffects))
-| insn_select id0 v0 t0 v1 v2 =>  
+  | insn_select id0 v0 t0 v1 v2 => fun _ => 
        (mkSstate (updateSmap st.(STerms) id0 
                    (sterm_select 
                      (value2Sterm st.(STerms) v0)
@@ -627,6 +684,10 @@ match i with
                  st.(SMem)
                  st.(SFrame)
                  st.(SEffects))
+  | insn_call id0 noret0 tailc0 rt fid lp => 
+    fun (EQ:i=insn_call id0 noret0 tailc0 rt fid lp ) =>
+    False_rec sstate (@se_cmd_false_elim i id0 noret0 tailc0 rt fid lp EQ notcall)
+  end) (refl_equal i)
 end.
 
 Fixpoint _se_phinodes (st st0: sstate) (ps:list phinode) : sstate :=
@@ -655,7 +716,7 @@ end.
 
 Fixpoint se_phinodes (st: sstate) (ps:list phinode) := _se_phinodes st st ps.
 
-Fixpoint se_cmds (st : sstate) (cs:list cmd) : sstate :=
+Fixpoint se_cmds (st : sstate) (cs:list nbranch) : sstate :=
 match cs with
 | nil => st
 | c::cs' => se_cmds (se_cmd st c) cs'
@@ -670,12 +731,13 @@ match i with
 | insn_unreachable id0 => stmn_unreachable id0 
 end.
 
-Definition se_call (st : sstate) (i:call) : scall :=
-match i with
-| insn_call id0 noret tailc0 t1 id1 list_param1 =>  
-                   (stmn_call id0 noret tailc0 t1 id1 
-                      (list_param__list_typ_subst_sterm list_param1 st.(STerms)))
-end.
+Definition se_call : forall (st : sstate) (i:cmd) (iscall:Instruction.isCallInst i = true), scall.
+Proof.
+  intros. unfold Instruction.isCallInst in iscall. unfold _isCallInsnB in iscall.
+  destruct i0; try solve [inversion iscall].
+  apply (@stmn_call i0 n t t0 i1 
+                      (list_param__list_typ_subst_sterm l0 st.(STerms))).
+Defined.
 
 (* Properties *)
 
@@ -706,17 +768,21 @@ Lemma se_cmd_uniq : forall smap0 sm0 sf0 se0 c,
   uniq smap0 ->
   uniq (STerms (se_cmd (mkSstate smap0 sm0 sf0 se0) c)).
 Proof.
-  intros smap0 sm0 sf0 se0 c Huniq.
-  destruct c; simpl; try solve [apply updateSmap_uniq; auto | auto].
+  intros smap0 sm0 sf0 se0 [c nocall] Huniq.
+  destruct c; simpl; 
+    try solve [
+      apply updateSmap_uniq; auto | 
+      auto | 
+      inversion nocall].
 Qed.
 
 Lemma se_cmd_dom_mono : forall smap0 sm0 sf0 se0 c,
   dom smap0 [<=] dom (STerms (se_cmd (mkSstate smap0 sm0 sf0 se0) c)).
 Proof.
-  intros smap0 sm0 sf0 se0 c.
+  intros smap0 sm0 sf0 se0 [c nocall].
   assert (forall sm id0 st0, dom sm [<=] dom (updateSmap sm id0 st0)) as J.
     intros. assert (J:=@updateSmap_dom_eq sm id0 st0). fsetdec. 
-  destruct c; simpl; try solve [eauto using J| fsetdec].
+  destruct c; simpl; try solve [eauto using J| fsetdec|inversion nocall].
 Qed.
 
 Lemma lookupSmap_in : forall sm id0 st0,
@@ -819,8 +885,8 @@ Lemma _se_cmd_uniq : forall c sstate0,
   uniq (STerms sstate0) ->
   uniq (STerms (se_cmd sstate0 c)).
 Proof.
-  intros c sstate0 Huniq.
-  destruct c; simpl; try solve [apply updateSmap_uniq; auto | auto].
+  intros [c nocall] sstate0 Huniq.
+  destruct c; simpl; try solve [apply updateSmap_uniq; auto | auto | inversion nocall].
 Qed.
 
 Lemma _se_cmds_uniq : forall cs sstate0,
@@ -864,14 +930,14 @@ Proof.
   apply se_cmd_dom_mono; auto.
 Qed.
 
-Definition se_cmds_dom_mono_prop (cs:list cmd) :=
+Definition se_cmds_dom_mono_prop (cs:list nbranch) :=
   forall smap0 sm0 sf0 se0,
   dom smap0 [<=]
     dom (STerms (se_cmds (mkSstate smap0 sm0 sf0 se0) cs)).
 
 Lemma se_cmds_dom_mono: forall cs, se_cmds_dom_mono_prop cs.
 Proof.
-  apply (@rev_ind cmd); unfold se_cmds_dom_mono_prop; intros; simpl.
+  apply (@rev_ind nbranch); unfold se_cmds_dom_mono_prop; intros; simpl.
     fsetdec.
 
     rewrite se_cmds_rev_cons.

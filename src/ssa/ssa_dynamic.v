@@ -16,6 +16,15 @@ Module LLVMopsem.
 Export LLVMsyntax.
 Export LLVMlib.
 
+Tactic Notation "cmd_cases" tactic(first) tactic(c) :=
+  first;
+  [ c "insn_bop" | c "insn_extractvalue" | c "insn_insertvalue" |
+    c "insn_malloc" | c "insn_free" |
+    c "insn_alloca" | c "insn_load" | c "insn_store" | c "insn_gep" |
+    c "insn_ext" | c "insn_cast" | c "insn_icmp" |  c "insn_select" |
+    c "insn_call" ].
+
+
 (**************************************)
 (** Execution contexts *)
 

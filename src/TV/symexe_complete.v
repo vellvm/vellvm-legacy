@@ -93,18 +93,19 @@ Proof.
     apply binds_updateSmap_neq; auto.
 Qed.
 
-Lemma op_cmd__satisfies__se_cmd : forall TD c lc als gl lc0 gl0 als0 Mem0 lc' als' gl' Mem1 Mem2 sstate1 tr tr1,
+Lemma op_cmd__satisfies__se_cmd : forall TD c nc lc als gl lc0 gl0 als0 Mem0 lc' als' gl' Mem1 Mem2 sstate1 tr tr1,
   dbCmd TD lc als gl Mem1 c lc' als' gl' Mem2 tr -> 
   uniq sstate1.(STerms) ->
   (dom lc0 `union` dom gl0) [<=] dom (STerms sstate1) ->
   sstate_denotes_state TD lc0 gl0 als0 Mem0 sstate1 lc gl als Mem1 tr1 ->
-  sstate_denotes_state TD lc0 gl0 als0 Mem0 (se_cmd sstate1 c) lc' gl' als' Mem2 (trace_app tr1 tr).
+  sstate_denotes_state TD lc0 gl0 als0 Mem0 (se_cmd sstate1 (mkNB c nc)) lc' gl' als' Mem2 (trace_app tr1 tr).
 Proof.
-  intros TD c lc als gl lc0 gl0 als0 Mem0 lc' als' gl' Mem1 Mem2 sstate1 tr tr1 HdsInsn Huniq Hsub Hdenotes.
-  (cmd_cases (destruct c;
+  intros TD c nc lc als gl lc0 gl0 als0 Mem0 lc' als' gl' Mem1 Mem2 sstate1 tr tr1
+         HdsInsn Huniq Hsub Hdenotes.
+  (cmd_cases (destruct c) Case);
               inversion HdsInsn; subst;
               destruct Hdenotes as [Hsterm_denotes [Hsmem_denotes [Hsframe_denotes Hseffects_denote]]];
-              rewrite trace_app_nil__eq__trace) Case).
+              rewrite trace_app_nil__eq__trace.
   Case "insn_bop".
     split; auto.
       split.
@@ -490,40 +491,43 @@ Proof.
           destruct cond0; eapply se_cmd__denotes__op_cmd__case2; eauto.
 Qed.
 
-Lemma aux__op_cmds__satisfy__se_cmds : forall cs TD lc0 als gl0 als0 Mem0 lc als' gl Mem1 sstate1 lc' gl' Mem2 tr tr1,
-  dbCmds TD lc als gl Mem1 cs lc' als' gl' Mem2 tr ->
+Lemma aux__op_cmds__satisfy__se_cmds : forall nbs TD lc0 als gl0 als0 Mem0 lc als' gl Mem1 sstate1 lc' gl' Mem2 tr tr1,
+  dbCmds TD lc als gl Mem1 (nbranchs2cmds nbs) lc' als' gl' Mem2 tr ->
   uniq sstate1.(STerms) ->
   (dom lc0 `union` dom gl0) [<=] dom (STerms sstate1) ->
   sstate_denotes_state TD lc0 gl0 als0 Mem0 sstate1 lc gl als Mem1 tr1 ->
-  sstate_denotes_state TD lc0 gl0 als0 Mem0 (se_cmds sstate1 cs) lc' gl' als' Mem2 (trace_app tr1 tr).
+  sstate_denotes_state TD lc0 gl0 als0 Mem0 (se_cmds sstate1 nbs) lc' gl' als' Mem2 (trace_app tr1 tr).
 Proof.
-  induction cs; 
-    intros TD lc0 als gl0 als0 Mem0 lc als' gl Mem1 sstate1 lc' gl' Mem2 tr tr1 HdbCmds Huniq Hsub Hdenotes.
+  induction nbs; 
+    intros TD lc0 als gl0 als0 Mem0 lc als' gl Mem1 sstate1 lc' gl' Mem2 tr tr1 
+    HdbCmds Huniq Hsub Hdenotes.
 
+    simpl in HdbCmds.
     inversion HdbCmds; subst; try solve [rewrite trace_app_nil__eq__trace; auto].
 
+    destruct a as [c nc].
+    simpl in HdbCmds.
     inversion HdbCmds; subst.
-    simpl.
-    apply op_cmd__satisfies__se_cmd with (lc0:=lc0)(gl0:=gl0)(sstate1:=sstate1)(als0:=als0)(Mem0:=Mem0)(tr1:=tr1) in H6; auto.
+    apply op_cmd__satisfies__se_cmd with (lc0:=lc0)(gl0:=gl0)(sstate1:=sstate1)(als0:=als0)(Mem0:=Mem0)(tr1:=tr1)(nc:=nc) in H6; auto.
     rewrite trace_app_commute.
-    apply IHcs with (lc0:=lc0)(gl0:=gl0)(sstate1:=se_cmd sstate1 a)(als0:=als0)(Mem0:=Mem0)(tr1:=trace_app tr1 t1) in H12; auto.
-      apply se_cmd_uniq; auto.
+    apply IHnbs with (lc0:=lc0)(gl0:=gl0)(sstate1:=se_cmd sstate1 (mkNB c nc))(als0:=als0)(Mem0:=Mem0)(tr1:=trace_app tr1 t1) in H12; auto.
+      apply _se_cmd_uniq; auto.
 
-      destruct sstate1 as [smap1 sm1 sf1 se1].
-      assert (J:=@se_cmd_dom_mono smap1 sm1 sf1 se1 a).
+      assert (J:=@se_cmd_dom_mono' sstate1 (mkNB c nc)).
       clear - J Hsub. fsetdec.
 Qed.
 
-Lemma op_cmds__satisfy__se_cmds : forall TD cs lc als gl Mem lc' als' gl' Mem' tr,
+Lemma op_cmds__satisfy__se_cmds : forall TD nbs lc als gl Mem lc' als' gl' Mem' tr,
   uniq gl ->
   uniq lc ->
-  dbCmds TD lc als gl Mem cs lc' als' gl' Mem' tr ->
-  sstate_denotes_state TD lc gl als Mem (se_cmds (mkSstate (env_to_smap gl lc) smem_init sframe_init nil) cs) lc' gl' als' Mem' tr.
+  dbCmds TD lc als gl Mem (nbranchs2cmds nbs) lc' als' gl' Mem' tr ->
+  sstate_denotes_state TD lc gl als Mem (se_cmds (mkSstate (env_to_smap gl lc) smem_init sframe_init nil) nbs) lc' gl' als' Mem' tr.
 Proof.
-  intros TD cs lc als gl Mem0 lc' als' gl' Mem' tr Uniqg Uniqc HdbCmds.
-  apply aux__op_cmds__satisfy__se_cmds with (lc0:=lc)(gl0:=gl)(als0:=als)(Mem0:=Mem0)(sstate1:=mkSstate (env_to_smap gl lc) smem_init sframe_init nil) (tr1:=trace_nil) in HdbCmds; simpl; auto.
+  intros TD nbs lc als gl Mem0 lc' als' gl' Mem' tr Uniqg Uniqc HdbCmds.
+  apply aux__op_cmds__satisfy__se_cmds with (lc0:=lc)(gl0:=gl)(als0:=als)(Mem0:=Mem0)(sstate1:=mkSstate (env_to_smap gl lc) smem_init sframe_init nil) (tr1:=trace_nil)(nbs:=nbs) in HdbCmds; simpl; auto.
     apply env_to_smap_uniq.
     rewrite env_to_smap_dom_eq. fsetdec.
     apply env_to_smap_denotes_id; auto.
 Qed.           
+
 
