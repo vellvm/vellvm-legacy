@@ -242,7 +242,7 @@ Proof.
     rewrite <- trace_app_nil__eq__trace.
     apply dsop_star_trans with 
       (state2:=mkState S TD Ps ((mkEC (fdef_intro (fheader_intro rt fid la) lb) 
-                               B' nil (insn_return Rid rt Result) lc'
+                               (block_intro l'' ps'' cs'' (insn_return Rid rt Result)) nil (insn_return Rid rt Result) lc'
                                (params2GVs TD lp lc gl) als')::
                         (mkEC F B ((insn_call rid noret0 tailc0 rt fid lp)::cs) tmn lc arg0 als)::EC) 
                         gl' Mem'); auto.
@@ -262,7 +262,7 @@ Proof.
     rewrite <- trace_app_nil__eq__trace.
     apply dsop_star_trans with 
       (state2:=mkState S TD Ps ((mkEC (fdef_intro (fheader_intro rt fid la) lb) 
-                               B' nil (insn_return_void Rid) lc'
+                               (block_intro l'' ps'' cs'' (insn_return_void Rid)) nil (insn_return_void Rid) lc'
                                (params2GVs TD lp lc gl) als')::
                         (mkEC F B ((insn_call rid noret0 tailc0 rt fid lp)::cs) tmn lc arg0 als)::EC) 
                         gl' Mem'); auto.

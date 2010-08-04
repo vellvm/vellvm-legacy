@@ -539,6 +539,38 @@ match i with
 | _ => None
 end.
 
+Definition getCallerReturnID (Caller:cmd) : option id :=
+match Caller with
+(* | insn_invoke i _ _ _ _ _ => Some i *)
+| insn_call id true _ _ _ _ => None
+| insn_call id false _ _ _ _ => Some id
+| _ => None
+end.
+
+Fixpoint getIdViaLabelFromIdls (idls:list (id*l)) (l0:l) : option id :=
+match idls with
+| nil => None
+| (id1, l1)::idls'=>
+  if (eq_dec l1 l0)
+  then Some id1
+  else None
+end.
+
+Definition getIdViaBlockFromIdls (idls:list (id*l)) (b:block) : option id :=
+match b with
+| block_intro l _ _ _ => getIdViaLabelFromIdls idls l
+end.
+
+Definition getIdViaBlockFromPHINode (i:phinode) (b:block) : option id :=
+match i with
+| insn_phi _ _ idls => getIdViaBlockFromIdls idls b
+end.
+
+Definition getPHINodesFromBlock (b:block) : list phinode :=
+match b with
+| (block_intro _ lp _ _) => lp
+end.
+
 (**********************************)
 (* Lookup. *)
 

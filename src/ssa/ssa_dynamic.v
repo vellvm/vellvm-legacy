@@ -16,14 +16,6 @@ Module LLVMopsem.
 Export LLVMsyntax.
 Export LLVMlib.
 
-Tactic Notation "cmd_cases" tactic(first) tactic(c) :=
-  first;
-  [ c "insn_bop" | c "insn_extractvalue" | c "insn_insertvalue" |
-    c "insn_malloc" | c "insn_free" |
-    c "insn_alloca" | c "insn_load" | c "insn_store" | c "insn_gep" |
-    c "insn_ext" | c "insn_cast" | c "insn_icmp" |  c "insn_select" |
-    c "insn_call" ].
-
 
 (**************************************)
 (** Execution contexts *)
@@ -80,38 +72,6 @@ Inductive wfContexts : State -> Prop :=
 
 (**************************************)
 (** switchToNewBasicBlock *)
-
-Definition getCallerReturnID (Caller:cmd) : option id :=
-match Caller with
-(* | insn_invoke i _ _ _ _ _ => Some i *)
-| insn_call id true _ _ _ _ => None
-| insn_call id false _ _ _ _ => Some id
-| _ => None
-end.
-
-Fixpoint getIdViaLabelFromIdls (idls:list (id*l)) (l0:l) : option id :=
-match idls with
-| nil => None
-| (id1, l1)::idls'=>
-  if (eq_dec l1 l0)
-  then Some id1
-  else None
-end.
-
-Definition getIdViaBlockFromIdls (idls:list (id*l)) (b:block) : option id :=
-match b with
-| block_intro l _ _ _ => getIdViaLabelFromIdls idls l
-end.
-
-Definition getIdViaBlockFromPHINode (i:phinode) (b:block) : option id :=
-match i with
-| insn_phi _ _ idls => getIdViaBlockFromIdls idls b
-end.
-
-Definition getPHINodesFromBlock (b:block) : list phinode :=
-match b with
-| (block_intro _ lp _ _) => lp
-end.
 
 (* This function is used by switchToNewBasicBlock, which only checks local variables (from PHI) *)
 Fixpoint getIncomingValuesForBlockFromPHINodes (PNs:list phinode) (b:block) (locals:GVMap) : list (id*(option GenericValue)) :=
@@ -882,7 +842,7 @@ with dbop : State -> State -> trace -> Prop :=
     dbop S1 S3 (trace_app t1 t2)
 with dbFdef : id -> typ -> list_param -> system -> layouts -> list product -> list ExecutionContext -> GVMap -> GVMap -> mem -> GVMap -> GVMap -> list mblock -> mem -> block -> id -> option value -> trace -> Prop :=
 | dbFdef_func : forall S TD Ps gl fid lp lc rid
-                            l' ps' cs' tmn' rt la lb B'' Result lc' gl' tr ECs Mem Mem' als',
+                            l' ps' cs' tmn' rt la lb l'' ps'' cs'' Result lc' gl' tr ECs Mem Mem' als',
   lookupFdefViaIDFromSystem S fid = Some (fdef_intro (fheader_intro rt fid la) lb) ->
   getEntryBlock (fdef_intro (fheader_intro rt fid la) lb) = Some (block_intro l' ps' cs' tmn') ->
   dbop 
@@ -890,12 +850,12 @@ with dbFdef : id -> typ -> list_param -> system -> layouts -> list product -> li
                              (block_intro l' ps' cs' tmn') cs' tmn' (initLocals la (params2GVs TD lp lc gl))
                             (params2GVs TD lp lc gl) nil)::ECs) gl Mem)
     (mkState S TD Ps ((mkEC (fdef_intro (fheader_intro rt fid la) lb) 
-                             B'' nil (insn_return rid rt Result) lc'
+                             (block_intro l'' ps'' cs'' (insn_return rid rt Result)) nil (insn_return rid rt Result) lc'
                             (params2GVs TD lp lc gl) als')::ECs) gl' Mem')
     tr ->
-  dbFdef fid rt lp S TD Ps ECs lc gl Mem lc' gl' als' Mem' B'' rid (Some Result) tr
+  dbFdef fid rt lp S TD Ps ECs lc gl Mem lc' gl' als' Mem' (block_intro l'' ps'' cs'' (insn_return rid rt Result)) rid (Some Result) tr
 | dbFdef_proc : forall S TD Ps gl fid lp lc rid
-                            l' ps' cs' tmn' rt la lb B'' lc' gl' tr ECs Mem Mem' als',
+                            l' ps' cs' tmn' rt la lb l'' ps'' cs'' lc' gl' tr ECs Mem Mem' als',
   lookupFdefViaIDFromSystem S fid = Some (fdef_intro (fheader_intro rt fid la) lb) ->
   getEntryBlock (fdef_intro (fheader_intro rt fid la) lb) = Some (block_intro l' ps' cs' tmn') ->
   dbop 
@@ -903,10 +863,10 @@ with dbFdef : id -> typ -> list_param -> system -> layouts -> list product -> li
                              (block_intro l' ps' cs' tmn') cs' tmn' (initLocals la (params2GVs TD lp lc gl))
                             (params2GVs TD lp lc gl) nil)::ECs) gl Mem)
     (mkState S TD Ps ((mkEC (fdef_intro (fheader_intro rt fid la) lb) 
-                             B'' nil (insn_return_void rid) lc'
+                             (block_intro l'' ps'' cs'' (insn_return_void rid)) nil (insn_return_void rid) lc'
                             (params2GVs TD lp lc gl) als')::ECs) gl' Mem')
     tr ->
-  dbFdef fid  rt lp S TD Ps ECs lc gl Mem lc' gl' als' Mem' B'' rid None tr
+  dbFdef fid  rt lp S TD Ps ECs lc gl Mem lc' gl' als' Mem' (block_intro l'' ps'' cs'' (insn_return_void rid)) rid None tr
 .
 
 CoInductive dbInsnInf : State -> Trace -> Prop :=

@@ -15,7 +15,6 @@ Require Import trace.
 
 Export LLVMsyntax.
 Export LLVMlib.
-Export LLVMopsem.
 
 (***************************************************************)
 (* Syntax easy to be proved with symbolic execution. *)
@@ -172,7 +171,7 @@ Inductive dbTerminator :
   Some (block_intro l' ps' sbs' tmn') = (if c 
                then lookupBlockViaLabelFromFdef F l1
                else lookupBlockViaLabelFromFdef F l2) ->
-  lc' = switchToNewBasicBlock (block_intro l' ps' sbs' tmn') B lc ->
+  lc' = LLVMopsem.switchToNewBasicBlock (block_intro l' ps' sbs' tmn') B lc ->
   dbTerminator TD F
     B lc gl
     (insn_br bid Cond l1 l2)
@@ -181,7 +180,7 @@ Inductive dbTerminator :
 | dbBranch_uncond : forall TD F B lc gl l bid
                               l' ps' sbs' tmn' lc',   
   Some (block_intro l' ps' sbs' tmn') = (lookupBlockViaLabelFromFdef F l) ->
-  lc' = switchToNewBasicBlock (block_intro l' ps' sbs' tmn') B lc ->
+  lc' = LLVMopsem.switchToNewBasicBlock (block_intro l' ps' sbs' tmn') B lc ->
   dbTerminator TD F
     B lc gl
     (insn_br_uncond bid l) 
@@ -207,8 +206,8 @@ Inductive dbCall : system -> layouts -> list product ->
                    GVMap -> GVMap -> mem -> 
                    trace -> Prop :=
 | dbCall_intro : forall S TD Ps lc gl rid noret tailc rt fid lp gl' gl''
-                       Rid oResult tr lc'' lc' Mem Mem' als' Mem'',
-  dbFdef fid rt lp S TD Ps lc gl Mem lc' gl' als' Mem' Rid oResult tr ->
+                       Rid oResult tr lc'' lc' Mem Mem' als' Mem'' B',
+  dbFdef fid rt lp S TD Ps lc gl Mem lc' gl' als' Mem' B' Rid oResult tr ->
   (lc'', gl'') = 
     match noret with
     | false =>
@@ -252,7 +251,7 @@ with dbSubblocks : system -> layouts -> list product ->
                    trace -> Prop :=
 | dbSubblocks_nil : forall S TD Ps lc als gl Mem, 
     dbSubblocks S TD Ps lc als gl Mem nil lc als gl Mem trace_nil
-| dbSubblocks_cond : forall S TD Ps lc1 als1 gl1 Mem1 lc2 als2 gl2 Mem2 lc3 als3 gl3 Mem3 cs cs' t1 t2,
+| dbSubblocks_cons : forall S TD Ps lc1 als1 gl1 Mem1 lc2 als2 gl2 Mem2 lc3 als3 gl3 Mem3 cs cs' t1 t2,
     dbSubblock S TD Ps lc1 als1 gl1 Mem1 cs lc2 als2 gl2 Mem2 t1 ->
     dbSubblocks S TD Ps lc2 als2 gl2 Mem2 cs' lc3 als3 gl3 Mem3 t2 ->
     dbSubblocks S TD Ps lc1 als1 gl1 Mem1 (cs++cs') lc3 als3 gl3 Mem3 (trace_app t1 t2)
@@ -280,7 +279,7 @@ with dbBlocks : system -> layouts -> list product -> fdef -> list GenericValue -
     dbBlock S TD Ps F arg S1 S2 t1 ->
     dbBlocks S TD Ps F arg S2 S3 t2 ->
     dbBlocks S TD Ps F arg S1 S3 (trace_app t1 t2)
-with dbFdef : id -> typ -> list_param -> system -> layouts -> list product -> GVMap -> GVMap -> mem -> GVMap -> GVMap -> list mblock -> mem -> id -> option value -> trace -> Prop :=
+with dbFdef : id -> typ -> list_param -> system -> layouts -> list product -> GVMap -> GVMap -> mem -> GVMap -> GVMap -> list mblock -> mem -> block -> id -> option value -> trace -> Prop :=
 | dbFdef_func : forall S TD Ps gl fid lp lc rid
                        l1 ps1 cs1 tmn1 rt la lb Result lc1 gl1 tr1 Mem Mem1 als1
                        l2 ps2 cs21 cs22 lc2 als2 gl2 Mem2 tr2 lc3 als3 gl3 Mem3 tr3,
@@ -300,7 +299,7 @@ with dbFdef : id -> typ -> list_param -> system -> layouts -> list product -> GV
     cs22
     lc3 als3 gl3 Mem3
     tr3 ->
-  dbFdef fid rt lp S TD Ps lc gl Mem lc2 gl2 als2 Mem2 rid (Some Result) (trace_app (trace_app tr1 tr2) tr3)
+  dbFdef fid rt lp S TD Ps lc gl Mem lc3 gl3 als3 Mem3 (block_intro l2 ps2 (cs21++cs22) (insn_return rid rt Result)) rid (Some Result) (trace_app (trace_app tr1 tr2) tr3)
 | dbFdef_proc : forall S TD Ps gl fid lp lc rid
                        l1 ps1 cs1 tmn1 rt la lb lc1 gl1 tr1 Mem Mem1 als1
                        l2 ps2 cs21 cs22 lc2 als2 gl2 Mem2 tr2 lc3 als3 gl3 Mem3 tr3,
@@ -320,7 +319,7 @@ with dbFdef : id -> typ -> list_param -> system -> layouts -> list product -> GV
     cs22
     lc3 als3 gl3 Mem3
     tr3 ->
-  dbFdef fid  rt lp S TD Ps lc gl Mem lc2 gl2 als2 Mem2 rid None (trace_app (trace_app tr1 tr2) tr3)
+  dbFdef fid  rt lp S TD Ps lc gl Mem lc3 gl3 als3 Mem3 (block_intro l2 ps2 (cs21++cs22) (insn_return_void rid)) rid None (trace_app (trace_app tr1 tr2) tr3)
 .
 
 Scheme dbCall_ind2 := Induction for dbCall Sort Prop
