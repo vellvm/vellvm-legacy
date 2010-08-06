@@ -67,12 +67,12 @@ layout :: 'layout_'					::=  			{{ com data layout }}
   | aggr sz align0 align1			     	::   :: aggr		{{ com aggregate }}
   | stack sz align0 align1				::   :: stack		{{ com stack }}
 
-list_layout {{ tex \mathit{\overline{layout} } }} :: 'list_layout_'	::=  	{{ com layout list }}
+layouts {{ tex \mathit{\overline{layout} } }} :: 'layouts_'	::=  		{{ com layouts }}
      	    			     	   					{{ coq (list layout) }}
   | []   		 				::   :: nil		{{ coq nil }}
-  | list_layout , layout				::   :: cons		{{ coq ([[layout]]::[[list_layout]]) }}
-  | list_layout ; list_layout'				::   :: append		{{ coq ([[list_layout]]++[[list_layout']]) }}
-  | ( list_layout )					:: S :: paren           {{ coq [[ list_layout ]] }}
+  | layouts , layout					::   :: cons		{{ coq ([[layout]]::[[lists]]) }}
+  | layouts ; layouts'					::   :: append		{{ coq ([[lists]]++[[lists']]) }}
+  | ( layouts )						:: S :: paren           {{ coq [[ lists ]] }}
 
 typ :: 'typ_'						::=			{{ com type }}
   | int sz                    				::   :: int         	{{ com integer }}
@@ -97,13 +97,6 @@ opt_typ {{ tex \mathit{opt_{typ} } }} :: 'opt_typ_'	::=			{{ com option typ }} {
   |  none 						:: M :: none		{{ com none }} {{ coq None }}
   |  typ						:: M :: some  		{{ com some }} {{ coq (Some [[typ]]) }}
 
-list_typ {{ tex \mathit{\overline{typ} } }} :: 'list_typ_'	::=  		{{ com typ list }}
-     	    			     	   					{{ coq (list typ) }}
-  | []   		 				::   :: nil		{{ coq nil }}
-  | list_typ , typ 					::   :: cons		{{ coq ([[typ]]::[[list_typ]]) }}
-  | list_typ ; list_typ'				::   :: append		{{ coq ([[list_typ]]++[[list_typ']]) }}
-  | ( list_typ )					:: S :: paren           {{ coq [[ list_typ ]] }}
-
 const :: 'const_'					::=  			{{ com constant }}
   | ( int sz ) INT					::   :: int		{{ com int }}	
   | typ undef						::   :: undef		{{ com undef }}
@@ -111,13 +104,6 @@ const :: 'const_'					::=  			{{ com constant }}
   | [ </ constj // j /> ]				::   :: arr             {{ com array }}
   | { </ constj // j /> }				::   :: struct          {{ com struct }}
   | ( const )						:: S :: paren           {{ coq [[ const ]] }}
-
-list_const {{ tex \mathit{\overline{const} } }} :: 'list_const_'	::=  		{{ com const list }}
-     	    			     	   					{{ coq (list (const)) }}
-  | []   		 				::   :: nil		{{ coq nil }}
-  | list_const , const 					::   :: cons		{{ coq ([[const]]::[[list_const]]) }}
-  | list_const ; list_const'				::   :: append		{{ coq ([[list_const]]++[[list_const']]) }}
-  | ( list_const )					:: S :: paren           {{ coq [[ list_const ]] }}
 
 value :: 'value_'					::=  			{{ com values }}
   | id	 						::   :: id		{{ com id }}
@@ -129,24 +115,24 @@ arg :: 'arg_'  						::=  			{{ com argument }}
   | typ id						::   :: def		{{ coq ([[typ]],[[id]]) }}
   | ( arg )						:: S :: paren		{{ coq [[ arg ]] }} 			
 
-list_arg {{ tex \mathit{\overline{arg} } }} :: 'list_arg_'	::=  		{{ com argument list }}
+args {{ tex \mathit{\overline{arg} } }} :: 'args_'	::=  			{{ com arguments }}
      	    			     	   					{{ coq (list (typ*id)) }}
   | []   		 				::   :: nil		{{ coq nil }}
-  | list_arg , arg 					::   :: cons		{{ coq ([[arg]]::[[list_arg]]) }}
-  | list_arg ; list_arg'				::   :: append		{{ coq ([[list_arg]]++[[list_arg']]) }}
-  | ( list_arg )					:: S :: paren           {{ coq [[ list_arg ]] }}
+  | args , arg 						::   :: cons		{{ coq ([[arg]]::[[args]]) }}
+  | args ; args'					::   :: append		{{ coq ([[args]]++[[args']]) }}
+  | ( args )						:: S :: paren           {{ coq [[ args ]] }}
 
 param :: 'param_'  					::=  			{{ com argument }}
        										{{ coq (prod typ value) }}
   | typ value						::   :: def		{{ coq ([[typ]],[[value]]) }}
   | ( param )						:: S :: paren		{{ coq [[ param ]] }} 			
 
-list_param {{ tex \mathit{\overline{param} } }} :: 'list_param_'::=		{{ com parameter list }}
+params {{ tex \mathit{\overline{param} } }} :: 'params_'::=			{{ com parameters }}
        	      			       	       					{{ coq (list (typ*value)) }}
   | []  						::   :: nil		{{ coq nil }}
-  | list_param , param           			::   :: cons		{{ coq (([[param]])::[[list_param]]) }}
-  | list_param ; list_param'				::   :: append		{{ coq ([[list_param]]++[[list_param']]) }}
-  | ( list_param )					:: S :: paren           {{ coq [[ list_param ]] }}
+  | params , param           				::   :: cons		{{ coq (([[param]])::[[params]]) }}
+  | params ; params'				     	::   :: append		{{ coq ([[params]]++[[params']]) }}
+  | ( params )						:: S :: paren           {{ coq [[ params ]] }}
 
 ls {{ tex \mathit{\{l\} } }} :: 'ls_'			::=			{{ com label set }}
        	   			      	 					{{ coq (list l) }}
@@ -223,7 +209,7 @@ cmd :: 'insn_'					    	::=			{{ com commands }}
   | id = icmp cond typ value1 value2			::   :: icmp		{{ com icmp }}
   %| id = fcmp cond typ value1 , value2			::   :: fcmp		{{ com fcmp }}
   | id = select value0 typ value1 value2                ::   :: select          {{ com select }}
-  | id = noret tailc call typ0 id0 list_param  	 	::   :: call		{{ com call }} 
+  | id = noret tailc call typ0 id0 params  	 	::   :: call		{{ com call }} 
   | ( insn )						:: S :: paren           {{ coq [[ insn ]] }}
 
 terminator :: 'insn_'					::=  			{{ com termniators }}
@@ -245,50 +231,44 @@ insn :: 'insn_'						::=  			{{ com instructions }}
   | cmd							::   :: cmd		{{ com commands }}
   | terminator						::   :: terminator	{{ com terminator }}
 
-id_labels :: 'id_labels_'				::=  			{{ com id labels }}
-	      									{{ coq list (id*l) }}
-  | []	      						::   :: nil		{{ coq nil }}
-  | id_labels , id l                                    ::   :: cons            {{ coq (([[id]],[[l]])::[[id_labels]]) }}
-  | ( id_labels )                                       :: S :: paren           {{ coq [[ id_labels ]] }}
-
-list_insn {{ tex \mathit{\overline{insn} } }} :: 'list_insn_'	::=		{{ com insn list }}
+insns {{ tex \mathit{\overline{insn} } }} :: 'insns_'	::=			{{ com insns }}
       	     			       	     					{{ coq (list insn) }}
   | []	                  				::   :: nil		{{ coq nil }}
-  | list_insn , insn           				::   :: cons		{{ coq ([[insn]]::[[list_insn]]) }}
-  | list_insn ; list_insn'				::   :: append		{{ coq ([[list_insn]]++[[list_insn']]) }}
-  | ( list_insn )					:: S :: paren           {{ coq [[ list_insn]] }}
+  | insns , insn           				::   :: cons		{{ coq ([[insn]]::[[insns]]) }}
+  | insns ; insns'					::   :: append		{{ coq ([[insns]]++[[insns']]) }}
+  | ( insns )						:: S :: paren           {{ coq [[ insns]] }}
 
-list_cmd {{ tex \mathit{\overline{cmd} } }} :: 'list_cmd_'	::=		{{ com cmd list }}
+cmds {{ tex \mathit{\overline{cmd} } }} :: 'cmds_'	::=			{{ com cmds }}
       	     			       	     					{{ coq (list cmd) }}
   | []	                  				::   :: nil		{{ coq nil }}
-  | list_cmd , cmd           				::   :: cons		{{ coq ([[cmd]]::[[list_cmd]]) }}
-  | list_cmd ; list_cmd'				::   :: append		{{ coq ([[list_cmd]]++[[list_cmd']]) }}
-  | ( list_cmd )					:: S :: paren           {{ coq [[ list_cmd ]] }}
+  | cmds , cmd           				::   :: cons		{{ coq ([[cmd]]::[[cmds]]) }}
+  | cmds ; cmds'					::   :: append		{{ coq ([[cmds]]++[[cmds']]) }}
+  | ( cmds )						:: S :: paren           {{ coq [[ cmds ]] }}
 
-list_phinode {{ tex \mathit{\overline{phinode} } }} :: 'list_phinode_'	::=	{{ com phinode list }}
+phinodes {{ tex \mathit{\overline{phinode} } }} :: 'phinodes_'	::=		{{ com phinodes }}
       	     			       	     					{{ coq (list phinode) }}
   | []	                  				::   :: nil		{{ coq nil }}
-  | list_phinode , phinode     				::   :: cons		{{ coq ([[phinode]]::[[list_phinode]]) }}
-  | list_phinode ; list_phinode'			::   :: append		{{ coq ([[list_phinde]]++[[list_phinode']]) }}
-  | ( list_phinode )					:: S :: paren           {{ coq [[ list_phinode ]] }}
+  | phinodes , phinode     				::   :: cons		{{ coq ([[phinode]]::[[phinodes]]) }}
+  | phinodes ; phinodes'				::   :: append		{{ coq ([[phindes]]++[[phinodes']]) }}
+  | ( phinodes )					:: S :: paren           {{ coq [[ phinodes ]] }}
 
 block :: 'block_' 					::=			{{ com block }}
-  | l list_phinode list_cmd terminator			::   :: intro
+  | l phinodes cmds terminator				::   :: intro
   | ( block )						:: S :: paren           {{ coq [[ block ]] }}
 
 opt_block {{ tex \mathit{opt_{block} } }} :: 'opt_block_' ::=			{{ com option block }} {{ coq option block }}
   |  none 						:: M :: none		{{ com none }} {{ coq None }}
   |  block						:: M :: some  		{{ com some }} {{ coq (Some [[block]]) }}
 		   
-list_block {{ tex \mathit{\overline{block} } }} :: 'list_block_'::=		{{ com block list }}
+blocks {{ tex \mathit{\overline{block} } }} :: 'blocks_'::=			{{ com blocks }}
       	     			       	     					{{ coq (list block) }}
   | []  						::   :: nil		{{ coq nil }}
-  | list_block , block					::   :: cons		{{ coq ([[block]]::[[list_block]]) }}
-  | list_block ; list_block'				::   :: append		{{ coq ([[list_block]]++[[list_block']]) }}
-  | ( list_block )					:: S :: paren           {{ coq [[ list_block ]] }}
+  | blocks , block					::   :: cons		{{ coq ([[block]]::[[blocks]]) }}
+  | blocks ; blocks'					::   :: append		{{ coq ([[blocks]]++[[blocks']]) }}
+  | ( blocks )						:: S :: paren           {{ coq [[ blocks ]] }}
 
 fheader :: 'fheader_'    				::=			{{ com function header }}
-  | typ id ( list_arg ) 				::   :: intro
+  | typ id ( args ) 					::   :: intro
   | ( fheader )						:: S :: paren           {{ coq [[ fheader ]] }}
 
 fdec :: 'fdec_'       					::=			{{ com function declaration }}
@@ -296,7 +276,7 @@ fdec :: 'fdec_'       					::=			{{ com function declaration }}
   | ( fdec )						:: S :: paren           {{ coq [[ fdec ]] }}
 
 fdef :: 'fdef_'          				::=			{{ com function definition }}
-  | define fheader { list_block } 			::   :: intro
+  | define fheader { blocks } 				::   :: intro
   | ( fdef )						:: S :: paren           {{ coq [[ fdef ]] }}
 
 opt_fdec {{ tex \mathit{opt_{fdec} } }} :: 'opt_fdec_'	::=  			{{ com option fdec }} {{ coq option fdec }}
@@ -333,29 +313,29 @@ product  :: 'product_'					::=			{{ com prodoct }}
   | fdef             					::   :: fdef		{{ com function definition }}
 %  | namedt           					::   :: namedtype     	{{ com named types }}
 
-list_product {{ tex \mathit{\overline{product} } }} :: 'list_product_'::=	{{ com list product }}
+products {{ tex \mathit{\overline{product} } }} :: 'products_'::=		{{ com products }}
 	    				     	   				{{ coq (list product) }}	   
   | []   						::   :: nil        	{{ com nil }}
     							     			{{ coq nil }}
-  | list_product , product				::   :: cons            {{ com cons }}
-    	       						     			{{ coq ([[product]]::[[list_product]]) }}
-  | ( list_product )					:: S :: paren		{{ coq [[ list_product ]] }}			
+  | products , product				::   :: cons            {{ com cons }}
+    	       						     			{{ coq ([[product]]::[[products]]) }}
+  | ( products )					:: S :: paren		{{ coq [[ products ]] }}			
 
 module :: 'module_'					::=  			{{ com module }}
-  | list_layout list_product 				::   :: intro		{{ com prods }}
+  | layouts products 					::   :: intro		{{ com prods }}
   | ( module )					        :: S :: paren           {{ coq [[ module ]] }}
 
-list_module {{ tex \mathit{\overline{module} } }} :: 'list_module_'::=  	{{ com list module }}
+modules {{ tex \mathit{\overline{module} } }} :: 'modules_'::=  		{{ com modules }}
       	     			       	     					{{ coq (list module) }}
   | []  						::   :: nil		{{ coq nil }}
-  | list_module , module				::   :: cons		{{ coq ([[module]]::[[list_module]]) }}
-  | list_module ; list_module'				::   :: append		{{ coq ([[list_module]]++[[list_module']]) }}
-  | ( list_module )					:: S :: paren           {{ coq [[ list_module ]] }}
+  | modules , module					::   :: cons		{{ coq ([[module]]::[[modules]]) }}
+  | modules ; modules'					::   :: append		{{ coq ([[modules]]++[[modules']]) }}
+  | ( modules )						:: S :: paren           {{ coq [[ modules ]] }}
 
 system :: 'system_'					::=  			{{ com system }}
-       	  									{{ coq list_module }}
-  | list_module						::   :: def		{{ com list of modules }}
-    							     			{{ coq [[list_module]] }}
+       	  									{{ coq modules }}
+  | modules						::   :: def		{{ com list of modules }}
+    							     			{{ coq [[modules]] }}
 
 dt :: 'dt_'						::=  			{{ com dominator }}
        										{{ coq (l -> list l) }}

@@ -8,26 +8,26 @@ all:
 	+make ott 
 	+make -C ./llvm_op
 
-ott: main.pdf ssa.vo Makefile ssa_dynamic.vo opsem_conv.vo
+ott: main.pdf ssa.vo ssa_dynamic.vo opsem_conv.vo opsem_pp.vo
 
-ssa_coq_lib.vo : ssa_coq_lib.v ssa_def.vo Makefile
+ssa_coq_lib.vo : ssa_coq_lib.v ssa_def.vo 
 	$(COQC) $(COQARG) ssa_coq_lib.v
 
-ssa_def.vo : ssa_def.v Makefile ./monads/monad.vo
+ssa_def.vo : ssa_def.v ./monads/monad.vo
 	$(COQC) $(COQARG) ssa_def.v
 
-ssa_def.v : ssa_def.ott emacs.ott Makefile
-	ott -coq_expand_list_types false -i ssa_def.ott -i emacs.ott -o ssa_def.v
+ssa_def.v : ssa_def.ott emacs.ott
+	ott -coq_expand_list_types true -i ssa_def.ott -i emacs.ott -o ssa_def.v
 
-ssa_coq.ott : ssa_coq_lib.vo ssa_def.ott Makefile coq2ott.py Makefile
+ssa_coq.ott : ssa_coq_lib.vo ssa_def.ott coq2ott.py 
 	./coq2ott.py
 	cp merge.ott ssa_coq.ott       
 
-m_ssa_static.ott : ssa_static.ott spanlines.py Makefile
+m_ssa_static.ott : ssa_static.ott spanlines.py
 	./spanlines.py ssa_static.ott
 
-ssa.v: ssa_def.ott ssa_coq_lib.vo ssa_coq.ott ssa_lib.ott m_ssa_static.ott emacs.ott Makefile ./monads/monad.vo
-	ott -merge false -coq_expand_list_types false \
+ssa.v: ssa_def.ott ssa_coq_lib.vo ssa_coq.ott ssa_lib.ott m_ssa_static.ott emacs.ott ./monads/monad.vo
+	ott -merge false -coq_expand_list_types true \
             -i ssa_def.ott -i ssa_coq.ott -i ssa_lib.ott -i m_ssa_static.ott -i emacs.ott -o ssa.v
 
 ssa.vo: ssa.v
@@ -51,17 +51,20 @@ genericvalues.vo: ssa.vo tactics.vo ssa_mem.vo trace.vo genericvalues.v
 ssa_dynamic.vo: ssa_dynamic.v ssa.vo tactics.vo ssa_mem.vo trace.vo genericvalues.vo
 	$(COQC) $(COQARG) ssa_dynamic.v
 
+opsem_pp.vo: opsem_pp.v ssa_dynamic.vo ssa.vo ssa_mem.vo genericvalues.vo
+	$(COQC) $(COQARG) opsem_pp.v
+
 opsem_conv.vo: opsem_conv.v ssa_dynamic.vo ssa.vo trace.vo
 	$(COQC) $(COQARG) opsem_conv.v
 
-ssa.tex: ssa_def.ott ssa_coq.ott ssa_lib.ott m_ssa_static.ott omain.tex Makefile
+ssa.tex: ssa_def.ott ssa_coq.ott ssa_lib.ott m_ssa_static.ott omain.tex 
 	$(OTT) -merge false -o ssa.tex \
           -tex_show_meta false \
           -tex_wrap false \
           -tex_filter omain.tex main.tex \
             ssa_def.ott ssa_coq.ott ssa_lib.ott m_ssa_static.ott
 
-main.pdf: ssa.tex main.tex macros.sty Makefile
+main.pdf: ssa.tex main.tex macros.sty 
 	pdflatex main.tex
 	pdflatex main.tex
 

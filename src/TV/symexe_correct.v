@@ -11,6 +11,7 @@ Require Import Metatheory.
 Require Import ssa_mem.
 Require Import genericvalues.
 Require Import ssa_dynamic.
+Require Import opsem_pp.
 Require Import trace.
 Require Import symexe_def.
 Require Import symexe_complete.
@@ -29,7 +30,7 @@ Record subblock := mkSB
 }.
 
 
-Fixpoint cmds2sbs (cs:list cmd) : (list subblock*list nbranch) :=
+Fixpoint cmds2sbs (cs:cmds) : (list subblock*list nbranch) :=
 match cs with
 | nil => (nil,nil)
 | c::cs' =>
@@ -437,7 +438,7 @@ match (sbs1, sbs2) with
 | _ => False
 end.
 
-Fixpoint tv_phinodes (ps1 ps2:list phinode) :=
+Fixpoint tv_phinodes (ps1 ps2:phinodes) :=
 match (ps1, ps2) with
 | (nil, nil) => True
 | (p1::ps1', p2::ps2') => p1=p2 /\ tv_phinodes ps1' ps2'
@@ -457,7 +458,7 @@ match (b1, b2) with
   end
 end.
 
-Fixpoint tv_blocks (bs1 bs2:list block) (lc gl:GVMap) :=
+Fixpoint tv_blocks (bs1 bs2:blocks) (lc gl:GVMap) :=
 match (bs1, bs2) with
 | (nil, nil) => True
 | (b1::bs1', b2::bs2') => tv_block b1 b2 lc gl /\ tv_blocks bs1' bs2' lc gl 
@@ -472,7 +473,7 @@ match (f1, f2) with
   fh1 = fh2 /\ tv_blocks lb1 lb2 lc0 gl
 end.
 
-Fixpoint tv_products (Ps1 Ps2:list product):=
+Fixpoint tv_products (Ps1 Ps2:products):=
 match (Ps1, Ps2) with
 | (nil, nil) => True
 | (product_fdec f1::Ps1', product_fdec f2::Ps2') => 
@@ -1121,6 +1122,8 @@ Qed.
 Lemma tv_fdef__is__correct : forall ECs fid rt lp S1 TD Ps1 lc gl Mem lc' gl' als' Mem' B1' Rid oResult tr
   Ps2 S2 la lb1,
   LLVMopsem.dbFdef fid rt lp S1 TD Ps1 ECs lc gl Mem lc' gl' als' Mem' B1' Rid oResult tr ->
+  uniqSystem S1 ->
+  moduleInSystem (module_intro TD Ps1) S1 ->
   lookupFdefViaIDFromProducts Ps1 fid = Some (fdef_intro (fheader_intro rt fid la) lb1) ->
   tv_system S1 S2 ->
   tv_products Ps1 Ps2 ->
@@ -1133,7 +1136,7 @@ Lemma tv_fdef__is__correct : forall ECs fid rt lp S1 TD Ps1 lc gl Mem lc' gl' al
     LLVMopsem.dbFdef fid rt lp S2 TD Ps2 ECs lc gl Mem lc' gl' als' Mem' B2' Rid oResult tr.
 Proof.
   intros.
-  apply llvmop_dbFdef__seop_dbFdef in H.
+  apply llvmop_dbFdef__seop_dbFdef in H; auto.
   apply _tv_fdef__is__correct with (Ps2:=Ps2)(S2:=S2)(la:=la)(lb1:=lb1) in H; auto.
   destruct H as [lb2 [B2' [n [J1 [J2 [J3 [J4 [J5 J6]]]]]]]].
   exists lb2. exists B2'. exists n.

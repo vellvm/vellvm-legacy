@@ -8,8 +8,8 @@ Require Import ssa.
 Require Import trace.
 Require Import List.
 Require Import tactics.
-Require Export Coq.Program.Equality.
-Require Export CoqListFacts.
+Require Import Coq.Program.Equality.
+Require Import CoqListFacts.
 
 Export LLVMsyntax.
 Export LLVMlib.
@@ -187,7 +187,7 @@ Definition dbFdef__implies__dsop_star_prop fid rt lp S TD Ps ECs lc gl Mem lc' g
            (db:dbFdef fid rt lp S TD Ps ECs lc gl Mem lc' gl' als' Mem' B'' rid oResult tr) := 
   match oResult with
   | Some Result => forall l' ps' cs' tmn' la lb,
-    lookupFdefViaIDFromSystem S fid = Some (fdef_intro (fheader_intro rt fid la) lb) ->
+    lookupFdefViaIDFromProducts Ps fid = Some (fdef_intro (fheader_intro rt fid la) lb) ->
     getEntryBlock (fdef_intro (fheader_intro rt fid la) lb) = Some (block_intro l' ps' cs' tmn') ->
     dsop_star
       (mkState S TD Ps ((mkEC (fdef_intro (fheader_intro rt fid la) lb) 
@@ -198,7 +198,7 @@ Definition dbFdef__implies__dsop_star_prop fid rt lp S TD Ps ECs lc gl Mem lc' g
                               (params2GVs TD lp lc gl) als')::ECs) gl' Mem')
       tr
   | None => forall l' ps' cs' tmn' la lb,
-    lookupFdefViaIDFromSystem S fid = Some (fdef_intro (fheader_intro rt fid la) lb) ->
+    lookupFdefViaIDFromProducts Ps fid = Some (fdef_intro (fheader_intro rt fid la) lb) ->
     getEntryBlock (fdef_intro (fheader_intro rt fid la) lb) = Some (block_intro l' ps' cs' tmn') ->  
     dsop_star
       (mkState S TD Ps ((mkEC (fdef_intro (fheader_intro rt fid la) lb) 
@@ -307,7 +307,7 @@ Qed.
 
 Lemma dbFdef_func__implies__dsop_star : forall fid rt lp S TD Ps ECs lc gl Mem lc' gl' als' Mem' B'' rid Result tr l' ps' cs' tmn' la lb,
   dbFdef fid rt lp S TD Ps ECs lc gl Mem lc' gl' als' Mem' B'' rid (Some Result) tr ->
-  lookupFdefViaIDFromSystem S fid = Some (fdef_intro (fheader_intro rt fid la) lb) ->
+  lookupFdefViaIDFromProducts Ps fid = Some (fdef_intro (fheader_intro rt fid la) lb) ->
   getEntryBlock (fdef_intro (fheader_intro rt fid la) lb) = Some (block_intro l' ps' cs' tmn') ->
   dsop_star 
     (mkState S TD Ps ((mkEC (fdef_intro (fheader_intro rt fid la) lb) 
@@ -325,7 +325,7 @@ Qed.
 
 Lemma dbFdef_proc__implies__dsop_star : forall fid rt lp S TD Ps ECs lc gl Mem lc' gl' als' Mem' B'' rid tr l' ps' cs' tmn' la lb,
   dbFdef fid rt lp S TD Ps ECs lc gl Mem lc' gl' als' Mem' B'' rid None tr ->
-  lookupFdefViaIDFromSystem S fid = Some (fdef_intro (fheader_intro rt fid la) lb) ->
+  lookupFdefViaIDFromProducts Ps fid = Some (fdef_intro (fheader_intro rt fid la) lb) ->
   getEntryBlock (fdef_intro (fheader_intro rt fid la) lb) = Some (block_intro l' ps' cs' tmn') ->
   dsop_star 
     (mkState S TD Ps ((mkEC (fdef_intro (fheader_intro rt fid la) lb) 
@@ -371,7 +371,7 @@ Qed.
 
 Lemma dbFdefInf__implies__dsop_diverges : forall fid rt lp S TD Ps ECs lc gl Mem tr l' ps' cs' tmn' la lb,
   dbFdefInf fid rt lp S TD Ps ECs lc gl Mem tr ->
-  lookupFdefViaIDFromSystem S fid = Some (fdef_intro (fheader_intro rt fid la) lb) ->
+  lookupFdefViaIDFromProducts Ps fid = Some (fdef_intro (fheader_intro rt fid la) lb) ->
   getEntryBlock (fdef_intro (fheader_intro rt fid la) lb) = Some (block_intro l' ps' cs' tmn') ->
   dsop_diverges 
     (mkState S TD Ps ((mkEC (fdef_intro (fheader_intro rt fid la) lb) (block_intro l' ps' cs' tmn') cs' tmn'
@@ -485,7 +485,7 @@ Definition nbop_star__implies__nsop_star_prop states states' (nb:nbop_star state
 Definition nbFdef__implies__nsop_star_prop fid rt lp S TD Ps ECs lc gl Mem tr lc_gl_als_Mem_block_rid_ore_trs 
            (nb:nbFdef fid rt lp S TD Ps ECs lc gl Mem tr lc_gl_als_Mem_block_rid_ore_trs) := 
   forall l' ps' cs' tmn' la lb,
-  lookupFdefViaIDFromSystem S fid = Some (fdef_intro (fheader_intro rt fid la) lb) ->
+  lookupFdefViaIDFromProducts Ps fid = Some (fdef_intro (fheader_intro rt fid la) lb) ->
   getEntryBlock (fdef_intro (fheader_intro rt fid la) lb) = Some (block_intro l' ps' cs' tmn') ->
   nsop_star
     ((mkState S TD Ps ((mkEC (fdef_intro (fheader_intro rt fid la) lb) 
@@ -755,7 +755,7 @@ Qed.
 
 Lemma nbFdef__implies__nsop_star : forall fid rt lp S TD Ps ECs lc gl Mem tr lc_gl_als_Mem_block_rid_re_trs l' ps' cs' tmn' la lb,
   nbFdef fid rt lp S TD Ps ECs lc gl Mem tr lc_gl_als_Mem_block_rid_re_trs ->
-  lookupFdefViaIDFromSystem S fid = Some (fdef_intro (fheader_intro rt fid la) lb) ->
+  lookupFdefViaIDFromProducts Ps fid = Some (fdef_intro (fheader_intro rt fid la) lb) ->
   getEntryBlock (fdef_intro (fheader_intro rt fid la) lb) = Some (block_intro l' ps' cs' tmn') ->
   nsop_star
     ((mkState S TD Ps ((mkEC (fdef_intro (fheader_intro rt fid la) lb) 
@@ -799,7 +799,7 @@ Qed.
 
 Lemma nbFdefInf__implies__nsop_diverges : forall fid rt lp S TD Ps ECs lc gl Mem tr l' ps' cs' tmn' la lb trs',
   nbFdefInf fid rt lp S TD Ps ECs lc gl Mem tr trs' ->
-  lookupFdefViaIDFromSystem S fid = Some (fdef_intro (fheader_intro rt fid la) lb) ->
+  lookupFdefViaIDFromProducts Ps fid = Some (fdef_intro (fheader_intro rt fid la) lb) ->
   getEntryBlock (fdef_intro (fheader_intro rt fid la) lb) = Some (block_intro l' ps' cs' tmn') ->
   nsop_diverges 
     ((mkState S TD Ps ((mkEC (fdef_intro (fheader_intro rt fid la) lb) (block_intro l' ps' cs' tmn') cs' tmn'

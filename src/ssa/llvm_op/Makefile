@@ -8,7 +8,7 @@ m_ssa_verifier.ott : ssa_verifier.ott ../spanlines.py Makefile
 	../spanlines.py ssa_verifier.ott
 
 ssa_lib.v: ../ssa_def.ott ../ssa_coq.ott ../ssa_lib.ott emacs.ott Makefile ../ssa_def.v ../ssa_coq_lib.vo ../monads/monad.vo
-	ott -merge false -coq_expand_list_types false \
+	ott -merge false -coq_expand_list_types true \
             -i ../ssa_def.ott -i ../ssa_coq.ott -i ../ssa_lib.ott \
 	    -i emacs.ott -o ssa_lib.v
 
@@ -16,7 +16,7 @@ ssa_lib.vo: ssa_lib.v
 	$(COQC) $(COQARG) ssa_lib.v
 
 ssa_all.v: ../ssa_def.ott ../ssa_coq.ott ../ssa_lib.ott m_ssa_verifier.ott ssa_interpreter.ott emacs.ott Makefile ../ssa_def.v ../ssa_coq_lib.vo ../monads/monad.vo
-	ott -merge false -coq_expand_list_types false \
+	ott -merge false -coq_expand_list_types true \
             -i ../ssa_def.ott -i ../ssa_coq.ott -i ../ssa_lib.ott \
 	    -i m_ssa_verifier.ott -i ssa_interpreter.ott -i emacs.ott -o ssa_all.v
 

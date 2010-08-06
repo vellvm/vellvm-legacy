@@ -190,7 +190,7 @@ Inductive dbTerminator :
 
 Inductive dbCmds : layouts -> 
                    GVMap -> list mblock -> GVMap -> mem -> 
-                   list cmd -> 
+                   cmds -> 
                    GVMap -> list mblock -> GVMap -> mem -> 
                    trace -> Prop :=
 | dbCmds_nil : forall TD lc als gl Mem, dbCmds TD lc als gl Mem nil lc als gl Mem trace_nil
@@ -232,7 +232,7 @@ Inductive dbCall : system -> layouts -> list product ->
     tr
 with dbSubblock : system -> layouts -> list product ->
                   GVMap -> list mblock -> GVMap -> mem -> 
-                  list cmd -> 
+                  cmds -> 
                   GVMap -> list mblock -> GVMap -> mem -> 
                   trace -> Prop :=
 | dbSubblock_intro : forall S TD Ps lc1 als1 gl1 Mem1 cs call0 lc2 als2 gl2 Mem2 tr1 
@@ -246,7 +246,7 @@ with dbSubblock : system -> layouts -> list product ->
              (trace_app tr1 tr2)
 with dbSubblocks : system -> layouts -> list product ->
                    GVMap -> list mblock -> GVMap -> mem -> 
-                   list cmd -> 
+                   cmds -> 
                    GVMap -> list mblock -> GVMap -> mem -> 
                    trace -> Prop :=
 | dbSubblocks_nil : forall S TD Ps lc als gl Mem, 
@@ -279,7 +279,7 @@ with dbBlocks : system -> layouts -> list product -> fdef -> list GenericValue -
     dbBlock S TD Ps F arg S1 S2 t1 ->
     dbBlocks S TD Ps F arg S2 S3 t2 ->
     dbBlocks S TD Ps F arg S1 S3 (trace_app t1 t2)
-with dbFdef : id -> typ -> list_param -> system -> layouts -> list product -> GVMap -> GVMap -> mem -> GVMap -> GVMap -> list mblock -> mem -> block -> id -> option value -> trace -> Prop :=
+with dbFdef : id -> typ -> params -> system -> layouts -> list product -> GVMap -> GVMap -> mem -> GVMap -> GVMap -> list mblock -> mem -> block -> id -> option value -> trace -> Prop :=
 | dbFdef_func : forall S TD Ps gl fid lp lc rid
                        l1 ps1 cs1 tmn1 rt la lb Result lc1 gl1 tr1 Mem Mem1 als1
                        l2 ps2 cs21 cs22 lc2 als2 gl2 Mem2 tr2 lc3 als3 gl3 Mem3 tr3,
@@ -496,8 +496,8 @@ Admitted.
 Inductive sterm : Set := 
 | sterm_val : value -> sterm
 | sterm_bop : bop -> sz -> sterm -> sterm -> sterm
-| sterm_extractvalue : typ -> sterm -> list const -> sterm
-| sterm_insertvalue : typ -> sterm -> typ -> sterm -> list const -> sterm
+| sterm_extractvalue : typ -> sterm -> list_const -> sterm
+| sterm_insertvalue : typ -> sterm -> typ -> sterm -> list_const -> sterm
 | sterm_malloc : smem -> typ -> sz -> align -> sterm
 | sterm_alloca : smem -> typ -> sz -> align -> sterm
 | sterm_load : smem -> typ -> sterm -> sterm
@@ -563,7 +563,7 @@ match v with
 | value_id i0 => lookupSmap sm i0
 end.
 
-Fixpoint list_param__list_typ_subst_sterm (list_param1:list_param) (sm:smap) : list (typ*sterm) :=
+Fixpoint list_param__list_typ_subst_sterm (list_param1:params) (sm:smap) : list (typ*sterm) :=
 match list_param1 with
 | nil => nil
 | (t, v)::list_param1' => (t, (value2Sterm sm v))::(list_param__list_typ_subst_sterm list_param1' sm)
@@ -645,7 +645,7 @@ match c with
        (mkSstate (updateSmap st.(STerms) id0 
                    (sterm_gep inbounds0 t1 
                      (value2Sterm st.(STerms) v1)
-                     (List.map (value2Sterm st.(STerms)) lv2)))
+                     (map_list_value (value2Sterm st.(STerms)) lv2)))
                  st.(SMem)
                  st.(SFrame)
                  st.(SEffects))
@@ -697,9 +697,8 @@ match ps with
      (mkSstate (updateSmap st.(STerms) id0 
                  (sterm_phi 
                    t0 
-                   (List.map
-                     (fun (idl:id*l) =>
-                      let (id5, l5) := idl in
+                   (map_list_id_l
+                     (fun id5 l5 =>
                       ((value2Sterm st.(STerms) (value_id id5)), l5)
                      )
                      idls0
@@ -735,7 +734,7 @@ Proof.
   intros. unfold Instruction.isCallInst in iscall. unfold _isCallInsnB in iscall.
   destruct i0; try solve [inversion iscall].
   apply (@stmn_call i0 n t t0 i1 
-                      (list_param__list_typ_subst_sterm l0 st.(STerms))).
+                      (list_param__list_typ_subst_sterm p st.(STerms))).
 Defined.
 
 (* Properties *)

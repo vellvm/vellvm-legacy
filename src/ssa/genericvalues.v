@@ -612,25 +612,36 @@ match c with
 | const_int sz n => Some (nat2GV TD sz n, typ_int sz)
 | const_undef t =>  do gv <- undef2GV TD t; Some (gv, t)
 | const_null t =>   Some (ptr2GV TD null, t)
-| const_arr lc => 
-         fold_left 
-         (fun ogvt ogvt0 =>
-          match (ogvt, ogvt0) return option (GenericValue*typ) with
-          | (Some (gv, t), Some (gv0,t0)) =>
+| const_arr lc => _list_const_arr2GV TD lc
+| const_struct lc =>
+         match (_list_const_struct2GV TD lc) with
+         | None => None
+         | Some ((gv, t), al) => 
+           match (length gv) with
+           | 0 => Some (muninits al, t)
+           | _ => Some (gv++muninits (al-length gv), t)
+           end
+         end
+end
+with _list_const_arr2GV (TD:layouts) (cs:list_const) : option (GenericValue*typ) := 
+match cs with
+| Nil_list_const => Some (nil, typ_int 0)
+| Cons_list_const c lc' =>
+  match (_list_const_arr2GV TD lc', _const2GV TD c) with
+  | (Some (gv, t), Some (gv0,t0)) =>
              match (getTypeAllocSize TD t0) with
              | Some sz0 => Some ((gv++gv0)++muninits (sz0 - length gv0), t0)
              | None => None 
              end
-          | _ => None
-          end
-         )
-         (Coq.Lists.List.map (_const2GV TD) lc)
-         (Some (nil, typ_int 0))
-| const_struct lc =>
-         match (fold_left 
-         (fun ogvtl ogvt0 =>
-          match (ogvtl, ogvt0) with
-          | (Some (gv, t, struct_al), Some (gv0,t0)) =>
+  | _ => None
+  end
+end
+with _list_const_struct2GV (TD:layouts) (cs:list_const) : option (GenericValue*typ*align) := 
+match cs with
+| Nil_list_const => Some ((nil, typ_int 0), 0)
+| Cons_list_const c lc' =>
+  match (_list_const_struct2GV TD lc', _const2GV TD c) with
+  | (Some (gv, t, struct_al), Some (gv0,t0)) =>
              match (getABITypeAlignment TD t0, getTypeAllocSize TD t0) with
              | (Some sub_al, Some sub_sz) => 
                match (le_lt_dec sub_al struct_al) with
@@ -655,18 +666,10 @@ match c with
                end
              | _ => None 
              end
-         | _ => None
-         end)
-         (Coq.Lists.List.map (_const2GV TD) lc)
-         (Some ((nil, typ_int 0), 0))) with
-         | None => None
-         | Some ((gv, t), al) => 
-           match (length gv) with
-           | 0 => Some (muninits al, t)
-           | _ => Some (gv++muninits (al-length gv), t)
-           end
-         end
-end.
+  | _ => None
+  end
+end
+.
 
 Definition const2GV (TD:layouts) (c:const) : option GenericValue :=
 match (_const2GV TD c) with
@@ -707,7 +710,7 @@ end.
 (**************************************)
 (* conversion between different lists *)
 
-Fixpoint params2OpGVs (TD:layouts) (lp:list_param) (locals:GVMap) (globals:GVMap) : list (option GenericValue):=
+Fixpoint params2OpGVs (TD:layouts) (lp:params) (locals:GVMap) (globals:GVMap) : list (option GenericValue):=
 match lp with
 | nil => nil
 | (_, v)::lp' => getOperandValue TD v locals globals::params2OpGVs TD lp' locals globals
@@ -720,13 +723,13 @@ match lg with
 | _::lg' => opGVs2GVs lg'
 end.
 
-Definition params2GVs (TD:layouts) (lp:list_param) (locals:GVMap) (globals:GVMap) := 
+Definition params2GVs (TD:layouts) (lp:params) (locals:GVMap) (globals:GVMap) := 
   opGVs2GVs (params2OpGVs TD lp locals globals).
 
-Fixpoint values2GVs (TD:layouts) (lv:list value) (locals:GVMap) (globals:GVMap) : option (list GenericValue):=
+Fixpoint values2GVs (TD:layouts) (lv:list_value) (locals:GVMap) (globals:GVMap) : option (list GenericValue):=
 match lv with
-| nil => Some nil
-| v::lv' => 
+| Nil_list_value => Some nil
+| Cons_list_value v lv' => 
   match (getOperandValue TD v locals globals) with
   | Some GV => 
     match (values2GVs TD lv' locals globals) with
@@ -737,10 +740,10 @@ match lv with
   end
 end.
 
-Fixpoint intValues2Nats (TD:layouts) (lv:list value) (locals:GVMap) (globals:GVMap) : option (list nat):=
+Fixpoint intValues2Nats (TD:layouts) (lv:list_value) (locals:GVMap) (globals:GVMap) : option (list nat):=
 match lv with
-| nil => Some nil
-| v::lv' => 
+| Nil_list_value => Some nil
+| Cons_list_value v lv' => 
   match (getOperandValue TD v locals globals) with
   | Some GV => 
     match (GV2nat TD 32 GV) with
@@ -755,10 +758,10 @@ match lv with
   end
 end.
 
-Fixpoint intConsts2Nats (TD:layouts) (lv:list const) : option (list nat):=
+Fixpoint intConsts2Nats (TD:layouts) (lv:list_const) : option (list nat):=
 match lv with
-| nil => Some nil
-| const_int 32 n::lv' => 
+| Nil_list_const => Some nil
+| Cons_list_const (const_int 32 n) lv' => 
   match (GV2nat TD 32 (nat2GV TD 32 n)) with
   | Some n =>
     match (intConsts2Nats TD lv') with
@@ -787,13 +790,13 @@ end.
 (**************************************)
 (* helping functions *)
 
-Fixpoint _initializeFrameValues (la:list_arg) (lg:list GenericValue) (locals:GVMap) : GVMap :=
+Fixpoint _initializeFrameValues (la:args) (lg:list GenericValue) (locals:GVMap) : GVMap :=
 match (la, lg) with
 | ((_, id)::la', g::lg') => updateAddGVMap (_initializeFrameValues la' lg' locals) id g
 | _ => locals
 end.
 
-Definition initLocals (la:list_arg) (lg:list GenericValue): GVMap := 
+Definition initLocals (la:args) (lg:list GenericValue): GVMap := 
 _initializeFrameValues la lg nil.
 
 Definition getEntryBlock (fd:fdef) : option block :=
@@ -802,13 +805,13 @@ match fd with
 | _ => None
 end.
 
-Definition getEntryCmds (b:block) : list_cmd :=
+Definition getEntryCmds (b:block) : cmds :=
 match b with
 | block_intro _ _ lc _ => lc
 end.
 
 (* FIXME : bounds check *)
-Definition extractGenericValue (TD:list layout)(t:typ) (gv : GenericValue) (cidxs : list const) : option GenericValue :=
+Definition extractGenericValue (TD:list layout)(t:typ) (gv : GenericValue) (cidxs : list_const) : option GenericValue :=
 match (intConsts2Nats TD cidxs) with
 | None => None 
 | Some idxs =>
@@ -818,8 +821,8 @@ match (intConsts2Nats TD cidxs) with
   end
 end.
 
-Definition insertGenericValue (TD:list layout) (t:typ) (gv:GenericValue)
-  (cidxs:list const) (t0:typ) (gv0:GenericValue) : option GenericValue :=
+Definition insertGenericValue (TD:layouts) (t:typ) (gv:GenericValue)
+  (cidxs:list_const) (t0:typ) (gv0:GenericValue) : option GenericValue :=
 match (intConsts2Nats TD cidxs) with
 | None => None 
 | Some idxs =>
@@ -829,7 +832,7 @@ match (intConsts2Nats TD cidxs) with
   end
 end.
 
-Definition GEP (TD:layouts) (locals globals:GVMap) (t:typ) (ma:mptr) (vidxs:list value) (inbounds:bool) : option mptr :=
+Definition GEP (TD:layouts) (locals globals:GVMap) (t:typ) (ma:mptr) (vidxs:list_value) (inbounds:bool) : option mptr :=
 match (intValues2Nats TD vidxs locals globals) with
 | None => None 
 | Some idxs => mgep TD t ma idxs
@@ -1020,7 +1023,7 @@ Proof.
         exists g. exists g0. auto.
 Qed.
 
-Lemma GEP_inversion : forall (TD:layouts) (lc gl:GVMap) (t:typ) (ma:mptr) (vidxs:list value) ib mptr0,
+Lemma GEP_inversion : forall (TD:layouts) (lc gl:GVMap) (t:typ) (ma:mptr) (vidxs:list_value) ib mptr0,
   GEP TD lc gl t ma vidxs ib = Some mptr0 ->
   exists idxs, intValues2Nats TD vidxs lc gl = Some idxs /\ mgep TD t ma idxs = Some mptr0.
 Proof.
@@ -1040,7 +1043,7 @@ Proof.
   induction l0; intros; simpl in *.
     inversion H. exists nil. auto.
 
-    remember (getOperandValue TD a lc gl) as ogv.
+    remember (getOperandValue TD v lc gl) as ogv.
     destruct ogv; try solve [inversion H].
     remember (GV2nat TD 32 g) as on.
     destruct on; try solve [inversion H].
@@ -1062,7 +1065,7 @@ Proof.
   induction l0; intros lc gl TD gvs0 H; simpl in *.
     inversion H. auto.
 
-    destruct (getOperandValue TD a lc gl); try solve [inversion H].
+    destruct (getOperandValue TD v lc gl); try solve [inversion H].
       remember (values2GVs TD l0 lc gl)as ogv.
       destruct ogv; inversion H; subst.
         rewrite <- IHl0 with (gvs0:=l1); auto.

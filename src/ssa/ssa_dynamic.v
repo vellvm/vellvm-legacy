@@ -23,7 +23,7 @@ Export LLVMlib.
 Record ExecutionContext : Set := mkEC {
 CurFunction : fdef;
 CurBB       : block;
-CurCmds     : list_cmd;              (* cmds to run within CurBB *)
+CurCmds     : cmds;              (* cmds to run within CurBB *)
 Terminator  : terminator;
 Locals      : GVMap;                 (* LLVM values used in this invocation *)
 Args        : list GenericValue;      
@@ -151,8 +151,8 @@ Inductive dsInsn : State -> State -> trace -> Prop :=
                               l' ps' cs' tmn' lc' EC Mem als,   
   getOperandInt TD 1 Cond lc gl = Some c ->
   Some (block_intro l' ps' cs' tmn') = (if c
-               then lookupBlockViaLabelFromSystem S l1
-               else lookupBlockViaLabelFromSystem S l2) ->
+               then lookupBlockViaLabelFromFdef F l1
+               else lookupBlockViaLabelFromFdef F l2) ->
   lc' = switchToNewBasicBlock (block_intro l' ps' cs' tmn') B lc ->
   dsInsn 
     (mkState S TD Ps ((mkEC F B nil (insn_br bid Cond l1 l2) lc arg als)::EC) gl Mem)
@@ -160,7 +160,7 @@ Inductive dsInsn : State -> State -> trace -> Prop :=
     trace_nil 
 | dsBranch_uncond : forall S TD Ps F B lc gl arg bid l
                               l' ps' cs' tmn' lc' EC Mem als,   
-  Some (block_intro l' ps' cs' tmn') = (lookupBlockViaLabelFromSystem S l) ->
+  Some (block_intro l' ps' cs' tmn') = (lookupBlockViaLabelFromFdef F l) ->
   lc' = switchToNewBasicBlock (block_intro l' ps' cs' tmn') B lc ->
   dsInsn 
     (mkState S TD Ps ((mkEC F B nil (insn_br_uncond bid l) lc arg als)::EC) gl Mem)
@@ -271,7 +271,9 @@ Inductive dsInsn : State -> State -> trace -> Prop :=
     trace_nil
 | dsCall : forall S TD Ps F B lc gl arg rid noret tailc fid lp cs tmn
                             l' ps' cs' tmn' EC rt la lb Mem als,
-  lookupFdefViaIDFromSystem S fid = Some (fdef_intro (fheader_intro rt fid la) lb) ->
+  (* only look up the current module for the time being, 
+     do not support linkage. *)
+  lookupFdefViaIDFromProducts Ps fid = Some (fdef_intro (fheader_intro rt fid la) lb) ->
   getEntryBlock (fdef_intro (fheader_intro rt fid la) lb) = Some (block_intro l' ps' cs' tmn') ->
   dsInsn 
     (mkState S TD Ps ((mkEC F B ((insn_call rid noret tailc rt fid lp)::cs) tmn lc arg als)::EC) gl Mem)
@@ -448,8 +450,8 @@ Inductive nsInsn : State*trace -> States -> Prop :=
                               l' ps' cs' tmn' lc' EC tr Mem als,   
   getOperandInt TD 1 Cond lc gl = Some c ->
   Some (block_intro l' ps' cs' tmn') = (if c 
-               then lookupBlockViaLabelFromSystem S l1
-               else lookupBlockViaLabelFromSystem S l2) ->
+               then lookupBlockViaLabelFromFdef F l1
+               else lookupBlockViaLabelFromFdef F l2) ->
   lc' = switchToNewBasicBlock (block_intro l' ps' cs' tmn') B lc ->
   nsInsn 
     (mkState S TD Ps ((mkEC F B nil (insn_br bid Cond l1 l2) lc arg als)::EC) gl Mem, tr)
@@ -458,8 +460,8 @@ Inductive nsInsn : State*trace -> States -> Prop :=
                               l1' ps1' cs1' tmn1' lc1' 
                               l2' ps2' cs2' tmn2' lc2' EC gl tr Mem als,   
   isOperandUndef TD (typ_int 1) Cond lc gl ->
-  Some (block_intro l1' ps1' cs1' tmn1') = lookupBlockViaLabelFromSystem S l1 ->
-  Some (block_intro l2' ps2' cs2' tmn2') = lookupBlockViaLabelFromSystem S l2 ->
+  Some (block_intro l1' ps1' cs1' tmn1') = lookupBlockViaLabelFromFdef F l1 ->
+  Some (block_intro l2' ps2' cs2' tmn2') = lookupBlockViaLabelFromFdef F l2 ->
   lc1' = (switchToNewBasicBlock (block_intro l1' ps1' cs1' tmn1') B lc) ->
   lc2' = (switchToNewBasicBlock (block_intro l2' ps2' cs2' tmn2') B lc) ->
   nsInsn 
@@ -468,7 +470,7 @@ Inductive nsInsn : State*trace -> States -> Prop :=
      (mkState S TD Ps ((mkEC F (block_intro l2' ps2' cs2' tmn2') cs2' tmn2' lc2' arg als)::EC) gl Mem, tr)::nil)
 | nsBranch_uncond : forall S TD Ps F B lc gl arg bid l
                               l' ps' cs' tmn' lc' EC tr Mem als,   
-  Some (block_intro l' ps' cs' tmn') = (lookupBlockViaLabelFromSystem S l) ->
+  Some (block_intro l' ps' cs' tmn') = (lookupBlockViaLabelFromFdef F l) ->
   lc' = switchToNewBasicBlock (block_intro l' ps' cs' tmn') B lc ->
   nsInsn 
     (mkState S TD Ps ((mkEC F B nil (insn_br_uncond bid l) lc arg als)::EC) gl Mem, tr)
@@ -567,7 +569,7 @@ Inductive nsInsn : State*trace -> States -> Prop :=
                             Oparg' arg' l' ps' cs' tmn' EC rt id la lb lc' tr Mem als,
   params2OpGVs TD lp lc gl = Oparg' ->   
   opGVs2GVs Oparg' = arg' ->   
-  lookupFdefViaIDFromSystem S fid = Some (fdef_intro (fheader_intro rt id la) lb) ->
+  lookupFdefViaIDFromProducts Ps fid = Some (fdef_intro (fheader_intro rt id la) lb) ->
   getEntryBlock (fdef_intro (fheader_intro rt id la) lb) = Some (block_intro l' ps' cs' tmn') ->
   initLocals la arg' = lc' ->
   nsInsn 
@@ -692,8 +694,8 @@ Inductive dbInsn : State -> State -> trace -> Prop :=
                               l' ps' cs' tmn' lc' EC Mem als,   
   getOperandInt TD 1 Cond lc gl = Some c ->
   Some (block_intro l' ps' cs' tmn') = (if c 
-               then lookupBlockViaLabelFromSystem S l1
-               else lookupBlockViaLabelFromSystem S l2) ->
+               then lookupBlockViaLabelFromFdef F l1
+               else lookupBlockViaLabelFromFdef F l2) ->
   lc' = switchToNewBasicBlock (block_intro l' ps' cs' tmn') B lc ->
   dbInsn 
     (mkState S TD Ps ((mkEC F B nil (insn_br bid Cond l1 l2) lc arg als)::EC) gl Mem)
@@ -701,7 +703,7 @@ Inductive dbInsn : State -> State -> trace -> Prop :=
     trace_nil 
 | dbBranch_uncond : forall S TD Ps F B lc gl arg l bid
                               l' ps' cs' tmn' lc' EC Mem als,   
-  Some (block_intro l' ps' cs' tmn') = (lookupBlockViaLabelFromSystem S l) ->
+  Some (block_intro l' ps' cs' tmn') = (lookupBlockViaLabelFromFdef F l) ->
   lc' = switchToNewBasicBlock (block_intro l' ps' cs' tmn') B lc ->
   dbInsn 
     (mkState S TD Ps ((mkEC F B nil (insn_br_uncond bid l) lc arg als)::EC) gl Mem)
@@ -840,10 +842,10 @@ with dbop : State -> State -> trace -> Prop :=
     dbInsn S1 S2 t1 ->
     dbop S2 S3 t2 ->
     dbop S1 S3 (trace_app t1 t2)
-with dbFdef : id -> typ -> list_param -> system -> layouts -> list product -> list ExecutionContext -> GVMap -> GVMap -> mem -> GVMap -> GVMap -> list mblock -> mem -> block -> id -> option value -> trace -> Prop :=
+with dbFdef : id -> typ -> params -> system -> layouts -> products -> list ExecutionContext -> GVMap -> GVMap -> mem -> GVMap -> GVMap -> list mblock -> mem -> block -> id -> option value -> trace -> Prop :=
 | dbFdef_func : forall S TD Ps gl fid lp lc rid
                             l' ps' cs' tmn' rt la lb l'' ps'' cs'' Result lc' gl' tr ECs Mem Mem' als',
-  lookupFdefViaIDFromSystem S fid = Some (fdef_intro (fheader_intro rt fid la) lb) ->
+  lookupFdefViaIDFromProducts Ps fid = Some (fdef_intro (fheader_intro rt fid la) lb) ->
   getEntryBlock (fdef_intro (fheader_intro rt fid la) lb) = Some (block_intro l' ps' cs' tmn') ->
   dbop 
     (mkState S TD Ps ((mkEC (fdef_intro (fheader_intro rt fid la) lb) 
@@ -856,7 +858,7 @@ with dbFdef : id -> typ -> list_param -> system -> layouts -> list product -> li
   dbFdef fid rt lp S TD Ps ECs lc gl Mem lc' gl' als' Mem' (block_intro l'' ps'' cs'' (insn_return rid rt Result)) rid (Some Result) tr
 | dbFdef_proc : forall S TD Ps gl fid lp lc rid
                             l' ps' cs' tmn' rt la lb l'' ps'' cs'' lc' gl' tr ECs Mem Mem' als',
-  lookupFdefViaIDFromSystem S fid = Some (fdef_intro (fheader_intro rt fid la) lb) ->
+  lookupFdefViaIDFromProducts Ps fid = Some (fdef_intro (fheader_intro rt fid la) lb) ->
   getEntryBlock (fdef_intro (fheader_intro rt fid la) lb) = Some (block_intro l' ps' cs' tmn') ->
   dbop 
     (mkState S TD Ps ((mkEC (fdef_intro (fheader_intro rt fid la) lb) 
@@ -884,10 +886,10 @@ with dbopInf : State -> Trace -> Prop :=
     dbInsn state1 state2 t1 ->
     dbopInf state2 t2 ->
     dbopInf state1 (Trace_app t1 t2)
-with dbFdefInf : id -> typ -> list_param -> system -> layouts -> list product -> list ExecutionContext -> GVMap -> GVMap -> mem -> Trace -> Prop :=
+with dbFdefInf : id -> typ -> params -> system -> layouts -> products -> list ExecutionContext -> GVMap -> GVMap -> mem -> Trace -> Prop :=
 | dbFdefInf_intro : forall S TD Ps lc gl fid lp
                            l' ps' cs' tmn' rt la lb tr ECs Mem,
-  lookupFdefViaIDFromSystem S fid = Some (fdef_intro (fheader_intro rt fid la) lb) ->
+  lookupFdefViaIDFromProducts Ps fid = Some (fdef_intro (fheader_intro rt fid la) lb) ->
   getEntryBlock (fdef_intro (fheader_intro rt fid la) lb) = Some (block_intro l' ps' cs' tmn') ->
   dbopInf 
     (mkState S TD Ps ((mkEC (fdef_intro (fheader_intro rt fid la) lb) (block_intro l' ps' cs' tmn') cs' tmn'
@@ -983,8 +985,8 @@ Inductive nbInsn : State*trace -> States -> Prop :=
                               l' ps' cs' tmn' lc' EC tr Mem als,   
   getOperandInt TD 1 Cond lc gl = Some c ->
   Some (block_intro l' ps' cs' tmn') = (if c 
-               then lookupBlockViaLabelFromSystem S l1
-               else lookupBlockViaLabelFromSystem S l2) ->
+               then lookupBlockViaLabelFromFdef F l1
+               else lookupBlockViaLabelFromFdef F l2) ->
   lc' = switchToNewBasicBlock (block_intro l' ps' cs' tmn') B lc ->
   nbInsn 
     (mkState S TD Ps ((mkEC F B nil (insn_br bid Cond l1 l2) lc arg als)::EC) gl Mem, tr)
@@ -992,8 +994,8 @@ Inductive nbInsn : State*trace -> States -> Prop :=
 | nbBranch_undef : forall S TD Ps F B lc arg bid Cond l1 l2
                               l1' ps1' cs1' tmn1' lc1' l2' ps2' cs2' tmn2' lc2' EC tr gl Mem als,   
   isOperandUndef TD (typ_int 1) Cond lc gl ->
-  Some (block_intro l1' ps1' cs1' tmn1') = lookupBlockViaLabelFromSystem S l1 ->
-  Some (block_intro l2' ps2' cs2' tmn2') = lookupBlockViaLabelFromSystem S l2 ->
+  Some (block_intro l1' ps1' cs1' tmn1') = lookupBlockViaLabelFromFdef F l1 ->
+  Some (block_intro l2' ps2' cs2' tmn2') = lookupBlockViaLabelFromFdef F l2 ->
   lc1' = switchToNewBasicBlock (block_intro l1' ps1' cs1' tmn1') B lc ->
   lc2' = switchToNewBasicBlock (block_intro l2' ps2' cs2' tmn2') B lc ->
   nbInsn 
@@ -1002,7 +1004,7 @@ Inductive nbInsn : State*trace -> States -> Prop :=
      (mkState S TD Ps ((mkEC F (block_intro l2' ps2' cs2' tmn2') cs2' tmn2' lc2' arg als)::EC) gl Mem, tr)::nil)
 | nbBranch_uncond : forall S TD Ps F B lc gl arg l bid
                               l' ps' cs' tmn' lc' EC tr Mem als,   
-  Some (block_intro l' ps' cs' tmn') = (lookupBlockViaLabelFromSystem S l) ->
+  Some (block_intro l' ps' cs' tmn') = (lookupBlockViaLabelFromFdef F l) ->
   lc' = switchToNewBasicBlock (block_intro l' ps' cs' tmn') B lc ->
   nbInsn 
     (mkState S TD Ps ((mkEC F B nil (insn_br_uncond bid l) lc arg als)::EC) gl Mem, tr)
@@ -1116,10 +1118,10 @@ with nbop_star : States -> States -> Prop :=
   nbop_star states1 states2 ->
   nbop_star states2 states3 ->
   nbop_star states1 states3 
-with nbFdef : id -> typ -> list_param -> system -> layouts -> list product -> list ExecutionContext -> GVMap -> GVMap -> mem -> trace -> list (GVMap*GVMap*list mblock*mem*block*id*option value*trace) -> Prop :=
+with nbFdef : id -> typ -> params -> system -> layouts -> products -> list ExecutionContext -> GVMap -> GVMap -> mem -> trace -> list (GVMap*GVMap*list mblock*mem*block*id*option value*trace) -> Prop :=
 | nbFdef_intro : forall S TD Ps lc gl fid lp
                             l' ps' cs' tmn' rt la lb tr lc_gl_als_Mem_block_rid_ore_trs ECs Mem,
-  lookupFdefViaIDFromSystem S fid = Some (fdef_intro (fheader_intro rt fid la) lb) ->
+  lookupFdefViaIDFromProducts Ps fid = Some (fdef_intro (fheader_intro rt fid la) lb) ->
   getEntryBlock (fdef_intro (fheader_intro rt fid la) lb) = Some (block_intro l' ps' cs' tmn') ->
   nbop_star 
     ((mkState S TD Ps ((mkEC (fdef_intro (fheader_intro rt fid la) lb) 
@@ -1168,10 +1170,10 @@ with nbopInf : States -> list Trace -> Prop :=
   nbop_plus states1 states2 ->
   nbopInf states2 trs ->
   nbopInf states1 trs 
-with nbFdefInf : id -> typ -> list_param -> system -> layouts -> list product -> list ExecutionContext -> GVMap -> GVMap -> mem -> trace -> list Trace -> Prop :=
+with nbFdefInf : id -> typ -> params -> system -> layouts -> products -> list ExecutionContext -> GVMap -> GVMap -> mem -> trace -> list Trace -> Prop :=
 | nbFdefInf_intro : forall S TD Ps lc gl fid lp
                             l' ps' cs' tmn' ECs rt la lb tr trs' Mem,
-  lookupFdefViaIDFromSystem S fid = Some (fdef_intro (fheader_intro rt fid la) lb) ->
+  lookupFdefViaIDFromProducts Ps fid = Some (fdef_intro (fheader_intro rt fid la) lb) ->
   getEntryBlock (fdef_intro (fheader_intro rt fid la) lb) = Some (block_intro l' ps' cs' tmn') ->
   nbopInf 
     ((mkState S TD Ps ((mkEC (fdef_intro (fheader_intro rt fid la) lb) 

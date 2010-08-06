@@ -101,18 +101,18 @@ formula :: 'formula_' ::=
   | module in system		::   :: module_in_system
     	       			{{ tex [[module]] \in [[system]] }}
 				{{ coq In [[module]] [[system]] }}
-  | product in list_product	::   :: product_in_products
-    	       			{{ tex [[product]] \in [[list_product]] }}
-				{{ coq In [[product]] [[list_product]] }}
-  | block in list_block		::   :: block_in_blocks
-    	       			{{ tex [[block]] \in [[list_block]] }}
-				{{ coq In [[block]] [[list_block]] }}
-  | insn in list_insn		::   :: insn_in_insns
-    	       			{{ tex [[insn]] \in [[list_insn]] }}
-				{{ coq In [[insn]] [[list_insn]] }}
-  | arg in list_arg		::   :: arg_in_args
-    	       			{{ tex [[arg]] \in [[list_arg]] }}
-				{{ coq In [[arg]] [[list_arg]] }}
+  | product in products		::   :: product_in_products
+    	       			{{ tex [[product]] \in [[products]] }}
+				{{ coq In [[product]] [[products]] }}
+  | block in blocks		::   :: block_in_blocks
+    	       			{{ tex [[block]] \in [[blocks]] }}
+				{{ coq In [[block]] [[blocks]] }}
+  | insn in insns		::   :: insn_in_insns
+    	       			{{ tex [[insn]] \in [[insns]] }}
+				{{ coq In [[insn]] [[insns]] }}
+  | arg in args			::   :: arg_in_args
+    	       			{{ tex [[arg]] \in [[args]] }}
+				{{ coq In [[arg]] [[args]] }}
   | noret = yes  		:: M :: noret_alias
     	     			{{ com noret alias }} 
 				{{ coq [[noret]] = true }}
@@ -132,53 +132,44 @@ formula :: 'formula_' ::=
     	     			{{ com opt_id alias }} 
 				{{ coq [[opt_id]] = [[opt_id']] }}
   | length </ constj // j /> = sz :: M :: length_of_consts_is_sz
-                                {{ coq length [[ </ constj // j /> ]] = [[sz]] }}
+                                {{ coq length (unmake_list_const [[ </ constj // j /> ]]) = [[sz]] }}
   | ids <-> </ idj // j /> 	:: M :: ids_alias
     	      	   	        {{ com ids alias }}
-				{{ coq [[ids]] = [[ </ idj // j /> ]] }}
+				{{ coq [[ids]] = unmake_list_id [[ </ idj // j /> ]] }}
   | ls <-> </ lj // j /> 	:: M :: ls_alias
     	      	   	        {{ com ls alias }}
-				{{ coq [[ls]] = [[ </ lj // j /> ]] }}
-  | list_const <-> </ constj // j /> :: M :: consts_alias
-    	      	   	        {{ com consts alias }}
-				{{ coq [[list_const]] = [[ </ constj // j /> ]] }}
-  | list_arg <-> </ argj // j /> :: M :: args_alias
+				{{ coq [[ls]] = unmake_list_l [[ </ lj // j /> ]] }}
+  | args <-> </ argj // j /> :: M :: args_alias
     	      	   	        {{ com args alias }}
-				{{ coq [[list_arg]] = [[ </ argj // j /> ]] }}
-  | list_typ <-> </ typj // j /> :: M :: typs_alias
-    	      	   	        {{ com typs alias }}
-				{{ coq [[list_typ]] = [[ </ typj // j /> ]] }}
-  | list_insn <-> </ insnj // j /> :: M :: insns_alias
+				{{ coq [[args]] = [[ </ argj // j /> ]] }}
+  | insns <-> </ insnj // j /> :: M :: insns_alias
     	      	   	        {{ com insns alias }}
-				{{ coq [[list_insn]] = [[ </ insnj // j /> ]] }}
-  | list_phi <-> </ phij // j /> :: M :: phis_alias
-    	      	   	        {{ com phis alias }}
-				{{ coq [[list_phi]] = [[ </ phij // j /> ]] }}
-  | list_block <-> </ blockj // j /> :: M :: blocks_alias
+				{{ coq [[insns]] = [[ </ insnj // j /> ]] }}
+  | phinodes <-> </ phinodej // j /> :: M :: phis_alias
+    	      	   	        {{ com phinodes alias }}
+				{{ coq [[phinodes]] = [[ </ phinodej // j /> ]] }}
+  | blocks <-> </ blockj // j /> :: M :: blocks_alias
     	      	   	        {{ com blocks alias }}
-				{{ coq [[list_block]] = [[ </ blockj // j /> ]] }}
-  | list_product = </ productj // j /> :: M :: products_alias
+				{{ coq [[blocks]] = [[ </ blockj // j /> ]] }}
+  | products = </ productj // j /> :: M :: products_alias
     	      	   	        {{ com products alias }}
-				{{ coq [[list_product]] = [[ </ productj // j /> ]] }}
-  | list_module <-> </ modulej // j /> :: M :: modules_alias
+				{{ coq [[products]] = [[ </ productj // j /> ]] }}
+  | modules <-> </ modulej // j /> :: M :: modules_alias
     	      	   	        {{ com modules alias }}
-				{{ coq [[list_module]] = [[ </ modulej // j /> ]] }}
-  | id_labels <-> </ [ idj , lj ] // j /> :: M :: id_labels_alias
-    	      	     	        {{ com id_labels alias }}
-				{{ coq [[id_labels]] = [[ </ [ idj , lj ] // j /> ]] }}
-  | list_param <-> </ paramj // j /> :: M :: list_param_alias
-                                {{ com list_param_alias }}
-                                {{ coq [[list_param]] = [[ </ paramj // j /> ]] }}
+				{{ coq [[modules]] = [[ </ modulej // j /> ]] }}
+  | params <-> </ paramj // j /> :: M :: params_alias
+                                {{ com params_alias }}
+                                {{ coq [[params]] = [[ </ paramj // j /> ]] }}
   | getNthTyp </ typj // j /> INT = opt_typ ::   :: getNthTyp
     	      	       	   	{{ com getNthTyp }}
 				{{ coq nth_error [[ </ typj // j /> ]] [[INT]] = [[opt_typ]] }}  
   | insn =id= insn'        :: M :: getInsnID_eq
     	      	      	      	{{ tex [[insn]] =id= [[insn']] }}
 				{{ coq getInsnID [[insn]] = getInsnID [[insn']] }}
-  | insnsRemovesLast list_insn = list_insn'
+  | insnsRemovesLast insns = insns'
     		     	        ::   :: insnsRemovesLast
     		     		{{ coq 
-                                    removelast [[list_insn]] = [[list_insn']]
+                                    removelast [[insns]] = [[insns']]
                                 }}
   | genDominatorTree fdef module = dt 
     		      	    	::   :: genDominatorTree
@@ -195,10 +186,10 @@ formula :: 'formula_' ::=
     		  		{{ coq genBlockUseDef [[module]] = [[usedef_block]] }}
   | getIdUseDef usedef_id id = ids		::   :: getInsnUseDef
     		  		{{ coq getIdUseDef [[usedef_id]] [[id]] = [[ids]] }}
-  | getBlockUseDef usedef_block	block = list_block      ::   :: getBlockUseDef
-    		  		{{ coq getBlockUseDef [[usedef_block]] [[block]] = [[list_block]] }}
-  | succOfBlock block module = list_block	::   :: succOfBlock
-    		      		{{ coq succOfBlock [[block]] [[module]] = [[list_block]] }}
+  | getBlockUseDef usedef_block	block = blocks      ::   :: getBlockUseDef
+    		  		{{ coq getBlockUseDef [[usedef_block]] [[block]] = [[blocks]] }}
+  | succOfBlock block module = blocks	::   :: succOfBlock
+    		      		{{ coq succOfBlock [[block]] [[module]] = [[blocks]] }}
   | isReachableFromEntry fdef_info block  ::   :: isReachableFromEntry
                                 {{ coq isReachableFromEntry [[fdef_info]] [[block]] }}
   | getInsnID insn = id		       ::   :: getInsnID
@@ -209,12 +200,12 @@ formula :: 'formula_' ::=
     		   	    	{{ coq lookupBlockViaLabelFromSystem [[system]] [[l]] = [[opt_block]] }}
   | getEntryOfFdef fdef = opt_block	        :: :: getEntryOfFdef
     	      	     		{{ coq getEntryOfFdef [[fdef]] = [[opt_block]] }}
-  | predOfBlock block usedef_block = list_block :: :: prefOfBlock
-                                {{ coq predOfBlock [[block]] [[usedef_block]] = [[list_block]] }}
+  | predOfBlock block usedef_block = blocks :: :: prefOfBlock
+                                {{ coq predOfBlock [[block]] [[usedef_block]] = [[blocks]] }}
   | PHINode.getNumIncomingValues phinode = INT :: :: PHINodeGetNumIncomingValues
                                 {{ coq PHINode.getNumIncomingValues [[phinode]] = [[INT]] }}
-  | getLabelsFromBlocks list_block = ls         :: :: getLabelsFromBlocks
-                                {{ coq getLabelsFromBlocks [[list_block]] = [[ls]] }}
+  | getLabelsFromBlocks blocks = ls         :: :: getLabelsFromBlocks
+                                {{ coq getLabelsFromBlocks [[blocks]] = [[ls]] }}
   | checkIdenticalIncomingValues phinode           :: :: checkIdenticalIncomingValues
                                 {{ coq checkIdenticalIncomingValues [[phinode]] }}
   | lookupTypViaIDFromSystem system id = opt_typ :: :: lookupTypViaIDFromSystem
@@ -254,9 +245,7 @@ formula :: 'formula_' ::=
   | isPhiNode insn :: :: isPhiNode
                                 {{ coq isPhiNode [[insn]] }}
   | insn in system , module_info , fdef_info , block :: :: insnInSystem
-    	    	     		{{ coq insnInSystemModuleFdefBlockB [[insn]] [[system]] [[module_info]] [[fdef_info]] [[block]] = true }}
-%  | insn in system , (module, usedef_id, usedef_block) , (fdef, dt) , block :: :: insnInSystem2
-%    	    	     		{{ coq insnInSystemModuleFdefBlockB [[insn]] [[system]] ([[module]], ([[usedef_id]], [[usedef_block]])) ([[fdef]], [[dt]]) [[block]] = true }}
+    	    	     		{{ coq insnInSystemModuleIFdefIBlockB [[insn]] [[system]] [[module_info]] [[fdef_info]] [[block]] = true }}
   | lookupBlockViaIDFromFdef fdef id = opt_block :: :: lookupBlockViaIDFromFdef
                                 {{ coq lookupBlockViaIDFromFdef [[fdef]] [[id]] = [[opt_block]] }}
   | getLabelViaIDFromPhiNode phinode id = opt_l :: :: getLabelViaIDFromPhiNode
@@ -278,9 +267,9 @@ formula :: 'formula_' ::=
   | blockInFdef block fdef       :: :: blockInFdef
                                 {{ coq blockInFdefB [[block]] [[fdef]] = true }}
   | block in system , module_info , fdef_info :: :: blockInSystem
-                                {{ coq blockInSystemModuleFdefB [[block]] [[system]] [[module_info]] [[fdef_info]] = true }}
+                                {{ coq blockInSystemModuleIFdefIB [[block]] [[system]] [[module_info]] [[fdef_info]] = true }}
   | product in system , module_info :: :: productInSystem
-                                {{ coq productInSystemModuleB [[product]] [[system]] [[module_info]] = true }}
+                                {{ coq productInSystemModuleIB [[product]] [[system]] [[module_info]] = true }}
   | uniqSystem system               :: :: uniqSystem
                                 {{ coq uniqSystem [[system]] }}
   | typ == typ'                     :: :: typEq 

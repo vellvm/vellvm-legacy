@@ -57,7 +57,7 @@ Lemma value2Sterm_denote__imply__genericvalues : forall l0 TD lc0 gl0 Mem0 smap1
   (dom lc0 `union` dom gl0) [<=] dom smap1 ->
   smap_denotes_gvmap TD lc0 gl0 Mem0 smap1 lc gl ->
   sterms_denote_genericvalues TD lc0 gl0 Mem0 
-    (List.map (value2Sterm smap1) l0) gvs0 ->
+    (map_list_value (value2Sterm smap1) l0) gvs0 ->
   values2GVs TD l0 lc gl = Some gvs0.
 Proof.
   induction l0; intros; simpl in *.
@@ -213,7 +213,7 @@ Proof.
     assert (binds i0  
              (sterm_gep i1
                         t
-                        (value2Sterm (STerms sstate1) v) (List.map (value2Sterm (STerms sstate1)) l0))
+                        (value2Sterm (STerms sstate1) v) (map_list_value (value2Sterm (STerms sstate1)) l0))
              (STerms (se_cmd sstate1 (mkNB (insn_gep i0 i1 t v l0) nc)))) as J.
       simpl. apply binds_updateSmap_eq; auto.
     apply Hsterms_denote21 in J.
@@ -436,7 +436,7 @@ Proof.
     right. 
     exists (sterm_gep i1 t
                      (value2Sterm st.(STerms) v)
-                     (List.map (value2Sterm st.(STerms)) l0)). auto.
+                     (map_list_value (value2Sterm st.(STerms)) l0)). auto.
 
     right. 
     exists (sterm_ext e t
@@ -1001,7 +1001,7 @@ Proof.
   Case "insn_gep".
     assert (binds i0  
              (sterm_gep i1 t (value2Sterm (STerms (se_cmds (mkSstate (env_to_smap gl0 lc0) smem_init sframe_init nil) nbs)) v)
-                             (List.map (value2Sterm (STerms (se_cmds (mkSstate (env_to_smap gl0 lc0) smem_init sframe_init nil) nbs))) l0))
+                             (map_list_value (value2Sterm (STerms (se_cmds (mkSstate (env_to_smap gl0 lc0) smem_init sframe_init nil) nbs))) l0))
              (STerms (se_cmd (se_cmds (mkSstate (env_to_smap gl0 lc0) smem_init sframe_init nil) nbs) (mkNB (insn_gep i0 i1 t v l0) nc)))) as J.
       simpl. apply binds_updateSmap_eq; auto.
     apply Hsterms_denote1 in J.
@@ -1050,7 +1050,7 @@ Proof.
               rewrite id'_in_env2 in gv3_in_env2.
               inversion gv3_in_env2; subst. clear gv3_in_env2.
               simpl.
-              exists (sterm_gep i1 t (value2Sterm (env_to_smap gl1 lc1) v) (List.map (value2Sterm (env_to_smap gl1 lc1)) l0)).
+              exists (sterm_gep i1 t (value2Sterm (env_to_smap gl1 lc1) v) (map_list_value (value2Sterm (env_to_smap gl1 lc1)) l0)).
               split; auto using binds_updateSmap_eq.
                 inversion gep_denotes_gv3; subst.
                 apply value2Sterm_denote__imply__genericvalues with (lc:=lc1)(gl:=gl1) in H8; try solve [auto | split; auto].
@@ -1771,7 +1771,7 @@ Proof.
             apply se_cmds_denotes__composes__prefix_last__case1 with (nbs:=nbs)(nc:=nc)(lc1:=lc1)(gl1:=gl1)(Mem1:=Mem1)(c:=insn_gep i0 i1 t v l0)(i0:=i0); try solve [auto | split; auto].
 
             assert (binds id' (sterm_gep i1 t (value2Sterm (env_to_smap gl1 lc1) v)
-                              (List.map (value2Sterm (env_to_smap gl1 lc1)) l0))
+                              (map_list_value (value2Sterm (env_to_smap gl1 lc1)) l0))
                     (STerms (se_cmd (mkSstate (env_to_smap gl1 lc1) smem_init sframe_init nil) (mkNB (insn_gep id' i1 t v l0) nc)))
             ) as binds_id'_gep.
               simpl. apply binds_updateSmap_eq; auto.
@@ -1798,7 +1798,7 @@ Proof.
 
           exists (sterm_gep i1 t 
                    (value2Sterm (STerms (se_cmds (mkSstate (env_to_smap gl0 lc0) smem_init sframe_init nil) nbs)) v)
-                   (List.map (value2Sterm (STerms (se_cmds (mkSstate (env_to_smap gl0 lc0) smem_init sframe_init nil) nbs))) l0)).
+                   (map_list_value (value2Sterm (STerms (se_cmds (mkSstate (env_to_smap gl0 lc0) smem_init sframe_init nil) nbs))) l0)).
           split.
             simpl. apply binds_updateSmap_eq; auto.
             inversion st'_denotes_gv'; subst.

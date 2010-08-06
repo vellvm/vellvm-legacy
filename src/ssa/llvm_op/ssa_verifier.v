@@ -20,11 +20,11 @@ Inductive wf_typ : typ -> Prop :=    (* defn wf_typ *)
      wf_typ (typ_int N5)
  | wf_typ_metadate : 
      wf_typ typ_metadata
- | wf_typ_function : forall (typ_list:list typ) (typ_5:typ),
+ | wf_typ_function : forall (typ_list:list_typ) (typ_5:typ),
      isValidReturnTyp typ_5 ->
      wf_typ typ_5 ->
-     (forall typ_, In typ_ typ_list -> (isValidArgumentTyp typ_)) ->
-     (forall typ_, In typ_ typ_list -> (wf_typ typ_)) ->
+     (forall typ_, In typ_ (unmake_list_typ typ_list) -> (isValidArgumentTyp typ_)) ->
+     (forall typ_, In typ_ (unmake_list_typ typ_list) -> (wf_typ typ_)) ->
      wf_typ (typ_function typ_5 typ_list).
 
 (* defns Jwf_operand_insn *)
@@ -142,7 +142,7 @@ Definition wf_operand (intrinsic_funs5:intrinsic_funs)
   let '((module_intro list_layout5 list_product5), (usedef_insn5, usedef_block5)) := module_info5 in
   let (fdef5, dt5) := fdef_info5 in 
   {{{
-  do ret (insnInSystemModuleFdefBlockB
+  do ret (insnInSystemModuleIFdefIBlockB
             insn5 
             system5  
             ( (module_intro list_layout5 list_product5) , ( usedef_insn5 ,  usedef_block5 )) 
@@ -202,7 +202,7 @@ Definition wf_operand (intrinsic_funs5:intrinsic_funs)
 (* defns Jwf_label *)
 Inductive wf_label : intrinsic_funs -> system -> module_info -> fdef_info -> block -> insn -> l -> Prop :=    (* defn wf_label *)
  | wf_label_intro : forall (intrinsic_funs5:intrinsic_funs) (system5:system) (module5:module) (usedef_insn5:usedef_id) (usedef_block5:usedef_block) (fdef5:fdef) (dt5:dt) (block5:block) (insn5:insn) (l5:l) (ls5:ls),
-     insnInSystemModuleFdefBlockB insn5 system5   ( module5 , ( usedef_insn5 ,  usedef_block5 ))     ( fdef5 ,  dt5 )   block5 = true ->
+     insnInSystemModuleIFdefIBlockB insn5 system5   ( module5 , ( usedef_insn5 ,  usedef_block5 ))     ( fdef5 ,  dt5 )   block5 = true ->
      getInsnLabels insn5 = ls5 ->
       ( set_In  l5   ls5 )  ->
       (lookupBlockViaLabelFromSystem  system5   l5  =   (Some  block5 )  )  ->
@@ -220,7 +220,7 @@ Definition visitInstruction (intrinsic_funs5:intrinsic_funs)
   let (fdef5, dt5) := fdef_info5 in 
   {{{
   (* Instruction must be embedded in basic block! *)
-  do ret (insnInSystemModuleFdefBlockB 
+  do ret (insnInSystemModuleIFdefIBlockB 
             insn5   
             system5   
             ( module5 , ( usedef_insn5 ,  usedef_block5 ))     
@@ -454,19 +454,19 @@ Definition visitBinaryOperator (intrinsic_funs5:intrinsic_funs)
 (* Check to make sure that if there is more than one entry for a
    particular basic block in this PHI node, that the incoming values 
    are all identical. *)
-Fixpoint lookupIdsViaLabelFromIdls (idls:list (id*l)) (l0:l) : list id :=
+Fixpoint lookupIdsViaLabelFromIdls (idls:list_id_l) (l0:l) : list id :=
 match idls with
-| nil => nil
-| (id1,l1)::idls' =>
+| Nil_list_id_l => nil
+| Cons_list_id_l id1 l1 idls' =>
   if (eq_dec l0 l1) 
   then set_add eq_dec id1 (lookupIdsViaLabelFromIdls idls' l0)
   else (lookupIdsViaLabelFromIdls idls' l0)
 end.
 
-Fixpoint _checkIdenticalIncomingValues (idls idls0:list (id*l)) : Prop :=
+Fixpoint _checkIdenticalIncomingValues (idls idls0:list_id_l) : Prop :=
 match idls with
-| nil => True
-| (id, l)::idls' => 
+| Nil_list_id_l => True
+| Cons_list_id_l id l idls' => 
   (length (lookupIdsViaLabelFromIdls idls0 l) <= 1) /\
   (_checkIdenticalIncomingValues idls' idls0)
 end.
@@ -548,7 +548,7 @@ Inductive wf_insn : intrinsic_funs -> system -> module_info -> fdef_info -> bloc
      visitInvokeInst intrinsic_funs5 system5 module_info5   ( fdef5 ,  dt5 )   block5 (insn_invoke id_5 typ0 id0 list_param5 l1 l2) ->
      wf_insn intrinsic_funs5 system5   module_info5   ( fdef5 ,  dt5 ) block5 (insn_invoke id_5 typ0 id0 list_param5 l1 l2)
 *)
- | wf_insn_call : forall (intrinsic_funs5:intrinsic_funs) (system5:system) (block5:block) (id_5:id) (typ0:typ) (id0:id) (list_param5:list_param) (module_info5:module_info) (fdef5:fdef) (dt5:dt),
+ | wf_insn_call : forall (intrinsic_funs5:intrinsic_funs) (system5:system) (block5:block) (id_5:id) (typ0:typ) (id0:id) (list_param5:params) (module_info5:module_info) (fdef5:fdef) (dt5:dt),
      visitCallInst intrinsic_funs5 system5 module_info5   ( fdef5 ,  dt5 )   block5 (insn_call id_5 false false typ0 id0 list_param5) ->
      wf_insn intrinsic_funs5 system5   module_info5   ( fdef5 ,  dt5 ) block5 (insn_cmd (insn_call id_5 false false typ0 id0 list_param5))
  | wf_insn_unreachable : forall (intrinsic_funs5:intrinsic_funs) (system5:system) (fdef_info5:fdef_info) (block5:block) (module_info5:module_info) (fdef5:fdef) (dt5:dt) bid,
@@ -557,23 +557,23 @@ Inductive wf_insn : intrinsic_funs -> system -> module_info -> fdef_info -> bloc
  | wf_insn_add : forall (intrinsic_funs5:intrinsic_funs) (system5:system) (fdef_info5:fdef_info) (block5:block) (id5:id) (sz5:nat) (value1 value2:value) (module_info5:module_info) (fdef5:fdef) (dt5:dt),
      visitBinaryOperator intrinsic_funs5 system5 module_info5   ( fdef5 ,  dt5 )   block5 (insn_bop id5 bop_add sz5 value1 value2) ->
      wf_insn intrinsic_funs5 system5   module_info5   ( fdef5 ,  dt5 ) block5 (insn_cmd (insn_bop id5 bop_add sz5 value1 value2))
- | wf_insn_phi : forall (id_l_list:list (id*l)) (intrinsic_funs5:intrinsic_funs) (system5:system) (fdef_info5:fdef_info) (block5:block) (id_5:id) (typ5:typ) (module_info5:module_info) (fdef5:fdef) (dt5:dt),
+ | wf_insn_phi : forall (id_l_list:list_id_l) (intrinsic_funs5:intrinsic_funs) (system5:system) (fdef_info5:fdef_info) (block5:block) (id_5:id) (typ5:typ) (module_info5:module_info) (fdef5:fdef) (dt5:dt),
      visitPHINode intrinsic_funs5 system5 module_info5   ( fdef5 ,  dt5 )   block5 (insn_phi id_5 typ5 id_l_list) ->
      wf_insn intrinsic_funs5 system5   module_info5   ( fdef5 ,  dt5 ) block5 (insn_phinode (insn_phi id_5 typ5 id_l_list))
  .
 
-Inductive wf_list_cmd : intrinsic_funs -> system -> module_info -> fdef_info -> block -> list_cmd -> Prop :=  
+Inductive wf_list_cmd : intrinsic_funs -> system -> module_info -> fdef_info -> block -> cmds -> Prop :=  
  | wf_list_cmd_nil : forall (intrinsic_funs5:intrinsic_funs) (system5:system) (module_info5:module_info) (fdef_info5:fdef_info) (block5:block),
      wf_list_cmd intrinsic_funs5 system5 module_info5 fdef_info5 block5  nil 
- | wf_list_cmd_cons : forall (intrinsic_funs5:intrinsic_funs) (system5:system) (module_info5:module_info) (fdef_info5:fdef_info) (block5:block) (list_cmd5:list_cmd) (cmd5:cmd),
+ | wf_list_cmd_cons : forall (intrinsic_funs5:intrinsic_funs) (system5:system) (module_info5:module_info) (fdef_info5:fdef_info) (block5:block) (list_cmd5:cmds) (cmd5:cmd),
      wf_insn intrinsic_funs5 system5 module_info5 fdef_info5 block5 (insn_cmd cmd5) ->
      wf_list_cmd intrinsic_funs5 system5 module_info5 fdef_info5 block5 list_cmd5 ->
      wf_list_cmd intrinsic_funs5 system5 module_info5 fdef_info5 block5  ( cmd5 :: list_cmd5 ) .
 
-Inductive wf_list_phinode : intrinsic_funs -> system -> module_info -> fdef_info -> block -> list_phinode -> Prop :=  
+Inductive wf_list_phinode : intrinsic_funs -> system -> module_info -> fdef_info -> block -> phinodes -> Prop :=  
  | wf_list_phinode_nil : forall (intrinsic_funs5:intrinsic_funs) (system5:system) (module_info5:module_info) (fdef_info5:fdef_info) (block5:block),
      wf_list_phinode intrinsic_funs5 system5 module_info5 fdef_info5 block5  nil 
- | wf_list_phinode_cons : forall (intrinsic_funs5:intrinsic_funs) (system5:system) (module_info5:module_info) (fdef_info5:fdef_info) (block5:block) (list_phinode5:list_phinode) (phinode5:phinode),
+ | wf_list_phinode_cons : forall (intrinsic_funs5:intrinsic_funs) (system5:system) (module_info5:module_info) (fdef_info5:fdef_info) (block5:block) (list_phinode5:phinodes) (phinode5:phinode),
      wf_insn intrinsic_funs5 system5 module_info5 fdef_info5 block5 (insn_phinode phinode5) ->
      wf_list_phinode intrinsic_funs5 system5 module_info5 fdef_info5 block5 list_phinode5 ->
      wf_list_phinode intrinsic_funs5 system5 module_info5 fdef_info5 block5  ( phinode5 :: list_phinode5 ) .
@@ -581,8 +581,8 @@ Inductive wf_list_phinode : intrinsic_funs -> system -> module_info -> fdef_info
 
 (* verifyBasicBlock - Verify that a basic block is well formed... *)
 Inductive verifyBasicBlock : intrinsic_funs -> system -> module_info -> fdef_info -> block -> Prop :=    (* defn wf_block *)
- | verifyBasicBlock_intro : forall (intrinsic_funs5:intrinsic_funs) (system5:system) (module_info5:module_info) (fdef_info5:fdef_info) (l5:l) list_phinode5 (list_cmd5:list_cmd) terminator5,
-     blockInSystemModuleFdefB (block_intro l5 list_phinode5 list_cmd5 terminator5)  system5 module_info5 fdef_info5 = true ->
+ | verifyBasicBlock_intro : forall (intrinsic_funs5:intrinsic_funs) (system5:system) (module_info5:module_info) (fdef_info5:fdef_info) (l5:l) list_phinode5 (list_cmd5:cmds) terminator5,
+     blockInSystemModuleIFdefIB (block_intro l5 list_phinode5 list_cmd5 terminator5)  system5 module_info5 fdef_info5 = true ->
 
      wf_list_cmd intrinsic_funs5 system5 module_info5 fdef_info5 (block_intro l5 list_phinode5 list_cmd5 terminator5) list_cmd5 ->
      wf_list_phinode intrinsic_funs5 system5 module_info5 fdef_info5 (block_intro l5 list_phinode5 list_cmd5 terminator5) list_phinode5 ->
@@ -603,10 +603,10 @@ Inductive verifyBasicBlock : intrinsic_funs -> system -> module_info -> fdef_inf
      verifyBasicBlock intrinsic_funs5 system5 module_info5 fdef_info5 (block_intro l5 list_phinode5 list_cmd5 terminator5).
 
 (* defns Jwf_list_block *)
-Inductive wf_list_block : intrinsic_funs -> system -> module_info -> fdef_info -> list_block -> Prop :=    (* defn wf_list_block *)
+Inductive wf_list_block : intrinsic_funs -> system -> module_info -> fdef_info -> blocks -> Prop :=    (* defn wf_list_block *)
  | wf_list_block_nil : forall (intrinsic_funs5:intrinsic_funs) (system5:system) (module_info5:module_info) (fdef_info5:fdef_info),
      wf_list_block intrinsic_funs5 system5 module_info5 fdef_info5  nil 
- | wf_list_block_cons : forall (intrinsic_funs5:intrinsic_funs) (system5:system) (module_info5:module_info) (fdef_info5:fdef_info) (list_block5:list_block) (block5:block),
+ | wf_list_block_cons : forall (intrinsic_funs5:intrinsic_funs) (system5:system) (module_info5:module_info) (fdef_info5:fdef_info) (list_block5:blocks) (block5:block),
      verifyBasicBlock intrinsic_funs5 system5 module_info5 fdef_info5 block5 ->
      wf_list_block intrinsic_funs5 system5 module_info5 fdef_info5 list_block5 ->
      wf_list_block intrinsic_funs5 system5 module_info5 fdef_info5  ( block5 :: list_block5 ) .
@@ -706,8 +706,8 @@ Definition visitFunctionDec (intrinsic_funs5:intrinsic_funs)
 
 (* defns Jwf_fdef *)
 Inductive wf_fdef : intrinsic_funs -> system -> module_info -> fdef -> Prop :=    (* defn wf_fdef *)
- | wf_fdef_intro : forall (intrinsic_funs5:intrinsic_funs) (system5:system) (module5:module) (usedef_insn5:usedef_id) (usedef_block5:usedef_block) (fheader5:fheader) (list_block5:list_block) (dt5:dt),
-     productInSystemModuleB (product_fdef  (fdef_intro fheader5 list_block5) ) system5   ( module5 , ( usedef_insn5 ,  usedef_block5 )) = true  ->
+ | wf_fdef_intro : forall (intrinsic_funs5:intrinsic_funs) (system5:system) (module5:module) (usedef_insn5:usedef_id) (usedef_block5:usedef_block) (fheader5:fheader) (list_block5:blocks) (dt5:dt),
+     productInSystemModuleIB (product_fdef  (fdef_intro fheader5 list_block5) ) system5   ( module5 , ( usedef_insn5 ,  usedef_block5 )) = true  ->
 
      visitFunctionDef intrinsic_funs5 system5 ( module5 , ( usedef_insn5 ,  usedef_block5 )) (fdef_intro fheader5 list_block5) ->
 
@@ -717,8 +717,8 @@ Inductive wf_fdef : intrinsic_funs -> system -> module_info -> fdef -> Prop :=  
 
 (* defns Jwf_fdec *)
 Inductive wf_fdec : intrinsic_funs -> system -> module_info -> fdec -> Prop :=    (* defn wf_fdef *)
- | wf_fdec_intro : forall (intrinsic_funs5:intrinsic_funs) (system5:system) (module5:module) (usedef_insn5:usedef_id) (usedef_block5:usedef_block) (fheader5:fheader) (list_block5:list_block) (dt5:dt),
-     productInSystemModuleB (product_fdef  (fdef_intro fheader5 list_block5) ) system5   ( module5 , ( usedef_insn5 ,  usedef_block5 )) = true  ->
+ | wf_fdec_intro : forall (intrinsic_funs5:intrinsic_funs) (system5:system) (module5:module) (usedef_insn5:usedef_id) (usedef_block5:usedef_block) (fheader5:fheader) (list_block5:blocks) (dt5:dt),
+     productInSystemModuleIB (product_fdef  (fdef_intro fheader5 list_block5) ) system5   ( module5 , ( usedef_insn5 ,  usedef_block5 )) = true  ->
      visitFunctionDec intrinsic_funs5 system5 ( module5 , ( usedef_insn5 ,  usedef_block5 )) (fdec_intro fheader5) ->
      wf_fdec intrinsic_funs5 system5   ( module5 , ( usedef_insn5 ,  usedef_block5 ))   (fdec_intro fheader5).
 
@@ -732,17 +732,17 @@ Inductive wf_prod : intrinsic_funs -> system -> module_info -> product -> Prop :
      wf_prod intrinsic_funs5 system5 module_info5 (product_fdef fdef5).
 
 (* defns Jwf_prods *)
-Inductive wf_prods : intrinsic_funs -> system -> module_info -> list_product -> Prop :=    (* defn wf_prods *)
+Inductive wf_prods : intrinsic_funs -> system -> module_info -> products -> Prop :=    (* defn wf_prods *)
  | wf_prods_nil : forall (intrinsic_funs5:intrinsic_funs) (system5:system) (module_info5:module_info),
      wf_prods intrinsic_funs5 system5 module_info5  nil 
- | wf_prods_cons : forall (intrinsic_funs5:intrinsic_funs) (system5:system) (module_info5:module_info) (list_product5:list_product) (product5:product),
+ | wf_prods_cons : forall (intrinsic_funs5:intrinsic_funs) (system5:system) (module_info5:module_info) (list_product5:products) (product5:product),
      wf_prods intrinsic_funs5 system5 module_info5 list_product5 ->
      wf_prod intrinsic_funs5 system5 module_info5 product5 ->
      wf_prods intrinsic_funs5 system5 module_info5  ( product5 :: list_product5 ) .
 
 (* defns Jwf_module *)
 Inductive wf_module : intrinsic_funs -> system -> module -> Prop :=    (* defn wf_module *)
- | wf_module_intro : forall (intrinsic_funs5:intrinsic_funs) (system5:system) list_layout5 (list_product5:list_product) (usedef_insn5:usedef_id) (usedef_block5:usedef_block),
+ | wf_module_intro : forall (intrinsic_funs5:intrinsic_funs) (system5:system) list_layout5 (list_product5:products) (usedef_insn5:usedef_id) (usedef_block5:usedef_block),
      In  (module_intro list_layout5 list_product5)   system5  ->
      genIdUseDef  (module_intro list_layout5 list_product5)  = usedef_insn5  ->
      genBlockUseDef  (module_intro list_layout5 list_product5)  = usedef_block5  ->
@@ -750,17 +750,17 @@ Inductive wf_module : intrinsic_funs -> system -> module -> Prop :=    (* defn w
      wf_module intrinsic_funs5 system5  (module_intro list_layout5 list_product5) .
 
 (* defns Jwf_list_module *)
-Inductive wf_list_module : intrinsic_funs -> system -> list_module -> Prop :=    (* defn wf_list_module *)
+Inductive wf_list_module : intrinsic_funs -> system -> modules -> Prop :=    (* defn wf_list_module *)
  | wf_list_module_nil : forall (intrinsic_funs5:intrinsic_funs) (system5:system),
      wf_list_module intrinsic_funs5 system5  nil 
- | wf_list_module_cons : forall (intrinsic_funs5:intrinsic_funs) (system5:system) (list_module5:list_module) (module5:module),
+ | wf_list_module_cons : forall (intrinsic_funs5:intrinsic_funs) (system5:system) (list_module5:modules) (module5:module),
      wf_module intrinsic_funs5 system5 module5 ->
      wf_list_module intrinsic_funs5 system5 list_module5 ->
      wf_list_module intrinsic_funs5 system5  ( module5 :: list_module5 ) .
 
 (* defns Jwf_system *)
 Inductive wf_system : intrinsic_funs -> system -> Prop :=    (* defn wf_system *)
- | wf_system_intro : forall (intrinsic_funs5:intrinsic_funs) (list_module5:list_module),
+ | wf_system_intro : forall (intrinsic_funs5:intrinsic_funs) (list_module5:modules),
      wf_list_module intrinsic_funs5  list_module5  list_module5 ->
      uniqSystem  list_module5  ->
      wf_system intrinsic_funs5  list_module5 .

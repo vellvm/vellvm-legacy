@@ -25,7 +25,7 @@ fun i' =>
 Record ExecutionContext : Set := mkExecutionContext {
 CurFunction : fdef;
 CurBB       : block;
-CurCmds      : list_cmd;
+CurCmds     : cmds;
 Terminator  : terminator;
 Values      : Mem;
 VarArgs     : list GenericValue;
@@ -72,16 +72,16 @@ match Caller with
 | _ => None
 end.
 
-Fixpoint getIdViaLabelFromIdls (idls:list (id*l)) (l0:l) : option id :=
+Fixpoint getIdViaLabelFromIdls (idls:list_id_l) (l0:l) : option id :=
 match idls with
-| nil => None
-| (id1, l1)::idls'=>
+| Nil_list_id_l => None
+| Cons_list_id_l id1 l1 idls'=>
   if (eq_dec l1 l0)
   then Some id1
   else None
 end.
 
-Definition getIdViaBlockFromIdls (idls:list (id*l)) (b:block) : option id :=
+Definition getIdViaBlockFromIdls (idls:list_id_l) (b:block) : option id :=
 match b with
 | block_intro l _ _ _ => getIdViaLabelFromIdls idls l
 end.
@@ -91,12 +91,12 @@ match i with
 | insn_phi _ _ idls => getIdViaBlockFromIdls idls b
 end.
 
-Definition getPHINodesFromBlock (b:block) : list_phinode :=
+Definition getPHINodesFromBlock (b:block) : phinodes :=
 match b with
 | (block_intro _ ps _ _) => ps
 end.
 
-Fixpoint getIncomingValuesForBlockFromPHINodes (PNs:list_phinode) (b:block) (Values:Mem) : list (id*(option GenericValue)) :=
+Fixpoint getIncomingValuesForBlockFromPHINodes (PNs:phinodes) (b:block) (Values:Mem) : list (id*(option GenericValue)) :=
 match PNs with
 | nil => nil
 | PN::PNs => 
@@ -150,19 +150,19 @@ match v with
 | _ => None
 end.
 
-Fixpoint params2OpGenericValues (lp:list_param) (Values:Mem) : list (option GenericValue):=
+Fixpoint params2OpGenericValues (lp:params) (Values:Mem) : list (option GenericValue):=
 match lp with
 | nil => nil
 | (_, v)::lp' => getOperandValue v Values::params2OpGenericValues lp' Values
 end.
 
-Fixpoint _initializeFrameValues (la:list_arg) (lg:list GenericValue) (Values:Mem) : Mem :=
+Fixpoint _initializeFrameValues (la:args) (lg:list GenericValue) (Values:Mem) : Mem :=
 match (la, lg) with
 | ((_, id)::la', g::lg') => updateMem (_initializeFrameValues la' lg' Values) id g
 | _ => Values
 end.
 
-Definition initializeFrameValues (la:list_arg) (lg:list GenericValue): Mem := 
+Definition initializeFrameValues (la:args) (lg:list GenericValue): Mem := 
 _initializeFrameValues la lg (fun _ => None).
 
 Fixpoint opGenericValues2GenericValues (lg:list (option GenericValue)) : list GenericValue :=

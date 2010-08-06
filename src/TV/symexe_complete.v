@@ -43,12 +43,12 @@ Lemma genericvalues__imply__value2Sterm_denote : forall l0 TD lc0 gl0 Mem0 smap1
   smap_denotes_gvmap TD lc0 gl0 Mem0 smap1 lc gl ->
   values2GVs TD l0 lc gl = Some gvs0 ->
   sterms_denote_genericvalues TD lc0 gl0 Mem0 
-    (List.map (value2Sterm smap1) l0) gvs0.
+    (map_list_value (value2Sterm smap1) l0) gvs0.
 Proof.
   induction l0; intros; simpl in *.
     inversion H2; subst; auto.
 
-    remember (getOperandValue TD a lc gl) as ogv.
+    remember (getOperandValue TD v lc gl) as ogv.
     destruct ogv; try solve [inversion H2].
     remember (values2GVs TD l0 lc gl) as ogvs.
     destruct ogvs; try solve [inversion H2].
@@ -336,7 +336,7 @@ Proof.
         intros id' gv' HlookupEnv.
         simpl. 
         destruct (id'==i0); subst.
-          exists (sterm_gep i1 t (value2Sterm (STerms sstate1) v) (List.map (value2Sterm (STerms sstate1)) l0)).
+          exists (sterm_gep i1 t (value2Sterm (STerms sstate1) v) (map_list_value (value2Sterm (STerms sstate1)) l0)).
           split. 
             apply binds_updateSmap_eq; auto.
 

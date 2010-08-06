@@ -289,11 +289,35 @@ Fixpoint getTypeSizeInBits_and_Alignment (TD:layouts) (abi_or_pref:bool) (t:typ)
 
   | typ_struct lt => 
     (* Loop over each of the elements, placing them in memory. *)
-    match (
-      fold_left 
-      (fun struct_op_sz_al sub_op_sz_al =>
-        match (struct_op_sz_al, sub_op_sz_al) with
-        | (Some (struct_sz, struct_al), Some (sub_sz, sub_al)) =>
+    match (getListTypeSizeInBits_and_Alignment TD lt) with  
+    | None => None
+    | (Some (sz, al)) => 
+      (* Empty structures have alignment of 1 byte. *)
+      (* Add padding to the end of the struct so that it could be put in an array
+         and all array elements would be aligned correctly. *)
+       match sz with
+       | 0 => Some (8*(RoundUpAlignment 1 al), al)
+       | _ => Some (8*(RoundUpAlignment sz al), al)
+       end
+    end      
+  | _ => None
+  end
+with getListTypeSizeInBits_and_Alignment (TD:layouts) (lt:list_typ)
+  : option (nat*nat) :=
+  let getTypeStoreSize := 
+      fun typeSizeInBits => ndiv (typeSizeInBits+7) 8 in
+
+  let getTypeAllocSize :=
+      fun typeSizeInBits ABIalignment =>
+      (* Round up to the next alignment boundary *)
+      RoundUpAlignment (getTypeStoreSize typeSizeInBits) ABIalignment in
+
+  match lt with
+  | Nil_list_typ => Some (0, 0)
+  | Cons_list_typ t lt' =>
+    (* getting ABI alignment *) 
+    match (getListTypeSizeInBits_and_Alignment TD lt', getTypeSizeInBits_and_Alignment TD true t) with
+    | (Some (struct_sz, struct_al), Some (sub_sz, sub_al)) =>
           (* Add padding if necessary to align the data element properly. *)
           (* Keep track of maximum alignment constraint. *)
           (* Consume space for this data item *)
@@ -309,22 +333,8 @@ Fixpoint getTypeSizeInBits_and_Alignment (TD:layouts) (abi_or_pref:bool) (t:typ)
               struct_al
             )
           end
-        | _ => None
-        end
-      )
-      (map (getTypeSizeInBits_and_Alignment TD true) lt) (* getting ABI alignment *)
-      (Some (0, 0)) ) with
-    | None => None
-    | (Some (sz, al)) => 
-      (* Empty structures have alignment of 1 byte. *)
-      (* Add padding to the end of the struct so that it could be put in an array
-         and all array elements would be aligned correctly. *)
-       match sz with
-       | 0 => Some (8*(RoundUpAlignment 1 al), al)
-       | _ => Some (8*(RoundUpAlignment sz al), al)
-       end
-    end      
-  | _ => None
+    | _ => None
+    end
   end.
 
 (** abi_or_pref Flag that determines which alignment is returned. true
@@ -438,17 +448,17 @@ match t with
 | _ => None
 end.
 
-Fixpoint _getStructElementOffset (TD:layouts) (ts:list typ) (idx:nat) 
+Fixpoint _getStructElementOffset (TD:layouts) (ts:list_typ) (idx:nat) 
          (struct_sz struct_al : nat) : option nat :=
 match (ts, idx) with
-| (t::nil, 0) => 
+| (Cons_list_typ t Nil_list_typ, 0) => 
         match (getTypeAllocSize TD t, getABITypeAlignment TD t) with
         | (Some sub_sz, Some sub_al) =>
            (* Add padding if necessary to align the data element properly. *)
            Some (RoundUpAlignment struct_sz sub_al)
         | _ => None
         end
-| (t::ts', S idx') =>
+| (Cons_list_typ t ts', S idx') =>
         match (getTypeAllocSize TD t, getABITypeAlignment TD t) with
         | (Some sub_sz, Some sub_al) =>
           (* Add padding if necessary to align the data element properly. *)
@@ -486,11 +496,11 @@ end.
 
 (** getElementContainingOffset - Given a valid offset into the structure,
     return the structure index that contains it. *)
-Fixpoint _getStructElementContainingOffset (TD:layouts) (ts:list typ) (offset:nat)(idx:nat)
+Fixpoint _getStructElementContainingOffset (TD:layouts) (ts:list_typ) (offset:nat)(idx:nat)
          (struct_sz struct_al : nat) : option nat :=
 match ts with
-| nil => None
-| t::ts' =>
+| Nil_list_typ => None
+| Cons_list_typ t ts' =>
         match (getTypeAllocSize TD t, getABITypeAlignment TD t) with
         | (Some sub_sz, Some sub_al) =>
           (* Add padding if necessary to align the data element properly. *)
