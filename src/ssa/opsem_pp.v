@@ -12,37 +12,49 @@ Require Import Coq.Program.Equality.
 Require Import CoqListFacts.
 Require Import Bool.
 Require Import Metatheory.
+Require Import assoclist.
+Require Import ssa_props.
 
 Export LLVMsyntax.
 Export LLVMlib.
 Export LLVMopsem.
 
-(* eq *)
-
-Lemma blockEqB_refl : forall B,
-  blockEqB B B.
-Admitted.
-     
-Lemma productEqB_refl : forall p,
-  productEqB p p.
-Admitted.
-
-Lemma blockEqB_inv : forall B1 B2,
-  blockEqB B1 B2 -> B1 = B2.
-Admitted.
-
-Lemma moduleEqB_inv : forall M M',
-  moduleEqB M M' ->
-  M = M'.
-Admitted.
-
-Lemma productEqB_inv : forall P P',
-  productEqB P P' ->
-  P = P'.
-Admitted.
-
-
 (* prop *)
+
+Lemma updateValuesForNewBlock_uniq : forall l0 lc,
+  uniq lc ->
+  uniq (updateValuesForNewBlock l0 lc).
+Proof.
+  induction l0; intros lc Uniqc; simpl; auto.
+    destruct a.
+    destruct o; auto.
+      apply updateAddAL_uniq; auto.
+Qed.
+
+Lemma switchToNewBasicBlock_uniq : forall B1 B2 lc,
+  uniq lc ->
+  uniq (switchToNewBasicBlock B1 B2 lc).
+Proof.
+  intros B1 B2 lc Uniqc.
+  unfold switchToNewBasicBlock.
+  apply updateValuesForNewBlock_uniq; auto.
+Qed.      
+
+Lemma _initializeFrameValues_init : forall la l0,
+  uniq (_initializeFrameValues la l0 nil).
+Proof.
+  induction la; intros; simpl; auto.
+    destruct a.
+    destruct l0; auto using updateAddAL_uniq.
+Qed.
+
+Lemma initLocals_uniq : forall la ps,
+  uniq (initLocals la ps).
+Proof.
+  intros la ps.
+  unfold initLocals.
+  apply _initializeFrameValues_init; auto.
+Qed.
 
 Lemma getIncomingValuesForBlockFromPHINodes_eq : forall ps l1 ps1 cs1 tmn1 ps2 cs2 tmn2,
   getIncomingValuesForBlockFromPHINodes ps (block_intro l1 ps1 cs1 tmn1) =
@@ -112,327 +124,13 @@ Proof.
     repeat (split; auto).
 Qed.
 
-Lemma InBlocksB_middle : forall lb1 B lb2,
-  InBlocksB B (lb1++B::lb2).
-Proof.
-  induction lb1; intros; simpl; auto.
-    apply orb_true_intro.
-    left. apply blockEqB_refl.
-
-    apply orb_true_intro.
-    right. apply IHlb1.
-Qed. 
-
-Lemma _genLabel2Block_blocks_inv : forall lb2 lb1 lb f l0 l' ps' cs' tmn',
-  genLabel2Block_blocks lb2 (fdef_intro f lb) l0 = Some (block_intro l' ps' cs' tmn') ->
-  lb1++lb2 = lb ->
-  l0 = l' /\
-  blockInFdefB (block_intro l' ps' cs' tmn') (fdef_intro f lb).
-Proof.
-  induction lb2; intros; simpl in *.
-    inversion H.
-
-    unfold mergel2block in H.
-    remember (genLabel2Block_blocks lb2 (fdef_intro f lb) l0) as ob.
-    destruct ob.
-      inversion H; subst. clear H.
-      symmetry in Heqob.
-      apply IHlb2 with (lb1:=lb1++a::nil) in Heqob; simpl_env; auto.
-       
-      unfold genLabel2Block_block in H.
-      destruct a.
-      destruct (l0 == l1); subst.
-        inversion H; subst. clear H.
-        split; auto using InBlocksB_middle.
-
-        inversion H.
-Qed.
-
-Lemma genLabel2Block_blocks_inv : forall lb f l0 l' ps' cs' tmn',
-  genLabel2Block_blocks lb (fdef_intro f lb) l0 = Some (block_intro l' ps' cs' tmn') ->
-  l0 = l' /\
-  blockInFdefB (block_intro l' ps' cs' tmn') (fdef_intro f lb).
-Proof.
-  intros.
-  apply _genLabel2Block_blocks_inv with (lb1:=nil)(lb2:=lb); auto.
-Qed.
-
-
-Lemma lookupBlockViaLabelFromFdef_inv : forall F l0 l' ps' cs' tmn',
-  lookupBlockViaLabelFromFdef F l0 = Some (block_intro l' ps' cs' tmn') ->
-  l0 = l' /\
-  blockInFdefB (block_intro l' ps' cs' tmn') F.
-Proof.
-  intros.
-  unfold lookupBlockViaLabelFromFdef in H.
-  unfold genLabel2Block_fdef in H.
-  destruct F.
-  apply genLabel2Block_blocks_inv; auto.
-Qed. 
-
-Lemma lookupFdefViaIDFromProducts_inv : forall Ps fid F,
-  lookupFdefViaIDFromProducts Ps fid = Some F ->
-  InProductsB (product_fdef F) Ps.
-Proof.
-  induction Ps; intros.
-    simpl in H. inversion H.
-
-    simpl in *.
-    unfold lookupFdefViaIDFromProduct in H.
-    destruct a.
-      apply IHPs in H. auto.
-      apply IHPs in H. auto.
-      destruct (getFdefID f==fid); subst.
-        inversion H; subst.
-        apply orb_true_intro.
-        left. apply productEqB_refl.
-
-        apply IHPs in H. 
-        apply orb_true_intro. auto.
-Qed.
-
-Lemma entryBlockInFdef : forall F B,
-  getEntryBlock F = Some B ->
-  blockInFdefB B F.
-Proof.
-  intros.
-  unfold getEntryBlock in H.
-  destruct F.
-  destruct b; inversion H; subst.
-    simpl. 
-    apply orb_true_intro.
-    left. apply blockEqB_refl.
-Qed.
-
-Lemma blockInSystemModuleFdef_inv : forall B F Ps TD S,
-  blockInSystemModuleFdef B S (module_intro TD Ps) F ->
-  blockInFdefB B F /\
-  InProductsB (product_fdef F) Ps /\
-  moduleInSystem (module_intro TD Ps) S /\
-  productInSystemModuleB (product_fdef F) S (module_intro TD Ps).
-Proof.
-  intros.
-  unfold blockInSystemModuleFdef in H.
-  unfold blockInSystemModuleFdefB in H.
-  unfold productInSystemModuleB in *.
-  unfold productInModuleB in *.
-  apply andb_true_iff in H. destruct H.
-  split; auto.
-  apply andb_true_iff in H0. destruct H0.
-  split; auto.
-  split; auto.
-  eapply andb_true_iff.
-  split; auto.
-Qed.
-
-Lemma blockInSystemModuleFdef_intro : forall B F Ps TD S,
-  blockInFdefB B F ->
-  InProductsB (product_fdef F) Ps ->
-  moduleInSystem (module_intro TD Ps) S ->
-  blockInSystemModuleFdef B S (module_intro TD Ps) F.
-Proof.
-  intros.
-  unfold blockInSystemModuleFdef.
-  unfold blockInSystemModuleFdefB.
-  unfold productInSystemModuleB.
-  unfold productInModuleB.
-  eapply andb_true_iff.
-  split; auto.
-  eapply andb_true_iff.
-  split; auto.
-Qed.  
-
-Lemma entryBlockInSystemBlockFdef : forall TD Ps S fid F B,
-  moduleInSystem (module_intro TD Ps) S ->
-  lookupFdefViaIDFromProducts Ps fid = Some F ->
-  getEntryBlock F = Some B ->
-  blockInSystemModuleFdef B S (module_intro TD Ps) F.
-Proof.
-  intros.
-  apply lookupFdefViaIDFromProducts_inv in H0.
-  apply entryBlockInFdef in H1.
-  apply blockInSystemModuleFdef_intro; auto.
-Qed.
-
-Lemma NotIn_NotInBlocksB : forall lb l0 ps cs tmn,
-  ~ In l0 (getBlocksLabels lb) ->
-  ~ InBlocksB (block_intro l0 ps cs tmn) lb.
-Proof.
-  induction lb; intros; simpl in *.
-    intro J. inversion J.
-
-    destruct a.
-    simpl in *.
-    remember (block_intro l0 ps cs tmn =b= block_intro l1 p c t) as J.
-    destruct J.
-      unfold blockEqB in HeqJ.
-      unfold lEqB in HeqJ.
-      destruct (l0==l1); subst.
-        contradict H; auto.
-        inversion HeqJ.
-
-      intro J.
-      apply H.
-      right.
-      apply orb_prop in J.
-      destruct J as [J | J].
-        inversion J.
-     
-        destruct (@In_dec _ eq_dec l0 (getBlocksLabels lb)) as [J1 | J1]; auto.
-        apply IHlb with (ps:=ps)(cs:=cs)(tmn:=tmn) in J1.
-        rewrite J in J1.
-        contradict J1; auto.
-        unfold is_true. auto.
-Qed.
-
-Lemma InBlocksB_In : forall lb l0 ps cs tmn,
-  InBlocksB (block_intro l0 ps cs tmn) lb ->
-  In l0 (getBlocksLabels lb).
-Proof.
-  intros.
-  destruct (@In_dec _ eq_dec l0 (getBlocksLabels lb)) as [J1 | J1]; auto.
-    apply NotIn_NotInBlocksB with (ps:=ps)(cs:=cs)(tmn:=tmn) in J1.
-    contradict H; auto.
-Qed.
-
-Lemma NoDup_split : forall A (l1 l2:list A),
-  NoDup (l1++l2) ->
-  NoDup l1 /\ NoDup l2.
-Proof.
-  induction l1; intros.
-    simpl in *. 
-    split; auto using NoDup_nil.
- 
-    inversion H; subst.
-    apply IHl1 in H3.
-    destruct H3 as [J1 J2].
-    split; auto.
-      apply NoDup_cons; auto.
-        intro J. apply H2. apply in_or_app; auto.
-Qed.
-
-Lemma InBlocksB_uniq : forall lb l1 ps1 cs1 tmn1 ps2 cs2 tmn2,
-  uniqBlocks lb ->
-  InBlocksB (block_intro l1 ps1 cs1 tmn1) lb ->
-  InBlocksB (block_intro l1 ps2 cs2 tmn2) lb ->
-  ps1 = ps2 /\ cs1 = cs2 /\ tmn1 = tmn2.
-Proof.
-  induction lb; intros.
-    unfold InBlocksB in *.
-    inversion H0.
-
-    inversion H; subst. clear H.
-    simpl in *.
-    destruct a.
-    inversion H2; subst. clear H2.
-    assert (J:=H5).
-    apply NotIn_NotInBlocksB with (ps:=p)(cs:=c)(tmn:=t) in H5.
-    apply orb_prop in H0.
-    apply orb_prop in H1.
-    destruct H0 as [H0 | H0].    
-      apply blockEqB_inv in H0.
-      inversion H0; subst. clear H0.
-      destruct H1 as [H1 | H1].
-        apply blockEqB_inv in H1.
-        inversion H1; subst. clear H1.
-        auto.
-
-        apply InBlocksB_In in H1.
-        contradict H1; auto.
- 
-      destruct H1 as [H1 | H1].
-        apply blockEqB_inv in H1.
-        inversion H1; subst. clear H1.
-        apply InBlocksB_In in H0.
-        contradict H0; auto.
-
-        eapply IHlb; eauto.
-          apply NoDup_split in H3.
-          destruct H3.
-          split; auto.
-Qed.
-
-Lemma blockInFdefB_uniq : forall l1 ps1 cs1 tmn1 ps2 cs2 tmn2 F,
-  uniqFdef F ->
-  blockInFdefB (block_intro l1 ps1 cs1 tmn1) F ->
-  blockInFdefB (block_intro l1 ps2 cs2 tmn2) F ->
-  ps1 = ps2 /\ cs1 = cs2 /\ tmn1 = tmn2.
-Proof.
-  intros.
-  unfold blockInFdefB in *.
-  destruct F.
-  eapply InBlocksB_uniq; eauto.
-Qed.
-
-Lemma blockInSystemModuleFdef_uniq : forall l1 ps1 cs1 tmn1 ps2 cs2 tmn2 S M F,
-  uniqFdef F ->
-  blockInSystemModuleFdef (block_intro l1 ps1 cs1 tmn1) S M F ->
-  blockInSystemModuleFdef (block_intro l1 ps2 cs2 tmn2) S M F ->
-  ps1 = ps2 /\ cs1 = cs2 /\ tmn1 = tmn2.
-Proof.
-  intros.
-  unfold blockInSystemModuleFdef in *.
-  unfold blockInSystemModuleFdefB in *.
-  apply andb_true_iff in H0.
-  apply andb_true_iff in H1.
-  destruct H0.
-  destruct H1.
-  eapply blockInFdefB_uniq; eauto.
-Qed.
-
-Lemma uniqProducts__uniqFdef : forall Ps F,
-  uniqProducts Ps ->
-  InProductsB (product_fdef F) Ps ->
-  uniqFdef F.
-Proof.
-  induction Ps; intros.
-    inversion H0.
-    
-    simpl in *.
-    destruct H.
-    apply orb_prop in H0.
-    destruct H0; eauto.
-      apply productEqB_inv in H0. subst.
-      simpl in H. auto.
-Qed.
-
-Lemma uniqSystem__uniqFdef : forall S F M,
-  uniqSystem S ->
-  productInSystemModuleB (product_fdef F) S M ->
-  uniqFdef F.
-Proof.
-  induction S; intros.
-    unfold productInSystemModuleB in H0.
-    apply andb_true_iff in H0.
-    destruct H0.
-    unfold moduleInSystemB in H0.
-    inversion H0.
-
-    unfold productInSystemModuleB in H0.
-    apply andb_true_iff in H0.
-    destruct H0.
-    unfold moduleInSystemB in H0.
-    inversion H0. clear H0.
-    apply orb_prop in H3.
-    simpl in H.
-    destruct H as [J1 J2].
-    destruct H3 as [H3 | H3].
-      apply moduleEqB_inv in H3. subst.
-      destruct a.
-      simpl in H1. simpl in J1. destruct J1.
-      eapply uniqProducts__uniqFdef; eauto.
-
-      apply IHS with (M:=M); auto.
-        unfold productInSystemModuleB.
-        eapply andb_true_iff; auto.
-Qed.
-
 (* preservation *)
 
 Definition dbInsn_preservation_prop state1 state2 tr
   (db:dbInsn state1 state2 tr) :=
   forall S TD Ps F l ps cs tmn lc arg als ECs gl Mem cs0,
   state1 = (mkState S TD Ps ((mkEC F (block_intro l ps cs0 tmn) cs tmn lc arg als)::ECs) gl Mem) ->
+  uniqSystem S ->
   blockInSystemModuleFdef (block_intro l ps cs0 tmn) S (module_intro TD Ps) F ->
   exists l', exists ps', exists cs', exists tmn', 
   exists lc', exists als', exists gl', exists Mem', exists cs0',
@@ -443,13 +141,16 @@ Definition dbop_preservation_prop state1 state2 tr
   forall S TD Ps F l ps cs tmn lc arg als ECs gl Mem l' ps' cs' tmn' lc' als' gl' Mem' cs0 cs0',
   state1 = (mkState S TD Ps ((mkEC F (block_intro l ps cs0 tmn) cs tmn lc arg als)::ECs) gl Mem) ->
   state2 = (mkState S TD Ps ((mkEC F (block_intro l' ps' cs0' tmn') cs' tmn' lc' arg als')::ECs) gl' Mem') ->
+  uniqSystem S ->
   blockInSystemModuleFdef (block_intro l ps cs0 tmn) S (module_intro TD Ps) F ->
   blockInSystemModuleFdef (block_intro l' ps' cs0' tmn') S (module_intro TD Ps) F.
 Definition dbFdef_preservation_prop fid rt lp S TD Ps ECs lc gl Mem lc' gl' als' Mem' B' Rid oResult tr
   (db:dbFdef fid rt lp S TD Ps ECs lc gl Mem lc' gl' als' Mem' B' Rid oResult tr) :=
+  uniqSystem S ->
   moduleInSystem (module_intro TD Ps) S ->
   exists F, 
     lookupFdefViaIDFromProducts Ps fid = Some F /\
+    uniqFdef F /\
     blockInSystemModuleFdef B' S (module_intro TD Ps) F.
 
 Lemma db_preservation : 
@@ -477,10 +178,12 @@ Case "dbBranch".
   exists l'. exists ps'. exists cs'. exists tmn'.
   exists (switchToNewBasicBlock (block_intro l' ps' cs' tmn') (block_intro l0 ps cs0 (insn_br bid Cond l1 l2)) lc0). exists als0. exists gl0. exists Mem1.
   exists cs'. split; auto.
-  apply andb_true_iff in H0.
-  destruct H0.
+  apply andb_true_iff in H1.
+  destruct H1.
   eapply andb_true_iff.
   split; auto.
+    assert (uniqFdef F0) as UniqF0.
+      eapply uniqSystem__uniqFdef with (S:=S0); eauto.
     symmetry in e0.
     destruct c;
       apply lookupBlockViaLabelFromFdef_inv in e0;
@@ -491,12 +194,14 @@ Case "dbBranch_uncond".
   exists l'. exists ps'. exists cs'. exists tmn'.
   exists (switchToNewBasicBlock (block_intro l' ps' cs' tmn') (block_intro l1 ps cs0 (insn_br_uncond bid l0)) lc0). exists als0. exists gl0. exists Mem1.
   exists cs'. split; auto.
-  apply andb_true_iff in H0.
-  destruct H0.
+  apply andb_true_iff in H1.
+  destruct H1.
   eapply andb_true_iff.
   split; auto.
+    assert (uniqFdef F0) as UniqF0.
+      eapply uniqSystem__uniqFdef with (S:=S0); eauto.
     symmetry in e.
-    apply lookupBlockViaLabelFromFdef_inv in e.
+    apply lookupBlockViaLabelFromFdef_inv in e; auto.
     destruct e; auto.
 
 Case "dbMalloc".
@@ -533,24 +238,29 @@ Case "dbop_nil".
   inversion H0; subst. auto.
   
 Case "dbop_cons".
-  apply H with (cs1:=cs)(lc0:=lc)(arg:=arg0)(als0:=als)(ECs0:=ECs)(gl0:=gl)(Mem:=Mem0) in H3; auto.
+  apply H with (cs1:=cs)(lc0:=lc)(arg:=arg0)(als0:=als)(ECs0:=ECs)(gl0:=gl)(Mem:=Mem0) in H4; auto.
   clear H.
-  destruct H3 as [l1 [ps1 [cs1 [tmn1 [lc1 [als1 [gl1 [Mem1 [cs1' [EQ H3]]]]]]]]]]; subst.
+  destruct H4 as [l1 [ps1 [cs1 [tmn1 [lc1 [als1 [gl1 [Mem1 [cs1' [EQ H4]]]]]]]]]]; subst.
   eapply H0; eauto.
 
 Case "dbFdef_func".
   exists (fdef_intro (fheader_intro rt fid la) lb).
   split; auto.
+  split; auto.
+    eapply lookupFdefViaIDFromProducts_uniq; eauto.
     eapply H; eauto using entryBlockInSystemBlockFdef.
 
 Case "dbFdef_proc".
   exists (fdef_intro (fheader_intro rt fid la) lb).
   split; auto.
+  split; auto.
+    eapply lookupFdefViaIDFromProducts_uniq; eauto.
     eapply H; eauto using entryBlockInSystemBlockFdef.
 Qed.
 
 Lemma _dbInsn_preservation : forall state2 tr S TD Ps F l ps cs tmn lc arg als ECs gl Mem cs0,
   dbInsn ((mkState S TD Ps ((mkEC F (block_intro l ps cs0 tmn) cs tmn lc arg als)::ECs) gl Mem)) state2 tr ->
+  uniqSystem S ->
   blockInSystemModuleFdef (block_intro l ps cs0 tmn) S (module_intro TD Ps) F ->
   exists l', exists ps', exists cs', exists tmn', 
   exists lc', exists als', exists gl', exists Mem', exists cs0',
@@ -569,6 +279,7 @@ Lemma dbInsn_preservation : forall tr S TD Ps F l ps cs tmn lc arg als ECs gl Me
     ((mkState S TD Ps ((mkEC F (block_intro l ps cs0 tmn) cs tmn lc arg als)::ECs) gl Mem)) 
     (mkState S TD Ps ((mkEC F (block_intro l' ps' cs0' tmn') cs' tmn' lc' arg als')::ECs) gl' Mem')
     tr ->
+  uniqSystem S ->
   blockInSystemModuleFdef (block_intro l ps cs0 tmn) S (module_intro TD Ps) F ->
   blockInSystemModuleFdef (block_intro l' ps' cs0' tmn') S (module_intro TD Ps) F.
 Proof.
@@ -583,6 +294,7 @@ Lemma dbop_preservation : forall tr S TD Ps F l ps cs tmn lc arg als ECs gl Mem 
     (mkState S TD Ps ((mkEC F (block_intro l ps cs0 tmn) cs tmn lc arg als)::ECs) gl Mem)
     (mkState S TD Ps ((mkEC F (block_intro l' ps' cs0' tmn') cs' tmn' lc' arg als')::ECs) gl' Mem')
     tr ->
+  uniqSystem S ->
   blockInSystemModuleFdef (block_intro l ps cs0 tmn) S (module_intro TD Ps) F ->
   blockInSystemModuleFdef (block_intro l' ps' cs0' tmn') S (module_intro TD Ps) F.
 Proof.
@@ -594,9 +306,11 @@ Qed.
 
 Lemma dbFdef_preservation : forall fid rt lp S TD Ps ECs lc gl Mem lc' gl' als' Mem' B' Rid oResult tr,
   dbFdef fid rt lp S TD Ps ECs lc gl Mem lc' gl' als' Mem' B' Rid oResult tr ->
+  uniqSystem S ->
   moduleInSystem (module_intro TD Ps) S ->
   exists F, 
     lookupFdefViaIDFromProducts Ps fid = Some F /\
+    uniqFdef F /\
     blockInSystemModuleFdef B' S (module_intro TD Ps) F.
 Proof.
   intros.

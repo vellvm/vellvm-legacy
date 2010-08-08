@@ -10,6 +10,7 @@ Require Import monad.
 Require Import trace.
 Require Import Metatheory.
 Require Import genericvalues.
+Require Import assoclist.
 
 Module LLVMopsem.
 
@@ -80,16 +81,16 @@ match PNs with
 | PN::PNs => 
   match (getIdViaBlockFromPHINode PN b) with
   | None => getIncomingValuesForBlockFromPHINodes PNs b locals
-  | Some id => (id, lookupGVMap locals id)::getIncomingValuesForBlockFromPHINodes PNs b locals
+  | Some id => (id, lookupAL _ locals id)::getIncomingValuesForBlockFromPHINodes PNs b locals
   end
 end.
 
 (* This function is used by switchToNewBasicBlock, which only updates local variables (from PHI) *)
-Fixpoint updateValusForNewBlock (ResultValues:list (id*(option GenericValue))) (locals:GVMap) : GVMap :=
+Fixpoint updateValuesForNewBlock (ResultValues:list (id*(option GenericValue))) (locals:GVMap) : GVMap :=
 match ResultValues with
 | nil => locals
-| (id, Some v)::ResultValues' => updateAddGVMap (updateValusForNewBlock ResultValues' locals) id v
-| _::ResultValues' => updateValusForNewBlock ResultValues' locals
+| (id, Some v)::ResultValues' => updateAddAL _ (updateValuesForNewBlock ResultValues' locals) id v
+| _::ResultValues' => updateValuesForNewBlock ResultValues' locals
 end.
 
 (*
@@ -109,7 +110,7 @@ end.
 Definition switchToNewBasicBlock (Dest:block) (PrevBB:block) (locals:GVMap): GVMap :=
   let PNs := getPHINodesFromBlock Dest in
   let ResultValues := getIncomingValuesForBlockFromPHINodes PNs PrevBB locals in
-  updateValusForNewBlock ResultValues locals.
+  updateValuesForNewBlock ResultValues locals.
 
 (***************************************************************)
 (* deterministic small-step *)
@@ -293,16 +294,16 @@ match Ps with
      match (malloc TD Mem tsz align) with
      | Some (Mem', mb) => 
        do Mem'' <- mstore TD Mem' (mb, 0) t gv;
-       ret (updateAddGVMap gl id (ptr2GV TD (mb, 0)), Mem'')
+       ret (updateAddAL _ gl id (ptr2GV TD (mb, 0)), Mem'')
      | None => None
      end
 | (product_gvar (gvar_intro id t (value_id id') align))::Ps' =>
   do tsz <- getTypeAllocSize TD t;
-  do gv <- (lookupGVMap gl id');
+  do gv <- (lookupAL _ gl id');
      match (malloc TD Mem tsz align) with
      | Some (Mem', mb) => 
        do Mem'' <- mstore TD Mem' (mb, 0) t gv;
-       ret (updateAddGVMap gl id (ptr2GV TD (mb, 0)), Mem'')
+       ret (updateAddAL _ gl id (ptr2GV TD (mb, 0)), Mem'')
      | None => None
      end
 | _::Ps' => genGlobalAndInitMem TD Ps' gl Mem

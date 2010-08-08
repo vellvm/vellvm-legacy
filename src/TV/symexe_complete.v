@@ -4,7 +4,7 @@ Add LoadPath "../ssa".
 Add LoadPath "../../../theory/metatheory".
 Require Import ssa.
 Require Import List.
-Require Export targetdata.
+Require Import targetdata.
 Require Import monad.
 Require Import Arith.
 Require Import Metatheory.
@@ -13,6 +13,7 @@ Require Import genericvalues.
 Require Import ssa_dynamic.
 Require Import trace.
 Require Import symexe_def.
+Require Import assoclist.
 
 Export SimpleSE.
 
@@ -80,7 +81,7 @@ Lemma se_cmd__denotes__op_cmd__case2 : forall lc gl i0 gv3 lc' gl' id' smap1 TD 
   smap_denotes_gvmap TD lc0 gl0 Mem0 smap1 lc gl ->
   lookupEnv lc' gl' id' = Some gv' ->
   id' <> i0 ->
-  exists st', binds id' st' (updateSmap smap1 i0 st0) /\ 
+  exists st', binds id' st' (updateAddAL _ smap1 i0 st0) /\ 
               sterm_denotes_genericvalue TD lc0 gl0 Mem0 st' gv'.
 Proof.
   intros lc gl i0 gv3 lc' gl' id' smap1 TD lc0 gl0 Mem0 gv' st0 H25 Hsterm_denotes HlookupEnv n.
@@ -90,7 +91,7 @@ Proof.
   apply J2 in HlookupEnv; auto.
   destruct HlookupEnv as [st' [J3 J4]].
   exists st'. split; auto.
-    apply binds_updateSmap_neq; auto.
+    apply binds_updateAddAL_neq; auto.
 Qed.
 
 Lemma op_cmd__satisfies__se_cmd : forall TD c nc lc als gl lc0 gl0 als0 Mem0 lc' als' gl' Mem1 Mem2 sstate1 tr tr1,
@@ -112,7 +113,7 @@ Proof.
         intros id' st' Hbinds.
         simpl in Hbinds. simpl_env in Hbinds.
         analyze_binds Hbinds.
-        apply updateSmap_inversion in Hbinds; auto.
+        apply updateAddAL_inversion in Hbinds; auto.
         destruct Hbinds as [[nEQ Hbinds] | [EQ1 EQ2]]; subst.
           eapply se_cmd__denotes__op_cmd__case1; eauto.
 
@@ -128,7 +129,7 @@ Proof.
         destruct (id'==i0); subst.
           exists (sterm_bop b s (value2Sterm (STerms sstate1) v) (value2Sterm (STerms sstate1) v0)).
           split. 
-            apply binds_updateSmap_eq; auto.
+            apply binds_updateAddAL_eq; auto.
 
             apply lookupEnv_updateEnv_eq in H15; auto.
             rewrite H15 in HlookupEnv.
@@ -145,7 +146,7 @@ Proof.
         intros id' st' Hbinds.
         simpl in Hbinds. simpl_env in Hbinds.
         analyze_binds Hbinds.
-        apply updateSmap_inversion in Hbinds; auto.
+        apply updateAddAL_inversion in Hbinds; auto.
         destruct Hbinds as [[nEQ Hbinds] | [EQ1 EQ2]]; subst.
           eapply se_cmd__denotes__op_cmd__case1; eauto.
 
@@ -159,7 +160,7 @@ Proof.
         destruct (id'==i0); subst.
           exists (sterm_extractvalue t (value2Sterm (STerms sstate1) v) l0).
           split. 
-            apply binds_updateSmap_eq; auto.
+            apply binds_updateAddAL_eq; auto.
 
             apply lookupEnv_updateEnv_eq in H15; auto.
             rewrite H15 in HlookupEnv.
@@ -174,7 +175,7 @@ Proof.
         intros id' st' Hbinds.
         simpl in Hbinds. simpl_env in Hbinds.
         analyze_binds Hbinds.
-        apply updateSmap_inversion in Hbinds; auto.
+        apply updateAddAL_inversion in Hbinds; auto.
         destruct Hbinds as [[nEQ Hbinds] | [EQ1 EQ2]]; subst.
           eapply se_cmd__denotes__op_cmd__case1; eauto.
 
@@ -188,7 +189,7 @@ Proof.
         destruct (id'==i0); subst.
           exists (sterm_insertvalue t (value2Sterm(STerms sstate1) v) t0 (value2Sterm (STerms sstate1) v0) l0).
           split. 
-            apply binds_updateSmap_eq; auto.
+            apply binds_updateAddAL_eq; auto.
 
             apply lookupEnv_updateEnv_eq in H18; auto.
             rewrite H18 in HlookupEnv.
@@ -203,7 +204,7 @@ Proof.
         intros id' st' Hbinds.
         simpl in Hbinds. simpl_env in Hbinds.
         analyze_binds Hbinds.
-        apply updateSmap_inversion in Hbinds; auto.
+        apply updateAddAL_inversion in Hbinds; auto.
         destruct Hbinds as [[nEQ Hbinds] | [EQ1 EQ2]]; subst.
           eapply se_cmd__denotes__op_cmd__case1; eauto.
 
@@ -218,7 +219,7 @@ Proof.
         destruct (id'==i0); subst.
           exists (sterm_malloc (SMem sstate1) t s a).
           split. 
-            apply binds_updateSmap_eq; auto.
+            apply binds_updateAddAL_eq; auto.
 
             apply lookupEnv_updateEnv_eq in H15; auto.
             rewrite H15 in HlookupEnv.
@@ -243,7 +244,7 @@ Proof.
         intros id' st' Hbinds.
         simpl in Hbinds. simpl_env in Hbinds.
         analyze_binds Hbinds.
-        apply updateSmap_inversion in Hbinds; auto.
+        apply updateAddAL_inversion in Hbinds; auto.
         destruct Hbinds as [[nEQ Hbinds] | [EQ1 EQ2]]; subst.
           eapply se_cmd__denotes__op_cmd__case1; eauto.
 
@@ -258,7 +259,7 @@ Proof.
         destruct (id'==i0); subst.
           exists (sterm_alloca (SMem sstate1) t s a).
           split. 
-            apply binds_updateSmap_eq; auto.
+            apply binds_updateAddAL_eq; auto.
 
             apply lookupEnv_updateEnv_eq in H15; auto.
             rewrite H15 in HlookupEnv.
@@ -275,7 +276,7 @@ Proof.
         intros id' st' Hbinds.
         simpl in Hbinds. simpl_env in Hbinds.
         analyze_binds Hbinds.
-        apply updateSmap_inversion in Hbinds; auto.
+        apply updateAddAL_inversion in Hbinds; auto.
         destruct Hbinds as [[nEQ Hbinds] | [EQ1 EQ2]]; subst.
           eapply se_cmd__denotes__op_cmd__case1; eauto.
 
@@ -291,7 +292,7 @@ Proof.
         destruct (id'==i0); subst.
           exists (sterm_load (SMem sstate1) t (value2Sterm (STerms sstate1) v)).
           split. 
-            apply binds_updateSmap_eq; auto.
+            apply binds_updateAddAL_eq; auto.
 
             apply lookupEnv_updateEnv_eq in H14; auto.
             rewrite H14 in HlookupEnv.
@@ -317,7 +318,7 @@ Proof.
         intros id' st' Hbinds.
         simpl in Hbinds. simpl_env in Hbinds.
         analyze_binds Hbinds.
-        apply updateSmap_inversion in Hbinds; auto.
+        apply updateAddAL_inversion in Hbinds; auto.
         apply getOperandPtr_inversion in H14.
         destruct H14 as [gv0 [J1 J2]].
         destruct Hbinds as [[nEQ Hbinds] | [EQ1 EQ2]]; subst.
@@ -338,7 +339,7 @@ Proof.
         destruct (id'==i0); subst.
           exists (sterm_gep i1 t (value2Sterm (STerms sstate1) v) (map_list_value (value2Sterm (STerms sstate1)) l0)).
           split. 
-            apply binds_updateSmap_eq; auto.
+            apply binds_updateAddAL_eq; auto.
 
             apply lookupEnv_updateEnv_eq in H16; auto.
             rewrite H16 in HlookupEnv.
@@ -359,7 +360,7 @@ Proof.
         intros id' st' Hbinds.
         simpl in Hbinds. simpl_env in Hbinds.
         analyze_binds Hbinds.
-        apply updateSmap_inversion in Hbinds; auto.
+        apply updateAddAL_inversion in Hbinds; auto.
         destruct Hbinds as [[nEQ Hbinds] | [EQ1 EQ2]]; subst.
           eapply se_cmd__denotes__op_cmd__case1; eauto.
 
@@ -375,7 +376,7 @@ Proof.
         destruct (id'==i0); subst.
           exists (sterm_ext e t (value2Sterm (STerms sstate1) v) t0).
           split. 
-            apply binds_updateSmap_eq; auto.
+            apply binds_updateAddAL_eq; auto.
 
             apply lookupEnv_updateEnv_eq in H15; auto.
             rewrite H15 in HlookupEnv.
@@ -392,7 +393,7 @@ Proof.
         intros id' st' Hbinds.
         simpl in Hbinds. simpl_env in Hbinds.
         analyze_binds Hbinds.
-        apply updateSmap_inversion in Hbinds; auto.
+        apply updateAddAL_inversion in Hbinds; auto.
         destruct Hbinds as [[nEQ Hbinds] | [EQ1 EQ2]]; subst.
           eapply se_cmd__denotes__op_cmd__case1; eauto.
 
@@ -408,7 +409,7 @@ Proof.
         destruct (id'==i0); subst.
           exists (sterm_cast c t (value2Sterm (STerms sstate1) v) t0).
           split. 
-            apply binds_updateSmap_eq; auto.
+            apply binds_updateAddAL_eq; auto.
 
             apply lookupEnv_updateEnv_eq in H15; auto.
             rewrite H15 in HlookupEnv.
@@ -425,7 +426,7 @@ Proof.
         intros id' st' Hbinds.
         simpl in Hbinds. simpl_env in Hbinds.
         analyze_binds Hbinds.
-        apply updateSmap_inversion in Hbinds; auto.
+        apply updateAddAL_inversion in Hbinds; auto.
         destruct Hbinds as [[nEQ Hbinds] | [EQ1 EQ2]]; subst.
           eapply se_cmd__denotes__op_cmd__case1; eauto.
 
@@ -441,7 +442,7 @@ Proof.
         destruct (id'==i0); subst.
           exists (sterm_icmp c t (value2Sterm (STerms sstate1) v) (value2Sterm (STerms sstate1) v0)).
           split. 
-            apply binds_updateSmap_eq; auto.
+            apply binds_updateAddAL_eq; auto.
 
             apply lookupEnv_updateEnv_eq in H15; auto.
             rewrite H15 in HlookupEnv.
@@ -458,7 +459,7 @@ Proof.
         intros id' st' Hbinds.
         simpl in Hbinds. simpl_env in Hbinds.
         analyze_binds Hbinds.
-        apply updateSmap_inversion in Hbinds; auto.
+        apply updateAddAL_inversion in Hbinds; auto.
         destruct Hbinds as [[nEQ Hbinds] | [EQ1 EQ2]]; subst.
           destruct cond0; eapply se_cmd__denotes__op_cmd__case1; eauto.
 
@@ -478,7 +479,7 @@ Proof.
         destruct (id'==i0); subst.
           exists (sterm_select (value2Sterm (STerms sstate1) v) t (value2Sterm (STerms sstate1) v0) (value2Sterm (STerms sstate1) v1)).
           split. 
-            apply binds_updateSmap_eq; auto.
+            apply binds_updateAddAL_eq; auto.
 
             apply getOperandInt_inversion in H14. destruct H14 as [gv5 [J1 J2]].
             apply sterm_select_denotes with (c0:=cond0)(gv0:=gv5)(gv1:=gv1)(gv2:=gv2); eauto using genericvalue__implies__value2Sterm_denotes.

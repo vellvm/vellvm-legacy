@@ -22,6 +22,7 @@ Require Import Coq.Program.Wf.
 Require Import Omega.
 Require Import monad.
 Require Import Decidable.
+Require Import assoclist.
 
 Module LLVMlib.
 
@@ -922,45 +923,36 @@ lookupTypViaIDFromModules s id0.
 (**********************************)
 (* SSA. *)
 
-  Definition l2block := l -> option block.
+  Definition l2block := list (l*block).
 
-  Definition mergel2block (lb1:l2block) (lb2:l2block) : l2block :=
-  fun l0 =>
-  match (lb1 l0, lb2 l0) with
-  | (Some b1, _) => Some b1
-  | (_, Some b2) => Some b2
-  | (_, _) => None 
-  end.
-
-  Definition genLabel2Block_block (b:block) (f:fdef) : l2block :=
+  Definition genLabel2Block_block (b:block) : l2block :=
   match b with
-  | block_intro l _ _ _ => fun l' => 
-    if eq_dec l' l then Some b else None
+  | block_intro l _ _ _ => (l,b)::nil
   end.  
 
-  Fixpoint genLabel2Block_blocks (bs:blocks) (f:fdef) : l2block :=
+  Fixpoint genLabel2Block_blocks (bs:blocks) : l2block :=
   match bs with 
-  | nil => fun _ => None
-  | b::bs' => mergel2block (genLabel2Block_blocks bs' f) (genLabel2Block_block b f)
+  | nil => nil
+  | b::bs' => (genLabel2Block_block b)++(genLabel2Block_blocks bs')
   end.
 
   Definition genLabel2Block_fdef (f:fdef) : l2block := 
   match f with
-  | fdef_intro fheader blocks => genLabel2Block_blocks blocks f
+  | fdef_intro fheader blocks => genLabel2Block_blocks blocks
   end.
 
   Fixpoint genLabel2Block_product (p:product) : l2block :=
   match p with 
-  | product_gvar g => fun _ => None
+  | product_gvar g => nil
   | product_fdef f => (genLabel2Block_fdef f)
-  | product_fdec f => fun _ => None 
+  | product_fdec f => nil
   (*  | product_namedtype nt => fun _ => None *)
   end.
 
   Fixpoint genLabel2Block_products (ps:products) : l2block :=
   match ps with
-  | nil => fun _ => None
-  | p::ps' => mergel2block (genLabel2Block_products ps') (genLabel2Block_product p)
+  | nil => nil
+  | p::ps' => (genLabel2Block_product p)++(genLabel2Block_products ps')
   end.
 
   Definition genLabel2Block (m: module) : l2block :=
@@ -986,16 +978,16 @@ lookupTypViaIDFromModules s id0.
   end.  
 
   Definition lookupBlockViaLabelFromFdef (f:fdef) (l0:l) : option block :=
-  genLabel2Block_fdef f l0.  
+  lookupAL _ (genLabel2Block_fdef f) l0.  
 
   Definition lookupBlockViaLabelFromModule (m:module) (l0:l) : option block :=
-  genLabel2Block m l0.  
+  lookupAL _ (genLabel2Block m) l0.  
 
   Fixpoint lookupBlockViaLabelFromSystem (s:system) (l0:l) : option block :=
   match s with 
   | nil => None
   | m::s' =>
-    match (genLabel2Block m l0) with
+    match (lookupAL _ (genLabel2Block m) l0) with
     | Some b => Some b
     | None => lookupBlockViaLabelFromSystem s' l0
     end  
@@ -1313,7 +1305,7 @@ lookupTypViaIDFromModules s id0.
   match ls0 with
   | nil => nil
   | l0::ls0' => 
-    match (l2b l0) with
+    match (lookupAL _ l2b l0) with
     | None => getBlocksFromLabels ls0' l2b
     | Some b => b::getBlocksFromLabels ls0' l2b
     end

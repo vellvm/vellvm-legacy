@@ -4,7 +4,7 @@ Add LoadPath "../ssa".
 Add LoadPath "../../../theory/metatheory".
 Require Import ssa.
 Require Import List.
-Require Export targetdata.
+Require Import targetdata.
 Require Import monad.
 Require Import Arith.
 Require Import Metatheory.
@@ -12,6 +12,9 @@ Require Import ssa_mem.
 Require Import genericvalues.
 Require Import ssa_dynamic.
 Require Import trace.
+Require Import assoclist.
+Require Import ssa_props.
+Require Import CoqListFacts.
 
 Export LLVMsyntax.
 Export LLVMlib.
@@ -362,19 +365,24 @@ Lemma dbCmd_eqEnv : forall TD c lc1  als1 gl1 Mem1 lc2 als2 gl2 Mem2 tr lc2' gl2
   dbCmd TD lc1 als1 gl1 Mem1 c lc2 als2 gl2 Mem2 tr ->
   eqEnv lc2 gl2 lc2' gl2' ->
   dbCmd TD lc1 als1 gl1 Mem1 c lc2' als2 gl2' Mem2 tr.
+Proof.
+  intros TD c lc1  als1 gl1 Mem1 lc2 als2 gl2 Mem2 tr lc2' gl2' HdbCmd EqEnv.
+  (dbCmd_cases (inversion HdbCmd) Case); subst.
+    eapply dbBop; eauto.
+
+Lemma updateEnv_eqEnv : forall lc gl lc1 gl1 lc2 gl2 id0 gv0,
+  updateEnv lc gl id0 gv0 = (lc1, gl1) ->
+  eqEnv lc1 gl1 lc2 gl2 ->
+  updateEnv lc gl id0 gv0 = (lc2, gl2).
+Proof.
+Admitted.
+
 Admitted.
 
 Lemma dbCmds_eqEnv : forall TD cs lc1 als1 gl1 Mem1 lc2 als2 gl2 Mem2 tr lc2' gl2',
   dbCmds TD lc1 als1 gl1 Mem1 cs lc2 als2 gl2 Mem2 tr ->
   eqEnv lc2 gl2 lc2' gl2' ->
   dbCmds TD lc1 als1 gl1 Mem1 cs lc2' als2 gl2' Mem2 tr.
-Admitted.
-
-Lemma dbCmds_uniq : forall TD cs lc1 als1 gl1 Mem1 lc2 als2 gl2 Mem2 tr,
-  uniq gl1 ->
-  uniq lc1 ->
-  dbCmds TD lc1 als1 gl1 Mem1 cs lc2 als2 gl2 Mem2 tr ->
-  uniq gl2 /\ uniq lc2.
 Admitted.
 
 (* nonbranching cmd *)
@@ -434,6 +442,13 @@ match nbs with
 | (mkNB c nc)::nbs' =>c::nbranchs2cmds nbs'
 end.
 
+Lemma nbranchs2cmds_app : forall nbs1 nbs2,
+  nbranchs2cmds (nbs1++nbs2) = nbranchs2cmds nbs1 ++ nbranchs2cmds nbs2.
+Proof.
+  induction nbs1; intros; auto.
+    simpl. destruct a. rewrite IHnbs1. auto.
+Qed.
+
 Definition dbCmds2nbranchs : forall cs TD lc als gl Mem1 lc' als' gl' Mem2 tr, 
   dbCmds TD lc als gl Mem1 cs lc' als' gl' Mem2 tr ->
   exists nbs, cmds2nbranchs cs = Some nbs.
@@ -478,18 +493,619 @@ Proof.
     exists notcall0. auto. 
 Qed.
 
+(* cmd2sbs *)
+
+Record subblock := mkSB
+{
+  NBs : list nbranch;
+  call_cmd : cmd;
+  call_cmd_isCall : Instruction.isCallInst call_cmd = true
+}.
+
+
+Fixpoint cmds2sbs (cs:cmds) : (list subblock*list nbranch) :=
+match cs with
+| nil => (nil,nil)
+| c::cs' =>
+  match (isCallInst_dec c) with
+  | left isnotcall => 
+    match (cmds2sbs cs') with
+    | (nil, nbs0) => (nil, mkNB c isnotcall::nbs0) 
+    | (mkSB nbs call0 iscall0::sbs', nbs0) => 
+      (mkSB (mkNB c isnotcall::nbs) call0 iscall0::sbs', nbs0) 
+    end
+  | right iscall => 
+    match (cmds2sbs cs') with
+    | (sbs, nbs0) => (mkSB nil c iscall::sbs, nbs0) 
+    end
+  end
+end.
+
+
+Lemma cmds2sbs_nil_inv : forall cs,
+  cmds2sbs cs = (nil, nil) ->
+  cs = nil.
+Proof.
+  destruct cs; intros; auto.
+    simpl in H.
+    destruct (isCallInst_dec c).
+      destruct (cmds2sbs cs).
+      destruct l0.
+        inversion H.
+        destruct s. inversion H.
+      destruct (cmds2sbs cs).
+      inversion H.
+Qed.
+
+Lemma cmds2sb_inv : forall cs sb,
+  cmds2sbs cs = (sb::nil, nil) ->
+  exists cs', exists call0,
+    cs = cs'++call0::nil /\
+    cmds2sbs cs' = (nil, NBs sb) /\
+    call_cmd sb = call0.
+Proof.
+  induction cs; intros; simpl in *.
+    inversion H.
+
+    remember (cmds2sbs cs) as R.
+    remember (isCallInst_dec a) as R'.
+    destruct R'.
+      destruct R.
+      destruct l0.
+        inversion H.
+
+        destruct s. inversion H; subst. clear H.
+        destruct (@IHcs (mkSB NBs0 call_cmd0 call_cmd_isCall0)) as [cs' [call0 [J1 [J2 J3]]]]; subst; auto.
+        clear IHcs.
+        simpl in *.
+        exists (a::cs').
+        exists (call_cmd0).
+        split; auto.
+        split; auto.
+          simpl.
+          rewrite J2.
+          rewrite <- HeqR'. auto.
+
+      destruct R.
+      inversion H; subst. clear H.
+      symmetry in HeqR.
+      apply cmds2sbs_nil_inv in HeqR. subst.
+      exists nil. exists a.
+      split; auto.
+Qed.
+
+Definition dbCmds__cmds2nbs : forall TD lc als gl Mem1 cs lc' als' gl' Mem2 tr, 
+  dbCmds TD lc als gl Mem1 cs lc' als' gl' Mem2 tr ->
+  exists nbs, cmds2sbs cs = (nil, nbs).
+Proof.
+  intros.
+  induction H; simpl.
+    exists nil. auto.
+
+    destruct IHdbCmds as [nbs J].
+    destruct (isCallInst_dec c).
+      rewrite J. exists (mkNB c e::nbs). auto.
+
+      apply dbCmd_isNotCallInst in H.
+      rewrite e in H. inversion H.
+Qed.
+
+Lemma dbCall_isCallInst : forall S TD Ps lc gl Mem1 c lc' gl' Mem2 tr,
+  dbCall S TD Ps lc gl Mem1 c lc' gl' Mem2 tr ->
+  Instruction.isCallInst c = true.
+Proof.
+  intros S TD Ps lc gl Mem1 c lc' gl' Mem2 tr HdbCall.
+  induction HdbCall; auto.
+Qed.
+
+Lemma cmdscall2sbs : forall cs call0 nbs
+  (isCall0:Instruction.isCallInst call0=true),
+  cmds2sbs cs = (nil, nbs) ->
+  isCallInst_dec call0 = right isCall0 ->
+  cmds2sbs (cs++call0::nil) = (mkSB nbs call0 isCall0::nil, nil).
+Proof.
+  induction cs; intros; simpl in *.
+    inversion H; subst.
+    rewrite H0. auto.
+
+    destruct (isCallInst_dec a).
+      remember (cmds2sbs cs) as R.
+      destruct R.
+      destruct l0.
+        inversion H; subst. clear H.
+        apply IHcs with (nbs:=l1) in H0; auto.
+        rewrite H0; auto.
+     
+        destruct s. inversion H.
+
+      destruct (cmds2sbs cs).
+      inversion H.
+Qed.
+
+Lemma dbSubblock__cmds2sb : forall S TD Ps lc1 als1 gl1 Mem1 cs lc2 als2 gl2 Mem2 tr,
+  dbSubblock S TD Ps lc1 als1 gl1 Mem1 cs lc2 als2 gl2 Mem2 tr ->
+  exists sb, cmds2sbs cs = (sb::nil, nil).
+Proof.
+  intros.
+  inversion H; subst.
+  apply dbCmds__cmds2nbs in H0.
+  destruct H0 as [nbs H0].
+  remember (isCallInst_dec call0) as R.
+  destruct R.
+    apply dbCall_isCallInst in H1.
+    rewrite e in H1. inversion H1.
+
+    exists (mkSB nbs call0 e).
+    apply cmdscall2sbs; auto.
+Qed.
+
+Lemma cmds_cons2sbs : forall cs cs' sb sbs',
+  cmds2sbs cs = (sb::nil, nil) ->
+  cmds2sbs cs' = (sbs', nil) ->
+  cmds2sbs (cs++cs') = (sb::sbs', nil).
+Proof.
+  induction cs; intros; simpl.
+    simpl in H. inversion H.
+
+    simpl in H.
+    destruct (isCallInst_dec a).
+      remember (cmds2sbs cs) as R.
+      destruct R.
+        destruct l0.
+          inversion H.
+
+          destruct s. inversion H; subst. clear H.
+          apply IHcs with (sb:=mkSB NBs0 call_cmd0 call_cmd_isCall0) in H0; auto.
+          clear IHcs.
+          rewrite H0. auto.
+ 
+      remember (cmds2sbs cs) as R.
+      destruct R.
+      inversion H; subst. clear H.
+      symmetry in HeqR.
+      apply cmds2sbs_nil_inv in HeqR. subst.
+      simpl.
+      rewrite H0. auto.
+Qed.
+
+Lemma dbSubblocks__cmds2sbs : forall S TD Ps lc1 als1 gl1 Mem1 cs lc2 als2 gl2 Mem2 tr,
+  dbSubblocks S TD Ps lc1 als1 gl1 Mem1 cs lc2 als2 gl2 Mem2 tr ->
+  exists sbs, cmds2sbs cs = (sbs, nil).
+Proof.
+  intros.
+  induction H; simpl.
+    exists nil. auto.
+
+    apply dbSubblock__cmds2sb in H.
+    destruct H as [sb H].
+    destruct IHdbSubblocks as [sbs H1].
+    exists (sb::sbs).
+    apply cmds_cons2sbs; auto.
+Qed.
+
+Lemma cmds_cons2sbs_inv : forall cs cs' sbs0 sb sbs',
+  cmds2sbs (cs++cs') = (sbs0, nil) ->
+  cmds2sbs cs = (sb::nil, nil) ->
+  cmds2sbs cs' = (sbs', nil) ->
+  sbs0 = sb::sbs'.
+Proof.
+  intros.
+  apply cmds_cons2sbs with (cs':=cs')(sbs':=sbs') in H0; auto.
+  rewrite H in H0.
+  inversion H0; auto.
+Qed.
+
+Lemma cmds2sbs_cons_inv : forall cs0 sb sbs',
+  cmds2sbs cs0 = (sb::sbs', nil) ->
+  exists cs, exists cs',
+    cmds2sbs cs = (sb::nil, nil) /\
+    cmds2sbs cs' = (sbs', nil) /\
+    cs0 = cs++cs'.
+Proof.
+  induction cs0; intros.
+    simpl in H. inversion H.
+
+    simpl in H.
+    remember (isCallInst_dec a) as R.
+    remember (cmds2sbs cs0) as R'.
+    destruct R.
+      destruct R'.
+        destruct l0.
+          inversion H.
+
+          destruct s. inversion H; subst. clear H.
+          destruct (@IHcs0 (mkSB NBs0 call_cmd0 call_cmd_isCall0) sbs') as [cs [cs' [J1 [J2 J3]]]]; subst; auto.
+          exists (a::cs). exists cs'.
+          split; auto.
+            simpl.
+            rewrite <- HeqR.
+            rewrite J1. auto.
+
+      destruct R'.
+      inversion H; subst. clear H.
+      destruct sbs'.
+        symmetry in HeqR'.
+        apply cmds2sbs_nil_inv in HeqR'. subst.
+        exists (a::nil). exists nil.
+        simpl. rewrite <- HeqR. auto.
+
+        destruct (@IHcs0 s sbs') as [cs [cs' [J1 [J2 J3]]]]; subst; auto.
+        exists (a::nil). exists (cs++cs').
+        simpl. rewrite <- HeqR. auto.
+Qed.
+
+Lemma cmds_rcons2sbs : forall cs cs' sbs nbs,
+  cmds2sbs cs = (sbs, nil) ->
+  cmds2sbs cs' = (nil, nbs) ->
+  cmds2sbs (cs++cs') = (sbs, nbs).
+Proof.
+  induction cs; intros.
+    simpl in H. inversion H; subst. auto.
+
+    simpl in *.
+    remember (cmds2sbs cs) as R.
+    destruct (isCallInst_dec a).
+      destruct R.
+        destruct l0.
+          inversion H.
+
+          destruct s. inversion H; subst. clear H.
+          apply IHcs with (sbs:=mkSB NBs0 call_cmd0 call_cmd_isCall0::l0) in H0; auto.
+          rewrite H0. auto.
+
+      destruct R.
+      inversion H; subst. clear H.
+      apply IHcs with (sbs:=l0) in H0; auto.
+      rewrite H0. auto.
+Qed.
+
+Lemma cmds_rcons2sbs_inv : forall cs cs' sbs0 nbs0 sbs nbs,
+  cmds2sbs (cs++cs') = (sbs0, nbs0) ->
+  cmds2sbs cs = (sbs, nil) ->
+  cmds2sbs cs' = (nil, nbs) ->
+  sbs0 = sbs /\ nbs0 = nbs.
+Proof.
+  intros.
+  apply cmds_rcons2sbs with (cs':=cs')(nbs:=nbs) in H0; auto.
+  rewrite H in H0. inversion H0; auto.
+Qed.
+ 
+Lemma cmds2nbranchs__cmds2nbs : forall cs nbs,
+  cmds2nbranchs cs = Some nbs ->
+  cmds2sbs cs = (nil, nbs).
+Proof.
+  induction cs; intros.
+    simpl in H. inversion H; auto.
+
+    simpl in *.
+    unfold cmd2nbranch in H.
+    destruct (isCallInst_dec a).
+      destruct (cmds2sbs cs).
+        remember (cmds2nbranchs cs) as R.
+        destruct R.
+          inversion H; subst. clear H.
+          assert (ret l2 = ret l2) as EQ. auto.
+          apply IHcs in EQ.
+          inversion EQ; subst. auto.
+
+          inversion H.
+      inversion H.
+Qed.
+
+Lemma cmds2nbs__nbranchs2cmds : forall nbs cs,
+  cmds2sbs cs = (nil, nbs) ->
+  nbranchs2cmds nbs = cs.
+Proof.
+  induction nbs; intros.
+    apply cmds2sbs_nil_inv in H. subst. auto.
+
+    simpl.
+    destruct a.
+    destruct cs.
+      simpl in H. inversion H.
+
+      simpl in H.
+      destruct (isCallInst_dec c).
+        remember (cmds2sbs cs) as R.
+        destruct R.
+        destruct l0.
+          inversion H; subst.
+          rewrite IHnbs with (cs:=cs); auto.
+
+          destruct s.
+          inversion H; subst.
+
+        destruct (cmds2sbs cs).
+        inversion H.
+Qed.
+
+
+Lemma cmds2nbranchs__nbranchs2cmds : forall cs nbs,
+  cmds2nbranchs cs = Some nbs ->
+  nbranchs2cmds nbs = cs.
+Proof.
+  intros.
+  apply cmds2nbs__nbranchs2cmds.
+  apply cmds2nbranchs__cmds2nbs; auto.
+Qed.
+
+Lemma cmds2sbs_inv : forall cs sbs nbs,
+  cmds2sbs cs = (sbs, nbs) ->
+  exists cs1, exists cs2, 
+    cs = cs1++cs2 /\
+    cmds2sbs cs1 = (sbs, nil) /\
+    cmds2sbs cs2 = (nil, nbs).
+Proof.
+  induction cs; intros.
+    simpl in H. inversion H; subst.
+    exists nil. exists nil. auto.
+
+    simpl in H.
+    remember (isCallInst_dec a) as R.
+    remember (cmds2sbs cs) as R'.
+    destruct R.
+      destruct R'.
+        destruct l0.
+          inversion H; subst. clear H.
+          
+          destruct (@IHcs nil l1) as [cs1 [cs2 [J1 [J2 J3]]]]; subst; auto.
+          apply cmds2sbs_nil_inv in J2. subst.
+          exists nil. exists (a::cs2).
+          simpl. rewrite <- HeqR. 
+          simpl in HeqR'. rewrite <- HeqR'.
+          split; auto.
+
+       destruct s.
+       inversion H; subst. clear H.
+       destruct (@IHcs (mkSB NBs0 call_cmd0 call_cmd_isCall0::l0) nbs) as [cs1 [cs2 [J1 [J2 J3]]]]; subst; auto.
+       clear IHcs.
+       exists (a::cs1). exists cs2.
+       simpl. rewrite <- HeqR. rewrite J2. auto.
+    
+     destruct R'.
+     inversion H; subst. clear H.
+     destruct (@IHcs l0 nbs) as [cs1 [cs2 [J1 [J2 J3]]]]; subst; auto.
+     clear IHcs.
+     exists (a::cs1). exists cs2.
+     simpl. rewrite <- HeqR. rewrite J2. auto.
+Qed.
+
+Lemma cmds2sbs_cons_inv' : forall cs0 sb sbs' nbs,
+  cmds2sbs cs0 = (sb::sbs', nbs) ->
+  exists cs, exists cs',
+    cmds2sbs cs = (sb::nil, nil) /\
+    cmds2sbs cs' = (sbs', nbs) /\
+    cs0 = cs++cs'.
+Proof.
+  induction cs0; intros.
+    simpl in H. inversion H.
+
+    simpl in H.
+    remember (isCallInst_dec a) as R.
+    remember (cmds2sbs cs0) as R'.
+    destruct R.
+      destruct R'.
+        destruct l0.
+          inversion H.
+
+          destruct s. inversion H; subst. clear H.
+          destruct (@IHcs0 (mkSB NBs0 call_cmd0 call_cmd_isCall0) sbs' nbs) as [cs [cs' [J1 [J2 J3]]]]; subst; auto.
+          exists (a::cs). exists cs'.
+          split; auto.
+            simpl.
+            rewrite <- HeqR.
+            rewrite J1. auto.
+
+      destruct R'.
+      inversion H; subst. clear H.
+      destruct sbs'.
+        symmetry in HeqR'.
+        exists (a::nil). exists cs0.
+        simpl. rewrite <- HeqR. auto.
+
+        destruct (@IHcs0 s sbs' nbs) as [cs [cs' [J1 [J2 J3]]]]; subst; auto.
+        exists (a::nil). exists (cs++cs').
+        simpl. rewrite <- HeqR. auto.
+Qed.
+
+  
+Lemma cmds2nbs_app_inv : forall cs0 nbs1 nbs2,
+  cmds2sbs cs0 = (nil, nbs1++nbs2) ->
+  exists cs, exists cs',
+    cmds2sbs cs = (nil, nbs1) /\
+    cmds2sbs cs' = (nil, nbs2) /\
+    cs0 = cs++cs'.
+Proof.
+  induction cs0; intros.
+    simpl in H. inversion H.
+    symmetry in H1.
+    apply app_eq_nil in H1.
+    destruct H1; subst.
+    exists nil. exists nil. auto.
+
+    simpl in H.
+    remember (isCallInst_dec a) as R.
+    remember (cmds2sbs cs0) as R'.
+    destruct R.
+      destruct R'.
+        destruct l0.
+          inversion H.
+          apply cons_eq_app in H1.
+          destruct H1 as [[qs [J1 J2]] | [J1 J2]]; subst.
+            destruct (@IHcs0 qs nbs2) as [cs [cs' [J1 [J2 J3]]]]; subst; auto.
+            clear IHcs0.
+            exists (a::cs). exists cs'.
+            simpl. rewrite <- HeqR. rewrite J1. split; auto.
+
+            exists nil. exists (a::cs0). 
+            simpl. rewrite <- HeqR. rewrite <- HeqR'. split; auto.
+
+          destruct s. inversion H; subst.
+
+      destruct R'.
+      inversion H; subst. 
+Qed.
+
+(* wf *)
+
 Inductive wf_nbranchs : list nbranch -> Prop :=
-| wf_nbranchs_intro : forall nbs, wf_nbranchs nbs.
+| wf_nbranchs_intro : forall cs nbs, 
+  cmds2sbs cs = (nil, nbs) ->
+  NoDup (getCmdsIDs cs) ->
+  wf_nbranchs nbs.
 
 Lemma wf_nbranchs__decomposes__app : forall nbs1 nbs2,
   wf_nbranchs (nbs1++nbs2) ->
   wf_nbranchs nbs1 /\ wf_nbranchs nbs2.
-Admitted.
+Proof.
+  intros.
+  inversion H; subst.
+  apply cmds2nbs_app_inv in H0.
+  destruct H0 as [cs1 [cs2 [J1 [J2 J3]]]]; subst.
+  rewrite getCmdsIDs_app in H1.
+  apply NoDup_inv in H1.
+  destruct H1.
+  split; eapply wf_nbranchs_intro; eauto.
+Qed.
 
 Lemma wf_nbranchs__inv : forall nb nbs,
   wf_nbranchs (nb::nbs) ->
   wf_nbranchs nbs.
-Admitted.
+Proof.
+  intros.
+  simpl_env in H.
+  apply wf_nbranchs__decomposes__app in H.
+  destruct H; auto.
+Qed.
+
+Inductive wf_subblock : subblock -> Prop :=
+| wf_subblock_intro : forall nbs call0 iscall0, 
+  wf_nbranchs nbs ->
+  wf_subblock (mkSB nbs call0 iscall0).
+
+Inductive wf_subblocks : list subblock -> Prop :=
+| wf_subblocks_nil : wf_subblocks nil
+| wf_subblocks_cons : forall sb sbs,
+  wf_subblock sb ->
+  wf_subblocks sbs ->
+  wf_subblocks (sb::sbs).
+
+Inductive wf_block : block -> Prop :=
+| wf_block_intro : forall l ps cs sbs nbs tmn, 
+  cmds2sbs cs = (sbs,nbs) ->
+  wf_subblocks sbs ->
+  wf_nbranchs nbs ->
+  wf_block (block_intro l ps cs tmn).
+
+Hint Constructors wf_subblocks.
+
+Lemma wf_nbranchs_nil : wf_nbranchs nil.
+Proof.
+  apply wf_nbranchs_intro with (cs:=nil); simpl; auto using NoDup_nil.
+Qed.
+
+Hint Resolve wf_nbranchs_nil.
+
+Lemma uniqCmds___wf_subblocks_wf_nbranchs : forall cs sbs nbs,
+  NoDup (getCmdsIDs cs) ->
+  cmds2sbs cs = (sbs, nbs) ->
+  wf_subblocks sbs /\ wf_nbranchs nbs.
+Proof.
+  induction cs; intros.
+    simpl in H0. inversion H0; subst.
+    split; auto using wf_nbranchs_nil.
+
+    simpl in *.
+    remember (cmds2sbs cs) as R.
+    destruct R as [sbs' nbs'].
+    remember (isCallInst_dec a) as R'.
+    destruct R'.
+      destruct sbs'.
+        inversion H0; subst. clear H0.
+        split; auto.
+          apply wf_nbranchs_intro with (cs:=a::cs); auto.
+            simpl.
+            rewrite <- HeqR'.
+            rewrite <- HeqR. auto.
+
+        destruct s. 
+        inversion H0; subst. clear H0.
+        inversion H; subst.
+        apply IHcs with (nbs0:=nbs)(sbs:=mkSB NBs0 call_cmd0 call_cmd_isCall0::sbs') in H3; auto.
+        destruct H3 as [H3 H4].
+        split; auto.
+          inversion H3; subst.
+          apply wf_subblocks_cons; auto.
+            apply wf_subblock_intro.
+
+            symmetry in HeqR.
+            apply cmds2sbs_cons_inv' in HeqR.
+            destruct HeqR as [cs1 [cs2 [Hcs1NBs0call0 [Hcs2sbs EQ]]]]; subst.
+            apply cmds2sb_inv in Hcs1NBs0call0.
+            destruct Hcs1NBs0call0 as [cs1' [call0 [EQ [Hcs1'nbs EQ']]]]; subst.
+            simpl in *.
+            simpl_env in H.
+            rewrite getCmdsIDs_app in H.
+            rewrite ass_app in H.
+            apply NoDup_inv in H. destruct H as [H _].
+            apply wf_nbranchs_intro with (cs:=a::cs1'); auto.
+              simpl.
+              rewrite <- HeqR'.
+              rewrite Hcs1'nbs. auto.
+
+      inversion H0; subst. clear H0.
+      simpl_env in H.
+      apply NoDup_inv in H. destruct H as [H1 H2].
+      apply IHcs with (sbs:=sbs')(nbs0:=nbs) in H2; auto.
+      destruct H2.
+      split; auto.
+        apply wf_subblocks_cons; auto.
+          apply wf_subblock_intro; auto.
+Qed.
+
+Lemma uniqBlock__wf_block : forall B,
+  uniqBlocks [B] -> wf_block B.
+Proof.
+  intros B HuniqBlocks.
+  unfold uniqBlocks in HuniqBlocks.
+  simpl in HuniqBlocks. destruct B.
+  destruct HuniqBlocks as [J1 J2].
+  remember (cmds2sbs c) as R.
+  destruct R as [sbs nbs].
+  simpl in J2. simpl_env in J2.
+  apply NoDup_inv in J2. destruct J2.
+  apply NoDup_inv in H0. destruct H0.
+  apply uniqCmds___wf_subblocks_wf_nbranchs with (sbs:=sbs)(nbs:=nbs) in H0; auto.
+  destruct H0.
+  apply wf_block_intro with (sbs:=sbs)(nbs:=nbs); auto.
+Qed.
+
+Lemma uniqBlocks__wf_block : forall lb n B,
+  uniqBlocks lb ->
+  nth_error lb n = Some B ->
+  wf_block B.
+Proof.
+  induction lb; intros.
+    apply nil_nth_error_Some__False in H0.
+    inversion H0.
+
+    apply nth_error_cons__inv in H0.
+    simpl_env in H. 
+    apply uniqBlocks_inv in H.
+    destruct H as [J1 J2].
+    destruct H0 as [EQ | [n' [EQ H0]]]; subst; eauto.
+      apply uniqBlock__wf_block; auto.
+Qed.
+
+Lemma uniqFdef__wf_block : forall fh lb n B,
+  uniqFdef (fdef_intro fh lb) ->
+  nth_error lb n = Some B ->
+  wf_block B.
+Proof.
+  intros.
+  unfold uniqFdef in H.
+  eapply uniqBlocks__wf_block; eauto.
+Qed.
 
 (***************************************************************)
 (** symbolic terms and memories. *)
@@ -541,15 +1157,6 @@ Record sstate : Set := mkSstate
   SEffects : list sterm
 }.
 
-Fixpoint updateSmap (sm:smap) (id0:id) (s0:sterm) : smap :=
-match sm with
-| nil => (id0, s0)::nil
-| (id1, s1)::sm' =>
-  if id1==id0
-  then (id1, s0)::sm'
-  else (id1, s1)::updateSmap sm' id0 s0
-end.
-
 Fixpoint lookupSmap (sm:smap) (i0:id) : sterm :=
 match sm with
 | nil => (sterm_val (value_id i0))
@@ -582,7 +1189,7 @@ match c with
 | mkNB i notcall =>
   (match i as r return (i = r -> _) with 
   | insn_bop id0 op0 sz0 v1 v2 => fun _ => 
-       (mkSstate (updateSmap st.(STerms) id0 
+       (mkSstate (updateAddAL _ st.(STerms) id0 
                    (sterm_bop op0 sz0 
                      (value2Sterm st.(STerms) v1)
                      (value2Sterm st.(STerms) v2)))
@@ -590,7 +1197,7 @@ match c with
                  st.(SFrame)
                  st.(SEffects))
  | insn_extractvalue id0 t1 v1 cs3 => fun _ => 
-       (mkSstate (updateSmap st.(STerms) id0 
+       (mkSstate (updateAddAL _ st.(STerms) id0 
                    (sterm_extractvalue t1 
                      (value2Sterm st.(STerms) v1)
                      cs3))
@@ -598,7 +1205,7 @@ match c with
                  st.(SFrame)
                  st.(SEffects))
   | insn_insertvalue id0 t1 v1 t2 v2 cs3 => fun _ => 
-       (mkSstate (updateSmap st.(STerms) id0 
+       (mkSstate (updateAddAL _ st.(STerms) id0 
                    (sterm_insertvalue 
                      t1 
                      (value2Sterm st.(STerms) v1)
@@ -609,7 +1216,7 @@ match c with
                  st.(SFrame)
                  st.(SEffects))
   | insn_malloc id0 t1 sz1 al1 => fun _ => 
-       (mkSstate (updateSmap st.(STerms) id0 
+       (mkSstate (updateAddAL _ st.(STerms) id0 
                    (sterm_malloc st.(SMem) t1 sz1 al1))
                  (smem_malloc st.(SMem) t1 sz1 al1)
                  st.(SFrame)
@@ -621,13 +1228,13 @@ match c with
                  st.(SFrame)
                  st.(SEffects))
   | insn_alloca id0 t1 sz1 al1 => fun _ =>   
-       (mkSstate (updateSmap st.(STerms) id0 
+       (mkSstate (updateAddAL _ st.(STerms) id0 
                    (sterm_alloca st.(SMem) t1 sz1 al1))
                  (smem_alloca st.(SMem) t1 sz1 al1)
                  (sframe_alloca st.(SMem) st.(SFrame) t1 sz1 al1)
                  st.(SEffects))
   | insn_load id0 t2 v2 => fun _ =>   
-       (mkSstate (updateSmap st.(STerms) id0 
+       (mkSstate (updateAddAL _ st.(STerms) id0 
                    (sterm_load st.(SMem) t2 
                      (value2Sterm st.(STerms) v2)))
                  (smem_load st.(SMem)t2 
@@ -642,7 +1249,7 @@ match c with
                  st.(SFrame)
                  st.(SEffects))
   | insn_gep id0 inbounds0 t1 v1 lv2 => fun _ =>  
-       (mkSstate (updateSmap st.(STerms) id0 
+       (mkSstate (updateAddAL _ st.(STerms) id0 
                    (sterm_gep inbounds0 t1 
                      (value2Sterm st.(STerms) v1)
                      (map_list_value (value2Sterm st.(STerms)) lv2)))
@@ -650,7 +1257,7 @@ match c with
                  st.(SFrame)
                  st.(SEffects))
   | insn_ext id0 op0 t1 v1 t2 => fun _ => 
-       (mkSstate (updateSmap st.(STerms) id0 
+       (mkSstate (updateAddAL _ st.(STerms) id0 
                    (sterm_ext op0 t1 
                      (value2Sterm st.(STerms) v1)
                      t2))
@@ -658,7 +1265,7 @@ match c with
                  st.(SFrame)
                  st.(SEffects))
   | insn_cast id0 op0 t1 v1 t2 => fun _ => 
-       (mkSstate (updateSmap st.(STerms) id0 
+       (mkSstate (updateAddAL _ st.(STerms) id0 
                    (sterm_cast op0 t1 
                      (value2Sterm st.(STerms) v1)
                      t2))
@@ -666,7 +1273,7 @@ match c with
                  st.(SFrame)
                  st.(SEffects))
   | insn_icmp id0 c0 t0 v1 v2 => fun _ => 
-       (mkSstate (updateSmap st.(STerms) id0 
+       (mkSstate (updateAddAL _ st.(STerms) id0 
                    (sterm_icmp c0 t0 
                      (value2Sterm st.(STerms) v1)
                      (value2Sterm st.(STerms) v2)))
@@ -674,7 +1281,7 @@ match c with
                  st.(SFrame)
                  st.(SEffects))
   | insn_select id0 v0 t0 v1 v2 => fun _ => 
-       (mkSstate (updateSmap st.(STerms) id0 
+       (mkSstate (updateAddAL _ st.(STerms) id0 
                    (sterm_select 
                      (value2Sterm st.(STerms) v0)
                      t0 
@@ -694,7 +1301,7 @@ match ps with
 | nil => st
 | insn_phi id0 t0 idls0::ps' =>  
     _se_phinodes 
-     (mkSstate (updateSmap st.(STerms) id0 
+     (mkSstate (updateAL _ st.(STerms) id0 
                  (sterm_phi 
                    t0 
                    (map_list_id_l
@@ -739,29 +1346,6 @@ Defined.
 
 (* Properties *)
 
-Lemma updateSmap_dom_eq : forall sm id0 st0,
-  dom (updateSmap sm id0 st0) [=] dom sm `union` {{id0}}.
-Proof.
-  induction sm; intros; simpl; try solve [fsetdec].
-    destruct a. 
-    destruct (a==id0); simpl; try solve [fsetdec].
-      assert (J:=@IHsm id0 st0). fsetdec.
-Qed.
-
-Lemma updateSmap_uniq : forall sm id0 st0,
-  uniq sm ->
-  uniq (updateSmap sm id0 st0).
-Proof.
-  induction sm; intros; simpl; auto.
-    destruct a.
-
-    destruct_uniq.
-    destruct (a==id0); subst; try solve [solve_uniq].
-      apply IHsm with (id0:=id0)(st0:=st0) in H. 
-      assert (J:=@updateSmap_dom_eq sm id0 st0).
-      solve_uniq.
-Qed.
-
 Lemma se_cmd_uniq : forall smap0 sm0 sf0 se0 c,
   uniq smap0 ->
   uniq (STerms (se_cmd (mkSstate smap0 sm0 sf0 se0) c)).
@@ -769,7 +1353,7 @@ Proof.
   intros smap0 sm0 sf0 se0 [c nocall] Huniq.
   destruct c; simpl; 
     try solve [
-      apply updateSmap_uniq; auto | 
+      apply updateAddAL_uniq; auto | 
       auto | 
       inversion nocall].
 Qed.
@@ -778,8 +1362,8 @@ Lemma se_cmd_dom_mono : forall smap0 sm0 sf0 se0 c,
   dom smap0 [<=] dom (STerms (se_cmd (mkSstate smap0 sm0 sf0 se0) c)).
 Proof.
   intros smap0 sm0 sf0 se0 [c nocall].
-  assert (forall sm id0 st0, dom sm [<=] dom (updateSmap sm id0 st0)) as J.
-    intros. assert (J:=@updateSmap_dom_eq sm id0 st0). fsetdec. 
+  assert (forall sm id0 st0, dom sm [<=] dom (updateAddAL sterm sm id0 st0)) as J.
+    intros. assert (J:=@updateAddAL_dom_eq _ sm id0 st0). fsetdec. 
   destruct c; simpl; try solve [eauto using J| fsetdec|inversion nocall].
 Qed.
 
@@ -833,58 +1417,12 @@ Proof.
   intros. auto.
 Qed.
        
-Lemma updateSmap_inversion : forall sm id0 st0 id1 st1,
-  uniq sm ->
-  binds id1 st1 (updateSmap sm id0 st0) ->
-  (id0 <> id1 /\ binds id1 st1 sm) \/ (id0 = id1 /\ st0 = st1).
-Proof.
-  induction sm; intros id0 st0 id1 st1 Uniq Binds; simpl in Binds.
-    analyze_binds Binds.
-
-    destruct a.
-    inversion Uniq; subst.
-    destruct (a==id0); subst.
-      analyze_binds Binds.
-      left. split; auto.
-        apply binds_In in BindsTac.
-        fsetdec.
-
-      analyze_binds Binds.
-      apply IHsm in BindsTac; auto.
-        destruct BindsTac; auto.
-          destruct H; auto.
-Qed.
-
-            
-Lemma binds_updateSmap_eq : forall sm id0 st0,
-  binds id0 st0 (updateSmap sm id0 st0).
-Proof.
-  induction sm; intros id0 st0; simpl; auto.
-    destruct a.
-    destruct (a == id0); subst; auto.
-Qed.
-
-Lemma binds_updateSmap_neq : forall sm id0 st0 id1 st1,
-  binds id1 st1 sm ->
-  id0 <> id1 ->
-  binds id1 st1 (updateSmap sm id0 st0).
-Proof.
-  induction sm; intros id0 st0 id1 st1 Hbinds id0_neq_id1; simpl; auto.
-    destruct a.
-    simpl_env in Hbinds.
-    analyze_binds Hbinds.
-      destruct (a == id0); subst; auto.
-        contradict id0_neq_id1; auto.
-
-      destruct (a == id0); subst; auto.
-Qed.
-
 Lemma _se_cmd_uniq : forall c sstate0,
   uniq (STerms sstate0) ->
   uniq (STerms (se_cmd sstate0 c)).
 Proof.
   intros [c nocall] sstate0 Huniq.
-  destruct c; simpl; try solve [apply updateSmap_uniq; auto | auto | inversion nocall].
+  destruct c; simpl; try solve [apply updateAddAL_uniq; auto | auto | inversion nocall].
 Qed.
 
 Lemma _se_cmds_uniq : forall cs sstate0,
@@ -1160,13 +1698,13 @@ seffects_denote_trace sstate'.(SEffects) tr.
 Fixpoint globals_to_smap (gl:GVMap) : smap :=
 match gl with
 | nil => nil
-| (id0, _)::gl' => updateSmap (globals_to_smap gl') id0 (sterm_val (value_id id0)) 
+| (id0, _)::gl' => updateAddAL _ (globals_to_smap gl') id0 (sterm_val (value_id id0)) 
 end.
 
 Fixpoint locals_to_smap (lc:GVMap) (m0:smap) : smap :=
 match lc with
 | nil => m0
-| (id0, _)::lc' => updateSmap (locals_to_smap lc' m0) id0 (sterm_val (value_id id0)) 
+| (id0, _)::lc' => updateAddAL _ (locals_to_smap lc' m0) id0 (sterm_val (value_id id0)) 
 end.
 
 Definition env_to_smap (gl lc:GVMap) : smap :=
@@ -1180,7 +1718,7 @@ Proof.
 
     destruct a.
     rewrite <- IHgl. clear IHgl.
-    rewrite updateSmap_dom_eq. fsetdec.
+    rewrite updateAddAL_dom_eq. fsetdec.
 Qed.
 
 Lemma locals_to_smap_dom_eq : forall lc m0,
@@ -1190,7 +1728,7 @@ Proof.
     fsetdec.
 
     destruct a.
-    rewrite updateSmap_dom_eq. 
+    rewrite updateAddAL_dom_eq. 
     rewrite IHlc.
     fsetdec.
 Qed.
@@ -1210,7 +1748,7 @@ Lemma globals_to_smap_uniq : forall gl,
 Proof.
   induction gl; simpl; auto.
     destruct a.
-    apply updateSmap_uniq; auto.
+    apply updateAddAL_uniq; auto.
 Qed.
 
 Lemma locals_to_smap_uniq : forall lc m0,
@@ -1219,7 +1757,7 @@ Lemma locals_to_smap_uniq : forall lc m0,
 Proof.
   induction lc; simpl; intros; auto.
     destruct a.
-    apply updateSmap_uniq; auto.
+    apply updateAddAL_uniq; auto.
 Qed.
 
 Lemma env_to_smap_uniq : forall gl lc,
@@ -1235,14 +1773,14 @@ Lemma binds_globals_to_smap : forall gl id0 st0,
   uniq gl ->
   binds id0 st0 (globals_to_smap gl) ->
   st0 = sterm_val (value_id id0) /\ 
-  exists gv, lookupGVMap gl id0 = Some gv.
+  exists gv, lookupAL _ gl id0 = Some gv.
 Proof.
   induction gl; intros; simpl in *.
     inversion H0.
 
     inversion H; subst.
-    apply updateSmap_inversion in H0; auto using globals_to_smap_uniq.
-    destruct (@eq_dec id (@EqDec_eq_of_EqDec id EqDec_atom) id0 x); subst; simpl; auto.
+    apply updateAddAL_inversion in H0; auto using globals_to_smap_uniq.
+    destruct (@eq_dec atom (@EqDec_eq_of_EqDec atom EqDec_atom) id0 x); subst; simpl; auto.
       destruct H0 as [[J1 J2] | [J1 J2]].
         contradict J1; auto.
         split; auto. exists a0. auto.
@@ -1257,13 +1795,13 @@ Lemma binds_locals_to_smap : forall id0 st0 lc m0,
   uniq m0 ->
   uniq lc ->
   binds id0 st0 (locals_to_smap lc m0) ->
-  (st0 = sterm_val (value_id id0) /\ exists gv, lookupGVMap lc id0 = Some gv) \/
+  (st0 = sterm_val (value_id id0) /\ exists gv, lookupAL _ lc id0 = Some gv) \/
   binds id0 st0 m0.  
 Proof.
   induction lc; intros; simpl in *; auto.
     inversion H0; subst.
-    apply updateSmap_inversion in H1; auto using locals_to_smap_uniq.
-    destruct (@eq_dec id (@EqDec_eq_of_EqDec id EqDec_atom) id0 x); subst; simpl; auto.
+    apply updateAddAL_inversion in H1; auto using locals_to_smap_uniq.
+    destruct (@eq_dec atom (@EqDec_eq_of_EqDec atom EqDec_atom) id0 x); subst; simpl; auto.
       destruct H1 as [[J1 J2] | [J1 J2]].
         contradict J1; auto.
         left. split; auto. exists a0. auto.
@@ -1288,7 +1826,7 @@ Proof.
     apply binds_globals_to_smap in H1; auto using globals_to_smap_uniq.
     destruct H1 as [J1 [gv J2]]; auto.
       split; auto. simpl. unfold lookupEnv. rewrite J2. 
-      destruct (lookupGVMap lc id0).
+      destruct (lookupAL _ lc id0).
         exists g. auto.
         exists gv. auto.
 Qed.
@@ -1308,43 +1846,43 @@ Proof.
 Qed.
 
 Lemma lookupEnv_globals_to_smap : forall gl id0 gv0,
-  lookupGVMap gl id0 = Some gv0 ->
+  lookupAL _ gl id0 = Some gv0 ->
   binds id0 (sterm_val (value_id id0)) (globals_to_smap gl).
 Proof.
   induction gl; intros; simpl in *.
     inversion H.
     destruct a.
-    destruct (id0==i0); subst.
+    destruct (id0==a); subst.
       inversion H; subst. 
-      apply binds_updateSmap_eq; auto.
+      apply binds_updateAddAL_eq; auto.
 
-      apply binds_updateSmap_neq; eauto.
+      apply binds_updateAddAL_neq; eauto.
 Qed.
 
 Lemma lookupEnv_locals_to_smap : forall lc m1 id0 gv0,
-  lookupGVMap lc id0 = Some gv0 ->
+  lookupAL _ lc id0 = Some gv0 ->
   binds id0 (sterm_val (value_id id0)) (locals_to_smap lc m1).
 Proof.
   induction lc; intros; simpl in *.
     inversion H.
     destruct a.
-    destruct (id0==i0); subst.
+    destruct (id0==a); subst.
       inversion H; subst. 
-      apply binds_updateSmap_eq; auto.
+      apply binds_updateAddAL_eq; auto.
 
-      apply binds_updateSmap_neq; eauto.
+      apply binds_updateAddAL_neq; eauto.
 Qed.
 
 Lemma lookupEnv_locals_to_smap' : forall lc m1 st0 id0,
-  lookupGVMap lc id0 = None ->
+  lookupAL _ lc id0 = None ->
   binds id0 st0 m1 ->
   binds id0 st0 (locals_to_smap lc m1).
 Proof.
   induction lc; intros; simpl in *; auto.
     destruct a.
-    destruct (id0==i0); subst.
+    destruct (id0==a); subst.
       inversion H.    
-      apply binds_updateSmap_neq; eauto.
+      apply binds_updateAddAL_neq; eauto.
 Qed.
 
 Lemma lookupEnv_env_to_smap : forall id0 gv0 gl lc,
@@ -1354,7 +1892,7 @@ Proof.
   intros.
   unfold lookupEnv in H.
   unfold env_to_smap.
-  remember (lookupGVMap lc id0) as ogv.
+  remember (lookupAL _ lc id0) as ogv.
   destruct ogv.
     inversion H; subst.
     eapply lookupEnv_locals_to_smap; eauto.

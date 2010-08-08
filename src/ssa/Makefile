@@ -10,7 +10,10 @@ all:
 
 ott: main.pdf ssa.vo ssa_dynamic.vo opsem_conv.vo opsem_pp.vo
 
-ssa_coq_lib.vo : ssa_coq_lib.v ssa_def.vo 
+assoclist.vo : assoclist.v
+	$(COQC) $(COQARG) assoclist.v
+
+ssa_coq_lib.vo : ssa_coq_lib.v ssa_def.vo assoclist.vo
 	$(COQC) $(COQARG) ssa_coq_lib.v
 
 ssa_def.vo : ssa_def.v ./monads/monad.vo
@@ -45,13 +48,16 @@ ssa_mem.vo: ssa_mem.v ssa.vo tactics.vo targetdata.vo
 trace.vo: trace.v
 	$(COQC) trace.v
 
-genericvalues.vo: ssa.vo tactics.vo ssa_mem.vo trace.vo genericvalues.v
+genericvalues.vo: ssa.vo tactics.vo ssa_mem.vo trace.vo genericvalues.v assoclist.vo
 	$(COQC) $(COQARG) genericvalues.v
 
-ssa_dynamic.vo: ssa_dynamic.v ssa.vo tactics.vo ssa_mem.vo trace.vo genericvalues.vo
+ssa_dynamic.vo: ssa_dynamic.v ssa.vo tactics.vo ssa_mem.vo trace.vo genericvalues.vo assoclist.vo
 	$(COQC) $(COQARG) ssa_dynamic.v
 
-opsem_pp.vo: opsem_pp.v ssa_dynamic.vo ssa.vo ssa_mem.vo genericvalues.vo
+ssa_props.vo: ssa_props.v ssa.vo genericvalues.vo assoclist.vo
+	$(COQC) $(COQARG) ssa_props.v
+
+opsem_pp.vo: opsem_pp.v ssa_dynamic.vo ssa.vo ssa_mem.vo genericvalues.vo assoclist.vo ssa_props.vo
 	$(COQC) $(COQARG) opsem_pp.v
 
 opsem_conv.vo: opsem_conv.v ssa_dynamic.vo ssa.vo trace.vo
