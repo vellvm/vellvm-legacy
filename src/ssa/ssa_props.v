@@ -51,6 +51,14 @@ Lemma list_typEqB_refl : forall ts, list_typEqB ts ts.
 destruct typEqB_list_typEqB_refl ; auto.
 Qed.
 
+Lemma idEqB_refl : forall i, idEqB i i.
+Proof.
+  intros. unfold idEqB. 
+  destruct (i0==i0); auto.
+    unfold is_true. auto.
+    contradict n; auto.
+Qed.
+
 Lemma constEqB_list_constEqB_refl : 
   (forall c, constEqB c c) /\
   (forall cs, list_constEqB cs cs).
@@ -64,6 +72,9 @@ apply const_mutind; intros; simpl;
     eapply andb_true_iff;
       split; auto using beq_nat_refl
   ].
+
+    eapply andb_true_iff.
+    split. apply typEqB_refl. apply idEqB_refl.
 Qed.
 
 Lemma constEqB_refl : forall c, constEqB c c.
@@ -72,14 +83,6 @@ Qed.
 
 Lemma list_constEqB_refl : forall cs, list_constEqB cs cs.
 destruct constEqB_list_constEqB_refl; auto.
-Qed.
-
-Lemma idEqB_refl : forall i, idEqB i i.
-Proof.
-  intros. unfold idEqB. 
-  destruct (i0==i0); auto.
-    unfold is_true. auto.
-    contradict n; auto.
 Qed.
 
 Lemma valueEqB_refl: forall v, valueEqB v v.
@@ -321,7 +324,7 @@ destruct g. unfold gvarEqB.
   eapply andb_true_iff. split.
   apply idEqB_refl.
   apply typEqB_refl.
-  apply valueEqB_refl.
+  apply constEqB_refl.
   apply neq_refl.
 Qed.
 
@@ -385,6 +388,13 @@ Lemma list_typEqB_inv : forall ts1 ts2, list_typEqB ts1 ts2 -> ts1=ts2.
 destruct typEqB_list_typEqB_inv ; auto.
 Qed.
 
+Lemma idEqB_inv : forall i1 i2, idEqB i1 i2 -> i1 = i2.
+Proof.
+  intros. unfold idEqB in H.
+  destruct (i1==i2); auto.
+    inversion H.
+Qed.
+
 Lemma constEqB_list_constEqB_inv : 
   (forall c1 c2, constEqB c1 c2 -> c1=c2) /\
   (forall cs1 cs2, list_constEqB cs1 cs2 -> cs1=cs2).
@@ -408,6 +418,13 @@ apply const_mutind; intros; simpl.
   destruct c2; inversion H0.
   apply H in H2. subst. auto.
 
+  destruct c2; inversion H.
+  apply andb_true_iff in H1.
+  destruct H1.
+  apply typEqB_inv in H0.
+  apply idEqB_inv in H1.
+  subst. auto.
+
   destruct cs2; inversion H; auto.
 
   destruct cs2; inversion H1.
@@ -423,13 +440,6 @@ Qed.
 
 Lemma list_constEqB_inv : forall cs1 cs2, list_constEqB cs1 cs2 -> cs1 = cs2.
 destruct constEqB_list_constEqB_inv; auto.
-Qed.
-
-Lemma idEqB_inv : forall i1 i2, idEqB i1 i2 -> i1 = i2.
-Proof.
-  intros. unfold idEqB in H.
-  destruct (i1==i2); auto.
-    inversion H.
 Qed.
 
 Lemma valueEqB_inv: forall v1 v2, valueEqB v1 v2 -> v1 = v2.
@@ -715,7 +725,7 @@ destruct g1. destruct g2. intro.
   apply andb_true_iff in H. destruct H as [H J3].
   apply idEqB_inv in H.
   apply typEqB_inv in J3.
-  apply valueEqB_inv in J2.
+  apply constEqB_inv in J2.
   apply neq_inv in J1.
   subst. auto.
 Qed.
@@ -1406,7 +1416,7 @@ Proof.
     destruct H. simpl in *.
     inversion H; subst.
     destruct (l0==l1); subst; auto.
-      apply lookupAL__indom in H0.
+      apply lookupAL_Some_indom in H0.
       apply NotInGetBlocksLabels__NotInGenLabel2Block_blocks in H7.
       contradict H0; auto.
 

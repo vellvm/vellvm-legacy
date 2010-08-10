@@ -21,6 +21,83 @@ Export LLVMopsem.
 
 (* prop *)
 
+
+Lemma eqAL_callUpdateLocals : forall TD noret0 rid rt oResult lc1 lc2 gl lc1' lc2',
+  eqAL _ lc1 lc1' ->
+  eqAL _ lc2 lc2' ->
+  eqAL _ (callUpdateLocals TD noret0 rid rt oResult lc1 lc2 gl)
+         (callUpdateLocals TD noret0 rid rt oResult lc1' lc2' gl).
+Proof.
+  intros TD noret0 rid rt oResult lc1 lc2 gl lc1' lc2' H1 H2.
+    unfold callUpdateLocals.
+    destruct noret0; auto.
+      destruct (rt=t=typ_void); auto.
+        destruct oResult; simpl; auto.
+          destruct v; simpl.
+            rewrite H2.
+            destruct (lookupAL _ lc2' i0); auto using eqAL_updateAddAL.
+
+            destruct (const2GV TD gl c); auto using eqAL_updateAddAL.
+Qed.
+
+
+Lemma eqAL_getIncomingValuesForBlockFromPHINodes : forall ps B lc lc',
+  eqAL _ lc lc' ->
+  getIncomingValuesForBlockFromPHINodes ps B lc = getIncomingValuesForBlockFromPHINodes ps B lc'.
+Proof.
+  induction ps; intros; simpl; auto.
+    destruct (getIdViaBlockFromPHINode a B); auto.
+    rewrite H.
+    erewrite IHps; eauto.
+Qed.
+  
+Lemma eqAL_updateValuesForNewBlock : forall vs lc lc',
+  eqAL _ lc lc' ->
+  eqAL _ (updateValuesForNewBlock vs lc) (updateValuesForNewBlock vs lc').
+Proof.
+  induction vs; intros; simpl; auto.
+    destruct a.
+    destruct o; auto using eqAL_updateAddAL.
+Qed.
+
+Lemma eqAL_switchToNewBasicBlock : forall B1 B2 lc lc',
+  eqAL _ lc lc' ->
+  eqAL _ (switchToNewBasicBlock B1 B2 lc) (switchToNewBasicBlock B1 B2 lc').
+Proof.
+  intros.
+  unfold switchToNewBasicBlock.
+  erewrite eqAL_getIncomingValuesForBlockFromPHINodes; eauto.
+  apply eqAL_updateValuesForNewBlock; auto.
+Qed.
+
+Lemma eqAL_params2OpGVs : forall lp TD lc gl lc',
+  eqAL _ lc lc' ->
+  params2OpGVs TD lp lc gl = params2OpGVs TD lp lc' gl.
+Proof.
+  induction lp; intros; simpl; auto.
+    destruct a. 
+    destruct v; simpl.
+      rewrite H. erewrite IHlp; eauto.
+      erewrite IHlp; eauto.
+Qed.
+
+Lemma eqAL_params2GVs : forall lp TD lc gl lc',
+  eqAL _ lc lc' ->
+  params2GVs TD lp lc gl = params2GVs TD lp lc' gl.
+Proof.
+  induction lp; intros; simpl; auto.
+    destruct a.
+    unfold params2GVs.
+    erewrite eqAL_params2OpGVs; eauto.
+Qed.
+
+Lemma eqAL_initLocals : forall la lp TD lc gl lc',
+  eqAL _ lc lc' ->
+  eqAL _ (initLocals la (params2GVs TD lp lc gl)) (initLocals la (params2GVs TD lp lc' gl)).
+Proof.
+  intros. erewrite eqAL_params2GVs; eauto using eqAL_refl. 
+Qed.
+
 Lemma updateValuesForNewBlock_uniq : forall l0 lc,
   uniq lc ->
   uniq (updateValuesForNewBlock l0 lc).
@@ -102,7 +179,7 @@ Lemma dbInsn__inv : forall S1 TD1 Ps1 F1 l1 ps1 cs1 tmn1 c cs tmn3 lc1 arg1 als1
     (mkState S2 TD2 Ps2 (mkEC F2 (block_intro l2 ps2 cs2 tmn2) cs tmn4 lc2 arg2 als2::ECs2) gl2 Mem2)
     tr ->
   S1 = S2 /\ TD1 = TD2 /\ Ps1 = Ps2 /\ F1 = F2 /\ l1 = l2 /\ ps1 = ps2 /\
-  cs1 = cs2 /\ tmn1 = tmn2 /\ tmn3 = tmn4.
+  cs1 = cs2 /\ tmn1 = tmn2 /\ tmn3 = tmn4 /\ gl1 = gl2.
 Proof.
   intros.
   inversion H; subst; repeat (split; auto).
@@ -117,7 +194,7 @@ Lemma dbInsn_Call__inv : forall S1 TD1 Ps1 F1 l1 ps1 cs1 tmn1 c cs tmn3 lc1 arg1
     tr ->
   Instruction.isCallInst c = true ->
   S1 = S2 /\ TD1 = TD2 /\ Ps1 = Ps2 /\ F1 = F2 /\ l1 = l2 /\ ps1 = ps2 /\
-  cs1 = cs2 /\ tmn1 = tmn2 /\ tmn3 = tmn4 /\ als1 = als2.
+  cs1 = cs2 /\ tmn1 = tmn2 /\ tmn3 = tmn4 /\ gl1 = gl2 /\ als1 = als2.
 Proof.
   intros.
   inversion H; subst; try solve [inversion H0].
@@ -133,8 +210,8 @@ Definition dbInsn_preservation_prop state1 state2 tr
   uniqSystem S ->
   blockInSystemModuleFdef (block_intro l ps cs0 tmn) S (module_intro TD Ps) F ->
   exists l', exists ps', exists cs', exists tmn', 
-  exists lc', exists als', exists gl', exists Mem', exists cs0',
-  state2 = (mkState S TD Ps ((mkEC F (block_intro l' ps' cs0' tmn') cs' tmn' lc' arg als')::ECs) gl' Mem') /\
+  exists lc', exists als', exists Mem', exists cs0',
+  state2 = (mkState S TD Ps ((mkEC F (block_intro l' ps' cs0' tmn') cs' tmn' lc' arg als')::ECs) gl Mem') /\
   blockInSystemModuleFdef (block_intro l' ps' cs0' tmn') S (module_intro TD Ps) F.
 Definition dbop_preservation_prop state1 state2 tr
   (db:dbop state1 state2 tr) :=
@@ -144,8 +221,8 @@ Definition dbop_preservation_prop state1 state2 tr
   uniqSystem S ->
   blockInSystemModuleFdef (block_intro l ps cs0 tmn) S (module_intro TD Ps) F ->
   blockInSystemModuleFdef (block_intro l' ps' cs0' tmn') S (module_intro TD Ps) F.
-Definition dbFdef_preservation_prop fid rt lp S TD Ps ECs lc gl Mem lc' gl' als' Mem' B' Rid oResult tr
-  (db:dbFdef fid rt lp S TD Ps ECs lc gl Mem lc' gl' als' Mem' B' Rid oResult tr) :=
+Definition dbFdef_preservation_prop fid rt lp S TD Ps ECs lc gl Mem lc' als' Mem' B' Rid oResult tr
+  (db:dbFdef fid rt lp S TD Ps ECs lc gl Mem lc' als' Mem' B' Rid oResult tr) :=
   uniqSystem S ->
   moduleInSystem (module_intro TD Ps) S ->
   exists F, 
@@ -156,8 +233,8 @@ Definition dbFdef_preservation_prop fid rt lp S TD Ps ECs lc gl Mem lc' gl' als'
 Lemma db_preservation : 
   (forall state1 state2 tr db, @dbInsn_preservation_prop state1 state2 tr db) /\
   (forall state1 state2 tr db, @dbop_preservation_prop state1 state2 tr  db) /\
-  (forall fid rt lp S TD Ps lc gl Mem lc' gl' als' Mem' B' Rid oResult tr ECs db, 
-    @dbFdef_preservation_prop fid rt lp S TD Ps lc gl Mem lc' gl' als' Mem' B' Rid oResult tr ECs db).
+  (forall fid rt lp S TD Ps lc gl Mem lc' als' Mem' B' Rid oResult tr ECs db, 
+    @dbFdef_preservation_prop fid rt lp S TD Ps lc gl Mem lc' als' Mem' B' Rid oResult tr ECs db).
 Proof.
 (db_mutind_cases
   apply LLVMopsem.db_mutind with
@@ -166,17 +243,11 @@ Proof.
     (P1 := dbFdef_preservation_prop) Case);
   unfold dbInsn_preservation_prop, 
          dbop_preservation_prop, 
-         dbFdef_preservation_prop; intros; subst;
-  try solve [
-  inversion H; subst;
-  exists l0; exists ps; exists cs; exists tmn0;
-  exists lc'; exists als0; exists gl'; exists Mem1;
-  exists cs1; split; auto
-    ].
+         dbFdef_preservation_prop; intros; subst.
 Case "dbBranch".
   inversion H; subst. clear H.
   exists l'. exists ps'. exists cs'. exists tmn'.
-  exists (switchToNewBasicBlock (block_intro l' ps' cs' tmn') (block_intro l0 ps cs0 (insn_br bid Cond l1 l2)) lc0). exists als0. exists gl0. exists Mem1.
+  exists (switchToNewBasicBlock (block_intro l' ps' cs' tmn') (block_intro l0 ps cs0 (insn_br bid Cond l1 l2)) lc0). exists als0. exists Mem1.
   exists cs'. split; auto.
   apply andb_true_iff in H1.
   destruct H1.
@@ -192,7 +263,7 @@ Case "dbBranch".
 Case "dbBranch_uncond".
   inversion H; subst. clear H.
   exists l'. exists ps'. exists cs'. exists tmn'.
-  exists (switchToNewBasicBlock (block_intro l' ps' cs' tmn') (block_intro l1 ps cs0 (insn_br_uncond bid l0)) lc0). exists als0. exists gl0. exists Mem1.
+  exists (switchToNewBasicBlock (block_intro l' ps' cs' tmn') (block_intro l1 ps cs0 (insn_br_uncond bid l0)) lc0). exists als0. exists Mem1.
   exists cs'. split; auto.
   apply andb_true_iff in H1.
   destruct H1.
@@ -204,34 +275,88 @@ Case "dbBranch_uncond".
     apply lookupBlockViaLabelFromFdef_inv in e; auto.
     destruct e; auto.
 
+Case "dbBop".
+  inversion H; subst.
+  exists l0. exists ps. exists cs. exists tmn0.
+  exists (updateAddAL _ lc0 id0 gv3). exists als0. exists Mem1.
+  exists cs1. split; auto.
+
+Case "dbExtractValue".
+  inversion H; subst.
+  exists l0. exists ps. exists cs. exists tmn0.
+  exists (updateAddAL _ lc0 id0 gv'). exists als0. exists Mem1.
+  exists cs1. split; auto.
+
+Case "dbInsertValue".
+  inversion H; subst.
+  exists l0. exists ps. exists cs. exists tmn0.
+  exists (updateAddAL _ lc0 id0 gv''). exists als0. exists Mem1.
+  exists cs1. split; auto.
+
 Case "dbMalloc".
   inversion H; subst.
   exists l0. exists ps. exists cs. exists tmn0.
-  exists lc'. exists als0. exists gl'. exists Mem'.
+  exists (updateAddAL _ lc0 id0 (ptr2GV TD0 (mb, 0))). exists als0. exists Mem'.
   exists cs1. split; auto.
 
 Case "dbFree".
   inversion H; subst. 
   exists l0. exists ps. exists cs. exists tmn0.
-  exists lc0. exists als0. exists gl0. exists Mem'.
+  exists lc0. exists als0. exists Mem'.
   exists cs1. split; auto.
 
 Case "dbAlloca".
   inversion H; subst. 
   exists l0. exists ps. exists cs. exists tmn0.
-  exists lc'. exists (mb::als0). exists gl'. exists Mem'.
+  exists (updateAddAL _ lc0 id0 (ptr2GV TD0 (mb, 0))). exists (mb::als0). exists Mem'.
+  exists cs1. split; auto.
+
+Case "dbLoad".
+  inversion H; subst.
+  exists l0. exists ps. exists cs. exists tmn0.
+  exists (updateAddAL _ lc0 id0 gv). exists als0. exists Mem1.
   exists cs1. split; auto.
 
 Case "dbStore".
   inversion H; subst. 
   exists l0. exists ps. exists cs. exists tmn0.
-  exists lc0. exists als0. exists gl0. exists Mem'.
+  exists lc0. exists als0. exists Mem'.
+  exists cs1. split; auto.
+
+Case "dbGEP".
+  inversion H; subst.
+  exists l0. exists ps. exists cs. exists tmn0.
+  exists (updateAddAL _ lc0 id0 (ptr2GV TD0 mp')). exists als0. exists Mem1.
+  exists cs1. split; auto.
+
+Case "dbExt".
+  inversion H; subst.
+  exists l0. exists ps. exists cs. exists tmn0.
+  exists (updateAddAL _ lc0 id0 gv2). exists als0. exists Mem1.
+  exists cs1. split; auto.
+
+Case "dbCast".
+  inversion H; subst.
+  exists l0. exists ps. exists cs. exists tmn0.
+  exists (updateAddAL _ lc0 id0 gv2). exists als0. exists Mem1.
+  exists cs1. split; auto.
+
+Case "dbIcmp".
+  inversion H; subst.
+  exists l0. exists ps. exists cs. exists tmn0.
+  exists (updateAddAL _ lc0 id0 gv3). exists als0. exists Mem1.
+  exists cs1. split; auto.
+
+Case "dbSelect".
+  inversion H; subst.
+  exists l0. exists ps. exists cs. exists tmn0.
+  exists (if c then updateAddAL _ lc0 id0 gv1 else updateAddAL _ lc0 id0 gv2). exists als0. exists Mem1.
   exists cs1. split; auto.
 
 Case "dbCall".
   inversion H0; subst. clear H0.
   exists l0. exists ps. exists cs. exists tmn0.
-  exists lc''. exists als0. exists gl''. exists Mem''.
+  exists (callUpdateLocals TD0 noret0 rid rt oResult lc0 lc' gl0). exists als0. exists Mem''.
   exists cs1. split; auto.
  
 Case "dbop_nil".
@@ -240,7 +365,7 @@ Case "dbop_nil".
 Case "dbop_cons".
   apply H with (cs1:=cs)(lc0:=lc)(arg:=arg0)(als0:=als)(ECs0:=ECs)(gl0:=gl)(Mem:=Mem0) in H4; auto.
   clear H.
-  destruct H4 as [l1 [ps1 [cs1 [tmn1 [lc1 [als1 [gl1 [Mem1 [cs1' [EQ H4]]]]]]]]]]; subst.
+  destruct H4 as [l1 [ps1 [cs1 [tmn1 [lc1 [als1 [Mem1 [cs1' [EQ H4]]]]]]]]]; subst.
   eapply H0; eauto.
 
 Case "dbFdef_func".
@@ -263,8 +388,8 @@ Lemma _dbInsn_preservation : forall state2 tr S TD Ps F l ps cs tmn lc arg als E
   uniqSystem S ->
   blockInSystemModuleFdef (block_intro l ps cs0 tmn) S (module_intro TD Ps) F ->
   exists l', exists ps', exists cs', exists tmn', 
-  exists lc', exists als', exists gl', exists Mem', exists cs0',
-  state2 = (mkState S TD Ps ((mkEC F (block_intro l' ps' cs0' tmn') cs' tmn' lc' arg als')::ECs) gl' Mem') /\
+  exists lc', exists als', exists Mem', exists cs0',
+  state2 = (mkState S TD Ps ((mkEC F (block_intro l' ps' cs0' tmn') cs' tmn' lc' arg als')::ECs) gl Mem') /\
   blockInSystemModuleFdef (block_intro l' ps' cs0' tmn') S (module_intro TD Ps) F.
 Proof.
   intros.
@@ -285,7 +410,7 @@ Lemma dbInsn_preservation : forall tr S TD Ps F l ps cs tmn lc arg als ECs gl Me
 Proof.
   intros.
   apply _dbInsn_preservation in H; auto.
-  destruct H as [l1 [ps1 [cs1 [tmn1 [lc1 [als1 [gl1 [Mem1 [cs2 [J1 J2]]]]]]]]]].
+  destruct H as [l1 [ps1 [cs1 [tmn1 [lc1 [als1 [Mem1 [cs2 [J1 J2]]]]]]]]].
   inversion J1; subst. clear J1. auto.  
 Qed.
 
@@ -304,8 +429,8 @@ Proof.
   eapply J; eauto.
 Qed.
 
-Lemma dbFdef_preservation : forall fid rt lp S TD Ps ECs lc gl Mem lc' gl' als' Mem' B' Rid oResult tr,
-  dbFdef fid rt lp S TD Ps ECs lc gl Mem lc' gl' als' Mem' B' Rid oResult tr ->
+Lemma dbFdef_preservation : forall fid rt lp S TD Ps ECs lc gl Mem lc' als' Mem' B' Rid oResult tr,
+  dbFdef fid rt lp S TD Ps ECs lc gl Mem lc' als' Mem' B' Rid oResult tr ->
   uniqSystem S ->
   moduleInSystem (module_intro TD Ps) S ->
   exists F, 

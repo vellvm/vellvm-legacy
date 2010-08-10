@@ -70,30 +70,36 @@ Jwf_typ :: '' ::=
 defns
 Jwf_const :: '' ::=
       defn 
-      |- const : typ :: :: wf_const :: ''
+      system |-c const : typ :: :: wf_const :: ''
       {{ com [[const]] has [[typ]] }} by
 
       |- int sz
       ----------------------------- :: wf_const_int
-      |- (int sz) INT : int sz
+      system |-c (int sz) INT : int sz
 
       |- typ
       -------------------- :: wf_const_undef
-      |- typ undef : typ
+      system |-c typ undef : typ
 
       |- typ*
       ---------------------- :: wf_const_null
-      |- (typ*) null : typ*
+      system |-c (typ*) null : typ*
 
 
-      </ |- constj : typ // j />
+      </ system |-c constj : typ // j />
       length </ constj // j /> = sz
       -------------------------------------------------- :: wf_const_arr
-      |- [ </ constj // j /> ] : [sz * typ]
+      system |-c [ </ constj // j /> ] : [sz * typ]
 
-      </ |- constj : typj // j IN n />
+      </ system |-c constj : typj // j IN n />
       ------------------------------------------------------------ :: wf_const_struct
-      |- { </ constj // j IN n /> } : { </ typj // j IN n /> }
+      system |-c { </ constj // j IN n /> } : { </ typj // j IN n /> }
+
+
+      |- typ*
+      lookupTypViaIDFromSystem system id = typ*
+      ------------------------------------------- :: wf_const_gid
+      system |-c typ * id : typ*
 
 defns
 Jwf_value :: '' ::=
@@ -101,8 +107,7 @@ Jwf_value :: '' ::=
       system |- value : typ :: :: wf_value :: ''
       {{ com [[value]] has [[typ]] wrt [[system]] }} by
 
-      |- typ
-      |- const : typ
+      system |-c const : typ
       ------------------------------------------ :: wf_value_const
       system |- const : typ
 
@@ -670,9 +675,9 @@ Jwf_gvar :: '' ::=  % visitGlobalVariable
       intrinsic_funs , system , module_info |-v gvar :: :: wf_gvar :: ''
       {{ com [[gvar]] is well-formed w.r.t. [[module_info]] [[system]]}} by 
 
-      system |- value : typ
+      system |- const : typ
       ------------------------------------------------------------------------- :: wf_v_intro
-      intrinsic_funs , system , module_info |-v id = global typ value align
+      intrinsic_funs , system , module_info |-v id = global typ const align
 
 defns
 Jwf_prod :: '' ::=

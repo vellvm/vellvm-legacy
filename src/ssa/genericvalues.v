@@ -19,366 +19,17 @@ Definition undef2GV := undef2mvalue.
 Definition ptr2GV TD p := mptr2mvalue TD p (getPointerSizeInBits TD).
 
 Definition GVMap := list (id*GenericValue).
-
-(* Globals are fixed at runtime, only changed when genGlobalAndInitMem;
-   but locals can be changed. 
-   Update Locals if id exists locally,
-   Add it into Locals if id isnt in locals and globals,
-   if the id is shadowed by locals, then update globals. *)
-Definition updateEnv (locals globals:GVMap) (i:id) (gv:GenericValue) : GVMap*GVMap :=
-if (@AtomSetProperties.In_dec i (dom locals))
-then (* i is in locals *) 
-  (updateAL _ locals i gv, globals)
-else (* i isnt in locals, *)
-  if (@AtomSetProperties.In_dec i (dom globals))
-  then (* but i is in globals *) 
-    (locals, updateAL _ globals i gv)
-  else (* i is fresh. *) 
-    (updateAddAL _ locals i gv, globals)
-.
-
-Definition lookupEnv (locals:GVMap) (globals:GVMap) (i:id) : option GenericValue := 
-match lookupAL _ locals i with
-| Some gv => Some gv
-| None => lookupAL _ globals i
-end.
-
-(* replace only if exists, do nothing otherwise *)
-Definition replaceEnv (locals globals : GVMap) (i:id) (gv:GenericValue) : GVMap*GVMap :=
-if (@AtomSetProperties.In_dec i (dom locals))
-then (* i is in locals *) 
-  (updateAL _ locals i gv, globals)
-else (* i isnt in locals, *)
-  if (@AtomSetProperties.In_dec i (dom globals))
-  then (* but i is in globals *) 
-    (locals, updateAL _ globals i gv)
-  else (* i is fresh. *) 
-    (locals, globals)
-.
-
-Definition deleteEnv (locals globals : GVMap) (i:id) : GVMap*GVMap :=
-(deleteAL _ locals i, deleteAL _ globals i).
-
-Definition rollbackEnv (locals globals : GVMap) (i:id) (lc0 gl0 : GVMap) : GVMap*GVMap :=
-match (lookupEnv lc0 gl0 i) with
-| Some gv0 => replaceEnv locals globals i gv0
-| None => deleteEnv locals globals i
-end.
-
-Lemma lookupEnv_updateEnv_eq : forall id0 lc gl gv0 lc' gl',
-  updateEnv lc gl id0 gv0 = (lc', gl') ->
-  lookupEnv lc' gl' id0 = Some gv0.
-Proof.
-  intros id0 lc gl gv0 lc' gl' HupdateEnv.
-  unfold lookupEnv.
-  unfold updateEnv in HupdateEnv.
-  destruct (@AtomSetProperties.In_dec id0 (dom lc)) as [id0_in_lc | id0_notin_lc].
-    inversion HupdateEnv; subst. clear HupdateEnv.
-    rewrite lookupAL_updateAL_in; auto.
-
-    destruct (@AtomSetProperties.In_dec id0 (dom gl)) as [id0_in_gl | id0_notin_gl].
-      inversion HupdateEnv; subst. clear HupdateEnv.
-      rewrite lookupAL_notin; auto.
-      rewrite lookupAL_updateAL_in; auto. 
-
-      inversion HupdateEnv; subst. clear HupdateEnv.
-      rewrite lookupAL_updateAddAL_eq; auto.
-Qed.
-
-Lemma lookupEnv_updateEnv_neq : forall id0 id1 lc gl gv0 lc' gl',
-  updateEnv lc gl id0 gv0 = (lc', gl') ->
-  id1 <> id0 ->
-  lookupEnv lc gl id1 = lookupEnv lc' gl' id1.
-Proof.
-  intros id0 id1 lc gl ogv0 lc' gl' HupdateEnv id1_isnt_id0.
-  unfold updateEnv in HupdateEnv.
-  unfold lookupEnv.
-  destruct (@AtomSetProperties.In_dec id0 (dom lc)) as [id0_in_lc | id0_notin_lc].
-    inversion HupdateEnv; subst. clear HupdateEnv.
-    rewrite <- lookupAL_updateAL_neq; auto.
-
-    destruct (@AtomSetProperties.In_dec id0 (dom gl)) as [id0_in_gl | id0_notin_gl].
-      inversion HupdateEnv; subst. clear HupdateEnv.
-      rewrite <- lookupAL_updateAL_neq; auto.
-    
-      inversion HupdateEnv; subst. clear HupdateEnv.
-      rewrite <- lookupAL_updateAddAL_neq; auto.
-Qed. 
-
-Lemma lookupEnv__indom : forall id0 lc gl gv,
-  lookupEnv lc gl id0 = Some gv ->
-  id0 `in` dom lc `union` dom gl.
-Proof.
-  intros id0 lc gl gv H.
-  unfold lookupEnv in H.
-  remember (lookupAL _ lc id0) as ogv.
-  destruct ogv.
-    symmetry in Heqogv.
-    apply lookupAL__indom in Heqogv; auto.
-
-    apply lookupAL__indom in H; auto.
-Qed.
-
-Lemma exists_updateEnv : forall lc gl i0 gv3,
-  exists lc2, exists gl2, updateEnv lc gl i0 gv3 = (lc2, gl2).
-Proof.
-  intros lc gl i0 gv3.
-  unfold updateEnv.
-  destruct (AtomSetProperties.In_dec i0 (dom lc)).
-    exists (updateAL _ lc i0 gv3). exists gl. auto.
-    destruct (AtomSetProperties.In_dec i0 (dom gl)).
-      exists lc. exists (updateAL _ gl i0 gv3). auto.
-      exists (updateAddAL _ lc i0 gv3). exists gl. auto.
-Qed.    
-
-Lemma exists_replaceEnv : forall lc gl i0 gv0, 
-  exists lc2, exists gl2, replaceEnv lc gl i0 gv0 = (lc2, gl2).
-Proof.
-  intros lc gl i0 gv3.
-  unfold replaceEnv.
-  destruct (AtomSetProperties.In_dec i0 (dom lc)).
-    exists (updateAL _ lc i0 gv3). exists gl. auto.
-    destruct (AtomSetProperties.In_dec i0 (dom gl)).
-      exists lc. exists (updateAL _ gl i0 gv3). auto.
-      exists lc. exists gl. auto.
-Qed.   
-
-Lemma lookupEnv_replaceEnv_Some_eq : forall lc gl id0 gv0 lc' gl' gv1,
-  lookupEnv lc gl id0 = Some gv0 ->
-  replaceEnv lc gl id0 gv1 = (lc', gl') ->
-  lookupEnv lc' gl' id0 = Some gv1.
-Proof.
-  intros lc gl id0 gv0 lc' gl' gv1 Hl Hr.
-  unfold replaceEnv in Hr.
-  unfold lookupEnv in *.
-  destruct (AtomSetProperties.In_dec id0 (dom lc)).
-    inversion Hr; subst.
-    rewrite lookupAL_updateAL_in; auto.
-
-    destruct (AtomSetProperties.In_dec id0 (dom gl)).
-      inversion Hr; subst. clear Hr.
-      rewrite lookupAL_notin; auto.
-      rewrite lookupAL_updateAL_in; auto. 
-
-      inversion Hr; subst. clear Hr.
-      rewrite lookupAL_notin in Hl; auto.
-      rewrite lookupAL_notin in Hl; auto.
-      inversion Hl.
-Qed.
-
-Lemma lookupEnv_replaceEnv_None_eq : forall lc gl id0 lc' gl' gv1,
-  lookupEnv lc gl id0 = None ->
-  replaceEnv lc gl id0 gv1 = (lc', gl') ->
-  lookupEnv lc' gl' id0 = None.
-Proof.
-  intros lc gl id0 lc' gl' gv1 Hl Hr.
-  unfold replaceEnv in Hr.
-  unfold lookupEnv in *.
-  destruct (AtomSetProperties.In_dec id0 (dom lc)).
-    inversion Hr; subst.
-    apply lookupAL_in in i0.
-    destruct i0 as [gv0 i0].
-    rewrite i0 in Hl. 
-    inversion Hl.
-
-    rewrite lookupAL_notin in Hl; auto.
-    destruct (AtomSetProperties.In_dec id0 (dom gl)).
-      apply lookupAL_in in i0.
-      destruct i0 as [gv0 i0].
-      rewrite i0 in Hl. 
-      inversion Hl.
-
-      inversion Hr; subst. clear Hr.
-      rewrite lookupAL_notin; auto.
-Qed.
-
-Lemma lookupEnv_replaceEnv_neq : forall id0 id1 lc gl gv0 lc' gl',
-  replaceEnv lc gl id0 gv0 = (lc', gl') ->
-  id1 <> id0 ->
-  lookupEnv lc gl id1 = lookupEnv lc' gl' id1.
-Proof.
-  intros id0 id1 lc gl ogv0 lc' gl' HreplaceEnv id1_isnt_id0.
-  unfold replaceEnv in HreplaceEnv.
-  unfold lookupEnv.
-  destruct (@AtomSetProperties.In_dec id0 (dom lc)) as [id0_in_lc | id0_notin_lc].
-    inversion HreplaceEnv; subst. clear HreplaceEnv.
-    rewrite <- lookupAL_updateAL_neq; auto.
-
-    destruct (@AtomSetProperties.In_dec id0 (dom gl)) as [id0_in_gl | id0_notin_gl].
-      inversion HreplaceEnv; subst. clear HreplaceEnv.
-      rewrite <- lookupAL_updateAL_neq; auto.
-    
-      inversion HreplaceEnv; subst. auto.
-Qed. 
-
-Lemma updateEnv_uniq : forall lc gl id0 lc' gl' g,
-  uniq lc ->
-  uniq gl ->
-  updateEnv lc gl id0 g = (lc', gl') ->
-  uniq gl' /\ uniq lc'.
-Proof.
-  intros lc gl id0 lc' gl' g Huniqc Huniqg Hd.
-  unfold updateEnv in Hd.
-  destruct (@AtomSetProperties.In_dec id0 (dom lc)) as [id0_in_lc | id0_notin_lc].
-    inversion Hd; subst.
-    split; auto using updateAL_uniq.
-
-    destruct (@AtomSetProperties.In_dec id0 (dom gl)) as [id0_in_gl | id0_notin_gl].
-      inversion Hd; subst.
-      split; auto using updateAL_uniq.
-
-      inversion Hd; subst.
-      split; auto using updateAddAL_uniq.
-Qed.
-
-Lemma replaceEnv_uniq : forall id0 gv0 lc gl lc' gl',
-  uniq lc ->
-  uniq gl ->
-  replaceEnv lc gl id0 gv0 = (lc', gl') ->
-  uniq lc' /\ uniq gl'.
-Proof.
-  intros id0 gv0 lc gl lc' gl' Uniqc Uniqg Hr.
-  unfold replaceEnv in Hr.
-  destruct (@AtomSetProperties.In_dec id0 (dom lc)) as [id0_in_lc | id0_notin_lc].
-    inversion Hr; subst. clear Hr.
-    split; auto using updateAL_uniq.
-
-    destruct (@AtomSetProperties.In_dec id0 (dom gl)) as [id0_in_gl | id0_notin_gl].
-      inversion Hr; subst. clear Hr.
-      split; auto using updateAL_uniq.
-
-      inversion Hr; subst. split; auto.
-Qed.
-
-Lemma exists_deleteEnv : forall lc gl i0, 
-  exists lc2, exists gl2, deleteEnv lc gl i0 = (lc2, gl2).
-Proof.
-  intros lc gl i0.
-  unfold deleteEnv.
-  exists (deleteAL _ lc i0). 
-  exists (deleteAL _ gl i0). auto.
-Qed.   
-
-Lemma lookupEnv_deleteEnv_eq : forall lc gl id0 lc' gl',
-  uniq gl ->
-  uniq lc ->
-  deleteEnv lc gl id0 = (lc', gl') ->
-  lookupEnv lc' gl' id0 = None.
-Proof.
-  intros lc gl id0 lc' gl' Huniqc Huniqg HdeleteEnv.
-  unfold deleteEnv in HdeleteEnv.
-  unfold lookupEnv.
-  inversion HdeleteEnv; subst. clear HdeleteEnv.
-  rewrite lookupAL_deleteAL_eq; auto.
-  rewrite lookupAL_deleteAL_eq; auto.
-Qed.  
-
-Lemma lookupEnv_deleteEnv_neq : forall lc gl id0 lc' gl' id1,
-  deleteEnv lc gl id0 = (lc', gl') ->
-  id0 <> id1 ->
-  lookupEnv lc gl id1 = lookupEnv lc' gl' id1.
-Proof.
-  intros lc gl id0 lc' gl' id1 HdeleteEnv id0_isnt_id1.
-  unfold deleteEnv in HdeleteEnv.
-  inversion HdeleteEnv; subst. clear HdeleteEnv.
-  unfold lookupEnv.
-  rewrite lookupAL_deleteAL_neq; auto.
-  rewrite lookupAL_deleteAL_neq; auto.
-Qed.  
-
-Lemma deleteEnv_uniq : forall lc gl id0 lc' gl',
-  uniq lc ->
-  uniq gl ->
-  deleteEnv lc gl id0 = (lc', gl') ->
-  uniq lc' /\ uniq gl'.
-Proof.
-  intros lc gl id0 lc' gl' Huniqc Huniqg Hd.
-  unfold deleteEnv in Hd.  
-  inversion Hd; subst.
-  split; auto using deleteAL_uniq.
-Qed.
-
-Lemma exists_rollbackEnv : forall lc gl i0 lc0 gl0, 
-  exists lc2, exists gl2, rollbackEnv lc gl i0 lc0 gl0 = (lc2, gl2).
-Proof.
-  intros lc gl i0 lc0 gl0.
-  unfold rollbackEnv.
-  destruct (lookupEnv lc0 gl0 i0).
-    apply exists_replaceEnv.
-    apply exists_deleteEnv.
-Qed.   
-
-Lemma rollbackEnv_uniq : forall id0 lc0 gl0 lc gl lc' gl',
-  uniq lc ->
-  uniq gl ->
-  rollbackEnv lc gl id0 lc0 gl0 = (lc', gl') ->
-  uniq lc' /\ uniq gl'.
-Proof.
-  intros id0 lc0 gl0 lc gl lc' gl' Huniqc Huniqg Hr.
-  unfold rollbackEnv in Hr.
-  destruct (lookupEnv lc0 gl0 id0).
-    apply replaceEnv_uniq in Hr; auto.
-    apply deleteEnv_uniq in Hr; auto.
-Qed.     
-
-Lemma lookupEnv_rollbackEnv_neq : forall lc gl id0 lc0 gl0 lc' gl' id1,
-  rollbackEnv lc gl id0 lc0 gl0 = (lc', gl') ->
-  id0 <> id1 ->
-  lookupEnv lc gl id1 = lookupEnv lc' gl' id1.
-Proof.
-  intros lc gl id0 lc0 gl0 lc' gl' id1 Hrollback id0_isnt_id1.
-  unfold rollbackEnv in Hrollback.
-  remember (lookupEnv lc0 gl0 id0) as ogv0.
-  destruct ogv0.
-    eapply lookupEnv_replaceEnv_neq; eauto.
-    eapply lookupEnv_deleteEnv_neq; eauto.
-Qed.
-
-Lemma lookupEnv_rollbackEnv_Some_eq : forall lc gl id0 lc0 gl0 lc' gl' gv0,
-  uniq lc ->
-  uniq gl ->
-  rollbackEnv lc gl id0 lc0 gl0 = (lc', gl') ->
-  lookupEnv lc gl id0 = Some gv0 ->
-  lookupEnv lc' gl' id0 = lookupEnv lc0 gl0 id0.
-Proof.
-  intros lc gl id0 lc0 gl0 lc' gl' gv0 Huniqc Huniqg Hrollback HlookupEnv.
-  unfold rollbackEnv in Hrollback.
-  remember (lookupEnv lc0 gl0 id0) as ogv0.
-  destruct ogv0.
-    rewrite Heqogv0.
-    apply lookupEnv_replaceEnv_Some_eq with (gv0:=gv0) in Hrollback; auto.
-    rewrite Hrollback. auto.
-
-    apply lookupEnv_deleteEnv_eq in Hrollback; auto.
-Qed.
-
-Lemma lookupEnv_rollbackEnv_None_eq : forall lc gl id0 lc0 gl0 lc' gl',
-  uniq lc ->
-  uniq gl ->
-  rollbackEnv lc gl id0 lc0 gl0 = (lc', gl') ->
-  lookupEnv lc gl id0 = None ->
-  lookupEnv lc' gl' id0 = None.
-Proof.
-  intros lc gl id0 lc0 gl0 lc' gl' Huniqc Huniqg Hrollback HlookupEnv.
-  unfold rollbackEnv in Hrollback.
-  remember (lookupEnv lc0 gl0 id0) as ogv0.
-  destruct ogv0.
-    apply lookupEnv_replaceEnv_None_eq in Hrollback; auto.
-
-    apply lookupEnv_deleteEnv_eq in Hrollback; auto.
-Qed.
-
 (**************************************)
 (** Convert const to GV with storesize, and look up GV from operands. *)
 
-Fixpoint _const2GV (TD:layouts) (c:const) : option (GenericValue*typ) := 
+Fixpoint _const2GV (TD:layouts) (gl:GVMap) (c:const) : option (GenericValue*typ) := 
 match c with
 | const_int sz n => Some (nat2GV TD sz n, typ_int sz)
 | const_undef t =>  do gv <- undef2GV TD t; Some (gv, t)
 | const_null t =>   Some (ptr2GV TD null, t)
-| const_arr lc => _list_const_arr2GV TD lc
+| const_arr lc => _list_const_arr2GV TD gl lc
 | const_struct lc =>
-         match (_list_const_struct2GV TD lc) with
+         match (_list_const_struct2GV TD gl lc) with
          | None => None
          | Some ((gv, t), al) => 
            match (length gv) with
@@ -386,12 +37,17 @@ match c with
            | _ => Some (gv++muninits (al-length gv), t)
            end
          end
+| const_gid t id =>
+         match (lookupAL _ gl id) with
+         | Some gv => Some (gv, t)
+         | None => None
+         end
 end
-with _list_const_arr2GV (TD:layouts) (cs:list_const) : option (GenericValue*typ) := 
+with _list_const_arr2GV (TD:layouts) (gl:GVMap) (cs:list_const) : option (GenericValue*typ) := 
 match cs with
 | Nil_list_const => Some (nil, typ_int 0)
 | Cons_list_const c lc' =>
-  match (_list_const_arr2GV TD lc', _const2GV TD c) with
+  match (_list_const_arr2GV TD gl lc', _const2GV TD gl c) with
   | (Some (gv, t), Some (gv0,t0)) =>
              match (getTypeAllocSize TD t0) with
              | Some sz0 => Some ((gv++gv0)++muninits (sz0 - length gv0), t0)
@@ -400,11 +56,11 @@ match cs with
   | _ => None
   end
 end
-with _list_const_struct2GV (TD:layouts) (cs:list_const) : option (GenericValue*typ*align) := 
+with _list_const_struct2GV (TD:layouts) (gl:GVMap) (cs:list_const) : option (GenericValue*typ*align) := 
 match cs with
 | Nil_list_const => Some ((nil, typ_int 0), 0)
 | Cons_list_const c lc' =>
-  match (_list_const_struct2GV TD lc', _const2GV TD c) with
+  match (_list_const_struct2GV TD gl lc', _const2GV TD gl c) with
   | (Some (gv, t, struct_al), Some (gv0,t0)) =>
              match (getABITypeAlignment TD t0, getTypeAllocSize TD t0) with
              | (Some sub_al, Some sub_sz) => 
@@ -435,16 +91,16 @@ match cs with
 end
 .
 
-Definition const2GV (TD:layouts) (c:const) : option GenericValue :=
-match (_const2GV TD c) with
+Definition const2GV (TD:layouts) (gl:GVMap) (c:const) : option GenericValue :=
+match (_const2GV TD gl c) with
 | None => None
 | Some (gv, t) => Some gv
 end.
 
 Definition getOperandValue (TD:layouts) (v:value) (locals:GVMap) (globals:GVMap) : option GenericValue := 
 match v with
-| value_id id => lookupEnv locals globals id 
-| value_const c => (const2GV TD c)
+| value_id id => lookupAL _ locals id 
+| value_const c => (const2GV TD globals c)
 end.
 
 Definition getOperandInt (TD:layouts) (sz:nat) (v:value) (locals:GVMap) (globals:GVMap) : option nat := 
@@ -835,28 +491,132 @@ Proof.
         rewrite <- IHl0 with (gvs0:=l1); auto.
 Qed.
 
-(* eq *)
+Scheme const_ind2 := Induction for const Sort Prop
+  with list_const_ind2 := Induction for list_const Sort Prop.
+Combined Scheme const_mutind from const_ind2, list_const_ind2.
 
-Definition eqEnv lc1 gl1 lc2 gl2 := 
-  forall i, lookupEnv lc1 gl1 i = lookupEnv lc2 gl2 i.
+Lemma _const2GV_eqAL : 
+  (forall c gl1 gl2 TD, eqAL _ gl1 gl2 -> 
+    _const2GV TD gl1 c = _const2GV TD gl2 c) /\
+  (forall cs gl1 gl2 TD, eqAL _ gl1 gl2 -> 
+    _list_const_arr2GV TD gl1 cs = _list_const_arr2GV TD gl2 cs /\
+    _list_const_struct2GV TD gl1 cs = _list_const_struct2GV TD gl2 cs).
+Proof.
+  apply const_mutind; intros; simpl; auto.
+    apply H with (TD:=TD)(gl1:=gl1)(gl2:=gl2) in H0.
+    destruct H0; auto.
 
-Lemma eqEnv_refl : forall lc gl,
-  eqEnv lc gl lc gl.
-Proof. unfold eqEnv. auto. Qed.
+    apply H with (TD:=TD)(gl1:=gl1)(gl2:=gl2) in H0.
+    destruct H0.
+    rewrite H1. auto.
 
-Lemma eqEnv_sym : forall lc1 gl1 lc2 gl2,
-  eqEnv lc1 gl1 lc2 gl2 ->
-  eqEnv lc2 gl2 lc1 gl1.
-Proof. unfold eqEnv. auto. Qed.
+    rewrite H. auto.
 
-Lemma eqEnv_trans : forall lc1 gl1 lc2 gl2 lc3 gl3,
-  eqEnv lc1 gl1 lc2 gl2 ->
-  eqEnv lc2 gl2 lc3 gl3 ->
-  eqEnv lc1 gl1 lc3 gl3.
-Proof. 
-  unfold eqEnv. 
-  intros.
-  assert (J1:=@H i0).
-  assert (J2:=@H0 i0).
-  rewrite J1. auto.
+    assert (J:=H1).
+    apply H0 with (TD:=TD)(gl1:=gl1)(gl2:=gl2) in H1.
+    destruct H1.
+    rewrite H2. rewrite H1. erewrite H; eauto.
 Qed.
+
+Lemma const2GV_eqAL : forall c gl1 gl2 TD, 
+  eqAL _ gl1 gl2 -> 
+  const2GV TD gl1 c = const2GV TD gl2 c.
+Proof.
+  intros. unfold const2GV.
+  destruct _const2GV_eqAL.
+  erewrite H0; eauto.
+Qed.
+
+Lemma getOperandValue_eqAL : forall lc1 gl lc2 v TD,
+  eqAL _ lc1 lc2 ->
+  getOperandValue TD v lc1 gl = getOperandValue TD v lc2 gl.
+Proof.
+  intros lc1 gl lc2 v TD HeqAL.
+  unfold getOperandValue in *.
+  destruct v; auto.
+Qed.
+
+Lemma BOP_eqAL : forall lc1 gl lc2 bop0 sz0 v1 v2 TD,
+  eqAL _ lc1 lc2 ->
+  BOP TD lc1 gl bop0 sz0 v1 v2 = BOP TD lc2 gl bop0 sz0 v1 v2.
+Proof.
+  intros lc1 gl lc2 bop0 sz0 v1 v2 TD HeqEnv.
+  unfold BOP in *.
+  rewrite getOperandValue_eqAL with (lc2:=lc2)(v:=v1); auto.
+  rewrite getOperandValue_eqAL with (lc2:=lc2)(v:=v2); auto.
+Qed.
+
+Lemma getOperandPtr_eqAL : forall lc1 gl lc2 v TD,
+  eqAL _ lc1 lc2 ->
+  getOperandPtr TD v lc1 gl = getOperandPtr TD v lc2 gl.
+Proof.
+  intros lc1 gl lc2 v TD HeqEnv.
+  unfold getOperandPtr in *.
+  erewrite getOperandValue_eqAL; eauto.
+Qed.
+
+Lemma getOperandInt_eqAL : forall lc1 gl lc2 sz v TD,
+  eqAL _ lc1 lc2 ->
+  getOperandInt TD sz v lc1 gl = getOperandInt TD sz v lc2 gl.
+Proof.
+  intros lc1 gl lc2 sz0 v TD HeqAL.
+  unfold getOperandInt in *.
+  erewrite getOperandValue_eqAL; eauto.
+Qed.
+
+Lemma getOperandPtrInBits_eqAL : forall lc1 gl lc2 sz v TD,
+  eqAL _ lc1 lc2 ->
+  getOperandPtrInBits TD sz v lc1 gl = getOperandPtrInBits TD sz v lc2 gl.
+Proof.
+  intros lc1 gl lc2 sz0 v TD HeqAL.
+  unfold getOperandPtrInBits in *.
+  erewrite getOperandValue_eqAL; eauto.
+Qed.
+
+Lemma CAST_eqAL : forall lc1 gl lc2 op t1 v1 t2 TD,
+  eqAL _ lc1 lc2 ->
+  CAST TD lc1 gl op t1 v1 t2 = CAST TD lc2 gl op t1 v1 t2.
+Proof.
+  intros lc1 gl lc2 op t1 v1 t2 TD HeqAL.
+  unfold CAST in *.
+  rewrite getOperandValue_eqAL with (lc2:=lc2)(v:=v1); auto.
+Qed.
+
+
+Lemma EXT_eqAL : forall lc1 gl lc2 op t1 v1 t2 TD,
+  eqAL _ lc1 lc2 ->
+  EXT TD lc1 gl op t1 v1 t2 = EXT TD lc2 gl op t1 v1 t2.
+Proof.
+  intros lc1 gl lc2 op t1 v1 t2 TD HeqAL.
+  unfold EXT in *.
+  rewrite getOperandValue_eqAL with (lc2:=lc2)(v:=v1); auto.
+Qed.
+
+Lemma ICMP_eqAL : forall lc1 gl lc2 cond t v1 v2 TD,
+  eqAL _ lc1 lc2 ->
+  ICMP TD lc1 gl cond t v1 v2 = ICMP TD lc2 gl cond t v1 v2.
+Proof.
+  intros lc1 gl lc2 cond0 t v1 v2 TD HeqAL.
+  unfold ICMP in *.
+  rewrite getOperandValue_eqAL with (lc2:=lc2)(v:=v1); auto.
+  rewrite getOperandValue_eqAL with (lc2:=lc2)(v:=v2); auto.
+Qed.
+
+Lemma intValues2Nats_eqAL : forall l0 lc1 gl lc2 TD,
+  eqAL _ lc1 lc2 ->
+  intValues2Nats TD l0 lc1 gl = intValues2Nats TD l0 lc2 gl.
+Proof.
+  induction l0; intros lc1 gl lc2 TD HeqAL; simpl; auto.
+    rewrite getOperandValue_eqAL with (lc2:=lc2)(v:=v); auto.
+    erewrite IHl0; eauto.
+Qed.
+
+Lemma GEP_eqAL : forall lc1 gl lc2 t ma vidxs ib TD,
+  eqAL _ lc1 lc2 ->
+  GEP TD lc1 gl t ma vidxs ib = GEP TD lc2 gl t ma vidxs ib.
+Proof.
+  intros lc1 gl lc2 t ma vidxs ib TD HeqAL.
+  unfold GEP in *.
+  erewrite intValues2Nats_eqAL; eauto.
+Qed.
+

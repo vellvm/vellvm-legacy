@@ -103,6 +103,7 @@ const :: 'const_'					::=  			{{ com constant }}
   | ( typ * ) null					::   :: null		{{ com null }}
   | [ </ constj // j /> ]				::   :: arr             {{ com array }}
   | { </ constj // j /> }				::   :: struct          {{ com struct }}
+  | typ * id						::   :: gid		{{ com gid }}
   | ( const )						:: S :: paren           {{ coq [[ const ]] }}
 
 value :: 'value_'					::=  			{{ com values }}
@@ -295,7 +296,7 @@ opt_fdef {{ tex \mathit{opt_{fdef} } }} :: 'opt_fdef_'	::=  			{{ com option fde
 
 % global id is also taken as constant addresses
 gvar :: 'gvar_'   	 				::=			{{ com global variables }}
-  | id = global typ value align				::   :: intro           
+  | id = global typ const align				::   :: intro           
   | ( gvar )	    					:: S :: paren		{{ coq [[ gvar ]] }}
 
 id_binding :: 'id_binding_'  				::=			{{ com id binding }} 

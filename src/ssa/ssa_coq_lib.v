@@ -889,7 +889,8 @@ end.
 
 Definition lookupTypViaIDFromProduct (p:product) (id0:id) : option typ :=
 match p with
-| (product_fdef fd) => lookupTypViaIDFromFdef fd id0
+| product_fdef fd => lookupTypViaIDFromFdef fd id0
+| product_gvar (gvar_intro id t _ _) => if id0==id then Some t else None
 | _ => None
 end.
 
@@ -1138,7 +1139,7 @@ lookupTypViaIDFromModules s id0.
   Fixpoint genIdUseDef_blocks (bs:blocks) : usedef_id :=
   match bs with 
   | nil => fun _ => nil
-  | b::bs' => (genIdUseDef_blocks bs')+++(genIdUseDef_block b)
+  | b::bs' => (genIdUseDef_block b)+++(genIdUseDef_blocks bs')
   end.
 
   Definition genIdUseDef_fdef (f:fdef) : usedef_id := 
@@ -1148,7 +1149,7 @@ lookupTypViaIDFromModules s id0.
 
   Definition genIdUseDef_product (p:product) : usedef_id :=
   match p with 
-  | product_gvar (gvar_intro id t v a) => genIdUseDef_id_uses_value v id
+  | product_gvar (gvar_intro id t v a) => fun _ => nil
   | product_fdef f => (genIdUseDef_fdef f)
   | product_fdec f => fun _ => nil
   (* | product_namedtype nt => fun _ => nil *)
@@ -1157,7 +1158,7 @@ lookupTypViaIDFromModules s id0.
   Fixpoint genIdUseDef_products (ps:products) : usedef_id :=
   match ps with
   | nil => fun _ => nil
-  | p::ps' => (genIdUseDef_products ps') +++ (genIdUseDef_product p) 
+  | p::ps' => (genIdUseDef_product p)+++(genIdUseDef_products ps')
   end.
 
   Definition genIdUseDef (m: module) : usedef_id :=
@@ -1782,6 +1783,8 @@ match (lt1, lt2) with
 | _ => false 
 end.
 
+Definition idEqB (i i':id) : bool := if i == i' then true else false.
+
 Fixpoint constEqB (c1 c2:const) : bool :=
 match (c1, c2) with 
 | (const_int sz1 n1, const_int sz2 n2) => beq_nat n1 n2 && beq_nat sz1 sz2
@@ -1789,6 +1792,7 @@ match (c1, c2) with
 | (const_undef t1, const_undef t2) => typEqB t1 t2
 | (const_struct lc1, const_struct lc2) => list_constEqB lc1 lc2
 | (const_arr lc1, const_arr lc2) => list_constEqB lc1 lc2
+| (const_gid t1 id1, const_gid t2 id2) => typEqB t1 t2 && idEqB id1 id2
 | (_, _) => false
 end
 with list_constEqB (lc1 lc2:list_const) : bool :=
@@ -1797,8 +1801,6 @@ match (lc1, lc2) with
 | (Cons_list_const c1 lc1', Cons_list_const c2 lc2') => constEqB c1 c2 && list_constEqB lc1' lc2'
 | _ => false 
 end.
-
-Definition idEqB (i i':id) : bool := if i == i' then true else false.
 
 Definition valueEqB (v v':value) : bool :=
 match (v, v') with
@@ -2062,8 +2064,8 @@ end.
 
 Definition gvarEqB (gv gv' : gvar) : bool :=
 match (gv, gv') with
-| (gvar_intro id t v a, gvar_intro id' t' v' a') =>
-  idEqB id id' && typEqB t t' && valueEqB v v' && beq_nat a a'
+| (gvar_intro id t c a, gvar_intro id' t' c' a') =>
+  idEqB id id' && typEqB t t' && constEqB c c' && beq_nat a a'
 end.
 
 Definition productEqB (p p' : product) : bool :=
@@ -2675,6 +2677,7 @@ Fixpoint getTyp (c:const) : typ :=
    | Cons_list_const c' lc' => typ_array (length (unmake_list_const lc)) (getTyp c')
    end
  | const_struct lc => typ_struct (getList_typ lc)
+ | const_gid t _ => typ_pointer t
  end
 with getList_typ (cs:list_const) : list_typ :=
 match cs with

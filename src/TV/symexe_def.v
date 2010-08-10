@@ -35,136 +35,123 @@ Allocas     : list mblock            (* Track memory allocated by alloca *)
 
 Record State : Set := mkState {
 Frame          : ExecutionContext;
-Globals        : GVMap;
 Mem            : mem
 }.
 
-Inductive dbCmd : layouts -> 
-                  GVMap -> list mblock -> GVMap -> mem -> 
+Inductive dbCmd : layouts ->  GVMap ->
+                  GVMap -> list mblock -> mem -> 
                   cmd -> 
-                  GVMap -> list mblock -> GVMap -> mem -> 
+                  GVMap -> list mblock -> mem -> 
                   trace -> Prop :=
-| dbBop: forall TD lc gl lc' gl' id bop sz v1 v2 gv3 Mem als,
+| dbBop: forall TD lc gl id bop sz v1 v2 gv3 Mem als,
   BOP TD lc gl bop sz v1 v2 = Some gv3 ->
-  updateEnv lc gl id gv3 = (lc', gl') -> 
-  dbCmd TD
-    lc als gl Mem
+  dbCmd TD gl
+    lc als Mem
     (insn_bop id bop sz v1 v2)
-    lc' als gl' Mem
+    (updateAddAL _ lc id gv3) als Mem
     trace_nil 
-| dbExtractValue : forall TD lc gl lc' gl' id t v gv gv' Mem als idxs,
+| dbExtractValue : forall TD lc gl id t v gv gv' Mem als idxs,
   getOperandValue TD v lc gl = Some gv ->
   extractGenericValue TD t gv idxs = Some gv' ->
-  updateEnv lc gl id gv' = (lc', gl') -> 
-  dbCmd TD 
-    lc als gl Mem
+  dbCmd TD gl
+    lc als Mem
     (insn_extractvalue id t v idxs)
-    lc' als gl' Mem
+    (updateAddAL _ lc id gv') als Mem
     trace_nil 
-| dbInsertValue : forall TD lc gl lc' gl' id t v t' v' gv gv' gv'' idxs Mem als,
+| dbInsertValue : forall TD lc gl id t v t' v' gv gv' gv'' idxs Mem als,
   getOperandValue TD v lc gl = Some gv ->
   getOperandValue TD v' lc gl = Some gv' ->
   insertGenericValue TD t gv idxs t' gv' = Some gv'' ->
-  updateEnv lc gl id gv'' = (lc', gl') -> 
-  dbCmd TD 
-    lc als gl Mem
+  dbCmd TD gl
+    lc als Mem
     (insn_insertvalue id t v t' v' idxs)
-    lc' als gl' Mem
+    (updateAddAL _ lc id gv'') als Mem
     trace_nil 
-| dbMalloc : forall TD lc gl lc' gl' id t sz align Mem als Mem' tsz mb,
+| dbMalloc : forall TD lc gl id t sz align Mem als Mem' tsz mb,
   getTypeAllocSize TD t = Some tsz ->
   malloc TD Mem (tsz * sz) align = Some (Mem', mb) ->
-  updateEnv lc gl id (ptr2GV TD (mb, 0)) = (lc', gl') -> 
-  dbCmd TD 
-    lc als gl Mem
+  dbCmd TD gl
+    lc als Mem
     (insn_malloc id t sz align)
-    lc' als gl' Mem'
+    (updateAddAL _ lc id (ptr2GV TD (mb, 0))) als Mem'
     trace_nil
 | dbFree : forall TD lc gl fid t v Mem als Mem' mptr,
   getOperandPtr TD v lc gl = Some mptr ->
   free Mem mptr = Some Mem'->
-  dbCmd TD 
-    lc als gl Mem
+  dbCmd TD gl
+    lc als Mem
     (insn_free fid t v)
-    lc als gl Mem'
+    lc als Mem'
     trace_nil
-| dbAlloca : forall TD lc gl lc' gl' id t sz align Mem als Mem' tsz mb,
+| dbAlloca : forall TD lc gl id t sz align Mem als Mem' tsz mb,
   getTypeAllocSize TD t = Some tsz ->
   malloc TD Mem (tsz * sz) align = Some (Mem', mb) ->
-  updateEnv lc gl id (ptr2GV TD (mb, 0)) = (lc', gl') -> 
-  dbCmd TD 
-    lc als gl Mem
+  dbCmd TD gl
+    lc als Mem
     (insn_alloca id t sz align)
-    lc' (mb::als) gl' Mem'
+    (updateAddAL _ lc id (ptr2GV TD (mb, 0))) (mb::als) Mem'
     trace_nil
-| dbLoad : forall TD lc gl lc' gl' id t v Mem als mp gv,
+| dbLoad : forall TD lc gl id t v Mem als mp gv,
   getOperandPtr TD v lc gl = Some mp ->
   mload TD Mem mp t = Some gv ->
-  updateEnv lc gl id gv = (lc', gl') -> 
-  dbCmd TD 
-    lc als gl Mem
+  dbCmd TD gl
+    lc als Mem
     (insn_load id t v)
-    lc' als gl' Mem
+    (updateAddAL _ lc id gv) als Mem
     trace_nil
 | dbStore : forall TD lc gl sid t v1 v2 Mem als mp2 gv1 Mem',
   getOperandValue TD v1 lc gl = Some gv1 ->
   getOperandPtr TD v2 lc gl = Some mp2 ->
   mstore TD Mem mp2 t gv1 = Some Mem' ->
-  dbCmd TD 
-    lc als gl Mem
+  dbCmd TD gl 
+    lc als Mem
     (insn_store sid t v1 v2)
-    lc als gl Mem'
+    lc als Mem'
     trace_nil
-| dbGEP : forall TD lc gl lc' gl' id inbounds t v idxs mp mp' Mem als,
+| dbGEP : forall TD lc gl id inbounds t v idxs mp mp' Mem als,
   getOperandPtr TD v lc gl = Some mp ->
   GEP TD lc gl t mp idxs inbounds = Some mp' ->
-  updateEnv lc gl id (ptr2GV TD mp') = (lc', gl') -> 
-  dbCmd TD 
-    lc als gl Mem
+  dbCmd TD gl
+    lc als Mem
     (insn_gep id inbounds t v idxs)
-    lc' als gl' Mem
+    (updateAddAL _ lc id (ptr2GV TD mp')) als Mem
     trace_nil 
-| dbExt : forall TD lc gl id extop t1 v1 t2 gv2 lc' gl' Mem als,
+| dbExt : forall TD lc gl id extop t1 v1 t2 gv2 Mem als,
   EXT TD lc gl extop t1 v1 t2 = Some gv2 ->
-  updateEnv lc gl id gv2 = (lc', gl') -> 
-  dbCmd TD 
-    lc als gl Mem
+  dbCmd TD gl
+    lc als Mem
     (insn_ext id extop t1 v1 t2)
-    lc' als gl' Mem
+    (updateAddAL _ lc id gv2) als Mem
     trace_nil
-| dbCast : forall TD lc gl id castop t1 v1 t2 gv2 lc' gl' Mem als,
+| dbCast : forall TD lc gl id castop t1 v1 t2 gv2 Mem als,
   CAST TD lc gl castop t1 v1 t2 = Some gv2 ->
-  updateEnv lc gl id gv2 = (lc', gl') -> 
-  dbCmd TD 
-    lc als gl Mem
+  dbCmd TD gl
+    lc als Mem
     (insn_cast id castop t1 v1 t2)
-    lc' als gl' Mem
+    (updateAddAL _ lc id gv2) als Mem
     trace_nil
-| dbIcmp : forall TD lc gl id cond t v1 v2 gv3 lc' gl' Mem als,
+| dbIcmp : forall TD lc gl id cond t v1 v2 gv3 Mem als,
   ICMP TD lc gl cond t v1 v2 = Some gv3 ->
-  updateEnv lc gl id gv3 = (lc', gl') -> 
-  dbCmd TD 
-    lc als gl Mem
+  dbCmd TD gl
+    lc als Mem
     (insn_icmp id cond t v1 v2)
-    lc' als gl' Mem
+    (updateAddAL _ lc id gv3) als Mem
     trace_nil
-| dbSelect : forall TD lc gl id v0 t v1 v2 cond lc' gl' Mem als gv1 gv2,
+| dbSelect : forall TD lc gl id v0 t v1 v2 cond Mem als gv1 gv2,
   getOperandInt TD 1 v0 lc gl = Some cond ->
   getOperandValue TD v1 lc gl = Some gv1 ->
   getOperandValue TD v2 lc gl = Some gv2 ->
-  (lc', gl') = (if cond
-               then updateEnv lc gl id gv1
-               else updateEnv lc gl id gv2) ->
-  dbCmd TD 
-    lc als gl Mem
+  
+  dbCmd TD gl
+    lc als Mem
     (insn_select id v0 t v1 v2)
-    lc' als gl' Mem
+    (if cond then updateAddAL _ lc id gv1 else updateAddAL _ lc id gv2) als Mem
     trace_nil
 .
 
 Inductive dbTerminator : 
-  layouts -> fdef ->
-  block -> GVMap -> GVMap -> 
+  layouts -> fdef -> GVMap -> 
+  block -> GVMap -> 
   terminator -> 
   block -> GVMap -> 
   trace -> Prop :=
@@ -175,8 +162,8 @@ Inductive dbTerminator :
                then lookupBlockViaLabelFromFdef F l1
                else lookupBlockViaLabelFromFdef F l2) ->
   lc' = LLVMopsem.switchToNewBasicBlock (block_intro l' ps' sbs' tmn') B lc ->
-  dbTerminator TD F
-    B lc gl
+  dbTerminator TD F gl
+    B lc
     (insn_br bid Cond l1 l2)
     (block_intro l' ps' sbs' tmn') lc' 
     trace_nil 
@@ -184,145 +171,129 @@ Inductive dbTerminator :
                               l' ps' sbs' tmn' lc',   
   Some (block_intro l' ps' sbs' tmn') = (lookupBlockViaLabelFromFdef F l) ->
   lc' = LLVMopsem.switchToNewBasicBlock (block_intro l' ps' sbs' tmn') B lc ->
-  dbTerminator TD F
-    B lc gl
+  dbTerminator TD F gl
+    B lc
     (insn_br_uncond bid l) 
     (block_intro l' ps' sbs' tmn') lc'
     trace_nil 
 .
 
-Inductive dbCmds : layouts -> 
-                   GVMap -> list mblock -> GVMap -> mem -> 
+Inductive dbCmds : layouts -> GVMap -> 
+                   GVMap -> list mblock -> mem -> 
                    cmds -> 
-                   GVMap -> list mblock -> GVMap -> mem -> 
+                   GVMap -> list mblock -> mem -> 
                    trace -> Prop :=
-| dbCmds_nil : forall TD lc als gl Mem, dbCmds TD lc als gl Mem nil lc als gl Mem trace_nil
-| dbCmds_cons : forall TD c cs lc1 als1 gl1 Mem1 t1 t2 lc2 als2 gl2 Mem2
-                       lc3 als3 gl3 Mem3,
-    dbCmd TD lc1 als1 gl1 Mem1 c lc2 als2 gl2 Mem2 t1 ->
-    dbCmds TD lc2 als2 gl2 Mem2 cs lc3 als3 gl3 Mem3 t2 ->
-    dbCmds TD lc1 als1 gl1 Mem1 (c::cs) lc3 als3 gl3 Mem3 (trace_app t1 t2).
+| dbCmds_nil : forall TD lc als gl Mem, dbCmds TD gl lc als Mem nil lc als Mem trace_nil
+| dbCmds_cons : forall TD c cs gl lc1 als1 Mem1 t1 t2 lc2 als2 Mem2
+                       lc3 als3 Mem3,
+    dbCmd TD gl lc1 als1 Mem1 c lc2 als2 Mem2 t1 ->
+    dbCmds TD gl lc2 als2 Mem2 cs lc3 als3 Mem3 t2 ->
+    dbCmds TD gl lc1 als1 Mem1 (c::cs) lc3 als3 Mem3 (trace_app t1 t2).
 
-Inductive dbCall : system -> layouts -> list product ->
-                   GVMap -> GVMap -> mem -> 
+Inductive dbCall : system -> layouts -> list product -> GVMap -> 
+                   GVMap -> mem -> 
                    cmd -> 
-                   GVMap -> GVMap -> mem -> 
+                   GVMap -> mem -> 
                    trace -> Prop :=
-| dbCall_intro : forall S TD Ps lc gl rid noret tailc rt fid lp gl' gl''
-                       Rid oResult tr lc'' lc' Mem Mem' als' Mem'' B',
-  dbFdef fid rt lp S TD Ps lc gl Mem lc' gl' als' Mem' B' Rid oResult tr ->
-  (lc'', gl'') = 
-    match noret with
-    | false =>
-      if (LLVMlib.typEqB rt typ_void) 
-      then (lc, gl') 
-      else 
-        match oResult with
-        | None => (lc, gl')
-        | Some Result => 
-          match (getOperandValue TD Result lc' gl') with
-          | Some gr => updateEnv lc gl' rid gr
-          | None => (lc, gl')
-          end
-        end
-    | true => (lc, gl')
-    end ->
+| dbCall_intro : forall S TD Ps lc gl rid noret tailc rt fid lp
+                       Rid oResult tr lc' Mem Mem' als' Mem'' B',
+  dbFdef fid rt lp S TD Ps lc gl Mem lc' als' Mem' B' Rid oResult tr ->
   free_allocas Mem' als' = Some Mem'' ->
-  dbCall S TD Ps
-    lc gl Mem
+  dbCall S TD Ps gl
+    lc Mem
     (insn_call rid noret tailc rt fid lp)
-    lc'' gl'' Mem'' 
+    (LLVMopsem.callUpdateLocals TD noret rid rt oResult lc lc' gl) Mem'' 
     tr
-with dbSubblock : system -> layouts -> list product ->
-                  GVMap -> list mblock -> GVMap -> mem -> 
+with dbSubblock : system -> layouts -> list product -> GVMap -> 
+                  GVMap -> list mblock -> mem -> 
                   cmds -> 
-                  GVMap -> list mblock -> GVMap -> mem -> 
+                  GVMap -> list mblock -> mem -> 
                   trace -> Prop :=
-| dbSubblock_intro : forall S TD Ps lc1 als1 gl1 Mem1 cs call0 lc2 als2 gl2 Mem2 tr1 
-                     lc3 gl3 Mem3 tr2,
-  dbCmds TD lc1 als1 gl1 Mem1 cs lc2 als2 gl2 Mem2 tr1 ->
-  dbCall S TD Ps lc2 gl2 Mem2 call0 lc3 gl3 Mem3 tr2 ->
-  dbSubblock S TD Ps
-             lc1 als1 gl1 Mem1
+| dbSubblock_intro : forall S TD Ps lc1 als1 gl Mem1 cs call0 lc2 als2 Mem2 tr1 
+                     lc3 Mem3 tr2,
+  dbCmds TD gl lc1 als1 Mem1 cs lc2 als2 Mem2 tr1 ->
+  dbCall S TD Ps gl lc2 Mem2 call0 lc3 Mem3 tr2 ->
+  dbSubblock S TD Ps gl
+             lc1 als1 Mem1
              (cs++call0::nil) 
-             lc3 als2 gl3 Mem3
+             lc3 als2 Mem3
              (trace_app tr1 tr2)
-with dbSubblocks : system -> layouts -> list product ->
-                   GVMap -> list mblock -> GVMap -> mem -> 
+with dbSubblocks : system -> layouts -> list product -> GVMap -> 
+                   GVMap -> list mblock -> mem -> 
                    cmds -> 
-                   GVMap -> list mblock -> GVMap -> mem -> 
+                   GVMap -> list mblock -> mem -> 
                    trace -> Prop :=
 | dbSubblocks_nil : forall S TD Ps lc als gl Mem, 
-    dbSubblocks S TD Ps lc als gl Mem nil lc als gl Mem trace_nil
-| dbSubblocks_cons : forall S TD Ps lc1 als1 gl1 Mem1 lc2 als2 gl2 Mem2 lc3 als3 gl3 Mem3 cs cs' t1 t2,
-    dbSubblock S TD Ps lc1 als1 gl1 Mem1 cs lc2 als2 gl2 Mem2 t1 ->
-    dbSubblocks S TD Ps lc2 als2 gl2 Mem2 cs' lc3 als3 gl3 Mem3 t2 ->
-    dbSubblocks S TD Ps lc1 als1 gl1 Mem1 (cs++cs') lc3 als3 gl3 Mem3 (trace_app t1 t2)
-with dbBlock : system -> layouts -> list product -> fdef -> list GenericValue -> State -> State -> trace -> Prop :=
-| dbBlock_intro : forall S TD Ps F tr1 tr2 l ps cs cs' tmn lc1 als1 gl1 Mem1
-                         lc2 als2 gl2 Mem2 lc3 als3 gl3 Mem3 lc4 B' arg tr3,
-  dbSubblocks S TD Ps
-    lc1 als1 gl1 Mem1
+    dbSubblocks S TD Ps gl lc als Mem nil lc als Mem trace_nil
+| dbSubblocks_cons : forall S TD Ps lc1 als1 gl Mem1 lc2 als2 Mem2 lc3 als3 Mem3 cs cs' t1 t2,
+    dbSubblock S TD Ps gl lc1 als1 Mem1 cs lc2 als2 Mem2 t1 ->
+    dbSubblocks S TD Ps gl lc2 als2 Mem2 cs' lc3 als3 Mem3 t2 ->
+    dbSubblocks S TD Ps gl lc1 als1 Mem1 (cs++cs') lc3 als3 Mem3 (trace_app t1 t2)
+with dbBlock : system -> layouts -> list product -> GVMap -> fdef -> list GenericValue -> State -> State -> trace -> Prop :=
+| dbBlock_intro : forall S TD Ps F tr1 tr2 l ps cs cs' tmn gl lc1 als1 Mem1
+                         lc2 als2 Mem2 lc3 als3 Mem3 lc4 B' arg tr3,
+  dbSubblocks S TD Ps gl
+    lc1 als1 Mem1
     cs
-    lc2 als2 gl2 Mem2
+    lc2 als2 Mem2
     tr1 ->
-  dbCmds TD lc2 als2 gl2 Mem2 cs' lc3 als3 gl3 Mem3 tr2 ->
-  dbTerminator TD F
-    (block_intro l ps (cs++cs') tmn) lc3 gl3
+  dbCmds TD gl lc2 als2 Mem2 cs' lc3 als3 Mem3 tr2 ->
+  dbTerminator TD F gl
+    (block_intro l ps (cs++cs') tmn) lc3
     tmn
     B' lc4
     tr3 ->
-  dbBlock S TD Ps F arg
-    (mkState (mkEC (block_intro l ps (cs++cs') tmn) lc1 als1) gl1 Mem1)
-    (mkState (mkEC B' lc4 als3) gl3 Mem3)
+  dbBlock S TD Ps gl F arg
+    (mkState (mkEC (block_intro l ps (cs++cs') tmn) lc1 als1) Mem1)
+    (mkState (mkEC B' lc4 als3) Mem3)
     (trace_app (trace_app tr1 tr2) tr3)
-with dbBlocks : system -> layouts -> list product -> fdef -> list GenericValue -> State -> State -> trace -> Prop :=
-| dbBlocks_nil : forall S TD Ps F arg state, dbBlocks S TD Ps F arg state state trace_nil
-| dbBlocks_cons : forall S TD Ps F arg S1 S2 S3 t1 t2,
-    dbBlock S TD Ps F arg S1 S2 t1 ->
-    dbBlocks S TD Ps F arg S2 S3 t2 ->
-    dbBlocks S TD Ps F arg S1 S3 (trace_app t1 t2)
-with dbFdef : id -> typ -> params -> system -> layouts -> list product -> GVMap -> GVMap -> mem -> GVMap -> GVMap -> list mblock -> mem -> block -> id -> option value -> trace -> Prop :=
+with dbBlocks : system -> layouts -> list product -> GVMap -> fdef -> list GenericValue -> State -> State -> trace -> Prop :=
+| dbBlocks_nil : forall S TD Ps gl F arg state, dbBlocks S TD Ps gl F arg state state trace_nil
+| dbBlocks_cons : forall S TD Ps gl F arg S1 S2 S3 t1 t2,
+    dbBlock S TD Ps gl F arg S1 S2 t1 ->
+    dbBlocks S TD Ps gl F arg S2 S3 t2 ->
+    dbBlocks S TD Ps gl F arg S1 S3 (trace_app t1 t2)
+with dbFdef : id -> typ -> params -> system -> layouts -> list product -> GVMap -> GVMap -> mem -> GVMap -> list mblock -> mem -> block -> id -> option value -> trace -> Prop :=
 | dbFdef_func : forall S TD Ps gl fid lp lc rid
-                       l1 ps1 cs1 tmn1 rt la lb Result lc1 gl1 tr1 Mem Mem1 als1
-                       l2 ps2 cs21 cs22 lc2 als2 gl2 Mem2 tr2 lc3 als3 gl3 Mem3 tr3,
+                       l1 ps1 cs1 tmn1 rt la lb Result lc1 tr1 Mem Mem1 als1
+                       l2 ps2 cs21 cs22 lc2 als2 Mem2 tr2 lc3 als3 Mem3 tr3,
   lookupFdefViaIDFromProducts Ps fid = Some (fdef_intro (fheader_intro rt fid la) lb) ->
   getEntryBlock (fdef_intro (fheader_intro rt fid la) lb) = Some (block_intro l1 ps1 cs1 tmn1) ->
-  dbBlocks S TD Ps (fdef_intro (fheader_intro rt fid la) lb) (params2GVs TD lp lc gl)
-    (mkState (mkEC (block_intro l1 ps1 cs1 tmn1) (initLocals la (params2GVs TD lp lc gl)) nil) gl Mem)
-    (mkState (mkEC (block_intro l2 ps2 (cs21++cs22) (insn_return rid rt Result)) lc1 als1) gl1 Mem1)
+  dbBlocks S TD Ps gl (fdef_intro (fheader_intro rt fid la) lb) (params2GVs TD lp lc gl)
+    (mkState (mkEC (block_intro l1 ps1 cs1 tmn1) (initLocals la (params2GVs TD lp lc gl)) nil) Mem)
+    (mkState (mkEC (block_intro l2 ps2 (cs21++cs22) (insn_return rid rt Result)) lc1 als1) Mem1)
     tr1 ->
-  dbSubblocks S TD Ps
-    lc1 als1 gl1 Mem1
+  dbSubblocks S TD Ps gl
+    lc1 als1 Mem1
     cs21
-    lc2 als2 gl2 Mem2
+    lc2 als2 Mem2
     tr2 ->
-  dbCmds TD
-    lc2 als2 gl2 Mem2
+  dbCmds TD gl
+    lc2 als2 Mem2
     cs22
-    lc3 als3 gl3 Mem3
+    lc3 als3 Mem3
     tr3 ->
-  dbFdef fid rt lp S TD Ps lc gl Mem lc3 gl3 als3 Mem3 (block_intro l2 ps2 (cs21++cs22) (insn_return rid rt Result)) rid (Some Result) (trace_app (trace_app tr1 tr2) tr3)
+  dbFdef fid rt lp S TD Ps lc gl Mem lc3 als3 Mem3 (block_intro l2 ps2 (cs21++cs22) (insn_return rid rt Result)) rid (Some Result) (trace_app (trace_app tr1 tr2) tr3)
 | dbFdef_proc : forall S TD Ps gl fid lp lc rid
-                       l1 ps1 cs1 tmn1 rt la lb lc1 gl1 tr1 Mem Mem1 als1
-                       l2 ps2 cs21 cs22 lc2 als2 gl2 Mem2 tr2 lc3 als3 gl3 Mem3 tr3,
+                       l1 ps1 cs1 tmn1 rt la lb lc1 tr1 Mem Mem1 als1
+                       l2 ps2 cs21 cs22 lc2 als2 Mem2 tr2 lc3 als3 Mem3 tr3,
   lookupFdefViaIDFromProducts Ps fid = Some (fdef_intro (fheader_intro rt fid la) lb) ->
   getEntryBlock (fdef_intro (fheader_intro rt fid la) lb) = Some (block_intro l1 ps1 cs1 tmn1) ->
-  dbBlocks S TD Ps (fdef_intro (fheader_intro rt fid la) lb) (params2GVs TD lp lc gl) 
-    (mkState (mkEC (block_intro l1 ps1 cs1 tmn1) (initLocals la (params2GVs TD lp lc gl)) nil) gl Mem)
-    (mkState (mkEC (block_intro l2 ps2 (cs21++cs22) (insn_return_void rid)) lc1 als1) gl1 Mem1)
+  dbBlocks S TD Ps gl (fdef_intro (fheader_intro rt fid la) lb) (params2GVs TD lp lc gl) 
+    (mkState (mkEC (block_intro l1 ps1 cs1 tmn1) (initLocals la (params2GVs TD lp lc gl)) nil) Mem)
+    (mkState (mkEC (block_intro l2 ps2 (cs21++cs22) (insn_return_void rid)) lc1 als1) Mem1)
     tr1 ->
-  dbSubblocks S TD Ps
-    lc1 als1 gl1 Mem1
+  dbSubblocks S TD Ps gl
+    lc1 als1 Mem1
     cs21
-    lc2 als2 gl2 Mem2
+    lc2 als2 Mem2
     tr2 ->
-  dbCmds TD
-    lc2 als2 gl2 Mem2
+  dbCmds TD gl
+    lc2 als2 Mem2
     cs22
-    lc3 als3 gl3 Mem3
+    lc3 als3 Mem3
     tr3 ->
-  dbFdef fid  rt lp S TD Ps lc gl Mem lc3 gl3 als3 Mem3 (block_intro l2 ps2 (cs21++cs22) (insn_return_void rid)) rid None (trace_app (trace_app tr1 tr2) tr3)
+  dbFdef fid rt lp S TD Ps lc gl Mem lc3 als3 Mem3 (block_intro l2 ps2 (cs21++cs22) (insn_return_void rid)) rid None (trace_app (trace_app tr1 tr2) tr3)
 .
 
 Scheme dbCall_ind2 := Induction for dbCall Sort Prop
@@ -360,30 +331,116 @@ Tactic Notation "dbCmds_cases" tactic(first) tactic(c) :=
 Hint Constructors dbCmd dbCmds dbTerminator dbCall 
                   dbSubblock dbSubblocks dbBlock dbBlocks dbFdef.
 
-(* properties of opsem *)
-Lemma dbCmd_eqEnv : forall TD c lc1  als1 gl1 Mem1 lc2 als2 gl2 Mem2 tr lc2' gl2',
-  dbCmd TD lc1 als1 gl1 Mem1 c lc2 als2 gl2 Mem2 tr ->
-  eqEnv lc2 gl2 lc2' gl2' ->
-  dbCmd TD lc1 als1 gl1 Mem1 c lc2' als2 gl2' Mem2 tr.
+(* eqEnv *)
+Lemma dbCmd_eqEnv : forall TD c lc1 als1 gl Mem1 lc2 als2 Mem2 tr lc1',
+  dbCmd TD gl lc1 als1 Mem1 c lc2 als2 Mem2 tr ->
+  eqAL _ lc1 lc1' ->
+  exists lc2', 
+    dbCmd TD gl lc1' als1 Mem1 c lc2' als2 Mem2 tr /\
+    eqAL _ lc2 lc2'.
 Proof.
-  intros TD c lc1  als1 gl1 Mem1 lc2 als2 gl2 Mem2 tr lc2' gl2' HdbCmd EqEnv.
+  intros TD c lc1 als1 gl Mem1 lc2 als2 Mem2 tr lc1' HdbCmd HeqEnv.
   (dbCmd_cases (inversion HdbCmd) Case); subst.
-    eapply dbBop; eauto.
+Case "dbBop".
+  assert (HupdateEnv:=HeqEnv).
+  exists (updateAddAL _ lc1' id0 gv3).
+  rewrite BOP_eqAL with (lc2:=lc1') in H; auto.
+  split; eauto using eqAL_updateAddAL.
 
-Lemma updateEnv_eqEnv : forall lc gl lc1 gl1 lc2 gl2 id0 gv0,
-  updateEnv lc gl id0 gv0 = (lc1, gl1) ->
-  eqEnv lc1 gl1 lc2 gl2 ->
-  updateEnv lc gl id0 gv0 = (lc2, gl2).
+Case "dbExtractValue".
+  assert (HupdateEnv:=HeqEnv).
+  exists (updateAddAL _ lc1' id0 gv').
+  rewrite getOperandValue_eqAL with (lc2:=lc1') in H; auto. 
+  split; eauto using eqAL_updateAddAL.
+  
+Case "dbInsertValue".
+  assert (HupdateEnv:=HeqEnv).
+  exists (updateAddAL _ lc1' id0 gv'').
+  rewrite getOperandValue_eqAL with (lc2:=lc1') in H; auto. 
+  rewrite getOperandValue_eqAL with (lc2:=lc1') in H0; auto. 
+  split; eauto using eqAL_updateAddAL.
+
+Case "dbMalloc".
+  assert (HupdateEnv:=HeqEnv).
+  exists (updateAddAL _ lc1' id0 (ptr2GV TD (mb, 0))).
+  split; eauto using eqAL_updateAddAL.
+
+Case "dbFree".
+  exists lc1'.
+  rewrite getOperandPtr_eqAL with (lc2:=lc1') in H; auto. 
+  split; eauto.
+
+Case "dbAlloca".
+  assert (HupdateEnv:=HeqEnv).
+  exists (updateAddAL _ lc1' id0 (ptr2GV TD (mb, 0))).
+  split; eauto using eqAL_updateAddAL.
+
+Case "dbLoad".
+  assert (HupdateEnv:=HeqEnv).
+  exists (updateAddAL _ lc1' id0 gv).
+  rewrite getOperandPtr_eqAL with (lc2:=lc1') in H; auto. 
+  split; eauto using eqAL_updateAddAL.
+
+Case "dbStore".
+  exists lc1'.
+  rewrite getOperandValue_eqAL with (lc2:=lc1') in H; auto. 
+  rewrite getOperandPtr_eqAL with (lc2:=lc1') in H0; auto. 
+  split; eauto using eqAL_updateAddAL.
+
+Case "dbGEP".
+  assert (HupdateEnv:=HeqEnv).
+  exists (updateAddAL _ lc1' id0 (ptr2GV TD mp')).
+  rewrite getOperandPtr_eqAL with (lc2:=lc1') in H; auto. 
+  rewrite GEP_eqAL with (lc2:=lc1') in H0; auto. 
+  split; eauto using eqAL_updateAddAL.
+
+Case "dbExt".
+  assert (HupdateEnv:=HeqEnv).
+  exists (updateAddAL _ lc1' id0 gv2).
+  rewrite EXT_eqAL with (lc2:=lc1') in H; auto.
+  split; eauto using eqAL_updateAddAL.
+
+Case "dbCast".
+  assert (HupdateEnv:=HeqEnv).
+  exists (updateAddAL _ lc1' id0 gv2).
+  rewrite CAST_eqAL with (lc2:=lc1') in H; auto.
+  split; eauto using eqAL_updateAddAL.
+
+Case "dbIcmp".
+  assert (HupdateEnv:=HeqEnv).
+  exists (updateAddAL _ lc1' id0 gv3).
+  rewrite ICMP_eqAL with (lc2:=lc1') in H; auto.
+  split; eauto using eqAL_updateAddAL.
+
+Case "dbSelect".
+  rewrite getOperandInt_eqAL with (lc2:=lc1') in H; auto. 
+  rewrite getOperandValue_eqAL with (lc2:=lc1') in H0; auto. 
+  rewrite getOperandValue_eqAL with (lc2:=lc1') in H1; auto. 
+  assert (HupdateEnv:=HeqEnv).
+  exists (if cond0 then updateAddAL _ lc1' id0 gv1 else updateAddAL _ lc1' id0 gv2).
+  split; auto.
+    destruct cond0; auto using eqAL_updateAddAL.
+Qed.
+
+Lemma dbCmds_eqEnv : forall TD cs lc1 als1 gl Mem1 lc2 als2 Mem2 tr lc1',
+  dbCmds TD gl lc1 als1 Mem1 cs lc2 als2 Mem2 tr ->
+  eqAL _ lc1 lc1' ->
+  exists lc2', 
+    dbCmds TD gl lc1' als1 Mem1 cs lc2' als2 Mem2 tr /\
+    eqAL _ lc2 lc2'.
 Proof.
-Admitted.
+  intros TD cs lc1 als1 gl Mem1 lc2 als2 Mem2 tr lc1' HdbCmds HeqEnv.
+  generalize dependent lc1'.
+  induction HdbCmds; intros.
+    exists lc1'. split; auto.
 
-Admitted.
-
-Lemma dbCmds_eqEnv : forall TD cs lc1 als1 gl1 Mem1 lc2 als2 gl2 Mem2 tr lc2' gl2',
-  dbCmds TD lc1 als1 gl1 Mem1 cs lc2 als2 gl2 Mem2 tr ->
-  eqEnv lc2 gl2 lc2' gl2' ->
-  dbCmds TD lc1 als1 gl1 Mem1 cs lc2' als2 gl2' Mem2 tr.
-Admitted.
+    apply dbCmd_eqEnv with (lc1':=lc1') in H; auto.
+    destruct H as [lc2' [HdbCmd HeqEnv']].
+    apply IHHdbCmds in HeqEnv'; auto.
+    destruct HeqEnv' as [lc3' [HdbCmds' HeqEnv'']].
+    exists lc3'.
+    split; eauto.
+Qed.
 
 (* nonbranching cmd *)
 Record nbranch := mkNB
@@ -403,16 +460,16 @@ match (isCallInst_dec c) with
 | right _ => None
 end.
 
-Lemma dbCmd_isNotCallInst : forall TD lc als gl Mem1 c lc' als' gl' Mem2 tr,
-  dbCmd TD lc als gl Mem1 c lc' als' gl' Mem2 tr ->
+Lemma dbCmd_isNotCallInst : forall TD lc als gl Mem1 c lc' als' Mem2 tr,
+  dbCmd TD gl lc als Mem1 c lc' als' Mem2 tr ->
   Instruction.isCallInst c = false.
 Proof.
-  intros TD lc als gl Mem1 c lc' als' gl' Mem2 tr HdbCmd.
+  intros TD lc als gl Mem1 c lc' als' Mem2 tr HdbCmd.
   induction HdbCmd; auto.
 Qed.
 
-Definition dbCmd2nbranch : forall TD lc als gl Mem1 c lc' als' gl' Mem2 tr, 
-  dbCmd TD lc als gl Mem1 c lc' als' gl' Mem2 tr ->
+Definition dbCmd2nbranch : forall TD lc als gl Mem1 c lc' als' Mem2 tr, 
+  dbCmd TD gl lc als Mem1 c lc' als' Mem2 tr ->
   exists nb, cmd2nbranch c = Some nb.
 Proof.
   intros.
@@ -449,8 +506,8 @@ Proof.
     simpl. destruct a. rewrite IHnbs1. auto.
 Qed.
 
-Definition dbCmds2nbranchs : forall cs TD lc als gl Mem1 lc' als' gl' Mem2 tr, 
-  dbCmds TD lc als gl Mem1 cs lc' als' gl' Mem2 tr ->
+Definition dbCmds2nbranchs : forall cs TD lc als gl Mem1 lc' als' Mem2 tr, 
+  dbCmds TD gl lc als Mem1 cs lc' als' Mem2 tr ->
   exists nbs, cmds2nbranchs cs = Some nbs.
 Proof.
   induction cs; intros.
@@ -458,9 +515,9 @@ Proof.
 
     inversion H; subst.
     apply dbCmd2nbranch in H7.
-    apply IHcs in H13.
+    apply IHcs in H12.
     destruct H7 as [nb J1].
-    destruct H13 as [nbs J2].
+    destruct H12 as [nbs J2].
     exists (nb::nbs).
     simpl. 
     rewrite J1.
@@ -574,8 +631,8 @@ Proof.
       split; auto.
 Qed.
 
-Definition dbCmds__cmds2nbs : forall TD lc als gl Mem1 cs lc' als' gl' Mem2 tr, 
-  dbCmds TD lc als gl Mem1 cs lc' als' gl' Mem2 tr ->
+Definition dbCmds__cmds2nbs : forall TD lc als gl Mem1 cs lc' als' Mem2 tr, 
+  dbCmds TD gl lc als Mem1 cs lc' als' Mem2 tr ->
   exists nbs, cmds2sbs cs = (nil, nbs).
 Proof.
   intros.
@@ -590,11 +647,11 @@ Proof.
       rewrite e in H. inversion H.
 Qed.
 
-Lemma dbCall_isCallInst : forall S TD Ps lc gl Mem1 c lc' gl' Mem2 tr,
-  dbCall S TD Ps lc gl Mem1 c lc' gl' Mem2 tr ->
+Lemma dbCall_isCallInst : forall S TD Ps lc gl Mem1 c lc' Mem2 tr,
+  dbCall S TD Ps gl lc Mem1 c lc' Mem2 tr ->
   Instruction.isCallInst c = true.
 Proof.
-  intros S TD Ps lc gl Mem1 c lc' gl' Mem2 tr HdbCall.
+  intros S TD Ps lc gl Mem1 c lc' Mem2 tr HdbCall.
   induction HdbCall; auto.
 Qed.
 
@@ -622,8 +679,8 @@ Proof.
       inversion H.
 Qed.
 
-Lemma dbSubblock__cmds2sb : forall S TD Ps lc1 als1 gl1 Mem1 cs lc2 als2 gl2 Mem2 tr,
-  dbSubblock S TD Ps lc1 als1 gl1 Mem1 cs lc2 als2 gl2 Mem2 tr ->
+Lemma dbSubblock__cmds2sb : forall S TD Ps gl lc1 als1 Mem1 cs lc2 als2 Mem2 tr,
+  dbSubblock S TD Ps gl lc1 als1 Mem1 cs lc2 als2 Mem2 tr ->
   exists sb, cmds2sbs cs = (sb::nil, nil).
 Proof.
   intros.
@@ -668,8 +725,8 @@ Proof.
       rewrite H0. auto.
 Qed.
 
-Lemma dbSubblocks__cmds2sbs : forall S TD Ps lc1 als1 gl1 Mem1 cs lc2 als2 gl2 Mem2 tr,
-  dbSubblocks S TD Ps lc1 als1 gl1 Mem1 cs lc2 als2 gl2 Mem2 tr ->
+Lemma dbSubblocks__cmds2sbs : forall S TD Ps gl lc1 als1 Mem1 cs lc2 als2 Mem2 tr,
+  dbSubblocks S TD Ps gl lc1 als1 Mem1 cs lc2 als2 Mem2 tr ->
   exists sbs, cmds2sbs cs = (sbs, nil).
 Proof.
   intros.
@@ -1674,194 +1731,90 @@ Tactic Notation "sd_mutind_cases" tactic(first) tactic(c) :=
 | c "smem_load_denotes"
 | c "smem_store_denotes" ].
 
-Definition smap_denotes_gvmap TD lc gl Mem smap' lc' gl' :=
+Definition smap_denotes_gvmap TD lc gl Mem smap' lc' :=
 (forall id' st',  
   binds id' st' smap' ->
   exists gv',
     sterm_denotes_genericvalue TD lc gl Mem st' gv' /\
-    lookupEnv lc' gl' id' = Some gv') /\
+    lookupAL _ lc' id' = Some gv') /\
 (forall id' gv',  
-  lookupEnv lc' gl' id' = Some gv' ->
+  lookupAL _ lc' id' = Some gv' ->
   exists st',
     binds id' st' smap' /\
     sterm_denotes_genericvalue TD lc gl Mem st' gv'
 ).
 
-Definition sstate_denotes_state TD lc gl als Mem sstate' lc' gl' als' mem' tr :=
-smap_denotes_gvmap TD lc gl Mem sstate'.(STerms) lc' gl' /\
+Definition sstate_denotes_state TD lc gl als Mem sstate' lc' als' mem' tr :=
+smap_denotes_gvmap TD lc gl Mem sstate'.(STerms) lc' /\
 smem_denotes_mem TD lc gl Mem sstate'.(SMem) mem' /\
 sframe_denotes_frame TD lc gl als Mem sstate'.(SFrame) als' /\
 seffects_denote_trace sstate'.(SEffects) tr.
 
 (* Initial smap of a symbolic exe w.r.t a concrete a state. *)
 
-Fixpoint globals_to_smap (gl:GVMap) : smap :=
-match gl with
-| nil => nil
-| (id0, _)::gl' => updateAddAL _ (globals_to_smap gl') id0 (sterm_val (value_id id0)) 
-end.
-
-Fixpoint locals_to_smap (lc:GVMap) (m0:smap) : smap :=
+Fixpoint locals_to_smap (lc:GVMap) : smap :=
 match lc with
-| nil => m0
-| (id0, _)::lc' => updateAddAL _ (locals_to_smap lc' m0) id0 (sterm_val (value_id id0)) 
+| nil => nil
+| (id0, _)::lc' => updateAddAL _ (locals_to_smap lc') id0 (sterm_val (value_id id0)) 
 end.
 
-Definition env_to_smap (gl lc:GVMap) : smap :=
-locals_to_smap lc (globals_to_smap gl).
-
-Lemma globals_to_smap_dom_eq : forall gl,
-  dom (globals_to_smap gl) [=] dom gl.
+Lemma locals_to_smap_dom_eq : forall lc,
+  dom (locals_to_smap lc) [=] dom lc.
 Proof.
-  induction gl; simpl.
+  induction lc; simpl.
     fsetdec.
 
     destruct a.
-    rewrite <- IHgl. clear IHgl.
+    rewrite <- IHlc. clear IHlc.
     rewrite updateAddAL_dom_eq. fsetdec.
 Qed.
 
-Lemma locals_to_smap_dom_eq : forall lc m0,
-  dom (locals_to_smap lc m0) [=] dom lc `union` dom m0.
+Lemma locals_to_smap_uniq : forall lc,
+  uniq (locals_to_smap lc).
 Proof.
-  induction lc; intros m0; simpl.
-    fsetdec.
-
-    destruct a.
-    rewrite updateAddAL_dom_eq. 
-    rewrite IHlc.
-    fsetdec.
-Qed.
-
-Lemma env_to_smap_dom_eq : forall gl lc,
-  dom (env_to_smap gl lc) [=] dom gl `union` dom lc.
-Proof.
-  intros gl lc.
-  unfold env_to_smap.
-  rewrite locals_to_smap_dom_eq.
-  rewrite globals_to_smap_dom_eq.
-  fsetdec.
-Qed.
-
-Lemma globals_to_smap_uniq : forall gl,
-  uniq (globals_to_smap gl).
-Proof.
-  induction gl; simpl; auto.
+  induction lc; simpl; auto.
     destruct a.
     apply updateAddAL_uniq; auto.
 Qed.
 
-Lemma locals_to_smap_uniq : forall lc m0,
-  uniq m0 ->
-  uniq (locals_to_smap lc m0).
-Proof.
-  induction lc; simpl; intros; auto.
-    destruct a.
-    apply updateAddAL_uniq; auto.
-Qed.
-
-Lemma env_to_smap_uniq : forall gl lc,
-  uniq (env_to_smap gl lc).
-Proof.
-  intros gl lc.
-  unfold env_to_smap.
-  apply locals_to_smap_uniq.
-  apply globals_to_smap_uniq.
-Qed.
-
-Lemma binds_globals_to_smap : forall gl id0 st0,
-  uniq gl ->
-  binds id0 st0 (globals_to_smap gl) ->
+Lemma binds_locals_to_smap : forall lc id0 st0,
+  uniq lc ->
+  binds id0 st0 (locals_to_smap lc) ->
   st0 = sterm_val (value_id id0) /\ 
-  exists gv, lookupAL _ gl id0 = Some gv.
+  exists gv, lookupAL _ lc id0 = Some gv.
 Proof.
-  induction gl; intros; simpl in *.
+  induction lc; intros; simpl in *.
     inversion H0.
 
     inversion H; subst.
-    apply updateAddAL_inversion in H0; auto using globals_to_smap_uniq.
+    apply updateAddAL_inversion in H0; auto using locals_to_smap_uniq.
     destruct (@eq_dec atom (@EqDec_eq_of_EqDec atom EqDec_atom) id0 x); subst; simpl; auto.
       destruct H0 as [[J1 J2] | [J1 J2]].
         contradict J1; auto.
         split; auto. exists a0. auto.
      
       destruct H0 as [[J1 J2] | [J1 J2]].
-        apply IHgl in J2; auto.
-
-        contradict n; auto.
-Qed.
-
-Lemma binds_locals_to_smap : forall id0 st0 lc m0,
-  uniq m0 ->
-  uniq lc ->
-  binds id0 st0 (locals_to_smap lc m0) ->
-  (st0 = sterm_val (value_id id0) /\ exists gv, lookupAL _ lc id0 = Some gv) \/
-  binds id0 st0 m0.  
-Proof.
-  induction lc; intros; simpl in *; auto.
-    inversion H0; subst.
-    apply updateAddAL_inversion in H1; auto using locals_to_smap_uniq.
-    destruct (@eq_dec atom (@EqDec_eq_of_EqDec atom EqDec_atom) id0 x); subst; simpl; auto.
-      destruct H1 as [[J1 J2] | [J1 J2]].
-        contradict J1; auto.
-        left. split; auto. exists a0. auto.
-     
-      destruct H1 as [[J1 J2] | [J1 J2]].
         apply IHlc in J2; auto.
 
         contradict n; auto.
 Qed.
 
-Lemma binds_env_to_smap : forall TD id0 st0 gl lc,
-  uniq gl ->
+Lemma locals_to_smap_denotes__imples__gv : forall id0 st0 TD Mem0 gl lc,
   uniq lc -> 
-  binds id0 st0 (env_to_smap gl lc) ->
-  st0 = sterm_val (value_id id0) /\ 
-  exists gv, getOperandValue TD (value_id id0) lc gl = Some gv.
-Proof.
-  intros.
-  apply binds_locals_to_smap in H1; auto using globals_to_smap_uniq.
-  destruct H1 as [[J1 [gv J2]] | H1]; subst.
-    split; auto. simpl. unfold lookupEnv. rewrite J2. exists gv. auto.
-    apply binds_globals_to_smap in H1; auto using globals_to_smap_uniq.
-    destruct H1 as [J1 [gv J2]]; auto.
-      split; auto. simpl. unfold lookupEnv. rewrite J2. 
-      destruct (lookupAL _ lc id0).
-        exists g. auto.
-        exists gv. auto.
-Qed.
-
-Lemma env_to_smap_denotes__imples__gv : forall id0 st0 TD Mem0 gl lc,
-  uniq gl ->
-  uniq lc -> 
-  binds id0 st0 (env_to_smap gl lc) ->
+  binds id0 st0 (locals_to_smap lc) ->
   exists gv0,
     sterm_denotes_genericvalue TD lc gl Mem0 st0 gv0 /\
-    lookupEnv lc gl id0 = Some gv0.
+    lookupAL _ lc id0 = Some gv0.
 Proof.
-  intros id0 st0 TD Mem0 gl lc Uniqg Uniqc Binds.
-  apply binds_env_to_smap with (TD:=TD) in Binds; auto.
+  intros id0 st0 TD Mem0 gl lc Uniqc Binds.
+  apply binds_locals_to_smap in Binds; auto.
   destruct Binds as [J1 [gv0 J2]]; subst.
   exists gv0. split; auto.
 Qed.
 
-Lemma lookupEnv_globals_to_smap : forall gl id0 gv0,
-  lookupAL _ gl id0 = Some gv0 ->
-  binds id0 (sterm_val (value_id id0)) (globals_to_smap gl).
-Proof.
-  induction gl; intros; simpl in *.
-    inversion H.
-    destruct a.
-    destruct (id0==a); subst.
-      inversion H; subst. 
-      apply binds_updateAddAL_eq; auto.
-
-      apply binds_updateAddAL_neq; eauto.
-Qed.
-
-Lemma lookupEnv_locals_to_smap : forall lc m1 id0 gv0,
+Lemma lookupAL_locals_to_smap : forall lc id0 gv0,
   lookupAL _ lc id0 = Some gv0 ->
-  binds id0 (sterm_val (value_id id0)) (locals_to_smap lc m1).
+  binds id0 (sterm_val (value_id id0)) (locals_to_smap lc).
 Proof.
   induction lc; intros; simpl in *.
     inversion H.
@@ -1873,76 +1826,45 @@ Proof.
       apply binds_updateAddAL_neq; eauto.
 Qed.
 
-Lemma lookupEnv_locals_to_smap' : forall lc m1 st0 id0,
-  lookupAL _ lc id0 = None ->
-  binds id0 st0 m1 ->
-  binds id0 st0 (locals_to_smap lc m1).
-Proof.
-  induction lc; intros; simpl in *; auto.
-    destruct a.
-    destruct (id0==a); subst.
-      inversion H.    
-      apply binds_updateAddAL_neq; eauto.
-Qed.
-
-Lemma lookupEnv_env_to_smap : forall id0 gv0 gl lc,
-  lookupEnv lc gl id0 = Some gv0 ->
-  binds id0 (sterm_val (value_id id0)) (env_to_smap gl lc).
-Proof.
-  intros.
-  unfold lookupEnv in H.
-  unfold env_to_smap.
-  remember (lookupAL _ lc id0) as ogv.
-  destruct ogv.
-    inversion H; subst.
-    eapply lookupEnv_locals_to_smap; eauto.
-
-    apply lookupEnv_locals_to_smap'; auto.
-    apply lookupEnv_globals_to_smap in H; auto.
-Qed.
-
-Lemma gv__imples__env_to_smap_denotes : forall id0 TD Mem0 gl lc gv0,
-  lookupEnv lc gl id0 = Some gv0 ->
-  binds id0 (sterm_val (value_id id0)) (env_to_smap gl lc) /\
+Lemma gv__imples__locals_to_smap_denotes : forall id0 TD Mem0 gl lc gv0,
+  lookupAL _ lc id0 = Some gv0 ->
+  binds id0 (sterm_val (value_id id0)) (locals_to_smap lc) /\
   sterm_denotes_genericvalue TD lc gl Mem0 (sterm_val (value_id id0)) gv0.
 Proof.
   intros id0 TD Mem0 gl lc gv0 Binds.
   split.
-    eapply lookupEnv_env_to_smap; eauto.
+    eapply lookupAL_locals_to_smap; eauto.
 
     apply sterm_val_denotes; auto.
 Qed.
 
-Lemma env_to_smap_denotes_gvmap :forall TD lc gl Mem0,
-  uniq gl ->
+Lemma locals_to_smap_denotes_gvmap :forall TD lc gl Mem0,
   uniq lc ->
-  smap_denotes_gvmap TD lc gl Mem0 (env_to_smap gl lc) lc gl.
+  smap_denotes_gvmap TD lc gl Mem0 (locals_to_smap lc) lc.
 Proof.
-  intros TD lc gl Mem0 Uniqg Uniqc.
+  intros TD lc gl Mem0 Uniqc.
   unfold smap_denotes_gvmap.
   split; intros.
-    apply env_to_smap_denotes__imples__gv; auto.
+    apply locals_to_smap_denotes__imples__gv; auto.
 
     exists (sterm_val (value_id id')).
-    apply gv__imples__env_to_smap_denotes; auto.
+    apply gv__imples__locals_to_smap_denotes; auto.
 Qed.
 
-Lemma env_to_smap_denotes_id :forall TD lc gl als Mem0,
-  uniq gl ->
+Lemma locals_to_smap_denotes_id :forall TD lc gl als Mem0,
   uniq lc ->
-  sstate_denotes_state TD lc gl als Mem0 (mkSstate (env_to_smap gl lc) smem_init sframe_init nil) lc gl als Mem0 trace_nil.
+  sstate_denotes_state TD lc gl als Mem0 (mkSstate (locals_to_smap lc) smem_init sframe_init nil) lc als Mem0 trace_nil.
 Proof.
-  intros TD lc gl als Mem0 Uniqg Uniqc.
-  split; simpl; auto using env_to_smap_denotes_gvmap.
+  intros TD lc gl als Mem0 Uniqc.
+  split; simpl; auto using locals_to_smap_denotes_gvmap.
 Qed.
 
-Lemma se_cmds_env_to_smap_dom_sub: forall lc0 gl0 cs,
-  union (dom lc0) (dom gl0) [<=]
-    dom (STerms (se_cmds (mkSstate (env_to_smap gl0 lc0) smem_init sframe_init nil) cs)).
+Lemma se_cmds_locals_to_smap_dom_sub: forall lc0 cs,
+  (dom lc0) [<=] dom (STerms (se_cmds (mkSstate (locals_to_smap lc0) smem_init sframe_init nil) cs)).
 Proof.
   intros.
-  assert (J:=@se_cmds_dom_mono cs (env_to_smap gl0 lc0) smem_init sframe_init nil).
-  rewrite env_to_smap_dom_eq in J. fsetdec.
+  assert (J:=@se_cmds_dom_mono cs (locals_to_smap lc0) smem_init sframe_init nil).
+  rewrite locals_to_smap_dom_eq in J. fsetdec.
 Qed.
 
 (* The denotational rules are determinastic. *)
@@ -2135,17 +2057,17 @@ Proof.
   inversion H0; subst; auto.
 Qed.
 
-Lemma smap_denotes_gvmap_det : forall TD lc gl Mem0 smap0 lc1 gl1 lc2 gl2,
-  smap_denotes_gvmap TD lc gl Mem0 smap0 lc1 gl1 ->
-  smap_denotes_gvmap TD lc gl Mem0 smap0 lc2 gl2 ->
-  eqEnv lc1 gl1 lc2 gl2.
+Lemma smap_denotes_gvmap_det : forall TD lc gl Mem0 smap0 lc1 lc2,
+  smap_denotes_gvmap TD lc gl Mem0 smap0 lc1 ->
+  smap_denotes_gvmap TD lc gl Mem0 smap0 lc2 ->
+  eqAL _ lc1 lc2.
 Proof.
-  intros TD lc gl Mem0 smap0 lc1 gl1 lc2 gl2 J1 J2.
+  intros TD lc gl Mem0 smap0 lc1 lc2 J1 J2.
   destruct J1 as [J11 J12].
   destruct J2 as [J21 J22].
   intros id0.
-  remember (lookupEnv lc1 gl1 id0) as ogv1.
-  remember (lookupEnv lc2 gl2 id0) as ogv2.
+  remember (lookupAL _ lc1 id0) as ogv1.
+  remember (lookupAL _ lc2 id0) as ogv2.
   destruct ogv1 as [gv1 | ].
     symmetry in Heqogv1.
     apply J12 in Heqogv1.
@@ -2166,26 +2088,26 @@ Proof.
     inversion Heqogv1.
 Qed.
 
-Lemma sstate_denotes_state_det : forall TD lc gl als Mem0 sstate0 lc1 gl1 als1 Mem1 tr1 lc2 gl2 als2 Mem2 tr2,
-  sstate_denotes_state TD lc gl als Mem0 sstate0 lc1 gl1 als1 Mem1 tr1 ->
-  sstate_denotes_state TD lc gl als Mem0 sstate0 lc2 gl2 als2 Mem2 tr2 ->
-  eqEnv lc1 gl1 lc2 gl2 /\ als1 = als2 /\ Mem1 = Mem2 /\ tr1 = tr2.
+Lemma sstate_denotes_state_det : forall TD lc gl als Mem0 sstate0 lc1 als1 Mem1 tr1 lc2 als2 Mem2 tr2,
+  sstate_denotes_state TD lc gl als Mem0 sstate0 lc1 als1 Mem1 tr1 ->
+  sstate_denotes_state TD lc gl als Mem0 sstate0 lc2 als2 Mem2 tr2 ->
+  eqAL _ lc1 lc2 /\ als1 = als2 /\ Mem1 = Mem2 /\ tr1 = tr2.
 Proof.
-  intros TD lc gl als Mem0 sstate0 lc1 gl1 als1 Mem1 tr1 lc2 gl2 als2 Mem2 tr2 J1 J2.
+  intros TD lc gl als Mem0 sstate0 lc1 als1 Mem1 tr1 lc2 als2 Mem2 tr2 J1 J2.
   destruct J1 as [J11 [J12 [J13 J14]]].
   destruct J2 as [J21 [J22 [J23 J24]]].
   apply smem_denotes_mem_det with (Mem2:=Mem2) in J12; auto; subst.
   apply sframe_denotes_frame_det with (als2:=als2) in J13; auto; subst.
   apply seffects_denote_trace_det with (tr2:=tr2) in J14; auto; subst.
-  apply smap_denotes_gvmap_det with (lc2:=lc2)(gl2:=gl2) in J11; auto.
+  apply smap_denotes_gvmap_det with (lc2:=lc2) in J11; auto.
 Qed.
 
-Lemma smap_denotes_gvmap_eqEnv : forall TD lc gl Mem0 smap0 lc1 gl1 lc2 gl2,
-  smap_denotes_gvmap TD lc gl Mem0 smap0 lc1 gl1 ->
-  eqEnv lc1 gl1 lc2 gl2 ->
-  smap_denotes_gvmap TD lc gl Mem0 smap0 lc2 gl2.
+Lemma smap_denotes_gvmap_eqEnv : forall TD lc gl Mem0 smap0 lc1 lc2,
+  smap_denotes_gvmap TD lc gl Mem0 smap0 lc1 ->
+  eqAL _ lc1 lc2 ->
+  smap_denotes_gvmap TD lc gl Mem0 smap0 lc2.
 Proof.
-  intros TD lc gl Mem0 smap0 lc1 gl1 lc2 gl2 [H1 H2] H3.
+  intros TD lc gl Mem0 smap0 lc1 lc2 [H1 H2] H3.
   split; intros.
     apply H1 in H.
     destruct H as [gv' [st'_denotes_gv' id'_gv'_is_env1]].

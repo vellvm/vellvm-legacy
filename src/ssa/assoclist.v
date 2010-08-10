@@ -41,6 +41,13 @@ match m with
 | (id0, gv0)::m' => if (i == id0) then m' else (id0, gv0)::deleteAL m' i
 end.
 
+Definition rollbackAL (locals : AssocList) (i:atom) (lc0 : AssocList) : AssocList :=
+match (lookupAL lc0 i) with
+| Some gv0 => updateAL locals i gv0
+| None => deleteAL locals i
+end.
+
+
 Lemma lookupAL_updateAL_in : forall m id0 gv0,
   id0 `in` dom m ->
   lookupAL (updateAL m id0 gv0) id0 = Some gv0.
@@ -76,7 +83,7 @@ Proof.
         contradict n; auto.
 Qed.   
 
-Lemma lookupAL_notin : forall m id0,
+Lemma notin_lookupAL_None : forall m id0,
   id0 `notin` dom m ->
   lookupAL m id0 = None.
 Proof.
@@ -131,7 +138,7 @@ Proof.
 Qed.   
 
 
-Lemma lookupAL__indom : forall m id0 gv,
+Lemma lookupAL_Some_indom : forall m id0 gv,
   lookupAL m id0 = Some gv ->
   id0 `in` dom m.
 Proof.
@@ -144,6 +151,31 @@ Proof.
 Qed.  
 
 
+Lemma lookupAL_None_notindom : forall m id0,
+  lookupAL m id0 = None ->
+  id0 `notin` dom m.
+Proof.
+  induction m; intros.
+    auto.
+
+    simpl in H. destruct a. 
+    destruct (id0==a); subst; simpl; auto.
+      inversion H.
+Qed.
+
+Lemma lookupAL_updateAL_notin : forall m id1 id0 gv0,
+  id0 `notin` dom m ->
+  lookupAL (updateAL m id0 gv0) id1 = lookupAL m id1.
+Proof.
+  induction m; intros; simpl; auto.
+
+    destruct a.
+    destruct (@eq_dec atom (@EqDec_eq_of_EqDec atom EqDec_atom) id0 a); subst; simpl.
+      simpl in H. contradict H; auto.
+
+      destruct (@eq_dec atom (@EqDec_eq_of_EqDec atom EqDec_atom) id1 a); subst; simpl; auto.
+Qed.
+
 Lemma lookupAL_deleteAL_eq : forall m id0,
   uniq m ->
   lookupAL (deleteAL m id0) id0 = None.
@@ -152,14 +184,14 @@ Proof.
   destruct a.
   inversion Uniq; subst.
   destruct (id0==a); subst.
-    apply lookupAL_notin; auto.
+    apply notin_lookupAL_None; auto.
 
     simpl.
     destruct (id0==a); subst; auto.
       contradict n; auto.
 Qed.
 
-Lemma lookupAL_in : forall m id0,
+Lemma indom_lookupAL_Some : forall m id0,
   id0 `in` dom m ->
   exists gv0, lookupAL m id0 = Some gv0.
 Proof.
@@ -347,9 +379,234 @@ Proof.
       destruct (l0==a); subst; auto.
         
       destruct (l0==a); subst; auto.
-        apply lookupAL__indom in H0.
+        apply lookupAL_Some_indom in H0.
         contradict H0; auto.
 Qed.
 
+Lemma lookupAL_updateAL_Some_eq : forall lc id0 gv0 gv1,
+  lookupAL lc id0 = Some gv0 ->
+  lookupAL (updateAL lc id0 gv1) id0 = Some gv1.
+Proof.
+  intros lc id0 gv0 gv1 Hl.
+  destruct (AtomSetProperties.In_dec id0 (dom lc)).
+    rewrite lookupAL_updateAL_in; auto.
+
+    rewrite notin_lookupAL_None in Hl; auto.
+    inversion Hl.
+Qed.
+
+Lemma lookupAL_updateAL_None_eq : forall lc id0 gv1,
+  lookupAL lc id0 = None ->
+  lookupAL (updateAL lc id0 gv1) id0 = None.
+Proof.
+  intros lc id0 gv1 Hl.
+  destruct (AtomSetProperties.In_dec id0 (dom lc)).
+    apply indom_lookupAL_Some in i.
+    destruct i as [gv0 i].
+    rewrite i in Hl. 
+    inversion Hl.
+
+    rewrite lookupAL_updateAL_notin; auto.
+Qed.
+
+Lemma lookupAL_rollbackAL_neq : forall lc id0 lc0 id1,
+  id0 <> id1 ->
+  lookupAL lc id1 = lookupAL (rollbackAL lc id0 lc0) id1.
+Proof.
+  intros lc id0 lc0 id1 id0_isnt_id1.
+  unfold rollbackAL.
+  destruct (lookupAL lc0 id0).
+    eapply lookupAL_updateAL_neq; eauto.
+    rewrite lookupAL_deleteAL_neq; auto.
+Qed.
+
+Lemma lookupAL_rollbackAL_Some_eq : forall lc id0 lc0 gv0,
+  uniq lc ->
+  lookupAL lc id0 = Some gv0 ->
+  lookupAL (rollbackAL lc id0 lc0) id0 = lookupAL lc0 id0.
+Proof.
+  intros lc id0 lc0 gv0 Huniqc HlookupAL.
+  unfold rollbackAL.
+  remember (lookupAL lc0 id0) as ogv0.
+  destruct ogv0.
+    rewrite Heqogv0.
+    erewrite lookupAL_updateAL_Some_eq with (gv0:=gv0); eauto.
+
+    rewrite lookupAL_deleteAL_eq; auto.
+Qed.
+
+Lemma lookupAL_rollbackAL_None_eq : forall lc id0 lc0,
+  uniq lc ->
+  lookupAL lc id0 = None ->
+  lookupAL (rollbackAL lc id0 lc0) id0 = None.
+Proof.
+  intros lc id0 lc0 Huniqc HlookupAL.
+  unfold rollbackAL.
+  destruct (lookupAL lc0 id0).
+    erewrite lookupAL_updateAL_None_eq; eauto.
+    erewrite lookupAL_deleteAL_eq; eauto.
+Qed.
+
+Lemma rollbackAL_uniq : forall id0 lc0 lc,
+  uniq lc ->
+  uniq (rollbackAL lc id0 lc0).
+Proof.
+  intros id0 lc0 lc Huniqc.
+  unfold rollbackAL.
+  destruct (lookupAL lc0 id0).
+    apply updateAL_uniq; auto.
+    apply deleteAL_uniq; auto.
+Qed.
+
+Lemma lookupAL_rollbackAL_eq : forall lc id0 lc0 gv,
+  uniq lc ->
+  lookupAL lc id0 = Some gv ->
+  lookupAL (rollbackAL lc id0 lc0) id0 = lookupAL lc0 id0.
+Proof.
+  intros lc id0 lc0 gv Huniqc HlookupAL.
+  unfold rollbackAL.
+  remember (lookupAL lc0 id0) as ogv0.
+  destruct ogv0.
+    apply lookupAL_Some_indom in HlookupAL.
+    rewrite lookupAL_updateAL_in; auto.
+
+    rewrite lookupAL_deleteAL_eq; auto.
+Qed.
+
+Definition eqAL lc1 lc2 := 
+  forall i, lookupAL lc1 i = lookupAL lc2 i.
+
+Lemma eqAL_refl : forall lc,
+  eqAL lc lc.
+Proof. unfold eqAL. auto. Qed.
+
+Lemma eqAL_sym : forall lc1 lc2,
+  eqAL lc1 lc2 ->
+  eqAL lc2 lc1.
+Proof. unfold eqAL. auto. Qed.
+
+Lemma eqAL_trans : forall lc1 lc2 lc3,
+  eqAL lc1 lc2 ->
+  eqAL lc2 lc3 ->
+  eqAL lc1 lc3.
+Proof. 
+  unfold eqAL. 
+  intros.
+  assert (J1:=@H i).
+  assert (J2:=@H0 i).
+  rewrite J1. auto.
+Qed.
+
+Lemma eqAL_indom_iff : forall lc1 lc1' id0,
+  eqAL lc1 lc1' ->  
+  (id0 `in` dom lc1 <-> id0 `in` dom lc1').
+Proof.
+  intros lc1 lc1' id0 HeqAL.
+  split; intro J.
+    assert (J':=@HeqAL id0).
+    apply indom_lookupAL_Some in J; auto.
+    destruct J as [gv0 J].
+    rewrite J' in J.
+    apply lookupAL_Some_indom in J; auto.
+   
+    assert (J':=@HeqAL id0).
+    apply indom_lookupAL_Some in J; auto.
+    destruct J as [gv0 J].
+    rewrite J in J'.
+    apply lookupAL_Some_indom in J'; auto.
+Qed.
+
+Lemma eqAL_indom_onlyif : forall lc1 lc1' id0,
+  eqAL lc1 lc1' ->  
+  id0 `in` dom lc1 ->
+  id0 `in` dom lc1'.
+Proof.
+  intros.
+  apply eqAL_indom_iff with (id0:=id0) in H.
+  destruct H; auto.
+Qed.
+
+Lemma eqAL_indom_if : forall lc1 lc1' id0,
+  eqAL lc1 lc1' ->  
+  id0 `in` dom lc1' ->
+  id0 `in` dom lc1.
+Proof.
+  intros.
+  apply eqAL_indom_iff with (id0:=id0) in H.
+  destruct H; auto.
+Qed.
+
+Lemma eqAL_notindom_iff : forall lc1 lc1' id0,
+  eqAL lc1 lc1' ->  
+  (id0 `notin` dom lc1 <-> id0 `notin` dom lc1').
+Proof.
+  intros.
+  split; intro J.
+    apply notin_lookupAL_None in J.
+    rewrite H in J.
+    apply lookupAL_None_notindom in J; auto.
+
+    apply notin_lookupAL_None in J.
+    rewrite <- H in J.
+    apply lookupAL_None_notindom in J; auto.
+Qed.
+
+Lemma eqAL_notindom_onlyif : forall lc1 lc1' id0,
+  eqAL lc1 lc1' ->  
+  id0 `notin` dom lc1 -> 
+  id0 `notin` dom lc1'.
+Proof.
+  intros.
+  apply eqAL_notindom_iff with (id0:=id0) in H.
+  destruct H; auto.
+Qed.
+
+Lemma eqAL_notindom_if : forall lc1 lc1' id0,
+  eqAL lc1 lc1' ->  
+  id0 `notin` dom lc1' ->
+  id0 `notin` dom lc1.
+Proof.
+  intros.
+  apply eqAL_notindom_iff with (id0:=id0) in H.
+  destruct H; auto.
+Qed.
+
+Lemma eqAL_updateAL : forall lc1 lc2 id0 gv0,
+  eqAL lc1 lc2 ->
+  eqAL (updateAL lc1 id0 gv0) (updateAL lc2 id0 gv0).
+Proof.
+  unfold eqAL. 
+  intros.
+  assert (J:=H i) .
+  destruct (id0==i); subst.
+    destruct (@AtomSetProperties.In_dec i (dom lc1)) as [id0_in_lc1 | id0_notin_lc1].
+      rewrite lookupAL_updateAL_in; auto.
+      rewrite lookupAL_updateAL_in; auto.
+      eapply eqAL_indom_onlyif; eauto.
+
+      rewrite lookupAL_updateAL_notin; auto.
+      rewrite lookupAL_updateAL_notin; auto.
+      eapply eqAL_notindom_onlyif; eauto.
+
+    rewrite <- lookupAL_updateAL_neq; auto.
+    rewrite <- lookupAL_updateAL_neq; auto.
+Qed.
+
+Lemma eqAL_updateAddAL : forall lc1 lc2 id0 gv0,
+  eqAL lc1 lc2 ->
+  eqAL (updateAddAL lc1 id0 gv0) (updateAddAL lc2 id0 gv0).
+Proof.
+  unfold eqAL. 
+  intros.
+  assert (J:=H i) .
+  destruct (id0==i); subst.
+    rewrite lookupAL_updateAddAL_eq; auto.
+    rewrite lookupAL_updateAddAL_eq; auto.
+
+    erewrite <- lookupAL_updateAddAL_neq; eauto.
+    erewrite <- lookupAL_updateAddAL_neq; eauto.
+Qed.
+
 End MoreAssocLists.
+
 
