@@ -1,6 +1,38 @@
 Add LoadPath "../../../theory/metatheory".
 Require Import Metatheory.
 
+Section MoreDom.
+
+Variable X: Type.
+
+Lemma in_dom_cons_inv : forall a (v:X) l id0,
+  id0 `in` dom ((a,v)::l) ->
+  id0 = a \/ id0 `in` dom l.
+Proof.
+  intros.
+  simpl in H. fsetdec.
+Qed.
+
+Lemma in_dom_app_inv : forall id0 D1 D2,
+  id0 `in` D1 `union` D2 ->
+  id0 `in` D1 \/ id0 `in` D2.
+Proof.
+  intros.
+  fsetdec.
+Qed.
+
+Lemma in_dom_ext_right : forall i0 D1 D2,
+  i0 `in` D1 ->
+  i0 `in` D1 `union` D2.
+Proof. fsetdec. Qed.
+
+Lemma in_dom_ext_left : forall i0 D1 D2,
+  i0 `in` D1 ->
+  i0 `in` D2 `union` D1.
+Proof. fsetdec. Qed.
+
+End MoreDom.
+
 Section MoreAssocLists.
 
 Variable X: Type.
@@ -326,6 +358,24 @@ Proof.
           destruct H; auto.
 Qed.
 
+Lemma updateAddAL_in_inversion : forall sm id0 st0 id1,
+  uniq sm ->
+  id1 `in` dom (updateAddAL sm id0 st0) ->
+  (id0 <> id1 /\ id1 `in` dom sm) \/ (id0 = id1).
+Proof.
+  induction sm; intros id0 st0 id1 Uniq Hin; simpl in Hin.
+    right. fsetdec.
+
+    destruct a.
+    inversion Uniq; subst.
+    destruct (id0==a); subst.      
+      destruct (@in_dom_cons_inv _ _ _ _ _ Hin) as [EQ | id1_in_sm]; subst; auto.
+        left. split; fsetdec.
+
+      destruct (@in_dom_cons_inv _ _ _ _ _ Hin) as [EQ | id1_in_sm]; subst; simpl; auto.
+        apply IHsm in id1_in_sm; auto.
+        destruct id1_in_sm as [[id0_isnt_id1 id1_in_sm] | EQ]; auto.
+Qed.
             
 Lemma binds_updateAddAL_eq : forall sm id0 st0,
   binds id0 st0 (updateAddAL sm id0 st0).
@@ -348,6 +398,27 @@ Proof.
         contradict id0_neq_id1; auto.
 
       destruct (id0 == a); subst; auto.
+Qed.
+
+Lemma in_updateAddAL_eq : forall sm id0 st0,
+  id0 `in` dom (updateAddAL sm id0 st0).
+Proof.
+  induction sm; intros id0 st0; simpl; auto.
+    destruct a.
+    destruct (id0 == a); subst; simpl; auto.
+Qed.
+
+Lemma in_updateAddAL_neq : forall sm id0 st0 id1,
+  id1 `in` dom sm ->
+  id0 <> id1 ->
+  id1 `in` dom (updateAddAL sm id0 st0).
+Proof.
+  induction sm; intros id0 st0 id1 Hbinds id0_neq_id1; simpl; auto.
+    destruct a.
+    apply in_dom_cons_inv in Hbinds.
+    destruct Hbinds; subst.
+      destruct (id0 == a); subst; simpl; auto.
+      destruct (id0 == a); subst; simpl; auto.
 Qed.
 
 Lemma mergeALs_inv : forall l2b l2b' B l0,

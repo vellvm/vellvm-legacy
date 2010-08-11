@@ -31,74 +31,81 @@ Proof.
   unfold smap_denotes_gvmap in Hdenotes.
   destruct Hdenotes as [J1 J2].
   destruct v.
-    apply J2 in J.
-    destruct J as [st0 [J3 J4]].
-    rewrite id2Sterm_in with (st0:=st0); auto.
-
+    apply J2 in J; auto.
     rewrite const2Sterm; auto.
 Qed.
 
 Lemma genericvalues__imply__value2Sterm_denote : forall l0 TD lc0 Mem0 smap1 lc gl gvs0,
   uniq smap1 ->
-  (dom lc0) [<=] dom smap1 ->
   smap_denotes_gvmap TD lc0 gl Mem0 smap1 lc ->
   values2GVs TD l0 lc gl = Some gvs0 ->
   sterms_denote_genericvalues TD lc0 gl Mem0 
     (map_list_value (value2Sterm smap1) l0) gvs0.
 Proof.
   induction l0; intros; simpl in *.
-    inversion H2; subst; auto.
+    inversion H1; subst; auto.
 
     remember (getOperandValue TD v lc gl) as ogv.
-    destruct ogv; try solve [inversion H2].
+    destruct ogv; try solve [inversion H1].
     remember (values2GVs TD l0 lc gl) as ogvs.
-    destruct ogvs; try solve [inversion H2].
-    inversion H2; subst.
+    destruct ogvs; try solve [inversion H1].
+    inversion H1; subst.
     apply sterms_cons_denote; eauto using genericvalue__implies__value2Sterm_denotes.
 Qed.
 
-Lemma se_cmd__denotes__op_cmd__case1 : forall lc gl i0 gv3 id' st' smap1 TD lc0 Mem0,
+Lemma se_cmd__denotes__op_cmd__case0 : forall X sm id0 st0 id1 D,
+  uniq sm ->
+  id1 `in` dom (updateAddAL X sm id0 st0) `union` D ->
+  (id0 <> id1 /\ id1 `in` dom sm `union` D) \/ (id0 = id1).
+Proof.
+  intros.
+  destruct (id0==id1); subst; auto.
+    left.
+    apply in_dom_app_inv in H0.
+    destruct H0; auto.
+      apply updateAddAL_in_inversion in H0; auto.
+      destruct H0 as [[J1 J2] | EQ]; subst; auto.
+        contradict n; auto.
+Qed.
+     
+
+Lemma se_cmd__denotes__op_cmd__case1 : forall lc gl i0 gv3 id' smap1 TD lc0 Mem0 st0,
   i0 <> id' ->
-  binds id' st' smap1 ->
+  id' `in` dom smap1 `union` dom lc0 ->
   smap_denotes_gvmap TD lc0 gl Mem0 smap1 lc ->
   exists gv',
-    sterm_denotes_genericvalue TD lc0 gl Mem0 st' gv' /\
+    sterm_denotes_genericvalue TD lc0 gl Mem0 (lookupSmap (updateAddAL _ smap1 i0 st0) id') gv' /\
     lookupAL _ (updateAddAL _ lc i0 gv3) id' = Some gv'.
 Proof.
-  intros lc gl i0 gv3 id' st' smap1 TD lc0 Mem0 nEQ Hbinds Hsterm_denotes.
+  intros lc gl i0 gv3 id' smap1 TD lc0 Mem0 st0 nEQ id'_indom Hsterm_denotes.
   rewrite <- lookupAL_updateAddAL_neq ; auto.
+  rewrite <- lookupSmap_updateAddAL_neq ; auto.
   unfold smap_denotes_gvmap in Hsterm_denotes.
-  destruct Hsterm_denotes as [J1 J2].
-  apply J1 in Hbinds.
-  destruct Hbinds as [gv' [J3 J4]].
-  exists gv'. split; auto.
+  destruct Hsterm_denotes as [J1 J2].  
+  apply J1; auto.
 Qed.
 
 Lemma se_cmd__denotes__op_cmd__case2 : forall lc gl i0 gv3 id' smap1 TD lc0 Mem0 gv' st0,
   smap_denotes_gvmap TD lc0 gl Mem0 smap1 lc ->
   lookupAL _ (updateAddAL _ lc i0 gv3) id' = Some gv' ->
   id' <> i0 ->
-  exists st', binds id' st' (updateAddAL _ smap1 i0 st0) /\ 
-              sterm_denotes_genericvalue TD lc0 gl Mem0 st' gv'.
+  sterm_denotes_genericvalue TD lc0 gl Mem0 (lookupSmap (updateAddAL _ smap1 i0 st0) id') gv'.
 Proof.
   intros lc gl i0 gv3 id' smap1 TD lc0 Mem0 gv' st0 Hsterm_denotes HlookupAL n.
   rewrite <- lookupAL_updateAddAL_neq in HlookupAL; auto.
+  rewrite <- lookupSmap_updateAddAL_neq; auto.
   destruct Hsterm_denotes as [J1 J2].
   apply J2 in HlookupAL; auto.
-  destruct HlookupAL as [st' [J3 J4]].
-  exists st'. split; auto.
-    apply binds_updateAddAL_neq; auto.
 Qed.
 
 Lemma op_cmd__satisfies__se_cmd : forall TD c nc lc als gl lc0 als0 Mem0 lc' als' Mem1 Mem2 sstate1 tr tr1,
   dbCmd TD gl lc als Mem1 c lc' als' Mem2 tr -> 
   uniq sstate1.(STerms) ->
-  dom lc0 [<=] dom (STerms sstate1) ->
   sstate_denotes_state TD lc0 gl als0 Mem0 sstate1 lc als Mem1 tr1 ->
   sstate_denotes_state TD lc0 gl als0 Mem0 (se_cmd sstate1 (mkNB c nc)) lc' als' Mem2 (trace_app tr1 tr).
 Proof.
   intros TD c nc lc als gl lc0 als0 Mem0 lc' als' Mem1 Mem2 sstate1 tr tr1
-         HdsInsn Huniq Hsub Hdenotes.
+         HdsInsn Huniq Hdenotes.
   (cmd_cases (destruct c) Case);
               inversion HdsInsn; subst;
               destruct Hdenotes as [Hsterm_denotes [Hsmem_denotes [Hsframe_denotes Hseffects_denote]]];
@@ -106,14 +113,14 @@ Proof.
   Case "insn_bop".
     split; auto.
       split.
-        intros id' st' Hbinds.
-        simpl in Hbinds. simpl_env in Hbinds.
-        analyze_binds Hbinds.
-        apply updateAddAL_inversion in Hbinds; auto.
-        destruct Hbinds as [[nEQ Hbinds] | [EQ1 EQ2]]; subst.
+        intros id' id'_indom.
+        simpl in id'_indom. simpl. 
+        apply se_cmd__denotes__op_cmd__case0 in id'_indom; auto.
+        destruct id'_indom as [[nEQ id'_indom] | EQ1]; subst.
           eapply se_cmd__denotes__op_cmd__case1; eauto.
 
           rewrite lookupAL_updateAddAL_eq.
+          rewrite lookupSmap_updateAddAL_eq.
           apply BOP_inversion in H13.
           destruct H13 as [gv1 [gv2 [J1 [J2 J3]]]].
           exists gv3. split; auto.
@@ -122,83 +129,74 @@ Proof.
         intros id' gv' HlookupAL.
         simpl. 
         destruct (id'==i0); subst.
-          exists (sterm_bop b s (value2Sterm (STerms sstate1) v) (value2Sterm (STerms sstate1) v0)).
-          split. 
-            apply binds_updateAddAL_eq; auto.
-
-            rewrite lookupAL_updateAddAL_eq in HlookupAL.
-            inversion HlookupAL; subst.
-            apply BOP_inversion in H13.
-            destruct H13 as [gv1 [gv2 [J1 [J2 J3]]]].
-            apply sterm_bop_denotes with (gv1:=gv1)(gv2:=gv2); eauto using genericvalue__implies__value2Sterm_denotes.
+          rewrite lookupAL_updateAddAL_eq in HlookupAL.
+          inversion HlookupAL; subst. 
+          rewrite lookupSmap_updateAddAL_eq.
+          apply BOP_inversion in H13.
+          destruct H13 as [gv1 [gv2 [J1 [J2 J3]]]].
+          apply sterm_bop_denotes with (gv1:=gv1)(gv2:=gv2); eauto using genericvalue__implies__value2Sterm_denotes.
 
           eapply se_cmd__denotes__op_cmd__case2; eauto.
 
   Case "insn_extractvalue".
     split; auto.
       split.
-        intros id' st' Hbinds.
-        simpl in Hbinds. simpl_env in Hbinds.
-        analyze_binds Hbinds.
-        apply updateAddAL_inversion in Hbinds; auto.
-        destruct Hbinds as [[nEQ Hbinds] | [EQ1 EQ2]]; subst.
+        intros id' id'_indom.
+        simpl in id'_indom. simpl. 
+        apply se_cmd__denotes__op_cmd__case0 in id'_indom; auto.
+        destruct id'_indom as [[nEQ id'_indom] | EQ1]; subst.
           eapply se_cmd__denotes__op_cmd__case1; eauto.
 
           rewrite lookupAL_updateAddAL_eq.
+          rewrite lookupSmap_updateAddAL_eq.
           exists gv'. split; auto.
           apply sterm_extractvalue_denotes with (gv1:=gv); eauto using genericvalue__implies__value2Sterm_denotes.
 
         intros id' gv'0 HlookupAL.
         simpl. 
         destruct (id'==i0); subst.
-          exists (sterm_extractvalue t (value2Sterm (STerms sstate1) v) l0).
-          split. 
-            apply binds_updateAddAL_eq; auto.
-
-            rewrite lookupAL_updateAddAL_eq in HlookupAL.
-            inversion HlookupAL; subst.
-            apply sterm_extractvalue_denotes with (gv1:=gv); eauto using genericvalue__implies__value2Sterm_denotes.
+          rewrite lookupAL_updateAddAL_eq in HlookupAL.
+          inversion HlookupAL; subst.
+          rewrite lookupSmap_updateAddAL_eq.
+          apply sterm_extractvalue_denotes with (gv1:=gv); eauto using genericvalue__implies__value2Sterm_denotes.
 
           eapply se_cmd__denotes__op_cmd__case2; eauto.
 
   Case "insn_insertvalue".
     split; auto.
       split.
-        intros id' st' Hbinds.
-        simpl in Hbinds. simpl_env in Hbinds.
-        analyze_binds Hbinds.
-        apply updateAddAL_inversion in Hbinds; auto.
-        destruct Hbinds as [[nEQ Hbinds] | [EQ1 EQ2]]; subst.
+        intros id' id'_indom.
+        simpl in id'_indom. simpl. 
+        apply se_cmd__denotes__op_cmd__case0 in id'_indom; auto.
+        destruct id'_indom as [[nEQ id'_indom] | EQ1]; subst.
           eapply se_cmd__denotes__op_cmd__case1; eauto.
 
           rewrite lookupAL_updateAddAL_eq.
+          rewrite lookupSmap_updateAddAL_eq.
           exists gv''. split; auto.
           eapply sterm_insertvalue_denotes; eauto using genericvalue__implies__value2Sterm_denotes.
 
         intros id' gv'0 HlookupAL.
         simpl. 
         destruct (id'==i0); subst.
-          exists (sterm_insertvalue t (value2Sterm(STerms sstate1) v) t0 (value2Sterm (STerms sstate1) v0) l0).
-          split. 
-            apply binds_updateAddAL_eq; auto.
-
-            rewrite lookupAL_updateAddAL_eq in HlookupAL.
-            inversion HlookupAL; subst.
-            eapply sterm_insertvalue_denotes; eauto using genericvalue__implies__value2Sterm_denotes.
+          rewrite lookupAL_updateAddAL_eq in HlookupAL.
+          inversion HlookupAL; subst.
+          rewrite lookupSmap_updateAddAL_eq.
+          eapply sterm_insertvalue_denotes; eauto using genericvalue__implies__value2Sterm_denotes.
 
           eapply se_cmd__denotes__op_cmd__case2; eauto.
 
   Case "insn_malloc".
     split; simpl; eauto.
       split.
-        intros id' st' Hbinds.
-        simpl in Hbinds. simpl_env in Hbinds.
-        analyze_binds Hbinds.
-        apply updateAddAL_inversion in Hbinds; auto.
-        destruct Hbinds as [[nEQ Hbinds] | [EQ1 EQ2]]; subst.
+        intros id' id'_indom.
+        simpl in id'_indom. simpl. 
+        apply se_cmd__denotes__op_cmd__case0 in id'_indom; auto.
+        destruct id'_indom as [[nEQ id'_indom] | EQ1]; subst.
           eapply se_cmd__denotes__op_cmd__case1; eauto.
 
           rewrite lookupAL_updateAddAL_eq.
+          rewrite lookupSmap_updateAddAL_eq.
           exists (ptr2GV TD (mb, 0)).
           split; auto.
             eapply sterm_malloc_denotes; eauto.
@@ -206,13 +204,10 @@ Proof.
         intros id' gv'0 HlookupAL.
         simpl.
         destruct (id'==i0); subst.
-          exists (sterm_malloc (SMem sstate1) t s a).
-          split. 
-            apply binds_updateAddAL_eq; auto.
-
-            rewrite lookupAL_updateAddAL_eq in HlookupAL.
-            inversion HlookupAL; subst.
-            eapply sterm_malloc_denotes; eauto.
+          rewrite lookupAL_updateAddAL_eq in HlookupAL.
+          inversion HlookupAL; subst.
+          rewrite lookupSmap_updateAddAL_eq.
+          eapply sterm_malloc_denotes; eauto.
 
           eapply se_cmd__denotes__op_cmd__case2; eauto.
 
@@ -229,14 +224,14 @@ Proof.
   Case "insn_alloca".
     split; simpl; eauto.
       split.
-        intros id' st' Hbinds.
-        simpl in Hbinds. simpl_env in Hbinds.
-        analyze_binds Hbinds.
-        apply updateAddAL_inversion in Hbinds; auto.
-        destruct Hbinds as [[nEQ Hbinds] | [EQ1 EQ2]]; subst.
+        intros id' id'_indom.
+        simpl in id'_indom. simpl. 
+        apply se_cmd__denotes__op_cmd__case0 in id'_indom; auto.
+        destruct id'_indom as [[nEQ id'_indom] | EQ1]; subst.
           eapply se_cmd__denotes__op_cmd__case1; eauto.
 
           rewrite lookupAL_updateAddAL_eq.
+          rewrite lookupSmap_updateAddAL_eq.
           exists (ptr2GV TD (mb, 0)).
           split; auto.
           eapply sterm_alloca_denotes; eauto.
@@ -244,13 +239,10 @@ Proof.
         intros id' gv'0 HlookupAL.
         simpl.
         destruct (id'==i0); subst.
-          exists (sterm_alloca (SMem sstate1) t s a).
-          split. 
-            apply binds_updateAddAL_eq; auto.
-
-            rewrite lookupAL_updateAddAL_eq in HlookupAL.
-            inversion HlookupAL; subst.
-            eapply sterm_alloca_denotes; eauto.
+          rewrite lookupAL_updateAddAL_eq in HlookupAL.
+          inversion HlookupAL; subst.
+          rewrite lookupSmap_updateAddAL_eq.
+          eapply sterm_alloca_denotes; eauto.
 
           eapply se_cmd__denotes__op_cmd__case2; eauto.
 
@@ -259,14 +251,14 @@ Proof.
       apply getOperandPtr_inversion in H11.
       destruct H11 as [gv2 [J1 J2]].
       split.
-        intros id' st' Hbinds.
-        simpl in Hbinds. simpl_env in Hbinds.
-        analyze_binds Hbinds.
-        apply updateAddAL_inversion in Hbinds; auto.
-        destruct Hbinds as [[nEQ Hbinds] | [EQ1 EQ2]]; subst.
+        intros id' id'_indom.
+        simpl in id'_indom. simpl. 
+        apply se_cmd__denotes__op_cmd__case0 in id'_indom; auto.
+        destruct id'_indom as [[nEQ id'_indom] | EQ1]; subst.
           eapply se_cmd__denotes__op_cmd__case1; eauto.
 
           rewrite lookupAL_updateAddAL_eq.
+          rewrite lookupSmap_updateAddAL_eq.
           exists gv.
           split; auto.
           apply sterm_load_denotes with (Mem1:=Mem2)(gv0:=gv2)(mp0:=mp); eauto.
@@ -275,14 +267,11 @@ Proof.
         intros id' gv'0 HlookupAL.
         simpl.
         destruct (id'==i0); subst.
-          exists (sterm_load (SMem sstate1) t (value2Sterm (STerms sstate1) v)).
-          split. 
-            apply binds_updateAddAL_eq; auto.
-
-            rewrite lookupAL_updateAddAL_eq in HlookupAL.
-            inversion HlookupAL; subst.
-            apply sterm_load_denotes with (Mem1:=Mem2)(gv0:=gv2)(mp0:=mp); eauto.
-              eapply genericvalue__implies__value2Sterm_denotes; eauto.
+          rewrite lookupAL_updateAddAL_eq in HlookupAL.
+          inversion HlookupAL; subst.
+          rewrite lookupSmap_updateAddAL_eq.
+          apply sterm_load_denotes with (Mem1:=Mem2)(gv0:=gv2)(mp0:=mp); eauto.
+            eapply genericvalue__implies__value2Sterm_denotes; eauto.
 
           eapply se_cmd__denotes__op_cmd__case2; eauto.
 
@@ -299,16 +288,16 @@ Proof.
   Case "insn_gep". 
     split; auto.
       split.
-        intros id' st' Hbinds.
-        simpl in Hbinds. simpl_env in Hbinds.
-        analyze_binds Hbinds.
-        apply updateAddAL_inversion in Hbinds; auto.
+        intros id' id'_indom.
+        simpl in id'_indom. simpl. 
         apply getOperandPtr_inversion in H13.
         destruct H13 as [gv0 [J1 J2]].
-        destruct Hbinds as [[nEQ Hbinds] | [EQ1 EQ2]]; subst.
+        apply se_cmd__denotes__op_cmd__case0 in id'_indom; auto.
+        destruct id'_indom as [[nEQ id'_indom] | EQ1]; subst.
           eapply se_cmd__denotes__op_cmd__case1; eauto.
 
           rewrite lookupAL_updateAddAL_eq.
+          rewrite lookupSmap_updateAddAL_eq.
           apply GEP_inversion in H14.
           destruct H14 as [idxs [J3 J4]].
           apply intValues2Nats_inversion in J3.
@@ -320,33 +309,30 @@ Proof.
         intros id' gv' HlookupAL.
         simpl. 
         destruct (id'==i0); subst.
-          exists (sterm_gep i1 t (value2Sterm (STerms sstate1) v) (map_list_value (value2Sterm (STerms sstate1)) l0)).
-          split. 
-            apply binds_updateAddAL_eq; auto.
-
-            rewrite lookupAL_updateAddAL_eq in HlookupAL.
-            inversion HlookupAL; subst.
-            apply getOperandPtr_inversion in H13.
-            destruct H13 as [gv0 [J1 J2]].
-            apply GEP_inversion in H14.
-            destruct H14 as [idxs [J3 J4]].
-            apply intValues2Nats_inversion in J3.
-            destruct J3 as [gvs0 [J31 J32]].
-            eapply sterm_gep_denotes; eauto using genericvalue__implies__value2Sterm_denotes, genericvalues__imply__value2Sterm_denote.
+          rewrite lookupAL_updateAddAL_eq in HlookupAL.
+          inversion HlookupAL; subst.
+          rewrite lookupSmap_updateAddAL_eq.
+          apply getOperandPtr_inversion in H13.
+          destruct H13 as [gv0 [J1 J2]].
+          apply GEP_inversion in H14.
+          destruct H14 as [idxs [J3 J4]].
+          apply intValues2Nats_inversion in J3.
+          destruct J3 as [gvs0 [J31 J32]].
+          eapply sterm_gep_denotes; eauto using genericvalue__implies__value2Sterm_denotes, genericvalues__imply__value2Sterm_denote.
 
           eapply se_cmd__denotes__op_cmd__case2; eauto.
 
   Case "insn_ext".
     split; auto.
       split.
-        intros id' st' Hbinds.
-        simpl in Hbinds. simpl_env in Hbinds.
-        analyze_binds Hbinds.
-        apply updateAddAL_inversion in Hbinds; auto.
-        destruct Hbinds as [[nEQ Hbinds] | [EQ1 EQ2]]; subst.
+        intros id' id'_indom.
+        simpl in id'_indom. simpl. 
+        apply se_cmd__denotes__op_cmd__case0 in id'_indom; auto.
+        destruct id'_indom as [[nEQ id'_indom] | EQ1]; subst.
           eapply se_cmd__denotes__op_cmd__case1; eauto.
 
           rewrite lookupAL_updateAddAL_eq.
+          rewrite lookupSmap_updateAddAL_eq.
           apply EXT_inversion in H13.
           destruct H13 as [gv1 [J1 J2]].
           exists gv2. split; auto.
@@ -355,29 +341,26 @@ Proof.
         intros id' gv' HlookupAL.
         simpl. 
         destruct (id'==i0); subst.
-          exists (sterm_ext e t (value2Sterm (STerms sstate1) v) t0).
-          split. 
-            apply binds_updateAddAL_eq; auto.
-
-            rewrite lookupAL_updateAddAL_eq in HlookupAL.
-            inversion HlookupAL; subst.
-            apply EXT_inversion in H13.
-            destruct H13 as [gv1 [J1 J2]].
-            apply sterm_ext_denotes with (gv1:=gv1); eauto using genericvalue__implies__value2Sterm_denotes.
+          rewrite lookupAL_updateAddAL_eq in HlookupAL.
+          inversion HlookupAL; subst.
+          rewrite lookupSmap_updateAddAL_eq.
+          apply EXT_inversion in H13.
+          destruct H13 as [gv1 [J1 J2]].
+          apply sterm_ext_denotes with (gv1:=gv1); eauto using genericvalue__implies__value2Sterm_denotes.
 
           eapply se_cmd__denotes__op_cmd__case2; eauto.
 
   Case "insn_cast".
     split; auto.
       split.
-        intros id' st' Hbinds.
-        simpl in Hbinds. simpl_env in Hbinds.
-        analyze_binds Hbinds.
-        apply updateAddAL_inversion in Hbinds; auto.
-        destruct Hbinds as [[nEQ Hbinds] | [EQ1 EQ2]]; subst.
+        intros id' id'_indom.
+        simpl in id'_indom. simpl. 
+        apply se_cmd__denotes__op_cmd__case0 in id'_indom; auto.
+        destruct id'_indom as [[nEQ id'_indom] | EQ1]; subst.
           eapply se_cmd__denotes__op_cmd__case1; eauto.
 
           rewrite lookupAL_updateAddAL_eq.
+          rewrite lookupSmap_updateAddAL_eq.
           apply CAST_inversion in H13.
           destruct H13 as [gv1 [J1 J2]].
           exists gv2. split; auto.
@@ -386,29 +369,26 @@ Proof.
         intros id' gv' HlookupAL.
         simpl. 
         destruct (id'==i0); subst.
-          exists (sterm_cast c t (value2Sterm (STerms sstate1) v) t0).
-          split. 
-            apply binds_updateAddAL_eq; auto.
-
-            rewrite lookupAL_updateAddAL_eq in HlookupAL.
-            inversion HlookupAL; subst.
-            apply CAST_inversion in H13.
-            destruct H13 as [gv1 [J1 J2]].
-            apply sterm_cast_denotes with (gv1:=gv1); eauto using genericvalue__implies__value2Sterm_denotes.
+          rewrite lookupAL_updateAddAL_eq in HlookupAL.
+          inversion HlookupAL; subst.
+          rewrite lookupSmap_updateAddAL_eq.
+          apply CAST_inversion in H13.
+          destruct H13 as [gv1 [J1 J2]].
+          apply sterm_cast_denotes with (gv1:=gv1); eauto using genericvalue__implies__value2Sterm_denotes.
 
           eapply se_cmd__denotes__op_cmd__case2; eauto.
 
   Case "insn_icmp".
     split; auto.
       split.
-        intros id' st' Hbinds.
-        simpl in Hbinds. simpl_env in Hbinds.
-        analyze_binds Hbinds.
-        apply updateAddAL_inversion in Hbinds; auto.
-        destruct Hbinds as [[nEQ Hbinds] | [EQ1 EQ2]]; subst.
+        intros id' id'_indom.
+        simpl in id'_indom. simpl. 
+        apply se_cmd__denotes__op_cmd__case0 in id'_indom; auto.
+        destruct id'_indom as [[nEQ id'_indom] | EQ1]; subst.
           eapply se_cmd__denotes__op_cmd__case1; eauto.
 
           rewrite lookupAL_updateAddAL_eq.
+          rewrite lookupSmap_updateAddAL_eq.
           apply ICMP_inversion in H13.
           destruct H13 as [gv1 [gv2 [J1 [J2 J3]]]].
           exists gv3. split; auto.
@@ -417,30 +397,27 @@ Proof.
         intros id' gv' HlookupAL.
         simpl. 
         destruct (id'==i0); subst.
-          exists (sterm_icmp c t (value2Sterm (STerms sstate1) v) (value2Sterm (STerms sstate1) v0)).
-          split. 
-            apply binds_updateAddAL_eq; auto.
-
-            rewrite lookupAL_updateAddAL_eq in HlookupAL.
-            inversion HlookupAL; subst.
-            apply ICMP_inversion in H13.
-            destruct H13 as [gv1 [gv2 [J1 [J2 J3]]]].
-            apply sterm_icmp_denotes with (gv1:=gv1)(gv2:=gv2); eauto using genericvalue__implies__value2Sterm_denotes.
+          rewrite lookupAL_updateAddAL_eq in HlookupAL.
+          inversion HlookupAL; subst.
+          rewrite lookupSmap_updateAddAL_eq.
+          apply ICMP_inversion in H13.
+          destruct H13 as [gv1 [gv2 [J1 [J2 J3]]]].
+          apply sterm_icmp_denotes with (gv1:=gv1)(gv2:=gv2); eauto using genericvalue__implies__value2Sterm_denotes.
 
           eapply se_cmd__denotes__op_cmd__case2; eauto.
 
   Case "insn_select".
     split; auto.
       split.
-        intros id' st' Hbinds.
-        simpl in Hbinds. simpl_env in Hbinds.
-        analyze_binds Hbinds.
-        apply updateAddAL_inversion in Hbinds; auto.
-        destruct Hbinds as [[nEQ Hbinds] | [EQ1 EQ2]]; subst.
+        intros id' id'_indom.
+        simpl in id'_indom. simpl. 
+        apply se_cmd__denotes__op_cmd__case0 in id'_indom; auto.
+        destruct id'_indom as [[nEQ id'_indom] | EQ1]; subst.
           destruct cond0; eapply se_cmd__denotes__op_cmd__case1; eauto.
 
           apply getOperandInt_inversion in H13. destruct H13 as [gv5 [J1 J2]].
-          destruct cond0; rewrite lookupAL_updateAddAL_eq; auto.
+          destruct cond0; rewrite lookupAL_updateAddAL_eq;
+                          rewrite lookupSmap_updateAddAL_eq; auto.
             exists gv1.
             split; auto.
               apply sterm_select_denotes with (c0:=0)(gv0:=gv5)(gv1:=gv1)(gv2:=gv2); eauto using genericvalue__implies__value2Sterm_denotes.
@@ -452,15 +429,12 @@ Proof.
         intros id' gv' HlookupAL.
         simpl. 
         destruct (id'==i0); subst.
-          exists (sterm_select (value2Sterm (STerms sstate1) v) t (value2Sterm (STerms sstate1) v0) (value2Sterm (STerms sstate1) v1)).
-          split. 
-            apply binds_updateAddAL_eq; auto.
-
-            apply getOperandInt_inversion in H13. destruct H13 as [gv5 [J1 J2]].
-            apply sterm_select_denotes with (c0:=cond0)(gv0:=gv5)(gv1:=gv1)(gv2:=gv2); eauto using genericvalue__implies__value2Sterm_denotes.
-            destruct cond0;
-              rewrite lookupAL_updateAddAL_eq in HlookupAL;
-              inversion HlookupAL; subst; auto.
+          apply getOperandInt_inversion in H13. destruct H13 as [gv5 [J1 J2]].
+          rewrite lookupSmap_updateAddAL_eq.
+          apply sterm_select_denotes with (c0:=cond0)(gv0:=gv5)(gv1:=gv1)(gv2:=gv2); eauto using genericvalue__implies__value2Sterm_denotes.
+          destruct cond0;
+            rewrite lookupAL_updateAddAL_eq in HlookupAL;
+            inversion HlookupAL; subst; auto.
 
           destruct cond0; eapply se_cmd__denotes__op_cmd__case2; eauto.
 Qed.
@@ -468,13 +442,12 @@ Qed.
 Lemma aux__op_cmds__satisfy__se_cmds : forall nbs TD lc0 als als0 Mem0 lc als' gl Mem1 sstate1 lc' Mem2 tr tr1,
   dbCmds TD gl lc als Mem1 (nbranchs2cmds nbs) lc' als' Mem2 tr ->
   uniq sstate1.(STerms) ->
-  dom lc0 [<=] dom (STerms sstate1) ->
   sstate_denotes_state TD lc0 gl als0 Mem0 sstate1 lc als Mem1 tr1 ->
   sstate_denotes_state TD lc0 gl als0 Mem0 (se_cmds sstate1 nbs) lc' als' Mem2 (trace_app tr1 tr).
 Proof.
   induction nbs; 
     intros TD lc0 als als0 Mem0 lc als' gl Mem1 sstate1 lc' Mem2 tr tr1 
-    HdbCmds Huniq Hsub Hdenotes.
+    HdbCmds Huniq Hdenotes.
 
     simpl in HdbCmds.
     inversion HdbCmds; subst; try solve [rewrite trace_app_nil__eq__trace; auto].
@@ -486,21 +459,16 @@ Proof.
     rewrite trace_app_commute.
     apply IHnbs with (lc0:=lc0)(sstate1:=se_cmd sstate1 (mkNB c nc))(als0:=als0)(Mem0:=Mem0)(tr1:=trace_app tr1 t1) in H11; auto.
       apply _se_cmd_uniq; auto.
-
-      assert (J:=@se_cmd_dom_mono' sstate1 (mkNB c nc)).
-      clear - J Hsub. fsetdec.
 Qed.
 
 Lemma op_cmds__satisfy__se_cmds : forall TD nbs lc als gl Mem lc' als' Mem' tr,
   uniq lc ->
   dbCmds TD gl lc als Mem (nbranchs2cmds nbs) lc' als' Mem' tr ->
-  sstate_denotes_state TD lc gl als Mem (se_cmds (mkSstate (locals_to_smap lc) smem_init sframe_init nil) nbs) lc' als' Mem' tr.
+  sstate_denotes_state TD lc gl als Mem (se_cmds sstate_init nbs) lc' als' Mem' tr.
 Proof.
   intros TD nbs lc als gl Mem0 lc' als' Mem' tr Uniqc HdbCmds.
-  apply aux__op_cmds__satisfy__se_cmds with (lc0:=lc)(als0:=als)(Mem0:=Mem0)(sstate1:=mkSstate (locals_to_smap lc) smem_init sframe_init nil) (tr1:=trace_nil)(nbs:=nbs) in HdbCmds; simpl; auto.
-    apply locals_to_smap_uniq.
-    rewrite locals_to_smap_dom_eq. fsetdec.
-    apply locals_to_smap_denotes_id; auto.
+  apply aux__op_cmds__satisfy__se_cmds with (lc0:=lc)(als0:=als)(Mem0:=Mem0)(sstate1:=sstate_init) (tr1:=trace_nil)(nbs:=nbs) in HdbCmds; simpl; auto.
+    apply init_denotes_id; auto.
 Qed.           
 
 
