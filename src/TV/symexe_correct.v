@@ -19,6 +19,8 @@ Require Import symexe_sound.
 Require Import seop_llvmop.
 Require Import assoclist.
 Require Import ssa_props.
+Require Import symexe_dec.
+Require Import Coq.Bool.Sumbool.
 
 Export SimpleSE.
 
@@ -561,9 +563,56 @@ Qed.
 
 (* Correctness of the cmds validator *)
 
+
+Tactic Notation "bdestruct" ident(H) "as" ident(J1) ident(J2) :=
+     apply andb_true_iff in H; destruct H as [J1 J2].
+
+Tactic Notation "bdestruct3" ident(H) "as" ident(J1) ident(J2) ident(J3) :=
+     bdestruct H as H J3;
+     bdestruct H as J1 J2.
+
+Tactic Notation "bdestruct4" ident(H) "as" ident(J1) ident(J2) ident(J3) ident(J4) :=
+     bdestruct3 H as H J3 J4;
+     bdestruct H as J1 J2.
+
+Tactic Notation "bdestruct5" ident(H) "as" ident(J1) ident(J2) ident(J3) ident(J4) ident(J5) :=
+     bdestruct4 H as H J3 J4 J5;
+     bdestruct H as J1 J2.
+
+Ltac bdestructn H Js :=
+  match Js with
+  | nil => idtac
+  | ?J::nil => rename H into J
+  | ?J::?Js' => apply andb_true_iff in H; destruct H as [H J]; bdestructn H Js
+  end.
+
 Definition tv_cmds (nbs1 nbs2 : list nbranch) :=
-se_cmds sstate_init nbs1 =
-se_cmds sstate_init nbs2.
+sumbool2bool _ _ (sstate_dec (se_cmds sstate_init nbs1) (se_cmds sstate_init nbs2)).
+
+Ltac sumbool_simpl :=
+  repeat
+  match goal with
+  | [ H:sumbool2bool _ _ _ = true |- _ ] => apply sumbool2bool_true in H
+  | [ H:is_true(sumbool2bool _ _ _) |- _ ] => apply sumbool2bool_true in H
+  | [ H:tv_cmds _ _ = true |- _ ] => unfold is_true in H; apply sumbool2bool_true in H
+  | [ H:is_true(tv_cmds _ _) |- _ ] => unfold is_true in H; apply sumbool2bool_true in H
+  end.
+
+Ltac sumbool_subst :=
+  repeat
+  match goal with
+  | [ H:sumbool2bool _ _ _ = true |- _ ] => apply sumbool2bool_true in H; subst
+  | [ H:is_true(sumbool2bool _ _ _) |- _ ] => apply sumbool2bool_true in H; subst
+  end.
+
+Tactic Notation "sumbool_subst" "in" hyp(H) :=
+  apply sumbool2bool_true in H.
+
+Ltac bsplit :=
+  eapply andb_true_iff; split.
+
+Ltac repeat_bsplit :=
+  repeat (bsplit; auto using eq_sumbool2bool_true).
 
 Lemma tv_cmds__is__correct : forall TD nbs nbs' lc1 als1 gl Mem1 lc2 als2 Mem2 tr,
   uniq lc1 ->  
@@ -575,10 +624,10 @@ Lemma tv_cmds__is__correct : forall TD nbs nbs' lc1 als1 gl Mem1 lc2 als2 Mem2 t
     eqAL _ slc lc2.
 Proof.
   intros TD nbs nbs' lc1 als1 gl Mem1 lc2 als2 Mem2 tr Huniqc Wf Htv_cmds HdbCmds.
-  unfold tv_cmds in Htv_cmds.
   assert (Uniqs:=HdbCmds).
   apply se_dbCmds_preservation in Uniqs; auto.
   apply op_cmds__satisfy__se_cmds in HdbCmds; auto.
+  sumbool_simpl.
   rewrite Htv_cmds in HdbCmds.
   apply se_cmds__denote__op_cmds; auto.
 Qed.
@@ -590,21 +639,24 @@ match (sb1, sb2) with
   let st2 := se_cmds sstate_init nbs2 in
   let cl1 := se_call st1 call1 iscall1 in
   let cl2 := se_call st2 call2 iscall2 in
-  st1 = st2 /\ call1 = call2
+   (sumbool2bool _ _ (sstate_dec st1 st2)) &&
+   (sumbool2bool _ _ (cmd_dec call1 call2))
 end.
 
 Fixpoint tv_subblocks (sbs1 sbs2:list subblock) :=
 match (sbs1, sbs2) with
-| (nil, nil) => True
-| (sb1::sbs1', sb2::sbs2') => tv_subblock sb1 sb2 /\ tv_subblocks sbs1' sbs2' 
-| _ => False
+| (nil, nil) => true
+| (sb1::sbs1', sb2::sbs2') => 
+   (tv_subblock sb1 sb2) && (tv_subblocks sbs1' sbs2')
+| _ => false
 end.
 
 Fixpoint tv_phinodes (ps1 ps2:phinodes) :=
 match (ps1, ps2) with
-| (nil, nil) => True
-| (p1::ps1', p2::ps2') => p1=p2 /\ tv_phinodes ps1' ps2'
-| _ => False
+| (nil, nil) => true
+| (p1::ps1', p2::ps2') => 
+    sumbool2bool _ _ (phinode_dec p1 p2) && tv_phinodes ps1' ps2'
+| _ => false
 end.
 
 Definition tv_block (b1 b2:block) :=
@@ -612,50 +664,54 @@ match (b1, b2) with
 | (block_intro l1 ps1 cs1 tmn1, block_intro l2 ps2 cs2 tmn2) =>
   match (cmds2sbs cs1, cmds2sbs cs2) with
   | ((sbs1, nbs1), (sbs2, nbs2)) =>
-    l1 = l2 /\ 
-    tv_phinodes ps1 ps2 /\ 
-    tv_subblocks sbs1 sbs2 /\ 
-    tv_cmds nbs1 nbs2 /\ 
-    tmn1 = tmn2
+    sumbool2bool _ _ (eq_atom_dec l1 l2) &&
+    tv_phinodes ps1 ps2 &&
+    tv_subblocks sbs1 sbs2 &&
+    tv_cmds nbs1 nbs2 &&
+    sumbool2bool _ _ (terminator_dec tmn1 tmn2)
   end
 end.
 
 Fixpoint tv_blocks (bs1 bs2:blocks):=
 match (bs1, bs2) with
-| (nil, nil) => True
-| (b1::bs1', b2::bs2') => tv_block b1 b2 /\ tv_blocks bs1' bs2'
-| _ => False
+| (nil, nil) => true
+| (b1::bs1', b2::bs2') => tv_block b1 b2 && tv_blocks bs1' bs2'
+| _ => false
 end.
 
 Definition tv_fdef (f1 f2:fdef) :=
 match (f1, f2) with
 | (fdef_intro fh1 lb1, fdef_intro fh2 lb2) =>
-  fh1 = fh2 /\ tv_blocks lb1 lb2
+  sumbool2bool _ _ (fheader_dec fh1 fh2) &&
+  tv_blocks lb1 lb2
 end.
 
 Fixpoint tv_products (Ps1 Ps2:products):=
 match (Ps1, Ps2) with
-| (nil, nil) => True
+| (nil, nil) => true
 | (product_fdec f1::Ps1', product_fdec f2::Ps2') => 
-  f1 = f2 /\ tv_products Ps1' Ps2'
+  sumbool2bool _ _ (fdec_dec f1 f2) &&
+  tv_products Ps1' Ps2'
 | (product_fdef f1::Ps1', product_fdef f2::Ps2') => 
-  tv_fdef f1 f2 /\ tv_products Ps1' Ps2'
+  tv_fdef f1 f2 && tv_products Ps1' Ps2'
 | (product_gvar gvar1::Ps1', product_gvar gvar2::Ps2') => 
-  gvar1 = gvar2 /\ tv_products Ps1' Ps2'
-| _ => False
+  sumbool2bool _ _ (gvar_dec gvar1 gvar2) &&
+  tv_products Ps1' Ps2'
+| _ => false
 end.
 
 Definition tv_module (m1 m2:module) :=
 match (m1, m2) with
 | (module_intro TD1 Ps1, module_intro TD2 Ps2) =>
-  TD1 = TD2 /\ tv_products Ps1 Ps2
+  sumbool2bool _ _ (layouts_dec TD1 TD2) &&
+  tv_products Ps1 Ps2
 end.
 
 Fixpoint tv_system (S1 S2:system) :=
 match (S1, S2) with
-| (nil, nil) => True
-| (m1::S1', m2::S2') => tv_module m1 m2 /\ tv_system S1' S2'
-| _ => False
+| (nil, nil) => true
+| (m1::S1', m2::S2') => tv_module m1 m2 && tv_system S1' S2'
+| _ => false
 end.
 
 Lemma lookup_tv_blocks__tv_block : forall lb1 lb2 l0 B1,
@@ -675,7 +731,7 @@ Proof.
     destruct lb2.
       inversion H1.
 
-      destruct H1 as [J1 J2].
+      bdestruct H1 as J1 J2.
       assert (K:=H).
       apply uniqBlocks__uniqLabel2Block in H.
       apply mergeALs_inv in H2; auto.
@@ -693,7 +749,8 @@ Proof.
             unfold tv_block in J1.
             destruct (cmds2sbs c).
             destruct (cmds2sbs c0).
-            destruct J1 as [EQ _]; subst.
+            bdestruct5 J1 as J11 J12 J13 J14 J15.
+            sumbool_subst.
             destruct (l0==l2); inversion H2; subst; auto.
 
         simpl_env in K. apply uniqBlocks_inv in K. destruct K.
@@ -713,7 +770,7 @@ Lemma tv_blocks_nth_Some_inv : forall lb1 lb2 n B1,
   exists B2, 
     nth_error lb2 n = Some B2 /\ tv_block B1 B2.
 Proof.
-  intros.
+  intros lb1 lb2 n B1 H H0 H1 H2.
   assert (J:=H2).
   apply nth_error__lookupAL_genLabel2Block_blocks in H2; auto.
   destruct H2 as [l0 H2].
@@ -735,8 +792,9 @@ Lemma lookup_tv_fdef__tv_block : forall fh1 fh2 lb1 lb2 l0 B1,
     nth_error lb2 n = Some B2 /\
     lookupBlockViaLabelFromFdef (fdef_intro fh2 lb2) l0 = Some B2.
 Proof.
-  intros.
-  destruct H1 as [EQ Htv_blocks].
+  intros fh1 fh2 lb1 lb2 l0 B1 H H0 H1 H2.
+  bdestruct H1 as EQ Htv_blocks.
+  sumbool_subst.
   unfold lookupBlockViaLabelFromFdef in H2.
   unfold genLabel2Block_fdef in H2.
   eapply lookup_tv_blocks__tv_block; eauto.
@@ -748,13 +806,15 @@ Lemma tv_block__inv : forall B1 B2,
   tv_phinodes (getPhiNodesFromBlock B1) (getPhiNodesFromBlock B2) /\
   getTerminatorFromBlock B1 = getTerminatorFromBlock B2.
 Proof.
-  intros.
+  intros B1 B2 H.
   destruct B1.
   destruct B2. simpl in *.
   unfold tv_block in H.
   destruct (cmds2sbs c).
   destruct (cmds2sbs c0).
-  decompose [and] H. split; auto.
+  bdestruct5 H as J1 J2 J3 J4 J5.
+  sumbool_subst.
+  split; auto.
 Qed.
  
 Lemma tv_getIncomingValuesForBlockFromPHINodes : forall ps1 B1 ps2 B2,
@@ -763,14 +823,15 @@ Lemma tv_getIncomingValuesForBlockFromPHINodes : forall ps1 B1 ps2 B2,
   getIncomingValuesForBlockFromPHINodes ps1 B1 =
   getIncomingValuesForBlockFromPHINodes ps2 B2 .
 Proof.
-  induction ps1; intros.
+  induction ps1; intros B1 ps2 B2 H H0.
     destruct ps2; simpl in *; auto.
       inversion H0.
 
     destruct ps2; simpl in *.
       inversion H0.
 
-      destruct H0; subst.
+      bdestruct H0 as J1 H1.
+      sumbool_subst.
       apply IHps1 with (B1:=B1)(B2:=B2) in H1; auto.
       rewrite H1.
       apply tv_block__inv in H.
@@ -854,32 +915,38 @@ Proof.
     destruct Ps2; inversion H.
       inversion H0.
 
-    destruct a; simpl in H.
+    (product_cases (destruct a) Case); simpl in H.
+    Case "product_gvar".
       destruct Ps2; try solve [inversion H].
       simpl in H0.
-      destruct p; inversion H; subst.
+      destruct p; try solve [inversion H].
+      bdestruct H as H1 H2.
       apply IHPs1 with (fid:=fid)(rt:=rt)(la:=la)(lb1:=lb1) in H2; auto.
  
+    Case "product_fdec".
       destruct Ps2; try solve [inversion H].
       simpl in H0.
-      destruct p; inversion H; subst.
+      destruct p; try solve [inversion H].
+      bdestruct H as H1 H2.
       apply IHPs1 with (fid:=fid)(rt:=rt)(la:=la)(lb1:=lb1) in H2; auto.
 
+    Case "product_fdef".
       destruct Ps2; try solve [inversion H].
       simpl in *.
-      destruct p; inversion H; subst. 
+      destruct p; try solve [inversion H].
+      bdestruct H as H1 H2.    
       simpl in *.
       destruct f.
       destruct f0.
       unfold tv_fdef in H1.
-      destruct H1 as [EQ H1]; subst.
+      bdestruct H1 as EQ H1.
+      sumbool_subst.
       simpl in *.
       remember (getFheaderID f0) as R.
       destruct (R==fid); subst.
         inversion H0. subst b. 
         exists b0. split; auto.
 
-        destruct H.
         apply IHPs1 with (Ps2:=Ps2) in H0; auto.
 Qed.
 
@@ -1033,8 +1100,10 @@ Proof.
   unfold tv_dbCall__is__correct_prop, 
          tv_subblock__is__correct_prop, tv_subblocks__is__correct_prop,
          tv_block__is__correct_prop, tv_blocks__is__correct_prop,
-         tv_fdef__is__correct_prop; intros; subst.
+         tv_fdef__is__correct_prop.
 Case "dbCall_intro".
+  intros S TD Ps lc gl rid noret0 tailc0 rt fid lp Rid oResult tr lc' Mem0 Mem' 
+         als' Mem'' B' d H e S2 Ps2 H0 H1 H2 H3 H4 H5 H6.
   inversion d; subst.
     apply H with (S2:=S2)(Ps2:=Ps2) in H7; auto.
     clear H.
@@ -1049,6 +1118,8 @@ Case "dbCall_intro".
     split; eauto using eqAL_callUpdateLocals, eqAL_refl.
 
 Case "dbSubblock_intro".
+  intros S TD Ps lc1 als1 gl Mem1 cs call0 lc2 als2 Mem2 tr1 lc3 Mem3 tr2 d d0 H S2 
+         Ps2 cs2 sb1 sb2 H0 H1 H2 H3 H4 H5 H6 H7 H8 H9 H10.
   unfold tv_subblock in H10.
   destruct sb1.
   destruct sb2.
@@ -1060,11 +1131,13 @@ Case "dbSubblock_intro".
   apply cmds2sb_inv in H2.
   destruct H2 as [cs2' [call0 [J1 [J2 J3]]]]; subst.
   apply cmds2nbs__nbranchs2cmds in J2.
-  destruct H10 as [EQ1 EQ2]; subst.
+  bdestruct H10 as EQ1 EQ2.
+  sumbool_subst.
   inversion H7; subst.
   assert (uniq lc2) as J.
     apply se_dbCmds_preservation in d; auto.
-  apply tv_cmds__is__correct with (nbs':=NBs1) in d; eauto.
+  apply tv_cmds__is__correct with (nbs':=NBs1) in d; 
+    try solve [eauto using eq_sumbool2bool_true | apply eq_sumbool2bool_true; auto].
   destruct d as [lc2' [Hcmds Heq2]].
   apply H in H6; auto. clear H.
   destruct H6 as [lc3' [HdbCall Heq3]].  
@@ -1073,12 +1146,15 @@ Case "dbSubblock_intro".
   exists lc3''. split; eauto using eqAL_trans, eqAL_sym.
 
 Case "dbSubblocks_nil".
+  intros S TD Ps lc als gl Mem0 S2 Ps2 sbs1 sbs2 cs2 H H0 H1 H2 H3 H4 H5 H6 H7 H8 H9.
   simpl in H0. inversion H0; subst.
   destruct sbs2;try solve [auto | simpl in H9; inversion H9].
     apply cmds2sbs_nil_inv in H1; subst.
     exists lc. split; auto using eqAL_refl.
 
 Case "dbSubblocks_cons".
+  intros S TD Ps lc1 als1 gl Mem1 lc2 als2 Mem2 lc3 als3 Mem3 cs cs' t1 t2 d H d0 H0 S2
+         Ps2 sbs1 sbs2 cs2 H1 H2 H3 H4 H5 H6 H7 H8 H9 H10 H11.
   assert (Hcs2sb := d).
   apply dbSubblock__cmds2sb in Hcs2sb.
   destruct Hcs2sb as [sb Hcs2sb].
@@ -1088,11 +1164,11 @@ Case "dbSubblocks_cons".
   apply cmds_cons2sbs_inv with (sb:=sb)(sbs':=sbs) in H2; auto.
   subst.
   simpl in H11.
-  destruct sbs2 ; simpl in H11; inversion H11.
-  clear H11.
+  destruct sbs2 ; try solve [inversion H11].
+  bdestruct H11 as H2 H12.
   apply cmds2sbs_cons_inv in H3.
   destruct H3 as [cs21 [cs22 [cs212s [cs222sbs2 EQ]]]]; subst.
-  inversion H8; subst. clear H8.  
+  inversion_clear H8; subst.
   apply H with (S2:=S2)(Ps2:=Ps2)(cs2:=cs21) in H2; auto.
   clear H. destruct H2 as [lc2' [HdbSubblock Heq2]].
   assert (uniq lc2) as Uniqc2.
@@ -1104,6 +1180,8 @@ Case "dbSubblocks_cons".
   exists lc3''. split; eauto using eqAL_trans, eqAL_sym.
 
 Case "dbBlock_intro".
+  intros S TD Ps F tr1 tr2 l0 ps cs cs' tmn gl lc1 als1 Mem1 lc2 als2 Mem2 lc3 als3 Mem3 lc4 B' arg0 tr3 d H d0 d1
+         S2 Ps2 fh1 lb1 fh2 lb2 B1 lc als Mem0 B1' lc' als' Mem' B2 H0 H1 H2 H3 H4 H5 H6 H7 H8 H9 H10 H11 H12; subst.
   inversion H0; subst. clear H0.
   inversion H1; subst. clear H1.
   destruct B2 as [l2 ps2 cs2 tmn2].
@@ -1112,7 +1190,8 @@ Case "dbBlock_intro".
   remember (cmds2sbs cs2) as R2.
   destruct R1 as [sbs1 nbs1].
   destruct R2 as [sbs2 nbs2].
-  destruct H12 as [EQ1 [Htv_phinodes [Htv_subblocks [Htv_cmds EQ2]]]]; subst.
+  bdestruct5 H12 as EQ1 Htv_phinodes Htv_subblocks Htv_cmds EQ2.
+  sumbool_subst.
 
   assert (Hcs2sbs1 := d).
   apply dbSubblocks__cmds2sbs in Hcs2sbs1.
@@ -1170,9 +1249,11 @@ Case "dbBlock_intro".
     unfold tv_block.
     rewrite <- HeqR1.
     rewrite <- HeqR2.
-    split; auto.
+    repeat_bsplit.
 
 Case "dbBlocks_nil".
+  intros S TD Ps gl F arg0 state S2 Ps2 fh1 lb1 fh2 lb2 lc n tmn1 l1 ps1 cs1
+         ps1' l1' als lc' Mem0 Mem' als' tmn1' cs1' H H0 H1 H2 H3 H4 H5 H6 H7 H8 H9 H10 H11; subst.
   inversion H0; subst. clear H0.
   apply uniqSystem__uniqFdef in H4; auto.
   apply uniqSystem__uniqFdef in H5; auto.
@@ -1184,6 +1265,8 @@ Case "dbBlocks_nil".
   repeat (split; auto).
 
 Case "dbBlocks_cons".
+  intros S TD Ps gl F arg0 S1 S2 S3 t1 t2 d H d0 H0 S0 Ps2 fh1 lb1 fh2 lb2 lc n tmn1 l1
+         ps1 cs1 ps1' l1' als lc' Mem0 Mem' als' tmn1' cs1' H1 H2 H3 H4 H5 H6 H7 H8 H9 H10 H11 H12 H13; subst.
   inversion d; subst.
   assert (J:=H12).  
   assert (uniqF1:=H6).
@@ -1223,10 +1306,12 @@ Case "dbBlocks_cons".
     inversion J3; subst. clear J3.
     split; eauto using eqAL_sym, eqAL_trans.
 
-
     apply uniqFdef__wf_block with (fh:=fh2)(lb:=lb2)(n:=n); eauto using uniqSystem__uniqFdef.
 
 Case "dbFdef_func".
+    intros S TD Ps gl fid lp lc rid l1 ps1 cs1 tmn1 rt la lb Result lc1 tr1 Mem0 Mem1 als1
+           l2 ps2 cs21 cs22 lc2 als2 Mem2 tr2 lc3 als3 Mem3 tr3 e e0 d H d0 H0 d1
+           Ps2 S2 la0 lb1 H1 H2 H3 H4 H5 H6 H7 H8.
     rewrite H1 in e. inversion e; subst. clear e.
     assert (exists lb2, lookupFdefViaIDFromProducts Ps2 fid = Some (fdef_intro (fheader_intro rt fid la) lb2) /\
                         tv_blocks lb lb2) as J.
@@ -1250,7 +1335,8 @@ Case "dbFdef_func".
       remember (cmds2sbs cs2') as R2.
       destruct R1 as [sbs1 nbs1].
       destruct R2 as [sbs2 nbs2].
-      destruct J5 as [EQ1 [Htv_phinodes [Htv_subblocks [Htv_cmds EQ2]]]]; subst.
+      bdestruct5 J5 as EQ1 Htv_phinodes Htv_subblocks Htv_cmds EQ2.
+      sumbool_subst.
 
       assert (Hcs21sbs1 := d0).
       apply dbSubblocks__cmds2sbs in Hcs21sbs1.
@@ -1323,9 +1409,12 @@ Case "dbFdef_func".
       eapply lookupFdefViaIDFromProductsInSystem; eauto.
 
       unfold tv_fdef.
-      split; auto.
+      repeat_bsplit.
 
 Case "dbFdef_proc".
+    intros S TD Ps gl fid lp lc rid l1 ps1 cs1 tmn1 rt la lb lc1 tr1 Mem0 Mem1 als1
+           l2 ps2 cs21 cs22 lc2 als2 Mem2 tr2 lc3 als3 Mem3 tr3 e e0 d H d0 H0 d1
+           Ps2 S2 la0 lb1 H1 H2 H3 H4 H5 H6 H7 H8.
     rewrite H1 in e. inversion e; subst. clear e.
     assert (exists lb2, lookupFdefViaIDFromProducts Ps2 fid = Some (fdef_intro (fheader_intro rt fid la) lb2) /\
                         tv_blocks lb lb2) as J.
@@ -1349,7 +1438,8 @@ Case "dbFdef_proc".
       remember (cmds2sbs cs2') as R2.
       destruct R1 as [sbs1 nbs1].
       destruct R2 as [sbs2 nbs2].
-      destruct J5 as [EQ1 [Htv_phinodes [Htv_subblocks [Htv_cmds EQ2]]]]; subst.
+      bdestruct5 J5 as EQ1 Htv_phinodes Htv_subblocks Htv_cmds EQ2.
+      sumbool_subst.
 
       assert (Hcs21sbs1 := d0).
       apply dbSubblocks__cmds2sbs in Hcs21sbs1.
@@ -1421,7 +1511,7 @@ Case "dbFdef_proc".
       eapply lookupFdefViaIDFromProductsInSystem; eauto.
 
       unfold tv_fdef.
-      split; auto.
+      repeat_bsplit.
 Qed.   
 
 Lemma tv_dbCall__is__correct : forall S1 TD Ps1 gl lc Mem0 call0 lc' Mem' tr S2 Ps2,

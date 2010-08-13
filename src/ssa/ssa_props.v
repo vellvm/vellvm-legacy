@@ -13,16 +13,6 @@ Export LLVMlib.
 
 (* eq *)
 
-Scheme const_ind2 := Induction for const Sort Prop
-  with list_const_ind2 := Induction for list_const Sort Prop.
-
-Combined Scheme const_mutind from const_ind2, list_const_ind2.
-
-Scheme typ_ind2 := Induction for typ Sort Prop
-  with list_typ_ind2 := Induction for list_typ Sort Prop.
-
-Combined Scheme typ_mutind from typ_ind2, list_typ_ind2.
-
 Lemma neq_refl : forall n, n =n= n.
 Proof.
   intros.

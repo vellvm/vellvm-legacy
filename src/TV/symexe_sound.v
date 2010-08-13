@@ -61,7 +61,7 @@ Lemma value2Sterm_denote__imply__genericvalues : forall l0 TD lc0 Mem0 smap1 lc 
   uniq smap1 ->
   smap_denotes_gvmap TD lc0 gl Mem0 smap1 lc ->
   sterms_denote_genericvalues TD lc0 gl Mem0 
-    (map_list_value (value2Sterm smap1) l0) gvs0 ->
+    (make_list_sterm (map_list_value (value2Sterm smap1) l0)) gvs0 ->
   values2GVs TD l0 lc gl = Some gvs0.
 Proof.
   induction l0; intros; simpl in *.
@@ -519,7 +519,7 @@ Proof.
     right. 
     exists (sterm_gep i1 t
                      (value2Sterm st.(STerms) v)
-                     (map_list_value (value2Sterm st.(STerms)) l0)). auto.
+                     (make_list_sterm (map_list_value (value2Sterm st.(STerms)) l0))). auto.
 
     right. 
     exists (sterm_ext e t

@@ -1174,12 +1174,18 @@ Inductive sterm : Set :=
 | sterm_malloc : smem -> typ -> sz -> align -> sterm
 | sterm_alloca : smem -> typ -> sz -> align -> sterm
 | sterm_load : smem -> typ -> sterm -> sterm
-| sterm_gep : inbounds -> typ -> sterm -> list sterm -> sterm
+| sterm_gep : inbounds -> typ -> sterm -> list_sterm -> sterm
 | sterm_ext : extop -> typ -> sterm -> typ -> sterm
 | sterm_cast : castop -> typ -> sterm -> typ -> sterm
 | sterm_icmp : cond -> typ -> sterm -> sterm -> sterm
-| sterm_phi : typ -> list (sterm*l) -> sterm
+| sterm_phi : typ -> list_sterm_l -> sterm
 | sterm_select : sterm -> typ -> sterm -> sterm -> sterm
+with list_sterm : Set :=
+| Nil_list_sterm : list_sterm
+| Cons_list_sterm : sterm -> list_sterm -> list_sterm
+with list_sterm_l : Set :=
+| Nil_list_sterm_l : list_sterm_l
+| Cons_list_sterm_l : sterm -> l -> list_sterm_l -> list_sterm_l
 with smem : Set :=
 | smem_init : smem
 | smem_malloc : smem -> typ -> sz -> align -> smem
@@ -1191,6 +1197,119 @@ with sframe : Set :=
 | sframe_init : sframe
 | sframe_alloca : smem -> sframe -> typ -> sz -> align -> sframe
 .
+
+Scheme sterm_rec2 := Induction for sterm Sort Set
+  with list_sterm_rec2 := Induction for list_sterm Sort Set
+  with list_sterm_l_rec2 := Induction for list_sterm_l Sort Set
+  with smem_rec2 := Induction for smem Sort Set
+  with sframe_rec2 := Induction for sframe Sort Set.
+
+Definition se_mutrec P1 P2 P3 P4 P5:=
+  fun h1 h2 h3 h4 h5 h6 h7 h8 h9 h10 h11 h12 h13 h14 h15 h16 h17 h18 h19 h20 h21 h22 h23 h24 h25 =>
+   (pair
+      (pair 
+           (pair 
+                 (pair (@sterm_rec2 P1 P2 P3 P4 P5 h1 h2 h3 h4 h5 h6 h7 h8 h9 h10 h11 h12 h13 h14 h15 h16 h17 h18 h19 h20 h21 h22 h23 h24 h25)
+                       (@list_sterm_rec2 P1 P2 P3 P4 P5 h1 h2 h3 h4 h5 h6 h7 h8 h9 h10 h11 h12 h13 h14 h15 h16 h17 h18 h19 h20 h21 h22 h23 h24 h25))
+                 (@list_sterm_l_rec2 P1 P2 P3 P4 P5 h1 h2 h3 h4 h5 h6 h7 h8 h9 h10 h11 h12 h13 h14 h15 h16 h17 h18 h19 h20 h21 h22 h23 h24 h25))
+            (@smem_rec2 P1 P2 P3 P4 P5 h1 h2 h3 h4 h5 h6 h7 h8 h9 h10 h11 h12 h13 h14 h15 h16 h17 h18 h19 h20 h21 h22 h23 h24 h25))
+      (@sframe_rec2 P1 P2 P3 P4 P5 h1 h2 h3 h4 h5 h6 h7 h8 h9 h10 h11 h12 h13 h14 h15 h16 h17 h18 h19 h20 h21 h22 h23 h24 h25)).
+
+Tactic Notation "se_mut_cases" tactic(first) tactic(c) :=
+  first;
+  [ c "sterm_val" | 
+    c "sterm_bop" |
+    c "sterm_extractvalue" |
+    c "sterm_insertvalue" |
+    c "sterm_malloc" |
+    c "sterm_alloca" |
+    c "sterm_load" |
+    c "sterm_gep" |
+    c "sterm_ext" |
+    c "sterm_cast" |
+    c "sterm_icmp" |
+    c "sterm_phi" |
+    c "sterm_select" |
+    c "list_sterm_nil" |
+    c "list_sterm_cons" |
+    c "list_sterm_l_nil" |
+    c "list_sterm_l_cons" |
+    c "smem_init" |
+    c "smem_malloc" |
+    c "smem_free" |
+    c "smem_alloca" |
+    c "smem_load" |
+    c "smem_store" |
+    c "sframe_init" |
+    c "sframe_alloca" ].
+
+Fixpoint map_list_sterm (A:Set) (f:sterm->A) (l0:list_sterm) {struct l0} : list A :=
+  match l0 with
+  | Nil_list_sterm => nil
+  | Cons_list_sterm h tl_ => cons (f h) (map_list_sterm A f tl_)
+  end.
+Implicit Arguments map_list_sterm.
+
+Fixpoint make_list_sterm (l0:list sterm) : list_sterm :=
+  match l0 with
+  | nil  => Nil_list_sterm
+  | cons h tl_ => Cons_list_sterm h (make_list_sterm tl_)
+  end.
+
+Fixpoint unmake_list_sterm (l0:list_sterm) :  list sterm :=
+  match l0 with
+  | Nil_list_sterm => nil
+  | Cons_list_sterm h tl_ =>  cons h (unmake_list_sterm tl_)
+  end.
+
+Fixpoint nth_list_sterm (n:nat) (l0:list_sterm) {struct n} : option sterm :=
+  match n,l0 with
+  | 0, Cons_list_sterm h tl_ => Some h
+  | 0, other => None
+  | S m, Nil_list_sterm => None
+  | S m, Cons_list_sterm h tl_ => nth_list_sterm m tl_
+  end.
+Implicit Arguments nth_list_sterm.
+
+Fixpoint app_list_sterm (l0 m:list_sterm) {struct l0} : list_sterm :=
+  match l0 with
+  | Nil_list_sterm => m
+  | Cons_list_sterm h tl_ => Cons_list_sterm h (app_list_sterm tl_ m)
+  end.
+
+Fixpoint map_list_sterm_l (A:Set) (f:sterm->l->A) (l0:list_sterm_l) {struct l0} : list A :=
+  match l0 with
+  | Nil_list_sterm_l => nil
+  | Cons_list_sterm_l h0 h1 tl_ => cons (f h0 h1) (map_list_sterm_l A f tl_)
+  end.
+Implicit Arguments map_list_sterm_l.
+
+Fixpoint make_list_sterm_l (l0:list (sterm*l)) : list_sterm_l :=
+  match l0 with
+  | nil  => Nil_list_sterm_l
+  | cons (h0,h1) tl_ => Cons_list_sterm_l h0 h1 (make_list_sterm_l tl_)
+  end.
+
+Fixpoint unmake_list_sterm_l (l0:list_sterm_l) :  list (sterm*l) :=
+  match l0 with
+  | Nil_list_sterm_l => nil
+  | Cons_list_sterm_l h0 h1 tl_ =>  cons (h0,h1) (unmake_list_sterm_l tl_)
+  end.
+
+Fixpoint nth_list_sterm_l (n:nat) (l0:list_sterm_l) {struct n} : option (sterm*l) :=
+  match n,l0 with
+  | 0, Cons_list_sterm_l h0 h1 tl_ => Some (h0,h1)
+  | 0, other => None
+  | S m, Nil_list_sterm_l => None
+  | S m, Cons_list_sterm_l h0 h1 tl_ => nth_list_sterm_l m tl_
+  end.
+Implicit Arguments nth_list_sterm_l.
+
+Fixpoint app_list_sterm_l (l0 m:list_sterm_l) {struct l0} : list_sterm_l :=
+  match l0 with
+  | Nil_list_sterm_l => m
+  | Cons_list_sterm_l h0 h1 tl_ => Cons_list_sterm_l h0 h1 (app_list_sterm_l tl_ m)
+  end.
 
 Inductive sterminator : Set :=
 | stmn_return : id -> typ -> sterm -> sterminator
@@ -1311,7 +1430,7 @@ match c with
        (mkSstate (updateAddAL _ st.(STerms) id0 
                    (sterm_gep inbounds0 t1 
                      (value2Sterm st.(STerms) v1)
-                     (map_list_value (value2Sterm st.(STerms)) lv2)))
+                     (make_list_sterm (map_list_value (value2Sterm st.(STerms)) lv2))))
                  st.(SMem)
                  st.(SFrame)
                  st.(SEffects))
@@ -1363,11 +1482,13 @@ match ps with
      (mkSstate (updateAL _ st.(STerms) id0 
                  (sterm_phi 
                    t0 
-                   (map_list_id_l
-                     (fun id5 l5 =>
-                      ((value2Sterm st.(STerms) (value_id id5)), l5)
+                   (make_list_sterm_l
+                     (map_list_id_l
+                       (fun id5 l5 =>
+                        ((value2Sterm st.(STerms) (value_id id5)), l5)
+                       )
+                       idls0
                      )
-                     idls0
                    )
                  )
                )
@@ -1703,15 +1824,15 @@ with sterms_denote_genericvalues :
    GVMap ->                 (* local registers *)
    GVMap ->                 (* global variables *)
    mem ->                   (* Memory *)
-   list sterm ->            (* symbolic terms *)
+   list_sterm ->            (* symbolic terms *)
    list GenericValue ->     (* values that denote sterms *)
    Prop :=
 | sterms_nil_denote : forall TD lc gl Mem,
-  sterms_denote_genericvalues TD lc gl Mem nil nil
+  sterms_denote_genericvalues TD lc gl Mem Nil_list_sterm nil
 | sterms_cons_denote : forall TD lc gl Mem sts st gvs gv,
   sterms_denote_genericvalues TD lc gl Mem sts gvs ->
   sterm_denotes_genericvalue TD lc gl Mem st gv ->
-  sterms_denote_genericvalues TD lc gl Mem (st::sts) (gv::gvs)
+  sterms_denote_genericvalues TD lc gl Mem (Cons_list_sterm st sts) (gv::gvs)
 with smem_denotes_mem : 
    layouts ->               (* CurTatgetData *)
    GVMap ->                 (* local registers *)
@@ -2186,7 +2307,7 @@ match s with
 | sterm_load m1 t1 s1 => 
     sterm_load (subst_tm id0 s0 m1) t1 (subst_tt id0 s0 s1)
 | sterm_gep inbounds t1 s1 ls2 =>
-    sterm_gep inbounds t1 (subst_tt id0 s0 s1) (List.map (subst_tt id0 s0) ls2)
+    sterm_gep inbounds t1 (subst_tt id0 s0 s1) (subst_tlt id0 s0 ls2)
 | sterm_ext extop t1 s1 t2 => 
     sterm_ext extop t1 (subst_tt id0 s0 s1) t2
 | sterm_cast castop t1 s1 t2 => 
@@ -2194,14 +2315,19 @@ match s with
 | sterm_icmp cond t1 s1 s2 => 
     sterm_icmp cond t1 (subst_tt id0 s0 s1) (subst_tt id0 s0 s2)
 | sterm_phi t1 lsl1 => 
-    sterm_phi t1 (List.map 
-                   (fun (sl1:sterm*l) => 
-                    let (s1,l1):=sl1 in 
-                    ((subst_tt id0 s0 s1), l1)
-                   ) 
-                   lsl1)
+    sterm_phi t1 (subst_tltl id0 s0 lsl1)
 | sterm_select s1 t1 s2 s3 => 
     sterm_select (subst_tt id0 s0 s1) t1 (subst_tt id0 s0 s2) (subst_tt id0 s0 s3)
+end
+with subst_tlt (id0:id) (s0:sterm) (ls:list_sterm) : list_sterm :=
+match ls with
+| Nil_list_sterm => Nil_list_sterm
+| Cons_list_sterm s ls' => Cons_list_sterm (subst_tt id0 s0 s) (subst_tlt id0 s0 ls')
+end
+with subst_tltl (id0:id) (s0:sterm) (ls:list_sterm_l) : list_sterm_l :=
+match ls with
+| Nil_list_sterm_l => Nil_list_sterm_l
+| Cons_list_sterm_l s l0 ls' => Cons_list_sterm_l (subst_tt id0 s0 s) l0 (subst_tltl id0 s0 ls')
 end
 with subst_tm (id0:id) (s0:sterm) (m:smem) : smem :=
 match m with 

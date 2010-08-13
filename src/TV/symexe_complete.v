@@ -40,7 +40,7 @@ Lemma genericvalues__imply__value2Sterm_denote : forall l0 TD lc0 Mem0 smap1 lc 
   smap_denotes_gvmap TD lc0 gl Mem0 smap1 lc ->
   values2GVs TD l0 lc gl = Some gvs0 ->
   sterms_denote_genericvalues TD lc0 gl Mem0 
-    (map_list_value (value2Sterm smap1) l0) gvs0.
+    (make_list_sterm (map_list_value (value2Sterm smap1) l0)) gvs0.
 Proof.
   induction l0; intros; simpl in *.
     inversion H1; subst; auto.

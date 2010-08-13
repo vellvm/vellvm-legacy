@@ -384,6 +384,37 @@ Tactic Notation "cmd_cases" tactic(first) tactic(c) :=
     c "insn_ext" | c "insn_cast" | c "insn_icmp" |  c "insn_select" |
     c "insn_call" ].
 
+Tactic Notation "product_cases" tactic(first) tactic(c) :=
+  first;
+  [ c "product_gvar" | c "product_fdec" | c "product_fdef" ].
+
+Scheme const_rec2 := Induction for const Sort Set
+  with list_const_rec2 := Induction for list_const Sort Set.
+
+Definition const_mutrec P P' :=
+  fun h1 h2 h3 h4 h5 h6 h7 h8=>
+      (pair (@const_rec2 P P' h1 h2 h3 h4 h5 h6 h7 h8)
+            (@list_const_rec2 P P' h1 h2 h3 h4 h5 h6 h7 h8)).
+
+Scheme typ_rec2 := Induction for typ Sort Set
+  with list_typ_rec2 := Induction for list_typ Sort Set.
+
+Definition typ_mutrec P P' :=
+  fun h1 h2 h3 h4 h5 h6 h7 h8 h9 h10=>
+      (pair (@typ_rec2 P P' h1 h2 h3 h4 h5 h6 h7 h8 h9 h10)
+            (@list_typ_rec2 P P' h1 h2 h3 h4 h5 h6 h7 h8 h9 h10)).
+
+Scheme const_ind2 := Induction for const Sort Prop
+  with list_const_ind2 := Induction for list_const Sort Prop.
+
+Combined Scheme const_mutind from const_ind2, list_const_ind2.
+
+Scheme typ_ind2 := Induction for typ Sort Prop
+  with list_typ_ind2 := Induction for list_typ Sort Prop.
+
+Combined Scheme typ_mutind from typ_ind2, list_typ_ind2.
+
+
 End LLVMsyntax.
 
 }}
