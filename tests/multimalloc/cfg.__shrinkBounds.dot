@@ -1,0 +1,5 @@
+digraph "CFG for '__shrinkBounds' function" {
+	label="CFG for '__shrinkBounds' function";
+
+	Node0x8501d80 [shape=record,label="{entry:\l  %0 = icmp uge i8* %new_base, %old_base    \l  %max = select i1 %0, i8* %new_base, i8* %old_base    \l  store i8* %max, i8** %base_alloca, align 4\l  %1 = icmp ule i8* %new_bound, %old_bound    \l  %min = select i1 %1, i8* %new_bound, i8* %old_bound    \l  store i8* %min, i8** %bound_alloca, align 4\l  ret void\l}"];
+}

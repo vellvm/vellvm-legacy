@@ -1,0 +1,5 @@
+digraph "CFG for '__softbound_global_init' function" {
+	label="CFG for '__softbound_global_init' function";
+
+	Node0x84ff958 [shape=record,label="{entry:\l  tail call void @__softbound_init(i32 1, i32 0) nounwind\l  ret void\l}"];
+}

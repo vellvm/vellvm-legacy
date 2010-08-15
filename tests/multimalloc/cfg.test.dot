@@ -1,0 +1,13 @@
+digraph "CFG for 'test' function" {
+	label="CFG for 'test' function";
+
+	Node0x85021a0 [shape=record,label="{entry:\l  %0 = malloc [400 x i8]    \l  %.sub = getelementptr [400 x i8]* %0, i32 0, i32 0    \l  %1 = icmp sgt i32 %mm, 0    \l  br i1 %1, label %bb.nph, label %bb2\l|{<s0>T|<s1>F}}"];
+	Node0x85021a0:s0 -> Node0x85021f0;
+	Node0x85021a0:s1 -> Node0x8502240;
+	Node0x85021f0 [shape=record,label="{bb.nph:    \l  %2 = shl i32 %mm, 2    \l  br label %bb\l|{<s0>}}"];
+	Node0x85021f0:s0 -> Node0x8502218;
+	Node0x8502218 [shape=record,label="{bb:    \l  %i.03 = phi i32 [ 0, %bb.nph ], [ %indvar.next7, %bb ]    \l  %ptr.0.in5 = phi i8* [ %.sub, %bb.nph ], [ %5, %bb ]    \l  %value.04 = phi i32 [ 0, %bb.nph ], [ %4, %bb ]    \l  %ptr.0 = bitcast i8* %ptr.0.in5 to i32*    \l  %3 = load i32* %ptr.0, align 4    \l  %4 = add i32 %3, %value.04    \l  free i8* %ptr.0.in5\l  %5 = malloc i8, i32 %2    \l  %indvar.next7 = add i32 %i.03, 1    \l  %exitcond8 = icmp eq i32 %indvar.next7, %mm    \l  br i1 %exitcond8, label %bb2, label %bb\l|{<s0>T|<s1>F}}"];
+	Node0x8502218:s0 -> Node0x8502240;
+	Node0x8502218:s1 -> Node0x8502218;
+	Node0x8502240 [shape=record,label="{bb2:    \l  %value.0.lcssa = phi i32 [ 0, %entry ], [ %4, %bb ]    \l  %6 = tail call i32 (i8*, ...)* @printf(i8* noalias getelementptr ([4 x i8]* @.str1, i32 0, i32 0), i32 %value.0.lcssa) nounwind    \l  ret void\l}"];
+}

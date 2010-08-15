@@ -1,0 +1,7 @@
+all:
+	ocamlbuild symexe.cma
+
+clean:
+	ocamlbuild -clean
+
+

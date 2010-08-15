@@ -1,0 +1,9 @@
+digraph "CFG for '__callDereferenceCheck' function" {
+	label="CFG for '__callDereferenceCheck' function";
+
+	Node0x8501878 [shape=record,label="{entry:\l  %0 = icmp ne i8* %base, %bound    \l  %1 = icmp ne i8* %ptr, %base    \l  %2 = and i1 %1, %0    \l  br i1 %2, label %bb, label %return\l|{<s0>T|<s1>F}}"];
+	Node0x8501878:s0 -> Node0x85018c8;
+	Node0x8501878:s1 -> Node0x85018f0;
+	Node0x85018c8 [shape=record,label="{bb:    \l  tail call void (...)* @__softbound_abort() noreturn nounwind\l  unreachable\l}"];
+	Node0x85018f0 [shape=record,label="{return:    \l  ret void\l}"];
+}

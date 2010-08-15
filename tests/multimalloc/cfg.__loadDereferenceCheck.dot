@@ -1,0 +1,12 @@
+digraph "CFG for '__loadDereferenceCheck' function" {
+	label="CFG for '__loadDereferenceCheck' function";
+
+	Node0x85012e0 [shape=record,label="{entry:\l  %0 = icmp ult i8* %ptr, %base    \l  br i1 %0, label %bb1, label %bb\l|{<s0>T|<s1>F}}"];
+	Node0x85012e0:s0 -> Node0x8501358;
+	Node0x85012e0:s1 -> Node0x8501330;
+	Node0x8501330 [shape=record,label="{bb:    \l  %1 = getelementptr i8* %ptr, i32 %size_of_type    \l  %2 = icmp ugt i8* %1, %bound    \l  br i1 %2, label %bb1, label %return\l|{<s0>T|<s1>F}}"];
+	Node0x8501330:s0 -> Node0x8501358;
+	Node0x8501330:s1 -> Node0x8501380;
+	Node0x8501358 [shape=record,label="{bb1:    \l  tail call void (...)* @__softbound_abort() noreturn nounwind\l  unreachable\l}"];
+	Node0x8501380 [shape=record,label="{return:    \l  ret void\l}"];
+}

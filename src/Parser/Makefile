@@ -1,11 +1,12 @@
 OUTPUT_TYPE := byte
 LLVM_LIB := /home/jianzhou/Tools/llvm-2.6/lib/
 LLVM_OCAML_LIB := $(LLVM_LIB)/ocaml/
+TV_LIB := /home/jianzhou/SVN/sol/vol/src/TV/_build/
 
 all: main
 
 main: main.ml
-	ocamlbuild -j 2 -cflags -I,$(LLVM_OCAML_LIB) -lflags -I,$(LLVM_OCAML_LIB),-cclib,-L$(LLVM_LIB) main.$(OUTPUT_TYPE)
+	ocamlbuild -j 2 -cflags -I,$(LLVM_OCAML_LIB),-I,$(TV_LIB) -lflags -I,$(LLVM_OCAML_LIB),-I,$(TV_LIB),-cclib,-L$(LLVM_LIB) main.$(OUTPUT_TYPE)
 	mv main.$(OUTPUT_TYPE) main
 
 .PHONY: wc

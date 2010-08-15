@@ -1,0 +1,19 @@
+digraph "CFG for '__memcopyCheck' function" {
+	label="CFG for '__memcopyCheck' function";
+
+	Node0x8503ab0 [shape=record,label="{entry:\l  %0 = icmp ugt i32 %size, -2147483648    \l  br i1 %0, label %bb, label %bb1\l|{<s0>T|<s1>F}}"];
+	Node0x8503ab0:s0 -> Node0x8503b00;
+	Node0x8503ab0:s1 -> Node0x8503b28;
+	Node0x8503b00 [shape=record,label="{bb:    \l  tail call void (...)* @__softbound_abort() noreturn nounwind\l  unreachable\l}"];
+	Node0x8503b28 [shape=record,label="{bb1:    \l  %1 = icmp ult i8* %ptr, %ptr_base    \l  br i1 %1, label %bb6, label %bb2\l|{<s0>T|<s1>F}}"];
+	Node0x8503b28:s0 -> Node0x8503ba0;
+	Node0x8503b28:s1 -> Node0x8503b50;
+	Node0x8503b50 [shape=record,label="{bb2:    \l  %2 = getelementptr i8* %ptr, i32 %size    \l  %3 = icmp ult i8* %2, %ptr_base    \l  br i1 %3, label %bb6, label %bb3\l|{<s0>T|<s1>F}}"];
+	Node0x8503b50:s0 -> Node0x8503ba0;
+	Node0x8503b50:s1 -> Node0x8503b78;
+	Node0x8503b78 [shape=record,label="{bb3:    \l  %4 = icmp ugt i8* %2, %ptr_bound    \l  %5 = inttoptr i32 %size to i8*    \l  %6 = icmp ugt i8* %5, %ptr_bound    \l  %7 = or i1 %4, %6    \l  br i1 %7, label %bb6, label %return\l|{<s0>T|<s1>F}}"];
+	Node0x8503b78:s0 -> Node0x8503ba0;
+	Node0x8503b78:s1 -> Node0x8503bc8;
+	Node0x8503ba0 [shape=record,label="{bb6:    \l  tail call void (...)* @__softbound_abort() noreturn nounwind\l  unreachable\l}"];
+	Node0x8503bc8 [shape=record,label="{return:    \l  ret void\l}"];
+}
