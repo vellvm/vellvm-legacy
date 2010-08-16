@@ -2,10 +2,21 @@ open Printf
 open Llvm
 open Symexe
 
+let travel_instr i =
+	match (classify_instr i) with
+	| InstrKind.Alloca ->
+		  eprintf "%s = alloc %s, i32 %d, align %n\n"
+			        (value_name i) 
+			        (string_of_lltype (AllocationInst.get_allocated_type i)) 
+							(AllocationInst.get_array_size i) 
+							(AllocationInst.get_alignment i);
+      flush_all ()							
+	| _ -> dump_value i	 
+
 let travel_block b =
 	prerr_string "label: ";
 	prerr_endline (value_name (value_of_block b));
-	iter_instrs dump_value b
+	iter_instrs travel_instr b
 
 let travel_function f =
 	prerr_string "fname: ";
@@ -14,7 +25,7 @@ let travel_function f =
 	prerr_endline (string_of_lltype (type_of f));
 	Array.iter dump_value (params f);
 	iter_blocks travel_block f
-
+	
 let travel_module m = 
 	prerr_string "layouts: ";
 	prerr_endline (data_layout m);
