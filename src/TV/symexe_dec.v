@@ -147,41 +147,34 @@ Qed.
 
 Lemma value_dec : forall (v1 v2:value), {v1=v2}+{~v1=v2}.
 Proof.
-  destruct v1; destruct v2; try solve [done_right].
-    destruct (@eq_atom_dec i0 i1); subst; auto.
-       right. intros J. inversion J; subst; auto.
+  decide equality.
     destruct (@const_dec c c0); subst; auto.
-       right. intros J. inversion J; subst; auto.
 Qed.    
 
 Lemma list_value_dec : forall (lv1 lv2:list_value), {lv1=lv2}+{~lv1=lv2}.
 Proof.
-  induction lv1.
-    destruct lv2; subst; try solve [subst; auto | done_right].
-
-    destruct lv2; subst; try solve [done_right].
-    destruct (@value_dec v v0); subst; try solve [done_right].
-    destruct (@IHlv1 lv2); subst; try solve [auto | done_right].
+  decide equality.
+    destruct (@value_dec v v0); subst; try solve [auto | done_right].
 Qed.
 
 Lemma bop_dec : forall (b1 b2:bop), {b1=b2}+{~b1=b2}.
 Proof.
-  destruct b1; destruct b2; try solve [auto | done_right].
+  decide equality.
 Qed.
 
 Lemma extop_dec : forall (e1 e2:extop), {e1=e2}+{~e1=e2}.
 Proof.
-  destruct e1; destruct e2; try solve [auto | done_right].
+  decide equality.
 Qed.
 
 Lemma castop_dec : forall (c1 c2:castop), {c1=c2}+{~c1=c2}.
 Proof.
-  destruct c1; destruct c2; try solve [auto | done_right].
+  decide equality.
 Qed.
 
 Lemma cond_dec : forall (c1 c2:cond), {c1=c2}+{~c1=c2}.
 Proof.
-  destruct c1; destruct c2; try solve [auto | done_right].
+  decide equality.
 Qed.
 
 Definition sterm_dec_prop (st1:sterm) := forall st2, {st1=st2} + {~st1=st2}.
@@ -348,89 +341,58 @@ Qed.
 
 Lemma sterminator_dec : forall (st1 st2:sterminator), {st1=st2} + {~st1=st2}.
 Proof.
-  destruct st1; destruct st2; try solve [done_right | auto].
-  Case "stmn_return".
-    destruct (@eq_atom_dec i0 i1); subst; try solve [done_right]. 
-    destruct (@typ_dec t t0); subst; try solve [done_right].
+  decide equality.
     destruct (@sterm_dec s s0); subst; try solve [auto | done_right].
-  Case "stmn_return_void".
-    destruct (@eq_atom_dec i0 i1); subst; try solve [auto | done_right]. 
-  Case "stmn_br".
-    destruct (@eq_atom_dec i0 i1); subst; try solve [done_right]. 
-    destruct (@eq_atom_dec l0 l2); subst; try solve [done_right]. 
-    destruct (@eq_atom_dec l1 l3); subst; try solve [done_right]. 
+    destruct (@typ_dec t t0); subst; try solve [auto | done_right].
     destruct (@sterm_dec s s0); subst; try solve [auto | done_right].
-  Case "stmn_br_uncond".
-    destruct (@eq_atom_dec i0 i1); subst; try solve [done_right]. 
-    destruct (@eq_atom_dec l0 l1); subst; try solve [auto | done_right]. 
-  Case "stmn_unreachable".
-    destruct (@eq_atom_dec i0 i1); subst; try solve [auto | done_right]. 
 Qed.
 
 Lemma list_typ_sterm_dec : forall (l1 l2:list (typ*sterm)), {l1=l2}+{~l1=l2}.
 Proof.
-  induction l1.
-    destruct l2; subst; try solve [subst; auto | done_right].
-
-    destruct l2; subst; try solve [done_right].
+  decide equality.
     destruct a. destruct p.
     destruct (@typ_dec t t0); subst; try solve [done_right].
-    destruct (@sterm_dec s s0); subst; try solve [done_right].
-    destruct (@IHl1 l2); subst; try solve [auto | done_right].
+    destruct (@sterm_dec s s0); subst; try solve [auto | done_right].
 Qed.
 
 Lemma scall_dec : forall (sc1 sc2:scall), {sc1=sc2} + {~sc1=sc2}.
 Proof.
-  destruct sc1; destruct sc2; try solve [done_right | auto].
-    destruct (@eq_atom_dec i0 i2); subst; try solve [done_right]. 
-    destruct (@eq_atom_dec i1 i3); subst; try solve [done_right]. 
-    destruct (@bool_dec n n0); subst; try solve [done_right].
-    destruct (@bool_dec t t1); subst; try solve [done_right].
-    destruct (@typ_dec t0 t2); subst; try solve [done_right].
+  decide equality.
     destruct (@list_typ_sterm_dec l0 l1); subst; try solve [auto | done_right].
+    destruct (@typ_dec t0 t2); subst; try solve [auto | done_right].
+    destruct (@bool_dec t t1); subst; try solve [auto | done_right].
+    destruct (@bool_dec n n0); subst; try solve [auto | done_right].
 Qed.
 
 Lemma smap_dec : forall (sm1 sm2:smap), {sm1=sm2}+{~sm1=sm2}.
 Proof.
-  induction sm1.
-    destruct sm2; subst; try solve [subst; auto | done_right].
-
-    destruct sm2; subst; try solve [done_right].
+  decide equality.
     destruct a. destruct p.
     destruct (@eq_atom_dec a a0); subst; try solve [done_right]. 
-    destruct (@sterm_dec s s0); subst; try solve [done_right].
-    destruct (@IHsm1 sm2); subst; try solve [auto | done_right].
+    destruct (@sterm_dec s s0); subst; try solve [auto | done_right].
 Qed.
 
 Lemma sterms_dec :  forall (ts1 ts2:list sterm), {ts1=ts2}+{~ts1=ts2}.
 Proof.
-  induction ts1.
-    destruct ts2; subst; try solve [subst; auto | done_right].
-
-    destruct ts2; subst; try solve [done_right].
-    destruct (@sterm_dec a s); subst; try solve [done_right].
-    destruct (@IHts1 ts2); subst; try solve [auto | done_right].
+  decide equality.
+    destruct (@sterm_dec a s); subst; try solve [auto | done_right].
 Qed.
 
 Lemma sstate_dec : forall (sts1 sts2:sstate), {sts1=sts2} + {~sts1=sts2}.
 Proof.
-  destruct sts1; destruct sts2; try solve [done_right | auto].
-    destruct (@smap_dec STerms0 STerms1); subst; try solve [done_right].
-    destruct (@sframe_dec SFrame0 SFrame1); subst; try solve [done_right].
-    destruct (@sterms_dec SEffects0 SEffects1); subst; try solve [done_right].
+  decide equality.
+    destruct (@sterms_dec SEffects0 SEffects1); subst; try solve [auto | done_right].
+    destruct (@sframe_dec SFrame0 SFrame1); subst; try solve [auto | done_right].
     destruct (@smem_dec SMem0 SMem1); subst; try solve [auto | done_right].
+    destruct (@smap_dec STerms0 STerms1); subst; try solve [auto | done_right].
 Qed.
 
 Lemma params_dec : forall (p1 p2:params), {p1=p2}+{~p1=p2}.
 Proof.
-  induction p1.
-    destruct p2; subst; try solve [subst; auto | done_right].
-
-    destruct p2; subst; try solve [done_right].
+  decide equality.
     destruct a. destruct p.
     destruct (@typ_dec t t0); subst; try solve [done_right].
-    destruct (@value_dec v v0); subst; try solve [done_right].
-    destruct (@IHp1 p2); subst; try solve [auto | done_right].
+    destruct (@value_dec v v0); subst; try solve [auto | done_right].
 Qed.
 
 Lemma cmd_dec : forall (c1 c2:cmd), {c1=c2}+{~c1=c2}.

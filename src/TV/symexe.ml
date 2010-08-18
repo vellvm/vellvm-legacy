@@ -2373,31 +2373,31 @@ let const_mutrec_dec =
 
 let value_dec v1 v2 =
   match v1 with
-    | LLVMsyntax.Coq_value_id i0 ->
+    | LLVMsyntax.Coq_value_id x ->
         (match v2 with
-           | LLVMsyntax.Coq_value_id i1 -> AtomImpl.eq_atom_dec i0 i1
+           | LLVMsyntax.Coq_value_id i1 -> AtomImpl.eq_atom_dec x i1
            | LLVMsyntax.Coq_value_const c -> Right)
-    | LLVMsyntax.Coq_value_const c ->
+    | LLVMsyntax.Coq_value_const x ->
         (match v2 with
            | LLVMsyntax.Coq_value_id i0 -> Right
            | LLVMsyntax.Coq_value_const c0 ->
-               let Pair (c1, l0) = const_mutrec_dec in c1 c c0)
+               let Pair (c, l0) = const_mutrec_dec in c x c0)
 
 (** val list_value_dec :
     LLVMsyntax.list_value -> LLVMsyntax.list_value -> sumbool **)
 
-let rec list_value_dec l0 lv2 =
+let rec list_value_dec l0 lv0 =
   match l0 with
     | LLVMsyntax.Nil_list_value ->
-        (match lv2 with
+        (match lv0 with
            | LLVMsyntax.Nil_list_value -> Left
-           | LLVMsyntax.Cons_list_value (v, lv3) -> Right)
+           | LLVMsyntax.Cons_list_value (v, l1) -> Right)
     | LLVMsyntax.Cons_list_value (v, l1) ->
-        (match lv2 with
+        (match lv0 with
            | LLVMsyntax.Nil_list_value -> Right
-           | LLVMsyntax.Cons_list_value (v0, lv3) ->
+           | LLVMsyntax.Cons_list_value (v0, l2) ->
                (match value_dec v v0 with
-                  | Left -> list_value_dec l1 lv3
+                  | Left -> list_value_dec l1 l2
                   | Right -> Right))
 
 (** val bop_dec : LLVMsyntax.bop -> LLVMsyntax.bop -> sumbool **)
@@ -2773,85 +2773,83 @@ let se_dec =
 
 (** val smap_dec : SimpleSE.smap -> SimpleSE.smap -> sumbool **)
 
-let rec smap_dec l0 sm2 =
+let rec smap_dec l0 sm0 =
   match l0 with
-    | Nil -> (match sm2 with
+    | Nil -> (match sm0 with
                 | Nil -> Left
-                | Cons (p, sm3) -> Right)
+                | Cons (p, l1) -> Right)
     | Cons (a, l1) ->
-        (match sm2 with
+        (match sm0 with
            | Nil -> Right
-           | Cons (p, sm3) ->
-               let Pair (a0, s) = a in
-               let Pair (a1, s0) = p in
-               (match AtomImpl.eq_atom_dec a0 a1 with
-                  | Left ->
-                      (match let Pair (p0, x) = se_dec in
+           | Cons (p, l2) ->
+               (match let Pair (a0, s) = a in
+                      let Pair (a1, s0) = p in
+                      (match AtomImpl.eq_atom_dec a0 a1 with
+                         | Left ->
+                             let Pair (p0, x) = se_dec in
                              let Pair (p1, x0) = p0 in
                              let Pair (p2, x1) = p1 in
-                             let Pair (h, l2) = p2 in h s s0 with
-                         | Left -> smap_dec l1 sm3
-                         | Right -> Right)
+                             let Pair (h, l3) = p2 in h s s0
+                         | Right -> Right) with
+                  | Left -> smap_dec l1 l2
                   | Right -> Right))
 
 (** val sterms_dec :
     SimpleSE.sterm list -> SimpleSE.sterm list -> sumbool **)
 
-let rec sterms_dec l0 ts2 =
+let rec sterms_dec l0 ts0 =
   match l0 with
-    | Nil -> (match ts2 with
+    | Nil -> (match ts0 with
                 | Nil -> Left
-                | Cons (s, ts3) -> Right)
+                | Cons (s, l1) -> Right)
     | Cons (a, l1) ->
-        (match ts2 with
+        (match ts0 with
            | Nil -> Right
-           | Cons (s, ts3) ->
+           | Cons (s, l2) ->
                (match let Pair (p, x) = se_dec in
                       let Pair (p0, x0) = p in
                       let Pair (p1, x1) = p0 in
-                      let Pair (h, l2) = p1 in h a s with
-                  | Left -> sterms_dec l1 ts3
+                      let Pair (h, l3) = p1 in h a s with
+                  | Left -> sterms_dec l1 l2
                   | Right -> Right))
 
 (** val sstate_dec : SimpleSE.sstate -> SimpleSE.sstate -> sumbool **)
 
 let sstate_dec sts1 sts2 =
-  let { SimpleSE.coq_STerms = sTerms0; SimpleSE.coq_SMem = sMem0;
-    SimpleSE.coq_SFrame = sFrame0; SimpleSE.coq_SEffects = sEffects0 } = sts1
+  let { SimpleSE.coq_STerms = x; SimpleSE.coq_SMem = x0;
+    SimpleSE.coq_SFrame = x1; SimpleSE.coq_SEffects = x2 } = sts1
   in
   let { SimpleSE.coq_STerms = sTerms1; SimpleSE.coq_SMem = sMem1;
     SimpleSE.coq_SFrame = sFrame1; SimpleSE.coq_SEffects = sEffects1 } = sts2
   in
-  (match smap_dec sTerms0 sTerms1 with
+  (match smap_dec x sTerms1 with
      | Left ->
-         (match let Pair (p, h) = se_dec in h sFrame0 sFrame1 with
+         (match let Pair (p, x3) = se_dec in
+                let Pair (p0, h) = p in h x0 sMem1 with
             | Left ->
-                (match sterms_dec sEffects0 sEffects1 with
-                   | Left ->
-                       let Pair (p, x) = se_dec in
-                       let Pair (p0, h) = p in h sMem0 sMem1
+                (match let Pair (p, h) = se_dec in h x1 sFrame1 with
+                   | Left -> sterms_dec x2 sEffects1
                    | Right -> Right)
             | Right -> Right)
      | Right -> Right)
 
 (** val params_dec : LLVMsyntax.params -> LLVMsyntax.params -> sumbool **)
 
-let rec params_dec l0 p2 =
+let rec params_dec l0 p0 =
   match l0 with
-    | Nil -> (match p2 with
+    | Nil -> (match p0 with
                 | Nil -> Left
-                | Cons (p, p3) -> Right)
+                | Cons (p, l1) -> Right)
     | Cons (a, l1) ->
-        (match p2 with
+        (match p0 with
            | Nil -> Right
-           | Cons (p, p3) ->
-               let Pair (t, v) = a in
-               let Pair (t0, v0) = p in
-               (match let Pair (t1, l2) = typ_mutrec_dec in t1 t t0 with
-                  | Left ->
-                      (match value_dec v v0 with
-                         | Left -> params_dec l1 p3
-                         | Right -> Right)
+           | Cons (p, l2) ->
+               (match let Pair (t, v) = a in
+                      let Pair (t0, v0) = p in
+                      (match let Pair (t1, l3) = typ_mutrec_dec in t1 t t0 with
+                         | Left -> value_dec v v0
+                         | Right -> Right) with
+                  | Left -> params_dec l1 l2
                   | Right -> Right))
 
 (** val cmd_dec : LLVMsyntax.cmd -> LLVMsyntax.cmd -> sumbool **)
