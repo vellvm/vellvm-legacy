@@ -2,15 +2,17 @@ open Printf
 open Llvm
 open Symexe
 
+let string_of_value v = "value"
+
 let travel_instr i =
 	match (classify_instr i) with
-	| InstrKind.Alloca ->
-		  eprintf "%s = alloc %s, i32 %d, align %n\n"
+	| InstrOpcode.Alloca ->
+		  eprintf "%s = alloc %s, i32 %s, align %n\n"
 			        (value_name i) 
 			        (string_of_lltype (AllocationInst.get_allocated_type i)) 
-							(AllocationInst.get_array_size i) 
+							(string_of_value (AllocationInst.get_array_size i)) 
 							(AllocationInst.get_alignment i);
-      flush_all ()							
+      flush_all ()				
 	| _ -> dump_value i	 
 
 let travel_block b =
