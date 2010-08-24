@@ -21,6 +21,18 @@ Module LLVMlib.
 Export LLVMsyntax.
 
 (**********************************)
+(* Definition dec for basic types, which can be refined for extraction. *)
+
+Definition id_dec := eq_atom_dec.
+Definition l_dec := eq_atom_dec.
+Definition INT_dec := eq_nat_dec.
+Definition sz_dec := eq_nat_dec.
+Definition align_dec := eq_nat_dec.
+Definition inbounds_dec := bool_dec.
+Definition tailc_dec := bool_dec.
+Definition noret_dec := bool_dec.
+
+(**********************************)
 (* LabelSet. *)
 
   Definition lempty_set := empty_set l.
@@ -1321,7 +1333,16 @@ lookupTypViaIDFromModules s id0.
 (**********************************)
 (* Dominator. *)
 
-  Parameter genLabelsFromFdef : fdef -> ls.
+  Fixpoint genLabelsFromBlocks (bs:blocks) : ls :=
+  match bs with
+  | nil => lempty_set
+  | (block_intro l0 _ _ _)::bs' => lset_union [l0] (genLabelsFromBlocks bs')
+  end.
+
+  Definition genLabelsFromFdef (f:fdef) : ls :=
+  match f with
+  | fdef_intro _ bs => genLabelsFromBlocks bs
+  end.
 
   Fixpoint inputFromPred (bs:blocks) (output:dt) : ls :=
   match bs with
@@ -1754,369 +1775,524 @@ end.
 Definition uniqSystem s : Prop := uniqModules s.
 
 (**********************************)
+(* Dec. *)
+
+Definition sumbool2bool A B (dec:sumbool A B) : bool :=
+match dec with
+| left _ => true
+| right _ => false
+end.
+
+Lemma sumbool2bool_true : forall A B H,
+  sumbool2bool A B H = true -> A.
+Proof.
+  intros.
+  unfold sumbool2bool in H0.
+  destruct H; auto.
+    inversion H0.
+Qed.
+
+Lemma sumbool2bool_false : forall A B H,
+  sumbool2bool A B H = false -> B.
+Proof.
+  intros.
+  unfold sumbool2bool in H0.
+  destruct H; auto.
+    inversion H0.
+Qed.
+
+Lemma eq_sumbool2bool_true : forall A (a1 a2:A) (H:{a1=a2}+{~a1=a2}),
+  a1 = a2 ->
+  sumbool2bool _ _ H = true.
+Proof.
+  intros; subst.
+  destruct H; auto.
+Qed.
+
+Definition typ_dec_prop (t1:typ) := forall t2, {t1=t2} + {~t1=t2}.
+Definition list_typ_dec_prop (lt1:list_typ) := forall lt2, {lt1=lt2} + {~lt1=lt2}.
+
+Ltac done_right := right; intro J; inversion J; subst; auto.
+
+Lemma typ_mutrec_dec :
+  (forall t1, typ_dec_prop t1) *
+  (forall lt1, list_typ_dec_prop lt1).
+Proof.
+  apply typ_mutrec; 
+    unfold typ_dec_prop, list_typ_dec_prop;
+    intros;
+    try solve [
+      destruct t2; try solve [done_right | auto]
+    ].
+
+  destruct t2; try solve [done_right].
+  destruct (@sz_dec s s0); try solve [subst; auto | done_right].
+
+  destruct t2; try solve [done_right].
+  destruct (@H t2); subst; try solve [done_right].
+  destruct (@sz_dec s s0); subst; try solve [subst; auto | done_right].
+
+  destruct t2; try solve [done_right].
+  destruct (@H t2); subst; try solve [done_right].
+  destruct (@H0 l1); subst; try solve [subst; auto | done_right].
+
+  destruct t2; try solve [done_right].
+  destruct (@H l1); subst; try solve [subst; auto | done_right].
+
+  destruct t2; try solve [done_right].
+  destruct (@H t2); subst; try solve [subst; auto | done_right].
+
+  destruct lt2; try solve [auto | done_right].
+
+  destruct lt2; try solve [right; intro J; inversion J].
+  destruct (@H t0); subst; try solve [done_right].
+  destruct (@H0 lt2); subst; try solve [subst; auto | done_right].
+Qed.
+
+Lemma typ_dec : forall (t1 t2:typ), {t1=t2} + {~t1=t2}.
+Proof.
+  destruct typ_mutrec_dec; auto.
+Qed.
+
+Lemma list_typ_dec : forall (lt1 lt2:list_typ), {lt1=lt2} + {~lt1=lt2}.
+Proof.
+  destruct typ_mutrec_dec; auto.
+Qed.
+
+Definition const_dec_prop (c1:const) := forall c2, {c1=c2} + {~c1=c2}.
+Definition list_const_dec_prop (lc1:list_const) := forall lc2, {lc1=lc2} + {~lc1=lc2}.
+
+Lemma const_mutrec_dec :
+  (forall c1, const_dec_prop c1) *
+  (forall lc1, list_const_dec_prop lc1).
+Proof.
+  apply const_mutrec; 
+    unfold const_dec_prop, list_const_dec_prop;
+    intros;
+    try solve [
+      destruct c2; try solve [right; intro J; inversion J | auto] |
+      destruct c2; try solve [done_right];
+        destruct (@typ_dec t t0); subst; try solve [subst; auto | done_right] |
+      destruct c2; try solve [done_right];
+        destruct (@H l1); subst; try solve [auto | done_right]
+    ].
+
+  destruct c2; try solve [done_right].
+  destruct (@INT_dec i0 i1); try solve [done_right].
+  destruct (@sz_dec s s0); try solve [subst; auto | done_right].
+
+  destruct c2; try solve [done_right].
+  destruct (@typ_dec t t0); subst; try solve [done_right].
+  destruct (@id_dec i0 i1); try solve [subst; auto | done_right].
+
+  destruct lc2; try solve [auto | done_right].
+
+  destruct lc2; try solve [done_right].
+  destruct (@H c0); subst; try solve [done_right].
+  destruct (@H0 lc2); subst; try solve [subst; auto | done_right].
+Qed.
+
+Lemma const_dec : forall (c1 c2:const), {c1=c2}+{~c1=c2}.
+Proof.
+  destruct const_mutrec_dec; auto.
+Qed.
+
+Lemma list_const_dec : forall (lc1 lc2:list_const), {lc1=lc2} + {~lc1=lc2}.
+Proof.
+  destruct const_mutrec_dec; auto.
+Qed.
+
+Lemma value_dec : forall (v1 v2:value), {v1=v2}+{~v1=v2}.
+Proof.
+  decide equality.
+    destruct (@const_dec c c0); subst; auto.
+Qed.    
+
+Lemma params_dec : forall (p1 p2:params), {p1=p2}+{~p1=p2}.
+Proof.
+  decide equality.
+    destruct a. destruct p.
+    destruct (@typ_dec t t0); subst; try solve [done_right].
+    destruct (@value_dec v v0); subst; try solve [auto | done_right].
+Qed.
+
+Lemma list_id_l_dec : forall (l1 l2:list_id_l), {l1=l2}+{~l1=l2}.
+Proof.
+  induction l1.
+    destruct l2; subst; try solve [subst; auto | done_right].
+
+    destruct l2; subst; try solve [done_right].
+    destruct (@id_dec i0 i1); subst; try solve [done_right].
+    destruct (@l_dec l0 l2); subst; try solve [done_right].
+    destruct (@IHl1 l3); subst; try solve [auto | done_right].
+Qed.
+
+Lemma list_value_dec : forall (lv1 lv2:list_value), {lv1=lv2}+{~lv1=lv2}.
+Proof.
+  decide equality.
+    destruct (@value_dec v v0); subst; try solve [auto | done_right].
+Qed.
+
+Lemma bop_dec : forall (b1 b2:bop), {b1=b2}+{~b1=b2}.
+Proof.
+  decide equality.
+Qed.
+
+Lemma extop_dec : forall (e1 e2:extop), {e1=e2}+{~e1=e2}.
+Proof.
+  decide equality.
+Qed.
+
+Lemma castop_dec : forall (c1 c2:castop), {c1=c2}+{~c1=c2}.
+Proof.
+  decide equality.
+Qed.
+
+Lemma cond_dec : forall (c1 c2:cond), {c1=c2}+{~c1=c2}.
+Proof.
+  decide equality.
+Qed.
+
+Lemma cmd_dec : forall (c1 c2:cmd), {c1=c2}+{~c1=c2}.
+Proof.
+  (cmd_cases (destruct c1) Case); destruct c2; try solve [done_right | auto].
+  Case "insn_bop".
+    destruct (@id_dec i0 i1); subst; try solve [done_right]. 
+    destruct (@bop_dec b b0); subst; try solve [done_right].
+    destruct (@sz_dec s s0); subst; try solve [done_right].
+    destruct (@value_dec v v1); subst; try solve [done_right].
+    destruct (@value_dec v0 v2); subst; try solve [auto | done_right].
+  Case "insn_extractvalue".
+    destruct (@id_dec i0 i1); subst; try solve [done_right]. 
+    destruct (@typ_dec t t0); subst; try solve [done_right].
+    destruct (@value_dec v v0); subst; try solve [done_right].
+    destruct (@list_const_dec l0 l1); subst; try solve [auto | done_right].
+  Case "insn_insertvalue".
+    destruct (@id_dec i0 i1); subst; try solve [done_right]. 
+    destruct (@typ_dec t t1); subst; try solve [done_right].
+    destruct (@value_dec v v1); subst; try solve [done_right].
+    destruct (@typ_dec t0 t2); subst; try solve [done_right].
+    destruct (@value_dec v0 v2); subst; try solve [done_right].
+    destruct (@list_const_dec l0 l1); subst; try solve [auto | done_right].
+  Case "insn_malloc".    
+    destruct (@id_dec i0 i1); subst; try solve [done_right]. 
+    destruct (@typ_dec t t0); subst; try solve [done_right].
+    destruct (@sz_dec s s0); subst; try solve [done_right].
+    destruct (@align_dec a a0); subst; try solve [auto | done_right].
+  Case "insn_free".    
+    destruct (@id_dec i0 i1); subst; try solve [done_right]. 
+    destruct (@typ_dec t t0); subst; try solve [done_right].
+    destruct (@value_dec v v0); subst; try solve [auto | done_right].
+  Case "insn_alloca".    
+    destruct (@id_dec i0 i1); subst; try solve [done_right]. 
+    destruct (@typ_dec t t0); subst; try solve [done_right].
+    destruct (@sz_dec s s0); subst; try solve [done_right].
+    destruct (@align_dec a a0); subst; try solve [auto | done_right].
+  Case "insn_load".    
+    destruct (@id_dec i0 i1); subst; try solve [done_right]. 
+    destruct (@typ_dec t t0); subst; try solve [done_right].
+    destruct (@value_dec v v0); subst; try solve [auto | done_right].
+  Case "insn_store".    
+    destruct (@id_dec i0 i1); subst; try solve [done_right]. 
+    destruct (@typ_dec t t0); subst; try solve [done_right].
+    destruct (@value_dec v v1); try solve [auto | done_right].
+    destruct (@value_dec v0 v2); subst; try solve [auto | done_right].
+  Case "insn_gep".    
+    destruct (@id_dec i0 i2); subst; try solve [done_right]. 
+    destruct (@inbounds_dec i1 i3); subst; try solve [done_right].
+    destruct (@typ_dec t t0); subst; try solve [done_right].
+    destruct (@value_dec v v0); try solve [auto | done_right].
+    destruct (@list_value_dec l0 l1); subst; try solve [auto | done_right].
+  Case "insn_ext".
+    destruct (@id_dec i0 i1); subst; try solve [done_right]. 
+    destruct (@extop_dec e e0); subst; try solve [done_right].
+    destruct (@typ_dec t t1); subst; try solve [done_right].
+    destruct (@value_dec v v0); subst; try solve [done_right].
+    destruct (@typ_dec t0 t2); subst; try solve [auto | done_right].
+  Case "insn_cast".
+    destruct (@id_dec i0 i1); subst; try solve [done_right]. 
+    destruct (@castop_dec c c0); subst; try solve [done_right].
+    destruct (@typ_dec t t1); subst; try solve [done_right].
+    destruct (@value_dec v v0); subst; try solve [done_right].
+    destruct (@typ_dec t0 t2); subst; try solve [auto | done_right].
+  Case "insn_icmp".
+    destruct (@id_dec i0 i1); subst; try solve [done_right]. 
+    destruct (@cond_dec c c0); subst; try solve [done_right].
+    destruct (@typ_dec t t0); subst; try solve [done_right].
+    destruct (@value_dec v v1); subst; try solve [done_right].
+    destruct (@value_dec v0 v2); subst; try solve [auto | done_right].
+  Case "insn_select".
+    destruct (@id_dec i0 i1); subst; try solve [done_right]. 
+    destruct (@value_dec v v2); subst; try solve [done_right].
+    destruct (@typ_dec t t0); subst; try solve [done_right].
+    destruct (@value_dec v0 v3); subst; try solve [done_right].
+    destruct (@value_dec v1 v4); subst; try solve [auto | done_right].
+  Case "insn_call".
+    destruct (@id_dec i0 i2); subst; try solve [done_right]. 
+    destruct (@id_dec i1 i3); subst; try solve [done_right]. 
+    destruct (@noret_dec n n0); subst; try solve [done_right].
+    destruct (@tailc_dec t t1); subst; try solve [done_right].
+    destruct (@typ_dec t0 t2); subst; try solve [done_right].
+    destruct (@params_dec p p0); subst; try solve [auto | done_right].
+Qed.
+
+Lemma terminator_dec : forall (tmn1 tmn2:terminator), {tmn1=tmn2}+{~tmn1=tmn2}.
+Proof.
+  destruct tmn1; destruct tmn2; try solve [done_right | auto].
+  Case "insn_return".
+    destruct (@id_dec i0 i1); subst; try solve [done_right]. 
+    destruct (@typ_dec t t0); subst; try solve [done_right].
+    destruct (@value_dec v v0); subst; try solve [auto | done_right].
+  Case "insn_return_void".
+    destruct (@id_dec i0 i1); subst; try solve [auto | done_right]. 
+  Case "insn_br".
+    destruct (@id_dec i0 i1); subst; try solve [done_right]. 
+    destruct (@l_dec l0 l2); subst; try solve [done_right]. 
+    destruct (@l_dec l1 l3); subst; try solve [done_right]. 
+    destruct (@value_dec v v0); subst; try solve [auto | done_right].
+  Case "insn_br_uncond".
+    destruct (@id_dec i0 i1); subst; try solve [done_right]. 
+    destruct (@l_dec l0 l1); subst; try solve [auto | done_right]. 
+  Case "insn_unreachable".
+    destruct (@id_dec i0 i1); subst; try solve [auto | done_right]. 
+Qed.
+
+Lemma phinode_dec : forall (p1 p2:phinode), {p1=p2}+{~p1=p2}.
+Proof.
+  destruct p1; destruct p2; try solve [done_right | auto].
+    destruct (@id_dec i0 i1); subst; try solve [done_right]. 
+    destruct (@typ_dec t t0); subst; try solve [done_right].
+    destruct (@list_id_l_dec l0 l1); subst; try solve [auto | done_right]. 
+Qed.
+
+Lemma insn_dec : forall (i1 i2:insn), {i1=i2}+{~i1=i2}.
+Proof.
+  destruct i1; destruct i2; try solve [done_right | auto].
+    destruct (@phinode_dec p p0); subst; try solve [auto | done_right]. 
+    destruct (@cmd_dec c c0); subst; try solve [auto | done_right]. 
+    destruct (@terminator_dec t t0); subst; try solve [auto | done_right]. 
+Qed.
+
+Lemma cmds_dec : forall (cs1 cs2:list cmd), {cs1=cs2}+{~cs1=cs2}.
+Proof.
+  induction cs1.
+    destruct cs2; subst; try solve [subst; auto | done_right].
+
+    destruct cs2; subst; try solve [done_right].
+    destruct (@cmd_dec a c); subst; try solve [done_right].
+    destruct (@IHcs1 cs2); subst; try solve [auto | done_right].
+Qed.
+
+Lemma phinodes_dec : forall (ps1 ps2:list phinode), {ps1=ps2}+{~ps1=ps2}.
+Proof.
+  induction ps1.
+    destruct ps2; subst; try solve [subst; auto | done_right].
+
+    destruct ps2; subst; try solve [done_right].
+    destruct (@phinode_dec a p); subst; try solve [done_right].
+    destruct (@IHps1 ps2); subst; try solve [auto | done_right].
+Qed.
+
+Lemma block_dec : forall (b1 b2:block), {b1=b2}+{~b1=b2}.
+Proof.
+  destruct b1; destruct b2; try solve [done_right | auto].
+    destruct (@id_dec l0 l1); subst; try solve [done_right]. 
+    destruct (@phinodes_dec p p0); subst; try solve [done_right]. 
+    destruct (@cmds_dec c c0); subst; try solve [done_right].
+    destruct (@terminator_dec t t0); subst; try solve [auto | done_right]. 
+Qed.
+
+Lemma arg_dec : forall (a1 a2:arg), {a1=a2}+{~a1=a2}.
+Proof.
+  destruct a1; destruct a2; try solve [subst; auto | done_right].
+    destruct (@id_dec i0 i1); subst; try solve [done_right].
+    destruct (@typ_dec t t0); subst; try solve [auto | done_right].
+Qed.  
+
+Lemma args_dec : forall (l1 l2:args), {l1=l2}+{~l1=l2}.
+Proof.
+  induction l1.
+    destruct l2; subst; try solve [subst; auto | done_right].
+
+    destruct l2; subst; try solve [done_right].
+    destruct (@arg_dec a p); subst; try solve [done_right].
+    destruct (@IHl1 l2); subst; try solve [auto | done_right].
+Qed.
+
+Lemma fheader_dec : forall (f1 f2:fheader), {f1=f2}+{~f1=f2}.
+Proof.
+  destruct f1; destruct f2; try solve [subst; auto | done_right].
+    destruct (@typ_dec t t0); subst; try solve [done_right].
+    destruct (@id_dec i0 i1); subst; try solve [done_right].
+    destruct (@args_dec a a0); subst; try solve [auto | done_right].
+Qed.  
+
+Lemma blocks_dec : forall (lb lb':blocks), {lb=lb'}+{~lb=lb'}.
+Proof.
+  induction lb.
+    destruct lb'; subst; try solve [subst; auto | done_right].
+
+    destruct lb'; subst; try solve [done_right].
+    destruct (@block_dec a b); subst; try solve [done_right].
+    destruct (@IHlb lb'); subst; try solve [auto | done_right].
+Qed.
+
+Lemma fdec_dec : forall (f1 f2:fdec), {f1=f2}+{~f1=f2}.
+Proof.
+  destruct f1; destruct f2; try solve [subst; auto | done_right].
+    destruct (@fheader_dec f f0); subst; try solve [auto | done_right].
+Qed.  
+
+Lemma fdef_dec : forall (f1 f2:fdef), {f1=f2}+{~f1=f2}.
+Proof.
+  destruct f1; destruct f2; try solve [subst; auto | done_right].
+    destruct (@fheader_dec f f0); subst; try solve [done_right].
+    destruct (@blocks_dec b b0); subst; try solve [auto | done_right].
+Qed.  
+
+Lemma gvar_dec : forall (g1 g2:gvar), {g1=g2}+{~g1=g2}.
+Proof.
+  destruct g1; destruct g2; try solve [subst; auto | done_right].
+    destruct (@id_dec i0 i1); subst; try solve [done_right].
+    destruct (@typ_dec t t0); subst; try solve [done_right].
+    destruct (@const_dec c c0); subst; try solve [done_right].
+    destruct (@align_dec a a0); subst; try solve [auto | done_right].
+Qed.  
+
+Lemma product_dec : forall (p p':product), {p=p'}+{~p=p'}.
+Proof.
+  destruct p; destruct p'; try solve [done_right | auto].
+    destruct (@gvar_dec g g0); subst; try solve [auto | done_right]. 
+    destruct (@fdec_dec f f0); subst; try solve [auto | done_right]. 
+    destruct (@fdef_dec f f0); subst; try solve [auto | done_right]. 
+Qed.
+
+Lemma products_dec : forall (lp lp':products), {lp=lp'}+{~lp=lp'}.
+Proof.
+  induction lp.
+    destruct lp'; subst; try solve [subst; auto | done_right].
+
+    destruct lp'; subst; try solve [done_right].
+    destruct (@product_dec a p); subst; try solve [done_right].
+    destruct (@IHlp lp'); subst; try solve [auto | done_right].
+Qed.
+
+Lemma layout_dec : forall (l1 l2:layout), {l1=l2}+{~l1=l2}.
+Proof.
+  destruct l1; destruct l2; try solve [subst; auto | done_right].
+    destruct (@sz_dec s s0); subst; try solve [done_right].
+    destruct (@align_dec a a1); subst; try solve [done_right].
+    destruct (@align_dec a0 a2); subst; try solve [auto | done_right].
+
+    destruct (@sz_dec s s0); subst; try solve [done_right].
+    destruct (@align_dec a a1); subst; try solve [done_right].
+    destruct (@align_dec a0 a2); subst; try solve [auto | done_right].
+
+    destruct (@sz_dec s s0); subst; try solve [done_right].
+    destruct (@align_dec a a1); subst; try solve [done_right].
+    destruct (@align_dec a0 a2); subst; try solve [auto | done_right].
+
+    destruct (@sz_dec s s0); subst; try solve [done_right].
+    destruct (@align_dec a a1); subst; try solve [done_right].
+    destruct (@align_dec a0 a2); subst; try solve [auto | done_right].
+Qed.  
+
+Lemma layouts_dec : forall (l1 l2:layouts), {l1=l2}+{~l1=l2}.
+Proof.
+  induction l1.
+    destruct l2; subst; try solve [subst; auto | done_right].
+
+    destruct l2; subst; try solve [done_right].
+    destruct (@layout_dec a l0); subst; try solve [done_right].
+    destruct (@IHl1 l2); subst; try solve [auto | done_right].
+Qed.
+
+Lemma module_dec : forall (m m':module), {m=m'}+{~m=m'}.
+Proof.
+  destruct m; destruct m'; try solve [done_right | auto].
+    destruct (@layouts_dec l0 l1); subst; try solve [auto | done_right]. 
+    destruct (@products_dec p p0); subst; try solve [auto | done_right]. 
+Qed.
+
+Lemma modules_dec : forall (lm lm':modules), {lm=lm'}+{~lm=lm'}.
+Proof.
+  induction lm.
+    destruct lm'; subst; try solve [subst; auto | done_right].
+
+    destruct lm'; subst; try solve [done_right].
+    destruct (@module_dec a m); subst; try solve [done_right].
+    destruct (@IHlm lm'); subst; try solve [auto | done_right].
+Qed.
+
+Lemma system_dec : forall (s s':system), {s=s'}+{~s=s'}.
+Proof.
+  apply modules_dec.
+Qed.
+
+(**********************************)
 (* Eq. *)
+Definition typEqB t1 t2 := sumbool2bool _ _ (typ_dec t1 t2).
 
-Fixpoint typEqB (t1 t2:typ) : bool :=
-match (t1, t2) with 
-| (typ_int n1, typ_int n2) => beq_nat n1 n2
-| (typ_metadata, typ_metadata) => true
-| (typ_void, typ_void) => true
-| (typ_label, typ_label) => true
-| (typ_pointer t1, typ_pointer t2) => typEqB t1 t2
-| (typ_array n1 t1, typ_array n2 t2) => beq_nat n1 n2 && typEqB t1 t2
-| (typ_function t1 lt1, typ_function t2 lt2) => typEqB t1 t2 && list_typEqB lt1 lt2
-| (typ_struct lt1, typ_struct lt2) => list_typEqB lt1 lt2
-| (_, _) => false
-end
-with list_typEqB (lt1 lt2:list_typ) : bool :=
-match (lt1, lt2) with
-| (Nil_list_typ, Nil_list_typ) => true
-| (Cons_list_typ t1 lt1', Cons_list_typ t2 lt2') => typEqB t1 t2 && list_typEqB lt1' lt2'
-| _ => false 
-end.
+Definition list_typEqB lt1 lt2 := sumbool2bool _ _ (list_typ_dec lt1 lt2).
 
-Definition idEqB (i i':id) : bool := if i == i' then true else false.
+Definition idEqB i i' := sumbool2bool _ _ (id_dec i i').
 
-Fixpoint constEqB (c1 c2:const) : bool :=
-match (c1, c2) with 
-| (const_int sz1 n1, const_int sz2 n2) => beq_nat n1 n2 && beq_nat sz1 sz2
-| (const_null t1, const_null t2) => typEqB t1 t2
-| (const_undef t1, const_undef t2) => typEqB t1 t2
-| (const_struct lc1, const_struct lc2) => list_constEqB lc1 lc2
-| (const_arr lc1, const_arr lc2) => list_constEqB lc1 lc2
-| (const_gid t1 id1, const_gid t2 id2) => typEqB t1 t2 && idEqB id1 id2
-| (_, _) => false
-end
-with list_constEqB (lc1 lc2:list_const) : bool :=
-match (lc1, lc2) with
-| (Nil_list_const, Nil_list_const) => true
-| (Cons_list_const c1 lc1', Cons_list_const c2 lc2') => constEqB c1 c2 && list_constEqB lc1' lc2'
-| _ => false 
-end.
+Definition constEqB c1 c2 := sumbool2bool _ _ (const_dec c1 c2).
 
-Definition valueEqB (v v':value) : bool :=
-match (v, v') with
-| (value_id i, value_id i') => idEqB i i'
-| (value_const c, value_const c') => constEqB c c'
-| (_, _) => false
-end.
+Definition list_constEqB lc1 lc2 := sumbool2bool _ _ (list_const_dec lc1 lc2).
 
-Fixpoint paramsEqB (lp lp':params) {struct lp} : bool :=
-match (lp, lp') with
-| (nil, nil) => true
-| ((t,v)::lp0, (t',v')::lp0') =>
-  typEqB t t' && valueEqB v v' &&
-  paramsEqB lp0 lp0'
-| (_, _) => false
-end.
+Definition valueEqB (v v':value) := sumbool2bool _ _ (value_dec v v').
 
-Definition lEqB (i i':l) : bool := if i == i' then true else false.
+Definition paramsEqB (lp lp':params) := sumbool2bool _ _ (params_dec lp lp').
 
-Fixpoint list_id_lEqB (idls idls':list_id_l) {struct idls} : bool :=
-match (idls, idls') with
-| (Nil_list_id_l, Nil_list_id_l) => true
-| (Cons_list_id_l id l idls0, Cons_list_id_l id' l' idls0') =>
-  idEqB id id' && lEqB l l' &&
-  list_id_lEqB idls0 idls0'
-| (_, _) => false
-end.
+Definition lEqB i i' := sumbool2bool _ _ (l_dec i i').
 
-Fixpoint list_valueEqB (idxs idxs':list_value) {struct idxs} : bool :=
-match (idxs, idxs') with
-| (Nil_list_value, Nil_list_value) => true
-| (Cons_list_value idx idxs, Cons_list_value idx' idxs') =>
-  valueEqB idx idx' && 
-  list_valueEqB idxs idxs'
-| (_, _) => false
-end.
+Definition list_id_lEqB (idls idls':list_id_l) := sumbool2bool _ _ (list_id_l_dec idls idls').
 
-Definition bopEqB (op op':bop) : bool :=
-match (op, op') with
-| (bop_add, bop_add) => true
-| (bop_lshr, bop_lshr) => true
-| (bop_and, bop_and) => true
-| (bop_or, bop_or) => true
-| _ => false
-end.
+Definition list_valueEqB idxs idxs' := sumbool2bool _ _ (list_value_dec idxs idxs').
 
-Definition extopEqB (op op':extop) : bool :=
-match (op, op') with
-| (extop_z, extop_z) => true
-| (extop_s, extop_s) => true
-| _ => false
-end.
+Definition bopEqB (op op':bop) := sumbool2bool _ _ (bop_dec op op').
+Definition extopEqB (op op':extop) := sumbool2bool _ _ (extop_dec op op').
+Definition condEqB (c c':cond) := sumbool2bool _ _ (cond_dec c c').
+Definition castopEqB (c c':castop) := sumbool2bool _ _ (castop_dec c c').
 
-Definition condEqB (c c':cond) : bool :=
-match (c, c') with
-| (cond_eq, cond_eq) => true
-| (cond_ne, cond_ne) => true
-| (cond_ugt, cond_ugt) => true
-| (cond_uge, cond_uge) => true
-| (cond_ult, cond_ult) => true
-| (cond_ule, cond_ule) => true
-| (cond_sgt, cond_sgt) => true
-| (cond_sge, cond_sge) => true
-| (cond_slt, cond_slt) => true
-| (cond_sle, cond_sle) => true
-| _ => false
-end.
+Definition cmdEqB (i i':cmd) := sumbool2bool _ _ (cmd_dec i i').
 
-Definition castopEqB (c c':castop) : bool :=
-match (c, c') with
-| (castop_fptoui, castop_fptoui) => true
-| (castop_fptosi, castop_fptosi) => true
-| (castop_uitofp, castop_uitofp) => true
-| (castop_sitofp, castop_sitofp) => true
-| (castop_ptrtoint, castop_ptrtoint) => true
-| (castop_inttoptr, castop_inttoptr) => true
-| (castop_bitcast, castop_bitcast) => true
-| _ => false
-end.
-
-Definition cmdEqB (i i':cmd) : bool :=
-match (i, i') with
-| (insn_bop id op sz v1 v2,
-   insn_bop id' op' sz' v1' v2') =>
-  idEqB id id' &&
-  bopEqB op op' &&
-  beq_nat sz sz' &&
-  valueEqB v1 v1' &&
-  valueEqB v2 v2'
-| (insn_extractvalue id typ0 v0 cidxs, insn_extractvalue id' typ0' v0' cidxs') => 
-  idEqB id id' &&
-  typEqB typ0 typ0' &&
-  valueEqB v0 v0' &&
-  list_constEqB cidxs cidxs'  
-| (insn_insertvalue id typ0 v0 typ1 v1 cidxs, 
-   insn_insertvalue id' typ0' v0' typ1' v1' cidxs') =>
-  idEqB id id' &&
-  typEqB typ0 typ0' &&
-  valueEqB v0 v0' &&
-  typEqB typ1 typ1' &&
-  valueEqB v1 v1' &&
-  list_constEqB cidxs cidxs'  
-| (insn_malloc id typ sz align, insn_malloc id' typ' sz' align') =>
-  idEqB id id' &&
-  typEqB typ typ' &&
-  beq_nat sz sz' &&
-  beq_nat align align' 
-| (insn_free id typ v, insn_free id' typ' v') =>
-  idEqB id id' &&
-  typEqB typ typ' &&
-  valueEqB v v'
-| (insn_alloca id typ sz align, insn_alloca id' typ' sz' align') =>
-  idEqB id id' &&
-  typEqB typ typ' &&
-  beq_nat sz sz' &&
-  beq_nat align align' 
-| (insn_load id typ v, insn_load id' typ' v') =>
-  idEqB id id' &&
-  typEqB typ typ' &&
-  valueEqB v v'
-| (insn_store id typ0 v0 v1, insn_store id' typ0' v0' v1') =>
-  idEqB id id' &&
-  typEqB typ0 typ0' &&
-  valueEqB v0 v0' &&
-  valueEqB v1 v1'
-| (insn_gep id inbounds typ v idxs, insn_gep id' inbounds' typ' v' idxs') =>
-  idEqB id id' &&
-  eqb inbounds inbounds' &&
-  typEqB typ typ' &&
-  valueEqB v v' &&
-  list_valueEqB idxs idxs'  
-| (insn_ext id op t1 v1 t2,
-   insn_ext id' op' t1' v1' t2') =>
-  idEqB id id' &&
-  extopEqB op op' &&
-  typEqB t1 t1' &&
-  valueEqB v1 v1' &&
-  typEqB t2 t2'
-| (insn_cast id op t1 v1 t2,
-   insn_cast id' op' t1' v1' t2') =>
-  idEqB id id' &&
-  castopEqB op op' &&
-  typEqB t1 t1' &&
-  valueEqB v1 v1' &&
-  typEqB t2 t2'
-| (insn_icmp id c typ v1 v2,
-   insn_icmp id' c' typ' v1' v2') =>
-  idEqB id id' &&
-  condEqB c c' &&
-  typEqB typ typ' &&
-  valueEqB v1 v1' &&
-  valueEqB v2 v2'
-| (insn_select id v0 typ v1 v2,
-   insn_select id' v0' typ' v1' v2') =>
-  idEqB id id' &&
-  valueEqB v0 v0' &&
-  typEqB typ typ' &&
-  valueEqB v1 v1' &&
-  valueEqB v2 v2'
-| (insn_call id r tail typ id0 paraml,
-   insn_call id' r' tail' typ' id0' paraml') =>
-  idEqB id id' &&
-  eqb r r' &&
-  eqb tail tail' &&
-  typEqB typ typ' &&
-  idEqB id0 id0' &&
-  paramsEqB paraml paraml'
-| (_, _) => false
-end.
-
-Definition terminatorEqB (i i':terminator) : bool :=
-match (i, i') with
-| (insn_return id t v, insn_return id' t' v') =>
-  idEqB id id' && typEqB t t' && valueEqB v v'
-| (insn_return_void id, insn_return_void id') => idEqB id id'
-| (insn_br id v l1 l2, insn_br id' v' l1' l2') =>
-  idEqB id id' && 
-  valueEqB v v' &&
-  lEqB l1 l1' && lEqB l2 l2'
-| (insn_br_uncond id l, insn_br_uncond id' l') =>
-  idEqB id id' && 
-  lEqB l l'
-(*
-| (insn_invoke id typ id0 paraml l1 l2,
-   insn_invoke id' typ' id0' paraml' l1' l2') =>
-  idEqB id id' &&
-  typEqB typ typ' &&
-  idEqB id0 id0' &&
-  list_param_EqB paraml paraml' &&
-  beq_nat l1 l1' &&
-  beq_nat l2 l2'
-*)
-| (insn_unreachable id, insn_unreachable id') =>
-  idEqB id id'
-| (_, _) => false
-end.
-
-Definition phinodeEqB (i i':phinode) : bool :=
-match (i, i') with
-| (insn_phi id typ idls,
-   insn_phi id' typ' idls') =>
-  idEqB id id' &&
-  typEqB typ typ' &&
-  list_id_lEqB idls idls'
-end.
-
-Fixpoint cmdsEqB (cs1 cs2:list cmd) : bool :=
-match (cs1, cs2) with
-| (nil, nil) => true
-| (c1::cs1, c2::cs2) => cmdEqB c1 c2 && cmdsEqB cs1 cs2
-| _ => false
-end.
+Definition cmdsEqB (cs1 cs2:list cmd) := sumbool2bool _ _ (cmds_dec cs1 cs2).
   
-Fixpoint phinodesEqB (ps1 ps2:list phinode) : bool :=
-match (ps1, ps2) with
-| (nil, nil) => true
-| (p1::ps1, p2::ps2) => phinodeEqB p1 p2 && phinodesEqB ps1 ps2
-| _ => false
-end.
+Definition terminatorEqB (i i':terminator) := sumbool2bool _ _ (terminator_dec i i').
 
-Definition blockEqB (b1 b2:block) : bool :=
-match (b1, b2) with
-| (block_intro l1 ps1 cs1 tmn1, block_intro l2 ps2 cs2 tmn2) => 
-  lEqB l1 l2 && phinodesEqB ps1 ps2 && cmdsEqB cs1 cs2 && terminatorEqB tmn1 tmn2
-end.
+Definition phinodeEqB (i i':phinode) := sumbool2bool _ _ (phinode_dec i i').
 
-Fixpoint argsEqB (la la':args) {struct la} : bool :=
-match (la, la') with
-| (nil, nil) => true
-| ((t,id)::la0, (t',id')::la0') =>
-  typEqB t t' && idEqB id id' &&
-  argsEqB la0 la0'
-| (_, _) => false
-end.
+Definition phinodesEqB (ps1 ps2:list phinode) := sumbool2bool _ _ (phinodes_dec ps1 ps2).
 
-Definition fheaderEqB (fh fh' : fheader) : bool :=
-match (fh, fh') with
-| (fheader_intro t id la, fheader_intro t' id' la') =>
-  typEqB t t' && idEqB id id' && argsEqB la la'
-end.
+Definition blockEqB (b1 b2:block) := sumbool2bool _ _ (block_dec b1 b2).
 
-Fixpoint blocksEqB (lb lb':blocks) {struct lb} : bool :=
-match (lb, lb') with
-| (nil, nil) => true
-| (b::lb0, b'::lb0') =>
-  blockEqB b b' &&
-  blocksEqB lb0 lb0'
-| (_, _) => false
-end.
+Definition blocksEqB (lb lb':blocks) := sumbool2bool _ _ (blocks_dec lb lb').
 
-Definition fdecEqB (fd fd' : fdec) : bool :=
-match (fd, fd') with
-| (fdec_intro fh, fdec_intro fh') => fheaderEqB fh fh'
-end.
+Definition argsEqB (la la':args) := sumbool2bool _ _ (args_dec la la').
 
-Definition fdefEqB (fd fd' : fdef) : bool :=
-match (fd, fd') with
-| (fdef_intro fh lb, fdef_intro fh' lb') => 
-  fheaderEqB fh fh' && blocksEqB lb lb'
-end.
+Definition fheaderEqB (fh fh' : fheader) := sumbool2bool _ _ (fheader_dec fh fh').
 
-Definition gvarEqB (gv gv' : gvar) : bool :=
-match (gv, gv') with
-| (gvar_intro id t c a, gvar_intro id' t' c' a') =>
-  idEqB id id' && typEqB t t' && constEqB c c' && beq_nat a a'
-end.
+Definition fdecEqB (fd fd' : fdec) := sumbool2bool _ _ (fdec_dec fd fd').
 
-Definition productEqB (p p' : product) : bool :=
-match (p, p') with
-| (product_fdec fd, product_fdec fd') => fdecEqB fd fd'  
-| (product_fdef fd, product_fdef fd') => fdefEqB fd fd'
-| (product_gvar gv, product_gvar gv') => gvarEqB gv gv'
-| (_, _) => false
-end.
+Definition fdefEqB (fd fd' : fdef) := sumbool2bool _ _ (fdef_dec fd fd').
 
-Fixpoint productsEqB (lp lp':products) {struct lp} : bool :=
-match (lp, lp') with
-| (nil, nil) => true
-| (p::lp0, p'::lp0') =>
-  productEqB p p' &&
-  productsEqB lp0 lp0'
-| (_, _) => false
-end.
+Definition gvarEqB (gv gv' : gvar) := sumbool2bool _ _ (gvar_dec gv gv').
 
-Fixpoint layoutEqB (o o' : layout) : bool :=
-match (o, o') with
-| (layout_be, layout_be) => true
-| (layout_le, layout_le) => true
-| (layout_ptr sz align0 align1, layout_ptr sz' align0' align1') =>
-  beq_nat sz sz' && beq_nat align0 align0' && beq_nat align1 align1'
-| (layout_int sz align0 align1, layout_int sz' align0' align1') =>
-  beq_nat sz sz' && beq_nat align0 align0' && beq_nat align1 align1'
-| (layout_aggr sz align0 align1, layout_aggr sz' align0' align1') =>
-  beq_nat sz sz' && beq_nat align0 align0' && beq_nat align1 align1'
-| (layout_stack sz align0 align1, layout_stack sz' align0' align1') =>
-  beq_nat sz sz' && beq_nat align0 align0' && beq_nat align1 align1'
-| (_, _) => false
-end.
+Definition productEqB (p p' : product) := sumbool2bool _ _ (product_dec p p').
 
-Fixpoint layoutsEqB (lo lo':layouts) {struct lo} : bool :=
-match (lo, lo') with
-| (nil, nil) => true
-| (o::lo0, o'::lo0') =>
-  layoutEqB o o' &&
-  layoutsEqB lo0 lo0'
-| (_, _) => false
-end.
+Definition productsEqB (lp lp':products) := sumbool2bool _ _ (products_dec lp lp').
 
-Definition moduleEqB (m m':module) := 
-  let (os, ps) := m in 
-  let (os', ps') := m' in 
-  productsEqB ps ps' &&
-  layoutsEqB os os'.
+Definition layoutEqB (o o' : layout) := sumbool2bool _ _ (layout_dec o o').
 
-Fixpoint modulesEqB (lm lm':modules) {struct lm} : bool :=
-match (lm, lm') with
-| (nil, nil) => true
-| (m::lm0, m'::lm0') =>
-  moduleEqB m m' &&
-  modulesEqB lm0 lm0'
-| (_, _) => false
-end.
+Definition layoutsEqB (lo lo':layouts) := sumbool2bool _ _ (layouts_dec lo lo').
 
-Definition systemEqB (s s':system) := modulesEqB s s'.
+Definition moduleEqB (m m':module) := sumbool2bool _ _ (module_dec m m').
+
+Definition modulesEqB (lm lm':modules) := sumbool2bool _ _ (modules_dec lm lm').
+
+Definition systemEqB (s s':system) := sumbool2bool _ _ (system_dec s s').
 
 (**********************************)
 (* Inclusion. *)

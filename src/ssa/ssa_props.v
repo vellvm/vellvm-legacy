@@ -11,7 +11,7 @@ Require Import genericvalues.
 Export LLVMsyntax.
 Export LLVMlib.
 
-(* eq *)
+(* eq is refl *)
 
 Lemma neq_refl : forall n, n =n= n.
 Proof.
@@ -20,83 +20,55 @@ Proof.
   apply beq_nat_refl.
 Qed.
 
-Lemma typEqB_list_typEqB_refl : 
-  (forall t, typEqB t t) /\
-  (forall ts, list_typEqB ts ts).
+Lemma true_sumbool2bool : forall A (H:sumbool A (~A)),
+  A -> sumbool2bool A (~A) H = true.
 Proof.
-apply typ_mutind; intros; simpl; 
-  try solve [
-    auto using neq_refl |
-    unfold is_true; auto |
-    eapply andb_true_iff;
-      split; auto using beq_nat_refl
-  ].
+  intros A H H0.
+  destruct H; auto.
 Qed.
+
+Lemma false_sumbool2bool : forall A (H:sumbool A (~A)),
+  ~A -> sumbool2bool A (~A) H = false.
+Proof.
+  intros A H H0.
+  destruct H; auto.
+    contradict a; auto.
+Qed.
+
+Ltac sumbool2bool_refl := intros; apply true_sumbool2bool; auto.
 
 Lemma typEqB_refl : forall t, typEqB t t.
-destruct typEqB_list_typEqB_refl ; auto.
-Qed.
+Proof. sumbool2bool_refl. Qed.
 
 Lemma list_typEqB_refl : forall ts, list_typEqB ts ts.
-destruct typEqB_list_typEqB_refl ; auto.
-Qed.
+Proof. sumbool2bool_refl. Qed.
 
 Lemma idEqB_refl : forall i, idEqB i i.
-Proof.
-  intros. unfold idEqB. 
-  destruct (i0==i0); auto.
-    unfold is_true. auto.
-    contradict n; auto.
-Qed.
+Proof. sumbool2bool_refl. Qed.
 
-Lemma constEqB_list_constEqB_refl : 
-  (forall c, constEqB c c) /\
-  (forall cs, list_constEqB cs cs).
-Proof.
-apply const_mutind; intros; simpl; 
-  try solve [
-    auto using neq_refl, typEqB_refl |
-    eapply andb_true_iff;
-      split; auto using beq_nat_ref |
-    unfold is_true; auto |
-    eapply andb_true_iff;
-      split; auto using beq_nat_refl
-  ].
-
-    eapply andb_true_iff.
-    split. apply typEqB_refl. apply idEqB_refl.
-Qed.
+Lemma lEqB_refl : forall l, lEqB l l.
+Proof. sumbool2bool_refl. Qed.
 
 Lemma constEqB_refl : forall c, constEqB c c.
-destruct constEqB_list_constEqB_refl; auto.
-Qed.
+Proof. sumbool2bool_refl. Qed.
 
 Lemma list_constEqB_refl : forall cs, list_constEqB cs cs.
-destruct constEqB_list_constEqB_refl; auto.
-Qed.
+Proof. sumbool2bool_refl. Qed.
 
 Lemma valueEqB_refl: forall v, valueEqB v v.
-Proof.
-  destruct v; unfold valueEqB.
-    apply idEqB_refl.
-    apply constEqB_refl.
-Qed.
+Proof. sumbool2bool_refl. Qed.
 
 Lemma bopEqB_refl: forall op, bopEqB op op.
-destruct op; unfold bopEqB; unfold is_true; auto.
-Qed.
+Proof. sumbool2bool_refl. Qed.
 
 Lemma extopEqB_refl: forall op, extopEqB op op.
-destruct op; unfold extopEqB; unfold is_true; auto.
-Qed.
+Proof. sumbool2bool_refl. Qed.
 
 Lemma castopEqB_refl: forall op, castopEqB op op.
-destruct op; unfold castopEqB; unfold is_true; auto.
-Qed.
+Proof. sumbool2bool_refl. Qed.
 
 Lemma condEqB_refl: forall c, condEqB c c.
-destruct c; unfold condEqB; unfold is_true; auto.
-Qed.
+Proof. sumbool2bool_refl. Qed.
 
 Lemma eqb_refl : forall i0, eqb i0 i0.
 unfold eqb.
@@ -104,685 +76,192 @@ destruct i0; unfold is_true; auto.
 Qed.
 
 Lemma list_valueEqB_refl : forall vs, list_valueEqB vs vs.
-induction vs; simpl; unfold is_true; auto.
-  eapply andb_true_iff. split; auto.
-    apply valueEqB_refl.
-Qed.
+Proof. sumbool2bool_refl. Qed.
 
 Lemma paramsEqB_refl : forall p, paramsEqB p p.
-induction p; intros; simpl.
-  unfold is_true. auto.
-
-  destruct a. 
-  eapply andb_true_iff. split.
-  eapply andb_true_iff. split.
-  apply typEqB_refl. apply valueEqB_refl. auto.
-Qed.
+Proof. sumbool2bool_refl. Qed.
   
 Lemma cmdEqB_refl : forall c, cmdEqB c c.
-Proof.
-  destruct c; unfold cmdEqB.
-    eapply andb_true_iff. split.
-    eapply andb_true_iff. split.
-    eapply andb_true_iff. split.
-    eapply andb_true_iff. split.
-    apply idEqB_refl. apply bopEqB_refl. apply neq_refl.
-    apply valueEqB_refl. apply valueEqB_refl.
-
-    eapply andb_true_iff. split.
-    eapply andb_true_iff. split.
-    eapply andb_true_iff. split.
-    apply idEqB_refl. apply typEqB_refl. apply valueEqB_refl. apply list_constEqB_refl.
-
-    eapply andb_true_iff. split.
-    eapply andb_true_iff. split.
-    eapply andb_true_iff. split.
-    eapply andb_true_iff. split.
-    eapply andb_true_iff. split.
-    apply idEqB_refl. apply typEqB_refl. apply valueEqB_refl.
-    apply typEqB_refl. apply valueEqB_refl. apply list_constEqB_refl.
-
-    eapply andb_true_iff. split.
-    eapply andb_true_iff. split.
-    eapply andb_true_iff. split.
-    apply idEqB_refl. apply typEqB_refl. apply neq_refl.  apply neq_refl.
-
-    eapply andb_true_iff. split.
-    eapply andb_true_iff. split.
-    apply idEqB_refl. apply typEqB_refl. apply valueEqB_refl.
-
-    eapply andb_true_iff. split.
-    eapply andb_true_iff. split.
-    eapply andb_true_iff. split.
-    apply idEqB_refl. apply typEqB_refl. apply neq_refl.  apply neq_refl.
-
-    eapply andb_true_iff. split.
-    eapply andb_true_iff. split.
-    apply idEqB_refl. apply typEqB_refl. apply valueEqB_refl.
-
-    eapply andb_true_iff. split.
-    eapply andb_true_iff. split.
-    eapply andb_true_iff. split.
-    apply idEqB_refl. apply typEqB_refl. apply valueEqB_refl.  apply valueEqB_refl.
-
-    eapply andb_true_iff. split.
-    eapply andb_true_iff. split.
-    eapply andb_true_iff. split.
-    eapply andb_true_iff. split.
-    apply idEqB_refl. apply eqb_refl. apply typEqB_refl.
-    apply valueEqB_refl.  apply list_valueEqB_refl.
-
-    eapply andb_true_iff. split.
-    eapply andb_true_iff. split.
-    eapply andb_true_iff. split.
-    eapply andb_true_iff. split.
-    apply idEqB_refl. apply extopEqB_refl. apply typEqB_refl.
-    apply valueEqB_refl. apply typEqB_refl.
-
-    eapply andb_true_iff. split.
-    eapply andb_true_iff. split.
-    eapply andb_true_iff. split.
-    eapply andb_true_iff. split.
-    apply idEqB_refl. apply castopEqB_refl. apply typEqB_refl.
-    apply valueEqB_refl. apply typEqB_refl.
-
-    eapply andb_true_iff. split.
-    eapply andb_true_iff. split.
-    eapply andb_true_iff. split.
-    eapply andb_true_iff. split.
-    apply idEqB_refl. apply condEqB_refl. apply typEqB_refl.
-    apply valueEqB_refl. apply valueEqB_refl.
-
-    eapply andb_true_iff. split.
-    eapply andb_true_iff. split.
-    eapply andb_true_iff. split.
-    eapply andb_true_iff. split.
-    apply idEqB_refl. apply valueEqB_refl. apply typEqB_refl.
-    apply valueEqB_refl. apply valueEqB_refl.
-
-    eapply andb_true_iff. split.
-    eapply andb_true_iff. split.
-    eapply andb_true_iff. split.
-    eapply andb_true_iff. split.
-    eapply andb_true_iff. split.
-    apply idEqB_refl. apply eqb_refl. apply eqb_refl. apply typEqB_refl.
-    apply idEqB_refl. apply paramsEqB_refl.
-Qed.
+Proof. sumbool2bool_refl. Qed.
 
 Lemma terminatorEqB_refl : forall tmn, terminatorEqB tmn tmn.
-Proof.
-  destruct tmn; unfold terminatorEqB.
-    eapply andb_true_iff. split.
-    eapply andb_true_iff. split.
-    apply idEqB_refl. apply typEqB_refl.
-    apply valueEqB_refl. apply idEqB_refl.
-
-    eapply andb_true_iff. split.
-    eapply andb_true_iff. split.
-    eapply andb_true_iff. split.
-    apply idEqB_refl. apply valueEqB_refl. apply idEqB_refl.  apply idEqB_refl.
-
-    eapply andb_true_iff. split. apply idEqB_refl.  apply idEqB_refl.
-
-    apply idEqB_refl.
-Qed.
+Proof. sumbool2bool_refl. Qed.
 
 Lemma list_id_lEqB_refl : forall l0, list_id_lEqB l0 l0.
-induction l0; simpl.
-  unfold is_true. auto.
-
-  eapply andb_true_iff. split.
-  eapply andb_true_iff. split.
-  apply idEqB_refl.  apply idEqB_refl. auto.
-Qed.
+Proof. sumbool2bool_refl. Qed.
 
 Lemma phinodeEqB_refl : forall p, phinodeEqB p p.
-Proof.
-  destruct p.
-  unfold phinodeEqB.
-  eapply andb_true_iff. split.
-  eapply andb_true_iff. split.
-  apply idEqB_refl. apply typEqB_refl. apply list_id_lEqB_refl.
-Qed.
+Proof. sumbool2bool_refl. Qed.
   
 Lemma phinodesEqB_refl : forall ps, phinodesEqB ps ps.
-induction ps; intros; simpl.
-  unfold is_true. auto.
-  eapply andb_true_iff. split. apply phinodeEqB_refl. auto.
-Qed. 
+Proof. sumbool2bool_refl. Qed.
 
 Lemma cmdsEqB_refl : forall cs, cmdsEqB cs cs.
-induction cs; intros; simpl.
-  unfold is_true. auto.
-  eapply andb_true_iff. split. apply cmdEqB_refl. auto.
-Qed. 
+Proof. sumbool2bool_refl. Qed.
 
 Lemma blockEqB_refl : forall B,
   blockEqB B B.
-Proof.
-  destruct B.
-  unfold blockEqB.
-  eapply andb_true_iff. split.
-  eapply andb_true_iff. split.
-  eapply andb_true_iff. split.
-  apply idEqB_refl. 
-  apply phinodesEqB_refl.
-  apply cmdsEqB_refl.
-  apply terminatorEqB_refl.   
-Qed.
+Proof. sumbool2bool_refl. Qed.
      
 Lemma blocksEqB_refl : forall bs, blocksEqB bs bs.
-induction bs; intros; simpl.
-  unfold is_true. auto.
-  eapply andb_true_iff. split. apply blockEqB_refl. auto.
-Qed. 
+Proof. sumbool2bool_refl. Qed.
 
 Lemma argsEqB_refl : forall args0, argsEqB args0 args0.
-induction args0; simpl.
-  unfold is_true. auto.
-  destruct a. 
-  eapply andb_true_iff. split.
-  eapply andb_true_iff. split.
-  apply typEqB_refl. 
-  apply idEqB_refl. auto.
-Qed.
+Proof. sumbool2bool_refl. Qed.
 
 Lemma fheaderEqB_refl : forall f, fheaderEqB f f.
-destruct f. unfold fheaderEqB.
-  eapply andb_true_iff. split.
-  eapply andb_true_iff. split.
-  apply typEqB_refl. 
-  apply idEqB_refl.
-  apply argsEqB_refl.
-Qed.
+Proof. sumbool2bool_refl. Qed.
     
 Lemma fdecEqB_refl : forall f, fdecEqB f f.
-destruct f. unfold fdecEqB. apply fheaderEqB_refl.
-Qed.
+Proof. sumbool2bool_refl. Qed.
 
 Lemma fdefEqB_refl : forall f, fdefEqB f f.
-destruct f. unfold fdefEqB.
-  eapply andb_true_iff. split.
-  apply fheaderEqB_refl.
-  apply blocksEqB_refl.
-Qed.
+Proof. sumbool2bool_refl. Qed.
 
 Lemma gvarEqB_refl : forall g, gvarEqB g g.
-destruct g. unfold gvarEqB.
-  eapply andb_true_iff. split.
-  eapply andb_true_iff. split.
-  eapply andb_true_iff. split.
-  apply idEqB_refl.
-  apply typEqB_refl.
-  apply constEqB_refl.
-  apply neq_refl.
-Qed.
+Proof. sumbool2bool_refl. Qed.
 
 Lemma productEqB_refl : forall p,
   productEqB p p.
-destruct p; unfold productEqB.
-  apply gvarEqB_refl.
-  apply fdecEqB_refl.
-  apply fdefEqB_refl.
-Qed.
+Proof. sumbool2bool_refl. Qed.
+
+Lemma productsEqB_refl : forall ps,
+  productsEqB ps ps.
+Proof. sumbool2bool_refl. Qed.
+
+Lemma layoutEqB_refl : forall a, layoutEqB a a.
+Proof. sumbool2bool_refl. Qed.
+
+Lemma layoutsEqB_refl : forall la, layoutsEqB la la.
+Proof. sumbool2bool_refl. Qed.
+
+Lemma moduleEqB_refl : forall M, moduleEqB M M.
+Proof. sumbool2bool_refl. Qed.
+
+Lemma modulesEqB_refl : forall Ms, modulesEqB Ms Ms.
+Proof. sumbool2bool_refl. Qed.
+
+Lemma systemEqB_refl : forall S, systemEqB S S.
+Proof. sumbool2bool_refl. Qed.
+
+(* refl implies eq *)
 
 Lemma neq_inv : forall n m, n =n= m -> n = m.
 Proof.
   intros. apply beq_nat_eq; auto.
 Qed.
 
-Lemma typEqB_list_typEqB_inv : 
-  (forall t1 t2, typEqB t1 t2 -> t1=t2) /\
-  (forall ts1 ts2, list_typEqB ts1 ts2 -> ts1=ts2).
-Proof.
-apply typ_mutind; intros; simpl.
-  destruct t2; inversion H; subst.
-  apply neq_inv in H1. auto.
-
-  destruct t2; inversion H; subst; auto.
-  destruct t2; inversion H; subst; auto.
-  destruct t2; inversion H; subst; auto.
-
-  destruct t2; inversion H0; subst.
-  apply andb_true_iff in H2.
-  destruct H2.
-  apply neq_inv in H1.
-  apply H in H2. subst. auto.
-
-  destruct t2; inversion H1; subst.
-  apply andb_true_iff in H3.
-  destruct H3.
-  apply H in H2.
-  apply H0 in H3. subst. auto.
-
-  destruct t2; inversion H0; subst.
-  apply H in H2. subst. auto.
-
-  destruct t2; inversion H0; subst.
-  apply H in H2. subst. auto.
-
-  destruct ts2; inversion H; subst. auto.
-
-  destruct ts2; inversion H1; subst. 
-  apply andb_true_iff in H3.
-  destruct H3.
-  apply H in H2.
-  apply H0 in H3. subst. auto.
-Qed.
+Ltac sumbool2bool_inv := intros e1 e2 H; apply sumbool2bool_true in H; auto.
 
 Lemma typEqB_inv : forall t1 t2, typEqB t1 t2 -> t1= t2.
-destruct typEqB_list_typEqB_inv ; auto.
-Qed.
-
+Proof. sumbool2bool_inv. Qed.
+  
 Lemma list_typEqB_inv : forall ts1 ts2, list_typEqB ts1 ts2 -> ts1=ts2.
-destruct typEqB_list_typEqB_inv ; auto.
-Qed.
+Proof. sumbool2bool_inv. Qed.
 
 Lemma idEqB_inv : forall i1 i2, idEqB i1 i2 -> i1 = i2.
-Proof.
-  intros. unfold idEqB in H.
-  destruct (i1==i2); auto.
-    inversion H.
-Qed.
+Proof. sumbool2bool_inv. Qed.
 
-Lemma constEqB_list_constEqB_inv : 
-  (forall c1 c2, constEqB c1 c2 -> c1=c2) /\
-  (forall cs1 cs2, list_constEqB cs1 cs2 -> cs1=cs2).
-Proof.
-apply const_mutind; intros; simpl.
-  destruct c2; inversion H.
-  apply andb_true_iff in H1.
-  destruct H1.
-  apply neq_inv in H0.
-  apply neq_inv in H1. subst. auto.
-
-  destruct c2; inversion H.
-  apply typEqB_inv in H1. subst. auto.
-
-  destruct c2; inversion H.
-  apply typEqB_inv in H1. subst. auto.
-
-  destruct c2; inversion H0.
-  apply H in H2. subst. auto.
-
-  destruct c2; inversion H0.
-  apply H in H2. subst. auto.
-
-  destruct c2; inversion H.
-  apply andb_true_iff in H1.
-  destruct H1.
-  apply typEqB_inv in H0.
-  apply idEqB_inv in H1.
-  subst. auto.
-
-  destruct cs2; inversion H; auto.
-
-  destruct cs2; inversion H1.
-  apply andb_true_iff in H3.
-  destruct H3.
-  apply H in H2.
-  apply H0 in H3. subst. auto.
-Qed.
+Lemma lEqB_inv : forall l1 l2, lEqB l1 l2 -> l1 = l2.
+Proof. sumbool2bool_inv. Qed.
 
 Lemma constEqB_inv : forall c1 c2, constEqB c1 c2 -> c1 = c2.
-destruct constEqB_list_constEqB_inv; auto.
-Qed.
+Proof. sumbool2bool_inv. Qed.
 
 Lemma list_constEqB_inv : forall cs1 cs2, list_constEqB cs1 cs2 -> cs1 = cs2.
-destruct constEqB_list_constEqB_inv; auto.
-Qed.
+Proof. sumbool2bool_inv. Qed.
 
 Lemma valueEqB_inv: forall v1 v2, valueEqB v1 v2 -> v1 = v2.
-Proof.
-  destruct v1.
-    destruct v2; intros.
-      unfold valueEqB in H.
-      apply idEqB_inv in H. subst. auto.
-
-      inversion H.
-    destruct v2; intros.
-      inversion H.
-
-      unfold valueEqB in H.
-      apply constEqB_inv in H. subst. auto.
-Qed.
+Proof. sumbool2bool_inv. Qed.
 
 Lemma bopEqB_inv: forall op1 op2, bopEqB op1 op2 -> op1=op2.
-destruct op1; destruct op2; intros H; inversion H; auto.
-Qed.
+Proof. sumbool2bool_inv. Qed.
 
 Lemma extopEqB_inv: forall op1 op2, extopEqB op1 op2 -> op1=op2.
-destruct op1; destruct op2; intros H; inversion H; auto.
-Qed.
+Proof. sumbool2bool_inv. Qed.
 
 Lemma castopEqB_inv: forall op1 op2, castopEqB op1 op2 -> op1=op2.
-destruct op1; destruct op2; intros H; inversion H; auto.
-Qed.
+Proof. sumbool2bool_inv. Qed.
 
 Lemma condEqB_inv: forall c1 c2, condEqB c1 c2 -> c1=c2.
-destruct c1; destruct c2; intros H; inversion H; auto.
-Qed.
+Proof. sumbool2bool_inv. Qed.
 
 Lemma eqb_inv : forall i1 i2, eqb i1 i2 -> i1=i2.
-destruct i1; destruct i2; intro H; inversion H; auto.
-Qed.
+Proof. destruct i1; destruct i2; auto. Qed.
 
 Lemma list_valueEqB_inv : forall vs1 vs2, list_valueEqB vs1 vs2 -> vs1=vs2.
-induction vs1; destruct vs2; intro H; inversion H; auto.
-  apply andb_true_iff in H1.
-  destruct H1.
-  apply valueEqB_inv in H0.
-  apply IHvs1 in H1. subst. auto.
-Qed.
+Proof. sumbool2bool_inv. Qed.
 
 Lemma paramsEqB_inv : forall p1 p2, paramsEqB p1 p2 -> p1=p2.
-induction p1; destruct p2; intro H; inversion H; auto.
-  destruct a. inversion H1.
-
-  destruct a. destruct p.
-  apply andb_true_iff in H1.
-  destruct H1.
-  apply andb_true_iff in H0.
-  destruct H0.
-  apply IHp1 in H1.
-  apply typEqB_inv in H0.
-  apply valueEqB_inv in H2.
-  subst. auto.
-Qed.
+Proof. sumbool2bool_inv. Qed.
   
 Lemma cmdEqB_inv : forall c1 c2, cmdEqB c1 c2 -> c1 = c2.
-Proof.
-  destruct c1; destruct c2; intro H; unfold cmdEqB in H; try solve [inversion H; auto].
-    apply andb_true_iff in H. destruct H as [H J1].
-    apply andb_true_iff in H. destruct H as [H J2].
-    apply andb_true_iff in H. destruct H as [H J3].
-    apply andb_true_iff in H. destruct H as [H J4].
-    apply idEqB_inv in H. apply bopEqB_inv in J4. apply neq_inv in J3.
-    apply valueEqB_inv in J2. apply valueEqB_inv in J1. subst. auto.
-
-    apply andb_true_iff in H. destruct H as [H J1].
-    apply andb_true_iff in H. destruct H as [H J2].
-    apply andb_true_iff in H. destruct H as [H J3].
-    apply idEqB_inv in H. apply typEqB_inv in J3. apply valueEqB_inv in J2. apply list_constEqB_inv in J1.
-    subst. auto.
-
-    apply andb_true_iff in H. destruct H as [H J1].
-    apply andb_true_iff in H. destruct H as [H J2].
-    apply andb_true_iff in H. destruct H as [H J3].
-    apply andb_true_iff in H. destruct H as [H J4].
-    apply andb_true_iff in H. destruct H as [H J5].
-    apply idEqB_inv in H. apply typEqB_inv in J5. apply valueEqB_inv in J4.
-    apply typEqB_inv in J3. apply valueEqB_inv in J2. apply list_constEqB_inv in J1.
-    subst. auto.
-
-    apply andb_true_iff in H. destruct H as [H J1].
-    apply andb_true_iff in H. destruct H as [H J2].
-    apply andb_true_iff in H. destruct H as [H J3].
-    apply idEqB_inv in H. apply typEqB_inv in J3. apply neq_inv in J2.  apply neq_inv in J1.
-    subst. auto.
-
-    apply andb_true_iff in H. destruct H as [H J1].
-    apply andb_true_iff in H. destruct H as [H J2].
-    apply idEqB_inv in H. apply typEqB_inv in J2. apply valueEqB_inv in J1.
-    subst. auto.
-
-    apply andb_true_iff in H. destruct H as [H J1].
-    apply andb_true_iff in H. destruct H as [H J2].
-    apply andb_true_iff in H. destruct H as [H J3].
-    apply idEqB_inv in H. apply typEqB_inv in J3. apply neq_inv in J2.  apply neq_inv in J1.
-    subst. auto.
-
-    apply andb_true_iff in H. destruct H as [H J1].
-    apply andb_true_iff in H. destruct H as [H J2].
-    apply idEqB_inv in H. apply typEqB_inv in J2. apply valueEqB_inv in J1.
-    subst. auto.
-
-    apply andb_true_iff in H. destruct H as [H J1].
-    apply andb_true_iff in H. destruct H as [H J2].
-    apply andb_true_iff in H. destruct H as [H J3].
-    apply idEqB_inv in H. apply typEqB_inv in J3. apply valueEqB_inv in J2.  apply valueEqB_inv in J1.
-    subst. auto.
-
-    apply andb_true_iff in H. destruct H as [H J1].
-    apply andb_true_iff in H. destruct H as [H J2].
-    apply andb_true_iff in H. destruct H as [H J3].
-    apply andb_true_iff in H. destruct H as [H J4].
-    apply idEqB_inv in H. apply eqb_inv in J4. apply typEqB_inv in J3.
-    apply valueEqB_inv in J2.  apply list_valueEqB_inv in J1.
-    subst. auto.
-
-    apply andb_true_iff in H. destruct H as [H J1].
-    apply andb_true_iff in H. destruct H as [H J2].
-    apply andb_true_iff in H. destruct H as [H J3].
-    apply andb_true_iff in H. destruct H as [H J4].
-    apply idEqB_inv in H. apply extopEqB_inv in J4. apply typEqB_inv in J3.
-    apply valueEqB_inv in J2. apply typEqB_inv in J1.
-    subst. auto.
-
-    apply andb_true_iff in H. destruct H as [H J1].
-    apply andb_true_iff in H. destruct H as [H J2].
-    apply andb_true_iff in H. destruct H as [H J3].
-    apply andb_true_iff in H. destruct H as [H J4].
-    apply idEqB_inv in H. apply castopEqB_inv in J4. apply typEqB_inv in J3.
-    apply valueEqB_inv in J2. apply typEqB_inv in J1.
-    subst. auto.
-
-    apply andb_true_iff in H. destruct H as [H J1].
-    apply andb_true_iff in H. destruct H as [H J2].
-    apply andb_true_iff in H. destruct H as [H J3].
-    apply andb_true_iff in H. destruct H as [H J4].
-    apply idEqB_inv in H. apply condEqB_inv in J4. apply typEqB_inv in J3.
-    apply valueEqB_inv in J2. apply valueEqB_inv in J1.
-    subst. auto.
-
-    apply andb_true_iff in H. destruct H as [H J1].
-    apply andb_true_iff in H. destruct H as [H J2].
-    apply andb_true_iff in H. destruct H as [H J3].
-    apply andb_true_iff in H. destruct H as [H J4].
-    apply idEqB_inv in H. apply valueEqB_inv in J4. apply typEqB_inv in J3.
-    apply valueEqB_inv in J2. apply valueEqB_inv in J1.
-    subst. auto.
-
-    apply andb_true_iff in H. destruct H as [H J1].
-    apply andb_true_iff in H. destruct H as [H J2].
-    apply andb_true_iff in H. destruct H as [H J3].
-    apply andb_true_iff in H. destruct H as [H J4].
-    apply andb_true_iff in H. destruct H as [H J5].
-    apply idEqB_inv in H. apply eqb_inv in J5. apply eqb_inv in J4. apply typEqB_inv in J3.
-    apply idEqB_inv in J2. apply paramsEqB_inv in J1.
-    subst. auto.
-Qed.
+Proof. sumbool2bool_inv. Qed.
 
 Lemma terminatorEqB_inv : forall tmn1 tmn2, terminatorEqB tmn1 tmn2 -> tmn1=tmn2.
-Proof.
-  destruct tmn1; destruct tmn2; intro H; unfold terminatorEqB in H; try solve [inversion H; auto].
-    apply andb_true_iff in H. destruct H as [H J1].
-    apply andb_true_iff in H. destruct H as [H J2].
-    apply idEqB_inv in H. apply typEqB_inv in J2.
-    apply valueEqB_inv in J1.
-    subst. auto.
-
-    apply idEqB_inv in H. subst. auto.
-
-    apply andb_true_iff in H. destruct H as [H J1].
-    apply andb_true_iff in H. destruct H as [H J2].
-    apply andb_true_iff in H. destruct H as [H J3].
-    apply idEqB_inv in H. apply valueEqB_inv in J3. apply idEqB_inv in J2.  apply idEqB_inv in J1.
-    subst. auto.
-
-    apply andb_true_iff in H. destruct H as [H J1].
-    apply idEqB_inv in H.  apply idEqB_inv in J1.
-    subst. auto.
-
-    apply idEqB_inv in H.
-    subst. auto.
-Qed.
+Proof. sumbool2bool_inv. Qed.
 
 Lemma list_id_lEqB_inv : forall l1 l2, list_id_lEqB l1 l2 -> l1=l2.
-induction l1; destruct l2; intro H; inversion H; auto.
-  apply andb_true_iff in H1. destruct H1 as [H1 J1].
-  apply andb_true_iff in H1. destruct H1 as [H1 J2].
-  apply IHl1 in J1.
-  apply idEqB_inv in H1.  apply idEqB_inv in J2. subst. auto.
-Qed.
+Proof. sumbool2bool_inv. Qed.
 
 Lemma phinodeEqB_inv : forall p1 p2, phinodeEqB p1 p2 -> p1=p2.
-Proof.
-  destruct p1; destruct p2; intro H; inversion H.
-  apply andb_true_iff in H. destruct H as [H J1].
-  apply andb_true_iff in H. destruct H as [H J2].
-  apply idEqB_inv in H. apply typEqB_inv in J2. apply list_id_lEqB_inv in J1.
-  subst. auto.
-Qed.
+Proof. sumbool2bool_inv. Qed.
   
 Lemma phinodesEqB_inv : forall ps1 ps2, phinodesEqB ps1 ps2 -> ps1=ps2.
-induction ps1; destruct ps2; intro H; inversion H; auto.
-  apply andb_true_iff in H1. destruct H1 as [H1 J1].
-  apply IHps1 in J1.
-  apply phinodeEqB_inv in H1. subst. auto.
-Qed.
+Proof. sumbool2bool_inv. Qed.
 
 Lemma cmdsEqB_inv : forall cs1 cs2, cmdsEqB cs1 cs2 -> cs1=cs2.
-induction cs1; destruct cs2; intro H; inversion H; auto.
-  apply andb_true_iff in H1. destruct H1 as [H1 J1].
-  apply IHcs1 in J1.
-  apply cmdEqB_inv in H1. subst. auto.
-Qed.
+Proof. sumbool2bool_inv. Qed.
 
 Lemma blockEqB_inv : forall B1 B2,
   blockEqB B1 B2 -> B1 = B2.
-Proof.
-  destruct B1; destruct B2; intro H.
-  apply andb_true_iff in H. destruct H as [H J1].
-  apply andb_true_iff in H. destruct H as [H J2].
-  apply andb_true_iff in H. destruct H as [H J3].
-  apply idEqB_inv in H.
-  apply phinodesEqB_inv in J3.
-  apply cmdsEqB_inv in J2.
-  apply terminatorEqB_inv in J1.   
-  subst. auto.
-Qed.
+Proof. sumbool2bool_inv. Qed.
      
 Lemma blocksEqB_inv : forall bs1 bs2, blocksEqB bs1 bs2 -> bs1=bs2.
-induction bs1; destruct bs2; intro H; inversion H; auto.
-  apply andb_true_iff in H1. destruct H1 as [H1 J1].
-  apply IHbs1 in J1.
-  apply blockEqB_inv in H1. subst. auto.
-Qed.
+Proof. sumbool2bool_inv. Qed.
 
 Lemma argsEqB_inv : forall as1 as2, argsEqB as1 as2 -> as1=as2.
-induction as1; destruct as2; intro H; try solve [inversion H; auto].
-  destruct a. inversion H.
-
-  destruct a. destruct p. simpl in H.
-  apply andb_true_iff in H. destruct H as [H J1].
-  apply andb_true_iff in H. destruct H as [H J2].
-  apply typEqB_inv in H.
-  apply idEqB_inv in J2. 
-  apply IHas1 in J1. subst. auto.
-Qed.
+Proof. sumbool2bool_inv. Qed.
 
 Lemma fheaderEqB_inv : forall f1 f2, fheaderEqB f1 f2 -> f1=f2.
-destruct f1; destruct f2; intro H.
-  apply andb_true_iff in H. destruct H as [H J1].
-  apply andb_true_iff in H. destruct H as [H J2].
-  apply typEqB_inv in H.
-  apply idEqB_inv in J2.
-  apply argsEqB_inv in J1.
-  subst. auto.
-Qed.
+Proof. sumbool2bool_inv. Qed.
     
 Lemma fdecEqB_inv : forall f1 f2, fdecEqB f1 f2 -> f1=f2.
-unfold fdecEqB.
-destruct f1. destruct f2. intro. 
-  apply fheaderEqB_inv in H; subst; auto.
-Qed.
+Proof. sumbool2bool_inv. Qed.
 
 Lemma fdefEqB_inv : forall f1 f2, fdefEqB f1 f2 -> f1=f2.
-unfold fdefEqB.
-destruct f1. destruct f2. intro. 
-  apply andb_true_iff in H. destruct H as [H J1].
-  apply fheaderEqB_inv in H.
-  apply blocksEqB_inv in J1.
-  subst. auto.
-Qed.
+Proof. sumbool2bool_inv. Qed.
 
 Lemma gvarEqB_inv : forall g1 g2, gvarEqB g1 g2 -> g1=g2.
-unfold gvarEqB.
-destruct g1. destruct g2. intro. 
-  apply andb_true_iff in H. destruct H as [H J1].
-  apply andb_true_iff in H. destruct H as [H J2].
-  apply andb_true_iff in H. destruct H as [H J3].
-  apply idEqB_inv in H.
-  apply typEqB_inv in J3.
-  apply constEqB_inv in J2.
-  apply neq_inv in J1.
-  subst. auto.
-Qed.
+Proof. sumbool2bool_inv. Qed.
 
 Lemma productEqB_inv : forall p1 p2,
   productEqB p1 p2 -> p1 = p2.
-destruct p1; destruct p2; intro H; inversion H.
-  apply gvarEqB_inv in H1; subst; auto.
-  apply fdecEqB_inv in H1; subst; auto.
-  apply fdefEqB_inv in H1; subst; auto.
-Qed.
+Proof. sumbool2bool_inv. Qed.
 
 Lemma productsEqB_inv : forall ps1 ps2, productsEqB ps1 ps2 -> ps1=ps2.
-induction ps1; destruct ps2; intro H; inversion H; auto.
-  apply andb_true_iff in H1. destruct H1 as [H1 J1].
-  apply IHps1 in J1.
-  apply productEqB_inv in H1. subst. auto.
-Qed.
+Proof. sumbool2bool_inv. Qed.
 
 Lemma layoutEqB_inv : forall a1 a2, layoutEqB a1 a2 -> a1=a2.
-destruct a1; destruct a2; intro H; inversion H; auto.
-  apply andb_true_iff in H1. destruct H1 as [H1 J1].
-  apply andb_true_iff in H1. destruct H1 as [H1 J2].
-  apply neq_inv in J1.
-  apply neq_inv in J2.
-  apply neq_inv in H1.
-  subst. auto.
-  
-  apply andb_true_iff in H1. destruct H1 as [H1 J1].
-  apply andb_true_iff in H1. destruct H1 as [H1 J2].
-  apply neq_inv in J1.
-  apply neq_inv in J2.
-  apply neq_inv in H1.
-  subst. auto.
-
-  apply andb_true_iff in H1. destruct H1 as [H1 J1].
-  apply andb_true_iff in H1. destruct H1 as [H1 J2].
-  apply neq_inv in J1.
-  apply neq_inv in J2.
-  apply neq_inv in H1.
-  subst. auto.
-
-  apply andb_true_iff in H1. destruct H1 as [H1 J1].
-  apply andb_true_iff in H1. destruct H1 as [H1 J2].
-  apply neq_inv in J1.
-  apply neq_inv in J2.
-  apply neq_inv in H1.
-  subst. auto.
-Qed.  
+Proof. sumbool2bool_inv. Qed.
 
 Lemma layoutsEqB_inv : forall as1 as2, layoutsEqB as1 as2 -> as1=as2.
-induction as1; destruct as2; intro H; inversion H; auto.
-  apply andb_true_iff in H1. destruct H1 as [H1 J1].
-  apply IHas1 in J1.
-  apply layoutEqB_inv in H1. subst. auto.
-Qed.
+Proof. sumbool2bool_inv. Qed.
 
 Lemma moduleEqB_inv : forall M M',
   moduleEqB M M' ->
   M = M'.
-Proof.
-  destruct M; destruct M'; intro H.
-  apply andb_true_iff in H. destruct H as [H J1].
-  apply productsEqB_inv in H.
-  apply layoutsEqB_inv in J1.
-  subst. auto.
-Qed.
+Proof. sumbool2bool_inv. Qed.
+
+Lemma modulesEqB_inv : forall Ms Ms',
+  modulesEqB Ms Ms' ->
+  Ms = Ms'.
+Proof. sumbool2bool_inv. Qed.
+
+Lemma systemEqB_inv : forall S S',
+  systemEqB S S' ->
+  S = S'.
+Proof. sumbool2bool_inv. Qed.
 
 (* nth_err *)
 
@@ -1037,16 +516,15 @@ Proof.
 
     simpl in *.
     unfold lookupFdefViaIDFromProduct in H.
+    apply orb_true_intro.
     destruct a.
       apply IHPs in H. auto.
       apply IHPs in H. auto.
       destruct (getFdefID f==fid); subst.
         inversion H; subst.
-        apply orb_true_intro.
         left. apply productEqB_refl.
 
-        apply IHPs in H. 
-        apply orb_true_intro. auto.
+        apply IHPs in H. auto. 
 Qed.
 
 Lemma entryBlockInFdef : forall F B,
@@ -1115,7 +593,11 @@ Proof.
       unfold lEqB in HeqJ.
       destruct (l0==l1); subst.
         contradict H; auto.
-        inversion HeqJ.
+
+        symmetry in HeqJ.
+        apply sumbool2bool_true in HeqJ.
+        inversion HeqJ; subst.
+        contradict n; auto.
 
       intro J.
       apply H.
@@ -1365,10 +847,9 @@ Proof.
     inversion H0.
     apply orb_prop in H3.
     destruct H3; eauto.
-      apply andb_true_iff in H2.
-      destruct H2.
-      apply productsEqB_inv in H2. subst.
-      simpl in H. destruct H;  auto.
+      apply sumbool2bool_true in H2.
+      inversion H2;  subst.
+      inversion H; auto.
 Qed.
 
 Lemma lookupFdefViaIDFromProducts_uniq : forall TD Ps S fid F,

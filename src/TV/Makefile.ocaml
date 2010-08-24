@@ -1,7 +1,17 @@
-all:
-	ocamlbuild symexe.cma
+OUTPUT_TYPE := cma
+LLVM_LIB := /home/jianzhou/Tools/llvm-2.6/lib/
+LLVM_OCAML_LIB := $(LLVM_LIB)/ocaml/
 
+all: symexe
+
+symexe: symexe.ml symexe.mli
+	ocamlbuild -j 2 -cflags -I,$(LLVM_OCAML_LIB) -lflags -I,$(LLVM_OCAML_LIB),-cclib,-L$(LLVM_LIB) symexe.$(OUTPUT_TYPE)
+
+.PHONY: wc
+wc:
+	wc symexe.ml
+
+.PHONY: clean
 clean:
 	ocamlbuild -clean
-
 

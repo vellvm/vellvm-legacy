@@ -1,8 +1,9 @@
 type __ = Obj.t
 
-type bool =
-  | True
-  | False
+type unit0 =
+  | Tt
+
+val negb : bool -> bool
 
 type nat =
   | O
@@ -12,25 +13,431 @@ type 'a option =
   | Some of 'a
   | None
 
+type ('a, 'b) sum =
+  | Inl of 'a
+  | Inr of 'b
+
 type ('a, 'b) prod =
   | Pair of 'a * 'b
+
+val fst : ('a1, 'a2) prod -> 'a1
+
+val snd : ('a1, 'a2) prod -> 'a2
 
 type 'a sig0 = 'a
   (* singleton inductive, whose constructor was exist *)
 
-type sumbool =
-  | Left
-  | Right
+type 'a exc = 'a option
 
-val eq_nat_dec : nat -> nat -> sumbool
+val value : 'a1 -> 'a1 option
+
+val error : 'a1 option
+
+val plus : nat -> nat -> nat
+
+val eq_nat_dec : nat -> nat -> bool
 
 val max : nat -> nat -> nat
 
-val bool_dec : bool -> bool -> sumbool
+val bool_dec : bool -> bool -> bool
 
 type 'a list =
   | Nil
   | Cons of 'a * 'a list
+
+val length : 'a1 list -> nat
+
+val app : 'a1 list -> 'a1 list -> 'a1 list
+
+val in_dec : ('a1 -> 'a1 -> bool) -> 'a1 -> 'a1 list -> bool
+
+val nth_error : 'a1 list -> nat -> 'a1 exc
+
+val rev : 'a1 list -> 'a1 list
+
+val map : ('a1 -> 'a2) -> 'a1 list -> 'a2 list
+
+val fold_left : ('a1 -> 'a2 -> 'a1) -> 'a2 list -> 'a1 -> 'a1
+
+val fold_right : ('a2 -> 'a1 -> 'a1) -> 'a1 -> 'a2 list -> 'a1
+
+type 'a set = 'a list
+
+val empty_set : 'a1 set
+
+val set_add : ('a1 -> 'a1 -> bool) -> 'a1 -> 'a1 set -> 'a1 set
+
+val set_mem : ('a1 -> 'a1 -> bool) -> 'a1 -> 'a1 set -> bool
+
+val set_inter : ('a1 -> 'a1 -> bool) -> 'a1 set -> 'a1 set -> 'a1 set
+
+val set_union : ('a1 -> 'a1 -> bool) -> 'a1 set -> 'a1 set -> 'a1 set
+
+module type DecidableType = 
+ sig 
+  type t 
+  
+  val eq_dec : t -> t -> bool
+ end
+
+module type UsualDecidableType = 
+ sig 
+  type t 
+  
+  val eq_dec : t -> t -> bool
+ end
+
+module WFacts_fun : 
+ functor (E:DecidableType) ->
+ functor (M:sig 
+  type elt = E.t
+  
+  type t 
+  
+  val empty : t
+  
+  val is_empty : t -> bool
+  
+  val mem : elt -> t -> bool
+  
+  val add : elt -> t -> t
+  
+  val singleton : elt -> t
+  
+  val remove : elt -> t -> t
+  
+  val union : t -> t -> t
+  
+  val inter : t -> t -> t
+  
+  val diff : t -> t -> t
+  
+  val eq_dec : t -> t -> bool
+  
+  val equal : t -> t -> bool
+  
+  val subset : t -> t -> bool
+  
+  val fold : (elt -> 'a1 -> 'a1) -> t -> 'a1 -> 'a1
+  
+  val for_all : (elt -> bool) -> t -> bool
+  
+  val exists_ : (elt -> bool) -> t -> bool
+  
+  val filter : (elt -> bool) -> t -> t
+  
+  val partition : (elt -> bool) -> t -> (t, t) prod
+  
+  val cardinal : t -> nat
+  
+  val elements : t -> elt list
+  
+  val choose : t -> elt option
+ end) ->
+ sig 
+  val eqb : E.t -> E.t -> bool
+ end
+
+module WDecide_fun : 
+ functor (E:DecidableType) ->
+ functor (M:sig 
+  type elt = E.t
+  
+  type t 
+  
+  val empty : t
+  
+  val is_empty : t -> bool
+  
+  val mem : elt -> t -> bool
+  
+  val add : elt -> t -> t
+  
+  val singleton : elt -> t
+  
+  val remove : elt -> t -> t
+  
+  val union : t -> t -> t
+  
+  val inter : t -> t -> t
+  
+  val diff : t -> t -> t
+  
+  val eq_dec : t -> t -> bool
+  
+  val equal : t -> t -> bool
+  
+  val subset : t -> t -> bool
+  
+  val fold : (elt -> 'a1 -> 'a1) -> t -> 'a1 -> 'a1
+  
+  val for_all : (elt -> bool) -> t -> bool
+  
+  val exists_ : (elt -> bool) -> t -> bool
+  
+  val filter : (elt -> bool) -> t -> t
+  
+  val partition : (elt -> bool) -> t -> (t, t) prod
+  
+  val cardinal : t -> nat
+  
+  val elements : t -> elt list
+  
+  val choose : t -> elt option
+ end) ->
+ sig 
+  module F : 
+   sig 
+    val eqb : E.t -> E.t -> bool
+   end
+  
+  module FSetLogicalFacts : 
+   sig 
+    
+   end
+  
+  module FSetDecideAuxiliary : 
+   sig 
+    
+   end
+  
+  module FSetDecideTestCases : 
+   sig 
+    
+   end
+ end
+
+module WProperties_fun : 
+ functor (E:DecidableType) ->
+ functor (M:sig 
+  type elt = E.t
+  
+  type t 
+  
+  val empty : t
+  
+  val is_empty : t -> bool
+  
+  val mem : elt -> t -> bool
+  
+  val add : elt -> t -> t
+  
+  val singleton : elt -> t
+  
+  val remove : elt -> t -> t
+  
+  val union : t -> t -> t
+  
+  val inter : t -> t -> t
+  
+  val diff : t -> t -> t
+  
+  val eq_dec : t -> t -> bool
+  
+  val equal : t -> t -> bool
+  
+  val subset : t -> t -> bool
+  
+  val fold : (elt -> 'a1 -> 'a1) -> t -> 'a1 -> 'a1
+  
+  val for_all : (elt -> bool) -> t -> bool
+  
+  val exists_ : (elt -> bool) -> t -> bool
+  
+  val filter : (elt -> bool) -> t -> t
+  
+  val partition : (elt -> bool) -> t -> (t, t) prod
+  
+  val cardinal : t -> nat
+  
+  val elements : t -> elt list
+  
+  val choose : t -> elt option
+ end) ->
+ sig 
+  module Dec : 
+   sig 
+    module F : 
+     sig 
+      val eqb : E.t -> E.t -> bool
+     end
+    
+    module FSetLogicalFacts : 
+     sig 
+      
+     end
+    
+    module FSetDecideAuxiliary : 
+     sig 
+      
+     end
+    
+    module FSetDecideTestCases : 
+     sig 
+      
+     end
+   end
+  
+  module FM : 
+   sig 
+    val eqb : E.t -> E.t -> bool
+   end
+  
+  val coq_In_dec : M.elt -> M.t -> bool
+  
+  val of_list : M.elt list -> M.t
+  
+  val to_list : M.t -> M.elt list
+  
+  val fold_rec :
+    (M.elt -> 'a1 -> 'a1) -> 'a1 -> M.t -> (M.t -> __ -> 'a2) -> (M.elt ->
+    'a1 -> M.t -> M.t -> __ -> __ -> __ -> 'a2 -> 'a2) -> 'a2
+  
+  val fold_rec_bis :
+    (M.elt -> 'a1 -> 'a1) -> 'a1 -> M.t -> (M.t -> M.t -> 'a1 -> __ -> 'a2 ->
+    'a2) -> 'a2 -> (M.elt -> 'a1 -> M.t -> __ -> __ -> 'a2 -> 'a2) -> 'a2
+  
+  val fold_rec_nodep :
+    (M.elt -> 'a1 -> 'a1) -> 'a1 -> M.t -> 'a2 -> (M.elt -> 'a1 -> __ -> 'a2
+    -> 'a2) -> 'a2
+  
+  val fold_rec_weak :
+    (M.elt -> 'a1 -> 'a1) -> 'a1 -> (M.t -> M.t -> 'a1 -> __ -> 'a2 -> 'a2)
+    -> 'a2 -> (M.elt -> 'a1 -> M.t -> __ -> 'a2 -> 'a2) -> M.t -> 'a2
+  
+  val fold_rel :
+    (M.elt -> 'a1 -> 'a1) -> (M.elt -> 'a2 -> 'a2) -> 'a1 -> 'a2 -> M.t ->
+    'a3 -> (M.elt -> 'a1 -> 'a2 -> __ -> 'a3 -> 'a3) -> 'a3
+  
+  val set_induction :
+    (M.t -> __ -> 'a1) -> (M.t -> M.t -> 'a1 -> M.elt -> __ -> __ -> 'a1) ->
+    M.t -> 'a1
+  
+  val set_induction_bis :
+    (M.t -> M.t -> __ -> 'a1 -> 'a1) -> 'a1 -> (M.elt -> M.t -> __ -> 'a1 ->
+    'a1) -> M.t -> 'a1
+  
+  val cardinal_inv_2 : M.t -> nat -> M.elt
+  
+  val cardinal_inv_2b : M.t -> M.elt
+ end
+
+module Raw : 
+ functor (X:DecidableType) ->
+ sig 
+  type elt = X.t
+  
+  type t = elt list
+  
+  val empty : t
+  
+  val is_empty : t -> bool
+  
+  val mem : elt -> t -> bool
+  
+  val add : elt -> t -> t
+  
+  val singleton : elt -> t
+  
+  val remove : elt -> t -> t
+  
+  val fold : (elt -> 'a1 -> 'a1) -> t -> 'a1 -> 'a1
+  
+  val union : t -> t -> t
+  
+  val diff : t -> t -> t
+  
+  val inter : t -> t -> t
+  
+  val subset : t -> t -> bool
+  
+  val equal : t -> t -> bool
+  
+  val filter : (elt -> bool) -> t -> t
+  
+  val for_all : (elt -> bool) -> t -> bool
+  
+  val exists_ : (elt -> bool) -> t -> bool
+  
+  val partition : (elt -> bool) -> t -> (t, t) prod
+  
+  val cardinal : t -> nat
+  
+  val elements : t -> elt list
+  
+  val choose : t -> elt option
+  
+  val eq_dec : t -> t -> bool
+ end
+
+module Coq_WDecide_fun : 
+ functor (E:DecidableType) ->
+ functor (M:sig 
+  type elt = E.t
+  
+  type t 
+  
+  val empty : t
+  
+  val is_empty : t -> bool
+  
+  val mem : elt -> t -> bool
+  
+  val add : elt -> t -> t
+  
+  val singleton : elt -> t
+  
+  val remove : elt -> t -> t
+  
+  val union : t -> t -> t
+  
+  val inter : t -> t -> t
+  
+  val diff : t -> t -> t
+  
+  val eq_dec : t -> t -> bool
+  
+  val equal : t -> t -> bool
+  
+  val subset : t -> t -> bool
+  
+  val fold : (elt -> 'a1 -> 'a1) -> t -> 'a1 -> 'a1
+  
+  val for_all : (elt -> bool) -> t -> bool
+  
+  val exists_ : (elt -> bool) -> t -> bool
+  
+  val filter : (elt -> bool) -> t -> t
+  
+  val partition : (elt -> bool) -> t -> (t, t) prod
+  
+  val cardinal : t -> nat
+  
+  val elements : t -> elt list
+  
+  val choose : t -> elt option
+ end) ->
+ sig 
+  module F : 
+   sig 
+    val eqb : E.t -> E.t -> bool
+   end
+  
+  module FSetLogicalFacts : 
+   sig 
+    
+   end
+  
+  module FSetDecideAuxiliary : 
+   sig 
+    
+   end
+  
+  module FSetDecideTestCases : 
+   sig 
+    
+   end
+ end
 
 type ascii =
   | Ascii of bool * bool * bool * bool * bool * bool * bool * bool
@@ -39,15 +446,294 @@ type string =
   | EmptyString
   | String of ascii * string
 
-type 'a eqDec = 'a -> 'a -> sumbool
+module Make : 
+ functor (X:UsualDecidableType) ->
+ functor (KeySet:sig 
+  type elt = X.t
+  
+  type t 
+  
+  val empty : t
+  
+  val is_empty : t -> bool
+  
+  val mem : elt -> t -> bool
+  
+  val add : elt -> t -> t
+  
+  val singleton : elt -> t
+  
+  val remove : elt -> t -> t
+  
+  val union : t -> t -> t
+  
+  val inter : t -> t -> t
+  
+  val diff : t -> t -> t
+  
+  val eq_dec : t -> t -> bool
+  
+  val equal : t -> t -> bool
+  
+  val subset : t -> t -> bool
+  
+  val fold : (elt -> 'a1 -> 'a1) -> t -> 'a1 -> 'a1
+  
+  val for_all : (elt -> bool) -> t -> bool
+  
+  val exists_ : (elt -> bool) -> t -> bool
+  
+  val filter : (elt -> bool) -> t -> t
+  
+  val partition : (elt -> bool) -> t -> (t, t) prod
+  
+  val cardinal : t -> nat
+  
+  val elements : t -> elt list
+  
+  val choose : t -> elt option
+ end) ->
+ sig 
+  module D : 
+   sig 
+    module F : 
+     sig 
+      val eqb : X.t -> X.t -> bool
+     end
+    
+    module FSetLogicalFacts : 
+     sig 
+      
+     end
+    
+    module FSetDecideAuxiliary : 
+     sig 
+      
+     end
+    
+    module FSetDecideTestCases : 
+     sig 
+      
+     end
+   end
+  
+  module KeySetProperties : 
+   sig 
+    module Dec : 
+     sig 
+      module F : 
+       sig 
+        val eqb : X.t -> X.t -> bool
+       end
+      
+      module FSetLogicalFacts : 
+       sig 
+        
+       end
+      
+      module FSetDecideAuxiliary : 
+       sig 
+        
+       end
+      
+      module FSetDecideTestCases : 
+       sig 
+        
+       end
+     end
+    
+    module FM : 
+     sig 
+      val eqb : X.t -> X.t -> bool
+     end
+    
+    val coq_In_dec : KeySet.elt -> KeySet.t -> bool
+    
+    val of_list : KeySet.elt list -> KeySet.t
+    
+    val to_list : KeySet.t -> KeySet.elt list
+    
+    val fold_rec :
+      (KeySet.elt -> 'a1 -> 'a1) -> 'a1 -> KeySet.t -> (KeySet.t -> __ ->
+      'a2) -> (KeySet.elt -> 'a1 -> KeySet.t -> KeySet.t -> __ -> __ -> __ ->
+      'a2 -> 'a2) -> 'a2
+    
+    val fold_rec_bis :
+      (KeySet.elt -> 'a1 -> 'a1) -> 'a1 -> KeySet.t -> (KeySet.t -> KeySet.t
+      -> 'a1 -> __ -> 'a2 -> 'a2) -> 'a2 -> (KeySet.elt -> 'a1 -> KeySet.t ->
+      __ -> __ -> 'a2 -> 'a2) -> 'a2
+    
+    val fold_rec_nodep :
+      (KeySet.elt -> 'a1 -> 'a1) -> 'a1 -> KeySet.t -> 'a2 -> (KeySet.elt ->
+      'a1 -> __ -> 'a2 -> 'a2) -> 'a2
+    
+    val fold_rec_weak :
+      (KeySet.elt -> 'a1 -> 'a1) -> 'a1 -> (KeySet.t -> KeySet.t -> 'a1 -> __
+      -> 'a2 -> 'a2) -> 'a2 -> (KeySet.elt -> 'a1 -> KeySet.t -> __ -> 'a2 ->
+      'a2) -> KeySet.t -> 'a2
+    
+    val fold_rel :
+      (KeySet.elt -> 'a1 -> 'a1) -> (KeySet.elt -> 'a2 -> 'a2) -> 'a1 -> 'a2
+      -> KeySet.t -> 'a3 -> (KeySet.elt -> 'a1 -> 'a2 -> __ -> 'a3 -> 'a3) ->
+      'a3
+    
+    val set_induction :
+      (KeySet.t -> __ -> 'a1) -> (KeySet.t -> KeySet.t -> 'a1 -> KeySet.elt
+      -> __ -> __ -> 'a1) -> KeySet.t -> 'a1
+    
+    val set_induction_bis :
+      (KeySet.t -> KeySet.t -> __ -> 'a1 -> 'a1) -> 'a1 -> (KeySet.elt ->
+      KeySet.t -> __ -> 'a1 -> 'a1) -> KeySet.t -> 'a1
+    
+    val cardinal_inv_2 : KeySet.t -> nat -> KeySet.elt
+    
+    val cardinal_inv_2b : KeySet.t -> KeySet.elt
+   end
+  
+  module KeySetFacts : 
+   sig 
+    val eqb : X.t -> X.t -> bool
+   end
+  
+  val one : 'a1 -> 'a1 list
+  
+  val dom : (X.t, 'a1) prod list -> KeySet.t
+  
+  val get : X.t -> (X.t, 'a1) prod list -> 'a1 option
+  
+  val map : ('a1 -> 'a2) -> (X.t, 'a1) prod list -> (X.t, 'a2) prod list
+  
+  val alist_ind :
+    'a2 -> (X.t -> 'a1 -> (X.t, 'a1) prod list -> 'a2 -> 'a2) -> (X.t, 'a1)
+    prod list -> 'a2
+  
+  val binds_dec :
+    X.t -> 'a1 -> (X.t, 'a1) prod list -> ('a1 -> 'a1 -> bool) -> bool
+  
+  val binds_lookup : X.t -> (X.t, 'a1) prod list -> ('a1, __) sum
+ end
 
-type 'a eqDec_eq = 'a -> 'a -> sumbool
+type 'a eqDec = 'a -> 'a -> bool
+
+type 'a eqDec_eq = 'a -> 'a -> bool
+
+module Coq_Make : 
+ functor (X:DecidableType) ->
+ sig 
+  module Raw : 
+   sig 
+    type elt = X.t
+    
+    type t = elt list
+    
+    val empty : t
+    
+    val is_empty : t -> bool
+    
+    val mem : elt -> t -> bool
+    
+    val add : elt -> t -> t
+    
+    val singleton : elt -> t
+    
+    val remove : elt -> t -> t
+    
+    val fold : (elt -> 'a1 -> 'a1) -> t -> 'a1 -> 'a1
+    
+    val union : t -> t -> t
+    
+    val diff : t -> t -> t
+    
+    val inter : t -> t -> t
+    
+    val subset : t -> t -> bool
+    
+    val equal : t -> t -> bool
+    
+    val filter : (elt -> bool) -> t -> t
+    
+    val for_all : (elt -> bool) -> t -> bool
+    
+    val exists_ : (elt -> bool) -> t -> bool
+    
+    val partition : (elt -> bool) -> t -> (t, t) prod
+    
+    val cardinal : t -> nat
+    
+    val elements : t -> elt list
+    
+    val choose : t -> elt option
+    
+    val eq_dec : t -> t -> bool
+   end
+  
+  module E : 
+   sig 
+    type t = X.t
+    
+    val eq_dec : t -> t -> bool
+   end
+  
+  type slist =
+    Raw.t
+    (* singleton inductive, whose constructor was Build_slist *)
+  
+  val slist_rect : (Raw.t -> __ -> 'a1) -> slist -> 'a1
+  
+  val slist_rec : (Raw.t -> __ -> 'a1) -> slist -> 'a1
+  
+  val this : slist -> Raw.t
+  
+  type t = slist
+  
+  type elt = X.t
+  
+  val mem : elt -> t -> bool
+  
+  val add : elt -> t -> t
+  
+  val remove : elt -> t -> t
+  
+  val singleton : elt -> t
+  
+  val union : t -> t -> t
+  
+  val inter : t -> t -> t
+  
+  val diff : t -> t -> t
+  
+  val equal : t -> t -> bool
+  
+  val subset : t -> t -> bool
+  
+  val empty : t
+  
+  val is_empty : t -> bool
+  
+  val elements : t -> elt list
+  
+  val choose : t -> elt option
+  
+  val fold : (elt -> 'a1 -> 'a1) -> t -> 'a1 -> 'a1
+  
+  val cardinal : t -> nat
+  
+  val filter : (elt -> bool) -> t -> t
+  
+  val for_all : (elt -> bool) -> t -> bool
+  
+  val exists_ : (elt -> bool) -> t -> bool
+  
+  val partition : (elt -> bool) -> t -> (t, t) prod
+  
+  val eq_dec : t -> t -> bool
+ end
 
 module type ATOM = 
  sig 
   type atom 
   
-  val eq_atom_dec : atom -> atom -> sumbool
+  val eq_atom_dec : atom -> atom -> bool
   
   val atom_fresh_for_list : atom list -> atom
  end
@@ -55,7 +741,188 @@ module type ATOM =
 module AtomImpl : 
  ATOM
 
+module AtomDT : 
+ sig 
+  type t = AtomImpl.atom
+  
+  val eq_dec : AtomImpl.atom -> AtomImpl.atom -> bool
+ end
+
 val eqDec_atom : AtomImpl.atom eqDec
+
+module AtomSetImpl : 
+ sig 
+  type elt = AtomImpl.atom
+  
+  type t 
+  
+  val empty : t
+  
+  val is_empty : t -> bool
+  
+  val mem : AtomImpl.atom -> t -> bool
+  
+  val add : AtomImpl.atom -> t -> t
+  
+  val singleton : AtomImpl.atom -> t
+  
+  val remove : AtomImpl.atom -> t -> t
+  
+  val union : t -> t -> t
+  
+  val inter : t -> t -> t
+  
+  val diff : t -> t -> t
+  
+  val eq_dec : t -> t -> bool
+  
+  val equal : t -> t -> bool
+  
+  val subset : t -> t -> bool
+  
+  val fold : (AtomImpl.atom -> 'a1 -> 'a1) -> t -> 'a1 -> 'a1
+  
+  val for_all : (AtomImpl.atom -> bool) -> t -> bool
+  
+  val exists_ : (AtomImpl.atom -> bool) -> t -> bool
+  
+  val filter : (AtomImpl.atom -> bool) -> t -> t
+  
+  val partition : (AtomImpl.atom -> bool) -> t -> (t, t) prod
+  
+  val cardinal : t -> nat
+  
+  val elements : t -> AtomImpl.atom list
+  
+  val choose : t -> AtomImpl.atom option
+ end
+
+module EnvImpl : 
+ sig 
+  module D : 
+   sig 
+    module F : 
+     sig 
+      val eqb : AtomImpl.atom -> AtomImpl.atom -> bool
+     end
+    
+    module FSetLogicalFacts : 
+     sig 
+      
+     end
+    
+    module FSetDecideAuxiliary : 
+     sig 
+      
+     end
+    
+    module FSetDecideTestCases : 
+     sig 
+      
+     end
+   end
+  
+  module KeySetProperties : 
+   sig 
+    module Dec : 
+     sig 
+      module F : 
+       sig 
+        val eqb : AtomImpl.atom -> AtomImpl.atom -> bool
+       end
+      
+      module FSetLogicalFacts : 
+       sig 
+        
+       end
+      
+      module FSetDecideAuxiliary : 
+       sig 
+        
+       end
+      
+      module FSetDecideTestCases : 
+       sig 
+        
+       end
+     end
+    
+    module FM : 
+     sig 
+      val eqb : AtomImpl.atom -> AtomImpl.atom -> bool
+     end
+    
+    val coq_In_dec : AtomSetImpl.elt -> AtomSetImpl.t -> bool
+    
+    val of_list : AtomSetImpl.elt list -> AtomSetImpl.t
+    
+    val to_list : AtomSetImpl.t -> AtomSetImpl.elt list
+    
+    val fold_rec :
+      (AtomSetImpl.elt -> 'a1 -> 'a1) -> 'a1 -> AtomSetImpl.t ->
+      (AtomSetImpl.t -> __ -> 'a2) -> (AtomSetImpl.elt -> 'a1 ->
+      AtomSetImpl.t -> AtomSetImpl.t -> __ -> __ -> __ -> 'a2 -> 'a2) -> 'a2
+    
+    val fold_rec_bis :
+      (AtomSetImpl.elt -> 'a1 -> 'a1) -> 'a1 -> AtomSetImpl.t ->
+      (AtomSetImpl.t -> AtomSetImpl.t -> 'a1 -> __ -> 'a2 -> 'a2) -> 'a2 ->
+      (AtomSetImpl.elt -> 'a1 -> AtomSetImpl.t -> __ -> __ -> 'a2 -> 'a2) ->
+      'a2
+    
+    val fold_rec_nodep :
+      (AtomSetImpl.elt -> 'a1 -> 'a1) -> 'a1 -> AtomSetImpl.t -> 'a2 ->
+      (AtomSetImpl.elt -> 'a1 -> __ -> 'a2 -> 'a2) -> 'a2
+    
+    val fold_rec_weak :
+      (AtomSetImpl.elt -> 'a1 -> 'a1) -> 'a1 -> (AtomSetImpl.t ->
+      AtomSetImpl.t -> 'a1 -> __ -> 'a2 -> 'a2) -> 'a2 -> (AtomSetImpl.elt ->
+      'a1 -> AtomSetImpl.t -> __ -> 'a2 -> 'a2) -> AtomSetImpl.t -> 'a2
+    
+    val fold_rel :
+      (AtomSetImpl.elt -> 'a1 -> 'a1) -> (AtomSetImpl.elt -> 'a2 -> 'a2) ->
+      'a1 -> 'a2 -> AtomSetImpl.t -> 'a3 -> (AtomSetImpl.elt -> 'a1 -> 'a2 ->
+      __ -> 'a3 -> 'a3) -> 'a3
+    
+    val set_induction :
+      (AtomSetImpl.t -> __ -> 'a1) -> (AtomSetImpl.t -> AtomSetImpl.t -> 'a1
+      -> AtomSetImpl.elt -> __ -> __ -> 'a1) -> AtomSetImpl.t -> 'a1
+    
+    val set_induction_bis :
+      (AtomSetImpl.t -> AtomSetImpl.t -> __ -> 'a1 -> 'a1) -> 'a1 ->
+      (AtomSetImpl.elt -> AtomSetImpl.t -> __ -> 'a1 -> 'a1) -> AtomSetImpl.t
+      -> 'a1
+    
+    val cardinal_inv_2 : AtomSetImpl.t -> nat -> AtomSetImpl.elt
+    
+    val cardinal_inv_2b : AtomSetImpl.t -> AtomSetImpl.elt
+   end
+  
+  module KeySetFacts : 
+   sig 
+    val eqb : AtomImpl.atom -> AtomImpl.atom -> bool
+   end
+  
+  val one : 'a1 -> 'a1 list
+  
+  val dom : (AtomImpl.atom, 'a1) prod list -> AtomSetImpl.t
+  
+  val get : AtomImpl.atom -> (AtomImpl.atom, 'a1) prod list -> 'a1 option
+  
+  val map :
+    ('a1 -> 'a2) -> (AtomImpl.atom, 'a1) prod list -> (AtomImpl.atom, 'a2)
+    prod list
+  
+  val alist_ind :
+    'a2 -> (AtomImpl.atom -> 'a1 -> (AtomImpl.atom, 'a1) prod list -> 'a2 ->
+    'a2) -> (AtomImpl.atom, 'a1) prod list -> 'a2
+  
+  val binds_dec :
+    AtomImpl.atom -> 'a1 -> (AtomImpl.atom, 'a1) prod list -> ('a1 -> 'a1 ->
+    bool) -> bool
+  
+  val binds_lookup :
+    AtomImpl.atom -> (AtomImpl.atom, 'a1) prod list -> ('a1, __) sum
+ end
 
 type 'x assocList = (AtomImpl.atom, 'x) prod list
 
@@ -63,19 +930,21 @@ val updateAddAL : 'a1 assocList -> AtomImpl.atom -> 'a1 -> 'a1 assocList
 
 val updateAL : 'a1 assocList -> AtomImpl.atom -> 'a1 -> 'a1 assocList
 
+val lookupAL : 'a1 assocList -> AtomImpl.atom -> 'a1 option
+
 module LLVMsyntax : 
  sig 
   val last_opt : 'a1 list -> 'a1 option
   
-  type coq_INT = nat
+  type coq_INT 
   
-  type id = AtomImpl.atom
+  type id 
   
-  type l = AtomImpl.atom
+  type l 
   
-  type align = nat
+  type align 
   
-  type sz = nat
+  type sz
   
   type i = nat
   
@@ -512,6 +1381,1363 @@ module LLVMsyntax :
     list_typ -> 'a2) prod
  end
 
+module LLVMlib : 
+ sig 
+  val id_dec : AtomImpl.atom -> AtomImpl.atom -> bool
+  
+  val l_dec : AtomImpl.atom -> AtomImpl.atom -> bool
+  
+  val coq_INT_dec : nat -> nat -> bool
+  
+  val sz_dec : nat -> nat -> bool
+  
+  val align_dec : nat -> nat -> bool
+  
+  val inbounds_dec : bool -> bool -> bool
+  
+  val tailc_dec : bool -> bool -> bool
+  
+  val noret_dec : bool -> bool -> bool
+  
+  val lempty_set : LLVMsyntax.l set
+  
+  val lset_add : LLVMsyntax.l -> LLVMsyntax.ls -> LLVMsyntax.l set
+  
+  val lset_union : LLVMsyntax.ls -> LLVMsyntax.ls -> LLVMsyntax.l set
+  
+  val lset_inter : LLVMsyntax.ls -> LLVMsyntax.ls -> LLVMsyntax.l set
+  
+  val lset_eq : LLVMsyntax.ls -> LLVMsyntax.ls -> bool
+  
+  val lset_neq : LLVMsyntax.ls -> LLVMsyntax.ls -> bool
+  
+  val lset_single : LLVMsyntax.l -> LLVMsyntax.l set
+  
+  val lset_mem : LLVMsyntax.l -> LLVMsyntax.ls -> bool
+  
+  val getCmdID : LLVMsyntax.cmd -> LLVMsyntax.id
+  
+  val getTerminatorID : LLVMsyntax.terminator -> LLVMsyntax.id
+  
+  val getPhiNodeID : LLVMsyntax.phinode -> LLVMsyntax.id
+  
+  val getValueID : LLVMsyntax.value -> LLVMsyntax.id option
+  
+  val getInsnID : LLVMsyntax.insn -> LLVMsyntax.id
+  
+  val isPhiNodeB : LLVMsyntax.insn -> bool
+  
+  val getSubTypFromConstIdxs :
+    LLVMsyntax.list_const -> LLVMsyntax.typ -> LLVMsyntax.typ option
+  
+  val getSubTypFromValueIdxs :
+    LLVMsyntax.list_value -> LLVMsyntax.typ -> LLVMsyntax.typ option
+  
+  val getGEPTyp :
+    LLVMsyntax.list_value -> LLVMsyntax.typ -> LLVMsyntax.typ option
+  
+  val getLoadTyp : LLVMsyntax.typ -> LLVMsyntax.typ option
+  
+  val getCmdTyp : LLVMsyntax.cmd -> LLVMsyntax.typ option
+  
+  val getTerminatorTyp : LLVMsyntax.terminator -> LLVMsyntax.typ
+  
+  val getPhiNodeTyp : LLVMsyntax.phinode -> LLVMsyntax.typ
+  
+  val getInsnTyp : LLVMsyntax.insn -> LLVMsyntax.typ option
+  
+  val getPointerEltTyp : LLVMsyntax.typ -> LLVMsyntax.typ option
+  
+  val getValueIDs : LLVMsyntax.value -> LLVMsyntax.ids
+  
+  val getParamsOperand : LLVMsyntax.params -> LLVMsyntax.ids
+  
+  val list_prj1 : ('a1, 'a2) prod list -> 'a1 list
+  
+  val list_prj2 : ('a1, 'a2) prod list -> 'a2 list
+  
+  val getCmdOperands : LLVMsyntax.cmd -> LLVMsyntax.ids
+  
+  val getTerminatorOperands : LLVMsyntax.terminator -> LLVMsyntax.ids
+  
+  val getPhiNodeOperands : LLVMsyntax.phinode -> LLVMsyntax.ids
+  
+  val getInsnOperands : LLVMsyntax.insn -> LLVMsyntax.ids
+  
+  val getCmdLabels : LLVMsyntax.cmd -> LLVMsyntax.ls
+  
+  val getTerminatorLabels : LLVMsyntax.terminator -> LLVMsyntax.ls
+  
+  val getPhiNodeLabels : LLVMsyntax.phinode -> LLVMsyntax.ls
+  
+  val getInsnLabels : LLVMsyntax.insn -> LLVMsyntax.ls
+  
+  val args2Typs : LLVMsyntax.args -> LLVMsyntax.list_typ
+  
+  val getFheaderTyp : LLVMsyntax.fheader -> LLVMsyntax.typ
+  
+  val getFdecTyp : LLVMsyntax.fdec -> LLVMsyntax.typ
+  
+  val getFdefTyp : LLVMsyntax.fdef -> LLVMsyntax.typ
+  
+  val getBindingTyp : LLVMsyntax.id_binding -> LLVMsyntax.typ option
+  
+  val getCmdsFromBlock : LLVMsyntax.block -> LLVMsyntax.cmds
+  
+  val getPhiNodesFromBlock : LLVMsyntax.block -> LLVMsyntax.phinodes
+  
+  val getTerminatorFromBlock : LLVMsyntax.block -> LLVMsyntax.terminator
+  
+  val getBindingFdec : LLVMsyntax.id_binding -> LLVMsyntax.fdec option
+  
+  val getBindingArg : LLVMsyntax.id_binding -> LLVMsyntax.arg option
+  
+  val getBindingGvar : LLVMsyntax.id_binding -> LLVMsyntax.gvar option
+  
+  val getBindingCmd : LLVMsyntax.id_binding -> LLVMsyntax.cmd option
+  
+  val getBindingInsn : LLVMsyntax.id_binding -> LLVMsyntax.insn option
+  
+  val getBindingPhiNode : LLVMsyntax.id_binding -> LLVMsyntax.phinode option
+  
+  val getBindingTerminator :
+    LLVMsyntax.id_binding -> LLVMsyntax.terminator option
+  
+  val getFheaderID : LLVMsyntax.fheader -> LLVMsyntax.id
+  
+  val getFdecID : LLVMsyntax.fdec -> LLVMsyntax.id
+  
+  val getFdefID : LLVMsyntax.fdef -> LLVMsyntax.id
+  
+  val getLabelViaIDFromList :
+    LLVMsyntax.list_id_l -> LLVMsyntax.id -> LLVMsyntax.l option
+  
+  val getLabelViaIDFromPhiNode :
+    LLVMsyntax.phinode -> LLVMsyntax.id -> LLVMsyntax.l option
+  
+  val getLabelsFromIdls : LLVMsyntax.list_id_l -> LLVMsyntax.ls
+  
+  val getLabelsFromPhiNode : LLVMsyntax.phinode -> LLVMsyntax.ls
+  
+  val getLabelsFromPhiNodes : LLVMsyntax.phinode list -> LLVMsyntax.ls
+  
+  val getIDLabelsFromPhiNode : LLVMsyntax.phinode -> LLVMsyntax.list_id_l
+  
+  val getLabelViaIDFromIDLabels :
+    LLVMsyntax.list_id_l -> LLVMsyntax.id -> LLVMsyntax.l option
+  
+  val _getLabelViaIDPhiNode :
+    LLVMsyntax.phinode -> LLVMsyntax.id -> LLVMsyntax.l option
+  
+  val getLabelViaIDPhiNode :
+    LLVMsyntax.insn -> LLVMsyntax.id -> LLVMsyntax.l option
+  
+  val getReturnTyp : LLVMsyntax.fdef -> LLVMsyntax.typ
+  
+  val getGvarID : LLVMsyntax.gvar -> LLVMsyntax.id
+  
+  val getCallName : LLVMsyntax.insn -> LLVMsyntax.id option
+  
+  val getCallerReturnID : LLVMsyntax.cmd -> LLVMsyntax.id option
+  
+  val getIdViaLabelFromIdls :
+    LLVMsyntax.list_id_l -> LLVMsyntax.l -> LLVMsyntax.id option
+  
+  val getIdViaBlockFromIdls :
+    LLVMsyntax.list_id_l -> LLVMsyntax.block -> LLVMsyntax.id option
+  
+  val getIdViaBlockFromPHINode :
+    LLVMsyntax.phinode -> LLVMsyntax.block -> LLVMsyntax.id option
+  
+  val getPHINodesFromBlock : LLVMsyntax.block -> LLVMsyntax.phinode list
+  
+  val lookupBindingViaIDFromCmd :
+    LLVMsyntax.cmd -> LLVMsyntax.id -> LLVMsyntax.id_binding
+  
+  val lookupBindingViaIDFromCmds :
+    LLVMsyntax.cmds -> LLVMsyntax.id -> LLVMsyntax.id_binding
+  
+  val lookupBindingViaIDFromPhiNode :
+    LLVMsyntax.phinode -> LLVMsyntax.id -> LLVMsyntax.id_binding
+  
+  val lookupBindingViaIDFromPhiNodes :
+    LLVMsyntax.phinodes -> LLVMsyntax.id -> LLVMsyntax.id_binding
+  
+  val lookupBindingViaIDFromTerminator :
+    LLVMsyntax.terminator -> LLVMsyntax.id -> LLVMsyntax.id_binding
+  
+  val lookupBindingViaIDFromBlock :
+    LLVMsyntax.block -> LLVMsyntax.id -> LLVMsyntax.id_binding
+  
+  val lookupBindingViaIDFromBlocks :
+    LLVMsyntax.blocks -> LLVMsyntax.id -> LLVMsyntax.id_binding
+  
+  val lookupBindingViaIDFromArg :
+    LLVMsyntax.arg -> LLVMsyntax.id -> LLVMsyntax.id_binding
+  
+  val lookupBindingViaIDFromArgs :
+    LLVMsyntax.args -> LLVMsyntax.id -> LLVMsyntax.id_binding
+  
+  val lookupBindingViaIDFromFdec :
+    LLVMsyntax.fdec -> LLVMsyntax.id -> LLVMsyntax.id_binding
+  
+  val lookupBindingViaIDFromFdef :
+    LLVMsyntax.fdef -> LLVMsyntax.id -> LLVMsyntax.id_binding
+  
+  val lookupBindingViaIDFromProduct :
+    LLVMsyntax.product -> LLVMsyntax.id -> LLVMsyntax.id_binding
+  
+  val lookupBindingViaIDFromProducts :
+    LLVMsyntax.products -> LLVMsyntax.id -> LLVMsyntax.id_binding
+  
+  val lookupBindingViaIDFromModule :
+    LLVMsyntax.coq_module -> LLVMsyntax.id -> LLVMsyntax.id_binding
+  
+  val lookupBindingViaIDFromModules :
+    LLVMsyntax.modules -> LLVMsyntax.id -> LLVMsyntax.id_binding
+  
+  val lookupBindingViaIDFromSystem :
+    LLVMsyntax.system -> LLVMsyntax.id -> LLVMsyntax.id_binding
+  
+  val isIDInBlockB : LLVMsyntax.id -> LLVMsyntax.block -> bool
+  
+  val lookupBlockViaIDFromBlocks :
+    LLVMsyntax.blocks -> LLVMsyntax.id -> LLVMsyntax.block option
+  
+  val lookupBlockViaIDFromFdef :
+    LLVMsyntax.fdef -> LLVMsyntax.id -> LLVMsyntax.block option
+  
+  val lookupFdecViaIDFromProduct :
+    LLVMsyntax.product -> LLVMsyntax.id -> LLVMsyntax.fdec option
+  
+  val lookupFdecViaIDFromProducts :
+    LLVMsyntax.products -> LLVMsyntax.id -> LLVMsyntax.fdec option
+  
+  val lookupFdecViaIDFromModule :
+    LLVMsyntax.coq_module -> LLVMsyntax.id -> LLVMsyntax.fdec option
+  
+  val lookupFdecViaIDFromModules :
+    LLVMsyntax.modules -> LLVMsyntax.id -> LLVMsyntax.fdec option
+  
+  val lookupFdecViaIDFromSystem :
+    LLVMsyntax.system -> LLVMsyntax.id -> LLVMsyntax.fdec option
+  
+  val lookupFdefViaIDFromProduct :
+    LLVMsyntax.product -> LLVMsyntax.id -> LLVMsyntax.fdef option
+  
+  val lookupFdefViaIDFromProducts :
+    LLVMsyntax.products -> LLVMsyntax.id -> LLVMsyntax.fdef option
+  
+  val lookupFdefViaIDFromModule :
+    LLVMsyntax.coq_module -> LLVMsyntax.id -> LLVMsyntax.fdef option
+  
+  val lookupFdefViaIDFromModules :
+    LLVMsyntax.modules -> LLVMsyntax.id -> LLVMsyntax.fdef option
+  
+  val lookupFdefViaIDFromSystem :
+    LLVMsyntax.system -> LLVMsyntax.id -> LLVMsyntax.fdef option
+  
+  val lookupTypViaIDFromCmd :
+    LLVMsyntax.cmd -> LLVMsyntax.id -> LLVMsyntax.typ option
+  
+  val lookupTypViaIDFromCmds :
+    LLVMsyntax.cmds -> LLVMsyntax.id -> LLVMsyntax.typ option
+  
+  val lookupTypViaIDFromPhiNode :
+    LLVMsyntax.phinode -> LLVMsyntax.id -> LLVMsyntax.typ option
+  
+  val lookupTypViaIDFromPhiNodes :
+    LLVMsyntax.phinodes -> LLVMsyntax.id -> LLVMsyntax.typ option
+  
+  val lookupTypViaIDFromTerminator :
+    LLVMsyntax.terminator -> LLVMsyntax.id -> LLVMsyntax.typ option
+  
+  val lookupTypViaIDFromBlock :
+    LLVMsyntax.block -> LLVMsyntax.id -> LLVMsyntax.typ option
+  
+  val lookupTypViaIDFromBlocks :
+    LLVMsyntax.blocks -> LLVMsyntax.id -> LLVMsyntax.typ option
+  
+  val lookupTypViaIDFromFdef :
+    LLVMsyntax.fdef -> LLVMsyntax.id -> LLVMsyntax.typ option
+  
+  val lookupTypViaIDFromProduct :
+    LLVMsyntax.product -> LLVMsyntax.id -> LLVMsyntax.typ option
+  
+  val lookupTypViaIDFromProducts :
+    LLVMsyntax.products -> LLVMsyntax.id -> LLVMsyntax.typ option
+  
+  val lookupTypViaIDFromModule :
+    LLVMsyntax.coq_module -> LLVMsyntax.id -> LLVMsyntax.typ option
+  
+  val lookupTypViaIDFromModules :
+    LLVMsyntax.modules -> LLVMsyntax.id -> LLVMsyntax.typ option
+  
+  val lookupTypViaIDFromSystem :
+    LLVMsyntax.system -> LLVMsyntax.id -> LLVMsyntax.typ option
+  
+  type l2block = (LLVMsyntax.l, LLVMsyntax.block) prod list
+  
+  val genLabel2Block_block : LLVMsyntax.block -> l2block
+  
+  val genLabel2Block_blocks : LLVMsyntax.blocks -> l2block
+  
+  val genLabel2Block_fdef : LLVMsyntax.fdef -> l2block
+  
+  val genLabel2Block_product : LLVMsyntax.product -> l2block
+  
+  val genLabel2Block_products : LLVMsyntax.products -> l2block
+  
+  val genLabel2Block : LLVMsyntax.coq_module -> l2block
+  
+  val getEntryOfFdef : LLVMsyntax.fdef -> LLVMsyntax.block option
+  
+  val getNonEntryOfFdef : LLVMsyntax.fdef -> LLVMsyntax.blocks
+  
+  val lookupBlockViaLabelFromFdef :
+    LLVMsyntax.fdef -> LLVMsyntax.l -> LLVMsyntax.block option
+  
+  val lookupBlockViaLabelFromModule :
+    LLVMsyntax.coq_module -> LLVMsyntax.l -> LLVMsyntax.block option
+  
+  val lookupBlockViaLabelFromSystem :
+    LLVMsyntax.system -> LLVMsyntax.l -> LLVMsyntax.block option
+  
+  val getLabelsFromBlocks : LLVMsyntax.blocks -> LLVMsyntax.ls
+  
+  val mergeInsnUseDef :
+    LLVMsyntax.usedef_id -> LLVMsyntax.usedef_id -> LLVMsyntax.usedef_id
+  
+  val mergeBlockUseDef :
+    LLVMsyntax.usedef_block -> LLVMsyntax.usedef_block ->
+    LLVMsyntax.usedef_block
+  
+  val genIdUseDef_id_uses_value :
+    LLVMsyntax.value -> LLVMsyntax.id -> LLVMsyntax.usedef_id
+  
+  val genIdUseDef_id_uses_id :
+    LLVMsyntax.id -> LLVMsyntax.id -> LLVMsyntax.usedef_id
+  
+  val genIdUseDef_id_uses_params :
+    LLVMsyntax.params -> LLVMsyntax.id -> LLVMsyntax.usedef_id
+  
+  val genIdUseDef_cmd_uses_value :
+    LLVMsyntax.value -> LLVMsyntax.cmd -> LLVMsyntax.usedef_id
+  
+  val genIdUseDef_terminator_uses_value :
+    LLVMsyntax.value -> LLVMsyntax.terminator -> LLVMsyntax.usedef_id
+  
+  val genIdUseDef_phinode_uses_value :
+    LLVMsyntax.value -> LLVMsyntax.phinode -> LLVMsyntax.usedef_id
+  
+  val genIdUseDef_cmd_uses_id :
+    LLVMsyntax.id -> LLVMsyntax.cmd -> LLVMsyntax.usedef_id
+  
+  val genIdUseDef_terminator_uses_id :
+    LLVMsyntax.id -> LLVMsyntax.terminator -> LLVMsyntax.usedef_id
+  
+  val genIdUseDef_phinode_uses_id :
+    LLVMsyntax.id -> LLVMsyntax.phinode -> LLVMsyntax.usedef_id
+  
+  val genIdUseDef_cmd_uses_params :
+    LLVMsyntax.params -> LLVMsyntax.cmd -> LLVMsyntax.usedef_id
+  
+  val genIdUseDef_terminator_uses_params :
+    LLVMsyntax.params -> LLVMsyntax.terminator -> LLVMsyntax.usedef_id
+  
+  val genIdUseDef_phinode_uses_params :
+    LLVMsyntax.params -> LLVMsyntax.phinode -> LLVMsyntax.usedef_id
+  
+  val genIdUseDef_cmd : LLVMsyntax.cmd -> LLVMsyntax.usedef_id
+  
+  val genIdUseDef_terminator : LLVMsyntax.terminator -> LLVMsyntax.usedef_id
+  
+  val genIdUseDef_id_uses_idls :
+    LLVMsyntax.list_id_l -> LLVMsyntax.id -> LLVMsyntax.usedef_id
+  
+  val genIdUseDef_phinode : LLVMsyntax.phinode -> LLVMsyntax.usedef_id
+  
+  val genIdUseDef_cmds : LLVMsyntax.cmds -> LLVMsyntax.usedef_id
+  
+  val genIdUseDef_phinodes : LLVMsyntax.phinodes -> LLVMsyntax.usedef_id
+  
+  val genIdUseDef_block : LLVMsyntax.block -> LLVMsyntax.usedef_id
+  
+  val genIdUseDef_blocks : LLVMsyntax.blocks -> LLVMsyntax.usedef_id
+  
+  val genIdUseDef_fdef : LLVMsyntax.fdef -> LLVMsyntax.usedef_id
+  
+  val genIdUseDef_product : LLVMsyntax.product -> LLVMsyntax.usedef_id
+  
+  val genIdUseDef_products : LLVMsyntax.products -> LLVMsyntax.usedef_id
+  
+  val genIdUseDef : LLVMsyntax.coq_module -> LLVMsyntax.usedef_id
+  
+  val getIdUseDef :
+    LLVMsyntax.usedef_id -> LLVMsyntax.id -> LLVMsyntax.id list
+  
+  val getBlockLabel : LLVMsyntax.block -> LLVMsyntax.l
+  
+  val genBlockUseDef_label :
+    LLVMsyntax.l -> LLVMsyntax.block -> LLVMsyntax.usedef_block
+  
+  val genBlockUseDef_phi_cases :
+    LLVMsyntax.list_id_l -> LLVMsyntax.block -> LLVMsyntax.usedef_block
+  
+  val genBlockUseDef_cmd :
+    LLVMsyntax.cmd -> LLVMsyntax.block -> LLVMsyntax.usedef_block
+  
+  val genBlockUseDef_terminator :
+    LLVMsyntax.terminator -> LLVMsyntax.block -> LLVMsyntax.usedef_block
+  
+  val genBlockUseDef_phinode :
+    LLVMsyntax.phinode -> LLVMsyntax.block -> LLVMsyntax.usedef_block
+  
+  val genBlockUseDef_cmds :
+    LLVMsyntax.cmds -> LLVMsyntax.block -> LLVMsyntax.usedef_block
+  
+  val genBlockUseDef_phinodes :
+    LLVMsyntax.phinodes -> LLVMsyntax.block -> LLVMsyntax.usedef_block
+  
+  val genBlockUseDef_block : LLVMsyntax.block -> LLVMsyntax.usedef_block
+  
+  val genBlockUseDef_blocks : LLVMsyntax.blocks -> LLVMsyntax.usedef_block
+  
+  val genBlockUseDef_fdef : LLVMsyntax.fdef -> LLVMsyntax.usedef_block
+  
+  val genBlockUseDef_product : LLVMsyntax.product -> LLVMsyntax.usedef_block
+  
+  val genBlockUseDef_products :
+    LLVMsyntax.products -> LLVMsyntax.usedef_block
+  
+  val genBlockUseDef : LLVMsyntax.coq_module -> LLVMsyntax.usedef_block
+  
+  val getBlockUseDef :
+    LLVMsyntax.usedef_block -> LLVMsyntax.block -> LLVMsyntax.block list
+  
+  val getTerminator : LLVMsyntax.block -> LLVMsyntax.terminator
+  
+  val getLabelsFromSwitchCases :
+    (LLVMsyntax.const, LLVMsyntax.l) prod list -> LLVMsyntax.ls
+  
+  val getLabelsFromTerminator : LLVMsyntax.terminator -> LLVMsyntax.ls
+  
+  val getBlocksFromLabels : LLVMsyntax.ls -> l2block -> LLVMsyntax.blocks
+  
+  val succOfBlock :
+    LLVMsyntax.block -> LLVMsyntax.coq_module -> LLVMsyntax.blocks
+  
+  val predOfBlock :
+    LLVMsyntax.block -> LLVMsyntax.usedef_block -> LLVMsyntax.blocks
+  
+  val hasSinglePredecessor :
+    LLVMsyntax.block -> LLVMsyntax.usedef_block -> bool
+  
+  val genLabelsFromBlocks : LLVMsyntax.blocks -> LLVMsyntax.ls
+  
+  val genLabelsFromFdef : LLVMsyntax.fdef -> LLVMsyntax.ls
+  
+  val inputFromPred : LLVMsyntax.blocks -> LLVMsyntax.dt -> LLVMsyntax.ls
+  
+  val outputFromInput : LLVMsyntax.block -> LLVMsyntax.ls -> LLVMsyntax.ls
+  
+  val update_dt :
+    LLVMsyntax.dt -> LLVMsyntax.l -> LLVMsyntax.ls -> LLVMsyntax.dt
+  
+  val inter_dt : LLVMsyntax.dt -> LLVMsyntax.dt -> LLVMsyntax.dt
+  
+  val genDominatorTree_blocks_innerloop :
+    LLVMsyntax.blocks -> LLVMsyntax.usedef_block -> LLVMsyntax.dt ->
+    LLVMsyntax.dt
+  
+  val eq_dt : LLVMsyntax.dt -> LLVMsyntax.dt -> LLVMsyntax.blocks -> bool
+  
+  val sizeOfDT : LLVMsyntax.blocks -> LLVMsyntax.dt -> nat
+  
+  val size : (LLVMsyntax.blocks, LLVMsyntax.dt) prod -> nat
+  
+  val genDominatorTree_blocks_F :
+    ((LLVMsyntax.blocks, LLVMsyntax.dt) prod -> LLVMsyntax.usedef_block ->
+    LLVMsyntax.dt) -> (LLVMsyntax.blocks, LLVMsyntax.dt) prod ->
+    LLVMsyntax.usedef_block -> LLVMsyntax.dt
+  
+  val genDominatorTree_blocks_terminate :
+    (LLVMsyntax.blocks, LLVMsyntax.dt) prod -> LLVMsyntax.usedef_block ->
+    LLVMsyntax.dt
+  
+  val genDominatorTree_blocks :
+    (LLVMsyntax.blocks, LLVMsyntax.dt) prod -> LLVMsyntax.usedef_block ->
+    LLVMsyntax.dt
+  
+  type coq_R_genDominatorTree_blocks =
+    | R_genDominatorTree_blocks_0 of (LLVMsyntax.blocks, LLVMsyntax.dt) prod
+       * LLVMsyntax.usedef_block * LLVMsyntax.blocks * 
+       LLVMsyntax.dt * LLVMsyntax.dt
+    | R_genDominatorTree_blocks_1 of (LLVMsyntax.blocks, LLVMsyntax.dt) prod
+       * LLVMsyntax.usedef_block * LLVMsyntax.blocks * 
+       LLVMsyntax.dt * LLVMsyntax.dt * LLVMsyntax.dt
+       * coq_R_genDominatorTree_blocks
+  
+  val coq_R_genDominatorTree_blocks_rect :
+    ((LLVMsyntax.blocks, LLVMsyntax.dt) prod -> LLVMsyntax.usedef_block ->
+    LLVMsyntax.blocks -> LLVMsyntax.dt -> __ -> LLVMsyntax.dt -> __ -> __ ->
+    'a1) -> ((LLVMsyntax.blocks, LLVMsyntax.dt) prod ->
+    LLVMsyntax.usedef_block -> LLVMsyntax.blocks -> LLVMsyntax.dt -> __ ->
+    LLVMsyntax.dt -> __ -> __ -> LLVMsyntax.dt ->
+    coq_R_genDominatorTree_blocks -> 'a1 -> 'a1) -> (LLVMsyntax.blocks,
+    LLVMsyntax.dt) prod -> LLVMsyntax.usedef_block -> LLVMsyntax.dt ->
+    coq_R_genDominatorTree_blocks -> 'a1
+  
+  val coq_R_genDominatorTree_blocks_rec :
+    ((LLVMsyntax.blocks, LLVMsyntax.dt) prod -> LLVMsyntax.usedef_block ->
+    LLVMsyntax.blocks -> LLVMsyntax.dt -> __ -> LLVMsyntax.dt -> __ -> __ ->
+    'a1) -> ((LLVMsyntax.blocks, LLVMsyntax.dt) prod ->
+    LLVMsyntax.usedef_block -> LLVMsyntax.blocks -> LLVMsyntax.dt -> __ ->
+    LLVMsyntax.dt -> __ -> __ -> LLVMsyntax.dt ->
+    coq_R_genDominatorTree_blocks -> 'a1 -> 'a1) -> (LLVMsyntax.blocks,
+    LLVMsyntax.dt) prod -> LLVMsyntax.usedef_block -> LLVMsyntax.dt ->
+    coq_R_genDominatorTree_blocks -> 'a1
+  
+  val genDominatorTree_blocks_rect :
+    ((LLVMsyntax.blocks, LLVMsyntax.dt) prod -> LLVMsyntax.usedef_block ->
+    LLVMsyntax.blocks -> LLVMsyntax.dt -> __ -> LLVMsyntax.dt -> __ -> __ ->
+    'a1) -> ((LLVMsyntax.blocks, LLVMsyntax.dt) prod ->
+    LLVMsyntax.usedef_block -> LLVMsyntax.blocks -> LLVMsyntax.dt -> __ ->
+    LLVMsyntax.dt -> __ -> __ -> 'a1 -> 'a1) -> (LLVMsyntax.blocks,
+    LLVMsyntax.dt) prod -> LLVMsyntax.usedef_block -> 'a1
+  
+  val genDominatorTree_blocks_rec :
+    ((LLVMsyntax.blocks, LLVMsyntax.dt) prod -> LLVMsyntax.usedef_block ->
+    LLVMsyntax.blocks -> LLVMsyntax.dt -> __ -> LLVMsyntax.dt -> __ -> __ ->
+    'a1) -> ((LLVMsyntax.blocks, LLVMsyntax.dt) prod ->
+    LLVMsyntax.usedef_block -> LLVMsyntax.blocks -> LLVMsyntax.dt -> __ ->
+    LLVMsyntax.dt -> __ -> __ -> 'a1 -> 'a1) -> (LLVMsyntax.blocks,
+    LLVMsyntax.dt) prod -> LLVMsyntax.usedef_block -> 'a1
+  
+  val coq_R_genDominatorTree_blocks_correct :
+    (LLVMsyntax.blocks, LLVMsyntax.dt) prod -> LLVMsyntax.usedef_block ->
+    LLVMsyntax.dt -> coq_R_genDominatorTree_blocks
+  
+  val initialize_genDominatorTree_blocks :
+    LLVMsyntax.blocks -> LLVMsyntax.ls -> LLVMsyntax.dt -> LLVMsyntax.dt
+  
+  val genEmptyDT : LLVMsyntax.dt
+  
+  val initialize_genDominatorTree_entry : LLVMsyntax.fdef -> LLVMsyntax.dt
+  
+  val initialize_genDominatorTree :
+    LLVMsyntax.fdef -> LLVMsyntax.ls -> LLVMsyntax.dt
+  
+  val genDominatorTree :
+    LLVMsyntax.fdef -> LLVMsyntax.coq_module -> LLVMsyntax.dt
+  
+  val blockDominatesB :
+    LLVMsyntax.dt -> LLVMsyntax.block -> LLVMsyntax.block -> bool
+  
+  val isReachableFromEntryB :
+    LLVMsyntax.fdef_info -> LLVMsyntax.block -> bool
+  
+  val isPointerTypB : LLVMsyntax.typ -> bool
+  
+  val isArrayTypB : LLVMsyntax.typ -> bool
+  
+  val isReturnInsnB : LLVMsyntax.terminator -> bool
+  
+  val _isCallInsnB : LLVMsyntax.cmd -> bool
+  
+  val isCallInsnB : LLVMsyntax.insn -> bool
+  
+  val isNotValidReturnTypB : LLVMsyntax.typ -> bool
+  
+  val isValidReturnTypB : LLVMsyntax.typ -> bool
+  
+  val isNotFirstClassTypB : LLVMsyntax.typ -> bool
+  
+  val isFirstClassTypB : LLVMsyntax.typ -> bool
+  
+  val isValidArgumentTypB : LLVMsyntax.typ -> bool
+  
+  val isNotValidElementTypB : LLVMsyntax.typ -> bool
+  
+  val isValidElementTypB : LLVMsyntax.typ -> bool
+  
+  val isBindingFdecB : LLVMsyntax.id_binding -> bool
+  
+  val isBindingGvarB : LLVMsyntax.id_binding -> bool
+  
+  val isBindingArgB : LLVMsyntax.id_binding -> bool
+  
+  val isBindingCmdB : LLVMsyntax.id_binding -> bool
+  
+  val isBindingTerminatorB : LLVMsyntax.id_binding -> bool
+  
+  val isBindingPhiNodeB : LLVMsyntax.id_binding -> bool
+  
+  val isBindingInsnB : LLVMsyntax.id_binding -> bool
+  
+  val isBindingFdec : LLVMsyntax.id_binding -> LLVMsyntax.fdec option
+  
+  val isBindingArg : LLVMsyntax.id_binding -> LLVMsyntax.arg option
+  
+  val isBindingGvar : LLVMsyntax.id_binding -> LLVMsyntax.gvar option
+  
+  val isBindingCmd : LLVMsyntax.id_binding -> LLVMsyntax.cmd option
+  
+  val isBindingPhiNode : LLVMsyntax.id_binding -> LLVMsyntax.phinode option
+  
+  val isBindingTerminator :
+    LLVMsyntax.id_binding -> LLVMsyntax.terminator option
+  
+  val isBindingInsn : LLVMsyntax.id_binding -> LLVMsyntax.insn option
+  
+  val getCmdsIDs : LLVMsyntax.cmd list -> LLVMsyntax.ids
+  
+  val getPhiNodesIDs : LLVMsyntax.phinode list -> LLVMsyntax.ids
+  
+  val getBlockIDs : LLVMsyntax.block -> LLVMsyntax.ids
+  
+  val getBlocksIDs : LLVMsyntax.block list -> LLVMsyntax.ids
+  
+  val getBlocksLabels : LLVMsyntax.block list -> LLVMsyntax.ls
+  
+  val getProductID : LLVMsyntax.product -> LLVMsyntax.id
+  
+  val getProductsIDs : LLVMsyntax.product list -> LLVMsyntax.ids
+  
+  val sumbool2bool : bool -> bool
+  
+  type typ_dec_prop = LLVMsyntax.typ -> bool
+  
+  type list_typ_dec_prop = LLVMsyntax.list_typ -> bool
+  
+  val typ_mutrec_dec :
+    (LLVMsyntax.typ -> typ_dec_prop, LLVMsyntax.list_typ ->
+    list_typ_dec_prop) prod
+  
+  val typ_dec : LLVMsyntax.typ -> LLVMsyntax.typ -> bool
+  
+  val list_typ_dec : LLVMsyntax.list_typ -> LLVMsyntax.list_typ -> bool
+  
+  type const_dec_prop = LLVMsyntax.const -> bool
+  
+  type list_const_dec_prop = LLVMsyntax.list_const -> bool
+  
+  val const_mutrec_dec :
+    (LLVMsyntax.const -> const_dec_prop, LLVMsyntax.list_const ->
+    list_const_dec_prop) prod
+  
+  val const_dec : LLVMsyntax.const -> LLVMsyntax.const -> bool
+  
+  val list_const_dec : LLVMsyntax.list_const -> LLVMsyntax.list_const -> bool
+  
+  val value_dec : LLVMsyntax.value -> LLVMsyntax.value -> bool
+  
+  val params_dec : LLVMsyntax.params -> LLVMsyntax.params -> bool
+  
+  val list_id_l_dec : LLVMsyntax.list_id_l -> LLVMsyntax.list_id_l -> bool
+  
+  val list_value_dec : LLVMsyntax.list_value -> LLVMsyntax.list_value -> bool
+  
+  val bop_dec : LLVMsyntax.bop -> LLVMsyntax.bop -> bool
+  
+  val extop_dec : LLVMsyntax.extop -> LLVMsyntax.extop -> bool
+  
+  val castop_dec : LLVMsyntax.castop -> LLVMsyntax.castop -> bool
+  
+  val cond_dec : LLVMsyntax.cond -> LLVMsyntax.cond -> bool
+  
+  val cmd_dec : LLVMsyntax.cmd -> LLVMsyntax.cmd -> bool
+  
+  val terminator_dec : LLVMsyntax.terminator -> LLVMsyntax.terminator -> bool
+  
+  val phinode_dec : LLVMsyntax.phinode -> LLVMsyntax.phinode -> bool
+  
+  val insn_dec : LLVMsyntax.insn -> LLVMsyntax.insn -> bool
+  
+  val cmds_dec : LLVMsyntax.cmd list -> LLVMsyntax.cmd list -> bool
+  
+  val phinodes_dec :
+    LLVMsyntax.phinode list -> LLVMsyntax.phinode list -> bool
+  
+  val block_dec : LLVMsyntax.block -> LLVMsyntax.block -> bool
+  
+  val arg_dec : LLVMsyntax.arg -> LLVMsyntax.arg -> bool
+  
+  val args_dec : LLVMsyntax.args -> LLVMsyntax.args -> bool
+  
+  val fheader_dec : LLVMsyntax.fheader -> LLVMsyntax.fheader -> bool
+  
+  val blocks_dec : LLVMsyntax.blocks -> LLVMsyntax.blocks -> bool
+  
+  val fdec_dec : LLVMsyntax.fdec -> LLVMsyntax.fdec -> bool
+  
+  val fdef_dec : LLVMsyntax.fdef -> LLVMsyntax.fdef -> bool
+  
+  val gvar_dec : LLVMsyntax.gvar -> LLVMsyntax.gvar -> bool
+  
+  val product_dec : LLVMsyntax.product -> LLVMsyntax.product -> bool
+  
+  val products_dec : LLVMsyntax.products -> LLVMsyntax.products -> bool
+  
+  val layout_dec : LLVMsyntax.layout -> LLVMsyntax.layout -> bool
+  
+  val layouts_dec : LLVMsyntax.layouts -> LLVMsyntax.layouts -> bool
+  
+  val module_dec : LLVMsyntax.coq_module -> LLVMsyntax.coq_module -> bool
+  
+  val modules_dec : LLVMsyntax.modules -> LLVMsyntax.modules -> bool
+  
+  val system_dec : LLVMsyntax.system -> LLVMsyntax.system -> bool
+  
+  val typEqB : LLVMsyntax.typ -> LLVMsyntax.typ -> bool
+  
+  val list_typEqB : LLVMsyntax.list_typ -> LLVMsyntax.list_typ -> bool
+  
+  val idEqB : AtomImpl.atom -> AtomImpl.atom -> bool
+  
+  val constEqB : LLVMsyntax.const -> LLVMsyntax.const -> bool
+  
+  val list_constEqB : LLVMsyntax.list_const -> LLVMsyntax.list_const -> bool
+  
+  val valueEqB : LLVMsyntax.value -> LLVMsyntax.value -> bool
+  
+  val paramsEqB : LLVMsyntax.params -> LLVMsyntax.params -> bool
+  
+  val lEqB : AtomImpl.atom -> AtomImpl.atom -> bool
+  
+  val list_id_lEqB : LLVMsyntax.list_id_l -> LLVMsyntax.list_id_l -> bool
+  
+  val list_valueEqB : LLVMsyntax.list_value -> LLVMsyntax.list_value -> bool
+  
+  val bopEqB : LLVMsyntax.bop -> LLVMsyntax.bop -> bool
+  
+  val extopEqB : LLVMsyntax.extop -> LLVMsyntax.extop -> bool
+  
+  val condEqB : LLVMsyntax.cond -> LLVMsyntax.cond -> bool
+  
+  val castopEqB : LLVMsyntax.castop -> LLVMsyntax.castop -> bool
+  
+  val cmdEqB : LLVMsyntax.cmd -> LLVMsyntax.cmd -> bool
+  
+  val cmdsEqB : LLVMsyntax.cmd list -> LLVMsyntax.cmd list -> bool
+  
+  val terminatorEqB : LLVMsyntax.terminator -> LLVMsyntax.terminator -> bool
+  
+  val phinodeEqB : LLVMsyntax.phinode -> LLVMsyntax.phinode -> bool
+  
+  val phinodesEqB :
+    LLVMsyntax.phinode list -> LLVMsyntax.phinode list -> bool
+  
+  val blockEqB : LLVMsyntax.block -> LLVMsyntax.block -> bool
+  
+  val blocksEqB : LLVMsyntax.blocks -> LLVMsyntax.blocks -> bool
+  
+  val argsEqB : LLVMsyntax.args -> LLVMsyntax.args -> bool
+  
+  val fheaderEqB : LLVMsyntax.fheader -> LLVMsyntax.fheader -> bool
+  
+  val fdecEqB : LLVMsyntax.fdec -> LLVMsyntax.fdec -> bool
+  
+  val fdefEqB : LLVMsyntax.fdef -> LLVMsyntax.fdef -> bool
+  
+  val gvarEqB : LLVMsyntax.gvar -> LLVMsyntax.gvar -> bool
+  
+  val productEqB : LLVMsyntax.product -> LLVMsyntax.product -> bool
+  
+  val productsEqB : LLVMsyntax.products -> LLVMsyntax.products -> bool
+  
+  val layoutEqB : LLVMsyntax.layout -> LLVMsyntax.layout -> bool
+  
+  val layoutsEqB : LLVMsyntax.layouts -> LLVMsyntax.layouts -> bool
+  
+  val moduleEqB : LLVMsyntax.coq_module -> LLVMsyntax.coq_module -> bool
+  
+  val modulesEqB : LLVMsyntax.modules -> LLVMsyntax.modules -> bool
+  
+  val systemEqB : LLVMsyntax.system -> LLVMsyntax.system -> bool
+  
+  val coq_InCmdsB : LLVMsyntax.cmd -> LLVMsyntax.cmds -> bool
+  
+  val coq_InPhiNodesB : LLVMsyntax.phinode -> LLVMsyntax.phinodes -> bool
+  
+  val cmdInBlockB : LLVMsyntax.cmd -> LLVMsyntax.block -> bool
+  
+  val phinodeInBlockB : LLVMsyntax.phinode -> LLVMsyntax.block -> bool
+  
+  val terminatorInBlockB : LLVMsyntax.terminator -> LLVMsyntax.block -> bool
+  
+  val coq_InArgsB : LLVMsyntax.arg -> LLVMsyntax.args -> bool
+  
+  val argInFheaderB : LLVMsyntax.arg -> LLVMsyntax.fheader -> bool
+  
+  val argInFdecB : LLVMsyntax.arg -> LLVMsyntax.fdec -> bool
+  
+  val argInFdefB : LLVMsyntax.arg -> LLVMsyntax.fdef -> bool
+  
+  val coq_InBlocksB : LLVMsyntax.block -> LLVMsyntax.blocks -> bool
+  
+  val blockInFdefB : LLVMsyntax.block -> LLVMsyntax.fdef -> bool
+  
+  val coq_InProductsB : LLVMsyntax.product -> LLVMsyntax.products -> bool
+  
+  val productInModuleB : LLVMsyntax.product -> LLVMsyntax.coq_module -> bool
+  
+  val coq_InModulesB : LLVMsyntax.coq_module -> LLVMsyntax.modules -> bool
+  
+  val moduleInSystemB : LLVMsyntax.coq_module -> LLVMsyntax.system -> bool
+  
+  val productInSystemModuleB :
+    LLVMsyntax.product -> LLVMsyntax.system -> LLVMsyntax.coq_module -> bool
+  
+  val productInSystemModuleIB :
+    LLVMsyntax.product -> LLVMsyntax.system -> LLVMsyntax.module_info -> bool
+  
+  val blockInSystemModuleFdefB :
+    LLVMsyntax.block -> LLVMsyntax.system -> LLVMsyntax.coq_module ->
+    LLVMsyntax.fdef -> bool
+  
+  val blockInSystemModuleIFdefIB :
+    LLVMsyntax.block -> LLVMsyntax.system -> LLVMsyntax.module_info ->
+    LLVMsyntax.fdef_info -> bool
+  
+  val cmdInSystemModuleFdefBlockB :
+    LLVMsyntax.cmd -> LLVMsyntax.system -> LLVMsyntax.coq_module ->
+    LLVMsyntax.fdef -> LLVMsyntax.block -> bool
+  
+  val cmdInSystemModuleIFdefIBlockB :
+    LLVMsyntax.cmd -> LLVMsyntax.system -> LLVMsyntax.module_info ->
+    LLVMsyntax.fdef_info -> LLVMsyntax.block -> bool
+  
+  val phinodeInSystemModuleFdefBlockB :
+    LLVMsyntax.phinode -> LLVMsyntax.system -> LLVMsyntax.coq_module ->
+    LLVMsyntax.fdef -> LLVMsyntax.block -> bool
+  
+  val phinodeInSystemModuleIFdefIBlockB :
+    LLVMsyntax.phinode -> LLVMsyntax.system -> LLVMsyntax.module_info ->
+    LLVMsyntax.fdef_info -> LLVMsyntax.block -> bool
+  
+  val terminatorInSystemModuleFdefBlockB :
+    LLVMsyntax.terminator -> LLVMsyntax.system -> LLVMsyntax.coq_module ->
+    LLVMsyntax.fdef -> LLVMsyntax.block -> bool
+  
+  val terminatorInSystemModuleIFdefIBlockB :
+    LLVMsyntax.terminator -> LLVMsyntax.system -> LLVMsyntax.module_info ->
+    LLVMsyntax.fdef_info -> LLVMsyntax.block -> bool
+  
+  val insnInSystemModuleFdefBlockB :
+    LLVMsyntax.insn -> LLVMsyntax.system -> LLVMsyntax.coq_module ->
+    LLVMsyntax.fdef -> LLVMsyntax.block -> bool
+  
+  val insnInSystemModuleIFdefIBlockB :
+    LLVMsyntax.insn -> LLVMsyntax.system -> LLVMsyntax.module_info ->
+    LLVMsyntax.fdef_info -> LLVMsyntax.block -> bool
+  
+  val cmdInBlockB_dec : LLVMsyntax.cmd -> LLVMsyntax.block -> bool
+  
+  val phinodeInBlockB_dec : LLVMsyntax.phinode -> LLVMsyntax.block -> bool
+  
+  val terminatorInBlockB_dec :
+    LLVMsyntax.terminator -> LLVMsyntax.block -> bool
+  
+  val getParentOfCmdFromBlocks :
+    LLVMsyntax.cmd -> LLVMsyntax.blocks -> LLVMsyntax.block option
+  
+  val getParentOfCmdFromFdef :
+    LLVMsyntax.cmd -> LLVMsyntax.fdef -> LLVMsyntax.block option
+  
+  val getParentOfCmdFromProduct :
+    LLVMsyntax.cmd -> LLVMsyntax.product -> LLVMsyntax.block option
+  
+  val getParentOfCmdFromProducts :
+    LLVMsyntax.cmd -> LLVMsyntax.products -> LLVMsyntax.block option
+  
+  val getParentOfCmdFromModule :
+    LLVMsyntax.cmd -> LLVMsyntax.coq_module -> LLVMsyntax.block option
+  
+  val getParentOfCmdFromModules :
+    LLVMsyntax.cmd -> LLVMsyntax.modules -> LLVMsyntax.block option
+  
+  val getParentOfCmdFromSystem :
+    LLVMsyntax.cmd -> LLVMsyntax.system -> LLVMsyntax.block option
+  
+  val cmdHasParent : LLVMsyntax.cmd -> LLVMsyntax.system -> bool
+  
+  val getParentOfPhiNodeFromBlocks :
+    LLVMsyntax.phinode -> LLVMsyntax.blocks -> LLVMsyntax.block option
+  
+  val getParentOfPhiNodeFromFdef :
+    LLVMsyntax.phinode -> LLVMsyntax.fdef -> LLVMsyntax.block option
+  
+  val getParentOfPhiNodeFromProduct :
+    LLVMsyntax.phinode -> LLVMsyntax.product -> LLVMsyntax.block option
+  
+  val getParentOfPhiNodeFromProducts :
+    LLVMsyntax.phinode -> LLVMsyntax.products -> LLVMsyntax.block option
+  
+  val getParentOfPhiNodeFromModule :
+    LLVMsyntax.phinode -> LLVMsyntax.coq_module -> LLVMsyntax.block option
+  
+  val getParentOfPhiNodeFromModules :
+    LLVMsyntax.phinode -> LLVMsyntax.modules -> LLVMsyntax.block option
+  
+  val getParentOfPhiNodeFromSystem :
+    LLVMsyntax.phinode -> LLVMsyntax.system -> LLVMsyntax.block option
+  
+  val phinodeHasParent : LLVMsyntax.phinode -> LLVMsyntax.system -> bool
+  
+  val getParentOfTerminatorFromBlocks :
+    LLVMsyntax.terminator -> LLVMsyntax.blocks -> LLVMsyntax.block option
+  
+  val getParentOfTerminatorFromFdef :
+    LLVMsyntax.terminator -> LLVMsyntax.fdef -> LLVMsyntax.block option
+  
+  val getParentOfTerminatorFromProduct :
+    LLVMsyntax.terminator -> LLVMsyntax.product -> LLVMsyntax.block option
+  
+  val getParentOfTerminatorFromProducts :
+    LLVMsyntax.terminator -> LLVMsyntax.products -> LLVMsyntax.block option
+  
+  val getParentOfTerminatorFromModule :
+    LLVMsyntax.terminator -> LLVMsyntax.coq_module -> LLVMsyntax.block option
+  
+  val getParentOfTerminatorFromModules :
+    LLVMsyntax.terminator -> LLVMsyntax.modules -> LLVMsyntax.block option
+  
+  val getParentOfTerminatorFromSystem :
+    LLVMsyntax.terminator -> LLVMsyntax.system -> LLVMsyntax.block option
+  
+  val terminatoreHasParent :
+    LLVMsyntax.terminator -> LLVMsyntax.system -> bool
+  
+  val productInModuleB_dec :
+    LLVMsyntax.product -> LLVMsyntax.coq_module -> bool
+  
+  val getParentOfFdefFromModules :
+    LLVMsyntax.fdef -> LLVMsyntax.modules -> LLVMsyntax.coq_module option
+  
+  val getParentOfFdefFromSystem :
+    LLVMsyntax.fdef -> LLVMsyntax.system -> LLVMsyntax.coq_module option
+  
+  val lookupIdsViaLabelFromIdls :
+    LLVMsyntax.list_id_l -> LLVMsyntax.l -> LLVMsyntax.id list
+  
+  module type SigValue = 
+   sig 
+    val getNumOperands : LLVMsyntax.insn -> nat
+   end
+  
+  module type SigUser = 
+   sig 
+    val getNumOperands : LLVMsyntax.insn -> nat
+   end
+  
+  module type SigConstant = 
+   sig 
+    val getNumOperands : LLVMsyntax.insn -> nat
+    
+    val getTyp : LLVMsyntax.const -> LLVMsyntax.typ
+   end
+  
+  module type SigGlobalValue = 
+   sig 
+    val getNumOperands : LLVMsyntax.insn -> nat
+    
+    val getTyp : LLVMsyntax.const -> LLVMsyntax.typ
+   end
+  
+  module type SigFunction = 
+   sig 
+    val getNumOperands : LLVMsyntax.insn -> nat
+    
+    val getTyp : LLVMsyntax.const -> LLVMsyntax.typ
+    
+    val getDefReturnType : LLVMsyntax.fdef -> LLVMsyntax.typ
+    
+    val getDefFunctionType : LLVMsyntax.fdef -> LLVMsyntax.typ
+    
+    val def_arg_size : LLVMsyntax.fdef -> nat
+    
+    val getDecReturnType : LLVMsyntax.fdec -> LLVMsyntax.typ
+    
+    val getDecFunctionType : LLVMsyntax.fdec -> LLVMsyntax.typ
+    
+    val dec_arg_size : LLVMsyntax.fdec -> nat
+   end
+  
+  module type SigInstruction = 
+   sig 
+    val getNumOperands : LLVMsyntax.insn -> nat
+    
+    val isCallInst : LLVMsyntax.cmd -> bool
+   end
+  
+  module type SigReturnInst = 
+   sig 
+    val getNumOperands : LLVMsyntax.insn -> nat
+    
+    val isCallInst : LLVMsyntax.cmd -> bool
+    
+    val hasReturnType : LLVMsyntax.terminator -> bool
+    
+    val getReturnType : LLVMsyntax.terminator -> LLVMsyntax.typ option
+   end
+  
+  module type SigCallSite = 
+   sig 
+    val getCalledFunction :
+      LLVMsyntax.cmd -> LLVMsyntax.system -> LLVMsyntax.fdef option
+    
+    val getFdefTyp : LLVMsyntax.fdef -> LLVMsyntax.typ
+    
+    val arg_size : LLVMsyntax.fdef -> nat
+    
+    val getArgument : LLVMsyntax.fdef -> nat -> LLVMsyntax.arg option
+    
+    val getArgumentType : LLVMsyntax.fdef -> nat -> LLVMsyntax.typ option
+   end
+  
+  module type SigCallInst = 
+   sig 
+    val getNumOperands : LLVMsyntax.insn -> nat
+    
+    val isCallInst : LLVMsyntax.cmd -> bool
+   end
+  
+  module type SigBinaryOperator = 
+   sig 
+    val getNumOperands : LLVMsyntax.insn -> nat
+    
+    val isCallInst : LLVMsyntax.cmd -> bool
+    
+    val getFirstOperandType :
+      LLVMsyntax.system -> LLVMsyntax.cmd -> LLVMsyntax.typ option
+    
+    val getSecondOperandType :
+      LLVMsyntax.system -> LLVMsyntax.cmd -> LLVMsyntax.typ option
+    
+    val getResultType : LLVMsyntax.cmd -> LLVMsyntax.typ option
+   end
+  
+  module type SigPHINode = 
+   sig 
+    val getNumOperands : LLVMsyntax.insn -> nat
+    
+    val isCallInst : LLVMsyntax.cmd -> bool
+    
+    val getNumIncomingValues : LLVMsyntax.phinode -> nat
+    
+    val getIncomingValueType :
+      LLVMsyntax.system -> LLVMsyntax.phinode -> LLVMsyntax.i ->
+      LLVMsyntax.typ option
+   end
+  
+  module type SigType = 
+   sig 
+    val isIntOrIntVector : LLVMsyntax.typ -> bool
+    
+    val isInteger : LLVMsyntax.typ -> bool
+    
+    val isSized : LLVMsyntax.typ -> bool
+    
+    val getPrimitiveSizeInBits : LLVMsyntax.typ -> nat
+   end
+  
+  module type SigDerivedType = 
+   sig 
+    val isIntOrIntVector : LLVMsyntax.typ -> bool
+    
+    val isInteger : LLVMsyntax.typ -> bool
+    
+    val isSized : LLVMsyntax.typ -> bool
+    
+    val getPrimitiveSizeInBits : LLVMsyntax.typ -> nat
+   end
+  
+  module type SigFunctionType = 
+   sig 
+    val isIntOrIntVector : LLVMsyntax.typ -> bool
+    
+    val isInteger : LLVMsyntax.typ -> bool
+    
+    val isSized : LLVMsyntax.typ -> bool
+    
+    val getPrimitiveSizeInBits : LLVMsyntax.typ -> nat
+    
+    val getNumParams : LLVMsyntax.typ -> nat option
+    
+    val isVarArg : LLVMsyntax.typ -> bool
+    
+    val getParamType : LLVMsyntax.typ -> nat -> LLVMsyntax.typ option
+   end
+  
+  module type SigCompositeType = 
+   sig 
+    val isIntOrIntVector : LLVMsyntax.typ -> bool
+    
+    val isInteger : LLVMsyntax.typ -> bool
+    
+    val isSized : LLVMsyntax.typ -> bool
+    
+    val getPrimitiveSizeInBits : LLVMsyntax.typ -> nat
+   end
+  
+  module type SigSequentialType = 
+   sig 
+    val isIntOrIntVector : LLVMsyntax.typ -> bool
+    
+    val isInteger : LLVMsyntax.typ -> bool
+    
+    val isSized : LLVMsyntax.typ -> bool
+    
+    val getPrimitiveSizeInBits : LLVMsyntax.typ -> nat
+    
+    val hasElementType : LLVMsyntax.typ -> bool
+    
+    val getElementType : LLVMsyntax.typ -> LLVMsyntax.typ option
+   end
+  
+  module type SigArrayType = 
+   sig 
+    val isIntOrIntVector : LLVMsyntax.typ -> bool
+    
+    val isInteger : LLVMsyntax.typ -> bool
+    
+    val isSized : LLVMsyntax.typ -> bool
+    
+    val getPrimitiveSizeInBits : LLVMsyntax.typ -> nat
+    
+    val hasElementType : LLVMsyntax.typ -> bool
+    
+    val getElementType : LLVMsyntax.typ -> LLVMsyntax.typ option
+    
+    val getNumElements : LLVMsyntax.typ -> nat
+   end
+  
+  module Value : 
+   sig 
+    val getNumOperands : LLVMsyntax.insn -> nat
+   end
+  
+  module User : 
+   sig 
+    val getNumOperands : LLVMsyntax.insn -> nat
+   end
+  
+  module Constant : 
+   sig 
+    val getNumOperands : LLVMsyntax.insn -> nat
+    
+    val getTyp : LLVMsyntax.const -> LLVMsyntax.typ
+    
+    val getList_typ : LLVMsyntax.list_const -> LLVMsyntax.list_typ
+   end
+  
+  module GlobalValue : 
+   sig 
+    val getNumOperands : LLVMsyntax.insn -> nat
+    
+    val getTyp : LLVMsyntax.const -> LLVMsyntax.typ
+    
+    val getList_typ : LLVMsyntax.list_const -> LLVMsyntax.list_typ
+   end
+  
+  module Function : 
+   sig 
+    val getNumOperands : LLVMsyntax.insn -> nat
+    
+    val getTyp : LLVMsyntax.const -> LLVMsyntax.typ
+    
+    val getList_typ : LLVMsyntax.list_const -> LLVMsyntax.list_typ
+    
+    val getDefReturnType : LLVMsyntax.fdef -> LLVMsyntax.typ
+    
+    val getDefFunctionType : LLVMsyntax.fdef -> LLVMsyntax.typ
+    
+    val def_arg_size : LLVMsyntax.fdef -> nat
+    
+    val getDecReturnType : LLVMsyntax.fdec -> LLVMsyntax.typ
+    
+    val getDecFunctionType : LLVMsyntax.fdec -> LLVMsyntax.typ
+    
+    val dec_arg_size : LLVMsyntax.fdec -> nat
+   end
+  
+  module Instruction : 
+   sig 
+    val getNumOperands : LLVMsyntax.insn -> nat
+    
+    val isCallInst : LLVMsyntax.cmd -> bool
+   end
+  
+  module ReturnInst : 
+   sig 
+    val getNumOperands : LLVMsyntax.insn -> nat
+    
+    val isCallInst : LLVMsyntax.cmd -> bool
+    
+    val hasReturnType : LLVMsyntax.terminator -> bool
+    
+    val getReturnType : LLVMsyntax.terminator -> LLVMsyntax.typ option
+   end
+  
+  module CallSite : 
+   sig 
+    val getCalledFunction :
+      LLVMsyntax.cmd -> LLVMsyntax.system -> LLVMsyntax.fdef option
+    
+    val getFdefTyp : LLVMsyntax.fdef -> LLVMsyntax.typ
+    
+    val arg_size : LLVMsyntax.fdef -> nat
+    
+    val getArgument : LLVMsyntax.fdef -> nat -> LLVMsyntax.arg option
+    
+    val getArgumentType : LLVMsyntax.fdef -> nat -> LLVMsyntax.typ option
+   end
+  
+  module CallInst : 
+   sig 
+    val getNumOperands : LLVMsyntax.insn -> nat
+    
+    val isCallInst : LLVMsyntax.cmd -> bool
+   end
+  
+  module BinaryOperator : 
+   sig 
+    val getNumOperands : LLVMsyntax.insn -> nat
+    
+    val isCallInst : LLVMsyntax.cmd -> bool
+    
+    val getFirstOperandType :
+      LLVMsyntax.system -> LLVMsyntax.cmd -> LLVMsyntax.typ option
+    
+    val getSecondOperandType :
+      LLVMsyntax.system -> LLVMsyntax.cmd -> LLVMsyntax.typ option
+    
+    val getResultType : LLVMsyntax.cmd -> LLVMsyntax.typ option
+   end
+  
+  module PHINode : 
+   sig 
+    val getNumOperands : LLVMsyntax.insn -> nat
+    
+    val isCallInst : LLVMsyntax.cmd -> bool
+    
+    val getNumIncomingValues : LLVMsyntax.phinode -> nat
+    
+    val getIncomingValueType :
+      LLVMsyntax.system -> LLVMsyntax.phinode -> nat -> LLVMsyntax.typ option
+   end
+  
+  module Typ : 
+   sig 
+    val isIntOrIntVector : LLVMsyntax.typ -> bool
+    
+    val isInteger : LLVMsyntax.typ -> bool
+    
+    val isSized : LLVMsyntax.typ -> bool
+    
+    val isSizedListTyp : LLVMsyntax.list_typ -> bool
+    
+    val getPrimitiveSizeInBits : LLVMsyntax.typ -> nat
+   end
+  
+  module DerivedType : 
+   sig 
+    val isIntOrIntVector : LLVMsyntax.typ -> bool
+    
+    val isInteger : LLVMsyntax.typ -> bool
+    
+    val isSized : LLVMsyntax.typ -> bool
+    
+    val isSizedListTyp : LLVMsyntax.list_typ -> bool
+    
+    val getPrimitiveSizeInBits : LLVMsyntax.typ -> nat
+   end
+  
+  module FunctionType : 
+   sig 
+    val isIntOrIntVector : LLVMsyntax.typ -> bool
+    
+    val isInteger : LLVMsyntax.typ -> bool
+    
+    val isSized : LLVMsyntax.typ -> bool
+    
+    val isSizedListTyp : LLVMsyntax.list_typ -> bool
+    
+    val getPrimitiveSizeInBits : LLVMsyntax.typ -> nat
+    
+    val getNumParams : LLVMsyntax.typ -> nat option
+    
+    val isVarArg : LLVMsyntax.typ -> bool
+    
+    val getParamType : LLVMsyntax.typ -> nat -> LLVMsyntax.typ option
+   end
+  
+  module CompositeType : 
+   sig 
+    val isIntOrIntVector : LLVMsyntax.typ -> bool
+    
+    val isInteger : LLVMsyntax.typ -> bool
+    
+    val isSized : LLVMsyntax.typ -> bool
+    
+    val isSizedListTyp : LLVMsyntax.list_typ -> bool
+    
+    val getPrimitiveSizeInBits : LLVMsyntax.typ -> nat
+   end
+  
+  module SequentialType : 
+   sig 
+    val isIntOrIntVector : LLVMsyntax.typ -> bool
+    
+    val isInteger : LLVMsyntax.typ -> bool
+    
+    val isSized : LLVMsyntax.typ -> bool
+    
+    val isSizedListTyp : LLVMsyntax.list_typ -> bool
+    
+    val getPrimitiveSizeInBits : LLVMsyntax.typ -> nat
+    
+    val hasElementType : LLVMsyntax.typ -> bool
+    
+    val getElementType : LLVMsyntax.typ -> LLVMsyntax.typ option
+   end
+  
+  module ArrayType : 
+   sig 
+    val isIntOrIntVector : LLVMsyntax.typ -> bool
+    
+    val isInteger : LLVMsyntax.typ -> bool
+    
+    val isSized : LLVMsyntax.typ -> bool
+    
+    val isSizedListTyp : LLVMsyntax.list_typ -> bool
+    
+    val getPrimitiveSizeInBits : LLVMsyntax.typ -> nat
+    
+    val hasElementType : LLVMsyntax.typ -> bool
+    
+    val getElementType : LLVMsyntax.typ -> LLVMsyntax.typ option
+    
+    val getNumElements : LLVMsyntax.typ -> nat
+   end
+  
+  type reflect =
+    | ReflectT
+    | ReflectF
+  
+  val reflect_rect : (__ -> 'a1) -> (__ -> 'a1) -> bool -> reflect -> 'a1
+  
+  val reflect_rec : (__ -> 'a1) -> (__ -> 'a1) -> bool -> reflect -> 'a1
+  
+  val reflect_blockDominates :
+    LLVMsyntax.dt -> LLVMsyntax.block -> LLVMsyntax.block -> reflect
+  
+  val ifP :
+    LLVMsyntax.dt -> LLVMsyntax.block -> LLVMsyntax.block -> 'a1 option ->
+    'a1 option -> 'a1 option
+ end
+
 type maddr = nat
 
 type mblock = maddr
@@ -522,7 +2748,7 @@ type mbyte =
   | Mbyte_var of nat
   | Mbyte_uninit
 
-type mem = { data : (maddr -> mbyte); allocas : malloca }
+type mem0 = { data : (maddr -> mbyte); allocas : malloca }
 
 type mvalue = mbyte list
 
@@ -557,17 +2783,17 @@ module SimpleSE :
   
   val coq_Allocas : coq_ExecutionContext -> mblock list
   
-  type coq_State = { coq_Frame : coq_ExecutionContext; coq_Mem : mem }
+  type coq_State = { coq_Frame : coq_ExecutionContext; coq_Mem : mem0 }
   
   val coq_State_rect :
-    (coq_ExecutionContext -> mem -> 'a1) -> coq_State -> 'a1
+    (coq_ExecutionContext -> mem0 -> 'a1) -> coq_State -> 'a1
   
   val coq_State_rec :
-    (coq_ExecutionContext -> mem -> 'a1) -> coq_State -> 'a1
+    (coq_ExecutionContext -> mem0 -> 'a1) -> coq_State -> 'a1
   
   val coq_Frame : coq_State -> coq_ExecutionContext
   
-  val coq_Mem : coq_State -> mem
+  val coq_Mem : coq_State -> mem0
   
   type nbranch =
     LLVMsyntax.cmd
@@ -579,7 +2805,7 @@ module SimpleSE :
   
   val nbranching_cmd : nbranch -> LLVMsyntax.cmd
   
-  val isCallInst_dec : LLVMsyntax.cmd -> sumbool
+  val isCallInst_dec : LLVMsyntax.cmd -> bool
   
   val cmd2nbranch : LLVMsyntax.cmd -> nbranch option
   
@@ -969,46 +3195,15 @@ module SimpleSE :
   val subst_mm : smap -> smem -> smem
  end
 
-val sumbool2bool : sumbool -> bool
+type sterm_dec_prop = SimpleSE.sterm -> bool
 
-type typ_dec_prop = LLVMsyntax.typ -> sumbool
+type list_sterm_dec_prop = SimpleSE.list_sterm -> bool
 
-type list_typ_dec_prop = LLVMsyntax.list_typ -> sumbool
+type list_sterm_l_dec_prop = SimpleSE.list_sterm_l -> bool
 
-val typ_mutrec_dec :
-  (LLVMsyntax.typ -> typ_dec_prop, LLVMsyntax.list_typ -> list_typ_dec_prop)
-  prod
+type smem_dec_prop = SimpleSE.smem -> bool
 
-type const_dec_prop = LLVMsyntax.const -> sumbool
-
-type list_const_dec_prop = LLVMsyntax.list_const -> sumbool
-
-val const_mutrec_dec :
-  (LLVMsyntax.const -> const_dec_prop, LLVMsyntax.list_const ->
-  list_const_dec_prop) prod
-
-val value_dec : LLVMsyntax.value -> LLVMsyntax.value -> sumbool
-
-val list_value_dec :
-  LLVMsyntax.list_value -> LLVMsyntax.list_value -> sumbool
-
-val bop_dec : LLVMsyntax.bop -> LLVMsyntax.bop -> sumbool
-
-val extop_dec : LLVMsyntax.extop -> LLVMsyntax.extop -> sumbool
-
-val castop_dec : LLVMsyntax.castop -> LLVMsyntax.castop -> sumbool
-
-val cond_dec : LLVMsyntax.cond -> LLVMsyntax.cond -> sumbool
-
-type sterm_dec_prop = SimpleSE.sterm -> sumbool
-
-type list_sterm_dec_prop = SimpleSE.list_sterm -> sumbool
-
-type list_sterm_l_dec_prop = SimpleSE.list_sterm_l -> sumbool
-
-type smem_dec_prop = SimpleSE.smem -> sumbool
-
-type sframe_dec_prop = SimpleSE.sframe -> sumbool
+type sframe_dec_prop = SimpleSE.sframe -> bool
 
 val se_dec :
   ((((SimpleSE.sterm -> sterm_dec_prop, SimpleSE.list_sterm ->
@@ -1016,36 +3211,11 @@ val se_dec :
   prod, SimpleSE.smem -> smem_dec_prop) prod, SimpleSE.sframe ->
   sframe_dec_prop) prod
 
-val smap_dec : SimpleSE.smap -> SimpleSE.smap -> sumbool
+val smap_dec : SimpleSE.smap -> SimpleSE.smap -> bool
 
-val sterms_dec : SimpleSE.sterm list -> SimpleSE.sterm list -> sumbool
+val sterms_dec : SimpleSE.sterm list -> SimpleSE.sterm list -> bool
 
-val sstate_dec : SimpleSE.sstate -> SimpleSE.sstate -> sumbool
-
-val params_dec : LLVMsyntax.params -> LLVMsyntax.params -> sumbool
-
-val cmd_dec : LLVMsyntax.cmd -> LLVMsyntax.cmd -> sumbool
-
-val terminator_dec :
-  LLVMsyntax.terminator -> LLVMsyntax.terminator -> sumbool
-
-val list_id_l_dec : LLVMsyntax.list_id_l -> LLVMsyntax.list_id_l -> sumbool
-
-val phinode_dec : LLVMsyntax.phinode -> LLVMsyntax.phinode -> sumbool
-
-val arg_dec : LLVMsyntax.arg -> LLVMsyntax.arg -> sumbool
-
-val args_dec : LLVMsyntax.args -> LLVMsyntax.args -> sumbool
-
-val fheader_dec : LLVMsyntax.fheader -> LLVMsyntax.fheader -> sumbool
-
-val gvar_dec : LLVMsyntax.gvar -> LLVMsyntax.gvar -> sumbool
-
-val fdec_dec : LLVMsyntax.fdec -> LLVMsyntax.fdec -> sumbool
-
-val layout_dec : LLVMsyntax.layout -> LLVMsyntax.layout -> sumbool
-
-val layouts_dec : LLVMsyntax.layouts -> LLVMsyntax.layouts -> sumbool
+val sstate_dec : SimpleSE.sstate -> SimpleSE.sstate -> bool
 
 val tv_cmds : SimpleSE.nbranch list -> SimpleSE.nbranch list -> bool
 
