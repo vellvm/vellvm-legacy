@@ -72,16 +72,18 @@ match Caller with
 | _ => None
 end.
 
-Fixpoint getIdViaLabelFromIdls (idls:list_id_l) (l0:l) : option id :=
+Fixpoint getIdViaLabelFromIdls (idls:list_value_l) (l0:l) : option id :=
 match idls with
-| Nil_list_id_l => None
-| Cons_list_id_l id1 l1 idls'=>
+| Nil_list_value_l => None
+| Cons_list_value_l (value_id id1) l1 idls'=>
   if (eq_dec l1 l0)
   then Some id1
-  else None
+  else getIdViaLabelFromIdls idls' l0
+| Cons_list_value_l _ l1 idls'=>
+  getIdViaLabelFromIdls idls' l0
 end.
 
-Definition getIdViaBlockFromIdls (idls:list_id_l) (b:block) : option id :=
+Definition getIdViaBlockFromIdls (idls:list_value_l) (b:block) : option id :=
 match b with
 | block_intro l _ _ _ => getIdViaLabelFromIdls idls l
 end.

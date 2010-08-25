@@ -208,4 +208,3 @@ let string_of_aligntype at =
 	| Llvm_target.AlignType.Float_align -> "f"
 	| Llvm_target.AlignType.Aggregate_align -> "a"
 	| Llvm_target.AlignType.Stack_align -> "s"
-

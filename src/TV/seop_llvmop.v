@@ -645,7 +645,7 @@ Case "dbLoad".
   exists (updateAddAL _ lc0 id0 gv). exists als0. exists Mem1.
   exists cs1. split; auto.
   right. left.
-  exists (insn_load id0 t v).
+  exists (insn_load id0 t v align0).
   split; eauto.
 
 Case "dbStore".
@@ -654,7 +654,7 @@ Case "dbStore".
   exists lc0. exists als0. exists Mem'.
   exists cs1. split; auto.
   right. left.
-  exists (insn_store sid t v1 v2).
+  exists (insn_store sid t v1 v2 align0).
   split; eauto.
 
 Case "dbGEP".

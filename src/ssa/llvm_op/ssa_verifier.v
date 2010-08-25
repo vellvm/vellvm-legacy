@@ -454,19 +454,21 @@ Definition visitBinaryOperator (intrinsic_funs5:intrinsic_funs)
 (* Check to make sure that if there is more than one entry for a
    particular basic block in this PHI node, that the incoming values 
    are all identical. *)
-Fixpoint lookupIdsViaLabelFromIdls (idls:list_id_l) (l0:l) : list id :=
+Fixpoint lookupIdsViaLabelFromIdls (idls:list_value_l) (l0:l) : list id :=
 match idls with
-| Nil_list_id_l => nil
-| Cons_list_id_l id1 l1 idls' =>
+| Nil_list_value_l => nil
+| Cons_list_value_l (value_id id1) l1 idls' =>
   if (eq_dec l0 l1) 
   then set_add eq_dec id1 (lookupIdsViaLabelFromIdls idls' l0)
   else (lookupIdsViaLabelFromIdls idls' l0)
+| Cons_list_value_l _ l1 idls' =>
+  lookupIdsViaLabelFromIdls idls' l0
 end.
 
-Fixpoint _checkIdenticalIncomingValues (idls idls0:list_id_l) : Prop :=
+Fixpoint _checkIdenticalIncomingValues (idls idls0:list_value_l) : Prop :=
 match idls with
-| Nil_list_id_l => True
-| Cons_list_id_l id l idls' => 
+| Nil_list_value_l => True
+| Cons_list_value_l _ l idls' => 
   (length (lookupIdsViaLabelFromIdls idls0 l) <= 1) /\
   (_checkIdenticalIncomingValues idls' idls0)
 end.
@@ -557,7 +559,7 @@ Inductive wf_insn : intrinsic_funs -> system -> module_info -> fdef_info -> bloc
  | wf_insn_add : forall (intrinsic_funs5:intrinsic_funs) (system5:system) (fdef_info5:fdef_info) (block5:block) (id5:id) (sz5:nat) (value1 value2:value) (module_info5:module_info) (fdef5:fdef) (dt5:dt),
      visitBinaryOperator intrinsic_funs5 system5 module_info5   ( fdef5 ,  dt5 )   block5 (insn_bop id5 bop_add sz5 value1 value2) ->
      wf_insn intrinsic_funs5 system5   module_info5   ( fdef5 ,  dt5 ) block5 (insn_cmd (insn_bop id5 bop_add sz5 value1 value2))
- | wf_insn_phi : forall (id_l_list:list_id_l) (intrinsic_funs5:intrinsic_funs) (system5:system) (fdef_info5:fdef_info) (block5:block) (id_5:id) (typ5:typ) (module_info5:module_info) (fdef5:fdef) (dt5:dt),
+ | wf_insn_phi : forall (id_l_list:list_value_l) (intrinsic_funs5:intrinsic_funs) (system5:system) (fdef_info5:fdef_info) (block5:block) (id_5:id) (typ5:typ) (module_info5:module_info) (fdef5:fdef) (dt5:dt),
      visitPHINode intrinsic_funs5 system5 module_info5   ( fdef5 ,  dt5 )   block5 (insn_phi id_5 typ5 id_l_list) ->
      wf_insn intrinsic_funs5 system5   module_info5   ( fdef5 ,  dt5 ) block5 (insn_phinode (insn_phi id_5 typ5 id_l_list))
  .

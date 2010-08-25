@@ -91,21 +91,21 @@ Inductive dbCmd : layouts ->  GVMap ->
     (insn_alloca id t sz align)
     (updateAddAL _ lc id (ptr2GV TD (mb, 0))) (mb::als) Mem'
     trace_nil
-| dbLoad : forall TD lc gl id t v Mem als mp gv,
+| dbLoad : forall TD lc gl id t v align Mem als mp gv,
   getOperandPtr TD v lc gl = Some mp ->
-  mload TD Mem mp t = Some gv ->
+  mload TD Mem mp t align = Some gv ->
   dbCmd TD gl
     lc als Mem
-    (insn_load id t v)
+    (insn_load id t v align)
     (updateAddAL _ lc id gv) als Mem
     trace_nil
-| dbStore : forall TD lc gl sid t v1 v2 Mem als mp2 gv1 Mem',
+| dbStore : forall TD lc gl sid t v1 v2 align Mem als mp2 gv1 Mem',
   getOperandValue TD v1 lc gl = Some gv1 ->
   getOperandPtr TD v2 lc gl = Some mp2 ->
-  mstore TD Mem mp2 t gv1 = Some Mem' ->
+  mstore TD Mem mp2 t gv1 align = Some Mem' ->
   dbCmd TD gl 
     lc als Mem
-    (insn_store sid t v1 v2)
+    (insn_store sid t v1 v2 align)
     lc als Mem'
     trace_nil
 | dbGEP : forall TD lc gl id inbounds t v idxs mp mp' Mem als,
@@ -1173,7 +1173,7 @@ Inductive sterm : Set :=
 | sterm_insertvalue : typ -> sterm -> typ -> sterm -> list_const -> sterm
 | sterm_malloc : smem -> typ -> sz -> align -> sterm
 | sterm_alloca : smem -> typ -> sz -> align -> sterm
-| sterm_load : smem -> typ -> sterm -> sterm
+| sterm_load : smem -> typ -> sterm -> align -> sterm
 | sterm_gep : inbounds -> typ -> sterm -> list_sterm -> sterm
 | sterm_ext : extop -> typ -> sterm -> typ -> sterm
 | sterm_cast : castop -> typ -> sterm -> typ -> sterm
@@ -1191,8 +1191,8 @@ with smem : Set :=
 | smem_malloc : smem -> typ -> sz -> align -> smem
 | smem_free : smem -> typ -> sterm -> smem
 | smem_alloca : smem -> typ -> sz -> align -> smem
-| smem_load : smem -> typ -> sterm -> smem
-| smem_store : smem -> typ -> sterm -> sterm -> smem
+| smem_load : smem -> typ -> sterm -> align -> smem
+| smem_store : smem -> typ -> sterm -> sterm -> align -> smem
 with sframe : Set :=
 | sframe_init : sframe
 | sframe_alloca : smem -> sframe -> typ -> sz -> align -> sframe
@@ -1411,19 +1411,20 @@ match c with
                  (smem_alloca st.(SMem) t1 sz1 al1)
                  (sframe_alloca st.(SMem) st.(SFrame) t1 sz1 al1)
                  st.(SEffects))
-  | insn_load id0 t2 v2 => fun _ =>   
+  | insn_load id0 t2 v2 align => fun _ =>   
        (mkSstate (updateAddAL _ st.(STerms) id0 
                    (sterm_load st.(SMem) t2 
-                     (value2Sterm st.(STerms) v2)))
+                     (value2Sterm st.(STerms) v2) align))
                  (smem_load st.(SMem)t2 
-                   (value2Sterm st.(STerms) v2))
+                   (value2Sterm st.(STerms) v2) align)
                  st.(SFrame)
                  st.(SEffects))
-  | insn_store id0 t0 v1 v2 => fun _ =>  
+  | insn_store id0 t0 v1 v2 align => fun _ =>  
        (mkSstate st.(STerms)
                  (smem_store st.(SMem) t0 
                    (value2Sterm st.(STerms) v1)
-                   (value2Sterm st.(STerms) v2))
+                   (value2Sterm st.(STerms) v2)
+                   align)
                  st.(SFrame)
                  st.(SEffects))
   | insn_gep id0 inbounds0 t1 v1 lv2 => fun _ =>  
@@ -1483,9 +1484,9 @@ match ps with
                  (sterm_phi 
                    t0 
                    (make_list_sterm_l
-                     (map_list_id_l
-                       (fun id5 l5 =>
-                        ((value2Sterm st.(STerms) (value_id id5)), l5)
+                     (map_list_value_l
+                       (fun v5 l5 =>
+                        ((value2Sterm st.(STerms) v5), l5)
                        )
                        idls0
                      )
@@ -1786,12 +1787,12 @@ Inductive sterm_denotes_genericvalue :
   getTypeAllocSize TD t0 = Some tsz0 ->
   malloc TD Mem1 (tsz0 * sz0) align0 = Some (Mem2, mb) ->
   sterm_denotes_genericvalue TD lc gl Mem0 (sterm_alloca sm0 t0 sz0 align0) (ptr2GV TD (mb, 0))
-| sterm_load_denotes : forall TD lc gl Mem0 Mem1 sm0 t0 st0 gv0 mp0 gv1,
+| sterm_load_denotes : forall TD lc gl Mem0 Mem1 sm0 t0 align0 st0 gv0 mp0 gv1,
   sterm_denotes_genericvalue TD lc gl Mem0 st0 gv0 ->
   smem_denotes_mem TD lc gl Mem0 sm0 Mem1 ->
   GV2ptr TD (getPointerSize TD) gv0 = Some mp0 ->
-  mload TD Mem1 mp0 t0 = Some gv1 ->
-  sterm_denotes_genericvalue TD lc gl Mem0 (sterm_load sm0 t0 st0) gv1
+  mload TD Mem1 mp0 t0 align0 = Some gv1 ->
+  sterm_denotes_genericvalue TD lc gl Mem0 (sterm_load sm0 t0 st0 align0) gv1
 | sterm_gep_denotes : forall TD lc gl Mem ib0 t0 st0 sts0 gv0 gvs0 ns0 mp0 mp1,
   sterm_denotes_genericvalue TD lc gl Mem st0 gv0 ->
   sterms_denote_genericvalues TD lc gl Mem sts0 gvs0 ->
@@ -1859,16 +1860,16 @@ with smem_denotes_mem :
   getTypeAllocSize TD t0 = Some tsz0 ->
   malloc TD Mem1 (tsz0 * sz0) align0 = Some (Mem2, mb) ->
   smem_denotes_mem TD lc gl Mem0 (smem_alloca sm0 t0 sz0 align0) Mem2
-| smem_load_denotes : forall TD lc gl Mem0 sm0 t0 st0 Mem1,
+| smem_load_denotes : forall TD lc gl Mem0 sm0 t0 st0 align0 Mem1,
   smem_denotes_mem TD lc gl Mem0 sm0 Mem1 ->
-  smem_denotes_mem TD lc gl Mem0 (smem_load sm0 t0 st0) Mem1
-| smem_store_denotes : forall TD lc gl Mem0 Mem1 sm0 t0 st1 st2 gv1 gv2 mptr2 Mem2,
+  smem_denotes_mem TD lc gl Mem0 (smem_load sm0 t0 st0 align0) Mem1
+| smem_store_denotes : forall TD lc gl Mem0 Mem1 sm0 t0 st1 st2 align0 gv1 gv2 mptr2 Mem2,
   sterm_denotes_genericvalue TD lc gl Mem0 st1 gv1 ->
   sterm_denotes_genericvalue TD lc gl Mem0 st2 gv2 ->
   smem_denotes_mem TD lc gl Mem0 sm0 Mem1 ->
   GV2ptr TD (getPointerSize TD) gv2 = Some mptr2 ->
-  mstore TD Mem1 mptr2 t0 gv1 = Some Mem2 ->
-  smem_denotes_mem TD lc gl Mem0 (smem_store sm0 t0 st1 st2) Mem2
+  mstore TD Mem1 mptr2 t0 gv1 align0 = Some Mem2 ->
+  smem_denotes_mem TD lc gl Mem0 (smem_store sm0 t0 st1 st2 align0) Mem2
 .
 
 Inductive sframe_denotes_frame : 
@@ -2049,10 +2050,10 @@ Case "sterm_alloca_denotes".
   rewrite H12 in e0. inversion e0; auto.
 Case "sterm_load_denotes".
   inversion H1; subst.
-  apply H0 in H10; subst.
-  apply H in H5; subst.
-  rewrite e in H12. inversion H12; subst.
-  rewrite H13 in e0. inversion e0; auto.
+  apply H0 in H12; subst.
+  apply H in H10; subst.
+  rewrite e in H13. inversion H13; subst.
+  rewrite H14 in e0. inversion e0; auto.
 Case "sterm_gep_denotes".
   inversion H1; subst.
   apply H in H6; subst.
@@ -2107,14 +2108,14 @@ Case "smem_alloca_denotes".
   rewrite H12 in e0. inversion e0; auto.
 Case "smem_load_denotes".
   inversion H0; subst.
-  apply H in H9; auto. 
+  apply H in H10; auto. 
 Case "smem_store_denotes".
   inversion H2; subst.
-  apply H in H7; subst. 
-  apply H0 in H12; subst. 
-  apply H1 in H14; subst. 
-  rewrite H15 in e. inversion e; subst.
-  rewrite H16 in e0. inversion e0; auto.
+  apply H in H12; subst. 
+  apply H0 in H14; subst. 
+  apply H1 in H15; subst. 
+  rewrite H16 in e. inversion e; subst.
+  rewrite H17 in e0. inversion e0; auto.
 Qed.
 
 Lemma sterm_denotes_genericvalue_det : forall TD lc gl Mem0 st0 gv1 gv2,
@@ -2304,8 +2305,8 @@ match s with
     sterm_malloc (subst_tm id0 s0 m1) t1 sz align
 | sterm_alloca m1 t1 sz align => 
     sterm_alloca (subst_tm id0 s0 m1) t1 sz align
-| sterm_load m1 t1 s1 => 
-    sterm_load (subst_tm id0 s0 m1) t1 (subst_tt id0 s0 s1)
+| sterm_load m1 t1 s1 align => 
+    sterm_load (subst_tm id0 s0 m1) t1 (subst_tt id0 s0 s1) align
 | sterm_gep inbounds t1 s1 ls2 =>
     sterm_gep inbounds t1 (subst_tt id0 s0 s1) (subst_tlt id0 s0 ls2)
 | sterm_ext extop t1 s1 t2 => 
@@ -2335,8 +2336,8 @@ match m with
 | smem_malloc m1 t1 sz align => smem_malloc (subst_tm id0 s0 m1) t1 sz align
 | smem_free m1 t1 s1 => smem_free (subst_tm id0 s0 m1) t1 (subst_tt id0 s0 s1)
 | smem_alloca m1 t1 sz align => smem_alloca (subst_tm id0 s0 m1) t1 sz align
-| smem_load m1 t1 s1 => smem_load (subst_tm id0 s0 m1) t1 (subst_tt id0 s0 s1)
-| smem_store m1 t1 s1 s2 => smem_store (subst_tm id0 s0 m1) t1 (subst_tt id0 s0 s1) (subst_tt id0 s0 s2)
+| smem_load m1 t1 s1 align => smem_load (subst_tm id0 s0 m1) t1 (subst_tt id0 s0 s1) align 
+| smem_store m1 t1 s1 s2 align => smem_store (subst_tm id0 s0 m1) t1 (subst_tt id0 s0 s1) (subst_tt id0 s0 s2) align
 end
 .
 

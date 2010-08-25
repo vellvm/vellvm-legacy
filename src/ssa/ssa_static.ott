@@ -389,18 +389,18 @@ Jwf_insn :: '' ::=
       % Load result type does not match pointer operand type!
       system |- value1 : typ1*
       % Check invariance for instructions
-      intrinsic_funs , system , module_info , fdef_info , block |-i id = load (typ1*) value1		
-      -------------------------------------------------------------------------------------- :: wf_insn_load
-      intrinsic_funs , system , module_info , fdef_info , block |- id = load (typ1*) value1		
+      intrinsic_funs , system , module_info , fdef_info , block |-i id = load (typ1*) value1 align
+      ---------------------------------------------------------------------------------------------- :: wf_insn_load
+      intrinsic_funs , system , module_info , fdef_info , block |- id = load (typ1*) value1 align		
 
       % Store operand must be a pointer.
       % Stored value type does not match pointer operand type!
       system |- value1 : typ
       system |- value2 : typ*
       % Check invariance for instructions
-      intrinsic_funs , system , module_info , fdef_info , block |-i id = store typ value1 value2	
-      -------------------------------------------------------------------------------------- :: wf_insn_store
-      intrinsic_funs , system , module_info , fdef_info , block |- id = store typ value1 value2
+      intrinsic_funs , system , module_info , fdef_info , block |-i id = store typ value1 value2 align
+      ------------------------------------------------------------------------------------------------- :: wf_insn_store
+      intrinsic_funs , system , module_info , fdef_info , block |- id = store typ value1 value2 align
 
       % Check typs
       system |- value : typ*
@@ -435,26 +435,26 @@ Jwf_insn :: '' ::=
 
 
       % Check typs
-      </ system |- idj : typ // j />
+      </ system |- valuej : typ // j />
       % LLVM::visitInstruction checks that non-phi nodes are not self referential 
       getIdUseDef usedef_id id = ids'
       ids' <-> </ id'i // i />
       </ (not id = id'i) \/ (not (isReachableFromEntry fdef_info block)) // i />
       % The following properties 1-4 are checked in visitBlock by LLVM, but we check them here. 
       % 1 Ensure that PHI nodes have at least one entry! 
-      PHINode.getNumIncomingValues (id = phi typ </ [ idj , lj ] // j />) = INT
+      PHINode.getNumIncomingValues (id = phi typ </ [ valuej , lj ] // j />) = INT
       {{ [[INT]] >0 }}
       % 2 PHINode should have one entry for each predecessor of its parent basic block!
       predOfBlock block usedef_block = blocks
       {{ [[INT]] = length [[blocks]]}}
       % 3 Check to make sure that the predecessors and PHI node entries are matched up.
       getLabelsFromBlocks blocks = ls1
-      getLabelsFromPhiNode (id = phi typ </ [ idj , lj ] // j />) =ls2
+      getLabelsFromPhiNode (id = phi typ </ [ valuej , lj ] // j />) =ls2
       ls1 == ls2
       % 4 Check to make sure that if there is more than one entry for a
       %   particular basic block in this PHI node, that the incoming values are
       %   all identical.
-      checkIdenticalIncomingValues (id = phi typ </ [ idj , lj ] // j />)
+      checkIdenticalIncomingValues (id = phi typ </ [ valuej , lj ] // j />)
       % Check that all of the operands of the PHI node have the same type as the result.
       </ lookupTypViaIDFromSystem system idj = typ // j />
       %
@@ -463,9 +463,9 @@ Jwf_insn :: '' ::=
       % Check labels
       </ lookupBlockViaLabelFromSystem system lj = blockj /\ blockInFdef blockj fdef // j />
       % Check invariance for instructions
-      intrinsic_funs , system , (module, usedef_id, usedef_block) , (fdef, dt) , block |-i id = phi typ </ [ idj , lj ] // j />
+      intrinsic_funs , system , (module, usedef_id, usedef_block) , (fdef, dt) , block |-i id = phi typ </ [ valuej , lj ] // j />
       ------------------------------------------------------------------------------------------------ :: wf_insn_phi
-      intrinsic_funs , system , (module, usedef_id, usedef_block), (fdef, dt) , block |- id = phi typ </ [ idj , lj ] // j />
+      intrinsic_funs , system , (module, usedef_id, usedef_block), (fdef, dt) , block |- id = phi typ </ [ valuej , lj ] // j />
 			        
 
       % Check typs

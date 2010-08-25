@@ -14,26 +14,19 @@ type nat =
   | O
   | S of nat
 
-type 'a option =
-  | Some of 'a
-  | None
-
 type ('a, 'b) sum =
   | Inl of 'a
   | Inr of 'b
 
-type ('a, 'b) prod =
-  | Pair of 'a * 'b
-
-(** val fst : ('a1, 'a2) prod -> 'a1 **)
+(** val fst : ('a1 * 'a2) -> 'a1 **)
 
 let fst = function
-  | Pair (x, y) -> x
+  | x , y -> x
 
-(** val snd : ('a1, 'a2) prod -> 'a2 **)
+(** val snd : ('a1 * 'a2) -> 'a2 **)
 
 let snd = function
-  | Pair (x, y) -> y
+  | x , y -> y
 
 type 'a sig0 = 'a
   (* singleton inductive, whose constructor was exist *)
@@ -82,102 +75,95 @@ let rec max n m =
 let bool_dec b1 b2 =
   if b1 then if b2 then true else false else if b2 then false else true
 
-type 'a list =
-  | Nil
-  | Cons of 'a * 'a list
-
 (** val length : 'a1 list -> nat **)
 
 let rec length = function
-  | Nil -> O
-  | Cons (a, m) -> S (length m)
+  | [] -> O
+  | a :: m -> S (length m)
 
 (** val app : 'a1 list -> 'a1 list -> 'a1 list **)
 
 let rec app l0 m =
   match l0 with
-    | Nil -> m
-    | Cons (a, l1) -> Cons (a, (app l1 m))
+    | [] -> m
+    | a :: l1 -> a :: (app l1 m)
 
 (** val in_dec : ('a1 -> 'a1 -> bool) -> 'a1 -> 'a1 list -> bool **)
 
 let rec in_dec h a = function
-  | Nil -> false
-  | Cons (a0, l1) -> if h a0 a then true else in_dec h a l1
+  | [] -> false
+  | a0 :: l1 -> if h a0 a then true else in_dec h a l1
 
 (** val nth_error : 'a1 list -> nat -> 'a1 exc **)
 
 let rec nth_error l0 = function
   | O -> (match l0 with
-            | Nil -> error
-            | Cons (x, l1) -> value x)
-  | S n0 ->
-      (match l0 with
-         | Nil -> error
-         | Cons (a, l1) -> nth_error l1 n0)
+            | [] -> error
+            | x :: l1 -> value x)
+  | S n0 -> (match l0 with
+               | [] -> error
+               | a :: l1 -> nth_error l1 n0)
 
 (** val rev : 'a1 list -> 'a1 list **)
 
 let rec rev = function
-  | Nil -> Nil
-  | Cons (x, l') -> app (rev l') (Cons (x, Nil))
+  | [] -> []
+  | x :: l' -> app (rev l') (x :: [])
 
 (** val map : ('a1 -> 'a2) -> 'a1 list -> 'a2 list **)
 
 let rec map f = function
-  | Nil -> Nil
-  | Cons (a, t0) -> Cons ((f a), (map f t0))
+  | [] -> []
+  | a :: t0 -> (f a) :: (map f t0)
 
 (** val fold_left : ('a1 -> 'a2 -> 'a1) -> 'a2 list -> 'a1 -> 'a1 **)
 
 let rec fold_left f l0 a0 =
   match l0 with
-    | Nil -> a0
-    | Cons (b, t0) -> fold_left f t0 (f a0 b)
+    | [] -> a0
+    | b :: t0 -> fold_left f t0 (f a0 b)
 
 (** val fold_right : ('a2 -> 'a1 -> 'a1) -> 'a1 -> 'a2 list -> 'a1 **)
 
 let rec fold_right f a0 = function
-  | Nil -> a0
-  | Cons (b, t0) -> f b (fold_right f a0 t0)
+  | [] -> a0
+  | b :: t0 -> f b (fold_right f a0 t0)
 
 type 'a set = 'a list
 
 (** val empty_set : 'a1 set **)
 
 let empty_set =
-  Nil
+  []
 
 (** val set_add : ('a1 -> 'a1 -> bool) -> 'a1 -> 'a1 set -> 'a1 set **)
 
 let rec set_add aeq_dec a = function
-  | Nil -> Cons (a, Nil)
-  | Cons (a1, x1) ->
-      if aeq_dec a a1
-      then Cons (a1, x1)
-      else Cons (a1, (set_add aeq_dec a x1))
+  | [] -> a :: []
+  | a1 :: x1 ->
+      if aeq_dec a a1 then a1 :: x1 else a1 :: (set_add aeq_dec a x1)
 
 (** val set_mem : ('a1 -> 'a1 -> bool) -> 'a1 -> 'a1 set -> bool **)
 
 let rec set_mem aeq_dec a = function
-  | Nil -> false
-  | Cons (a1, x1) -> if aeq_dec a a1 then true else set_mem aeq_dec a x1
+  | [] -> false
+  | a1 :: x1 -> if aeq_dec a a1 then true else set_mem aeq_dec a x1
 
 (** val set_inter : ('a1 -> 'a1 -> bool) -> 'a1 set -> 'a1 set -> 'a1 set **)
 
 let rec set_inter aeq_dec x x0 =
   match x with
-    | Nil -> Nil
-    | Cons (a1, x1) ->
+    | [] -> []
+    | a1 :: x1 ->
         if set_mem aeq_dec a1 x0
-        then Cons (a1, (set_inter aeq_dec x1 x0))
+        then a1 :: (set_inter aeq_dec x1 x0)
         else set_inter aeq_dec x1 x0
 
 (** val set_union : ('a1 -> 'a1 -> bool) -> 'a1 set -> 'a1 set -> 'a1 set **)
 
 let rec set_union aeq_dec x = function
-  | Nil -> x
-  | Cons (a1, y1) -> set_add aeq_dec a1 (set_union aeq_dec x y1)
+  | [] -> x
+  | a1 :: y1 -> set_add aeq_dec a1 (set_union aeq_dec x y1)
 
 module type DecidableType = 
  sig 
@@ -232,7 +218,7 @@ module WFacts_fun =
   
   val filter : (elt -> bool) -> t -> t
   
-  val partition : (elt -> bool) -> t -> (t, t) prod
+  val partition : (elt -> bool) -> t -> t * t
   
   val cardinal : t -> nat
   
@@ -286,7 +272,7 @@ module WDecide_fun =
   
   val filter : (elt -> bool) -> t -> t
   
-  val partition : (elt -> bool) -> t -> (t, t) prod
+  val partition : (elt -> bool) -> t -> t * t
   
   val cardinal : t -> nat
   
@@ -352,7 +338,7 @@ module WProperties_fun =
   
   val filter : (elt -> bool) -> t -> t
   
-  val partition : (elt -> bool) -> t -> (t, t) prod
+  val partition : (elt -> bool) -> t -> t * t
   
   val cardinal : t -> nat
   
@@ -387,8 +373,8 @@ module WProperties_fun =
   let fold_rec f i0 s pempty pstep =
     let rec f0 l0 pstep' s0 =
       match l0 with
-        | Nil -> pempty s0 __
-        | Cons (a, l1) ->
+        | [] -> pempty s0 __
+        | a :: l1 ->
             pstep' a (fold_right f i0 l1) (of_list l1) s0 __ __ __
               (f0 l1 (fun x a0 s' s'' _ _ _ x0 ->
                 pstep' x a0 s' s'' __ __ __ x0) (of_list l1))
@@ -427,8 +413,8 @@ module WProperties_fun =
   let fold_rel f g i0 j s rempty rstep =
     let rec f0 l0 rstep' =
       match l0 with
-        | Nil -> rempty
-        | Cons (a, l1) ->
+        | [] -> rempty
+        | a :: l1 ->
             rstep' a (fold_right f i0 l1) (fold_right g j l1) __
               (f0 l1 (fun x a0 b _ x0 -> rstep' x a0 b __ x0))
     in f0 (rev (M.elements s)) (fun x a b _ x0 -> rstep x a b __ x0)
@@ -453,8 +439,8 @@ module WProperties_fun =
   
   let cardinal_inv_2 s n =
     match M.elements s with
-      | Nil -> assert false (* absurd case *)
-      | Cons (e, l0) -> e
+      | [] -> assert false (* absurd case *)
+      | e :: l0 -> e
   
   (** val cardinal_inv_2b : M.t -> M.elt **)
   
@@ -463,8 +449,8 @@ module WProperties_fun =
       | O -> assert false (* absurd case *)
       | S n ->
           (match M.elements s with
-             | Nil -> assert false (* absurd case *)
-             | Cons (e, l0) -> e)
+             | [] -> assert false (* absurd case *)
+             | e :: l0 -> e)
  end
 
 module Raw = 
@@ -477,43 +463,43 @@ module Raw =
   (** val empty : t **)
   
   let empty =
-    Nil
+    []
   
   (** val is_empty : t -> bool **)
   
   let is_empty = function
-    | Nil -> true
-    | Cons (x, x0) -> false
+    | [] -> true
+    | x :: x0 -> false
   
   (** val mem : elt -> t -> bool **)
   
   let rec mem x = function
-    | Nil -> false
-    | Cons (y, l0) -> if X.eq_dec x y then true else mem x l0
+    | [] -> false
+    | y :: l0 -> if X.eq_dec x y then true else mem x l0
   
   (** val add : elt -> t -> t **)
   
   let rec add x s = match s with
-    | Nil -> Cons (x, Nil)
-    | Cons (y, l0) -> if X.eq_dec x y then s else Cons (y, (add x l0))
+    | [] -> x :: []
+    | y :: l0 -> if X.eq_dec x y then s else y :: (add x l0)
   
   (** val singleton : elt -> t **)
   
   let singleton x =
-    Cons (x, Nil)
+    x :: []
   
   (** val remove : elt -> t -> t **)
   
   let rec remove x = function
-    | Nil -> Nil
-    | Cons (y, l0) -> if X.eq_dec x y then l0 else Cons (y, (remove x l0))
+    | [] -> []
+    | y :: l0 -> if X.eq_dec x y then l0 else y :: (remove x l0)
   
   (** val fold : (elt -> 'a1 -> 'a1) -> t -> 'a1 -> 'a1 **)
   
   let rec fold f s i0 =
     match s with
-      | Nil -> i0
-      | Cons (x, l0) -> fold f l0 (f x i0)
+      | [] -> i0
+      | x :: l0 -> fold f l0 (f x i0)
   
   (** val union : t -> t -> t **)
   
@@ -528,7 +514,7 @@ module Raw =
   (** val inter : t -> t -> t **)
   
   let inter s s' =
-    fold (fun x s0 -> if mem x s' then add x s0 else s0) s Nil
+    fold (fun x s0 -> if mem x s' then add x s0 else s0) s []
   
   (** val subset : t -> t -> bool **)
   
@@ -543,28 +529,28 @@ module Raw =
   (** val filter : (elt -> bool) -> t -> t **)
   
   let rec filter f = function
-    | Nil -> Nil
-    | Cons (x, l0) -> if f x then Cons (x, (filter f l0)) else filter f l0
+    | [] -> []
+    | x :: l0 -> if f x then x :: (filter f l0) else filter f l0
   
   (** val for_all : (elt -> bool) -> t -> bool **)
   
   let rec for_all f = function
-    | Nil -> true
-    | Cons (x, l0) -> if f x then for_all f l0 else false
+    | [] -> true
+    | x :: l0 -> if f x then for_all f l0 else false
   
   (** val exists_ : (elt -> bool) -> t -> bool **)
   
   let rec exists_ f = function
-    | Nil -> false
-    | Cons (x, l0) -> if f x then true else exists_ f l0
+    | [] -> false
+    | x :: l0 -> if f x then true else exists_ f l0
   
-  (** val partition : (elt -> bool) -> t -> (t, t) prod **)
+  (** val partition : (elt -> bool) -> t -> t * t **)
   
   let rec partition f = function
-    | Nil -> Pair (Nil, Nil)
-    | Cons (x, l0) ->
-        let Pair (s1, s2) = partition f l0 in
-        if f x then Pair ((Cons (x, s1)), s2) else Pair (s1, (Cons (x, s2)))
+    | [] -> [] , []
+    | x :: l0 ->
+        let s1 , s2 = partition f l0 in
+        if f x then (x :: s1) , s2 else s1 , (x :: s2)
   
   (** val cardinal : t -> nat **)
   
@@ -579,8 +565,8 @@ module Raw =
   (** val choose : t -> elt option **)
   
   let choose = function
-    | Nil -> None
-    | Cons (x, l0) -> Some x
+    | [] -> None
+    | x :: l0 -> Some x
   
   (** val eq_dec : t -> t -> bool **)
   
@@ -627,7 +613,7 @@ module Coq_WDecide_fun =
   
   val filter : (elt -> bool) -> t -> t
   
-  val partition : (elt -> bool) -> t -> (t, t) prod
+  val partition : (elt -> bool) -> t -> t * t
   
   val cardinal : t -> nat
   
@@ -700,7 +686,7 @@ module Make =
   
   val filter : (elt -> bool) -> t -> t
   
-  val partition : (elt -> bool) -> t -> (t, t) prod
+  val partition : (elt -> bool) -> t -> t * t
   
   val cardinal : t -> nat
   
@@ -718,46 +704,43 @@ module Make =
   (** val one : 'a1 -> 'a1 list **)
   
   let one item =
-    Cons (item, Nil)
+    item :: []
   
-  (** val dom : (X.t, 'a1) prod list -> KeySet.t **)
+  (** val dom : (X.t * 'a1) list -> KeySet.t **)
   
   let rec dom = function
-    | Nil -> KeySet.empty
-    | Cons (p, e') -> let Pair (x, y) = p in KeySet.add x (dom e')
+    | [] -> KeySet.empty
+    | p :: e' -> let x , y = p in KeySet.add x (dom e')
   
-  (** val get : X.t -> (X.t, 'a1) prod list -> 'a1 option **)
+  (** val get : X.t -> (X.t * 'a1) list -> 'a1 option **)
   
   let rec get x = function
-    | Nil -> None
-    | Cons (p, f) ->
-        let Pair (y, c) = p in if X.eq_dec x y then Some c else get x f
+    | [] -> None
+    | p :: f -> let y , c = p in if X.eq_dec x y then Some c else get x f
   
-  (** val map :
-      ('a1 -> 'a2) -> (X.t, 'a1) prod list -> (X.t, 'a2) prod list **)
+  (** val map : ('a1 -> 'a2) -> (X.t * 'a1) list -> (X.t * 'a2) list **)
   
   let map f e =
-    map (fun b -> let Pair (x, a) = b in Pair (x, (f a))) e
+    map (fun b -> let x , a = b in x , (f a)) e
   
   (** val alist_ind :
-      'a2 -> (X.t -> 'a1 -> (X.t, 'a1) prod list -> 'a2 -> 'a2) -> (X.t, 'a1)
-      prod list -> 'a2 **)
+      'a2 -> (X.t -> 'a1 -> (X.t * 'a1) list -> 'a2 -> 'a2) -> (X.t * 'a1)
+      list -> 'a2 **)
   
   let rec alist_ind x x0 = function
-    | Nil -> x
-    | Cons (a, l0) ->
-        let Pair (x1, a0) = a in x0 x1 a0 l0 (alist_ind x x0 l0)
+    | [] -> x
+    | a :: l0 -> let x1 , a0 = a in x0 x1 a0 l0 (alist_ind x x0 l0)
   
   (** val binds_dec :
-      X.t -> 'a1 -> (X.t, 'a1) prod list -> ('a1 -> 'a1 -> bool) -> bool **)
+      X.t -> 'a1 -> (X.t * 'a1) list -> ('a1 -> 'a1 -> bool) -> bool **)
   
   let binds_dec x a e x0 =
     in_dec (fun x1 y ->
-      let Pair (x2, x3) = x1 in
-      let Pair (t0, a1) = y in if X.eq_dec x2 t0 then x0 x3 a1 else false)
-      (Pair (x, a)) e
+      let x2 , x3 = x1 in
+      let t0 , a1 = y in if X.eq_dec x2 t0 then x0 x3 a1 else false) (x , a)
+      e
   
-  (** val binds_lookup : X.t -> (X.t, 'a1) prod list -> ('a1, __) sum **)
+  (** val binds_lookup : X.t -> (X.t * 'a1) list -> ('a1, __) sum **)
   
   let binds_lookup x e =
     alist_ind (Inr __) (fun x1 a1 l0 x0 ->
@@ -890,10 +873,10 @@ module Coq_Make =
   let exists_ f s =
     Raw.exists_ f (this s)
   
-  (** val partition : (elt -> bool) -> t -> (t, t) prod **)
+  (** val partition : (elt -> bool) -> t -> t * t **)
   
   let partition f s =
-    let p = Raw.partition f (this s) in Pair ((fst p), (snd p))
+    let p = Raw.partition f (this s) in (fst p) , (snd p)
   
   (** val eq_dec : t -> t -> bool **)
   
@@ -921,8 +904,8 @@ module AtomImpl =
   (** val nat_list_max : nat list -> nat **)
   
   let rec nat_list_max = function
-    | Nil -> O
-    | Cons (a, l1) -> max a (nat_list_max l1)
+    | [] -> O
+    | a :: l1 -> max a (nat_list_max l1)
   
   (** val atom_fresh_for_list : atom list -> atom **)
   
@@ -948,38 +931,38 @@ module AtomSetImpl = Coq_Make(AtomDT)
 
 module EnvImpl = Make(AtomDT)(AtomSetImpl)
 
-type 'x assocList = (AtomImpl.atom, 'x) prod list
+type 'x assocList = (AtomImpl.atom * 'x) list
 
 (** val updateAddAL :
     'a1 assocList -> AtomImpl.atom -> 'a1 -> 'a1 assocList **)
 
 let rec updateAddAL m i0 gv =
   match m with
-    | Nil -> Cons ((Pair (i0, gv)), Nil)
-    | Cons (p, m') ->
-        let Pair (i', gv') = p in
+    | [] -> (i0 , gv) :: []
+    | p :: m' ->
+        let i' , gv' = p in
         if eqDec_atom i0 i'
-        then Cons ((Pair (i', gv)), m')
-        else Cons ((Pair (i', gv')), (updateAddAL m' i0 gv))
+        then (i' , gv) :: m'
+        else (i' , gv') :: (updateAddAL m' i0 gv)
 
 (** val updateAL : 'a1 assocList -> AtomImpl.atom -> 'a1 -> 'a1 assocList **)
 
 let rec updateAL m i0 gv =
   match m with
-    | Nil -> Nil
-    | Cons (p, m') ->
-        let Pair (i', gv') = p in
+    | [] -> []
+    | p :: m' ->
+        let i' , gv' = p in
         if eqDec_atom i0 i'
-        then Cons ((Pair (i', gv)), m')
-        else Cons ((Pair (i', gv')), (updateAL m' i0 gv))
+        then (i' , gv) :: m'
+        else (i' , gv') :: (updateAL m' i0 gv)
 
 (** val lookupAL : 'a1 assocList -> AtomImpl.atom -> 'a1 option **)
 
 let rec lookupAL m i0 =
   match m with
-    | Nil -> None
-    | Cons (p, m') ->
-        let Pair (i', gv') = p in
+    | [] -> None
+    | p :: m' ->
+        let i' , gv' = p in
         if eqDec_atom i0 i' then Some gv' else lookupAL m' i0
 
 module LLVMsyntax = 
@@ -987,13 +970,12 @@ module LLVMsyntax =
   (** val last_opt : 'a1 list -> 'a1 option **)
   
   let rec last_opt = function
-    | Nil -> None
-    | Cons (a, l') ->
-        (match l' with
-           | Nil -> Some a
-           | Cons (a0, l1) -> last_opt l')
+    | [] -> None
+    | a :: l' -> (match l' with
+                    | [] -> Some a
+                    | a0 :: l1 -> last_opt l')
   
-  type coq_INT = Big_int.big_int
+  type coq_INT = Llvm.llapint
   
   type id = String.t
   
@@ -1001,7 +983,7 @@ module LLVMsyntax =
   
   type align = int
   
-  type sz = Big_int.big_int
+  type sz = int
   
   type i = nat
   
@@ -1129,9 +1111,9 @@ module LLVMsyntax =
     | Coq_value_id x -> f x
     | Coq_value_const x -> f0 x
   
-  type param = (typ, value) prod
+  type param = typ * value
   
-  type params = (typ, value) prod list
+  type params = (typ * value) list
   
   type cond =
     | Coq_cond_eq
@@ -1272,23 +1254,25 @@ module LLVMsyntax =
     | Nil_list_value -> f
     | Cons_list_value (v, l1) -> f0 v l1 (list_value_rec f f0 l1)
   
-  type list_id_l =
-    | Nil_list_id_l
-    | Cons_list_id_l of id * l * list_id_l
+  type list_value_l =
+    | Nil_list_value_l
+    | Cons_list_value_l of value * l * list_value_l
   
-  (** val list_id_l_rect :
-      'a1 -> (id -> l -> list_id_l -> 'a1 -> 'a1) -> list_id_l -> 'a1 **)
+  (** val list_value_l_rect :
+      'a1 -> (value -> l -> list_value_l -> 'a1 -> 'a1) -> list_value_l ->
+      'a1 **)
   
-  let rec list_id_l_rect f f0 = function
-    | Nil_list_id_l -> f
-    | Cons_list_id_l (i0, l1, l2) -> f0 i0 l1 l2 (list_id_l_rect f f0 l2)
+  let rec list_value_l_rect f f0 = function
+    | Nil_list_value_l -> f
+    | Cons_list_value_l (v, l1, l2) -> f0 v l1 l2 (list_value_l_rect f f0 l2)
   
-  (** val list_id_l_rec :
-      'a1 -> (id -> l -> list_id_l -> 'a1 -> 'a1) -> list_id_l -> 'a1 **)
+  (** val list_value_l_rec :
+      'a1 -> (value -> l -> list_value_l -> 'a1 -> 'a1) -> list_value_l ->
+      'a1 **)
   
-  let rec list_id_l_rec f f0 = function
-    | Nil_list_id_l -> f
-    | Cons_list_id_l (i0, l1, l2) -> f0 i0 l1 l2 (list_id_l_rec f f0 l2)
+  let rec list_value_l_rec f f0 = function
+    | Nil_list_value_l -> f
+    | Cons_list_value_l (v, l1, l2) -> f0 v l1 l2 (list_value_l_rec f f0 l2)
   
   type cmd =
     | Coq_insn_bop of id * bop * sz * value * value
@@ -1297,8 +1281,8 @@ module LLVMsyntax =
     | Coq_insn_malloc of id * typ * sz * align
     | Coq_insn_free of id * typ * value
     | Coq_insn_alloca of id * typ * sz * align
-    | Coq_insn_load of id * typ * value
-    | Coq_insn_store of id * typ * value * value
+    | Coq_insn_load of id * typ * value * align
+    | Coq_insn_store of id * typ * value * value * align
     | Coq_insn_gep of id * inbounds * typ * value * list_value
     | Coq_insn_ext of id * extop * typ * value * typ
     | Coq_insn_cast of id * castop * typ * value * typ
@@ -1311,12 +1295,12 @@ module LLVMsyntax =
       list_const -> 'a1) -> (id -> typ -> value -> typ -> value -> list_const
       -> 'a1) -> (id -> typ -> sz -> align -> 'a1) -> (id -> typ -> value ->
       'a1) -> (id -> typ -> sz -> align -> 'a1) -> (id -> typ -> value ->
-      'a1) -> (id -> typ -> value -> value -> 'a1) -> (id -> inbounds -> typ
-      -> value -> list_value -> 'a1) -> (id -> extop -> typ -> value -> typ
-      -> 'a1) -> (id -> castop -> typ -> value -> typ -> 'a1) -> (id -> cond
-      -> typ -> value -> value -> 'a1) -> (id -> value -> typ -> value ->
-      value -> 'a1) -> (id -> noret -> tailc -> typ -> id -> params -> 'a1)
-      -> cmd -> 'a1 **)
+      align -> 'a1) -> (id -> typ -> value -> value -> align -> 'a1) -> (id
+      -> inbounds -> typ -> value -> list_value -> 'a1) -> (id -> extop ->
+      typ -> value -> typ -> 'a1) -> (id -> castop -> typ -> value -> typ ->
+      'a1) -> (id -> cond -> typ -> value -> value -> 'a1) -> (id -> value ->
+      typ -> value -> value -> 'a1) -> (id -> noret -> tailc -> typ -> id ->
+      params -> 'a1) -> cmd -> 'a1 **)
   
   let cmd_rect f f0 f1 f2 f3 f4 f5 f6 f7 f8 f9 f10 f11 f12 = function
     | Coq_insn_bop (x, x0, x1, x2, x3) -> f x x0 x1 x2 x3
@@ -1325,8 +1309,8 @@ module LLVMsyntax =
     | Coq_insn_malloc (x, x0, x1, x2) -> f2 x x0 x1 x2
     | Coq_insn_free (x, x0, x1) -> f3 x x0 x1
     | Coq_insn_alloca (x, x0, x1, x2) -> f4 x x0 x1 x2
-    | Coq_insn_load (x, x0, x1) -> f5 x x0 x1
-    | Coq_insn_store (x, x0, x1, x2) -> f6 x x0 x1 x2
+    | Coq_insn_load (x, x0, x1, x2) -> f5 x x0 x1 x2
+    | Coq_insn_store (x, x0, x1, x2, x3) -> f6 x x0 x1 x2 x3
     | Coq_insn_gep (x, x0, x1, x2, x3) -> f7 x x0 x1 x2 x3
     | Coq_insn_ext (x, x0, x1, x2, x3) -> f8 x x0 x1 x2 x3
     | Coq_insn_cast (x, x0, x1, x2, x3) -> f9 x x0 x1 x2 x3
@@ -1339,12 +1323,12 @@ module LLVMsyntax =
       list_const -> 'a1) -> (id -> typ -> value -> typ -> value -> list_const
       -> 'a1) -> (id -> typ -> sz -> align -> 'a1) -> (id -> typ -> value ->
       'a1) -> (id -> typ -> sz -> align -> 'a1) -> (id -> typ -> value ->
-      'a1) -> (id -> typ -> value -> value -> 'a1) -> (id -> inbounds -> typ
-      -> value -> list_value -> 'a1) -> (id -> extop -> typ -> value -> typ
-      -> 'a1) -> (id -> castop -> typ -> value -> typ -> 'a1) -> (id -> cond
-      -> typ -> value -> value -> 'a1) -> (id -> value -> typ -> value ->
-      value -> 'a1) -> (id -> noret -> tailc -> typ -> id -> params -> 'a1)
-      -> cmd -> 'a1 **)
+      align -> 'a1) -> (id -> typ -> value -> value -> align -> 'a1) -> (id
+      -> inbounds -> typ -> value -> list_value -> 'a1) -> (id -> extop ->
+      typ -> value -> typ -> 'a1) -> (id -> castop -> typ -> value -> typ ->
+      'a1) -> (id -> cond -> typ -> value -> value -> 'a1) -> (id -> value ->
+      typ -> value -> value -> 'a1) -> (id -> noret -> tailc -> typ -> id ->
+      params -> 'a1) -> cmd -> 'a1 **)
   
   let cmd_rec f f0 f1 f2 f3 f4 f5 f6 f7 f8 f9 f10 f11 f12 = function
     | Coq_insn_bop (x, x0, x1, x2, x3) -> f x x0 x1 x2 x3
@@ -1353,8 +1337,8 @@ module LLVMsyntax =
     | Coq_insn_malloc (x, x0, x1, x2) -> f2 x x0 x1 x2
     | Coq_insn_free (x, x0, x1) -> f3 x x0 x1
     | Coq_insn_alloca (x, x0, x1, x2) -> f4 x x0 x1 x2
-    | Coq_insn_load (x, x0, x1) -> f5 x x0 x1
-    | Coq_insn_store (x, x0, x1, x2) -> f6 x x0 x1 x2
+    | Coq_insn_load (x, x0, x1, x2) -> f5 x x0 x1 x2
+    | Coq_insn_store (x, x0, x1, x2, x3) -> f6 x x0 x1 x2 x3
     | Coq_insn_gep (x, x0, x1, x2, x3) -> f7 x x0 x1 x2 x3
     | Coq_insn_ext (x, x0, x1, x2, x3) -> f8 x x0 x1 x2 x3
     | Coq_insn_cast (x, x0, x1, x2, x3) -> f9 x x0 x1 x2 x3
@@ -1363,20 +1347,21 @@ module LLVMsyntax =
     | Coq_insn_call (x, x0, x1, x2, x3, x4) -> f12 x x0 x1 x2 x3 x4
   
   type phinode =
-    | Coq_insn_phi of id * typ * list_id_l
+    | Coq_insn_phi of id * typ * list_value_l
   
   (** val phinode_rect :
-      (id -> typ -> list_id_l -> 'a1) -> phinode -> 'a1 **)
+      (id -> typ -> list_value_l -> 'a1) -> phinode -> 'a1 **)
   
   let phinode_rect f = function
     | Coq_insn_phi (x, x0, x1) -> f x x0 x1
   
-  (** val phinode_rec : (id -> typ -> list_id_l -> 'a1) -> phinode -> 'a1 **)
+  (** val phinode_rec :
+      (id -> typ -> list_value_l -> 'a1) -> phinode -> 'a1 **)
   
   let phinode_rec f = function
     | Coq_insn_phi (x, x0, x1) -> f x x0 x1
   
-  type arg = (typ, id) prod
+  type arg = typ * id
   
   type terminator =
     | Coq_insn_return of id * typ * value
@@ -1411,7 +1396,7 @@ module LLVMsyntax =
   
   type phinodes = phinode list
   
-  type args = (typ, id) prod list
+  type args = (typ * id) list
   
   type block =
     | Coq_block_intro of l * phinodes * cmds * terminator
@@ -1641,71 +1626,73 @@ module LLVMsyntax =
   
   type system = modules
   
-  type module_info = (coq_module, (usedef_id, usedef_block) prod) prod
+  type module_info = coq_module * (usedef_id * usedef_block)
   
-  type fdef_info = (fdef, dt) prod
+  type fdef_info = fdef * dt
   
   type intrinsic_funs = ids
   
-  (** val map_list_id_l : (id -> l -> 'a1) -> list_id_l -> 'a1 list **)
+  (** val map_list_value_l :
+      (value -> l -> 'a1) -> list_value_l -> 'a1 list **)
   
-  let rec map_list_id_l f = function
-    | Nil_list_id_l -> Nil
-    | Cons_list_id_l (h0, h1, tl_) -> Cons ((f h0 h1), (map_list_id_l f tl_))
+  let rec map_list_value_l f = function
+    | Nil_list_value_l -> []
+    | Cons_list_value_l (h0, h1, tl_) -> (f h0 h1) ::
+        (map_list_value_l f tl_)
   
-  (** val make_list_id_l : (id, l) prod list -> list_id_l **)
+  (** val make_list_value_l : (value * l) list -> list_value_l **)
   
-  let rec make_list_id_l = function
-    | Nil -> Nil_list_id_l
-    | Cons (p, tl_) ->
-        let Pair (h0, h1) = p in
-        Cons_list_id_l (h0, h1, (make_list_id_l tl_))
+  let rec make_list_value_l = function
+    | [] -> Nil_list_value_l
+    | p :: tl_ ->
+        let h0 , h1 = p in
+        Cons_list_value_l (h0, h1, (make_list_value_l tl_))
   
-  (** val unmake_list_id_l : list_id_l -> (id, l) prod list **)
+  (** val unmake_list_value_l : list_value_l -> (value * l) list **)
   
-  let rec unmake_list_id_l = function
-    | Nil_list_id_l -> Nil
-    | Cons_list_id_l (h0, h1, tl_) -> Cons ((Pair (h0, h1)),
-        (unmake_list_id_l tl_))
+  let rec unmake_list_value_l = function
+    | Nil_list_value_l -> []
+    | Cons_list_value_l (h0, h1, tl_) -> (h0 , h1) ::
+        (unmake_list_value_l tl_)
   
-  (** val nth_list_id_l : nat -> list_id_l -> (id, l) prod option **)
+  (** val nth_list_value_l : nat -> list_value_l -> (value * l) option **)
   
-  let rec nth_list_id_l n l0 =
+  let rec nth_list_value_l n l0 =
     match n with
       | O ->
           (match l0 with
-             | Nil_list_id_l -> None
-             | Cons_list_id_l (h0, h1, tl_) -> Some (Pair (h0, h1)))
+             | Nil_list_value_l -> None
+             | Cons_list_value_l (h0, h1, tl_) -> Some (h0 , h1))
       | S m ->
           (match l0 with
-             | Nil_list_id_l -> None
-             | Cons_list_id_l (h0, h1, tl_) -> nth_list_id_l m tl_)
+             | Nil_list_value_l -> None
+             | Cons_list_value_l (h0, h1, tl_) -> nth_list_value_l m tl_)
   
-  (** val app_list_id_l : list_id_l -> list_id_l -> list_id_l **)
+  (** val app_list_value_l : list_value_l -> list_value_l -> list_value_l **)
   
-  let rec app_list_id_l l0 m =
+  let rec app_list_value_l l0 m =
     match l0 with
-      | Nil_list_id_l -> m
-      | Cons_list_id_l (h0, h1, tl_) -> Cons_list_id_l (h0, h1,
-          (app_list_id_l tl_ m))
+      | Nil_list_value_l -> m
+      | Cons_list_value_l (h0, h1, tl_) -> Cons_list_value_l (h0, h1,
+          (app_list_value_l tl_ m))
   
   (** val map_list_value : (value -> 'a1) -> list_value -> 'a1 list **)
   
   let rec map_list_value f = function
-    | Nil_list_value -> Nil
-    | Cons_list_value (h, tl_) -> Cons ((f h), (map_list_value f tl_))
+    | Nil_list_value -> []
+    | Cons_list_value (h, tl_) -> (f h) :: (map_list_value f tl_)
   
   (** val make_list_value : value list -> list_value **)
   
   let rec make_list_value = function
-    | Nil -> Nil_list_value
-    | Cons (h, tl_) -> Cons_list_value (h, (make_list_value tl_))
+    | [] -> Nil_list_value
+    | h :: tl_ -> Cons_list_value (h, (make_list_value tl_))
   
   (** val unmake_list_value : list_value -> value list **)
   
   let rec unmake_list_value = function
-    | Nil_list_value -> Nil
-    | Cons_list_value (h, tl_) -> Cons (h, (unmake_list_value tl_))
+    | Nil_list_value -> []
+    | Cons_list_value (h, tl_) -> h :: (unmake_list_value tl_)
   
   (** val nth_list_value : nat -> list_value -> value option **)
   
@@ -1731,20 +1718,20 @@ module LLVMsyntax =
   (** val map_list_const : (const -> 'a1) -> list_const -> 'a1 list **)
   
   let rec map_list_const f = function
-    | Nil_list_const -> Nil
-    | Cons_list_const (h, tl_) -> Cons ((f h), (map_list_const f tl_))
+    | Nil_list_const -> []
+    | Cons_list_const (h, tl_) -> (f h) :: (map_list_const f tl_)
   
   (** val make_list_const : const list -> list_const **)
   
   let rec make_list_const = function
-    | Nil -> Nil_list_const
-    | Cons (h, tl_) -> Cons_list_const (h, (make_list_const tl_))
+    | [] -> Nil_list_const
+    | h :: tl_ -> Cons_list_const (h, (make_list_const tl_))
   
   (** val unmake_list_const : list_const -> const list **)
   
   let rec unmake_list_const = function
-    | Nil_list_const -> Nil
-    | Cons_list_const (h, tl_) -> Cons (h, (unmake_list_const tl_))
+    | Nil_list_const -> []
+    | Cons_list_const (h, tl_) -> h :: (unmake_list_const tl_)
   
   (** val nth_list_const : nat -> list_const -> const option **)
   
@@ -1770,24 +1757,33 @@ module LLVMsyntax =
   (** val map_list_typ : (typ -> 'a1) -> list_typ -> 'a1 list **)
   
   let rec map_list_typ f = function
-    | Nil_list_typ -> Nil
-    | Cons_list_typ (h, tl_) -> Cons ((f h), (map_list_typ f tl_))
+    | Nil_list_typ -> []
+    | Cons_list_typ (h, tl_) -> (f h) :: (map_list_typ f tl_)
   
   (** val make_list_typ : typ list -> list_typ **)
   
   let rec make_list_typ = function
-    | Nil -> Nil_list_typ
-    | Cons (h, tl_) -> Cons_list_typ (h, (make_list_typ tl_))
+    | [] -> Nil_list_typ
+    | h :: tl_ -> Cons_list_typ (h, (make_list_typ tl_))
   
   (** val unmake_list_typ : list_typ -> typ list **)
   
   let rec unmake_list_typ = function
-    | Nil_list_typ -> Nil
-    | Cons_list_typ (h, tl_) -> Cons (h, (unmake_list_typ tl_))
+    | Nil_list_typ -> []
+    | Cons_list_typ (h, tl_) -> h :: (unmake_list_typ tl_)
   
   (** val nth_list_typ : nat -> list_typ -> typ option **)
   
-  let rec nth_list_typ = Symexe_aux.nth_list_typ
+  let rec nth_list_typ n l0 =
+    match n with
+      | O ->
+          (match l0 with
+             | Nil_list_typ -> None
+             | Cons_list_typ (h, tl_) -> Some h)
+      | S m ->
+          (match l0 with
+             | Nil_list_typ -> None
+             | Cons_list_typ (h, tl_) -> nth_list_typ m tl_)
   
   (** val app_list_typ : list_typ -> list_typ -> list_typ **)
   
@@ -1835,12 +1831,12 @@ module LLVMsyntax =
   (** val const_mutrec :
       (sz -> coq_INT -> 'a1) -> (typ -> 'a1) -> (typ -> 'a1) -> (list_const
       -> 'a2 -> 'a1) -> (list_const -> 'a2 -> 'a1) -> (typ -> id -> 'a1) ->
-      'a2 -> (const -> 'a1 -> list_const -> 'a2 -> 'a2) -> (const -> 'a1,
-      list_const -> 'a2) prod **)
+      'a2 -> (const -> 'a1 -> list_const -> 'a2 -> 'a2) -> (const -> 'a1) *
+      (list_const -> 'a2) **)
   
   let const_mutrec h1 h2 h3 h4 h5 h6 h7 h8 =
-    Pair ((fun x -> const_rec2 h1 h2 h3 h4 h5 h6 h7 h8 x), (fun x ->
-      list_const_rec2 h1 h2 h3 h4 h5 h6 h7 h8 x))
+    (fun x -> const_rec2 h1 h2 h3 h4 h5 h6 h7 h8 x) , (fun x ->
+      list_const_rec2 h1 h2 h3 h4 h5 h6 h7 h8 x)
   
   (** val list_typ_rec2 :
       (sz -> 'a1) -> 'a1 -> 'a1 -> 'a1 -> (sz -> typ -> 'a1 -> 'a1) -> (typ
@@ -1888,48 +1884,73 @@ module LLVMsyntax =
       (sz -> 'a1) -> 'a1 -> 'a1 -> 'a1 -> (sz -> typ -> 'a1 -> 'a1) -> (typ
       -> 'a1 -> list_typ -> 'a2 -> 'a1) -> (list_typ -> 'a2 -> 'a1) -> (typ
       -> 'a1 -> 'a1) -> 'a2 -> (typ -> 'a1 -> list_typ -> 'a2 -> 'a2) -> (typ
-      -> 'a1, list_typ -> 'a2) prod **)
+      -> 'a1) * (list_typ -> 'a2) **)
   
   let typ_mutrec h1 h2 h3 h4 h5 h6 h7 h8 h9 h10 =
-    Pair ((fun x -> typ_rec2 h1 h2 h3 h4 h5 h6 h7 h8 h9 h10 x), (fun x ->
-      list_typ_rec2 h1 h2 h3 h4 h5 h6 h7 h8 h9 h10 x))
+    (fun x -> typ_rec2 h1 h2 h3 h4 h5 h6 h7 h8 h9 h10 x) , (fun x ->
+      list_typ_rec2 h1 h2 h3 h4 h5 h6 h7 h8 h9 h10 x)
  end
 
 module LLVMlib = 
  struct 
-  (** val id_dec : AtomImpl.atom -> AtomImpl.atom -> bool **)
+  (** val id_dec : LLVMsyntax.id -> LLVMsyntax.id -> bool **)
   
   let id_dec x y =
     AtomImpl.eq_atom_dec x y
   
-  (** val l_dec : AtomImpl.atom -> AtomImpl.atom -> bool **)
+  (** val l_dec : LLVMsyntax.l -> LLVMsyntax.l -> bool **)
   
   let l_dec x y =
     AtomImpl.eq_atom_dec x y
   
-  (** val coq_INT_dec : nat -> nat -> bool **)
+  (** val coq_INT_dec : LLVMsyntax.coq_INT -> LLVMsyntax.coq_INT -> bool **)
   
-  let coq_INT_dec = (==)
+  let coq_INT_dec = Llvm.APInt.compare
   
-  (** val sz_dec : nat -> nat -> bool **)
+  (** val sz_dec : LLVMsyntax.sz -> LLVMsyntax.sz -> bool **)
   
   let sz_dec = (==)
   
-  (** val align_dec : nat -> nat -> bool **)
+  (** val align_dec : LLVMsyntax.align -> LLVMsyntax.align -> bool **)
   
   let align_dec = (==)
   
-  (** val inbounds_dec : bool -> bool -> bool **)
+  (** val inbounds_dec :
+      LLVMsyntax.inbounds -> LLVMsyntax.inbounds -> bool **)
   
   let inbounds_dec = (==)
   
-  (** val tailc_dec : bool -> bool -> bool **)
+  (** val tailc_dec : LLVMsyntax.tailc -> LLVMsyntax.tailc -> bool **)
   
   let tailc_dec = (==)
   
-  (** val noret_dec : bool -> bool -> bool **)
+  (** val noret_dec : LLVMsyntax.noret -> LLVMsyntax.noret -> bool **)
   
   let noret_dec = (==)
+  
+  (** val szZERO : LLVMsyntax.sz **)
+  
+  let szZERO = 0
+  
+  (** val szONE : LLVMsyntax.sz **)
+  
+  let szONE = 1
+  
+  (** val nat2sz : nat -> LLVMsyntax.sz **)
+  
+  let nat2sz = Symexe_aux.nat2int
+  
+  (** val sz2nat : LLVMsyntax.sz -> nat **)
+  
+  let sz2nat = Symexe_aux.int2nat
+  
+  (** val coq_INT2nat : LLVMsyntax.coq_INT -> nat **)
+  
+  let coq_INT2nat = Symexe_aux.llapint2nat
+  
+  (** val nat2INT : nat -> LLVMsyntax.coq_INT **)
+  
+  let nat2INT = Symexe_aux.nat2llapint
   
   (** val lempty_set : LLVMsyntax.l set **)
   
@@ -1955,15 +1976,15 @@ module LLVMlib =
   
   let lset_eq ls1 ls2 =
     match lset_inter ls1 ls2 with
-      | Nil -> true
-      | Cons (l0, l1) -> false
+      | [] -> true
+      | l0 :: l1 -> false
   
   (** val lset_neq : LLVMsyntax.ls -> LLVMsyntax.ls -> bool **)
   
   let lset_neq ls1 ls2 =
     match lset_inter ls1 ls2 with
-      | Nil -> false
-      | Cons (l0, l1) -> true
+      | [] -> false
+      | l0 :: l1 -> true
   
   (** val lset_single : LLVMsyntax.l -> LLVMsyntax.l set **)
   
@@ -1984,8 +2005,8 @@ module LLVMlib =
     | LLVMsyntax.Coq_insn_malloc (id0, t0, s, a) -> id0
     | LLVMsyntax.Coq_insn_free (id0, t0, v) -> id0
     | LLVMsyntax.Coq_insn_alloca (id0, t0, s, a) -> id0
-    | LLVMsyntax.Coq_insn_load (id0, typ1, v1) -> id0
-    | LLVMsyntax.Coq_insn_store (id0, typ1, v1, v2) -> id0
+    | LLVMsyntax.Coq_insn_load (id0, typ1, v1, a) -> id0
+    | LLVMsyntax.Coq_insn_store (id0, typ1, v1, v2, a) -> id0
     | LLVMsyntax.Coq_insn_gep (id0, i1, t0, v, l0) -> id0
     | LLVMsyntax.Coq_insn_ext (id0, e, sz1, v1, sz2) -> id0
     | LLVMsyntax.Coq_insn_cast (id0, c, typ1, v1, typ2) -> id0
@@ -2039,7 +2060,7 @@ module LLVMlib =
              | LLVMsyntax.Coq_typ_struct lt ->
                  (match idx with
                     | LLVMsyntax.Coq_const_int (sz0, i0) ->
-                        (match LLVMsyntax.nth_list_typ i0 lt with
+                        (match LLVMsyntax.nth_list_typ (coq_INT2nat i0) lt with
                            | Some t' -> getSubTypFromConstIdxs idxs' t'
                            | None -> None)
                     | _ -> None)
@@ -2062,7 +2083,8 @@ module LLVMlib =
                         (match c with
                            | LLVMsyntax.Coq_const_int (
                                sz0, i0) ->
-                               (match LLVMsyntax.nth_list_typ i0 lt with
+                               (match LLVMsyntax.nth_list_typ
+                                        (coq_INT2nat i0) lt with
                                   | Some t' ->
                                       getSubTypFromValueIdxs idxs' t'
                                   | None -> None)
@@ -2088,7 +2110,32 @@ module LLVMlib =
   
   (** val getCmdTyp : LLVMsyntax.cmd -> LLVMsyntax.typ option **)
   
-  let getCmdTyp = Symexe_aux.getCmdTyp
+  let getCmdTyp = function
+    | LLVMsyntax.Coq_insn_bop (i1, b, sz0, v, v0) -> Some
+        (LLVMsyntax.Coq_typ_int sz0)
+    | LLVMsyntax.Coq_insn_extractvalue (i1, typ0, v, idxs) ->
+        getSubTypFromConstIdxs idxs typ0
+    | LLVMsyntax.Coq_insn_insertvalue (i1, typ0, v, t0, v0, l0) -> Some typ0
+    | LLVMsyntax.Coq_insn_malloc (i1, typ0, s, a) -> Some
+        (LLVMsyntax.Coq_typ_pointer typ0)
+    | LLVMsyntax.Coq_insn_alloca (i1, typ0, s, a) -> Some
+        (LLVMsyntax.Coq_typ_pointer typ0)
+    | LLVMsyntax.Coq_insn_load (i1, typ0, v, a) -> getLoadTyp typ0
+    | LLVMsyntax.Coq_insn_gep (i1, i2, typ0, v, idxs) ->
+        (match idxs with
+           | LLVMsyntax.Nil_list_value -> None
+           | LLVMsyntax.Cons_list_value (idx, idxs') ->
+               (match getSubTypFromValueIdxs idxs' typ0 with
+                  | Some t' -> Some (LLVMsyntax.Coq_typ_pointer t')
+                  | None -> None))
+    | LLVMsyntax.Coq_insn_ext (i1, e, t0, v, typ2) -> Some typ2
+    | LLVMsyntax.Coq_insn_cast (i1, c, t0, v, typ0) -> Some typ0
+    | LLVMsyntax.Coq_insn_icmp (i1, c, t0, v, v0) -> Some
+        (LLVMsyntax.Coq_typ_int szONE)
+    | LLVMsyntax.Coq_insn_select (i1, v, typ0, v0, v1) -> Some typ0
+    | LLVMsyntax.Coq_insn_call (i1, n, t0, typ0, i2, p) ->
+        if n then Some LLVMsyntax.Coq_typ_void else Some typ0
+    | _ -> Some LLVMsyntax.Coq_typ_void
   
   (** val getTerminatorTyp : LLVMsyntax.terminator -> LLVMsyntax.typ **)
   
@@ -2118,27 +2165,27 @@ module LLVMlib =
   
   let getValueIDs v =
     match getValueID v with
-      | Some id0 -> Cons (id0, Nil)
-      | None -> Nil
+      | Some id0 -> id0 :: []
+      | None -> []
   
   (** val getParamsOperand : LLVMsyntax.params -> LLVMsyntax.ids **)
   
   let rec getParamsOperand = function
-    | Nil -> Nil
-    | Cons (p, lp') ->
-        let Pair (t0, v) = p in app (getValueIDs v) (getParamsOperand lp')
+    | [] -> []
+    | p :: lp' ->
+        let t0 , v = p in app (getValueIDs v) (getParamsOperand lp')
   
-  (** val list_prj1 : ('a1, 'a2) prod list -> 'a1 list **)
+  (** val list_prj1 : ('a1 * 'a2) list -> 'a1 list **)
   
   let rec list_prj1 = function
-    | Nil -> Nil
-    | Cons (p, ls') -> let Pair (x, y) = p in Cons (x, (list_prj1 ls'))
+    | [] -> []
+    | p :: ls' -> let x , y = p in x :: (list_prj1 ls')
   
-  (** val list_prj2 : ('a1, 'a2) prod list -> 'a2 list **)
+  (** val list_prj2 : ('a1 * 'a2) list -> 'a2 list **)
   
   let rec list_prj2 = function
-    | Nil -> Nil
-    | Cons (p, ls') -> let Pair (x, y) = p in Cons (y, (list_prj2 ls'))
+    | [] -> []
+    | p :: ls' -> let x , y = p in y :: (list_prj2 ls')
   
   (** val getCmdOperands : LLVMsyntax.cmd -> LLVMsyntax.ids **)
   
@@ -2149,8 +2196,8 @@ module LLVMlib =
     | LLVMsyntax.Coq_insn_insertvalue (i1, t0, v1, t1, v2, l0) ->
         app (getValueIDs v1) (getValueIDs v2)
     | LLVMsyntax.Coq_insn_free (i1, t0, v) -> getValueIDs v
-    | LLVMsyntax.Coq_insn_load (i1, t0, v) -> getValueIDs v
-    | LLVMsyntax.Coq_insn_store (i1, t0, v1, v2) ->
+    | LLVMsyntax.Coq_insn_load (i1, t0, v, a) -> getValueIDs v
+    | LLVMsyntax.Coq_insn_store (i1, t0, v1, v2, a) ->
         app (getValueIDs v1) (getValueIDs v2)
     | LLVMsyntax.Coq_insn_gep (i1, i2, t0, v, l0) -> getValueIDs v
     | LLVMsyntax.Coq_insn_ext (i1, e, t0, v1, typ2) -> getValueIDs v1
@@ -2160,20 +2207,29 @@ module LLVMlib =
     | LLVMsyntax.Coq_insn_select (i1, v0, t0, v1, v2) ->
         app (getValueIDs v0) (app (getValueIDs v1) (getValueIDs v2))
     | LLVMsyntax.Coq_insn_call (i1, n, t0, t1, i2, lp) -> getParamsOperand lp
-    | _ -> Nil
+    | _ -> []
   
   (** val getTerminatorOperands : LLVMsyntax.terminator -> LLVMsyntax.ids **)
   
   let getTerminatorOperands = function
     | LLVMsyntax.Coq_insn_return (i1, t0, v) -> getValueIDs v
     | LLVMsyntax.Coq_insn_br (i1, v, l0, l1) -> getValueIDs v
-    | _ -> Nil
+    | _ -> []
+  
+  (** val values2ids : LLVMsyntax.value list -> LLVMsyntax.ids **)
+  
+  let rec values2ids = function
+    | [] -> []
+    | v :: vs' ->
+        (match v with
+           | LLVMsyntax.Coq_value_id id0 -> id0 :: (values2ids vs')
+           | LLVMsyntax.Coq_value_const c -> values2ids vs')
   
   (** val getPhiNodeOperands : LLVMsyntax.phinode -> LLVMsyntax.ids **)
   
   let getPhiNodeOperands = function
     | LLVMsyntax.Coq_insn_phi (i1, t0, ls0) ->
-        list_prj1 (LLVMsyntax.unmake_list_id_l ls0)
+        values2ids (list_prj1 (LLVMsyntax.unmake_list_value_l ls0))
   
   (** val getInsnOperands : LLVMsyntax.insn -> LLVMsyntax.ids **)
   
@@ -2185,35 +2241,34 @@ module LLVMlib =
   (** val getCmdLabels : LLVMsyntax.cmd -> LLVMsyntax.ls **)
   
   let getCmdLabels i0 =
-    Nil
+    []
   
   (** val getTerminatorLabels : LLVMsyntax.terminator -> LLVMsyntax.ls **)
   
   let getTerminatorLabels = function
-    | LLVMsyntax.Coq_insn_br (i1, v, l1, l2) -> Cons (l1, (Cons (l2, Nil)))
-    | LLVMsyntax.Coq_insn_br_uncond (i1, l0) -> Cons (l0, Nil)
-    | _ -> Nil
+    | LLVMsyntax.Coq_insn_br (i1, v, l1, l2) -> l1 :: (l2 :: [])
+    | LLVMsyntax.Coq_insn_br_uncond (i1, l0) -> l0 :: []
+    | _ -> []
   
   (** val getPhiNodeLabels : LLVMsyntax.phinode -> LLVMsyntax.ls **)
   
   let getPhiNodeLabels = function
     | LLVMsyntax.Coq_insn_phi (i1, t0, ls0) ->
-        list_prj2 (LLVMsyntax.unmake_list_id_l ls0)
+        list_prj2 (LLVMsyntax.unmake_list_value_l ls0)
   
   (** val getInsnLabels : LLVMsyntax.insn -> LLVMsyntax.ls **)
   
   let getInsnLabels = function
     | LLVMsyntax.Coq_insn_phinode p -> getPhiNodeLabels p
-    | LLVMsyntax.Coq_insn_cmd c -> Nil
+    | LLVMsyntax.Coq_insn_cmd c -> []
     | LLVMsyntax.Coq_insn_terminator tmn -> getTerminatorLabels tmn
   
   (** val args2Typs : LLVMsyntax.args -> LLVMsyntax.list_typ **)
   
   let rec args2Typs = function
-    | Nil -> LLVMsyntax.Nil_list_typ
-    | Cons (p, la') ->
-        let Pair (t0, id0) = p in
-        LLVMsyntax.Cons_list_typ (t0, (args2Typs la'))
+    | [] -> LLVMsyntax.Nil_list_typ
+    | p :: la' ->
+        let t0 , id0 = p in LLVMsyntax.Cons_list_typ (t0, (args2Typs la'))
   
   (** val getFheaderTyp : LLVMsyntax.fheader -> LLVMsyntax.typ **)
   
@@ -2242,7 +2297,7 @@ module LLVMlib =
         let LLVMsyntax.Coq_gvar_intro (i0, t0, c, a) = g in
         Some (LLVMsyntax.Coq_typ_pointer t0)
     | LLVMsyntax.Coq_id_binding_fdec fdec0 -> Some (getFdecTyp fdec0)
-    | LLVMsyntax.Coq_id_binding_arg a -> let Pair (t0, id0) = a in Some t0
+    | LLVMsyntax.Coq_id_binding_arg a -> let t0 , id0 = a in Some t0
   
   (** val getCmdsFromBlock : LLVMsyntax.block -> LLVMsyntax.cmds **)
   
@@ -2327,15 +2382,19 @@ module LLVMlib =
     | LLVMsyntax.Coq_fdef_intro (fh, b) -> getFheaderID fh
   
   (** val getLabelViaIDFromList :
-      LLVMsyntax.list_id_l -> LLVMsyntax.id -> LLVMsyntax.l option **)
+      LLVMsyntax.list_value_l -> LLVMsyntax.id -> LLVMsyntax.l option **)
   
   let rec getLabelViaIDFromList ls0 branch =
     match ls0 with
-      | LLVMsyntax.Nil_list_id_l -> None
-      | LLVMsyntax.Cons_list_id_l (id0, l0, ls') ->
-          if eqDec_atom id0 branch
-          then Some l0
-          else getLabelViaIDFromList ls' branch
+      | LLVMsyntax.Nil_list_value_l -> None
+      | LLVMsyntax.Cons_list_value_l (v, l0, ls') ->
+          (match v with
+             | LLVMsyntax.Coq_value_id id0 ->
+                 if eqDec_atom id0 branch
+                 then Some l0
+                 else getLabelViaIDFromList ls' branch
+             | LLVMsyntax.Coq_value_const c ->
+                 getLabelViaIDFromList ls' branch)
   
   (** val getLabelViaIDFromPhiNode :
       LLVMsyntax.phinode -> LLVMsyntax.id -> LLVMsyntax.l option **)
@@ -2344,11 +2403,11 @@ module LLVMlib =
     let LLVMsyntax.Coq_insn_phi (i0, t0, ls0) = phi in
     getLabelViaIDFromList ls0 branch
   
-  (** val getLabelsFromIdls : LLVMsyntax.list_id_l -> LLVMsyntax.ls **)
+  (** val getLabelsFromIdls : LLVMsyntax.list_value_l -> LLVMsyntax.ls **)
   
   let rec getLabelsFromIdls = function
-    | LLVMsyntax.Nil_list_id_l -> lempty_set
-    | LLVMsyntax.Cons_list_id_l (i0, l0, idls') ->
+    | LLVMsyntax.Nil_list_value_l -> lempty_set
+    | LLVMsyntax.Cons_list_value_l (v, l0, idls') ->
         lset_add l0 (getLabelsFromIdls idls')
   
   (** val getLabelsFromPhiNode : LLVMsyntax.phinode -> LLVMsyntax.ls **)
@@ -2360,26 +2419,30 @@ module LLVMlib =
       LLVMsyntax.phinode list -> LLVMsyntax.ls **)
   
   let rec getLabelsFromPhiNodes = function
-    | Nil -> lempty_set
-    | Cons (phi, phis') ->
+    | [] -> lempty_set
+    | phi :: phis' ->
         lset_union (getLabelsFromPhiNode phi) (getLabelsFromPhiNodes phis')
   
   (** val getIDLabelsFromPhiNode :
-      LLVMsyntax.phinode -> LLVMsyntax.list_id_l **)
+      LLVMsyntax.phinode -> LLVMsyntax.list_value_l **)
   
   let getIDLabelsFromPhiNode = function
     | LLVMsyntax.Coq_insn_phi (i0, t0, idls) -> idls
   
   (** val getLabelViaIDFromIDLabels :
-      LLVMsyntax.list_id_l -> LLVMsyntax.id -> LLVMsyntax.l option **)
+      LLVMsyntax.list_value_l -> LLVMsyntax.id -> LLVMsyntax.l option **)
   
   let rec getLabelViaIDFromIDLabels idls id0 =
     match idls with
-      | LLVMsyntax.Nil_list_id_l -> None
-      | LLVMsyntax.Cons_list_id_l (id1, l0, idls') ->
-          if eqDec_atom id0 id1
-          then Some l0
-          else getLabelViaIDFromIDLabels idls' id0
+      | LLVMsyntax.Nil_list_value_l -> None
+      | LLVMsyntax.Cons_list_value_l (v, l0, idls') ->
+          (match v with
+             | LLVMsyntax.Coq_value_id id1 ->
+                 if eqDec_atom id0 id1
+                 then Some l0
+                 else getLabelViaIDFromIDLabels idls' id0
+             | LLVMsyntax.Coq_value_const c ->
+                 getLabelViaIDFromIDLabels idls' id0)
   
   (** val _getLabelViaIDPhiNode :
       LLVMsyntax.phinode -> LLVMsyntax.id -> LLVMsyntax.l option **)
@@ -2424,16 +2487,21 @@ module LLVMlib =
     | _ -> None
   
   (** val getIdViaLabelFromIdls :
-      LLVMsyntax.list_id_l -> LLVMsyntax.l -> LLVMsyntax.id option **)
+      LLVMsyntax.list_value_l -> LLVMsyntax.l -> LLVMsyntax.id option **)
   
   let rec getIdViaLabelFromIdls idls l0 =
     match idls with
-      | LLVMsyntax.Nil_list_id_l -> None
-      | LLVMsyntax.Cons_list_id_l (id1, l1, idls') ->
-          if eqDec_atom l1 l0 then Some id1 else None
+      | LLVMsyntax.Nil_list_value_l -> None
+      | LLVMsyntax.Cons_list_value_l (v, l1, idls') ->
+          (match v with
+             | LLVMsyntax.Coq_value_id id1 ->
+                 if eqDec_atom l1 l0
+                 then Some id1
+                 else getIdViaLabelFromIdls idls' l0
+             | LLVMsyntax.Coq_value_const c -> getIdViaLabelFromIdls idls' l0)
   
   (** val getIdViaBlockFromIdls :
-      LLVMsyntax.list_id_l -> LLVMsyntax.block -> LLVMsyntax.id option **)
+      LLVMsyntax.list_value_l -> LLVMsyntax.block -> LLVMsyntax.id option **)
   
   let getIdViaBlockFromIdls idls = function
     | LLVMsyntax.Coq_block_intro (l0, p, c, t0) ->
@@ -2465,8 +2533,8 @@ module LLVMlib =
   
   let rec lookupBindingViaIDFromCmds li id0 =
     match li with
-      | Nil -> LLVMsyntax.Coq_id_binding_none
-      | Cons (i0, li') ->
+      | [] -> LLVMsyntax.Coq_id_binding_none
+      | i0 :: li' ->
           (match lookupBindingViaIDFromCmd i0 id0 with
              | LLVMsyntax.Coq_id_binding_cmd c ->
                  LLVMsyntax.Coq_id_binding_cmd i0
@@ -2485,8 +2553,8 @@ module LLVMlib =
   
   let rec lookupBindingViaIDFromPhiNodes li id0 =
     match li with
-      | Nil -> LLVMsyntax.Coq_id_binding_none
-      | Cons (i0, li') ->
+      | [] -> LLVMsyntax.Coq_id_binding_none
+      | i0 :: li' ->
           (match lookupBindingViaIDFromPhiNode i0 id0 with
              | LLVMsyntax.Coq_id_binding_phinode p ->
                  LLVMsyntax.Coq_id_binding_phinode i0
@@ -2536,8 +2604,8 @@ module LLVMlib =
   
   let rec lookupBindingViaIDFromBlocks lb id0 =
     match lb with
-      | Nil -> LLVMsyntax.Coq_id_binding_none
-      | Cons (b, lb') ->
+      | [] -> LLVMsyntax.Coq_id_binding_none
+      | b :: lb' ->
           (match lookupBindingViaIDFromBlock b id0 with
              | LLVMsyntax.Coq_id_binding_none ->
                  lookupBindingViaIDFromBlocks lb' id0
@@ -2558,7 +2626,7 @@ module LLVMlib =
       LLVMsyntax.arg -> LLVMsyntax.id -> LLVMsyntax.id_binding **)
   
   let lookupBindingViaIDFromArg a id0 =
-    let Pair (t0, id') = a in
+    let t0 , id' = a in
     if eqDec_atom id0 id'
     then LLVMsyntax.Coq_id_binding_arg a
     else LLVMsyntax.Coq_id_binding_none
@@ -2568,8 +2636,8 @@ module LLVMlib =
   
   let rec lookupBindingViaIDFromArgs la id0 =
     match la with
-      | Nil -> LLVMsyntax.Coq_id_binding_none
-      | Cons (a, la') ->
+      | [] -> LLVMsyntax.Coq_id_binding_none
+      | a :: la' ->
           (match lookupBindingViaIDFromArg a id0 with
              | LLVMsyntax.Coq_id_binding_arg a' ->
                  LLVMsyntax.Coq_id_binding_arg a'
@@ -2612,8 +2680,8 @@ module LLVMlib =
   
   let rec lookupBindingViaIDFromProducts lp id0 =
     match lp with
-      | Nil -> LLVMsyntax.Coq_id_binding_none
-      | Cons (p, lp') ->
+      | [] -> LLVMsyntax.Coq_id_binding_none
+      | p :: lp' ->
           (match lookupBindingViaIDFromProduct p id0 with
              | LLVMsyntax.Coq_id_binding_none ->
                  lookupBindingViaIDFromProducts lp' id0
@@ -2642,8 +2710,8 @@ module LLVMlib =
   
   let rec lookupBindingViaIDFromModules lm id0 =
     match lm with
-      | Nil -> LLVMsyntax.Coq_id_binding_none
-      | Cons (m, lm') ->
+      | [] -> LLVMsyntax.Coq_id_binding_none
+      | m :: lm' ->
           (match lookupBindingViaIDFromModule m id0 with
              | LLVMsyntax.Coq_id_binding_none ->
                  lookupBindingViaIDFromModules lm' id0
@@ -2678,8 +2746,8 @@ module LLVMlib =
   
   let rec lookupBlockViaIDFromBlocks lb id0 =
     match lb with
-      | Nil -> None
-      | Cons (b, lb') ->
+      | [] -> None
+      | b :: lb' ->
           if isIDInBlockB id0 b
           then Some b
           else lookupBlockViaIDFromBlocks lb' id0
@@ -2705,8 +2773,8 @@ module LLVMlib =
   
   let rec lookupFdecViaIDFromProducts lp i0 =
     match lp with
-      | Nil -> None
-      | Cons (p, lp') ->
+      | [] -> None
+      | p :: lp' ->
           (match p with
              | LLVMsyntax.Coq_product_fdec fd ->
                  if eqDec_atom (getFdecID fd) i0
@@ -2726,8 +2794,8 @@ module LLVMlib =
   
   let rec lookupFdecViaIDFromModules lm i0 =
     match lm with
-      | Nil -> None
-      | Cons (m, lm') ->
+      | [] -> None
+      | m :: lm' ->
           (match lookupFdecViaIDFromModule m i0 with
              | Some fd -> Some fd
              | None -> lookupFdecViaIDFromModules lm' i0)
@@ -2752,8 +2820,8 @@ module LLVMlib =
   
   let rec lookupFdefViaIDFromProducts lp i0 =
     match lp with
-      | Nil -> None
-      | Cons (p, lp') ->
+      | [] -> None
+      | p :: lp' ->
           (match p with
              | LLVMsyntax.Coq_product_fdef fd ->
                  if eqDec_atom (getFdefID fd) i0
@@ -2773,8 +2841,8 @@ module LLVMlib =
   
   let rec lookupFdefViaIDFromModules lm i0 =
     match lm with
-      | Nil -> None
-      | Cons (m, lm') ->
+      | [] -> None
+      | m :: lm' ->
           (match lookupFdefViaIDFromModule m i0 with
              | Some fd -> Some fd
              | None -> lookupFdefViaIDFromModules lm' i0)
@@ -2798,8 +2866,8 @@ module LLVMlib =
   
   let rec lookupTypViaIDFromCmds li id0 =
     match li with
-      | Nil -> None
-      | Cons (i0, li') ->
+      | [] -> None
+      | i0 :: li' ->
           (match getCmdTyp i0 with
              | Some t0 ->
                  if eqDec_atom id0 (getCmdID i0)
@@ -2820,8 +2888,8 @@ module LLVMlib =
   
   let rec lookupTypViaIDFromPhiNodes li id0 =
     match li with
-      | Nil -> None
-      | Cons (i0, li') ->
+      | [] -> None
+      | i0 :: li' ->
           (match lookupTypViaIDFromPhiNode i0 id0 with
              | Some t0 -> Some t0
              | None -> lookupTypViaIDFromPhiNodes li' id0)
@@ -2851,8 +2919,8 @@ module LLVMlib =
   
   let rec lookupTypViaIDFromBlocks lb id0 =
     match lb with
-      | Nil -> None
-      | Cons (b, lb') ->
+      | [] -> None
+      | b :: lb' ->
           (match lookupTypViaIDFromBlock b id0 with
              | Some t0 -> Some t0
              | None -> lookupTypViaIDFromBlocks lb' id0)
@@ -2880,8 +2948,8 @@ module LLVMlib =
   
   let rec lookupTypViaIDFromProducts lp id0 =
     match lp with
-      | Nil -> None
-      | Cons (p, lp') ->
+      | [] -> None
+      | p :: lp' ->
           (match match p with
                    | LLVMsyntax.Coq_product_gvar g ->
                        let LLVMsyntax.Coq_gvar_intro (id1, t0, c, a) = g in
@@ -2904,8 +2972,8 @@ module LLVMlib =
   
   let rec lookupTypViaIDFromModules lm id0 =
     match lm with
-      | Nil -> None
-      | Cons (m, lm') ->
+      | [] -> None
+      | m :: lm' ->
           (match lookupTypViaIDFromModule m id0 with
              | Some t0 -> Some t0
              | None -> lookupTypViaIDFromModules lm' id0)
@@ -2916,19 +2984,18 @@ module LLVMlib =
   let lookupTypViaIDFromSystem s id0 =
     lookupTypViaIDFromModules s id0
   
-  type l2block = (LLVMsyntax.l, LLVMsyntax.block) prod list
+  type l2block = (LLVMsyntax.l * LLVMsyntax.block) list
   
   (** val genLabel2Block_block : LLVMsyntax.block -> l2block **)
   
   let genLabel2Block_block b = match b with
-    | LLVMsyntax.Coq_block_intro (l0, p, c, t0) -> Cons ((Pair (l0, b)), Nil)
+    | LLVMsyntax.Coq_block_intro (l0, p, c, t0) -> (l0 , b) :: []
   
   (** val genLabel2Block_blocks : LLVMsyntax.blocks -> l2block **)
   
   let rec genLabel2Block_blocks = function
-    | Nil -> Nil
-    | Cons (b, bs') ->
-        app (genLabel2Block_block b) (genLabel2Block_blocks bs')
+    | [] -> []
+    | b :: bs' -> app (genLabel2Block_block b) (genLabel2Block_blocks bs')
   
   (** val genLabel2Block_fdef : LLVMsyntax.fdef -> l2block **)
   
@@ -2940,13 +3007,13 @@ module LLVMlib =
   
   let rec genLabel2Block_product = function
     | LLVMsyntax.Coq_product_fdef f -> genLabel2Block_fdef f
-    | _ -> Nil
+    | _ -> []
   
   (** val genLabel2Block_products : LLVMsyntax.products -> l2block **)
   
   let rec genLabel2Block_products = function
-    | Nil -> Nil
-    | Cons (p, ps') ->
+    | [] -> []
+    | p :: ps' ->
         app (genLabel2Block_product p) (genLabel2Block_products ps')
   
   (** val genLabel2Block : LLVMsyntax.coq_module -> l2block **)
@@ -2959,16 +3026,16 @@ module LLVMlib =
   let getEntryOfFdef = function
     | LLVMsyntax.Coq_fdef_intro (fheader0, blocks0) ->
         (match blocks0 with
-           | Nil -> None
-           | Cons (b, blocks') -> Some b)
+           | [] -> None
+           | b :: blocks' -> Some b)
   
   (** val getNonEntryOfFdef : LLVMsyntax.fdef -> LLVMsyntax.blocks **)
   
   let getNonEntryOfFdef = function
     | LLVMsyntax.Coq_fdef_intro (fheader0, blocks0) ->
         (match blocks0 with
-           | Nil -> Nil
-           | Cons (b, blocks') -> blocks')
+           | [] -> []
+           | b :: blocks' -> blocks')
   
   (** val lookupBlockViaLabelFromFdef :
       LLVMsyntax.fdef -> LLVMsyntax.l -> LLVMsyntax.block option **)
@@ -2987,8 +3054,8 @@ module LLVMlib =
   
   let rec lookupBlockViaLabelFromSystem s l0 =
     match s with
-      | Nil -> None
-      | Cons (m, s') ->
+      | [] -> None
+      | m :: s' ->
           (match lookupAL (genLabel2Block m) l0 with
              | Some b -> Some b
              | None -> lookupBlockViaLabelFromSystem s' l0)
@@ -2996,8 +3063,8 @@ module LLVMlib =
   (** val getLabelsFromBlocks : LLVMsyntax.blocks -> LLVMsyntax.ls **)
   
   let rec getLabelsFromBlocks = function
-    | Nil -> lempty_set
-    | Cons (b, lb') ->
+    | [] -> lempty_set
+    | b :: lb' ->
         let LLVMsyntax.Coq_block_intro (l0, p, c, t0) = b in
         lset_add l0 (getLabelsFromBlocks lb')
   
@@ -3019,37 +3086,35 @@ module LLVMlib =
   
   let genIdUseDef_id_uses_value v id0 id' =
     match getValueID v with
-      | Some id1 -> if eqDec_atom id' id1 then Cons (id0, Nil) else Nil
-      | None -> Nil
+      | Some id1 -> if eqDec_atom id' id1 then id0 :: [] else []
+      | None -> []
   
   (** val genIdUseDef_id_uses_id :
       LLVMsyntax.id -> LLVMsyntax.id -> LLVMsyntax.usedef_id **)
   
   let genIdUseDef_id_uses_id id0 id1 id' =
-    if eqDec_atom id' id0 then Cons (id1, Nil) else Nil
+    if eqDec_atom id' id0 then id1 :: [] else []
   
   (** val genIdUseDef_id_uses_params :
       LLVMsyntax.params -> LLVMsyntax.id -> LLVMsyntax.usedef_id **)
   
   let rec genIdUseDef_id_uses_params ps id0 x =
     match ps with
-      | Nil -> Nil
-      | Cons (p, ps') ->
-          let Pair (t0, v) = p in
+      | [] -> []
+      | p :: ps' ->
+          let t0 , v = p in
           app
             (match getValueID v with
-               | Some id1 ->
-                   if eqDec_atom x id1 then Cons (id0, Nil) else Nil
-               | None -> Nil) (genIdUseDef_id_uses_params ps' id0 x)
+               | Some id1 -> if eqDec_atom x id1 then id0 :: [] else []
+               | None -> []) (genIdUseDef_id_uses_params ps' id0 x)
   
   (** val genIdUseDef_cmd_uses_value :
       LLVMsyntax.value -> LLVMsyntax.cmd -> LLVMsyntax.usedef_id **)
   
   let genIdUseDef_cmd_uses_value v i0 x =
     match getValueID v with
-      | Some id0 ->
-          if eqDec_atom x id0 then Cons ((getCmdID i0), Nil) else Nil
-      | None -> Nil
+      | Some id0 -> if eqDec_atom x id0 then (getCmdID i0) :: [] else []
+      | None -> []
   
   (** val genIdUseDef_terminator_uses_value :
       LLVMsyntax.value -> LLVMsyntax.terminator -> LLVMsyntax.usedef_id **)
@@ -3057,35 +3122,34 @@ module LLVMlib =
   let genIdUseDef_terminator_uses_value v i0 x =
     match getValueID v with
       | Some id0 ->
-          if eqDec_atom x id0 then Cons ((getTerminatorID i0), Nil) else Nil
-      | None -> Nil
+          if eqDec_atom x id0 then (getTerminatorID i0) :: [] else []
+      | None -> []
   
   (** val genIdUseDef_phinode_uses_value :
       LLVMsyntax.value -> LLVMsyntax.phinode -> LLVMsyntax.usedef_id **)
   
   let genIdUseDef_phinode_uses_value v i0 x =
     match getValueID v with
-      | Some id0 ->
-          if eqDec_atom x id0 then Cons ((getPhiNodeID i0), Nil) else Nil
-      | None -> Nil
+      | Some id0 -> if eqDec_atom x id0 then (getPhiNodeID i0) :: [] else []
+      | None -> []
   
   (** val genIdUseDef_cmd_uses_id :
       LLVMsyntax.id -> LLVMsyntax.cmd -> LLVMsyntax.usedef_id **)
   
   let genIdUseDef_cmd_uses_id id0 i0 x =
-    if eqDec_atom x id0 then Cons ((getCmdID i0), Nil) else Nil
+    if eqDec_atom x id0 then (getCmdID i0) :: [] else []
   
   (** val genIdUseDef_terminator_uses_id :
       LLVMsyntax.id -> LLVMsyntax.terminator -> LLVMsyntax.usedef_id **)
   
   let genIdUseDef_terminator_uses_id id0 i0 x =
-    if eqDec_atom x id0 then Cons ((getTerminatorID i0), Nil) else Nil
+    if eqDec_atom x id0 then (getTerminatorID i0) :: [] else []
   
   (** val genIdUseDef_phinode_uses_id :
       LLVMsyntax.id -> LLVMsyntax.phinode -> LLVMsyntax.usedef_id **)
   
   let genIdUseDef_phinode_uses_id id0 i0 x =
-    if eqDec_atom x id0 then Cons ((getPhiNodeID i0), Nil) else Nil
+    if eqDec_atom x id0 then (getPhiNodeID i0) :: [] else []
   
   (** val genIdUseDef_cmd_uses_params :
       LLVMsyntax.params -> LLVMsyntax.cmd -> LLVMsyntax.usedef_id **)
@@ -3112,88 +3176,76 @@ module LLVMlib =
       | LLVMsyntax.Coq_insn_bop (id0, b, sz0, v1, v2) ->
           app
             (match getValueID v1 with
-               | Some id1 ->
-                   if eqDec_atom x id1 then Cons (id0, Nil) else Nil
-               | None -> Nil)
+               | Some id1 -> if eqDec_atom x id1 then id0 :: [] else []
+               | None -> [])
             (match getValueID v2 with
-               | Some id1 ->
-                   if eqDec_atom x id1 then Cons (id0, Nil) else Nil
-               | None -> Nil)
+               | Some id1 -> if eqDec_atom x id1 then id0 :: [] else []
+               | None -> [])
       | LLVMsyntax.Coq_insn_extractvalue (id0, typ0, value0, l0) ->
           (match getValueID value0 with
-             | Some id1 -> if eqDec_atom x id1 then Cons (id0, Nil) else Nil
-             | None -> Nil)
+             | Some id1 -> if eqDec_atom x id1 then id0 :: [] else []
+             | None -> [])
       | LLVMsyntax.Coq_insn_insertvalue (id0, typs, v0, typ1, v1, c2) ->
           app
             (match getValueID v0 with
                | Some id1 ->
-                   if eqDec_atom x id1
-                   then Cons ((getCmdID i0), Nil)
-                   else Nil
-               | None -> Nil)
+                   if eqDec_atom x id1 then (getCmdID i0) :: [] else []
+               | None -> [])
             (match getValueID v1 with
-               | Some id1 ->
-                   if eqDec_atom x id1 then Cons (id0, Nil) else Nil
-               | None -> Nil)
+               | Some id1 -> if eqDec_atom x id1 then id0 :: [] else []
+               | None -> [])
       | LLVMsyntax.Coq_insn_free (id0, typ0, v) ->
           (match getValueID v with
-             | Some id1 -> if eqDec_atom x id1 then Cons (id0, Nil) else Nil
-             | None -> Nil)
-      | LLVMsyntax.Coq_insn_load (id0, typ1, v1) ->
+             | Some id1 -> if eqDec_atom x id1 then id0 :: [] else []
+             | None -> [])
+      | LLVMsyntax.Coq_insn_load (id0, typ1, v1, a) ->
           (match getValueID v1 with
-             | Some id1 -> if eqDec_atom x id1 then Cons (id0, Nil) else Nil
-             | None -> Nil)
-      | LLVMsyntax.Coq_insn_store (id0, typ1, v1, v2) ->
+             | Some id1 -> if eqDec_atom x id1 then id0 :: [] else []
+             | None -> [])
+      | LLVMsyntax.Coq_insn_store (id0, typ1, v1, v2, a) ->
           app
             (match getValueID v1 with
-               | Some id1 ->
-                   if eqDec_atom x id1 then Cons (id0, Nil) else Nil
-               | None -> Nil)
+               | Some id1 -> if eqDec_atom x id1 then id0 :: [] else []
+               | None -> [])
             (match getValueID v2 with
-               | Some id1 ->
-                   if eqDec_atom x id1 then Cons (id0, Nil) else Nil
-               | None -> Nil)
+               | Some id1 -> if eqDec_atom x id1 then id0 :: [] else []
+               | None -> [])
       | LLVMsyntax.Coq_insn_gep (id0, i1, typ0, value0, l0) ->
           (match getValueID value0 with
-             | Some id1 -> if eqDec_atom x id1 then Cons (id0, Nil) else Nil
-             | None -> Nil)
+             | Some id1 -> if eqDec_atom x id1 then id0 :: [] else []
+             | None -> [])
       | LLVMsyntax.Coq_insn_ext (id0, e, sz1, v1, sz2) ->
           (match getValueID v1 with
-             | Some id1 -> if eqDec_atom x id1 then Cons (id0, Nil) else Nil
-             | None -> Nil)
+             | Some id1 -> if eqDec_atom x id1 then id0 :: [] else []
+             | None -> [])
       | LLVMsyntax.Coq_insn_cast (id0, c, typ1, v1, typ2) ->
           (match getValueID v1 with
-             | Some id1 -> if eqDec_atom x id1 then Cons (id0, Nil) else Nil
-             | None -> Nil)
+             | Some id1 -> if eqDec_atom x id1 then id0 :: [] else []
+             | None -> [])
       | LLVMsyntax.Coq_insn_icmp (id0, cond0, typ0, v1, v2) ->
           app
             (match getValueID v1 with
-               | Some id1 ->
-                   if eqDec_atom x id1 then Cons (id0, Nil) else Nil
-               | None -> Nil)
+               | Some id1 -> if eqDec_atom x id1 then id0 :: [] else []
+               | None -> [])
             (match getValueID v2 with
-               | Some id1 ->
-                   if eqDec_atom x id1 then Cons (id0, Nil) else Nil
-               | None -> Nil)
+               | Some id1 -> if eqDec_atom x id1 then id0 :: [] else []
+               | None -> [])
       | LLVMsyntax.Coq_insn_select (id0, v0, typ0, v1, v2) ->
           app
             (match getValueID v0 with
-               | Some id1 ->
-                   if eqDec_atom x id1 then Cons (id0, Nil) else Nil
-               | None -> Nil)
+               | Some id1 -> if eqDec_atom x id1 then id0 :: [] else []
+               | None -> [])
             (app
               (match getValueID v1 with
-                 | Some id1 ->
-                     if eqDec_atom x id1 then Cons (id0, Nil) else Nil
-                 | None -> Nil)
+                 | Some id1 -> if eqDec_atom x id1 then id0 :: [] else []
+                 | None -> [])
               (match getValueID v2 with
-                 | Some id1 ->
-                     if eqDec_atom x id1 then Cons (id0, Nil) else Nil
-                 | None -> Nil))
+                 | Some id1 -> if eqDec_atom x id1 then id0 :: [] else []
+                 | None -> []))
       | LLVMsyntax.Coq_insn_call (id0, n, t0, typ0, id1, paraml) ->
-          app (if eqDec_atom x id1 then Cons (id0, Nil) else Nil)
+          app (if eqDec_atom x id1 then id0 :: [] else [])
             (genIdUseDef_id_uses_params paraml id0 x)
-      | _ -> Nil
+      | _ -> []
   
   (** val genIdUseDef_terminator :
       LLVMsyntax.terminator -> LLVMsyntax.usedef_id **)
@@ -3202,23 +3254,27 @@ module LLVMlib =
     match i0 with
       | LLVMsyntax.Coq_insn_return (id0, t0, v) ->
           (match getValueID v with
-             | Some id1 -> if eqDec_atom x id1 then Cons (id0, Nil) else Nil
-             | None -> Nil)
+             | Some id1 -> if eqDec_atom x id1 then id0 :: [] else []
+             | None -> [])
       | LLVMsyntax.Coq_insn_br (id0, v, l1, l2) ->
           (match getValueID v with
-             | Some id1 -> if eqDec_atom x id1 then Cons (id0, Nil) else Nil
-             | None -> Nil)
-      | _ -> Nil
+             | Some id1 -> if eqDec_atom x id1 then id0 :: [] else []
+             | None -> [])
+      | _ -> []
   
   (** val genIdUseDef_id_uses_idls :
-      LLVMsyntax.list_id_l -> LLVMsyntax.id -> LLVMsyntax.usedef_id **)
+      LLVMsyntax.list_value_l -> LLVMsyntax.id -> LLVMsyntax.usedef_id **)
   
   let rec genIdUseDef_id_uses_idls idls id0 x =
     match idls with
-      | LLVMsyntax.Nil_list_id_l -> Nil
-      | LLVMsyntax.Cons_list_id_l (id1, l0, idls') ->
-          app (if eqDec_atom x id1 then Cons (id0, Nil) else Nil)
-            (genIdUseDef_id_uses_idls idls' id0 x)
+      | LLVMsyntax.Nil_list_value_l -> []
+      | LLVMsyntax.Cons_list_value_l (v, l0, idls') ->
+          (match v with
+             | LLVMsyntax.Coq_value_id id1 ->
+                 app (if eqDec_atom x id1 then id0 :: [] else [])
+                   (genIdUseDef_id_uses_idls idls' id0 x)
+             | LLVMsyntax.Coq_value_const c ->
+                 genIdUseDef_id_uses_idls idls' id0 x)
   
   (** val genIdUseDef_phinode :
       LLVMsyntax.phinode -> LLVMsyntax.usedef_id **)
@@ -3231,16 +3287,16 @@ module LLVMlib =
   
   let rec genIdUseDef_cmds is x =
     match is with
-      | Nil -> Nil
-      | Cons (i0, is') -> app (genIdUseDef_cmd i0 x) (genIdUseDef_cmds is' x)
+      | [] -> []
+      | i0 :: is' -> app (genIdUseDef_cmd i0 x) (genIdUseDef_cmds is' x)
   
   (** val genIdUseDef_phinodes :
       LLVMsyntax.phinodes -> LLVMsyntax.usedef_id **)
   
   let rec genIdUseDef_phinodes is x =
     match is with
-      | Nil -> Nil
-      | Cons (i0, is') ->
+      | [] -> []
+      | i0 :: is' ->
           app (genIdUseDef_phinode i0 x) (genIdUseDef_phinodes is' x)
   
   (** val genIdUseDef_block : LLVMsyntax.block -> LLVMsyntax.usedef_id **)
@@ -3254,9 +3310,8 @@ module LLVMlib =
   
   let rec genIdUseDef_blocks bs x =
     match bs with
-      | Nil -> Nil
-      | Cons (b, bs') ->
-          app (genIdUseDef_block b x) (genIdUseDef_blocks bs' x)
+      | [] -> []
+      | b :: bs' -> app (genIdUseDef_block b x) (genIdUseDef_blocks bs' x)
   
   (** val genIdUseDef_fdef : LLVMsyntax.fdef -> LLVMsyntax.usedef_id **)
   
@@ -3270,8 +3325,8 @@ module LLVMlib =
   let genIdUseDef_product p x =
     match p with
       | LLVMsyntax.Coq_product_gvar g ->
-          let LLVMsyntax.Coq_gvar_intro (id0, t0, v, a) = g in Nil
-      | LLVMsyntax.Coq_product_fdec f -> Nil
+          let LLVMsyntax.Coq_gvar_intro (id0, t0, v, a) = g in []
+      | LLVMsyntax.Coq_product_fdec f -> []
       | LLVMsyntax.Coq_product_fdef f -> genIdUseDef_fdef f x
   
   (** val genIdUseDef_products :
@@ -3279,13 +3334,13 @@ module LLVMlib =
   
   let rec genIdUseDef_products ps x =
     match ps with
-      | Nil -> Nil
-      | Cons (p, ps') ->
+      | [] -> []
+      | p :: ps' ->
           app
             (match p with
                | LLVMsyntax.Coq_product_gvar g ->
-                   let LLVMsyntax.Coq_gvar_intro (id0, t0, v, a) = g in Nil
-               | LLVMsyntax.Coq_product_fdec f -> Nil
+                   let LLVMsyntax.Coq_gvar_intro (id0, t0, v, a) = g in []
+               | LLVMsyntax.Coq_product_fdec f -> []
                | LLVMsyntax.Coq_product_fdef f -> genIdUseDef_fdef f x)
             (genIdUseDef_products ps' x)
   
@@ -3309,24 +3364,23 @@ module LLVMlib =
       LLVMsyntax.l -> LLVMsyntax.block -> LLVMsyntax.usedef_block **)
   
   let genBlockUseDef_label l0 b b' =
-    if eqDec_atom (getBlockLabel b') l0 then Cons (b, Nil) else Nil
+    if eqDec_atom (getBlockLabel b') l0 then b :: [] else []
   
   (** val genBlockUseDef_phi_cases :
-      LLVMsyntax.list_id_l -> LLVMsyntax.block -> LLVMsyntax.usedef_block **)
+      LLVMsyntax.list_value_l -> LLVMsyntax.block -> LLVMsyntax.usedef_block **)
   
   let rec genBlockUseDef_phi_cases ps b x =
     match ps with
-      | LLVMsyntax.Nil_list_id_l -> Nil
-      | LLVMsyntax.Cons_list_id_l (i0, l0, ps') ->
-          app
-            (if eqDec_atom (getBlockLabel x) l0 then Cons (b, Nil) else Nil)
+      | LLVMsyntax.Nil_list_value_l -> []
+      | LLVMsyntax.Cons_list_value_l (v, l0, ps') ->
+          app (if eqDec_atom (getBlockLabel x) l0 then b :: [] else [])
             (genBlockUseDef_phi_cases ps' b x)
   
   (** val genBlockUseDef_cmd :
       LLVMsyntax.cmd -> LLVMsyntax.block -> LLVMsyntax.usedef_block **)
   
   let genBlockUseDef_cmd i0 b x =
-    Nil
+    []
   
   (** val genBlockUseDef_terminator :
       LLVMsyntax.terminator -> LLVMsyntax.block -> LLVMsyntax.usedef_block **)
@@ -3334,12 +3388,11 @@ module LLVMlib =
   let genBlockUseDef_terminator i0 b x =
     match i0 with
       | LLVMsyntax.Coq_insn_br (i1, v, l1, l2) ->
-          app
-            (if eqDec_atom (getBlockLabel x) l1 then Cons (b, Nil) else Nil)
-            (if eqDec_atom (getBlockLabel x) l2 then Cons (b, Nil) else Nil)
+          app (if eqDec_atom (getBlockLabel x) l1 then b :: [] else [])
+            (if eqDec_atom (getBlockLabel x) l2 then b :: [] else [])
       | LLVMsyntax.Coq_insn_br_uncond (i1, l0) ->
-          if eqDec_atom (getBlockLabel x) l0 then Cons (b, Nil) else Nil
-      | _ -> Nil
+          if eqDec_atom (getBlockLabel x) l0 then b :: [] else []
+      | _ -> []
   
   (** val genBlockUseDef_phinode :
       LLVMsyntax.phinode -> LLVMsyntax.block -> LLVMsyntax.usedef_block **)
@@ -3353,16 +3406,16 @@ module LLVMlib =
   
   let rec genBlockUseDef_cmds is b x =
     match is with
-      | Nil -> Nil
-      | Cons (i0, is') -> app Nil (genBlockUseDef_cmds is' b x)
+      | [] -> []
+      | i0 :: is' -> app [] (genBlockUseDef_cmds is' b x)
   
   (** val genBlockUseDef_phinodes :
       LLVMsyntax.phinodes -> LLVMsyntax.block -> LLVMsyntax.usedef_block **)
   
   let rec genBlockUseDef_phinodes is b x =
     match is with
-      | Nil -> Nil
-      | Cons (i0, is') ->
+      | [] -> []
+      | i0 :: is' ->
           app (genBlockUseDef_phinode i0 b x)
             (genBlockUseDef_phinodes is' b x)
   
@@ -3379,8 +3432,8 @@ module LLVMlib =
   
   let rec genBlockUseDef_blocks bs x =
     match bs with
-      | Nil -> Nil
-      | Cons (b, bs') ->
+      | [] -> []
+      | b :: bs' ->
           app (genBlockUseDef_blocks bs' x) (genBlockUseDef_block b x)
   
   (** val genBlockUseDef_fdef :
@@ -3396,15 +3449,15 @@ module LLVMlib =
   let rec genBlockUseDef_product p x =
     match p with
       | LLVMsyntax.Coq_product_fdef f -> genBlockUseDef_fdef f x
-      | _ -> Nil
+      | _ -> []
   
   (** val genBlockUseDef_products :
       LLVMsyntax.products -> LLVMsyntax.usedef_block **)
   
   let rec genBlockUseDef_products ps x =
     match ps with
-      | Nil -> Nil
-      | Cons (p, ps') ->
+      | [] -> []
+      | p :: ps' ->
           app (genBlockUseDef_products ps' x) (genBlockUseDef_product p x)
   
   (** val genBlockUseDef :
@@ -3426,12 +3479,12 @@ module LLVMlib =
     | LLVMsyntax.Coq_block_intro (l0, p, c, t0) -> t0
   
   (** val getLabelsFromSwitchCases :
-      (LLVMsyntax.const, LLVMsyntax.l) prod list -> LLVMsyntax.ls **)
+      (LLVMsyntax.const * LLVMsyntax.l) list -> LLVMsyntax.ls **)
   
   let rec getLabelsFromSwitchCases = function
-    | Nil -> lempty_set
-    | Cons (p, cs') ->
-        let Pair (c, l0) = p in lset_add l0 (getLabelsFromSwitchCases cs')
+    | [] -> lempty_set
+    | p :: cs' ->
+        let c , l0 = p in lset_add l0 (getLabelsFromSwitchCases cs')
   
   (** val getLabelsFromTerminator :
       LLVMsyntax.terminator -> LLVMsyntax.ls **)
@@ -3447,10 +3500,10 @@ module LLVMlib =
   
   let rec getBlocksFromLabels ls0 l2b =
     match ls0 with
-      | Nil -> Nil
-      | Cons (l0, ls0') ->
+      | [] -> []
+      | l0 :: ls0' ->
           (match lookupAL l2b l0 with
-             | Some b -> Cons (b, (getBlocksFromLabels ls0' l2b))
+             | Some b -> b :: (getBlocksFromLabels ls0' l2b)
              | None -> getBlocksFromLabels ls0' l2b)
   
   (** val succOfBlock :
@@ -3475,8 +3528,8 @@ module LLVMlib =
   (** val genLabelsFromBlocks : LLVMsyntax.blocks -> LLVMsyntax.ls **)
   
   let rec genLabelsFromBlocks = function
-    | Nil -> lempty_set
-    | Cons (b, bs') ->
+    | [] -> lempty_set
+    | b :: bs' ->
         let LLVMsyntax.Coq_block_intro (l0, p, c, t0) = b in
         lset_union (EnvImpl.one l0) (genLabelsFromBlocks bs')
   
@@ -3490,8 +3543,8 @@ module LLVMlib =
   
   let rec inputFromPred bs output =
     match bs with
-      | Nil -> lempty_set
-      | Cons (b, bs') ->
+      | [] -> lempty_set
+      | b :: bs' ->
           let LLVMsyntax.Coq_block_intro (l0, p, c, t0) = b in
           lset_union (output l0) (inputFromPred bs' output)
   
@@ -3518,8 +3571,8 @@ module LLVMlib =
   
   let rec genDominatorTree_blocks_innerloop bs udb output x =
     match bs with
-      | Nil -> output x
-      | Cons (b, bs') ->
+      | [] -> output x
+      | b :: bs' ->
           let LLVMsyntax.Coq_block_intro (l0, ps, cs, t0) = b in
           genDominatorTree_blocks_innerloop bs' udb (fun l1 ->
             if eqDec_atom l1 l0
@@ -3534,8 +3587,8 @@ module LLVMlib =
       LLVMsyntax.dt -> LLVMsyntax.dt -> LLVMsyntax.blocks -> bool **)
   
   let rec eq_dt d0 d1 = function
-    | Nil -> true
-    | Cons (b, bs') ->
+    | [] -> true
+    | b :: bs' ->
         let LLVMsyntax.Coq_block_intro (l0, p, c, t0) = b in
         if lset_eq (d0 l0) (d1 l0) then eq_dt d0 d1 bs' else false
   
@@ -3543,63 +3596,63 @@ module LLVMlib =
   
   let rec sizeOfDT bs output =
     match bs with
-      | Nil -> O
-      | Cons (b, bs') ->
+      | [] -> O
+      | b :: bs' ->
           let LLVMsyntax.Coq_block_intro (l0, p, c, t0) = b in
           plus (length (output l0)) (sizeOfDT bs' output)
   
-  (** val size : (LLVMsyntax.blocks, LLVMsyntax.dt) prod -> nat **)
+  (** val size : (LLVMsyntax.blocks * LLVMsyntax.dt) -> nat **)
   
   let size = function
-    | Pair (bs, output) -> sizeOfDT bs output
+    | bs , output -> sizeOfDT bs output
   
   (** val genDominatorTree_blocks_F :
-      ((LLVMsyntax.blocks, LLVMsyntax.dt) prod -> LLVMsyntax.usedef_block ->
-      LLVMsyntax.dt) -> (LLVMsyntax.blocks, LLVMsyntax.dt) prod ->
+      ((LLVMsyntax.blocks * LLVMsyntax.dt) -> LLVMsyntax.usedef_block ->
+      LLVMsyntax.dt) -> (LLVMsyntax.blocks * LLVMsyntax.dt) ->
       LLVMsyntax.usedef_block -> LLVMsyntax.dt **)
   
   let genDominatorTree_blocks_F genDominatorTree_blocks0 arg0 udb x =
-    let Pair (bs, output) = arg0 in
+    let bs , output = arg0 in
     if eq_dt output (genDominatorTree_blocks_innerloop bs udb output) bs
     then genDominatorTree_blocks_innerloop bs udb output x
-    else genDominatorTree_blocks0 (Pair (bs,
-           (genDominatorTree_blocks_innerloop bs udb output))) udb x
+    else genDominatorTree_blocks0 (bs ,
+           (genDominatorTree_blocks_innerloop bs udb output)) udb x
   
   (** val genDominatorTree_blocks_terminate :
-      (LLVMsyntax.blocks, LLVMsyntax.dt) prod -> LLVMsyntax.usedef_block ->
+      (LLVMsyntax.blocks * LLVMsyntax.dt) -> LLVMsyntax.usedef_block ->
       LLVMsyntax.dt **)
   
   let rec genDominatorTree_blocks_terminate arg0 udb =
-    let Pair (bs, output) = arg0 in
+    let bs , output = arg0 in
     if eq_dt output (genDominatorTree_blocks_innerloop bs udb output) bs
     then genDominatorTree_blocks_innerloop bs udb output
-    else genDominatorTree_blocks_terminate (Pair (bs,
-           (genDominatorTree_blocks_innerloop bs udb output))) udb
+    else genDominatorTree_blocks_terminate (bs ,
+           (genDominatorTree_blocks_innerloop bs udb output)) udb
   
   (** val genDominatorTree_blocks :
-      (LLVMsyntax.blocks, LLVMsyntax.dt) prod -> LLVMsyntax.usedef_block ->
+      (LLVMsyntax.blocks * LLVMsyntax.dt) -> LLVMsyntax.usedef_block ->
       LLVMsyntax.dt **)
   
   let genDominatorTree_blocks x x0 x1 =
     genDominatorTree_blocks_terminate x x0 x1
   
   type coq_R_genDominatorTree_blocks =
-    | R_genDominatorTree_blocks_0 of (LLVMsyntax.blocks, LLVMsyntax.dt) prod
+    | R_genDominatorTree_blocks_0 of (LLVMsyntax.blocks * LLVMsyntax.dt)
        * LLVMsyntax.usedef_block * LLVMsyntax.blocks * 
        LLVMsyntax.dt * LLVMsyntax.dt
-    | R_genDominatorTree_blocks_1 of (LLVMsyntax.blocks, LLVMsyntax.dt) prod
+    | R_genDominatorTree_blocks_1 of (LLVMsyntax.blocks * LLVMsyntax.dt)
        * LLVMsyntax.usedef_block * LLVMsyntax.blocks * 
        LLVMsyntax.dt * LLVMsyntax.dt * LLVMsyntax.dt
        * coq_R_genDominatorTree_blocks
   
   (** val coq_R_genDominatorTree_blocks_rect :
-      ((LLVMsyntax.blocks, LLVMsyntax.dt) prod -> LLVMsyntax.usedef_block ->
+      ((LLVMsyntax.blocks * LLVMsyntax.dt) -> LLVMsyntax.usedef_block ->
       LLVMsyntax.blocks -> LLVMsyntax.dt -> __ -> LLVMsyntax.dt -> __ -> __
-      -> 'a1) -> ((LLVMsyntax.blocks, LLVMsyntax.dt) prod ->
+      -> 'a1) -> ((LLVMsyntax.blocks * LLVMsyntax.dt) ->
       LLVMsyntax.usedef_block -> LLVMsyntax.blocks -> LLVMsyntax.dt -> __ ->
       LLVMsyntax.dt -> __ -> __ -> LLVMsyntax.dt ->
-      coq_R_genDominatorTree_blocks -> 'a1 -> 'a1) -> (LLVMsyntax.blocks,
-      LLVMsyntax.dt) prod -> LLVMsyntax.usedef_block -> LLVMsyntax.dt ->
+      coq_R_genDominatorTree_blocks -> 'a1 -> 'a1) -> (LLVMsyntax.blocks *
+      LLVMsyntax.dt) -> LLVMsyntax.usedef_block -> LLVMsyntax.dt ->
       coq_R_genDominatorTree_blocks -> 'a1 **)
   
   let rec coq_R_genDominatorTree_blocks_rect f f0 arg0 udb d = function
@@ -3607,17 +3660,17 @@ module LLVMlib =
         f arg1 udb0 bs output __ output' __ __
     | R_genDominatorTree_blocks_1 (arg1, udb0, bs, output, output', res, r0) ->
         f0 arg1 udb0 bs output __ output' __ __ res r0
-          (coq_R_genDominatorTree_blocks_rect f f0 (Pair (bs, output')) udb0
-            res r0)
+          (coq_R_genDominatorTree_blocks_rect f f0 (bs , output') udb0 res
+            r0)
   
   (** val coq_R_genDominatorTree_blocks_rec :
-      ((LLVMsyntax.blocks, LLVMsyntax.dt) prod -> LLVMsyntax.usedef_block ->
+      ((LLVMsyntax.blocks * LLVMsyntax.dt) -> LLVMsyntax.usedef_block ->
       LLVMsyntax.blocks -> LLVMsyntax.dt -> __ -> LLVMsyntax.dt -> __ -> __
-      -> 'a1) -> ((LLVMsyntax.blocks, LLVMsyntax.dt) prod ->
+      -> 'a1) -> ((LLVMsyntax.blocks * LLVMsyntax.dt) ->
       LLVMsyntax.usedef_block -> LLVMsyntax.blocks -> LLVMsyntax.dt -> __ ->
       LLVMsyntax.dt -> __ -> __ -> LLVMsyntax.dt ->
-      coq_R_genDominatorTree_blocks -> 'a1 -> 'a1) -> (LLVMsyntax.blocks,
-      LLVMsyntax.dt) prod -> LLVMsyntax.usedef_block -> LLVMsyntax.dt ->
+      coq_R_genDominatorTree_blocks -> 'a1 -> 'a1) -> (LLVMsyntax.blocks *
+      LLVMsyntax.dt) -> LLVMsyntax.usedef_block -> LLVMsyntax.dt ->
       coq_R_genDominatorTree_blocks -> 'a1 **)
   
   let rec coq_R_genDominatorTree_blocks_rec f f0 arg0 udb d = function
@@ -3625,54 +3678,53 @@ module LLVMlib =
         f arg1 udb0 bs output __ output' __ __
     | R_genDominatorTree_blocks_1 (arg1, udb0, bs, output, output', res, r0) ->
         f0 arg1 udb0 bs output __ output' __ __ res r0
-          (coq_R_genDominatorTree_blocks_rec f f0 (Pair (bs, output')) udb0
-            res r0)
+          (coq_R_genDominatorTree_blocks_rec f f0 (bs , output') udb0 res r0)
   
   (** val genDominatorTree_blocks_rect :
-      ((LLVMsyntax.blocks, LLVMsyntax.dt) prod -> LLVMsyntax.usedef_block ->
+      ((LLVMsyntax.blocks * LLVMsyntax.dt) -> LLVMsyntax.usedef_block ->
       LLVMsyntax.blocks -> LLVMsyntax.dt -> __ -> LLVMsyntax.dt -> __ -> __
-      -> 'a1) -> ((LLVMsyntax.blocks, LLVMsyntax.dt) prod ->
+      -> 'a1) -> ((LLVMsyntax.blocks * LLVMsyntax.dt) ->
       LLVMsyntax.usedef_block -> LLVMsyntax.blocks -> LLVMsyntax.dt -> __ ->
-      LLVMsyntax.dt -> __ -> __ -> 'a1 -> 'a1) -> (LLVMsyntax.blocks,
-      LLVMsyntax.dt) prod -> LLVMsyntax.usedef_block -> 'a1 **)
+      LLVMsyntax.dt -> __ -> __ -> 'a1 -> 'a1) -> (LLVMsyntax.blocks *
+      LLVMsyntax.dt) -> LLVMsyntax.usedef_block -> 'a1 **)
   
   let rec genDominatorTree_blocks_rect f f0 arg0 udb =
-    let Pair (b, d) = arg0 in
+    let b , d = arg0 in
     if eq_dt d (genDominatorTree_blocks_innerloop b udb d) b
     then f arg0 udb b d __ (genDominatorTree_blocks_innerloop b udb d) __ __
     else f0 arg0 udb b d __ (genDominatorTree_blocks_innerloop b udb d) __ __
-           (genDominatorTree_blocks_rect f f0 (Pair (b,
-             (genDominatorTree_blocks_innerloop b udb d))) udb)
+           (genDominatorTree_blocks_rect f f0 (b ,
+             (genDominatorTree_blocks_innerloop b udb d)) udb)
   
   (** val genDominatorTree_blocks_rec :
-      ((LLVMsyntax.blocks, LLVMsyntax.dt) prod -> LLVMsyntax.usedef_block ->
+      ((LLVMsyntax.blocks * LLVMsyntax.dt) -> LLVMsyntax.usedef_block ->
       LLVMsyntax.blocks -> LLVMsyntax.dt -> __ -> LLVMsyntax.dt -> __ -> __
-      -> 'a1) -> ((LLVMsyntax.blocks, LLVMsyntax.dt) prod ->
+      -> 'a1) -> ((LLVMsyntax.blocks * LLVMsyntax.dt) ->
       LLVMsyntax.usedef_block -> LLVMsyntax.blocks -> LLVMsyntax.dt -> __ ->
-      LLVMsyntax.dt -> __ -> __ -> 'a1 -> 'a1) -> (LLVMsyntax.blocks,
-      LLVMsyntax.dt) prod -> LLVMsyntax.usedef_block -> 'a1 **)
+      LLVMsyntax.dt -> __ -> __ -> 'a1 -> 'a1) -> (LLVMsyntax.blocks *
+      LLVMsyntax.dt) -> LLVMsyntax.usedef_block -> 'a1 **)
   
   let genDominatorTree_blocks_rec f f0 arg0 udb =
     genDominatorTree_blocks_rect f f0 arg0 udb
   
   (** val coq_R_genDominatorTree_blocks_correct :
-      (LLVMsyntax.blocks, LLVMsyntax.dt) prod -> LLVMsyntax.usedef_block ->
+      (LLVMsyntax.blocks * LLVMsyntax.dt) -> LLVMsyntax.usedef_block ->
       LLVMsyntax.dt -> coq_R_genDominatorTree_blocks **)
   
   let coq_R_genDominatorTree_blocks_correct x x0 res =
     genDominatorTree_blocks_rect (fun y y0 y1 y2 _ y4 _ _ z _ ->
       R_genDominatorTree_blocks_0 (y, y0, y1, y2, y4))
       (fun y y0 y1 y2 _ y4 _ _ y7 z _ -> R_genDominatorTree_blocks_1 (y, y0,
-      y1, y2, y4, (genDominatorTree_blocks (Pair (y1, y4)) y0),
-      (y7 (genDominatorTree_blocks (Pair (y1, y4)) y0) __))) x x0 res __
+      y1, y2, y4, (genDominatorTree_blocks (y1 , y4) y0),
+      (y7 (genDominatorTree_blocks (y1 , y4) y0) __))) x x0 res __
   
   (** val initialize_genDominatorTree_blocks :
       LLVMsyntax.blocks -> LLVMsyntax.ls -> LLVMsyntax.dt -> LLVMsyntax.dt **)
   
   let rec initialize_genDominatorTree_blocks bs u d0 x =
     match bs with
-      | Nil -> d0 x
-      | Cons (b, bs') ->
+      | [] -> d0 x
+      | b :: bs' ->
           let LLVMsyntax.Coq_block_intro (l0, p, c, t0) = b in
           initialize_genDominatorTree_blocks bs' u (fun l1 ->
             if eqDec_atom l1 l0 then u else d0 l1) x
@@ -3680,7 +3732,7 @@ module LLVMlib =
   (** val genEmptyDT : LLVMsyntax.dt **)
   
   let genEmptyDT x =
-    Nil
+    []
   
   (** val initialize_genDominatorTree_entry :
       LLVMsyntax.fdef -> LLVMsyntax.dt **)
@@ -3689,8 +3741,8 @@ module LLVMlib =
     match getEntryOfFdef f with
       | Some b ->
           let LLVMsyntax.Coq_block_intro (l0, p, c, t0) = b in
-          if eqDec_atom x l0 then lset_single l0 else Nil
-      | None -> Nil
+          if eqDec_atom x l0 then lset_single l0 else []
+      | None -> []
   
   (** val initialize_genDominatorTree :
       LLVMsyntax.fdef -> LLVMsyntax.ls -> LLVMsyntax.dt **)
@@ -3700,16 +3752,16 @@ module LLVMlib =
       match getEntryOfFdef f with
         | Some b ->
             let LLVMsyntax.Coq_block_intro (l0, p, c, t0) = b in
-            if eqDec_atom x0 l0 then lset_single l0 else Nil
-        | None -> Nil) x
+            if eqDec_atom x0 l0 then lset_single l0 else []
+        | None -> []) x
   
   (** val genDominatorTree :
       LLVMsyntax.fdef -> LLVMsyntax.coq_module -> LLVMsyntax.dt **)
   
   let genDominatorTree f m x =
     let LLVMsyntax.Coq_fdef_intro (fheader0, blocks0) = f in
-    genDominatorTree_blocks (Pair (blocks0,
-      (initialize_genDominatorTree f (genLabelsFromFdef f))))
+    genDominatorTree_blocks (blocks0 ,
+      (initialize_genDominatorTree f (genLabelsFromFdef f)))
       (genBlockUseDef m) x
   
   (** val blockDominatesB :
@@ -3724,7 +3776,7 @@ module LLVMlib =
       LLVMsyntax.fdef_info -> LLVMsyntax.block -> bool **)
   
   let isReachableFromEntryB fi b =
-    let Pair (f, d) = fi in
+    let f , d = fi in
     (match getEntryOfFdef f with
        | Some be -> blockDominatesB d be b
        | None -> false)
@@ -3897,35 +3949,35 @@ module LLVMlib =
   (** val getCmdsIDs : LLVMsyntax.cmd list -> LLVMsyntax.ids **)
   
   let rec getCmdsIDs = function
-    | Nil -> Nil
-    | Cons (c, cs') -> Cons ((getCmdID c), (getCmdsIDs cs'))
+    | [] -> []
+    | c :: cs' -> (getCmdID c) :: (getCmdsIDs cs')
   
   (** val getPhiNodesIDs : LLVMsyntax.phinode list -> LLVMsyntax.ids **)
   
   let rec getPhiNodesIDs = function
-    | Nil -> Nil
-    | Cons (p, ps') -> Cons ((getPhiNodeID p), (getPhiNodesIDs ps'))
+    | [] -> []
+    | p :: ps' -> (getPhiNodeID p) :: (getPhiNodesIDs ps')
   
   (** val getBlockIDs : LLVMsyntax.block -> LLVMsyntax.ids **)
   
   let getBlockIDs = function
     | LLVMsyntax.Coq_block_intro (l0, ps, cs, t0) ->
         app (getPhiNodesIDs ps)
-          (app (getCmdsIDs cs) (Cons ((getTerminatorID t0), Nil)))
+          (app (getCmdsIDs cs) ((getTerminatorID t0) :: []))
   
   (** val getBlocksIDs : LLVMsyntax.block list -> LLVMsyntax.ids **)
   
   let rec getBlocksIDs = function
-    | Nil -> Nil
-    | Cons (b, bs') -> app (getBlockIDs b) (getBlocksIDs bs')
+    | [] -> []
+    | b :: bs' -> app (getBlockIDs b) (getBlocksIDs bs')
   
   (** val getBlocksLabels : LLVMsyntax.block list -> LLVMsyntax.ls **)
   
   let rec getBlocksLabels = function
-    | Nil -> Nil
-    | Cons (y, bs') ->
+    | [] -> []
+    | y :: bs' ->
         let LLVMsyntax.Coq_block_intro (l0, p, c, t0) = y in
-        Cons (l0, (getBlocksLabels bs'))
+        l0 :: (getBlocksLabels bs')
   
   (** val getProductID : LLVMsyntax.product -> LLVMsyntax.id **)
   
@@ -3937,8 +3989,8 @@ module LLVMlib =
   (** val getProductsIDs : LLVMsyntax.product list -> LLVMsyntax.ids **)
   
   let rec getProductsIDs = function
-    | Nil -> Nil
-    | Cons (p, ps') -> Cons ((getProductID p), (getProductsIDs ps'))
+    | [] -> []
+    | p :: ps' -> (getProductID p) :: (getProductsIDs ps')
   
   (** val sumbool2bool : bool -> bool **)
   
@@ -3951,8 +4003,8 @@ module LLVMlib =
   type list_typ_dec_prop = LLVMsyntax.list_typ -> bool
   
   (** val typ_mutrec_dec :
-      (LLVMsyntax.typ -> typ_dec_prop, LLVMsyntax.list_typ ->
-      list_typ_dec_prop) prod **)
+      (LLVMsyntax.typ -> typ_dec_prop) * (LLVMsyntax.list_typ ->
+      list_typ_dec_prop) **)
   
   let typ_mutrec_dec =
     LLVMsyntax.typ_mutrec (fun s t2 ->
@@ -3993,21 +4045,21 @@ module LLVMlib =
   (** val typ_dec : LLVMsyntax.typ -> LLVMsyntax.typ -> bool **)
   
   let typ_dec t1 t2 =
-    let Pair (t0, l0) = typ_mutrec_dec in t0 t1 t2
+    let t0 , l0 = typ_mutrec_dec in t0 t1 t2
   
   (** val list_typ_dec :
       LLVMsyntax.list_typ -> LLVMsyntax.list_typ -> bool **)
   
   let list_typ_dec lt1 lt2 =
-    let Pair (t0, l0) = typ_mutrec_dec in l0 lt1 lt2
+    let t0 , l0 = typ_mutrec_dec in l0 lt1 lt2
   
   type const_dec_prop = LLVMsyntax.const -> bool
   
   type list_const_dec_prop = LLVMsyntax.list_const -> bool
   
   (** val const_mutrec_dec :
-      (LLVMsyntax.const -> const_dec_prop, LLVMsyntax.list_const ->
-      list_const_dec_prop) prod **)
+      (LLVMsyntax.const -> const_dec_prop) * (LLVMsyntax.list_const ->
+      list_const_dec_prop) **)
   
   let const_mutrec_dec =
     LLVMsyntax.const_mutrec (fun s i0 c2 ->
@@ -4017,11 +4069,11 @@ module LLVMlib =
         | _ -> false) (fun t0 c2 ->
       match c2 with
         | LLVMsyntax.Coq_const_undef t1 ->
-            let Pair (t2, l0) = typ_mutrec_dec in t2 t0 t1
+            let t2 , l0 = typ_mutrec_dec in t2 t0 t1
         | _ -> false) (fun t0 c2 ->
       match c2 with
         | LLVMsyntax.Coq_const_null t1 ->
-            let Pair (t2, l0) = typ_mutrec_dec in t2 t0 t1
+            let t2 , l0 = typ_mutrec_dec in t2 t0 t1
         | _ -> false) (fun l0 h c2 ->
       match c2 with
         | LLVMsyntax.Coq_const_arr l1 -> h l1
@@ -4031,7 +4083,7 @@ module LLVMlib =
         | _ -> false) (fun t0 i0 c2 ->
       match c2 with
         | LLVMsyntax.Coq_const_gid (t1, i1) ->
-            if let Pair (t2, l0) = typ_mutrec_dec in t2 t0 t1
+            if let t2 , l0 = typ_mutrec_dec in t2 t0 t1
             then id_dec i0 i1
             else false
         | _ -> false) (fun lc2 ->
@@ -4046,13 +4098,13 @@ module LLVMlib =
   (** val const_dec : LLVMsyntax.const -> LLVMsyntax.const -> bool **)
   
   let const_dec c1 c2 =
-    let Pair (c, l0) = const_mutrec_dec in c c1 c2
+    let c , l0 = const_mutrec_dec in c c1 c2
   
   (** val list_const_dec :
       LLVMsyntax.list_const -> LLVMsyntax.list_const -> bool **)
   
   let list_const_dec lc1 lc2 =
-    let Pair (c, l0) = const_mutrec_dec in l0 lc1 lc2
+    let c , l0 = const_mutrec_dec in l0 lc1 lc2
   
   (** val value_dec : LLVMsyntax.value -> LLVMsyntax.value -> bool **)
   
@@ -4066,42 +4118,42 @@ module LLVMlib =
           (match v2 with
              | LLVMsyntax.Coq_value_id i0 -> false
              | LLVMsyntax.Coq_value_const c0 ->
-                 let Pair (c, l0) = const_mutrec_dec in c x c0)
+                 let c , l0 = const_mutrec_dec in c x c0)
   
   (** val params_dec : LLVMsyntax.params -> LLVMsyntax.params -> bool **)
   
   let rec params_dec l0 p0 =
     match l0 with
-      | Nil -> (match p0 with
-                  | Nil -> true
-                  | Cons (p, l1) -> false)
-      | Cons (a, l1) ->
+      | [] -> (match p0 with
+                 | [] -> true
+                 | p :: l1 -> false)
+      | a :: l1 ->
           (match p0 with
-             | Nil -> false
-             | Cons (p, l2) ->
-                 if let Pair (t0, v) = a in
-                    let Pair (t1, v0) = p in
-                    if let Pair (t2, l3) = typ_mutrec_dec in t2 t0 t1
+             | [] -> false
+             | p :: l2 ->
+                 if let t0 , v = a in
+                    let t1 , v0 = p in
+                    if let t2 , l3 = typ_mutrec_dec in t2 t0 t1
                     then value_dec v v0
                     else false
                  then params_dec l1 l2
                  else false)
   
-  (** val list_id_l_dec :
-      LLVMsyntax.list_id_l -> LLVMsyntax.list_id_l -> bool **)
+  (** val list_value_l_dec :
+      LLVMsyntax.list_value_l -> LLVMsyntax.list_value_l -> bool **)
   
-  let rec list_id_l_dec l0 l2 =
+  let rec list_value_l_dec l0 l2 =
     match l0 with
-      | LLVMsyntax.Nil_list_id_l ->
+      | LLVMsyntax.Nil_list_value_l ->
           (match l2 with
-             | LLVMsyntax.Nil_list_id_l -> true
-             | LLVMsyntax.Cons_list_id_l (i0, l1, l3) -> false)
-      | LLVMsyntax.Cons_list_id_l (i0, l1, l3) ->
+             | LLVMsyntax.Nil_list_value_l -> true
+             | LLVMsyntax.Cons_list_value_l (v, l1, l3) -> false)
+      | LLVMsyntax.Cons_list_value_l (v, l1, l3) ->
           (match l2 with
-             | LLVMsyntax.Nil_list_id_l -> false
-             | LLVMsyntax.Cons_list_id_l (i1, l4, l5) ->
-                 if id_dec i0 i1
-                 then if l_dec l1 l4 then list_id_l_dec l3 l5 else false
+             | LLVMsyntax.Nil_list_value_l -> false
+             | LLVMsyntax.Cons_list_value_l (v0, l4, l5) ->
+                 if value_dec v v0
+                 then if l_dec l1 l4 then list_value_l_dec l3 l5 else false
                  else false)
   
   (** val list_value_dec :
@@ -4252,10 +4304,9 @@ module LLVMlib =
           (match c2 with
              | LLVMsyntax.Coq_insn_extractvalue (i1, t1, v0, l1) ->
                  if id_dec i0 i1
-                 then if let Pair (t2, l2) = typ_mutrec_dec in t2 t0 t1
+                 then if let t2 , l2 = typ_mutrec_dec in t2 t0 t1
                       then if value_dec v v0
-                           then let Pair (c, l2) = const_mutrec_dec in
-                                l2 l0 l1
+                           then let c , l2 = const_mutrec_dec in l2 l0 l1
                            else false
                       else false
                  else false
@@ -4264,13 +4315,11 @@ module LLVMlib =
           (match c2 with
              | LLVMsyntax.Coq_insn_insertvalue (i1, t2, v1, t3, v2, l1) ->
                  if id_dec i0 i1
-                 then if let Pair (t4, l2) = typ_mutrec_dec in t4 t0 t2
+                 then if let t4 , l2 = typ_mutrec_dec in t4 t0 t2
                       then if value_dec v v1
-                           then if let Pair (t4, l2) = typ_mutrec_dec in
-                                   t4 t1 t3
+                           then if let t4 , l2 = typ_mutrec_dec in t4 t1 t3
                                 then if value_dec v0 v2
-                                     then let Pair (c, l2) = const_mutrec_dec
-                                          in
+                                     then let c , l2 = const_mutrec_dec in
                                           l2 l0 l1
                                      else false
                                 else false
@@ -4282,7 +4331,7 @@ module LLVMlib =
           (match c2 with
              | LLVMsyntax.Coq_insn_malloc (i1, t1, s0, a0) ->
                  if id_dec i0 i1
-                 then if let Pair (t2, l0) = typ_mutrec_dec in t2 t0 t1
+                 then if let t2 , l0 = typ_mutrec_dec in t2 t0 t1
                       then if sz_dec s s0 then align_dec a a0 else false
                       else false
                  else false
@@ -4291,7 +4340,7 @@ module LLVMlib =
           (match c2 with
              | LLVMsyntax.Coq_insn_free (i1, t1, v0) ->
                  if id_dec i0 i1
-                 then if let Pair (t2, l0) = typ_mutrec_dec in t2 t0 t1
+                 then if let t2 , l0 = typ_mutrec_dec in t2 t0 t1
                       then value_dec v v0
                       else false
                  else false
@@ -4300,26 +4349,30 @@ module LLVMlib =
           (match c2 with
              | LLVMsyntax.Coq_insn_alloca (i1, t1, s0, a0) ->
                  if id_dec i0 i1
-                 then if let Pair (t2, l0) = typ_mutrec_dec in t2 t0 t1
+                 then if let t2 , l0 = typ_mutrec_dec in t2 t0 t1
                       then if sz_dec s s0 then align_dec a a0 else false
                       else false
                  else false
              | _ -> false)
-      | LLVMsyntax.Coq_insn_load (i0, t0, v) ->
+      | LLVMsyntax.Coq_insn_load (i0, t0, v, a) ->
           (match c2 with
-             | LLVMsyntax.Coq_insn_load (i1, t1, v0) ->
+             | LLVMsyntax.Coq_insn_load (i1, t1, v0, a0) ->
                  if id_dec i0 i1
-                 then if let Pair (t2, l0) = typ_mutrec_dec in t2 t0 t1
-                      then value_dec v v0
+                 then if let t2 , l0 = typ_mutrec_dec in t2 t0 t1
+                      then if align_dec a a0 then value_dec v v0 else false
                       else false
                  else false
              | _ -> false)
-      | LLVMsyntax.Coq_insn_store (i0, t0, v, v0) ->
+      | LLVMsyntax.Coq_insn_store (i0, t0, v, v0, a) ->
           (match c2 with
-             | LLVMsyntax.Coq_insn_store (i1, t1, v1, v2) ->
+             | LLVMsyntax.Coq_insn_store (i1, t1, v1, v2, a0) ->
                  if id_dec i0 i1
-                 then if let Pair (t2, l0) = typ_mutrec_dec in t2 t0 t1
-                      then if value_dec v v1 then value_dec v0 v2 else false
+                 then if let t2 , l0 = typ_mutrec_dec in t2 t0 t1
+                      then if value_dec v v1
+                           then if align_dec a a0
+                                then value_dec v0 v2
+                                else false
+                           else false
                       else false
                  else false
              | _ -> false)
@@ -4328,7 +4381,7 @@ module LLVMlib =
              | LLVMsyntax.Coq_insn_gep (i2, i3, t1, v0, l1) ->
                  if id_dec i0 i2
                  then if inbounds_dec i1 i3
-                      then if let Pair (t2, l2) = typ_mutrec_dec in t2 t0 t1
+                      then if let t2 , l2 = typ_mutrec_dec in t2 t0 t1
                            then if value_dec v v0
                                 then list_value_dec l0 l1
                                 else false
@@ -4341,10 +4394,9 @@ module LLVMlib =
              | LLVMsyntax.Coq_insn_ext (i1, e0, t2, v0, t3) ->
                  if id_dec i0 i1
                  then if extop_dec e e0
-                      then if let Pair (t4, l0) = typ_mutrec_dec in t4 t0 t2
+                      then if let t4 , l0 = typ_mutrec_dec in t4 t0 t2
                            then if value_dec v v0
-                                then let Pair (t4, l0) = typ_mutrec_dec in
-                                     t4 t1 t3
+                                then let t4 , l0 = typ_mutrec_dec in t4 t1 t3
                                 else false
                            else false
                       else false
@@ -4355,10 +4407,9 @@ module LLVMlib =
              | LLVMsyntax.Coq_insn_cast (i1, c0, t2, v0, t3) ->
                  if id_dec i0 i1
                  then if castop_dec c c0
-                      then if let Pair (t4, l0) = typ_mutrec_dec in t4 t0 t2
+                      then if let t4 , l0 = typ_mutrec_dec in t4 t0 t2
                            then if value_dec v v0
-                                then let Pair (t4, l0) = typ_mutrec_dec in
-                                     t4 t1 t3
+                                then let t4 , l0 = typ_mutrec_dec in t4 t1 t3
                                 else false
                            else false
                       else false
@@ -4369,7 +4420,7 @@ module LLVMlib =
              | LLVMsyntax.Coq_insn_icmp (i1, c0, t1, v1, v2) ->
                  if id_dec i0 i1
                  then if cond_dec c c0
-                      then if let Pair (t2, l0) = typ_mutrec_dec in t2 t0 t1
+                      then if let t2 , l0 = typ_mutrec_dec in t2 t0 t1
                            then if value_dec v v1
                                 then value_dec v0 v2
                                 else false
@@ -4382,7 +4433,7 @@ module LLVMlib =
              | LLVMsyntax.Coq_insn_select (i1, v2, t1, v3, v4) ->
                  if id_dec i0 i1
                  then if value_dec v v2
-                      then if let Pair (t2, l0) = typ_mutrec_dec in t2 t0 t1
+                      then if let t2 , l0 = typ_mutrec_dec in t2 t0 t1
                            then if value_dec v0 v3
                                 then value_dec v1 v4
                                 else false
@@ -4397,7 +4448,7 @@ module LLVMlib =
                  then if id_dec i1 i3
                       then if noret_dec n n0
                            then if tailc_dec t0 t2
-                                then if let Pair (t4, l0) = typ_mutrec_dec in
+                                then if let t4 , l0 = typ_mutrec_dec in
                                         t4 t1 t3
                                      then params_dec p p0
                                      else false
@@ -4416,7 +4467,7 @@ module LLVMlib =
           (match tmn2 with
              | LLVMsyntax.Coq_insn_return (i1, t1, v0) ->
                  if id_dec i0 i1
-                 then if let Pair (t2, l0) = typ_mutrec_dec in t2 t0 t1
+                 then if let t2 , l0 = typ_mutrec_dec in t2 t0 t1
                       then value_dec v v0
                       else false
                  else false
@@ -4450,8 +4501,8 @@ module LLVMlib =
     let LLVMsyntax.Coq_insn_phi (i0, t0, l0) = p1 in
     let LLVMsyntax.Coq_insn_phi (i1, t1, l1) = p2 in
     if id_dec i0 i1
-    then if let Pair (t2, l2) = typ_mutrec_dec in t2 t0 t1
-         then list_id_l_dec l0 l1
+    then if let t2 , l2 = typ_mutrec_dec in t2 t0 t1
+         then list_value_l_dec l0 l1
          else false
     else false
   
@@ -4476,27 +4527,26 @@ module LLVMlib =
   
   let rec cmds_dec l0 cs2 =
     match l0 with
-      | Nil -> (match cs2 with
-                  | Nil -> true
-                  | Cons (c, cs3) -> false)
-      | Cons (a, l1) ->
+      | [] -> (match cs2 with
+                 | [] -> true
+                 | c :: cs3 -> false)
+      | a :: l1 ->
           (match cs2 with
-             | Nil -> false
-             | Cons (c, cs3) ->
-                 if cmd_dec a c then cmds_dec l1 cs3 else false)
+             | [] -> false
+             | c :: cs3 -> if cmd_dec a c then cmds_dec l1 cs3 else false)
   
   (** val phinodes_dec :
       LLVMsyntax.phinode list -> LLVMsyntax.phinode list -> bool **)
   
   let rec phinodes_dec l0 ps2 =
     match l0 with
-      | Nil -> (match ps2 with
-                  | Nil -> true
-                  | Cons (p, ps3) -> false)
-      | Cons (a, l1) ->
+      | [] -> (match ps2 with
+                 | [] -> true
+                 | p :: ps3 -> false)
+      | a :: l1 ->
           (match ps2 with
-             | Nil -> false
-             | Cons (p, ps3) ->
+             | [] -> false
+             | p :: ps3 ->
                  if phinode_dec a p then phinodes_dec l1 ps3 else false)
   
   (** val block_dec : LLVMsyntax.block -> LLVMsyntax.block -> bool **)
@@ -4513,30 +4563,28 @@ module LLVMlib =
   (** val arg_dec : LLVMsyntax.arg -> LLVMsyntax.arg -> bool **)
   
   let arg_dec a1 a2 =
-    let Pair (t0, i0) = a1 in
-    let Pair (t1, i1) = a2 in
-    if id_dec i0 i1
-    then let Pair (t2, l0) = typ_mutrec_dec in t2 t0 t1
-    else false
+    let t0 , i0 = a1 in
+    let t1 , i1 = a2 in
+    if id_dec i0 i1 then let t2 , l0 = typ_mutrec_dec in t2 t0 t1 else false
   
   (** val args_dec : LLVMsyntax.args -> LLVMsyntax.args -> bool **)
   
   let rec args_dec l0 l2 =
     match l0 with
-      | Nil -> (match l2 with
-                  | Nil -> true
-                  | Cons (p, l3) -> false)
-      | Cons (a, l1) ->
+      | [] -> (match l2 with
+                 | [] -> true
+                 | p :: l3 -> false)
+      | a :: l1 ->
           (match l2 with
-             | Nil -> false
-             | Cons (p, l3) -> if arg_dec a p then args_dec l1 l3 else false)
+             | [] -> false
+             | p :: l3 -> if arg_dec a p then args_dec l1 l3 else false)
   
   (** val fheader_dec : LLVMsyntax.fheader -> LLVMsyntax.fheader -> bool **)
   
   let fheader_dec f1 f2 =
     let LLVMsyntax.Coq_fheader_intro (t0, i0, a) = f1 in
     let LLVMsyntax.Coq_fheader_intro (t1, i1, a0) = f2 in
-    if let Pair (t2, l0) = typ_mutrec_dec in t2 t0 t1
+    if let t2 , l0 = typ_mutrec_dec in t2 t0 t1
     then if id_dec i0 i1 then args_dec a a0 else false
     else false
   
@@ -4544,13 +4592,13 @@ module LLVMlib =
   
   let rec blocks_dec l0 lb' =
     match l0 with
-      | Nil -> (match lb' with
-                  | Nil -> true
-                  | Cons (b, lb'0) -> false)
-      | Cons (a, l1) ->
+      | [] -> (match lb' with
+                 | [] -> true
+                 | b :: lb'0 -> false)
+      | a :: l1 ->
           (match lb' with
-             | Nil -> false
-             | Cons (b, lb'0) ->
+             | [] -> false
+             | b :: lb'0 ->
                  if block_dec a b then blocks_dec l1 lb'0 else false)
   
   (** val fdec_dec : LLVMsyntax.fdec -> LLVMsyntax.fdec -> bool **)
@@ -4571,8 +4619,8 @@ module LLVMlib =
     let LLVMsyntax.Coq_gvar_intro (i0, t0, c, a) = g1 in
     let LLVMsyntax.Coq_gvar_intro (i1, t1, c0, a0) = g2 in
     if id_dec i0 i1
-    then if let Pair (t2, l0) = typ_mutrec_dec in t2 t0 t1
-         then if let Pair (c1, l0) = const_mutrec_dec in c1 c c0
+    then if let t2 , l0 = typ_mutrec_dec in t2 t0 t1
+         then if let c1 , l0 = const_mutrec_dec in c1 c c0
               then align_dec a a0
               else false
          else false
@@ -4600,13 +4648,13 @@ module LLVMlib =
   
   let rec products_dec l0 lp' =
     match l0 with
-      | Nil -> (match lp' with
-                  | Nil -> true
-                  | Cons (p, lp'0) -> false)
-      | Cons (a, l1) ->
+      | [] -> (match lp' with
+                 | [] -> true
+                 | p :: lp'0 -> false)
+      | a :: l1 ->
           (match lp' with
-             | Nil -> false
-             | Cons (p, lp'0) ->
+             | [] -> false
+             | p :: lp'0 ->
                  if product_dec a p then products_dec l1 lp'0 else false)
   
   (** val layout_dec : LLVMsyntax.layout -> LLVMsyntax.layout -> bool **)
@@ -4654,13 +4702,13 @@ module LLVMlib =
   
   let rec layouts_dec l0 l2 =
     match l0 with
-      | Nil -> (match l2 with
-                  | Nil -> true
-                  | Cons (l1, l3) -> false)
-      | Cons (a, l1) ->
+      | [] -> (match l2 with
+                 | [] -> true
+                 | l1 :: l3 -> false)
+      | a :: l1 ->
           (match l2 with
-             | Nil -> false
-             | Cons (l3, l4) ->
+             | [] -> false
+             | l3 :: l4 ->
                  if layout_dec a l3 then layouts_dec l1 l4 else false)
   
   (** val module_dec :
@@ -4675,13 +4723,13 @@ module LLVMlib =
   
   let rec modules_dec l0 lm' =
     match l0 with
-      | Nil -> (match lm' with
-                  | Nil -> true
-                  | Cons (m, lm'0) -> false)
-      | Cons (a, l1) ->
+      | [] -> (match lm' with
+                 | [] -> true
+                 | m :: lm'0 -> false)
+      | a :: l1 ->
           (match lm' with
-             | Nil -> false
-             | Cons (m, lm'0) ->
+             | [] -> false
+             | m :: lm'0 ->
                  if module_dec a m then modules_dec l1 lm'0 else false)
   
   (** val system_dec : LLVMsyntax.system -> LLVMsyntax.system -> bool **)
@@ -4692,15 +4740,15 @@ module LLVMlib =
   (** val typEqB : LLVMsyntax.typ -> LLVMsyntax.typ -> bool **)
   
   let typEqB t1 t2 =
-    sumbool2bool (let Pair (t0, l0) = typ_mutrec_dec in t0 t1 t2)
+    sumbool2bool (let t0 , l0 = typ_mutrec_dec in t0 t1 t2)
   
   (** val list_typEqB :
       LLVMsyntax.list_typ -> LLVMsyntax.list_typ -> bool **)
   
   let list_typEqB lt1 lt2 =
-    sumbool2bool (let Pair (t0, l0) = typ_mutrec_dec in l0 lt1 lt2)
+    sumbool2bool (let t0 , l0 = typ_mutrec_dec in l0 lt1 lt2)
   
-  (** val idEqB : AtomImpl.atom -> AtomImpl.atom -> bool **)
+  (** val idEqB : LLVMsyntax.id -> LLVMsyntax.id -> bool **)
   
   let idEqB i0 i' =
     sumbool2bool (id_dec i0 i')
@@ -4708,13 +4756,13 @@ module LLVMlib =
   (** val constEqB : LLVMsyntax.const -> LLVMsyntax.const -> bool **)
   
   let constEqB c1 c2 =
-    sumbool2bool (let Pair (c, l0) = const_mutrec_dec in c c1 c2)
+    sumbool2bool (let c , l0 = const_mutrec_dec in c c1 c2)
   
   (** val list_constEqB :
       LLVMsyntax.list_const -> LLVMsyntax.list_const -> bool **)
   
   let list_constEqB lc1 lc2 =
-    sumbool2bool (let Pair (c, l0) = const_mutrec_dec in l0 lc1 lc2)
+    sumbool2bool (let c , l0 = const_mutrec_dec in l0 lc1 lc2)
   
   (** val valueEqB : LLVMsyntax.value -> LLVMsyntax.value -> bool **)
   
@@ -4726,16 +4774,16 @@ module LLVMlib =
   let paramsEqB lp lp' =
     sumbool2bool (params_dec lp lp')
   
-  (** val lEqB : AtomImpl.atom -> AtomImpl.atom -> bool **)
+  (** val lEqB : LLVMsyntax.l -> LLVMsyntax.l -> bool **)
   
   let lEqB i0 i' =
     sumbool2bool (l_dec i0 i')
   
-  (** val list_id_lEqB :
-      LLVMsyntax.list_id_l -> LLVMsyntax.list_id_l -> bool **)
+  (** val list_value_lEqB :
+      LLVMsyntax.list_value_l -> LLVMsyntax.list_value_l -> bool **)
   
-  let list_id_lEqB idls idls' =
-    sumbool2bool (list_id_l_dec idls idls')
+  let list_value_lEqB idls idls' =
+    sumbool2bool (list_value_l_dec idls idls')
   
   (** val list_valueEqB :
       LLVMsyntax.list_value -> LLVMsyntax.list_value -> bool **)
@@ -4865,16 +4913,15 @@ module LLVMlib =
   (** val coq_InCmdsB : LLVMsyntax.cmd -> LLVMsyntax.cmds -> bool **)
   
   let rec coq_InCmdsB i0 = function
-    | Nil -> false
-    | Cons (i', li') -> if cmdEqB i0 i' then true else coq_InCmdsB i0 li'
+    | [] -> false
+    | i' :: li' -> if cmdEqB i0 i' then true else coq_InCmdsB i0 li'
   
   (** val coq_InPhiNodesB :
       LLVMsyntax.phinode -> LLVMsyntax.phinodes -> bool **)
   
   let rec coq_InPhiNodesB i0 = function
-    | Nil -> false
-    | Cons (i', li') ->
-        if phinodeEqB i0 i' then true else coq_InPhiNodesB i0 li'
+    | [] -> false
+    | i' :: li' -> if phinodeEqB i0 i' then true else coq_InPhiNodesB i0 li'
   
   (** val cmdInBlockB : LLVMsyntax.cmd -> LLVMsyntax.block -> bool **)
   
@@ -4896,11 +4943,11 @@ module LLVMlib =
   (** val coq_InArgsB : LLVMsyntax.arg -> LLVMsyntax.args -> bool **)
   
   let rec coq_InArgsB a = function
-    | Nil -> false
-    | Cons (a', la') ->
-        if let Pair (t0, id0) = a in
-           let Pair (t', id') = a' in
-           if sumbool2bool (let Pair (t1, l0) = typ_mutrec_dec in t1 t0 t')
+    | [] -> false
+    | a' :: la' ->
+        if let t0 , id0 = a in
+           let t' , id' = a' in
+           if sumbool2bool (let t1 , l0 = typ_mutrec_dec in t1 t0 t')
            then idEqB id0 id'
            else false
         then true
@@ -4924,8 +4971,8 @@ module LLVMlib =
   (** val coq_InBlocksB : LLVMsyntax.block -> LLVMsyntax.blocks -> bool **)
   
   let rec coq_InBlocksB b = function
-    | Nil -> false
-    | Cons (b', lb') -> if blockEqB b b' then true else coq_InBlocksB b lb'
+    | [] -> false
+    | b' :: lb' -> if blockEqB b b' then true else coq_InBlocksB b lb'
   
   (** val blockInFdefB : LLVMsyntax.block -> LLVMsyntax.fdef -> bool **)
   
@@ -4936,9 +4983,8 @@ module LLVMlib =
       LLVMsyntax.product -> LLVMsyntax.products -> bool **)
   
   let rec coq_InProductsB p = function
-    | Nil -> false
-    | Cons (p', lp') ->
-        if productEqB p p' then true else coq_InProductsB p lp'
+    | [] -> false
+    | p' :: lp' -> if productEqB p p' then true else coq_InProductsB p lp'
   
   (** val productInModuleB :
       LLVMsyntax.product -> LLVMsyntax.coq_module -> bool **)
@@ -4950,8 +4996,8 @@ module LLVMlib =
       LLVMsyntax.coq_module -> LLVMsyntax.modules -> bool **)
   
   let rec coq_InModulesB m = function
-    | Nil -> false
-    | Cons (m', lm') -> if moduleEqB m m' then true else coq_InModulesB m lm'
+    | [] -> false
+    | m' :: lm' -> if moduleEqB m m' then true else coq_InModulesB m lm'
   
   (** val moduleInSystemB :
       LLVMsyntax.coq_module -> LLVMsyntax.system -> bool **)
@@ -4971,8 +5017,8 @@ module LLVMlib =
       bool **)
   
   let productInSystemModuleIB p s = function
-    | Pair (m, p0) ->
-        let Pair (ui, ub) = p0 in
+    | m , p0 ->
+        let ui , ub = p0 in
         if moduleInSystemB m s then productInModuleB p m else false
   
   (** val blockInSystemModuleFdefB :
@@ -4991,9 +5037,8 @@ module LLVMlib =
       LLVMsyntax.fdef_info -> bool **)
   
   let blockInSystemModuleIFdefIB b s mi fi =
-    let Pair (m, p) = mi in
-    let Pair (ui, ub) = p in
-    let Pair (fd, dt0) = fi in blockInSystemModuleFdefB b s m fd
+    let m , p = mi in
+    let ui , ub = p in let fd , dt0 = fi in blockInSystemModuleFdefB b s m fd
   
   (** val cmdInSystemModuleFdefBlockB :
       LLVMsyntax.cmd -> LLVMsyntax.system -> LLVMsyntax.coq_module ->
@@ -5007,9 +5052,9 @@ module LLVMlib =
       LLVMsyntax.fdef_info -> LLVMsyntax.block -> bool **)
   
   let cmdInSystemModuleIFdefIBlockB i0 s mi fi b =
-    let Pair (m, p) = mi in
-    let Pair (ui, ub) = p in
-    let Pair (fd, dt0) = fi in
+    let m , p = mi in
+    let ui , ub = p in
+    let fd , dt0 = fi in
     if cmdInBlockB i0 b then blockInSystemModuleFdefB b s m fd else false
   
   (** val phinodeInSystemModuleFdefBlockB :
@@ -5024,9 +5069,9 @@ module LLVMlib =
       LLVMsyntax.fdef_info -> LLVMsyntax.block -> bool **)
   
   let phinodeInSystemModuleIFdefIBlockB i0 s mi fi b =
-    let Pair (m, p) = mi in
-    let Pair (ui, ub) = p in
-    let Pair (fd, dt0) = fi in
+    let m , p = mi in
+    let ui , ub = p in
+    let fd , dt0 = fi in
     if phinodeInBlockB i0 b then blockInSystemModuleFdefB b s m fd else false
   
   (** val terminatorInSystemModuleFdefBlockB :
@@ -5043,9 +5088,9 @@ module LLVMlib =
       LLVMsyntax.fdef_info -> LLVMsyntax.block -> bool **)
   
   let terminatorInSystemModuleIFdefIBlockB i0 s mi fi b =
-    let Pair (m, p) = mi in
-    let Pair (ui, ub) = p in
-    let Pair (fd, dt0) = fi in
+    let m , p = mi in
+    let ui , ub = p in
+    let fd , dt0 = fi in
     if terminatorInBlockB i0 b
     then blockInSystemModuleFdefB b s m fd
     else false
@@ -5067,9 +5112,9 @@ module LLVMlib =
       LLVMsyntax.fdef_info -> LLVMsyntax.block -> bool **)
   
   let insnInSystemModuleIFdefIBlockB i0 s mi fi b =
-    let Pair (m, p) = mi in
-    let Pair (ui, ub) = p in
-    let Pair (fd, dt0) = fi in insnInSystemModuleFdefBlockB i0 s m fd b
+    let m , p = mi in
+    let ui , ub = p in
+    let fd , dt0 = fi in insnInSystemModuleFdefBlockB i0 s m fd b
   
   (** val cmdInBlockB_dec : LLVMsyntax.cmd -> LLVMsyntax.block -> bool **)
   
@@ -5092,8 +5137,8 @@ module LLVMlib =
       LLVMsyntax.cmd -> LLVMsyntax.blocks -> LLVMsyntax.block option **)
   
   let rec getParentOfCmdFromBlocks i0 = function
-    | Nil -> None
-    | Cons (b, lb') ->
+    | [] -> None
+    | b :: lb' ->
         if cmdInBlockB_dec i0 b
         then Some b
         else getParentOfCmdFromBlocks i0 lb'
@@ -5115,8 +5160,8 @@ module LLVMlib =
       LLVMsyntax.cmd -> LLVMsyntax.products -> LLVMsyntax.block option **)
   
   let rec getParentOfCmdFromProducts i0 = function
-    | Nil -> None
-    | Cons (p, lp') ->
+    | [] -> None
+    | p :: lp' ->
         (match match p with
                  | LLVMsyntax.Coq_product_fdef fd ->
                      getParentOfCmdFromFdef i0 fd
@@ -5135,8 +5180,8 @@ module LLVMlib =
       LLVMsyntax.cmd -> LLVMsyntax.modules -> LLVMsyntax.block option **)
   
   let rec getParentOfCmdFromModules i0 = function
-    | Nil -> None
-    | Cons (m, lm') ->
+    | [] -> None
+    | m :: lm' ->
         (match getParentOfCmdFromModule i0 m with
            | Some b -> Some b
            | None -> getParentOfCmdFromModules i0 lm')
@@ -5158,8 +5203,8 @@ module LLVMlib =
       LLVMsyntax.phinode -> LLVMsyntax.blocks -> LLVMsyntax.block option **)
   
   let rec getParentOfPhiNodeFromBlocks i0 = function
-    | Nil -> None
-    | Cons (b, lb') ->
+    | [] -> None
+    | b :: lb' ->
         if phinodeInBlockB_dec i0 b
         then Some b
         else getParentOfPhiNodeFromBlocks i0 lb'
@@ -5181,8 +5226,8 @@ module LLVMlib =
       LLVMsyntax.phinode -> LLVMsyntax.products -> LLVMsyntax.block option **)
   
   let rec getParentOfPhiNodeFromProducts i0 = function
-    | Nil -> None
-    | Cons (p, lp') ->
+    | [] -> None
+    | p :: lp' ->
         (match match p with
                  | LLVMsyntax.Coq_product_fdef fd ->
                      getParentOfPhiNodeFromFdef i0 fd
@@ -5201,8 +5246,8 @@ module LLVMlib =
       LLVMsyntax.phinode -> LLVMsyntax.modules -> LLVMsyntax.block option **)
   
   let rec getParentOfPhiNodeFromModules i0 = function
-    | Nil -> None
-    | Cons (m, lm') ->
+    | [] -> None
+    | m :: lm' ->
         (match getParentOfPhiNodeFromModule i0 m with
            | Some b -> Some b
            | None -> getParentOfPhiNodeFromModules i0 lm')
@@ -5225,8 +5270,8 @@ module LLVMlib =
       LLVMsyntax.terminator -> LLVMsyntax.blocks -> LLVMsyntax.block option **)
   
   let rec getParentOfTerminatorFromBlocks i0 = function
-    | Nil -> None
-    | Cons (b, lb') ->
+    | [] -> None
+    | b :: lb' ->
         if terminatorInBlockB_dec i0 b
         then Some b
         else getParentOfTerminatorFromBlocks i0 lb'
@@ -5249,8 +5294,8 @@ module LLVMlib =
       LLVMsyntax.terminator -> LLVMsyntax.products -> LLVMsyntax.block option **)
   
   let rec getParentOfTerminatorFromProducts i0 = function
-    | Nil -> None
-    | Cons (p, lp') ->
+    | [] -> None
+    | p :: lp' ->
         (match match p with
                  | LLVMsyntax.Coq_product_fdef fd ->
                      getParentOfTerminatorFromFdef i0 fd
@@ -5270,8 +5315,8 @@ module LLVMlib =
       LLVMsyntax.terminator -> LLVMsyntax.modules -> LLVMsyntax.block option **)
   
   let rec getParentOfTerminatorFromModules i0 = function
-    | Nil -> None
-    | Cons (m, lm') ->
+    | [] -> None
+    | m :: lm' ->
         (match getParentOfTerminatorFromModule i0 m with
            | Some b -> Some b
            | None -> getParentOfTerminatorFromModules i0 lm')
@@ -5300,8 +5345,8 @@ module LLVMlib =
       LLVMsyntax.fdef -> LLVMsyntax.modules -> LLVMsyntax.coq_module option **)
   
   let rec getParentOfFdefFromModules fd = function
-    | Nil -> None
-    | Cons (m, lm') ->
+    | [] -> None
+    | m :: lm' ->
         if productInModuleB_dec (LLVMsyntax.Coq_product_fdef fd) m
         then Some m
         else getParentOfFdefFromModules fd lm'
@@ -5313,16 +5358,20 @@ module LLVMlib =
     getParentOfFdefFromModules fd s
   
   (** val lookupIdsViaLabelFromIdls :
-      LLVMsyntax.list_id_l -> LLVMsyntax.l -> LLVMsyntax.id list **)
+      LLVMsyntax.list_value_l -> LLVMsyntax.l -> LLVMsyntax.id list **)
   
   let rec lookupIdsViaLabelFromIdls idls l0 =
     match idls with
-      | LLVMsyntax.Nil_list_id_l -> Nil
-      | LLVMsyntax.Cons_list_id_l (id1, l1, idls') ->
-          if eqDec_atom l0 l1
-          then set_add (fun x x0 -> eqDec_atom x x0) id1
-                 (lookupIdsViaLabelFromIdls idls' l0)
-          else lookupIdsViaLabelFromIdls idls' l0
+      | LLVMsyntax.Nil_list_value_l -> []
+      | LLVMsyntax.Cons_list_value_l (v, l1, idls') ->
+          (match v with
+             | LLVMsyntax.Coq_value_id id1 ->
+                 if eqDec_atom l0 l1
+                 then set_add (fun x x0 -> eqDec_atom x x0) id1
+                        (lookupIdsViaLabelFromIdls idls' l0)
+                 else lookupIdsViaLabelFromIdls idls' l0
+             | LLVMsyntax.Coq_value_const c ->
+                 lookupIdsViaLabelFromIdls idls' l0)
   
   module type SigValue = 
    sig 
@@ -5541,7 +5590,21 @@ module LLVMlib =
     
     (** val getTyp : LLVMsyntax.const -> LLVMsyntax.typ **)
     
-    let rec getTyp = Symexe_aux.getTyp
+    let rec getTyp = function
+      | LLVMsyntax.Coq_const_int (sz0, i0) -> LLVMsyntax.Coq_typ_int sz0
+      | LLVMsyntax.Coq_const_undef t0 -> t0
+      | LLVMsyntax.Coq_const_null t0 -> LLVMsyntax.Coq_typ_pointer t0
+      | LLVMsyntax.Coq_const_arr lc ->
+          (match lc with
+             | LLVMsyntax.Nil_list_const -> LLVMsyntax.Coq_typ_array (szZERO,
+                 (LLVMsyntax.Coq_typ_int szZERO))
+             | LLVMsyntax.Cons_list_const (c', lc') ->
+                 LLVMsyntax.Coq_typ_array
+                 ((nat2sz (length (LLVMsyntax.unmake_list_const lc))),
+                 (getTyp c')))
+      | LLVMsyntax.Coq_const_struct lc -> LLVMsyntax.Coq_typ_struct
+          (getList_typ lc)
+      | LLVMsyntax.Coq_const_gid (t0, i0) -> LLVMsyntax.Coq_typ_pointer t0
     
     (** val getList_typ : LLVMsyntax.list_const -> LLVMsyntax.list_typ **)
     
@@ -5560,7 +5623,21 @@ module LLVMlib =
     
     (** val getTyp : LLVMsyntax.const -> LLVMsyntax.typ **)
     
-    let rec getTyp = Symexe_aux.getTyp
+    let rec getTyp = function
+      | LLVMsyntax.Coq_const_int (sz0, i0) -> LLVMsyntax.Coq_typ_int sz0
+      | LLVMsyntax.Coq_const_undef t0 -> t0
+      | LLVMsyntax.Coq_const_null t0 -> LLVMsyntax.Coq_typ_pointer t0
+      | LLVMsyntax.Coq_const_arr lc ->
+          (match lc with
+             | LLVMsyntax.Nil_list_const -> LLVMsyntax.Coq_typ_array (szZERO,
+                 (LLVMsyntax.Coq_typ_int szZERO))
+             | LLVMsyntax.Cons_list_const (c', lc') ->
+                 LLVMsyntax.Coq_typ_array
+                 ((nat2sz (length (LLVMsyntax.unmake_list_const lc))),
+                 (getTyp c')))
+      | LLVMsyntax.Coq_const_struct lc -> LLVMsyntax.Coq_typ_struct
+          (getList_typ lc)
+      | LLVMsyntax.Coq_const_gid (t0, i0) -> LLVMsyntax.Coq_typ_pointer t0
     
     (** val getList_typ : LLVMsyntax.list_const -> LLVMsyntax.list_typ **)
     
@@ -5579,7 +5656,21 @@ module LLVMlib =
     
     (** val getTyp : LLVMsyntax.const -> LLVMsyntax.typ **)
     
-    let rec getTyp = Symexe_aux.getTyp
+    let rec getTyp = function
+      | LLVMsyntax.Coq_const_int (sz0, i0) -> LLVMsyntax.Coq_typ_int sz0
+      | LLVMsyntax.Coq_const_undef t0 -> t0
+      | LLVMsyntax.Coq_const_null t0 -> LLVMsyntax.Coq_typ_pointer t0
+      | LLVMsyntax.Coq_const_arr lc ->
+          (match lc with
+             | LLVMsyntax.Nil_list_const -> LLVMsyntax.Coq_typ_array (szZERO,
+                 (LLVMsyntax.Coq_typ_int szZERO))
+             | LLVMsyntax.Cons_list_const (c', lc') ->
+                 LLVMsyntax.Coq_typ_array
+                 ((nat2sz (length (LLVMsyntax.unmake_list_const lc))),
+                 (getTyp c')))
+      | LLVMsyntax.Coq_const_struct lc -> LLVMsyntax.Coq_typ_struct
+          (getList_typ lc)
+      | LLVMsyntax.Coq_const_gid (t0, i0) -> LLVMsyntax.Coq_typ_pointer t0
     
     (** val getList_typ : LLVMsyntax.list_const -> LLVMsyntax.list_typ **)
     
@@ -5696,7 +5787,7 @@ module LLVMlib =
     
     let getArgumentType fd i0 =
       match getArgument fd i0 with
-        | Some a -> let Pair (t0, i1) = a in Some t0
+        | Some a -> let t0 , i1 = a in Some t0
         | None -> None
    end
   
@@ -5767,7 +5858,7 @@ module LLVMlib =
     
     let getNumIncomingValues = function
       | LLVMsyntax.Coq_insn_phi (i1, t0, ln) ->
-          length (LLVMsyntax.unmake_list_id_l ln)
+          length (LLVMsyntax.unmake_list_value_l ln)
     
     (** val getIncomingValueType :
         LLVMsyntax.system -> LLVMsyntax.phinode -> nat -> LLVMsyntax.typ
@@ -5775,8 +5866,13 @@ module LLVMlib =
     
     let getIncomingValueType s i0 n =
       let LLVMsyntax.Coq_insn_phi (i1, t0, ln) = i0 in
-      (match LLVMsyntax.nth_list_id_l n ln with
-         | Some p -> let Pair (id0, l0) = p in lookupTypViaIDFromSystem s id0
+      (match LLVMsyntax.nth_list_value_l n ln with
+         | Some p ->
+             let v , l0 = p in
+             (match v with
+                | LLVMsyntax.Coq_value_id id0 ->
+                    lookupTypViaIDFromSystem s id0
+                | LLVMsyntax.Coq_value_const c -> Some (Constant.getTyp c))
          | None -> None)
    end
   
@@ -5809,9 +5905,11 @@ module LLVMlib =
       | LLVMsyntax.Cons_list_typ (t0, lt') ->
           if isSized t0 then isSizedListTyp lt' else false
     
-    (** val getPrimitiveSizeInBits : LLVMsyntax.typ -> nat **)
+    (** val getPrimitiveSizeInBits : LLVMsyntax.typ -> LLVMsyntax.sz **)
     
-    let getPrimitiveSizeInBits = Symexe_aux.getPrimitiveSizeInBits
+    let getPrimitiveSizeInBits = function
+      | LLVMsyntax.Coq_typ_int sz0 -> sz0
+      | _ -> szZERO
    end
   
   module DerivedType = 
@@ -5843,9 +5941,11 @@ module LLVMlib =
       | LLVMsyntax.Cons_list_typ (t0, lt') ->
           if isSized t0 then isSizedListTyp lt' else false
     
-    (** val getPrimitiveSizeInBits : LLVMsyntax.typ -> nat **)
+    (** val getPrimitiveSizeInBits : LLVMsyntax.typ -> LLVMsyntax.sz **)
     
-    let getPrimitiveSizeInBits = Symexe_aux.getPrimitiveSizeInBits
+    let getPrimitiveSizeInBits = function
+      | LLVMsyntax.Coq_typ_int sz0 -> sz0
+      | _ -> szZERO
    end
   
   module FunctionType = 
@@ -5877,9 +5977,11 @@ module LLVMlib =
       | LLVMsyntax.Cons_list_typ (t0, lt') ->
           if isSized t0 then isSizedListTyp lt' else false
     
-    (** val getPrimitiveSizeInBits : LLVMsyntax.typ -> nat **)
+    (** val getPrimitiveSizeInBits : LLVMsyntax.typ -> LLVMsyntax.sz **)
     
-    let getPrimitiveSizeInBits = Symexe_aux.getPrimitiveSizeInBits
+    let getPrimitiveSizeInBits = function
+      | LLVMsyntax.Coq_typ_int sz0 -> sz0
+      | _ -> szZERO
     
     (** val getNumParams : LLVMsyntax.typ -> nat option **)
     
@@ -5933,9 +6035,11 @@ module LLVMlib =
       | LLVMsyntax.Cons_list_typ (t0, lt') ->
           if isSized t0 then isSizedListTyp lt' else false
     
-    (** val getPrimitiveSizeInBits : LLVMsyntax.typ -> nat **)
+    (** val getPrimitiveSizeInBits : LLVMsyntax.typ -> LLVMsyntax.sz **)
     
-    let getPrimitiveSizeInBits = Symexe_aux.getPrimitiveSizeInBits
+    let getPrimitiveSizeInBits = function
+      | LLVMsyntax.Coq_typ_int sz0 -> sz0
+      | _ -> szZERO
    end
   
   module SequentialType = 
@@ -5967,9 +6071,11 @@ module LLVMlib =
       | LLVMsyntax.Cons_list_typ (t0, lt') ->
           if isSized t0 then isSizedListTyp lt' else false
     
-    (** val getPrimitiveSizeInBits : LLVMsyntax.typ -> nat **)
+    (** val getPrimitiveSizeInBits : LLVMsyntax.typ -> LLVMsyntax.sz **)
     
-    let getPrimitiveSizeInBits = Symexe_aux.getPrimitiveSizeInBits
+    let getPrimitiveSizeInBits = function
+      | LLVMsyntax.Coq_typ_int sz0 -> sz0
+      | _ -> szZERO
     
     (** val hasElementType : LLVMsyntax.typ -> bool **)
     
@@ -6013,9 +6119,11 @@ module LLVMlib =
       | LLVMsyntax.Cons_list_typ (t0, lt') ->
           if isSized t0 then isSizedListTyp lt' else false
     
-    (** val getPrimitiveSizeInBits : LLVMsyntax.typ -> nat **)
+    (** val getPrimitiveSizeInBits : LLVMsyntax.typ -> LLVMsyntax.sz **)
     
-    let getPrimitiveSizeInBits = Symexe_aux.getPrimitiveSizeInBits
+    let getPrimitiveSizeInBits = function
+      | LLVMsyntax.Coq_typ_int sz0 -> sz0
+      | _ -> szZERO
     
     (** val hasElementType : LLVMsyntax.typ -> bool **)
     
@@ -6031,7 +6139,9 @@ module LLVMlib =
     
     (** val getNumElements : LLVMsyntax.typ -> nat **)
     
-    let getNumElements = Symexe_aux.getNumElements
+    let getNumElements = function
+      | LLVMsyntax.Coq_typ_array (n, t1) -> sz2nat n
+      | _ -> O
    end
   
   type reflect =
@@ -6093,7 +6203,7 @@ type trace =
 
 type genericValue = mvalue
 
-type gVMap = (LLVMsyntax.id, genericValue) prod list
+type gVMap = (LLVMsyntax.id * genericValue) list
 
 module SimpleSE = 
  struct 
@@ -6182,20 +6292,20 @@ module SimpleSE =
   (** val cmds2nbranchs : LLVMsyntax.cmd list -> nbranch list option **)
   
   let rec cmds2nbranchs = function
-    | Nil -> Some Nil
-    | Cons (c, cs') ->
+    | [] -> Some []
+    | c :: cs' ->
         (match cmd2nbranch c with
            | Some nb ->
                (match cmds2nbranchs cs' with
-                  | Some nbs' -> Some (Cons (nb, nbs'))
+                  | Some nbs' -> Some (nb :: nbs')
                   | None -> None)
            | None -> None)
   
   (** val nbranchs2cmds : nbranch list -> LLVMsyntax.cmd list **)
   
   let rec nbranchs2cmds = function
-    | Nil -> Nil
-    | Cons (n, nbs') -> Cons (n, (nbranchs2cmds nbs'))
+    | [] -> []
+    | n :: nbs' -> n :: (nbranchs2cmds nbs')
   
   type subblock = { coq_NBs : nbranch list; call_cmd : LLVMsyntax.cmd }
   
@@ -6219,22 +6329,21 @@ module SimpleSE =
   
   let call_cmd x = x.call_cmd
   
-  (** val cmds2sbs :
-      LLVMsyntax.cmds -> (subblock list, nbranch list) prod **)
+  (** val cmds2sbs : LLVMsyntax.cmds -> subblock list * nbranch list **)
   
   let rec cmds2sbs = function
-    | Nil -> Pair (Nil, Nil)
-    | Cons (c, cs') ->
+    | [] -> [] , []
+    | c :: cs' ->
         if isCallInst_dec c
-        then let Pair (l0, nbs0) = cmds2sbs cs' in
+        then let l0 , nbs0 = cmds2sbs cs' in
              (match l0 with
-                | Nil -> Pair (Nil, (Cons (c, nbs0)))
-                | Cons (s, sbs') ->
+                | [] -> [] , (c :: nbs0)
+                | s :: sbs' ->
                     let { coq_NBs = nbs; call_cmd = call0 } = s in
-                    Pair ((Cons ({ coq_NBs = (Cons (c, nbs)); call_cmd =
-                    call0 }, sbs')), nbs0))
-        else let Pair (sbs, nbs0) = cmds2sbs cs' in
-             Pair ((Cons ({ coq_NBs = Nil; call_cmd = c }, sbs)), nbs0)
+                    ({ coq_NBs = (c :: nbs); call_cmd = call0 } :: sbs') ,
+                    nbs0)
+        else let sbs , nbs0 = cmds2sbs cs' in
+             ({ coq_NBs = []; call_cmd = c } :: sbs) , nbs0
   
   type sterm =
     | Coq_sterm_val of LLVMsyntax.value
@@ -6247,7 +6356,7 @@ module SimpleSE =
        * LLVMsyntax.align
     | Coq_sterm_alloca of smem * LLVMsyntax.typ * LLVMsyntax.sz
        * LLVMsyntax.align
-    | Coq_sterm_load of smem * LLVMsyntax.typ * sterm
+    | Coq_sterm_load of smem * LLVMsyntax.typ * sterm * LLVMsyntax.align
     | Coq_sterm_gep of LLVMsyntax.inbounds * LLVMsyntax.typ * 
        sterm * list_sterm
     | Coq_sterm_ext of LLVMsyntax.extop * LLVMsyntax.typ * 
@@ -6270,8 +6379,9 @@ module SimpleSE =
     | Coq_smem_free of smem * LLVMsyntax.typ * sterm
     | Coq_smem_alloca of smem * LLVMsyntax.typ * LLVMsyntax.sz
        * LLVMsyntax.align
-    | Coq_smem_load of smem * LLVMsyntax.typ * sterm
-    | Coq_smem_store of smem * LLVMsyntax.typ * sterm * sterm
+    | Coq_smem_load of smem * LLVMsyntax.typ * sterm * LLVMsyntax.align
+    | Coq_smem_store of smem * LLVMsyntax.typ * sterm * 
+       sterm * LLVMsyntax.align
   and sframe =
     | Coq_sframe_init
     | Coq_sframe_alloca of smem * sframe * LLVMsyntax.typ * 
@@ -6284,14 +6394,14 @@ module SimpleSE =
       LLVMsyntax.typ -> sterm -> 'a1 -> LLVMsyntax.list_const -> 'a1) ->
       (smem -> LLVMsyntax.typ -> LLVMsyntax.sz -> LLVMsyntax.align -> 'a1) ->
       (smem -> LLVMsyntax.typ -> LLVMsyntax.sz -> LLVMsyntax.align -> 'a1) ->
-      (smem -> LLVMsyntax.typ -> sterm -> 'a1 -> 'a1) -> (LLVMsyntax.inbounds
-      -> LLVMsyntax.typ -> sterm -> 'a1 -> list_sterm -> 'a1) ->
-      (LLVMsyntax.extop -> LLVMsyntax.typ -> sterm -> 'a1 -> LLVMsyntax.typ
-      -> 'a1) -> (LLVMsyntax.castop -> LLVMsyntax.typ -> sterm -> 'a1 ->
-      LLVMsyntax.typ -> 'a1) -> (LLVMsyntax.cond -> LLVMsyntax.typ -> sterm
-      -> 'a1 -> sterm -> 'a1 -> 'a1) -> (LLVMsyntax.typ -> list_sterm_l ->
-      'a1) -> (sterm -> 'a1 -> LLVMsyntax.typ -> sterm -> 'a1 -> sterm -> 'a1
-      -> 'a1) -> sterm -> 'a1 **)
+      (smem -> LLVMsyntax.typ -> sterm -> 'a1 -> LLVMsyntax.align -> 'a1) ->
+      (LLVMsyntax.inbounds -> LLVMsyntax.typ -> sterm -> 'a1 -> list_sterm ->
+      'a1) -> (LLVMsyntax.extop -> LLVMsyntax.typ -> sterm -> 'a1 ->
+      LLVMsyntax.typ -> 'a1) -> (LLVMsyntax.castop -> LLVMsyntax.typ -> sterm
+      -> 'a1 -> LLVMsyntax.typ -> 'a1) -> (LLVMsyntax.cond -> LLVMsyntax.typ
+      -> sterm -> 'a1 -> sterm -> 'a1 -> 'a1) -> (LLVMsyntax.typ ->
+      list_sterm_l -> 'a1) -> (sterm -> 'a1 -> LLVMsyntax.typ -> sterm -> 'a1
+      -> sterm -> 'a1 -> 'a1) -> sterm -> 'a1 **)
   
   let rec sterm_rect f f0 f1 f2 f3 f4 f5 f6 f7 f8 f9 f10 f11 = function
     | Coq_sterm_val v -> f v
@@ -6305,8 +6415,8 @@ module SimpleSE =
           s1 (sterm_rect f f0 f1 f2 f3 f4 f5 f6 f7 f8 f9 f10 f11 s1) l0
     | Coq_sterm_malloc (s0, t0, s1, a) -> f3 s0 t0 s1 a
     | Coq_sterm_alloca (s0, t0, s1, a) -> f4 s0 t0 s1 a
-    | Coq_sterm_load (s0, t0, s1) ->
-        f5 s0 t0 s1 (sterm_rect f f0 f1 f2 f3 f4 f5 f6 f7 f8 f9 f10 f11 s1)
+    | Coq_sterm_load (s0, t0, s1, a) ->
+        f5 s0 t0 s1 (sterm_rect f f0 f1 f2 f3 f4 f5 f6 f7 f8 f9 f10 f11 s1) a
     | Coq_sterm_gep (i0, t0, s0, l0) ->
         f6 i0 t0 s0 (sterm_rect f f0 f1 f2 f3 f4 f5 f6 f7 f8 f9 f10 f11 s0)
           l0
@@ -6330,14 +6440,14 @@ module SimpleSE =
       LLVMsyntax.typ -> sterm -> 'a1 -> LLVMsyntax.list_const -> 'a1) ->
       (smem -> LLVMsyntax.typ -> LLVMsyntax.sz -> LLVMsyntax.align -> 'a1) ->
       (smem -> LLVMsyntax.typ -> LLVMsyntax.sz -> LLVMsyntax.align -> 'a1) ->
-      (smem -> LLVMsyntax.typ -> sterm -> 'a1 -> 'a1) -> (LLVMsyntax.inbounds
-      -> LLVMsyntax.typ -> sterm -> 'a1 -> list_sterm -> 'a1) ->
-      (LLVMsyntax.extop -> LLVMsyntax.typ -> sterm -> 'a1 -> LLVMsyntax.typ
-      -> 'a1) -> (LLVMsyntax.castop -> LLVMsyntax.typ -> sterm -> 'a1 ->
-      LLVMsyntax.typ -> 'a1) -> (LLVMsyntax.cond -> LLVMsyntax.typ -> sterm
-      -> 'a1 -> sterm -> 'a1 -> 'a1) -> (LLVMsyntax.typ -> list_sterm_l ->
-      'a1) -> (sterm -> 'a1 -> LLVMsyntax.typ -> sterm -> 'a1 -> sterm -> 'a1
-      -> 'a1) -> sterm -> 'a1 **)
+      (smem -> LLVMsyntax.typ -> sterm -> 'a1 -> LLVMsyntax.align -> 'a1) ->
+      (LLVMsyntax.inbounds -> LLVMsyntax.typ -> sterm -> 'a1 -> list_sterm ->
+      'a1) -> (LLVMsyntax.extop -> LLVMsyntax.typ -> sterm -> 'a1 ->
+      LLVMsyntax.typ -> 'a1) -> (LLVMsyntax.castop -> LLVMsyntax.typ -> sterm
+      -> 'a1 -> LLVMsyntax.typ -> 'a1) -> (LLVMsyntax.cond -> LLVMsyntax.typ
+      -> sterm -> 'a1 -> sterm -> 'a1 -> 'a1) -> (LLVMsyntax.typ ->
+      list_sterm_l -> 'a1) -> (sterm -> 'a1 -> LLVMsyntax.typ -> sterm -> 'a1
+      -> sterm -> 'a1 -> 'a1) -> sterm -> 'a1 **)
   
   let rec sterm_rec f f0 f1 f2 f3 f4 f5 f6 f7 f8 f9 f10 f11 = function
     | Coq_sterm_val v -> f v
@@ -6351,8 +6461,8 @@ module SimpleSE =
           (sterm_rec f f0 f1 f2 f3 f4 f5 f6 f7 f8 f9 f10 f11 s1) l0
     | Coq_sterm_malloc (s0, t0, s1, a) -> f3 s0 t0 s1 a
     | Coq_sterm_alloca (s0, t0, s1, a) -> f4 s0 t0 s1 a
-    | Coq_sterm_load (s0, t0, s1) ->
-        f5 s0 t0 s1 (sterm_rec f f0 f1 f2 f3 f4 f5 f6 f7 f8 f9 f10 f11 s1)
+    | Coq_sterm_load (s0, t0, s1, a) ->
+        f5 s0 t0 s1 (sterm_rec f f0 f1 f2 f3 f4 f5 f6 f7 f8 f9 f10 f11 s1) a
     | Coq_sterm_gep (i0, t0, s0, l0) ->
         f6 i0 t0 s0 (sterm_rec f f0 f1 f2 f3 f4 f5 f6 f7 f8 f9 f10 f11 s0) l0
     | Coq_sterm_ext (e, t0, s0, t1) ->
@@ -6403,8 +6513,8 @@ module SimpleSE =
       LLVMsyntax.align -> 'a1) -> (smem -> 'a1 -> LLVMsyntax.typ -> sterm ->
       'a1) -> (smem -> 'a1 -> LLVMsyntax.typ -> LLVMsyntax.sz ->
       LLVMsyntax.align -> 'a1) -> (smem -> 'a1 -> LLVMsyntax.typ -> sterm ->
-      'a1) -> (smem -> 'a1 -> LLVMsyntax.typ -> sterm -> sterm -> 'a1) ->
-      smem -> 'a1 **)
+      LLVMsyntax.align -> 'a1) -> (smem -> 'a1 -> LLVMsyntax.typ -> sterm ->
+      sterm -> LLVMsyntax.align -> 'a1) -> smem -> 'a1 **)
   
   let rec smem_rect f f0 f1 f2 f3 f4 = function
     | Coq_smem_init -> f
@@ -6414,18 +6524,18 @@ module SimpleSE =
         f1 s0 (smem_rect f f0 f1 f2 f3 f4 s0) t0 s1
     | Coq_smem_alloca (s0, t0, s1, a) ->
         f2 s0 (smem_rect f f0 f1 f2 f3 f4 s0) t0 s1 a
-    | Coq_smem_load (s0, t0, s1) ->
-        f3 s0 (smem_rect f f0 f1 f2 f3 f4 s0) t0 s1
-    | Coq_smem_store (s0, t0, s1, s2) ->
-        f4 s0 (smem_rect f f0 f1 f2 f3 f4 s0) t0 s1 s2
+    | Coq_smem_load (s0, t0, s1, a) ->
+        f3 s0 (smem_rect f f0 f1 f2 f3 f4 s0) t0 s1 a
+    | Coq_smem_store (s0, t0, s1, s2, a) ->
+        f4 s0 (smem_rect f f0 f1 f2 f3 f4 s0) t0 s1 s2 a
   
   (** val smem_rec :
       'a1 -> (smem -> 'a1 -> LLVMsyntax.typ -> LLVMsyntax.sz ->
       LLVMsyntax.align -> 'a1) -> (smem -> 'a1 -> LLVMsyntax.typ -> sterm ->
       'a1) -> (smem -> 'a1 -> LLVMsyntax.typ -> LLVMsyntax.sz ->
       LLVMsyntax.align -> 'a1) -> (smem -> 'a1 -> LLVMsyntax.typ -> sterm ->
-      'a1) -> (smem -> 'a1 -> LLVMsyntax.typ -> sterm -> sterm -> 'a1) ->
-      smem -> 'a1 **)
+      LLVMsyntax.align -> 'a1) -> (smem -> 'a1 -> LLVMsyntax.typ -> sterm ->
+      sterm -> LLVMsyntax.align -> 'a1) -> smem -> 'a1 **)
   
   let rec smem_rec f f0 f1 f2 f3 f4 = function
     | Coq_smem_init -> f
@@ -6435,10 +6545,10 @@ module SimpleSE =
         f1 s0 (smem_rec f f0 f1 f2 f3 f4 s0) t0 s1
     | Coq_smem_alloca (s0, t0, s1, a) ->
         f2 s0 (smem_rec f f0 f1 f2 f3 f4 s0) t0 s1 a
-    | Coq_smem_load (s0, t0, s1) ->
-        f3 s0 (smem_rec f f0 f1 f2 f3 f4 s0) t0 s1
-    | Coq_smem_store (s0, t0, s1, s2) ->
-        f4 s0 (smem_rec f f0 f1 f2 f3 f4 s0) t0 s1 s2
+    | Coq_smem_load (s0, t0, s1, a) ->
+        f3 s0 (smem_rec f f0 f1 f2 f3 f4 s0) t0 s1 a
+    | Coq_smem_store (s0, t0, s1, s2, a) ->
+        f4 s0 (smem_rec f f0 f1 f2 f3 f4 s0) t0 s1 s2 a
   
   (** val sframe_rect :
       'a1 -> (smem -> sframe -> 'a1 -> LLVMsyntax.typ -> LLVMsyntax.sz ->
@@ -6466,21 +6576,22 @@ module SimpleSE =
       (smem -> 'a4 -> LLVMsyntax.typ -> LLVMsyntax.sz -> LLVMsyntax.align ->
       'a1) -> (smem -> 'a4 -> LLVMsyntax.typ -> LLVMsyntax.sz ->
       LLVMsyntax.align -> 'a1) -> (smem -> 'a4 -> LLVMsyntax.typ -> sterm ->
-      'a1 -> 'a1) -> (LLVMsyntax.inbounds -> LLVMsyntax.typ -> sterm -> 'a1
-      -> list_sterm -> 'a2 -> 'a1) -> (LLVMsyntax.extop -> LLVMsyntax.typ ->
-      sterm -> 'a1 -> LLVMsyntax.typ -> 'a1) -> (LLVMsyntax.castop ->
-      LLVMsyntax.typ -> sterm -> 'a1 -> LLVMsyntax.typ -> 'a1) ->
-      (LLVMsyntax.cond -> LLVMsyntax.typ -> sterm -> 'a1 -> sterm -> 'a1 ->
-      'a1) -> (LLVMsyntax.typ -> list_sterm_l -> 'a3 -> 'a1) -> (sterm -> 'a1
-      -> LLVMsyntax.typ -> sterm -> 'a1 -> sterm -> 'a1 -> 'a1) -> 'a2 ->
-      (sterm -> 'a1 -> list_sterm -> 'a2 -> 'a2) -> 'a3 -> (sterm -> 'a1 ->
-      LLVMsyntax.l -> list_sterm_l -> 'a3 -> 'a3) -> 'a4 -> (smem -> 'a4 ->
-      LLVMsyntax.typ -> LLVMsyntax.sz -> LLVMsyntax.align -> 'a4) -> (smem ->
-      'a4 -> LLVMsyntax.typ -> sterm -> 'a1 -> 'a4) -> (smem -> 'a4 ->
-      LLVMsyntax.typ -> LLVMsyntax.sz -> LLVMsyntax.align -> 'a4) -> (smem ->
-      'a4 -> LLVMsyntax.typ -> sterm -> 'a1 -> 'a4) -> (smem -> 'a4 ->
-      LLVMsyntax.typ -> sterm -> 'a1 -> sterm -> 'a1 -> 'a4) -> 'a5 -> (smem
-      -> 'a4 -> sframe -> 'a5 -> LLVMsyntax.typ -> LLVMsyntax.sz ->
+      'a1 -> LLVMsyntax.align -> 'a1) -> (LLVMsyntax.inbounds ->
+      LLVMsyntax.typ -> sterm -> 'a1 -> list_sterm -> 'a2 -> 'a1) ->
+      (LLVMsyntax.extop -> LLVMsyntax.typ -> sterm -> 'a1 -> LLVMsyntax.typ
+      -> 'a1) -> (LLVMsyntax.castop -> LLVMsyntax.typ -> sterm -> 'a1 ->
+      LLVMsyntax.typ -> 'a1) -> (LLVMsyntax.cond -> LLVMsyntax.typ -> sterm
+      -> 'a1 -> sterm -> 'a1 -> 'a1) -> (LLVMsyntax.typ -> list_sterm_l ->
+      'a3 -> 'a1) -> (sterm -> 'a1 -> LLVMsyntax.typ -> sterm -> 'a1 -> sterm
+      -> 'a1 -> 'a1) -> 'a2 -> (sterm -> 'a1 -> list_sterm -> 'a2 -> 'a2) ->
+      'a3 -> (sterm -> 'a1 -> LLVMsyntax.l -> list_sterm_l -> 'a3 -> 'a3) ->
+      'a4 -> (smem -> 'a4 -> LLVMsyntax.typ -> LLVMsyntax.sz ->
+      LLVMsyntax.align -> 'a4) -> (smem -> 'a4 -> LLVMsyntax.typ -> sterm ->
+      'a1 -> 'a4) -> (smem -> 'a4 -> LLVMsyntax.typ -> LLVMsyntax.sz ->
+      LLVMsyntax.align -> 'a4) -> (smem -> 'a4 -> LLVMsyntax.typ -> sterm ->
+      'a1 -> LLVMsyntax.align -> 'a4) -> (smem -> 'a4 -> LLVMsyntax.typ ->
+      sterm -> 'a1 -> sterm -> 'a1 -> LLVMsyntax.align -> 'a4) -> 'a5 ->
+      (smem -> 'a4 -> sframe -> 'a5 -> LLVMsyntax.typ -> LLVMsyntax.sz ->
       LLVMsyntax.align -> 'a5) -> sframe -> 'a5 **)
   
   let sframe_rec2 f f0 f1 f2 f3 f4 f5 f6 f7 f8 f9 f10 f11 f12 f13 f14 f15 f16 f17 f18 f19 f20 f21 f22 f23 s =
@@ -6492,7 +6603,7 @@ module SimpleSE =
           f2 t0 s1 (f24 s1) t1 s2 (f24 s2) l0
       | Coq_sterm_malloc (s1, t0, s2, a) -> f3 s1 (f27 s1) t0 s2 a
       | Coq_sterm_alloca (s1, t0, s2, a) -> f4 s1 (f27 s1) t0 s2 a
-      | Coq_sterm_load (s1, t0, s2) -> f5 s1 (f27 s1) t0 s2 (f24 s2)
+      | Coq_sterm_load (s1, t0, s2, a) -> f5 s1 (f27 s1) t0 s2 (f24 s2) a
       | Coq_sterm_gep (i0, t0, s1, l0) -> f6 i0 t0 s1 (f24 s1) l0 (f25 l0)
       | Coq_sterm_ext (e, t0, s1, t1) -> f7 e t0 s1 (f24 s1) t1
       | Coq_sterm_cast (c, t0, s1, t1) -> f8 c t0 s1 (f24 s1) t1
@@ -6511,9 +6622,9 @@ module SimpleSE =
       | Coq_smem_malloc (s1, t0, s2, a) -> f17 s1 (f27 s1) t0 s2 a
       | Coq_smem_free (s1, t0, s2) -> f18 s1 (f27 s1) t0 s2 (f24 s2)
       | Coq_smem_alloca (s1, t0, s2, a) -> f19 s1 (f27 s1) t0 s2 a
-      | Coq_smem_load (s1, t0, s2) -> f20 s1 (f27 s1) t0 s2 (f24 s2)
-      | Coq_smem_store (s1, t0, s2, s3) ->
-          f21 s1 (f27 s1) t0 s2 (f24 s2) s3 (f24 s3)
+      | Coq_smem_load (s1, t0, s2, a) -> f20 s1 (f27 s1) t0 s2 (f24 s2) a
+      | Coq_smem_store (s1, t0, s2, s3, a) ->
+          f21 s1 (f27 s1) t0 s2 (f24 s2) s3 (f24 s3) a
     and f28 = function
       | Coq_sframe_init -> f22
       | Coq_sframe_alloca (s1, s2, t0, s3, a) ->
@@ -6528,21 +6639,22 @@ module SimpleSE =
       (smem -> 'a4 -> LLVMsyntax.typ -> LLVMsyntax.sz -> LLVMsyntax.align ->
       'a1) -> (smem -> 'a4 -> LLVMsyntax.typ -> LLVMsyntax.sz ->
       LLVMsyntax.align -> 'a1) -> (smem -> 'a4 -> LLVMsyntax.typ -> sterm ->
-      'a1 -> 'a1) -> (LLVMsyntax.inbounds -> LLVMsyntax.typ -> sterm -> 'a1
-      -> list_sterm -> 'a2 -> 'a1) -> (LLVMsyntax.extop -> LLVMsyntax.typ ->
-      sterm -> 'a1 -> LLVMsyntax.typ -> 'a1) -> (LLVMsyntax.castop ->
-      LLVMsyntax.typ -> sterm -> 'a1 -> LLVMsyntax.typ -> 'a1) ->
-      (LLVMsyntax.cond -> LLVMsyntax.typ -> sterm -> 'a1 -> sterm -> 'a1 ->
-      'a1) -> (LLVMsyntax.typ -> list_sterm_l -> 'a3 -> 'a1) -> (sterm -> 'a1
-      -> LLVMsyntax.typ -> sterm -> 'a1 -> sterm -> 'a1 -> 'a1) -> 'a2 ->
-      (sterm -> 'a1 -> list_sterm -> 'a2 -> 'a2) -> 'a3 -> (sterm -> 'a1 ->
-      LLVMsyntax.l -> list_sterm_l -> 'a3 -> 'a3) -> 'a4 -> (smem -> 'a4 ->
-      LLVMsyntax.typ -> LLVMsyntax.sz -> LLVMsyntax.align -> 'a4) -> (smem ->
-      'a4 -> LLVMsyntax.typ -> sterm -> 'a1 -> 'a4) -> (smem -> 'a4 ->
-      LLVMsyntax.typ -> LLVMsyntax.sz -> LLVMsyntax.align -> 'a4) -> (smem ->
-      'a4 -> LLVMsyntax.typ -> sterm -> 'a1 -> 'a4) -> (smem -> 'a4 ->
-      LLVMsyntax.typ -> sterm -> 'a1 -> sterm -> 'a1 -> 'a4) -> 'a5 -> (smem
-      -> 'a4 -> sframe -> 'a5 -> LLVMsyntax.typ -> LLVMsyntax.sz ->
+      'a1 -> LLVMsyntax.align -> 'a1) -> (LLVMsyntax.inbounds ->
+      LLVMsyntax.typ -> sterm -> 'a1 -> list_sterm -> 'a2 -> 'a1) ->
+      (LLVMsyntax.extop -> LLVMsyntax.typ -> sterm -> 'a1 -> LLVMsyntax.typ
+      -> 'a1) -> (LLVMsyntax.castop -> LLVMsyntax.typ -> sterm -> 'a1 ->
+      LLVMsyntax.typ -> 'a1) -> (LLVMsyntax.cond -> LLVMsyntax.typ -> sterm
+      -> 'a1 -> sterm -> 'a1 -> 'a1) -> (LLVMsyntax.typ -> list_sterm_l ->
+      'a3 -> 'a1) -> (sterm -> 'a1 -> LLVMsyntax.typ -> sterm -> 'a1 -> sterm
+      -> 'a1 -> 'a1) -> 'a2 -> (sterm -> 'a1 -> list_sterm -> 'a2 -> 'a2) ->
+      'a3 -> (sterm -> 'a1 -> LLVMsyntax.l -> list_sterm_l -> 'a3 -> 'a3) ->
+      'a4 -> (smem -> 'a4 -> LLVMsyntax.typ -> LLVMsyntax.sz ->
+      LLVMsyntax.align -> 'a4) -> (smem -> 'a4 -> LLVMsyntax.typ -> sterm ->
+      'a1 -> 'a4) -> (smem -> 'a4 -> LLVMsyntax.typ -> LLVMsyntax.sz ->
+      LLVMsyntax.align -> 'a4) -> (smem -> 'a4 -> LLVMsyntax.typ -> sterm ->
+      'a1 -> LLVMsyntax.align -> 'a4) -> (smem -> 'a4 -> LLVMsyntax.typ ->
+      sterm -> 'a1 -> sterm -> 'a1 -> LLVMsyntax.align -> 'a4) -> 'a5 ->
+      (smem -> 'a4 -> sframe -> 'a5 -> LLVMsyntax.typ -> LLVMsyntax.sz ->
       LLVMsyntax.align -> 'a5) -> smem -> 'a4 **)
   
   let smem_rec2 f f0 f1 f2 f3 f4 f5 f6 f7 f8 f9 f10 f11 f12 f13 f14 f15 f16 f17 f18 f19 f20 f21 f22 f23 s =
@@ -6554,7 +6666,7 @@ module SimpleSE =
           f2 t0 s1 (f24 s1) t1 s2 (f24 s2) l0
       | Coq_sterm_malloc (s1, t0, s2, a) -> f3 s1 (f27 s1) t0 s2 a
       | Coq_sterm_alloca (s1, t0, s2, a) -> f4 s1 (f27 s1) t0 s2 a
-      | Coq_sterm_load (s1, t0, s2) -> f5 s1 (f27 s1) t0 s2 (f24 s2)
+      | Coq_sterm_load (s1, t0, s2, a) -> f5 s1 (f27 s1) t0 s2 (f24 s2) a
       | Coq_sterm_gep (i0, t0, s1, l0) -> f6 i0 t0 s1 (f24 s1) l0 (f25 l0)
       | Coq_sterm_ext (e, t0, s1, t1) -> f7 e t0 s1 (f24 s1) t1
       | Coq_sterm_cast (c, t0, s1, t1) -> f8 c t0 s1 (f24 s1) t1
@@ -6573,9 +6685,9 @@ module SimpleSE =
       | Coq_smem_malloc (s1, t0, s2, a) -> f17 s1 (f27 s1) t0 s2 a
       | Coq_smem_free (s1, t0, s2) -> f18 s1 (f27 s1) t0 s2 (f24 s2)
       | Coq_smem_alloca (s1, t0, s2, a) -> f19 s1 (f27 s1) t0 s2 a
-      | Coq_smem_load (s1, t0, s2) -> f20 s1 (f27 s1) t0 s2 (f24 s2)
-      | Coq_smem_store (s1, t0, s2, s3) ->
-          f21 s1 (f27 s1) t0 s2 (f24 s2) s3 (f24 s3)
+      | Coq_smem_load (s1, t0, s2, a) -> f20 s1 (f27 s1) t0 s2 (f24 s2) a
+      | Coq_smem_store (s1, t0, s2, s3, a) ->
+          f21 s1 (f27 s1) t0 s2 (f24 s2) s3 (f24 s3) a
     and f28 = function
       | Coq_sframe_init -> f22
       | Coq_sframe_alloca (s1, s2, t0, s3, a) ->
@@ -6590,21 +6702,22 @@ module SimpleSE =
       (smem -> 'a4 -> LLVMsyntax.typ -> LLVMsyntax.sz -> LLVMsyntax.align ->
       'a1) -> (smem -> 'a4 -> LLVMsyntax.typ -> LLVMsyntax.sz ->
       LLVMsyntax.align -> 'a1) -> (smem -> 'a4 -> LLVMsyntax.typ -> sterm ->
-      'a1 -> 'a1) -> (LLVMsyntax.inbounds -> LLVMsyntax.typ -> sterm -> 'a1
-      -> list_sterm -> 'a2 -> 'a1) -> (LLVMsyntax.extop -> LLVMsyntax.typ ->
-      sterm -> 'a1 -> LLVMsyntax.typ -> 'a1) -> (LLVMsyntax.castop ->
-      LLVMsyntax.typ -> sterm -> 'a1 -> LLVMsyntax.typ -> 'a1) ->
-      (LLVMsyntax.cond -> LLVMsyntax.typ -> sterm -> 'a1 -> sterm -> 'a1 ->
-      'a1) -> (LLVMsyntax.typ -> list_sterm_l -> 'a3 -> 'a1) -> (sterm -> 'a1
-      -> LLVMsyntax.typ -> sterm -> 'a1 -> sterm -> 'a1 -> 'a1) -> 'a2 ->
-      (sterm -> 'a1 -> list_sterm -> 'a2 -> 'a2) -> 'a3 -> (sterm -> 'a1 ->
-      LLVMsyntax.l -> list_sterm_l -> 'a3 -> 'a3) -> 'a4 -> (smem -> 'a4 ->
-      LLVMsyntax.typ -> LLVMsyntax.sz -> LLVMsyntax.align -> 'a4) -> (smem ->
-      'a4 -> LLVMsyntax.typ -> sterm -> 'a1 -> 'a4) -> (smem -> 'a4 ->
-      LLVMsyntax.typ -> LLVMsyntax.sz -> LLVMsyntax.align -> 'a4) -> (smem ->
-      'a4 -> LLVMsyntax.typ -> sterm -> 'a1 -> 'a4) -> (smem -> 'a4 ->
-      LLVMsyntax.typ -> sterm -> 'a1 -> sterm -> 'a1 -> 'a4) -> 'a5 -> (smem
-      -> 'a4 -> sframe -> 'a5 -> LLVMsyntax.typ -> LLVMsyntax.sz ->
+      'a1 -> LLVMsyntax.align -> 'a1) -> (LLVMsyntax.inbounds ->
+      LLVMsyntax.typ -> sterm -> 'a1 -> list_sterm -> 'a2 -> 'a1) ->
+      (LLVMsyntax.extop -> LLVMsyntax.typ -> sterm -> 'a1 -> LLVMsyntax.typ
+      -> 'a1) -> (LLVMsyntax.castop -> LLVMsyntax.typ -> sterm -> 'a1 ->
+      LLVMsyntax.typ -> 'a1) -> (LLVMsyntax.cond -> LLVMsyntax.typ -> sterm
+      -> 'a1 -> sterm -> 'a1 -> 'a1) -> (LLVMsyntax.typ -> list_sterm_l ->
+      'a3 -> 'a1) -> (sterm -> 'a1 -> LLVMsyntax.typ -> sterm -> 'a1 -> sterm
+      -> 'a1 -> 'a1) -> 'a2 -> (sterm -> 'a1 -> list_sterm -> 'a2 -> 'a2) ->
+      'a3 -> (sterm -> 'a1 -> LLVMsyntax.l -> list_sterm_l -> 'a3 -> 'a3) ->
+      'a4 -> (smem -> 'a4 -> LLVMsyntax.typ -> LLVMsyntax.sz ->
+      LLVMsyntax.align -> 'a4) -> (smem -> 'a4 -> LLVMsyntax.typ -> sterm ->
+      'a1 -> 'a4) -> (smem -> 'a4 -> LLVMsyntax.typ -> LLVMsyntax.sz ->
+      LLVMsyntax.align -> 'a4) -> (smem -> 'a4 -> LLVMsyntax.typ -> sterm ->
+      'a1 -> LLVMsyntax.align -> 'a4) -> (smem -> 'a4 -> LLVMsyntax.typ ->
+      sterm -> 'a1 -> sterm -> 'a1 -> LLVMsyntax.align -> 'a4) -> 'a5 ->
+      (smem -> 'a4 -> sframe -> 'a5 -> LLVMsyntax.typ -> LLVMsyntax.sz ->
       LLVMsyntax.align -> 'a5) -> list_sterm_l -> 'a3 **)
   
   let list_sterm_l_rec2 f f0 f1 f2 f3 f4 f5 f6 f7 f8 f9 f10 f11 f12 f13 f14 f15 f16 f17 f18 f19 f20 f21 f22 f23 l0 =
@@ -6616,7 +6729,7 @@ module SimpleSE =
           f2 t0 s0 (f24 s0) t1 s1 (f24 s1) l1
       | Coq_sterm_malloc (s0, t0, s1, a) -> f3 s0 (f27 s0) t0 s1 a
       | Coq_sterm_alloca (s0, t0, s1, a) -> f4 s0 (f27 s0) t0 s1 a
-      | Coq_sterm_load (s0, t0, s1) -> f5 s0 (f27 s0) t0 s1 (f24 s1)
+      | Coq_sterm_load (s0, t0, s1, a) -> f5 s0 (f27 s0) t0 s1 (f24 s1) a
       | Coq_sterm_gep (i0, t0, s0, l1) -> f6 i0 t0 s0 (f24 s0) l1 (f25 l1)
       | Coq_sterm_ext (e, t0, s0, t1) -> f7 e t0 s0 (f24 s0) t1
       | Coq_sterm_cast (c, t0, s0, t1) -> f8 c t0 s0 (f24 s0) t1
@@ -6635,9 +6748,9 @@ module SimpleSE =
       | Coq_smem_malloc (s0, t0, s1, a) -> f17 s0 (f27 s0) t0 s1 a
       | Coq_smem_free (s0, t0, s1) -> f18 s0 (f27 s0) t0 s1 (f24 s1)
       | Coq_smem_alloca (s0, t0, s1, a) -> f19 s0 (f27 s0) t0 s1 a
-      | Coq_smem_load (s0, t0, s1) -> f20 s0 (f27 s0) t0 s1 (f24 s1)
-      | Coq_smem_store (s0, t0, s1, s2) ->
-          f21 s0 (f27 s0) t0 s1 (f24 s1) s2 (f24 s2)
+      | Coq_smem_load (s0, t0, s1, a) -> f20 s0 (f27 s0) t0 s1 (f24 s1) a
+      | Coq_smem_store (s0, t0, s1, s2, a) ->
+          f21 s0 (f27 s0) t0 s1 (f24 s1) s2 (f24 s2) a
     and f28 = function
       | Coq_sframe_init -> f22
       | Coq_sframe_alloca (s0, s1, t0, s2, a) ->
@@ -6652,21 +6765,22 @@ module SimpleSE =
       (smem -> 'a4 -> LLVMsyntax.typ -> LLVMsyntax.sz -> LLVMsyntax.align ->
       'a1) -> (smem -> 'a4 -> LLVMsyntax.typ -> LLVMsyntax.sz ->
       LLVMsyntax.align -> 'a1) -> (smem -> 'a4 -> LLVMsyntax.typ -> sterm ->
-      'a1 -> 'a1) -> (LLVMsyntax.inbounds -> LLVMsyntax.typ -> sterm -> 'a1
-      -> list_sterm -> 'a2 -> 'a1) -> (LLVMsyntax.extop -> LLVMsyntax.typ ->
-      sterm -> 'a1 -> LLVMsyntax.typ -> 'a1) -> (LLVMsyntax.castop ->
-      LLVMsyntax.typ -> sterm -> 'a1 -> LLVMsyntax.typ -> 'a1) ->
-      (LLVMsyntax.cond -> LLVMsyntax.typ -> sterm -> 'a1 -> sterm -> 'a1 ->
-      'a1) -> (LLVMsyntax.typ -> list_sterm_l -> 'a3 -> 'a1) -> (sterm -> 'a1
-      -> LLVMsyntax.typ -> sterm -> 'a1 -> sterm -> 'a1 -> 'a1) -> 'a2 ->
-      (sterm -> 'a1 -> list_sterm -> 'a2 -> 'a2) -> 'a3 -> (sterm -> 'a1 ->
-      LLVMsyntax.l -> list_sterm_l -> 'a3 -> 'a3) -> 'a4 -> (smem -> 'a4 ->
-      LLVMsyntax.typ -> LLVMsyntax.sz -> LLVMsyntax.align -> 'a4) -> (smem ->
-      'a4 -> LLVMsyntax.typ -> sterm -> 'a1 -> 'a4) -> (smem -> 'a4 ->
-      LLVMsyntax.typ -> LLVMsyntax.sz -> LLVMsyntax.align -> 'a4) -> (smem ->
-      'a4 -> LLVMsyntax.typ -> sterm -> 'a1 -> 'a4) -> (smem -> 'a4 ->
-      LLVMsyntax.typ -> sterm -> 'a1 -> sterm -> 'a1 -> 'a4) -> 'a5 -> (smem
-      -> 'a4 -> sframe -> 'a5 -> LLVMsyntax.typ -> LLVMsyntax.sz ->
+      'a1 -> LLVMsyntax.align -> 'a1) -> (LLVMsyntax.inbounds ->
+      LLVMsyntax.typ -> sterm -> 'a1 -> list_sterm -> 'a2 -> 'a1) ->
+      (LLVMsyntax.extop -> LLVMsyntax.typ -> sterm -> 'a1 -> LLVMsyntax.typ
+      -> 'a1) -> (LLVMsyntax.castop -> LLVMsyntax.typ -> sterm -> 'a1 ->
+      LLVMsyntax.typ -> 'a1) -> (LLVMsyntax.cond -> LLVMsyntax.typ -> sterm
+      -> 'a1 -> sterm -> 'a1 -> 'a1) -> (LLVMsyntax.typ -> list_sterm_l ->
+      'a3 -> 'a1) -> (sterm -> 'a1 -> LLVMsyntax.typ -> sterm -> 'a1 -> sterm
+      -> 'a1 -> 'a1) -> 'a2 -> (sterm -> 'a1 -> list_sterm -> 'a2 -> 'a2) ->
+      'a3 -> (sterm -> 'a1 -> LLVMsyntax.l -> list_sterm_l -> 'a3 -> 'a3) ->
+      'a4 -> (smem -> 'a4 -> LLVMsyntax.typ -> LLVMsyntax.sz ->
+      LLVMsyntax.align -> 'a4) -> (smem -> 'a4 -> LLVMsyntax.typ -> sterm ->
+      'a1 -> 'a4) -> (smem -> 'a4 -> LLVMsyntax.typ -> LLVMsyntax.sz ->
+      LLVMsyntax.align -> 'a4) -> (smem -> 'a4 -> LLVMsyntax.typ -> sterm ->
+      'a1 -> LLVMsyntax.align -> 'a4) -> (smem -> 'a4 -> LLVMsyntax.typ ->
+      sterm -> 'a1 -> sterm -> 'a1 -> LLVMsyntax.align -> 'a4) -> 'a5 ->
+      (smem -> 'a4 -> sframe -> 'a5 -> LLVMsyntax.typ -> LLVMsyntax.sz ->
       LLVMsyntax.align -> 'a5) -> list_sterm -> 'a2 **)
   
   let list_sterm_rec2 f f0 f1 f2 f3 f4 f5 f6 f7 f8 f9 f10 f11 f12 f13 f14 f15 f16 f17 f18 f19 f20 f21 f22 f23 l0 =
@@ -6678,7 +6792,7 @@ module SimpleSE =
           f2 t0 s0 (f24 s0) t1 s1 (f24 s1) l1
       | Coq_sterm_malloc (s0, t0, s1, a) -> f3 s0 (f27 s0) t0 s1 a
       | Coq_sterm_alloca (s0, t0, s1, a) -> f4 s0 (f27 s0) t0 s1 a
-      | Coq_sterm_load (s0, t0, s1) -> f5 s0 (f27 s0) t0 s1 (f24 s1)
+      | Coq_sterm_load (s0, t0, s1, a) -> f5 s0 (f27 s0) t0 s1 (f24 s1) a
       | Coq_sterm_gep (i0, t0, s0, l1) -> f6 i0 t0 s0 (f24 s0) l1 (f25 l1)
       | Coq_sterm_ext (e, t0, s0, t1) -> f7 e t0 s0 (f24 s0) t1
       | Coq_sterm_cast (c, t0, s0, t1) -> f8 c t0 s0 (f24 s0) t1
@@ -6697,9 +6811,9 @@ module SimpleSE =
       | Coq_smem_malloc (s0, t0, s1, a) -> f17 s0 (f27 s0) t0 s1 a
       | Coq_smem_free (s0, t0, s1) -> f18 s0 (f27 s0) t0 s1 (f24 s1)
       | Coq_smem_alloca (s0, t0, s1, a) -> f19 s0 (f27 s0) t0 s1 a
-      | Coq_smem_load (s0, t0, s1) -> f20 s0 (f27 s0) t0 s1 (f24 s1)
-      | Coq_smem_store (s0, t0, s1, s2) ->
-          f21 s0 (f27 s0) t0 s1 (f24 s1) s2 (f24 s2)
+      | Coq_smem_load (s0, t0, s1, a) -> f20 s0 (f27 s0) t0 s1 (f24 s1) a
+      | Coq_smem_store (s0, t0, s1, s2, a) ->
+          f21 s0 (f27 s0) t0 s1 (f24 s1) s2 (f24 s2) a
     and f28 = function
       | Coq_sframe_init -> f22
       | Coq_sframe_alloca (s0, s1, t0, s2, a) ->
@@ -6714,21 +6828,22 @@ module SimpleSE =
       (smem -> 'a4 -> LLVMsyntax.typ -> LLVMsyntax.sz -> LLVMsyntax.align ->
       'a1) -> (smem -> 'a4 -> LLVMsyntax.typ -> LLVMsyntax.sz ->
       LLVMsyntax.align -> 'a1) -> (smem -> 'a4 -> LLVMsyntax.typ -> sterm ->
-      'a1 -> 'a1) -> (LLVMsyntax.inbounds -> LLVMsyntax.typ -> sterm -> 'a1
-      -> list_sterm -> 'a2 -> 'a1) -> (LLVMsyntax.extop -> LLVMsyntax.typ ->
-      sterm -> 'a1 -> LLVMsyntax.typ -> 'a1) -> (LLVMsyntax.castop ->
-      LLVMsyntax.typ -> sterm -> 'a1 -> LLVMsyntax.typ -> 'a1) ->
-      (LLVMsyntax.cond -> LLVMsyntax.typ -> sterm -> 'a1 -> sterm -> 'a1 ->
-      'a1) -> (LLVMsyntax.typ -> list_sterm_l -> 'a3 -> 'a1) -> (sterm -> 'a1
-      -> LLVMsyntax.typ -> sterm -> 'a1 -> sterm -> 'a1 -> 'a1) -> 'a2 ->
-      (sterm -> 'a1 -> list_sterm -> 'a2 -> 'a2) -> 'a3 -> (sterm -> 'a1 ->
-      LLVMsyntax.l -> list_sterm_l -> 'a3 -> 'a3) -> 'a4 -> (smem -> 'a4 ->
-      LLVMsyntax.typ -> LLVMsyntax.sz -> LLVMsyntax.align -> 'a4) -> (smem ->
-      'a4 -> LLVMsyntax.typ -> sterm -> 'a1 -> 'a4) -> (smem -> 'a4 ->
-      LLVMsyntax.typ -> LLVMsyntax.sz -> LLVMsyntax.align -> 'a4) -> (smem ->
-      'a4 -> LLVMsyntax.typ -> sterm -> 'a1 -> 'a4) -> (smem -> 'a4 ->
-      LLVMsyntax.typ -> sterm -> 'a1 -> sterm -> 'a1 -> 'a4) -> 'a5 -> (smem
-      -> 'a4 -> sframe -> 'a5 -> LLVMsyntax.typ -> LLVMsyntax.sz ->
+      'a1 -> LLVMsyntax.align -> 'a1) -> (LLVMsyntax.inbounds ->
+      LLVMsyntax.typ -> sterm -> 'a1 -> list_sterm -> 'a2 -> 'a1) ->
+      (LLVMsyntax.extop -> LLVMsyntax.typ -> sterm -> 'a1 -> LLVMsyntax.typ
+      -> 'a1) -> (LLVMsyntax.castop -> LLVMsyntax.typ -> sterm -> 'a1 ->
+      LLVMsyntax.typ -> 'a1) -> (LLVMsyntax.cond -> LLVMsyntax.typ -> sterm
+      -> 'a1 -> sterm -> 'a1 -> 'a1) -> (LLVMsyntax.typ -> list_sterm_l ->
+      'a3 -> 'a1) -> (sterm -> 'a1 -> LLVMsyntax.typ -> sterm -> 'a1 -> sterm
+      -> 'a1 -> 'a1) -> 'a2 -> (sterm -> 'a1 -> list_sterm -> 'a2 -> 'a2) ->
+      'a3 -> (sterm -> 'a1 -> LLVMsyntax.l -> list_sterm_l -> 'a3 -> 'a3) ->
+      'a4 -> (smem -> 'a4 -> LLVMsyntax.typ -> LLVMsyntax.sz ->
+      LLVMsyntax.align -> 'a4) -> (smem -> 'a4 -> LLVMsyntax.typ -> sterm ->
+      'a1 -> 'a4) -> (smem -> 'a4 -> LLVMsyntax.typ -> LLVMsyntax.sz ->
+      LLVMsyntax.align -> 'a4) -> (smem -> 'a4 -> LLVMsyntax.typ -> sterm ->
+      'a1 -> LLVMsyntax.align -> 'a4) -> (smem -> 'a4 -> LLVMsyntax.typ ->
+      sterm -> 'a1 -> sterm -> 'a1 -> LLVMsyntax.align -> 'a4) -> 'a5 ->
+      (smem -> 'a4 -> sframe -> 'a5 -> LLVMsyntax.typ -> LLVMsyntax.sz ->
       LLVMsyntax.align -> 'a5) -> sterm -> 'a1 **)
   
   let sterm_rec2 f f0 f1 f2 f3 f4 f5 f6 f7 f8 f9 f10 f11 f12 f13 f14 f15 f16 f17 f18 f19 f20 f21 f22 f23 s =
@@ -6740,7 +6855,7 @@ module SimpleSE =
           f2 t0 s1 (f24 s1) t1 s2 (f24 s2) l0
       | Coq_sterm_malloc (s1, t0, s2, a) -> f3 s1 (f27 s1) t0 s2 a
       | Coq_sterm_alloca (s1, t0, s2, a) -> f4 s1 (f27 s1) t0 s2 a
-      | Coq_sterm_load (s1, t0, s2) -> f5 s1 (f27 s1) t0 s2 (f24 s2)
+      | Coq_sterm_load (s1, t0, s2, a) -> f5 s1 (f27 s1) t0 s2 (f24 s2) a
       | Coq_sterm_gep (i0, t0, s1, l0) -> f6 i0 t0 s1 (f24 s1) l0 (f25 l0)
       | Coq_sterm_ext (e, t0, s1, t1) -> f7 e t0 s1 (f24 s1) t1
       | Coq_sterm_cast (c, t0, s1, t1) -> f8 c t0 s1 (f24 s1) t1
@@ -6759,9 +6874,9 @@ module SimpleSE =
       | Coq_smem_malloc (s1, t0, s2, a) -> f17 s1 (f27 s1) t0 s2 a
       | Coq_smem_free (s1, t0, s2) -> f18 s1 (f27 s1) t0 s2 (f24 s2)
       | Coq_smem_alloca (s1, t0, s2, a) -> f19 s1 (f27 s1) t0 s2 a
-      | Coq_smem_load (s1, t0, s2) -> f20 s1 (f27 s1) t0 s2 (f24 s2)
-      | Coq_smem_store (s1, t0, s2, s3) ->
-          f21 s1 (f27 s1) t0 s2 (f24 s2) s3 (f24 s3)
+      | Coq_smem_load (s1, t0, s2, a) -> f20 s1 (f27 s1) t0 s2 (f24 s2) a
+      | Coq_smem_store (s1, t0, s2, s3, a) ->
+          f21 s1 (f27 s1) t0 s2 (f24 s2) s3 (f24 s3) a
     and f28 = function
       | Coq_sframe_init -> f22
       | Coq_sframe_alloca (s1, s2, t0, s3, a) ->
@@ -6776,54 +6891,55 @@ module SimpleSE =
       (smem -> 'a4 -> LLVMsyntax.typ -> LLVMsyntax.sz -> LLVMsyntax.align ->
       'a1) -> (smem -> 'a4 -> LLVMsyntax.typ -> LLVMsyntax.sz ->
       LLVMsyntax.align -> 'a1) -> (smem -> 'a4 -> LLVMsyntax.typ -> sterm ->
-      'a1 -> 'a1) -> (LLVMsyntax.inbounds -> LLVMsyntax.typ -> sterm -> 'a1
-      -> list_sterm -> 'a2 -> 'a1) -> (LLVMsyntax.extop -> LLVMsyntax.typ ->
-      sterm -> 'a1 -> LLVMsyntax.typ -> 'a1) -> (LLVMsyntax.castop ->
-      LLVMsyntax.typ -> sterm -> 'a1 -> LLVMsyntax.typ -> 'a1) ->
-      (LLVMsyntax.cond -> LLVMsyntax.typ -> sterm -> 'a1 -> sterm -> 'a1 ->
-      'a1) -> (LLVMsyntax.typ -> list_sterm_l -> 'a3 -> 'a1) -> (sterm -> 'a1
-      -> LLVMsyntax.typ -> sterm -> 'a1 -> sterm -> 'a1 -> 'a1) -> 'a2 ->
-      (sterm -> 'a1 -> list_sterm -> 'a2 -> 'a2) -> 'a3 -> (sterm -> 'a1 ->
-      LLVMsyntax.l -> list_sterm_l -> 'a3 -> 'a3) -> 'a4 -> (smem -> 'a4 ->
-      LLVMsyntax.typ -> LLVMsyntax.sz -> LLVMsyntax.align -> 'a4) -> (smem ->
-      'a4 -> LLVMsyntax.typ -> sterm -> 'a1 -> 'a4) -> (smem -> 'a4 ->
-      LLVMsyntax.typ -> LLVMsyntax.sz -> LLVMsyntax.align -> 'a4) -> (smem ->
-      'a4 -> LLVMsyntax.typ -> sterm -> 'a1 -> 'a4) -> (smem -> 'a4 ->
-      LLVMsyntax.typ -> sterm -> 'a1 -> sterm -> 'a1 -> 'a4) -> 'a5 -> (smem
-      -> 'a4 -> sframe -> 'a5 -> LLVMsyntax.typ -> LLVMsyntax.sz ->
-      LLVMsyntax.align -> 'a5) -> ((((sterm -> 'a1, list_sterm -> 'a2) prod,
-      list_sterm_l -> 'a3) prod, smem -> 'a4) prod, sframe -> 'a5) prod **)
+      'a1 -> LLVMsyntax.align -> 'a1) -> (LLVMsyntax.inbounds ->
+      LLVMsyntax.typ -> sterm -> 'a1 -> list_sterm -> 'a2 -> 'a1) ->
+      (LLVMsyntax.extop -> LLVMsyntax.typ -> sterm -> 'a1 -> LLVMsyntax.typ
+      -> 'a1) -> (LLVMsyntax.castop -> LLVMsyntax.typ -> sterm -> 'a1 ->
+      LLVMsyntax.typ -> 'a1) -> (LLVMsyntax.cond -> LLVMsyntax.typ -> sterm
+      -> 'a1 -> sterm -> 'a1 -> 'a1) -> (LLVMsyntax.typ -> list_sterm_l ->
+      'a3 -> 'a1) -> (sterm -> 'a1 -> LLVMsyntax.typ -> sterm -> 'a1 -> sterm
+      -> 'a1 -> 'a1) -> 'a2 -> (sterm -> 'a1 -> list_sterm -> 'a2 -> 'a2) ->
+      'a3 -> (sterm -> 'a1 -> LLVMsyntax.l -> list_sterm_l -> 'a3 -> 'a3) ->
+      'a4 -> (smem -> 'a4 -> LLVMsyntax.typ -> LLVMsyntax.sz ->
+      LLVMsyntax.align -> 'a4) -> (smem -> 'a4 -> LLVMsyntax.typ -> sterm ->
+      'a1 -> 'a4) -> (smem -> 'a4 -> LLVMsyntax.typ -> LLVMsyntax.sz ->
+      LLVMsyntax.align -> 'a4) -> (smem -> 'a4 -> LLVMsyntax.typ -> sterm ->
+      'a1 -> LLVMsyntax.align -> 'a4) -> (smem -> 'a4 -> LLVMsyntax.typ ->
+      sterm -> 'a1 -> sterm -> 'a1 -> LLVMsyntax.align -> 'a4) -> 'a5 ->
+      (smem -> 'a4 -> sframe -> 'a5 -> LLVMsyntax.typ -> LLVMsyntax.sz ->
+      LLVMsyntax.align -> 'a5) -> ((((sterm -> 'a1) * (list_sterm -> 'a2)) *
+      (list_sterm_l -> 'a3)) * (smem -> 'a4)) * (sframe -> 'a5) **)
   
   let se_mutrec h1 h2 h3 h4 h5 h6 h7 h8 h9 h10 h11 h12 h13 h14 h15 h16 h17 h18 h19 h20 h21 h22 h23 h24 h25 =
-    Pair ((Pair ((Pair ((Pair ((fun x ->
+    ((((fun x ->
       sterm_rec2 h1 h2 h3 h4 h5 h6 h7 h8 h9 h10 h11 h12 h13 h14 h15 h16 h17
-        h18 h19 h20 h21 h22 h23 h24 h25 x), (fun x ->
+        h18 h19 h20 h21 h22 h23 h24 h25 x) , (fun x ->
       list_sterm_rec2 h1 h2 h3 h4 h5 h6 h7 h8 h9 h10 h11 h12 h13 h14 h15 h16
-        h17 h18 h19 h20 h21 h22 h23 h24 h25 x))), (fun x ->
+        h17 h18 h19 h20 h21 h22 h23 h24 h25 x)) , (fun x ->
       list_sterm_l_rec2 h1 h2 h3 h4 h5 h6 h7 h8 h9 h10 h11 h12 h13 h14 h15
-        h16 h17 h18 h19 h20 h21 h22 h23 h24 h25 x))), (fun x ->
+        h16 h17 h18 h19 h20 h21 h22 h23 h24 h25 x)) , (fun x ->
       smem_rec2 h1 h2 h3 h4 h5 h6 h7 h8 h9 h10 h11 h12 h13 h14 h15 h16 h17
-        h18 h19 h20 h21 h22 h23 h24 h25 x))), (fun x ->
+        h18 h19 h20 h21 h22 h23 h24 h25 x)) , (fun x ->
       sframe_rec2 h1 h2 h3 h4 h5 h6 h7 h8 h9 h10 h11 h12 h13 h14 h15 h16 h17
-        h18 h19 h20 h21 h22 h23 h24 h25 x))
+        h18 h19 h20 h21 h22 h23 h24 h25 x)
   
   (** val map_list_sterm : (sterm -> 'a1) -> list_sterm -> 'a1 list **)
   
   let rec map_list_sterm f = function
-    | Nil_list_sterm -> Nil
-    | Cons_list_sterm (h, tl_) -> Cons ((f h), (map_list_sterm f tl_))
+    | Nil_list_sterm -> []
+    | Cons_list_sterm (h, tl_) -> (f h) :: (map_list_sterm f tl_)
   
   (** val make_list_sterm : sterm list -> list_sterm **)
   
   let rec make_list_sterm = function
-    | Nil -> Nil_list_sterm
-    | Cons (h, tl_) -> Cons_list_sterm (h, (make_list_sterm tl_))
+    | [] -> Nil_list_sterm
+    | h :: tl_ -> Cons_list_sterm (h, (make_list_sterm tl_))
   
   (** val unmake_list_sterm : list_sterm -> sterm list **)
   
   let rec unmake_list_sterm = function
-    | Nil_list_sterm -> Nil
-    | Cons_list_sterm (h, tl_) -> Cons (h, (unmake_list_sterm tl_))
+    | Nil_list_sterm -> []
+    | Cons_list_sterm (h, tl_) -> h :: (unmake_list_sterm tl_)
   
   (** val nth_list_sterm : nat -> list_sterm -> sterm option **)
   
@@ -6850,36 +6966,35 @@ module SimpleSE =
       (sterm -> LLVMsyntax.l -> 'a1) -> list_sterm_l -> 'a1 list **)
   
   let rec map_list_sterm_l f = function
-    | Nil_list_sterm_l -> Nil
-    | Cons_list_sterm_l (h0, h1, tl_) -> Cons ((f h0 h1),
-        (map_list_sterm_l f tl_))
+    | Nil_list_sterm_l -> []
+    | Cons_list_sterm_l (h0, h1, tl_) -> (f h0 h1) ::
+        (map_list_sterm_l f tl_)
   
-  (** val make_list_sterm_l :
-      (sterm, LLVMsyntax.l) prod list -> list_sterm_l **)
+  (** val make_list_sterm_l : (sterm * LLVMsyntax.l) list -> list_sterm_l **)
   
   let rec make_list_sterm_l = function
-    | Nil -> Nil_list_sterm_l
-    | Cons (p, tl_) ->
-        let Pair (h0, h1) = p in
+    | [] -> Nil_list_sterm_l
+    | p :: tl_ ->
+        let h0 , h1 = p in
         Cons_list_sterm_l (h0, h1, (make_list_sterm_l tl_))
   
   (** val unmake_list_sterm_l :
-      list_sterm_l -> (sterm, LLVMsyntax.l) prod list **)
+      list_sterm_l -> (sterm * LLVMsyntax.l) list **)
   
   let rec unmake_list_sterm_l = function
-    | Nil_list_sterm_l -> Nil
-    | Cons_list_sterm_l (h0, h1, tl_) -> Cons ((Pair (h0, h1)),
-        (unmake_list_sterm_l tl_))
+    | Nil_list_sterm_l -> []
+    | Cons_list_sterm_l (h0, h1, tl_) -> (h0 , h1) ::
+        (unmake_list_sterm_l tl_)
   
   (** val nth_list_sterm_l :
-      nat -> list_sterm_l -> (sterm, LLVMsyntax.l) prod option **)
+      nat -> list_sterm_l -> (sterm * LLVMsyntax.l) option **)
   
   let rec nth_list_sterm_l n l0 =
     match n with
       | O ->
           (match l0 with
              | Nil_list_sterm_l -> None
-             | Cons_list_sterm_l (h0, h1, tl_) -> Some (Pair (h0, h1)))
+             | Cons_list_sterm_l (h0, h1, tl_) -> Some (h0 , h1))
       | S m ->
           (match l0 with
              | Nil_list_sterm_l -> None
@@ -6929,11 +7044,11 @@ module SimpleSE =
   type scall =
     | Coq_stmn_call of LLVMsyntax.id * LLVMsyntax.noret * 
        LLVMsyntax.tailc * LLVMsyntax.typ * LLVMsyntax.id
-       * (LLVMsyntax.typ, sterm) prod list
+       * (LLVMsyntax.typ * sterm) list
   
   (** val scall_rect :
       (LLVMsyntax.id -> LLVMsyntax.noret -> LLVMsyntax.tailc ->
-      LLVMsyntax.typ -> LLVMsyntax.id -> (LLVMsyntax.typ, sterm) prod list ->
+      LLVMsyntax.typ -> LLVMsyntax.id -> (LLVMsyntax.typ * sterm) list ->
       'a1) -> scall -> 'a1 **)
   
   let scall_rect f = function
@@ -6941,13 +7056,13 @@ module SimpleSE =
   
   (** val scall_rec :
       (LLVMsyntax.id -> LLVMsyntax.noret -> LLVMsyntax.tailc ->
-      LLVMsyntax.typ -> LLVMsyntax.id -> (LLVMsyntax.typ, sterm) prod list ->
+      LLVMsyntax.typ -> LLVMsyntax.id -> (LLVMsyntax.typ * sterm) list ->
       'a1) -> scall -> 'a1 **)
   
   let scall_rec f = function
     | Coq_stmn_call (x, x0, x1, x2, x3, x4) -> f x x0 x1 x2 x3 x4
   
-  type smap = (AtomImpl.atom, sterm) prod list
+  type smap = (AtomImpl.atom * sterm) list
   
   type sstate = { coq_STerms : smap; coq_SMem : smem; coq_SFrame : 
                   sframe; coq_SEffects : sterm list }
@@ -6989,16 +7104,16 @@ module SimpleSE =
   (** val sstate_init : sstate **)
   
   let sstate_init =
-    { coq_STerms = Nil; coq_SMem = Coq_smem_init; coq_SFrame =
-      Coq_sframe_init; coq_SEffects = Nil }
+    { coq_STerms = []; coq_SMem = Coq_smem_init; coq_SFrame =
+      Coq_sframe_init; coq_SEffects = [] }
   
   (** val lookupSmap : smap -> LLVMsyntax.id -> sterm **)
   
   let rec lookupSmap sm i0 =
     match sm with
-      | Nil -> Coq_sterm_val (LLVMsyntax.Coq_value_id i0)
-      | Cons (p, sm') ->
-          let Pair (id0, s0) = p in
+      | [] -> Coq_sterm_val (LLVMsyntax.Coq_value_id i0)
+      | p :: sm' ->
+          let id0 , s0 = p in
           if eqDec_atom i0 id0 then s0 else lookupSmap sm' i0
   
   (** val value2Sterm : smap -> LLVMsyntax.value -> sterm **)
@@ -7008,18 +7123,18 @@ module SimpleSE =
     | LLVMsyntax.Coq_value_const c -> Coq_sterm_val v
   
   (** val list_param__list_typ_subst_sterm :
-      LLVMsyntax.params -> smap -> (LLVMsyntax.typ, sterm) prod list **)
+      LLVMsyntax.params -> smap -> (LLVMsyntax.typ * sterm) list **)
   
   let rec list_param__list_typ_subst_sterm list_param1 sm =
     match list_param1 with
-      | Nil -> Nil
-      | Cons (p, list_param1') ->
-          let Pair (t0, v) = p in
-          Cons ((Pair (t0,
+      | [] -> []
+      | p :: list_param1' ->
+          let t0 , v = p in
+          (t0 ,
           (match v with
              | LLVMsyntax.Coq_value_id i0 -> lookupSmap sm i0
-             | LLVMsyntax.Coq_value_const c -> Coq_sterm_val v))),
-          (list_param__list_typ_subst_sterm list_param1' sm))
+             | LLVMsyntax.Coq_value_const c -> Coq_sterm_val v)) ::
+          (list_param__list_typ_subst_sterm list_param1' sm)
   
   (** val se_cmd : sstate -> nbranch -> sstate **)
   
@@ -7067,24 +7182,24 @@ module SimpleSE =
           sz1, al1))); coq_SMem = (Coq_smem_alloca (st.coq_SMem, t1, sz1,
         al1)); coq_SFrame = (Coq_sframe_alloca (st.coq_SMem, st.coq_SFrame,
         t1, sz1, al1)); coq_SEffects = st.coq_SEffects }
-    | LLVMsyntax.Coq_insn_load (id0, t2, v2) -> { coq_STerms =
+    | LLVMsyntax.Coq_insn_load (id0, t2, v2, align0) -> { coq_STerms =
         (updateAddAL st.coq_STerms id0 (Coq_sterm_load (st.coq_SMem, t2,
           (match v2 with
              | LLVMsyntax.Coq_value_id i0 -> lookupSmap st.coq_STerms i0
-             | LLVMsyntax.Coq_value_const c0 -> Coq_sterm_val v2))));
+             | LLVMsyntax.Coq_value_const c0 -> Coq_sterm_val v2), align0)));
         coq_SMem = (Coq_smem_load (st.coq_SMem, t2,
         (match v2 with
            | LLVMsyntax.Coq_value_id i0 -> lookupSmap st.coq_STerms i0
-           | LLVMsyntax.Coq_value_const c0 -> Coq_sterm_val v2)));
+           | LLVMsyntax.Coq_value_const c0 -> Coq_sterm_val v2), align0));
         coq_SFrame = st.coq_SFrame; coq_SEffects = st.coq_SEffects }
-    | LLVMsyntax.Coq_insn_store (id0, t0, v1, v2) -> { coq_STerms =
+    | LLVMsyntax.Coq_insn_store (id0, t0, v1, v2, align0) -> { coq_STerms =
         st.coq_STerms; coq_SMem = (Coq_smem_store (st.coq_SMem, t0,
         (match v1 with
            | LLVMsyntax.Coq_value_id i0 -> lookupSmap st.coq_STerms i0
            | LLVMsyntax.Coq_value_const c0 -> Coq_sterm_val v1),
         (match v2 with
            | LLVMsyntax.Coq_value_id i0 -> lookupSmap st.coq_STerms i0
-           | LLVMsyntax.Coq_value_const c0 -> Coq_sterm_val v2)));
+           | LLVMsyntax.Coq_value_const c0 -> Coq_sterm_val v2), align0));
         coq_SFrame = st.coq_SFrame; coq_SEffects = st.coq_SEffects }
     | LLVMsyntax.Coq_insn_gep (id0, inbounds0, t1, v1, lv2) -> { coq_STerms =
         (updateAddAL st.coq_STerms id0 (Coq_sterm_gep (inbounds0, t1,
@@ -7142,18 +7257,17 @@ module SimpleSE =
       sstate -> sstate -> LLVMsyntax.phinode list -> sstate **)
   
   let rec _se_phinodes st st0 = function
-    | Nil -> st
-    | Cons (p, ps') ->
+    | [] -> st
+    | p :: ps' ->
         let LLVMsyntax.Coq_insn_phi (id0, t0, idls0) = p in
         _se_phinodes { coq_STerms =
           (updateAL st.coq_STerms id0 (Coq_sterm_phi (t0,
             (make_list_sterm_l
-              (LLVMsyntax.map_list_id_l (fun id5 l5 -> Pair
-                ((let v = LLVMsyntax.Coq_value_id id5 in
-                 match v with
+              (LLVMsyntax.map_list_value_l (fun v5 l5 ->
+                (match v5 with
                    | LLVMsyntax.Coq_value_id i0 ->
                        lookupSmap st.coq_STerms i0
-                   | LLVMsyntax.Coq_value_const c -> Coq_sterm_val v), l5))
+                   | LLVMsyntax.Coq_value_const c -> Coq_sterm_val v5) , l5)
                 idls0))))); coq_SMem = st.coq_SMem; coq_SFrame =
           st.coq_SFrame; coq_SEffects = st.coq_SEffects } st0 ps'
   
@@ -7165,8 +7279,8 @@ module SimpleSE =
   (** val se_cmds : sstate -> nbranch list -> sstate **)
   
   let rec se_cmds st = function
-    | Nil -> st
-    | Cons (c, cs') -> se_cmds (se_cmd st c) cs'
+    | [] -> st
+    | c :: cs' -> se_cmds (se_cmd st c) cs'
   
   (** val se_terminator : sstate -> LLVMsyntax.terminator -> sterminator **)
   
@@ -7219,8 +7333,8 @@ module SimpleSE =
         ((subst_tm id0 s0 m1), t1, sz0, align0)
     | Coq_sterm_alloca (m1, t1, sz0, align0) -> Coq_sterm_alloca
         ((subst_tm id0 s0 m1), t1, sz0, align0)
-    | Coq_sterm_load (m1, t1, s1) -> Coq_sterm_load (
-        (subst_tm id0 s0 m1), t1, (subst_tt id0 s0 s1))
+    | Coq_sterm_load (m1, t1, s1, align0) -> Coq_sterm_load
+        ((subst_tm id0 s0 m1), t1, (subst_tt id0 s0 s1), align0)
     | Coq_sterm_gep (inbounds0, t1, s1, ls2) -> Coq_sterm_gep (inbounds0, t1,
         (subst_tt id0 s0 s1), (subst_tlt id0 s0 ls2))
     | Coq_sterm_ext (extop0, t1, s1, t2) -> Coq_sterm_ext (extop0, t1,
@@ -7260,27 +7374,25 @@ module SimpleSE =
         (subst_tm id0 s0 m1), t1, (subst_tt id0 s0 s1))
     | Coq_smem_alloca (m1, t1, sz0, align0) -> Coq_smem_alloca
         ((subst_tm id0 s0 m1), t1, sz0, align0)
-    | Coq_smem_load (m1, t1, s1) -> Coq_smem_load (
-        (subst_tm id0 s0 m1), t1, (subst_tt id0 s0 s1))
-    | Coq_smem_store (m1, t1, s1, s2) -> Coq_smem_store
+    | Coq_smem_load (m1, t1, s1, align0) -> Coq_smem_load
+        ((subst_tm id0 s0 m1), t1, (subst_tt id0 s0 s1), align0)
+    | Coq_smem_store (m1, t1, s1, s2, align0) -> Coq_smem_store
         ((subst_tm id0 s0 m1), t1, (subst_tt id0 s0 s1),
-        (subst_tt id0 s0 s2))
+        (subst_tt id0 s0 s2), align0)
   
   (** val subst_mt : smap -> sterm -> sterm **)
   
   let rec subst_mt sm s =
     match sm with
-      | Nil -> s
-      | Cons (p, sm') ->
-          let Pair (id0, s0) = p in subst_mt sm' (subst_tt id0 s0 s)
+      | [] -> s
+      | p :: sm' -> let id0 , s0 = p in subst_mt sm' (subst_tt id0 s0 s)
   
   (** val subst_mm : smap -> smem -> smem **)
   
   let rec subst_mm sm m =
     match sm with
-      | Nil -> m
-      | Cons (p, sm') ->
-          let Pair (id0, s0) = p in subst_mm sm' (subst_tm id0 s0 m)
+      | [] -> m
+      | p :: sm' -> let id0 , s0 = p in subst_mm sm' (subst_tm id0 s0 m)
  end
 
 type sterm_dec_prop = SimpleSE.sterm -> bool
@@ -7294,10 +7406,10 @@ type smem_dec_prop = SimpleSE.smem -> bool
 type sframe_dec_prop = SimpleSE.sframe -> bool
 
 (** val se_dec :
-    ((((SimpleSE.sterm -> sterm_dec_prop, SimpleSE.list_sterm ->
-    list_sterm_dec_prop) prod, SimpleSE.list_sterm_l ->
-    list_sterm_l_dec_prop) prod, SimpleSE.smem -> smem_dec_prop) prod,
-    SimpleSE.sframe -> sframe_dec_prop) prod **)
+    ((((SimpleSE.sterm -> sterm_dec_prop) * (SimpleSE.list_sterm ->
+    list_sterm_dec_prop)) * (SimpleSE.list_sterm_l -> list_sterm_l_dec_prop))
+    * (SimpleSE.smem -> smem_dec_prop)) * (SimpleSE.sframe ->
+    sframe_dec_prop) **)
 
 let se_dec =
   SimpleSE.se_mutrec (fun v st2 ->
@@ -7314,19 +7426,19 @@ let se_dec =
       | _ -> false) (fun t0 s h l0 st2 ->
     match st2 with
       | SimpleSE.Coq_sterm_extractvalue (t1, st3, l1) ->
-          if let Pair (t2, l2) = LLVMlib.typ_mutrec_dec in t2 t0 t1
+          if let t2 , l2 = LLVMlib.typ_mutrec_dec in t2 t0 t1
           then if h st3
-               then let Pair (c, l2) = LLVMlib.const_mutrec_dec in l2 l0 l1
+               then let c , l2 = LLVMlib.const_mutrec_dec in l2 l0 l1
                else false
           else false
       | _ -> false) (fun t0 s h t1 s0 h0 l0 st2 ->
     match st2 with
       | SimpleSE.Coq_sterm_insertvalue (t2, st2_1, t3, st2_2, l1) ->
-          if let Pair (t4, l2) = LLVMlib.typ_mutrec_dec in t4 t0 t2
+          if let t4 , l2 = LLVMlib.typ_mutrec_dec in t4 t0 t2
           then if h st2_1
-               then if let Pair (t4, l2) = LLVMlib.typ_mutrec_dec in t4 t1 t3
+               then if let t4 , l2 = LLVMlib.typ_mutrec_dec in t4 t1 t3
                     then if h0 st2_2
-                         then let Pair (c, l2) = LLVMlib.const_mutrec_dec in
+                         then let c , l2 = LLVMlib.const_mutrec_dec in
                               l2 l0 l1
                          else false
                     else false
@@ -7336,7 +7448,7 @@ let se_dec =
     match st2 with
       | SimpleSE.Coq_sterm_malloc (s1, t1, s2, a0) ->
           if h s1
-          then if let Pair (t2, l0) = LLVMlib.typ_mutrec_dec in t2 t0 t1
+          then if let t2 , l0 = LLVMlib.typ_mutrec_dec in t2 t0 t1
                then if LLVMlib.sz_dec s0 s2
                     then LLVMlib.align_dec a a0
                     else false
@@ -7346,25 +7458,25 @@ let se_dec =
     match st2 with
       | SimpleSE.Coq_sterm_alloca (s1, t1, s2, a0) ->
           if h s1
-          then if let Pair (t2, l0) = LLVMlib.typ_mutrec_dec in t2 t0 t1
+          then if let t2 , l0 = LLVMlib.typ_mutrec_dec in t2 t0 t1
                then if LLVMlib.sz_dec s0 s2
                     then LLVMlib.align_dec a a0
                     else false
                else false
           else false
-      | _ -> false) (fun s h t0 s0 h0 st2 ->
+      | _ -> false) (fun s h t0 s0 h0 a st2 ->
     match st2 with
-      | SimpleSE.Coq_sterm_load (s1, t1, st3) ->
+      | SimpleSE.Coq_sterm_load (s1, t1, st3, a0) ->
           if h s1
-          then if let Pair (t2, l0) = LLVMlib.typ_mutrec_dec in t2 t0 t1
-               then h0 st3
+          then if let t2 , l0 = LLVMlib.typ_mutrec_dec in t2 t0 t1
+               then if LLVMlib.align_dec a a0 then h0 st3 else false
                else false
           else false
       | _ -> false) (fun i0 t0 s h l0 h0 st2 ->
     match st2 with
       | SimpleSE.Coq_sterm_gep (i1, t1, st3, l1) ->
           if bool_dec i0 i1
-          then if let Pair (t2, l2) = LLVMlib.typ_mutrec_dec in t2 t0 t1
+          then if let t2 , l2 = LLVMlib.typ_mutrec_dec in t2 t0 t1
                then if h st3 then h0 l1 else false
                else false
           else false
@@ -7372,10 +7484,9 @@ let se_dec =
     match st2 with
       | SimpleSE.Coq_sterm_ext (e0, t2, st3, t3) ->
           if LLVMlib.extop_dec e e0
-          then if let Pair (t4, l0) = LLVMlib.typ_mutrec_dec in t4 t0 t2
+          then if let t4 , l0 = LLVMlib.typ_mutrec_dec in t4 t0 t2
                then if h st3
-                    then let Pair (t4, l0) = LLVMlib.typ_mutrec_dec in
-                         t4 t1 t3
+                    then let t4 , l0 = LLVMlib.typ_mutrec_dec in t4 t1 t3
                     else false
                else false
           else false
@@ -7383,10 +7494,9 @@ let se_dec =
     match st2 with
       | SimpleSE.Coq_sterm_cast (c0, t2, st3, t3) ->
           if LLVMlib.castop_dec c c0
-          then if let Pair (t4, l0) = LLVMlib.typ_mutrec_dec in t4 t0 t2
+          then if let t4 , l0 = LLVMlib.typ_mutrec_dec in t4 t0 t2
                then if h st3
-                    then let Pair (t4, l0) = LLVMlib.typ_mutrec_dec in
-                         t4 t1 t3
+                    then let t4 , l0 = LLVMlib.typ_mutrec_dec in t4 t1 t3
                     else false
                else false
           else false
@@ -7394,20 +7504,20 @@ let se_dec =
     match st2 with
       | SimpleSE.Coq_sterm_icmp (c0, t1, st2_1, st2_2) ->
           if LLVMlib.cond_dec c c0
-          then if let Pair (t2, l0) = LLVMlib.typ_mutrec_dec in t2 t0 t1
+          then if let t2 , l0 = LLVMlib.typ_mutrec_dec in t2 t0 t1
                then if h st2_1 then h0 st2_2 else false
                else false
           else false
       | _ -> false) (fun t0 l0 h st2 ->
     match st2 with
       | SimpleSE.Coq_sterm_phi (t1, l1) ->
-          if let Pair (t2, l2) = LLVMlib.typ_mutrec_dec in t2 t0 t1
+          if let t2 , l2 = LLVMlib.typ_mutrec_dec in t2 t0 t1
           then h l1
           else false
       | _ -> false) (fun s h t0 s0 h0 s1 h1 st2 ->
     match st2 with
       | SimpleSE.Coq_sterm_select (st2_1, t1, st2_2, st2_3) ->
-          if let Pair (t2, l0) = LLVMlib.typ_mutrec_dec in t2 t0 t1
+          if let t2 , l0 = LLVMlib.typ_mutrec_dec in t2 t0 t1
           then if h st2_1
                then if h0 st2_2 then h1 st2_3 else false
                else false
@@ -7436,7 +7546,7 @@ let se_dec =
     match sm2 with
       | SimpleSE.Coq_smem_malloc (sm3, t1, s1, a0) ->
           if h sm3
-          then if let Pair (t2, l0) = LLVMlib.typ_mutrec_dec in t2 t0 t1
+          then if let t2 , l0 = LLVMlib.typ_mutrec_dec in t2 t0 t1
                then if LLVMlib.sz_dec s0 s1
                     then LLVMlib.align_dec a a0
                     else false
@@ -7446,7 +7556,7 @@ let se_dec =
     match sm2 with
       | SimpleSE.Coq_smem_free (sm3, t1, s1) ->
           if h sm3
-          then if let Pair (t2, l0) = LLVMlib.typ_mutrec_dec in t2 t0 t1
+          then if let t2 , l0 = LLVMlib.typ_mutrec_dec in t2 t0 t1
                then h0 s1
                else false
           else false
@@ -7454,26 +7564,28 @@ let se_dec =
     match sm2 with
       | SimpleSE.Coq_smem_alloca (sm3, t1, s1, a0) ->
           if h sm3
-          then if let Pair (t2, l0) = LLVMlib.typ_mutrec_dec in t2 t0 t1
+          then if let t2 , l0 = LLVMlib.typ_mutrec_dec in t2 t0 t1
                then if LLVMlib.sz_dec s0 s1
                     then LLVMlib.align_dec a a0
                     else false
                else false
           else false
-      | _ -> false) (fun s h t0 s0 h0 sm2 ->
+      | _ -> false) (fun s h t0 s0 h0 a sm2 ->
     match sm2 with
-      | SimpleSE.Coq_smem_load (sm3, t1, s1) ->
+      | SimpleSE.Coq_smem_load (sm3, t1, s1, a0) ->
           if h sm3
-          then if let Pair (t2, l0) = LLVMlib.typ_mutrec_dec in t2 t0 t1
-               then h0 s1
+          then if let t2 , l0 = LLVMlib.typ_mutrec_dec in t2 t0 t1
+               then if LLVMlib.align_dec a a0 then h0 s1 else false
                else false
           else false
-      | _ -> false) (fun s h t0 s0 h0 s1 h1 sm2 ->
+      | _ -> false) (fun s h t0 s0 h0 s1 h1 a sm2 ->
     match sm2 with
-      | SimpleSE.Coq_smem_store (sm3, t1, s2, s3) ->
+      | SimpleSE.Coq_smem_store (sm3, t1, s2, s3, a0) ->
           if h sm3
-          then if let Pair (t2, l0) = LLVMlib.typ_mutrec_dec in t2 t0 t1
-               then if h0 s2 then h1 s3 else false
+          then if let t2 , l0 = LLVMlib.typ_mutrec_dec in t2 t0 t1
+               then if LLVMlib.align_dec a a0
+                    then if h0 s2 then h1 s3 else false
+                    else false
                else false
           else false
       | _ -> false) (fun sf2 ->
@@ -7486,7 +7598,7 @@ let se_dec =
       | SimpleSE.Coq_sframe_alloca (s2, sf3, t1, s3, a0) ->
           if h s2
           then if h0 sf3
-               then if let Pair (t2, l0) = LLVMlib.typ_mutrec_dec in t2 t0 t1
+               then if let t2 , l0 = LLVMlib.typ_mutrec_dec in t2 t0 t1
                     then if LLVMlib.sz_dec s1 s3
                          then LLVMlib.align_dec a a0
                          else false
@@ -7498,20 +7610,19 @@ let se_dec =
 
 let rec smap_dec l0 sm0 =
   match l0 with
-    | Nil -> (match sm0 with
-                | Nil -> true
-                | Cons (p, l1) -> false)
-    | Cons (a, l1) ->
+    | [] -> (match sm0 with
+               | [] -> true
+               | p :: l1 -> false)
+    | a :: l1 ->
         (match sm0 with
-           | Nil -> false
-           | Cons (p, l2) ->
-               if let Pair (a0, s) = a in
-                  let Pair (a1, s0) = p in
+           | [] -> false
+           | p :: l2 ->
+               if let a0 , s = a in
+                  let a1 , s0 = p in
                   if LLVMlib.id_dec a0 a1
-                  then let Pair (p0, x) = se_dec in
-                       let Pair (p1, x0) = p0 in
-                       let Pair (p2, x1) = p1 in
-                       let Pair (h, l3) = p2 in h s s0
+                  then let p0 , x = se_dec in
+                       let p1 , x0 = p0 in
+                       let p2 , x1 = p1 in let h , l3 = p2 in h s s0
                   else false
                then smap_dec l1 l2
                else false)
@@ -7520,16 +7631,16 @@ let rec smap_dec l0 sm0 =
 
 let rec sterms_dec l0 ts0 =
   match l0 with
-    | Nil -> (match ts0 with
-                | Nil -> true
-                | Cons (s, l1) -> false)
-    | Cons (a, l1) ->
+    | [] -> (match ts0 with
+               | [] -> true
+               | s :: l1 -> false)
+    | a :: l1 ->
         (match ts0 with
-           | Nil -> false
-           | Cons (s, l2) ->
-               if let Pair (p, x) = se_dec in
-                  let Pair (p0, x0) = p in
-                  let Pair (p1, x1) = p0 in let Pair (h, l3) = p1 in h a s
+           | [] -> false
+           | s :: l2 ->
+               if let p , x = se_dec in
+                  let p0 , x0 = p in
+                  let p1 , x1 = p0 in let h , l3 = p1 in h a s
                then sterms_dec l1 l2
                else false)
 
@@ -7543,8 +7654,8 @@ let sstate_dec sts1 sts2 =
     SimpleSE.coq_SFrame = sFrame1; SimpleSE.coq_SEffects = sEffects1 } = sts2
   in
   if smap_dec x sTerms1
-  then if let Pair (p, x3) = se_dec in let Pair (p0, h) = p in h x0 sMem1
-       then if let Pair (p, h) = se_dec in h x1 sFrame1
+  then if let p , x3 = se_dec in let p0 , h = p in h x0 sMem1
+       then if let p , h = se_dec in h x1 sFrame1
             then sterms_dec x2 sEffects1
             else false
        else false
@@ -7573,13 +7684,13 @@ let tv_subblock sb1 sb2 =
 
 let rec tv_subblocks sbs1 sbs2 =
   match sbs1 with
-    | Nil -> (match sbs2 with
-                | Nil -> true
-                | Cons (s, l0) -> false)
-    | Cons (sb1, sbs1') ->
+    | [] -> (match sbs2 with
+               | [] -> true
+               | s :: l0 -> false)
+    | sb1 :: sbs1' ->
         (match sbs2 with
-           | Nil -> false
-           | Cons (sb2, sbs2') ->
+           | [] -> false
+           | sb2 :: sbs2' ->
                if tv_subblock sb1 sb2
                then tv_subblocks sbs1' sbs2'
                else false)
@@ -7588,13 +7699,13 @@ let rec tv_subblocks sbs1 sbs2 =
 
 let rec tv_phinodes ps1 ps2 =
   match ps1 with
-    | Nil -> (match ps2 with
-                | Nil -> true
-                | Cons (p, l0) -> false)
-    | Cons (p1, ps1') ->
+    | [] -> (match ps2 with
+               | [] -> true
+               | p :: l0 -> false)
+    | p1 :: ps1' ->
         (match ps2 with
-           | Nil -> false
-           | Cons (p2, ps2') ->
+           | [] -> false
+           | p2 :: ps2' ->
                if LLVMlib.sumbool2bool (LLVMlib.phinode_dec p1 p2)
                then tv_phinodes ps1' ps2'
                else false)
@@ -7604,8 +7715,8 @@ let rec tv_phinodes ps1 ps2 =
 let tv_block b1 b2 =
   let LLVMsyntax.Coq_block_intro (l1, ps1, cs1, tmn1) = b1 in
   let LLVMsyntax.Coq_block_intro (l2, ps2, cs2, tmn2) = b2 in
-  let Pair (sbs1, nbs1) = SimpleSE.cmds2sbs cs1 in
-  let Pair (sbs2, nbs2) = SimpleSE.cmds2sbs cs2 in
+  let sbs1 , nbs1 = SimpleSE.cmds2sbs cs1 in
+  let sbs2 , nbs2 = SimpleSE.cmds2sbs cs2 in
   if if if if LLVMlib.sumbool2bool (AtomImpl.eq_atom_dec l1 l2)
            then tv_phinodes ps1 ps2
            else false
@@ -7620,13 +7731,13 @@ let tv_block b1 b2 =
 
 let rec tv_blocks bs1 bs2 =
   match bs1 with
-    | Nil -> (match bs2 with
-                | Nil -> true
-                | Cons (b, l0) -> false)
-    | Cons (b1, bs1') ->
+    | [] -> (match bs2 with
+               | [] -> true
+               | b :: l0 -> false)
+    | b1 :: bs1' ->
         (match bs2 with
-           | Nil -> false
-           | Cons (b2, bs2') ->
+           | [] -> false
+           | b2 :: bs2' ->
                if tv_block b1 b2 then tv_blocks bs1' bs2' else false)
 
 (** val tv_fdef : LLVMsyntax.fdef -> LLVMsyntax.fdef -> bool **)
@@ -7642,15 +7753,15 @@ let tv_fdef f1 f2 =
 
 let rec tv_products ps1 ps2 =
   match ps1 with
-    | Nil -> (match ps2 with
-                | Nil -> true
-                | Cons (p, l0) -> false)
-    | Cons (p, ps1') ->
+    | [] -> (match ps2 with
+               | [] -> true
+               | p :: l0 -> false)
+    | p :: ps1' ->
         (match p with
            | LLVMsyntax.Coq_product_gvar gvar1 ->
                (match ps2 with
-                  | Nil -> false
-                  | Cons (p0, ps2') ->
+                  | [] -> false
+                  | p0 :: ps2' ->
                       (match p0 with
                          | LLVMsyntax.Coq_product_gvar gvar2 ->
                              if LLVMlib.sumbool2bool
@@ -7660,8 +7771,8 @@ let rec tv_products ps1 ps2 =
                          | _ -> false))
            | LLVMsyntax.Coq_product_fdec f1 ->
                (match ps2 with
-                  | Nil -> false
-                  | Cons (p0, ps2') ->
+                  | [] -> false
+                  | p0 :: ps2' ->
                       (match p0 with
                          | LLVMsyntax.Coq_product_fdec f2 ->
                              if LLVMlib.sumbool2bool (LLVMlib.fdec_dec f1 f2)
@@ -7670,8 +7781,8 @@ let rec tv_products ps1 ps2 =
                          | _ -> false))
            | LLVMsyntax.Coq_product_fdef f1 ->
                (match ps2 with
-                  | Nil -> false
-                  | Cons (p0, ps2') ->
+                  | [] -> false
+                  | p0 :: ps2' ->
                       (match p0 with
                          | LLVMsyntax.Coq_product_fdef f2 ->
                              if tv_fdef f1 f2
@@ -7693,12 +7804,12 @@ let tv_module m1 m2 =
 
 let rec tv_system s1 s2 =
   match s1 with
-    | Nil -> (match s2 with
-                | Nil -> true
-                | Cons (m, l0) -> false)
-    | Cons (m1, s1') ->
+    | [] -> (match s2 with
+               | [] -> true
+               | m :: l0 -> false)
+    | m1 :: s1' ->
         (match s2 with
-           | Nil -> false
-           | Cons (m2, s2') ->
+           | [] -> false
+           | m2 :: s2' ->
                if tv_module m1 m2 then tv_system s1' s2' else false)
 

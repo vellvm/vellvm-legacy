@@ -72,6 +72,7 @@ Proof.
     destruct st2; try solve [done_right].
     destruct (@H s1); subst; try solve [done_right].
     destruct (@typ_dec t t0); subst; try solve [done_right].
+    destruct (@align_dec a a0); subst; try solve [done_right].
     destruct (@H0 st2); subst; try solve [auto | done_right].
   Case "sterm_gep".    
     destruct st2; try solve [done_right].
@@ -143,11 +144,13 @@ Proof.
     destruct sm2; subst; try solve [done_right].
     destruct (@H sm2); subst; try solve [done_right].
     destruct (@typ_dec t t0); subst; try solve [done_right].
+    destruct (@align_dec a a0); subst; try solve [done_right].
     destruct (@H0 s1); subst; try solve [auto | done_right].
   Case "smem_store".
     destruct sm2; subst; try solve [done_right].
     destruct (@H sm2); subst; try solve [done_right].
     destruct (@typ_dec t t0); subst; try solve [done_right].
+    destruct (@align_dec a a0); subst; try solve [done_right].
     destruct (@H0 s2); subst; try solve [auto | done_right].
     destruct (@H1 s3); subst; try solve [auto | done_right].
   Case "sframe_init".

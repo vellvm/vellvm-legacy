@@ -87,7 +87,7 @@ Proof. sumbool2bool_refl. Qed.
 Lemma terminatorEqB_refl : forall tmn, terminatorEqB tmn tmn.
 Proof. sumbool2bool_refl. Qed.
 
-Lemma list_id_lEqB_refl : forall l0, list_id_lEqB l0 l0.
+Lemma list_value_lEqB_refl : forall l0, list_value_lEqB l0 l0.
 Proof. sumbool2bool_refl. Qed.
 
 Lemma phinodeEqB_refl : forall p, phinodeEqB p p.
@@ -201,7 +201,7 @@ Proof. sumbool2bool_inv. Qed.
 Lemma terminatorEqB_inv : forall tmn1 tmn2, terminatorEqB tmn1 tmn2 -> tmn1=tmn2.
 Proof. sumbool2bool_inv. Qed.
 
-Lemma list_id_lEqB_inv : forall l1 l2, list_id_lEqB l1 l2 -> l1=l2.
+Lemma list_value_lEqB_inv : forall l1 l2, list_value_lEqB l1 l2 -> l1=l2.
 Proof. sumbool2bool_inv. Qed.
 
 Lemma phinodeEqB_inv : forall p1 p2, phinodeEqB p1 p2 -> p1=p2.

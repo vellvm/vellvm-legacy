@@ -1,7 +1,6 @@
 open Printf
 open Llvm
 open Symexe
-open Pretty_printer
 
 let main in_filename out_filename =
 	let c = create_context () in
@@ -12,8 +11,11 @@ let main in_filename out_filename =
 	(* I use prerr but not print, because dump_ outputs to stderr. *)
 	dump_module m;
 	
-	prerr_endline "Travel me:";
-	travel_module st m;
+	Llvm_pretty_printer.travel_module st m;
+	
+	let coqm = Translator.translate_module st m in 	
+	Coq_pretty_printer.travel_module coqm;	
+	eprintf "TV=%b\n" (tv_module coqm coqm);
 	
 	(* write the module to a file *)
 	if not (Llvm_bitwriter.write_bitcode_file m out_filename) then exit 1;

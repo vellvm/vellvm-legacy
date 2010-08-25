@@ -1,13 +1,9 @@
 open Printf
 open Llvm
-open Llvm_more
-
-exception Not_Constant
-exception Operands_OutOfBound
-exception Not_Global
+open Llvm_aux
 
 (** [writeConstantInt] *)
-let string_of_constant c = 
+let rec string_of_constant c = 
 	match (classify_value c) with
 	| ValueTy.UndefValueVal -> "undef"
 	| ValueTy.ConstantExprVal -> "ConstantExpr"
@@ -21,11 +17,15 @@ let string_of_constant c =
 			else	 
 		    APInt.to_string (const_int_get_value c)
 	| ValueTy.ConstantFPVal -> "ConstantFP"
-	| ValueTy.ConstantArrayVal -> "ConstantArray"
-	| ValueTy.ConstantStructVal -> "ConstantStruct"
+	| ValueTy.ConstantArrayVal -> 
+  		let ops = operands c in 
+      Array.fold_right (fun c cs -> (string_of_constant c)^" "^cs) ops ""		
+	| ValueTy.ConstantStructVal ->
+  		let ops = operands c in 
+      Array.fold_right (fun c cs -> (string_of_constant c)^" "^cs) ops ""		
 	| ValueTy.ConstantVectorVal -> "ConstantVector"
 	| ValueTy.ConstantPointerNullVal -> "null"
-	| _ -> raise Not_Constant
+	| _ -> failwith "Not_Constant"
 
 (** [PrintLLVMName], generate slots if [v] does not have a name. *)
 let llvm_name st v =
@@ -95,7 +95,7 @@ let string_of_operands st i =
 		else
       (string_of_operand st (Array.get ops b)) in
 	if n == 0 
-	then raise 	Operands_OutOfBound
+	then failwith "	Operands_OutOfBound"
 	else
 		range 0 n ops
 
@@ -166,7 +166,7 @@ let travel_instr st i =
       flush_all ()						
   | InstrOpcode.Call ->
 		  let fv = operand i 0 in
-			let fname = value_name fv in
+			let fname = llvm_name st fv in
 		  let ptyp = type_of fv in
 			let ftyp = element_type ptyp in
 			let rtyp = return_type ftyp in
@@ -195,7 +195,7 @@ let travel_function st f =
 	SlotTracker.incorporate_function st f;
 	prerr_string (if (is_declaration f)	then "declare " else "define "); 
 	prerr_string "fname: ";
-	prerr_string (value_name f);
+	prerr_string (llvm_name st f);
 	prerr_string " with ftyp: ";
 	prerr_string (string_of_lltype (type_of f));
 	prerr_string " with params: ";
@@ -221,7 +221,7 @@ let travel_global st g =
 	  prerr_newline ()
 	| ValueTy.GlobalAliasVal -> dump_value g
 	| ValueTy.FunctionVal -> travel_function st g
-	| _ -> raise Not_Global
+	| _ -> failwith "Not_Global"
 
 let travel_layout dlt =
 	let tg = Llvm_target.TargetData.create dlt in
@@ -245,6 +245,7 @@ let travel_layout dlt =
 	Llvm_target.TargetData.dispose tg
 
 let travel_module st m =
+	prerr_endline "Travel module:";	
 	travel_layout (data_layout m);
 	iter_globals (travel_global st) m;
 	iter_functions (travel_function st) m

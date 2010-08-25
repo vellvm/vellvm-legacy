@@ -5,7 +5,9 @@ LLVM_OCAML_LIB := $(LLVM_LIB)/ocaml/
 all: symexe
 
 symexe: symexe.ml symexe.mli
-	ocamlbuild -j 2 -cflags -I,$(LLVM_OCAML_LIB) -lflags -I,$(LLVM_OCAML_LIB),-cclib,-L$(LLVM_LIB) symexe.$(OUTPUT_TYPE)
+	./fixocaml.py
+	mv _tmp_symexe.mli symexe.mli
+	ocamlbuild -j 2 -cflags -g,-I,$(LLVM_OCAML_LIB) -lflags -g,-I,$(LLVM_OCAML_LIB),-cclib,-L$(LLVM_LIB) symexe.$(OUTPUT_TYPE)
 
 .PHONY: wc
 wc:

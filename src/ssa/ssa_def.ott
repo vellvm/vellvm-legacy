@@ -199,8 +199,8 @@ cmd :: 'insn_'					    	::=			{{ com commands }}
   | id = malloc typ sz align  	         	     	::   :: malloc		{{ com malloc }}
   | id = free ( typ * ) value     	       	     	::   :: free		{{ com free }}
   | id = alloca typ sz align     	       	     	::   :: alloca		{{ com alloca }}
-  | id = load ( typ * ) value1				::   :: load		{{ com load }}
-  | id = store typ value1 value2			::   :: store		{{ com store }}
+  | id = load ( typ * ) value1 align			::   :: load		{{ com load }}
+  | id = store typ value1 value2 align			::   :: store		{{ com store }}
   | id = getelementptr inbounds ( typ * ) value </ valuej // j />    	      ::  :: gep        {{ com getelementptr }}
 %% Conversion Operations
   %| id = trunc typ1 value1 to typ2			::   :: trunc		{{ com trunc }}
@@ -224,7 +224,7 @@ terminator :: 'insn_'					::=  			{{ com termniators }}
   | ( terminator )					:: S :: paren1          {{ coq [[ terminator ]] }}
 
 phinode :: 'insn_'					::=  			{{ com phinodes }}
-  | id = phi typ </ [ idj , lj ] // j />		::   :: phi  	    	{{ com def }}
+  | id = phi typ </ [ valuej , lj ] // j />		::   :: phi  	    	{{ com def }}
   | ( phinode )						:: S :: paren2          {{ coq [[ phinode ]] }}
 
 insn :: 'insn_'						::=  			{{ com instructions }}

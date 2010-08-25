@@ -47,7 +47,7 @@ Definition mvalue := list mbyte.
 Definition initmem := mkMem (fun _ => mbyte_uninit) (fun _ => None) : mem.
 
 (** allocate memory with size and alignment *)
-Variable malloc : layouts -> mem -> nat -> nat -> option (mem * mblock)%type.
+Variable malloc : layouts -> mem -> sz -> align -> option (mem * mblock)%type.
 
 Variable free : mem -> mptr -> option mem.
 
@@ -61,9 +61,9 @@ match allocas with
   end
 end.
 
-Variable mload : layouts -> mem -> mptr -> typ -> option mvalue.
+Variable mload : layouts -> mem -> mptr -> typ -> align -> option mvalue.
 
-Variable mstore : layouts -> mem -> mptr -> typ -> mvalue -> option mem.
+Variable mstore : layouts -> mem -> mptr -> typ -> mvalue -> align -> option mem.
 
 (** translating [mvalue] to value of specific typ, failed when [mvalue] is not
     of size [sz]. *)

@@ -9,20 +9,13 @@ type nat =
   | O
   | S of nat
 
-type 'a option =
-  | Some of 'a
-  | None
-
 type ('a, 'b) sum =
   | Inl of 'a
   | Inr of 'b
 
-type ('a, 'b) prod =
-  | Pair of 'a * 'b
+val fst : ('a1 * 'a2) -> 'a1
 
-val fst : ('a1, 'a2) prod -> 'a1
-
-val snd : ('a1, 'a2) prod -> 'a2
+val snd : ('a1 * 'a2) -> 'a2
 
 type 'a sig0 = 'a
   (* singleton inductive, whose constructor was exist *)
@@ -40,10 +33,6 @@ val eq_nat_dec : nat -> nat -> bool
 val max : nat -> nat -> nat
 
 val bool_dec : bool -> bool -> bool
-
-type 'a list =
-  | Nil
-  | Cons of 'a * 'a list
 
 val length : 'a1 list -> nat
 
@@ -126,7 +115,7 @@ module WFacts_fun :
   
   val filter : (elt -> bool) -> t -> t
   
-  val partition : (elt -> bool) -> t -> (t, t) prod
+  val partition : (elt -> bool) -> t -> t * t
   
   val cardinal : t -> nat
   
@@ -177,7 +166,7 @@ module WDecide_fun :
   
   val filter : (elt -> bool) -> t -> t
   
-  val partition : (elt -> bool) -> t -> (t, t) prod
+  val partition : (elt -> bool) -> t -> t * t
   
   val cardinal : t -> nat
   
@@ -246,7 +235,7 @@ module WProperties_fun :
   
   val filter : (elt -> bool) -> t -> t
   
-  val partition : (elt -> bool) -> t -> (t, t) prod
+  val partition : (elt -> bool) -> t -> t * t
   
   val cardinal : t -> nat
   
@@ -359,7 +348,7 @@ module Raw :
   
   val exists_ : (elt -> bool) -> t -> bool
   
-  val partition : (elt -> bool) -> t -> (t, t) prod
+  val partition : (elt -> bool) -> t -> t * t
   
   val cardinal : t -> nat
   
@@ -409,7 +398,7 @@ module Coq_WDecide_fun :
   
   val filter : (elt -> bool) -> t -> t
   
-  val partition : (elt -> bool) -> t -> (t, t) prod
+  val partition : (elt -> bool) -> t -> t * t
   
   val cardinal : t -> nat
   
@@ -485,7 +474,7 @@ module Make :
   
   val filter : (elt -> bool) -> t -> t
   
-  val partition : (elt -> bool) -> t -> (t, t) prod
+  val partition : (elt -> bool) -> t -> t * t
   
   val cardinal : t -> nat
   
@@ -597,20 +586,20 @@ module Make :
   
   val one : 'a1 -> 'a1 list
   
-  val dom : (X.t, 'a1) prod list -> KeySet.t
+  val dom : (X.t * 'a1) list -> KeySet.t
   
-  val get : X.t -> (X.t, 'a1) prod list -> 'a1 option
+  val get : X.t -> (X.t * 'a1) list -> 'a1 option
   
-  val map : ('a1 -> 'a2) -> (X.t, 'a1) prod list -> (X.t, 'a2) prod list
+  val map : ('a1 -> 'a2) -> (X.t * 'a1) list -> (X.t * 'a2) list
   
   val alist_ind :
-    'a2 -> (X.t -> 'a1 -> (X.t, 'a1) prod list -> 'a2 -> 'a2) -> (X.t, 'a1)
-    prod list -> 'a2
+    'a2 -> (X.t -> 'a1 -> (X.t * 'a1) list -> 'a2 -> 'a2) -> (X.t * 'a1) list
+    -> 'a2
   
   val binds_dec :
-    X.t -> 'a1 -> (X.t, 'a1) prod list -> ('a1 -> 'a1 -> bool) -> bool
+    X.t -> 'a1 -> (X.t * 'a1) list -> ('a1 -> 'a1 -> bool) -> bool
   
-  val binds_lookup : X.t -> (X.t, 'a1) prod list -> ('a1, __) sum
+  val binds_lookup : X.t -> (X.t * 'a1) list -> ('a1, __) sum
  end
 
 type 'a eqDec = 'a -> 'a -> bool
@@ -656,7 +645,7 @@ module Coq_Make :
     
     val exists_ : (elt -> bool) -> t -> bool
     
-    val partition : (elt -> bool) -> t -> (t, t) prod
+    val partition : (elt -> bool) -> t -> t * t
     
     val cardinal : t -> nat
     
@@ -724,7 +713,7 @@ module Coq_Make :
   
   val exists_ : (elt -> bool) -> t -> bool
   
-  val partition : (elt -> bool) -> t -> (t, t) prod
+  val partition : (elt -> bool) -> t -> t * t
   
   val eq_dec : t -> t -> bool
  end
@@ -788,7 +777,7 @@ module AtomSetImpl :
   
   val filter : (AtomImpl.atom -> bool) -> t -> t
   
-  val partition : (AtomImpl.atom -> bool) -> t -> (t, t) prod
+  val partition : (AtomImpl.atom -> bool) -> t -> t * t
   
   val cardinal : t -> nat
   
@@ -904,27 +893,26 @@ module EnvImpl :
   
   val one : 'a1 -> 'a1 list
   
-  val dom : (AtomImpl.atom, 'a1) prod list -> AtomSetImpl.t
+  val dom : (AtomImpl.atom * 'a1) list -> AtomSetImpl.t
   
-  val get : AtomImpl.atom -> (AtomImpl.atom, 'a1) prod list -> 'a1 option
+  val get : AtomImpl.atom -> (AtomImpl.atom * 'a1) list -> 'a1 option
   
   val map :
-    ('a1 -> 'a2) -> (AtomImpl.atom, 'a1) prod list -> (AtomImpl.atom, 'a2)
-    prod list
+    ('a1 -> 'a2) -> (AtomImpl.atom * 'a1) list -> (AtomImpl.atom * 'a2) list
   
   val alist_ind :
-    'a2 -> (AtomImpl.atom -> 'a1 -> (AtomImpl.atom, 'a1) prod list -> 'a2 ->
-    'a2) -> (AtomImpl.atom, 'a1) prod list -> 'a2
+    'a2 -> (AtomImpl.atom -> 'a1 -> (AtomImpl.atom * 'a1) list -> 'a2 -> 'a2)
+    -> (AtomImpl.atom * 'a1) list -> 'a2
   
   val binds_dec :
-    AtomImpl.atom -> 'a1 -> (AtomImpl.atom, 'a1) prod list -> ('a1 -> 'a1 ->
+    AtomImpl.atom -> 'a1 -> (AtomImpl.atom * 'a1) list -> ('a1 -> 'a1 ->
     bool) -> bool
   
   val binds_lookup :
-    AtomImpl.atom -> (AtomImpl.atom, 'a1) prod list -> ('a1, __) sum
+    AtomImpl.atom -> (AtomImpl.atom * 'a1) list -> ('a1, __) sum
  end
 
-type 'x assocList = (AtomImpl.atom, 'x) prod list
+type 'x assocList = (AtomImpl.atom * 'x) list
 
 val updateAddAL : 'a1 assocList -> AtomImpl.atom -> 'a1 -> 'a1 assocList
 
@@ -936,15 +924,15 @@ module LLVMsyntax :
  sig 
   val last_opt : 'a1 list -> 'a1 option
   
-  type coq_INT 
+  type coq_INT = Llvm.llapint
   
-  type id 
+  type id = String.t
   
-  type l 
+  type l = String.t
   
-  type align 
+  type align = int
   
-  type sz
+  type sz = int
   
   type i = nat
   
@@ -1010,9 +998,9 @@ module LLVMsyntax :
   
   val value_rec : (id -> 'a1) -> (const -> 'a1) -> value -> 'a1
   
-  type param = (typ, value) prod
+  type param = typ * value
   
-  type params = (typ, value) prod list
+  type params = (typ * value) list
   
   type cond =
     | Coq_cond_eq
@@ -1083,15 +1071,15 @@ module LLVMsyntax :
   val list_value_rec :
     'a1 -> (value -> list_value -> 'a1 -> 'a1) -> list_value -> 'a1
   
-  type list_id_l =
-    | Nil_list_id_l
-    | Cons_list_id_l of id * l * list_id_l
+  type list_value_l =
+    | Nil_list_value_l
+    | Cons_list_value_l of value * l * list_value_l
   
-  val list_id_l_rect :
-    'a1 -> (id -> l -> list_id_l -> 'a1 -> 'a1) -> list_id_l -> 'a1
+  val list_value_l_rect :
+    'a1 -> (value -> l -> list_value_l -> 'a1 -> 'a1) -> list_value_l -> 'a1
   
-  val list_id_l_rec :
-    'a1 -> (id -> l -> list_id_l -> 'a1 -> 'a1) -> list_id_l -> 'a1
+  val list_value_l_rec :
+    'a1 -> (value -> l -> list_value_l -> 'a1 -> 'a1) -> list_value_l -> 'a1
   
   type cmd =
     | Coq_insn_bop of id * bop * sz * value * value
@@ -1100,8 +1088,8 @@ module LLVMsyntax :
     | Coq_insn_malloc of id * typ * sz * align
     | Coq_insn_free of id * typ * value
     | Coq_insn_alloca of id * typ * sz * align
-    | Coq_insn_load of id * typ * value
-    | Coq_insn_store of id * typ * value * value
+    | Coq_insn_load of id * typ * value * align
+    | Coq_insn_store of id * typ * value * value * align
     | Coq_insn_gep of id * inbounds * typ * value * list_value
     | Coq_insn_ext of id * extop * typ * value * typ
     | Coq_insn_cast of id * castop * typ * value * typ
@@ -1113,34 +1101,34 @@ module LLVMsyntax :
     (id -> bop -> sz -> value -> value -> 'a1) -> (id -> typ -> value ->
     list_const -> 'a1) -> (id -> typ -> value -> typ -> value -> list_const
     -> 'a1) -> (id -> typ -> sz -> align -> 'a1) -> (id -> typ -> value ->
-    'a1) -> (id -> typ -> sz -> align -> 'a1) -> (id -> typ -> value -> 'a1)
-    -> (id -> typ -> value -> value -> 'a1) -> (id -> inbounds -> typ ->
-    value -> list_value -> 'a1) -> (id -> extop -> typ -> value -> typ ->
-    'a1) -> (id -> castop -> typ -> value -> typ -> 'a1) -> (id -> cond ->
-    typ -> value -> value -> 'a1) -> (id -> value -> typ -> value -> value ->
-    'a1) -> (id -> noret -> tailc -> typ -> id -> params -> 'a1) -> cmd ->
-    'a1
+    'a1) -> (id -> typ -> sz -> align -> 'a1) -> (id -> typ -> value -> align
+    -> 'a1) -> (id -> typ -> value -> value -> align -> 'a1) -> (id ->
+    inbounds -> typ -> value -> list_value -> 'a1) -> (id -> extop -> typ ->
+    value -> typ -> 'a1) -> (id -> castop -> typ -> value -> typ -> 'a1) ->
+    (id -> cond -> typ -> value -> value -> 'a1) -> (id -> value -> typ ->
+    value -> value -> 'a1) -> (id -> noret -> tailc -> typ -> id -> params ->
+    'a1) -> cmd -> 'a1
   
   val cmd_rec :
     (id -> bop -> sz -> value -> value -> 'a1) -> (id -> typ -> value ->
     list_const -> 'a1) -> (id -> typ -> value -> typ -> value -> list_const
     -> 'a1) -> (id -> typ -> sz -> align -> 'a1) -> (id -> typ -> value ->
-    'a1) -> (id -> typ -> sz -> align -> 'a1) -> (id -> typ -> value -> 'a1)
-    -> (id -> typ -> value -> value -> 'a1) -> (id -> inbounds -> typ ->
-    value -> list_value -> 'a1) -> (id -> extop -> typ -> value -> typ ->
-    'a1) -> (id -> castop -> typ -> value -> typ -> 'a1) -> (id -> cond ->
-    typ -> value -> value -> 'a1) -> (id -> value -> typ -> value -> value ->
-    'a1) -> (id -> noret -> tailc -> typ -> id -> params -> 'a1) -> cmd ->
-    'a1
+    'a1) -> (id -> typ -> sz -> align -> 'a1) -> (id -> typ -> value -> align
+    -> 'a1) -> (id -> typ -> value -> value -> align -> 'a1) -> (id ->
+    inbounds -> typ -> value -> list_value -> 'a1) -> (id -> extop -> typ ->
+    value -> typ -> 'a1) -> (id -> castop -> typ -> value -> typ -> 'a1) ->
+    (id -> cond -> typ -> value -> value -> 'a1) -> (id -> value -> typ ->
+    value -> value -> 'a1) -> (id -> noret -> tailc -> typ -> id -> params ->
+    'a1) -> cmd -> 'a1
   
   type phinode =
-    | Coq_insn_phi of id * typ * list_id_l
+    | Coq_insn_phi of id * typ * list_value_l
   
-  val phinode_rect : (id -> typ -> list_id_l -> 'a1) -> phinode -> 'a1
+  val phinode_rect : (id -> typ -> list_value_l -> 'a1) -> phinode -> 'a1
   
-  val phinode_rec : (id -> typ -> list_id_l -> 'a1) -> phinode -> 'a1
+  val phinode_rec : (id -> typ -> list_value_l -> 'a1) -> phinode -> 'a1
   
-  type arg = (typ, id) prod
+  type arg = typ * id
   
   type terminator =
     | Coq_insn_return of id * typ * value
@@ -1161,7 +1149,7 @@ module LLVMsyntax :
   
   type phinodes = phinode list
   
-  type args = (typ, id) prod list
+  type args = (typ * id) list
   
   type block =
     | Coq_block_intro of l * phinodes * cmds * terminator
@@ -1301,21 +1289,21 @@ module LLVMsyntax :
   
   type system = modules
   
-  type module_info = (coq_module, (usedef_id, usedef_block) prod) prod
+  type module_info = coq_module * (usedef_id * usedef_block)
   
-  type fdef_info = (fdef, dt) prod
+  type fdef_info = fdef * dt
   
   type intrinsic_funs = ids
   
-  val map_list_id_l : (id -> l -> 'a1) -> list_id_l -> 'a1 list
+  val map_list_value_l : (value -> l -> 'a1) -> list_value_l -> 'a1 list
   
-  val make_list_id_l : (id, l) prod list -> list_id_l
+  val make_list_value_l : (value * l) list -> list_value_l
   
-  val unmake_list_id_l : list_id_l -> (id, l) prod list
+  val unmake_list_value_l : list_value_l -> (value * l) list
   
-  val nth_list_id_l : nat -> list_id_l -> (id, l) prod option
+  val nth_list_value_l : nat -> list_value_l -> (value * l) option
   
-  val app_list_id_l : list_id_l -> list_id_l -> list_id_l
+  val app_list_value_l : list_value_l -> list_value_l -> list_value_l
   
   val map_list_value : (value -> 'a1) -> list_value -> 'a1 list
   
@@ -1360,8 +1348,8 @@ module LLVMsyntax :
   val const_mutrec :
     (sz -> coq_INT -> 'a1) -> (typ -> 'a1) -> (typ -> 'a1) -> (list_const ->
     'a2 -> 'a1) -> (list_const -> 'a2 -> 'a1) -> (typ -> id -> 'a1) -> 'a2 ->
-    (const -> 'a1 -> list_const -> 'a2 -> 'a2) -> (const -> 'a1, list_const
-    -> 'a2) prod
+    (const -> 'a1 -> list_const -> 'a2 -> 'a2) -> (const -> 'a1) *
+    (list_const -> 'a2)
   
   val list_typ_rec2 :
     (sz -> 'a1) -> 'a1 -> 'a1 -> 'a1 -> (sz -> typ -> 'a1 -> 'a1) -> (typ ->
@@ -1377,27 +1365,39 @@ module LLVMsyntax :
   val typ_mutrec :
     (sz -> 'a1) -> 'a1 -> 'a1 -> 'a1 -> (sz -> typ -> 'a1 -> 'a1) -> (typ ->
     'a1 -> list_typ -> 'a2 -> 'a1) -> (list_typ -> 'a2 -> 'a1) -> (typ -> 'a1
-    -> 'a1) -> 'a2 -> (typ -> 'a1 -> list_typ -> 'a2 -> 'a2) -> (typ -> 'a1,
-    list_typ -> 'a2) prod
+    -> 'a1) -> 'a2 -> (typ -> 'a1 -> list_typ -> 'a2 -> 'a2) -> (typ -> 'a1)
+    * (list_typ -> 'a2)
  end
 
 module LLVMlib : 
  sig 
-  val id_dec : AtomImpl.atom -> AtomImpl.atom -> bool
+  val id_dec : LLVMsyntax.id -> LLVMsyntax.id -> bool
   
-  val l_dec : AtomImpl.atom -> AtomImpl.atom -> bool
+  val l_dec : LLVMsyntax.l -> LLVMsyntax.l -> bool
   
-  val coq_INT_dec : nat -> nat -> bool
+  val coq_INT_dec : LLVMsyntax.coq_INT -> LLVMsyntax.coq_INT -> bool
   
-  val sz_dec : nat -> nat -> bool
+  val sz_dec : LLVMsyntax.sz -> LLVMsyntax.sz -> bool
   
-  val align_dec : nat -> nat -> bool
+  val align_dec : LLVMsyntax.align -> LLVMsyntax.align -> bool
   
-  val inbounds_dec : bool -> bool -> bool
+  val inbounds_dec : LLVMsyntax.inbounds -> LLVMsyntax.inbounds -> bool
   
-  val tailc_dec : bool -> bool -> bool
+  val tailc_dec : LLVMsyntax.tailc -> LLVMsyntax.tailc -> bool
   
-  val noret_dec : bool -> bool -> bool
+  val noret_dec : LLVMsyntax.noret -> LLVMsyntax.noret -> bool
+  
+  val szZERO : LLVMsyntax.sz
+  
+  val szONE : LLVMsyntax.sz
+  
+  val nat2sz : nat -> LLVMsyntax.sz
+  
+  val sz2nat : LLVMsyntax.sz -> nat
+  
+  val coq_INT2nat : LLVMsyntax.coq_INT -> nat
+  
+  val nat2INT : nat -> LLVMsyntax.coq_INT
   
   val lempty_set : LLVMsyntax.l set
   
@@ -1452,13 +1452,15 @@ module LLVMlib :
   
   val getParamsOperand : LLVMsyntax.params -> LLVMsyntax.ids
   
-  val list_prj1 : ('a1, 'a2) prod list -> 'a1 list
+  val list_prj1 : ('a1 * 'a2) list -> 'a1 list
   
-  val list_prj2 : ('a1, 'a2) prod list -> 'a2 list
+  val list_prj2 : ('a1 * 'a2) list -> 'a2 list
   
   val getCmdOperands : LLVMsyntax.cmd -> LLVMsyntax.ids
   
   val getTerminatorOperands : LLVMsyntax.terminator -> LLVMsyntax.ids
+  
+  val values2ids : LLVMsyntax.value list -> LLVMsyntax.ids
   
   val getPhiNodeOperands : LLVMsyntax.phinode -> LLVMsyntax.ids
   
@@ -1510,21 +1512,21 @@ module LLVMlib :
   val getFdefID : LLVMsyntax.fdef -> LLVMsyntax.id
   
   val getLabelViaIDFromList :
-    LLVMsyntax.list_id_l -> LLVMsyntax.id -> LLVMsyntax.l option
+    LLVMsyntax.list_value_l -> LLVMsyntax.id -> LLVMsyntax.l option
   
   val getLabelViaIDFromPhiNode :
     LLVMsyntax.phinode -> LLVMsyntax.id -> LLVMsyntax.l option
   
-  val getLabelsFromIdls : LLVMsyntax.list_id_l -> LLVMsyntax.ls
+  val getLabelsFromIdls : LLVMsyntax.list_value_l -> LLVMsyntax.ls
   
   val getLabelsFromPhiNode : LLVMsyntax.phinode -> LLVMsyntax.ls
   
   val getLabelsFromPhiNodes : LLVMsyntax.phinode list -> LLVMsyntax.ls
   
-  val getIDLabelsFromPhiNode : LLVMsyntax.phinode -> LLVMsyntax.list_id_l
+  val getIDLabelsFromPhiNode : LLVMsyntax.phinode -> LLVMsyntax.list_value_l
   
   val getLabelViaIDFromIDLabels :
-    LLVMsyntax.list_id_l -> LLVMsyntax.id -> LLVMsyntax.l option
+    LLVMsyntax.list_value_l -> LLVMsyntax.id -> LLVMsyntax.l option
   
   val _getLabelViaIDPhiNode :
     LLVMsyntax.phinode -> LLVMsyntax.id -> LLVMsyntax.l option
@@ -1541,10 +1543,10 @@ module LLVMlib :
   val getCallerReturnID : LLVMsyntax.cmd -> LLVMsyntax.id option
   
   val getIdViaLabelFromIdls :
-    LLVMsyntax.list_id_l -> LLVMsyntax.l -> LLVMsyntax.id option
+    LLVMsyntax.list_value_l -> LLVMsyntax.l -> LLVMsyntax.id option
   
   val getIdViaBlockFromIdls :
-    LLVMsyntax.list_id_l -> LLVMsyntax.block -> LLVMsyntax.id option
+    LLVMsyntax.list_value_l -> LLVMsyntax.block -> LLVMsyntax.id option
   
   val getIdViaBlockFromPHINode :
     LLVMsyntax.phinode -> LLVMsyntax.block -> LLVMsyntax.id option
@@ -1676,7 +1678,7 @@ module LLVMlib :
   val lookupTypViaIDFromSystem :
     LLVMsyntax.system -> LLVMsyntax.id -> LLVMsyntax.typ option
   
-  type l2block = (LLVMsyntax.l, LLVMsyntax.block) prod list
+  type l2block = (LLVMsyntax.l * LLVMsyntax.block) list
   
   val genLabel2Block_block : LLVMsyntax.block -> l2block
   
@@ -1753,7 +1755,7 @@ module LLVMlib :
   val genIdUseDef_terminator : LLVMsyntax.terminator -> LLVMsyntax.usedef_id
   
   val genIdUseDef_id_uses_idls :
-    LLVMsyntax.list_id_l -> LLVMsyntax.id -> LLVMsyntax.usedef_id
+    LLVMsyntax.list_value_l -> LLVMsyntax.id -> LLVMsyntax.usedef_id
   
   val genIdUseDef_phinode : LLVMsyntax.phinode -> LLVMsyntax.usedef_id
   
@@ -1782,7 +1784,7 @@ module LLVMlib :
     LLVMsyntax.l -> LLVMsyntax.block -> LLVMsyntax.usedef_block
   
   val genBlockUseDef_phi_cases :
-    LLVMsyntax.list_id_l -> LLVMsyntax.block -> LLVMsyntax.usedef_block
+    LLVMsyntax.list_value_l -> LLVMsyntax.block -> LLVMsyntax.usedef_block
   
   val genBlockUseDef_cmd :
     LLVMsyntax.cmd -> LLVMsyntax.block -> LLVMsyntax.usedef_block
@@ -1818,7 +1820,7 @@ module LLVMlib :
   val getTerminator : LLVMsyntax.block -> LLVMsyntax.terminator
   
   val getLabelsFromSwitchCases :
-    (LLVMsyntax.const, LLVMsyntax.l) prod list -> LLVMsyntax.ls
+    (LLVMsyntax.const * LLVMsyntax.l) list -> LLVMsyntax.ls
   
   val getLabelsFromTerminator : LLVMsyntax.terminator -> LLVMsyntax.ls
   
@@ -1854,68 +1856,66 @@ module LLVMlib :
   
   val sizeOfDT : LLVMsyntax.blocks -> LLVMsyntax.dt -> nat
   
-  val size : (LLVMsyntax.blocks, LLVMsyntax.dt) prod -> nat
+  val size : (LLVMsyntax.blocks * LLVMsyntax.dt) -> nat
   
   val genDominatorTree_blocks_F :
-    ((LLVMsyntax.blocks, LLVMsyntax.dt) prod -> LLVMsyntax.usedef_block ->
-    LLVMsyntax.dt) -> (LLVMsyntax.blocks, LLVMsyntax.dt) prod ->
+    ((LLVMsyntax.blocks * LLVMsyntax.dt) -> LLVMsyntax.usedef_block ->
+    LLVMsyntax.dt) -> (LLVMsyntax.blocks * LLVMsyntax.dt) ->
     LLVMsyntax.usedef_block -> LLVMsyntax.dt
   
   val genDominatorTree_blocks_terminate :
-    (LLVMsyntax.blocks, LLVMsyntax.dt) prod -> LLVMsyntax.usedef_block ->
+    (LLVMsyntax.blocks * LLVMsyntax.dt) -> LLVMsyntax.usedef_block ->
     LLVMsyntax.dt
   
   val genDominatorTree_blocks :
-    (LLVMsyntax.blocks, LLVMsyntax.dt) prod -> LLVMsyntax.usedef_block ->
+    (LLVMsyntax.blocks * LLVMsyntax.dt) -> LLVMsyntax.usedef_block ->
     LLVMsyntax.dt
   
   type coq_R_genDominatorTree_blocks =
-    | R_genDominatorTree_blocks_0 of (LLVMsyntax.blocks, LLVMsyntax.dt) prod
+    | R_genDominatorTree_blocks_0 of (LLVMsyntax.blocks * LLVMsyntax.dt)
        * LLVMsyntax.usedef_block * LLVMsyntax.blocks * 
        LLVMsyntax.dt * LLVMsyntax.dt
-    | R_genDominatorTree_blocks_1 of (LLVMsyntax.blocks, LLVMsyntax.dt) prod
+    | R_genDominatorTree_blocks_1 of (LLVMsyntax.blocks * LLVMsyntax.dt)
        * LLVMsyntax.usedef_block * LLVMsyntax.blocks * 
        LLVMsyntax.dt * LLVMsyntax.dt * LLVMsyntax.dt
        * coq_R_genDominatorTree_blocks
   
   val coq_R_genDominatorTree_blocks_rect :
-    ((LLVMsyntax.blocks, LLVMsyntax.dt) prod -> LLVMsyntax.usedef_block ->
+    ((LLVMsyntax.blocks * LLVMsyntax.dt) -> LLVMsyntax.usedef_block ->
     LLVMsyntax.blocks -> LLVMsyntax.dt -> __ -> LLVMsyntax.dt -> __ -> __ ->
-    'a1) -> ((LLVMsyntax.blocks, LLVMsyntax.dt) prod ->
-    LLVMsyntax.usedef_block -> LLVMsyntax.blocks -> LLVMsyntax.dt -> __ ->
-    LLVMsyntax.dt -> __ -> __ -> LLVMsyntax.dt ->
-    coq_R_genDominatorTree_blocks -> 'a1 -> 'a1) -> (LLVMsyntax.blocks,
-    LLVMsyntax.dt) prod -> LLVMsyntax.usedef_block -> LLVMsyntax.dt ->
-    coq_R_genDominatorTree_blocks -> 'a1
+    'a1) -> ((LLVMsyntax.blocks * LLVMsyntax.dt) -> LLVMsyntax.usedef_block
+    -> LLVMsyntax.blocks -> LLVMsyntax.dt -> __ -> LLVMsyntax.dt -> __ -> __
+    -> LLVMsyntax.dt -> coq_R_genDominatorTree_blocks -> 'a1 -> 'a1) ->
+    (LLVMsyntax.blocks * LLVMsyntax.dt) -> LLVMsyntax.usedef_block ->
+    LLVMsyntax.dt -> coq_R_genDominatorTree_blocks -> 'a1
   
   val coq_R_genDominatorTree_blocks_rec :
-    ((LLVMsyntax.blocks, LLVMsyntax.dt) prod -> LLVMsyntax.usedef_block ->
+    ((LLVMsyntax.blocks * LLVMsyntax.dt) -> LLVMsyntax.usedef_block ->
     LLVMsyntax.blocks -> LLVMsyntax.dt -> __ -> LLVMsyntax.dt -> __ -> __ ->
-    'a1) -> ((LLVMsyntax.blocks, LLVMsyntax.dt) prod ->
-    LLVMsyntax.usedef_block -> LLVMsyntax.blocks -> LLVMsyntax.dt -> __ ->
-    LLVMsyntax.dt -> __ -> __ -> LLVMsyntax.dt ->
-    coq_R_genDominatorTree_blocks -> 'a1 -> 'a1) -> (LLVMsyntax.blocks,
-    LLVMsyntax.dt) prod -> LLVMsyntax.usedef_block -> LLVMsyntax.dt ->
-    coq_R_genDominatorTree_blocks -> 'a1
+    'a1) -> ((LLVMsyntax.blocks * LLVMsyntax.dt) -> LLVMsyntax.usedef_block
+    -> LLVMsyntax.blocks -> LLVMsyntax.dt -> __ -> LLVMsyntax.dt -> __ -> __
+    -> LLVMsyntax.dt -> coq_R_genDominatorTree_blocks -> 'a1 -> 'a1) ->
+    (LLVMsyntax.blocks * LLVMsyntax.dt) -> LLVMsyntax.usedef_block ->
+    LLVMsyntax.dt -> coq_R_genDominatorTree_blocks -> 'a1
   
   val genDominatorTree_blocks_rect :
-    ((LLVMsyntax.blocks, LLVMsyntax.dt) prod -> LLVMsyntax.usedef_block ->
+    ((LLVMsyntax.blocks * LLVMsyntax.dt) -> LLVMsyntax.usedef_block ->
     LLVMsyntax.blocks -> LLVMsyntax.dt -> __ -> LLVMsyntax.dt -> __ -> __ ->
-    'a1) -> ((LLVMsyntax.blocks, LLVMsyntax.dt) prod ->
-    LLVMsyntax.usedef_block -> LLVMsyntax.blocks -> LLVMsyntax.dt -> __ ->
-    LLVMsyntax.dt -> __ -> __ -> 'a1 -> 'a1) -> (LLVMsyntax.blocks,
-    LLVMsyntax.dt) prod -> LLVMsyntax.usedef_block -> 'a1
+    'a1) -> ((LLVMsyntax.blocks * LLVMsyntax.dt) -> LLVMsyntax.usedef_block
+    -> LLVMsyntax.blocks -> LLVMsyntax.dt -> __ -> LLVMsyntax.dt -> __ -> __
+    -> 'a1 -> 'a1) -> (LLVMsyntax.blocks * LLVMsyntax.dt) ->
+    LLVMsyntax.usedef_block -> 'a1
   
   val genDominatorTree_blocks_rec :
-    ((LLVMsyntax.blocks, LLVMsyntax.dt) prod -> LLVMsyntax.usedef_block ->
+    ((LLVMsyntax.blocks * LLVMsyntax.dt) -> LLVMsyntax.usedef_block ->
     LLVMsyntax.blocks -> LLVMsyntax.dt -> __ -> LLVMsyntax.dt -> __ -> __ ->
-    'a1) -> ((LLVMsyntax.blocks, LLVMsyntax.dt) prod ->
-    LLVMsyntax.usedef_block -> LLVMsyntax.blocks -> LLVMsyntax.dt -> __ ->
-    LLVMsyntax.dt -> __ -> __ -> 'a1 -> 'a1) -> (LLVMsyntax.blocks,
-    LLVMsyntax.dt) prod -> LLVMsyntax.usedef_block -> 'a1
+    'a1) -> ((LLVMsyntax.blocks * LLVMsyntax.dt) -> LLVMsyntax.usedef_block
+    -> LLVMsyntax.blocks -> LLVMsyntax.dt -> __ -> LLVMsyntax.dt -> __ -> __
+    -> 'a1 -> 'a1) -> (LLVMsyntax.blocks * LLVMsyntax.dt) ->
+    LLVMsyntax.usedef_block -> 'a1
   
   val coq_R_genDominatorTree_blocks_correct :
-    (LLVMsyntax.blocks, LLVMsyntax.dt) prod -> LLVMsyntax.usedef_block ->
+    (LLVMsyntax.blocks * LLVMsyntax.dt) -> LLVMsyntax.usedef_block ->
     LLVMsyntax.dt -> coq_R_genDominatorTree_blocks
   
   val initialize_genDominatorTree_blocks :
@@ -2011,8 +2011,8 @@ module LLVMlib :
   type list_typ_dec_prop = LLVMsyntax.list_typ -> bool
   
   val typ_mutrec_dec :
-    (LLVMsyntax.typ -> typ_dec_prop, LLVMsyntax.list_typ ->
-    list_typ_dec_prop) prod
+    (LLVMsyntax.typ -> typ_dec_prop) * (LLVMsyntax.list_typ ->
+    list_typ_dec_prop)
   
   val typ_dec : LLVMsyntax.typ -> LLVMsyntax.typ -> bool
   
@@ -2023,8 +2023,8 @@ module LLVMlib :
   type list_const_dec_prop = LLVMsyntax.list_const -> bool
   
   val const_mutrec_dec :
-    (LLVMsyntax.const -> const_dec_prop, LLVMsyntax.list_const ->
-    list_const_dec_prop) prod
+    (LLVMsyntax.const -> const_dec_prop) * (LLVMsyntax.list_const ->
+    list_const_dec_prop)
   
   val const_dec : LLVMsyntax.const -> LLVMsyntax.const -> bool
   
@@ -2034,7 +2034,8 @@ module LLVMlib :
   
   val params_dec : LLVMsyntax.params -> LLVMsyntax.params -> bool
   
-  val list_id_l_dec : LLVMsyntax.list_id_l -> LLVMsyntax.list_id_l -> bool
+  val list_value_l_dec :
+    LLVMsyntax.list_value_l -> LLVMsyntax.list_value_l -> bool
   
   val list_value_dec : LLVMsyntax.list_value -> LLVMsyntax.list_value -> bool
   
@@ -2093,7 +2094,7 @@ module LLVMlib :
   
   val list_typEqB : LLVMsyntax.list_typ -> LLVMsyntax.list_typ -> bool
   
-  val idEqB : AtomImpl.atom -> AtomImpl.atom -> bool
+  val idEqB : LLVMsyntax.id -> LLVMsyntax.id -> bool
   
   val constEqB : LLVMsyntax.const -> LLVMsyntax.const -> bool
   
@@ -2103,9 +2104,10 @@ module LLVMlib :
   
   val paramsEqB : LLVMsyntax.params -> LLVMsyntax.params -> bool
   
-  val lEqB : AtomImpl.atom -> AtomImpl.atom -> bool
+  val lEqB : LLVMsyntax.l -> LLVMsyntax.l -> bool
   
-  val list_id_lEqB : LLVMsyntax.list_id_l -> LLVMsyntax.list_id_l -> bool
+  val list_value_lEqB :
+    LLVMsyntax.list_value_l -> LLVMsyntax.list_value_l -> bool
   
   val list_valueEqB : LLVMsyntax.list_value -> LLVMsyntax.list_value -> bool
   
@@ -2319,7 +2321,7 @@ module LLVMlib :
     LLVMsyntax.fdef -> LLVMsyntax.system -> LLVMsyntax.coq_module option
   
   val lookupIdsViaLabelFromIdls :
-    LLVMsyntax.list_id_l -> LLVMsyntax.l -> LLVMsyntax.id list
+    LLVMsyntax.list_value_l -> LLVMsyntax.l -> LLVMsyntax.id list
   
   module type SigValue = 
    sig 
@@ -2638,7 +2640,7 @@ module LLVMlib :
     
     val isSizedListTyp : LLVMsyntax.list_typ -> bool
     
-    val getPrimitiveSizeInBits : LLVMsyntax.typ -> nat
+    val getPrimitiveSizeInBits : LLVMsyntax.typ -> LLVMsyntax.sz
    end
   
   module DerivedType : 
@@ -2651,7 +2653,7 @@ module LLVMlib :
     
     val isSizedListTyp : LLVMsyntax.list_typ -> bool
     
-    val getPrimitiveSizeInBits : LLVMsyntax.typ -> nat
+    val getPrimitiveSizeInBits : LLVMsyntax.typ -> LLVMsyntax.sz
    end
   
   module FunctionType : 
@@ -2664,7 +2666,7 @@ module LLVMlib :
     
     val isSizedListTyp : LLVMsyntax.list_typ -> bool
     
-    val getPrimitiveSizeInBits : LLVMsyntax.typ -> nat
+    val getPrimitiveSizeInBits : LLVMsyntax.typ -> LLVMsyntax.sz
     
     val getNumParams : LLVMsyntax.typ -> nat option
     
@@ -2683,7 +2685,7 @@ module LLVMlib :
     
     val isSizedListTyp : LLVMsyntax.list_typ -> bool
     
-    val getPrimitiveSizeInBits : LLVMsyntax.typ -> nat
+    val getPrimitiveSizeInBits : LLVMsyntax.typ -> LLVMsyntax.sz
    end
   
   module SequentialType : 
@@ -2696,7 +2698,7 @@ module LLVMlib :
     
     val isSizedListTyp : LLVMsyntax.list_typ -> bool
     
-    val getPrimitiveSizeInBits : LLVMsyntax.typ -> nat
+    val getPrimitiveSizeInBits : LLVMsyntax.typ -> LLVMsyntax.sz
     
     val hasElementType : LLVMsyntax.typ -> bool
     
@@ -2713,7 +2715,7 @@ module LLVMlib :
     
     val isSizedListTyp : LLVMsyntax.list_typ -> bool
     
-    val getPrimitiveSizeInBits : LLVMsyntax.typ -> nat
+    val getPrimitiveSizeInBits : LLVMsyntax.typ -> LLVMsyntax.sz
     
     val hasElementType : LLVMsyntax.typ -> bool
     
@@ -2761,7 +2763,7 @@ type trace =
 
 type genericValue = mvalue
 
-type gVMap = (LLVMsyntax.id, genericValue) prod list
+type gVMap = (LLVMsyntax.id * genericValue) list
 
 module SimpleSE : 
  sig 
@@ -2825,7 +2827,7 @@ module SimpleSE :
   
   val call_cmd : subblock -> LLVMsyntax.cmd
   
-  val cmds2sbs : LLVMsyntax.cmds -> (subblock list, nbranch list) prod
+  val cmds2sbs : LLVMsyntax.cmds -> subblock list * nbranch list
   
   type sterm =
     | Coq_sterm_val of LLVMsyntax.value
@@ -2838,7 +2840,7 @@ module SimpleSE :
        * LLVMsyntax.align
     | Coq_sterm_alloca of smem * LLVMsyntax.typ * LLVMsyntax.sz
        * LLVMsyntax.align
-    | Coq_sterm_load of smem * LLVMsyntax.typ * sterm
+    | Coq_sterm_load of smem * LLVMsyntax.typ * sterm * LLVMsyntax.align
     | Coq_sterm_gep of LLVMsyntax.inbounds * LLVMsyntax.typ * 
        sterm * list_sterm
     | Coq_sterm_ext of LLVMsyntax.extop * LLVMsyntax.typ * 
@@ -2861,8 +2863,9 @@ module SimpleSE :
     | Coq_smem_free of smem * LLVMsyntax.typ * sterm
     | Coq_smem_alloca of smem * LLVMsyntax.typ * LLVMsyntax.sz
        * LLVMsyntax.align
-    | Coq_smem_load of smem * LLVMsyntax.typ * sterm
-    | Coq_smem_store of smem * LLVMsyntax.typ * sterm * sterm
+    | Coq_smem_load of smem * LLVMsyntax.typ * sterm * LLVMsyntax.align
+    | Coq_smem_store of smem * LLVMsyntax.typ * sterm * 
+       sterm * LLVMsyntax.align
   and sframe =
     | Coq_sframe_init
     | Coq_sframe_alloca of smem * sframe * LLVMsyntax.typ * 
@@ -2875,13 +2878,14 @@ module SimpleSE :
     LLVMsyntax.typ -> sterm -> 'a1 -> LLVMsyntax.list_const -> 'a1) -> (smem
     -> LLVMsyntax.typ -> LLVMsyntax.sz -> LLVMsyntax.align -> 'a1) -> (smem
     -> LLVMsyntax.typ -> LLVMsyntax.sz -> LLVMsyntax.align -> 'a1) -> (smem
-    -> LLVMsyntax.typ -> sterm -> 'a1 -> 'a1) -> (LLVMsyntax.inbounds ->
-    LLVMsyntax.typ -> sterm -> 'a1 -> list_sterm -> 'a1) -> (LLVMsyntax.extop
-    -> LLVMsyntax.typ -> sterm -> 'a1 -> LLVMsyntax.typ -> 'a1) ->
-    (LLVMsyntax.castop -> LLVMsyntax.typ -> sterm -> 'a1 -> LLVMsyntax.typ ->
-    'a1) -> (LLVMsyntax.cond -> LLVMsyntax.typ -> sterm -> 'a1 -> sterm ->
-    'a1 -> 'a1) -> (LLVMsyntax.typ -> list_sterm_l -> 'a1) -> (sterm -> 'a1
-    -> LLVMsyntax.typ -> sterm -> 'a1 -> sterm -> 'a1 -> 'a1) -> sterm -> 'a1
+    -> LLVMsyntax.typ -> sterm -> 'a1 -> LLVMsyntax.align -> 'a1) ->
+    (LLVMsyntax.inbounds -> LLVMsyntax.typ -> sterm -> 'a1 -> list_sterm ->
+    'a1) -> (LLVMsyntax.extop -> LLVMsyntax.typ -> sterm -> 'a1 ->
+    LLVMsyntax.typ -> 'a1) -> (LLVMsyntax.castop -> LLVMsyntax.typ -> sterm
+    -> 'a1 -> LLVMsyntax.typ -> 'a1) -> (LLVMsyntax.cond -> LLVMsyntax.typ ->
+    sterm -> 'a1 -> sterm -> 'a1 -> 'a1) -> (LLVMsyntax.typ -> list_sterm_l
+    -> 'a1) -> (sterm -> 'a1 -> LLVMsyntax.typ -> sterm -> 'a1 -> sterm ->
+    'a1 -> 'a1) -> sterm -> 'a1
   
   val sterm_rec :
     (LLVMsyntax.value -> 'a1) -> (LLVMsyntax.bop -> LLVMsyntax.sz -> sterm ->
@@ -2890,13 +2894,14 @@ module SimpleSE :
     LLVMsyntax.typ -> sterm -> 'a1 -> LLVMsyntax.list_const -> 'a1) -> (smem
     -> LLVMsyntax.typ -> LLVMsyntax.sz -> LLVMsyntax.align -> 'a1) -> (smem
     -> LLVMsyntax.typ -> LLVMsyntax.sz -> LLVMsyntax.align -> 'a1) -> (smem
-    -> LLVMsyntax.typ -> sterm -> 'a1 -> 'a1) -> (LLVMsyntax.inbounds ->
-    LLVMsyntax.typ -> sterm -> 'a1 -> list_sterm -> 'a1) -> (LLVMsyntax.extop
-    -> LLVMsyntax.typ -> sterm -> 'a1 -> LLVMsyntax.typ -> 'a1) ->
-    (LLVMsyntax.castop -> LLVMsyntax.typ -> sterm -> 'a1 -> LLVMsyntax.typ ->
-    'a1) -> (LLVMsyntax.cond -> LLVMsyntax.typ -> sterm -> 'a1 -> sterm ->
-    'a1 -> 'a1) -> (LLVMsyntax.typ -> list_sterm_l -> 'a1) -> (sterm -> 'a1
-    -> LLVMsyntax.typ -> sterm -> 'a1 -> sterm -> 'a1 -> 'a1) -> sterm -> 'a1
+    -> LLVMsyntax.typ -> sterm -> 'a1 -> LLVMsyntax.align -> 'a1) ->
+    (LLVMsyntax.inbounds -> LLVMsyntax.typ -> sterm -> 'a1 -> list_sterm ->
+    'a1) -> (LLVMsyntax.extop -> LLVMsyntax.typ -> sterm -> 'a1 ->
+    LLVMsyntax.typ -> 'a1) -> (LLVMsyntax.castop -> LLVMsyntax.typ -> sterm
+    -> 'a1 -> LLVMsyntax.typ -> 'a1) -> (LLVMsyntax.cond -> LLVMsyntax.typ ->
+    sterm -> 'a1 -> sterm -> 'a1 -> 'a1) -> (LLVMsyntax.typ -> list_sterm_l
+    -> 'a1) -> (sterm -> 'a1 -> LLVMsyntax.typ -> sterm -> 'a1 -> sterm ->
+    'a1 -> 'a1) -> sterm -> 'a1
   
   val list_sterm_rect :
     'a1 -> (sterm -> list_sterm -> 'a1 -> 'a1) -> list_sterm -> 'a1
@@ -2917,16 +2922,16 @@ module SimpleSE :
     LLVMsyntax.align -> 'a1) -> (smem -> 'a1 -> LLVMsyntax.typ -> sterm ->
     'a1) -> (smem -> 'a1 -> LLVMsyntax.typ -> LLVMsyntax.sz ->
     LLVMsyntax.align -> 'a1) -> (smem -> 'a1 -> LLVMsyntax.typ -> sterm ->
-    'a1) -> (smem -> 'a1 -> LLVMsyntax.typ -> sterm -> sterm -> 'a1) -> smem
-    -> 'a1
+    LLVMsyntax.align -> 'a1) -> (smem -> 'a1 -> LLVMsyntax.typ -> sterm ->
+    sterm -> LLVMsyntax.align -> 'a1) -> smem -> 'a1
   
   val smem_rec :
     'a1 -> (smem -> 'a1 -> LLVMsyntax.typ -> LLVMsyntax.sz ->
     LLVMsyntax.align -> 'a1) -> (smem -> 'a1 -> LLVMsyntax.typ -> sterm ->
     'a1) -> (smem -> 'a1 -> LLVMsyntax.typ -> LLVMsyntax.sz ->
     LLVMsyntax.align -> 'a1) -> (smem -> 'a1 -> LLVMsyntax.typ -> sterm ->
-    'a1) -> (smem -> 'a1 -> LLVMsyntax.typ -> sterm -> sterm -> 'a1) -> smem
-    -> 'a1
+    LLVMsyntax.align -> 'a1) -> (smem -> 'a1 -> LLVMsyntax.typ -> sterm ->
+    sterm -> LLVMsyntax.align -> 'a1) -> smem -> 'a1
   
   val sframe_rect :
     'a1 -> (smem -> sframe -> 'a1 -> LLVMsyntax.typ -> LLVMsyntax.sz ->
@@ -2943,22 +2948,24 @@ module SimpleSE :
     LLVMsyntax.typ -> sterm -> 'a1 -> LLVMsyntax.list_const -> 'a1) -> (smem
     -> 'a4 -> LLVMsyntax.typ -> LLVMsyntax.sz -> LLVMsyntax.align -> 'a1) ->
     (smem -> 'a4 -> LLVMsyntax.typ -> LLVMsyntax.sz -> LLVMsyntax.align ->
-    'a1) -> (smem -> 'a4 -> LLVMsyntax.typ -> sterm -> 'a1 -> 'a1) ->
-    (LLVMsyntax.inbounds -> LLVMsyntax.typ -> sterm -> 'a1 -> list_sterm ->
-    'a2 -> 'a1) -> (LLVMsyntax.extop -> LLVMsyntax.typ -> sterm -> 'a1 ->
-    LLVMsyntax.typ -> 'a1) -> (LLVMsyntax.castop -> LLVMsyntax.typ -> sterm
-    -> 'a1 -> LLVMsyntax.typ -> 'a1) -> (LLVMsyntax.cond -> LLVMsyntax.typ ->
-    sterm -> 'a1 -> sterm -> 'a1 -> 'a1) -> (LLVMsyntax.typ -> list_sterm_l
-    -> 'a3 -> 'a1) -> (sterm -> 'a1 -> LLVMsyntax.typ -> sterm -> 'a1 ->
-    sterm -> 'a1 -> 'a1) -> 'a2 -> (sterm -> 'a1 -> list_sterm -> 'a2 -> 'a2)
-    -> 'a3 -> (sterm -> 'a1 -> LLVMsyntax.l -> list_sterm_l -> 'a3 -> 'a3) ->
-    'a4 -> (smem -> 'a4 -> LLVMsyntax.typ -> LLVMsyntax.sz ->
-    LLVMsyntax.align -> 'a4) -> (smem -> 'a4 -> LLVMsyntax.typ -> sterm ->
-    'a1 -> 'a4) -> (smem -> 'a4 -> LLVMsyntax.typ -> LLVMsyntax.sz ->
-    LLVMsyntax.align -> 'a4) -> (smem -> 'a4 -> LLVMsyntax.typ -> sterm ->
-    'a1 -> 'a4) -> (smem -> 'a4 -> LLVMsyntax.typ -> sterm -> 'a1 -> sterm ->
-    'a1 -> 'a4) -> 'a5 -> (smem -> 'a4 -> sframe -> 'a5 -> LLVMsyntax.typ ->
-    LLVMsyntax.sz -> LLVMsyntax.align -> 'a5) -> sframe -> 'a5
+    'a1) -> (smem -> 'a4 -> LLVMsyntax.typ -> sterm -> 'a1 ->
+    LLVMsyntax.align -> 'a1) -> (LLVMsyntax.inbounds -> LLVMsyntax.typ ->
+    sterm -> 'a1 -> list_sterm -> 'a2 -> 'a1) -> (LLVMsyntax.extop ->
+    LLVMsyntax.typ -> sterm -> 'a1 -> LLVMsyntax.typ -> 'a1) ->
+    (LLVMsyntax.castop -> LLVMsyntax.typ -> sterm -> 'a1 -> LLVMsyntax.typ ->
+    'a1) -> (LLVMsyntax.cond -> LLVMsyntax.typ -> sterm -> 'a1 -> sterm ->
+    'a1 -> 'a1) -> (LLVMsyntax.typ -> list_sterm_l -> 'a3 -> 'a1) -> (sterm
+    -> 'a1 -> LLVMsyntax.typ -> sterm -> 'a1 -> sterm -> 'a1 -> 'a1) -> 'a2
+    -> (sterm -> 'a1 -> list_sterm -> 'a2 -> 'a2) -> 'a3 -> (sterm -> 'a1 ->
+    LLVMsyntax.l -> list_sterm_l -> 'a3 -> 'a3) -> 'a4 -> (smem -> 'a4 ->
+    LLVMsyntax.typ -> LLVMsyntax.sz -> LLVMsyntax.align -> 'a4) -> (smem ->
+    'a4 -> LLVMsyntax.typ -> sterm -> 'a1 -> 'a4) -> (smem -> 'a4 ->
+    LLVMsyntax.typ -> LLVMsyntax.sz -> LLVMsyntax.align -> 'a4) -> (smem ->
+    'a4 -> LLVMsyntax.typ -> sterm -> 'a1 -> LLVMsyntax.align -> 'a4) ->
+    (smem -> 'a4 -> LLVMsyntax.typ -> sterm -> 'a1 -> sterm -> 'a1 ->
+    LLVMsyntax.align -> 'a4) -> 'a5 -> (smem -> 'a4 -> sframe -> 'a5 ->
+    LLVMsyntax.typ -> LLVMsyntax.sz -> LLVMsyntax.align -> 'a5) -> sframe ->
+    'a5
   
   val smem_rec2 :
     (LLVMsyntax.value -> 'a1) -> (LLVMsyntax.bop -> LLVMsyntax.sz -> sterm ->
@@ -2967,22 +2974,24 @@ module SimpleSE :
     LLVMsyntax.typ -> sterm -> 'a1 -> LLVMsyntax.list_const -> 'a1) -> (smem
     -> 'a4 -> LLVMsyntax.typ -> LLVMsyntax.sz -> LLVMsyntax.align -> 'a1) ->
     (smem -> 'a4 -> LLVMsyntax.typ -> LLVMsyntax.sz -> LLVMsyntax.align ->
-    'a1) -> (smem -> 'a4 -> LLVMsyntax.typ -> sterm -> 'a1 -> 'a1) ->
-    (LLVMsyntax.inbounds -> LLVMsyntax.typ -> sterm -> 'a1 -> list_sterm ->
-    'a2 -> 'a1) -> (LLVMsyntax.extop -> LLVMsyntax.typ -> sterm -> 'a1 ->
-    LLVMsyntax.typ -> 'a1) -> (LLVMsyntax.castop -> LLVMsyntax.typ -> sterm
-    -> 'a1 -> LLVMsyntax.typ -> 'a1) -> (LLVMsyntax.cond -> LLVMsyntax.typ ->
-    sterm -> 'a1 -> sterm -> 'a1 -> 'a1) -> (LLVMsyntax.typ -> list_sterm_l
-    -> 'a3 -> 'a1) -> (sterm -> 'a1 -> LLVMsyntax.typ -> sterm -> 'a1 ->
-    sterm -> 'a1 -> 'a1) -> 'a2 -> (sterm -> 'a1 -> list_sterm -> 'a2 -> 'a2)
-    -> 'a3 -> (sterm -> 'a1 -> LLVMsyntax.l -> list_sterm_l -> 'a3 -> 'a3) ->
-    'a4 -> (smem -> 'a4 -> LLVMsyntax.typ -> LLVMsyntax.sz ->
-    LLVMsyntax.align -> 'a4) -> (smem -> 'a4 -> LLVMsyntax.typ -> sterm ->
-    'a1 -> 'a4) -> (smem -> 'a4 -> LLVMsyntax.typ -> LLVMsyntax.sz ->
-    LLVMsyntax.align -> 'a4) -> (smem -> 'a4 -> LLVMsyntax.typ -> sterm ->
-    'a1 -> 'a4) -> (smem -> 'a4 -> LLVMsyntax.typ -> sterm -> 'a1 -> sterm ->
-    'a1 -> 'a4) -> 'a5 -> (smem -> 'a4 -> sframe -> 'a5 -> LLVMsyntax.typ ->
-    LLVMsyntax.sz -> LLVMsyntax.align -> 'a5) -> smem -> 'a4
+    'a1) -> (smem -> 'a4 -> LLVMsyntax.typ -> sterm -> 'a1 ->
+    LLVMsyntax.align -> 'a1) -> (LLVMsyntax.inbounds -> LLVMsyntax.typ ->
+    sterm -> 'a1 -> list_sterm -> 'a2 -> 'a1) -> (LLVMsyntax.extop ->
+    LLVMsyntax.typ -> sterm -> 'a1 -> LLVMsyntax.typ -> 'a1) ->
+    (LLVMsyntax.castop -> LLVMsyntax.typ -> sterm -> 'a1 -> LLVMsyntax.typ ->
+    'a1) -> (LLVMsyntax.cond -> LLVMsyntax.typ -> sterm -> 'a1 -> sterm ->
+    'a1 -> 'a1) -> (LLVMsyntax.typ -> list_sterm_l -> 'a3 -> 'a1) -> (sterm
+    -> 'a1 -> LLVMsyntax.typ -> sterm -> 'a1 -> sterm -> 'a1 -> 'a1) -> 'a2
+    -> (sterm -> 'a1 -> list_sterm -> 'a2 -> 'a2) -> 'a3 -> (sterm -> 'a1 ->
+    LLVMsyntax.l -> list_sterm_l -> 'a3 -> 'a3) -> 'a4 -> (smem -> 'a4 ->
+    LLVMsyntax.typ -> LLVMsyntax.sz -> LLVMsyntax.align -> 'a4) -> (smem ->
+    'a4 -> LLVMsyntax.typ -> sterm -> 'a1 -> 'a4) -> (smem -> 'a4 ->
+    LLVMsyntax.typ -> LLVMsyntax.sz -> LLVMsyntax.align -> 'a4) -> (smem ->
+    'a4 -> LLVMsyntax.typ -> sterm -> 'a1 -> LLVMsyntax.align -> 'a4) ->
+    (smem -> 'a4 -> LLVMsyntax.typ -> sterm -> 'a1 -> sterm -> 'a1 ->
+    LLVMsyntax.align -> 'a4) -> 'a5 -> (smem -> 'a4 -> sframe -> 'a5 ->
+    LLVMsyntax.typ -> LLVMsyntax.sz -> LLVMsyntax.align -> 'a5) -> smem ->
+    'a4
   
   val list_sterm_l_rec2 :
     (LLVMsyntax.value -> 'a1) -> (LLVMsyntax.bop -> LLVMsyntax.sz -> sterm ->
@@ -2991,22 +3000,24 @@ module SimpleSE :
     LLVMsyntax.typ -> sterm -> 'a1 -> LLVMsyntax.list_const -> 'a1) -> (smem
     -> 'a4 -> LLVMsyntax.typ -> LLVMsyntax.sz -> LLVMsyntax.align -> 'a1) ->
     (smem -> 'a4 -> LLVMsyntax.typ -> LLVMsyntax.sz -> LLVMsyntax.align ->
-    'a1) -> (smem -> 'a4 -> LLVMsyntax.typ -> sterm -> 'a1 -> 'a1) ->
-    (LLVMsyntax.inbounds -> LLVMsyntax.typ -> sterm -> 'a1 -> list_sterm ->
-    'a2 -> 'a1) -> (LLVMsyntax.extop -> LLVMsyntax.typ -> sterm -> 'a1 ->
-    LLVMsyntax.typ -> 'a1) -> (LLVMsyntax.castop -> LLVMsyntax.typ -> sterm
-    -> 'a1 -> LLVMsyntax.typ -> 'a1) -> (LLVMsyntax.cond -> LLVMsyntax.typ ->
-    sterm -> 'a1 -> sterm -> 'a1 -> 'a1) -> (LLVMsyntax.typ -> list_sterm_l
-    -> 'a3 -> 'a1) -> (sterm -> 'a1 -> LLVMsyntax.typ -> sterm -> 'a1 ->
-    sterm -> 'a1 -> 'a1) -> 'a2 -> (sterm -> 'a1 -> list_sterm -> 'a2 -> 'a2)
-    -> 'a3 -> (sterm -> 'a1 -> LLVMsyntax.l -> list_sterm_l -> 'a3 -> 'a3) ->
-    'a4 -> (smem -> 'a4 -> LLVMsyntax.typ -> LLVMsyntax.sz ->
-    LLVMsyntax.align -> 'a4) -> (smem -> 'a4 -> LLVMsyntax.typ -> sterm ->
-    'a1 -> 'a4) -> (smem -> 'a4 -> LLVMsyntax.typ -> LLVMsyntax.sz ->
-    LLVMsyntax.align -> 'a4) -> (smem -> 'a4 -> LLVMsyntax.typ -> sterm ->
-    'a1 -> 'a4) -> (smem -> 'a4 -> LLVMsyntax.typ -> sterm -> 'a1 -> sterm ->
-    'a1 -> 'a4) -> 'a5 -> (smem -> 'a4 -> sframe -> 'a5 -> LLVMsyntax.typ ->
-    LLVMsyntax.sz -> LLVMsyntax.align -> 'a5) -> list_sterm_l -> 'a3
+    'a1) -> (smem -> 'a4 -> LLVMsyntax.typ -> sterm -> 'a1 ->
+    LLVMsyntax.align -> 'a1) -> (LLVMsyntax.inbounds -> LLVMsyntax.typ ->
+    sterm -> 'a1 -> list_sterm -> 'a2 -> 'a1) -> (LLVMsyntax.extop ->
+    LLVMsyntax.typ -> sterm -> 'a1 -> LLVMsyntax.typ -> 'a1) ->
+    (LLVMsyntax.castop -> LLVMsyntax.typ -> sterm -> 'a1 -> LLVMsyntax.typ ->
+    'a1) -> (LLVMsyntax.cond -> LLVMsyntax.typ -> sterm -> 'a1 -> sterm ->
+    'a1 -> 'a1) -> (LLVMsyntax.typ -> list_sterm_l -> 'a3 -> 'a1) -> (sterm
+    -> 'a1 -> LLVMsyntax.typ -> sterm -> 'a1 -> sterm -> 'a1 -> 'a1) -> 'a2
+    -> (sterm -> 'a1 -> list_sterm -> 'a2 -> 'a2) -> 'a3 -> (sterm -> 'a1 ->
+    LLVMsyntax.l -> list_sterm_l -> 'a3 -> 'a3) -> 'a4 -> (smem -> 'a4 ->
+    LLVMsyntax.typ -> LLVMsyntax.sz -> LLVMsyntax.align -> 'a4) -> (smem ->
+    'a4 -> LLVMsyntax.typ -> sterm -> 'a1 -> 'a4) -> (smem -> 'a4 ->
+    LLVMsyntax.typ -> LLVMsyntax.sz -> LLVMsyntax.align -> 'a4) -> (smem ->
+    'a4 -> LLVMsyntax.typ -> sterm -> 'a1 -> LLVMsyntax.align -> 'a4) ->
+    (smem -> 'a4 -> LLVMsyntax.typ -> sterm -> 'a1 -> sterm -> 'a1 ->
+    LLVMsyntax.align -> 'a4) -> 'a5 -> (smem -> 'a4 -> sframe -> 'a5 ->
+    LLVMsyntax.typ -> LLVMsyntax.sz -> LLVMsyntax.align -> 'a5) ->
+    list_sterm_l -> 'a3
   
   val list_sterm_rec2 :
     (LLVMsyntax.value -> 'a1) -> (LLVMsyntax.bop -> LLVMsyntax.sz -> sterm ->
@@ -3015,22 +3026,24 @@ module SimpleSE :
     LLVMsyntax.typ -> sterm -> 'a1 -> LLVMsyntax.list_const -> 'a1) -> (smem
     -> 'a4 -> LLVMsyntax.typ -> LLVMsyntax.sz -> LLVMsyntax.align -> 'a1) ->
     (smem -> 'a4 -> LLVMsyntax.typ -> LLVMsyntax.sz -> LLVMsyntax.align ->
-    'a1) -> (smem -> 'a4 -> LLVMsyntax.typ -> sterm -> 'a1 -> 'a1) ->
-    (LLVMsyntax.inbounds -> LLVMsyntax.typ -> sterm -> 'a1 -> list_sterm ->
-    'a2 -> 'a1) -> (LLVMsyntax.extop -> LLVMsyntax.typ -> sterm -> 'a1 ->
-    LLVMsyntax.typ -> 'a1) -> (LLVMsyntax.castop -> LLVMsyntax.typ -> sterm
-    -> 'a1 -> LLVMsyntax.typ -> 'a1) -> (LLVMsyntax.cond -> LLVMsyntax.typ ->
-    sterm -> 'a1 -> sterm -> 'a1 -> 'a1) -> (LLVMsyntax.typ -> list_sterm_l
-    -> 'a3 -> 'a1) -> (sterm -> 'a1 -> LLVMsyntax.typ -> sterm -> 'a1 ->
-    sterm -> 'a1 -> 'a1) -> 'a2 -> (sterm -> 'a1 -> list_sterm -> 'a2 -> 'a2)
-    -> 'a3 -> (sterm -> 'a1 -> LLVMsyntax.l -> list_sterm_l -> 'a3 -> 'a3) ->
-    'a4 -> (smem -> 'a4 -> LLVMsyntax.typ -> LLVMsyntax.sz ->
-    LLVMsyntax.align -> 'a4) -> (smem -> 'a4 -> LLVMsyntax.typ -> sterm ->
-    'a1 -> 'a4) -> (smem -> 'a4 -> LLVMsyntax.typ -> LLVMsyntax.sz ->
-    LLVMsyntax.align -> 'a4) -> (smem -> 'a4 -> LLVMsyntax.typ -> sterm ->
-    'a1 -> 'a4) -> (smem -> 'a4 -> LLVMsyntax.typ -> sterm -> 'a1 -> sterm ->
-    'a1 -> 'a4) -> 'a5 -> (smem -> 'a4 -> sframe -> 'a5 -> LLVMsyntax.typ ->
-    LLVMsyntax.sz -> LLVMsyntax.align -> 'a5) -> list_sterm -> 'a2
+    'a1) -> (smem -> 'a4 -> LLVMsyntax.typ -> sterm -> 'a1 ->
+    LLVMsyntax.align -> 'a1) -> (LLVMsyntax.inbounds -> LLVMsyntax.typ ->
+    sterm -> 'a1 -> list_sterm -> 'a2 -> 'a1) -> (LLVMsyntax.extop ->
+    LLVMsyntax.typ -> sterm -> 'a1 -> LLVMsyntax.typ -> 'a1) ->
+    (LLVMsyntax.castop -> LLVMsyntax.typ -> sterm -> 'a1 -> LLVMsyntax.typ ->
+    'a1) -> (LLVMsyntax.cond -> LLVMsyntax.typ -> sterm -> 'a1 -> sterm ->
+    'a1 -> 'a1) -> (LLVMsyntax.typ -> list_sterm_l -> 'a3 -> 'a1) -> (sterm
+    -> 'a1 -> LLVMsyntax.typ -> sterm -> 'a1 -> sterm -> 'a1 -> 'a1) -> 'a2
+    -> (sterm -> 'a1 -> list_sterm -> 'a2 -> 'a2) -> 'a3 -> (sterm -> 'a1 ->
+    LLVMsyntax.l -> list_sterm_l -> 'a3 -> 'a3) -> 'a4 -> (smem -> 'a4 ->
+    LLVMsyntax.typ -> LLVMsyntax.sz -> LLVMsyntax.align -> 'a4) -> (smem ->
+    'a4 -> LLVMsyntax.typ -> sterm -> 'a1 -> 'a4) -> (smem -> 'a4 ->
+    LLVMsyntax.typ -> LLVMsyntax.sz -> LLVMsyntax.align -> 'a4) -> (smem ->
+    'a4 -> LLVMsyntax.typ -> sterm -> 'a1 -> LLVMsyntax.align -> 'a4) ->
+    (smem -> 'a4 -> LLVMsyntax.typ -> sterm -> 'a1 -> sterm -> 'a1 ->
+    LLVMsyntax.align -> 'a4) -> 'a5 -> (smem -> 'a4 -> sframe -> 'a5 ->
+    LLVMsyntax.typ -> LLVMsyntax.sz -> LLVMsyntax.align -> 'a5) -> list_sterm
+    -> 'a2
   
   val sterm_rec2 :
     (LLVMsyntax.value -> 'a1) -> (LLVMsyntax.bop -> LLVMsyntax.sz -> sterm ->
@@ -3039,22 +3052,24 @@ module SimpleSE :
     LLVMsyntax.typ -> sterm -> 'a1 -> LLVMsyntax.list_const -> 'a1) -> (smem
     -> 'a4 -> LLVMsyntax.typ -> LLVMsyntax.sz -> LLVMsyntax.align -> 'a1) ->
     (smem -> 'a4 -> LLVMsyntax.typ -> LLVMsyntax.sz -> LLVMsyntax.align ->
-    'a1) -> (smem -> 'a4 -> LLVMsyntax.typ -> sterm -> 'a1 -> 'a1) ->
-    (LLVMsyntax.inbounds -> LLVMsyntax.typ -> sterm -> 'a1 -> list_sterm ->
-    'a2 -> 'a1) -> (LLVMsyntax.extop -> LLVMsyntax.typ -> sterm -> 'a1 ->
-    LLVMsyntax.typ -> 'a1) -> (LLVMsyntax.castop -> LLVMsyntax.typ -> sterm
-    -> 'a1 -> LLVMsyntax.typ -> 'a1) -> (LLVMsyntax.cond -> LLVMsyntax.typ ->
-    sterm -> 'a1 -> sterm -> 'a1 -> 'a1) -> (LLVMsyntax.typ -> list_sterm_l
-    -> 'a3 -> 'a1) -> (sterm -> 'a1 -> LLVMsyntax.typ -> sterm -> 'a1 ->
-    sterm -> 'a1 -> 'a1) -> 'a2 -> (sterm -> 'a1 -> list_sterm -> 'a2 -> 'a2)
-    -> 'a3 -> (sterm -> 'a1 -> LLVMsyntax.l -> list_sterm_l -> 'a3 -> 'a3) ->
-    'a4 -> (smem -> 'a4 -> LLVMsyntax.typ -> LLVMsyntax.sz ->
-    LLVMsyntax.align -> 'a4) -> (smem -> 'a4 -> LLVMsyntax.typ -> sterm ->
-    'a1 -> 'a4) -> (smem -> 'a4 -> LLVMsyntax.typ -> LLVMsyntax.sz ->
-    LLVMsyntax.align -> 'a4) -> (smem -> 'a4 -> LLVMsyntax.typ -> sterm ->
-    'a1 -> 'a4) -> (smem -> 'a4 -> LLVMsyntax.typ -> sterm -> 'a1 -> sterm ->
-    'a1 -> 'a4) -> 'a5 -> (smem -> 'a4 -> sframe -> 'a5 -> LLVMsyntax.typ ->
-    LLVMsyntax.sz -> LLVMsyntax.align -> 'a5) -> sterm -> 'a1
+    'a1) -> (smem -> 'a4 -> LLVMsyntax.typ -> sterm -> 'a1 ->
+    LLVMsyntax.align -> 'a1) -> (LLVMsyntax.inbounds -> LLVMsyntax.typ ->
+    sterm -> 'a1 -> list_sterm -> 'a2 -> 'a1) -> (LLVMsyntax.extop ->
+    LLVMsyntax.typ -> sterm -> 'a1 -> LLVMsyntax.typ -> 'a1) ->
+    (LLVMsyntax.castop -> LLVMsyntax.typ -> sterm -> 'a1 -> LLVMsyntax.typ ->
+    'a1) -> (LLVMsyntax.cond -> LLVMsyntax.typ -> sterm -> 'a1 -> sterm ->
+    'a1 -> 'a1) -> (LLVMsyntax.typ -> list_sterm_l -> 'a3 -> 'a1) -> (sterm
+    -> 'a1 -> LLVMsyntax.typ -> sterm -> 'a1 -> sterm -> 'a1 -> 'a1) -> 'a2
+    -> (sterm -> 'a1 -> list_sterm -> 'a2 -> 'a2) -> 'a3 -> (sterm -> 'a1 ->
+    LLVMsyntax.l -> list_sterm_l -> 'a3 -> 'a3) -> 'a4 -> (smem -> 'a4 ->
+    LLVMsyntax.typ -> LLVMsyntax.sz -> LLVMsyntax.align -> 'a4) -> (smem ->
+    'a4 -> LLVMsyntax.typ -> sterm -> 'a1 -> 'a4) -> (smem -> 'a4 ->
+    LLVMsyntax.typ -> LLVMsyntax.sz -> LLVMsyntax.align -> 'a4) -> (smem ->
+    'a4 -> LLVMsyntax.typ -> sterm -> 'a1 -> LLVMsyntax.align -> 'a4) ->
+    (smem -> 'a4 -> LLVMsyntax.typ -> sterm -> 'a1 -> sterm -> 'a1 ->
+    LLVMsyntax.align -> 'a4) -> 'a5 -> (smem -> 'a4 -> sframe -> 'a5 ->
+    LLVMsyntax.typ -> LLVMsyntax.sz -> LLVMsyntax.align -> 'a5) -> sterm ->
+    'a1
   
   val se_mutrec :
     (LLVMsyntax.value -> 'a1) -> (LLVMsyntax.bop -> LLVMsyntax.sz -> sterm ->
@@ -3063,24 +3078,25 @@ module SimpleSE :
     LLVMsyntax.typ -> sterm -> 'a1 -> LLVMsyntax.list_const -> 'a1) -> (smem
     -> 'a4 -> LLVMsyntax.typ -> LLVMsyntax.sz -> LLVMsyntax.align -> 'a1) ->
     (smem -> 'a4 -> LLVMsyntax.typ -> LLVMsyntax.sz -> LLVMsyntax.align ->
-    'a1) -> (smem -> 'a4 -> LLVMsyntax.typ -> sterm -> 'a1 -> 'a1) ->
-    (LLVMsyntax.inbounds -> LLVMsyntax.typ -> sterm -> 'a1 -> list_sterm ->
-    'a2 -> 'a1) -> (LLVMsyntax.extop -> LLVMsyntax.typ -> sterm -> 'a1 ->
-    LLVMsyntax.typ -> 'a1) -> (LLVMsyntax.castop -> LLVMsyntax.typ -> sterm
-    -> 'a1 -> LLVMsyntax.typ -> 'a1) -> (LLVMsyntax.cond -> LLVMsyntax.typ ->
-    sterm -> 'a1 -> sterm -> 'a1 -> 'a1) -> (LLVMsyntax.typ -> list_sterm_l
-    -> 'a3 -> 'a1) -> (sterm -> 'a1 -> LLVMsyntax.typ -> sterm -> 'a1 ->
-    sterm -> 'a1 -> 'a1) -> 'a2 -> (sterm -> 'a1 -> list_sterm -> 'a2 -> 'a2)
-    -> 'a3 -> (sterm -> 'a1 -> LLVMsyntax.l -> list_sterm_l -> 'a3 -> 'a3) ->
-    'a4 -> (smem -> 'a4 -> LLVMsyntax.typ -> LLVMsyntax.sz ->
-    LLVMsyntax.align -> 'a4) -> (smem -> 'a4 -> LLVMsyntax.typ -> sterm ->
-    'a1 -> 'a4) -> (smem -> 'a4 -> LLVMsyntax.typ -> LLVMsyntax.sz ->
-    LLVMsyntax.align -> 'a4) -> (smem -> 'a4 -> LLVMsyntax.typ -> sterm ->
-    'a1 -> 'a4) -> (smem -> 'a4 -> LLVMsyntax.typ -> sterm -> 'a1 -> sterm ->
-    'a1 -> 'a4) -> 'a5 -> (smem -> 'a4 -> sframe -> 'a5 -> LLVMsyntax.typ ->
-    LLVMsyntax.sz -> LLVMsyntax.align -> 'a5) -> ((((sterm -> 'a1, list_sterm
-    -> 'a2) prod, list_sterm_l -> 'a3) prod, smem -> 'a4) prod, sframe ->
-    'a5) prod
+    'a1) -> (smem -> 'a4 -> LLVMsyntax.typ -> sterm -> 'a1 ->
+    LLVMsyntax.align -> 'a1) -> (LLVMsyntax.inbounds -> LLVMsyntax.typ ->
+    sterm -> 'a1 -> list_sterm -> 'a2 -> 'a1) -> (LLVMsyntax.extop ->
+    LLVMsyntax.typ -> sterm -> 'a1 -> LLVMsyntax.typ -> 'a1) ->
+    (LLVMsyntax.castop -> LLVMsyntax.typ -> sterm -> 'a1 -> LLVMsyntax.typ ->
+    'a1) -> (LLVMsyntax.cond -> LLVMsyntax.typ -> sterm -> 'a1 -> sterm ->
+    'a1 -> 'a1) -> (LLVMsyntax.typ -> list_sterm_l -> 'a3 -> 'a1) -> (sterm
+    -> 'a1 -> LLVMsyntax.typ -> sterm -> 'a1 -> sterm -> 'a1 -> 'a1) -> 'a2
+    -> (sterm -> 'a1 -> list_sterm -> 'a2 -> 'a2) -> 'a3 -> (sterm -> 'a1 ->
+    LLVMsyntax.l -> list_sterm_l -> 'a3 -> 'a3) -> 'a4 -> (smem -> 'a4 ->
+    LLVMsyntax.typ -> LLVMsyntax.sz -> LLVMsyntax.align -> 'a4) -> (smem ->
+    'a4 -> LLVMsyntax.typ -> sterm -> 'a1 -> 'a4) -> (smem -> 'a4 ->
+    LLVMsyntax.typ -> LLVMsyntax.sz -> LLVMsyntax.align -> 'a4) -> (smem ->
+    'a4 -> LLVMsyntax.typ -> sterm -> 'a1 -> LLVMsyntax.align -> 'a4) ->
+    (smem -> 'a4 -> LLVMsyntax.typ -> sterm -> 'a1 -> sterm -> 'a1 ->
+    LLVMsyntax.align -> 'a4) -> 'a5 -> (smem -> 'a4 -> sframe -> 'a5 ->
+    LLVMsyntax.typ -> LLVMsyntax.sz -> LLVMsyntax.align -> 'a5) -> ((((sterm
+    -> 'a1) * (list_sterm -> 'a2)) * (list_sterm_l -> 'a3)) * (smem -> 'a4))
+    * (sframe -> 'a5)
   
   val map_list_sterm : (sterm -> 'a1) -> list_sterm -> 'a1 list
   
@@ -3095,12 +3111,11 @@ module SimpleSE :
   val map_list_sterm_l :
     (sterm -> LLVMsyntax.l -> 'a1) -> list_sterm_l -> 'a1 list
   
-  val make_list_sterm_l : (sterm, LLVMsyntax.l) prod list -> list_sterm_l
+  val make_list_sterm_l : (sterm * LLVMsyntax.l) list -> list_sterm_l
   
-  val unmake_list_sterm_l : list_sterm_l -> (sterm, LLVMsyntax.l) prod list
+  val unmake_list_sterm_l : list_sterm_l -> (sterm * LLVMsyntax.l) list
   
-  val nth_list_sterm_l :
-    nat -> list_sterm_l -> (sterm, LLVMsyntax.l) prod option
+  val nth_list_sterm_l : nat -> list_sterm_l -> (sterm * LLVMsyntax.l) option
   
   val app_list_sterm_l : list_sterm_l -> list_sterm_l -> list_sterm_l
   
@@ -3126,19 +3141,17 @@ module SimpleSE :
   type scall =
     | Coq_stmn_call of LLVMsyntax.id * LLVMsyntax.noret * 
        LLVMsyntax.tailc * LLVMsyntax.typ * LLVMsyntax.id
-       * (LLVMsyntax.typ, sterm) prod list
+       * (LLVMsyntax.typ * sterm) list
   
   val scall_rect :
     (LLVMsyntax.id -> LLVMsyntax.noret -> LLVMsyntax.tailc -> LLVMsyntax.typ
-    -> LLVMsyntax.id -> (LLVMsyntax.typ, sterm) prod list -> 'a1) -> scall ->
-    'a1
+    -> LLVMsyntax.id -> (LLVMsyntax.typ * sterm) list -> 'a1) -> scall -> 'a1
   
   val scall_rec :
     (LLVMsyntax.id -> LLVMsyntax.noret -> LLVMsyntax.tailc -> LLVMsyntax.typ
-    -> LLVMsyntax.id -> (LLVMsyntax.typ, sterm) prod list -> 'a1) -> scall ->
-    'a1
+    -> LLVMsyntax.id -> (LLVMsyntax.typ * sterm) list -> 'a1) -> scall -> 'a1
   
-  type smap = (AtomImpl.atom, sterm) prod list
+  type smap = (AtomImpl.atom * sterm) list
   
   type sstate = { coq_STerms : smap; coq_SMem : smem; coq_SFrame : 
                   sframe; coq_SEffects : sterm list }
@@ -3164,7 +3177,7 @@ module SimpleSE :
   val value2Sterm : smap -> LLVMsyntax.value -> sterm
   
   val list_param__list_typ_subst_sterm :
-    LLVMsyntax.params -> smap -> (LLVMsyntax.typ, sterm) prod list
+    LLVMsyntax.params -> smap -> (LLVMsyntax.typ * sterm) list
   
   val se_cmd : sstate -> nbranch -> sstate
   
@@ -3206,10 +3219,9 @@ type smem_dec_prop = SimpleSE.smem -> bool
 type sframe_dec_prop = SimpleSE.sframe -> bool
 
 val se_dec :
-  ((((SimpleSE.sterm -> sterm_dec_prop, SimpleSE.list_sterm ->
-  list_sterm_dec_prop) prod, SimpleSE.list_sterm_l -> list_sterm_l_dec_prop)
-  prod, SimpleSE.smem -> smem_dec_prop) prod, SimpleSE.sframe ->
-  sframe_dec_prop) prod
+  ((((SimpleSE.sterm -> sterm_dec_prop) * (SimpleSE.list_sterm ->
+  list_sterm_dec_prop)) * (SimpleSE.list_sterm_l -> list_sterm_l_dec_prop)) *
+  (SimpleSE.smem -> smem_dec_prop)) * (SimpleSE.sframe -> sframe_dec_prop)
 
 val smap_dec : SimpleSE.smap -> SimpleSE.smap -> bool
 

@@ -248,8 +248,8 @@ Proof.
 
   Case "insn_load".
     split; simpl; eauto.
-      apply getOperandPtr_inversion in H11.
-      destruct H11 as [gv2 [J1 J2]].
+      apply getOperandPtr_inversion in H12.
+      destruct H12 as [gv2 [J1 J2]].
       split.
         intros id' id'_indom.
         simpl in id'_indom. simpl. 
@@ -280,8 +280,8 @@ Proof.
       destruct Hsterm_denotes as [J1 J2].
       split; auto.
     split; auto.
-      apply getOperandPtr_inversion in H13.
-      destruct H13 as [gv2 [J1 J2]].
+      apply getOperandPtr_inversion in H14.
+      destruct H14 as [gv2 [J1 J2]].
       eapply smem_store_denotes; 
         eauto using genericvalue__implies__value2Sterm_denotes.
 
