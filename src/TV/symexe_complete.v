@@ -418,11 +418,11 @@ Proof.
           apply getOperandInt_inversion in H13. destruct H13 as [gv5 [J1 J2]].
           destruct cond0; rewrite lookupAL_updateAddAL_eq;
                           rewrite lookupSmap_updateAddAL_eq; auto.
-            exists gv1.
+            exists gv2.
             split; auto.
               apply sterm_select_denotes with (c0:=0)(gv0:=gv5)(gv1:=gv1)(gv2:=gv2); eauto using genericvalue__implies__value2Sterm_denotes.
 
-            exists gv2.
+            exists gv1.
             split; auto.
               apply sterm_select_denotes with (c0:=Datatypes.S cond0)(gv0:=gv5)(gv1:=gv1)(gv2:=gv2); eauto using genericvalue__implies__value2Sterm_denotes.
 

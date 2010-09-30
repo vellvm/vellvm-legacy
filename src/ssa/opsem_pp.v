@@ -350,7 +350,7 @@ Case "dbIcmp".
 Case "dbSelect".
   inversion H; subst.
   exists l0. exists ps. exists cs. exists tmn0.
-  exists (if c then updateAddAL _ lc0 id0 gv1 else updateAddAL _ lc0 id0 gv2). exists als0. exists Mem1.
+  exists (if c then updateAddAL _ lc0 id0 gv2 else updateAddAL _ lc0 id0 gv1). exists als0. exists Mem1.
   exists cs1. split; auto.
 
 Case "dbCall".

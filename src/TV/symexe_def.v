@@ -141,11 +141,10 @@ Inductive dbCmd : layouts ->  GVMap ->
   getOperandInt TD 1 v0 lc gl = Some cond ->
   getOperandValue TD v1 lc gl = Some gv1 ->
   getOperandValue TD v2 lc gl = Some gv2 ->
-  
   dbCmd TD gl
     lc als Mem
     (insn_select id v0 t v1 v2)
-    (if cond then updateAddAL _ lc id gv1 else updateAddAL _ lc id gv2) als Mem
+    (if cond then updateAddAL _ lc id gv2 else updateAddAL _ lc id gv1) als Mem
     trace_nil
 .
 
@@ -417,7 +416,7 @@ Case "dbSelect".
   rewrite getOperandValue_eqAL with (lc2:=lc1') in H0; auto. 
   rewrite getOperandValue_eqAL with (lc2:=lc1') in H1; auto. 
   assert (HupdateEnv:=HeqEnv).
-  exists (if cond0 then updateAddAL _ lc1' id0 gv1 else updateAddAL _ lc1' id0 gv2).
+  exists (if cond0 then updateAddAL _ lc1' id0 gv2 else updateAddAL _ lc1' id0 gv1).
   split; auto.
     destruct cond0; auto using eqAL_updateAddAL.
 Qed.
@@ -1818,7 +1817,7 @@ Inductive sterm_denotes_genericvalue :
   sterm_denotes_genericvalue TD lc gl Mem st1 gv1 ->
   sterm_denotes_genericvalue TD lc gl Mem st2 gv2 ->
   GV2nat TD 1 gv0 = Some c0 ->
-  (if c0 then gv1 else gv2) = gv3 -> 
+  (if c0 then gv2 else gv1) = gv3 -> 
   sterm_denotes_genericvalue TD lc gl Mem (sterm_select st0 t0 st1 st2) gv3
 with sterms_denote_genericvalues : 
    layouts ->               (* CurTatgetData *)

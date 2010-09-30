@@ -265,7 +265,7 @@ Proof.
     apply value2Sterm_denotes__implies__genericvalue with (lc:=lc)(gl:=gl) in H5; auto.
     apply value2Sterm_denotes__implies__genericvalue with (lc:=lc)(gl:=gl) in H10; auto.
     apply value2Sterm_denotes__implies__genericvalue with (lc:=lc)(gl:=gl) in H12; auto.
-    exists (if c0 then updateAddAL _ lc i0 gv1 else updateAddAL _ lc i0 gv2). exists als. exists Mem1. exists trace_nil. 
+    exists (if c0 then updateAddAL _ lc i0 gv2 else updateAddAL _ lc i0 gv1). exists als. exists Mem1. exists trace_nil. 
     assert (getOperandInt TD 1 v lc gl = Some c0) as J.
       unfold getOperandInt. rewrite H5. auto.
     split; eauto.

@@ -8,7 +8,7 @@ all:
 	+make ott 
 	+make -C ./llvm_op
 
-ott: main.pdf ssa.vo ssa_dynamic.vo opsem_conv.vo opsem_pp.vo
+ott: main.pdf ssa.vo ssa_dynamic.vo opsem_conv.vo opsem_pp.vo ssa_extract.vo
 
 assoclist.vo : assoclist.v
 	$(COQC) $(COQARG) assoclist.v
@@ -53,6 +53,9 @@ genericvalues.vo: ssa.vo tactics.vo ssa_mem.vo trace.vo genericvalues.v assoclis
 
 ssa_dynamic.vo: ssa_dynamic.v ssa.vo tactics.vo ssa_mem.vo trace.vo genericvalues.vo assoclist.vo
 	$(COQC) $(COQARG) ssa_dynamic.v
+
+ssa_extract.vo: ssa_extract.v ssa_dynamic.vo ssa.vo tactics.vo ssa_mem.vo trace.vo genericvalues.vo assoclist.vo
+	$(COQC) $(COQARG) ssa_extract.v
 
 ssa_props.vo: ssa_props.v ssa.vo genericvalues.vo assoclist.vo
 	$(COQC) $(COQARG) ssa_props.v

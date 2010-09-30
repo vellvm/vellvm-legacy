@@ -724,7 +724,7 @@ Proof.
     apply nsop_plus_trans with (states2:=(mkState S TD Ps (mkEC F B cs tmn (updateAddAL _ lc id0 gv3) arg0 als::EC) gl Mem0, tr)::nil); 
       try solve [auto | rewrite app_nil_end; eauto].
   Case "nbSelect".
-    apply nsop_plus_trans with (states2:=(mkState S TD Ps (mkEC F B cs tmn (if c then updateAddAL _ lc id0 gv1 else updateAddAL _ lc id0 gv2) arg0 als::EC) gl Mem0, tr)::nil); 
+    apply nsop_plus_trans with (states2:=(mkState S TD Ps (mkEC F B cs tmn (if c then updateAddAL _ lc id0 gv2 else updateAddAL _ lc id0 gv1) arg0 als::EC) gl Mem0, tr)::nil); 
       try solve [auto | rewrite app_nil_end; eauto].
   Case "nbCall".
     inversion n. subst.

@@ -35,7 +35,7 @@ Definition ECStack := list ExecutionContext.
 
 Record State : Set := mkState {
 CurSystem      : system;
-CurTatgetData  : layouts;
+CurTargetData  : layouts;
 CurProducts    : list product;
 ECS            : ECStack;
 Globals        : GVMap;
@@ -44,7 +44,7 @@ Mem            : mem
 
 Inductive wfState : State -> Prop :=
 | wfState_intro : forall state,
-  In (module_intro state.(CurTatgetData) state.(CurProducts)) state.(CurSystem) ->
+  In (module_intro state.(CurTargetData) state.(CurProducts)) state.(CurSystem) ->
   wfState state
 .
 
@@ -257,7 +257,7 @@ Inductive dsInsn : State -> State -> trace -> Prop :=
   getOperandValue TD v2 lc gl = Some gv2 ->
   dsInsn 
     (mkState S TD Ps ((mkEC F B ((insn_select id v0 t v1 v2)::cs) tmn lc arg als)::EC) gl Mem) 
-    (mkState S TD Ps ((mkEC F B cs tmn (if c then updateAddAL _ lc id gv1 else updateAddAL _ lc id gv2) arg als)::EC) gl Mem)
+    (mkState S TD Ps ((mkEC F B cs tmn (if c then updateAddAL _ lc id gv2 else updateAddAL _ lc id gv1) arg als)::EC) gl Mem)
     trace_nil
 | dsCall : forall S TD Ps F B lc gl arg rid noret tailc fid lp cs tmn
                             l' ps' cs' tmn' EC rt la lb Mem als,
@@ -521,7 +521,7 @@ Inductive nsInsn : State*trace -> States -> Prop :=
   getOperandValue TD v2 lc gl = Some gv2 ->
   nsInsn 
     (mkState S TD Ps ((mkEC F B ((insn_select id v0 t v1 v2)::cs) tmn lc arg als)::EC) gl Mem, tr) 
-    ((mkState S TD Ps ((mkEC F B cs tmn (if c then updateAddAL _ lc id gv1 else updateAddAL _ lc id gv2) arg als)::EC) gl Mem, tr)::nil)
+    ((mkState S TD Ps ((mkEC F B cs tmn (if c then updateAddAL _ lc id gv2 else updateAddAL _ lc id gv1) arg als)::EC) gl Mem, tr)::nil)
 | nsCall : forall S TD Ps F B lc gl arg rid noret tailc fid lp cs tmn
                             Oparg' arg' l' ps' cs' tmn' EC rt id la lb tr Mem als,
   params2OpGVs TD lp lc gl = Oparg' ->   
@@ -770,7 +770,7 @@ Inductive dbInsn : State -> State -> trace -> Prop :=
   getOperandValue TD v2 lc gl = Some gv2 ->
   dbInsn 
     (mkState S TD Ps ((mkEC F B ((insn_select id v0 t v1 v2)::cs) tmn lc arg als)::EC) gl Mem) 
-    (mkState S TD Ps ((mkEC F B cs tmn (if c then updateAddAL _ lc id gv1 else updateAddAL _ lc id gv2) arg als)::EC) gl Mem)
+    (mkState S TD Ps ((mkEC F B cs tmn (if c then updateAddAL _ lc id gv2 else updateAddAL _ lc id gv1) arg als)::EC) gl Mem)
     trace_nil
 | dbCall : forall S TD Ps F B lc gl arg rid noret tailc rt fid lp cs tmn
                        EC Rid oResult tr B' lc' Mem Mem' als' als Mem'',
@@ -1029,7 +1029,7 @@ Inductive nbInsn : State*trace -> States -> Prop :=
   getOperandValue TD v2 lc gl = Some gv2 ->
   nbInsn 
     (mkState S TD Ps ((mkEC F B ((insn_select id v0 t v1 v2)::cs) tmn lc arg als)::EC) gl Mem, tr) 
-    ((mkState S TD Ps ((mkEC F B cs tmn (if c then updateAddAL _ lc id gv1 else updateAddAL _ lc id gv2) arg als)::EC) gl Mem, tr)::nil)
+    ((mkState S TD Ps ((mkEC F B cs tmn (if c then updateAddAL _ lc id gv2 else updateAddAL _ lc id gv1) arg als)::EC) gl Mem, tr)::nil)
 | nbCall : forall S TD Ps F B lc gl arg rid noret tailc rt fid lp cs tmn
                             EC tr lc_als_Mem_block_rid_ore_trs Mem als states, 
   nbFdef fid rt lp S TD Ps ((mkEC F B ((insn_call rid noret tailc rt fid lp)::cs) tmn lc arg als)::EC) lc gl Mem tr lc_als_Mem_block_rid_ore_trs ->
