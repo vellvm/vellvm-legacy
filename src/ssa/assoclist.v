@@ -1,4 +1,4 @@
-Add LoadPath "../../../theory/metatheory".
+(*Add LoadPath "../../../theory/metatheory".*)
 Require Import Metatheory.
 
 Section MoreDom.
@@ -151,7 +151,7 @@ Lemma lookupAL_updateAddAL_neq : forall m id0 id1 gv0,
   lookupAL m id1 = lookupAL (updateAddAL m id0 gv0) id1.
 Proof.
   induction m; intros; simpl; auto.
-    destruct (id1==id0); subst; auto.
+    destruct (@eq_dec atom (@EqDec_eq_of_EqDec atom EqDec_atom) id1 id0); subst; auto.
       contradict H; auto.
 
     destruct a.
@@ -178,7 +178,7 @@ Proof.
     simpl in H. inversion H.
 
     simpl in H. destruct a. 
-    destruct (id0==a); subst; simpl; auto.
+    destruct (@eq_dec atom (@EqDec_eq_of_EqDec atom EqDec_atom) id0 a); subst; simpl; auto.
       apply IHm in H; auto.
 Qed.  
 
@@ -191,7 +191,7 @@ Proof.
     auto.
 
     simpl in H. destruct a. 
-    destruct (id0==a); subst; simpl; auto.
+    destruct (@eq_dec atom (@EqDec_eq_of_EqDec atom EqDec_atom) id0 a); subst; simpl; auto.
       inversion H.
 Qed.
 
@@ -215,11 +215,11 @@ Proof.
   induction m; intros id0 Uniq; simpl; auto.
   destruct a.
   inversion Uniq; subst.
-  destruct (id0==a); subst.
+  destruct (@eq_dec atom (@EqDec_eq_of_EqDec atom EqDec_atom) id0 a); subst.
     apply notin_lookupAL_None; auto.
 
     simpl.
-    destruct (id0==a); subst; auto.
+    destruct (@eq_dec atom (@EqDec_eq_of_EqDec atom EqDec_atom) id0 a); subst; auto.
       contradict n; auto.
 Qed.
 
@@ -318,7 +318,7 @@ Lemma updateAddAL_dom_eq : forall sm id0 st0,
 Proof.
   induction sm; intros; simpl; try solve [fsetdec].
     destruct a. 
-    destruct (id0==a); simpl; try solve [fsetdec].
+    destruct (@eq_dec atom (@EqDec_eq_of_EqDec atom EqDec_atom) id0 a); simpl; try solve [fsetdec].
       assert (J:=@IHsm id0 st0). fsetdec.
 Qed.
 
@@ -330,7 +330,7 @@ Proof.
     destruct a.
 
     destruct_uniq.
-    destruct (id0==a); subst; try solve [solve_uniq].
+    destruct (@eq_dec atom (@EqDec_eq_of_EqDec atom EqDec_atom) id0 a); subst; try solve [solve_uniq].
       apply IHsm with (id0:=id0)(st0:=st0) in H. 
       assert (J:=@updateAddAL_dom_eq sm id0 st0).
       solve_uniq.
@@ -346,7 +346,7 @@ Proof.
 
     destruct a.
     inversion Uniq; subst.
-    destruct (id0==a); subst.
+    destruct (@eq_dec atom (@EqDec_eq_of_EqDec atom EqDec_atom) id0 a); subst.
       analyze_binds Binds.
       left. split; auto.
         apply binds_In in BindsTac.
@@ -368,7 +368,7 @@ Proof.
 
     destruct a.
     inversion Uniq; subst.
-    destruct (id0==a); subst.      
+    destruct (@eq_dec atom (@EqDec_eq_of_EqDec atom EqDec_atom) id0 a); subst.      
       destruct (@in_dom_cons_inv _ _ _ _ _ Hin) as [EQ | id1_in_sm]; subst; auto.
         left. split; fsetdec.
 
@@ -382,7 +382,7 @@ Lemma binds_updateAddAL_eq : forall sm id0 st0,
 Proof.
   induction sm; intros id0 st0; simpl; auto.
     destruct a.
-    destruct (id0 == a); subst; auto.
+    destruct (@eq_dec atom (@EqDec_eq_of_EqDec atom EqDec_atom) id0 a); subst; auto.
 Qed.
 
 Lemma binds_updateAddAL_neq : forall sm id0 st0 id1 st1,
@@ -394,10 +394,10 @@ Proof.
     destruct a.
     simpl_env in Hbinds.
     analyze_binds Hbinds.
-      destruct (id0 == a); subst; auto.
+      destruct (@eq_dec atom (@EqDec_eq_of_EqDec atom EqDec_atom) id0 a); subst; auto.
         contradict id0_neq_id1; auto.
 
-      destruct (id0 == a); subst; auto.
+      destruct (@eq_dec atom (@EqDec_eq_of_EqDec atom EqDec_atom) id0 a); subst; auto.
 Qed.
 
 Lemma in_updateAddAL_eq : forall sm id0 st0,
@@ -405,7 +405,7 @@ Lemma in_updateAddAL_eq : forall sm id0 st0,
 Proof.
   induction sm; intros id0 st0; simpl; auto.
     destruct a.
-    destruct (id0 == a); subst; simpl; auto.
+    destruct (@eq_dec atom (@EqDec_eq_of_EqDec atom EqDec_atom) id0 a); subst; simpl; auto.
 Qed.
 
 Lemma in_updateAddAL_neq : forall sm id0 st0 id1,
@@ -417,8 +417,8 @@ Proof.
     destruct a.
     apply in_dom_cons_inv in Hbinds.
     destruct Hbinds; subst.
-      destruct (id0 == a); subst; simpl; auto.
-      destruct (id0 == a); subst; simpl; auto.
+      destruct (@eq_dec atom (@EqDec_eq_of_EqDec atom EqDec_atom) id0 a); subst; simpl; auto.
+      destruct (@eq_dec atom (@EqDec_eq_of_EqDec atom EqDec_atom) id0 a); subst; simpl; auto.
 Qed.
 
 Lemma mergeALs_inv : forall l2b l2b' B l0,
@@ -431,7 +431,7 @@ Proof.
   induction l2b; auto.
     destruct a. simpl in *.
     inversion H; subst.
-    destruct (l0==a); subst; auto.
+    destruct (@eq_dec atom (@EqDec_eq_of_EqDec atom EqDec_atom) l0 a); subst; auto.
 Qed.
 
 Lemma mergeALs_app : forall l2b l2b' B l0,
@@ -447,9 +447,9 @@ Proof.
     destruct a. simpl in H. 
     inversion H; subst. clear H.
     destruct H0 as [H0 | H0]; simpl in *.
-      destruct (l0==a); subst; auto.
+      destruct (@eq_dec atom (@EqDec_eq_of_EqDec atom EqDec_atom) l0 a); subst; auto.
         
-      destruct (l0==a); subst; auto.
+      destruct (@eq_dec atom (@EqDec_eq_of_EqDec atom EqDec_atom) l0 a); subst; auto.
         apply lookupAL_Some_indom in H0.
         contradict H0; auto.
 Qed.

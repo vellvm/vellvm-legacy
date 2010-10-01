@@ -1,7 +1,7 @@
 Add LoadPath "../ssa/ott".
 Add LoadPath "../ssa/monads".
 Add LoadPath "../ssa".
-Add LoadPath "../../../theory/metatheory".
+(*Add LoadPath "../../../theory/metatheory".*)
 Require Import ssa.
 Require Import List.
 Require Import targetdata.
@@ -751,7 +751,7 @@ Proof.
             destruct (cmds2sbs c0).
             bdestruct5 J1 as J11 J12 J13 J14 J15.
             sumbool_subst.
-            destruct (l0==l2); inversion H2; subst; auto.
+            destruct (@eq_dec atom (EqDec_eq_of_EqDec atom EqDec_atom) l0 l2); inversion H2; subst; auto.
 
         simpl_env in K. apply uniqBlocks_inv in K. destruct K.
         assert (K':=H0). apply uniqBlocks__uniqLabel2Block in K'.
@@ -943,7 +943,7 @@ Proof.
       sumbool_subst.
       simpl in *.
       remember (getFheaderID f0) as R.
-      destruct (R==fid); subst.
+      destruct (@eq_dec id (EqDec_eq_of_EqDec id EqDec_atom) R fid); subst.
         inversion H0. subst b. 
         exists b0. split; auto.
 

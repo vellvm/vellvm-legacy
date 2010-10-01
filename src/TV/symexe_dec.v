@@ -1,7 +1,7 @@
 Add LoadPath "../ssa/ott".
 Add LoadPath "../ssa/monads".
 Add LoadPath "../ssa".
-Add LoadPath "../../../theory/metatheory".
+(*Add LoadPath "../../../theory/metatheory".*)
 Require Import ssa.
 Require Import List.
 Require Import targetdata.

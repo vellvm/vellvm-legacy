@@ -1,6 +1,6 @@
 Add LoadPath "./ott".
 Add LoadPath "./monads".
-Add LoadPath "../../../theory/metatheory".
+(* Add LoadPath "../../../theory/metatheory". *)
 Require Import Zpower.
 Require Import Zdiv.
 Require Import List.

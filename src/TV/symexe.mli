@@ -13,9 +13,13 @@ type ('a, 'b) sum =
   | Inl of 'a
   | Inr of 'b
 
-val fst : ('a1 * 'a2) -> 'a1
+val fst : ('a1*'a2) -> 'a1
 
-val snd : ('a1 * 'a2) -> 'a2
+val snd : ('a1*'a2) -> 'a2
+
+val length : 'a1 list -> nat
+
+val app : 'a1 list -> 'a1 list -> 'a1 list
 
 type 'a sig0 = 'a
   (* singleton inductive, whose constructor was exist *)
@@ -30,13 +34,32 @@ val plus : nat -> nat -> nat
 
 val eq_nat_dec : nat -> nat -> bool
 
+val flip : ('a1 -> 'a2 -> 'a3) -> 'a2 -> 'a1 -> 'a3
+
+module type DecidableType = 
+ sig 
+  type t 
+  
+  val eq_dec : t -> t -> bool
+ end
+
+module type DecidableTypeOrig = 
+ sig 
+  type t 
+  
+  val eq_dec : t -> t -> bool
+ end
+
+module type UsualDecidableTypeOrig = 
+ sig 
+  type t 
+  
+  val eq_dec : t -> t -> bool
+ end
+
 val max : nat -> nat -> nat
 
 val bool_dec : bool -> bool -> bool
-
-val length : 'a1 list -> nat
-
-val app : 'a1 list -> 'a1 list -> 'a1 list
 
 val in_dec : ('a1 -> 'a1 -> bool) -> 'a1 -> 'a1 list -> bool
 
@@ -62,22 +85,14 @@ val set_inter : ('a1 -> 'a1 -> bool) -> 'a1 set -> 'a1 set -> 'a1 set
 
 val set_union : ('a1 -> 'a1 -> bool) -> 'a1 set -> 'a1 set -> 'a1 set
 
-module type DecidableType = 
- sig 
-  type t 
-  
-  val eq_dec : t -> t -> bool
- end
+module type Coq_DecidableType = 
+ DecidableTypeOrig
 
 module type UsualDecidableType = 
- sig 
-  type t 
-  
-  val eq_dec : t -> t -> bool
- end
+ UsualDecidableTypeOrig
 
 module WFacts_fun : 
- functor (E:DecidableType) ->
+ functor (E:Coq_DecidableType) ->
  functor (M:sig 
   type elt = E.t
   
@@ -115,7 +130,7 @@ module WFacts_fun :
   
   val filter : (elt -> bool) -> t -> t
   
-  val partition : (elt -> bool) -> t -> t * t
+  val partition : (elt -> bool) -> t -> t*t
   
   val cardinal : t -> nat
   
@@ -128,7 +143,7 @@ module WFacts_fun :
  end
 
 module WDecide_fun : 
- functor (E:DecidableType) ->
+ functor (E:Coq_DecidableType) ->
  functor (M:sig 
   type elt = E.t
   
@@ -166,7 +181,7 @@ module WDecide_fun :
   
   val filter : (elt -> bool) -> t -> t
   
-  val partition : (elt -> bool) -> t -> t * t
+  val partition : (elt -> bool) -> t -> t*t
   
   val cardinal : t -> nat
   
@@ -197,7 +212,7 @@ module WDecide_fun :
  end
 
 module WProperties_fun : 
- functor (E:DecidableType) ->
+ functor (E:Coq_DecidableType) ->
  functor (M:sig 
   type elt = E.t
   
@@ -235,7 +250,7 @@ module WProperties_fun :
   
   val filter : (elt -> bool) -> t -> t
   
-  val partition : (elt -> bool) -> t -> t * t
+  val partition : (elt -> bool) -> t -> t*t
   
   val cardinal : t -> nat
   
@@ -311,7 +326,7 @@ module WProperties_fun :
   val cardinal_inv_2b : M.t -> M.elt
  end
 
-module Raw : 
+module MakeRaw : 
  functor (X:DecidableType) ->
  sig 
   type elt = X.t
@@ -348,7 +363,7 @@ module Raw :
   
   val exists_ : (elt -> bool) -> t -> bool
   
-  val partition : (elt -> bool) -> t -> t * t
+  val partition : (elt -> bool) -> t -> t*t
   
   val cardinal : t -> nat
   
@@ -356,11 +371,118 @@ module Raw :
   
   val choose : t -> elt option
   
+  val isok : elt list -> bool
+ end
+
+module Make : 
+ functor (X:DecidableType) ->
+ sig 
+  module Raw : 
+   sig 
+    type elt = X.t
+    
+    type t = elt list
+    
+    val empty : t
+    
+    val is_empty : t -> bool
+    
+    val mem : elt -> t -> bool
+    
+    val add : elt -> t -> t
+    
+    val singleton : elt -> t
+    
+    val remove : elt -> t -> t
+    
+    val fold : (elt -> 'a1 -> 'a1) -> t -> 'a1 -> 'a1
+    
+    val union : t -> t -> t
+    
+    val diff : t -> t -> t
+    
+    val inter : t -> t -> t
+    
+    val subset : t -> t -> bool
+    
+    val equal : t -> t -> bool
+    
+    val filter : (elt -> bool) -> t -> t
+    
+    val for_all : (elt -> bool) -> t -> bool
+    
+    val exists_ : (elt -> bool) -> t -> bool
+    
+    val partition : (elt -> bool) -> t -> t*t
+    
+    val cardinal : t -> nat
+    
+    val elements : t -> elt list
+    
+    val choose : t -> elt option
+    
+    val isok : elt list -> bool
+   end
+  
+  module E : 
+   sig 
+    type t = X.t
+    
+    val eq_dec : t -> t -> bool
+   end
+  
+  type elt = X.t
+  
+  type t_ = Raw.t
+    (* singleton inductive, whose constructor was Mkt *)
+  
+  val this : t_ -> Raw.t
+  
+  type t = t_
+  
+  val mem : elt -> t -> bool
+  
+  val add : elt -> t -> t
+  
+  val remove : elt -> t -> t
+  
+  val singleton : elt -> t
+  
+  val union : t -> t -> t
+  
+  val inter : t -> t -> t
+  
+  val diff : t -> t -> t
+  
+  val equal : t -> t -> bool
+  
+  val subset : t -> t -> bool
+  
+  val empty : t
+  
+  val is_empty : t -> bool
+  
+  val elements : t -> elt list
+  
+  val choose : t -> elt option
+  
+  val fold : (elt -> 'a1 -> 'a1) -> t -> 'a1 -> 'a1
+  
+  val cardinal : t -> nat
+  
+  val filter : (elt -> bool) -> t -> t
+  
+  val for_all : (elt -> bool) -> t -> bool
+  
+  val exists_ : (elt -> bool) -> t -> bool
+  
+  val partition : (elt -> bool) -> t -> t*t
+  
   val eq_dec : t -> t -> bool
  end
 
 module Coq_WDecide_fun : 
- functor (E:DecidableType) ->
+ functor (E:Coq_DecidableType) ->
  functor (M:sig 
   type elt = E.t
   
@@ -398,7 +520,7 @@ module Coq_WDecide_fun :
   
   val filter : (elt -> bool) -> t -> t
   
-  val partition : (elt -> bool) -> t -> t * t
+  val partition : (elt -> bool) -> t -> t*t
   
   val cardinal : t -> nat
   
@@ -435,7 +557,7 @@ type string =
   | EmptyString
   | String of ascii * string
 
-module Make : 
+module Coq_Make : 
  functor (X:UsualDecidableType) ->
  functor (KeySet:sig 
   type elt = X.t
@@ -474,7 +596,7 @@ module Make :
   
   val filter : (elt -> bool) -> t -> t
   
-  val partition : (elt -> bool) -> t -> t * t
+  val partition : (elt -> bool) -> t -> t*t
   
   val cardinal : t -> nat
   
@@ -586,76 +708,33 @@ module Make :
   
   val one : 'a1 -> 'a1 list
   
-  val dom : (X.t * 'a1) list -> KeySet.t
+  val dom : (X.t*'a1) list -> KeySet.t
   
-  val get : X.t -> (X.t * 'a1) list -> 'a1 option
+  val get : X.t -> (X.t*'a1) list -> 'a1 option
   
-  val map : ('a1 -> 'a2) -> (X.t * 'a1) list -> (X.t * 'a2) list
+  val map : ('a1 -> 'a2) -> (X.t*'a1) list -> (X.t*'a2) list
   
   val alist_ind :
-    'a2 -> (X.t -> 'a1 -> (X.t * 'a1) list -> 'a2 -> 'a2) -> (X.t * 'a1) list
-    -> 'a2
+    'a2 -> (X.t -> 'a1 -> (X.t*'a1) list -> 'a2 -> 'a2) -> (X.t*'a1) list ->
+    'a2
   
   val binds_dec :
-    X.t -> 'a1 -> (X.t * 'a1) list -> ('a1 -> 'a1 -> bool) -> bool
+    X.t -> 'a1 -> (X.t*'a1) list -> ('a1 -> 'a1 -> bool) -> bool
   
-  val binds_lookup : X.t -> (X.t * 'a1) list -> ('a1, __) sum
+  val binds_lookup : X.t -> (X.t*'a1) list -> ('a1, __) sum
  end
 
 type 'a eqDec = 'a -> 'a -> bool
 
 type 'a eqDec_eq = 'a -> 'a -> bool
 
-module Coq_Make : 
- functor (X:DecidableType) ->
+val eq_dec0 : 'a1 eqDec_eq -> 'a1 -> 'a1 -> bool
+
+val eqDec_eq_of_EqDec : 'a1 eqDec -> 'a1 eqDec_eq
+
+module Coq0_Make : 
+ functor (X:Coq_DecidableType) ->
  sig 
-  module Raw : 
-   sig 
-    type elt = X.t
-    
-    type t = elt list
-    
-    val empty : t
-    
-    val is_empty : t -> bool
-    
-    val mem : elt -> t -> bool
-    
-    val add : elt -> t -> t
-    
-    val singleton : elt -> t
-    
-    val remove : elt -> t -> t
-    
-    val fold : (elt -> 'a1 -> 'a1) -> t -> 'a1 -> 'a1
-    
-    val union : t -> t -> t
-    
-    val diff : t -> t -> t
-    
-    val inter : t -> t -> t
-    
-    val subset : t -> t -> bool
-    
-    val equal : t -> t -> bool
-    
-    val filter : (elt -> bool) -> t -> t
-    
-    val for_all : (elt -> bool) -> t -> bool
-    
-    val exists_ : (elt -> bool) -> t -> bool
-    
-    val partition : (elt -> bool) -> t -> t * t
-    
-    val cardinal : t -> nat
-    
-    val elements : t -> elt list
-    
-    val choose : t -> elt option
-    
-    val eq_dec : t -> t -> bool
-   end
-  
   module E : 
    sig 
     type t = X.t
@@ -663,27 +742,134 @@ module Coq_Make :
     val eq_dec : t -> t -> bool
    end
   
-  type slist =
-    Raw.t
-    (* singleton inductive, whose constructor was Build_slist *)
+  module X' : 
+   sig 
+    type t = X.t
+    
+    val eq_dec : t -> t -> bool
+   end
   
-  val slist_rect : (Raw.t -> __ -> 'a1) -> slist -> 'a1
-  
-  val slist_rec : (Raw.t -> __ -> 'a1) -> slist -> 'a1
-  
-  val this : slist -> Raw.t
-  
-  type t = slist
+  module MSet : 
+   sig 
+    module Raw : 
+     sig 
+      type elt = X.t
+      
+      type t = elt list
+      
+      val empty : t
+      
+      val is_empty : t -> bool
+      
+      val mem : elt -> t -> bool
+      
+      val add : elt -> t -> t
+      
+      val singleton : elt -> t
+      
+      val remove : elt -> t -> t
+      
+      val fold : (elt -> 'a1 -> 'a1) -> t -> 'a1 -> 'a1
+      
+      val union : t -> t -> t
+      
+      val diff : t -> t -> t
+      
+      val inter : t -> t -> t
+      
+      val subset : t -> t -> bool
+      
+      val equal : t -> t -> bool
+      
+      val filter : (elt -> bool) -> t -> t
+      
+      val for_all : (elt -> bool) -> t -> bool
+      
+      val exists_ : (elt -> bool) -> t -> bool
+      
+      val partition : (elt -> bool) -> t -> t*t
+      
+      val cardinal : t -> nat
+      
+      val elements : t -> elt list
+      
+      val choose : t -> elt option
+      
+      val isok : elt list -> bool
+     end
+    
+    module E : 
+     sig 
+      type t = X.t
+      
+      val eq_dec : X.t -> X.t -> bool
+     end
+    
+    type elt = X.t
+    
+    type t_ = Raw.t
+      (* singleton inductive, whose constructor was Mkt *)
+    
+    val this : t_ -> Raw.t
+    
+    type t = t_
+    
+    val mem : elt -> t -> bool
+    
+    val add : elt -> t -> t
+    
+    val remove : elt -> t -> t
+    
+    val singleton : elt -> t
+    
+    val union : t -> t -> t
+    
+    val inter : t -> t -> t
+    
+    val diff : t -> t -> t
+    
+    val equal : t -> t -> bool
+    
+    val subset : t -> t -> bool
+    
+    val empty : t
+    
+    val is_empty : t -> bool
+    
+    val elements : t -> elt list
+    
+    val choose : t -> elt option
+    
+    val fold : (elt -> 'a1 -> 'a1) -> t -> 'a1 -> 'a1
+    
+    val cardinal : t -> nat
+    
+    val filter : (elt -> bool) -> t -> t
+    
+    val for_all : (elt -> bool) -> t -> bool
+    
+    val exists_ : (elt -> bool) -> t -> bool
+    
+    val partition : (elt -> bool) -> t -> t*t
+    
+    val eq_dec : t -> t -> bool
+   end
   
   type elt = X.t
+  
+  type t = MSet.t
+  
+  val empty : t
+  
+  val is_empty : t -> bool
   
   val mem : elt -> t -> bool
   
   val add : elt -> t -> t
   
-  val remove : elt -> t -> t
-  
   val singleton : elt -> t
+  
+  val remove : elt -> t -> t
   
   val union : t -> t -> t
   
@@ -691,31 +877,32 @@ module Coq_Make :
   
   val diff : t -> t -> t
   
+  val eq_dec : t -> t -> bool
+  
   val equal : t -> t -> bool
   
   val subset : t -> t -> bool
   
-  val empty : t
-  
-  val is_empty : t -> bool
-  
-  val elements : t -> elt list
-  
-  val choose : t -> elt option
-  
   val fold : (elt -> 'a1 -> 'a1) -> t -> 'a1 -> 'a1
-  
-  val cardinal : t -> nat
-  
-  val filter : (elt -> bool) -> t -> t
   
   val for_all : (elt -> bool) -> t -> bool
   
   val exists_ : (elt -> bool) -> t -> bool
   
-  val partition : (elt -> bool) -> t -> t * t
+  val filter : (elt -> bool) -> t -> t
   
-  val eq_dec : t -> t -> bool
+  val partition : (elt -> bool) -> t -> t*t
+  
+  val cardinal : t -> nat
+  
+  val elements : t -> elt list
+  
+  val choose : t -> elt option
+  
+  module MF : 
+   sig 
+    val eqb : X.t -> X.t -> bool
+   end
  end
 
 module type ATOM = 
@@ -777,7 +964,7 @@ module AtomSetImpl :
   
   val filter : (AtomImpl.atom -> bool) -> t -> t
   
-  val partition : (AtomImpl.atom -> bool) -> t -> t * t
+  val partition : (AtomImpl.atom -> bool) -> t -> t*t
   
   val cardinal : t -> nat
   
@@ -893,26 +1080,26 @@ module EnvImpl :
   
   val one : 'a1 -> 'a1 list
   
-  val dom : (AtomImpl.atom * 'a1) list -> AtomSetImpl.t
+  val dom : (AtomImpl.atom*'a1) list -> AtomSetImpl.t
   
-  val get : AtomImpl.atom -> (AtomImpl.atom * 'a1) list -> 'a1 option
+  val get : AtomImpl.atom -> (AtomImpl.atom*'a1) list -> 'a1 option
   
   val map :
-    ('a1 -> 'a2) -> (AtomImpl.atom * 'a1) list -> (AtomImpl.atom * 'a2) list
+    ('a1 -> 'a2) -> (AtomImpl.atom*'a1) list -> (AtomImpl.atom*'a2) list
   
   val alist_ind :
-    'a2 -> (AtomImpl.atom -> 'a1 -> (AtomImpl.atom * 'a1) list -> 'a2 -> 'a2)
-    -> (AtomImpl.atom * 'a1) list -> 'a2
+    'a2 -> (AtomImpl.atom -> 'a1 -> (AtomImpl.atom*'a1) list -> 'a2 -> 'a2)
+    -> (AtomImpl.atom*'a1) list -> 'a2
   
   val binds_dec :
-    AtomImpl.atom -> 'a1 -> (AtomImpl.atom * 'a1) list -> ('a1 -> 'a1 ->
-    bool) -> bool
+    AtomImpl.atom -> 'a1 -> (AtomImpl.atom*'a1) list -> ('a1 -> 'a1 -> bool)
+    -> bool
   
   val binds_lookup :
-    AtomImpl.atom -> (AtomImpl.atom * 'a1) list -> ('a1, __) sum
+    AtomImpl.atom -> (AtomImpl.atom*'a1) list -> ('a1, __) sum
  end
 
-type 'x assocList = (AtomImpl.atom * 'x) list
+type 'x assocList = (AtomImpl.atom*'x) list
 
 val updateAddAL : 'a1 assocList -> AtomImpl.atom -> 'a1 -> 'a1 assocList
 
@@ -998,9 +1185,9 @@ module LLVMsyntax :
   
   val value_rec : (id -> 'a1) -> (const -> 'a1) -> value -> 'a1
   
-  type param = typ * value
+  type param = typ*value
   
-  type params = (typ * value) list
+  type params = (typ*value) list
   
   type cond =
     | Coq_cond_eq
@@ -1128,7 +1315,7 @@ module LLVMsyntax :
   
   val phinode_rec : (id -> typ -> list_value_l -> 'a1) -> phinode -> 'a1
   
-  type arg = typ * id
+  type arg = typ*id
   
   type terminator =
     | Coq_insn_return of id * typ * value
@@ -1149,7 +1336,7 @@ module LLVMsyntax :
   
   type phinodes = phinode list
   
-  type args = (typ * id) list
+  type args = (typ*id) list
   
   type block =
     | Coq_block_intro of l * phinodes * cmds * terminator
@@ -1289,19 +1476,19 @@ module LLVMsyntax :
   
   type system = modules
   
-  type module_info = coq_module * (usedef_id * usedef_block)
+  type module_info = coq_module*(usedef_id*usedef_block)
   
-  type fdef_info = fdef * dt
+  type fdef_info = fdef*dt
   
   type intrinsic_funs = ids
   
   val map_list_value_l : (value -> l -> 'a1) -> list_value_l -> 'a1 list
   
-  val make_list_value_l : (value * l) list -> list_value_l
+  val make_list_value_l : (value*l) list -> list_value_l
   
-  val unmake_list_value_l : list_value_l -> (value * l) list
+  val unmake_list_value_l : list_value_l -> (value*l) list
   
-  val nth_list_value_l : nat -> list_value_l -> (value * l) option
+  val nth_list_value_l : nat -> list_value_l -> (value*l) option
   
   val app_list_value_l : list_value_l -> list_value_l -> list_value_l
   
@@ -1348,8 +1535,8 @@ module LLVMsyntax :
   val const_mutrec :
     (sz -> coq_INT -> 'a1) -> (typ -> 'a1) -> (typ -> 'a1) -> (list_const ->
     'a2 -> 'a1) -> (list_const -> 'a2 -> 'a1) -> (typ -> id -> 'a1) -> 'a2 ->
-    (const -> 'a1 -> list_const -> 'a2 -> 'a2) -> (const -> 'a1) *
-    (list_const -> 'a2)
+    (const -> 'a1 -> list_const -> 'a2 -> 'a2) -> (const -> 'a1)*(list_const
+    -> 'a2)
   
   val list_typ_rec2 :
     (sz -> 'a1) -> 'a1 -> 'a1 -> 'a1 -> (sz -> typ -> 'a1 -> 'a1) -> (typ ->
@@ -1365,8 +1552,8 @@ module LLVMsyntax :
   val typ_mutrec :
     (sz -> 'a1) -> 'a1 -> 'a1 -> 'a1 -> (sz -> typ -> 'a1 -> 'a1) -> (typ ->
     'a1 -> list_typ -> 'a2 -> 'a1) -> (list_typ -> 'a2 -> 'a1) -> (typ -> 'a1
-    -> 'a1) -> 'a2 -> (typ -> 'a1 -> list_typ -> 'a2 -> 'a2) -> (typ -> 'a1)
-    * (list_typ -> 'a2)
+    -> 'a1) -> 'a2 -> (typ -> 'a1 -> list_typ -> 'a2 -> 'a2) -> (typ ->
+    'a1)*(list_typ -> 'a2)
  end
 
 module LLVMlib : 
@@ -1452,9 +1639,9 @@ module LLVMlib :
   
   val getParamsOperand : LLVMsyntax.params -> LLVMsyntax.ids
   
-  val list_prj1 : ('a1 * 'a2) list -> 'a1 list
+  val list_prj1 : ('a1*'a2) list -> 'a1 list
   
-  val list_prj2 : ('a1 * 'a2) list -> 'a2 list
+  val list_prj2 : ('a1*'a2) list -> 'a2 list
   
   val getCmdOperands : LLVMsyntax.cmd -> LLVMsyntax.ids
   
@@ -1678,7 +1865,7 @@ module LLVMlib :
   val lookupTypViaIDFromSystem :
     LLVMsyntax.system -> LLVMsyntax.id -> LLVMsyntax.typ option
   
-  type l2block = (LLVMsyntax.l * LLVMsyntax.block) list
+  type l2block = (LLVMsyntax.l*LLVMsyntax.block) list
   
   val genLabel2Block_block : LLVMsyntax.block -> l2block
   
@@ -1820,7 +2007,7 @@ module LLVMlib :
   val getTerminator : LLVMsyntax.block -> LLVMsyntax.terminator
   
   val getLabelsFromSwitchCases :
-    (LLVMsyntax.const * LLVMsyntax.l) list -> LLVMsyntax.ls
+    (LLVMsyntax.const*LLVMsyntax.l) list -> LLVMsyntax.ls
   
   val getLabelsFromTerminator : LLVMsyntax.terminator -> LLVMsyntax.ls
   
@@ -1856,66 +2043,66 @@ module LLVMlib :
   
   val sizeOfDT : LLVMsyntax.blocks -> LLVMsyntax.dt -> nat
   
-  val size : (LLVMsyntax.blocks * LLVMsyntax.dt) -> nat
+  val size : (LLVMsyntax.blocks*LLVMsyntax.dt) -> nat
   
   val genDominatorTree_blocks_F :
-    ((LLVMsyntax.blocks * LLVMsyntax.dt) -> LLVMsyntax.usedef_block ->
-    LLVMsyntax.dt) -> (LLVMsyntax.blocks * LLVMsyntax.dt) ->
+    ((LLVMsyntax.blocks*LLVMsyntax.dt) -> LLVMsyntax.usedef_block ->
+    LLVMsyntax.dt) -> (LLVMsyntax.blocks*LLVMsyntax.dt) ->
     LLVMsyntax.usedef_block -> LLVMsyntax.dt
   
   val genDominatorTree_blocks_terminate :
-    (LLVMsyntax.blocks * LLVMsyntax.dt) -> LLVMsyntax.usedef_block ->
+    (LLVMsyntax.blocks*LLVMsyntax.dt) -> LLVMsyntax.usedef_block ->
     LLVMsyntax.dt
   
   val genDominatorTree_blocks :
-    (LLVMsyntax.blocks * LLVMsyntax.dt) -> LLVMsyntax.usedef_block ->
+    (LLVMsyntax.blocks*LLVMsyntax.dt) -> LLVMsyntax.usedef_block ->
     LLVMsyntax.dt
   
   type coq_R_genDominatorTree_blocks =
-    | R_genDominatorTree_blocks_0 of (LLVMsyntax.blocks * LLVMsyntax.dt)
+    | R_genDominatorTree_blocks_0 of (LLVMsyntax.blocks*LLVMsyntax.dt)
        * LLVMsyntax.usedef_block * LLVMsyntax.blocks * 
        LLVMsyntax.dt * LLVMsyntax.dt
-    | R_genDominatorTree_blocks_1 of (LLVMsyntax.blocks * LLVMsyntax.dt)
+    | R_genDominatorTree_blocks_1 of (LLVMsyntax.blocks*LLVMsyntax.dt)
        * LLVMsyntax.usedef_block * LLVMsyntax.blocks * 
        LLVMsyntax.dt * LLVMsyntax.dt * LLVMsyntax.dt
        * coq_R_genDominatorTree_blocks
   
   val coq_R_genDominatorTree_blocks_rect :
-    ((LLVMsyntax.blocks * LLVMsyntax.dt) -> LLVMsyntax.usedef_block ->
+    ((LLVMsyntax.blocks*LLVMsyntax.dt) -> LLVMsyntax.usedef_block ->
     LLVMsyntax.blocks -> LLVMsyntax.dt -> __ -> LLVMsyntax.dt -> __ -> __ ->
-    'a1) -> ((LLVMsyntax.blocks * LLVMsyntax.dt) -> LLVMsyntax.usedef_block
-    -> LLVMsyntax.blocks -> LLVMsyntax.dt -> __ -> LLVMsyntax.dt -> __ -> __
-    -> LLVMsyntax.dt -> coq_R_genDominatorTree_blocks -> 'a1 -> 'a1) ->
-    (LLVMsyntax.blocks * LLVMsyntax.dt) -> LLVMsyntax.usedef_block ->
+    'a1) -> ((LLVMsyntax.blocks*LLVMsyntax.dt) -> LLVMsyntax.usedef_block ->
+    LLVMsyntax.blocks -> LLVMsyntax.dt -> __ -> LLVMsyntax.dt -> __ -> __ ->
+    LLVMsyntax.dt -> coq_R_genDominatorTree_blocks -> 'a1 -> 'a1) ->
+    (LLVMsyntax.blocks*LLVMsyntax.dt) -> LLVMsyntax.usedef_block ->
     LLVMsyntax.dt -> coq_R_genDominatorTree_blocks -> 'a1
   
   val coq_R_genDominatorTree_blocks_rec :
-    ((LLVMsyntax.blocks * LLVMsyntax.dt) -> LLVMsyntax.usedef_block ->
+    ((LLVMsyntax.blocks*LLVMsyntax.dt) -> LLVMsyntax.usedef_block ->
     LLVMsyntax.blocks -> LLVMsyntax.dt -> __ -> LLVMsyntax.dt -> __ -> __ ->
-    'a1) -> ((LLVMsyntax.blocks * LLVMsyntax.dt) -> LLVMsyntax.usedef_block
-    -> LLVMsyntax.blocks -> LLVMsyntax.dt -> __ -> LLVMsyntax.dt -> __ -> __
-    -> LLVMsyntax.dt -> coq_R_genDominatorTree_blocks -> 'a1 -> 'a1) ->
-    (LLVMsyntax.blocks * LLVMsyntax.dt) -> LLVMsyntax.usedef_block ->
+    'a1) -> ((LLVMsyntax.blocks*LLVMsyntax.dt) -> LLVMsyntax.usedef_block ->
+    LLVMsyntax.blocks -> LLVMsyntax.dt -> __ -> LLVMsyntax.dt -> __ -> __ ->
+    LLVMsyntax.dt -> coq_R_genDominatorTree_blocks -> 'a1 -> 'a1) ->
+    (LLVMsyntax.blocks*LLVMsyntax.dt) -> LLVMsyntax.usedef_block ->
     LLVMsyntax.dt -> coq_R_genDominatorTree_blocks -> 'a1
   
   val genDominatorTree_blocks_rect :
-    ((LLVMsyntax.blocks * LLVMsyntax.dt) -> LLVMsyntax.usedef_block ->
+    ((LLVMsyntax.blocks*LLVMsyntax.dt) -> LLVMsyntax.usedef_block ->
     LLVMsyntax.blocks -> LLVMsyntax.dt -> __ -> LLVMsyntax.dt -> __ -> __ ->
-    'a1) -> ((LLVMsyntax.blocks * LLVMsyntax.dt) -> LLVMsyntax.usedef_block
-    -> LLVMsyntax.blocks -> LLVMsyntax.dt -> __ -> LLVMsyntax.dt -> __ -> __
-    -> 'a1 -> 'a1) -> (LLVMsyntax.blocks * LLVMsyntax.dt) ->
+    'a1) -> ((LLVMsyntax.blocks*LLVMsyntax.dt) -> LLVMsyntax.usedef_block ->
+    LLVMsyntax.blocks -> LLVMsyntax.dt -> __ -> LLVMsyntax.dt -> __ -> __ ->
+    'a1 -> 'a1) -> (LLVMsyntax.blocks*LLVMsyntax.dt) ->
     LLVMsyntax.usedef_block -> 'a1
   
   val genDominatorTree_blocks_rec :
-    ((LLVMsyntax.blocks * LLVMsyntax.dt) -> LLVMsyntax.usedef_block ->
+    ((LLVMsyntax.blocks*LLVMsyntax.dt) -> LLVMsyntax.usedef_block ->
     LLVMsyntax.blocks -> LLVMsyntax.dt -> __ -> LLVMsyntax.dt -> __ -> __ ->
-    'a1) -> ((LLVMsyntax.blocks * LLVMsyntax.dt) -> LLVMsyntax.usedef_block
-    -> LLVMsyntax.blocks -> LLVMsyntax.dt -> __ -> LLVMsyntax.dt -> __ -> __
-    -> 'a1 -> 'a1) -> (LLVMsyntax.blocks * LLVMsyntax.dt) ->
+    'a1) -> ((LLVMsyntax.blocks*LLVMsyntax.dt) -> LLVMsyntax.usedef_block ->
+    LLVMsyntax.blocks -> LLVMsyntax.dt -> __ -> LLVMsyntax.dt -> __ -> __ ->
+    'a1 -> 'a1) -> (LLVMsyntax.blocks*LLVMsyntax.dt) ->
     LLVMsyntax.usedef_block -> 'a1
   
   val coq_R_genDominatorTree_blocks_correct :
-    (LLVMsyntax.blocks * LLVMsyntax.dt) -> LLVMsyntax.usedef_block ->
+    (LLVMsyntax.blocks*LLVMsyntax.dt) -> LLVMsyntax.usedef_block ->
     LLVMsyntax.dt -> coq_R_genDominatorTree_blocks
   
   val initialize_genDominatorTree_blocks :
@@ -2011,7 +2198,7 @@ module LLVMlib :
   type list_typ_dec_prop = LLVMsyntax.list_typ -> bool
   
   val typ_mutrec_dec :
-    (LLVMsyntax.typ -> typ_dec_prop) * (LLVMsyntax.list_typ ->
+    (LLVMsyntax.typ -> typ_dec_prop)*(LLVMsyntax.list_typ ->
     list_typ_dec_prop)
   
   val typ_dec : LLVMsyntax.typ -> LLVMsyntax.typ -> bool
@@ -2023,7 +2210,7 @@ module LLVMlib :
   type list_const_dec_prop = LLVMsyntax.list_const -> bool
   
   val const_mutrec_dec :
-    (LLVMsyntax.const -> const_dec_prop) * (LLVMsyntax.list_const ->
+    (LLVMsyntax.const -> const_dec_prop)*(LLVMsyntax.list_const ->
     list_const_dec_prop)
   
   val const_dec : LLVMsyntax.const -> LLVMsyntax.const -> bool
@@ -2763,7 +2950,7 @@ type trace =
 
 type genericValue = mvalue
 
-type gVMap = (LLVMsyntax.id * genericValue) list
+type gVMap = (LLVMsyntax.id*genericValue) list
 
 module SimpleSE : 
  sig 
@@ -2827,7 +3014,7 @@ module SimpleSE :
   
   val call_cmd : subblock -> LLVMsyntax.cmd
   
-  val cmds2sbs : LLVMsyntax.cmds -> subblock list * nbranch list
+  val cmds2sbs : LLVMsyntax.cmds -> subblock list*nbranch list
   
   type sterm =
     | Coq_sterm_val of LLVMsyntax.value
@@ -3095,8 +3282,8 @@ module SimpleSE :
     (smem -> 'a4 -> LLVMsyntax.typ -> sterm -> 'a1 -> sterm -> 'a1 ->
     LLVMsyntax.align -> 'a4) -> 'a5 -> (smem -> 'a4 -> sframe -> 'a5 ->
     LLVMsyntax.typ -> LLVMsyntax.sz -> LLVMsyntax.align -> 'a5) -> ((((sterm
-    -> 'a1) * (list_sterm -> 'a2)) * (list_sterm_l -> 'a3)) * (smem -> 'a4))
-    * (sframe -> 'a5)
+    -> 'a1)*(list_sterm -> 'a2))*(list_sterm_l -> 'a3))*(smem ->
+    'a4))*(sframe -> 'a5)
   
   val map_list_sterm : (sterm -> 'a1) -> list_sterm -> 'a1 list
   
@@ -3111,11 +3298,11 @@ module SimpleSE :
   val map_list_sterm_l :
     (sterm -> LLVMsyntax.l -> 'a1) -> list_sterm_l -> 'a1 list
   
-  val make_list_sterm_l : (sterm * LLVMsyntax.l) list -> list_sterm_l
+  val make_list_sterm_l : (sterm*LLVMsyntax.l) list -> list_sterm_l
   
-  val unmake_list_sterm_l : list_sterm_l -> (sterm * LLVMsyntax.l) list
+  val unmake_list_sterm_l : list_sterm_l -> (sterm*LLVMsyntax.l) list
   
-  val nth_list_sterm_l : nat -> list_sterm_l -> (sterm * LLVMsyntax.l) option
+  val nth_list_sterm_l : nat -> list_sterm_l -> (sterm*LLVMsyntax.l) option
   
   val app_list_sterm_l : list_sterm_l -> list_sterm_l -> list_sterm_l
   
@@ -3141,17 +3328,17 @@ module SimpleSE :
   type scall =
     | Coq_stmn_call of LLVMsyntax.id * LLVMsyntax.noret * 
        LLVMsyntax.tailc * LLVMsyntax.typ * LLVMsyntax.id
-       * (LLVMsyntax.typ * sterm) list
+       * (LLVMsyntax.typ*sterm) list
   
   val scall_rect :
     (LLVMsyntax.id -> LLVMsyntax.noret -> LLVMsyntax.tailc -> LLVMsyntax.typ
-    -> LLVMsyntax.id -> (LLVMsyntax.typ * sterm) list -> 'a1) -> scall -> 'a1
+    -> LLVMsyntax.id -> (LLVMsyntax.typ*sterm) list -> 'a1) -> scall -> 'a1
   
   val scall_rec :
     (LLVMsyntax.id -> LLVMsyntax.noret -> LLVMsyntax.tailc -> LLVMsyntax.typ
-    -> LLVMsyntax.id -> (LLVMsyntax.typ * sterm) list -> 'a1) -> scall -> 'a1
+    -> LLVMsyntax.id -> (LLVMsyntax.typ*sterm) list -> 'a1) -> scall -> 'a1
   
-  type smap = (AtomImpl.atom * sterm) list
+  type smap = (AtomImpl.atom*sterm) list
   
   type sstate = { coq_STerms : smap; coq_SMem : smem; coq_SFrame : 
                   sframe; coq_SEffects : sterm list }
@@ -3177,7 +3364,7 @@ module SimpleSE :
   val value2Sterm : smap -> LLVMsyntax.value -> sterm
   
   val list_param__list_typ_subst_sterm :
-    LLVMsyntax.params -> smap -> (LLVMsyntax.typ * sterm) list
+    LLVMsyntax.params -> smap -> (LLVMsyntax.typ*sterm) list
   
   val se_cmd : sstate -> nbranch -> sstate
   
@@ -3219,9 +3406,16 @@ type smem_dec_prop = SimpleSE.smem -> bool
 type sframe_dec_prop = SimpleSE.sframe -> bool
 
 val se_dec :
-  ((((SimpleSE.sterm -> sterm_dec_prop) * (SimpleSE.list_sterm ->
-  list_sterm_dec_prop)) * (SimpleSE.list_sterm_l -> list_sterm_l_dec_prop)) *
-  (SimpleSE.smem -> smem_dec_prop)) * (SimpleSE.sframe -> sframe_dec_prop)
+  ((((SimpleSE.sterm -> sterm_dec_prop)*(SimpleSE.list_sterm ->
+  list_sterm_dec_prop))*(SimpleSE.list_sterm_l ->
+  list_sterm_l_dec_prop))*(SimpleSE.smem -> smem_dec_prop))*(SimpleSE.sframe
+  -> sframe_dec_prop)
+
+val sterm_dec : SimpleSE.sterm -> SimpleSE.sterm -> bool
+
+val smem_dec : SimpleSE.smem -> SimpleSE.smem -> bool
+
+val sframe_dec : SimpleSE.sframe -> SimpleSE.sframe -> bool
 
 val smap_dec : SimpleSE.smap -> SimpleSE.smap -> bool
 

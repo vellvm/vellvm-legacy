@@ -1,6 +1,6 @@
 Add LoadPath "./ott".
 Add LoadPath "./monads".
-Add LoadPath "../../../theory/metatheory".
+(* Add LoadPath "../../../theory/metatheory". *)
 Require Import ssa.
 Require Import List.
 Require Import tactics.
@@ -11,6 +11,22 @@ Require Import monad.
 Require Import Arith.
 
 Export LLVMsyntax.
+
+(*
+Module Type SigLLVMmem.
+
+Variable maddr : Set.
+
+End SigLLVMmem.
+
+Module LLVMmem <: SigLLVMmem.
+
+  Definition maddr := nat.
+
+End LLVMmem.
+
+Export LLVMmem.
+*)
 
 (** memory address *)
 Definition maddr := nat.

@@ -1,6 +1,6 @@
 OTT=ott
 COQC=coqc
-COQARG=-I ./ott -I ./monads -I ../../../theory/metatheory/
+COQARG=-I ./ott -I ./monads -I ~/SVN/provers/metalib/branches/metatheory_8.3/
 
 all:
 	+make -C ./monads

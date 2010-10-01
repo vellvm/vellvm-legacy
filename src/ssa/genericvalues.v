@@ -1,14 +1,14 @@
 Add LoadPath "./ott".
 Add LoadPath "./monads".
-Add LoadPath "../../../theory/metatheory".
-Require Import ssa.
+(* Add LoadPath "../../../theory/metatheory". *)
 Require Import List.
 Require Import Arith.
-Require Import ssa_mem.
 Require Import monad.
 Require Import trace.
 Require Import Metatheory.
 Require Import assoclist.
+Require Import ssa.
+Require Import ssa_mem.
 
 Definition GenericValue := mvalue.
 Definition GV2nat := mvalue2nat.

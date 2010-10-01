@@ -1,6 +1,6 @@
 Add LoadPath "./ott".
 Add LoadPath "./monads".
-Add LoadPath "../../../theory/metatheory".
+(*Add LoadPath "../../../theory/metatheory".*)
 Require Import ssa.
 Require Import Coq.Program.Equality.
 Require Import CoqListFacts.
@@ -369,7 +369,7 @@ Proof.
   intros. unfold genLabel2Block_block in H.
   destruct b.
   simpl in H.
-  destruct (l0==l1); subst; inversion H; auto.
+  destruct (@eq_dec atom (EqDec_eq_of_EqDec atom EqDec_atom) l0 l1); subst; inversion H; auto.
 Qed.        
 
 Lemma NotInGetBlocksLabels__NotInGenLabel2Block_blocks : forall lb l0,
@@ -477,7 +477,7 @@ Proof.
     destruct H0 as [H0 | H0].
       unfold genLabel2Block_block in H0.
       destruct a. simpl in H0.
-      destruct (l0 == l1); subst.
+      destruct (@eq_dec atom (EqDec_eq_of_EqDec atom EqDec_atom) l0 l1); subst.
         inversion H0; subst. clear H0.
         split; auto.
         apply orb_true_intro.
@@ -520,7 +520,7 @@ Proof.
     destruct a.
       apply IHPs in H. auto.
       apply IHPs in H. auto.
-      destruct (getFdefID f==fid); subst.
+      destruct (@eq_dec id (EqDec_eq_of_EqDec id EqDec_atom) (getFdefID f) fid); subst.
         inversion H; subst.
         left. apply productEqB_refl.
 
@@ -886,7 +886,7 @@ Proof.
     exists l0. simpl. destruct b.
     destruct H. simpl in *.
     inversion H; subst.
-    destruct (l0==l1); subst; auto.
+    destruct (@eq_dec atom (EqDec_eq_of_EqDec atom EqDec_atom) l0 l1); subst; auto.
       apply lookupAL_Some_indom in H0.
       apply NotInGetBlocksLabels__NotInGenLabel2Block_blocks in H7.
       contradict H0; auto.

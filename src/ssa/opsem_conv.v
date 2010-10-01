@@ -1,6 +1,6 @@
 Add LoadPath "./ott".
 Add LoadPath "./monads".
-Add LoadPath "../../../theory/metatheory".
+(* Add LoadPath "../../../theory/metatheory". *)
 Require Import ssa_mem.
 Require Import genericvalues.
 Require Import ssa_dynamic.
@@ -107,9 +107,9 @@ Proof.
   dependent induction H.
     exists states1. exists states2. auto.
 
-    apply cons_eq_app in H0.
-    destruct H0 as [[states4 [EQ1 EQ2]] | [EQ1 EQ2]]; subst.
-      assert (states4++states2=states4++states2) as EQ. auto.
+    apply cons_eq_app in x.
+    destruct x as [[states4 [EQ1 EQ2]] | [EQ1 EQ2]]; subst.
+      assert (states4++states2~=states4++states2) as EQ. auto.
       apply IHnsop_star in EQ; auto.
       destruct EQ as [states1' [states2' [J1 [J2 EQ]]]]; subst.
       exists ((state, tr)::states1'). exists states2'.
@@ -118,21 +118,19 @@ Proof.
       exists nil. exists ((state, tr)::states').
       split; auto.
 
-    apply cons_eq_app in H1.
-    destruct H1 as [[states4 [EQ1 EQ2]] | [EQ1 EQ2]]; subst.
-      assert (states4++states3=states4++states3) as EQ. auto.
+    apply cons_eq_app in x.
+    destruct x as [[states4 [EQ1 EQ2]] | [EQ1 EQ2]]; subst.
+      assert (states4++states2~=states4++states2) as EQ. auto.
       apply IHnsop_star in EQ; auto.
       destruct EQ as [states1' [states2' [J1 [J2 EQ]]]]; subst.
-      exists (states1++states1'). exists states2'.
+      exists (states0++states1'). exists states2'.
       split; auto. split; auto. apply ass_app.
 
-      exists nil. exists (states1++states2).
+      exists nil. exists (states0++states3).
       split; auto.
 
-    assert (states0++states4=states0++states4) as EQ. auto.
-    apply IHnsop_star1 in EQ; auto.
-    destruct EQ as [states1' [states2' [J1 [J2 EQ]]]]; subst.
-    assert (states1'++states2'=states1'++states2') as EQ. auto.
+    destruct IHnsop_star1 as [states1' [states2' [J1 [J2 EQ]]]]; subst.
+    assert (states1'++states2'~=states1'++states2') as EQ. auto.
     apply IHnsop_star2 in EQ; auto.
     destruct EQ as [states1'' [states2'' [J1' [J2' EQ]]]]; subst.
     exists states1''. exists states2''.

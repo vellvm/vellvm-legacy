@@ -6,7 +6,7 @@
 *)
 Add LoadPath "./ott".
 Add LoadPath "./monads".
-Add LoadPath "../../../theory/metatheory".
+(*Add LoadPath "../../../theory/metatheory".*)
 Require Import ssa_def.
 Require Import Metatheory.
 
@@ -2726,24 +2726,24 @@ Module Type SigValue.
 End SigValue.
 
 Module Type SigUser. 
- Include Type SigValue.
+ Include SigValue.
 
 End SigUser.
 
 Module Type SigConstant.
- Include Type SigValue.
+ Include SigValue.
 
  Parameter getTyp : const -> typ.
 
 End SigConstant.
 
 Module Type SigGlobalValue.
- Include Type SigConstant.
+ Include SigConstant.
 
 End SigGlobalValue.
 
 Module Type SigFunction.
- Include Type SigGlobalValue.
+ Include SigGlobalValue.
 
  Parameter getDefReturnType : fdef -> typ.
  Parameter getDefFunctionType : fdef -> typ.
@@ -2756,7 +2756,7 @@ Module Type SigFunction.
 End SigFunction.
 
 Module Type SigInstruction.
- Include Type SigUser.
+ Include SigUser.
 
 (* Parameter isInvokeInst : insn -> bool. *)
  Parameter isCallInst : cmd -> bool.
@@ -2764,7 +2764,7 @@ Module Type SigInstruction.
 End SigInstruction.
 
 Module Type SigReturnInst.
- Include Type SigInstruction.
+ Include SigInstruction.
 
  Parameter hasReturnType : terminator -> bool.
  Parameter getReturnType : terminator -> option typ.
@@ -2781,13 +2781,13 @@ Module Type SigCallSite.
 End SigCallSite.
 
 Module Type SigCallInst.
- Include Type SigInstruction.
+ Include SigInstruction.
 
 End SigCallInst.
 
 (*
 Module Type SigInvokeInst.
- Include Type SigInstruction.
+ Include SigInstruction.
 
  Parameter getNormalDest : system -> insn -> option block.
 
@@ -2795,7 +2795,7 @@ End SigInvokeInst.
 *)
 
 Module Type SigBinaryOperator.
- Include Type SigInstruction.
+ Include SigInstruction.
 
  Parameter getFirstOperandType : system -> cmd -> option typ.
  Parameter getSecondOperandType : system -> cmd -> option typ.
@@ -2804,7 +2804,7 @@ Module Type SigBinaryOperator.
 End SigBinaryOperator.
 
 Module Type SigPHINode.
- Include Type SigInstruction.
+ Include SigInstruction.
 
  Parameter getNumIncomingValues : phinode -> nat.
  Parameter getIncomingValueType : system  -> phinode -> i -> option typ.
@@ -2820,11 +2820,11 @@ Module Type SigType.
 End SigType.
 
 Module Type SigDerivedType.
- Include Type SigType.
+ Include SigType.
 End SigDerivedType.
 
 Module Type SigFunctionType.
- Include Type SigDerivedType.
+ Include SigDerivedType.
 
  Parameter getNumParams : typ -> option nat.
  Parameter isVarArg : typ -> bool.
@@ -2832,11 +2832,11 @@ Module Type SigFunctionType.
 End SigFunctionType.
 
 Module Type SigCompositeType.
- Include Type SigDerivedType.
+ Include SigDerivedType.
 End SigCompositeType.
 
 Module Type SigSequentialType.
- Include Type SigCompositeType.
+ Include SigCompositeType.
 
  Parameter hasElementType : typ -> bool.
  Parameter getElementType : typ -> option typ.
@@ -2844,7 +2844,7 @@ Module Type SigSequentialType.
 End SigSequentialType.
 
 Module Type SigArrayType.
- Include Type SigSequentialType.
+ Include SigSequentialType.
 
  Parameter getNumElements : typ -> nat.
 

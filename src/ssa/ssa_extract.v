@@ -1,6 +1,6 @@
 Add LoadPath "./ott".
 Add LoadPath "./monads".
-Add LoadPath "../../../theory/metatheory".
+(* Add LoadPath "../../../theory/metatheory". *)
 
 Require Import ssa_dynamic.
 Require Import trace.

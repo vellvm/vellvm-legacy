@@ -1,7 +1,7 @@
 Add LoadPath "../ssa/ott".
 Add LoadPath "../ssa/monads".
 Add LoadPath "../ssa".
-Add LoadPath "../../../theory/metatheory".
+(*Add LoadPath "../../../theory/metatheory".*)
 Require Import ssa.
 Require Import List.
 Require Import targetdata.
@@ -1471,7 +1471,7 @@ match c with
   | insn_call id0 noret0 tailc0 rt fid lp => 
     fun (EQ:i=insn_call id0 noret0 tailc0 rt fid lp ) =>
     False_rec sstate (@se_cmd_false_elim i id0 noret0 tailc0 rt fid lp EQ notcall)
-  end) (refl_equal i)
+  end) (@refl_equal _ i)
 end.
 
 Fixpoint _se_phinodes (st st0: sstate) (ps:list phinode) : sstate :=
@@ -1708,7 +1708,7 @@ Lemma lookupSmap_updateAddAL_neq : forall m id0 id1 gv0,
   lookupSmap m id1 = lookupSmap (updateAddAL _ m id0 gv0) id1.
 Proof.
   induction m; intros; simpl; auto.
-    destruct (id1==id0); subst; auto.
+    destruct (@eq_dec id (EqDec_eq_of_EqDec id EqDec_atom) id1 id0); subst; auto.
       contradict H; auto.
 
     destruct a.
