@@ -36,10 +36,10 @@ Axiom eq_dec: forall (f1 f2: float), {f1 = f2} + {f1 <> f2}.
 Parameter neg: float -> float.          (**r opposite (change sign) *)
 Parameter abs: float -> float.          (**r absolute value (set sign to [+]) *)
 Parameter singleoffloat: float -> float. (**r conversion to single precision *)
-Parameter intoffloat: float -> int.     (**r conversion to signed 32-bit int *)
-Parameter intuoffloat: float -> int.    (**r conversion to unsigned 32-bit int *)
-Parameter floatofint: int -> float.     (**r conversion from signed 32-bit int *)
-Parameter floatofintu: int -> float.    (**r conversion from unsigned 32-bit int *)
+Parameter intoffloat: float -> int32.     (**r conversion to signed 32-bit int *)
+Parameter intuoffloat: float -> int32.    (**r conversion to unsigned 32-bit int *)
+Parameter floatofint: int32 -> float.     (**r conversion from signed 32-bit int *)
+Parameter floatofintu: int32 -> float.    (**r conversion from unsigned 32-bit int *)
 
 Parameter add: float -> float -> float. (**r addition *)
 Parameter sub: float -> float -> float. (**r subtraction *)
@@ -54,13 +54,13 @@ Parameter cmp: comparison -> float -> float -> bool.  (**r comparison *)
 Parameter bits_of_double: float -> int64.
 Parameter double_of_bits: int64 -> float.
 
-Parameter bits_of_single: float -> int.
-Parameter single_of_bits: int -> float.
+Parameter bits_of_single: float -> int32.
+Parameter single_of_bits: int32 -> float.
 
-Definition from_words (hi lo: int) : float :=
+Definition from_words (hi lo: int32) : float :=
   double_of_bits
-    (Int64.or (Int64.shl (Int64.repr (Int.unsigned hi)) (Int64.repr 32))
-              (Int64.repr (Int.unsigned lo))).
+    (Int.or 63 (Int.shl 63 (Int.repr 63 (Int.unsigned 31 hi)) (Int.repr 63 32))
+              (Int.repr 63 (Int.unsigned 31 lo))).
 
 (** Below are the only properties of floating-point arithmetic that we
   rely on in the compiler proof. *)
@@ -121,17 +121,17 @@ Axiom singleoffloat_of_bits:
   (Most processors provide only the latter, forcing the compiler
   to emulate the former.)   *)
 
-Definition ox8000_0000 := Int.repr Int.half_modulus.  (**r [0x8000_0000] *)
+Definition ox8000_0000 := Int.repr 31 (Int.half_modulus 31).  (**r [0x8000_0000] *)
 
 Axiom floatofintu_floatofint_1:
   forall x,
-  Int.ltu x ox8000_0000 = true ->
+  Int.ltu 31 x ox8000_0000 = true ->
   floatofintu x = floatofint x.
 
 Axiom floatofintu_floatofint_2:
   forall x,
-  Int.ltu x ox8000_0000 = false ->
-  floatofintu x = add (floatofint (Int.sub x ox8000_0000))
+  Int.ltu 31 x ox8000_0000 = false ->
+  floatofintu x = add (floatofint (Int.sub 31 x ox8000_0000))
                       (floatofintu ox8000_0000).
 
 Axiom intuoffloat_intoffloat_1:
@@ -143,7 +143,7 @@ Axiom intuoffloat_intoffloat_2:
   forall x,
   cmp Clt x (floatofintu ox8000_0000) = false ->
   intuoffloat x =
-  Int.add (intoffloat (sub x (floatofintu ox8000_0000)))
+  Int.add 31 (intoffloat (sub x (floatofintu ox8000_0000)))
           ox8000_0000.
 
 (** Conversions from ints to floats can be defined as bitwise manipulations
@@ -151,17 +151,17 @@ Axiom intuoffloat_intoffloat_2:
   The trick is that [from_words 0x4330_0000 x] is the float
   [2^52 + floatofintu x]. *)
 
-Definition ox4330_0000 := Int.repr 1127219200.        (**r [0x4330_0000] *)
+Definition ox4330_0000 := Int.repr 31 1127219200.        (**r [0x4330_0000] *)
 
 Axiom floatofintu_from_words:
   forall x,
   floatofintu x =
-    sub (from_words ox4330_0000 x) (from_words ox4330_0000 Int.zero).
+    sub (from_words ox4330_0000 x) (from_words ox4330_0000 (Int.zero 31)).
 
 Axiom floatofint_from_words:
   forall x,
   floatofint x =
-    sub (from_words ox4330_0000 (Int.add x ox8000_0000))
+    sub (from_words ox4330_0000 (Int.add 31 x ox8000_0000))
         (from_words ox4330_0000 ox8000_0000).
 
 End Float.

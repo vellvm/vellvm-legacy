@@ -50,14 +50,21 @@ Definition swap_comparison (c: comparison): comparison :=
 
 (** * Parameterization by the word size, in bits. *)
 
-Module Type WORDSIZE.
-  Variable wordsize: nat.
-  Axiom wordsize_not_zero: wordsize <> 0%nat.
-End WORDSIZE.
+Module Int.
 
-Module Make(WS: WORDSIZE).
+Section Integers.
 
-Definition wordsize: nat := WS.wordsize.
+Variable wordsize_one: nat.
+
+Definition wordsize := S wordsize_one.
+Remark wordsize_not_zero: 
+  wordsize <> 0%nat.
+Proof.
+  unfold wordsize. auto.
+Qed.
+
+Opaque wordsize.
+
 Definition modulus : Z := two_power_nat wordsize.
 Definition half_modulus : Z := modulus / 2.
 Definition max_unsigned : Z := modulus - 1.
@@ -67,7 +74,7 @@ Definition min_signed : Z := - half_modulus.
 Remark wordsize_pos:
   Z_of_nat wordsize > 0.
 Proof.
-  unfold wordsize. generalize WS.wordsize_not_zero. omega.
+  generalize wordsize_not_zero; omega.
 Qed.
 
 Remark modulus_power:
@@ -88,7 +95,7 @@ Qed.
   integer (type [Z]) plus a proof that it is in the range 0 (included) to
   [modulus] (excluded. *)
 
-Record int: Type := mkint { intval: Z; intrange: 0 <= intval < modulus }.
+Record int : Type := mkint { intval: Z; intrange: 0 <= intval < modulus }.
 
 (** The [unsigned] and [signed] functions return the Coq integer corresponding
   to the given machine integer, interpreted as unsigned or signed 
@@ -725,6 +732,11 @@ Proof.
   intros. generalize (eq_spec x y); case (eq x y); intros; congruence.
 Qed.
 
+Theorem one_neq_zero: eq one zero = false.
+Proof.
+  unfold eq. rewrite unsigned_one; rewrite unsigned_zero. auto.
+Qed.
+
 (** ** Properties of addition *)
 
 Theorem add_unsigned: forall x y, add x y = repr (unsigned x + unsigned y).
@@ -1337,6 +1349,12 @@ Theorem or_idem: forall x, or x x = x.
 Proof.
   intros. apply (bitwise_binop_idem orb). destruct a; auto.
 Qed.
+
+Theorem or_zero_one: or zero one = one.
+Proof. rewrite or_commut. apply or_zero. Qed.
+
+Theorem or_one_one: or one one = one.
+Proof. apply or_idem. Qed.
 
 Theorem and_or_distrib:
   forall x y z,
@@ -1993,6 +2011,13 @@ Proof.
   intros. unfold is_power2. rewrite unsigned_repr. 
   rewrite Z_one_bits_two_p. auto. auto.
   apply two_p_range. auto.
+Qed.
+
+Lemma is_power2_zero : is_power2 zero = None.
+Proof.
+  unfold is_power2.
+  change (unsigned zero) with 0.
+  rewrite Z_one_bits_zero. auto.
 Qed.
 
 (** ** Relation between bitwise operations and multiplications / divisions by powers of 2 *)
@@ -2754,44 +2779,21 @@ Proof.
   generalize (unsigned_range x). omega. omega.
 Qed.
 
-End Make.
+End Integers.
+
+End Int.
 
 (** * Specialization to integers of size 8, 32, and 64 bits *)
 
-Module Wordsize_32.
-  Definition wordsize := 32%nat.
-  Remark wordsize_not_zero: wordsize <> 0%nat.
-  Proof. unfold wordsize; congruence. Qed.
-End Wordsize_32.
+Notation int32 := (Int.int 31).
 
-Module Int := Make(Wordsize_32).
+Notation byte := (Int.int 7).
 
-Notation int := Int.int.
+Notation int64 := (Int.int 63).
 
-Remark int_wordsize_divides_modulus:
-  Zdivide (Z_of_nat Int.wordsize) Int.modulus.
+Remark int32_wordsize_divides_modulus:  
+  Zdivide (Z_of_nat 32) (Int.modulus 31).
 Proof.
-  exists (two_p (32-5)); reflexivity. 
+  exists (two_p (32-5)); reflexivity.
 Qed.
-
-Module Wordsize_8.
-  Definition wordsize := 8%nat.
-  Remark wordsize_not_zero: wordsize <> 0%nat.
-  Proof. unfold wordsize; congruence. Qed.
-End Wordsize_8.
-
-Module Byte := Make(Wordsize_8).
-
-Notation byte := Byte.int.
-
-Module Wordsize_64.
-  Definition wordsize := 64%nat.
-  Remark wordsize_not_zero: wordsize <> 0%nat.
-  Proof. unfold wordsize; congruence. Qed.
-End Wordsize_64.
-
-Module Int64 := Make(Wordsize_64).
-
-Notation int64 := Int64.int.
-
 

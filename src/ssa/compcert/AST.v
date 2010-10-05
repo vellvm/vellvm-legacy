@@ -98,13 +98,13 @@ Definition type_of_chunk (c: memory_chunk) : typ :=
 (** Initialization data for global variables. *)
 
 Inductive init_data: Type :=
-  | Init_int8: int -> init_data
-  | Init_int16: int -> init_data
-  | Init_int32: int -> init_data
+  | Init_int8: int32 -> init_data
+  | Init_int16: int32 -> init_data
+  | Init_int32: int32 -> init_data
   | Init_float32: float -> init_data
   | Init_float64: float -> init_data
   | Init_space: Z -> init_data
-  | Init_addrof: ident -> int -> init_data.  (**r address of symbol + offset *)
+  | Init_addrof: ident -> int32 -> init_data.  (**r address of symbol + offset *)
 
 (** Information attached to global variables. *)
 
