@@ -74,23 +74,15 @@ Definition proj_sig_res (s: signature) : typ :=
   chunk of memory being accessed. *)
 
 Inductive memory_chunk : Type :=
-  | Mint8signed : memory_chunk     (**r 8-bit signed integer *)
-  | Mint8unsigned : memory_chunk   (**r 8-bit unsigned integer *)
-  | Mint16signed : memory_chunk    (**r 16-bit signed integer *)
-  | Mint16unsigned : memory_chunk  (**r 16-bit unsigned integer *)
-  | Mint32 : memory_chunk          (**r 32-bit integer, or pointer *)
-  | Mfloat32 : memory_chunk        (**r 32-bit single-precision float *)
-  | Mfloat64 : memory_chunk.       (**r 64-bit double-precision float *)
+  | Mint : nat -> memory_chunk  (**r integer or pointer *)
+  | Mfloat32 : memory_chunk     (**r 32-bit single-precision float *)
+  | Mfloat64 : memory_chunk.    (**r 64-bit double-precision float *)
 
 (** The type (integer/pointer or float) of a chunk. *)
 
 Definition type_of_chunk (c: memory_chunk) : typ :=
   match c with
-  | Mint8signed => Tint
-  | Mint8unsigned => Tint
-  | Mint16signed => Tint
-  | Mint16unsigned => Tint
-  | Mint32 => Tint
+  | Mint _ => Tint
   | Mfloat32 => Tfloat
   | Mfloat64 => Tfloat
   end.

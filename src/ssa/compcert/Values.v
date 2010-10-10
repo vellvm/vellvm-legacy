@@ -1223,12 +1223,8 @@ Ltac simpl_auto_equations := simpl_equations; try solve [auto | ctx_contradictio
 
 Definition load_result (chunk: memory_chunk) (v: val) :=
   match chunk, v with
-  | Mint8signed, Vint wz n => Vint wz (Int.sign_ext wz 8 n)
-  | Mint8unsigned, Vint wz n => Vint wz (Int.zero_ext wz 8 n)
-  | Mint16signed, Vint wz n => Vint wz (Int.sign_ext wz 16 n)
-  | Mint16unsigned, Vint wz n => Vint wz (Int.zero_ext wz 16 n)
-  | Mint32, Vint wz n => Vint wz n
-  | Mint32, Vptr b ofs => Vptr b ofs
+  | Mint wz1, Vint wz2 n => if eq_nat_dec wz1 wz2 then Vint wz2 n else Vundef
+  | Mint wz, Vptr b ofs => if eq_nat_dec wz 31 then Vptr b ofs else Vundef
   | Mfloat32, Vfloat f => Vfloat(Float.singleoffloat f)
   | Mfloat64, Vfloat f => Vfloat f
   | _, _ => Vundef
@@ -1966,7 +1962,9 @@ Lemma val_load_result_inject:
   val_inject f v1 v2 ->
   val_inject f (Val.load_result chunk v1) (Val.load_result chunk v2).
 Proof.
-  intros. inv H; destruct chunk; simpl; econstructor; eauto.
+  intros. inv H; destruct chunk; simpl; try econstructor; eauto.
+    destruct (eq_nat_dec n wz); try econstructor; eauto.
+    destruct (eq_nat_dec n 31); try econstructor; eauto.
 Qed.
 
 (** Monotone evolution of a memory injection. *)

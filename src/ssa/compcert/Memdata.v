@@ -22,19 +22,157 @@ Require Import Integers.
 Require Import Floats.
 Require Import Values.
 
+Lemma Z_of_S_gt_O : forall n, Z_of_nat (S n) > 0.
+Proof.
+  intros.
+  assert (J:=@O_lt_Z_of_S n).
+  auto with zarith.
+Qed.
+
+
+Definition ZRdiv (a b:Z) : Z :=
+  if zeq (a mod b) 0
+  then a / b
+  else a / b + 1.
+
+Lemma ZRdiv_prop1 : forall a b, b >0 -> b * (ZRdiv a b) >= a.
+Proof.
+  intros. unfold ZRdiv.
+  destruct (zeq (a mod b) 0).
+    rewrite <- Z_div_exact_full_2; auto with zarith.
+    
+    rewrite Zmult_plus_distr_r.
+    rewrite (Zmult_comm b 1) .
+    rewrite Zmult_1_l.
+    assert (J:=@Z_mod_lt a b H).
+    assert (J':=@Z_div_mod_eq_full a b). 
+    auto with zarith.
+Qed.
+
+Lemma ZRdiv_prop2 : forall a b, a >=0 -> b > 0 -> ZRdiv a b >= 0.
+Proof.
+  intros.
+  unfold ZRdiv.
+  destruct (zeq (a mod b) 0).
+    apply Z_div_ge0; auto.
+    assert (J:=@Z_div_ge0 a b H0 H). auto with zarith.
+Qed.
+
+Lemma Z_div_gt0 : forall a b,
+  a > 0 -> b > 0 -> a / b > 0.
+Proof.
+  intros.
+  auto with zarith.
+Admitted.
+
+Lemma ZRdiv_prop3 : forall a b, a > 0 -> b > 0 -> ZRdiv a b > 0.
+Proof.
+  intros.
+  unfold ZRdiv.
+  destruct (zeq (a mod b) 0).
+    apply Z_div_gt0; auto.
+    assert (J:=@Z_div_gt0 a b H H0). auto with zarith.
+Qed.
+
+Lemma ZRdiv_prop4 : forall wz,
+  ZRdiv (Z_of_nat (S wz)) 8 >= 0.
+Proof.
+  intro.
+  apply ZRdiv_prop2; try solve [auto with zarith | apply Z_of_S_gt_O].
+Qed.
+
+Lemma mod_prop1 : forall wz,
+  Z_of_nat (S wz) mod 8 >= 0.
+Proof.
+  intro wz.
+  destruct (Z_mod_lt (Z_of_nat (S wz)) 8);
+    auto with zarith.
+Qed.    
+
+Lemma nat_of_Z_pos:
+  forall n, n > 0 -> (nat_of_Z n > O)%nat.
+Proof.
+  intros.
+  destruct n; unfold Zle; simpl; try omega.
+Admitted.
+
+Lemma nat_of_Z_inj : forall z1 z2,
+  z1 >= 0 ->
+  z2 >= 0 ->
+  nat_of_Z z1 = nat_of_Z z2 ->
+  z1 = z2.
+Admitted.
+
+Lemma zdiv_zmod_prop1 : forall a1 a2 b,
+  b <> 0 ->
+  a1 / b = a2 / b ->
+  a1 mod b = a2 mod b ->
+  a1 = a2.
+Proof.
+  intros.
+  rewrite (@Z_div_mod_eq_full a1 b H).
+  rewrite (@Z_div_mod_eq_full a2 b H).
+  rewrite H0. rewrite H1.
+  auto.
+Qed.
+
+Lemma zrdiv_zmod_prop1 : forall a1 a2 b,
+  b <> 0 ->
+  ZRdiv a1 b = ZRdiv a2 b ->
+  a1 mod b = a2 mod b ->
+  a1 = a2.
+Proof.
+  intros.
+  unfold ZRdiv in H0.
+  rewrite H1 in H0.
+  destruct (zeq (a2 mod b) 0).
+    eapply zdiv_zmod_prop1; eauto.
+    apply zdiv_zmod_prop1 with (b:=b); auto.
+      eauto with zarith.
+Qed.
+
 (** * Properties of memory chunks *)
 
 (** Memory reads and writes are performed by quantities called memory chunks,
   encoding the type, size and signedness of the chunk being addressed.
   The following functions extract the size information from a chunk. *)
 
+Definition bytesize_chunk (wz:nat) := ZRdiv (Z_of_nat (S wz)) 8.
+Definition bytesize_chunk_nat (wz:nat) := nat_of_Z (bytesize_chunk wz).
+Definition wordsize_chunk (wz:nat) := (bytesize_chunk wz) * 8.
+
+Lemma bytesize_chunk_pos:
+  forall wz, bytesize_chunk wz > 0.
+Proof.
+  intros. unfold bytesize_chunk.
+  apply ZRdiv_prop3; auto with zarith.
+    assert (J:=@O_lt_Z_of_S wz).
+    auto with zarith.
+Qed.
+
+Lemma bytesize_chunk_conv:
+  forall wz, bytesize_chunk wz = Z_of_nat (bytesize_chunk_nat wz).
+Proof.
+  intros.
+  unfold bytesize_chunk, bytesize_chunk_nat, bytesize_chunk.
+  decEq. 
+  rewrite nat_of_Z_eq. auto.
+    apply ZRdiv_prop2; auto with zarith.
+Qed.
+
+Lemma bytesize_chunk_nat_pos:
+  forall wz, exists n, bytesize_chunk_nat wz = S n.
+Proof.
+  intros. 
+  generalize (bytesize_chunk_pos wz). rewrite bytesize_chunk_conv. 
+  destruct (bytesize_chunk_nat wz).
+  simpl; intros; omegaContradiction.
+  intros; exists n; auto.
+Qed.
+
 Definition size_chunk (chunk: memory_chunk) : Z :=
   match chunk with
-  | Mint8signed => 1
-  | Mint8unsigned => 1
-  | Mint16signed => 2
-  | Mint16unsigned => 2
-  | Mint32 => 4
+  | Mint wz => bytesize_chunk wz
   | Mfloat32 => 4
   | Mfloat64 => 8
   end.
@@ -42,7 +180,7 @@ Definition size_chunk (chunk: memory_chunk) : Z :=
 Lemma size_chunk_pos:
   forall chunk, size_chunk chunk > 0.
 Proof.
-  intros. destruct chunk; simpl; omega.
+  intros. destruct chunk; simpl; try solve [omega | apply bytesize_chunk_pos].
 Qed.
 
 Definition size_chunk_nat (chunk: memory_chunk) : nat :=
@@ -51,7 +189,7 @@ Definition size_chunk_nat (chunk: memory_chunk) : nat :=
 Lemma size_chunk_conv:
   forall chunk, size_chunk chunk = Z_of_nat (size_chunk_nat chunk).
 Proof.
-  intros. destruct chunk; reflexivity.
+  intros. destruct chunk; try solve [reflexivity | apply bytesize_chunk_conv].
 Qed.
 
 Lemma size_chunk_nat_pos:
@@ -62,6 +200,14 @@ Proof.
   destruct (size_chunk_nat chunk).
   simpl; intros; omegaContradiction.
   intros; exists n; auto.
+Qed.
+
+Lemma size_chunk_nat_pos':
+  forall chunk, (size_chunk_nat chunk > 0)%nat.
+Proof.
+  intros.
+  destruct (@size_chunk_nat_pos chunk) as [n J].
+  rewrite J. omega.
 Qed.
 
 (** Memory reads and writes must respect alignment constraints:
@@ -76,10 +222,7 @@ Qed.
 
 Definition align_chunk (chunk: memory_chunk) : Z := 
   match chunk with
-  | Mint8signed => 1
-  | Mint8unsigned => 1
-  | Mint16signed => 2
-  | Mint16unsigned => 2
+  | Mint wz => 1
   | _ => 4
   end.
 
@@ -92,16 +235,21 @@ Qed.
 Lemma align_size_chunk_divides:
   forall chunk, (align_chunk chunk | size_chunk chunk).
 Proof.
-  intros. destruct chunk; simpl; try apply Zdivide_refl. exists 2; auto. 
+  intros. destruct chunk; simpl; try solve [
+    apply Zdivide_refl |
+    destruct (le_lt_dec n 1); auto with zarith |
+    exists 2; auto ]. 
 Qed.
 
+(* Broken
 Lemma align_chunk_compat:
   forall chunk1 chunk2,
   size_chunk chunk1 = size_chunk chunk2 -> align_chunk chunk1 = align_chunk chunk2.
 Proof.
   intros chunk1 chunk2. 
-  destruct chunk1; destruct chunk2; simpl; congruence.
+  destruct chunk1; destruct chunk2; simpl; try congruence.
 Qed.
+*)
 
 (** * Memory values *)
 
@@ -116,7 +264,7 @@ Qed.
 
 Inductive memval: Type :=
   | Undef: memval
-  | Byte: byte -> memval
+  | Byte: nat -> byte -> memval
   | Pointer: block -> int32 -> nat -> memval.
 
 (** * Encoding and decoding integers *)
@@ -124,46 +272,18 @@ Inductive memval: Type :=
 (** We define functions to convert between integers and lists of bytes
   according to a given memory chunk. *)
 
+(** bytes_of_int *)
+
 Fixpoint bytes_of_int (n: nat) (x: Z) {struct n}: list byte :=
   match n with
   | O => nil
   | S m => Int.repr 7 x :: bytes_of_int m (x / 256)
   end.
 
-Fixpoint int_of_bytes (l: list byte): Z :=
-  match l with
-  | nil => 0
-  | b :: l' => Int.unsigned 7 b + int_of_bytes l' * 256
-  end.
-
 Lemma length_bytes_of_int:
   forall n x, length (bytes_of_int n x) = n.
 Proof.
   induction n; simpl; intros. auto. decEq. auto.
-Qed.
-
-Lemma int_of_bytes_of_int:
-  forall n x,
-  int_of_bytes (bytes_of_int n x) = x mod (two_p (Z_of_nat n * 8)).
-Proof.
-  induction n; intros.
-  simpl. rewrite Zmod_1_r. auto.
-  rewrite inj_S. simpl.
-  replace (Zsucc (Z_of_nat n) * 8) with (Z_of_nat n * 8 + 8) by omega.
-  rewrite two_p_is_exp; try omega. 
-  rewrite Zmod_recombine. rewrite IHn. rewrite Zplus_comm. reflexivity. 
-  apply two_p_gt_ZERO. omega. apply two_p_gt_ZERO. omega.
-Qed.
-
-Lemma int_of_bytes_of_int_2:
-  forall n x,
-  (n = 1 \/ n = 2)%nat ->
-  Int.repr 31 (int_of_bytes (bytes_of_int n (Int.unsigned 31 x))) = Int.zero_ext 31 (Z_of_nat n * 8) x.
-Proof.
-  intros. rewrite int_of_bytes_of_int. 
-  rewrite <- (Int.repr_unsigned 31 (Int.zero_ext 31 (Z_of_nat n * 8) x)). 
-  decEq. symmetry. apply Int.zero_ext_mod.
-  destruct H; subst n; compute; auto.
 Qed.
 
 Lemma bytes_of_int_mod:
@@ -186,13 +306,263 @@ Proof.
   rewrite <- Z_div_plus_full_l. decEq. change (two_p 8) with 256. ring. omega.
 Qed.
 
+Lemma bytes_of_int_mod':
+  forall z x y,
+  z >= 0 ->
+  Int.eqmod (two_p (z * 8)) x y ->
+  bytes_of_int (nat_of_Z z) x =
+  bytes_of_int (nat_of_Z z) y.
+Proof.
+  intros.
+  rewrite <- (@nat_of_Z_eq z) in H0; auto.
+  apply bytes_of_int_mod; auto.
+Qed.
+
+Lemma bytes_of_int_prop1: forall n z,
+  (n > 0)%nat ->
+  exists b, exists bl, 
+    bytes_of_int n z = b::bl.
+Proof. Admitted.
+
+(** int_of_bytes *)
+
+Fixpoint int_of_bytes (l: list byte): Z :=
+  match l with
+  | nil => 0
+  | b :: l' => Int.unsigned 7 b + int_of_bytes l' * 256
+  end.
+
+Lemma int_of_bytes_of_int:
+  forall n x,
+  int_of_bytes (bytes_of_int n x) = x mod (two_p (Z_of_nat n * 8)).
+Proof.
+  induction n; intros.
+  simpl. rewrite Zmod_1_r. auto.
+  rewrite inj_S. simpl.
+  replace (Zsucc (Z_of_nat n) * 8) with (Z_of_nat n * 8 + 8) by omega.
+  rewrite two_p_is_exp; try omega. 
+  rewrite Zmod_recombine. rewrite IHn. rewrite Zplus_comm. reflexivity. 
+  apply two_p_gt_ZERO. omega. apply two_p_gt_ZERO. omega.
+Qed.
+
+Lemma int_of_bytes_of_int_wz:
+  forall n wz x,
+  0 < Z_of_nat n ->
+  Int.repr wz (int_of_bytes (bytes_of_int n (Int.unsigned wz x))) = 
+  Int.zero_ext wz (Z_of_nat n * 8) x.
+Proof.
+  intros. rewrite int_of_bytes_of_int. 
+  rewrite <- (Int.repr_unsigned wz (Int.zero_ext wz (Z_of_nat n * 8) x)). 
+  decEq. symmetry. apply Int.zero_ext_mod; try solve [omega]. 
+Qed.
+
+Lemma int_of_bytes_of_int_2:
+  forall n x,
+  (n = 1 \/ n = 2)%nat ->
+  Int.repr 31 (int_of_bytes (bytes_of_int n (Int.unsigned 31 x))) = Int.zero_ext 31 (Z_of_nat n * 8) x.
+Proof.
+  intros. apply int_of_bytes_of_int_wz.
+  destruct H; subst n; compute; auto.
+Qed.
+
+Definition inj_bytes (bl: list byte) : list memval :=
+  List.map (Byte 8) bl.
+
+Remark length_inj_bytes:
+  forall bl, length (inj_bytes bl) = length bl.
+Proof.
+  intros. apply List.map_length. 
+Qed.
+
+(** inj_int *)
+
+Definition inj_int (wz:nat) (x: Int.int wz) : list memval :=
+  let z := Int.unsigned wz x in
+  let n := Z_of_nat (S wz) in
+  let m := n mod 8 in
+  let sz := ZRdiv n 8 in
+  let bl := bytes_of_int (nat_of_Z sz) z in
+  match bl with
+  | nil => nil
+  | b::bl' => Byte (nat_of_Z m) b :: inj_bytes bl'
+  end.
+
+Lemma length_inj_int : forall wz n,
+  length (inj_int wz n) = bytesize_chunk_nat wz.
+Proof.
+  intros.
+  unfold inj_int, bytesize_chunk_nat, bytesize_chunk.
+  assert (J:=@length_bytes_of_int 
+    (nat_of_Z (ZRdiv (Z_of_nat (S wz)) 8)) 
+    (Int.unsigned wz n)).
+  remember (bytes_of_int (nat_of_Z (ZRdiv (Z_of_nat (S wz)) 8)) 
+    (Int.unsigned wz n)) as bl.
+  destruct bl; auto.
+    simpl in *.
+    rewrite <- J.
+    decEq.
+    apply map_length.
+Qed.   
+
+(** proj_bytes *)
+
+Fixpoint proj_bytes (n:nat) (vl: list memval) {struct n} : option (list byte) :=
+  match n, vl with
+  | O, nil => Some nil
+  | S m, Byte wz b :: vl' =>
+      if eq_nat_dec wz 8 
+      then
+        match (proj_bytes m vl') with
+        | Some bl' => Some (b :: bl')
+        | None => None
+        end
+      else None
+  | _, _ => None
+  end.
+
+Remark proj_inj_bytes:
+  forall bl, proj_bytes (length bl) (inj_bytes bl) = Some bl.
+Proof.
+  induction bl; simpl. auto. rewrite IHbl. auto.
+Qed.
+
+Lemma inj_proj_bytes:
+  forall cl bl, proj_bytes (length cl) cl = Some bl -> cl = inj_bytes bl.
+Proof.
+  induction cl; simpl; intros. 
+  inv H; auto.
+  destruct a; try congruence.
+  destruct (eq_nat_dec n 8); subst.
+    destruct (proj_bytes (length cl) cl); inv H.
+      simpl. decEq. auto.
+      inversion H.
+Qed.
+
+Lemma proj_bytes_prop1 : forall n wz x bl,
+  proj_bytes n (map (Byte 8) (bytes_of_int n (Int.unsigned wz x / 256))) = Some bl ->
+  x = Int.repr wz (Int.unsigned wz x mod Int.modulus 7 + int_of_bytes bl * 256).
+Admitted.
+
+Lemma proj_bytes_prop2: forall vl n,
+  length vl = n ->
+  exists bl, proj_bytes n (map (Byte 8) vl) = Some bl.
+Proof.
+  induction vl; intros; subst; simpl.
+    exists nil. auto.
+    
+    destruct (@IHvl (length vl)) as [bl J]; auto.
+    rewrite J.
+    exists (a::bl). auto.
+Qed.
+
+Lemma proj_bytes_prop3: forall vl n bl,
+  proj_bytes n (map (Byte 8) vl) = Some bl ->
+  length bl = n /\ length vl = n.
+Admitted.
+
+(** proj_int *)
+
+Definition proj_int (wz:nat) (vl: list memval) : option (Int.int wz) :=
+  let n := Z_of_nat (S wz) in
+  let m := nat_of_Z (n mod 8) in
+  let sz := nat_of_Z (ZRdiv n 8) in
+  match sz, vl with
+  | O, nil => None
+  | S n', Byte wz0 b :: vl' =>
+    if eq_nat_dec wz0 m
+    then 
+      match (proj_bytes n' vl') with
+      | Some bl' => Some (Int.repr wz (int_of_bytes (b::bl')))
+      | None => None
+      end
+    else None
+  | _, _ => None
+  end.
+
+Lemma proj_inj_int_eq : 
+  forall wz x,
+  proj_int wz (inj_int wz x) = Some x.
+Proof.
+  intros.
+  unfold proj_int, inj_int.
+  remember (nat_of_Z (ZRdiv (Z_of_nat (S wz)) 8)) as n.
+  assert (n > 0)%nat.
+    subst.
+    apply nat_of_Z_pos.
+    apply ZRdiv_prop3; auto with zarith.
+      apply Z_of_S_gt_O.
+  Opaque Z_of_nat.
+  destruct n; simpl.
+    contradict H; omega.
+
+    destruct (eq_nat_dec 
+      (nat_of_Z ((Z_of_nat (S wz)) mod 8))
+      (nat_of_Z ((Z_of_nat (S wz)) mod 8))
+      ).
+      destruct (@proj_bytes_prop2 (bytes_of_int n (Int.unsigned wz x/256)) n) 
+        as [bl EQ].
+        apply length_bytes_of_int.
+        unfold inj_bytes.
+        rewrite EQ. 
+
+        apply proj_bytes_prop1 in EQ. rewrite <- EQ. auto.
+      contradict n0; auto.
+Qed.
+
+Lemma proj_inj_int_neq : 
+  forall wz1 wz2 x,
+  wz1 <> wz2 ->
+  proj_int wz1 (inj_int wz2 x) = None.
+Proof.
+  intros.
+  unfold proj_int, inj_int.
+  remember (nat_of_Z (ZRdiv (Z_of_nat (S wz1)) 8)) as n.
+  assert (n > 0)%nat.
+    subst.
+    apply nat_of_Z_pos.
+    apply ZRdiv_prop3; auto with zarith.
+      apply Z_of_S_gt_O.
+  Opaque Z_of_nat.
+  destruct n; simpl.
+    contradict H; omega.
+    destruct (@bytes_of_int_prop1 
+      (nat_of_Z (ZRdiv (Z_of_nat (S wz2)) 8))
+      (Int.unsigned wz2 x))
+      as [b [bl EQ]].
+      apply nat_of_Z_pos.
+      apply ZRdiv_prop3; auto with zarith.
+        apply Z_of_S_gt_O.
+    rewrite EQ.      
+
+    unfold inj_bytes.
+    destruct (eq_nat_dec 
+      (nat_of_Z ((Z_of_nat (S wz2)) mod 8))
+      (nat_of_Z ((Z_of_nat (S wz1)) mod 8))
+      ); auto.
+      apply nat_of_Z_inj in e; try solve [apply mod_prop1].
+        remember (proj_bytes n (map (Byte 8) bl)) as R.
+        destruct R; auto.
+          symmetry in HeqR.
+          apply proj_bytes_prop3 in HeqR.
+          destruct HeqR as [EQ1 EQ2]; subst.
+          assert(J:=@length_bytes_of_int (nat_of_Z (ZRdiv (Z_of_nat (S wz2)) 8)) (Int.unsigned wz2 x)).
+          rewrite EQ in J.
+          simpl in J. rewrite EQ2 in J.
+          rewrite Heqn in J.
+          apply nat_of_Z_inj in J; try solve [apply ZRdiv_prop4].
+            apply zrdiv_zmod_prop1 in J; auto with zarith.
+              apply inj_eq_rev in J; auto.
+              inversion J; subst.        
+              contradict H; auto.
+Qed.
+
 Parameter big_endian: bool.
 
-Definition rev_if_be (l: list byte) : list byte :=
+Definition rev_if_be (A:Type) (l: list A) : list A :=
   if big_endian then List.rev l else l.
 
 Lemma rev_if_be_involutive:
-  forall l, rev_if_be (rev_if_be l) = l.
+  forall A l, rev_if_be A (rev_if_be A l) = l.
 Proof.
   intros; unfold rev_if_be; destruct big_endian. 
   apply List.rev_involutive. 
@@ -200,190 +570,76 @@ Proof.
 Qed.
 
 Lemma rev_if_be_length:
-  forall l, length (rev_if_be l) = length l.
+  forall A l, length (rev_if_be A l) = length l.
 Proof.
   intros; unfold rev_if_be; destruct big_endian.
   apply List.rev_length.
   auto.
 Qed.
 
-Definition encode_int (c: memory_chunk) (x: int32) : list byte :=
-  let n := Int.unsigned 31 x in
-  rev_if_be (match c with
-  | Mint8signed | Mint8unsigned => bytes_of_int 1%nat n
-  | Mint16signed | Mint16unsigned => bytes_of_int 2%nat n
-  | Mint32 => bytes_of_int 4%nat n
-  | Mfloat32 => bytes_of_int 4%nat 0
-  | Mfloat64 => bytes_of_int 8%nat 0
-  end).
+(* generate the stored bytes of x (with size wz). *)
+Definition encode_int (wz:nat) (x: Int.int wz) : list memval :=
+  rev_if_be _ (inj_int wz x).
 
-Definition decode_int (c: memory_chunk) (b: list byte) : int32 :=
-  let b' := rev_if_be b in
-  match c with
-  | Mint8signed => Int.sign_ext 31 8 (Int.repr 31 (int_of_bytes b'))
-  | Mint8unsigned => Int.zero_ext 31 8 (Int.repr 31 (int_of_bytes b'))
-  | Mint16signed => Int.sign_ext 31 16 (Int.repr 31 (int_of_bytes b'))
-  | Mint16unsigned => Int.zero_ext 31 16 (Int.repr 31 (int_of_bytes b'))
-  | Mint32 => Int.repr 31 (int_of_bytes b')
-  | Mfloat32 => Int.zero 31 
-  | Mfloat64 => Int.zero 31
+Definition decode_int (b: list memval) (wz:nat) : val :=
+  let b' := rev_if_be _ b in
+  match (proj_int wz b') with
+  | Some i => Vint wz i
+  | None => Vundef
   end.
 
 Lemma encode_int_length:
-  forall chunk n, length(encode_int chunk n) = size_chunk_nat chunk.
+  forall wz n, length(encode_int wz n) = bytesize_chunk_nat wz.
 Proof.
   intros. unfold encode_int. rewrite rev_if_be_length.
-  destruct chunk; rewrite length_bytes_of_int; reflexivity.
+  apply length_inj_int.
 Qed.
 
-Lemma decode_encode_int:
-  forall c x,
-  decode_int c (encode_int c x) =
-  match c with
-  | Mint8signed => Int.sign_ext 31 8 x
-  | Mint8unsigned => Int.zero_ext 31 8 x
-  | Mint16signed => Int.sign_ext 31 16 x
-  | Mint16unsigned => Int.zero_ext 31 16 x
-  | Mint32 => x
-  | Mfloat32 => Int.zero 31
-  | Mfloat64 => Int.zero 31
-  end.
+Lemma decode_encode_int_eq:
+  forall wz x,
+  decode_int (encode_int wz x) wz = Vint wz x.
 Proof.
-  intros. unfold decode_int, encode_int; destruct c; auto;
+  intros. unfold decode_int, encode_int; auto;
   rewrite rev_if_be_involutive.
-  rewrite int_of_bytes_of_int_2; auto.
-  apply Int.sign_ext_zero_ext. compute; auto.
-  rewrite int_of_bytes_of_int_2; auto.
-  apply Int.zero_ext_idem. compute; auto.
-  rewrite int_of_bytes_of_int_2; auto.
-  apply Int.sign_ext_zero_ext. compute; auto.
-  rewrite int_of_bytes_of_int_2; auto.
-  apply Int.zero_ext_idem. compute; auto.
-  rewrite int_of_bytes_of_int. 
-  transitivity (Int.repr 31 (Int.unsigned 31 x)). 
-  apply Int.eqm_samerepr. apply Int.eqm_sym. apply Int.eqmod_mod. apply two_p_gt_ZERO. omega. 
-  apply Int.repr_unsigned.
+
+  rewrite proj_inj_int_eq. auto.
 Qed.
 
-Lemma encode_int8_signed_unsigned: forall n,
-  encode_int Mint8signed n = encode_int Mint8unsigned n.
+Lemma decode_encode_int_neq:
+  forall wz1 wz2 x,
+  wz1 <> wz2 ->
+  decode_int (encode_int wz1 x) wz2 = Vundef.
 Proof.
-  intros; reflexivity.
+  intros. unfold decode_int, encode_int; auto;
+  rewrite rev_if_be_involutive.
+
+  rewrite proj_inj_int_neq; auto.
 Qed.
 
-Remark encode_8_mod:
-  forall x y,
-  Int.eqmod (two_p 8) (Int.unsigned 31 x) (Int.unsigned 31 y) ->
-  encode_int Mint8unsigned x = encode_int Mint8unsigned y.
+Remark encode_mod:
+  forall wz x y, 
+  Int.eqmod (two_p (wordsize_chunk wz)) (Int.unsigned wz x) (Int.unsigned wz y) ->
+  encode_int wz x = encode_int wz y.
 Proof.
-  intros. unfold encode_int. decEq. apply bytes_of_int_mod. auto.
-Qed.
-
-Lemma encode_int8_zero_ext:
-  forall x,
-  encode_int Mint8unsigned (Int.zero_ext 31 8 x) = encode_int Mint8unsigned x.
-Proof.
-  intros. apply encode_8_mod. apply Int.eqmod_zero_ext. compute; auto.
-Qed.
-
-Lemma encode_int8_sign_ext:
-  forall x,
-  encode_int Mint8signed (Int.sign_ext 31 8 x) = encode_int Mint8signed x.
-Proof.
-  intros. repeat rewrite encode_int8_signed_unsigned. 
-  apply encode_8_mod. eapply Int.eqmod_trans.
-  apply (Int.eqm_eqmod_two_p 31). compute; auto. 
-  apply Int.eqm_sym. apply Int.eqm_signed_unsigned.
-  apply Int.eqmod_sign_ext. compute; auto.
-Qed.
-
-Lemma encode_int16_signed_unsigned: forall n,
-  encode_int Mint16signed n = encode_int Mint16unsigned n.
-Proof.
-  intros; reflexivity.
-Qed.
-
-Remark encode_16_mod:
-  forall x y,
-  Int.eqmod (two_p 16) (Int.unsigned 31 x) (Int.unsigned 31 y) ->
-  encode_int Mint16unsigned x = encode_int Mint16unsigned y.
-Proof.
-  intros. unfold encode_int. decEq. apply bytes_of_int_mod. auto.
-Qed.
-
-Lemma encode_int16_zero_ext:
-  forall x,
-  encode_int Mint16unsigned (Int.zero_ext 31 16 x) = encode_int Mint16unsigned x.
-Proof.
-  intros. apply encode_16_mod. apply Int.eqmod_zero_ext. compute; auto.
-Qed.
-
-Lemma encode_int16_sign_ext:
-  forall x,
-  encode_int Mint16signed (Int.sign_ext 31 16 x) = encode_int Mint16signed x.
-Proof.
-  intros. repeat rewrite encode_int16_signed_unsigned. 
-  apply encode_16_mod. eapply Int.eqmod_trans.
-  apply (Int.eqm_eqmod_two_p 31). compute; auto. 
-  apply Int.eqm_sym. apply Int.eqm_signed_unsigned.
-  apply Int.eqmod_sign_ext. compute; auto.
-Qed.
-
-Lemma decode_int8_zero_ext:
-  forall l,
-  Int.zero_ext 31 8 (decode_int Mint8unsigned l) = decode_int Mint8unsigned l.
-Proof.
-  intros; simpl. apply Int.zero_ext_idem. vm_compute; auto.
-Qed.
-
-Lemma decode_int8_sign_ext:
-  forall l,
-  Int.sign_ext 31 8 (decode_int Mint8signed l) = decode_int Mint8signed l.
-Proof.
-  intros; simpl. apply Int.sign_ext_idem. vm_compute; auto.
-Qed.
-
-Lemma decode_int16_zero_ext:
-  forall l,
-  Int.zero_ext 31 16 (decode_int Mint16unsigned l) = decode_int Mint16unsigned l.
-Proof.
-  intros; simpl. apply Int.zero_ext_idem. vm_compute; auto.
-Qed.
-
-Lemma decode_int16_sign_ext:
-  forall l,
-  Int.sign_ext 31 16 (decode_int Mint16signed l) = decode_int Mint16signed l.
-Proof.
-  intros; simpl. apply Int.sign_ext_idem. vm_compute; auto.
-Qed.
-
-Lemma decode_int8_signed_unsigned:
-  forall l,
-  decode_int Mint8signed l = Int.sign_ext 31 8 (decode_int Mint8unsigned l).
-Proof.
-  intros; simpl. rewrite Int.sign_ext_zero_ext; auto. vm_compute; auto.
-Qed.
-
-Lemma decode_int16_signed_unsigned:
-  forall l,
-  decode_int Mint16signed l = Int.sign_ext 31 16 (decode_int Mint16unsigned l).
-Proof.
-  intros; simpl. rewrite Int.sign_ext_zero_ext; auto. vm_compute; auto.
+  intros. unfold encode_int. decEq.
+  unfold inj_int.
+  unfold wordsize_chunk in H. 
+  unfold bytesize_chunk in H.
+  apply bytes_of_int_mod' in H; try solve [apply ZRdiv_prop4].
+  rewrite H. auto.
 Qed.
 
 (** * Encoding and decoding floats *)
 
 Definition encode_float (c: memory_chunk) (f: float) : list byte :=
-  rev_if_be (match c with
-  | Mint8signed | Mint8unsigned => bytes_of_int 1%nat 0
-  | Mint16signed | Mint16unsigned => bytes_of_int 2%nat 0
-  | Mint32 => bytes_of_int 4%nat 0
+  rev_if_be _ (match c with
+  | Mint wz => bytes_of_int (bytesize_chunk_nat wz) 0
   | Mfloat32 => bytes_of_int 4%nat (Int.unsigned 31 (Float.bits_of_single f))
   | Mfloat64 => bytes_of_int 8%nat (Int.unsigned 63 (Float.bits_of_double f))
   end).
 
 Definition decode_float (c: memory_chunk) (b: list byte) : float :=
-  let b' := rev_if_be b in
+  let b' := rev_if_be _ b in
   match c with
   | Mfloat32 => Float.single_of_bits (Int.repr 31 (int_of_bytes b'))
   | Mfloat64 => Float.double_of_bits (Int.repr 63 (int_of_bytes b'))
@@ -395,7 +651,10 @@ Lemma encode_float_length:
 Proof.
   unfold encode_float; intros. 
   rewrite rev_if_be_length. 
-  destruct chunk; apply length_bytes_of_int. 
+  destruct chunk; try solve [
+    apply length_bytes_of_int |
+    unfold size_chunk_nat, size_chunk;
+      rewrite Z_of_nat_eq; apply length_bytes_of_int].
 Qed.
 
 Lemma decode_encode_float32: forall n,
@@ -423,18 +682,6 @@ Proof.
   rewrite Int.repr_unsigned. apply Float.double_of_bits_of_double.
 Qed.
 
-Lemma encode_float8_signed_unsigned: forall n,
-  encode_float Mint8signed n = encode_float Mint8unsigned n.
-Proof.
-  intros. reflexivity. 
-Qed.
-
-Lemma encode_float16_signed_unsigned: forall n,
-  encode_float Mint16signed n = encode_float Mint16unsigned n.
-Proof.
-  intros. reflexivity.
-Qed.
-
 Lemma encode_float32_cast:
   forall f,
   encode_float Mfloat32 (Float.singleoffloat f) = encode_float Mfloat32 f.
@@ -451,38 +698,6 @@ Proof.
 Qed.
 
 (** * Encoding and decoding values *)
-
-Definition inj_bytes (bl: list byte) : list memval :=
-  List.map Byte bl.
-
-Fixpoint proj_bytes (vl: list memval) : option (list byte) :=
-  match vl with
-  | nil => Some nil
-  | Byte b :: vl' =>
-      match proj_bytes vl' with None => None | Some bl => Some(b :: bl) end
-  | _ => None
-  end.
-
-Remark length_inj_bytes:
-  forall bl, length (inj_bytes bl) = length bl.
-Proof.
-  intros. apply List.map_length. 
-Qed.
-
-Remark proj_inj_bytes:
-  forall bl, proj_bytes (inj_bytes bl) = Some bl.
-Proof.
-  induction bl; simpl. auto. rewrite IHbl. auto.
-Qed.
-
-Lemma inj_proj_bytes:
-  forall cl bl, proj_bytes cl = Some bl -> cl = inj_bytes bl.
-Proof.
-  induction cl; simpl; intros. 
-  inv H; auto.
-  destruct a; try congruence. destruct (proj_bytes cl); inv H.
-  simpl. decEq. auto.
-Qed.
 
 Fixpoint inj_pointer (n: nat) (b: block) (ofs: Int.int 31) {struct n}: list memval :=
   match n with
@@ -502,53 +717,16 @@ Fixpoint check_pointer (n: nat) (b: block) (ofs: Int.int 31) (vl: list memval)
 Definition proj_pointer (vl: list memval) : val :=
   match vl with
   | Pointer b ofs n :: vl' =>
-      if check_pointer (size_chunk_nat Mint32) b ofs vl
+      if check_pointer (size_chunk_nat (Mint 31)) b ofs vl
       then Vptr b ofs
       else Vundef
   | _ => Vundef
   end.
 
-Definition encode_val (chunk: memory_chunk) (v: val) : list memval :=
-  match v, chunk with
-  | Vptr b ofs, Mint32 => inj_pointer (size_chunk_nat Mint32) b ofs
-  | Vint 31 n, _ => inj_bytes (encode_int chunk n)
-  | Vfloat f, _ => inj_bytes (encode_float chunk f)
-  | _, _ => list_repeat (size_chunk_nat chunk) Undef
-  end.
-
-Definition decode_val (chunk: memory_chunk) (vl: list memval) : val :=
-  match proj_bytes vl with
-  | Some bl =>
-      match chunk with
-      | Mint8signed | Mint8unsigned
-      | Mint16signed | Mint16unsigned | Mint32 =>
-          Vint 31 (decode_int chunk bl)
-      | Mfloat32 | Mfloat64 =>
-          Vfloat(decode_float chunk bl)
-      end
-  | None =>
-      match chunk with
-      | Mint32 => proj_pointer vl
-      | _ => Vundef
-      end
-  end.
-
-(*
 Lemma inj_pointer_length:
   forall b ofs n, List.length(inj_pointer n b ofs) = n.
 Proof.
   induction n; simpl; congruence.
-Qed.
-*)
-
-Lemma encode_val_length:
-  forall chunk v, length(encode_val chunk v) = size_chunk_nat chunk.
-Proof.
-  intros. destruct v; simpl.
-  apply length_list_repeat.
-  rewrite length_inj_bytes. apply encode_int_length.
-  rewrite length_inj_bytes. apply encode_float_length.
-  destruct chunk; try (apply length_list_repeat). reflexivity.
 Qed.
 
 Lemma check_inj_pointer:
@@ -559,27 +737,229 @@ Proof.
   rewrite <- beq_nat_refl. simpl; auto.
 Qed.
 
+Definition encode_val (chunk: memory_chunk) (v: val) : list memval :=
+  match v, chunk with
+  | Vptr b ofs, Mint wz => 
+    if eq_nat_dec wz 31 
+    then inj_pointer (size_chunk_nat (Mint wz)) b ofs
+    else list_repeat (size_chunk_nat chunk) Undef
+  | Vint wz n, Mint wz' =>
+    if eq_nat_dec wz wz' 
+    then encode_int wz n
+    else list_repeat (size_chunk_nat chunk) Undef
+  | Vfloat f, _ => inj_bytes (encode_float chunk f)
+  | _, _ => list_repeat (size_chunk_nat chunk) Undef
+  end.
+
+Definition decode_val (chunk: memory_chunk) (vl: list memval) : val :=
+  match chunk with
+  | Mint wz => 
+    match decode_int vl wz with
+    | Vundef => if eq_nat_dec wz 31 then proj_pointer vl else Vundef
+    | v => v
+    end
+  | Mfloat32 =>
+    match proj_bytes (bytesize_chunk_nat 31) vl with
+    | Some bl => Vfloat(decode_float chunk bl)
+    | None => Vundef
+    end
+  | Mfloat64 =>
+    match proj_bytes (bytesize_chunk_nat 63) vl with
+    | Some bl => Vfloat(decode_float chunk bl)
+    | None => Vundef
+    end
+  end.
+
+Lemma encode_val_length:
+  forall chunk v, length (encode_val chunk v) = size_chunk_nat chunk.
+Proof.
+  intros. destruct v; simpl.
+
+  apply length_list_repeat.
+
+  destruct chunk; simpl; unfold size_chunk_nat, size_chunk; auto with zarith.
+  destruct (eq_nat_dec wz n); subst.
+    apply encode_int_length.
+    apply length_list_repeat.
+
+  rewrite length_inj_bytes. apply encode_float_length.
+
+  destruct chunk; simpl; unfold size_chunk_nat, size_chunk; auto.
+    destruct (eq_nat_dec n 31); subst.
+      apply inj_pointer_length.
+      apply length_list_repeat.
+Qed.
+
 Definition decode_encode_val (v1: val) (chunk1 chunk2: memory_chunk) (v2: val) : Prop :=
   match v1, chunk1, chunk2 with
   | Vundef, _, _ => v2 = Vundef
-  | Vint n, Mint8signed, Mint8signed => v2 = Vint(Int.sign_ext 8 n)
-  | Vint n, Mint8unsigned, Mint8signed => v2 = Vint(Int.sign_ext 8 n)
-  | Vint n, Mint8signed, Mint8unsigned => v2 = Vint(Int.zero_ext 8 n)
-  | Vint n, Mint8unsigned, Mint8unsigned => v2 = Vint(Int.zero_ext 8 n)
-  | Vint n, Mint16signed, Mint16signed => v2 = Vint(Int.sign_ext 16 n)
-  | Vint n, Mint16unsigned, Mint16signed => v2 = Vint(Int.sign_ext 16 n)
-  | Vint n, Mint16signed, Mint16unsigned => v2 = Vint(Int.zero_ext 16 n)
-  | Vint n, Mint16unsigned, Mint16unsigned => v2 = Vint(Int.zero_ext 16 n)
-  | Vint n, Mint32, Mint32 => v2 = Vint n
-  | Vint n, Mint32, Mfloat32 => v2 = Vfloat(decode_float Mfloat32 (encode_int Mint32 n))
-  | Vint n, _, _ => True   (* nothing interesting to say about v2 *)
-  | Vptr b ofs, Mint32, Mint32 => v2 = Vptr b ofs
+
+  | Vint wz n, Mint wz1, Mint wz2 => 
+    if eq_nat_dec wz wz1
+    then 
+      if eq_nat_dec wz wz2
+      then v2 = Vint wz n
+      else v2 = Vundef
+    else v2 = Vundef
+  | Vint wz n, Mint wz', Mfloat32 => 
+    if eq_nat_dec wz 31
+    then 
+      if eq_nat_dec wz' 31
+      then 
+        match (proj_bytes (bytesize_chunk_nat wz) (encode_int wz n)) with
+        | Some bl => v2 = Vfloat(decode_float Mfloat32 bl)
+        | None => False
+        end
+      else True
+    else True
+  | Vint wz n, _, _ => True   (* nothing interesting to say about v2 *)
+
+  | Vptr b ofs, Mint wz1, Mint wz2 => 
+    if eq_nat_dec wz1 31
+    then 
+      if eq_nat_dec wz2 31
+      then v2 = Vptr b ofs
+      else v2 = Vundef
+    else v2 = Vundef
   | Vptr b ofs, _, _ => v2 = Vundef
+
   | Vfloat f, Mfloat32, Mfloat32 => v2 = Vfloat(Float.singleoffloat f)
-  | Vfloat f, Mfloat32, Mint32 => v2 = Vint(decode_int Mint32 (encode_float Mfloat32 f))
+  | Vfloat f, Mfloat32, Mint wz => 
+    if eq_nat_dec wz 31
+    then v2 = decode_int (inj_bytes (encode_float Mfloat32 f)) 31
+    else True
   | Vfloat f, Mfloat64, Mfloat64 => v2 = Vfloat f
   | Vfloat f, _, _ => True   (* nothing interesting to say about v2 *)
   end.
+
+Remark proj_bytes_undef:
+  forall n, (n > 0)%nat -> proj_bytes n (list_repeat n Undef) = None.
+Proof.
+  induction n; simpl; intro; auto.
+    contradict H; omega.
+Qed.
+
+Remark proj_pointer_undef:
+  forall n, proj_pointer (list_repeat n Undef) = Vundef.
+Proof.
+  induction n; simpl; auto.
+Qed.
+
+Lemma list_repeat_cons_inv : forall m a b,
+  a :: b = list_repeat m Undef ->
+  a = Undef /\
+  exists m', S m' = m /\ b = list_repeat m' Undef.
+Proof.
+  induction m; intros; simpl in *.
+    inversion H.
+
+    inversion H; subst.
+    split; auto.
+    exists m. split; auto.
+Qed.
+
+Lemma proj_int_undef : forall n m,
+  proj_int n (list_repeat m Undef) = None.
+Proof.
+  intros.
+  unfold proj_int.
+  remember (nat_of_Z (ZRdiv (Z_of_nat (S n)) 8)) as N.
+  induction N; simpl.
+    destruct (list_repeat m Undef); auto.
+
+    remember (list_repeat m Undef) as L.
+    destruct L; auto.
+      apply list_repeat_cons_inv in HeqL.
+      destruct HeqL as [H1 [m' [H2 H3]]]; subst; auto.
+Qed.      
+
+Lemma list_repeat_undef : forall n,
+  list_repeat n Undef ++ Undef :: nil =
+  Undef :: list_repeat n Undef.
+Proof.
+  induction n; simpl; auto.
+    rewrite IHn. auto.
+Qed.
+
+Lemma rev_if_be_nil : forall (A:Type), rev_if_be A nil = nil.
+Proof.
+  unfold rev_if_be.
+  destruct big_endian; auto.
+Qed.
+
+Lemma rev_if_be_repeat_undef : forall n,
+  rev_if_be _ (list_repeat n Undef) = list_repeat n Undef.
+Proof.
+  induction n; simpl.
+    apply rev_if_be_nil.
+
+    unfold rev_if_be in *.
+    destruct big_endian; auto.
+      simpl.
+      rewrite IHn. auto.
+      apply list_repeat_undef.
+Qed.
+
+Lemma proj_pointer_encode_int : forall wz i,
+  proj_pointer (encode_int wz i) = Vundef.
+Proof.
+  intros.
+  unfold proj_pointer, encode_int, inj_int.
+  destruct (bytes_of_int (nat_of_Z (ZRdiv (Z_of_nat (S wz)) 8)) (Int.unsigned wz i)); simpl; auto.
+    rewrite rev_if_be_nil. auto.
+Admitted.
+
+Lemma decode_int_repeat_Undef : forall n m,
+  decode_int (list_repeat n Undef) m = Vundef.
+Proof.
+  intros.
+  unfold decode_int.
+  rewrite rev_if_be_repeat_undef.
+  rewrite proj_int_undef. auto.
+Qed.
+
+Lemma proj_bytes_encode_int32 : forall i,
+  exists bl, proj_bytes (bytesize_chunk_nat 31) (encode_int 31 i) = Some bl.
+Admitted.
+
+Lemma decode_int_encode_float32 : forall f,
+  exists i, decode_int (inj_bytes (encode_float Mfloat32 f)) 31 = Vint 31 i.
+Admitted.
+
+Lemma proj_bytes_encode_float32 : forall f,
+  exists bl, proj_bytes (bytesize_chunk_nat 31) (inj_bytes (encode_float Mfloat32 f)) = Some bl.
+Admitted.      
+
+Lemma proj_bytes_encode_float64 : forall f,
+  exists bl, proj_bytes (bytesize_chunk_nat 63) (inj_bytes (encode_float Mfloat64 f)) = Some bl.
+Admitted.      
+
+Lemma encode_float32_length : forall f,
+  length (encode_float Mfloat32 f) = bytesize_chunk_nat 31.
+Admitted.
+
+Lemma encode_float64_length : forall f,
+  length (encode_float Mfloat64 f) = bytesize_chunk_nat 63.
+Admitted.
+
+Lemma decode_int_inj_pointer:
+  forall b ofs, 
+  decode_int (inj_pointer (size_chunk_nat (Mint 31)) b ofs) 31 = Vptr b ofs.
+Proof.
+Admitted.
+
+Lemma decode_int_inj_pointer_undef:
+  forall b ofs n, 
+  n <> 31%nat ->
+  decode_int (inj_pointer (size_chunk_nat (Mint 31)) b ofs) n = Vundef.
+Proof.
+Admitted.
+
+Remark proj_bytes_undef':
+  forall n m, (m > 0)%nat -> proj_bytes n (list_repeat m Undef) = None.
+Proof.
+  induction n; simpl; intros; auto.
+Admitted.
 
 Lemma decode_encode_val_general:
   forall v chunk1 chunk2,
@@ -590,70 +970,150 @@ Proof.
   simpl. destruct (size_chunk_nat_pos chunk1) as [psz EQ]. 
   rewrite EQ. simpl.
   unfold decode_val. simpl. destruct chunk2; auto.
+  change (Undef::list_repeat psz Undef) with (list_repeat (S psz) Undef).
+  rewrite decode_int_repeat_Undef.
+  destruct (eq_nat_dec n 31); subst; auto.
 (* Vint *)
   simpl.
-  destruct chunk1; auto; destruct chunk2; auto; unfold decode_val;
-  rewrite proj_inj_bytes.
-  rewrite decode_encode_int. auto.
-  rewrite encode_int8_signed_unsigned. rewrite decode_encode_int. auto.
-  rewrite <- encode_int8_signed_unsigned.  rewrite decode_encode_int. auto.
-  rewrite decode_encode_int. auto.
-  rewrite decode_encode_int. auto.
-  rewrite encode_int16_signed_unsigned. rewrite decode_encode_int. auto.
-  rewrite <- encode_int16_signed_unsigned.  rewrite decode_encode_int. auto.
-  rewrite decode_encode_int. auto.
-  rewrite decode_encode_int. auto.
-  reflexivity. 
+  destruct chunk1; auto; destruct chunk2; auto; unfold decode_val, encode_val; 
+  try rewrite proj_inj_bytes.
+
+    destruct (eq_nat_dec wz n); subst; auto.
+      destruct (eq_nat_dec n n0); subst; auto.
+        rewrite decode_encode_int_eq; auto.
+        rewrite decode_encode_int_neq; auto.
+        destruct (eq_nat_dec n0 31); subst; auto.
+          apply proj_pointer_encode_int.
+      rewrite decode_int_repeat_Undef.
+      destruct (eq_nat_dec n0 31); subst; auto.
+        apply proj_pointer_undef.
+      
+    destruct (eq_nat_dec wz 31); subst; auto.
+      destruct (eq_nat_dec n 31); subst; auto.
+        destruct (eq_nat_dec 31 31); subst.
+          destruct (@proj_bytes_encode_int32 i) as [bl EQ].
+          rewrite EQ.
+          simpl. auto.
+          
+          contradict n; auto.
 (* Vfloat *)
   unfold decode_val, encode_val, decode_encode_val;
-  destruct chunk1; auto; destruct chunk2; auto; unfold decode_val;
-  rewrite proj_inj_bytes.
-  auto.
-  rewrite decode_encode_float32. auto.
-  rewrite decode_encode_float64. auto.
+  destruct chunk1; auto; destruct chunk2; auto; unfold decode_val.
+
+    destruct (eq_nat_dec n 31); subst; auto.
+      destruct (@decode_int_encode_float32 f) as [i EQ].
+      rewrite EQ. auto.
+
+      destruct (@proj_bytes_encode_float32 f) as [bl EQ].
+      rewrite EQ. simpl.
+      decEq.
+      rewrite <- decode_encode_float32.
+      unfold decode_float.
+      rewrite <- (encode_float32_length f) in EQ.
+      rewrite proj_inj_bytes in EQ.
+      inversion EQ; subst; auto.
+
+    destruct (@proj_bytes_encode_float64 f) as [bl EQ].
+    rewrite EQ. simpl.
+    decEq.
+    rewrite <- decode_encode_float64.
+    unfold decode_float.
+    rewrite <- (encode_float64_length f) in EQ.
+    rewrite proj_inj_bytes in EQ.
+    inversion EQ; subst; auto.
+
 (* Vptr *)
   unfold decode_val, encode_val, decode_encode_val;
   destruct chunk1; auto; destruct chunk2; auto.
-  simpl. generalize (check_inj_pointer b i (size_chunk_nat Mint32)).
-  simpl. intro. rewrite H. auto.
+
+    destruct (eq_nat_dec n 31); subst; auto.
+      destruct (eq_nat_dec n0 31); subst; auto.
+        rewrite decode_int_inj_pointer; auto.
+        rewrite decode_int_inj_pointer_undef; auto.
+
+      rewrite decode_int_repeat_Undef.
+      destruct (eq_nat_dec n0 31); subst; auto.
+        rewrite proj_pointer_undef; auto.
+
+    destruct (eq_nat_dec n 31); subst; auto.
+      rewrite proj_bytes_undef'; auto using size_chunk_nat_pos'.
+
+    destruct (eq_nat_dec n 31); subst; auto.
+      rewrite proj_bytes_undef'; auto using size_chunk_nat_pos'.
+
+    rewrite decode_int_repeat_Undef.
+    destruct (eq_nat_dec n 31); subst; auto.
+   
+    rewrite decode_int_repeat_Undef.
+    destruct (eq_nat_dec n 31); subst; auto.
 Qed.
+
+Definition chunk_eq (c1 c2:memory_chunk) : Prop :=
+  size_chunk c1 = size_chunk c2 /\
+  match c1, c2 with
+  | Mint wz1, Mint wz2 => wz1 = wz2
+  | _, _ => True
+  end.
 
 Lemma decode_encode_val_similar:
   forall v1 chunk1 chunk2 v2,
   type_of_chunk chunk1 = type_of_chunk chunk2 ->
-  size_chunk chunk1 = size_chunk chunk2 ->
+  chunk_eq chunk1 chunk2 ->
   Val.has_type v1 (type_of_chunk chunk1) ->
   decode_encode_val v1 chunk1 chunk2 v2 ->
   v2 = Val.load_result chunk2 v1.
 Proof.
   intros. 
   destruct v1.
-  simpl in *. destruct chunk2; simpl; auto. 
+  simpl in *. destruct chunk2; simpl; auto.
+ 
   red in H1.
   destruct chunk1; simpl in H1; try contradiction;
   destruct chunk2; simpl in *; discriminate || auto.
+  destruct (eq_nat_dec wz n); subst.
+    destruct (eq_nat_dec n n0); subst.
+      destruct (eq_nat_dec n0 n0); subst; auto.
+        contradict n; auto.
+      destruct (eq_nat_dec n0 n); subst; auto.
+        contradict n1; auto.
+    destruct (eq_nat_dec n0 wz); subst; auto.
+      unfold chunk_eq in H0.
+      destruct H0; subst.
+      contradict n1; auto.
+
+  unfold chunk_eq in H0. destruct H0.
   red in H1.
   destruct chunk1; simpl in H1; try contradiction;
   destruct chunk2; simpl in *; discriminate || auto.
+    
+  unfold chunk_eq in H0. destruct H0.
   red in H1.
   destruct chunk1; simpl in H1; try contradiction;
   destruct chunk2; simpl in *; discriminate || auto.
+  subst.
+  destruct (eq_nat_dec n0 31); subst; auto.
 Qed.
 
 Lemma decode_val_type:
   forall chunk cl,
   Val.has_type (decode_val chunk cl) (type_of_chunk chunk).
 Proof.
-  intros. unfold decode_val. 
-  destruct (proj_bytes cl). 
+  intros. unfold decode_val.
   destruct chunk; simpl; auto. 
-  destruct chunk; simpl; auto.
-  unfold proj_pointer. destruct cl; try (exact I).
-  destruct m; try (exact I).
-  destruct (check_pointer (size_chunk_nat Mint32) b i (Pointer b i n :: cl));
-  exact I.
+
+    unfold decode_int.
+    destruct (proj_int n (rev_if_be memval cl)); simpl; auto.
+      destruct (eq_nat_dec n 31); simpl; auto.
+        unfold proj_pointer.
+        destruct cl; simpl; auto.
+          destruct m; simpl; auto.
+            destruct (check_pointer (size_chunk_nat (Mint 31)) b i (Pointer b i n0::cl)); simpl; auto.
+
+    destruct (proj_bytes (bytesize_chunk_nat 31) cl); simpl; auto.
+    destruct (proj_bytes (bytesize_chunk_nat 63) cl); simpl; auto.
 Qed.
 
+(*
 Lemma encode_val_int8_signed_unsigned:
   forall v, encode_val Mint8signed v = encode_val Mint8unsigned v.
 Proof.
@@ -689,53 +1149,77 @@ Lemma encode_val_int16_sign_ext:
 Proof.
   intros; unfold encode_val. rewrite encode_int16_sign_ext. auto.
 Qed.
+*)
 
 Lemma decode_val_int_inv:
-  forall chunk cl n,
-  decode_val chunk cl = Vint n ->
+  forall chunk cl n i,
+  decode_val chunk cl = Vint n i ->
   type_of_chunk chunk = Tint /\
-  exists bytes, proj_bytes cl = Some bytes /\ n = decode_int chunk bytes.
+  Vint n i = decode_int cl n.
 Proof.
-  intros until n. unfold decode_val. destruct (proj_bytes cl). 
-Opaque decode_int.
-  destruct chunk; intro EQ; inv EQ; split; auto; exists l; auto. 
-  destruct chunk; try congruence. unfold proj_pointer. 
-  destruct cl; try congruence. destruct m; try congruence. 
-  destruct (check_pointer (size_chunk_nat Mint32) b i (Pointer b i n0 :: cl));
-  congruence.
+  intros until i. unfold decode_val.
+  destruct chunk; intro EQ.
+    remember (decode_int cl n0) as R.
+    unfold decode_int in HeqR.
+    remember (proj_int n0 (rev_if_be memval cl)) as R'.
+    split. simpl. auto.
+      unfold decode_int.
+      destruct R'; subst.
+        inversion EQ; subst.
+        rewrite <- HeqR'. auto.
+
+        destruct (eq_nat_dec n0 31); subst; try solve [inversion EQ].
+          unfold proj_pointer in EQ.
+          destruct cl; try solve [inversion EQ].
+          destruct m; try solve [inversion EQ].
+          destruct (check_pointer (size_chunk_nat (Mint 31)) b i0 (Pointer b i0 n0::cl)); try solve [inversion EQ].
+
+    destruct (proj_bytes (bytesize_chunk_nat 31) cl); subst; try solve [inversion EQ].
+    destruct (proj_bytes (bytesize_chunk_nat 63) cl); subst; try solve [inversion EQ].
 Qed.
 
 Lemma decode_val_float_inv:
   forall chunk cl f,
   decode_val chunk cl = Vfloat f ->
   type_of_chunk chunk = Tfloat /\
-  exists bytes, proj_bytes cl = Some bytes /\ f = decode_float chunk bytes.
+  exists bl, proj_bytes (size_chunk_nat chunk) cl = Some bl /\ f = decode_float chunk bl.
 Proof.
-  intros until f. unfold decode_val. destruct (proj_bytes cl). 
-  destruct chunk; intro EQ; inv EQ; split; auto; exists l; auto. 
-  destruct chunk; try congruence. unfold proj_pointer. 
-  destruct cl; try congruence. destruct m; try congruence.
-  destruct (check_pointer (size_chunk_nat Mint32) b i (Pointer b i n :: cl));
-  congruence.
+  intros until f. unfold decode_val. 
+  destruct chunk; intro EQ.
+    remember (decode_int cl n) as R.
+    unfold decode_int in HeqR.
+    remember (proj_int n (rev_if_be memval cl)) as R'.
+    destruct R'; subst; try solve [inversion EQ].
+      destruct (eq_nat_dec n 31); subst; try solve [inversion EQ].
+        unfold proj_pointer in EQ.
+        destruct cl; try solve [inversion EQ].
+        destruct m; try solve [inversion EQ].
+        destruct (check_pointer (size_chunk_nat (Mint 31)) b i (Pointer b i n::cl)); try solve [inversion EQ].
+
+    remember (proj_bytes (bytesize_chunk_nat 31) cl) as R.
+    destruct R; subst; try solve [inversion EQ].
+    split; auto.
+      unfold decode_float in EQ.
+      inversion EQ; subst.
+      exists l. split; auto.
+
+    remember (proj_bytes (bytesize_chunk_nat 63) cl) as R.
+    destruct R; subst; try solve [inversion EQ].
+    split; auto.
+      unfold decode_float in EQ.
+      inversion EQ; subst.
+      exists l. split; auto.
 Qed.
 
 Lemma decode_val_cast:
   forall chunk l,
   let v := decode_val chunk l in
   match chunk with
-  | Mint8signed => v = Val.sign_ext 8 v
-  | Mint8unsigned => v = Val.zero_ext 8 v
-  | Mint16signed => v = Val.sign_ext 16 v
-  | Mint16unsigned => v = Val.zero_ext 16 v
   | Mfloat32 => v = Val.singleoffloat v
   | _ => True
   end.
 Proof.
-  unfold decode_val; intros; destruct chunk; auto; destruct (proj_bytes l); auto.
-  unfold Val.sign_ext. decEq. symmetry. apply decode_int8_sign_ext.
-  unfold Val.zero_ext. decEq. symmetry. apply decode_int8_zero_ext.
-  unfold Val.sign_ext. decEq. symmetry. apply decode_int16_sign_ext.
-  unfold Val.zero_ext. decEq. symmetry. apply decode_int16_zero_ext.
+  unfold decode_val; intros; destruct chunk; auto; destruct (proj_bytes (bytesize_chunk_nat 31) l); auto.
   unfold Val.singleoffloat. decEq. symmetry. apply decode_float32_cast. 
 Qed.
 
@@ -743,13 +1227,13 @@ Qed.
 
 Definition memval_valid_first (mv: memval) : Prop :=
   match mv with
-  | Pointer b ofs n => n = pred (size_chunk_nat Mint32)
+  | Pointer b ofs n => n = pred (size_chunk_nat (Mint 31))
   | _ => True
   end.
 
 Definition memval_valid_cont (mv: memval) : Prop :=
   match mv with
-  | Pointer b ofs n => n <> pred (size_chunk_nat Mint32)
+  | Pointer b ofs n => n <> pred (size_chunk_nat (Mint 31))
   | _ => True
   end.
 
@@ -774,11 +1258,25 @@ Proof.
     exploit list_in_map_inv; eauto. intros [x [A B]]. subst mv. exact I.
   destruct v; simpl. 
   auto.
+
+  destruct chunk; auto. 
+    destruct (eq_nat_dec wz n); subst; auto.
+      unfold encode_int.
+      admit. 
+
+  apply H0. apply encode_float_length.
+
+  destruct chunk; auto. 
+    destruct (eq_nat_dec n 31); subst; auto.
+      admit.
+(*
+  simpl; intros. intuition; subst mv; red; simpl; congruence.
   apply H0. apply encode_int_length. 
   apply H0. apply encode_float_length.
   destruct chunk; auto. 
   constructor. red. auto.
   simpl; intros. intuition; subst mv; red; simpl; congruence.
+*)
 Qed.
 
 Lemma check_pointer_inv:
@@ -810,7 +1308,11 @@ Lemma decode_val_shape:
   decode_val chunk mvl = Vundef \/ decoding_shape mvl.
 Proof.
   intros. destruct (size_chunk_nat_pos chunk) as [sz EQ]. 
-  unfold decode_val. 
+  unfold decode_val.
+  destruct chunk.
+    unfold decode_int.
+Admitted. 
+(*
   caseEq (proj_bytes mvl).
   intros bl PROJ. right. exploit inj_proj_bytes; eauto. intros. subst mvl.
   destruct bl; simpl in H. congruence. simpl. constructor. 
@@ -824,7 +1326,9 @@ Proof.
   constructor. red. auto. congruence. 
   simpl; intros. intuition; subst mv; simpl; congruence.
 Qed.
+*)
 
+(*
 Lemma encode_val_pointer_inv:
   forall chunk v b ofs n mvl,
   encode_val chunk v = Pointer b ofs n :: mvl ->
@@ -1056,5 +1560,6 @@ Lemma memval_inject_id:
   forall mv, memval_inject inject_id mv mv.
 Proof.
   destruct mv; econstructor. unfold inject_id; reflexivity. rewrite Int.add_zero; auto. 
-Qed.
- 
+Qed. 
+*)
+

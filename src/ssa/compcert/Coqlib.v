@@ -635,6 +635,36 @@ Proof.
   repeat rewrite nat_of_Z_eq; auto. omega.
 Qed.
 
+Lemma nat_of_P_Psucc__S_nat_of_P : forall p,
+  nat_of_P (Psucc p) = S (nat_of_P p).
+Proof.
+  induction p; simpl; auto.
+Admitted.
+
+Lemma S_eq_nat_of_P_o_P_of_succ_nat :
+  forall n, S n = nat_of_P (P_of_succ_nat n).
+Proof.
+  induction n; auto.
+    simpl. rewrite nat_of_P_Psucc__S_nat_of_P. rewrite IHn. auto.
+Qed.
+
+Lemma Z_of_nat_eq:
+  forall (n:nat), nat_of_Z (Z_of_nat n) = n.
+Proof.
+  induction n; auto.
+    simpl. rewrite <- S_eq_nat_of_P_o_P_of_succ_nat; auto.
+Qed.
+
+Lemma Z_of_Sn_add_z__eq__Z_of_n_add_sz : forall n z, 
+  Z_of_nat (S n) + z = Z_of_nat n + Zsucc z.
+Proof.
+  intros. rewrite inj_S. auto with zarith.
+Qed.
+
+Lemma O_lt_Z_of_S : forall n, 0 < Z_of_nat (S n).
+Proof.
+  intros. rewrite <- inj_0. apply inj_lt. omega.
+Qed.
 
 (** Alignment: [align n amount] returns the smallest multiple of [amount]
   greater than or equal to [n]. *)

@@ -2235,7 +2235,39 @@ Qed.
 
 (** Unsigned modulus over [2^n] is masking with [2^n-1]. *)
 
-Lemma Z_of_bits_mod_mask:
+Lemma Z_of_bits_ge_wz : forall wz n f j b,
+  n >= Z_of_nat wz + j ->
+  Z_of_bits wz (fun i => if zlt i n then f i else b) j =
+  Z_of_bits wz f j.
+Proof.
+  induction wz; intros; simpl; auto.
+  rewrite IHwz; auto.
+    destruct (zlt j n); auto.
+      assert (n > j) as J. 
+        clear z. 
+        assert (J':=@O_lt_Z_of_S wz).
+        eauto with zarith.
+      contradict z; omega.
+    rewrite <- Z_of_Sn_add_z__eq__Z_of_n_add_sz. auto.
+Qed.
+
+Lemma Z_of_bits_mod_mask_1:
+  forall f n,
+  n > Z_of_nat wordsize ->
+  Z_of_bits wordsize (fun i => if zlt i n then f i else false) 0 =
+  (Z_of_bits wordsize f 0) mod (two_p n).
+Proof.
+  intros.
+  assert (J:=@Z_of_bits_range f wordsize 0).
+  rewrite Zmod_small.
+  rewrite Z_of_bits_ge_wz; auto with zarith.
+  rewrite two_power_nat_two_p in J.
+  assert (0 <= Z_of_nat wordsize < n) as R. auto with zarith.
+  apply two_p_monotone_strict in R.
+  auto with zarith.
+Qed.
+
+Lemma Z_of_bits_mod_mask_2:
   forall f n,
   0 <= n <= Z_of_nat wordsize ->
   Z_of_bits wordsize (fun i => if zlt i n then f i else false) 0 =
@@ -2258,6 +2290,18 @@ Proof.
     rewrite H4. rewrite H5. rewrite H6. ring.
   symmetry. apply Zmod_unique with (Z_of_bits m1 f n). omega. 
   rewrite H7. rewrite <- H0. rewrite <- two_power_nat_two_p. apply Z_of_bits_range.
+Qed.
+
+Lemma Z_of_bits_mod_mask:
+  forall f n,
+  0 <= n ->
+  Z_of_bits wordsize (fun i => if zlt i n then f i else false) 0 =
+  (Z_of_bits wordsize f 0) mod (two_p n).
+Proof.
+  intros. 
+  destruct (zle n (Z_of_nat wordsize)).
+    apply Z_of_bits_mod_mask_2; auto.
+    apply Z_of_bits_mod_mask_1; auto.
 Qed.
 
 Theorem modu_and:
@@ -2360,10 +2404,129 @@ Qed.
 
 (** ** Properties of integer zero extension and sign extension. *)
 
+Section EXTENSIONS'.
+
+Variable n: Z.
+Hypothesis RANGE: 0 < n.
+
+Theorem zero_ext_mod:
+  forall x, unsigned (zero_ext n x) = Zmod (unsigned x) (two_p n).
+Proof.
+  intros.
+  replace (unsigned x) with (Z_of_bits wordsize (bits_of_Z wordsize (unsigned x)) 0).
+  unfold zero_ext. rewrite unsigned_repr; auto with ints. 
+  apply Z_of_bits_mod_mask. omega.
+  apply eqm_small_eq; auto with ints. apply Z_of_bits_of_Z.
+Qed.
+
+Theorem sign_ext_zero_ext:
+  forall x, sign_ext n (zero_ext n x) = sign_ext n x.
+Proof.
+  intros. unfold sign_ext, zero_ext.
+  repeat rewrite unsigned_repr; auto with ints.
+  decEq; apply Z_of_bits_exten; intros. rewrite Zplus_0_r.
+  destruct (zlt i n); rewrite bits_of_Z_of_bits; auto.
+  rewrite zlt_true; auto. rewrite zlt_true; auto. omega. omega.
+Qed.
+
+Theorem zero_ext_sign_ext:
+  forall x, zero_ext n (sign_ext n x) = zero_ext n x.
+Proof.
+  intros. unfold sign_ext, zero_ext.
+  repeat rewrite unsigned_repr; auto with ints.
+  decEq; apply Z_of_bits_exten; intros. rewrite Zplus_0_r.
+  destruct (zlt i n); auto.
+  rewrite bits_of_Z_of_bits; auto.
+  rewrite zlt_true; auto.
+Qed.
+
+Lemma zero_ext_ge_wz : forall x, 
+  n >= Z_of_nat wordsize ->
+  zero_ext n x = x.
+Proof.
+  intros.
+  unfold zero_ext. 
+  rewrite Z_of_bits_ge_wz; auto with zarith.
+  apply eqm_repr_eq.
+  apply Z_of_bits_of_Z.
+Qed.
+
+Lemma sign_ext_ge_wz : forall x, 
+  n >= Z_of_nat wordsize ->
+  sign_ext n x = x.
+Proof.
+  intros.
+  unfold sign_ext. 
+  rewrite Z_of_bits_ge_wz; auto with zarith.
+  apply eqm_repr_eq.
+  apply Z_of_bits_of_Z.
+Qed.
+
+Lemma and_two_p_ge_wz : forall x,
+  n >= Z_of_nat wordsize -> 
+  and x (repr (two_p n - 1)) = x.
+Proof.
+Admitted.
+
+Theorem zero_ext_and_ge_wz:
+  forall x, 
+  n >= Z_of_nat wordsize ->
+  zero_ext n x = and x (repr (two_p n - 1)).
+Proof.
+  intros.
+  rewrite zero_ext_ge_wz; auto.
+  rewrite and_two_p_ge_wz; auto.
+Qed.
+
+Theorem zero_ext_idem_ge_wz:
+  forall x, 
+  n >= Z_of_nat wordsize ->
+  zero_ext n (zero_ext n x) = zero_ext n x.
+Proof.
+  intros. repeat (rewrite zero_ext_and_ge_wz; auto). 
+  rewrite and_assoc. rewrite and_idem. auto.
+Qed.
+
+Theorem sign_ext_idem_ge_wz:
+  forall x, 
+  n >= Z_of_nat wordsize ->
+  sign_ext n (sign_ext n x) = sign_ext n x.
+Proof.
+  intros. repeat (rewrite sign_ext_ge_wz; auto). 
+Qed.
+
+Theorem sign_ext_equal_if_zero_equal:
+  forall x y,
+  zero_ext n x = zero_ext n y ->
+  sign_ext n x = sign_ext n y.
+Proof.
+  intros. rewrite <- (sign_ext_zero_ext x).
+  rewrite <- (sign_ext_zero_ext y). congruence.
+Qed.
+
+(** [zero_ext n x] is the unique integer congruent to [x] modulo [2^n]
+    in the range [0...2^n-1]. *)
+
+Lemma zero_ext_range:
+  forall x, 0 <= unsigned (zero_ext n x) < two_p n.
+Proof.
+  intros. rewrite zero_ext_mod; auto with zarith.
+  apply Z_mod_lt. apply two_p_gt_ZERO. omega. 
+Qed.
+
+Lemma eqmod_zero_ext:
+  forall x, eqmod (two_p n) (unsigned (zero_ext n x)) (unsigned x).
+Proof.
+  intros. rewrite zero_ext_mod; auto with zarith. 
+  apply eqmod_sym. apply eqmod_mod. apply two_p_gt_ZERO. omega.
+Qed.
+
+End EXTENSIONS'.
+
 Section EXTENSIONS.
 
 Variable n: Z.
-Hypothesis RANGE: 0 < n < Z_of_nat wordsize.
+Hypothesis RANGE: 0 < n < Z_of_nat wordsize. 
 
 Remark two_p_n_pos:
   two_p n > 0.
@@ -2410,16 +2573,6 @@ Proof.
   generalize two_p_n_range two_p_n_pos; omega.
 Qed.
 
-Theorem zero_ext_mod:
-  forall x, unsigned (zero_ext n x) = Zmod (unsigned x) (two_p n).
-Proof.
-  intros.
-  replace (unsigned x) with (Z_of_bits wordsize (bits_of_Z wordsize (unsigned x)) 0).
-  unfold zero_ext. rewrite unsigned_repr; auto with ints. 
-  apply Z_of_bits_mod_mask. omega.
-  apply eqm_small_eq; auto with ints. apply Z_of_bits_of_Z.
-Qed.
-
 Theorem zero_ext_idem:
   forall x, zero_ext n (zero_ext n x) = zero_ext n x.
 Proof.
@@ -2436,36 +2589,6 @@ Proof.
   repeat rewrite bits_of_Z_of_bits; auto. 
   destruct (zlt i n). auto. destruct (zlt (n - 1) n); auto.
   omega.
-Qed.
-
-Theorem sign_ext_zero_ext:
-  forall x, sign_ext n (zero_ext n x) = sign_ext n x.
-Proof.
-  intros. unfold sign_ext, zero_ext.
-  repeat rewrite unsigned_repr; auto with ints.
-  decEq; apply Z_of_bits_exten; intros. rewrite Zplus_0_r.
-  destruct (zlt i n); rewrite bits_of_Z_of_bits; auto.
-  rewrite zlt_true; auto. rewrite zlt_true; auto. omega. omega.
-Qed.
-
-Theorem zero_ext_sign_ext:
-  forall x, zero_ext n (sign_ext n x) = zero_ext n x.
-Proof.
-  intros. unfold sign_ext, zero_ext.
-  repeat rewrite unsigned_repr; auto with ints.
-  decEq; apply Z_of_bits_exten; intros. rewrite Zplus_0_r.
-  destruct (zlt i n); auto.
-  rewrite bits_of_Z_of_bits; auto.
-  rewrite zlt_true; auto.
-Qed.
-
-Theorem sign_ext_equal_if_zero_equal:
-  forall x y,
-  zero_ext n x = zero_ext n y ->
-  sign_ext n x = sign_ext n y.
-Proof.
-  intros. rewrite <- (sign_ext_zero_ext x).
-  rewrite <- (sign_ext_zero_ext y). congruence.
 Qed.
 
 Theorem zero_ext_shru_shl:
@@ -2497,22 +2620,6 @@ Proof.
   decEq. omega.  omega. omega. 
   rewrite zlt_false. rewrite bits_of_Z_of_bits_gen. 
   decEq. omega. omega. omega.
-Qed.
-
-(** [zero_ext n x] is the unique integer congruent to [x] modulo [2^n]
-    in the range [0...2^n-1]. *)
-
-Lemma zero_ext_range:
-  forall x, 0 <= unsigned (zero_ext n x) < two_p n.
-Proof.
-  intros. rewrite zero_ext_mod. apply Z_mod_lt. apply two_p_gt_ZERO. omega. 
-Qed.
-
-Lemma eqmod_zero_ext:
-  forall x, eqmod (two_p n) (unsigned (zero_ext n x)) (unsigned x).
-Proof.
-  intros. rewrite zero_ext_mod. apply eqmod_sym. apply eqmod_mod. 
-  apply two_p_gt_ZERO. omega.
 Qed.
 
 (** [sign_ext n x] is the unique integer congruent to [x] modulo [2^n]
