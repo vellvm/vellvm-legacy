@@ -22,120 +22,13 @@ Require Import Integers.
 Require Import Floats.
 Require Import Values.
 
-Lemma Z_of_S_gt_O : forall n, Z_of_nat (S n) > 0.
-Proof.
-  intros.
-  assert (J:=@O_lt_Z_of_S n).
-  auto with zarith.
-Qed.
-
-
-Definition ZRdiv (a b:Z) : Z :=
-  if zeq (a mod b) 0
-  then a / b
-  else a / b + 1.
-
-Lemma ZRdiv_prop1 : forall a b, b >0 -> b * (ZRdiv a b) >= a.
-Proof.
-  intros. unfold ZRdiv.
-  destruct (zeq (a mod b) 0).
-    rewrite <- Z_div_exact_full_2; auto with zarith.
-    
-    rewrite Zmult_plus_distr_r.
-    rewrite (Zmult_comm b 1) .
-    rewrite Zmult_1_l.
-    assert (J:=@Z_mod_lt a b H).
-    assert (J':=@Z_div_mod_eq_full a b). 
-    auto with zarith.
-Qed.
-
-Lemma ZRdiv_prop2 : forall a b, a >=0 -> b > 0 -> ZRdiv a b >= 0.
-Proof.
-  intros.
-  unfold ZRdiv.
-  destruct (zeq (a mod b) 0).
-    apply Z_div_ge0; auto.
-    assert (J:=@Z_div_ge0 a b H0 H). auto with zarith.
-Qed.
-
-Lemma Z_div_gt0 : forall a b,
-  a > 0 -> b > 0 -> a / b > 0.
-Proof.
-  intros.
-  auto with zarith.
-Admitted.
-
-Lemma ZRdiv_prop3 : forall a b, a > 0 -> b > 0 -> ZRdiv a b > 0.
-Proof.
-  intros.
-  unfold ZRdiv.
-  destruct (zeq (a mod b) 0).
-    apply Z_div_gt0; auto.
-    assert (J:=@Z_div_gt0 a b H H0). auto with zarith.
-Qed.
-
-Lemma ZRdiv_prop4 : forall wz,
-  ZRdiv (Z_of_nat (S wz)) 8 >= 0.
-Proof.
-  intro.
-  apply ZRdiv_prop2; try solve [auto with zarith | apply Z_of_S_gt_O].
-Qed.
-
-Lemma mod_prop1 : forall wz,
-  Z_of_nat (S wz) mod 8 >= 0.
-Proof.
-  intro wz.
-  destruct (Z_mod_lt (Z_of_nat (S wz)) 8);
-    auto with zarith.
-Qed.    
-
-Lemma nat_of_Z_pos:
-  forall n, n > 0 -> (nat_of_Z n > O)%nat.
-Proof.
-  intros.
-  destruct n; unfold Zle; simpl; try omega.
-Admitted.
-
-Lemma nat_of_Z_inj : forall z1 z2,
-  z1 >= 0 ->
-  z2 >= 0 ->
-  nat_of_Z z1 = nat_of_Z z2 ->
-  z1 = z2.
-Admitted.
-
-Lemma zdiv_zmod_prop1 : forall a1 a2 b,
-  b <> 0 ->
-  a1 / b = a2 / b ->
-  a1 mod b = a2 mod b ->
-  a1 = a2.
-Proof.
-  intros.
-  rewrite (@Z_div_mod_eq_full a1 b H).
-  rewrite (@Z_div_mod_eq_full a2 b H).
-  rewrite H0. rewrite H1.
-  auto.
-Qed.
-
-Lemma zrdiv_zmod_prop1 : forall a1 a2 b,
-  b <> 0 ->
-  ZRdiv a1 b = ZRdiv a2 b ->
-  a1 mod b = a2 mod b ->
-  a1 = a2.
-Proof.
-  intros.
-  unfold ZRdiv in H0.
-  rewrite H1 in H0.
-  destruct (zeq (a2 mod b) 0).
-    eapply zdiv_zmod_prop1; eauto.
-    apply zdiv_zmod_prop1 with (b:=b); auto.
-      eauto with zarith.
-Qed.
-
 (** * Properties of memory chunks *)
 
 (** Memory reads and writes are performed by quantities called memory chunks,
   encoding the type, size and signedness of the chunk being addressed.
   The following functions extract the size information from a chunk. *)
+
+Definition Mint32 := Mint 31.
 
 Definition bytesize_chunk (wz:nat) := ZRdiv (Z_of_nat (S wz)) 8.
 Definition bytesize_chunk_nat (wz:nat) := nat_of_Z (bytesize_chunk wz).
@@ -145,9 +38,7 @@ Lemma bytesize_chunk_pos:
   forall wz, bytesize_chunk wz > 0.
 Proof.
   intros. unfold bytesize_chunk.
-  apply ZRdiv_prop3; auto with zarith.
-    assert (J:=@O_lt_Z_of_S wz).
-    auto with zarith.
+  apply ZRdiv_prop5.
 Qed.
 
 Lemma bytesize_chunk_conv:
@@ -222,34 +113,127 @@ Qed.
 
 Definition align_chunk (chunk: memory_chunk) : Z := 
   match chunk with
-  | Mint wz => 1
+  | Mint wz => 
+    if le_lt_dec wz 31
+    then bytesize_chunk wz
+    else 4
   | _ => 4
   end.
 
 Lemma align_chunk_pos:
   forall chunk, align_chunk chunk > 0.
 Proof.
-  intro. destruct chunk; simpl; omega.
+  intro. destruct chunk; simpl; try omega.
+    destruct (le_lt_dec n 31); try omega.
+      apply bytesize_chunk_pos.
 Qed.
 
+(*
 Lemma align_size_chunk_divides:
   forall chunk, (align_chunk chunk | size_chunk chunk).
 Proof.
   intros. destruct chunk; simpl; try solve [
     apply Zdivide_refl |
-    destruct (le_lt_dec n 1); auto with zarith |
+    destruct (le_lt_dec n 3); auto with zarith |
     exists 2; auto ]. 
+
+    destruct (le_lt_dec n 3); auto with zarith.
+Qed.
+*)
+
+Lemma bytesize_chunk_7_eq_1 : bytesize_chunk 7 = 1.
+Proof.
+  unfold bytesize_chunk.
+  unfold ZRdiv. compute. auto.
 Qed.
 
-(* Broken
+Lemma bytesize_chunk_31_eq_4 : bytesize_chunk 31 = 4.
+Proof.
+  unfold bytesize_chunk.
+  unfold ZRdiv. compute. auto.
+Qed.
+
+Lemma bytesize_chunk_63_eq_8 : bytesize_chunk 63 = 8.
+Proof.
+  unfold bytesize_chunk.
+  unfold ZRdiv. compute. auto.
+Qed.
+
+Lemma bytesize_chunk_le_31 : forall n,
+  (n <= 31)%nat ->
+  bytesize_chunk n <= 4.
+Proof.
+  unfold bytesize_chunk.
+  unfold ZRdiv.
+  intros.
+  destruct n.
+    compute. intro. inversion H0.
+Admitted.
+
+Lemma bytesize_chunk_gt_31 : forall n,
+  (31 < n)%nat ->
+  bytesize_chunk n > 4.
+Proof.
+Admitted.
+
+Lemma bytesize_chunk_31_neq : forall n1 n2,
+  (n1 <= 31 < n2)%nat ->
+  bytesize_chunk n1 <> bytesize_chunk n2.
+Proof.
+  intros.
+  destruct H.
+  apply bytesize_chunk_le_31 in H.
+  apply bytesize_chunk_gt_31 in H0.
+  omega.
+Qed.
+
+Lemma bytesize_chunk_31_neq' : forall n1 n2,
+  (n1 <= 31 < n2)%nat ->
+  bytesize_chunk n2 <> bytesize_chunk n1.
+Proof.
+  intros.
+  destruct H.
+  apply bytesize_chunk_le_31 in H.
+  apply bytesize_chunk_gt_31 in H0.
+  omega.
+Qed.
+
 Lemma align_chunk_compat:
   forall chunk1 chunk2,
   size_chunk chunk1 = size_chunk chunk2 -> align_chunk chunk1 = align_chunk chunk2.
 Proof.
   intros chunk1 chunk2. 
-  destruct chunk1; destruct chunk2; simpl; try congruence.
+  destruct chunk1; destruct chunk2; simpl; try congruence; auto.
+    destruct (le_lt_dec n 31); auto.
+      destruct (le_lt_dec n0 31); auto.
+        intro. contradict H; auto using bytesize_chunk_31_neq.
+      destruct (le_lt_dec n0 31); auto.
+        intro. contradict H; auto using bytesize_chunk_31_neq'.
+
+    destruct (le_lt_dec n 31); auto.
+
+    destruct (le_lt_dec n 31); auto.
+      apply bytesize_chunk_le_31 in l.
+      intro. rewrite H in l. contradict l; auto.
+
+    destruct (le_lt_dec n 31); auto.
+
+    destruct (le_lt_dec n 31); auto.
+      apply bytesize_chunk_le_31 in l.
+      intro. rewrite <- H in l. contradict l; auto.
 Qed.
-*)
+
+Definition chunk_eq (c1 c2:memory_chunk) : Prop :=
+  size_chunk c1 = size_chunk c2 /\
+  match c1, c2 with
+  | Mint wz1, Mint wz2 => wz1 = wz2
+  | _, _ => True
+  end.
+
+Lemma chunk_eq_refl : forall c, chunk_eq c c.
+Proof.
+  destruct c; split; auto.
+Qed.
 
 (** * Memory values *)
 
@@ -322,7 +306,15 @@ Lemma bytes_of_int_prop1: forall n z,
   (n > 0)%nat ->
   exists b, exists bl, 
     bytes_of_int n z = b::bl.
-Proof. Admitted.
+Proof. 
+  destruct n; intros.
+    contradict H; omega.
+
+    simpl.
+    exists (Int.repr 7 z).
+    exists (bytes_of_int n (z/256)).
+    auto.
+Qed.
 
 (** int_of_bytes *)
 
@@ -441,6 +433,9 @@ Qed.
 Lemma proj_bytes_prop1 : forall n wz x bl,
   proj_bytes n (map (Byte 8) (bytes_of_int n (Int.unsigned wz x / 256))) = Some bl ->
   x = Int.repr wz (Int.unsigned wz x mod Int.modulus 7 + int_of_bytes bl * 256).
+Proof.
+  intros.
+  
 Admitted.
 
 Lemma proj_bytes_prop2: forall vl n,
@@ -488,9 +483,7 @@ Proof.
   remember (nat_of_Z (ZRdiv (Z_of_nat (S wz)) 8)) as n.
   assert (n > 0)%nat.
     subst.
-    apply nat_of_Z_pos.
-    apply ZRdiv_prop3; auto with zarith.
-      apply Z_of_S_gt_O.
+    apply ZRdiv_prop6.
   Opaque Z_of_nat.
   destruct n; simpl.
     contradict H; omega.
@@ -519,9 +512,7 @@ Proof.
   remember (nat_of_Z (ZRdiv (Z_of_nat (S wz1)) 8)) as n.
   assert (n > 0)%nat.
     subst.
-    apply nat_of_Z_pos.
-    apply ZRdiv_prop3; auto with zarith.
-      apply Z_of_S_gt_O.
+    apply ZRdiv_prop6.
   Opaque Z_of_nat.
   destruct n; simpl.
     contradict H; omega.
@@ -529,9 +520,7 @@ Proof.
       (nat_of_Z (ZRdiv (Z_of_nat (S wz2)) 8))
       (Int.unsigned wz2 x))
       as [b [bl EQ]].
-      apply nat_of_Z_pos.
-      apply ZRdiv_prop3; auto with zarith.
-        apply Z_of_S_gt_O.
+      apply ZRdiv_prop6.
     rewrite EQ.      
 
     unfold inj_bytes.
@@ -717,7 +706,7 @@ Fixpoint check_pointer (n: nat) (b: block) (ofs: Int.int 31) (vl: list memval)
 Definition proj_pointer (vl: list memval) : val :=
   match vl with
   | Pointer b ofs n :: vl' =>
-      if check_pointer (size_chunk_nat (Mint 31)) b ofs vl
+      if check_pointer (size_chunk_nat Mint32) b ofs vl
       then Vptr b ofs
       else Vundef
   | _ => Vundef
@@ -839,7 +828,7 @@ Proof.
     contradict H; omega.
 Qed.
 
-Remark proj_pointer_undef:
+Remark proj_pointer_undef':
   forall n, proj_pointer (list_repeat n Undef) = Vundef.
 Proof.
   induction n; simpl; auto.
@@ -944,14 +933,14 @@ Admitted.
 
 Lemma decode_int_inj_pointer:
   forall b ofs, 
-  decode_int (inj_pointer (size_chunk_nat (Mint 31)) b ofs) 31 = Vptr b ofs.
+  decode_int (inj_pointer (size_chunk_nat Mint32) b ofs) 31 = Vptr b ofs.
 Proof.
 Admitted.
 
 Lemma decode_int_inj_pointer_undef:
   forall b ofs n, 
   n <> 31%nat ->
-  decode_int (inj_pointer (size_chunk_nat (Mint 31)) b ofs) n = Vundef.
+  decode_int (inj_pointer (size_chunk_nat Mint32) b ofs) n = Vundef.
 Proof.
 Admitted.
 
@@ -986,7 +975,7 @@ Proof.
           apply proj_pointer_encode_int.
       rewrite decode_int_repeat_Undef.
       destruct (eq_nat_dec n0 31); subst; auto.
-        apply proj_pointer_undef.
+        apply proj_pointer_undef'.
       
     destruct (eq_nat_dec wz 31); subst; auto.
       destruct (eq_nat_dec n 31); subst; auto.
@@ -1033,7 +1022,7 @@ Proof.
 
       rewrite decode_int_repeat_Undef.
       destruct (eq_nat_dec n0 31); subst; auto.
-        rewrite proj_pointer_undef; auto.
+        rewrite proj_pointer_undef'; auto.
 
     destruct (eq_nat_dec n 31); subst; auto.
       rewrite proj_bytes_undef'; auto using size_chunk_nat_pos'.
@@ -1047,13 +1036,6 @@ Proof.
     rewrite decode_int_repeat_Undef.
     destruct (eq_nat_dec n 31); subst; auto.
 Qed.
-
-Definition chunk_eq (c1 c2:memory_chunk) : Prop :=
-  size_chunk c1 = size_chunk c2 /\
-  match c1, c2 with
-  | Mint wz1, Mint wz2 => wz1 = wz2
-  | _, _ => True
-  end.
 
 Lemma decode_encode_val_similar:
   forall v1 chunk1 chunk2 v2,
@@ -1107,7 +1089,7 @@ Proof.
         unfold proj_pointer.
         destruct cl; simpl; auto.
           destruct m; simpl; auto.
-            destruct (check_pointer (size_chunk_nat (Mint 31)) b i (Pointer b i n0::cl)); simpl; auto.
+            destruct (check_pointer (size_chunk_nat Mint32) b i (Pointer b i n0::cl)); simpl; auto.
 
     destruct (proj_bytes (bytesize_chunk_nat 31) cl); simpl; auto.
     destruct (proj_bytes (bytesize_chunk_nat 63) cl); simpl; auto.
@@ -1172,7 +1154,7 @@ Proof.
           unfold proj_pointer in EQ.
           destruct cl; try solve [inversion EQ].
           destruct m; try solve [inversion EQ].
-          destruct (check_pointer (size_chunk_nat (Mint 31)) b i0 (Pointer b i0 n0::cl)); try solve [inversion EQ].
+          destruct (check_pointer (size_chunk_nat Mint32) b i0 (Pointer b i0 n0::cl)); try solve [inversion EQ].
 
     destruct (proj_bytes (bytesize_chunk_nat 31) cl); subst; try solve [inversion EQ].
     destruct (proj_bytes (bytesize_chunk_nat 63) cl); subst; try solve [inversion EQ].
@@ -1194,7 +1176,7 @@ Proof.
         unfold proj_pointer in EQ.
         destruct cl; try solve [inversion EQ].
         destruct m; try solve [inversion EQ].
-        destruct (check_pointer (size_chunk_nat (Mint 31)) b i (Pointer b i n::cl)); try solve [inversion EQ].
+        destruct (check_pointer (size_chunk_nat Mint32) b i (Pointer b i n::cl)); try solve [inversion EQ].
 
     remember (proj_bytes (bytesize_chunk_nat 31) cl) as R.
     destruct R; subst; try solve [inversion EQ].
@@ -1227,13 +1209,13 @@ Qed.
 
 Definition memval_valid_first (mv: memval) : Prop :=
   match mv with
-  | Pointer b ofs n => n = pred (size_chunk_nat (Mint 31))
+  | Pointer b ofs n => n = pred (size_chunk_nat Mint32)
   | _ => True
   end.
 
 Definition memval_valid_cont (mv: memval) : Prop :=
   match mv with
-  | Pointer b ofs n => n <> pred (size_chunk_nat (Mint 31))
+  | Pointer b ofs n => n <> pred (size_chunk_nat Mint32)
   | _ => True
   end.
 
@@ -1242,6 +1224,49 @@ Inductive encoding_shape: list memval -> Prop :=
       memval_valid_first mv1 ->
       (forall mv, In mv mvl -> memval_valid_cont mv) ->
       encoding_shape (mv1 :: mvl).
+
+Lemma encoding_shape_undef : forall n,
+  (n > 0)%nat ->
+  encoding_shape (list_repeat n Undef).
+Proof.
+  induction n; intros.
+    contradict H; omega.
+
+    simpl.
+    apply encoding_shape_intro.
+      simpl. auto.
+      intros. apply in_list_repeat in H0. subst. simpl. auto.
+Qed.
+
+Lemma encoding_shape_int : forall n i,
+  encoding_shape (encode_int n i).
+Proof.
+  unfold encode_int, inj_int. intros.
+  destruct (@bytes_of_int_prop1 (nat_of_Z (ZRdiv (Z_of_nat (S n)) 8)) (Int.unsigned n i)) 
+    as [b [bl EQ]]; auto.
+    apply ZRdiv_prop6.
+  rewrite EQ.
+Admitted.
+
+Lemma encoding_shape_pointer : forall b i,
+  encoding_shape (inj_pointer (size_chunk_nat (Mint 31)) b i).
+Proof.
+  intros.
+  unfold size_chunk_nat, size_chunk.
+  rewrite bytesize_chunk_31_eq_4.
+  simpl.
+  apply encoding_shape_intro; simpl; auto.
+    intros.
+    unfold memval_valid_cont.
+    unfold size_chunk_nat, size_chunk. 
+    destruct H; subst; simpl; auto.
+      rewrite bytesize_chunk_31_eq_4. compute. intro. inversion H.
+    destruct H; subst; simpl; auto.
+      rewrite bytesize_chunk_31_eq_4. compute. intro. inversion H.
+    destruct H; subst; simpl; auto.
+      rewrite bytesize_chunk_31_eq_4. compute. intro. inversion H.
+      inversion H.
+Qed.
 
 Lemma encode_val_shape:
   forall chunk v, encoding_shape (encode_val chunk v).
@@ -1259,16 +1284,16 @@ Proof.
   destruct v; simpl. 
   auto.
 
-  destruct chunk; auto. 
-    destruct (eq_nat_dec wz n); subst; auto.
-      unfold encode_int.
-      admit. 
+  destruct chunk; auto.
+    destruct (eq_nat_dec wz n); subst; auto.   
+      apply encoding_shape_int.
 
   apply H0. apply encode_float_length.
 
-  destruct chunk; auto. 
+  destruct chunk; auto.
     destruct (eq_nat_dec n 31); subst; auto.
-      admit.
+      apply encoding_shape_pointer.
+
 (*
   simpl; intros. intuition; subst mv; red; simpl; congruence.
   apply H0. apply encode_int_length. 
@@ -1302,6 +1327,58 @@ Inductive decoding_shape: list memval -> Prop :=
       (forall mv, In mv mvl -> memval_valid_cont mv /\ mv <> Undef) ->
       decoding_shape (mv1 :: mvl).
 
+Lemma decode_pointer_shape' : forall mvl,
+  proj_pointer mvl = Vundef \/ decoding_shape mvl.
+Proof.
+  intros.
+  unfold proj_pointer.
+  destruct mvl; auto.
+  destruct m; auto.
+  remember (check_pointer (size_chunk_nat Mint32) b i (Pointer b i n::mvl)) as R.
+  destruct R; auto.
+  right.
+  symmetry in HeqR.
+  apply check_pointer_inv in HeqR.
+  unfold size_chunk_nat, size_chunk in HeqR.
+  simpl in HeqR. 
+  rewrite bytesize_chunk_31_eq_4 in HeqR.
+  simpl in HeqR.
+  rewrite HeqR.
+  apply decoding_shape_intro; simpl; auto.
+    intro J. inversion J.
+    intros. 
+    destruct H; subst; simpl; auto.
+      split.
+        unfold size_chunk_nat, size_chunk.
+        simpl. rewrite bytesize_chunk_31_eq_4.
+        compute. intro J. inversion J.
+        intro J. inversion J.
+    destruct H; subst; simpl; auto.
+      split.
+        unfold size_chunk_nat, size_chunk.
+        simpl. rewrite bytesize_chunk_31_eq_4.
+        compute. intro J. inversion J.
+        intro J. inversion J.
+    destruct H; subst; simpl; auto.
+      split.
+        unfold size_chunk_nat, size_chunk.
+        simpl. rewrite bytesize_chunk_31_eq_4.
+        compute. intro J. inversion J.
+        intro J. inversion J.
+      inversion H.
+Qed.
+
+Lemma decoding_shape_inj_bytes : forall l,
+  (length l > 0)%nat ->
+  decoding_shape (inj_bytes l).
+Proof.
+  destruct l; intros; simpl; auto.
+    simpl in H. contradict H; omega.
+    apply decoding_shape_intro; simpl; auto.
+      intro J. inversion J.
+      intros. 
+Admitted.
+
 Lemma decode_val_shape:
   forall chunk mvl,
   List.length mvl = size_chunk_nat chunk ->
@@ -1311,7 +1388,49 @@ Proof.
   unfold decode_val.
   destruct chunk.
     unfold decode_int.
-Admitted. 
+    remember (proj_int n (rev_if_be _ mvl)) as R.
+    unfold proj_int in HeqR.
+    destruct R.
+      destruct (nat_of_Z (ZRdiv (Z_of_nat (S n)) 8)).        
+        destruct (rev_if_be _ mvl); try solve [inversion HeqR].
+
+        remember (rev_if_be _ mvl) as R'.
+        destruct R'; try solve [inversion HeqR].
+        destruct m; try solve [inversion HeqR].
+        destruct (eq_nat_dec n1 (nat_of_Z (Z_of_nat (S n) mod 8))); try solve [inversion HeqR].
+        remember (proj_bytes n0 R') as R''.
+        destruct R''; try solve [inversion HeqR].
+         right. admit.
+      destruct (eq_nat_dec n 31); subst; auto.
+        apply decode_pointer_shape'.
+
+    unfold bytesize_chunk_nat.
+    rewrite bytesize_chunk_31_eq_4.
+    unfold size_chunk_nat, size_chunk in H. 
+    rewrite <- H.
+    remember (proj_bytes (length mvl) mvl) as R.
+    destruct R; auto.
+      symmetry in HeqR.
+      apply inj_proj_bytes in HeqR.
+      rewrite HeqR.
+      right. apply decoding_shape_inj_bytes.
+        rewrite HeqR in H.
+        rewrite length_inj_bytes in H.
+        rewrite H. compute. auto.
+         
+    unfold bytesize_chunk_nat.
+    rewrite bytesize_chunk_63_eq_8.
+    unfold size_chunk_nat, size_chunk in H. 
+    rewrite <- H.
+    remember (proj_bytes (length mvl) mvl) as R.
+    destruct R; auto.
+      symmetry in HeqR.
+      apply inj_proj_bytes in HeqR.
+      rewrite HeqR.
+      right. apply decoding_shape_inj_bytes.
+        rewrite HeqR in H.
+        rewrite length_inj_bytes in H.
+        rewrite H. compute. admit.
 (*
   caseEq (proj_bytes mvl).
   intros bl PROJ. right. exploit inj_proj_bytes; eauto. intros. subst mvl.
@@ -1325,10 +1444,9 @@ Admitted.
   intros. right. exploit check_pointer_inv; eauto. simpl; intros; inv H2.
   constructor. red. auto. congruence. 
   simpl; intros. intuition; subst mv; simpl; congruence.
-Qed.
 *)
+Qed.
 
-(*
 Lemma encode_val_pointer_inv:
   forall chunk v b ofs n mvl,
   encode_val chunk v = Pointer b ofs n :: mvl ->
@@ -1338,10 +1456,47 @@ Proof.
   destruct (size_chunk_nat_pos chunk) as [sz SZ].
   unfold encode_val. rewrite SZ. destruct v.
   simpl. congruence. 
+
+  destruct chunk.
+    destruct (eq_nat_dec wz n0); subst.
+      intro.
+      unfold encode_int in H.
+      admit.
+
+      intro.
+      admit.
+    intro.
+    admit.
+
+    intro.
+    admit.
+
+  intro. admit.
+
+
+  destruct chunk.
+    destruct (eq_nat_dec n0 31); subst.
+      intro.
+      admit.
+
+      intro.
+      admit.
+    intro.
+    admit.
+
+    intro.
+    admit.
+
+(*
+  intros until mvl. 
+  destruct (size_chunk_nat_pos chunk) as [sz SZ].
+  unfold encode_val. rewrite SZ. destruct v.
+  simpl. congruence. 
   generalize (encode_int_length chunk i). destruct (encode_int chunk i); simpl; congruence.
   generalize (encode_float_length chunk f). destruct (encode_float chunk f); simpl; congruence.
   destruct chunk; try (simpl; congruence). 
   simpl. intuition congruence. 
+*)
 Qed.
 
 Lemma decode_val_pointer_inv:
@@ -1350,6 +1505,26 @@ Lemma decode_val_pointer_inv:
   chunk = Mint32 /\ mvl = inj_pointer (size_chunk_nat Mint32) b ofs.
 Proof.
   intros until ofs; unfold decode_val.
+  destruct chunk.
+    unfold decode_int.
+    destruct (proj_int n (rev_if_be _ mvl)).
+      intro J. inversion J.
+      destruct (eq_nat_dec n 31); subst.
+        intro J. split; auto.
+          admit.          
+
+        intro J. inversion J.
+
+    destruct (proj_bytes (bytesize_chunk_nat 31) mvl).
+      intro J. inversion J.
+      intro J. inversion J.
+
+    destruct (proj_bytes (bytesize_chunk_nat 63) mvl).
+      intro J. inversion J.
+      intro J. inversion J.
+
+(*
+  intros until ofs; unfold decode_val.
   destruct (proj_bytes mvl). 
   destruct chunk; congruence.
   destruct chunk; try congruence.
@@ -1357,6 +1532,7 @@ Proof.
   case_eq (check_pointer (size_chunk_nat Mint32) b0 i (Pointer b0 i n :: mvl)); intros.
   inv H0. split; auto. apply check_pointer_inv; auto. 
   congruence.
+*)
 Qed.
 
 Inductive pointer_encoding_shape: list memval -> Prop :=
@@ -1368,9 +1544,29 @@ Inductive pointer_encoding_shape: list memval -> Prop :=
 Lemma encode_pointer_shape:
   forall b ofs, pointer_encoding_shape (encode_val Mint32 (Vptr b ofs)).
 Proof.
+  intros. simpl. 
+  unfold size_chunk_nat, size_chunk.
+  rewrite bytesize_chunk_31_eq_4. simpl.
+  constructor.
+  unfold memval_valid_cont. red; intro. elim H. auto. 
+  unfold memval_valid_first. simpl; intros; intuition; subst mv.
+    unfold size_chunk_nat, size_chunk in H0.
+    simpl in H0. rewrite bytesize_chunk_31_eq_4 in H0. 
+    contradict H0. compute. intro J. inversion J.
+    
+    unfold size_chunk_nat, size_chunk in H0.
+    simpl in H0. rewrite bytesize_chunk_31_eq_4 in H0. 
+    contradict H0. compute. intro J. inversion J.
+
+    unfold size_chunk_nat, size_chunk in H0.
+    simpl in H0. rewrite bytesize_chunk_31_eq_4 in H0. 
+    contradict H0. compute. intro J. inversion J.
+
+(*
   intros. simpl. constructor.
   unfold memval_valid_cont. red; intro. elim H. auto. 
   unfold memval_valid_first. simpl; intros; intuition; subst mv; congruence.
+*)
 Qed.
 
 Lemma decode_pointer_shape:
@@ -1379,7 +1575,11 @@ Lemma decode_pointer_shape:
   chunk = Mint32 /\ pointer_encoding_shape mvl.
 Proof.
   intros. exploit decode_val_pointer_inv; eauto. intros [A B].
-  split; auto. subst mvl. apply encode_pointer_shape. 
+  split; auto. subst mvl.
+
+  assert (J:=@encode_pointer_shape b ofs).
+  unfold encode_val in J.
+  simpl in J. auto.
 Qed.
 
 (** * Compatibility with memory injections *)
@@ -1388,11 +1588,11 @@ Qed.
 
 Inductive memval_inject (f: meminj): memval -> memval -> Prop :=
   | memval_inject_byte:
-      forall n, memval_inject f (Byte n) (Byte n)
+      forall wz n, memval_inject f (Byte wz n) (Byte wz n)
   | memval_inject_ptr:
       forall b1 ofs1 b2 ofs2 delta n,
       f b1 = Some (b2, delta) ->
-      ofs2 = Int.add ofs1 (Int.repr delta) ->
+      ofs2 = Int.add 31 ofs1 (Int.repr 31 delta) ->
       memval_inject f (Pointer b1 ofs1 n) (Pointer b2 ofs2 n)
   | memval_inject_undef:
       forall mv, memval_inject f Undef mv.
@@ -1409,16 +1609,57 @@ Qed.
 Lemma proj_bytes_inject:
   forall f vl vl',
   list_forall2 (memval_inject f) vl vl' ->
-  forall bl,
-  proj_bytes vl = Some bl ->
-  proj_bytes vl' = Some bl.
+  forall n bl,
+  proj_bytes n vl = Some bl ->
+  proj_bytes n vl' = Some bl.
 Proof.
   induction 1; simpl. congruence.
   inv H; try congruence.
-  destruct (proj_bytes al); intros. 
-  inv H. rewrite (IHlist_forall2 l); auto. 
-  congruence.
+
+  intros.
+  destruct n0; simpl in *; auto.
+    destruct (eq_nat_dec wz 8); auto.
+      remember (proj_bytes n0 al) as R.
+      destruct R.
+        rewrite (IHlist_forall2 n0 l); auto.
+        inversion H.
+
+  intros.
+  destruct n0; simpl in *; auto.
+
+  intros.
+  destruct n; simpl in *; auto.
+    inversion H.
 Qed.
+
+Lemma proj_int_inject:
+  forall f vl vl',
+  list_forall2 (memval_inject f) vl vl' ->
+  forall n i,
+  proj_int n vl = Some i ->
+  proj_int n vl' = Some i.
+Proof.
+  intros.
+  unfold proj_int in *.
+  destruct (nat_of_Z (ZRdiv (Z_of_nat (S n)) 8)); auto.
+    destruct vl; destruct vl'; auto.
+
+  destruct vl; destruct vl'; auto.
+    inversion H0.
+    inversion H.
+
+  destruct m; destruct m0; auto; try solve 
+    [inversion H0 | inversion H; subst; inversion H4].
+
+    inversion H; subst. inversion H4; subst.
+    destruct (eq_nat_dec n2 (nat_of_Z (Z_of_nat (S n) mod 8))); auto.
+    remember (proj_bytes n0 vl) as R.
+    destruct R.
+      apply proj_bytes_inject with (n:=n0)(bl:=l) in H6; auto.
+      rewrite H6. auto.
+
+      inversion H0.
+Qed.  
 
 Lemma check_pointer_inject:
   forall f vl vl',
@@ -1426,7 +1667,7 @@ Lemma check_pointer_inject:
   forall n b ofs b' delta,
   check_pointer n b ofs vl = true ->
   f b = Some(b', delta) ->
-  check_pointer n b' (Int.add ofs (Int.repr delta)) vl' = true.
+  check_pointer n b' (Int.add 31 ofs (Int.repr 31 delta)) vl' = true.
 Proof.
   induction 1; intros; destruct n; simpl in *; auto. 
   inv H; auto.
@@ -1457,8 +1698,28 @@ Qed.
 Lemma proj_bytes_not_inject:
   forall f vl vl',
   list_forall2 (memval_inject f) vl vl' ->
-  proj_bytes vl = None -> proj_bytes vl' <> None -> In Undef vl.
+  forall n,
+  proj_bytes n vl = None -> proj_bytes n vl' <> None -> In Undef vl.
 Proof.
+  induction 1; simpl; intros.
+  congruence.
+  inv H; try congruence. 
+
+  destruct n; simpl in H1, H2; auto.
+    contradict H2; auto.
+    destruct (eq_nat_dec wz 8); subst.
+      remember (proj_bytes n al) as R.
+      remember (proj_bytes n bl) as R'.
+      destruct R; destruct R';
+        try solve [inversion H1 | inversion H2 | contradict H2; auto].
+        right. eapply IHlist_forall2; eauto.
+          rewrite <- HeqR'. intro. inversion H.          
+    contradict H2; auto.
+
+  destruct n; simpl in H2; contradict H2; auto.     
+  auto.
+
+(*
   induction 1; simpl; intros.
   congruence.
   inv H; try congruence. 
@@ -1466,7 +1727,39 @@ Proof.
   destruct (proj_bytes al); congruence.
   destruct (proj_bytes bl); congruence.
   auto.
+*)
 Qed.
+
+Lemma proj_int_not_inject:
+  forall f vl vl',
+  list_forall2 (memval_inject f) vl vl' ->
+  forall n,
+  proj_int n vl = None ->
+  proj_int n vl' <> None ->
+  In Undef vl.
+Proof.
+  intros.
+  unfold proj_int in *.
+  destruct (nat_of_Z (ZRdiv (Z_of_nat (S n)) 8)); auto.
+    destruct vl'; contradict H1; auto.
+
+  destruct vl; destruct vl'; auto.
+    contradict H1; auto.
+    inversion H.
+    contradict H1; auto.
+
+  destruct m; destruct m0; auto; try solve 
+    [simpl; auto | contradict H1; auto | inversion H; subst; inversion H5].
+
+    inversion H; subst. inversion H5; subst.
+    remember (proj_bytes n0 vl) as R.
+    remember (proj_bytes n0 vl') as R'.
+    destruct (eq_nat_dec n2 (nat_of_Z (Z_of_nat (S n) mod 8)));
+      try solve [contradict H1; auto].
+      destruct R; destruct R'; try solve [inversion H0 | contradict H1; auto].
+        apply proj_bytes_not_inject with (n:=n0) in H7; simpl; auto.
+          rewrite <- HeqR'. intro J. inversion J.
+Qed.  
 
 Lemma check_pointer_undef:
   forall n b ofs vl,
@@ -1487,12 +1780,71 @@ Proof.
   rewrite check_pointer_undef. auto. auto.
 Qed.
 
+Lemma list_forall2_memval_inject_rev_if_be : forall f vl1 vl2,
+  list_forall2 (memval_inject f) vl1 vl2 ->
+  list_forall2 (memval_inject f) (rev_if_be _ vl1) (rev_if_be _ vl2).
+Proof.
+  induction vl1; intros.
+    inversion H; subst.
+    unfold rev_if_be.
+    destruct big_endian; simpl; auto.
+  
+    inversion H; subst.
+    apply IHvl1 in H4.
+    unfold rev_if_be in *.
+    destruct big_endian; simpl; auto.
+      apply list_forall2_app; auto.
+        apply list_forall2_cons; auto.
+          apply list_forall2_nil.
+Qed.
+
 Theorem decode_val_inject:
   forall f vl1 vl2 chunk,
   list_forall2 (memval_inject f) vl1 vl2 ->
   val_inject f (decode_val chunk vl1) (decode_val chunk vl2).
 Proof.
   intros. unfold decode_val. 
+  destruct chunk.
+    unfold decode_int.
+    apply list_forall2_memval_inject_rev_if_be in H.
+    remember (proj_int n (rev_if_be memval vl1)) as R.
+    remember (proj_int n (rev_if_be memval vl2)) as R'.
+    destruct R; destruct R'; auto.
+      rewrite proj_int_inject with (f:=f)(vl:=rev_if_be _ vl1)(vl':=rev_if_be _ vl2) (i:=i) in HeqR'; auto.
+        inversion HeqR'; auto.
+      rewrite proj_int_inject with (f:=f)(vl:=rev_if_be _ vl1)(vl':=rev_if_be _ vl2) (i:=i) in HeqR'; auto.
+        inversion HeqR'; auto.
+
+      symmetry in HeqR.
+      apply proj_int_not_inject with (n:=n) in H; auto.
+        rewrite proj_pointer_undef; auto.
+        destruct (eq_nat_dec n 31); subst; auto.
+
+        admit.
+
+        rewrite <- HeqR'. intro J. inversion J.
+
+      destruct (eq_nat_dec n 31); subst; auto.
+        unfold proj_pointer.
+        admit.
+
+    remember (proj_bytes (bytesize_chunk_nat 31) vl1) as R.
+    remember (proj_bytes (bytesize_chunk_nat 31) vl2) as R'.
+    destruct R; destruct R'; auto.
+      rewrite proj_bytes_inject with (f:=f)(vl:=vl1)(vl':=vl2)(bl:=l) in HeqR'; auto.
+        inversion HeqR'; auto.
+      rewrite proj_bytes_inject with (f:=f)(vl:=vl1)(vl':=vl2)(bl:=l) in HeqR'; auto.
+        inversion HeqR'; auto.
+
+    remember (proj_bytes (bytesize_chunk_nat 63) vl1) as R.
+    remember (proj_bytes (bytesize_chunk_nat 63) vl2) as R'.
+    destruct R; destruct R'; auto.
+      rewrite proj_bytes_inject with (f:=f)(vl:=vl1)(vl':=vl2)(bl:=l) in HeqR'; auto.
+        inversion HeqR'; auto.
+      rewrite proj_bytes_inject with (f:=f)(vl:=vl1)(vl':=vl2)(bl:=l) in HeqR'; auto.
+        inversion HeqR'; auto.
+
+(*
   case_eq (proj_bytes vl1); intros. 
   exploit proj_bytes_inject; eauto. intros. rewrite H1. 
   destruct chunk; constructor.
@@ -1500,6 +1852,7 @@ Proof.
   case_eq (proj_bytes vl2); intros.
   rewrite proj_pointer_undef. auto. eapply proj_bytes_not_inject; eauto. congruence.
   apply proj_pointer_inject; auto.
+*)
 Qed.
 
 (** Symmetrically, [encode_val], applied to values related by [val_inject],
@@ -1510,6 +1863,18 @@ Lemma inj_bytes_inject:
   forall f bl, list_forall2 (memval_inject f) (inj_bytes bl) (inj_bytes bl).
 Proof.
   induction bl; constructor; auto. constructor.
+Qed.
+
+Lemma inj_int_inject:
+  forall f n i, list_forall2 (memval_inject f) (inj_int n i) (inj_int n i).
+Proof.
+  intros.
+  unfold inj_int.
+  destruct (bytes_of_int (nat_of_Z (ZRdiv (Z_of_nat (S n)) 8)) (Int.unsigned n i)).
+    apply list_forall2_nil.
+    apply list_forall2_cons.
+      apply memval_inject_byte.
+      apply inj_bytes_inject.
 Qed.
 
 Lemma repeat_Undef_inject_any:
@@ -1532,12 +1897,41 @@ Theorem encode_val_inject:
   list_forall2 (memval_inject f) (encode_val chunk v1) (encode_val chunk v2).
 Proof.
   intros. inv H; simpl.
+
+  destruct chunk.
+    destruct (eq_nat_dec wz n); subst.
+      unfold encode_int.
+      apply list_forall2_memval_inject_rev_if_be.
+      apply inj_int_inject.
+
+      apply repeat_Undef_inject_self.
+   apply repeat_Undef_inject_self.
+   apply repeat_Undef_inject_self.
+   apply inj_bytes_inject.
+
+
+  destruct chunk.
+    destruct (eq_nat_dec n 31); subst.
+      unfold size_chunk_nat, size_chunk.     
+      rewrite bytesize_chunk_31_eq_4.
+      unfold inj_pointer; simpl; repeat econstructor; auto.
+
+      apply repeat_Undef_inject_self.
+   apply repeat_Undef_inject_self.
+   apply repeat_Undef_inject_self.
+
+  rewrite <- encode_val_length with (v:=v2).
+  apply repeat_Undef_inject_any.
+
+(*
+  intros. inv H; simpl.
   apply inj_bytes_inject.
   apply inj_bytes_inject.
   destruct chunk; try apply repeat_Undef_inject_self. 
   unfold inj_pointer; simpl; repeat econstructor; auto. 
   replace (size_chunk_nat chunk) with (length (encode_val chunk v2)).
   apply repeat_Undef_inject_any. apply encode_val_length. 
+*)
 Qed.
 
 (** The identity injection has interesting properties. *)
@@ -1560,6 +1954,6 @@ Lemma memval_inject_id:
   forall mv, memval_inject inject_id mv mv.
 Proof.
   destruct mv; econstructor. unfold inject_id; reflexivity. rewrite Int.add_zero; auto. 
-Qed. 
-*)
+Qed.
+
 

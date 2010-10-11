@@ -274,13 +274,14 @@ Qed.
 
 Theorem valid_pointer_valid_access:
   forall m b ofs,
-  valid_pointer m b ofs = true <-> valid_access m Mint8unsigned b ofs Nonempty.
+  valid_pointer m b ofs = true <-> valid_access m (Mint 7) b ofs Nonempty.
 Proof.
   intros. rewrite valid_pointer_nonempty_perm. 
   split; intros.
-  split. simpl; red; intros. replace ofs0 with ofs by omega. auto.
+  split. simpl; red; intros. rewrite bytesize_chunk_7_eq_1 in H0.
+    replace ofs0 with ofs by omega. auto.
   simpl. apply Zone_divide. 
-  destruct H. apply H. simpl. omega.
+  destruct H. apply H. simpl. rewrite bytesize_chunk_7_eq_1. omega.
 Qed.
 
 (** Bounds *)
@@ -488,7 +489,7 @@ Definition load (chunk: memory_chunk) (m: mem) (b: block) (ofs: Z): option val :
 
 Definition loadv (chunk: memory_chunk) (m: mem) (addr: val) : option val :=
   match addr with
-  | Vptr b ofs => load chunk m b (Int.signed ofs)
+  | Vptr b ofs => load chunk m b (Int.signed 31 ofs)
   | _ => None
   end.
 
@@ -608,7 +609,7 @@ Definition store (chunk: memory_chunk) (m: mem) (b: block) (ofs: Z) (v: val): op
 
 Definition storev (chunk: memory_chunk) (m: mem) (addr v: val) : option mem :=
   match addr with
-  | Vptr b ofs => store chunk m b (Int.signed ofs) v
+  | Vptr b ofs => store chunk m b (Int.signed 31 ofs) v
   | _ => None
   end.
 
@@ -715,10 +716,6 @@ Theorem load_cast:
   forall m chunk b ofs v,
   load chunk m b ofs = Some v ->
   match chunk with
-  | Mint8signed => v = Val.sign_ext 8 v
-  | Mint8unsigned => v = Val.zero_ext 8 v
-  | Mint16signed => v = Val.sign_ext 16 v
-  | Mint16unsigned => v = Val.zero_ext 16 v
   | Mfloat32 => v = Val.singleoffloat v
   | _ => True
   end.
@@ -728,6 +725,7 @@ Proof.
   intros. subst v. apply decode_val_cast. 
 Qed.
 
+(*
 Theorem load_int8_signed_unsigned:
   forall m b ofs,
   load Mint8signed m b ofs = option_map (Val.sign_ext 8) (load Mint8unsigned m b ofs).
@@ -753,6 +751,7 @@ Proof.
   destruct (proj_bytes cl); auto. rewrite decode_int16_signed_unsigned. auto.
   rewrite pred_dec_false; auto.
 Qed.
+*)
 
 Theorem loadbytes_load:
   forall chunk m b ofs bytes,
@@ -1015,7 +1014,7 @@ Theorem load_store_same:
 Proof.
   intros.
   destruct (load_store_similar chunk) as [v' [A B]]. auto.
-  rewrite A. decEq. eapply decode_encode_val_similar; eauto. 
+  rewrite A. decEq. eapply decode_encode_val_similar; eauto using chunk_eq_refl.
 Qed.
 
 Theorem load_store_other:
@@ -1208,8 +1207,15 @@ Opaque encode_val.
   destruct (size_chunk_nat_pos chunk') as [sz' SZ']. 
   assert (ENC: encode_val chunk (Vptr v_b v_o) = list_repeat (size_chunk_nat chunk) Undef
                \/ pointer_encoding_shape (encode_val chunk (Vptr v_b v_o))).
-  destruct chunk; try (left; reflexivity). 
-  right. apply encode_pointer_shape. 
+  destruct chunk; try (left; reflexivity).
+  destruct (eq_nat_dec n 31).
+    rewrite e in *.
+    right. apply encode_pointer_shape. 
+
+    left. Transparent encode_val. simpl.  
+    destruct (eq_nat_dec n 31); auto.
+      contradict e; auto.
+
   assert (GET: getN (size_chunk_nat chunk) ofs c' = encode_val chunk (Vptr v_b v_o)).
   unfold c'. rewrite <- (encode_val_length chunk (Vptr v_b v_o)). 
   apply getN_setN_same.
@@ -1280,13 +1286,43 @@ Opaque encode_val.
           end).
 Transparent encode_val.
   unfold e, encode_val. rewrite SZ. destruct chunk; simpl; auto.
+
+  destruct (eq_nat_dec n 31); subst; auto.
+    unfold size_chunk_nat, size_chunk. rewrite bytesize_chunk_31_eq_4.
+    simpl. auto.
+
   destruct e as [ | e1 el]. contradiction.
   rewrite SZ'. simpl. rewrite setN_outside. rewrite update_s. 
   destruct e1; try contradiction. 
-  destruct chunk'; auto. 
-  destruct chunk'; auto. intuition.
+    destruct chunk'; auto. 
+      simpl.
+      unfold decode_int.
+      admit.
+
+    subst.
+    destruct H1 as [H1 | H1].   
+      contradict H1; auto.
+    
+      destruct chunk'; auto.
+        simpl.
+        destruct (eq_nat_dec n0 31); subst.
+          contradict H1; auto.
+              
+          unfold decode_int.
+          admit.
   omega.
 Qed.
+
+Lemma bytesize_chunk_neq : forall n1 n2,
+  (n1 <= 31)%nat -> (n2 > 31)%nat ->
+  bytesize_chunk n1 <> bytesize_chunk n2.
+Admitted.
+
+Lemma bytesize_chunk_lt_31 : forall n,
+  (n < 31)%nat ->
+  bytesize_chunk n < 4.
+Proof.
+Admitted.
 
 Lemma store_similar_chunks:
   forall chunk1 chunk2 v1 v2 m b ofs,
@@ -1303,13 +1339,102 @@ Proof.
   destruct (valid_access_dec m chunk1 b ofs Writable);
   destruct (valid_access_dec m chunk2 b ofs Writable); auto.
   f_equal. apply mkmem_ext; auto. congruence.
+
   elimtype False.
   destruct chunk1; destruct chunk2;  inv H0; unfold valid_access, align_chunk in *; try contradiction.
+
+    unfold range_perm in v.
+    unfold size_chunk_nat, size_chunk in v.
+    rewrite H2 in v.
+    destruct (le_lt_dec n0 31).
+      destruct (le_lt_dec n1 31).
+        apply n; auto.
+        apply bytesize_chunk_neq with (n2:=n1) in l; auto.
+      destruct (le_lt_dec n1 31).
+        apply bytesize_chunk_neq with (n2:=n0) in l0; auto.
+        apply n; auto.
+
+    unfold range_perm in v.
+    unfold size_chunk_nat, size_chunk in v.
+    rewrite H2 in v.
+    destruct (le_lt_dec n0 31).
+      apply n; auto.
+      apply bytesize_chunk_gt_31 in l; auto.
+
+    unfold range_perm in v.
+    unfold size_chunk_nat, size_chunk in v.
+    rewrite H2 in v.
+    destruct (le_lt_dec n0 31).
+      simpl in n. destruct v.
+      apply n. split; auto. clear - H1. admit.
+
+    apply n; auto.
+
+    destruct (le_lt_dec n0 31).
+      unfold size_chunk_nat, size_chunk in n.
+      rewrite <- H2 in n.
+      apply n; auto.
+
+      apply bytesize_chunk_gt_31 in l.
+      rewrite <- H2 in l. contradict l; omega.
+
+    destruct (le_lt_dec n0 31).
+      apply bytesize_chunk_le_31 in l.
+      rewrite <- H2 in l. contradict l; omega.
+
+      unfold size_chunk_nat, size_chunk in n.
+      rewrite <- H2 in n.
+      apply n; auto.
+
   elimtype False.
   destruct chunk1; destruct chunk2;  inv H0; unfold valid_access, align_chunk in *; try contradiction.
+
+    unfold range_perm in v.
+    unfold size_chunk_nat, size_chunk in v.
+    rewrite <- H2 in v.
+    destruct (le_lt_dec n0 31).
+      destruct (le_lt_dec n1 31).
+        apply n; auto.
+        apply bytesize_chunk_neq with (n2:=n1) in l; auto.
+      destruct (le_lt_dec n1 31).
+        apply bytesize_chunk_neq with (n2:=n0) in l0; auto.
+        apply n; auto.
+
+    unfold range_perm in v.
+    unfold size_chunk_nat, size_chunk in v.
+    rewrite <- H2 in v.
+    destruct (le_lt_dec n0 31).
+      apply n; auto.
+      apply bytesize_chunk_gt_31 in l; auto.
+        rewrite H2 in l. contradict l. omega.
+
+    unfold range_perm in v.
+    unfold size_chunk_nat, size_chunk in v.
+    rewrite <- H2 in v.
+    destruct (le_lt_dec n0 31).
+      simpl in n. destruct v.
+      apply n. split; auto. clear - H1. admit.
+
+    apply n; auto.
+
+    destruct (le_lt_dec n0 31).
+      unfold size_chunk_nat, size_chunk in n, v.
+      rewrite <- H2 in v.
+      apply n; auto.
+
+      apply bytesize_chunk_gt_31 in l.
+      rewrite <- H2 in l. contradict l; omega.
+
+    destruct (le_lt_dec n0 31).
+      apply bytesize_chunk_le_31 in l.
+      rewrite <- H2 in l. contradict l; omega.
+
+      unfold size_chunk_nat, size_chunk in n, v.
+      rewrite <- H2 in v.
+      apply n; auto.
 Qed.
 
-
+(*
 Theorem store_signed_unsigned_8:
   forall m b ofs v,
   store Mint8signed m b ofs v = store Mint8unsigned m b ofs v.
@@ -1343,6 +1468,7 @@ Theorem store_int16_sign_ext:
   store Mint16signed m b ofs (Vint (Int.sign_ext 16 n)) =
   store Mint16signed m b ofs (Vint n).
 Proof. intros. apply store_similar_chunks. apply encode_val_int16_sign_ext. Qed.
+*)
 
 Theorem store_float32_truncate:
   forall m b ofs n,
@@ -1533,7 +1659,8 @@ Theorem load_alloc_same:
 Proof.
   intros. exploit load_result; eauto. intro. rewrite H0. 
   injection ALLOC; intros. rewrite <- H2; simpl. rewrite <- H1.
-  rewrite update_s. destruct chunk; reflexivity. 
+  rewrite update_s. destruct chunk; try reflexivity. 
+    simpl. admit.
 Qed.
 
 Theorem load_alloc_same':
@@ -1828,7 +1955,7 @@ Proof.
   destruct (zlt ofs0 lo). eapply perm_drop_3; eauto. 
   destruct (zle hi ofs0). eapply perm_drop_3; eauto.
   apply perm_implies with p. eapply perm_drop_1; eauto. omega. 
-  generalize (size_chunk_pos chunk); intros. intuition. omegaContradiction. omegaContradiction.
+  generalize (size_chunk_pos chunk); intros. intuition. 
   eapply perm_drop_3; eauto.
 Qed.
 
@@ -1990,11 +2117,11 @@ Lemma perm_inj:
   perm m2 b2 (ofs + delta) p.
 Proof.
   intros. 
-  assert (valid_access m1 Mint8unsigned b1 ofs p).
-    split. red; intros. simpl in H2. replace ofs0 with ofs by omega. auto.
+  assert (valid_access m1 (Mint 7) b1 ofs p).
+    split. red; intros. simpl in H2. rewrite bytesize_chunk_7_eq_1 in H2. replace ofs0 with ofs by omega. auto.
     simpl. apply Zone_divide.
   exploit mi_access; eauto. intros [A B].
-  apply A. simpl; omega. 
+  apply A. simpl; rewrite bytesize_chunk_7_eq_1; omega. 
 Qed.
 
 (** Preservation of loads. *)
@@ -2186,9 +2313,9 @@ Proof.
   intros. eauto with mem. 
 (* mem_contents *)
   intros.
-  assert (valid_access m2 Mint8unsigned b0 (ofs + delta) Nonempty).
+  assert (valid_access m2 (Mint 7) b0 (ofs + delta) Nonempty).
     eapply mi_access0; eauto.
-    split. simpl. red; intros. assert (ofs0 = ofs) by omega. congruence.
+    split. simpl. red; intros. rewrite bytesize_chunk_7_eq_1 in H3. assert (ofs0 = ofs) by omega. congruence.
     simpl. apply Zone_divide. 
   assert (valid_block m2 b0) by eauto with mem.
   rewrite <- MEM; simpl. rewrite update_o. eauto with mem.
@@ -2658,12 +2785,12 @@ Record inject_ (f: meminj) (m1 m2: mem) : Prop :=
     mi_range_offset:
       forall b b' delta,
       f b = Some(b', delta) ->
-      Int.min_signed <= delta <= Int.max_signed;
+      Int.min_signed 31 <= delta <= Int.max_signed 31;
     mi_range_block:
       forall b b' delta,
       f b = Some(b', delta) ->
       delta = 0 \/ 
-      (Int.min_signed <= low_bound m2 b' /\ high_bound m2 b' <= Int.max_signed)
+      (Int.min_signed 31 <= low_bound m2 b' /\ high_bound m2 b' <= Int.max_signed 31)
   }.
 
 Definition inject := inject_.
@@ -2731,9 +2858,9 @@ Qed.
 Lemma address_inject:
   forall f m1 m2 b1 ofs1 b2 delta,
   inject f m1 m2 ->
-  perm m1 b1 (Int.signed ofs1) Nonempty ->
+  perm m1 b1 (Int.signed 31 ofs1) Nonempty ->
   f b1 = Some (b2, delta) ->
-  Int.signed (Int.add ofs1 (Int.repr delta)) = Int.signed ofs1 + delta.
+  Int.signed 31 (Int.add 31 ofs1 (Int.repr 31 delta)) = Int.signed 31 ofs1 + delta.
 Proof.
   intros.
   exploit perm_inject; eauto. intro A.
@@ -2750,9 +2877,9 @@ Qed.
 Lemma address_inject':
   forall f m1 m2 chunk b1 ofs1 b2 delta,
   inject f m1 m2 ->
-  valid_access m1 chunk b1 (Int.signed ofs1) Nonempty ->
+  valid_access m1 chunk b1 (Int.signed 31 ofs1) Nonempty ->
   f b1 = Some (b2, delta) ->
-  Int.signed (Int.add ofs1 (Int.repr delta)) = Int.signed ofs1 + delta.
+  Int.signed 31 (Int.add 31 ofs1 (Int.repr 31 delta)) = Int.signed 31 ofs1 + delta.
 Proof.
   intros. destruct H0. eapply address_inject; eauto. 
   apply H0. generalize (size_chunk_pos chunk). omega. 
@@ -2761,9 +2888,9 @@ Qed.
 Theorem valid_pointer_inject_no_overflow:
   forall f m1 m2 b ofs b' x,
   inject f m1 m2 ->
-  valid_pointer m1 b (Int.signed ofs) = true ->
+  valid_pointer m1 b (Int.signed 31 ofs) = true ->
   f b = Some(b', x) ->
-  Int.min_signed <= Int.signed ofs + Int.signed (Int.repr x) <= Int.max_signed.
+  Int.min_signed 31 <= Int.signed 31 ofs + Int.signed 31 (Int.repr 31 x) <= Int.max_signed 31.
 Proof.
   intros. rewrite valid_pointer_valid_access in H0.
   exploit address_inject'; eauto. intros.
@@ -2775,9 +2902,9 @@ Qed.
 Theorem valid_pointer_inject_val:
   forall f m1 m2 b ofs b' ofs',
   inject f m1 m2 ->
-  valid_pointer m1 b (Int.signed ofs) = true ->
+  valid_pointer m1 b (Int.signed 31 ofs) = true ->
   val_inject f (Vptr b ofs) (Vptr b' ofs') ->
-  valid_pointer m2 b' (Int.signed ofs') = true.
+  valid_pointer m2 b' (Int.signed 31 ofs') = true.
 Proof.
   intros. inv H1.
   exploit valid_pointer_inject_no_overflow; eauto. intro NOOV.
@@ -2804,13 +2931,13 @@ Theorem different_pointers_inject:
   forall f m m' b1 ofs1 b2 ofs2 b1' delta1 b2' delta2,
   inject f m m' ->
   b1 <> b2 ->
-  valid_pointer m b1 (Int.signed ofs1) = true ->
-  valid_pointer m b2 (Int.signed ofs2) = true ->
+  valid_pointer m b1 (Int.signed 31 ofs1) = true ->
+  valid_pointer m b2 (Int.signed 31 ofs2) = true ->
   f b1 = Some (b1', delta1) ->
   f b2 = Some (b2', delta2) ->
   b1' <> b2' \/
-  Int.signed (Int.add ofs1 (Int.repr delta1)) <>
-  Int.signed (Int.add ofs2 (Int.repr delta2)).
+  Int.signed 31 (Int.add 31 ofs1 (Int.repr 31 delta1)) <>
+  Int.signed 31 (Int.add 31 ofs2 (Int.repr 31 delta2)).
 Proof.
   intros. 
   rewrite valid_pointer_valid_access in H1. 
@@ -2818,10 +2945,11 @@ Proof.
   rewrite (address_inject' _ _ _ _ _ _ _ _ H H1 H3). 
   rewrite (address_inject' _ _ _ _ _ _ _ _ H H2 H4). 
   inv H1. simpl in H5. inv H2. simpl in H1.
+  rewrite bytesize_chunk_7_eq_1 in *.
   eapply meminj_no_overlap_perm. 
   eapply mi_no_overlap; eauto. eauto. eauto. eauto. 
-  apply (H5 (Int.signed ofs1)). omega.
-  apply (H1 (Int.signed ofs2)). omega.
+  apply (H5 (Int.signed 31 ofs1)). omega.
+  apply (H1 (Int.signed 31 ofs2)). omega.
 Qed.
 
 (** Preservation of loads *)
@@ -2846,8 +2974,8 @@ Proof.
   intros. inv H1; simpl in H0; try discriminate.
   exploit load_inject; eauto. intros [v2 [LOAD INJ]].
   exists v2; split; auto. simpl.
-  replace (Int.signed (Int.add ofs1 (Int.repr delta)))
-     with (Int.signed ofs1 + delta).
+  replace (Int.signed 31 (Int.add 31 ofs1 (Int.repr 31 delta)))
+     with (Int.signed 31 ofs1 + delta).
   auto. symmetry. eapply address_inject'; eauto with mem.
 Qed.
 
@@ -2944,8 +3072,8 @@ Theorem storev_mapped_inject:
     storev chunk m2 a2 v2 = Some n2 /\ inject f n1 n2.
 Proof.
   intros. inv H1; simpl in H0; try discriminate.
-  simpl. replace (Int.signed (Int.add ofs1 (Int.repr delta)))
-            with (Int.signed ofs1 + delta).
+  simpl. replace (Int.signed 31 (Int.add 31 ofs1 (Int.repr 31 delta)))
+            with (Int.signed 31 ofs1 + delta).
   eapply store_mapped_inject; eauto.
   symmetry. eapply address_inject'; eauto with mem.
 Qed.
@@ -3026,8 +3154,8 @@ Theorem alloc_left_mapped_inject:
   inject f m1 m2 ->
   alloc m1 lo hi = (m1', b1) ->
   valid_block m2 b2 ->
-  Int.min_signed <= delta <= Int.max_signed ->
-  delta = 0 \/ Int.min_signed <= low_bound m2 b2 /\ high_bound m2 b2 <= Int.max_signed ->
+  Int.min_signed 31 <= delta <= Int.max_signed 31 ->
+  delta = 0 \/ Int.min_signed 31 <= low_bound m2 b2 /\ high_bound m2 b2 <= Int.max_signed 31 ->
   (forall ofs p, lo <= ofs < hi -> perm m2 b2 (ofs + delta) p) ->
   inj_offset_aligned delta (hi-lo) ->
   (forall b ofs, 
@@ -3103,7 +3231,7 @@ Proof.
   eapply alloc_right_inject; eauto.
   eauto.
   instantiate (1 := b2). eauto with mem.
-  instantiate (1 := 0). generalize Int.min_signed_neg Int.max_signed_pos; omega.
+  instantiate (1 := 0). generalize (Int.min_signed_neg 31) (Int.max_signed_pos 31); omega.
   auto.
   intros.
   apply perm_implies with Freeable; auto with mem.
@@ -3260,7 +3388,7 @@ Proof.
 (* range *)
   unfold flat_inj; intros.
   destruct (zlt b (nextblock m)); inv H0.
-  generalize Int.min_signed_neg Int.max_signed_pos; omega.
+  generalize (Int.min_signed_neg 31) (Int.max_signed_pos 31); omega.
 (* range *)
   unfold flat_inj; intros.
   destruct (zlt b (nextblock m)); inv H0. auto.
