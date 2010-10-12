@@ -23,6 +23,7 @@
 - [free]: invalidate a memory block.
 *)
 
+Require Import Znumtheory.
 Require Import Coqlib.
 Require Import AST.
 Require Import Integers.

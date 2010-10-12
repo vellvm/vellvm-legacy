@@ -33,7 +33,7 @@ Proof.
   intros TD lc als gl Mem0 c lc' als' Mem' tr HdbCmd Uniqlc.
   (dbCmd_cases (inversion HdbCmd) Case); subst; auto using updateAddAL_uniq.
   Case "dbSelect".
-    destruct cond0; eauto using updateAddAL_uniq.
+    destruct (Coqlib.zeq cond0 0); eauto using updateAddAL_uniq.
 Qed.
 
 Lemma se_dbCmds_preservation : forall TD lc als gl Mem0 cs lc' als' Mem' tr,
@@ -55,7 +55,7 @@ Lemma se_dbTerminator_preservation : forall TD F B gl lc c B' lc' tr,
 Proof.
   intros TD F gl B lc c B' lc' tr HdbTerminator Uniqlc UniqF Hblockin.
   inversion HdbTerminator; subst.
-    destruct c0.
+    destruct (Coqlib.zeq c0 0).
       split; auto using switchToNewBasicBlock_uniq.
         symmetry in H0.
         apply lookupBlockViaLabelFromFdef_inv in H0; auto.
@@ -869,18 +869,7 @@ Lemma tv_terminator__is__correct : forall TD fh1 lb1 fh2 lb2 B1 B2 lc gl tmn B1'
 Proof.
   intros TD fh1 lb1 fh2 lb2 B1 B2 lc gl tmn B1' lc' tr HuniqF1 HuniqF2 Htv_fdef Htv_block HdbTerminator.
   inversion HdbTerminator; subst.
-    destruct c.
-      assert (exists B2', exists n, tv_block (block_intro l' ps' sbs' tmn') B2' /\ 
-                                  nth_error lb1 n = Some (block_intro l' ps' sbs' tmn') /\
-                                  nth_error lb2 n = Some B2' /\
-                                  lookupBlockViaLabelFromFdef (fdef_intro fh2 lb2) l1 = Some B2') as J.
-        eapply lookup_tv_fdef__tv_block; eauto.
-      destruct J as [B2' [n [J1 [J2 [J3 J4]]]]].
-      exists B2'. exists n. split; auto. split; auto. split; auto.
-      destruct B2' as [l2' ps2' sbs2' tmn2'].
-      apply dbBranch with (c:=0); auto.
-        eapply tv_switchToNewBasicBlock; eauto.
-    
+    destruct (Coqlib.zeq c 0); subst.
       assert (exists B2', exists n, tv_block (block_intro l' ps' sbs' tmn') B2' /\ 
                                   nth_error lb1 n = Some (block_intro l' ps' sbs' tmn') /\
                                   nth_error lb2 n = Some B2' /\
@@ -889,7 +878,20 @@ Proof.
       destruct J as [B2' [n [J1 [J2 [J3 J4]]]]].
       exists B2'. exists n. split; auto. split; auto. split; auto.
       destruct B2' as [l2' ps2' sbs2' tmn2'].
-      apply dbBranch with (c:=S c); auto.
+      eapply dbBranch; eauto.
+        eapply tv_switchToNewBasicBlock; eauto.
+    
+      assert (exists B2', exists n, tv_block (block_intro l' ps' sbs' tmn') B2' /\ 
+                                  nth_error lb1 n = Some (block_intro l' ps' sbs' tmn') /\
+                                  nth_error lb2 n = Some B2' /\
+                                  lookupBlockViaLabelFromFdef (fdef_intro fh2 lb2) l1 = Some B2') as J.
+        eapply lookup_tv_fdef__tv_block; eauto.
+      destruct J as [B2' [n' [J1 [J2 [J3 J4]]]]].
+      exists B2'. exists n'. split; auto. split; auto. split; auto.
+      destruct B2' as [l2' ps2' sbs2' tmn2'].
+      apply dbBranch with (c:=c); auto.
+        destruct (Coqlib.zeq c 0); auto.
+          contradict e; auto.
         eapply tv_switchToNewBasicBlock; eauto.
 
     assert (exists B2', exists n, tv_block (block_intro l' ps' sbs' tmn') B2' /\ 

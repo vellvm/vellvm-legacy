@@ -28,7 +28,6 @@ Extract Constant LLVMsyntax.noret => "bool".
 Extract Constant LLVMlib.szZERO => "0".
 Extract Constant LLVMlib.szONE => "1".
 Extract Constant LLVMlib.INT2nat => "Symexe_aux.llapint2nat".
-Extract Constant LLVMlib.nat2INT => "Symexe_aux.nat2llapint".
 Extract Constant LLVMlib.sz2nat => "Symexe_aux.int2nat".
 Extract Constant LLVMlib.nat2sz => "Symexe_aux.nat2int".
 

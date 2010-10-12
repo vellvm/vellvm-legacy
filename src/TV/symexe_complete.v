@@ -14,6 +14,7 @@ Require Import ssa_dynamic.
 Require Import trace.
 Require Import symexe_def.
 Require Import assoclist.
+Require Import ZArith.
 
 Export SimpleSE.
 
@@ -197,7 +198,7 @@ Proof.
 
           rewrite lookupAL_updateAddAL_eq.
           rewrite lookupSmap_updateAddAL_eq.
-          exists (ptr2GV TD (mb, 0)).
+          exists (blk2GV TD mb).
           split; auto.
             eapply sterm_malloc_denotes; eauto.
 
@@ -232,7 +233,7 @@ Proof.
 
           rewrite lookupAL_updateAddAL_eq.
           rewrite lookupSmap_updateAddAL_eq.
-          exists (ptr2GV TD (mb, 0)).
+          exists (blk2GV TD mb).
           split; auto.
           eapply sterm_alloca_denotes; eauto.
 
@@ -413,18 +414,20 @@ Proof.
         simpl in id'_indom. simpl. 
         apply se_cmd__denotes__op_cmd__case0 in id'_indom; auto.
         destruct id'_indom as [[nEQ id'_indom] | EQ1]; subst.
-          destruct cond0; eapply se_cmd__denotes__op_cmd__case1; eauto.
+          destruct (Coqlib.zeq cond0 0); eapply se_cmd__denotes__op_cmd__case1; eauto.
 
           apply getOperandInt_inversion in H13. destruct H13 as [gv5 [J1 J2]].
-          destruct cond0; rewrite lookupAL_updateAddAL_eq;
+          destruct (Coqlib.zeq cond0 0); subst; rewrite lookupAL_updateAddAL_eq;
                           rewrite lookupSmap_updateAddAL_eq; auto.
             exists gv2.
             split; auto.
-              apply sterm_select_denotes with (c0:=0)(gv0:=gv5)(gv1:=gv1)(gv2:=gv2); eauto using genericvalue__implies__value2Sterm_denotes.
+              apply sterm_select_denotes with (c0:=0%Z)(gv0:=gv5)(gv1:=gv1)(gv2:=gv2); eauto using genericvalue__implies__value2Sterm_denotes.
 
             exists gv1.
             split; auto.
-              apply sterm_select_denotes with (c0:=Datatypes.S cond0)(gv0:=gv5)(gv1:=gv1)(gv2:=gv2); eauto using genericvalue__implies__value2Sterm_denotes.
+              apply sterm_select_denotes with (c0:=cond0)(gv0:=gv5)(gv1:=gv1)(gv2:=gv2); eauto using genericvalue__implies__value2Sterm_denotes.
+                destruct (Coqlib.zeq cond0 0); subst; auto.             
+                   contradict n; auto.
 
         intros id' gv' HlookupAL.
         simpl. 
@@ -432,11 +435,11 @@ Proof.
           apply getOperandInt_inversion in H13. destruct H13 as [gv5 [J1 J2]].
           rewrite lookupSmap_updateAddAL_eq.
           apply sterm_select_denotes with (c0:=cond0)(gv0:=gv5)(gv1:=gv1)(gv2:=gv2); eauto using genericvalue__implies__value2Sterm_denotes.
-          destruct cond0;
+          destruct (Coqlib.zeq cond0 0);
             rewrite lookupAL_updateAddAL_eq in HlookupAL;
             inversion HlookupAL; subst; auto.
 
-          destruct cond0; eapply se_cmd__denotes__op_cmd__case2; eauto.
+          destruct (Coqlib.zeq cond0 0); eapply se_cmd__denotes__op_cmd__case2; eauto.
 Qed.
 
 Lemma aux__op_cmds__satisfy__se_cmds : forall nbs TD lc0 als als0 Mem0 lc als' gl Mem1 sstate1 lc' Mem2 tr tr1,

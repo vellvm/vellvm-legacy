@@ -1,5 +1,6 @@
 Add LoadPath "./ott".
 Add LoadPath "./monads".
+Add LoadPath "./compcert".
 (* Add LoadPath "../../../theory/metatheory". *)
 Require Import ssa.
 Require Import List.
@@ -9,6 +10,13 @@ Require Export CoqListFacts.
 Require Export targetdata.
 Require Import monad.
 Require Import Arith.
+Require Import Memory.
+Require Import Values.
+Require Import ZArith.
+Require Import Integers.
+Require Import Coqlib.
+Require Import genericvalues.
+Require Import AST.
 
 Export LLVMsyntax.
 
@@ -20,14 +28,15 @@ Export LLVMsyntax.
 *)
 
 (** memory address *)
-Definition maddr := nat.
+(*Definition maddr := nat.*)
 
-Definition mblock := maddr.
-Definition malloca := mblock -> option maddr.
-Definition moffset := nat.
-Definition mptr := (mblock * moffset)%type.
-Variable null : mptr.
+Definition mblock := Values.block.
+(* Definition malloca := mblock -> option maddr. *)
+Definition moffset := Int.int 31.
+Definition mptr := val.
+Definition null := Vptr Mem.nullptr (Int.repr 31 0).
 
+(*
 (** Bytes stored at each [maddr] *)
 Inductive mbyte : Set :=
 | mbyte_var : nat -> mbyte   (* We only need 8 bits. *) 
@@ -46,26 +55,71 @@ Definition mvalue := list mbyte.
 
 (** Initially, every addr maps to uninitial byte, and no blocks are allocated. *)
 Definition initmem := mkMem (fun _ => mbyte_uninit) (fun _ => None) : mem.
+*)
+
+Definition mem := Mem.mem.
+Definition initmem := Mem.empty.
 
 (** allocate memory with size and alignment *)
-Variable malloc : layouts -> mem -> sz -> align -> option (mem * mblock)%type.
+Definition malloc (TD:layouts) (M:mem) (bsz:sz) (al:align) : option (mem * mblock)%type :=
+Some (Mem.alloc M 0 (Z_of_nat bsz)).
 
-Variable free : mem -> mptr -> option mem.
+Definition free (M:mem) (ptr:mptr) : option mem :=
+match ptr with
+| Vptr b i =>
+  if zeq (Int.unsigned 31 i) 0 
+  then
+    match (Mem.bounds M b) with
+    | (l, h) => Mem.free M b l h
+    end
+  else None
+| _ => None
+end.
 
 Fixpoint free_allocas (Mem:mem) (allocas:list mblock) : option mem :=
 match allocas with
 | nil => Some Mem
 | alloca::allocas' =>
-  match (free Mem (alloca, 0)) with
+  match (free Mem (Vptr alloca (Int.repr 31 0))) with
   | Some Mem' => free_allocas Mem' allocas'
   | None => None
   end
 end.
 
-Variable mload : layouts -> mem -> mptr -> typ -> align -> option mvalue.
+Definition typ2memory_chunk (t:typ) : option memory_chunk :=
+  match t with
+  | typ_int bsz => Some (Mint (bsz-1))
+  | typ_float => Some Mfloat32
+  | typ_double => Some Mfloat64
+  | typ_pointer _ => Some (Mint 31)
+  | _ => None
+  end.
 
-Variable mstore : layouts -> mem -> mptr -> typ -> mvalue -> align -> option mem.
+Definition mload (TD:layouts) (M:mem) (ptr:mptr) (t:typ) (a:align) : option GenericValue :=
+match ptr with
+| Vptr b ofs =>
+  match typ2memory_chunk t with
+  | Some c => 
+    match (Mem.load c M b (Int.unsigned 31 ofs)) with
+    | Some v => Some (val2GV TD v c)
+    | None => None
+    end
+  | _ => None
+  end
+| _ => None
+end.
 
+Definition mstore (TD:layouts) (M:mem) (ptr:mptr) (t:typ) (gv:GenericValue) (a:align) : option mem :=
+match ptr with
+| Vptr b ofs =>
+  match typ2memory_chunk t, GV2val TD gv with
+  | Some c, Some v => Mem.store c M b (Int.unsigned 31 ofs) v
+  | _, _ => None
+  end
+| _ => None
+end.
+
+(*
 (** translating [mvalue] to value of specific typ, failed when [mvalue] is not
     of size [sz]. *)
 Variable mvalue2nat : layouts -> sz -> mvalue -> option nat.
@@ -116,6 +170,6 @@ do s <- getTypeStoreSize TD t0;
    then ret ((firstn s (skipn o v))++v0++(skipn o v))
    else None
    endif.
-
+*)
 
 

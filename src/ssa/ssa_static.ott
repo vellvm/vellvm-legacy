@@ -74,6 +74,7 @@ Jwf_const :: '' ::=
       {{ com [[const]] has [[typ]] }} by
 
       |- int sz
+      sz > 0
       ----------------------------- :: wf_const_int
       system |-c (int sz) INT : int sz
 
@@ -442,11 +443,10 @@ Jwf_insn :: '' ::=
       </ (not id = id'i) \/ (not (isReachableFromEntry fdef_info block)) // i />
       % The following properties 1-4 are checked in visitBlock by LLVM, but we check them here. 
       % 1 Ensure that PHI nodes have at least one entry! 
-      PHINode.getNumIncomingValues (id = phi typ </ [ valuej , lj ] // j />) = INT
-      {{ [[INT]] >0 }}
+      {{ (PHINode.getNumIncomingValues ([[:user_syntax__phinode:(id = phi typ </ [ valuej , lj ] // j />)]]) > 0)%nat }}
       % 2 PHINode should have one entry for each predecessor of its parent basic block!
       predOfBlock block usedef_block = blocks
-      {{ [[INT]] = length [[blocks]]}}
+      {{ PHINode.getNumIncomingValues ([[:user_syntax__phinode:(id = phi typ </ [ valuej , lj ] // j />)]]) = length [[blocks]]}}
       % 3 Check to make sure that the predecessors and PHI node entries are matched up.
       getLabelsFromBlocks blocks = ls1
       getLabelsFromPhiNode (id = phi typ </ [ valuej , lj ] // j />) =ls2
@@ -485,9 +485,7 @@ Jwf_insn :: '' ::=
       CallSite.getFdefTyp fdef1 = typ1
       % Verify that the correct number of arguments are being passed 
       % Correct number of arguments passed to called function! 
-      FunctionType.getNumParams typ1 = INT1
-      CallSite.arg_size fdef1 = INT2
-      INT1 = INT2
+      {{ FunctionType.getNumParams [[:user_syntax__typ:typ1]] = Some (CallSite.arg_size [[:user_syntax__fdef:fdef1]]) }}
       % Verify that all arguments to the call match the function type... 
       params <-> </ (typj' valuej'') // j />
       typ1 = typ0 ( </ typj' // j /> )
@@ -652,7 +650,7 @@ Jwf_fdef :: '' ::=
       % Entry block to function must not have predecessors! 
       getEntryOfFdef (define fheader { blocks }) = block
       predOfBlock block usedef_block = blocks'
-      {{ length [[blocks']] = 0 }}
+      {{ length [[blocks']] = 0%nat }}
       % Compute DT 
       {{ genDominatorTree [[:user_syntax__fdef:define fheader { blocks }]] [[module]] = [[dt]] }}
       % Checking function body

@@ -3,6 +3,8 @@ type __ = Obj.t
 type unit0 =
   | Tt
 
+val xorb : bool -> bool -> bool
+
 val negb : bool -> bool
 
 type nat =
@@ -16,6 +18,13 @@ type ('a, 'b) sum =
 val fst : ('a1*'a2) -> 'a1
 
 val snd : ('a1*'a2) -> 'a2
+
+type comparison =
+  | Eq
+  | Lt
+  | Gt
+
+val compOpp : comparison -> comparison
 
 val length : 'a1 list -> nat
 
@@ -33,6 +42,54 @@ val error : 'a1 option
 val plus : nat -> nat -> nat
 
 val eq_nat_dec : nat -> nat -> bool
+
+val le_lt_dec : nat -> nat -> bool
+
+val beq_nat : nat -> nat -> bool
+
+val iter_nat : nat -> ('a1 -> 'a1) -> 'a1 -> 'a1
+
+type positive =
+  | XI of positive
+  | XO of positive
+  | XH
+
+val psucc : positive -> positive
+
+val pplus : positive -> positive -> positive
+
+val pplus_carry : positive -> positive -> positive
+
+val pmult_nat : positive -> nat -> nat
+
+val nat_of_P : positive -> nat
+
+val p_of_succ_nat : nat -> positive
+
+val pdouble_minus_one : positive -> positive
+
+type positive_mask =
+  | IsNul
+  | IsPos of positive
+  | IsNeg
+
+val pdouble_plus_one_mask : positive_mask -> positive_mask
+
+val pdouble_mask : positive_mask -> positive_mask
+
+val pdouble_minus_two : positive -> positive_mask
+
+val pminus_mask : positive -> positive -> positive_mask
+
+val pminus_mask_carry : positive -> positive -> positive_mask
+
+val pminus : positive -> positive -> positive
+
+val pmult : positive -> positive -> positive
+
+val pcompare : positive -> positive -> comparison -> comparison
+
+val positive_eq_dec : positive -> positive -> bool
 
 val flip : ('a1 -> 'a2 -> 'a3) -> 'a2 -> 'a1 -> 'a3
 
@@ -59,6 +116,46 @@ module type UsualDecidableTypeOrig =
 
 val max : nat -> nat -> nat
 
+type z =
+  | Z0
+  | Zpos of positive
+  | Zneg of positive
+
+val zplus : z -> z -> z
+
+val zopp : z -> z
+
+val zsucc : z -> z
+
+val zpred : z -> z
+
+val zminus : z -> z -> z
+
+val zmult : z -> z -> z
+
+val zcompare : z -> z -> comparison
+
+val z_of_nat : nat -> z
+
+val zcompare_rect :
+  z -> z -> (__ -> 'a1) -> (__ -> 'a1) -> (__ -> 'a1) -> 'a1
+
+val zcompare_rec : z -> z -> (__ -> 'a1) -> (__ -> 'a1) -> (__ -> 'a1) -> 'a1
+
+val z_eq_dec : z -> z -> bool
+
+val z_lt_dec : z -> z -> bool
+
+val z_le_dec : z -> z -> bool
+
+val z_lt_ge_dec : z -> z -> bool
+
+val z_le_gt_dec : z -> z -> bool
+
+val zge_bool : z -> z -> bool
+
+val zgt_bool : z -> z -> bool
+
 val bool_dec : bool -> bool -> bool
 
 val in_dec : ('a1 -> 'a1 -> bool) -> 'a1 -> 'a1 list -> bool
@@ -73,6 +170,10 @@ val fold_left : ('a1 -> 'a2 -> 'a1) -> 'a2 list -> 'a1 -> 'a1
 
 val fold_right : ('a2 -> 'a1 -> 'a1) -> 'a1 -> 'a2 list -> 'a1
 
+val iter_pos : positive -> ('a1 -> 'a1) -> 'a1 -> 'a1
+
+val natlike_rec2 : 'a1 -> (z -> __ -> 'a1 -> 'a1) -> z -> 'a1
+
 type 'a set = 'a list
 
 val empty_set : 'a1 set
@@ -84,6 +185,24 @@ val set_mem : ('a1 -> 'a1 -> bool) -> 'a1 -> 'a1 set -> bool
 val set_inter : ('a1 -> 'a1 -> bool) -> 'a1 set -> 'a1 set -> 'a1 set
 
 val set_union : ('a1 -> 'a1 -> bool) -> 'a1 set -> 'a1 set -> 'a1 set
+
+val shift_nat : nat -> positive -> positive
+
+val shift_pos : positive -> positive -> positive
+
+val two_power_nat : nat -> z
+
+val two_power_pos : positive -> z
+
+val two_p : z -> z
+
+val zdiv_eucl_POS : positive -> z -> z*z
+
+val zdiv_eucl : z -> z -> z*z
+
+val zdiv : z -> z -> z
+
+val zmod : z -> z -> z
 
 module type Coq_DecidableType = 
  DecidableTypeOrig
@@ -1107,11 +1226,157 @@ val updateAL : 'a1 assocList -> AtomImpl.atom -> 'a1 -> 'a1 assocList
 
 val lookupAL : 'a1 assocList -> AtomImpl.atom -> 'a1 option
 
+val zeq : z -> z -> bool
+
+val zlt : z -> z -> bool
+
+val zle : z -> z -> bool
+
+val zdivide_dec : z -> z -> bool
+
+val nat_of_Z : z -> nat
+
+val zRdiv : z -> z -> z
+
+val list_repeat : nat -> 'a1 -> 'a1 list
+
+val proj_sumbool : bool -> bool
+
+type comparison0 =
+  | Ceq
+  | Cne
+  | Clt
+  | Cle
+  | Cgt
+  | Cge
+
+module Int : 
+ sig 
+  val wordsize : nat -> nat
+  
+  val modulus : nat -> z
+  
+  val half_modulus : nat -> z
+  
+  val max_unsigned : nat -> z
+  
+  val max_signed : nat -> z
+  
+  val min_signed : nat -> z
+  
+  type int = z
+    (* singleton inductive, whose constructor was mkint *)
+  
+  val int_rect : nat -> (z -> __ -> 'a1) -> int -> 'a1
+  
+  val int_rec : nat -> (z -> __ -> 'a1) -> int -> 'a1
+  
+  val intval : nat -> int -> z
+  
+  val unsigned : nat -> int -> z
+  
+  val signed : nat -> int -> z
+  
+  val repr : nat -> z -> int
+  
+  val zero : nat -> int
+  
+  val one : nat -> int
+  
+  val mone : nat -> int
+  
+  val iwordsize : nat -> int
+  
+  val eq_dec : nat -> int -> int -> bool
+  
+  val eq : nat -> int -> int -> bool
+  
+  val lt : nat -> int -> int -> bool
+  
+  val ltu : nat -> int -> int -> bool
+  
+  val neg : nat -> int -> int
+  
+  val add : nat -> int -> int -> int
+  
+  val sub : nat -> int -> int -> int
+  
+  val mul : nat -> int -> int -> int
+  
+  val coq_Zdiv_round : z -> z -> z
+  
+  val coq_Zmod_round : z -> z -> z
+  
+  val divs : nat -> int -> int -> int
+  
+  val mods : nat -> int -> int -> int
+  
+  val divu : nat -> int -> int -> int
+  
+  val modu : nat -> int -> int -> int
+  
+  val coq_Z_shift_add : bool -> z -> z
+  
+  val coq_Z_bin_decomp : z -> bool*z
+  
+  val bits_of_Z : nat -> z -> z -> bool
+  
+  val coq_Z_of_bits : nat -> (z -> bool) -> z -> z
+  
+  val bitwise_binop : nat -> (bool -> bool -> bool) -> int -> int -> int
+  
+  val coq_and : nat -> int -> int -> int
+  
+  val coq_or : nat -> int -> int -> int
+  
+  val xor : nat -> int -> int -> int
+  
+  val not : nat -> int -> int
+  
+  val shl : nat -> int -> int -> int
+  
+  val shru : nat -> int -> int -> int
+  
+  val shr : nat -> int -> int -> int
+  
+  val shrx : nat -> int -> int -> int
+  
+  val shr_carry : nat -> int -> int -> int
+  
+  val rol : nat -> int -> int -> int
+  
+  val ror : nat -> int -> int -> int
+  
+  val rolm : nat -> int -> int -> int -> int
+  
+  val zero_ext : nat -> z -> int -> int
+  
+  val sign_ext : nat -> z -> int -> int
+  
+  val coq_Z_one_bits : nat -> z -> z -> z list
+  
+  val one_bits : nat -> int -> int list
+  
+  val is_power2 : nat -> int -> int option
+  
+  val cmp : nat -> comparison0 -> int -> int -> bool
+  
+  val cmpu : nat -> comparison0 -> int -> int -> bool
+  
+  val notbool : nat -> int -> int
+  
+  val powerserie : z list -> z
+  
+  val int_of_one_bits : nat -> int list -> int
+ end
+
 module LLVMsyntax : 
  sig 
   val last_opt : 'a1 list -> 'a1 option
   
   type coq_INT = Llvm.llapint
+  
+  type sz = int
   
   type id = String.t
   
@@ -1119,12 +1384,12 @@ module LLVMsyntax :
   
   type align = int
   
-  type sz = int
-  
   type i = nat
   
   type typ =
     | Coq_typ_int of sz
+    | Coq_typ_float
+    | Coq_typ_double
     | Coq_typ_void
     | Coq_typ_label
     | Coq_typ_metadata
@@ -1137,14 +1402,14 @@ module LLVMsyntax :
     | Cons_list_typ of typ * list_typ
   
   val typ_rect :
-    (sz -> 'a1) -> 'a1 -> 'a1 -> 'a1 -> (sz -> typ -> 'a1 -> 'a1) -> (typ ->
-    'a1 -> list_typ -> 'a1) -> (list_typ -> 'a1) -> (typ -> 'a1 -> 'a1) ->
-    typ -> 'a1
+    (sz -> 'a1) -> 'a1 -> 'a1 -> 'a1 -> 'a1 -> 'a1 -> (sz -> typ -> 'a1 ->
+    'a1) -> (typ -> 'a1 -> list_typ -> 'a1) -> (list_typ -> 'a1) -> (typ ->
+    'a1 -> 'a1) -> typ -> 'a1
   
   val typ_rec :
-    (sz -> 'a1) -> 'a1 -> 'a1 -> 'a1 -> (sz -> typ -> 'a1 -> 'a1) -> (typ ->
-    'a1 -> list_typ -> 'a1) -> (list_typ -> 'a1) -> (typ -> 'a1 -> 'a1) ->
-    typ -> 'a1
+    (sz -> 'a1) -> 'a1 -> 'a1 -> 'a1 -> 'a1 -> 'a1 -> (sz -> typ -> 'a1 ->
+    'a1) -> (typ -> 'a1 -> list_typ -> 'a1) -> (list_typ -> 'a1) -> (typ ->
+    'a1 -> 'a1) -> typ -> 'a1
   
   val list_typ_rect :
     'a1 -> (typ -> list_typ -> 'a1 -> 'a1) -> list_typ -> 'a1
@@ -1539,21 +1804,22 @@ module LLVMsyntax :
     -> 'a2)
   
   val list_typ_rec2 :
-    (sz -> 'a1) -> 'a1 -> 'a1 -> 'a1 -> (sz -> typ -> 'a1 -> 'a1) -> (typ ->
-    'a1 -> list_typ -> 'a2 -> 'a1) -> (list_typ -> 'a2 -> 'a1) -> (typ -> 'a1
-    -> 'a1) -> 'a2 -> (typ -> 'a1 -> list_typ -> 'a2 -> 'a2) -> list_typ ->
-    'a2
+    (sz -> 'a1) -> 'a1 -> 'a1 -> 'a1 -> 'a1 -> 'a1 -> (sz -> typ -> 'a1 ->
+    'a1) -> (typ -> 'a1 -> list_typ -> 'a2 -> 'a1) -> (list_typ -> 'a2 ->
+    'a1) -> (typ -> 'a1 -> 'a1) -> 'a2 -> (typ -> 'a1 -> list_typ -> 'a2 ->
+    'a2) -> list_typ -> 'a2
   
   val typ_rec2 :
-    (sz -> 'a1) -> 'a1 -> 'a1 -> 'a1 -> (sz -> typ -> 'a1 -> 'a1) -> (typ ->
-    'a1 -> list_typ -> 'a2 -> 'a1) -> (list_typ -> 'a2 -> 'a1) -> (typ -> 'a1
-    -> 'a1) -> 'a2 -> (typ -> 'a1 -> list_typ -> 'a2 -> 'a2) -> typ -> 'a1
+    (sz -> 'a1) -> 'a1 -> 'a1 -> 'a1 -> 'a1 -> 'a1 -> (sz -> typ -> 'a1 ->
+    'a1) -> (typ -> 'a1 -> list_typ -> 'a2 -> 'a1) -> (list_typ -> 'a2 ->
+    'a1) -> (typ -> 'a1 -> 'a1) -> 'a2 -> (typ -> 'a1 -> list_typ -> 'a2 ->
+    'a2) -> typ -> 'a1
   
   val typ_mutrec :
-    (sz -> 'a1) -> 'a1 -> 'a1 -> 'a1 -> (sz -> typ -> 'a1 -> 'a1) -> (typ ->
-    'a1 -> list_typ -> 'a2 -> 'a1) -> (list_typ -> 'a2 -> 'a1) -> (typ -> 'a1
-    -> 'a1) -> 'a2 -> (typ -> 'a1 -> list_typ -> 'a2 -> 'a2) -> (typ ->
-    'a1)*(list_typ -> 'a2)
+    (sz -> 'a1) -> 'a1 -> 'a1 -> 'a1 -> 'a1 -> 'a1 -> (sz -> typ -> 'a1 ->
+    'a1) -> (typ -> 'a1 -> list_typ -> 'a2 -> 'a1) -> (list_typ -> 'a2 ->
+    'a1) -> (typ -> 'a1 -> 'a1) -> 'a2 -> (typ -> 'a1 -> list_typ -> 'a2 ->
+    'a2) -> (typ -> 'a1)*(list_typ -> 'a2)
  end
 
 module LLVMlib : 
@@ -1583,8 +1849,6 @@ module LLVMlib :
   val sz2nat : LLVMsyntax.sz -> nat
   
   val coq_INT2nat : LLVMsyntax.coq_INT -> nat
-  
-  val nat2INT : nat -> LLVMsyntax.coq_INT
   
   val lempty_set : LLVMsyntax.l set
   
@@ -2927,19 +3191,220 @@ module LLVMlib :
     'a1 option -> 'a1 option
  end
 
-type maddr = nat
+type float (* AXIOM TO BE REALIZED *)
 
-type mblock = maddr
+module Float : 
+ sig 
+  val zero : float
+  
+  val eq_dec : float -> float -> bool
+  
+  val neg : float -> float
+  
+  val abs : float -> float
+  
+  val singleoffloat : float -> float
+  
+  val intoffloat : float -> Int.int
+  
+  val intuoffloat : float -> Int.int
+  
+  val floatofint : Int.int -> float
+  
+  val floatofintu : Int.int -> float
+  
+  val add : float -> float -> float
+  
+  val sub : float -> float -> float
+  
+  val mul : float -> float -> float
+  
+  val div : float -> float -> float
+  
+  val cmp : comparison0 -> float -> float -> bool
+  
+  val bits_of_double : float -> Int.int
+  
+  val double_of_bits : Int.int -> float
+  
+  val bits_of_single : float -> Int.int
+  
+  val single_of_bits : Int.int -> float
+  
+  val from_words : Int.int -> Int.int -> float
+  
+  val ox8000_0000 : Int.int
+  
+  val ox4330_0000 : Int.int
+ end
 
-type malloca = mblock -> maddr option
+type memory_chunk =
+  | Mint of nat
+  | Mfloat32
+  | Mfloat64
 
-type mbyte =
-  | Mbyte_var of nat
-  | Mbyte_uninit
+type block0 = z
 
-type mem0 = { data : (maddr -> mbyte); allocas : malloca }
+val eq_block : z -> z -> bool
 
-type mvalue = mbyte list
+type val0 =
+  | Vundef
+  | Vint of nat * Int.int
+  | Vfloat of float
+  | Vptr of block0 * Int.int
+
+type meminj = block0 -> (block0*z) option
+
+val mint32 : memory_chunk
+
+val bytesize_chunk : nat -> z
+
+val bytesize_chunk_nat : nat -> nat
+
+val size_chunk : memory_chunk -> z
+
+val size_chunk_nat : memory_chunk -> nat
+
+val align_chunk : memory_chunk -> z
+
+type memval =
+  | Undef
+  | Byte of nat * Int.int
+  | Pointer of block0 * Int.int * nat
+
+val bytes_of_int : nat -> z -> Int.int list
+
+val int_of_bytes : Int.int list -> z
+
+val inj_bytes : Int.int list -> memval list
+
+val inj_int : nat -> Int.int -> memval list
+
+val proj_bytes : nat -> memval list -> Int.int list option
+
+val proj_int : nat -> memval list -> Int.int option
+
+val big_endian : bool
+
+val rev_if_be : 'a1 list -> 'a1 list
+
+val encode_int : nat -> Int.int -> memval list
+
+val decode_int : memval list -> nat -> val0
+
+val encode_float : memory_chunk -> float -> Int.int list
+
+val decode_float : memory_chunk -> Int.int list -> float
+
+val inj_pointer : nat -> block0 -> Int.int -> memval list
+
+val check_pointer : nat -> block0 -> Int.int -> memval list -> bool
+
+val proj_pointer : memval list -> val0
+
+val encode_val : memory_chunk -> val0 -> memval list
+
+val decode_val : memory_chunk -> memval list -> val0
+
+type permission =
+  | Freeable
+  | Writable
+  | Readable
+  | Nonempty
+
+val update : z -> 'a1 -> (z -> 'a1) -> z -> 'a1
+
+module Mem : 
+ sig 
+  type mem_ = { mem_contents : (block0 -> z -> memval);
+                mem_access : (block0 -> z -> permission option);
+                bounds : (block0 -> z*z); nextblock : 
+                block0 }
+  
+  val mem__rect :
+    ((block0 -> z -> memval) -> (block0 -> z -> permission option) -> (block0
+    -> z*z) -> block0 -> __ -> __ -> __ -> __ -> 'a1) -> mem_ -> 'a1
+  
+  val mem__rec :
+    ((block0 -> z -> memval) -> (block0 -> z -> permission option) -> (block0
+    -> z*z) -> block0 -> __ -> __ -> __ -> __ -> 'a1) -> mem_ -> 'a1
+  
+  val mem_contents : mem_ -> block0 -> z -> memval
+  
+  val mem_access : mem_ -> block0 -> z -> permission option
+  
+  val bounds : mem_ -> block0 -> z*z
+  
+  val nextblock : mem_ -> block0
+  
+  type mem = mem_
+  
+  val perm_order_dec : permission -> permission -> bool
+  
+  val perm_order'_dec : permission option -> permission -> bool
+  
+  val perm_dec : mem -> block0 -> z -> permission -> bool
+  
+  val range_perm_dec : mem -> block0 -> z -> z -> permission -> bool
+  
+  val valid_access_dec :
+    mem -> memory_chunk -> block0 -> z -> permission -> bool
+  
+  val valid_pointer : mem -> block0 -> z -> bool
+  
+  val empty : mem
+  
+  val nullptr : block0
+  
+  val alloc : mem -> z -> z -> mem_*block0
+  
+  val clearN :
+    (block0 -> z -> memval) -> block0 -> z -> z -> block0 -> z -> memval
+  
+  val unchecked_free : mem -> block0 -> z -> z -> mem
+  
+  val free : mem -> block0 -> z -> z -> mem option
+  
+  val free_list : mem -> ((block0*z)*z) list -> mem option
+  
+  val getN : nat -> z -> (z -> memval) -> memval list
+  
+  val load : memory_chunk -> mem -> block0 -> z -> val0 option
+  
+  val loadv : memory_chunk -> mem -> val0 -> val0 option
+  
+  val loadbytes : mem -> block0 -> z -> z -> memval list option
+  
+  val setN : memval list -> z -> (z -> memval) -> z -> memval
+  
+  val store : memory_chunk -> mem -> block0 -> z -> val0 -> mem option
+  
+  val storev : memory_chunk -> mem -> val0 -> val0 -> mem option
+  
+  val drop_perm : mem -> block0 -> z -> z -> permission -> mem option
+  
+  val valid_access_store : mem -> memory_chunk -> block0 -> z -> val0 -> mem
+  
+  val range_perm_free : mem -> block0 -> z -> z -> mem
+  
+  val range_perm_drop_2 : mem -> block0 -> z -> z -> permission -> mem
+  
+  val mem_inj_rect : meminj -> mem -> mem -> (__ -> __ -> 'a1) -> 'a1
+  
+  val mem_inj_rec : meminj -> mem -> mem -> (__ -> __ -> 'a1) -> 'a1
+  
+  val extends__rect : mem -> mem -> (__ -> __ -> 'a1) -> 'a1
+  
+  val extends__rec : mem -> mem -> (__ -> __ -> 'a1) -> 'a1
+  
+  val inject__rect :
+    meminj -> mem -> mem -> (__ -> __ -> __ -> __ -> __ -> __ -> 'a1) -> 'a1
+  
+  val inject__rec :
+    meminj -> mem -> mem -> (__ -> __ -> __ -> __ -> __ -> __ -> 'a1) -> 'a1
+  
+  val flat_inj : block0 -> meminj
+ end
 
 type event =
   | MkEvent
@@ -2948,9 +3413,13 @@ type trace =
   | Trace_nil
   | Trace_cons of event * trace
 
-type genericValue = mvalue
+type genericValue = (val0*memory_chunk) list
 
 type gVMap = (LLVMsyntax.id*genericValue) list
+
+type mblock = block0
+
+type mem0 = Mem.mem
 
 module SimpleSE : 
  sig 

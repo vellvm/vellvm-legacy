@@ -256,7 +256,7 @@ Case "dbBranch".
     assert (uniqFdef F0) as UniqF0.
       eapply uniqSystem__uniqFdef with (S:=S0); eauto.
     symmetry in e0.
-    destruct c;
+    destruct (Coqlib.zeq c 0);
       apply lookupBlockViaLabelFromFdef_inv in e0;
       destruct e0; auto.
 
@@ -296,7 +296,7 @@ Case "dbInsertValue".
 Case "dbMalloc".
   inversion H; subst.
   exists l0. exists ps. exists cs. exists tmn0.
-  exists (updateAddAL _ lc0 id0 (ptr2GV TD0 (mb, 0))). exists als0. exists Mem'.
+  exists (updateAddAL _ lc0 id0 (blk2GV TD0 mb)). exists als0. exists Mem'.
   exists cs1. split; auto.
 
 Case "dbFree".
@@ -308,7 +308,7 @@ Case "dbFree".
 Case "dbAlloca".
   inversion H; subst. 
   exists l0. exists ps. exists cs. exists tmn0.
-  exists (updateAddAL _ lc0 id0 (ptr2GV TD0 (mb, 0))). exists (mb::als0). exists Mem'.
+  exists (updateAddAL _ lc0 id0 (blk2GV TD0 mb)). exists (mb::als0). exists Mem'.
   exists cs1. split; auto.
 
 Case "dbLoad".
@@ -350,7 +350,7 @@ Case "dbIcmp".
 Case "dbSelect".
   inversion H; subst.
   exists l0. exists ps. exists cs. exists tmn0.
-  exists (if c then updateAddAL _ lc0 id0 gv2 else updateAddAL _ lc0 id0 gv1). exists als0. exists Mem1.
+  exists (if Coqlib.zeq c 0 then updateAddAL _ lc0 id0 gv2 else updateAddAL _ lc0 id0 gv1). exists als0. exists Mem1.
   exists cs1. split; auto.
 
 Case "dbCall".

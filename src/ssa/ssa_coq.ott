@@ -15,6 +15,8 @@ Require Import Omega.
 Require Import monad.
 Require Import Decidable.
 Require Import assoclist.
+Require Import Integers.
+Require Import Coqlib.
 
 Module LLVMlib.
 
@@ -25,20 +27,19 @@ Export LLVMsyntax.
 
 Definition id_dec : forall x y : id, {x=y} + {x<>y} := eq_atom_dec.
 Definition l_dec : forall x y : l, {x=y} + {x<>y} := eq_atom_dec.
-Definition INT_dec : forall x y : INT, {x=y} + {x<>y} := eq_nat_dec.
+Definition INT_dec : forall x y : INT, {x=y} + {x<>y} := zeq.
 Definition sz_dec : forall x y : sz, {x=y} + {x<>y} := eq_nat_dec.
 Definition align_dec : forall x y : align, {x=y} + {x<>y} := eq_nat_dec.
 Definition inbounds_dec : forall x y : inbounds, {x=y} + {x<>y} := bool_dec.
 Definition tailc_dec : forall x y : tailc, {x=y} + {x<>y} := bool_dec.
 Definition noret_dec : forall x y : noret, {x=y} + {x<>y} := bool_dec.
 
-Definition szZERO : sz := 0.
-Definition szONE : sz := 1.
+Definition szZERO : sz := 0%nat.
+Definition szONE : sz := 1%nat.
 
 Definition nat2sz (i:nat) : sz := i.
 Definition sz2nat (i:sz) : nat := i.
-Definition INT2nat (i:INT) : nat := i.
-Definition nat2INT (i:nat) : INT := i.
+Definition INT2nat (i:INT) : nat := nat_of_Z i.
 
 (**********************************)
 (* LabelSet. *)
@@ -1408,8 +1409,8 @@ lookupTypViaIDFromModules s id0.
 
   Fixpoint sizeOfDT (bs:blocks) (output:dt) : nat :=
   match bs with
-  | nil => 0
-  | (block_intro l0 _ _ _)::bs' => length (output l0) + sizeOfDT bs' output
+  | nil => 0%nat
+  | (block_intro l0 _ _ _)::bs' => (length (output l0) + sizeOfDT bs' output)%nat
 (*  | _::bs'=> sizeOfDT bs' output *)
   end.
 
@@ -2699,7 +2700,7 @@ Fixpoint _checkIdenticalIncomingValues (idls idls0:list_value_l) : Prop :=
 match idls with
 | Nil_list_value_l => True
 | Cons_list_value_l _ l idls' => 
-  (length (lookupIdsViaLabelFromIdls idls0 l) <= 1) /\
+  (length (lookupIdsViaLabelFromIdls idls0 l) <= 1)%nat /\
   (_checkIdenticalIncomingValues idls' idls0)
 end.
 
@@ -3133,7 +3134,7 @@ Module ArrayType <: SigArrayType.
  Definition getNumElements (t:typ) : nat :=
  match t with
  | typ_array N _ => sz2nat N
- | _ => 0
+ | _ => 0%nat
  end.
 
 End ArrayType.

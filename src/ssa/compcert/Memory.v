@@ -27,6 +27,7 @@
 *)
   
 Require Import Axioms.
+Require Import Znumtheory.
 Require Import Coqlib.
 Require Import AST.
 Require Import Integers.

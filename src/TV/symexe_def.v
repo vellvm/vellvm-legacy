@@ -1,5 +1,6 @@
 Add LoadPath "../ssa/ott".
 Add LoadPath "../ssa/monads".
+Add LoadPath "../ssa/compcert".
 Add LoadPath "../ssa".
 (*Add LoadPath "../../../theory/metatheory".*)
 Require Import ssa.
@@ -15,6 +16,7 @@ Require Import trace.
 Require Import assoclist.
 Require Import ssa_props.
 Require Import CoqListFacts.
+Require Import Coqlib.
 
 Export LLVMsyntax.
 Export LLVMlib.
@@ -27,13 +29,13 @@ Module SimpleSE.
 (***************************************************************)
 (* deterministic big-step for this new syntax with subblocks. *)
 
-Record ExecutionContext : Set := mkEC {
+Record ExecutionContext : Type := mkEC {
 CurBB       : block;
 Locals      : GVMap;                 (* LLVM values used in this invocation *)
 Allocas     : list mblock            (* Track memory allocated by alloca *)
 }.
 
-Record State : Set := mkState {
+Record State : Type := mkState {
 Frame          : ExecutionContext;
 Mem            : mem
 }.
@@ -69,11 +71,11 @@ Inductive dbCmd : layouts ->  GVMap ->
     trace_nil 
 | dbMalloc : forall TD lc gl id t sz align Mem als Mem' tsz mb,
   getTypeAllocSize TD t = Some tsz ->
-  malloc TD Mem (tsz * sz) align = Some (Mem', mb) ->
+  malloc TD Mem (tsz * sz)%nat align = Some (Mem', mb) ->
   dbCmd TD gl
     lc als Mem
     (insn_malloc id t sz align)
-    (updateAddAL _ lc id (ptr2GV TD (mb, 0))) als Mem'
+    (updateAddAL _ lc id (blk2GV TD mb)) als Mem'
     trace_nil
 | dbFree : forall TD lc gl fid t v Mem als Mem' mptr,
   getOperandPtr TD v lc gl = Some mptr ->
@@ -85,11 +87,11 @@ Inductive dbCmd : layouts ->  GVMap ->
     trace_nil
 | dbAlloca : forall TD lc gl id t sz align Mem als Mem' tsz mb,
   getTypeAllocSize TD t = Some tsz ->
-  malloc TD Mem (tsz * sz) align = Some (Mem', mb) ->
+  malloc TD Mem (tsz * sz)%nat align = Some (Mem', mb) ->
   dbCmd TD gl
     lc als Mem
     (insn_alloca id t sz align)
-    (updateAddAL _ lc id (ptr2GV TD (mb, 0))) (mb::als) Mem'
+    (updateAddAL _ lc id (blk2GV TD mb)) (mb::als) Mem'
     trace_nil
 | dbLoad : forall TD lc gl id t v align Mem als mp gv,
   getOperandPtr TD v lc gl = Some mp ->
@@ -144,7 +146,7 @@ Inductive dbCmd : layouts ->  GVMap ->
   dbCmd TD gl
     lc als Mem
     (insn_select id v0 t v1 v2)
-    (if cond then updateAddAL _ lc id gv2 else updateAddAL _ lc id gv1) als Mem
+    (if zeq cond 0 then updateAddAL _ lc id gv2 else updateAddAL _ lc id gv1) als Mem
     trace_nil
 .
 
@@ -157,9 +159,9 @@ Inductive dbTerminator :
 | dbBranch : forall TD F B lc gl bid Cond l1 l2 c
                               l' ps' sbs' tmn' lc',   
   getOperandInt TD 1 Cond lc gl = Some c ->
-  Some (block_intro l' ps' sbs' tmn') = (if c 
-               then lookupBlockViaLabelFromFdef F l1
-               else lookupBlockViaLabelFromFdef F l2) ->
+  Some (block_intro l' ps' sbs' tmn') = (if zeq c 0
+               then lookupBlockViaLabelFromFdef F l2
+               else lookupBlockViaLabelFromFdef F l1) ->
   lc' = LLVMopsem.switchToNewBasicBlock (block_intro l' ps' sbs' tmn') B lc ->
   dbTerminator TD F gl
     B lc
@@ -361,7 +363,7 @@ Case "dbInsertValue".
 
 Case "dbMalloc".
   assert (HupdateEnv:=HeqEnv).
-  exists (updateAddAL _ lc1' id0 (ptr2GV TD (mb, 0))).
+  exists (updateAddAL _ lc1' id0 (blk2GV TD mb)).
   split; eauto using eqAL_updateAddAL.
 
 Case "dbFree".
@@ -371,7 +373,7 @@ Case "dbFree".
 
 Case "dbAlloca".
   assert (HupdateEnv:=HeqEnv).
-  exists (updateAddAL _ lc1' id0 (ptr2GV TD (mb, 0))).
+  exists (updateAddAL _ lc1' id0 (blk2GV TD mb)).
   split; eauto using eqAL_updateAddAL.
 
 Case "dbLoad".
@@ -416,9 +418,9 @@ Case "dbSelect".
   rewrite getOperandValue_eqAL with (lc2:=lc1') in H0; auto. 
   rewrite getOperandValue_eqAL with (lc2:=lc1') in H1; auto. 
   assert (HupdateEnv:=HeqEnv).
-  exists (if cond0 then updateAddAL _ lc1' id0 gv2 else updateAddAL _ lc1' id0 gv1).
+  exists (if zeq cond0 0 then updateAddAL _ lc1' id0 gv2 else updateAddAL _ lc1' id0 gv1).
   split; auto.
-    destruct cond0; auto using eqAL_updateAddAL.
+    destruct (zeq cond0 0); auto using eqAL_updateAddAL.
 Qed.
 
 Lemma dbCmds_eqEnv : forall TD cs lc1 als1 gl Mem1 lc2 als2 Mem2 tr lc1',
@@ -1263,8 +1265,8 @@ Fixpoint unmake_list_sterm (l0:list_sterm) :  list sterm :=
 
 Fixpoint nth_list_sterm (n:nat) (l0:list_sterm) {struct n} : option sterm :=
   match n,l0 with
-  | 0, Cons_list_sterm h tl_ => Some h
-  | 0, other => None
+  | O, Cons_list_sterm h tl_ => Some h
+  | O, other => None
   | S m, Nil_list_sterm => None
   | S m, Cons_list_sterm h tl_ => nth_list_sterm m tl_
   end.
@@ -1297,8 +1299,8 @@ Fixpoint unmake_list_sterm_l (l0:list_sterm_l) :  list (sterm*l) :=
 
 Fixpoint nth_list_sterm_l (n:nat) (l0:list_sterm_l) {struct n} : option (sterm*l) :=
   match n,l0 with
-  | 0, Cons_list_sterm_l h0 h1 tl_ => Some (h0,h1)
-  | 0, other => None
+  | O, Cons_list_sterm_l h0 h1 tl_ => Some (h0,h1)
+  | O, other => None
   | S m, Nil_list_sterm_l => None
   | S m, Cons_list_sterm_l h0 h1 tl_ => nth_list_sterm_l m tl_
   end.
@@ -1779,13 +1781,13 @@ Inductive sterm_denotes_genericvalue :
 | sterm_malloc_denotes : forall TD lc gl Mem0 Mem1 sm0 t0 sz0 align0 tsz0 Mem2 mb,
   smem_denotes_mem TD lc gl Mem0 sm0 Mem1 ->
   getTypeAllocSize TD t0 = Some tsz0 ->
-  malloc TD Mem1 (tsz0 * sz0) align0 = Some (Mem2, mb) ->
-  sterm_denotes_genericvalue TD lc gl Mem0 (sterm_malloc sm0 t0 sz0 align0) (ptr2GV TD (mb, 0))
+  malloc TD Mem1 (tsz0 * sz0)%nat align0 = Some (Mem2, mb) ->
+  sterm_denotes_genericvalue TD lc gl Mem0 (sterm_malloc sm0 t0 sz0 align0) (blk2GV TD mb)
 | sterm_alloca_denotes : forall TD lc gl Mem0 Mem1 sm0 t0 sz0 align0 tsz0 Mem2 mb,
   smem_denotes_mem TD lc gl Mem0 sm0 Mem1 ->
   getTypeAllocSize TD t0 = Some tsz0 ->
-  malloc TD Mem1 (tsz0 * sz0) align0 = Some (Mem2, mb) ->
-  sterm_denotes_genericvalue TD lc gl Mem0 (sterm_alloca sm0 t0 sz0 align0) (ptr2GV TD (mb, 0))
+  malloc TD Mem1 (tsz0 * sz0)%nat align0 = Some (Mem2, mb) ->
+  sterm_denotes_genericvalue TD lc gl Mem0 (sterm_alloca sm0 t0 sz0 align0) (blk2GV TD mb)
 | sterm_load_denotes : forall TD lc gl Mem0 Mem1 sm0 t0 align0 st0 gv0 mp0 gv1,
   sterm_denotes_genericvalue TD lc gl Mem0 st0 gv0 ->
   smem_denotes_mem TD lc gl Mem0 sm0 Mem1 ->
@@ -1816,8 +1818,8 @@ Inductive sterm_denotes_genericvalue :
   sterm_denotes_genericvalue TD lc gl Mem st0 gv0 ->
   sterm_denotes_genericvalue TD lc gl Mem st1 gv1 ->
   sterm_denotes_genericvalue TD lc gl Mem st2 gv2 ->
-  GV2nat TD 1 gv0 = Some c0 ->
-  (if c0 then gv2 else gv1) = gv3 -> 
+  GV2int TD 1%nat gv0 = Some c0 ->
+  (if zeq c0 0 then gv2 else gv1) = gv3 -> 
   sterm_denotes_genericvalue TD lc gl Mem (sterm_select st0 t0 st1 st2) gv3
 with sterms_denote_genericvalues : 
    layouts ->               (* CurTatgetData *)
@@ -1846,7 +1848,7 @@ with smem_denotes_mem :
 | smem_malloc_denotes : forall TD lc gl Mem0 Mem1 sm0 t0 sz0 align0 tsz0 Mem2 mb,
   smem_denotes_mem TD lc gl Mem0 sm0 Mem1 ->
   getTypeAllocSize TD t0 = Some tsz0 ->
-  malloc TD Mem1 (tsz0 * sz0) align0 = Some (Mem2, mb) ->
+  malloc TD Mem1 (tsz0 * sz0)%nat align0 = Some (Mem2, mb) ->
   smem_denotes_mem TD lc gl Mem0 (smem_malloc sm0 t0 sz0 align0) Mem2
 | smem_free_denotes : forall TD lc gl Mem0 Mem1 sm0 t0 st0 gv0 mptr0 Mem2,
   sterm_denotes_genericvalue TD lc gl Mem0 st0 gv0 ->
@@ -1857,7 +1859,7 @@ with smem_denotes_mem :
 | smem_alloca_denotes : forall TD lc gl Mem0 Mem1 sm0 t0 sz0 align0 tsz0 Mem2 mb,
   smem_denotes_mem TD lc gl Mem0 sm0 Mem1 ->
   getTypeAllocSize TD t0 = Some tsz0 ->
-  malloc TD Mem1 (tsz0 * sz0) align0 = Some (Mem2, mb) ->
+  malloc TD Mem1 (tsz0 * sz0)%nat align0 = Some (Mem2, mb) ->
   smem_denotes_mem TD lc gl Mem0 (smem_alloca sm0 t0 sz0 align0) Mem2
 | smem_load_denotes : forall TD lc gl Mem0 sm0 t0 st0 align0 Mem1,
   smem_denotes_mem TD lc gl Mem0 sm0 Mem1 ->
@@ -1886,7 +1888,7 @@ Inductive sframe_denotes_frame :
   smem_denotes_mem TD lc gl Mem0 sm0 Mem1 ->
   sframe_denotes_frame TD lc gl als0 Mem0 sf0 als1 ->
   getTypeAllocSize TD t0 = Some tsz0 ->
-  malloc TD Mem1 (tsz0 * sz0) align0 = Some (Mem2, mb) ->
+  malloc TD Mem1 (tsz0 * sz0)%nat align0 = Some (Mem2, mb) ->
   sframe_denotes_frame TD lc gl als0 Mem0 (sframe_alloca sm0 sf0 t0 sz0 align0) (mb::als1)
 .
 

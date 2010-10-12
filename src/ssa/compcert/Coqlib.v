@@ -18,10 +18,11 @@
     library. *)
 
 Require Export ZArith.
-Require Export Znumtheory.
+Require Import Znumtheory.
 Require Export List.
 Require Export Bool.
 Require Import Wf_nat.
+
 
 (***
 

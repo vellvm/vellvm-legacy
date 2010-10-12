@@ -60,17 +60,17 @@ formula :: 'formula_' ::=
 				{{ tex [[block1]] = [[block2]] }}
 				{{ coq [[block1]] = [[block2]] }}
   | sz = 1			::   :: isOne
-       	 			{{ coq [[sz]] = 1 }} 
+       	 			{{ coq [[sz]] = 1%nat }} 
   | sz = 32			::   :: isThirtyTwo
-       	 			{{ coq [[sz]] = 32 }}
+       	 			{{ coq [[sz]] = 32%nat }}
   | sz > 0			::   :: gtZero
-       	 			{{ coq [[sz]] > 0 }}
+       	 			{{ coq ([[sz]] > 0)%nat }}
   | sz1 = sz2 			::   :: eqSize
 				{{ tex [[sz1]] = [[sz2]] }}
 				{{ coq [[sz1]] = [[sz2]] }}
   | sz1 < sz2 			::   :: ltSize
-				{{ tex [[sz1]] < [[sz2]] }}
-				{{ coq [[sz1]] < [[sz2]] }}
+				{{ tex ([[sz1]] < [[sz2]]) }}
+				{{ coq ([[sz1]] < [[sz2]])%nat }}
   | INT1 = INT2 		::   :: eqINT
 				{{ tex [[INT1]] = [[INT2]] }}
 				{{ coq [[INT1]] = [[INT2]] }}
@@ -202,8 +202,6 @@ formula :: 'formula_' ::=
     	      	     		{{ coq getEntryOfFdef [[fdef]] = [[opt_block]] }}
   | predOfBlock block usedef_block = blocks :: :: prefOfBlock
                                 {{ coq predOfBlock [[block]] [[usedef_block]] = [[blocks]] }}
-  | PHINode.getNumIncomingValues phinode = INT :: :: PHINodeGetNumIncomingValues
-                                {{ coq PHINode.getNumIncomingValues [[phinode]] = [[INT]] }}
   | getLabelsFromBlocks blocks = ls         :: :: getLabelsFromBlocks
                                 {{ coq getLabelsFromBlocks [[blocks]] = [[ls]] }}
   | checkIdenticalIncomingValues phinode           :: :: checkIdenticalIncomingValues

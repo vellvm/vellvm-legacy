@@ -70,6 +70,7 @@ COQLIBS:=-I ./\
   -I ../ssa/\
   -I ../ssa/ott/\
   -I ../ssa/monads\
+  -I ../ssa/compcert\
   -I /home/jianzhou/SVN/provers/metalib/branches/metatheory_8.3/ 
 COQDOCLIBS:=
 

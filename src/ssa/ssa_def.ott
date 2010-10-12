@@ -7,6 +7,7 @@ Require Import ListSet.
 Require Import Logic_Type.
 Require Import monad.
 Require Import Metatheory.
+Require Import ZArith.BinInt.
 
 Module LLVMsyntax.
 
@@ -22,17 +23,18 @@ Section Lists.
   end.
 
 End Lists. 
+
 }}
 
-metavar INT ::= {{ com a natural number }}
-  {{ coq nat }} {{ lex numeral  }}
+metavar INT ::= {{ com INT }}
+  {{ coq Z }} {{ lex numeral }}
+metavar sz ::= {{ com sz }}
+  {{ coq nat }} {{ lex numeral }}
 metavar id ::= {{ com identities }}
   {{ coq atom }} {{ lex numeral  }}
 metavar l ::= {{ com labels }}
   {{ coq atom }} {{ lex numeral  }}
 metavar align ::= {{ com align }}
-  {{ coq nat }} {{ lex numeral }}
-metavar sz ::= {{ com sz }}
   {{ coq nat }} {{ lex numeral }}
 indexvar i, j, n ::= {{ com index }}
   {{ coq nat }}
@@ -76,8 +78,8 @@ layouts {{ tex \mathit{\overline{layout} } }} :: 'layouts_'	::=  		{{ com layout
 
 typ :: 'typ_'						::=			{{ com type }}
   | int sz                    				::   :: int         	{{ com integer }}
-  %| float						::   :: float		{{ com float }}
-  %| double						::   :: double          {{ com double }}
+  | float						::   :: float		{{ com float }}
+  | double						::   :: double          {{ com double }}
   %| fp128						::   :: fp128           {{ com fp128 }}
   | void                      				::   :: void        	{{ com void }}
   | label                                               ::   :: label           {{ com label }}
@@ -400,9 +402,9 @@ Scheme typ_rec2 := Induction for typ Sort Set
   with list_typ_rec2 := Induction for list_typ Sort Set.
 
 Definition typ_mutrec P P' :=
-  fun h1 h2 h3 h4 h5 h6 h7 h8 h9 h10=>
-      (pair (@typ_rec2 P P' h1 h2 h3 h4 h5 h6 h7 h8 h9 h10)
-            (@list_typ_rec2 P P' h1 h2 h3 h4 h5 h6 h7 h8 h9 h10)).
+  fun h1 h2 h3 h4 h5 h6 h7 h8 h9 h10 h11 h12=>
+      (pair (@typ_rec2 P P' h1 h2 h3 h4 h5 h6 h7 h8 h9 h10 h11 h12)
+            (@list_typ_rec2 P P' h1 h2 h3 h4 h5 h6 h7 h8 h9 h10 h11 h12)).
 
 Scheme const_ind2 := Induction for const Sort Prop
   with list_const_ind2 := Induction for list_const Sort Prop.

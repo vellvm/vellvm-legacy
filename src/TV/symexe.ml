@@ -4,6 +4,11 @@ let __ = let rec f _ = Obj.repr f in Obj.repr f
 type unit0 =
   | Tt
 
+(** val xorb : bool -> bool -> bool **)
+
+let xorb b1 b2 =
+  if b1 then if b2 then false else true else b2
+
 (** val negb : bool -> bool **)
 
 let negb = function
@@ -27,6 +32,18 @@ let fst = function
 
 let snd = function
   | x,y -> y
+
+type comparison =
+  | Eq
+  | Lt
+  | Gt
+
+(** val compOpp : comparison -> comparison **)
+
+let compOpp = function
+  | Eq -> Eq
+  | Lt -> Gt
+  | Gt -> Lt
 
 (** val length : 'a1 list -> nat **)
 
@@ -74,6 +91,219 @@ let rec eq_nat_dec n m =
                  | O -> false
                  | S m0 -> eq_nat_dec n0 m0)
 
+(** val le_lt_dec : nat -> nat -> bool **)
+
+let rec le_lt_dec n m =
+  match n with
+    | O -> true
+    | S n0 -> (match m with
+                 | O -> false
+                 | S m0 -> le_lt_dec n0 m0)
+
+(** val beq_nat : nat -> nat -> bool **)
+
+let rec beq_nat n m =
+  match n with
+    | O -> (match m with
+              | O -> true
+              | S n0 -> false)
+    | S n1 -> (match m with
+                 | O -> false
+                 | S m1 -> beq_nat n1 m1)
+
+(** val iter_nat : nat -> ('a1 -> 'a1) -> 'a1 -> 'a1 **)
+
+let rec iter_nat n f x =
+  match n with
+    | O -> x
+    | S n' -> f (iter_nat n' f x)
+
+type positive =
+  | XI of positive
+  | XO of positive
+  | XH
+
+(** val psucc : positive -> positive **)
+
+let rec psucc = function
+  | XI p -> XO (psucc p)
+  | XO p -> XI p
+  | XH -> XO XH
+
+(** val pplus : positive -> positive -> positive **)
+
+let rec pplus x y =
+  match x with
+    | XI p ->
+        (match y with
+           | XI q -> XO (pplus_carry p q)
+           | XO q -> XI (pplus p q)
+           | XH -> XO (psucc p))
+    | XO p ->
+        (match y with
+           | XI q -> XI (pplus p q)
+           | XO q -> XO (pplus p q)
+           | XH -> XI p)
+    | XH ->
+        (match y with
+           | XI q -> XO (psucc q)
+           | XO q -> XI q
+           | XH -> XO XH)
+
+(** val pplus_carry : positive -> positive -> positive **)
+
+and pplus_carry x y =
+  match x with
+    | XI p ->
+        (match y with
+           | XI q -> XI (pplus_carry p q)
+           | XO q -> XO (pplus_carry p q)
+           | XH -> XI (psucc p))
+    | XO p ->
+        (match y with
+           | XI q -> XO (pplus_carry p q)
+           | XO q -> XI (pplus p q)
+           | XH -> XO (psucc p))
+    | XH ->
+        (match y with
+           | XI q -> XI (psucc q)
+           | XO q -> XO (psucc q)
+           | XH -> XI XH)
+
+(** val pmult_nat : positive -> nat -> nat **)
+
+let rec pmult_nat x pow2 =
+  match x with
+    | XI p -> plus pow2 (pmult_nat p (plus pow2 pow2))
+    | XO p -> pmult_nat p (plus pow2 pow2)
+    | XH -> pow2
+
+(** val nat_of_P : positive -> nat **)
+
+let nat_of_P x =
+  pmult_nat x (S O)
+
+(** val p_of_succ_nat : nat -> positive **)
+
+let rec p_of_succ_nat = function
+  | O -> XH
+  | S x -> psucc (p_of_succ_nat x)
+
+(** val pdouble_minus_one : positive -> positive **)
+
+let rec pdouble_minus_one = function
+  | XI p -> XI (XO p)
+  | XO p -> XI (pdouble_minus_one p)
+  | XH -> XH
+
+type positive_mask =
+  | IsNul
+  | IsPos of positive
+  | IsNeg
+
+(** val pdouble_plus_one_mask : positive_mask -> positive_mask **)
+
+let pdouble_plus_one_mask = function
+  | IsNul -> IsPos XH
+  | IsPos p -> IsPos (XI p)
+  | IsNeg -> IsNeg
+
+(** val pdouble_mask : positive_mask -> positive_mask **)
+
+let pdouble_mask = function
+  | IsPos p -> IsPos (XO p)
+  | x0 -> x0
+
+(** val pdouble_minus_two : positive -> positive_mask **)
+
+let pdouble_minus_two = function
+  | XI p -> IsPos (XO (XO p))
+  | XO p -> IsPos (XO (pdouble_minus_one p))
+  | XH -> IsNul
+
+(** val pminus_mask : positive -> positive -> positive_mask **)
+
+let rec pminus_mask x y =
+  match x with
+    | XI p ->
+        (match y with
+           | XI q -> pdouble_mask (pminus_mask p q)
+           | XO q -> pdouble_plus_one_mask (pminus_mask p q)
+           | XH -> IsPos (XO p))
+    | XO p ->
+        (match y with
+           | XI q -> pdouble_plus_one_mask (pminus_mask_carry p q)
+           | XO q -> pdouble_mask (pminus_mask p q)
+           | XH -> IsPos (pdouble_minus_one p))
+    | XH -> (match y with
+               | XH -> IsNul
+               | _ -> IsNeg)
+
+(** val pminus_mask_carry : positive -> positive -> positive_mask **)
+
+and pminus_mask_carry x y =
+  match x with
+    | XI p ->
+        (match y with
+           | XI q -> pdouble_plus_one_mask (pminus_mask_carry p q)
+           | XO q -> pdouble_mask (pminus_mask p q)
+           | XH -> IsPos (pdouble_minus_one p))
+    | XO p ->
+        (match y with
+           | XI q -> pdouble_mask (pminus_mask_carry p q)
+           | XO q -> pdouble_plus_one_mask (pminus_mask_carry p q)
+           | XH -> pdouble_minus_two p)
+    | XH -> IsNeg
+
+(** val pminus : positive -> positive -> positive **)
+
+let pminus x y =
+  match pminus_mask x y with
+    | IsPos z0 -> z0
+    | _ -> XH
+
+(** val pmult : positive -> positive -> positive **)
+
+let rec pmult x y =
+  match x with
+    | XI p -> pplus y (XO (pmult p y))
+    | XO p -> XO (pmult p y)
+    | XH -> y
+
+(** val pcompare : positive -> positive -> comparison -> comparison **)
+
+let rec pcompare x y r =
+  match x with
+    | XI p ->
+        (match y with
+           | XI q -> pcompare p q r
+           | XO q -> pcompare p q Gt
+           | XH -> Gt)
+    | XO p ->
+        (match y with
+           | XI q -> pcompare p q Lt
+           | XO q -> pcompare p q r
+           | XH -> Gt)
+    | XH -> (match y with
+               | XH -> r
+               | _ -> Lt)
+
+(** val positive_eq_dec : positive -> positive -> bool **)
+
+let rec positive_eq_dec p y0 =
+  match p with
+    | XI p0 ->
+        (match y0 with
+           | XI p1 -> positive_eq_dec p0 p1
+           | _ -> false)
+    | XO p0 ->
+        (match y0 with
+           | XO p1 -> positive_eq_dec p0 p1
+           | _ -> false)
+    | XH -> (match y0 with
+               | XH -> true
+               | _ -> false)
+
 (** val flip : ('a1 -> 'a2 -> 'a3) -> 'a2 -> 'a1 -> 'a3 **)
 
 let flip f x y =
@@ -108,6 +338,161 @@ let rec max n m =
     | S n' -> (match m with
                  | O -> n
                  | S m' -> S (max n' m'))
+
+type z =
+  | Z0
+  | Zpos of positive
+  | Zneg of positive
+
+(** val zplus : z -> z -> z **)
+
+let zplus x y =
+  match x with
+    | Z0 -> y
+    | Zpos x' ->
+        (match y with
+           | Z0 -> Zpos x'
+           | Zpos y' -> Zpos (pplus x' y')
+           | Zneg y' ->
+               (match pcompare x' y' Eq with
+                  | Eq -> Z0
+                  | Lt -> Zneg (pminus y' x')
+                  | Gt -> Zpos (pminus x' y')))
+    | Zneg x' ->
+        (match y with
+           | Z0 -> Zneg x'
+           | Zpos y' ->
+               (match pcompare x' y' Eq with
+                  | Eq -> Z0
+                  | Lt -> Zpos (pminus y' x')
+                  | Gt -> Zneg (pminus x' y'))
+           | Zneg y' -> Zneg (pplus x' y'))
+
+(** val zopp : z -> z **)
+
+let zopp = function
+  | Z0 -> Z0
+  | Zpos x0 -> Zneg x0
+  | Zneg x0 -> Zpos x0
+
+(** val zsucc : z -> z **)
+
+let zsucc x =
+  zplus x (Zpos XH)
+
+(** val zpred : z -> z **)
+
+let zpred x =
+  zplus x (Zneg XH)
+
+(** val zminus : z -> z -> z **)
+
+let zminus m n =
+  zplus m (zopp n)
+
+(** val zmult : z -> z -> z **)
+
+let zmult x y =
+  match x with
+    | Z0 -> Z0
+    | Zpos x' ->
+        (match y with
+           | Z0 -> Z0
+           | Zpos y' -> Zpos (pmult x' y')
+           | Zneg y' -> Zneg (pmult x' y'))
+    | Zneg x' ->
+        (match y with
+           | Z0 -> Z0
+           | Zpos y' -> Zneg (pmult x' y')
+           | Zneg y' -> Zpos (pmult x' y'))
+
+(** val zcompare : z -> z -> comparison **)
+
+let zcompare x y =
+  match x with
+    | Z0 -> (match y with
+               | Z0 -> Eq
+               | Zpos y' -> Lt
+               | Zneg y' -> Gt)
+    | Zpos x' -> (match y with
+                    | Zpos y' -> pcompare x' y' Eq
+                    | _ -> Gt)
+    | Zneg x' ->
+        (match y with
+           | Zneg y' -> compOpp (pcompare x' y' Eq)
+           | _ -> Lt)
+
+(** val z_of_nat : nat -> z **)
+
+let z_of_nat = function
+  | O -> Z0
+  | S y -> Zpos (p_of_succ_nat y)
+
+(** val zcompare_rect :
+    z -> z -> (__ -> 'a1) -> (__ -> 'a1) -> (__ -> 'a1) -> 'a1 **)
+
+let zcompare_rect n m h1 h2 h3 =
+  let c = zcompare n m in
+  (match c with
+     | Eq -> h1 __
+     | Lt -> h2 __
+     | Gt -> h3 __)
+
+(** val zcompare_rec :
+    z -> z -> (__ -> 'a1) -> (__ -> 'a1) -> (__ -> 'a1) -> 'a1 **)
+
+let zcompare_rec =
+  zcompare_rect
+
+(** val z_eq_dec : z -> z -> bool **)
+
+let z_eq_dec x y =
+  match x with
+    | Z0 -> (match y with
+               | Z0 -> true
+               | _ -> false)
+    | Zpos x0 ->
+        (match y with
+           | Zpos p0 -> positive_eq_dec x0 p0
+           | _ -> false)
+    | Zneg x0 ->
+        (match y with
+           | Zneg p0 -> positive_eq_dec x0 p0
+           | _ -> false)
+
+(** val z_lt_dec : z -> z -> bool **)
+
+let z_lt_dec x y =
+  zcompare_rec x y (fun _ -> false) (fun _ -> true) (fun _ -> false)
+
+(** val z_le_dec : z -> z -> bool **)
+
+let z_le_dec x y =
+  zcompare_rec x y (fun _ -> true) (fun _ -> true) (fun _ -> false)
+
+(** val z_lt_ge_dec : z -> z -> bool **)
+
+let z_lt_ge_dec x y =
+  z_lt_dec x y
+
+(** val z_le_gt_dec : z -> z -> bool **)
+
+let z_le_gt_dec x y =
+  z_le_dec x y
+
+(** val zge_bool : z -> z -> bool **)
+
+let zge_bool x y =
+  match zcompare x y with
+    | Lt -> false
+    | _ -> true
+
+(** val zgt_bool : z -> z -> bool **)
+
+let zgt_bool x y =
+  match zcompare x y with
+    | Gt -> true
+    | _ -> false
 
 (** val bool_dec : bool -> bool -> bool **)
 
@@ -155,6 +540,21 @@ let rec fold_right f a0 = function
   | [] -> a0
   | b::t0 -> f b (fold_right f a0 t0)
 
+(** val iter_pos : positive -> ('a1 -> 'a1) -> 'a1 -> 'a1 **)
+
+let rec iter_pos n f x =
+  match n with
+    | XI n' -> f (iter_pos n' f (iter_pos n' f x))
+    | XO n' -> iter_pos n' f (iter_pos n' f x)
+    | XH -> f x
+
+(** val natlike_rec2 : 'a1 -> (z -> __ -> 'a1 -> 'a1) -> z -> 'a1 **)
+
+let rec natlike_rec2 x x0 = function
+  | Z0 -> x
+  | Zpos p -> x0 (zpred (Zpos p)) __ (natlike_rec2 x x0 (zpred (Zpos p)))
+  | Zneg p -> assert false (* absurd case *)
+
 type 'a set = 'a list
 
 (** val empty_set : 'a1 set **)
@@ -189,6 +589,85 @@ let rec set_inter aeq_dec x y =
 let rec set_union aeq_dec x = function
   | [] -> x
   | a1::y1 -> set_add aeq_dec a1 (set_union aeq_dec x y1)
+
+(** val shift_nat : nat -> positive -> positive **)
+
+let shift_nat n z0 =
+  iter_nat n (fun x -> XO x) z0
+
+(** val shift_pos : positive -> positive -> positive **)
+
+let shift_pos n z0 =
+  iter_pos n (fun x -> XO x) z0
+
+(** val two_power_nat : nat -> z **)
+
+let two_power_nat n =
+  Zpos (shift_nat n XH)
+
+(** val two_power_pos : positive -> z **)
+
+let two_power_pos x =
+  Zpos (shift_pos x XH)
+
+(** val two_p : z -> z **)
+
+let two_p = function
+  | Z0 -> Zpos XH
+  | Zpos y -> two_power_pos y
+  | Zneg y -> Z0
+
+(** val zdiv_eucl_POS : positive -> z -> z*z **)
+
+let rec zdiv_eucl_POS a b =
+  match a with
+    | XI a' ->
+        let q,r = zdiv_eucl_POS a' b in
+        let r' = zplus (zmult (Zpos (XO XH)) r) (Zpos XH) in
+        if zgt_bool b r'
+        then (zmult (Zpos (XO XH)) q),r'
+        else (zplus (zmult (Zpos (XO XH)) q) (Zpos XH)),(zminus r' b)
+    | XO a' ->
+        let q,r = zdiv_eucl_POS a' b in
+        let r' = zmult (Zpos (XO XH)) r in
+        if zgt_bool b r'
+        then (zmult (Zpos (XO XH)) q),r'
+        else (zplus (zmult (Zpos (XO XH)) q) (Zpos XH)),(zminus r' b)
+    | XH -> if zge_bool b (Zpos (XO XH)) then Z0,(Zpos XH) else (Zpos XH),Z0
+
+(** val zdiv_eucl : z -> z -> z*z **)
+
+let zdiv_eucl a b =
+  match a with
+    | Z0 -> Z0,Z0
+    | Zpos a' ->
+        (match b with
+           | Z0 -> Z0,Z0
+           | Zpos p -> zdiv_eucl_POS a' b
+           | Zneg b' ->
+               let q,r = zdiv_eucl_POS a' (Zpos b') in
+               (match r with
+                  | Z0 -> (zopp q),Z0
+                  | _ -> (zopp (zplus q (Zpos XH))),(zplus b r)))
+    | Zneg a' ->
+        (match b with
+           | Z0 -> Z0,Z0
+           | Zpos p ->
+               let q,r = zdiv_eucl_POS a' b in
+               (match r with
+                  | Z0 -> (zopp q),Z0
+                  | _ -> (zopp (zplus q (Zpos XH))),(zminus b r))
+           | Zneg b' -> let q,r = zdiv_eucl_POS a' (Zpos b') in q,(zopp r))
+
+(** val zdiv : z -> z -> z **)
+
+let zdiv a b =
+  let q,x = zdiv_eucl a b in q
+
+(** val zmod : z -> z -> z **)
+
+let zmod a b =
+  let x,r = zdiv_eucl a b in r
 
 module type Coq_DecidableType = 
  DecidableTypeOrig
@@ -1129,6 +1608,446 @@ let rec lookupAL m i0 =
         then Some gv'
         else lookupAL m' i0
 
+(** val zeq : z -> z -> bool **)
+
+let zeq =
+  z_eq_dec
+
+(** val zlt : z -> z -> bool **)
+
+let zlt =
+  z_lt_ge_dec
+
+(** val zle : z -> z -> bool **)
+
+let zle =
+  z_le_gt_dec
+
+(** val zdivide_dec : z -> z -> bool **)
+
+let zdivide_dec p q =
+  zeq (zmod q p) Z0
+
+(** val nat_of_Z : z -> nat **)
+
+let nat_of_Z = function
+  | Zpos p -> nat_of_P p
+  | _ -> O
+
+(** val zRdiv : z -> z -> z **)
+
+let zRdiv a b =
+  if zeq (zmod a b) Z0 then zdiv a b else zplus (zdiv a b) (Zpos XH)
+
+(** val list_repeat : nat -> 'a1 -> 'a1 list **)
+
+let rec list_repeat n x =
+  match n with
+    | O -> []
+    | S m -> x::(list_repeat m x)
+
+(** val proj_sumbool : bool -> bool **)
+
+let proj_sumbool = function
+  | true -> true
+  | false -> false
+
+type comparison0 =
+  | Ceq
+  | Cne
+  | Clt
+  | Cle
+  | Cgt
+  | Cge
+
+module Int = 
+ struct 
+  (** val wordsize : nat -> nat **)
+  
+  let wordsize wordsize_one =
+    S wordsize_one
+  
+  (** val modulus : nat -> z **)
+  
+  let modulus wordsize_one =
+    two_power_nat (wordsize wordsize_one)
+  
+  (** val half_modulus : nat -> z **)
+  
+  let half_modulus wordsize_one =
+    zdiv (modulus wordsize_one) (Zpos (XO XH))
+  
+  (** val max_unsigned : nat -> z **)
+  
+  let max_unsigned wordsize_one =
+    zminus (modulus wordsize_one) (Zpos XH)
+  
+  (** val max_signed : nat -> z **)
+  
+  let max_signed wordsize_one =
+    zminus (half_modulus wordsize_one) (Zpos XH)
+  
+  (** val min_signed : nat -> z **)
+  
+  let min_signed wordsize_one =
+    zopp (half_modulus wordsize_one)
+  
+  type int = z
+    (* singleton inductive, whose constructor was mkint *)
+  
+  (** val int_rect : nat -> (z -> __ -> 'a1) -> int -> 'a1 **)
+  
+  let int_rect wordsize_one f i0 =
+    f i0 __
+  
+  (** val int_rec : nat -> (z -> __ -> 'a1) -> int -> 'a1 **)
+  
+  let int_rec wordsize_one f i0 =
+    f i0 __
+  
+  (** val intval : nat -> int -> z **)
+  
+  let intval wordsize_one i0 =
+    i0
+  
+  (** val unsigned : nat -> int -> z **)
+  
+  let unsigned wordsize_one n =
+    intval wordsize_one n
+  
+  (** val signed : nat -> int -> z **)
+  
+  let signed wordsize_one n =
+    if zlt (unsigned wordsize_one n) (half_modulus wordsize_one)
+    then unsigned wordsize_one n
+    else zminus (unsigned wordsize_one n) (modulus wordsize_one)
+  
+  (** val repr : nat -> z -> int **)
+  
+  let repr wordsize_one x =
+    zmod x (modulus wordsize_one)
+  
+  (** val zero : nat -> int **)
+  
+  let zero wordsize_one =
+    repr wordsize_one Z0
+  
+  (** val one : nat -> int **)
+  
+  let one wordsize_one =
+    repr wordsize_one (Zpos XH)
+  
+  (** val mone : nat -> int **)
+  
+  let mone wordsize_one =
+    repr wordsize_one (Zneg XH)
+  
+  (** val iwordsize : nat -> int **)
+  
+  let iwordsize wordsize_one =
+    repr wordsize_one (z_of_nat (wordsize wordsize_one))
+  
+  (** val eq_dec : nat -> int -> int -> bool **)
+  
+  let eq_dec wordsize_one x y =
+    zeq x y
+  
+  (** val eq : nat -> int -> int -> bool **)
+  
+  let eq wordsize_one x y =
+    if zeq (unsigned wordsize_one x) (unsigned wordsize_one y)
+    then true
+    else false
+  
+  (** val lt : nat -> int -> int -> bool **)
+  
+  let lt wordsize_one x y =
+    if zlt (signed wordsize_one x) (signed wordsize_one y)
+    then true
+    else false
+  
+  (** val ltu : nat -> int -> int -> bool **)
+  
+  let ltu wordsize_one x y =
+    if zlt (unsigned wordsize_one x) (unsigned wordsize_one y)
+    then true
+    else false
+  
+  (** val neg : nat -> int -> int **)
+  
+  let neg wordsize_one x =
+    repr wordsize_one (zopp (unsigned wordsize_one x))
+  
+  (** val add : nat -> int -> int -> int **)
+  
+  let add wordsize_one x y =
+    repr wordsize_one
+      (zplus (unsigned wordsize_one x) (unsigned wordsize_one y))
+  
+  (** val sub : nat -> int -> int -> int **)
+  
+  let sub wordsize_one x y =
+    repr wordsize_one
+      (zminus (unsigned wordsize_one x) (unsigned wordsize_one y))
+  
+  (** val mul : nat -> int -> int -> int **)
+  
+  let mul wordsize_one x y =
+    repr wordsize_one
+      (zmult (unsigned wordsize_one x) (unsigned wordsize_one y))
+  
+  (** val coq_Zdiv_round : z -> z -> z **)
+  
+  let coq_Zdiv_round x y =
+    if zlt x Z0
+    then if zlt y Z0 then zdiv (zopp x) (zopp y) else zopp (zdiv (zopp x) y)
+    else if zlt y Z0 then zopp (zdiv x (zopp y)) else zdiv x y
+  
+  (** val coq_Zmod_round : z -> z -> z **)
+  
+  let coq_Zmod_round x y =
+    zminus x (zmult (coq_Zdiv_round x y) y)
+  
+  (** val divs : nat -> int -> int -> int **)
+  
+  let divs wordsize_one x y =
+    repr wordsize_one
+      (coq_Zdiv_round (signed wordsize_one x) (signed wordsize_one y))
+  
+  (** val mods : nat -> int -> int -> int **)
+  
+  let mods wordsize_one x y =
+    repr wordsize_one
+      (coq_Zmod_round (signed wordsize_one x) (signed wordsize_one y))
+  
+  (** val divu : nat -> int -> int -> int **)
+  
+  let divu wordsize_one x y =
+    repr wordsize_one
+      (zdiv (unsigned wordsize_one x) (unsigned wordsize_one y))
+  
+  (** val modu : nat -> int -> int -> int **)
+  
+  let modu wordsize_one x y =
+    repr wordsize_one
+      (zmod (unsigned wordsize_one x) (unsigned wordsize_one y))
+  
+  (** val coq_Z_shift_add : bool -> z -> z **)
+  
+  let coq_Z_shift_add b x =
+    if b
+    then zplus (zmult (Zpos (XO XH)) x) (Zpos XH)
+    else zmult (Zpos (XO XH)) x
+  
+  (** val coq_Z_bin_decomp : z -> bool*z **)
+  
+  let coq_Z_bin_decomp = function
+    | Z0 -> false,Z0
+    | Zpos p ->
+        (match p with
+           | XI q -> true,(Zpos q)
+           | XO q -> false,(Zpos q)
+           | XH -> true,Z0)
+    | Zneg p ->
+        (match p with
+           | XI q -> true,(zminus (Zneg q) (Zpos XH))
+           | XO q -> false,(Zneg q)
+           | XH -> true,(Zneg XH))
+  
+  (** val bits_of_Z : nat -> z -> z -> bool **)
+  
+  let rec bits_of_Z n x =
+    match n with
+      | O -> (fun i0 -> false)
+      | S m ->
+          let b,y = coq_Z_bin_decomp x in
+          let f = bits_of_Z m y in
+          (fun i0 -> if zeq i0 Z0 then b else f (zminus i0 (Zpos XH)))
+  
+  (** val coq_Z_of_bits : nat -> (z -> bool) -> z -> z **)
+  
+  let rec coq_Z_of_bits n f i0 =
+    match n with
+      | O -> Z0
+      | S m -> coq_Z_shift_add (f i0) (coq_Z_of_bits m f (zsucc i0))
+  
+  (** val bitwise_binop :
+      nat -> (bool -> bool -> bool) -> int -> int -> int **)
+  
+  let bitwise_binop wordsize_one f x y =
+    let fx = bits_of_Z (wordsize wordsize_one) (unsigned wordsize_one x) in
+    let fy = bits_of_Z (wordsize wordsize_one) (unsigned wordsize_one y) in
+    repr wordsize_one
+      (coq_Z_of_bits (wordsize wordsize_one) (fun i0 -> 
+        f (fx i0) (fy i0)) Z0)
+  
+  (** val coq_and : nat -> int -> int -> int **)
+  
+  let coq_and wordsize_one x y =
+    bitwise_binop wordsize_one (fun b1 b2 -> if b1 then b2 else false) x y
+  
+  (** val coq_or : nat -> int -> int -> int **)
+  
+  let coq_or wordsize_one x y =
+    bitwise_binop wordsize_one (fun b1 b2 -> if b1 then true else b2) x y
+  
+  (** val xor : nat -> int -> int -> int **)
+  
+  let xor wordsize_one x y =
+    bitwise_binop wordsize_one xorb x y
+  
+  (** val not : nat -> int -> int **)
+  
+  let not wordsize_one x =
+    xor wordsize_one x (mone wordsize_one)
+  
+  (** val shl : nat -> int -> int -> int **)
+  
+  let shl wordsize_one x y =
+    let fx = bits_of_Z (wordsize wordsize_one) (unsigned wordsize_one x) in
+    repr wordsize_one
+      (coq_Z_of_bits (wordsize wordsize_one) fx
+        (zopp (unsigned wordsize_one y)))
+  
+  (** val shru : nat -> int -> int -> int **)
+  
+  let shru wordsize_one x y =
+    let fx = bits_of_Z (wordsize wordsize_one) (unsigned wordsize_one x) in
+    repr wordsize_one
+      (coq_Z_of_bits (wordsize wordsize_one) fx (unsigned wordsize_one y))
+  
+  (** val shr : nat -> int -> int -> int **)
+  
+  let shr wordsize_one x y =
+    let fx = bits_of_Z (wordsize wordsize_one) (unsigned wordsize_one x) in
+    let sx = fun i0 ->
+      fx
+        (if zlt i0 (z_of_nat (wordsize wordsize_one))
+         then i0
+         else zminus (z_of_nat (wordsize wordsize_one)) (Zpos XH))
+    in
+    repr wordsize_one
+      (coq_Z_of_bits (wordsize wordsize_one) sx (unsigned wordsize_one y))
+  
+  (** val shrx : nat -> int -> int -> int **)
+  
+  let shrx wordsize_one x y =
+    divs wordsize_one x (shl wordsize_one (one wordsize_one) y)
+  
+  (** val shr_carry : nat -> int -> int -> int **)
+  
+  let shr_carry wordsize_one x y =
+    sub wordsize_one (shrx wordsize_one x y) (shr wordsize_one x y)
+  
+  (** val rol : nat -> int -> int -> int **)
+  
+  let rol wordsize_one x y =
+    let fx = bits_of_Z (wordsize wordsize_one) (unsigned wordsize_one x) in
+    let rx = fun i0 -> fx (zmod i0 (z_of_nat (wordsize wordsize_one))) in
+    repr wordsize_one
+      (coq_Z_of_bits (wordsize wordsize_one) rx
+        (zopp (unsigned wordsize_one y)))
+  
+  (** val ror : nat -> int -> int -> int **)
+  
+  let ror wordsize_one x y =
+    let fx = bits_of_Z (wordsize wordsize_one) (unsigned wordsize_one x) in
+    let rx = fun i0 -> fx (zmod i0 (z_of_nat (wordsize wordsize_one))) in
+    repr wordsize_one
+      (coq_Z_of_bits (wordsize wordsize_one) rx (unsigned wordsize_one y))
+  
+  (** val rolm : nat -> int -> int -> int -> int **)
+  
+  let rolm wordsize_one x a m =
+    coq_and wordsize_one (rol wordsize_one x a) m
+  
+  (** val zero_ext : nat -> z -> int -> int **)
+  
+  let zero_ext wordsize_one n x =
+    let fx = bits_of_Z (wordsize wordsize_one) (unsigned wordsize_one x) in
+    repr wordsize_one
+      (coq_Z_of_bits (wordsize wordsize_one) (fun i0 ->
+        if zlt i0 n then fx i0 else false) Z0)
+  
+  (** val sign_ext : nat -> z -> int -> int **)
+  
+  let sign_ext wordsize_one n x =
+    let fx = bits_of_Z (wordsize wordsize_one) (unsigned wordsize_one x) in
+    repr wordsize_one
+      (coq_Z_of_bits (wordsize wordsize_one) (fun i0 ->
+        if zlt i0 n then fx i0 else fx (zminus n (Zpos XH))) Z0)
+  
+  (** val coq_Z_one_bits : nat -> z -> z -> z list **)
+  
+  let rec coq_Z_one_bits n x i0 =
+    match n with
+      | O -> []
+      | S m ->
+          let b,y = coq_Z_bin_decomp x in
+          if b
+          then i0::(coq_Z_one_bits m y (zplus i0 (Zpos XH)))
+          else coq_Z_one_bits m y (zplus i0 (Zpos XH))
+  
+  (** val one_bits : nat -> int -> int list **)
+  
+  let one_bits wordsize_one x =
+    map (repr wordsize_one)
+      (coq_Z_one_bits (wordsize wordsize_one) (unsigned wordsize_one x) Z0)
+  
+  (** val is_power2 : nat -> int -> int option **)
+  
+  let is_power2 wordsize_one x =
+    match coq_Z_one_bits (wordsize wordsize_one) (unsigned wordsize_one x) Z0 with
+      | [] -> None
+      | i0::l0 ->
+          (match l0 with
+             | [] -> Some (repr wordsize_one i0)
+             | z0::l1 -> None)
+  
+  (** val cmp : nat -> comparison0 -> int -> int -> bool **)
+  
+  let cmp wordsize_one c x y =
+    match c with
+      | Ceq -> eq wordsize_one x y
+      | Cne -> negb (eq wordsize_one x y)
+      | Clt -> lt wordsize_one x y
+      | Cle -> negb (lt wordsize_one y x)
+      | Cgt -> lt wordsize_one y x
+      | Cge -> negb (lt wordsize_one x y)
+  
+  (** val cmpu : nat -> comparison0 -> int -> int -> bool **)
+  
+  let cmpu wordsize_one c x y =
+    match c with
+      | Ceq -> eq wordsize_one x y
+      | Cne -> negb (eq wordsize_one x y)
+      | Clt -> ltu wordsize_one x y
+      | Cle -> negb (ltu wordsize_one y x)
+      | Cgt -> ltu wordsize_one y x
+      | Cge -> negb (ltu wordsize_one x y)
+  
+  (** val notbool : nat -> int -> int **)
+  
+  let notbool wordsize_one x =
+    if eq wordsize_one x (zero wordsize_one)
+    then one wordsize_one
+    else zero wordsize_one
+  
+  (** val powerserie : z list -> z **)
+  
+  let rec powerserie = function
+    | [] -> Z0
+    | x::xs -> zplus (two_p x) (powerserie xs)
+  
+  (** val int_of_one_bits : nat -> int list -> int **)
+  
+  let rec int_of_one_bits wordsize_one = function
+    | [] -> zero wordsize_one
+    | a::b ->
+        add wordsize_one (shl wordsize_one (one wordsize_one) a)
+          (int_of_one_bits wordsize_one b)
+ end
+
 module LLVMsyntax = 
  struct 
   (** val last_opt : 'a1 list -> 'a1 option **)
@@ -1141,18 +2060,20 @@ module LLVMsyntax =
   
   type coq_INT = Llvm.llapint
   
+  type sz = int
+  
   type id = String.t
   
   type l = String.t
   
   type align = int
   
-  type sz = int
-  
   type i = nat
   
   type typ =
     | Coq_typ_int of sz
+    | Coq_typ_float
+    | Coq_typ_double
     | Coq_typ_void
     | Coq_typ_label
     | Coq_typ_metadata
@@ -1165,36 +2086,42 @@ module LLVMsyntax =
     | Cons_list_typ of typ * list_typ
   
   (** val typ_rect :
-      (sz -> 'a1) -> 'a1 -> 'a1 -> 'a1 -> (sz -> typ -> 'a1 -> 'a1) -> (typ
-      -> 'a1 -> list_typ -> 'a1) -> (list_typ -> 'a1) -> (typ -> 'a1 -> 'a1)
-      -> typ -> 'a1 **)
+      (sz -> 'a1) -> 'a1 -> 'a1 -> 'a1 -> 'a1 -> 'a1 -> (sz -> typ -> 'a1 ->
+      'a1) -> (typ -> 'a1 -> list_typ -> 'a1) -> (list_typ -> 'a1) -> (typ ->
+      'a1 -> 'a1) -> typ -> 'a1 **)
   
-  let rec typ_rect f f0 f1 f2 f3 f4 f5 f6 = function
+  let rec typ_rect f f0 f1 f2 f3 f4 f5 f6 f7 f8 = function
     | Coq_typ_int s -> f s
-    | Coq_typ_void -> f0
-    | Coq_typ_label -> f1
-    | Coq_typ_metadata -> f2
-    | Coq_typ_array (s, t1) -> f3 s t1 (typ_rect f f0 f1 f2 f3 f4 f5 f6 t1)
+    | Coq_typ_float -> f0
+    | Coq_typ_double -> f1
+    | Coq_typ_void -> f2
+    | Coq_typ_label -> f3
+    | Coq_typ_metadata -> f4
+    | Coq_typ_array (s, t1) ->
+        f5 s t1 (typ_rect f f0 f1 f2 f3 f4 f5 f6 f7 f8 t1)
     | Coq_typ_function (t1, l0) ->
-        f4 t1 (typ_rect f f0 f1 f2 f3 f4 f5 f6 t1) l0
-    | Coq_typ_struct l0 -> f5 l0
-    | Coq_typ_pointer t1 -> f6 t1 (typ_rect f f0 f1 f2 f3 f4 f5 f6 t1)
+        f6 t1 (typ_rect f f0 f1 f2 f3 f4 f5 f6 f7 f8 t1) l0
+    | Coq_typ_struct l0 -> f7 l0
+    | Coq_typ_pointer t1 -> f8 t1 (typ_rect f f0 f1 f2 f3 f4 f5 f6 f7 f8 t1)
   
   (** val typ_rec :
-      (sz -> 'a1) -> 'a1 -> 'a1 -> 'a1 -> (sz -> typ -> 'a1 -> 'a1) -> (typ
-      -> 'a1 -> list_typ -> 'a1) -> (list_typ -> 'a1) -> (typ -> 'a1 -> 'a1)
-      -> typ -> 'a1 **)
+      (sz -> 'a1) -> 'a1 -> 'a1 -> 'a1 -> 'a1 -> 'a1 -> (sz -> typ -> 'a1 ->
+      'a1) -> (typ -> 'a1 -> list_typ -> 'a1) -> (list_typ -> 'a1) -> (typ ->
+      'a1 -> 'a1) -> typ -> 'a1 **)
   
-  let rec typ_rec f f0 f1 f2 f3 f4 f5 f6 = function
+  let rec typ_rec f f0 f1 f2 f3 f4 f5 f6 f7 f8 = function
     | Coq_typ_int s -> f s
-    | Coq_typ_void -> f0
-    | Coq_typ_label -> f1
-    | Coq_typ_metadata -> f2
-    | Coq_typ_array (s, t1) -> f3 s t1 (typ_rec f f0 f1 f2 f3 f4 f5 f6 t1)
+    | Coq_typ_float -> f0
+    | Coq_typ_double -> f1
+    | Coq_typ_void -> f2
+    | Coq_typ_label -> f3
+    | Coq_typ_metadata -> f4
+    | Coq_typ_array (s, t1) ->
+        f5 s t1 (typ_rec f f0 f1 f2 f3 f4 f5 f6 f7 f8 t1)
     | Coq_typ_function (t1, l0) ->
-        f4 t1 (typ_rec f f0 f1 f2 f3 f4 f5 f6 t1) l0
-    | Coq_typ_struct l0 -> f5 l0
-    | Coq_typ_pointer t1 -> f6 t1 (typ_rec f f0 f1 f2 f3 f4 f5 f6 t1)
+        f6 t1 (typ_rec f f0 f1 f2 f3 f4 f5 f6 f7 f8 t1) l0
+    | Coq_typ_struct l0 -> f7 l0
+    | Coq_typ_pointer t1 -> f8 t1 (typ_rec f f0 f1 f2 f3 f4 f5 f6 f7 f8 t1)
   
   (** val list_typ_rect :
       'a1 -> (typ -> list_typ -> 'a1 -> 'a1) -> list_typ -> 'a1 **)
@@ -2000,56 +2927,60 @@ module LLVMsyntax =
                                            h7 h8)
   
   (** val list_typ_rec2 :
-      (sz -> 'a1) -> 'a1 -> 'a1 -> 'a1 -> (sz -> typ -> 'a1 -> 'a1) -> (typ
-      -> 'a1 -> list_typ -> 'a2 -> 'a1) -> (list_typ -> 'a2 -> 'a1) -> (typ
-      -> 'a1 -> 'a1) -> 'a2 -> (typ -> 'a1 -> list_typ -> 'a2 -> 'a2) ->
-      list_typ -> 'a2 **)
+      (sz -> 'a1) -> 'a1 -> 'a1 -> 'a1 -> 'a1 -> 'a1 -> (sz -> typ -> 'a1 ->
+      'a1) -> (typ -> 'a1 -> list_typ -> 'a2 -> 'a1) -> (list_typ -> 'a2 ->
+      'a1) -> (typ -> 'a1 -> 'a1) -> 'a2 -> (typ -> 'a1 -> list_typ -> 'a2 ->
+      'a2) -> list_typ -> 'a2 **)
   
-  let list_typ_rec2 f f0 f1 f2 f3 f4 f5 f6 f7 f8 =
-    let rec f9 = function
+  let list_typ_rec2 f f0 f1 f2 f3 f4 f5 f6 f7 f8 f9 f10 =
+    let rec f11 = function
       | Coq_typ_int s -> f s
-      | Coq_typ_void -> f0
-      | Coq_typ_label -> f1
-      | Coq_typ_metadata -> f2
-      | Coq_typ_array (s, t1) -> f3 s t1 (f9 t1)
-      | Coq_typ_function (t1, l0) -> f4 t1 (f9 t1) l0 (f10 l0)
-      | Coq_typ_struct l0 -> f5 l0 (f10 l0)
-      | Coq_typ_pointer t1 -> f6 t1 (f9 t1)
-    and f10 = function
-      | Nil_list_typ -> f7
-      | Cons_list_typ (t0, l1) -> f8 t0 (f9 t0) l1 (f10 l1)
-    in f10
+      | Coq_typ_float -> f0
+      | Coq_typ_double -> f1
+      | Coq_typ_void -> f2
+      | Coq_typ_label -> f3
+      | Coq_typ_metadata -> f4
+      | Coq_typ_array (s, t1) -> f5 s t1 (f11 t1)
+      | Coq_typ_function (t1, l0) -> f6 t1 (f11 t1) l0 (f12 l0)
+      | Coq_typ_struct l0 -> f7 l0 (f12 l0)
+      | Coq_typ_pointer t1 -> f8 t1 (f11 t1)
+    and f12 = function
+      | Nil_list_typ -> f9
+      | Cons_list_typ (t0, l1) -> f10 t0 (f11 t0) l1 (f12 l1)
+    in f12
   
   (** val typ_rec2 :
-      (sz -> 'a1) -> 'a1 -> 'a1 -> 'a1 -> (sz -> typ -> 'a1 -> 'a1) -> (typ
-      -> 'a1 -> list_typ -> 'a2 -> 'a1) -> (list_typ -> 'a2 -> 'a1) -> (typ
-      -> 'a1 -> 'a1) -> 'a2 -> (typ -> 'a1 -> list_typ -> 'a2 -> 'a2) -> typ
-      -> 'a1 **)
+      (sz -> 'a1) -> 'a1 -> 'a1 -> 'a1 -> 'a1 -> 'a1 -> (sz -> typ -> 'a1 ->
+      'a1) -> (typ -> 'a1 -> list_typ -> 'a2 -> 'a1) -> (list_typ -> 'a2 ->
+      'a1) -> (typ -> 'a1 -> 'a1) -> 'a2 -> (typ -> 'a1 -> list_typ -> 'a2 ->
+      'a2) -> typ -> 'a1 **)
   
-  let typ_rec2 f f0 f1 f2 f3 f4 f5 f6 f7 f8 =
-    let rec f9 = function
+  let typ_rec2 f f0 f1 f2 f3 f4 f5 f6 f7 f8 f9 f10 =
+    let rec f11 = function
       | Coq_typ_int s -> f s
-      | Coq_typ_void -> f0
-      | Coq_typ_label -> f1
-      | Coq_typ_metadata -> f2
-      | Coq_typ_array (s, t1) -> f3 s t1 (f9 t1)
-      | Coq_typ_function (t1, l0) -> f4 t1 (f9 t1) l0 (f10 l0)
-      | Coq_typ_struct l0 -> f5 l0 (f10 l0)
-      | Coq_typ_pointer t1 -> f6 t1 (f9 t1)
-    and f10 = function
-      | Nil_list_typ -> f7
-      | Cons_list_typ (t0, l1) -> f8 t0 (f9 t0) l1 (f10 l1)
-    in f9
+      | Coq_typ_float -> f0
+      | Coq_typ_double -> f1
+      | Coq_typ_void -> f2
+      | Coq_typ_label -> f3
+      | Coq_typ_metadata -> f4
+      | Coq_typ_array (s, t1) -> f5 s t1 (f11 t1)
+      | Coq_typ_function (t1, l0) -> f6 t1 (f11 t1) l0 (f12 l0)
+      | Coq_typ_struct l0 -> f7 l0 (f12 l0)
+      | Coq_typ_pointer t1 -> f8 t1 (f11 t1)
+    and f12 = function
+      | Nil_list_typ -> f9
+      | Cons_list_typ (t0, l1) -> f10 t0 (f11 t0) l1 (f12 l1)
+    in f11
   
   (** val typ_mutrec :
-      (sz -> 'a1) -> 'a1 -> 'a1 -> 'a1 -> (sz -> typ -> 'a1 -> 'a1) -> (typ
-      -> 'a1 -> list_typ -> 'a2 -> 'a1) -> (list_typ -> 'a2 -> 'a1) -> (typ
-      -> 'a1 -> 'a1) -> 'a2 -> (typ -> 'a1 -> list_typ -> 'a2 -> 'a2) -> (typ
-      -> 'a1)*(list_typ -> 'a2) **)
+      (sz -> 'a1) -> 'a1 -> 'a1 -> 'a1 -> 'a1 -> 'a1 -> (sz -> typ -> 'a1 ->
+      'a1) -> (typ -> 'a1 -> list_typ -> 'a2 -> 'a1) -> (list_typ -> 'a2 ->
+      'a1) -> (typ -> 'a1 -> 'a1) -> 'a2 -> (typ -> 'a1 -> list_typ -> 'a2 ->
+      'a2) -> (typ -> 'a1)*(list_typ -> 'a2) **)
   
-  let typ_mutrec h1 h2 h3 h4 h5 h6 h7 h8 h9 h10 =
-    (typ_rec2 h1 h2 h3 h4 h5 h6 h7 h8 h9 h10),(list_typ_rec2 h1 h2 h3 h4 h5
-                                                h6 h7 h8 h9 h10)
+  let typ_mutrec h1 h2 h3 h4 h5 h6 h7 h8 h9 h10 h11 h12 =
+    (typ_rec2 h1 h2 h3 h4 h5 h6 h7 h8 h9 h10 h11 h12),
+      (list_typ_rec2 h1 h2 h3 h4 h5 h6 h7 h8 h9 h10 h11 h12)
  end
 
 module LLVMlib = 
@@ -2108,10 +3039,6 @@ module LLVMlib =
   (** val coq_INT2nat : LLVMsyntax.coq_INT -> nat **)
   
   let coq_INT2nat = Symexe_aux.llapint2nat
-  
-  (** val nat2INT : nat -> LLVMsyntax.coq_INT **)
-  
-  let nat2INT = Symexe_aux.nat2llapint
   
   (** val lempty_set : LLVMsyntax.l set **)
   
@@ -2218,10 +3145,10 @@ module LLVMlib =
           (match t0 with
              | LLVMsyntax.Coq_typ_array (sz0, t') ->
                  getSubTypFromConstIdxs idxs' t'
-             | LLVMsyntax.Coq_typ_struct lt ->
+             | LLVMsyntax.Coq_typ_struct lt0 ->
                  (match idx with
                     | LLVMsyntax.Coq_const_int (sz0, i0) ->
-                        (match LLVMsyntax.nth_list_typ (coq_INT2nat i0) lt with
+                        (match LLVMsyntax.nth_list_typ (coq_INT2nat i0) lt0 with
                            | Some t' -> getSubTypFromConstIdxs idxs' t'
                            | None -> None)
                     | _ -> None)
@@ -2237,7 +3164,7 @@ module LLVMlib =
           (match t0 with
              | LLVMsyntax.Coq_typ_array (sz0, t') ->
                  getSubTypFromValueIdxs idxs' t'
-             | LLVMsyntax.Coq_typ_struct lt ->
+             | LLVMsyntax.Coq_typ_struct lt0 ->
                  (match idx with
                     | LLVMsyntax.Coq_value_id i0 -> None
                     | LLVMsyntax.Coq_value_const c ->
@@ -2245,7 +3172,7 @@ module LLVMlib =
                            | LLVMsyntax.Coq_const_int (
                                sz0, i0) ->
                                (match LLVMsyntax.nth_list_typ
-                                        (coq_INT2nat i0) lt with
+                                        (coq_INT2nat i0) lt0 with
                                   | Some t' ->
                                       getSubTypFromValueIdxs idxs' t'
                                   | None -> None)
@@ -3757,9 +4684,9 @@ module LLVMlib =
       LLVMsyntax.dt -> coq_R_genDominatorTree_blocks **)
   
   let coq_R_genDominatorTree_blocks_correct x x0 res =
-    genDominatorTree_blocks_rect (fun y y0 y1 y2 _ y4 _ _ z _ ->
+    genDominatorTree_blocks_rect (fun y y0 y1 y2 _ y4 _ _ z0 _ ->
       R_genDominatorTree_blocks_0 (y, y0, y1, y2, y4))
-      (fun y y0 y1 y2 _ y4 _ _ y7 z _ -> R_genDominatorTree_blocks_1 (y, y0,
+      (fun y y0 y1 y2 _ y4 _ _ y7 z0 _ -> R_genDominatorTree_blocks_1 (y, y0,
       y1, y2, y4, (genDominatorTree_blocks (y1,y4) y0),
       (y7 (genDominatorTree_blocks (y1,y4) y0) __))) x x0 res __
   
@@ -4050,6 +4977,12 @@ module LLVMlib =
     LLVMsyntax.typ_mutrec (fun s t2 ->
       match t2 with
         | LLVMsyntax.Coq_typ_int s0 -> sz_dec s s0
+        | _ -> false) (fun t2 ->
+      match t2 with
+        | LLVMsyntax.Coq_typ_float -> true
+        | _ -> false) (fun t2 ->
+      match t2 with
+        | LLVMsyntax.Coq_typ_double -> true
         | _ -> false) (fun t2 ->
       match t2 with
         | LLVMsyntax.Coq_typ_void -> true
@@ -5959,7 +6892,7 @@ module LLVMlib =
     let rec isSized = function
       | LLVMsyntax.Coq_typ_int s -> true
       | LLVMsyntax.Coq_typ_array (s, t') -> isSized t'
-      | LLVMsyntax.Coq_typ_struct lt -> isSizedListTyp lt
+      | LLVMsyntax.Coq_typ_struct lt0 -> isSizedListTyp lt0
       | _ -> false
     
     (** val isSizedListTyp : LLVMsyntax.list_typ -> bool **)
@@ -5995,7 +6928,7 @@ module LLVMlib =
     let rec isSized = function
       | LLVMsyntax.Coq_typ_int s -> true
       | LLVMsyntax.Coq_typ_array (s, t') -> isSized t'
-      | LLVMsyntax.Coq_typ_struct lt -> isSizedListTyp lt
+      | LLVMsyntax.Coq_typ_struct lt0 -> isSizedListTyp lt0
       | _ -> false
     
     (** val isSizedListTyp : LLVMsyntax.list_typ -> bool **)
@@ -6031,7 +6964,7 @@ module LLVMlib =
     let rec isSized = function
       | LLVMsyntax.Coq_typ_int s -> true
       | LLVMsyntax.Coq_typ_array (s, t') -> isSized t'
-      | LLVMsyntax.Coq_typ_struct lt -> isSizedListTyp lt
+      | LLVMsyntax.Coq_typ_struct lt0 -> isSizedListTyp lt0
       | _ -> false
     
     (** val isSizedListTyp : LLVMsyntax.list_typ -> bool **)
@@ -6050,8 +6983,8 @@ module LLVMlib =
     (** val getNumParams : LLVMsyntax.typ -> nat option **)
     
     let getNumParams = function
-      | LLVMsyntax.Coq_typ_function (t1, lt) -> Some
-          (length (LLVMsyntax.unmake_list_typ lt))
+      | LLVMsyntax.Coq_typ_function (t1, lt0) -> Some
+          (length (LLVMsyntax.unmake_list_typ lt0))
       | _ -> None
     
     (** val isVarArg : LLVMsyntax.typ -> bool **)
@@ -6063,8 +6996,8 @@ module LLVMlib =
     
     let getParamType t0 i0 =
       match t0 with
-        | LLVMsyntax.Coq_typ_function (t1, lt) ->
-            LLVMsyntax.nth_list_typ i0 lt
+        | LLVMsyntax.Coq_typ_function (t1, lt0) ->
+            LLVMsyntax.nth_list_typ i0 lt0
         | _ -> None
    end
   
@@ -6087,7 +7020,7 @@ module LLVMlib =
     let rec isSized = function
       | LLVMsyntax.Coq_typ_int s -> true
       | LLVMsyntax.Coq_typ_array (s, t') -> isSized t'
-      | LLVMsyntax.Coq_typ_struct lt -> isSizedListTyp lt
+      | LLVMsyntax.Coq_typ_struct lt0 -> isSizedListTyp lt0
       | _ -> false
     
     (** val isSizedListTyp : LLVMsyntax.list_typ -> bool **)
@@ -6123,7 +7056,7 @@ module LLVMlib =
     let rec isSized = function
       | LLVMsyntax.Coq_typ_int s -> true
       | LLVMsyntax.Coq_typ_array (s, t') -> isSized t'
-      | LLVMsyntax.Coq_typ_struct lt -> isSizedListTyp lt
+      | LLVMsyntax.Coq_typ_struct lt0 -> isSizedListTyp lt0
       | _ -> false
     
     (** val isSizedListTyp : LLVMsyntax.list_typ -> bool **)
@@ -6171,7 +7104,7 @@ module LLVMlib =
     let rec isSized = function
       | LLVMsyntax.Coq_typ_int s -> true
       | LLVMsyntax.Coq_typ_array (s, t') -> isSized t'
-      | LLVMsyntax.Coq_typ_struct lt -> isSizedListTyp lt
+      | LLVMsyntax.Coq_typ_struct lt0 -> isSizedListTyp lt0
       | _ -> false
     
     (** val isSizedListTyp : LLVMsyntax.list_typ -> bool **)
@@ -6242,19 +7175,794 @@ module LLVMlib =
       | ReflectF -> f
  end
 
-type maddr = nat
+type float (* AXIOM TO BE REALIZED *)
 
-type mblock = maddr
+module Float = 
+ struct 
+  (** val zero : float **)
+  
+  let zero =
+    failwith "AXIOM TO BE REALIZED"
+  
+  (** val eq_dec : float -> float -> bool **)
+  
+  let eq_dec =
+    failwith "AXIOM TO BE REALIZED"
+  
+  (** val neg : float -> float **)
+  
+  let neg =
+    failwith "AXIOM TO BE REALIZED"
+  
+  (** val abs : float -> float **)
+  
+  let abs =
+    failwith "AXIOM TO BE REALIZED"
+  
+  (** val singleoffloat : float -> float **)
+  
+  let singleoffloat =
+    failwith "AXIOM TO BE REALIZED"
+  
+  (** val intoffloat : float -> Int.int **)
+  
+  let intoffloat =
+    failwith "AXIOM TO BE REALIZED"
+  
+  (** val intuoffloat : float -> Int.int **)
+  
+  let intuoffloat =
+    failwith "AXIOM TO BE REALIZED"
+  
+  (** val floatofint : Int.int -> float **)
+  
+  let floatofint =
+    failwith "AXIOM TO BE REALIZED"
+  
+  (** val floatofintu : Int.int -> float **)
+  
+  let floatofintu =
+    failwith "AXIOM TO BE REALIZED"
+  
+  (** val add : float -> float -> float **)
+  
+  let add =
+    failwith "AXIOM TO BE REALIZED"
+  
+  (** val sub : float -> float -> float **)
+  
+  let sub =
+    failwith "AXIOM TO BE REALIZED"
+  
+  (** val mul : float -> float -> float **)
+  
+  let mul =
+    failwith "AXIOM TO BE REALIZED"
+  
+  (** val div : float -> float -> float **)
+  
+  let div =
+    failwith "AXIOM TO BE REALIZED"
+  
+  (** val cmp : comparison0 -> float -> float -> bool **)
+  
+  let cmp =
+    failwith "AXIOM TO BE REALIZED"
+  
+  (** val bits_of_double : float -> Int.int **)
+  
+  let bits_of_double =
+    failwith "AXIOM TO BE REALIZED"
+  
+  (** val double_of_bits : Int.int -> float **)
+  
+  let double_of_bits =
+    failwith "AXIOM TO BE REALIZED"
+  
+  (** val bits_of_single : float -> Int.int **)
+  
+  let bits_of_single =
+    failwith "AXIOM TO BE REALIZED"
+  
+  (** val single_of_bits : Int.int -> float **)
+  
+  let single_of_bits =
+    failwith "AXIOM TO BE REALIZED"
+  
+  (** val from_words : Int.int -> Int.int -> float **)
+  
+  let from_words hi lo =
+    double_of_bits
+      (Int.coq_or (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S
+        (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S
+        (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S
+        O)))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))
+        (Int.shl (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S
+          (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S
+          (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S
+          O)))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))
+          (Int.repr (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S
+            (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S
+            (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S
+            O)))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))
+            (Int.unsigned (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S
+              (S (S (S (S (S (S (S (S (S (S (S (S (S (S
+              O))))))))))))))))))))))))))))))) hi))
+          (Int.repr (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S
+            (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S
+            (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S
+            O)))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))
+            (Zpos (XO (XO (XO (XO (XO XH))))))))
+        (Int.repr (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S
+          (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S
+          (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S
+          O)))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))
+          (Int.unsigned (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S
+            (S (S (S (S (S (S (S (S (S (S (S (S (S
+            O))))))))))))))))))))))))))))))) lo)))
+  
+  (** val ox8000_0000 : Int.int **)
+  
+  let ox8000_0000 =
+    Int.repr (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S
+      (S (S (S (S (S (S (S (S (S (S O)))))))))))))))))))))))))))))))
+      (Int.half_modulus (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S
+        (S (S (S (S (S (S (S (S (S (S (S (S (S
+        O))))))))))))))))))))))))))))))))
+  
+  (** val ox4330_0000 : Int.int **)
+  
+  let ox4330_0000 =
+    Int.repr (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S
+      (S (S (S (S (S (S (S (S (S (S O))))))))))))))))))))))))))))))) (Zpos
+      (XO (XO (XO (XO (XO (XO (XO (XO (XO (XO (XO (XO (XO (XO (XO (XO (XO (XO
+      (XO (XO (XI (XI (XO (XO (XI (XI (XO (XO (XO (XO
+      XH)))))))))))))))))))))))))))))))
+ end
 
-type malloca = mblock -> maddr option
+type memory_chunk =
+  | Mint of nat
+  | Mfloat32
+  | Mfloat64
 
-type mbyte =
-  | Mbyte_var of nat
-  | Mbyte_uninit
+type block0 = z
 
-type mem0 = { data : (maddr -> mbyte); allocas : malloca }
+(** val eq_block : z -> z -> bool **)
 
-type mvalue = mbyte list
+let eq_block =
+  zeq
+
+type val0 =
+  | Vundef
+  | Vint of nat * Int.int
+  | Vfloat of float
+  | Vptr of block0 * Int.int
+
+type meminj = block0 -> (block0*z) option
+
+(** val mint32 : memory_chunk **)
+
+let mint32 =
+  Mint (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S
+    (S (S (S (S (S (S (S (S O)))))))))))))))))))))))))))))))
+
+(** val bytesize_chunk : nat -> z **)
+
+let bytesize_chunk wz =
+  zRdiv (z_of_nat (S wz)) (Zpos (XO (XO (XO XH))))
+
+(** val bytesize_chunk_nat : nat -> nat **)
+
+let bytesize_chunk_nat wz =
+  nat_of_Z (bytesize_chunk wz)
+
+(** val size_chunk : memory_chunk -> z **)
+
+let size_chunk = function
+  | Mint wz -> bytesize_chunk wz
+  | Mfloat32 -> Zpos (XO (XO XH))
+  | Mfloat64 -> Zpos (XO (XO (XO XH)))
+
+(** val size_chunk_nat : memory_chunk -> nat **)
+
+let size_chunk_nat chunk =
+  nat_of_Z (size_chunk chunk)
+
+(** val align_chunk : memory_chunk -> z **)
+
+let align_chunk = function
+  | Mint wz ->
+      if le_lt_dec wz (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S
+           (S (S (S (S (S (S (S (S (S (S (S (S (S
+           O)))))))))))))))))))))))))))))))
+      then bytesize_chunk wz
+      else Zpos (XO (XO XH))
+  | _ -> Zpos (XO (XO XH))
+
+type memval =
+  | Undef
+  | Byte of nat * Int.int
+  | Pointer of block0 * Int.int * nat
+
+(** val bytes_of_int : nat -> z -> Int.int list **)
+
+let rec bytes_of_int n x =
+  match n with
+    | O -> []
+    | S m ->
+        (Int.repr (S (S (S (S (S (S (S O))))))) x)::
+        (bytes_of_int m
+          (zdiv x (Zpos (XO (XO (XO (XO (XO (XO (XO (XO XH)))))))))))
+
+(** val int_of_bytes : Int.int list -> z **)
+
+let rec int_of_bytes = function
+  | [] -> Z0
+  | b::l' ->
+      zplus (Int.unsigned (S (S (S (S (S (S (S O))))))) b)
+        (zmult (int_of_bytes l') (Zpos (XO (XO (XO (XO (XO (XO (XO (XO
+          XH))))))))))
+
+(** val inj_bytes : Int.int list -> memval list **)
+
+let inj_bytes bl =
+  map (fun x -> Byte ((S (S (S (S (S (S (S (S O)))))))), x)) bl
+
+(** val inj_int : nat -> Int.int -> memval list **)
+
+let inj_int wz x =
+  let z0 = Int.unsigned wz x in
+  let n = z_of_nat (S wz) in
+  let m = zmod n (Zpos (XO (XO (XO XH)))) in
+  let sz0 = zRdiv n (Zpos (XO (XO (XO XH)))) in
+  let bl = bytes_of_int (nat_of_Z sz0) z0 in
+  (match bl with
+     | [] -> []
+     | b::bl' -> (Byte ((nat_of_Z m), b))::(inj_bytes bl'))
+
+(** val proj_bytes : nat -> memval list -> Int.int list option **)
+
+let rec proj_bytes n vl =
+  match n with
+    | O -> (match vl with
+              | [] -> Some []
+              | m::l0 -> None)
+    | S m ->
+        (match vl with
+           | [] -> None
+           | m0::vl' ->
+               (match m0 with
+                  | Byte (wz, b) ->
+                      if eq_nat_dec wz (S (S (S (S (S (S (S (S O))))))))
+                      then (match proj_bytes m vl' with
+                              | Some bl' -> Some (b::bl')
+                              | None -> None)
+                      else None
+                  | _ -> None))
+
+(** val proj_int : nat -> memval list -> Int.int option **)
+
+let proj_int wz vl =
+  let n = z_of_nat (S wz) in
+  let m = nat_of_Z (zmod n (Zpos (XO (XO (XO XH))))) in
+  let sz0 = nat_of_Z (zRdiv n (Zpos (XO (XO (XO XH))))) in
+  (match sz0 with
+     | O -> None
+     | S n' ->
+         (match vl with
+            | [] -> None
+            | m0::vl' ->
+                (match m0 with
+                   | Byte (wz0, b) ->
+                       if eq_nat_dec wz0 m
+                       then (match proj_bytes n' vl' with
+                               | Some bl' -> Some
+                                   (Int.repr wz (int_of_bytes (b::bl')))
+                               | None -> None)
+                       else None
+                   | _ -> None)))
+
+(** val big_endian : bool **)
+
+let big_endian =
+  failwith "AXIOM TO BE REALIZED"
+
+(** val rev_if_be : 'a1 list -> 'a1 list **)
+
+let rev_if_be l0 =
+  if big_endian then rev l0 else l0
+
+(** val encode_int : nat -> Int.int -> memval list **)
+
+let encode_int wz x =
+  rev_if_be (inj_int wz x)
+
+(** val decode_int : memval list -> nat -> val0 **)
+
+let decode_int b wz =
+  let b' = rev_if_be b in
+  (match proj_int wz b' with
+     | Some i0 -> Vint (wz, i0)
+     | None -> Vundef)
+
+(** val encode_float : memory_chunk -> float -> Int.int list **)
+
+let encode_float c f =
+  rev_if_be
+    (match c with
+       | Mint wz -> bytes_of_int (bytesize_chunk_nat wz) Z0
+       | Mfloat32 ->
+           bytes_of_int (S (S (S (S O))))
+             (Int.unsigned (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S
+               (S (S (S (S (S (S (S (S (S (S (S (S (S (S
+               O))))))))))))))))))))))))))))))) (Float.bits_of_single f))
+       | Mfloat64 ->
+           bytes_of_int (S (S (S (S (S (S (S (S O))))))))
+             (Int.unsigned (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S
+               (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S
+               (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S
+               (S (S (S (S
+               O)))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))
+               (Float.bits_of_double f)))
+
+(** val decode_float : memory_chunk -> Int.int list -> float **)
+
+let decode_float c b =
+  let b' = rev_if_be b in
+  (match c with
+     | Mint n -> Float.zero
+     | Mfloat32 ->
+         Float.single_of_bits
+           (Int.repr (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S
+             (S (S (S (S (S (S (S (S (S (S (S (S
+             O))))))))))))))))))))))))))))))) (int_of_bytes b'))
+     | Mfloat64 ->
+         Float.double_of_bits
+           (Int.repr (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S
+             (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S
+             (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S
+             (S (S
+             O)))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))
+             (int_of_bytes b')))
+
+(** val inj_pointer : nat -> block0 -> Int.int -> memval list **)
+
+let rec inj_pointer n b ofs =
+  match n with
+    | O -> []
+    | S m -> (Pointer (b, ofs, m))::(inj_pointer m b ofs)
+
+(** val check_pointer : nat -> block0 -> Int.int -> memval list -> bool **)
+
+let rec check_pointer n b ofs vl =
+  match n with
+    | O -> (match vl with
+              | [] -> true
+              | m::l0 -> false)
+    | S m ->
+        (match vl with
+           | [] -> false
+           | m0::vl' ->
+               (match m0 with
+                  | Pointer (b', ofs', m') ->
+                      if if if proj_sumbool (eq_block b b')
+                            then proj_sumbool
+                                   (Int.eq_dec (S (S (S (S (S (S (S (S (S (S
+                                     (S (S (S (S (S (S (S (S (S (S (S (S (S
+                                     (S (S (S (S (S (S (S (S
+                                     O))))))))))))))))))))))))))))))) ofs
+                                     ofs')
+                            else false
+                         then beq_nat m m'
+                         else false
+                      then check_pointer m b ofs vl'
+                      else false
+                  | _ -> false))
+
+(** val proj_pointer : memval list -> val0 **)
+
+let proj_pointer vl = match vl with
+  | [] -> Vundef
+  | m::vl' ->
+      (match m with
+         | Pointer (b, ofs, n) ->
+             if check_pointer (size_chunk_nat mint32) b ofs vl
+             then Vptr (b, ofs)
+             else Vundef
+         | _ -> Vundef)
+
+(** val encode_val : memory_chunk -> val0 -> memval list **)
+
+let encode_val chunk = function
+  | Vundef -> list_repeat (size_chunk_nat chunk) Undef
+  | Vint (wz, n) ->
+      (match chunk with
+         | Mint wz' ->
+             if eq_nat_dec wz wz'
+             then encode_int wz n
+             else list_repeat (size_chunk_nat chunk) Undef
+         | _ -> list_repeat (size_chunk_nat chunk) Undef)
+  | Vfloat f -> inj_bytes (encode_float chunk f)
+  | Vptr (b, ofs) ->
+      (match chunk with
+         | Mint wz ->
+             if eq_nat_dec wz (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S
+                  (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S
+                  O)))))))))))))))))))))))))))))))
+             then inj_pointer (size_chunk_nat (Mint wz)) b ofs
+             else list_repeat (size_chunk_nat chunk) Undef
+         | _ -> list_repeat (size_chunk_nat chunk) Undef)
+
+(** val decode_val : memory_chunk -> memval list -> val0 **)
+
+let decode_val chunk vl =
+  match chunk with
+    | Mint wz ->
+        (match decode_int vl wz with
+           | Vundef ->
+               if eq_nat_dec wz (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S
+                    (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S
+                    O)))))))))))))))))))))))))))))))
+               then proj_pointer vl
+               else Vundef
+           | x -> x)
+    | Mfloat32 ->
+        (match proj_bytes
+                 (bytesize_chunk_nat (S (S (S (S (S (S (S (S (S (S (S (S (S
+                   (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S
+                   O)))))))))))))))))))))))))))))))) vl with
+           | Some bl -> Vfloat (decode_float chunk bl)
+           | None -> Vundef)
+    | Mfloat64 ->
+        (match proj_bytes
+                 (bytesize_chunk_nat (S (S (S (S (S (S (S (S (S (S (S (S (S
+                   (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S
+                   (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S
+                   (S (S (S (S (S (S (S (S (S (S (S (S
+                   O))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))
+                 vl with
+           | Some bl -> Vfloat (decode_float chunk bl)
+           | None -> Vundef)
+
+type permission =
+  | Freeable
+  | Writable
+  | Readable
+  | Nonempty
+
+(** val update : z -> 'a1 -> (z -> 'a1) -> z -> 'a1 **)
+
+let update x v f y =
+  if zeq y x then v else f y
+
+module Mem = 
+ struct 
+  type mem_ = { mem_contents : (block0 -> z -> memval);
+                mem_access : (block0 -> z -> permission option);
+                bounds : (block0 -> z*z); nextblock : 
+                block0 }
+  
+  (** val mem__rect :
+      ((block0 -> z -> memval) -> (block0 -> z -> permission option) ->
+      (block0 -> z*z) -> block0 -> __ -> __ -> __ -> __ -> 'a1) -> mem_ ->
+      'a1 **)
+  
+  let mem__rect f m =
+    let { mem_contents = x; mem_access = x0; bounds = x1; nextblock = x2 } =
+      m
+    in
+    f x x0 x1 x2 __ __ __ __
+  
+  (** val mem__rec :
+      ((block0 -> z -> memval) -> (block0 -> z -> permission option) ->
+      (block0 -> z*z) -> block0 -> __ -> __ -> __ -> __ -> 'a1) -> mem_ ->
+      'a1 **)
+  
+  let mem__rec f m =
+    let { mem_contents = x; mem_access = x0; bounds = x1; nextblock = x2 } =
+      m
+    in
+    f x x0 x1 x2 __ __ __ __
+  
+  (** val mem_contents : mem_ -> block0 -> z -> memval **)
+  
+  let mem_contents x = x.mem_contents
+  
+  (** val mem_access : mem_ -> block0 -> z -> permission option **)
+  
+  let mem_access x = x.mem_access
+  
+  (** val bounds : mem_ -> block0 -> z*z **)
+  
+  let bounds x = x.bounds
+  
+  (** val nextblock : mem_ -> block0 **)
+  
+  let nextblock x = x.nextblock
+  
+  type mem = mem_
+  
+  (** val perm_order_dec : permission -> permission -> bool **)
+  
+  let perm_order_dec p1 p2 =
+    match p1 with
+      | Freeable -> true
+      | Writable -> (match p2 with
+                       | Freeable -> false
+                       | _ -> true)
+      | Readable ->
+          (match p2 with
+             | Readable -> true
+             | Nonempty -> true
+             | _ -> false)
+      | Nonempty -> (match p2 with
+                       | Nonempty -> true
+                       | _ -> false)
+  
+  (** val perm_order'_dec : permission option -> permission -> bool **)
+  
+  let perm_order'_dec op p =
+    match op with
+      | Some p0 -> perm_order_dec p0 p
+      | None -> false
+  
+  (** val perm_dec : mem -> block0 -> z -> permission -> bool **)
+  
+  let perm_dec m b ofs p =
+    perm_order'_dec (m.mem_access b ofs) p
+  
+  (** val range_perm_dec : mem -> block0 -> z -> z -> permission -> bool **)
+  
+  let range_perm_dec m b lo hi p =
+    let h =
+      natlike_rec2 true (fun z0 _ h0 ->
+        if h0 then perm_dec m b (zplus lo z0) p else false)
+    in
+    let s = zlt lo hi in if s then h (zminus hi lo) else true
+  
+  (** val valid_access_dec :
+      mem -> memory_chunk -> block0 -> z -> permission -> bool **)
+  
+  let valid_access_dec m chunk b ofs p =
+    let s = range_perm_dec m b ofs (zplus ofs (size_chunk chunk)) p in
+    if s then zdivide_dec (align_chunk chunk) ofs else false
+  
+  (** val valid_pointer : mem -> block0 -> z -> bool **)
+  
+  let valid_pointer m b ofs =
+    proj_sumbool (perm_dec m b ofs Nonempty)
+  
+  (** val empty : mem **)
+  
+  let empty =
+    { mem_contents = (fun b ofs -> Undef); mem_access = (fun b ofs -> None);
+      bounds = (fun b -> Z0,Z0); nextblock = (Zpos XH) }
+  
+  (** val nullptr : block0 **)
+  
+  let nullptr =
+    Z0
+  
+  (** val alloc : mem -> z -> z -> mem_*block0 **)
+  
+  let alloc m lo hi =
+    { mem_contents = (update m.nextblock (fun ofs -> Undef) m.mem_contents);
+      mem_access =
+      (update m.nextblock (fun ofs ->
+        if if proj_sumbool (zle lo ofs)
+           then proj_sumbool (zlt ofs hi)
+           else false
+        then Some Freeable
+        else None) m.mem_access); bounds =
+      (update m.nextblock (lo,hi) m.bounds); nextblock =
+      (zsucc m.nextblock) },m.nextblock
+  
+  (** val clearN :
+      (block0 -> z -> memval) -> block0 -> z -> z -> block0 -> z -> memval **)
+  
+  let clearN m b lo hi b' ofs =
+    if zeq b' b
+    then if if proj_sumbool (zle lo ofs)
+            then proj_sumbool (zlt ofs hi)
+            else false
+         then Undef
+         else m b' ofs
+    else m b' ofs
+  
+  (** val unchecked_free : mem -> block0 -> z -> z -> mem **)
+  
+  let unchecked_free m b lo hi =
+    { mem_contents = (clearN m.mem_contents b lo hi); mem_access =
+      (update b (fun ofs ->
+        if if proj_sumbool (zle lo ofs)
+           then proj_sumbool (zlt ofs hi)
+           else false
+        then None
+        else m.mem_access b ofs) m.mem_access); bounds = m.bounds;
+      nextblock = m.nextblock }
+  
+  (** val free : mem -> block0 -> z -> z -> mem option **)
+  
+  let free m b lo hi =
+    if range_perm_dec m b lo hi Freeable
+    then Some (unchecked_free m b lo hi)
+    else None
+  
+  (** val free_list : mem -> ((block0*z)*z) list -> mem option **)
+  
+  let rec free_list m = function
+    | [] -> Some m
+    | p::l' ->
+        let p0,hi = p in
+        let b,lo = p0 in
+        (match free m b lo hi with
+           | Some m' -> free_list m' l'
+           | None -> None)
+  
+  (** val getN : nat -> z -> (z -> memval) -> memval list **)
+  
+  let rec getN n p c =
+    match n with
+      | O -> []
+      | S n' -> (c p)::(getN n' (zplus p (Zpos XH)) c)
+  
+  (** val load : memory_chunk -> mem -> block0 -> z -> val0 option **)
+  
+  let load chunk m b ofs =
+    if valid_access_dec m chunk b ofs Readable
+    then Some
+           (decode_val chunk
+             (getN (size_chunk_nat chunk) ofs (m.mem_contents b)))
+    else None
+  
+  (** val loadv : memory_chunk -> mem -> val0 -> val0 option **)
+  
+  let loadv chunk m = function
+    | Vptr (b, ofs) ->
+        load chunk m b
+          (Int.signed (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S
+            (S (S (S (S (S (S (S (S (S (S (S (S (S
+            O))))))))))))))))))))))))))))))) ofs)
+    | _ -> None
+  
+  (** val loadbytes : mem -> block0 -> z -> z -> memval list option **)
+  
+  let loadbytes m b ofs n =
+    if range_perm_dec m b ofs (zplus ofs n) Readable
+    then Some (getN (nat_of_Z n) ofs (m.mem_contents b))
+    else None
+  
+  (** val setN : memval list -> z -> (z -> memval) -> z -> memval **)
+  
+  let rec setN vl p c =
+    match vl with
+      | [] -> c
+      | v::vl' -> setN vl' (zplus p (Zpos XH)) (update p v c)
+  
+  (** val store :
+      memory_chunk -> mem -> block0 -> z -> val0 -> mem option **)
+  
+  let store chunk m b ofs v =
+    if valid_access_dec m chunk b ofs Writable
+    then Some { mem_contents =
+           (update b (setN (encode_val chunk v) ofs (m.mem_contents b))
+             m.mem_contents); mem_access = m.mem_access; bounds = m.bounds;
+           nextblock = m.nextblock }
+    else None
+  
+  (** val storev : memory_chunk -> mem -> val0 -> val0 -> mem option **)
+  
+  let storev chunk m addr v =
+    match addr with
+      | Vptr (b, ofs) ->
+          store chunk m b
+            (Int.signed (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S (S
+              (S (S (S (S (S (S (S (S (S (S (S (S (S
+              O))))))))))))))))))))))))))))))) ofs) v
+      | _ -> None
+  
+  (** val drop_perm : mem -> block0 -> z -> z -> permission -> mem option **)
+  
+  let drop_perm m b lo hi p =
+    if range_perm_dec m b lo hi p
+    then Some { mem_contents =
+           (update b (fun ofs ->
+             if if if proj_sumbool (zle lo ofs)
+                   then proj_sumbool (zlt ofs hi)
+                   else false
+                then negb (proj_sumbool (perm_order_dec p Readable))
+                else false
+             then Undef
+             else m.mem_contents b ofs) m.mem_contents); mem_access =
+           (update b (fun ofs ->
+             if if proj_sumbool (zle lo ofs)
+                then proj_sumbool (zlt ofs hi)
+                else false
+             then Some p
+             else m.mem_access b ofs) m.mem_access); bounds = m.bounds;
+           nextblock = m.nextblock }
+    else None
+  
+  (** val valid_access_store :
+      mem -> memory_chunk -> block0 -> z -> val0 -> mem **)
+  
+  let valid_access_store m1 chunk b ofs v =
+    let s = valid_access_dec m1 chunk b ofs Writable in
+    if s
+    then { mem_contents =
+           (update b (setN (encode_val chunk v) ofs (m1.mem_contents b))
+             m1.mem_contents); mem_access = m1.mem_access; bounds =
+           m1.bounds; nextblock = m1.nextblock }
+    else assert false (* absurd case *)
+  
+  (** val range_perm_free : mem -> block0 -> z -> z -> mem **)
+  
+  let range_perm_free m1 b lo hi =
+    unchecked_free m1 b lo hi
+  
+  (** val range_perm_drop_2 :
+      mem -> block0 -> z -> z -> permission -> mem **)
+  
+  let range_perm_drop_2 m b lo hi p =
+    let s = range_perm_dec m b lo hi p in
+    if s
+    then { mem_contents =
+           (update b (fun ofs ->
+             if if if proj_sumbool (zle lo ofs)
+                   then proj_sumbool (zlt ofs hi)
+                   else false
+                then negb (proj_sumbool (perm_order_dec p Readable))
+                else false
+             then Undef
+             else m.mem_contents b ofs) m.mem_contents); mem_access =
+           (update b (fun ofs ->
+             if if proj_sumbool (zle lo ofs)
+                then proj_sumbool (zlt ofs hi)
+                else false
+             then Some p
+             else m.mem_access b ofs) m.mem_access); bounds = m.bounds;
+           nextblock = m.nextblock }
+    else assert false (* absurd case *)
+  
+  (** val mem_inj_rect : meminj -> mem -> mem -> (__ -> __ -> 'a1) -> 'a1 **)
+  
+  let mem_inj_rect f m1 m2 f0 =
+    f0 __ __
+  
+  (** val mem_inj_rec : meminj -> mem -> mem -> (__ -> __ -> 'a1) -> 'a1 **)
+  
+  let mem_inj_rec f m1 m2 f0 =
+    f0 __ __
+  
+  (** val extends__rect : mem -> mem -> (__ -> __ -> 'a1) -> 'a1 **)
+  
+  let extends__rect m1 m2 f =
+    f __ __
+  
+  (** val extends__rec : mem -> mem -> (__ -> __ -> 'a1) -> 'a1 **)
+  
+  let extends__rec m1 m2 f =
+    f __ __
+  
+  (** val inject__rect :
+      meminj -> mem -> mem -> (__ -> __ -> __ -> __ -> __ -> __ -> 'a1) ->
+      'a1 **)
+  
+  let inject__rect f m1 m2 f0 =
+    f0 __ __ __ __ __ __
+  
+  (** val inject__rec :
+      meminj -> mem -> mem -> (__ -> __ -> __ -> __ -> __ -> __ -> 'a1) ->
+      'a1 **)
+  
+  let inject__rec f m1 m2 f0 =
+    f0 __ __ __ __ __ __
+  
+  (** val flat_inj : block0 -> meminj **)
+  
+  let flat_inj thr b =
+    if zlt b thr then Some (b,Z0) else None
+ end
 
 type event =
   | MkEvent
@@ -6263,9 +7971,13 @@ type trace =
   | Trace_nil
   | Trace_cons of event * trace
 
-type genericValue = mvalue
+type genericValue = (val0*memory_chunk) list
 
 type gVMap = (LLVMsyntax.id*genericValue) list
+
+type mblock = block0
+
+type mem0 = Mem.mem
 
 module SimpleSE = 
  struct 

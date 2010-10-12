@@ -246,6 +246,9 @@ Proof.
          dbop__implies__dsop_star_prop, 
          dbFdef__implies__dsop_star_prop; 
   intros; subst; simpl; intuition; eauto.
+  Case "dbSelect".
+    apply dsInsn__implies__dsop_plus.
+    eapply dsSelect; eauto.
   Case "dbCall".
     inversion d; subst.
     SCase "dbFdef_func".
@@ -695,13 +698,13 @@ Proof.
     apply nsop_plus_trans with (states2:=(mkState S TD Ps (mkEC F B cs tmn (updateAddAL _ lc id0 gv'') arg0 als::EC) gl Mem0, tr)::nil); 
       try solve [auto | rewrite app_nil_end; eauto].
   Case "nbMalloc".
-    apply nsop_plus_trans with (states2:=(mkState S TD Ps (mkEC F B cs tmn (updateAddAL _ lc id0 (ptr2GV TD (mb, 0))) arg0 als::EC) gl Mem', tr)::nil); 
+    apply nsop_plus_trans with (states2:=(mkState S TD Ps (mkEC F B cs tmn (updateAddAL _ lc id0 (blk2GV TD mb)) arg0 als::EC) gl Mem', tr)::nil); 
       try solve [auto | rewrite app_nil_end; eauto].
   Case "nbFree".
     apply nsop_plus_trans with (states2:=(mkState S TD Ps (mkEC F B cs tmn lc arg0 als::EC) gl Mem', tr)::nil); 
       try solve [auto | rewrite app_nil_end; eauto].
   Case "nbAlloca".
-    apply nsop_plus_trans with (states2:=(mkState S TD Ps (mkEC F B cs tmn (updateAddAL _ lc id0 (ptr2GV TD (mb, 0))) arg0 (mb::als)::EC) gl Mem', tr)::nil); auto.
+    apply nsop_plus_trans with (states2:=(mkState S TD Ps (mkEC F B cs tmn (updateAddAL _ lc id0 (blk2GV TD mb)) arg0 (mb::als)::EC) gl Mem', tr)::nil); auto.
       rewrite app_nil_end; eauto.
   Case "nbLoad".
     apply nsop_plus_trans with (states2:=(mkState S TD Ps (mkEC F B cs tmn (updateAddAL _ lc id0 gv) arg0 als::EC) gl Mem0, tr)::nil); auto.
@@ -722,7 +725,7 @@ Proof.
     apply nsop_plus_trans with (states2:=(mkState S TD Ps (mkEC F B cs tmn (updateAddAL _ lc id0 gv3) arg0 als::EC) gl Mem0, tr)::nil); 
       try solve [auto | rewrite app_nil_end; eauto].
   Case "nbSelect".
-    apply nsop_plus_trans with (states2:=(mkState S TD Ps (mkEC F B cs tmn (if c then updateAddAL _ lc id0 gv2 else updateAddAL _ lc id0 gv1) arg0 als::EC) gl Mem0, tr)::nil); 
+    apply nsop_plus_trans with (states2:=(mkState S TD Ps (mkEC F B cs tmn (if Coqlib.zeq c 0 then updateAddAL _ lc id0 gv2 else updateAddAL _ lc id0 gv1) arg0 als::EC) gl Mem0, tr)::nil); 
       try solve [auto | rewrite app_nil_end; eauto].
   Case "nbCall".
     inversion n. subst.

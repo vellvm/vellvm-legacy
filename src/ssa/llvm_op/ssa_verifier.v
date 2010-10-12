@@ -16,7 +16,7 @@ Export LLVMlib.
 
 (* defns Jwf_typ *)
 Inductive wf_typ : typ -> Prop :=    (* defn wf_typ *)
- | wf_typ_int : forall (N5:INT),
+ | wf_typ_int : forall (N5:nat),
      wf_typ (typ_int N5)
  | wf_typ_metadate : 
      wf_typ typ_metadata

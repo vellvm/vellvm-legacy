@@ -1,10 +1,11 @@
 OTT=ott
 COQC=coqc
-COQARG=-I ./ott -I ./monads -I ~/SVN/provers/metalib/branches/metatheory_8.3/
+COQARG=-I ./ott -I ./monads -I ~/SVN/provers/metalib/branches/metatheory_8.3/ -I ./compcert
 
 all:
 	+make -C ./monads
 	+make -C ./ott
+	+make -C ./compcert 
 	+make ott 
 	+make -C ./llvm_op
 
@@ -20,7 +21,7 @@ ssa_def.vo : ssa_def.v ./monads/monad.vo
 	$(COQC) $(COQARG) ssa_def.v
 
 ssa_def.v : ssa_def.ott emacs.ott
-	ott -coq_expand_list_types true -i ssa_def.ott -i emacs.ott -o ssa_def.v
+	$(OTT) -coq_expand_list_types true -i ssa_def.ott -i emacs.ott -o ssa_def.v
 
 ssa_coq.ott : ssa_coq_lib.vo ssa_def.ott coq2ott.py 
 	./coq2ott.py
@@ -30,8 +31,9 @@ m_ssa_static.ott : ssa_static.ott spanlines.py
 	./spanlines.py ssa_static.ott
 
 ssa.v: ssa_def.ott ssa_coq_lib.vo ssa_coq.ott ssa_lib.ott m_ssa_static.ott emacs.ott ./monads/monad.vo
-	ott -merge false -coq_expand_list_types true \
+	$(OTT) -merge false -coq_expand_list_types true \
             -i ssa_def.ott -i ssa_coq.ott -i ssa_lib.ott -i m_ssa_static.ott -i emacs.ott -o ssa.v
+	./fixott.py ssa.v
 
 ssa.vo: ssa.v
 	$(COQC) $(COQARG) ssa.v
@@ -42,13 +44,13 @@ tactics.vo: tactics.v
 targetdata.vo: targetdata.v ssa.vo
 	$(COQC) $(COQARG) targetdata.v
 
-ssa_mem.vo: ssa_mem.v ssa.vo tactics.vo targetdata.vo
+ssa_mem.vo: ssa_mem.v ssa.vo tactics.vo targetdata.vo genericvalues.vo
 	$(COQC) $(COQARG) ssa_mem.v
 
 trace.vo: trace.v
 	$(COQC) trace.v
 
-genericvalues.vo: ssa.vo tactics.vo ssa_mem.vo trace.vo genericvalues.v assoclist.vo
+genericvalues.vo: ssa.vo tactics.vo trace.vo genericvalues.v assoclist.vo
 	$(COQC) $(COQARG) genericvalues.v
 
 ssa_dynamic.vo: ssa_dynamic.v ssa.vo tactics.vo ssa_mem.vo trace.vo genericvalues.vo assoclist.vo

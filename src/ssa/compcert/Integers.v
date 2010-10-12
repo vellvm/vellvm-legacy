@@ -16,6 +16,7 @@
 (** Formalizations of machine integers modulo $2^N$ #2<sup>N</sup>#. *)
 
 Require Import Axioms.
+Require Import Znumtheory.
 Require Import Coqlib.
 
 (** * Comparisons *)
