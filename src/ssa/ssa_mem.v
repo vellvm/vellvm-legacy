@@ -62,7 +62,7 @@ Definition initmem := Mem.empty.
 
 (** allocate memory with size and alignment *)
 Definition malloc (TD:layouts) (M:mem) (bsz:sz) (al:align) : option (mem * mblock)%type :=
-Some (Mem.alloc M 0 (Z_of_nat bsz)).
+Some (Mem.alloc M 0 (Size.to_Z bsz)).
 
 Definition free (M:mem) (ptr:mptr) : option mem :=
 match ptr with
@@ -88,7 +88,7 @@ end.
 
 Definition typ2memory_chunk (t:typ) : option memory_chunk :=
   match t with
-  | typ_int bsz => Some (Mint (bsz-1))
+  | typ_int bsz => Some (Mint (Size.to_nat bsz -1))
   | typ_float => Some Mfloat32
   | typ_double => Some Mfloat64
   | typ_pointer _ => Some (Mint 31)

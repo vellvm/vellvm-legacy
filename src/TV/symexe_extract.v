@@ -14,29 +14,86 @@ Extract Inductive option => "option"  [ "Some" "None" ].
 
 Extract Constant AtomImpl.atom => "String.t".
 Extract Constant AtomImpl.eq_atom_dec => "fun a b -> a == b".
-Extract Constant AtomImpl.atom_fresh_for_list => "Symexe_aux.atom_fresh_for_list".
+Extract Constant AtomImpl.atom_fresh_for_list => "Llvmcaml.atom_fresh_for_list".
 
 Extract Constant LLVMsyntax.id => "String.t".
 Extract Constant LLVMsyntax.l => "String.t".
-Extract Constant LLVMsyntax.INT => "Llvm.llapint".
-Extract Constant LLVMsyntax.sz => "int".
-Extract Constant LLVMsyntax.align => "int".
 Extract Constant LLVMsyntax.inbounds => "bool".
 Extract Constant LLVMsyntax.tailc => "bool".
 Extract Constant LLVMsyntax.noret => "bool".
 
-Extract Constant LLVMlib.szZERO => "0".
-Extract Constant LLVMlib.szONE => "1".
-Extract Constant LLVMlib.INT2nat => "Symexe_aux.llapint2nat".
-Extract Constant LLVMlib.sz2nat => "Symexe_aux.int2nat".
-Extract Constant LLVMlib.nat2sz => "Symexe_aux.nat2int".
+Extract Constant LLVMsyntax.Size.t => "int".
+Extract Constant LLVMsyntax.Size.Zero => "0".
+Extract Constant LLVMsyntax.Size.One => "1".
+Extract Constant LLVMsyntax.Size.Two => "2".
+Extract Constant LLVMsyntax.Size.Four => "4".
+Extract Constant LLVMsyntax.Size.Eight => "8".
+Extract Constant LLVMsyntax.Size.Sixteen => "16".
+Extract Constant LLVMsyntax.Size.ThirtyTwo => "32".
+Extract Constant LLVMsyntax.Size.SixtyFour => "64".
+Extract Constant LLVMsyntax.Size.from_nat => "Camlcoq.camlint_of_nat".
+Extract Constant LLVMsyntax.Size.to_nat => "fun x -> Camlcoq.nat_of_camlint(Int32.of_int x)".
+Extract Constant LLVMsyntax.Size.to_Z => "fun x -> Camlcoq.z_of_camlint (Int32.of_int x)".
+Extract Constant LLVMsyntax.Size.from_Z => "fun x -> Int32.to_int (Camlcoq.camlint_of_z x)".
+Extract Constant LLVMsyntax.Size.add => "( + )".
+Extract Constant LLVMsyntax.Size.sub => "( - )".
+Extract Constant LLVMsyntax.Size.mul => "( * )".
+Extract Constant LLVMsyntax.Size.div => "( / )".
+Extract Constant LLVMsyntax.Size.dec => "( == )".
 
-Extract Constant LLVMlib.INT_dec => "Llvm.APInt.compare".
-Extract Constant LLVMlib.sz_dec => "(==)".
-Extract Constant LLVMlib.align_dec => "(==)".
+Extract Constant LLVMsyntax.Align.t => "int".
+Extract Constant LLVMsyntax.Align.Zero => "0".
+Extract Constant LLVMsyntax.Align.One => "1".
+Extract Constant LLVMsyntax.Align.Two => "2".
+Extract Constant LLVMsyntax.Align.Four => "4".
+Extract Constant LLVMsyntax.Align.Eight => "8".
+Extract Constant LLVMsyntax.Align.Sixteen => "16".
+Extract Constant LLVMsyntax.Align.ThirtyTwo => "32".
+Extract Constant LLVMsyntax.Align.SixtyFour => "64".
+Extract Constant LLVMsyntax.Align.from_nat => "Camlcoq.camlint_of_nat".
+Extract Constant LLVMsyntax.Align.to_nat => "fun x -> Camlcoq.nat_of_camlint(Int32.of_int x)".
+Extract Constant LLVMsyntax.Align.to_Z => "fun x -> Camlcoq.z_of_camlint (Int32.of_int x)".
+Extract Constant LLVMsyntax.Align.from_Z => "fun x -> Int32.to_int (Camlcoq.camlint_of_z x)".
+Extract Constant LLVMsyntax.Align.add => "( + )".
+Extract Constant LLVMsyntax.Align.sub => "( - )".
+Extract Constant LLVMsyntax.Align.mul => "( * )".
+Extract Constant LLVMsyntax.Align.div => "( / )".
+Extract Constant LLVMsyntax.Align.dec => "( == )".
+
+Extract Constant LLVMsyntax.INTEGER.t => "Llvm.llapint".
+Extract Constant LLVMsyntax.INTEGER.to_nat => "Llvmcaml.llapint2nat".
+Extract Constant LLVMsyntax.INTEGER.to_Z => "Llvmcaml.llapint2z".
+Extract Constant LLVMsyntax.INTEGER.dec => "Llvm.APInt.compare".
+
 Extract Constant LLVMlib.inbounds_dec => "(==)".
 Extract Constant LLVMlib.tailc_dec => "(==)".
 Extract Constant LLVMlib.noret_dec => "(==)".
+
+(* Float *)
+Extract Inlined Constant Floats.float => "float".
+Extract Constant Floats.Float.zero   => "0.".
+(* Extract Constant Floats.Float.one   => "1.". *)
+Extract Constant Floats.Float.neg => "( ~-. )".
+Extract Constant Floats.Float.abs => "abs_float".
+Extract Constant Floats.Float.singleoffloat => "Floataux.singleoffloat".
+Extract Constant Floats.Float.intoffloat => "Floataux.intoffloat".
+Extract Constant Floats.Float.intuoffloat => "Floataux.intuoffloat".
+Extract Constant Floats.Float.floatofint => "Floataux.floatofint".
+Extract Constant Floats.Float.floatofintu => "Floataux.floatofintu".
+Extract Constant Floats.Float.add => "( +. )".
+Extract Constant Floats.Float.sub => "( -. )".
+Extract Constant Floats.Float.mul => "( *. )".
+Extract Constant Floats.Float.div => "( /. )".
+Extract Constant Floats.Float.cmp => "Floataux.cmp".
+Extract Constant Floats.Float.eq_dec => "fun (x: float) (y: float) -> x = y".
+
+(* Memdata *)
+Extract Constant Memdata.big_endian => "Memdataaux.big_endian".
+Extract Constant Memdata.encode_float => "Memdataaux.encode_float".
+Extract Constant Memdata.decode_float => "Memdataaux.decode_float".
+
+(* Memory - work around an extraction bug. *)
+Extraction NoInline Memory.Mem.valid_pointer.
 
 (*
 Extract Constant LLVMsyntax.nth_list_typ => "Symexe_aux.nth_list_typ".
@@ -56,4 +113,9 @@ Extract Constant LLVMlib.ArrayType.getNumElements => "Symexe_aux.getNumElements"
 
 Extraction Blacklist List String Int.
 
-Extraction "symexe" tv_system.
+(*Extraction "symexe" tv_system.*)
+
+Cd "extraction".
+Recursive Extraction Library symexe_correct.
+Cd "../".
+

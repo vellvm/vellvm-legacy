@@ -1,6 +1,6 @@
 open Printf
 open Llvm
-open Symexe
+open Symexe_correct
 
 let main in_filename out_filename =
 	let ic = create_context () in
@@ -33,3 +33,4 @@ let main in_filename out_filename =
 let () = match Sys.argv with
 	| [| _; in_filename; out_filename |] -> main in_filename out_filename
 	| _ -> main "Input.bc" "Output.bc"
+

@@ -11,6 +11,7 @@ ssa_lib.v: ../ssa_def.ott ../ssa_coq.ott ../ssa_lib.ott emacs.ott Makefile ../ss
 	$(OTT) -merge false -coq_expand_list_types true \
             -i ../ssa_def.ott -i ../ssa_coq.ott -i ../ssa_lib.ott \
 	    -i emacs.ott -o ssa_lib.v
+	../fixott.py ssa_lib.v	
 
 ssa_lib.vo: ssa_lib.v
 	$(COQC) $(COQARG) ssa_lib.v

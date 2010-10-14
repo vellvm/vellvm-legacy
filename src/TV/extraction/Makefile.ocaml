@@ -1,0 +1,18 @@
+OUTPUT_TYPE := cma
+LLVM_LIB := /home/jianzhou/Tools/llvm-2.6/lib/
+LLVM_OCAML_LIB := $(LLVM_LIB)/ocaml/
+
+all: symexe_correct
+
+symexe_correct: symexe_correct.ml symexe_correct.mli
+	./fixextract.py
+	ocamlbuild -j 2 -cflags -g,-I,$(LLVM_OCAML_LIB) -lflags -g,-I,$(LLVM_OCAML_LIB),-cclib,-L$(LLVM_LIB) symexe_correct.$(OUTPUT_TYPE)
+
+.PHONY: wc
+wc:
+	wc symexe_correct.ml
+
+.PHONY: clean
+clean:
+	ocamlbuild -clean
+

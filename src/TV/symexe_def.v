@@ -140,7 +140,7 @@ Inductive dbCmd : layouts ->  GVMap ->
     (updateAddAL _ lc id gv3) als Mem
     trace_nil
 | dbSelect : forall TD lc gl id v0 t v1 v2 cond Mem als gv1 gv2,
-  getOperandInt TD 1 v0 lc gl = Some cond ->
+  getOperandInt TD Size.One v0 lc gl = Some cond ->
   getOperandValue TD v1 lc gl = Some gv1 ->
   getOperandValue TD v2 lc gl = Some gv2 ->
   dbCmd TD gl
@@ -158,7 +158,7 @@ Inductive dbTerminator :
   trace -> Prop :=
 | dbBranch : forall TD F B lc gl bid Cond l1 l2 c
                               l' ps' sbs' tmn' lc',   
-  getOperandInt TD 1 Cond lc gl = Some c ->
+  getOperandInt TD Size.One Cond lc gl = Some c ->
   Some (block_intro l' ps' sbs' tmn') = (if zeq c 0
                then lookupBlockViaLabelFromFdef F l2
                else lookupBlockViaLabelFromFdef F l1) ->

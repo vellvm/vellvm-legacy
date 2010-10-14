@@ -60,17 +60,17 @@ formula :: 'formula_' ::=
 				{{ tex [[block1]] = [[block2]] }}
 				{{ coq [[block1]] = [[block2]] }}
   | sz = 1			::   :: isOne
-       	 			{{ coq [[sz]] = 1%nat }} 
+       	 			{{ coq [[sz]] = Size.One }} 
   | sz = 32			::   :: isThirtyTwo
-       	 			{{ coq [[sz]] = 32%nat }}
+       	 			{{ coq [[sz]] = Size.ThirtyTwo }}
   | sz > 0			::   :: gtZero
-       	 			{{ coq ([[sz]] > 0)%nat }}
+       	 			{{ coq (Size.gt [[sz]] Size.Zero) }}
   | sz1 = sz2 			::   :: eqSize
 				{{ tex [[sz1]] = [[sz2]] }}
 				{{ coq [[sz1]] = [[sz2]] }}
   | sz1 < sz2 			::   :: ltSize
 				{{ tex ([[sz1]] < [[sz2]]) }}
-				{{ coq ([[sz1]] < [[sz2]])%nat }}
+				{{ coq (Size.lt [[sz1]] [[sz2]]) }}
   | INT1 = INT2 		::   :: eqINT
 				{{ tex [[INT1]] = [[INT2]] }}
 				{{ coq [[INT1]] = [[INT2]] }}
@@ -132,7 +132,7 @@ formula :: 'formula_' ::=
     	     			{{ com opt_id alias }} 
 				{{ coq [[opt_id]] = [[opt_id']] }}
   | length </ constj // j /> = sz :: M :: length_of_consts_is_sz
-                                {{ coq length (unmake_list_const [[ </ constj // j /> ]]) = [[sz]] }}
+                                {{ coq length (unmake_list_const [[ </ constj // j /> ]]) = Size.to_nat[[sz]] }}
   | ids <-> </ idj // j /> 	:: M :: ids_alias
     	      	   	        {{ com ids alias }}
 				{{ coq [[ids]] = unmake_list_id [[ </ idj // j /> ]] }}

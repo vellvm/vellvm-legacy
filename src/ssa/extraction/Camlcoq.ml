@@ -43,7 +43,7 @@ let camlint64_of_z = function
   | Zpos p -> camlint64_of_positive p
   | Zneg p -> Int64.neg (camlint64_of_positive p)
 
-let camlint64_of_coqint : Integers.Int64.int -> int64 = camlint64_of_z
+let camlint64_of_coqint : Integers.Int.int -> int64 = camlint64_of_z
 
 let rec camlint_of_nat = function
   | O -> 0
@@ -81,7 +81,7 @@ let z_of_camlint64 n =
   if n > 0L then Zpos (positive_of_camlint64 n)
   else Zneg (positive_of_camlint64 (Int64.neg n))
 
-let coqint_of_camlint64 (n: int64) : Integers.Int64.int = 
+let coqint_of_camlint64 (n: int64) : Integers.Int.int = 
   (* Interpret n as unsigned so that resulting Z is in range *)
   if n = 0L then Z0 else Zpos (positive_of_camlint64 n)
 

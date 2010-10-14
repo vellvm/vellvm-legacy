@@ -41,7 +41,7 @@ Proof.
   Case "sterm_bop".
     destruct st2; try solve [done_right].
     destruct (@bop_dec b b0); subst; try solve [done_right].
-    destruct (@sz_dec s s2); subst; try solve [done_right].
+    destruct (@Size.dec s s2); subst; try solve [done_right].
     destruct (@H st2_1); subst; try solve [done_right].
     destruct (@H0 st2_2); subst; try solve [auto | done_right].
   Case "sterm_extractvalue".
@@ -60,19 +60,19 @@ Proof.
     destruct st2; try solve [done_right].
     destruct (@H s1); subst; try solve [done_right].
     destruct (@typ_dec t t0); subst; try solve [done_right].
-    destruct (@sz_dec s0 s2); subst; try solve [done_right].
-    destruct (@align_dec a a0); subst; try solve [auto | done_right].
+    destruct (@Size.dec s0 s2); subst; try solve [done_right].
+    destruct (@Align.dec a a0); subst; try solve [auto | done_right].
   Case "sterm_alloca".    
     destruct st2; try solve [done_right].
     destruct (@H s1); subst; try solve [done_right].
     destruct (@typ_dec t t0); subst; try solve [done_right].
-    destruct (@sz_dec s0 s2); subst; try solve [done_right].
-    destruct (@align_dec a a0); subst; try solve [auto | done_right].
+    destruct (@Size.dec s0 s2); subst; try solve [done_right].
+    destruct (@Align.dec a a0); subst; try solve [auto | done_right].
   Case "sterm_load".    
     destruct st2; try solve [done_right].
     destruct (@H s1); subst; try solve [done_right].
     destruct (@typ_dec t t0); subst; try solve [done_right].
-    destruct (@align_dec a a0); subst; try solve [done_right].
+    destruct (@Align.dec a a0); subst; try solve [done_right].
     destruct (@H0 st2); subst; try solve [auto | done_right].
   Case "sterm_gep".    
     destruct st2; try solve [done_right].
@@ -127,8 +127,8 @@ Proof.
     destruct sm2; subst; try solve [done_right].
     destruct (@H sm2); subst; try solve [done_right].
     destruct (@typ_dec t t0); subst; try solve [done_right].
-    destruct (@sz_dec s0 s1); subst; try solve [done_right].
-    destruct (@align_dec a a0); subst; try solve [auto | done_right].
+    destruct (@Size.dec s0 s1); subst; try solve [done_right].
+    destruct (@Align.dec a a0); subst; try solve [auto | done_right].
   Case "smem_free".
     destruct sm2; subst; try solve [done_right].
     destruct (@H sm2); subst; try solve [done_right].
@@ -138,19 +138,19 @@ Proof.
     destruct sm2; subst; try solve [done_right].
     destruct (@H sm2); subst; try solve [done_right].
     destruct (@typ_dec t t0); subst; try solve [done_right].
-    destruct (@sz_dec s0 s1); subst; try solve [done_right].
-    destruct (@align_dec a a0); subst; try solve [auto | done_right].
+    destruct (@Size.dec s0 s1); subst; try solve [done_right].
+    destruct (@Align.dec a a0); subst; try solve [auto | done_right].
   Case "smem_load".
     destruct sm2; subst; try solve [done_right].
     destruct (@H sm2); subst; try solve [done_right].
     destruct (@typ_dec t t0); subst; try solve [done_right].
-    destruct (@align_dec a a0); subst; try solve [done_right].
+    destruct (@Align.dec a a0); subst; try solve [done_right].
     destruct (@H0 s1); subst; try solve [auto | done_right].
   Case "smem_store".
     destruct sm2; subst; try solve [done_right].
     destruct (@H sm2); subst; try solve [done_right].
     destruct (@typ_dec t t0); subst; try solve [done_right].
-    destruct (@align_dec a a0); subst; try solve [done_right].
+    destruct (@Align.dec a a0); subst; try solve [done_right].
     destruct (@H0 s2); subst; try solve [auto | done_right].
     destruct (@H1 s3); subst; try solve [auto | done_right].
   Case "sframe_init".
@@ -160,8 +160,8 @@ Proof.
     destruct (@H s2); subst; try solve [done_right].
     destruct (@H0 sf2); subst; try solve [auto | done_right].
     destruct (@typ_dec t t0); subst; try solve [done_right].
-    destruct (@sz_dec s1 s3); subst; try solve [done_right].
-    destruct (@align_dec a a0); subst; try solve [auto | done_right].
+    destruct (@Size.dec s1 s3); subst; try solve [done_right].
+    destruct (@Align.dec a a0); subst; try solve [auto | done_right].
 Qed.
 
 Lemma sterm_dec : forall (st1 st2:sterm), {st1=st2} + {~st1=st2}.

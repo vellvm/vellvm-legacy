@@ -122,7 +122,7 @@ GFILES:=$(VFILES:.v=.g)
 HTMLFILES:=$(VFILES:.v=.html)
 GHTMLFILES:=$(VFILES:.v=.g.html)
 
-all: $(VOFILES) 
+all: $(VOFILES) ocaml
 spec: $(VIFILES)
 
 gallina: $(GFILES)
@@ -147,7 +147,8 @@ all.pdf: $(VFILES)
 all-gal.pdf: $(VFILES)
 	$(COQDOC) -toc -pdf -g $(COQDOCLIBS) -o $@ `$(COQDEP) -sort -suffix .v $(VFILES)`
 
-
+ocaml:
+	make -C ./extraction -f Makefile.ocaml
 
 ####################
 #                  #

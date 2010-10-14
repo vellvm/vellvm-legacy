@@ -1,0 +1,18 @@
+OUTPUT_TYPE := cma
+LLVM_LIB := /home/jianzhou/Tools/llvm-2.6/lib/
+LLVM_OCAML_LIB := $(LLVM_LIB)/ocaml/
+
+all: ssa_interpreter
+
+ssa_interpreter: ssa_interpreter.ml ssa_interpreter.mli
+	./fixextract.py
+	ocamlbuild -j 2 -cflags -g,-I,$(LLVM_OCAML_LIB) -lflags -g,-I,$(LLVM_OCAML_LIB),-cclib,-L$(LLVM_LIB) ssa_interpreter.$(OUTPUT_TYPE)
+
+.PHONY: wc
+wc:
+	wc *.ml
+
+.PHONY: clean
+clean:
+	ocamlbuild -clean
+

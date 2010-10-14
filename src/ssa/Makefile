@@ -22,6 +22,7 @@ ssa_def.vo : ssa_def.v ./monads/monad.vo
 
 ssa_def.v : ssa_def.ott emacs.ott
 	$(OTT) -coq_expand_list_types true -i ssa_def.ott -i emacs.ott -o ssa_def.v
+	./fixott.py ssa_def.v
 
 ssa_coq.ott : ssa_coq_lib.vo ssa_def.ott coq2ott.py 
 	./coq2ott.py
@@ -56,8 +57,12 @@ genericvalues.vo: ssa.vo tactics.vo trace.vo genericvalues.v assoclist.vo
 ssa_dynamic.vo: ssa_dynamic.v ssa.vo tactics.vo ssa_mem.vo trace.vo genericvalues.vo assoclist.vo
 	$(COQC) $(COQARG) ssa_dynamic.v
 
-ssa_extract.vo: ssa_extract.v ssa_dynamic.vo ssa.vo tactics.vo ssa_mem.vo trace.vo genericvalues.vo assoclist.vo
+ssa_interpreter.vo: ssa_interpreter.v ssa_dynamic.vo ssa.vo tactics.vo ssa_mem.vo trace.vo genericvalues.vo assoclist.vo
+	$(COQC) $(COQARG) ssa_interpreter.v
+
+ssa_extract.vo: ssa_extract.v ssa_interpreter.vo ssa_dynamic.vo ssa.vo tactics.vo ssa_mem.vo trace.vo genericvalues.vo assoclist.vo
 	$(COQC) $(COQARG) ssa_extract.v
+	+make -C ./extraction -f Makefile.ocaml
 
 ssa_props.vo: ssa_props.v ssa.vo genericvalues.vo assoclist.vo
 	$(COQC) $(COQARG) ssa_props.v

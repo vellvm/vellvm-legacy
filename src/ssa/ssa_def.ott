@@ -7,7 +7,8 @@ Require Import ListSet.
 Require Import Logic_Type.
 Require Import monad.
 Require Import Metatheory.
-Require Import ZArith.BinInt.
+Require Import ZArith.
+Require Import Coqlib.
 
 Module LLVMsyntax.
 
@@ -22,20 +23,128 @@ Section Lists.
     | a :: l' => last_opt l'
   end.
 
-End Lists. 
+End Lists.
+
+Require Import ZArith.
+
+(*
+Module Type DataType.
+
+Parameter t : Set.
+Parameter dec : forall x y : t, {x=y} + {x<>y}.
+Parameter Zero : t.
+Parameter One : t.
+Parameter Two : t.
+Parameter Four : t.
+Parameter Eight : t.
+Parameter Sixteen : t.
+Parameter ThirtyTwo : t.
+Parameter SixtyFour : t.
+Parameter from_nat : nat -> t.
+Parameter to_nat : t -> nat.
+Parameter to_Z : t -> Z.
+Parameter from_Z : Z -> t.
+Parameter add : t -> t -> t.
+Parameter sub : t -> t -> t.
+Parameter mul : t -> t ->t.
+Parameter div : t -> t -> t.
+Parameter gt : t -> t -> Prop.
+Parameter lt : t -> t -> Prop.
+
+End DataType.
+*)
+
+Module Size.
+
+Definition t := nat.
+Definition dec : forall x y : t, {x=y} + {x<>y} := eq_nat_dec.
+Definition Zero : t := 0%nat.
+Definition One : t := 1%nat.
+Definition Two : t := 2%nat.
+Definition Four : t := 4%nat.
+Definition Eight : t := 8%nat.
+Definition Sixteen : t := 16%nat.
+Definition ThirtyTwo : t := 32%nat.
+Definition SixtyFour : t := 64%nat.
+Definition from_nat (i:nat) : t := i.
+Definition to_nat (i:t) : nat := i.
+Definition to_Z (i:t) : Z := Z_of_nat i.
+Definition from_Z (i:Z) : t := nat_of_Z i.
+Definition add (a b:t) : t := (a + b)%nat.
+Definition sub (a b:t) : t := (a - b)%nat.
+Definition mul (a b:t) : t := (a * b)%nat.
+Definition div (a b:t) : t := nat_of_Z ((Z_of_nat a) / (Z_of_nat b)).
+Definition gt (a b:t) : Prop := (a > b)%nat.
+Definition lt (a b:t) : Prop := (a < b)%nat.
+
+End Size.
+
+Module Align.
+
+Definition t := nat.
+Definition dec : forall x y : t, {x=y} + {x<>y} := eq_nat_dec.
+Definition Zero : t := 0%nat.
+Definition One : t := 1%nat.
+Definition Two : t := 2%nat.
+Definition Four : t := 4%nat.
+Definition Eight : t := 8%nat.
+Definition Sixteen : t := 16%nat.
+Definition ThirtyTwo : t := 32%nat.
+Definition SixtyFour : t := 64%nat.
+Definition from_nat (i:nat) : t := i.
+Definition to_nat (i:t) : nat := i.
+Definition to_Z (i:t) : Z := Z_of_nat i.
+Definition from_Z (i:Z) : t := nat_of_Z i.
+Definition add (a b:t) : t := (a + b)%nat.
+Definition sub (a b:t) : t := (a - b)%nat.
+Definition mul (a b:t) : t := (a * b)%nat.
+Definition div (a b:t) : t := nat_of_Z ((Z_of_nat a) / (Z_of_nat b)).
+Definition gt (a b:t) : Prop := (a > b)%nat.
+Definition lt (a b:t) : Prop := (a < b)%nat.
+
+End Align.
+
+Module INTEGER.
+
+Definition t := Z.
+Definition dec : forall x y : t, {x=y} + {x<>y} := zeq.
+(*
+Definition Zero : t := 0%Z.
+Definition One : t := 1%Z.
+Definition Two : t := 2%Z.
+Definition Four : t := 4%Z.
+Definition Eight : t := 8%Z.
+Definition Sixteen : t := 16%Z.
+Definition ThirtyTwo : t := 32%Z.
+Definition SixtyFour : t := 64%Z.
+Definition from_nat (i:nat) : t := Z_of_nat i.
+*)
+Definition to_nat (i:t) : nat := nat_of_Z i.
+Definition to_Z (i:t) : Z := i.
+(*
+Definition from_Z (i:Z) : t := i.
+Definition add (a b:t) : t := (a + b)%Z.
+Definition sub (a b:t) : t := (a - b)%Z.
+Definition mul (a b:t) : t := (a * b)%Z.
+Definition div (a b:t) : t := (a / b)%Z.
+Definition gt (a b:t) : Prop := (a > b)%Z.
+Definition lt (a b:t) : Prop := (a < b)%Z.
+*)
+
+End INTEGER.
 
 }}
 
 metavar INT ::= {{ com INT }}
-  {{ coq Z }} {{ lex numeral }}
+  {{ coq INTEGER.t }} {{ lex numeral }}
 metavar sz ::= {{ com sz }}
-  {{ coq nat }} {{ lex numeral }}
+  {{ coq Size.t }} {{ lex numeral }}
 metavar id ::= {{ com identities }}
   {{ coq atom }} {{ lex numeral  }}
 metavar l ::= {{ com labels }}
   {{ coq atom }} {{ lex numeral  }}
 metavar align ::= {{ com align }}
-  {{ coq nat }} {{ lex numeral }}
+  {{ coq Align.t }} {{ lex numeral }}
 indexvar i, j, n ::= {{ com index }}
   {{ coq nat }}
  

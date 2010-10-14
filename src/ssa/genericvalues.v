@@ -27,6 +27,7 @@ Definition ptr2GV TD p := mptr2mvalue TD p (getPointerSizeInBits TD).
 *)
 
 Export LLVMsyntax.
+Export LLVMlib.
 
 Definition GenericValue := list (val*memory_chunk).
 Definition GVMap := list (id*GenericValue).
@@ -46,7 +47,7 @@ end.
 Definition GV2int (TD:layouts) (bsz:sz) (gv:GenericValue) : option Z :=
 match gv with
 | (Vint wz i,c)::nil => 
-  if eq_nat_dec (wz+1) bsz
+  if eq_nat_dec (wz+1) (Size.to_nat bsz)
   then Some (Int.unsigned wz i)
   else None
 | _ => None
@@ -80,8 +81,8 @@ Definition mgep (TD:layouts) (t:typ) (ma:val) (idxs:list Z) : option val := None
 Fixpoint _const2GV (TD:layouts) (gl:GVMap) (c:const) : option (GenericValue*typ) := 
 match c with
 | const_int sz n => 
-         let wz := sz - 1 in
-         Some (val2GV TD (Vint wz (Int.repr wz n)) (Mint wz), typ_int sz)
+         let wz := (Size.to_nat sz) - 1 in
+         Some (val2GV TD (Vint wz (Int.repr wz (INTEGER.to_Z n))) (Mint wz), typ_int sz)
 | const_undef t =>  
          match (getTypeSizeInBits TD t) with
          | Some wz => Some (val2GV TD Vundef (Mint (wz-1)), t)
@@ -94,8 +95,8 @@ match c with
          | None => None
          | Some ((gv, t), al) => 
            match (sizeGenericValue gv) with
-           | 0 => Some (uninits al, t)
-           | _ => Some (gv++uninits (al-sizeGenericValue gv), t)
+           | 0 => Some (uninits (Align.to_nat al), t)
+           | _ => Some (gv++uninits (Align.to_nat al-sizeGenericValue gv), t)
            end
          end
 | const_gid t id =>
@@ -106,7 +107,7 @@ match c with
 end
 with _list_const_arr2GV (TD:layouts) (gl:GVMap) (cs:list_const) : option (GenericValue*typ) := 
 match cs with
-| Nil_list_const => Some (nil, typ_int 0)
+| Nil_list_const => Some (nil, typ_int Size.Zero)
 | Cons_list_const c lc' =>
   match (_list_const_arr2GV TD gl lc', _const2GV TD gl c) with
   | (Some (gv, t), Some (gv0,t0)) =>
@@ -119,13 +120,13 @@ match cs with
 end
 with _list_const_struct2GV (TD:layouts) (gl:GVMap) (cs:list_const) : option (GenericValue*typ*align) := 
 match cs with
-| Nil_list_const => Some ((nil, typ_int 0), 0)
+| Nil_list_const => Some ((nil, typ_int Size.Zero), Align.Zero)
 | Cons_list_const c lc' =>
   match (_list_const_struct2GV TD gl lc', _const2GV TD gl c) with
   | (Some (gv, t, struct_al), Some (gv0,t0)) =>
              match (getABITypeAlignment TD t0, getTypeAllocSize TD t0) with
              | (Some sub_al, Some sub_sz) => 
-               match (le_lt_dec sub_al struct_al) with
+               match (le_lt_dec sub_al (Align.to_nat struct_al)) with
                | left _ (* struct_al <= sub_al *) =>
                  Some (
                   (gv++
@@ -133,7 +134,7 @@ match cs with
                   gv0++
                   (uninits (sub_sz - sizeGenericValue gv0)),
                   t0),
-                  sub_al
+                  (Align.from_nat sub_al)
                  )
                | right _ (* sub_al < struct_al *) =>
                  Some (
@@ -164,9 +165,9 @@ match v with
 | value_const c => (const2GV TD globals c)
 end.
 
-Definition getOperandInt (TD:layouts) (sz:nat) (v:value) (locals:GVMap) (globals:GVMap) : option Z := 
+Definition getOperandInt (TD:layouts) (bsz:sz) (v:value) (locals:GVMap) (globals:GVMap) : option Z := 
 match (getOperandValue TD v locals globals) with
-| Some gi => GV2int TD sz gi
+| Some gi => GV2int TD bsz gi
 | None => None
 end.
 
@@ -247,7 +248,7 @@ match lv with
 | Cons_list_value v lv' => 
   match (getOperandValue TD v locals globals) with
   | Some GV => 
-    match (GV2int TD 32 GV) with
+    match (GV2int TD Size.ThirtyTwo GV) with
     | Some z =>
         match (intValues2Nats TD lv' locals globals) with
         | Some ns => Some (z::ns)
@@ -262,11 +263,14 @@ end.
 Fixpoint intConsts2Nats (TD:layouts) (lv:list_const) : option (list Z):=
 match lv with
 | Nil_list_const => Some nil
-| Cons_list_const (const_int 32 n) lv' => 
+| Cons_list_const (const_int sz0 n) lv' => 
+  if Size.dec sz0 Size.ThirtyTwo 
+  then
     match (intConsts2Nats TD lv') with
-    | Some ns => Some (n::ns)
+    | Some ns => Some ((INTEGER.to_Z n)::ns)
     | None => None
     end
+  else None
 | _ => None
 end.
 
@@ -274,7 +278,7 @@ Fixpoint GVs2Nats (TD:layouts) (lgv:list GenericValue) : option (list Z):=
 match lgv with
 | nil => Some nil
 | gv::lgv' => 
-    match (GV2int TD 32 gv) with
+    match (GV2int TD Size.ThirtyTwo gv) with
     | Some z =>
         match (GVs2Nats TD lgv') with
         | Some ns => Some (z::ns)
@@ -338,13 +342,14 @@ end.
 Definition mbop (TD:layouts) (op:bop) (bsz:sz) (gv1 gv2:GenericValue) : option GenericValue :=
 match (GV2val TD gv1, GV2val TD gv2) with
 | (Some (Vint wz1 i1), Some (Vint wz2 i2)) => 
-  if eq_nat_dec (wz1+1) bsz 
+  let bsz' := (Size.to_nat bsz) in 
+  if eq_nat_dec (wz1+1) bsz'
   then
      match op with
-     | bop_add => Some (val2GV TD (Val.add (Vint wz1 i1) (Vint wz2 i2)) (Mint (bsz-1)))
-     | bop_lshr => Some (val2GV TD (Val.shr (Vint wz1 i1) (Vint wz2 i2)) (Mint (bsz-1)))
-     | bop_and => Some (val2GV TD (Val.and (Vint wz1 i1) (Vint wz2 i2)) (Mint (bsz-1)))
-     | bop_or => Some (val2GV TD (Val.or (Vint wz1 i1) (Vint wz2 i2)) (Mint (bsz-1)))
+     | bop_add => Some (val2GV TD (Val.add (Vint wz1 i1) (Vint wz2 i2)) (Mint (bsz'-1)))
+     | bop_lshr => Some (val2GV TD (Val.shr (Vint wz1 i1) (Vint wz2 i2)) (Mint (bsz'-1)))
+     | bop_and => Some (val2GV TD (Val.and (Vint wz1 i1) (Vint wz2 i2)) (Mint (bsz'-1)))
+     | bop_or => Some (val2GV TD (Val.or (Vint wz1 i1) (Vint wz2 i2)) (Mint (bsz'-1)))
      end
   else None
 | _ => None
@@ -389,8 +394,8 @@ match (t1, t2) with
    match (GV2val TD gv1) with
    | Some (Vint wz1 i1) =>
      match op with
-     | extop_z => Some (val2GV TD (Val.zero_ext (Z_of_nat sz2) (Vint wz1 i1)) (Mint (sz2-1)))
-     | extop_s => Some (val2GV TD (Val.sign_ext (Z_of_nat sz2) (Vint wz1 i1)) (Mint (sz2-1)))
+     | extop_z => Some (val2GV TD (Val.zero_ext (Size.to_Z sz2) (Vint wz1 i1)) (Mint (Size.to_nat sz2-1)))
+     | extop_s => Some (val2GV TD (Val.sign_ext (Size.to_Z sz2) (Vint wz1 i1)) (Mint (Size.to_nat sz2-1)))
      end
    | _ => None
    end
@@ -546,7 +551,7 @@ Proof.
 
     remember (getOperandValue TD v lc gl) as ogv.
     destruct ogv; try solve [inversion H].
-    remember (GV2int TD 32 g) as on.
+    remember (GV2int TD Size.ThirtyTwo g) as on.
     destruct on; try solve [inversion H].
     remember (intValues2Nats TD l0 lc gl) as ons.
     destruct ons; inversion H; subst.
