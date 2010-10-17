@@ -10,6 +10,7 @@ Require Import genericvalues.
 
 Export LLVMsyntax.
 Export LLVMlib.
+Export LLVMgv.
 
 (* eq is refl *)
 

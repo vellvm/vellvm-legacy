@@ -20,6 +20,8 @@ Require Import Coqlib.
 
 Export LLVMsyntax.
 Export LLVMlib.
+Export LLVMgv.
+Export LLVMmem.
 
 (***************************************************************)
 (* Syntax easy to be proved with symbolic execution. *)

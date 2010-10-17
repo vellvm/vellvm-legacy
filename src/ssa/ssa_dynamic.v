@@ -21,6 +21,8 @@ Module LLVMopsem.
 
 Export LLVMsyntax.
 Export LLVMlib.
+Export LLVMgv.
+Export LLVMmem.
 
 (**************************************)
 (** Execution contexts *)

@@ -18,7 +18,10 @@ Require Import Coqlib.
 Require Import genericvalues.
 Require Import AST.
 
+Module LLVMmem.
+
 Export LLVMsyntax.
+Export LLVMgv.
 
 (** Memory is separated as blocks indexed by [mblock], contents in each block
     are indexed by [moffset]. Pointers [mptr] are encoded as pairs [mblock] and [moffset].
@@ -172,4 +175,5 @@ do s <- getTypeStoreSize TD t0;
    endif.
 *)
 
+End LLVMmem.
 

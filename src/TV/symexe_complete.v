@@ -17,6 +17,7 @@ Require Import assoclist.
 Require Import ZArith.
 
 Export SimpleSE.
+Export LLVMmem.
 
 (* Symbolic execuction is complete:
    Any concrete execution of a subblock satisfies its symbolic execution. *)
@@ -219,7 +220,7 @@ Proof.
     split; auto.     
       apply getOperandPtr_inversion in H11.
       destruct H11 as [gv [J1 J2]].
-      apply smem_free_denotes with (Mem1:=Mem1)(gv0:=gv)(mptr0:=mptr); auto.
+      apply smem_free_denotes with (Mem1:=Mem1)(gv0:=gv)(mptr0:=mptr0); auto.
         eapply genericvalue__implies__value2Sterm_denotes; eauto.
     
   Case "insn_alloca".

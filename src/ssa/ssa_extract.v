@@ -81,6 +81,32 @@ Extract Constant LLVMlib.inbounds_dec => "(==)".
 Extract Constant LLVMlib.tailc_dec => "(==)".
 Extract Constant LLVMlib.noret_dec => "(==)".
 
+Extract Constant LLVMgv.GenericValue => "Llvmcaml.GenericValue.t".
+Extract Constant LLVMgv.sizeGenericValue => "Llvmcaml.GenericValue.sizeGenericValue".
+Extract Constant LLVMgv.uninits => "Llvmcaml.GenericValue.uninits".
+Extract Constant LLVMgv.GV2val => "Llvmcaml.GenericValue.gv2val".
+Extract Constant LLVMgv.GV2int => "Llvmcaml.GenericValue.gv2int".
+Extract Constant LLVMgv.GV2ptr => "Llvmcaml.GenericValue.gv2ptr".
+Extract Constant LLVMgv.val2GV => "Llvmcaml.GenericValue.val2GV".
+Extract Constant LLVMgv.ptr2GV => "Llvmcaml.GenericValue.ptr2GV".
+Extract Constant LLVMgv.blk2GV => "Llvmcaml.GenericValue.blk2GV".
+Extract Constant LLVMgv.mgep => "Llvmcaml.GenericValue.mgep".
+Extract Constant LLVMgv._const2GV => "Llvmcaml.GenericValue._const2GV".
+Extract Constant LLVMgv._list_const_arr2GV => "Llvmcaml.GenericValue._list_const_arr2GV".
+Extract Constant LLVMgv._list_const_struct2GV => "Llvmcaml.GenericValue._list_const_struct2GV".
+Extract Constant LLVMgv.const2GV => "Llvmcaml.GenericValue.const2GV".
+Extract Constant LLVMgv.extractGenericValue => "Llvmcaml.GenericValue.extractGenericValue".
+Extract Constant LLVMgv.insertGenericValue => "Llvmcaml.GenericValue.insertGenericValue".
+Extract Constant LLVMgv.mbop => "Llvmcaml.GenericValue.mbop".
+Extract Constant LLVMgv.mcast => "Llvmcaml.GenericValue.mcast".
+Extract Constant LLVMgv.mext => "Llvmcaml.GenericValue.mext".
+Extract Constant LLVMgv.micmp => "Llvmcaml.GenericValue.micmp".
+
+Extract Constant LLVMmem.malloc =>  "Llvmcaml.Mem.malloc".
+Extract Constant LLVMmem.free =>  "Llvmcaml.Mem.free".
+Extract Constant LLVMmem.mload =>  "Llvmcaml.Mem.mload".
+Extract Constant LLVMmem.mstore =>  "Llvmcaml.Mem.mstore".
+
 (* Float *)
 Extract Inlined Constant Floats.float => "float".
 Extract Constant Floats.Float.zero   => "0.".

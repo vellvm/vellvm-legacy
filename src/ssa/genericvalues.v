@@ -16,6 +16,8 @@ Require Import AST.
 Require Import targetdata.
 Require Import ZArith.
 
+Module LLVMgv.
+
 (*
 Definition GenericValue := mvalue.
 Definition GV2nat := mvalue2nat.
@@ -32,13 +34,13 @@ Export LLVMlib.
 Definition GenericValue := list (val*memory_chunk).
 Definition GVMap := list (id*GenericValue).
 
-Fixpoint sizeGenericValue (gv:GenericValue) := 
+Fixpoint sizeGenericValue (gv:GenericValue) : nat := 
 match gv with
 | nil => O
 | (_, c)::gv' => size_chunk_nat c + sizeGenericValue gv'
 end.
 
-Definition uninits (n:nat) := (Vundef, Mint (n*8-1))::nil.
+Definition uninits (n:nat) : GenericValue := (Vundef, Mint (n*8-1))::nil.
 Definition GV2val (TD:layouts) (gv:GenericValue) : option val :=
 match gv with
 | (v,c)::nil => Some v
@@ -57,18 +59,18 @@ match gv with
 | (Vptr a b,c)::nil => Some (Vptr a b)
 | _ => None
 end.
-Fixpoint isGVUndef (gv:GenericValue) :=
+Fixpoint isGVUndef (gv:GenericValue) : Prop :=
 match gv with
 | nil => False
 | (Vundef,_)::gv' => True
 | _::gv' => isGVUndef gv'
 end.
-Definition val2GV (TD:layouts) (v:val) (c:memory_chunk) :=
+Definition val2GV (TD:layouts) (v:val) (c:memory_chunk) : GenericValue :=
 (v,c)::nil.
-Definition ptr2GV (TD:layouts) (ptr:val) :=
+Definition ptr2GV (TD:layouts) (ptr:val) : GenericValue :=
 val2GV TD ptr (Mint 31).
-Definition blk2Vptr (b:Values.block) := (Vptr b (Int.repr 31 0)).
-Definition blk2GV (TD:layouts) (b:Values.block) :=
+Definition blk2Vptr (b:Values.block) : val := (Vptr b (Int.repr 31 0)).
+Definition blk2GV (TD:layouts) (b:Values.block) : GenericValue :=
 ptr2GV TD (blk2Vptr b).
 Definition mgetoffset (TD:layouts) (t:typ) (idx:list Z) : option int32 := None.
 Definition mget (TD:list layout) (v:GenericValue) (o:int32) (t:typ) : option GenericValue := None.
@@ -225,7 +227,7 @@ match lg with
 | _::lg' => opGVs2GVs lg'
 end.
 
-Definition params2GVs (TD:layouts) (lp:params) (locals:GVMap) (globals:GVMap) := 
+Definition params2GVs (TD:layouts) (lp:params) (locals:GVMap) (globals:GVMap) : list GenericValue  := 
   opGVs2GVs (params2OpGVs TD lp locals globals).
 
 Fixpoint values2GVs (TD:layouts) (lv:list_value) (locals:GVMap) (globals:GVMap) : option (list GenericValue):=
@@ -706,3 +708,4 @@ Proof.
   erewrite intValues2Nats_eqAL; eauto.
 Qed.
 
+End LLVMgv.
