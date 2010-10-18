@@ -4,7 +4,7 @@ Add LoadPath "./monads".
 Require Import Zpower.
 Require Import Zdiv.
 Require Import List.
-Require Import ssa.
+Require Import ssa_def.
 Require Import Coqlib.
 
 Export LLVMsyntax.

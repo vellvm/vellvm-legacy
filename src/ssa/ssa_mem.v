@@ -2,7 +2,7 @@ Add LoadPath "./ott".
 Add LoadPath "./monads".
 Add LoadPath "./compcert".
 (* Add LoadPath "../../../theory/metatheory". *)
-Require Import ssa.
+Require Import ssa_def.
 Require Import List.
 Require Import tactics.
 Require Export Coq.Program.Equality.
@@ -33,11 +33,8 @@ Export LLVMgv.
 (** memory address *)
 (*Definition maddr := nat.*)
 
-Definition mblock := Values.block.
 (* Definition malloca := mblock -> option maddr. *)
 Definition moffset := Int.int 31.
-Definition mptr := val.
-Definition null := Vptr Mem.nullptr (Int.repr 31 0).
 
 (*
 (** Bytes stored at each [maddr] *)
@@ -61,15 +58,15 @@ Definition initmem := mkMem (fun _ => mbyte_uninit) (fun _ => None) : mem.
 *)
 
 Definition mem := Mem.mem.
-Definition initmem := Mem.empty.
+Definition initmem : mem := Mem.empty.
 
 (** allocate memory with size and alignment *)
 Definition malloc (TD:layouts) (M:mem) (bsz:sz) (al:align) : option (mem * mblock)%type :=
 Some (Mem.alloc M 0 (Size.to_Z bsz)).
 
-Definition free (M:mem) (ptr:mptr) : option mem :=
-match ptr with
-| Vptr b i =>
+Definition free (TD:layouts) (M:mem) (ptr:mptr) : option mem :=
+match GV2ptr TD (getPointerSize TD) ptr with
+| Some (Vptr b i) =>
   if zeq (Int.unsigned 31 i) 0 
   then
     match (Mem.bounds M b) with
@@ -79,12 +76,12 @@ match ptr with
 | _ => None
 end.
 
-Fixpoint free_allocas (Mem:mem) (allocas:list mblock) : option mem :=
+Fixpoint free_allocas (TD:layouts) (Mem:mem) (allocas:list mblock) : option mem :=
 match allocas with
 | nil => Some Mem
 | alloca::allocas' =>
-  match (free Mem (Vptr alloca (Int.repr 31 0))) with
-  | Some Mem' => free_allocas Mem' allocas'
+  match (free TD Mem (blk2GV TD alloca)) with
+  | Some Mem' => free_allocas TD Mem' allocas'
   | None => None
   end
 end.
@@ -99,8 +96,8 @@ Definition typ2memory_chunk (t:typ) : option memory_chunk :=
   end.
 
 Definition mload (TD:layouts) (M:mem) (ptr:mptr) (t:typ) (a:align) : option GenericValue :=
-match ptr with
-| Vptr b ofs =>
+match GV2ptr TD (getPointerSize TD) ptr with
+| Some (Vptr b ofs) =>
   match typ2memory_chunk t with
   | Some c => 
     match (Mem.load c M b (Int.unsigned 31 ofs)) with
@@ -113,8 +110,8 @@ match ptr with
 end.
 
 Definition mstore (TD:layouts) (M:mem) (ptr:mptr) (t:typ) (gv:GenericValue) (a:align) : option mem :=
-match ptr with
-| Vptr b ofs =>
+match GV2ptr TD (getPointerSize TD) ptr with
+| Some (Vptr b ofs) =>
   match typ2memory_chunk t, GV2val TD gv with
   | Some c, Some v => Mem.store c M b (Int.unsigned 31 ofs) v
   | _, _ => None

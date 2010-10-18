@@ -1,7 +1,8 @@
 Add LoadPath "./ott".
 Add LoadPath "./monads".
 (*Add LoadPath "../../../theory/metatheory".*)
-Require Import ssa.
+Require Import ssa_def.
+Require Import ssa_lib.
 Require Import Coq.Program.Equality.
 Require Import CoqListFacts.
 Require Import Metatheory.

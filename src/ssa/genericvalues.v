@@ -8,7 +8,8 @@ Require Import monad.
 Require Import trace.
 Require Import Metatheory.
 Require Import assoclist.
-Require Import ssa.
+Require Import ssa_def.
+Require Import ssa_lib.
 Require Import Memory.
 Require Import Values.
 Require Import Integers.
@@ -33,6 +34,10 @@ Export LLVMlib.
 
 Definition GenericValue := list (val*memory_chunk).
 Definition GVMap := list (id*GenericValue).
+
+Definition mblock := Values.block.
+Definition mptr := GenericValue.
+Definition null := (Vptr Mem.nullptr (Int.repr 31 0), Mint 31)::nil.
 
 Fixpoint sizeGenericValue (gv:GenericValue) : nat := 
 match gv with
@@ -68,10 +73,9 @@ end.
 Definition val2GV (TD:layouts) (v:val) (c:memory_chunk) : GenericValue :=
 (v,c)::nil.
 Definition ptr2GV (TD:layouts) (ptr:val) : GenericValue :=
-val2GV TD ptr (Mint 31).
-Definition blk2Vptr (b:Values.block) : val := (Vptr b (Int.repr 31 0)).
-Definition blk2GV (TD:layouts) (b:Values.block) : GenericValue :=
-ptr2GV TD (blk2Vptr b).
+val2GV TD ptr (Mint (getPointerSize TD-1)).
+Definition blk2GV (TD:layouts) (b:mblock) : GenericValue :=
+ptr2GV TD (Vptr b (Int.repr 31 0)).
 Definition mgetoffset (TD:layouts) (t:typ) (idx:list Z) : option int32 := None.
 Definition mget (TD:list layout) (v:GenericValue) (o:int32) (t:typ) : option GenericValue := None.
 Definition mset (TD:list layout) (v:GenericValue) (o:int32) (t0:typ) (v0:GenericValue) : option GenericValue := None.

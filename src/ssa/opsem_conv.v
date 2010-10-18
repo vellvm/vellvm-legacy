@@ -4,7 +4,8 @@ Add LoadPath "./monads".
 Require Import ssa_mem.
 Require Import genericvalues.
 Require Import ssa_dynamic.
-Require Import ssa.
+Require Import ssa_def.
+Require Import ssa_lib.
 Require Import trace.
 Require Import List.
 Require Import tactics.
@@ -540,7 +541,7 @@ Proof.
    SCase "ore = Some re".    
     destruct noret0.
     SSCase "noret = true".
-      remember (free_allocas Mem' als') as Mem''.
+      remember (free_allocas TD Mem' als') as Mem''.
       destruct Mem''; simpl in H; try solve [inversion H; subst].
       remember (updateStatesFromReturns S TD Ps F B cs tmn lc0 gl rid rt0 arg0 als EC true lc_als_Mem_block_rid_ore_trs) as states2.
       destruct states2; simpl in H; inversion H; subst.
@@ -552,7 +553,7 @@ Proof.
       apply nsop_star_cons; auto.
 
     SSCase "noret=false".
-      remember (free_allocas Mem' als') as Mem''.
+      remember (free_allocas TD Mem' als') as Mem''.
       destruct Mem''; simpl in H; try solve [inversion H; subst].
       remember (updateStatesFromReturns S TD Ps F B cs tmn lc0 gl rid rt0 arg0 als EC false lc_als_Mem_block_rid_ore_trs) as states2.
       destruct states2; simpl in H; inversion H; subst.
@@ -568,7 +569,7 @@ Proof.
    SCase "ore = None".    
     destruct noret0.
     SSCase "noret = true".
-      remember (free_allocas Mem' als') as Mem''.
+      remember (free_allocas TD Mem' als') as Mem''.
       destruct Mem''; simpl in H; try solve [inversion H; subst].
       remember (updateStatesFromReturns S TD Ps F B cs tmn lc0 gl rid rt0 arg0 als EC true lc_als_Mem_block_rid_ore_trs) as states2.
       destruct states2; simpl in H; inversion H; subst.
@@ -579,7 +580,7 @@ Proof.
       rewrite EQ.
       apply nsop_star_cons; auto.
     SSCase "noret = flase".
-      remember (free_allocas Mem' als') as Mem''.
+      remember (free_allocas TD Mem' als') as Mem''.
       destruct Mem''; simpl in H; try solve [inversion H; subst].
       remember (updateStatesFromReturns S TD Ps F B cs tmn lc0 gl rid rt0 arg0 als EC false lc_als_Mem_block_rid_ore_trs) as states2.
       destruct states2; simpl in H; inversion H; subst.
@@ -595,7 +596,7 @@ Proof.
    SCase "ore = Some re".    
     destruct noret0.
     SSCase "noret = true".
-      remember (free_allocas Mem' als') as Mem''.
+      remember (free_allocas TD Mem' als') as Mem''.
       destruct Mem''; simpl in H; try solve [inversion H; subst].
       remember (updateStatesFromReturns S TD Ps F B cs tmn lc0 gl rid rt0 arg0 als EC true lc_als_Mem_block_rid_ore_trs) as states2.
       destruct states2; simpl in H; inversion H; subst.
@@ -608,7 +609,7 @@ Proof.
     SSCase "noret = false".
       remember (getOperandValue TD re lc' gl) as ogv.
       destruct ogv as [g |].
-        remember (free_allocas Mem' als') as Mem''.
+        remember (free_allocas TD Mem' als') as Mem''.
         destruct Mem''; simpl in H; try solve [inversion H; subst].
         remember (updateStatesFromReturns S TD Ps F B cs tmn lc0 gl rid rt0 arg0 als EC false lc_als_Mem_block_rid_ore_trs) as states2.
         destruct states2; simpl in H; inversion H; subst.
@@ -622,7 +623,7 @@ Proof.
         rewrite EQ.
         apply nsop_star_cons; auto.
 
-        remember (free_allocas Mem' als') as Mem''.
+        remember (free_allocas TD Mem' als') as Mem''.
         destruct Mem''; simpl in H; try solve [inversion H; subst].
         remember (updateStatesFromReturns S TD Ps F B cs tmn lc0 gl rid rt0 arg0 als EC false lc_als_Mem_block_rid_ore_trs) as states2.
         destruct states2; simpl in H; inversion H; subst.
@@ -638,7 +639,7 @@ Proof.
    SCase "ore = None".    
     destruct noret0.
     SSCase "noret = true".
-      remember (free_allocas Mem' als') as Mem''.
+      remember (free_allocas TD Mem' als') as Mem''.
       destruct Mem''; simpl in H; try solve [inversion H; subst].
       remember (updateStatesFromReturns S TD Ps F B cs tmn lc0 gl rid rt0 arg0 als EC true lc_als_Mem_block_rid_ore_trs) as states2.
       destruct states2; simpl in H; inversion H; subst.
@@ -649,7 +650,7 @@ Proof.
       rewrite EQ.
       apply nsop_star_cons; eauto.
     SSCase "noret = false".
-      remember (free_allocas Mem' als') as Mem''.
+      remember (free_allocas TD Mem' als') as Mem''.
       destruct Mem''; simpl in H; try solve [inversion H; subst].
       remember (updateStatesFromReturns S TD Ps F B cs tmn lc0 gl rid rt0 arg0 als EC false lc_als_Mem_block_rid_ore_trs) as states2.
       destruct states2; simpl in H; inversion H; subst.

@@ -4,6 +4,10 @@
 embed
 {{coq
 
+Require Import ssa_def.
+Require Import ssa_lib.
+Require Import ListSet.
+
 Module LLVMverifier.
 
 Export LLVMsyntax.
@@ -357,3 +361,14 @@ embed
 End LLVMverifier.
 
 }}
+
+embed 
+{{ coq
+(*
+*** Local Variables: ***
+*** coq-prog-name: "coqtop" ***
+*** coq-prog-args: ("-emacs-U" "-I" "./monads" "-I" "./ott" "-I" "./compcert" "-I" "/home/jianzhou/SVN/provers/metalib/branches/metatheory_8.3/") ***
+*** End: ***
+*)
+}}
+

@@ -315,5 +315,15 @@ formula_multiline <= formula_and
 formula_multiline <= formula_or
 
 
+embed 
+{{ coq
+(*
+*** Local Variables: ***
+*** coq-prog-name: "coqtop" ***
+*** coq-prog-args: ("-emacs-U" "-I" "./monads" "-I" "./ott" "-I" "./compcert" "-I" "/home/jianzhou/SVN/provers/metalib/branches/metatheory_8.3/") ***
+*** End: ***
+*)
+}}
+
  
 

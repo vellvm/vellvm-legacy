@@ -2,7 +2,8 @@ Add LoadPath "./ott".
 Add LoadPath "./monads".
 Add LoadPath "./compcert".
 (* Add LoadPath "../../../theory/metatheory". *)
-Require Import ssa.
+Require Import ssa_def.
+Require Import ssa_lib.
 Require Import List.
 Require Import Arith.
 Require Import tactics.
@@ -139,7 +140,7 @@ Inductive dsInsn : State -> State -> trace -> Prop :=
                             F' B' c' cs' tmn' lc' arg' EC
                             Mem Mem' als als',   
   Instruction.isCallInst c' = true ->
-  free_allocas Mem als = Some Mem' ->
+  free_allocas TD Mem als = Some Mem' ->
   dsInsn 
     (mkState S TD Ps ((mkEC F B nil (insn_return rid RetTy Result) lc arg als)::
                       (mkEC F' B' (c'::cs') tmn' lc' arg' als')::EC) gl Mem)
@@ -150,7 +151,7 @@ Inductive dsInsn : State -> State -> trace -> Prop :=
                             F' B' c' tmn' lc' arg' EC
                             cs' Mem Mem' als als',   
   Instruction.isCallInst c' = true ->
-  free_allocas Mem als = Some Mem' ->
+  free_allocas TD Mem als = Some Mem' ->
   dsInsn 
     (mkState S TD Ps ((mkEC F B nil (insn_return_void rid) lc arg als)::
                       (mkEC F' B' (c'::cs') tmn' lc' arg' als')::EC) gl Mem)
@@ -205,7 +206,7 @@ Inductive dsInsn : State -> State -> trace -> Prop :=
     trace_nil
 | dsFree : forall S TD Ps F B lc gl arg fid t v EC cs tmn Mem als Mem' mptr,
   getOperandPtr TD v lc gl = Some mptr ->
-  free Mem mptr = Some Mem'->
+  free TD Mem (ptr2GV TD mptr) = Some Mem'->
   dsInsn 
     (mkState S TD Ps ((mkEC F B ((insn_free fid t v)::cs) tmn lc arg als)::EC) gl Mem) 
     (mkState S TD Ps ((mkEC F B cs tmn lc arg als)::EC) gl Mem')
@@ -219,7 +220,7 @@ Inductive dsInsn : State -> State -> trace -> Prop :=
     trace_nil
 | dsLoad : forall S TD Ps F B lc gl arg id t align v EC cs tmn Mem als mp gv,
   getOperandPtr TD v lc gl = Some mp ->
-  mload TD Mem mp t align = Some gv ->
+  mload TD Mem (ptr2GV TD mp) t align = Some gv ->
   dsInsn 
     (mkState S TD Ps ((mkEC F B ((insn_load id t v align)::cs) tmn lc arg als)::EC) gl Mem) 
     (mkState S TD Ps ((mkEC F B cs tmn (updateAddAL _ lc id gv) arg als)::EC) gl Mem)
@@ -227,7 +228,7 @@ Inductive dsInsn : State -> State -> trace -> Prop :=
 | dsStore : forall S TD Ps F B lc gl arg sid t align v1 v2 EC cs tmn Mem als mp2 gv1 Mem',
   getOperandValue TD v1 lc gl = Some gv1 ->
   getOperandPtr TD v2 lc gl = Some mp2 ->
-  mstore TD Mem mp2 t gv1 align = Some Mem' ->
+  mstore TD Mem (ptr2GV TD mp2) t gv1 align = Some Mem' ->
   dsInsn 
     (mkState S TD Ps ((mkEC F B ((insn_store sid t v1 v2 align)::cs) tmn lc arg als)::EC) gl Mem) 
     (mkState S TD Ps ((mkEC F B cs tmn lc arg als)::EC) gl Mem')
@@ -280,22 +281,30 @@ Inductive dsInsn : State -> State -> trace -> Prop :=
     trace_nil 
 .
 
+
+Definition initGlobal (TD:layouts)(gl:GVMap)(Mem:mem)(id0:id)(t:typ)(c:const)(align0:align) : 
+             option (GenericValue*mem) :=
+  do tsz <- getTypeAllocSize TD t;
+  do gv <- const2GV TD gl c;
+     match (malloc TD Mem (Size.from_nat tsz) align0) with
+     | Some (Mem', mb) =>
+       do Mem'' <- mstore TD Mem' (blk2GV TD mb) t gv align0;
+       ret (blk2GV TD mb,  Mem'')
+     | None => None
+     end.
+
 Fixpoint genGlobalAndInitMem (TD:layouts)(Ps:list product)(gl:GVMap)(Mem:mem) : option (GVMap*mem) :=
 match Ps with
 | nil => Some (gl, Mem)
-| (product_gvar (gvar_intro id t c align))::Ps' =>
-  do tsz <- getTypeAllocSize TD t;
-  do gv <- const2GV TD gl c;
-     match (malloc TD Mem (Size.from_nat tsz) align) with
-     | Some (Mem', mb) => 
-       do Mem'' <- mstore TD Mem' (blk2Vptr mb) t gv align;
-       ret (updateAddAL _ gl id (blk2GV TD mb), Mem'')
-     | None => None
-     end
+| (product_gvar (gvar_intro id0 t c align))::Ps' => 
+  match (initGlobal TD gl Mem id0 t c align) with
+  | Some (gv, Mem') => Some (updateAddAL _ gl id0 gv, Mem')
+  | None => None
+  end
 | _::Ps' => genGlobalAndInitMem TD Ps' gl Mem
 end.
 
-Definition ds_genInitState (S:system) (main:id) (Args:list GenericValue) :=
+Definition ds_genInitState (S:system) (main:id) (Args:list GenericValue) (initmem:mem) : option State :=
 match (lookupFdefViaIDFromSystem S main) with
 | None => None
 | Some CurFunction =>
@@ -365,7 +374,7 @@ CoInductive dsop_diverges : State -> Trace -> Prop :=
 
 Inductive ds_converges : system -> id -> list GenericValue -> State -> Prop :=
 | ds_converges_intro : forall (s:system) (main:id) (VarArgs:list GenericValue) (IS FS:State) tr,
-  ds_genInitState s main VarArgs = Some IS ->
+  ds_genInitState s main VarArgs initmem = Some IS ->
   dsop_star IS FS tr ->
   ds_isFinialState FS ->
   ds_converges s main VarArgs FS
@@ -373,14 +382,14 @@ Inductive ds_converges : system -> id -> list GenericValue -> State -> Prop :=
 
 Inductive ds_diverges : system -> id -> list GenericValue -> Trace -> Prop :=
 | ds_diverges_intro : forall (s:system) (main:id) (VarArgs:list GenericValue) (IS:State) tr,
-  ds_genInitState s main VarArgs = Some IS ->
+  ds_genInitState s main VarArgs initmem = Some IS ->
   dsop_diverges IS tr ->
   ds_diverges s main VarArgs tr
 .
 
 Inductive ds_goeswrong : system -> id -> list GenericValue -> State -> Prop :=
 | ds_goeswrong_intro : forall (s:system) (main:id) (VarArgs:list GenericValue) (IS FS:State) tr,
-  ds_genInitState s main VarArgs = Some IS ->
+  ds_genInitState s main VarArgs initmem = Some IS ->
   dsop_star IS FS tr ->
   ~ ds_isFinialState FS ->
   ds_goeswrong s main VarArgs FS
@@ -407,7 +416,7 @@ Inductive nsInsn : State*trace -> States -> Prop :=
                             F' B' c' cs' tmn' lc' arg' EC
                             tr Mem Mem' als als',   
   Instruction.isCallInst c' = true ->  
-  free_allocas Mem als = Some Mem' ->
+  free_allocas TD Mem als = Some Mem' ->
   nsInsn 
     (mkState S TD Ps ((mkEC F B nil (insn_return rid RetTy Result) lc arg als)::
                       (mkEC F' B' (c'::cs') tmn' lc' arg' als')::EC) gl Mem, tr)
@@ -417,7 +426,7 @@ Inductive nsInsn : State*trace -> States -> Prop :=
                             F' B' c' lc' arg' EC
                             cs' tmn' Mem Mem' als als' tr,   
   Instruction.isCallInst c' = true ->
-  free_allocas Mem als = Some Mem' ->
+  free_allocas TD Mem als = Some Mem' ->
   nsInsn 
     (mkState S TD Ps ((mkEC F B nil (insn_return_void rid) lc arg als)::
                       (mkEC F' B' (c'::cs') tmn' lc' arg' als')::EC) gl Mem, tr)
@@ -477,7 +486,7 @@ Inductive nsInsn : State*trace -> States -> Prop :=
     ((mkState S TD Ps ((mkEC F B cs tmn (updateAddAL _ lc id (blk2GV TD mb)) arg als)::EC) gl Mem', tr)::nil)
 | nsFree : forall S TD Ps F B lc gl arg fid t v EC cs tmn Mem als Mem' mptr tr,
   getOperandPtr TD v lc gl = Some mptr ->
-  free Mem mptr = Some Mem'->
+  free TD Mem (ptr2GV TD mptr) = Some Mem'->
   nsInsn 
     (mkState S TD Ps ((mkEC F B ((insn_free fid t v)::cs) tmn lc arg als)::EC) gl Mem, tr) 
     ((mkState S TD Ps ((mkEC F B cs tmn lc arg als)::EC) gl Mem', tr)::nil)
@@ -489,14 +498,14 @@ Inductive nsInsn : State*trace -> States -> Prop :=
     ((mkState S TD Ps ((mkEC F B cs tmn (updateAddAL _ lc id (blk2GV TD mb)) arg (mb::als))::EC) gl Mem', tr)::nil)
 | nsLoad : forall S TD Ps F B lc gl arg id t v align EC cs tmn Mem als mp gv tr,
   getOperandPtr TD v lc gl = Some mp ->
-  mload TD Mem mp t align = Some gv ->
+  mload TD Mem (ptr2GV TD mp) t align = Some gv ->
   nsInsn 
     (mkState S TD Ps ((mkEC F B ((insn_load id t v align)::cs) tmn lc arg als)::EC) gl Mem, tr) 
     ((mkState S TD Ps ((mkEC F B cs tmn (updateAddAL _ lc id gv) arg als)::EC) gl Mem, tr)::nil)
 | nsStore : forall S TD Ps F B lc gl arg sid t v1 v2 align EC cs tmn Mem als mp2 gv1 Mem' tr,
   getOperandValue TD v1 lc gl = Some gv1 ->
   getOperandPtr TD v2 lc gl = Some mp2 ->
-  mstore TD Mem mp2 t gv1 align = Some Mem' ->
+  mstore TD Mem (ptr2GV TD mp2) t gv1 align = Some Mem' ->
   nsInsn 
     (mkState S TD Ps ((mkEC F B ((insn_store sid t v1 v2 align)::cs) tmn lc arg als)::EC) gl Mem, tr) 
     ((mkState S TD Ps ((mkEC F B cs tmn lc arg als)::EC) gl Mem', tr)::nil)
@@ -540,7 +549,7 @@ Inductive nsInsn : State*trace -> States -> Prop :=
                        (mkEC F B ((insn_call rid noret tailc rt fid lp)::cs) tmn lc arg als)::EC) gl Mem, tr)::nil)
 .
 
-Definition ns_genInitState (S:system) (main:id) (Args:list GenericValue) : option States :=
+Definition ns_genInitState (S:system) (main:id) (Args:list GenericValue) (initmem:mem) : option States :=
 match (lookupFdefViaIDFromSystem S main) with
 | None => None
 | Some CurFunction =>
@@ -627,7 +636,7 @@ CoInductive nsop_diverges : States -> list Trace -> Prop :=
 
 Inductive ns_converges : system -> id -> list GenericValue -> States -> Prop :=
 | ns_converges_intro : forall (s:system) (main:id) (VarArgs:list GenericValue) (IS FS:States),
-  ns_genInitState s main VarArgs = Some IS ->
+  ns_genInitState s main VarArgs initmem = Some IS ->
   nsop_star IS FS ->
   ns_isFinialState FS ->
   ns_converges s main VarArgs FS
@@ -635,14 +644,14 @@ Inductive ns_converges : system -> id -> list GenericValue -> States -> Prop :=
 
 Inductive ns_diverges : system -> id -> list GenericValue -> list Trace -> Prop :=
 | ns_diverges_intro : forall (s:system) (main:id) (VarArgs:list GenericValue) (IS:States) trs,
-  ns_genInitState s main VarArgs = Some IS ->
+  ns_genInitState s main VarArgs initmem = Some IS ->
   nsop_diverges IS trs ->
   ns_diverges s main VarArgs trs
 .
 
 Inductive ns_goeswrong : system -> id -> list GenericValue -> States -> Prop :=
 | ns_goeswrong_intro : forall (s:system) (main:id) (VarArgs:list GenericValue) (IS FS:States),
-  ns_genInitState s main VarArgs = Some IS ->
+  ns_genInitState s main VarArgs initmem = Some IS ->
   nsop_star IS FS ->
   ~ ns_isFinialState FS ->
   ns_goeswrong s main VarArgs FS
@@ -718,7 +727,7 @@ Inductive dbInsn : State -> State -> trace -> Prop :=
     trace_nil
 | dbFree : forall S TD Ps F B lc gl arg fid t v EC cs tmn Mem als Mem' mptr,
   getOperandPtr TD v lc gl = Some mptr ->
-  free Mem mptr = Some Mem'->
+  free TD Mem (ptr2GV TD mptr) = Some Mem'->
   dbInsn 
     (mkState S TD Ps ((mkEC F B ((insn_free fid t v)::cs) tmn lc arg als)::EC) gl Mem) 
     (mkState S TD Ps ((mkEC F B cs tmn lc arg als)::EC) gl Mem')
@@ -732,7 +741,7 @@ Inductive dbInsn : State -> State -> trace -> Prop :=
     trace_nil
 | dbLoad : forall S TD Ps F B lc gl arg id t v align EC cs tmn Mem als mp gv,
   getOperandPtr TD v lc gl = Some mp ->
-  mload TD Mem mp t align = Some gv ->
+  mload TD Mem (ptr2GV TD mp) t align = Some gv ->
   dbInsn 
     (mkState S TD Ps ((mkEC F B ((insn_load id t v align)::cs) tmn lc arg als)::EC) gl Mem) 
     (mkState S TD Ps ((mkEC F B cs tmn (updateAddAL _ lc id gv) arg als)::EC) gl Mem)
@@ -740,7 +749,7 @@ Inductive dbInsn : State -> State -> trace -> Prop :=
 | dbStore : forall S TD Ps F B lc gl arg sid t v1 v2 align EC cs tmn Mem als mp2 gv1 Mem',
   getOperandValue TD v1 lc gl = Some gv1 ->
   getOperandPtr TD v2 lc gl = Some mp2 ->
-  mstore TD Mem mp2 t gv1 align = Some Mem' ->
+  mstore TD Mem (ptr2GV TD mp2) t gv1 align = Some Mem' ->
   dbInsn 
     (mkState S TD Ps ((mkEC F B ((insn_store sid t v1 v2 align)::cs) tmn lc arg als)::EC) gl Mem) 
     (mkState S TD Ps ((mkEC F B cs tmn lc arg als)::EC) gl Mem')
@@ -781,7 +790,7 @@ Inductive dbInsn : State -> State -> trace -> Prop :=
 | dbCall : forall S TD Ps F B lc gl arg rid noret tailc rt fid lp cs tmn
                        EC Rid oResult tr B' lc' Mem Mem' als' als Mem'',
   dbFdef fid rt lp S TD Ps ((mkEC F B ((insn_call rid noret tailc rt fid lp)::cs) tmn lc arg als)::EC) lc gl Mem lc' als' Mem' B' Rid oResult tr ->
-  free_allocas Mem' als' = Some Mem'' ->
+  free_allocas TD Mem' als' = Some Mem'' ->
   dbInsn 
     (mkState S TD Ps ((mkEC F B ((insn_call rid noret tailc rt fid lp)::cs) tmn lc arg als)::EC) gl Mem) 
     (mkState S TD Ps ((mkEC F B cs tmn (callUpdateLocals TD noret rid rt oResult lc lc' gl) arg als)::EC) gl Mem'') 
@@ -854,7 +863,7 @@ Definition db_isFinialState := ds_isFinialState.
 
 Inductive db_converges : system -> id -> list GenericValue -> State -> Prop :=
 | db_converges_intro : forall (s:system) (main:id) (VarArgs:list GenericValue) (IS FS:State) tr,
-  db_genInitState s main VarArgs = Some IS ->
+  db_genInitState s main VarArgs initmem = Some IS ->
   dbop IS FS tr ->
   db_isFinialState FS ->
   db_converges s main VarArgs FS
@@ -862,14 +871,14 @@ Inductive db_converges : system -> id -> list GenericValue -> State -> Prop :=
 
 Inductive db_diverges : system -> id -> list GenericValue -> Trace -> Prop :=
 | db_diverges_intro : forall (s:system) (main:id) (VarArgs:list GenericValue) (IS S:State) tr,
-  db_genInitState s main VarArgs = Some IS ->
+  db_genInitState s main VarArgs initmem = Some IS ->
   dbopInf IS tr ->
   db_diverges s main VarArgs tr
 .
 
 Inductive db_goeswrong : system -> id -> list GenericValue -> State -> Prop :=
 | db_goeswrong_intro : forall (s:system) (main:id) (VarArgs:list GenericValue) (IS FS:State) tr,
-  db_genInitState s main VarArgs = Some IS ->
+  db_genInitState s main VarArgs initmem = Some IS ->
   dbop IS FS tr ->
   ~ db_isFinialState FS ->
   db_goeswrong s main VarArgs FS
@@ -911,7 +920,7 @@ match lc_als_Mem_block_rid_re_trs with
         end
     | true => lc
     end in
-  match (free_allocas Mem' als') with
+  match (free_allocas TD Mem' als') with
   | Some Mem'' =>
     match (updateStatesFromReturns S TD Ps F B cs tmn lc gl rid t arg als EC noret lc_als_Mem_block_rid_ore_trs') with
     | Some states => Some ((mkState S TD Ps ((mkEC F B cs tmn lc'' arg als)::EC) gl Mem'', tr)::states)
@@ -920,7 +929,7 @@ match lc_als_Mem_block_rid_re_trs with
   | None => None
   end
 | (lc', als', Mem', B', _, None, tr)::lc_als_Mem_block_rid_ore_trs' => 
-  match (free_allocas Mem' als') with
+  match (free_allocas TD Mem' als') with
   | Some Mem'' =>
     match (updateStatesFromReturns S TD Ps F B cs tmn lc gl rid t arg als EC noret lc_als_Mem_block_rid_ore_trs') with
     | Some states => Some ((mkState S TD Ps ((mkEC F B cs tmn lc arg als)::EC) gl Mem'', tr)::states)
@@ -985,7 +994,7 @@ Inductive nbInsn : State*trace -> States -> Prop :=
     ((mkState S TD Ps ((mkEC F B cs tmn (updateAddAL _ lc id (blk2GV TD mb)) arg als)::EC) gl Mem', tr)::nil)
 | nbFree : forall S TD Ps F B lc gl arg fid t v EC cs tmn Mem als Mem' mptr tr,
   getOperandPtr TD v lc gl = Some mptr ->
-  free Mem mptr = Some Mem'->
+  free TD Mem (ptr2GV TD mptr) = Some Mem'->
   nbInsn 
     (mkState S TD Ps ((mkEC F B ((insn_free fid t v)::cs) tmn lc arg als)::EC) gl Mem, tr) 
     ((mkState S TD Ps ((mkEC F B cs tmn lc arg als)::EC) gl Mem', tr)::nil)
@@ -997,14 +1006,14 @@ Inductive nbInsn : State*trace -> States -> Prop :=
     ((mkState S TD Ps ((mkEC F B cs tmn (updateAddAL _ lc id (blk2GV TD mb)) arg (mb::als))::EC) gl Mem', tr)::nil)
 | nbLoad : forall S TD Ps F B lc gl arg id t v align EC cs tmn Mem als mp gv tr,
   getOperandPtr TD v lc gl = Some mp ->
-  mload TD Mem mp t align = Some gv ->
+  mload TD Mem (ptr2GV TD mp) t align = Some gv ->
   nbInsn 
     (mkState S TD Ps ((mkEC F B ((insn_load id t v align)::cs) tmn lc arg als)::EC) gl Mem, tr) 
     ((mkState S TD Ps ((mkEC F B cs tmn (updateAddAL _ lc id gv) arg als)::EC) gl Mem, tr)::nil)
 | nbStore : forall S TD Ps F B lc gl arg sid t v1 v2 align EC cs tmn Mem als mp2 gv1 Mem' tr,
   getOperandValue TD v1 lc gl = Some gv1 ->
   getOperandPtr TD v2 lc gl = Some mp2 ->
-  mstore TD Mem mp2 t gv1 align = Some Mem' ->
+  mstore TD Mem (ptr2GV TD mp2) t gv1 align = Some Mem' ->
   nbInsn 
     (mkState S TD Ps ((mkEC F B ((insn_store sid t v1 v2 align)::cs) tmn lc arg als)::EC) gl Mem, tr) 
     ((mkState S TD Ps ((mkEC F B cs tmn lc arg als)::EC) gl Mem', tr)::nil)
@@ -1125,7 +1134,7 @@ Definition nb_isFinialState := ns_isFinialState.
 
 Inductive nb_converges : system -> id -> list GenericValue -> States -> Prop :=
 | nb_converges_intro : forall (s:system) (main:id) (VarArgs:list GenericValue) (IS FS:States),
-  nb_genInitState s main VarArgs = Some IS ->
+  nb_genInitState s main VarArgs initmem = Some IS ->
   nbop_star IS FS ->
   nb_isFinialState FS ->
   nb_converges s main VarArgs FS
@@ -1133,14 +1142,14 @@ Inductive nb_converges : system -> id -> list GenericValue -> States -> Prop :=
 
 Inductive nb_diverges : system -> id -> list GenericValue -> list Trace -> Prop :=
 | nb_diverges_intro : forall (s:system) (main:id) (VarArgs:list GenericValue) (IS:States) trs,
-  nb_genInitState s main VarArgs = Some IS ->
+  nb_genInitState s main VarArgs initmem = Some IS ->
   nbopInf IS trs ->
   nb_diverges s main VarArgs trs
 .
 
 Inductive nb_goeswrong : system -> id -> list GenericValue -> States -> Prop :=
 | nb_goeswrong_intro : forall (s:system) (main:id) (VarArgs:list GenericValue) (IS FS:States),
-  nb_genInitState s main VarArgs = Some IS ->
+  nb_genInitState s main VarArgs initmem = Some IS ->
   nbop_star IS FS ->
   ~ nb_isFinialState FS ->
   nb_goeswrong s main VarArgs FS

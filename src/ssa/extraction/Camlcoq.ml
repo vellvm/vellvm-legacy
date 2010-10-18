@@ -168,3 +168,13 @@ let heap_info msg =
   Printf.printf "%s: size %d live %d\n " msg s.Gc.heap_words s.Gc.live_words;
   flush stdout
 *)
+
+(* This function used at the proof to generate a fresh atom, which should not be used at runtime. *)
+let atom_fresh_for_list a = failwith "AtomImpl.atom_fresh_for_list cannot be used at runtime"
+
+(* These conversion functions are very efficient, because the machine representation of
+   nat is not practice. We should figure out if we can remove these functions later... *)
+let llapint2nat i = failwith "llapint2nat is undef"
+
+let llapint2z i = failwith "llapint2Z is undef"
+

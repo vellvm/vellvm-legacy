@@ -1,3 +1,4 @@
+Require Import ssa_def.
 Require Import ssa_lib.
 Require Import List.
 Require Import Arith.

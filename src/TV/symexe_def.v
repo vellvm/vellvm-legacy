@@ -3,7 +3,8 @@ Add LoadPath "../ssa/monads".
 Add LoadPath "../ssa/compcert".
 Add LoadPath "../ssa".
 (*Add LoadPath "../../../theory/metatheory".*)
-Require Import ssa.
+Require Import ssa_def.
+Require Import ssa_lib.
 Require Import List.
 Require Import targetdata.
 Require Import monad.
@@ -81,7 +82,7 @@ Inductive dbCmd : layouts ->  GVMap ->
     trace_nil
 | dbFree : forall TD lc gl fid t v Mem als Mem' mptr,
   getOperandPtr TD v lc gl = Some mptr ->
-  free Mem mptr = Some Mem'->
+  free TD Mem (ptr2GV TD mptr) = Some Mem'->
   dbCmd TD gl
     lc als Mem
     (insn_free fid t v)
@@ -97,7 +98,7 @@ Inductive dbCmd : layouts ->  GVMap ->
     trace_nil
 | dbLoad : forall TD lc gl id t v align Mem als mp gv,
   getOperandPtr TD v lc gl = Some mp ->
-  mload TD Mem mp t align = Some gv ->
+  mload TD Mem (ptr2GV TD mp) t align = Some gv ->
   dbCmd TD gl
     lc als Mem
     (insn_load id t v align)
@@ -106,7 +107,7 @@ Inductive dbCmd : layouts ->  GVMap ->
 | dbStore : forall TD lc gl sid t v1 v2 align Mem als mp2 gv1 Mem',
   getOperandValue TD v1 lc gl = Some gv1 ->
   getOperandPtr TD v2 lc gl = Some mp2 ->
-  mstore TD Mem mp2 t gv1 align = Some Mem' ->
+  mstore TD Mem (ptr2GV TD mp2) t gv1 align = Some Mem' ->
   dbCmd TD gl 
     lc als Mem
     (insn_store sid t v1 v2 align)
@@ -201,7 +202,7 @@ Inductive dbCall : system -> layouts -> list product -> GVMap ->
 | dbCall_intro : forall S TD Ps lc gl rid noret tailc rt fid lp
                        Rid oResult tr lc' Mem Mem' als' Mem'' B',
   dbFdef fid rt lp S TD Ps lc gl Mem lc' als' Mem' B' Rid oResult tr ->
-  free_allocas Mem' als' = Some Mem'' ->
+  free_allocas TD Mem' als' = Some Mem'' ->
   dbCall S TD Ps gl
     lc Mem
     (insn_call rid noret tailc rt fid lp)
@@ -1794,7 +1795,7 @@ Inductive sterm_denotes_genericvalue :
   sterm_denotes_genericvalue TD lc gl Mem0 st0 gv0 ->
   smem_denotes_mem TD lc gl Mem0 sm0 Mem1 ->
   GV2ptr TD (getPointerSize TD) gv0 = Some mp0 ->
-  mload TD Mem1 mp0 t0 align0 = Some gv1 ->
+  mload TD Mem1 (ptr2GV TD mp0) t0 align0 = Some gv1 ->
   sterm_denotes_genericvalue TD lc gl Mem0 (sterm_load sm0 t0 st0 align0) gv1
 | sterm_gep_denotes : forall TD lc gl Mem ib0 t0 st0 sts0 gv0 gvs0 ns0 mp0 mp1,
   sterm_denotes_genericvalue TD lc gl Mem st0 gv0 ->
@@ -1856,7 +1857,7 @@ with smem_denotes_mem :
   sterm_denotes_genericvalue TD lc gl Mem0 st0 gv0 ->
   smem_denotes_mem TD lc gl Mem0 sm0 Mem1 ->
   GV2ptr TD (getPointerSize TD) gv0 = Some mptr0 ->
-  free Mem1 mptr0 = Some Mem2->
+  free TD Mem1 (ptr2GV TD mptr0) = Some Mem2->
   smem_denotes_mem TD lc gl Mem0 (smem_free sm0 t0 st0) Mem2
 | smem_alloca_denotes : forall TD lc gl Mem0 Mem1 sm0 t0 sz0 align0 tsz0 Mem2 mb,
   smem_denotes_mem TD lc gl Mem0 sm0 Mem1 ->
@@ -1871,7 +1872,7 @@ with smem_denotes_mem :
   sterm_denotes_genericvalue TD lc gl Mem0 st2 gv2 ->
   smem_denotes_mem TD lc gl Mem0 sm0 Mem1 ->
   GV2ptr TD (getPointerSize TD) gv2 = Some mptr2 ->
-  mstore TD Mem1 mptr2 t0 gv1 align0 = Some Mem2 ->
+  mstore TD Mem1 (ptr2GV TD mptr2) t0 gv1 align0 = Some Mem2 ->
   smem_denotes_mem TD lc gl Mem0 (smem_store sm0 t0 st1 st2 align0) Mem2
 .
 

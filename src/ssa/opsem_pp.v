@@ -4,7 +4,8 @@ Add LoadPath "./monads".
 Require Import ssa_mem.
 Require Import genericvalues.
 Require Import ssa_dynamic.
-Require Import ssa.
+Require Import ssa_def.
+Require Import ssa_lib.
 Require Import trace.
 Require Import List.
 Require Import tactics.

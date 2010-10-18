@@ -529,3 +529,14 @@ Combined Scheme typ_mutind from typ_ind2, list_typ_ind2.
 End LLVMsyntax.
 
 }}
+
+embed 
+{{ coq
+(*
+*** Local Variables: ***
+*** coq-prog-name: "coqtop" ***
+*** coq-prog-args: ("-emacs-U" "-I" "./monads" "-I" "./ott" "-I" "./compcert" "-I" "/home/jianzhou/SVN/provers/metalib/branches/metatheory_8.3/") ***
+*** End: ***
+*)
+}}
+

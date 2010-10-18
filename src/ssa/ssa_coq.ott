@@ -2,6 +2,9 @@
 embed 
 {{ coq
 
+Require Import ssa_def.
+Require Import Metatheory.
+
 (*BEGINCOPY*)
 
 Require Import List.

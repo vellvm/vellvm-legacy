@@ -1,32 +1,11 @@
-(* This function used at the proof to generate a fresh atom, which should not be used at runtime. *)
-let atom_fresh_for_list a = failwith "AtomImpl.atom_fresh_for_list cannot be used at runtime"
-
-(* These conversion functions are very efficient, because the machine representation of
-   nat is not practice. We should figure out if we can remove these functions later... *)
-let int2nat i = failwith "int2nat is undef"
-
-let nat2int i = failwith "nat2int is undef"
-
-let llapint2nat i = failwith "llapint2nat is undef"
-
-let llapint2z i = failwith "llapint2Z is undef"
-
-let nat2llapint i = failwith "nat2llapint is undef"
-
-(* The functions below use the above conversion functions, I hope we wont use them at runtime. *)
-let nth_list_typ i lt = failwith "nth_list_typ cannot be used at runtime"
-
-let getCmdTyp c = failwith "getCmdtyp cannot be used at runtime"
-
-let getTyp c = failwith "getTyp cannot be used at runtime"
-
-let getPrimitiveSizeInBits t = failwith "getPrimitiveSizeInBits cannot be used at runtime"
-
-let getNumElements t = failwith "getNumElements cannot be used at runtime" 
+open Llvm_executionengine
+open Ssa_def
 
 module GenericValue = struct
 
-  type t
+  type t = GenericValue.t
+
+  let null = failwith "undef"
 
   let sizeGenericValue x = failwith "undef"
   let uninits x = failwith "undef"
@@ -52,12 +31,40 @@ end
 
 module Mem = struct
 
-  type t = unit
+  type t = ExecutionEngine.t * Llvm.llmodule
 
-  let malloc x y z w = failwith "undef"
-  let free x y = failwith "undef"
-  let mload x y z a b = failwith "undef"
-  let mstore x y z a b c = failwith "undef"
-  let genGlobalAndInitMem x y z w = failwith "undef"
+  let initmem = failwith "undef"
+
+  let malloc (td:LLVMsyntax.layouts) m size (a:LLVMsyntax.align) = 
+    let (ee, _) = m in
+    match (ExecutionEngine.malloc_memory size ee) with
+    | Some gv -> Some (m, gv)
+    | None -> None
+
+  let free (td:LLVMsyntax.layouts) m ptr =
+    let (ee, _) = m in
+    let _ = ExecutionEngine.free_memory ptr ee in
+    Some m
+
+  let coqtype_2_llvmtype t = failwith "undef"
+
+  let mload (td:LLVMsyntax.layouts) m ptr t (a:LLVMsyntax.align) =
+    let (ee, _) = m in
+    Some (ExecutionEngine.load_value_from_memory ptr (coqtype_2_llvmtype t) ee)
+
+  let mstore (td:LLVMsyntax.layouts) m ptr t gv (a:LLVMsyntax.align) =
+    let (ee, _) = m in
+    let _ = ExecutionEngine.store_value_to_memory gv ptr (coqtype_2_llvmtype t) ee in
+    Some m
+
+  let initGlobal (td:LLVMsyntax.layouts) gl m (id0:LLVMsyntax.id) 
+                 (t:LLVMsyntax.typ)(c:LLVMsyntax.const)(align0:LLVMsyntax.align) =
+    let (ee, mm) = m in
+    match Llvm.lookup_global id0 mm with
+    | Some v -> 
+       (match ExecutionEngine.get_pointer_to_global_if_available v ee with
+       | Some gv -> Some (gv, m)
+       | None -> None)
+    | None -> None
 
 end

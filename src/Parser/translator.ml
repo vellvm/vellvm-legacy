@@ -1,8 +1,8 @@
 open Printf
 open Llvm
 open Llvm_aux
-open Symexe_correct
-open Ssa
+open Ssa_def
+open Ssa_lib
 
 let rec translate_typ ty = 
 	  match classify_type ty with

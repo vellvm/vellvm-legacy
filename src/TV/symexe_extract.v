@@ -3,8 +3,12 @@ Add LoadPath "../ssa/monads".
 Add LoadPath "../ssa".
 (*Add LoadPath "../../../theory/metatheory".*)
 Require Import symexe_correct.
-Require Import ssa.
+Require Import ssa_def.
+Require Import ssa_lib.
 Require Import Metatheory.
+Require Import genericvalues.
+Require Import ssa_mem.
+Require Import ssa_dynamic.
 
 Extract Inductive bool => "bool" [ "true" "false" ].
 Extract Inductive sumbool => "bool" [ "true" "false" ].
@@ -14,7 +18,7 @@ Extract Inductive option => "option"  [ "Some" "None" ].
 
 Extract Constant AtomImpl.atom => "String.t".
 Extract Constant AtomImpl.eq_atom_dec => "fun a b -> a == b".
-Extract Constant AtomImpl.atom_fresh_for_list => "Llvmcaml.atom_fresh_for_list".
+Extract Constant AtomImpl.atom_fresh_for_list => "Camlcoq.atom_fresh_for_list".
 
 Extract Constant LLVMsyntax.id => "String.t".
 Extract Constant LLVMsyntax.l => "String.t".
@@ -61,13 +65,45 @@ Extract Constant LLVMsyntax.Align.div => "( / )".
 Extract Constant LLVMsyntax.Align.dec => "( == )".
 
 Extract Constant LLVMsyntax.INTEGER.t => "Llvm.llapint".
-Extract Constant LLVMsyntax.INTEGER.to_nat => "Llvmcaml.llapint2nat".
-Extract Constant LLVMsyntax.INTEGER.to_Z => "Llvmcaml.llapint2z".
+Extract Constant LLVMsyntax.INTEGER.to_nat => "Camlcoq.llapint2nat".
+Extract Constant LLVMsyntax.INTEGER.to_Z => "Camlcoq.llapint2z".
 Extract Constant LLVMsyntax.INTEGER.dec => "Llvm.APInt.compare".
 
 Extract Constant LLVMlib.inbounds_dec => "(==)".
 Extract Constant LLVMlib.tailc_dec => "(==)".
 Extract Constant LLVMlib.noret_dec => "(==)".
+
+Extract Constant LLVMgv.mblock => "Llvmcaml.GenericValue.t".
+Extract Constant LLVMgv.mptr => "Llvmcaml.GenericValue.t".
+Extract Constant LLVMgv.null => "Llvmcaml.GenericValue.null".
+Extract Constant LLVMgv.GenericValue => "Llvmcaml.GenericValue.t".
+Extract Constant LLVMgv.sizeGenericValue => "Llvmcaml.GenericValue.sizeGenericValue".
+Extract Constant LLVMgv.uninits => "Llvmcaml.GenericValue.uninits".
+Extract Constant LLVMgv.GV2val => "Llvmcaml.GenericValue.gv2val".
+Extract Constant LLVMgv.GV2int => "Llvmcaml.GenericValue.gv2int".
+Extract Constant LLVMgv.GV2ptr => "Llvmcaml.GenericValue.gv2ptr".
+Extract Constant LLVMgv.val2GV => "Llvmcaml.GenericValue.val2GV".
+Extract Constant LLVMgv.ptr2GV => "Llvmcaml.GenericValue.ptr2GV".
+Extract Constant LLVMgv.blk2GV => "Llvmcaml.GenericValue.blk2GV".
+Extract Constant LLVMgv.mgep => "Llvmcaml.GenericValue.mgep".
+Extract Constant LLVMgv._const2GV => "Llvmcaml.GenericValue._const2GV".
+Extract Constant LLVMgv._list_const_arr2GV => "Llvmcaml.GenericValue._list_const_arr2GV".
+Extract Constant LLVMgv._list_const_struct2GV => "Llvmcaml.GenericValue._list_const_struct2GV".
+Extract Constant LLVMgv.const2GV => "Llvmcaml.GenericValue.const2GV".
+Extract Constant LLVMgv.extractGenericValue => "Llvmcaml.GenericValue.extractGenericValue".
+Extract Constant LLVMgv.insertGenericValue => "Llvmcaml.GenericValue.insertGenericValue".
+Extract Constant LLVMgv.mbop => "Llvmcaml.GenericValue.mbop".
+Extract Constant LLVMgv.mcast => "Llvmcaml.GenericValue.mcast".
+Extract Constant LLVMgv.mext => "Llvmcaml.GenericValue.mext".
+Extract Constant LLVMgv.micmp => "Llvmcaml.GenericValue.micmp".
+
+Extract Constant LLVMmem.mem =>  "Llvmcaml.Mem.t".
+Extract Constant LLVMmem.initmem =>  "Llvmcaml.Mem.initmem".
+Extract Constant LLVMmem.malloc =>  "Llvmcaml.Mem.malloc".
+Extract Constant LLVMmem.free =>  "Llvmcaml.Mem.free".
+Extract Constant LLVMmem.mload =>  "Llvmcaml.Mem.mload".
+Extract Constant LLVMmem.mstore =>  "Llvmcaml.Mem.mstore".
+Extract Constant LLVMopsem.initGlobal => "Llvmcaml.Mem.initGlobal".
 
 (* Float *)
 Extract Inlined Constant Floats.float => "float".
