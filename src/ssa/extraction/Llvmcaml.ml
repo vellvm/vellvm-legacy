@@ -52,9 +52,12 @@ end
 
 module Mem = struct
 
+  type t = unit
+
   let malloc x y z w = failwith "undef"
   let free x y = failwith "undef"
   let mload x y z a b = failwith "undef"
   let mstore x y z a b c = failwith "undef"
+  let genGlobalAndInitMem x y z w = failwith "undef"
 
 end

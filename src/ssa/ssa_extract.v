@@ -102,10 +102,12 @@ Extract Constant LLVMgv.mcast => "Llvmcaml.GenericValue.mcast".
 Extract Constant LLVMgv.mext => "Llvmcaml.GenericValue.mext".
 Extract Constant LLVMgv.micmp => "Llvmcaml.GenericValue.micmp".
 
+Extract Constant LLVMmem.mem =>  "Llvmcaml.Mem.t".
 Extract Constant LLVMmem.malloc =>  "Llvmcaml.Mem.malloc".
 Extract Constant LLVMmem.free =>  "Llvmcaml.Mem.free".
 Extract Constant LLVMmem.mload =>  "Llvmcaml.Mem.mload".
 Extract Constant LLVMmem.mstore =>  "Llvmcaml.Mem.mstore".
+Extract Constant LLVMopsem.genGlobalAndInitMem => "Llvmcaml.Mem.genGlobalAndInitMem".
 
 (* Float *)
 Extract Inlined Constant Floats.float => "float".
