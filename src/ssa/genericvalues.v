@@ -17,7 +17,220 @@ Require Import AST.
 Require Import targetdata.
 Require Import ZArith.
 
-Module LLVMgv.
+Module Type LLVMgvType.
+
+Variable GenericValue : Type.
+Definition GVMap := list (id*GenericValue).
+Variable mblock : Type.
+Definition mptr := GenericValue.
+Variable null : GenericValue.
+
+Variable sizeGenericValue : GenericValue -> nat.
+Variable uninits : nat -> GenericValue.
+Variable blk2GV : layouts -> mblock -> GenericValue.
+Variable isGVZero : layouts -> GenericValue -> bool.
+
+(**************************************)
+(** Convert const to GV with storesize, and look up GV from operands. *)
+Variable const2GV : layouts -> GVMap -> const -> option GenericValue.
+
+Definition getOperandValue (TD:layouts) (v:value) (locals:GVMap) (globals:GVMap) : option GenericValue := 
+match v with
+| value_id id => lookupAL _ locals id 
+| value_const c => (const2GV TD globals c)
+end.
+
+(**************************************)
+(* conversion between different lists *)
+
+Variable params2OpGVs : layouts -> params -> GVMap -> GVMap -> list (option GenericValue).
+Variable opGVs2GVs : list (option GenericValue) -> list GenericValue.
+Variable params2GVs : layouts -> params -> GVMap -> GVMap -> list GenericValue.
+Variable values2GVs : layouts -> list_value -> GVMap -> GVMap -> option (list GenericValue).
+Variable intValues2Nats : layouts -> list_value -> GVMap -> GVMap -> option (list Z).
+Variable intConsts2Nats : layouts -> list_const -> option (list Z).
+Variable GVs2Nats : layouts -> list GenericValue -> option (list Z).
+
+(**************************************)
+(* helping functions *)
+
+Variable _initializeFrameValues : args -> list GenericValue -> GVMap -> GVMap.
+Variable initLocals : args -> list GenericValue -> GVMap.
+
+Variable extractGenericValue : list layout -> typ -> GenericValue -> list_const -> option GenericValue.
+Variable insertGenericValue : layouts -> typ -> GenericValue -> list_const ->typ -> GenericValue -> option GenericValue.
+Variable GEP : layouts -> typ -> GenericValue -> list GenericValue -> bool -> option GenericValue.
+Variable mbop : layouts -> bop -> sz -> GenericValue -> GenericValue -> option GenericValue.
+Variable mcast : layouts -> castop -> typ -> GenericValue -> typ -> option GenericValue.
+Variable mext : layouts -> extop -> typ -> GenericValue -> typ -> option GenericValue.
+Variable micmp :layouts -> cond -> typ -> GenericValue -> GenericValue -> option GenericValue.
+
+Definition BOP (TD:layouts) (lc gl:GVMap) (op:bop) (bsz:sz) (v1 v2:value) : option GenericValue :=
+match (getOperandValue TD v1 lc gl, getOperandValue TD v2 lc gl) with
+| (Some gv1, Some gv2) => mbop TD op bsz gv1 gv2
+| _ => None
+end
+.
+
+Definition CAST (TD:layouts) (lc gl:GVMap) (op:castop) (t1:typ) (v1:value) (t2:typ) : option GenericValue:=
+match (getOperandValue TD v1 lc gl) with
+| (Some gv1) => mcast TD op t1 gv1 t2
+| _ => None
+end
+.
+
+Definition EXT (TD:layouts) (lc gl:GVMap) (op:extop) (t1:typ) (v1:value) (t2:typ) : option GenericValue :=
+match (getOperandValue TD v1 lc gl) with
+| (Some gv1) => mext TD op t1 gv1 t2
+| _ => None
+end
+.
+
+Definition ICMP (TD:layouts) (lc gl:GVMap) (c:cond) (t:typ) (v1 v2:value) : option GenericValue :=
+match (getOperandValue TD v1 lc gl, getOperandValue TD v2 lc gl) with
+| (Some gv1, Some gv2) => micmp TD c t gv1 gv2
+| _ => None
+end.
+
+Lemma BOP_inversion : forall TD lc gl b s v1 v2 gv,
+  BOP TD lc gl b s v1 v2 = Some gv ->
+  exists gv1, exists gv2,
+    getOperandValue TD v1 lc gl = Some gv1 /\
+    getOperandValue TD v2 lc gl = Some gv2 /\
+    mbop TD b s gv1 gv2 = Some gv.
+Proof.
+  intros TD lc gl b s v1 v2 gv HBOP.
+  unfold BOP in HBOP.
+  remember (getOperandValue TD v1 lc gl) as ogv1.
+  destruct ogv1; try solve [inversion HBOP].
+    remember (getOperandValue TD v2 lc gl) as ogv2.
+    destruct ogv2; try solve [inversion HBOP].
+      remember (mbop TD b s g g0) as R.
+      destruct R; inversion HBOP; subst.
+        exists g. exists g0. auto.
+Qed.
+
+Lemma CAST_inversion : forall TD lc gl op t1 v1 t2 gv,
+  CAST TD lc gl op t1 v1 t2 = Some gv ->
+  exists gv1,
+    getOperandValue TD v1 lc gl = Some gv1 /\
+    mcast TD op t1 gv1 t2 = Some gv.
+Proof.
+  intros TD lc gl op t1 v1 t2 gv HCAST.
+  unfold CAST in HCAST.
+  remember (getOperandValue TD v1 lc gl) as ogv1.
+  destruct ogv1; try solve [inversion HCAST].
+    remember (mcast TD op t1 g t2) as R.
+    destruct R; inversion HCAST; subst.
+      exists g. auto.
+Qed.
+
+Lemma EXT_inversion : forall TD lc gl op t1 v1 t2 gv,
+  EXT TD lc gl op t1 v1 t2 = Some gv ->
+  exists gv1,
+    getOperandValue TD v1 lc gl = Some gv1 /\
+    mext TD op t1 gv1 t2 = Some gv.
+Proof.
+  intros TD lc gl op t1 v1 t2 gv HEXT.
+  unfold EXT in HEXT.
+  remember (getOperandValue TD v1 lc gl) as ogv1.
+  destruct ogv1; try solve [inversion HEXT].
+    remember (mext TD op t1 g t2) as R.
+    destruct R; inversion HEXT; subst.
+      exists g. auto.
+Qed.
+
+Lemma ICMP_inversion : forall TD lc gl cond t v1 v2 gv,
+  ICMP TD lc gl cond t v1 v2 = Some gv ->
+  exists gv1, exists gv2,
+    getOperandValue TD v1 lc gl = Some gv1 /\
+    getOperandValue TD v2 lc gl = Some gv2 /\
+    micmp TD cond t gv1 gv2 = Some gv.
+Proof.
+  intros TD lc gl cond0 t v1 v2 gv HICMP.
+  unfold ICMP in HICMP.
+  remember (getOperandValue TD v1 lc gl) as ogv1.
+  destruct ogv1; try solve [inversion HICMP].
+    remember (getOperandValue TD v2 lc gl) as ogv2.
+    destruct ogv2; try solve [inversion HICMP].
+      remember (micmp TD cond0 t g g0) as R.
+      destruct R; inversion HICMP; subst.
+        exists g. exists g0. auto.
+Qed.
+
+Axiom intValues2Nats_inversion : forall l0 lc gl TD ns0,
+  intValues2Nats TD l0 lc gl = Some ns0 ->
+  exists gvs0, 
+    values2GVs TD l0 lc gl = Some gvs0 /\
+    GVs2Nats TD gvs0 = Some ns0.
+
+Axiom values2GVs_GVs2Nats__intValues2Nats : forall l0 lc gl TD gvs0,
+  values2GVs TD l0 lc gl = Some gvs0 ->
+  GVs2Nats TD gvs0 = intValues2Nats TD l0 lc gl.
+
+Axiom const2GV_eqAL : forall c gl1 gl2 TD, 
+  eqAL _ gl1 gl2 -> 
+  const2GV TD gl1 c = const2GV TD gl2 c.
+
+Lemma getOperandValue_eqAL : forall lc1 gl lc2 v TD,
+  eqAL _ lc1 lc2 ->
+  getOperandValue TD v lc1 gl = getOperandValue TD v lc2 gl.
+Proof.
+  intros lc1 gl lc2 v TD HeqAL.
+  unfold getOperandValue in *.
+  destruct v; auto.
+Qed.
+
+Lemma BOP_eqAL : forall lc1 gl lc2 bop0 sz0 v1 v2 TD,
+  eqAL _ lc1 lc2 ->
+  BOP TD lc1 gl bop0 sz0 v1 v2 = BOP TD lc2 gl bop0 sz0 v1 v2.
+Proof.
+  intros lc1 gl lc2 bop0 sz0 v1 v2 TD HeqEnv.
+  unfold BOP in *.
+  rewrite getOperandValue_eqAL with (lc2:=lc2)(v:=v1); auto.
+  rewrite getOperandValue_eqAL with (lc2:=lc2)(v:=v2); auto.
+Qed.
+
+Lemma CAST_eqAL : forall lc1 gl lc2 op t1 v1 t2 TD,
+  eqAL _ lc1 lc2 ->
+  CAST TD lc1 gl op t1 v1 t2 = CAST TD lc2 gl op t1 v1 t2.
+Proof.
+  intros lc1 gl lc2 op t1 v1 t2 TD HeqAL.
+  unfold CAST in *.
+  rewrite getOperandValue_eqAL with (lc2:=lc2)(v:=v1); auto.
+Qed.
+
+
+Lemma EXT_eqAL : forall lc1 gl lc2 op t1 v1 t2 TD,
+  eqAL _ lc1 lc2 ->
+  EXT TD lc1 gl op t1 v1 t2 = EXT TD lc2 gl op t1 v1 t2.
+Proof.
+  intros lc1 gl lc2 op t1 v1 t2 TD HeqAL.
+  unfold EXT in *.
+  rewrite getOperandValue_eqAL with (lc2:=lc2)(v:=v1); auto.
+Qed.
+
+Lemma ICMP_eqAL : forall lc1 gl lc2 cond t v1 v2 TD,
+  eqAL _ lc1 lc2 ->
+  ICMP TD lc1 gl cond t v1 v2 = ICMP TD lc2 gl cond t v1 v2.
+Proof.
+  intros lc1 gl lc2 cond0 t v1 v2 TD HeqAL.
+  unfold ICMP in *.
+  rewrite getOperandValue_eqAL with (lc2:=lc2)(v:=v1); auto.
+  rewrite getOperandValue_eqAL with (lc2:=lc2)(v:=v2); auto.
+Qed.
+
+Axiom intValues2Nats_eqAL : forall l0 lc1 gl lc2 TD,
+  eqAL _ lc1 lc2 ->
+  intValues2Nats TD l0 lc1 gl = intValues2Nats TD l0 lc2 gl.
+
+Axiom values2GVs_eqAL : forall l0 lc1 gl lc2 TD,
+  eqAL _ lc1 lc2 ->
+  values2GVs TD l0 lc1 gl = values2GVs TD l0 lc2 gl.
+
+End LLVMgvType.
+
+Module LLVMgv <: LLVMgvType.
 
 (*
 Definition GenericValue := mvalue.
@@ -76,6 +289,11 @@ Definition ptr2GV (TD:layouts) (ptr:val) : GenericValue :=
 val2GV TD ptr (Mint (getPointerSize TD-1)).
 Definition blk2GV (TD:layouts) (b:mblock) : GenericValue :=
 ptr2GV TD (Vptr b (Int.repr 31 0)).
+Definition isGVZero (TD:layouts) (gv:GenericValue) : bool :=
+match (GV2int TD Size.One gv) with
+| Some z => if Coqlib.zeq z 0 then true else false
+| _ => false
+end.
 Definition mgetoffset (TD:layouts) (t:typ) (idx:list Z) : option int32 := None.
 Definition mget (TD:list layout) (v:GenericValue) (o:int32) (t:typ) : option GenericValue := None.
 Definition mset (TD:list layout) (v:GenericValue) (o:int32) (t0:typ) (v0:GenericValue) : option GenericValue := None.
@@ -194,26 +412,6 @@ match (getOperandValue TD v locals globals) with
 | Some gi => isGVUndef gi
 | None => False
 end.
-
-(*
-Definition getOperandInt (TD:layouts) (sz:nat) (v:value) (locals:GVMap) (globals:GVMap) : option nat := 
-match (getOperandValue TD v locals globals) with
-| Some gi => (GV2nat TD sz gi)
-| None => None
-end.
-
-Definition getOperandPtr (TD:layouts) (v:value) (locals:GVMap) (globals:GVMap) : option mptr := 
-match (getOperandValue TD v locals globals) with
-| Some gi => GV2ptr TD (getPointerSize TD) gi
-| None => None
-end.
-
-Definition getOperandPtrInBits (TD:layouts) (s:sz) (v:value) (locals:GVMap) (globals:GVMap) : option mptr := 
-match (getOperandValue TD v locals globals) with
-| Some gi => GV2ptr TD s gi
-| None => None
-end.
-*)
 
 (**************************************)
 (* conversion between different lists *)
@@ -339,10 +537,18 @@ match (intConsts2Nats TD cidxs) with
   end
 end.
 
-Definition GEP (TD:layouts) (locals globals:GVMap) (t:typ) (ma:val) (vidxs:list_value) (inbounds:bool) : option val :=
-match (intValues2Nats TD vidxs locals globals) with
-| None => None 
-| Some idxs => mgep TD t ma idxs
+Definition GEP (TD:layouts) (t:typ) (ma:GenericValue) (vidxs:list GenericValue) (inbounds:bool) : option GenericValue :=
+match GV2ptr TD (getPointerSize TD) ma with
+| Some ptr =>
+  match GVs2Nats TD vidxs with
+  | None => None 
+  | Some idxs => 
+    match (mgep TD t ptr idxs) with
+    | Some ptr0 => Some (ptr2GV TD ptr0)
+    | None => None
+    end
+  end
+| None => None
 end.
 
 Definition mbop (TD:layouts) (op:bop) (bsz:sz) (gv1 gv2:GenericValue) : option GenericValue :=
@@ -535,15 +741,20 @@ Proof.
         exists g. exists g0. auto.
 Qed.
 
-Lemma GEP_inversion : forall (TD:layouts) (lc gl:GVMap) (t:typ) (ma:val) (vidxs:list_value) ib mptr0,
-  GEP TD lc gl t ma vidxs ib = Some mptr0 ->
-  exists idxs, intValues2Nats TD vidxs lc gl = Some idxs /\ mgep TD t ma idxs = Some mptr0.
+Lemma GEP_inversion : forall (TD:layouts) (t:typ) (ma:GenericValue) (vidxs:list GenericValue) ib mptr0,
+  GEP TD t ma vidxs ib = Some mptr0 ->
+  exists idxs, exists ptr, exists ptr0, 
+    GVs2Nats TD vidxs = Some idxs /\ 
+    GV2ptr TD (getPointerSize TD) ma = Some ptr /\
+    mgep TD t ptr idxs = Some ptr0 /\
+    ptr2GV TD ptr0 = mptr0.
 Proof.
   intros.
   unfold GEP in H.
-  remember (intValues2Nats TD vidxs lc gl) as oidxs.
-  destruct oidxs; inversion H; subst.
-(*  exists l0. auto. *)
+  remember (GVs2Nats TD vidxs) as oidxs.
+  remember (GV2ptr TD (getPointerSize TD) ma) as R.
+  destruct R; try solve [inversion H; subst].
+    destruct oidxs; try solve [inversion H; subst].
 Qed.
 
 Lemma intValues2Nats_inversion : forall l0 lc gl TD ns0,
@@ -703,13 +914,25 @@ Proof.
     erewrite IHl0; eauto.
 Qed.
 
+Lemma values2GVs_eqAL : forall l0 lc1 gl lc2 TD,
+  eqAL _ lc1 lc2 ->
+  values2GVs TD l0 lc1 gl = values2GVs TD l0 lc2 gl.
+Proof.
+  induction l0; intros lc1 gl lc2 TD HeqAL; simpl; auto.
+    rewrite getOperandValue_eqAL with (lc2:=lc2)(v:=v); auto.
+    erewrite IHl0; eauto.
+Qed.
+
+(*
 Lemma GEP_eqAL : forall lc1 gl lc2 t ma vidxs ib TD,
   eqAL _ lc1 lc2 ->
   GEP TD lc1 gl t ma vidxs ib = GEP TD lc2 gl t ma vidxs ib.
 Proof.
   intros lc1 gl lc2 t ma vidxs ib TD HeqAL.
-  unfold GEP in *.
-  erewrite intValues2Nats_eqAL; eauto.
+  unfold GEP in *. auto.
+  erewrite intValues2Nats_eqAL; eauto. 
 Qed.
+*)
 
 End LLVMgv.
+

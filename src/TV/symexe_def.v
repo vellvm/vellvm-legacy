@@ -81,8 +81,8 @@ Inductive dbCmd : layouts ->  GVMap ->
     (updateAddAL _ lc id (blk2GV TD mb)) als Mem'
     trace_nil
 | dbFree : forall TD lc gl fid t v Mem als Mem' mptr,
-  getOperandPtr TD v lc gl = Some mptr ->
-  free TD Mem (ptr2GV TD mptr) = Some Mem'->
+  getOperandValue TD v lc gl = Some mptr ->
+  free TD Mem mptr = Some Mem'->
   dbCmd TD gl
     lc als Mem
     (insn_free fid t v)
@@ -97,8 +97,8 @@ Inductive dbCmd : layouts ->  GVMap ->
     (updateAddAL _ lc id (blk2GV TD mb)) (mb::als) Mem'
     trace_nil
 | dbLoad : forall TD lc gl id t v align Mem als mp gv,
-  getOperandPtr TD v lc gl = Some mp ->
-  mload TD Mem (ptr2GV TD mp) t align = Some gv ->
+  getOperandValue TD v lc gl = Some mp ->
+  mload TD Mem mp t align = Some gv ->
   dbCmd TD gl
     lc als Mem
     (insn_load id t v align)
@@ -106,20 +106,21 @@ Inductive dbCmd : layouts ->  GVMap ->
     trace_nil
 | dbStore : forall TD lc gl sid t v1 v2 align Mem als mp2 gv1 Mem',
   getOperandValue TD v1 lc gl = Some gv1 ->
-  getOperandPtr TD v2 lc gl = Some mp2 ->
-  mstore TD Mem (ptr2GV TD mp2) t gv1 align = Some Mem' ->
+  getOperandValue TD v2 lc gl = Some mp2 ->
+  mstore TD Mem mp2 t gv1 align = Some Mem' ->
   dbCmd TD gl 
     lc als Mem
     (insn_store sid t v1 v2 align)
     lc als Mem'
     trace_nil
-| dbGEP : forall TD lc gl id inbounds t v idxs mp mp' Mem als,
-  getOperandPtr TD v lc gl = Some mp ->
-  GEP TD lc gl t mp idxs inbounds = Some mp' ->
+| dbGEP : forall TD lc gl id inbounds t v idxs vidxs mp mp' Mem als,
+  getOperandValue TD v lc gl = Some mp ->
+  values2GVs TD idxs lc gl = Some vidxs ->
+  GEP TD t mp vidxs inbounds = Some mp' ->
   dbCmd TD gl
     lc als Mem
     (insn_gep id inbounds t v idxs)
-    (updateAddAL _ lc id (ptr2GV TD mp')) als Mem
+    (updateAddAL _ lc id mp') als Mem
     trace_nil 
 | dbExt : forall TD lc gl id extop t1 v1 t2 gv2 Mem als,
   EXT TD lc gl extop t1 v1 t2 = Some gv2 ->
@@ -143,13 +144,13 @@ Inductive dbCmd : layouts ->  GVMap ->
     (updateAddAL _ lc id gv3) als Mem
     trace_nil
 | dbSelect : forall TD lc gl id v0 t v1 v2 cond Mem als gv1 gv2,
-  getOperandInt TD Size.One v0 lc gl = Some cond ->
+  getOperandValue TD v0 lc gl = Some cond ->
   getOperandValue TD v1 lc gl = Some gv1 ->
   getOperandValue TD v2 lc gl = Some gv2 ->
   dbCmd TD gl
     lc als Mem
     (insn_select id v0 t v1 v2)
-    (if zeq cond 0 then updateAddAL _ lc id gv2 else updateAddAL _ lc id gv1) als Mem
+    (if isGVZero TD cond then updateAddAL _ lc id gv2 else updateAddAL _ lc id gv1) als Mem
     trace_nil
 .
 
@@ -161,8 +162,8 @@ Inductive dbTerminator :
   trace -> Prop :=
 | dbBranch : forall TD F B lc gl bid Cond l1 l2 c
                               l' ps' sbs' tmn' lc',   
-  getOperandInt TD Size.One Cond lc gl = Some c ->
-  Some (block_intro l' ps' sbs' tmn') = (if zeq c 0
+  getOperandValue TD Cond lc gl = Some c ->
+  Some (block_intro l' ps' sbs' tmn') = (if isGVZero TD c
                then lookupBlockViaLabelFromFdef F l2
                else lookupBlockViaLabelFromFdef F l1) ->
   lc' = LLVMopsem.switchToNewBasicBlock (block_intro l' ps' sbs' tmn') B lc ->
@@ -371,7 +372,7 @@ Case "dbMalloc".
 
 Case "dbFree".
   exists lc1'.
-  rewrite getOperandPtr_eqAL with (lc2:=lc1') in H; auto. 
+  rewrite getOperandValue_eqAL with (lc2:=lc1') in H; auto. 
   split; eauto.
 
 Case "dbAlloca".
@@ -382,20 +383,21 @@ Case "dbAlloca".
 Case "dbLoad".
   assert (HupdateEnv:=HeqEnv).
   exists (updateAddAL _ lc1' id0 gv).
-  rewrite getOperandPtr_eqAL with (lc2:=lc1') in H; auto. 
+  rewrite getOperandValue_eqAL with (lc2:=lc1') in H; auto. 
   split; eauto using eqAL_updateAddAL.
 
 Case "dbStore".
   exists lc1'.
   rewrite getOperandValue_eqAL with (lc2:=lc1') in H; auto. 
-  rewrite getOperandPtr_eqAL with (lc2:=lc1') in H0; auto. 
+  rewrite getOperandValue_eqAL with (lc2:=lc1') in H0; auto. 
   split; eauto using eqAL_updateAddAL.
 
 Case "dbGEP".
   assert (HupdateEnv:=HeqEnv).
-  exists (updateAddAL _ lc1' id0 (ptr2GV TD mp')).
-  rewrite getOperandPtr_eqAL with (lc2:=lc1') in H; auto. 
-  rewrite GEP_eqAL with (lc2:=lc1') in H0; auto. 
+  exists (updateAddAL _ lc1' id0 mp').
+  rewrite getOperandValue_eqAL with (lc2:=lc1') in H; auto. 
+  rewrite values2GVs_eqAL with (lc2:=lc1') in H0; auto. 
+(* rewrite GEP_eqAL with (lc2:=lc1') in H0; auto. *)
   split; eauto using eqAL_updateAddAL.
 
 Case "dbExt".
@@ -417,13 +419,13 @@ Case "dbIcmp".
   split; eauto using eqAL_updateAddAL.
 
 Case "dbSelect".
-  rewrite getOperandInt_eqAL with (lc2:=lc1') in H; auto. 
+  rewrite getOperandValue_eqAL with (lc2:=lc1') in H; auto. 
   rewrite getOperandValue_eqAL with (lc2:=lc1') in H0; auto. 
   rewrite getOperandValue_eqAL with (lc2:=lc1') in H1; auto. 
   assert (HupdateEnv:=HeqEnv).
-  exists (if zeq cond0 0 then updateAddAL _ lc1' id0 gv2 else updateAddAL _ lc1' id0 gv1).
+  exists (if isGVZero TD cond0 then updateAddAL _ lc1' id0 gv2 else updateAddAL _ lc1' id0 gv1).
   split; auto.
-    destruct (zeq cond0 0); auto using eqAL_updateAddAL.
+    destruct (isGVZero TD cond0); auto using eqAL_updateAddAL.
 Qed.
 
 Lemma dbCmds_eqEnv : forall TD cs lc1 als1 gl Mem1 lc2 als2 Mem2 tr lc1',
@@ -1791,19 +1793,16 @@ Inductive sterm_denotes_genericvalue :
   getTypeAllocSize TD t0 = Some tsz0 ->
   malloc TD Mem1 (tsz0 * sz0)%nat align0 = Some (Mem2, mb) ->
   sterm_denotes_genericvalue TD lc gl Mem0 (sterm_alloca sm0 t0 sz0 align0) (blk2GV TD mb)
-| sterm_load_denotes : forall TD lc gl Mem0 Mem1 sm0 t0 align0 st0 gv0 mp0 gv1,
+| sterm_load_denotes : forall TD lc gl Mem0 Mem1 sm0 t0 align0 st0 gv0 gv1,
   sterm_denotes_genericvalue TD lc gl Mem0 st0 gv0 ->
   smem_denotes_mem TD lc gl Mem0 sm0 Mem1 ->
-  GV2ptr TD (getPointerSize TD) gv0 = Some mp0 ->
-  mload TD Mem1 (ptr2GV TD mp0) t0 align0 = Some gv1 ->
+  mload TD Mem1 gv0 t0 align0 = Some gv1 ->
   sterm_denotes_genericvalue TD lc gl Mem0 (sterm_load sm0 t0 st0 align0) gv1
-| sterm_gep_denotes : forall TD lc gl Mem ib0 t0 st0 sts0 gv0 gvs0 ns0 mp0 mp1,
+| sterm_gep_denotes : forall TD lc gl Mem ib0 t0 st0 sts0 gv0 gvs0 gv1,
   sterm_denotes_genericvalue TD lc gl Mem st0 gv0 ->
   sterms_denote_genericvalues TD lc gl Mem sts0 gvs0 ->
-  GV2ptr TD (getPointerSize TD) gv0 = Some mp0 ->
-  GVs2Nats TD gvs0 = Some ns0 ->
-  mgep TD t0 mp0 ns0 = Some mp1 ->
-  sterm_denotes_genericvalue TD lc gl Mem (sterm_gep ib0 t0 st0 sts0) (ptr2GV TD mp1)
+  GEP TD t0 gv0 gvs0 ib0 = Some gv1 ->
+  sterm_denotes_genericvalue TD lc gl Mem (sterm_gep ib0 t0 st0 sts0) gv1
 | sterm_ext_denotes : forall TD lc gl Mem op0 t1 st1 t2 gv1 gv2,
   sterm_denotes_genericvalue TD lc gl Mem st1 gv1 ->
   mext TD op0 t1 gv1 t2 = Some gv2 ->
@@ -1817,12 +1816,11 @@ Inductive sterm_denotes_genericvalue :
   sterm_denotes_genericvalue TD lc gl Mem st2 gv2 ->
   micmp TD cond0 t0 gv1 gv2 = Some gv3 ->
   sterm_denotes_genericvalue TD lc gl Mem (sterm_icmp cond0 t0 st1 st2) gv3
-| sterm_select_denotes : forall TD lc gl Mem st0 t0 st1 st2 gv0 gv1 gv2 c0 gv3,
+| sterm_select_denotes : forall TD lc gl Mem st0 t0 st1 st2 gv0 gv1 gv2 gv3,
   sterm_denotes_genericvalue TD lc gl Mem st0 gv0 ->
   sterm_denotes_genericvalue TD lc gl Mem st1 gv1 ->
   sterm_denotes_genericvalue TD lc gl Mem st2 gv2 ->
-  GV2int TD 1%nat gv0 = Some c0 ->
-  (if zeq c0 0 then gv2 else gv1) = gv3 -> 
+  (if isGVZero TD gv0 then gv2 else gv1) = gv3 -> 
   sterm_denotes_genericvalue TD lc gl Mem (sterm_select st0 t0 st1 st2) gv3
 with sterms_denote_genericvalues : 
    layouts ->               (* CurTatgetData *)
@@ -1853,11 +1851,10 @@ with smem_denotes_mem :
   getTypeAllocSize TD t0 = Some tsz0 ->
   malloc TD Mem1 (tsz0 * sz0)%nat align0 = Some (Mem2, mb) ->
   smem_denotes_mem TD lc gl Mem0 (smem_malloc sm0 t0 sz0 align0) Mem2
-| smem_free_denotes : forall TD lc gl Mem0 Mem1 sm0 t0 st0 gv0 mptr0 Mem2,
+| smem_free_denotes : forall TD lc gl Mem0 Mem1 sm0 t0 st0 gv0 Mem2,
   sterm_denotes_genericvalue TD lc gl Mem0 st0 gv0 ->
   smem_denotes_mem TD lc gl Mem0 sm0 Mem1 ->
-  GV2ptr TD (getPointerSize TD) gv0 = Some mptr0 ->
-  free TD Mem1 (ptr2GV TD mptr0) = Some Mem2->
+  free TD Mem1 gv0 = Some Mem2->
   smem_denotes_mem TD lc gl Mem0 (smem_free sm0 t0 st0) Mem2
 | smem_alloca_denotes : forall TD lc gl Mem0 Mem1 sm0 t0 sz0 align0 tsz0 Mem2 mb,
   smem_denotes_mem TD lc gl Mem0 sm0 Mem1 ->
@@ -1867,12 +1864,11 @@ with smem_denotes_mem :
 | smem_load_denotes : forall TD lc gl Mem0 sm0 t0 st0 align0 Mem1,
   smem_denotes_mem TD lc gl Mem0 sm0 Mem1 ->
   smem_denotes_mem TD lc gl Mem0 (smem_load sm0 t0 st0 align0) Mem1
-| smem_store_denotes : forall TD lc gl Mem0 Mem1 sm0 t0 st1 st2 align0 gv1 gv2 mptr2 Mem2,
+| smem_store_denotes : forall TD lc gl Mem0 Mem1 sm0 t0 st1 st2 align0 gv1 gv2  Mem2,
   sterm_denotes_genericvalue TD lc gl Mem0 st1 gv1 ->
   sterm_denotes_genericvalue TD lc gl Mem0 st2 gv2 ->
   smem_denotes_mem TD lc gl Mem0 sm0 Mem1 ->
-  GV2ptr TD (getPointerSize TD) gv2 = Some mptr2 ->
-  mstore TD Mem1 (ptr2GV TD mptr2) t0 gv1 align0 = Some Mem2 ->
+  mstore TD Mem1 gv2 t0 gv1 align0 = Some Mem2 ->
   smem_denotes_mem TD lc gl Mem0 (smem_store sm0 t0 st1 st2 align0) Mem2
 .
 
@@ -2055,16 +2051,13 @@ Case "sterm_alloca_denotes".
 Case "sterm_load_denotes".
   inversion H1; subst.
   apply H0 in H12; subst.
-  apply H in H10; subst.
-  rewrite e in H13. inversion H13; subst.
-  rewrite H14 in e0. inversion e0; auto.
+  apply H in H11; subst.
+  rewrite e in H13. inversion H13; auto.
 Case "sterm_gep_denotes".
   inversion H1; subst.
-  apply H in H6; subst.
-  apply H0 in H11; subst.
-  rewrite H13 in e. inversion e; subst.
-  rewrite H14 in e0. inversion e0; subst.
-  rewrite H15 in e1. inversion e1; auto.
+  apply H in H11; subst.
+  apply H0 in H12; subst.
+  rewrite H13 in e. inversion e; auto.
 Case "sterm_ext_denotes".
   inversion H0; subst.
   apply H in H10; subst.
@@ -2082,10 +2075,9 @@ Case "sterm_icmp_denotes".
   rewrite H13 in e. inversion e; auto.
 Case "sterm_select_denotes".
   inversion H2; subst.
-  apply H in H7; subst.
-  apply H0 in H12; subst.
-  apply H1 in H14; subst.
-  rewrite H15 in e. inversion e; auto.
+  apply H in H11; subst.
+  apply H0 in H13; subst.
+  apply H1 in H14; subst; auto.
 Case "sterms_nil_denote".
   inversion H; auto.
 Case "sterms_cons_denote".
@@ -2101,10 +2093,9 @@ Case "smem_malloc_denotes".
   rewrite H12 in e0. inversion e0; auto.
 Case "smem_free_denotes".
   inversion H1; subst.
-  apply H in H5; subst. 
-  apply H0 in H10; subst. 
-  rewrite H12 in e. inversion e; subst.
-  rewrite H13 in e0. inversion e0; auto.
+  apply H in H9; subst. 
+  apply H0 in H11; subst. 
+  rewrite H12 in e. inversion e; auto.
 Case "smem_alloca_denotes".
   inversion H0; subst.
   apply H in H10; subst. 
@@ -2115,11 +2106,10 @@ Case "smem_load_denotes".
   apply H in H10; auto. 
 Case "smem_store_denotes".
   inversion H2; subst.
-  apply H in H12; subst. 
+  apply H in H13; subst. 
   apply H0 in H14; subst. 
   apply H1 in H15; subst. 
-  rewrite H16 in e. inversion e; subst.
-  rewrite H17 in e0. inversion e0; auto.
+  rewrite H16 in e. inversion e; auto.
 Qed.
 
 Lemma sterm_denotes_genericvalue_det : forall TD lc gl Mem0 st0 gv1 gv2,

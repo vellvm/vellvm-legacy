@@ -7,7 +7,7 @@ open Llvm_executionengine
 let main in_filename  =
 
 
-        let ic = create_context () in
+        let ic = global_context () in
         let imbuf = MemoryBuffer.of_file in_filename in
         let im = Llvm_bitreader.parse_bitcode ic imbuf in
         let ist = SlotTracker.create_of_module im in

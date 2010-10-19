@@ -219,11 +219,9 @@ Proof.
       destruct Hsterm_denotes as [J1 J2].
       split; auto.
     split; auto.     
-      apply getOperandPtr_inversion in H11.
-      destruct H11 as [gv [J1 J2]].
-      apply smem_free_denotes with (Mem1:=Mem1)(gv0:=gv)(mptr0:=mptr0); auto.
+      apply smem_free_denotes with (Mem1:=Mem1)(gv0:=mptr0); auto.
         eapply genericvalue__implies__value2Sterm_denotes; eauto.
-    
+
   Case "insn_alloca".
     split; simpl; eauto.
       split.
@@ -251,8 +249,6 @@ Proof.
 
   Case "insn_load".
     split; simpl; eauto.
-      apply getOperandPtr_inversion in H12.
-      destruct H12 as [gv2 [J1 J2]].
       split.
         intros id' id'_indom.
         simpl in id'_indom. simpl. 
@@ -264,7 +260,7 @@ Proof.
           rewrite lookupSmap_updateAddAL_eq.
           exists gv.
           split; auto.
-          apply sterm_load_denotes with (Mem1:=Mem2)(gv0:=gv2)(mp0:=mp); eauto.
+          apply sterm_load_denotes with (Mem1:=Mem2)(gv0:=mp); eauto.
             eapply genericvalue__implies__value2Sterm_denotes; eauto.
      
         intros id' gv'0 HlookupAL.
@@ -273,7 +269,7 @@ Proof.
           rewrite lookupAL_updateAddAL_eq in HlookupAL.
           inversion HlookupAL; subst.
           rewrite lookupSmap_updateAddAL_eq.
-          apply sterm_load_denotes with (Mem1:=Mem2)(gv0:=gv2)(mp0:=mp); eauto.
+          apply sterm_load_denotes with (Mem1:=Mem2)(gv0:=mp); eauto.
             eapply genericvalue__implies__value2Sterm_denotes; eauto.
 
           eapply se_cmd__denotes__op_cmd__case2; eauto.
@@ -283,8 +279,6 @@ Proof.
       destruct Hsterm_denotes as [J1 J2].
       split; auto.
     split; auto.
-      apply getOperandPtr_inversion in H14.
-      destruct H14 as [gv2 [J1 J2]].
       eapply smem_store_denotes; 
         eauto using genericvalue__implies__value2Sterm_denotes.
 
@@ -293,21 +287,18 @@ Proof.
       split.
         intros id' id'_indom.
         simpl in id'_indom. simpl. 
-        apply getOperandPtr_inversion in H13.
-        destruct H13 as [gv0 [J1 J2]].
         apply se_cmd__denotes__op_cmd__case0 in id'_indom; auto.
         destruct id'_indom as [[nEQ id'_indom] | EQ1]; subst.
           eapply se_cmd__denotes__op_cmd__case1; eauto.
 
           rewrite lookupAL_updateAddAL_eq.
           rewrite lookupSmap_updateAddAL_eq.
-          apply GEP_inversion in H14.
-          destruct H14 as [idxs [J3 J4]].
-          apply intValues2Nats_inversion in J3.
-          destruct J3 as [gvs0 [J31 J32]].
-          exists (ptr2GV TD mp').
+          apply GEP_inversion in H15.
+          destruct H15 as [idxs [ptr [ptr0 [J3 [J4 [J5 J6]]]]]].
+          exists mp'.
           split; auto.
             eapply sterm_gep_denotes; eauto using genericvalue__implies__value2Sterm_denotes, genericvalues__imply__value2Sterm_denote.
+              unfold GEP. rewrite J3, J4, J5, J6. auto.
 
         intros id' gv' HlookupAL.
         simpl. 
@@ -315,13 +306,10 @@ Proof.
           rewrite lookupAL_updateAddAL_eq in HlookupAL.
           inversion HlookupAL; subst.
           rewrite lookupSmap_updateAddAL_eq.
-          apply getOperandPtr_inversion in H13.
-          destruct H13 as [gv0 [J1 J2]].
-          apply GEP_inversion in H14.
-          destruct H14 as [idxs [J3 J4]].
-          apply intValues2Nats_inversion in J3.
-          destruct J3 as [gvs0 [J31 J32]].
+          apply GEP_inversion in H15.
+          destruct H15 as [idxs [ptr [ptr0 [J3 [J4 [J5 J6]]]]]].
           eapply sterm_gep_denotes; eauto using genericvalue__implies__value2Sterm_denotes, genericvalues__imply__value2Sterm_denote.
+            unfold GEP. rewrite J3, J4, J5, J6. auto.
 
           eapply se_cmd__denotes__op_cmd__case2; eauto.
 
@@ -416,32 +404,31 @@ Proof.
         simpl in id'_indom. simpl. 
         apply se_cmd__denotes__op_cmd__case0 in id'_indom; auto.
         destruct id'_indom as [[nEQ id'_indom] | EQ1]; subst.
-          destruct (Coqlib.zeq cond0 0); eapply se_cmd__denotes__op_cmd__case1; eauto.
+          destruct (isGVZero TD cond0); eapply se_cmd__denotes__op_cmd__case1; eauto.
 
-          apply getOperandInt_inversion in H13. destruct H13 as [gv5 [J1 J2]].
-          destruct (Coqlib.zeq cond0 0); subst; rewrite lookupAL_updateAddAL_eq;
+          remember (isGVZero TD cond0) as R.
+          destruct R; subst; rewrite lookupAL_updateAddAL_eq;
                           rewrite lookupSmap_updateAddAL_eq; auto.
             exists gv2.
             split; auto.
-              apply sterm_select_denotes with (c0:=0%Z)(gv0:=gv5)(gv1:=gv1)(gv2:=gv2); eauto using genericvalue__implies__value2Sterm_denotes.
+              apply sterm_select_denotes with (gv0:=cond0)(gv1:=gv1)(gv2:=gv2); eauto using genericvalue__implies__value2Sterm_denotes.
+                rewrite <- HeqR. auto.
 
             exists gv1.
             split; auto.
-              apply sterm_select_denotes with (c0:=cond0)(gv0:=gv5)(gv1:=gv1)(gv2:=gv2); eauto using genericvalue__implies__value2Sterm_denotes.
-                destruct (Coqlib.zeq cond0 0); subst; auto.             
-                   contradict n; auto.
+              apply sterm_select_denotes with (gv0:=cond0)(gv1:=gv1)(gv2:=gv2); eauto using genericvalue__implies__value2Sterm_denotes.
+                rewrite <- HeqR. auto.
 
         intros id' gv' HlookupAL.
         simpl. 
         destruct (id'==i0); subst.
-          apply getOperandInt_inversion in H13. destruct H13 as [gv5 [J1 J2]].
           rewrite lookupSmap_updateAddAL_eq.
-          apply sterm_select_denotes with (c0:=cond0)(gv0:=gv5)(gv1:=gv1)(gv2:=gv2); eauto using genericvalue__implies__value2Sterm_denotes.
-          destruct (Coqlib.zeq cond0 0);
+          apply sterm_select_denotes with (gv0:=cond0)(gv1:=gv1)(gv2:=gv2); eauto using genericvalue__implies__value2Sterm_denotes.
+          destruct (isGVZero TD cond0);
             rewrite lookupAL_updateAddAL_eq in HlookupAL;
             inversion HlookupAL; subst; auto.
 
-          destruct (Coqlib.zeq cond0 0); eapply se_cmd__denotes__op_cmd__case2; eauto.
+          destruct (isGVZero TD cond0); eapply se_cmd__denotes__op_cmd__case2; eauto.
 Qed.
 
 Lemma aux__op_cmds__satisfy__se_cmds : forall nbs TD lc0 als als0 Mem0 lc als' gl Mem1 sstate1 lc' Mem2 tr tr1,

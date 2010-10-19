@@ -145,12 +145,10 @@ Proof.
 
   Case "insn_free".
     inversion Hsmem_denotes2; subst.
-    apply value2Sterm_denotes__implies__genericvalue with (lc:=lc)(gl:=gl) in H4; auto.
-    apply smem_denotes_mem_det with (Mem2:=Mem1) in H9; auto.
+    apply value2Sterm_denotes__implies__genericvalue with (lc:=lc)(gl:=gl) in H8; auto.
+    apply smem_denotes_mem_det with (Mem2:=Mem1) in H10; auto.
     subst.
     exists lc. exists als. exists Mem2. exists trace_nil.
-    assert (getOperandPtr TD v lc gl = Some mptr0) as J.
-      unfold getOperandPtr. rewrite H4. auto.
     split; eauto.
 
   Case "insn_alloca".
@@ -174,23 +172,19 @@ Proof.
     simpl in J. rewrite lookupSmap_updateAddAL_eq in J. 
     destruct J as [gv' [load_denotes_gv' gv_in_env']].
     inversion load_denotes_gv'; subst.
-    apply value2Sterm_denotes__implies__genericvalue with (lc:=lc)(gl:=gl) in H9; auto.
+    apply value2Sterm_denotes__implies__genericvalue with (lc:=lc)(gl:=gl) in H10; auto.
     apply smem_denotes_mem_det with (Mem2:=Mem1) in H11; auto.
     subst.
     exists (updateAddAL _ lc i0 gv'). exists als. exists Mem1. exists trace_nil.
-    assert (getOperandPtr TD v lc gl = Some mp0) as J.
-      unfold getOperandPtr. rewrite H9. auto.
     split; eauto.
 
   Case "insn_store".
     inversion Hsmem_denotes2; subst.
-    apply value2Sterm_denotes__implies__genericvalue with (lc:=lc)(gl:=gl) in H10; auto.
+    apply value2Sterm_denotes__implies__genericvalue with (lc:=lc)(gl:=gl) in H11; auto.
     apply value2Sterm_denotes__implies__genericvalue with (lc:=lc)(gl:=gl) in H12; auto.
     apply smem_denotes_mem_det with (Mem2:=Mem1) in H13; auto.
     subst.
     exists lc. exists als. exists Mem2. exists trace_nil.
-    assert (getOperandPtr TD v0 lc gl = Some mptr2) as J.
-      unfold getOperandPtr. rewrite H12. auto.
     split; eauto.
 
   Case "insn_gep".
@@ -201,15 +195,9 @@ Proof.
     simpl in J. rewrite lookupSmap_updateAddAL_eq in J. 
     destruct J as [gv' [gep_denotes_gv' gv_in_env']].
     inversion gep_denotes_gv'; subst.
-    apply value2Sterm_denotes__implies__genericvalue with (lc:=lc)(gl:=gl) in H5; auto.
-    apply value2Sterm_denote__imply__genericvalues with (lc:=lc)(gl:=gl) in H10; auto.
-    exists (updateAddAL _ lc i0 (ptr2GV TD mp1)). exists als. exists Mem1. exists trace_nil.
-    assert (getOperandPtr TD v lc gl = Some mp0) as J.
-      unfold getOperandPtr. rewrite H5. auto.
-    assert (GEP TD lc gl t mp0 l0 i1 = Some mp1) as J'.
-      unfold GEP.
-      rewrite <- values2GVs_GVs2Nats__intValues2Nats with (gvs0:=gvs0); auto.
-      rewrite H13. auto.
+    apply value2Sterm_denotes__implies__genericvalue with (lc:=lc)(gl:=gl) in H10; auto.
+    apply value2Sterm_denote__imply__genericvalues with (lc:=lc)(gl:=gl) in H11; auto.
+    exists (updateAddAL _ lc i0 gv'). exists als. exists Mem1. exists trace_nil.
     split; eauto.
 
   Case "insn_ext".
@@ -263,12 +251,10 @@ Proof.
     simpl in J. rewrite lookupSmap_updateAddAL_eq in J. 
     destruct J as [gv3 [select_denotes_gv3 gv3_in_env']].
     inversion select_denotes_gv3; subst.
-    apply value2Sterm_denotes__implies__genericvalue with (lc:=lc)(gl:=gl) in H5; auto.
-    apply value2Sterm_denotes__implies__genericvalue with (lc:=lc)(gl:=gl) in H10; auto.
+    apply value2Sterm_denotes__implies__genericvalue with (lc:=lc)(gl:=gl) in H9; auto.
+    apply value2Sterm_denotes__implies__genericvalue with (lc:=lc)(gl:=gl) in H11; auto.
     apply value2Sterm_denotes__implies__genericvalue with (lc:=lc)(gl:=gl) in H12; auto.
-    exists (if Coqlib.zeq c0 0 then updateAddAL _ lc i0 gv2 else updateAddAL _ lc i0 gv1). exists als. exists Mem1. exists trace_nil. 
-    assert (getOperandInt TD 1 v lc gl = Some c0) as J.
-      unfold getOperandInt. rewrite H5. auto.
+    exists (if isGVZero TD gv0 then updateAddAL _ lc i0 gv2 else updateAddAL _ lc i0 gv1). exists als. exists Mem1. exists trace_nil. 
     split; eauto.
 
   Case "insn_call".
@@ -933,7 +919,7 @@ Proof.
             fsetdec.
 
       split; simpl; eauto.
-        apply value2Sterm_denotes__implies__genericvalue with (lc:=lc2) in H2; try solve [auto | split; auto].
+        apply value2Sterm_denotes__implies__genericvalue with (lc:=lc2) in H6; try solve [auto | split; auto].
         eapply smem_free_denotes; eauto 
                   using genericvalue__implies__value2Sterm_denotes,
                         init_denotes_gvmap.        
@@ -1068,7 +1054,7 @@ Proof.
             fsetdec.
 
       split; simpl; eauto.
-        apply value2Sterm_denotes__implies__genericvalue with (lc:=lc2) in H8; try solve [auto | split; auto].
+        apply value2Sterm_denotes__implies__genericvalue with (lc:=lc2) in H9; try solve [auto | split; auto].
         apply value2Sterm_denotes__implies__genericvalue with (lc:=lc2) in H10; try solve [auto | split; auto].
         eapply smem_store_denotes; eauto 
                   using genericvalue__implies__value2Sterm_denotes,
@@ -1102,7 +1088,7 @@ Proof.
             clear Hsmem_denotes Hsframe_denotes Hseffects_denote.
             simpl. destruct (i0==i0) as [_ | FALSE]; try solve [contradict FALSE; auto].
             inversion gep_denotes_gv3; subst. clear gep_denotes_gv3.
-            apply value2Sterm_denote__imply__genericvalues with (lc:=(rollbackAL _ lc2 i0 lc0)) in H9; try solve [auto | split; auto].
+            apply value2Sterm_denote__imply__genericvalues with (lc:=(rollbackAL _ lc2 i0 lc0)) in H10; try solve [auto | split; auto].
             eapply sterm_gep_denotes with (gv0:=gv0)(gvs0:=gvs0); eauto
                   using value2Sterm_denotes__implies__genericvalue,
                         genericvalue__implies__value2Sterm_denotes,
@@ -1120,7 +1106,7 @@ Proof.
             rewrite id'_in_env2 in gv3_in_env2.
             inversion gv3_in_env2; subst. clear gv3_in_env2.
             inversion gep_denotes_gv3; subst.
-            apply value2Sterm_denote__imply__genericvalues with (lc:=(rollbackAL _ lc2 i0 lc0)) in H9; try solve [auto | split; auto].
+            apply value2Sterm_denote__imply__genericvalues with (lc:=(rollbackAL _ lc2 i0 lc0)) in H10; try solve [auto | split; auto].
             eapply sterm_gep_denotes with (gv0:=gv0)(gvs0:=gvs0); eauto
               using value2Sterm_denotes__implies__genericvalue,
                     genericvalue__implies__value2Sterm_denotes,
@@ -1598,9 +1584,9 @@ Proof.
 
     split. clear Hsframe_denotes2 Hsframe_denotes1 Hseffects_denote2 Hseffects_denote1.
            inversion Hsmem_denotes2; subst.
-           inversion H7; subst.
+           inversion H8; subst.
            simpl. 
-           apply value2Sterm_denotes__implies__genericvalue with (lc:=lc1) in H2; 
+           apply value2Sterm_denotes__implies__genericvalue with (lc:=lc1) in H6; 
             try solve [eauto using init_denotes_gvmap| split; auto].
            eapply smem_free_denotes; eauto using genericvalue__implies__value2Sterm_denotes.
     split. inversion Hsframe_denotes2; subst; auto.
@@ -1721,7 +1707,7 @@ Proof.
            inversion Hsmem_denotes2; subst.
            inversion H11; subst.
            simpl. 
-           apply value2Sterm_denotes__implies__genericvalue with (lc:=lc1) in H8; 
+           apply value2Sterm_denotes__implies__genericvalue with (lc:=lc1) in H9; 
             try solve [eauto using init_denotes_gvmap| split; auto].
            apply value2Sterm_denotes__implies__genericvalue with (lc:=lc1) in H10; 
             try solve [eauto using init_denotes_gvmap| split; auto].
@@ -1750,7 +1736,7 @@ Proof.
               rewrite lookupSmap_updateAddAL_eq.
               eapply sterm_gep_denotes with (gv0:=gv0)(gvs0:=gvs0);
                 try solve [eauto | apply se_cmds_denotes__composes__prefix_last__case2 with (lc1:=lc1)(Mem1:=Mem1); auto].
-                apply value2Sterm_denote__imply__genericvalues with (lc:=lc1) in H8; auto.
+                apply value2Sterm_denote__imply__genericvalues with (lc:=lc1) in H9; auto.
                   apply genericvalues__imply__value2Sterm_denote with (lc:=lc1); auto using se_cmds_uniq.
                   apply init_denotes_gvmap; auto.
 
@@ -1759,9 +1745,9 @@ Proof.
         destruct (@eq_dec id (@EqDec_eq_of_EqDec id EqDec_atom) id' i0); subst.
           rewrite lookupSmap_updateAddAL_eq.
           inversion H; subst.
-          apply sterm_gep_denotes with (gv0:=gv0)(gvs0:=gvs0)(mp0:=mp0)(ns0:=ns0);
+          apply sterm_gep_denotes with (gv0:=gv0)(gvs0:=gvs0);
                 try solve [auto | apply se_cmds_denotes__composes__prefix_last__case2 with (lc1:=lc1)(Mem1:=Mem1); auto].
-                apply value2Sterm_denote__imply__genericvalues with (lc:=lc1) in H9; auto.
+                apply value2Sterm_denote__imply__genericvalues with (lc:=lc1) in H10; auto.
                   apply genericvalues__imply__value2Sterm_denote with (lc:=lc1); auto using se_cmds_uniq.
                   apply init_denotes_gvmap; auto.
 
@@ -1898,7 +1884,7 @@ Proof.
               inversion select_denotes_gv'; subst.
 
               rewrite lookupSmap_updateAddAL_eq.
-              apply sterm_select_denotes with (gv0:=gv0)(c0:=c0)(gv1:=gv1)(gv2:=gv2); 
+              apply sterm_select_denotes with (gv0:=gv0)(gv1:=gv1)(gv2:=gv2); 
                 try solve [auto | apply se_cmds_denotes__composes__prefix_last__case2 with (lc1:=lc1)(Mem1:=Mem1); auto].
 
         apply Hsterms_denote22 in H.
@@ -1906,7 +1892,7 @@ Proof.
         destruct (@eq_dec id (@EqDec_eq_of_EqDec id EqDec_atom) id' i0); subst.
           rewrite lookupSmap_updateAddAL_eq.
           inversion H; subst.
-          apply sterm_select_denotes with (gv0:=gv0)(c0:=c0)(gv1:=gv1)(gv2:=gv2);
+          apply sterm_select_denotes with (gv0:=gv0)(gv1:=gv1)(gv2:=gv2);
                 try solve [auto | apply se_cmds_denotes__composes__prefix_last__case2 with (lc1:=lc1)(Mem1:=Mem1); auto].
 
           apply se_cmds_denotes__composes__prefix_last__case3 with (lc1:=lc1)(Mem1:=Mem1)(i0:=i0); try solve [auto | split; auto].

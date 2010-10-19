@@ -159,8 +159,8 @@ Inductive dsInsn : State -> State -> trace -> Prop :=
     trace_nil 
 | dsBranch : forall S TD Ps F B lc gl arg bid Cond l1 l2 c
                               l' ps' cs' tmn' EC Mem als,   
-  getOperandInt TD Size.One Cond lc gl = Some c ->
-  Some (block_intro l' ps' cs' tmn') = (if zeq c 0
+  getOperandValue TD Cond lc gl = Some c ->
+  Some (block_intro l' ps' cs' tmn') = (if isGVZero TD c
                then lookupBlockViaLabelFromFdef F l2
                else lookupBlockViaLabelFromFdef F l1) ->
   dsInsn 
@@ -205,8 +205,8 @@ Inductive dsInsn : State -> State -> trace -> Prop :=
     (mkState S TD Ps ((mkEC F B cs tmn (updateAddAL _ lc id (blk2GV TD mb)) arg als)::EC) gl Mem')
     trace_nil
 | dsFree : forall S TD Ps F B lc gl arg fid t v EC cs tmn Mem als Mem' mptr,
-  getOperandPtr TD v lc gl = Some mptr ->
-  free TD Mem (ptr2GV TD mptr) = Some Mem'->
+  getOperandValue TD v lc gl = Some mptr ->
+  free TD Mem mptr = Some Mem'->
   dsInsn 
     (mkState S TD Ps ((mkEC F B ((insn_free fid t v)::cs) tmn lc arg als)::EC) gl Mem) 
     (mkState S TD Ps ((mkEC F B cs tmn lc arg als)::EC) gl Mem')
@@ -219,26 +219,27 @@ Inductive dsInsn : State -> State -> trace -> Prop :=
     (mkState S TD Ps ((mkEC F B cs tmn (updateAddAL _ lc id (blk2GV TD mb)) arg (mb::als))::EC) gl Mem')
     trace_nil
 | dsLoad : forall S TD Ps F B lc gl arg id t align v EC cs tmn Mem als mp gv,
-  getOperandPtr TD v lc gl = Some mp ->
-  mload TD Mem (ptr2GV TD mp) t align = Some gv ->
+  getOperandValue TD v lc gl = Some mp ->
+  mload TD Mem mp t align = Some gv ->
   dsInsn 
     (mkState S TD Ps ((mkEC F B ((insn_load id t v align)::cs) tmn lc arg als)::EC) gl Mem) 
     (mkState S TD Ps ((mkEC F B cs tmn (updateAddAL _ lc id gv) arg als)::EC) gl Mem)
     trace_nil
 | dsStore : forall S TD Ps F B lc gl arg sid t align v1 v2 EC cs tmn Mem als mp2 gv1 Mem',
   getOperandValue TD v1 lc gl = Some gv1 ->
-  getOperandPtr TD v2 lc gl = Some mp2 ->
-  mstore TD Mem (ptr2GV TD mp2) t gv1 align = Some Mem' ->
+  getOperandValue TD v2 lc gl = Some mp2 ->
+  mstore TD Mem mp2 t gv1 align = Some Mem' ->
   dsInsn 
     (mkState S TD Ps ((mkEC F B ((insn_store sid t v1 v2 align)::cs) tmn lc arg als)::EC) gl Mem) 
     (mkState S TD Ps ((mkEC F B cs tmn lc arg als)::EC) gl Mem')
     trace_nil
-| dsGEP : forall S TD Ps F B lc gl arg id inbounds t v idxs EC mp mp' cs tmn Mem als,
-  getOperandPtr TD v lc gl = Some mp ->
-  GEP TD lc gl t mp idxs inbounds = Some mp' ->
+| dsGEP : forall S TD Ps F B lc gl arg id inbounds t v idxs vidxs EC mp mp' cs tmn Mem als,
+  getOperandValue TD v lc gl = Some mp ->
+  values2GVs TD idxs lc gl = Some vidxs ->
+  GEP TD t mp vidxs inbounds = Some mp' ->
   dsInsn 
     (mkState S TD Ps ((mkEC F B ((insn_gep id inbounds t v idxs)::cs) tmn lc arg als)::EC) gl Mem) 
-    (mkState S TD Ps ((mkEC F B cs tmn (updateAddAL _ lc id (ptr2GV TD mp')) arg als)::EC) gl Mem)
+    (mkState S TD Ps ((mkEC F B cs tmn (updateAddAL _ lc id mp') arg als)::EC) gl Mem)
     trace_nil 
 | dsExt : forall S TD Ps F B lc gl arg id extop t1 v1 t2 gv2 EC cs tmn Mem als,
   EXT TD lc gl extop t1 v1 t2 = Some gv2 ->
@@ -259,12 +260,12 @@ Inductive dsInsn : State -> State -> trace -> Prop :=
     (mkState S TD Ps ((mkEC F B cs tmn (updateAddAL _ lc id gv3) arg als)::EC) gl Mem)
     trace_nil
 | dsSelect : forall S TD Ps F B lc gl arg id v0 t v1 v2 c EC cs tmn Mem als gv1 gv2,
-  getOperandInt TD Size.One v0 lc gl = Some c ->
+  getOperandValue TD v0 lc gl = Some c ->
   getOperandValue TD v1 lc gl = Some gv1 ->
   getOperandValue TD v2 lc gl = Some gv2 ->
   dsInsn 
     (mkState S TD Ps ((mkEC F B ((insn_select id v0 t v1 v2)::cs) tmn lc arg als)::EC) gl Mem) 
-    (mkState S TD Ps ((mkEC F B cs tmn (if zeq c 0 then updateAddAL _ lc id gv2 else updateAddAL _ lc id gv1) arg als)::EC) gl Mem)
+    (mkState S TD Ps ((mkEC F B cs tmn (if isGVZero TD c then updateAddAL _ lc id gv2 else updateAddAL _ lc id gv1) arg als)::EC) gl Mem)
     trace_nil
 | dsCall : forall S TD Ps F B lc gl arg rid noret tailc fid lp cs tmn
                             l' ps' cs' tmn' EC rt la lb Mem als,
@@ -433,8 +434,8 @@ Inductive nsInsn : State*trace -> States -> Prop :=
     ((mkState S TD Ps ((mkEC F' B' cs' tmn' lc' arg' als')::EC) gl Mem', tr)::nil)
 | nsBranch_def : forall S TD Ps F B lc gl arg bid Cond l1 l2 c
                               l' ps' cs' tmn' EC tr Mem als,   
-  getOperandInt TD Size.One Cond lc gl = Some c ->
-  Some (block_intro l' ps' cs' tmn') = (if zeq c 0
+  getOperandValue TD Cond lc gl = Some c ->
+  Some (block_intro l' ps' cs' tmn') = (if isGVZero TD c
                then lookupBlockViaLabelFromFdef F l2
                else lookupBlockViaLabelFromFdef F l1) ->
   nsInsn 
@@ -485,8 +486,8 @@ Inductive nsInsn : State*trace -> States -> Prop :=
     (mkState S TD Ps ((mkEC F B ((insn_malloc id t sz align)::cs) tmn lc arg als)::EC) gl Mem, tr) 
     ((mkState S TD Ps ((mkEC F B cs tmn (updateAddAL _ lc id (blk2GV TD mb)) arg als)::EC) gl Mem', tr)::nil)
 | nsFree : forall S TD Ps F B lc gl arg fid t v EC cs tmn Mem als Mem' mptr tr,
-  getOperandPtr TD v lc gl = Some mptr ->
-  free TD Mem (ptr2GV TD mptr) = Some Mem'->
+  getOperandValue TD v lc gl = Some mptr ->
+  free TD Mem mptr = Some Mem'->
   nsInsn 
     (mkState S TD Ps ((mkEC F B ((insn_free fid t v)::cs) tmn lc arg als)::EC) gl Mem, tr) 
     ((mkState S TD Ps ((mkEC F B cs tmn lc arg als)::EC) gl Mem', tr)::nil)
@@ -497,24 +498,25 @@ Inductive nsInsn : State*trace -> States -> Prop :=
     (mkState S TD Ps ((mkEC F B ((insn_alloca id t sz align)::cs) tmn lc arg als)::EC) gl Mem, tr) 
     ((mkState S TD Ps ((mkEC F B cs tmn (updateAddAL _ lc id (blk2GV TD mb)) arg (mb::als))::EC) gl Mem', tr)::nil)
 | nsLoad : forall S TD Ps F B lc gl arg id t v align EC cs tmn Mem als mp gv tr,
-  getOperandPtr TD v lc gl = Some mp ->
-  mload TD Mem (ptr2GV TD mp) t align = Some gv ->
+  getOperandValue TD v lc gl = Some mp ->
+  mload TD Mem mp t align = Some gv ->
   nsInsn 
     (mkState S TD Ps ((mkEC F B ((insn_load id t v align)::cs) tmn lc arg als)::EC) gl Mem, tr) 
     ((mkState S TD Ps ((mkEC F B cs tmn (updateAddAL _ lc id gv) arg als)::EC) gl Mem, tr)::nil)
 | nsStore : forall S TD Ps F B lc gl arg sid t v1 v2 align EC cs tmn Mem als mp2 gv1 Mem' tr,
   getOperandValue TD v1 lc gl = Some gv1 ->
-  getOperandPtr TD v2 lc gl = Some mp2 ->
-  mstore TD Mem (ptr2GV TD mp2) t gv1 align = Some Mem' ->
+  getOperandValue TD v2 lc gl = Some mp2 ->
+  mstore TD Mem mp2 t gv1 align = Some Mem' ->
   nsInsn 
     (mkState S TD Ps ((mkEC F B ((insn_store sid t v1 v2 align)::cs) tmn lc arg als)::EC) gl Mem, tr) 
     ((mkState S TD Ps ((mkEC F B cs tmn lc arg als)::EC) gl Mem', tr)::nil)
-| nsGEP : forall S TD Ps F B lc gl arg id inbounds t v idxs EC mp mp' cs tmn Mem als tr,
-  getOperandPtr TD v lc gl = Some mp ->
-  GEP TD lc gl t mp idxs inbounds = Some mp' ->
+| nsGEP : forall S TD Ps F B lc gl arg id inbounds t v idxs vidxs EC mp mp' cs tmn Mem als tr,
+  getOperandValue TD v lc gl = Some mp ->
+  values2GVs TD idxs lc gl = Some vidxs ->
+  GEP TD t mp vidxs inbounds = Some mp' ->
   nsInsn 
     (mkState S TD Ps ((mkEC F B ((insn_gep id inbounds t v idxs)::cs) tmn lc arg als)::EC) gl Mem, tr) 
-    ((mkState S TD Ps ((mkEC F B cs tmn (updateAddAL _ lc id (ptr2GV TD mp')) arg als)::EC) gl Mem, tr)::nil)
+    ((mkState S TD Ps ((mkEC F B cs tmn (updateAddAL _ lc id mp') arg als)::EC) gl Mem, tr)::nil)
 | nsExt : forall S TD Ps F B lc gl arg id extop t1 v1 t2 gv2 EC cs tmn Mem als tr,
   EXT TD lc gl extop t1 v1 t2 = Some gv2 ->
   nsInsn 
@@ -531,12 +533,12 @@ Inductive nsInsn : State*trace -> States -> Prop :=
     (mkState S TD Ps ((mkEC F B ((insn_icmp id cond t v1 v2)::cs) tmn lc arg als)::EC) gl Mem, tr) 
     ((mkState S TD Ps ((mkEC F B cs tmn (updateAddAL _ lc id gv3) arg als)::EC) gl Mem, tr)::nil)
 | nsSelect : forall S TD Ps F B lc gl arg id v0 t v1 v2 c EC cs tmn Mem als tr gv1 gv2,
-  getOperandInt TD Size.One v0 lc gl = Some c ->
+  getOperandValue TD v0 lc gl = Some c ->
   getOperandValue TD v1 lc gl = Some gv1 ->
   getOperandValue TD v2 lc gl = Some gv2 ->
   nsInsn 
     (mkState S TD Ps ((mkEC F B ((insn_select id v0 t v1 v2)::cs) tmn lc arg als)::EC) gl Mem, tr) 
-    ((mkState S TD Ps ((mkEC F B cs tmn (if zeq c 0 then updateAddAL _ lc id gv2 else updateAddAL _ lc id gv1) arg als)::EC) gl Mem, tr)::nil)
+    ((mkState S TD Ps ((mkEC F B cs tmn (if isGVZero TD c then updateAddAL _ lc id gv2 else updateAddAL _ lc id gv1) arg als)::EC) gl Mem, tr)::nil)
 | nsCall : forall S TD Ps F B lc gl arg rid noret tailc fid lp cs tmn
                             Oparg' arg' l' ps' cs' tmn' EC rt id la lb tr Mem als,
   params2OpGVs TD lp lc gl = Oparg' ->   
@@ -680,8 +682,8 @@ Definition callUpdateLocals (TD:layouts) (noret:bool) (rid:id) (rt:typ) (oResult
 Inductive dbInsn : State -> State -> trace -> Prop :=
 | dbBranch : forall S TD Ps F B lc gl arg bid Cond l1 l2 c
                               l' ps' cs' tmn' EC Mem als,   
-  getOperandInt TD Size.One Cond lc gl = Some c ->
-  Some (block_intro l' ps' cs' tmn') = (if zeq c 0
+  getOperandValue TD Cond lc gl = Some c ->
+  Some (block_intro l' ps' cs' tmn') = (if isGVZero TD c
                then lookupBlockViaLabelFromFdef F l2
                else lookupBlockViaLabelFromFdef F l1) ->
   dbInsn 
@@ -726,8 +728,8 @@ Inductive dbInsn : State -> State -> trace -> Prop :=
     (mkState S TD Ps ((mkEC F B cs tmn (updateAddAL _ lc id (blk2GV TD mb)) arg als)::EC) gl Mem')
     trace_nil
 | dbFree : forall S TD Ps F B lc gl arg fid t v EC cs tmn Mem als Mem' mptr,
-  getOperandPtr TD v lc gl = Some mptr ->
-  free TD Mem (ptr2GV TD mptr) = Some Mem'->
+  getOperandValue TD v lc gl = Some mptr ->
+  free TD Mem mptr = Some Mem'->
   dbInsn 
     (mkState S TD Ps ((mkEC F B ((insn_free fid t v)::cs) tmn lc arg als)::EC) gl Mem) 
     (mkState S TD Ps ((mkEC F B cs tmn lc arg als)::EC) gl Mem')
@@ -740,26 +742,27 @@ Inductive dbInsn : State -> State -> trace -> Prop :=
     (mkState S TD Ps ((mkEC F B cs tmn (updateAddAL _ lc id (blk2GV TD mb)) arg (mb::als))::EC) gl Mem')
     trace_nil
 | dbLoad : forall S TD Ps F B lc gl arg id t v align EC cs tmn Mem als mp gv,
-  getOperandPtr TD v lc gl = Some mp ->
-  mload TD Mem (ptr2GV TD mp) t align = Some gv ->
+  getOperandValue TD v lc gl = Some mp ->
+  mload TD Mem mp t align = Some gv ->
   dbInsn 
     (mkState S TD Ps ((mkEC F B ((insn_load id t v align)::cs) tmn lc arg als)::EC) gl Mem) 
     (mkState S TD Ps ((mkEC F B cs tmn (updateAddAL _ lc id gv) arg als)::EC) gl Mem)
     trace_nil
 | dbStore : forall S TD Ps F B lc gl arg sid t v1 v2 align EC cs tmn Mem als mp2 gv1 Mem',
   getOperandValue TD v1 lc gl = Some gv1 ->
-  getOperandPtr TD v2 lc gl = Some mp2 ->
-  mstore TD Mem (ptr2GV TD mp2) t gv1 align = Some Mem' ->
+  getOperandValue TD v2 lc gl = Some mp2 ->
+  mstore TD Mem mp2 t gv1 align = Some Mem' ->
   dbInsn 
     (mkState S TD Ps ((mkEC F B ((insn_store sid t v1 v2 align)::cs) tmn lc arg als)::EC) gl Mem) 
     (mkState S TD Ps ((mkEC F B cs tmn lc arg als)::EC) gl Mem')
     trace_nil
-| dbGEP : forall S TD Ps F B lc gl arg id inbounds t v idxs EC mp mp' cs tmn Mem als,
-  getOperandPtr TD v lc gl = Some mp ->
-  GEP TD lc gl t mp idxs inbounds = Some mp' ->
+| dbGEP : forall S TD Ps F B lc gl arg id inbounds t v idxs vidxs EC mp mp' cs tmn Mem als,
+  getOperandValue TD v lc gl = Some mp ->
+  values2GVs TD idxs lc gl = Some vidxs ->
+  GEP TD t mp vidxs inbounds = Some mp' ->
   dbInsn 
     (mkState S TD Ps ((mkEC F B ((insn_gep id inbounds t v idxs)::cs) tmn lc arg als)::EC) gl Mem) 
-    (mkState S TD Ps ((mkEC F B cs tmn (updateAddAL _ lc id (ptr2GV TD mp')) arg als)::EC) gl Mem)
+    (mkState S TD Ps ((mkEC F B cs tmn (updateAddAL _ lc id mp') arg als)::EC) gl Mem)
     trace_nil 
 | dbExt : forall S TD Ps F B lc gl arg id extop t1 v1 t2 gv2 EC cs tmn Mem als,
   EXT TD lc gl extop t1 v1 t2 = Some gv2 ->
@@ -780,12 +783,12 @@ Inductive dbInsn : State -> State -> trace -> Prop :=
     (mkState S TD Ps ((mkEC F B cs tmn (updateAddAL _ lc id gv3) arg als)::EC) gl Mem)
     trace_nil
 | dbSelect : forall S TD Ps F B lc gl arg id v0 t v1 v2 c EC cs tmn Mem als gv1 gv2,
-  getOperandInt TD Size.One v0 lc gl = Some c ->
+  getOperandValue TD v0 lc gl = Some c ->
   getOperandValue TD v1 lc gl = Some gv1 ->
   getOperandValue TD v2 lc gl = Some gv2 ->
   dbInsn 
     (mkState S TD Ps ((mkEC F B ((insn_select id v0 t v1 v2)::cs) tmn lc arg als)::EC) gl Mem) 
-    (mkState S TD Ps ((mkEC F B cs tmn (if zeq c 0 then updateAddAL _ lc id gv2 else updateAddAL _ lc id gv1) arg als)::EC) gl Mem)
+    (mkState S TD Ps ((mkEC F B cs tmn (if isGVZero TD c then updateAddAL _ lc id gv2 else updateAddAL _ lc id gv1) arg als)::EC) gl Mem)
     trace_nil
 | dbCall : forall S TD Ps F B lc gl arg rid noret tailc rt fid lp cs tmn
                        EC Rid oResult tr B' lc' Mem Mem' als' als Mem'',
@@ -942,8 +945,8 @@ end.
 Inductive nbInsn : State*trace -> States -> Prop :=
 | nbBranch_def : forall S TD Ps F B lc gl arg bid Cond l1 l2 c
                               l' ps' cs' tmn' EC tr Mem als,   
-  getOperandInt TD Size.One Cond lc gl = Some c ->
-  Some (block_intro l' ps' cs' tmn') = (if zeq c 0
+  getOperandValue TD Cond lc gl = Some c ->
+  Some (block_intro l' ps' cs' tmn') = (if isGVZero TD c
                then lookupBlockViaLabelFromFdef F l2
                else lookupBlockViaLabelFromFdef F l1) ->
   nbInsn 
@@ -993,8 +996,8 @@ Inductive nbInsn : State*trace -> States -> Prop :=
     (mkState S TD Ps ((mkEC F B ((insn_malloc id t sz align)::cs) tmn lc arg als)::EC) gl Mem, tr) 
     ((mkState S TD Ps ((mkEC F B cs tmn (updateAddAL _ lc id (blk2GV TD mb)) arg als)::EC) gl Mem', tr)::nil)
 | nbFree : forall S TD Ps F B lc gl arg fid t v EC cs tmn Mem als Mem' mptr tr,
-  getOperandPtr TD v lc gl = Some mptr ->
-  free TD Mem (ptr2GV TD mptr) = Some Mem'->
+  getOperandValue TD v lc gl = Some mptr ->
+  free TD Mem mptr = Some Mem'->
   nbInsn 
     (mkState S TD Ps ((mkEC F B ((insn_free fid t v)::cs) tmn lc arg als)::EC) gl Mem, tr) 
     ((mkState S TD Ps ((mkEC F B cs tmn lc arg als)::EC) gl Mem', tr)::nil)
@@ -1005,24 +1008,25 @@ Inductive nbInsn : State*trace -> States -> Prop :=
     (mkState S TD Ps ((mkEC F B ((insn_alloca id t sz align)::cs) tmn lc arg als)::EC) gl Mem, tr) 
     ((mkState S TD Ps ((mkEC F B cs tmn (updateAddAL _ lc id (blk2GV TD mb)) arg (mb::als))::EC) gl Mem', tr)::nil)
 | nbLoad : forall S TD Ps F B lc gl arg id t v align EC cs tmn Mem als mp gv tr,
-  getOperandPtr TD v lc gl = Some mp ->
-  mload TD Mem (ptr2GV TD mp) t align = Some gv ->
+  getOperandValue TD v lc gl = Some mp ->
+  mload TD Mem mp t align = Some gv ->
   nbInsn 
     (mkState S TD Ps ((mkEC F B ((insn_load id t v align)::cs) tmn lc arg als)::EC) gl Mem, tr) 
     ((mkState S TD Ps ((mkEC F B cs tmn (updateAddAL _ lc id gv) arg als)::EC) gl Mem, tr)::nil)
 | nbStore : forall S TD Ps F B lc gl arg sid t v1 v2 align EC cs tmn Mem als mp2 gv1 Mem' tr,
   getOperandValue TD v1 lc gl = Some gv1 ->
-  getOperandPtr TD v2 lc gl = Some mp2 ->
-  mstore TD Mem (ptr2GV TD mp2) t gv1 align = Some Mem' ->
+  getOperandValue TD v2 lc gl = Some mp2 ->
+  mstore TD Mem mp2 t gv1 align = Some Mem' ->
   nbInsn 
     (mkState S TD Ps ((mkEC F B ((insn_store sid t v1 v2 align)::cs) tmn lc arg als)::EC) gl Mem, tr) 
     ((mkState S TD Ps ((mkEC F B cs tmn lc arg als)::EC) gl Mem', tr)::nil)
-| nbGEP : forall S TD Ps F B lc gl arg id inbounds t v idxs EC mp mp' cs tmn Mem als tr,
-  getOperandPtr TD v lc gl = Some mp ->
-  GEP TD lc gl t mp idxs false = Some mp' ->
+| nbGEP : forall S TD Ps F B lc gl arg id inbounds t v idxs vidxs EC mp mp' cs tmn Mem als tr,
+  getOperandValue TD v lc gl = Some mp ->
+  values2GVs TD idxs lc gl = Some vidxs ->
+  GEP TD t mp vidxs false = Some mp' ->
   nbInsn 
     (mkState S TD Ps ((mkEC F B ((insn_gep id inbounds t v idxs)::cs) tmn lc arg als)::EC) gl Mem, tr) 
-    ((mkState S TD Ps ((mkEC F B cs tmn(updateAddAL _ lc id (ptr2GV TD mp')) arg als)::EC) gl Mem, tr)::nil)
+    ((mkState S TD Ps ((mkEC F B cs tmn(updateAddAL _ lc id mp') arg als)::EC) gl Mem, tr)::nil)
 | nbExt : forall S TD Ps F B lc gl arg id extop t1 v1 t2 gv2 EC cs tmn Mem als tr, 
   EXT TD lc gl extop t1 v1 t2 = Some gv2 ->
   nbInsn 
@@ -1039,12 +1043,12 @@ Inductive nbInsn : State*trace -> States -> Prop :=
     (mkState S TD Ps ((mkEC F B ((insn_icmp id cond t v1 v2)::cs) tmn lc arg als)::EC) gl Mem, tr) 
     ((mkState S TD Ps ((mkEC F B cs tmn (updateAddAL _ lc id gv3) arg als)::EC) gl Mem, tr)::nil)
 | nbSelect : forall S TD Ps F B lc gl arg id v0 t v1 v2 c EC cs tmn Mem als tr gv1 gv2,
-  getOperandInt TD Size.One v0 lc gl = Some c ->
+  getOperandValue TD v0 lc gl = Some c ->
   getOperandValue TD v1 lc gl = Some gv1 ->
   getOperandValue TD v2 lc gl = Some gv2 ->
   nbInsn 
     (mkState S TD Ps ((mkEC F B ((insn_select id v0 t v1 v2)::cs) tmn lc arg als)::EC) gl Mem, tr) 
-    ((mkState S TD Ps ((mkEC F B cs tmn (if zeq c 0 then updateAddAL _ lc id gv2 else updateAddAL _ lc id gv1) arg als)::EC) gl Mem, tr)::nil)
+    ((mkState S TD Ps ((mkEC F B cs tmn (if isGVZero TD c then updateAddAL _ lc id gv2 else updateAddAL _ lc id gv1) arg als)::EC) gl Mem, tr)::nil)
 | nbCall : forall S TD Ps F B lc gl arg rid noret tailc rt fid lp cs tmn
                             EC tr lc_als_Mem_block_rid_ore_trs Mem als states, 
   nbFdef fid rt lp S TD Ps ((mkEC F B ((insn_call rid noret tailc rt fid lp)::cs) tmn lc arg als)::EC) lc gl Mem tr lc_als_Mem_block_rid_ore_trs ->

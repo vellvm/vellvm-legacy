@@ -1,5 +1,6 @@
 Add LoadPath "./ott".
 Add LoadPath "./monads".
+Add LoadPath "./compcert".
 (* Add LoadPath "../../../theory/metatheory". *)
 Require Import ssa_mem.
 Require Import genericvalues.
@@ -257,7 +258,7 @@ Case "dbBranch".
     assert (uniqFdef F0) as UniqF0.
       eapply uniqSystem__uniqFdef with (S:=S0); eauto.
     symmetry in e0.
-    destruct (Coqlib.zeq c 0);
+    destruct (isGVZero TD0 c);
       apply lookupBlockViaLabelFromFdef_inv in e0;
       destruct e0; auto.
 
@@ -327,7 +328,7 @@ Case "dbStore".
 Case "dbGEP".
   inversion H; subst.
   exists l0. exists ps. exists cs. exists tmn0.
-  exists (updateAddAL _ lc0 id0 (ptr2GV TD0 mp')). exists als0. exists Mem1.
+  exists (updateAddAL _ lc0 id0 mp'). exists als0. exists Mem1.
   exists cs1. split; auto.
 
 Case "dbExt".
@@ -351,7 +352,7 @@ Case "dbIcmp".
 Case "dbSelect".
   inversion H; subst.
   exists l0. exists ps. exists cs. exists tmn0.
-  exists (if Coqlib.zeq c 0 then updateAddAL _ lc0 id0 gv2 else updateAddAL _ lc0 id0 gv1). exists als0. exists Mem1.
+  exists (if isGVZero TD0 c then updateAddAL _ lc0 id0 gv2 else updateAddAL _ lc0 id0 gv1). exists als0. exists Mem1.
   exists cs1. split; auto.
 
 Case "dbCall".

@@ -34,7 +34,7 @@ Proof.
   intros TD lc als gl Mem0 c lc' als' Mem' tr HdbCmd Uniqlc.
   (dbCmd_cases (inversion HdbCmd) Case); subst; auto using updateAddAL_uniq.
   Case "dbSelect".
-    destruct (Coqlib.zeq cond0 0); eauto using updateAddAL_uniq.
+    destruct (isGVZero TD cond0); eauto using updateAddAL_uniq.
 Qed.
 
 Lemma se_dbCmds_preservation : forall TD lc als gl Mem0 cs lc' als' Mem' tr,
@@ -56,7 +56,7 @@ Lemma se_dbTerminator_preservation : forall TD F B gl lc c B' lc' tr,
 Proof.
   intros TD F gl B lc c B' lc' tr HdbTerminator Uniqlc UniqF Hblockin.
   inversion HdbTerminator; subst.
-    destruct (Coqlib.zeq c0 0).
+    destruct (isGVZero TD c0).
       split; auto using switchToNewBasicBlock_uniq.
         symmetry in H0.
         apply lookupBlockViaLabelFromFdef_inv in H0; auto.
@@ -305,7 +305,7 @@ Proof.
     exists (switchToNewBasicBlock (block_intro l' ps' sbs' tmn') B lc1').
     split.
       apply dbBranch with (c:=c); auto.
-        erewrite <- getOperandInt_eqAL; eauto.
+        erewrite <- getOperandValue_eqAL; eauto.
       apply eqAL_switchToNewBasicBlock; auto.     
   
     exists (switchToNewBasicBlock (block_intro l' ps' sbs' tmn') B lc1').
@@ -870,7 +870,8 @@ Lemma tv_terminator__is__correct : forall TD fh1 lb1 fh2 lb2 B1 B2 lc gl tmn B1'
 Proof.
   intros TD fh1 lb1 fh2 lb2 B1 B2 lc gl tmn B1' lc' tr HuniqF1 HuniqF2 Htv_fdef Htv_block HdbTerminator.
   inversion HdbTerminator; subst.
-    destruct (Coqlib.zeq c 0); subst.
+    remember (isGVZero TD c) as R.
+    destruct R; subst.
       assert (exists B2', exists n, tv_block (block_intro l' ps' sbs' tmn') B2' /\ 
                                   nth_error lb1 n = Some (block_intro l' ps' sbs' tmn') /\
                                   nth_error lb2 n = Some B2' /\
@@ -880,6 +881,7 @@ Proof.
       exists B2'. exists n. split; auto. split; auto. split; auto.
       destruct B2' as [l2' ps2' sbs2' tmn2'].
       eapply dbBranch; eauto.
+        rewrite <- HeqR. auto.
         eapply tv_switchToNewBasicBlock; eauto.
     
       assert (exists B2', exists n, tv_block (block_intro l' ps' sbs' tmn') B2' /\ 
@@ -891,8 +893,7 @@ Proof.
       exists B2'. exists n'. split; auto. split; auto. split; auto.
       destruct B2' as [l2' ps2' sbs2' tmn2'].
       apply dbBranch with (c:=c); auto.
-        destruct (Coqlib.zeq c 0); auto.
-          contradict e; auto.
+        rewrite <- HeqR. auto.
         eapply tv_switchToNewBasicBlock; eauto.
 
     assert (exists B2', exists n, tv_block (block_intro l' ps' sbs' tmn') B2' /\ 

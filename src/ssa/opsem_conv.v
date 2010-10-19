@@ -247,9 +247,6 @@ Proof.
          dbop__implies__dsop_star_prop, 
          dbFdef__implies__dsop_star_prop; 
   intros; subst; simpl; intuition; eauto.
-  Case "dbSelect".
-    apply dsInsn__implies__dsop_plus.
-    eapply dsSelect; eauto.
   Case "dbCall".
     inversion d; subst.
     SCase "dbFdef_func".
@@ -714,7 +711,7 @@ Proof.
     apply nsop_plus_trans with (states2:=(mkState S TD Ps (mkEC F B cs tmn lc arg0 als::EC) gl Mem', tr)::nil); auto.
       rewrite app_nil_end; eauto.
   Case "nbGEP".
-    apply nsop_plus_trans with (states2:=(mkState S TD Ps (mkEC F B cs tmn (updateAddAL _ lc id0 (ptr2GV TD mp')) arg0 als::EC) gl Mem0, tr)::nil); auto.
+    apply nsop_plus_trans with (states2:=(mkState S TD Ps (mkEC F B cs tmn (updateAddAL _ lc id0 mp') arg0 als::EC) gl Mem0, tr)::nil); auto.
       rewrite app_nil_end; eauto.
   Case "nbExt".
     apply nsop_plus_trans with (states2:=(mkState S TD Ps (mkEC F B cs tmn (updateAddAL _ lc id0 gv2) arg0 als::EC) gl Mem0, tr)::nil); 
@@ -726,7 +723,7 @@ Proof.
     apply nsop_plus_trans with (states2:=(mkState S TD Ps (mkEC F B cs tmn (updateAddAL _ lc id0 gv3) arg0 als::EC) gl Mem0, tr)::nil); 
       try solve [auto | rewrite app_nil_end; eauto].
   Case "nbSelect".
-    apply nsop_plus_trans with (states2:=(mkState S TD Ps (mkEC F B cs tmn (if Coqlib.zeq c 0 then updateAddAL _ lc id0 gv2 else updateAddAL _ lc id0 gv1) arg0 als::EC) gl Mem0, tr)::nil); 
+    apply nsop_plus_trans with (states2:=(mkState S TD Ps (mkEC F B cs tmn (if isGVZero TD c then updateAddAL _ lc id0 gv2 else updateAddAL _ lc id0 gv1) arg0 als::EC) gl Mem0, tr)::nil); 
       try solve [auto | rewrite app_nil_end; eauto].
   Case "nbCall".
     inversion n. subst.

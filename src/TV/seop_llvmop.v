@@ -661,7 +661,7 @@ Case "dbStore".
 Case "dbGEP".
   inversion H; subst. clear H.
   exists l0. exists ps. exists cs. exists tmn0.
-  exists (updateAddAL _ lc0 id0 (ptr2GV TD0 mp')). exists als0. exists Mem1.
+  exists (updateAddAL _ lc0 id0 mp'). exists als0. exists Mem1.
   exists cs1. split; auto.
   right. left.
   exists (insn_gep id0 inbounds0 t v idxs).
@@ -697,7 +697,7 @@ Case "dbIcmp".
 Case "dbSelect".
   inversion H; subst. clear H.
   exists l0. exists ps. exists cs. exists tmn0.
-  exists (if Coqlib.zeq c 0 then updateAddAL _ lc0 id0 gv2 else updateAddAL _ lc0 id0 gv1). exists als0. exists Mem1.
+  exists (if isGVZero TD0 c then updateAddAL _ lc0 id0 gv2 else updateAddAL _ lc0 id0 gv1). exists als0. exists Mem1.
   exists cs1. split; auto.
   right. left.
   exists (insn_select id0 v0 t v1 v2).
