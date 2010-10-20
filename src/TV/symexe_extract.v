@@ -17,7 +17,7 @@ Extract Inductive prod => "(*)"  [ "(,)" ].
 Extract Inductive option => "option"  [ "Some" "None" ].
 
 Extract Constant AtomImpl.atom => "String.t".
-Extract Constant AtomImpl.eq_atom_dec => "fun a b -> a == b".
+Extract Constant AtomImpl.eq_atom_dec => "fun a b -> a = b".
 Extract Constant AtomImpl.atom_fresh_for_list => "Camlcoq.atom_fresh_for_list".
 
 Extract Constant LLVMsyntax.id => "String.t".
@@ -98,7 +98,7 @@ Extract Constant LLVMgv.mext => "Llvmcaml.GenericValue.mext".
 Extract Constant LLVMgv.micmp => "Llvmcaml.GenericValue.micmp".
 
 Extract Constant LLVMmem.mem =>  "Llvmcaml.Mem.t".
-Extract Constant LLVMmem.initmem =>  "Llvmcaml.Mem.initmem".
+(*Extract Constant LLVMmem.initmem =>  "Llvmcaml.Mem.initmem".*)
 Extract Constant LLVMmem.malloc =>  "Llvmcaml.Mem.malloc".
 Extract Constant LLVMmem.free =>  "Llvmcaml.Mem.free".
 Extract Constant LLVMmem.mload =>  "Llvmcaml.Mem.mload".
@@ -122,6 +122,10 @@ Extract Constant Floats.Float.mul => "( *. )".
 Extract Constant Floats.Float.div => "( /. )".
 Extract Constant Floats.Float.cmp => "Floataux.cmp".
 Extract Constant Floats.Float.eq_dec => "fun (x: float) (y: float) -> x = y".
+Extract Constant Floats.Float.bits_of_double => "Floataux.bits_of_double".
+Extract Constant Floats.Float.double_of_bits => "Floataux.double_of_bits".
+Extract Constant Floats.Float.bits_of_single => "Floataux.bits_of_single".
+Extract Constant Floats.Float.single_of_bits => "Floataux.single_of_bits".
 
 (* Memdata *)
 Extract Constant Memdata.big_endian => "Memdataaux.big_endian".

@@ -375,7 +375,7 @@ CoInductive dsop_diverges : State -> Trace -> Prop :=
 
 Inductive ds_converges : system -> id -> list GenericValue -> State -> Prop :=
 | ds_converges_intro : forall (s:system) (main:id) (VarArgs:list GenericValue) (IS FS:State) tr,
-  ds_genInitState s main VarArgs initmem = Some IS ->
+  ds_genInitState s main VarArgs Mem.empty = Some IS ->
   dsop_star IS FS tr ->
   ds_isFinialState FS ->
   ds_converges s main VarArgs FS
@@ -383,14 +383,14 @@ Inductive ds_converges : system -> id -> list GenericValue -> State -> Prop :=
 
 Inductive ds_diverges : system -> id -> list GenericValue -> Trace -> Prop :=
 | ds_diverges_intro : forall (s:system) (main:id) (VarArgs:list GenericValue) (IS:State) tr,
-  ds_genInitState s main VarArgs initmem = Some IS ->
+  ds_genInitState s main VarArgs Mem.empty = Some IS ->
   dsop_diverges IS tr ->
   ds_diverges s main VarArgs tr
 .
 
 Inductive ds_goeswrong : system -> id -> list GenericValue -> State -> Prop :=
 | ds_goeswrong_intro : forall (s:system) (main:id) (VarArgs:list GenericValue) (IS FS:State) tr,
-  ds_genInitState s main VarArgs initmem = Some IS ->
+  ds_genInitState s main VarArgs Mem.empty = Some IS ->
   dsop_star IS FS tr ->
   ~ ds_isFinialState FS ->
   ds_goeswrong s main VarArgs FS
@@ -638,7 +638,7 @@ CoInductive nsop_diverges : States -> list Trace -> Prop :=
 
 Inductive ns_converges : system -> id -> list GenericValue -> States -> Prop :=
 | ns_converges_intro : forall (s:system) (main:id) (VarArgs:list GenericValue) (IS FS:States),
-  ns_genInitState s main VarArgs initmem = Some IS ->
+  ns_genInitState s main VarArgs Mem.empty = Some IS ->
   nsop_star IS FS ->
   ns_isFinialState FS ->
   ns_converges s main VarArgs FS
@@ -646,14 +646,14 @@ Inductive ns_converges : system -> id -> list GenericValue -> States -> Prop :=
 
 Inductive ns_diverges : system -> id -> list GenericValue -> list Trace -> Prop :=
 | ns_diverges_intro : forall (s:system) (main:id) (VarArgs:list GenericValue) (IS:States) trs,
-  ns_genInitState s main VarArgs initmem = Some IS ->
+  ns_genInitState s main VarArgs Mem.empty = Some IS ->
   nsop_diverges IS trs ->
   ns_diverges s main VarArgs trs
 .
 
 Inductive ns_goeswrong : system -> id -> list GenericValue -> States -> Prop :=
 | ns_goeswrong_intro : forall (s:system) (main:id) (VarArgs:list GenericValue) (IS FS:States),
-  ns_genInitState s main VarArgs initmem = Some IS ->
+  ns_genInitState s main VarArgs Mem.empty = Some IS ->
   nsop_star IS FS ->
   ~ ns_isFinialState FS ->
   ns_goeswrong s main VarArgs FS
@@ -866,7 +866,7 @@ Definition db_isFinialState := ds_isFinialState.
 
 Inductive db_converges : system -> id -> list GenericValue -> State -> Prop :=
 | db_converges_intro : forall (s:system) (main:id) (VarArgs:list GenericValue) (IS FS:State) tr,
-  db_genInitState s main VarArgs initmem = Some IS ->
+  db_genInitState s main VarArgs Mem.empty = Some IS ->
   dbop IS FS tr ->
   db_isFinialState FS ->
   db_converges s main VarArgs FS
@@ -874,14 +874,14 @@ Inductive db_converges : system -> id -> list GenericValue -> State -> Prop :=
 
 Inductive db_diverges : system -> id -> list GenericValue -> Trace -> Prop :=
 | db_diverges_intro : forall (s:system) (main:id) (VarArgs:list GenericValue) (IS S:State) tr,
-  db_genInitState s main VarArgs initmem = Some IS ->
+  db_genInitState s main VarArgs Mem.empty = Some IS ->
   dbopInf IS tr ->
   db_diverges s main VarArgs tr
 .
 
 Inductive db_goeswrong : system -> id -> list GenericValue -> State -> Prop :=
 | db_goeswrong_intro : forall (s:system) (main:id) (VarArgs:list GenericValue) (IS FS:State) tr,
-  db_genInitState s main VarArgs initmem = Some IS ->
+  db_genInitState s main VarArgs Mem.empty = Some IS ->
   dbop IS FS tr ->
   ~ db_isFinialState FS ->
   db_goeswrong s main VarArgs FS
@@ -1138,7 +1138,7 @@ Definition nb_isFinialState := ns_isFinialState.
 
 Inductive nb_converges : system -> id -> list GenericValue -> States -> Prop :=
 | nb_converges_intro : forall (s:system) (main:id) (VarArgs:list GenericValue) (IS FS:States),
-  nb_genInitState s main VarArgs initmem = Some IS ->
+  nb_genInitState s main VarArgs Mem.empty = Some IS ->
   nbop_star IS FS ->
   nb_isFinialState FS ->
   nb_converges s main VarArgs FS
@@ -1146,14 +1146,14 @@ Inductive nb_converges : system -> id -> list GenericValue -> States -> Prop :=
 
 Inductive nb_diverges : system -> id -> list GenericValue -> list Trace -> Prop :=
 | nb_diverges_intro : forall (s:system) (main:id) (VarArgs:list GenericValue) (IS:States) trs,
-  nb_genInitState s main VarArgs initmem = Some IS ->
+  nb_genInitState s main VarArgs Mem.empty = Some IS ->
   nbopInf IS trs ->
   nb_diverges s main VarArgs trs
 .
 
 Inductive nb_goeswrong : system -> id -> list GenericValue -> States -> Prop :=
 | nb_goeswrong_intro : forall (s:system) (main:id) (VarArgs:list GenericValue) (IS FS:States),
-  nb_genInitState s main VarArgs initmem = Some IS ->
+  nb_genInitState s main VarArgs Mem.empty = Some IS ->
   nbop_star IS FS ->
   ~ nb_isFinialState FS ->
   nb_goeswrong s main VarArgs FS

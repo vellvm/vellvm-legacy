@@ -69,7 +69,7 @@ ssa_interpreter.vo: ssa_interpreter.v ssa_dynamic.vo ssa_def.vo ssa_lib.vo tacti
 
 ssa_extract.vo: ssa_extract.v ssa_interpreter.vo ssa_dynamic.vo ssa_def.vo ssa_lib.vo tactics.vo ssa_mem.vo trace.vo genericvalues.vo assoclist.vo
 	$(COQC) $(COQARG) ssa_extract.v
-	+make -C ./extraction -f Makefile.ocaml
+	+make -C ../Interpreter -f Makefile.ocaml
 
 ssa_props.vo: ssa_props.v ssa_def.vo ssa_lib.vo genericvalues.vo assoclist.vo
 	$(COQC) $(COQARG) ssa_props.v

@@ -3,9 +3,23 @@ open Ssa_dynamic
 open Printf
 open Llvm
 open Llvm_executionengine
+open Trace
 
+let rec interInsnStar (s:LLVMopsem.coq_State) (tr:trace) (n:int) : (LLVMopsem.coq_State*trace) option =
+	if (LLVMopsem.ds_isFinialState s) 
+	then Some (s, tr)
+	else
+		if n > 0 
+		then
+	    begin
+			eprintf "n=%d\n" n;
+			match interInsn s with
+      | Some (s', tr') -> interInsnStar s' (trace_app tr tr') (n-1)  
+      | None -> None
+			end
+		else Some (s, tr)
+			
 let main in_filename  =
-
 
         let ic = global_context () in
         let imbuf = MemoryBuffer.of_file in_filename in
@@ -20,9 +34,9 @@ let main in_filename  =
 
         let li = ExecutionEngine.create_interpreter imp in
 
-        (match LLVMopsem.ds_genInitState (coqim::[]) "main" [] (li, im) with
-          | Some s ->
-            (match interInsn s with
+        (match LLVMopsem.ds_genInitState (coqim::[]) "@main" [] (li, im) with
+          | Some s -> 
+            (match interInsnStar s Coq_trace_nil 100 with
               | Some (s', tr) -> ()
               | None -> () )
           | None -> () );

@@ -250,7 +250,7 @@ Definition GVMap := list (id*GenericValue).
 
 Definition mblock := Values.block.
 Definition mptr := GenericValue.
-Definition null := (Vptr Mem.nullptr (Int.repr 31 0), Mint 31)::nil.
+Definition null : GenericValue := (Vptr Mem.nullptr (Int.repr 31 0), Mint 31)::nil.
 
 Fixpoint sizeGenericValue (gv:GenericValue) : nat := 
 match gv with

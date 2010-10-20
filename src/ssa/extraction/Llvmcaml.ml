@@ -2,27 +2,27 @@ open Llvm_executionengine
 open Ssa_def
 open LLVMsyntax
 
-let coqtype_2_llvmtype (t:LLVMsyntax.typ) : Llvm.lltype = failwith "undef"
-let coqbop_2_llvmopcode (op:LLVMsyntax.bop) : Llvm.InstrOpcode.t = failwith "undef"
-let coqtd_2_llvmtd (td:layouts) : Llvm_target.TargetData.t = failwith "undef"
-let coqcond_2_llvmicmp (c:cond) : Llvm.Icmp.t = failwith "undef"
+let coqtype_2_llvmtype (t:LLVMsyntax.typ) : Llvm.lltype = failwith "coqtype_2_llvmtype undef"
+let coqbop_2_llvmopcode (op:LLVMsyntax.bop) : Llvm.InstrOpcode.t = failwith "coqbop_2_llvmopcode undef"
+let coqtd_2_llvmtd (td:layouts) : Llvm_target.TargetData.t = failwith "coqbop_2_llvmopcode undef"
+let coqcond_2_llvmicmp (c:cond) : Llvm.Icmp.t = failwith "coqcond_2_llvmicmp undef"
 
 module GenericValue = struct
 
   type t = GenericValue.t
 
   (* useless at runtime *)
-  let null = failwith "undef"
-  let sizeGenericValue x = failwith "undef"
-  let uninits x = failwith "undef"
-  let gv2val x y = failwith "undef"
-  let gv2int x y z = failwith "undef"
-  let gv2ptr x y z = failwith "undef"
-  let val2gv x y z = failwith "undef"
-  let ptr2gv x y = failwith "undef"
-  let _const2GV x y z = failwith "undef"
-  let _list_const_arr2GV x y z = failwith "undef" 
-  let _list_const_struct2GV x y z = failwith "undef" 
+  let null = GenericValue.of_null_pointer ()
+  let sizeGenericValue x = failwith "sizeGenericValue undef"
+  let uninits x = failwith "uninits undef"
+  let gv2val x y = failwith "gv2val undef"
+  let gv2int x y z = failwith "gv2int undef"
+  let gv2ptr x y z = failwith "gv2ptr undef"
+  let val2gv x y z = failwith "val2gv undef"
+  let ptr2gv x y = failwith "val2gv undef"
+  let _const2GV x y z = failwith "_const2GV undef"
+  let _list_const_arr2GV x y z = failwith "_list_const_arr2GV undef" 
+  let _list_const_struct2GV x y z = failwith "_list_const_struct2GV undef" 
 
   (* used at runtime *)
   let blk2gv (td:LLVMsyntax.layouts) (v:t) = v
@@ -30,13 +30,13 @@ module GenericValue = struct
   let isZero (td:LLVMsyntax.layouts) (v:t) = GenericValue.as_int v == 0
 
   let const2GV (td:LLVMsyntax.layouts) gl (c:LLVMsyntax.const) : t option = 
-    failwith "undef"
+    failwith "const2GV undef"
 
-  let mgep x y z w = failwith "undef"
+  let mgep x y z w = failwith "mgep undef"
 
-  let extractGenericValue x y z w = failwith "undef"
+  let extractGenericValue x y z w = failwith "extractGenericValue undef"
 
-  let insertGenericValue x y z a b = failwith "undef"
+  let insertGenericValue x y z a b = failwith "extractGenericValue undef"
 
   let mbop (td:LLVMsyntax.layouts) (op:LLVMsyntax.bop) (bsz:LLVMsyntax.sz) (gv1:t) (gv2:t) = 
     Some (GenericValue.binary_op gv1 gv2 (Llvm.integer_type (Llvm.global_context()) bsz) (coqbop_2_llvmopcode op))
@@ -72,7 +72,7 @@ module Mem = struct
 
   type t = ExecutionEngine.t * Llvm.llmodule
 
-  let initmem = failwith "undef"
+  (* let initmem = failwith "initmem undef" *)
 
   let malloc (td:LLVMsyntax.layouts) m size (a:LLVMsyntax.align) = 
     let (ee, _) = m in

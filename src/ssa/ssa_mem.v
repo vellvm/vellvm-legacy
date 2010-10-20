@@ -58,7 +58,7 @@ Definition initmem := mkMem (fun _ => mbyte_uninit) (fun _ => None) : mem.
 *)
 
 Definition mem := Mem.mem.
-Definition initmem : mem := Mem.empty.
+(*Definition initmem : mem := Mem.empty.*)
 
 (** allocate memory with size and alignment *)
 Definition malloc (TD:layouts) (M:mem) (bsz:sz) (al:align) : option (mem * mblock)%type :=
