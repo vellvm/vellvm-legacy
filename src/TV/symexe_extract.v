@@ -85,13 +85,14 @@ Extract Constant LLVMgv.GV2ptr => "Llvmcaml.GenericValue.gv2ptr".
 Extract Constant LLVMgv.val2GV => "Llvmcaml.GenericValue.val2gv".
 Extract Constant LLVMgv.ptr2GV => "Llvmcaml.GenericValue.ptr2gv".
 Extract Constant LLVMgv.blk2GV => "Llvmcaml.GenericValue.blk2gv".
-Extract Constant LLVMgv.GEP => "Llvmcaml.GenericValue.mgep".
+Extract Constant LLVMgv.isGVZero => "Llvmcaml.GenericValue.isZero".
 Extract Constant LLVMgv._const2GV => "Llvmcaml.GenericValue._const2GV".
 Extract Constant LLVMgv._list_const_arr2GV => "Llvmcaml.GenericValue._list_const_arr2GV".
 Extract Constant LLVMgv._list_const_struct2GV => "Llvmcaml.GenericValue._list_const_struct2GV".
 Extract Constant LLVMgv.const2GV => "Llvmcaml.GenericValue.const2GV".
 Extract Constant LLVMgv.extractGenericValue => "Llvmcaml.GenericValue.extractGenericValue".
 Extract Constant LLVMgv.insertGenericValue => "Llvmcaml.GenericValue.insertGenericValue".
+Extract Constant LLVMgv.GEP => "Llvmcaml.GenericValue.mgep".
 Extract Constant LLVMgv.mbop => "Llvmcaml.GenericValue.mbop".
 Extract Constant LLVMgv.mcast => "Llvmcaml.GenericValue.mcast".
 Extract Constant LLVMgv.mext => "Llvmcaml.GenericValue.mext".
@@ -104,6 +105,14 @@ Extract Constant LLVMmem.free =>  "Llvmcaml.Mem.free".
 Extract Constant LLVMmem.mload =>  "Llvmcaml.Mem.mload".
 Extract Constant LLVMmem.mstore =>  "Llvmcaml.Mem.mstore".
 Extract Constant LLVMopsem.initGlobal => "Llvmcaml.Mem.initGlobal".
+
+Extract Constant LLVMtd.getTypeAllocSize => "Llvmcaml.TargetData.getTypeAllocSize".
+Extract Constant LLVMtd.getTypeAllocSizeInBits => "Llvmcaml.TargetData.getTypeAllocSizeInBits".
+Extract Constant LLVMtd._getStructElementOffset => "Llvmcaml.TargetData._getStructElementOffset".
+Extract Constant LLVMtd.getStructElementOffset => "Llvmcaml.TargetData.getStructElementOffset".
+Extract Constant LLVMtd.getStructElementOffsetInBits => "Llvmcaml.TargetData.getStructElementOffsetInBits".
+Extract Constant LLVMtd._getStructElementContainingOffset => "Llvmcaml.TargetData._getStructElementContainingOffset".
+Extract Constant LLVMtd.getStructElementContainingOffset => "Llvmcaml.TargetData.getStructElementContainingOffset".
 
 (* Float *)
 Extract Inlined Constant Floats.float => "float".
