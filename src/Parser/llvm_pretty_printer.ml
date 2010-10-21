@@ -245,7 +245,7 @@ let travel_layout dlt =
 	Llvm_target.TargetData.dispose tg
 
 let travel_module st m =
-	prerr_endline "Travel module:";	
+	prerr_endline "Travel LLVM module:";	
 	travel_layout (data_layout m);
 	iter_globals (travel_global st) m;
 	iter_functions (travel_function st) m

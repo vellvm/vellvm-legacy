@@ -12,7 +12,8 @@ let rec interInsnStar (s:LLVMopsem.coq_State) (tr:trace) (n:int) : (LLVMopsem.co
 		if n > 0 
 		then
 	    begin
-			eprintf "n=%d\n" n;
+			eprintf "n=%d\n" n; 
+			flush_all();		
 			match interInsn s with
       | Some (s', tr') -> interInsnStar s' (trace_app tr tr') (n-1)  
       | None -> None
@@ -29,7 +30,7 @@ let main in_filename  =
 
         dump_module im;
         Llvm_pretty_printer.travel_module ist im;
-        let coqim = Translator.translate_module ist im in
+        let coqim = Llvm2coq.translate_module ist im in
         Coq_pretty_printer.travel_module coqim;
 
         let li = ExecutionEngine.create_interpreter imp in

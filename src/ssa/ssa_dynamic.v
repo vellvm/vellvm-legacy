@@ -24,6 +24,7 @@ Export LLVMsyntax.
 Export LLVMlib.
 Export LLVMgv.
 Export LLVMmem.
+Export LLVMtd.
 
 (**************************************)
 (** Execution contexts *)
@@ -42,7 +43,7 @@ Definition ECStack := list ExecutionContext.
 
 Record State : Type := mkState {
 CurSystem      : system;
-CurTargetData  : layouts;
+CurTargetData  : TargetData;
 CurProducts    : list product;
 ECS            : ECStack;
 Globals        : GVMap;
@@ -122,7 +123,7 @@ Definition switchToNewBasicBlock (Dest:block) (PrevBB:block) (locals:GVMap): GVM
 (***************************************************************)
 (* deterministic small-step *)
 
-Definition returnUpdateLocals (TD:layouts) (c':cmd) (RetTy:typ) (Result:value) (lc lc' gl:GVMap) : GVMap :=
+Definition returnUpdateLocals (TD:TargetData) (c':cmd) (RetTy:typ) (Result:value) (lc lc' gl:GVMap) : GVMap :=
     match (getCallerReturnID c') with
     | Some id =>
       if (RetTy =t= typ_void) 
@@ -199,7 +200,7 @@ Inductive dsInsn : State -> State -> trace -> Prop :=
     trace_nil 
 | dsMalloc : forall S TD Ps F B lc gl arg id t sz align EC cs tmn Mem als Mem' tsz mb,
   getTypeAllocSize TD t = Some tsz ->
-  malloc TD Mem (Size.mul (Size.from_nat tsz) sz) align = Some (Mem', mb) ->
+  malloc TD Mem (Size.mul tsz sz) align = Some (Mem', mb) ->
   dsInsn 
     (mkState S TD Ps ((mkEC F B ((insn_malloc id t sz align)::cs) tmn lc arg als)::EC) gl Mem) 
     (mkState S TD Ps ((mkEC F B cs tmn (updateAddAL _ lc id (blk2GV TD mb)) arg als)::EC) gl Mem')
@@ -213,7 +214,7 @@ Inductive dsInsn : State -> State -> trace -> Prop :=
     trace_nil
 | dsAlloca : forall S TD Ps F B lc gl arg id t sz align EC cs tmn Mem als Mem' tsz mb,
   getTypeAllocSize TD t = Some tsz ->
-  malloc TD Mem (Size.mul (Size.from_nat tsz) sz) align = Some (Mem', mb) ->
+  malloc TD Mem (Size.mul tsz sz) align = Some (Mem', mb) ->
   dsInsn 
     (mkState S TD Ps ((mkEC F B ((insn_alloca id t sz align)::cs) tmn lc arg als)::EC) gl Mem) 
     (mkState S TD Ps ((mkEC F B cs tmn (updateAddAL _ lc id (blk2GV TD mb)) arg (mb::als))::EC) gl Mem')
@@ -283,7 +284,7 @@ Inductive dsInsn : State -> State -> trace -> Prop :=
 .
 
 
-Definition initGlobal (TD:layouts)(gl:GVMap)(Mem:mem)(id0:id)(t:typ)(c:const)(align0:align) : 
+Definition initGlobal (TD:TargetData)(gl:GVMap)(Mem:mem)(id0:id)(t:typ)(c:const)(align0:align) : 
              option (GenericValue*mem) :=
   do tsz <- getTypeAllocSize TD t;
   do gv <- const2GV TD gl c;
@@ -294,7 +295,7 @@ Definition initGlobal (TD:layouts)(gl:GVMap)(Mem:mem)(id0:id)(t:typ)(c:const)(al
      | None => None
      end.
 
-Fixpoint genGlobalAndInitMem (TD:layouts)(Ps:list product)(gl:GVMap)(Mem:mem) : option (GVMap*mem) :=
+Fixpoint genGlobalAndInitMem (TD:TargetData)(Ps:list product)(gl:GVMap)(Mem:mem) : option (GVMap*mem) :=
 match Ps with
 | nil => Some (gl, Mem)
 | (product_gvar (gvar_intro id0 t c align))::Ps' => 
@@ -481,7 +482,7 @@ Inductive nsInsn : State*trace -> States -> Prop :=
     ((mkState S TD Ps ((mkEC F B cs tmn (updateAddAL _ lc id gv'') arg als)::EC) gl Mem, tr)::nil)
 | nsMalloc : forall S TD Ps F B lc gl arg id t sz align EC cs tmn Mem als Mem' tsz mb tr,
   getTypeAllocSize TD t = Some tsz ->
-  malloc TD Mem (Size.mul (Size.from_nat tsz) sz) align = Some (Mem', mb) ->
+  malloc TD Mem (Size.mul tsz sz) align = Some (Mem', mb) ->
   nsInsn 
     (mkState S TD Ps ((mkEC F B ((insn_malloc id t sz align)::cs) tmn lc arg als)::EC) gl Mem, tr) 
     ((mkState S TD Ps ((mkEC F B cs tmn (updateAddAL _ lc id (blk2GV TD mb)) arg als)::EC) gl Mem', tr)::nil)
@@ -493,7 +494,7 @@ Inductive nsInsn : State*trace -> States -> Prop :=
     ((mkState S TD Ps ((mkEC F B cs tmn lc arg als)::EC) gl Mem', tr)::nil)
 | nsAlloca : forall S TD Ps F B lc gl arg id t sz align EC cs tmn Mem als Mem' tsz mb tr,
   getTypeAllocSize TD t = Some tsz ->
-  malloc TD Mem (Size.mul (Size.from_nat tsz) sz) align = Some (Mem', mb) ->
+  malloc TD Mem (Size.mul tsz sz) align = Some (Mem', mb) ->
   nsInsn 
     (mkState S TD Ps ((mkEC F B ((insn_alloca id t sz align)::cs) tmn lc arg als)::EC) gl Mem, tr) 
     ((mkState S TD Ps ((mkEC F B cs tmn (updateAddAL _ lc id (blk2GV TD mb)) arg (mb::als))::EC) gl Mem', tr)::nil)
@@ -662,7 +663,7 @@ Inductive ns_goeswrong : system -> id -> list GenericValue -> States -> Prop :=
 (***************************************************************)
 (* deterministic big-step *)
 
-Definition callUpdateLocals (TD:layouts) (noret:bool) (rid:id) (rt:typ) (oResult:option value) (lc lc' gl:GVMap) : GVMap :=
+Definition callUpdateLocals (TD:TargetData) (noret:bool) (rid:id) (rt:typ) (oResult:option value) (lc lc' gl:GVMap) : GVMap :=
     match noret with
     | false =>
       if (rt =t= typ_void) 
@@ -722,7 +723,7 @@ Inductive dbInsn : State -> State -> trace -> Prop :=
     trace_nil 
 | dbMalloc : forall S TD Ps F B lc gl arg id t sz align EC cs tmn Mem als Mem' tsz mb,
   getTypeAllocSize TD t = Some tsz ->
-  malloc TD Mem (Size.mul (Size.from_nat tsz) sz) align = Some (Mem', mb) ->
+  malloc TD Mem (Size.mul tsz sz) align = Some (Mem', mb) ->
   dbInsn 
     (mkState S TD Ps ((mkEC F B ((insn_malloc id t sz align)::cs) tmn lc arg als)::EC) gl Mem) 
     (mkState S TD Ps ((mkEC F B cs tmn (updateAddAL _ lc id (blk2GV TD mb)) arg als)::EC) gl Mem')
@@ -736,7 +737,7 @@ Inductive dbInsn : State -> State -> trace -> Prop :=
     trace_nil
 | dbAlloca : forall S TD Ps F B lc gl arg id t sz align EC cs tmn Mem als Mem' tsz mb,
   getTypeAllocSize TD t = Some tsz ->
-  malloc TD Mem (Size.mul (Size.from_nat tsz) sz) align = Some (Mem', mb) ->
+  malloc TD Mem (Size.mul tsz sz) align = Some (Mem', mb) ->
   dbInsn 
     (mkState S TD Ps ((mkEC F B ((insn_alloca id t sz align)::cs) tmn lc arg als)::EC) gl Mem) 
     (mkState S TD Ps ((mkEC F B cs tmn (updateAddAL _ lc id (blk2GV TD mb)) arg (mb::als))::EC) gl Mem')
@@ -804,7 +805,7 @@ with dbop : State -> State -> trace -> Prop :=
     dbInsn S1 S2 t1 ->
     dbop S2 S3 t2 ->
     dbop S1 S3 (trace_app t1 t2)
-with dbFdef : id -> typ -> params -> system -> layouts -> products -> list ExecutionContext -> GVMap -> GVMap -> mem -> GVMap -> list mblock -> mem -> block -> id -> option value -> trace -> Prop :=
+with dbFdef : id -> typ -> params -> system -> TargetData -> products -> list ExecutionContext -> GVMap -> GVMap -> mem -> GVMap -> list mblock -> mem -> block -> id -> option value -> trace -> Prop :=
 | dbFdef_func : forall S TD Ps gl fid lp lc rid
                             l' ps' cs' tmn' rt la lb l'' ps'' cs'' Result lc' tr ECs Mem Mem' als',
   lookupFdefViaIDFromProducts Ps fid = Some (fdef_intro (fheader_intro rt fid la) lb) ->
@@ -848,7 +849,7 @@ with dbopInf : State -> Trace -> Prop :=
     dbInsn state1 state2 t1 ->
     dbopInf state2 t2 ->
     dbopInf state1 (Trace_app t1 t2)
-with dbFdefInf : id -> typ -> params -> system -> layouts -> products -> list ExecutionContext -> GVMap -> GVMap -> mem -> Trace -> Prop :=
+with dbFdefInf : id -> typ -> params -> system -> TargetData -> products -> list ExecutionContext -> GVMap -> GVMap -> mem -> Trace -> Prop :=
 | dbFdefInf_intro : forall S TD Ps lc gl fid lp
                            l' ps' cs' tmn' rt la lb tr ECs Mem,
   lookupFdefViaIDFromProducts Ps fid = Some (fdef_intro (fheader_intro rt fid la) lb) ->
@@ -991,7 +992,7 @@ Inductive nbInsn : State*trace -> States -> Prop :=
     ((mkState S TD Ps ((mkEC F B cs tmn (updateAddAL _ lc id gv'') arg als)::EC) gl Mem, tr)::nil)
 | nbMalloc : forall S TD Ps F B lc gl arg id t sz align EC cs tmn Mem als Mem' tsz mb tr,
   getTypeAllocSize TD t = Some tsz ->
-  malloc TD Mem (Size.mul (Size.from_nat tsz) sz) align = Some (Mem', mb) ->
+  malloc TD Mem (Size.mul tsz sz) align = Some (Mem', mb) ->
   nbInsn 
     (mkState S TD Ps ((mkEC F B ((insn_malloc id t sz align)::cs) tmn lc arg als)::EC) gl Mem, tr) 
     ((mkState S TD Ps ((mkEC F B cs tmn (updateAddAL _ lc id (blk2GV TD mb)) arg als)::EC) gl Mem', tr)::nil)
@@ -1003,7 +1004,7 @@ Inductive nbInsn : State*trace -> States -> Prop :=
     ((mkState S TD Ps ((mkEC F B cs tmn lc arg als)::EC) gl Mem', tr)::nil)
 | nbAlloca : forall S TD Ps F B lc gl arg id t sz align EC cs tmn Mem als Mem' tsz mb tr,
   getTypeAllocSize TD t = Some tsz ->
-  malloc TD Mem (Size.mul (Size.from_nat tsz) sz) align = Some (Mem', mb) ->
+  malloc TD Mem (Size.mul tsz sz) align = Some (Mem', mb) ->
   nbInsn 
     (mkState S TD Ps ((mkEC F B ((insn_alloca id t sz align)::cs) tmn lc arg als)::EC) gl Mem, tr) 
     ((mkState S TD Ps ((mkEC F B cs tmn (updateAddAL _ lc id (blk2GV TD mb)) arg (mb::als))::EC) gl Mem', tr)::nil)
@@ -1068,7 +1069,7 @@ with nbop_star : States -> States -> Prop :=
   nbop_star states1 states2 ->
   nbop_star states2 states3 ->
   nbop_star states1 states3 
-with nbFdef : id -> typ -> params -> system -> layouts -> products -> list ExecutionContext -> GVMap -> GVMap -> mem -> trace -> list (GVMap*list mblock*mem*block*id*option value*trace) -> Prop :=
+with nbFdef : id -> typ -> params -> system -> TargetData -> products -> list ExecutionContext -> GVMap -> GVMap -> mem -> trace -> list (GVMap*list mblock*mem*block*id*option value*trace) -> Prop :=
 | nbFdef_intro : forall S TD Ps lc gl fid lp
                             l' ps' cs' tmn' rt la lb tr lc_als_Mem_block_rid_ore_trs ECs Mem,
   lookupFdefViaIDFromProducts Ps fid = Some (fdef_intro (fheader_intro rt fid la) lb) ->
@@ -1120,7 +1121,7 @@ with nbopInf : States -> list Trace -> Prop :=
   nbop_plus states1 states2 ->
   nbopInf states2 trs ->
   nbopInf states1 trs 
-with nbFdefInf : id -> typ -> params -> system -> layouts -> products -> list ExecutionContext -> GVMap -> GVMap -> mem -> trace -> list Trace -> Prop :=
+with nbFdefInf : id -> typ -> params -> system -> TargetData -> products -> list ExecutionContext -> GVMap -> GVMap -> mem -> trace -> list Trace -> Prop :=
 | nbFdefInf_intro : forall S TD Ps lc gl fid lp
                             l' ps' cs' tmn' ECs rt la lb tr trs' Mem,
   lookupFdefViaIDFromProducts Ps fid = Some (fdef_intro (fheader_intro rt fid la) lb) ->

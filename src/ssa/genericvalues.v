@@ -19,6 +19,10 @@ Require Import ZArith.
 
 Module Type LLVMgvType.
 
+Export LLVMsyntax.
+Export LLVMlib.
+Export LLVMtd.
+
 Variable GenericValue : Type.
 Definition GVMap := list (id*GenericValue).
 Variable mblock : Type.
@@ -27,14 +31,14 @@ Variable null : GenericValue.
 
 Variable sizeGenericValue : GenericValue -> nat.
 Variable uninits : nat -> GenericValue.
-Variable blk2GV : layouts -> mblock -> GenericValue.
-Variable isGVZero : layouts -> GenericValue -> bool.
+Variable blk2GV : TargetData -> mblock -> GenericValue.
+Variable isGVZero : TargetData -> GenericValue -> bool.
 
 (**************************************)
 (** Convert const to GV with storesize, and look up GV from operands. *)
-Variable const2GV : layouts -> GVMap -> const -> option GenericValue.
+Variable const2GV : TargetData -> GVMap -> const -> option GenericValue.
 
-Definition getOperandValue (TD:layouts) (v:value) (locals:GVMap) (globals:GVMap) : option GenericValue := 
+Definition getOperandValue (TD:TargetData) (v:value) (locals:GVMap) (globals:GVMap) : option GenericValue := 
 match v with
 | value_id id => lookupAL _ locals id 
 | value_const c => (const2GV TD globals c)
@@ -43,13 +47,13 @@ end.
 (**************************************)
 (* conversion between different lists *)
 
-Variable params2OpGVs : layouts -> params -> GVMap -> GVMap -> list (option GenericValue).
+Variable params2OpGVs : TargetData -> params -> GVMap -> GVMap -> list (option GenericValue).
 Variable opGVs2GVs : list (option GenericValue) -> list GenericValue.
-Variable params2GVs : layouts -> params -> GVMap -> GVMap -> list GenericValue.
-Variable values2GVs : layouts -> list_value -> GVMap -> GVMap -> option (list GenericValue).
-Variable intValues2Nats : layouts -> list_value -> GVMap -> GVMap -> option (list Z).
-Variable intConsts2Nats : layouts -> list_const -> option (list Z).
-Variable GVs2Nats : layouts -> list GenericValue -> option (list Z).
+Variable params2GVs : TargetData -> params -> GVMap -> GVMap -> list GenericValue.
+Variable values2GVs : TargetData -> list_value -> GVMap -> GVMap -> option (list GenericValue).
+Variable intValues2Nats : TargetData -> list_value -> GVMap -> GVMap -> option (list Z).
+Variable intConsts2Nats : TargetData -> list_const -> option (list Z).
+Variable GVs2Nats : TargetData -> list GenericValue -> option (list Z).
 
 (**************************************)
 (* helping functions *)
@@ -58,35 +62,35 @@ Variable _initializeFrameValues : args -> list GenericValue -> GVMap -> GVMap.
 Variable initLocals : args -> list GenericValue -> GVMap.
 
 Variable extractGenericValue : list layout -> typ -> GenericValue -> list_const -> option GenericValue.
-Variable insertGenericValue : layouts -> typ -> GenericValue -> list_const ->typ -> GenericValue -> option GenericValue.
-Variable GEP : layouts -> typ -> GenericValue -> list GenericValue -> bool -> option GenericValue.
-Variable mbop : layouts -> bop -> sz -> GenericValue -> GenericValue -> option GenericValue.
-Variable mcast : layouts -> castop -> typ -> GenericValue -> typ -> option GenericValue.
-Variable mext : layouts -> extop -> typ -> GenericValue -> typ -> option GenericValue.
-Variable micmp :layouts -> cond -> typ -> GenericValue -> GenericValue -> option GenericValue.
+Variable insertGenericValue : TargetData -> typ -> GenericValue -> list_const ->typ -> GenericValue -> option GenericValue.
+Variable GEP : TargetData -> typ -> GenericValue -> list GenericValue -> bool -> option GenericValue.
+Variable mbop : TargetData -> bop -> sz -> GenericValue -> GenericValue -> option GenericValue.
+Variable mcast : TargetData -> castop -> typ -> GenericValue -> typ -> option GenericValue.
+Variable mext : TargetData -> extop -> typ -> GenericValue -> typ -> option GenericValue.
+Variable micmp :TargetData -> cond -> typ -> GenericValue -> GenericValue -> option GenericValue.
 
-Definition BOP (TD:layouts) (lc gl:GVMap) (op:bop) (bsz:sz) (v1 v2:value) : option GenericValue :=
+Definition BOP (TD:TargetData) (lc gl:GVMap) (op:bop) (bsz:sz) (v1 v2:value) : option GenericValue :=
 match (getOperandValue TD v1 lc gl, getOperandValue TD v2 lc gl) with
 | (Some gv1, Some gv2) => mbop TD op bsz gv1 gv2
 | _ => None
 end
 .
 
-Definition CAST (TD:layouts) (lc gl:GVMap) (op:castop) (t1:typ) (v1:value) (t2:typ) : option GenericValue:=
+Definition CAST (TD:TargetData) (lc gl:GVMap) (op:castop) (t1:typ) (v1:value) (t2:typ) : option GenericValue:=
 match (getOperandValue TD v1 lc gl) with
 | (Some gv1) => mcast TD op t1 gv1 t2
 | _ => None
 end
 .
 
-Definition EXT (TD:layouts) (lc gl:GVMap) (op:extop) (t1:typ) (v1:value) (t2:typ) : option GenericValue :=
+Definition EXT (TD:TargetData) (lc gl:GVMap) (op:extop) (t1:typ) (v1:value) (t2:typ) : option GenericValue :=
 match (getOperandValue TD v1 lc gl) with
 | (Some gv1) => mext TD op t1 gv1 t2
 | _ => None
 end
 .
 
-Definition ICMP (TD:layouts) (lc gl:GVMap) (c:cond) (t:typ) (v1 v2:value) : option GenericValue :=
+Definition ICMP (TD:TargetData) (lc gl:GVMap) (c:cond) (t:typ) (v1 v2:value) : option GenericValue :=
 match (getOperandValue TD v1 lc gl, getOperandValue TD v2 lc gl) with
 | (Some gv1, Some gv2) => micmp TD c t gv1 gv2
 | _ => None
@@ -244,6 +248,7 @@ Definition ptr2GV TD p := mptr2mvalue TD p (getPointerSizeInBits TD).
 
 Export LLVMsyntax.
 Export LLVMlib.
+Export LLVMtd.
 
 Definition GenericValue := list (val*memory_chunk).
 Definition GVMap := list (id*GenericValue).
@@ -259,12 +264,12 @@ match gv with
 end.
 
 Definition uninits (n:nat) : GenericValue := (Vundef, Mint (n*8-1))::nil.
-Definition GV2val (TD:layouts) (gv:GenericValue) : option val :=
+Definition GV2val (TD:TargetData) (gv:GenericValue) : option val :=
 match gv with
 | (v,c)::nil => Some v
 | _ => None
 end.
-Definition GV2int (TD:layouts) (bsz:sz) (gv:GenericValue) : option Z :=
+Definition GV2int (TD:TargetData) (bsz:sz) (gv:GenericValue) : option Z :=
 match gv with
 | (Vint wz i,c)::nil => 
   if eq_nat_dec (wz+1) (Size.to_nat bsz)
@@ -272,7 +277,7 @@ match gv with
   else None
 | _ => None
 end.
-Definition GV2ptr (TD:layouts) (bsz:sz) (gv:GenericValue) : option val :=
+Definition GV2ptr (TD:TargetData) (bsz:sz) (gv:GenericValue) : option val :=
 match gv with
 | (Vptr a b,c)::nil => Some (Vptr a b)
 | _ => None
@@ -283,26 +288,26 @@ match gv with
 | (Vundef,_)::gv' => True
 | _::gv' => isGVUndef gv'
 end.
-Definition val2GV (TD:layouts) (v:val) (c:memory_chunk) : GenericValue :=
+Definition val2GV (TD:TargetData) (v:val) (c:memory_chunk) : GenericValue :=
 (v,c)::nil.
-Definition ptr2GV (TD:layouts) (ptr:val) : GenericValue :=
+Definition ptr2GV (TD:TargetData) (ptr:val) : GenericValue :=
 val2GV TD ptr (Mint (getPointerSize TD-1)).
-Definition blk2GV (TD:layouts) (b:mblock) : GenericValue :=
+Definition blk2GV (TD:TargetData) (b:mblock) : GenericValue :=
 ptr2GV TD (Vptr b (Int.repr 31 0)).
-Definition isGVZero (TD:layouts) (gv:GenericValue) : bool :=
+Definition isGVZero (TD:TargetData) (gv:GenericValue) : bool :=
 match (GV2int TD Size.One gv) with
 | Some z => if Coqlib.zeq z 0 then true else false
 | _ => false
 end.
-Definition mgetoffset (TD:layouts) (t:typ) (idx:list Z) : option int32 := None.
+Definition mgetoffset (TD:TargetData) (t:typ) (idx:list Z) : option int32 := None.
 Definition mget (TD:list layout) (v:GenericValue) (o:int32) (t:typ) : option GenericValue := None.
 Definition mset (TD:list layout) (v:GenericValue) (o:int32) (t0:typ) (v0:GenericValue) : option GenericValue := None.
-Definition mgep (TD:layouts) (t:typ) (ma:val) (idxs:list Z) : option val := None.
+Definition mgep (TD:TargetData) (t:typ) (ma:val) (idxs:list Z) : option val := None.
 
 (**************************************)
 (** Convert const to GV with storesize, and look up GV from operands. *)
 
-Fixpoint _const2GV (TD:layouts) (gl:GVMap) (c:const) : option (GenericValue*typ) := 
+Fixpoint _const2GV (TD:TargetData) (gl:GVMap) (c:const) : option (GenericValue*typ) := 
 match c with
 | const_int sz n => 
          let wz := (Size.to_nat sz) - 1 in
@@ -329,7 +334,7 @@ match c with
          | None => None
          end
 end
-with _list_const_arr2GV (TD:layouts) (gl:GVMap) (cs:list_const) : option (GenericValue*typ) := 
+with _list_const_arr2GV (TD:TargetData) (gl:GVMap) (cs:list_const) : option (GenericValue*typ) := 
 match cs with
 | Nil_list_const => Some (nil, typ_int Size.Zero)
 | Cons_list_const c lc' =>
@@ -342,7 +347,7 @@ match cs with
   | _ => None
   end
 end
-with _list_const_struct2GV (TD:layouts) (gl:GVMap) (cs:list_const) : option (GenericValue*typ*align) := 
+with _list_const_struct2GV (TD:TargetData) (gl:GVMap) (cs:list_const) : option (GenericValue*typ*align) := 
 match cs with
 | Nil_list_const => Some ((nil, typ_int Size.Zero), Align.Zero)
 | Cons_list_const c lc' =>
@@ -377,37 +382,37 @@ match cs with
 end
 .
 
-Definition const2GV (TD:layouts) (gl:GVMap) (c:const) : option GenericValue :=
+Definition const2GV (TD:TargetData) (gl:GVMap) (c:const) : option GenericValue :=
 match (_const2GV TD gl c) with
 | None => None
 | Some (gv, t) => Some gv
 end.
 
-Definition getOperandValue (TD:layouts) (v:value) (locals:GVMap) (globals:GVMap) : option GenericValue := 
+Definition getOperandValue (TD:TargetData) (v:value) (locals:GVMap) (globals:GVMap) : option GenericValue := 
 match v with
 | value_id id => lookupAL _ locals id 
 | value_const c => (const2GV TD globals c)
 end.
 
-Definition getOperandInt (TD:layouts) (bsz:sz) (v:value) (locals:GVMap) (globals:GVMap) : option Z := 
+Definition getOperandInt (TD:TargetData) (bsz:sz) (v:value) (locals:GVMap) (globals:GVMap) : option Z := 
 match (getOperandValue TD v locals globals) with
 | Some gi => GV2int TD bsz gi
 | None => None
 end.
 
-Definition getOperandPtr (TD:layouts) (v:value) (locals:GVMap) (globals:GVMap) : option val := 
+Definition getOperandPtr (TD:TargetData) (v:value) (locals:GVMap) (globals:GVMap) : option val := 
 match (getOperandValue TD v locals globals) with
 | Some gi => GV2ptr TD (getPointerSize TD) gi
 | None => None
 end.
 
-Definition getOperandPtrInBits (TD:layouts) (s:sz) (v:value) (locals:GVMap) (globals:GVMap) : option val := 
+Definition getOperandPtrInBits (TD:TargetData) (s:sz) (v:value) (locals:GVMap) (globals:GVMap) : option val := 
 match (getOperandValue TD v locals globals) with
 | Some gi => GV2ptr TD s gi
 | None => None
 end.
 
-Definition isOperandUndef (TD:layouts) (t:typ) (v:value) (locals:GVMap) (globals:GVMap) : Prop  := 
+Definition isOperandUndef (TD:TargetData) (t:typ) (v:value) (locals:GVMap) (globals:GVMap) : Prop  := 
 match (getOperandValue TD v locals globals) with
 | Some gi => isGVUndef gi
 | None => False
@@ -416,7 +421,7 @@ end.
 (**************************************)
 (* conversion between different lists *)
 
-Fixpoint params2OpGVs (TD:layouts) (lp:params) (locals:GVMap) (globals:GVMap) : list (option GenericValue):=
+Fixpoint params2OpGVs (TD:TargetData) (lp:params) (locals:GVMap) (globals:GVMap) : list (option GenericValue):=
 match lp with
 | nil => nil
 | (_, v)::lp' => getOperandValue TD v locals globals::params2OpGVs TD lp' locals globals
@@ -429,10 +434,10 @@ match lg with
 | _::lg' => opGVs2GVs lg'
 end.
 
-Definition params2GVs (TD:layouts) (lp:params) (locals:GVMap) (globals:GVMap) : list GenericValue  := 
+Definition params2GVs (TD:TargetData) (lp:params) (locals:GVMap) (globals:GVMap) : list GenericValue  := 
   opGVs2GVs (params2OpGVs TD lp locals globals).
 
-Fixpoint values2GVs (TD:layouts) (lv:list_value) (locals:GVMap) (globals:GVMap) : option (list GenericValue):=
+Fixpoint values2GVs (TD:TargetData) (lv:list_value) (locals:GVMap) (globals:GVMap) : option (list GenericValue):=
 match lv with
 | Nil_list_value => Some nil
 | Cons_list_value v lv' => 
@@ -446,7 +451,7 @@ match lv with
   end
 end.
 
-Fixpoint intValues2Nats (TD:layouts) (lv:list_value) (locals:GVMap) (globals:GVMap) : option (list Z):=
+Fixpoint intValues2Nats (TD:TargetData) (lv:list_value) (locals:GVMap) (globals:GVMap) : option (list Z):=
 match lv with
 | Nil_list_value => Some nil
 | Cons_list_value v lv' => 
@@ -464,7 +469,7 @@ match lv with
   end
 end.
 
-Fixpoint intConsts2Nats (TD:layouts) (lv:list_const) : option (list Z):=
+Fixpoint intConsts2Nats (TD:TargetData) (lv:list_const) : option (list Z):=
 match lv with
 | Nil_list_const => Some nil
 | Cons_list_const (const_int sz0 n) lv' => 
@@ -478,7 +483,7 @@ match lv with
 | _ => None
 end.
 
-Fixpoint GVs2Nats (TD:layouts) (lgv:list GenericValue) : option (list Z):=
+Fixpoint GVs2Nats (TD:TargetData) (lgv:list GenericValue) : option (list Z):=
 match lgv with
 | nil => Some nil
 | gv::lgv' => 
@@ -526,7 +531,7 @@ match (intConsts2Nats TD cidxs) with
   end
 end.
 
-Definition insertGenericValue (TD:layouts) (t:typ) (gv:GenericValue)
+Definition insertGenericValue (TD:TargetData) (t:typ) (gv:GenericValue)
   (cidxs:list_const) (t0:typ) (gv0:GenericValue) : option GenericValue :=
 match (intConsts2Nats TD cidxs) with
 | None => None 
@@ -537,7 +542,7 @@ match (intConsts2Nats TD cidxs) with
   end
 end.
 
-Definition GEP (TD:layouts) (t:typ) (ma:GenericValue) (vidxs:list GenericValue) (inbounds:bool) : option GenericValue :=
+Definition GEP (TD:TargetData) (t:typ) (ma:GenericValue) (vidxs:list GenericValue) (inbounds:bool) : option GenericValue :=
 match GV2ptr TD (getPointerSize TD) ma with
 | Some ptr =>
   match GVs2Nats TD vidxs with
@@ -551,7 +556,7 @@ match GV2ptr TD (getPointerSize TD) ma with
 | None => None
 end.
 
-Definition mbop (TD:layouts) (op:bop) (bsz:sz) (gv1 gv2:GenericValue) : option GenericValue :=
+Definition mbop (TD:TargetData) (op:bop) (bsz:sz) (gv1 gv2:GenericValue) : option GenericValue :=
 match (GV2val TD gv1, GV2val TD gv2) with
 | (Some (Vint wz1 i1), Some (Vint wz2 i2)) => 
   let bsz' := (Size.to_nat bsz) in 
@@ -567,14 +572,14 @@ match (GV2val TD gv1, GV2val TD gv2) with
 | _ => None
 end.
 
-Definition BOP (TD:layouts) (lc gl:GVMap) (op:bop) (bsz:sz) (v1 v2:value) : option GenericValue :=
+Definition BOP (TD:TargetData) (lc gl:GVMap) (op:bop) (bsz:sz) (v1 v2:value) : option GenericValue :=
 match (getOperandValue TD v1 lc gl, getOperandValue TD v2 lc gl) with
 | (Some gv1, Some gv2) => mbop TD op bsz gv1 gv2
 | _ => None
 end
 .
 
-Definition mcast (TD:layouts) (op:castop) (t1:typ) (gv1:GenericValue) (t2:typ) : option GenericValue :=
+Definition mcast (TD:TargetData) (op:castop) (t1:typ) (gv1:GenericValue) (t2:typ) : option GenericValue :=
 match op with
 | castop_inttoptr => 
   match (t1, t2) with
@@ -593,14 +598,14 @@ match op with
   end
 end.
 
-Definition CAST (TD:layouts) (lc gl:GVMap) (op:castop) (t1:typ) (v1:value) (t2:typ) : option GenericValue:=
+Definition CAST (TD:TargetData) (lc gl:GVMap) (op:castop) (t1:typ) (v1:value) (t2:typ) : option GenericValue:=
 match (getOperandValue TD v1 lc gl) with
 | (Some gv1) => mcast TD op t1 gv1 t2
 | _ => None
 end
 .
 
-Definition mext (TD:layouts) (op:extop) (t1:typ) (gv1:GenericValue) (t2:typ) : option GenericValue :=
+Definition mext (TD:TargetData) (op:extop) (t1:typ) (gv1:GenericValue) (t2:typ) : option GenericValue :=
 match (t1, t2) with
 | (typ_int sz1, typ_int sz2) => 
    match (GV2val TD gv1) with
@@ -614,14 +619,14 @@ match (t1, t2) with
 | (_, _) => None
 end.
 
-Definition EXT (TD:layouts) (lc gl:GVMap) (op:extop) (t1:typ) (v1:value) (t2:typ) : option GenericValue :=
+Definition EXT (TD:TargetData) (lc gl:GVMap) (op:extop) (t1:typ) (v1:value) (t2:typ) : option GenericValue :=
 match (getOperandValue TD v1 lc gl) with
 | (Some gv1) => mext TD op t1 gv1 t2
 | _ => None
 end
 .
 
-Definition micmp (TD:layouts) (c:cond) (t:typ) (gv1 gv2:GenericValue) : option GenericValue :=
+Definition micmp (TD:TargetData) (c:cond) (t:typ) (gv1 gv2:GenericValue) : option GenericValue :=
 match t with
 | typ_int sz =>
   match (GV2val TD gv1, GV2val TD gv2) with
@@ -643,7 +648,7 @@ match t with
 | _ => None
 end.
 
-Definition ICMP (TD:layouts) (lc gl:GVMap) (c:cond) (t:typ) (v1 v2:value) : option GenericValue :=
+Definition ICMP (TD:TargetData) (lc gl:GVMap) (c:cond) (t:typ) (v1 v2:value) : option GenericValue :=
 match (getOperandValue TD v1 lc gl, getOperandValue TD v2 lc gl) with
 | (Some gv1, Some gv2) => micmp TD c t gv1 gv2
 | _ => None
@@ -741,7 +746,7 @@ Proof.
         exists g. exists g0. auto.
 Qed.
 
-Lemma GEP_inversion : forall (TD:layouts) (t:typ) (ma:GenericValue) (vidxs:list GenericValue) ib mptr0,
+Lemma GEP_inversion : forall (TD:TargetData) (t:typ) (ma:GenericValue) (vidxs:list GenericValue) ib mptr0,
   GEP TD t ma vidxs ib = Some mptr0 ->
   exists idxs, exists ptr, exists ptr0, 
     GVs2Nats TD vidxs = Some idxs /\ 

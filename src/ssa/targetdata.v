@@ -1,11 +1,14 @@
 Add LoadPath "./ott".
 Add LoadPath "./monads".
+Add LoadPath "./compcert".
 (* Add LoadPath "../../../theory/metatheory". *)
 Require Import Zpower.
 Require Import Zdiv.
 Require Import List.
 Require Import ssa_def.
 Require Import Coqlib.
+
+Module LLVMtd.
 
 Export LLVMsyntax.
 
@@ -84,9 +87,9 @@ Definition ndiv (n m:nat) := nat_of_Z (Zdiv (Z_of_nat (n)) (Z_of_nat m)).
       of i64 (largest specified).
 *)
 
-Definition layouts := list layout.
+Definition TargetData := layouts.
 
-Definition DTD : layouts := 
+Definition DTD : TargetData := 
                    (layout_be::
                     layout_int Size.One Align.One Align.One::
                     layout_int Size.Eight Align.One Align.One::
@@ -109,7 +112,7 @@ Definition RoundUpAlignment (val alignment:nat) : nat :=
 (** getAlignmentInfo - Return the alignment (either ABI if ABIInfo = true or
     preferred if ABIInfo = false) the target wants for the specified datatype.
 *)
-Fixpoint _getIntAlignmentInfo (TD:layouts) (BitWidth: nat) (ABIInfo: bool) 
+Fixpoint _getIntAlignmentInfo (TD:TargetData) (BitWidth: nat) (ABIInfo: bool) 
   (obest:option (nat*(nat*nat))) (olargest:option (nat*(nat*nat))) {struct TD} : option nat :=
   match TD with
   | nil => 
@@ -228,7 +231,7 @@ Definition getIntDefaultAlignmentInfo (BitWidth: nat) (ABIInfo: bool) : nat :=
     end
   end.
 
-Definition getIntAlignmentInfo (TD:layouts) (BitWidth: nat) (ABIInfo: bool) : nat :=
+Definition getIntAlignmentInfo (TD:TargetData) (BitWidth: nat) (ABIInfo: bool) : nat :=
   match (_getIntAlignmentInfo TD BitWidth ABIInfo None None) with
   | Some n => n
   | None => getIntDefaultAlignmentInfo BitWidth ABIInfo
@@ -236,53 +239,53 @@ Definition getIntAlignmentInfo (TD:layouts) (BitWidth: nat) (ABIInfo: bool) : na
 
 (** Target pointer alignment when ABIInfo is true
     Return target's alignment for stack-based pointers when ABIInfo is false *)
-Fixpoint _getPointerAlignmentInfo (TD:layouts) (ABIInfo: bool) : option nat :=
+Fixpoint _getPointerAlignmentInfo (TD:TargetData) (ABIInfo: bool) : option nat :=
   match TD with
   | nil => None
   | (layout_ptr psz abi pre)::_ => if ABIInfo then Some (Align.to_nat abi) else Some (Align.to_nat pre)
   | _::TD' => _getPointerAlignmentInfo TD' ABIInfo
   end.
 
-Definition getPointerAlignmentInfo (TD:layouts) (ABIInfo: bool) : nat :=
+Definition getPointerAlignmentInfo (TD:TargetData) (ABIInfo: bool) : nat :=
   match (_getPointerAlignmentInfo TD ABIInfo) with
   | Some n => n
   | None => 8%nat
   end.
 
-Fixpoint _getStructAlignmentInfo (TD:layouts) (ABIInfo: bool) : option nat :=
+Fixpoint _getStructAlignmentInfo (TD:TargetData) (ABIInfo: bool) : option nat :=
   match TD with
   | nil => None
   | (layout_aggr sz abi pre)::_ => if ABIInfo then Some (Align.to_nat abi) else Some (Align.to_nat pre)
   | _::TD' => _getStructAlignmentInfo TD' ABIInfo
   end.
 
-Definition getStructAlignmentInfo (TD:layouts) (ABIInfo: bool) : nat :=
+Definition getStructAlignmentInfo (TD:TargetData) (ABIInfo: bool) : nat :=
   match (_getStructAlignmentInfo TD ABIInfo) with
   | Some n => n
   | None => if ABIInfo then 0%nat else 8%nat
   end.
 
 (** Target pointer size *)
-Fixpoint _getPointerSize (TD:layouts) : option sz :=
+Fixpoint _getPointerSize (TD:TargetData) : option sz :=
   match TD with
   | nil => None
   | (layout_ptr psz abi pre)::_ => Some (Size.from_nat (ndiv (Size.to_nat psz) 8))
   | _::TD' => _getPointerSize TD'
   end.
 
-Definition getPointerSize (TD:layouts) : sz :=
+Definition getPointerSize (TD:TargetData) : sz :=
   match (_getPointerSize TD) with
   | Some n => n
   | None => Size.Eight
   end.
 
 (** Target pointer size, in bits *)
-Definition getPointerSizeInBits (TD:layouts) : sz :=
+Definition getPointerSizeInBits (TD:TargetData) : sz :=
   Size.mul Size.Eight (getPointerSize TD).
 
 (** Merged getTypeSizeInBits, getTypeStoreSize, getTypeAllocSize, 
     getTypeAllocSizeInBits, getAlignment and getStructLayout *)
-Fixpoint getTypeSizeInBits_and_Alignment (TD:layouts) (abi_or_pref:bool) (t:typ)
+Fixpoint getTypeSizeInBits_and_Alignment (TD:TargetData) (abi_or_pref:bool) (t:typ)
   : option (nat*nat) :=
   let getTypeStoreSize := 
       fun typeSizeInBits => ndiv (typeSizeInBits+7%nat) 8%nat in
@@ -328,7 +331,7 @@ Fixpoint getTypeSizeInBits_and_Alignment (TD:layouts) (abi_or_pref:bool) (t:typ)
     end      
   | _ => None
   end
-with getListTypeSizeInBits_and_Alignment (TD:layouts) (lt:list_typ)
+with getListTypeSizeInBits_and_Alignment (TD:TargetData) (lt:list_typ)
   : option (nat*nat) :=
   let getTypeStoreSize := 
       fun typeSizeInBits => ndiv (typeSizeInBits+7%nat) 8%nat in
@@ -369,7 +372,7 @@ with getListTypeSizeInBits_and_Alignment (TD:layouts) (lt:list_typ)
   Get the ABI (abi_or_pref == true) or preferred alignment (abi_or_pref
   == false) for the requested type t.
  *)
-Definition getAlignment (TD:layouts) (t:typ) (abi_or_pref:bool) : option nat :=
+Definition getAlignment (TD:TargetData) (t:typ) (abi_or_pref:bool) : option nat :=
   match (getTypeSizeInBits_and_Alignment TD abi_or_pref t) with
   | (Some (sz, al)) => Some al
   | None => None
@@ -377,12 +380,12 @@ Definition getAlignment (TD:layouts) (t:typ) (abi_or_pref:bool) : option nat :=
 
 (** getABITypeAlignment - Return the minimum ABI-required alignment for the
     specified type. *)
-Definition getABITypeAlignment (TD:layouts) (t:typ) : option nat :=
+Definition getABITypeAlignment (TD:TargetData) (t:typ) : option nat :=
   getAlignment TD t true.
 
 (** getPrefTypeAlignment - Return the preferred stack/global alignment for
     the specified type.  This is always at least as good as the ABI alignment. *)
-Definition getPrefTypeAlignment (TD:layouts) (t:typ) : option nat :=
+Definition getPrefTypeAlignment (TD:TargetData) (t:typ) : option nat :=
   getAlignment TD t false.
 
 (*
@@ -406,7 +409,7 @@ Definition getPrefTypeAlignment (TD:layouts) (t:typ) : option nat :=
 
 (** getTypeSizeInBits - Return the number of bits necessary to hold the
     specified type.  For example, returns 36 for i36 and 80 for x86_fp80. *)
-Definition getTypeSizeInBits (TD:list layout) (t:typ) : option nat :=
+Definition getTypeSizeInBits (TD:TargetData) (t:typ) : option nat :=
   match (getTypeSizeInBits_and_Alignment TD true t) with
   | (Some (sz, al)) => Some sz
   | None => None
@@ -415,7 +418,7 @@ Definition getTypeSizeInBits (TD:list layout) (t:typ) : option nat :=
 (** getTypeStoreSize - Return the maximum number of bytes that may be
     overwritten by storing the specified type.  For example, returns 5
     for i36 and 10 for x86_fp80. *)
-Definition getTypeStoreSize (TD:layouts) (t:typ) : option nat :=
+Definition getTypeStoreSize (TD:TargetData) (t:typ) : option nat :=
   match (getTypeSizeInBits TD t) with
   | None => None
   | Some sz => Some (ndiv (sz+7) 8)
@@ -424,7 +427,7 @@ Definition getTypeStoreSize (TD:layouts) (t:typ) : option nat :=
 (** getTypeStoreSizeInBits - Return the maximum number of bits that may be
     overwritten by storing the specified type; always a multiple of 8.  For
     example, returns 40 for i36 and 80 for x86_fp80.*)
-Definition getTypeStoreSizeInBits (TD:layouts) (t:typ) : option nat :=
+Definition getTypeStoreSizeInBits (TD:TargetData) (t:typ) : option nat :=
   match (getTypeStoreSize TD t) with
   | None => None
   | Some n => Some (8*n)%nat
@@ -434,7 +437,7 @@ Definition getTypeStoreSizeInBits (TD:layouts) (t:typ) : option nat :=
     of the specified type, including alignment padding.  This is the amount
     that alloca reserves for this type.  For example, returns 12 or 16 for
     x86_fp80, depending on alignment. *)
-Definition getTypeAllocSize (TD:layouts) (t:typ) : option nat :=
+Definition getTypeAllocSize (TD:TargetData) (t:typ) : option sz :=
   match (getTypeStoreSize TD t, getABITypeAlignment TD t) with
   | (Some ss, Some ta) => 
     (* Round up to the next alignment boundary *)
@@ -446,13 +449,13 @@ Definition getTypeAllocSize (TD:layouts) (t:typ) : option nat :=
     objects of the specified type, including alignment padding; always a
     multiple of 8.  This is the amount that alloca reserves for this type.
     For example, returns 96 or 128 for x86_fp80, depending on alignment. *)
-Definition getTypeAllocSizeInBits (TD:list layout) (t:typ) : option nat :=
+Definition getTypeAllocSizeInBits (TD:TargetData) (t:typ) : option nat :=
   match (getTypeAllocSize TD t) with
   | None => None
   | Some n => Some (8*n)%nat
   end.
 
-Definition getStructSizeInBytes (TD:layouts) (t:typ) : option nat :=
+Definition getStructSizeInBytes (TD:TargetData) (t:typ) : option nat :=
 match t with
 | typ_struct lt => 
   match (getTypeSizeInBits TD t) with
@@ -462,19 +465,19 @@ match t with
 | _ => None
 end.
 
-Definition getStructSizeInBits (TD:layouts) (t:typ) : option nat :=
+Definition getStructSizeInBits (TD:TargetData) (t:typ) : option nat :=
 match t with
 | typ_struct lt => getTypeSizeInBits TD t
 | _ => None
 end.
 
-Definition getStructAlignment (TD:layouts) (t:typ) : option nat :=
+Definition getStructAlignment (TD:TargetData) (t:typ) : option nat :=
 match t with
 | typ_struct lt => getABITypeAlignment TD t
 | _ => None
 end.
 
-Fixpoint _getStructElementOffset (TD:layouts) (ts:list_typ) (idx:nat) 
+Fixpoint _getStructElementOffset (TD:TargetData) (ts:list_typ) (idx:nat) 
          (struct_sz struct_al : nat) : option nat :=
 match (ts, idx) with
 | (Cons_list_typ t Nil_list_typ, O) => 
@@ -505,13 +508,13 @@ match (ts, idx) with
 | _ => None
 end.
 
-Definition getStructElementOffset (TD:layouts) (t:typ) (idx:nat) : option nat :=
+Definition getStructElementOffset (TD:TargetData) (t:typ) (idx:nat) : option nat :=
 match t with
 | typ_struct lt => _getStructElementOffset TD lt idx 0 0
 | _ => None
 end.
 
-Definition getStructElementOffsetInBits (TD:layouts) (t:typ) (idx:nat) : option nat :=
+Definition getStructElementOffsetInBits (TD:TargetData) (t:typ) (idx:nat) : option nat :=
 match t with
 | typ_struct lt => match (_getStructElementOffset TD lt idx 0 0) with
                    | None => None
@@ -522,7 +525,7 @@ end.
 
 (** getElementContainingOffset - Given a valid offset into the structure,
     return the structure index that contains it. *)
-Fixpoint _getStructElementContainingOffset (TD:layouts) (ts:list_typ) (offset:nat)(idx:nat)
+Fixpoint _getStructElementContainingOffset (TD:TargetData) (ts:list_typ) (offset:nat)(idx:nat)
          (struct_sz struct_al : nat) : option nat :=
 match ts with
 | Nil_list_typ => None
@@ -561,9 +564,10 @@ end.
    the right one to return, because anything after it will have a higher
    offset, implying that this element is non-empty.
 *)
-Definition getStructElementContainingOffset (TD:layouts) (t:typ) (offset:nat) : option nat :=
+Definition getStructElementContainingOffset (TD:TargetData) (t:typ) (offset:nat) : option nat :=
 match t with
 | typ_struct lt => _getStructElementContainingOffset TD lt offset 0 0 0
 | _ => None
 end.
 
+End LLVMtd.

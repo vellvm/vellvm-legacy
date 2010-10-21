@@ -113,7 +113,16 @@ Extract Constant LLVMmem.malloc =>  "Llvmcaml.Mem.malloc".
 Extract Constant LLVMmem.free =>  "Llvmcaml.Mem.free".
 Extract Constant LLVMmem.mload =>  "Llvmcaml.Mem.mload".
 Extract Constant LLVMmem.mstore =>  "Llvmcaml.Mem.mstore".
+
 Extract Constant LLVMopsem.initGlobal => "Llvmcaml.Mem.initGlobal".
+
+Extract Constant LLVMtd.getTypeAllocSize => "Llvmcaml.TargetData.getTypeAllocSize".
+Extract Constant LLVMtd.getTypeAllocSizeInBits => "Llvmcaml.TargetData.getTypeAllocSizeInBits".
+Extract Constant LLVMtd._getStructElementOffset => "Llvmcaml.TargetData._getStructElementOffset".
+Extract Constant LLVMtd.getStructElementOffset => "Llvmcaml.TargetData.getStructElementOffset".
+Extract Constant LLVMtd.getStructElementOffsetInBits => "Llvmcaml.TargetData.getStructElementOffsetInBits".
+Extract Constant LLVMtd._getStructElementContainingOffset => "Llvmcaml.TargetData._getStructElementContainingOffset".
+Extract Constant LLVMtd.getStructElementContainingOffset => "Llvmcaml.TargetData.getStructElementContainingOffset".
 
 (* Float *)
 Extract Inlined Constant Floats.float => "float".

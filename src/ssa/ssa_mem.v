@@ -22,6 +22,7 @@ Module LLVMmem.
 
 Export LLVMsyntax.
 Export LLVMgv.
+Export LLVMtd.
 
 (** Memory is separated as blocks indexed by [mblock], contents in each block
     are indexed by [moffset]. Pointers [mptr] are encoded as pairs [mblock] and [moffset].
@@ -61,10 +62,10 @@ Definition mem := Mem.mem.
 (*Definition initmem : mem := Mem.empty.*)
 
 (** allocate memory with size and alignment *)
-Definition malloc (TD:layouts) (M:mem) (bsz:sz) (al:align) : option (mem * mblock)%type :=
+Definition malloc (TD:TargetData) (M:mem) (bsz:sz) (al:align) : option (mem * mblock)%type :=
 Some (Mem.alloc M 0 (Size.to_Z bsz)).
 
-Definition free (TD:layouts) (M:mem) (ptr:mptr) : option mem :=
+Definition free (TD:TargetData) (M:mem) (ptr:mptr) : option mem :=
 match GV2ptr TD (getPointerSize TD) ptr with
 | Some (Vptr b i) =>
   if zeq (Int.unsigned 31 i) 0 
@@ -76,7 +77,7 @@ match GV2ptr TD (getPointerSize TD) ptr with
 | _ => None
 end.
 
-Fixpoint free_allocas (TD:layouts) (Mem:mem) (allocas:list mblock) : option mem :=
+Fixpoint free_allocas (TD:TargetData) (Mem:mem) (allocas:list mblock) : option mem :=
 match allocas with
 | nil => Some Mem
 | alloca::allocas' =>
@@ -95,7 +96,7 @@ Definition typ2memory_chunk (t:typ) : option memory_chunk :=
   | _ => None
   end.
 
-Definition mload (TD:layouts) (M:mem) (ptr:mptr) (t:typ) (a:align) : option GenericValue :=
+Definition mload (TD:TargetData) (M:mem) (ptr:mptr) (t:typ) (a:align) : option GenericValue :=
 match GV2ptr TD (getPointerSize TD) ptr with
 | Some (Vptr b ofs) =>
   match typ2memory_chunk t with
@@ -109,7 +110,7 @@ match GV2ptr TD (getPointerSize TD) ptr with
 | _ => None
 end.
 
-Definition mstore (TD:layouts) (M:mem) (ptr:mptr) (t:typ) (gv:GenericValue) (a:align) : option mem :=
+Definition mstore (TD:TargetData) (M:mem) (ptr:mptr) (t:typ) (gv:GenericValue) (a:align) : option mem :=
 match GV2ptr TD (getPointerSize TD) ptr with
 | Some (Vptr b ofs) =>
   match typ2memory_chunk t, GV2val TD gv with
@@ -122,20 +123,20 @@ end.
 (*
 (** translating [mvalue] to value of specific typ, failed when [mvalue] is not
     of size [sz]. *)
-Variable mvalue2nat : layouts -> sz -> mvalue -> option nat.
-Variable mvalue2mptr : layouts -> sz -> mvalue -> option mptr.
+Variable mvalue2nat : TargetData -> sz -> mvalue -> option nat.
+Variable mvalue2mptr : TargetData -> sz -> mvalue -> option mptr.
 (** checking if list of bytes or uninit is undef, should all elements in list be uninits? *)
 Variable isMvalueUndef : list layout -> typ -> mvalue -> Prop.
 
 (** translating value to [mvalue] with size [sz]. *)
-Variable nat2mvalue : layouts -> nat -> sz -> mvalue.
-Variable mptr2mvalue : layouts -> mptr -> sz -> mvalue.
+Variable nat2mvalue : TargetData -> nat -> sz -> mvalue.
+Variable mptr2mvalue : TargetData -> mptr -> sz -> mvalue.
 (** translating undef to mvalue with StoreSize, failed when typ is not storable. *)
 Variable undef2mvalue : list layout -> typ -> option mvalue.
 
 (** addition of two [mvalue]'s with size [sz], could be none if
     overflow happens. *)
-Variable mvalue_add : layouts -> sz -> mvalue -> mvalue -> option mvalue.
+Variable mvalue_add : TargetData -> sz -> mvalue -> mvalue -> option mvalue.
 
 (** [sz] uninitialized [mvalue]. *)
 Fixpoint muninits (sz:nat) : mvalue :=
@@ -145,9 +146,9 @@ match sz with
 end.
 
 (** compute offset in typ with list of idxs, typ and its subtypes cannot be ptr. *)
-Variable mgetoffset : layouts -> typ -> list nat -> option moffset.
+Variable mgetoffset : TargetData -> typ -> list nat -> option moffset.
 
-Definition mgep (TD:layouts) (t:typ) (ma:mptr) (idxs:list nat) : option mptr :=
+Definition mgep (TD:TargetData) (t:typ) (ma:mptr) (idxs:list nat) : option mptr :=
 match ma with
 | (mb, mo) => 
   match idxs with

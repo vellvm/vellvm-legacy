@@ -58,7 +58,7 @@ ssa_mem.vo: ssa_mem.v ssa_def.vo ssa_lib.vo tactics.vo targetdata.vo genericvalu
 trace.vo: trace.v
 	$(COQC) $(COQARG) trace.v
 
-genericvalues.vo: ssa_def.vo ssa_lib.vo tactics.vo trace.vo genericvalues.v assoclist.vo
+genericvalues.vo: ssa_def.vo ssa_lib.vo tactics.vo trace.vo genericvalues.v assoclist.vo targetdata.vo
 	$(COQC) $(COQARG) genericvalues.v
 
 ssa_dynamic.vo: ssa_dynamic.v ssa_def.vo ssa_lib.vo tactics.vo ssa_mem.vo trace.vo genericvalues.vo assoclist.vo

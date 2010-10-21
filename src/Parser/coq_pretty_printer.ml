@@ -180,15 +180,15 @@ let travel_product g =
 		flush_all ()
 	| LLVMsyntax.Coq_product_fdec f -> travel_fdec f
 	| LLVMsyntax.Coq_product_fdef f -> travel_fdef f 
-	
+
 let travel_layout dlt =
 	match dlt with
-	| LLVMsyntax.Coq_layout_be -> eprintf "be\n"
-	| LLVMsyntax.Coq_layout_le -> eprintf "le\n"
-	| LLVMsyntax.Coq_layout_ptr (sz, a1, a2) -> eprintf "p%d %d %d\n" sz a1 a2 
-	| LLVMsyntax.Coq_layout_int (sz, a1, a2) -> eprintf "i%d %d %d\n" sz a1 a2	
-	| LLVMsyntax.Coq_layout_aggr (sz, a1, a2) -> eprintf "a%d %d %d\n" sz a1 a2
-	| LLVMsyntax.Coq_layout_stack (sz, a1, a2) -> eprintf "s%d %d %d\n" sz a1 a2
+	| LLVMsyntax.Coq_layout_be -> eprintf "E\n"
+	| LLVMsyntax.Coq_layout_le -> eprintf "e\n"
+	| LLVMsyntax.Coq_layout_ptr (sz, a1, a2) -> eprintf "p:%d:%d:%d\n" sz a1 a2 
+	| LLVMsyntax.Coq_layout_int (sz, a1, a2) -> eprintf "i:%d:%d:%d\n" sz a1 a2	
+	| LLVMsyntax.Coq_layout_aggr (sz, a1, a2) -> eprintf "a:%d:%d:%d\n" sz a1 a2
+	| LLVMsyntax.Coq_layout_stack (sz, a1, a2) -> eprintf "s:%d:%d:%d\n" sz a1 a2
 	;
 	flush_all ()
 

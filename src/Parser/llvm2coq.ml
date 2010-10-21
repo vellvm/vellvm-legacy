@@ -708,7 +708,7 @@ let translate_layout dlt =
 	eprintf "byteorde=%s\n"
 		(string_of_endian (Llvm_target.byte_order tg));
 	eprintf "p size=%s abi=%s pref=%s\n"
-		(string_of_int ((Llvm_target.pointer_size tg) * 8))
+		(string_of_int ((Llvm_target.pointer_size_in_bits tg) * 8))
 		(string_of_int ((Llvm_target.pointer_abi_alignment tg) * 8))
 		(string_of_int ((Llvm_target.pointer_pref_alignment tg) * 8));
 	for i = 0 to n - 1 do
@@ -752,7 +752,7 @@ let translate_layout dlt =
 	dl
 
 let translate_module st (m: llmodule) : LLVMsyntax.coq_module=
-	prerr_endline "Translate module:";
+	prerr_endline "Translate module (LLVM2Coq):";
 	let dl = translate_layout (data_layout m) in
 	let ps = (fold_right_functions (translate_function st) m
 				      (fold_right_globals (translate_global st) m [])) in  

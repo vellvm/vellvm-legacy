@@ -2,10 +2,27 @@ open Llvm_executionengine
 open Ssa_def
 open LLVMsyntax
 
-let coqtype_2_llvmtype (t:LLVMsyntax.typ) : Llvm.lltype = failwith "coqtype_2_llvmtype undef"
-let coqbop_2_llvmopcode (op:LLVMsyntax.bop) : Llvm.InstrOpcode.t = failwith "coqbop_2_llvmopcode undef"
-let coqtd_2_llvmtd (td:layouts) : Llvm_target.TargetData.t = failwith "coqbop_2_llvmopcode undef"
-let coqcond_2_llvmicmp (c:cond) : Llvm.Icmp.t = failwith "coqcond_2_llvmicmp undef"
+let coqtype_2_llvmtype (t:LLVMsyntax.typ) : Llvm.lltype = Coq2llvm.translate_typ (Llvm.global_context()) t
+let coqbop_2_llvmopcode (op:LLVMsyntax.bop) : Llvm.InstrOpcode.t = Coq2llvm.translate_bop op
+let coqtd_2_llvmtd (td:layouts) = Coq2llvm.translate_layouts td
+let coqcond_2_llvmicmp (c:cond) : Llvm.Icmp.t = Coq2llvm.translate_icond c
+
+module TargetData = struct
+
+  let getTypeAllocSize (td:LLVMsyntax.layouts) t = 
+    let ltd = Llvm_target.TargetData.create (coqtd_2_llvmtd td) in
+    let sz = Int64.to_int (Llvm_target.get_type_alloc_size ltd (coqtype_2_llvmtype t)) in
+    Llvm_target.TargetData.dispose ltd;
+    Some sz
+		
+  let getTypeAllocSizeInBits x y = failwith "undef"
+  let _getStructElementOffset x y z = failwith "undef"
+  let getStructElementOffset x y z = failwith "undef"
+  let getStructElementOffsetInBits x y z = failwith "undef"
+  let _getStructElementContainingOffset x y z = failwith "undef"
+  let getStructElementContainingOffset x y z = failwith "undef"		
+		
+end	
 
 module GenericValue = struct
 
@@ -29,8 +46,16 @@ module GenericValue = struct
 
   let isZero (td:LLVMsyntax.layouts) (v:t) = GenericValue.as_int v == 0
 
-  let const2GV (td:LLVMsyntax.layouts) gl (c:LLVMsyntax.const) : t option = 
-    failwith "const2GV undef"
+  let const2GV (td:LLVMsyntax.layouts) gl (c:const) : t option = 
+    let ctx = Llvm.global_context() in
+    let ltd = Llvm_target.TargetData.create (coqtd_2_llvmtd td) in
+    match c with
+    | Coq_const_int (sz, i) -> Some (GenericValue.of_constant ltd (Coq2llvm.translate_constant ctx c))
+    | Coq_const_undef t -> Some (GenericValue.of_constant ltd (Coq2llvm.translate_constant ctx c)) 
+    | Coq_const_null t -> Some (GenericValue.of_constant ltd (Coq2llvm.translate_constant ctx c)) 
+    | Coq_const_arr cs -> Some (GenericValue.of_constant ltd (Coq2llvm.translate_constant ctx c))  
+    | Coq_const_struct cs -> Some (GenericValue.of_constant ltd (Coq2llvm.translate_constant ctx c))
+    | Coq_const_gid (_,id) -> Assoclist.lookupAL gl id
 
   let mgep x y z w = failwith "mgep undef"
 
@@ -49,7 +74,11 @@ module GenericValue = struct
     | Coq_castop_uitofp -> GenericValue.uitofp gv1 (coqtype_2_llvmtype t2)
     | Coq_castop_sitofp -> GenericValue.sitofp gv1 (coqtype_2_llvmtype t2)
     | Coq_castop_ptrtoint -> GenericValue.ptrtoint gv1 (coqtype_2_llvmtype t1) (coqtype_2_llvmtype t2)
-    | Coq_castop_inttoptr -> GenericValue.inttoptr (coqtd_2_llvmtd td) gv1 (coqtype_2_llvmtype t2)
+    | Coq_castop_inttoptr -> 
+			  let ltd = Llvm_target.TargetData.create (coqtd_2_llvmtd td) in
+				let gv2 = GenericValue.inttoptr ltd gv1 (coqtype_2_llvmtype t2) in
+				Llvm_target.TargetData.dispose ltd;
+				gv2
     | Coq_castop_bitcast -> GenericValue.bitcast gv1 
                               (coqtype_2_llvmtype t1) 
                               (Llvm.global_context()) 
@@ -93,15 +122,24 @@ module Mem = struct
     let (ee, _) = m in
     let _ = ExecutionEngine.store_value_to_memory gv ptr (coqtype_2_llvmtype t) ee in
     Some m
+		
+	let getRealName (id:LLVMsyntax.id) =
+	if String.length id <= 1
+	then id
+	else 
+		if String.get id 0 = '@' or String.get id 0 = '%'
+		then String.sub id 1 (String.length id-1)
+		else id
 
   let initGlobal (td:LLVMsyntax.layouts) gl m (id0:LLVMsyntax.id) 
                  (t:LLVMsyntax.typ)(c:LLVMsyntax.const)(align0:LLVMsyntax.align) =
     let (ee, mm) = m in
-    match Llvm.lookup_global id0 mm with
+    match Llvm.lookup_global (getRealName id0) mm with
     | Some v -> 
        (match ExecutionEngine.get_pointer_to_global_if_available v ee with
        | Some gv -> Some (gv, m)
        | None -> None)
     | None -> None
-
+		
 end
+
