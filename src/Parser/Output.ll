@@ -35,8 +35,8 @@ Loop:                                             ; preds = %Loop, %entry
   %nextindvar = add i32 %indvar, 1                ; <i32> [#uses=1]
   %5 = call i99 @ttt(i32* %0)                     ; <i99> [#uses=0]
   %6 = icmp eq i32 4, 5                           ; <i1> [#uses=0]
-  %x2 = load i32* %0, align 4                     ; <i32> [#uses=0]
-  %x1 = add i13 7, 8                              ; <i13> [#uses=0]
+  %x2 = add i13 7, 8                              ; <i13> [#uses=0]
+  %x1 = load i32* %0, align 4                     ; <i32> [#uses=0]
   br i1 false, label %Loop, label %return
 
 return:                                           ; preds = %Loop

@@ -43,14 +43,16 @@ Proof.
 Qed.
 
 
-Lemma eqAL_getIncomingValuesForBlockFromPHINodes : forall ps B lc lc',
+Lemma eqAL_getIncomingValuesForBlockFromPHINodes : forall TD ps B gl lc lc',
   eqAL _ lc lc' ->
-  getIncomingValuesForBlockFromPHINodes ps B lc = getIncomingValuesForBlockFromPHINodes ps B lc'.
+  getIncomingValuesForBlockFromPHINodes TD ps B gl lc = 
+  getIncomingValuesForBlockFromPHINodes TD ps B gl lc'.
 Proof.
   induction ps; intros; simpl; auto.
-    destruct (getIdViaBlockFromPHINode a B); auto.
-    rewrite H.
-    erewrite IHps; eauto.
+    destruct a; auto.
+    destruct (getValueViaBlockFromValuels l0 B); auto.
+    destruct v; erewrite IHps; eauto.
+      rewrite H. auto.
 Qed.
   
 Lemma eqAL_updateValuesForNewBlock : forall vs lc lc',
@@ -62,9 +64,9 @@ Proof.
     destruct o; auto using eqAL_updateAddAL.
 Qed.
 
-Lemma eqAL_switchToNewBasicBlock : forall B1 B2 lc lc',
+Lemma eqAL_switchToNewBasicBlock : forall TD B1 B2 gl lc lc',
   eqAL _ lc lc' ->
-  eqAL _ (switchToNewBasicBlock B1 B2 lc) (switchToNewBasicBlock B1 B2 lc').
+  eqAL _ (switchToNewBasicBlock TD B1 B2 gl lc) (switchToNewBasicBlock TD B1 B2 gl lc').
 Proof.
   intros.
   unfold switchToNewBasicBlock.
@@ -110,11 +112,11 @@ Proof.
       apply updateAddAL_uniq; auto.
 Qed.
 
-Lemma switchToNewBasicBlock_uniq : forall B1 B2 lc,
+Lemma switchToNewBasicBlock_uniq : forall TD B1 B2 gl lc,
   uniq lc ->
-  uniq (switchToNewBasicBlock B1 B2 lc).
+  uniq (switchToNewBasicBlock TD B1 B2 gl lc).
 Proof.
-  intros B1 B2 lc Uniqc.
+  intros TD B1 B2 gl lc Uniqc.
   unfold switchToNewBasicBlock.
   apply updateValuesForNewBlock_uniq; auto.
 Qed.      
@@ -135,18 +137,18 @@ Proof.
   apply _initializeFrameValues_init; auto.
 Qed.
 
-Lemma getIncomingValuesForBlockFromPHINodes_eq : forall ps l1 ps1 cs1 tmn1 ps2 cs2 tmn2,
-  getIncomingValuesForBlockFromPHINodes ps (block_intro l1 ps1 cs1 tmn1) =
-  getIncomingValuesForBlockFromPHINodes ps (block_intro l1 ps2 cs2 tmn2).
+Lemma getIncomingValuesForBlockFromPHINodes_eq : forall ps TD l1 ps1 cs1 tmn1 ps2 cs2 tmn2,
+  getIncomingValuesForBlockFromPHINodes TD ps (block_intro l1 ps1 cs1 tmn1) =
+  getIncomingValuesForBlockFromPHINodes TD ps (block_intro l1 ps2 cs2 tmn2).
 Proof.
   induction ps; intros; auto.
     simpl.
     erewrite IHps; eauto.
 Qed.
 
-Lemma switchToNewBasicBlock_eq : forall B l1 ps1 cs1 tmn1 ps2 cs2 tmn2 lc,
-  switchToNewBasicBlock B (block_intro l1 ps1 cs1 tmn1) lc =
-  switchToNewBasicBlock B (block_intro l1 ps2 cs2 tmn2) lc.
+Lemma switchToNewBasicBlock_eq : forall TD B l1 ps1 cs1 tmn1 ps2 cs2 tmn2 gl lc,
+  switchToNewBasicBlock TD B (block_intro l1 ps1 cs1 tmn1) gl lc =
+  switchToNewBasicBlock TD B (block_intro l1 ps2 cs2 tmn2) gl lc.
 Proof.
   intros.
   unfold switchToNewBasicBlock.
@@ -249,7 +251,7 @@ Proof.
 Case "dbBranch".
   inversion H; subst. clear H.
   exists l'. exists ps'. exists cs'. exists tmn'.
-  exists (switchToNewBasicBlock (block_intro l' ps' cs' tmn') (block_intro l0 ps cs0 (insn_br bid Cond l1 l2)) lc0). exists als0. exists Mem1.
+  exists (switchToNewBasicBlock TD0 (block_intro l' ps' cs' tmn') (block_intro l0 ps cs0 (insn_br bid Cond l1 l2)) gl0 lc0). exists als0. exists Mem1.
   exists cs'. split; auto.
   apply andb_true_iff in H1.
   destruct H1.
@@ -265,7 +267,7 @@ Case "dbBranch".
 Case "dbBranch_uncond".
   inversion H; subst. clear H.
   exists l'. exists ps'. exists cs'. exists tmn'.
-  exists (switchToNewBasicBlock (block_intro l' ps' cs' tmn') (block_intro l1 ps cs0 (insn_br_uncond bid l0)) lc0). exists als0. exists Mem1.
+  exists (switchToNewBasicBlock TD0 (block_intro l' ps' cs' tmn') (block_intro l1 ps cs0 (insn_br_uncond bid l0)) gl0 lc0). exists als0. exists Mem1.
   exists cs'. split; auto.
   apply andb_true_iff in H1.
   destruct H1.

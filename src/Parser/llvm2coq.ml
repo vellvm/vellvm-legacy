@@ -78,7 +78,10 @@ let translate_operand_to_value st v =
 	| ValueTy.BasicBlockVal -> LLVMsyntax.Coq_value_id (llvm_name st v)
 	| ValueTy.FunctionVal -> LLVMsyntax.Coq_value_id (llvm_name st v)                  (*GlobalValue*)
 	| ValueTy.GlobalAliasVal -> LLVMsyntax.Coq_value_id (llvm_name st v)               (*GlobalValue*)
-	| ValueTy.GlobalVariableVal -> LLVMsyntax.Coq_value_id (llvm_name st v)            (*GlobalValue*)
+	| ValueTy.GlobalVariableVal ->                                                     (*GlobalValue*)
+                               (* FIXME: Do we need typ for gid? use typ_void for the time being. *)
+										           LLVMsyntax.Coq_value_const 
+															   (LLVMsyntax.Coq_const_gid (LLVMsyntax.Coq_typ_void, llvm_name st v))
 	| ValueTy.UndefValueVal -> LLVMsyntax.Coq_value_const (translate_constant v)
 	| ValueTy.ConstantExprVal -> LLVMsyntax.Coq_value_const (translate_constant v)
 	| ValueTy.ConstantAggregateZeroVal -> LLVMsyntax.Coq_value_const (translate_constant v)
@@ -289,13 +292,18 @@ let translate_instr st i =
 			if n != 1
 			then failwith "Load must have 1 operand."
 			else
-				LLVMsyntax.Coq_insn_cmd
-				(LLVMsyntax.Coq_insn_load
-					(llvm_name st i,
-						translate_typ (type_of (Array.get ops 0)),
-						translate_operand_to_value st (Array.get ops 0),
-						LoadInst.get_alignment i)
-				)
+				begin
+				match translate_typ (type_of (Array.get ops 0)) with
+					| LLVMsyntax.Coq_typ_pointer t ->
+				    LLVMsyntax.Coq_insn_cmd
+				    (LLVMsyntax.Coq_insn_load
+					    (llvm_name st i,
+						    t,
+    						translate_operand_to_value st (Array.get ops 0),
+		    				LoadInst.get_alignment i)
+				    )
+					| _ -> failwith "Load must be with ptr type"
+				end
 	| InstrOpcode.Store ->
 			let ops = operands i in
 			let n = num_operand i in
@@ -636,6 +644,11 @@ let translate_block st b bs =
 			(LLVMsyntax.Coq_block_intro ((llvm_label st b), ps, cs, tmn)):: bs
 	| None -> failwith "There is not a Tmn at the end of the block."
 
+let translate_fun_typ t =
+	match translate_typ t with
+		| LLVMsyntax.Coq_typ_pointer (LLVMsyntax.Coq_typ_function (rt, ts)) -> rt
+		| _ -> failwith "Ill-formed function typ"
+
 let translate_function st f ps =
 	(* debugging output *)
 	SlotTracker.incorporate_function st f;
@@ -659,7 +672,7 @@ let translate_function st f ps =
 						(translate_operand_to_arg st param):: args'
 			)
 			(params f) [] in
-	let fheader = (LLVMsyntax.Coq_fheader_intro (translate_typ (type_of f), (llvm_name st f), args)) in
+	let fheader = (LLVMsyntax.Coq_fheader_intro (translate_fun_typ (type_of f), (llvm_name st f), args)) in
 	let g =
 		if (is_declaration f)
 		then

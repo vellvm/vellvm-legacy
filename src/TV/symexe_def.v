@@ -166,7 +166,7 @@ Inductive dbTerminator :
   Some (block_intro l' ps' sbs' tmn') = (if isGVZero TD c
                then lookupBlockViaLabelFromFdef F l2
                else lookupBlockViaLabelFromFdef F l1) ->
-  lc' = LLVMopsem.switchToNewBasicBlock (block_intro l' ps' sbs' tmn') B lc ->
+  lc' = LLVMopsem.switchToNewBasicBlock TD (block_intro l' ps' sbs' tmn') B gl lc ->
   dbTerminator TD F gl
     B lc
     (insn_br bid Cond l1 l2)
@@ -175,7 +175,7 @@ Inductive dbTerminator :
 | dbBranch_uncond : forall TD F B lc gl l bid
                               l' ps' sbs' tmn' lc',   
   Some (block_intro l' ps' sbs' tmn') = (lookupBlockViaLabelFromFdef F l) ->
-  lc' = LLVMopsem.switchToNewBasicBlock (block_intro l' ps' sbs' tmn') B lc ->
+  lc' = LLVMopsem.switchToNewBasicBlock TD (block_intro l' ps' sbs' tmn') B gl lc ->
   dbTerminator TD F gl
     B lc
     (insn_br_uncond bid l) 

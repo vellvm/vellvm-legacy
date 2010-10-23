@@ -22,7 +22,7 @@ let rec translate_typ (ctx:llcontext) (ty:LLVMsyntax.typ) : lltype =
 
 let rec translate_constant (ctx:llcontext) (c:LLVMsyntax.const) : llvalue = 
 	match c with
-	| LLVMsyntax.Coq_const_int (sz, i) -> const_int (integer_type ctx sz) sz
+	| LLVMsyntax.Coq_const_int (sz, i) -> const_apint (Llvm.global_context()) i
 	| LLVMsyntax.Coq_const_undef t -> undef (translate_typ ctx t)
 	| LLVMsyntax.Coq_const_null t ->  const_null (translate_typ ctx t)
 	| LLVMsyntax.Coq_const_arr cs -> failwith "const_arr: Not_Supported."

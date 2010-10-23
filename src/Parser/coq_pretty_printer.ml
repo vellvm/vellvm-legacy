@@ -129,7 +129,7 @@ let travel_cmd i =
   | LLVMsyntax.Coq_insn_free (id, t, v) ->
 		  eprintf "  %s = free %s %s\n" id (string_of_typ t) (string_of_value v)
   | LLVMsyntax.Coq_insn_load (id, t, v, a) ->
-		  eprintf "  %s = load %s %s %d\n" id (string_of_typ t) (string_of_value v) a
+		  eprintf "  %s = load %s* %s %d\n" id (string_of_typ t) (string_of_value v) a
   | LLVMsyntax.Coq_insn_store (id, t, v1, v2, a) ->
 		  eprintf "  %s = store %s %s %s %d\n" id (string_of_typ t) (string_of_value v1) (string_of_value v2) a
   | LLVMsyntax.Coq_insn_gep (id, inbounds, t, v, vs) ->

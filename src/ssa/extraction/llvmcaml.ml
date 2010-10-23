@@ -1,6 +1,7 @@
 open Llvm_executionengine
 open Ssa_def
 open LLVMsyntax
+open Printf
 
 let coqtype_2_llvmtype (t:LLVMsyntax.typ) : Llvm.lltype = Coq2llvm.translate_typ (Llvm.global_context()) t
 let coqbop_2_llvmopcode (op:LLVMsyntax.bop) : Llvm.InstrOpcode.t = Coq2llvm.translate_bop op
@@ -49,13 +50,16 @@ module GenericValue = struct
   let const2GV (td:LLVMsyntax.layouts) gl (c:const) : t option = 
     let ctx = Llvm.global_context() in
     let ltd = Llvm_target.TargetData.create (coqtd_2_llvmtd td) in
-    match c with
+		let og =
+    (match c with
     | Coq_const_int (sz, i) -> Some (GenericValue.of_constant ltd (Coq2llvm.translate_constant ctx c))
     | Coq_const_undef t -> Some (GenericValue.of_constant ltd (Coq2llvm.translate_constant ctx c)) 
     | Coq_const_null t -> Some (GenericValue.of_constant ltd (Coq2llvm.translate_constant ctx c)) 
     | Coq_const_arr cs -> Some (GenericValue.of_constant ltd (Coq2llvm.translate_constant ctx c))  
     | Coq_const_struct cs -> Some (GenericValue.of_constant ltd (Coq2llvm.translate_constant ctx c))
-    | Coq_const_gid (_,id) -> Assoclist.lookupAL gl id
+    | Coq_const_gid (_,id) -> Assoclist.lookupAL gl id) in
+		Llvm_target.TargetData.dispose ltd;
+		og
 
   let mgep x y z w = failwith "mgep undef"
 
@@ -64,11 +68,14 @@ module GenericValue = struct
   let insertGenericValue x y z a b = failwith "extractGenericValue undef"
 
   let mbop (td:LLVMsyntax.layouts) (op:LLVMsyntax.bop) (bsz:LLVMsyntax.sz) (gv1:t) (gv2:t) = 
-    Some (GenericValue.binary_op gv1 gv2 (Llvm.integer_type (Llvm.global_context()) bsz) (coqbop_2_llvmopcode op))
+    let gv = (GenericValue.binary_op gv1 gv2 (Llvm.integer_type (Llvm.global_context()) bsz) (coqbop_2_llvmopcode op)) in
+    eprintf "  Mbop s=%d gv1=%s gv2=%s r=%s\n" bsz 
+		  (GenericValue.to_string gv1) (GenericValue.to_string gv2) (GenericValue.to_string gv);flush_all();
+		Some gv
 
   let mcast (td:LLVMsyntax.layouts) (op:LLVMsyntax.castop) (t1:LLVMsyntax.typ) (gv1:t) (t2:LLVMsyntax.typ) =
-  Some(
-  match op with
+    let gv =
+    (match op with
     | Coq_castop_fptoui -> GenericValue.fptoui gv1 (coqtype_2_llvmtype t1) (coqtype_2_llvmtype t2)
     | Coq_castop_fptosi -> GenericValue.fptosi gv1 (coqtype_2_llvmtype t1) (coqtype_2_llvmtype t2)
     | Coq_castop_uitofp -> GenericValue.uitofp gv1 (coqtype_2_llvmtype t2)
@@ -83,17 +90,29 @@ module GenericValue = struct
                               (coqtype_2_llvmtype t1) 
                               (Llvm.global_context()) 
                               (coqtype_2_llvmtype t2)
-  )
+    ) in
+    eprintf "  Mcast gv1=%s r=%s\n"
+		  (GenericValue.to_string gv1) (GenericValue.to_string gv);flush_all();
+	  Some gv
 
   let mext (td:layouts) (op:extop) (t1:typ) (gv1:t) (t2:typ) =
-  Some(
-  match op with
+    let gv =
+    (match op with
     | Coq_extop_z -> GenericValue.zext gv1 (coqtype_2_llvmtype t2)
     | Coq_extop_s -> GenericValue.sext gv1 (coqtype_2_llvmtype t2)
-  )
+    ) in
+    eprintf "  Mext gv1=%s r=%s\n"
+		  (GenericValue.to_string gv1) (GenericValue.to_string gv);flush_all();
+	  Some gv
 
   let micmp (td:layouts) (c:cond) (t:typ) (gv1:t) (gv2:t) =
-  Some (GenericValue.icmp gv1 gv2 (coqtype_2_llvmtype t) (coqcond_2_llvmicmp c))
+    let gv = GenericValue.icmp gv1 gv2 (coqtype_2_llvmtype t) (coqcond_2_llvmicmp c) in
+    eprintf "  Micmp t=%s gv1=%s gv2=%s r=%s\n" (Coq_pretty_printer.string_of_typ t)
+		  (GenericValue.to_string gv1) (GenericValue.to_string gv2) (GenericValue.to_string gv);flush_all();
+		Some gv
+
+  let dump (gv:t) = GenericValue.dump gv
+	let to_string (gv:t) = GenericValue.to_string gv
 
 end
 
@@ -106,20 +125,28 @@ module Mem = struct
   let malloc (td:LLVMsyntax.layouts) m size (a:LLVMsyntax.align) = 
     let (ee, _) = m in
     match (ExecutionEngine.malloc_memory size ee) with
-    | Some gv -> Some (m, gv)
-    | None -> None
+    | Some gv -> 
+    		eprintf "  Malloc s=%d a=%d ptr=%s\n" size a (GenericValue.to_string gv);flush_all();				
+			  Some (m, gv)
+    | None -> 
+    		eprintf "  Malloc None";flush_all();
+			  None
 
   let free (td:LLVMsyntax.layouts) m ptr =
     let (ee, _) = m in
     let _ = ExecutionEngine.free_memory ptr ee in
-    Some m
+    eprintf "  Mfree ptr=%s\n" (GenericValue.to_string ptr);flush_all();				
+		Some m
 
   let mload (td:LLVMsyntax.layouts) m ptr t (a:LLVMsyntax.align) =
     let (ee, _) = m in
-    Some (ExecutionEngine.load_value_from_memory ptr (coqtype_2_llvmtype t) ee)
+		let gv = ExecutionEngine.load_value_from_memory ptr (coqtype_2_llvmtype t) ee in
+		eprintf "  Mload ptr=%s r=%s\n" (GenericValue.to_string ptr) (GenericValue.to_string gv);flush_all();
+		Some gv
 
   let mstore (td:LLVMsyntax.layouts) m ptr t gv (a:LLVMsyntax.align) =
-    let (ee, _) = m in
+		eprintf "  Mstore ptr=%s v=%s\n" (GenericValue.to_string ptr) (GenericValue.to_string gv);flush_all();
+		let (ee, _) = m in
     let _ = ExecutionEngine.store_value_to_memory gv ptr (coqtype_2_llvmtype t) ee in
     Some m
 		

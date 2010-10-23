@@ -302,13 +302,13 @@ Lemma dbTerminator_eqEnv : forall TD F gl lc1 tmn lc2 tr lc1' B B',
 Proof.
   intros TD F gl lc1 tmn lc2 tr lc1' B B' HdbTerminator HeqAL.
   inversion HdbTerminator; subst.
-    exists (switchToNewBasicBlock (block_intro l' ps' sbs' tmn') B lc1').
+    exists (switchToNewBasicBlock TD (block_intro l' ps' sbs' tmn') B gl lc1').
     split.
       apply dbBranch with (c:=c); auto.
         erewrite <- getOperandValue_eqAL; eauto.
       apply eqAL_switchToNewBasicBlock; auto.     
   
-    exists (switchToNewBasicBlock (block_intro l' ps' sbs' tmn') B lc1').
+    exists (switchToNewBasicBlock TD (block_intro l' ps' sbs' tmn') B gl lc1').
     split.
       apply dbBranch_uncond; auto.
       apply eqAL_switchToNewBasicBlock; auto.
@@ -818,13 +818,13 @@ Proof.
   split; auto.
 Qed.
  
-Lemma tv_getIncomingValuesForBlockFromPHINodes : forall ps1 B1 ps2 B2,
+Lemma tv_getIncomingValuesForBlockFromPHINodes : forall ps1 TD B1 ps2 B2,
   tv_block B1 B2 ->
   tv_phinodes ps1 ps2 ->
-  getIncomingValuesForBlockFromPHINodes ps1 B1 =
-  getIncomingValuesForBlockFromPHINodes ps2 B2 .
+  getIncomingValuesForBlockFromPHINodes TD ps1 B1 =
+  getIncomingValuesForBlockFromPHINodes TD ps2 B2 .
 Proof.
-  induction ps1; intros B1 ps2 B2 H H0.
+  induction ps1; intros TD B1 ps2 B2 H H0.
     destruct ps2; simpl in *; auto.
       inversion H0.
 
@@ -833,7 +833,7 @@ Proof.
 
       bdestruct H0 as J1 H1.
       sumbool_subst.
-      apply IHps1 with (B1:=B1)(B2:=B2) in H1; auto.
+      apply IHps1 with (B1:=B1)(B2:=B2) (TD:=TD) in H1; auto.
       rewrite H1.
       apply tv_block__inv in H.
       destruct H as [H _].
@@ -843,11 +843,11 @@ Proof.
       destruct p. simpl. auto.
 Qed.     
 
-Lemma tv_switchToNewBasicBlock : forall l1 ps1 sbs1 tmn1 B1 l2 ps2 sbs2 tmn2 B2 lc,
+Lemma tv_switchToNewBasicBlock : forall TD l1 ps1 sbs1 tmn1 B1 l2 ps2 sbs2 tmn2 B2 lc gl,
   tv_block B1 B2 ->
   tv_block (block_intro l1 ps1 sbs1 tmn1) (block_intro l2 ps2 sbs2 tmn2) ->
-  switchToNewBasicBlock (block_intro l1 ps1 sbs1 tmn1) B1 lc =
-  switchToNewBasicBlock (block_intro l2 ps2 sbs2 tmn2) B2 lc.
+  switchToNewBasicBlock TD (block_intro l1 ps1 sbs1 tmn1) B1 gl lc =
+  switchToNewBasicBlock TD (block_intro l2 ps2 sbs2 tmn2) B2 gl lc.
 Proof.
   unfold switchToNewBasicBlock.
   intros.

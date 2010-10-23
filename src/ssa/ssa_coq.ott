@@ -561,25 +561,23 @@ match Caller with
 | _ => None
 end.
 
-Fixpoint getIdViaLabelFromIdls (idls:list_value_l) (l0:l) : option id :=
-match idls with
+Fixpoint getValueViaLabelFromValuels (vls:list_value_l) (l0:l) : option value :=
+match vls with
 | Nil_list_value_l => None
-| Cons_list_value_l (value_id id1) l1 idls'=>
+| Cons_list_value_l v l1 vls'=>
   if (eq_dec l1 l0)
-  then Some id1
-  else getIdViaLabelFromIdls idls' l0
-| Cons_list_value_l _ l1 idls'=>
-  getIdViaLabelFromIdls idls' l0
+  then Some v
+  else getValueViaLabelFromValuels vls' l0
 end.
 
-Definition getIdViaBlockFromIdls (idls:list_value_l) (b:block) : option id :=
+Definition getValueViaBlockFromValuels (vls:list_value_l) (b:block) : option value :=
 match b with
-| block_intro l _ _ _ => getIdViaLabelFromIdls idls l
+| block_intro l _ _ _ => getValueViaLabelFromValuels vls l
 end.
 
-Definition getIdViaBlockFromPHINode (i:phinode) (b:block) : option id :=
+Definition getValueViaBlockFromPHINode (i:phinode) (b:block) : option value :=
 match i with
-| insn_phi _ _ idls => getIdViaBlockFromIdls idls b
+| insn_phi _ _ vls => getValueViaBlockFromValuels vls b
 end.
 
 Definition getPHINodesFromBlock (b:block) : list phinode :=

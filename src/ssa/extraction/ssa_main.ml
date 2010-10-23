@@ -7,7 +7,11 @@ open Trace
 
 let rec interInsnStar (s:LLVMopsem.coq_State) (tr:trace) (n:int) : (LLVMopsem.coq_State*trace) option =
 	if (LLVMopsem.ds_isFinialState s) 
-	then Some (s, tr)
+	then 
+		begin
+			eprintf "Done!\n";flush_all();
+			Some (s, tr)
+    end			
 	else
 		if n > 0 
 		then
@@ -16,9 +20,15 @@ let rec interInsnStar (s:LLVMopsem.coq_State) (tr:trace) (n:int) : (LLVMopsem.co
 			flush_all();		
 			match interInsn s with
       | Some (s', tr') -> interInsnStar s' (trace_app tr tr') (n-1)  
-      | None -> None
+      | None ->
+				eprintf "Stuck!\n";flush_all(); 
+				None
 			end
-		else Some (s, tr)
+		else 
+			begin
+				eprintf "Time up!\n";flush_all();
+				Some (s, tr)
+      end				
 			
 let main in_filename  =
 
@@ -37,14 +47,13 @@ let main in_filename  =
 
         (match LLVMopsem.ds_genInitState (coqim::[]) "@main" [] (li, im) with
           | Some s -> 
-            (match interInsnStar s Coq_trace_nil 100 with
+            (match interInsnStar s Coq_trace_nil 1000 with
               | Some (s', tr) -> ()
               | None -> () )
           | None -> () );
 
         SlotTracker.dispose ist;
-        ExecutionEngine.dispose li;
-        ModuleProvider.dispose imp
+        ExecutionEngine.dispose li
 
 let () = match Sys.argv with
         | [| _; in_filename |] -> main in_filename

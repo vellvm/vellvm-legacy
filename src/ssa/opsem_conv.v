@@ -677,14 +677,14 @@ Proof.
   intros; subst; simpl; 
     try solve [intuition].
   Case "nbBranch_def".
-    apply nsop_plus_trans with (states2:=(mkState S TD Ps (mkEC F (block_intro l' ps' cs' tmn') cs' tmn' (switchToNewBasicBlock (block_intro l' ps' cs' tmn') B lc) arg0 als::EC) gl Mem0, tr)::nil); auto.
+    apply nsop_plus_trans with (states2:=(mkState S TD Ps (mkEC F (block_intro l' ps' cs' tmn') cs' tmn' (switchToNewBasicBlock TD (block_intro l' ps' cs' tmn') B gl lc) arg0 als::EC) gl Mem0, tr)::nil); auto.
       rewrite app_nil_end; eauto.
   Case "nbBranch_undef".
-    apply nsop_plus_trans with (states2:=(mkState S TD Ps (mkEC F (block_intro l1' ps1' cs1' tmn1') cs1' tmn1' (switchToNewBasicBlock (block_intro l1' ps1' cs1' tmn1') B lc) arg0 als::EC) gl Mem0, tr)::
-                                        (mkState S TD Ps (mkEC F (block_intro l2' ps2' cs2' tmn2') cs2' tmn2' (switchToNewBasicBlock (block_intro l2' ps2' cs2' tmn2') B lc) arg0 als::EC) gl Mem0, tr)::nil); auto.
+    apply nsop_plus_trans with (states2:=(mkState S TD Ps (mkEC F (block_intro l1' ps1' cs1' tmn1') cs1' tmn1' (switchToNewBasicBlock TD (block_intro l1' ps1' cs1' tmn1') B gl lc) arg0 als::EC) gl Mem0, tr)::
+                                        (mkState S TD Ps (mkEC F (block_intro l2' ps2' cs2' tmn2') cs2' tmn2' (switchToNewBasicBlock TD (block_intro l2' ps2' cs2' tmn2') B gl lc) arg0 als::EC) gl Mem0, tr)::nil); auto.
       rewrite app_nil_end; eauto.
   Case "nbBranch_uncond".
-    apply nsop_plus_trans with (states2:=(mkState S TD Ps (mkEC F (block_intro l' ps' cs' tmn') cs' tmn' (switchToNewBasicBlock (block_intro l' ps' cs' tmn') B lc) arg0 als::EC) gl Mem0, tr)::nil); auto.
+    apply nsop_plus_trans with (states2:=(mkState S TD Ps (mkEC F (block_intro l' ps' cs' tmn') cs' tmn' (switchToNewBasicBlock TD (block_intro l' ps' cs' tmn') B gl lc) arg0 als::EC) gl Mem0, tr)::nil); auto.
       rewrite app_nil_end; eauto.
   Case "nbBop".
     apply nsop_plus_trans with (states2:=(mkState S TD Ps (mkEC F B cs tmn (updateAddAL _ lc id0 gv3) arg0 als::EC) gl Mem0, tr)::nil); 

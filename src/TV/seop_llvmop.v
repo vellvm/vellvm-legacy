@@ -565,7 +565,7 @@ Proof.
 Case "dbBranch".
   inversion H; subst. clear H.
   exists l'. exists ps'. exists cs'. exists tmn'.
-  exists (switchToNewBasicBlock (block_intro l' ps' cs' tmn') (block_intro l0 ps cs0 (insn_br bid Cond l1 l2)) lc0). exists als0. exists Mem1.
+  exists (switchToNewBasicBlock TD0 (block_intro l' ps' cs' tmn') (block_intro l0 ps cs0 (insn_br bid Cond l1 l2)) gl0 lc0). exists als0. exists Mem1.
   exists cs'. split; auto.
   left. 
   split; auto.
@@ -577,7 +577,7 @@ Case "dbBranch".
 Case "dbBranch_uncond".
   inversion H; subst. clear H.
   exists l'. exists ps'. exists cs'. exists tmn'.
-  exists (switchToNewBasicBlock (block_intro l' ps' cs' tmn') (block_intro l1 ps cs0 (insn_br_uncond bid l0)) lc0). exists als0. exists Mem1.
+  exists (switchToNewBasicBlock TD0 (block_intro l' ps' cs' tmn') (block_intro l1 ps cs0 (insn_br_uncond bid l0)) gl0 lc0). exists als0. exists Mem1.
   exists cs'. split; auto.
   left.
   split; auto.

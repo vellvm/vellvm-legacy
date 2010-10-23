@@ -83,13 +83,16 @@ Inductive wfContexts : State -> Prop :=
 (** switchToNewBasicBlock *)
 
 (* This function is used by switchToNewBasicBlock, which only checks local variables (from PHI) *)
-Fixpoint getIncomingValuesForBlockFromPHINodes (PNs:list phinode) (b:block) (locals:GVMap) : list (id*(option GenericValue)) :=
+Fixpoint getIncomingValuesForBlockFromPHINodes (TD:TargetData) (PNs:list phinode) (b:block) (globals locals:GVMap) : list (id*(option GenericValue)) :=
 match PNs with
 | nil => nil
-| PN::PNs => 
-  match (getIdViaBlockFromPHINode PN b) with
-  | None => getIncomingValuesForBlockFromPHINodes PNs b locals
-  | Some id => (id, lookupAL _ locals id)::getIncomingValuesForBlockFromPHINodes PNs b locals
+| (insn_phi id0 t vls)::PNs => 
+  match (getValueViaBlockFromPHINode (insn_phi id0 t vls) b) with
+  | None => getIncomingValuesForBlockFromPHINodes TD PNs b globals locals
+  | Some (value_id id1) => (id0, lookupAL _ locals id1)::
+                           getIncomingValuesForBlockFromPHINodes TD PNs b globals locals
+  | Some (value_const c) => (id0, const2GV TD globals c)::
+                            getIncomingValuesForBlockFromPHINodes TD PNs b globals locals
   end
 end.
 
@@ -115,9 +118,9 @@ end.
   It only checks and update local variables. I don't think PHInode can refer to
   a global. !!!
 *)
-Definition switchToNewBasicBlock (Dest:block) (PrevBB:block) (locals:GVMap): GVMap :=
+Definition switchToNewBasicBlock (TD:TargetData) (Dest:block) (PrevBB:block) (globals locals:GVMap): GVMap :=
   let PNs := getPHINodesFromBlock Dest in
-  let ResultValues := getIncomingValuesForBlockFromPHINodes PNs PrevBB locals in
+  let ResultValues := getIncomingValuesForBlockFromPHINodes TD PNs PrevBB globals locals in
   updateValuesForNewBlock ResultValues locals.
 
 (***************************************************************)
@@ -167,7 +170,7 @@ Inductive dsInsn : State -> State -> trace -> Prop :=
   dsInsn 
     (mkState S TD Ps ((mkEC F B nil (insn_br bid Cond l1 l2) lc arg als)::EC) gl Mem)
     (mkState S TD Ps ((mkEC F (block_intro l' ps' cs' tmn') cs' tmn' 
-                        (switchToNewBasicBlock (block_intro l' ps' cs' tmn') B lc) arg als)::EC) gl Mem)
+                        (switchToNewBasicBlock TD (block_intro l' ps' cs' tmn') B gl lc) arg als)::EC) gl Mem)
     trace_nil 
 | dsBranch_uncond : forall S TD Ps F B lc gl arg bid l
                               l' ps' cs' tmn' EC Mem als,   
@@ -175,7 +178,7 @@ Inductive dsInsn : State -> State -> trace -> Prop :=
   dsInsn 
     (mkState S TD Ps ((mkEC F B nil (insn_br_uncond bid l) lc arg als)::EC) gl Mem)
     (mkState S TD Ps ((mkEC F (block_intro l' ps' cs' tmn') cs' tmn' 
-                        (switchToNewBasicBlock (block_intro l' ps' cs' tmn') B lc) arg als)::EC) gl Mem)
+                        (switchToNewBasicBlock TD (block_intro l' ps' cs' tmn') B gl lc) arg als)::EC) gl Mem)
     trace_nil 
 | dsBop: forall S TD Ps F B lc gl arg id bop sz v1 v2 gv3 EC cs tmn Mem als,
   BOP TD lc gl bop sz v1 v2 = Some gv3 ->
@@ -442,7 +445,7 @@ Inductive nsInsn : State*trace -> States -> Prop :=
   nsInsn 
     (mkState S TD Ps ((mkEC F B nil (insn_br bid Cond l1 l2) lc arg als)::EC) gl Mem, tr)
     ((mkState S TD Ps ((mkEC F (block_intro l' ps' cs' tmn') cs' tmn' 
-                         (switchToNewBasicBlock (block_intro l' ps' cs' tmn') B lc) arg als)::EC) gl Mem, tr)::nil)
+                         (switchToNewBasicBlock TD (block_intro l' ps' cs' tmn') B gl lc) arg als)::EC) gl Mem, tr)::nil)
 | nsBranch_undef : forall S TD Ps F B lc arg bid Cond l1 l2
                               l1' ps1' cs1' tmn1' 
                               l2' ps2' cs2' tmn2' EC gl tr Mem als,   
@@ -452,16 +455,16 @@ Inductive nsInsn : State*trace -> States -> Prop :=
   nsInsn 
     (mkState S TD Ps ((mkEC F B nil (insn_br bid Cond l1 l2) lc arg als)::EC) gl Mem, tr)
     ((mkState S TD Ps ((mkEC F (block_intro l1' ps1' cs1' tmn1') cs1' tmn1' 
-                         (switchToNewBasicBlock (block_intro l1' ps1' cs1' tmn1') B lc) arg als)::EC) gl Mem, tr)::
+                         (switchToNewBasicBlock TD (block_intro l1' ps1' cs1' tmn1') B gl lc) arg als)::EC) gl Mem, tr)::
      (mkState S TD Ps ((mkEC F (block_intro l2' ps2' cs2' tmn2') cs2' tmn2' 
-                         (switchToNewBasicBlock (block_intro l2' ps2' cs2' tmn2') B lc) arg als)::EC) gl Mem, tr)::nil)
+                         (switchToNewBasicBlock TD (block_intro l2' ps2' cs2' tmn2') B gl lc) arg als)::EC) gl Mem, tr)::nil)
 | nsBranch_uncond : forall S TD Ps F B lc gl arg bid l
                               l' ps' cs' tmn' EC tr Mem als,   
   Some (block_intro l' ps' cs' tmn') = (lookupBlockViaLabelFromFdef F l) ->
   nsInsn 
     (mkState S TD Ps ((mkEC F B nil (insn_br_uncond bid l) lc arg als)::EC) gl Mem, tr)
     ((mkState S TD Ps ((mkEC F (block_intro l' ps' cs' tmn') cs' tmn'
-                         (switchToNewBasicBlock (block_intro l' ps' cs' tmn') B lc) arg als)::EC) gl Mem, tr)::nil)
+                         (switchToNewBasicBlock TD (block_intro l' ps' cs' tmn') B gl lc) arg als)::EC) gl Mem, tr)::nil)
 | nsBop : forall S TD Ps F B lc gl arg id bop sz v1 v2 gv3 EC cs tmn tr Mem als,
   BOP TD lc gl bop sz v1 v2 = Some gv3 ->
   nsInsn 
@@ -690,7 +693,7 @@ Inductive dbInsn : State -> State -> trace -> Prop :=
   dbInsn 
     (mkState S TD Ps ((mkEC F B nil (insn_br bid Cond l1 l2) lc arg als)::EC) gl Mem)
     (mkState S TD Ps ((mkEC F (block_intro l' ps' cs' tmn') cs' tmn' 
-                        (switchToNewBasicBlock (block_intro l' ps' cs' tmn') B lc) arg als)::EC) gl Mem)
+                        (switchToNewBasicBlock TD (block_intro l' ps' cs' tmn') B gl lc) arg als)::EC) gl Mem)
     trace_nil 
 | dbBranch_uncond : forall S TD Ps F B lc gl arg l bid
                               l' ps' cs' tmn' EC Mem als,   
@@ -698,7 +701,7 @@ Inductive dbInsn : State -> State -> trace -> Prop :=
   dbInsn 
     (mkState S TD Ps ((mkEC F B nil (insn_br_uncond bid l) lc arg als)::EC) gl Mem)
     (mkState S TD Ps ((mkEC F (block_intro l' ps' cs' tmn') cs' tmn' 
-                        (switchToNewBasicBlock (block_intro l' ps' cs' tmn') B lc) arg als)::EC) gl Mem)
+                        (switchToNewBasicBlock TD (block_intro l' ps' cs' tmn') B gl lc) arg als)::EC) gl Mem)
     trace_nil 
 | dbBop : forall S TD Ps F B lc gl arg id bop sz v1 v2 gv3 EC cs tmn Mem als,
   BOP TD lc gl bop sz v1 v2 = Some gv3 ->
@@ -953,7 +956,7 @@ Inductive nbInsn : State*trace -> States -> Prop :=
   nbInsn 
     (mkState S TD Ps ((mkEC F B nil (insn_br bid Cond l1 l2) lc arg als)::EC) gl Mem, tr)
     ((mkState S TD Ps ((mkEC F (block_intro l' ps' cs' tmn') cs' tmn'
-                         (switchToNewBasicBlock (block_intro l' ps' cs' tmn') B lc) arg als)::EC) gl Mem, tr)::nil)
+                         (switchToNewBasicBlock TD (block_intro l' ps' cs' tmn') B gl lc) arg als)::EC) gl Mem, tr)::nil)
 | nbBranch_undef : forall S TD Ps F B lc arg bid Cond l1 l2
                               l1' ps1' cs1' tmn1' l2' ps2' cs2' tmn2' EC tr gl Mem als,   
   isOperandUndef TD (typ_int Size.One) Cond lc gl ->
@@ -962,16 +965,16 @@ Inductive nbInsn : State*trace -> States -> Prop :=
   nbInsn 
     (mkState S TD Ps ((mkEC F B nil (insn_br bid Cond l1 l2) lc arg als)::EC) gl Mem, tr)
     ((mkState S TD Ps ((mkEC F (block_intro l1' ps1' cs1' tmn1') cs1' tmn1'
-                         (switchToNewBasicBlock (block_intro l1' ps1' cs1' tmn1') B lc) arg als)::EC) gl Mem, tr)::
+                         (switchToNewBasicBlock TD (block_intro l1' ps1' cs1' tmn1') B gl lc) arg als)::EC) gl Mem, tr)::
      (mkState S TD Ps ((mkEC F (block_intro l2' ps2' cs2' tmn2') cs2' tmn2' 
-                         (switchToNewBasicBlock (block_intro l2' ps2' cs2' tmn2') B lc) arg als)::EC) gl Mem, tr)::nil)
+                         (switchToNewBasicBlock TD (block_intro l2' ps2' cs2' tmn2') B gl lc) arg als)::EC) gl Mem, tr)::nil)
 | nbBranch_uncond : forall S TD Ps F B lc gl arg l bid
                               l' ps' cs' tmn' EC tr Mem als,   
   Some (block_intro l' ps' cs' tmn') = (lookupBlockViaLabelFromFdef F l) ->
   nbInsn 
     (mkState S TD Ps ((mkEC F B nil (insn_br_uncond bid l) lc arg als)::EC) gl Mem, tr)
     ((mkState S TD Ps ((mkEC F (block_intro l' ps' cs' tmn') cs' tmn'
-                         (switchToNewBasicBlock (block_intro l' ps' cs' tmn') B lc) arg als)::EC) gl Mem, tr)::nil)
+                         (switchToNewBasicBlock TD (block_intro l' ps' cs' tmn') B gl lc) arg als)::EC) gl Mem, tr)::nil)
 | nbBop : forall S TD Ps F B lc gl arg id bop sz v1 v2 gv3 EC cs tmn tr Mem als,
   BOP TD lc gl bop sz v1 v2 = Some gv3 ->
   nbInsn 

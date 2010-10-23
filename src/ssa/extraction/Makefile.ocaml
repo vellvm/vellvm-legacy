@@ -1,4 +1,4 @@
-OUTPUT_TYPE := byte
+OUTPUT_TYPE := native
 LLVM_LIB := /home/jianzhou/Tools/llvm-2.6/lib/
 LLVM_OCAML_LIB := $(LLVM_LIB)/ocaml/
 
