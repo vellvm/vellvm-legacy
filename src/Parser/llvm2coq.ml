@@ -758,7 +758,7 @@ let translate_layout dlt =
 	let dl = (match (Llvm_target.byte_order tg) with
 		       | Llvm_target.Endian.Big -> LLVMsyntax.Coq_layout_be 
 					 | Llvm_target.Endian.Little -> LLVMsyntax.Coq_layout_le)::
-		       LLVMsyntax.Coq_layout_ptr (Llvm_target.pointer_size tg,
+		       LLVMsyntax.Coq_layout_ptr (Llvm_target.pointer_size_in_bits tg,
 			  		                          (Llvm_target.pointer_abi_alignment tg) * 8,
 				  				     							  (Llvm_target.pointer_pref_alignment tg) * 8)::range 0 n tg in
 	Llvm_target.TargetData.dispose tg;

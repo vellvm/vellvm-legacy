@@ -200,15 +200,28 @@ Inductive dbCall : system -> layouts -> list product -> GVMap ->
                    cmd -> 
                    GVMap -> mem -> 
                    trace -> Prop :=
-| dbCall_intro : forall S TD Ps lc gl rid noret tailc rt fid lp
+| dbCall_internal : forall S TD Ps lc gl rid noret tailc rt fid lp
                        Rid oResult tr lc' Mem Mem' als' Mem'' B',
   dbFdef fid rt lp S TD Ps lc gl Mem lc' als' Mem' B' Rid oResult tr ->
   free_allocas TD Mem' als' = Some Mem'' ->
   dbCall S TD Ps gl
     lc Mem
     (insn_call rid noret tailc rt fid lp)
-    (LLVMopsem.callUpdateLocals TD noret rid rt oResult lc lc' gl) Mem'' 
-    tr
+    (LLVMopsem.callUpdateLocals TD noret rid rt oResult lc lc' gl) 
+    Mem'' tr
+| dbCall_external : forall S TD Ps lc gl rid noret tailc fid 
+                          lp rt la Mem oresult Mem',
+  (* only look up the current module for the time being, 
+     do not support linkage. 
+     FIXME: should add excall to trace
+  *)
+  LLVMopsem.lookupExFdefViaIDFromProducts Ps fid = Some (fdec_intro (fheader_intro rt fid la)) ->
+  LLVMopsem.callExternalFunction Mem fid (params2GVs TD lp lc gl) = (oresult, Mem') ->
+  dbCall S TD Ps gl
+    lc Mem
+    (insn_call rid noret tailc rt fid lp)
+    (LLVMopsem.exCallUpdateLocals noret rid rt oresult lc) 
+    Mem' trace_nil
 with dbSubblock : system -> layouts -> list product -> GVMap -> 
                   GVMap -> list mblock -> mem -> 
                   cmds -> 
@@ -313,7 +326,7 @@ Combined Scheme db_mutind from dbCall_ind2, dbSubblock_ind2, dbSubblocks_ind2,
 
 Tactic Notation "db_mutind_cases" tactic(first) tactic(c) :=
   first;
-  [ c "dbCall_intro" | 
+  [ c "dbCall_internal" | c "dbCall_external" | 
     c "dbSubblock_intro" | c "dbSubblocks_nil" | c "dbSubblocks_cons" | 
     c "dbBlock_intro" | c "dbBlocks_nil" | c "dbBlocks_cons" | 
     c "dbFdef_func" | c "dbFdef_proc" ].

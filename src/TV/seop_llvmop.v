@@ -24,7 +24,7 @@ Export LLVMlib.
 
 Tactic Notation "se_db_mutind_cases" tactic(first) tactic(c) :=
   first;
-  [ c "dbCall_intro" | 
+  [ c "dbCall_internal" | c "dbCall_external" | 
     c "dbSubblock_intro" | c "dbSubblocks_nil" | c "dbSubblocks_cons" | 
     c "dbBlock_intro" | c "dbBlocks_nil" | c "dbBlocks_cons" | 
     c "dbFdef_func" | c "dbFdef_proc" ].
@@ -712,6 +712,15 @@ Case "dbCall".
   exists (insn_call rid noret0 tailc0 rt fid lp).
   apply blockInSystemModuleFdef_inv in H2.
   destruct H2 as [J1 [J2 [J3 _]]].
+  split; eauto.
+
+Case "dbExCall".
+  inversion H; subst.
+  exists l0. exists ps. exists cs. exists tmn0.
+  exists (exCallUpdateLocals noret0 rid rt oresult lc0). exists als0. exists Mem'.
+  exists cs1. split; auto.
+  right. right.
+  exists (insn_call rid noret0 tailc0 rt fid lp).
   split; eauto.
 
 Case "dbop_nil".

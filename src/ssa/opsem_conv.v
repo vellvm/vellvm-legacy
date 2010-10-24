@@ -741,6 +741,9 @@ Proof.
         (states2:=returnStatesFromOp S TD Ps (mkEC F B ((insn_call rid noret0 tailc0 rt fid lp)::cs) tmn lc arg0 als::EC)
                               lp lc gl rt fid la lb lc_als_Mem_block_rid_ore_trs); auto.
       apply returnStatesFromOp__nsop_star__updateStatesFromReturns with (cs:=cs); auto.
+  Case "nbExCall".
+    apply nsop_plus_trans with (states2:=(mkState S TD Ps (mkEC F B cs tmn (exCallUpdateLocals noret0 rid rt oresult lc) arg0 als::EC) gl Mem', tr)::nil); 
+      try solve [auto | rewrite app_nil_end; eauto].
 
   Case "nbop_star_cons".
     assert ((state, tr)::states=((state, tr)::nil)++states) as EQ. auto.

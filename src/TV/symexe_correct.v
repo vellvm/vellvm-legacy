@@ -1,6 +1,7 @@
 Add LoadPath "../ssa/ott".
 Add LoadPath "../ssa/monads".
 Add LoadPath "../ssa".
+Add LoadPath "../ssa/compcert".
 (*Add LoadPath "../../../theory/metatheory".*)
 Require Import ssa_def.
 Require Import ssa_lib.
@@ -147,7 +148,7 @@ Proof.
          se_dbSubblock_preservation_prop, se_dbSubblocks_preservation_prop,
          se_dbBlock_preservation_prop, se_dbBlocks_preservation_prop,
          se_dbFdef_preservation_prop; intros; subst; auto.
-Case "dbCall_intro".
+Case "dbCall_internal".
   inversion d; subst.
     apply H in H3; auto. clear H.
     destruct H3 as [Huniqlc' Hblockin].
@@ -162,6 +163,13 @@ Case "dbCall_intro".
     unfold callUpdateLocals.
     destruct noret0; auto.
       destruct (rt=t=typ_void); auto.
+
+Case "dbCall_external".
+  unfold exCallUpdateLocals.
+  destruct noret0; auto.
+  destruct (rt=t=typ_void); auto.
+  destruct oresult; auto.
+  apply updateAddAL_uniq; auto.
 
 Case "dbSubblock_intro".
   apply se_dbCmds_preservation in d; auto.
@@ -394,17 +402,23 @@ Proof.
          dbSubblock_eqEnv_prop, dbSubblocks_eqEnv_prop,
          dbBlock_eqEnv_prop, dbBlocks_eqEnv_prop,
          dbFdef_eqEnv_prop; intros; subst; auto.
-Case "dbCall_intro".
+Case "dbCall_internal".
   inversion d; subst.
     apply H with (lc1':=lc1') in H1; auto. clear H.
     destruct H1 as [lc2' [HdbBlocks HeqEnv]].
     exists (callUpdateLocals TD noret0 rid rt (Some Result) lc1' lc2' gl).
-    split; eauto using dbCall_intro, eqAL_callUpdateLocals.
+    split; eauto using dbCall_internal, eqAL_callUpdateLocals.
 
     apply H with (lc1':=lc1') in H1; auto. clear H.
     destruct H1 as [lc2' [HdbBlocks HeqEnv]].
     exists (callUpdateLocals TD noret0 rid rt None lc1' lc2' gl).
-    split; eauto using dbCall_intro, eqAL_callUpdateLocals.
+    split; eauto using dbCall_internal, eqAL_callUpdateLocals.
+
+Case "dbCall_external".
+  exists (exCallUpdateLocals noret0 rid rt oresult lc1').
+  split; eauto using eqAL_exCallUpdateLocals.
+    eapply dbCall_external; eauto.
+    rewrite <- eqAL_params2GVs with (lc:=lc); auto.
 
 Case "dbSubblock_intro".
   apply dbCmds_eqEnv with (lc1':=lc1') in d; auto.
@@ -954,6 +968,112 @@ Proof.
         apply IHPs1 with (Ps2:=Ps2) in H0; auto.
 Qed.
 
+Lemma tv_products__lookupFdecViaIDFromProducts : forall Ps1 Ps2 fid,
+  tv_products Ps1 Ps2 ->
+  lookupFdecViaIDFromProducts Ps1 fid = lookupFdecViaIDFromProducts Ps2 fid.
+Proof.
+  induction Ps1; intros.
+    destruct Ps2; inversion H; auto.
+
+    (product_cases (destruct a) Case); simpl in H.
+    Case "product_gvar".
+      destruct Ps2; try solve [inversion H].
+      destruct p; try solve [inversion H].
+      bdestruct H as H1 H2.
+      apply IHPs1 with (fid:=fid) in H2; auto.
+ 
+    Case "product_fdec".
+      destruct Ps2; try solve [inversion H].
+      destruct p; try solve [inversion H].
+      bdestruct H as H1 H2.
+      sumbool_subst.
+      simpl.
+      rewrite IHPs1 with (Ps2:=Ps2); auto.
+
+    Case "product_fdef".
+      destruct Ps2; try solve [inversion H].
+      simpl in *.
+      destruct p; try solve [inversion H].
+      bdestruct H as H1 H2.    
+      simpl in *.
+      rewrite IHPs1 with (Ps2:=Ps2); auto.
+Qed.
+
+Lemma tv_products__lookupFdefViaIDFromProducts_None : forall Ps1 Ps2 fid,
+  tv_products Ps1 Ps2 ->
+  lookupFdefViaIDFromProducts Ps1 fid = None ->
+  lookupFdefViaIDFromProducts Ps2 fid = None.
+Proof.
+  induction Ps1; intros.
+    destruct Ps2; inversion H; auto.
+
+    (product_cases (destruct a) Case); simpl in H.
+    Case "product_gvar".
+      destruct Ps2; try solve [inversion H].
+      destruct p; try solve [inversion H].
+      bdestruct H as H1 H2.
+      apply IHPs1 with (fid:=fid) in H2; auto.
+ 
+    Case "product_fdec".
+      destruct Ps2; try solve [inversion H].
+      simpl in *.
+      destruct p; try solve [inversion H].
+      bdestruct H as H1 H2.    
+      simpl in *.
+      rewrite IHPs1 with (Ps2:=Ps2); auto.
+
+    Case "product_fdef".
+      destruct Ps2; try solve [inversion H].
+      destruct p; try solve [inversion H].
+      bdestruct H as H1 H2.
+      destruct f. destruct f0.
+      destruct f. destruct f0.
+      unfold tv_fdef in H1.
+      bdestruct H1 as H1 H3.
+      sumbool_subst.
+      inversion H1; subst.
+      simpl in *.
+      destruct (@eq_dec id (EqDec_eq_of_EqDec id EqDec_atom) i1 fid); subst; auto.
+        inversion H0.      
+Qed.
+
+Lemma lookupFdefViaIDFromProducts_inverion : forall Ps fid rt fid' la lb,
+  lookupFdefViaIDFromProducts Ps fid = Some (fdef_intro (fheader_intro rt fid' la) lb) ->
+  fid = fid'.
+Proof.
+  induction Ps; intros; simpl in *.
+    inversion H.
+  
+    destruct a; simpl in H.
+      apply IHPs in H; auto.
+      apply IHPs in H; auto.
+      destruct f. destruct f. simpl in H.
+      destruct (@eq_dec id (EqDec_eq_of_EqDec id EqDec_atom) i0 fid); subst.
+        inversion H; auto.
+        apply IHPs in H; auto.
+Qed.
+
+Lemma tv_products__lookupExFdefViaIDFromProducts : forall Ps1 Ps2 fid,
+  tv_products Ps1 Ps2 ->
+  lookupExFdefViaIDFromProducts Ps1 fid = lookupExFdefViaIDFromProducts Ps2 fid.
+Proof.
+  intros.
+  unfold lookupExFdefViaIDFromProducts.
+  remember (lookupFdefViaIDFromProducts Ps1 fid) as R.
+  symmetry in HeqR.
+  destruct R.  
+    destruct f. destruct f.
+    assert (H1:=HeqR).
+    apply lookupFdefViaIDFromProducts_inverion in H1; subst.
+    apply tv_products__lookupFdefViaIDFromProducts with (Ps2:=Ps2) in HeqR; auto.
+    destruct HeqR as [lb2 [J1 J2]].
+    rewrite J1. auto.
+
+    apply tv_products__lookupFdefViaIDFromProducts_None with (Ps2:=Ps2) in HeqR; auto.
+    rewrite HeqR.
+    apply tv_products__lookupFdecViaIDFromProducts; auto.
+Qed.
+
 Definition tv_dbCall__is__correct_prop S1 TD Ps1 gl lc Mem0 call0 lc' Mem' tr
   (db:dbCall S1 TD Ps1 gl lc Mem0 call0 lc' Mem' tr) :=
   forall S2 Ps2,
@@ -1105,7 +1225,7 @@ Proof.
          tv_subblock__is__correct_prop, tv_subblocks__is__correct_prop,
          tv_block__is__correct_prop, tv_blocks__is__correct_prop,
          tv_fdef__is__correct_prop.
-Case "dbCall_intro".
+Case "dbCall_internal".
   intros S TD Ps lc gl rid noret0 tailc0 rt fid lp Rid oResult tr lc' Mem0 Mem' 
          als' Mem'' B' d H e S2 Ps2 H0 H1 H2 H3 H4 H5 H6.
   inversion d; subst.
@@ -1120,6 +1240,14 @@ Case "dbCall_intro".
     destruct H7 as [lb2 [B2' [n [slc [J1 [J2 [J3 [J4 [J5 [J6 HeqEnv]]]]]]]]]].
     exists (callUpdateLocals TD noret0 rid rt None lc slc gl).
     split; eauto using eqAL_callUpdateLocals, eqAL_refl.
+
+Case "dbCall_external".
+  intros S TD Ps lc gl rid noret0 tailc0 fid lp rt la Mem0 oresult Mem'
+         H S2 Ps2 H0 H1 H2 H3 H4 H5 H6.
+  exists (exCallUpdateLocals noret0 rid rt oresult lc).
+  split; auto using eqAL_exCallUpdateLocals, eqAL_refl.
+    apply dbCall_external with (la:=la); auto.
+      rewrite <- tv_products__lookupExFdefViaIDFromProducts with (Ps1:=Ps); auto.
 
 Case "dbSubblock_intro".
   intros S TD Ps lc1 als1 gl Mem1 cs call0 lc2 als2 Mem2 tr1 lc3 Mem3 tr2 d d0 H S2 

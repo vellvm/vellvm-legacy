@@ -61,7 +61,7 @@ Variable GVs2Nats : TargetData -> list GenericValue -> option (list Z).
 Variable _initializeFrameValues : args -> list GenericValue -> GVMap -> GVMap.
 Variable initLocals : args -> list GenericValue -> GVMap.
 
-Variable extractGenericValue : list layout -> typ -> GenericValue -> list_const -> option GenericValue.
+Variable extractGenericValue : TargetData -> typ -> GenericValue -> list_const -> option GenericValue.
 Variable insertGenericValue : TargetData -> typ -> GenericValue -> list_const ->typ -> GenericValue -> option GenericValue.
 Variable GEP : TargetData -> typ -> GenericValue -> list GenericValue -> bool -> option GenericValue.
 Variable mbop : TargetData -> bop -> sz -> GenericValue -> GenericValue -> option GenericValue.
@@ -300,8 +300,8 @@ match (GV2int TD Size.One gv) with
 | _ => false
 end.
 Definition mgetoffset (TD:TargetData) (t:typ) (idx:list Z) : option int32 := None.
-Definition mget (TD:list layout) (v:GenericValue) (o:int32) (t:typ) : option GenericValue := None.
-Definition mset (TD:list layout) (v:GenericValue) (o:int32) (t0:typ) (v0:GenericValue) : option GenericValue := None.
+Definition mget (TD:TargetData) (v:GenericValue) (o:int32) (t:typ) : option GenericValue := None.
+Definition mset (TD:TargetData) (v:GenericValue) (o:int32) (t0:typ) (v0:GenericValue) : option GenericValue := None.
 Definition mgep (TD:TargetData) (t:typ) (ma:val) (idxs:list Z) : option val := None.
 
 (**************************************)
@@ -521,7 +521,7 @@ match b with
 end.
 
 (* FIXME : bounds check *)
-Definition extractGenericValue (TD:list layout)(t:typ) (gv : GenericValue) (cidxs : list_const) : option GenericValue :=
+Definition extractGenericValue (TD:TargetData)(t:typ) (gv : GenericValue) (cidxs : list_const) : option GenericValue :=
 match (intConsts2Nats TD cidxs) with
 | None => None 
 | Some idxs =>

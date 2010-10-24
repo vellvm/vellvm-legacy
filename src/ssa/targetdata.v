@@ -89,7 +89,7 @@ Definition ndiv (n m:nat) := nat_of_Z (Zdiv (Z_of_nat (n)) (Z_of_nat m)).
 
 Definition TargetData := layouts.
 
-Definition DTD : TargetData := 
+Definition DTD := 
                    (layout_be::
                     layout_int Size.One Align.One Align.One::
                     layout_int Size.Eight Align.One Align.One::

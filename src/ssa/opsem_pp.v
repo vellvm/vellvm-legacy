@@ -102,6 +102,18 @@ Proof.
   intros. erewrite eqAL_params2GVs; eauto using eqAL_refl. 
 Qed.
 
+Lemma eqAL_exCallUpdateLocals : forall noret0 rid rt oResult lc lc',
+  eqAL _ lc lc' ->
+  eqAL _ (exCallUpdateLocals noret0 rid rt oResult lc)
+         (exCallUpdateLocals noret0 rid rt oResult lc').
+Proof.
+  intros noret0 rid rt oResult lc lc' H1.
+    unfold exCallUpdateLocals.
+    destruct noret0; auto.
+      destruct (rt=t=typ_void); auto.
+        destruct oResult; simpl; auto using eqAL_updateAddAL.
+Qed.
+
 Lemma updateValuesForNewBlock_uniq : forall l0 lc,
   uniq lc ->
   uniq (updateValuesForNewBlock l0 lc).
@@ -201,8 +213,7 @@ Lemma dbInsn_Call__inv : forall S1 TD1 Ps1 F1 l1 ps1 cs1 tmn1 c cs tmn3 lc1 arg1
   cs1 = cs2 /\ tmn1 = tmn2 /\ tmn3 = tmn4 /\ gl1 = gl2 /\ als1 = als2.
 Proof.
   intros.
-  inversion H; subst; try solve [inversion H0].
-    repeat (split; auto).
+  inversion H; subst; try solve [inversion H0 | repeat (split; auto)].
 Qed.
 
 (* preservation *)
@@ -363,6 +374,12 @@ Case "dbCall".
   exists (callUpdateLocals TD0 noret0 rid rt oResult lc0 lc' gl0). exists als0. exists Mem''.
   exists cs1. split; auto.
  
+Case "dbExCall".
+  inversion H; subst.
+  exists l0. exists ps. exists cs. exists tmn0.
+  exists (exCallUpdateLocals noret0 rid rt oresult lc0). exists als0. exists Mem'.
+  exists cs1. split; auto.
+
 Case "dbop_nil".
   inversion H0; subst. auto.
   

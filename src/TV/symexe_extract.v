@@ -104,8 +104,12 @@ Extract Constant LLVMmem.malloc =>  "Llvmcaml.Mem.malloc".
 Extract Constant LLVMmem.free =>  "Llvmcaml.Mem.free".
 Extract Constant LLVMmem.mload =>  "Llvmcaml.Mem.mload".
 Extract Constant LLVMmem.mstore =>  "Llvmcaml.Mem.mstore".
-Extract Constant LLVMopsem.initGlobal => "Llvmcaml.Mem.initGlobal".
 
+Extract Constant LLVMopsem.initGlobal => "Llvmcaml.Mem.initGlobal".
+Extract Constant LLVMopsem.initTargetData => "Llvmcaml.Mem.initTargetData".
+Extract Constant LLVMopsem.callExternalFunction => "Llvmcaml.Mem.callExternalFunction".
+
+Extract Constant LLVMtd.TargetData =>  "Llvmcaml.TargetData.t".
 Extract Constant LLVMtd.getTypeAllocSize => "Llvmcaml.TargetData.getTypeAllocSize".
 Extract Constant LLVMtd.getTypeAllocSizeInBits => "Llvmcaml.TargetData.getTypeAllocSizeInBits".
 Extract Constant LLVMtd._getStructElementOffset => "Llvmcaml.TargetData._getStructElementOffset".
@@ -113,6 +117,26 @@ Extract Constant LLVMtd.getStructElementOffset => "Llvmcaml.TargetData.getStruct
 Extract Constant LLVMtd.getStructElementOffsetInBits => "Llvmcaml.TargetData.getStructElementOffsetInBits".
 Extract Constant LLVMtd._getStructElementContainingOffset => "Llvmcaml.TargetData._getStructElementContainingOffset".
 Extract Constant LLVMtd.getStructElementContainingOffset => "Llvmcaml.TargetData.getStructElementContainingOffset".
+Extract Constant LLVMtd._getIntAlignmentInfo => "Llvmcaml.TargetData._getIntAlignmentInfo".
+Extract Constant LLVMtd.getIntAlignmentInfo => "Llvmcaml.TargetData.getIntAlignmentInfo".
+Extract Constant LLVMtd._getPointerAlignmentInfo => "Llvmcaml.TargetData._getPointerAlignmentInfo".
+Extract Constant LLVMtd.getPointerAlignmentInfo => "Llvmcaml.TargetData.getPointerAlignmentInfo".
+Extract Constant LLVMtd._getStructAlignmentInfo => "Llvmcaml.TargetData._getStructAlignmentInfo".
+Extract Constant LLVMtd.getStructAlignmentInfo => "Llvmcaml.TargetData.getStructAlignmentInfo".
+Extract Constant LLVMtd._getPointerSize => "Llvmcaml.TargetData._getPointerSize".
+Extract Constant LLVMtd.getPointerSize => "Llvmcaml.TargetData.getPointerSize".
+Extract Constant LLVMtd.getPointerSizeInBits => "Llvmcaml.TargetData.getPointerSizeInBits".
+Extract Constant LLVMtd.getTypeSizeInBits_and_Alignment => "Llvmcaml.TargetData.getTypeSizeInBits_and_Alignment".
+Extract Constant LLVMtd.getListTypeSizeInBits_and_Alignment => "Llvmcaml.TargetData.getListTypeSizeInBits_and_Alignment".
+Extract Constant LLVMtd.getAlignment => "Llvmcaml.TargetData.getAlignment".
+Extract Constant LLVMtd.getABITypeAlignment => "Llvmcaml.TargetData.getABITypeAlignment".
+Extract Constant LLVMtd.getPrefTypeAlignment => "Llvmcaml.TargetData.getPrefTypeAlignment".
+Extract Constant LLVMtd.getTypeSizeInBits => "Llvmcaml.TargetData.getTypeSizeInBits".
+Extract Constant LLVMtd.getTypeStoreSize => "Llvmcaml.TargetData.getTypeStoreSize".
+Extract Constant LLVMtd.getTypeStoreSizeInBits => "Llvmcaml.TargetData.getTypeStoreSizeInBits".
+Extract Constant LLVMtd.getStructSizeInBytes => "Llvmcaml.TargetData.getStructSizeInBytes".
+Extract Constant LLVMtd.getStructSizeInBits => "Llvmcaml.TargetData.getStructSizeInBits".
+Extract Constant LLVMtd.getStructAlignment => "Llvmcaml.TargetData.getStructAlignment".
 
 (* Float *)
 Extract Inlined Constant Floats.float => "float".

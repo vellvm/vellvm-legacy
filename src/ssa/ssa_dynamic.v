@@ -123,17 +123,38 @@ Definition switchToNewBasicBlock (TD:TargetData) (Dest:block) (PrevBB:block) (gl
   let ResultValues := getIncomingValuesForBlockFromPHINodes TD PNs PrevBB globals locals in
   updateValuesForNewBlock ResultValues locals.
 
+Definition lookupExFdefViaIDFromProducts (Ps:products) (fid:id) : option fdec :=
+  match lookupFdefViaIDFromProducts Ps fid with 
+  | Some _ => None
+  | None => lookupFdecViaIDFromProducts Ps fid
+  end.
+
+Axiom callExternalFunction : mem -> id -> list GenericValue -> ((option GenericValue)*mem).
+
+Definition exCallUpdateLocals (noret:bool) (rid:id) (rt:typ) (oResult:option GenericValue) (lc :GVMap) : GVMap :=
+  match noret with
+  | false =>
+    if (rt =t= typ_void) 
+    then lc 
+    else 
+      match oResult with
+      | None => lc
+      | Some Result => updateAddAL _ lc rid Result
+      end
+  | true => lc
+  end.
+
 (***************************************************************)
 (* deterministic small-step *)
 
 Definition returnUpdateLocals (TD:TargetData) (c':cmd) (RetTy:typ) (Result:value) (lc lc' gl:GVMap) : GVMap :=
     match (getCallerReturnID c') with
-    | Some id =>
+    | Some id0 =>
       if (RetTy =t= typ_void) 
       then lc'
       else 
         match (getOperandValue TD Result lc gl) with
-        | Some gr => updateAddAL _ lc' id gr
+        | Some gr => updateAddAL _ lc' id0 gr
         | None => lc'
         end
     | None => lc'
@@ -284,8 +305,18 @@ Inductive dsInsn : State -> State -> trace -> Prop :=
                                         (params2GVs TD lp lc gl) nil)::
                       (mkEC F B ((insn_call rid noret tailc rt fid lp)::cs) tmn lc arg als)::EC) gl Mem)
     trace_nil 
+| dsExCall : forall S TD Ps F B lc gl arg rid noret tailc fid lp cs tmn EC rt la Mem als oresult Mem',
+  (* only look up the current module for the time being, 
+     do not support linkage. 
+     FIXME: should add excall to trace
+  *)
+  lookupExFdefViaIDFromProducts Ps fid = Some (fdec_intro (fheader_intro rt fid la)) ->
+  callExternalFunction Mem fid (params2GVs TD lp lc gl) = (oresult, Mem') ->
+  dsInsn 
+    (mkState S TD Ps ((mkEC F B ((insn_call rid noret tailc rt fid lp)::cs) tmn lc arg als)::EC) gl Mem)
+    (mkState S TD Ps ((mkEC F B cs tmn (exCallUpdateLocals noret rid rt oresult lc) arg als)::EC) gl Mem')
+    trace_nil 
 .
-
 
 Definition initGlobal (TD:TargetData)(gl:GVMap)(Mem:mem)(id0:id)(t:typ)(c:const)(align0:align) : 
              option (GenericValue*mem) :=
@@ -297,6 +328,8 @@ Definition initGlobal (TD:TargetData)(gl:GVMap)(Mem:mem)(id0:id)(t:typ)(c:const)
        ret (blk2GV TD mb,  Mem'')
      | None => None
      end.
+
+Definition initTargetData (TD:layouts)(Mem:mem) : TargetData := TD.
 
 Fixpoint genGlobalAndInitMem (TD:TargetData)(Ps:list product)(gl:GVMap)(Mem:mem) : option (GVMap*mem) :=
 match Ps with
@@ -316,7 +349,8 @@ match (lookupFdefViaIDFromSystem S main) with
   match (getParentOfFdefFromSystem CurFunction S) with
   | None => None
   | Some (module_intro CurTargetData CurProducts) =>
-    match (genGlobalAndInitMem CurTargetData CurProducts nil initmem) with
+    let initargetdata := initTargetData CurTargetData initmem in 
+    match (genGlobalAndInitMem initargetdata CurProducts nil initmem) with
     | None => None
     | Some (initGlobal, initMem) =>
       match (getEntryBlock CurFunction) with
@@ -328,7 +362,7 @@ match (lookupFdefViaIDFromSystem S main) with
               Some
               (mkState
                 S
-                CurTargetData 
+                initargetdata
                 CurProducts
                 ((mkEC
                   CurFunction 
@@ -544,15 +578,25 @@ Inductive nsInsn : State*trace -> States -> Prop :=
     (mkState S TD Ps ((mkEC F B ((insn_select id v0 t v1 v2)::cs) tmn lc arg als)::EC) gl Mem, tr) 
     ((mkState S TD Ps ((mkEC F B cs tmn (if isGVZero TD c then updateAddAL _ lc id gv2 else updateAddAL _ lc id gv1) arg als)::EC) gl Mem, tr)::nil)
 | nsCall : forall S TD Ps F B lc gl arg rid noret tailc fid lp cs tmn
-                            Oparg' arg' l' ps' cs' tmn' EC rt id la lb tr Mem als,
-  params2OpGVs TD lp lc gl = Oparg' ->   
-  opGVs2GVs Oparg' = arg' ->   
+                            l' ps' cs' tmn' EC rt id la lb tr Mem als,
   lookupFdefViaIDFromProducts Ps fid = Some (fdef_intro (fheader_intro rt id la) lb) ->
   getEntryBlock (fdef_intro (fheader_intro rt id la) lb) = Some (block_intro l' ps' cs' tmn') ->
   nsInsn 
     (mkState S TD Ps ((mkEC F B ((insn_call rid noret tailc rt fid lp)::cs) tmn lc arg als)::EC) gl Mem, tr)
-    ((mkState S TD Ps ((mkEC (fdef_intro (fheader_intro rt id la) lb) (block_intro l' ps' cs' tmn') cs' tmn' (initLocals la arg') arg' nil)::
+    ((mkState S TD Ps ((mkEC (fdef_intro (fheader_intro rt id la) lb) (block_intro l' ps' cs' tmn') cs' tmn' 
+                         (initLocals la (params2GVs TD lp lc gl)) 
+                         (params2GVs TD lp lc gl) nil)::
                        (mkEC F B ((insn_call rid noret tailc rt fid lp)::cs) tmn lc arg als)::EC) gl Mem, tr)::nil)
+| nsExCall : forall S TD Ps F B lc gl arg rid noret tailc fid lp cs tmn EC rt la Mem als tr oresult Mem',
+  (* only look up the current module for the time being, 
+     do not support linkage. 
+     FIXME: should add excall to trace
+  *)
+  lookupExFdefViaIDFromProducts Ps fid = Some (fdec_intro (fheader_intro rt fid la)) ->
+  callExternalFunction Mem fid (params2GVs TD lp lc gl) = (oresult, Mem') ->
+  nsInsn 
+    (mkState S TD Ps ((mkEC F B ((insn_call rid noret tailc rt fid lp)::cs) tmn lc arg als)::EC) gl Mem, tr)
+    ((mkState S TD Ps ((mkEC F B cs tmn (exCallUpdateLocals noret rid rt oresult lc) arg als)::EC) gl Mem', tr)::nil)
 .
 
 Definition ns_genInitState (S:system) (main:id) (Args:list GenericValue) (initmem:mem) : option States :=
@@ -562,7 +606,8 @@ match (lookupFdefViaIDFromSystem S main) with
   match (getParentOfFdefFromSystem CurFunction S) with
   | None => None
   | Some (module_intro CurTD CurPs) =>
-    match (genGlobalAndInitMem CurTD CurPs nil initmem) with
+    let initargetdata := initTargetData CurTD initmem in 
+    match (genGlobalAndInitMem initargetdata CurPs nil initmem) with
     | None => None
     | Some (initGlobal, initMem) =>
       match (getEntryBlock CurFunction) with
@@ -574,7 +619,7 @@ match (lookupFdefViaIDFromSystem S main) with
             Some
               ((mkState
                 S
-                CurTD
+                initargetdata
                 CurPs
                 ((mkEC
                   CurFunction 
@@ -802,6 +847,17 @@ Inductive dbInsn : State -> State -> trace -> Prop :=
     (mkState S TD Ps ((mkEC F B ((insn_call rid noret tailc rt fid lp)::cs) tmn lc arg als)::EC) gl Mem) 
     (mkState S TD Ps ((mkEC F B cs tmn (callUpdateLocals TD noret rid rt oResult lc lc' gl) arg als)::EC) gl Mem'') 
     tr
+| dbExCall : forall S TD Ps F B lc gl arg rid noret tailc fid lp cs tmn EC rt la Mem als oresult Mem',
+  (* only look up the current module for the time being, 
+     do not support linkage. 
+     FIXME: should add excall to trace
+  *)
+  lookupExFdefViaIDFromProducts Ps fid = Some (fdec_intro (fheader_intro rt fid la)) ->
+  callExternalFunction Mem fid (params2GVs TD lp lc gl) = (oresult, Mem') ->
+  dbInsn 
+    (mkState S TD Ps ((mkEC F B ((insn_call rid noret tailc rt fid lp)::cs) tmn lc arg als)::EC) gl Mem)
+    (mkState S TD Ps ((mkEC F B cs tmn (exCallUpdateLocals noret rid rt oresult lc) arg als)::EC) gl Mem')
+    trace_nil
 with dbop : State -> State -> trace -> Prop :=
 | dbop_nil : forall S, dbop S S trace_nil
 | dbop_cons : forall S1 S2 S3 t1 t2,
@@ -1059,6 +1115,16 @@ Inductive nbInsn : State*trace -> States -> Prop :=
   updateStatesFromReturns S TD Ps F B cs tmn lc gl rid rt arg als EC noret lc_als_Mem_block_rid_ore_trs = Some states ->
   nbInsn 
     (mkState S TD Ps ((mkEC F B ((insn_call rid noret tailc rt fid lp)::cs) tmn lc arg als)::EC) gl Mem, tr) states    
+| nbExCall : forall S TD Ps F B lc gl arg rid noret tailc fid lp cs tmn EC rt la Mem als tr oresult Mem',
+  (* only look up the current module for the time being, 
+     do not support linkage. 
+     FIXME: should add excall to trace
+  *)
+  lookupExFdefViaIDFromProducts Ps fid = Some (fdec_intro (fheader_intro rt fid la)) ->
+  callExternalFunction Mem fid (params2GVs TD lp lc gl) = (oresult, Mem') ->
+  nbInsn 
+    (mkState S TD Ps ((mkEC F B ((insn_call rid noret tailc rt fid lp)::cs) tmn lc arg als)::EC) gl Mem, tr)
+    ((mkState S TD Ps ((mkEC F B cs tmn (exCallUpdateLocals noret rid rt oresult lc) arg als)::EC) gl Mem', tr)::nil)
 with nbop_star : States -> States -> Prop :=
 | nbop_star_nil : nbop_star nil nil
 | nbop_star_refl : forall state_tr states states',
@@ -1181,7 +1247,8 @@ Tactic Notation "db_mutind_cases" tactic(first) tactic(c) :=
     c "dbBop" | c "dbExtractValue" | c "dbInsertValue" |
     c "dbMalloc" | c "dbFree" |
     c "dbAlloca" | c "dbLoad" | c "dbStore" | c "dbGEP" |
-    c "dbExt" | c "dbCast" | c "dbIcmp" |  c "dbSelect" | c "dbCall" |
+    c "dbExt" | c "dbCast" | c "dbIcmp" |  c "dbSelect" | 
+    c "dbCall" | c "dbExCall" |
     c "dbop_nil" | c "dbop_cons" | c "dbFdef_func" | c "dbFdef_proc" ].
 
 Tactic Notation "dsInsn_cases" tactic(first) tactic(c) :=
@@ -1190,7 +1257,8 @@ Tactic Notation "dsInsn_cases" tactic(first) tactic(c) :=
     c "dsBop" | c "dsExtractValue" | c "dsInsertValue" |
     c "dsMalloc" | c "dsFree" |
     c "dsAlloca" | c "dsLoad" | c "dsStore" | c "dsGEP" |
-    c "dsExt" | c "dsCast" | c "dsIcmp" | c "dsSelect" |  c "dsCall" ].
+    c "dsExt" | c "dsCast" | c "dsIcmp" | c "dsSelect" |  
+    c "dsCall" | c "dsExCall" ].
 
 Tactic Notation "dsop_star_cases" tactic(first) tactic(c) :=
   first;
@@ -1202,7 +1270,8 @@ Tactic Notation "nb_mutind_cases" tactic(first) tactic(c) :=
     c "nbBop" | c "nbExtractValue" | c "nbInsertValue" |
     c "nbMalloc" | c "nbFree" |
     c "nbAlloca" | c "nbLoad" | c "nbStore" | c "nbGEP" | 
-    c "nbExt" | c "nbCast" | c "nbIcmp" | c "nbSelect" | c "nbCall" |
+    c "nbExt" | c "nbCast" | c "nbIcmp" | c "nbSelect" | 
+    c "nbCall" | c "nbExCall" |
     c "nbop_star_nil" | c "nbop_star_refl" | c "nbop_star_cons" | 
     c "nbop_star_trans" | c "nbFdef_intro" ].
 
@@ -1212,7 +1281,8 @@ Tactic Notation "nsInsn_cases" tactic(first) tactic(c) :=
     c "nsBranch_uncond" | c "nsBop" | c "nsExtractValue" | c "nsInsertValue" |
     c "nsMalloc" | c "bsFree" |
     c "nsAlloca" | c "nsLoad" | c "nsStore" | c "nsGEP" |
-    c "nsExt" | c "nsCast" | c "nsIcmp" | c "nsSelect" | c "nsCall" ].
+    c "nsExt" | c "nsCast" | c "nsIcmp" | c "nsSelect" | 
+    c "nsCall" | c "nsExCall" ].
 
 Tactic Notation "nsop_star_cases" tactic(first) tactic(c) :=
   first;
