@@ -25,7 +25,9 @@ let rec translate_constant (ctx:llcontext) (c:LLVMsyntax.const) : llvalue =
 	| LLVMsyntax.Coq_const_int (sz, i) -> const_apint (Llvm.global_context()) i
 	| LLVMsyntax.Coq_const_undef t -> undef (translate_typ ctx t)
 	| LLVMsyntax.Coq_const_null t ->  const_null (translate_typ ctx t)
-	| LLVMsyntax.Coq_const_arr cs -> failwith "const_arr: Not_Supported."
+	| LLVMsyntax.Coq_const_arr (t, cs) -> const_array 
+	                                        (translate_typ ctx t) 
+	                                        (Array.of_list (LLVMsyntax.map_list_const (translate_constant ctx) cs))
 	| LLVMsyntax.Coq_const_struct cs -> const_struct ctx (Array.of_list (LLVMsyntax.map_list_const (translate_constant ctx) cs))
   | LLVMsyntax.Coq_const_gid (_,id) -> failwith "const_gid: Not_Supported."
 	

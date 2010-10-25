@@ -30,7 +30,7 @@ let rec string_of_constant c =
 	| LLVMsyntax.Coq_const_int (sz, i) -> APInt.to_string i^":"^string_of_int sz
 	| LLVMsyntax.Coq_const_undef _ -> "undef"
 	| LLVMsyntax.Coq_const_null _ -> "null"
-	| LLVMsyntax.Coq_const_arr cs -> string_of_list_constant cs
+	| LLVMsyntax.Coq_const_arr (_, cs) -> string_of_list_constant cs
 	| LLVMsyntax.Coq_const_struct cs -> string_of_list_constant cs
   | LLVMsyntax.Coq_const_gid (_,id) -> id
 and string_of_list_constant cs =

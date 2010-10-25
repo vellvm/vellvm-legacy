@@ -318,7 +318,7 @@ match c with
          | None => None
          end
 | const_null t => Some (val2GV TD (Vptr Mem.nullptr (Int.repr 31 0)) (Mint 31), t)
-| const_arr lc => _list_const_arr2GV TD gl lc
+| const_arr t lc => _list_const_arr2GV TD gl lc
 | const_struct lc =>
          match (_list_const_struct2GV TD gl lc) with
          | None => None

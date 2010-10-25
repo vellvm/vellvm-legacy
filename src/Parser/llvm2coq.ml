@@ -41,8 +41,10 @@ let rec translate_constant c =
 	| ValueTy.ConstantFPVal -> failwith "ConstantFP: Not_Supported."
 	| ValueTy.ConstantArrayVal -> 
   		let ops = operands c in
-  		LLVMsyntax.Coq_const_arr 
+  		LLVMsyntax.Coq_const_arr (
+				 translate_typ (element_type (type_of c)),
          (Array.fold_right (fun c cs -> LLVMsyntax.Cons_list_const (translate_constant c, cs)) ops LLVMsyntax.Nil_list_const)
+			)
 	| ValueTy.ConstantStructVal ->
   		let ops = operands c in
   		LLVMsyntax.Coq_const_struct 
@@ -131,13 +133,13 @@ let translate_instr st i =
 	match (classify_instr i) with
 	| InstrOpcode.Ret ->
 			begin
-				match (classify_type (type_of i)) with
-				| TypeKind.Void ->
+				if ReturnInst.is_void i
+				then
 						LLVMsyntax.Coq_insn_terminator
 						(LLVMsyntax.Coq_insn_return_void
 							(llvm_name st i)
 						)
-				| _ ->
+				else
 						let ops = operands i in
 						let n = num_operand i in
 						if n != 1
@@ -687,7 +689,7 @@ let translate_function st f ps =
 let translate_global st g ps =
 	match (classify_value g) with
 	| ValueTy.GlobalVariableVal ->
-    	(* debugging output *)
+	(* debugging output *)
 			prerr_string (llvm_name st g);
 			prerr_string " = ";
 			prerr_string (if (is_global_constant g) then "constant " else "global ");

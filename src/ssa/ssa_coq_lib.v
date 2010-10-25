@@ -1912,6 +1912,10 @@ Proof.
 
   destruct c2; try solve [done_right].
   destruct (@typ_dec t t0); subst; try solve [done_right].
+  destruct (@H l1); subst; try solve [subst; auto | done_right].
+
+  destruct c2; try solve [done_right].
+  destruct (@typ_dec t t0); subst; try solve [done_right].
   destruct (@id_dec i0 i1); try solve [subst; auto | done_right].
 
   destruct lc2; try solve [auto | done_right].
@@ -2872,10 +2876,10 @@ Fixpoint getTyp (c:const) : typ :=
  | const_int sz _ => typ_int sz
  | const_undef t => t
  | const_null t => typ_pointer t
- | const_arr lc => 
+ | const_arr t lc => 
    match lc with
-   | Nil_list_const => typ_array Size.Zero (typ_int Size.Zero)
-   | Cons_list_const c' lc' => typ_array (Size.from_nat (length (unmake_list_const lc))) (getTyp c')
+   | Nil_list_const => typ_array Size.Zero t
+   | Cons_list_const c' lc' => typ_array (Size.from_nat (length (unmake_list_const lc))) t
    end
  | const_struct lc => typ_struct (getList_typ lc)
  | const_gid t _ => typ_pointer t

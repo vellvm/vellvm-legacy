@@ -94,7 +94,7 @@ Jwf_const :: '' ::=
       </ system |-c constj : typ // j />
       length </ constj // j /> = sz
       -------------------------------------------------- :: wf_const_arr
-      system |-c [ </ constj // j /> ] : [sz * typ]
+      system |-c typ [ </ constj // j /> ] : [sz * typ]
 
       </ system |-c constj : typj // j IN n />
       ------------------------------------------------------------ :: wf_const_struct

@@ -212,7 +212,7 @@ const :: 'const_'					::=  			{{ com constant }}
   | ( int sz ) INT					::   :: int		{{ com int }}	
   | typ undef						::   :: undef		{{ com undef }}
   | ( typ * ) null					::   :: null		{{ com null }}
-  | [ </ constj // j /> ]				::   :: arr             {{ com array }}
+  | typ [ </ constj // j /> ]				::   :: arr             {{ com array }}
   | { </ constj // j /> }				::   :: struct          {{ com struct }}
   | typ * id						::   :: gid		{{ com gid }}
   | ( const )						:: S :: paren           {{ coq [[ const ]] }}
