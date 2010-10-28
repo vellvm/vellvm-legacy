@@ -37,7 +37,8 @@ let rec translate_constant c =
 	| ValueTy.UndefValueVal -> LLVMsyntax.Coq_const_undef (translate_typ (type_of c)) 
 	| ValueTy.ConstantExprVal -> failwith "ConstantExpr: Not_Supported."
 	| ValueTy.ConstantAggregateZeroVal -> failwith "ConstantAggregateZeroVal: Not_Supported."
-	| ValueTy.ConstantIntVal -> LLVMsyntax.Coq_const_int (integer_bitwidth (type_of c), const_int_get_value c)
+	| ValueTy.ConstantIntVal -> LLVMsyntax.Coq_const_int (integer_bitwidth
+        (type_of c), APInt.const_int_get_value c)
 	| ValueTy.ConstantFPVal -> failwith "ConstantFP: Not_Supported."
 	| ValueTy.ConstantArrayVal -> 
   		let ops = operands c in
@@ -111,7 +112,8 @@ let array_size_to_int c =
 			then
 				failwith "array_size must be with type i32"
 			else
-				Int64.to_int (Llvm.APInt.get_zext_value (const_int_get_value c))			 
+				Int64.to_int (Llvm.APInt.get_zext_value
+                                (Llvm.APInt.const_int_get_value c))			 
 	| _ -> failwith "array_size must be ConstantIntVal"
 
 let translate_icmp op =

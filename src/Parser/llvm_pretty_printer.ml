@@ -15,7 +15,7 @@ let rec string_of_constant c =
 				then "false"
 				else "true"
 			else	 
-		    APInt.to_string (const_int_get_value c)
+		    APInt.to_string (APInt.const_int_get_value c)
 	| ValueTy.ConstantFPVal -> "ConstantFP"
 	| ValueTy.ConstantArrayVal -> 
   		let ops = operands c in 

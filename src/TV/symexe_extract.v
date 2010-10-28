@@ -64,7 +64,7 @@ Extract Constant LLVMsyntax.Align.mul => "( * )".
 Extract Constant LLVMsyntax.Align.div => "( / )".
 Extract Constant LLVMsyntax.Align.dec => "( == )".
 
-Extract Constant LLVMsyntax.INTEGER.t => "Llvm.llapint".
+Extract Constant LLVMsyntax.INTEGER.t => "Llvm.APInt.t".
 Extract Constant LLVMsyntax.INTEGER.to_nat => "Camlcoq.llapint2nat".
 Extract Constant LLVMsyntax.INTEGER.to_Z => "Camlcoq.llapint2z".
 Extract Constant LLVMsyntax.INTEGER.dec => "Llvm.APInt.compare".
