@@ -339,7 +339,7 @@ let translate_instr st i =
 				(LLVMsyntax.Coq_insn_gep
 					(llvm_name st i,
 					 Llvm.GetElementPtrInst.is_in_bounds i,
-					 translate_typ (type_of i),
+					 translate_typ (Llvm.pointer_type (type_of (Array.get ops 0))),  (* returns the elt typ of the 1st op's pointer typ *)
 					 translate_operand_to_value st (Array.get ops 0),
 					 range 1 n ops)
 				)

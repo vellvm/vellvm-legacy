@@ -95,7 +95,13 @@ let string_of_operands st i =
 		else
       (string_of_operand st (Array.get ops b)) in
 	if n == 0 
-	then failwith "	Operands_OutOfBound"
+	then 
+		match (classify_instr i) with
+	  | InstrOpcode.Ret ->
+	    if ReturnInst.is_void i
+		  then ""
+			else failwith "	Operands_OutOfBound"
+		| _ -> ""
 	else
 		range 0 n ops
 
