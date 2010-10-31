@@ -31,10 +31,11 @@ Tactic Notation "se_db_mutind_cases" tactic(first) tactic(c) :=
 
 Tactic Notation "se_dbCmd_cases" tactic(first) tactic(c) :=
   first;
-  [ c "dbBop" | c "dbExtractValue" | c "dbInsertValue" |
+  [ c "dbBop" | c "dbFBop" | c "dbExtractValue" | c "dbInsertValue" |
     c "dbMalloc" | c "dbFree" |
     c "dbAlloca" | c "dbLoad" | c "dbStore" | c "dbGEP" |
-    c "dbExt" | c "dbCast" | c "dbIcmp" |  c "dbSelect" ].
+    c "dbTrunc" | c "dbExt" | c "dbCast" | 
+    c "dbIcmp" | c "dbFcmp" | c "dbSelect" ].
 
 Tactic Notation "se_dbTerminator_cases" tactic(first) tactic(c) :=
   first;
@@ -595,6 +596,15 @@ Case "dbBop".
   exists (insn_bop id0 bop0 sz0 v1 v2).
   split; eauto.
 
+Case "dbFBop".
+  inversion H; subst. clear H.
+  exists l0. exists ps. exists cs. exists tmn0.
+  exists (updateAddAL _ lc0 id0 gv3). exists als0. exists Mem1.
+  exists cs1. split; auto.
+  right. left.
+  exists (insn_fbop id0 fbop0 fp v1 v2).
+  split; eauto.
+
 Case "dbExtractValue".
   inversion H; subst. clear H.
   exists l0. exists ps. exists cs. exists tmn0.
@@ -667,6 +677,15 @@ Case "dbGEP".
   exists (insn_gep id0 inbounds0 t v idxs).
   split; eauto.
 
+Case "dbTrunc".
+  inversion H; subst. clear H.
+  exists l0. exists ps. exists cs. exists tmn0.
+  exists (updateAddAL _ lc0 id0 gv2). exists als0. exists Mem1.
+  exists cs1. split; auto.
+  right. left.
+  exists (insn_trunc id0 truncop0 t1 v1 t2).
+  split; eauto.
+
 Case "dbExt".
   inversion H; subst. clear H.
   exists l0. exists ps. exists cs. exists tmn0.
@@ -692,6 +711,15 @@ Case "dbIcmp".
   exists cs1. split; auto.
   right. left.
   exists (insn_icmp id0 cond0 t v1 v2).
+  split; eauto.
+
+Case "dbFcmp".
+  inversion H; subst. clear H.
+  exists l0. exists ps. exists cs. exists tmn0.
+  exists (updateAddAL _ lc0 id0 gv3). exists als0. exists Mem1.
+  exists cs1. split; auto.
+  right. left.
+  exists (insn_fcmp id0 fcond0 fp v1 v2).
   split; eauto.
 
 Case "dbSelect".

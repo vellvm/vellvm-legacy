@@ -24,11 +24,11 @@ let rec translate_typ ty =
 																	(param_types ty)
 																	LLVMsyntax.Nil_list_typ))
   | TypeKind.Label -> LLVMsyntax.Coq_typ_label
-  | TypeKind.Ppc_fp128 -> failwith "Metadata: Not_Supported."
-  | TypeKind.Fp128 -> failwith "Fp128: Not_Supported."
-  | TypeKind.X86fp80 -> failwith "X86fp80: Not_Supported."
-  | TypeKind.Double -> failwith "Double: Not_Supported."
-  | TypeKind.Float -> failwith "Float: Not_Supported."
+  | TypeKind.Ppc_fp128 -> LLVMsyntax.Coq_typ_floatpoint (LLVMsyntax.Coq_fp_ppc_fp128)
+  | TypeKind.Fp128 -> LLVMsyntax.Coq_typ_floatpoint (LLVMsyntax.Coq_fp_fp128)
+  | TypeKind.X86fp80 -> LLVMsyntax.Coq_typ_floatpoint (LLVMsyntax.Coq_fp_x86_fp80)
+  | TypeKind.Double -> LLVMsyntax.Coq_typ_floatpoint (LLVMsyntax.Coq_fp_double)
+  | TypeKind.Float -> LLVMsyntax.Coq_typ_floatpoint (LLVMsyntax.Coq_fp_float)
   | TypeKind.Void -> LLVMsyntax.Coq_typ_void
   | TypeKind.Metadata -> LLVMsyntax.Coq_typ_metadata 
 
@@ -701,16 +701,21 @@ let translate_global st g ps =
 			prerr_newline ();
 			
 			(* translation *)
-			if (is_global_constant g)
-			then failwith "Constant Global: Not_Supported"
-			else
 			if (has_initializer g)
 			then
-				(LLVMsyntax.Coq_product_gvar
-					(LLVMsyntax.Coq_gvar_intro
-						(llvm_name st g, translate_typ (type_of g), translate_constant (get_initializer g), alignment g)
-					)
-				):: ps
+			  if (is_global_constant g)
+			  then 
+	   			(LLVMsyntax.Coq_product_gvar
+	  				(LLVMsyntax.Coq_gvar_intro
+	  					(llvm_name st g, LLVMsyntax.Coq_gvar_spec_constant, translate_typ (type_of g), translate_constant (get_initializer g), alignment g)
+	  				)
+	   			):: ps
+				else
+  				(LLVMsyntax.Coq_product_gvar
+  					(LLVMsyntax.Coq_gvar_intro
+  						(llvm_name st g, LLVMsyntax.Coq_gvar_spec_global, translate_typ (type_of g), translate_constant (get_initializer g), alignment g)
+  					)
+  				):: ps
 			else failwith "Global without initializer: Not_Supported"
 	| ValueTy.GlobalAliasVal -> failwith "GlobalAliasVal: Not_Supported"
 	| ValueTy.FunctionVal -> translate_function st g ps

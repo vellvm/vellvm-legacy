@@ -17,7 +17,7 @@ assoclist.vo : assoclist.v
 ssa_coq_lib.vo : ssa_coq_lib.v ssa_def.vo assoclist.vo
 	$(COQC) $(COQARG) ssa_coq_lib.v
 
-ssa_def.vo : ssa_def.v ./monads/monad.vo
+ssa_def.vo : ssa_def.v ./monads/monad.vo ./compcert/Floats.vo
 	$(COQC) $(COQARG) ssa_def.v
 
 ssa_def.v : ssa_def.ott

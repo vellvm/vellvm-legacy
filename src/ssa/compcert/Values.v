@@ -134,6 +134,20 @@ Definition absf (v: val) : val :=
   | _ => Vundef
   end.
 
+Definition trunc (v: val) (wz':nat) : val :=
+match v with
+| Vint wz n => if le_lt_dec wz wz'
+               then Vundef
+               else Vint wz' (Int.repr wz' (Int.unsigned wz n))
+| _ => Vundef
+end.
+
+Definition ftrunc (v: val) : val :=
+match v with
+| Vfloat f => v
+| _ => Vundef
+end.
+
 Definition intoffloat (v: val) : val :=
   match v with
   | Vfloat f => Vint 31 (Float.intoffloat f)
@@ -438,6 +452,12 @@ Definition mulf (v1 v2: val): val :=
 Definition divf (v1 v2: val): val :=
   match v1, v2 with
   | Vfloat f1, Vfloat f2 => Vfloat(Float.div f1 f2)
+  | _, _ => Vundef
+  end.
+
+Definition modf (v1 v2: val): val :=
+  match v1, v2 with
+  | Vfloat f1, Vfloat f2 => Vfloat(Float.rem f1 f2)
   | _, _ => Vundef
   end.
 

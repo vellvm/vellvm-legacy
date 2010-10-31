@@ -5,11 +5,18 @@ open Ssa_def
 open Ssa_lib
 
 (** Coq Pretty Printer *)
+let translate_floating_point (ctx:llcontext) (fp:LLVMsyntax.floating_point) : lltype =
+	match fp with
+	| LLVMsyntax.Coq_fp_float -> float_type ctx
+  | LLVMsyntax.Coq_fp_double -> double_type ctx
+  | LLVMsyntax.Coq_fp_x86_fp80 -> x86fp80_type ctx
+  | LLVMsyntax.Coq_fp_fp128 -> fp128_type ctx
+  | LLVMsyntax.Coq_fp_ppc_fp128 -> ppc_fp128_type ctx
+
 let rec translate_typ (ctx:llcontext) (ty:LLVMsyntax.typ) : lltype =
   match ty with
   | LLVMsyntax.Coq_typ_int sz -> integer_type ctx sz
-	| LLVMsyntax.Coq_typ_float -> float_type ctx
-	| LLVMsyntax.Coq_typ_double -> double_type ctx
+	| LLVMsyntax.Coq_typ_floatpoint fp -> translate_floating_point ctx fp
 	| LLVMsyntax.Coq_typ_void -> void_type ctx
 	| LLVMsyntax.Coq_typ_label -> label_type ctx
 	| LLVMsyntax.Coq_typ_metadata -> failwith "Metadata: Not_Supported."
@@ -22,7 +29,9 @@ let rec translate_typ (ctx:llcontext) (ty:LLVMsyntax.typ) : lltype =
 
 let rec translate_constant (ctx:llcontext) (c:LLVMsyntax.const) : llvalue = 
 	match c with
+  | LLVMsyntax.Coq_const_zeroinitializer t ->  Llvm.const_null (translate_typ ctx t)
 	| LLVMsyntax.Coq_const_int (sz, i) -> Llvm.APInt.const_apint (Llvm.global_context()) i
+	| LLVMsyntax.Coq_const_floatpoint (fp, f) -> Llvm.const_float (translate_floating_point ctx fp) f
 	| LLVMsyntax.Coq_const_undef t -> undef (translate_typ ctx t)
 	| LLVMsyntax.Coq_const_null t ->  const_null (translate_typ ctx t)
 	| LLVMsyntax.Coq_const_arr (t, cs) -> const_array 
@@ -30,6 +39,7 @@ let rec translate_constant (ctx:llcontext) (c:LLVMsyntax.const) : llvalue =
 	                                        (Array.of_list (LLVMsyntax.map_list_const (translate_constant ctx) cs))
 	| LLVMsyntax.Coq_const_struct cs -> const_struct ctx (Array.of_list (LLVMsyntax.map_list_const (translate_constant ctx) cs))
   | LLVMsyntax.Coq_const_gid (_,id) -> failwith "const_gid: Not_Supported."
+	| _ -> failwith "const_expr: Not_Supported."
 	
 let translate_value v =
 	match v with
@@ -48,15 +58,33 @@ let rec translate_list_value vs =
 
 let translate_bop bop =
 	match bop with
-	| LLVMsyntax.Coq_bop_add -> InstrOpcode.Add			
+	| LLVMsyntax.Coq_bop_add -> InstrOpcode.Add		
+	| LLVMsyntax.Coq_bop_sub -> InstrOpcode.Sub	
+	| LLVMsyntax.Coq_bop_mul -> InstrOpcode.Mul
+	| LLVMsyntax.Coq_bop_udiv -> InstrOpcode.UDiv
+	| LLVMsyntax.Coq_bop_sdiv -> InstrOpcode.SDiv
+	| LLVMsyntax.Coq_bop_urem -> InstrOpcode.URem
+	| LLVMsyntax.Coq_bop_srem -> InstrOpcode.SRem
+	| LLVMsyntax.Coq_bop_shl -> InstrOpcode.Shl
+	| LLVMsyntax.Coq_bop_lshr -> InstrOpcode.LShr
+	| LLVMsyntax.Coq_bop_ashr -> InstrOpcode.AShr
 	| LLVMsyntax.Coq_bop_and -> InstrOpcode.And
 	| LLVMsyntax.Coq_bop_or -> InstrOpcode.Or
-	| LLVMsyntax.Coq_bop_lshr -> InstrOpcode.LShr
+	| LLVMsyntax.Coq_bop_xor -> InstrOpcode.Xor
 									
+let translate_fbop fbop =
+	match fbop with
+	| LLVMsyntax.Coq_fbop_fadd -> InstrOpcode.FAdd		
+	| LLVMsyntax.Coq_fbop_fsub -> InstrOpcode.FSub		
+	| LLVMsyntax.Coq_fbop_fmul -> InstrOpcode.FMul		
+	| LLVMsyntax.Coq_fbop_fdiv -> InstrOpcode.FDiv		
+	| LLVMsyntax.Coq_fbop_frem -> InstrOpcode.FRem		
+
 let translate_extop extop =
 	match extop with
 	| LLVMsyntax.Coq_extop_s -> failwith "Not_Supported." 			
 	| LLVMsyntax.Coq_extop_z -> failwith "Not_Supported."
+	| LLVMsyntax.Coq_extop_fp -> failwith "Not_Supported."
 
 let translate_castop castop =
 	match castop with
@@ -81,18 +109,24 @@ let translate_icond cond =
 	| LLVMsyntax.Coq_cond_slt -> Icmp.Slt	
 	| LLVMsyntax.Coq_cond_sle -> Icmp.Sle	
 
-let translate_fcond cond =
-	match cond with
-	| LLVMsyntax.Coq_cond_eq -> Fcmp.Oeq		
-	| LLVMsyntax.Coq_cond_ne -> Fcmp.One			
-	| LLVMsyntax.Coq_cond_ugt -> Fcmp.Ugt		
-	| LLVMsyntax.Coq_cond_uge -> Fcmp.Uge	
-	| LLVMsyntax.Coq_cond_ult -> Fcmp.Ult	
-	| LLVMsyntax.Coq_cond_ule -> Fcmp.Ule	
-	| LLVMsyntax.Coq_cond_sgt -> Fcmp.Ogt
-	| LLVMsyntax.Coq_cond_sge -> Fcmp.Oge	
-	| LLVMsyntax.Coq_cond_slt -> Fcmp.Olt	
-	| LLVMsyntax.Coq_cond_sle -> Fcmp.Ole	
+let translate_fcond fcond =
+	match fcond with
+	| LLVMsyntax.Coq_fcond_false -> Fcmp.False 			
+	| LLVMsyntax.Coq_fcond_oeq -> Fcmp.Oeq
+	| LLVMsyntax.Coq_fcond_ogt -> Fcmp.Ogt 			
+	| LLVMsyntax.Coq_fcond_oge -> Fcmp.Oge 			
+	| LLVMsyntax.Coq_fcond_olt -> Fcmp.Olt 			
+	| LLVMsyntax.Coq_fcond_ole -> Fcmp.Ole 			
+	| LLVMsyntax.Coq_fcond_one -> Fcmp.One 			
+	| LLVMsyntax.Coq_fcond_ord -> Fcmp.Ord 			
+	| LLVMsyntax.Coq_fcond_ueq -> Fcmp.Ueq 			
+	| LLVMsyntax.Coq_fcond_ugt -> Fcmp.Ugt 			
+	| LLVMsyntax.Coq_fcond_uge -> Fcmp.Uge 			
+  | LLVMsyntax.Coq_fcond_ult -> Fcmp.Ult 			
+	| LLVMsyntax.Coq_fcond_ule -> Fcmp.Ule 			
+	| LLVMsyntax.Coq_fcond_une -> Fcmp.Une
+  | LLVMsyntax.Coq_fcond_uno -> Fcmp.Uno 			
+	| LLVMsyntax.Coq_fcond_true -> Fcmp.True 
 
 let rec translate_list_value_l vls =
 	match vls with
@@ -115,6 +149,7 @@ let translate_terminator i =
 let translate_cmd i =
 	match i with
   | LLVMsyntax.Coq_insn_bop (id, bop, sz, v1, v2) -> failwith "Not_Supported."
+	| LLVMsyntax.Coq_insn_fbop (id, fbop, fp, v1, v2) -> failwith "Not_Supported."
   | LLVMsyntax.Coq_insn_extractvalue (id, t, v, cs) -> failwith "Not_Supported."
   | LLVMsyntax.Coq_insn_insertvalue (id, t1, v1, t2, v2, cs) -> failwith "Not_Supported."
   | LLVMsyntax.Coq_insn_malloc (id, t, sz, align) -> failwith "Not_Supported."
@@ -123,9 +158,11 @@ let translate_cmd i =
   | LLVMsyntax.Coq_insn_load (id, t, v, a) -> failwith "Not_Supported."
   | LLVMsyntax.Coq_insn_store (id, t, v1, v2, a) -> failwith "Not_Supported."
   | LLVMsyntax.Coq_insn_gep (id, inbounds, t, v, vs) -> failwith "Not_Supported."
+  | LLVMsyntax.Coq_insn_trunc (id, truncop, t1, v, t2) -> failwith "Not_Supported."
   | LLVMsyntax.Coq_insn_ext (id, extop, t1, v, t2) -> failwith "Not_Supported."
   | LLVMsyntax.Coq_insn_cast (id, castop, t1, v, t2) -> failwith "Not_Supported."
   | LLVMsyntax.Coq_insn_icmp (id, cond, t, v1, v2) -> failwith "Not_Supported."
+  | LLVMsyntax.Coq_insn_fcmp (id, cond, t, v1, v2) -> failwith "Not_Supported."
   | LLVMsyntax.Coq_insn_select (id, v, t, v1, v2) -> failwith "Not_Supported."
   | LLVMsyntax.Coq_insn_call (id, noret, tailc, t, fid, ps) -> failwith "Not_Supported."
 					
@@ -148,7 +185,7 @@ let translate_fdef f =
 					  	
 let translate_product g =
 	match g with
-	| LLVMsyntax.Coq_product_gvar (LLVMsyntax.Coq_gvar_intro (id, t, c, a)) -> failwith "Not_Supported." 
+	| LLVMsyntax.Coq_product_gvar (LLVMsyntax.Coq_gvar_intro (id, spec, t, c, a)) -> failwith "Not_Supported." 
 	| LLVMsyntax.Coq_product_fdec f -> failwith "Not_Supported."
 	| LLVMsyntax.Coq_product_fdef f -> failwith "Not_Supported." 
 	
@@ -164,6 +201,10 @@ let translate_layout dlt =
 	                                             ":" ^ (string_of_int a1) ^                   
 																							 ":" ^ (string_of_int a2) ^
 																							 "-"	
+	| LLVMsyntax.Coq_layout_float (sz, a1, a2) -> "f:" ^ (string_of_int sz) ^ 
+	                                              ":" ^ (string_of_int a1) ^                   
+																							  ":" ^ (string_of_int a2) ^
+																							  "-"	
 	| LLVMsyntax.Coq_layout_aggr (sz, a1, a2) -> "a:" ^ (string_of_int sz) ^ 
 	                                              ":" ^ (string_of_int a1) ^                   
 																							  ":" ^ (string_of_int a2) ^

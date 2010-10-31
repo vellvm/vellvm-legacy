@@ -86,6 +86,9 @@ Extract Constant LLVMgv.val2GV => "Llvmcaml.GenericValue.val2gv".
 Extract Constant LLVMgv.ptr2GV => "Llvmcaml.GenericValue.ptr2gv".
 Extract Constant LLVMgv.blk2GV => "Llvmcaml.GenericValue.blk2gv".
 Extract Constant LLVMgv.isGVZero => "Llvmcaml.GenericValue.isZero".
+Extract Constant LLVMgv.repeatGV => "Llvmcaml.GenericValue.repeatGV".
+Extract Constant LLVMgv._zeroconst2GV => "Llvmcaml.GenericValue._zeroconst2GV".
+Extract Constant LLVMgv._list_typ_zerostruct2GV => "Llvmcaml.GenericValue._list_typ_zerostruct2GV".
 Extract Constant LLVMgv._const2GV => "Llvmcaml.GenericValue._const2GV".
 Extract Constant LLVMgv._list_const_arr2GV => "Llvmcaml.GenericValue._list_const_arr2GV".
 Extract Constant LLVMgv._list_const_struct2GV => "Llvmcaml.GenericValue._list_const_struct2GV".
@@ -94,9 +97,12 @@ Extract Constant LLVMgv.extractGenericValue => "Llvmcaml.GenericValue.extractGen
 Extract Constant LLVMgv.insertGenericValue => "Llvmcaml.GenericValue.insertGenericValue".
 Extract Constant LLVMgv.GEP => "Llvmcaml.GenericValue.mgep".
 Extract Constant LLVMgv.mbop => "Llvmcaml.GenericValue.mbop".
+Extract Constant LLVMgv.mfbop => "Llvmcaml.GenericValue.mfbop".
+Extract Constant LLVMgv.mtrunc => "Llvmcaml.GenericValue.mtrunc".
 Extract Constant LLVMgv.mcast => "Llvmcaml.GenericValue.mcast".
 Extract Constant LLVMgv.mext => "Llvmcaml.GenericValue.mext".
 Extract Constant LLVMgv.micmp => "Llvmcaml.GenericValue.micmp".
+Extract Constant LLVMgv.mfcmp => "Llvmcaml.GenericValue.mfcmp".
 
 Extract Constant LLVMmem.mem =>  "Llvmcaml.Mem.t".
 (*Extract Constant LLVMmem.initmem =>  "Llvmcaml.Mem.initmem".*)
@@ -137,6 +143,7 @@ Extract Constant LLVMtd.getTypeStoreSizeInBits => "Llvmcaml.TargetData.getTypeSt
 Extract Constant LLVMtd.getStructSizeInBytes => "Llvmcaml.TargetData.getStructSizeInBytes".
 Extract Constant LLVMtd.getStructSizeInBits => "Llvmcaml.TargetData.getStructSizeInBits".
 Extract Constant LLVMtd.getStructAlignment => "Llvmcaml.TargetData.getStructAlignment".
+Extract Constant LLVMtd.getFloatAlignmentInfo => "Llvmcaml.TargetData.getFloatAlignmentInfo". 
 
 (* Float *)
 Extract Inlined Constant Floats.float => "float".

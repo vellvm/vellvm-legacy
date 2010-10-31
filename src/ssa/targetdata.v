@@ -72,6 +72,8 @@ Definition ndiv (n m:nat) := nat_of_Z (Zdiv (Z_of_nat (n)) (Z_of_nat m)).
   INTEGER_ALIGN,   2,         2,          16  // i16
   INTEGER_ALIGN,   4,         4,          32  // i32
   INTEGER_ALIGN,   4,         8,          64  // i64
+  FLOAT_ALIGN,     4,         4,          32  // f32
+  FLOAT_ALIGN,     8,         8,          64  // f64
   AGGREGATE_ALIGN, 0,         8,          0   // struct
   PTR,             8,         8,          64  // ptr
   BigEndian
@@ -96,6 +98,8 @@ Definition DTD :=
                     layout_int Size.Sixteen Align.Two Align.Two::
                     layout_int Size.ThirtyTwo Align.Four Align.Four::
                     layout_int Size.SixtyFour Align.Four Align.Eight::
+                    layout_float Size.ThirtyTwo Align.Four Align.Four::
+                    layout_float Size.SixtyFour Align.Four Align.Eight::
                     layout_aggr Size.Zero Align.Zero Align.Eight::
                     layout_ptr Size.SixtyFour Align.Zero Align.Zero::nil).
 
@@ -283,6 +287,24 @@ Definition getPointerSize (TD:TargetData) : sz :=
 Definition getPointerSizeInBits (TD:TargetData) : sz :=
   Size.mul Size.Eight (getPointerSize TD).
 
+Fixpoint getFloatAlignmentInfo (TD:TargetData) (BitWidth: nat) (ABIInfo: bool) : nat :=
+  match TD with
+  | nil =>
+    if beq_nat BitWidth 32 
+    then 4%nat
+    else
+      if beq_nat BitWidth 64
+      then 8%nat
+      else getIntAlignmentInfo TD BitWidth ABIInfo  
+  | (layout_float isz abi pre)::TD' =>
+    if beq_nat (Size.to_nat isz) BitWidth
+    then
+      Align.to_nat (if ABIInfo then abi else pre)
+    else
+      getFloatAlignmentInfo TD' BitWidth ABIInfo    
+  | _::TD' => getFloatAlignmentInfo TD' BitWidth ABIInfo    
+  end.
+
 (** Merged getTypeSizeInBits, getTypeStoreSize, getTypeAllocSize, 
     getTypeAllocSizeInBits, getAlignment and getStructLayout *)
 Fixpoint getTypeSizeInBits_and_Alignment (TD:TargetData) (abi_or_pref:bool) (t:typ)
@@ -328,8 +350,16 @@ Fixpoint getTypeSizeInBits_and_Alignment (TD:TargetData) (abi_or_pref:bool) (t:t
        | O => Some ((8*(RoundUpAlignment 1%nat al))%nat, al)
        | _ => Some ((8*(RoundUpAlignment sz al))%nat, al)
        end
-    end      
-  | _ => None
+    end  
+
+  | typ_floatpoint fp_float => Some (32%nat, getFloatAlignmentInfo TD 32%nat abi_or_pref) 
+  | typ_floatpoint fp_double => Some (64%nat, getFloatAlignmentInfo TD 64%nat abi_or_pref) 
+  | typ_floatpoint fp_x86_fp80 => Some (80%nat, getFloatAlignmentInfo TD 64%nat abi_or_pref) 
+  | typ_floatpoint fp_fp128 => Some (128%nat, getFloatAlignmentInfo TD 128%nat abi_or_pref) 
+  | typ_floatpoint fp_ppc_fp128 => Some (128%nat, getFloatAlignmentInfo TD 128%nat abi_or_pref) 
+
+  | typ_metadata => None
+  | typ_function _ _ => None
   end
 with getListTypeSizeInBits_and_Alignment (TD:TargetData) (lt:list_typ)
   : option (nat*nat) :=

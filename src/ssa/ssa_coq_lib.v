@@ -66,6 +66,7 @@ Definition noret_dec : forall x y : noret, {x=y} + {x<>y} := bool_dec.
   Definition getCmdID (i:cmd) : id :=
   match i with
   | insn_bop id _ sz v1 v2 => id
+  | insn_fbop id _ _ _ _ => id
   (* | insn_extractelement id typ0 id0 c1 => id *)
   (* | insn_insertelement id typ0 id0 typ1 v1 c2 => id *)
   | insn_extractvalue id typs id0 c1 => id
@@ -76,16 +77,11 @@ Definition noret_dec : forall x y : noret, {x=y} + {x<>y} := bool_dec.
   | insn_load id typ1 v1 _ => id
   | insn_store id typ1 v1 v2 _ => id
   | insn_gep id _ _ _ _ => id
-  (* | insn_trunc id typ1 v1 typ2 => id *)
+  | insn_trunc id _ typ1 v1 typ2 => id 
   | insn_ext id _ sz1 v1 sz2 => id
-  (* | insn_fptrunc id typ1 v1 typ2 => id *)
-  (* | insn_fptoui id typ1 v1 typ2 => id *)
-  (* | insn_fptosi id typ1 v1 typ2 => id *)
-  (* | insn_uitofp id typ1 v1 typ2 => id *)
-  (* | insn_sitofp id typ1 v1 typ2 => id *)
   | insn_cast id _ typ1 v1 typ2 => id
   | insn_icmp id cond typ v1 v2 => id
-  (* | insn_fcmp id cond typ v1 v2 => id *)
+  | insn_fcmp id cond typ v1 v2 => id 
   | insn_select id v0 typ v1 v2 => id
   | insn_call id _ _ typ id0 paraml => id
   end.
@@ -150,6 +146,17 @@ match idxs with
   end
 end.
 
+Definition getConstGEPTyp (idxs : list_const) (t : typ) : option typ :=
+match idxs with
+| Nil_list_const => None
+| Cons_list_const idx idxs' =>
+     (* The input t is already an element of a pointer typ *)
+     match (getSubTypFromConstIdxs idxs' t) with
+     | Some t' => Some (typ_pointer t')
+     | _ => None
+     end
+end.
+
 Fixpoint getSubTypFromValueIdxs (idxs : list_value) (t : typ) : option typ :=
 match idxs with
 | Nil_list_value => Some t 
@@ -189,6 +196,7 @@ end.
 Definition getCmdTyp (i:cmd) : option typ :=
 match i with
 | insn_bop _ _ sz _ _ => Some (typ_int sz)
+| insn_fbop _ _ ft _ _ => Some (typ_floatpoint ft)
 (*
 | insn_extractelement _ typ _ _ => getElementTyp typ
 | insn_insertelement _ typ _ _ _ _ => typ *)
@@ -200,11 +208,11 @@ match i with
 | insn_load _ typ _ _ => getLoadTyp typ
 | insn_store _ _ _ _ _ => Some typ_void
 | insn_gep _ _ typ _ idxs => getGEPTyp idxs typ
-(* | insn_trunc _ _ _ typ => Some typ *)
+| insn_trunc _ _ _ _ typ => Some typ
 | insn_ext _ _ _ _ typ2 => Some typ2
 | insn_cast _ _ _ _ typ => Some typ
 | insn_icmp _ _ _ _ _ => Some (typ_int Size.One)
-(* | insn_fcmp _ _ _ _ _ => Some (typ_int Size.One) *)
+| insn_fcmp _ _ _ _ _ => Some (typ_int Size.One)
 | insn_select _ _ typ _ _ => Some typ
 | insn_call _ true _ typ _ _ => Some typ_void
 | insn_call _ false _ typ _ _ => Some typ
@@ -266,6 +274,7 @@ end.
 Definition getCmdOperands (i:cmd) : ids :=
 match i with
 | insn_bop _ _ _ v1 v2 => getValueIDs v1 ++ getValueIDs v2
+| insn_fbop _ _ _ v1 v2 => getValueIDs v1 ++ getValueIDs v2
 (* | insn_extractelement _ _ v _ => getValueIDs v
 | insn_insertelement _ _ v1 _ v2 _ => getValueIDs v1 ++ getValueIDs v2
 *)
@@ -276,12 +285,12 @@ match i with
 | insn_alloca _ _ _ _ => nil
 | insn_load _ _ v _ => getValueIDs v
 | insn_store _ _ v1 v2 _ => getValueIDs v1 ++ getValueIDs v2
-| insn_gep _ _ _ v  _ => getValueIDs v
-(* | insn_trunc _ _ v _ => getValueIDs v *)
+| insn_gep _ _ _ v _ => getValueIDs v
+| insn_trunc _ _ _ v _ => getValueIDs v
 | insn_ext _ _ _ v1 typ2 => getValueIDs v1
 | insn_cast _ _ _ v _ => getValueIDs v
 | insn_icmp _ _ _ v1 v2 => getValueIDs v1 ++ getValueIDs v2
-(* | insn_fcmp _ _ _ v1 v2 => getValueIDs v1 ++ getValueIDs v2 *)
+| insn_fcmp _ _ _ v1 v2 => getValueIDs v1 ++ getValueIDs v2
 | insn_select _ v0 _ v1 v2 => getValueIDs v0 ++ getValueIDs v1 ++ getValueIDs v2
 | insn_call _ _ _ _ _ lp => getParamsOperand lp
 end.
@@ -319,6 +328,7 @@ end.
 Definition getCmdLabels (i:cmd) : ls :=
 match i with
 | insn_bop _ _ _ _ _ => nil
+| insn_fbop _ _ _ _ _ => nil
 (* | insn_extractelement _ _ _ _ => nil
 | insn_insertelement _ _ _ _ _ _ => nil
 *)
@@ -330,11 +340,11 @@ match i with
 | insn_load _ _ _ _ => nil
 | insn_store _ _ _ _ _ => nil
 | insn_gep _ _ _ v  _ => nil
-(* | insn_trunc _ _ _ _ => nil *)
+| insn_trunc _ _ _ _ _ => nil 
 | insn_ext _ _ _ _ _ => nil
 | insn_cast _ _ _ _ _ => nil
 | insn_icmp _ _ _ _ _ => nil
-(* | insn_fcmp _ _ _ _ _ => nil *)
+| insn_fcmp _ _ _ _ _ => nil 
 | insn_select _ _ _ _ _ => nil
 | insn_call _ _ _ _ _ _ => nil
 end.
@@ -388,7 +398,7 @@ match ib with
 | id_binding_cmd i => getCmdTyp i
 | id_binding_terminator i => Some (getTerminatorTyp i)
 | id_binding_phinode i => Some (getPhiNodeTyp i)
-| id_binding_gvar (gvar_intro _ t _ _) => Some (typ_pointer t)
+| id_binding_gvar (gvar_intro _ _ t _ _) => Some (typ_pointer t)
 | id_binding_arg (t, id) => Some t
 | id_binding_fdec fdec => Some (getFdecTyp fdec)
 | id_binding_none => None
@@ -550,7 +560,7 @@ end.
 
 Definition getGvarID g : id :=
 match g with
-| gvar_intro id _ _ _ => id
+| gvar_intro id _ _ _ _ => id
 end.
 
 Definition getCallName i : option id :=
@@ -600,6 +610,20 @@ end.
 Definition getEntryCmds (b:block) : cmds :=
 match b with
 | block_intro _ _ lc _ => lc
+end.
+
+Definition floating_point_order (fp1 fp2:floating_point) : bool :=
+match (fp1, fp2) with
+| (fp_float, fp_double) => true
+| (fp_float, fp_x86_fp80) => true
+| (fp_float, fp_ppc_fp128) => true
+| (fp_float, fp_fp128) => true
+| (fp_double, fp_x86_fp80) => true
+| (fp_double, fp_ppc_fp128) => true
+| (fp_double, fp_fp128) => true
+| (fp_x86_fp80, fp_ppc_fp128) => true
+| (fp_x86_fp80, fp_fp128) => true
+| (_, _) => false
 end.
 
 (**********************************)
@@ -707,9 +731,9 @@ lookupBindingViaIDFromBlocks lb id.
 
 Definition lookupBindingViaIDFromProduct (p:product) (id:id) : id_binding :=
 match p with
-| product_gvar (gvar_intro id' t c a) =>
+| product_gvar (gvar_intro id' spec t c a) =>
   match (eq_dec id id') with
-  | left _ => id_binding_gvar (gvar_intro id' t c a)
+  | left _ => id_binding_gvar (gvar_intro id' spec t c a)
   | right _ => id_binding_none
   end
 | product_fdec fdec => lookupBindingViaIDFromFdec fdec id
@@ -922,7 +946,7 @@ end.
 Definition lookupTypViaIDFromProduct (p:product) (id0:id) : option typ :=
 match p with
 | product_fdef fd => lookupTypViaIDFromFdef fd id0
-| product_gvar (gvar_intro id t _ _) => if id0==id then Some t else None
+| product_gvar (gvar_intro id spec t _ _) => if id0==id then Some t else None
 | _ => None
 end.
 
@@ -1093,6 +1117,8 @@ lookupTypViaIDFromModules s id0.
   match i with
   | insn_bop id _ sz v1 v2 => (genIdUseDef_id_uses_value v1 id)+++
                               (genIdUseDef_id_uses_value v2 id)
+  | insn_fbop id _ _ v1 v2 => (genIdUseDef_id_uses_value v1 id)+++
+                              (genIdUseDef_id_uses_value v2 id)
   (* | insn_extractelement id typ0 value0 c1 =>  *)
   (*   (genIdUseDef_id_uses_value value0 id) *)
   (* | insn_insertelement id typ0 value0 typ1 v1 c2 =>  *)
@@ -1107,17 +1133,12 @@ lookupTypViaIDFromModules s id0.
   | insn_store id typ1 v1 v2 _ => (genIdUseDef_id_uses_value v1 id)+++
                                (genIdUseDef_id_uses_value v2 id)
   | insn_gep id _ typ0 value0 _ => (genIdUseDef_id_uses_value value0 id)
-  (* | insn_trunc id typ1 v1 typ2 => (genIdUseDef_id_uses_value v1 id)			 *)
+  | insn_trunc id _ typ1 v1 typ2 => (genIdUseDef_id_uses_value v1 id)			 
   | insn_ext id _ sz1 v1 sz2 => (genIdUseDef_id_uses_value v1 id)			 
-  (* | insn_fptrunc id typ1 v1 typ2 => (genIdUseDef_id_uses_value v1 id)          	 *)
-  (* | insn_fptoui id typ1 v1 typ2 => (genIdUseDef_id_uses_value v1 id)			 *)
-  (* | insn_fptosi id typ1 v1 typ2 => (genIdUseDef_id_uses_value v1 id)			 *)
-  (* | insn_uitofp id typ1 v1 typ2 => (genIdUseDef_id_uses_value v1 id)			 *)
-  (* | insn_sitofp id typ1 v1 typ2 => (genIdUseDef_id_uses_value v1 id)			 *)
   | insn_cast id _ typ1 v1 typ2 => (genIdUseDef_id_uses_value v1 id)			 
   | insn_icmp id cond typ v1 v2 => (genIdUseDef_id_uses_value v1 id)+++
                                    (genIdUseDef_id_uses_value v2 id)
-  (* | insn_fcmp id cond typ v1 v2 => (genIdUseDef_id_uses_value v1 id)+++(genIdUseDef_id_uses_value v2 id)  *)
+  | insn_fcmp id fcond typ v1 v2 => (genIdUseDef_id_uses_value v1 id)+++(genIdUseDef_id_uses_value v2 id) 
   | insn_select id v0 typ v1 v2 => (genIdUseDef_id_uses_value v0 id)+++
                                    (genIdUseDef_id_uses_value v1 id)+++
                                    (genIdUseDef_id_uses_value v2 id)
@@ -1182,7 +1203,7 @@ lookupTypViaIDFromModules s id0.
 
   Definition genIdUseDef_product (p:product) : usedef_id :=
   match p with 
-  | product_gvar (gvar_intro id t v a) => fun _ => nil
+  | product_gvar (gvar_intro id _ t v a) => fun _ => nil
   | product_fdef f => (genIdUseDef_fdef f)
   | product_fdec f => fun _ => nil
   (* | product_namedtype nt => fun _ => nil *)
@@ -1226,6 +1247,7 @@ lookupTypViaIDFromModules s id0.
   Definition genBlockUseDef_cmd (i:cmd) (b:block) : usedef_block :=
   match i with
   | insn_bop id _ sz v1 v2 => fun _ => nil 
+  | insn_fbop id _ _ v1 v2 => fun _ => nil 
   (* | insn_extractelement id typ0 v0 c1 => fun _ => nil *)
   (* | insn_insertelement id typ0 v0 typ1 v1 c2 => fun _ => nil *)
   | insn_extractvalue id typ0 v0 c1 => fun _ => nil 
@@ -1236,11 +1258,11 @@ lookupTypViaIDFromModules s id0.
   | insn_load id typ1 v1 _ => fun _ => nil 
   | insn_store _ typ1 v1 v2 _ => fun _ => nil 
   | insn_gep id _ typ0 v0 c1 => fun _ => nil 
-  (* | insn_trunc id typ1 v1 typ2 => fun _ => nil *)
+  | insn_trunc id _ typ1 v1 typ2 => fun _ => nil 
   | insn_ext id _ sz1 v1 sz2 => fun _ => nil
   | insn_cast id _ typ1 v1 typ2 => fun _ => nil 
   | insn_icmp id cond typ v1 v2 => fun _ => nil
-  (* | insn_fcmp id cond typ v1 v2 => fun _ => nil *)
+  | insn_fcmp id cond typ v1 v2 => fun _ => nil 
   | insn_select id v0 t v1 v2 => fun _ => nil
   | insn_call _ _ _ typ id0 paraml => fun _ => nil 
   end.
@@ -1838,6 +1860,11 @@ Proof.
   destruct H; auto.
 Qed.
 
+Lemma floating_point_dec : forall (fp1 fp2:floating_point), {fp1=fp2}+{~fp1=fp2}.
+Proof.
+  decide equality.
+Qed.
+
 Definition typ_dec_prop (t1:typ) := forall t2, {t1=t2} + {~t1=t2}.
 Definition list_typ_dec_prop (lt1:list_typ) := forall lt2, {lt1=lt2} + {~lt1=lt2}.
 
@@ -1856,6 +1883,9 @@ Proof.
 
   destruct t2; try solve [done_right].
   destruct (@Size.dec s s0); try solve [subst; auto | done_right].
+
+  destruct t2; try solve [done_right].
+  destruct (@floating_point_dec f f0); try solve [subst; auto | done_right].
 
   destruct t2; try solve [done_right].
   destruct (@H t2); subst; try solve [done_right].
@@ -1888,6 +1918,41 @@ Proof.
   destruct typ_mutrec_dec; auto.
 Qed.
 
+Lemma bop_dec : forall (b1 b2:bop), {b1=b2}+{~b1=b2}.
+Proof.
+  decide equality.
+Qed.
+
+Lemma fbop_dec : forall (b1 b2:fbop), {b1=b2}+{~b1=b2}.
+Proof.
+  decide equality.
+Qed.
+
+Lemma extop_dec : forall (e1 e2:extop), {e1=e2}+{~e1=e2}.
+Proof.
+  decide equality.
+Qed.
+
+Lemma castop_dec : forall (c1 c2:castop), {c1=c2}+{~c1=c2}.
+Proof.
+  decide equality.
+Qed.
+
+Lemma cond_dec : forall (c1 c2:cond), {c1=c2}+{~c1=c2}.
+Proof.
+  decide equality.
+Qed.
+
+Lemma fcond_dec : forall (c1 c2:fcond), {c1=c2}+{~c1=c2}.
+Proof.
+  decide equality.
+Qed.
+
+Lemma truncop_dec : forall (t1 t2:truncop), {t1=t2}+{~t1=t2}.
+Proof.
+  decide equality.
+Qed.
+
 Definition const_dec_prop (c1:const) := forall c2, {c1=c2} + {~c1=c2}.
 Definition list_const_dec_prop (lc1:list_const) := forall lc2, {lc1=lc2} + {~lc1=lc2}.
 
@@ -1911,12 +1976,70 @@ Proof.
   destruct (@Size.dec s s0); try solve [subst; auto | done_right].
 
   destruct c2; try solve [done_right].
+  destruct (@FLOAT.dec f0 f2); try solve [done_right].
+  destruct (@floating_point_dec f f1); try solve [subst; auto | done_right].
+
+  destruct c2; try solve [done_right].
   destruct (@typ_dec t t0); subst; try solve [done_right].
   destruct (@H l1); subst; try solve [subst; auto | done_right].
 
   destruct c2; try solve [done_right].
   destruct (@typ_dec t t0); subst; try solve [done_right].
   destruct (@id_dec i0 i1); try solve [subst; auto | done_right].
+
+  destruct c2; try solve [done_right].
+  destruct (@truncop_dec t t1); subst; try solve [done_right].
+  destruct (@typ_dec t0 t2); subst; try solve [done_right].
+  destruct (@H c2); subst; try solve [subst; auto | done_right].
+
+  destruct c2; try solve [done_right].
+  destruct (@extop_dec e e0); subst; try solve [done_right].
+  destruct (@typ_dec t t0); subst; try solve [done_right].
+  destruct (@H c2); subst; try solve [subst; auto | done_right].
+
+  destruct c2; try solve [done_right].
+  destruct (@castop_dec c c1); subst; try solve [done_right].
+  destruct (@typ_dec t t0); subst; try solve [done_right].
+  destruct (@H c2); subst; try solve [subst; auto | done_right].
+
+  destruct c2; try solve [done_right].
+  destruct (@inbounds_dec i0 i1); subst; try solve [done_right].
+  destruct (@H c2); subst; try solve [done_right].
+  destruct (@H0 l1); subst; try solve [subst; auto | done_right].
+
+  destruct c2; try solve [done_right].
+  destruct (@H c2_1); subst; try solve [done_right].
+  destruct (@H0 c2_2); subst; try solve [done_right].
+  destruct (@H1 c2_3); subst; try solve [subst; auto | done_right].
+
+  destruct c2; try solve [done_right].
+  destruct (@cond_dec c c2); subst; try solve [done_right].
+  destruct (@H c2_1); subst; try solve [done_right].
+  destruct (@H0 c2_2); subst; try solve [subst; auto | done_right].
+
+  destruct c2; try solve [done_right].
+  destruct (@fcond_dec f f0); subst; try solve [done_right].
+  destruct (@H c2_1); subst; try solve [done_right].
+  destruct (@H0 c2_2); subst; try solve [subst; auto | done_right].
+
+  destruct c2; try solve [done_right].
+  destruct (@H c2); subst; try solve [done_right].
+  destruct (@H0 l1); subst; try solve [subst; auto | done_right].
+
+  destruct c2; try solve [done_right].
+  destruct (@H c2_1); subst; try solve [done_right].
+  destruct (@H0 c2_2); subst; try solve [done_right].
+  destruct (@H1 l1); subst; try solve [subst; auto | done_right].
+
+  destruct c2; try solve [done_right].
+  destruct (@bop_dec b b0); subst; try solve [done_right].
+  destruct (@H c2_1); subst; try solve [done_right].
+  destruct (@H0 c2_2); subst; try solve [subst; auto | done_right].
+
+  destruct c2; try solve [done_right].
+  destruct (@fbop_dec f f0); subst; try solve [done_right].
+  destruct (@H c2_1); subst; try solve [done_right].
+  destruct (@H0 c2_2); subst; try solve [subst; auto | done_right].
 
   destruct lc2; try solve [auto | done_right].
 
@@ -1966,26 +2089,6 @@ Proof.
     destruct (@value_dec v v0); subst; try solve [auto | done_right].
 Qed.
 
-Lemma bop_dec : forall (b1 b2:bop), {b1=b2}+{~b1=b2}.
-Proof.
-  decide equality.
-Qed.
-
-Lemma extop_dec : forall (e1 e2:extop), {e1=e2}+{~e1=e2}.
-Proof.
-  decide equality.
-Qed.
-
-Lemma castop_dec : forall (c1 c2:castop), {c1=c2}+{~c1=c2}.
-Proof.
-  decide equality.
-Qed.
-
-Lemma cond_dec : forall (c1 c2:cond), {c1=c2}+{~c1=c2}.
-Proof.
-  decide equality.
-Qed.
-
 Lemma cmd_dec : forall (c1 c2:cmd), {c1=c2}+{~c1=c2}.
 Proof.
   (cmd_cases (destruct c1) Case); destruct c2; try solve [done_right | auto].
@@ -1993,6 +2096,12 @@ Proof.
     destruct (@id_dec i0 i1); subst; try solve [done_right]. 
     destruct (@bop_dec b b0); subst; try solve [done_right].
     destruct (@Size.dec s s0); subst; try solve [done_right].
+    destruct (@value_dec v v1); subst; try solve [done_right].
+    destruct (@value_dec v0 v2); subst; try solve [auto | done_right].
+  Case "insn_fbop".
+    destruct (@id_dec i0 i1); subst; try solve [done_right]. 
+    destruct (@fbop_dec f f1); subst; try solve [done_right].
+    destruct (@floating_point_dec f0 f2); subst; try solve [done_right].
     destruct (@value_dec v v1); subst; try solve [done_right].
     destruct (@value_dec v0 v2); subst; try solve [auto | done_right].
   Case "insn_extractvalue".
@@ -2038,6 +2147,12 @@ Proof.
     destruct (@typ_dec t t0); subst; try solve [done_right].
     destruct (@value_dec v v0); try solve [auto | done_right].
     destruct (@list_value_dec l0 l1); subst; try solve [auto | done_right].
+  Case "insn_trunc".
+    destruct (@id_dec i0 i1); subst; try solve [done_right]. 
+    destruct (@truncop_dec t t2); subst; try solve [done_right].
+    destruct (@typ_dec t0 t3); subst; try solve [done_right].
+    destruct (@value_dec v v0); subst; try solve [done_right].
+    destruct (@typ_dec t1 t4); subst; try solve [auto | done_right].
   Case "insn_ext".
     destruct (@id_dec i0 i1); subst; try solve [done_right]. 
     destruct (@extop_dec e e0); subst; try solve [done_right].
@@ -2054,6 +2169,12 @@ Proof.
     destruct (@id_dec i0 i1); subst; try solve [done_right]. 
     destruct (@cond_dec c c0); subst; try solve [done_right].
     destruct (@typ_dec t t0); subst; try solve [done_right].
+    destruct (@value_dec v v1); subst; try solve [done_right].
+    destruct (@value_dec v0 v2); subst; try solve [auto | done_right].
+  Case "insn_fcmp".
+    destruct (@id_dec i0 i1); subst; try solve [done_right]. 
+    destruct (@fcond_dec f f1); subst; try solve [done_right].
+    destruct (@floating_point_dec f0 f2); subst; try solve [done_right].
     destruct (@value_dec v v1); subst; try solve [done_right].
     destruct (@value_dec v0 v2); subst; try solve [auto | done_right].
   Case "insn_select".
@@ -2185,10 +2306,16 @@ Proof.
     destruct (@blocks_dec b b0); subst; try solve [auto | done_right].
 Qed.  
 
+Lemma gvar_spec_dec : forall (g1 g2:gvar_spec), {g1=g2}+{~g1=g2}.
+Proof.
+  decide equality.
+Qed.
+
 Lemma gvar_dec : forall (g1 g2:gvar), {g1=g2}+{~g1=g2}.
 Proof.
   destruct g1; destruct g2; try solve [subst; auto | done_right].
     destruct (@id_dec i0 i1); subst; try solve [done_right].
+    destruct (@gvar_spec_dec g g0); subst; try solve [done_right].
     destruct (@typ_dec t t0); subst; try solve [done_right].
     destruct (@const_dec c c0); subst; try solve [done_right].
     destruct (@Align.dec a a0); subst; try solve [auto | done_right].
@@ -2215,6 +2342,10 @@ Qed.
 Lemma layout_dec : forall (l1 l2:layout), {l1=l2}+{~l1=l2}.
 Proof.
   destruct l1; destruct l2; try solve [subst; auto | done_right].
+    destruct (@Size.dec s s0); subst; try solve [done_right].
+    destruct (@Align.dec a a1); subst; try solve [done_right].
+    destruct (@Align.dec a0 a2); subst; try solve [auto | done_right].
+
     destruct (@Size.dec s s0); subst; try solve [done_right].
     destruct (@Align.dec a a1); subst; try solve [done_right].
     destruct (@Align.dec a0 a2); subst; try solve [auto | done_right].
@@ -2738,7 +2869,7 @@ End SigUser.
 Module Type SigConstant.
  Include SigValue.
 
- Parameter getTyp : const -> typ.
+ Parameter getTyp : const -> option typ.
 
 End SigConstant.
 
@@ -2871,23 +3002,53 @@ End User.
 Module Constant <: SigConstant.
  Include Value.
 
-Fixpoint getTyp (c:const) : typ :=
+Fixpoint getTyp (c:const) : option typ :=
  match c with
- | const_int sz _ => typ_int sz
- | const_undef t => t
- | const_null t => typ_pointer t
+ | const_zeroinitializer t => Some t
+ | const_int sz _ => Some (typ_int sz)
+ | const_floatpoint fp _ => Some (typ_floatpoint fp)
+ | const_undef t => Some t
+ | const_null t => Some (typ_pointer t)
  | const_arr t lc => 
-   match lc with
+   Some
+   (match lc with
    | Nil_list_const => typ_array Size.Zero t
    | Cons_list_const c' lc' => typ_array (Size.from_nat (length (unmake_list_const lc))) t
+   end)
+ | const_struct lc => 
+   match getList_typ lc with
+   | Some lt => Some (typ_struct lt)
+   | None => None
    end
- | const_struct lc => typ_struct (getList_typ lc)
- | const_gid t _ => typ_pointer t
+ | const_gid t _ => Some (typ_pointer t)
+ | const_truncop _ _ t => Some t
+ | const_extop _ _ t => Some t
+ | const_castop _ _ t => Some t
+ | const_gep _ c idxs => 
+   match (getTyp c) with
+   | Some (typ_pointer t) => getConstGEPTyp idxs t
+   | _ => None
+   end
+ | const_select c0 c1 c2 => getTyp c1
+ | const_icmp c c1 c2 => Some (typ_int Size.One)
+ | const_fcmp fc c1 c2 => Some (typ_int Size.One)
+ | const_extractvalue c idxs =>
+   match (getTyp c) with
+   | Some t => getSubTypFromConstIdxs idxs t
+   | _ => None
+   end
+ | const_insertvalue c c' lc => getTyp c'
+ | const_bop _ c1 c2 => getTyp c1
+ | const_fbop _ c1 c2 => getTyp c1
  end
-with getList_typ (cs:list_const) : list_typ :=
+with getList_typ (cs:list_const) : option list_typ :=
 match cs with
-| Nil_list_const => Nil_list_typ
-| Cons_list_const c cs' => Cons_list_typ (getTyp c) (getList_typ cs')
+| Nil_list_const => Some Nil_list_typ
+| Cons_list_const c cs' => 
+  match (getTyp c, getList_typ cs') with
+  | (Some t, Some ts') => Some (Cons_list_typ t ts')
+  | (_, _) => None
+  end
 end.
 
 End Constant.
@@ -3010,7 +3171,7 @@ Module BinaryOperator <: SigBinaryOperator.
  | insn_bop _ _ _ v1 _ => 
    match v1 with
    | value_id id1 => lookupTypViaIDFromSystem s id1
-   | value_const c => Some (Constant.getTyp c)
+   | value_const c => Constant.getTyp c
    end
  | _ => None
  end.
@@ -3020,7 +3181,7 @@ Module BinaryOperator <: SigBinaryOperator.
  | insn_bop _ _ _ _ v2 => 
    match v2 with
    | value_id id2 => lookupTypViaIDFromSystem s id2
-   | value_const c => Some (Constant.getTyp c)
+   | value_const c => Constant.getTyp c
    end
  | _ => None
  end.
@@ -3042,7 +3203,7 @@ Module PHINode <: SigPHINode.
  | (insn_phi _ _ ln) => 
     match (nth_list_value_l n ln) with
     | Some (value_id id, _) => lookupTypViaIDFromSystem s id
-    | Some (value_const c, _) => Some (Constant.getTyp c)
+    | Some (value_const c, _) => Constant.getTyp c
     | None => None
     end
  end.

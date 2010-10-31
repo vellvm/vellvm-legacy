@@ -5,8 +5,11 @@ open Printf
 
 let coqtype_2_llvmtype (t:LLVMsyntax.typ) : Llvm.lltype = Coq2llvm.translate_typ (Llvm.global_context()) t
 let coqbop_2_llvmopcode (op:LLVMsyntax.bop) : Llvm.InstrOpcode.t = Coq2llvm.translate_bop op
+let coqfbop_2_llvmopcode (op:LLVMsyntax.fbop) : Llvm.InstrOpcode.t = Coq2llvm.translate_fbop op
 let coqtd_2_llvmtd (td:layouts) = Coq2llvm.translate_layouts td
 let coqcond_2_llvmicmp (c:cond) : Llvm.Icmp.t = Coq2llvm.translate_icond c
+let coqcond_2_llvmfcmp (c:fcond) : Llvm.Fcmp.t = Coq2llvm.translate_fcond c
+let getRealName = Coq_pretty_printer.getRealName
 
 let debug = false
 
@@ -44,7 +47,8 @@ module TargetData = struct
   let getTypeStoreSizeInBits x = failwith "undef"
   let getStructSizeInBytes x = failwith "undef"
   let getStructSizeInBits x = failwith "undef"
-  let getStructAlignment x = failwith "undef"					
+  let getStructAlignment x = failwith "undef"
+	let getFloatAlignmentInfo x = failwith "undef"					
 		
 end	
 
@@ -61,7 +65,10 @@ module GenericValue = struct
   let gv2ptr x y z = failwith "gv2ptr undef"
   let val2gv x y z = failwith "val2gv undef"
   let ptr2gv x y = failwith "val2gv undef"
-  let _const2GV x y z = failwith "_const2GV undef"
+  let _zeroconst2GV x y = failwith "_zeroconst2GV undef"
+	let _list_typ_zerostruct2GV x y = failwith "_list_typ_zerostruct2GV undef"
+	let repeatGV x y = failwith "repeatGV undef"
+	let _const2GV x y z = failwith "_const2GV undef"
   let _list_const_arr2GV x y z = failwith "_list_const_arr2GV undef" 
   let _list_const_struct2GV x y z = failwith "_list_const_struct2GV undef" 
 
@@ -69,19 +76,136 @@ module GenericValue = struct
   let blk2gv (td:TargetData.t) (v:t) = v
 
   let isZero (td:TargetData.t) (v:t) = GenericValue.as_int v == 0
+	
+	let rec list_llvalue2list_int (vs:Llvm.llvalue list) : (int list) option =
+	match vs with
+	| [] -> Some []
+	| v::vs' ->		
+		if Llvm.is_constantint v
+		then
+			let i = Int64.to_int (Llvm.APInt.get_sext_value (Llvm.APInt.const_int_get_value v)) in
+			match list_llvalue2list_int vs' with
+		  | None -> None
+			| Some is -> Some (i::is)
+		else None 
 
-  let const2GV (td:TargetData.t) gl (c:const) : t option = 
+  let rec const2llvalue (td:TargetData.t) gl (c:const) : Llvm.llvalue option = 
     let ctx = Llvm.global_context() in
-    let (ee, _) = td in
-    let ltd = ExecutionEngine.target_data ee in
+    let (ee, mm) = td in
     match c with
-    | Coq_const_int (sz, i) -> Some (GenericValue.of_constant ltd (Coq2llvm.translate_constant ctx c))
-    | Coq_const_undef t -> Some (GenericValue.of_constant ltd (Coq2llvm.translate_constant ctx c)) 
-    | Coq_const_null t -> Some (GenericValue.of_constant ltd (Coq2llvm.translate_constant ctx c)) 
-    | Coq_const_arr (t, cs) -> Some (GenericValue.of_constant ltd (Coq2llvm.translate_constant ctx c))  
-    | Coq_const_struct cs -> Some (GenericValue.of_constant ltd (Coq2llvm.translate_constant ctx c))
-    | Coq_const_gid (_,id) -> Assoclist.lookupAL gl id
+    | Coq_const_zeroinitializer _ -> Some (Coq2llvm.translate_constant ctx c)
+  	| Coq_const_int (sz, i) -> Some (Coq2llvm.translate_constant ctx c)
+    | Coq_const_floatpoint (_, _) -> Some (Coq2llvm.translate_constant ctx c)
+  	| Coq_const_undef t -> Some (Coq2llvm.translate_constant ctx c) 
+    | Coq_const_null t -> Some (Coq2llvm.translate_constant ctx c) 
+    | Coq_const_arr (t, cs) -> Some (Coq2llvm.translate_constant ctx c)  
+    | Coq_const_struct cs -> Some (Coq2llvm.translate_constant ctx c)
+    | Coq_const_gid (_,id) -> Llvm.lookup_global (getRealName id) mm
+  	| Coq_const_truncop (op, c, t) -> 
+			(match (const2llvalue td gl c) with
+			| Some v -> 
+				Some (match op with
+			  | Coq_truncop_int -> Llvm.const_trunc v (Coq2llvm.translate_typ ctx t)
+				| Coq_truncop_fp -> Llvm.const_fptrunc v (Coq2llvm.translate_typ ctx t))
+			| None -> None)
+  	| Coq_const_extop (op, c, t) ->   
+			(match (const2llvalue td gl c) with
+			| Some v -> 
+			  Some (match op with
+			  | Coq_extop_z -> Llvm.const_zext v (Coq2llvm.translate_typ ctx t)
+			  | Coq_extop_s -> Llvm.const_sext v (Coq2llvm.translate_typ ctx t)
+			  | Coq_extop_fp -> Llvm.const_fpext v (Coq2llvm.translate_typ ctx t))
+			| None -> None)
+	  | Coq_const_castop (op, c, t) -> 
+			(match (const2llvalue td gl c) with
+			| Some v -> 
+			  Some (match op with
+    	  | LLVMsyntax.Coq_castop_fptoui -> Llvm.const_fptoui v (Coq2llvm.translate_typ ctx t)			
+	      | LLVMsyntax.Coq_castop_fptosi -> Llvm.const_fptosi v (Coq2llvm.translate_typ ctx t) 	 
+	      | LLVMsyntax.Coq_castop_uitofp -> Llvm.const_uitofp v (Coq2llvm.translate_typ ctx t) 
+	      | LLVMsyntax.Coq_castop_sitofp -> Llvm.const_sitofp v (Coq2llvm.translate_typ ctx t) 
+        | LLVMsyntax.Coq_castop_ptrtoint -> Llvm.const_ptrtoint v (Coq2llvm.translate_typ ctx t) 
+	      | LLVMsyntax.Coq_castop_inttoptr -> Llvm.const_inttoptr v (Coq2llvm.translate_typ ctx t) 
+	      | LLVMsyntax.Coq_castop_bitcast -> Llvm.const_bitcast v (Coq2llvm.translate_typ ctx t))
+			| None -> None)
+    | Coq_const_gep (ib, c, cs) -> 
+			(match const2llvalue td gl c, list_const2list_llvalue td gl cs with
+			| Some v, Some vs -> 
+			  Some (match ib with
+			  | true -> Llvm.const_in_bounds_gep v (Array.of_list vs)
+			  | false -> Llvm.const_gep v (Array.of_list vs))
+			| _, _ -> None)
+    |	Coq_const_select (c0, c1, c2) -> 
+			(match const2llvalue td gl c0, const2llvalue td gl c1, const2llvalue td gl c2 with
+			| Some v0, Some v1, Some v2 ->
+				Some (Llvm.const_select v0 v1 v2)
+			| _, _, _ -> None) 
+    |	Coq_const_icmp (cond, c1, c2) -> 
+			(match const2llvalue td gl c1, const2llvalue td gl c2 with
+			| Some v1, Some v2 ->
+  			Some (Llvm.const_icmp (coqcond_2_llvmicmp cond) v1 v2)
+			| _, _ -> None)
+    |	Coq_const_fcmp (cond, c1, c2) -> 
+			(match const2llvalue td gl c1, const2llvalue td gl c2 with
+			| Some v1, Some v2 ->
+  		  Some (Llvm.const_fcmp (coqcond_2_llvmfcmp cond) v1 v2)
+			| _, _ -> None)
+    | Coq_const_extractvalue (c, cs) -> 
+			(match const2llvalue td gl c, list_const2list_llvalue td gl cs with
+			| Some v, Some vs -> 
+				(match list_llvalue2list_int vs with
+				| Some is -> Some (Llvm.const_extractvalue v (Array.of_list is))
+				| None -> None)
+			| _, _ -> None)
+    | Coq_const_insertvalue (c1, c2, cs) -> 
+			(match const2llvalue td gl c1, const2llvalue td gl c2, list_const2list_llvalue td gl cs with
+			| Some v1, Some v2, Some vs -> 
+			  (match list_llvalue2list_int vs with
+				| Some is -> Some (Llvm.const_insertvalue v1 v2 (Array.of_list is))
+				| None -> None)
+			| _, _, _ -> None)
+    | Coq_const_bop (op, c1, c2) ->	
+			(match const2llvalue td gl c1, const2llvalue td gl c2 with
+			| Some v1, Some v2 -> 
+			  Some (match op with 
+			  | LLVMsyntax.Coq_bop_add -> Llvm.const_add v1 v2 			
+	      | LLVMsyntax.Coq_bop_sub -> Llvm.const_sub v1 v2
+	      | LLVMsyntax.Coq_bop_mul -> Llvm.const_mul v1 v2
+	      | LLVMsyntax.Coq_bop_udiv -> Llvm.const_udiv v1 v2
+	      | LLVMsyntax.Coq_bop_sdiv -> Llvm.const_sdiv v1 v2
+	      | LLVMsyntax.Coq_bop_urem -> Llvm.const_urem v1 v2
+	      | LLVMsyntax.Coq_bop_srem -> Llvm.const_srem v1 v2
+	      | LLVMsyntax.Coq_bop_shl -> Llvm.const_shl v1 v2
+	      | LLVMsyntax.Coq_bop_lshr -> Llvm.const_lshr v1 v2
+	      | LLVMsyntax.Coq_bop_ashr -> Llvm.const_ashr v1 v2
+	      | LLVMsyntax.Coq_bop_and -> Llvm.const_and v1 v2
+	      | LLVMsyntax.Coq_bop_or -> Llvm.const_or v1 v2
+	      | LLVMsyntax.Coq_bop_xor -> Llvm.const_xor v1 v2)
+			| _, _ -> None)
+    | Coq_const_fbop (op, c1, c2) ->	
+			(match const2llvalue td gl c1, const2llvalue td gl c2 with
+			| Some v1, Some v2 -> 
+			  Some (match op with 
+			  | LLVMsyntax.Coq_fbop_fadd -> Llvm.const_fadd v1 v2			
+	      | LLVMsyntax.Coq_fbop_fsub -> Llvm.const_fsub v1 v2
+	      | LLVMsyntax.Coq_fbop_fmul -> Llvm.const_fmul v1 v2
+	      | LLVMsyntax.Coq_fbop_fdiv -> Llvm.const_fdiv v1 v2
+	      | LLVMsyntax.Coq_fbop_frem -> Llvm.const_frem v1 v2)
+			| _, _ -> None)
+  and list_const2list_llvalue (td:TargetData.t) gl (cs:list_const) : (Llvm.llvalue list) option =
+	  match cs with
+    | LLVMsyntax.Cons_list_const (c, cs') -> 
+	  	(match const2llvalue td gl c, list_const2list_llvalue td gl cs' with
+	  	| Some gv, Some gvs -> Some (gv::gvs)
+	  	| _, _ -> None)
+	  | LLVMsyntax.Nil_list_const -> Some []
 
+  let const2GV (td:TargetData.t) gl (c:const) : t option =
+    let (ee, _) = td in
+    match const2llvalue td gl c with
+  	| Some v -> Some (ExecutionEngine.get_constant_value v ee)
+	  | None -> None
+			
   let mgep (td:TargetData.t) (t1:LLVMsyntax.typ) (ma:t) (vidxs:t list) (inbounds:bool) : t option =
     let (ee, _) = td in
     let ltd = ExecutionEngine.target_data ee in
@@ -98,11 +222,21 @@ module GenericValue = struct
   let mbop (td:TargetData.t) (op:LLVMsyntax.bop) (bsz:LLVMsyntax.sz) (gv1:t) (gv2:t) = 
     let gv = (GenericValue.binary_op gv1 gv2 (Llvm.integer_type (Llvm.global_context()) bsz) (coqbop_2_llvmopcode op)) in
     (if debug then
-		  eprintf "  Mbop s=%d gv1=%s gv2=%s r=%s\n" bsz 
+		  eprintf "  M%s i%d gv1=%s gv2=%s r=%s\n" (Coq_pretty_printer.string_of_bop op) bsz 
 		  (GenericValue.to_string gv1) (GenericValue.to_string gv2) (GenericValue.to_string gv);flush_all());
 		Some gv
 
-  let mcast (td:TargetData.t) (op:LLVMsyntax.castop) (t1:LLVMsyntax.typ) (gv1:t) (t2:LLVMsyntax.typ) =
+  let mfbop (td:TargetData.t) (op:LLVMsyntax.fbop) (fp:LLVMsyntax.floating_point) (gv1:t) (gv2:t) = 
+    let gv = (GenericValue.binary_op gv1 gv2 
+		            (Coq2llvm.translate_floating_point (Llvm.global_context()) fp) 
+								(coqfbop_2_llvmopcode op)) in
+    (if debug then
+		  eprintf "  M%s %s gv1=%s gv2=%s r=%s\n"
+			(Coq_pretty_printer.string_of_fbop op) (Coq_pretty_printer.string_of_floating_point fp)
+		  (GenericValue.to_string gv1) (GenericValue.to_string gv2) (GenericValue.to_string gv);flush_all());
+		Some gv
+
+	let mcast (td:TargetData.t) (op:LLVMsyntax.castop) (t1:LLVMsyntax.typ) (gv1:t) (t2:LLVMsyntax.typ) =
     let gv =
     (match op with
     | Coq_castop_fptoui -> GenericValue.fptoui gv1 (coqtype_2_llvmtype t1) (coqtype_2_llvmtype t2)
@@ -119,18 +253,33 @@ module GenericValue = struct
                               (coqtype_2_llvmtype t2)
     ) in
 		(if debug then
-      eprintf "  Mcast gv1=%s r=%s\n"
+      eprintf "  M%s gv1=%s t1=%s t2=%s r=%s\n" (Coq_pretty_printer.string_of_castop op)
+			(Coq_pretty_printer.string_of_typ t1) (Coq_pretty_printer.string_of_typ t2)
 		  (GenericValue.to_string gv1) (GenericValue.to_string gv);flush_all());
 	  Some gv
 
-  let mext (td:TargetData.t) (op:extop) (t1:typ) (gv1:t) (t2:typ) =
+  let mtrunc (td:TargetData.t) (op:truncop) (t1:typ) (gv1:t) (t2:typ) =
+    let gv =
+    (match op with
+    | Coq_truncop_int -> GenericValue.trunc gv1 (coqtype_2_llvmtype t2) 
+    | Coq_truncop_fp -> GenericValue.fptrunc gv1 (coqtype_2_llvmtype t1) (Llvm.global_context()) (coqtype_2_llvmtype t2)
+    ) in
+		(if debug then
+      eprintf "  M%s gv1=%s t1=%s t2=%s r=%s\n" (Coq_pretty_printer.string_of_truncop op)
+			(Coq_pretty_printer.string_of_typ t1) (Coq_pretty_printer.string_of_typ t2)
+		  (GenericValue.to_string gv1) (GenericValue.to_string gv);flush_all());
+	  Some gv
+
+	  let mext (td:TargetData.t) (op:extop) (t1:typ) (gv1:t) (t2:typ) =
     let gv =
     (match op with
     | Coq_extop_z -> GenericValue.zext gv1 (coqtype_2_llvmtype t2)
     | Coq_extop_s -> GenericValue.sext gv1 (coqtype_2_llvmtype t2)
+		| Coq_extop_fp -> GenericValue.fpext gv1 (coqtype_2_llvmtype t1) (Llvm.global_context()) (coqtype_2_llvmtype t2)
     ) in
 		(if debug then
-      eprintf "  Mext gv1=%s r=%s\n"
+      eprintf "  M%s gv1=%s t1=%s t2=%s r=%s\n" (Coq_pretty_printer.string_of_extop op)
+			(Coq_pretty_printer.string_of_typ t1) (Coq_pretty_printer.string_of_typ t2)
 		  (GenericValue.to_string gv1) (GenericValue.to_string gv);flush_all());
 	  Some gv
 
@@ -141,7 +290,16 @@ module GenericValue = struct
 		  (GenericValue.to_string gv1) (GenericValue.to_string gv2) (GenericValue.to_string gv);flush_all());
 		Some gv
 
-  let dump (gv:t) = GenericValue.dump gv
+  let mfcmp (td:TargetData.t) (c:fcond) (fp:LLVMsyntax.floating_point) (gv1:t) (gv2:t) =
+    let gv = GenericValue.fcmp gv1 gv2 
+		           (Coq2llvm.translate_floating_point (Llvm.global_context()) fp) 
+							 (coqcond_2_llvmfcmp c) in
+		(if debug then 
+      eprintf "  Mfcmp t=%s gv1=%s gv2=%s r=%s\n" (Coq_pretty_printer.string_of_floating_point fp)
+		  (GenericValue.to_string gv1) (GenericValue.to_string gv2) (GenericValue.to_string gv);flush_all());
+		Some gv
+
+	  let dump (gv:t) = GenericValue.dump gv
 	let to_string (gv:t) = GenericValue.to_string gv
 
 end
@@ -184,14 +342,6 @@ module Mem = struct
     let _ = ExecutionEngine.store_value_to_memory gv ptr (coqtype_2_llvmtype t) ee in
     Some m
 		
-	let getRealName (id:LLVMsyntax.id) =
-	  if String.length id <= 1
-	  then id
-	  else 
-	  	if String.get id 0 = '@' or String.get id 0 = '%'
-  		then String.sub id 1 (String.length id-1)
-  		else id
-
   let initGlobal (td:TargetData.t) gl m (id0:LLVMsyntax.id) 
                  (t:LLVMsyntax.typ)(c:LLVMsyntax.const)(align0:LLVMsyntax.align) =
     let (ee, mm) = m in

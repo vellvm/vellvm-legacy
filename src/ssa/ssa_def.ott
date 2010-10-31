@@ -9,6 +9,7 @@ Require Import monad.
 Require Import Metatheory.
 Require Import ZArith.
 Require Import Coqlib.
+Require Import Floats.
 
 Module LLVMsyntax.
 
@@ -133,10 +134,20 @@ Definition lt (a b:t) : Prop := (a < b)%Z.
 
 End INTEGER.
 
+Module FLOAT.
+
+Definition t := float.
+Definition dec : forall x y : t, {x=y} + {x<>y} := Float.eq_dec.
+(* Definition Zero : t := Float.zero. *)
+
+End FLOAT.
+
 }}
 
 metavar INT ::= {{ com INT }}
   {{ coq INTEGER.t }} {{ lex numeral }}
+metavar Float ::= {{ com FLOAT }}
+  {{ coq FLOAT.t }} {{ lex numeral }}
 metavar sz ::= {{ com sz }}
   {{ coq Size.t }} {{ lex numeral }}
 metavar id ::= {{ com identities }}
@@ -175,6 +186,7 @@ layout :: 'layout_'					::=  			{{ com data layout }}
   | littleendian					::   :: le	 	{{ com littleendian }}
   | ptr sz align0 align1				::   :: ptr		{{ com ptr }}
   | int sz align0 align1				::   :: int		{{ com int }}
+  | float sz align0 align1				::   :: float		{{ com float }}
   | aggr sz align0 align1			     	::   :: aggr		{{ com aggregate }}
   | stack sz align0 align1				::   :: stack		{{ com stack }}
 
@@ -185,11 +197,17 @@ layouts {{ tex \mathit{\overline{layout} } }} :: 'layouts_'	::=  		{{ com layout
   | layouts ; layouts'					::   :: append		{{ coq ([[lists]]++[[lists']]) }}
   | ( layouts )						:: S :: paren           {{ coq [[ lists ]] }}
 
-typ :: 'typ_'						::=			{{ com type }}
-  | int sz                    				::   :: int         	{{ com integer }}
+floating_point :: 'fp_'					::=  			{{ com floating point types }}
   | float						::   :: float		{{ com float }}
   | double						::   :: double          {{ com double }}
-  %| fp128						::   :: fp128           {{ com fp128 }}
+  | fp128						::   :: fp128           {{ com fp128 }} 
+  | x86_fp80						::   :: x86_fp80	{{ com x86fp80 }}
+  | ppc_fp128						::   :: ppc_fp128     	{{ com ppcfp128 }}       
+  | ( floating_point )					:: S :: paren           {{ coq [[ floating_point ]] }}
+
+typ :: 'typ_'						::=			{{ com type }}
+  | int sz                    				::   :: int         	{{ com integer }}
+  | floating_point					::   :: floatpoint	{{ com floating point types }}
   | void                      				::   :: void        	{{ com void }}
   | label                                               ::   :: label           {{ com label }}
   | metadata                                            ::   :: metadata        {{ com metadata }}
@@ -199,8 +217,6 @@ typ :: 'typ_'						::=			{{ com type }}
   | typ *                     				::   :: pointer     	{{ com pointer }}
   %| < sz * typ >             				::   :: vector       	{{ com vector }}
   %| opaque  						::   :: opaque          {{ com opaque }}
-  % x86_fp80
-  % ppc_fp128
   % union
   | ( typ )						:: S :: paren           {{ coq [[ typ ]] }}
 
@@ -208,16 +224,112 @@ opt_typ {{ tex \mathit{opt_{typ} } }} :: 'opt_typ_'	::=			{{ com option typ }} {
   |  none 						:: M :: none		{{ com none }} {{ coq None }}
   |  typ						:: M :: some  		{{ com some }} {{ coq (Some [[typ]]) }}
 
+cond :: 'cond_'						::=			{{ com condition code }}
+  | eq							::   :: eq		{{ com eq }}
+  | ne							::   :: ne		{{ com ne }}
+  | ugt							::   :: ugt		{{ com ugt }}
+  | uge							::   :: uge		{{ com uge }}
+  | ult							::   :: ult		{{ com ult }}
+  | ule							::   :: ule		{{ com ule }}
+  | sgt							::   :: sgt		{{ com sgt }}
+  | sge							::   :: sge		{{ com sge }}
+  | slt							::   :: slt		{{ com slt }}
+  | sle							::   :: sle		{{ com sle }}
+
+fcond :: 'fcond_'					::=  			{{ com float condition code }}
+  | false						::   :: false 		{{ com false }}
+  | oeq							::   :: oeq		{{ com oeq }}
+  | ogt							::   :: ogt		{{ com ogt }}
+  | oge							::   :: oge		{{ com oge }}
+  | olt							::   :: olt		{{ com olt }}
+  | ole							::   :: ole		{{ com ole }}
+  | one							::   :: one		{{ com one }}
+  | ord							::   :: ord		{{ com ord }}
+  | fueq						::   :: ueq		{{ com ueq }}
+  | fugt						::   :: ugt		{{ com ugt }}
+  | fuge						::   :: uge		{{ com uge }}
+  | fult						::   :: ult		{{ com ult }}
+  | fule						::   :: ule		{{ com ule }}
+  | fune						::   :: une		{{ com une }}
+  | funo						::   :: uno		{{ com uno }}
+  | true						::   :: true		{{ com true }}
+
+bop :: 'bop_'						::=  			{{ com binary operators }}
+  | add							::   :: add             {{ com add }}
+  | sub							::   :: sub		{{ com sub }}
+  | mul							::   :: mul		{{ com mul }}
+  | udiv						::   :: udiv		{{ com udiv }}
+  | sdiv						::   :: sdiv 		{{ com sdiv }}
+  | urem						::   :: urem		{{ com urem }}
+  | srem						::   :: srem		{{ com srem }}
+  | shl							::   :: shl		{{ com shl  }}
+  | lshr						::   :: lshr            {{ com lshr }}
+  | ashr						::   :: ashr		{{ com ashr }}
+  | and							::   :: and             {{ com and }}
+  | or							::   :: or              {{ com or }}
+  | xor							::   :: xor		{{ com xor }}
+
+fbop :: 'fbop_'						::=  			{{ com floating point binops }}
+  | fadd						::   :: fadd		{{ com fadd }}
+  | fsub						::   :: fsub		{{ com fsub }}
+  | fmul						::   :: fmul		{{ com fmul }}
+  | fdiv						::   :: fdiv 		{{ com fdiv }}
+  | frem						::   :: frem		{{ com frem }}
+
+extop :: 'extop_'					::=  			{{ com ext operators }}
+  | zext						::   :: z               {{ com zext }}
+  | sext						::   :: s               {{ com sext }}
+  | fpext						::   :: fp		{{ com fpext }}
+
+castop :: 'castop_'					::=  			{{ com cast operators }}
+  | fptoui 						::   :: fptoui		{{ com fptoui }}
+  | fptosi 						::   :: fptosi		{{ com fptosi }}
+  | uitofp 						::   :: uitofp		{{ com uitofp }}
+  | sitofp 						::   :: sitofp		{{ com sitofp }}
+  | ptrtoint						::   :: ptrtoint	{{ com ptrtoint }}
+  | inttoptr						::   :: inttoptr	{{ com inttoptr }}
+  | bitcast 						::   :: bitcast		{{ com bitcast }}
+
+inbounds :: 'inbounds_'					::=  			{{ com inbounds }} {{ coq bool }}
+  | inbounds_yes					::   :: yes		{{ com yes }} {{ coq true }}
+  | inbounds_no						::   :: no              {{ com no }} {{ coq false }}
+
+tailc :: 'tailc_'					::=  			{{ com tailcall }} {{ coq bool }}
+  | tailc_yes						::   :: yes		{{ com yes }} {{ coq true }}
+  | tailc_no						::   :: no              {{ com no }} {{ coq false }}
+
+noret :: 'noret_'					::=  			{{ com noret }} {{ coq bool }}
+  | noret_yes						::   :: yes		{{ com yes }} {{ coq true }}
+  | noret_no						::   :: no              {{ com no }} {{ coq false }}
+
+truncop :: 'truncop_'					::=  			{{ com trunc operators }}
+  | trunc_int						::   :: int		{{ com trunc }}
+  | trunc_fp						::   :: fp		{{ com fptrunc }}
+
 const :: 'const_'					::=  			{{ com constant }}
+  | typ zeroinitializer					::   :: zeroinitializer {{ com zeroinitializer }}
   | ( int sz ) INT					::   :: int		{{ com int }}	
+  | floating_point Float				::   :: floatpoint	{{ com floatpoint }}
   | typ undef						::   :: undef		{{ com undef }}
   | ( typ * ) null					::   :: null		{{ com null }}
   | typ [ </ constj // j /> ]				::   :: arr             {{ com array }}
   | { </ constj // j /> }				::   :: struct          {{ com struct }}
   | typ * id						::   :: gid		{{ com gid }}
+  | truncop const to typ				::   :: truncop		{{ com truncop }}
+  | extop const to typ 					::   :: extop		{{ com extop }}
+  | castop const to typ					::   :: castop		{{ com castop }}
+  | getelementptr inbounds const </ constj // j />	::   :: gep		{{ com gep }}
+  | select const0 const1 const2	    	      		::   :: select		{{ com select }}
+  | icmp cond const1 const2				::   :: icmp		{{ com icmp }}     
+  | fcmp fcond const1 const2				::   :: fcmp		{{ com fcmp }}
+  | extractvalue const </ constj // j />		::   :: extractvalue	{{ com extractvalue }}
+  | insertvalue const const' </ constj // j />		::   :: insertvalue	{{ com extractvalue }}
+  | bop const1 const2 	     	       	    		::   :: bop		{{ com bop }}
+  | fbop const1 const2 	     	       	    		::   :: fbop		{{ com fbop }}
   | ( const )						:: S :: paren           {{ coq [[ const ]] }}
 
 value :: 'value_'					::=  			{{ com values }}
+      	 									{{ coq-universe Type }} 
   | id	 						::   :: id		{{ com id }}
   | const						::   :: const   	{{ com constant }}
   | ( value )						:: S :: paren           {{ coq [[ value ]] }}
@@ -254,52 +366,10 @@ ls {{ tex \mathit{\{l\} } }} :: 'ls_'			::=			{{ com label set }}
   | ls ; ls'						::   :: append		{{ coq (set_union eq_dec [[ls]] [[ls']]) }}
   | ( ls )						:: S :: paren		{{ coq [[ ls ]] }}
 
-cond :: 'cond_'						::=			{{ com condition code }}
-  | eq							::   :: eq		{{ com eq }}
-  | ne							::   :: ne		{{ com ne }}
-  | ugt							::   :: ugt		{{ com ugt }}
-  | uge							::   :: uge		{{ com uge }}
-  | ult							::   :: ult		{{ com ult }}
-  | ule							::   :: ule		{{ com ule }}
-  | sgt							::   :: sgt		{{ com sgt }}
-  | sge							::   :: sge		{{ com sge }}
-  | slt							::   :: slt		{{ com slt }}
-  | sle							::   :: sle		{{ com sle }}
-
-bop :: 'bop_'						::=  			{{ com binary operators }}
-  | add							::   :: add             {{ com add }}
-  | lshr						::   :: lshr            {{ com lshr }}
-  | and							::   :: and             {{ com and }}
-  | or							::   :: or              {{ com or }}
-
-extop :: 'extop_'					::=  			{{ com ext operators }}
-  | zext						::   :: z               {{ com zext }}
-  | sext						::   :: s               {{ com sext }}
-
-castop :: 'castop_'					::=  			{{ com cast operators }}
-  | fptoui 						::   :: fptoui		{{ com fptoui }}
-  | fptosi 						::   :: fptosi		{{ com fptosi }}
-  | uitofp 						::   :: uitofp		{{ com uitofp }}
-  | sitofp 						::   :: sitofp		{{ com sitofp }}
-  | ptrtoint						::   :: ptrtoint	{{ com ptrtoint }}
-  | inttoptr						::   :: inttoptr	{{ com inttoptr }}
-  | bitcast 						::   :: bitcast		{{ com bitcast }}
-
-inbounds :: 'inbounds_'					::=  			{{ com inbounds }} {{ coq bool }}
-  | inbounds_yes					::   :: yes		{{ com yes }} {{ coq true }}
-  | inbounds_no						::   :: no              {{ com no }} {{ coq false }}
-
-tailc :: 'tailc_'					::=  			{{ com tailcall }} {{ coq bool }}
-  | tailc_yes						::   :: yes		{{ com yes }} {{ coq true }}
-  | tailc_no						::   :: no              {{ com no }} {{ coq false }}
-
-noret :: 'noret_'					::=  			{{ com noret }} {{ coq bool }}
-  | noret_yes						::   :: yes		{{ com yes }} {{ coq true }}
-  | noret_no						::   :: no              {{ com no }} {{ coq false }}
-
 cmd :: 'insn_'					    	::=			{{ com commands }}
 %% Binary Operations and Bitwise Binary Operations
   | id = bop ( int sz ) value1 value2			::   :: bop		{{ com bop }}
+  | id = fbop floating_point value1 value2		::   :: fbop		{{ com fbop }}
 %% Vector Operations
   %| id = extractelement typ0 value0 , const1		::   :: extractelement  {{ com extractelement }}
   %| id = insertelement typ0 value0 , typ1 value1 , const2	::   :: insertelement   {{ com insertelement }}
@@ -314,14 +384,15 @@ cmd :: 'insn_'					    	::=			{{ com commands }}
   | id = store typ value1 value2 align			::   :: store		{{ com store }}
   | id = getelementptr inbounds ( typ * ) value </ valuej // j />    	      ::  :: gep        {{ com getelementptr }}
 %% Conversion Operations
-  %| id = trunc typ1 value1 to typ2			::   :: trunc		{{ com trunc }}
+  | id = truncop typ1 value1 to typ2			::   :: trunc		{{ com trunc }}
   | id = extop typ1 value to typ2                   	::   :: ext             {{ com ext }}
   | id = castop typ1 value1 to typ2		    	::   :: cast		{{ com cast }}
 %% Other Operations
   | id = icmp cond typ value1 value2			::   :: icmp		{{ com icmp }}
-  %| id = fcmp cond typ value1 , value2			::   :: fcmp		{{ com fcmp }}
+  | id = fcmp fcond floating_point value1 value2	::   :: fcmp		{{ com fcmp }}
   | id = select value0 typ value1 value2                ::   :: select          {{ com select }}
   | id = noret tailc call typ0 id0 params  	 	::   :: call		{{ com call }} 
+  %| va_arg
   | ( insn )						:: S :: paren           {{ coq [[ insn ]] }}
 
 terminator :: 'insn_'					::=  			{{ com termniators }}
@@ -330,7 +401,9 @@ terminator :: 'insn_'					::=  			{{ com termniators }}
   | id = br value l1 l2		 			::   :: br              {{ com br }}        
   | id = br l        	    	  			::   :: br_uncond       {{ com unconditional br }}        
   %| id = switch typ value , l </ [ constj , lj ] // j />	::   :: switch		{{ com switch }}
+  %| indirectbr
   %| id = invoke typ0 id0 list_param to l1 unwind l2 	::   :: invoke		{{ com invoke }} 
+  %| unwind
   | id = unreachable   	   	     	 		::   :: unreachable	{{ com unreachable }}
   | ( terminator )					:: S :: paren1          {{ coq [[ terminator ]] }}
 
@@ -405,9 +478,13 @@ opt_fdef {{ tex \mathit{opt_{fdef} } }} :: 'opt_fdef_'	::=  			{{ com option fde
 %   | id = type typ   					::   :: intro 
 %   | ( namedt )						:: S :: paren		{{ coq [[ namedt ]] }}
 
+gvar_spec :: 'gvar_spec_'				::=	     		{{ com gvar spec }}
+  | global  						::   :: global		{{ com global }}
+  | constant						::   :: constant	{{ com constant }}
+
 % global id is also taken as constant addresses
 gvar :: 'gvar_'   	 				::=			{{ com global variables }}
-  | id = global typ const align				::   :: intro           
+  | id = gvar_spec typ const align			::   :: intro		{{ com intro }}
   | ( gvar )	    					:: S :: paren		{{ coq [[ gvar ]] }}
 
 id_binding :: 'id_binding_'  				::=			{{ com id binding }} 
@@ -477,6 +554,7 @@ terminals :: 'terminals_' ::=
   | =                   ::   :: assignment      {{ tex = }}
   | <->                 ::   :: alias		{{ tex <-> }}
   | == 			::   :: eq		{{ tex == }}
+  | <			::   :: lt		{{ tex \le }}
   | |-			::   :: shows           {{ tex \vdash }}
   | |-i			::   :: ishows          {{ tex \vdash_{i} }}
   | |-t			::   :: tshows          {{ tex \vdash_{t} }}
@@ -489,10 +567,12 @@ embed
 
 Tactic Notation "cmd_cases" tactic(first) tactic(c) :=
   first;
-  [ c "insn_bop" | c "insn_extractvalue" | c "insn_insertvalue" |
+  [ c "insn_bop" | c "insn_fbop" |
+    c "insn_extractvalue" | c "insn_insertvalue" |
     c "insn_malloc" | c "insn_free" |
     c "insn_alloca" | c "insn_load" | c "insn_store" | c "insn_gep" |
-    c "insn_ext" | c "insn_cast" | c "insn_icmp" |  c "insn_select" |
+    c "insn_trunc" | c "insn_ext" | c "insn_cast" | 
+    c "insn_icmp" | c "insn_fcmp" | c "insn_select" |
     c "insn_call" ].
 
 Tactic Notation "product_cases" tactic(first) tactic(c) :=
@@ -503,17 +583,17 @@ Scheme const_rec2 := Induction for const Sort Set
   with list_const_rec2 := Induction for list_const Sort Set.
 
 Definition const_mutrec P P' :=
-  fun h1 h2 h3 h4 h5 h6 h7 h8=>
-      (pair (@const_rec2 P P' h1 h2 h3 h4 h5 h6 h7 h8)
-            (@list_const_rec2 P P' h1 h2 h3 h4 h5 h6 h7 h8)).
+  fun h1 h2 h3 h4 h5 h6 h7 h8 h9 h10 h11 h12 h13 h14 h15 h16 h17 h18 h19 h20 h21=>
+      (pair (@const_rec2 P P' h1 h2 h3 h4 h5 h6 h7 h8 h9 h10 h11 h12 h13 h14 h15 h16 h17 h18 h19 h20 h21)
+            (@list_const_rec2 P P' h1 h2 h3 h4 h5 h6 h7 h8 h9 h10 h11 h12 h13 h14 h15 h16 h17 h18 h19 h20 h21)).
 
 Scheme typ_rec2 := Induction for typ Sort Set
   with list_typ_rec2 := Induction for list_typ Sort Set.
 
 Definition typ_mutrec P P' :=
-  fun h1 h2 h3 h4 h5 h6 h7 h8 h9 h10 h11 h12=>
-      (pair (@typ_rec2 P P' h1 h2 h3 h4 h5 h6 h7 h8 h9 h10 h11 h12)
-            (@list_typ_rec2 P P' h1 h2 h3 h4 h5 h6 h7 h8 h9 h10 h11 h12)).
+  fun h1 h2 h3 h4 h5 h6 h7 h8 h9 h10 h11=>
+      (pair (@typ_rec2 P P' h1 h2 h3 h4 h5 h6 h7 h8 h9 h10 h11)
+            (@list_typ_rec2 P P' h1 h2 h3 h4 h5 h6 h7 h8 h9 h10 h11)).
 
 Scheme const_ind2 := Induction for const Sort Prop
   with list_const_ind2 := Induction for list_const Sort Prop.

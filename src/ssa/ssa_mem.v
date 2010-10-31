@@ -90,8 +90,9 @@ end.
 Definition typ2memory_chunk (t:typ) : option memory_chunk :=
   match t with
   | typ_int bsz => Some (Mint (Size.to_nat bsz -1))
-  | typ_float => Some Mfloat32
-  | typ_double => Some Mfloat64
+  | typ_floatpoint fp_float => Some Mfloat32
+  | typ_floatpoint fp_double => Some Mfloat64
+  | typ_floatpoint _ => None
   | typ_pointer _ => Some (Mint 31)
   | _ => None
   end.

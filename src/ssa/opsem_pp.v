@@ -296,6 +296,12 @@ Case "dbBop".
   exists (updateAddAL _ lc0 id0 gv3). exists als0. exists Mem1.
   exists cs1. split; auto.
 
+Case "dbFBop".
+  inversion H; subst.
+  exists l0. exists ps. exists cs. exists tmn0.
+  exists (updateAddAL _ lc0 id0 gv3). exists als0. exists Mem1.
+  exists cs1. split; auto.
+
 Case "dbExtractValue".
   inversion H; subst.
   exists l0. exists ps. exists cs. exists tmn0.
@@ -344,6 +350,12 @@ Case "dbGEP".
   exists (updateAddAL _ lc0 id0 mp'). exists als0. exists Mem1.
   exists cs1. split; auto.
 
+Case "dbTrunc".
+  inversion H; subst.
+  exists l0. exists ps. exists cs. exists tmn0.
+  exists (updateAddAL _ lc0 id0 gv2). exists als0. exists Mem1.
+  exists cs1. split; auto.
+
 Case "dbExt".
   inversion H; subst.
   exists l0. exists ps. exists cs. exists tmn0.
@@ -357,6 +369,12 @@ Case "dbCast".
   exists cs1. split; auto.
 
 Case "dbIcmp".
+  inversion H; subst.
+  exists l0. exists ps. exists cs. exists tmn0.
+  exists (updateAddAL _ lc0 id0 gv3). exists als0. exists Mem1.
+  exists cs1. split; auto.
+
+Case "dbFcmp".
   inversion H; subst.
   exists l0. exists ps. exists cs. exists tmn0.
   exists (updateAddAL _ lc0 id0 gv3). exists als0. exists Mem1.

@@ -232,6 +232,8 @@ formula :: 'formula_' ::=
                                 {{ coq getInsnLabels [[insn]] = [[ls]] }}
   | getSubTypFromConstIdxs </ constj // j /> typ = opt_typ :: :: getSubTypFromConstIdxs
                                 {{ coq getSubTypFromConstIdxs [[ </ constj // j /> ]] [[typ]] = [[opt_typ]] }}
+  | getConstGEPTyp </ constj // j /> typ = opt_typ :: :: getConstGEPTyp
+                                {{ coq getConstGEPTyp [[ </ constj // j /> ]] [[typ]] = [[opt_typ]] }}
   | getGEPTyp </ valuej // j /> typ = opt_typ :: :: getGEPTyp
                                 {{ coq getGEPTyp [[ </ valuej // j /> ]] [[typ]] = [[opt_typ]] }}
   | Typ.isSized typ :: :: TypIsSized
@@ -258,6 +260,8 @@ formula :: 'formula_' ::=
     	      	     		{{ coq getFdecID [[fdec]] = [[id]] }}
   | argInFdef arg fdef           :: :: argInFdef
                                 {{ coq argInFdefB [[arg]] [[fdef]] = true }}
+  | floating_point1 < floating_point2  :: :: floating_point_order
+    			        {{ coq floating_point_order [[floating_point1]] [[floating_point2]] = true }}
   | getLabelViaIDPhiNode insn id = opt_l :: :: getLabelViaIDPhiNode
                                 {{ coq getLabelViaIDPhiNode [[insn]] [[id]] = [[opt_l]] }}
   | getCallName insn = opt_id    :: :: getCallName

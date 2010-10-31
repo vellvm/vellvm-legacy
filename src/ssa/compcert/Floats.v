@@ -23,7 +23,7 @@
 Require Import Coqlib.
 Require Import Integers.
 
-Parameter float: Type.                  (**r the type of IEE754 doubles *)
+Parameter float: Set.                  (**r the type of IEE754 doubles *)
 
 Module Float.
 
@@ -45,6 +45,7 @@ Parameter add: float -> float -> float. (**r addition *)
 Parameter sub: float -> float -> float. (**r subtraction *)
 Parameter mul: float -> float -> float. (**r multiplication *)
 Parameter div: float -> float -> float. (**r division *)
+Parameter rem: float -> float -> float. (**r mod *)
 
 Parameter cmp: comparison -> float -> float -> bool.  (**r comparison *)
 

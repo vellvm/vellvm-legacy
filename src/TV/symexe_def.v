@@ -55,6 +55,13 @@ Inductive dbCmd : layouts ->  GVMap ->
     (insn_bop id bop sz v1 v2)
     (updateAddAL _ lc id gv3) als Mem
     trace_nil 
+| dbFBop: forall TD lc gl id fbop fp v1 v2 gv3 Mem als,
+  FBOP TD lc gl fbop fp v1 v2 = Some gv3 ->
+  dbCmd TD gl
+    lc als Mem
+    (insn_fbop id fbop fp v1 v2)
+    (updateAddAL _ lc id gv3) als Mem
+    trace_nil 
 | dbExtractValue : forall TD lc gl id t v gv gv' Mem als idxs,
   getOperandValue TD v lc gl = Some gv ->
   extractGenericValue TD t gv idxs = Some gv' ->
@@ -122,6 +129,13 @@ Inductive dbCmd : layouts ->  GVMap ->
     (insn_gep id inbounds t v idxs)
     (updateAddAL _ lc id mp') als Mem
     trace_nil 
+| dbTrunc : forall TD lc gl id truncop t1 v1 t2 gv2 Mem als,
+  TRUNC TD lc gl truncop t1 v1 t2 = Some gv2 ->
+  dbCmd TD gl
+    lc als Mem
+    (insn_trunc id truncop t1 v1 t2)
+    (updateAddAL _ lc id gv2) als Mem
+    trace_nil
 | dbExt : forall TD lc gl id extop t1 v1 t2 gv2 Mem als,
   EXT TD lc gl extop t1 v1 t2 = Some gv2 ->
   dbCmd TD gl
@@ -141,6 +155,13 @@ Inductive dbCmd : layouts ->  GVMap ->
   dbCmd TD gl
     lc als Mem
     (insn_icmp id cond t v1 v2)
+    (updateAddAL _ lc id gv3) als Mem
+    trace_nil
+| dbFcmp : forall TD lc gl id fcond fp v1 v2 gv3 Mem als,
+  FCMP TD lc gl fcond fp v1 v2 = Some gv3 ->
+  dbCmd TD gl
+    lc als Mem
+    (insn_fcmp id fcond fp v1 v2)
     (updateAddAL _ lc id gv3) als Mem
     trace_nil
 | dbSelect : forall TD lc gl id v0 t v1 v2 cond Mem als gv1 gv2,
@@ -333,10 +354,11 @@ Tactic Notation "db_mutind_cases" tactic(first) tactic(c) :=
 
 Tactic Notation "dbCmd_cases" tactic(first) tactic(c) :=
   first;
-  [ c "dbBop" | c "dbExtractValue" | c "dbInsertValue" |
+  [ c "dbBop" | c "dbFBop" | c "dbExtractValue" | c "dbInsertValue" |
     c "dbMalloc" | c "dbFree" |
     c "dbAlloca" | c "dbLoad" | c "dbStore" | c "dbGEP" |
-    c "dbExt" | c "dbCast" | c "dbIcmp" |  c "dbSelect" ].
+    c "dbTrunc" | c "dbExt" | c "dbCast" | 
+    c "dbIcmp" | c "dbFcmp" | c "dbSelect" ].
 
 Tactic Notation "dbTerminator_cases" tactic(first) tactic(c) :=
   first;
@@ -363,6 +385,12 @@ Case "dbBop".
   assert (HupdateEnv:=HeqEnv).
   exists (updateAddAL _ lc1' id0 gv3).
   rewrite BOP_eqAL with (lc2:=lc1') in H; auto.
+  split; eauto using eqAL_updateAddAL.
+
+Case "dbFBop".
+  assert (HupdateEnv:=HeqEnv).
+  exists (updateAddAL _ lc1' id0 gv3).
+  rewrite FBOP_eqAL with (lc2:=lc1') in H; auto.
   split; eauto using eqAL_updateAddAL.
 
 Case "dbExtractValue".
@@ -413,6 +441,12 @@ Case "dbGEP".
 (* rewrite GEP_eqAL with (lc2:=lc1') in H0; auto. *)
   split; eauto using eqAL_updateAddAL.
 
+Case "dbTrunc".
+  assert (HupdateEnv:=HeqEnv).
+  exists (updateAddAL _ lc1' id0 gv2).
+  rewrite TRUNC_eqAL with (lc2:=lc1') in H; auto.
+  split; eauto using eqAL_updateAddAL.
+
 Case "dbExt".
   assert (HupdateEnv:=HeqEnv).
   exists (updateAddAL _ lc1' id0 gv2).
@@ -429,6 +463,12 @@ Case "dbIcmp".
   assert (HupdateEnv:=HeqEnv).
   exists (updateAddAL _ lc1' id0 gv3).
   rewrite ICMP_eqAL with (lc2:=lc1') in H; auto.
+  split; eauto using eqAL_updateAddAL.
+
+Case "dbFcmp".
+  assert (HupdateEnv:=HeqEnv).
+  exists (updateAddAL _ lc1' id0 gv3).
+  rewrite FCMP_eqAL with (lc2:=lc1') in H; auto.
   split; eauto using eqAL_updateAddAL.
 
 Case "dbSelect".
@@ -1188,15 +1228,18 @@ Qed.
 Inductive sterm : Set := 
 | sterm_val : value -> sterm
 | sterm_bop : bop -> sz -> sterm -> sterm -> sterm
+| sterm_fbop : fbop -> floating_point -> sterm -> sterm -> sterm
 | sterm_extractvalue : typ -> sterm -> list_const -> sterm
 | sterm_insertvalue : typ -> sterm -> typ -> sterm -> list_const -> sterm
 | sterm_malloc : smem -> typ -> sz -> align -> sterm
 | sterm_alloca : smem -> typ -> sz -> align -> sterm
 | sterm_load : smem -> typ -> sterm -> align -> sterm
 | sterm_gep : inbounds -> typ -> sterm -> list_sterm -> sterm
+| sterm_trunc : truncop -> typ -> sterm -> typ -> sterm
 | sterm_ext : extop -> typ -> sterm -> typ -> sterm
 | sterm_cast : castop -> typ -> sterm -> typ -> sterm
 | sterm_icmp : cond -> typ -> sterm -> sterm -> sterm
+| sterm_fcmp : fcond -> floating_point -> sterm -> sterm -> sterm
 | sterm_phi : typ -> list_sterm_l -> sterm
 | sterm_select : sterm -> typ -> sterm -> sterm -> sterm
 with list_sterm : Set :=
@@ -1224,29 +1267,32 @@ Scheme sterm_rec2 := Induction for sterm Sort Set
   with sframe_rec2 := Induction for sframe Sort Set.
 
 Definition se_mutrec P1 P2 P3 P4 P5:=
-  fun h1 h2 h3 h4 h5 h6 h7 h8 h9 h10 h11 h12 h13 h14 h15 h16 h17 h18 h19 h20 h21 h22 h23 h24 h25 =>
+  fun h1 h2 h3 h4 h5 h6 h7 h8 h9 h10 h11 h12 h13 h14 h15 h16 h17 h18 h19 h20 h21 h22 h23 h24 h25 h26 h27 h28 =>
    (pair
       (pair 
            (pair 
-                 (pair (@sterm_rec2 P1 P2 P3 P4 P5 h1 h2 h3 h4 h5 h6 h7 h8 h9 h10 h11 h12 h13 h14 h15 h16 h17 h18 h19 h20 h21 h22 h23 h24 h25)
-                       (@list_sterm_rec2 P1 P2 P3 P4 P5 h1 h2 h3 h4 h5 h6 h7 h8 h9 h10 h11 h12 h13 h14 h15 h16 h17 h18 h19 h20 h21 h22 h23 h24 h25))
-                 (@list_sterm_l_rec2 P1 P2 P3 P4 P5 h1 h2 h3 h4 h5 h6 h7 h8 h9 h10 h11 h12 h13 h14 h15 h16 h17 h18 h19 h20 h21 h22 h23 h24 h25))
-            (@smem_rec2 P1 P2 P3 P4 P5 h1 h2 h3 h4 h5 h6 h7 h8 h9 h10 h11 h12 h13 h14 h15 h16 h17 h18 h19 h20 h21 h22 h23 h24 h25))
-      (@sframe_rec2 P1 P2 P3 P4 P5 h1 h2 h3 h4 h5 h6 h7 h8 h9 h10 h11 h12 h13 h14 h15 h16 h17 h18 h19 h20 h21 h22 h23 h24 h25)).
+                 (pair (@sterm_rec2 P1 P2 P3 P4 P5 h1 h2 h3 h4 h5 h6 h7 h8 h9 h10 h11 h12 h13 h14 h15 h16 h17 h18 h19 h20 h21 h22 h23 h24 h25 h26 h27 h28)
+                       (@list_sterm_rec2 P1 P2 P3 P4 P5 h1 h2 h3 h4 h5 h6 h7 h8 h9 h10 h11 h12 h13 h14 h15 h16 h17 h18 h19 h20 h21 h22 h23 h24 h25 h26 h27 h28))
+                 (@list_sterm_l_rec2 P1 P2 P3 P4 P5 h1 h2 h3 h4 h5 h6 h7 h8 h9 h10 h11 h12 h13 h14 h15 h16 h17 h18 h19 h20 h21 h22 h23 h24 h25 h26 h27 h28))
+            (@smem_rec2 P1 P2 P3 P4 P5 h1 h2 h3 h4 h5 h6 h7 h8 h9 h10 h11 h12 h13 h14 h15 h16 h17 h18 h19 h20 h21 h22 h23 h24 h25 h26 h27 h28))
+      (@sframe_rec2 P1 P2 P3 P4 P5 h1 h2 h3 h4 h5 h6 h7 h8 h9 h10 h11 h12 h13 h14 h15 h16 h17 h18 h19 h20 h21 h22 h23 h24 h25 h26 h27 h28)).
 
 Tactic Notation "se_mut_cases" tactic(first) tactic(c) :=
   first;
   [ c "sterm_val" | 
     c "sterm_bop" |
+    c "sterm_fbop" |
     c "sterm_extractvalue" |
     c "sterm_insertvalue" |
     c "sterm_malloc" |
     c "sterm_alloca" |
     c "sterm_load" |
     c "sterm_gep" |
+    c "sterm_trunc" |
     c "sterm_ext" |
     c "sterm_cast" |
     c "sterm_icmp" |
+    c "sterm_fcmp" |
     c "sterm_phi" |
     c "sterm_select" |
     c "list_sterm_nil" |
@@ -1393,6 +1439,14 @@ match c with
                  st.(SMem)
                  st.(SFrame)
                  st.(SEffects))
+  | insn_fbop id0 op0 fp0 v1 v2 => fun _ => 
+       (mkSstate (updateAddAL _ st.(STerms) id0 
+                   (sterm_fbop op0 fp0 
+                     (value2Sterm st.(STerms) v1)
+                     (value2Sterm st.(STerms) v2)))
+                 st.(SMem)
+                 st.(SFrame)
+                 st.(SEffects))
  | insn_extractvalue id0 t1 v1 cs3 => fun _ => 
        (mkSstate (updateAddAL _ st.(STerms) id0 
                    (sterm_extractvalue t1 
@@ -1454,6 +1508,14 @@ match c with
                  st.(SMem)
                  st.(SFrame)
                  st.(SEffects))
+  | insn_trunc id0 op0 t1 v1 t2 => fun _ => 
+       (mkSstate (updateAddAL _ st.(STerms) id0 
+                   (sterm_trunc op0 t1 
+                     (value2Sterm st.(STerms) v1)
+                     t2))
+                 st.(SMem)
+                 st.(SFrame)
+                 st.(SEffects))
   | insn_ext id0 op0 t1 v1 t2 => fun _ => 
        (mkSstate (updateAddAL _ st.(STerms) id0 
                    (sterm_ext op0 t1 
@@ -1473,6 +1535,14 @@ match c with
   | insn_icmp id0 c0 t0 v1 v2 => fun _ => 
        (mkSstate (updateAddAL _ st.(STerms) id0 
                    (sterm_icmp c0 t0 
+                     (value2Sterm st.(STerms) v1)
+                     (value2Sterm st.(STerms) v2)))
+                 st.(SMem)
+                 st.(SFrame)
+                 st.(SEffects))
+  | insn_fcmp id0 c0 fp0 v1 v2 => fun _ => 
+       (mkSstate (updateAddAL _ st.(STerms) id0 
+                   (sterm_fcmp c0 fp0 
                      (value2Sterm st.(STerms) v1)
                      (value2Sterm st.(STerms) v2)))
                  st.(SMem)
@@ -1787,6 +1857,11 @@ Inductive sterm_denotes_genericvalue :
   sterm_denotes_genericvalue TD lc gl Mem st2 gv2 ->
   mbop TD op0 sz0 gv1 gv2 = Some gv3 ->
   sterm_denotes_genericvalue TD lc gl Mem (sterm_bop op0 sz0 st1 st2) gv3
+| sterm_fbop_denotes : forall TD lc gl Mem op0 fp0 st1 st2 gv1 gv2 gv3,
+  sterm_denotes_genericvalue TD lc gl Mem st1 gv1 ->
+  sterm_denotes_genericvalue TD lc gl Mem st2 gv2 ->
+  mfbop TD op0 fp0 gv1 gv2 = Some gv3 ->
+  sterm_denotes_genericvalue TD lc gl Mem (sterm_fbop op0 fp0 st1 st2) gv3
 | sterm_extractvalue_denotes : forall TD lc gl Mem t1 st1 idxs0 gv1 gv2,
   sterm_denotes_genericvalue TD lc gl Mem st1 gv1 ->
   extractGenericValue TD t1 gv1 idxs0 = Some gv2 ->
@@ -1816,6 +1891,10 @@ Inductive sterm_denotes_genericvalue :
   sterms_denote_genericvalues TD lc gl Mem sts0 gvs0 ->
   GEP TD t0 gv0 gvs0 ib0 = Some gv1 ->
   sterm_denotes_genericvalue TD lc gl Mem (sterm_gep ib0 t0 st0 sts0) gv1
+| sterm_trunc_denotes : forall TD lc gl Mem op0 t1 st1 t2 gv1 gv2,
+  sterm_denotes_genericvalue TD lc gl Mem st1 gv1 ->
+  mtrunc TD op0 t1 gv1 t2 = Some gv2 ->
+  sterm_denotes_genericvalue TD lc gl Mem (sterm_trunc op0 t1 st1 t2) gv2
 | sterm_ext_denotes : forall TD lc gl Mem op0 t1 st1 t2 gv1 gv2,
   sterm_denotes_genericvalue TD lc gl Mem st1 gv1 ->
   mext TD op0 t1 gv1 t2 = Some gv2 ->
@@ -1829,6 +1908,11 @@ Inductive sterm_denotes_genericvalue :
   sterm_denotes_genericvalue TD lc gl Mem st2 gv2 ->
   micmp TD cond0 t0 gv1 gv2 = Some gv3 ->
   sterm_denotes_genericvalue TD lc gl Mem (sterm_icmp cond0 t0 st1 st2) gv3
+| sterm_fcmp_denotes : forall TD lc gl Mem cond0 fp0 st1 st2 gv1 gv2 gv3,
+  sterm_denotes_genericvalue TD lc gl Mem st1 gv1 ->
+  sterm_denotes_genericvalue TD lc gl Mem st2 gv2 ->
+  mfcmp TD cond0 fp0 gv1 gv2 = Some gv3 ->
+  sterm_denotes_genericvalue TD lc gl Mem (sterm_fcmp cond0 fp0 st1 st2) gv3
 | sterm_select_denotes : forall TD lc gl Mem st0 t0 st1 st2 gv0 gv1 gv2 gv3,
   sterm_denotes_genericvalue TD lc gl Mem st0 gv0 ->
   sterm_denotes_genericvalue TD lc gl Mem st1 gv1 ->
@@ -1927,15 +2011,18 @@ Tactic Notation "sd_mutind_cases" tactic(first) tactic(c) :=
   first;
 [ c "sterm_val_denotes"
 | c "sterm_bop_denotes"
+| c "sterm_fbop_denotes"
 | c "sterm_extractvalue_denotes"
 | c "sterm_insertvalue_denotes"
 | c "sterm_malloc_denotes"
 | c "sterm_alloca_denotes"
 | c "sterm_load_denotes"
 | c "sterm_gep_denotes"
+| c "sterm_trunc_denotes"
 | c "sterm_ext_denotes"
 | c "sterm_cast_denotes"
 | c "sterm_icmp_denotes" 
+| c "sterm_fcmp_denotes" 
 | c "sterm_select_denotes"
 | c "sterms_nil_denote"
 | c "sterms_cons_denote"
@@ -2040,6 +2127,12 @@ Case "sterm_bop_denotes".
   apply H0 in H12; subst.
   rewrite H13 in e.
   inversion e; auto.
+Case "sterm_fbop_denotes".
+  inversion H1; subst.
+  apply H in H11; subst.
+  apply H0 in H12; subst.
+  rewrite H13 in e.
+  inversion e; auto.
 Case "sterm_extractvalue_denotes".
   inversion H0; subst.
   apply H in H9; subst.
@@ -2071,6 +2164,11 @@ Case "sterm_gep_denotes".
   apply H in H11; subst.
   apply H0 in H12; subst.
   rewrite H13 in e. inversion e; auto.
+Case "sterm_trunc_denotes".
+  inversion H0; subst.
+  apply H in H10; subst.
+  rewrite H11 in e.
+  inversion e; auto.
 Case "sterm_ext_denotes".
   inversion H0; subst.
   apply H in H10; subst.
@@ -2082,6 +2180,11 @@ Case "sterm_cast_denotes".
   rewrite H11 in e.
   inversion e; auto.
 Case "sterm_icmp_denotes".
+  inversion H1; subst.
+  apply H in H11; subst.
+  apply H0 in H12; subst.
+  rewrite H13 in e. inversion e; auto.
+Case "sterm_fcmp_denotes".
   inversion H1; subst.
   apply H in H11; subst.
   apply H0 in H12; subst.
@@ -2304,6 +2407,8 @@ match s with
 | sterm_val (value_const c) => sterm_val (value_const c)
 | sterm_bop op sz s1 s2 => 
     sterm_bop op sz (subst_tt id0 s0 s1) (subst_tt id0 s0 s2)
+| sterm_fbop op fp s1 s2 => 
+    sterm_fbop op fp (subst_tt id0 s0 s1) (subst_tt id0 s0 s2)
 | sterm_extractvalue t1 s1 cs => 
     sterm_extractvalue t1 (subst_tt id0 s0 s1) cs
 | sterm_insertvalue t1 s1 t2 s2 cs => 
@@ -2316,12 +2421,16 @@ match s with
     sterm_load (subst_tm id0 s0 m1) t1 (subst_tt id0 s0 s1) align
 | sterm_gep inbounds t1 s1 ls2 =>
     sterm_gep inbounds t1 (subst_tt id0 s0 s1) (subst_tlt id0 s0 ls2)
+| sterm_trunc truncop t1 s1 t2 => 
+    sterm_trunc truncop t1 (subst_tt id0 s0 s1) t2
 | sterm_ext extop t1 s1 t2 => 
     sterm_ext extop t1 (subst_tt id0 s0 s1) t2
 | sterm_cast castop t1 s1 t2 => 
     sterm_cast castop t1 (subst_tt id0 s0 s1) t2
 | sterm_icmp cond t1 s1 s2 => 
     sterm_icmp cond t1 (subst_tt id0 s0 s1) (subst_tt id0 s0 s2)
+| sterm_fcmp cond fp1 s1 s2 => 
+    sterm_fcmp cond fp1 (subst_tt id0 s0 s1) (subst_tt id0 s0 s2)
 | sterm_phi t1 lsl1 => 
     sterm_phi t1 (subst_tltl id0 s0 lsl1)
 | sterm_select s1 t1 s2 s3 => 

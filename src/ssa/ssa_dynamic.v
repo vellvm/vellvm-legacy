@@ -207,6 +207,12 @@ Inductive dsInsn : State -> State -> trace -> Prop :=
     (mkState S TD Ps ((mkEC F B ((insn_bop id bop sz v1 v2)::cs) tmn lc arg als)::EC) gl Mem) 
     (mkState S TD Ps ((mkEC F B cs tmn (updateAddAL _ lc id gv3) arg als)::EC) gl Mem)
     trace_nil 
+| dsFBop: forall S TD Ps F B lc gl arg id fbop fp v1 v2 gv3 EC cs tmn Mem als,
+  FBOP TD lc gl fbop fp v1 v2 = Some gv3 ->
+  dsInsn 
+    (mkState S TD Ps ((mkEC F B ((insn_fbop id fbop fp v1 v2)::cs) tmn lc arg als)::EC) gl Mem) 
+    (mkState S TD Ps ((mkEC F B cs tmn (updateAddAL _ lc id gv3) arg als)::EC) gl Mem)
+    trace_nil 
 | dsExtractValue : forall S TD Ps F B lc gl arg id t v gv gv' idxs EC cs tmn Mem als,
   getOperandValue TD v lc gl = Some gv ->
   extractGenericValue TD t gv idxs = Some gv' ->
@@ -266,6 +272,12 @@ Inductive dsInsn : State -> State -> trace -> Prop :=
     (mkState S TD Ps ((mkEC F B ((insn_gep id inbounds t v idxs)::cs) tmn lc arg als)::EC) gl Mem) 
     (mkState S TD Ps ((mkEC F B cs tmn (updateAddAL _ lc id mp') arg als)::EC) gl Mem)
     trace_nil 
+| dsTrunc : forall S TD Ps F B lc gl arg id truncop t1 v1 t2 gv2 EC cs tmn Mem als,
+  TRUNC TD lc gl truncop t1 v1 t2 = Some gv2 ->
+  dsInsn 
+    (mkState S TD Ps ((mkEC F B ((insn_trunc id truncop t1 v1 t2)::cs) tmn lc arg als)::EC) gl Mem) 
+    (mkState S TD Ps ((mkEC F B cs tmn (updateAddAL _ lc id gv2) arg als)::EC) gl Mem)
+    trace_nil
 | dsExt : forall S TD Ps F B lc gl arg id extop t1 v1 t2 gv2 EC cs tmn Mem als,
   EXT TD lc gl extop t1 v1 t2 = Some gv2 ->
   dsInsn 
@@ -282,6 +294,12 @@ Inductive dsInsn : State -> State -> trace -> Prop :=
   ICMP TD lc gl cond t v1 v2 = Some gv3 ->
   dsInsn 
     (mkState S TD Ps ((mkEC F B ((insn_icmp id cond t v1 v2)::cs) tmn lc arg als)::EC) gl Mem) 
+    (mkState S TD Ps ((mkEC F B cs tmn (updateAddAL _ lc id gv3) arg als)::EC) gl Mem)
+    trace_nil
+| dsFcmp : forall S TD Ps F B lc gl arg id fcond fp v1 v2 gv3 EC cs tmn Mem als,
+  FCMP TD lc gl fcond fp v1 v2 = Some gv3 ->
+  dsInsn 
+    (mkState S TD Ps ((mkEC F B ((insn_fcmp id fcond fp v1 v2)::cs) tmn lc arg als)::EC) gl Mem) 
     (mkState S TD Ps ((mkEC F B cs tmn (updateAddAL _ lc id gv3) arg als)::EC) gl Mem)
     trace_nil
 | dsSelect : forall S TD Ps F B lc gl arg id v0 t v1 v2 c EC cs tmn Mem als gv1 gv2,
@@ -334,7 +352,7 @@ Definition initTargetData (TD:layouts)(Mem:mem) : TargetData := TD.
 Fixpoint genGlobalAndInitMem (TD:TargetData)(Ps:list product)(gl:GVMap)(Mem:mem) : option (GVMap*mem) :=
 match Ps with
 | nil => Some (gl, Mem)
-| (product_gvar (gvar_intro id0 t c align))::Ps' => 
+| (product_gvar (gvar_intro id0 spec t c align))::Ps' => 
   match (initGlobal TD gl Mem id0 t c align) with
   | Some (gv, Mem') => Some (updateAddAL _ gl id0 gv, Mem')
   | None => None
@@ -504,6 +522,11 @@ Inductive nsInsn : State*trace -> States -> Prop :=
   nsInsn 
     (mkState S TD Ps ((mkEC F B ((insn_bop id bop sz v1 v2)::cs) tmn lc arg als)::EC) gl Mem, tr) 
     ((mkState S TD Ps ((mkEC F B cs tmn (updateAddAL _ lc id gv3) arg als)::EC) gl Mem, tr)::nil)
+| nsFBop : forall S TD Ps F B lc gl arg id fbop fp v1 v2 gv3 EC cs tmn tr Mem als,
+  FBOP TD lc gl fbop fp v1 v2 = Some gv3 ->
+  nsInsn 
+    (mkState S TD Ps ((mkEC F B ((insn_fbop id fbop fp v1 v2)::cs) tmn lc arg als)::EC) gl Mem, tr) 
+    ((mkState S TD Ps ((mkEC F B cs tmn (updateAddAL _ lc id gv3) arg als)::EC) gl Mem, tr)::nil)
 | nsExtractValue : forall S TD Ps F B lc gl arg id t v gv gv' idxs EC cs tmn Mem als tr,
   getOperandValue TD v lc gl = Some gv ->
   extractGenericValue TD t gv idxs = Some gv' ->
@@ -555,6 +578,11 @@ Inductive nsInsn : State*trace -> States -> Prop :=
   nsInsn 
     (mkState S TD Ps ((mkEC F B ((insn_gep id inbounds t v idxs)::cs) tmn lc arg als)::EC) gl Mem, tr) 
     ((mkState S TD Ps ((mkEC F B cs tmn (updateAddAL _ lc id mp') arg als)::EC) gl Mem, tr)::nil)
+| nsTrunc : forall S TD Ps F B lc gl arg id truncop t1 v1 t2 gv2 EC cs tmn Mem als tr,
+  TRUNC TD lc gl truncop t1 v1 t2 = Some gv2 ->
+  nsInsn 
+    (mkState S TD Ps ((mkEC F B ((insn_trunc id truncop t1 v1 t2)::cs) tmn lc arg als)::EC) gl Mem, tr) 
+    ((mkState S TD Ps ((mkEC F B cs tmn (updateAddAL _ lc id gv2) arg als)::EC) gl Mem, tr)::nil)
 | nsExt : forall S TD Ps F B lc gl arg id extop t1 v1 t2 gv2 EC cs tmn Mem als tr,
   EXT TD lc gl extop t1 v1 t2 = Some gv2 ->
   nsInsn 
@@ -569,6 +597,11 @@ Inductive nsInsn : State*trace -> States -> Prop :=
   ICMP TD lc gl cond t v1 v2 = Some gv3 ->
   nsInsn 
     (mkState S TD Ps ((mkEC F B ((insn_icmp id cond t v1 v2)::cs) tmn lc arg als)::EC) gl Mem, tr) 
+    ((mkState S TD Ps ((mkEC F B cs tmn (updateAddAL _ lc id gv3) arg als)::EC) gl Mem, tr)::nil)
+| nsFcmp : forall S TD Ps F B lc gl arg id fcond fp v1 v2 gv3 EC cs tmn Mem als tr,
+  FCMP TD lc gl fcond fp v1 v2 = Some gv3 ->
+  nsInsn 
+    (mkState S TD Ps ((mkEC F B ((insn_fcmp id fcond fp v1 v2)::cs) tmn lc arg als)::EC) gl Mem, tr) 
     ((mkState S TD Ps ((mkEC F B cs tmn (updateAddAL _ lc id gv3) arg als)::EC) gl Mem, tr)::nil)
 | nsSelect : forall S TD Ps F B lc gl arg id v0 t v1 v2 c EC cs tmn Mem als tr gv1 gv2,
   getOperandValue TD v0 lc gl = Some c ->
@@ -754,6 +787,12 @@ Inductive dbInsn : State -> State -> trace -> Prop :=
     (mkState S TD Ps ((mkEC F B ((insn_bop id bop sz v1 v2)::cs) tmn lc arg als)::EC) gl Mem) 
     (mkState S TD Ps ((mkEC F B cs tmn (updateAddAL _ lc id gv3) arg als)::EC) gl Mem)
     trace_nil 
+| dbFBop : forall S TD Ps F B lc gl arg id fbop fp v1 v2 gv3 EC cs tmn Mem als,
+  FBOP TD lc gl fbop fp v1 v2 = Some gv3 ->
+  dbInsn 
+    (mkState S TD Ps ((mkEC F B ((insn_fbop id fbop fp v1 v2)::cs) tmn lc arg als)::EC) gl Mem) 
+    (mkState S TD Ps ((mkEC F B cs tmn (updateAddAL _ lc id gv3) arg als)::EC) gl Mem)
+    trace_nil 
 | dbExtractValue : forall S TD Ps F B lc gl arg id t v gv gv' idxs EC cs tmn Mem als,
   getOperandValue TD v lc gl = Some gv ->
   extractGenericValue TD t gv idxs = Some gv' ->
@@ -813,6 +852,12 @@ Inductive dbInsn : State -> State -> trace -> Prop :=
     (mkState S TD Ps ((mkEC F B ((insn_gep id inbounds t v idxs)::cs) tmn lc arg als)::EC) gl Mem) 
     (mkState S TD Ps ((mkEC F B cs tmn (updateAddAL _ lc id mp') arg als)::EC) gl Mem)
     trace_nil 
+| dbTrunc : forall S TD Ps F B lc gl arg id truncop t1 v1 t2 gv2 EC cs tmn Mem als,
+  TRUNC TD lc gl truncop t1 v1 t2 = Some gv2 ->
+  dbInsn 
+    (mkState S TD Ps ((mkEC F B ((insn_trunc id truncop t1 v1 t2)::cs) tmn lc arg als)::EC) gl Mem) 
+    (mkState S TD Ps ((mkEC F B cs tmn (updateAddAL _ lc id gv2) arg als)::EC) gl Mem)
+    trace_nil
 | dbExt : forall S TD Ps F B lc gl arg id extop t1 v1 t2 gv2 EC cs tmn Mem als,
   EXT TD lc gl extop t1 v1 t2 = Some gv2 ->
   dbInsn 
@@ -829,6 +874,12 @@ Inductive dbInsn : State -> State -> trace -> Prop :=
   ICMP TD lc gl cond t v1 v2 = Some gv3 ->
   dbInsn 
     (mkState S TD Ps ((mkEC F B ((insn_icmp id cond t v1 v2)::cs) tmn lc arg als)::EC) gl Mem) 
+    (mkState S TD Ps ((mkEC F B cs tmn (updateAddAL _ lc id gv3) arg als)::EC) gl Mem)
+    trace_nil
+| dbFcmp : forall S TD Ps F B lc gl arg id fcond fp v1 v2 gv3 EC cs tmn Mem als,
+  FCMP TD lc gl fcond fp v1 v2 = Some gv3 ->
+  dbInsn 
+    (mkState S TD Ps ((mkEC F B ((insn_fcmp id fcond fp v1 v2)::cs) tmn lc arg als)::EC) gl Mem) 
     (mkState S TD Ps ((mkEC F B cs tmn (updateAddAL _ lc id gv3) arg als)::EC) gl Mem)
     trace_nil
 | dbSelect : forall S TD Ps F B lc gl arg id v0 t v1 v2 c EC cs tmn Mem als gv1 gv2,
@@ -1036,6 +1087,11 @@ Inductive nbInsn : State*trace -> States -> Prop :=
   nbInsn 
     (mkState S TD Ps ((mkEC F B ((insn_bop id bop sz v1 v2)::cs) tmn lc arg als)::EC) gl Mem, tr) 
     ((mkState S TD Ps ((mkEC F B cs tmn (updateAddAL _ lc id gv3) arg als)::EC) gl Mem, tr)::nil)
+| nbFBop : forall S TD Ps F B lc gl arg id fbop fp v1 v2 gv3 EC cs tmn tr Mem als,
+  FBOP TD lc gl fbop fp v1 v2 = Some gv3 ->
+  nbInsn 
+    (mkState S TD Ps ((mkEC F B ((insn_fbop id fbop fp v1 v2)::cs) tmn lc arg als)::EC) gl Mem, tr) 
+    ((mkState S TD Ps ((mkEC F B cs tmn (updateAddAL _ lc id gv3) arg als)::EC) gl Mem, tr)::nil)
 | nbExtractValue : forall S TD Ps F B lc gl arg id t v gv gv' idxs EC cs tmn Mem als tr,
   getOperandValue TD v lc gl = Some gv ->
   extractGenericValue TD t gv idxs = Some gv' ->
@@ -1087,6 +1143,11 @@ Inductive nbInsn : State*trace -> States -> Prop :=
   nbInsn 
     (mkState S TD Ps ((mkEC F B ((insn_gep id inbounds t v idxs)::cs) tmn lc arg als)::EC) gl Mem, tr) 
     ((mkState S TD Ps ((mkEC F B cs tmn(updateAddAL _ lc id mp') arg als)::EC) gl Mem, tr)::nil)
+| nbTrunc : forall S TD Ps F B lc gl arg id truncop t1 v1 t2 gv2 EC cs tmn Mem als tr, 
+  TRUNC TD lc gl truncop t1 v1 t2 = Some gv2 ->
+  nbInsn 
+    (mkState S TD Ps ((mkEC F B ((insn_trunc id truncop t1 v1 t2)::cs) tmn lc arg als)::EC) gl Mem, tr) 
+    ((mkState S TD Ps ((mkEC F B cs tmn (updateAddAL _ lc id gv2) arg als)::EC) gl Mem, tr)::nil)
 | nbExt : forall S TD Ps F B lc gl arg id extop t1 v1 t2 gv2 EC cs tmn Mem als tr, 
   EXT TD lc gl extop t1 v1 t2 = Some gv2 ->
   nbInsn 
@@ -1101,6 +1162,11 @@ Inductive nbInsn : State*trace -> States -> Prop :=
   ICMP TD lc gl cond t v1 v2 = Some gv3 ->
   nbInsn 
     (mkState S TD Ps ((mkEC F B ((insn_icmp id cond t v1 v2)::cs) tmn lc arg als)::EC) gl Mem, tr) 
+    ((mkState S TD Ps ((mkEC F B cs tmn (updateAddAL _ lc id gv3) arg als)::EC) gl Mem, tr)::nil)
+| nbFcmp : forall S TD Ps F B lc gl arg id fcond fp v1 v2 gv3 EC cs tmn Mem als tr,
+  FCMP TD lc gl fcond fp v1 v2 = Some gv3 ->
+  nbInsn 
+    (mkState S TD Ps ((mkEC F B ((insn_fcmp id fcond fp v1 v2)::cs) tmn lc arg als)::EC) gl Mem, tr) 
     ((mkState S TD Ps ((mkEC F B cs tmn (updateAddAL _ lc id gv3) arg als)::EC) gl Mem, tr)::nil)
 | nbSelect : forall S TD Ps F B lc gl arg id v0 t v1 v2 c EC cs tmn Mem als tr gv1 gv2,
   getOperandValue TD v0 lc gl = Some c ->
@@ -1244,20 +1310,20 @@ Combined Scheme nb_mutind from nbInsn_ind2, nbop_star_ind2, nbFdef_ind2.
 Tactic Notation "db_mutind_cases" tactic(first) tactic(c) :=
   first;
   [ c "dbBranch" | c "dbBranch_uncond" |
-    c "dbBop" | c "dbExtractValue" | c "dbInsertValue" |
+    c "dbBop" | c "dbFBop" | c "dbExtractValue" | c "dbInsertValue" |
     c "dbMalloc" | c "dbFree" |
     c "dbAlloca" | c "dbLoad" | c "dbStore" | c "dbGEP" |
-    c "dbExt" | c "dbCast" | c "dbIcmp" |  c "dbSelect" | 
+    c "dbTrunc" | c "dbExt" | c "dbCast" | c "dbIcmp" | c "dbFcmp" |  c "dbSelect" | 
     c "dbCall" | c "dbExCall" |
     c "dbop_nil" | c "dbop_cons" | c "dbFdef_func" | c "dbFdef_proc" ].
 
 Tactic Notation "dsInsn_cases" tactic(first) tactic(c) :=
   first;
   [ c "dsReturn" | c "dsReturnVoid" | c "dsBranch" | c "dsBranch_uncond" |
-    c "dsBop" | c "dsExtractValue" | c "dsInsertValue" |
+    c "dsBop" | c "dsFBop" | c "dsExtractValue" | c "dsInsertValue" |
     c "dsMalloc" | c "dsFree" |
     c "dsAlloca" | c "dsLoad" | c "dsStore" | c "dsGEP" |
-    c "dsExt" | c "dsCast" | c "dsIcmp" | c "dsSelect" |  
+    c "dsTrunc" | c "dsExt" | c "dsCast" | c "dsIcmp" | c "dsFcmp" | c "dsSelect" |  
     c "dsCall" | c "dsExCall" ].
 
 Tactic Notation "dsop_star_cases" tactic(first) tactic(c) :=
@@ -1267,10 +1333,10 @@ Tactic Notation "dsop_star_cases" tactic(first) tactic(c) :=
 Tactic Notation "nb_mutind_cases" tactic(first) tactic(c) :=
   first;
   [ c "nbBranch_def" | c "nbBranch_undef" | c "nbBranch_uncond" |
-    c "nbBop" | c "nbExtractValue" | c "nbInsertValue" |
+    c "nbBop" | c "nbFBop" | c "nbExtractValue" | c "nbInsertValue" |
     c "nbMalloc" | c "nbFree" |
     c "nbAlloca" | c "nbLoad" | c "nbStore" | c "nbGEP" | 
-    c "nbExt" | c "nbCast" | c "nbIcmp" | c "nbSelect" | 
+    c "nbTrunc" | c "nbExt" | c "nbCast" | c "nbIcmp" | c "nbFcmp" | c "nbSelect" | 
     c "nbCall" | c "nbExCall" |
     c "nbop_star_nil" | c "nbop_star_refl" | c "nbop_star_cons" | 
     c "nbop_star_trans" | c "nbFdef_intro" ].
@@ -1278,10 +1344,10 @@ Tactic Notation "nb_mutind_cases" tactic(first) tactic(c) :=
 Tactic Notation "nsInsn_cases" tactic(first) tactic(c) :=
   first;
   [ c "nsReturn" | c "nsReturnVoid" | c "nsBranch_def" | c "nsBranch_undef" | 
-    c "nsBranch_uncond" | c "nsBop" | c "nsExtractValue" | c "nsInsertValue" |
+    c "nsBranch_uncond" | c "nsBop" | c "nsFBop" | c "nsExtractValue" | c "nsInsertValue" |
     c "nsMalloc" | c "bsFree" |
     c "nsAlloca" | c "nsLoad" | c "nsStore" | c "nsGEP" |
-    c "nsExt" | c "nsCast" | c "nsIcmp" | c "nsSelect" | 
+    c "nsTrunc" | c "nsExt" | c "nsCast" | c "nsIcmp" | c "nsFcmp" | c "nsSelect" | 
     c "nsCall" | c "nsExCall" ].
 
 Tactic Notation "nsop_star_cases" tactic(first) tactic(c) :=

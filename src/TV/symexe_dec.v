@@ -45,6 +45,12 @@ Proof.
     destruct (@Size.dec s s2); subst; try solve [done_right].
     destruct (@H st2_1); subst; try solve [done_right].
     destruct (@H0 st2_2); subst; try solve [auto | done_right].
+  Case "sterm_fbop".
+    destruct st2; try solve [done_right].
+    destruct (@fbop_dec f f1); subst; try solve [done_right].
+    destruct (@floating_point_dec f0 f2); subst; try solve [done_right].
+    destruct (@H st2_1); subst; try solve [done_right].
+    destruct (@H0 st2_2); subst; try solve [auto | done_right].
   Case "sterm_extractvalue".
     destruct st2; try solve [done_right].
     destruct (@typ_dec t t0); subst; try solve [done_right].
@@ -81,6 +87,12 @@ Proof.
     destruct (@typ_dec t t0); subst; try solve [done_right].
     destruct (@H st2); subst; try solve [done_right].
     destruct (@H0 l1); subst; try solve [auto | done_right].
+  Case "sterm_trunc".
+    destruct st2; try solve [done_right].
+    destruct (@truncop_dec t t2); subst; try solve [done_right].
+    destruct (@typ_dec t0 t3); subst; try solve [done_right].
+    destruct (@H st2); subst; try solve [done_right].
+    destruct (@typ_dec t1 t4); subst; try solve [auto | done_right].
   Case "sterm_ext".
     destruct st2; try solve [done_right].
     destruct (@extop_dec e e0); subst; try solve [done_right].
@@ -97,6 +109,12 @@ Proof.
     destruct st2; try solve [done_right].
     destruct (@cond_dec c c0); subst; try solve [done_right].
     destruct (@typ_dec t t0); subst; try solve [done_right].
+    destruct (@H st2_1); subst; try solve [done_right].
+    destruct (@H0 st2_2); subst; try solve [auto | done_right].
+  Case "sterm_fcmp".
+    destruct st2; try solve [done_right].
+    destruct (@fcond_dec f f1); subst; try solve [done_right].
+    destruct (@floating_point_dec f0 f2); subst; try solve [done_right].
     destruct (@H st2_1); subst; try solve [done_right].
     destruct (@H0 st2_2); subst; try solve [auto | done_right].
   Case "sterm_phi".

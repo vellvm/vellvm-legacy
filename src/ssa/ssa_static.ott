@@ -1,3 +1,4 @@
+
 % Static Semantics of Static Single Assignment(SSA)
 
 embed
@@ -22,14 +23,8 @@ Jwf_typ :: '' ::=
       -------------------- :: wf_typ_int
       |- int sz
 
-      % -------------------- :: wf_typ_float
-      % |- float
-
-      % -------------------- :: wf_typ_double
-      % |- double
-
-      % -------------------- :: wf_typ_fp128
-      % |- fp128
+      -------------------- :: wf_typ_floatpoint
+      |- floating_point
 
       -------------------- :: wf_typ_void
       |- void
@@ -70,17 +65,24 @@ Jwf_typ :: '' ::=
       % ------------------- :: wf_typ_vector
       % |- < INT * typ >
 
-
 defns
 Jwf_const :: '' ::=
       defn 
       system |-c const : typ :: :: wf_const :: ''
       {{ com [[const]] has [[typ]] }} by
 
+      |- typ
+      ------------------------------------- :: wf_const_zeroinitializer
+      system |-c typ zeroinitializer : typ
+
+
       |- int sz
       sz > 0
       ----------------------------- :: wf_const_int
       system |-c (int sz) INT : int sz
+
+      ------------------------------------------------- :: wf_const_floatpoint
+      system |-c floating_point Float : floating_point
 
       |- typ
       -------------------- :: wf_const_undef
@@ -105,6 +107,135 @@ Jwf_const :: '' ::=
       lookupTypViaIDFromSystem system id = typ*
       ------------------------------------------- :: wf_const_gid
       system |-c typ * id : typ*
+
+      system |-c const : int sz1
+      |- int sz2
+      sz2 < sz1
+      -------------------------------------------------- :: wf_const_trunc_int
+      system |-c trunc_int const to (int sz2) : int sz2
+
+      system |-c const : floating_point1
+      floating_point2 < floating_point1
+      ---------------------------------------------------------------- :: wf_const_trunc_fp
+      system |-c trunc_int const to floating_point2 : floating_point2
+
+      system |-c const : int sz1
+      |- int sz2
+      sz1 < sz2
+      --------------------------------------- :: wf_const_zext
+      system |-c zext const to typ : int sz2
+
+      system |-c const : int sz1
+      |- int sz2
+      sz1 < sz2
+      --------------------------------------- :: wf_const_sext
+      system |-c sext const to typ : int sz2
+
+      system |-c const : floating_point1
+      floating_point1 < floating_point2
+      -------------------------------------------------- :: wf_const_fpext
+      system |-c fpext const to typ : floating_point2
+
+      system |-c const : floating_point
+      |- int sz
+      --------------------------------------------- :: wf_const_fptoui
+      system |-c fptoui const to (int sz) : int sz
+
+      system |-c const : floating_point
+      |- int sz
+      --------------------------------------------- :: wf_const_fptosi
+      system |-c fptosi const to (int sz) : int sz
+
+      system |-c const : int sz
+      ----------------------------------------------------------- :: wf_const_uitofp
+      system |-c uitofp const to floating_point : floating_point
+
+      system |-c const : int sz
+      ----------------------------------------------------------- :: wf_const_sitofp
+      system |-c sitofp const to floating_point : floating_point
+
+      system |-c const : typ*
+      |- int sz
+      ----------------------------------------------- :: wf_const_ptrtoint
+      system |-c ptrtoint const to (int sz) : int sz
+
+      system |-c const : int sz
+      |- typ*
+      ----------------------------------------------- :: wf_const_inttoptr
+      system |-c ptrtoint const to (typ*) : typ*
+
+      % Check typs
+      system |-c const : typ1
+      |- typ2
+      % BitCast implies a no-op cast of type only. No bits change.
+      % However, you can't cast pointers to anything but pointers.
+      Typ.getPrimitiveSizeInBits typ1 = sz1 /\ Typ.getPrimitiveSizeInBits typ2 = sz2 /\ sz1 = sz2
+      % Bitcast requires types of same width.
+      isPointerTyp typ1 iff isPointerTyp typ2 
+      % Disallow aggregates.
+      (not isAggregateTyp typ1) /\ (not isAggregateTyp typ2)
+      ------------------------------------------------------- :: wf_const_bitcast
+      system |-c ptrtoint const to typ2 : typ2
+
+      % Check typs
+      system |-c const : typ*
+      </ system |-c constj : int sz /\ sz = 32 // j />
+      % Check indexs
+      getConstGEPTyp </ constj // j /> (typ*) = typ'
+      ----------------------------------------------------------------- :: wf_const_gep
+      system |-c getelementptr inbounds const </ constj // j />	: typ'
+
+      % Check typs
+      system |-c const0 : int sz /\ sz = 1
+      system |-c const1 : typ
+      system |-c const2 : typ
+      --------------------------------------------- :: wf_const_select
+      system |-c select const0 const1 const2 : typ
+
+      % Check typs
+      system |-c const1 : typ
+      system |-c const2 : typ
+      % types can only be int, vector or ptr
+      Typ.isIntOrIntVector typ \/ isPointerTyp typ
+      --------------------------------------------- :: wf_const_icmp
+      system |-c icmp cond const1 const2 : typ
+
+      % Check typs
+      system |-c const1 : floating_point
+      system |-c const2 : floating_point
+      ----------------------------------------------------- :: wf_const_fcmp
+      system |-c fcmp fcond const1 const2 : floating_point
+
+
+      % Check typs
+      system |-c const : typ
+      </ system |-c constj : int sz /\ sz = 32 // j />
+      % Check indexs
+      getSubTypFromConstIdxs </ constj // j /> typ = typ'
+      ------------------------------------------------------- :: wf_const_extractvalue
+      system |-c extractvalue const </ constj // j /> : typ'
+
+
+      % Check typs
+      system |-c const : typ
+      system |-c const' : typ'
+      </ system |-c constj : int sz /\ sz = 32 // j />
+      % Check indexs
+      getSubTypFromConstIdxs </ constj // j /> typ = typ'
+      ------------------------------------------------------------ :: wf_const_insertvalue
+      system |-c insertvalue const const' </ constj // j /> : typ
+
+      % Check typs
+      system |-c const1 : int sz
+      system |-c const2 : int sz
+      --------------------------------------- :: wf_const_bop
+      system |-c bop const1 const2 : int sz
+
+      % Check typs
+      system |-c const1 : floating_point
+      system |-c const2 : floating_point
+      ----------------------------------------------- :: wf_const_fbop
+      system |-c fbop const1 const2 : floating_point
 
 defns
 Jwf_value :: '' ::=
@@ -249,6 +380,29 @@ Jwf_cast :: '' ::=
       ----------------------------------------------------------------------------------------------- :: wf_cast_bitcast
       intrinsic_funs , system , module_info , fdef_info , block |-cast id = bitcast typ1 value1 to typ2		
 
+defns
+Jwf_trunc :: '' ::=
+      defn
+      intrinsic_funs , system , module_info , fdef_info , block |-trunc insn :: :: wf_trunc :: '' 
+      {{ com trunc [[insn]] is well-formed w.r.t [[block]] in [[fdef_info]] in [[module_info]] [[system]] }} by  
+
+      % Check typs
+      system |- value1 : int sz1 
+      % bitwidth of dest typ is less then src typ
+      sz2 < sz1
+      % Check invariance for instructions 
+      intrinsic_funs , system , module_info , fdef_info , block |-i id = trunc_int ( int sz1 ) value1 to ( int sz2 )
+      ----------------------------------------------------------------------------------------------- :: wf_trunc_int
+      intrinsic_funs , system , module_info , fdef_info , block |-trunc id = trunc_int ( int sz1 ) value1 to ( int sz2 )	
+
+      % Check typs
+      system |- value1 : floating_point11 
+      % bitwidth of dest typ is less then src typ
+      floating_point2 < floating_point1
+      % Check invariance for instructions 
+      intrinsic_funs , system , module_info , fdef_info , block |-i id = trunc_fp floating_point1 value1 to floating_point2
+      ----------------------------------------------------------------------------------------------- :: wf_trunc_fp
+      intrinsic_funs , system , module_info , fdef_info , block |-trunc id = trunc_fp floating_point1 value1 to floating_point2	
 
 defns
 Jwf_ext :: '' ::=
@@ -274,6 +428,14 @@ Jwf_ext :: '' ::=
       ------------------------------------------------------------------------------------------------------- :: wf_ext_s
       intrinsic_funs , system , module_info , fdef_info , block |-ext id = sext ( int sz1 ) value1 to ( int sz2 )	
 
+      % Check typs
+      system |- value1 : floating_point1 
+      % bitwidth of src typ is less then dest typ
+      floating_point1 < floating_point2
+      % Check invariance for instructions 
+      intrinsic_funs , system , module_info , fdef_info , block |-i id = fpext floating_point1 value1 to floating_point2
+      ------------------------------------------------------------------------------------------------------- :: wf_ext_fp
+      intrinsic_funs , system , module_info , fdef_info , block |-ext id = fpext floating_point1 value1 to floating_point2	
 
 defns
 Jwf_insn :: '' ::=
@@ -337,6 +499,16 @@ Jwf_insn :: '' ::=
       -------------------------------------------------------------------------------------- :: wf_insn_bop
       intrinsic_funs , system , module_info, fdef_info , block |- id = bop (int sz) value1 value2
 
+      % Check typs
+      system |- value1 : floating_point
+      system |- value2 : floating_point
+      % Check that integer arithmetic operators are only used with integral operands.
+      % Integer arithmetic operators only work with integral types 
+      % Typ.isIntOrIntVector typ
+      % Check invariance for instructions
+      intrinsic_funs , system , module_info , fdef_info , block |-i id = fbop floating_point value1 value2
+      ----------------------------------------------------------------------------------------------------- :: wf_insn_fbop
+      intrinsic_funs , system , module_info, fdef_info , block |- id = fbop floating_point value1 value2
 
       % Check typs
       system |- value : typ
@@ -418,13 +590,17 @@ Jwf_insn :: '' ::=
       intrinsic_funs , system , module_info , fdef_info , block |- id = getelementptr inbounds (typ*) value </ valuej // j />
 
 
+      intrinsic_funs , system , module_info , fdef_info , block |-trunc id = truncop typ1 value1 to typ2
+      ---------------------------------------------------------------------------------------------------- :: wf_insn_trunc
+      intrinsic_funs , system , module_info , fdef_info , block |- id = truncop typ1 value1 to typ2
+
       intrinsic_funs , system , module_info , fdef_info , block |-ext id = extop typ1 value1 to typ2
-      ------------------------------------------------------------------------------------------------------- :: wf_insn_ext
+      ---------------------------------------------------------------------------------------------------- :: wf_insn_ext
       intrinsic_funs , system , module_info , fdef_info , block |- id = extop typ1 value1 to typ2
 
 
       intrinsic_funs , system , module_info , fdef_info , block |-cast id = castop typ1 value1 to typ2
-      ------------------------------------------------------------------------------------------------------- :: wf_insn_cast
+      ---------------------------------------------------------------------------------------------------- :: wf_insn_cast
       intrinsic_funs , system , module_info , fdef_info , block |- id = castop typ1 value1 to typ2
 
 
@@ -435,8 +611,17 @@ Jwf_insn :: '' ::=
       Typ.isIntOrIntVector typ \/ isPointerTyp typ
       % Check invariance for instructions
       intrinsic_funs , system , module_info , fdef_info , block |-i id = icmp cond typ value1 value2
-      ------------------------------------------------------------------------------------------------------- :: wf_insn_icmp
+      --------------------------------------------------------------------------------------------------- :: wf_insn_icmp
       intrinsic_funs , system , module_info , fdef_info , block |- id = icmp cond typ value1 value2
+
+
+      % Check typs
+      system |- value1 : floating_point
+      system |- value2 : floating_point
+      % Check invariance for instructions
+      intrinsic_funs , system , module_info , fdef_info , block |-i id = fcmp fcond floating_point value1 value2
+      ------------------------------------------------------------------------------------------------------- :: wf_insn_fcmp
+      intrinsic_funs , system , module_info , fdef_info , block |- id = fcmp fcond floating_point value1 value2
 
 
       % Check typs
@@ -679,7 +864,7 @@ Jwf_gvar :: '' ::=  % visitGlobalVariable
 
       system |- const : typ
       ------------------------------------------------------------------------- :: wf_v_intro
-      intrinsic_funs , system , module_info |-v id = global typ const align
+      intrinsic_funs , system , module_info |-v id = gvar_spec typ const align
 
 defns
 Jwf_prod :: '' ::=
