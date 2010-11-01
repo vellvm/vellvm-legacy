@@ -126,7 +126,7 @@ let rec string_of_constant c =
 	| LLVMsyntax.Coq_const_struct cs -> string_of_list_constant cs
   | LLVMsyntax.Coq_const_gid (_,id) -> id
 	| LLVMsyntax.Coq_const_zeroinitializer _ -> "zeroinitializer"
-	| LLVMsyntax.Coq_const_floatpoint (_, f) -> string_of_float f
+	| LLVMsyntax.Coq_const_floatpoint (_, f) -> APFloat.to_string f
 	| LLVMsyntax.Coq_const_truncop (op, c, t) -> 
     string_of_truncop op^" ("^string_of_constant c^" to "^string_of_typ t^")" 
 	| LLVMsyntax.Coq_const_extop (op, c, t) -> 

@@ -2,31 +2,6 @@ open Printf
 open Llvm
 open Llvm_aux
 
-(** [writeConstantInt] *)
-let rec string_of_constant c = 
-	match (classify_value c) with
-	| ValueTy.UndefValueVal -> "undef"
-	| ValueTy.ConstantExprVal -> "ConstantExpr"
-	| ValueTy.ConstantAggregateZeroVal -> "string_of_constant v"
-	| ValueTy.ConstantIntVal ->
-		  if (is_i1_type (type_of c))
-			then
-				if (Int64.compare (const_int_get_zextvalue c) Int64.zero) == 0 
-				then "false"
-				else "true"
-			else	 
-		    APInt.to_string (APInt.const_int_get_value c)
-	| ValueTy.ConstantFPVal -> "ConstantFP"
-	| ValueTy.ConstantArrayVal -> 
-  		let ops = operands c in 
-      Array.fold_right (fun c cs -> (string_of_constant c)^" "^cs) ops ""		
-	| ValueTy.ConstantStructVal ->
-  		let ops = operands c in 
-      Array.fold_right (fun c cs -> (string_of_constant c)^" "^cs) ops ""		
-	| ValueTy.ConstantVectorVal -> "ConstantVector"
-	| ValueTy.ConstantPointerNullVal -> "null"
-	| _ -> failwith "Not_Constant"
-
 (** [PrintLLVMName], generate slots if [v] does not have a name. *)
 let llvm_name st v =
 	if (has_name v)
@@ -49,6 +24,420 @@ let llvm_label st b =
 	else
 		string_of_int (SlotTracker.get_local_slot st v)
 
+(** [writeConstantInt] *)
+let rec string_of_constant st c = 
+	match (classify_value c) with
+	| ValueTy.UndefValueVal -> "undef"
+	| ValueTy.ConstantExprVal -> string_of_constant_expr st c
+	| ValueTy.ConstantAggregateZeroVal -> "zeroinitializer"
+	| ValueTy.ConstantIntVal ->
+		  if (is_i1_type (type_of c))
+			then
+				if (Int64.compare (const_int_get_zextvalue c) Int64.zero) == 0 
+				then "false"
+				else "true"
+			else	 
+		    APInt.to_string (APInt.const_int_get_value c)
+	| ValueTy.ConstantFPVal -> APFloat.to_string (APFloat.const_float_get_value c)
+	| ValueTy.ConstantArrayVal -> 
+  		let ops = operands c in 
+      Array.fold_right (fun c cs -> (string_of_constant st c)^" "^cs) ops ""		
+	| ValueTy.ConstantStructVal ->
+  		let ops = operands c in 
+      Array.fold_right (fun c cs -> (string_of_constant st c)^" "^cs) ops ""		
+	| ValueTy.ConstantVectorVal -> "ConstantVector"
+	| ValueTy.ConstantPointerNullVal -> "null"
+	| ValueTy.GlobalVariableVal ->  llvm_name st c
+	| _ -> failwith "Not_Constant"
+and string_of_constant_expr st c =
+	match (classify_constantexpr c) with
+	| InstrOpcode.Ret ->
+			failwith "Ret isnt a const expr"
+	| InstrOpcode.Br ->
+			failwith "Br isnt a const expr"
+	| InstrOpcode.Switch ->
+			failwith "Switch isnt a const expr"
+  | InstrOpcode.Invoke ->			
+			failwith "Invoke isnt a const expr"
+  | InstrOpcode.Unwind ->
+			failwith "Unwind isnt a const expr"
+  | InstrOpcode.Unreachable ->
+			failwith "Unreachable isnt a const expr"
+  | InstrOpcode.Add ->
+			let ops = operands c in
+			let n = num_operand c in
+			if n != 2
+			then failwith "Const Add must have 2 operand."
+			else
+				"add ("^
+				string_of_constant st (Array.get ops 0)^" "^
+	  		string_of_constant st (Array.get ops 1)^")"
+  | InstrOpcode.FAdd ->
+			let ops = operands c in
+			let n = num_operand c in
+			if n != 2
+			then failwith "Const FAdd must have 2 operand."
+			else
+				"fadd ("^
+				string_of_constant st (Array.get ops 0)^" "^
+	  		string_of_constant st (Array.get ops 1)^")"
+  | InstrOpcode.Sub ->
+			let ops = operands c in
+			let n = num_operand c in
+			if n != 2
+			then failwith "Const Sub must have 2 operand."
+			else
+				"sub ("^
+				string_of_constant st (Array.get ops 0)^" "^
+	  		string_of_constant st (Array.get ops 1)^")"
+  | InstrOpcode.FSub ->
+			let ops = operands c in
+			let n = num_operand c in
+			if n != 2
+			then failwith "Const FSub must have 2 operand."
+			else
+				"fsub ("^
+				string_of_constant st (Array.get ops 0)^" "^
+	  		string_of_constant st (Array.get ops 1)^")"
+  | InstrOpcode.Mul ->
+			let ops = operands c in
+			let n = num_operand c in
+			if n != 2
+			then failwith "Const Mul must have 2 operand."
+			else
+				"mul ("^
+				string_of_constant st (Array.get ops 0)^" "^
+	  		string_of_constant st (Array.get ops 1)^")"
+  | InstrOpcode.FMul ->
+			let ops = operands c in
+			let n = num_operand c in
+			if n != 2
+			then failwith "Const FMul must have 2 operand."
+			else
+				"fmul ("^
+				string_of_constant st (Array.get ops 0)^" "^
+	  		string_of_constant st (Array.get ops 1)^")"
+  | InstrOpcode.UDiv ->
+			let ops = operands c in
+			let n = num_operand c in
+			if n != 2
+			then failwith "Const UDiv must have 2 operand."
+			else
+				"udiv ("^
+				string_of_constant st (Array.get ops 0)^" "^
+	  		string_of_constant st (Array.get ops 1)^")"
+  | InstrOpcode.SDiv ->
+			let ops = operands c in
+			let n = num_operand c in
+			if n != 2
+			then failwith "Const SDiv must have 2 operand."
+			else
+				"sdiv ("^
+				string_of_constant st (Array.get ops 0)^" "^
+	  		string_of_constant st (Array.get ops 1)^")"
+  | InstrOpcode.FDiv ->
+			let ops = operands c in
+			let n = num_operand c in
+			if n != 2
+			then failwith "Const FDiv must have 2 operand."
+			else
+				"fdiv ("^
+				string_of_constant st (Array.get ops 0)^" "^
+	  		string_of_constant st (Array.get ops 1)^")"
+  | InstrOpcode.URem ->
+			let ops = operands c in
+			let n = num_operand c in
+			if n != 2
+			then failwith "Const URem must have 2 operand."
+			else
+				"urem ("^
+				string_of_constant st (Array.get ops 0)^" "^
+	  		string_of_constant st (Array.get ops 1)^")"
+  | InstrOpcode.SRem ->
+			let ops = operands c in
+			let n = num_operand c in
+			if n != 2
+			then failwith "Const SRem must have 2 operand."
+			else
+				"srem ("^
+				string_of_constant st (Array.get ops 0)^" "^
+	  		string_of_constant st (Array.get ops 1)^")"
+  | InstrOpcode.FRem ->
+			let ops = operands c in
+			let n = num_operand c in
+			if n != 2
+			then failwith "Const FRem must have 2 operand."
+			else
+				"frem ("^
+				string_of_constant st (Array.get ops 0)^" "^
+	  		string_of_constant st (Array.get ops 1)^")"
+  | InstrOpcode.Shl ->
+			let ops = operands c in
+			let n = num_operand c in
+			if n != 2
+			then failwith "Const Shl must have 2 operand."
+			else
+				"shl ("^
+				string_of_constant st (Array.get ops 0)^" "^
+	  		string_of_constant st (Array.get ops 1)^")"
+  | InstrOpcode.LShr ->
+			let ops = operands c in
+			let n = num_operand c in
+			if n != 2
+			then failwith "Const LShr must have 2 operand."
+			else
+				"lshr ("^
+				string_of_constant st (Array.get ops 0)^" "^
+	  		string_of_constant st (Array.get ops 1)^")"
+  | InstrOpcode.AShr ->
+			let ops = operands c in
+			let n = num_operand c in
+			if n != 2
+			then failwith "Const AShr must have 2 operand."
+			else
+				"ashr ("^
+				string_of_constant st (Array.get ops 0)^" "^
+	  		string_of_constant st (Array.get ops 1)^")"
+  | InstrOpcode.And ->
+			let ops = operands c in
+			let n = num_operand c in
+			if n != 2
+			then failwith "Const And must have 2 operand."
+			else
+				"and ("^
+				string_of_constant st (Array.get ops 0)^" "^
+	  		string_of_constant st (Array.get ops 1)^")"
+  | InstrOpcode.Or ->
+			let ops = operands c in
+			let n = num_operand c in
+			if n != 2
+			then failwith "Const Or must have 2 operand."
+			else
+				"or ("^
+				string_of_constant st (Array.get ops 0)^" "^
+	  		string_of_constant st (Array.get ops 1)^")"
+  | InstrOpcode.Xor ->
+			let ops = operands c in
+			let n = num_operand c in
+			if n != 2
+			then failwith "Const XOr must have 2 operand."
+			else
+				"xor ("^
+				string_of_constant st (Array.get ops 0)^" "^
+	  		string_of_constant st (Array.get ops 1)^")"
+	| InstrOpcode.Malloc ->
+			failwith "Malloc isnt a const expr"
+	| InstrOpcode.Free ->
+			failwith "Free isnt a const expr"
+	| InstrOpcode.Alloca ->
+			failwith "Alloca isnt a const expr"
+	| InstrOpcode.Load ->
+			failwith "Load isnt a const expr"
+	| InstrOpcode.Store ->
+			failwith "Store isnt a const expr"
+  | InstrOpcode.GetElementPtr ->				
+			let n = num_operand c in
+			if n < 2
+			then failwith "Const GEP must have >=2 operand."
+			else
+  			let ops = operands c in
+   			let n = num_operand c in
+	  		let rec range b e ops =
+	  			if b < e
+	  			then
+	  				(string_of_constant st (Array.get ops b))^" "^(range (b + 1) e ops)
+	  			else
+	  				"" in
+				"getelementptr ("^
+				string_of_bool (Llvm.GetElementPtrInst.is_in_bounds c)^" "^
+				string_of_constant st (Array.get ops 0)^" "^
+	  		range 1 n ops^")"
+  | InstrOpcode.Trunc ->				
+			let ops = operands c in
+			let n = num_operand c in
+			if n != 1
+			then failwith "Const Trunc must have 1 operand."
+			else
+				"trunc ("^
+				string_of_constant st (Array.get ops 0)^" "^
+				string_type_of c^")"
+  | InstrOpcode.ZExt ->				
+			let ops = operands c in
+			let n = num_operand c in
+			if n != 1
+			then failwith "Const ZExt must have 1 operand."
+			else
+				"zext ("^
+				string_of_constant st (Array.get ops 0)^" "^
+				string_type_of c^")"
+  | InstrOpcode.SExt ->				
+			let ops = operands c in
+			let n = num_operand c in
+			if n != 1
+			then failwith "Const SExt must have 1 operand."
+			else
+				"sext ("^
+				string_of_constant st (Array.get ops 0)^" "^
+				string_type_of c^")"
+  |	InstrOpcode.FPToUI ->
+			let ops = operands c in
+			let n = num_operand c in
+			if n != 1
+			then failwith "Const FPToUI must have 1 operand."
+			else
+				"fptoui ("^
+				string_of_constant st (Array.get ops 0)^" "^
+				string_type_of c^")"
+  |	InstrOpcode.FPToSI ->
+			let ops = operands c in
+			let n = num_operand c in
+			if n != 1
+			then failwith "Const FPToSI must have 1 operand."
+			else
+				"fptosi ("^
+				string_of_constant st (Array.get ops 0)^" "^
+				string_type_of c^")"
+  |	InstrOpcode.UIToFP ->
+			let ops = operands c in
+			let n = num_operand c in
+			if n != 1
+			then failwith "Const UIToFP must have 1 operand."
+			else
+				"uitofp ("^
+				string_of_constant st (Array.get ops 0)^" "^
+				string_type_of c^")"
+  |	InstrOpcode.SIToFP ->
+			let ops = operands c in
+			let n = num_operand c in
+			if n != 1
+			then failwith "Const SIToFP must have 1 operand."
+			else
+				"sitofp ("^
+				string_of_constant st (Array.get ops 0)^" "^
+				string_type_of c^")"
+  |	InstrOpcode.FPTrunc ->
+			let ops = operands c in
+			let n = num_operand c in
+			if n != 1
+			then failwith "Const FPTrunc must have 1 operand."
+			else
+				"fptrunc ("^
+				string_of_constant st (Array.get ops 0)^" "^
+				string_type_of c^")"
+  |	InstrOpcode.FPExt ->
+			let ops = operands c in
+			let n = num_operand c in
+			if n != 1
+			then failwith "Const FPExt must have 1 operand."
+			else
+				"fpext ("^
+				string_of_constant st (Array.get ops 0)^" "^
+				string_type_of c^")"
+  |	InstrOpcode.PtrToInt ->
+			let ops = operands c in
+			let n = num_operand c in
+			if n != 1
+			then failwith "Const PtrToInt must have 1 operand."
+			else
+				"ptrtoint ("^
+				string_of_constant st (Array.get ops 0)^" "^
+				string_type_of c^")"
+  |	InstrOpcode.IntToPtr ->
+			let ops = operands c in
+			let n = num_operand c in
+			if n != 1
+			then failwith "Const IntToPtr must have 1 operand."
+			else
+				"inttoptr ("^
+				string_of_constant st (Array.get ops 0)^" "^
+				string_type_of c^")"
+  |	InstrOpcode.BitCast ->
+			let ops = operands c in
+			let n = num_operand c in
+			if n != 1
+			then failwith "Const BitCast must have 1 operand."
+			else
+				"bitcast ("^
+				string_of_constant st (Array.get ops 0)^" "^
+				string_type_of c^")"
+	| InstrOpcode.ICmp ->
+			let ops = operands c in
+			let n = num_operand c in
+			if n != 2
+			then failwith "Const ICmp must have 2 operand."
+			else
+				"icmp ("^
+				(string_of_icmp (ICmpInst.const_get_predicate c))^" "^
+				string_of_constant st (Array.get ops 0)^" "^
+				string_of_constant st (Array.get ops 1)^")"
+	| InstrOpcode.FCmp ->
+			let ops = operands c in
+			let n = num_operand c in
+			if n != 2
+			then failwith "Const FCmp must have 2 operand."
+			else
+				"fcmp ("^
+				(string_of_fcmp (FCmpInst.const_get_predicate c))^" "^
+				string_of_constant st (Array.get ops 0)^" "^
+				string_of_constant st (Array.get ops 1)^")"
+  |	InstrOpcode.PHI ->
+		  failwith "PHI isnt a const expr"
+	| InstrOpcode.Call ->
+		  failwith "Call isnt a const expr"
+  | InstrOpcode.Select ->			
+			let ops = operands c in
+			let n = num_operand c in
+			if n != 3
+			then failwith "Const Select must have 3 operand."
+			else
+				"select ("^
+				string_of_constant st (Array.get ops 0)^" "^
+				string_of_constant st (Array.get ops 1)^" "^
+				string_of_constant st (Array.get ops 2)^")"
+  | InstrOpcode.UserOp1 ->			
+			failwith "UserOp1 isnt a const expr"
+  | InstrOpcode.UserOp2 ->			
+			failwith "UserOp2 isnt a const expr"
+  | InstrOpcode.VAArg ->			
+			failwith "VAArg isnt a const expr"
+  | InstrOpcode.ExtractElement ->			
+			failwith "Const ExtractElement: Not_Supported"
+  | InstrOpcode.InsertElement ->			
+			failwith "Const InsertElement: Not_Supported"
+  | InstrOpcode.ShuffleVector ->			
+			failwith "Sont ShuffleVector: Not_Supported"
+  | InstrOpcode.ExtractValue ->			
+			let ops = operands c in
+			let n = num_operand c in
+			if n < 2
+			then failwith "Const ExtractValue must have >=2 operand."
+			else
+	  		let rec range b e ops =
+	  			if b < e
+	  			then
+	  				(string_of_constant st (Array.get ops b))^" "^(range (b + 1) e ops)
+	  			else
+	  				"" in
+				"extractvalue ("^
+				string_of_constant st (Array.get ops 0)^" "^
+				(range 1 n ops)^")"
+  | InstrOpcode.InsertValue ->			
+			let ops = operands c in
+			let n = num_operand c in
+			if n < 3
+			then failwith "Const InsertValue must have >=3 operand."
+			else
+	  		let rec range b e ops =
+	  			if b < e
+	  			then
+	  				(string_of_constant st (Array.get ops b))^" "^(range (b + 1) e ops)
+	  			else
+	  				"" in
+				"insertvalue ("^
+				string_of_constant st (Array.get ops 0)^" "^
+				string_of_constant st (Array.get ops 1)^" "^
+				(range 2 n ops)^")"
+
 (** See [WriteAsOperandInternal] - used by [string_of_operand], it prints out
     the name of [v] without its type. *)
 let string_of_operand_internal st v =
@@ -58,15 +447,15 @@ let string_of_operand_internal st v =
 	| ValueTy.FunctionVal -> llvm_name st v                  (*GlobalValue*)
 	| ValueTy.GlobalAliasVal -> llvm_name st v               (*GlobalValue*)
 	| ValueTy.GlobalVariableVal -> llvm_name st v            (*GlobalValue*)
-	| ValueTy.UndefValueVal -> string_of_constant v
-	| ValueTy.ConstantExprVal -> string_of_constant v
-	| ValueTy.ConstantAggregateZeroVal -> string_of_constant v
-	| ValueTy.ConstantIntVal -> string_of_constant v
-	| ValueTy.ConstantFPVal -> string_of_constant v
-	| ValueTy.ConstantArrayVal -> string_of_constant v
-	| ValueTy.ConstantStructVal -> string_of_constant v
-	| ValueTy.ConstantVectorVal -> string_of_constant v
-	| ValueTy.ConstantPointerNullVal -> string_of_constant v
+	| ValueTy.UndefValueVal -> string_of_constant st v
+	| ValueTy.ConstantExprVal -> string_of_constant st v
+	| ValueTy.ConstantAggregateZeroVal -> string_of_constant st v
+	| ValueTy.ConstantIntVal -> string_of_constant st v
+	| ValueTy.ConstantFPVal -> string_of_constant st v
+	| ValueTy.ConstantArrayVal -> string_of_constant st v
+	| ValueTy.ConstantStructVal -> string_of_constant st v
+	| ValueTy.ConstantVectorVal -> string_of_constant st v
+	| ValueTy.ConstantPointerNullVal -> string_of_constant st v
 	| ValueTy.MDNodeVal -> "MDNodeVal"
 	| ValueTy.MDStringVal -> "MDStringVal"
 	| ValueTy.NamedMDNodeVal -> "NamedMDNodeVal"

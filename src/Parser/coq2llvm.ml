@@ -31,7 +31,7 @@ let rec translate_constant (ctx:llcontext) (c:LLVMsyntax.const) : llvalue =
 	match c with
   | LLVMsyntax.Coq_const_zeroinitializer t ->  Llvm.const_null (translate_typ ctx t)
 	| LLVMsyntax.Coq_const_int (sz, i) -> Llvm.APInt.const_apint (Llvm.global_context()) i
-	| LLVMsyntax.Coq_const_floatpoint (fp, f) -> Llvm.const_float (translate_floating_point ctx fp) f
+	| LLVMsyntax.Coq_const_floatpoint (fp, f) -> Llvm.APFloat.const_apfloat ctx f
 	| LLVMsyntax.Coq_const_undef t -> undef (translate_typ ctx t)
 	| LLVMsyntax.Coq_const_null t ->  const_null (translate_typ ctx t)
 	| LLVMsyntax.Coq_const_arr (t, cs) -> const_array 
