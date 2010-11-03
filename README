@@ -178,8 +178,12 @@ vol/tests : Potential test cases for a verified Softbound
       DIRS = 
     in lib/OCamlPass/Makefile at this point. 
 
-    After compiling Coq code, we can reset
+    After compiling Coq code, 
+    * in lib/OCamlPass/Makefile, reset
       DIRS = CoCaml Nihao Hola ConstantPropVC ConstantPropTV
+    * in lib/OCamlPass/CoCaml/Makefile and lib/OCamlPass/CoCaml/Makefile.coq, set
+      SSALIB:=$(VOL)/src/ssa/
+      METALIB:=$(WHERE_RELEASE_IS)/theory/metatheory_8.3/
     and recompile the llvm.
 
     * make ENABLE_OPTIMIZED=0    // this is to build a debugging version of
@@ -241,8 +245,12 @@ llvm before compiling, we can set
   DIRS = 
 in lib/OCamlPass/Makefile at this point. 
 
-After compiling Coq code, we can reset
+After compiling Coq code, 
+* in lib/OCamlPass/Makefile, reset
   DIRS = CoCaml Nihao Hola ConstantPropVC ConstantPropTV
+* in lib/OCamlPass/CoCaml/Makefile and lib/OCamlPass/CoCaml/Makefile.coq, set
+  SSALIB:=$(VOL)/src/ssa/
+  METALIB:=$(WHERE_RELEASE_IS)/theory/metatheory_8.3/
 and recompile the llvm.
 
 ===========================================================================
