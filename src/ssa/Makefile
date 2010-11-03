@@ -1,8 +1,9 @@
-OTT=ott
-COQC=coqc
-COQARG=-I ./ott -I ./monads -I ~/SVN/provers/metalib/branches/metatheory_8.3/ -I ./compcert
+include ../Makefile.config
+
+COQARG=-I ./ott -I ./monads -I $(METALIB) -I ./compcert
 
 all:
+	+make -C $(METALIB)
 	+make -C ./monads
 	+make -C ./ott
 	+make -C ./compcert 
@@ -95,5 +96,6 @@ clean:
 	+make -C ./ott clean
 	+make -C ./monads clean	
 	+make -C ./llvm_op clean
+	+make -C ../Interpreter -f Makefile.ocaml clean
 	rm -rf ssa.tex main.pdf main.log main.aux main.log main.tex ssa_def.v ssa_lib.v ssa_static.vo *.vo *.glob merge.ott m_*.ott
 

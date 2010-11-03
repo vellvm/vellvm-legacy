@@ -16,20 +16,16 @@
 #
 ############################################################################
 
+include ../Makefile.config
+
 ## Paths to executables. Do not include options here.
 ## Modify these to suit your Coq installation, if necessary.
-
-COQC = coqc
-COQDEP = coqdep
-COQDOC = coqdoc
-OTT = ott
-LNGEN = lngen
 
 ## Include directories, one per line.
 
 INCDIRS = \
 	. \
-	../../../theory/metatheory/ \
+	$(METALIB) \
 
 ## Directory where generated HTML documentation should go.
 

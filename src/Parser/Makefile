@@ -1,7 +1,7 @@
+
+include ../Makefile.config
+
 OUTPUT_TYPE := byte
-LLVM_LIB := /home/jianzhou/Tools/llvm-2.6/lib/
-LLVM_OCAML_LIB := $(LLVM_LIB)/ocaml/
-TV_LIB := /home/jianzhou/SVN/sol/vol/src/TV/extraction/_build/
 
 all: main
 

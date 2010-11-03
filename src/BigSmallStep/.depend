@@ -1,5 +1,5 @@
-densem.vo: densem.v lang_inf.vo lang_more.vo soundness.vo
-lang_def.vo: lang_def.v ../../../theory/metatheory/Metatheory.vo
-lang_inf.vo: lang_inf.v ../../../theory/metatheory/Metatheory.vo ../../../theory/metatheory/LibLNgen.vo lang_def.vo
-lang_more.vo: lang_more.v ../../../theory/metatheory/Metatheory.vo lang_def.vo
-soundness.vo: soundness.v lang_inf.vo lang_more.vo
+densem.vo densem.glob: densem.v lang_inf.vo lang_more.vo soundness.vo
+lang_def.vo lang_def.glob: lang_def.v ../../../theory/metatheory/Metatheory.vo
+lang_inf.vo lang_inf.glob: lang_inf.v ../../../theory/metatheory/Metatheory.vo ../../../theory/metatheory/LibLNgen.vo lang_def.vo
+lang_more.vo lang_more.glob: lang_more.v ../../../theory/metatheory/Metatheory.vo lang_def.vo
+soundness.vo soundness.glob: soundness.v lang_inf.vo lang_more.vo

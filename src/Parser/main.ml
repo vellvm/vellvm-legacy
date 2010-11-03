@@ -2,6 +2,8 @@ open Printf
 open Llvm
 open Symexe_correct
 
+let debug = true
+
 let main in_filename out_filename =
 	let ic = create_context () in
 	let imbuf = MemoryBuffer.of_file in_filename in
@@ -10,7 +12,7 @@ let main in_filename out_filename =
 	
 	dump_module im;
 	Llvm_pretty_printer.travel_module ist im;
-	let coqim = Llvm2coq.translate_module ist im in
+	let coqim = Llvm2coq.translate_module debug ist im in
 	Coq_pretty_printer.travel_module coqim;
 
 	let oc = create_context () in
@@ -18,7 +20,7 @@ let main in_filename out_filename =
 	let om = Llvm_bitreader.parse_bitcode oc ombuf in
 	let ost = SlotTracker.create_of_module om in
 
-	let coqom = Llvm2coq.translate_module ost om in
+	let coqom = Llvm2coq.translate_module debug ost om in
 			
 	eprintf "TV=%b\n" (tv_module coqim coqom);
 	

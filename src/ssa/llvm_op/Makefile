@@ -1,6 +1,7 @@
-OTT=ott
-COQC=coqc
-COQARG=-I .. -I ../ott -I ../monads -I ~/SVN/provers/metalib/branches/metatheory_8.3/ -I ../compcert
+
+include ../../Makefile.config
+
+COQARG=-I .. -I ../ott -I ../monads -I $(METALIB) -I ../compcert
 
 all: main.pdf ssa_verifier.vo ssa_executionengine.vo ssa_all.vo
 
