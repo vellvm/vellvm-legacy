@@ -615,9 +615,10 @@ let array_size_to_int c =
                                 (Llvm.APInt.const_int_get_value c))			 
 	| _ -> failwith "array_size must be ConstantIntVal"
 
-let translate_instr st i =
+let translate_instr debug st i  =
 	(* debugging output *)
-	let _ = Llvm_pretty_printer.travel_instr st i in
+	(if debug then Llvm_pretty_printer.travel_instr st i); 
+	
 	match (classify_instr i) with
 	| InstrOpcode.Ret ->
 			begin
@@ -1305,17 +1306,18 @@ let translate_instr st i =
 					 range 2 n ops)
 				)
 
-let translate_block st b bs =
+let translate_block debug st b bs =
 	(* debugging output *)
-	prerr_string "label: ";
-	prerr_endline (llvm_label st b);
-	prerr_newline ();
+	(if debug then
+		(prerr_string "label: ";
+	  prerr_endline (llvm_label st b);
+	  prerr_newline ()));
 	
 	(* translation *)
 	let ((ps, cs, otmn): LLVMsyntax.phinodes * LLVMsyntax.cmds * LLVMsyntax.terminator option) =
 		fold_right_instrs
 			(fun instr ((ps', cs', otmn'): LLVMsyntax.phinodes * LLVMsyntax.cmds * LLVMsyntax.terminator option) ->
-						let i = translate_instr st instr in
+						let i = translate_instr debug st instr in
 						match i with
 						| LLVMsyntax.Coq_insn_terminator tmn0 ->
 								if List.length ps' == 0 &&
@@ -1355,22 +1357,25 @@ let translate_fun_typ t =
 		| LLVMsyntax.Coq_typ_pointer (LLVMsyntax.Coq_typ_function (rt, ts)) -> rt
 		| _ -> failwith "Ill-formed function typ"
 
-let translate_function st f ps =
-	(* debugging output *)
+let translate_function debug st f ps =
 	SlotTracker.incorporate_function st f;
-	prerr_string (if (is_declaration f)	then "declare " else "define ");
-	prerr_string "fname: ";
-	prerr_string (llvm_name st f);
-	prerr_string " with ftyp: ";
-	prerr_string (string_of_lltype (type_of f));
-	prerr_string " with params: ";
-	Array.iter
-		(fun param ->
-					prerr_string (Llvm_pretty_printer.string_of_operand st param);
-					prerr_string ", "
-		)
-		(params f);
-	prerr_newline ();
+	
+	(* debugging output *)
+	(if debug then (
+	  prerr_string (if (is_declaration f)	then "declare " else "define ");
+  	prerr_string "fname: "; 
+	  prerr_string (llvm_name st f);
+	  prerr_string " with ftyp: ";
+	  prerr_string (string_of_lltype (type_of f));
+  	prerr_string " with params: ";
+  	Array.iter
+	  	(fun param ->
+	  				prerr_string (Llvm_pretty_printer.string_of_operand st param);
+	  				prerr_string ", "
+	  	)
+	  	(params f);
+	  prerr_newline ())
+	);
 	
 	(* translation *)
 	let args = Array.fold_right
@@ -1386,21 +1391,23 @@ let translate_function st f ps =
 		else
 			LLVMsyntax.Coq_product_fdef
 			(LLVMsyntax.Coq_fdef_intro
-				(fheader, fold_right_blocks (translate_block st) f [])) in
+				(fheader, fold_right_blocks (translate_block debug st) f [])) in
 	SlotTracker.purge_function st;
 	g:: ps
 
-let translate_global st g ps =
+let translate_global debug st g ps  =
 	match (classify_value g) with
 	| ValueTy.GlobalVariableVal ->
-	(* debugging output *)
-			prerr_string (llvm_name st g);
-			prerr_string " = ";
-			prerr_string (if (is_global_constant g) then "constant " else "global ");
-			if (has_initializer g)
-			then
-				prerr_string (Llvm_pretty_printer.string_of_operand st (get_initializer g));
-			prerr_newline ();
+	    (* debugging output *)
+			(if debug then(
+			  prerr_string (llvm_name st g);
+			  prerr_string " = ";
+		  	prerr_string (if (is_global_constant g) then "constant " else "global ");
+		  	if (has_initializer g)
+		  	then
+			  	prerr_string (Llvm_pretty_printer.string_of_operand st (get_initializer g));
+			  prerr_newline ())
+			);
 			
 			(* translation *)
 			if (has_initializer g)
@@ -1420,30 +1427,32 @@ let translate_global st g ps =
   				):: ps
 			else failwith "Global without initializer: Not_Supported"
 	| ValueTy.GlobalAliasVal -> failwith "GlobalAliasVal: Not_Supported"
-	| ValueTy.FunctionVal -> translate_function st g ps
+	| ValueTy.FunctionVal -> translate_function debug st g ps 
 	| _ -> failwith "Not_Global"
 
-let translate_layout dlt =
+let translate_layout debug dlt  =
 	let tg = Llvm_target.TargetData.create dlt in
 	let n = Llvm_target.get_num_alignment tg in
 	(* debugging output *)
-	prerr_string "layouts: ";
-	prerr_endline dlt;
-	eprintf "byteorde=%s\n"
-		(string_of_endian (Llvm_target.byte_order tg));
-	eprintf "p size=%s abi=%s pref=%s\n"
-		(string_of_int ((Llvm_target.pointer_size_in_bits tg) * 8))
-		(string_of_int ((Llvm_target.pointer_abi_alignment tg) * 8))
-		(string_of_int ((Llvm_target.pointer_pref_alignment tg) * 8));
-	for i = 0 to n - 1 do
-		eprintf "typ=%s bitwidth=%s abi=%s pref=%s\n"
-			(string_of_aligntype (Llvm_target.get_align_type_enum tg i))
-			(string_of_int (Llvm_target.get_type_bitwidth tg i))
-			(string_of_int ((Llvm_target.get_abi_align tg i) * 8))
-			(string_of_int ((Llvm_target.get_pref_align tg i) * 8));
-		flush_all()
-	done;
-	prerr_endline "Translate ignores Vector_align and Float_align";
+	(if debug then (
+	  prerr_string "layouts: ";
+	  prerr_endline dlt;
+	  eprintf "byteorde=%s\n"
+	  	(string_of_endian (Llvm_target.byte_order tg));
+	  eprintf "p size=%s abi=%s pref=%s\n"
+	  	(string_of_int ((Llvm_target.pointer_size_in_bits tg) * 8))
+	  	(string_of_int ((Llvm_target.pointer_abi_alignment tg) * 8))
+	  	(string_of_int ((Llvm_target.pointer_pref_alignment tg) * 8));
+	  for i = 0 to n - 1 do
+	  	eprintf "typ=%s bitwidth=%s abi=%s pref=%s\n"
+	  		(string_of_aligntype (Llvm_target.get_align_type_enum tg i))
+	  		(string_of_int (Llvm_target.get_type_bitwidth tg i))
+	  		(string_of_int ((Llvm_target.get_abi_align tg i) * 8))
+	  		(string_of_int ((Llvm_target.get_pref_align tg i) * 8));
+	  	flush_all()
+	  done;
+	  prerr_endline "Translate ignores Vector_align and Float_align")
+	);
 	
   (* translation *)
 	let rec range b e tg =
@@ -1475,10 +1484,10 @@ let translate_layout dlt =
 	Llvm_target.TargetData.dispose tg;
 	dl
 
-let translate_module st (m: llmodule) : LLVMsyntax.coq_module=
-	prerr_endline "Translate module (LLVM2Coq):";
-	let dl = translate_layout (data_layout m) in
-	let ps = (fold_right_functions (translate_function st) m
-				      (fold_right_globals (translate_global st) m [])) in  
+let translate_module (debug:bool) st (m: llmodule) : LLVMsyntax.coq_module=
+	(if debug then prerr_endline "Translate module (LLVM2Coq):");
+	let dl = translate_layout debug (data_layout m) in
+	let ps = (fold_right_functions (translate_function debug st) m
+				      (fold_right_globals (translate_global debug st) m [])) in  
 	LLVMsyntax.Coq_module_intro (dl, ps)
 

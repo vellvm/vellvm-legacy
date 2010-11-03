@@ -1,1 +1,1 @@
-../ssa/extraction/Input.ll
+link ../ssa/extraction/Input.ll
