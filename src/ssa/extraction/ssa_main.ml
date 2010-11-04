@@ -7,6 +7,24 @@ open Trace
 
 let debug = ref false
 
+let interInsnLoop (s0:LLVMopsem.coq_State) (tr0:trace) : (LLVMopsem.coq_State*trace) option =
+	
+	let s = ref s0 in
+	let n = ref 0 in
+	
+	while not (LLVMopsem.ds_isFinialState !s) do
+  	(if !debug then (eprintf "n=%d\n" !n;	 flush_all()));		
+		match interInsn !s with
+    | Some (s', _) ->
+			begin 
+			  s := s';
+			  n := !n + 1
+			end 
+    | None -> failwith "Stuck!" 
+	done;
+	
+	Some (!s, Coq_trace_nil)
+	
 let rec interInsnStar (s:LLVMopsem.coq_State) (tr:trace) (n:int) : (LLVMopsem.coq_State*trace) option =
 	if (LLVMopsem.ds_isFinialState s) 
 	then 
@@ -22,12 +40,12 @@ let rec interInsnStar (s:LLVMopsem.coq_State) (tr:trace) (n:int) : (LLVMopsem.co
 			match interInsn s with
       | Some (s', tr') -> interInsnStar s' (trace_app tr tr') (n-1)  
       | None ->
-				(if !debug then (eprintf "Stuck!\n";flush_all())); 
+				eprintf "Stuck!\n";flush_all(); 
 				None
 			end
 		else 
 			begin
-				(if !debug then (eprintf "Time up!\n";flush_all()));
+				eprintf "Time up!\n";flush_all();
 				Some (s, tr)
       end				
 			
@@ -48,7 +66,7 @@ let main in_filename  =
 
         (match LLVMopsem.ds_genInitState (coqim::[]) "@main" [] (li, im) with
           | Some s -> 
-            (match interInsnStar s Coq_trace_nil 1000 with
+            (match interInsnLoop s Coq_trace_nil with
               | Some (s', tr) -> ()
               | None -> () )
           | None -> () );

@@ -94,6 +94,7 @@ main.pdf: ssa.tex main.tex macros.sty
 
 clean: 
 	+make -C ./ott clean
+	+make -C ./compcert clean
 	+make -C ./monads clean	
 	+make -C ./llvm_op clean
 	+make -C ../Interpreter -f Makefile.ocaml clean
