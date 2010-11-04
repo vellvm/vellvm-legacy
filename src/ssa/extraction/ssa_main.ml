@@ -5,15 +5,13 @@ open Llvm
 open Llvm_executionengine
 open Trace
 
-let debug = ref false
-
 let interInsnLoop (s0:LLVMopsem.coq_State) (tr0:trace) : (LLVMopsem.coq_State*trace) option =
 	
 	let s = ref s0 in
 	let n = ref 0 in
 	
 	while not (LLVMopsem.ds_isFinialState !s) do
-  	(if !debug then (eprintf "n=%d\n" !n;	 flush_all()));		
+  	(if !Globalstates.debug then (eprintf "n=%d\n" !n;	 flush_all()));		
 		match interInsn !s with
     | Some (s', _) ->
 			begin 
@@ -29,14 +27,14 @@ let rec interInsnStar (s:LLVMopsem.coq_State) (tr:trace) (n:int) : (LLVMopsem.co
 	if (LLVMopsem.ds_isFinialState s) 
 	then 
 		begin
-			(if !debug then (eprintf "Done!\n";flush_all()));
+			(if !Globalstates.debug then (eprintf "Done!\n";flush_all()));
 			Some (s, tr)
     end			
 	else
 		if n > 0 
 		then
 	    begin
-			(if !debug then (eprintf "n=%d\n" n;	 flush_all()));		
+			(if !Globalstates.debug then (eprintf "n=%d\n" n;	 flush_all()));		
 			match interInsn s with
       | Some (s', tr') -> interInsnStar s' (trace_app tr tr') (n-1)  
       | None ->
@@ -57,10 +55,10 @@ let main in_filename  =
         let ist = SlotTracker.create_of_module im in
         let imp = ModuleProvider.create im in
 
-        (if !debug then dump_module im);
-        (if !debug then Llvm_pretty_printer.travel_module ist im);
-        let coqim = Llvm2coq.translate_module !debug ist im in
-        (if !debug then Coq_pretty_printer.travel_module coqim);
+        (if !Globalstates.debug then dump_module im);
+        (if !Globalstates.debug then Llvm_pretty_printer.travel_module ist im);
+        let coqim = Llvm2coq.translate_module !Globalstates.debug ist im in
+        (if !Globalstates.debug then Coq_pretty_printer.travel_module coqim);
 
         let li = ExecutionEngine.create_interpreter imp in
 
@@ -81,7 +79,7 @@ let _ = if Array.length Sys.argv = 0 then
 				else(   
 					(if Array.length Sys.argv > 2 then
 					  (if Array.get Sys.argv 2 = "-d" then 
-							debug := true
+							Globalstates.debug := true
 						)
 					);
         	main (Array.get Sys.argv 1)

@@ -499,7 +499,7 @@ and translate_constant_expr st c =
 			then failwith "Const ICmp must have 2 operand."
 			else
 				(LLVMsyntax.Coq_const_icmp
-					(translate_icmp (ICmpInst.get_predicate c),
+					(translate_icmp (ICmpInst.const_get_predicate c),
 					 translate_constant st (Array.get ops 0),
 					 translate_constant st (Array.get ops 1))
 				)
@@ -510,7 +510,7 @@ and translate_constant_expr st c =
 			then failwith "Const FCmp must have 2 operand."
 			else
 				(LLVMsyntax.Coq_const_fcmp
-					(translate_fcmp (FCmpInst.get_predicate c),
+					(translate_fcmp (FCmpInst.const_get_predicate c),
 					 translate_constant st (Array.get ops 0),
 					 translate_constant st (Array.get ops 1))
 				)
@@ -994,7 +994,7 @@ let translate_instr debug st i  =
 				(LLVMsyntax.Coq_insn_gep
 					(llvm_name st i,
 					 Llvm.GetElementPtrInst.is_in_bounds i,
-					 translate_typ (Llvm.pointer_type (type_of (Array.get ops 0))),  (* returns the elt typ of the 1st op's pointer typ *)
+					 translate_typ (Llvm.element_type (type_of (Array.get ops 0))),  (* returns the elt typ of the 1st op's pointer typ *)
 					 translate_operand_to_value st (Array.get ops 0),
 					 range 1 n ops)
 				)

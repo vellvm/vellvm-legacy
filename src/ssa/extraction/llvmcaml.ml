@@ -11,8 +11,6 @@ let coqcond_2_llvmicmp (c:cond) : Llvm.Icmp.t = Coq2llvm.translate_icond c
 let coqcond_2_llvmfcmp (c:fcond) : Llvm.Fcmp.t = Coq2llvm.translate_fcond c
 let getRealName = Coq_pretty_printer.getRealName
 
-let debug = false
-
 module TargetData = struct
 
   type t = ExecutionEngine.t * Llvm.llmodule
@@ -209,10 +207,12 @@ module GenericValue = struct
   let mgep (td:TargetData.t) (t1:LLVMsyntax.typ) (ma:t) (vidxs:t list) (inbounds:bool) : t option =
     let (ee, _) = td in
     let ltd = ExecutionEngine.target_data ee in
+		(if !Globalstates.debug then
+			eprintf "  Mgep ptr=%s type=%s" (GenericValue.to_string ma) (Coq_pretty_printer.string_of_typ t1); flush_all());    			
+
 		let gv = GenericValue.gep ltd ma (Llvm.pointer_type (coqtype_2_llvmtype t1)) (Array.of_list vidxs) in
-		(if debug then
-			eprintf "  Mgep ptr=%s type=%s r=%s\n"
-		  (GenericValue.to_string ma) (Coq_pretty_printer.string_of_typ t1) (GenericValue.to_string gv);flush_all());    			
+		
+		(if !Globalstates.debug then eprintf " r=%s\n" (GenericValue.to_string gv);flush_all());    			
 		Some gv
 
   let extractGenericValue x y z w = failwith "extractGenericValue undef"
@@ -220,24 +220,35 @@ module GenericValue = struct
   let insertGenericValue x y z a b = failwith "extractGenericValue undef"
 
   let mbop (td:TargetData.t) (op:LLVMsyntax.bop) (bsz:LLVMsyntax.sz) (gv1:t) (gv2:t) = 
+    (if !Globalstates.debug then
+		  eprintf "  M%s i%d gv1=%s gv2=%s" (Coq_pretty_printer.string_of_bop op) bsz 
+		  (GenericValue.to_string gv1) (GenericValue.to_string gv2);flush_all());
+			
     let gv = (GenericValue.binary_op gv1 gv2 (Llvm.integer_type (Llvm.global_context()) bsz) (coqbop_2_llvmopcode op)) in
-    (if debug then
-		  eprintf "  M%s i%d gv1=%s gv2=%s r=%s\n" (Coq_pretty_printer.string_of_bop op) bsz 
-		  (GenericValue.to_string gv1) (GenericValue.to_string gv2) (GenericValue.to_string gv);flush_all());
+		
+    (if !Globalstates.debug then eprintf " r=%s\n" (GenericValue.to_string gv);flush_all());
 		Some gv
 
   let mfbop (td:TargetData.t) (op:LLVMsyntax.fbop) (fp:LLVMsyntax.floating_point) (gv1:t) (gv2:t) = 
+    (if !Globalstates.debug then
+		  eprintf "  M%s %s gv1=%s gv2=%s"
+			(Coq_pretty_printer.string_of_fbop op) (Coq_pretty_printer.string_of_floating_point fp)
+		  (GenericValue.to_string gv1) (GenericValue.to_string gv2);flush_all());
+			
     let gv = (GenericValue.binary_op gv1 gv2 
 		            (Coq2llvm.translate_floating_point (Llvm.global_context()) fp) 
 								(coqfbop_2_llvmopcode op)) in
-    (if debug then
-		  eprintf "  M%s %s gv1=%s gv2=%s r=%s\n"
-			(Coq_pretty_printer.string_of_fbop op) (Coq_pretty_printer.string_of_floating_point fp)
-		  (GenericValue.to_string gv1) (GenericValue.to_string gv2) (GenericValue.to_string gv);flush_all());
+								
+    (if !Globalstates.debug then eprintf " r=%s\n" (GenericValue.to_string gv);flush_all());
 		Some gv
 
 	let mcast (td:TargetData.t) (op:LLVMsyntax.castop) (t1:LLVMsyntax.typ) (gv1:t) (t2:LLVMsyntax.typ) =
-    let gv =
+		(if !Globalstates.debug then
+      eprintf "  M%s gv1=%s t1=%s t2=%s" (Coq_pretty_printer.string_of_castop op)
+			(Coq_pretty_printer.string_of_typ t1) (Coq_pretty_printer.string_of_typ t2)
+		  (GenericValue.to_string gv1);flush_all());
+
+		let gv =
     (match op with
     | Coq_castop_fptoui -> GenericValue.fptoui gv1 (coqtype_2_llvmtype t1) (coqtype_2_llvmtype t2)
     | Coq_castop_fptosi -> GenericValue.fptosi gv1 (coqtype_2_llvmtype t1) (coqtype_2_llvmtype t2)
@@ -252,54 +263,65 @@ module GenericValue = struct
                               (Llvm.global_context()) 
                               (coqtype_2_llvmtype t2)
     ) in
-		(if debug then
-      eprintf "  M%s gv1=%s t1=%s t2=%s r=%s\n" (Coq_pretty_printer.string_of_castop op)
-			(Coq_pretty_printer.string_of_typ t1) (Coq_pretty_printer.string_of_typ t2)
-		  (GenericValue.to_string gv1) (GenericValue.to_string gv);flush_all());
+		
+		(if !Globalstates.debug then eprintf " r=%s\n" (GenericValue.to_string gv);flush_all());
 	  Some gv
 
   let mtrunc (td:TargetData.t) (op:truncop) (t1:typ) (gv1:t) (t2:typ) =
+		(if !Globalstates.debug then
+      eprintf "  M%s gv1=%s t1=%s t2=%s" (Coq_pretty_printer.string_of_truncop op)
+			(Coq_pretty_printer.string_of_typ t1) (Coq_pretty_printer.string_of_typ t2)
+		  (GenericValue.to_string gv1);flush_all());
+			
     let gv =
     (match op with
     | Coq_truncop_int -> GenericValue.trunc gv1 (coqtype_2_llvmtype t2) 
     | Coq_truncop_fp -> GenericValue.fptrunc gv1 (coqtype_2_llvmtype t1) (Llvm.global_context()) (coqtype_2_llvmtype t2)
     ) in
-		(if debug then
-      eprintf "  M%s gv1=%s t1=%s t2=%s r=%s\n" (Coq_pretty_printer.string_of_truncop op)
-			(Coq_pretty_printer.string_of_typ t1) (Coq_pretty_printer.string_of_typ t2)
-		  (GenericValue.to_string gv1) (GenericValue.to_string gv);flush_all());
+		
+		(if !Globalstates.debug then eprintf " r=%s\n" (GenericValue.to_string gv);flush_all());
 	  Some gv
 
-	  let mext (td:TargetData.t) (op:extop) (t1:typ) (gv1:t) (t2:typ) =
+  let mext (td:TargetData.t) (op:extop) (t1:typ) (gv1:t) (t2:typ) =
+		(if !Globalstates.debug then
+      eprintf "  M%s gv1=%s t1=%s t2=%s" (Coq_pretty_printer.string_of_extop op)
+			(Coq_pretty_printer.string_of_typ t1) (Coq_pretty_printer.string_of_typ t2)
+		  (GenericValue.to_string gv1);flush_all());
+			
     let gv =
     (match op with
     | Coq_extop_z -> GenericValue.zext gv1 (coqtype_2_llvmtype t2)
     | Coq_extop_s -> GenericValue.sext gv1 (coqtype_2_llvmtype t2)
 		| Coq_extop_fp -> GenericValue.fpext gv1 (coqtype_2_llvmtype t1) (Llvm.global_context()) (coqtype_2_llvmtype t2)
     ) in
-		(if debug then
-      eprintf "  M%s gv1=%s t1=%s t2=%s r=%s\n" (Coq_pretty_printer.string_of_extop op)
-			(Coq_pretty_printer.string_of_typ t1) (Coq_pretty_printer.string_of_typ t2)
-		  (GenericValue.to_string gv1) (GenericValue.to_string gv);flush_all());
+		
+		(if !Globalstates.debug then eprintf " r=%s\n" (GenericValue.to_string gv);flush_all());
 	  Some gv
 
   let micmp (td:TargetData.t) (c:cond) (t:typ) (gv1:t) (gv2:t) =
+		(if !Globalstates.debug then 
+      eprintf "  Micmp t=%s gv1=%s gv2=%s" (Coq_pretty_printer.string_of_typ t)
+		  (GenericValue.to_string gv1) (GenericValue.to_string gv2);flush_all());
+			
     let gv = GenericValue.icmp gv1 gv2 (coqtype_2_llvmtype t) (coqcond_2_llvmicmp c) in
-		(if debug then 
-      eprintf "  Micmp t=%s gv1=%s gv2=%s r=%s\n" (Coq_pretty_printer.string_of_typ t)
-		  (GenericValue.to_string gv1) (GenericValue.to_string gv2) (GenericValue.to_string gv);flush_all());
+		
+		(if !Globalstates.debug then eprintf " r=%s\n" (GenericValue.to_string gv);flush_all());
 		Some gv
 
   let mfcmp (td:TargetData.t) (c:fcond) (fp:LLVMsyntax.floating_point) (gv1:t) (gv2:t) =
+		(if !Globalstates.debug then 
+      eprintf "  Mfcmp t=%s gv1=%s gv2=%s" (Coq_pretty_printer.string_of_floating_point fp)
+		  (GenericValue.to_string gv1) (GenericValue.to_string gv2);flush_all());
+			
     let gv = GenericValue.fcmp gv1 gv2 
 		           (Coq2llvm.translate_floating_point (Llvm.global_context()) fp) 
 							 (coqcond_2_llvmfcmp c) in
-		(if debug then 
-      eprintf "  Mfcmp t=%s gv1=%s gv2=%s r=%s\n" (Coq_pretty_printer.string_of_floating_point fp)
-		  (GenericValue.to_string gv1) (GenericValue.to_string gv2) (GenericValue.to_string gv);flush_all());
+							
+		(if !Globalstates.debug then eprintf " r=%s\n" (GenericValue.to_string gv);flush_all());
 		Some gv
 
-	  let dump (gv:t) = GenericValue.dump gv
+
+	let dump (gv:t) = GenericValue.dump gv
 	let to_string (gv:t) = GenericValue.to_string gv
 
 end
@@ -312,31 +334,37 @@ module Mem = struct
 
   let malloc (td:TargetData.t) m size (a:LLVMsyntax.align) = 
     let (ee, _) = m in
+
+ 		(if !Globalstates.debug then 
+   		eprintf "  Malloc s=%d a=%d" size a;flush_all());			
+		
     match (ExecutionEngine.malloc_memory size ee) with
     | Some gv -> 
-    		(if debug then 
-					eprintf "  Malloc s=%d a=%d ptr=%s\n" size a (GenericValue.to_string gv);flush_all());				
+    		(if !Globalstates.debug then eprintf " ptr=%s\n" (GenericValue.to_string gv);flush_all());				
 			  Some (m, gv)
     | None -> 
-    		(if debug then eprintf "  Malloc None";flush_all());
+    		(if !Globalstates.debug then eprintf " None";flush_all());
 			  None
 
   let free (td:TargetData.t) m ptr =
     let (ee, _) = m in
-    let _ = ExecutionEngine.free_memory ptr ee in
-    (if debug then 
+    (if !Globalstates.debug then 
 			eprintf "  Mfree ptr=%s\n" (GenericValue.to_string ptr);flush_all());				
+    let _ = ExecutionEngine.free_memory ptr ee in
 		Some m
 
   let mload (td:TargetData.t) m ptr t (a:LLVMsyntax.align) =
     let (ee, _) = m in
+		(if !Globalstates.debug then 
+			eprintf "  Mload ptr=%s" (GenericValue.to_string ptr);flush_all());
+			
 		let gv = ExecutionEngine.load_value_from_memory ptr (coqtype_2_llvmtype t) ee in
-		(if debug then 
-			eprintf "  Mload ptr=%s r=%s\n" (GenericValue.to_string ptr) (GenericValue.to_string gv);flush_all());
+		
+		(if !Globalstates.debug then	eprintf " r=%s\n" (GenericValue.to_string gv);flush_all());
 		Some gv
 
   let mstore (td:TargetData.t) m ptr t gv (a:LLVMsyntax.align) =
-		(if debug then 
+		(if !Globalstates.debug then 
 			eprintf "  Mstore ptr=%s v=%s\n" (GenericValue.to_string ptr) (GenericValue.to_string gv);flush_all());
 		let (ee, _) = m in
     let _ = ExecutionEngine.store_value_to_memory gv ptr (coqtype_2_llvmtype t) ee in
@@ -345,17 +373,26 @@ module Mem = struct
   let initGlobal (td:TargetData.t) gl m (id0:LLVMsyntax.id) 
                  (t:LLVMsyntax.typ)(c:LLVMsyntax.const)(align0:LLVMsyntax.align) =
     let (ee, mm) = m in
+		
+ 		(if !Globalstates.debug then 
+   		eprintf "  InitGlobal id=%s" (getRealName id0);flush_all());			
+				
     match Llvm.lookup_global (getRealName id0) mm with
     | Some v -> 
        (match ExecutionEngine.get_pointer_to_global_if_available v ee with
-       | Some gv -> Some (gv, m)
-       | None -> None)
+       | Some gv -> 
+				 (if !Globalstates.debug then eprintf " ptr=%s\n" (GenericValue.to_string gv);flush_all());
+				 Some (gv, m)
+       | None -> 
+     		 (if !Globalstates.debug then eprintf " None";flush_all());
+				 None
+			 )
     | None -> None
 
   let initTargetData (td:LLVMsyntax.layouts) (m:t) = m
 
   let callExternalFunction m (fid:LLVMsyntax.id) (args:GenericValue.t list) = 
-		(if debug then 
+		(if !Globalstates.debug then 
 			eprintf "  Mcall external fun=%s\n" fid;flush_all());
 		let (ee, mm) = m in
     match Llvm.lookup_function (getRealName fid) mm with
