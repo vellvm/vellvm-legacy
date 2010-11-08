@@ -399,6 +399,7 @@ match ib with
 | id_binding_terminator i => Some (getTerminatorTyp i)
 | id_binding_phinode i => Some (getPhiNodeTyp i)
 | id_binding_gvar (gvar_intro _ _ t _ _) => Some (typ_pointer t)
+| id_binding_gvar (gvar_external _ _ t) => Some (typ_pointer t)
 | id_binding_arg (t, id) => Some t
 | id_binding_fdec fdec => Some (getFdecTyp fdec)
 | id_binding_none => None
@@ -561,6 +562,7 @@ end.
 Definition getGvarID g : id :=
 match g with
 | gvar_intro id _ _ _ _ => id
+| gvar_external id _ _ => id
 end.
 
 Definition getCallName i : option id :=
@@ -734,6 +736,11 @@ match p with
 | product_gvar (gvar_intro id' spec t c a) =>
   match (eq_dec id id') with
   | left _ => id_binding_gvar (gvar_intro id' spec t c a)
+  | right _ => id_binding_none
+  end
+| product_gvar (gvar_external id' spec t) =>
+  match (eq_dec id id') with
+  | left _ => id_binding_gvar (gvar_external id' spec t)
   | right _ => id_binding_none
   end
 | product_fdec fdec => lookupBindingViaIDFromFdec fdec id
@@ -1204,6 +1211,7 @@ lookupTypViaIDFromModules s id0.
   Definition genIdUseDef_product (p:product) : usedef_id :=
   match p with 
   | product_gvar (gvar_intro id _ t v a) => fun _ => nil
+  | product_gvar (gvar_external id _ _) => fun _ => nil
   | product_fdef f => (genIdUseDef_fdef f)
   | product_fdec f => fun _ => nil
   (* | product_namedtype nt => fun _ => nil *)
@@ -2319,6 +2327,10 @@ Proof.
     destruct (@typ_dec t t0); subst; try solve [done_right].
     destruct (@const_dec c c0); subst; try solve [done_right].
     destruct (@Align.dec a a0); subst; try solve [auto | done_right].
+
+    destruct (@id_dec i0 i1); subst; try solve [done_right].
+    destruct (@gvar_spec_dec g g0); subst; try solve [done_right].
+    destruct (@typ_dec t t0); subst; try solve [auto | done_right].
 Qed.  
 
 Lemma product_dec : forall (p p':product), {p=p'}+{~p=p'}.

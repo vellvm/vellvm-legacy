@@ -485,6 +485,7 @@ gvar_spec :: 'gvar_spec_'				::=	     		{{ com gvar spec }}
 % global id is also taken as constant addresses
 gvar :: 'gvar_'   	 				::=			{{ com global variables }}
   | id = gvar_spec typ const align			::   :: intro		{{ com intro }}
+  | id = gvar_spec typ	      				::   :: external	{{ com external }}
   | ( gvar )	    					:: S :: paren		{{ coq [[ gvar ]] }}
 
 id_binding :: 'id_binding_'  				::=			{{ com id binding }} 

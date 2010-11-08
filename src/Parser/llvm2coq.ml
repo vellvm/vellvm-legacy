@@ -613,7 +613,7 @@ let array_size_to_int c =
 			else
 				Int64.to_int (Llvm.APInt.get_zext_value
                                 (Llvm.APInt.const_int_get_value c))			 
-	| _ -> failwith "array_size must be ConstantIntVal"
+	| _ -> failwith (string_of_valuety (classify_value c) ^ ": array_size must be ConstantIntVal")
 
 let translate_instr debug st i  =
 	(* debugging output *)
@@ -1412,20 +1412,37 @@ let translate_global debug st g ps  =
 			(* translation *)
 			if (has_initializer g)
 			then
-			  if (is_global_constant g)
-			  then 
-	   			(LLVMsyntax.Coq_product_gvar
-	  				(LLVMsyntax.Coq_gvar_intro
-	  					(llvm_name st g, LLVMsyntax.Coq_gvar_spec_constant, translate_typ (type_of g), translate_constant st (get_initializer g), alignment g)
-	  				)
-	   			):: ps
-				else
-  				(LLVMsyntax.Coq_product_gvar
-  					(LLVMsyntax.Coq_gvar_intro
-  						(llvm_name st g, LLVMsyntax.Coq_gvar_spec_global, translate_typ (type_of g), translate_constant st (get_initializer g), alignment g)
-  					)
-  				):: ps
-			else failwith "Global without initializer: Not_Supported"
+				begin
+  			  if (is_global_constant g)
+  			  then 
+  	   			(LLVMsyntax.Coq_product_gvar
+  	  				(LLVMsyntax.Coq_gvar_intro
+  	  					(llvm_name st g, LLVMsyntax.Coq_gvar_spec_constant, translate_typ (type_of g), translate_constant st (get_initializer g), alignment g)
+  	  				)
+  	   			):: ps
+  				else
+    				(LLVMsyntax.Coq_product_gvar
+    					(LLVMsyntax.Coq_gvar_intro
+    						(llvm_name st g, LLVMsyntax.Coq_gvar_spec_global, translate_typ (type_of g), translate_constant st (get_initializer g), alignment g)
+  	  				)
+    				):: ps
+				end
+			else
+				begin
+    		  if (is_global_constant g)
+  			  then 
+  	   			(LLVMsyntax.Coq_product_gvar
+  	  				(LLVMsyntax.Coq_gvar_external
+  	  					(llvm_name st g, LLVMsyntax.Coq_gvar_spec_constant, translate_typ (type_of g))
+  	  				)
+  	   			):: ps
+  				else
+    				(LLVMsyntax.Coq_product_gvar
+    					(LLVMsyntax.Coq_gvar_external
+    						(llvm_name st g, LLVMsyntax.Coq_gvar_spec_global, translate_typ (type_of g))
+    					)
+    				):: ps
+	        end
 	| ValueTy.GlobalAliasVal -> failwith "GlobalAliasVal: Not_Supported"
 	| ValueTy.FunctionVal -> translate_function debug st g ps 
 	| _ -> failwith "Not_Global"

@@ -275,6 +275,9 @@ let travel_product g =
 	| LLVMsyntax.Coq_product_gvar (LLVMsyntax.Coq_gvar_intro (id, spec, t, c, a)) -> 
 		eprintf "%s = %s %s %s %d\n" id (string_of_gvar_spec spec) (string_of_typ t) (string_of_constant c) a; 
 		flush_all ()
+	| LLVMsyntax.Coq_product_gvar (LLVMsyntax.Coq_gvar_external (id, spec, t)) -> 
+		eprintf "%s = external %s %s\n" id (string_of_gvar_spec spec) (string_of_typ t); 
+		flush_all ()
 	| LLVMsyntax.Coq_product_fdec f -> travel_fdec f
 	| LLVMsyntax.Coq_product_fdef f -> travel_fdef f 
 

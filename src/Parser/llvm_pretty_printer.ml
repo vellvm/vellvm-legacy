@@ -48,7 +48,8 @@ let rec string_of_constant st c =
 	| ValueTy.ConstantVectorVal -> "ConstantVector"
 	| ValueTy.ConstantPointerNullVal -> "null"
 	| ValueTy.GlobalVariableVal ->  llvm_name st c
-	| _ -> failwith "Not_Constant"
+	| ValueTy.FunctionVal ->  llvm_name st c
+	| _ -> failwith (string_of_valuety (classify_value c) ^ " isnt Constant")
 and string_of_constant_expr st c =
 	match (classify_constantexpr c) with
 	| InstrOpcode.Ret ->

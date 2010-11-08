@@ -389,6 +389,24 @@ module Mem = struct
 			 )
     | None -> None
 
+  let getExternalGlobal m (id0:LLVMsyntax.id) =
+    let (ee, mm) = m in
+		
+ 		(if !Globalstates.debug then 
+   		eprintf "  getExternalGlobal id=%s" (getRealName id0);flush_all());			
+				
+    match Llvm.lookup_global (getRealName id0) mm with
+    | Some v -> 
+       (match ExecutionEngine.get_pointer_to_global_if_available v ee with
+       | Some gv -> 
+				 (if !Globalstates.debug then eprintf " ptr=%s\n" (GenericValue.to_string gv);flush_all());
+				 Some gv
+       | None -> 
+     		 (if !Globalstates.debug then eprintf " None";flush_all());
+				 None
+			 )
+    | None -> None
+
   let initTargetData (td:LLVMsyntax.layouts) (m:t) = m
 
   let callExternalFunction m (fid:LLVMsyntax.id) (args:GenericValue.t list) = 

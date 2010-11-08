@@ -5,7 +5,7 @@ OUTPUT_TYPE := cma
 
 all: symexe_correct
 
-symexe_correct: symexe_correct.ml symexe_correct.mli
+symexe_correct: symexe_correct.ml symexe_correct.mli $(LLVM_OCAML_LIB)/llvm.cma
 	./fixextract.py
 	ocamlbuild -j 2 -cflags -g,-I,$(LLVM_OCAML_LIB) -lflags -g,-I,$(LLVM_OCAML_LIB),-cclib,-L$(LLVM_LIB) symexe_correct.$(OUTPUT_TYPE)
 

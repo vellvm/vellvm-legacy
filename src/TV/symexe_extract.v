@@ -70,7 +70,7 @@ Extract Constant LLVMsyntax.INTEGER.to_Z => "Camlcoq.llapint2z".
 Extract Constant LLVMsyntax.INTEGER.dec => "Llvm.APInt.compare".
 
 Extract Constant LLVMsyntax.FLOAT.t => "Llvm.APFloat.t".
-Extract Constant LLVMsyntax.FLOAT.dec => "Llvm.APFloat.compare".
+Extract Constant LLVMsyntax.FLOAT.dec => "Llvm.APFloat.bcompare".
 
 Extract Constant LLVMlib.inbounds_dec => "(==)".
 Extract Constant LLVMlib.tailc_dec => "(==)".

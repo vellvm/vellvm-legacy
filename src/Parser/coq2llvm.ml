@@ -186,6 +186,7 @@ let translate_fdef f =
 let translate_product g =
 	match g with
 	| LLVMsyntax.Coq_product_gvar (LLVMsyntax.Coq_gvar_intro (id, spec, t, c, a)) -> failwith "Not_Supported." 
+	| LLVMsyntax.Coq_product_gvar (LLVMsyntax.Coq_gvar_external (id, spec, t)) -> failwith "Not_Supported." 
 	| LLVMsyntax.Coq_product_fdec f -> failwith "Not_Supported."
 	| LLVMsyntax.Coq_product_fdef f -> failwith "Not_Supported." 
 	

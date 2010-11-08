@@ -349,12 +349,19 @@ Definition initGlobal (TD:TargetData)(gl:GVMap)(Mem:mem)(id0:id)(t:typ)(c:const)
 
 Definition initTargetData (TD:layouts)(Mem:mem) : TargetData := TD.
 
+Axiom getExternalGlobal : mem -> id -> option GenericValue.
+
 Fixpoint genGlobalAndInitMem (TD:TargetData)(Ps:list product)(gl:GVMap)(Mem:mem) : option (GVMap*mem) :=
 match Ps with
 | nil => Some (gl, Mem)
 | (product_gvar (gvar_intro id0 spec t c align))::Ps' => 
   match (initGlobal TD gl Mem id0 t c align) with
   | Some (gv, Mem') => Some (updateAddAL _ gl id0 gv, Mem')
+  | None => None
+  end
+| (product_gvar (gvar_external id0 spec t))::Ps' => 
+  match (getExternalGlobal Mem id0) with
+  | Some gv => Some (updateAddAL _ gl id0 gv, Mem)
   | None => None
   end
 | _::Ps' => genGlobalAndInitMem TD Ps' gl Mem

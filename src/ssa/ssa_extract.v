@@ -79,7 +79,7 @@ Extract Constant LLVMsyntax.INTEGER.to_Z => "Camlcoq.llapint2z".
 Extract Constant LLVMsyntax.INTEGER.dec => "Llvm.APInt.compare".
 
 Extract Constant LLVMsyntax.FLOAT.t => "Llvm.APFloat.t".
-Extract Constant LLVMsyntax.FLOAT.dec => "Llvm.APFloat.compare".
+Extract Constant LLVMsyntax.FLOAT.dec => "Llvm.APFloat.bcompare".
 
 Extract Constant LLVMlib.inbounds_dec => "(==)".
 Extract Constant LLVMlib.tailc_dec => "(==)".
@@ -124,6 +124,7 @@ Extract Constant LLVMmem.mload =>  "Llvmcaml.Mem.mload".
 Extract Constant LLVMmem.mstore =>  "Llvmcaml.Mem.mstore".
 
 Extract Constant LLVMopsem.initGlobal => "Llvmcaml.Mem.initGlobal".
+Extract Constant LLVMopsem.getExternalGlobal => "Llvmcaml.Mem.getExternalGlobal".
 Extract Constant LLVMopsem.initTargetData => "Llvmcaml.Mem.initTargetData".
 Extract Constant LLVMopsem.callExternalFunction => "Llvmcaml.Mem.callExternalFunction".
 
