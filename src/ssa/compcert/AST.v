@@ -78,6 +78,14 @@ Inductive memory_chunk : Type :=
   | Mfloat32 : memory_chunk     (**r 32-bit single-precision float *)
   | Mfloat64 : memory_chunk.    (**r 64-bit double-precision float *)
 
+Definition memory_chunk_eq (c1 c2: memory_chunk) : bool :=
+match c1, c2 with
+| Mint n1, Mint n2 => beq_nat n1 n2
+| Mfloat32, Mfloat32 => true
+| Mfloat64, Mfloat64 => true
+| _, _ => false
+end.
+
 (** The type (integer/pointer or float) of a chunk. *)
 
 Definition type_of_chunk (c: memory_chunk) : typ :=

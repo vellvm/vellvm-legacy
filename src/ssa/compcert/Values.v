@@ -64,6 +64,25 @@ Definition eq_Vbool (wz:nat) (v v':val) :=
 
 Module Val.
 
+(* FIXME: Comparision between float and int may not bt correct. 
+   But we only need the eq to define LLVMgv.eq, which is only used for 
+   pointer comparision. *)
+Definition eq (v1 v2:val) : bool :=
+match v1, v2 with
+| Vundef, _ => false
+| _, Vundef => false
+| Vint wz1 i1, Vint wz2 i2 => zeq (Int.unsigned wz1 i1) (Int.unsigned wz2 i2)
+| Vint wz1 i1, Vfloat f2 => zeq (Int.unsigned wz1 i1) (Int.unsigned 31 (Float.intuoffloat f2))
+| Vfloat f1, Vint wz2 i2 => zeq (Int.unsigned 31 (Float.intuoffloat f1)) (Int.unsigned wz2 i2)
+| Vfloat f1, Vfloat f2 => match (Float.eq_dec f1 f2) with
+                          | left _ => true
+                          | right _ => false
+                          end
+| Vptr b1 o1, Vptr b2 o2 => eq_block b1 b2 && 
+                            zeq (Int.unsigned 31 o1) (Int.unsigned 31 o2)
+| _, _ => false
+end.
+
 Definition get_wordsize (v : val) : option nat :=
   match v with
   | Vint wz _ => Some wz

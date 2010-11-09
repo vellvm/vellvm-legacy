@@ -106,6 +106,7 @@ Extract Constant LLVMgv.mcast => "Llvmcaml.GenericValue.mcast".
 Extract Constant LLVMgv.mext => "Llvmcaml.GenericValue.mext".
 Extract Constant LLVMgv.micmp => "Llvmcaml.GenericValue.micmp".
 Extract Constant LLVMgv.mfcmp => "Llvmcaml.GenericValue.mfcmp".
+Extract Constant LLVMgv.eq_gv => "Llvmcaml.GenericValue.eq_gv".
 
 Extract Constant LLVMmem.mem =>  "Llvmcaml.Mem.t".
 (*Extract Constant LLVMmem.initmem =>  "Llvmcaml.Mem.initmem".*)
@@ -115,8 +116,11 @@ Extract Constant LLVMmem.mload =>  "Llvmcaml.Mem.mload".
 Extract Constant LLVMmem.mstore =>  "Llvmcaml.Mem.mstore".
 
 Extract Constant LLVMopsem.initGlobal => "Llvmcaml.Mem.initGlobal".
+Extract Constant LLVMopsem.getExternalGlobal => "Llvmcaml.Mem.getExternalGlobal".
 Extract Constant LLVMopsem.initTargetData => "Llvmcaml.Mem.initTargetData".
 Extract Constant LLVMopsem.callExternalFunction => "Llvmcaml.Mem.callExternalFunction".
+Extract Constant LLVMopsem.lookupFdefViaGVFromFunTable => "Llvmcaml.GenericValue.lookupFdefViaGVFromFunTable".
+Extract Constant LLVMopsem.initFunTable => "Llvmcaml.Mem.initFunTable".
 
 Extract Constant LLVMtd.TargetData =>  "Llvmcaml.TargetData.t".
 Extract Constant LLVMtd.getTypeAllocSize => "Llvmcaml.TargetData.getTypeAllocSize".

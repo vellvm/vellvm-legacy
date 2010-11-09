@@ -34,6 +34,7 @@ Variable sizeGenericValue : GenericValue -> nat.
 Variable uninits : nat -> GenericValue.
 Variable blk2GV : TargetData -> mblock -> GenericValue.
 Variable isGVZero : TargetData -> GenericValue -> bool.
+Variable eq_gv : GenericValue -> GenericValue -> bool.
 
 (**************************************)
 (** Convert const to GV with storesize, and look up GV from operands. *)
@@ -359,6 +360,15 @@ Definition GVMap := list (id*GenericValue).
 Definition mblock := Values.block.
 Definition mptr := GenericValue.
 Definition null : GenericValue := (Vptr Mem.nullptr (Int.repr 31 0), Mint 31)::nil.
+
+Fixpoint eq_gv (gv1 gv2:GenericValue) : bool :=
+match gv1, gv2 with
+| nil, nil => true
+| (v1,c1)::gv1', (v2,c2)::gv2' => Val.eq v1 v2 && 
+                                  memory_chunk_eq c1 c2 && 
+                                  eq_gv gv1' gv2'
+| _, _ => false
+end.
 
 Fixpoint sizeGenericValue (gv:GenericValue) : nat := 
 match gv with

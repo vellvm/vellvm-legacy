@@ -289,6 +289,9 @@ Jwf_operand :: '' ::=
       insn in system , (module, usedef_id, usedef_block) , (fdef, dt) , block
       getInsnOperands insn = ids
       id' in ids
+      % FIXME: lookupBindingViaIDFromSystem is not correct, it should only search bindings within the current
+      % scopes where id' is, rather than seaching any functions, because in other function, there could be 
+      % variables with same names
       lookupBindingViaIDFromSystem system id' = id_binding'
       % Check to make sure that only first-class-values are operands to instructions.
       getBindingTyp id_binding' = typ'     
@@ -297,7 +300,7 @@ Jwf_operand :: '' ::=
       (getPointerEltTyp typ' = typ'') implies (not typ'' == metadata)
       % Check to make sure that the "address of" an intrinsic function is never
       % taken, and referencing function exists in current module!
-      (isBindingFdec id_binding' = fdec) implies (getFdecID fdec = id0 /\ (id0 notin intrinsic_funs \/ getCallName insn = id0) /\ fdec in products)
+      (isBindingFdec id_binding' = fdec) implies (getFdecID fdec = id0 /\ (id0 notin intrinsic_funs \/ getCalledValueID insn = id') /\ fdec in products)
       % Referring to an argument in the current function
       (isBindingArg id_binding' = arg) implies (argInFdef arg fdef)
       % Referencing global in the current module
@@ -668,17 +671,16 @@ Jwf_insn :: '' ::=
 
       % LLVM checks that 
       %   "Called function must be a pointer!"
-      %   "Called function is not pointer to function type!"
-      %   We don't need to check this, but only ensure Call and FTy are valid
-      lookupFdefViaIDFromSystem system id0 = fdef1
-      CallSite.getFdefTyp fdef1 = typ1
+      %   "Called function has to be a pointer to function type!"
+      system |- value0 : typ1
+      isFunctionPointerTyp typ1
       % Verify that the correct number of arguments are being passed 
       % Correct number of arguments passed to called function! 
-      {{ FunctionType.getNumParams [[:user_syntax__typ:typ1]] = Some (CallSite.arg_size [[:user_syntax__fdef:fdef1]]) }}
+      {{ FunctionType.getNumParams [[:user_syntax__typ:typ1]] = Some (length [[params]]) }}
       % Verify that all arguments to the call match the function type... 
       params <-> </ (typj' valuej'') // j />
       typ1 = typ0 ( </ typj' // j /> )
-      </ system |- value'' : typj' // j />
+      </ system |- valuej'' : typj' // j />
       % instructions returning void cannot have a name
       typ0 == void implies noret = yes
       % Will Verify call attributes later... 
@@ -687,9 +689,9 @@ Jwf_insn :: '' ::=
       %   Open soooon...
       %  
       % Check invariance for instructions
-      intrinsic_funs , system , module_info , fdef_info , block |-i id = noret tailc call typ0 id0 params
+      intrinsic_funs , system , module_info , fdef_info , block |-i id = noret tailc call typ0 value0 params
       -------------------------------------------------------------------------------------------------- :: wf_insn_call
-      intrinsic_funs , system , module_info , fdef_info , block |- id = noret tailc call typ0 id0 params
+      intrinsic_funs , system , module_info , fdef_info , block |- id = noret tailc call typ0 value0 params
 
 defns
 Jwf_cmds :: '' ::=

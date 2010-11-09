@@ -77,7 +77,7 @@ Definition noret_dec : forall x y : noret, {x=y} + {x<>y} := bool_dec.
   | insn_icmp id cond typ v1 v2 => id
   | insn_fcmp id cond typ v1 v2 => id 
   | insn_select id v0 typ v1 v2 => id
-  | insn_call id _ _ typ id0 paraml => id
+  | insn_call id _ _ typ v0 paraml => id
   end.
  
   Definition getTerminatorID (i:terminator) : id :=
@@ -99,6 +99,7 @@ Definition noret_dec : forall x y : noret, {x=y} + {x<>y} := bool_dec.
   Definition getValueID (v:value) : option id :=
   match v with
   | value_id id => Some id
+  | value_const (const_gid _ id) => Some id
   | value_const _ => None
   end.
 
@@ -286,7 +287,7 @@ match i with
 | insn_icmp _ _ _ v1 v2 => getValueIDs v1 ++ getValueIDs v2
 | insn_fcmp _ _ _ v1 v2 => getValueIDs v1 ++ getValueIDs v2
 | insn_select _ v0 _ v1 v2 => getValueIDs v0 ++ getValueIDs v1 ++ getValueIDs v2
-| insn_call _ _ _ _ _ lp => getParamsOperand lp
+| insn_call _ _ _ _ v0 lp => getValueIDs v0 ++ getParamsOperand lp
 end.
 
 Definition getTerminatorOperands (i:terminator) : ids :=
@@ -559,9 +560,15 @@ match g with
 | gvar_external id _ _ => id
 end.
 
-Definition getCallName i : option id :=
+Definition getCalledValue i : option value :=
 match i with
-| insn_cmd (insn_call _ _ _ _ id0 _) => Some id0
+| insn_cmd (insn_call _ _ _ _ v0 _) => Some v0
+| _ => None
+end.
+
+Definition getCalledValueID i : option id :=
+match getCalledValue i with
+| Some v => getValueID v
 | _ => None
 end.
 
@@ -722,8 +729,11 @@ match (eq_dec id id') with
 end.
 
 Definition lookupBindingViaIDFromFdef (fd:fdef) (id:id) : id_binding :=
-let '(fdef_intro fh lb) := fd in
-lookupBindingViaIDFromBlocks lb id.
+let '(fdef_intro (fheader_intro t id' la) lb) := fd in
+match lookupBindingViaIDFromFdec (fdec_intro (fheader_intro t id' la)) id with
+| id_binding_none => lookupBindingViaIDFromBlocks lb id
+| re => re
+end.
 
 Definition lookupBindingViaIDFromProduct (p:product) (id:id) : id_binding :=
 match p with
@@ -948,6 +958,7 @@ Definition lookupTypViaIDFromProduct (p:product) (id0:id) : option typ :=
 match p with
 | product_fdef fd => lookupTypViaIDFromFdef fd id0
 | product_gvar (gvar_intro id spec t _ _) => if id0==id then Some t else None
+| product_gvar (gvar_external id spec t) => if id0==id then Some t else None
 | _ => None
 end.
 
@@ -1143,7 +1154,7 @@ lookupTypViaIDFromModules s id0.
   | insn_select id v0 typ v1 v2 => (genIdUseDef_id_uses_value v0 id)+++
                                    (genIdUseDef_id_uses_value v1 id)+++
                                    (genIdUseDef_id_uses_value v2 id)
-  | insn_call id _ _ typ id0 paraml => (genIdUseDef_id_uses_id id0 id)+++
+  | insn_call id _ _ typ v0 paraml => (genIdUseDef_id_uses_value v0 id)+++
                                        (genIdUseDef_id_uses_params paraml id)
   end.
  
@@ -1266,7 +1277,7 @@ lookupTypViaIDFromModules s id0.
   | insn_icmp id cond typ v1 v2 => fun _ => nil
   | insn_fcmp id cond typ v1 v2 => fun _ => nil 
   | insn_select id v0 t v1 v2 => fun _ => nil
-  | insn_call _ _ _ typ id0 paraml => fun _ => nil 
+  | insn_call _ _ _ typ v0 paraml => fun _ => nil 
   end.
  
   Definition genBlockUseDef_terminator (i:terminator) (b:block) : usedef_block :=
@@ -1562,6 +1573,12 @@ match t with
 | _ => false
 end.
 
+Definition isFunctionPointerTypB (t:typ) : bool :=
+match t with
+| typ_pointer (typ_function _ _) => true
+| _ => false
+end.
+
 Definition isArrayTypB (t:typ) : bool :=
 match t with
 | typ_array _ _ => true
@@ -1674,6 +1691,8 @@ Definition isBindingInsnB (ib:id_binding) : bool :=
 isBindingCmdB ib || isBindingTerminatorB ib || isBindingPhiNodeB ib.
 
 Definition isPointerTyp typ := isPointerTypB typ = true.
+
+Definition isFunctionPointerTyp t := isFunctionPointerTypB t = true.
 
 (* Definition isInvokeInsn insn := isInvokeInsnB insn = true. *)
 
@@ -2186,8 +2205,8 @@ Proof.
     destruct (@value_dec v0 v3); subst; try solve [done_right].
     destruct (@value_dec v1 v4); subst; try solve [auto | done_right].
   Case "insn_call".
-    destruct (@id_dec i0 i2); subst; try solve [done_right]. 
-    destruct (@id_dec i1 i3); subst; try solve [done_right]. 
+    destruct (@id_dec i0 i1); subst; try solve [done_right]. 
+    destruct (@value_dec v v0); subst; try solve [done_right]. 
     destruct (@noret_dec n n0); subst; try solve [done_right].
     destruct (@tailc_dec t t1); subst; try solve [done_right].
     destruct (@typ_dec t0 t2); subst; try solve [done_right].
@@ -2914,7 +2933,7 @@ Module Type SigReturnInst.
 End SigReturnInst.
 
 Module Type SigCallSite.
- Parameter getCalledFunction : cmd -> system -> option fdef.
+(* Parameter getCalledFunction : cmd -> system -> option fdef. *)
  Parameter getFdefTyp : fdef -> typ.
  Parameter arg_size : fdef -> nat.
  Parameter getArgument : fdef -> nat -> option arg.
@@ -3120,12 +3139,14 @@ End ReturnInst.
 
 Module CallSite <: SigCallSite.
 
- Definition getCalledFunction (i:cmd) (s:system) : option fdef :=
+(*
+Definition getCalledFunction (i:cmd) (s:system) : option fdef :=
  match i with 
  (* | insn_invoke _ _ fid _ _ _ => lookupFdefViaIDFromSystemC s fid *)
  | insn_call _ _ _ _ fid _ => lookupFdefViaIDFromSystem s fid
  | _ => None
  end.
+*)
 
  Definition getFdefTyp (fd:fdef) : typ := getFdefTyp fd.
 

@@ -334,6 +334,11 @@ value :: 'value_'					::=  			{{ com values }}
   | const						::   :: const   	{{ com constant }}
   | ( value )						:: S :: paren           {{ coq [[ value ]] }}
 
+opt_value {{ tex \mathit{opt_{value} } }} :: 'opt_value_'	::= 		{{ com option value }} {{ coq option value }}
+  | none 						::   :: none		{{ coq None }}
+  | value						::   :: value		{{ coq (Some [[value]]) }}
+  | ( opt_value )					:: S :: paren		{{ coq [[ opt_value ]] }}
+
 arg :: 'arg_'  						::=  			{{ com argument }}
        										{{ coq (prod typ id) }}
   | typ id						::   :: def		{{ coq ([[typ]],[[id]]) }}
@@ -391,7 +396,7 @@ cmd :: 'insn_'					    	::=			{{ com commands }}
   | id = icmp cond typ value1 value2			::   :: icmp		{{ com icmp }}
   | id = fcmp fcond floating_point value1 value2	::   :: fcmp		{{ com fcmp }}
   | id = select value0 typ value1 value2                ::   :: select          {{ com select }}
-  | id = noret tailc call typ0 id0 params  	 	::   :: call		{{ com call }} 
+  | id = noret tailc call typ0 value0 params  	 	::   :: call		{{ com call }} 
   %| va_arg
   | ( insn )						:: S :: paren           {{ coq [[ insn ]] }}
 

@@ -223,6 +223,7 @@ Lemma scall_dec : forall (sc1 sc2:scall), {sc1=sc2} + {~sc1=sc2}.
 Proof.
   decide equality.
     destruct (@list_typ_sterm_dec l0 l1); subst; try solve [auto | done_right].
+    destruct (@value_dec v v0); subst; try solve [auto | done_right].
     destruct (@typ_dec t0 t2); subst; try solve [auto | done_right].
     destruct (@bool_dec t t1); subst; try solve [auto | done_right].
     destruct (@bool_dec n n0); subst; try solve [auto | done_right].

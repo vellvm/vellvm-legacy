@@ -240,7 +240,7 @@ match (lookupFdefViaIDFromSystem s main) with
                 tmn
                 Values 
                 VarArgs 
-                (insn_cmd (insn_call main false false rt main nil))
+                (insn_cmd (insn_call main false false rt (value_id main) nil))
               )::nil)
            )          
         end

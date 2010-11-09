@@ -102,7 +102,7 @@ Jwf_operand :: '' ::=
       (getPointerEltTyp typ' = typ'') implies (not typ'' == metadata)
       % Check to make sure that the "address of" an intrinsic function is never
       % taken, and referencing function exists in current module!
-      (isBindingFdec id_binding' = fdec) implies (getFdecID fdec = id0 /\ (id0 notin intrinsic_funs \/ getCallName insn = id0) /\ fdec in products)
+      (isBindingFdec id_binding' = fdec) implies (getFdecID fdec = id0 /\ (id0 notin intrinsic_funs \/ getCalledValueID insn = id') /\ fdec in products)
       % Referring to an argument in the current function
       (isBindingArg id_binding' = arg) implies (argInFdef arg fdef)
       % Referencing global in the current module

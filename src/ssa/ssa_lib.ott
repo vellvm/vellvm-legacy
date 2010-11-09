@@ -264,8 +264,10 @@ formula :: 'formula_' ::=
     			        {{ coq floating_point_order [[floating_point1]] [[floating_point2]] = true }}
   | getLabelViaIDPhiNode insn id = opt_l :: :: getLabelViaIDPhiNode
                                 {{ coq getLabelViaIDPhiNode [[insn]] [[id]] = [[opt_l]] }}
-  | getCallName insn = opt_id    :: :: getCallName
-                                {{ coq getCallName [[insn]] = [[opt_id]] }}
+  | getCalledValue insn = opt_value    :: :: getCalledValue
+                                {{ coq getCalledValue [[insn]] = [[opt_value]] }}
+  | getCalledValueID insn = opt_id    :: :: getCalledValueID
+                                {{ coq getCalledValueID [[insn]] = [[opt_id]] }}
   | blockInFdef block fdef       :: :: blockInFdef
                                 {{ coq blockInFdefB [[block]] [[fdef]] = true }}
   | block in system , module_info , fdef_info :: :: blockInSystem
@@ -284,6 +286,8 @@ formula :: 'formula_' ::=
                                 {{ coq lookupFdefViaIDFromSystem [[system]] [[id]] = [[opt_fdef]] }}
   | isPointerTyp typ    :: :: isPointerTyp
     		     	        {{ coq isPointerTyp [[typ]] }}
+  | isFunctionPointerTyp typ    :: :: isFunctionPointerTyp
+    		     	        {{ coq isFunctionPointerTyp [[typ]] }}
   | isAggregateTyp typ    :: :: isAggregateTyp
     		     	        {{ coq isAggregateTyp [[typ]] }}
   | isValidReturnTyp typ    :: :: isValidReturnTyp

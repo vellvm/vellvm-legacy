@@ -69,6 +69,7 @@ module GenericValue = struct
 	let _const2GV x y z = failwith "_const2GV undef"
   let _list_const_arr2GV x y z = failwith "_list_const_arr2GV undef" 
   let _list_const_struct2GV x y z = failwith "_list_const_struct2GV undef" 
+  let eq_gv x y = failwith "eq_gv undef"
 
   (* used at runtime *)
   let blk2gv (td:TargetData.t) (v:t) = v
@@ -98,7 +99,12 @@ module GenericValue = struct
     | Coq_const_null t -> Some (Coq2llvm.translate_constant ctx c) 
     | Coq_const_arr (t, cs) -> Some (Coq2llvm.translate_constant ctx c)  
     | Coq_const_struct cs -> Some (Coq2llvm.translate_constant ctx c)
-    | Coq_const_gid (_,id) -> Llvm.lookup_global (getRealName id) mm
+    | Coq_const_gid (_,id) -> 
+			begin
+			  match Llvm.lookup_global (getRealName id) mm with
+		  	| None -> Llvm.lookup_function (getRealName id) mm
+		  	| Some gv -> Some gv
+			end  
   	| Coq_const_truncop (op, c, t) -> 
 			(match (const2llvalue td gl c) with
 			| Some v -> 
@@ -198,6 +204,15 @@ module GenericValue = struct
 	  	| _, _ -> None)
 	  | LLVMsyntax.Nil_list_const -> Some []
 
+  (** llvm::ExecutionEngine::getConstantValue also implements how to deal with function 
+    pointers and global variables 
+	    ...
+	    else if (const Function *F = dyn_cast<Function>(C))
+        Result = PTOGV(getPointerToFunctionOrStub(const_cast<Function*>(F)));
+      else if (const GlobalVariable* GV = dyn_cast<GlobalVariable>(C))
+        Result = PTOGV(getOrEmitGlobalVariable(const_cast<GlobalVariable*>(GV)))
+			...
+	*)
   let const2GV (td:TargetData.t) gl (c:const) : t option =
     let (ee, _) = td in
     match const2llvalue td gl c with
@@ -324,6 +339,21 @@ module GenericValue = struct
 	let dump (gv:t) = GenericValue.dump gv
 	let to_string (gv:t) = GenericValue.to_string gv
 
+  let lookupFdefViaGVFromFunTable fs (fptr:t) = 
+ 		(if !Globalstates.debug then 
+   		eprintf "  lookupFdefViaGVFromFunTable fptr=%s" (GenericValue.to_string fptr);flush_all());
+				
+		match GenericValue.as_function_pointer fptr with
+		| Some fv ->
+			(** FIXME: Llvm.value_name can fail at runtime, since the binding does not check
+          if fv can be safely casted into Value. *)
+			let fn = "@"^(Llvm.value_name fv) in  
+			(if !Globalstates.debug then eprintf " fname=%s\n" fn;flush_all());
+			Some fn
+		| None -> 
+			(if !Globalstates.debug then eprintf " None";flush_all());
+			None 
+
 end
 
 module Mem = struct
@@ -416,6 +446,17 @@ module Mem = struct
     match Llvm.lookup_function (getRealName fid) mm with
     | Some fv -> (Some (ExecutionEngine.call_external_function fv (Array.of_list args) ee), m)
     | None -> failwith "callExternalFunction: cannot find function"
+
+  let initFunTable m (fid:LLVMsyntax.id) = 
+    (if !Globalstates.debug then 
+			eprintf "  initFunTable fun=%s" fid;flush_all());
+		let (ee, mm) = m in
+		match Llvm.lookup_function (getRealName fid) mm with
+    | Some fv -> 
+			 let fptr = (ExecutionEngine.get_pointer_to_function fv ee) in
+			 (if !Globalstates.debug then eprintf " fptr=%s\n" (GenericValue.to_string fptr);flush_all());
+			 Some fptr
+    | None -> failwith "initFunTable: cannot find function"
 		
 end
 

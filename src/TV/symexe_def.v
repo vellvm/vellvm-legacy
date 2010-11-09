@@ -217,61 +217,61 @@ Inductive dbCmds : layouts -> GVMap ->
     dbCmds TD gl lc1 als1 Mem1 (c::cs) lc3 als3 Mem3 (trace_app t1 t2).
 
 Inductive dbCall : system -> layouts -> list product -> GVMap -> 
-                   GVMap -> mem -> 
+                   GVMap -> GVMap -> mem -> 
                    cmd -> 
                    GVMap -> mem -> 
                    trace -> Prop :=
-| dbCall_internal : forall S TD Ps lc gl rid noret tailc rt fid lp
+| dbCall_internal : forall S TD Ps lc gl fs rid noret tailc rt fv lp
                        Rid oResult tr lc' Mem Mem' als' Mem'' B',
-  dbFdef fid rt lp S TD Ps lc gl Mem lc' als' Mem' B' Rid oResult tr ->
+  dbFdef fv rt lp S TD Ps lc gl fs Mem lc' als' Mem' B' Rid oResult tr ->
   free_allocas TD Mem' als' = Some Mem'' ->
-  dbCall S TD Ps gl
+  dbCall S TD Ps fs gl
     lc Mem
-    (insn_call rid noret tailc rt fid lp)
+    (insn_call rid noret tailc rt fv lp)
     (LLVMopsem.callUpdateLocals TD noret rid rt oResult lc lc' gl) 
     Mem'' tr
-| dbCall_external : forall S TD Ps lc gl rid noret tailc fid 
+| dbCall_external : forall S TD Ps lc gl fs rid noret tailc fv fid 
                           lp rt la Mem oresult Mem',
   (* only look up the current module for the time being, 
      do not support linkage. 
      FIXME: should add excall to trace
   *)
-  LLVMopsem.lookupExFdefViaIDFromProducts Ps fid = Some (fdec_intro (fheader_intro rt fid la)) ->
+  LLVMopsem.lookupExFdecViaGV TD Ps gl lc fs fv = Some (fdec_intro (fheader_intro rt fid la)) ->
   LLVMopsem.callExternalFunction Mem fid (params2GVs TD lp lc gl) = (oresult, Mem') ->
-  dbCall S TD Ps gl
+  dbCall S TD Ps fs gl
     lc Mem
-    (insn_call rid noret tailc rt fid lp)
+    (insn_call rid noret tailc rt fv lp)
     (LLVMopsem.exCallUpdateLocals noret rid rt oresult lc) 
     Mem' trace_nil
-with dbSubblock : system -> layouts -> list product -> GVMap -> 
+with dbSubblock : system -> layouts -> list product -> GVMap -> GVMap -> 
                   GVMap -> list mblock -> mem -> 
                   cmds -> 
                   GVMap -> list mblock -> mem -> 
                   trace -> Prop :=
-| dbSubblock_intro : forall S TD Ps lc1 als1 gl Mem1 cs call0 lc2 als2 Mem2 tr1 
+| dbSubblock_intro : forall S TD Ps lc1 als1 gl fs Mem1 cs call0 lc2 als2 Mem2 tr1 
                      lc3 Mem3 tr2,
   dbCmds TD gl lc1 als1 Mem1 cs lc2 als2 Mem2 tr1 ->
-  dbCall S TD Ps gl lc2 Mem2 call0 lc3 Mem3 tr2 ->
-  dbSubblock S TD Ps gl
+  dbCall S TD Ps fs gl lc2 Mem2 call0 lc3 Mem3 tr2 ->
+  dbSubblock S TD Ps fs gl
              lc1 als1 Mem1
              (cs++call0::nil) 
              lc3 als2 Mem3
              (trace_app tr1 tr2)
-with dbSubblocks : system -> layouts -> list product -> GVMap -> 
+with dbSubblocks : system -> layouts -> list product -> GVMap -> GVMap -> 
                    GVMap -> list mblock -> mem -> 
                    cmds -> 
                    GVMap -> list mblock -> mem -> 
                    trace -> Prop :=
-| dbSubblocks_nil : forall S TD Ps lc als gl Mem, 
-    dbSubblocks S TD Ps gl lc als Mem nil lc als Mem trace_nil
-| dbSubblocks_cons : forall S TD Ps lc1 als1 gl Mem1 lc2 als2 Mem2 lc3 als3 Mem3 cs cs' t1 t2,
-    dbSubblock S TD Ps gl lc1 als1 Mem1 cs lc2 als2 Mem2 t1 ->
-    dbSubblocks S TD Ps gl lc2 als2 Mem2 cs' lc3 als3 Mem3 t2 ->
-    dbSubblocks S TD Ps gl lc1 als1 Mem1 (cs++cs') lc3 als3 Mem3 (trace_app t1 t2)
-with dbBlock : system -> layouts -> list product -> GVMap -> fdef -> list GenericValue -> State -> State -> trace -> Prop :=
-| dbBlock_intro : forall S TD Ps F tr1 tr2 l ps cs cs' tmn gl lc1 als1 Mem1
+| dbSubblocks_nil : forall S TD Ps lc als gl fs Mem, 
+    dbSubblocks S TD Ps fs gl lc als Mem nil lc als Mem trace_nil
+| dbSubblocks_cons : forall S TD Ps lc1 als1 gl fs Mem1 lc2 als2 Mem2 lc3 als3 Mem3 cs cs' t1 t2,
+    dbSubblock S TD Ps fs gl lc1 als1 Mem1 cs lc2 als2 Mem2 t1 ->
+    dbSubblocks S TD Ps fs gl lc2 als2 Mem2 cs' lc3 als3 Mem3 t2 ->
+    dbSubblocks S TD Ps fs gl lc1 als1 Mem1 (cs++cs') lc3 als3 Mem3 (trace_app t1 t2)
+with dbBlock : system -> layouts -> list product -> GVMap -> GVMap -> fdef -> list GenericValue -> State -> State -> trace -> Prop :=
+| dbBlock_intro : forall S TD Ps F tr1 tr2 l ps cs cs' tmn gl fs lc1 als1 Mem1
                          lc2 als2 Mem2 lc3 als3 Mem3 lc4 B' arg tr3,
-  dbSubblocks S TD Ps gl
+  dbSubblocks S TD Ps fs gl
     lc1 als1 Mem1
     cs
     lc2 als2 Mem2
@@ -282,27 +282,27 @@ with dbBlock : system -> layouts -> list product -> GVMap -> fdef -> list Generi
     tmn
     B' lc4
     tr3 ->
-  dbBlock S TD Ps gl F arg
+  dbBlock S TD Ps fs gl F arg
     (mkState (mkEC (block_intro l ps (cs++cs') tmn) lc1 als1) Mem1)
     (mkState (mkEC B' lc4 als3) Mem3)
     (trace_app (trace_app tr1 tr2) tr3)
-with dbBlocks : system -> layouts -> list product -> GVMap -> fdef -> list GenericValue -> State -> State -> trace -> Prop :=
-| dbBlocks_nil : forall S TD Ps gl F arg state, dbBlocks S TD Ps gl F arg state state trace_nil
-| dbBlocks_cons : forall S TD Ps gl F arg S1 S2 S3 t1 t2,
-    dbBlock S TD Ps gl F arg S1 S2 t1 ->
-    dbBlocks S TD Ps gl F arg S2 S3 t2 ->
-    dbBlocks S TD Ps gl F arg S1 S3 (trace_app t1 t2)
-with dbFdef : id -> typ -> params -> system -> layouts -> list product -> GVMap -> GVMap -> mem -> GVMap -> list mblock -> mem -> block -> id -> option value -> trace -> Prop :=
-| dbFdef_func : forall S TD Ps gl fid lp lc rid
+with dbBlocks : system -> layouts -> list product -> GVMap -> GVMap -> fdef -> list GenericValue -> State -> State -> trace -> Prop :=
+| dbBlocks_nil : forall S TD Ps gl fs F arg state, dbBlocks S TD Ps fs gl F arg state state trace_nil
+| dbBlocks_cons : forall S TD Ps gl fs F arg S1 S2 S3 t1 t2,
+    dbBlock S TD Ps fs gl F arg S1 S2 t1 ->
+    dbBlocks S TD Ps fs gl F arg S2 S3 t2 ->
+    dbBlocks S TD Ps fs gl F arg S1 S3 (trace_app t1 t2)
+with dbFdef : value -> typ -> params -> system -> layouts -> list product -> GVMap -> GVMap -> GVMap -> mem -> GVMap -> list mblock -> mem -> block -> id -> option value -> trace -> Prop :=
+| dbFdef_func : forall S TD Ps gl fs fv fid lp lc rid
                        l1 ps1 cs1 tmn1 rt la lb Result lc1 tr1 Mem Mem1 als1
                        l2 ps2 cs21 cs22 lc2 als2 Mem2 tr2 lc3 als3 Mem3 tr3,
-  lookupFdefViaIDFromProducts Ps fid = Some (fdef_intro (fheader_intro rt fid la) lb) ->
+  lookupFdefViaGV TD Ps gl lc fs fv = Some (fdef_intro (fheader_intro rt fid la) lb) ->
   getEntryBlock (fdef_intro (fheader_intro rt fid la) lb) = Some (block_intro l1 ps1 cs1 tmn1) ->
-  dbBlocks S TD Ps gl (fdef_intro (fheader_intro rt fid la) lb) (params2GVs TD lp lc gl)
+  dbBlocks S TD Ps fs gl (fdef_intro (fheader_intro rt fid la) lb) (params2GVs TD lp lc gl)
     (mkState (mkEC (block_intro l1 ps1 cs1 tmn1) (initLocals la (params2GVs TD lp lc gl)) nil) Mem)
     (mkState (mkEC (block_intro l2 ps2 (cs21++cs22) (insn_return rid rt Result)) lc1 als1) Mem1)
     tr1 ->
-  dbSubblocks S TD Ps gl
+  dbSubblocks S TD Ps fs gl
     lc1 als1 Mem1
     cs21
     lc2 als2 Mem2
@@ -312,17 +312,17 @@ with dbFdef : id -> typ -> params -> system -> layouts -> list product -> GVMap 
     cs22
     lc3 als3 Mem3
     tr3 ->
-  dbFdef fid rt lp S TD Ps lc gl Mem lc3 als3 Mem3 (block_intro l2 ps2 (cs21++cs22) (insn_return rid rt Result)) rid (Some Result) (trace_app (trace_app tr1 tr2) tr3)
-| dbFdef_proc : forall S TD Ps gl fid lp lc rid
+  dbFdef fv rt lp S TD Ps lc gl fs Mem lc3 als3 Mem3 (block_intro l2 ps2 (cs21++cs22) (insn_return rid rt Result)) rid (Some Result) (trace_app (trace_app tr1 tr2) tr3)
+| dbFdef_proc : forall S TD Ps gl fs fv fid lp lc rid
                        l1 ps1 cs1 tmn1 rt la lb lc1 tr1 Mem Mem1 als1
                        l2 ps2 cs21 cs22 lc2 als2 Mem2 tr2 lc3 als3 Mem3 tr3,
-  lookupFdefViaIDFromProducts Ps fid = Some (fdef_intro (fheader_intro rt fid la) lb) ->
+  lookupFdefViaGV TD Ps gl lc fs fv = Some (fdef_intro (fheader_intro rt fid la) lb) ->
   getEntryBlock (fdef_intro (fheader_intro rt fid la) lb) = Some (block_intro l1 ps1 cs1 tmn1) ->
-  dbBlocks S TD Ps gl (fdef_intro (fheader_intro rt fid la) lb) (params2GVs TD lp lc gl) 
+  dbBlocks S TD Ps fs gl (fdef_intro (fheader_intro rt fid la) lb) (params2GVs TD lp lc gl) 
     (mkState (mkEC (block_intro l1 ps1 cs1 tmn1) (initLocals la (params2GVs TD lp lc gl)) nil) Mem)
     (mkState (mkEC (block_intro l2 ps2 (cs21++cs22) (insn_return_void rid)) lc1 als1) Mem1)
     tr1 ->
-  dbSubblocks S TD Ps gl
+  dbSubblocks S TD Ps fs gl
     lc1 als1 Mem1
     cs21
     lc2 als2 Mem2
@@ -332,7 +332,7 @@ with dbFdef : id -> typ -> params -> system -> layouts -> list product -> GVMap 
     cs22
     lc3 als3 Mem3
     tr3 ->
-  dbFdef fid rt lp S TD Ps lc gl Mem lc3 als3 Mem3 (block_intro l2 ps2 (cs21++cs22) (insn_return_void rid)) rid None (trace_app (trace_app tr1 tr2) tr3)
+  dbFdef fv rt lp S TD Ps lc gl fs Mem lc3 als3 Mem3 (block_intro l2 ps2 (cs21++cs22) (insn_return_void rid)) rid None (trace_app (trace_app tr1 tr2) tr3)
 .
 
 Scheme dbCall_ind2 := Induction for dbCall Sort Prop
@@ -706,11 +706,11 @@ Proof.
       rewrite e in H. inversion H.
 Qed.
 
-Lemma dbCall_isCallInst : forall S TD Ps lc gl Mem1 c lc' Mem2 tr,
-  dbCall S TD Ps gl lc Mem1 c lc' Mem2 tr ->
+Lemma dbCall_isCallInst : forall S TD Ps lc gl fs Mem1 c lc' Mem2 tr,
+  dbCall S TD Ps fs gl lc Mem1 c lc' Mem2 tr ->
   Instruction.isCallInst c = true.
 Proof.
-  intros S TD Ps lc gl Mem1 c lc' Mem2 tr HdbCall.
+  intros S TD Ps lc gl fs Mem1 c lc' Mem2 tr HdbCall.
   induction HdbCall; auto.
 Qed.
 
@@ -738,8 +738,8 @@ Proof.
       inversion H.
 Qed.
 
-Lemma dbSubblock__cmds2sb : forall S TD Ps gl lc1 als1 Mem1 cs lc2 als2 Mem2 tr,
-  dbSubblock S TD Ps gl lc1 als1 Mem1 cs lc2 als2 Mem2 tr ->
+Lemma dbSubblock__cmds2sb : forall S TD Ps fs gl lc1 als1 Mem1 cs lc2 als2 Mem2 tr,
+  dbSubblock S TD Ps fs gl lc1 als1 Mem1 cs lc2 als2 Mem2 tr ->
   exists sb, cmds2sbs cs = (sb::nil, nil).
 Proof.
   intros.
@@ -784,8 +784,8 @@ Proof.
       rewrite H0. auto.
 Qed.
 
-Lemma dbSubblocks__cmds2sbs : forall S TD Ps gl lc1 als1 Mem1 cs lc2 als2 Mem2 tr,
-  dbSubblocks S TD Ps gl lc1 als1 Mem1 cs lc2 als2 Mem2 tr ->
+Lemma dbSubblocks__cmds2sbs : forall S TD Ps fs gl lc1 als1 Mem1 cs lc2 als2 Mem2 tr,
+  dbSubblocks S TD Ps fs gl lc1 als1 Mem1 cs lc2 als2 Mem2 tr ->
   exists sbs, cmds2sbs cs = (sbs, nil).
 Proof.
   intros.
@@ -1385,7 +1385,7 @@ Inductive sterminator : Set :=
 .
 
 Inductive scall : Set :=
-| stmn_call : id -> noret -> tailc -> typ -> id -> list (typ*sterm) -> scall
+| stmn_call : id -> noret -> tailc -> typ -> value -> list (typ*sterm) -> scall
 .
 
 Definition smap := list (atom*sterm).
@@ -1419,8 +1419,8 @@ match list_param1 with
 | (t, v)::list_param1' => (t, (value2Sterm sm v))::(list_param__list_typ_subst_sterm list_param1' sm)
 end.
 
-Lemma se_cmd_false_elim : forall i id0 noret0 tailc0 rt fid lp,
-  i=insn_call id0 noret0 tailc0 rt fid lp ->
+Lemma se_cmd_false_elim : forall i id0 noret0 tailc0 rt fv lp,
+  i=insn_call id0 noret0 tailc0 rt fv lp ->
   Instruction.isCallInst i = false ->
   False.
 Proof.
@@ -1558,9 +1558,9 @@ match c with
                  st.(SMem)
                  st.(SFrame)
                  st.(SEffects))
-  | insn_call id0 noret0 tailc0 rt fid lp => 
-    fun (EQ:i=insn_call id0 noret0 tailc0 rt fid lp ) =>
-    False_rec sstate (@se_cmd_false_elim i id0 noret0 tailc0 rt fid lp EQ notcall)
+  | insn_call id0 noret0 tailc0 rt fv lp => 
+    fun (EQ:i=insn_call id0 noret0 tailc0 rt fv lp ) =>
+    False_rec sstate (@se_cmd_false_elim i id0 noret0 tailc0 rt fv lp EQ notcall)
   end) (@refl_equal _ i)
 end.
 
@@ -1610,7 +1610,7 @@ Definition se_call : forall (st : sstate) (i:cmd) (iscall:Instruction.isCallInst
 Proof.
   intros. unfold Instruction.isCallInst in iscall. unfold _isCallInsnB in iscall.
   destruct i0; try solve [inversion iscall].
-  apply (@stmn_call i0 n t t0 i1 
+  apply (@stmn_call i0 n t t0 v 
                       (list_param__list_typ_subst_sterm p st.(STerms))).
 Defined.
 

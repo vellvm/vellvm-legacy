@@ -8,10 +8,12 @@ Require Import CoqListFacts.
 Require Import Metatheory.
 Require Import assoclist.
 Require Import genericvalues.
+Require Import ssa_dynamic.
 
 Export LLVMsyntax.
 Export LLVMlib.
 Export LLVMgv.
+Export LLVMopsem.
 
 (* eq is refl *)
 
@@ -529,6 +531,17 @@ Proof.
         apply IHPs in H. auto. 
 Qed.
 
+Lemma lookupFdefViaGV_inv : forall TD Ps gl lc fs fv F,
+  lookupFdefViaGV TD Ps gl lc fs fv = Some F ->
+  InProductsB (product_fdef F) Ps.
+Proof.
+  intros.
+  unfold lookupFdefViaGV in H.
+  destruct (getOperandValue TD fv lc gl); try solve [inversion H].
+  destruct (lookupFdefViaGVFromFunTable fs g); try solve [inversion H].
+  apply lookupFdefViaIDFromProducts_inv in H; auto.
+Qed.
+
 Lemma entryBlockInFdef : forall F B,
   getEntryBlock F = Some B ->
   blockInFdefB B F.
@@ -637,6 +650,18 @@ Proof.
   apply blockInSystemModuleFdef_intro; auto.
 Qed.
 
+Lemma entryBlockInSystemBlockFdef' : forall TD Ps gl lc fs fv F S B,
+  moduleInSystem (module_intro TD Ps) S ->
+  lookupFdefViaGV TD Ps gl lc fs fv = Some F ->
+  getEntryBlock F = Some B ->
+  blockInSystemModuleFdef B S (module_intro TD Ps) F.
+Proof.
+  intros.
+  apply lookupFdefViaGV_inv in H0.
+  apply entryBlockInFdef in H1.  
+  apply blockInSystemModuleFdef_intro; auto.
+Qed.
+
 Lemma productInSystemModuleB_inv : forall F Ps TD S,
   productInSystemModuleB (product_fdef F) S (module_intro TD Ps) ->
   InProductsB (product_fdef F) Ps /\
@@ -671,6 +696,17 @@ Proof.
   apply lookupFdefViaIDFromProducts_inv in H0.
   apply productInSystemModuleB_intro; auto.
 Qed.
+
+Lemma lookupFdefViaGVInSystem : forall TD Ps gl lc fs S fv F,
+  moduleInSystem (module_intro TD Ps) S ->
+  lookupFdefViaGV TD Ps gl lc fs fv = Some F ->
+  productInSystemModuleB (product_fdef F) S (module_intro TD Ps).
+Proof.
+  intros.
+  apply lookupFdefViaGV_inv in H0.
+  apply productInSystemModuleB_intro; auto.
+Qed.
+
 
 Lemma InBlocksB_uniq : forall lb l1 ps1 cs1 tmn1 ps2 cs2 tmn2,
   uniqBlocks lb ->
@@ -866,6 +902,18 @@ Proof.
   eapply uniqProducts__uniqFdef; simpl; eauto.
 Qed.
 
+Lemma lookupFdefViaGV_uniq : forall TD Ps gl lc fs S fv F,
+  uniqSystem S ->
+  moduleInSystem (module_intro TD Ps) S ->
+  lookupFdefViaGV TD Ps gl lc fs fv = Some F ->
+  uniqFdef F.
+Proof.
+  intros.
+  apply lookupFdefViaGV_inv in H1.
+  apply uniqSystem__uniqProducts in H0; auto.
+  eapply uniqProducts__uniqFdef; simpl; eauto.
+Qed.
+
 Lemma nth_error__lookupAL_genLabel2Block_blocks : forall n lb1 B1,
   uniqBlocks lb1 ->
   nth_error lb1 n = Some B1 ->
@@ -983,5 +1031,55 @@ Proof.
   eapply uniqBlocks__uniqBlock; eauto.
 Qed.
 
+Lemma lookupFdefViaIDFromProducts_ideq : forall Ps fid rt la lb fid',
+  lookupFdefViaIDFromProducts Ps fid = 
+    Some (fdef_intro (fheader_intro rt fid' la) lb) ->
+  fid = fid'.
+Proof.
+  induction Ps; intros.
+    inversion H.
+
+    simpl in H.
+    destruct a; simpl in H; eauto.
+      destruct f. destruct f.
+      simpl in H.
+      destruct (@eq_dec id (EqDec_eq_of_EqDec id EqDec_atom) i0 fid); simpl in H; subst; eauto.
+        inversion H; auto.
+Qed.     
+
+Lemma lookupFdecViaIDFromProducts_ideq : forall Ps fid rt la fid',
+  lookupFdecViaIDFromProducts Ps fid = 
+    Some (fdec_intro (fheader_intro rt fid' la)) ->
+  fid = fid'.
+Proof.
+  induction Ps; intros.
+    inversion H.
+
+    simpl in H.
+    destruct a; simpl in H; eauto.
+      destruct f. destruct f.
+      simpl in H.
+      destruct (@eq_dec id (EqDec_eq_of_EqDec id EqDec_atom) i0 fid); simpl in H; subst; eauto.
+        inversion H; auto.
+Qed.     
+
+
+Lemma eqAL_lookupExFdecViaGV : forall gl TD Ps lc lc' fs fv,
+  eqAL _ lc lc' ->
+  lookupExFdecViaGV TD Ps gl lc fs fv = lookupExFdecViaGV TD Ps gl lc' fs fv.
+Proof.
+  intros.
+  unfold lookupExFdecViaGV.
+  erewrite getOperandValue_eqAL; eauto.
+Qed.
+
+Lemma eqAL_lookupExFdefViaGV : forall gl TD Ps lc lc' fs fv,
+  eqAL _ lc lc' ->
+  lookupFdefViaGV TD Ps gl lc fs fv = lookupFdefViaGV TD Ps gl lc' fs fv.
+Proof.
+  intros.
+  unfold lookupFdefViaGV.
+  erewrite getOperandValue_eqAL; eauto.
+Qed.
 
   

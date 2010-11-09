@@ -119,6 +119,8 @@ let rec translate_constant st c =
 	| ValueTy.GlobalVariableVal ->                                                     (*GlobalValue*)
                                (* FIXME: Do we need typ for gid? use typ_void for the time being. *)
 															   (LLVMsyntax.Coq_const_gid ((translate_typ (type_of c)), llvm_name st c))
+	| ValueTy.FunctionVal ->                                                           (*FunctionVal*)
+															   (LLVMsyntax.Coq_const_gid ((translate_typ (type_of c)), llvm_name st c))
 	| _ -> failwith (string_of_valuety (classify_value c) ^ " isnt Constant")
 and translate_constant_expr st c =
 	match (classify_constantexpr c) with
@@ -579,7 +581,9 @@ let translate_operand_to_value st v =
 	match (classify_value v) with
 	| ValueTy.ArgumentVal -> LLVMsyntax.Coq_value_id (llvm_name st v)
 	| ValueTy.BasicBlockVal -> LLVMsyntax.Coq_value_id (llvm_name st v)
-	| ValueTy.FunctionVal -> LLVMsyntax.Coq_value_id (llvm_name st v)                  (*GlobalValue*)
+	| ValueTy.FunctionVal ->                                                           (*FunctionVal*)
+										           LLVMsyntax.Coq_value_const 
+															   (LLVMsyntax.Coq_const_gid (translate_typ (type_of v), llvm_name st v))
 	| ValueTy.GlobalAliasVal -> LLVMsyntax.Coq_value_id (llvm_name st v)               (*GlobalValue*)
 	| ValueTy.GlobalVariableVal ->                                                     (*GlobalValue*)
 										           LLVMsyntax.Coq_value_const 
@@ -1213,8 +1217,10 @@ let translate_instr debug st i  =
 					 ))
 				)
 	| InstrOpcode.Call ->
+			let ops = operands i in
+			let n = num_operand i in
+			(if n <=0 then failwith "Call must have more than 1 operand.");
 			let fv = operand i 0 in
-			let fname = llvm_name st fv in
 			let ptyp = type_of fv in
 			let ftyp = element_type ptyp in
 			let rtyp = return_type ftyp in
@@ -1222,8 +1228,6 @@ let translate_instr debug st i  =
 				| TypeKind.Void -> true
 				| _ -> false in
 			let tailc = is_tail_call i in
-			let ops = operands i in
-			let n = num_operand i in
 			let rec range b e ops =
 				if b < e
 				then
@@ -1236,14 +1240,14 @@ let translate_instr debug st i  =
 					noret,
 					tailc,
 					translate_typ rtyp,
-					fname,
+					translate_operand_to_value st fv,
 					range 1 n ops)
 			)
   | InstrOpcode.Select ->			
 			let ops = operands i in
 			let n = num_operand i in
 			if n != 3
-			then failwith "Select must have 3 operand."
+			then failwith "Select must have 3 operands."
 			else
 				LLVMsyntax.Coq_insn_cmd
 				(LLVMsyntax.Coq_insn_select

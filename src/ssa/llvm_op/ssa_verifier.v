@@ -170,7 +170,7 @@ Definition wf_operand (intrinsic_funs5:intrinsic_funs)
      (* Check to make sure that the "address of" an intrinsic function is never
         taken *)
      do id0 <- ret (getFdecID fdec5);
-     do Assert (( ~ set_In id0 intrinsic_funs5) \/  getCallName insn5 = Some id0);
+     do Assert (( ~ set_In id0 intrinsic_funs5) \/  getCalledValueID insn5 = Some id0);
 
      (* Referencing function exists in current module *)
         Assert (In  (product_fdec fdec5) list_product5)
@@ -365,8 +365,10 @@ Definition verifyCallSite (intrinsic_funs5:intrinsic_funs)
        "Called function is not pointer to function type!"
      We don't need to check this, but only ensure Call and FTy are valid
      *)
+  (*
   do Call <- CallSite.getCalledFunction CS system5;
   do FTy <- ret CallSite.getFdefTyp Call;
+  *)
 
   (* Verify that the correct number of arguments are being passed 
      not supporing variant arguments *)
@@ -383,10 +385,13 @@ Definition verifyCallSite (intrinsic_funs5:intrinsic_funs)
         Assert(CallSite.arg_size Call =n= numParams)   
      endif;
   *)
+  (*
   do numParams <- (FunctionType.getNumParams FTy);     
   do Assert(CallSite.arg_size Call =n= numParams);
+  *)
 
   (* Verify that all arguments to the call match the function type... *)
+  (*
   do numParams <- (FunctionType.getNumParams FTy);
   do for i From 0 to numParams do
      (* Call parameter type should match function signature. *)
@@ -394,6 +399,7 @@ Definition verifyCallSite (intrinsic_funs5:intrinsic_funs)
        do part <- FunctionType.getParamType FTy i;
           Assert (argt =t= part)
      endfor;
+  *)
 
   (* Will Verify call attributes later... *)
 
@@ -551,9 +557,9 @@ Inductive wf_insn : intrinsic_funs -> system -> module_info -> fdef_info -> bloc
      visitInvokeInst intrinsic_funs5 system5 module_info5   ( fdef5 ,  dt5 )   block5 (insn_invoke id_5 typ0 id0 list_param5 l1 l2) ->
      wf_insn intrinsic_funs5 system5   module_info5   ( fdef5 ,  dt5 ) block5 (insn_invoke id_5 typ0 id0 list_param5 l1 l2)
 *)
- | wf_insn_call : forall (intrinsic_funs5:intrinsic_funs) (system5:system) (block5:block) (id_5:id) (typ0:typ) (id0:id) (list_param5:params) (module_info5:module_info) (fdef5:fdef) (dt5:dt),
-     visitCallInst intrinsic_funs5 system5 module_info5   ( fdef5 ,  dt5 )   block5 (insn_call id_5 false false typ0 id0 list_param5) ->
-     wf_insn intrinsic_funs5 system5   module_info5   ( fdef5 ,  dt5 ) block5 (insn_cmd (insn_call id_5 false false typ0 id0 list_param5))
+ | wf_insn_call : forall (intrinsic_funs5:intrinsic_funs) (system5:system) (block5:block) (id_5:id) (typ0:typ) (v0:value) (list_param5:params) (module_info5:module_info) (fdef5:fdef) (dt5:dt),
+     visitCallInst intrinsic_funs5 system5 module_info5   ( fdef5 ,  dt5 )   block5 (insn_call id_5 false false typ0 v0 list_param5) ->
+     wf_insn intrinsic_funs5 system5   module_info5   ( fdef5 ,  dt5 ) block5 (insn_cmd (insn_call id_5 false false typ0 v0 list_param5))
  | wf_insn_unreachable : forall (intrinsic_funs5:intrinsic_funs) (system5:system) (fdef_info5:fdef_info) (block5:block) (module_info5:module_info) (fdef5:fdef) (dt5:dt) bid,
      visitTerminatorInst intrinsic_funs5 system5 module_info5   ( fdef5 ,  dt5 )   block5 (insn_terminator (insn_unreachable bid)) ->
      wf_insn intrinsic_funs5 system5   module_info5   ( fdef5 ,  dt5 ) block5 (insn_terminator (insn_unreachable bid))

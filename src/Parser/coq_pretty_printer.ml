@@ -234,8 +234,8 @@ let travel_cmd i =
 		  eprintf "  %s = fcmp %s %s %s %s\n" id (string_of_fcond fcond) (string_of_floating_point fp) (string_of_value v1) (string_of_value v2)
   | LLVMsyntax.Coq_insn_select (id, v, t, v1, v2) ->
 		  eprintf "  %s = select %s %s %s %s\n" id (string_of_value v) (string_of_typ t) (string_of_value v1) (string_of_value v2)
-  | LLVMsyntax.Coq_insn_call (id, noret, tailc, t, fid, ps) ->
-		  eprintf "  %s = call %s %s %s %s %s\n" id (string_of_bool noret) (string_of_bool tailc) (string_of_typ t) fid (string_of_params ps)
+  | LLVMsyntax.Coq_insn_call (id, noret, tailc, t, fv, ps) ->
+		  eprintf "  %s = call %s %s %s %s %s\n" id (string_of_bool noret) (string_of_bool tailc) (string_of_typ t) (string_of_value fv) (string_of_params ps)
 	;
   flush_all ()				
 					

@@ -41,12 +41,21 @@ Allocas     : list mblock            (* Track memory allocated by alloca *)
 
 Definition ECStack := list ExecutionContext.
 
+(* FunTable maps function names to their addresses that are taken as function 
+   pointers. When we are calling a function via an id, we first search in Globals
+   via the value id to get its address, and then search in FunTable to get its
+   name, via the name, we search in CurProducts to get its definition.
+
+   We assume that there is an 'initFunTable' that returns function addresses to
+   initialize FunTable
+*)
 Record State : Type := mkState {
 CurSystem      : system;
 CurTargetData  : TargetData;
 CurProducts    : list product;
 ECS            : ECStack;
 Globals        : GVMap;
+FunTable       : GVMap;
 Mem            : mem
 }.
 
@@ -74,9 +83,9 @@ Inductive wfECStack : ECStack -> Prop :=
 .
 
 Inductive wfContexts : State -> Prop :=
-| wfContexts_intro : forall ECS s td ps g mem,
+| wfContexts_intro : forall ECS s td ps g fs mem,
   wfECStack ECS ->
-  wfContexts (mkState s td ps ECS g mem)
+  wfContexts (mkState s td ps ECS g fs mem)
 .
 
 (**************************************)
@@ -123,13 +132,50 @@ Definition switchToNewBasicBlock (TD:TargetData) (Dest:block) (PrevBB:block) (gl
   let ResultValues := getIncomingValuesForBlockFromPHINodes TD PNs PrevBB globals locals in
   updateValuesForNewBlock ResultValues locals.
 
-Definition lookupExFdefViaIDFromProducts (Ps:products) (fid:id) : option fdec :=
-  match lookupFdefViaIDFromProducts Ps fid with 
-  | Some _ => None
-  | None => lookupFdecViaIDFromProducts Ps fid
-  end.
+(**************************************)
+(* To realize it in LLVM, we can try to dynamically cast fptr to Function*, 
+   if failed, return None
+   if successeful, we can return this function's name *)
+Fixpoint lookupFdefViaGVFromFunTable (fs:GVMap) (fptr:GenericValue) : option id :=
+match fs with
+| nil => None
+| (id0,gv0)::fs' => 
+  if eq_gv gv0 fptr
+  then Some id0 
+  else lookupFdefViaGVFromFunTable fs' fptr
+end.
 
+(* For each function id, the runtime emits an address as a function pointer. 
+   It can be realized by taking Function* in LLVM as the address. *)
+Axiom initFunTable : mem -> id -> option GenericValue.
+
+Definition lookupFdefViaGV (TD:TargetData) (Ps:products) (gl lc:GVMap) (fs:GVMap) (fv:value) : option fdef :=
+match getOperandValue TD fv lc gl with
+| Some fptr =>
+  match lookupFdefViaGVFromFunTable fs fptr with
+  | Some fn => lookupFdefViaIDFromProducts Ps fn
+  | None => None
+  end
+| None => None
+end.
+
+(**************************************)
+(* Realized by libffi in LLVM *)
 Axiom callExternalFunction : mem -> id -> list GenericValue -> ((option GenericValue)*mem).
+
+Definition lookupExFdecViaGV (TD:TargetData) (Ps:products) (gl lc:GVMap) (fs:GVMap) (fv:value) : option fdec :=
+match getOperandValue TD fv lc gl with
+| Some fptr =>
+  match lookupFdefViaGVFromFunTable fs fptr with
+  | Some fn => 
+    match lookupFdefViaIDFromProducts Ps fn with 
+    | Some _ => None
+    | None => lookupFdecViaIDFromProducts Ps fn
+    end
+  | None => None
+  end
+| None => None
+end.
 
 Definition exCallUpdateLocals (noret:bool) (rid:id) (rt:typ) (oResult:option GenericValue) (lc :GVMap) : GVMap :=
   match noret with
@@ -161,178 +207,180 @@ Definition returnUpdateLocals (TD:TargetData) (c':cmd) (RetTy:typ) (Result:value
     end.
 
 Inductive dsInsn : State -> State -> trace -> Prop :=
-| dsReturn : forall S TD Ps F B rid RetTy Result lc gl arg
+| dsReturn : forall S TD Ps F B rid RetTy Result lc gl fs arg
                             F' B' c' cs' tmn' lc' arg' EC
                             Mem Mem' als als',   
   Instruction.isCallInst c' = true ->
   free_allocas TD Mem als = Some Mem' ->
   dsInsn 
     (mkState S TD Ps ((mkEC F B nil (insn_return rid RetTy Result) lc arg als)::
-                      (mkEC F' B' (c'::cs') tmn' lc' arg' als')::EC) gl Mem)
+                      (mkEC F' B' (c'::cs') tmn' lc' arg' als')::EC) gl fs Mem)
     (mkState S TD Ps ((mkEC F' B' cs' tmn' 
-                        (returnUpdateLocals TD c' RetTy Result lc lc' gl) arg' als')::EC) gl Mem')
+                        (returnUpdateLocals TD c' RetTy Result lc lc' gl) arg' als')::EC) gl fs Mem')
     trace_nil 
-| dsReturnVoid : forall S TD Ps F B rid lc gl arg
+| dsReturnVoid : forall S TD Ps F B rid lc gl fs arg
                             F' B' c' tmn' lc' arg' EC
                             cs' Mem Mem' als als',   
   Instruction.isCallInst c' = true ->
   free_allocas TD Mem als = Some Mem' ->
   dsInsn 
     (mkState S TD Ps ((mkEC F B nil (insn_return_void rid) lc arg als)::
-                      (mkEC F' B' (c'::cs') tmn' lc' arg' als')::EC) gl Mem)
-    (mkState S TD Ps ((mkEC F' B' cs' tmn' lc' arg' als')::EC) gl Mem')
+                      (mkEC F' B' (c'::cs') tmn' lc' arg' als')::EC) gl fs Mem)
+    (mkState S TD Ps ((mkEC F' B' cs' tmn' lc' arg' als')::EC) gl fs Mem')
     trace_nil 
-| dsBranch : forall S TD Ps F B lc gl arg bid Cond l1 l2 c
+| dsBranch : forall S TD Ps F B lc gl fs arg bid Cond l1 l2 c
                               l' ps' cs' tmn' EC Mem als,   
   getOperandValue TD Cond lc gl = Some c ->
   Some (block_intro l' ps' cs' tmn') = (if isGVZero TD c
                then lookupBlockViaLabelFromFdef F l2
                else lookupBlockViaLabelFromFdef F l1) ->
   dsInsn 
-    (mkState S TD Ps ((mkEC F B nil (insn_br bid Cond l1 l2) lc arg als)::EC) gl Mem)
+    (mkState S TD Ps ((mkEC F B nil (insn_br bid Cond l1 l2) lc arg als)::EC) gl fs Mem)
     (mkState S TD Ps ((mkEC F (block_intro l' ps' cs' tmn') cs' tmn' 
-                        (switchToNewBasicBlock TD (block_intro l' ps' cs' tmn') B gl lc) arg als)::EC) gl Mem)
+                        (switchToNewBasicBlock TD (block_intro l' ps' cs' tmn') B gl lc) arg als)::EC) gl fs Mem)
     trace_nil 
-| dsBranch_uncond : forall S TD Ps F B lc gl arg bid l
+| dsBranch_uncond : forall S TD Ps F B lc gl fs arg bid l
                               l' ps' cs' tmn' EC Mem als,   
   Some (block_intro l' ps' cs' tmn') = (lookupBlockViaLabelFromFdef F l) ->
   dsInsn 
-    (mkState S TD Ps ((mkEC F B nil (insn_br_uncond bid l) lc arg als)::EC) gl Mem)
+    (mkState S TD Ps ((mkEC F B nil (insn_br_uncond bid l) lc arg als)::EC) gl fs Mem)
     (mkState S TD Ps ((mkEC F (block_intro l' ps' cs' tmn') cs' tmn' 
-                        (switchToNewBasicBlock TD (block_intro l' ps' cs' tmn') B gl lc) arg als)::EC) gl Mem)
+                        (switchToNewBasicBlock TD (block_intro l' ps' cs' tmn') B gl lc) arg als)::EC) gl fs Mem)
     trace_nil 
-| dsBop: forall S TD Ps F B lc gl arg id bop sz v1 v2 gv3 EC cs tmn Mem als,
+| dsBop: forall S TD Ps F B lc gl fs arg id bop sz v1 v2 gv3 EC cs tmn Mem als,
   BOP TD lc gl bop sz v1 v2 = Some gv3 ->
   dsInsn 
-    (mkState S TD Ps ((mkEC F B ((insn_bop id bop sz v1 v2)::cs) tmn lc arg als)::EC) gl Mem) 
-    (mkState S TD Ps ((mkEC F B cs tmn (updateAddAL _ lc id gv3) arg als)::EC) gl Mem)
+    (mkState S TD Ps ((mkEC F B ((insn_bop id bop sz v1 v2)::cs) tmn lc arg als)::EC) gl fs Mem) 
+    (mkState S TD Ps ((mkEC F B cs tmn (updateAddAL _ lc id gv3) arg als)::EC) gl fs Mem)
     trace_nil 
-| dsFBop: forall S TD Ps F B lc gl arg id fbop fp v1 v2 gv3 EC cs tmn Mem als,
+| dsFBop: forall S TD Ps F B lc gl fs arg id fbop fp v1 v2 gv3 EC cs tmn Mem als,
   FBOP TD lc gl fbop fp v1 v2 = Some gv3 ->
   dsInsn 
-    (mkState S TD Ps ((mkEC F B ((insn_fbop id fbop fp v1 v2)::cs) tmn lc arg als)::EC) gl Mem) 
-    (mkState S TD Ps ((mkEC F B cs tmn (updateAddAL _ lc id gv3) arg als)::EC) gl Mem)
+    (mkState S TD Ps ((mkEC F B ((insn_fbop id fbop fp v1 v2)::cs) tmn lc arg als)::EC) gl fs Mem) 
+    (mkState S TD Ps ((mkEC F B cs tmn (updateAddAL _ lc id gv3) arg als)::EC) gl fs Mem)
     trace_nil 
-| dsExtractValue : forall S TD Ps F B lc gl arg id t v gv gv' idxs EC cs tmn Mem als,
+| dsExtractValue : forall S TD Ps F B lc gl fs arg id t v gv gv' idxs EC cs tmn Mem als,
   getOperandValue TD v lc gl = Some gv ->
   extractGenericValue TD t gv idxs = Some gv' ->
   dsInsn 
-    (mkState S TD Ps ((mkEC F B ((insn_extractvalue id t v idxs)::cs) tmn lc arg als)::EC) gl Mem) 
-    (mkState S TD Ps ((mkEC F B cs tmn (updateAddAL _ lc id gv') arg als)::EC) gl Mem)
+    (mkState S TD Ps ((mkEC F B ((insn_extractvalue id t v idxs)::cs) tmn lc arg als)::EC) gl fs Mem) 
+    (mkState S TD Ps ((mkEC F B cs tmn (updateAddAL _ lc id gv') arg als)::EC) gl fs Mem)
     trace_nil 
-| dsInsertValue : forall S TD Ps F B lc gl arg id t v t' v' gv gv' gv'' idxs EC cs tmn Mem als,
+| dsInsertValue : forall S TD Ps F B lc gl fs arg id t v t' v' gv gv' gv'' idxs EC cs tmn Mem als,
   getOperandValue TD v lc gl = Some gv ->
   getOperandValue TD v' lc gl = Some gv' ->
   insertGenericValue TD t gv idxs t' gv' = Some gv'' ->
   dsInsn 
-    (mkState S TD Ps ((mkEC F B ((insn_insertvalue id t v t' v' idxs)::cs) tmn lc arg als)::EC) gl Mem) 
-    (mkState S TD Ps ((mkEC F B cs tmn (updateAddAL _ lc id gv'') arg als)::EC) gl Mem)
+    (mkState S TD Ps ((mkEC F B ((insn_insertvalue id t v t' v' idxs)::cs) tmn lc arg als)::EC) gl fs Mem) 
+    (mkState S TD Ps ((mkEC F B cs tmn (updateAddAL _ lc id gv'') arg als)::EC) gl fs Mem)
     trace_nil 
-| dsMalloc : forall S TD Ps F B lc gl arg id t sz align EC cs tmn Mem als Mem' tsz mb,
+| dsMalloc : forall S TD Ps F B lc gl fs arg id t sz align EC cs tmn Mem als Mem' tsz mb,
   getTypeAllocSize TD t = Some tsz ->
   malloc TD Mem (Size.mul tsz sz) align = Some (Mem', mb) ->
   dsInsn 
-    (mkState S TD Ps ((mkEC F B ((insn_malloc id t sz align)::cs) tmn lc arg als)::EC) gl Mem) 
-    (mkState S TD Ps ((mkEC F B cs tmn (updateAddAL _ lc id (blk2GV TD mb)) arg als)::EC) gl Mem')
+    (mkState S TD Ps ((mkEC F B ((insn_malloc id t sz align)::cs) tmn lc arg als)::EC) gl fs Mem) 
+    (mkState S TD Ps ((mkEC F B cs tmn (updateAddAL _ lc id (blk2GV TD mb)) arg als)::EC) gl fs Mem')
     trace_nil
-| dsFree : forall S TD Ps F B lc gl arg fid t v EC cs tmn Mem als Mem' mptr,
+| dsFree : forall S TD Ps F B lc gl fs arg fid t v EC cs tmn Mem als Mem' mptr,
   getOperandValue TD v lc gl = Some mptr ->
   free TD Mem mptr = Some Mem'->
   dsInsn 
-    (mkState S TD Ps ((mkEC F B ((insn_free fid t v)::cs) tmn lc arg als)::EC) gl Mem) 
-    (mkState S TD Ps ((mkEC F B cs tmn lc arg als)::EC) gl Mem')
+    (mkState S TD Ps ((mkEC F B ((insn_free fid t v)::cs) tmn lc arg als)::EC) gl fs Mem) 
+    (mkState S TD Ps ((mkEC F B cs tmn lc arg als)::EC) gl fs Mem')
     trace_nil
-| dsAlloca : forall S TD Ps F B lc gl arg id t sz align EC cs tmn Mem als Mem' tsz mb,
+| dsAlloca : forall S TD Ps F B lc gl fs arg id t sz align EC cs tmn Mem als Mem' tsz mb,
   getTypeAllocSize TD t = Some tsz ->
   malloc TD Mem (Size.mul tsz sz) align = Some (Mem', mb) ->
   dsInsn 
-    (mkState S TD Ps ((mkEC F B ((insn_alloca id t sz align)::cs) tmn lc arg als)::EC) gl Mem) 
-    (mkState S TD Ps ((mkEC F B cs tmn (updateAddAL _ lc id (blk2GV TD mb)) arg (mb::als))::EC) gl Mem')
+    (mkState S TD Ps ((mkEC F B ((insn_alloca id t sz align)::cs) tmn lc arg als)::EC) gl fs Mem) 
+    (mkState S TD Ps ((mkEC F B cs tmn (updateAddAL _ lc id (blk2GV TD mb)) arg (mb::als))::EC) gl fs Mem')
     trace_nil
-| dsLoad : forall S TD Ps F B lc gl arg id t align v EC cs tmn Mem als mp gv,
+| dsLoad : forall S TD Ps F B lc gl fs arg id t align v EC cs tmn Mem als mp gv,
   getOperandValue TD v lc gl = Some mp ->
   mload TD Mem mp t align = Some gv ->
   dsInsn 
-    (mkState S TD Ps ((mkEC F B ((insn_load id t v align)::cs) tmn lc arg als)::EC) gl Mem) 
-    (mkState S TD Ps ((mkEC F B cs tmn (updateAddAL _ lc id gv) arg als)::EC) gl Mem)
+    (mkState S TD Ps ((mkEC F B ((insn_load id t v align)::cs) tmn lc arg als)::EC) gl fs Mem) 
+    (mkState S TD Ps ((mkEC F B cs tmn (updateAddAL _ lc id gv) arg als)::EC) gl fs Mem)
     trace_nil
-| dsStore : forall S TD Ps F B lc gl arg sid t align v1 v2 EC cs tmn Mem als mp2 gv1 Mem',
+| dsStore : forall S TD Ps F B lc gl fs arg sid t align v1 v2 EC cs tmn Mem als mp2 gv1 Mem',
   getOperandValue TD v1 lc gl = Some gv1 ->
   getOperandValue TD v2 lc gl = Some mp2 ->
   mstore TD Mem mp2 t gv1 align = Some Mem' ->
   dsInsn 
-    (mkState S TD Ps ((mkEC F B ((insn_store sid t v1 v2 align)::cs) tmn lc arg als)::EC) gl Mem) 
-    (mkState S TD Ps ((mkEC F B cs tmn lc arg als)::EC) gl Mem')
+    (mkState S TD Ps ((mkEC F B ((insn_store sid t v1 v2 align)::cs) tmn lc arg als)::EC) gl fs Mem) 
+    (mkState S TD Ps ((mkEC F B cs tmn lc arg als)::EC) gl fs Mem')
     trace_nil
-| dsGEP : forall S TD Ps F B lc gl arg id inbounds t v idxs vidxs EC mp mp' cs tmn Mem als,
+| dsGEP : forall S TD Ps F B lc gl fs arg id inbounds t v idxs vidxs EC mp mp' cs tmn Mem als,
   getOperandValue TD v lc gl = Some mp ->
   values2GVs TD idxs lc gl = Some vidxs ->
   GEP TD t mp vidxs inbounds = Some mp' ->
   dsInsn 
-    (mkState S TD Ps ((mkEC F B ((insn_gep id inbounds t v idxs)::cs) tmn lc arg als)::EC) gl Mem) 
-    (mkState S TD Ps ((mkEC F B cs tmn (updateAddAL _ lc id mp') arg als)::EC) gl Mem)
+    (mkState S TD Ps ((mkEC F B ((insn_gep id inbounds t v idxs)::cs) tmn lc arg als)::EC) gl fs Mem) 
+    (mkState S TD Ps ((mkEC F B cs tmn (updateAddAL _ lc id mp') arg als)::EC) gl fs Mem)
     trace_nil 
-| dsTrunc : forall S TD Ps F B lc gl arg id truncop t1 v1 t2 gv2 EC cs tmn Mem als,
+| dsTrunc : forall S TD Ps F B lc gl fs arg id truncop t1 v1 t2 gv2 EC cs tmn Mem als,
   TRUNC TD lc gl truncop t1 v1 t2 = Some gv2 ->
   dsInsn 
-    (mkState S TD Ps ((mkEC F B ((insn_trunc id truncop t1 v1 t2)::cs) tmn lc arg als)::EC) gl Mem) 
-    (mkState S TD Ps ((mkEC F B cs tmn (updateAddAL _ lc id gv2) arg als)::EC) gl Mem)
+    (mkState S TD Ps ((mkEC F B ((insn_trunc id truncop t1 v1 t2)::cs) tmn lc arg als)::EC) gl fs Mem) 
+    (mkState S TD Ps ((mkEC F B cs tmn (updateAddAL _ lc id gv2) arg als)::EC) gl fs Mem)
     trace_nil
-| dsExt : forall S TD Ps F B lc gl arg id extop t1 v1 t2 gv2 EC cs tmn Mem als,
+| dsExt : forall S TD Ps F B lc gl fs arg id extop t1 v1 t2 gv2 EC cs tmn Mem als,
   EXT TD lc gl extop t1 v1 t2 = Some gv2 ->
   dsInsn 
-    (mkState S TD Ps ((mkEC F B ((insn_ext id extop t1 v1 t2)::cs) tmn lc arg als)::EC) gl Mem) 
-    (mkState S TD Ps ((mkEC F B cs tmn (updateAddAL _ lc id gv2) arg als)::EC) gl Mem)
+    (mkState S TD Ps ((mkEC F B ((insn_ext id extop t1 v1 t2)::cs) tmn lc arg als)::EC) gl fs Mem) 
+    (mkState S TD Ps ((mkEC F B cs tmn (updateAddAL _ lc id gv2) arg als)::EC) gl fs Mem)
     trace_nil
-| dsCast : forall S TD Ps F B lc gl arg id castop t1 v1 t2 gv2 EC cs tmn Mem als,
+| dsCast : forall S TD Ps F B lc gl fs arg id castop t1 v1 t2 gv2 EC cs tmn Mem als,
   CAST TD lc gl castop t1 v1 t2 = Some gv2 ->
   dsInsn 
-    (mkState S TD Ps ((mkEC F B ((insn_cast id castop t1 v1 t2)::cs) tmn lc arg als)::EC) gl Mem) 
-    (mkState S TD Ps ((mkEC F B cs tmn (updateAddAL _ lc id gv2) arg als)::EC) gl Mem)
+    (mkState S TD Ps ((mkEC F B ((insn_cast id castop t1 v1 t2)::cs) tmn lc arg als)::EC) gl fs Mem) 
+    (mkState S TD Ps ((mkEC F B cs tmn (updateAddAL _ lc id gv2) arg als)::EC) gl fs Mem)
     trace_nil
-| dsIcmp : forall S TD Ps F B lc gl arg id cond t v1 v2 gv3 EC cs tmn Mem als,
+| dsIcmp : forall S TD Ps F B lc gl fs arg id cond t v1 v2 gv3 EC cs tmn Mem als,
   ICMP TD lc gl cond t v1 v2 = Some gv3 ->
   dsInsn 
-    (mkState S TD Ps ((mkEC F B ((insn_icmp id cond t v1 v2)::cs) tmn lc arg als)::EC) gl Mem) 
-    (mkState S TD Ps ((mkEC F B cs tmn (updateAddAL _ lc id gv3) arg als)::EC) gl Mem)
+    (mkState S TD Ps ((mkEC F B ((insn_icmp id cond t v1 v2)::cs) tmn lc arg als)::EC) gl fs Mem) 
+    (mkState S TD Ps ((mkEC F B cs tmn (updateAddAL _ lc id gv3) arg als)::EC) gl fs Mem)
     trace_nil
-| dsFcmp : forall S TD Ps F B lc gl arg id fcond fp v1 v2 gv3 EC cs tmn Mem als,
+| dsFcmp : forall S TD Ps F B lc gl fs arg id fcond fp v1 v2 gv3 EC cs tmn Mem als,
   FCMP TD lc gl fcond fp v1 v2 = Some gv3 ->
   dsInsn 
-    (mkState S TD Ps ((mkEC F B ((insn_fcmp id fcond fp v1 v2)::cs) tmn lc arg als)::EC) gl Mem) 
-    (mkState S TD Ps ((mkEC F B cs tmn (updateAddAL _ lc id gv3) arg als)::EC) gl Mem)
+    (mkState S TD Ps ((mkEC F B ((insn_fcmp id fcond fp v1 v2)::cs) tmn lc arg als)::EC) gl fs Mem) 
+    (mkState S TD Ps ((mkEC F B cs tmn (updateAddAL _ lc id gv3) arg als)::EC) gl fs Mem)
     trace_nil
-| dsSelect : forall S TD Ps F B lc gl arg id v0 t v1 v2 c EC cs tmn Mem als gv1 gv2,
+| dsSelect : forall S TD Ps F B lc gl fs arg id v0 t v1 v2 c EC cs tmn Mem als gv1 gv2,
   getOperandValue TD v0 lc gl = Some c ->
   getOperandValue TD v1 lc gl = Some gv1 ->
   getOperandValue TD v2 lc gl = Some gv2 ->
   dsInsn 
-    (mkState S TD Ps ((mkEC F B ((insn_select id v0 t v1 v2)::cs) tmn lc arg als)::EC) gl Mem) 
-    (mkState S TD Ps ((mkEC F B cs tmn (if isGVZero TD c then updateAddAL _ lc id gv2 else updateAddAL _ lc id gv1) arg als)::EC) gl Mem)
+    (mkState S TD Ps ((mkEC F B ((insn_select id v0 t v1 v2)::cs) tmn lc arg als)::EC) gl fs Mem) 
+    (mkState S TD Ps ((mkEC F B cs tmn (if isGVZero TD c 
+                                        then updateAddAL _ lc id gv2 
+                                        else updateAddAL _ lc id gv1) arg als)::EC) gl fs Mem)
     trace_nil
-| dsCall : forall S TD Ps F B lc gl arg rid noret tailc fid lp cs tmn
+| dsCall : forall S TD Ps F B lc gl fs arg rid noret tailc fid fv lp cs tmn
                             l' ps' cs' tmn' EC rt la lb Mem als,
   (* only look up the current module for the time being, 
      do not support linkage. *)
-  lookupFdefViaIDFromProducts Ps fid = Some (fdef_intro (fheader_intro rt fid la) lb) ->
+  lookupFdefViaGV TD Ps gl lc fs fv = Some (fdef_intro (fheader_intro rt fid la) lb) ->
   getEntryBlock (fdef_intro (fheader_intro rt fid la) lb) = Some (block_intro l' ps' cs' tmn') ->
   dsInsn 
-    (mkState S TD Ps ((mkEC F B ((insn_call rid noret tailc rt fid lp)::cs) tmn lc arg als)::EC) gl Mem)
+    (mkState S TD Ps ((mkEC F B ((insn_call rid noret tailc rt fv lp)::cs) tmn lc arg als)::EC) gl fs Mem)
     (mkState S TD Ps ((mkEC (fdef_intro (fheader_intro rt fid la) lb) 
                                         (block_intro l' ps' cs' tmn') cs' tmn' (initLocals la (params2GVs TD lp lc gl)) 
                                         (params2GVs TD lp lc gl) nil)::
-                      (mkEC F B ((insn_call rid noret tailc rt fid lp)::cs) tmn lc arg als)::EC) gl Mem)
+                      (mkEC F B ((insn_call rid noret tailc rt fv lp)::cs) tmn lc arg als)::EC) gl fs Mem)
     trace_nil 
-| dsExCall : forall S TD Ps F B lc gl arg rid noret tailc fid lp cs tmn EC rt la Mem als oresult Mem',
+| dsExCall : forall S TD Ps F B lc gl fs arg rid noret tailc fid fv lp cs tmn EC rt la Mem als oresult Mem',
   (* only look up the current module for the time being, 
      do not support linkage. 
      FIXME: should add excall to trace
   *)
-  lookupExFdefViaIDFromProducts Ps fid = Some (fdec_intro (fheader_intro rt fid la)) ->
+  lookupExFdecViaGV TD Ps gl lc fs fv = Some (fdec_intro (fheader_intro rt fid la)) ->
   callExternalFunction Mem fid (params2GVs TD lp lc gl) = (oresult, Mem') ->
   dsInsn 
-    (mkState S TD Ps ((mkEC F B ((insn_call rid noret tailc rt fid lp)::cs) tmn lc arg als)::EC) gl Mem)
-    (mkState S TD Ps ((mkEC F B cs tmn (exCallUpdateLocals noret rid rt oresult lc) arg als)::EC) gl Mem')
+    (mkState S TD Ps ((mkEC F B ((insn_call rid noret tailc rt fv lp)::cs) tmn lc arg als)::EC) gl fs Mem)
+    (mkState S TD Ps ((mkEC F B cs tmn (exCallUpdateLocals noret rid rt oresult lc) arg als)::EC) gl fs Mem')
     trace_nil 
 .
 
@@ -351,20 +399,29 @@ Definition initTargetData (TD:layouts)(Mem:mem) : TargetData := TD.
 
 Axiom getExternalGlobal : mem -> id -> option GenericValue.
 
-Fixpoint genGlobalAndInitMem (TD:TargetData)(Ps:list product)(gl:GVMap)(Mem:mem) : option (GVMap*mem) :=
+Fixpoint genGlobalAndInitMem (TD:TargetData)(Ps:list product)(gl:GVMap)(fs:GVMap)(Mem:mem) : option (GVMap*GVMap*mem) :=
 match Ps with
-| nil => Some (gl, Mem)
+| nil => Some (gl, fs, Mem)
 | (product_gvar (gvar_intro id0 spec t c align))::Ps' => 
   match (initGlobal TD gl Mem id0 t c align) with
-  | Some (gv, Mem') => Some (updateAddAL _ gl id0 gv, Mem')
+  | Some (gv, Mem') => genGlobalAndInitMem TD Ps' (updateAddAL _ gl id0 gv) fs Mem'
   | None => None
   end
 | (product_gvar (gvar_external id0 spec t))::Ps' => 
   match (getExternalGlobal Mem id0) with
-  | Some gv => Some (updateAddAL _ gl id0 gv, Mem)
+  | Some gv => genGlobalAndInitMem TD Ps' (updateAddAL _ gl id0 gv) fs Mem
   | None => None
   end
-| _::Ps' => genGlobalAndInitMem TD Ps' gl Mem
+| (product_fdef (fdef_intro (fheader_intro _ id0 _) _))::Ps' => 
+  match initFunTable Mem id0 with
+  | Some gv => genGlobalAndInitMem TD Ps' (updateAddAL _ gl id0 gv) (updateAddAL _ fs id0 gv) Mem
+  | None => None
+  end
+| (product_fdec (fdec_intro (fheader_intro _ id0 _)))::Ps' => 
+  match initFunTable Mem id0 with
+  | Some gv => genGlobalAndInitMem TD Ps' (updateAddAL _ gl id0 gv) (updateAddAL _ fs id0 gv) Mem
+  | None => None
+  end
 end.
 
 Definition ds_genInitState (S:system) (main:id) (Args:list GenericValue) (initmem:mem) : option State :=
@@ -375,9 +432,9 @@ match (lookupFdefViaIDFromSystem S main) with
   | None => None
   | Some (module_intro CurTargetData CurProducts) =>
     let initargetdata := initTargetData CurTargetData initmem in 
-    match (genGlobalAndInitMem initargetdata CurProducts nil initmem) with
+    match (genGlobalAndInitMem initargetdata CurProducts nil nil initmem) with
     | None => None
-    | Some (initGlobal, initMem) =>
+    | Some (initGlobal, initFunTable, initMem) =>
       match (getEntryBlock CurFunction) with
       | None => None
       | Some (block_intro l ps cs tmn) => 
@@ -399,6 +456,7 @@ match (lookupFdefViaIDFromSystem S main) with
                   nil
                 )::nil)
                 initGlobal
+                initFunTable
                 initMem
             )          
         end
@@ -409,8 +467,8 @@ end.
 
 Definition ds_isFinialState (state:State) : bool :=
 match state with
-| (mkState _ _ _ ((mkEC _ _ nil (insn_return_void _) _ _ _)::nil) _ _) => true
-| (mkState _ _ _ ((mkEC _ _ nil (insn_return _ _ _) _ _ _)::nil) _ _) => true 
+| (mkState _ _ _ ((mkEC _ _ nil (insn_return_void _) _ _ _)::nil) _ _ _) => true
+| (mkState _ _ _ ((mkEC _ _ nil (insn_return _ _ _) _ _ _)::nil) _ _ _) => true 
 | _ => false
 end.
 
@@ -476,167 +534,174 @@ Inductive wfStates : States -> Prop :=
 .
 
 Inductive nsInsn : State*trace -> States -> Prop :=
-| nsReturn : forall S TD Ps F B rid RetTy Result lc gl arg
+| nsReturn : forall S TD Ps F B rid RetTy Result lc gl fs arg
                             F' B' c' cs' tmn' lc' arg' EC
                             tr Mem Mem' als als',   
   Instruction.isCallInst c' = true ->  
   free_allocas TD Mem als = Some Mem' ->
   nsInsn 
     (mkState S TD Ps ((mkEC F B nil (insn_return rid RetTy Result) lc arg als)::
-                      (mkEC F' B' (c'::cs') tmn' lc' arg' als')::EC) gl Mem, tr)
+                      (mkEC F' B' (c'::cs') tmn' lc' arg' als')::EC) gl fs Mem, tr)
     ((mkState S TD Ps ((mkEC F' B' cs' tmn'
-                         (returnUpdateLocals TD c' RetTy Result lc lc' gl) arg' als')::EC) gl Mem', tr)::nil)
-| nsReturnVoid : forall S TD Ps F B lc gl arg rid
+                         (returnUpdateLocals TD c' RetTy Result lc lc' gl) arg' als')::EC) gl fs Mem', tr)::nil)
+| nsReturnVoid : forall S TD Ps F B lc gl fs arg rid
                             F' B' c' lc' arg' EC
                             cs' tmn' Mem Mem' als als' tr,   
   Instruction.isCallInst c' = true ->
   free_allocas TD Mem als = Some Mem' ->
   nsInsn 
     (mkState S TD Ps ((mkEC F B nil (insn_return_void rid) lc arg als)::
-                      (mkEC F' B' (c'::cs') tmn' lc' arg' als')::EC) gl Mem, tr)
-    ((mkState S TD Ps ((mkEC F' B' cs' tmn' lc' arg' als')::EC) gl Mem', tr)::nil)
-| nsBranch_def : forall S TD Ps F B lc gl arg bid Cond l1 l2 c
+                      (mkEC F' B' (c'::cs') tmn' lc' arg' als')::EC) gl fs Mem, tr)
+    ((mkState S TD Ps ((mkEC F' B' cs' tmn' lc' arg' als')::EC) gl fs Mem', tr)::nil)
+| nsBranch_def : forall S TD Ps F B lc gl fs arg bid Cond l1 l2 c
                               l' ps' cs' tmn' EC tr Mem als,   
   getOperandValue TD Cond lc gl = Some c ->
   Some (block_intro l' ps' cs' tmn') = (if isGVZero TD c
                then lookupBlockViaLabelFromFdef F l2
                else lookupBlockViaLabelFromFdef F l1) ->
   nsInsn 
-    (mkState S TD Ps ((mkEC F B nil (insn_br bid Cond l1 l2) lc arg als)::EC) gl Mem, tr)
+    (mkState S TD Ps ((mkEC F B nil (insn_br bid Cond l1 l2) lc arg als)::EC) gl fs Mem, tr)
     ((mkState S TD Ps ((mkEC F (block_intro l' ps' cs' tmn') cs' tmn' 
-                         (switchToNewBasicBlock TD (block_intro l' ps' cs' tmn') B gl lc) arg als)::EC) gl Mem, tr)::nil)
+                         (switchToNewBasicBlock TD (block_intro l' ps' cs' tmn') B gl lc) arg als)::EC) gl fs Mem, tr)::nil)
 | nsBranch_undef : forall S TD Ps F B lc arg bid Cond l1 l2
                               l1' ps1' cs1' tmn1' 
-                              l2' ps2' cs2' tmn2' EC gl tr Mem als,   
+                              l2' ps2' cs2' tmn2' EC gl fs tr Mem als,   
   isOperandUndef TD (typ_int Size.One) Cond lc gl ->
   Some (block_intro l1' ps1' cs1' tmn1') = lookupBlockViaLabelFromFdef F l1 ->
   Some (block_intro l2' ps2' cs2' tmn2') = lookupBlockViaLabelFromFdef F l2 ->
   nsInsn 
-    (mkState S TD Ps ((mkEC F B nil (insn_br bid Cond l1 l2) lc arg als)::EC) gl Mem, tr)
+    (mkState S TD Ps ((mkEC F B nil (insn_br bid Cond l1 l2) lc arg als)::EC) gl fs Mem, tr)
     ((mkState S TD Ps ((mkEC F (block_intro l1' ps1' cs1' tmn1') cs1' tmn1' 
-                         (switchToNewBasicBlock TD (block_intro l1' ps1' cs1' tmn1') B gl lc) arg als)::EC) gl Mem, tr)::
+                         (switchToNewBasicBlock TD (block_intro l1' ps1' cs1' tmn1') B gl lc) arg als)::EC) 
+                         gl fs Mem, tr)::
      (mkState S TD Ps ((mkEC F (block_intro l2' ps2' cs2' tmn2') cs2' tmn2' 
-                         (switchToNewBasicBlock TD (block_intro l2' ps2' cs2' tmn2') B gl lc) arg als)::EC) gl Mem, tr)::nil)
-| nsBranch_uncond : forall S TD Ps F B lc gl arg bid l
+                         (switchToNewBasicBlock TD (block_intro l2' ps2' cs2' tmn2') B gl lc) arg als)::EC) 
+                         gl fs Mem, tr)::nil)
+| nsBranch_uncond : forall S TD Ps F B lc gl fs arg bid l
                               l' ps' cs' tmn' EC tr Mem als,   
   Some (block_intro l' ps' cs' tmn') = (lookupBlockViaLabelFromFdef F l) ->
   nsInsn 
-    (mkState S TD Ps ((mkEC F B nil (insn_br_uncond bid l) lc arg als)::EC) gl Mem, tr)
+    (mkState S TD Ps ((mkEC F B nil (insn_br_uncond bid l) lc arg als)::EC) gl fs Mem, tr)
     ((mkState S TD Ps ((mkEC F (block_intro l' ps' cs' tmn') cs' tmn'
-                         (switchToNewBasicBlock TD (block_intro l' ps' cs' tmn') B gl lc) arg als)::EC) gl Mem, tr)::nil)
-| nsBop : forall S TD Ps F B lc gl arg id bop sz v1 v2 gv3 EC cs tmn tr Mem als,
+                         (switchToNewBasicBlock TD (block_intro l' ps' cs' tmn') B gl lc) arg als)::EC) 
+                         gl fs Mem, tr)::nil)
+| nsBop : forall S TD Ps F B lc gl fs arg id bop sz v1 v2 gv3 EC cs tmn tr Mem als,
   BOP TD lc gl bop sz v1 v2 = Some gv3 ->
   nsInsn 
-    (mkState S TD Ps ((mkEC F B ((insn_bop id bop sz v1 v2)::cs) tmn lc arg als)::EC) gl Mem, tr) 
-    ((mkState S TD Ps ((mkEC F B cs tmn (updateAddAL _ lc id gv3) arg als)::EC) gl Mem, tr)::nil)
-| nsFBop : forall S TD Ps F B lc gl arg id fbop fp v1 v2 gv3 EC cs tmn tr Mem als,
+    (mkState S TD Ps ((mkEC F B ((insn_bop id bop sz v1 v2)::cs) tmn lc arg als)::EC) gl fs Mem, tr) 
+    ((mkState S TD Ps ((mkEC F B cs tmn (updateAddAL _ lc id gv3) arg als)::EC) gl fs Mem, tr)::nil)
+| nsFBop : forall S TD Ps F B lc gl fs arg id fbop fp v1 v2 gv3 EC cs tmn tr Mem als,
   FBOP TD lc gl fbop fp v1 v2 = Some gv3 ->
   nsInsn 
-    (mkState S TD Ps ((mkEC F B ((insn_fbop id fbop fp v1 v2)::cs) tmn lc arg als)::EC) gl Mem, tr) 
-    ((mkState S TD Ps ((mkEC F B cs tmn (updateAddAL _ lc id gv3) arg als)::EC) gl Mem, tr)::nil)
-| nsExtractValue : forall S TD Ps F B lc gl arg id t v gv gv' idxs EC cs tmn Mem als tr,
+    (mkState S TD Ps ((mkEC F B ((insn_fbop id fbop fp v1 v2)::cs) tmn lc arg als)::EC) gl fs Mem, tr) 
+    ((mkState S TD Ps ((mkEC F B cs tmn (updateAddAL _ lc id gv3) arg als)::EC) gl fs Mem, tr)::nil)
+| nsExtractValue : forall S TD Ps F B lc gl fs arg id t v gv gv' idxs EC cs tmn Mem als tr,
   getOperandValue TD v lc gl = Some gv ->
   extractGenericValue TD t gv idxs = Some gv' ->
   nsInsn 
-    (mkState S TD Ps ((mkEC F B ((insn_extractvalue id t v idxs)::cs) tmn lc arg als)::EC) gl Mem, tr) 
-    ((mkState S TD Ps ((mkEC F B cs tmn (updateAddAL _ lc id gv') arg als)::EC) gl Mem, tr)::nil)
-| nsInsertValue : forall S TD Ps F B lc gl arg id t v t' v' gv gv' gv'' idxs EC cs tmn Mem als tr,
+    (mkState S TD Ps ((mkEC F B ((insn_extractvalue id t v idxs)::cs) tmn lc arg als)::EC) gl fs Mem, tr) 
+    ((mkState S TD Ps ((mkEC F B cs tmn (updateAddAL _ lc id gv') arg als)::EC) gl fs Mem, tr)::nil)
+| nsInsertValue : forall S TD Ps F B lc gl fs arg id t v t' v' gv gv' gv'' idxs EC cs tmn Mem als tr,
   getOperandValue TD v lc gl = Some gv ->
   getOperandValue TD v' lc gl = Some gv' ->
   insertGenericValue TD t gv idxs t' gv' = Some gv'' ->
   nsInsn 
-    (mkState S TD Ps ((mkEC F B ((insn_insertvalue id t v t' v' idxs)::cs) tmn lc arg als)::EC) gl Mem, tr) 
-    ((mkState S TD Ps ((mkEC F B cs tmn (updateAddAL _ lc id gv'') arg als)::EC) gl Mem, tr)::nil)
-| nsMalloc : forall S TD Ps F B lc gl arg id t sz align EC cs tmn Mem als Mem' tsz mb tr,
+    (mkState S TD Ps ((mkEC F B ((insn_insertvalue id t v t' v' idxs)::cs) tmn lc arg als)::EC) gl fs Mem, tr) 
+    ((mkState S TD Ps ((mkEC F B cs tmn (updateAddAL _ lc id gv'') arg als)::EC) gl fs Mem, tr)::nil)
+| nsMalloc : forall S TD Ps F B lc gl fs arg id t sz align EC cs tmn Mem als Mem' tsz mb tr,
   getTypeAllocSize TD t = Some tsz ->
   malloc TD Mem (Size.mul tsz sz) align = Some (Mem', mb) ->
   nsInsn 
-    (mkState S TD Ps ((mkEC F B ((insn_malloc id t sz align)::cs) tmn lc arg als)::EC) gl Mem, tr) 
-    ((mkState S TD Ps ((mkEC F B cs tmn (updateAddAL _ lc id (blk2GV TD mb)) arg als)::EC) gl Mem', tr)::nil)
-| nsFree : forall S TD Ps F B lc gl arg fid t v EC cs tmn Mem als Mem' mptr tr,
+    (mkState S TD Ps ((mkEC F B ((insn_malloc id t sz align)::cs) tmn lc arg als)::EC) gl fs Mem, tr) 
+    ((mkState S TD Ps ((mkEC F B cs tmn (updateAddAL _ lc id (blk2GV TD mb)) arg als)::EC) gl fs Mem', tr)::nil)
+| nsFree : forall S TD Ps F B lc gl fs arg fid t v EC cs tmn Mem als Mem' mptr tr,
   getOperandValue TD v lc gl = Some mptr ->
   free TD Mem mptr = Some Mem'->
   nsInsn 
-    (mkState S TD Ps ((mkEC F B ((insn_free fid t v)::cs) tmn lc arg als)::EC) gl Mem, tr) 
-    ((mkState S TD Ps ((mkEC F B cs tmn lc arg als)::EC) gl Mem', tr)::nil)
-| nsAlloca : forall S TD Ps F B lc gl arg id t sz align EC cs tmn Mem als Mem' tsz mb tr,
+    (mkState S TD Ps ((mkEC F B ((insn_free fid t v)::cs) tmn lc arg als)::EC) gl fs Mem, tr) 
+    ((mkState S TD Ps ((mkEC F B cs tmn lc arg als)::EC) gl fs Mem', tr)::nil)
+| nsAlloca : forall S TD Ps F B lc gl fs arg id t sz align EC cs tmn Mem als Mem' tsz mb tr,
   getTypeAllocSize TD t = Some tsz ->
   malloc TD Mem (Size.mul tsz sz) align = Some (Mem', mb) ->
   nsInsn 
-    (mkState S TD Ps ((mkEC F B ((insn_alloca id t sz align)::cs) tmn lc arg als)::EC) gl Mem, tr) 
-    ((mkState S TD Ps ((mkEC F B cs tmn (updateAddAL _ lc id (blk2GV TD mb)) arg (mb::als))::EC) gl Mem', tr)::nil)
-| nsLoad : forall S TD Ps F B lc gl arg id t v align EC cs tmn Mem als mp gv tr,
+    (mkState S TD Ps ((mkEC F B ((insn_alloca id t sz align)::cs) tmn lc arg als)::EC) gl fs Mem, tr) 
+    ((mkState S TD Ps ((mkEC F B cs tmn (updateAddAL _ lc id (blk2GV TD mb)) arg (mb::als))::EC) gl fs Mem', tr)::nil)
+| nsLoad : forall S TD Ps F B lc gl fs arg id t v align EC cs tmn Mem als mp gv tr,
   getOperandValue TD v lc gl = Some mp ->
   mload TD Mem mp t align = Some gv ->
   nsInsn 
-    (mkState S TD Ps ((mkEC F B ((insn_load id t v align)::cs) tmn lc arg als)::EC) gl Mem, tr) 
-    ((mkState S TD Ps ((mkEC F B cs tmn (updateAddAL _ lc id gv) arg als)::EC) gl Mem, tr)::nil)
-| nsStore : forall S TD Ps F B lc gl arg sid t v1 v2 align EC cs tmn Mem als mp2 gv1 Mem' tr,
+    (mkState S TD Ps ((mkEC F B ((insn_load id t v align)::cs) tmn lc arg als)::EC) gl fs Mem, tr) 
+    ((mkState S TD Ps ((mkEC F B cs tmn (updateAddAL _ lc id gv) arg als)::EC) gl fs Mem, tr)::nil)
+| nsStore : forall S TD Ps F B lc gl fs arg sid t v1 v2 align EC cs tmn Mem als mp2 gv1 Mem' tr,
   getOperandValue TD v1 lc gl = Some gv1 ->
   getOperandValue TD v2 lc gl = Some mp2 ->
   mstore TD Mem mp2 t gv1 align = Some Mem' ->
   nsInsn 
-    (mkState S TD Ps ((mkEC F B ((insn_store sid t v1 v2 align)::cs) tmn lc arg als)::EC) gl Mem, tr) 
-    ((mkState S TD Ps ((mkEC F B cs tmn lc arg als)::EC) gl Mem', tr)::nil)
-| nsGEP : forall S TD Ps F B lc gl arg id inbounds t v idxs vidxs EC mp mp' cs tmn Mem als tr,
+    (mkState S TD Ps ((mkEC F B ((insn_store sid t v1 v2 align)::cs) tmn lc arg als)::EC) gl fs Mem, tr) 
+    ((mkState S TD Ps ((mkEC F B cs tmn lc arg als)::EC) gl fs Mem', tr)::nil)
+| nsGEP : forall S TD Ps F B lc gl fs arg id inbounds t v idxs vidxs EC mp mp' cs tmn Mem als tr,
   getOperandValue TD v lc gl = Some mp ->
   values2GVs TD idxs lc gl = Some vidxs ->
   GEP TD t mp vidxs inbounds = Some mp' ->
   nsInsn 
-    (mkState S TD Ps ((mkEC F B ((insn_gep id inbounds t v idxs)::cs) tmn lc arg als)::EC) gl Mem, tr) 
-    ((mkState S TD Ps ((mkEC F B cs tmn (updateAddAL _ lc id mp') arg als)::EC) gl Mem, tr)::nil)
-| nsTrunc : forall S TD Ps F B lc gl arg id truncop t1 v1 t2 gv2 EC cs tmn Mem als tr,
+    (mkState S TD Ps ((mkEC F B ((insn_gep id inbounds t v idxs)::cs) tmn lc arg als)::EC) gl fs Mem, tr) 
+    ((mkState S TD Ps ((mkEC F B cs tmn (updateAddAL _ lc id mp') arg als)::EC) gl fs Mem, tr)::nil)
+| nsTrunc : forall S TD Ps F B lc gl fs arg id truncop t1 v1 t2 gv2 EC cs tmn Mem als tr,
   TRUNC TD lc gl truncop t1 v1 t2 = Some gv2 ->
   nsInsn 
-    (mkState S TD Ps ((mkEC F B ((insn_trunc id truncop t1 v1 t2)::cs) tmn lc arg als)::EC) gl Mem, tr) 
-    ((mkState S TD Ps ((mkEC F B cs tmn (updateAddAL _ lc id gv2) arg als)::EC) gl Mem, tr)::nil)
-| nsExt : forall S TD Ps F B lc gl arg id extop t1 v1 t2 gv2 EC cs tmn Mem als tr,
+    (mkState S TD Ps ((mkEC F B ((insn_trunc id truncop t1 v1 t2)::cs) tmn lc arg als)::EC) gl fs Mem, tr) 
+    ((mkState S TD Ps ((mkEC F B cs tmn (updateAddAL _ lc id gv2) arg als)::EC) gl fs Mem, tr)::nil)
+| nsExt : forall S TD Ps F B lc gl fs arg id extop t1 v1 t2 gv2 EC cs tmn Mem als tr,
   EXT TD lc gl extop t1 v1 t2 = Some gv2 ->
   nsInsn 
-    (mkState S TD Ps ((mkEC F B ((insn_ext id extop t1 v1 t2)::cs) tmn lc arg als)::EC) gl Mem, tr) 
-    ((mkState S TD Ps ((mkEC F B cs tmn (updateAddAL _ lc id gv2) arg als)::EC) gl Mem, tr)::nil)
-| nsCast : forall S TD Ps F B lc gl arg id castop t1 v1 t2 gv2 EC cs tmn Mem als tr,
+    (mkState S TD Ps ((mkEC F B ((insn_ext id extop t1 v1 t2)::cs) tmn lc arg als)::EC) gl fs Mem, tr) 
+    ((mkState S TD Ps ((mkEC F B cs tmn (updateAddAL _ lc id gv2) arg als)::EC) gl fs Mem, tr)::nil)
+| nsCast : forall S TD Ps F B lc gl fs arg id castop t1 v1 t2 gv2 EC cs tmn Mem als tr,
   CAST TD lc gl castop t1 v1 t2 = Some gv2 ->
   nsInsn 
-    (mkState S TD Ps ((mkEC F B ((insn_cast id castop t1 v1 t2)::cs) tmn lc arg als)::EC) gl Mem, tr) 
-    ((mkState S TD Ps ((mkEC F B cs tmn (updateAddAL _ lc id gv2) arg als)::EC) gl Mem, tr)::nil)
-| nsIcmp : forall S TD Ps F B lc gl arg id cond t v1 v2 gv3 EC cs tmn Mem als tr,
+    (mkState S TD Ps ((mkEC F B ((insn_cast id castop t1 v1 t2)::cs) tmn lc arg als)::EC) gl fs Mem, tr) 
+    ((mkState S TD Ps ((mkEC F B cs tmn (updateAddAL _ lc id gv2) arg als)::EC) gl fs Mem, tr)::nil)
+| nsIcmp : forall S TD Ps F B lc gl fs arg id cond t v1 v2 gv3 EC cs tmn Mem als tr,
   ICMP TD lc gl cond t v1 v2 = Some gv3 ->
   nsInsn 
-    (mkState S TD Ps ((mkEC F B ((insn_icmp id cond t v1 v2)::cs) tmn lc arg als)::EC) gl Mem, tr) 
-    ((mkState S TD Ps ((mkEC F B cs tmn (updateAddAL _ lc id gv3) arg als)::EC) gl Mem, tr)::nil)
-| nsFcmp : forall S TD Ps F B lc gl arg id fcond fp v1 v2 gv3 EC cs tmn Mem als tr,
+    (mkState S TD Ps ((mkEC F B ((insn_icmp id cond t v1 v2)::cs) tmn lc arg als)::EC) gl fs Mem, tr) 
+    ((mkState S TD Ps ((mkEC F B cs tmn (updateAddAL _ lc id gv3) arg als)::EC) gl fs Mem, tr)::nil)
+| nsFcmp : forall S TD Ps F B lc gl fs arg id fcond fp v1 v2 gv3 EC cs tmn Mem als tr,
   FCMP TD lc gl fcond fp v1 v2 = Some gv3 ->
   nsInsn 
-    (mkState S TD Ps ((mkEC F B ((insn_fcmp id fcond fp v1 v2)::cs) tmn lc arg als)::EC) gl Mem, tr) 
-    ((mkState S TD Ps ((mkEC F B cs tmn (updateAddAL _ lc id gv3) arg als)::EC) gl Mem, tr)::nil)
-| nsSelect : forall S TD Ps F B lc gl arg id v0 t v1 v2 c EC cs tmn Mem als tr gv1 gv2,
+    (mkState S TD Ps ((mkEC F B ((insn_fcmp id fcond fp v1 v2)::cs) tmn lc arg als)::EC) gl fs Mem, tr) 
+    ((mkState S TD Ps ((mkEC F B cs tmn (updateAddAL _ lc id gv3) arg als)::EC) gl fs Mem, tr)::nil)
+| nsSelect : forall S TD Ps F B lc gl fs arg id v0 t v1 v2 c EC cs tmn Mem als tr gv1 gv2,
   getOperandValue TD v0 lc gl = Some c ->
   getOperandValue TD v1 lc gl = Some gv1 ->
   getOperandValue TD v2 lc gl = Some gv2 ->
   nsInsn 
-    (mkState S TD Ps ((mkEC F B ((insn_select id v0 t v1 v2)::cs) tmn lc arg als)::EC) gl Mem, tr) 
-    ((mkState S TD Ps ((mkEC F B cs tmn (if isGVZero TD c then updateAddAL _ lc id gv2 else updateAddAL _ lc id gv1) arg als)::EC) gl Mem, tr)::nil)
-| nsCall : forall S TD Ps F B lc gl arg rid noret tailc fid lp cs tmn
+    (mkState S TD Ps ((mkEC F B ((insn_select id v0 t v1 v2)::cs) tmn lc arg als)::EC) gl fs Mem, tr) 
+    ((mkState S TD Ps ((mkEC F B cs tmn 
+                         (if isGVZero TD c 
+                          then updateAddAL _ lc id gv2 
+                          else updateAddAL _ lc id gv1) arg als)::EC) 
+                         gl fs Mem, tr)::nil)
+| nsCall : forall S TD Ps F B lc gl fs arg rid noret tailc fv fid lp cs tmn
                             l' ps' cs' tmn' EC rt id la lb tr Mem als,
-  lookupFdefViaIDFromProducts Ps fid = Some (fdef_intro (fheader_intro rt id la) lb) ->
-  getEntryBlock (fdef_intro (fheader_intro rt id la) lb) = Some (block_intro l' ps' cs' tmn') ->
+  lookupFdefViaGV TD Ps gl lc fs fv = Some (fdef_intro (fheader_intro rt fid la) lb) ->
+  getEntryBlock (fdef_intro (fheader_intro rt fid la) lb) = Some (block_intro l' ps' cs' tmn') ->
   nsInsn 
-    (mkState S TD Ps ((mkEC F B ((insn_call rid noret tailc rt fid lp)::cs) tmn lc arg als)::EC) gl Mem, tr)
+    (mkState S TD Ps ((mkEC F B ((insn_call rid noret tailc rt fv lp)::cs) tmn lc arg als)::EC) gl fs Mem, tr)
     ((mkState S TD Ps ((mkEC (fdef_intro (fheader_intro rt id la) lb) (block_intro l' ps' cs' tmn') cs' tmn' 
                          (initLocals la (params2GVs TD lp lc gl)) 
                          (params2GVs TD lp lc gl) nil)::
-                       (mkEC F B ((insn_call rid noret tailc rt fid lp)::cs) tmn lc arg als)::EC) gl Mem, tr)::nil)
-| nsExCall : forall S TD Ps F B lc gl arg rid noret tailc fid lp cs tmn EC rt la Mem als tr oresult Mem',
+                       (mkEC F B ((insn_call rid noret tailc rt fv lp)::cs) tmn lc arg als)::EC) gl fs Mem, tr)::nil)
+| nsExCall : forall S TD Ps F B lc gl fs arg rid noret tailc fv fid lp cs tmn EC rt la Mem als tr oresult Mem',
   (* only look up the current module for the time being, 
      do not support linkage. 
      FIXME: should add excall to trace
   *)
-  lookupExFdefViaIDFromProducts Ps fid = Some (fdec_intro (fheader_intro rt fid la)) ->
+  lookupExFdecViaGV TD Ps gl lc fs fv = Some (fdec_intro (fheader_intro rt fid la)) ->
   callExternalFunction Mem fid (params2GVs TD lp lc gl) = (oresult, Mem') ->
   nsInsn 
-    (mkState S TD Ps ((mkEC F B ((insn_call rid noret tailc rt fid lp)::cs) tmn lc arg als)::EC) gl Mem, tr)
-    ((mkState S TD Ps ((mkEC F B cs tmn (exCallUpdateLocals noret rid rt oresult lc) arg als)::EC) gl Mem', tr)::nil)
+    (mkState S TD Ps ((mkEC F B ((insn_call rid noret tailc rt fv lp)::cs) tmn lc arg als)::EC) gl fs Mem, tr)
+    ((mkState S TD Ps ((mkEC F B cs tmn (exCallUpdateLocals noret rid rt oresult lc) arg als)::EC) gl fs Mem', tr)::nil)
 .
 
 Definition ns_genInitState (S:system) (main:id) (Args:list GenericValue) (initmem:mem) : option States :=
@@ -647,9 +712,9 @@ match (lookupFdefViaIDFromSystem S main) with
   | None => None
   | Some (module_intro CurTD CurPs) =>
     let initargetdata := initTargetData CurTD initmem in 
-    match (genGlobalAndInitMem initargetdata CurPs nil initmem) with
+    match (genGlobalAndInitMem initargetdata CurPs nil nil initmem) with
     | None => None
-    | Some (initGlobal, initMem) =>
+    | Some (initGlobal, initFunTable, initMem) =>
       match (getEntryBlock CurFunction) with
       | None => None
       | Some (block_intro l ps cs tmn) => 
@@ -671,6 +736,7 @@ match (lookupFdefViaIDFromSystem S main) with
                   nil
                 )::nil)
                 initGlobal
+                initFunTable
                 initMem,
                 trace_nil
               )::nil)
@@ -682,9 +748,9 @@ end.
 
 Fixpoint ns_isFinialState (states:States) : bool :=
 match states with
-| (mkState _ _ _ ((mkEC _ _ nil (insn_return_void _) _ _ _)::nil) _ _, _)::states' => true
-| (mkState _ _ _ ((mkEC _ _ nil (insn_return _ _ _) _ _ _)::nil) _ _, _)::states' => true
-| (mkState _ _ _ _ _ _, _)::states' => ns_isFinialState states'
+| (mkState _ _ _ ((mkEC _ _ nil (insn_return_void _) _ _ _)::nil) _ _ _, _)::states' => true
+| (mkState _ _ _ ((mkEC _ _ nil (insn_return _ _ _) _ _ _)::nil) _ _ _, _)::states' => true
+| (mkState _ _ _ _ _ _ _, _)::states' => ns_isFinialState states'
 | _ => false
 end.
 
@@ -769,152 +835,156 @@ Definition callUpdateLocals (TD:TargetData) (noret:bool) (rid:id) (rt:typ) (oRes
     end.
 
 Inductive dbInsn : State -> State -> trace -> Prop :=
-| dbBranch : forall S TD Ps F B lc gl arg bid Cond l1 l2 c
+| dbBranch : forall S TD Ps F B lc gl fs arg bid Cond l1 l2 c
                               l' ps' cs' tmn' EC Mem als,   
   getOperandValue TD Cond lc gl = Some c ->
   Some (block_intro l' ps' cs' tmn') = (if isGVZero TD c
                then lookupBlockViaLabelFromFdef F l2
                else lookupBlockViaLabelFromFdef F l1) ->
   dbInsn 
-    (mkState S TD Ps ((mkEC F B nil (insn_br bid Cond l1 l2) lc arg als)::EC) gl Mem)
+    (mkState S TD Ps ((mkEC F B nil (insn_br bid Cond l1 l2) lc arg als)::EC) gl fs Mem)
     (mkState S TD Ps ((mkEC F (block_intro l' ps' cs' tmn') cs' tmn' 
-                        (switchToNewBasicBlock TD (block_intro l' ps' cs' tmn') B gl lc) arg als)::EC) gl Mem)
+                        (switchToNewBasicBlock TD (block_intro l' ps' cs' tmn') B gl lc) arg als)::EC) gl fs Mem)
     trace_nil 
-| dbBranch_uncond : forall S TD Ps F B lc gl arg l bid
+| dbBranch_uncond : forall S TD Ps F B lc gl fs arg l bid
                               l' ps' cs' tmn' EC Mem als,   
   Some (block_intro l' ps' cs' tmn') = (lookupBlockViaLabelFromFdef F l) ->
   dbInsn 
-    (mkState S TD Ps ((mkEC F B nil (insn_br_uncond bid l) lc arg als)::EC) gl Mem)
+    (mkState S TD Ps ((mkEC F B nil (insn_br_uncond bid l) lc arg als)::EC) gl fs Mem)
     (mkState S TD Ps ((mkEC F (block_intro l' ps' cs' tmn') cs' tmn' 
-                        (switchToNewBasicBlock TD (block_intro l' ps' cs' tmn') B gl lc) arg als)::EC) gl Mem)
+                        (switchToNewBasicBlock TD (block_intro l' ps' cs' tmn') B gl lc) arg als)::EC) gl fs Mem)
     trace_nil 
-| dbBop : forall S TD Ps F B lc gl arg id bop sz v1 v2 gv3 EC cs tmn Mem als,
+| dbBop : forall S TD Ps F B lc gl fs arg id bop sz v1 v2 gv3 EC cs tmn Mem als,
   BOP TD lc gl bop sz v1 v2 = Some gv3 ->
   dbInsn 
-    (mkState S TD Ps ((mkEC F B ((insn_bop id bop sz v1 v2)::cs) tmn lc arg als)::EC) gl Mem) 
-    (mkState S TD Ps ((mkEC F B cs tmn (updateAddAL _ lc id gv3) arg als)::EC) gl Mem)
+    (mkState S TD Ps ((mkEC F B ((insn_bop id bop sz v1 v2)::cs) tmn lc arg als)::EC) gl fs Mem) 
+    (mkState S TD Ps ((mkEC F B cs tmn (updateAddAL _ lc id gv3) arg als)::EC) gl fs Mem)
     trace_nil 
-| dbFBop : forall S TD Ps F B lc gl arg id fbop fp v1 v2 gv3 EC cs tmn Mem als,
+| dbFBop : forall S TD Ps F B lc gl fs arg id fbop fp v1 v2 gv3 EC cs tmn Mem als,
   FBOP TD lc gl fbop fp v1 v2 = Some gv3 ->
   dbInsn 
-    (mkState S TD Ps ((mkEC F B ((insn_fbop id fbop fp v1 v2)::cs) tmn lc arg als)::EC) gl Mem) 
-    (mkState S TD Ps ((mkEC F B cs tmn (updateAddAL _ lc id gv3) arg als)::EC) gl Mem)
+    (mkState S TD Ps ((mkEC F B ((insn_fbop id fbop fp v1 v2)::cs) tmn lc arg als)::EC) gl fs Mem) 
+    (mkState S TD Ps ((mkEC F B cs tmn (updateAddAL _ lc id gv3) arg als)::EC) gl fs Mem)
     trace_nil 
-| dbExtractValue : forall S TD Ps F B lc gl arg id t v gv gv' idxs EC cs tmn Mem als,
+| dbExtractValue : forall S TD Ps F B lc gl fs arg id t v gv gv' idxs EC cs tmn Mem als,
   getOperandValue TD v lc gl = Some gv ->
   extractGenericValue TD t gv idxs = Some gv' ->
   dbInsn 
-    (mkState S TD Ps ((mkEC F B ((insn_extractvalue id t v idxs)::cs) tmn lc arg als)::EC) gl Mem) 
-    (mkState S TD Ps ((mkEC F B cs tmn (updateAddAL _ lc id gv') arg als)::EC) gl Mem)
+    (mkState S TD Ps ((mkEC F B ((insn_extractvalue id t v idxs)::cs) tmn lc arg als)::EC) gl fs Mem) 
+    (mkState S TD Ps ((mkEC F B cs tmn (updateAddAL _ lc id gv') arg als)::EC) gl fs Mem)
     trace_nil 
-| dbInsertValue : forall S TD Ps F B lc gl arg id t v t' v' gv gv' gv'' idxs EC cs tmn Mem als,
+| dbInsertValue : forall S TD Ps F B lc gl fs arg id t v t' v' gv gv' gv'' idxs EC cs tmn Mem als,
   getOperandValue TD v lc gl = Some gv ->
   getOperandValue TD v' lc gl = Some gv' ->
   insertGenericValue TD t gv idxs t' gv' = Some gv'' ->
   dbInsn
-    (mkState S TD Ps ((mkEC F B ((insn_insertvalue id t v t' v' idxs)::cs) tmn lc arg als)::EC) gl Mem) 
-    (mkState S TD Ps ((mkEC F B cs tmn (updateAddAL _ lc id gv'') arg als)::EC) gl Mem)
+    (mkState S TD Ps ((mkEC F B ((insn_insertvalue id t v t' v' idxs)::cs) tmn lc arg als)::EC) gl fs Mem) 
+    (mkState S TD Ps ((mkEC F B cs tmn (updateAddAL _ lc id gv'') arg als)::EC) gl fs Mem)
     trace_nil 
-| dbMalloc : forall S TD Ps F B lc gl arg id t sz align EC cs tmn Mem als Mem' tsz mb,
+| dbMalloc : forall S TD Ps F B lc gl fs arg id t sz align EC cs tmn Mem als Mem' tsz mb,
   getTypeAllocSize TD t = Some tsz ->
   malloc TD Mem (Size.mul tsz sz) align = Some (Mem', mb) ->
   dbInsn 
-    (mkState S TD Ps ((mkEC F B ((insn_malloc id t sz align)::cs) tmn lc arg als)::EC) gl Mem) 
-    (mkState S TD Ps ((mkEC F B cs tmn (updateAddAL _ lc id (blk2GV TD mb)) arg als)::EC) gl Mem')
+    (mkState S TD Ps ((mkEC F B ((insn_malloc id t sz align)::cs) tmn lc arg als)::EC) gl fs Mem) 
+    (mkState S TD Ps ((mkEC F B cs tmn (updateAddAL _ lc id (blk2GV TD mb)) arg als)::EC) gl fs Mem')
     trace_nil
-| dbFree : forall S TD Ps F B lc gl arg fid t v EC cs tmn Mem als Mem' mptr,
+| dbFree : forall S TD Ps F B lc gl fs arg fid t v EC cs tmn Mem als Mem' mptr,
   getOperandValue TD v lc gl = Some mptr ->
   free TD Mem mptr = Some Mem'->
   dbInsn 
-    (mkState S TD Ps ((mkEC F B ((insn_free fid t v)::cs) tmn lc arg als)::EC) gl Mem) 
-    (mkState S TD Ps ((mkEC F B cs tmn lc arg als)::EC) gl Mem')
+    (mkState S TD Ps ((mkEC F B ((insn_free fid t v)::cs) tmn lc arg als)::EC) gl fs Mem) 
+    (mkState S TD Ps ((mkEC F B cs tmn lc arg als)::EC) gl fs Mem')
     trace_nil
-| dbAlloca : forall S TD Ps F B lc gl arg id t sz align EC cs tmn Mem als Mem' tsz mb,
+| dbAlloca : forall S TD Ps F B lc gl fs arg id t sz align EC cs tmn Mem als Mem' tsz mb,
   getTypeAllocSize TD t = Some tsz ->
   malloc TD Mem (Size.mul tsz sz) align = Some (Mem', mb) ->
   dbInsn 
-    (mkState S TD Ps ((mkEC F B ((insn_alloca id t sz align)::cs) tmn lc arg als)::EC) gl Mem) 
-    (mkState S TD Ps ((mkEC F B cs tmn (updateAddAL _ lc id (blk2GV TD mb)) arg (mb::als))::EC) gl Mem')
+    (mkState S TD Ps ((mkEC F B ((insn_alloca id t sz align)::cs) tmn lc arg als)::EC) gl fs Mem) 
+    (mkState S TD Ps ((mkEC F B cs tmn (updateAddAL _ lc id (blk2GV TD mb)) arg (mb::als))::EC) gl fs Mem')
     trace_nil
-| dbLoad : forall S TD Ps F B lc gl arg id t v align EC cs tmn Mem als mp gv,
+| dbLoad : forall S TD Ps F B lc gl fs arg id t v align EC cs tmn Mem als mp gv,
   getOperandValue TD v lc gl = Some mp ->
   mload TD Mem mp t align = Some gv ->
   dbInsn 
-    (mkState S TD Ps ((mkEC F B ((insn_load id t v align)::cs) tmn lc arg als)::EC) gl Mem) 
-    (mkState S TD Ps ((mkEC F B cs tmn (updateAddAL _ lc id gv) arg als)::EC) gl Mem)
+    (mkState S TD Ps ((mkEC F B ((insn_load id t v align)::cs) tmn lc arg als)::EC) gl fs Mem) 
+    (mkState S TD Ps ((mkEC F B cs tmn (updateAddAL _ lc id gv) arg als)::EC) gl fs Mem)
     trace_nil
-| dbStore : forall S TD Ps F B lc gl arg sid t v1 v2 align EC cs tmn Mem als mp2 gv1 Mem',
+| dbStore : forall S TD Ps F B lc gl fs arg sid t v1 v2 align EC cs tmn Mem als mp2 gv1 Mem',
   getOperandValue TD v1 lc gl = Some gv1 ->
   getOperandValue TD v2 lc gl = Some mp2 ->
   mstore TD Mem mp2 t gv1 align = Some Mem' ->
   dbInsn 
-    (mkState S TD Ps ((mkEC F B ((insn_store sid t v1 v2 align)::cs) tmn lc arg als)::EC) gl Mem) 
-    (mkState S TD Ps ((mkEC F B cs tmn lc arg als)::EC) gl Mem')
+    (mkState S TD Ps ((mkEC F B ((insn_store sid t v1 v2 align)::cs) tmn lc arg als)::EC) gl fs Mem) 
+    (mkState S TD Ps ((mkEC F B cs tmn lc arg als)::EC) gl fs Mem')
     trace_nil
-| dbGEP : forall S TD Ps F B lc gl arg id inbounds t v idxs vidxs EC mp mp' cs tmn Mem als,
+| dbGEP : forall S TD Ps F B lc gl fs arg id inbounds t v idxs vidxs EC mp mp' cs tmn Mem als,
   getOperandValue TD v lc gl = Some mp ->
   values2GVs TD idxs lc gl = Some vidxs ->
   GEP TD t mp vidxs inbounds = Some mp' ->
   dbInsn 
-    (mkState S TD Ps ((mkEC F B ((insn_gep id inbounds t v idxs)::cs) tmn lc arg als)::EC) gl Mem) 
-    (mkState S TD Ps ((mkEC F B cs tmn (updateAddAL _ lc id mp') arg als)::EC) gl Mem)
+    (mkState S TD Ps ((mkEC F B ((insn_gep id inbounds t v idxs)::cs) tmn lc arg als)::EC) gl fs Mem) 
+    (mkState S TD Ps ((mkEC F B cs tmn (updateAddAL _ lc id mp') arg als)::EC) gl fs Mem)
     trace_nil 
-| dbTrunc : forall S TD Ps F B lc gl arg id truncop t1 v1 t2 gv2 EC cs tmn Mem als,
+| dbTrunc : forall S TD Ps F B lc gl fs arg id truncop t1 v1 t2 gv2 EC cs tmn Mem als,
   TRUNC TD lc gl truncop t1 v1 t2 = Some gv2 ->
   dbInsn 
-    (mkState S TD Ps ((mkEC F B ((insn_trunc id truncop t1 v1 t2)::cs) tmn lc arg als)::EC) gl Mem) 
-    (mkState S TD Ps ((mkEC F B cs tmn (updateAddAL _ lc id gv2) arg als)::EC) gl Mem)
+    (mkState S TD Ps ((mkEC F B ((insn_trunc id truncop t1 v1 t2)::cs) tmn lc arg als)::EC) gl fs Mem) 
+    (mkState S TD Ps ((mkEC F B cs tmn (updateAddAL _ lc id gv2) arg als)::EC) gl fs Mem)
     trace_nil
-| dbExt : forall S TD Ps F B lc gl arg id extop t1 v1 t2 gv2 EC cs tmn Mem als,
+| dbExt : forall S TD Ps F B lc gl fs arg id extop t1 v1 t2 gv2 EC cs tmn Mem als,
   EXT TD lc gl extop t1 v1 t2 = Some gv2 ->
   dbInsn 
-    (mkState S TD Ps ((mkEC F B ((insn_ext id extop t1 v1 t2)::cs) tmn lc arg als)::EC) gl Mem) 
-    (mkState S TD Ps ((mkEC F B cs tmn (updateAddAL _ lc id gv2) arg als)::EC) gl Mem)
+    (mkState S TD Ps ((mkEC F B ((insn_ext id extop t1 v1 t2)::cs) tmn lc arg als)::EC) gl fs Mem) 
+    (mkState S TD Ps ((mkEC F B cs tmn (updateAddAL _ lc id gv2) arg als)::EC) gl fs Mem)
     trace_nil
-| dbCast : forall S TD Ps F B lc gl arg id castop t1 v1 t2 gv2 EC cs tmn Mem als,
+| dbCast : forall S TD Ps F B lc gl fs arg id castop t1 v1 t2 gv2 EC cs tmn Mem als,
   CAST TD lc gl castop t1 v1 t2 = Some gv2 ->
   dbInsn 
-    (mkState S TD Ps ((mkEC F B ((insn_cast id castop t1 v1 t2)::cs) tmn lc arg als)::EC) gl Mem) 
-    (mkState S TD Ps ((mkEC F B cs tmn (updateAddAL _ lc id gv2) arg als)::EC) gl Mem)
+    (mkState S TD Ps ((mkEC F B ((insn_cast id castop t1 v1 t2)::cs) tmn lc arg als)::EC) gl fs Mem) 
+    (mkState S TD Ps ((mkEC F B cs tmn (updateAddAL _ lc id gv2) arg als)::EC) gl fs Mem)
     trace_nil
-| dbIcmp : forall S TD Ps F B lc gl arg id cond t v1 v2 gv3 EC cs tmn Mem als,
+| dbIcmp : forall S TD Ps F B lc gl fs arg id cond t v1 v2 gv3 EC cs tmn Mem als,
   ICMP TD lc gl cond t v1 v2 = Some gv3 ->
   dbInsn 
-    (mkState S TD Ps ((mkEC F B ((insn_icmp id cond t v1 v2)::cs) tmn lc arg als)::EC) gl Mem) 
-    (mkState S TD Ps ((mkEC F B cs tmn (updateAddAL _ lc id gv3) arg als)::EC) gl Mem)
+    (mkState S TD Ps ((mkEC F B ((insn_icmp id cond t v1 v2)::cs) tmn lc arg als)::EC) gl fs Mem) 
+    (mkState S TD Ps ((mkEC F B cs tmn (updateAddAL _ lc id gv3) arg als)::EC) gl fs Mem)
     trace_nil
-| dbFcmp : forall S TD Ps F B lc gl arg id fcond fp v1 v2 gv3 EC cs tmn Mem als,
+| dbFcmp : forall S TD Ps F B lc gl fs arg id fcond fp v1 v2 gv3 EC cs tmn Mem als,
   FCMP TD lc gl fcond fp v1 v2 = Some gv3 ->
   dbInsn 
-    (mkState S TD Ps ((mkEC F B ((insn_fcmp id fcond fp v1 v2)::cs) tmn lc arg als)::EC) gl Mem) 
-    (mkState S TD Ps ((mkEC F B cs tmn (updateAddAL _ lc id gv3) arg als)::EC) gl Mem)
+    (mkState S TD Ps ((mkEC F B ((insn_fcmp id fcond fp v1 v2)::cs) tmn lc arg als)::EC) gl fs Mem) 
+    (mkState S TD Ps ((mkEC F B cs tmn (updateAddAL _ lc id gv3) arg als)::EC) gl fs Mem)
     trace_nil
-| dbSelect : forall S TD Ps F B lc gl arg id v0 t v1 v2 c EC cs tmn Mem als gv1 gv2,
+| dbSelect : forall S TD Ps F B lc gl fs arg id v0 t v1 v2 c EC cs tmn Mem als gv1 gv2,
   getOperandValue TD v0 lc gl = Some c ->
   getOperandValue TD v1 lc gl = Some gv1 ->
   getOperandValue TD v2 lc gl = Some gv2 ->
   dbInsn 
-    (mkState S TD Ps ((mkEC F B ((insn_select id v0 t v1 v2)::cs) tmn lc arg als)::EC) gl Mem) 
-    (mkState S TD Ps ((mkEC F B cs tmn (if isGVZero TD c then updateAddAL _ lc id gv2 else updateAddAL _ lc id gv1) arg als)::EC) gl Mem)
+    (mkState S TD Ps ((mkEC F B ((insn_select id v0 t v1 v2)::cs) tmn lc arg als)::EC) gl fs Mem) 
+    (mkState S TD Ps ((mkEC F B cs tmn 
+                       (if isGVZero TD c 
+                        then updateAddAL _ lc id gv2 
+                        else updateAddAL _ lc id gv1) arg als)::EC) 
+                       gl fs Mem)
     trace_nil
-| dbCall : forall S TD Ps F B lc gl arg rid noret tailc rt fid lp cs tmn
+| dbCall : forall S TD Ps F B lc gl fs arg rid noret tailc rt fv lp cs tmn
                        EC Rid oResult tr B' lc' Mem Mem' als' als Mem'',
-  dbFdef fid rt lp S TD Ps ((mkEC F B ((insn_call rid noret tailc rt fid lp)::cs) tmn lc arg als)::EC) lc gl Mem lc' als' Mem' B' Rid oResult tr ->
+  dbFdef fv rt lp S TD Ps ((mkEC F B ((insn_call rid noret tailc rt fv lp)::cs) tmn lc arg als)::EC) lc gl fs Mem lc' als' Mem' B' Rid oResult tr ->
   free_allocas TD Mem' als' = Some Mem'' ->
   dbInsn 
-    (mkState S TD Ps ((mkEC F B ((insn_call rid noret tailc rt fid lp)::cs) tmn lc arg als)::EC) gl Mem) 
-    (mkState S TD Ps ((mkEC F B cs tmn (callUpdateLocals TD noret rid rt oResult lc lc' gl) arg als)::EC) gl Mem'') 
+    (mkState S TD Ps ((mkEC F B ((insn_call rid noret tailc rt fv lp)::cs) tmn lc arg als)::EC) gl fs Mem) 
+    (mkState S TD Ps ((mkEC F B cs tmn (callUpdateLocals TD noret rid rt oResult lc lc' gl) arg als)::EC) gl fs Mem'') 
     tr
-| dbExCall : forall S TD Ps F B lc gl arg rid noret tailc fid lp cs tmn EC rt la Mem als oresult Mem',
+| dbExCall : forall S TD Ps F B lc gl fs arg rid noret tailc fv fid lp cs tmn EC rt la Mem als oresult Mem',
   (* only look up the current module for the time being, 
      do not support linkage. 
      FIXME: should add excall to trace
   *)
-  lookupExFdefViaIDFromProducts Ps fid = Some (fdec_intro (fheader_intro rt fid la)) ->
+  lookupExFdecViaGV TD Ps gl lc fs fv = Some (fdec_intro (fheader_intro rt fid la)) ->
   callExternalFunction Mem fid (params2GVs TD lp lc gl) = (oresult, Mem') ->
   dbInsn 
-    (mkState S TD Ps ((mkEC F B ((insn_call rid noret tailc rt fid lp)::cs) tmn lc arg als)::EC) gl Mem)
-    (mkState S TD Ps ((mkEC F B cs tmn (exCallUpdateLocals noret rid rt oresult lc) arg als)::EC) gl Mem')
+    (mkState S TD Ps ((mkEC F B ((insn_call rid noret tailc rt fv lp)::cs) tmn lc arg als)::EC) gl fs Mem)
+    (mkState S TD Ps ((mkEC F B cs tmn (exCallUpdateLocals noret rid rt oresult lc) arg als)::EC) gl fs Mem')
     trace_nil
 with dbop : State -> State -> trace -> Prop :=
 | dbop_nil : forall S, dbop S S trace_nil
@@ -922,41 +992,41 @@ with dbop : State -> State -> trace -> Prop :=
     dbInsn S1 S2 t1 ->
     dbop S2 S3 t2 ->
     dbop S1 S3 (trace_app t1 t2)
-with dbFdef : id -> typ -> params -> system -> TargetData -> products -> list ExecutionContext -> GVMap -> GVMap -> mem -> GVMap -> list mblock -> mem -> block -> id -> option value -> trace -> Prop :=
-| dbFdef_func : forall S TD Ps gl fid lp lc rid
+with dbFdef : value -> typ -> params -> system -> TargetData -> products -> list ExecutionContext -> GVMap -> GVMap -> GVMap -> mem -> GVMap -> list mblock -> mem -> block -> id -> option value -> trace -> Prop :=
+| dbFdef_func : forall S TD Ps gl fs fv fid lp lc rid
                             l' ps' cs' tmn' rt la lb l'' ps'' cs'' Result lc' tr ECs Mem Mem' als',
-  lookupFdefViaIDFromProducts Ps fid = Some (fdef_intro (fheader_intro rt fid la) lb) ->
+  lookupFdefViaGV TD Ps gl lc fs fv = Some (fdef_intro (fheader_intro rt fid la) lb) ->
   getEntryBlock (fdef_intro (fheader_intro rt fid la) lb) = Some (block_intro l' ps' cs' tmn') ->
   dbop 
     (mkState S TD Ps ((mkEC (fdef_intro (fheader_intro rt fid la) lb) 
                              (block_intro l' ps' cs' tmn') cs' tmn' (initLocals la (params2GVs TD lp lc gl))
-                            (params2GVs TD lp lc gl) nil)::ECs) gl Mem)
+                            (params2GVs TD lp lc gl) nil)::ECs) gl fs Mem)
     (mkState S TD Ps ((mkEC (fdef_intro (fheader_intro rt fid la) lb) 
                              (block_intro l'' ps'' cs'' (insn_return rid rt Result)) nil (insn_return rid rt Result) lc'
-                            (params2GVs TD lp lc gl) als')::ECs) gl Mem')
+                            (params2GVs TD lp lc gl) als')::ECs) gl fs Mem')
     tr ->
-  dbFdef fid rt lp S TD Ps ECs lc gl Mem lc' als' Mem' (block_intro l'' ps'' cs'' (insn_return rid rt Result)) rid (Some Result) tr
-| dbFdef_proc : forall S TD Ps gl fid lp lc rid
+  dbFdef fv rt lp S TD Ps ECs lc gl fs Mem lc' als' Mem' (block_intro l'' ps'' cs'' (insn_return rid rt Result)) rid (Some Result) tr
+| dbFdef_proc : forall S TD Ps gl fs fv fid lp lc rid
                             l' ps' cs' tmn' rt la lb l'' ps'' cs'' lc' tr ECs Mem Mem' als',
-  lookupFdefViaIDFromProducts Ps fid = Some (fdef_intro (fheader_intro rt fid la) lb) ->
+  lookupFdefViaGV TD Ps gl lc fs fv = Some (fdef_intro (fheader_intro rt fid la) lb) ->
   getEntryBlock (fdef_intro (fheader_intro rt fid la) lb) = Some (block_intro l' ps' cs' tmn') ->
   dbop 
     (mkState S TD Ps ((mkEC (fdef_intro (fheader_intro rt fid la) lb) 
                              (block_intro l' ps' cs' tmn') cs' tmn' (initLocals la (params2GVs TD lp lc gl))
-                            (params2GVs TD lp lc gl) nil)::ECs) gl Mem)
+                            (params2GVs TD lp lc gl) nil)::ECs) gl fs Mem)
     (mkState S TD Ps ((mkEC (fdef_intro (fheader_intro rt fid la) lb) 
                              (block_intro l'' ps'' cs'' (insn_return_void rid)) nil (insn_return_void rid) lc'
-                            (params2GVs TD lp lc gl) als')::ECs) gl Mem')
+                            (params2GVs TD lp lc gl) als')::ECs) gl fs Mem')
     tr ->
-  dbFdef fid  rt lp S TD Ps ECs lc gl Mem lc' als' Mem' (block_intro l'' ps'' cs'' (insn_return_void rid)) rid None tr
+  dbFdef fv rt lp S TD Ps ECs lc gl fs Mem lc' als' Mem' (block_intro l'' ps'' cs'' (insn_return_void rid)) rid None tr
 .
 
 CoInductive dbInsnInf : State -> Trace -> Prop :=
-| dbCallInsnInf : forall S TD Ps F B lc gl arg rid noret tailc rt fid lp cs tmn
+| dbCallInsnInf : forall S TD Ps F B lc gl fs arg rid noret tailc rt fv lp cs tmn
                        EC tr Mem als,
-  dbFdefInf fid rt lp S TD Ps ((mkEC F B ((insn_call rid noret tailc rt fid lp)::cs) tmn lc arg als)::EC) lc gl Mem tr ->
+  dbFdefInf fv rt lp S TD Ps ((mkEC F B ((insn_call rid noret tailc rt fv lp)::cs) tmn lc arg als)::EC) lc gl fs Mem tr ->
   dbInsnInf 
-    (mkState S TD Ps ((mkEC F B ((insn_call rid noret tailc rt fid lp)::cs) tmn lc arg als)::EC) gl Mem) 
+    (mkState S TD Ps ((mkEC F B ((insn_call rid noret tailc rt fv lp)::cs) tmn lc arg als)::EC) gl fs Mem) 
     tr
 with dbopInf : State -> Trace -> Prop :=
 | dbopInf_insn : forall state1 t1,
@@ -966,17 +1036,17 @@ with dbopInf : State -> Trace -> Prop :=
     dbInsn state1 state2 t1 ->
     dbopInf state2 t2 ->
     dbopInf state1 (Trace_app t1 t2)
-with dbFdefInf : id -> typ -> params -> system -> TargetData -> products -> list ExecutionContext -> GVMap -> GVMap -> mem -> Trace -> Prop :=
-| dbFdefInf_intro : forall S TD Ps lc gl fid lp
+with dbFdefInf : value -> typ -> params -> system -> TargetData -> products -> list ExecutionContext -> GVMap -> GVMap  -> GVMap -> mem -> Trace -> Prop :=
+| dbFdefInf_intro : forall S TD Ps lc gl fs fv fid lp
                            l' ps' cs' tmn' rt la lb tr ECs Mem,
-  lookupFdefViaIDFromProducts Ps fid = Some (fdef_intro (fheader_intro rt fid la) lb) ->
+  lookupFdefViaGV TD Ps gl lc fs fv = Some (fdef_intro (fheader_intro rt fid la) lb) ->
   getEntryBlock (fdef_intro (fheader_intro rt fid la) lb) = Some (block_intro l' ps' cs' tmn') ->
   dbopInf 
     (mkState S TD Ps ((mkEC (fdef_intro (fheader_intro rt fid la) lb) (block_intro l' ps' cs' tmn') cs' tmn'
                         (initLocals la (params2GVs TD lp lc gl)) 
-                        (params2GVs TD lp lc gl) nil)::ECs) gl Mem)
+                        (params2GVs TD lp lc gl) nil)::ECs) gl fs Mem)
     tr ->
-  dbFdefInf fid rt lp S TD Ps ECs lc gl Mem tr
+  dbFdefInf fv rt lp S TD Ps ECs lc gl fs Mem tr
 .
 
 Definition db_genInitState := ds_genInitState.
@@ -1008,23 +1078,23 @@ Inductive db_goeswrong : system -> id -> list GenericValue -> State -> Prop :=
 (***************************************************************)
 (* non-deterministic big-step *)
 
-Fixpoint returnStatesFromOp S TD Ps ECs lp lc gl rt fid la lb 
+Fixpoint returnStatesFromOp S TD Ps ECs lp lc gl fs rt fid la lb 
   (lc_als_Mem_block_ore_trs : list (GVMap*list mblock*mem*block*id*option value*trace)) : States :=
 match lc_als_Mem_block_ore_trs with
 | nil => nil
 | (lc', als', Mem', B'', rid, Some re, tr')::lc_als_Mem_block_ore_trs' => 
     (mkState S TD Ps ((mkEC (fdef_intro (fheader_intro rt fid la) lb) 
                              B'' nil (insn_return rid rt re) lc'
-                            (params2GVs TD lp lc gl) als')::ECs) gl Mem', tr')::
-    (returnStatesFromOp S TD Ps ECs lp lc gl rt fid la lb lc_als_Mem_block_ore_trs')
+                            (params2GVs TD lp lc gl) als')::ECs) gl fs Mem', tr')::
+    (returnStatesFromOp S TD Ps ECs lp lc gl fs rt fid la lb lc_als_Mem_block_ore_trs')
 | (lc', als', Mem', B'', rid, None, tr')::lc_als_Mem_block_ore_trs' => 
     (mkState S TD Ps ((mkEC (fdef_intro (fheader_intro rt fid la) lb) 
                              B'' nil (insn_return_void rid) lc'
-                            (params2GVs TD lp lc gl) als')::ECs) gl Mem', tr')::
-    (returnStatesFromOp S TD Ps ECs lp lc gl rt fid la lb lc_als_Mem_block_ore_trs')
+                            (params2GVs TD lp lc gl) als')::ECs) gl fs Mem', tr')::
+    (returnStatesFromOp S TD Ps ECs lp lc gl fs rt fid la lb lc_als_Mem_block_ore_trs')
 end.
 
-Fixpoint updateStatesFromReturns S TD Ps F B cs tmn lc gl rid t arg als EC noret
+Fixpoint updateStatesFromReturns S TD Ps F B cs tmn lc gl fs rid t arg als EC noret
   (lc_als_Mem_block_rid_re_trs : list (GVMap*list mblock*mem*block*id*option value*trace)): option States :=
 match lc_als_Mem_block_rid_re_trs with 
 | nil => Some nil
@@ -1043,8 +1113,8 @@ match lc_als_Mem_block_rid_re_trs with
     end in
   match (free_allocas TD Mem' als') with
   | Some Mem'' =>
-    match (updateStatesFromReturns S TD Ps F B cs tmn lc gl rid t arg als EC noret lc_als_Mem_block_rid_ore_trs') with
-    | Some states => Some ((mkState S TD Ps ((mkEC F B cs tmn lc'' arg als)::EC) gl Mem'', tr)::states)
+    match (updateStatesFromReturns S TD Ps F B cs tmn lc gl fs rid t arg als EC noret lc_als_Mem_block_rid_ore_trs') with
+    | Some states => Some ((mkState S TD Ps ((mkEC F B cs tmn lc'' arg als)::EC) gl fs Mem'', tr)::states)
     | None => None
     end
   | None => None
@@ -1052,8 +1122,8 @@ match lc_als_Mem_block_rid_re_trs with
 | (lc', als', Mem', B', _, None, tr)::lc_als_Mem_block_rid_ore_trs' => 
   match (free_allocas TD Mem' als') with
   | Some Mem'' =>
-    match (updateStatesFromReturns S TD Ps F B cs tmn lc gl rid t arg als EC noret lc_als_Mem_block_rid_ore_trs') with
-    | Some states => Some ((mkState S TD Ps ((mkEC F B cs tmn lc arg als)::EC) gl Mem'', tr)::states)
+    match (updateStatesFromReturns S TD Ps F B cs tmn lc gl fs rid t arg als EC noret lc_als_Mem_block_rid_ore_trs') with
+    | Some states => Some ((mkState S TD Ps ((mkEC F B cs tmn lc arg als)::EC) gl fs Mem'', tr)::states)
     | None => None
     end
   | None => None
@@ -1061,143 +1131,146 @@ match lc_als_Mem_block_rid_re_trs with
 end.
 
 Inductive nbInsn : State*trace -> States -> Prop :=
-| nbBranch_def : forall S TD Ps F B lc gl arg bid Cond l1 l2 c
+| nbBranch_def : forall S TD Ps F B lc gl fs arg bid Cond l1 l2 c
                               l' ps' cs' tmn' EC tr Mem als,   
   getOperandValue TD Cond lc gl = Some c ->
   Some (block_intro l' ps' cs' tmn') = (if isGVZero TD c
                then lookupBlockViaLabelFromFdef F l2
                else lookupBlockViaLabelFromFdef F l1) ->
   nbInsn 
-    (mkState S TD Ps ((mkEC F B nil (insn_br bid Cond l1 l2) lc arg als)::EC) gl Mem, tr)
+    (mkState S TD Ps ((mkEC F B nil (insn_br bid Cond l1 l2) lc arg als)::EC) gl fs Mem, tr)
     ((mkState S TD Ps ((mkEC F (block_intro l' ps' cs' tmn') cs' tmn'
-                         (switchToNewBasicBlock TD (block_intro l' ps' cs' tmn') B gl lc) arg als)::EC) gl Mem, tr)::nil)
+                         (switchToNewBasicBlock TD (block_intro l' ps' cs' tmn') B gl lc) arg als)::EC) gl fs Mem, tr)::nil)
 | nbBranch_undef : forall S TD Ps F B lc arg bid Cond l1 l2
-                              l1' ps1' cs1' tmn1' l2' ps2' cs2' tmn2' EC tr gl Mem als,   
+                              l1' ps1' cs1' tmn1' l2' ps2' cs2' tmn2' EC tr gl fs Mem als,   
   isOperandUndef TD (typ_int Size.One) Cond lc gl ->
   Some (block_intro l1' ps1' cs1' tmn1') = lookupBlockViaLabelFromFdef F l1 ->
   Some (block_intro l2' ps2' cs2' tmn2') = lookupBlockViaLabelFromFdef F l2 ->
   nbInsn 
-    (mkState S TD Ps ((mkEC F B nil (insn_br bid Cond l1 l2) lc arg als)::EC) gl Mem, tr)
+    (mkState S TD Ps ((mkEC F B nil (insn_br bid Cond l1 l2) lc arg als)::EC) gl fs Mem, tr)
     ((mkState S TD Ps ((mkEC F (block_intro l1' ps1' cs1' tmn1') cs1' tmn1'
-                         (switchToNewBasicBlock TD (block_intro l1' ps1' cs1' tmn1') B gl lc) arg als)::EC) gl Mem, tr)::
+                         (switchToNewBasicBlock TD (block_intro l1' ps1' cs1' tmn1') B gl lc) arg als)::EC) gl fs Mem, tr)::
      (mkState S TD Ps ((mkEC F (block_intro l2' ps2' cs2' tmn2') cs2' tmn2' 
-                         (switchToNewBasicBlock TD (block_intro l2' ps2' cs2' tmn2') B gl lc) arg als)::EC) gl Mem, tr)::nil)
-| nbBranch_uncond : forall S TD Ps F B lc gl arg l bid
+                         (switchToNewBasicBlock TD (block_intro l2' ps2' cs2' tmn2') B gl lc) arg als)::EC) gl fs Mem, tr)::nil)
+| nbBranch_uncond : forall S TD Ps F B lc gl fs arg l bid
                               l' ps' cs' tmn' EC tr Mem als,   
   Some (block_intro l' ps' cs' tmn') = (lookupBlockViaLabelFromFdef F l) ->
   nbInsn 
-    (mkState S TD Ps ((mkEC F B nil (insn_br_uncond bid l) lc arg als)::EC) gl Mem, tr)
+    (mkState S TD Ps ((mkEC F B nil (insn_br_uncond bid l) lc arg als)::EC) gl fs Mem, tr)
     ((mkState S TD Ps ((mkEC F (block_intro l' ps' cs' tmn') cs' tmn'
-                         (switchToNewBasicBlock TD (block_intro l' ps' cs' tmn') B gl lc) arg als)::EC) gl Mem, tr)::nil)
-| nbBop : forall S TD Ps F B lc gl arg id bop sz v1 v2 gv3 EC cs tmn tr Mem als,
+                         (switchToNewBasicBlock TD (block_intro l' ps' cs' tmn') B gl lc) arg als)::EC) gl fs Mem, tr)::nil)
+| nbBop : forall S TD Ps F B lc gl fs arg id bop sz v1 v2 gv3 EC cs tmn tr Mem als,
   BOP TD lc gl bop sz v1 v2 = Some gv3 ->
   nbInsn 
-    (mkState S TD Ps ((mkEC F B ((insn_bop id bop sz v1 v2)::cs) tmn lc arg als)::EC) gl Mem, tr) 
-    ((mkState S TD Ps ((mkEC F B cs tmn (updateAddAL _ lc id gv3) arg als)::EC) gl Mem, tr)::nil)
-| nbFBop : forall S TD Ps F B lc gl arg id fbop fp v1 v2 gv3 EC cs tmn tr Mem als,
+    (mkState S TD Ps ((mkEC F B ((insn_bop id bop sz v1 v2)::cs) tmn lc arg als)::EC) gl fs Mem, tr) 
+    ((mkState S TD Ps ((mkEC F B cs tmn (updateAddAL _ lc id gv3) arg als)::EC) gl fs Mem, tr)::nil)
+| nbFBop : forall S TD Ps F B lc gl fs arg id fbop fp v1 v2 gv3 EC cs tmn tr Mem als,
   FBOP TD lc gl fbop fp v1 v2 = Some gv3 ->
   nbInsn 
-    (mkState S TD Ps ((mkEC F B ((insn_fbop id fbop fp v1 v2)::cs) tmn lc arg als)::EC) gl Mem, tr) 
-    ((mkState S TD Ps ((mkEC F B cs tmn (updateAddAL _ lc id gv3) arg als)::EC) gl Mem, tr)::nil)
-| nbExtractValue : forall S TD Ps F B lc gl arg id t v gv gv' idxs EC cs tmn Mem als tr,
+    (mkState S TD Ps ((mkEC F B ((insn_fbop id fbop fp v1 v2)::cs) tmn lc arg als)::EC) gl fs Mem, tr) 
+    ((mkState S TD Ps ((mkEC F B cs tmn (updateAddAL _ lc id gv3) arg als)::EC) gl fs Mem, tr)::nil)
+| nbExtractValue : forall S TD Ps F B lc gl fs arg id t v gv gv' idxs EC cs tmn Mem als tr,
   getOperandValue TD v lc gl = Some gv ->
   extractGenericValue TD t gv idxs = Some gv' ->
   nbInsn 
-    (mkState S TD Ps ((mkEC F B ((insn_extractvalue id t v idxs)::cs) tmn lc arg als)::EC) gl Mem, tr) 
-    ((mkState S TD Ps ((mkEC F B cs tmn (updateAddAL _ lc id gv') arg als)::EC) gl Mem, tr)::nil)
-| nbInsertValue : forall S TD Ps F B lc gl arg id t v t' v' gv gv' gv'' idxs EC cs tmn Mem als tr,
+    (mkState S TD Ps ((mkEC F B ((insn_extractvalue id t v idxs)::cs) tmn lc arg als)::EC) gl fs Mem, tr) 
+    ((mkState S TD Ps ((mkEC F B cs tmn (updateAddAL _ lc id gv') arg als)::EC) gl fs Mem, tr)::nil)
+| nbInsertValue : forall S TD Ps F B lc gl fs arg id t v t' v' gv gv' gv'' idxs EC cs tmn Mem als tr,
   getOperandValue TD v lc gl = Some gv ->
   getOperandValue TD v' lc gl = Some gv' ->
   insertGenericValue TD t gv idxs t' gv' = Some gv'' ->
   nbInsn 
-    (mkState S TD Ps ((mkEC F B ((insn_insertvalue id t v t' v' idxs)::cs) tmn lc arg als)::EC) gl Mem, tr) 
-    ((mkState S TD Ps ((mkEC F B cs tmn (updateAddAL _ lc id gv'') arg als)::EC) gl Mem, tr)::nil)
-| nbMalloc : forall S TD Ps F B lc gl arg id t sz align EC cs tmn Mem als Mem' tsz mb tr,
+    (mkState S TD Ps ((mkEC F B ((insn_insertvalue id t v t' v' idxs)::cs) tmn lc arg als)::EC) gl fs Mem, tr) 
+    ((mkState S TD Ps ((mkEC F B cs tmn (updateAddAL _ lc id gv'') arg als)::EC) gl fs Mem, tr)::nil)
+| nbMalloc : forall S TD Ps F B lc gl fs arg id t sz align EC cs tmn Mem als Mem' tsz mb tr,
   getTypeAllocSize TD t = Some tsz ->
   malloc TD Mem (Size.mul tsz sz) align = Some (Mem', mb) ->
   nbInsn 
-    (mkState S TD Ps ((mkEC F B ((insn_malloc id t sz align)::cs) tmn lc arg als)::EC) gl Mem, tr) 
-    ((mkState S TD Ps ((mkEC F B cs tmn (updateAddAL _ lc id (blk2GV TD mb)) arg als)::EC) gl Mem', tr)::nil)
-| nbFree : forall S TD Ps F B lc gl arg fid t v EC cs tmn Mem als Mem' mptr tr,
+    (mkState S TD Ps ((mkEC F B ((insn_malloc id t sz align)::cs) tmn lc arg als)::EC) gl fs Mem, tr) 
+    ((mkState S TD Ps ((mkEC F B cs tmn (updateAddAL _ lc id (blk2GV TD mb)) arg als)::EC) gl fs Mem', tr)::nil)
+| nbFree : forall S TD Ps F B lc gl fs arg fid t v EC cs tmn Mem als Mem' mptr tr,
   getOperandValue TD v lc gl = Some mptr ->
   free TD Mem mptr = Some Mem'->
   nbInsn 
-    (mkState S TD Ps ((mkEC F B ((insn_free fid t v)::cs) tmn lc arg als)::EC) gl Mem, tr) 
-    ((mkState S TD Ps ((mkEC F B cs tmn lc arg als)::EC) gl Mem', tr)::nil)
-| nbAlloca : forall S TD Ps F B lc gl arg id t sz align EC cs tmn Mem als Mem' tsz mb tr,
+    (mkState S TD Ps ((mkEC F B ((insn_free fid t v)::cs) tmn lc arg als)::EC) gl fs Mem, tr) 
+    ((mkState S TD Ps ((mkEC F B cs tmn lc arg als)::EC) gl fs Mem', tr)::nil)
+| nbAlloca : forall S TD Ps F B lc gl fs arg id t sz align EC cs tmn Mem als Mem' tsz mb tr,
   getTypeAllocSize TD t = Some tsz ->
   malloc TD Mem (Size.mul tsz sz) align = Some (Mem', mb) ->
   nbInsn 
-    (mkState S TD Ps ((mkEC F B ((insn_alloca id t sz align)::cs) tmn lc arg als)::EC) gl Mem, tr) 
-    ((mkState S TD Ps ((mkEC F B cs tmn (updateAddAL _ lc id (blk2GV TD mb)) arg (mb::als))::EC) gl Mem', tr)::nil)
-| nbLoad : forall S TD Ps F B lc gl arg id t v align EC cs tmn Mem als mp gv tr,
+    (mkState S TD Ps ((mkEC F B ((insn_alloca id t sz align)::cs) tmn lc arg als)::EC) gl fs Mem, tr) 
+    ((mkState S TD Ps ((mkEC F B cs tmn (updateAddAL _ lc id (blk2GV TD mb)) arg (mb::als))::EC) gl fs Mem', tr)::nil)
+| nbLoad : forall S TD Ps F B lc gl fs arg id t v align EC cs tmn Mem als mp gv tr,
   getOperandValue TD v lc gl = Some mp ->
   mload TD Mem mp t align = Some gv ->
   nbInsn 
-    (mkState S TD Ps ((mkEC F B ((insn_load id t v align)::cs) tmn lc arg als)::EC) gl Mem, tr) 
-    ((mkState S TD Ps ((mkEC F B cs tmn (updateAddAL _ lc id gv) arg als)::EC) gl Mem, tr)::nil)
-| nbStore : forall S TD Ps F B lc gl arg sid t v1 v2 align EC cs tmn Mem als mp2 gv1 Mem' tr,
+    (mkState S TD Ps ((mkEC F B ((insn_load id t v align)::cs) tmn lc arg als)::EC) gl fs Mem, tr) 
+    ((mkState S TD Ps ((mkEC F B cs tmn (updateAddAL _ lc id gv) arg als)::EC) gl fs Mem, tr)::nil)
+| nbStore : forall S TD Ps F B lc gl fs arg sid t v1 v2 align EC cs tmn Mem als mp2 gv1 Mem' tr,
   getOperandValue TD v1 lc gl = Some gv1 ->
   getOperandValue TD v2 lc gl = Some mp2 ->
   mstore TD Mem mp2 t gv1 align = Some Mem' ->
   nbInsn 
-    (mkState S TD Ps ((mkEC F B ((insn_store sid t v1 v2 align)::cs) tmn lc arg als)::EC) gl Mem, tr) 
-    ((mkState S TD Ps ((mkEC F B cs tmn lc arg als)::EC) gl Mem', tr)::nil)
-| nbGEP : forall S TD Ps F B lc gl arg id inbounds t v idxs vidxs EC mp mp' cs tmn Mem als tr,
+    (mkState S TD Ps ((mkEC F B ((insn_store sid t v1 v2 align)::cs) tmn lc arg als)::EC) gl fs Mem, tr) 
+    ((mkState S TD Ps ((mkEC F B cs tmn lc arg als)::EC) gl fs Mem', tr)::nil)
+| nbGEP : forall S TD Ps F B lc gl fs arg id inbounds t v idxs vidxs EC mp mp' cs tmn Mem als tr,
   getOperandValue TD v lc gl = Some mp ->
   values2GVs TD idxs lc gl = Some vidxs ->
   GEP TD t mp vidxs false = Some mp' ->
   nbInsn 
-    (mkState S TD Ps ((mkEC F B ((insn_gep id inbounds t v idxs)::cs) tmn lc arg als)::EC) gl Mem, tr) 
-    ((mkState S TD Ps ((mkEC F B cs tmn(updateAddAL _ lc id mp') arg als)::EC) gl Mem, tr)::nil)
-| nbTrunc : forall S TD Ps F B lc gl arg id truncop t1 v1 t2 gv2 EC cs tmn Mem als tr, 
+    (mkState S TD Ps ((mkEC F B ((insn_gep id inbounds t v idxs)::cs) tmn lc arg als)::EC) gl fs Mem, tr) 
+    ((mkState S TD Ps ((mkEC F B cs tmn(updateAddAL _ lc id mp') arg als)::EC) gl fs Mem, tr)::nil)
+| nbTrunc : forall S TD Ps F B lc gl fs arg id truncop t1 v1 t2 gv2 EC cs tmn Mem als tr, 
   TRUNC TD lc gl truncop t1 v1 t2 = Some gv2 ->
   nbInsn 
-    (mkState S TD Ps ((mkEC F B ((insn_trunc id truncop t1 v1 t2)::cs) tmn lc arg als)::EC) gl Mem, tr) 
-    ((mkState S TD Ps ((mkEC F B cs tmn (updateAddAL _ lc id gv2) arg als)::EC) gl Mem, tr)::nil)
-| nbExt : forall S TD Ps F B lc gl arg id extop t1 v1 t2 gv2 EC cs tmn Mem als tr, 
+    (mkState S TD Ps ((mkEC F B ((insn_trunc id truncop t1 v1 t2)::cs) tmn lc arg als)::EC) gl fs Mem, tr) 
+    ((mkState S TD Ps ((mkEC F B cs tmn (updateAddAL _ lc id gv2) arg als)::EC) gl fs Mem, tr)::nil)
+| nbExt : forall S TD Ps F B lc gl fs arg id extop t1 v1 t2 gv2 EC cs tmn Mem als tr, 
   EXT TD lc gl extop t1 v1 t2 = Some gv2 ->
   nbInsn 
-    (mkState S TD Ps ((mkEC F B ((insn_ext id extop t1 v1 t2)::cs) tmn lc arg als)::EC) gl Mem, tr) 
-    ((mkState S TD Ps ((mkEC F B cs tmn (updateAddAL _ lc id gv2) arg als)::EC) gl Mem, tr)::nil)
-| nbCast : forall S TD Ps F B lc gl arg id castop t1 v1 t2 gv2 EC cs tmn Mem als tr,
+    (mkState S TD Ps ((mkEC F B ((insn_ext id extop t1 v1 t2)::cs) tmn lc arg als)::EC) gl fs Mem, tr) 
+    ((mkState S TD Ps ((mkEC F B cs tmn (updateAddAL _ lc id gv2) arg als)::EC) gl fs Mem, tr)::nil)
+| nbCast : forall S TD Ps F B lc gl fs arg id castop t1 v1 t2 gv2 EC cs tmn Mem als tr,
   CAST TD lc gl castop t1 v1 t2 = Some gv2 ->
   nbInsn 
-    (mkState S TD Ps ((mkEC F B ((insn_cast id castop t1 v1 t2)::cs) tmn lc arg als)::EC) gl Mem, tr) 
-    ((mkState S TD Ps ((mkEC F B cs tmn (updateAddAL _ lc id gv2) arg als)::EC) gl Mem, tr)::nil)
-| nbIcmp : forall S TD Ps F B lc gl arg id cond t v1 v2 gv3 EC cs tmn Mem als tr,
+    (mkState S TD Ps ((mkEC F B ((insn_cast id castop t1 v1 t2)::cs) tmn lc arg als)::EC) gl fs Mem, tr) 
+    ((mkState S TD Ps ((mkEC F B cs tmn (updateAddAL _ lc id gv2) arg als)::EC) gl fs Mem, tr)::nil)
+| nbIcmp : forall S TD Ps F B lc gl fs arg id cond t v1 v2 gv3 EC cs tmn Mem als tr,
   ICMP TD lc gl cond t v1 v2 = Some gv3 ->
   nbInsn 
-    (mkState S TD Ps ((mkEC F B ((insn_icmp id cond t v1 v2)::cs) tmn lc arg als)::EC) gl Mem, tr) 
-    ((mkState S TD Ps ((mkEC F B cs tmn (updateAddAL _ lc id gv3) arg als)::EC) gl Mem, tr)::nil)
-| nbFcmp : forall S TD Ps F B lc gl arg id fcond fp v1 v2 gv3 EC cs tmn Mem als tr,
+    (mkState S TD Ps ((mkEC F B ((insn_icmp id cond t v1 v2)::cs) tmn lc arg als)::EC) gl fs Mem, tr) 
+    ((mkState S TD Ps ((mkEC F B cs tmn (updateAddAL _ lc id gv3) arg als)::EC) gl fs Mem, tr)::nil)
+| nbFcmp : forall S TD Ps F B lc gl fs arg id fcond fp v1 v2 gv3 EC cs tmn Mem als tr,
   FCMP TD lc gl fcond fp v1 v2 = Some gv3 ->
   nbInsn 
-    (mkState S TD Ps ((mkEC F B ((insn_fcmp id fcond fp v1 v2)::cs) tmn lc arg als)::EC) gl Mem, tr) 
-    ((mkState S TD Ps ((mkEC F B cs tmn (updateAddAL _ lc id gv3) arg als)::EC) gl Mem, tr)::nil)
-| nbSelect : forall S TD Ps F B lc gl arg id v0 t v1 v2 c EC cs tmn Mem als tr gv1 gv2,
+    (mkState S TD Ps ((mkEC F B ((insn_fcmp id fcond fp v1 v2)::cs) tmn lc arg als)::EC) gl fs Mem, tr) 
+    ((mkState S TD Ps ((mkEC F B cs tmn (updateAddAL _ lc id gv3) arg als)::EC) gl fs Mem, tr)::nil)
+| nbSelect : forall S TD Ps F B lc gl fs arg id v0 t v1 v2 c EC cs tmn Mem als tr gv1 gv2,
   getOperandValue TD v0 lc gl = Some c ->
   getOperandValue TD v1 lc gl = Some gv1 ->
   getOperandValue TD v2 lc gl = Some gv2 ->
   nbInsn 
-    (mkState S TD Ps ((mkEC F B ((insn_select id v0 t v1 v2)::cs) tmn lc arg als)::EC) gl Mem, tr) 
-    ((mkState S TD Ps ((mkEC F B cs tmn (if isGVZero TD c then updateAddAL _ lc id gv2 else updateAddAL _ lc id gv1) arg als)::EC) gl Mem, tr)::nil)
-| nbCall : forall S TD Ps F B lc gl arg rid noret tailc rt fid lp cs tmn
+    (mkState S TD Ps ((mkEC F B ((insn_select id v0 t v1 v2)::cs) tmn lc arg als)::EC) gl fs Mem, tr) 
+    ((mkState S TD Ps ((mkEC F B cs tmn 
+                         (if isGVZero TD c 
+                          then updateAddAL _ lc id gv2 
+                          else updateAddAL _ lc id gv1) arg als)::EC) gl fs Mem, tr)::nil)
+| nbCall : forall S TD Ps F B lc gl fs arg rid noret tailc rt fv lp cs tmn
                             EC tr lc_als_Mem_block_rid_ore_trs Mem als states, 
-  nbFdef fid rt lp S TD Ps ((mkEC F B ((insn_call rid noret tailc rt fid lp)::cs) tmn lc arg als)::EC) lc gl Mem tr lc_als_Mem_block_rid_ore_trs ->
-  updateStatesFromReturns S TD Ps F B cs tmn lc gl rid rt arg als EC noret lc_als_Mem_block_rid_ore_trs = Some states ->
+  nbFdef fv rt lp S TD Ps ((mkEC F B ((insn_call rid noret tailc rt fv lp)::cs) tmn lc arg als)::EC) lc gl fs Mem tr lc_als_Mem_block_rid_ore_trs ->
+  updateStatesFromReturns S TD Ps F B cs tmn lc gl fs rid rt arg als EC noret lc_als_Mem_block_rid_ore_trs = Some states ->
   nbInsn 
-    (mkState S TD Ps ((mkEC F B ((insn_call rid noret tailc rt fid lp)::cs) tmn lc arg als)::EC) gl Mem, tr) states    
-| nbExCall : forall S TD Ps F B lc gl arg rid noret tailc fid lp cs tmn EC rt la Mem als tr oresult Mem',
+    (mkState S TD Ps ((mkEC F B ((insn_call rid noret tailc rt fv lp)::cs) tmn lc arg als)::EC) gl fs Mem, tr) states    
+| nbExCall : forall S TD Ps F B lc gl fs arg rid noret tailc fv fid lp cs tmn EC rt la Mem als tr oresult Mem',
   (* only look up the current module for the time being, 
      do not support linkage. 
      FIXME: should add excall to trace
   *)
-  lookupExFdefViaIDFromProducts Ps fid = Some (fdec_intro (fheader_intro rt fid la)) ->
+  lookupExFdecViaGV TD Ps gl lc fs fv = Some (fdec_intro (fheader_intro rt fid la)) ->
   callExternalFunction Mem fid (params2GVs TD lp lc gl) = (oresult, Mem') ->
   nbInsn 
-    (mkState S TD Ps ((mkEC F B ((insn_call rid noret tailc rt fid lp)::cs) tmn lc arg als)::EC) gl Mem, tr)
-    ((mkState S TD Ps ((mkEC F B cs tmn (exCallUpdateLocals noret rid rt oresult lc) arg als)::EC) gl Mem', tr)::nil)
+    (mkState S TD Ps ((mkEC F B ((insn_call rid noret tailc rt fv lp)::cs) tmn lc arg als)::EC) gl fs Mem, tr)
+    ((mkState S TD Ps ((mkEC F B cs tmn (exCallUpdateLocals noret rid rt oresult lc) arg als)::EC) gl fs Mem', tr)::nil)
 with nbop_star : States -> States -> Prop :=
 | nbop_star_nil : nbop_star nil nil
 | nbop_star_refl : forall state_tr states states',
@@ -1211,17 +1284,17 @@ with nbop_star : States -> States -> Prop :=
   nbop_star states1 states2 ->
   nbop_star states2 states3 ->
   nbop_star states1 states3 
-with nbFdef : id -> typ -> params -> system -> TargetData -> products -> list ExecutionContext -> GVMap -> GVMap -> mem -> trace -> list (GVMap*list mblock*mem*block*id*option value*trace) -> Prop :=
-| nbFdef_intro : forall S TD Ps lc gl fid lp
+with nbFdef : value -> typ -> params -> system -> TargetData -> products -> list ExecutionContext -> GVMap -> GVMap -> GVMap -> mem -> trace -> list (GVMap*list mblock*mem*block*id*option value*trace) -> Prop :=
+| nbFdef_intro : forall S TD Ps lc gl fs fv fid lp
                             l' ps' cs' tmn' rt la lb tr lc_als_Mem_block_rid_ore_trs ECs Mem,
-  lookupFdefViaIDFromProducts Ps fid = Some (fdef_intro (fheader_intro rt fid la) lb) ->
+  lookupFdefViaGV TD Ps gl lc fs fv = Some (fdef_intro (fheader_intro rt fid la) lb) ->
   getEntryBlock (fdef_intro (fheader_intro rt fid la) lb) = Some (block_intro l' ps' cs' tmn') ->
   nbop_star 
     ((mkState S TD Ps ((mkEC (fdef_intro (fheader_intro rt fid la) lb) 
                          (block_intro l' ps' cs' tmn') cs' tmn' (initLocals la (params2GVs TD lp lc gl)) 
-                         (params2GVs TD lp lc gl) nil)::ECs) gl Mem, tr)::nil)
-    (returnStatesFromOp S TD Ps ECs lp lc gl rt fid la lb lc_als_Mem_block_rid_ore_trs) ->
-  nbFdef fid rt lp S TD Ps ECs lc gl Mem tr lc_als_Mem_block_rid_ore_trs
+                         (params2GVs TD lp lc gl) nil)::ECs) gl fs Mem, tr)::nil)
+    (returnStatesFromOp S TD Ps ECs lp lc gl fs rt fid la lb lc_als_Mem_block_rid_ore_trs) ->
+  nbFdef fv rt lp S TD Ps ECs lc gl fs Mem tr lc_als_Mem_block_rid_ore_trs
 .
 
 Definition StatesInf := list (State*Trace).
@@ -1246,13 +1319,13 @@ Inductive nbop_plus : States -> States -> Prop :=
 .
 
 CoInductive nbInsnInf : State*trace -> list Trace -> Prop :=
-| nbCallInsnInf : forall S TD Ps F B lc gl arg rid noret tailc rt fid lp
+| nbCallInsnInf : forall S TD Ps F B lc gl fs arg rid noret tailc rt fv lp
                             EC tr trs Mem als cs tmn, 
-  nbFdefInf fid rt lp S TD Ps 
-    ((mkEC F B ((insn_call rid noret tailc rt fid lp)::cs) tmn lc arg als)::EC)      
-    lc gl Mem tr trs ->
+  nbFdefInf fv rt lp S TD Ps 
+    ((mkEC F B ((insn_call rid noret tailc rt fv lp)::cs) tmn lc arg als)::EC)      
+    lc gl fs Mem tr trs ->
   nbInsnInf 
-    (mkState S TD Ps ((mkEC F B ((insn_call rid noret tailc rt fid lp)::cs) tmn lc arg als)::EC) gl Mem, tr)
+    (mkState S TD Ps ((mkEC F B ((insn_call rid noret tailc rt fv lp)::cs) tmn lc arg als)::EC) gl fs Mem, tr)
     trs
 with nbopInf : States -> list Trace -> Prop :=
 | nbopInf_cons : forall state_tr states tr1 tr2,
@@ -1263,17 +1336,17 @@ with nbopInf : States -> list Trace -> Prop :=
   nbop_plus states1 states2 ->
   nbopInf states2 trs ->
   nbopInf states1 trs 
-with nbFdefInf : id -> typ -> params -> system -> TargetData -> products -> list ExecutionContext -> GVMap -> GVMap -> mem -> trace -> list Trace -> Prop :=
-| nbFdefInf_intro : forall S TD Ps lc gl fid lp
+with nbFdefInf : value -> typ -> params -> system -> TargetData -> products -> list ExecutionContext -> GVMap -> GVMap -> GVMap -> mem -> trace -> list Trace -> Prop :=
+| nbFdefInf_intro : forall S TD Ps lc gl fs fv fid lp
                             l' ps' cs' tmn' ECs rt la lb tr trs' Mem,
-  lookupFdefViaIDFromProducts Ps fid = Some (fdef_intro (fheader_intro rt fid la) lb) ->
+  lookupFdefViaGV TD Ps gl lc fs fv = Some (fdef_intro (fheader_intro rt fid la) lb) ->
   getEntryBlock (fdef_intro (fheader_intro rt fid la) lb) = Some (block_intro l' ps' cs' tmn') ->
   nbopInf 
     ((mkState S TD Ps ((mkEC (fdef_intro (fheader_intro rt fid la) lb) 
                           (block_intro l' ps' cs' tmn') cs' tmn' (initLocals la (params2GVs TD lp lc gl)) 
-                          (params2GVs TD lp lc gl) nil)::ECs) gl Mem, tr)::nil) 
+                          (params2GVs TD lp lc gl) nil)::ECs) gl fs Mem, tr)::nil) 
     trs' ->
-  nbFdefInf fid rt lp S TD Ps ECs lc gl Mem tr trs'
+  nbFdefInf fv rt lp S TD Ps ECs lc gl fs Mem tr trs'
 .
 
 Definition nb_genInitState := ns_genInitState.
