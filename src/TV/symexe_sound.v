@@ -147,14 +147,15 @@ Proof.
     split; eauto.
 
   Case "insn_malloc".
-    assert (i0 `in` dom (STerms (se_cmd sstate1 (mkNB (insn_malloc i0 t s a) nc))) `union` dom lc0) as J.
+    assert (i0 `in` dom (STerms (se_cmd sstate1 (mkNB (insn_malloc i0 t v a) nc))) `union` dom lc0) as J.
       apply in_dom_ext_right.
       simpl. apply in_updateAddAL_eq; auto.
     apply Hsterms_denote21 in J.
     simpl in J. rewrite lookupSmap_updateAddAL_eq in J. 
     destruct J as [gv' [malloc_denotes_gv' gv_in_env']].
     inversion malloc_denotes_gv'; subst.
-    apply smem_denotes_mem_det with (Mem2:=Mem1) in H10; auto.
+    apply value2Sterm_denotes__implies__genericvalue with (lc:=lc)(gl:=gl) in H12; auto.
+    apply smem_denotes_mem_det with (Mem2:=Mem1) in H9; auto.
     subst.
     exists (updateAddAL _ lc i0 (blk2GV TD mb)). exists als. exists Mem5. exists trace_nil.
     split; eauto.
@@ -168,14 +169,15 @@ Proof.
     split; eauto.
 
   Case "insn_alloca".
-    assert (i0 `in` dom (STerms (se_cmd sstate1 (mkNB (insn_alloca i0 t s a) nc))) `union` dom lc0) as J.
+    assert (i0 `in` dom (STerms (se_cmd sstate1 (mkNB (insn_alloca i0 t v a) nc))) `union` dom lc0) as J.
       apply in_dom_ext_right.
       simpl. apply in_updateAddAL_eq; auto.
     apply Hsterms_denote21 in J.
     simpl in J. rewrite lookupSmap_updateAddAL_eq in J. 
     destruct J as [gv' [alloca_denotes_gv' gv_in_env']].
     inversion alloca_denotes_gv'; subst.
-    apply smem_denotes_mem_det with (Mem2:=Mem1) in H10; auto.
+    apply value2Sterm_denotes__implies__genericvalue with (lc:=lc)(gl:=gl) in H12; auto.
+    apply smem_denotes_mem_det with (Mem2:=Mem1) in H9; auto.
     subst.
     exists (updateAddAL _ lc i0 (blk2GV TD mb)). exists (mb::als). exists Mem5. exists trace_nil.
     split; eauto.
@@ -543,10 +545,10 @@ Proof.
                      l0). auto.
 
     right. 
-    exists (sterm_malloc st.(SMem) t s a). auto.
+    exists (sterm_malloc st.(SMem) t (value2Sterm st.(STerms) v) a). auto.
 
     right. 
-    exists (sterm_alloca st.(SMem) t s a). auto.
+    exists (sterm_alloca st.(SMem) t (value2Sterm st.(STerms) v) a). auto.
 
     right. 
     exists (sterm_load st.(SMem) t 
@@ -961,7 +963,7 @@ Proof.
             rewrite lookupAL_rollbackAL_neq with (id0:=i0)(lc0:=lc0) in id'_in_env2; auto.
 
   Case "insn_malloc".
-    assert (i0 `in` dom (STerms (se_cmd (se_cmds sstate_init nbs) (mkNB (insn_malloc i0 t s a) nc))) `union` dom lc0) as J.
+    assert (i0 `in` dom (STerms (se_cmd (se_cmds sstate_init nbs) (mkNB (insn_malloc i0 t v a) nc))) `union` dom lc0) as J.
       apply in_dom_ext_right.
       simpl. apply in_updateAddAL_eq; auto.
     apply Hsterms_denote1 in J.
@@ -975,7 +977,7 @@ Proof.
     assert (smap_denotes_gvmap TD lc0 gl Mem0
               (STerms (se_cmds sstate_init nbs))
               (rollbackAL _ lc2 i0 lc0)) as env0_denote_env1.
-      apply smap_denotes_gvmap_rollbackEnv with (c:=insn_malloc i0 t s a)(nc:=nc)(i0:=i0)(lc2:=lc2)(gv3:=gv3); 
+      apply smap_denotes_gvmap_rollbackEnv with (c:=insn_malloc i0 t v a)(nc:=nc)(i0:=i0)(lc2:=lc2)(gv3:=gv3); 
         try solve [auto | split; auto].
     rewrite trace_app_nil__eq__trace.
     split.
@@ -989,10 +991,14 @@ Proof.
             clear Hsmem_denotes Hsframe_denotes Hseffects_denote.
             simpl. destruct (i0==i0) as [_ | FALSE]; try solve [contradict FALSE; auto].
             inversion malloc_denotes_gv3; subst. clear malloc_denotes_gv3.
-            apply smem_denotes_mem_det with (Mem2:=Mem4) in H8; auto. subst.
-            rewrite H13 in H9. inversion H9; subst. clear H9.
-            rewrite H10 in H14. inversion H14; subst. clear H14.
-            eapply sterm_malloc_denotes; eauto.
+            apply smem_denotes_mem_det with (Mem2:=Mem4) in H7; auto. subst.
+            apply sterm_denotes_genericvalue_det with (gv2:=gv1) in H10; auto. subst.
+            rewrite H14 in H9. inversion H9; subst. clear H9.
+            rewrite H11 in H16. inversion H16; subst. clear H16.
+            eapply sterm_malloc_denotes; eauto
+                  using value2Sterm_denotes__implies__genericvalue,
+                        genericvalue__implies__value2Sterm_denotes,
+                        init_denotes_gvmap.
 
             apply se_cmds_denotes__decomposes__prefix_last__case1 with (i0:=i0)(lc0:=lc0); auto.
 
@@ -1005,14 +1011,21 @@ Proof.
             rewrite id'_in_env2 in gv3_in_env2.
             inversion gv3_in_env2; subst. clear gv3_in_env2.
             inversion malloc_denotes_gv3; subst.
-            apply smem_denotes_mem_det with (Mem2:=Mem4) in H8; auto. subst.
-            rewrite H13 in H9. inversion H9; subst. clear H9.
-            rewrite H10 in H14. inversion H14; subst. clear H14.
-            eapply sterm_malloc_denotes; eauto.
+            apply smem_denotes_mem_det with (Mem2:=Mem4) in H7; auto. subst.
+            apply sterm_denotes_genericvalue_det with (gv2:=gv1) in H10; auto. subst.
+            rewrite H14 in H9. inversion H9; subst. clear H9.
+            rewrite H11 in H16. inversion H16; subst. clear H16.
+            eapply sterm_malloc_denotes; eauto
+              using value2Sterm_denotes__implies__genericvalue,
+                    genericvalue__implies__value2Sterm_denotes,
+                    init_denotes_gvmap.
 
             rewrite lookupAL_rollbackAL_neq with (id0:=i0)(lc0:=lc0) in id'_in_env2; auto.
 
-      split; simpl; eauto.
+      split; simpl; eauto
+              using value2Sterm_denotes__implies__genericvalue,
+                    genericvalue__implies__value2Sterm_denotes,
+                    init_denotes_gvmap.
     
   Case "insn_free".
     inversion Hsmem_denotes; subst.
@@ -1035,7 +1048,7 @@ Proof.
                         init_denotes_gvmap.        
 
   Case "insn_alloca".
-    assert (i0 `in` dom (STerms (se_cmd (se_cmds sstate_init nbs) (mkNB (insn_alloca i0 t s a) nc))) `union` dom lc0) as J.
+    assert (i0 `in` dom (STerms (se_cmd (se_cmds sstate_init nbs) (mkNB (insn_alloca i0 t v a) nc))) `union` dom lc0) as J.
       apply in_dom_ext_right.
       simpl. apply in_updateAddAL_eq; auto.
     apply Hsterms_denote1 in J.
@@ -1045,15 +1058,16 @@ Proof.
     inversion Hsmem_denotes; subst.
     inversion Hsframe_denotes; subst.
     apply smem_denotes_mem_det with (Mem2:=Mem3) in H13; auto. subst.
-    rewrite H9 in H15. inversion H15; subst. clear H15.
-    rewrite H10 in H16. inversion H16; subst. clear H16.
+    apply sterm_denotes_genericvalue_det with (gv2:=gv1) in H10; auto. subst.
+    rewrite H9 in H16. inversion H16; subst. clear H16.
+    rewrite H11 in H18. inversion H18; subst. clear H18.
     exists (rollbackAL _ lc2 i0 lc0). exists als3. exists Mem3. exists tr. exists trace_nil.
     assert (uniq (rollbackAL _ lc2 i0 lc0)) as Huniqc1.
       apply rollbackAL_uniq; auto.
     assert (smap_denotes_gvmap TD lc0 gl Mem0
               (STerms (se_cmds sstate_init nbs))
               (rollbackAL _ lc2 i0 lc0)) as env0_denote_env1.
-      apply smap_denotes_gvmap_rollbackEnv with (c:=insn_alloca i0 t s a)(nc:=nc)(i0:=i0)(lc2:=lc2)(gv3:=gv3); 
+      apply smap_denotes_gvmap_rollbackEnv with (c:=insn_alloca i0 t v a)(nc:=nc)(i0:=i0)(lc2:=lc2)(gv3:=gv3); 
         try solve [auto | split; auto].
     rewrite trace_app_nil__eq__trace.
     split.
@@ -1067,10 +1081,14 @@ Proof.
             clear Hsmem_denotes Hsframe_denotes Hseffects_denote.
             simpl. destruct (i0==i0) as [_ | FALSE]; try solve [contradict FALSE; auto].
             inversion alloca_denotes_gv3; subst. clear alloca_denotes_gv3.
-            apply smem_denotes_mem_det with (Mem2:=Mem2) in H8; auto. subst.
+            apply smem_denotes_mem_det with (Mem2:=Mem2) in H7; auto. subst.
+            apply sterm_denotes_genericvalue_det with (gv2:=gv1) in H14; auto. subst.
             rewrite H13 in H9. inversion H9; subst. clear H9.
-            rewrite H10 in H15. inversion H15; subst. clear H15.
-            eapply sterm_alloca_denotes; eauto.
+            rewrite H11 in H16. inversion H16; subst. clear H16.
+            eapply sterm_alloca_denotes; eauto
+                  using value2Sterm_denotes__implies__genericvalue,
+                        genericvalue__implies__value2Sterm_denotes,
+                        init_denotes_gvmap.
 
             apply se_cmds_denotes__decomposes__prefix_last__case1 with (i0:=i0)(lc0:=lc0); auto.
 
@@ -1083,14 +1101,25 @@ Proof.
             rewrite id'_in_env2 in gv3_in_env2.
             inversion gv3_in_env2; subst. clear gv3_in_env2.
             inversion alloca_denotes_gv3; subst.
-            apply smem_denotes_mem_det with (Mem2:=Mem2) in H8; auto. subst.
+            apply smem_denotes_mem_det with (Mem2:=Mem2) in H7; auto. subst.
+            apply sterm_denotes_genericvalue_det with (gv2:=gv1) in H14; auto. subst.
             rewrite H13 in H9. inversion H9; subst. clear H9.
-            rewrite H10 in H15. inversion H15; subst. clear H15.
-            eapply sterm_alloca_denotes; eauto.
+            rewrite H11 in H16. inversion H16; subst. clear H16.
+            eapply sterm_alloca_denotes; eauto
+                  using value2Sterm_denotes__implies__genericvalue,
+                        genericvalue__implies__value2Sterm_denotes,
+                        init_denotes_gvmap.
 
             rewrite lookupAL_rollbackAL_neq with (id0:=i0)(lc0:=lc0) in id'_in_env2; auto.
 
-      split; simpl; eauto.   
+      split; simpl; eauto
+              using value2Sterm_denotes__implies__genericvalue,
+                    genericvalue__implies__value2Sterm_denotes,
+                    init_denotes_gvmap.
+      split; simpl; eauto
+              using value2Sterm_denotes__implies__genericvalue,
+                    genericvalue__implies__value2Sterm_denotes,
+                    init_denotes_gvmap.
 
   Case "insn_load".
     assert (i0 `in` dom (STerms (se_cmd (se_cmds sstate_init nbs) (mkNB (insn_load i0 t v a) nc))) `union` dom lc0) as J.
@@ -1775,9 +1804,9 @@ Proof.
         simpl in H. simpl.
         apply se_cmd__denotes__op_cmd__case0 in H; auto.
         destruct H as [[i0_isnt_id' id'_in] | EQ]; subst.
-            apply se_cmds_denotes__composes__prefix_last__case1 with (nbs:=nbs)(nc:=nc)(lc1:=lc1)(Mem1:=Mem1)(c:=insn_malloc i0 t s a)(i0:=i0); try solve [auto | split; auto].
+            apply se_cmds_denotes__composes__prefix_last__case1 with (nbs:=nbs)(nc:=nc)(lc1:=lc1)(Mem1:=Mem1)(c:=insn_malloc i0 t v a)(i0:=i0); try solve [auto | split; auto].
 
-            assert (id' `in` dom (STerms (se_cmd sstate_init (mkNB (insn_malloc id' t s a) nc))) `union` dom lc1) as binds_id'_malloc.
+            assert (id' `in` dom (STerms (se_cmd sstate_init (mkNB (insn_malloc id' t v a) nc))) `union` dom lc1) as binds_id'_malloc.
               simpl. auto.
             apply Hsterms_denote21 in binds_id'_malloc.
             simpl in binds_id'_malloc.
@@ -1787,24 +1816,28 @@ Proof.
               inversion malloc_denotes_gv'; subst.
 
               rewrite lookupSmap_updateAddAL_eq.
-              inversion H8; subst.
-              apply sterm_malloc_denotes with (Mem1:=Mem4)(Mem2:=Mem5)(tsz0:=tsz0); eauto.
+              inversion H7; subst.
+              apply sterm_malloc_denotes with (Mem1:=Mem4)(Mem2:=Mem5)(tsz0:=tsz0)(gv0:=gv0);
+                try solve [auto | apply se_cmds_denotes__composes__prefix_last__case2 with (lc1:=lc1)(Mem1:=Mem4); auto].
 
         apply Hsterms_denote22 in H.
         simpl in H. simpl.
         destruct (@eq_dec id (@EqDec_eq_of_EqDec id EqDec_atom) id' i0); subst.
           rewrite lookupSmap_updateAddAL_eq.
           inversion H; subst.
-          inversion H9; subst.
-          apply sterm_malloc_denotes with (Mem1:=Mem4)(Mem2:=Mem5)(tsz0:=tsz0); eauto.
+          inversion H8; subst.
+          apply sterm_malloc_denotes with (Mem1:=Mem4)(Mem2:=Mem5)(tsz0:=tsz0)(gv0:=gv0);
+              try solve [auto | apply se_cmds_denotes__composes__prefix_last__case2 with (lc1:=lc1)(Mem1:=Mem4); auto].
 
           apply se_cmds_denotes__composes__prefix_last__case3 with (lc1:=lc1)(Mem1:=Mem1)(i0:=i0); try solve [auto | split; auto].
 
     split. clear Hsterms_denote11 Hsterms_denote12 Hsterms_denote21 Hsterms_denote22
                  Hsframe_denotes2 Hsframe_denotes1 Hseffects_denote2 Hseffects_denote1.
            inversion Hsmem_denotes2; subst.
-           inversion H8; subst.
-           simpl. eapply smem_malloc_denotes; eauto.
+           inversion H7; subst.
+           simpl. eapply smem_malloc_denotes;
+                   try solve [eauto | eapply se_cmds_denotes__composes__prefix_last__case2; eauto].
+
     split. inversion Hsframe_denotes2; subst; auto.
            inversion Hseffects_denote1; inversion Hseffects_denote2; subst; auto.
 
@@ -1847,9 +1880,9 @@ Proof.
         simpl in H. simpl.
         apply se_cmd__denotes__op_cmd__case0 in H; auto.
         destruct H as [[i0_isnt_id' id'_in] | EQ]; subst.
-            apply se_cmds_denotes__composes__prefix_last__case1 with (nbs:=nbs)(nc:=nc)(lc1:=lc1)(Mem1:=Mem1)(c:=insn_alloca i0 t s a)(i0:=i0); try solve [auto | split; auto].
+            apply se_cmds_denotes__composes__prefix_last__case1 with (nbs:=nbs)(nc:=nc)(lc1:=lc1)(Mem1:=Mem1)(c:=insn_alloca i0 t v a)(i0:=i0); try solve [auto | split; auto].
 
-            assert (id' `in` dom (STerms (se_cmd sstate_init (mkNB (insn_alloca id' t s a) nc))) `union` dom lc1) as binds_id'_alloca.
+            assert (id' `in` dom (STerms (se_cmd sstate_init (mkNB (insn_alloca id' t v a) nc))) `union` dom lc1) as binds_id'_alloca.
               simpl. auto.
             apply Hsterms_denote21 in binds_id'_alloca.
             simpl in binds_id'_alloca.
@@ -1859,30 +1892,35 @@ Proof.
               inversion alloca_denotes_gv'; subst.
 
               rewrite lookupSmap_updateAddAL_eq.
-              inversion H8; subst. clear H8.
-              apply sterm_alloca_denotes with (Mem1:=Mem4)(Mem2:=Mem5)(tsz0:=tsz0); eauto.
+              inversion H7; subst. clear H7.
+              apply sterm_alloca_denotes with (Mem1:=Mem4)(Mem2:=Mem5)(tsz0:=tsz0)(gv0:=gv0);
+                try solve [auto | apply se_cmds_denotes__composes__prefix_last__case2 with (lc1:=lc1)(Mem1:=Mem4); auto].
 
         apply Hsterms_denote22 in H.
         simpl in H. simpl.
         destruct (@eq_dec id (@EqDec_eq_of_EqDec id EqDec_atom) id' i0); subst.
           rewrite lookupSmap_updateAddAL_eq.
           inversion H; subst.
-          inversion H9; subst.
-          apply sterm_alloca_denotes with (Mem1:=Mem4)(Mem2:=Mem5)(tsz0:=tsz0); eauto.
+          inversion H8; subst.
+          apply sterm_alloca_denotes with (Mem1:=Mem4)(Mem2:=Mem5)(tsz0:=tsz0)(gv0:=gv0);
+              try solve [auto | apply se_cmds_denotes__composes__prefix_last__case2 with (lc1:=lc1)(Mem1:=Mem4); auto].
 
           apply se_cmds_denotes__composes__prefix_last__case3 with (lc1:=lc1)(Mem1:=Mem1)(i0:=i0); try solve [auto | split; auto].
 
     split. clear Hsterms_denote11 Hsterms_denote12 Hsterms_denote21 Hsterms_denote22
                  Hsframe_denotes2 Hsframe_denotes1 Hseffects_denote2 Hseffects_denote1.
            inversion Hsmem_denotes2; subst.
-           inversion H8; subst.
-           simpl. eapply smem_alloca_denotes; eauto.
+           inversion H7; subst.
+           simpl. eapply smem_alloca_denotes;
+                   try solve [eauto | eapply se_cmds_denotes__composes__prefix_last__case2; eauto].
+
     split. clear Hsterms_denote11 Hsterms_denote12 Hsterms_denote21 Hsterms_denote22
                  Hseffects_denote2 Hseffects_denote1.
            inversion Hsframe_denotes2; subst.
            inversion H11; subst. clear H11.
-           inversion H10; subst. clear H10.
-           simpl. eapply sframe_alloca_denotes; eauto.
+           inversion H9; subst. clear H9.
+           simpl. eapply sframe_alloca_denotes;
+                   try solve [eauto | eapply se_cmds_denotes__composes__prefix_last__case2; eauto].
 
            inversion Hseffects_denote1; inversion Hseffects_denote2; subst; auto.
 

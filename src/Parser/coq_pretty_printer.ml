@@ -210,10 +210,10 @@ let travel_cmd i =
 		  eprintf "  %s = extractvalue %s %s %s\n" id (string_of_typ t) (string_of_value v) (string_of_list_constant cs)
   | LLVMsyntax.Coq_insn_insertvalue (id, t1, v1, t2, v2, cs) ->
 		  eprintf "  %s = insertvalue %s %s %s %s %s\n" id (string_of_typ t1) (string_of_value v1) (string_of_typ t2) (string_of_value v2) (string_of_list_constant cs)
-  | LLVMsyntax.Coq_insn_malloc (id, t, sz, align) ->
-		  eprintf "  %s = malloc %s %d %d\n" id (string_of_typ t) sz align
-  | LLVMsyntax.Coq_insn_alloca (id, t, sz, align) ->
-		  eprintf "  %s = alloca %s %d %d\n" id (string_of_typ t) sz align
+  | LLVMsyntax.Coq_insn_malloc (id, t, v, align) ->
+		  eprintf "  %s = malloc %s %s %d\n" id (string_of_typ t) (string_of_value v) align
+  | LLVMsyntax.Coq_insn_alloca (id, t, v, align) ->
+		  eprintf "  %s = alloca %s %s %d\n" id (string_of_typ t) (string_of_value v) align
   | LLVMsyntax.Coq_insn_free (id, t, v) ->
 		  eprintf "  %s = free %s %s\n" id (string_of_typ t) (string_of_value v)
   | LLVMsyntax.Coq_insn_load (id, t, v, a) ->

@@ -218,7 +218,7 @@ Proof.
           eapply se_cmd__denotes__op_cmd__case2; eauto.
 
   Case "insn_malloc".
-    split; simpl; eauto.
+    split; simpl; eauto using genericvalue__implies__value2Sterm_denotes.
       split.
         intros id' id'_indom.
         simpl in id'_indom. simpl. 
@@ -230,7 +230,7 @@ Proof.
           rewrite lookupSmap_updateAddAL_eq.
           exists (blk2GV TD mb).
           split; auto.
-            eapply sterm_malloc_denotes; eauto.
+            eapply sterm_malloc_denotes; eauto using genericvalue__implies__value2Sterm_denotes.
 
         intros id' gv'0 HlookupAL.
         simpl.
@@ -238,7 +238,7 @@ Proof.
           rewrite lookupAL_updateAddAL_eq in HlookupAL.
           inversion HlookupAL; subst.
           rewrite lookupSmap_updateAddAL_eq.
-          eapply sterm_malloc_denotes; eauto.
+          eapply sterm_malloc_denotes; eauto using genericvalue__implies__value2Sterm_denotes.
 
           eapply se_cmd__denotes__op_cmd__case2; eauto.
 
@@ -263,7 +263,7 @@ Proof.
           rewrite lookupSmap_updateAddAL_eq.
           exists (blk2GV TD mb).
           split; auto.
-          eapply sterm_alloca_denotes; eauto.
+          eapply sterm_alloca_denotes; eauto using genericvalue__implies__value2Sterm_denotes.
 
         intros id' gv'0 HlookupAL.
         simpl.
@@ -271,9 +271,10 @@ Proof.
           rewrite lookupAL_updateAddAL_eq in HlookupAL.
           inversion HlookupAL; subst.
           rewrite lookupSmap_updateAddAL_eq.
-          eapply sterm_alloca_denotes; eauto.
+          eapply sterm_alloca_denotes; eauto using genericvalue__implies__value2Sterm_denotes.
 
           eapply se_cmd__denotes__op_cmd__case2; eauto.
+    split; eauto using genericvalue__implies__value2Sterm_denotes.
 
   Case "insn_load".
     split; simpl; eauto.

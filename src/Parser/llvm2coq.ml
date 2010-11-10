@@ -542,7 +542,7 @@ and translate_constant_expr st c =
   | InstrOpcode.InsertElement ->			
 			failwith "Const InsertElement: Not_Supported"
   | InstrOpcode.ShuffleVector ->			
-			failwith "Sont ShuffleVector: Not_Supported"
+			failwith "Const ShuffleVector: Not_Supported"
   | InstrOpcode.ExtractValue ->			
 			let ops = operands c in
 			let n = num_operand c in
@@ -926,7 +926,7 @@ let translate_instr debug st i  =
 			(LLVMsyntax.Coq_insn_malloc
 				(llvm_name st i,
 					translate_typ (AllocationInst.get_allocated_type i),
-					array_size_to_int (AllocationInst.get_array_size i),
+					translate_operand_to_value st (AllocationInst.get_array_size i),
 					(AllocationInst.get_alignment i))
 			)
 	| InstrOpcode.Free ->
@@ -946,7 +946,7 @@ let translate_instr debug st i  =
 			(LLVMsyntax.Coq_insn_alloca
 				(llvm_name st i,
 					translate_typ (AllocationInst.get_allocated_type i),
-					array_size_to_int (AllocationInst.get_array_size i),
+					translate_operand_to_value st (AllocationInst.get_array_size i),
 					(AllocationInst.get_alignment i))
 			)
 	| InstrOpcode.Load ->

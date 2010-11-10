@@ -62,7 +62,13 @@ Definition mem := Mem.mem.
 (*Definition initmem : mem := Mem.empty.*)
 
 (** allocate memory with size and alignment *)
-Definition malloc (TD:TargetData) (M:mem) (bsz:sz) (al:align) : option (mem * mblock)%type :=
+Definition malloc (TD:TargetData) (M:mem) (bsz:sz) (gn:GenericValue) (al:align) : option (mem * mblock)%type :=
+match GV2int TD Size.ThirtyTwo gn with
+| Some n => Some (Mem.alloc M 0 ((Size.to_Z bsz) * n))
+| None => None
+end.
+
+Definition malloc_one (TD:TargetData) (M:mem) (bsz:sz) (al:align) : option (mem * mblock)%type :=
 Some (Mem.alloc M 0 (Size.to_Z bsz)).
 
 Definition free (TD:TargetData) (M:mem) (ptr:mptr) : option mem :=

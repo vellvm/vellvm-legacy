@@ -2,8 +2,10 @@ open Llvm_executionengine
 open Ssa_def
 open LLVMsyntax
 open Printf
+open Llvm
+open Llvm_aux
 
-let coqtype_2_llvmtype (t:LLVMsyntax.typ) : Llvm.lltype = Coq2llvm.translate_typ (Llvm.global_context()) t
+let coqtype_2_llvmtype (ctx:llcontext) (t:LLVMsyntax.typ) : Llvm.lltype = Coq2llvm.translate_typ ctx t
 let coqbop_2_llvmopcode (op:LLVMsyntax.bop) : Llvm.InstrOpcode.t = Coq2llvm.translate_bop op
 let coqfbop_2_llvmopcode (op:LLVMsyntax.fbop) : Llvm.InstrOpcode.t = Coq2llvm.translate_fbop op
 let coqtd_2_llvmtd (td:layouts) = Coq2llvm.translate_layouts td
@@ -16,9 +18,10 @@ module TargetData = struct
   type t = ExecutionEngine.t * Llvm.llmodule
 
   let getTypeAllocSize (td:t) typ = 
-    let (ee, _) = td in
+    let (ee, mm) = td in
+		let ctx = Llvm.module_context mm in
     let ltd = ExecutionEngine.target_data ee in
-    Some (Int64.to_int (Llvm_target.get_type_alloc_size ltd (coqtype_2_llvmtype typ)))
+    Some (Int64.to_int (Llvm_target.get_type_alloc_size ltd (coqtype_2_llvmtype ctx typ)))
 		
   let getTypeAllocSizeInBits x y = failwith "undef"
   let _getStructElementOffset x y z = failwith "undef"
@@ -89,8 +92,8 @@ module GenericValue = struct
 		else None 
 
   let rec const2llvalue (td:TargetData.t) gl (c:const) : Llvm.llvalue option = 
-    let ctx = Llvm.global_context() in
     let (ee, mm) = td in
+    let ctx = Llvm.module_context mm in
     match c with
     | Coq_const_zeroinitializer _ -> Some (Coq2llvm.translate_constant ctx c)
   	| Coq_const_int (sz, i) -> Some (Coq2llvm.translate_constant ctx c)
@@ -204,6 +207,403 @@ module GenericValue = struct
 	  	| _, _ -> None)
 	  | LLVMsyntax.Nil_list_const -> Some []
 
+  let rec llconst2GV (td:TargetData.t) (c:llvalue) : t = 	
+	  let (ee, _) = td in
+    match (classify_value c) with
+  	| ValueTy.UndefValueVal -> ExecutionEngine.get_constant_value c ee 
+  	| ValueTy.ConstantExprVal -> llconstexpr2GV td c
+  	| ValueTy.ConstantAggregateZeroVal -> ExecutionEngine.get_constant_value c ee
+  	| ValueTy.ConstantIntVal -> ExecutionEngine.get_constant_value c ee
+  	| ValueTy.ConstantFPVal ->  ExecutionEngine.get_constant_value c ee
+  	| ValueTy.ConstantArrayVal -> ExecutionEngine.get_constant_value c ee
+	  | ValueTy.ConstantStructVal -> ExecutionEngine.get_constant_value c ee
+  	| ValueTy.ConstantVectorVal -> failwith "ConstantVector: Not_Supported." 
+	  | ValueTy.ConstantPointerNullVal -> ExecutionEngine.get_constant_value c ee
+  	| ValueTy.GlobalVariableVal -> ExecutionEngine.get_constant_value c ee
+	  | ValueTy.FunctionVal -> ExecutionEngine.get_constant_value c ee
+		| _ -> failwith (string_of_valuety (classify_value c) ^ " isnt Constant")
+  and llconstexpr2GV td c =
+	  let (ee, mm) = td in
+		let ctx = Llvm.module_context mm in
+	  match (classify_constantexpr c) with
+	  | InstrOpcode.Ret ->
+			failwith "Ret isnt a const expr"
+	  | InstrOpcode.Br ->
+			failwith "Br isnt a const expr"
+	  | InstrOpcode.Switch ->
+			failwith "Switch isnt a const expr"
+    | InstrOpcode.Invoke ->			
+			failwith "Invoke isnt a const expr"
+    | InstrOpcode.Unwind ->
+			failwith "Unwind isnt a const expr"
+    | InstrOpcode.Unreachable ->
+			failwith "Unreachable isnt a const expr"
+    | InstrOpcode.Add ->
+			let ops = operands c in
+			let n = num_operand c in
+			if n != 2
+			then failwith "Const Add must have 2 operand."
+			else
+				GenericValue.binary_op 
+					(llconst2GV td (Array.get ops 0))
+					(llconst2GV td (Array.get ops 1))
+					(type_of c)
+					(classify_constantexpr c)
+    | InstrOpcode.FAdd ->
+			let ops = operands c in
+			let n = num_operand c in
+			if n != 2
+			then failwith "Const FAdd must have 2 operand."
+			else
+				GenericValue.binary_op 
+					(llconst2GV td (Array.get ops 0))
+					(llconst2GV td (Array.get ops 1))
+					(type_of c)
+					(classify_constantexpr c)
+    | InstrOpcode.Sub ->
+			let ops = operands c in
+			let n = num_operand c in
+			if n != 2
+			then failwith "Const Sub must have 2 operand."
+			else
+				GenericValue.binary_op 
+					(llconst2GV td (Array.get ops 0))
+					(llconst2GV td (Array.get ops 1))
+					(type_of c)
+					(classify_constantexpr c)
+    | InstrOpcode.FSub ->
+			let ops = operands c in
+			let n = num_operand c in
+			if n != 2
+			then failwith "Const FSub must have 2 operand."
+			else
+				GenericValue.binary_op 
+					(llconst2GV td (Array.get ops 0))
+					(llconst2GV td (Array.get ops 1))
+					(type_of c)
+					(classify_constantexpr c)
+    | InstrOpcode.Mul ->
+			let ops = operands c in
+			let n = num_operand c in
+			if n != 2
+			then failwith "Const Mul must have 2 operand."
+			else
+				GenericValue.binary_op 
+					(llconst2GV td (Array.get ops 0))
+					(llconst2GV td (Array.get ops 1))
+					(type_of c)
+					(classify_constantexpr c)
+    | InstrOpcode.FMul ->
+	  	let ops = operands c in
+	  	let n = num_operand c in
+	  	if n != 2
+	  	then failwith "Const FMul must have 2 operand."
+		  else
+				GenericValue.binary_op 
+					(llconst2GV td (Array.get ops 0))
+					(llconst2GV td (Array.get ops 1))
+					(type_of c)
+					(classify_constantexpr c)
+    | InstrOpcode.UDiv ->
+			let ops = operands c in
+			let n = num_operand c in
+			if n != 2
+			then failwith "Const UDiv must have 2 operand."
+			else
+				GenericValue.binary_op 
+					(llconst2GV td (Array.get ops 0))
+					(llconst2GV td (Array.get ops 1))
+					(type_of c)
+					(classify_constantexpr c)
+    | InstrOpcode.SDiv ->
+			let ops = operands c in
+			let n = num_operand c in
+			if n != 2
+			then failwith "Const SDiv must have 2 operand."
+			else
+				GenericValue.binary_op 
+					(llconst2GV td (Array.get ops 0))
+					(llconst2GV td (Array.get ops 1))
+					(type_of c)
+					(classify_constantexpr c)
+    | InstrOpcode.FDiv ->
+			let ops = operands c in
+			let n = num_operand c in
+			if n != 2
+			then failwith "Const FDiv must have 2 operand."
+			else
+				GenericValue.binary_op 
+					(llconst2GV td (Array.get ops 0))
+					(llconst2GV td (Array.get ops 1))
+					(type_of c)
+					(classify_constantexpr c)
+    | InstrOpcode.URem ->
+			let ops = operands c in
+			let n = num_operand c in
+			if n != 2
+			then failwith "Const URem must have 2 operand."
+			else
+				GenericValue.binary_op 
+					(llconst2GV td (Array.get ops 0))
+					(llconst2GV td (Array.get ops 1))
+					(type_of c)
+					(classify_constantexpr c)
+    | InstrOpcode.SRem ->
+			let ops = operands c in
+			let n = num_operand c in
+			if n != 2
+			then failwith "Const SRem must have 2 operand."
+			else
+				GenericValue.binary_op 
+					(llconst2GV td (Array.get ops 0))
+					(llconst2GV td (Array.get ops 1))
+					(type_of c)
+					(classify_constantexpr c)
+    | InstrOpcode.FRem ->
+			let ops = operands c in
+			let n = num_operand c in
+			if n != 2
+			then failwith "Const FRem must have 2 operand."
+			else
+				GenericValue.binary_op 
+					(llconst2GV td (Array.get ops 0))
+					(llconst2GV td (Array.get ops 1))
+					(type_of c)
+					(classify_constantexpr c)
+    | InstrOpcode.Shl ->
+			let ops = operands c in
+			let n = num_operand c in
+			if n != 2
+			then failwith "Const Shl must have 2 operand."
+			else
+				GenericValue.binary_op 
+					(llconst2GV td (Array.get ops 0))
+					(llconst2GV td (Array.get ops 1))
+					(type_of c)
+					(classify_constantexpr c)
+    | InstrOpcode.LShr ->
+			let ops = operands c in
+			let n = num_operand c in
+			if n != 2
+			then failwith "Const LShr must have 2 operand."
+			else
+				GenericValue.binary_op 
+					(llconst2GV td (Array.get ops 0))
+					(llconst2GV td (Array.get ops 1))
+					(type_of c)
+					(classify_constantexpr c)
+    | InstrOpcode.AShr ->
+			let ops = operands c in
+			let n = num_operand c in
+			if n != 2
+			then failwith "Const AShr must have 2 operand."
+			else
+				GenericValue.binary_op 
+					(llconst2GV td (Array.get ops 0))
+					(llconst2GV td (Array.get ops 1))
+					(type_of c)
+					(classify_constantexpr c)
+    | InstrOpcode.And ->
+			let ops = operands c in
+			let n = num_operand c in
+			if n != 2
+			then failwith "Const And must have 2 operand."
+			else
+				GenericValue.binary_op 
+					(llconst2GV td (Array.get ops 0))
+					(llconst2GV td (Array.get ops 1))
+					(type_of c)
+					(classify_constantexpr c)
+    | InstrOpcode.Or ->
+			let ops = operands c in
+			let n = num_operand c in
+			if n != 2
+			then failwith "Const Or must have 2 operand."
+			else
+				GenericValue.binary_op 
+					(llconst2GV td (Array.get ops 0))
+					(llconst2GV td (Array.get ops 1))
+					(type_of c)
+					(classify_constantexpr c)
+    | InstrOpcode.Xor ->
+			let ops = operands c in
+			let n = num_operand c in
+			if n != 2
+			then failwith "Const XOr must have 2 operand."
+			else
+				GenericValue.binary_op 
+					(llconst2GV td (Array.get ops 0))
+					(llconst2GV td (Array.get ops 1))
+					(type_of c)
+					(classify_constantexpr c)
+	  | InstrOpcode.Malloc ->
+			failwith "Malloc isnt a const expr"
+	  | InstrOpcode.Free ->
+			failwith "Free isnt a const expr"
+	  | InstrOpcode.Alloca ->
+ 			failwith "Alloca isnt a const expr"
+	  | InstrOpcode.Load ->
+			failwith "Load isnt a const expr"
+	  | InstrOpcode.Store ->
+			failwith "Store isnt a const expr"
+    | InstrOpcode.GetElementPtr ->				
+			let n = num_operand c in
+			if n < 2
+			then failwith "Const GEP must have >=2 operand."
+			else
+  			let ops = operands c in
+   			let n = num_operand c in
+	  		let rec range b e ops =
+	  			if b < e
+	  			then
+	  				(llconst2GV td (Array.get ops b))::(range (b + 1) e ops)
+	  			else
+	  				[] in
+				let (ee, _) = td in    
+				let ltd = ExecutionEngine.target_data ee in
+				GenericValue.gep ltd 
+				  (llconst2GV td (Array.get ops 0)) 
+					(type_of (Array.get ops 0)) 
+					(Array.of_list (range 1 n ops))		
+    | InstrOpcode.Trunc ->				
+			let ops = operands c in
+			let n = num_operand c in
+			if n != 1
+			then failwith "Const Trunc must have 1 operand."
+			else
+				GenericValue.trunc (llconst2GV td (Array.get ops 0)) (type_of c)
+    | InstrOpcode.ZExt ->				
+			let ops = operands c in
+			let n = num_operand c in
+			if n != 1
+			then failwith "Const ZExt must have 1 operand."
+			else
+				GenericValue.zext (llconst2GV td (Array.get ops 0)) (type_of c)
+    | InstrOpcode.SExt ->				
+			let ops = operands c in
+			let n = num_operand c in
+			if n != 1
+			then failwith "Const SExt must have 1 operand."
+			else
+				GenericValue.sext (llconst2GV td (Array.get ops 0)) (type_of c)
+    |	InstrOpcode.FPToUI ->
+			let ops = operands c in
+			let n = num_operand c in
+			if n != 1
+			then failwith "Const FPToUI must have 1 operand."
+			else
+				GenericValue.fptoui (llconst2GV td (Array.get ops 0)) (type_of (Array.get ops 0)) (type_of c)
+    |	InstrOpcode.FPToSI ->
+			let ops = operands c in
+			let n = num_operand c in
+			if n != 1
+			then failwith "Const FPToSI must have 1 operand."
+			else
+				GenericValue.fptosi (llconst2GV td (Array.get ops 0)) (type_of (Array.get ops 0)) (type_of c)
+    |	InstrOpcode.UIToFP ->
+			let ops = operands c in
+			let n = num_operand c in
+			if n != 1
+			then failwith "Const UIToFP must have 1 operand."
+			else
+				GenericValue.uitofp (llconst2GV td (Array.get ops 0)) (type_of c)
+    |	InstrOpcode.SIToFP ->
+			let ops = operands c in
+			let n = num_operand c in
+			if n != 1
+			then failwith "Const SIToFP must have 1 operand."
+			else
+				GenericValue.sitofp (llconst2GV td (Array.get ops 0)) (type_of c)
+    |	InstrOpcode.FPTrunc ->
+			let ops = operands c in
+			let n = num_operand c in
+			if n != 1
+			then failwith "Const FPTrunc must have 1 operand."
+			else
+				GenericValue.fptrunc (llconst2GV td (Array.get ops 0)) (type_of (Array.get ops 0)) ctx (type_of c)
+    |	InstrOpcode.FPExt ->
+			let ops = operands c in
+			let n = num_operand c in
+			if n != 1
+			then failwith "Const FPExt must have 1 operand."
+			else
+				GenericValue.fpext (llconst2GV td (Array.get ops 0)) (type_of (Array.get ops 0)) ctx (type_of c)
+    |	InstrOpcode.PtrToInt ->
+			let ops = operands c in
+			let n = num_operand c in
+			if n != 1
+			then failwith "Const PtrToInt must have 1 operand."
+			else
+				GenericValue.ptrtoint (llconst2GV td (Array.get ops 0)) (type_of (Array.get ops 0)) (type_of c)
+    |	InstrOpcode.IntToPtr ->
+			let ops = operands c in
+			let n = num_operand c in
+			if n != 1
+			then failwith "Const IntToPtr must have 1 operand."
+			else
+        let (ee, _) = td in
+        let ltd = ExecutionEngine.target_data ee in
+        GenericValue.inttoptr ltd (llconst2GV td (Array.get ops 0)) (type_of c) 
+    |	InstrOpcode.BitCast ->
+			let ops = operands c in
+			let n = num_operand c in
+			if n != 1
+			then failwith "Const BitCast must have 1 operand."
+			else
+        GenericValue.bitcast (llconst2GV td (Array.get ops 0)) (type_of (Array.get ops 0)) ctx (type_of c)
+	  | InstrOpcode.ICmp ->
+			let ops = operands c in
+			let n = num_operand c in
+			if n != 2
+			then failwith "Const ICmp must have 2 operand."
+			else
+				GenericValue.icmp 
+				  (llconst2GV td (Array.get ops 0)) 
+					(llconst2GV td (Array.get ops 1)) 
+					(type_of (Array.get ops 0)) 
+					(ICmpInst.const_get_predicate c)
+  	| InstrOpcode.FCmp ->
+			let ops = operands c in
+			let n = num_operand c in
+			if n != 2
+			then failwith "Const FCmp must have 2 operand."
+			else
+				GenericValue.fcmp 
+				  (llconst2GV td (Array.get ops 0)) 
+					(llconst2GV td (Array.get ops 1)) 
+					(type_of (Array.get ops 0)) 
+					(FCmpInst.const_get_predicate c)
+    |	InstrOpcode.PHI ->
+		  failwith "PHI isnt a const expr"
+  	| InstrOpcode.Call ->
+		  failwith "Call isnt a const expr"
+    | InstrOpcode.Select ->			
+			let ops = operands c in
+			let n = num_operand c in
+			if n != 3
+			then failwith "Const Select must have 3 operand."
+			else
+				GenericValue.select
+				  (llconst2GV td (Array.get ops 0))
+					(llconst2GV td (Array.get ops 1))
+					(llconst2GV td (Array.get ops 2))
+    | InstrOpcode.UserOp1 ->			
+			failwith "UserOp1 isnt a const expr"
+    | InstrOpcode.UserOp2 ->			
+			failwith "UserOp2 isnt a const expr"
+    | InstrOpcode.VAArg ->			
+			failwith "VAArg isnt a const expr"
+    | InstrOpcode.ExtractElement ->			
+			failwith "Const ExtractElement: Not_Supported"
+    | InstrOpcode.InsertElement ->			
+			failwith "Const InsertElement: Not_Supported"
+    | InstrOpcode.ShuffleVector ->			
+			failwith "Const ShuffleVector: Not_Supported"
+    | InstrOpcode.ExtractValue ->			
+			failwith "Const InstrOpcode.ExtractValue: Not_Supported"	
+    | InstrOpcode.InsertValue ->			
+			failwith "Const InstrOpcode.InsertValue: Not_Supported"	
+												
   (** llvm::ExecutionEngine::getConstantValue also implements how to deal with function 
     pointers and global variables 
 	    ...
@@ -214,18 +614,18 @@ module GenericValue = struct
 			...
 	*)
   let const2GV (td:TargetData.t) gl (c:const) : t option =
-    let (ee, _) = td in
     match const2llvalue td gl c with
-  	| Some v -> Some (ExecutionEngine.get_constant_value v ee)
+  	| Some v -> Some (llconst2GV td v)
 	  | None -> None
 			
   let mgep (td:TargetData.t) (t1:LLVMsyntax.typ) (ma:t) (vidxs:t list) (inbounds:bool) : t option =
-    let (ee, _) = td in
+    let (ee, mm) = td in
+		let ctx = Llvm.module_context mm in
     let ltd = ExecutionEngine.target_data ee in
 		(if !Globalstates.debug then
 			eprintf "  Mgep ptr=%s type=%s" (GenericValue.to_string ma) (Coq_pretty_printer.string_of_typ t1); flush_all());    			
 
-		let gv = GenericValue.gep ltd ma (Llvm.pointer_type (coqtype_2_llvmtype t1)) (Array.of_list vidxs) in
+		let gv = GenericValue.gep ltd ma (Llvm.pointer_type (coqtype_2_llvmtype ctx t1)) (Array.of_list vidxs) in
 		
 		(if !Globalstates.debug then eprintf " r=%s\n" (GenericValue.to_string gv);flush_all());    			
 		Some gv
@@ -235,29 +635,35 @@ module GenericValue = struct
   let insertGenericValue x y z a b = failwith "extractGenericValue undef"
 
   let mbop (td:TargetData.t) (op:LLVMsyntax.bop) (bsz:LLVMsyntax.sz) (gv1:t) (gv2:t) = 
+	  let (ee, mm) = td in
+		let ctx = Llvm.module_context mm in
     (if !Globalstates.debug then
 		  eprintf "  M%s i%d gv1=%s gv2=%s" (Coq_pretty_printer.string_of_bop op) bsz 
 		  (GenericValue.to_string gv1) (GenericValue.to_string gv2);flush_all());
 			
-    let gv = (GenericValue.binary_op gv1 gv2 (Llvm.integer_type (Llvm.global_context()) bsz) (coqbop_2_llvmopcode op)) in
+    let gv = (GenericValue.binary_op gv1 gv2 (Llvm.integer_type ctx bsz) (coqbop_2_llvmopcode op)) in
 		
     (if !Globalstates.debug then eprintf " r=%s\n" (GenericValue.to_string gv);flush_all());
 		Some gv
 
   let mfbop (td:TargetData.t) (op:LLVMsyntax.fbop) (fp:LLVMsyntax.floating_point) (gv1:t) (gv2:t) = 
+	  let (ee, mm) = td in
+		let ctx = Llvm.module_context mm in
     (if !Globalstates.debug then
 		  eprintf "  M%s %s gv1=%s gv2=%s"
 			(Coq_pretty_printer.string_of_fbop op) (Coq_pretty_printer.string_of_floating_point fp)
 		  (GenericValue.to_string gv1) (GenericValue.to_string gv2);flush_all());
 			
     let gv = (GenericValue.binary_op gv1 gv2 
-		            (Coq2llvm.translate_floating_point (Llvm.global_context()) fp) 
+		            (Coq2llvm.translate_floating_point ctx fp) 
 								(coqfbop_2_llvmopcode op)) in
 								
     (if !Globalstates.debug then eprintf " r=%s\n" (GenericValue.to_string gv);flush_all());
 		Some gv
 
 	let mcast (td:TargetData.t) (op:LLVMsyntax.castop) (t1:LLVMsyntax.typ) (gv1:t) (t2:LLVMsyntax.typ) =
+	  let (ee, mm) = td in
+		let ctx = Llvm.module_context mm in
 		(if !Globalstates.debug then
       eprintf "  M%s gv1=%s t1=%s t2=%s" (Coq_pretty_printer.string_of_castop op)
 			(Coq_pretty_printer.string_of_typ t1) (Coq_pretty_printer.string_of_typ t2)
@@ -265,24 +671,26 @@ module GenericValue = struct
 
 		let gv =
     (match op with
-    | Coq_castop_fptoui -> GenericValue.fptoui gv1 (coqtype_2_llvmtype t1) (coqtype_2_llvmtype t2)
-    | Coq_castop_fptosi -> GenericValue.fptosi gv1 (coqtype_2_llvmtype t1) (coqtype_2_llvmtype t2)
-    | Coq_castop_uitofp -> GenericValue.uitofp gv1 (coqtype_2_llvmtype t2)
-    | Coq_castop_sitofp -> GenericValue.sitofp gv1 (coqtype_2_llvmtype t2)
-    | Coq_castop_ptrtoint -> GenericValue.ptrtoint gv1 (coqtype_2_llvmtype t1) (coqtype_2_llvmtype t2)
+    | Coq_castop_fptoui -> GenericValue.fptoui gv1 (coqtype_2_llvmtype ctx t1) (coqtype_2_llvmtype ctx t2)
+    | Coq_castop_fptosi -> GenericValue.fptosi gv1 (coqtype_2_llvmtype ctx t1) (coqtype_2_llvmtype ctx t2)
+    | Coq_castop_uitofp -> GenericValue.uitofp gv1 (coqtype_2_llvmtype ctx t2)
+    | Coq_castop_sitofp -> GenericValue.sitofp gv1 (coqtype_2_llvmtype ctx t2)
+    | Coq_castop_ptrtoint -> GenericValue.ptrtoint gv1 (coqtype_2_llvmtype ctx t1) (coqtype_2_llvmtype ctx t2)
     | Coq_castop_inttoptr -> let (ee, _) = td in
                              let ltd = ExecutionEngine.target_data ee in
-			                       GenericValue.inttoptr ltd gv1 (coqtype_2_llvmtype t2)
+			                       GenericValue.inttoptr ltd gv1 (coqtype_2_llvmtype ctx t2)
     | Coq_castop_bitcast -> GenericValue.bitcast gv1 
-                              (coqtype_2_llvmtype t1) 
-                              (Llvm.global_context()) 
-                              (coqtype_2_llvmtype t2)
+                              (coqtype_2_llvmtype ctx t1) 
+                              ctx 
+                              (coqtype_2_llvmtype ctx t2)
     ) in
 		
 		(if !Globalstates.debug then eprintf " r=%s\n" (GenericValue.to_string gv);flush_all());
 	  Some gv
 
   let mtrunc (td:TargetData.t) (op:truncop) (t1:typ) (gv1:t) (t2:typ) =
+	  let (ee, mm) = td in
+		let ctx = Llvm.module_context mm in
 		(if !Globalstates.debug then
       eprintf "  M%s gv1=%s t1=%s t2=%s" (Coq_pretty_printer.string_of_truncop op)
 			(Coq_pretty_printer.string_of_typ t1) (Coq_pretty_printer.string_of_typ t2)
@@ -290,14 +698,16 @@ module GenericValue = struct
 			
     let gv =
     (match op with
-    | Coq_truncop_int -> GenericValue.trunc gv1 (coqtype_2_llvmtype t2) 
-    | Coq_truncop_fp -> GenericValue.fptrunc gv1 (coqtype_2_llvmtype t1) (Llvm.global_context()) (coqtype_2_llvmtype t2)
+    | Coq_truncop_int -> GenericValue.trunc gv1 (coqtype_2_llvmtype ctx t2) 
+    | Coq_truncop_fp -> GenericValue.fptrunc gv1 (coqtype_2_llvmtype ctx t1) ctx (coqtype_2_llvmtype ctx t2)
     ) in
 		
 		(if !Globalstates.debug then eprintf " r=%s\n" (GenericValue.to_string gv);flush_all());
 	  Some gv
 
   let mext (td:TargetData.t) (op:extop) (t1:typ) (gv1:t) (t2:typ) =
+	  let (ee, mm) = td in
+		let ctx = Llvm.module_context mm in
 		(if !Globalstates.debug then
       eprintf "  M%s gv1=%s t1=%s t2=%s" (Coq_pretty_printer.string_of_extop op)
 			(Coq_pretty_printer.string_of_typ t1) (Coq_pretty_printer.string_of_typ t2)
@@ -305,31 +715,35 @@ module GenericValue = struct
 			
     let gv =
     (match op with
-    | Coq_extop_z -> GenericValue.zext gv1 (coqtype_2_llvmtype t2)
-    | Coq_extop_s -> GenericValue.sext gv1 (coqtype_2_llvmtype t2)
-		| Coq_extop_fp -> GenericValue.fpext gv1 (coqtype_2_llvmtype t1) (Llvm.global_context()) (coqtype_2_llvmtype t2)
+    | Coq_extop_z -> GenericValue.zext gv1 (coqtype_2_llvmtype ctx t2)
+    | Coq_extop_s -> GenericValue.sext gv1 (coqtype_2_llvmtype ctx t2)
+		| Coq_extop_fp -> GenericValue.fpext gv1 (coqtype_2_llvmtype ctx t1) ctx (coqtype_2_llvmtype ctx t2)
     ) in
 		
 		(if !Globalstates.debug then eprintf " r=%s\n" (GenericValue.to_string gv);flush_all());
 	  Some gv
 
   let micmp (td:TargetData.t) (c:cond) (t:typ) (gv1:t) (gv2:t) =
+	  let (ee, mm) = td in
+		let ctx = Llvm.module_context mm in
 		(if !Globalstates.debug then 
       eprintf "  Micmp t=%s gv1=%s gv2=%s" (Coq_pretty_printer.string_of_typ t)
 		  (GenericValue.to_string gv1) (GenericValue.to_string gv2);flush_all());
 			
-    let gv = GenericValue.icmp gv1 gv2 (coqtype_2_llvmtype t) (coqcond_2_llvmicmp c) in
+    let gv = GenericValue.icmp gv1 gv2 (coqtype_2_llvmtype ctx t) (coqcond_2_llvmicmp c) in
 		
 		(if !Globalstates.debug then eprintf " r=%s\n" (GenericValue.to_string gv);flush_all());
 		Some gv
 
   let mfcmp (td:TargetData.t) (c:fcond) (fp:LLVMsyntax.floating_point) (gv1:t) (gv2:t) =
+	  let (ee, mm) = td in
+		let ctx = Llvm.module_context mm in
 		(if !Globalstates.debug then 
       eprintf "  Mfcmp t=%s gv1=%s gv2=%s" (Coq_pretty_printer.string_of_floating_point fp)
 		  (GenericValue.to_string gv1) (GenericValue.to_string gv2);flush_all());
 			
     let gv = GenericValue.fcmp gv1 gv2 
-		           (Coq2llvm.translate_floating_point (Llvm.global_context()) fp) 
+		           (Coq2llvm.translate_floating_point ctx fp) 
 							 (coqcond_2_llvmfcmp c) in
 							
 		(if !Globalstates.debug then eprintf " r=%s\n" (GenericValue.to_string gv);flush_all());
@@ -338,6 +752,7 @@ module GenericValue = struct
 
 	let dump (gv:t) = GenericValue.dump gv
 	let to_string (gv:t) = GenericValue.to_string gv
+	let of_int = GenericValue.of_int
 
   let lookupFdefViaGVFromFunTable fs (fptr:t) = 
  		(if !Globalstates.debug then 
@@ -362,13 +777,28 @@ module Mem = struct
 
   (* let initmem = failwith "initmem undef" *)
 
-  let malloc (td:TargetData.t) m size (a:LLVMsyntax.align) = 
+  let malloc (td:TargetData.t) m size num (a:LLVMsyntax.align) = 
     let (ee, _) = m in
 
  		(if !Globalstates.debug then 
-   		eprintf "  Malloc s=%d a=%d" size a;flush_all());			
+   		eprintf "  Malloc s=%d n=%s a=%d" size (GenericValue.to_string num) a;flush_all());			
 		
-    match (ExecutionEngine.malloc_memory size ee) with
+    match (ExecutionEngine.malloc_memory size num ee) with
+    | Some gv -> 
+    		(if !Globalstates.debug then eprintf " ptr=%s\n" (GenericValue.to_string gv);flush_all());				
+			  Some (m, gv)
+    | None -> 
+    		(if !Globalstates.debug then eprintf " None";flush_all());
+			  None
+
+  let malloc_one (td:TargetData.t) m size (a:LLVMsyntax.align) = 
+    let (ee, mm) = m in
+		let ctx = Llvm.module_context mm in
+
+ 		(if !Globalstates.debug then 
+   		eprintf "  Malloc s=%d n=1 a=%d" size a;flush_all());			
+		
+    match (ExecutionEngine.malloc_memory size (GenericValue.of_int (Llvm.integer_type ctx 32) 32) ee) with
     | Some gv -> 
     		(if !Globalstates.debug then eprintf " ptr=%s\n" (GenericValue.to_string gv);flush_all());				
 			  Some (m, gv)
@@ -384,20 +814,23 @@ module Mem = struct
 		Some m
 
   let mload (td:TargetData.t) m ptr t (a:LLVMsyntax.align) =
-    let (ee, _) = m in
+	  let (ee, mm) = td in
+		let ctx = Llvm.module_context mm in
 		(if !Globalstates.debug then 
 			eprintf "  Mload ptr=%s" (GenericValue.to_string ptr);flush_all());
 			
-		let gv = ExecutionEngine.load_value_from_memory ptr (coqtype_2_llvmtype t) ee in
+		let gv = ExecutionEngine.load_value_from_memory ptr (coqtype_2_llvmtype ctx t) ee in
 		
 		(if !Globalstates.debug then	eprintf " r=%s\n" (GenericValue.to_string gv);flush_all());
 		Some gv
 
   let mstore (td:TargetData.t) m ptr t gv (a:LLVMsyntax.align) =
+	  let (ee, mm) = td in
+		let ctx = Llvm.module_context mm in
 		(if !Globalstates.debug then 
 			eprintf "  Mstore ptr=%s v=%s\n" (GenericValue.to_string ptr) (GenericValue.to_string gv);flush_all());
 		let (ee, _) = m in
-    let _ = ExecutionEngine.store_value_to_memory gv ptr (coqtype_2_llvmtype t) ee in
+    let _ = ExecutionEngine.store_value_to_memory gv ptr (coqtype_2_llvmtype ctx t) ee in
     Some m
 		
   let initGlobal (td:TargetData.t) gl m (id0:LLVMsyntax.id) 

@@ -2146,7 +2146,7 @@ Proof.
   Case "insn_malloc".    
     destruct (@id_dec i0 i1); subst; try solve [done_right]. 
     destruct (@typ_dec t t0); subst; try solve [done_right].
-    destruct (@Size.dec s s0); subst; try solve [done_right].
+    destruct (@value_dec v v0); subst; try solve [done_right].
     destruct (@Align.dec a a0); subst; try solve [auto | done_right].
   Case "insn_free".    
     destruct (@id_dec i0 i1); subst; try solve [done_right]. 
@@ -2155,7 +2155,7 @@ Proof.
   Case "insn_alloca".    
     destruct (@id_dec i0 i1); subst; try solve [done_right]. 
     destruct (@typ_dec t t0); subst; try solve [done_right].
-    destruct (@Size.dec s s0); subst; try solve [done_right].
+    destruct (@value_dec v v0); subst; try solve [done_right].
     destruct (Align.dec a a0); subst; try solve [auto | done_right].
   Case "insn_load".    
     destruct (@id_dec i0 i1); subst; try solve [done_right]. 

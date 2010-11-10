@@ -111,6 +111,7 @@ Extract Constant LLVMgv.eq_gv => "Llvmcaml.GenericValue.eq_gv".
 Extract Constant LLVMmem.mem =>  "Llvmcaml.Mem.t".
 (*Extract Constant LLVMmem.initmem =>  "Llvmcaml.Mem.initmem".*)
 Extract Constant LLVMmem.malloc =>  "Llvmcaml.Mem.malloc".
+Extract Constant LLVMmem.malloc_one =>  "Llvmcaml.Mem.malloc_one".
 Extract Constant LLVMmem.free =>  "Llvmcaml.Mem.free".
 Extract Constant LLVMmem.mload =>  "Llvmcaml.Mem.mload".
 Extract Constant LLVMmem.mstore =>  "Llvmcaml.Mem.mstore".

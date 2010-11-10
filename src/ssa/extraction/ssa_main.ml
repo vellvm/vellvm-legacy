@@ -47,7 +47,7 @@ let rec interInsnStar (s:LLVMopsem.coq_State) (tr:trace) (n:int) : (LLVMopsem.co
 				Some (s, tr)
       end				
 			
-let main in_filename  =
+let main in_filename argv =
 
         let ic = global_context () in
         let imbuf = MemoryBuffer.of_file in_filename in
@@ -62,7 +62,16 @@ let main in_filename  =
 
         let li = ExecutionEngine.create_interpreter imp in
 
-        (match LLVMopsem.ds_genInitState (coqim::[]) "@main" [] (li, im) with
+        let print() = Array.iter print_endline argv in
+				
+				if !Globalstates.debug then 
+					(eprintf "main runs with arguments: \n"; print(); flush_all());
+
+				let gargvs = (GenericValue.of_int (Llvm.integer_type ic 32) (Array.length argv))::
+				              ExecutionEngine.to_argv argv ic li::
+				              [] in
+
+        (match LLVMopsem.ds_genInitState (coqim::[]) "@main" gargvs (li, im) with
           | Some s -> 
             (match interInsnLoop s Coq_trace_nil with
               | Some (s', tr) -> ()
@@ -72,15 +81,30 @@ let main in_filename  =
         SlotTracker.dispose ist;
         ExecutionEngine.dispose li
 
-let _ = if Array.length Sys.argv = 0 then
-	        failwith "# of argv is 0"
-				else if Array.length Sys.argv = 1 then
-          main "Input.bc"
-				else(   
-					(if Array.length Sys.argv > 2 then
-					  (if Array.get Sys.argv 2 = "-d" then 
-							Globalstates.debug := true
-						)
-					);
-        	main (Array.get Sys.argv 1)
-				)
+let _ = let len = Array.length Sys.argv in
+	
+	      if len < 1 then
+	        failwith "# of argv is 0";
+													
+				let idx = ref 1 in				
+				let set_flags = fun _ ->
+  				let finished = ref false in	
+				  while (not !finished) && (!idx < len) do
+						let arg = Array.get Sys.argv !idx in
+						
+						if arg = "-d" then 
+							Globalstates.debug := true;
+					
+					  if String.get arg 0 != '-' 
+						then
+							finished := true
+						else	
+						  idx := !idx + 1 		  							
+					done in
+																
+        set_flags ();
+																																
+				if !idx < len then
+					main (Array.get Sys.argv !idx) (Array.sub Sys.argv !idx (len - !idx))
+				else
+					main "Input.bc" (Array.make 1 "")		

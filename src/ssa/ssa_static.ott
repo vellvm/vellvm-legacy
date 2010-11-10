@@ -537,14 +537,15 @@ Jwf_insn :: '' ::=
       % Allocation instruction pointer not in the generic address space!
       %
       % Alloca array size must be i32
+      system |- value : int sz /\ sz = 32
       %
       % Cannot allocate unsized type"
       |- typ
       Typ.isSized typ
       % Check invariance for instructions
-      intrinsic_funs , system , module_info , fdef_info , block |-i id = malloc typ sz align 
+      intrinsic_funs , system , module_info , fdef_info , block |-i id = malloc typ value align 
       -------------------------------------------------------------------------------------- :: wf_insn_malloc
-      intrinsic_funs , system , module_info , fdef_info , block |- id = malloc typ sz align 
+      intrinsic_funs , system , module_info , fdef_info , block |- id = malloc typ value align 
 
       % Check typs
       system |- value : typ*
@@ -556,14 +557,15 @@ Jwf_insn :: '' ::=
       % Allocation instruction pointer not in the generic address space!
       %
       % Alloca array size must be i32
+      system |- value : int sz /\ sz = 32
       %
       % Cannot allocate unsized type"
       |- typ
       Typ.isSized typ
       % Check invariance for instructions
-      intrinsic_funs , system , module_info , fdef_info , block |-i id = alloca typ sz align 
+      intrinsic_funs , system , module_info , fdef_info , block |-i id = alloca typ value align 
       -------------------------------------------------------------------------------------- :: wf_insn_alloca
-      intrinsic_funs , system , module_info , fdef_info , block |- id = alloca typ sz align 
+      intrinsic_funs , system , module_info , fdef_info , block |- id = alloca typ value align 
 
       % Load operand must be a pointer.
       % Load result type does not match pointer operand type!

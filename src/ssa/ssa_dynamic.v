@@ -274,11 +274,12 @@ Inductive dsInsn : State -> State -> trace -> Prop :=
     (mkState S TD Ps ((mkEC F B ((insn_insertvalue id t v t' v' idxs)::cs) tmn lc arg als)::EC) gl fs Mem) 
     (mkState S TD Ps ((mkEC F B cs tmn (updateAddAL _ lc id gv'') arg als)::EC) gl fs Mem)
     trace_nil 
-| dsMalloc : forall S TD Ps F B lc gl fs arg id t sz align EC cs tmn Mem als Mem' tsz mb,
+| dsMalloc : forall S TD Ps F B lc gl fs arg id t v gn align EC cs tmn Mem als Mem' tsz mb,
   getTypeAllocSize TD t = Some tsz ->
-  malloc TD Mem (Size.mul tsz sz) align = Some (Mem', mb) ->
+  getOperandValue TD v lc gl = Some gn ->
+  malloc TD Mem tsz gn align = Some (Mem', mb) ->
   dsInsn 
-    (mkState S TD Ps ((mkEC F B ((insn_malloc id t sz align)::cs) tmn lc arg als)::EC) gl fs Mem) 
+    (mkState S TD Ps ((mkEC F B ((insn_malloc id t v align)::cs) tmn lc arg als)::EC) gl fs Mem) 
     (mkState S TD Ps ((mkEC F B cs tmn (updateAddAL _ lc id (blk2GV TD mb)) arg als)::EC) gl fs Mem')
     trace_nil
 | dsFree : forall S TD Ps F B lc gl fs arg fid t v EC cs tmn Mem als Mem' mptr,
@@ -288,11 +289,12 @@ Inductive dsInsn : State -> State -> trace -> Prop :=
     (mkState S TD Ps ((mkEC F B ((insn_free fid t v)::cs) tmn lc arg als)::EC) gl fs Mem) 
     (mkState S TD Ps ((mkEC F B cs tmn lc arg als)::EC) gl fs Mem')
     trace_nil
-| dsAlloca : forall S TD Ps F B lc gl fs arg id t sz align EC cs tmn Mem als Mem' tsz mb,
+| dsAlloca : forall S TD Ps F B lc gl fs arg id t v gn align EC cs tmn Mem als Mem' tsz mb,
   getTypeAllocSize TD t = Some tsz ->
-  malloc TD Mem (Size.mul tsz sz) align = Some (Mem', mb) ->
+  getOperandValue TD v lc gl = Some gn ->
+  malloc TD Mem tsz gn align = Some (Mem', mb) ->
   dsInsn 
-    (mkState S TD Ps ((mkEC F B ((insn_alloca id t sz align)::cs) tmn lc arg als)::EC) gl fs Mem) 
+    (mkState S TD Ps ((mkEC F B ((insn_alloca id t v align)::cs) tmn lc arg als)::EC) gl fs Mem) 
     (mkState S TD Ps ((mkEC F B cs tmn (updateAddAL _ lc id (blk2GV TD mb)) arg (mb::als))::EC) gl fs Mem')
     trace_nil
 | dsLoad : forall S TD Ps F B lc gl fs arg id t align v EC cs tmn Mem als mp gv,
@@ -388,7 +390,7 @@ Definition initGlobal (TD:TargetData)(gl:GVMap)(Mem:mem)(id0:id)(t:typ)(c:const)
              option (GenericValue*mem) :=
   do tsz <- getTypeAllocSize TD t;
   do gv <- const2GV TD gl c;
-     match (malloc TD Mem (Size.from_nat tsz) align0) with
+     match (malloc_one TD Mem (Size.from_nat tsz) align0) with
      | Some (Mem', mb) =>
        do Mem'' <- mstore TD Mem' (blk2GV TD mb) t gv align0;
        ret (blk2GV TD mb,  Mem'')
@@ -608,11 +610,12 @@ Inductive nsInsn : State*trace -> States -> Prop :=
   nsInsn 
     (mkState S TD Ps ((mkEC F B ((insn_insertvalue id t v t' v' idxs)::cs) tmn lc arg als)::EC) gl fs Mem, tr) 
     ((mkState S TD Ps ((mkEC F B cs tmn (updateAddAL _ lc id gv'') arg als)::EC) gl fs Mem, tr)::nil)
-| nsMalloc : forall S TD Ps F B lc gl fs arg id t sz align EC cs tmn Mem als Mem' tsz mb tr,
+| nsMalloc : forall S TD Ps F B lc gl fs arg id t v gn align EC cs tmn Mem als Mem' tsz mb tr,
   getTypeAllocSize TD t = Some tsz ->
-  malloc TD Mem (Size.mul tsz sz) align = Some (Mem', mb) ->
+  getOperandValue TD v lc gl = Some gn ->
+  malloc TD Mem tsz gn align = Some (Mem', mb) ->
   nsInsn 
-    (mkState S TD Ps ((mkEC F B ((insn_malloc id t sz align)::cs) tmn lc arg als)::EC) gl fs Mem, tr) 
+    (mkState S TD Ps ((mkEC F B ((insn_malloc id t v align)::cs) tmn lc arg als)::EC) gl fs Mem, tr) 
     ((mkState S TD Ps ((mkEC F B cs tmn (updateAddAL _ lc id (blk2GV TD mb)) arg als)::EC) gl fs Mem', tr)::nil)
 | nsFree : forall S TD Ps F B lc gl fs arg fid t v EC cs tmn Mem als Mem' mptr tr,
   getOperandValue TD v lc gl = Some mptr ->
@@ -620,11 +623,12 @@ Inductive nsInsn : State*trace -> States -> Prop :=
   nsInsn 
     (mkState S TD Ps ((mkEC F B ((insn_free fid t v)::cs) tmn lc arg als)::EC) gl fs Mem, tr) 
     ((mkState S TD Ps ((mkEC F B cs tmn lc arg als)::EC) gl fs Mem', tr)::nil)
-| nsAlloca : forall S TD Ps F B lc gl fs arg id t sz align EC cs tmn Mem als Mem' tsz mb tr,
+| nsAlloca : forall S TD Ps F B lc gl fs arg id t v gn align EC cs tmn Mem als Mem' tsz mb tr,
   getTypeAllocSize TD t = Some tsz ->
-  malloc TD Mem (Size.mul tsz sz) align = Some (Mem', mb) ->
+  getOperandValue TD v lc gl = Some gn ->
+  malloc TD Mem tsz gn align = Some (Mem', mb) ->
   nsInsn 
-    (mkState S TD Ps ((mkEC F B ((insn_alloca id t sz align)::cs) tmn lc arg als)::EC) gl fs Mem, tr) 
+    (mkState S TD Ps ((mkEC F B ((insn_alloca id t v align)::cs) tmn lc arg als)::EC) gl fs Mem, tr) 
     ((mkState S TD Ps ((mkEC F B cs tmn (updateAddAL _ lc id (blk2GV TD mb)) arg (mb::als))::EC) gl fs Mem', tr)::nil)
 | nsLoad : forall S TD Ps F B lc gl fs arg id t v align EC cs tmn Mem als mp gv tr,
   getOperandValue TD v lc gl = Some mp ->
@@ -881,11 +885,12 @@ Inductive dbInsn : State -> State -> trace -> Prop :=
     (mkState S TD Ps ((mkEC F B ((insn_insertvalue id t v t' v' idxs)::cs) tmn lc arg als)::EC) gl fs Mem) 
     (mkState S TD Ps ((mkEC F B cs tmn (updateAddAL _ lc id gv'') arg als)::EC) gl fs Mem)
     trace_nil 
-| dbMalloc : forall S TD Ps F B lc gl fs arg id t sz align EC cs tmn Mem als Mem' tsz mb,
+| dbMalloc : forall S TD Ps F B lc gl fs arg id t v gn align EC cs tmn Mem als Mem' tsz mb,
   getTypeAllocSize TD t = Some tsz ->
-  malloc TD Mem (Size.mul tsz sz) align = Some (Mem', mb) ->
+  getOperandValue TD v lc gl = Some gn ->
+  malloc TD Mem tsz gn align = Some (Mem', mb) ->
   dbInsn 
-    (mkState S TD Ps ((mkEC F B ((insn_malloc id t sz align)::cs) tmn lc arg als)::EC) gl fs Mem) 
+    (mkState S TD Ps ((mkEC F B ((insn_malloc id t v align)::cs) tmn lc arg als)::EC) gl fs Mem) 
     (mkState S TD Ps ((mkEC F B cs tmn (updateAddAL _ lc id (blk2GV TD mb)) arg als)::EC) gl fs Mem')
     trace_nil
 | dbFree : forall S TD Ps F B lc gl fs arg fid t v EC cs tmn Mem als Mem' mptr,
@@ -895,11 +900,12 @@ Inductive dbInsn : State -> State -> trace -> Prop :=
     (mkState S TD Ps ((mkEC F B ((insn_free fid t v)::cs) tmn lc arg als)::EC) gl fs Mem) 
     (mkState S TD Ps ((mkEC F B cs tmn lc arg als)::EC) gl fs Mem')
     trace_nil
-| dbAlloca : forall S TD Ps F B lc gl fs arg id t sz align EC cs tmn Mem als Mem' tsz mb,
+| dbAlloca : forall S TD Ps F B lc gl fs arg id t v gn align EC cs tmn Mem als Mem' tsz mb,
   getTypeAllocSize TD t = Some tsz ->
-  malloc TD Mem (Size.mul tsz sz) align = Some (Mem', mb) ->
+  getOperandValue TD v lc gl = Some gn ->
+  malloc TD Mem tsz gn align = Some (Mem', mb) ->
   dbInsn 
-    (mkState S TD Ps ((mkEC F B ((insn_alloca id t sz align)::cs) tmn lc arg als)::EC) gl fs Mem) 
+    (mkState S TD Ps ((mkEC F B ((insn_alloca id t v align)::cs) tmn lc arg als)::EC) gl fs Mem) 
     (mkState S TD Ps ((mkEC F B cs tmn (updateAddAL _ lc id (blk2GV TD mb)) arg (mb::als))::EC) gl fs Mem')
     trace_nil
 | dbLoad : forall S TD Ps F B lc gl fs arg id t v align EC cs tmn Mem als mp gv,
@@ -1182,11 +1188,12 @@ Inductive nbInsn : State*trace -> States -> Prop :=
   nbInsn 
     (mkState S TD Ps ((mkEC F B ((insn_insertvalue id t v t' v' idxs)::cs) tmn lc arg als)::EC) gl fs Mem, tr) 
     ((mkState S TD Ps ((mkEC F B cs tmn (updateAddAL _ lc id gv'') arg als)::EC) gl fs Mem, tr)::nil)
-| nbMalloc : forall S TD Ps F B lc gl fs arg id t sz align EC cs tmn Mem als Mem' tsz mb tr,
+| nbMalloc : forall S TD Ps F B lc gl fs arg id t v gn align EC cs tmn Mem als Mem' tsz mb tr,
   getTypeAllocSize TD t = Some tsz ->
-  malloc TD Mem (Size.mul tsz sz) align = Some (Mem', mb) ->
+  getOperandValue TD v lc gl = Some gn ->
+  malloc TD Mem tsz gn align = Some (Mem', mb) ->
   nbInsn 
-    (mkState S TD Ps ((mkEC F B ((insn_malloc id t sz align)::cs) tmn lc arg als)::EC) gl fs Mem, tr) 
+    (mkState S TD Ps ((mkEC F B ((insn_malloc id t v align)::cs) tmn lc arg als)::EC) gl fs Mem, tr) 
     ((mkState S TD Ps ((mkEC F B cs tmn (updateAddAL _ lc id (blk2GV TD mb)) arg als)::EC) gl fs Mem', tr)::nil)
 | nbFree : forall S TD Ps F B lc gl fs arg fid t v EC cs tmn Mem als Mem' mptr tr,
   getOperandValue TD v lc gl = Some mptr ->
@@ -1194,11 +1201,12 @@ Inductive nbInsn : State*trace -> States -> Prop :=
   nbInsn 
     (mkState S TD Ps ((mkEC F B ((insn_free fid t v)::cs) tmn lc arg als)::EC) gl fs Mem, tr) 
     ((mkState S TD Ps ((mkEC F B cs tmn lc arg als)::EC) gl fs Mem', tr)::nil)
-| nbAlloca : forall S TD Ps F B lc gl fs arg id t sz align EC cs tmn Mem als Mem' tsz mb tr,
+| nbAlloca : forall S TD Ps F B lc gl fs arg id t v gn align EC cs tmn Mem als Mem' tsz mb tr,
   getTypeAllocSize TD t = Some tsz ->
-  malloc TD Mem (Size.mul tsz sz) align = Some (Mem', mb) ->
+  getOperandValue TD v lc gl = Some gn ->
+  malloc TD Mem tsz gn align = Some (Mem', mb) ->
   nbInsn 
-    (mkState S TD Ps ((mkEC F B ((insn_alloca id t sz align)::cs) tmn lc arg als)::EC) gl fs Mem, tr) 
+    (mkState S TD Ps ((mkEC F B ((insn_alloca id t v align)::cs) tmn lc arg als)::EC) gl fs Mem, tr) 
     ((mkState S TD Ps ((mkEC F B cs tmn (updateAddAL _ lc id (blk2GV TD mb)) arg (mb::als))::EC) gl fs Mem', tr)::nil)
 | nbLoad : forall S TD Ps F B lc gl fs arg id t v align EC cs tmn Mem als mp gv tr,
   getOperandValue TD v lc gl = Some mp ->

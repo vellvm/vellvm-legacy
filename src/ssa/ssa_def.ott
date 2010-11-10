@@ -382,9 +382,9 @@ cmd :: 'insn_'					    	::=			{{ com commands }}
   | id = extractvalue typ value </ constj // j />       ::   :: extractvalue	        {{ com extractvalue }}
   | id = insertvalue typ value typ' value' </ constj // j /> ::   :: insertvalue	{{ com insertvalue }}
 %% Memory Access and Addressing Operations
-  | id = malloc typ sz align  	         	     	::   :: malloc		{{ com malloc }}
+  | id = malloc typ value align	         	     	::   :: malloc		{{ com malloc }}
   | id = free ( typ * ) value     	       	     	::   :: free		{{ com free }}
-  | id = alloca typ sz align     	       	     	::   :: alloca		{{ com alloca }}
+  | id = alloca typ value align     	       	     	::   :: alloca		{{ com alloca }}
   | id = load ( typ * ) value1 align			::   :: load		{{ com load }}
   | id = store typ value1 value2 align			::   :: store		{{ com store }}
   | id = getelementptr inbounds ( typ * ) value </ valuej // j />    	      ::  :: gep        {{ com getelementptr }}

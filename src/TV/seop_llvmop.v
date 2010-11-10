@@ -631,7 +631,7 @@ Case "dbMalloc".
   exists (updateAddAL _ lc0 id0 (blk2GV TD0 mb)). exists als0. exists Mem'.
   exists cs1. split; auto.
   right. left.
-  exists (insn_malloc id0 t sz0 align0).
+  exists (insn_malloc id0 t v align0).
   split; eauto.
 
 Case "dbFree".
@@ -649,7 +649,7 @@ Case "dbAlloca".
   exists (updateAddAL _ lc0 id0 (blk2GV TD0 mb)). exists (mb::als0). exists Mem'.
   exists cs1. split; auto.
   right. left.
-  exists (insn_alloca id0 t sz0 align0).
+  exists (insn_alloca id0 t v align0).
   split; eauto.
 
 Case "dbLoad".

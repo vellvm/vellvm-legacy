@@ -79,12 +79,13 @@ Inductive dbCmd : layouts ->  GVMap ->
     (insn_insertvalue id t v t' v' idxs)
     (updateAddAL _ lc id gv'') als Mem
     trace_nil 
-| dbMalloc : forall TD lc gl id t sz align Mem als Mem' tsz mb,
+| dbMalloc : forall TD lc gl id t v gn align Mem als Mem' tsz mb,
   getTypeAllocSize TD t = Some tsz ->
-  malloc TD Mem (tsz * sz)%nat align = Some (Mem', mb) ->
+  getOperandValue TD v lc gl = Some gn ->
+  malloc TD Mem tsz gn align = Some (Mem', mb) ->
   dbCmd TD gl
     lc als Mem
-    (insn_malloc id t sz align)
+    (insn_malloc id t v align)
     (updateAddAL _ lc id (blk2GV TD mb)) als Mem'
     trace_nil
 | dbFree : forall TD lc gl fid t v Mem als Mem' mptr,
@@ -95,12 +96,13 @@ Inductive dbCmd : layouts ->  GVMap ->
     (insn_free fid t v)
     lc als Mem'
     trace_nil
-| dbAlloca : forall TD lc gl id t sz align Mem als Mem' tsz mb,
+| dbAlloca : forall TD lc gl id t v gn align Mem als Mem' tsz mb,
   getTypeAllocSize TD t = Some tsz ->
-  malloc TD Mem (tsz * sz)%nat align = Some (Mem', mb) ->
+  getOperandValue TD v lc gl = Some gn ->
+  malloc TD Mem tsz gn align = Some (Mem', mb) ->
   dbCmd TD gl
     lc als Mem
-    (insn_alloca id t sz align)
+    (insn_alloca id t v align)
     (updateAddAL _ lc id (blk2GV TD mb)) (mb::als) Mem'
     trace_nil
 | dbLoad : forall TD lc gl id t v align Mem als mp gv,
@@ -409,6 +411,7 @@ Case "dbInsertValue".
 Case "dbMalloc".
   assert (HupdateEnv:=HeqEnv).
   exists (updateAddAL _ lc1' id0 (blk2GV TD mb)).
+  rewrite getOperandValue_eqAL with (lc2:=lc1') in H0; auto. 
   split; eauto using eqAL_updateAddAL.
 
 Case "dbFree".
@@ -419,6 +422,7 @@ Case "dbFree".
 Case "dbAlloca".
   assert (HupdateEnv:=HeqEnv).
   exists (updateAddAL _ lc1' id0 (blk2GV TD mb)).
+  rewrite getOperandValue_eqAL with (lc2:=lc1') in H0; auto. 
   split; eauto using eqAL_updateAddAL.
 
 Case "dbLoad".
@@ -1231,8 +1235,8 @@ Inductive sterm : Set :=
 | sterm_fbop : fbop -> floating_point -> sterm -> sterm -> sterm
 | sterm_extractvalue : typ -> sterm -> list_const -> sterm
 | sterm_insertvalue : typ -> sterm -> typ -> sterm -> list_const -> sterm
-| sterm_malloc : smem -> typ -> sz -> align -> sterm
-| sterm_alloca : smem -> typ -> sz -> align -> sterm
+| sterm_malloc : smem -> typ -> sterm -> align -> sterm
+| sterm_alloca : smem -> typ -> sterm -> align -> sterm
 | sterm_load : smem -> typ -> sterm -> align -> sterm
 | sterm_gep : inbounds -> typ -> sterm -> list_sterm -> sterm
 | sterm_trunc : truncop -> typ -> sterm -> typ -> sterm
@@ -1250,14 +1254,14 @@ with list_sterm_l : Set :=
 | Cons_list_sterm_l : sterm -> l -> list_sterm_l -> list_sterm_l
 with smem : Set :=
 | smem_init : smem
-| smem_malloc : smem -> typ -> sz -> align -> smem
+| smem_malloc : smem -> typ -> sterm -> align -> smem
 | smem_free : smem -> typ -> sterm -> smem
-| smem_alloca : smem -> typ -> sz -> align -> smem
+| smem_alloca : smem -> typ -> sterm -> align -> smem
 | smem_load : smem -> typ -> sterm -> align -> smem
 | smem_store : smem -> typ -> sterm -> sterm -> align -> smem
 with sframe : Set :=
 | sframe_init : sframe
-| sframe_alloca : smem -> sframe -> typ -> sz -> align -> sframe
+| sframe_alloca : smem -> sframe -> typ -> sterm -> align -> sframe
 .
 
 Scheme sterm_rec2 := Induction for sterm Sort Set
@@ -1466,10 +1470,10 @@ match c with
                  st.(SMem)
                  st.(SFrame)
                  st.(SEffects))
-  | insn_malloc id0 t1 sz1 al1 => fun _ => 
+  | insn_malloc id0 t1 v1 al1 => fun _ => 
        (mkSstate (updateAddAL _ st.(STerms) id0 
-                   (sterm_malloc st.(SMem) t1 sz1 al1))
-                 (smem_malloc st.(SMem) t1 sz1 al1)
+                   (sterm_malloc st.(SMem) t1 (value2Sterm st.(STerms) v1) al1))
+                 (smem_malloc st.(SMem) t1 (value2Sterm st.(STerms) v1) al1)
                  st.(SFrame)
                  st.(SEffects))
   | insn_free id0 t0 v0 => fun _ =>  
@@ -1478,11 +1482,11 @@ match c with
                    (value2Sterm st.(STerms) v0))
                  st.(SFrame)
                  st.(SEffects))
-  | insn_alloca id0 t1 sz1 al1 => fun _ =>   
+  | insn_alloca id0 t1 v1 al1 => fun _ =>   
        (mkSstate (updateAddAL _ st.(STerms) id0 
-                   (sterm_alloca st.(SMem) t1 sz1 al1))
-                 (smem_alloca st.(SMem) t1 sz1 al1)
-                 (sframe_alloca st.(SMem) st.(SFrame) t1 sz1 al1)
+                   (sterm_alloca st.(SMem) t1 (value2Sterm st.(STerms) v1) al1))
+                 (smem_alloca st.(SMem) t1 (value2Sterm st.(STerms) v1) al1)
+                 (sframe_alloca st.(SMem) st.(SFrame) t1 (value2Sterm st.(STerms) v1) al1)
                  st.(SEffects))
   | insn_load id0 t2 v2 align => fun _ =>   
        (mkSstate (updateAddAL _ st.(STerms) id0 
@@ -1871,16 +1875,18 @@ Inductive sterm_denotes_genericvalue :
   sterm_denotes_genericvalue TD lc gl Mem st2 gv2 ->
   insertGenericValue TD t1 gv1 idxs0 t2 gv2 = Some gv3 ->
   sterm_denotes_genericvalue TD lc gl Mem (sterm_insertvalue t1 st1 t2 st2 idxs0) gv3
-| sterm_malloc_denotes : forall TD lc gl Mem0 Mem1 sm0 t0 sz0 align0 tsz0 Mem2 mb,
+| sterm_malloc_denotes : forall TD lc gl Mem0 Mem1 sm0 t0 st0 gv0 align0 tsz0 Mem2 mb,
   smem_denotes_mem TD lc gl Mem0 sm0 Mem1 ->
   getTypeAllocSize TD t0 = Some tsz0 ->
-  malloc TD Mem1 (tsz0 * sz0)%nat align0 = Some (Mem2, mb) ->
-  sterm_denotes_genericvalue TD lc gl Mem0 (sterm_malloc sm0 t0 sz0 align0) (blk2GV TD mb)
-| sterm_alloca_denotes : forall TD lc gl Mem0 Mem1 sm0 t0 sz0 align0 tsz0 Mem2 mb,
+  sterm_denotes_genericvalue TD lc gl Mem0 st0 gv0 ->
+  malloc TD Mem1 tsz0 gv0 align0 = Some (Mem2, mb) ->
+  sterm_denotes_genericvalue TD lc gl Mem0 (sterm_malloc sm0 t0 st0 align0) (blk2GV TD mb)
+| sterm_alloca_denotes : forall TD lc gl Mem0 Mem1 sm0 t0 st0 gv0 align0 tsz0 Mem2 mb,
   smem_denotes_mem TD lc gl Mem0 sm0 Mem1 ->
   getTypeAllocSize TD t0 = Some tsz0 ->
-  malloc TD Mem1 (tsz0 * sz0)%nat align0 = Some (Mem2, mb) ->
-  sterm_denotes_genericvalue TD lc gl Mem0 (sterm_alloca sm0 t0 sz0 align0) (blk2GV TD mb)
+  sterm_denotes_genericvalue TD lc gl Mem0 st0 gv0 ->
+  malloc TD Mem1 tsz0 gv0 align0 = Some (Mem2, mb) ->
+  sterm_denotes_genericvalue TD lc gl Mem0 (sterm_alloca sm0 t0 st0 align0) (blk2GV TD mb)
 | sterm_load_denotes : forall TD lc gl Mem0 Mem1 sm0 t0 align0 st0 gv0 gv1,
   sterm_denotes_genericvalue TD lc gl Mem0 st0 gv0 ->
   smem_denotes_mem TD lc gl Mem0 sm0 Mem1 ->
@@ -1943,21 +1949,23 @@ with smem_denotes_mem :
    Prop :=
 | smem_init_denotes : forall TD lc gl Mem,
   smem_denotes_mem TD lc gl Mem smem_init Mem
-| smem_malloc_denotes : forall TD lc gl Mem0 Mem1 sm0 t0 sz0 align0 tsz0 Mem2 mb,
+| smem_malloc_denotes : forall TD lc gl Mem0 Mem1 sm0 t0 st0 gv0 align0 tsz0 Mem2 mb,
   smem_denotes_mem TD lc gl Mem0 sm0 Mem1 ->
   getTypeAllocSize TD t0 = Some tsz0 ->
-  malloc TD Mem1 (tsz0 * sz0)%nat align0 = Some (Mem2, mb) ->
-  smem_denotes_mem TD lc gl Mem0 (smem_malloc sm0 t0 sz0 align0) Mem2
+  sterm_denotes_genericvalue TD lc gl Mem0 st0 gv0 ->
+  malloc TD Mem1 tsz0 gv0 align0 = Some (Mem2, mb) ->
+  smem_denotes_mem TD lc gl Mem0 (smem_malloc sm0 t0 st0 align0) Mem2
 | smem_free_denotes : forall TD lc gl Mem0 Mem1 sm0 t0 st0 gv0 Mem2,
   sterm_denotes_genericvalue TD lc gl Mem0 st0 gv0 ->
   smem_denotes_mem TD lc gl Mem0 sm0 Mem1 ->
   free TD Mem1 gv0 = Some Mem2->
   smem_denotes_mem TD lc gl Mem0 (smem_free sm0 t0 st0) Mem2
-| smem_alloca_denotes : forall TD lc gl Mem0 Mem1 sm0 t0 sz0 align0 tsz0 Mem2 mb,
+| smem_alloca_denotes : forall TD lc gl Mem0 Mem1 sm0 t0 st0 gv0 align0 tsz0 Mem2 mb,
   smem_denotes_mem TD lc gl Mem0 sm0 Mem1 ->
   getTypeAllocSize TD t0 = Some tsz0 ->
-  malloc TD Mem1 (tsz0 * sz0)%nat align0 = Some (Mem2, mb) ->
-  smem_denotes_mem TD lc gl Mem0 (smem_alloca sm0 t0 sz0 align0) Mem2
+  sterm_denotes_genericvalue TD lc gl Mem0 st0 gv0 ->
+  malloc TD Mem1 tsz0 gv0 align0 = Some (Mem2, mb) ->
+  smem_denotes_mem TD lc gl Mem0 (smem_alloca sm0 t0 st0 align0) Mem2
 | smem_load_denotes : forall TD lc gl Mem0 sm0 t0 st0 align0 Mem1,
   smem_denotes_mem TD lc gl Mem0 sm0 Mem1 ->
   smem_denotes_mem TD lc gl Mem0 (smem_load sm0 t0 st0 align0) Mem1
@@ -1980,12 +1988,13 @@ Inductive sframe_denotes_frame :
    Prop :=
 | sframe_init_denotes : forall TD lc gl Mem als,
   sframe_denotes_frame TD lc gl als Mem sframe_init als
-| sframe_alloca_denotes : forall TD lc gl Mem0 Mem1 als0 als1 t0 sz0 align0 tsz0 Mem2 mb sm0 sf0,
+| sframe_alloca_denotes : forall TD lc gl Mem0 Mem1 als0 als1 t0 st0 gv0 align0 tsz0 Mem2 mb sm0 sf0,
   smem_denotes_mem TD lc gl Mem0 sm0 Mem1 ->
   sframe_denotes_frame TD lc gl als0 Mem0 sf0 als1 ->
   getTypeAllocSize TD t0 = Some tsz0 ->
-  malloc TD Mem1 (tsz0 * sz0)%nat align0 = Some (Mem2, mb) ->
-  sframe_denotes_frame TD lc gl als0 Mem0 (sframe_alloca sm0 sf0 t0 sz0 align0) (mb::als1)
+  sterm_denotes_genericvalue TD lc gl Mem0 st0 gv0 ->
+  malloc TD Mem1 tsz0 gv0 align0 = Some (Mem2, mb) ->
+  sframe_denotes_frame TD lc gl als0 Mem0 (sframe_alloca sm0 sf0 t0 st0 align0) (mb::als1)
 .
 
 Inductive seffects_denote_trace : 
@@ -2145,15 +2154,17 @@ Case "sterm_insertvalue_denotes".
   rewrite H14 in e.
   inversion e; auto.
 Case "sterm_malloc_denotes".
-  inversion H0; subst.
-  rewrite e in H11. inversion H11; subst.
+  inversion H1; subst.
+  rewrite e in H12. inversion H12; subst.
   apply H in H10; subst.
-  rewrite H12 in e0. inversion e0; auto.
+  apply H0 in H13; subst.
+  rewrite H14 in e0. inversion e0; auto.
 Case "sterm_alloca_denotes".
-  inversion H0; subst.
-  rewrite e in H11. inversion H11; subst.
+  inversion H1; subst.
+  rewrite e in H12. inversion H12; subst.
   apply H in H10; subst.
-  rewrite H12 in e0. inversion e0; auto.
+  apply H0 in H13; subst.
+  rewrite H14 in e0. inversion e0; auto.
 Case "sterm_load_denotes".
   inversion H1; subst.
   apply H0 in H12; subst.
@@ -2203,20 +2214,22 @@ Case "sterms_cons_denote".
 Case "smem_init_denotes".
   inversion H; auto.
 Case "smem_malloc_denotes".
-  inversion H0; subst.
+  inversion H1; subst.
   apply H in H10; subst. 
-  rewrite H11 in e. inversion e; subst.
-  rewrite H12 in e0. inversion e0; auto.
+  apply H0 in H13; subst. 
+  rewrite H12 in e. inversion e; subst.
+  rewrite H14 in e0. inversion e0; auto.
 Case "smem_free_denotes".
   inversion H1; subst.
   apply H in H9; subst. 
   apply H0 in H11; subst. 
   rewrite H12 in e. inversion e; auto.
 Case "smem_alloca_denotes".
-  inversion H0; subst.
+  inversion H1; subst.
   apply H in H10; subst. 
-  rewrite H11 in e. inversion e; subst.
-  rewrite H12 in e0. inversion e0; auto.
+  apply H0 in H13; subst. 
+  rewrite H12 in e. inversion e; subst.
+  rewrite H14 in e0. inversion e0; auto.
 Case "smem_load_denotes".
   inversion H0; subst.
   apply H in H10; auto. 
@@ -2268,11 +2281,12 @@ Proof.
   induction H; intros.
     inversion H0; auto.
 
-    inversion H3; subst.
+    inversion H4; subst.
     apply smem_denotes_mem_det with (Mem1:=Mem4) in H; auto; subst.
-    rewrite H1 in H17. inversion H17; subst.
-    rewrite H18 in H2. inversion H2; subst.
-    apply IHsframe_denotes_frame in H16; subst; auto.
+    apply sterm_denotes_genericvalue_det with (gv1:=gv1) in H2; auto; subst.
+    rewrite H1 in H18. inversion H18; subst.
+    rewrite H20 in H3. inversion H3; subst.
+    apply IHsframe_denotes_frame in H17; subst; auto.
 Qed.
 
 Lemma seffects_denote_trace_det : forall ses tr1 tr2,
@@ -2413,10 +2427,10 @@ match s with
     sterm_extractvalue t1 (subst_tt id0 s0 s1) cs
 | sterm_insertvalue t1 s1 t2 s2 cs => 
     sterm_insertvalue t1 (subst_tt id0 s0 s1) t2 (subst_tt id0 s0 s2) cs
-| sterm_malloc m1 t1 sz align => 
-    sterm_malloc (subst_tm id0 s0 m1) t1 sz align
-| sterm_alloca m1 t1 sz align => 
-    sterm_alloca (subst_tm id0 s0 m1) t1 sz align
+| sterm_malloc m1 t1 s1 align => 
+    sterm_malloc (subst_tm id0 s0 m1) t1 (subst_tt id0 s0 s1) align
+| sterm_alloca m1 t1 s1 align => 
+    sterm_alloca (subst_tm id0 s0 m1) t1 (subst_tt id0 s0 s1) align
 | sterm_load m1 t1 s1 align => 
     sterm_load (subst_tm id0 s0 m1) t1 (subst_tt id0 s0 s1) align
 | sterm_gep inbounds t1 s1 ls2 =>
