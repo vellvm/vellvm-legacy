@@ -521,9 +521,8 @@ Proof.
     simpl in *.
     unfold lookupFdefViaIDFromProduct in H.
     apply orb_true_intro.
-    destruct a.
-      apply IHPs in H. auto.
-      apply IHPs in H. auto.
+    destruct a; 
+      try solve [apply IHPs in H; auto].
       destruct (@eq_dec id (EqDec_eq_of_EqDec id EqDec_atom) (getFdefID f) fid); subst.
         inversion H; subst.
         left. apply productEqB_refl.
@@ -801,7 +800,7 @@ Proof.
     apply orb_prop in H.
     destruct H.
       apply blockEqB_inv in H. subst.
-      exists 0. simpl; auto.
+      exists O. simpl; auto.
 
       apply IHlb in H; auto.
       destruct H as [n H].

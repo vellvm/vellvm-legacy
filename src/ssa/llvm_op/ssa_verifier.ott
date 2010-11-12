@@ -99,7 +99,7 @@ Jwf_operand :: '' ::=
       getBindingTyp id_binding' = typ'     
       isFirstClassTyp typ'
       % Valid use of metadata pointer.
-      (getPointerEltTyp typ' = typ'') implies (not typ'' == metadata)
+      (getPointerEltTyp typ' = typ'') implies (not typ'' =t= metadata)
       % Check to make sure that the "address of" an intrinsic function is never
       % taken, and referencing function exists in current module!
       (isBindingFdec id_binding' = fdec) implies (getFdecID fdec = id0 /\ (id0 notin intrinsic_funs \/ getCalledValueID insn = id') /\ fdec in products)

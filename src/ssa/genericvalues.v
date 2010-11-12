@@ -680,6 +680,8 @@ match t with
   end
 | typ_pointer t' => Some null
 | typ_function _ _ => None
+| typ_opaque => None
+| typ_namedt _ => None
 end             
 with _list_typ_zerostruct2GV (TD:TargetData) (lt:list_typ) : option (GenericValue*align) := 
 match lt with

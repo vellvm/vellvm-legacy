@@ -424,6 +424,7 @@ match Ps with
   | Some gv => genGlobalAndInitMem TD Ps' (updateAddAL _ gl id0 gv) (updateAddAL _ fs id0 gv) Mem
   | None => None
   end
+| product_namedt _ :: Ps' => genGlobalAndInitMem TD Ps' gl fs Mem
 end.
 
 Definition ds_genInitState (S:system) (main:id) (Args:list GenericValue) (initmem:mem) : option State :=

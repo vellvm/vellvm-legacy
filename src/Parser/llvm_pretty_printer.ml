@@ -486,12 +486,7 @@ let string_of_operands st i =
       (string_of_operand st (Array.get ops b)) in
 	if n == 0 
 	then 
-		match (classify_instr i) with
-	  | InstrOpcode.Ret ->
-	    if ReturnInst.is_void i
-		  then ""
-			else failwith "	Operands_OutOfBound"
-		| _ -> ""
+		""
 	else
 		range 0 n ops
 
@@ -562,7 +557,7 @@ let travel_instr st i =
       flush_all ()						
   | InstrOpcode.Call ->
 		  let fv = operand i 0 in
-			let fname = llvm_name st fv in
+			let fname = string_of_operands st fv in
 		  let ptyp = type_of fv in
 			let ftyp = element_type ptyp in
 			let rtyp = return_type ftyp in

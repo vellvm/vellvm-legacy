@@ -287,3 +287,35 @@ let string_of_valuety op =
   | ValueTy.ExtractValue -> "ExtractValue"
   | ValueTy.InsertValue -> "InsertValue"
 
+let rec string_of_lltype_safe m ty =
+	let nt = name_of_type ty m in
+	if nt != ""
+	then nt
+	else 
+  	match classify_type ty with
+    TypeKind.Integer -> "i" ^ string_of_int (integer_bitwidth ty)
+    | TypeKind.Pointer -> (string_of_lltype_safe m (element_type ty)) ^ "*"
+    | TypeKind.Struct ->
+      let s = "{ " ^ (concat2 ", " (
+                Array.map (string_of_lltype_safe m) (struct_element_types ty)
+              )) ^ " }" in
+      if is_packed ty
+        then "<" ^ s ^ ">"
+        else s
+    | TypeKind.Array -> "["   ^ (string_of_int (array_length ty)) ^
+                        " x " ^ (string_of_lltype_safe m (element_type ty)) ^ "]"
+    | TypeKind.Vector -> "<"   ^ (string_of_int (vector_size ty)) ^
+                         " x " ^ (string_of_lltype_safe m (element_type ty)) ^ ">"
+    | TypeKind.Opaque -> "opaque"
+    | TypeKind.Function -> string_of_lltype_safe m (return_type ty) ^
+                           " (" ^ (concat2 ", " (
+                             Array.map (string_of_lltype_safe m) (param_types ty)
+                           )) ^ ")"
+    | TypeKind.Label -> "label"
+    | TypeKind.Ppc_fp128 -> "ppc_fp128"
+    | TypeKind.Fp128 -> "fp128"
+    | TypeKind.X86fp80 -> "x86_fp80"
+    | TypeKind.Double -> "double"
+    | TypeKind.Float -> "float"
+    | TypeKind.Void -> "void"
+    | TypeKind.Metadata -> "metadata"  

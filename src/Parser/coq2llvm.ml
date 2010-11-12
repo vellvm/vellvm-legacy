@@ -26,6 +26,8 @@ let rec translate_typ (ctx:llcontext) (ty:LLVMsyntax.typ) : lltype =
   | LLVMsyntax.Coq_typ_struct ts -> struct_type ctx 
 	                                    (Array.of_list (LLVMsyntax.map_list_typ (translate_typ ctx) ts))
   | LLVMsyntax.Coq_typ_pointer t -> pointer_type (translate_typ ctx t)
+	| LLVMsyntax.Coq_typ_opaque -> opaque_type ctx
+	| LLVMsyntax.Coq_typ_namedt id -> failwith "Namedt: Not_Supported."
 
 let rec translate_constant (ctx:llcontext) (c:LLVMsyntax.const) : llvalue = 
 	match c with
@@ -188,7 +190,8 @@ let translate_product g =
 	| LLVMsyntax.Coq_product_gvar (LLVMsyntax.Coq_gvar_intro (id, spec, t, c, a)) -> failwith "Not_Supported." 
 	| LLVMsyntax.Coq_product_gvar (LLVMsyntax.Coq_gvar_external (id, spec, t)) -> failwith "Not_Supported." 
 	| LLVMsyntax.Coq_product_fdec f -> failwith "Not_Supported."
-	| LLVMsyntax.Coq_product_fdef f -> failwith "Not_Supported." 
+	| LLVMsyntax.Coq_product_fdef f -> failwith "Not_Supported."
+	| LLVMsyntax.Coq_product_namedt _ -> failwith "Not_Supported."  
 	
 let translate_layout dlt =
 	match dlt with

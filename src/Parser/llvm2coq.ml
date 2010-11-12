@@ -46,7 +46,7 @@ let rec translate_typ ty =
 																)
   | TypeKind.Array -> LLVMsyntax.Coq_typ_array (array_length ty, translate_typ (element_type ty))
   | TypeKind.Vector -> failwith "Vector: Not_Supported."
-  | TypeKind.Opaque -> failwith "Metadata: Not_Supported."
+  | TypeKind.Opaque -> LLVMsyntax.Coq_typ_opaque
   | TypeKind.Function -> LLVMsyntax.Coq_typ_function 
 	                         (translate_typ (return_type ty),
                             (Array.fold_right 

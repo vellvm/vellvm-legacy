@@ -17,53 +17,58 @@ Export LLVMlib.
 defns
 Jwf_typ :: '' ::=
       defn
-      |- typ :: :: wf_typ :: '' {{ com [[typ]] is well-formed }} by  
+      system |- typ :: :: wf_typ :: '' {{ com [[typ]] is well-formed }} by  
 
       sz > 0
       -------------------- :: wf_typ_int
-      |- int sz
+      system |- int sz
 
       -------------------- :: wf_typ_floatpoint
-      |- floating_point
+      system |- floating_point
 
       -------------------- :: wf_typ_void
-      |- void
+      system |- void
 
       -------------------- :: wf_typ_label
-      |- label
+      system |- label
 
       -------------------- :: wf_typ_metadate
-      |- metadata
+      system |- metadata
 
-      % -------------------- :: wf_typ_opaque
-      % |- opaque
+      -------------------- :: wf_typ_opaque
+      system |- opaque
 
       isValidReturnTyp typ     
-      |- typ
+      system |- typ
       </ isValidArgumentTyp typj // j />
-      </ |- typj // j /> 
+      </ system |- typj // j /> 
       -------------------------------------------------- :: wf_typ_function
-      |- typ ( </ typj // j /> ) 
+      system |- typ ( </ typj // j /> ) 
      
       </ isValidElementTyp typj // j />
-      </ |- typj // j /> 
+      </ system |- typj // j /> 
       -------------------------------------------------- :: wf_typ_structure
-      |- { </ typj // j /> }
+      system |- { </ typj // j /> }
 
-      |- typ
+      system |- typ
       isValidElementTyp typ
       ------------------- :: wf_typ_array
-      |- [ sz * typ ]
+      system |- [ sz * typ ]
 
-      |- typ
+      system |- typ
       isValidElementTyp typ
       ------------------- :: wf_typ_pointer
-      |- typ * 
+      system |- typ * 
 
       % |- typ
       % isValidElementTyp typ
       % ------------------- :: wf_typ_vector
       % |- < INT * typ >
+
+      lookupTypViaIDFromSystem system id = opt_typ
+      ---------------------------------------------- :: wf_typ_namedt
+      system |- id
+
 
 defns
 Jwf_const :: '' ::=
@@ -71,12 +76,12 @@ Jwf_const :: '' ::=
       system |-c const : typ :: :: wf_const :: ''
       {{ com [[const]] has [[typ]] }} by
 
-      |- typ
+      system |- typ
       ------------------------------------- :: wf_const_zeroinitializer
       system |-c typ zeroinitializer : typ
 
 
-      |- int sz
+      system |- int sz
       sz > 0
       ----------------------------- :: wf_const_int
       system |-c (int sz) INT : int sz
@@ -84,11 +89,11 @@ Jwf_const :: '' ::=
       ------------------------------------------------- :: wf_const_floatpoint
       system |-c floating_point Float : floating_point
 
-      |- typ
+      system |- typ
       -------------------- :: wf_const_undef
       system |-c typ undef : typ
 
-      |- typ*
+      system |- typ*
       ---------------------- :: wf_const_null
       system |-c (typ*) null : typ*
 
@@ -103,13 +108,13 @@ Jwf_const :: '' ::=
       system |-c { </ constj // j IN n /> } : { </ typj // j IN n /> }
 
 
-      |- typ*
+      system |- typ*
       lookupTypViaIDFromSystem system id = typ*
       ------------------------------------------- :: wf_const_gid
       system |-c typ * id : typ*
 
       system |-c const : int sz1
-      |- int sz2
+      system |- int sz2
       sz2 < sz1
       -------------------------------------------------- :: wf_const_trunc_int
       system |-c trunc_int const to (int sz2) : int sz2
@@ -120,13 +125,13 @@ Jwf_const :: '' ::=
       system |-c trunc_int const to floating_point2 : floating_point2
 
       system |-c const : int sz1
-      |- int sz2
+      system |- int sz2
       sz1 < sz2
       --------------------------------------- :: wf_const_zext
       system |-c zext const to typ : int sz2
 
       system |-c const : int sz1
-      |- int sz2
+      system |- int sz2
       sz1 < sz2
       --------------------------------------- :: wf_const_sext
       system |-c sext const to typ : int sz2
@@ -137,12 +142,12 @@ Jwf_const :: '' ::=
       system |-c fpext const to typ : floating_point2
 
       system |-c const : floating_point
-      |- int sz
+      system |- int sz
       --------------------------------------------- :: wf_const_fptoui
       system |-c fptoui const to (int sz) : int sz
 
       system |-c const : floating_point
-      |- int sz
+      system |- int sz
       --------------------------------------------- :: wf_const_fptosi
       system |-c fptosi const to (int sz) : int sz
 
@@ -155,18 +160,18 @@ Jwf_const :: '' ::=
       system |-c sitofp const to floating_point : floating_point
 
       system |-c const : typ*
-      |- int sz
+      system |- int sz
       ----------------------------------------------- :: wf_const_ptrtoint
       system |-c ptrtoint const to (int sz) : int sz
 
       system |-c const : int sz
-      |- typ*
+      system |- typ*
       ----------------------------------------------- :: wf_const_inttoptr
       system |-c ptrtoint const to (typ*) : typ*
 
       % Check typs
       system |-c const : typ1
-      |- typ2
+      system |- typ2
       % BitCast implies a no-op cast of type only. No bits change.
       % However, you can't cast pointers to anything but pointers.
       Typ.getPrimitiveSizeInBits typ1 = sz1 /\ Typ.getPrimitiveSizeInBits typ2 = sz2 /\ sz1 = sz2
@@ -247,7 +252,7 @@ Jwf_value :: '' ::=
       ------------------------------------------ :: wf_value_const
       system |- const : typ
 
-      |- typ
+      system |- typ
       lookupTypViaIDFromSystem system id = typ
       ------------------------------------------ :: wf_value_id
       system |- id : typ
@@ -297,7 +302,7 @@ Jwf_operand :: '' ::=
       getBindingTyp id_binding' = typ'     
       isFirstClassTyp typ'
       % Valid use of metadata pointer.
-      (getPointerEltTyp typ' = typ'') implies (not typ'' == metadata)
+      (getPointerEltTyp typ' = typ'') implies (not typ'' =t= metadata)
       % Check to make sure that the "address of" an intrinsic function is never
       % taken, and referencing function exists in current module!
       (isBindingFdec id_binding' = fdec) implies (getFdecID fdec = id0 /\ (id0 notin intrinsic_funs \/ getCalledValueID insn = id') /\ fdec in products)
@@ -329,12 +334,12 @@ Jwf_insn_base :: '' ::=
       %
       % Check that the return value of the instruction is either void or a legal value type.
       getInsnTyp insn = typ
-      typ == void \/ isFirstClassTyp typ
+      typ =t= void \/ isFirstClassTyp typ
       % Check that the instruction doesn't produce metadata or metadata*. Calls
       % all already checked against the callee type.
-      (not typ == metadata) \/ isCallInsn insn 
+      (not typ =t= metadata) \/ isCallInsn insn 
       % Instructions may not produce pointer to metadata.
-      (isPointerTyp typ) implies (getPointerEltTyp typ = typ' /\ (not typ' == metadata)) 
+      (isPointerTyp typ) implies (getPointerEltTyp typ = typ' /\ (not typ' =t= metadata)) 
       % Check that all uses of the instruction, if they are instructions
       % themselves, actually have parent basic blocks.  If the use is not an
       % instruction, it is an error!
@@ -540,7 +545,7 @@ Jwf_insn :: '' ::=
       system |- value : int sz /\ sz = 32
       %
       % Cannot allocate unsized type"
-      |- typ
+      system |- typ
       Typ.isSized typ
       % Check invariance for instructions
       intrinsic_funs , system , module_info , fdef_info , block |-i id = malloc typ value align 
@@ -560,7 +565,7 @@ Jwf_insn :: '' ::=
       system |- value : int sz /\ sz = 32
       %
       % Cannot allocate unsized type"
-      |- typ
+      system |- typ
       Typ.isSized typ
       % Check invariance for instructions
       intrinsic_funs , system , module_info , fdef_info , block |-i id = alloca typ value align 
@@ -634,7 +639,7 @@ Jwf_insn :: '' ::=
       % LLVM::visitInstruction checks that non-phi nodes are not self referential 
       getIdUseDef usedef_id id = ids'
       ids' <-> </ id'i // i />
-      </ (not id = id'i) \/ (not (isReachableFromEntry fdef_info block)) // i />
+      </ (not id == id'i) \/ (not (isReachableFromEntry fdef_info block)) // i />
       % The following properties 1-4 are checked in visitBlock by LLVM, but we check them here. 
       % 1 Ensure that PHI nodes have at least one entry! 
       {{ (PHINode.getNumIncomingValues ([[:user_syntax__phinode:(id = phi typ </ [ valuej , lj ] // j />)]]) > 0)%nat }}
@@ -684,7 +689,7 @@ Jwf_insn :: '' ::=
       typ1 = typ0 ( </ typj' // j /> )
       </ system |- valuej'' : typj' // j />
       % instructions returning void cannot have a name
-      typ0 == void implies noret = yes
+      typ0 =t= void implies noret = yes
       % Will Verify call attributes later... 
       %
       % Verify that there's no metadata unless it's a direct call to an intrinsic. 
@@ -774,13 +779,13 @@ Jwf_fdec :: '' ::=
       (declare ( typ id ( args ) )) in system , (module, usedef_id, usedef_block)
       % Check function arguments.
       args <-> </ (typj idj) // j />
-      </ |- typj // j />      
+      </ system |- typj // j />      
       % Functions may not have common linkage 
       %
       % Formal arguments must match # of arguments for function type! 
       %
       % Functions cannot return aggregate values
-      isFirstClassTyp typ \/ typ == void
+      isFirstClassTyp typ \/ typ =t= void
       % "Invalid struct return type!" 
       %
       % Attributes after last parameter! 
@@ -813,13 +818,13 @@ Jwf_fdef :: '' ::=
       (define fheader { blocks } ) in system , (module, usedef_id, usedef_block)
       % Check function arguments.
       args <-> </ (typj idj) // j />
-      </ |- typj // j />      
+      </ system |- typj // j />      
       % Functions may not have common linkage 
       %
       % Formal arguments must match # of arguments for function type! 
       % 
       % Functions cannot return aggregate values
-      isFirstClassTyp typ \/ typ == void
+      isFirstClassTyp typ \/ typ =t= void
       %
       % "Invalid struct return type!" 
       %

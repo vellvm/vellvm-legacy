@@ -77,7 +77,7 @@ formula :: 'formula_' ::=
   | l1 = l2 			::   :: eqLabel
 				{{ tex [[l1]] = [[l2]] }}
 				{{ coq [[l1]] = [[l2]] }}
-  | id1 = id2			::   :: eqID
+  | id1 == id2			::   :: eqID
 				{{ tex [[id1]] = [[id2]] }}
 				{{ coq [[id1]] = [[id2]] }}
   | ls1 == ls2                  ::   :: eqLabels
@@ -276,7 +276,7 @@ formula :: 'formula_' ::=
                                 {{ coq productInSystemModuleIB [[product]] [[system]] [[module_info]] = true }}
   | uniqSystem system               :: :: uniqSystem
                                 {{ coq uniqSystem [[system]] }}
-  | typ == typ'                     :: :: typEq 
+  | typ =t= typ'                     :: :: typEq 
                                 {{ coq typEqB [[typ]] [[typ']] = true }}
   | isCallInsn insn                 :: :: isCallInsn
                                 {{ coq isCallInsnB [[insn]] = true }}

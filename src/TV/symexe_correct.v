@@ -972,6 +972,9 @@ Proof.
         exists b0. split; auto.
 
         apply IHPs1 with (Ps2:=Ps2) in H0; auto.
+
+    Case "product_namedt".
+      inversion H.
 Qed.
 
 Lemma tv_products__lookupFdefViaGV : forall Ps1 Ps2 fv fid rt la lb1 TD gl lc fs,
@@ -1019,6 +1022,9 @@ Proof.
       bdestruct H as H1 H2.    
       simpl in *.
       rewrite IHPs1 with (Ps2:=Ps2); auto.
+
+    Case "product_namedt".
+      inversion H.
 Qed.
 
 Lemma tv_products__lookupFdefViaIDFromProducts_None : forall Ps1 Ps2 fid,
@@ -1057,6 +1063,9 @@ Proof.
       simpl in *.
       destruct (@eq_dec id (EqDec_eq_of_EqDec id EqDec_atom) i1 fid); subst; auto.
         inversion H0.      
+
+    Case "product_namedt".
+      inversion H.
 Qed.
 
 Lemma tv_products__lookupFdefViaGV_None : forall Ps1 Ps2 fv TD gl lc fs,

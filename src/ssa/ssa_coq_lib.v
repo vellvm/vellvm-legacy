@@ -754,8 +754,8 @@ match p with
   | right _ => id_binding_none
   end
 | product_fdec fdec => lookupBindingViaIDFromFdec fdec id
-(* | product_namedt _ => id_binding_none *)
 | product_fdef fdef => lookupBindingViaIDFromFdef fdef id
+| product_namedt _ => id_binding_none
 end.  
 
 Fixpoint lookupBindingViaIDFromProducts (lp:products) (id:id) : id_binding :=
@@ -965,6 +965,7 @@ match p with
 | product_fdef fd => lookupTypViaIDFromFdef fd id0
 | product_gvar (gvar_intro id spec t _ _) => if id0==id then Some t else None
 | product_gvar (gvar_external id spec t) => if id0==id then Some t else None
+| product_namedt (namedt_intro id t) => if id0==id then Some t else None 
 | _ => None
 end.
 
@@ -1021,7 +1022,7 @@ lookupTypViaIDFromModules s id0.
   | product_gvar g => nil
   | product_fdef f => (genLabel2Block_fdef f)
   | product_fdec f => nil
-  (*  | product_namedtype nt => fun _ => None *)
+  | product_namedt nt => nil
   end.
 
   Fixpoint genLabel2Block_products (ps:products) : l2block :=
@@ -1225,7 +1226,7 @@ lookupTypViaIDFromModules s id0.
   | product_gvar (gvar_external id _ _) => fun _ => nil
   | product_fdef f => (genIdUseDef_fdef f)
   | product_fdec f => fun _ => nil
-  (* | product_namedtype nt => fun _ => nil *)
+  | product_namedt nt => fun _ => nil
   end.
 
   Fixpoint genIdUseDef_products (ps:products) : usedef_id :=
@@ -1337,7 +1338,7 @@ lookupTypViaIDFromModules s id0.
   | product_gvar g => fun _ => nil
   | product_fdef f => (genBlockUseDef_fdef f)
   | product_fdec f => fun _ => nil
-  (* | product_namedtype nt => fun _ => nil *)
+  | product_namedt nt => fun _ => nil
   end.
 
   Fixpoint genBlockUseDef_products (ps:products) : usedef_block :=
@@ -1818,6 +1819,7 @@ match product with
 | product_gvar g => getGvarID g
 | product_fdec f => getFdecID f
 | product_fdef f => getFdefID f
+| product_namedt (namedt_intro id0 _) => id0
 end.
 
 Fixpoint getProductsIDs ps : ids :=
@@ -1831,6 +1833,7 @@ match product with
 | product_gvar g => True
 | product_fdec f => True
 | product_fdef f => uniqFdef f
+| product_namedt _ => True
 end.
 
 Fixpoint uniqProducts ps : Prop :=
@@ -1927,6 +1930,9 @@ Proof.
 
   destruct t2; try solve [done_right].
   destruct (@H t2); subst; try solve [subst; auto | done_right].
+
+  destruct t2; try solve [done_right].
+  destruct (@id_dec i0 i1); try solve [subst; auto | done_right].
 
   destruct lt2; try solve [auto | done_right].
 
@@ -2352,12 +2358,20 @@ Proof.
     destruct (@typ_dec t t0); subst; try solve [auto | done_right].
 Qed.  
 
+Lemma namedt_dec : forall (nt1 nt2:namedt), {nt1=nt2}+{~nt1=nt2}.
+Proof.
+  destruct nt1; destruct nt2; try solve [subst; auto | done_right].
+    destruct (@id_dec i0 i1); subst; try solve [done_right].
+    destruct (@typ_dec t t0); subst; try solve [auto | done_right].
+Qed.
+
 Lemma product_dec : forall (p p':product), {p=p'}+{~p=p'}.
 Proof.
   destruct p; destruct p'; try solve [done_right | auto].
     destruct (@gvar_dec g g0); subst; try solve [auto | done_right]. 
     destruct (@fdec_dec f f0); subst; try solve [auto | done_right]. 
     destruct (@fdef_dec f f0); subst; try solve [auto | done_right]. 
+    destruct (@namedt_dec n n0); subst; try solve [auto | done_right]. 
 Qed.
 
 Lemma products_dec : forall (lp lp':products), {lp=lp'}+{~lp=lp'}.

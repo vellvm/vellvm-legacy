@@ -216,7 +216,8 @@ typ :: 'typ_'						::=			{{ com type }}
   | { </ typj // j /> }       				::   :: struct      	{{ com structure }}
   | typ *                     				::   :: pointer     	{{ com pointer }}
   %| < sz * typ >             				::   :: vector       	{{ com vector }}
-  %| opaque  						::   :: opaque          {{ com opaque }}
+  | opaque  						::   :: opaque          {{ com opaque }}
+  | id							::   :: namedt		{{ com namedt }}
   % union
   | ( typ )						:: S :: paren           {{ coq [[ typ ]] }}
 
@@ -479,9 +480,9 @@ opt_fdef {{ tex \mathit{opt_{fdef} } }} :: 'opt_fdef_'	::=  			{{ com option fde
   | fdef						::   :: fdec		{{ coq (Some [[fdef]]) }}
   | ( opt_fdef )					:: S :: paren		{{ coq [[ opt_fdef ]] }}
 
-% namedt :: 'namedt_'         				::=			{{ com named type }}
-%   | id = type typ   					::   :: intro 
-%   | ( namedt )						:: S :: paren		{{ coq [[ namedt ]] }}
+namedt :: 'namedt_'         				::=			{{ com named type }}
+  | id = typ  						::   :: intro 
+  | ( namedt )						:: S :: paren		{{ coq [[ namedt ]] }}
 
 gvar_spec :: 'gvar_spec_'				::=	     		{{ com gvar spec }}
   | global  						::   :: global		{{ com global }}
@@ -501,12 +502,13 @@ id_binding :: 'id_binding_'  				::=			{{ com id binding }}
   |  gvar						::  :: gvar             {{ com gvar }} 
   |  fdec						::  :: fdec		{{ com fdec }}
   |  arg 						::  :: arg		{{ com arg }}
-		   
+
+% FIXME: Should we split products to be separate lists for vars, funs and named types?		   
 product  :: 'product_'					::=			{{ com prodoct }}
   | gvar						::   :: gvar     	{{ com global variable }}
   | fdec             					::   :: fdec   		{{ com function declaration }}
   | fdef             					::   :: fdef		{{ com function definition }}
-%  | namedt           					::   :: namedtype     	{{ com named types }}
+  | namedt           					::   :: namedt     	{{ com named types }}
 
 products {{ tex \mathit{\overline{product} } }} :: 'products_'::=		{{ com products }}
 	    				     	   				{{ coq (list product) }}	   
@@ -583,7 +585,7 @@ Tactic Notation "cmd_cases" tactic(first) tactic(c) :=
 
 Tactic Notation "product_cases" tactic(first) tactic(c) :=
   first;
-  [ c "product_gvar" | c "product_fdec" | c "product_fdef" ].
+  [ c "product_gvar" | c "product_fdec" | c "product_fdef" |c "product_namedt" ].
 
 Scheme const_rec2 := Induction for const Sort Set
   with list_const_rec2 := Induction for list_const Sort Set.
@@ -597,9 +599,9 @@ Scheme typ_rec2 := Induction for typ Sort Set
   with list_typ_rec2 := Induction for list_typ Sort Set.
 
 Definition typ_mutrec P P' :=
-  fun h1 h2 h3 h4 h5 h6 h7 h8 h9 h10 h11=>
-      (pair (@typ_rec2 P P' h1 h2 h3 h4 h5 h6 h7 h8 h9 h10 h11)
-            (@list_typ_rec2 P P' h1 h2 h3 h4 h5 h6 h7 h8 h9 h10 h11)).
+  fun h1 h2 h3 h4 h5 h6 h7 h8 h9 h10 h11 h12 h13=>
+      (pair (@typ_rec2 P P' h1 h2 h3 h4 h5 h6 h7 h8 h9 h10 h11 h12 h13)
+            (@list_typ_rec2 P P' h1 h2 h3 h4 h5 h6 h7 h8 h9 h10 h11 h12 h13)).
 
 Scheme const_ind2 := Induction for const Sort Prop
   with list_const_ind2 := Induction for list_const Sort Prop.

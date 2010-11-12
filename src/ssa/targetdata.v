@@ -360,6 +360,8 @@ Fixpoint getTypeSizeInBits_and_Alignment (TD:TargetData) (abi_or_pref:bool) (t:t
 
   | typ_metadata => None
   | typ_function _ _ => None
+  | typ_opaque => None
+  | typ_namedt _ => None (*FIXME: not supporting named types yet. *)
   end
 with getListTypeSizeInBits_and_Alignment (TD:TargetData) (lt:list_typ)
   : option (nat*nat) :=

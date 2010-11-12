@@ -35,6 +35,8 @@ let rec string_of_typ ty =
   | LLVMsyntax.Coq_typ_struct ts ->
 	                   "{ " ^ string_of_list_typ ts ^ " }"
   | LLVMsyntax.Coq_typ_pointer t -> (string_of_typ t) ^ "*"
+	| LLVMsyntax.Coq_typ_opaque -> "opaque"
+	| LLVMsyntax.Coq_typ_namedt id -> id
 and string_of_list_typ ts =
 	match ts with
   | LLVMsyntax.Cons_list_typ (t, ts') ->  (string_of_typ t)^" "^(string_of_list_typ ts')
@@ -279,7 +281,10 @@ let travel_product g =
 		eprintf "%s = external %s %s\n" id (string_of_gvar_spec spec) (string_of_typ t); 
 		flush_all ()
 	| LLVMsyntax.Coq_product_fdec f -> travel_fdec f
-	| LLVMsyntax.Coq_product_fdef f -> travel_fdef f 
+	| LLVMsyntax.Coq_product_fdef f -> travel_fdef f
+	| LLVMsyntax.Coq_product_namedt (LLVMsyntax.Coq_namedt_intro (id, t)) ->
+		eprintf "%s = type %s\n" id (string_of_typ t); 
+		flush_all ()
 
 let travel_layout dlt =
 	match dlt with
