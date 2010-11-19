@@ -484,6 +484,13 @@ namedt :: 'namedt_'         				::=			{{ com named type }}
   | id = typ  						::   :: intro 
   | ( namedt )						:: S :: paren		{{ coq [[ namedt ]] }}
 
+namedts {{ tex \mathit{\overline{namedt} } }} :: 'namedts_'	::=		{{ com namedts }}
+      	     			       	     					{{ coq (list namedt) }}
+  | []	                  				::   :: nil		{{ coq nil }}
+  | namedts , namedt           				::   :: cons		{{ coq ([[namedt]]::[[namedts]]) }}
+  | namedts ; namedts'					::   :: append		{{ coq ([[namedts]]++[[namedts']]) }}
+  | ( namedts )						:: S :: paren           {{ coq [[ namedts ]] }}
+
 gvar_spec :: 'gvar_spec_'				::=	     		{{ com gvar spec }}
   | global  						::   :: global		{{ com global }}
   | constant						::   :: constant	{{ com constant }}
@@ -508,7 +515,6 @@ product  :: 'product_'					::=			{{ com prodoct }}
   | gvar						::   :: gvar     	{{ com global variable }}
   | fdec             					::   :: fdec   		{{ com function declaration }}
   | fdef             					::   :: fdef		{{ com function definition }}
-  | namedt           					::   :: namedt     	{{ com named types }}
 
 products {{ tex \mathit{\overline{product} } }} :: 'products_'::=		{{ com products }}
 	    				     	   				{{ coq (list product) }}	   
@@ -519,7 +525,7 @@ products {{ tex \mathit{\overline{product} } }} :: 'products_'::=		{{ com produc
   | ( products )					:: S :: paren		{{ coq [[ products ]] }}			
 
 module :: 'module_'					::=  			{{ com module }}
-  | layouts products 					::   :: intro		{{ com prods }}
+  | layouts namedts products 				::   :: intro		{{ com prods }}
   | ( module )					        :: S :: paren           {{ coq [[ module ]] }}
 
 modules {{ tex \mathit{\overline{module} } }} :: 'modules_'::=  		{{ com modules }}
@@ -585,7 +591,7 @@ Tactic Notation "cmd_cases" tactic(first) tactic(c) :=
 
 Tactic Notation "product_cases" tactic(first) tactic(c) :=
   first;
-  [ c "product_gvar" | c "product_fdec" | c "product_fdef" |c "product_namedt" ].
+  [ c "product_gvar" | c "product_fdec" | c "product_fdef" ].
 
 Scheme const_rec2 := Induction for const Sort Set
   with list_const_rec2 := Induction for list_const Sort Set.

@@ -34,33 +34,37 @@ let rec translate_floating_point ty =
   | TypeKind.Float -> LLVMsyntax.Coq_fp_float
   | _ -> failwith "This is not a floating point" 
 
-let rec translate_typ ty = 
-  match classify_type ty with
-  | TypeKind.Integer -> LLVMsyntax.Coq_typ_int (integer_bitwidth ty)
-  | TypeKind.Pointer -> LLVMsyntax.Coq_typ_pointer (translate_typ (element_type ty))
-  | TypeKind.Struct -> LLVMsyntax.Coq_typ_struct
+let rec translate_typ m ty = 
+	let nt = name_of_type ty m in
+	if nt <> ""
+	then LLVMsyntax.Coq_typ_namedt nt
+	else 
+    match classify_type ty with
+    | TypeKind.Integer -> LLVMsyntax.Coq_typ_int (integer_bitwidth ty)
+    | TypeKind.Pointer -> LLVMsyntax.Coq_typ_pointer (translate_typ m (element_type ty))
+    | TypeKind.Struct -> LLVMsyntax.Coq_typ_struct
                                 (Array.fold_right 
-																  (fun t ts -> LLVMsyntax.Cons_list_typ (translate_typ t, ts)) 
+																  (fun t ts -> LLVMsyntax.Cons_list_typ (translate_typ m t, ts)) 
 																	(struct_element_types ty)
 																	LLVMsyntax.Nil_list_typ
 																)
-  | TypeKind.Array -> LLVMsyntax.Coq_typ_array (array_length ty, translate_typ (element_type ty))
-  | TypeKind.Vector -> failwith "Vector: Not_Supported."
-  | TypeKind.Opaque -> LLVMsyntax.Coq_typ_opaque
-  | TypeKind.Function -> LLVMsyntax.Coq_typ_function 
-	                         (translate_typ (return_type ty),
+    | TypeKind.Array -> LLVMsyntax.Coq_typ_array (array_length ty, translate_typ m (element_type ty))
+    | TypeKind.Vector -> failwith "Vector: Not_Supported."
+    | TypeKind.Opaque -> LLVMsyntax.Coq_typ_opaque
+    | TypeKind.Function -> LLVMsyntax.Coq_typ_function 
+	                         (translate_typ m (return_type ty),
                             (Array.fold_right 
-																  (fun t ts -> LLVMsyntax.Cons_list_typ (translate_typ t, ts)) 
+																  (fun t ts -> LLVMsyntax.Cons_list_typ (translate_typ m t, ts)) 
 																	(param_types ty)
 																	LLVMsyntax.Nil_list_typ))
-  | TypeKind.Label -> LLVMsyntax.Coq_typ_label
-  | TypeKind.Ppc_fp128 -> LLVMsyntax.Coq_typ_floatpoint (translate_floating_point ty)
-  | TypeKind.Fp128 -> LLVMsyntax.Coq_typ_floatpoint (translate_floating_point ty)
-  | TypeKind.X86fp80 -> LLVMsyntax.Coq_typ_floatpoint (translate_floating_point ty)
-  | TypeKind.Double -> LLVMsyntax.Coq_typ_floatpoint (translate_floating_point ty)
-  | TypeKind.Float -> LLVMsyntax.Coq_typ_floatpoint (translate_floating_point ty)
-  | TypeKind.Void -> LLVMsyntax.Coq_typ_void
-  | TypeKind.Metadata -> LLVMsyntax.Coq_typ_metadata 
+    | TypeKind.Label -> LLVMsyntax.Coq_typ_label
+    | TypeKind.Ppc_fp128 -> LLVMsyntax.Coq_typ_floatpoint (translate_floating_point ty)
+    | TypeKind.Fp128 -> LLVMsyntax.Coq_typ_floatpoint (translate_floating_point ty)
+    | TypeKind.X86fp80 -> LLVMsyntax.Coq_typ_floatpoint (translate_floating_point ty)
+    | TypeKind.Double -> LLVMsyntax.Coq_typ_floatpoint (translate_floating_point ty)
+    | TypeKind.Float -> LLVMsyntax.Coq_typ_floatpoint (translate_floating_point ty)
+    | TypeKind.Void -> LLVMsyntax.Coq_typ_void
+    | TypeKind.Metadata -> LLVMsyntax.Coq_typ_metadata 
 
 let translate_icmp op =
 	match op with
@@ -94,11 +98,11 @@ let translate_fcmp op =
   | Fcmp.Une -> LLVMsyntax.Coq_fcond_une
   | Fcmp.True -> LLVMsyntax.Coq_fcond_true
 
-let rec translate_constant st c = 	
+let rec translate_constant m st c = 	
 	match (classify_value c) with
-	| ValueTy.UndefValueVal -> LLVMsyntax.Coq_const_undef (translate_typ (type_of c)) 
-	| ValueTy.ConstantExprVal -> translate_constant_expr st c
-	| ValueTy.ConstantAggregateZeroVal -> LLVMsyntax.Coq_const_zeroinitializer (translate_typ (type_of c))
+	| ValueTy.UndefValueVal -> LLVMsyntax.Coq_const_undef (translate_typ m (type_of c)) 
+	| ValueTy.ConstantExprVal -> translate_constant_expr m st c
+	| ValueTy.ConstantAggregateZeroVal -> LLVMsyntax.Coq_const_zeroinitializer (translate_typ m (type_of c))
 	| ValueTy.ConstantIntVal -> 
 		  LLVMsyntax.Coq_const_int (integer_bitwidth
         (type_of c), APInt.const_int_get_value c)
@@ -107,22 +111,22 @@ let rec translate_constant st c =
 	| ValueTy.ConstantArrayVal -> 
   		let ops = operands c in
   		LLVMsyntax.Coq_const_arr (
-				 translate_typ (element_type (type_of c)),
-         (Array.fold_right (fun c cs -> LLVMsyntax.Cons_list_const (translate_constant st c, cs)) ops LLVMsyntax.Nil_list_const)
+				 translate_typ m (element_type (type_of c)),
+         (Array.fold_right (fun c cs -> LLVMsyntax.Cons_list_const (translate_constant m st c, cs)) ops LLVMsyntax.Nil_list_const)
 			)
 	| ValueTy.ConstantStructVal ->
   		let ops = operands c in
   		LLVMsyntax.Coq_const_struct 
-         (Array.fold_right (fun c cs -> LLVMsyntax.Cons_list_const (translate_constant st c, cs)) ops LLVMsyntax.Nil_list_const)
+         (Array.fold_right (fun c cs -> LLVMsyntax.Cons_list_const (translate_constant m st c, cs)) ops LLVMsyntax.Nil_list_const)
 	| ValueTy.ConstantVectorVal -> failwith "ConstantVector: Not_Supported." 
-	| ValueTy.ConstantPointerNullVal -> LLVMsyntax.Coq_const_null (translate_typ (type_of c))
+	| ValueTy.ConstantPointerNullVal -> LLVMsyntax.Coq_const_null (translate_typ m (type_of c))
 	| ValueTy.GlobalVariableVal ->                                                     (*GlobalValue*)
                                (* FIXME: Do we need typ for gid? use typ_void for the time being. *)
-															   (LLVMsyntax.Coq_const_gid ((translate_typ (type_of c)), llvm_name st c))
+															   (LLVMsyntax.Coq_const_gid ((translate_typ m (type_of c)), llvm_name st c))
 	| ValueTy.FunctionVal ->                                                           (*FunctionVal*)
-															   (LLVMsyntax.Coq_const_gid ((translate_typ (type_of c)), llvm_name st c))
+															   (LLVMsyntax.Coq_const_gid ((translate_typ m (type_of c)), llvm_name st c))
 	| _ -> failwith (string_of_valuety (classify_value c) ^ " isnt Constant")
-and translate_constant_expr st c =
+and translate_constant_expr m st c =
 	match (classify_constantexpr c) with
 	| InstrOpcode.Ret ->
 			failwith "Ret isnt a const expr"
@@ -144,8 +148,8 @@ and translate_constant_expr st c =
 			else
 				(LLVMsyntax.Coq_const_bop
 					(LLVMsyntax.Coq_bop_add,
-					translate_constant st (Array.get ops 0),
-					translate_constant st (Array.get ops 1))
+					translate_constant m st (Array.get ops 0),
+					translate_constant m st (Array.get ops 1))
 				)
   | InstrOpcode.FAdd ->
 			let ops = operands c in
@@ -155,8 +159,8 @@ and translate_constant_expr st c =
 			else
 				(LLVMsyntax.Coq_const_fbop
 					(LLVMsyntax.Coq_fbop_fadd,
-					translate_constant st (Array.get ops 0),
-					translate_constant st (Array.get ops 1))
+					translate_constant m st (Array.get ops 0),
+					translate_constant m st (Array.get ops 1))
 				)
   | InstrOpcode.Sub ->
 			let ops = operands c in
@@ -166,8 +170,8 @@ and translate_constant_expr st c =
 			else
 				(LLVMsyntax.Coq_const_bop
 					(LLVMsyntax.Coq_bop_sub,
-					translate_constant st (Array.get ops 0),
-					translate_constant st (Array.get ops 1))
+					translate_constant m st (Array.get ops 0),
+					translate_constant m st (Array.get ops 1))
 				)
   | InstrOpcode.FSub ->
 			let ops = operands c in
@@ -177,8 +181,8 @@ and translate_constant_expr st c =
 			else
 				(LLVMsyntax.Coq_const_fbop
 					(LLVMsyntax.Coq_fbop_fsub,
-					translate_constant st (Array.get ops 0),
-					translate_constant st (Array.get ops 1))
+					translate_constant m st (Array.get ops 0),
+					translate_constant m st (Array.get ops 1))
 				)
   | InstrOpcode.Mul ->
 			let ops = operands c in
@@ -188,8 +192,8 @@ and translate_constant_expr st c =
 			else
 				(LLVMsyntax.Coq_const_bop
 					(LLVMsyntax.Coq_bop_mul,
-					translate_constant st (Array.get ops 0),
-					translate_constant st (Array.get ops 1))
+					translate_constant m st (Array.get ops 0),
+					translate_constant m st (Array.get ops 1))
 				)
   | InstrOpcode.FMul ->
 			let ops = operands c in
@@ -199,8 +203,8 @@ and translate_constant_expr st c =
 			else
 				(LLVMsyntax.Coq_const_fbop
 					(LLVMsyntax.Coq_fbop_fmul,
-					translate_constant st (Array.get ops 0),
-					translate_constant st (Array.get ops 1))
+					translate_constant m st (Array.get ops 0),
+					translate_constant m st (Array.get ops 1))
 				)
   | InstrOpcode.UDiv ->
 			let ops = operands c in
@@ -210,8 +214,8 @@ and translate_constant_expr st c =
 			else
 				(LLVMsyntax.Coq_const_bop
 					(LLVMsyntax.Coq_bop_udiv,
-					translate_constant st (Array.get ops 0),
-					translate_constant st (Array.get ops 1))
+					translate_constant m st (Array.get ops 0),
+					translate_constant m st (Array.get ops 1))
 				)
   | InstrOpcode.SDiv ->
 			let ops = operands c in
@@ -221,8 +225,8 @@ and translate_constant_expr st c =
 			else
 				(LLVMsyntax.Coq_const_bop
 					(LLVMsyntax.Coq_bop_sdiv,
-					translate_constant st (Array.get ops 0),
-					translate_constant st (Array.get ops 1))
+					translate_constant m st (Array.get ops 0),
+					translate_constant m st (Array.get ops 1))
 				)
   | InstrOpcode.FDiv ->
 			let ops = operands c in
@@ -232,8 +236,8 @@ and translate_constant_expr st c =
 			else
 				(LLVMsyntax.Coq_const_fbop
 					(LLVMsyntax.Coq_fbop_fdiv,
-					translate_constant st (Array.get ops 0),
-					translate_constant st (Array.get ops 1))
+					translate_constant m st (Array.get ops 0),
+					translate_constant m st (Array.get ops 1))
 				)
   | InstrOpcode.URem ->
 			let ops = operands c in
@@ -243,8 +247,8 @@ and translate_constant_expr st c =
 			else
 				(LLVMsyntax.Coq_const_bop
 					(LLVMsyntax.Coq_bop_urem,
-					translate_constant st (Array.get ops 0),
-					translate_constant st (Array.get ops 1))
+					translate_constant m st (Array.get ops 0),
+					translate_constant m st (Array.get ops 1))
 				)
   | InstrOpcode.SRem ->
 			let ops = operands c in
@@ -254,8 +258,8 @@ and translate_constant_expr st c =
 			else
 				(LLVMsyntax.Coq_const_bop
 					(LLVMsyntax.Coq_bop_srem,
-					translate_constant st (Array.get ops 0),
-					translate_constant st (Array.get ops 1))
+					translate_constant m st (Array.get ops 0),
+					translate_constant m st (Array.get ops 1))
 				)
   | InstrOpcode.FRem ->
 			let ops = operands c in
@@ -265,8 +269,8 @@ and translate_constant_expr st c =
 			else
 				(LLVMsyntax.Coq_const_fbop
 					(LLVMsyntax.Coq_fbop_frem,
-					translate_constant st (Array.get ops 0),
-					translate_constant st (Array.get ops 1))
+					translate_constant m st (Array.get ops 0),
+					translate_constant m st (Array.get ops 1))
 				)
   | InstrOpcode.Shl ->
 			let ops = operands c in
@@ -276,8 +280,8 @@ and translate_constant_expr st c =
 			else
 				(LLVMsyntax.Coq_const_bop
 					(LLVMsyntax.Coq_bop_shl,
-					translate_constant st (Array.get ops 0),
-					translate_constant st (Array.get ops 1))
+					translate_constant m st (Array.get ops 0),
+					translate_constant m st (Array.get ops 1))
 				)
   | InstrOpcode.LShr ->
 			let ops = operands c in
@@ -287,8 +291,8 @@ and translate_constant_expr st c =
 			else
 				(LLVMsyntax.Coq_const_bop
 					(LLVMsyntax.Coq_bop_lshr,
-					translate_constant st (Array.get ops 0),
-					translate_constant st (Array.get ops 1))
+					translate_constant m st (Array.get ops 0),
+					translate_constant m st (Array.get ops 1))
 				)
   | InstrOpcode.AShr ->
 			let ops = operands c in
@@ -298,8 +302,8 @@ and translate_constant_expr st c =
 			else
 				(LLVMsyntax.Coq_const_bop
 					(LLVMsyntax.Coq_bop_ashr,
-					translate_constant st (Array.get ops 0),
-					translate_constant st (Array.get ops 1))
+					translate_constant m st (Array.get ops 0),
+					translate_constant m st (Array.get ops 1))
 				)
   | InstrOpcode.And ->
 			let ops = operands c in
@@ -309,8 +313,8 @@ and translate_constant_expr st c =
 			else
 				(LLVMsyntax.Coq_const_bop
 					(LLVMsyntax.Coq_bop_and,
-					translate_constant st (Array.get ops 0),
-					translate_constant st (Array.get ops 1))
+					translate_constant m st (Array.get ops 0),
+					translate_constant m st (Array.get ops 1))
 				)
   | InstrOpcode.Or ->
 			let ops = operands c in
@@ -320,8 +324,8 @@ and translate_constant_expr st c =
 			else
 				(LLVMsyntax.Coq_const_bop
 					(LLVMsyntax.Coq_bop_or,
-					translate_constant st (Array.get ops 0),
-					translate_constant st (Array.get ops 1))
+					translate_constant m st (Array.get ops 0),
+					translate_constant m st (Array.get ops 1))
 				)
   | InstrOpcode.Xor ->
 			let ops = operands c in
@@ -331,8 +335,8 @@ and translate_constant_expr st c =
 			else
 				(LLVMsyntax.Coq_const_bop
 					(LLVMsyntax.Coq_bop_xor,
-					translate_constant st (Array.get ops 0),
-					translate_constant st (Array.get ops 1))
+					translate_constant m st (Array.get ops 0),
+					translate_constant m st (Array.get ops 1))
 				)
 	| InstrOpcode.Malloc ->
 			failwith "Malloc isnt a const expr"
@@ -354,12 +358,12 @@ and translate_constant_expr st c =
 	  		let rec range b e ops =
 	  			if b < e
 	  			then
-	  				LLVMsyntax.Cons_list_const (translate_constant st (Array.get ops b), (range (b + 1) e ops))
+	  				LLVMsyntax.Cons_list_const (translate_constant m st (Array.get ops b), (range (b + 1) e ops))
 	  			else
 	  				LLVMsyntax.Nil_list_const in
 				(LLVMsyntax.Coq_const_gep
 					(Llvm.GetElementPtrInst.is_in_bounds c,
-					 translate_constant st (Array.get ops 0),
+					 translate_constant m st (Array.get ops 0),
 					 range 1 n ops)
 				)
   | InstrOpcode.Trunc ->				
@@ -370,8 +374,8 @@ and translate_constant_expr st c =
 			else
 				(LLVMsyntax.Coq_const_truncop
 					(LLVMsyntax.Coq_truncop_int,
-					translate_constant st (Array.get ops 0),
-					translate_typ (type_of c))
+					translate_constant m st (Array.get ops 0),
+					translate_typ m (type_of c))
 				)
   | InstrOpcode.ZExt ->				
 			let ops = operands c in
@@ -381,8 +385,8 @@ and translate_constant_expr st c =
 			else
 				(LLVMsyntax.Coq_const_extop
 					(LLVMsyntax.Coq_extop_z,
-					translate_constant st (Array.get ops 0),
-					translate_typ (type_of c))
+					translate_constant m st (Array.get ops 0),
+					translate_typ m (type_of c))
 				)
   | InstrOpcode.SExt ->				
 			let ops = operands c in
@@ -392,8 +396,8 @@ and translate_constant_expr st c =
 			else
 				(LLVMsyntax.Coq_const_extop
 					(LLVMsyntax.Coq_extop_s,
-					translate_constant st (Array.get ops 0),
-					translate_typ (type_of c))
+					translate_constant m st (Array.get ops 0),
+					translate_typ m (type_of c))
 				)
   |	InstrOpcode.FPToUI ->
 			let ops = operands c in
@@ -403,8 +407,8 @@ and translate_constant_expr st c =
 			else
 				(LLVMsyntax.Coq_const_castop
 					(LLVMsyntax.Coq_castop_fptoui,
-				  translate_constant st (Array.get ops 0),
-					translate_typ (type_of c))
+				  translate_constant m st (Array.get ops 0),
+					translate_typ m (type_of c))
 				)	  		
   |	InstrOpcode.FPToSI ->
 			let ops = operands c in
@@ -414,8 +418,8 @@ and translate_constant_expr st c =
 			else
 				(LLVMsyntax.Coq_const_castop
 					(LLVMsyntax.Coq_castop_fptosi,
-				  translate_constant st (Array.get ops 0),
-					translate_typ (type_of c))
+				  translate_constant m st (Array.get ops 0),
+					translate_typ m (type_of c))
 				)	  		
   |	InstrOpcode.UIToFP ->
 			let ops = operands c in
@@ -425,8 +429,8 @@ and translate_constant_expr st c =
 			else
 				(LLVMsyntax.Coq_const_castop
 					(LLVMsyntax.Coq_castop_uitofp,
-				  translate_constant st (Array.get ops 0),
-					translate_typ (type_of c))
+				  translate_constant m st (Array.get ops 0),
+					translate_typ m (type_of c))
 				)	  		
   |	InstrOpcode.SIToFP ->
 			let ops = operands c in
@@ -436,8 +440,8 @@ and translate_constant_expr st c =
 			else
 				(LLVMsyntax.Coq_const_castop
 					(LLVMsyntax.Coq_castop_sitofp,
-				  translate_constant st (Array.get ops 0),
-					translate_typ (type_of c))
+				  translate_constant m st (Array.get ops 0),
+					translate_typ m (type_of c))
 				)	  		
   |	InstrOpcode.FPTrunc ->
 			let ops = operands c in
@@ -447,8 +451,8 @@ and translate_constant_expr st c =
 			else
 				(LLVMsyntax.Coq_const_truncop
 					(LLVMsyntax.Coq_truncop_fp,
-				  translate_constant st (Array.get ops 0),
-					translate_typ (type_of c))
+				  translate_constant m st (Array.get ops 0),
+					translate_typ m (type_of c))
 				)	  		
   |	InstrOpcode.FPExt ->
 			let ops = operands c in
@@ -458,8 +462,8 @@ and translate_constant_expr st c =
 			else
 				(LLVMsyntax.Coq_const_extop
 					(LLVMsyntax.Coq_extop_fp,
-				  translate_constant st (Array.get ops 0),
-					translate_typ (type_of c))
+				  translate_constant m st (Array.get ops 0),
+					translate_typ m (type_of c))
 				)	  		
   |	InstrOpcode.PtrToInt ->
 			let ops = operands c in
@@ -469,8 +473,8 @@ and translate_constant_expr st c =
 			else
 				(LLVMsyntax.Coq_const_castop
 					(LLVMsyntax.Coq_castop_ptrtoint,
-					translate_constant st (Array.get ops 0),
-					translate_typ (type_of c))
+					translate_constant m st (Array.get ops 0),
+					translate_typ m (type_of c))
 				)	  		
   |	InstrOpcode.IntToPtr ->
 			let ops = operands c in
@@ -480,8 +484,8 @@ and translate_constant_expr st c =
 			else
 				(LLVMsyntax.Coq_const_castop
 					(LLVMsyntax.Coq_castop_inttoptr,
-				  translate_constant st (Array.get ops 0),
-					translate_typ (type_of c))
+				  translate_constant m st (Array.get ops 0),
+					translate_typ m (type_of c))
 				)	  		
   |	InstrOpcode.BitCast ->
 			let ops = operands c in
@@ -491,8 +495,8 @@ and translate_constant_expr st c =
 			else
 				(LLVMsyntax.Coq_const_castop
 					(LLVMsyntax.Coq_castop_bitcast,
-					translate_constant st (Array.get ops 0),
-					translate_typ (type_of c))
+					translate_constant m st (Array.get ops 0),
+					translate_typ m (type_of c))
 				)	  		
 	| InstrOpcode.ICmp ->
 			let ops = operands c in
@@ -502,8 +506,8 @@ and translate_constant_expr st c =
 			else
 				(LLVMsyntax.Coq_const_icmp
 					(translate_icmp (ICmpInst.const_get_predicate c),
-					 translate_constant st (Array.get ops 0),
-					 translate_constant st (Array.get ops 1))
+					 translate_constant m st (Array.get ops 0),
+					 translate_constant m st (Array.get ops 1))
 				)
 	| InstrOpcode.FCmp ->
 			let ops = operands c in
@@ -513,8 +517,8 @@ and translate_constant_expr st c =
 			else
 				(LLVMsyntax.Coq_const_fcmp
 					(translate_fcmp (FCmpInst.const_get_predicate c),
-					 translate_constant st (Array.get ops 0),
-					 translate_constant st (Array.get ops 1))
+					 translate_constant m st (Array.get ops 0),
+					 translate_constant m st (Array.get ops 1))
 				)
   |	InstrOpcode.PHI ->
 		  failwith "PHI isnt a const expr"
@@ -527,9 +531,9 @@ and translate_constant_expr st c =
 			then failwith "Const Select must have 3 operand."
 			else
 				(LLVMsyntax.Coq_const_select
-					(translate_constant st (Array.get ops 0),
-					translate_constant st (Array.get ops 1),
-					translate_constant st (Array.get ops 2))
+					(translate_constant m st (Array.get ops 0),
+					translate_constant m st (Array.get ops 1),
+					translate_constant m st (Array.get ops 2))
 				)	  		
   | InstrOpcode.UserOp1 ->			
 			failwith "UserOp1 isnt a const expr"
@@ -552,11 +556,11 @@ and translate_constant_expr st c =
 	  		let rec range b e ops =
 	  			if b < e
 	  			then
-	  				LLVMsyntax.Cons_list_const (translate_constant st (Array.get ops b), (range (b + 1) e ops))
+	  				LLVMsyntax.Cons_list_const (translate_constant m st (Array.get ops b), (range (b + 1) e ops))
 	  			else
 	  				LLVMsyntax.Nil_list_const in
 				(LLVMsyntax.Coq_const_extractvalue
-					(translate_constant st (Array.get ops 0),
+					(translate_constant m st (Array.get ops 0),
 					 range 1 n ops)
 				)
   | InstrOpcode.InsertValue ->			
@@ -568,35 +572,35 @@ and translate_constant_expr st c =
 	  		let rec range b e ops =
 	  			if b < e
 	  			then
-	  				LLVMsyntax.Cons_list_const (translate_constant st (Array.get ops b), (range (b + 1) e ops))
+	  				LLVMsyntax.Cons_list_const (translate_constant m st (Array.get ops b), (range (b + 1) e ops))
 	  			else
 	  				LLVMsyntax.Nil_list_const in
 				(LLVMsyntax.Coq_const_insertvalue
-					(translate_constant st (Array.get ops 0),
-				   translate_constant st (Array.get ops 1),
+					(translate_constant m st (Array.get ops 0),
+				   translate_constant m st (Array.get ops 1),
 					 range 2 n ops)
 				)
 
-let translate_operand_to_value st v = 
+let translate_operand_to_value m st v = 
 	match (classify_value v) with
 	| ValueTy.ArgumentVal -> LLVMsyntax.Coq_value_id (llvm_name st v)
 	| ValueTy.BasicBlockVal -> LLVMsyntax.Coq_value_id (llvm_name st v)
 	| ValueTy.FunctionVal ->                                                           (*FunctionVal*)
 										           LLVMsyntax.Coq_value_const 
-															   (LLVMsyntax.Coq_const_gid (translate_typ (type_of v), llvm_name st v))
+															   (LLVMsyntax.Coq_const_gid (translate_typ m (type_of v), llvm_name st v))
 	| ValueTy.GlobalAliasVal -> LLVMsyntax.Coq_value_id (llvm_name st v)               (*GlobalValue*)
 	| ValueTy.GlobalVariableVal ->                                                     (*GlobalValue*)
 										           LLVMsyntax.Coq_value_const 
-															   (LLVMsyntax.Coq_const_gid (translate_typ (type_of v), llvm_name st v))
-	| ValueTy.UndefValueVal -> LLVMsyntax.Coq_value_const (translate_constant st v)
-	| ValueTy.ConstantExprVal -> LLVMsyntax.Coq_value_const (translate_constant st v)
-	| ValueTy.ConstantAggregateZeroVal -> LLVMsyntax.Coq_value_const (translate_constant st v)
-	| ValueTy.ConstantIntVal -> LLVMsyntax.Coq_value_const (translate_constant st v)
-	| ValueTy.ConstantFPVal -> LLVMsyntax.Coq_value_const (translate_constant st v)
-	| ValueTy.ConstantArrayVal -> LLVMsyntax.Coq_value_const (translate_constant st v)
-	| ValueTy.ConstantStructVal -> LLVMsyntax.Coq_value_const (translate_constant st v)
-	| ValueTy.ConstantVectorVal -> LLVMsyntax.Coq_value_const (translate_constant st v)
-	| ValueTy.ConstantPointerNullVal -> LLVMsyntax.Coq_value_const (translate_constant st v)
+															   (LLVMsyntax.Coq_const_gid (translate_typ m (type_of v), llvm_name st v))
+	| ValueTy.UndefValueVal -> LLVMsyntax.Coq_value_const (translate_constant m st v)
+	| ValueTy.ConstantExprVal -> LLVMsyntax.Coq_value_const (translate_constant m st v)
+	| ValueTy.ConstantAggregateZeroVal -> LLVMsyntax.Coq_value_const (translate_constant m st v)
+	| ValueTy.ConstantIntVal -> LLVMsyntax.Coq_value_const (translate_constant m st v)
+	| ValueTy.ConstantFPVal -> LLVMsyntax.Coq_value_const (translate_constant m st v)
+	| ValueTy.ConstantArrayVal -> LLVMsyntax.Coq_value_const (translate_constant m st v)
+	| ValueTy.ConstantStructVal -> LLVMsyntax.Coq_value_const (translate_constant m st v)
+	| ValueTy.ConstantVectorVal -> LLVMsyntax.Coq_value_const (translate_constant m st v)
+	| ValueTy.ConstantPointerNullVal -> LLVMsyntax.Coq_value_const (translate_constant m st v)
 	| ValueTy.MDNodeVal -> failwith "MDNodeVal: Not_Supported."
 	| ValueTy.MDStringVal -> failwith "MDStringVal: Not_Supported."
 	| ValueTy.NamedMDNodeVal -> failwith "NamedMDNodeVal: Not_Supported."
@@ -604,9 +608,9 @@ let translate_operand_to_value st v =
 	| ValueTy.PseudoSourceValueVal -> failwith "PseudoSourceValueVal: Not_Supported."
 	| _ -> LLVMsyntax.Coq_value_id (llvm_name st v)                                   (*Instruction*)
 
-let translate_operand_to_arg st v = (translate_typ (type_of v), llvm_name st v)
+let translate_operand_to_arg m st v = (translate_typ m (type_of v), llvm_name st v)
 
-let translate_operand_to_param st v = (translate_typ (type_of v), translate_operand_to_value st v)
+let translate_operand_to_param m st v = (translate_typ m (type_of v), translate_operand_to_value m st v)
 
 let array_size_to_int c =
 	match (classify_value c) with
@@ -619,9 +623,9 @@ let array_size_to_int c =
                                 (Llvm.APInt.const_int_get_value c))			 
 	| _ -> failwith (string_of_valuety (classify_value c) ^ ": array_size must be ConstantIntVal")
 
-let translate_instr debug st i  =
+let translate_instr debug m st i  =
 	(* debugging output *)
-	(if debug then Llvm_pretty_printer.travel_instr st i); 
+	(if debug then Llvm_pretty_printer.travel_instr m st i); 
 	
 	match (classify_instr i) with
 	| InstrOpcode.Ret ->
@@ -641,8 +645,8 @@ let translate_instr debug st i  =
 							LLVMsyntax.Coq_insn_terminator
 							(LLVMsyntax.Coq_insn_return
 								(llvm_name st i,
-								translate_typ (type_of (Array.get ops 0)),
-								translate_operand_to_value st (Array.get ops 0))
+								translate_typ m (type_of (Array.get ops 0)),
+								translate_operand_to_value m st (Array.get ops 0))
 							)
 			end
 	| InstrOpcode.Br ->
@@ -651,7 +655,7 @@ let translate_instr debug st i  =
 				LLVMsyntax.Coq_insn_terminator (
 					LLVMsyntax.Coq_insn_br
 					(llvm_name st i,
-					translate_operand_to_value st (BranchInst.get_condition i),
+					translate_operand_to_value m st (BranchInst.get_condition i),
 					llvm_label st (BranchInst.get_successor i 0),
 					llvm_label st (BranchInst.get_successor i 1))
 				)
@@ -680,8 +684,8 @@ let translate_instr debug st i  =
 					(llvm_name st i,
 					LLVMsyntax.Coq_bop_add,
 					integer_bitwidth (type_of i),
-					translate_operand_to_value st (Array.get ops 0),
-					translate_operand_to_value st (Array.get ops 1))
+					translate_operand_to_value m st (Array.get ops 0),
+					translate_operand_to_value m st (Array.get ops 1))
 				)
   | InstrOpcode.FAdd ->
 			let ops = operands i in
@@ -694,8 +698,8 @@ let translate_instr debug st i  =
 					(llvm_name st i,
 					LLVMsyntax.Coq_fbop_fadd,
 					(translate_floating_point (type_of i)),
-					translate_operand_to_value st (Array.get ops 0),
-					translate_operand_to_value st (Array.get ops 1))
+					translate_operand_to_value m st (Array.get ops 0),
+					translate_operand_to_value m st (Array.get ops 1))
 				)
   | InstrOpcode.Sub ->
 			let ops = operands i in
@@ -708,8 +712,8 @@ let translate_instr debug st i  =
 					(llvm_name st i,
 					LLVMsyntax.Coq_bop_sub,
 					integer_bitwidth (type_of i),
-					translate_operand_to_value st (Array.get ops 0),
-					translate_operand_to_value st (Array.get ops 1))
+					translate_operand_to_value m st (Array.get ops 0),
+					translate_operand_to_value m st (Array.get ops 1))
 				)
   | InstrOpcode.FSub ->
 			let ops = operands i in
@@ -722,8 +726,8 @@ let translate_instr debug st i  =
 					(llvm_name st i,
 					LLVMsyntax.Coq_fbop_fsub,
 					(translate_floating_point (type_of i)),
-					translate_operand_to_value st (Array.get ops 0),
-					translate_operand_to_value st (Array.get ops 1))
+					translate_operand_to_value m st (Array.get ops 0),
+					translate_operand_to_value m st (Array.get ops 1))
 				)
   | InstrOpcode.Mul ->
 			let ops = operands i in
@@ -736,8 +740,8 @@ let translate_instr debug st i  =
 					(llvm_name st i,
 					LLVMsyntax.Coq_bop_mul,
 					integer_bitwidth (type_of i),
-					translate_operand_to_value st (Array.get ops 0),
-					translate_operand_to_value st (Array.get ops 1))
+					translate_operand_to_value m st (Array.get ops 0),
+					translate_operand_to_value m st (Array.get ops 1))
 				)
   | InstrOpcode.FMul ->
 			let ops = operands i in
@@ -750,8 +754,8 @@ let translate_instr debug st i  =
 					(llvm_name st i,
 					LLVMsyntax.Coq_fbop_fmul,
 					(translate_floating_point (type_of i)),
-					translate_operand_to_value st (Array.get ops 0),
-					translate_operand_to_value st (Array.get ops 1))
+					translate_operand_to_value m st (Array.get ops 0),
+					translate_operand_to_value m st (Array.get ops 1))
 				)
   | InstrOpcode.UDiv ->
 			let ops = operands i in
@@ -764,8 +768,8 @@ let translate_instr debug st i  =
 					(llvm_name st i,
 					LLVMsyntax.Coq_bop_udiv,
 					integer_bitwidth (type_of i),
-					translate_operand_to_value st (Array.get ops 0),
-					translate_operand_to_value st (Array.get ops 1))
+					translate_operand_to_value m st (Array.get ops 0),
+					translate_operand_to_value m st (Array.get ops 1))
 				)
   | InstrOpcode.SDiv ->
 			let ops = operands i in
@@ -778,8 +782,8 @@ let translate_instr debug st i  =
 					(llvm_name st i,
 					LLVMsyntax.Coq_bop_sdiv,
 					integer_bitwidth (type_of i),
-					translate_operand_to_value st (Array.get ops 0),
-					translate_operand_to_value st (Array.get ops 1))
+					translate_operand_to_value m st (Array.get ops 0),
+					translate_operand_to_value m st (Array.get ops 1))
 				)
   | InstrOpcode.FDiv ->
 			let ops = operands i in
@@ -792,8 +796,8 @@ let translate_instr debug st i  =
 					(llvm_name st i,
 					LLVMsyntax.Coq_fbop_fdiv,
 					(translate_floating_point (type_of i)),
-					translate_operand_to_value st (Array.get ops 0),
-					translate_operand_to_value st (Array.get ops 1))
+					translate_operand_to_value m st (Array.get ops 0),
+					translate_operand_to_value m st (Array.get ops 1))
 				)
   | InstrOpcode.URem ->
 			let ops = operands i in
@@ -806,8 +810,8 @@ let translate_instr debug st i  =
 					(llvm_name st i,
 					LLVMsyntax.Coq_bop_urem,
 					integer_bitwidth (type_of i),
-					translate_operand_to_value st (Array.get ops 0),
-					translate_operand_to_value st (Array.get ops 1))
+					translate_operand_to_value m st (Array.get ops 0),
+					translate_operand_to_value m st (Array.get ops 1))
 				)
   | InstrOpcode.SRem ->
 			let ops = operands i in
@@ -820,8 +824,8 @@ let translate_instr debug st i  =
 					(llvm_name st i,
 					LLVMsyntax.Coq_bop_srem,
 					integer_bitwidth (type_of i),
-					translate_operand_to_value st (Array.get ops 0),
-					translate_operand_to_value st (Array.get ops 1))
+					translate_operand_to_value m st (Array.get ops 0),
+					translate_operand_to_value m st (Array.get ops 1))
 				)
   | InstrOpcode.FRem ->
 			let ops = operands i in
@@ -834,8 +838,8 @@ let translate_instr debug st i  =
 					(llvm_name st i,
 					LLVMsyntax.Coq_fbop_frem,
 					(translate_floating_point (type_of i)),
-					translate_operand_to_value st (Array.get ops 0),
-					translate_operand_to_value st (Array.get ops 1))
+					translate_operand_to_value m st (Array.get ops 0),
+					translate_operand_to_value m st (Array.get ops 1))
 				)
   | InstrOpcode.Shl ->
 			let ops = operands i in
@@ -848,8 +852,8 @@ let translate_instr debug st i  =
 					(llvm_name st i,
 					LLVMsyntax.Coq_bop_shl,
 					integer_bitwidth (type_of i),
-					translate_operand_to_value st (Array.get ops 0),
-					translate_operand_to_value st (Array.get ops 1))
+					translate_operand_to_value m st (Array.get ops 0),
+					translate_operand_to_value m st (Array.get ops 1))
 				)
   | InstrOpcode.LShr ->
 			let ops = operands i in
@@ -862,8 +866,8 @@ let translate_instr debug st i  =
 					(llvm_name st i,
 					LLVMsyntax.Coq_bop_lshr,
 					integer_bitwidth (type_of i),
-					translate_operand_to_value st (Array.get ops 0),
-					translate_operand_to_value st (Array.get ops 1))
+					translate_operand_to_value m st (Array.get ops 0),
+					translate_operand_to_value m st (Array.get ops 1))
 				)
   | InstrOpcode.AShr ->
 			let ops = operands i in
@@ -876,8 +880,8 @@ let translate_instr debug st i  =
 					(llvm_name st i,
 					LLVMsyntax.Coq_bop_ashr,
 					integer_bitwidth (type_of i),
-					translate_operand_to_value st (Array.get ops 0),
-					translate_operand_to_value st (Array.get ops 1))
+					translate_operand_to_value m st (Array.get ops 0),
+					translate_operand_to_value m st (Array.get ops 1))
 				)
   | InstrOpcode.And ->
 			let ops = operands i in
@@ -890,8 +894,8 @@ let translate_instr debug st i  =
 					(llvm_name st i,
 					LLVMsyntax.Coq_bop_and,
 					integer_bitwidth (type_of i),
-					translate_operand_to_value st (Array.get ops 0),
-					translate_operand_to_value st (Array.get ops 1))
+					translate_operand_to_value m st (Array.get ops 0),
+					translate_operand_to_value m st (Array.get ops 1))
 				)
   | InstrOpcode.Or ->
 			let ops = operands i in
@@ -904,8 +908,8 @@ let translate_instr debug st i  =
 					(llvm_name st i,
 					LLVMsyntax.Coq_bop_or,
 					integer_bitwidth (type_of i),
-					translate_operand_to_value st (Array.get ops 0),
-					translate_operand_to_value st (Array.get ops 1))
+					translate_operand_to_value m st (Array.get ops 0),
+					translate_operand_to_value m st (Array.get ops 1))
 				)
   | InstrOpcode.Xor ->
 			let ops = operands i in
@@ -918,15 +922,15 @@ let translate_instr debug st i  =
 					(llvm_name st i,
 					LLVMsyntax.Coq_bop_xor,
 					integer_bitwidth (type_of i),
-					translate_operand_to_value st (Array.get ops 0),
-					translate_operand_to_value st (Array.get ops 1))
+					translate_operand_to_value m st (Array.get ops 0),
+					translate_operand_to_value m st (Array.get ops 1))
 				)
 	| InstrOpcode.Malloc ->
 			LLVMsyntax.Coq_insn_cmd
 			(LLVMsyntax.Coq_insn_malloc
 				(llvm_name st i,
-					translate_typ (AllocationInst.get_allocated_type i),
-					translate_operand_to_value st (AllocationInst.get_array_size i),
+					translate_typ m (AllocationInst.get_allocated_type i),
+					translate_operand_to_value m st (AllocationInst.get_array_size i),
 					(AllocationInst.get_alignment i))
 			)
 	| InstrOpcode.Free ->
@@ -938,15 +942,15 @@ let translate_instr debug st i  =
 				LLVMsyntax.Coq_insn_cmd
 				(LLVMsyntax.Coq_insn_free
 					(llvm_name st i,
-						translate_typ (type_of (Array.get ops 0)),
-						translate_operand_to_value st (Array.get ops 0))
+						translate_typ m (type_of (Array.get ops 0)),
+						translate_operand_to_value m st (Array.get ops 0))
 				)
 	| InstrOpcode.Alloca ->
 			LLVMsyntax.Coq_insn_cmd
 			(LLVMsyntax.Coq_insn_alloca
 				(llvm_name st i,
-					translate_typ (AllocationInst.get_allocated_type i),
-					translate_operand_to_value st (AllocationInst.get_array_size i),
+					translate_typ m (AllocationInst.get_allocated_type i),
+					translate_operand_to_value m st (AllocationInst.get_array_size i),
 					(AllocationInst.get_alignment i))
 			)
 	| InstrOpcode.Load ->
@@ -956,13 +960,13 @@ let translate_instr debug st i  =
 			then failwith "Load must have 1 operand."
 			else
 				begin
-				match translate_typ (type_of (Array.get ops 0)) with
+				match translate_typ m (type_of (Array.get ops 0)) with
 					| LLVMsyntax.Coq_typ_pointer t ->
 				    LLVMsyntax.Coq_insn_cmd
 				    (LLVMsyntax.Coq_insn_load
 					    (llvm_name st i,
 						    t,
-    						translate_operand_to_value st (Array.get ops 0),
+    						translate_operand_to_value m st (Array.get ops 0),
 		    				LoadInst.get_alignment i)
 				    )
 					| _ -> failwith "Load must be with ptr type"
@@ -976,9 +980,9 @@ let translate_instr debug st i  =
 				LLVMsyntax.Coq_insn_cmd
 				(LLVMsyntax.Coq_insn_store
 					(llvm_name st i,
-						translate_typ (type_of (Array.get ops 0)),
-						translate_operand_to_value st (Array.get ops 0),
-						translate_operand_to_value st (Array.get ops 1),
+						translate_typ m (type_of (Array.get ops 0)),
+						translate_operand_to_value m st (Array.get ops 0),
+						translate_operand_to_value m st (Array.get ops 1),
 						StoreInst.get_alignment i)
 				)
   | InstrOpcode.GetElementPtr ->				
@@ -991,15 +995,15 @@ let translate_instr debug st i  =
 	  		let rec range b e ops =
 	  			if b < e
 	  			then
-	  				LLVMsyntax.Cons_list_value (translate_operand_to_value st (Array.get ops b), (range (b + 1) e ops))
+	  				LLVMsyntax.Cons_list_value (translate_operand_to_value m st (Array.get ops b), (range (b + 1) e ops))
 	  			else
 	  				LLVMsyntax.Nil_list_value in
 				LLVMsyntax.Coq_insn_cmd
 				(LLVMsyntax.Coq_insn_gep
 					(llvm_name st i,
 					 Llvm.GetElementPtrInst.is_in_bounds i,
-					 translate_typ (Llvm.element_type (type_of (Array.get ops 0))),  (* returns the elt typ of the 1st op's pointer typ *)
-					 translate_operand_to_value st (Array.get ops 0),
+					 translate_typ m (Llvm.element_type (type_of (Array.get ops 0))),  (* returns the elt typ of the 1st op's pointer typ *)
+					 translate_operand_to_value m st (Array.get ops 0),
 					 range 1 n ops)
 				)
   | InstrOpcode.Trunc ->				
@@ -1012,9 +1016,9 @@ let translate_instr debug st i  =
 				(LLVMsyntax.Coq_insn_trunc
 					(llvm_name st i,
 					LLVMsyntax.Coq_truncop_int,
-				  translate_typ (type_of (Array.get ops 0)),
-					translate_operand_to_value st (Array.get ops 0),
-					translate_typ (type_of i))
+				  translate_typ m (type_of (Array.get ops 0)),
+					translate_operand_to_value m st (Array.get ops 0),
+					translate_typ m (type_of i))
 				)
   | InstrOpcode.ZExt ->				
 			let ops = operands i in
@@ -1026,9 +1030,9 @@ let translate_instr debug st i  =
 				(LLVMsyntax.Coq_insn_ext
 					(llvm_name st i,
 					LLVMsyntax.Coq_extop_z,
-				  translate_typ (type_of (Array.get ops 0)),
-					translate_operand_to_value st (Array.get ops 0),
-					translate_typ (type_of i))
+				  translate_typ m (type_of (Array.get ops 0)),
+					translate_operand_to_value m st (Array.get ops 0),
+					translate_typ m (type_of i))
 				)
   | InstrOpcode.SExt ->				
 			let ops = operands i in
@@ -1040,9 +1044,9 @@ let translate_instr debug st i  =
 				(LLVMsyntax.Coq_insn_ext
 					(llvm_name st i,
 					LLVMsyntax.Coq_extop_s,
-				  translate_typ (type_of (Array.get ops 0)),
-					translate_operand_to_value st (Array.get ops 0),
-					translate_typ (type_of i))
+				  translate_typ m (type_of (Array.get ops 0)),
+					translate_operand_to_value m st (Array.get ops 0),
+					translate_typ m (type_of i))
 				)
   |	InstrOpcode.FPToUI ->
 			let ops = operands i in
@@ -1054,9 +1058,9 @@ let translate_instr debug st i  =
 				(LLVMsyntax.Coq_insn_cast
 					(llvm_name st i,
 					LLVMsyntax.Coq_castop_fptoui,
-				  translate_typ (type_of (Array.get ops 0)),
-					translate_operand_to_value st (Array.get ops 0),
-					translate_typ (type_of i))
+				  translate_typ m (type_of (Array.get ops 0)),
+					translate_operand_to_value m st (Array.get ops 0),
+					translate_typ m (type_of i))
 				)	  		
   |	InstrOpcode.FPToSI ->
 			let ops = operands i in
@@ -1068,9 +1072,9 @@ let translate_instr debug st i  =
 				(LLVMsyntax.Coq_insn_cast
 					(llvm_name st i,
 					LLVMsyntax.Coq_castop_fptosi,
-				  translate_typ (type_of (Array.get ops 0)),
-					translate_operand_to_value st (Array.get ops 0),
-					translate_typ (type_of i))
+				  translate_typ m (type_of (Array.get ops 0)),
+					translate_operand_to_value m st (Array.get ops 0),
+					translate_typ m (type_of i))
 				)	  		
   |	InstrOpcode.UIToFP ->
 			let ops = operands i in
@@ -1082,9 +1086,9 @@ let translate_instr debug st i  =
 				(LLVMsyntax.Coq_insn_cast
 					(llvm_name st i,
 					LLVMsyntax.Coq_castop_uitofp,
-				  translate_typ (type_of (Array.get ops 0)),
-					translate_operand_to_value st (Array.get ops 0),
-					translate_typ (type_of i))
+				  translate_typ m (type_of (Array.get ops 0)),
+					translate_operand_to_value m st (Array.get ops 0),
+					translate_typ m (type_of i))
 				)	  		
   |	InstrOpcode.SIToFP ->
 			let ops = operands i in
@@ -1096,9 +1100,9 @@ let translate_instr debug st i  =
 				(LLVMsyntax.Coq_insn_cast
 					(llvm_name st i,
 					LLVMsyntax.Coq_castop_sitofp,
-				  translate_typ (type_of (Array.get ops 0)),
-					translate_operand_to_value st (Array.get ops 0),
-					translate_typ (type_of i))
+				  translate_typ m (type_of (Array.get ops 0)),
+					translate_operand_to_value m st (Array.get ops 0),
+					translate_typ m (type_of i))
 				)	  		
   |	InstrOpcode.FPTrunc ->
 			let ops = operands i in
@@ -1110,9 +1114,9 @@ let translate_instr debug st i  =
 				(LLVMsyntax.Coq_insn_trunc
 					(llvm_name st i,
 					LLVMsyntax.Coq_truncop_fp,
-				  translate_typ (type_of (Array.get ops 0)),
-					translate_operand_to_value st (Array.get ops 0),
-					translate_typ (type_of i))
+				  translate_typ m (type_of (Array.get ops 0)),
+					translate_operand_to_value m st (Array.get ops 0),
+					translate_typ m (type_of i))
 				)
   |	InstrOpcode.FPExt ->
 			let ops = operands i in
@@ -1124,9 +1128,9 @@ let translate_instr debug st i  =
 				(LLVMsyntax.Coq_insn_ext
 					(llvm_name st i,
 					LLVMsyntax.Coq_extop_fp,
-				  translate_typ (type_of (Array.get ops 0)),
-					translate_operand_to_value st (Array.get ops 0),
-					translate_typ (type_of i))
+				  translate_typ m (type_of (Array.get ops 0)),
+					translate_operand_to_value m st (Array.get ops 0),
+					translate_typ m (type_of i))
 				)
   |	InstrOpcode.PtrToInt ->
 			let ops = operands i in
@@ -1138,9 +1142,9 @@ let translate_instr debug st i  =
 				(LLVMsyntax.Coq_insn_cast
 					(llvm_name st i,
 					LLVMsyntax.Coq_castop_ptrtoint,
-				  translate_typ (type_of (Array.get ops 0)),
-					translate_operand_to_value st (Array.get ops 0),
-					translate_typ (type_of i))
+				  translate_typ m (type_of (Array.get ops 0)),
+					translate_operand_to_value m st (Array.get ops 0),
+					translate_typ m (type_of i))
 				)	  		
   |	InstrOpcode.IntToPtr ->
 			let ops = operands i in
@@ -1152,9 +1156,9 @@ let translate_instr debug st i  =
 				(LLVMsyntax.Coq_insn_cast
 					(llvm_name st i,
 					LLVMsyntax.Coq_castop_inttoptr,
-				  translate_typ (type_of (Array.get ops 0)),
-					translate_operand_to_value st (Array.get ops 0),
-					translate_typ (type_of i))
+				  translate_typ m (type_of (Array.get ops 0)),
+					translate_operand_to_value m st (Array.get ops 0),
+					translate_typ m (type_of i))
 				)	  		
   |	InstrOpcode.BitCast ->
 			let ops = operands i in
@@ -1166,9 +1170,9 @@ let translate_instr debug st i  =
 				(LLVMsyntax.Coq_insn_cast
 					(llvm_name st i,
 					LLVMsyntax.Coq_castop_bitcast,
-				  translate_typ (type_of (Array.get ops 0)),
-					translate_operand_to_value st (Array.get ops 0),
-					translate_typ (type_of i))
+				  translate_typ m (type_of (Array.get ops 0)),
+					translate_operand_to_value m st (Array.get ops 0),
+					translate_typ m (type_of i))
 				)	  		
 	| InstrOpcode.ICmp ->
 			let ops = operands i in
@@ -1180,9 +1184,9 @@ let translate_instr debug st i  =
 				(LLVMsyntax.Coq_insn_icmp
 					(llvm_name st i,
 						translate_icmp (ICmpInst.get_predicate i),
-						translate_typ (type_of (Array.get ops 0)),
-						translate_operand_to_value st (Array.get ops 0),
-						translate_operand_to_value st (Array.get ops 1))
+						translate_typ m (type_of (Array.get ops 0)),
+						translate_operand_to_value m st (Array.get ops 0),
+						translate_operand_to_value m st (Array.get ops 1))
 				)
 	| InstrOpcode.FCmp ->
 			let ops = operands i in
@@ -1195,8 +1199,8 @@ let translate_instr debug st i  =
 					(llvm_name st i,
 						translate_fcmp (FCmpInst.get_predicate i),
 						translate_floating_point (type_of (Array.get ops 0)),
-						translate_operand_to_value st (Array.get ops 0),
-						translate_operand_to_value st (Array.get ops 1))
+						translate_operand_to_value m st (Array.get ops 0),
+						translate_operand_to_value m st (Array.get ops 1))
 				)
   |	InstrOpcode.PHI ->
 			let v_l_list = incoming i in
@@ -1207,10 +1211,10 @@ let translate_instr debug st i  =
 				LLVMsyntax.Coq_insn_phinode
 				(LLVMsyntax.Coq_insn_phi
 					(llvm_name st i,
-					 translate_typ (type_of i),
+					 translate_typ m (type_of i),
 					 (List.fold_right					
 					   (fun (v, l) v_l_list ->
-							  LLVMsyntax.Cons_list_value_l (translate_operand_to_value st v, llvm_label st l, v_l_list)
+							  LLVMsyntax.Cons_list_value_l (translate_operand_to_value m st v, llvm_label st l, v_l_list)
 						 )
 						 v_l_list
 						 LLVMsyntax.Nil_list_value_l 
@@ -1231,7 +1235,7 @@ let translate_instr debug st i  =
 			let rec range b e ops =
 				if b < e
 				then
-					translate_operand_to_param st (Array.get ops b):: (range (b + 1) e ops)
+					translate_operand_to_param m st (Array.get ops b):: (range (b + 1) e ops)
 				else
 					[] in
 			LLVMsyntax.Coq_insn_cmd
@@ -1239,8 +1243,8 @@ let translate_instr debug st i  =
 				(llvm_name st i,
 					noret,
 					tailc,
-					translate_typ rtyp,
-					translate_operand_to_value st fv,
+					translate_typ m rtyp,
+					translate_operand_to_value m st fv,
 					range 1 n ops)
 			)
   | InstrOpcode.Select ->			
@@ -1252,10 +1256,10 @@ let translate_instr debug st i  =
 				LLVMsyntax.Coq_insn_cmd
 				(LLVMsyntax.Coq_insn_select
 					(llvm_name st i,
-					translate_operand_to_value st (Array.get ops 0),
-				  translate_typ (type_of (Array.get ops 1)),
-					translate_operand_to_value st (Array.get ops 1),
-					translate_operand_to_value st (Array.get ops 2))
+					translate_operand_to_value m st (Array.get ops 0),
+				  translate_typ m (type_of (Array.get ops 1)),
+					translate_operand_to_value m st (Array.get ops 1),
+					translate_operand_to_value m st (Array.get ops 2))
 				)	  		
   | InstrOpcode.UserOp1 ->			
 			failwith "UserOp1: Not_Supported"
@@ -1278,14 +1282,14 @@ let translate_instr debug st i  =
 	  		let rec range b e ops =
 	  			if b < e
 	  			then
-	  				LLVMsyntax.Cons_list_const (translate_constant st (Array.get ops b), (range (b + 1) e ops))
+	  				LLVMsyntax.Cons_list_const (translate_constant m st (Array.get ops b), (range (b + 1) e ops))
 	  			else
 	  				LLVMsyntax.Nil_list_const in
 				LLVMsyntax.Coq_insn_cmd
 				(LLVMsyntax.Coq_insn_extractvalue
 					(llvm_name st i,
-				   translate_typ (type_of (Array.get ops 0)),
-					 translate_operand_to_value st (Array.get ops 0),
+				   translate_typ m (type_of (Array.get ops 0)),
+					 translate_operand_to_value m st (Array.get ops 0),
 					 range 1 n ops)
 				)
   | InstrOpcode.InsertValue ->			
@@ -1297,20 +1301,20 @@ let translate_instr debug st i  =
 	  		let rec range b e ops =
 	  			if b < e
 	  			then
-	  				LLVMsyntax.Cons_list_const (translate_constant st (Array.get ops b), (range (b + 1) e ops))
+	  				LLVMsyntax.Cons_list_const (translate_constant m st (Array.get ops b), (range (b + 1) e ops))
 	  			else
 	  				LLVMsyntax.Nil_list_const in
 				LLVMsyntax.Coq_insn_cmd
 				(LLVMsyntax.Coq_insn_insertvalue
 					(llvm_name st i,
-				   translate_typ (type_of (Array.get ops 0)),
-					 translate_operand_to_value st (Array.get ops 0),
-				   translate_typ (type_of (Array.get ops 1)),
-					 translate_operand_to_value st (Array.get ops 1),
+				   translate_typ m (type_of (Array.get ops 0)),
+					 translate_operand_to_value m st (Array.get ops 0),
+				   translate_typ m (type_of (Array.get ops 1)),
+					 translate_operand_to_value m st (Array.get ops 1),
 					 range 2 n ops)
 				)
 
-let translate_block debug st b bs =
+let translate_block debug m st b bs =
 	(* debugging output *)
 	(if debug then
 		(prerr_string "label: ";
@@ -1321,7 +1325,7 @@ let translate_block debug st b bs =
 	let ((ps, cs, otmn): LLVMsyntax.phinodes * LLVMsyntax.cmds * LLVMsyntax.terminator option) =
 		fold_right_instrs
 			(fun instr ((ps', cs', otmn'): LLVMsyntax.phinodes * LLVMsyntax.cmds * LLVMsyntax.terminator option) ->
-						let i = translate_instr debug st instr in
+						let i = translate_instr debug m st instr in
 						match i with
 						| LLVMsyntax.Coq_insn_terminator tmn0 ->
 								if List.length ps' == 0 &&
@@ -1356,12 +1360,12 @@ let translate_block debug st b bs =
 			(LLVMsyntax.Coq_block_intro ((llvm_label st b), ps, cs, tmn)):: bs
 	| None -> failwith "There is not a Tmn at the end of the block."
 
-let translate_fun_typ t =
-	match translate_typ t with
+let translate_fun_typ m t =
+	match translate_typ m t with
 		| LLVMsyntax.Coq_typ_pointer (LLVMsyntax.Coq_typ_function (rt, ts)) -> rt
-		| _ -> failwith "Ill-formed function typ"
+		| _ -> failwith "Ill-formed function ptr typ"
 
-let translate_function debug st f ps =
+let translate_function debug m st f ps =
 	SlotTracker.incorporate_function st f;
 	
 	(* debugging output *)
@@ -1370,11 +1374,11 @@ let translate_function debug st f ps =
   	prerr_string "fname: "; 
 	  prerr_string (llvm_name st f);
 	  prerr_string " with ftyp: ";
-	  prerr_string (string_of_lltype (type_of f));
+	  prerr_string (string_of_lltype_safe m (type_of f));
   	prerr_string " with params: ";
   	Array.iter
 	  	(fun param ->
-	  				prerr_string (Llvm_pretty_printer.string_of_operand st param);
+	  				prerr_string (Llvm_pretty_printer.string_of_operand m st param);
 	  				prerr_string ", "
 	  	)
 	  	(params f);
@@ -1384,10 +1388,10 @@ let translate_function debug st f ps =
 	(* translation *)
 	let args = Array.fold_right
 			(fun param args' ->
-						(translate_operand_to_arg st param):: args'
+						(translate_operand_to_arg m st param):: args'
 			)
 			(params f) [] in
-	let fheader = (LLVMsyntax.Coq_fheader_intro (translate_fun_typ (type_of f), (llvm_name st f), args)) in
+	let fheader = (LLVMsyntax.Coq_fheader_intro (translate_fun_typ m (type_of f), (llvm_name st f), args)) in
 	let g =
 		if (is_declaration f)
 		then
@@ -1395,11 +1399,11 @@ let translate_function debug st f ps =
 		else
 			LLVMsyntax.Coq_product_fdef
 			(LLVMsyntax.Coq_fdef_intro
-				(fheader, fold_right_blocks (translate_block debug st) f [])) in
+				(fheader, fold_right_blocks (translate_block debug m st) f [])) in
 	SlotTracker.purge_function st;
 	g:: ps
 
-let translate_global debug st g ps  =
+let translate_global debug m st g ps  =
 	match (classify_value g) with
 	| ValueTy.GlobalVariableVal ->
 	    (* debugging output *)
@@ -1409,7 +1413,7 @@ let translate_global debug st g ps  =
 		  	prerr_string (if (is_global_constant g) then "constant " else "global ");
 		  	if (has_initializer g)
 		  	then
-			  	prerr_string (Llvm_pretty_printer.string_of_operand st (get_initializer g));
+			  	prerr_string (Llvm_pretty_printer.string_of_operand m st (get_initializer g));
 			  prerr_newline ())
 			);
 			
@@ -1421,13 +1425,13 @@ let translate_global debug st g ps  =
   			  then 
   	   			(LLVMsyntax.Coq_product_gvar
   	  				(LLVMsyntax.Coq_gvar_intro
-  	  					(llvm_name st g, LLVMsyntax.Coq_gvar_spec_constant, translate_typ (type_of g), translate_constant st (get_initializer g), alignment g)
+  	  					(llvm_name st g, LLVMsyntax.Coq_gvar_spec_constant, translate_typ m (type_of g), translate_constant m st (get_initializer g), alignment g)
   	  				)
   	   			):: ps
   				else
     				(LLVMsyntax.Coq_product_gvar
     					(LLVMsyntax.Coq_gvar_intro
-    						(llvm_name st g, LLVMsyntax.Coq_gvar_spec_global, translate_typ (type_of g), translate_constant st (get_initializer g), alignment g)
+    						(llvm_name st g, LLVMsyntax.Coq_gvar_spec_global, translate_typ m (type_of g), translate_constant m st (get_initializer g), alignment g)
   	  				)
     				):: ps
 				end
@@ -1437,18 +1441,18 @@ let translate_global debug st g ps  =
   			  then 
   	   			(LLVMsyntax.Coq_product_gvar
   	  				(LLVMsyntax.Coq_gvar_external
-  	  					(llvm_name st g, LLVMsyntax.Coq_gvar_spec_constant, translate_typ (type_of g))
+  	  					(llvm_name st g, LLVMsyntax.Coq_gvar_spec_constant, translate_typ m (type_of g))
   	  				)
   	   			):: ps
   				else
     				(LLVMsyntax.Coq_product_gvar
     					(LLVMsyntax.Coq_gvar_external
-    						(llvm_name st g, LLVMsyntax.Coq_gvar_spec_global, translate_typ (type_of g))
+    						(llvm_name st g, LLVMsyntax.Coq_gvar_spec_global, translate_typ m (type_of g))
     					)
     				):: ps
 	        end
 	| ValueTy.GlobalAliasVal -> failwith "GlobalAliasVal: Not_Supported"
-	| ValueTy.FunctionVal -> translate_function debug st g ps 
+	| ValueTy.FunctionVal -> translate_function debug m st g ps 
 	| _ -> failwith "Not_Global"
 
 let translate_layout debug dlt  =
@@ -1505,10 +1509,47 @@ let translate_layout debug dlt  =
 	Llvm_target.TargetData.dispose tg;
 	dl
 
+let translate_named_typ m ty = 
+  match classify_type ty with
+  | TypeKind.Integer -> LLVMsyntax.Coq_typ_int (integer_bitwidth ty)
+  | TypeKind.Pointer -> LLVMsyntax.Coq_typ_pointer (translate_typ m (element_type ty))
+  | TypeKind.Struct -> LLVMsyntax.Coq_typ_struct
+                                (Array.fold_right 
+																  (fun t ts -> LLVMsyntax.Cons_list_typ (translate_typ m t, ts)) 
+																	(struct_element_types ty)
+																	LLVMsyntax.Nil_list_typ
+																)
+  | TypeKind.Array -> LLVMsyntax.Coq_typ_array (array_length ty, translate_typ m (element_type ty))
+  | TypeKind.Vector -> failwith "Vector: Not_Supported."
+  | TypeKind.Opaque -> LLVMsyntax.Coq_typ_opaque
+  | TypeKind.Function -> LLVMsyntax.Coq_typ_function 
+	                         (translate_typ m (return_type ty),
+                            (Array.fold_right 
+																  (fun t ts -> LLVMsyntax.Cons_list_typ (translate_typ m t, ts)) 
+																	(param_types ty)
+																	LLVMsyntax.Nil_list_typ))
+  | TypeKind.Label -> LLVMsyntax.Coq_typ_label
+  | TypeKind.Ppc_fp128 -> LLVMsyntax.Coq_typ_floatpoint (translate_floating_point ty)
+  | TypeKind.Fp128 -> LLVMsyntax.Coq_typ_floatpoint (translate_floating_point ty)
+  | TypeKind.X86fp80 -> LLVMsyntax.Coq_typ_floatpoint (translate_floating_point ty)
+  | TypeKind.Double -> LLVMsyntax.Coq_typ_floatpoint (translate_floating_point ty)
+  | TypeKind.Float -> LLVMsyntax.Coq_typ_floatpoint (translate_floating_point ty)
+  | TypeKind.Void -> LLVMsyntax.Coq_typ_void
+  | TypeKind.Metadata -> LLVMsyntax.Coq_typ_metadata 
+
+let translate_namedt (debug:bool) (m: llmodule) nt nts =
+	(* debugging output *)
+	(if debug then Llvm_pretty_printer.travel_namedt m nt); 
+
+		match type_by_name m nt with
+	| Some ty -> LLVMsyntax.Coq_namedt_intro (nt, translate_named_typ m ty)::nts
+	| None -> failwith "Cannot find a named type!"
+
 let translate_module (debug:bool) st (m: llmodule) : LLVMsyntax.coq_module=
 	(if debug then prerr_endline "Translate module (LLVM2Coq):");
 	let dl = translate_layout debug (data_layout m) in
-	let ps = (fold_right_functions (translate_function debug st) m
-				      (fold_right_globals (translate_global debug st) m [])) in  
-	LLVMsyntax.Coq_module_intro (dl, ps)
+	let nts = fold_right_named_types (translate_namedt debug m) m [] in
+	let ps = (fold_right_functions (translate_function debug m st) m
+				      (fold_right_globals (translate_global debug m st) m [])) in  
+	LLVMsyntax.Coq_module_intro (dl, nts, ps)
 

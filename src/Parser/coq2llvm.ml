@@ -13,33 +13,42 @@ let translate_floating_point (ctx:llcontext) (fp:LLVMsyntax.floating_point) : ll
   | LLVMsyntax.Coq_fp_fp128 -> fp128_type ctx
   | LLVMsyntax.Coq_fp_ppc_fp128 -> ppc_fp128_type ctx
 
-let rec translate_typ (ctx:llcontext) (ty:LLVMsyntax.typ) : lltype =
+let rec translate_typ (ctx:llcontext) (m:llmodule) (ty:LLVMsyntax.typ) : lltype =
   match ty with
   | LLVMsyntax.Coq_typ_int sz -> integer_type ctx sz
 	| LLVMsyntax.Coq_typ_floatpoint fp -> translate_floating_point ctx fp
 	| LLVMsyntax.Coq_typ_void -> void_type ctx
 	| LLVMsyntax.Coq_typ_label -> label_type ctx
 	| LLVMsyntax.Coq_typ_metadata -> failwith "Metadata: Not_Supported."
-	| LLVMsyntax.Coq_typ_array (sz, t) -> array_type (translate_typ ctx t) sz
-  | LLVMsyntax.Coq_typ_function (t, ts) -> function_type (translate_typ ctx t) 
-	                                           (Array.of_list (LLVMsyntax.map_list_typ (translate_typ ctx) ts))	
+	| LLVMsyntax.Coq_typ_array (sz, t) -> array_type (translate_typ ctx m t) sz
+  | LLVMsyntax.Coq_typ_function (t, ts) -> function_type (translate_typ ctx m t) 
+	                                           (Array.of_list (LLVMsyntax.map_list_typ (translate_typ ctx m) ts))	
   | LLVMsyntax.Coq_typ_struct ts -> struct_type ctx 
-	                                    (Array.of_list (LLVMsyntax.map_list_typ (translate_typ ctx) ts))
-  | LLVMsyntax.Coq_typ_pointer t -> pointer_type (translate_typ ctx t)
+	                                    (Array.of_list (LLVMsyntax.map_list_typ (translate_typ ctx m) ts))
+  | LLVMsyntax.Coq_typ_pointer t -> pointer_type (translate_typ ctx m t)
 	| LLVMsyntax.Coq_typ_opaque -> opaque_type ctx
-	| LLVMsyntax.Coq_typ_namedt id -> failwith "Namedt: Not_Supported."
+	| LLVMsyntax.Coq_typ_namedt id ->	
+		begin
+			(* FIXME: The alternative way is manually building the named types, but that needs to *)
+			(* reimplementing what BitcodeReader::ParserTypeSymbolTable does to deal with *)
+			(* recursive types. That sounds out of the scope for the current lynx. Lets see if we *)
+			(* really need to do so later... *)
+			match type_by_name m id with
+			| Some ty -> ty
+			| None -> failwith "Cannot find a named type."
+		end
 
-let rec translate_constant (ctx:llcontext) (c:LLVMsyntax.const) : llvalue = 
+let rec translate_constant (ctx:llcontext) (m:llmodule) (c:LLVMsyntax.const) : llvalue = 
 	match c with
-  | LLVMsyntax.Coq_const_zeroinitializer t ->  Llvm.const_null (translate_typ ctx t)
+  | LLVMsyntax.Coq_const_zeroinitializer t ->  Llvm.const_null (translate_typ ctx m t)
 	| LLVMsyntax.Coq_const_int (sz, i) -> Llvm.APInt.const_apint ctx i
 	| LLVMsyntax.Coq_const_floatpoint (fp, f) -> Llvm.APFloat.const_apfloat ctx f
-	| LLVMsyntax.Coq_const_undef t -> undef (translate_typ ctx t)
-	| LLVMsyntax.Coq_const_null t ->  const_null (translate_typ ctx t)
+	| LLVMsyntax.Coq_const_undef t -> undef (translate_typ ctx m t)
+	| LLVMsyntax.Coq_const_null t ->  const_null (translate_typ ctx m t)
 	| LLVMsyntax.Coq_const_arr (t, cs) -> const_array 
-	                                        (translate_typ ctx t) 
-	                                        (Array.of_list (LLVMsyntax.map_list_const (translate_constant ctx) cs))
-	| LLVMsyntax.Coq_const_struct cs -> const_struct ctx (Array.of_list (LLVMsyntax.map_list_const (translate_constant ctx) cs))
+	                                        (translate_typ ctx m t) 
+	                                        (Array.of_list (LLVMsyntax.map_list_const (translate_constant ctx m) cs))
+	| LLVMsyntax.Coq_const_struct cs -> const_struct ctx (Array.of_list (LLVMsyntax.map_list_const (translate_constant ctx m) cs))
   | LLVMsyntax.Coq_const_gid (_,id) -> failwith "const_gid: Not_Supported."
 	| _ -> failwith "const_expr: Not_Supported."
 	
@@ -190,8 +199,7 @@ let translate_product g =
 	| LLVMsyntax.Coq_product_gvar (LLVMsyntax.Coq_gvar_intro (id, spec, t, c, a)) -> failwith "Not_Supported." 
 	| LLVMsyntax.Coq_product_gvar (LLVMsyntax.Coq_gvar_external (id, spec, t)) -> failwith "Not_Supported." 
 	| LLVMsyntax.Coq_product_fdec f -> failwith "Not_Supported."
-	| LLVMsyntax.Coq_product_fdef f -> failwith "Not_Supported."
-	| LLVMsyntax.Coq_product_namedt _ -> failwith "Not_Supported."  
+	| LLVMsyntax.Coq_product_fdef f -> failwith "Not_Supported."  
 	
 let translate_layout dlt =
 	match dlt with
@@ -231,5 +239,5 @@ let translate_layouts dlts =
 let translate_module m =
 	prerr_endline "Translate module (Coq2LLVM):";
 	match m with
-	| LLVMsyntax.Coq_module_intro (dlts, ps) -> ()
+	| LLVMsyntax.Coq_module_intro (dlts, nts, ps) -> ()
 	

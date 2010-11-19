@@ -755,7 +755,6 @@ match p with
   end
 | product_fdec fdec => lookupBindingViaIDFromFdec fdec id
 | product_fdef fdef => lookupBindingViaIDFromFdef fdef id
-| product_namedt _ => id_binding_none
 end.  
 
 Fixpoint lookupBindingViaIDFromProducts (lp:products) (id:id) : id_binding :=
@@ -769,7 +768,7 @@ match lp with
 end.
   
 Definition lookupBindingViaIDFromModule (m:module) (id:id) : id_binding :=
-  let (os, ps) := m in 
+  let (os, dts, ps) := m in 
   lookupBindingViaIDFromProducts ps id.
 
 Fixpoint lookupBindingViaIDFromModules (lm:modules) (id:id) : id_binding :=
@@ -827,7 +826,7 @@ match lp with
 end.
 
 Definition lookupFdecViaIDFromModule (m:module) (i:id) : option fdec :=
-  let (os, ps) := m in 
+  let (os, dts, ps) := m in 
   lookupFdecViaIDFromProducts ps i.
 
 Fixpoint lookupFdecViaIDFromModules (lm:modules) (i:id) : option fdec :=
@@ -860,7 +859,7 @@ match lp with
 end.
 
 Definition lookupFdefViaIDFromModule (m:module) (i:id) : option fdef :=
-  let (os, ps) := m in 
+  let (os, dts, ps) := m in 
   lookupFdefViaIDFromProducts ps i.
 
 Fixpoint lookupFdefViaIDFromModules (lm:modules) (i:id) : option fdef :=
@@ -965,7 +964,6 @@ match p with
 | product_fdef fd => lookupTypViaIDFromFdef fd id0
 | product_gvar (gvar_intro id spec t _ _) => if id0==id then Some t else None
 | product_gvar (gvar_external id spec t) => if id0==id then Some t else None
-| product_namedt (namedt_intro id t) => if id0==id then Some t else None 
 | _ => None
 end.
 
@@ -979,9 +977,21 @@ match lp with
   end
 end.
 
+Fixpoint lookupTypViaIDFromNamedts (nts:namedts) (id0:id) : option typ :=
+match nts with
+| nil => None
+| namedt_intro id1 typ1::nts' =>
+  if (eq_dec id0 id1) 
+  then Some typ1
+  else lookupTypViaIDFromNamedts nts' id0
+end.
+
 Definition lookupTypViaIDFromModule (m:module) (id0:id) : option typ :=
-  let (os, ps) := m in 
- lookupTypViaIDFromProducts ps id0.
+  let (os, dts, ps) := m in 
+  match lookupTypViaIDFromNamedts dts id0 with
+  | None => lookupTypViaIDFromProducts ps id0
+  | Some t => Some t
+  end.
      
 Fixpoint lookupTypViaIDFromModules (lm:modules) (id0:id) : option typ :=
 match lm with
@@ -1022,7 +1032,6 @@ lookupTypViaIDFromModules s id0.
   | product_gvar g => nil
   | product_fdef f => (genLabel2Block_fdef f)
   | product_fdec f => nil
-  | product_namedt nt => nil
   end.
 
   Fixpoint genLabel2Block_products (ps:products) : l2block :=
@@ -1032,7 +1041,7 @@ lookupTypViaIDFromModules s id0.
   end.
 
   Definition genLabel2Block (m: module) : l2block :=
-  let (os, ps) := m in
+  let (os, dts, ps) := m in
   genLabel2Block_products ps.
 
   Definition getEntryOfFdef (f:fdef) : option block :=
@@ -1226,7 +1235,6 @@ lookupTypViaIDFromModules s id0.
   | product_gvar (gvar_external id _ _) => fun _ => nil
   | product_fdef f => (genIdUseDef_fdef f)
   | product_fdec f => fun _ => nil
-  | product_namedt nt => fun _ => nil
   end.
 
   Fixpoint genIdUseDef_products (ps:products) : usedef_id :=
@@ -1236,7 +1244,7 @@ lookupTypViaIDFromModules s id0.
   end.
 
   Definition genIdUseDef (m: module) : usedef_id :=
-  let (os, ps) := m in 
+  let (os, dts, ps) := m in 
   genIdUseDef_products ps.
 
   Definition getIdUseDef (udi:usedef_id) (i:id) : list id :=
@@ -1338,7 +1346,6 @@ lookupTypViaIDFromModules s id0.
   | product_gvar g => fun _ => nil
   | product_fdef f => (genBlockUseDef_fdef f)
   | product_fdec f => fun _ => nil
-  | product_namedt nt => fun _ => nil
   end.
 
   Fixpoint genBlockUseDef_products (ps:products) : usedef_block :=
@@ -1348,7 +1355,7 @@ lookupTypViaIDFromModules s id0.
   end.
 
   Definition genBlockUseDef (m: module) : usedef_block :=
-  let (os, ps) := m in 
+  let (os, dts, ps) := m in 
   genBlockUseDef_products ps.
 
   Definition getBlockUseDef (udb:usedef_block) (b:block) : list block :=
@@ -1819,7 +1826,6 @@ match product with
 | product_gvar g => getGvarID g
 | product_fdec f => getFdecID f
 | product_fdef f => getFdefID f
-| product_namedt (namedt_intro id0 _) => id0
 end.
 
 Fixpoint getProductsIDs ps : ids :=
@@ -1833,7 +1839,6 @@ match product with
 | product_gvar g => True
 | product_fdec f => True
 | product_fdef f => uniqFdef f
-| product_namedt _ => True
 end.
 
 Fixpoint uniqProducts ps : Prop :=
@@ -1842,9 +1847,17 @@ match ps with
 | p::ps' => uniqProduct p /\ uniqProducts ps'
 end.
 
+Fixpoint getNamedtsIDs dts : ids :=
+match dts with
+| nil => nil
+| namedt_intro id0 _::dts' => id0::getNamedtsIDs dts'
+end.
+
 Definition uniqModule m : Prop :=
 match m with
-| module_intro _ ps => uniqProducts ps /\ NoDup (getProductsIDs ps)
+| module_intro _ dts ps => uniqProducts ps /\ 
+                           NoDup (getNamedtsIDs dts) /\
+                           NoDup (getProductsIDs ps)
 end.
 
 Fixpoint uniqModules ms : Prop :=
@@ -2358,20 +2371,12 @@ Proof.
     destruct (@typ_dec t t0); subst; try solve [auto | done_right].
 Qed.  
 
-Lemma namedt_dec : forall (nt1 nt2:namedt), {nt1=nt2}+{~nt1=nt2}.
-Proof.
-  destruct nt1; destruct nt2; try solve [subst; auto | done_right].
-    destruct (@id_dec i0 i1); subst; try solve [done_right].
-    destruct (@typ_dec t t0); subst; try solve [auto | done_right].
-Qed.
-
 Lemma product_dec : forall (p p':product), {p=p'}+{~p=p'}.
 Proof.
   destruct p; destruct p'; try solve [done_right | auto].
     destruct (@gvar_dec g g0); subst; try solve [auto | done_right]. 
     destruct (@fdec_dec f f0); subst; try solve [auto | done_right]. 
     destruct (@fdef_dec f f0); subst; try solve [auto | done_right]. 
-    destruct (@namedt_dec n n0); subst; try solve [auto | done_right]. 
 Qed.
 
 Lemma products_dec : forall (lp lp':products), {lp=lp'}+{~lp=lp'}.
@@ -2382,6 +2387,23 @@ Proof.
     destruct lp'; subst; try solve [done_right].
     destruct (@product_dec a p); subst; try solve [done_right].
     destruct (@IHlp lp'); subst; try solve [auto | done_right].
+Qed.
+
+Lemma namedt_dec : forall (nt1 nt2:namedt), {nt1=nt2}+{~nt1=nt2}.
+Proof.
+  destruct nt1; destruct nt2; try solve [subst; auto | done_right].
+    destruct (@id_dec i0 i1); subst; try solve [done_right].
+    destruct (@typ_dec t t0); subst; try solve [auto | done_right].
+Qed.
+
+Lemma namedts_dec : forall (nts nts':namedts), {nts=nts'}+{~nts=nts'}.
+Proof.
+  induction nts.
+    destruct nts'; subst; try solve [subst; auto | done_right].
+
+    destruct nts'; subst; try solve [done_right].
+    destruct (@namedt_dec a n); subst; try solve [done_right].
+    destruct (@IHnts nts'); subst; try solve [auto | done_right].
 Qed.
 
 Lemma layout_dec : forall (l1 l2:layout), {l1=l2}+{~l1=l2}.
@@ -2421,7 +2443,8 @@ Qed.
 Lemma module_dec : forall (m m':module), {m=m'}+{~m=m'}.
 Proof.
   destruct m; destruct m'; try solve [done_right | auto].
-    destruct (@layouts_dec l0 l1); subst; try solve [auto | done_right]. 
+    destruct (@layouts_dec l0 l1); subst; try solve [done_right]. 
+    destruct (@namedts_dec n n0); subst; try solve [done_right]. 
     destruct (@products_dec p p0); subst; try solve [auto | done_right]. 
 Qed.
 
@@ -2578,7 +2601,7 @@ match lp with
 end.
 
 Definition productInModuleB (p:product) (m:module) : bool :=
-let (os, ps) := m in
+let (os, nts, ps) := m in
 InProductsB p ps.
 
 Fixpoint InModulesB (m:module) (lm:modules) {struct lm} : bool :=
@@ -2713,7 +2736,7 @@ match lp with
 end.
 
 Definition getParentOfCmdFromModule (i:cmd) (m:module) : option block := 
-  let (os, ps) := m in
+  let (os, nts, ps) := m in
   getParentOfCmdFromProducts i ps.
 
 Fixpoint getParentOfCmdFromModules (i:cmd) (lm:modules) {struct lm} : option block :=
@@ -2767,7 +2790,7 @@ match lp with
 end.
 
 Definition getParentOfPhiNodeFromModule (i:phinode) (m:module) : option block := 
-  let (os, ps) := m in
+  let (os, nts, ps) := m in
   getParentOfPhiNodeFromProducts i ps.
 
 Fixpoint getParentOfPhiNodeFromModules (i:phinode) (lm:modules) {struct lm} : option block :=
@@ -2821,7 +2844,7 @@ match lp with
 end.
 
 Definition getParentOfTerminatorFromModule (i:terminator) (m:module) : option block := 
-  let (os, ps) := m in
+  let (os, nts, ps) := m in
   getParentOfTerminatorFromProducts i ps.
 
 Fixpoint getParentOfTerminatorFromModules (i:terminator) (lm:modules) {struct lm} : option block :=

@@ -71,14 +71,19 @@ let main in_filename argv =
 				              ExecutionEngine.to_argv argv ic li::
 				              [] in
 
+        (* FIXME: We need to call ctors/dtors before/after execution *)
+				(* Do we also need to formalize them in Coq? They are implemented by*)
+				(* llvm.global_ctors/llvm.global_dtors. Are they target-independent? *)
+        ExecutionEngine.run_static_ctors li;
+
         (match LLVMopsem.ds_genInitState (coqim::[]) "@main" gargvs (li, im) with
           | Some s -> 
             (match interInsnLoop s Coq_trace_nil with
-              | Some (s', tr) -> ()
+              | Some (s', tr) -> (); ExecutionEngine.run_static_dtors li
               | None -> () )
           | None -> () );
-
-        SlotTracker.dispose ist;
+        
+			  SlotTracker.dispose ist;
         ExecutionEngine.dispose li
 
 let _ = let len = Array.length Sys.argv in

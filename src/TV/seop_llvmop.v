@@ -482,28 +482,28 @@ Qed.
 
 Definition llvmop_dbInsn__seop_prop state1 state2 tr
   (db:LLVMopsem.dbInsn state1 state2 tr) :=
-  forall S TD Ps F l ps cs tmn lc arg als ECs gl fs Mem cs0,
-  state1 = (mkState S TD Ps ((mkEC F (block_intro l ps cs0 tmn) cs tmn lc arg als)::ECs) gl fs Mem) ->
+  forall S los nts Ps F l ps cs tmn lc arg als ECs gl fs Mem cs0,
+  state1 = (mkState S (los, nts) Ps ((mkEC F (block_intro l ps cs0 tmn) cs tmn lc arg als)::ECs) gl fs Mem) ->
   uniqSystem S ->
-  blockInSystemModuleFdef (block_intro l ps cs0 tmn) S (module_intro TD Ps) F ->
+  blockInSystemModuleFdef (block_intro l ps cs0 tmn) S (module_intro los nts Ps) F ->
   exists l', exists ps', exists cs', exists tmn', 
   exists lc', exists als', exists Mem', exists cs0',
-  state2 = (mkState S TD Ps ((mkEC F (block_intro l' ps' cs0' tmn') cs' tmn' lc' arg als')::ECs) gl fs Mem') /\
+  state2 = (mkState S (los, nts) Ps ((mkEC F (block_intro l' ps' cs0' tmn') cs' tmn' lc' arg als')::ECs) gl fs Mem') /\
   ((cs = nil /\ Mem = Mem' /\ als = als' /\ cs' = cs0' /\
-              SimpleSE.dbTerminator TD F gl
+              SimpleSE.dbTerminator (los, nts) F gl
                  (block_intro l ps cs tmn) lc
                  tmn 
                  (block_intro l' ps' cs' tmn') lc' 
                  tr ) \/ 
-  (exists c, c::cs' = cs /\ SimpleSE.dbCmd TD gl lc als Mem c lc' als' Mem' tr) \/
-  (exists c, c::cs' = cs /\ SimpleSE.dbCall S TD Ps fs gl lc Mem c lc' Mem' tr)).
+  (exists c, c::cs' = cs /\ SimpleSE.dbCmd (los, nts) gl lc als Mem c lc' als' Mem' tr) \/
+  (exists c, c::cs' = cs /\ SimpleSE.dbCall S (los, nts) Ps fs gl lc Mem c lc' Mem' tr)).
 Definition llvmop_dbop__seop_prop state1 state2 tr
   (db:LLVMopsem.dbop state1 state2 tr) :=
-  forall S TD Ps F l ps cs tmn lc arg als ECs gl fs Mem l' ps' cs' tmn' lc' als' gl' fs' Mem' cs0 cs0',
-  state1 = (mkState S TD Ps ((mkEC F (block_intro l ps cs0 tmn) cs tmn lc arg als)::ECs) gl fs Mem) ->
-  state2 = (mkState S TD Ps ((mkEC F (block_intro l' ps' cs0' tmn') cs' tmn' lc' arg als')::ECs) gl' fs' Mem') ->
+  forall S los nts Ps F l ps cs tmn lc arg als ECs gl fs Mem l' ps' cs' tmn' lc' als' gl' fs' Mem' cs0 cs0',
+  state1 = (mkState S (los, nts) Ps ((mkEC F (block_intro l ps cs0 tmn) cs tmn lc arg als)::ECs) gl fs Mem) ->
+  state2 = (mkState S (los, nts) Ps ((mkEC F (block_intro l' ps' cs0' tmn') cs' tmn' lc' arg als')::ECs) gl' fs' Mem') ->
   uniqSystem S ->
-  blockInSystemModuleFdef (block_intro l ps cs0 tmn) S (module_intro TD Ps) F ->
+  blockInSystemModuleFdef (block_intro l ps cs0 tmn) S (module_intro los nts Ps) F ->
   (exists cs1, exists cs2, 
   exists tr1, exists tr2,
   exists lc1, exists als1, exists Mem1,
@@ -513,12 +513,12 @@ Definition llvmop_dbop__seop_prop state1 state2 tr
     cs0 = cs0' /\
     tmn = tmn' /\
     cs = cs1++cs2++cs' /\
-    SimpleSE.dbSubblocks S TD Ps fs gl
+    SimpleSE.dbSubblocks S (los, nts) Ps fs gl
       lc als Mem
       cs1
       lc1 als1 Mem1
       tr1 /\
-    SimpleSE.dbCmds TD gl
+    SimpleSE.dbCmds (los, nts) gl
       lc1 als1 Mem1
       cs2
       lc' als' Mem'
@@ -529,24 +529,26 @@ Definition llvmop_dbop__seop_prop state1 state2 tr
   exists lc2, exists als2,  exists Mem2,
     cs1++cs2++cs'=cs0' /\
     (trace_app (trace_app tr1 tr2) tr3) = tr /\
-    SimpleSE.dbBlocks S TD Ps fs gl F arg 
+    SimpleSE.dbBlocks S (los, nts) Ps fs gl F arg 
       (SimpleSE.mkState (SimpleSE.mkEC (block_intro l ps cs tmn) lc als) Mem) 
       (SimpleSE.mkState (SimpleSE.mkEC (block_intro l' ps' cs0' tmn') lc1 als1) Mem1)
       tr1 /\
-    SimpleSE.dbSubblocks S TD Ps fs gl
+    SimpleSE.dbSubblocks S (los, nts) Ps fs gl
       lc1 als1 Mem1
       cs1
       lc2 als2 Mem2
       tr2 /\
-    SimpleSE.dbCmds TD gl
+    SimpleSE.dbCmds (los, nts) gl
       lc2 als2 Mem2
       cs2
       lc' als' Mem'
       tr3).
 Definition llvmop_dbFdef__seop_dbFdef_prop fid rt lp S TD Ps ECs lc gl fs Mem lc' als' Mem' B' Rid oResult tr
   (db:LLVMopsem.dbFdef fid rt lp S TD Ps ECs lc gl fs Mem lc' als' Mem' B' Rid oResult tr) :=
+  forall los nts,
+  TD = (los, nts) ->
   uniqSystem S ->
-  moduleInSystem (module_intro TD Ps) S ->
+  moduleInSystem (module_intro los nts Ps) S ->
   SimpleSE.dbFdef fid rt lp S TD Ps lc gl fs Mem lc' als' Mem' B' Rid oResult tr.
 
 Lemma llvmop__seop : 
@@ -566,7 +568,7 @@ Proof.
 Case "dbBranch".
   inversion H; subst. clear H.
   exists l'. exists ps'. exists cs'. exists tmn'.
-  exists (switchToNewBasicBlock TD0 (block_intro l' ps' cs' tmn') (block_intro l0 ps cs0 (insn_br bid Cond l1 l2)) gl0 lc0). 
+  exists (switchToNewBasicBlock (los, nts) (block_intro l' ps' cs' tmn') (block_intro l0 ps cs0 (insn_br bid Cond l1 l2)) gl0 lc0). 
   exists als0. exists Mem1.
   exists cs'. split; auto.
   left. 
@@ -579,7 +581,7 @@ Case "dbBranch".
 Case "dbBranch_uncond".
   inversion H; subst. clear H.
   exists l'. exists ps'. exists cs'. exists tmn'.
-  exists (switchToNewBasicBlock TD0 (block_intro l' ps' cs' tmn') (block_intro l1 ps cs0 (insn_br_uncond bid l0)) gl0 lc0). 
+  exists (switchToNewBasicBlock (los, nts) (block_intro l' ps' cs' tmn') (block_intro l1 ps cs0 (insn_br_uncond bid l0)) gl0 lc0). 
   exists als0. exists Mem1.
   exists cs'. split; auto.
   left.
@@ -628,7 +630,7 @@ Case "dbInsertValue".
 Case "dbMalloc".
   inversion H; subst. clear H. 
   exists l0. exists ps. exists cs. exists tmn0.
-  exists (updateAddAL _ lc0 id0 (blk2GV TD0 mb)). exists als0. exists Mem'.
+  exists (updateAddAL _ lc0 id0 (blk2GV (los, nts) mb)). exists als0. exists Mem'.
   exists cs1. split; auto.
   right. left.
   exists (insn_malloc id0 t v align0).
@@ -646,7 +648,7 @@ Case "dbFree".
 Case "dbAlloca".
   inversion H; subst. clear H.
   exists l0. exists ps. exists cs. exists tmn0.
-  exists (updateAddAL _ lc0 id0 (blk2GV TD0 mb)). exists (mb::als0). exists Mem'.
+  exists (updateAddAL _ lc0 id0 (blk2GV (los, nts) mb)). exists (mb::als0). exists Mem'.
   exists cs1. split; auto.
   right. left.
   exists (insn_alloca id0 t v align0).
@@ -727,7 +729,7 @@ Case "dbFcmp".
 Case "dbSelect".
   inversion H; subst. clear H.
   exists l0. exists ps. exists cs. exists tmn0.
-  exists (if isGVZero TD0 c then updateAddAL _ lc0 id0 gv2 else updateAddAL _ lc0 id0 gv1). exists als0. exists Mem1.
+  exists (if isGVZero (los, nts) c then updateAddAL _ lc0 id0 gv2 else updateAddAL _ lc0 id0 gv1). exists als0. exists Mem1.
   exists cs1. split; auto.
   right. left.
   exists (insn_select id0 v0 t v1 v2).
@@ -736,7 +738,7 @@ Case "dbSelect".
 Case "dbCall".
   inversion H0; subst. clear H0.
   exists l0. exists ps. exists cs. exists tmn0.
-  exists (callUpdateLocals TD0 noret0 rid rt oResult lc0 lc' gl0). exists als0. exists Mem''.
+  exists (callUpdateLocals (los, nts) noret0 rid rt oResult lc0 lc' gl0). exists als0. exists Mem''.
   exists cs1. split; auto.
   right. right.
   exists (insn_call rid noret0 tailc0 rt fv lp).
@@ -762,11 +764,11 @@ Case "dbop_nil".
   repeat (split; auto).
   
 Case "dbop_cons".
-  destruct (@H S TD Ps F l0 ps cs tmn lc arg0 als ECs gl fs Mem0 cs0)
+  destruct (@H S los nts Ps F l0 ps cs tmn lc arg0 als ECs gl fs Mem0 cs0)
     as [l1 [ps1 [cs1 [tmn1 [lc1 [als1 [Mem1 [cs2 [J1 J2]]]]]]]]]; subst; auto.
   clear H.
-  assert (mkState S TD Ps (mkEC F (block_intro l1 ps1 cs2 tmn1) cs1 tmn1 lc1 arg0 als1::ECs) gl fs Mem1 =
-          mkState S TD Ps (mkEC F (block_intro l1 ps1 cs2 tmn1) cs1 tmn1 lc1 arg0 als1::ECs) gl fs Mem1) as J'. auto.
+  assert (mkState S (los, nts) Ps (mkEC F (block_intro l1 ps1 cs2 tmn1) cs1 tmn1 lc1 arg0 als1::ECs) gl fs Mem1 =
+          mkState S (los, nts) Ps (mkEC F (block_intro l1 ps1 cs2 tmn1) cs1 tmn1 lc1 arg0 als1::ECs) gl fs Mem1) as J'. auto.
   assert (d':=d).
   apply dbInsn_preservation in d'; auto.
   apply H0 with (fs'0:=fs')(l'0:=l')(ps'0:=ps')(cs'0:=cs')(tmn'0:=tmn')(lc'0:=lc')(als'0:=als')(gl'0:=gl')(Mem'0:=Mem')(cs0'0:=cs0') in J'; auto.
@@ -910,8 +912,16 @@ Case "dbop_cons".
         repeat (split; eauto).     
 
 Case "dbFdef_func".
-  assert (mkState S TD Ps (mkEC (fdef_intro (fheader_intro rt fid la) lb) (block_intro l' ps' cs' tmn') cs' tmn' (initLocals la (params2GVs TD lp lc gl)) (params2GVs TD lp lc gl) nil::ECs) gl fs Mem0 =
-          mkState S TD Ps (mkEC (fdef_intro (fheader_intro rt fid la) lb) (block_intro l' ps' cs' tmn') cs' tmn' (initLocals la (params2GVs TD lp lc gl)) (params2GVs TD lp lc gl) nil::ECs) gl fs Mem0) as J. auto.
+  assert (mkState S (los, nts) Ps 
+           (mkEC 
+             (fdef_intro (fheader_intro rt fid la) lb) (block_intro l' ps' cs' tmn') cs' tmn' 
+             (initLocals la (params2GVs (los, nts) lp lc gl)) 
+             (params2GVs (los, nts) lp lc gl) nil::ECs) gl fs Mem0 =
+          mkState S (los, nts) Ps 
+           (mkEC 
+             (fdef_intro (fheader_intro rt fid la) lb) (block_intro l' ps' cs' tmn') cs' tmn' 
+             (initLocals la (params2GVs (los, nts) lp lc gl)) 
+             (params2GVs (los, nts) lp lc gl) nil::ECs) gl fs Mem0) as J. auto.
   apply H with (l'0:=l'')(ps'0:=ps'')(cs'0:=nil)(tmn'0:=insn_return rid rt Result)(lc'0:=lc')(als'0:=als')(gl':=gl)(fs':=fs)(Mem'0:=Mem')(cs0':=cs'') in J; 
     eauto using entryBlockInSystemBlockFdef'.
   clear H d.
@@ -929,8 +939,14 @@ Case "dbFdef_func".
     eapply SimpleSE.dbFdef_func; eauto.
 
 Case "dbFdef_proc".
-  assert (mkState S TD Ps (mkEC (fdef_intro (fheader_intro rt fid la) lb) (block_intro l' ps' cs' tmn') cs' tmn' (initLocals la (params2GVs TD lp lc gl)) (params2GVs TD lp lc gl) nil::ECs) gl fs Mem0 =
-          mkState S TD Ps (mkEC (fdef_intro (fheader_intro rt fid la) lb) (block_intro l' ps' cs' tmn') cs' tmn' (initLocals la (params2GVs TD lp lc gl)) (params2GVs TD lp lc gl) nil::ECs) gl fs Mem0) as J. auto.
+  assert (mkState S (los, nts) Ps 
+           (mkEC (fdef_intro (fheader_intro rt fid la) lb) (block_intro l' ps' cs' tmn') cs' tmn' 
+                 (initLocals la (params2GVs (los, nts) lp lc gl)) 
+                 (params2GVs (los, nts) lp lc gl) nil::ECs) gl fs Mem0 =
+          mkState S (los, nts) Ps 
+           (mkEC (fdef_intro (fheader_intro rt fid la) lb) (block_intro l' ps' cs' tmn') cs' tmn' 
+                 (initLocals la (params2GVs (los, nts) lp lc gl)) 
+                 (params2GVs (los, nts) lp lc gl) nil::ECs) gl fs Mem0) as J. auto.
   apply H with (l'0:=l'')(ps'0:=ps'')(cs'0:=nil)(tmn'0:=insn_return_void rid)(lc'0:=lc')(als'0:=als')(gl':=gl)(fs':=fs)(Mem'0:=Mem')(cs0':=cs'') in J;
     eauto using entryBlockInSystemBlockFdef'.
   clear H d.
@@ -949,24 +965,24 @@ Case "dbFdef_proc".
 Qed.
 
 
-Lemma llvmop_dbInsn__seop : forall state2 tr S TD Ps F l ps cs tmn lc arg als ECs gl fs Mem cs0,
+Lemma llvmop_dbInsn__seop : forall state2 tr S los nts Ps F l ps cs tmn lc arg als ECs gl fs Mem cs0,
   LLVMopsem.dbInsn 
-    (mkState S TD Ps ((mkEC F (block_intro l ps cs0 tmn) cs tmn lc arg als)::ECs) gl fs Mem)  
+    (mkState S (los, nts) Ps ((mkEC F (block_intro l ps cs0 tmn) cs tmn lc arg als)::ECs) gl fs Mem)  
     state2 
     tr ->
   uniqSystem S ->
-  blockInSystemModuleFdef (block_intro l ps cs0 tmn) S (module_intro TD Ps) F ->
+  blockInSystemModuleFdef (block_intro l ps cs0 tmn) S (module_intro los nts Ps) F ->
   exists l', exists ps', exists cs', exists tmn', 
   exists lc', exists als', exists Mem', exists cs0',
-  state2 = (mkState S TD Ps ((mkEC F (block_intro l' ps' cs0' tmn') cs' tmn' lc' arg als')::ECs) gl fs Mem') /\
+  state2 = (mkState S (los, nts) Ps ((mkEC F (block_intro l' ps' cs0' tmn') cs' tmn' lc' arg als')::ECs) gl fs Mem') /\
   ((cs = nil /\ Mem = Mem' /\ als = als' /\ cs' = cs0' /\
-              SimpleSE.dbTerminator TD F gl
+              SimpleSE.dbTerminator (los, nts) F gl
                  (block_intro l ps cs tmn) lc
                  tmn 
                  (block_intro l' ps' cs' tmn') lc' 
                  tr ) \/ 
-  (exists c, c::cs' = cs /\ SimpleSE.dbCmd TD gl lc als Mem c lc' als' Mem' tr) \/
-  (exists c, c::cs' = cs /\ SimpleSE.dbCall S TD Ps fs gl lc Mem c lc' Mem' tr)).
+  (exists c, c::cs' = cs /\ SimpleSE.dbCmd (los, nts) gl lc als Mem c lc' als' Mem' tr) \/
+  (exists c, c::cs' = cs /\ SimpleSE.dbCall S (los, nts) Ps fs gl lc Mem c lc' Mem' tr)).
 Proof.
   intros.
   destruct llvmop__seop as [J _]. 
@@ -974,13 +990,13 @@ Proof.
   eapply J; eauto.
 Qed.
 
-Lemma llvmop_dbop__seop : forall tr S TD Ps F l ps cs tmn lc arg als ECs gl fs Mem l' ps' cs' tmn' lc' als' gl' fs' Mem' cs0 cs0',
+Lemma llvmop_dbop__seop : forall tr S los nts Ps F l ps cs tmn lc arg als ECs gl fs Mem l' ps' cs' tmn' lc' als' gl' fs' Mem' cs0 cs0',
   LLVMopsem.dbop 
-    (mkState S TD Ps ((mkEC F (block_intro l ps cs0 tmn) cs tmn lc arg als)::ECs) gl fs Mem)
-    (mkState S TD Ps ((mkEC F (block_intro l' ps' cs0' tmn') cs' tmn' lc' arg als')::ECs) gl' fs' Mem')
+    (mkState S (los, nts) Ps ((mkEC F (block_intro l ps cs0 tmn) cs tmn lc arg als)::ECs) gl fs Mem)
+    (mkState S (los, nts) Ps ((mkEC F (block_intro l' ps' cs0' tmn') cs' tmn' lc' arg als')::ECs) gl' fs' Mem')
     tr ->
   uniqSystem S ->
-  blockInSystemModuleFdef (block_intro l ps cs0 tmn) S (module_intro TD Ps) F ->
+  blockInSystemModuleFdef (block_intro l ps cs0 tmn) S (module_intro los nts Ps) F ->
   (exists cs1, exists cs2, 
   exists tr1, exists tr2,
   exists lc1, exists als1, exists Mem1,
@@ -990,12 +1006,12 @@ Lemma llvmop_dbop__seop : forall tr S TD Ps F l ps cs tmn lc arg als ECs gl fs M
     cs0 = cs0' /\
     tmn = tmn' /\
     cs = cs1++cs2++cs' /\
-    SimpleSE.dbSubblocks S TD Ps fs gl
+    SimpleSE.dbSubblocks S (los, nts) Ps fs gl
       lc als Mem
       cs1
       lc1 als1 Mem1
       tr1 /\
-    SimpleSE.dbCmds TD gl
+    SimpleSE.dbCmds (los, nts) gl
       lc1 als1 Mem1
       cs2
       lc' als' Mem'
@@ -1006,16 +1022,16 @@ Lemma llvmop_dbop__seop : forall tr S TD Ps F l ps cs tmn lc arg als ECs gl fs M
   exists lc2, exists als2, exists Mem2,
     cs1++cs2++cs'=cs0' /\
     (trace_app (trace_app tr1 tr2) tr3) = tr /\
-    SimpleSE.dbBlocks S TD Ps fs gl F arg 
+    SimpleSE.dbBlocks S (los, nts) Ps fs gl F arg 
       (SimpleSE.mkState (SimpleSE.mkEC (block_intro l ps cs tmn) lc als) Mem) 
       (SimpleSE.mkState (SimpleSE.mkEC (block_intro l' ps' cs0' tmn') lc1 als1) Mem1)
       tr1 /\
-    SimpleSE.dbSubblocks S TD Ps fs gl
+    SimpleSE.dbSubblocks S (los, nts) Ps fs gl
       lc1 als1 Mem1
       cs1
       lc2 als2 Mem2
       tr2 /\
-    SimpleSE.dbCmds TD gl
+    SimpleSE.dbCmds (los, nts) gl
       lc2 als2 Mem2
       cs2
       lc' als' Mem'
@@ -1027,11 +1043,11 @@ Proof.
   eapply J; eauto.
 Qed.
 
-Lemma llvmop_dbFdef__seop_dbFdef : forall fid rt lp S TD Ps ECs lc gl fs Mem lc' als' Mem' B' Rid oResult tr,
-  LLVMopsem.dbFdef fid rt lp S TD Ps ECs lc gl fs Mem lc' als' Mem' B' Rid oResult tr ->
+Lemma llvmop_dbFdef__seop_dbFdef : forall fid rt lp S los nts Ps ECs lc gl fs Mem lc' als' Mem' B' Rid oResult tr,
+  LLVMopsem.dbFdef fid rt lp S (los, nts) Ps ECs lc gl fs Mem lc' als' Mem' B' Rid oResult tr ->
   uniqSystem S ->
-  moduleInSystem (module_intro TD Ps) S ->
-  SimpleSE.dbFdef fid rt lp S TD Ps lc gl fs Mem lc' als' Mem' B' Rid oResult tr.
+  moduleInSystem (module_intro los nts Ps) S ->
+  SimpleSE.dbFdef fid rt lp S (los, nts) Ps lc gl fs Mem lc' als' Mem' B' Rid oResult tr.
 Proof.
   intros.
   destruct llvmop__seop as [_ [_ J]]. 

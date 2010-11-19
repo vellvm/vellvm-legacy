@@ -140,13 +140,13 @@ Definition wf_operand (intrinsic_funs5:intrinsic_funs)
                             (block5:block)
                             (insn5:insn) 
                             (id':id): Prop :=
-  let '((module_intro list_layout5 list_product5), (usedef_insn5, usedef_block5)) := module_info5 in
+  let '((module_intro list_layout5 namedts5 list_product5), (usedef_insn5, usedef_block5)) := module_info5 in
   let (fdef5, dt5) := fdef_info5 in 
   {{{
   do ret (insnInSystemModuleIFdefIBlockB
             insn5 
             system5  
-            ( (module_intro list_layout5 list_product5) , ( usedef_insn5 ,  usedef_block5 )) 
+            ( (module_intro list_layout5 namedts5 list_product5) , ( usedef_insn5 ,  usedef_block5 )) 
             ( fdef5 ,  dt5 )   
             block5);
   do ids5 <- ret (getInsnOperands insn5);
@@ -751,12 +751,12 @@ Inductive wf_prods : intrinsic_funs -> system -> module_info -> products -> Prop
 
 (* defns Jwf_module *)
 Inductive wf_module : intrinsic_funs -> system -> module -> Prop :=    (* defn wf_module *)
- | wf_module_intro : forall (intrinsic_funs5:intrinsic_funs) (system5:system) list_layout5 (list_product5:products) (usedef_insn5:usedef_id) (usedef_block5:usedef_block),
-     In  (module_intro list_layout5 list_product5)   system5  ->
-     genIdUseDef  (module_intro list_layout5 list_product5)  = usedef_insn5  ->
-     genBlockUseDef  (module_intro list_layout5 list_product5)  = usedef_block5  ->
-     wf_prods intrinsic_funs5 system5   (  (module_intro list_layout5 list_product5)  , ( usedef_insn5 ,  usedef_block5 ))   list_product5 ->
-     wf_module intrinsic_funs5 system5  (module_intro list_layout5 list_product5) .
+ | wf_module_intro : forall (intrinsic_funs5:intrinsic_funs) (system5:system) list_layout5 namedts5 (list_product5:products) (usedef_insn5:usedef_id) (usedef_block5:usedef_block),
+     In  (module_intro list_layout5 namedts5 list_product5)   system5  ->
+     genIdUseDef  (module_intro list_layout5 namedts5 list_product5)  = usedef_insn5  ->
+     genBlockUseDef  (module_intro list_layout5 namedts5 list_product5)  = usedef_block5  ->
+     wf_prods intrinsic_funs5 system5   (  (module_intro list_layout5 namedts5 list_product5)  , ( usedef_insn5 ,  usedef_block5 ))   list_product5 ->
+     wf_module intrinsic_funs5 system5  (module_intro list_layout5 namedts5 list_product5) .
 
 (* defns Jwf_list_module *)
 Inductive wf_list_module : intrinsic_funs -> system -> modules -> Prop :=    (* defn wf_list_module *)

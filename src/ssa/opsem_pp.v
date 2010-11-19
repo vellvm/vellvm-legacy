@@ -220,30 +220,32 @@ Qed.
 
 Definition dbInsn_preservation_prop state1 state2 tr
   (db:dbInsn state1 state2 tr) :=
-  forall S TD Ps F l ps cs tmn lc arg als ECs gl fs Mem cs0,
-  state1 = (mkState S TD Ps ((mkEC F (block_intro l ps cs0 tmn) cs tmn lc arg als)::ECs) gl fs Mem) ->
+  forall S los nts Ps F l ps cs tmn lc arg als ECs gl fs Mem cs0,
+  state1 = (mkState S (los, nts) Ps ((mkEC F (block_intro l ps cs0 tmn) cs tmn lc arg als)::ECs) gl fs Mem) ->
   uniqSystem S ->
-  blockInSystemModuleFdef (block_intro l ps cs0 tmn) S (module_intro TD Ps) F ->
+  blockInSystemModuleFdef (block_intro l ps cs0 tmn) S (module_intro los nts Ps) F ->
   exists l', exists ps', exists cs', exists tmn', 
   exists lc', exists als', exists Mem', exists cs0',
-  state2 = (mkState S TD Ps ((mkEC F (block_intro l' ps' cs0' tmn') cs' tmn' lc' arg als')::ECs) gl fs Mem') /\
-  blockInSystemModuleFdef (block_intro l' ps' cs0' tmn') S (module_intro TD Ps) F.
+  state2 = (mkState S (los, nts) Ps ((mkEC F (block_intro l' ps' cs0' tmn') cs' tmn' lc' arg als')::ECs) gl fs Mem') /\
+  blockInSystemModuleFdef (block_intro l' ps' cs0' tmn') S (module_intro los nts Ps) F.
 Definition dbop_preservation_prop state1 state2 tr
   (db:dbop state1 state2 tr) :=
-  forall S TD Ps F l ps cs tmn lc arg als ECs gl fs Mem l' ps' cs' tmn' lc' als' gl' fs' Mem' cs0 cs0',
-  state1 = (mkState S TD Ps ((mkEC F (block_intro l ps cs0 tmn) cs tmn lc arg als)::ECs) gl fs Mem) ->
-  state2 = (mkState S TD Ps ((mkEC F (block_intro l' ps' cs0' tmn') cs' tmn' lc' arg als')::ECs) gl' fs' Mem') ->
+  forall S los nts Ps F l ps cs tmn lc arg als ECs gl fs Mem l' ps' cs' tmn' lc' als' gl' fs' Mem' cs0 cs0',
+  state1 = (mkState S (los, nts) Ps ((mkEC F (block_intro l ps cs0 tmn) cs tmn lc arg als)::ECs) gl fs Mem) ->
+  state2 = (mkState S (los, nts) Ps ((mkEC F (block_intro l' ps' cs0' tmn') cs' tmn' lc' arg als')::ECs) gl' fs' Mem') ->
   uniqSystem S ->
-  blockInSystemModuleFdef (block_intro l ps cs0 tmn) S (module_intro TD Ps) F ->
-  blockInSystemModuleFdef (block_intro l' ps' cs0' tmn') S (module_intro TD Ps) F.
+  blockInSystemModuleFdef (block_intro l ps cs0 tmn) S (module_intro los nts Ps) F ->
+  blockInSystemModuleFdef (block_intro l' ps' cs0' tmn') S (module_intro los nts Ps) F.
 Definition dbFdef_preservation_prop fv rt lp S TD Ps ECs lc gl fs Mem lc' als' Mem' B' Rid oResult tr
   (db:dbFdef fv rt lp S TD Ps ECs lc gl fs Mem lc' als' Mem' B' Rid oResult tr) :=
+  forall los nts,
+  TD = (los, nts) ->
   uniqSystem S ->
-  moduleInSystem (module_intro TD Ps) S ->
+  moduleInSystem (module_intro los nts Ps) S ->
   exists F, 
     lookupFdefViaGV TD Ps gl lc fs fv = Some F /\
     uniqFdef F /\
-    blockInSystemModuleFdef B' S (module_intro TD Ps) F.
+    blockInSystemModuleFdef B' S (module_intro los nts Ps) F.
 
 Lemma db_preservation : 
   (forall state1 state2 tr db, @dbInsn_preservation_prop state1 state2 tr db) /\
@@ -262,7 +264,7 @@ Proof.
 Case "dbBranch".
   inversion H; subst. clear H.
   exists l'. exists ps'. exists cs'. exists tmn'.
-  exists (switchToNewBasicBlock TD0 (block_intro l' ps' cs' tmn') (block_intro l0 ps cs0 (insn_br bid Cond l1 l2)) gl0 lc0). exists als0. exists Mem1.
+  exists (switchToNewBasicBlock (los, nts) (block_intro l' ps' cs' tmn') (block_intro l0 ps cs0 (insn_br bid Cond l1 l2)) gl0 lc0). exists als0. exists Mem1.
   exists cs'. split; auto.
   apply andb_true_iff in H1.
   destruct H1.
@@ -271,14 +273,14 @@ Case "dbBranch".
     assert (uniqFdef F0) as UniqF0.
       eapply uniqSystem__uniqFdef with (S:=S0); eauto.
     symmetry in e0.
-    destruct (isGVZero TD0 c);
+    destruct (isGVZero (los, nts) c);
       apply lookupBlockViaLabelFromFdef_inv in e0;
       destruct e0; auto.
 
 Case "dbBranch_uncond".
   inversion H; subst. clear H.
   exists l'. exists ps'. exists cs'. exists tmn'.
-  exists (switchToNewBasicBlock TD0 (block_intro l' ps' cs' tmn') (block_intro l1 ps cs0 (insn_br_uncond bid l0)) gl0 lc0). exists als0. exists Mem1.
+  exists (switchToNewBasicBlock (los, nts) (block_intro l' ps' cs' tmn') (block_intro l1 ps cs0 (insn_br_uncond bid l0)) gl0 lc0). exists als0. exists Mem1.
   exists cs'. split; auto.
   apply andb_true_iff in H1.
   destruct H1.
@@ -317,7 +319,7 @@ Case "dbInsertValue".
 Case "dbMalloc".
   inversion H; subst.
   exists l0. exists ps. exists cs. exists tmn0.
-  exists (updateAddAL _ lc0 id0 (blk2GV TD0 mb)). exists als0. exists Mem'.
+  exists (updateAddAL _ lc0 id0 (blk2GV (los, nts) mb)). exists als0. exists Mem'.
   exists cs1. split; auto.
 
 Case "dbFree".
@@ -329,7 +331,7 @@ Case "dbFree".
 Case "dbAlloca".
   inversion H; subst. 
   exists l0. exists ps. exists cs. exists tmn0.
-  exists (updateAddAL _ lc0 id0 (blk2GV TD0 mb)). exists (mb::als0). exists Mem'.
+  exists (updateAddAL _ lc0 id0 (blk2GV (los, nts) mb)). exists (mb::als0). exists Mem'.
   exists cs1. split; auto.
 
 Case "dbLoad".
@@ -383,13 +385,13 @@ Case "dbFcmp".
 Case "dbSelect".
   inversion H; subst.
   exists l0. exists ps. exists cs. exists tmn0.
-  exists (if isGVZero TD0 c then updateAddAL _ lc0 id0 gv2 else updateAddAL _ lc0 id0 gv1). exists als0. exists Mem1.
+  exists (if isGVZero (los, nts) c then updateAddAL _ lc0 id0 gv2 else updateAddAL _ lc0 id0 gv1). exists als0. exists Mem1.
   exists cs1. split; auto.
 
 Case "dbCall".
   inversion H0; subst. clear H0.
   exists l0. exists ps. exists cs. exists tmn0.
-  exists (callUpdateLocals TD0 noret0 rid rt oResult lc0 lc' gl0). exists als0. exists Mem''.
+  exists (callUpdateLocals (los, nts) noret0 rid rt oResult lc0 lc' gl0). exists als0. exists Mem''.
   exists cs1. split; auto.
  
 Case "dbExCall".
@@ -422,14 +424,14 @@ Case "dbFdef_proc".
     eapply H; eauto using entryBlockInSystemBlockFdef'.
 Qed.
 
-Lemma _dbInsn_preservation : forall state2 tr S TD Ps F l ps cs tmn lc arg als ECs gl fs Mem cs0,
-  dbInsn ((mkState S TD Ps ((mkEC F (block_intro l ps cs0 tmn) cs tmn lc arg als)::ECs) gl fs Mem)) state2 tr ->
+Lemma _dbInsn_preservation : forall state2 tr S los nts Ps F l ps cs tmn lc arg als ECs gl fs Mem cs0,
+  dbInsn ((mkState S (los, nts) Ps ((mkEC F (block_intro l ps cs0 tmn) cs tmn lc arg als)::ECs) gl fs Mem)) state2 tr ->
   uniqSystem S ->
-  blockInSystemModuleFdef (block_intro l ps cs0 tmn) S (module_intro TD Ps) F ->
+  blockInSystemModuleFdef (block_intro l ps cs0 tmn) S (module_intro los nts Ps) F ->
   exists l', exists ps', exists cs', exists tmn', 
   exists lc', exists als', exists Mem', exists cs0',
-  state2 = (mkState S TD Ps ((mkEC F (block_intro l' ps' cs0' tmn') cs' tmn' lc' arg als')::ECs) gl fs Mem') /\
-  blockInSystemModuleFdef (block_intro l' ps' cs0' tmn') S (module_intro TD Ps) F.
+  state2 = (mkState S (los, nts) Ps ((mkEC F (block_intro l' ps' cs0' tmn') cs' tmn' lc' arg als')::ECs) gl fs Mem') /\
+  blockInSystemModuleFdef (block_intro l' ps' cs0' tmn') S (module_intro los nts Ps) F.
 Proof.
   intros.
   destruct db_preservation as [J _].
@@ -437,15 +439,15 @@ Proof.
   eapply J; eauto.
 Qed.
 
-Lemma dbInsn_preservation : forall tr S TD Ps F l ps cs tmn lc arg als ECs gl fs Mem cs0
+Lemma dbInsn_preservation : forall tr S los nts Ps F l ps cs tmn lc arg als ECs gl fs Mem cs0
   l' ps'  cs' tmn' lc' als' gl' fs' Mem' cs0',
   dbInsn 
-    ((mkState S TD Ps ((mkEC F (block_intro l ps cs0 tmn) cs tmn lc arg als)::ECs) gl fs Mem)) 
-    (mkState S TD Ps ((mkEC F (block_intro l' ps' cs0' tmn') cs' tmn' lc' arg als')::ECs) gl' fs' Mem')
+    ((mkState S (los, nts) Ps ((mkEC F (block_intro l ps cs0 tmn) cs tmn lc arg als)::ECs) gl fs Mem)) 
+    (mkState S (los, nts) Ps ((mkEC F (block_intro l' ps' cs0' tmn') cs' tmn' lc' arg als')::ECs) gl' fs' Mem')
     tr ->
   uniqSystem S ->
-  blockInSystemModuleFdef (block_intro l ps cs0 tmn) S (module_intro TD Ps) F ->
-  blockInSystemModuleFdef (block_intro l' ps' cs0' tmn') S (module_intro TD Ps) F.
+  blockInSystemModuleFdef (block_intro l ps cs0 tmn) S (module_intro los nts Ps) F ->
+  blockInSystemModuleFdef (block_intro l' ps' cs0' tmn') S (module_intro los nts Ps) F.
 Proof.
   intros.
   apply _dbInsn_preservation in H; auto.
@@ -453,14 +455,14 @@ Proof.
   inversion J1; subst. clear J1. auto.  
 Qed.
 
-Lemma dbop_preservation : forall tr S TD Ps F l ps cs tmn lc arg als ECs gl fs Mem l' ps' cs' tmn' lc' als' gl' fs' Mem' cs0 cs0',
+Lemma dbop_preservation : forall tr S los nts Ps F l ps cs tmn lc arg als ECs gl fs Mem l' ps' cs' tmn' lc' als' gl' fs' Mem' cs0 cs0',
   dbop 
-    (mkState S TD Ps ((mkEC F (block_intro l ps cs0 tmn) cs tmn lc arg als)::ECs) gl fs Mem)
-    (mkState S TD Ps ((mkEC F (block_intro l' ps' cs0' tmn') cs' tmn' lc' arg als')::ECs) gl' fs' Mem')
+    (mkState S (los, nts) Ps ((mkEC F (block_intro l ps cs0 tmn) cs tmn lc arg als)::ECs) gl fs Mem)
+    (mkState S (los, nts) Ps ((mkEC F (block_intro l' ps' cs0' tmn') cs' tmn' lc' arg als')::ECs) gl' fs' Mem')
     tr ->
   uniqSystem S ->
-  blockInSystemModuleFdef (block_intro l ps cs0 tmn) S (module_intro TD Ps) F ->
-  blockInSystemModuleFdef (block_intro l' ps' cs0' tmn') S (module_intro TD Ps) F.
+  blockInSystemModuleFdef (block_intro l ps cs0 tmn) S (module_intro los nts Ps) F ->
+  blockInSystemModuleFdef (block_intro l' ps' cs0' tmn') S (module_intro los nts Ps) F.
 Proof.
   intros.
   destruct db_preservation as [_ [J _]].
@@ -468,14 +470,14 @@ Proof.
   eapply J; eauto.
 Qed.
 
-Lemma dbFdef_preservation : forall fv rt lp S TD Ps ECs lc gl fs Mem lc' als' Mem' B' Rid oResult tr,
-  dbFdef fv rt lp S TD Ps ECs lc gl fs Mem lc' als' Mem' B' Rid oResult tr ->
+Lemma dbFdef_preservation : forall fv rt lp S los nts Ps ECs lc gl fs Mem lc' als' Mem' B' Rid oResult tr,
+  dbFdef fv rt lp S (los, nts) Ps ECs lc gl fs Mem lc' als' Mem' B' Rid oResult tr ->
   uniqSystem S ->
-  moduleInSystem (module_intro TD Ps) S ->
+  moduleInSystem (module_intro los nts Ps) S ->
   exists F, 
-    lookupFdefViaGV TD Ps gl lc fs fv = Some F /\
+    lookupFdefViaGV (los, nts) Ps gl lc fs fv = Some F /\
     uniqFdef F /\
-    blockInSystemModuleFdef B' S (module_intro TD Ps) F.
+    blockInSystemModuleFdef B' S (module_intro los nts Ps) F.
 Proof.
   intros.
   destruct db_preservation as [_ [_ J]].

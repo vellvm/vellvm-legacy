@@ -530,13 +530,13 @@ Proof.
         apply IHPs in H. auto. 
 Qed.
 
-Lemma lookupFdefViaGV_inv : forall TD Ps gl lc fs fv F,
-  lookupFdefViaGV TD Ps gl lc fs fv = Some F ->
+Lemma lookupFdefViaGV_inv : forall los Ps gl lc fs fv F,
+  lookupFdefViaGV los Ps gl lc fs fv = Some F ->
   InProductsB (product_fdef F) Ps.
 Proof.
   intros.
   unfold lookupFdefViaGV in H.
-  destruct (getOperandValue TD fv lc gl); try solve [inversion H].
+  destruct (getOperandValue los fv lc gl); try solve [inversion H].
   destruct (lookupFdefViaGVFromFunTable fs g); try solve [inversion H].
   apply lookupFdefViaIDFromProducts_inv in H; auto.
 Qed.
@@ -554,12 +554,12 @@ Proof.
     left. apply blockEqB_refl.
 Qed.
 
-Lemma blockInSystemModuleFdef_inv : forall B F Ps TD S,
-  blockInSystemModuleFdef B S (module_intro TD Ps) F ->
+Lemma blockInSystemModuleFdef_inv : forall B F Ps los nts S,
+  blockInSystemModuleFdef B S (module_intro los nts Ps) F ->
   blockInFdefB B F /\
   InProductsB (product_fdef F) Ps /\
-  moduleInSystem (module_intro TD Ps) S /\
-  productInSystemModuleB (product_fdef F) S (module_intro TD Ps).
+  moduleInSystem (module_intro los nts Ps) S /\
+  productInSystemModuleB (product_fdef F) S (module_intro los nts Ps).
 Proof.
   intros.
   unfold blockInSystemModuleFdef in H.
@@ -575,11 +575,11 @@ Proof.
   split; auto.
 Qed.
 
-Lemma blockInSystemModuleFdef_intro : forall B F Ps TD S,
+Lemma blockInSystemModuleFdef_intro : forall B F Ps los nts S,
   blockInFdefB B F ->
   InProductsB (product_fdef F) Ps ->
-  moduleInSystem (module_intro TD Ps) S ->
-  blockInSystemModuleFdef B S (module_intro TD Ps) F.
+  moduleInSystem (module_intro los nts Ps) S ->
+  blockInSystemModuleFdef B S (module_intro los nts Ps) F.
 Proof.
   intros.
   unfold blockInSystemModuleFdef.
@@ -637,11 +637,11 @@ Proof.
     contradict H; auto.
 Qed.
 
-Lemma entryBlockInSystemBlockFdef : forall TD Ps S fid F B,
-  moduleInSystem (module_intro TD Ps) S ->
+Lemma entryBlockInSystemBlockFdef : forall los nts Ps S fid F B,
+  moduleInSystem (module_intro los nts Ps) S ->
   lookupFdefViaIDFromProducts Ps fid = Some F ->
   getEntryBlock F = Some B ->
-  blockInSystemModuleFdef B S (module_intro TD Ps) F.
+  blockInSystemModuleFdef B S (module_intro los nts Ps) F.
 Proof.
   intros.
   apply lookupFdefViaIDFromProducts_inv in H0.
@@ -649,11 +649,11 @@ Proof.
   apply blockInSystemModuleFdef_intro; auto.
 Qed.
 
-Lemma entryBlockInSystemBlockFdef' : forall TD Ps gl lc fs fv F S B,
-  moduleInSystem (module_intro TD Ps) S ->
-  lookupFdefViaGV TD Ps gl lc fs fv = Some F ->
+Lemma entryBlockInSystemBlockFdef' : forall los nts Ps gl lc fs fv F S B,
+  moduleInSystem (module_intro los nts Ps) S ->
+  lookupFdefViaGV (los, nts) Ps gl lc fs fv = Some F ->
   getEntryBlock F = Some B ->
-  blockInSystemModuleFdef B S (module_intro TD Ps) F.
+  blockInSystemModuleFdef B S (module_intro los nts Ps) F.
 Proof.
   intros.
   apply lookupFdefViaGV_inv in H0.
@@ -661,10 +661,10 @@ Proof.
   apply blockInSystemModuleFdef_intro; auto.
 Qed.
 
-Lemma productInSystemModuleB_inv : forall F Ps TD S,
-  productInSystemModuleB (product_fdef F) S (module_intro TD Ps) ->
+Lemma productInSystemModuleB_inv : forall F Ps nts los S,
+  productInSystemModuleB (product_fdef F) S (module_intro los nts Ps) ->
   InProductsB (product_fdef F) Ps /\
-  moduleInSystem (module_intro TD Ps) S.
+  moduleInSystem (module_intro los nts Ps) S.
 Proof.
   intros.
   unfold productInSystemModuleB in *.
@@ -674,10 +674,10 @@ Proof.
 Qed.
 
 
-Lemma productInSystemModuleB_intro : forall F Ps TD S,
+Lemma productInSystemModuleB_intro : forall F Ps nts los S,
   InProductsB (product_fdef F) Ps ->
-  moduleInSystem (module_intro TD Ps) S ->
-  productInSystemModuleB (product_fdef F) S (module_intro TD Ps).
+  moduleInSystem (module_intro los nts Ps) S ->
+  productInSystemModuleB (product_fdef F) S (module_intro los nts Ps).
 Proof.
   intros.
   unfold productInSystemModuleB.
@@ -686,20 +686,20 @@ Proof.
   split; auto.
 Qed.
 
-Lemma lookupFdefViaIDFromProductsInSystem : forall TD Ps S fid F,
-  moduleInSystem (module_intro TD Ps) S ->
+Lemma lookupFdefViaIDFromProductsInSystem : forall los nts Ps S fid F,
+  moduleInSystem (module_intro los nts Ps) S ->
   lookupFdefViaIDFromProducts Ps fid = Some F ->
-  productInSystemModuleB (product_fdef F) S (module_intro TD Ps).
+  productInSystemModuleB (product_fdef F) S (module_intro los nts Ps).
 Proof.
   intros.
   apply lookupFdefViaIDFromProducts_inv in H0.
   apply productInSystemModuleB_intro; auto.
 Qed.
 
-Lemma lookupFdefViaGVInSystem : forall TD Ps gl lc fs S fv F,
-  moduleInSystem (module_intro TD Ps) S ->
-  lookupFdefViaGV TD Ps gl lc fs fv = Some F ->
-  productInSystemModuleB (product_fdef F) S (module_intro TD Ps).
+Lemma lookupFdefViaGVInSystem : forall los nts Ps gl lc fs S fv F,
+  moduleInSystem (module_intro los nts Ps) S ->
+  lookupFdefViaGV (los, nts) Ps gl lc fs fv = Some F ->
+  productInSystemModuleB (product_fdef F) S (module_intro los nts Ps).
 Proof.
   intros.
   apply lookupFdefViaGV_inv in H0.
@@ -807,10 +807,10 @@ Proof.
       exists (S n). simpl. auto.
 Qed.
 
-Lemma productInSystemModuleB_nth_error__blockInSystemModuleFdef : forall fh lb S TD Ps n B,
-  productInSystemModuleB (product_fdef (fdef_intro fh lb)) S (module_intro TD Ps) ->
+Lemma productInSystemModuleB_nth_error__blockInSystemModuleFdef : forall fh lb S los nts Ps n B,
+  productInSystemModuleB (product_fdef (fdef_intro fh lb)) S (module_intro los nts Ps) ->
   nth_error lb n = Some B ->
-  blockInSystemModuleFdef B S (module_intro TD Ps) (fdef_intro fh lb).
+  blockInSystemModuleFdef B S (module_intro los nts Ps) (fdef_intro fh lb).
 Proof.
   intros.
   apply productInSystemModuleB_inv in H.
@@ -868,9 +868,9 @@ Proof.
         eapply andb_true_iff; auto.
 Qed.
 
-Lemma uniqSystem__uniqProducts : forall S TD Ps,
+Lemma uniqSystem__uniqProducts : forall S los nts Ps,
   uniqSystem S ->
-  moduleInSystem (module_intro TD Ps) S ->
+  moduleInSystem (module_intro los nts Ps) S ->
   uniqProducts Ps.
 Proof.
   induction S; intros.
@@ -889,9 +889,9 @@ Proof.
       inversion H; auto.
 Qed.
 
-Lemma lookupFdefViaIDFromProducts_uniq : forall TD Ps S fid F,
+Lemma lookupFdefViaIDFromProducts_uniq : forall los nts Ps S fid F,
   uniqSystem S ->
-  moduleInSystem (module_intro TD Ps) S ->
+  moduleInSystem (module_intro los nts Ps) S ->
   lookupFdefViaIDFromProducts Ps fid = Some F ->
   uniqFdef F.
 Proof.
@@ -901,10 +901,10 @@ Proof.
   eapply uniqProducts__uniqFdef; simpl; eauto.
 Qed.
 
-Lemma lookupFdefViaGV_uniq : forall TD Ps gl lc fs S fv F,
+Lemma lookupFdefViaGV_uniq : forall los nts Ps gl lc fs S fv F,
   uniqSystem S ->
-  moduleInSystem (module_intro TD Ps) S ->
-  lookupFdefViaGV TD Ps gl lc fs fv = Some F ->
+  moduleInSystem (module_intro los nts Ps) S ->
+  lookupFdefViaGV (los, nts) Ps gl lc fs fv = Some F ->
   uniqFdef F.
 Proof.
   intros.

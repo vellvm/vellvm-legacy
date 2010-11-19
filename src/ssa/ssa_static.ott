@@ -290,7 +290,7 @@ Jwf_operand :: '' ::=
       intrinsic_funs , system , module_info , fdef_info , block , insn |- id' :: :: wf_operand :: ''
       {{ com [[id']] is well-formed w.r.t [[insn]] [[block]] in [[fdef_info]] in [[module_info]] [[system]] }} by
 
-      module = (layouts products)
+      module = (layouts namedts products)
       insn in system , (module, usedef_id, usedef_block) , (fdef, dt) , block
       getInsnOperands insn = ids
       id' in ids
@@ -914,17 +914,30 @@ Jwf_prods :: '' ::=
       intrinsic_funs , system , module_info |- products , product
 
 defns
+Jwf_namedts :: '' ::=
+      defn
+      |- namedts :: :: wf_namedts :: ''
+      {{ com [[namedts]] is well-formed }} by
+
+      %% FIXME: Check circularity
+      -------------------------------- :: wf_namedts_intro
+      |- namedts 
+
+defns
 Jwf_module :: '' ::=
       defn
       intrinsic_funs , system |- module :: :: wf_module :: ''
       {{ com [[module]] is well-formed w.r.t. [[system]] }} by
 
-      (layouts products) in system
-      {{ genIdUseDef [[:user_syntax__module:(layouts products)]] = [[usedef_id]] }}
-      {{ genBlockUseDef [[:user_syntax__module:(layouts products)]] = [[usedef_block]] }}
-      intrinsic_funs , system , ((layouts products), usedef_id, usedef_block) |- products
+      %%
+      |- namedts
+      %%
+      (layouts namedts products) in system
+      {{ genIdUseDef [[:user_syntax__module:(layouts namedts products)]] = [[usedef_id]] }}
+      {{ genBlockUseDef [[:user_syntax__module:(layouts namedts products)]] = [[usedef_block]] }}
+      intrinsic_funs , system , ((layouts namedts products), usedef_id, usedef_block) |- products
       ------------------------------------------------------------------------------------ :: wf_module_intro
-      intrinsic_funs , system |- (layouts products)
+      intrinsic_funs , system |- (layouts namedts products)
 
 defns
 Jwf_modules :: '' ::=

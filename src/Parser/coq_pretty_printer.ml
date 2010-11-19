@@ -282,9 +282,6 @@ let travel_product g =
 		flush_all ()
 	| LLVMsyntax.Coq_product_fdec f -> travel_fdec f
 	| LLVMsyntax.Coq_product_fdef f -> travel_fdef f
-	| LLVMsyntax.Coq_product_namedt (LLVMsyntax.Coq_namedt_intro (id, t)) ->
-		eprintf "%s = type %s\n" id (string_of_typ t); 
-		flush_all ()
 
 let travel_layout dlt =
 	match dlt with
@@ -298,11 +295,18 @@ let travel_layout dlt =
 	;
 	flush_all ()
 
+let travel_namedt nt =
+	match nt with
+	| (LLVMsyntax.Coq_namedt_intro (id, t)) ->
+		eprintf "%s = type %s\n" id (string_of_typ t); 
+		flush_all ()
+
 let travel_module m =
 	prerr_endline "Travel Coq module:";
 	match m with
-	| LLVMsyntax.Coq_module_intro (dlts, ps) -> 
+	| LLVMsyntax.Coq_module_intro (dlts, nts, ps) -> 
 		List.iter travel_layout dlts;
+		List.iter travel_namedt nts;
 		List.iter travel_product ps
 
 

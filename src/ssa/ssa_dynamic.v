@@ -50,18 +50,19 @@ Definition ECStack := list ExecutionContext.
    initialize FunTable
 *)
 Record State : Type := mkState {
-CurSystem      : system;
-CurTargetData  : TargetData;
-CurProducts    : list product;
-ECS            : ECStack;
-Globals        : GVMap;
-FunTable       : GVMap;
-Mem            : mem
+CurSystem          : system;
+CurTargetData      : TargetData;
+CurProducts        : list product;
+ECS                : ECStack;
+Globals            : GVMap;
+FunTable           : GVMap;
+Mem                : mem
 }.
 
 Inductive wfState : State -> Prop :=
-| wfState_intro : forall state,
-  In (module_intro state.(CurTargetData) state.(CurProducts)) state.(CurSystem) ->
+| wfState_intro : forall state los nts ,
+  state.(CurTargetData) = (los, nts) ->
+  In (module_intro los nts state.(CurProducts)) state.(CurSystem) ->
   wfState state
 .
 
@@ -397,7 +398,7 @@ Definition initGlobal (TD:TargetData)(gl:GVMap)(Mem:mem)(id0:id)(t:typ)(c:const)
      | None => None
      end.
 
-Definition initTargetData (TD:layouts)(Mem:mem) : TargetData := TD.
+Definition initTargetData (los:layouts)(nts:namedts)(Mem:mem) : TargetData := (los, nts).
 
 Axiom getExternalGlobal : mem -> id -> option GenericValue.
 
@@ -424,7 +425,6 @@ match Ps with
   | Some gv => genGlobalAndInitMem TD Ps' (updateAddAL _ gl id0 gv) (updateAddAL _ fs id0 gv) Mem
   | None => None
   end
-| product_namedt _ :: Ps' => genGlobalAndInitMem TD Ps' gl fs Mem
 end.
 
 Definition ds_genInitState (S:system) (main:id) (Args:list GenericValue) (initmem:mem) : option State :=
@@ -433,8 +433,8 @@ match (lookupFdefViaIDFromSystem S main) with
 | Some CurFunction =>
   match (getParentOfFdefFromSystem CurFunction S) with
   | None => None
-  | Some (module_intro CurTargetData CurProducts) =>
-    let initargetdata := initTargetData CurTargetData initmem in 
+  | Some (module_intro CurLayouts CurNamedts CurProducts) =>
+    let initargetdata := initTargetData CurLayouts CurNamedts initmem in 
     match (genGlobalAndInitMem initargetdata CurProducts nil nil initmem) with
     | None => None
     | Some (initGlobal, initFunTable, initMem) =>
@@ -715,8 +715,8 @@ match (lookupFdefViaIDFromSystem S main) with
 | Some CurFunction =>
   match (getParentOfFdefFromSystem CurFunction S) with
   | None => None
-  | Some (module_intro CurTD CurPs) =>
-    let initargetdata := initTargetData CurTD initmem in 
+  | Some (module_intro CurTD CurNamedts CurPs) =>
+    let initargetdata := initTargetData CurTD CurNamedts initmem in 
     match (genGlobalAndInitMem initargetdata CurPs nil nil initmem) with
     | None => None
     | Some (initGlobal, initFunTable, initMem) =>

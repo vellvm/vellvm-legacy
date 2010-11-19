@@ -333,7 +333,7 @@ Axiom intValues2Nats_eqAL : forall l0 lc1 gl lc2 TD,
   intValues2Nats TD l0 lc1 gl = intValues2Nats TD l0 lc2 gl.
 
 Axiom values2GVs_eqAL : forall l0 lc1 gl lc2 TD,
-  eqAL _ lc1 lc2 ->
+  eqAL _ lc1 lc2 -> 
   values2GVs TD l0 lc1 gl = values2GVs TD l0 lc2 gl.
 
 End LLVMgvType.
@@ -681,7 +681,7 @@ match t with
 | typ_pointer t' => Some null
 | typ_function _ _ => None
 | typ_opaque => None
-| typ_namedt _ => None
+| typ_namedt _ => None (*FIXME: Can zeroconstant be of named type? How about termination. *)
 end             
 with _list_typ_zerostruct2GV (TD:TargetData) (lt:list_typ) : option (GenericValue*align) := 
 match lt with

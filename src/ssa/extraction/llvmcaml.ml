@@ -5,7 +5,7 @@ open Printf
 open Llvm
 open Llvm_aux
 
-let coqtype_2_llvmtype (ctx:llcontext) (t:LLVMsyntax.typ) : Llvm.lltype = Coq2llvm.translate_typ ctx t
+let coqtype_2_llvmtype (ctx:llcontext) (m:llmodule) (t:LLVMsyntax.typ) : Llvm.lltype = Coq2llvm.translate_typ ctx m t
 let coqbop_2_llvmopcode (op:LLVMsyntax.bop) : Llvm.InstrOpcode.t = Coq2llvm.translate_bop op
 let coqfbop_2_llvmopcode (op:LLVMsyntax.fbop) : Llvm.InstrOpcode.t = Coq2llvm.translate_fbop op
 let coqtd_2_llvmtd (td:layouts) = Coq2llvm.translate_layouts td
@@ -21,7 +21,7 @@ module TargetData = struct
     let (ee, mm) = td in
 		let ctx = Llvm.module_context mm in
     let ltd = ExecutionEngine.target_data ee in
-    Some (Int64.to_int (Llvm_target.get_type_alloc_size ltd (coqtype_2_llvmtype ctx typ)))
+    Some (Int64.to_int (Llvm_target.get_type_alloc_size ltd (coqtype_2_llvmtype ctx mm typ)))
 		
   let getTypeAllocSizeInBits x y = failwith "undef"
   let _getStructElementOffset x y z = failwith "undef"
@@ -36,10 +36,14 @@ module TargetData = struct
   let _getStructAlignmentInfo x = failwith "undef"
   let getStructAlignmentInfo x = failwith "undef"
   let _getPointerSize x = failwith "undef"
+  let getPointerSize0 x = failwith "undef"
   let getPointerSize x = failwith "undef"
   let getPointerSizeInBits x = failwith "undef"
+  let _getTypeSizeInBits_and_Alignment x = failwith "undef"
+  let _getListTypeSizeInBits_and_Alignment x = failwith "undef"
+  let getTypeSizeInBits_and_Alignment_for_namedts x = failwith "undef"
+  let _getTypeSizeInBits_and_Alignment_for_namedts x = failwith "undef"
   let getTypeSizeInBits_and_Alignment x = failwith "undef"
-  let getListTypeSizeInBits_and_Alignment x = failwith "undef"
   let getAlignment x = failwith "undef"
   let getABITypeAlignment x = failwith "undef"
   let getPrefTypeAlignment x = failwith "undef"
@@ -49,7 +53,7 @@ module TargetData = struct
   let getStructSizeInBytes x = failwith "undef"
   let getStructSizeInBits x = failwith "undef"
   let getStructAlignment x = failwith "undef"
-	let getFloatAlignmentInfo x = failwith "undef"					
+  let getFloatAlignmentInfo x = failwith "undef"					
 		
 end	
 
@@ -95,13 +99,13 @@ module GenericValue = struct
     let (ee, mm) = td in
     let ctx = Llvm.module_context mm in
     match c with
-    | Coq_const_zeroinitializer _ -> Some (Coq2llvm.translate_constant ctx c)
-  	| Coq_const_int (sz, i) -> Some (Coq2llvm.translate_constant ctx c)
-    | Coq_const_floatpoint (_, _) -> Some (Coq2llvm.translate_constant ctx c)
-  	| Coq_const_undef t -> Some (Coq2llvm.translate_constant ctx c) 
-    | Coq_const_null t -> Some (Coq2llvm.translate_constant ctx c) 
-    | Coq_const_arr (t, cs) -> Some (Coq2llvm.translate_constant ctx c)  
-    | Coq_const_struct cs -> Some (Coq2llvm.translate_constant ctx c)
+    | Coq_const_zeroinitializer _ -> Some (Coq2llvm.translate_constant ctx mm c)
+  	| Coq_const_int (sz, i) -> Some (Coq2llvm.translate_constant ctx mm c)
+    | Coq_const_floatpoint (_, _) -> Some (Coq2llvm.translate_constant ctx mm c)
+  	| Coq_const_undef t -> Some (Coq2llvm.translate_constant ctx mm c) 
+    | Coq_const_null t -> Some (Coq2llvm.translate_constant ctx mm c) 
+    | Coq_const_arr (t, cs) -> Some (Coq2llvm.translate_constant ctx mm c)  
+    | Coq_const_struct cs -> Some (Coq2llvm.translate_constant ctx mm c)
     | Coq_const_gid (_,id) -> 
 			begin
 			  match Llvm.lookup_global (getRealName id) mm with
@@ -112,28 +116,28 @@ module GenericValue = struct
 			(match (const2llvalue td gl c) with
 			| Some v -> 
 				Some (match op with
-			  | Coq_truncop_int -> Llvm.const_trunc v (Coq2llvm.translate_typ ctx t)
-				| Coq_truncop_fp -> Llvm.const_fptrunc v (Coq2llvm.translate_typ ctx t))
+			  | Coq_truncop_int -> Llvm.const_trunc v (Coq2llvm.translate_typ ctx mm t)
+				| Coq_truncop_fp -> Llvm.const_fptrunc v (Coq2llvm.translate_typ ctx mm t))
 			| None -> None)
   	| Coq_const_extop (op, c, t) ->   
 			(match (const2llvalue td gl c) with
 			| Some v -> 
 			  Some (match op with
-			  | Coq_extop_z -> Llvm.const_zext v (Coq2llvm.translate_typ ctx t)
-			  | Coq_extop_s -> Llvm.const_sext v (Coq2llvm.translate_typ ctx t)
-			  | Coq_extop_fp -> Llvm.const_fpext v (Coq2llvm.translate_typ ctx t))
+			  | Coq_extop_z -> Llvm.const_zext v (Coq2llvm.translate_typ ctx mm t)
+			  | Coq_extop_s -> Llvm.const_sext v (Coq2llvm.translate_typ ctx mm t)
+			  | Coq_extop_fp -> Llvm.const_fpext v (Coq2llvm.translate_typ ctx mm t))
 			| None -> None)
 	  | Coq_const_castop (op, c, t) -> 
 			(match (const2llvalue td gl c) with
 			| Some v -> 
 			  Some (match op with
-    	  | LLVMsyntax.Coq_castop_fptoui -> Llvm.const_fptoui v (Coq2llvm.translate_typ ctx t)			
-	      | LLVMsyntax.Coq_castop_fptosi -> Llvm.const_fptosi v (Coq2llvm.translate_typ ctx t) 	 
-	      | LLVMsyntax.Coq_castop_uitofp -> Llvm.const_uitofp v (Coq2llvm.translate_typ ctx t) 
-	      | LLVMsyntax.Coq_castop_sitofp -> Llvm.const_sitofp v (Coq2llvm.translate_typ ctx t) 
-        | LLVMsyntax.Coq_castop_ptrtoint -> Llvm.const_ptrtoint v (Coq2llvm.translate_typ ctx t) 
-	      | LLVMsyntax.Coq_castop_inttoptr -> Llvm.const_inttoptr v (Coq2llvm.translate_typ ctx t) 
-	      | LLVMsyntax.Coq_castop_bitcast -> Llvm.const_bitcast v (Coq2llvm.translate_typ ctx t))
+    	  | LLVMsyntax.Coq_castop_fptoui -> Llvm.const_fptoui v (Coq2llvm.translate_typ ctx mm t)			
+	      | LLVMsyntax.Coq_castop_fptosi -> Llvm.const_fptosi v (Coq2llvm.translate_typ ctx mm t) 	 
+	      | LLVMsyntax.Coq_castop_uitofp -> Llvm.const_uitofp v (Coq2llvm.translate_typ ctx mm t) 
+	      | LLVMsyntax.Coq_castop_sitofp -> Llvm.const_sitofp v (Coq2llvm.translate_typ ctx mm t) 
+        | LLVMsyntax.Coq_castop_ptrtoint -> Llvm.const_ptrtoint v (Coq2llvm.translate_typ ctx mm t) 
+	      | LLVMsyntax.Coq_castop_inttoptr -> Llvm.const_inttoptr v (Coq2llvm.translate_typ ctx mm t) 
+	      | LLVMsyntax.Coq_castop_bitcast -> Llvm.const_bitcast v (Coq2llvm.translate_typ ctx mm t))
 			| None -> None)
     | Coq_const_gep (ib, c, cs) -> 
 			(match const2llvalue td gl c, list_const2list_llvalue td gl cs with
@@ -625,7 +629,7 @@ module GenericValue = struct
 		(if !Globalstates.debug then
 			eprintf "  Mgep ptr=%s type=%s" (GenericValue.to_string ma) (Coq_pretty_printer.string_of_typ t1); flush_all());    			
 
-		let gv = GenericValue.gep ltd ma (Llvm.pointer_type (coqtype_2_llvmtype ctx t1)) (Array.of_list vidxs) in
+		let gv = GenericValue.gep ltd ma (Llvm.pointer_type (coqtype_2_llvmtype ctx mm t1)) (Array.of_list vidxs) in
 		
 		(if !Globalstates.debug then eprintf " r=%s\n" (GenericValue.to_string gv);flush_all());    			
 		Some gv
@@ -671,18 +675,18 @@ module GenericValue = struct
 
 		let gv =
     (match op with
-    | Coq_castop_fptoui -> GenericValue.fptoui gv1 (coqtype_2_llvmtype ctx t1) (coqtype_2_llvmtype ctx t2)
-    | Coq_castop_fptosi -> GenericValue.fptosi gv1 (coqtype_2_llvmtype ctx t1) (coqtype_2_llvmtype ctx t2)
-    | Coq_castop_uitofp -> GenericValue.uitofp gv1 (coqtype_2_llvmtype ctx t2)
-    | Coq_castop_sitofp -> GenericValue.sitofp gv1 (coqtype_2_llvmtype ctx t2)
-    | Coq_castop_ptrtoint -> GenericValue.ptrtoint gv1 (coqtype_2_llvmtype ctx t1) (coqtype_2_llvmtype ctx t2)
+    | Coq_castop_fptoui -> GenericValue.fptoui gv1 (coqtype_2_llvmtype ctx mm t1) (coqtype_2_llvmtype ctx mm t2)
+    | Coq_castop_fptosi -> GenericValue.fptosi gv1 (coqtype_2_llvmtype ctx mm t1) (coqtype_2_llvmtype ctx mm t2)
+    | Coq_castop_uitofp -> GenericValue.uitofp gv1 (coqtype_2_llvmtype ctx mm t2)
+    | Coq_castop_sitofp -> GenericValue.sitofp gv1 (coqtype_2_llvmtype ctx mm t2)
+    | Coq_castop_ptrtoint -> GenericValue.ptrtoint gv1 (coqtype_2_llvmtype ctx mm t1) (coqtype_2_llvmtype ctx mm t2)
     | Coq_castop_inttoptr -> let (ee, _) = td in
                              let ltd = ExecutionEngine.target_data ee in
-			                       GenericValue.inttoptr ltd gv1 (coqtype_2_llvmtype ctx t2)
+			                       GenericValue.inttoptr ltd gv1 (coqtype_2_llvmtype ctx mm t2)
     | Coq_castop_bitcast -> GenericValue.bitcast gv1 
-                              (coqtype_2_llvmtype ctx t1) 
+                              (coqtype_2_llvmtype ctx mm t1) 
                               ctx 
-                              (coqtype_2_llvmtype ctx t2)
+                              (coqtype_2_llvmtype ctx mm t2)
     ) in
 		
 		(if !Globalstates.debug then eprintf " r=%s\n" (GenericValue.to_string gv);flush_all());
@@ -698,8 +702,8 @@ module GenericValue = struct
 			
     let gv =
     (match op with
-    | Coq_truncop_int -> GenericValue.trunc gv1 (coqtype_2_llvmtype ctx t2) 
-    | Coq_truncop_fp -> GenericValue.fptrunc gv1 (coqtype_2_llvmtype ctx t1) ctx (coqtype_2_llvmtype ctx t2)
+    | Coq_truncop_int -> GenericValue.trunc gv1 (coqtype_2_llvmtype ctx mm t2) 
+    | Coq_truncop_fp -> GenericValue.fptrunc gv1 (coqtype_2_llvmtype ctx mm t1) ctx (coqtype_2_llvmtype ctx mm t2)
     ) in
 		
 		(if !Globalstates.debug then eprintf " r=%s\n" (GenericValue.to_string gv);flush_all());
@@ -715,9 +719,9 @@ module GenericValue = struct
 			
     let gv =
     (match op with
-    | Coq_extop_z -> GenericValue.zext gv1 (coqtype_2_llvmtype ctx t2)
-    | Coq_extop_s -> GenericValue.sext gv1 (coqtype_2_llvmtype ctx t2)
-		| Coq_extop_fp -> GenericValue.fpext gv1 (coqtype_2_llvmtype ctx t1) ctx (coqtype_2_llvmtype ctx t2)
+    | Coq_extop_z -> GenericValue.zext gv1 (coqtype_2_llvmtype ctx mm t2)
+    | Coq_extop_s -> GenericValue.sext gv1 (coqtype_2_llvmtype ctx mm t2)
+		| Coq_extop_fp -> GenericValue.fpext gv1 (coqtype_2_llvmtype ctx mm t1) ctx (coqtype_2_llvmtype ctx mm t2)
     ) in
 		
 		(if !Globalstates.debug then eprintf " r=%s\n" (GenericValue.to_string gv);flush_all());
@@ -730,7 +734,7 @@ module GenericValue = struct
       eprintf "  Micmp t=%s gv1=%s gv2=%s" (Coq_pretty_printer.string_of_typ t)
 		  (GenericValue.to_string gv1) (GenericValue.to_string gv2);flush_all());
 			
-    let gv = GenericValue.icmp gv1 gv2 (coqtype_2_llvmtype ctx t) (coqcond_2_llvmicmp c) in
+    let gv = GenericValue.icmp gv1 gv2 (coqtype_2_llvmtype ctx mm t) (coqcond_2_llvmicmp c) in
 		
 		(if !Globalstates.debug then eprintf " r=%s\n" (GenericValue.to_string gv);flush_all());
 		Some gv
@@ -819,7 +823,7 @@ module Mem = struct
 		(if !Globalstates.debug then 
 			eprintf "  Mload ptr=%s" (GenericValue.to_string ptr);flush_all());
 			
-		let gv = ExecutionEngine.load_value_from_memory ptr (coqtype_2_llvmtype ctx t) ee in
+		let gv = ExecutionEngine.load_value_from_memory ptr (coqtype_2_llvmtype ctx mm t) ee in
 		
 		(if !Globalstates.debug then	eprintf " r=%s\n" (GenericValue.to_string gv);flush_all());
 		Some gv
@@ -830,7 +834,7 @@ module Mem = struct
 		(if !Globalstates.debug then 
 			eprintf "  Mstore ptr=%s v=%s\n" (GenericValue.to_string ptr) (GenericValue.to_string gv);flush_all());
 		let (ee, _) = m in
-    let _ = ExecutionEngine.store_value_to_memory gv ptr (coqtype_2_llvmtype ctx t) ee in
+    let _ = ExecutionEngine.store_value_to_memory gv ptr (coqtype_2_llvmtype ctx mm t) ee in
     Some m
 		
   let initGlobal (td:TargetData.t) gl m (id0:LLVMsyntax.id) 
@@ -870,7 +874,7 @@ module Mem = struct
 			 )
     | None -> None
 
-  let initTargetData (td:LLVMsyntax.layouts) (m:t) = m
+  let initTargetData (los:LLVMsyntax.layouts) (nts:LLVMsyntax.namedts) (m:t) = m
 
   let callExternalFunction m (fid:LLVMsyntax.id) (args:GenericValue.t list) = 
 		(if !Globalstates.debug then 

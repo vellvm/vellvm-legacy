@@ -43,7 +43,7 @@ Frame          : ExecutionContext;
 Mem            : mem
 }.
 
-Inductive dbCmd : layouts ->  GVMap ->
+Inductive dbCmd : TargetData -> GVMap ->
                   GVMap -> list mblock -> mem -> 
                   cmd -> 
                   GVMap -> list mblock -> mem -> 
@@ -178,7 +178,7 @@ Inductive dbCmd : layouts ->  GVMap ->
 .
 
 Inductive dbTerminator : 
-  layouts -> fdef -> GVMap -> 
+  TargetData -> fdef -> GVMap -> 
   block -> GVMap -> 
   terminator -> 
   block -> GVMap -> 
@@ -206,7 +206,7 @@ Inductive dbTerminator :
     trace_nil 
 .
 
-Inductive dbCmds : layouts -> GVMap -> 
+Inductive dbCmds : TargetData -> GVMap -> 
                    GVMap -> list mblock -> mem -> 
                    cmds -> 
                    GVMap -> list mblock -> mem -> 
@@ -218,7 +218,7 @@ Inductive dbCmds : layouts -> GVMap ->
     dbCmds TD gl lc2 als2 Mem2 cs lc3 als3 Mem3 t2 ->
     dbCmds TD gl lc1 als1 Mem1 (c::cs) lc3 als3 Mem3 (trace_app t1 t2).
 
-Inductive dbCall : system -> layouts -> list product -> GVMap -> 
+Inductive dbCall : system -> TargetData -> list product -> GVMap -> 
                    GVMap -> GVMap -> mem -> 
                    cmd -> 
                    GVMap -> mem -> 
@@ -245,7 +245,7 @@ Inductive dbCall : system -> layouts -> list product -> GVMap ->
     (insn_call rid noret tailc rt fv lp)
     (LLVMopsem.exCallUpdateLocals noret rid rt oresult lc) 
     Mem' trace_nil
-with dbSubblock : system -> layouts -> list product -> GVMap -> GVMap -> 
+with dbSubblock : system -> TargetData -> list product -> GVMap -> GVMap -> 
                   GVMap -> list mblock -> mem -> 
                   cmds -> 
                   GVMap -> list mblock -> mem -> 
@@ -259,7 +259,7 @@ with dbSubblock : system -> layouts -> list product -> GVMap -> GVMap ->
              (cs++call0::nil) 
              lc3 als2 Mem3
              (trace_app tr1 tr2)
-with dbSubblocks : system -> layouts -> list product -> GVMap -> GVMap -> 
+with dbSubblocks : system -> TargetData -> list product -> GVMap -> GVMap -> 
                    GVMap -> list mblock -> mem -> 
                    cmds -> 
                    GVMap -> list mblock -> mem -> 
@@ -270,7 +270,7 @@ with dbSubblocks : system -> layouts -> list product -> GVMap -> GVMap ->
     dbSubblock S TD Ps fs gl lc1 als1 Mem1 cs lc2 als2 Mem2 t1 ->
     dbSubblocks S TD Ps fs gl lc2 als2 Mem2 cs' lc3 als3 Mem3 t2 ->
     dbSubblocks S TD Ps fs gl lc1 als1 Mem1 (cs++cs') lc3 als3 Mem3 (trace_app t1 t2)
-with dbBlock : system -> layouts -> list product -> GVMap -> GVMap -> fdef -> list GenericValue -> State -> State -> trace -> Prop :=
+with dbBlock : system -> TargetData -> list product -> GVMap -> GVMap -> fdef -> list GenericValue -> State -> State -> trace -> Prop :=
 | dbBlock_intro : forall S TD Ps F tr1 tr2 l ps cs cs' tmn gl fs lc1 als1 Mem1
                          lc2 als2 Mem2 lc3 als3 Mem3 lc4 B' arg tr3,
   dbSubblocks S TD Ps fs gl
@@ -288,13 +288,13 @@ with dbBlock : system -> layouts -> list product -> GVMap -> GVMap -> fdef -> li
     (mkState (mkEC (block_intro l ps (cs++cs') tmn) lc1 als1) Mem1)
     (mkState (mkEC B' lc4 als3) Mem3)
     (trace_app (trace_app tr1 tr2) tr3)
-with dbBlocks : system -> layouts -> list product -> GVMap -> GVMap -> fdef -> list GenericValue -> State -> State -> trace -> Prop :=
+with dbBlocks : system -> TargetData -> list product -> GVMap -> GVMap -> fdef -> list GenericValue -> State -> State -> trace -> Prop :=
 | dbBlocks_nil : forall S TD Ps gl fs F arg state, dbBlocks S TD Ps fs gl F arg state state trace_nil
 | dbBlocks_cons : forall S TD Ps gl fs F arg S1 S2 S3 t1 t2,
     dbBlock S TD Ps fs gl F arg S1 S2 t1 ->
     dbBlocks S TD Ps fs gl F arg S2 S3 t2 ->
     dbBlocks S TD Ps fs gl F arg S1 S3 (trace_app t1 t2)
-with dbFdef : value -> typ -> params -> system -> layouts -> list product -> GVMap -> GVMap -> GVMap -> mem -> GVMap -> list mblock -> mem -> block -> id -> option value -> trace -> Prop :=
+with dbFdef : value -> typ -> params -> system -> TargetData -> list product -> GVMap -> GVMap -> GVMap -> mem -> GVMap -> list mblock -> mem -> block -> id -> option value -> trace -> Prop :=
 | dbFdef_func : forall S TD Ps gl fs fv fid lp lc rid
                        l1 ps1 cs1 tmn1 rt la lb Result lc1 tr1 Mem Mem1 als1
                        l2 ps2 cs21 cs22 lc2 als2 Mem2 tr2 lc3 als3 Mem3 tr3,
@@ -1846,7 +1846,7 @@ Qed.
 (* Denotational semantics of symbolic exe *)
 
 Inductive sterm_denotes_genericvalue : 
-   layouts ->               (* CurTatgetData *)
+   TargetData ->               (* CurTatgetData *)
    GVMap ->                 (* local registers *)
    GVMap ->                 (* global variables *)
    mem ->                   (* Memory *)
@@ -1926,7 +1926,7 @@ Inductive sterm_denotes_genericvalue :
   (if isGVZero TD gv0 then gv2 else gv1) = gv3 -> 
   sterm_denotes_genericvalue TD lc gl Mem (sterm_select st0 t0 st1 st2) gv3
 with sterms_denote_genericvalues : 
-   layouts ->               (* CurTatgetData *)
+   TargetData ->               (* CurTatgetData *)
    GVMap ->                 (* local registers *)
    GVMap ->                 (* global variables *)
    mem ->                   (* Memory *)
@@ -1940,7 +1940,7 @@ with sterms_denote_genericvalues :
   sterm_denotes_genericvalue TD lc gl Mem st gv ->
   sterms_denote_genericvalues TD lc gl Mem (Cons_list_sterm st sts) (gv::gvs)
 with smem_denotes_mem : 
-   layouts ->               (* CurTatgetData *)
+   TargetData ->               (* CurTatgetData *)
    GVMap ->                 (* local registers *)
    GVMap ->                 (* global variables *)
    mem ->                   (* Memory *)
@@ -1978,7 +1978,7 @@ with smem_denotes_mem :
 .
 
 Inductive sframe_denotes_frame : 
-   layouts ->               (* CurTatgetData *)
+   TargetData ->               (* CurTatgetData *)
    GVMap ->                 (* local registers *)
    GVMap ->                 (* global variables *)
    list mblock ->           (* Track memory allocated by alloca *)

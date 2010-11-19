@@ -181,11 +181,6 @@ let is_i64_type t =
   | TypeKind.Integer -> integer_bitwidth t == 64
 	| _ -> false 
 
-let string_type_of v =
-	string_of_lltype (type_of v)
-
-let string_of_instr_opcode i = string_of_opcode (classify_instr i)
-
 let concat2 sep arr =
   let s = ref "" in
   if 0 < Array.length arr then begin
@@ -196,6 +191,44 @@ let concat2 sep arr =
   end;
   !s
 	
+let rec string_of_lltype_safe m ty =
+	let nt = name_of_type ty m in
+	if nt <> ""
+	then nt
+	else 
+  	match classify_type ty with
+    TypeKind.Integer -> "i" ^ string_of_int (integer_bitwidth ty)
+    | TypeKind.Pointer -> (string_of_lltype_safe m (element_type ty)) ^ "*"
+    | TypeKind.Struct ->
+      let s = "{ " ^ (concat2 ", " (
+                Array.map (string_of_lltype_safe m) (struct_element_types ty)
+              )) ^ " }" in
+      if is_packed ty
+        then "<" ^ s ^ ">"
+        else s
+    | TypeKind.Array -> "["   ^ (string_of_int (array_length ty)) ^
+                        " x " ^ (string_of_lltype_safe m (element_type ty)) ^ "]"
+    | TypeKind.Vector -> "<"   ^ (string_of_int (vector_size ty)) ^
+                         " x " ^ (string_of_lltype_safe m (element_type ty)) ^ ">"
+    | TypeKind.Opaque -> "opaque"
+    | TypeKind.Function -> string_of_lltype_safe m (return_type ty) ^
+                           " (" ^ (concat2 ", " (
+                             Array.map (string_of_lltype_safe m) (param_types ty)
+                           )) ^ ")"
+    | TypeKind.Label -> "label"
+    | TypeKind.Ppc_fp128 -> "ppc_fp128"
+    | TypeKind.Fp128 -> "fp128"
+    | TypeKind.X86fp80 -> "x86_fp80"
+    | TypeKind.Double -> "double"
+    | TypeKind.Float -> "float"
+    | TypeKind.Void -> "void"
+    | TypeKind.Metadata -> "metadata"  
+
+let string_type_of m v =
+	string_of_lltype_safe m (type_of v)
+
+let string_of_instr_opcode i = string_of_opcode (classify_instr i)
+
 let string_of_endian e =
 	match e with
 	| Llvm_target.Endian.Big -> "big"
@@ -286,36 +319,3 @@ let string_of_valuety op =
   | ValueTy.ShuffleVector -> "ShuffleVector"
   | ValueTy.ExtractValue -> "ExtractValue"
   | ValueTy.InsertValue -> "InsertValue"
-
-let rec string_of_lltype_safe m ty =
-	let nt = name_of_type ty m in
-	if nt != ""
-	then nt
-	else 
-  	match classify_type ty with
-    TypeKind.Integer -> "i" ^ string_of_int (integer_bitwidth ty)
-    | TypeKind.Pointer -> (string_of_lltype_safe m (element_type ty)) ^ "*"
-    | TypeKind.Struct ->
-      let s = "{ " ^ (concat2 ", " (
-                Array.map (string_of_lltype_safe m) (struct_element_types ty)
-              )) ^ " }" in
-      if is_packed ty
-        then "<" ^ s ^ ">"
-        else s
-    | TypeKind.Array -> "["   ^ (string_of_int (array_length ty)) ^
-                        " x " ^ (string_of_lltype_safe m (element_type ty)) ^ "]"
-    | TypeKind.Vector -> "<"   ^ (string_of_int (vector_size ty)) ^
-                         " x " ^ (string_of_lltype_safe m (element_type ty)) ^ ">"
-    | TypeKind.Opaque -> "opaque"
-    | TypeKind.Function -> string_of_lltype_safe m (return_type ty) ^
-                           " (" ^ (concat2 ", " (
-                             Array.map (string_of_lltype_safe m) (param_types ty)
-                           )) ^ ")"
-    | TypeKind.Label -> "label"
-    | TypeKind.Ppc_fp128 -> "ppc_fp128"
-    | TypeKind.Fp128 -> "fp128"
-    | TypeKind.X86fp80 -> "x86_fp80"
-    | TypeKind.Double -> "double"
-    | TypeKind.Float -> "float"
-    | TypeKind.Void -> "void"
-    | TypeKind.Metadata -> "metadata"  
