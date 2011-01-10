@@ -1,0 +1,35 @@
+Team Members:
+  <pennkey>	<name>		<email>
+
+
+Known issues with your implementation:
+
+
+
+------------------------
+Course Project Feedback:
+------------------------
+
+1.  How much time did it take to complete this project?
+
+
+2. How effective was this project? [0-10]: 
+
+    0 = learned nothing
+   10 = highly educational
+
+3. How engaging was this project? [0-10]:
+
+    0 = tedious and boring
+   10 = fun and engaging
+
+4. How difficult was this project? [0-10]:
+
+    0 = piece of cake
+   10 = extremely hard
+
+   (note that hard is not necessarily bad, 
+    if it's "hard" as in "challenging")
+
+[Feel free to add comments about this project]
+
