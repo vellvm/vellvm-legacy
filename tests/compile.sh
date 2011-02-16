@@ -1,9 +1,9 @@
 # STEP1: Compile softbound instrumentation files to LLVM bitcode (.bc) files
 #   Execute the following set of commands:
 
-gcc -c --emit-llvm -O3 -D__SOFTBOUND_HASHTABLE ../../softbound-checks.c -o softbound-checks.bc
-gcc -c --emit-llvm -O3 -D__SOFTBOUND_HASHTABLE ../../softbound.c -o softbound.bc
-gcc -c --emit-llvm -O3 -D__SOFTBOUND_HASHTABLE ../../softbound-wrappers.c -o softbound-wrappers.bc
+gcc -c --emit-llvm -O3 -D__SOFTBOUND_HASHTABLE ../softbound-checks.c -o softbound-checks.bc
+gcc -c --emit-llvm -O3 -D__SOFTBOUND_HASHTABLE ../softbound.c -o softbound.bc
+gcc -c --emit-llvm -O3 -D__SOFTBOUND_HASHTABLE ../softbound-wrappers.c -o softbound-wrappers.bc
  
 # Note: If you want to use the hash table then use -D__SOFTBOUND_HASHTABLE
 # as the flag in the above command line. If you want to use shadow space,

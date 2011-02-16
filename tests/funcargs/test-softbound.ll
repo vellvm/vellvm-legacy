@@ -25,7 +25,8 @@ target triple = "i386-pc-linux-gnu"
 	%struct.tms = type { i32, i32, i32, i32 }
 	%struct.ttyent = type { i8*, i8*, i8*, i32, i8*, i8* }
 @.str = internal constant [17 x i8] c"Hash table full\0A\00"		; <[17 x i8]*> [#uses=1]
-@.str1 = internal constant [4 x i8] c"%x\0A\00"		; <[4 x i8]*> [#uses=1]
+@value = common global i32 0		; <i32*> [#uses=3]
+@.str1 = internal constant [4 x i8] c"%d\0A\00"		; <[4 x i8]*> [#uses=1]
 @__softbound_hash_table_begin = global %struct.PtrBaseBound* null		; <%struct.PtrBaseBound**> [#uses=54]
 @stderr = external global %struct.FILE*		; <%struct.FILE**> [#uses=4]
 @.str2 = internal constant [60 x i8] c"SoftBound: Inconsistent specification of metadata encoding\0A\00"		; <[60 x i8]*> [#uses=1]
@@ -327,7 +328,9 @@ entry:
 	%base.load1 = bitcast i8* %base.load to i8*		; <i8*> [#uses=1]
 	%bound.load2 = bitcast i8* %bound.load to i8*		; <i8*> [#uses=1]
 	%2 = call i32 @softbound_atoi(i8* %1, i8* %base.load1, i8* %bound.load2)		; <i32> [#uses=1]
-	tail call void @softbound_test(i32 %2) nounwind
+	%value = bitcast i32* @value to i8*		; <i8*> [#uses=1]
+	%3 = bitcast i32* getelementptr (i32* @value, i32 1) to i8*		; <i8*> [#uses=1]
+	call void @softbound_test(i32 %2, i32* @value, i8* %value, i8* %3)
 	ret i32 0
 }
 
@@ -335,68 +338,41 @@ declare i32 @pseudo_main(i32, i8** nocapture)
 
 declare i32 @atoi(i8*) nounwind readonly
 
-define void @softbound_test(i32 %mm) {
+define void @softbound_test(i32 %mm, i32* %value, i8* %value_base, i8* %value_bound) {
 entry:
-	%base.alloca = alloca i8*		; <i8**> [#uses=2]
-	%bound.alloca = alloca i8*		; <i8**> [#uses=2]
-	%safe.ptr = alloca i32		; <i32*> [#uses=2]
-	%0 = malloc [100 x i32*]		; <[100 x i32*]*> [#uses=4]
-	%malloc_bound = getelementptr [100 x i32*]* %0, i32 1		; <[100 x i32*]*> [#uses=1]
-	%bitcast = bitcast [100 x i32*]* %0 to i8*		; <i8*> [#uses=1]
-	%bitcast1 = bitcast [100 x i32*]* %malloc_bound to i8*		; <i8*> [#uses=1]
-	br label %bb2
+	%value_bound2 = bitcast i8* %value_bound to i8*		; <i8*> [#uses=3]
+	%value_base1 = bitcast i8* %value_base to i8*		; <i8*> [#uses=3]
+	%0 = icmp sgt i32 %mm, 0		; <i1> [#uses=1]
+	br i1 %0, label %bb, label %bb2
 
-bb:		; preds = %bb2
-	free i32* %ptr.0
-	%bcast_st_dref_base = bitcast i8* %ptr.0_base to i8*		; <i8*> [#uses=1]
-	%bcast_st_dref_bound = bitcast i8* %ptr.0_bound to i8*		; <i8*> [#uses=1]
-	%bcast_st_dref_ptr = bitcast i32* %ptr.0 to i8*		; <i8*> [#uses=1]
-	call void @__storeDereferenceCheck(i8* %bcast_st_dref_base, i8* %bcast_st_dref_bound, i8* %bcast_st_dref_ptr, i32 ptrtoint (i32* getelementptr (i32* null, i32 1) to i32), i32 %safe.phi_node)
-	store i32 0, i32* %ptr.0, align 4
-	%1 = getelementptr [100 x i32*]* %0, i32 0, i32 %i.0		; <i32**> [#uses=3]
-	%bcast_ld_dref_base = bitcast i8* %bitcast to i8*		; <i8*> [#uses=1]
-	%bitcast15 = bitcast i8* %bitcast1 to i8*		; <i8*> [#uses=1]
-	%bcast_ld_dref_bound = bitcast i32** %1 to i8*		; <i8*> [#uses=1]
-	call void @__loadDereferenceCheck(i8* %bcast_ld_dref_base, i8* %bitcast15, i8* %bcast_ld_dref_bound, i32 ptrtoint (i32** getelementptr (i32** null, i32 1) to i32), i32 1)
-	%2 = load i32** %1, align 4		; <i32*> [#uses=5]
-	%.ptr = bitcast i32** %1 to i8*		; <i8*> [#uses=1]
-	%.ptrcast = bitcast i32* %2 to i8*		; <i8*> [#uses=1]
-	call void @__hashLoadBaseBound(i8* %.ptr, i8** %base.alloca, i8** %bound.alloca, i8* %.ptrcast, i32 ptrtoint (i32* getelementptr (i32* null, i32 1) to i32), i32* %safe.ptr)
-	%base.load = load i8** %base.alloca		; <i8*> [#uses=1]
-	%bound.load = load i8** %bound.alloca		; <i8*> [#uses=1]
-	%safe.ptr.load = load i32* %safe.ptr		; <i32> [#uses=3]
-	%base.load2 = bitcast i8* %base.load to i8*		; <i8*> [#uses=3]
-	%bound.load3 = bitcast i8* %bound.load to i8*		; <i8*> [#uses=3]
-	%bcast_ld_dref_base6 = bitcast i8* %base.load2 to i8*		; <i8*> [#uses=1]
-	%bound.load37 = bitcast i8* %bound.load3 to i8*		; <i8*> [#uses=1]
-	%bcast_ld_dref_bound8 = bitcast i32* %2 to i8*		; <i8*> [#uses=1]
-	call void @__loadDereferenceCheck(i8* %bcast_ld_dref_base6, i8* %bound.load37, i8* %bcast_ld_dref_bound8, i32 ptrtoint (i32* getelementptr (i32* null, i32 1) to i32), i32 %safe.ptr.load)
-	%3 = load i32* %2, align 4		; <i32> [#uses=1]
-	%4 = icmp slt i32 %3, %i.0		; <i1> [#uses=1]
-	br i1 %4, label %bb3, label %bb1
+bb:		; preds = %bb, %entry
+	%i.03 = phi i32 [ 0, %entry ], [ %4, %bb ]		; <i32> [#uses=2]
+	%ptr.05.rec = phi i32 [ 0, %entry ], [ %.rec, %bb ]		; <i32> [#uses=2]
+	%value_addr.04.rec = phi i32 [ 0, %entry ], [ %.rec7, %bb ]		; <i32> [#uses=1]
+	%ptr.05.sum = add i32 %ptr.05.rec, %i.03		; <i32> [#uses=1]
+	%1 = getelementptr i32* %value, i32 %ptr.05.sum		; <i32*> [#uses=2]
+	%bcast_ld_dref_base = bitcast i8* %value_base1 to i8*		; <i8*> [#uses=1]
+	%bcast_arg_bound1 = bitcast i8* %value_bound2 to i8*		; <i8*> [#uses=1]
+	%bcast_ld_dref_bound = bitcast i32* %1 to i8*		; <i8*> [#uses=1]
+	call void @__loadDereferenceCheck(i8* %bcast_ld_dref_base, i8* %bcast_arg_bound1, i8* %bcast_ld_dref_bound, i32 ptrtoint (i32* getelementptr (i32* null, i32 1) to i32), i32 1)
+	%2 = load i32* %1, align 4		; <i32> [#uses=1]
+	%.rec7 = add i32 %2, %value_addr.04.rec		; <i32> [#uses=2]
+	%3 = getelementptr i32* %value, i32 %.rec7		; <i32*> [#uses=1]
+	%4 = add i32 %i.03, 1		; <i32> [#uses=3]
+	%.rec = add i32 %ptr.05.rec, %4		; <i32> [#uses=1]
+	%exitcond8 = icmp eq i32 %4, %mm		; <i1> [#uses=1]
+	br i1 %exitcond8, label %bb2, label %bb
 
-bb1:		; preds = %bb
-	%indvar.next4 = add i32 %i.0, 1		; <i32> [#uses=1]
-	br label %bb2
-
-bb2:		; preds = %bb1, %entry
-	%i.0 = phi i32 [ 0, %entry ], [ %indvar.next4, %bb1 ]		; <i32> [#uses=4]
-	%ptr.0_base = phi i8* [ undef, %entry ], [ %base.load2, %bb1 ]		; <i8*> [#uses=2]
-	%ptr.0_bound = phi i8* [ undef, %entry ], [ %bound.load3, %bb1 ]		; <i8*> [#uses=2]
-	%safe.phi_node = phi i32 [ 0, %entry ], [ %safe.ptr.load, %bb1 ]		; <i32> [#uses=2]
-	%ptr.0 = phi i32* [ undef, %entry ], [ %2, %bb1 ]		; <i32*> [#uses=4]
-	%5 = icmp slt i32 %i.0, %mm		; <i1> [#uses=1]
-	br i1 %5, label %bb, label %bb3
-
-bb3:		; preds = %bb2, %bb
-	%ptr.1_base = phi i8* [ %base.load2, %bb ], [ %ptr.0_base, %bb2 ]		; <i8*> [#uses=0]
-	%ptr.1_bound = phi i8* [ %bound.load3, %bb ], [ %ptr.0_bound, %bb2 ]		; <i8*> [#uses=0]
-	%safe.phi_node4 = phi i32 [ %safe.ptr.load, %bb ], [ %safe.phi_node, %bb2 ]		; <i32> [#uses=0]
-	%ptr.1 = phi i32* [ %2, %bb ], [ %ptr.0, %bb2 ]		; <i32*> [#uses=1]
-	free [100 x i32*]* %0
-	%6 = tail call i32 (i8*, ...)* @printf(i8* noalias getelementptr ([4 x i8]* @.str1, i32 0, i32 0), i32* %ptr.1) nounwind		; <i32> [#uses=0]
+bb2:		; preds = %bb, %entry
+	%value_addr.0.lcssa_base = phi i8* [ %value_base1, %entry ], [ %value_base1, %bb ]		; <i8*> [#uses=0]
+	%value_addr.0.lcssa_bound = phi i8* [ %value_bound2, %entry ], [ %value_bound2, %bb ]		; <i8*> [#uses=0]
+	%safe.phi_node = phi i32 [ 1, %entry ], [ 1, %bb ]		; <i32> [#uses=0]
+	%value_addr.0.lcssa = phi i32* [ %value, %entry ], [ %3, %bb ]		; <i32*> [#uses=1]
+	%5 = tail call i32 (i8*, ...)* @printf(i8* noalias getelementptr ([4 x i8]* @.str1, i32 0, i32 0), i32* %value_addr.0.lcssa) nounwind		; <i32> [#uses=0]
 	ret void
 }
+
+declare void @test(i32, i32*) nounwind
 
 declare i32 @printf(i8*, ...) nounwind
 
