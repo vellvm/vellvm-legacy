@@ -15,7 +15,7 @@ TOOLNAME=Verifier
 # We use LIBS because sample is a dynamic library.
 #
 #USEDLIBS = bitread
-LINK_COMPONENTS:= bitreader bitwriter asmparser instrumentation scalaropts ipo softbound
+LINK_COMPONENTS:= bitreader bitwriter asmparser instrumentation scalaropts ipo
 
 #
 # Include Makefile.common so we know what to do.
