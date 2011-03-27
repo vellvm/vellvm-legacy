@@ -1,8 +1,9 @@
 Add LoadPath "../ssa/ott".
 Add LoadPath "../ssa/monads".
 Add LoadPath "../ssa".
-(*Add LoadPath "../../../theory/metatheory".*)
-Require Import symexe_correct.
+Add LoadPath "../../../theory/metatheory_8.3".
+Require Import eq_tv_correct.
+Require Import sub_tv_correct.
 Require Import ssa_def.
 Require Import ssa_lib.
 Require Import Metatheory.
@@ -208,6 +209,7 @@ Extraction Blacklist List String Int.
 (*Extraction "symexe" tv_system.*)
 
 Cd "extraction".
-Recursive Extraction Library symexe_correct.
+Recursive Extraction Library eq_tv_correct.
+Recursive Extraction Library sub_tv_correct.
 Cd "../".
 

@@ -2,7 +2,7 @@ Add LoadPath "../ssa/ott".
 Add LoadPath "../ssa/monads".
 Add LoadPath "../ssa".
 Add LoadPath "../ssa/compcert".
-(*Add LoadPath "../../../theory/metatheory".*)
+Add LoadPath "../../../theory/metatheory_8.3".
 Require Import ssa_def.
 Require Import ssa_lib.
 Require Import List.
@@ -16,802 +16,20 @@ Require Import ssa_dynamic.
 Require Import opsem_pp.
 Require Import trace.
 Require Import symexe_def.
+Require Import symexe_lib.
 Require Import symexe_complete.
 Require Import symexe_sound.
-Require Import symexe_correct.
 Require Import seop_llvmop.
 Require Import assoclist.
 Require Import ssa_props.
-Require Import sub_symexe_dec.
+Require Import sub_tv.
+Require Import sub_tv_dec.
 Require Import Coq.Bool.Sumbool.
+Require Import symexe_tactic.
 
 Export SimpleSE.
 
-(* subAL *)
-
-Lemma getOperandValue_subAL : forall lc1 gl lc2 v TD gv,
-  subAL _ lc1 lc2 ->
-  getOperandValue TD v lc1 gl = Some gv ->
-  getOperandValue TD v lc1 gl = getOperandValue TD v lc2 gl.
-Proof.
-  intros lc1 gl lc2 v TD gv Hnon_none HeqAL.
-  unfold getOperandValue in *.
-  destruct v; auto.
-    apply lookupAL_Some_indom in HeqAL. eauto.
-Qed.
-
-Lemma subAL_updateAddAL : forall X lc1 lc2 id0 gv0,
-  subAL X lc1 lc2 ->
-  subAL _ (updateAddAL _ lc1 id0 gv0) (updateAddAL _ lc2 id0 gv0).
-Proof.
-  unfold subAL. 
-  intros.
-  rewrite updateAddAL_dom_eq in H0.
-  destruct (id0==i0); subst.
-    rewrite lookupAL_updateAddAL_eq; auto.
-    rewrite lookupAL_updateAddAL_eq; auto.
-
-    assert (i0 `in` dom lc1) as Hi0_in_lc1. fsetdec.
-    assert (J:=H i0 Hi0_in_lc1).
-    erewrite <- lookupAL_updateAddAL_neq; eauto.
-    erewrite <- lookupAL_updateAddAL_neq; eauto.
-Qed.
-
-Lemma subAL_callUpdateLocals : forall TD noret0 rid rt oResult lc1 lc2 gl lc1' lc2',
-  subAL _ lc1 lc1' ->
-  subAL _ lc2 lc2' ->
-  subAL _ (callUpdateLocals TD noret0 rid rt oResult lc1 lc2 gl)
-         (callUpdateLocals TD noret0 rid rt oResult lc1' lc2' gl).
-Proof.
-  intros TD noret0 rid rt oResult lc1 lc2 gl lc1' lc2' H1 H2.
-    unfold callUpdateLocals.
-    destruct noret0; auto.
-      destruct (rt=t=typ_void); auto.
-        destruct oResult; simpl; auto.
-          destruct v; simpl.
-            remember (lookupAL _ lc2 i0) as Lookup.
-            destruct Lookup as [gr | _].
-              rewrite H2 in HeqLookup; eauto using lookupAL_Some_indom.
-              rewrite <- HeqLookup. apply subAL_updateAddAL; auto.
-
-              (* We should prove that if oResult is Some, i0 in lc2. *)
-              admit.
-
-          destruct (const2GV TD gl c); auto using subAL_updateAddAL.
-Qed.
-
-Lemma subAL_refl : forall X lc,
-  subAL X lc lc.
-Proof. unfold subAL. auto. Qed.
-
-Lemma subAL_getIncomingValuesForBlockFromPHINodes : forall TD ps B gl lc lc',
-  subAL _ lc lc' ->
-  getIncomingValuesForBlockFromPHINodes TD ps B gl lc =
-  getIncomingValuesForBlockFromPHINodes TD ps B gl lc'.
-Proof.
-  induction ps; intros; simpl; auto.
-    destruct a; auto.
-    destruct (getValueViaBlockFromValuels l0 B); auto.
-    destruct v; erewrite IHps; eauto.
-      (* We should redefine getIncomingValuesForBlockFromPHINodes to be partial. 
-         If we cannot find any incoming value, we should return None. *)
-      assert (i1 `in` dom lc) as J. admit. 
-      rewrite H; auto.
-Qed.
-
-Lemma subAL_updateValuesForNewBlock : forall vs lc lc',
-  subAL _ lc lc' ->
-  subAL _ (updateValuesForNewBlock vs lc) (updateValuesForNewBlock vs lc').
-Proof.
-  induction vs; intros; simpl; auto.
-    destruct a.
-    destruct o; auto using subAL_updateAddAL.
-Qed.
-
-Lemma subAL_switchToNewBasicBlock : forall TD B1 B2 gl lc lc',
-  subAL _ lc lc' ->
-  subAL _ (switchToNewBasicBlock TD B1 B2 gl lc) (switchToNewBasicBlock TD B1 B2 gl lc').
-Proof.
-  intros.
-  unfold switchToNewBasicBlock.
-  erewrite subAL_getIncomingValuesForBlockFromPHINodes; eauto.
-  apply subAL_updateValuesForNewBlock; auto.
-Qed.
-
-Lemma subAL_exCallUpdateLocals : forall noret0 rid rt oResult lc lc',
-  subAL _ lc lc' ->
-  subAL _ (exCallUpdateLocals noret0 rid rt oResult lc)
-         (exCallUpdateLocals noret0 rid rt oResult lc').
-Proof.
-  intros noret0 rid rt oResult lc lc' H1.
-    unfold exCallUpdateLocals.
-    destruct noret0; auto.
-      destruct (rt=t=typ_void); auto.
-        destruct oResult; simpl; auto using subAL_updateAddAL.
-Qed.
-
-Lemma subAL_lookupExFdecViaGV : forall gl TD Ps lc lc' fs fv gv,
-  subAL _ lc lc' ->
-  lookupExFdecViaGV TD Ps gl lc fs fv = Some gv ->
-  lookupExFdecViaGV TD Ps gl lc fs fv = lookupExFdecViaGV TD Ps gl lc' fs fv.
-Proof.
-  intros.
-  unfold lookupExFdecViaGV in *.
-  assert (exists gv, getOperandValue TD fv lc gl = Some gv) as J.
-    destruct (getOperandValue TD fv lc gl); eauto.
-      inversion H0.
-  destruct J as [gv' J].
-  erewrite getOperandValue_subAL; eauto.
-Qed.
-
-Lemma subAL_lookupExFdefViaGV : forall gl TD Ps lc lc' fs fv gv,
-  subAL _ lc lc' ->
-  lookupFdefViaGV TD Ps gl lc fs fv = Some gv ->
-  lookupFdefViaGV TD Ps gl lc fs fv = lookupFdefViaGV TD Ps gl lc' fs fv.
-Proof.
-  intros.
-  unfold lookupFdefViaGV in *.
-  assert (exists gv, getOperandValue TD fv lc gl = Some gv) as J.
-    destruct (getOperandValue TD fv lc gl); eauto.
-      inversion H0.
-  destruct J as [gv' J].
-  erewrite getOperandValue_subAL; eauto.
-Qed.
-
-Lemma subAL_params2OpGVs : forall lp TD lc gl lc',
-  subAL _ lc lc' ->
-  params2OpGVs TD lp lc gl = params2OpGVs TD lp lc' gl.
-Proof.
-  induction lp; intros; simpl; auto.
-    destruct a.
-    destruct v; simpl.
-      (* We should redefine params2OpGVs to be partial. 
-         If we cannot find any param value, we should return None. *)
-      assert (i0 `in` dom lc) as J. admit. 
-      rewrite H; auto. erewrite IHlp; eauto.
-      erewrite IHlp; eauto.
-Qed.
-
-Lemma subAL_params2GVs : forall lp TD lc gl lc',
-  subAL _ lc lc' ->
-  params2GVs TD lp lc gl = params2GVs TD lp lc' gl.
-Proof.
-  induction lp; intros; simpl; auto.
-    destruct a.
-    unfold params2GVs.
-    erewrite subAL_params2OpGVs; eauto.
-Qed.
-
-Lemma subAL_initLocals : forall la lp TD lc gl lc',
-  subAL _ lc lc' ->
-  subAL _ (initLocals la (params2GVs TD lp lc gl)) (initLocals la (params2GVs TD lp lc' gl)).
-Proof.
-  intros. erewrite subAL_params2GVs; eauto using subAL_refl.
-  (* This lemma will be broken if we fix subAL_params2GVs 
-     The problem is that the Fdef rule should check that params2GVs lp = Some ... *)
-Qed.
-
-Lemma BOP_subAL : forall lc1 gl lc2 bop0 sz0 v1 v2 TD gv,
-  subAL _ lc1 lc2 ->
-  BOP TD lc1 gl bop0 sz0 v1 v2 = Some gv ->
-  BOP TD lc1 gl bop0 sz0 v1 v2 = BOP TD lc2 gl bop0 sz0 v1 v2.
-Proof.
-  intros lc1 gl lc2 bop0 sz0 v1 v2 TD gv HsubEnv Hsome.
-  apply BOP_inversion in Hsome.
-  destruct Hsome as [gv1 [gv2 [Hsome1 [Hsome2 _]]]].
-  unfold BOP in *.
-  erewrite getOperandValue_subAL with (lc2:=lc2)(v:=v1); eauto.
-  erewrite getOperandValue_subAL with (lc2:=lc2)(v:=v2); eauto.
-Qed.
-
-Lemma FBOP_subAL : forall lc1 gl lc2 fbop0 fp0 v1 v2 TD gv,
-  subAL _ lc1 lc2 ->
-  FBOP TD lc1 gl fbop0 fp0 v1 v2 = Some gv ->
-  FBOP TD lc1 gl fbop0 fp0 v1 v2 = FBOP TD lc2 gl fbop0 fp0 v1 v2.
-Proof.
-  intros lc1 gl lc2 fbop0 fp0 v1 v2 TD gv HsubEnv Hsome.
-  apply FBOP_inversion in Hsome.
-  destruct Hsome as [gv1 [gv2 [Hsome1 [Hsome2 _]]]].
-  unfold FBOP in *.
-  rewrite getOperandValue_subAL with (lc2:=lc2)(v:=v1)(gv:=gv1); auto.
-  rewrite getOperandValue_subAL with (lc2:=lc2)(v:=v2)(gv:=gv2); auto.
-Qed.
-
-Lemma getOperandPtr_subAL : forall lc1 gl lc2 v TD gv,
-  subAL _ lc1 lc2 ->
-  getOperandPtr TD v lc1 gl = Some gv ->
-  getOperandPtr TD v lc1 gl = getOperandPtr TD v lc2 gl.
-Proof.
-  intros lc1 gl lc2 v TD gv HsubEnv Hsome.
-  apply getOperandPtr_inversion in Hsome.
-  destruct Hsome as [gv0 [Hsome _]].
-  unfold getOperandPtr in *.
-  erewrite getOperandValue_subAL; eauto.
-Qed.
-
-Lemma getOperandInt_subAL : forall lc1 gl lc2 sz v TD gv,
-  subAL _ lc1 lc2 ->
-  getOperandInt TD sz v lc1 gl = Some gv ->
-  getOperandInt TD sz v lc1 gl = getOperandInt TD sz v lc2 gl.
-Proof.
-  intros lc1 gl lc2 sz0 v TD gv HsubAL Hsome.
-  apply getOperandInt_inversion in Hsome.
-  destruct Hsome as [gv0 [Hsome _]].
-  unfold getOperandInt in *.
-  erewrite getOperandValue_subAL; eauto.
-Qed.
-
-Lemma getOperandPtrInBits_subAL : forall lc1 gl lc2 sz v TD gv,
-  subAL _ lc1 lc2 ->
-  getOperandValue TD v lc1 gl = Some gv ->
-  getOperandPtrInBits TD sz v lc1 gl = getOperandPtrInBits TD sz v lc2 gl.
-Proof.
-  intros lc1 gl lc2 sz0 v TD gv HsubAL Hsome.
-  unfold getOperandPtrInBits in *.
-  erewrite getOperandValue_subAL; eauto.
-Qed.
-
-Lemma CAST_subAL : forall lc1 gl lc2 op t1 v1 t2 TD gv,
-  subAL _ lc1 lc2 ->
-  CAST TD lc1 gl op t1 v1 t2 = Some gv ->
-  CAST TD lc1 gl op t1 v1 t2 = CAST TD lc2 gl op t1 v1 t2.
-Proof.
-  intros lc1 gl lc2 op t1 v1 t2 TD gv HsubAL Hsome.
-  apply CAST_inversion in Hsome.
-  destruct Hsome as [gv1 [Hsome _]].
-  unfold CAST in *.
-  rewrite getOperandValue_subAL with (lc2:=lc2)(v:=v1)(gv:=gv1); auto.
-Qed.
-
-Lemma TRUNC_subAL : forall lc1 gl lc2 op t1 v1 t2 TD gv,
-  subAL _ lc1 lc2 ->
-  TRUNC TD lc1 gl op t1 v1 t2 = Some gv ->
-  TRUNC TD lc1 gl op t1 v1 t2 = TRUNC TD lc2 gl op t1 v1 t2.
-Proof.
-  intros lc1 gl lc2 op t1 v1 t2 TD gv HsubAL Hsome.
-  apply TRUNC_inversion in Hsome.
-  destruct Hsome as [gv1 [Hsome _]].
-  unfold TRUNC in *.
-  rewrite getOperandValue_subAL with (lc2:=lc2)(v:=v1)(gv:=gv1); auto.
-Qed.
-
-Lemma EXT_subAL : forall lc1 gl lc2 op t1 v1 t2 TD gv,
-  subAL _ lc1 lc2 ->
-  EXT TD lc1 gl op t1 v1 t2 = Some gv ->
-  EXT TD lc1 gl op t1 v1 t2 = EXT TD lc2 gl op t1 v1 t2.
-Proof.
-  intros lc1 gl lc2 op t1 v1 t2 TD gv HsubAL Hsome.
-  apply EXT_inversion in Hsome.
-  destruct Hsome as [gv1 [Hsome _]].
-  unfold EXT in *.
-  rewrite getOperandValue_subAL with (lc2:=lc2)(v:=v1)(gv:=gv1); auto.
-Qed.
-
-Lemma ICMP_subAL : forall lc1 gl lc2 cond t v1 v2 TD gv,
-  subAL _ lc1 lc2 ->
-  ICMP TD lc1 gl cond t v1 v2 = Some gv ->
-  ICMP TD lc1 gl cond t v1 v2 = ICMP TD lc2 gl cond t v1 v2.
-Proof.
-  intros lc1 gl lc2 cond0 t v1 v2 TD gv HsubAL Hsome.
-  apply ICMP_inversion in Hsome.
-  destruct Hsome as [gv1 [gv2 [Hsome1 [Hsome2 _]]]].
-  unfold ICMP in *.
-  rewrite getOperandValue_subAL with (lc2:=lc2)(v:=v1)(gv:=gv1); auto.
-  rewrite getOperandValue_subAL with (lc2:=lc2)(v:=v2)(gv:=gv2); auto.
-Qed.
-
-Lemma FCMP_subAL : forall lc1 gl lc2 cond fp v1 v2 TD gv,
-  subAL _ lc1 lc2 ->
-  FCMP TD lc1 gl cond fp v1 v2 = Some gv ->
-  FCMP TD lc1 gl cond fp v1 v2 = FCMP TD lc2 gl cond fp v1 v2.
-Proof.
-  intros lc1 gl lc2 cond0 fp v1 v2 TD gv HsubAL Hsome.
-  apply FCMP_inversion in Hsome.
-  destruct Hsome as [gv1 [gv2 [Hsome1 [Hsome2 _]]]].
-  unfold FCMP in *.
-  rewrite getOperandValue_subAL with (lc2:=lc2)(v:=v1)(gv:=gv1); auto.
-  rewrite getOperandValue_subAL with (lc2:=lc2)(v:=v2)(gv:=gv2); auto.
-Qed.
-
-Lemma intValues2Nats_subAL : forall l0 lc1 gl lc2 TD zs,
-  subAL _ lc1 lc2 ->
-  intValues2Nats TD l0 lc1 gl = Some zs ->
-  intValues2Nats TD l0 lc1 gl = intValues2Nats TD l0 lc2 gl.
-Proof.
-  induction l0; intros lc1 gl lc2 TD zs HsubAL Hsome; simpl in *; auto.
-    assert (exists gv, getOperandValue TD v lc1 gl = Some gv) as J.
-      destruct (getOperandValue TD v lc1 gl); eauto.
-        inversion Hsome.
-    destruct J as [gv J].
-    erewrite getOperandValue_subAL with (lc2:=lc2)(v:=v); eauto.
-      rewrite J in Hsome.
-      destruct (GV2int TD Size.ThirtyTwo gv); try solve [inversion Hsome].
-      assert (exists zs', intValues2Nats TD l0 lc1 gl = Some zs') as J'.
-        destruct (intValues2Nats TD l0 lc1 gl); eauto.
-      destruct J' as [gv' J'].
-      erewrite IHl0; eauto.
-Qed.
-
-Lemma values2GVs_subAL : forall l0 lc1 gl lc2 TD gvs,
-  subAL _ lc1 lc2 ->
-  values2GVs TD l0 lc1 gl = Some gvs ->
-  values2GVs TD l0 lc1 gl = values2GVs TD l0 lc2 gl.
-Proof.
-  induction l0; intros lc1 gl lc2 TD gvs HsubAL Hsome; simpl in *; auto.
-    assert (exists gv, getOperandValue TD v lc1 gl = Some gv) as J.
-      destruct (getOperandValue TD v lc1 gl); eauto.
-        inversion Hsome.
-    destruct J as [gv J].
-    erewrite getOperandValue_subAL with (lc2:=lc2)(v:=v); eauto.
-      rewrite J in Hsome.
-      assert (exists gvs', values2GVs TD l0 lc1 gl = Some gvs') as J'.
-        destruct (values2GVs TD l0 lc1 gl); eauto.
-      destruct J' as [gvs' J'].
-      erewrite IHl0; eauto.
-Qed.
-
-(* subEnv *)
-
-Lemma dbCmd_subEnv : forall TD c lc1 als1 gl Mem1 lc2 als2 Mem2 tr lc1',
-  dbCmd TD gl lc1 als1 Mem1 c lc2 als2 Mem2 tr ->
-  subAL _ lc1 lc1' ->
-  exists lc2', 
-    dbCmd TD gl lc1' als1 Mem1 c lc2' als2 Mem2 tr /\
-    subAL _ lc2 lc2'.
-Proof.
-  intros TD c lc1 als1 gl Mem1 lc2 als2 Mem2 tr lc1' HdbCmd HsubEnv.
-  (dbCmd_cases (inversion HdbCmd) Case); subst.
-Case "dbBop".
-  assert (HupdateEnv:=HsubEnv).
-  exists (updateAddAL _ lc1' id0 gv3).
-  erewrite BOP_subAL with (lc2:=lc1') in H; eauto.
-  split; eauto using subAL_updateAddAL.
-
-Case "dbFBop".
-  assert (HupdateEnv:=HsubEnv).
-  exists (updateAddAL _ lc1' id0 gv3).
-  erewrite FBOP_subAL with (lc2:=lc1') in H; eauto.
-  split; eauto using subAL_updateAddAL.
-
-Case "dbExtractValue".
-  assert (HupdateEnv:=HsubEnv).
-  exists (updateAddAL _ lc1' id0 gv').
-  erewrite getOperandValue_subAL with (lc2:=lc1') in H; eauto. 
-  split; eauto using subAL_updateAddAL.
-  
-Case "dbInsertValue".
-  assert (HupdateEnv:=HsubEnv).
-  exists (updateAddAL _ lc1' id0 gv'').
-  erewrite getOperandValue_subAL with (lc2:=lc1') in H; eauto. 
-  erewrite getOperandValue_subAL with (lc2:=lc1') in H0; eauto. 
-  split; eauto using subAL_updateAddAL.
-
-Case "dbMalloc".
-  assert (HupdateEnv:=HsubEnv).
-  exists (updateAddAL _ lc1' id0 (blk2GV TD mb)).
-  erewrite getOperandValue_subAL with (lc2:=lc1') in H0; eauto. 
-  split; eauto using subAL_updateAddAL.
-
-Case "dbFree".
-  exists lc1'.
-  erewrite getOperandValue_subAL with (lc2:=lc1') in H; eauto. 
-
-Case "dbAlloca".
-  assert (HupdateEnv:=HsubEnv).
-  exists (updateAddAL _ lc1' id0 (blk2GV TD mb)).
-  erewrite getOperandValue_subAL with (lc2:=lc1') in H0; eauto. 
-  split; eauto using subAL_updateAddAL.
-
-Case "dbLoad".
-  assert (HupdateEnv:=HsubEnv).
-  exists (updateAddAL _ lc1' id0 gv).
-  erewrite getOperandValue_subAL with (lc2:=lc1') in H; eauto. 
-  split; eauto using subAL_updateAddAL.
-
-Case "dbStore".
-  exists lc1'.
-  erewrite getOperandValue_subAL with (lc2:=lc1') in H; eauto. 
-  erewrite getOperandValue_subAL with (lc2:=lc1') in H0; eauto. 
-
-Case "dbGEP".
-  assert (HupdateEnv:=HsubEnv).
-  exists (updateAddAL _ lc1' id0 mp').
-  erewrite getOperandValue_subAL with (lc2:=lc1') in H; eauto. 
-  erewrite values2GVs_subAL with (lc2:=lc1') in H0; eauto. 
-(* rewrite GEP_eqAL with (lc2:=lc1') in H0; auto. *)
-  split; eauto using subAL_updateAddAL.
-
-Case "dbTrunc".
-  assert (HupdateEnv:=HsubEnv).
-  exists (updateAddAL _ lc1' id0 gv2).
-  erewrite TRUNC_subAL with (lc2:=lc1') in H; eauto.
-  split; eauto using subAL_updateAddAL.
-
-Case "dbExt".
-  assert (HupdateEnv:=HsubEnv).
-  exists (updateAddAL _ lc1' id0 gv2).
-  erewrite EXT_subAL with (lc2:=lc1') in H; eauto.
-  split; eauto using subAL_updateAddAL.
-
-Case "dbCast".
-  assert (HupdateEnv:=HsubEnv).
-  exists (updateAddAL _ lc1' id0 gv2).
-  erewrite CAST_subAL with (lc2:=lc1') in H; eauto.
-  split; eauto using subAL_updateAddAL.
-
-Case "dbIcmp".
-  assert (HupdateEnv:=HsubEnv).
-  exists (updateAddAL _ lc1' id0 gv3).
-  erewrite ICMP_subAL with (lc2:=lc1') in H; eauto.
-  split; eauto using subAL_updateAddAL.
-
-Case "dbFcmp".
-  assert (HupdateEnv:=HsubEnv).
-  exists (updateAddAL _ lc1' id0 gv3).
-  erewrite FCMP_subAL with (lc2:=lc1') in H; eauto.
-  split; eauto using subAL_updateAddAL.
-
-Case "dbSelect".
-  erewrite getOperandValue_subAL with (lc2:=lc1') in H; eauto. 
-  erewrite getOperandValue_subAL with (lc2:=lc1') in H0; eauto. 
-  erewrite getOperandValue_subAL with (lc2:=lc1') in H1; eauto. 
-  assert (HupdateEnv:=HsubEnv).
-  exists (if isGVZero TD cond0 then updateAddAL _ lc1' id0 gv2 else updateAddAL _ lc1' id0 gv1).
-  split; auto.
-    destruct (isGVZero TD cond0); auto using subAL_updateAddAL.
-Qed.
-
-Lemma dbCmds_subEnv : forall TD cs lc1 als1 gl Mem1 lc2 als2 Mem2 tr lc1',
-  dbCmds TD gl lc1 als1 Mem1 cs lc2 als2 Mem2 tr ->
-  subAL _ lc1 lc1' ->
-  exists lc2', 
-    dbCmds TD gl lc1' als1 Mem1 cs lc2' als2 Mem2 tr /\
-    subAL _ lc2 lc2'.
-Proof.
-  intros TD cs lc1 als1 gl Mem1 lc2 als2 Mem2 tr lc1' HdbCmds HsubEnv.
-  generalize dependent lc1'.
-  induction HdbCmds; intros.
-    exists lc1'. split; auto.
-
-    apply dbCmd_subEnv with (lc1':=lc1') in H; auto.
-    destruct H as [lc2' [HdbCmd HsubEnv']].
-    apply IHHdbCmds in HsubEnv'; auto.
-    destruct HsubEnv' as [lc3' [HdbCmds' HsubEnv'']].
-    exists lc3'.
-    split; eauto.
-Qed.
-
-Lemma dbTerminator_subEnv : forall TD F gl lc1 tmn lc2 tr lc1' B B',
-  dbTerminator TD F gl B lc1 tmn B' lc2 tr ->
-  subAL _ lc1 lc1' ->
-  exists lc2',
-    dbTerminator TD F gl B lc1' tmn B' lc2' tr /\
-    subAL _ lc2 lc2'.
-Proof.
-  intros TD F gl lc1 tmn lc2 tr lc1' B B' HdbTerminator HsubAL.
-  inversion HdbTerminator; subst.
-    exists (switchToNewBasicBlock TD (block_intro l' ps' sbs' tmn') B gl lc1').
-    split.
-      apply dbBranch with (c:=c); auto.
-        erewrite <- getOperandValue_subAL; eauto.
-      apply subAL_switchToNewBasicBlock; auto.     
-  
-    exists (switchToNewBasicBlock TD (block_intro l' ps' sbs' tmn') B gl lc1').
-    split.
-      apply dbBranch_uncond; auto.
-      apply subAL_switchToNewBasicBlock; auto.
-Qed.     
-
-Definition dbCall_subEnv_prop S TD Ps fs gl lc1 Mem0 call0 lc2 Mem' tr
-  (db:dbCall S TD Ps fs gl lc1 Mem0 call0 lc2 Mem' tr) := 
-  forall lc1',
-  subAL _ lc1 lc1' ->
-  exists lc2',
-    dbCall S TD Ps fs gl lc1' Mem0 call0 lc2' Mem' tr /\
-    subAL _ lc2 lc2'.
-Definition dbSubblock_subEnv_prop S TD Ps fs gl lc1 als Mem cs lc2 als' Mem' tr
-  (db:dbSubblock S TD Ps fs gl lc1 als Mem cs lc2 als' Mem' tr) :=
-  forall lc1',
-  subAL _ lc1 lc1' ->
-  exists lc2',
-    dbSubblock S TD Ps fs gl lc1' als Mem cs lc2' als' Mem' tr /\
-    subAL _ lc2 lc2'.
-Definition dbSubblocks_subEnv_prop S TD Ps fs gl lc1 als Mem cs lc2 als' Mem' tr
-  (db:dbSubblocks S TD Ps fs gl lc1 als Mem cs lc2 als' Mem' tr) :=
-  forall lc1',
-  subAL _ lc1 lc1' ->
-  exists lc2',
-    dbSubblocks S TD Ps fs gl lc1' als Mem cs lc2' als' Mem' tr /\
-    subAL _ lc2 lc2'.
-Definition dbBlock_subEnv_prop S TD Ps fs gl F arg state1 state2 tr
-  (db:dbBlock S TD Ps fs gl F arg state1 state2 tr) :=
-  forall B1 lc1 als Mem B1' lc2 als' Mem' lc1',
-  state1 = mkState (mkEC B1 lc1 als) Mem ->
-  state2 = mkState (mkEC B1' lc2 als') Mem' ->
-  subAL _ lc1 lc1' ->
-  exists lc2',
-    dbBlock S TD Ps fs gl F arg 
-     (mkState (mkEC B1 lc1' als) Mem) 
-     (mkState (mkEC B1' lc2' als') Mem') 
-     tr /\
-    subAL _ lc2 lc2'.
-Definition dbBlocks_subEnv_prop S TD Ps fs gl F lp state1 state2 tr
-  (db:dbBlocks S TD Ps fs gl F lp state1 state2 tr) :=
-  forall B1 lc1 als Mem B1' lc2 als' Mem' lc1',
-  state1 = mkState (mkEC B1 lc1 als) Mem ->
-  state2 = mkState (mkEC B1' lc2 als') Mem' ->
-  subAL _ lc1 lc1' ->
-  exists lc2',
-    dbBlocks S TD Ps fs gl F lp 
-     (mkState (mkEC B1 lc1' als) Mem) 
-     (mkState (mkEC B1' lc2' als') Mem') 
-     tr /\
-    subAL _ lc2 lc2'.
-Definition dbFdef_subEnv_prop fv rt lp S TD Ps lc1 gl fs Mem lc2 als' Mem' B' Rid oResult tr
-  (db:dbFdef fv rt lp S TD Ps lc1 gl fs Mem lc2 als' Mem' B' Rid oResult tr) :=
-  forall fid la lb lc1',
-  lookupFdefViaGV TD Ps gl lc1 fs fv = Some (fdef_intro (fheader_intro rt fid la) lb) ->
-  subAL _ lc1 lc1' ->
-  exists lc2',
-    dbFdef fv rt lp S TD Ps lc1' gl fs Mem lc2' als' Mem' B' Rid oResult tr /\
-    subAL _ lc2 lc2'.
-
-Lemma db_subEnv :
-  (forall S TD Ps fs gl lc Mem0 call0 lc' Mem' tr db, 
-     dbCall_subEnv_prop S TD Ps fs gl lc Mem0 call0 lc' Mem' tr db) /\
-  (forall S TD Ps fs gl lc als Mem sb lc' als' Mem' tr db,
-     dbSubblock_subEnv_prop S TD Ps fs gl lc als Mem sb lc' als' Mem' tr db) /\
-  (forall S TD Ps fs gl lc als Mem sbs lc' als' Mem' tr db,
-     dbSubblocks_subEnv_prop S TD Ps fs gl lc als Mem sbs lc' als' Mem' tr db) /\
-  (forall S TD Ps fs gl F arg state1 state2 tr db,
-     dbBlock_subEnv_prop S TD Ps fs gl F arg state1 state2 tr db) /\
-  (forall S TD Ps fs gl F lp state1 state2 tr db,
-     dbBlocks_subEnv_prop S TD Ps fs gl F lp state1 state2 tr db) /\
-  (forall fid rt lp S TD Ps lc gl fs Mem lc' als' Mem' B' Rid oResult tr db,
-     dbFdef_subEnv_prop fid rt lp S TD Ps lc gl fs Mem lc' als' Mem' B' Rid oResult tr db).
-Proof.
-(db_mutind_cases
-  apply db_mutind with
-    (P  := dbCall_subEnv_prop)
-    (P0 := dbSubblock_subEnv_prop)
-    (P1 := dbSubblocks_subEnv_prop)
-    (P2 := dbBlock_subEnv_prop)
-    (P3 := dbBlocks_subEnv_prop)
-    (P4 := dbFdef_subEnv_prop) Case);
-  unfold dbCall_subEnv_prop, 
-         dbSubblock_subEnv_prop, dbSubblocks_subEnv_prop,
-         dbBlock_subEnv_prop, dbBlocks_subEnv_prop,
-         dbFdef_subEnv_prop; intros; subst; auto.
-Case "dbCall_internal".
-  inversion d; subst.
-    apply H with (lc1':=lc1') in H1; auto. clear H.
-    destruct H1 as [lc2' [HdbBlocks HeqEnv]].
-    exists (callUpdateLocals TD noret0 rid rt (Some Result) lc1' lc2' gl).
-    split; eauto using dbCall_internal, subAL_callUpdateLocals.
-
-    apply H with (lc1':=lc1') in H1; auto. clear H.
-    destruct H1 as [lc2' [HdbBlocks HeqEnv]].
-    exists (callUpdateLocals TD noret0 rid rt None lc1' lc2' gl).
-    split; eauto using dbCall_internal, subAL_callUpdateLocals.
-
-Case "dbCall_external".
-  exists (exCallUpdateLocals noret0 rid rt oresult lc1').
-  split; eauto using subAL_exCallUpdateLocals.
-    eapply dbCall_external; eauto.
-      erewrite <- subAL_lookupExFdecViaGV; eauto.
-    rewrite <- subAL_params2GVs with (lc:=lc); auto.
-
-Case "dbSubblock_intro".
-  apply dbCmds_subEnv with (lc1':=lc1') in d; auto.
-  destruct d as [lc2' [HdbCmds HsubEnv2]].
-  apply H in HsubEnv2. clear H.
-  destruct HsubEnv2 as [lc3' [HdbCall HsubEnv3]].
-  exists lc3'.
-  split; eauto.
-
-Case "dbSubblocks_nil".
-  exists lc1'. split; auto.
- 
-Case "dbSubblocks_cons".
-  apply H in H1. clear H.
-  destruct H1 as [lc2' [HdbSubblock Heq2]].
-  apply H0 in Heq2. clear H0.
-  destruct Heq2 as [lc3' [HdbSubblocks Heq3]].
-  exists lc3'. split; eauto.
-
-Case "dbBlock_intro".
-  inversion H0; subst. clear H0.
-  inversion H1; subst. clear H1.
-  apply H in H2. clear H.
-  destruct H2 as [lc2' [HdbSubblocks Heq2]].
-  apply dbCmds_subEnv with (lc1':=lc2') in d0; auto.
-  destruct d0 as [lc3' [HdbCmds Heq3]].
-  apply dbTerminator_subEnv with (lc1':=lc3') in d1; auto.
-  destruct d1 as [lc5' [HdbTerminator Heq5]].
-  exists lc5'. split; eauto.
-
-Case "dbBlocks_nil".
-  inversion H0; subst. clear H0.
-  exists lc1'. split; auto.
- 
-Case "dbBlocks_cons".
-  inversion d; subst.
-  apply H with (B1:=block_intro l0 ps (cs++cs') tmn)(als0:=als)(Mem:=Mem0) 
-               (B1':=B')(als':=als3)(Mem':=Mem3)(lc3:=lc5) in H3; auto.
-  clear H.
-  destruct H3 as [lc5' [HdbBlock Heq5]].
-  apply H0 with (als'0:=als')(als:=als3)(Mem:=Mem3)(Mem'0:=Mem')(lc3:=lc2)(B1:=B')(B1'0:=B1') in Heq5; auto.
-  clear H0.
-  destruct Heq5 as [lc2' [HdbBlocks Heq2]].
-  exists lc2'. split; eauto.
-
-Case "dbFdef_func".
-  rewrite e in H1. inversion H1; subst. clear H1.
-  assert (J:=@subAL_initLocals la0 lp TD lc gl lc1' H2).
-  apply H with (B1:=block_intro l1 ps1 cs1 tmn1)(als:=nil)(Mem:=Mem0)(lc3:=lc1)
-               (B1':=block_intro l2 ps2 (cs21++cs22) (insn_return rid rt Result))(als':=als1)(Mem':=Mem1) in J; auto.
-  clear H. destruct J as [lc2' [HdbBlocks Hsub2]].
-  rewrite subAL_params2GVs with (lc':=lc1') in HdbBlocks; eauto.
-  apply H0 in Hsub2. clear H0.
-  destruct Hsub2 as [lc3' [Hsubblocks Hsub3]].
-  apply dbCmds_subEnv with (lc1':=lc3') in d1; auto.
-  destruct d1 as [lc4' [HdbCmds Hsub4]].
-  exists lc4'. split; eauto.
-    eapply dbFdef_func; eauto.
-      erewrite <- subAL_lookupExFdefViaGV; eauto.
-
-Case "dbFdef_proc".
-  rewrite e in H1. inversion H1; subst. clear H1.
-  assert (J:=@subAL_initLocals la0 lp TD lc gl lc1' H2).
-  apply H with (B1:=block_intro l1 ps1 cs1 tmn1)(als:=nil)(Mem:=Mem0)(lc3:=lc1)
-               (B1':=block_intro l2 ps2 (cs21++cs22) (insn_return_void rid))(als':=als1)(Mem':=Mem1) in J; auto.
-  clear H. destruct J as [lc2' [HdbBlocks Hsub2]].
-  rewrite subAL_params2GVs with (lc':=lc1') in HdbBlocks; eauto.
-  apply H0 in Hsub2. clear H0.
-  destruct Hsub2 as [lc3' [Hsubblocks Hsub3]].
-  apply dbCmds_subEnv with (lc1':=lc3') in d1; auto.
-  destruct d1 as [lc4' [HdbCmds Hsub4]].
-  exists lc4'. split; eauto.
-    eapply dbFdef_proc; eauto.
-      erewrite <- subAL_lookupExFdefViaGV; eauto.
-Qed.
-
-Lemma dbCall_subEnv : forall S TD Ps fs gl lc1 Mem0 call0 lc2 Mem' tr lc1',
-  dbCall S TD Ps fs gl lc1 Mem0 call0 lc2 Mem' tr ->
-  subAL _ lc1 lc1' ->
-  exists lc2',
-    dbCall S TD Ps fs gl lc1' Mem0 call0 lc2' Mem' tr /\
-    subAL _ lc2 lc2'.
-Proof.
-  intros.
-  destruct db_subEnv as [J _].
-  unfold dbCall_subEnv_prop in J. eauto.
-Qed.
-
-Lemma dbSubblock_subEnv : forall S TD Ps fs gl lc1 als Mem cs lc2 als' Mem' tr lc1',
-  dbSubblock S TD Ps fs gl lc1 als Mem cs lc2 als' Mem' tr ->
-  subAL _ lc1 lc1' ->
-  exists lc2',
-    dbSubblock S TD Ps fs gl lc1' als Mem cs lc2' als' Mem' tr /\
-    subAL _ lc2 lc2'.
-Proof.
-  intros.
-  destruct db_subEnv as [_ [J _]].
-  unfold dbSubblock_subEnv_prop in J. eauto.
-Qed.
-
-Lemma dbSubblocks_subEnv : forall S TD Ps fs gl lc1 als Mem cs lc2 als' Mem' tr lc1',
-  dbSubblocks S TD Ps fs gl lc1 als Mem cs lc2 als' Mem' tr ->
-  subAL _ lc1 lc1' ->
-  exists lc2',
-    dbSubblocks S TD Ps fs gl lc1' als Mem cs lc2' als' Mem' tr /\
-    subAL _ lc2 lc2'.
-Proof.
-  intros.
-  destruct db_subEnv as [_ [_ [J _]]].
-  unfold dbSubblocks_subEnv_prop in J. eauto.
-Qed.
-
-Lemma dbBlock_subEnv : forall S TD Ps fs gl F arg tr B1 lc1 als Mem B1' lc2 als' Mem' lc1',
-  dbBlock S TD Ps fs gl F arg 
-    (mkState (mkEC B1 lc1 als) Mem) 
-    (mkState (mkEC B1' lc2 als') Mem') 
-    tr ->
-  subAL _ lc1 lc1' ->
-  exists lc2',
-    dbBlock S TD Ps fs gl F arg 
-     (mkState (mkEC B1 lc1' als) Mem) 
-     (mkState (mkEC B1' lc2' als') Mem') 
-     tr /\
-    subAL _ lc2 lc2'.
-Proof.
-  intros.
-  destruct db_subEnv as [_ [_ [_ [J _]]]].
-  unfold dbBlock_subEnv_prop in J. eauto.
-Qed.
-
-Lemma dbBlocks_subEnv : forall S TD Ps fs gl F lp tr B1 lc1 als Mem B1' lc2 als' Mem' lc1',
-  dbBlocks S TD Ps fs gl F lp
-    (mkState (mkEC B1 lc1 als) Mem)
-    (mkState (mkEC B1' lc2 als') Mem')
-    tr ->
-  subAL _ lc1 lc1' ->
-  exists lc2',
-    dbBlocks S TD Ps fs gl F lp 
-     (mkState (mkEC B1 lc1' als) Mem) 
-     (mkState (mkEC B1' lc2' als') Mem') 
-     tr /\
-    subAL _ lc2 lc2'.
-Proof.
-  intros.
-  destruct db_subEnv as [_ [_ [_ [_ [J _]]]]].
-  unfold dbBlocks_subEnv_prop in J. eauto.
-Qed.
-
-Lemma dbFdef_subEnv : forall fv fid rt lp S TD Ps lc1 gl fs Mem lc2 als' Mem' B' Rid oResult tr la lb lc1',
-  dbFdef fv rt lp S TD Ps lc1 gl fs Mem lc2 als' Mem' B' Rid oResult tr ->
-  lookupFdefViaGV TD Ps gl lc1 fs fv = Some (fdef_intro (fheader_intro rt fid la) lb) ->
-  subAL _ lc1 lc1' ->
-  exists lc2',
-    dbFdef fv rt lp S TD Ps lc1' gl fs Mem lc2' als' Mem' B' Rid oResult tr /\
-    subAL _ lc2 lc2'.
-Proof.
-  intros.
-  destruct db_subEnv as [_ [_ [_ [_ [_ J]]]]].
-  unfold dbFdef_subEnv_prop in J. eauto.
-Qed.
-
 (* Correctness of the cmds validator *)
-
-Tactic Notation "bdestruct" ident(H) "as" ident(J1) ident(J2) :=
-     apply andb_true_iff in H; destruct H as [J1 J2].
-
-Tactic Notation "bdestruct3" ident(H) "as" ident(J1) ident(J2) ident(J3) :=
-     bdestruct H as H J3;
-     bdestruct H as J1 J2.
-
-Tactic Notation "bdestruct4" ident(H) "as" ident(J1) ident(J2) ident(J3) ident(J4) :=
-     bdestruct3 H as H J3 J4;
-     bdestruct H as J1 J2.
-
-Tactic Notation "bdestruct5" ident(H) "as" ident(J1) ident(J2) ident(J3) ident(J4) ident(J5) :=
-     bdestruct4 H as H J3 J4 J5;
-     bdestruct H as J1 J2.
-
-Ltac bdestructn H Js :=
-  match Js with
-  | nil => idtac
-  | ?J::nil => rename H into J
-  | ?J::?Js' => apply andb_true_iff in H; destruct H as [H J]; bdestructn H Js
-  end.
-
-Definition tv_cmds (nbs1 nbs2 : list nbranch) :=
-sumbool2bool _ _ (sstate_sub_dec (se_cmds sstate_init nbs1) (se_cmds sstate_init nbs2)).
-
-Ltac sumbool_simpl :=
-  repeat
-  match goal with
-  | [ H:sumbool2bool _ _ _ = true |- _ ] => apply sumbool2bool_true in H
-  | [ H:is_true(sumbool2bool _ _ _) |- _ ] => apply sumbool2bool_true in H
-  | [ H:tv_cmds _ _ = true |- _ ] => unfold is_true in H; apply sumbool2bool_true in H
-  | [ H:is_true(tv_cmds _ _) |- _ ] => unfold is_true in H; apply sumbool2bool_true in H
-  end.
-
-Ltac sumbool_subst :=
-  repeat
-  match goal with
-  | [ H:sumbool2bool _ _ _ = true |- _ ] => apply sumbool2bool_true in H; subst
-  | [ H:is_true(sumbool2bool _ _ _) |- _ ] => apply sumbool2bool_true in H; subst
-  end.
-
-Tactic Notation "sumbool_subst" "in" hyp(H) :=
-  apply sumbool2bool_true in H.
-
-Ltac bsplit :=
-  eapply andb_true_iff; split.
-
-Ltac repeat_bsplit :=
-  repeat (bsplit; auto using eq_sumbool2bool_true).
 
 Lemma tv_cmds__is__correct : forall TD nbs nbs' lc1 als1 gl Mem1 lc2 als2 Mem2 tr,
   uniq lc1 ->  
@@ -827,17 +45,8 @@ Proof.
   apply se_dbCmds_preservation in Uniqs; auto.
   apply op_cmds__satisfy__se_cmds in HdbCmds; auto.
   sumbool_simpl.
-
-Lemma sstate_denotes_state
-  sstate1 <<= sstate2 ->
-  sstate_denotes_state TD lc1 gl als Mem sstate1 lc1' als' mem' tr ->
-  sstate_denotes_state TD lc2 gl als Mem sstate2 lc2' als' mem' tr.  
-
-
-  sstate_denotes_state TD lc1 gl als1 Mem1 (se_cmds sstate_init nbs) lc2 als2 Mem2 tr ->
-  sstate_denotes_state TD lc1 gl als1 Mem1 (se_cmds sstate_init nbs) lc2 als2 Mem2 tr ->
-
-
+Admitted.
+(*
   apply se_cmds__denote__op_cmds in HdbCmds; auto.
     destruct HdbCmds as [slc [HdbCmds Heq]].
     apply dbCmds_subEnv with (lc1':=se_cmds sstate_init nbs') in HdbCmds.
@@ -846,89 +55,7 @@ Lemma sstate_denotes_state
   rewrite Htv_cmds in HdbCmds.
   apply se_cmds__denote__op_cmds; auto.
 Qed.
-
-Definition tv_subblock (sb1 sb2:subblock) :=
-match (sb1, sb2) with
-| (mkSB nbs1 call1 iscall1, mkSB nbs2 call2 iscall2) =>
-  let st1 := se_cmds sstate_init nbs1 in
-  let st2 := se_cmds sstate_init nbs2 in
-  let cl1 := se_call st1 call1 iscall1 in
-  let cl2 := se_call st2 call2 iscall2 in
-   (sumbool2bool _ _ (sstate_sub_dec st1 st2)) &&
-   (sumbool2bool _ _ (cmd_dec call1 call2))
-end.
-
-Fixpoint tv_subblocks (sbs1 sbs2:list subblock) :=
-match (sbs1, sbs2) with
-| (nil, nil) => true
-| (sb1::sbs1', sb2::sbs2') => 
-   (tv_subblock sb1 sb2) && (tv_subblocks sbs1' sbs2')
-| _ => false
-end.
-
-Fixpoint tv_phinodes (ps1 ps2:phinodes) :=
-match (ps1, ps2) with
-| (nil, nil) => true
-| (p1::ps1', p2::ps2') => 
-    sumbool2bool _ _ (phinode_dec p1 p2) && tv_phinodes ps1' ps2'
-| _ => false
-end.
-
-Definition tv_block (b1 b2:block) :=
-match (b1, b2) with
-| (block_intro l1 ps1 cs1 tmn1, block_intro l2 ps2 cs2 tmn2) =>
-  match (cmds2sbs cs1, cmds2sbs cs2) with
-  | ((sbs1, nbs1), (sbs2, nbs2)) =>
-    sumbool2bool _ _ (eq_atom_dec l1 l2) &&
-    tv_phinodes ps1 ps2 &&
-    tv_subblocks sbs1 sbs2 &&
-    tv_cmds nbs1 nbs2 &&
-    sumbool2bool _ _ (terminator_dec tmn1 tmn2)
-  end
-end.
-
-Fixpoint tv_blocks (bs1 bs2:blocks):=
-match (bs1, bs2) with
-| (nil, nil) => true
-| (b1::bs1', b2::bs2') => tv_block b1 b2 && tv_blocks bs1' bs2'
-| _ => false
-end.
-
-Definition tv_fdef (f1 f2:fdef) :=
-match (f1, f2) with
-| (fdef_intro fh1 lb1, fdef_intro fh2 lb2) =>
-  sumbool2bool _ _ (fheader_dec fh1 fh2) &&
-  tv_blocks lb1 lb2
-end.
-
-Fixpoint tv_products (Ps1 Ps2:products):=
-match (Ps1, Ps2) with
-| (nil, nil) => true
-| (product_fdec f1::Ps1', product_fdec f2::Ps2') => 
-  sumbool2bool _ _ (fdec_dec f1 f2) &&
-  tv_products Ps1' Ps2'
-| (product_fdef f1::Ps1', product_fdef f2::Ps2') => 
-  tv_fdef f1 f2 && tv_products Ps1' Ps2'
-| (product_gvar gvar1::Ps1', product_gvar gvar2::Ps2') => 
-  sumbool2bool _ _ (gvar_dec gvar1 gvar2) &&
-  tv_products Ps1' Ps2'
-| _ => false
-end.
-
-Definition tv_module (m1 m2:module) :=
-match (m1, m2) with
-| (module_intro los1 nts1 Ps1, module_intro los2 nts2 Ps2) =>
-  sumbool2bool _ _ (layouts_dec los1 los2) &&
-  sumbool2bool _ _ (namedts_dec nts1 nts2) &&
-  tv_products Ps1 Ps2
-end.
-
-Fixpoint tv_system (S1 S2:system) :=
-match (S1, S2) with
-| (nil, nil) => true
-| (m1::S1', m2::S2') => tv_module m1 m2 && tv_system S1' S2'
-| _ => false
-end.
+*)
 
 Lemma lookup_tv_blocks__tv_block : forall lb1 lb2 l0 B1,
   uniqBlocks lb1 ->
@@ -1497,13 +624,15 @@ Case "dbSubblock_intro".
   apply dbCall_subEnv with (lc1':=lc2') in HdbCall; auto using eqAL_sym.
   destruct HdbCall as [lc3'' [HdbCall Hsub3']].
   exists lc3''. split; eauto using eqAL_trans, eqAL_sym.
+    admit.
+    admit.
 
 Case "dbSubblocks_nil".
   intros S TD Ps lc als gl fs Mem0 S2 Ps2 sbs1 sbs2 cs2 los nts H H0 H1 H2 H3 H4 H5 H6 H7 H8 H9 H10.
   simpl in H0. inversion H0; subst.
   destruct sbs2;try solve [auto | simpl in H9; inversion H9].
     apply cmds2sbs_nil_inv in H1; subst.
-    exists lc. split; auto using eqAL_refl.
+    exists lc. split; auto using subAL_refl.
 
 Case "dbSubblocks_cons".
   intros S TD Ps lc1 als1 gl fs Mem1 lc2 als2 Mem2 lc3 als3 Mem3 cs cs' t1 t2 d H d0 H0 S2
@@ -1528,11 +657,13 @@ Case "dbSubblocks_cons".
     apply se_dbSubblock_preservation in d; auto.
   eapply H0 with (S2:=S2)(Ps2:=Ps2)(cs2:=cs22) in H12; eauto.
   clear H0. destruct H12 as [lc3' [HdbSubblocks Heq3]].
-  apply dbSubblocks_eqEnv with (lc1':=lc2') in HdbSubblocks; auto using eqAL_sym.
+  apply dbSubblocks_subEnv with (lc1':=lc2') in HdbSubblocks; auto using eqAL_sym.
   destruct HdbSubblocks as [lc3'' [HdbSubblocks Heq3']].
   exists lc3''. split; eauto using eqAL_trans, eqAL_sym.
+    admit. admit.
 
-Case "dbBlock_intro".
+Case "dbBlock_intro". admit.
+(*
   intros S TD Ps F tr1 tr2 l0 ps cs cs' tmn gl fs lc1 als1 Mem1 lc2 als2 Mem2 lc3 als3 Mem3 lc4 B' arg0 tr3 d H d0 d1
          S2 Ps2 fh1 lb1 fh2 lb2 B1 lc als Mem0 B1' lc' als' Mem' B2 los nts H0 H1 H2 H3 H4 H5 H6 H7 H8 H9 H10 H11 H12 H13; subst.
   inversion H0; subst. clear H0.
@@ -1603,8 +734,9 @@ Case "dbBlock_intro".
     rewrite <- HeqR1.
     rewrite <- HeqR2.
     repeat_bsplit.
-
-Case "dbBlocks_nil".
+*)
+Case "dbBlocks_nil". admit.
+(*
   intros S TD Ps fs gl F arg0 state S2 Ps2 fh1 lb1 fh2 lb2 lc n tmn1 l1 ps1 cs1
          ps1' l1' als lc' Mem0 Mem' als' tmn1' cs1' los nts H H0 H1 H2 H3 H4 H5 H6 H7 H8 H9 H10 H11 H12; subst.
   inversion H0; subst. clear H0.
@@ -1616,8 +748,9 @@ Case "dbBlocks_nil".
   exists l2. exists ps2. exists cs2. exists tmn2. 
   exists n. exists lc'.
   repeat (split; auto).
-
-Case "dbBlocks_cons".
+*)
+Case "dbBlocks_cons". admit.
+(*
   intros S TD Ps fs gl F arg0 S1 S2 S3 t1 t2 d H d0 H0 S0 Ps2 fh1 lb1 fh2 lb2 lc n tmn1 l1
          ps1 cs1 ps1' l1' als lc' Mem0 Mem' als' tmn1' cs1' los nts H1 H2 H3 H4 H5 H6 H7 H8 H9 H10 H11 H12 H13 H14; subst.
   inversion d; subst.
@@ -1660,8 +793,9 @@ Case "dbBlocks_cons".
     split; eauto using eqAL_sym, eqAL_trans.
 
     apply uniqFdef__wf_block with (fh:=fh2)(lb:=lb2)(n:=n); eauto using uniqSystem__uniqFdef.
-
-Case "dbFdef_func".
+*)
+Case "dbFdef_func". admit.
+(*
     intros S TD Ps gl fs fv fid lp lc rid l1 ps1 cs1 tmn1 rt la lb Result lc1 tr1 Mem0 Mem1 als1
            l2 ps2 cs21 cs22 lc2 als2 Mem2 tr2 lc3 als3 Mem3 tr3 e e0 d H d0 H0 d1
            fid0 Ps2 S2 la0 lb1 los nts H1 H2 H3 H4 H5 H6 H7 H8 H9.
@@ -1763,8 +897,9 @@ Case "dbFdef_func".
 
       unfold tv_fdef.
       repeat_bsplit.
-
-Case "dbFdef_proc".
+*)
+Case "dbFdef_proc". admit.
+(*
     intros S TD Ps gl fs fv fid lp lc rid l1 ps1 cs1 tmn1 rt la lb lc1 tr1 Mem0 Mem1 als1
            l2 ps2 cs21 cs22 lc2 als2 Mem2 tr2 lc3 als3 Mem3 tr3 e e0 d H d0 H0 d1
            fid0 Ps2 S2 la0 lb1 los nts H1 H2 H3 H4 H5 H6 H7 H8 H9.
@@ -1865,6 +1000,7 @@ Case "dbFdef_proc".
 
       unfold tv_fdef.
       repeat_bsplit.
+*)
 Qed.   
 
 Lemma tv_dbCall__is__correct : forall S1 los nts Ps1 fs gl lc Mem0 call0 lc' Mem' tr S2 Ps2,
@@ -1878,7 +1014,7 @@ Lemma tv_dbCall__is__correct : forall S1 los nts Ps1 fs gl lc Mem0 call0 lc' Mem
   tv_products Ps1 Ps2 ->
   exists slc,
     dbCall S2 (los, nts) Ps2 fs gl lc Mem0 call0 slc Mem' tr /\
-    eqAL _ slc lc'.
+    subAL _ slc lc'.
 Proof.
   intros.
   destruct tv__is__correct as [J _].
@@ -1901,7 +1037,7 @@ Definition tv_subblock__is__correct : forall S1 los nts Ps1 fs gl lc als Mem cs1
   tv_subblock sb1 sb2 ->
   exists slc,
     dbSubblock S2 (los, nts) Ps2 fs gl lc als Mem cs2 slc als' Mem' tr /\
-    eqAL _ slc lc'.
+    subAL _ slc lc'.
 Proof.
   intros.
   destruct tv__is__correct as [_ [J _]].
@@ -1924,7 +1060,7 @@ Lemma tv_subblocks__is__correct : forall S1 los nts Ps1 fs gl lc als Mem cs1 lc'
   tv_subblocks sbs1 sbs2 ->
   exists slc, 
     dbSubblocks S2 (los, nts) Ps2 fs gl lc als Mem cs2 slc als' Mem' tr /\
-    eqAL _ slc lc'.
+    subAL _ slc lc'.
 Proof.
   intros.
   destruct tv__is__correct as [_ [_ [J _]]].
@@ -1953,7 +1089,7 @@ Lemma tv_block__is__correct : forall S1 los nts Ps1 arg tr
     nth_error lb1 n = Some B1' /\
     nth_error lb2 n = Some B2' /\
     tv_block B1' B2' /\ 
-    eqAL _ slc lc'.
+    subAL _ slc lc'.
 Proof.
   intros.
   destruct tv__is__correct as [_ [_ [_ [J _]]]].
@@ -1988,7 +1124,7 @@ Lemma tv_blocks__is__correct : forall S1 los nts Ps1 lp tr
       (mkState (mkEC (block_intro l2 ps2 sbs2 tmn2) lc als) Mem)
       (mkState (mkEC (block_intro l2' ps2' sbs2' tmn2') slc als') Mem')
       tr /\
-    eqAL _ slc lc'.
+    subAL _ slc lc'.
 Proof.
   intros.
   destruct tv__is__correct as [_ [_ [_ [_ [J _]]]]].
@@ -2014,7 +1150,7 @@ Lemma _tv_fdef__is__correct : forall fv rt lp S1 los nts Ps1 lc gl fs Mem lc' al
     lookupFdefViaGV (los, nts) Ps2 gl lc fs fv = Some (fdef_intro (fheader_intro rt fid la) lb2) /\
     tv_blocks lb1 lb2 /\
     dbFdef fv rt lp S2 (los, nts) Ps2 lc gl fs Mem slc als' Mem' B2' Rid oResult tr /\
-    eqAL _ slc lc'.
+    subAL _ slc lc'.
 Proof.
   intros.
   destruct tv__is__correct as [_ [_ [_ [_ [_ J]]]]].
@@ -2041,7 +1177,7 @@ Lemma tv_fdef__is__correct : forall ECs fv rt lp S1 los nts Ps1 lc gl fs Mem lc'
     lookupFdefViaGV (los, nts) Ps2 gl lc fs fv = Some (fdef_intro (fheader_intro rt fid la) lb2) /\
     tv_blocks lb1 lb2 /\
     LLVMopsem.dbFdef fv rt lp S2 (los, nts) Ps2 ECs lc gl fs Mem slc als' Mem' B2' Rid oResult tr /\
-    eqAL _ slc lc'.
+    subAL _ slc lc'.
 Proof.
   intros.
   apply llvmop_dbFdef__seop_dbFdef in H; auto.

@@ -1,7 +1,7 @@
 Add LoadPath "../ssa/ott".
 Add LoadPath "../ssa/monads".
 Add LoadPath "../ssa".
-(*Add LoadPath "../../../theory/metatheory".*)
+Add LoadPath "../../../theory/metatheory_8.3".
 Require Import ssa_def.
 Require Import ssa_lib.
 Require Import List.
@@ -14,6 +14,7 @@ Require Import genericvalues.
 Require Import ssa_dynamic.
 Require Import trace.
 Require Import symexe_def.
+Require Import symexe_lib.
 Require Import symexe_complete.
 Require Import assoclist.
 Require Import ssa_props.

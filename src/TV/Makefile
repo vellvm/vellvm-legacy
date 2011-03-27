@@ -110,13 +110,18 @@ PP:=-pp "$(CAMLP4BIN)$(CAMLP4)o -I $(CAMLLIB) -I . $(COQSRCLIBS) $(CAMLP4EXTEND)
 ###################################
 
 VFILES:=seop_llvmop.v\
-  symexe_complete.v\
-  symexe_correct.v\
-  symexe_dec.v\
   symexe_def.v\
-  symexe_extract.v\
+  symexe_lib.v\
   symexe_sound.v \
-  sub_symexe_dec.v
+  symexe_complete.v\
+  symexe_extract.v\
+  symexe_tactic.v\
+  eq_tv.v\
+  eq_tv_dec.v\
+  eq_tv_correct.v\
+  sub_tv.v\
+  sub_tv_dec.v\
+  sub_tv_correct.v
 VOFILES:=$(VFILES:.v=.vo)
 VOFILES0:=$(filter-out ,$(VOFILES))
 GLOBFILES:=$(VFILES:.v=.glob)
