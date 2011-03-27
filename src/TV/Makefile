@@ -115,7 +115,8 @@ VFILES:=seop_llvmop.v\
   symexe_dec.v\
   symexe_def.v\
   symexe_extract.v\
-  symexe_sound.v
+  symexe_sound.v \
+  sub_symexe_dec.v
 VOFILES:=$(VFILES:.v=.vo)
 VOFILES0:=$(filter-out ,$(VOFILES))
 GLOBFILES:=$(VFILES:.v=.glob)
