@@ -567,7 +567,7 @@ Proof.
          tv_fdef__is__correct_prop.
 Case "dbCall_internal".
   intros S TD Ps lc gl fs rid noret0 tailc0 rt fid lp Rid oResult tr lc' Mem0 Mem' 
-         als' Mem'' B' d H e S2 Ps2 los nts H0 H1 H2 H3 H4 H5 H6 HH.
+         als' Mem'' B' d H e HisCall S2 Ps2 los nts H0 H1 H2 H3 H4 H5 H6 HH.
   inversion d; subst.
     eapply H with (S2:=S2)(Ps2:=Ps2) in H7; eauto.
     clear H.
@@ -583,7 +583,7 @@ Case "dbCall_internal".
 
 Case "dbCall_external".
   intros S TD Ps lc gl fs rid noret0 tailc0 fv fid lp rt la Mem0 oresult Mem'
-         H S2 Ps2 los nts H0 H1 H2 H3 H4 H5 H6 H7.
+         H HisCall S2 Ps2 los nts H0 H1 H2 H3 H4 H5 H6 H7.
   exists (exCallUpdateLocals noret0 rid rt oresult lc).
   split; auto using eqAL_exCallUpdateLocals, eqAL_refl.
     apply dbCall_external with (fid:=fid)(la:=la); auto.
@@ -1172,3 +1172,10 @@ Proof.
 Qed.
 
 
+(*****************************)
+(*
+*** Local Variables: ***
+*** coq-prog-name: "coqtop" ***
+*** coq-prog-args: ("-emacs-U" "-I" "~/SVN/sol/vol/src/ssa/monads" "-I" "~/SVN/sol/vol/src/ssa/ott" "-I" "~/SVN/sol/vol/src/ssa/compcert" "-I" "~/SVN/sol/theory/metatheory_8.3") ***
+*** End: ***
+ *)

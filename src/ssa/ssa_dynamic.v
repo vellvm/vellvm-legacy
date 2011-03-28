@@ -1458,7 +1458,7 @@ End LLVMopsem.
 (*
 *** Local Variables: ***
 *** coq-prog-name: "coqtop" ***
-*** coq-prog-args: ("-emacs-U" "-I" "../monads" "-I" "../ott" "-I" "../") ***
+*** coq-prog-args: ("-emacs-U" "-I" "./monads" "-I" "./ott" "-I" "./") ***
 *** End: ***
  *)
 

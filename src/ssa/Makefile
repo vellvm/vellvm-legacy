@@ -81,11 +81,10 @@ opsem_pp.vo: opsem_pp.v ssa_dynamic.vo ssa_def.vo ssa_lib.vo ssa_mem.vo genericv
 opsem_conv.vo: opsem_conv.v ssa_dynamic.vo ssa_def.vo ssa_lib.vo trace.vo
 	$(COQC) $(COQARG) opsem_conv.v
 
-ssa.tex: ssa_def.ott ssa_coq.ott ssa_lib.ott m_ssa_static.ott omain.tex 
+ssa.tex: ssa_def.ott ssa_coq.ott ssa_lib.ott m_ssa_static.ott main.tex 
 	$(OTT) -merge false -o ssa.tex \
           -tex_show_meta false \
           -tex_wrap false \
-          -tex_filter omain.tex main.tex \
             ssa_def.ott ssa_coq.ott ssa_lib.ott m_ssa_static.ott
 
 main.pdf: ssa.tex main.tex macros.sty 

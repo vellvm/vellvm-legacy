@@ -1,5 +1,6 @@
 Add LoadPath "../ssa/ott".
 Add LoadPath "../ssa/monads".
+Add LoadPath "../ssa/compcert".
 Add LoadPath "../ssa".
 Add LoadPath "../../../theory/metatheory_8.3".
 Require Import ssa_def.
@@ -127,6 +128,11 @@ Proof.
     destruct (@H st2_1); subst; try solve [done_right].
     destruct (@H0 st2_2); subst; try solve [done_right].
     destruct (@H1 st2_3); subst; try solve [auto | done_right].
+  Case "sterm_lib".
+    destruct st2; try solve [done_right].
+    destruct (@id_dec i0 i1); subst; try solve [done_right].
+    destruct (@H s0); subst; try solve [done_right].
+    destruct (@H0 l1); subst; try solve [auto | done_right].    
   Case "list_sterm_nil".
     destruct sts2; subst; try solve [auto | done_right].
   Case "list_sterm_cons".
@@ -172,6 +178,11 @@ Proof.
     destruct (@Align.dec a a0); subst; try solve [done_right].
     destruct (@H0 s2); subst; try solve [auto | done_right].
     destruct (@H1 s3); subst; try solve [auto | done_right].
+  Case "smem_lib".
+    destruct sm2; try solve [done_right].
+    destruct (@id_dec i0 i1); subst; try solve [done_right].
+    destruct (@H sm2); subst; try solve [done_right].
+    destruct (@H0 l1); subst; try solve [auto | done_right].    
   Case "sframe_init".
     destruct sf2; subst; try solve [auto | done_right].
   Case "sframe_alloca".
@@ -252,3 +263,10 @@ Proof.
     destruct (@smap_dec STerms0 STerms1); subst; try solve [auto | done_right].
 Qed.
 
+(*****************************)
+(*
+*** Local Variables: ***
+*** coq-prog-name: "coqtop" ***
+*** coq-prog-args: ("-emacs-U" "-I" "~/SVN/sol/vol/src/ssa/monads" "-I" "~/SVN/sol/vol/src/ssa/ott" "-I" "~/SVN/sol/vol/src/ssa/compcert" "-I" "~/SVN/sol/theory/metatheory_8.3") ***
+*** End: ***
+ *)

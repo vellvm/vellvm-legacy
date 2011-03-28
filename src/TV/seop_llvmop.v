@@ -1,7 +1,8 @@
 Add LoadPath "../ssa/ott".
 Add LoadPath "../ssa/monads".
+Add LoadPath "../ssa/compcert".
 Add LoadPath "../ssa".
-(*Add LoadPath "../../../theory/metatheory".*)
+Add LoadPath "../../../theory/metatheory_8.3".
 Require Import ssa_def.
 Require Import ssa_lib.
 Require Import List.
@@ -35,7 +36,7 @@ Tactic Notation "se_dbCmd_cases" tactic(first) tactic(c) :=
     c "dbMalloc" | c "dbFree" |
     c "dbAlloca" | c "dbLoad" | c "dbStore" | c "dbGEP" |
     c "dbTrunc" | c "dbExt" | c "dbCast" | 
-    c "dbIcmp" | c "dbFcmp" | c "dbSelect" ].
+    c "dbIcmp" | c "dbFcmp" | c "dbSelect" | c "dbLib" ].
 
 Tactic Notation "se_dbTerminator_cases" tactic(first) tactic(c) :=
   first;
@@ -57,6 +58,10 @@ Lemma seop_dbCmd__llvmop_dbInsn : forall TD lc als gl fs Mem c lc' als' Mem' tr 
 Proof.
   intros TD lc als gl fs Mem0 c lc' als' Mem' tr S Ps F B ECs arg0 tmn cs H.
   (se_dbCmd_cases (destruct H) Case); eauto.
+    assert (SimpleSE.callLib Mem0 fid (params2GVs TD lp lc gl) <> None) as J.
+      rewrite H. intro J. inversion J.
+    apply SimpleSE.callLib__is__defined in J.
+    eapply SimpleSE.callLib__is__correct; auto.
 Qed.
   
 Lemma seop_dbCmds__llvmop_dbop : forall TD lc als gl fs Mem cs cs' lc' als' Mem' tr S Ps F B ECs arg tmn,
@@ -737,20 +742,61 @@ Case "dbSelect".
 
 Case "dbCall".
   inversion H0; subst. clear H0.
+  apply blockInSystemModuleFdef_inv in H2.
+  destruct H2 as [J1 [J2 [J3 _]]].
   exists l0. exists ps. exists cs. exists tmn0.
   exists (callUpdateLocals (los, nts) noret0 rid rt oResult lc0 lc' gl0). exists als0. exists Mem''.
   exists cs1. split; auto.
-  right. right.
-  exists (insn_call rid noret0 tailc0 rt fv lp).
-  apply blockInSystemModuleFdef_inv in H2.
-  destruct H2 as [J1 [J2 [J3 _]]].
-  split; eauto.
+  destruct (SimpleSE.isCall_dec (insn_call rid noret0 tailc0 rt fv lp)) 
+    as [isCall_false | isCall_true].
+    (* 
+      Like subAL_callUpdateLocals, we should prove that
+        if oResult is Some v, callUpdate = exCallupdate, which means that 
+           if v is id, the id must be defined ! 
+        if oResult is None, they are obviously equivalent. 
+     *)
+    assert (exists oresult, exCallUpdateLocals noret0 rid rt oresult lc0 =
+      callUpdateLocals (los, nts) noret0 rid rt oResult lc0 lc' gl0) as EQ. admit.
+    destruct EQ as [oresult EQ].
+    right. left.
+    exists (insn_call rid noret0 tailc0 rt fv lp).
+    rewrite <- EQ.
+    (* The axiom callLib should also specify trace. *)
+    assert (tr = trace_nil) as EQ'. admit.
+    subst.
+    simpl in isCall_false. 
+    destruct fv as [fid | cn]; try solve [inversion isCall_false].
+    split; eauto.
+      apply SimpleSE.dbLib.
+      eapply SimpleSE.callLib__is__correct with (noret:=noret0) (rid:=rid) (rt:=rt).
+        eapply negb_false_iff; auto.
+        erewrite EQ. eauto.
+
+    right. right.
+    exists (insn_call rid noret0 tailc0 rt fv lp).
+    split; eauto.
 
 Case "dbExCall".
   inversion H; subst.
   exists l0. exists ps. exists cs. exists tmn0.
   exists (exCallUpdateLocals noret0 rid rt oresult lc0). exists als0. exists Mem'.
   exists cs1. split; auto.
+  destruct (SimpleSE.isCall_dec (insn_call rid noret0 tailc0 rt fv lp)) 
+    as [isCall_false | isCall_true].
+    right. left.
+    exists (insn_call rid noret0 tailc0 rt fv lp).
+    simpl in isCall_false. 
+    destruct fv as [fid0 | cn]; try solve [inversion isCall_false].
+    split; eauto.
+      apply SimpleSE.dbLib.
+      apply negb_false_iff in isCall_false.
+      apply SimpleSE.callLib__is__correct with (noret:=noret0) (rid:=rid) (rt:=rt)
+        (S:=S0)(TD:=(los,nts))(Ps:=Ps0)(cs:=cs)(tmn:=tmn0)(arg:=arg1)(als:=als0)
+        (F:=F0)(B:=block_intro l0 ps cs1 tmn0)(fs:=fs0)(ECs:=ECs) (Mem:=Mem1) (lp:=lp)
+        (lc:=lc0)(gl:=gl0)(oresult:=oresult)(Mem':=Mem')(tailc:=tailc0) in isCall_false.
+      eapply isCall_false.
+        apply LLVMopsem.dbExCall with (fid:=fid)(la:=la); auto.
+
   right. right.
   exists (insn_call rid noret0 tailc0 rt fv lp).
   split; eauto.

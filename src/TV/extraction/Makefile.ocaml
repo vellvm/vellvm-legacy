@@ -1,17 +1,11 @@
 
 include ../../Makefile.config
 
-OUTPUT_TYPE := cma
+all: _build/ssa_def.cma _build/ssa_lib.cma _build/eq_tv.cma _build/sub_tv.cma
 
-all: symexe_correct
-
-symexe_correct: symexe_correct.ml symexe_correct.mli $(LLVM_OCAML_LIB)/llvm.cma
+_build/%.cma: %.ml %.mli $(LLVM_OCAML_LIB)/llvm.cma
 	./fixextract.py
-	ocamlbuild -j 2 -cflags -g,-I,$(LLVM_OCAML_LIB) -lflags -g,-I,$(LLVM_OCAML_LIB),-cclib,-L$(LLVM_LIB) symexe_correct.$(OUTPUT_TYPE)
-
-.PHONY: wc
-wc:
-	wc symexe_correct.ml
+	ocamlbuild -j 2 -cflags -g,-I,$(LLVM_OCAML_LIB) -lflags -g,-I,$(LLVM_OCAML_LIB),-cclib,-L$(LLVM_LIB) $*.cma
 
 .PHONY: clean
 clean:

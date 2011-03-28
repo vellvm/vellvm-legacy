@@ -148,9 +148,7 @@ vol/tests : Potential test cases for a verified Softbound
 * OCaml 3.12.0
   http://caml.inria.fr/pub/distrib/ocaml-3.12/ocaml-3.12.0.tar.gz
 
-* Coq 8.3-rc1 (October 2010)
-  We don't know if the 8.3 (http://coq.inria.fr/download) is compatible 
-  with 8.3-rc1
+* Coq 8.3pl1
 
 * Two plug-ins of Coq 8.3 to install
   1) Float  $(VOL)/extralibs/Float8.2-1.2r.tgz  

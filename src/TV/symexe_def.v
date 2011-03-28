@@ -43,6 +43,40 @@ Frame          : ExecutionContext;
 Mem            : mem
 }.
 
+(* Symbolic execution may take some functions as special cmds with a big-step.
+   For example, Sofbound's metadata functions. They may not be external functions.
+   But we do not want to analyze them... *)
+Axiom callLib : mem -> id -> list GenericValue -> option ((option GenericValue)*mem).
+
+(* Must be realized when being extracted. E.g Softbound TV should say 
+     isCallLib "__loadDereferenceCheck" = true *)
+Axiom isCallLib : id -> bool.
+
+Axiom callLib__is__defined : forall Mem fid gvs,
+  callLib Mem fid gvs <> None <-> isCallLib fid = true. 
+
+Axiom callLib__is__correct : 
+  forall Mem fid TD lp lc gl oresult Mem' F B ECs arg tmn cs als Ps fs rid rt S noret tailc,
+  isCallLib fid = true ->
+  (callLib Mem fid (params2GVs TD lp lc gl) = Some (oresult, Mem') <->
+  LLVMopsem.dbInsn
+    (LLVMopsem.mkState S TD Ps 
+      ((LLVMopsem.mkEC F B 
+        ((insn_call rid noret tailc rt (value_id fid) lp)::cs) tmn lc arg als)::ECs) 
+      gl fs Mem)
+    (LLVMopsem.mkState S TD Ps 
+      ((LLVMopsem.mkEC F B cs tmn 
+        (LLVMopsem.exCallUpdateLocals noret rid rt oresult lc) arg als)::ECs) 
+      gl fs Mem')
+    trace_nil).
+
+Definition isCall (i:cmd) : bool :=
+match i with
+| insn_call _ _ _ _ (value_id id) _ => negb (isCallLib id)
+| insn_call _ _ _ _ _ _ => true
+| _ => false
+end.
+
 Inductive dbCmd : TargetData -> GVMap ->
                   GVMap -> list mblock -> mem -> 
                   cmd -> 
@@ -175,6 +209,14 @@ Inductive dbCmd : TargetData -> GVMap ->
     (insn_select id v0 t v1 v2)
     (if isGVZero TD cond then updateAddAL _ lc id gv2 else updateAddAL _ lc id gv1) als Mem
     trace_nil
+| dbLib : forall TD lc gl rid noret tailc fid 
+                          lp rt Mem oresult Mem' als,
+  callLib Mem fid (params2GVs TD lp lc gl) = Some (oresult, Mem') ->
+  dbCmd TD gl
+    lc als Mem
+    (insn_call rid noret tailc rt (value_id fid) lp)
+    (LLVMopsem.exCallUpdateLocals noret rid rt oresult lc) als Mem'
+    trace_nil
 .
 
 Inductive dbTerminator : 
@@ -227,6 +269,7 @@ Inductive dbCall : system -> TargetData -> list product -> GVMap ->
                        Rid oResult tr lc' Mem Mem' als' Mem'' B',
   dbFdef fv rt lp S TD Ps lc gl fs Mem lc' als' Mem' B' Rid oResult tr ->
   free_allocas TD Mem' als' = Some Mem'' ->
+  isCall (insn_call rid noret tailc rt fv lp) = true ->
   dbCall S TD Ps fs gl
     lc Mem
     (insn_call rid noret tailc rt fv lp)
@@ -240,6 +283,7 @@ Inductive dbCall : system -> TargetData -> list product -> GVMap ->
   *)
   LLVMopsem.lookupExFdecViaGV TD Ps gl lc fs fv = Some (fdec_intro (fheader_intro rt fid la)) ->
   LLVMopsem.callExternalFunction Mem fid (params2GVs TD lp lc gl) = (oresult, Mem') ->
+  isCall (insn_call rid noret tailc rt fv lp) = true ->
   dbCall S TD Ps fs gl
     lc Mem
     (insn_call rid noret tailc rt fv lp)
@@ -360,7 +404,7 @@ Tactic Notation "dbCmd_cases" tactic(first) tactic(c) :=
     c "dbMalloc" | c "dbFree" |
     c "dbAlloca" | c "dbLoad" | c "dbStore" | c "dbGEP" |
     c "dbTrunc" | c "dbExt" | c "dbCast" | 
-    c "dbIcmp" | c "dbFcmp" | c "dbSelect" ].
+    c "dbIcmp" | c "dbFcmp" | c "dbSelect" | c "dbLib" ].
 
 Tactic Notation "dbTerminator_cases" tactic(first) tactic(c) :=
   first;
@@ -378,27 +422,29 @@ Hint Constructors dbCmd dbCmds dbTerminator dbCall
 
 Record nbranch := mkNB
 { nbranching_cmd:cmd;
-  notcall:Instruction.isCallInst nbranching_cmd = false
+  notcall:isCall nbranching_cmd = false
 }.
 
 Record subblock := mkSB
 {
   NBs : list nbranch;
   call_cmd : cmd;
-  call_cmd_isCall : Instruction.isCallInst call_cmd = true
+  call_cmd_isCall : isCall call_cmd = true
 }.
 
-Lemma isCallInst_dec : forall c, 
-  {Instruction.isCallInst c = false} + {Instruction.isCallInst c = true}.
+Lemma isCall_dec : forall c, 
+  {isCall c = false} + {isCall c = true}.
 Proof.
   destruct c; simpl; auto.
+    destruct v; simpl; auto.
+      destruct (isCallLib i1); simpl; auto.
 Qed.
 
 Fixpoint cmds2sbs (cs:cmds) : (list subblock*list nbranch) :=
 match cs with
 | nil => (nil,nil)
 | c::cs' =>
-  match (isCallInst_dec c) with
+  match (isCall_dec c) with
   | left isnotcall => 
     match (cmds2sbs cs') with
     | (nil, nbs0) => (nil, mkNB c isnotcall::nbs0) 
@@ -419,17 +465,22 @@ match nbs with
 end.
 
 Definition cmd2nbranch (c:cmd) : option nbranch :=
-match (isCallInst_dec c) with 
+match (isCall_dec c) with 
 | left H => Some (mkNB c H)
 | right _ => None
 end.
 
 Lemma dbCmd_isNotCallInst : forall TD lc als gl Mem1 c lc' als' Mem2 tr,
   dbCmd TD gl lc als Mem1 c lc' als' Mem2 tr ->
-  Instruction.isCallInst c = false.
+  isCall c = false.
 Proof.
   intros TD lc als gl Mem1 c lc' als' Mem2 tr HdbCmd.
   induction HdbCmd; auto.
+    simpl.
+    assert (isCallLib fid = true) as J.
+      eapply callLib__is__defined with (Mem:=Mem0) (gvs:=params2GVs TD lp lc gl).
+      rewrite H. intro J. inversion J.
+    rewrite J. auto.
 Qed.
 
 Definition dbCmd2nbranch : forall TD lc als gl Mem1 c lc' als' Mem2 tr, 
@@ -439,7 +490,7 @@ Proof.
   intros.
   apply dbCmd_isNotCallInst in H.
   unfold cmd2nbranch.
-  destruct (isCallInst_dec).
+  destruct (isCall_dec).
     exists (mkNB c e). auto.
     rewrite H in e. inversion e.
 Qed.
@@ -522,6 +573,7 @@ Inductive sterm : Set :=
 | sterm_fcmp : fcond -> floating_point -> sterm -> sterm -> sterm
 | sterm_phi : typ -> list_sterm_l -> sterm
 | sterm_select : sterm -> typ -> sterm -> sterm -> sterm
+| sterm_lib : smem -> id -> list_sterm -> sterm
 with list_sterm : Set :=
 | Nil_list_sterm : list_sterm
 | Cons_list_sterm : sterm -> list_sterm -> list_sterm
@@ -535,6 +587,7 @@ with smem : Set :=
 | smem_alloca : smem -> typ -> sterm -> align -> smem
 | smem_load : smem -> typ -> sterm -> align -> smem
 | smem_store : smem -> typ -> sterm -> sterm -> align -> smem
+| smem_lib : smem -> id -> list_sterm -> smem
 with sframe : Set :=
 | sframe_init : sframe
 | sframe_alloca : smem -> sframe -> typ -> sterm -> align -> sframe
@@ -547,15 +600,15 @@ Scheme sterm_rec2 := Induction for sterm Sort Set
   with sframe_rec2 := Induction for sframe Sort Set.
 
 Definition se_mutrec P1 P2 P3 P4 P5:=
-  fun h1 h2 h3 h4 h5 h6 h7 h8 h9 h10 h11 h12 h13 h14 h15 h16 h17 h18 h19 h20 h21 h22 h23 h24 h25 h26 h27 h28 =>
+  fun h1 h2 h3 h4 h5 h6 h7 h8 h9 h10 h11 h12 h13 h14 h15 h16 h17 h18 h19 h20 h21 h22 h23 h24 h25 h26 h27 h28 h29 h30 =>
    (pair
       (pair 
            (pair 
-                 (pair (@sterm_rec2 P1 P2 P3 P4 P5 h1 h2 h3 h4 h5 h6 h7 h8 h9 h10 h11 h12 h13 h14 h15 h16 h17 h18 h19 h20 h21 h22 h23 h24 h25 h26 h27 h28)
-                       (@list_sterm_rec2 P1 P2 P3 P4 P5 h1 h2 h3 h4 h5 h6 h7 h8 h9 h10 h11 h12 h13 h14 h15 h16 h17 h18 h19 h20 h21 h22 h23 h24 h25 h26 h27 h28))
-                 (@list_sterm_l_rec2 P1 P2 P3 P4 P5 h1 h2 h3 h4 h5 h6 h7 h8 h9 h10 h11 h12 h13 h14 h15 h16 h17 h18 h19 h20 h21 h22 h23 h24 h25 h26 h27 h28))
-            (@smem_rec2 P1 P2 P3 P4 P5 h1 h2 h3 h4 h5 h6 h7 h8 h9 h10 h11 h12 h13 h14 h15 h16 h17 h18 h19 h20 h21 h22 h23 h24 h25 h26 h27 h28))
-      (@sframe_rec2 P1 P2 P3 P4 P5 h1 h2 h3 h4 h5 h6 h7 h8 h9 h10 h11 h12 h13 h14 h15 h16 h17 h18 h19 h20 h21 h22 h23 h24 h25 h26 h27 h28)).
+                 (pair (@sterm_rec2 P1 P2 P3 P4 P5 h1 h2 h3 h4 h5 h6 h7 h8 h9 h10 h11 h12 h13 h14 h15 h16 h17 h18 h19 h20 h21 h22 h23 h24 h25 h26 h27 h28 h29 h30)
+                       (@list_sterm_rec2 P1 P2 P3 P4 P5 h1 h2 h3 h4 h5 h6 h7 h8 h9 h10 h11 h12 h13 h14 h15 h16 h17 h18 h19 h20 h21 h22 h23 h24 h25 h26 h27 h28 h29 h30))
+                 (@list_sterm_l_rec2 P1 P2 P3 P4 P5 h1 h2 h3 h4 h5 h6 h7 h8 h9 h10 h11 h12 h13 h14 h15 h16 h17 h18 h19 h20 h21 h22 h23 h24 h25 h26 h27 h28 h29 h30))
+            (@smem_rec2 P1 P2 P3 P4 P5 h1 h2 h3 h4 h5 h6 h7 h8 h9 h10 h11 h12 h13 h14 h15 h16 h17 h18 h19 h20 h21 h22 h23 h24 h25 h26 h27 h28 h29 h30))
+      (@sframe_rec2 P1 P2 P3 P4 P5 h1 h2 h3 h4 h5 h6 h7 h8 h9 h10 h11 h12 h13 h14 h15 h16 h17 h18 h19 h20 h21 h22 h23 h24 h25 h26 h27 h28 h29 h30)).
 
 Tactic Notation "se_mut_cases" tactic(first) tactic(c) :=
   first;
@@ -575,6 +628,7 @@ Tactic Notation "se_mut_cases" tactic(first) tactic(c) :=
     c "sterm_fcmp" |
     c "sterm_phi" |
     c "sterm_select" |
+    c "sterm_lib" |
     c "list_sterm_nil" |
     c "list_sterm_cons" |
     c "list_sterm_l_nil" |
@@ -585,6 +639,7 @@ Tactic Notation "se_mut_cases" tactic(first) tactic(c) :=
     c "smem_alloca" |
     c "smem_load" |
     c "smem_store" |
+    c "smem_lib" |
     c "sframe_init" |
     c "sframe_alloca" ].
 
@@ -699,13 +754,30 @@ match list_param1 with
 | (t, v)::list_param1' => (t, (value2Sterm sm v))::(list_param__list_typ_subst_sterm list_param1' sm)
 end.
 
-Lemma se_cmd_false_elim : forall i id0 noret0 tailc0 rt fv lp,
+Definition se_lib : forall i id0 noret0 tailc0 rt fv lp (st:sstate),
   i=insn_call id0 noret0 tailc0 rt fv lp ->
-  Instruction.isCallInst i = false ->
-  False.
+  isCall i = false ->
+  sstate.
 Proof.
-  intros; subst. simpl in H0. inversion H0.
-Qed.
+  intros; subst. simpl in H0.
+  destruct fv; try solve [inversion H0].
+  apply
+    (mkSstate (updateAddAL _ st.(STerms) id0 
+                (sterm_lib st.(SMem) i0
+                  (make_list_sterm 
+                    (map_list_value 
+                      (value2Sterm st.(STerms)) 
+                      (make_list_value (snd (List.split lp)))
+                    ))))
+              (smem_lib st.(SMem) i0 
+                (make_list_sterm 
+                  (map_list_value 
+                    (value2Sterm st.(STerms)) 
+                    (make_list_value (snd (List.split lp)))
+                  )))
+              st.(SFrame)
+              st.(SEffects)).
+Defined.
 
 Definition se_cmd (st : sstate) (c:nbranch) : sstate :=
 match c with 
@@ -768,7 +840,7 @@ match c with
        (mkSstate (updateAddAL _ st.(STerms) id0 
                    (sterm_load st.(SMem) t2 
                      (value2Sterm st.(STerms) v2) align))
-                 (smem_load st.(SMem)t2 
+                 (smem_load st.(SMem) t2 
                    (value2Sterm st.(STerms) v2) align)
                  st.(SFrame)
                  st.(SEffects))
@@ -838,9 +910,9 @@ match c with
                  st.(SMem)
                  st.(SFrame)
                  st.(SEffects))
-  | insn_call id0 noret0 tailc0 rt fv lp => 
+  | insn_call id0 noret0 tailc0 rt fv lp =>
     fun (EQ:i=insn_call id0 noret0 tailc0 rt fv lp ) =>
-    False_rec sstate (@se_cmd_false_elim i id0 noret0 tailc0 rt fv lp EQ notcall)
+    se_lib i id0 noret0 tailc0 rt fv lp st EQ notcall
   end) (@refl_equal _ i)
 end.
 
@@ -886,9 +958,9 @@ match i with
 | insn_unreachable id0 => stmn_unreachable id0 
 end.
 
-Definition se_call : forall (st : sstate) (i:cmd) (iscall:Instruction.isCallInst i = true), scall.
+Definition se_call : forall (st : sstate) (i:cmd) (iscall:isCall i = true), scall.
 Proof.
-  intros. unfold Instruction.isCallInst in iscall. unfold _isCallInsnB in iscall.
+  intros. unfold isCall in iscall.
   destruct i0; try solve [inversion iscall].
   apply (@stmn_call i0 n t t0 v 
                       (list_param__list_typ_subst_sterm p st.(STerms))).
@@ -977,6 +1049,12 @@ Inductive sterm_denotes_genericvalue :
   sterm_denotes_genericvalue TD lc gl Mem st2 gv2 ->
   (if isGVZero TD gv0 then gv2 else gv1) = gv3 -> 
   sterm_denotes_genericvalue TD lc gl Mem (sterm_select st0 t0 st1 st2) gv3
+| sterm_lib_denotes : forall TD lc gl Mem0 Mem1 Mem2 sm0 id0 sts0 gvs0 gv1,
+  smem_denotes_mem TD lc gl Mem0 sm0 Mem1 ->
+  sterms_denote_genericvalues TD lc gl Mem0 sts0 gvs0 ->
+  (* FIXME: id0 can be a function w/o return. What should we do? *)
+  callLib Mem1 id0 gvs0 = Some (Some gv1, Mem2) ->
+  sterm_denotes_genericvalue TD lc gl Mem0 (sterm_lib sm0 id0 sts0) gv1
 with sterms_denote_genericvalues : 
    TargetData ->               (* CurTatgetData *)
    GVMap ->                 (* local registers *)
@@ -1027,6 +1105,11 @@ with smem_denotes_mem :
   smem_denotes_mem TD lc gl Mem0 sm0 Mem1 ->
   mstore TD Mem1 gv2 t0 gv1 align0 = Some Mem2 ->
   smem_denotes_mem TD lc gl Mem0 (smem_store sm0 t0 st1 st2 align0) Mem2
+| smem_lib_denotes : forall TD lc gl Mem0 Mem1 Mem2 sm0 id0 sts0 gvs0 gv1,
+  smem_denotes_mem TD lc gl Mem0 sm0 Mem1 ->
+  sterms_denote_genericvalues TD lc gl Mem0 sts0 gvs0 ->
+  callLib Mem1 id0 gvs0 = Some (Some gv1, Mem2) ->
+  smem_denotes_mem TD lc gl Mem0 (smem_lib sm0 id0 sts0) Mem2
 .
 
 Inductive sframe_denotes_frame : 
@@ -1085,6 +1168,7 @@ Tactic Notation "sd_mutind_cases" tactic(first) tactic(c) :=
 | c "sterm_icmp_denotes" 
 | c "sterm_fcmp_denotes" 
 | c "sterm_select_denotes"
+| c "sterm_lib_denotes"
 | c "sterms_nil_denote"
 | c "sterms_cons_denote"
 | c "smem_init_denotes"
@@ -1092,7 +1176,8 @@ Tactic Notation "sd_mutind_cases" tactic(first) tactic(c) :=
 | c "smem_free_denotes"
 | c "smem_alloca_denotes"
 | c "smem_load_denotes"
-| c "smem_store_denotes" ].
+| c "smem_store_denotes" 
+| c "smem_lib_denotes" ].
 
 Definition smap_denotes_gvmap TD lc gl Mem smap' lc' :=
 (forall id',  
@@ -1147,6 +1232,7 @@ match s with
     sterm_phi t1 (subst_tltl id0 s0 lsl1)
 | sterm_select s1 t1 s2 s3 => 
     sterm_select (subst_tt id0 s0 s1) t1 (subst_tt id0 s0 s2) (subst_tt id0 s0 s3)
+| sterm_lib m id ls => sterm_lib (subst_tm id0 s0 m) id (subst_tlt id0 s0 ls)
 end
 with subst_tlt (id0:id) (s0:sterm) (ls:list_sterm) : list_sterm :=
 match ls with
@@ -1166,6 +1252,7 @@ match m with
 | smem_alloca m1 t1 sz align => smem_alloca (subst_tm id0 s0 m1) t1 sz align
 | smem_load m1 t1 s1 align => smem_load (subst_tm id0 s0 m1) t1 (subst_tt id0 s0 s1) align 
 | smem_store m1 t1 s1 s2 align => smem_store (subst_tm id0 s0 m1) t1 (subst_tt id0 s0 s1) (subst_tt id0 s0 s2) align
+| smem_lib m id ls => smem_lib (subst_tm id0 s0 m) id (subst_tlt id0 s0 ls)
 end
 .
 
@@ -1182,3 +1269,11 @@ match sm with
 end.
 
 End SimpleSE.
+
+(*****************************)
+(*
+*** Local Variables: ***
+*** coq-prog-name: "coqtop" ***
+*** coq-prog-args: ("-emacs-U" "-I" "~/SVN/sol/vol/src/ssa/monads" "-I" "~/SVN/sol/vol/src/ssa/ott" "-I" "~/SVN/sol/vol/src/ssa/compcert" "-I" "~/SVN/sol/theory/metatheory_8.3") ***
+*** End: ***
+ *)

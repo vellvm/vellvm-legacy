@@ -1,6 +1,5 @@
 open Printf
 open Llvm
-open Symexe_correct
 
 let debug = true
 
@@ -22,7 +21,8 @@ let main in_filename out_filename =
 
 	let coqom = Llvm2coq.translate_module debug ost om in
 			
-	eprintf "TV=%b\n" (tv_module coqim coqom);
+	eprintf "Eq TV=%b\n" (Eq_tv.tv_module coqim coqom);
+	eprintf "Sub TV=%b\n" (Sub_tv.tv_module coqim coqom);
 	
 	Coq2llvm.translate_module coqom;
 	

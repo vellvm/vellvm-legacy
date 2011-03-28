@@ -574,8 +574,8 @@ Proof.
          tv_block__is__correct_prop, tv_blocks__is__correct_prop,
          tv_fdef__is__correct_prop.
 Case "dbCall_internal".
-  intros S TD Ps lc gl fs rid noret0 tailc0 rt fid lp Rid oResult tr lc' Mem0 Mem' 
-         als' Mem'' B' d H e S2 Ps2 los nts H0 H1 H2 H3 H4 H5 H6 HH.
+  intros S TD Ps lc gl fs rid noret0 tailc0 rt fid lp Rid oResult tr lc' Mem0 
+    Mem' als' Mem'' B' d H e HisCall S2 Ps2 los nts H0 H1 H2 H3 H4 H5 H6 HH.
   inversion d; subst.
     eapply H with (S2:=S2)(Ps2:=Ps2) in H7; eauto.
     clear H.
@@ -591,15 +591,15 @@ Case "dbCall_internal".
 
 Case "dbCall_external".
   intros S TD Ps lc gl fs rid noret0 tailc0 fv fid lp rt la Mem0 oresult Mem'
-         H S2 Ps2 los nts H0 H1 H2 H3 H4 H5 H6 H7.
+         H HisCall S2 Ps2 los nts H0 H1 H2 H3 H4 H5 H6 H7.
   exists (exCallUpdateLocals noret0 rid rt oresult lc).
   split; auto using subAL_exCallUpdateLocals, subAL_refl.
     apply dbCall_external with (fid:=fid)(la:=la); auto.
       rewrite <- tv_products__lookupExFdecViaGV with (Ps1:=Ps); auto.
 
 Case "dbSubblock_intro".
-  intros S TD Ps lc1 als1 gl fs Mem1 cs call0 lc2 als2 Mem2 tr1 lc3 Mem3 tr2 d d0 H S2 
-         Ps2 cs2 sb1 sb2 los nts H0 H1 H2 H3 H4 H5 H6 H7 H8 H9 H10 H11.
+  intros S TD Ps lc1 als1 gl fs Mem1 cs call0 lc2 als2 Mem2 tr1 lc3 Mem3 tr2 d 
+    d0 H S2 Ps2 cs2 sb1 sb2 los nts H0 H1 H2 H3 H4 H5 H6 H7 H8 H9 H10 H11.
   unfold tv_subblock in H10.
   destruct sb1.
   destruct sb2.
@@ -1188,4 +1188,11 @@ Proof.
     apply seop_dbFdef__llvmop_dbFdef; auto.
 Qed.
 
+(*****************************)
+(*
+*** Local Variables: ***
+*** coq-prog-name: "coqtop" ***
+*** coq-prog-args: ("-emacs-U" "-I" "~/SVN/sol/vol/src/ssa/monads" "-I" "~/SVN/sol/vol/src/ssa/ott" "-I" "~/SVN/sol/vol/src/ssa/compcert" "-I" "~/SVN/sol/theory/metatheory_8.3") ***
+*** End: ***
+ *)
 

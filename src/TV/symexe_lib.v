@@ -31,7 +31,7 @@ Lemma cmds2sbs_nil_inv : forall cs,
 Proof.
   destruct cs; intros; auto.
     simpl in H.
-    destruct (isCallInst_dec c).
+    destruct (isCall_dec c).
       destruct (cmds2sbs cs).
       destruct l0.
         inversion H.
@@ -51,7 +51,7 @@ Proof.
     inversion H.
 
     remember (cmds2sbs cs) as R.
-    remember (isCallInst_dec a) as R'.
+    remember (isCall_dec a) as R'.
     destruct R'.
       destruct R.
       destruct l0.
@@ -86,32 +86,32 @@ Proof.
     exists nil. auto.
 
     destruct IHdbCmds as [nbs J].
-    destruct (isCallInst_dec c).
+    destruct (isCall_dec c).
       rewrite J. exists (mkNB c e::nbs). auto.
 
       apply dbCmd_isNotCallInst in H.
       rewrite e in H. inversion H.
 Qed.
 
-Lemma dbCall_isCallInst : forall S TD Ps lc gl fs Mem1 c lc' Mem2 tr,
+Lemma dbCall_isCall : forall S TD Ps lc gl fs Mem1 c lc' Mem2 tr,
   dbCall S TD Ps fs gl lc Mem1 c lc' Mem2 tr ->
-  Instruction.isCallInst c = true.
+  isCall c = true.
 Proof.
   intros S TD Ps lc gl fs Mem1 c lc' Mem2 tr HdbCall.
   induction HdbCall; auto.
 Qed.
 
 Lemma cmdscall2sbs : forall cs call0 nbs
-  (isCall0:Instruction.isCallInst call0=true),
+  (isCall0:isCall call0=true),
   cmds2sbs cs = (nil, nbs) ->
-  isCallInst_dec call0 = right isCall0 ->
+  isCall_dec call0 = right isCall0 ->
   cmds2sbs (cs++call0::nil) = (mkSB nbs call0 isCall0::nil, nil).
 Proof.
   induction cs; intros; simpl in *.
     inversion H; subst.
     rewrite H0. auto.
 
-    destruct (isCallInst_dec a).
+    destruct (isCall_dec a).
       remember (cmds2sbs cs) as R.
       destruct R.
       destruct l0.
@@ -133,9 +133,9 @@ Proof.
   inversion H; subst.
   apply dbCmds__cmds2nbs in H0.
   destruct H0 as [nbs H0].
-  remember (isCallInst_dec call0) as R.
+  remember (isCall_dec call0) as R.
   destruct R.
-    apply dbCall_isCallInst in H1.
+    apply dbCall_isCall in H1.
     rewrite e in H1. inversion H1.
 
     exists (mkSB nbs call0 e).
@@ -151,7 +151,7 @@ Proof.
     simpl in H. inversion H.
 
     simpl in H.
-    destruct (isCallInst_dec a).
+    destruct (isCall_dec a).
       remember (cmds2sbs cs) as R.
       destruct R.
         destruct l0.
@@ -209,7 +209,7 @@ Proof.
     simpl in H. inversion H.
 
     simpl in H.
-    remember (isCallInst_dec a) as R.
+    remember (isCall_dec a) as R.
     remember (cmds2sbs cs0) as R'.
     destruct R.
       destruct R'.
@@ -247,7 +247,7 @@ Proof.
 
     simpl in *.
     remember (cmds2sbs cs) as R.
-    destruct (isCallInst_dec a).
+    destruct (isCall_dec a).
       destruct R.
         destruct l0.
           inversion H.
@@ -282,7 +282,7 @@ Proof.
 
     simpl in *.
     unfold cmd2nbranch in H.
-    destruct (isCallInst_dec a).
+    destruct (isCall_dec a).
       destruct (cmds2sbs cs).
         remember (cmds2nbranchs cs) as R.
         destruct R.
@@ -308,7 +308,7 @@ Proof.
       simpl in H. inversion H.
 
       simpl in H.
-      destruct (isCallInst_dec c).
+      destruct (isCall_dec c).
         remember (cmds2sbs cs) as R.
         destruct R.
         destruct l0.
@@ -344,7 +344,7 @@ Proof.
     exists nil. exists nil. auto.
 
     simpl in H.
-    remember (isCallInst_dec a) as R.
+    remember (isCall_dec a) as R.
     remember (cmds2sbs cs) as R'.
     destruct R.
       destruct R'.
@@ -384,7 +384,7 @@ Proof.
     simpl in H. inversion H.
 
     simpl in H.
-    remember (isCallInst_dec a) as R.
+    remember (isCall_dec a) as R.
     remember (cmds2sbs cs0) as R'.
     destruct R.
       destruct R'.
@@ -427,7 +427,7 @@ Proof.
     exists nil. exists nil. auto.
 
     simpl in H.
-    remember (isCallInst_dec a) as R.
+    remember (isCall_dec a) as R.
     remember (cmds2sbs cs0) as R'.
     destruct R.
       destruct R'.
@@ -477,7 +477,7 @@ Proof.
   intros.
   unfold cmd2nbranch in H.
   destruct nb.
-  destruct (isCallInst_dec c); inversion H; subst.
+  destruct (isCall_dec c); inversion H; subst.
     exists notcall0. auto. 
 Qed.
 
@@ -525,7 +525,7 @@ Proof.
     simpl in *.
     remember (cmds2sbs cs) as R.
     destruct R as [sbs' nbs'].
-    remember (isCallInst_dec a) as R'.
+    remember (isCall_dec a) as R'.
     destruct R'.
       destruct sbs'.
         inversion H0; subst. clear H0.
@@ -616,6 +616,18 @@ Qed.
 
 (* Properties of se *)
 
+Lemma se_lib_uniq: forall id0 noret0 tailc0 rt fv lp st
+  (nocall : isCall (insn_call id0 noret0 tailc0 rt fv lp) = false),
+  uniq (STerms st) ->
+  uniq (STerms (se_lib (insn_call id0 noret0 tailc0 rt fv lp) 
+    id0 noret0 tailc0 rt fv lp st eq_refl nocall)).
+Proof.
+  intros.
+  destruct fv; simpl.
+    apply updateAddAL_uniq; auto.
+    simpl in nocall. inversion nocall.
+Qed.
+
 Lemma se_cmd_uniq : forall smap0 sm0 sf0 se0 c,
   uniq smap0 ->
   uniq (STerms (se_cmd (mkSstate smap0 sm0 sf0 se0) c)).
@@ -625,7 +637,7 @@ Proof.
     try solve [
       apply updateAddAL_uniq; auto | 
       auto | 
-      inversion nocall].
+      apply se_lib_uniq; auto].
 Qed.
 
 Lemma se_cmd_dom_mono : forall smap0 sm0 sf0 se0 c,
@@ -634,7 +646,10 @@ Proof.
   intros smap0 sm0 sf0 se0 [c nocall].
   assert (forall sm id0 st0, dom sm [<=] dom (updateAddAL sterm sm id0 st0)) as J.
     intros. assert (J:=@updateAddAL_dom_eq _ sm id0 st0). fsetdec. 
-  destruct c; simpl; try solve [eauto using J| fsetdec|inversion nocall].
+  destruct c; simpl; try solve [eauto using J| fsetdec].
+    destruct v; simpl.
+      eauto using J.
+      simpl in nocall. inversion nocall.
 Qed.
 
 Lemma _se_cmd_uniq : forall c sstate0,
@@ -642,7 +657,10 @@ Lemma _se_cmd_uniq : forall c sstate0,
   uniq (STerms (se_cmd sstate0 c)).
 Proof.
   intros [c nocall] sstate0 Huniq.
-  destruct c; simpl; try solve [apply updateAddAL_uniq; auto | auto | inversion nocall].
+  destruct c; simpl; try solve [apply updateAddAL_uniq; auto | auto].
+    destruct v; simpl.
+      apply updateAddAL_uniq; auto.
+      simpl in nocall. inversion nocall.
 Qed.
 
 Lemma _se_cmds_uniq : forall cs sstate0,
@@ -688,7 +706,10 @@ Lemma se_cmd_dom_upper : forall sstate0 c nc,
   dom (STerms (se_cmd sstate0 (mkNB c nc))) [<=] dom (STerms sstate0) `union` {{getCmdID c}}.
 Proof.
   intros [smap0 sm0 sf0 se0] c nc.
-  destruct c; simpl; try solve [rewrite updateAddAL_dom_eq; fsetdec | fsetdec | inversion nc].
+  destruct c; simpl; try solve [rewrite updateAddAL_dom_eq; fsetdec | fsetdec].
+    destruct v; simpl.
+      rewrite updateAddAL_dom_eq; fsetdec. 
+      inversion nc.
 Qed.
 
 Lemma se_cmd_dom_mono' : forall sstate0 c,
@@ -835,7 +856,10 @@ Lemma lookupSmap_se_cmd_neq : forall c id' smap1 smem1 sframe1 seffects1 nc,
   lookupSmap smap1 id'.
 Proof.
   destruct c; intros id' smap1 smem1 sframe1 seffects1 nc HnEQ; simpl;
-    try solve [rewrite <- lookupSmap_updateAddAL_neq; auto | inversion nc | auto].
+    try solve [rewrite <- lookupSmap_updateAddAL_neq; auto | auto].
+    destruct v; simpl.
+      rewrite <- lookupSmap_updateAddAL_neq; auto.
+      inversion nc.
 Qed.
 
 Lemma init_denotes_id : forall TD lc gl als Mem0,
@@ -986,6 +1010,12 @@ Case "sterm_select_denotes".
   apply H in H11; subst.
   apply H0 in H13; subst.
   apply H1 in H14; subst; auto.
+Case "sterm_lib_denotes".
+  inversion H1; subst.
+  apply H in H9; subst.  
+  apply H0 in H11; subst.
+  rewrite H12 in e.
+  injection e; auto.
 Case "sterms_nil_denote".
   inversion H; auto.
 Case "sterms_cons_denote".
@@ -1020,6 +1050,12 @@ Case "smem_store_denotes".
   apply H0 in H14; subst. 
   apply H1 in H15; subst. 
   rewrite H16 in e. inversion e; auto.
+Case "smem_lib_denotes".
+  inversion H1; subst.
+  apply H in H9; subst.  
+  apply H0 in H11; subst.
+  rewrite H12 in e.
+  injection e; auto.  
 Qed.
 
 Lemma sterm_denotes_genericvalue_det : forall TD lc gl Mem0 st0 gv1 gv2,
@@ -1194,6 +1230,18 @@ Proof.
 Qed.
 
 (* p&p *)
+Lemma exCallUpdateLocals_uniq : forall noret0 rid rt oresult lc,
+  uniq lc ->
+  uniq (exCallUpdateLocals noret0 rid rt oresult lc).
+Proof.
+  intros.
+  unfold exCallUpdateLocals.
+  destruct noret0; auto.
+  destruct (rt=t=typ_void); auto.
+  destruct oresult; auto.
+  apply updateAddAL_uniq; auto.
+Qed.
+
 Lemma se_dbCmd_preservation : forall TD lc als gl Mem0 c lc' als' Mem' tr,
   dbCmd TD gl lc als Mem0 c lc' als' Mem' tr ->
   uniq lc ->
@@ -1203,6 +1251,8 @@ Proof.
   (dbCmd_cases (inversion HdbCmd) Case); subst; auto using updateAddAL_uniq.
   Case "dbSelect".
     destruct (isGVZero TD cond0); eauto using updateAddAL_uniq.
+  Case "dbLib".
+    apply exCallUpdateLocals_uniq; auto.      
 Qed.
 
 Lemma se_dbCmds_preservation : forall TD lc als gl Mem0 cs lc' als' Mem' tr,
@@ -1341,11 +1391,7 @@ Case "dbCall_internal".
       destruct (rt=t=typ_void); auto.
 
 Case "dbCall_external".
-  unfold exCallUpdateLocals.
-  destruct noret0; auto.
-  destruct (rt=t=typ_void); auto.
-  destruct oresult; auto.
-  apply updateAddAL_uniq; auto.
+  apply exCallUpdateLocals_uniq; auto.      
 
 Case "dbSubblock_intro".
   apply se_dbCmds_preservation in d; eauto.
@@ -1585,6 +1631,9 @@ Case "dbSelect".
   exists (if isGVZero TD cond0 then updateAddAL _ lc1' id0 gv2 else updateAddAL _ lc1' id0 gv1).
   split; auto.
     destruct (isGVZero TD cond0); auto using eqAL_updateAddAL.
+
+Case "dbLib".
+  admit.
 Qed.
 
 Lemma dbCmds_eqEnv : forall TD cs lc1 als1 gl Mem1 lc2 als2 Mem2 tr lc1',
@@ -2393,6 +2442,9 @@ Case "dbSelect".
   exists (if isGVZero TD cond0 then updateAddAL _ lc1' id0 gv2 else updateAddAL _ lc1' id0 gv1).
   split; auto.
     destruct (isGVZero TD cond0); auto using subAL_updateAddAL.
+
+Case "dbLib".
+  admit.
 Qed.
 
 Lemma dbCmds_subEnv : forall TD cs lc1 als1 gl Mem1 lc2 als2 Mem2 tr lc1',
@@ -2694,5 +2746,13 @@ Proof.
   destruct db_subEnv as [_ [_ [_ [_ [_ J]]]]].
   unfold dbFdef_subEnv_prop in J. eauto.
 Qed.
+
+(*****************************)
+(*
+*** Local Variables: ***
+*** coq-prog-name: "coqtop" ***
+*** coq-prog-args: ("-emacs-U" "-I" "~/SVN/sol/vol/src/ssa/monads" "-I" "~/SVN/sol/vol/src/ssa/ott" "-I" "~/SVN/sol/vol/src/ssa/compcert" "-I" "~/SVN/sol/theory/metatheory_8.3") ***
+*** End: ***
+ *)
 
 

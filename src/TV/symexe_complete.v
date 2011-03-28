@@ -1,5 +1,6 @@
 Add LoadPath "../ssa/ott".
 Add LoadPath "../ssa/monads".
+Add LoadPath "../ssa/compcert".
 Add LoadPath "../ssa".
 Add LoadPath "../../../theory/metatheory_8.3".
 Require Import ssa_def.
@@ -515,6 +516,8 @@ Proof.
             inversion HlookupAL; subst; auto.
 
           destruct (isGVZero TD cond0); eapply se_cmd__denotes__op_cmd__case2; eauto.
+
+  Case "insn_call". admit.
 Qed.
 
 Lemma aux__op_cmds__satisfy__se_cmds : forall nbs TD lc0 als als0 Mem0 lc als' gl Mem1 sstate1 lc' Mem2 tr tr1,
@@ -549,4 +552,11 @@ Proof.
     apply init_denotes_id; auto.
 Qed.           
 
+(*****************************)
+(*
+*** Local Variables: ***
+*** coq-prog-name: "coqtop" ***
+*** coq-prog-args: ("-emacs-U" "-I" "~/SVN/sol/vol/src/ssa/monads" "-I" "~/SVN/sol/vol/src/ssa/ott" "-I" "~/SVN/sol/vol/src/ssa/compcert" "-I" "~/SVN/sol/theory/metatheory_8.3") ***
+*** End: ***
+ *)
 

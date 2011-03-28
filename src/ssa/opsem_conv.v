@@ -1,6 +1,7 @@
 Add LoadPath "./ott".
 Add LoadPath "./monads".
-(* Add LoadPath "../../../theory/metatheory". *)
+Add LoadPath "./compcert".
+Add LoadPath "../../../theory/metatheory_8.3".
 Require Import ssa_mem.
 Require Import genericvalues.
 Require Import ssa_dynamic.
@@ -130,7 +131,7 @@ Proof.
       exists nil. exists (states0++states3).
       split; auto.
 
-    destruct IHnsop_star1 as [states1' [states2' [J1 [J2 EQ]]]]; subst.
+    destruct (@IHnsop_star1 states1 states2) as [states1' [states2' [J1 [J2 EQ]]]]; subst; auto.
     assert (states1'++states2'~=states1'++states2') as EQ. auto.
     apply IHnsop_star2 in EQ; auto.
     destruct EQ as [states1'' [states2'' [J1' [J2' EQ]]]]; subst.

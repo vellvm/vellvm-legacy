@@ -5,7 +5,7 @@ OUTPUT_TYPE := byte
 
 all: main
 
-main: main.ml $(TV_LIB)/symexe_correct.cma $(LLVM_OCAML_LIB)/llvm.cma
+main: main.ml $(TV_LIB)/eq_tv.cma $(TV_LIB)/sub_tv.cma $(TV_LIB)/ssa_def.cma $(TV_LIB)/ssa_lib.cma $(LLVM_OCAML_LIB)/llvm.cma
 	ocamlbuild -j 2 -cflags -I,$(LLVM_OCAML_LIB),-I,$(TV_LIB) -lflags -I,$(LLVM_OCAML_LIB),-I,$(TV_LIB),-cclib,-L$(LLVM_LIB) main.$(OUTPUT_TYPE)
 	mv main.$(OUTPUT_TYPE) main
 
