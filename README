@@ -265,7 +265,12 @@ To evaluate the extracted interpreter,
                               NOTE
 ===========================================================================
 
-If OcaIDE is installed, at $(VOL)/src, you can open two eclipse projects : Interpreter and Parser.
+If OcaIDE is installed, at $(VOL), you can open a eclipse project : src.
+   Setting: Property -> project
+    -libs: llvm,llvm_analysis,llvm_executionengine,llvm_target,llvm_bitreader,llvm_bitwriter,llvm_scalar_opts
+    -cflags: -I /home/jianzhou/Tools/llvm-2.6/lib/ocaml/
+    -lflags: -cc g++ -I,/home/jianzhou/Tools/llvm-2.6/lib/ocaml/,-cclib,-lffi,-cclib,-L/home/jianzhou/Tools/llvm-2.6/lib/
+    others: -Is Extraction,Parser
 
 If the patch of llvm2.6 is available, we can also patch LLVM as the following:
 (But, usually the patch is out-of-date...)
