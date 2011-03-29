@@ -57,7 +57,8 @@ Definition tv_scall (c1 c2:scall) :=
   (sumbool2bool _ _ (typ_dec t1 t2)) && 
   (sumbool2bool _ _ (prefix_dec _ typ_sterm_dec sts1 sts2)) &&
   match (v1, v2) with
-  | (value_id fid1, value_id fid2) => tv_fid fid1 fid2
+  | (value_const (const_gid _ fid1), value_const (const_gid _ fid2)) => 
+      tv_fid fid1 fid2
   | (v1, v2) => sumbool2bool _ _ (value_dec v1 v2)
   end.
 
