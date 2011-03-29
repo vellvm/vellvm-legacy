@@ -9,7 +9,7 @@ all:
 	+make -C ./Extraction
 	ocamlbuild -I Extraction $(OCAMLBUILD_OPT) Parser/main.$(OUTPUT_TYPE)
 	ocamlbuild -Is Extraction,Parser $(OCAMLBUILD_OPT) Interpreter/main.$(OUTPUT_TYPE)
-	ocamlbuild -Is Extraction,Parser $(OCAMLBUILD_OPT) TV/main.$(OUTPUT_TYPE)
+	ocamlbuild -Is Extraction,Parser $(OCAMLBUILD_OPT) TV/main.d.byte
 
 clean:
 	+make -C ./ssa clean
