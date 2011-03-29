@@ -22,6 +22,7 @@ Require Import symexe_sound.
 Require Import seop_llvmop.
 Require Import assoclist.
 Require Import ssa_props.
+Require Import eq_tv_dec.
 Require Import sub_tv_dec.
 Require Import Coq.Bool.Sumbool.
 
@@ -31,6 +32,35 @@ Definition tv_cmds (nbs1 nbs2 : list nbranch) :=
 sumbool2bool _ _ (sstate_sub_dec (se_cmds sstate_init nbs1) (se_cmds sstate_init nbs2)
                     (se_cmds_init_uniq nbs1)).
 
+(* Realized to check if two function names are matched. For example,
+ * in Softbound, 'test' in the original program matches 'softbound_test'.
+*)
+Axiom tv_fid : id -> id -> bool.
+
+Axiom tv_fid_injective1 : forall fid1 fid2 fid1' fid2',
+  fid1 = fid2 -> tv_fid fid1 fid1' -> tv_fid fid2 fid2' -> fid1' = fid2'.
+
+Axiom tv_fid_injective2 : forall fid1 fid2 fid1' fid2',
+  fid1 <> fid2 -> tv_fid fid1 fid1' -> tv_fid fid2 fid2' -> fid1' <> fid2'.
+
+(* Here, we check which function to call conservatively. In practice, a v1
+ * is a function pointer, we should look up the function name from the 
+ * FunTable. Since the LLVM IR takes function names as function pointers,
+ * if a program does not assign them to be other variables, they should
+ * be the same. *)
+Definition tv_scall (c1 c2:scall) :=
+  let '(stmn_call rid1 nr1 tailc1 t1 v1 sts1) := c1 in
+  let '(stmn_call rid2 nr2 tailc2 t2 v2 sts2) := c2 in
+  (sumbool2bool _ _ (id_dec rid1 rid1)) &&
+  (sumbool2bool _ _ (noret_dec nr1 nr2)) &&
+  (sumbool2bool _ _ (tailc_dec tailc1 tailc2)) &&
+  (sumbool2bool _ _ (typ_dec t1 t2)) && 
+  (sumbool2bool _ _ (prefix_dec _ typ_sterm_dec sts1 sts2)) &&
+  match (v1, v2) with
+  | (value_id fid1, value_id fid2) => tv_fid fid1 fid2
+  | (v1, v2) => sumbool2bool _ _ (value_dec v1 v2)
+  end.
+
 Definition tv_subblock (sb1 sb2:subblock) :=
 match (sb1, sb2) with
 | (mkSB nbs1 call1 iscall1, mkSB nbs2 call2 iscall2) =>
@@ -39,7 +69,7 @@ match (sb1, sb2) with
   let cl1 := se_call st1 call1 iscall1 in
   let cl2 := se_call st2 call2 iscall2 in
    (sumbool2bool _ _ (sstate_sub_dec st1 st2 (se_cmds_init_uniq nbs1))) &&
-   (sumbool2bool _ _ (cmd_dec call1 call2))
+   tv_scall cl1 cl2
 end.
 
 Fixpoint tv_subblocks (sbs1 sbs2:list subblock) :=
@@ -78,11 +108,17 @@ match (bs1, bs2) with
 | _ => false
 end.
 
+Definition tv_fheader (f1 f2:fheader) := 
+  let '(fheader_intro t1 fid1 a1) := f1 in
+  let '(fheader_intro t2 fid2 a2) := f2 in
+  (sumbool2bool _ _ (typ_dec t1 t2)) &&
+  tv_fid fid1 fid2 &&
+  (sumbool2bool _ _ (prefix_dec _ arg_dec a1 a2)).
+
 Definition tv_fdef (f1 f2:fdef) :=
 match (f1, f2) with
 | (fdef_intro fh1 lb1, fdef_intro fh2 lb2) =>
-  sumbool2bool _ _ (fheader_dec fh1 fh2) &&
-  tv_blocks lb1 lb2
+  tv_fheader fh1 fh2 && tv_blocks lb1 lb2
 end.
 
 Fixpoint tv_products (Ps1 Ps2:products):=
@@ -122,3 +158,11 @@ Ltac sumbool_simpl :=
   | [ H:tv_cmds _ _ = true |- _ ] => unfold is_true in H; apply sumbool2bool_true in H
   | [ H:is_true(tv_cmds _ _) |- _ ] => unfold is_true in H; apply sumbool2bool_true in H
   end.
+
+(*****************************)
+(*
+*** Local Variables: ***
+*** coq-prog-name: "coqtop" ***
+*** coq-prog-args: ("-emacs-U" "-I" "~/SVN/sol/vol/src/ssa/monads" "-I" "~/SVN/sol/vol/src/ssa/ott" "-I" "~/SVN/sol/vol/src/ssa/compcert" "-I" "~/SVN/sol/theory/metatheory_8.3") ***
+*** End: ***
+ *)

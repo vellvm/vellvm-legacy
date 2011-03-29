@@ -720,6 +720,7 @@ Inductive sterminator : Set :=
 .
 
 Inductive scall : Set :=
+(* FIXME: the value should be a sterm!!! *)
 | stmn_call : id -> noret -> tailc -> typ -> value -> list (typ*sterm) -> scall
 .
 

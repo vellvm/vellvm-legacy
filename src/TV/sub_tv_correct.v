@@ -250,11 +250,14 @@ Proof.
       eapply tv_switchToNewBasicBlock; eauto.
 Qed.
 
-Lemma tv_products__lookupFdefViaIDFromProducts : forall Ps1 Ps2 fid rt la lb1,
+Lemma tv_products__lookupFdefViaIDFromProducts : 
+  forall Ps1 Ps2 fid1 rt la1 lb1,
   tv_products Ps1 Ps2 ->
-  lookupFdefViaIDFromProducts Ps1 fid = Some (fdef_intro (fheader_intro rt fid la) lb1) ->
-  exists lb2,
-    lookupFdefViaIDFromProducts Ps2 fid = Some (fdef_intro (fheader_intro rt fid la) lb2) /\
+  lookupFdefViaIDFromProducts Ps1 fid1 = Some (fdef_intro (fheader_intro rt fid1 la1) lb1) ->
+  exists fid2, exists la2, exists lb2,
+    lookupFdefViaIDFromProducts Ps2 fid2 = Some (fdef_intro (fheader_intro rt fid2 la2) lb2) /\
+    tv_fid fid1 fid2 = true /\
+    prefix _ la1 la2 /\
     tv_blocks lb1 lb2.
 Proof.
   induction Ps1; intros.
@@ -267,40 +270,47 @@ Proof.
       simpl in H0.
       destruct p; try solve [inversion H].
       bdestruct H as H1 H2.
-      apply IHPs1 with (fid:=fid)(rt:=rt)(la:=la)(lb1:=lb1) in H2; auto.
+      apply IHPs1 with (fid1:=fid1)(rt:=rt)(la1:=la1)(lb1:=lb1) in H2; auto.
  
     Case "product_fdec".
       destruct Ps2; try solve [inversion H].
       simpl in H0.
       destruct p; try solve [inversion H].
       bdestruct H as H1 H2.
-      apply IHPs1 with (fid:=fid)(rt:=rt)(la:=la)(lb1:=lb1) in H2; auto.
+      apply IHPs1 with (fid1:=fid1)(rt:=rt)(la1:=la1)(lb1:=lb1) in H2; auto.
 
     Case "product_fdef".
       destruct Ps2; try solve [inversion H].
-      simpl in *.
       destruct p; try solve [inversion H].
       bdestruct H as H1 H2.    
       simpl in *.
-      destruct f.
-      destruct f0.
-      unfold tv_fdef in H1.
-      bdestruct H1 as EQ H1.
+      destruct f as [[t1 fid10 a1] b1].
+      destruct f0 as [[t2 fid20 a2] b2].
+      unfold tv_fdef in H1. unfold tv_fheader in H1.
+      bdestruct4 H1 as EQ1 Hfid Hargs Hblock.
       sumbool_subst.
       simpl in *.
-      remember (getFheaderID f0) as R.
-      destruct (@eq_dec id (EqDec_eq_of_EqDec id EqDec_atom) R fid); subst.
-        inversion H0. subst b. 
-        exists b0. split; auto.
+      destruct (@eq_dec id (EqDec_eq_of_EqDec id EqDec_atom) fid10 fid1); subst.
+        inversion H0. subst. 
+        exists fid20. exists a2. exists b2. split; auto.
+        destruct (@eq_dec id (EqDec_eq_of_EqDec id EqDec_atom) fid20 fid20); auto.
+          contradict n; auto.
 
         apply IHPs1 with (Ps2:=Ps2) in H0; auto.
+          destruct H0 as [fid2 [la2 [lb2 [J1 [J2 [J3 J4]]]]]].
+          exists fid2. exists la2. exists lb2. split; auto.
+          destruct (@eq_dec id (EqDec_eq_of_EqDec id EqDec_atom) fid20 fid2); subst; auto.
+            apply tv_fid_injective2 with (fid1':=fid2)(fid2':=fid2) in n; auto.
+              contradict n; auto.
 Qed.
-
-Lemma tv_products__lookupFdefViaGV : forall Ps1 Ps2 fv fid rt la lb1 TD gl lc fs,
+(*
+Lemma tv_products__lookupFdefViaGV : forall Ps1 Ps2 fv fid1 rt la1 lb1 TD gl lc fs,
   tv_products Ps1 Ps2 ->
-  lookupFdefViaGV TD Ps1 gl lc fs fv = Some (fdef_intro (fheader_intro rt fid la) lb1) ->
-  exists lb2,
-    lookupFdefViaGV TD Ps2 gl lc fs fv = Some (fdef_intro (fheader_intro rt fid la) lb2) /\
+  lookupFdefViaGV TD Ps1 gl lc fs fv = Some (fdef_intro (fheader_intro rt fid1 la1) lb1) ->
+  exists fid2, exists la2, exists lb2,
+    lookupFdefViaGV TD Ps2 gl lc fs fv = Some (fdef_intro (fheader_intro rt fid2 la2) lb2) /\
+    tv_fid fid1 fid2 = true /\
+    prefix _ la1 la2 /\
     tv_blocks lb1 lb2.
 Proof.
   intros.
@@ -415,7 +425,7 @@ Proof.
     rewrite HeqR.
     apply tv_products__lookupFdecViaIDFromProducts; auto.
 Qed.
-
+*)
 Definition tv_dbCall__is__correct_prop S1 TD Ps1 fs gl lc Mem0 call0 lc' Mem' tr
   (db:dbCall S1 TD Ps1 fs gl lc Mem0 call0 lc' Mem' tr) :=
   forall S2 Ps2 los nts,
@@ -589,14 +599,15 @@ Case "dbCall_internal".
     exists (callUpdateLocals (los, nts) noret0 rid rt None lc slc gl).
     split; eauto using subAL_callUpdateLocals, subAL_refl.
 
-Case "dbCall_external".
+Case "dbCall_external". admit.
+(*
   intros S TD Ps lc gl fs rid noret0 tailc0 fv fid lp rt la Mem0 oresult Mem'
          H HisCall S2 Ps2 los nts H0 H1 H2 H3 H4 H5 H6 H7.
   exists (exCallUpdateLocals noret0 rid rt oresult lc).
   split; auto using subAL_exCallUpdateLocals, subAL_refl.
     apply dbCall_external with (fid:=fid)(la:=la); auto.
       rewrite <- tv_products__lookupExFdecViaGV with (Ps1:=Ps); auto.
-
+*)
 Case "dbSubblock_intro".
   intros S TD Ps lc1 als1 gl fs Mem1 cs call0 lc2 als2 Mem2 tr1 lc3 Mem3 tr2 d 
     d0 H S2 Ps2 cs2 sb1 sb2 los nts H0 H1 H2 H3 H4 H5 H6 H7 H8 H9 H10 H11.
@@ -624,6 +635,7 @@ Case "dbSubblock_intro".
   apply dbCall_subEnv with (lc1':=lc2') in HdbCall; auto using eqAL_sym.
   destruct HdbCall as [lc3'' [HdbCall Hsub3']].
   exists lc3''. split; eauto using eqAL_trans, eqAL_sym.
+    admit.
     admit.
     admit.
 

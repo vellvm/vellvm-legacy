@@ -10,7 +10,7 @@ all:
 	+make ott 
 	+make -C ./llvm_op
 
-ott: main.pdf ssa_dynamic.vo opsem_conv.vo opsem_pp.vo ssa_extract.vo ssa_static.vo
+ott: main.pdf ssa_dynamic.vo opsem_conv.vo opsem_pp.vo ssa_static.vo ssa_interpreter.vo
 
 assoclist.vo : assoclist.v
 	$(COQC) $(COQARG) assoclist.v
@@ -68,10 +68,6 @@ ssa_dynamic.vo: ssa_dynamic.v ssa_def.vo ssa_lib.vo tactics.vo ssa_mem.vo trace.
 ssa_interpreter.vo: ssa_interpreter.v ssa_dynamic.vo ssa_def.vo ssa_lib.vo tactics.vo ssa_mem.vo trace.vo genericvalues.vo assoclist.vo
 	$(COQC) $(COQARG) ssa_interpreter.v
 
-ssa_extract.vo: ssa_extract.v ssa_interpreter.vo ssa_dynamic.vo ssa_def.vo ssa_lib.vo tactics.vo ssa_mem.vo trace.vo genericvalues.vo assoclist.vo
-	$(COQC) $(COQARG) ssa_extract.v
-	+make -C ../Interpreter -f Makefile.ocaml
-
 ssa_props.vo: ssa_props.v ssa_def.vo ssa_lib.vo genericvalues.vo assoclist.vo ssa_dynamic.vo
 	$(COQC) $(COQARG) ssa_props.v
 
@@ -96,6 +92,5 @@ clean:
 	+make -C ./compcert clean
 	+make -C ./monads clean	
 	+make -C ./llvm_op clean
-	+make -C ../Interpreter -f Makefile.ocaml clean
 	rm -rf ssa.tex main.pdf main.log main.aux main.log main.tex ssa_def.v ssa_lib.v ssa_static.vo *.vo *.glob merge.ott m_*.ott
 
