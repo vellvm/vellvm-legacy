@@ -623,9 +623,9 @@ Lemma se_lib_uniq: forall id0 noret0 tailc0 rt fv lp st
     id0 noret0 tailc0 rt fv lp st eq_refl nocall)).
 Proof.
   intros.
-  destruct fv; simpl.
-    apply updateAddAL_uniq; auto.
-    simpl in nocall. inversion nocall.
+  destruct fv; simpl; try solve [simpl in nocall; inversion nocall].
+  destruct c; simpl; try solve [simpl in nocall; inversion nocall].
+    apply updateAddAL_uniq; auto.    
 Qed.
 
 Lemma se_cmd_uniq : forall smap0 sm0 sf0 se0 c,
@@ -647,27 +647,27 @@ Proof.
   assert (forall sm id0 st0, dom sm [<=] dom (updateAddAL sterm sm id0 st0)) as J.
     intros. assert (J:=@updateAddAL_dom_eq _ sm id0 st0). fsetdec. 
   destruct c; simpl; try solve [eauto using J| fsetdec].
-    destruct v; simpl.
-      eauto using J.
-      simpl in nocall. inversion nocall.
+    destruct v; simpl; try solve [simpl in nocall; inversion nocall].
+    destruct c; simpl; try solve [simpl in nocall; inversion nocall].
+      eauto using J.      
 Qed.
 
-Lemma _se_cmd_uniq : forall c sstate0,
+Lemma se_cmd_uniq_aux : forall c sstate0,
   uniq (STerms sstate0) ->
   uniq (STerms (se_cmd sstate0 c)).
 Proof.
   intros [c nocall] sstate0 Huniq.
   destruct c; simpl; try solve [apply updateAddAL_uniq; auto | auto].
-    destruct v; simpl.
+    destruct v; simpl; try solve [simpl in nocall; inversion nocall].
+    destruct c; simpl; try solve [simpl in nocall; inversion nocall].
       apply updateAddAL_uniq; auto.
-      simpl in nocall. inversion nocall.
 Qed.
 
-Lemma _se_cmds_uniq : forall cs sstate0,
+Lemma se_cmds_uniq_aux : forall cs sstate0,
   uniq (STerms sstate0) ->
   uniq (STerms (se_cmds sstate0 cs)).
 Proof.
-  induction cs; intros; simpl; auto using _se_cmd_uniq.
+  induction cs; intros; simpl; auto using se_cmd_uniq_aux.
 Qed.
 
 Lemma se_cmds_uniq : forall cs smap0 sm0 sf0 se0,
@@ -675,7 +675,7 @@ Lemma se_cmds_uniq : forall cs smap0 sm0 sf0 se0,
   uniq (STerms (se_cmds (mkSstate smap0 sm0 sf0 se0) cs)).
 Proof.
   intros.
-  apply _se_cmds_uniq; auto. 
+  apply se_cmds_uniq_aux; auto. 
 Qed.
 
 Lemma se_cmds_init_uniq : forall cs,
@@ -707,9 +707,9 @@ Lemma se_cmd_dom_upper : forall sstate0 c nc,
 Proof.
   intros [smap0 sm0 sf0 se0] c nc.
   destruct c; simpl; try solve [rewrite updateAddAL_dom_eq; fsetdec | fsetdec].
-    destruct v; simpl.
+    destruct v; simpl; try solve [simpl in nc; inversion nc].
+    destruct c; simpl; try solve [simpl in nc; inversion nc].
       rewrite updateAddAL_dom_eq; fsetdec. 
-      inversion nc.
 Qed.
 
 Lemma se_cmd_dom_mono' : forall sstate0 c,
@@ -857,9 +857,9 @@ Lemma lookupSmap_se_cmd_neq : forall c id' smap1 smem1 sframe1 seffects1 nc,
 Proof.
   destruct c; intros id' smap1 smem1 sframe1 seffects1 nc HnEQ; simpl;
     try solve [rewrite <- lookupSmap_updateAddAL_neq; auto | auto].
-    destruct v; simpl.
+    destruct v; simpl; try solve [inversion nc].
+    destruct c; simpl; try solve [inversion nc].
       rewrite <- lookupSmap_updateAddAL_neq; auto.
-      inversion nc.
 Qed.
 
 Lemma init_denotes_id : forall TD lc gl als Mem0,

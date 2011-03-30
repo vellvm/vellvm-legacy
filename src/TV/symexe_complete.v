@@ -539,7 +539,7 @@ Proof.
     apply op_cmd__satisfies__se_cmd with (lc0:=lc0)(sstate1:=sstate1)(als0:=als0)(Mem0:=Mem0)(tr1:=tr1)(nc:=nc) in H6; auto.
     rewrite trace_app_commute.
     apply IHnbs with (lc0:=lc0)(sstate1:=se_cmd sstate1 (mkNB c nc))(als0:=als0)(Mem0:=Mem0)(tr1:=trace_app tr1 t1) in H11; auto.
-      apply _se_cmd_uniq; auto.
+      apply se_cmd_uniq_aux; auto.
 Qed.
 
 Lemma op_cmds__satisfy__se_cmds : forall TD nbs lc als gl Mem lc' als' Mem' tr,

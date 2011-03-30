@@ -32,8 +32,45 @@ Proof.
   destruct (@sterm_dec s1 s2); subst; try solve [auto | done_right].
 Qed.
 
+(* This is the tricky part. How can we know sm2 includes sm1 ?
+ * So far, we only consider the memory effects of Softbound. 
+ *
+ * The axiom assumes the memory behavior of a lib call. This should
+ * be admissible in terms of other axioms.
+*)
+Axiom smem_lib_sub : id -> bool.
+
+Fixpoint smem_sub (sm1 sm2:smem) : bool :=
+match (sm1, sm2) with
+| (smem_init, sm2) => true
+| (smem_malloc sm1 t1 st1 a1, smem_malloc sm2 t2 st2 a2)
+| (smem_alloca sm1 t1 st1 a1, smem_alloca sm2 t2 st2 a2) =>
+    smem_sub sm1 sm2 &&
+    sumbool2bool _ _ (typ_dec t1 t2) &&
+    sumbool2bool _ _ (sterm_dec st1 st2) &&
+    sumbool2bool _ _ (Align.dec a1 a2)
+| (smem_free sm1 t1 st1, smem_free sm2 t2 st2) =>
+    smem_sub sm1 sm2 && 
+    sumbool2bool _ _ (typ_dec t1 t2) &&
+    sumbool2bool _ _ (sterm_dec st1 st2)
+| (smem_load sm1 t1 st1 a1, smem_load sm2 t2 st2 a2) =>
+    smem_sub sm1 sm2 &&
+    sumbool2bool _ _ (typ_dec t1 t2) &&
+    sumbool2bool _ _ (sterm_dec st1 st2) &&
+    sumbool2bool _ _ (Align.dec a1 a2)
+| (smem_store sm1 t1 st11 st12 a1, smem_store sm2 t2 st21 st22 a2) =>
+    smem_sub sm1 sm2 &&
+    sumbool2bool _ _ (typ_dec t1 t2) &&
+    sumbool2bool _ _ (sterm_dec st11 st21) &&
+    sumbool2bool _ _ (sterm_dec st12 st22) &&
+    sumbool2bool _ _ (Align.dec a1 a2)
+| (sm1, smem_lib sm2 fid sts) =>
+    smem_lib_sub fid && smem_sub sm1 sm2
+| _ => false
+end.
+
 Definition sub_sstate s1 s2 := 
-  s1.(STerms) <<<= s2.(STerms) /\ s1.(SMem) = s2.(SMem) /\
+  s1.(STerms) <<<= s2.(STerms) /\ smem_sub s1.(SMem) s2.(SMem) = true /\
   s1.(SFrame) = s2.(SFrame) /\ s1.(SEffects) = s2.(SEffects).
 
 Notation "s1 <<= s2" := (sub_sstate s1 s2) (at level 70, no associativity).
@@ -87,11 +124,12 @@ Ltac done_right' :=
   intros sts1 sts2 Huniq.
   destruct sts1 as [st1 sm1 sf1 se1].
   destruct sts2 as [st2 sm2 sf2 se2].
-  destruct (@sterms_dec se1 se2); subst; try solve [auto | done_right'].
-  destruct (@sframe_dec sf1 sf2); subst; try solve [auto | done_right'].
-  destruct (@smem_dec sm1 sm2); subst; try solve [auto | done_right'].
-  destruct (@smap_sub_dec st1 st2 Huniq); subst; 
-    try solve [left; split; auto | done_right'].
+  destruct (@sterms_dec se1 se2); subst; try solve [done_right'].
+  destruct (@sframe_dec sf1 sf2); subst; try solve [done_right'].
+  destruct (@smap_sub_dec st1 st2 Huniq); subst; try solve [done_right'].
+  unfold sub_sstate. simpl.
+  destruct (smem_sub sm1 sm2); auto.
+    right. intro J ; destruct J as [ J1 [J2 [J3 J4]]]. inversion J2.
 Qed.
 
 Definition prefix A (l1 l:list A) := exists l2, l1 ++ l2 = l.

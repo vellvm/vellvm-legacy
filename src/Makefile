@@ -1,7 +1,7 @@
 include ./Makefile.config
 
 OUTPUT_TYPE=native
-OCAMLBUILD_OPT=-no-links -j 0 \
+OCAMLBUILD_OPT=-no-links -j 0 -build-dir _build \
   -cflags -g,-I,$(LLVM_OCAML_LIB),-I,$(EXTRACTION_LIB) \
   -lflags -g,-I,$(LLVM_OCAML_LIB),-I,$(EXTRACTION_LIB),-cclib,-lffi,-cclib,-L$(LLVM_LIB)
 
@@ -14,22 +14,13 @@ CMAS:=Extraction/ssa_lib.cma \
 
 CMXAS:=$(CMAS:.cma=.cmxa)
 
-all: coq ocamllib ocamlexe
-
-
-coq:
+all: 
 	+make -C ./ssa
 	+make -C ./TV
 	+make -C ./Extraction
-
-ocamllib: coq
-	ocamlbuild -I Extraction $(OCAMLBUILD_OPT) $(CMAS)
-	ocamlbuild -I Extraction $(OCAMLBUILD_OPT) $(CMXAS)
-
-ocamlexe: ocamllib
-	ocamlbuild $(OCAMLBUILD_OPT) Parser/main.$(OUTPUT_TYPE)
+	ocamlbuild $(OCAMLBUILD_OPT) $(CMAS) $(CMXAS)
+	ocamlbuild $(OCAMLBUILD_OPT) Parser/main.d.byte
 	ocamlbuild -Is Parser $(OCAMLBUILD_OPT) Interpreter/main.$(OUTPUT_TYPE)
-	ocamlbuild -Is Parser $(OCAMLBUILD_OPT) TV/main.d.byte
 
 clean:
 	+make -C ./ssa clean
@@ -40,4 +31,4 @@ clean:
 ocamlclean:
 	ocamlbuild -clean
 
-.PHONY: all coq ocamllib ocamlexe clean ocamlclean
+.PHONY: all clean ocamlclean

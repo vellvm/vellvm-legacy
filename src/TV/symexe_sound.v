@@ -629,10 +629,10 @@ Proof.
       apply binds_se_cmds__prefix_last with (c:=c)(nc:=nc)(i0:=getCmdID c) in Binds; auto.
       destruct Binds as [[EQ Binds] | [nEQ Binds]].
         inversion Binds.
-        rewrite lookupSmap_in with (st0:=st'); auto using _se_cmd_uniq, se_cmds_uniq.
+        rewrite lookupSmap_in with (st0:=st'); auto using se_cmd_uniq_aux, se_cmds_uniq.
  
       rewrite lookupSmap_notin; auto using se_cmds_uniq.
-      rewrite lookupSmap_notin; auto using _se_cmd_uniq,  se_cmds_uniq.
+      rewrite lookupSmap_notin; auto using se_cmd_uniq_aux, se_cmds_uniq.
       assert (J:=@se_cmd_dom_upper (se_cmds (mkSstate nil smem1 sframe1 seffects1) nbs) c nc).
       fsetdec.
 Qed.

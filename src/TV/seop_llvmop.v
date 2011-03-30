@@ -766,10 +766,11 @@ Case "dbCall".
     subst.
     simpl in isCall_false. 
     destruct fv as [fid | cn]; try solve [inversion isCall_false].
-    split; eauto.
+    destruct cn; try solve [inversion isCall_false].
+    split; auto.
       apply SimpleSE.dbLib.
       eapply SimpleSE.callLib__is__correct with (noret:=noret0) (rid:=rid) (rt:=rt).
-        eapply negb_false_iff; auto.
+      eapply negb_false_iff; auto.
         erewrite EQ. eauto.
 
     right. right.
@@ -787,13 +788,15 @@ Case "dbExCall".
     exists (insn_call rid noret0 tailc0 rt fv lp).
     simpl in isCall_false. 
     destruct fv as [fid0 | cn]; try solve [inversion isCall_false].
-    split; eauto.
+    destruct cn; try solve [inversion isCall_false].
+    split; auto.
       apply SimpleSE.dbLib.
       apply negb_false_iff in isCall_false.
-      apply SimpleSE.callLib__is__correct with (noret:=noret0) (rid:=rid) (rt:=rt)
-        (S:=S0)(TD:=(los,nts))(Ps:=Ps0)(cs:=cs)(tmn:=tmn0)(arg:=arg1)(als:=als0)
-        (F:=F0)(B:=block_intro l0 ps cs1 tmn0)(fs:=fs0)(ECs:=ECs) (Mem:=Mem1) (lp:=lp)
-        (lc:=lc0)(gl:=gl0)(oresult:=oresult)(Mem':=Mem')(tailc:=tailc0) in isCall_false.
+      apply SimpleSE.callLib__is__correct with (ft:=t)(noret:=noret0)(rid:=rid)
+        (rt:=rt)(S:=S0)(TD:=(los,nts))(Ps:=Ps0)(cs:=cs)(tmn:=tmn0)(arg:=arg1)
+        (als:=als0)(F:=F0)(B:=block_intro l0 ps cs1 tmn0)(fs:=fs0)(ECs:=ECs) 
+        (Mem:=Mem1)(lp:=lp)(lc:=lc0)(gl:=gl0)(oresult:=oresult)(Mem':=Mem')
+        (tailc:=tailc0) in isCall_false.
       eapply isCall_false.
         apply LLVMopsem.dbExCall with (fid:=fid)(la:=la); auto.
 
@@ -1101,5 +1104,12 @@ Proof.
   eapply J; eauto.
 Qed.
 
+(*****************************)
+(*
+*** Local Variables: ***
+*** coq-prog-name: "coqtop" ***
+*** coq-prog-args: ("-emacs-U" "-I" "~/SVN/sol/vol/src/ssa/monads" "-I" "~/SVN/sol/vol/src/ssa/ott" "-I" "~/SVN/sol/vol/src/ssa/compcert" "-I" "~/SVN/sol/theory/metatheory_8.3") ***
+*** End: ***
+ *)
 
 

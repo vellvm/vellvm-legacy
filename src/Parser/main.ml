@@ -1,7 +1,7 @@
 open Printf
 open Llvm
 
-let debug = true
+let debug = false
 
 let main in_filename out_filename =
 	let ic = create_context () in
@@ -9,10 +9,10 @@ let main in_filename out_filename =
 	let im = Llvm_bitreader.parse_bitcode ic imbuf in
 	let ist = SlotTracker.create_of_module im in
 	
-	dump_module im;
-	Llvm_pretty_printer.travel_module ist im;
+	(* dump_module im; *)
+	(* Llvm_pretty_printer.travel_module ist im; *)
 	let coqim = Llvm2coq.translate_module debug ist im in
-	Coq_pretty_printer.travel_module coqim;
+	(* Coq_pretty_printer.travel_module coqim; *)
 
 	let oc = create_context () in
 	let ombuf = MemoryBuffer.of_file out_filename in
@@ -21,7 +21,10 @@ let main in_filename out_filename =
 
 	let coqom = Llvm2coq.translate_module debug ost om in
 			
-	Coq2llvm.translate_module coqom;
+	(* eprintf "Eq TV=%b\n" (Eq_tv.tv_module coqim coqom); *)
+	eprintf "Sub TV=%b\n" (Sub_tv.tv_module coqim coqom);
+	
+	(* Coq2llvm.translate_module coqom; *)
 	
 	(* write the module to a file *)
 	(* if not (Llvm_bitwriter.write_bitcode_file m out_filename) then exit 1; *)

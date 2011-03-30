@@ -56,13 +56,13 @@ Axiom callLib__is__defined : forall Mem fid gvs,
   callLib Mem fid gvs <> None <-> isCallLib fid = true. 
 
 Axiom callLib__is__correct : 
-  forall Mem fid TD lp lc gl oresult Mem' F B ECs arg tmn cs als Ps fs rid rt S noret tailc,
+  forall Mem ft fid TD lp lc gl oresult Mem' F B ECs arg tmn cs als Ps fs rid rt S noret tailc,
   isCallLib fid = true ->
   (callLib Mem fid (params2GVs TD lp lc gl) = Some (oresult, Mem') <->
   LLVMopsem.dbInsn
     (LLVMopsem.mkState S TD Ps 
       ((LLVMopsem.mkEC F B 
-        ((insn_call rid noret tailc rt (value_id fid) lp)::cs) tmn lc arg als)::ECs) 
+        ((insn_call rid noret tailc rt (value_const (const_gid ft fid)) lp)::cs) tmn lc arg als)::ECs) 
       gl fs Mem)
     (LLVMopsem.mkState S TD Ps 
       ((LLVMopsem.mkEC F B cs tmn 
@@ -70,9 +70,14 @@ Axiom callLib__is__correct :
       gl fs Mem')
     trace_nil).
 
+(* Here, we check which function to call conservatively. In practice, a v1
+ * is a function pointer, we should look up the function name from the 
+ * FunTable. Since the LLVM IR takes function names as function pointers,
+ * if a program does not assign them to be other variables, they should
+ * be the same. *)
 Definition isCall (i:cmd) : bool :=
 match i with
-| insn_call _ _ _ _ (value_id id) _ => negb (isCallLib id)
+| insn_call _ _ _ _ (value_const (const_gid _ fid)) _ => negb (isCallLib fid)
 | insn_call _ _ _ _ _ _ => true
 | _ => false
 end.
@@ -209,12 +214,15 @@ Inductive dbCmd : TargetData -> GVMap ->
     (insn_select id v0 t v1 v2)
     (if isGVZero TD cond then updateAddAL _ lc id gv2 else updateAddAL _ lc id gv1) als Mem
     trace_nil
-| dbLib : forall TD lc gl rid noret tailc fid 
+| dbLib : forall TD lc gl rid noret tailc ft fid 
                           lp rt Mem oresult Mem' als,
+  (* Like isCall, we only consider direct call to libraries. Function pointers
+     are conservatively taken as non-lib. The dbCmd is defined to prove the
+     correctness of TV. So it should be as "weak" as the TV. *)
   callLib Mem fid (params2GVs TD lp lc gl) = Some (oresult, Mem') ->
   dbCmd TD gl
     lc als Mem
-    (insn_call rid noret tailc rt (value_id fid) lp)
+    (insn_call rid noret tailc rt (value_const (const_gid ft fid)) lp)
     (LLVMopsem.exCallUpdateLocals noret rid rt oresult lc) als Mem'
     trace_nil
 .
@@ -437,7 +445,8 @@ Lemma isCall_dec : forall c,
 Proof.
   destruct c; simpl; auto.
     destruct v; simpl; auto.
-      destruct (isCallLib i1); simpl; auto.
+      destruct c; simpl; auto.
+        destruct (isCallLib i1); simpl; auto.
 Qed.
 
 Fixpoint cmds2sbs (cs:cmds) : (list subblock*list nbranch) :=
@@ -762,6 +771,7 @@ Definition se_lib : forall i id0 noret0 tailc0 rt fv lp (st:sstate),
 Proof.
   intros; subst. simpl in H0.
   destruct fv; try solve [inversion H0].
+  destruct c; try solve [inversion H0].
   apply
     (mkSstate (updateAddAL _ st.(STerms) id0 
                 (sterm_lib st.(SMem) i0

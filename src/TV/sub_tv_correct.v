@@ -250,6 +250,7 @@ Proof.
       eapply tv_switchToNewBasicBlock; eauto.
 Qed.
 
+(*
 Lemma tv_products__lookupFdefViaIDFromProducts : 
   forall Ps1 Ps2 fid1 rt la1 lb1,
   tv_products Ps1 Ps2 ->
@@ -303,7 +304,7 @@ Proof.
             apply tv_fid_injective2 with (fid1':=fid2)(fid2':=fid2) in n; auto.
               contradict n; auto.
 Qed.
-(*
+
 Lemma tv_products__lookupFdefViaGV : forall Ps1 Ps2 fv fid1 rt la1 lb1 TD gl lc fs,
   tv_products Ps1 Ps2 ->
   lookupFdefViaGV TD Ps1 gl lc fs fv = Some (fdef_intro (fheader_intro rt fid1 la1) lb1) ->
@@ -426,6 +427,7 @@ Proof.
     apply tv_products__lookupFdecViaIDFromProducts; auto.
 Qed.
 *)
+(*
 Definition tv_dbCall__is__correct_prop S1 TD Ps1 fs gl lc Mem0 call0 lc' Mem' tr
   (db:dbCall S1 TD Ps1 fs gl lc Mem0 call0 lc' Mem' tr) :=
   forall S2 Ps2 los nts,
@@ -1199,7 +1201,7 @@ Proof.
   repeat (split; auto).
     apply seop_dbFdef__llvmop_dbFdef; auto.
 Qed.
-
+*)
 (*****************************)
 (*
 *** Local Variables: ***

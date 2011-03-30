@@ -1,4 +1,0 @@
-<*.{byte,native}>: g++, use_llvm, use_llvm_analysis
-<*.{byte,native}>: use_llvm_executionengine, use_llvm_target, use_llvm_bitreader, use_llvm_bitwriter
-<*.{byte,native}>: use_llvm_scalar_opts, use_bindings
-<*.{byte,native}>: use_coq2llvm, use_coq_pretty_printer, use_eq_tv, use_sub_tv
