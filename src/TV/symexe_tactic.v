@@ -5,8 +5,6 @@ Require Import Coq.Bool.Sumbool.
 Require Import List.
 Require Import ssa_lib.
 Require Import symexe_def.
-Require Import eq_tv.
-Require Import sub_tv.
 
 Export SimpleSE.
 

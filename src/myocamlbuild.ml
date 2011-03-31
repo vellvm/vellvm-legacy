@@ -19,4 +19,4 @@ ocaml_lib ~extern:true "eq_tv";;
 ocaml_lib ~extern:true "sub_tv";;
 
 flag ["link"; "ocaml"; "g++"] (S[A"-cc"; A"g++"]);;
-dep ["link"; "ocaml"; "use_bindings"] ;;
+dep ["link"; "ocaml"; "use_bindings"; "using_sub_tv"; "using_eq_tv"] ;;

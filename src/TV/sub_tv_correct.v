@@ -29,7 +29,882 @@ Require Import symexe_tactic.
 
 Export SimpleSE.
 
-(* Correctness of the cmds validator *)
+(* subAL *)
+
+Definition subAL X lc1 lc2 := 
+  forall i, i `in` dom lc1 -> lookupAL X lc1 i = lookupAL X lc2 i.
+
+Notation "lc1 <<<= lc2" := (subAL _ lc1 lc2) (at level 70, no associativity).
+
+Lemma lookupAL_app1 : forall X (lc1:list (atom*X)) lc2 i,
+  i `in` dom lc1 ->
+  lookupAL X lc1 i = lookupAL X (lc1++lc2) i.
+Proof.
+  induction lc1; intros lc2 i Hi_in_lc1.
+    fsetdec.
+    destruct a as (id, elt); simpl in *.
+    destruct (@eq_dec atom (EqDec_eq_of_EqDec atom EqDec_atom) i id); auto.
+      apply IHlc1. fsetdec.
+Qed.    
+
+Lemma lookupAL_app2 : forall X lc1 (lc2:list (atom*X)) i,
+  i `notin` dom lc1 ->
+  lookupAL X lc2 i = lookupAL X (lc1++lc2) i.
+Proof.
+  induction lc1; intros lc2 i Hi_notin_lc1; auto.
+    destruct a as (id, elt); simpl in *.
+    destruct (@eq_dec atom (EqDec_eq_of_EqDec atom EqDec_atom) i id); subst; eauto.
+      fsetdec.
+Qed.    
+
+Lemma subAL_app1 : forall X (lc1:list (atom*X)) lc2 lc,
+  lc1 <<<= lc ->
+  lc2 <<<= lc ->
+  lc1 ++ lc2 <<<= lc.
+Proof.
+  intros X lc1 lc2 lc Hlc1_sub_lc Hlc2_sub_lc.
+  intros i i_in_lc12.
+  simpl_env in i_in_lc12.
+  apply in_dom_app_inv in i_in_lc12.
+  assert (i `in`  dom lc1 \/ i `notin` dom lc1) as i_in_lc1_dec. fsetdec.
+  destruct i_in_lc1_dec as [i_in_lc1 | i_notin_lc1].
+    rewrite <- Hlc1_sub_lc; auto.
+    rewrite <- lookupAL_app1; auto.
+
+    destruct i_in_lc12 as [i_in_lc1 | i_in_lc2].
+      fsetdec.
+      rewrite <- lookupAL_app2; auto.
+Qed.
+
+Lemma lookupALs_tail : forall X l2b l2b' l0,
+  l0 `notin` dom l2b ->
+  lookupAL X (l2b++l2b') l0 = lookupAL _ l2b' l0.
+Proof.
+  intros.
+  induction l2b; auto.
+    destruct a. simpl in *.
+    destruct (@eq_dec atom (@EqDec_eq_of_EqDec atom EqDec_atom) l0 a); subst; auto.
+      fsetdec.
+Qed.
+
+Lemma subAL_app2 : forall X (lc1:list (atom*X)) lc2 lc,
+  lc1 <<<= lc ->
+  disjoint lc1 lc2 ->
+  ~ lc2 <<<= lc ->
+  ~ lc1 ++ lc2 <<<= lc.
+Proof.
+  intros X lc1 lc2 lc Hlc1_sub_lc Hdisj Hlc2_nsub_lc Hlc12_sub_lc.
+  apply Hlc2_nsub_lc.
+  intros i i_in_lc2.
+    assert (i `notin` dom lc1) as i_notin_lc1. solve_uniq.
+    assert (i `in` dom (lc1++lc2)) as i_in_lc12. simpl_env. fsetdec.
+    apply Hlc12_sub_lc in i_in_lc12.
+    erewrite lookupALs_tail in i_in_lc12; eauto.
+Qed.
+    
+(* subAL *)
+
+Lemma getOperandValue_subAL : forall lc1 gl lc2 v TD gv,
+  subAL _ lc1 lc2 ->
+  getOperandValue TD v lc1 gl = Some gv ->
+  getOperandValue TD v lc1 gl = getOperandValue TD v lc2 gl.
+Proof.
+  intros lc1 gl lc2 v TD gv Hnon_none HeqAL.
+  unfold getOperandValue in *.
+  destruct v; auto.
+    apply lookupAL_Some_indom in HeqAL. eauto.
+Qed.
+
+Lemma subAL_updateAddAL : forall X lc1 lc2 id0 gv0,
+  subAL X lc1 lc2 ->
+  subAL _ (updateAddAL _ lc1 id0 gv0) (updateAddAL _ lc2 id0 gv0).
+Proof.
+  unfold subAL. 
+  intros.
+  rewrite updateAddAL_dom_eq in H0.
+  destruct (id0==i0); subst.
+    rewrite lookupAL_updateAddAL_eq; auto.
+    rewrite lookupAL_updateAddAL_eq; auto.
+
+    assert (i0 `in` dom lc1) as Hi0_in_lc1. fsetdec.
+    assert (J:=H i0 Hi0_in_lc1).
+    erewrite <- lookupAL_updateAddAL_neq; eauto.
+    erewrite <- lookupAL_updateAddAL_neq; eauto.
+Qed.
+
+Lemma subAL_callUpdateLocals : forall TD noret0 rid rt oResult lc1 lc2 gl lc1' lc2',
+  subAL _ lc1 lc1' ->
+  subAL _ lc2 lc2' ->
+  subAL _ (callUpdateLocals TD noret0 rid rt oResult lc1 lc2 gl)
+         (callUpdateLocals TD noret0 rid rt oResult lc1' lc2' gl).
+Proof.
+  intros TD noret0 rid rt oResult lc1 lc2 gl lc1' lc2' H1 H2.
+    unfold callUpdateLocals.
+    destruct noret0; auto.
+      destruct (rt=t=typ_void); auto.
+        destruct oResult; simpl; auto.
+          destruct v; simpl.
+            remember (lookupAL _ lc2 i0) as Lookup.
+            destruct Lookup as [gr | _].
+              rewrite H2 in HeqLookup; eauto using lookupAL_Some_indom.
+              rewrite <- HeqLookup. apply subAL_updateAddAL; auto.
+
+              (* We should prove that if oResult is Some, i0 in lc2. *)
+              admit.
+
+          destruct (const2GV TD gl c); auto using subAL_updateAddAL.
+Qed.
+
+Lemma subAL_refl : forall X lc,
+  subAL X lc lc.
+Proof. unfold subAL. auto. Qed.
+
+Lemma subAL_getIncomingValuesForBlockFromPHINodes : forall TD ps B gl lc lc',
+  subAL _ lc lc' ->
+  getIncomingValuesForBlockFromPHINodes TD ps B gl lc =
+  getIncomingValuesForBlockFromPHINodes TD ps B gl lc'.
+Proof.
+  induction ps; intros; simpl; auto.
+    destruct a; auto.
+    destruct (getValueViaBlockFromValuels l0 B); auto.
+    destruct v; erewrite IHps; eauto.
+      (* We should redefine getIncomingValuesForBlockFromPHINodes to be partial. 
+         If we cannot find any incoming value, we should return None. *)
+      assert (i1 `in` dom lc) as J. admit. 
+      rewrite H; auto.
+Qed.
+
+Lemma subAL_updateValuesForNewBlock : forall vs lc lc',
+  subAL _ lc lc' ->
+  subAL _ (updateValuesForNewBlock vs lc) (updateValuesForNewBlock vs lc').
+Proof.
+  induction vs; intros; simpl; auto.
+    destruct a.
+    destruct o; auto using subAL_updateAddAL.
+Qed.
+
+Lemma subAL_switchToNewBasicBlock : forall TD B1 B2 gl lc lc',
+  subAL _ lc lc' ->
+  subAL _ (switchToNewBasicBlock TD B1 B2 gl lc) (switchToNewBasicBlock TD B1 B2 gl lc').
+Proof.
+  intros.
+  unfold switchToNewBasicBlock.
+  erewrite subAL_getIncomingValuesForBlockFromPHINodes; eauto.
+  apply subAL_updateValuesForNewBlock; auto.
+Qed.
+
+Lemma subAL_exCallUpdateLocals : forall noret0 rid rt oResult lc lc',
+  subAL _ lc lc' ->
+  subAL _ (exCallUpdateLocals noret0 rid rt oResult lc)
+         (exCallUpdateLocals noret0 rid rt oResult lc').
+Proof.
+  intros noret0 rid rt oResult lc lc' H1.
+    unfold exCallUpdateLocals.
+    destruct noret0; auto.
+      destruct (rt=t=typ_void); auto.
+        destruct oResult; simpl; auto using subAL_updateAddAL.
+Qed.
+
+Lemma subAL_lookupExFdecViaGV : forall gl TD Ps lc lc' fs fv gv,
+  subAL _ lc lc' ->
+  lookupExFdecViaGV TD Ps gl lc fs fv = Some gv ->
+  lookupExFdecViaGV TD Ps gl lc fs fv = lookupExFdecViaGV TD Ps gl lc' fs fv.
+Proof.
+  intros.
+  unfold lookupExFdecViaGV in *.
+  assert (exists gv, getOperandValue TD fv lc gl = Some gv) as J.
+    destruct (getOperandValue TD fv lc gl); eauto.
+      inversion H0.
+  destruct J as [gv' J].
+  erewrite getOperandValue_subAL; eauto.
+Qed.
+
+Lemma subAL_lookupExFdefViaGV : forall gl TD Ps lc lc' fs fv gv,
+  subAL _ lc lc' ->
+  lookupFdefViaGV TD Ps gl lc fs fv = Some gv ->
+  lookupFdefViaGV TD Ps gl lc fs fv = lookupFdefViaGV TD Ps gl lc' fs fv.
+Proof.
+  intros.
+  unfold lookupFdefViaGV in *.
+  assert (exists gv, getOperandValue TD fv lc gl = Some gv) as J.
+    destruct (getOperandValue TD fv lc gl); eauto.
+      inversion H0.
+  destruct J as [gv' J].
+  erewrite getOperandValue_subAL; eauto.
+Qed.
+
+Lemma subAL_params2OpGVs : forall lp TD lc gl lc',
+  subAL _ lc lc' ->
+  params2OpGVs TD lp lc gl = params2OpGVs TD lp lc' gl.
+Proof.
+  induction lp; intros; simpl; auto.
+    destruct a.
+    destruct v; simpl.
+      (* We should redefine params2OpGVs to be partial. 
+         If we cannot find any param value, we should return None. *)
+      assert (i0 `in` dom lc) as J. admit. 
+      rewrite H; auto. erewrite IHlp; eauto.
+      erewrite IHlp; eauto.
+Qed.
+
+Lemma subAL_params2GVs : forall lp TD lc gl lc',
+  subAL _ lc lc' ->
+  params2GVs TD lp lc gl = params2GVs TD lp lc' gl.
+Proof.
+  induction lp; intros; simpl; auto.
+    destruct a.
+    unfold params2GVs.
+    erewrite subAL_params2OpGVs; eauto.
+Qed.
+
+Lemma subAL_initLocals : forall la lp TD lc gl lc',
+  subAL _ lc lc' ->
+  subAL _ (initLocals la (params2GVs TD lp lc gl)) (initLocals la (params2GVs TD lp lc' gl)).
+Proof.
+  intros. erewrite subAL_params2GVs; eauto using subAL_refl.
+  (* This lemma will be broken if we fix subAL_params2GVs 
+     The problem is that the Fdef rule should check that params2GVs lp = Some ... *)
+Qed.
+
+Lemma BOP_subAL : forall lc1 gl lc2 bop0 sz0 v1 v2 TD gv,
+  subAL _ lc1 lc2 ->
+  BOP TD lc1 gl bop0 sz0 v1 v2 = Some gv ->
+  BOP TD lc1 gl bop0 sz0 v1 v2 = BOP TD lc2 gl bop0 sz0 v1 v2.
+Proof.
+  intros lc1 gl lc2 bop0 sz0 v1 v2 TD gv HsubEnv Hsome.
+  apply BOP_inversion in Hsome.
+  destruct Hsome as [gv1 [gv2 [Hsome1 [Hsome2 _]]]].
+  unfold BOP in *.
+  erewrite getOperandValue_subAL with (lc2:=lc2)(v:=v1); eauto.
+  erewrite getOperandValue_subAL with (lc2:=lc2)(v:=v2); eauto.
+Qed.
+
+Lemma FBOP_subAL : forall lc1 gl lc2 fbop0 fp0 v1 v2 TD gv,
+  subAL _ lc1 lc2 ->
+  FBOP TD lc1 gl fbop0 fp0 v1 v2 = Some gv ->
+  FBOP TD lc1 gl fbop0 fp0 v1 v2 = FBOP TD lc2 gl fbop0 fp0 v1 v2.
+Proof.
+  intros lc1 gl lc2 fbop0 fp0 v1 v2 TD gv HsubEnv Hsome.
+  apply FBOP_inversion in Hsome.
+  destruct Hsome as [gv1 [gv2 [Hsome1 [Hsome2 _]]]].
+  unfold FBOP in *.
+  rewrite getOperandValue_subAL with (lc2:=lc2)(v:=v1)(gv:=gv1); auto.
+  rewrite getOperandValue_subAL with (lc2:=lc2)(v:=v2)(gv:=gv2); auto.
+Qed.
+
+Lemma getOperandPtr_subAL : forall lc1 gl lc2 v TD gv,
+  subAL _ lc1 lc2 ->
+  getOperandPtr TD v lc1 gl = Some gv ->
+  getOperandPtr TD v lc1 gl = getOperandPtr TD v lc2 gl.
+Proof.
+  intros lc1 gl lc2 v TD gv HsubEnv Hsome.
+  apply getOperandPtr_inversion in Hsome.
+  destruct Hsome as [gv0 [Hsome _]].
+  unfold getOperandPtr in *.
+  erewrite getOperandValue_subAL; eauto.
+Qed.
+
+Lemma getOperandInt_subAL : forall lc1 gl lc2 sz v TD gv,
+  subAL _ lc1 lc2 ->
+  getOperandInt TD sz v lc1 gl = Some gv ->
+  getOperandInt TD sz v lc1 gl = getOperandInt TD sz v lc2 gl.
+Proof.
+  intros lc1 gl lc2 sz0 v TD gv HsubAL Hsome.
+  apply getOperandInt_inversion in Hsome.
+  destruct Hsome as [gv0 [Hsome _]].
+  unfold getOperandInt in *.
+  erewrite getOperandValue_subAL; eauto.
+Qed.
+
+Lemma getOperandPtrInBits_subAL : forall lc1 gl lc2 sz v TD gv,
+  subAL _ lc1 lc2 ->
+  getOperandValue TD v lc1 gl = Some gv ->
+  getOperandPtrInBits TD sz v lc1 gl = getOperandPtrInBits TD sz v lc2 gl.
+Proof.
+  intros lc1 gl lc2 sz0 v TD gv HsubAL Hsome.
+  unfold getOperandPtrInBits in *.
+  erewrite getOperandValue_subAL; eauto.
+Qed.
+
+Lemma CAST_subAL : forall lc1 gl lc2 op t1 v1 t2 TD gv,
+  subAL _ lc1 lc2 ->
+  CAST TD lc1 gl op t1 v1 t2 = Some gv ->
+  CAST TD lc1 gl op t1 v1 t2 = CAST TD lc2 gl op t1 v1 t2.
+Proof.
+  intros lc1 gl lc2 op t1 v1 t2 TD gv HsubAL Hsome.
+  apply CAST_inversion in Hsome.
+  destruct Hsome as [gv1 [Hsome _]].
+  unfold CAST in *.
+  rewrite getOperandValue_subAL with (lc2:=lc2)(v:=v1)(gv:=gv1); auto.
+Qed.
+
+Lemma TRUNC_subAL : forall lc1 gl lc2 op t1 v1 t2 TD gv,
+  subAL _ lc1 lc2 ->
+  TRUNC TD lc1 gl op t1 v1 t2 = Some gv ->
+  TRUNC TD lc1 gl op t1 v1 t2 = TRUNC TD lc2 gl op t1 v1 t2.
+Proof.
+  intros lc1 gl lc2 op t1 v1 t2 TD gv HsubAL Hsome.
+  apply TRUNC_inversion in Hsome.
+  destruct Hsome as [gv1 [Hsome _]].
+  unfold TRUNC in *.
+  rewrite getOperandValue_subAL with (lc2:=lc2)(v:=v1)(gv:=gv1); auto.
+Qed.
+
+Lemma EXT_subAL : forall lc1 gl lc2 op t1 v1 t2 TD gv,
+  subAL _ lc1 lc2 ->
+  EXT TD lc1 gl op t1 v1 t2 = Some gv ->
+  EXT TD lc1 gl op t1 v1 t2 = EXT TD lc2 gl op t1 v1 t2.
+Proof.
+  intros lc1 gl lc2 op t1 v1 t2 TD gv HsubAL Hsome.
+  apply EXT_inversion in Hsome.
+  destruct Hsome as [gv1 [Hsome _]].
+  unfold EXT in *.
+  rewrite getOperandValue_subAL with (lc2:=lc2)(v:=v1)(gv:=gv1); auto.
+Qed.
+
+Lemma ICMP_subAL : forall lc1 gl lc2 cond t v1 v2 TD gv,
+  subAL _ lc1 lc2 ->
+  ICMP TD lc1 gl cond t v1 v2 = Some gv ->
+  ICMP TD lc1 gl cond t v1 v2 = ICMP TD lc2 gl cond t v1 v2.
+Proof.
+  intros lc1 gl lc2 cond0 t v1 v2 TD gv HsubAL Hsome.
+  apply ICMP_inversion in Hsome.
+  destruct Hsome as [gv1 [gv2 [Hsome1 [Hsome2 _]]]].
+  unfold ICMP in *.
+  rewrite getOperandValue_subAL with (lc2:=lc2)(v:=v1)(gv:=gv1); auto.
+  rewrite getOperandValue_subAL with (lc2:=lc2)(v:=v2)(gv:=gv2); auto.
+Qed.
+
+Lemma FCMP_subAL : forall lc1 gl lc2 cond fp v1 v2 TD gv,
+  subAL _ lc1 lc2 ->
+  FCMP TD lc1 gl cond fp v1 v2 = Some gv ->
+  FCMP TD lc1 gl cond fp v1 v2 = FCMP TD lc2 gl cond fp v1 v2.
+Proof.
+  intros lc1 gl lc2 cond0 fp v1 v2 TD gv HsubAL Hsome.
+  apply FCMP_inversion in Hsome.
+  destruct Hsome as [gv1 [gv2 [Hsome1 [Hsome2 _]]]].
+  unfold FCMP in *.
+  rewrite getOperandValue_subAL with (lc2:=lc2)(v:=v1)(gv:=gv1); auto.
+  rewrite getOperandValue_subAL with (lc2:=lc2)(v:=v2)(gv:=gv2); auto.
+Qed.
+
+Lemma intValues2Nats_subAL : forall l0 lc1 gl lc2 TD zs,
+  subAL _ lc1 lc2 ->
+  intValues2Nats TD l0 lc1 gl = Some zs ->
+  intValues2Nats TD l0 lc1 gl = intValues2Nats TD l0 lc2 gl.
+Proof.
+  induction l0; intros lc1 gl lc2 TD zs HsubAL Hsome; simpl in *; auto.
+    assert (exists gv, getOperandValue TD v lc1 gl = Some gv) as J.
+      destruct (getOperandValue TD v lc1 gl); eauto.
+        inversion Hsome.
+    destruct J as [gv J].
+    erewrite getOperandValue_subAL with (lc2:=lc2)(v:=v); eauto.
+      rewrite J in Hsome.
+      destruct (GV2int TD Size.ThirtyTwo gv); try solve [inversion Hsome].
+      assert (exists zs', intValues2Nats TD l0 lc1 gl = Some zs') as J'.
+        destruct (intValues2Nats TD l0 lc1 gl); eauto.
+      destruct J' as [gv' J'].
+      erewrite IHl0; eauto.
+Qed.
+
+Lemma values2GVs_subAL : forall l0 lc1 gl lc2 TD gvs,
+  subAL _ lc1 lc2 ->
+  values2GVs TD l0 lc1 gl = Some gvs ->
+  values2GVs TD l0 lc1 gl = values2GVs TD l0 lc2 gl.
+Proof.
+  induction l0; intros lc1 gl lc2 TD gvs HsubAL Hsome; simpl in *; auto.
+    assert (exists gv, getOperandValue TD v lc1 gl = Some gv) as J.
+      destruct (getOperandValue TD v lc1 gl); eauto.
+        inversion Hsome.
+    destruct J as [gv J].
+    erewrite getOperandValue_subAL with (lc2:=lc2)(v:=v); eauto.
+      rewrite J in Hsome.
+      assert (exists gvs', values2GVs TD l0 lc1 gl = Some gvs') as J'.
+        destruct (values2GVs TD l0 lc1 gl); eauto.
+      destruct J' as [gvs' J'].
+      erewrite IHl0; eauto.
+Qed.
+
+(* subEnv *)
+
+Lemma dbCmd_subEnv : forall TD c lc1 als1 gl Mem1 lc2 als2 Mem2 tr lc1',
+  dbCmd TD gl lc1 als1 Mem1 c lc2 als2 Mem2 tr ->
+  subAL _ lc1 lc1' ->
+  exists lc2', 
+    dbCmd TD gl lc1' als1 Mem1 c lc2' als2 Mem2 tr /\
+    subAL _ lc2 lc2'.
+Proof.
+  intros TD c lc1 als1 gl Mem1 lc2 als2 Mem2 tr lc1' HdbCmd HsubEnv.
+  (dbCmd_cases (inversion HdbCmd) Case); subst.
+Case "dbBop".
+  assert (HupdateEnv:=HsubEnv).
+  exists (updateAddAL _ lc1' id0 gv3).
+  erewrite BOP_subAL with (lc2:=lc1') in H; eauto.
+  split; eauto using subAL_updateAddAL.
+
+Case "dbFBop".
+  assert (HupdateEnv:=HsubEnv).
+  exists (updateAddAL _ lc1' id0 gv3).
+  erewrite FBOP_subAL with (lc2:=lc1') in H; eauto.
+  split; eauto using subAL_updateAddAL.
+
+Case "dbExtractValue".
+  assert (HupdateEnv:=HsubEnv).
+  exists (updateAddAL _ lc1' id0 gv').
+  erewrite getOperandValue_subAL with (lc2:=lc1') in H; eauto. 
+  split; eauto using subAL_updateAddAL.
+  
+Case "dbInsertValue".
+  assert (HupdateEnv:=HsubEnv).
+  exists (updateAddAL _ lc1' id0 gv'').
+  erewrite getOperandValue_subAL with (lc2:=lc1') in H; eauto. 
+  erewrite getOperandValue_subAL with (lc2:=lc1') in H0; eauto. 
+  split; eauto using subAL_updateAddAL.
+
+Case "dbMalloc".
+  assert (HupdateEnv:=HsubEnv).
+  exists (updateAddAL _ lc1' id0 (blk2GV TD mb)).
+  erewrite getOperandValue_subAL with (lc2:=lc1') in H0; eauto. 
+  split; eauto using subAL_updateAddAL.
+
+Case "dbFree".
+  exists lc1'.
+  erewrite getOperandValue_subAL with (lc2:=lc1') in H; eauto. 
+
+Case "dbAlloca".
+  assert (HupdateEnv:=HsubEnv).
+  exists (updateAddAL _ lc1' id0 (blk2GV TD mb)).
+  erewrite getOperandValue_subAL with (lc2:=lc1') in H0; eauto. 
+  split; eauto using subAL_updateAddAL.
+
+Case "dbLoad".
+  assert (HupdateEnv:=HsubEnv).
+  exists (updateAddAL _ lc1' id0 gv).
+  erewrite getOperandValue_subAL with (lc2:=lc1') in H; eauto. 
+  split; eauto using subAL_updateAddAL.
+
+Case "dbStore".
+  exists lc1'.
+  erewrite getOperandValue_subAL with (lc2:=lc1') in H; eauto. 
+  erewrite getOperandValue_subAL with (lc2:=lc1') in H0; eauto. 
+
+Case "dbGEP".
+  assert (HupdateEnv:=HsubEnv).
+  exists (updateAddAL _ lc1' id0 mp').
+  erewrite getOperandValue_subAL with (lc2:=lc1') in H; eauto. 
+  erewrite values2GVs_subAL with (lc2:=lc1') in H0; eauto. 
+(* rewrite GEP_eqAL with (lc2:=lc1') in H0; auto. *)
+  split; eauto using subAL_updateAddAL.
+
+Case "dbTrunc".
+  assert (HupdateEnv:=HsubEnv).
+  exists (updateAddAL _ lc1' id0 gv2).
+  erewrite TRUNC_subAL with (lc2:=lc1') in H; eauto.
+  split; eauto using subAL_updateAddAL.
+
+Case "dbExt".
+  assert (HupdateEnv:=HsubEnv).
+  exists (updateAddAL _ lc1' id0 gv2).
+  erewrite EXT_subAL with (lc2:=lc1') in H; eauto.
+  split; eauto using subAL_updateAddAL.
+
+Case "dbCast".
+  assert (HupdateEnv:=HsubEnv).
+  exists (updateAddAL _ lc1' id0 gv2).
+  erewrite CAST_subAL with (lc2:=lc1') in H; eauto.
+  split; eauto using subAL_updateAddAL.
+
+Case "dbIcmp".
+  assert (HupdateEnv:=HsubEnv).
+  exists (updateAddAL _ lc1' id0 gv3).
+  erewrite ICMP_subAL with (lc2:=lc1') in H; eauto.
+  split; eauto using subAL_updateAddAL.
+
+Case "dbFcmp".
+  assert (HupdateEnv:=HsubEnv).
+  exists (updateAddAL _ lc1' id0 gv3).
+  erewrite FCMP_subAL with (lc2:=lc1') in H; eauto.
+  split; eauto using subAL_updateAddAL.
+
+Case "dbSelect".
+  erewrite getOperandValue_subAL with (lc2:=lc1') in H; eauto. 
+  erewrite getOperandValue_subAL with (lc2:=lc1') in H0; eauto. 
+  erewrite getOperandValue_subAL with (lc2:=lc1') in H1; eauto. 
+  assert (HupdateEnv:=HsubEnv).
+  exists (if isGVZero TD cond0 then updateAddAL _ lc1' id0 gv2 else updateAddAL _ lc1' id0 gv1).
+  split; auto.
+    destruct (isGVZero TD cond0); auto using subAL_updateAddAL.
+
+Case "dbLib".
+  admit.
+Qed.
+
+Lemma dbCmds_subEnv : forall TD cs lc1 als1 gl Mem1 lc2 als2 Mem2 tr lc1',
+  dbCmds TD gl lc1 als1 Mem1 cs lc2 als2 Mem2 tr ->
+  subAL _ lc1 lc1' ->
+  exists lc2', 
+    dbCmds TD gl lc1' als1 Mem1 cs lc2' als2 Mem2 tr /\
+    subAL _ lc2 lc2'.
+Proof.
+  intros TD cs lc1 als1 gl Mem1 lc2 als2 Mem2 tr lc1' HdbCmds HsubEnv.
+  generalize dependent lc1'.
+  induction HdbCmds; intros.
+    exists lc1'. split; auto.
+
+    apply dbCmd_subEnv with (lc1':=lc1') in H; auto.
+    destruct H as [lc2' [HdbCmd HsubEnv']].
+    apply IHHdbCmds in HsubEnv'; auto.
+    destruct HsubEnv' as [lc3' [HdbCmds' HsubEnv'']].
+    exists lc3'.
+    split; eauto.
+Qed.
+
+Lemma dbTerminator_subEnv : forall TD F gl lc1 tmn lc2 tr lc1' B B',
+  dbTerminator TD F gl B lc1 tmn B' lc2 tr ->
+  subAL _ lc1 lc1' ->
+  exists lc2',
+    dbTerminator TD F gl B lc1' tmn B' lc2' tr /\
+    subAL _ lc2 lc2'.
+Proof.
+  intros TD F gl lc1 tmn lc2 tr lc1' B B' HdbTerminator HsubAL.
+  inversion HdbTerminator; subst.
+    exists (switchToNewBasicBlock TD (block_intro l' ps' sbs' tmn') B gl lc1').
+    split.
+      apply dbBranch with (c:=c); auto.
+        erewrite <- getOperandValue_subAL; eauto.
+      apply subAL_switchToNewBasicBlock; auto.     
+  
+    exists (switchToNewBasicBlock TD (block_intro l' ps' sbs' tmn') B gl lc1').
+    split.
+      apply dbBranch_uncond; auto.
+      apply subAL_switchToNewBasicBlock; auto.
+Qed.     
+
+Definition dbCall_subEnv_prop S TD Ps fs gl lc1 Mem0 call0 lc2 Mem' tr
+  (db:dbCall S TD Ps fs gl lc1 Mem0 call0 lc2 Mem' tr) := 
+  forall lc1',
+  subAL _ lc1 lc1' ->
+  exists lc2',
+    dbCall S TD Ps fs gl lc1' Mem0 call0 lc2' Mem' tr /\
+    subAL _ lc2 lc2'.
+Definition dbSubblock_subEnv_prop S TD Ps fs gl lc1 als Mem cs lc2 als' Mem' tr
+  (db:dbSubblock S TD Ps fs gl lc1 als Mem cs lc2 als' Mem' tr) :=
+  forall lc1',
+  subAL _ lc1 lc1' ->
+  exists lc2',
+    dbSubblock S TD Ps fs gl lc1' als Mem cs lc2' als' Mem' tr /\
+    subAL _ lc2 lc2'.
+Definition dbSubblocks_subEnv_prop S TD Ps fs gl lc1 als Mem cs lc2 als' Mem' tr
+  (db:dbSubblocks S TD Ps fs gl lc1 als Mem cs lc2 als' Mem' tr) :=
+  forall lc1',
+  subAL _ lc1 lc1' ->
+  exists lc2',
+    dbSubblocks S TD Ps fs gl lc1' als Mem cs lc2' als' Mem' tr /\
+    subAL _ lc2 lc2'.
+Definition dbBlock_subEnv_prop S TD Ps fs gl F arg state1 state2 tr
+  (db:dbBlock S TD Ps fs gl F arg state1 state2 tr) :=
+  forall B1 lc1 als Mem B1' lc2 als' Mem' lc1',
+  state1 = mkState (mkEC B1 lc1 als) Mem ->
+  state2 = mkState (mkEC B1' lc2 als') Mem' ->
+  subAL _ lc1 lc1' ->
+  exists lc2',
+    dbBlock S TD Ps fs gl F arg 
+     (mkState (mkEC B1 lc1' als) Mem) 
+     (mkState (mkEC B1' lc2' als') Mem') 
+     tr /\
+    subAL _ lc2 lc2'.
+Definition dbBlocks_subEnv_prop S TD Ps fs gl F lp state1 state2 tr
+  (db:dbBlocks S TD Ps fs gl F lp state1 state2 tr) :=
+  forall B1 lc1 als Mem B1' lc2 als' Mem' lc1',
+  state1 = mkState (mkEC B1 lc1 als) Mem ->
+  state2 = mkState (mkEC B1' lc2 als') Mem' ->
+  subAL _ lc1 lc1' ->
+  exists lc2',
+    dbBlocks S TD Ps fs gl F lp 
+     (mkState (mkEC B1 lc1' als) Mem) 
+     (mkState (mkEC B1' lc2' als') Mem') 
+     tr /\
+    subAL _ lc2 lc2'.
+Definition dbFdef_subEnv_prop fv rt lp S TD Ps lc1 gl fs Mem lc2 als' Mem' B' Rid oResult tr
+  (db:dbFdef fv rt lp S TD Ps lc1 gl fs Mem lc2 als' Mem' B' Rid oResult tr) :=
+  forall fid la lb lc1',
+  lookupFdefViaGV TD Ps gl lc1 fs fv = Some (fdef_intro (fheader_intro rt fid la) lb) ->
+  subAL _ lc1 lc1' ->
+  exists lc2',
+    dbFdef fv rt lp S TD Ps lc1' gl fs Mem lc2' als' Mem' B' Rid oResult tr /\
+    subAL _ lc2 lc2'.
+
+Lemma db_subEnv :
+  (forall S TD Ps fs gl lc Mem0 call0 lc' Mem' tr db, 
+     dbCall_subEnv_prop S TD Ps fs gl lc Mem0 call0 lc' Mem' tr db) /\
+  (forall S TD Ps fs gl lc als Mem sb lc' als' Mem' tr db,
+     dbSubblock_subEnv_prop S TD Ps fs gl lc als Mem sb lc' als' Mem' tr db) /\
+  (forall S TD Ps fs gl lc als Mem sbs lc' als' Mem' tr db,
+     dbSubblocks_subEnv_prop S TD Ps fs gl lc als Mem sbs lc' als' Mem' tr db) /\
+  (forall S TD Ps fs gl F arg state1 state2 tr db,
+     dbBlock_subEnv_prop S TD Ps fs gl F arg state1 state2 tr db) /\
+  (forall S TD Ps fs gl F lp state1 state2 tr db,
+     dbBlocks_subEnv_prop S TD Ps fs gl F lp state1 state2 tr db) /\
+  (forall fid rt lp S TD Ps lc gl fs Mem lc' als' Mem' B' Rid oResult tr db,
+     dbFdef_subEnv_prop fid rt lp S TD Ps lc gl fs Mem lc' als' Mem' B' Rid oResult tr db).
+Proof.
+(db_mutind_cases
+  apply db_mutind with
+    (P  := dbCall_subEnv_prop)
+    (P0 := dbSubblock_subEnv_prop)
+    (P1 := dbSubblocks_subEnv_prop)
+    (P2 := dbBlock_subEnv_prop)
+    (P3 := dbBlocks_subEnv_prop)
+    (P4 := dbFdef_subEnv_prop) Case);
+  unfold dbCall_subEnv_prop, 
+         dbSubblock_subEnv_prop, dbSubblocks_subEnv_prop,
+         dbBlock_subEnv_prop, dbBlocks_subEnv_prop,
+         dbFdef_subEnv_prop; intros; subst; auto.
+Case "dbCall_internal".
+  inversion d; subst.
+    apply H with (lc1':=lc1') in H1; auto. clear H.
+    destruct H1 as [lc2' [HdbBlocks HeqEnv]].
+    exists (callUpdateLocals TD noret0 rid rt (Some Result) lc1' lc2' gl).
+    split; eauto using dbCall_internal, subAL_callUpdateLocals.
+
+    apply H with (lc1':=lc1') in H1; auto. clear H.
+    destruct H1 as [lc2' [HdbBlocks HeqEnv]].
+    exists (callUpdateLocals TD noret0 rid rt None lc1' lc2' gl).
+    split; eauto using dbCall_internal, subAL_callUpdateLocals.
+
+Case "dbCall_external".
+  exists (exCallUpdateLocals noret0 rid rt oresult lc1').
+  split; eauto using subAL_exCallUpdateLocals.
+    eapply dbCall_external; eauto.
+      erewrite <- subAL_lookupExFdecViaGV; eauto.
+    rewrite <- subAL_params2GVs with (lc:=lc); auto.
+
+Case "dbSubblock_intro".
+  apply dbCmds_subEnv with (lc1':=lc1') in d; auto.
+  destruct d as [lc2' [HdbCmds HsubEnv2]].
+  apply H in HsubEnv2. clear H.
+  destruct HsubEnv2 as [lc3' [HdbCall HsubEnv3]].
+  exists lc3'.
+  split; eauto.
+
+Case "dbSubblocks_nil".
+  exists lc1'. split; auto.
+ 
+Case "dbSubblocks_cons".
+  apply H in H1. clear H.
+  destruct H1 as [lc2' [HdbSubblock Heq2]].
+  apply H0 in Heq2. clear H0.
+  destruct Heq2 as [lc3' [HdbSubblocks Heq3]].
+  exists lc3'. split; eauto.
+
+Case "dbBlock_intro".
+  inversion H0; subst. clear H0.
+  inversion H1; subst. clear H1.
+  apply H in H2. clear H.
+  destruct H2 as [lc2' [HdbSubblocks Heq2]].
+  apply dbCmds_subEnv with (lc1':=lc2') in d0; auto.
+  destruct d0 as [lc3' [HdbCmds Heq3]].
+  apply dbTerminator_subEnv with (lc1':=lc3') in d1; auto.
+  destruct d1 as [lc5' [HdbTerminator Heq5]].
+  exists lc5'. split; eauto.
+
+Case "dbBlocks_nil".
+  inversion H0; subst. clear H0.
+  exists lc1'. split; auto.
+ 
+Case "dbBlocks_cons".
+  inversion d; subst.
+  apply H with (B1:=block_intro l0 ps (cs++cs') tmn)(als0:=als)(Mem:=Mem0) 
+               (B1':=B')(als':=als3)(Mem':=Mem3)(lc3:=lc5) in H3; auto.
+  clear H.
+  destruct H3 as [lc5' [HdbBlock Heq5]].
+  apply H0 with (als'0:=als')(als:=als3)(Mem:=Mem3)(Mem'0:=Mem')(lc3:=lc2)(B1:=B')(B1'0:=B1') in Heq5; auto.
+  clear H0.
+  destruct Heq5 as [lc2' [HdbBlocks Heq2]].
+  exists lc2'. split; eauto.
+
+Case "dbFdef_func".
+  rewrite e in H1. inversion H1; subst. clear H1.
+  assert (J:=@subAL_initLocals la0 lp TD lc gl lc1' H2).
+  apply H with (B1:=block_intro l1 ps1 cs1 tmn1)(als:=nil)(Mem:=Mem0)(lc3:=lc1)
+               (B1':=block_intro l2 ps2 (cs21++cs22) (insn_return rid rt Result))(als':=als1)(Mem':=Mem1) in J; auto.
+  clear H. destruct J as [lc2' [HdbBlocks Hsub2]].
+  rewrite subAL_params2GVs with (lc':=lc1') in HdbBlocks; eauto.
+  apply H0 in Hsub2. clear H0.
+  destruct Hsub2 as [lc3' [Hsubblocks Hsub3]].
+  apply dbCmds_subEnv with (lc1':=lc3') in d1; auto.
+  destruct d1 as [lc4' [HdbCmds Hsub4]].
+  exists lc4'. split; eauto.
+    eapply dbFdef_func; eauto.
+      erewrite <- subAL_lookupExFdefViaGV; eauto.
+
+Case "dbFdef_proc".
+  rewrite e in H1. inversion H1; subst. clear H1.
+  assert (J:=@subAL_initLocals la0 lp TD lc gl lc1' H2).
+  apply H with (B1:=block_intro l1 ps1 cs1 tmn1)(als:=nil)(Mem:=Mem0)(lc3:=lc1)
+               (B1':=block_intro l2 ps2 (cs21++cs22) (insn_return_void rid))(als':=als1)(Mem':=Mem1) in J; auto.
+  clear H. destruct J as [lc2' [HdbBlocks Hsub2]].
+  rewrite subAL_params2GVs with (lc':=lc1') in HdbBlocks; eauto.
+  apply H0 in Hsub2. clear H0.
+  destruct Hsub2 as [lc3' [Hsubblocks Hsub3]].
+  apply dbCmds_subEnv with (lc1':=lc3') in d1; auto.
+  destruct d1 as [lc4' [HdbCmds Hsub4]].
+  exists lc4'. split; eauto.
+    eapply dbFdef_proc; eauto.
+      erewrite <- subAL_lookupExFdefViaGV; eauto.
+Qed.
+
+Lemma dbCall_subEnv : forall S TD Ps fs gl lc1 Mem0 call0 lc2 Mem' tr lc1',
+  dbCall S TD Ps fs gl lc1 Mem0 call0 lc2 Mem' tr ->
+  subAL _ lc1 lc1' ->
+  exists lc2',
+    dbCall S TD Ps fs gl lc1' Mem0 call0 lc2' Mem' tr /\
+    subAL _ lc2 lc2'.
+Proof.
+  intros.
+  destruct db_subEnv as [J _].
+  unfold dbCall_subEnv_prop in J. eauto.
+Qed.
+
+Lemma dbSubblock_subEnv : forall S TD Ps fs gl lc1 als Mem cs lc2 als' Mem' tr lc1',
+  dbSubblock S TD Ps fs gl lc1 als Mem cs lc2 als' Mem' tr ->
+  subAL _ lc1 lc1' ->
+  exists lc2',
+    dbSubblock S TD Ps fs gl lc1' als Mem cs lc2' als' Mem' tr /\
+    subAL _ lc2 lc2'.
+Proof.
+  intros.
+  destruct db_subEnv as [_ [J _]].
+  unfold dbSubblock_subEnv_prop in J. eauto.
+Qed.
+
+Lemma dbSubblocks_subEnv : forall S TD Ps fs gl lc1 als Mem cs lc2 als' Mem' tr lc1',
+  dbSubblocks S TD Ps fs gl lc1 als Mem cs lc2 als' Mem' tr ->
+  subAL _ lc1 lc1' ->
+  exists lc2',
+    dbSubblocks S TD Ps fs gl lc1' als Mem cs lc2' als' Mem' tr /\
+    subAL _ lc2 lc2'.
+Proof.
+  intros.
+  destruct db_subEnv as [_ [_ [J _]]].
+  unfold dbSubblocks_subEnv_prop in J. eauto.
+Qed.
+
+Lemma dbBlock_subEnv : forall S TD Ps fs gl F arg tr B1 lc1 als Mem B1' lc2 als' Mem' lc1',
+  dbBlock S TD Ps fs gl F arg 
+    (mkState (mkEC B1 lc1 als) Mem) 
+    (mkState (mkEC B1' lc2 als') Mem') 
+    tr ->
+  subAL _ lc1 lc1' ->
+  exists lc2',
+    dbBlock S TD Ps fs gl F arg 
+     (mkState (mkEC B1 lc1' als) Mem) 
+     (mkState (mkEC B1' lc2' als') Mem') 
+     tr /\
+    subAL _ lc2 lc2'.
+Proof.
+  intros.
+  destruct db_subEnv as [_ [_ [_ [J _]]]].
+  unfold dbBlock_subEnv_prop in J. eauto.
+Qed.
+
+Lemma dbBlocks_subEnv : forall S TD Ps fs gl F lp tr B1 lc1 als Mem B1' lc2 als' Mem' lc1',
+  dbBlocks S TD Ps fs gl F lp
+    (mkState (mkEC B1 lc1 als) Mem)
+    (mkState (mkEC B1' lc2 als') Mem')
+    tr ->
+  subAL _ lc1 lc1' ->
+  exists lc2',
+    dbBlocks S TD Ps fs gl F lp 
+     (mkState (mkEC B1 lc1' als) Mem) 
+     (mkState (mkEC B1' lc2' als') Mem') 
+     tr /\
+    subAL _ lc2 lc2'.
+Proof.
+  intros.
+  destruct db_subEnv as [_ [_ [_ [_ [J _]]]]].
+  unfold dbBlocks_subEnv_prop in J. eauto.
+Qed.
+
+Lemma dbFdef_subEnv : forall fv fid rt lp S TD Ps lc1 gl fs Mem lc2 als' Mem' B' Rid oResult tr la lb lc1',
+  dbFdef fv rt lp S TD Ps lc1 gl fs Mem lc2 als' Mem' B' Rid oResult tr ->
+  lookupFdefViaGV TD Ps gl lc1 fs fv = Some (fdef_intro (fheader_intro rt fid la) lb) ->
+  subAL _ lc1 lc1' ->
+  exists lc2',
+    dbFdef fv rt lp S TD Ps lc1' gl fs Mem lc2' als' Mem' B' Rid oResult tr /\
+    subAL _ lc2 lc2'.
+Proof.
+  intros.
+  destruct db_subEnv as [_ [_ [_ [_ [_ J]]]]].
+  unfold dbFdef_subEnv_prop in J. eauto.
+Qed.
+
+Definition smap_sub_prop sm1 sm2 := 
+  forall i st1,
+    lookupAL _ sm1 i = Some st1 ->
+    exists st2, lookupAL _ sm2 i = Some st2 /\ tv_sterm st1 st2 = true.
+
+Lemma smap_sub_prop_app1 : forall sm1 sm2 sm,
+  smap_sub_prop sm1 sm ->
+  smap_sub_prop sm2 sm ->
+  smap_sub_prop (sm1 ++ sm2) sm.
+Admitted.
+
+Lemma smap_sub_prop_app3 : forall sm1 sm2 sm,
+  smap_sub_prop (sm1 ++ sm2) sm ->
+  smap_sub_prop sm1 sm ->
+  disjoint sm1 sm2 ->
+  smap_sub_prop sm2 sm.
+Admitted.
+
+Lemma tv_smap__is__correct : forall (sm1 sm2:smap), 
+  uniq sm1 -> (tv_smap sm1 sm2 = true <-> smap_sub_prop sm1 sm2).
+Proof.
+  induction sm1; simpl.  
+    intros. 
+    split; auto. 
+      intros Ht i st1 i_in_nil. inversion i_in_nil. 
+
+    intros sm2 Huniq. 
+    destruct a as [id st1].
+    remember (lookupAL _ sm2 id) as Lookup.
+    destruct Lookup as [st2 | ].
+    Case "id_in_sm2".
+      remember (tv_sterm st1 st2) as B.
+      destruct B; subst; simpl.
+      SCase "st1 = st2".
+        destruct_uniq.
+        simpl_env.
+        assert (smap_sub_prop [(id,st1)] sm2) as Hid_sub_sm2.
+          intros i st Hi_in_dom. simpl in *.
+          destruct (@eq_dec atom (EqDec_eq_of_EqDec atom EqDec_atom) i id);
+            inversion Hi_in_dom; subst.
+            rewrite <- HeqLookup; auto.
+            exists st2. auto. 
+        destruct (@IHsm1 sm2 Huniq) as [J1 J2].
+        split; intro J.
+          apply smap_sub_prop_app1; auto.
+          apply J2. eapply smap_sub_prop_app3; eauto.
+
+      SCase "st1 <> st2".
+        split; intro J. 
+          inversion J.
+          assert (H:=@J id). simpl in H.
+          destruct (@eq_dec atom (EqDec_eq_of_EqDec atom EqDec_atom) id id); auto.  
+            rewrite <- HeqLookup in H. 
+            destruct (@H st1) as [st4 [J1 J2]]; auto.
+            inversion J1; subst.
+            rewrite J2 in HeqB. inversion HeqB.
+
+    Case "id_notin_sm2".
+      split; intro J. 
+        inversion J.
+        assert (H:=@J id). simpl in H.
+        destruct (@eq_dec atom (EqDec_eq_of_EqDec atom EqDec_atom) id id); auto. 
+          rewrite <- HeqLookup in H. 
+          destruct (@H st1) as [st4 [J1 J2]]; auto.
+          inversion J1; subst.
+Qed.
 
 Lemma tv_cmds__is__correct : forall TD nbs nbs' lc1 als1 gl Mem1 lc2 als2 Mem2 tr,
   uniq lc1 ->  
@@ -160,6 +1035,88 @@ Proof.
   split; auto.
 Qed.
  
+
+Definition phinodes_sub_prop (ps1 ps2:phinodes) :=
+  forall i,
+    In i (getPhiNodesIDs ps1) ->
+    lookupPhinode ps1 i = lookupPhinode ps2 i.
+
+Lemma phinodes_sub_prop_app1 : forall ps1 ps2 ps,
+  phinodes_sub_prop ps1 ps -> 
+  phinodes_sub_prop ps2 ps ->
+  phinodes_sub_prop (ps1++ps2) ps.
+Proof.
+Admitted.
+
+Lemma phinodes_sub_prop_app2 : forall ps1 ps2 ps,
+  phinodes_sub_prop ps1 ps -> 
+  phinodes_sub_prop (ps1++ps2) ps ->
+  NoDup (getPhiNodesIDs (ps1++ps2)) ->
+  phinodes_sub_prop ps2 ps.
+Admitted.
+
+Lemma tv_phinodes__is__correct: forall ps1 ps2, 
+  NoDup (getPhiNodesIDs ps1) ->
+  (tv_phinodes ps1 ps2 = true <-> phinodes_sub_prop ps1 ps2).
+Proof.
+  induction ps1; simpl.
+    intros.
+    split; auto.
+      intros Ht id1 Hindom. inversion Hindom.
+
+    intros ps2 Huniq.
+    simpl in Huniq.
+    rewrite_env (nil ++ getPhiNodeID a :: getPhiNodesIDs ps1) in Huniq.
+    assert (Hnotindom:=Huniq).
+    apply NoDup_remove_2 in Hnotindom.
+    assert (Huniq':=Huniq).
+    apply NoDup_remove_1 in Huniq'.
+    simpl_env in *.
+    destruct a as [i1 t1 vs1].
+    remember (lookupPhinode ps2 i1) as Lookup.
+    destruct Lookup as [p2 | _].
+      destruct (@phinode_dec (insn_phi i1 t1 vs1) p2); subst; simpl.
+        assert (phinodes_sub_prop [insn_phi i1 t1 vs1] ps2) as i1_sub_ps2.
+          intros i Hi_in_dom. simpl in *.
+          destruct (@eq_dec id (EqDec_eq_of_EqDec id EqDec_atom) i i1); subst.
+            rewrite <- HeqLookup; auto.
+            fsetdec.
+        destruct (@IHps1 ps2 Huniq') as [J1 J2].
+        simpl_env.
+        split; intro J.
+          apply phinodes_sub_prop_app1; auto.
+          apply J2. 
+          apply phinodes_sub_prop_app2 with (ps1:=[insn_phi i1 t1 vs1]); auto.
+
+        split; intro J. 
+          inversion J.
+          assert (H:=@J i1). simpl in H.
+          destruct (@eq_dec id (EqDec_eq_of_EqDec id EqDec_atom) i1 i1); auto.
+            rewrite <- HeqLookup in H. injection H; auto.
+      split; intro J. 
+        inversion J.
+        assert (H:=@J i1). simpl in H.
+        destruct (@eq_dec id (EqDec_eq_of_EqDec id EqDec_atom) i1 i1); auto.
+          rewrite <- HeqLookup in H.
+          assert (ret (insn_phi i1 t1 vs1) = merror) as F. auto.
+          inversion F.
+Qed.
+
+Lemma NoDup_inv : forall A (l1 l2:list A),
+  NoDup (l1++l2) -> NoDup l1 /\ NoDup l2.
+Proof.
+  induction l1; intros l2 Huniq. auto using NoDup_nil.
+    inversion Huniq; subst.
+    apply IHl1 in H2.
+    destruct H2 as [H21 H22].
+    split; auto.    
+     apply NoDup_cons; auto.
+       intro Ha_in_l1.
+       apply H1.
+         apply in_app_iff; auto.
+Qed.
+
+(*
 Lemma tv_getIncomingValuesForBlockFromPHINodes : forall ps1 TD B1 ps2 B2,
   tv_block B1 B2 ->
   tv_phinodes ps1 ps2 ->
@@ -249,42 +1206,229 @@ Proof.
     apply dbBranch_uncond; auto.
       eapply tv_switchToNewBasicBlock; eauto.
 Qed.
+*)
 
-(*
+Definition products_sub_prop (Ps1 Ps2:products) := forall id1, 
+  In id1 (getProductsIDs Ps1) ->
+  (forall fdec1,
+    lookupFdecViaIDFromProducts Ps1 id1 = Some fdec1 ->
+    exists fdec2,
+      lookupFdecViaIDFromProducts Ps2 (rename_fid id1) = Some fdec2 /\ 
+      tv_fdec fdec1 fdec2 = true)
+  /\
+  (forall fdef1,
+    lookupFdefViaIDFromProducts Ps1 id1 = Some fdef1 ->
+    exists fdef2,
+      lookupFdefViaIDFromProducts Ps2 (rename_fid id1) = Some fdef2 /\ 
+      tv_fdef fdef1 fdef2 = true)
+  /\
+  (forall gv1,
+    lookupGvarViaIDFromProducts Ps1 id1 = Some gv1 ->
+    exists gv2,
+      lookupGvarViaIDFromProducts Ps2 id1 = Some gv2 /\ 
+      sumbool2bool _ _ (gvar_dec gv1 gv2) = true).
+
+Lemma products_sub_prop_app1 : forall Ps1 Ps2 Ps,
+  products_sub_prop Ps1 Ps -> 
+  products_sub_prop Ps2 Ps ->
+  products_sub_prop (Ps1++Ps2) Ps.
+Admitted.
+
+Lemma products_sub_prop_app2 : forall Ps1 Ps2 Ps,
+  products_sub_prop Ps1 Ps -> 
+  products_sub_prop (Ps1++Ps2) Ps ->
+  NoDup (getProductsIDs (Ps1++Ps2)) ->
+  products_sub_prop Ps2 Ps.
+Admitted.
+
+Lemma tv_products__is__correct: forall Ps1 Ps2, 
+  NoDup (getProductsIDs Ps1) ->
+  (tv_products Ps1 Ps2 = true <-> products_sub_prop Ps1 Ps2).
+Proof.
+  induction Ps1; simpl.
+    intros.
+    split; auto.
+      intros Ht id1 Hindom. inversion Hindom.
+
+    intros Ps2 Huniq.
+    simpl in Huniq.
+    rewrite_env (nil ++ getProductID a :: getProductsIDs Ps1) in Huniq.
+    assert (Hnotindom:=Huniq).
+    apply NoDup_remove_2 in Hnotindom.
+    assert (Huniq':=Huniq).
+    apply NoDup_remove_1 in Huniq'.
+    simpl_env in *.
+    destruct a as [g1 | f1 | f1].
+    Case "gvar".
+      remember (lookupGvarViaIDFromProducts Ps2 (getGvarID g1)) as Lookup.
+      destruct Lookup as [g2 | ].
+      SCase "gid in Ps2".
+        destruct (gvar_dec g1 g2); subst.
+        SSCase "g1 = g2".
+          assert (products_sub_prop [product_gvar g2] Ps2) as Hg2_sub_Ps2.
+            intros i Hi_in_dom. simpl. 
+            repeat split; try solve [intros a Hlookup; inversion Hlookup].
+            intros gv1 Hlookup.
+            destruct (@eq_dec id (EqDec_eq_of_EqDec id EqDec_atom) (getGvarID g2) i); inversion Hlookup; subst.
+              exists gv1. split; auto.
+              destruct (gvar_dec gv1 gv1); simpl; auto.
+          destruct (@IHPs1 Ps2 Huniq') as [J1 J2].
+          split; intro J.
+            apply products_sub_prop_app1; auto.
+
+            apply J2. 
+            apply products_sub_prop_app2 with (Ps1:=[product_gvar g2]); auto.
+          
+        SSCase "g1 <> g2".
+          split; intro J.
+            inversion J.
+
+            assert (In (getGvarID g1) (getProductsIDs ([product_gvar g1]++Ps1))) 
+              as Hindom. 
+              simpl. auto.
+            assert (H:=@J (getGvarID g1) Hindom). simpl in H.
+            destruct H as [_ [_ H3]].
+            destruct (@eq_dec id (EqDec_eq_of_EqDec id EqDec_atom) (getGvarID g1) (getGvarID g1)) as [e | n']; try solve [contradict n'; auto].
+            destruct (@H3 g1) as [gv2 [J1 J2]]; auto.
+            rewrite <- HeqLookup in J1. inversion J1; subst.
+            destruct (gvar_dec g1 gv2); subst; auto.
+
+      SCase "gid notin Ps2".
+        split; intro J.
+          inversion J.
+
+          assert (In (getGvarID g1) (getProductsIDs ([product_gvar g1]++Ps1))) 
+            as Hindom. 
+            simpl. auto.
+          assert (H:=@J (getGvarID g1) Hindom). simpl in H.
+          destruct H as [H1 [H2 H3]].
+          destruct (@eq_dec id (EqDec_eq_of_EqDec id EqDec_atom) (getGvarID g1) (getGvarID g1)) as [e | n']; try solve [contradict n'; auto].
+          destruct (@H3 g1) as [gv2 [J1 J2]]; auto.       
+          rewrite <- HeqLookup in J1. inversion J1.
+        
+    Case "fdec".
+      remember (lookupFdecViaIDFromProducts Ps2 (rename_fid (getFdecID f1))) as Lookup.
+      destruct Lookup as [f2 | ].
+      SCase "fid in Ps2".
+        remember (tv_fdec f1 f2) as R.
+        destruct R; subst.
+        SSCase "f1 = f2".
+          assert (products_sub_prop [product_fdec f1] Ps2) as Hf2_sub_Ps2.
+            intros i Hi_in_dom. simpl. 
+            repeat split; try solve [intros a Hlookup; inversion Hlookup].
+            intros fdec1 Hlookup.
+            destruct (@eq_dec id (EqDec_eq_of_EqDec id EqDec_atom) (getFdecID f1) i); inversion Hlookup; subst.
+              exists f2. split; auto.
+          destruct (@IHPs1 Ps2 Huniq') as [J1 J2].
+          split; intro J.
+            apply products_sub_prop_app1; auto.
+ 
+            apply J2.
+            apply products_sub_prop_app2 with (Ps1:=[product_fdec f1]); auto.
+          
+        SSCase "f1 <> f2".
+          split; intro J.
+            inversion J.
+
+            assert (In (getFdecID f1) (getProductsIDs ([product_fdec f1]++Ps1))) 
+              as Hindom. 
+              simpl. auto.
+            assert (H:=@J (getFdecID f1) Hindom). simpl in H.
+            destruct H as [H1 _].
+            destruct (@eq_dec id (EqDec_eq_of_EqDec id EqDec_atom) (getFdecID f1) (getFdecID f1)) as [e | n']; try solve [contradict n'; auto].
+            destruct (@H1 f1) as [fdec2 [J1 J2]]; auto.
+            rewrite <- HeqLookup in J1. inversion J1; subst.
+            rewrite J2 in HeqR. inversion HeqR.
+
+      SCase "fid notin Ps2".
+          split; intro J.
+            inversion J.
+
+          assert (In (getFdecID f1) (getProductsIDs ([product_fdec f1]++Ps1))) 
+            as Hindom. 
+            simpl. auto.
+          assert (H:=@J (getFdecID f1) Hindom). simpl in H.
+          destruct H as [H1 ].
+          destruct (@eq_dec id (EqDec_eq_of_EqDec id EqDec_atom) (getFdecID f1) (getFdecID f1)) as [e | n']; try solve [contradict n'; auto].
+          destruct (@H1 f1) as [fdec2 [J1 J2]]; auto.       
+          rewrite <- HeqLookup in J1. inversion J1.
+
+    Case "fdef".
+      remember (lookupFdefViaIDFromProducts Ps2 (rename_fid (getFdefID f1))) as Lookup.
+      destruct Lookup as [f2 | ].
+      SCase "fid in Ps2".
+        remember (tv_fdef f1 f2) as R.
+        destruct R; subst.
+        SSCase "f1 = f2".
+          assert (products_sub_prop [product_fdef f1] Ps2) as Hf2_sub_Ps2.
+            intros i Hi_in_dom. simpl. 
+            repeat split; try solve [intros a Hlookup; inversion Hlookup].
+            intros fdef1 Hlookup.
+            destruct (@eq_dec id (EqDec_eq_of_EqDec id EqDec_atom) (getFdefID f1) i); inversion Hlookup; subst.
+              exists f2. split; auto.
+          destruct (@IHPs1 Ps2 Huniq') as [J1 J2].
+          split; intro J.
+            apply products_sub_prop_app1; auto.
+ 
+            apply J2.
+            apply products_sub_prop_app2 with (Ps1:=[product_fdef f1]); auto.
+          
+        SSCase "f1 <> f2".
+          split; intro J.
+            inversion J.
+
+            assert (In (getFdefID f1) (getProductsIDs ([product_fdef f1]++Ps1))) 
+              as Hindom. 
+              simpl. auto.
+            assert (H:=@J (getFdefID f1) Hindom). simpl in H.
+            destruct H as [_ [H2 _]].
+            destruct (@eq_dec id (EqDec_eq_of_EqDec id EqDec_atom) (getFdefID f1) (getFdefID f1)) as [e | n']; try solve [contradict n'; auto].
+            destruct (@H2 f1) as [fdec2 [J1 J2]]; auto.
+            rewrite <- HeqLookup in J1. inversion J1; subst.
+            rewrite J2 in HeqR. inversion HeqR.
+
+      SCase "fid notin Ps2".
+          split; intro J.
+            inversion J.
+
+          assert (In (getFdefID f1) (getProductsIDs ([product_fdef f1]++Ps1))) 
+            as Hindom. 
+            simpl. auto.
+          assert (H:=@J (getFdefID f1) Hindom). simpl in H.
+          destruct H as [_ [H2 _]].
+          destruct (@eq_dec id (EqDec_eq_of_EqDec id EqDec_atom) (getFdefID f1) (getFdefID f1)) as [e | n']; try solve [contradict n'; auto].
+          destruct (@H2 f1) as [fdef2 [J1 J2]]; auto.       
+          rewrite <- HeqLookup in J1. inversion J1.
+Qed.
+
 Lemma tv_products__lookupFdefViaIDFromProducts : 
   forall Ps1 Ps2 fid1 rt la1 lb1,
-  tv_products Ps1 Ps2 ->
+  tv_products Ps1 Ps2 = true ->
   lookupFdefViaIDFromProducts Ps1 fid1 = Some (fdef_intro (fheader_intro rt fid1 la1) lb1) ->
-  exists fid2, exists la2, exists lb2,
-    lookupFdefViaIDFromProducts Ps2 fid2 = Some (fdef_intro (fheader_intro rt fid2 la2) lb2) /\
-    tv_fid fid1 fid2 = true /\
+  exists la2, exists lb2,
+    lookupFdefViaIDFromProducts Ps2 (rename_fid fid1) = Some (fdef_intro (fheader_intro rt (rename_fid fid1) la2) lb2) /\
     prefix _ la1 la2 /\
     tv_blocks lb1 lb2.
 Proof.
-  induction Ps1; intros.
-    destruct Ps2; inversion H.
-      inversion H0.
+  induction Ps1; intros Ps2 fid1 tr la1 lb1 Htv Hlookup.
+    inversion Hlookup.
 
-    (product_cases (destruct a) Case); simpl in H.
+    (product_cases (destruct a) Case); simpl in Htv, Hlookup.
     Case "product_gvar".
-      destruct Ps2; try solve [inversion H].
-      simpl in H0.
-      destruct p; try solve [inversion H].
-      bdestruct H as H1 H2.
-      apply IHPs1 with (fid1:=fid1)(rt:=rt)(la1:=la1)(lb1:=lb1) in H2; auto.
+      destruct (lookupGvarViaIDFromProducts Ps2 (getGvarID g)); try solve [inversion Htv].
+      bdestruct Htv as H1 H2.
+      apply IHPs1; auto.
  
     Case "product_fdec".
-      destruct Ps2; try solve [inversion H].
-      simpl in H0.
-      destruct p; try solve [inversion H].
-      bdestruct H as H1 H2.
-      apply IHPs1 with (fid1:=fid1)(rt:=rt)(la1:=la1)(lb1:=lb1) in H2; auto.
+      destruct (lookupFdecViaIDFromProducts Ps2 (rename_fid (getFdecID f))); 
+        try solve [inversion Htv].
+      bdestruct Htv as H1 H2.
+      apply IHPs1; auto.
 
     Case "product_fdef".
-      destruct Ps2; try solve [inversion H].
-      destruct p; try solve [inversion H].
-      bdestruct H as H1 H2.    
-      simpl in *.
+      remember (lookupFdefViaIDFromProducts Ps2 (rename_fid (getFdefID f))) as R.
+      destruct R; try solve [inversion Htv].
+      bdestruct Htv as H1 H2.
       destruct f as [[t1 fid10 a1] b1].
       destruct f0 as [[t2 fid20 a2] b2].
       unfold tv_fdef in H1. unfold tv_fheader in H1.
@@ -292,25 +1436,22 @@ Proof.
       sumbool_subst.
       simpl in *.
       destruct (@eq_dec id (EqDec_eq_of_EqDec id EqDec_atom) fid10 fid1); subst.
-        inversion H0. subst. 
-        exists fid20. exists a2. exists b2. split; auto.
-        destruct (@eq_dec id (EqDec_eq_of_EqDec id EqDec_atom) fid20 fid20); auto.
-          contradict n; auto.
+        assert (fid20 = rename_fid fid1) as EQ.
+          symmetry in HeqR.
+          apply lookupFdefViaIDFromProducts_ideq in HeqR; auto.
+        inversion Hlookup. subst. 
+        exists a2. exists b2. split; auto.
 
-        apply IHPs1 with (Ps2:=Ps2) in H0; auto.
-          destruct H0 as [fid2 [la2 [lb2 [J1 [J2 [J3 J4]]]]]].
-          exists fid2. exists la2. exists lb2. split; auto.
-          destruct (@eq_dec id (EqDec_eq_of_EqDec id EqDec_atom) fid20 fid2); subst; auto.
-            apply tv_fid_injective2 with (fid1':=fid2)(fid2':=fid2) in n; auto.
-              contradict n; auto.
+        apply IHPs1 with (Ps2:=Ps2) in Hlookup; auto.
 Qed.
 
-Lemma tv_products__lookupFdefViaGV : forall Ps1 Ps2 fv fid1 rt la1 lb1 TD gl lc fs,
-  tv_products Ps1 Ps2 ->
-  lookupFdefViaGV TD Ps1 gl lc fs fv = Some (fdef_intro (fheader_intro rt fid1 la1) lb1) ->
-  exists fid2, exists la2, exists lb2,
-    lookupFdefViaGV TD Ps2 gl lc fs fv = Some (fdef_intro (fheader_intro rt fid2 la2) lb2) /\
-    tv_fid fid1 fid2 = true /\
+(*
+Lemma tv_products__lookupFdefViaGV : forall Ps1 Ps2 fv1 fid1 rt la1 lb1 TD gl lc fs,
+  tv_products Ps1 Ps2 = true ->
+  lookupFdefViaGV TD Ps1 gl lc fs fv1 = Some (fdef_intro (fheader_intro rt fid1 la1) lb1) ->
+  exists fv2, exists fid2, exists la2, exists lb2,
+    lookupFdefViaGV TD Ps2 gl lc fs fv2 = Some (fdef_intro (fheader_intro rt fid2 la2) lb2) /\
+    rename_fv fv1 fv2 /\
     prefix _ la1 la2 /\
     tv_blocks lb1 lb2.
 Proof.
@@ -324,10 +1465,10 @@ Proof.
 Qed.
 
 Lemma tv_products__lookupFdecViaIDFromProducts : forall Ps1 Ps2 fid,
-  tv_products Ps1 Ps2 ->
-  lookupFdecViaIDFromProducts Ps1 fid = lookupFdecViaIDFromProducts Ps2 fid.
+  tv_products Ps1 Ps2 = true ->
+  lookupFdecViaIDFromProducts Ps1 fid = lookupFdecViaIDFromProducts Ps2 (rename_fid fid).
 Proof.
-  induction Ps1; intros.
+  induction Ps1; intros Ps2 fid Htv.
     destruct Ps2; inversion H; auto.
 
     (product_cases (destruct a) Case); simpl in H.
@@ -355,11 +1496,11 @@ Proof.
 Qed.
 
 Lemma tv_products__lookupFdefViaIDFromProducts_None : forall Ps1 Ps2 fid,
-  tv_products Ps1 Ps2 ->
+  tv_products Ps1 Ps2 = true ->
   lookupFdefViaIDFromProducts Ps1 fid = None ->
-  lookupFdefViaIDFromProducts Ps2 fid = None.
+  lookupFdefViaIDFromProducts Ps2 (rename_fid fid) = None.
 Proof.
-  induction Ps1; intros.
+  induction Ps1; intros Ps2 fid Htv Hlookup.
     destruct Ps2; inversion H; auto.
 
     (product_cases (destruct a) Case); simpl in H.
@@ -427,7 +1568,7 @@ Proof.
     apply tv_products__lookupFdecViaIDFromProducts; auto.
 Qed.
 *)
-(*
+
 Definition tv_dbCall__is__correct_prop S1 TD Ps1 fs gl lc Mem0 call0 lc' Mem' tr
   (db:dbCall S1 TD Ps1 fs gl lc Mem0 call0 lc' Mem' tr) :=
   forall S2 Ps2 los nts,
@@ -676,8 +1817,7 @@ Case "dbSubblocks_cons".
   exists lc3''. split; eauto using eqAL_trans, eqAL_sym.
     admit. admit.
 
-Case "dbBlock_intro". admit.
-(*
+Case "dbBlock_intro".
   intros S TD Ps F tr1 tr2 l0 ps cs cs' tmn gl fs lc1 als1 Mem1 lc2 als2 Mem2 lc3 als3 Mem3 lc4 B' arg0 tr3 d H d0 d1
          S2 Ps2 fh1 lb1 fh2 lb2 B1 lc als Mem0 B1' lc' als' Mem' B2 los nts H0 H1 H2 H3 H4 H5 H6 H7 H8 H9 H10 H11 H12 H13; subst.
   inversion H0; subst. clear H0.
@@ -728,6 +1868,8 @@ Case "dbBlock_intro". admit.
     apply se_dbSubblocks_preservation in d; auto.
   apply tv_cmds__is__correct with (nbs':=nbs2) in d0; auto.
   destruct d0 as [lc3' [HdbCmds Heq3]].
+  admit.
+(*
   apply tv_terminator__is__correct with (B2:=block_intro l2 ps2 (cs1++nbranchs2cmds nbs2) tmn2)(fh2:=fh2)(lb2:=lb2) in d1; auto.
     destruct d1 as [B2' [n [Htv_block1'2' [J2 [J3 Hdb]]]]].
     exists B2'. exists n. 
@@ -749,8 +1891,7 @@ Case "dbBlock_intro". admit.
     rewrite <- HeqR2.
     repeat_bsplit.
 *)
-Case "dbBlocks_nil". admit.
-(*
+Case "dbBlocks_nil". 
   intros S TD Ps fs gl F arg0 state S2 Ps2 fh1 lb1 fh2 lb2 lc n tmn1 l1 ps1 cs1
          ps1' l1' als lc' Mem0 Mem' als' tmn1' cs1' los nts H H0 H1 H2 H3 H4 H5 H6 H7 H8 H9 H10 H11 H12; subst.
   inversion H0; subst. clear H0.
@@ -762,9 +1903,8 @@ Case "dbBlocks_nil". admit.
   exists l2. exists ps2. exists cs2. exists tmn2. 
   exists n. exists lc'.
   repeat (split; auto).
-*)
-Case "dbBlocks_cons". admit.
-(*
+
+Case "dbBlocks_cons".
   intros S TD Ps fs gl F arg0 S1 S2 S3 t1 t2 d H d0 H0 S0 Ps2 fh1 lb1 fh2 lb2 lc n tmn1 l1
          ps1 cs1 ps1' l1' als lc' Mem0 Mem' als' tmn1' cs1' los nts H1 H2 H3 H4 H5 H6 H7 H8 H9 H10 H11 H12 H13 H14; subst.
   inversion d; subst.
@@ -790,6 +1930,8 @@ Case "dbBlocks_cons". admit.
     destruct H12 as [l4 [ps4 [cs4 [tmn4 [l4' [ps4' [cs4' [tmn4' [n'' [lc2' [J3 [J4 [J5 [J6 [J7 [J8 Heq2]]]]]]]]]]]]]]]].
     clear H0.
 
+    admit. admit.
+(*
     apply dbBlocks_eqEnv with (lc1':=lc4') in J8; auto using eqAL_sym.
     destruct J8 as [lc2'' [HdbBlocks Heq2']].
 
@@ -1201,7 +2343,7 @@ Proof.
   repeat (split; auto).
     apply seop_dbFdef__llvmop_dbFdef; auto.
 Qed.
-*)
+
 (*****************************)
 (*
 *** Local Variables: ***
