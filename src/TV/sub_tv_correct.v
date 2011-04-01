@@ -1765,6 +1765,8 @@ Case "dbSubblock_intro".
   apply cmds2sb_inv in H2.
   destruct H2 as [cs2' [call0 [J1 [J2 J3]]]]; subst.
   apply cmds2nbs__nbranchs2cmds in J2.
+  admit.
+(*
   bdestruct H10 as EQ1 EQ2.
   sumbool_subst.
   inversion H7; subst.
@@ -1778,9 +1780,7 @@ Case "dbSubblock_intro".
   apply dbCall_subEnv with (lc1':=lc2') in HdbCall; auto using eqAL_sym.
   destruct HdbCall as [lc3'' [HdbCall Hsub3']].
   exists lc3''. split; eauto using eqAL_trans, eqAL_sym.
-    admit.
-    admit.
-    admit.
+*)
 
 Case "dbSubblocks_nil".
   intros S TD Ps lc als gl fs Mem0 S2 Ps2 sbs1 sbs2 cs2 los nts H H0 H1 H2 H3 H4 H5 H6 H7 H8 H9 H10.

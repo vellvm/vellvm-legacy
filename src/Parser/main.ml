@@ -21,8 +21,9 @@ let main in_filename out_filename =
 
 	let coqom = Llvm2coq.translate_module debug ost om in
 			
-	(* eprintf "Eq TV=%b\n" (Eq_tv.tv_module coqim coqom); *)
-	eprintf "Sub TV=%b\n" (Sub_tv.tv_module coqim coqom);
+	(* eprintf "EqTV=%b\n" (Eq_tv.tv_module coqim coqom); *)
+	eprintf "SubTV=%b MTV=%b\n" (Sub_tv.tv_module coqim coqom) 
+          (Sub_tv.mtv_module coqom);
 	
 	(* Coq2llvm.translate_module coqom; *)
 	
