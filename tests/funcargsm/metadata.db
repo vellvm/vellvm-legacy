@@ -1,1 +1,4 @@
-%argv_base %argv_bound %argv
+@softbound_pseudo_main %argv_base %argv_bound %argv
+@softbound_test %value_base %value_bound %value
+@softbound_test %base.load1 %bound.load2 %0
+@softbound_test %value_base1 %value_bound2 %value

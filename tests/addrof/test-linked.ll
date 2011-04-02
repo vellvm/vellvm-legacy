@@ -285,30 +285,35 @@ entry:
 
 declare i32 @atoi(i8*) nounwind readonly
 
-define void @test(i32 %mm) nounwind {
+define void @test(i32) nounwind {
 entry:
+	%mm_addr = alloca i32, align 4		; <i32*> [#uses=2]
 	%value = alloca i32, align 4		; <i32*> [#uses=3]
+	store i32 %0, i32* %mm_addr
 	store i32 0, i32* %value, align 4
-	%0 = icmp sgt i32 %mm, 0		; <i1> [#uses=1]
-	br i1 %0, label %bb, label %bb2
+	%1 = srem i32 %0, 3		; <i32> [#uses=1]
+	%2 = icmp eq i32 %1, 0		; <i1> [#uses=1]
+	%ptr.0.ph = select i1 %2, i32* %value, i32* %mm_addr		; <i32*> [#uses=1]
+	%3 = icmp sgt i32 %0, 0		; <i1> [#uses=1]
+	br i1 %3, label %bb2, label %bb4
 
-bb:		; preds = %bb, %entry
-	%i.03 = phi i32 [ 0, %entry ], [ %5, %bb ]		; <i32> [#uses=2]
-	%1 = phi i32 [ 0, %entry ], [ %4, %bb ]		; <i32> [#uses=1]
-	%ptr.04.rec = phi i32 [ 0, %entry ], [ %.rec, %bb ]		; <i32> [#uses=2]
-	%ptr.04.sum = add i32 %ptr.04.rec, %i.03		; <i32> [#uses=1]
-	%2 = getelementptr i32* %value, i32 %ptr.04.sum		; <i32*> [#uses=1]
-	%3 = load i32* %2, align 4		; <i32> [#uses=1]
-	%4 = add i32 %3, %1		; <i32> [#uses=3]
-	store i32 %4, i32* %value, align 4
-	%5 = add i32 %i.03, 1		; <i32> [#uses=3]
-	%.rec = add i32 %ptr.04.rec, %5		; <i32> [#uses=1]
-	%exitcond5 = icmp eq i32 %5, %mm		; <i1> [#uses=1]
-	br i1 %exitcond5, label %bb2, label %bb
+bb2:		; preds = %bb2, %entry
+	%i.06 = phi i32 [ 0, %entry ], [ %8, %bb2 ]		; <i32> [#uses=2]
+	%4 = phi i32 [ 0, %entry ], [ %7, %bb2 ]		; <i32> [#uses=1]
+	%ptr.05.rec = phi i32 [ 0, %entry ], [ %.rec, %bb2 ]		; <i32> [#uses=2]
+	%ptr.05.sum = add i32 %ptr.05.rec, %i.06		; <i32> [#uses=1]
+	%5 = getelementptr i32* %ptr.0.ph, i32 %ptr.05.sum		; <i32*> [#uses=1]
+	%6 = load i32* %5, align 4		; <i32> [#uses=1]
+	%7 = add i32 %6, %4		; <i32> [#uses=3]
+	store i32 %7, i32* %value, align 4
+	%8 = add i32 %i.06, 1		; <i32> [#uses=3]
+	%.rec = add i32 %ptr.05.rec, %8		; <i32> [#uses=1]
+	%exitcond = icmp eq i32 %8, %0		; <i1> [#uses=1]
+	br i1 %exitcond, label %bb4, label %bb2
 
-bb2:		; preds = %bb, %entry
-	%6 = phi i32 [ 0, %entry ], [ %4, %bb ]		; <i32> [#uses=1]
-	%7 = call i32 (i8*, ...)* @printf(i8* noalias getelementptr ([4 x i8]* @.str1, i32 0, i32 0), i32 %6) nounwind		; <i32> [#uses=0]
+bb4:		; preds = %bb2, %entry
+	%9 = phi i32 [ 0, %entry ], [ %7, %bb2 ]		; <i32> [#uses=1]
+	%10 = call i32 (i8*, ...)* @printf(i8* noalias getelementptr ([4 x i8]* @.str1, i32 0, i32 0), i32 %9) nounwind		; <i32> [#uses=0]
 	ret void
 }
 

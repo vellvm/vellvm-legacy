@@ -1,2 +1,4 @@
-%argv_base %argv_bound %argv
-%ptr.04_base %ptr.04_bound %ptr.04
+@softbound_pseudo_main %argv_base %argv_bound %argv
+@softbound_test %ptr.04_base %ptr.04_bound %ptr.04
+@softbound_test %bitcast %bitcast1 %4
+@softbound_test %bitcast %bitcast1 %.sub

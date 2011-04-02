@@ -306,46 +306,62 @@ declare i32 @softbound_atoi(i8*, i8*, i8*)
 
 declare i32 @atoi(i8*) nounwind readonly
 
-define void @softbound_test(i32 %mm) {
+define void @softbound_test(i32) {
 entry:
+	%mm_addr = alloca i32, align 4		; <i32*> [#uses=5]
+	%mm_addr1 = bitcast i32* %mm_addr to i32*		; <i32*> [#uses=1]
+	%mm_addr2 = bitcast i32* %mm_addr to i8*		; <i8*> [#uses=2]
+	%mtmp = getelementptr i32* %mm_addr1, i32 1		; <i32*> [#uses=1]
+	%mtmp3 = bitcast i32* %mtmp to i8*		; <i8*> [#uses=2]
 	%value = alloca i32, align 4		; <i32*> [#uses=7]
-	%value1 = bitcast i32* %value to i32*		; <i32*> [#uses=1]
-	%value2 = bitcast i32* %value to i8*		; <i8*> [#uses=3]
-	%mtmp = getelementptr i32* %value1, i32 1		; <i32*> [#uses=1]
-	%mtmp3 = bitcast i32* %mtmp to i8*		; <i8*> [#uses=3]
-	%bcast_st_dref_base = bitcast i8* %value2 to i8*		; <i8*> [#uses=1]
+	%value4 = bitcast i32* %value to i32*		; <i32*> [#uses=1]
+	%value5 = bitcast i32* %value to i8*		; <i8*> [#uses=3]
+	%mtmp6 = getelementptr i32* %value4, i32 1		; <i32*> [#uses=1]
+	%mtmp67 = bitcast i32* %mtmp6 to i8*		; <i8*> [#uses=3]
+	%bcast_st_dref_base = bitcast i8* %mm_addr2 to i8*		; <i8*> [#uses=1]
 	%bcast_st_dref_bound = bitcast i8* %mtmp3 to i8*		; <i8*> [#uses=1]
-	%bcast_st_dref_ptr = bitcast i32* %value to i8*		; <i8*> [#uses=1]
+	%bcast_st_dref_ptr = bitcast i32* %mm_addr to i8*		; <i8*> [#uses=1]
 	call void @__storeDereferenceCheck(i8* %bcast_st_dref_base, i8* %bcast_st_dref_bound, i8* %bcast_st_dref_ptr, i32 ptrtoint (i32* getelementptr (i32* null, i32 1) to i32), i32 1)
+	store i32 %0, i32* %mm_addr
+	%bcast_st_dref_base8 = bitcast i8* %value5 to i8*		; <i8*> [#uses=1]
+	%bcast_st_dref_bound9 = bitcast i8* %mtmp67 to i8*		; <i8*> [#uses=1]
+	%bcast_st_dref_ptr10 = bitcast i32* %value to i8*		; <i8*> [#uses=1]
+	call void @__storeDereferenceCheck(i8* %bcast_st_dref_base8, i8* %bcast_st_dref_bound9, i8* %bcast_st_dref_ptr10, i32 ptrtoint (i32* getelementptr (i32* null, i32 1) to i32), i32 1)
 	store i32 0, i32* %value, align 4
-	%0 = icmp sgt i32 %mm, 0		; <i1> [#uses=1]
-	br i1 %0, label %bb, label %bb2
+	%1 = srem i32 %0, 3		; <i32> [#uses=1]
+	%2 = icmp eq i32 %1, 0		; <i1> [#uses=4]
+	%ptr.0.ph.base = select i1 %2, i8* %value5, i8* %mm_addr2		; <i8*> [#uses=1]
+	%ptr.0.ph.bound = select i1 %2, i8* %mtmp67, i8* %mtmp3		; <i8*> [#uses=1]
+	%safe.ptr = select i1 %2, i32 1, i32 1		; <i32> [#uses=0]
+	%ptr.0.ph = select i1 %2, i32* %value, i32* %mm_addr		; <i32*> [#uses=1]
+	%3 = icmp sgt i32 %0, 0		; <i1> [#uses=1]
+	br i1 %3, label %bb2, label %bb4
 
-bb:		; preds = %bb, %entry
-	%i.03 = phi i32 [ 0, %entry ], [ %5, %bb ]		; <i32> [#uses=2]
-	%1 = phi i32 [ 0, %entry ], [ %4, %bb ]		; <i32> [#uses=1]
-	%ptr.04.rec = phi i32 [ 0, %entry ], [ %.rec, %bb ]		; <i32> [#uses=2]
-	%ptr.04.sum = add i32 %ptr.04.rec, %i.03		; <i32> [#uses=1]
-	%2 = getelementptr i32* %value, i32 %ptr.04.sum		; <i32*> [#uses=2]
-	%bcast_ld_dref_base = bitcast i8* %value2 to i8*		; <i8*> [#uses=1]
-	%mtmp34 = bitcast i8* %mtmp3 to i8*		; <i8*> [#uses=1]
-	%bcast_ld_dref_bound = bitcast i32* %2 to i8*		; <i8*> [#uses=1]
-	call void @__loadDereferenceCheck(i8* %bcast_ld_dref_base, i8* %mtmp34, i8* %bcast_ld_dref_bound, i32 ptrtoint (i32* getelementptr (i32* null, i32 1) to i32), i32 1)
-	%3 = load i32* %2, align 4		; <i32> [#uses=1]
-	%4 = add i32 %3, %1		; <i32> [#uses=3]
-	%bcast_st_dref_base5 = bitcast i8* %value2 to i8*		; <i8*> [#uses=1]
-	%bcast_st_dref_bound6 = bitcast i8* %mtmp3 to i8*		; <i8*> [#uses=1]
-	%bcast_st_dref_ptr7 = bitcast i32* %value to i8*		; <i8*> [#uses=1]
-	call void @__storeDereferenceCheck(i8* %bcast_st_dref_base5, i8* %bcast_st_dref_bound6, i8* %bcast_st_dref_ptr7, i32 ptrtoint (i32* getelementptr (i32* null, i32 1) to i32), i32 1)
-	store i32 %4, i32* %value, align 4
-	%5 = add i32 %i.03, 1		; <i32> [#uses=3]
-	%.rec = add i32 %ptr.04.rec, %5		; <i32> [#uses=1]
-	%exitcond5 = icmp eq i32 %5, %mm		; <i1> [#uses=1]
-	br i1 %exitcond5, label %bb2, label %bb
+bb2:		; preds = %bb2, %entry
+	%i.06 = phi i32 [ 0, %entry ], [ %8, %bb2 ]		; <i32> [#uses=2]
+	%4 = phi i32 [ 0, %entry ], [ %7, %bb2 ]		; <i32> [#uses=1]
+	%ptr.05.rec = phi i32 [ 0, %entry ], [ %.rec, %bb2 ]		; <i32> [#uses=2]
+	%ptr.05.sum = add i32 %ptr.05.rec, %i.06		; <i32> [#uses=1]
+	%5 = getelementptr i32* %ptr.0.ph, i32 %ptr.05.sum		; <i32*> [#uses=2]
+	%bcast_ld_dref_base = bitcast i8* %ptr.0.ph.base to i8*		; <i8*> [#uses=1]
+	%ptr.0.ph.bound11 = bitcast i8* %ptr.0.ph.bound to i8*		; <i8*> [#uses=1]
+	%bcast_ld_dref_bound = bitcast i32* %5 to i8*		; <i8*> [#uses=1]
+	call void @__loadDereferenceCheck(i8* %bcast_ld_dref_base, i8* %ptr.0.ph.bound11, i8* %bcast_ld_dref_bound, i32 ptrtoint (i32* getelementptr (i32* null, i32 1) to i32), i32 1)
+	%6 = load i32* %5, align 4		; <i32> [#uses=1]
+	%7 = add i32 %6, %4		; <i32> [#uses=3]
+	%bcast_st_dref_base12 = bitcast i8* %value5 to i8*		; <i8*> [#uses=1]
+	%bcast_st_dref_bound13 = bitcast i8* %mtmp67 to i8*		; <i8*> [#uses=1]
+	%bcast_st_dref_ptr14 = bitcast i32* %value to i8*		; <i8*> [#uses=1]
+	call void @__storeDereferenceCheck(i8* %bcast_st_dref_base12, i8* %bcast_st_dref_bound13, i8* %bcast_st_dref_ptr14, i32 ptrtoint (i32* getelementptr (i32* null, i32 1) to i32), i32 1)
+	store i32 %7, i32* %value, align 4
+	%8 = add i32 %i.06, 1		; <i32> [#uses=3]
+	%.rec = add i32 %ptr.05.rec, %8		; <i32> [#uses=1]
+	%exitcond = icmp eq i32 %8, %0		; <i1> [#uses=1]
+	br i1 %exitcond, label %bb4, label %bb2
 
-bb2:		; preds = %bb, %entry
-	%6 = phi i32 [ 0, %entry ], [ %4, %bb ]		; <i32> [#uses=1]
-	%7 = call i32 (i8*, ...)* @printf(i8* noalias getelementptr ([4 x i8]* @.str1, i32 0, i32 0), i32 %6) nounwind		; <i32> [#uses=0]
+bb4:		; preds = %bb2, %entry
+	%9 = phi i32 [ 0, %entry ], [ %7, %bb2 ]		; <i32> [#uses=1]
+	%10 = call i32 (i8*, ...)* @printf(i8* noalias getelementptr ([4 x i8]* @.str1, i32 0, i32 0), i32 %9) nounwind		; <i32> [#uses=0]
 	ret void
 }
 

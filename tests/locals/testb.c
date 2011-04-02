@@ -3,14 +3,11 @@
 
 void test(int mm)
 {
+  int value=mm;
   int *ptr;
-  int value=0;
   int i=0;
 
-  if (mm % 3) 
-    ptr = &mm;
-  else
-    ptr = &value;
+  ptr = &value;
   
   while (i<mm) {
     value += ptr[i++];

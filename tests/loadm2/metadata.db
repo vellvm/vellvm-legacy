@@ -1,1 +1,3 @@
-%argv_base %argv_bound %argv
+@softbound_pseudo_main %argv_base %argv_bound %argv
+@softbound_test %bitcast5 %bitcast6 %2
+@softbound_test %arr1.1_base %arr1.1_bound %arr1.1

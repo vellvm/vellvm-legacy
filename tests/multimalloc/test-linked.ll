@@ -287,31 +287,29 @@ declare i32 @atoi(i8*) nounwind readonly
 
 define void @test(i32 %mm) nounwind {
 entry:
-	%0 = malloc [400 x i8]		; <[400 x i8]*> [#uses=1]
-	%.sub = getelementptr [400 x i8]* %0, i32 0, i32 0		; <i8*> [#uses=1]
-	%1 = icmp sgt i32 %mm, 0		; <i1> [#uses=1]
-	br i1 %1, label %bb.nph, label %bb2
+	%0 = malloc [100 x i32]		; <[100 x i32]*> [#uses=2]
+	%.sub = getelementptr [100 x i32]* %0, i32 0, i32 0		; <i32*> [#uses=1]
+	%1 = getelementptr [100 x i32]* %0, i32 0, i32 %mm		; <i32*> [#uses=1]
+	store i32 42, i32* %1, align 4
+	%2 = icmp sgt i32 %mm, 0		; <i1> [#uses=1]
+	br i1 %2, label %bb, label %bb2
 
-bb.nph:		; preds = %entry
-	%2 = shl i32 %mm, 2		; <i32> [#uses=1]
-	br label %bb
-
-bb:		; preds = %bb, %bb.nph
-	%i.03 = phi i32 [ 0, %bb.nph ], [ %indvar.next7, %bb ]		; <i32> [#uses=1]
-	%ptr.0.in5 = phi i8* [ %.sub, %bb.nph ], [ %5, %bb ]		; <i8*> [#uses=2]
-	%value.04 = phi i32 [ 0, %bb.nph ], [ %4, %bb ]		; <i32> [#uses=1]
-	%ptr.0 = bitcast i8* %ptr.0.in5 to i32*		; <i32*> [#uses=1]
-	%3 = load i32* %ptr.0, align 4		; <i32> [#uses=1]
+bb:		; preds = %bb, %entry
+	%i.03 = phi i32 [ 0, %entry ], [ %indvar.next7, %bb ]		; <i32> [#uses=2]
+	%ptr.05 = phi i32* [ %.sub, %entry ], [ %5, %bb ]		; <i32*> [#uses=1]
+	%value.04 = phi i32 [ 0, %entry ], [ %4, %bb ]		; <i32> [#uses=1]
+	%3 = load i32* %ptr.05, align 4		; <i32> [#uses=1]
 	%4 = add i32 %3, %value.04		; <i32> [#uses=2]
-	free i8* %ptr.0.in5
-	%5 = malloc i8, i32 %2		; <i8*> [#uses=1]
+	%5 = malloc i32, i32 %mm		; <i32*> [#uses=2]
+	%6 = getelementptr i32* %5, i32 %i.03		; <i32*> [#uses=1]
+	store i32 42, i32* %6, align 4
 	%indvar.next7 = add i32 %i.03, 1		; <i32> [#uses=2]
 	%exitcond8 = icmp eq i32 %indvar.next7, %mm		; <i1> [#uses=1]
 	br i1 %exitcond8, label %bb2, label %bb
 
 bb2:		; preds = %bb, %entry
 	%value.0.lcssa = phi i32 [ 0, %entry ], [ %4, %bb ]		; <i32> [#uses=1]
-	%6 = tail call i32 (i8*, ...)* @printf(i8* noalias getelementptr ([4 x i8]* @.str1, i32 0, i32 0), i32 %value.0.lcssa) nounwind		; <i32> [#uses=0]
+	%7 = tail call i32 (i8*, ...)* @printf(i8* noalias getelementptr ([4 x i8]* @.str1, i32 0, i32 0), i32 %value.0.lcssa) nounwind		; <i32> [#uses=0]
 	ret void
 }
 

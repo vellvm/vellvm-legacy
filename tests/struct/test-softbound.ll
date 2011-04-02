@@ -1,6 +1,7 @@
 ; ModuleID = 'test-softbound.bc'
 target datalayout = "e-p:32:32:32-i1:8:8-i8:8:8-i16:16:16-i32:32:32-i64:32:64-f32:32:32-f64:32:64-v64:64:64-v128:128:128-a0:0:64-f80:32:32"
 target triple = "i386-pc-linux-gnu"
+	%struct.A = type { [99 x i32], i32 }
 	%struct.DIR = type opaque
 	%struct.FILE = type { i32, i8*, i8*, i8*, i8*, i8*, i8*, i8*, i8*, i8*, i8*, i8*, %struct._IO_marker*, %struct.FILE*, i32, i32, i32, i16, i8, [1 x i8], i8*, i64, i8*, i8*, i8*, i8*, i32, i32, [40 x i8] }
 	%struct.PtrBaseBound = type { i8*, i8*, i8* }
@@ -25,7 +26,7 @@ target triple = "i386-pc-linux-gnu"
 	%struct.tms = type { i32, i32, i32, i32 }
 	%struct.ttyent = type { i8*, i8*, i8*, i32, i8*, i8* }
 @.str = internal constant [17 x i8] c"Hash table full\0A\00"		; <[17 x i8]*> [#uses=1]
-@.str1 = internal constant [4 x i8] c"%x\0A\00"		; <[4 x i8]*> [#uses=1]
+@.str1 = internal constant [4 x i8] c"%d\0A\00"		; <[4 x i8]*> [#uses=1]
 @__softbound_hash_table_begin = global %struct.PtrBaseBound* null		; <%struct.PtrBaseBound**> [#uses=54]
 @stderr = external global %struct.FILE*		; <%struct.FILE**> [#uses=4]
 @.str2 = internal constant [60 x i8] c"SoftBound: Inconsistent specification of metadata encoding\0A\00"		; <[60 x i8]*> [#uses=1]
@@ -337,50 +338,62 @@ declare i32 @atoi(i8*) nounwind readonly
 
 define void @softbound_test(i32 %mm) {
 entry:
-	%0 = malloc [100 x i32]		; <[100 x i32]*> [#uses=4]
-	%malloc_bound = getelementptr [100 x i32]* %0, i32 1		; <[100 x i32]*> [#uses=1]
-	%bitcast = bitcast [100 x i32]* %0 to i8*		; <i8*> [#uses=2]
-	%bitcast1 = bitcast [100 x i32]* %malloc_bound to i8*		; <i8*> [#uses=2]
-	%.sub = getelementptr [100 x i32]* %0, i32 0, i32 0		; <i32*> [#uses=1]
-	%1 = getelementptr [100 x i32]* %0, i32 0, i32 %mm		; <i32*> [#uses=2]
-	%bcast_st_dref_base = bitcast i8* %bitcast to i8*		; <i8*> [#uses=1]
-	%bcast_st_dref_bound = bitcast i8* %bitcast1 to i8*		; <i8*> [#uses=1]
-	%bcast_st_dref_ptr = bitcast i32* %1 to i8*		; <i8*> [#uses=1]
+	%value2 = alloca [42 x %struct.A], align 8		; <[42 x %struct.A]*> [#uses=4]
+	%value21 = bitcast [42 x %struct.A]* %value2 to [42 x %struct.A]*		; <[42 x %struct.A]*> [#uses=1]
+	%value22 = bitcast [42 x %struct.A]* %value2 to i8*		; <i8*> [#uses=2]
+	%mtmp = getelementptr [42 x %struct.A]* %value21, i32 1		; <[42 x %struct.A]*> [#uses=1]
+	%mtmp3 = bitcast [42 x %struct.A]* %mtmp to i8*		; <i8*> [#uses=2]
+	%value1 = alloca [42 x %struct.A], align 8		; <[42 x %struct.A]*> [#uses=4]
+	%value14 = bitcast [42 x %struct.A]* %value1 to [42 x %struct.A]*		; <[42 x %struct.A]*> [#uses=1]
+	%value15 = bitcast [42 x %struct.A]* %value1 to i8*		; <i8*> [#uses=2]
+	%mtmp6 = getelementptr [42 x %struct.A]* %value14, i32 1		; <[42 x %struct.A]*> [#uses=1]
+	%mtmp67 = bitcast [42 x %struct.A]* %mtmp6 to i8*		; <i8*> [#uses=2]
+	%0 = getelementptr [42 x %struct.A]* %value1, i32 0, i32 0, i32 1		; <i32*> [#uses=2]
+	%bcast_st_dref_base = bitcast i8* %value15 to i8*		; <i8*> [#uses=1]
+	%bcast_st_dref_bound = bitcast i8* %mtmp67 to i8*		; <i8*> [#uses=1]
+	%bcast_st_dref_ptr = bitcast i32* %0 to i8*		; <i8*> [#uses=1]
 	call void @__storeDereferenceCheck(i8* %bcast_st_dref_base, i8* %bcast_st_dref_bound, i8* %bcast_st_dref_ptr, i32 ptrtoint (i32* getelementptr (i32* null, i32 1) to i32), i32 1)
-	store i32 42, i32* %1, align 4
-	%2 = icmp sgt i32 %mm, 0		; <i1> [#uses=1]
-	br i1 %2, label %bb, label %bb2
+	store i32 42, i32* %0, align 4
+	%1 = icmp sgt i32 %mm, 0		; <i1> [#uses=1]
+	br i1 %1, label %bb.nph, label %bb4
 
-bb:		; preds = %bb, %entry
-	%i.03 = phi i32 [ 0, %entry ], [ %indvar.next7, %bb ]		; <i32> [#uses=2]
-	%ptr.05_base = phi i8* [ %bitcast, %entry ], [ %bitcast3, %bb ]		; <i8*> [#uses=1]
-	%ptr.05_bound = phi i8* [ %bitcast1, %entry ], [ %bitcast4, %bb ]		; <i8*> [#uses=1]
-	%safe.phi_node = phi i32 [ 1, %entry ], [ 1, %bb ]		; <i32> [#uses=1]
-	%ptr.05 = phi i32* [ %.sub, %entry ], [ %5, %bb ]		; <i32*> [#uses=2]
-	%value.04 = phi i32 [ 0, %entry ], [ %4, %bb ]		; <i32> [#uses=1]
-	%bcast_ld_dref_base = bitcast i8* %ptr.05_base to i8*		; <i8*> [#uses=1]
-	%ptr.05_bound5 = bitcast i8* %ptr.05_bound to i8*		; <i8*> [#uses=1]
-	%bcast_ld_dref_bound = bitcast i32* %ptr.05 to i8*		; <i8*> [#uses=1]
-	call void @__loadDereferenceCheck(i8* %bcast_ld_dref_base, i8* %ptr.05_bound5, i8* %bcast_ld_dref_bound, i32 ptrtoint (i32* getelementptr (i32* null, i32 1) to i32), i32 %safe.phi_node)
-	%3 = load i32* %ptr.05, align 4		; <i32> [#uses=1]
-	%4 = add i32 %3, %value.04		; <i32> [#uses=2]
-	%5 = malloc i32, i32 %mm		; <i32*> [#uses=4]
-	%malloc_bound2 = getelementptr i32* %5, i32 %mm		; <i32*> [#uses=1]
-	%bitcast3 = bitcast i32* %5 to i8*		; <i8*> [#uses=2]
-	%bitcast4 = bitcast i32* %malloc_bound2 to i8*		; <i8*> [#uses=2]
-	%6 = getelementptr i32* %5, i32 %i.03		; <i32*> [#uses=2]
-	%bcast_st_dref_base6 = bitcast i8* %bitcast3 to i8*		; <i8*> [#uses=1]
-	%bcast_st_dref_bound7 = bitcast i8* %bitcast4 to i8*		; <i8*> [#uses=1]
-	%bcast_st_dref_ptr8 = bitcast i32* %6 to i8*		; <i8*> [#uses=1]
-	call void @__storeDereferenceCheck(i8* %bcast_st_dref_base6, i8* %bcast_st_dref_bound7, i8* %bcast_st_dref_ptr8, i32 ptrtoint (i32* getelementptr (i32* null, i32 1) to i32), i32 1)
-	store i32 42, i32* %6, align 4
-	%indvar.next7 = add i32 %i.03, 1		; <i32> [#uses=2]
-	%exitcond8 = icmp eq i32 %indvar.next7, %mm		; <i1> [#uses=1]
-	br i1 %exitcond8, label %bb2, label %bb
+bb.nph:		; preds = %entry
+	%2 = getelementptr [42 x %struct.A]* %value2, i32 0, i32 0, i32 1		; <i32*> [#uses=2]
+	br label %bb
 
-bb2:		; preds = %bb, %entry
-	%value.0.lcssa = phi i32 [ 0, %entry ], [ %4, %bb ]		; <i32> [#uses=1]
-	%7 = tail call i32 (i8*, ...)* @printf(i8* noalias getelementptr ([4 x i8]* @.str1, i32 0, i32 0), i32 %value.0.lcssa) nounwind		; <i32> [#uses=0]
+bb:		; preds = %bb, %bb.nph
+	%i.05 = phi i32 [ 0, %bb.nph ], [ %3, %bb ]		; <i32> [#uses=1]
+	%value1.pn7_base = phi i8* [ %value15, %bb.nph ], [ %value22, %bb ]		; <i8*> [#uses=2]
+	%value1.pn7_bound = phi i8* [ %mtmp67, %bb.nph ], [ %mtmp3, %bb ]		; <i8*> [#uses=2]
+	%safe.phi_node = phi i32 [ 1, %bb.nph ], [ 1, %bb ]		; <i32> [#uses=0]
+	%value1.pn7 = phi [42 x %struct.A]* [ %value1, %bb.nph ], [ %value2, %bb ]		; <[42 x %struct.A]*> [#uses=2]
+	%sum.06 = phi i32 [ 0, %bb.nph ], [ %9, %bb ]		; <i32> [#uses=1]
+	%bcast_st_dref_base8 = bitcast i8* %value22 to i8*		; <i8*> [#uses=1]
+	%bcast_st_dref_bound9 = bitcast i8* %mtmp3 to i8*		; <i8*> [#uses=1]
+	%bcast_st_dref_ptr10 = bitcast i32* %2 to i8*		; <i8*> [#uses=1]
+	call void @__storeDereferenceCheck(i8* %bcast_st_dref_base8, i8* %bcast_st_dref_bound9, i8* %bcast_st_dref_ptr10, i32 ptrtoint (i32* getelementptr (i32* null, i32 1) to i32), i32 1)
+	store i32 42, i32* %2, align 4
+	%3 = add i32 %i.05, 1		; <i32> [#uses=5]
+	%4 = getelementptr [42 x %struct.A]* %value1.pn7, i32 0, i32 %3, i32 0, i32 %3		; <i32*> [#uses=2]
+	%bcast_ld_dref_base = bitcast i8* %value1.pn7_base to i8*		; <i8*> [#uses=1]
+	%value1.pn7_bound11 = bitcast i8* %value1.pn7_bound to i8*		; <i8*> [#uses=1]
+	%bcast_ld_dref_bound = bitcast i32* %4 to i8*		; <i8*> [#uses=1]
+	call void @__loadDereferenceCheck(i8* %bcast_ld_dref_base, i8* %value1.pn7_bound11, i8* %bcast_ld_dref_bound, i32 ptrtoint (i32* getelementptr (i32* null, i32 1) to i32), i32 1)
+	%5 = load i32* %4, align 4		; <i32> [#uses=1]
+	%6 = getelementptr [42 x %struct.A]* %value1.pn7, i32 0, i32 %3, i32 1		; <i32*> [#uses=2]
+	%bcast_ld_dref_base12 = bitcast i8* %value1.pn7_base to i8*		; <i8*> [#uses=1]
+	%value1.pn7_bound13 = bitcast i8* %value1.pn7_bound to i8*		; <i8*> [#uses=1]
+	%bcast_ld_dref_bound14 = bitcast i32* %6 to i8*		; <i8*> [#uses=1]
+	call void @__loadDereferenceCheck(i8* %bcast_ld_dref_base12, i8* %value1.pn7_bound13, i8* %bcast_ld_dref_bound14, i32 ptrtoint (i32* getelementptr (i32* null, i32 1) to i32), i32 1)
+	%7 = load i32* %6, align 4		; <i32> [#uses=1]
+	%8 = add i32 %5, %sum.06		; <i32> [#uses=1]
+	%9 = add i32 %8, %7		; <i32> [#uses=2]
+	%exitcond9 = icmp eq i32 %3, %mm		; <i1> [#uses=1]
+	br i1 %exitcond9, label %bb4, label %bb
+
+bb4:		; preds = %bb, %entry
+	%sum.0.lcssa = phi i32 [ 0, %entry ], [ %9, %bb ]		; <i32> [#uses=1]
+	%10 = call i32 (i8*, ...)* @printf(i8* noalias getelementptr ([4 x i8]* @.str1, i32 0, i32 0), i32 %sum.0.lcssa) nounwind		; <i32> [#uses=0]
 	ret void
 }
 

@@ -8,11 +8,12 @@ void test(int mm)
   int value = 0;
 
   ptr=(int **)malloc(sizeof(int*)*100);
+  *(ptr+mm) = 42;
   
   while (i<mm) {
     value += *ptr;
-    free (ptr);
     ptr=(int **)malloc(sizeof(int*)*mm);
+    *(ptr+i) = 42;
     i++;
   }
   printf("%x\n", value);

@@ -1,1 +1,3 @@
-%argv_base %argv_bound %argv
+@softbound_pseudo_main %argv_base %argv_bound %argv
+@softbound_test %ptr.0.ph.base %ptr.0.ph.bound %ptr.0.ph
+@softbound_test %value5 %mtmp67 %value
