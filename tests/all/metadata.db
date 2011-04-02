@@ -4,3 +4,5 @@
 @softbound_test %.pn.base %.pn.bound %ptr1.0
 @softbound_test %bitcast %bitcast1 %0
 @softbound_test %bitcast6 %bitcast7 %.sub
+@softbound_test %base.alloca11 %bound.alloca12 -1
+@softbound_test %base.alloca %bound.alloca -1
