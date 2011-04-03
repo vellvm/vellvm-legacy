@@ -1,3 +1,6 @@
-@softbound_pseudo_main %argv_base %argv_bound %argv
-@softbound_test %bitcast %bitcast1 %.sub3
-@softbound_test %bitcast3 %bitcast4 %3
+@softbound_pseudo_main entry %argv_base %argv_bound %argv
+@softbound_test entry %bitcast %bitcast1 %.sub3
+@softbound_test entry %bitcast3 %bitcast4 %1
+@softbound_test bb %bitcast3 %bitcast4 %3
+@softbound_test bb1.bb2_crit_edge %bitcast %bitcast1 %.sub3
+@softbound_test bb1.bb2_crit_edge %bitcast3 %bitcast4 %3

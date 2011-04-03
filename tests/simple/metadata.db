@@ -1,1 +1,1 @@
-@softbound_pseudo_main %argv_base %argv_bound %argv
+@softbound_pseudo_main entry %argv_base %argv_bound %argv

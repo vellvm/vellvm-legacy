@@ -1,5 +1,7 @@
-@softbound_pseudo_main %argv_base %argv_bound %argv
-@softbound_test %value22 %mtmp3 %2
-@softbound_test %value1.pn7_base %value1.pn7_bound %value1.pn7
-@softbound_test %value15 %mtmp67 %value1
-@softbound_test %value22 %mtmp3 %value2
+@softbound_pseudo_main entry %argv_base %argv_bound %argv
+@softbound_test entry %value15 %mtmp67 %value1
+@softbound_test entry %value22 %mtmp3 %value2
+@softbound_test bb %value22 %mtmp3 %2
+@softbound_test bb %value1.pn7_base %value1.pn7_bound %value1.pn7
+@softbound_test bb %value22 %mtmp3 %value2
+@softbound_test bb.nph %value15 %mtmp67 %value1

@@ -1,3 +1,5 @@
-@softbound_pseudo_main %argv_base %argv_bound %argv
-@softbound_test %ptr.0.ph.base %ptr.0.ph.bound %ptr.0.ph
-@softbound_test %value5 %mtmp67 %value
+@softbound_pseudo_main entry %argv_base %argv_bound %argv
+@softbound_test bb2 %ptr.0.ph.base %ptr.0.ph.bound %ptr.0.ph
+@softbound_test bb2 %value5 %mtmp67 %value
+@softbound_test entry %ptr.0.ph.base %ptr.0.ph.bound %ptr.0.ph
+@softbound_test entry %value5 %mtmp67 %value

@@ -25,13 +25,12 @@ target triple = "i386-pc-linux-gnu"
 	%struct.tms = type { i32, i32, i32, i32 }
 	%struct.ttyent = type { i8*, i8*, i8*, i32, i8*, i8* }
 @.str = internal constant [17 x i8] c"Hash table full\0A\00"		; <[17 x i8]*> [#uses=1]
-@.str1 = internal constant [4 x i8] c"%x\0A\00"		; <[4 x i8]*> [#uses=1]
 @__softbound_hash_table_begin = global %struct.PtrBaseBound* null		; <%struct.PtrBaseBound**> [#uses=54]
 @stderr = external global %struct.FILE*		; <%struct.FILE**> [#uses=4]
 @.str2 = internal constant [60 x i8] c"SoftBound: Inconsistent specification of metadata encoding\0A\00"		; <[60 x i8]*> [#uses=1]
 @softbound_initialized.b = internal global i1 false		; <i1*> [#uses=4]
-@.str13 = internal constant [43 x i8] c"__softbound_hash_table_begin != (void *)-1\00"		; <[43 x i8]*> [#uses=1]
-@.str24 = internal constant [15 x i8] c"../softbound.c\00"		; <[15 x i8]*> [#uses=1]
+@.str1 = internal constant [43 x i8] c"__softbound_hash_table_begin != (void *)-1\00"		; <[43 x i8]*> [#uses=1]
+@.str23 = internal constant [15 x i8] c"../softbound.c\00"		; <[15 x i8]*> [#uses=1]
 @__PRETTY_FUNCTION__.3087 = internal constant [17 x i8] c"__softbound_init\00"		; <[17 x i8]*> [#uses=1]
 @.str3 = internal constant [51 x i8] c"\0ASoftBound: Bounds violation detected\0A\0ABacktrace:\0A\00"		; <[51 x i8]*> [#uses=1]
 @.str4 = internal constant [3 x i8] c"\0A\0A\00"		; <[3 x i8]*> [#uses=1]
@@ -39,10 +38,10 @@ target triple = "i386-pc-linux-gnu"
 @__softbound_shadow_space_begin = global %struct.__softbound_shadow_space_entry_t* null		; <%struct.__softbound_shadow_space_entry_t**> [#uses=0]
 @__softbound_deref_check_count = global i32 0		; <i32*> [#uses=0]
 @llvm.global_dtors = appending global [1 x { i32, void ()* }] [ { i32, void ()* } { i32 65535, void ()* @softbound_process_memory_total } ]		; <[1 x { i32, void ()* }]*> [#uses=0]
-@.str9 = internal constant [50 x i8] c"[ctype_toupper_loc] pts->ptr = %p, *ptrs->ptr=%p\0A\00"		; <[50 x i8]*> [#uses=1]
-@.str110 = internal constant [53 x i8] c"This case not handled, requesting memory from system\00"		; <[53 x i8]*> [#uses=1]
-@.str211 = internal constant [17 x i8] c"Hash table full\0A\00"		; <[17 x i8]*> [#uses=1]
-@llvm.global_ctors = appending global [3 x { i32, void ()* }] [ { i32, void ()* } { i32 65535, void ()* @__softbound_global_init }, { i32, void ()* } { i32 65535, void ()* @__softbound_global_init7 }, { i32, void ()* } { i32 65535, void ()* @__softbound_global_init13 } ]		; <[3 x { i32, void ()* }]*> [#uses=0]
+@.str8 = internal constant [50 x i8] c"[ctype_toupper_loc] pts->ptr = %p, *ptrs->ptr=%p\0A\00"		; <[50 x i8]*> [#uses=1]
+@.str19 = internal constant [53 x i8] c"This case not handled, requesting memory from system\00"		; <[53 x i8]*> [#uses=1]
+@.str210 = internal constant [17 x i8] c"Hash table full\0A\00"		; <[17 x i8]*> [#uses=1]
+@llvm.global_ctors = appending global [3 x { i32, void ()* }] [ { i32, void ()* } { i32 65535, void ()* @__softbound_global_init }, { i32, void ()* } { i32 65535, void ()* @__softbound_global_init6 }, { i32, void ()* } { i32 65535, void ()* @__softbound_global_init12 } ]		; <[3 x { i32, void ()* }]*> [#uses=0]
 
 define weak void @__shrinkBounds(i8* %new_base, i8* %new_bound, i8* %old_base, i8* %old_bound, i8** %base_alloca, i8** %bound_alloca) nounwind alwaysinline {
 entry:
@@ -337,68 +336,14 @@ declare i32 @atoi(i8*) nounwind readonly
 
 define void @softbound_test(i32 %mm) {
 entry:
-	%base.alloca = alloca i8*		; <i8**> [#uses=2]
-	%bound.alloca = alloca i8*		; <i8**> [#uses=2]
-	%safe.ptr = alloca i32		; <i32*> [#uses=2]
-	%0 = malloc [100 x i32*]		; <[100 x i32*]*> [#uses=4]
-	%malloc_bound = getelementptr [100 x i32*]* %0, i32 1		; <[100 x i32*]*> [#uses=1]
-	%bitcast = bitcast [100 x i32*]* %0 to i8*		; <i8*> [#uses=1]
-	%bitcast1 = bitcast [100 x i32*]* %malloc_bound to i8*		; <i8*> [#uses=1]
-	br label %bb2
-
-bb:		; preds = %bb2
-	free i32* %ptr.0
-	%bcast_st_dref_base = bitcast i8* %ptr.0_base to i8*		; <i8*> [#uses=1]
-	%bcast_st_dref_bound = bitcast i8* %ptr.0_bound to i8*		; <i8*> [#uses=1]
-	%bcast_st_dref_ptr = bitcast i32* %ptr.0 to i8*		; <i8*> [#uses=1]
-	call void @__storeDereferenceCheck(i8* %bcast_st_dref_base, i8* %bcast_st_dref_bound, i8* %bcast_st_dref_ptr, i32 ptrtoint (i32* getelementptr (i32* null, i32 1) to i32), i32 %safe.phi_node)
-	store i32 0, i32* %ptr.0, align 4
-	%1 = getelementptr [100 x i32*]* %0, i32 0, i32 %i.0		; <i32**> [#uses=3]
-	%bcast_ld_dref_base = bitcast i8* %bitcast to i8*		; <i8*> [#uses=1]
-	%bitcast15 = bitcast i8* %bitcast1 to i8*		; <i8*> [#uses=1]
-	%bcast_ld_dref_bound = bitcast i32** %1 to i8*		; <i8*> [#uses=1]
-	call void @__loadDereferenceCheck(i8* %bcast_ld_dref_base, i8* %bitcast15, i8* %bcast_ld_dref_bound, i32 ptrtoint (i32** getelementptr (i32** null, i32 1) to i32), i32 1)
-	%2 = load i32** %1, align 4		; <i32*> [#uses=5]
-	%.ptr = bitcast i32** %1 to i8*		; <i8*> [#uses=1]
-	%.ptrcast = bitcast i32* %2 to i8*		; <i8*> [#uses=1]
-	call void @__hashLoadBaseBound(i8* %.ptr, i8** %base.alloca, i8** %bound.alloca, i8* %.ptrcast, i32 ptrtoint (i32* getelementptr (i32* null, i32 1) to i32), i32* %safe.ptr)
-	%base.load = load i8** %base.alloca		; <i8*> [#uses=1]
-	%bound.load = load i8** %bound.alloca		; <i8*> [#uses=1]
-	%safe.ptr.load = load i32* %safe.ptr		; <i32> [#uses=3]
-	%base.load2 = bitcast i8* %base.load to i8*		; <i8*> [#uses=3]
-	%bound.load3 = bitcast i8* %bound.load to i8*		; <i8*> [#uses=3]
-	%bcast_ld_dref_base6 = bitcast i8* %base.load2 to i8*		; <i8*> [#uses=1]
-	%bound.load37 = bitcast i8* %bound.load3 to i8*		; <i8*> [#uses=1]
-	%bcast_ld_dref_bound8 = bitcast i32* %2 to i8*		; <i8*> [#uses=1]
-	call void @__loadDereferenceCheck(i8* %bcast_ld_dref_base6, i8* %bound.load37, i8* %bcast_ld_dref_bound8, i32 ptrtoint (i32* getelementptr (i32* null, i32 1) to i32), i32 %safe.ptr.load)
-	%3 = load i32* %2, align 4		; <i32> [#uses=1]
-	%4 = icmp slt i32 %3, %i.0		; <i1> [#uses=1]
-	br i1 %4, label %bb3, label %bb1
-
-bb1:		; preds = %bb
-	%indvar.next4 = add i32 %i.0, 1		; <i32> [#uses=1]
-	br label %bb2
-
-bb2:		; preds = %bb1, %entry
-	%i.0 = phi i32 [ 0, %entry ], [ %indvar.next4, %bb1 ]		; <i32> [#uses=4]
-	%ptr.0_base = phi i8* [ undef, %entry ], [ %base.load2, %bb1 ]		; <i8*> [#uses=2]
-	%ptr.0_bound = phi i8* [ undef, %entry ], [ %bound.load3, %bb1 ]		; <i8*> [#uses=2]
-	%safe.phi_node = phi i32 [ 0, %entry ], [ %safe.ptr.load, %bb1 ]		; <i32> [#uses=2]
-	%ptr.0 = phi i32* [ undef, %entry ], [ %2, %bb1 ]		; <i32*> [#uses=4]
-	%5 = icmp slt i32 %i.0, %mm		; <i1> [#uses=1]
-	br i1 %5, label %bb, label %bb3
-
-bb3:		; preds = %bb2, %bb
-	%ptr.1_base = phi i8* [ %base.load2, %bb ], [ %ptr.0_base, %bb2 ]		; <i8*> [#uses=0]
-	%ptr.1_bound = phi i8* [ %bound.load3, %bb ], [ %ptr.0_bound, %bb2 ]		; <i8*> [#uses=0]
-	%safe.phi_node4 = phi i32 [ %safe.ptr.load, %bb ], [ %safe.phi_node, %bb2 ]		; <i32> [#uses=0]
-	%ptr.1 = phi i32* [ %2, %bb ], [ %ptr.0, %bb2 ]		; <i32*> [#uses=1]
-	free [100 x i32*]* %0
-	%6 = tail call i32 (i8*, ...)* @printf(i8* noalias getelementptr ([4 x i8]* @.str1, i32 0, i32 0), i32* %ptr.1) nounwind		; <i32> [#uses=0]
+	%arr1 = alloca i32, align 4		; <i32*> [#uses=3]
+	%arr11 = bitcast i32* %arr1 to i32*		; <i32*> [#uses=1]
+	%arr12 = bitcast i32* %arr1 to i8*		; <i8*> [#uses=0]
+	%mtmp = getelementptr i32* %arr11, i32 1		; <i32*> [#uses=1]
+	%mtmp3 = bitcast i32* %mtmp to i8*		; <i8*> [#uses=0]
+	free i32* %arr1
 	ret void
 }
-
-declare i32 @printf(i8*, ...) nounwind
 
 define internal void @softbound_process_memory_total() nounwind readnone {
 entry:
@@ -455,7 +400,7 @@ bb4:		; preds = %bb3
 	br i1 %4, label %bb5, label %return
 
 bb5:		; preds = %bb4
-	tail call void @__assert_fail(i8* getelementptr ([43 x i8]* @.str13, i32 0, i32 0), i8* getelementptr ([15 x i8]* @.str24, i32 0, i32 0), i32 106, i8* getelementptr ([17 x i8]* @__PRETTY_FUNCTION__.3087, i32 0, i32 0)) noreturn nounwind
+	tail call void @__assert_fail(i8* getelementptr ([43 x i8]* @.str1, i32 0, i32 0), i8* getelementptr ([15 x i8]* @.str23, i32 0, i32 0), i32 106, i8* getelementptr ([17 x i8]* @__PRETTY_FUNCTION__.3087, i32 0, i32 0)) noreturn nounwind
 	unreachable
 
 return:		; preds = %bb4, %bb3
@@ -468,7 +413,7 @@ declare i8* @mmap(i8*, i32, i32, i32, i32, i32) nounwind
 
 declare void @__assert_fail(i8*, i8*, i32, i8*) noreturn nounwind
 
-define internal void @__softbound_global_init7() nounwind {
+define internal void @__softbound_global_init6() nounwind {
 entry:
 	%.b.i = load i1* @softbound_initialized.b		; <i1> [#uses=1]
 	br i1 %.b.i, label %__softbound_init.exit, label %bb4.i
@@ -482,7 +427,7 @@ bb4.i:		; preds = %entry
 	br i1 %2, label %bb5.i, label %__softbound_init.exit
 
 bb5.i:		; preds = %bb4.i
-	tail call void @__assert_fail(i8* getelementptr ([43 x i8]* @.str13, i32 0, i32 0), i8* getelementptr ([15 x i8]* @.str24, i32 0, i32 0), i32 106, i8* getelementptr ([17 x i8]* @__PRETTY_FUNCTION__.3087, i32 0, i32 0)) noreturn nounwind
+	tail call void @__assert_fail(i8* getelementptr ([43 x i8]* @.str1, i32 0, i32 0), i8* getelementptr ([15 x i8]* @.str23, i32 0, i32 0), i32 106, i8* getelementptr ([17 x i8]* @__PRETTY_FUNCTION__.3087, i32 0, i32 0)) noreturn nounwind
 	unreachable
 
 __softbound_init.exit:		; preds = %bb4.i, %entry
@@ -1300,7 +1245,7 @@ entry:
 	%2 = getelementptr %struct.PtrBaseBound* %ptrs, i32 0, i32 0		; <i8**> [#uses=2]
 	store i8* %1, i8** %2, align 4
 	%3 = load i32** %0		; <i32*> [#uses=1]
-	%4 = tail call i32 (i8*, ...)* @printf(i8* noalias getelementptr ([50 x i8]* @.str9, i32 0, i32 0), i32** %0, i32* %3) nounwind		; <i32> [#uses=0]
+	%4 = tail call i32 (i8*, ...)* @printf(i8* noalias getelementptr ([50 x i8]* @.str8, i32 0, i32 0), i32** %0, i32* %3) nounwind		; <i32> [#uses=0]
 	%5 = load i8** %2, align 4		; <i8*> [#uses=2]
 	%6 = getelementptr %struct.PtrBaseBound* %ptrs, i32 0, i32 1		; <i8**> [#uses=1]
 	store i8* %5, i8** %6, align 4
@@ -1309,6 +1254,8 @@ entry:
 	store i8* %7, i8** %8, align 4
 	ret void
 }
+
+declare i32 @printf(i8*, ...) nounwind
 
 define weak void @softbound___ctype_b_loc(%struct.PtrBaseBound* %ptrs) nounwind alwaysinline {
 entry:
@@ -2049,7 +1996,7 @@ entry:
 	br i1 %0, label %bb, label %bb1
 
 bb:		; preds = %entry
-	%1 = tail call i32 @puts(i8* getelementptr ([53 x i8]* @.str110, i32 0, i32 0)) nounwind		; <i32> [#uses=0]
+	%1 = tail call i32 @puts(i8* getelementptr ([53 x i8]* @.str19, i32 0, i32 0)) nounwind		; <i32> [#uses=0]
 	tail call void (...)* bitcast (void ()* @__softbound_abort to void (...)*)() noreturn nounwind
 	unreachable
 
@@ -2535,7 +2482,7 @@ bb6.i:		; preds = %bb.i
 	br i1 %20, label %bb7.i, label %bb8.i
 
 bb7.i:		; preds = %bb6.i
-	tail call void (i8*, ...)* @__softbound_printf(i8* getelementptr ([17 x i8]* @.str211, i32 0, i32 0)) nounwind
+	tail call void (i8*, ...)* @__softbound_printf(i8* getelementptr ([17 x i8]* @.str210, i32 0, i32 0)) nounwind
 	tail call void (...)* bitcast (void ()* @__softbound_abort to void (...)*)() noreturn nounwind
 	unreachable
 
@@ -2576,7 +2523,7 @@ bb6.i28:		; preds = %bb.i27
 	br i1 %38, label %bb7.i29, label %bb8.i31
 
 bb7.i29:		; preds = %bb6.i28
-	tail call void (i8*, ...)* @__softbound_printf(i8* getelementptr ([17 x i8]* @.str211, i32 0, i32 0)) nounwind
+	tail call void (i8*, ...)* @__softbound_printf(i8* getelementptr ([17 x i8]* @.str210, i32 0, i32 0)) nounwind
 	tail call void (...)* bitcast (void ()* @__softbound_abort to void (...)*)() noreturn nounwind
 	unreachable
 
@@ -2617,7 +2564,7 @@ bb6.i21:		; preds = %bb.i20
 	br i1 %56, label %bb7.i22, label %bb8.i24
 
 bb7.i22:		; preds = %bb6.i21
-	tail call void (i8*, ...)* @__softbound_printf(i8* getelementptr ([17 x i8]* @.str211, i32 0, i32 0)) nounwind
+	tail call void (i8*, ...)* @__softbound_printf(i8* getelementptr ([17 x i8]* @.str210, i32 0, i32 0)) nounwind
 	tail call void (...)* bitcast (void ()* @__softbound_abort to void (...)*)() noreturn nounwind
 	unreachable
 
@@ -2659,7 +2606,7 @@ bb6.i14:		; preds = %bb.i13
 	br i1 %75, label %bb7.i15, label %bb8.i17
 
 bb7.i15:		; preds = %bb6.i14
-	tail call void (i8*, ...)* @__softbound_printf(i8* getelementptr ([17 x i8]* @.str211, i32 0, i32 0)) nounwind
+	tail call void (i8*, ...)* @__softbound_printf(i8* getelementptr ([17 x i8]* @.str210, i32 0, i32 0)) nounwind
 	tail call void (...)* bitcast (void ()* @__softbound_abort to void (...)*)() noreturn nounwind
 	unreachable
 
@@ -2700,7 +2647,7 @@ bb6.i7:		; preds = %bb.i6
 	br i1 %93, label %bb7.i8, label %bb8.i10
 
 bb7.i8:		; preds = %bb6.i7
-	tail call void (i8*, ...)* @__softbound_printf(i8* getelementptr ([17 x i8]* @.str211, i32 0, i32 0)) nounwind
+	tail call void (i8*, ...)* @__softbound_printf(i8* getelementptr ([17 x i8]* @.str210, i32 0, i32 0)) nounwind
 	tail call void (...)* bitcast (void ()* @__softbound_abort to void (...)*)() noreturn nounwind
 	unreachable
 
@@ -2753,7 +2700,7 @@ bb6.i:		; preds = %bb.i
 	br i1 %17, label %bb7.i, label %bb8.i
 
 bb7.i:		; preds = %bb6.i
-	tail call void (i8*, ...)* @__softbound_printf(i8* getelementptr ([17 x i8]* @.str211, i32 0, i32 0)) nounwind
+	tail call void (i8*, ...)* @__softbound_printf(i8* getelementptr ([17 x i8]* @.str210, i32 0, i32 0)) nounwind
 	tail call void (...)* bitcast (void ()* @__softbound_abort to void (...)*)() noreturn nounwind
 	unreachable
 
@@ -2806,7 +2753,7 @@ bb6.i7:		; preds = %bb.i6
 	br i1 %38, label %bb7.i8, label %bb8.i10
 
 bb7.i8:		; preds = %bb6.i7
-	tail call void (i8*, ...)* @__softbound_printf(i8* getelementptr ([17 x i8]* @.str211, i32 0, i32 0)) nounwind
+	tail call void (i8*, ...)* @__softbound_printf(i8* getelementptr ([17 x i8]* @.str210, i32 0, i32 0)) nounwind
 	tail call void (...)* bitcast (void ()* @__softbound_abort to void (...)*)() noreturn nounwind
 	unreachable
 
@@ -2862,7 +2809,7 @@ bb6.i:		; preds = %bb.i
 	br i1 %20, label %bb7.i, label %bb8.i
 
 bb7.i:		; preds = %bb6.i
-	tail call void (i8*, ...)* @__softbound_printf(i8* getelementptr ([17 x i8]* @.str211, i32 0, i32 0)) nounwind
+	tail call void (i8*, ...)* @__softbound_printf(i8* getelementptr ([17 x i8]* @.str210, i32 0, i32 0)) nounwind
 	tail call void (...)* bitcast (void ()* @__softbound_abort to void (...)*)() noreturn nounwind
 	unreachable
 
@@ -2907,7 +2854,7 @@ bb6.i22:		; preds = %bb.i21
 	br i1 %39, label %bb7.i23, label %bb8.i25
 
 bb7.i23:		; preds = %bb6.i22
-	tail call void (i8*, ...)* @__softbound_printf(i8* getelementptr ([17 x i8]* @.str211, i32 0, i32 0)) nounwind
+	tail call void (i8*, ...)* @__softbound_printf(i8* getelementptr ([17 x i8]* @.str210, i32 0, i32 0)) nounwind
 	tail call void (...)* bitcast (void ()* @__softbound_abort to void (...)*)() noreturn nounwind
 	unreachable
 
@@ -2959,7 +2906,7 @@ bb6.i15:		; preds = %bb.i14
 	br i1 %61, label %bb7.i16, label %bb8.i18
 
 bb7.i16:		; preds = %bb6.i15
-	tail call void (i8*, ...)* @__softbound_printf(i8* getelementptr ([17 x i8]* @.str211, i32 0, i32 0)) nounwind
+	tail call void (i8*, ...)* @__softbound_printf(i8* getelementptr ([17 x i8]* @.str210, i32 0, i32 0)) nounwind
 	tail call void (...)* bitcast (void ()* @__softbound_abort to void (...)*)() noreturn nounwind
 	unreachable
 
@@ -3003,7 +2950,7 @@ bb6.i8:		; preds = %bb.i7
 	br i1 %79, label %bb7.i9, label %bb8.i11
 
 bb7.i9:		; preds = %bb6.i8
-	tail call void (i8*, ...)* @__softbound_printf(i8* getelementptr ([17 x i8]* @.str211, i32 0, i32 0)) nounwind
+	tail call void (i8*, ...)* @__softbound_printf(i8* getelementptr ([17 x i8]* @.str210, i32 0, i32 0)) nounwind
 	tail call void (...)* bitcast (void ()* @__softbound_abort to void (...)*)() noreturn nounwind
 	unreachable
 
@@ -3050,7 +2997,7 @@ bb6.i:		; preds = %bb.i
 	br i1 %15, label %bb7.i, label %bb8.i
 
 bb7.i:		; preds = %bb6.i
-	tail call void (i8*, ...)* @__softbound_printf(i8* getelementptr ([17 x i8]* @.str211, i32 0, i32 0)) nounwind
+	tail call void (i8*, ...)* @__softbound_printf(i8* getelementptr ([17 x i8]* @.str210, i32 0, i32 0)) nounwind
 	tail call void (...)* bitcast (void ()* @__softbound_abort to void (...)*)() noreturn nounwind
 	unreachable
 
@@ -3093,7 +3040,7 @@ bb6.i22:		; preds = %bb.i21
 	br i1 %33, label %bb7.i23, label %bb8.i25
 
 bb7.i23:		; preds = %bb6.i22
-	tail call void (i8*, ...)* @__softbound_printf(i8* getelementptr ([17 x i8]* @.str211, i32 0, i32 0)) nounwind
+	tail call void (i8*, ...)* @__softbound_printf(i8* getelementptr ([17 x i8]* @.str210, i32 0, i32 0)) nounwind
 	tail call void (...)* bitcast (void ()* @__softbound_abort to void (...)*)() noreturn nounwind
 	unreachable
 
@@ -3134,7 +3081,7 @@ bb6.i15:		; preds = %bb.i14
 	br i1 %51, label %bb7.i16, label %bb8.i18
 
 bb7.i16:		; preds = %bb6.i15
-	tail call void (i8*, ...)* @__softbound_printf(i8* getelementptr ([17 x i8]* @.str211, i32 0, i32 0)) nounwind
+	tail call void (i8*, ...)* @__softbound_printf(i8* getelementptr ([17 x i8]* @.str210, i32 0, i32 0)) nounwind
 	tail call void (...)* bitcast (void ()* @__softbound_abort to void (...)*)() noreturn nounwind
 	unreachable
 
@@ -3178,7 +3125,7 @@ bb6.i8:		; preds = %bb.i7
 	br i1 %70, label %bb7.i9, label %bb8.i11
 
 bb7.i9:		; preds = %bb6.i8
-	tail call void (i8*, ...)* @__softbound_printf(i8* getelementptr ([17 x i8]* @.str211, i32 0, i32 0)) nounwind
+	tail call void (i8*, ...)* @__softbound_printf(i8* getelementptr ([17 x i8]* @.str210, i32 0, i32 0)) nounwind
 	tail call void (...)* bitcast (void ()* @__softbound_abort to void (...)*)() noreturn nounwind
 	unreachable
 
@@ -3245,7 +3192,7 @@ bb6.i:		; preds = %bb.i
 	br i1 %20, label %bb7.i, label %bb8.i
 
 bb7.i:		; preds = %bb6.i
-	tail call void (i8*, ...)* @__softbound_printf(i8* getelementptr ([17 x i8]* @.str211, i32 0, i32 0)) nounwind
+	tail call void (i8*, ...)* @__softbound_printf(i8* getelementptr ([17 x i8]* @.str210, i32 0, i32 0)) nounwind
 	tail call void (...)* bitcast (void ()* @__softbound_abort to void (...)*)() noreturn nounwind
 	unreachable
 
@@ -3289,7 +3236,7 @@ bb6.i31:		; preds = %bb.i30
 	br i1 %39, label %bb7.i32, label %bb8.i34
 
 bb7.i32:		; preds = %bb6.i31
-	tail call void (i8*, ...)* @__softbound_printf(i8* getelementptr ([17 x i8]* @.str211, i32 0, i32 0)) nounwind
+	tail call void (i8*, ...)* @__softbound_printf(i8* getelementptr ([17 x i8]* @.str210, i32 0, i32 0)) nounwind
 	tail call void (...)* bitcast (void ()* @__softbound_abort to void (...)*)() noreturn nounwind
 	unreachable
 
@@ -3341,7 +3288,7 @@ bb6.i24:		; preds = %bb.i23
 	br i1 %61, label %bb7.i25, label %bb8.i27
 
 bb7.i25:		; preds = %bb6.i24
-	tail call void (i8*, ...)* @__softbound_printf(i8* getelementptr ([17 x i8]* @.str211, i32 0, i32 0)) nounwind
+	tail call void (i8*, ...)* @__softbound_printf(i8* getelementptr ([17 x i8]* @.str210, i32 0, i32 0)) nounwind
 	tail call void (...)* bitcast (void ()* @__softbound_abort to void (...)*)() noreturn nounwind
 	unreachable
 
@@ -3388,7 +3335,7 @@ bb6.i17:		; preds = %bb.i16
 	br i1 %80, label %bb7.i18, label %bb8.i20
 
 bb7.i18:		; preds = %bb6.i17
-	tail call void (i8*, ...)* @__softbound_printf(i8* getelementptr ([17 x i8]* @.str211, i32 0, i32 0)) nounwind
+	tail call void (i8*, ...)* @__softbound_printf(i8* getelementptr ([17 x i8]* @.str210, i32 0, i32 0)) nounwind
 	tail call void (...)* bitcast (void ()* @__softbound_abort to void (...)*)() noreturn nounwind
 	unreachable
 
@@ -3440,7 +3387,7 @@ bb6.i10:		; preds = %bb.i9
 	br i1 %102, label %bb7.i11, label %bb8.i13
 
 bb7.i11:		; preds = %bb6.i10
-	tail call void (i8*, ...)* @__softbound_printf(i8* getelementptr ([17 x i8]* @.str211, i32 0, i32 0)) nounwind
+	tail call void (i8*, ...)* @__softbound_printf(i8* getelementptr ([17 x i8]* @.str210, i32 0, i32 0)) nounwind
 	tail call void (...)* bitcast (void ()* @__softbound_abort to void (...)*)() noreturn nounwind
 	unreachable
 
@@ -3498,7 +3445,7 @@ bb6.i:		; preds = %bb.i
 	br i1 %20, label %bb7.i, label %bb8.i
 
 bb7.i:		; preds = %bb6.i
-	tail call void (i8*, ...)* @__softbound_printf(i8* getelementptr ([17 x i8]* @.str211, i32 0, i32 0)) nounwind
+	tail call void (i8*, ...)* @__softbound_printf(i8* getelementptr ([17 x i8]* @.str210, i32 0, i32 0)) nounwind
 	tail call void (...)* bitcast (void ()* @__softbound_abort to void (...)*)() noreturn nounwind
 	unreachable
 
@@ -3542,7 +3489,7 @@ bb6.i31:		; preds = %bb.i30
 	br i1 %39, label %bb7.i32, label %bb8.i34
 
 bb7.i32:		; preds = %bb6.i31
-	tail call void (i8*, ...)* @__softbound_printf(i8* getelementptr ([17 x i8]* @.str211, i32 0, i32 0)) nounwind
+	tail call void (i8*, ...)* @__softbound_printf(i8* getelementptr ([17 x i8]* @.str210, i32 0, i32 0)) nounwind
 	tail call void (...)* bitcast (void ()* @__softbound_abort to void (...)*)() noreturn nounwind
 	unreachable
 
@@ -3594,7 +3541,7 @@ bb6.i24:		; preds = %bb.i23
 	br i1 %61, label %bb7.i25, label %bb8.i27
 
 bb7.i25:		; preds = %bb6.i24
-	tail call void (i8*, ...)* @__softbound_printf(i8* getelementptr ([17 x i8]* @.str211, i32 0, i32 0)) nounwind
+	tail call void (i8*, ...)* @__softbound_printf(i8* getelementptr ([17 x i8]* @.str210, i32 0, i32 0)) nounwind
 	tail call void (...)* bitcast (void ()* @__softbound_abort to void (...)*)() noreturn nounwind
 	unreachable
 
@@ -3641,7 +3588,7 @@ bb6.i17:		; preds = %bb.i16
 	br i1 %80, label %bb7.i18, label %bb8.i20
 
 bb7.i18:		; preds = %bb6.i17
-	tail call void (i8*, ...)* @__softbound_printf(i8* getelementptr ([17 x i8]* @.str211, i32 0, i32 0)) nounwind
+	tail call void (i8*, ...)* @__softbound_printf(i8* getelementptr ([17 x i8]* @.str210, i32 0, i32 0)) nounwind
 	tail call void (...)* bitcast (void ()* @__softbound_abort to void (...)*)() noreturn nounwind
 	unreachable
 
@@ -3693,7 +3640,7 @@ bb6.i10:		; preds = %bb.i9
 	br i1 %102, label %bb7.i11, label %bb8.i13
 
 bb7.i11:		; preds = %bb6.i10
-	tail call void (i8*, ...)* @__softbound_printf(i8* getelementptr ([17 x i8]* @.str211, i32 0, i32 0)) nounwind
+	tail call void (i8*, ...)* @__softbound_printf(i8* getelementptr ([17 x i8]* @.str210, i32 0, i32 0)) nounwind
 	tail call void (...)* bitcast (void ()* @__softbound_abort to void (...)*)() noreturn nounwind
 	unreachable
 
@@ -3746,7 +3693,7 @@ bb6.i:		; preds = %bb.i
 	br i1 %15, label %bb7.i, label %bb8.i
 
 bb7.i:		; preds = %bb6.i
-	tail call void (i8*, ...)* @__softbound_printf(i8* getelementptr ([17 x i8]* @.str211, i32 0, i32 0)) nounwind
+	tail call void (i8*, ...)* @__softbound_printf(i8* getelementptr ([17 x i8]* @.str210, i32 0, i32 0)) nounwind
 	tail call void (...)* bitcast (void ()* @__softbound_abort to void (...)*)() noreturn nounwind
 	unreachable
 
@@ -3783,7 +3730,7 @@ bb6.i15:		; preds = %bb.i14
 	br i1 %30, label %bb7.i16, label %bb8.i18
 
 bb7.i16:		; preds = %bb6.i15
-	tail call void (i8*, ...)* @__softbound_printf(i8* getelementptr ([17 x i8]* @.str211, i32 0, i32 0)) nounwind
+	tail call void (i8*, ...)* @__softbound_printf(i8* getelementptr ([17 x i8]* @.str210, i32 0, i32 0)) nounwind
 	tail call void (...)* bitcast (void ()* @__softbound_abort to void (...)*)() noreturn nounwind
 	unreachable
 
@@ -3833,7 +3780,7 @@ bb6.i8:		; preds = %bb.i7
 	br i1 %52, label %bb7.i9, label %bb8.i11
 
 bb7.i9:		; preds = %bb6.i8
-	tail call void (i8*, ...)* @__softbound_printf(i8* getelementptr ([17 x i8]* @.str211, i32 0, i32 0)) nounwind
+	tail call void (i8*, ...)* @__softbound_printf(i8* getelementptr ([17 x i8]* @.str210, i32 0, i32 0)) nounwind
 	tail call void (...)* bitcast (void ()* @__softbound_abort to void (...)*)() noreturn nounwind
 	unreachable
 
@@ -3896,7 +3843,7 @@ bb6.i:		; preds = %bb.i
 	br i1 %21, label %bb7.i, label %bb8.i
 
 bb7.i:		; preds = %bb6.i
-	tail call void (i8*, ...)* @__softbound_printf(i8* getelementptr ([17 x i8]* @.str211, i32 0, i32 0)) nounwind
+	tail call void (i8*, ...)* @__softbound_printf(i8* getelementptr ([17 x i8]* @.str210, i32 0, i32 0)) nounwind
 	tail call void (...)* bitcast (void ()* @__softbound_abort to void (...)*)() noreturn nounwind
 	unreachable
 
@@ -3937,7 +3884,7 @@ bb6.i30:		; preds = %bb.i29
 	br i1 %39, label %bb7.i31, label %bb8.i33
 
 bb7.i31:		; preds = %bb6.i30
-	tail call void (i8*, ...)* @__softbound_printf(i8* getelementptr ([17 x i8]* @.str211, i32 0, i32 0)) nounwind
+	tail call void (i8*, ...)* @__softbound_printf(i8* getelementptr ([17 x i8]* @.str210, i32 0, i32 0)) nounwind
 	tail call void (...)* bitcast (void ()* @__softbound_abort to void (...)*)() noreturn nounwind
 	unreachable
 
@@ -3978,7 +3925,7 @@ bb6.i23:		; preds = %bb.i22
 	br i1 %57, label %bb7.i24, label %bb8.i26
 
 bb7.i24:		; preds = %bb6.i23
-	tail call void (i8*, ...)* @__softbound_printf(i8* getelementptr ([17 x i8]* @.str211, i32 0, i32 0)) nounwind
+	tail call void (i8*, ...)* @__softbound_printf(i8* getelementptr ([17 x i8]* @.str210, i32 0, i32 0)) nounwind
 	tail call void (...)* bitcast (void ()* @__softbound_abort to void (...)*)() noreturn nounwind
 	unreachable
 
@@ -4019,7 +3966,7 @@ bb6.i16:		; preds = %bb.i15
 	br i1 %75, label %bb7.i17, label %bb8.i19
 
 bb7.i17:		; preds = %bb6.i16
-	tail call void (i8*, ...)* @__softbound_printf(i8* getelementptr ([17 x i8]* @.str211, i32 0, i32 0)) nounwind
+	tail call void (i8*, ...)* @__softbound_printf(i8* getelementptr ([17 x i8]* @.str210, i32 0, i32 0)) nounwind
 	tail call void (...)* bitcast (void ()* @__softbound_abort to void (...)*)() noreturn nounwind
 	unreachable
 
@@ -4060,7 +4007,7 @@ bb6.i9:		; preds = %bb.i8
 	br i1 %93, label %bb7.i10, label %bb8.i12
 
 bb7.i10:		; preds = %bb6.i9
-	tail call void (i8*, ...)* @__softbound_printf(i8* getelementptr ([17 x i8]* @.str211, i32 0, i32 0)) nounwind
+	tail call void (i8*, ...)* @__softbound_printf(i8* getelementptr ([17 x i8]* @.str210, i32 0, i32 0)) nounwind
 	tail call void (...)* bitcast (void ()* @__softbound_abort to void (...)*)() noreturn nounwind
 	unreachable
 
@@ -4123,7 +4070,7 @@ bb6.i:		; preds = %bb.i
 	br i1 %20, label %bb7.i, label %bb8.i
 
 bb7.i:		; preds = %bb6.i
-	tail call void (i8*, ...)* @__softbound_printf(i8* getelementptr ([17 x i8]* @.str211, i32 0, i32 0)) nounwind
+	tail call void (i8*, ...)* @__softbound_printf(i8* getelementptr ([17 x i8]* @.str210, i32 0, i32 0)) nounwind
 	tail call void (...)* bitcast (void ()* @__softbound_abort to void (...)*)() noreturn nounwind
 	unreachable
 
@@ -4164,7 +4111,7 @@ bb6.i25:		; preds = %bb.i24
 	br i1 %38, label %bb7.i26, label %bb8.i28
 
 bb7.i26:		; preds = %bb6.i25
-	tail call void (i8*, ...)* @__softbound_printf(i8* getelementptr ([17 x i8]* @.str211, i32 0, i32 0)) nounwind
+	tail call void (i8*, ...)* @__softbound_printf(i8* getelementptr ([17 x i8]* @.str210, i32 0, i32 0)) nounwind
 	tail call void (...)* bitcast (void ()* @__softbound_abort to void (...)*)() noreturn nounwind
 	unreachable
 
@@ -4209,7 +4156,7 @@ bb6.i18:		; preds = %bb.i17
 	br i1 %57, label %bb7.i19, label %bb8.i21
 
 bb7.i19:		; preds = %bb6.i18
-	tail call void (i8*, ...)* @__softbound_printf(i8* getelementptr ([17 x i8]* @.str211, i32 0, i32 0)) nounwind
+	tail call void (i8*, ...)* @__softbound_printf(i8* getelementptr ([17 x i8]* @.str210, i32 0, i32 0)) nounwind
 	tail call void (...)* bitcast (void ()* @__softbound_abort to void (...)*)() noreturn nounwind
 	unreachable
 
@@ -4261,7 +4208,7 @@ bb6.i11:		; preds = %bb.i10
 	br i1 %79, label %bb7.i12, label %bb8.i14
 
 bb7.i12:		; preds = %bb6.i11
-	tail call void (i8*, ...)* @__softbound_printf(i8* getelementptr ([17 x i8]* @.str211, i32 0, i32 0)) nounwind
+	tail call void (i8*, ...)* @__softbound_printf(i8* getelementptr ([17 x i8]* @.str210, i32 0, i32 0)) nounwind
 	tail call void (...)* bitcast (void ()* @__softbound_abort to void (...)*)() noreturn nounwind
 	unreachable
 
@@ -4331,7 +4278,7 @@ bb6.i:		; preds = %bb.i
 	br i1 %21, label %bb7.i, label %bb8.i
 
 bb7.i:		; preds = %bb6.i
-	tail call void (i8*, ...)* @__softbound_printf(i8* getelementptr ([17 x i8]* @.str211, i32 0, i32 0)) nounwind
+	tail call void (i8*, ...)* @__softbound_printf(i8* getelementptr ([17 x i8]* @.str210, i32 0, i32 0)) nounwind
 	tail call void (...)* bitcast (void ()* @__softbound_abort to void (...)*)() noreturn nounwind
 	unreachable
 
@@ -4372,7 +4319,7 @@ bb6.i30:		; preds = %bb.i29
 	br i1 %39, label %bb7.i31, label %bb8.i33
 
 bb7.i31:		; preds = %bb6.i30
-	tail call void (i8*, ...)* @__softbound_printf(i8* getelementptr ([17 x i8]* @.str211, i32 0, i32 0)) nounwind
+	tail call void (i8*, ...)* @__softbound_printf(i8* getelementptr ([17 x i8]* @.str210, i32 0, i32 0)) nounwind
 	tail call void (...)* bitcast (void ()* @__softbound_abort to void (...)*)() noreturn nounwind
 	unreachable
 
@@ -4413,7 +4360,7 @@ bb6.i23:		; preds = %bb.i22
 	br i1 %57, label %bb7.i24, label %bb8.i26
 
 bb7.i24:		; preds = %bb6.i23
-	tail call void (i8*, ...)* @__softbound_printf(i8* getelementptr ([17 x i8]* @.str211, i32 0, i32 0)) nounwind
+	tail call void (i8*, ...)* @__softbound_printf(i8* getelementptr ([17 x i8]* @.str210, i32 0, i32 0)) nounwind
 	tail call void (...)* bitcast (void ()* @__softbound_abort to void (...)*)() noreturn nounwind
 	unreachable
 
@@ -4454,7 +4401,7 @@ bb6.i16:		; preds = %bb.i15
 	br i1 %75, label %bb7.i17, label %bb8.i19
 
 bb7.i17:		; preds = %bb6.i16
-	tail call void (i8*, ...)* @__softbound_printf(i8* getelementptr ([17 x i8]* @.str211, i32 0, i32 0)) nounwind
+	tail call void (i8*, ...)* @__softbound_printf(i8* getelementptr ([17 x i8]* @.str210, i32 0, i32 0)) nounwind
 	tail call void (...)* bitcast (void ()* @__softbound_abort to void (...)*)() noreturn nounwind
 	unreachable
 
@@ -4495,7 +4442,7 @@ bb6.i9:		; preds = %bb.i8
 	br i1 %93, label %bb7.i10, label %bb8.i12
 
 bb7.i10:		; preds = %bb6.i9
-	tail call void (i8*, ...)* @__softbound_printf(i8* getelementptr ([17 x i8]* @.str211, i32 0, i32 0)) nounwind
+	tail call void (i8*, ...)* @__softbound_printf(i8* getelementptr ([17 x i8]* @.str210, i32 0, i32 0)) nounwind
 	tail call void (...)* bitcast (void ()* @__softbound_abort to void (...)*)() noreturn nounwind
 	unreachable
 
@@ -4561,7 +4508,7 @@ bb6.i:		; preds = %bb.i
 	br i1 %18, label %bb7.i, label %bb8.i
 
 bb7.i:		; preds = %bb6.i
-	call void (i8*, ...)* @__softbound_printf(i8* getelementptr ([17 x i8]* @.str211, i32 0, i32 0)) nounwind
+	call void (i8*, ...)* @__softbound_printf(i8* getelementptr ([17 x i8]* @.str210, i32 0, i32 0)) nounwind
 	call void (...)* bitcast (void ()* @__softbound_abort to void (...)*)() noreturn nounwind
 	unreachable
 
@@ -4638,7 +4585,7 @@ bb6.i:		; preds = %bb.i
 	br i1 %14, label %bb7.i, label %bb8.i
 
 bb7.i:		; preds = %bb6.i
-	call void (i8*, ...)* @__softbound_printf(i8* getelementptr ([17 x i8]* @.str211, i32 0, i32 0)) nounwind
+	call void (i8*, ...)* @__softbound_printf(i8* getelementptr ([17 x i8]* @.str210, i32 0, i32 0)) nounwind
 	call void (...)* bitcast (void ()* @__softbound_abort to void (...)*)() noreturn nounwind
 	unreachable
 
@@ -4744,7 +4691,7 @@ bb6.i:		; preds = %bb.i4
 	br i1 %29, label %bb7.i, label %bb8.i
 
 bb7.i:		; preds = %bb6.i
-	tail call void (i8*, ...)* @__softbound_printf(i8* getelementptr ([17 x i8]* @.str211, i32 0, i32 0)) nounwind
+	tail call void (i8*, ...)* @__softbound_printf(i8* getelementptr ([17 x i8]* @.str210, i32 0, i32 0)) nounwind
 	tail call void (...)* bitcast (void ()* @__softbound_abort to void (...)*)() noreturn nounwind
 	unreachable
 
@@ -4821,7 +4768,7 @@ bb6.i:		; preds = %bb.i
 	br i1 %15, label %bb7.i, label %bb8.i
 
 bb7.i:		; preds = %bb6.i
-	tail call void (i8*, ...)* @__softbound_printf(i8* getelementptr ([17 x i8]* @.str211, i32 0, i32 0)) nounwind
+	tail call void (i8*, ...)* @__softbound_printf(i8* getelementptr ([17 x i8]* @.str210, i32 0, i32 0)) nounwind
 	tail call void (...)* bitcast (void ()* @__softbound_abort to void (...)*)() noreturn nounwind
 	unreachable
 
@@ -4869,7 +4816,7 @@ bb6.i:		; preds = %bb.i
 	br i1 %15, label %bb7.i, label %bb8.i
 
 bb7.i:		; preds = %bb6.i
-	tail call void (i8*, ...)* @__softbound_printf(i8* getelementptr ([17 x i8]* @.str211, i32 0, i32 0)) nounwind
+	tail call void (i8*, ...)* @__softbound_printf(i8* getelementptr ([17 x i8]* @.str210, i32 0, i32 0)) nounwind
 	tail call void (...)* bitcast (void ()* @__softbound_abort to void (...)*)() noreturn nounwind
 	unreachable
 
@@ -4888,7 +4835,7 @@ __hashStoreBaseBound.exit:		; preds = %bb.i
 
 declare i32 @strtoul(i8* noalias, i8** noalias, i32) nounwind
 
-define internal void @__softbound_global_init13() nounwind {
+define internal void @__softbound_global_init12() nounwind {
 entry:
 	tail call void @__softbound_init(i32 1, i32 0) nounwind
 	ret void

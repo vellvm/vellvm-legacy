@@ -34,6 +34,7 @@ Definition eq_sterm (st st':sterm) := sumbool2bool _ _ (sterm_dec st st').
 Definition eq_smem (sm sm':smem) := sumbool2bool _ _ (smem_dec sm sm').
 Definition eq_id (i i':id) := sumbool2bool _ _ (id_dec i i').
 Definition eq_const (c c':const) := sumbool2bool _ _ (const_dec c c').
+Definition eq_l (l1 l2:l) := sumbool2bool _ _ (l_dec l1 l2).
 
 (* This is the tricky part. How can we know sm2 includes sm1 ?
  * So far, we only consider the memory effects of Softbound. 
@@ -58,8 +59,8 @@ Axiom is_dereferenceCheck : id -> bool.
 Axiom is_hashStoreBaseBound : id -> bool.
 
 (* We assume there is a way to know the mapping between
-     function id, base, bound and ptr *)
-Axiom get_metadata : unit -> list (id * id * id * id).
+     function id, block, base, bound and ptr *)
+Axiom get_metadata : unit -> list (id * l* id * id * id).
 
 (* We assume there is a way to know the mapping between
      function id, addr_of_base, and addr_of_bound used by __hashLoadBaseBound
@@ -285,6 +286,8 @@ Fixpoint get_ptr_object (st:sterm) : sterm :=
 match st with
 | sterm_cast _ _ st1 _ => get_ptr_object st1
 | sterm_gep _ _ st1 _ => get_ptr_object st1
+| sterm_select st0 t st1 st2 => 
+    sterm_select st0 t (get_ptr_object st1)(get_ptr_object st2) 
 | _ => st
 end.
 
@@ -342,22 +345,22 @@ match sm with
     else deref_from_metadata fid sm1 addr_of_b addr_of_e ptr
 end.
 
-Fixpoint is_metadata_aux (ms:list (id*id*id*id)) (fid b e p:id) : bool :=
+Fixpoint is_metadata_aux (ms:list (id*l*id*id*id)) (fid l1 b e p:id) : bool :=
 match ms with
 | nil => false
-| (fid', b',e',p')::ms' => 
-    if (eq_id fid fid' && eq_id b b' && eq_id e e' && eq_id p p') then true
-    else is_metadata_aux ms' fid b e p
+| (fid',l2,b',e',p')::ms' => 
+    (eq_id fid fid' && eq_l l1 l2 && eq_id b b' && eq_id e e' && eq_id p p') ||
+    is_metadata_aux ms' fid l1 b e p
 end.
 
-Definition is_metadata (fid b e p:id) : bool :=
-  is_metadata_aux (get_metadata tt) fid b e p.
+Definition is_metadata (fid:id) (l1:l) (b e p:id) : bool :=
+  is_metadata_aux (get_metadata tt) fid l1 b e p.
 
-Definition check_metadata fid base bound ptr := 
-match (remove_cast base, remove_cast bound, get_ptr_object ptr) with
+Fixpoint check_metadata_aux fid l1 base bound ptr := 
+match (base, bound, ptr) with
 | (sterm_val (value_id idb), sterm_val (value_id ide), 
    sterm_val (value_id idp)) => 
-    if (is_metadata fid idb ide idp) then true else false
+    is_metadata fid l1 idb ide idp
 | (sterm_malloc _ _ st10 _ as st1, 
    sterm_gep _ _ st2 (Cons_list_sterm st20 Nil_list_sterm),  
    sterm_malloc _ _ _ _ as st3) =>
@@ -377,17 +380,27 @@ match (remove_cast base, remove_cast bound, get_ptr_object ptr) with
      eq_const c1 c2 && eq_const c1 c3 && INT_is_one i2   
 | (sterm_load sm1 _ st1 _, sterm_load sm2 _ st2 _, st3) =>
      deref_from_metadata fid sm1 st1 st2 st3
+| (sterm_select st10 _ st11 st12, sterm_select st20 _ st21 st22,
+   sterm_select st30 _ st31 st32) =>
+     eq_sterm st10 st20 && eq_sterm st20 st30 &&
+     check_metadata_aux fid l1 st11 st21 st31 && 
+     check_metadata_aux fid l1 st12 st22 st32
 | _ => false
 end.
 
-Definition deref_check fid lid sts : bool :=
+Definition check_metadata fid l1 base bound ptr := 
+  check_metadata_aux fid l1 (remove_cast base) (remove_cast bound) 
+    (get_ptr_object ptr).
+
+Definition deref_check fid l1 lid sts : bool :=
   if (is_dereferenceCheck lid) then
     match sts with
     |  Cons_list_sterm base 
       (Cons_list_sterm bound
       (Cons_list_sterm ptr
       (Cons_list_sterm size_of_type
-      (Cons_list_sterm _ Nil_list_sterm)))) => check_metadata fid base bound ptr
+      (Cons_list_sterm _ Nil_list_sterm)))) => 
+        check_metadata fid l1 base bound ptr
     | _ => false
     end
   else true.
@@ -409,7 +422,7 @@ end.
    store ptr addr_of_ptr
    hashStoreBaseBound addr_of_ptr b e _ _ _
 *)
-Fixpoint store_to_metadata fid sm (lid:id) sts : bool :=
+Fixpoint store_to_metadata fid l1 sm (lid:id) sts : bool :=
 if (is_hashLoadBaseBound lid) then
   match sts with
   |  Cons_list_sterm addr_of_ptr 
@@ -420,7 +433,7 @@ if (is_hashLoadBaseBound lid) then
     (Cons_list_sterm _ Nil_list_sterm))))) =>
       match (find_stored_ptr sm addr_of_ptr) with
       | None => false
-      | Some ptr => check_metadata fid base bound ptr
+      | Some ptr => check_metadata fid l1 base bound ptr
       end
   | _ => false
   end      
@@ -428,25 +441,39 @@ else true.
 
 (* ptr is safe to access if ptr is asserted by a deref check or
    from hasLoadBaseBound *)
-Fixpoint safe_mem_access fid (sm:smem) (ptr:sterm) : bool :=
+
+Fixpoint safe_mem_access fid (sm:smem) t (ptr:sterm) : bool :=
 match sm with
 | smem_init => false
 | smem_malloc sm1 _ _ _
 | smem_alloca sm1 _ _ _
 | smem_free sm1 _ _
 | smem_load sm1 _ _ _
-| smem_store sm1 _ _ _ _ => safe_mem_access fid sm1 ptr
+| smem_store sm1 _ _ _ _ => safe_mem_access fid sm1 t ptr
 | smem_lib sm1 fid1 sts1 =>
   if (is_dereferenceCheck fid1) then
     match sts1 with
     |  Cons_list_sterm _
       (Cons_list_sterm _
       (Cons_list_sterm actual_ptr
-      (Cons_list_sterm _
+      (Cons_list_sterm
+         (sterm_val 
+           (value_const 
+             (const_castop 
+               castop_ptrtoint
+               (const_gep false 
+                 (const_null t) 
+                   (Cons_list_const (const_int _ i0) Nil_list_const)
+               )
+              (typ_int sz)
+             )
+           )
+         )
       (Cons_list_sterm _ Nil_list_sterm)))) =>
-      if (eq_sterm (get_ptr_object ptr) (get_ptr_object actual_ptr)) 
-      then true else safe_mem_access fid sm1 ptr
-    | _ => safe_mem_access fid sm1 ptr
+      if (eq_sterm (get_ptr_object ptr) (get_ptr_object actual_ptr) && 
+         INT_is_one i0 && sumbool2bool _ _ (Size.dec sz Size.ThirtyTwo))
+      then true else safe_mem_access fid sm1 t ptr
+    | _ => safe_mem_access fid sm1 t ptr
     end
   else if (is_hashLoadBaseBound fid1) then
     match sts1 with
@@ -460,13 +487,13 @@ match sm with
           eq_sterm ptr addr_of_bound || 
           eq_sterm ptr ptr_safe) 
       then is_addrof_be fid addr_of_base addr_of_bound  
-      else safe_mem_access fid sm1 ptr
-    | _ => safe_mem_access fid sm1 ptr
+      else safe_mem_access fid sm1 t ptr
+    | _ => safe_mem_access fid sm1 t ptr
     end
-  else safe_mem_access fid sm1 ptr
+  else safe_mem_access fid sm1 t ptr
 end.
 
-Fixpoint sterm_is_memsafe fid (st:sterm) : bool :=
+Fixpoint sterm_is_memsafe fid l (st:sterm) : bool :=
 match st with
 | sterm_val v => true
 | sterm_bop _ _ st1 st2 
@@ -474,65 +501,67 @@ match st with
 | sterm_icmp _ _ st1 st2 
 | sterm_fcmp _ _ st1 st2 
 | sterm_insertvalue _ st1 _ st2 _ => 
-    sterm_is_memsafe fid st1 && sterm_is_memsafe fid st2 
+    sterm_is_memsafe fid l st1 && sterm_is_memsafe fid l st2 
 | sterm_trunc _ _ st1 _
 | sterm_ext _ _ st1 _ 
 | sterm_cast _ _ st1 _ 
-| sterm_extractvalue _ st1 _ => sterm_is_memsafe fid st1
+| sterm_extractvalue _ st1 _ => sterm_is_memsafe fid l st1
 | sterm_malloc sm _ st1 _
-| sterm_alloca sm _ st1 _ => smem_is_memsafe fid sm && sterm_is_memsafe fid st1
-| sterm_load sm _ st1 _ => 
-   smem_is_memsafe fid sm && sterm_is_memsafe fid st1 && 
-   safe_mem_access fid sm st1
+| sterm_alloca sm _ st1 _ => 
+    smem_is_memsafe fid l sm && sterm_is_memsafe fid l st1
+| sterm_load sm t st1 _ => 
+   smem_is_memsafe fid l sm && sterm_is_memsafe fid l st1 && 
+   safe_mem_access fid sm t st1
 | sterm_gep _ _ st1 sts2 => 
-   sterm_is_memsafe fid st1 && list_sterm_is_memsafe fid sts2
-| sterm_phi _ stls => list_sterm_l_is_memsafe fid stls
+   sterm_is_memsafe fid l st1 && list_sterm_is_memsafe fid l sts2
+| sterm_phi _ stls => list_sterm_l_is_memsafe fid l stls
 | sterm_select st1 _ st2 st3 => 
-    sterm_is_memsafe fid st1 && sterm_is_memsafe fid st2 && 
-    sterm_is_memsafe fid st3
+    sterm_is_memsafe fid l st1 && sterm_is_memsafe fid l st2 && 
+    sterm_is_memsafe fid l st3
 | sterm_lib sm lid sts => 
-    smem_is_memsafe fid sm && list_sterm_is_memsafe fid sts && 
-    store_to_metadata fid sm (lid:id) sts
+    smem_is_memsafe fid l sm && list_sterm_is_memsafe fid l sts && 
+    store_to_metadata fid l sm (lid:id) sts
 end
-with list_sterm_is_memsafe fid (sts:list_sterm) : bool :=
+with list_sterm_is_memsafe fid l (sts:list_sterm) : bool :=
 match sts with
 | Nil_list_sterm => true
 | Cons_list_sterm st sts0 => 
-    sterm_is_memsafe fid st && list_sterm_is_memsafe fid sts0
+    sterm_is_memsafe fid l st && list_sterm_is_memsafe fid l sts0
 end
-with list_sterm_l_is_memsafe fid (stls:list_sterm_l) : bool :=
+with list_sterm_l_is_memsafe fid l (stls:list_sterm_l) : bool :=
 match stls with
 | Nil_list_sterm_l => true
 | Cons_list_sterm_l st _ stls0 =>
-    sterm_is_memsafe fid st && list_sterm_l_is_memsafe fid stls0
+    sterm_is_memsafe fid l st && list_sterm_l_is_memsafe fid l stls0
 end
-with smem_is_memsafe fid (sm:smem) : bool :=
+with smem_is_memsafe fid l (sm:smem) : bool :=
 match sm with
 | smem_init => true
 | smem_malloc sm1 _ st1 _
-| smem_alloca sm1 _ st1 _ => smem_is_memsafe fid sm1 && sterm_is_memsafe fid st1
+| smem_alloca sm1 _ st1 _ => 
+    smem_is_memsafe fid l sm1 && sterm_is_memsafe fid l st1
 | smem_free sm1 _ _ => false
-| smem_load sm1 _ st1 _ => 
-    smem_is_memsafe fid sm1 && sterm_is_memsafe fid st1 && 
-    safe_mem_access fid sm1 st1
-| smem_store sm1 _ st11 st12 _ =>
-    smem_is_memsafe fid sm1 && sterm_is_memsafe fid st11 && 
-    sterm_is_memsafe fid st12 && safe_mem_access fid sm1 st12
+| smem_load sm1 t st1 _ => 
+    smem_is_memsafe fid l sm1 && sterm_is_memsafe fid l st1 && 
+    safe_mem_access fid sm1 t st1
+| smem_store sm1 t st11 st12 _ =>
+    smem_is_memsafe fid l sm1 && sterm_is_memsafe fid l st11 && 
+    sterm_is_memsafe fid l st12 && safe_mem_access fid sm1 (typ_pointer t) st12
 | smem_lib sm1 lid1 sts1 =>
-    smem_is_memsafe fid sm1 && list_sterm_is_memsafe fid sts1 && 
-    deref_check fid lid1 sts1
+    smem_is_memsafe fid l sm1 && list_sterm_is_memsafe fid l sts1 && 
+    deref_check fid l lid1 sts1
 end.
 
-Fixpoint is_be_aux (ms:list (id*id*id*id)) (fid b e:id) : bool :=
+Fixpoint is_be_aux (ms:list (id*l*id*id*id)) (fid l1 b e:id) : bool :=
 match ms with
 | nil => false
-| (fid', b',e',_)::ms' => 
-    if (eq_id fid fid' && eq_id b b' && eq_id e e') then true
-    else is_be_aux ms' fid b e
+| (fid',l2,b',e',_)::ms' => 
+    if (eq_id fid fid' && eq_l l1 l2 && eq_id b b' && eq_id e e') then true
+    else is_be_aux ms' fid l1 b e
 end.
 
-Definition is_be (fid b e:id) : bool :=
-  is_be_aux (get_metadata tt) fid b e.
+Definition is_be (fid l b e:id) : bool :=
+  is_be_aux (get_metadata tt) fid l b e.
 
 Fixpoint deref_from_be (sm:smem) (addr_of_b addr_of_e:sterm) : bool :=
 match sm with
@@ -577,7 +606,8 @@ end.
 
    We may want to check them in a fixpoint algorithm. ???
  *)
-Fixpoint check_be fid base bound := 
+(*
+Fixpoint check_be_aux fid base bound := 
 match (base, bound) with
 | (sterm_val (value_id idb), sterm_val (value_id ide)) => 
     if (is_be fid idb ide) then true else false
@@ -596,26 +626,35 @@ match (base, bound) with
 | (sterm_load sm1 _ st1 _, sterm_load sm2 _ st2 _) =>
      deref_from_be sm1 st1 st2
 | (sterm_select st10 _ st11 st12, sterm_select st20 _ st21 st22) =>
-     eq_sterm st10 st20 && check_be fid st11 st21 && check_be fid st12 st22
+     eq_sterm st10 st20 &&
+     check_be_aux fid st11 st21 && check_be_aux fid st12 st22
 | _ => false
 end.
 
-Fixpoint check_all_metadata_aux fid (sm:smap) (ms:list (id*id*id*id)): bool :=
+Definition check_be fid base bound := 
+  check_be_aux fid (remove_cast base) (remove_cast bound).
+*)
+
+Fixpoint check_all_metadata_aux fid l1 (sm:smap) (ms:list (id*l*id*id*id))
+  : bool :=
 match ms with
 | nil => true
-| (fid0,b,e,_)::ms' =>
-    (if (eq_id fid0 fid) then
-      match (lookupAL _ sm b, lookupAL _ sm e) with
-      | (None, None) => true
-      | (Some sb, Some se) => check_be fid (remove_cast sb) (remove_cast se)
+| (fid0,l2,b,e,p)::ms' =>
+    (if (eq_id fid0 fid && eq_l l1 l2) then
+      match (lookupAL _ sm b, lookupAL _ sm e, lookupAL _ sm p) with
+      | (Some sb, Some se, Some sp) => check_metadata fid l1 sb se sp
+      | (Some sb, Some se, None) => 
+          check_metadata fid l1 sb se (sterm_val (value_id p))
+      | (None, None, Some (sterm_gep _ _ _ _)) => true
+      | (None, None, None) => true
       | _ => false
       end
     else true) &&
-    check_all_metadata_aux fid sm ms'
+    check_all_metadata_aux fid l1 sm ms'
 end.
 
-Definition check_all_metadata fid sm :=
-  check_all_metadata_aux fid sm (get_metadata tt).
+Definition check_all_metadata fid l sm :=
+  check_all_metadata_aux fid l sm (get_metadata tt).
 
 Fixpoint check_addrof_be_aux fid (sm:smap) (abes:list (id*id*id))
   : bool :=
@@ -638,10 +677,10 @@ Definition check_addrof_be fid sm :=
 Definition tv_cmds (nbs1 nbs2 : list nbranch) :=
 sumbool2bool _ _ (sstate_sub_dec (se_cmds sstate_init nbs1) (se_cmds sstate_init nbs2) (se_cmds_init_uniq nbs1)).
 
-Definition mtv_cmds fid (nbs2 : list nbranch) :=
+Definition mtv_cmds fid l (nbs2 : list nbranch) :=
 let st2 := se_cmds sstate_init nbs2 in 
-smem_is_memsafe fid st2.(SMem) &&
-check_all_metadata fid st2.(STerms) &&
+smem_is_memsafe fid l st2.(SMem) &&
+check_all_metadata fid l st2.(STerms) &&
 check_addrof_be fid st2.(STerms).
 
 (* Here, we check which function to call conservatively. In practice, a v1
@@ -691,12 +730,12 @@ match (sb1, sb2) with
    (sumbool2bool _ _ (sstate_sub_dec st1 st2 (se_cmds_init_uniq nbs1)))
 end.
 
-Definition mtv_subblock fid (sb2:subblock) :=
+Definition mtv_subblock fid l (sb2:subblock) :=
 match sb2 with
 | mkSB nbs2 call2 iscall2 =>
   let st2 := se_cmds sstate_init nbs2 in
-   smem_is_memsafe fid st2.(SMem) &&
-   check_all_metadata fid st2.(STerms) &&
+   smem_is_memsafe fid l st2.(SMem) &&
+   check_all_metadata fid l st2.(STerms) &&
    check_addrof_be fid st2.(STerms)
 end.
 
@@ -708,10 +747,10 @@ match (sbs1, sbs2) with
 | _ => false
 end.
 
-Fixpoint mtv_subblocks fid (sbs2:list subblock) :=
+Fixpoint mtv_subblocks fid l (sbs2:list subblock) :=
 match sbs2 with
 | nil => true
-| sb2::sbs2' => mtv_subblock fid sb2 && mtv_subblocks fid sbs2'
+| sb2::sbs2' => mtv_subblock fid l sb2 && mtv_subblocks fid l sbs2'
 end.
 
 Fixpoint lookupPhinode (phs:phinodes) (i:id) :=
@@ -743,9 +782,9 @@ end.
    3) either all of (b e p) are in phinodes, or none of them is...
    Not clear how to implement the checking in a way suitable to proofs.
 *)
-Definition mtv_bep_value fid (bv ev pv:value) : bool :=
+Definition mtv_bep_value fid l (bv ev pv:value) : bool :=
 match (bv, ev, pv) with
-| (value_id bid, value_id eid, value_id pid) => is_metadata fid bid eid pid
+| (value_id bid, value_id eid, value_id pid) => is_metadata fid l bid eid pid
 | (value_const (const_null _), value_const (const_null _), 
      value_const (const_null _)) => true
 | _ => false
@@ -757,17 +796,17 @@ match bvls with
 | Cons_list_value_l bv bl bvls' =>
     match (getValueViaLabelFromValuels evls bl,
            getValueViaLabelFromValuels pvls bl) with
-    | (Some ev, Some pv) => mtv_bep_value fid bv ev pv
+    | (Some ev, Some pv) => mtv_bep_value fid bl bv ev pv
     | _ => false
     end && mtv_list_value_l fid bvls' evls pvls
 end.
 
-Fixpoint mtv_phinodes_aux fid (ms:list (id*id*id*id)) (ps2:phinodes)
+Fixpoint mtv_phinodes_aux fid l1 (ms:list (id*l*id*id*id)) (ps2:phinodes)
   : bool :=
 match ms with
 | nil => true
-| (((fid',b),e),p)::ms' =>
-    (if (eq_id fid fid') then
+| ((((fid',l2),b),e),p)::ms' =>
+    (if (eq_id fid fid' && eq_l l1 l2) then
        match (lookupPhinode ps2 b, lookupPhinode ps2 e, lookupPhinode ps2 p) with
        | (None, None, None) => true
        | (Some (insn_phi _ _ bvls), 
@@ -776,11 +815,11 @@ match ms with
        | _ => false
        end
      else true) && 
-    mtv_phinodes_aux fid ms' ps2 
+    mtv_phinodes_aux fid l1 ms' ps2 
 end.
 
-Definition mtv_phinodes fid (ps2:phinodes) : bool :=
-  mtv_phinodes_aux fid (get_metadata tt) ps2.
+Definition mtv_phinodes fid l (ps2:phinodes) : bool :=
+  mtv_phinodes_aux fid l (get_metadata tt) ps2.
 
 Definition tv_block (b1 b2:block) :=
 match (b1, b2) with
@@ -798,10 +837,10 @@ end.
 Definition mtv_block fid (b2:block) :=
 match b2 with
 | block_intro l2 ps2 cs2 tmn2 =>
-  mtv_phinodes fid ps2 &&
+  mtv_phinodes fid l2 ps2 &&
   match cmds2sbs cs2 with
   | (sbs2, nbs2) =>
-    mtv_subblocks fid sbs2 && mtv_cmds fid nbs2
+    mtv_subblocks fid l2 sbs2 && mtv_cmds fid l2 nbs2
   end
 end.
 

@@ -1,3 +1,4 @@
-@softbound_pseudo_main %argv_base %argv_bound %argv
-@softbound_test %bitcast %bitcast1 %0
-@softbound_test %base.alloca %bound.alloca -1
+@softbound_pseudo_main entry %argv_base %argv_bound %argv
+@softbound_test entry %bitcast %bitcast1 %0
+@softbound_test bb %bitcast %bitcast1 %0
+@softbound_test entry %base.alloca %bound.alloca -1
