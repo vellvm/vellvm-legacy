@@ -1,2 +1,0 @@
-export PATH=~/Download/SoftBound-v1.1.1/llvm-install/bin:~/Download/SoftBound-v1.1.1/llvm-gcc-install/bin:$PATH
-
