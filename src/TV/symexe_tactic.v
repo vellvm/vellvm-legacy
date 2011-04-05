@@ -30,16 +30,6 @@ Ltac bdestructn H Js :=
   | ?J::?Js' => apply andb_true_iff in H; destruct H as [H J]; bdestructn H Js
   end.
 
-Ltac sumbool_subst :=
-  repeat
-  match goal with
-  | [ H:sumbool2bool _ _ _ = true |- _ ] => apply sumbool2bool_true in H; subst
-  | [ H:is_true(sumbool2bool _ _ _) |- _ ] => apply sumbool2bool_true in H; subst
-  end.
-
-Tactic Notation "sumbool_subst" "in" hyp(H) :=
-  apply sumbool2bool_true in H.
-
 Ltac bsplit :=
   eapply andb_true_iff; split.
 

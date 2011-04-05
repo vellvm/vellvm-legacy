@@ -122,6 +122,16 @@ Ltac sumbool_simpl :=
   | [ H:is_true(tv_cmds _ _) |- _ ] => unfold is_true in H; apply sumbool2bool_true in H
   end.
 
+Ltac sumbool_subst :=
+  repeat
+  match goal with
+  | [ H:sumbool2bool _ _ _ = true |- _ ] => apply sumbool2bool_true in H; subst
+  | [ H:is_true(sumbool2bool _ _ _) |- _ ] => apply sumbool2bool_true in H; subst
+  end.
+
+Tactic Notation "sumbool_subst" "in" hyp(H) :=
+  apply sumbool2bool_true in H.
+
 (*****************************)
 (*
 *** Local Variables: ***

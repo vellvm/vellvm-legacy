@@ -839,26 +839,27 @@ Proof.
   unfold dbFdef_subEnv_prop in J. eauto.
 Qed.
 
-Definition smap_sub_prop sm1 sm2 := 
+Definition smap_sub_prop fid sm1 sm2 := 
   forall i st1,
     lookupAL _ sm1 i = Some st1 ->
-    exists st2, lookupAL _ sm2 i = Some st2 /\ tv_sterm st1 st2 = true.
+    exists st2, lookupAL _ sm2 (rename_id fid i) = Some st2 /\ 
+      tv_sterm fid st1 st2 = true.
 
-Lemma smap_sub_prop_app1 : forall sm1 sm2 sm,
-  smap_sub_prop sm1 sm ->
-  smap_sub_prop sm2 sm ->
-  smap_sub_prop (sm1 ++ sm2) sm.
+Lemma smap_sub_prop_app1 : forall fid sm1 sm2 sm,
+  smap_sub_prop fid sm1 sm ->
+  smap_sub_prop fid sm2 sm ->
+  smap_sub_prop fid (sm1 ++ sm2) sm.
 Admitted.
 
-Lemma smap_sub_prop_app3 : forall sm1 sm2 sm,
-  smap_sub_prop (sm1 ++ sm2) sm ->
-  smap_sub_prop sm1 sm ->
+Lemma smap_sub_prop_app3 : forall fid sm1 sm2 sm,
+  smap_sub_prop fid (sm1 ++ sm2) sm ->
+  smap_sub_prop fid sm1 sm ->
   disjoint sm1 sm2 ->
-  smap_sub_prop sm2 sm.
+  smap_sub_prop fid sm2 sm.
 Admitted.
 
-Lemma tv_smap__is__correct : forall (sm1 sm2:smap), 
-  uniq sm1 -> (tv_smap sm1 sm2 = true <-> smap_sub_prop sm1 sm2).
+Lemma tv_smap__is__correct : forall fid (sm1 sm2:smap), 
+  uniq sm1 -> (tv_smap fid sm1 sm2 = true <-> smap_sub_prop fid sm1 sm2).
 Proof.
   induction sm1; simpl.  
     intros. 
@@ -867,15 +868,15 @@ Proof.
 
     intros sm2 Huniq. 
     destruct a as [id st1].
-    remember (lookupAL _ sm2 id) as Lookup.
+    remember (lookupAL _ sm2 (rename_id fid id)) as Lookup.
     destruct Lookup as [st2 | ].
     Case "id_in_sm2".
-      remember (tv_sterm st1 st2) as B.
+      remember (tv_sterm fid st1 st2) as B.
       destruct B; subst; simpl.
       SCase "st1 = st2".
         destruct_uniq.
         simpl_env.
-        assert (smap_sub_prop [(id,st1)] sm2) as Hid_sub_sm2.
+        assert (smap_sub_prop fid [(id,st1)] sm2) as Hid_sub_sm2.
           intros i st Hi_in_dom. simpl in *.
           destruct (@eq_dec atom (EqDec_eq_of_EqDec atom EqDec_atom) i id);
             inversion Hi_in_dom; subst.
@@ -906,16 +907,16 @@ Proof.
           inversion J1; subst.
 Qed.
 
-Lemma tv_cmds__is__correct : forall TD nbs nbs' lc1 als1 gl Mem1 lc2 als2 Mem2 tr,
+Lemma tv_cmds__is__correct : forall TD fid nbs nbs' lc1 als1 gl Mem1 lc2 als2 Mem2 tr,
   uniq lc1 ->  
   wf_nbranchs nbs' ->
-  tv_cmds nbs nbs' ->
+  tv_cmds fid nbs nbs' ->
   dbCmds TD gl lc1 als1 Mem1 (nbranchs2cmds nbs) lc2 als2 Mem2 tr ->
   exists slc,
     dbCmds TD gl lc1 als1 Mem1 (nbranchs2cmds nbs') slc als2 Mem2 tr /\
     subAL _ lc2 slc.
 Proof.
-  intros TD nbs nbs' lc1 als1 gl Mem1 lc2 als2 Mem2 tr Huniqc Wf Htv_cmds HdbCmds.
+  intros TD fid nbs nbs' lc1 als1 gl Mem1 lc2 als2 Mem2 tr Huniqc Wf Htv_cmds HdbCmds.
   assert (Uniqs:=HdbCmds).
   apply se_dbCmds_preservation in Uniqs; auto.
   apply op_cmds__satisfy__se_cmds in HdbCmds; auto.
@@ -932,13 +933,13 @@ Admitted.
 Qed.
 *)
 
-Lemma lookup_tv_blocks__tv_block : forall lb1 lb2 l0 B1,
+Lemma lookup_tv_blocks__tv_block : forall fid lb1 lb2 l0 B1,
   uniqBlocks lb1 ->
   uniqBlocks lb2 ->
-  tv_blocks lb1 lb2 ->
+  tv_blocks fid lb1 lb2 ->
   lookupAL _ (genLabel2Block_blocks lb1) l0 = Some B1 ->
   exists B2, exists n,
-    tv_block B1 B2 /\
+    tv_block fid B1 B2 /\
     nth_error lb1 n = Some B1 /\
     nth_error lb2 n = Some B2 /\
     lookupAL _ (genLabel2Block_blocks lb2) l0 = Some B2.
@@ -980,15 +981,15 @@ Proof.
           apply mergeALs_app; auto.
 Qed.        
 
-Lemma tv_blocks_nth_Some_inv : forall lb1 lb2 n B1,
+Lemma tv_blocks_nth_Some_inv : forall fid lb1 lb2 n B1,
   uniqBlocks lb1 ->
   uniqBlocks lb2 ->
-  tv_blocks lb1 lb2 ->
+  tv_blocks fid lb1 lb2 ->
   nth_error lb1 n = Some B1 ->
   exists B2, 
-    nth_error lb2 n = Some B2 /\ tv_block B1 B2.
+    nth_error lb2 n = Some B2 /\ tv_block fid B1 B2.
 Proof.
-  intros lb1 lb2 n B1 H H0 H1 H2.
+  intros fid lb1 lb2 n B1 H H0 H1 H2.
   assert (J:=H2).
   apply nth_error__lookupAL_genLabel2Block_blocks in H2; auto.
   destruct H2 as [l0 H2].
@@ -1005,12 +1006,13 @@ Lemma lookup_tv_fdef__tv_block : forall fh1 fh2 lb1 lb2 l0 B1,
   tv_fdef (fdef_intro fh1 lb1) (fdef_intro fh2 lb2) ->
   lookupBlockViaLabelFromFdef (fdef_intro fh1 lb1) l0 = Some B1 ->
   exists B2, exists n,
-    tv_block B1 B2 /\
+    tv_block (getFdefID (fdef_intro fh1 lb1)) B1 B2 /\
     nth_error lb1 n = Some B1 /\
     nth_error lb2 n = Some B2 /\
     lookupBlockViaLabelFromFdef (fdef_intro fh2 lb2) l0 = Some B2.
 Proof.
   intros fh1 fh2 lb1 lb2 l0 B1 H H0 H1 H2.
+  destruct fh1 as [t1 fid1 a1].
   bdestruct H1 as EQ Htv_blocks.
   sumbool_subst.
   unfold lookupBlockViaLabelFromFdef in H2.
@@ -1018,13 +1020,13 @@ Proof.
   eapply lookup_tv_blocks__tv_block; eauto.
 Qed.
 
-Lemma tv_block__inv : forall B1 B2,
-  tv_block B1 B2 ->
+Lemma tv_block__inv : forall fid B1 B2,
+  tv_block fid B1 B2 ->
   getBlockLabel B1 = getBlockLabel B2 /\
-  tv_phinodes (getPhiNodesFromBlock B1) (getPhiNodesFromBlock B2) /\
+  tv_phinodes fid (getPhiNodesFromBlock B1) (getPhiNodesFromBlock B2) /\
   getTerminatorFromBlock B1 = getTerminatorFromBlock B2.
 Proof.
-  intros B1 B2 H.
+  intros fid B1 B2 H.
   destruct B1.
   destruct B2. simpl in *.
   unfold tv_block in H.
@@ -1033,36 +1035,36 @@ Proof.
   bdestruct5 H as J1 J2 J3 J4 J5.
   sumbool_subst.
   split; auto.
+    admit.
 Qed.
  
+Definition phinodes_sub_prop fid (ps1 ps2:phinodes) :=
+  forall i p1,
+    lookupPhinode ps1 i = Some p1 ->
+    exists p2, lookupPhinode ps2 i = Some p2 /\ tv_phinode fid p1 p2 = true.
 
-Definition phinodes_sub_prop (ps1 ps2:phinodes) :=
-  forall i,
-    In i (getPhiNodesIDs ps1) ->
-    lookupPhinode ps1 i = lookupPhinode ps2 i.
-
-Lemma phinodes_sub_prop_app1 : forall ps1 ps2 ps,
-  phinodes_sub_prop ps1 ps -> 
-  phinodes_sub_prop ps2 ps ->
-  phinodes_sub_prop (ps1++ps2) ps.
+Lemma phinodes_sub_prop_app1 : forall fid ps1 ps2 ps,
+  phinodes_sub_prop fid ps1 ps -> 
+  phinodes_sub_prop fid ps2 ps ->
+  phinodes_sub_prop fid (ps1++ps2) ps.
 Proof.
 Admitted.
 
-Lemma phinodes_sub_prop_app2 : forall ps1 ps2 ps,
-  phinodes_sub_prop ps1 ps -> 
-  phinodes_sub_prop (ps1++ps2) ps ->
+Lemma phinodes_sub_prop_app2 : forall fid ps1 ps2 ps,
+  phinodes_sub_prop fid ps1 ps -> 
+  phinodes_sub_prop fid (ps1++ps2) ps ->
   NoDup (getPhiNodesIDs (ps1++ps2)) ->
-  phinodes_sub_prop ps2 ps.
+  phinodes_sub_prop fid ps2 ps.
 Admitted.
 
-Lemma tv_phinodes__is__correct: forall ps1 ps2, 
+Lemma tv_phinodes__is__correct: forall fid ps1 ps2, 
   NoDup (getPhiNodesIDs ps1) ->
-  (tv_phinodes ps1 ps2 = true <-> phinodes_sub_prop ps1 ps2).
+  (tv_phinodes fid ps1 ps2 = true <-> phinodes_sub_prop fid ps1 ps2).
 Proof.
   induction ps1; simpl.
     intros.
     split; auto.
-      intros Ht id1 Hindom. inversion Hindom.
+      intros Ht id1 p1 Hindom. inversion Hindom.
 
     intros ps2 Huniq.
     simpl in Huniq.
@@ -1074,13 +1076,15 @@ Proof.
     simpl_env in *.
     destruct a as [i1 t1 vs1].
     remember (lookupPhinode ps2 i1) as Lookup.
-    destruct Lookup as [p2 | _].
-      destruct (@phinode_dec (insn_phi i1 t1 vs1) p2); subst; simpl.
-        assert (phinodes_sub_prop [insn_phi i1 t1 vs1] ps2) as i1_sub_ps2.
-          intros i Hi_in_dom. simpl in *.
-          destruct (@eq_dec id (EqDec_eq_of_EqDec id EqDec_atom) i i1); subst.
-            rewrite <- HeqLookup; auto.
-            fsetdec.
+    destruct Lookup as [p2 | ].
+      remember (tv_phinode fid (insn_phi i1 t1 vs1) p2) as R.
+      destruct R; subst; simpl.
+        assert (phinodes_sub_prop fid [insn_phi i1 t1 vs1] ps2) as i1_sub_ps2.
+          intros i p1 Hi_in_dom. simpl in *.
+          destruct (@eq_dec id (EqDec_eq_of_EqDec id EqDec_atom) i i1);
+            inversion Hi_in_dom; subst.
+            exists p2.            
+            rewrite <- HeqLookup; split; auto.
         destruct (@IHps1 ps2 Huniq') as [J1 J2].
         simpl_env.
         split; intro J.
@@ -1092,14 +1096,17 @@ Proof.
           inversion J.
           assert (H:=@J i1). simpl in H.
           destruct (@eq_dec id (EqDec_eq_of_EqDec id EqDec_atom) i1 i1); auto.
-            rewrite <- HeqLookup in H. injection H; auto.
+            rewrite <- HeqLookup in H. 
+            destruct (@H (insn_phi i1 t1 vs1)) as [p3 [J1 J2]]; auto.
+            inversion J1; subst.
+            rewrite <- HeqR in J2. inversion J2.
       split; intro J. 
         inversion J.
         assert (H:=@J i1). simpl in H.
         destruct (@eq_dec id (EqDec_eq_of_EqDec id EqDec_atom) i1 i1); auto.
           rewrite <- HeqLookup in H.
-          assert (ret (insn_phi i1 t1 vs1) = merror) as F. auto.
-          inversion F.
+          destruct (@H (insn_phi i1 t1 vs1)) as [p3 [J1 J2]]; auto.
+          inversion J1.
 Qed.
 
 Lemma NoDup_inv : forall A (l1 l2:list A),
@@ -1408,7 +1415,7 @@ Lemma tv_products__lookupFdefViaIDFromProducts :
   exists la2, exists lb2,
     lookupFdefViaIDFromProducts Ps2 (rename_fid fid1) = Some (fdef_intro (fheader_intro rt (rename_fid fid1) la2) lb2) /\
     prefix _ la1 la2 /\
-    tv_blocks lb1 lb2.
+    tv_blocks fid1 lb1 lb2.
 Proof.
   induction Ps1; intros Ps2 fid1 tr la1 lb1 Htv Hlookup.
     inversion Hlookup.
@@ -1569,6 +1576,7 @@ Proof.
 Qed.
 *)
 
+(*
 Definition tv_dbCall__is__correct_prop S1 TD Ps1 fs gl lc Mem0 call0 lc' Mem' tr
   (db:dbCall S1 TD Ps1 fs gl lc Mem0 call0 lc' Mem' tr) :=
   forall S2 Ps2 los nts,
@@ -2343,6 +2351,7 @@ Proof.
   repeat (split; auto).
     apply seop_dbFdef__llvmop_dbFdef; auto.
 Qed.
+*)
 
 (*****************************)
 (*
