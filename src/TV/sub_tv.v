@@ -197,6 +197,9 @@ match c1 with
               | (
                  typ_pointer t0,
 (*
+   FIXME: This can also be a namedt that equals to typ_struct...  
+   We should formalize the type equivalence algorithm.
+
                  typ_pointer (typ_struct 
                   (Cons_list_typ (typ_pointer _ as t01) 
                   (Cons_list_typ (typ_pointer _ as t02)
@@ -392,15 +395,115 @@ let st2 := se_cmds sstate_init nbs2 in
 let md' := metadata_from_sterms st2.(STerms) md md in
 metadata_from_smem st2.(SMem) md'.
 
-Definition metadata_from_subblock (sb2:subblock) (md:beps) : beps :=
-match sb2 with
-| mkSB nbs2 _ _ => metadata_from_cmds nbs2 md
+(* We assume that the orders of ars and sars are matched. The function finds
+   the corresponding sterm to arg with id i. *)
+Fixpoint lookupSarg (ars:list (typ*id)) (sars:list (typ*sterm)) (i:id) :
+  option sterm :=
+match (ars, sars) with
+| (nil, nil) => None
+| ((_,i')::ars', (_,s')::sars') =>
+    if (eq_id i i') then Some s' else lookupSarg ars' sars' i
+| _ => None
 end.
 
-Fixpoint metadata_from_subblocks (sbs2:list subblock) (md:beps) : beps :=
+(* ms are base/bound in the arguments of function fid
+   fid's arguments i args2
+   sars2 is parameters supplied to fid at its callsite
+*)
+Fixpoint metadata_from_params (ar_bep:list (id*id*id)) ars2 sars2 
+  (accum:beps) : beps :=
+match ar_bep with
+| nil => accum
+| (b,e,p)::ar_bep' => metadata_from_params ar_bep' ars2 sars2 
+    (match (lookupSarg ars2 sars2 b, lookupSarg ars2 sars2 e, 
+      lookupSarg ars2 sars2 p) with
+    | (Some sb, Some se, Some sp) => metadata_from_bep sb se sp accum
+    | _ => accum
+    end)
+end.
+
+Definition get_arg_metadata (md:flbeps) fid : beps :=
+match lookupAL _ md fid with
+| None => nil
+| Some md' => 
+  match lookupAL _ md' (l_of_arg tt) with
+  | None => nil
+  | Some md'' => md''
+  end
+end.
+
+(*
+  fid2 args2
+
+  fid
+    ...
+    l1:
+      call fid2 tsts2   
+*)
+Inductive sicall : Set :=
+| stmn_icall_nptr : 
+    id -> noret -> tailc -> typ -> sterm -> list (typ*sterm) -> sicall
+| stmn_icall_ptr : 
+    id -> id -> id -> typ -> sterm -> sterm -> list (typ*sterm) -> sicall
+.
+
+Definition se_icall (st:sstate) (i:icall) : sicall :=
+match i with
+| icall_nptr id0 nr tc t0 v0 p0 =>
+    stmn_icall_nptr id0 nr tc t0 (value2Sterm st.(STerms) v0) 
+      (list_param__list_typ_subst_sterm p0 st.(STerms))
+| icall_ptr id0 id1 id2 t0 v0 id4 p0 =>
+    stmn_icall_ptr id0 id1 id2 t0 (value2Sterm st.(STerms) v0) 
+      (lookupSmap st.(STerms) id4)
+      (list_param__list_typ_subst_sterm p0 st.(STerms))
+end.
+
+Definition metadata_from_iscall Ps2 (flbep0:flbeps) (accum:beps) (c2:sicall) 
+  : beps :=
+match c2 with
+| stmn_icall_nptr _ _ _ _ t2 tsts2 =>
+  match remove_cast t2 with
+  | sterm_val (value_const (const_gid _ fid2)) =>
+      if (isCallLib fid2) then accum
+      else
+        match (lookupFdefViaIDFromProducts Ps2 fid2) with
+        | None => accum
+        | Some (fdef_intro (fheader_intro _ _ args2) _) =>
+            metadata_from_params (get_arg_metadata flbep0 fid2) args2 tsts2 accum
+        end
+  | _ => accum
+  end
+| stmn_icall_ptr _ _ _ _ t2 _ tsts2 =>
+  match remove_cast t2 with
+  | sterm_val (value_const (const_gid _ fid2)) =>
+      if (isCallLib fid2) then accum
+      else
+        match (lookupFdefViaIDFromProducts Ps2 fid2) with
+        | None => accum
+        | Some (fdef_intro (fheader_intro _ _ args2) _) =>
+            metadata_from_params (get_arg_metadata flbep0 fid2) args2 tsts2 accum
+        end
+  | _ => accum
+  end
+end.
+
+Definition metadata_from_isubblock Ps2 flbep (sb2:isubblock) (accum:beps) 
+  : beps :=
+match sb2 with
+| mkiSB nbs2 call2 => 
+  let st2 := se_cmds sstate_init nbs2 in 
+  let cl2 := se_icall st2 call2 in
+  let accum' := metadata_from_iscall Ps2 flbep accum cl2 in
+  let accum'' := metadata_from_sterms st2.(STerms) accum' accum' in
+  metadata_from_smem st2.(SMem) accum''
+end.
+
+Fixpoint metadata_from_isubblocks Ps2 flbep (sbs2:list isubblock) (accum:beps) 
+  : beps :=
 match sbs2 with
-| nil => md
-| sb2::sbs2' => metadata_from_subblocks sbs2' (metadata_from_subblock sb2 md)
+| nil => accum
+| sb2::sbs2' => metadata_from_isubblocks Ps2 flbep sbs2' 
+    (metadata_from_isubblock Ps2 flbep sb2 accum)
 end.
 
 Fixpoint lookupPhinode (phs:phinodes) (i:id) :=
@@ -528,41 +631,42 @@ match f2 with
 | fdef_intro _ lb2 => genBlockUseDef_blocks lb2 nil
 end.
 
-Definition metadata_from_block (b2:block) (udb:usedef_block) (md:lbeps) 
-  : lbeps :=
+Definition metadata_from_block Ps1 Ps2 flbep (b2:block) (udb:usedef_block) 
+  (lbep:lbeps) : lbeps :=
 match b2 with
 | block_intro l2 ps2 cs2 tmn2 =>
-  let (sbs2, nbs2) := cmds2sbs cs2 in
+  let (sbs2, nbs2) := cmds2isbs Ps1 cs2 in
   let accum0 :=
-    match (lookupAL _ md l2) with
+    match (lookupAL _ lbep l2) with
     | Some accum0 => accum0
     | None => nil
     end in
   let accum1 := metadata_from_cmds nbs2 accum0 in
-  let accum2 := metadata_from_subblocks (List.rev sbs2) accum1 in
-  let md' := update_block_metadata md l2 accum2 in
-  let md'' := metadata_from_phinodes ps2 md' accum2 in
+  let accum2 := metadata_from_isubblocks Ps2 flbep (List.rev sbs2) accum1 in
+  let lbep' := update_block_metadata lbep l2 accum2 in
+  let lbep'' := metadata_from_phinodes ps2 lbep' accum2 in
   let preds := 
     match lookupAL _ udb l2 with
     | Some ls => ls
     | None => nil
     end in
-  updatePredBlocks preds md'' (falling_through_metadata accum2 b2)
+  updatePredBlocks preds lbep'' (falling_through_metadata accum2 b2)
 end.
 
-Fixpoint metadata_from_blocks_aux (bs2:blocks) (udb:usedef_block) (md:lbeps) 
-  : lbeps :=
+Fixpoint metadata_from_blocks_aux Ps1 Ps2 flbep (bs2:blocks) (udb:usedef_block) 
+  (lbep:lbeps) : lbeps :=
 match bs2 with
-| nil => md
-| b2::bs2' => metadata_from_blocks_aux bs2' udb (metadata_from_block b2 udb md)
+| nil => lbep
+| b2::bs2' => metadata_from_blocks_aux Ps1 Ps2 flbep bs2' udb 
+    (metadata_from_block Ps1 Ps2 flbep b2 udb lbep)
 end.
 
-Fixpoint eq_metadata (md1 md2:lbeps) : bool :=
+Fixpoint eq_lbeps (md1 md2:lbeps) : bool :=
 match (md1, md2) with
 | (nil, nil) => true
 | ((l1,bep1)::md1', (l2,bep2)::md2') =>
     eq_l l1 l2 && beq_nat (List.length bep1) (List.length bep2) &&
-    eq_metadata md1' md2'
+    eq_lbeps md1' md2'
 | _ => false
 end.
 
@@ -570,14 +674,14 @@ Inductive onat :=
 | Ozero : onat
 | Osucc : onat -> onat.
 
-Fixpoint metadata_from_blocks (bs2:blocks) (udb:usedef_block) (md:lbeps) 
-  (steps:onat) : lbeps :=
-match steps with
+Fixpoint metadata_from_blocks Ps1 Ps2 flbep (bs2:blocks) (udb:usedef_block) 
+  (md:lbeps) (bsteps:onat) : lbeps :=
+match bsteps with
 | Ozero => md 
-| Osucc steps' => 
-  let md' := metadata_from_blocks_aux bs2 udb md in
-  if eq_metadata md md' then md'
-  else metadata_from_blocks bs2 udb md' steps'
+| Osucc bsteps' => 
+  let md' := metadata_from_blocks_aux Ps1 Ps2 flbep bs2 udb md in
+  if eq_lbeps md md' then md'
+  else metadata_from_blocks Ps1 Ps2 flbep bs2 udb md' bsteps'
 end.
 
 Fixpoint metadata_from_args (a:args) (md accum:beps) : beps :=
@@ -594,12 +698,14 @@ match md with
        end)
 end.
 
-Definition metadata_from_fdef (f2:fdef) (md:lbeps) (steps:onat) : lbeps :=
+Definition metadata_from_fdef Ps1 Ps2 flbep (f2:fdef) (md:lbeps) (bsteps:onat) 
+  : lbeps :=
 match f2 with
 | fdef_intro ((fheader_intro t2 fid2 a2) as fh2) lb2 =>
   if (isCallLib fid2) then md 
   else 
-    let accum := (metadata_from_blocks lb2 (genBlockUseDef_fdef f2) nil steps) 
+   let accum := 
+      metadata_from_blocks Ps1 Ps2 flbep lb2 (genBlockUseDef_fdef f2) md bsteps 
     in 
       match getEntryBlock f2 with
        | None => accum
@@ -612,20 +718,43 @@ match f2 with
        end
 end.
 
-Fixpoint metadata_from_products (Ps2:products) (md:flbeps) (steps:onat) 
-  : flbeps :=
+Fixpoint metadata_from_products_aux (Ps10 Ps20 Ps2:products) (md:flbeps) 
+  (bsteps:onat) : flbeps :=
 match Ps2 with
 | nil => md
 | product_fdef f2::Ps2' => 
-    let lbep := metadata_from_fdef f2 nil steps in
+    let lbep0 := match lookupAL _ md (getFdefID f2) with
+      | Some md => md 
+      | None => nil
+      end in 
+    let lbep := metadata_from_fdef Ps10 Ps20 md f2 lbep0 bsteps in
     let md' := updateAddAL _ md (getFdefID f2) lbep in
-    metadata_from_products Ps2' md' steps
-| _::Ps2' => metadata_from_products Ps2' md steps
+    metadata_from_products_aux Ps10 Ps20 Ps2' md' bsteps
+| _::Ps2' => metadata_from_products_aux Ps10 Ps20 Ps2' md bsteps
 end.
 
-Definition metadata_from_module (m2:module) (steps:onat) :=
-match m2 with
-| module_intro _ _ Ps2 => metadata_from_products Ps2 nil steps
+Fixpoint eq_flbeps (md1 md2:flbeps) : bool :=
+match (md1, md2) with
+| (nil, nil) => true
+| ((f1,lbeps1)::md1', (f2,lbeps2)::md2') =>
+    eq_id f1 f2 && eq_lbeps lbeps1 lbeps2 && eq_flbeps md1' md2'
+| _ => false
+end.
+
+Fixpoint metadata_from_products (Ps1 Ps2:products) (md:flbeps) (bsteps:onat)
+  (psteps:onat) : flbeps :=
+match psteps with
+| Ozero => md 
+| Osucc psteps' => 
+  let md' := metadata_from_products_aux Ps1 Ps2 Ps2 md bsteps in
+  if eq_flbeps md md' then md'
+  else metadata_from_products Ps1 Ps2 md' bsteps psteps'
+end.
+
+Definition metadata_from_module (m1 m2:module) (bsteps psteps:onat) :=
+match (m1, m2) with
+| (module_intro _ _ Ps1, module_intro _ _ Ps2) => 
+    metadata_from_products Ps1 Ps2 nil bsteps psteps
 end.
 
 (************************************************************)
@@ -1039,24 +1168,6 @@ end.
  * system calls, say atoi from tailcall to non-tailcall.
  *)
 
-Inductive sicall : Set :=
-| stmn_icall_nptr : 
-    id -> noret -> tailc -> typ -> sterm -> list (typ*sterm) -> sicall
-| stmn_icall_ptr : 
-    id -> id -> id -> typ -> sterm -> sterm -> list (typ*sterm) -> sicall
-.
-
-Definition se_icall (st:sstate) (i:icall) : sicall :=
-match i with
-| icall_nptr id0 nr tc t0 v0 p0 =>
-    stmn_icall_nptr id0 nr tc t0 (value2Sterm st.(STerms) v0) 
-      (list_param__list_typ_subst_sterm p0 st.(STerms))
-| icall_ptr id0 id1 id2 t0 v0 id4 p0 =>
-    stmn_icall_ptr id0 id1 id2 t0 (value2Sterm st.(STerms) v0) 
-      (lookupSmap st.(STerms) id4)
-      (list_param__list_typ_subst_sterm p0 st.(STerms))
-end.
-
 Inductive scall : Set :=
 | stmn_call : id -> noret -> tailc -> typ -> sterm -> list (typ*sterm) -> scall
 .
@@ -1396,7 +1507,7 @@ end.
 Definition is_metadata (fid:id) (l1:l) (b e p:id) : bool :=
   is_metadata_aux (get_metadata tt) fid l1 b e p.
 
-Fixpoint check_metadata_aux fid l1 base bound ptr := 
+Fixpoint check_metadata_aux Ps2 fid l1 base bound ptr := 
 match (base, bound, ptr) with
 | (sterm_val (value_id idb), sterm_val (value_id ide), 
    sterm_val (value_id idp)) => 
@@ -1423,16 +1534,36 @@ match (base, bound, ptr) with
 | (sterm_select st10 _ st11 st12, sterm_select st20 _ st21 st22,
    sterm_select st30 _ st31 st32) =>
      eq_sterm st10 st20 && eq_sterm st20 st30 &&
-     check_metadata_aux fid l1 st11 st21 st31 && 
-     check_metadata_aux fid l1 st12 st22 st32
+     check_metadata_aux Ps2 fid l1 st11 st21 st31 && 
+     check_metadata_aux Ps2 fid l1 st12 st22 st32
+(*
+  Assign external globals infinite base/bound.
+
+  %bcast_ld_dref_base19 = bitcast i8* null to i8* 
+  %16 = bitcast i8* inttoptr (i32 2147483647 to i8* ) to i8*
+  %bcast_ld_dref_bound20 = bitcast %struct._IO_FILE** @stderr to i8* 
+*)
+| (sterm_val (value_const (const_null _)),
+   sterm_val (value_const (const_castop cast_inttoptr _ _)),
+   sterm_val (value_const (const_gid (typ_pointer _) id))) =>
+     match lookupBindingViaIDFromProducts Ps2 id with 
+     | id_binding_gvar (gvar_external _ _ _) => true
+     | _ => false
+     end
+| (sterm_val (value_const (const_null _)), 
+   sterm_val (value_const (const_null _)),
+   sterm_val (value_const (const_null _))) => true
+| (sterm_val (value_const (const_undef _)),
+   sterm_val (value_const (const_undef _)),
+   sterm_val (value_const (const_undef _))) => true (* assumed by Softbound *)
 | _ => false
 end.
 
-Definition check_metadata fid l1 base bound ptr := 
-  check_metadata_aux fid l1 (remove_cast base) (remove_cast bound) 
+Definition check_metadata Ps2 fid l1 base bound ptr := 
+  check_metadata_aux Ps2 fid l1 (remove_cast base) (remove_cast bound) 
     (get_ptr_object ptr).
 
-Definition deref_check fid l1 lid sts : bool :=
+Definition deref_check Ps2 fid l1 lid sts : bool :=
   if (is_dereferenceCheck lid) then
     match sts with
     |  Cons_list_sterm base 
@@ -1440,7 +1571,7 @@ Definition deref_check fid l1 lid sts : bool :=
       (Cons_list_sterm ptr
       (Cons_list_sterm size_of_type
       (Cons_list_sterm _ Nil_list_sterm)))) => 
-        check_metadata fid l1 base bound ptr
+        check_metadata Ps2 fid l1 base bound ptr
     | _ => false
     end
   else true.
@@ -1462,7 +1593,7 @@ end.
    store ptr addr_of_ptr
    hashStoreBaseBound addr_of_ptr b e _ _ _
 *)
-Fixpoint store_to_metadata fid l1 sm (lid:id) sts : bool :=
+Fixpoint store_to_metadata Ps2 fid l1 sm (lid:id) sts : bool :=
 if (is_hashLoadBaseBound lid) then
   match sts with
   |  Cons_list_sterm addr_of_ptr 
@@ -1473,7 +1604,7 @@ if (is_hashLoadBaseBound lid) then
     (Cons_list_sterm _ Nil_list_sterm))))) =>
       match (find_stored_ptr sm addr_of_ptr) with
       | None => false
-      | Some ptr => check_metadata fid l1 base bound ptr
+      | Some ptr => check_metadata Ps2 fid l1 base bound ptr
       end
   | _ => false
   end      
@@ -1578,7 +1709,7 @@ match st with
 | sterm_lib sm lid sts => 
     smem_is_memsafe Ps1 Ps2 fid l sm && 
     list_sterm_is_memsafe Ps1 Ps2 fid l sts && 
-    store_to_metadata fid l sm lid sts
+    store_to_metadata Ps2 fid l sm lid sts
 end
 with list_sterm_is_memsafe Ps1 Ps2 fid l (sts:list_sterm) : bool :=
 match sts with
@@ -1611,29 +1742,122 @@ match sm with
 | smem_lib sm1 lid1 sts1 =>
     smem_is_memsafe Ps1 Ps2 fid l sm1 && 
     list_sterm_is_memsafe Ps1 Ps2 fid l sts1 && 
-    deref_check fid l lid1 sts1
+    deref_check Ps2 fid l lid1 sts1
 end.
 
-Fixpoint check_all_metadata_aux fid l1 (sm:smap) (ms:list (id*l*id*id*id))
+Fixpoint is_be_aux (ms:list (id*l*id*id*id)) (fid l1 b e:id) : bool :=
+match ms with
+| nil => false
+| (fid',l2,b',e',_)::ms' => 
+    (eq_id fid fid' && eq_l l1 l2 && eq_id b b' && eq_id e e') ||
+    is_be_aux ms' fid l1 b e
+end.
+
+Definition is_be (fid:id) (l1:l) (b e:id) : bool :=
+  is_be_aux (get_metadata tt) fid l1 b e.
+
+Fixpoint deref_from_be (fid:id) (sm:smem) (addr_of_b addr_of_e:sterm) : bool :=
+match sm with
+| smem_init => false
+| smem_malloc sm1 _ _ _
+| smem_alloca sm1 _ _ _ => deref_from_be fid sm1 addr_of_b addr_of_e
+| smem_free sm1 _ _ => false
+| smem_load sm1 _ _ _ => deref_from_be fid sm1 addr_of_b addr_of_e
+| smem_store sm1 _ _ _ _ => deref_from_be fid sm1 addr_of_b addr_of_e
+| smem_lib sm1 fid1 sts1 =>
+    if (is_hashLoadBaseBound fid1) then
+    match sts1 with
+    |  Cons_list_sterm addr_of_ptr 
+      (Cons_list_sterm addr_of_base
+      (Cons_list_sterm addr_of_bound
+      (Cons_list_sterm _
+      (Cons_list_sterm _
+      (Cons_list_sterm _ Nil_list_sterm))))) =>
+      if (eq_sterm_upto_cast addr_of_b addr_of_base &&
+          eq_sterm_upto_cast addr_of_e addr_of_bound) then true
+      else deref_from_be fid sm1 addr_of_b addr_of_e
+    | _ => deref_from_be fid sm1 addr_of_b addr_of_e
+    end      
+    else deref_from_be fid sm1 addr_of_b addr_of_e
+end.
+
+Fixpoint check_be_aux (Ps2:products) fid l1 base bound:= 
+match (base, bound) with
+| (sterm_val (value_id idb), sterm_val (value_id ide)) => 
+    is_be fid l1 idb ide
+| (sterm_malloc _ _ st10 _ as st1, 
+   sterm_gep _ _ st2 (Cons_list_sterm st20 Nil_list_sterm)) =>
+     eq_sterm_upto_cast st1 st2
+| (sterm_alloca _ _ st10 _ as st1, 
+   sterm_gep _ _ st2 (Cons_list_sterm st20 Nil_list_sterm)) =>
+     eq_sterm_upto_cast st1 st2
+| (sterm_val (value_const (const_gid _ _ as c1)),
+   sterm_val (value_const (const_gep _ (const_gid _ _ as c2)
+     (Cons_list_const (const_int _ i2) Nil_list_const)))) =>
+     eq_const c1 c2 && INT_is_one i2   
+| (sterm_load sm1 _ st1 _, sterm_load sm2 _ st2 _) =>
+     deref_from_be fid sm1 st1 st2
+| (sterm_select st10 _ st11 st12, sterm_select st20 _ st21 st22) =>
+     eq_sterm st10 st20 &&
+     check_be_aux Ps2 fid l1 st11 st21 && 
+     check_be_aux Ps2 fid l1 st12 st22
+(*
+  Assign external globals infinite base/bound.
+
+  %bcast_ld_dref_base19 = bitcast i8* null to i8* 
+  %16 = bitcast i8* inttoptr (i32 2147483647 to i8* ) to i8*
+  %bcast_ld_dref_bound20 = bitcast %struct._IO_FILE** @stderr to i8* 
+*)
+| (sterm_val (value_const (const_null _)),
+   sterm_val (value_const (const_castop cast_inttoptr _ _))) => true
+| (sterm_val (value_const (const_null _)), 
+   sterm_val (value_const (const_null _))) => true
+| (sterm_val (value_const (const_undef _)),
+   sterm_val (value_const (const_undef _))) => true (* assumed by Softbound *)
+| _ => false
+end.
+
+Definition check_be Ps2 fid l1 base bound:= 
+  check_be_aux Ps2 fid l1 (remove_cast base) (remove_cast bound).
+
+Fixpoint check_all_metadata_aux Ps2 fid l1 (sm:smap) (ms:list (id*l*id*id*id))
   : bool :=
 match ms with
 | nil => true
 | (fid0,l2,b,e,p)::ms' =>
     (if (eq_id fid0 fid && eq_l l1 l2) then
       match (lookupAL _ sm b, lookupAL _ sm e, lookupAL _ sm p) with
-      | (Some sb, Some se, Some sp) => check_metadata fid l1 sb se sp
+      | (Some sb, Some se, Some sp) => check_metadata Ps2 fid l1 sb se sp
       | (Some sb, Some se, None) => 
-          check_metadata fid l1 sb se (sterm_val (value_id p))
-      | (None, None, Some (sterm_gep _ _ _ _)) => true
+          (*   b1 = bitcast b; e1 = bitcast e
+               and p is falled-through or
+              
+               b and e are defined here, while p is in the next subblock, 
+               b = malloc; e = malloc + size;
+               call;
+               p = gep b 
+
+               FIXME: We should have a better solution for the second case.
+               We should compute symbolic results for the whole block, not
+               only each subblock.
+
+               Or we should give names of each subblock, and precisely
+               assign metadata with subblock names.
+          *)
+          check_metadata Ps2 fid l1 sb se (sterm_val (value_id p)) ||
+          check_be Ps2 fid l1 sb se
+      | (None, None, Some (sterm_gep _ _ _ _)) => 
+          (*   b and e are falled-through  *)
+          true
       | (None, None, None) => true
       | _ => false
       end
     else true) &&
-    check_all_metadata_aux fid l1 sm ms'
+    check_all_metadata_aux Ps2 fid l1 sm ms'
 end.
 
-Definition check_all_metadata fid l sm :=
-  check_all_metadata_aux fid l sm (get_metadata tt).
+Definition check_all_metadata Ps2 fid l sm :=
+  check_all_metadata_aux Ps2 fid l sm (get_metadata tt).
 
 Fixpoint check_addrof_be_aux fid (sm:smap) (abes:list (id*id*id))
   : bool :=
@@ -1656,21 +1880,10 @@ Definition check_addrof_be fid sm :=
 Definition mtv_cmds Ps1 Ps2 fid l (nbs2 : list nbranch) :=
 let st2 := se_cmds sstate_init nbs2 in 
 smem_is_memsafe Ps1 Ps2 fid l st2.(SMem) &&
-check_all_metadata fid l st2.(STerms) &&
+check_all_metadata Ps1 fid l st2.(STerms) &&
 check_addrof_be fid st2.(STerms).
 
-(* We assume that the orders of ars and sars are matched. The function finds
-   the corresponding sterm to arg with id i. *)
-Fixpoint lookupSarg (ars:list (typ*id)) (sars:list (typ*sterm)) (i:id) :
-  option sterm :=
-match (ars, sars) with
-| (nil, nil) => None
-| ((_,i')::ars', (_,s')::sars') =>
-    if (eq_id i i') then Some s' else lookupSarg ars' sars' i
-| _ => None
-end.
-
-Fixpoint mtv_func_metadata (ms:list (id*l*id*id*id)) fid l1 fid2 ars2 sars2 
+Fixpoint mtv_func_metadata (ms:list (id*l*id*id*id)) Ps2 fid l1 fid2 ars2 sars2 
   : bool :=
 match ms with
 | nil => true
@@ -1678,44 +1891,44 @@ match ms with
     (if (eq_id fid0 fid2 && eq_l l2 (l_of_arg tt)) then
       match (lookupSarg ars2 sars2 b, lookupSarg ars2 sars2 e, 
         lookupSarg ars2 sars2 p) with
-      | (Some sb, Some se, Some sp) => check_metadata fid l1 sb se sp
+      | (Some sb, Some se, Some sp) => check_metadata Ps2 fid l1 sb se sp
       | _ => false
       end
     else true) &&
-    mtv_func_metadata ms' fid l1 fid2 ars2 sars2
+    mtv_func_metadata ms' Ps2 fid l1 fid2 ars2 sars2
 end.
 
 (*
   fid2 args2
 
   fid
-    ...
+  ...
     l1:
       call fid2 tsts2   
 *)
 Definition mtv_iscall Ps2 fid l1 (c2:sicall) :=
 match c2 with
 | stmn_icall_nptr _ _ _ _ t2 tsts2 =>
-  match t2 with
+  match remove_cast t2 with
   | sterm_val (value_const (const_gid _ fid2)) =>
       if (isCallLib fid2) then true
       else
         match (lookupFdefViaIDFromProducts Ps2 fid2) with
         | None => true
         | Some (fdef_intro (fheader_intro _ _ args2) _) =>
-            mtv_func_metadata (get_metadata tt) fid l1 fid2 args2 tsts2
+            mtv_func_metadata (get_metadata tt) Ps2 fid l1 fid2 args2 tsts2
         end
   | _ => true
   end
 | stmn_icall_ptr _ _ _ _ t2 _ tsts2 =>
-  match t2 with
+  match remove_cast t2 with
   | sterm_val (value_const (const_gid _ fid2)) =>
       if (isCallLib fid2) then true
       else
         match (lookupFdefViaIDFromProducts Ps2 fid2) with
-        | None => true
-        | Some (fdef_intro (fheader_intro _ _ args2) _) =>
-            mtv_func_metadata (get_metadata tt) fid l1 fid2 args2 tsts2
+        | Some (fdef_intro (fheader_intro _ _ (_::args2)) _) =>
+            mtv_func_metadata (get_metadata tt) Ps2 fid l1 fid2 args2 tsts2
+        | _ => true
         end
   | _ => true
   end
@@ -1727,7 +1940,7 @@ match sb2 with
   let st2 := se_cmds sstate_init nbs2 in
   let cl2 := se_icall st2 call2 in
    smem_is_memsafe Ps1 Ps2 fid l st2.(SMem) &&
-   check_all_metadata fid l st2.(STerms) &&
+   check_all_metadata Ps2 fid l st2.(STerms) &&
    check_addrof_be fid st2.(STerms) &&
    mtv_iscall Ps2 fid l cl2
 end.
@@ -1754,6 +1967,11 @@ match (bv, ev, pv) with
 | (value_id bid, value_id eid, value_id pid) => is_metadata fid l bid eid pid
 | (value_const (const_null _), value_const (const_null _), 
      value_const (const_null _)) => true
+| (value_const (const_undef _), value_const (const_undef _), 
+     value_const (const_undef _)) => 
+    (* I dont think this is safe, since undefined values can be
+       arbitrary. But Softbound assumes the this is fine. *)
+    true
 | _ => false
 end.
 
@@ -1768,6 +1986,27 @@ match bvls with
     end && mtv_list_value_l fid bvls' evls pvls
 end.
 
+Definition mtv_be_value fid l (bv ev:value) : bool :=
+match (bv, ev) with
+| (value_id bid, value_id eid) => is_be fid l bid eid
+| (value_const (const_null _), value_const (const_null _)) => true
+| (value_const (const_undef _), value_const (const_undef _)) => 
+    (* I dont think this is safe, since undefined values can be
+       arbitrary. But Softbound assumes the this is fine. *)
+    true
+| _ => false
+end.
+
+Fixpoint mtv_list_value_l' fid (bvls evls:list_value_l) : bool :=
+match bvls with
+| Nil_list_value_l => true
+| Cons_list_value_l bv bl bvls' =>
+    match (getValueViaLabelFromValuels evls bl) with
+    | Some ev => mtv_be_value fid bl bv ev
+    | _ => false
+    end && mtv_list_value_l' fid bvls' evls
+end.
+
 Fixpoint mtv_phinodes_aux fid l1 (ms:list (id*l*id*id*id)) (ps2:phinodes)
   : bool :=
 match ms with
@@ -1776,9 +2015,17 @@ match ms with
     (if (eq_id fid fid' && eq_l l1 l2) then
        match (lookupPhinode ps2 b, lookupPhinode ps2 e, lookupPhinode ps2 p) with
        | (None, None, None) => true
-       | (Some (insn_phi _ _ bvls), 
-          Some (insn_phi _ _ evls), 
-          Some (insn_phi _ _ pvls)) => mtv_list_value_l fid bvls evls pvls
+       | (Some (insn_phi _ _ bvls), Some (insn_phi _ _ evls), 
+           Some (insn_phi _ _ pvls)) => mtv_list_value_l fid bvls evls pvls
+       | (Some (insn_phi _ _ bvls), Some (insn_phi _ _ evls), None) => 
+           (* FIXME: This is the case 
+               b = phi b1 b2
+               e = phi e1 e2
+               p = phi p1 p2
+               p' = gep p ...
+               So both b e p and b e p' are in metadata
+           *)
+           mtv_list_value_l' fid bvls evls
        | _ => false
        end
      else true) && 
