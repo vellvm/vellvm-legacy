@@ -18,7 +18,7 @@ all:
 	+make -C ./ssa
 	+make -C ./TV
 	+make -C ./Extraction
-	ocamlbuild -clean
+	rm -rf _build/Parser _build/Interpreter
 	ocamlbuild $(OCAMLBUILD_OPT) $(CMAS) $(CMXAS)
 	ocamlbuild $(OCAMLBUILD_OPT) Parser/main.d.byte
 	ocamlbuild -Is Parser $(OCAMLBUILD_OPT) Interpreter/main.$(OUTPUT_TYPE)

@@ -3,19 +3,22 @@ open Llvm
 
 let debug = false
 
-let metadata_to_file (md:Sub_tv.flbeps) (addr:Sub_tv.fabes) (fn:string): unit =
+let metadata_to_file (md:Sub_tv.flnbeps) (addr:Sub_tv.fabes) (fn:string): unit =
   let fo = open_out_gen [Open_creat;Open_trunc;Open_wronly] 0o666 fn in
-  List.iter (fun (fid, lbeps) ->
-      List.iter (fun (lb, beps) ->
+  List.iter (fun (fid, lnbeps) ->
+    List.iter (fun (lb, nbeps) ->
+      List.iter (fun (i, beps) ->
         List.iter (fun ((b, e), p) ->
-            output_string fo (Printf.sprintf "%s %s %s %s %s\n" fid lb b e p)
-	        ) beps
-      ) lbeps
+          output_string fo (Printf.sprintf "%s %s %i %s %s %s\n" fid lb 
+            (Camlcoq.camlint_of_nat i) b e p)
+	  ) beps
+        ) nbeps
+      ) lnbeps
     ) md;
   List.iter (fun (fid, abes) ->
-      List.iter (fun (ab, ae) ->
-          output_string fo (Printf.sprintf "%s entry %s %s -1\n" fid ab ae)
-        ) abes
+    List.iter (fun (ab, ae) ->
+        output_string fo (Printf.sprintf "%s entry 0 %s %s -1\n" fid ab ae)
+      ) abes
     ) addr;
   close_out fo
 
