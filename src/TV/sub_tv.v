@@ -15,6 +15,7 @@ Require Import assoclist.
 Require Import eq_tv_dec.
 Require Import sub_tv_dec.
 Require Import Coq.Bool.Sumbool.
+Require Import monad.
 
 Export SimpleSE.
 
@@ -99,11 +100,20 @@ Axiom rename_id : id -> id -> id.
 
 (* cast does not change value. We can prove they have the same operational
  * semantics. *)
+Fixpoint remove_cast_const (c:const) : const :=
+match c with
+| const_castop _ c1 _ => remove_cast_const c1
+| const_select c0 c1 c2 => 
+    const_select c0 (remove_cast_const c1)(remove_cast_const c2) 
+| _ => c
+end.
+
 Fixpoint remove_cast (st:sterm) : sterm :=
 match st with
 | sterm_cast _ _ st1 _ => remove_cast st1
 | sterm_select st0 t st1 st2 => 
     sterm_select st0 t (remove_cast st1)(remove_cast st2) 
+| sterm_val (value_const c) => sterm_val (value_const (remove_cast_const c))
 | _ => st
 end.
 
@@ -115,12 +125,22 @@ end.
 
   We return %ptr.05.
 *)
+Fixpoint get_ptr_object_const (c:const) : const :=
+match c with
+| const_castop _ c1 _ => get_ptr_object_const c1
+| const_gep _ c1 _ => get_ptr_object_const c1
+| const_select c0 c1 c2 => 
+    const_select c0 (remove_cast_const c1)(remove_cast_const c2) 
+| _ => c
+end.
+
 Fixpoint get_ptr_object (st:sterm) : sterm :=
 match st with
 | sterm_cast _ _ st1 _ => get_ptr_object st1
 | sterm_gep _ _ st1 _ => get_ptr_object st1
 | sterm_select st0 t st1 st2 => 
     sterm_select st0 t (get_ptr_object st1)(get_ptr_object st2) 
+| sterm_val (value_const c) => sterm_val (value_const (get_ptr_object_const c))
 | _ => st
 end.
 
@@ -1127,8 +1147,8 @@ end.
 Definition store_to_ret Ps1 Ps2 fid2 (ptr:sterm) : bool :=
 if (function_returns_pointer Ps1 fid2) then
    match lookupFdefViaIDFromProducts Ps2 fid2 with      
-   | Some (fdef_intro (fheader_intro _  _ ((_,ret)::_)) _) =>
-       eq_sterm (get_ptr_object ptr) (sterm_val (value_id ret))
+   | Some (fdef_intro (fheader_intro _  _ ((_,re)::_)) _) =>
+       eq_sterm (get_ptr_object ptr) (sterm_val (value_id re))
    | _ => false
    end
 else false.
@@ -1607,6 +1627,527 @@ match (S1, S2) with
 | _ => false
 end.
 
+(***********************************************)
+(* Sub TV (guessing renamings) *)
+
+Fixpoint rtv_const (c c':const) : bool :=
+match (c, c') with
+| (const_zeroinitializer t0, const_zeroinitializer t0') => tv_typ t0 t0'
+| (const_int _ _, const_int _ _) 
+| (const_floatpoint _ _, const_floatpoint _ _)
+| (const_undef _, const_undef _)
+| (const_null _, const_null _) => eq_const c c'
+| (const_arr t0 cs0, const_arr t0' cs0') => 
+    tv_typ t0 t0' && rtv_list_const cs0 cs0'
+| (const_struct cs0, const_struct cs0') => rtv_list_const cs0 cs0'
+| (const_gid _ id0, const_gid _ id0') => 
+    tv_fid id0 id0' || 
+    eq_id id0 id0' (* assuming global variables are not renamed *)
+| (const_truncop to0 c0 t0, const_truncop to0' c0' t0') =>
+    sumbool2bool _ _ (truncop_dec to0 to0') && rtv_const c0 c0' &&
+    tv_typ t0 t0'
+| (const_extop eo0 c0 t0, const_extop eo0' c0' t0') =>
+    sumbool2bool _ _ (extop_dec eo0 eo0') && rtv_const c0 c0' &&
+    tv_typ t0 t0'
+| (const_castop co0 c0 t0, const_castop co0' c0' t0') =>
+    sumbool2bool _ _ (castop_dec co0 co0') && rtv_const c0 c0' &&
+    tv_typ t0 t0'
+| (const_gep ib0 c0 cs0, const_gep ib0' c0' cs0') =>
+    sumbool2bool _ _ (inbounds_dec ib0 ib0') && rtv_const c0 c0' &&
+    rtv_list_const cs0 cs0' 
+| (const_select c0 c1 c2, const_select c0' c1' c2') =>
+    rtv_const c0 c0' && rtv_const c1 c1' && rtv_const c2 c2'
+| (const_icmp cd0 c0 c1, const_icmp cd0' c0' c1') =>
+    sumbool2bool _ _ (cond_dec cd0 cd0') &&
+    rtv_const c0 c0' && rtv_const c1 c1'
+| (const_fcmp fd0 c0 c1, const_fcmp fd0' c0' c1') =>
+    sumbool2bool _ _ (fcond_dec fd0 fd0') &&
+    rtv_const c0 c0' && rtv_const c1 c1'
+| (const_extractvalue c0 cs0, const_extractvalue c0' cs0') =>
+    rtv_const c0 c0' && rtv_list_const cs0 cs0'
+| (const_insertvalue c0 c1 cs0, const_insertvalue c0' c1' cs0') =>
+    rtv_const c0 c0' && rtv_const c c1' && rtv_list_const cs0 cs0'
+| (const_bop b0 c0 c1, const_bop b0' c0' c1') =>
+    sumbool2bool _ _ (bop_dec b0 b0') && 
+    rtv_const c0 c0' && rtv_const c1 c1'
+| (const_fbop f0 c0 c1, const_fbop f0' c0' c1') =>
+    sumbool2bool _ _ (fbop_dec f0 f0') && 
+    rtv_const c0 c0' && rtv_const c1 c1'
+| _ => false
+end
+with rtv_list_const (cs cs':list_const) : bool :=
+match (cs, cs') with
+| (Nil_list_const, Nil_list_const) => true
+| (Cons_list_const c0 cs0, Cons_list_const c0' cs0') => 
+    rtv_const c0 c0' && rtv_list_const cs0 cs0'
+| _ => false
+end.
+
+(* mapping from an input local variable to its output local variable within
+   a function. *)
+Definition renaming := list (id * id).
+
+(* Check if an id is a name of tmp var, e.g. %100 *)
+Axiom is_tmp_var : id -> bool.
+
+Definition lookup_renaming r i :=
+if is_tmp_var i then
+  match lookupAL _ r i with
+  | Some i' => Some i'
+  | None => None
+  end
+else Some i.
+
+Definition rtv_id (r:renaming) id1 id2 :=
+  match lookup_renaming r id1 with
+  | None => eq_id id1 id2
+  | Some id2' => eq_id id2 id2'
+  end.
+
+Definition rtv_value r v1 v2 : option renaming :=
+match (v1, v2) with
+| (value_id id1, value_id id2) => 
+  match lookup_renaming r id1 with
+  | None => Some ((id1,id2)::r)
+  | Some id2' => if eq_id id2 id2' then Some r else None
+  end
+| (value_const c1, value_const c2) => if rtv_const c1 c2 then Some r else None
+| _ => None
+end.
+
+Fixpoint rtv_sterm Ps1 Ps2 fid r (st st':sterm) : option renaming :=
+match (st, st') with
+| (sterm_val v, sterm_val v') => rtv_value r v v'
+| (sterm_bop b sz st1 st2, sterm_bop b' sz' st1' st2') =>
+    if sumbool2bool _ _ (bop_dec b b') && sumbool2bool _ _ (Size.dec sz sz') then
+      rtv_sterm Ps1 Ps2 fid r st1 st1' >>=
+      (fun r => rtv_sterm Ps1 Ps2 fid r st2 st2')
+    else None
+| (sterm_fbop b f st1 st2, sterm_fbop b' f' st1' st2') =>
+    if sumbool2bool _ _ (fbop_dec b b') && 
+       sumbool2bool _ _ (floating_point_dec f f')
+    then
+      rtv_sterm Ps1 Ps2 fid r st1 st1' >>=
+      (fun r => rtv_sterm Ps1 Ps2 fid r st2 st2')
+    else None
+| (sterm_extractvalue t st1 cs, sterm_extractvalue t' st1' cs') =>
+    if tv_typ t t' && sumbool2bool _ _ (list_const_dec cs cs') then
+      rtv_sterm Ps1 Ps2 fid r st1 st1'
+    else None
+| (sterm_insertvalue t1 st1 t2 st2 cs, 
+   sterm_insertvalue t1' st1' t2' st2' cs') =>
+    if tv_typ t1 t1' && tv_typ t2 t2' && 
+       sumbool2bool _ _ (list_const_dec cs cs') then
+      rtv_sterm Ps1 Ps2 fid r st1 st1' >>=
+      (fun r => rtv_sterm Ps1 Ps2 fid r st2 st2')
+    else None
+| (sterm_malloc sm t st1 a, sterm_malloc sm' t' st1' a') =>
+    if tv_typ t t' && tv_align a a' then
+      rtv_smem Ps1 Ps2 fid r sm sm' >>=
+      (fun r => rtv_sterm Ps1 Ps2 fid r st1 st1')
+    else None
+| (sterm_alloca sm t st1 a, sterm_alloca sm' t' st1' a') =>
+    if tv_typ t t' && tv_align a a' then
+      rtv_smem Ps1 Ps2 fid r sm sm' >>=
+      (fun r => rtv_sterm Ps1 Ps2 fid r st1 st1')
+    else None
+| (sterm_load sm t st1 a, sterm_load sm' t' st1' a') =>
+    if tv_typ t t' && tv_align a a' then
+      rtv_smem Ps1 Ps2 fid r sm sm' >>=
+      (fun r => rtv_sterm Ps1 Ps2 fid r st1 st1')
+    else None
+| (sterm_gep i t st1 sts2, sterm_gep i' t' st1' sts2') =>
+    if sumbool2bool _ _ (bool_dec i i') && tv_typ t t' then
+      rtv_sterm Ps1 Ps2 fid r st1 st1' >>=
+      (fun r => rtv_list_sterm Ps1 Ps2 fid r sts2 sts2')
+    else None
+| (sterm_trunc top t1 st1 t2, sterm_trunc top' t1' st1' t2') =>
+    if sumbool2bool _ _ (truncop_dec top top') && tv_typ t1 t1' && tv_typ t2 t2'
+    then rtv_sterm Ps1 Ps2 fid r st1 st1'
+    else None
+| (sterm_ext eo t1 st1 t2, sterm_ext eo' t1' st1' t2') =>
+    if sumbool2bool _ _ (extop_dec eo eo') && tv_typ t1 t1' && tv_typ t2 t2' 
+    then rtv_sterm Ps1 Ps2 fid r st1 st1'
+    else None
+| (sterm_cast co t1 st1 t2, sterm_cast co' t1' st1' t2') =>
+    if sumbool2bool _ _ (castop_dec co co') && tv_typ t1 t1' && tv_typ t2 t2' 
+    then rtv_sterm Ps1 Ps2 fid r st1 st1' 
+    else None
+| (sterm_icmp c t st1 st2, sterm_icmp c' t' st1' st2') =>
+    if sumbool2bool _ _ (cond_dec c c') && tv_typ t t' then
+      rtv_sterm Ps1 Ps2 fid r st1 st1' >>=
+      (fun r => rtv_sterm Ps1 Ps2 fid r st2 st2')
+    else None
+| (sterm_fcmp c ft st1 st2, sterm_fcmp c' ft' st1' st2') =>
+    if sumbool2bool _ _ (fcond_dec c c') &&
+       sumbool2bool _ _ (floating_point_dec ft ft') then
+      rtv_sterm Ps1 Ps2 fid r st1 st1' >>=
+      (fun r => rtv_sterm Ps1 Ps2 fid r st2 st2')
+    else None
+| (sterm_phi t stls, sterm_phi t' stls') =>
+    if tv_typ t t' then rtv_list_sterm_l Ps1 Ps2 fid r stls stls' else None
+| (sterm_select st1 t st2 st3, sterm_select st1' t' st2' st3') =>
+    if tv_typ t t' then 
+      rtv_sterm Ps1 Ps2 fid r st1 st1' >>= 
+      (fun r => rtv_sterm Ps1 Ps2 fid r st2 st2') >>=
+      (fun r => rtv_sterm Ps1 Ps2 fid r st3 st3')
+    else None
+| (sterm_lib sm i sts, sterm_lib sm' i' sts') =>
+    if eq_id i i' then
+      rtv_smem Ps1 Ps2 fid r sm sm' >>=
+      (fun r => rtv_list_sterm Ps1 Ps2 fid r sts sts')
+    else None
+| _ => None
+end
+with rtv_list_sterm Ps1 Ps2 fid r (sts sts':list_sterm) : option renaming :=
+match (sts, sts') with
+| (Nil_list_sterm, Nil_list_sterm) => Some r
+| (Cons_list_sterm st sts0, Cons_list_sterm st' sts0') =>
+    rtv_sterm Ps1 Ps2 fid r st st' >>=
+    fun r => rtv_list_sterm Ps1 Ps2 fid r sts0 sts0'
+| _ => None
+end
+with rtv_list_sterm_l Ps1 Ps2 fid r (stls stls':list_sterm_l) 
+  : option renaming :=
+match (stls, stls') with
+| (Nil_list_sterm_l, Nil_list_sterm_l) => Some r
+| (Cons_list_sterm_l st l stls0, Cons_list_sterm_l st' l' stls0') =>
+    if sumbool2bool _ _ (l_dec l l') then
+      rtv_sterm Ps1 Ps2 fid r st st' >>=
+      fun r => rtv_list_sterm_l Ps1 Ps2 fid r stls0 stls0'
+    else None
+| _ => None
+end
+with rtv_smem Ps1 Ps2 fid r (sm1 sm2:smem) : option renaming :=
+match (sm1, sm2) with
+| (smem_init, _) => Some r
+| (smem_malloc sm1 t1 st1 a1, smem_malloc sm2 t2 st2 a2) =>
+    if tv_typ t1 t2 && tv_align a1 a2 then
+      rtv_smem Ps1 Ps2 fid r sm1 sm2 >>= 
+      fun r => rtv_sterm Ps1 Ps2 fid r st1 st2 
+    else None
+| (smem_alloca sm1 t1 st1 a1, smem_alloca sm2 t2 st2 a2) =>
+    if (tv_typ t1 t2 && tv_align a1 a2)
+    then 
+      rtv_sterm Ps1 Ps2 fid r st1 st2 >>=
+      fun r => rtv_smem Ps1 Ps2 fid r sm1 sm2
+    else rtv_smem Ps1 Ps2 fid r (smem_alloca sm1 t1 st1 a1) sm2
+| (smem_free sm1 t1 st1, smem_free sm2 t2 st2) =>
+    if tv_typ t1 t2 then
+      rtv_smem Ps1 Ps2 fid r sm1 sm2 >>= 
+      fun r => rtv_sterm Ps1 Ps2 fid r st1 st2
+    else None
+| (smem_load sm1 t1 st1 a1, smem_load sm2 t2 st2 a2) =>
+    if (tv_typ t1 t2 && tv_align a1 a2)
+    then
+      rtv_sterm Ps1 Ps2 fid r st1 st2 >>=
+      fun r => rtv_smem Ps1 Ps2 fid r sm1 sm2
+    else 
+      if load_from_metadata sm2 st2 then
+        rtv_smem Ps1 Ps2 fid r (smem_load sm1 t1 st1 a1) sm2
+      else None
+| (smem_store sm1 t1 st11 st12 a1, smem_store sm2 t2 st21 st22 a2) =>
+    if (tv_typ t1 t2 && tv_align a1 a2)
+    then 
+      rtv_sterm Ps1 Ps2 fid r st11 st21 >>=
+      fun r => rtv_sterm Ps1 Ps2 fid r st12 st22 >>=
+      fun r => rtv_smem Ps1 Ps2 fid r sm1 sm2
+    else 
+      if store_to_ret Ps1 Ps2 (rename_fid fid) st22 then
+        rtv_smem Ps1 Ps2 fid r (smem_store sm1 t1 st11 st12 a1) sm2
+      else None
+| (smem_lib sm1 fid1 sts1, smem_lib sm2 fid2 sts2) => 
+    if (eq_id fid1 fid2)
+    then 
+      rtv_list_sterm Ps1 Ps2 fid r sts1 sts2 >>=
+      fun r => rtv_smem Ps1 Ps2 fid r sm1 sm2
+    else rtv_smem Ps1 Ps2 fid r (smem_lib sm1 fid1 sts1) sm2
+| (sm1, smem_lib sm2 lid sts) => 
+    if smem_lib_sub lid then rtv_smem Ps1 Ps2 fid r sm1 sm2 else None
+| (sm1, smem_alloca sm2 t2 st2 a2) => rtv_smem Ps1 Ps2 fid r sm1 sm2
+| (sm1, smem_load sm2 t2 st2 a2) => 
+  (* We check load_from_metadata to ensure that the behavior of output programs 
+   * preserves input's. If we did not check, the additional load may be stuck. 
+   *)
+    if load_from_metadata sm2 st2 then
+      rtv_smem Ps1 Ps2 fid r sm1 sm2
+    else None
+| (sm1, smem_store sm2 t2 st21 st22 a2) => 
+  (* We check that the additional stores must be to shadow_ret. *)
+    if store_to_ret Ps1 Ps2 (rename_fid fid) st22 then
+      rtv_smem Ps1 Ps2 fid r sm1 sm2
+    else None
+| _ => None
+end.
+
+Fixpoint rtv_sframe Ps1 Ps2 fid r (sf1 sf2:sframe) : option renaming :=
+match (sf1, sf2) with
+| (sframe_init, _) => Some r
+| (sframe_alloca sm1 sf1 t1 st1 a1, sframe_alloca sm2 sf2 t2 st2 a2) =>
+    if (tv_typ t1 t2 && tv_align a1 a2)
+    then 
+      rtv_smem Ps1 Ps2 fid r sm1 sm2 >>=
+      fun r => rtv_sterm Ps1 Ps2 fid r st1 st2 >>=
+      fun r => rtv_sframe Ps1 Ps2 fid r sf1 sf2
+    else rtv_sframe Ps1 Ps2 fid r (sframe_alloca sm1 sf1 t1 st1 a1) sf2
+| _ => None
+end.
+
+(* Find a (id2,st2) from sm2 where st1 = st2, then return id2 and the rest
+   sm2'. *)
+Fixpoint match_smap Ps1 Ps2 fid r id1 st1 sm2 : option (smap * renaming) :=
+match sm2 with
+| nil => None
+| (id2,st2)::sm2' => 
+    match rtv_sterm Ps1 Ps2 fid r st1 st2 with
+    | Some r' => Some (sm2',(id1,id2)::r')
+    | None => match_smap Ps1 Ps2 fid r id1 st1 sm2'
+    end
+end.
+
+Fixpoint rtv_smap Ps1 Ps2 fid r (sm1 sm2:smap) : option renaming :=
+match sm1 with
+| nil => Some r
+| (id1,st1)::sm1' =>
+  match lookup_renaming r id1 with
+  | Some id2 =>
+    match lookupAL _ sm2 id2 with
+    | None => None
+    | Some st2 => 
+        rtv_sterm Ps1 Ps2 fid r st1 st2 >>=
+        fun r => rtv_smap Ps1 Ps2 fid r sm1' sm2
+    end
+  | None => 
+    match match_smap Ps1 Ps2 fid r id1 st1 sm2 with
+    | None => None
+    | Some (sm2',r') => rtv_smap Ps1 Ps2 fid r' sm1' sm2'
+    end
+  end
+end.
+
+Definition rsub_sstate Ps1 Ps2 fid r s1 s2 : option renaming := 
+if sumbool2bool _ _ (sterms_dec s1.(SEffects) s2.(SEffects)) then
+  rtv_smap Ps1 Ps2 fid r s1.(STerms) s2.(STerms) >>=
+  fun r => rtv_smem Ps1 Ps2 fid r s1.(SMem) s2.(SMem) >>=
+  fun r => rtv_sframe Ps1 Ps2 fid r s1.(SFrame) s2.(SFrame)
+else None.
+
+Definition rtv_cmds Ps1 Ps2 fid r (nbs1 nbs2 : list nbranch) :=
+rsub_sstate Ps1 Ps2 fid r (se_cmds sstate_init nbs1) (se_cmds sstate_init nbs2).
+
+(* Here, we check which function to call conservatively. In practice, a v1
+ * is a function pointer, we should look up the function name from the 
+ * FunTable. Since the LLVM IR takes function names as function pointers,
+ * if a program does not assign them to be other variables, they should
+ * be the same. *)
+Fixpoint rtv_params Ps1 Ps2 fid r (tsts1 tsts2:list (typ*sterm)) : 
+  option renaming :=
+match (tsts1, tsts2) with
+| (nil, _) => Some r
+| ((t1,st1)::tsts1', (t2,st2)::tsts2') => 
+  if tv_typ t1 t2 then
+    rtv_sterm Ps1 Ps2 fid r st1 st2 >>=
+    fun r => rtv_params Ps1 Ps2 fid r tsts1' tsts2'
+  else None
+| _ => None
+end.
+
+Definition rtv_scall Ps1 Ps2 fid r (c1:scall) (c2:sicall) : option renaming :=
+  let '(stmn_call rid1 nr1 _ ty1 t1 tsts1) := c1 in
+  match c2 with
+  | stmn_icall_nptr rid2 nr2 _ ty2 t2 tsts2 =>
+    if ((sumbool2bool _ _ (noret_dec nr1 nr2)) && tv_typ ty1 ty2) then
+      rtv_params Ps1 Ps2 fid r tsts1 tsts2 >>=
+      fun r => rtv_sterm Ps1 Ps2 fid r (remove_cast t1) (remove_cast t2) >>=
+      fun r => Some ((rid1,rid2)::r)
+    else None
+  | stmn_icall_ptr rid2 _ _ ty2 t2 _ tsts2 =>
+    if (tv_typ ty1 ty2) then
+      rtv_params Ps1 Ps2 fid r tsts1 tsts2 >>=
+      fun r => 
+        match (remove_cast t1, remove_cast t2) with
+        | (sterm_val (value_const (const_gid _ fid1)),
+           sterm_val (value_const (const_gid _ fid2))) =>
+           if tv_fid fid1 fid2 && function_returns_pointer Ps1 fid2
+           then Some ((rid1,rid2)::r) else None
+        | (st1, st2) => 
+            rtv_sterm Ps1 Ps2 fid r st1 st2 >>=
+            fun r => Some ((rid1,rid2)::r)
+        end
+    else None
+  end.
+
+Definition rtv_subblock Ps1 Ps2 fid r (sb1:subblock) (sb2:isubblock) : 
+  option renaming :=
+match (sb1, sb2) with
+| (mkSB nbs1 call1 iscall1, mkiSB nbs2 call2) =>
+  let st1 := se_cmds sstate_init nbs1 in
+  let st2 := se_cmds sstate_init nbs2 in
+  let cl1 := se_call st1 call1 iscall1 in
+  let cl2 := se_icall st2 call2 in
+  rsub_sstate Ps1 Ps2 fid r st1 st2 >>=
+  fun r => rtv_scall Ps1 Ps2 fid r cl1 cl2 
+end.
+
+Fixpoint rtv_subblocks Ps1 Ps2 fid r (sbs1:list subblock) (sbs2:list isubblock) :
+  option renaming :=
+match (sbs1, sbs2) with
+| (nil, nil) => Some r
+| (sb1::sbs1', sb2::sbs2') => 
+    rtv_subblock Ps1 Ps2 fid r sb1 sb2 >>=
+    fun r => rtv_subblocks Ps1 Ps2 fid r sbs1' sbs2'
+| _ => None
+end.
+
+Fixpoint rtv_list_value_l r (vls1 vls2:list_value_l) : option renaming :=
+match (vls1, vls2) with
+| (Nil_list_value_l, Nil_list_value_l) => Some r
+| (Cons_list_value_l v1 l1 vls1, Cons_list_value_l v2 l2 vls2) =>
+    if eq_l l1 l2 then
+      rtv_value r v1 v2 >>=
+      fun r => rtv_list_value_l r vls1 vls2
+    else None
+| _ => None
+end.
+
+Definition rtv_phinode r t1 vls1 t2 vls2 : option renaming :=
+if tv_typ t1 t2 then rtv_list_value_l r vls1 vls2 else None.
+
+Fixpoint match_phinodes r i1 t1 vls1 ps2 : option (phinodes * renaming) :=
+match ps2 with
+| nil => None
+| (insn_phi i2 t2 vls2)::ps2' => 
+    if (is_tmp_var i2) then
+      (* We assume phi tmp is always mapped to phi tmp *)
+      match rtv_phinode r t1 vls1 t2 vls2 with
+      | Some r' => Some (ps2',(i1,i2)::r')
+      | None => match_phinodes r i1 t1 vls1 ps2'
+      end
+    else match_phinodes r i1 t1 vls1 ps2'
+end.
+
+Fixpoint rtv_phinodes r (ps1 ps2:phinodes) : option renaming :=
+match ps1 with
+| nil => Some r
+| (insn_phi i1 t1 vls1)::ps1' =>
+  match lookup_renaming r i1 with
+  | Some i2 =>
+    match lookupPhinode ps2 i2 with
+    | None => None
+    | Some (insn_phi _ t2 vls2) => 
+      rtv_phinode r t1 vls1 t2 vls2 >>=
+      fun r' => rtv_phinodes r ps1' ps2
+    end
+  | None =>
+    match match_phinodes r i1 t1 vls1 ps2 with
+    | None => None
+    | Some (ps2',r') => rtv_phinodes r' ps1' ps2'
+    end
+  end
+end.
+
+Definition rtv_terminator r (tmn1 tmn2:terminator) : option renaming :=
+match (tmn1, tmn2) with
+| (insn_return id1 t1 v1, insn_return id2 t2 v2) => 
+    if tv_typ t1 t2 then rtv_value r v1 v2 else None
+| (insn_return_void id1, insn_return_void id2) => Some r
+| (insn_br id1 v1 l11 l12, insn_br id2 v2 l21 l22) =>
+    if eq_l l11 l21 && eq_l l12 l22 then rtv_value r v1 v2 else None
+| (insn_br_uncond id1 l1, insn_br_uncond id2 l2) =>
+    if eq_l l1 l2 then Some r else None
+| (insn_unreachable id1, insn_unreachable id2) => Some r
+| _ => None
+end.
+
+Definition rtv_block Ps1 Ps2 fid r (b1 b2:block) : option renaming :=
+match (b1, b2) with
+| (block_intro l1 ps1 cs1 tmn1, block_intro l2 ps2 cs2 tmn2) =>
+  let '(cs2', op) :=
+    match lookupFdefViaIDFromProducts Ps1 fid with      
+    | Some (fdef_intro (fheader_intro (typ_pointer _ as tp) _ _) _) =>
+      match lookupFdefViaIDFromProducts Ps2 (rename_fid fid) with 
+      | Some (fdef_intro (fheader_intro _ _ ((t2,id2)::_)) _) =>
+          let '(cs2', opcs6) := get_last_six_insns cs2 in
+          match opcs6 with
+          | Some (c1,c2,c3,c4,c5,c6) => 
+             (* gen_iret returns %shadow_ret %.base %.base %.ptr i32 *)
+             match gen_iret t2 id2 c1 c2 c3 c4 c5 c6 with
+             | None => (cs2, None)
+             | op => (cs2', op)
+             end
+          | None => (cs2, None)
+          end
+      | _ => (cs2, None)
+      end
+    | _ => (cs2, None)
+    end in 
+  match (cmds2sbs cs1, cmds2isbs Ps1 cs2') with
+  | ((sbs1, nbs1), (sbs2, nbs2)) =>
+    if eq_l l1 l2 then
+      rtv_phinodes r ps1 ps2 >>=
+      fun r => rtv_subblocks Ps1 Ps2 fid r sbs1 sbs2 >>=
+      fun r => rtv_cmds Ps1 Ps2 fid r nbs1 nbs2 >>=
+      fun r => 
+            match op with 
+            | Some (id20, v21, v22, v23, t20) =>
+              match (tmn1, tmn2) with
+              | (insn_return id1 t1 v1, insn_return_void _) => 
+                rtv_value r v1 v23
+              | _ => rtv_terminator r tmn1 tmn2
+              end
+            | None => rtv_terminator r tmn1 tmn2
+            end
+    else None
+  end 
+end.
+
+Fixpoint rtv_blocks Ps1 Ps2 fid r (bs1 bs2:blocks):=
+match (bs1, bs2) with
+| (nil, nil) => Some r
+| (b1::bs1', b2::bs2') => 
+    rtv_block Ps1 Ps2 fid r b1 b2 >>=
+    fun r => rtv_blocks Ps1 Ps2 fid r bs1' bs2'
+| _ => None
+end.
+
+Definition rtv_fdef Ps1 Ps2 (f1 f2:fdef) :=
+match (f1, f2) with
+| (fdef_intro (fheader_intro _ fid1 _ as fh1) lb1, fdef_intro fh2 lb2) =>
+  match rtv_blocks Ps1 Ps2 fid1 nil lb1 lb2 with
+  | None => false
+  | Some _ => tv_fheader Ps1 fh1 fh2 
+  end
+end.
+
+Fixpoint rtv_products (Ps10 Ps1 Ps2:products) : bool :=
+match Ps1 with
+| nil => true
+| product_gvar gv1::Ps1' =>
+  match lookupGvarViaIDFromProducts Ps2 (getGvarID gv1) with
+  | None => false
+  | Some gv2 => sumbool2bool _ _ (gvar_dec gv1 gv2) && 
+                rtv_products Ps10 Ps1' Ps2 
+  end
+| product_fdec f1::Ps1' =>
+  match lookupFdecViaIDFromProducts Ps2 (rename_fid (getFdecID f1)) with
+  | None => false
+  | Some f2 => tv_fdec Ps10 f1 f2 && rtv_products Ps10 Ps1' Ps2 
+  end
+| product_fdef f1::Ps1' =>
+  match lookupFdefViaIDFromProducts Ps2 (rename_fid (getFdefID f1)) with
+  | None => false
+  | Some f2 => rtv_fdef Ps10 Ps2 f1 f2 && rtv_products Ps10 Ps1' Ps2 
+  end
+end.
+
+Definition rtv_module (m1 m2:module) :=
+match (m1, m2) with
+| (module_intro los1 nts1 Ps1, module_intro los2 nts2 Ps2) =>
+  sumbool2bool _ _ (layouts_dec los1 los2) &&
+  sumbool2bool _ _ (namedts_dec nts1 nts2) &&
+  rtv_products Ps1 Ps1 Ps2
+end.
+
 (*************************************)
 (* MTV *)
 
@@ -1694,7 +2235,7 @@ match (base, bound, ptr) with
   %bcast_ld_dref_bound20 = bitcast %struct._IO_FILE** @stderr to i8* 
 *)
 | (sterm_val (value_const (const_null _)),
-   sterm_val (value_const (const_castop cast_inttoptr _ _)),
+   sterm_val (value_const (const_int _ _)),
    sterm_val (value_const (const_gid (typ_pointer _) id))) =>
      match lookupBindingViaIDFromProducts Ps2 id with 
      | id_binding_gvar (gvar_external _ _ _) => true
