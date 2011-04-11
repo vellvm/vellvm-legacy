@@ -935,13 +935,13 @@ Admitted.
 Qed.
 *)
 
-Lemma lookup_tv_blocks__tv_block : forall Ps1 Ps2 fid lb1 lb2 l0 B1,
+Lemma lookup_tv_blocks__tv_block : forall nts1 Ps1 Ps2 fid lb1 lb2 l0 B1,
   uniqBlocks lb1 ->
   uniqBlocks lb2 ->
-  tv_blocks Ps1 Ps2 fid lb1 lb2 ->
+  tv_blocks nts1 Ps1 Ps2 fid lb1 lb2 ->
   lookupAL _ (genLabel2Block_blocks lb1) l0 = Some B1 ->
   exists B2, exists n,
-    tv_block Ps1 Ps2 fid B1 B2 /\
+    tv_block nts1 Ps1 Ps2 fid B1 B2 /\
     nth_error lb1 n = Some B1 /\
     nth_error lb2 n = Some B2 /\
     lookupAL _ (genLabel2Block_blocks lb2) l0 = Some B2.
@@ -969,7 +969,7 @@ Proof.
             destruct b. simpl in *.
             unfold tv_block in J1.
             destruct (cmds2sbs c).
-            destruct (cmds2isbs Ps1 c0).
+            destruct (cmds2isbs nts1 Ps1 c0).
             admit.
 (*
             bdestruct5 J1 as J11 J12 J13 J14 J15.
@@ -986,15 +986,15 @@ Proof.
           apply mergeALs_app; auto.
 Qed.        
 
-Lemma tv_blocks_nth_Some_inv : forall Ps1 Ps2 fid lb1 lb2 n B1,
+Lemma tv_blocks_nth_Some_inv : forall nts1 Ps1 Ps2 fid lb1 lb2 n B1,
   uniqBlocks lb1 ->
   uniqBlocks lb2 ->
-  tv_blocks Ps1 Ps2 fid lb1 lb2 ->
+  tv_blocks nts1 Ps1 Ps2 fid lb1 lb2 ->
   nth_error lb1 n = Some B1 ->
   exists B2, 
-    nth_error lb2 n = Some B2 /\ tv_block Ps1 Ps2 fid B1 B2.
+    nth_error lb2 n = Some B2 /\ tv_block nts1 Ps1 Ps2 fid B1 B2.
 Proof.
-  intros Ps1 Ps2 fid lb1 lb2 n B1 H H0 H1 H2.
+  intros nts1 Ps1 Ps2 fid lb1 lb2 n B1 H H0 H1 H2.
   assert (J:=H2).
   apply nth_error__lookupAL_genLabel2Block_blocks in H2; auto.
   destruct H2 as [l0 H2].
@@ -1005,18 +1005,18 @@ Proof.
   exists B2. split; auto.
 Qed.
 
-Lemma lookup_tv_fdef__tv_block : forall Ps1 Ps2 fh1 fh2 lb1 lb2 l0 B1,
+Lemma lookup_tv_fdef__tv_block : forall nts1 Ps1 Ps2 fh1 fh2 lb1 lb2 l0 B1,
   uniqBlocks lb1 ->
   uniqBlocks lb2 ->
-  tv_fdef Ps1 Ps2 (fdef_intro fh1 lb1) (fdef_intro fh2 lb2) ->
+  tv_fdef nts1 Ps1 Ps2 (fdef_intro fh1 lb1) (fdef_intro fh2 lb2) ->
   lookupBlockViaLabelFromFdef (fdef_intro fh1 lb1) l0 = Some B1 ->
   exists B2, exists n,
-    tv_block Ps1 Ps2 (getFdefID (fdef_intro fh1 lb1)) B1 B2 /\
+    tv_block nts1 Ps1 Ps2 (getFdefID (fdef_intro fh1 lb1)) B1 B2 /\
     nth_error lb1 n = Some B1 /\
     nth_error lb2 n = Some B2 /\
     lookupBlockViaLabelFromFdef (fdef_intro fh2 lb2) l0 = Some B2.
 Proof.
-  intros Ps1 Ps2 fh1 fh2 lb1 lb2 l0 B1 H H0 H1 H2.
+  intros nts1 Ps1 Ps2 fh1 fh2 lb1 lb2 l0 B1 H H0 H1 H2.
   destruct fh1 as [t1 fid1 a1].
   bdestruct H1 as EQ Htv_blocks.
   sumbool_subst.
@@ -1025,18 +1025,18 @@ Proof.
   eapply lookup_tv_blocks__tv_block; eauto.
 Qed.
 
-Lemma tv_block__inv : forall Ps1 Ps2 fid B1 B2,
-  tv_block Ps1 Ps2 fid B1 B2 ->
+Lemma tv_block__inv : forall nts1 Ps1 Ps2 fid B1 B2,
+  tv_block nts1 Ps1 Ps2 fid B1 B2 ->
   getBlockLabel B1 = getBlockLabel B2 /\
   tv_phinodes fid (getPhiNodesFromBlock B1) (getPhiNodesFromBlock B2) /\
   getTerminatorFromBlock B1 = getTerminatorFromBlock B2.
 Proof.
-  intros Ps1 Ps2 fid B1 B2 H.
+  intros nts1 Ps1 Ps2 fid B1 B2 H.
   destruct B1.
   destruct B2. simpl in *.
   unfold tv_block in H.
   destruct (cmds2sbs c).
-  destruct (cmds2isbs Ps1 c0).
+  destruct (cmds2isbs nts1 Ps1 c0).
     admit.
 (*
   bdestruct5 H as J1 J2 J3 J4 J5.
@@ -1227,19 +1227,19 @@ Proof.
 Qed.
 *)
 
-Definition products_sub_prop (Ps1 Ps2:products) := forall id1, 
+Definition products_sub_prop nts1 (Ps1 Ps2:products) := forall id1, 
   In id1 (getProductsIDs Ps1) ->
   (forall fdec1,
     lookupFdecViaIDFromProducts Ps1 id1 = Some fdec1 ->
     exists fdec2,
       lookupFdecViaIDFromProducts Ps2 (rename_fid id1) = Some fdec2 /\ 
-      tv_fdec Ps1 fdec1 fdec2 = true)
+      tv_fdec nts1 Ps1 fdec1 fdec2 = true)
   /\
   (forall fdef1,
     lookupFdefViaIDFromProducts Ps1 id1 = Some fdef1 ->
     exists fdef2,
       lookupFdefViaIDFromProducts Ps2 (rename_fid id1) = Some fdef2 /\ 
-      tv_fdef Ps1 Ps2 fdef1 fdef2 = true)
+      tv_fdef nts1 Ps1 Ps2 fdef1 fdef2 = true)
   /\
   (forall gv1,
     lookupGvarViaIDFromProducts Ps1 id1 = Some gv1 ->
@@ -1247,22 +1247,22 @@ Definition products_sub_prop (Ps1 Ps2:products) := forall id1,
       lookupGvarViaIDFromProducts Ps2 id1 = Some gv2 /\ 
       sumbool2bool _ _ (gvar_dec gv1 gv2) = true).
 
-Lemma products_sub_prop_app1 : forall Ps1 Ps2 Ps,
-  products_sub_prop Ps1 Ps -> 
-  products_sub_prop Ps2 Ps ->
-  products_sub_prop (Ps1++Ps2) Ps.
+Lemma products_sub_prop_app1 : forall nts1 Ps1 Ps2 Ps,
+  products_sub_prop nts1 Ps1 Ps -> 
+  products_sub_prop nts1 Ps2 Ps ->
+  products_sub_prop nts1 (Ps1++Ps2) Ps.
 Admitted.
 
-Lemma products_sub_prop_app2 : forall Ps1 Ps2 Ps,
-  products_sub_prop Ps1 Ps -> 
-  products_sub_prop (Ps1++Ps2) Ps ->
+Lemma products_sub_prop_app2 : forall nts1 Ps1 Ps2 Ps,
+  products_sub_prop nts1 Ps1 Ps -> 
+  products_sub_prop nts1 (Ps1++Ps2) Ps ->
   NoDup (getProductsIDs (Ps1++Ps2)) ->
-  products_sub_prop Ps2 Ps.
+  products_sub_prop nts1 Ps2 Ps.
 Admitted.
 
-Lemma tv_products__is__correct: forall Ps1 Ps2, 
+Lemma tv_products__is__correct: forall nts1 Ps1 Ps2, 
   NoDup (getProductsIDs Ps1) ->
-  (tv_products Ps1 Ps1 Ps2 = true <-> products_sub_prop Ps1 Ps2).
+  (tv_products nts1 Ps1 Ps1 Ps2 = true <-> products_sub_prop nts1 Ps1 Ps2).
 Proof.
   induction Ps1; simpl.
     intros.
@@ -1284,7 +1284,7 @@ Proof.
       SCase "gid in Ps2".
         destruct (gvar_dec g1 g2); subst.
         SSCase "g1 = g2".
-          assert (products_sub_prop [product_gvar g2] Ps2) as Hg2_sub_Ps2.
+          assert (products_sub_prop nts1 [product_gvar g2] Ps2) as Hg2_sub_Ps2.
             intros i Hi_in_dom. simpl. 
             repeat split; try solve [intros a Hlookup; inversion Hlookup].
             intros gv1 Hlookup.
@@ -1435,13 +1435,13 @@ Proof.
 Qed.
 
 Lemma tv_products__lookupFdefViaIDFromProducts : 
-  forall Ps1 Ps2 fid1 rt la1 lb1,
-  tv_products Ps1 Ps1 Ps2 = true ->
+  forall nts1 Ps1 Ps2 fid1 rt la1 lb1,
+  tv_products nts1 Ps1 Ps1 Ps2 = true ->
   lookupFdefViaIDFromProducts Ps1 fid1 = Some (fdef_intro (fheader_intro rt fid1 la1) lb1) ->
   exists la2, exists lb2,
     lookupFdefViaIDFromProducts Ps2 (rename_fid fid1) = Some (fdef_intro (fheader_intro rt (rename_fid fid1) la2) lb2) /\
     prefix _ la1 la2 /\
-    tv_blocks Ps1 Ps2 fid1 lb1 lb2.
+    tv_blocks nts1 Ps1 Ps2 fid1 lb1 lb2.
 Proof.
   induction Ps1; intros Ps2 fid1 tr la1 lb1 Htv Hlookup.
     inversion Hlookup.
