@@ -3,7 +3,8 @@ open Llvm
 
 let debug = false
 
-let metadata_to_file (md:Sub_tv.flnbeps) (addr:Sub_tv.fabes) (fn:string): unit =
+let metadata_to_file (md:Sub_tv_infer.flnbeps) (addr:Sub_tv_infer.fabes) 
+  (fn:string): unit =
   let fo = open_out_gen [Open_creat;Open_trunc;Open_wronly] 0o666 fn in
   List.iter (fun (fid, lnbeps) ->
     List.iter (fun (lb, nbeps) ->
@@ -42,11 +43,13 @@ let main in_filename out_filename =
       
   (* eprintf "EqTV=%b\n" (Eq_tv.tv_module coqim coqom); *)
   
-  let md = Sub_tv.metadata_from_module coqim coqom 1000 1000 in
-  let addr = Sub_tv.addrofbe_from_module coqom in
+  let md = Sub_tv_infer.metadata_from_module coqim coqom 1000 1000 in
+  let addr = Sub_tv_infer.addrofbe_from_module coqom in
   metadata_to_file md addr "metadata.db";
-  eprintf "SubTV=%b RSubTV=%b MTV=%b\n" (Sub_tv.tv_module coqim coqom) 
-    (Sub_tv.rtv_module coqim coqom) (Sub_tv.mtv_module coqim coqom);
+  eprintf "Meta=%b SubTV=%b RSubTV=%b MTV=%b\n" 
+    (Sub_tv_infer.validate_metadata_from_module coqim coqom md)
+    (Sub_tv.tv_module coqim coqom) (Sub_tv.rtv_module coqim coqom) 
+    (Sub_tv.mtv_module coqim coqom);
   
   (* Coq2llvm.translate_module coqom; *)
   

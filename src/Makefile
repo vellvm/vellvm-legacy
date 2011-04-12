@@ -5,8 +5,7 @@ OCAMLBUILD_OPT=-no-links -j 0 -build-dir _build \
   -cflags -g,-I,$(LLVM_OCAML_LIB),-I,$(EXTRACTION_LIB) \
   -lflags -g,-I,$(LLVM_OCAML_LIB),-I,$(EXTRACTION_LIB),-cclib,-lffi,-cclib,-L$(LLVM_LIB)
 
-CMAS:=Extraction/ssa_lib.cma \
-  Extraction/ssa_interpreter.cma \
+CMAS:=Extraction/ssa_interpreter.cma \
   Extraction/eq_tv.cma \
   Extraction/sub_tv.cma \
   Extraction/coq2llvm.cma \

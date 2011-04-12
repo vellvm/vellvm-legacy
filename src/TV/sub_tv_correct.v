@@ -22,8 +22,9 @@ Require Import symexe_sound.
 Require Import seop_llvmop.
 Require Import assoclist.
 Require Import ssa_props.
-Require Import sub_tv.
 Require Import sub_tv_dec.
+Require Import sub_tv_infer.
+Require Import sub_tv.
 Require Import Coq.Bool.Sumbool.
 Require Import symexe_tactic.
 

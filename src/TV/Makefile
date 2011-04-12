@@ -118,8 +118,9 @@ VFILES:=seop_llvmop.v\
   eq_tv.v\
   eq_tv_dec.v\
   eq_tv_correct.v\
-  sub_tv.v\
   sub_tv_dec.v\
+  sub_tv_infer.v\
+  sub_tv.v\
   sub_tv_correct.v
 VOFILES:=$(VFILES:.v=.vo)
 VOFILES0:=$(filter-out ,$(VOFILES))
