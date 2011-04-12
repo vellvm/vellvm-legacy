@@ -45,8 +45,8 @@ let main in_filename out_filename =
   let md = Sub_tv.metadata_from_module coqim coqom 1000 1000 in
   let addr = Sub_tv.addrofbe_from_module coqom in
   metadata_to_file md addr "metadata.db";
-  eprintf "SubTV=%b MTV=%b\n" (Sub_tv.rtv_module coqim coqom) 
-          (Sub_tv.mtv_module coqim coqom);
+  eprintf "SubTV=%b RSubTV=%b MTV=%b\n" (Sub_tv.tv_module coqim coqom) 
+    (Sub_tv.rtv_module coqim coqom) (Sub_tv.mtv_module coqim coqom);
   
   (* Coq2llvm.translate_module coqom; *)
   

@@ -1233,7 +1233,7 @@ Definition products_sub_prop nts1 (Ps1 Ps2:products) := forall id1,
     lookupFdecViaIDFromProducts Ps1 id1 = Some fdec1 ->
     exists fdec2,
       lookupFdecViaIDFromProducts Ps2 (rename_fid id1) = Some fdec2 /\ 
-      tv_fdec nts1 Ps1 fdec1 fdec2 = true)
+      tv_fdec nts1 fdec1 fdec2 = true)
   /\
   (forall fdef1,
     lookupFdefViaIDFromProducts Ps1 id1 = Some fdef1 ->

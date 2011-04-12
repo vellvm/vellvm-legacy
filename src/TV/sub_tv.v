@@ -7,6 +7,7 @@ Require Import ssa_def.
 Require Import ssa_lib.
 Require Import List.
 Require Import Arith.
+Require Import ZArith.
 Require Import Metatheory.
 Require Import symexe_def.
 Require Import symexe_lib.
@@ -19,6 +20,7 @@ Require Import monad.
 
 Export SimpleSE.
 
+(* Syntactical equivalence *)
 Definition eq_value (v v':value) := sumbool2bool _ _ (value_dec v v').
 Definition tv_typ (t t':typ) := sumbool2bool _ _ (typ_dec t t').
 Definition tv_align (a a':align) := sumbool2bool _ _ (Align.dec a a').
@@ -27,21 +29,14 @@ Definition eq_smem (sm sm':smem) := sumbool2bool _ _ (smem_dec sm sm').
 Definition eq_id (i i':id) := sumbool2bool _ _ (id_dec i i').
 Definition eq_const (c c':const) := sumbool2bool _ _ (const_dec c c').
 Definition eq_l (l1 l2:l) := sumbool2bool _ _ (l_dec l1 l2).
-
-(* This is the tricky part. How can we know sm2 includes sm1 ?
- * So far, we only consider the memory effects of Softbound. 
- *
- * The axiom assumes the memory behavior of a lib call. This should
- * be admissible in terms of other axioms.
-*)
-Axiom smem_lib_sub : id -> bool.
+Definition bzeq (x y:Z) := sumbool2bool _ _ (Coqlib.zeq x y).
 
 (* true <-> id == @__hashLoadBaseBound *)
 Axiom is_hashLoadBaseBound : id -> bool.
 
 (* true <-> id == @__loadDereferenceCheck or @__storeDereferenceCheck 
 
-void @__loadDereferenceCheck(
+void @__load(store)DereferenceCheck(
   i8* %base, i8* %bound, i8* %ptr, i32 %size_of_type, i32 %ptr_safe)
 *)
 Axiom is_loadStoreDereferenceCheck : id -> bool.
@@ -52,59 +47,17 @@ Axiom is_callDereferenceCheck : id -> bool.
 (* true <-> id == @__hashStoreBaseBound *)
 Axiom is_hashStoreBaseBound : id -> bool.
 
-Inductive onat :=
-| Ozero : onat
-| Osucc : onat -> onat.
 
-Definition beps := list (id * id * id).
-(*
-   We assign indices for phi, subblocks and appendent cmds inside a block, like 
-   phi_n+1 s_n s_n-1 ... s_2 s_1 c_0
+Axiom eq_INT_Z : INT -> Z -> bool.
 
-   At the (l_of_arg tt) block there is one subblock --- the 0th.
- *)
-Definition nbeps := list (nat * beps).
-Definition lnbeps := list (l * nbeps).
-Definition flnbeps := list (id * lnbeps).
-
-(* We assume there is a way to know the mapping between
-     function id, block, base, bound and ptr *)
-Axiom get_metadata : unit -> list (id * l* nat * id * id * id).
-
-(* We assume there is a way to know the mapping between
-     function id, addr_of_base, and addr_of_bound used by __hashLoadBaseBound
-*)
-Axiom get_addrof_be : unit -> list (id * id * id).
-
-(* The label of arg. *)
-Axiom l_of_arg : unit -> l.
-
-(* We need to know if an INT is one . *)
-Axiom INT_is_one : INT -> bool.
-
-(* Realized to check if two function names are matched. For example,
- * in Softbound, 'test' in the original program matches 'softbound_test'.
-*)
-Axiom rename_fid : id -> id.
-
-(* From a name in an output program to its original name in the input program. *)
-Axiom rename_fid_inv : id -> option id.
-
-Axiom rename_fid_prop1 : forall fid,
-  rename_fid_inv (rename_fid fid) = Some fid.
-
-Axiom rename_fid_prop2 : forall fid1 fid2,
-  rename_fid_inv fid1 = Some fid2 ->
-  rename_fid fid2 = fid1.
-
-(* In function f1, i1 is renamed to be (rename_id f1 i1) *)
-Axiom rename_id : id -> id -> id.
+(***************************************************************)
+(* Simplification w.r.t program equivalence. *)
 
 (* cast does not change value. We can prove they have the same operational
  * semantics. *)
 Fixpoint remove_cast_const (c:const) : const :=
 match c with
-| const_castop _ c1 _ => remove_cast_const c1
+| const_castop castop_bitcast c1 _ => remove_cast_const c1
 | const_select c0 c1 c2 => 
     const_select c0 (remove_cast_const c1)(remove_cast_const c2) 
 | _ => c
@@ -112,7 +65,7 @@ end.
 
 Fixpoint remove_cast (st:sterm) : sterm :=
 match st with
-| sterm_cast _ _ st1 _ => remove_cast st1
+| sterm_cast castop_bitcast _ st1 _ => remove_cast st1
 | sterm_select st0 t st1 st2 => 
     sterm_select st0 t (remove_cast st1)(remove_cast st2) 
 | sterm_val (value_const c) => sterm_val (value_const (remove_cast_const c))
@@ -129,7 +82,7 @@ end.
 *)
 Fixpoint get_ptr_object_const (c:const) : const :=
 match c with
-| const_castop _ c1 _ => get_ptr_object_const c1
+| const_castop castop_bitcast c1 _ => get_ptr_object_const c1
 | const_gep _ c1 _ => get_ptr_object_const c1
 | const_select c0 c1 c2 => 
     const_select c0 (remove_cast_const c1)(remove_cast_const c2) 
@@ -138,7 +91,7 @@ end.
 
 Fixpoint get_ptr_object (st:sterm) : sterm :=
 match st with
-| sterm_cast _ _ st1 _ => get_ptr_object st1
+| sterm_cast castop_bitcast _ st1 _ => get_ptr_object st1
 | sterm_gep _ _ st1 _ => get_ptr_object st1
 | sterm_select st0 t st1 st2 => 
     sterm_select st0 t (get_ptr_object st1)(get_ptr_object st2) 
@@ -171,11 +124,12 @@ eq_sterm (remove_cast st1) (remove_cast st2).
      %_bound4 = getelementptr { i32*, i8*, i8* }* %ret_tmp, i32 0, i32 2
      %call_repl_bound = load i8** %_bound4   
 
-   The idea is defining an abstract call
+   The idea is defining an abstract call (icall_ptr)
      {%3, %call_repl_base, %call_repl_bound} = 
        call void @softbound_test({ i32*, i8*, i8* }* %ret_tmp, i32 %2)
    that equals to the above seven instructions.
 
+   icall_nptr presents a normal call.
 *)
 
 Inductive icall : Set :=
@@ -204,6 +158,7 @@ Defined.
      %call_repl_bound = load i8** %_bound4    
 *)
 
+(* Check if tid is { i32*, i8*, i8* } *)
 Fixpoint get_named_ret_typs nts tid {struct nts} : option (typ*typ*typ) :=
 match nts with
 | nil => None
@@ -221,6 +176,7 @@ match nts with
     else get_named_ret_typs nts' tid
 end.
 
+(* Check if t is { i32*, i8*, i8* } *)
 Fixpoint get_ret_typs nts t: option (typ*typ*typ) :=
 match t with
 | typ_struct 
@@ -232,6 +188,7 @@ match t with
 | _ => None
 end.
 
+(* Constructing a icall_ptr from the six instructions. *)
 Definition gen_icall nts (v:value) (pa0:params) (c1 c2 c3 c4 c5 c6:cmd) 
   : option icall :=
 match c1 with
@@ -260,13 +217,15 @@ match c1 with
                 if (tv_typ t1 t3 && tv_typ t3 t5 && tv_typ t5 t0 &&
                     eq_id id0 id12 && eq_id id0 id32 && eq_id id0 id52 &&
                     eq_id id11 id22 && eq_id id31 id42 && eq_id id51 id62 &&
-                    eq_const c11 c12 && eq_const c11 c31 && eq_const c11 c51
+                    eq_const c11 c12 && eq_const c11 c31 && eq_const c11 c51 &&
+                    eq_INT_Z i11 0%Z && eq_INT_Z i32 1%Z && eq_INT_Z i52 2%Z
                    ) 
                 then 
                   match get_ret_typs nts t0 with
                   | Some (t01, t02, t03) => 
                     if (tv_typ t2 t01 && tv_typ t4 t02 && 
-                        tv_typ t6 t03 && tv_typ t02 t03) then
+                        tv_typ t6 t03 && tv_typ t02 t03 &&
+                        tv_typ t02 (typ_pointer (typ_int Size.Eight))) then
                       Some (icall_ptr id21 id41 id61 t2 v id0 pa0')
                     else None
                   | _ => None
@@ -287,20 +246,6 @@ match c1 with
 | _ => None
 end.
 
-(* e.g. calloc -> softbound_calloc *)
-Axiom syscall_returns_pointer : id -> bool.
-
-(* Ps is from the input program. *)
-Definition function_returns_pointer Ps1 fid2 : bool :=
-match (rename_fid_inv fid2) with
-| Some fid1 =>
-    match lookupFdefViaIDFromProducts Ps1 fid1 with      
-    | Some (fdef_intro (fheader_intro (typ_pointer _ as tp) _ _) _) => true
-    | _ => syscall_returns_pointer fid1
-    end
-| None => false
-end.
-
 Fixpoint cmds2isbs nts1 (Ps1:products) (cs:cmds) : (list isubblock*list nbranch)
   :=
 match cs with
@@ -317,15 +262,14 @@ match cs with
     let '(id1, nr1, tc1, t1, v1, pa1) := isCall_inv c iscall in
     let '(sbs, nbs0, ic) :=
 (*
-    Do not check if the called function returns ptr. The problem is
+    The [c] is in the output program. So we don't know if it returns pointer
+    w/o its signature in its input.
+
+    But we do not check if the called function returns ptr. The problem is
     v1 can be a value that represents a function pointer. Statically, we 
-    need more work to identidy it.
+    need more work to identify it.
 
     We check this property at tv_call.
-
-    match v1 with
-    | value_const (const_gid _ fid2) => 
-      if (function_returns_pointer Ps1 fid2) then
 *)
         match cs' with
         | c1::c2::c3::c4::c5::c6::cs'' =>
@@ -335,11 +279,6 @@ match cs with
           end
         | _ => (cmds2isbs nts1 Ps1 cs', icall_nptr id1 nr1 tc1 t1 v1 pa1)
         end
-(* 
-      else (cmds2isbs Ps1 cs', icall_nptr id1 nr1 tc1 t1 v1 pa1)
-    | _ => (cmds2isbs Ps1 cs', icall_nptr id1 nr1 tc1 t1 v1 pa1)
-    end 
-*)
     in (mkiSB nil ic::sbs, nbs0) 
   end
 end.
@@ -373,6 +312,20 @@ Hint Constructors wf_isubblocks.
 
 (************************************************************)
 (* Generating metadata *) 
+
+(* The label of arg. *)
+Axiom l_of_arg : unit -> l.
+
+Definition beps := list (id * id * id).
+(*
+   We assign indices for phi, subblocks and appendent cmds inside a block, like 
+   phi_n+1 s_n s_n-1 ... s_2 s_1 c_0
+
+   At the (l_of_arg tt) block there is one subblock --- the 0th.
+ *)
+Definition nbeps := list (nat * beps).
+Definition lnbeps := list (l * nbeps).
+Definition flnbeps := list (id * lnbeps).
 
 (* add b e p if they are not in md *)
 Fixpoint add_bep (md:beps) (b e p:id) : beps :=
@@ -870,6 +823,10 @@ match (md1, md2) with
 | _ => false
 end.
 
+Inductive onat :=
+| Ozero : onat
+| Osucc : onat -> onat.
+
 Fixpoint metadata_from_blocks nts1 Ps1 Ps2 flbep (bs2:blocks) (udb:usedef_block) 
   (md:lnbeps) (bsteps:onat) : lnbeps :=
 match bsteps with
@@ -1053,7 +1010,18 @@ match m2 with
 end.
 
 (***********************************************)
-(* Sub TV *)
+(* Sub TV (based on renaming.db) *)
+
+(* The axiom assumes the memory behavior of a lib call. It says that the 
+ * mem state after the lib is the mem state before the lib. This should
+ * be admissible in terms of other axioms.
+ *
+ * Precisely, we should prove user's memspace and metadata memspace are 
+ * disjoint. Lib call does not change user's memspace, but can change
+ * metadata space.
+ *
+*)
+Axiom smem_lib_sub : id -> bool.
 
 (*
 declare weak void @__hashLoadBaseBound(
@@ -1072,14 +1040,14 @@ We assume
 
 So, %base, %bound and %ptr_safe are safe to load w/o memsafety checks.
 *)
-Fixpoint load_from_metadata (sm:smem) (st:sterm) : bool :=
+Fixpoint load_from_metadata (sm:smem) (ptr:sterm) : bool :=
 match sm with
 | smem_init => false
 | smem_malloc sm1 _ _ _
 | smem_alloca sm1 _ _ _
 | smem_free sm1 _ _
 | smem_load sm1 _ _ _
-| smem_store sm1 _ _ _ _ => load_from_metadata sm1 st
+| smem_store sm1 _ _ _ _ => load_from_metadata sm1 ptr
 | smem_lib sm1 fid1 sts1 =>
   if (is_hashLoadBaseBound fid1) then
     match sts1 with
@@ -1089,15 +1057,18 @@ match sm with
       (Cons_list_sterm _
       (Cons_list_sterm _
       (Cons_list_sterm ptr_safe Nil_list_sterm))))) =>
-      if (eq_sterm st addr_of_base || 
-          eq_sterm st addr_of_bound || 
-          eq_sterm st ptr_safe) 
+      if (eq_sterm_upto_cast ptr addr_of_base || 
+          eq_sterm_upto_cast ptr addr_of_bound || 
+          eq_sterm_upto_cast ptr ptr_safe) 
       then true 
-      else load_from_metadata sm1 st
-    | _ => load_from_metadata sm1 st
+      else load_from_metadata sm1 ptr
+    | _ => load_from_metadata sm1 ptr
     end
-  else load_from_metadata sm1 st
+  else load_from_metadata sm1 ptr
 end.
+
+(* In function f1, i1 is renamed to be (rename_id f1 i1) *)
+Axiom rename_id : id -> id -> id.
 
 Definition tv_id fid (id1 id2:id) : bool :=
   eq_id (rename_id fid id1) id2.
@@ -1107,6 +1078,11 @@ Axiom tv_id_injective1 : forall fid id1 id2 id1' id2',
 
 Axiom tv_id_injective2 : forall fid id1 id2 id1' id2',
   id1 <> id2 -> tv_id fid id1 id1' -> tv_id fid id2 id2' -> id1' <> id2'.
+
+(* Realized to check if two function names are matched. For example,
+ * in Softbound, 'test' in the original program matches 'softbound_test'.
+*)
+Axiom rename_fid : id -> id.
 
 Definition tv_fid (fid1 fid2:id) := 
   eq_id (rename_fid fid1) fid2.
@@ -1176,11 +1152,44 @@ match (v1, v2) with
 | _ => false
 end.
 
+(* e.g. calloc -> softbound_calloc *)
+Axiom syscall_returns_pointer : id -> bool.
+
+(* From a name in an output program to its original name in the input program. *)
+Axiom rename_fid_inv : id -> option id.
+
+Axiom rename_fid_prop1 : forall fid,
+  rename_fid_inv (rename_fid fid) = Some fid.
+
+Axiom rename_fid_prop2 : forall fid1 fid2,
+  rename_fid_inv fid1 = Some fid2 ->
+  rename_fid fid2 = fid1.
+
+(* Ps1 is from the input program. *)
+Definition function_returns_pointer Ps1 fid2 : bool :=
+match (rename_fid_inv fid2) with
+| Some fid1 =>
+    match lookupFdefViaIDFromProducts Ps1 fid1 with      
+    | Some (fdef_intro (fheader_intro (typ_pointer _ as tp) _ _) _) => true
+    | _ => false
+    end
+| None => false
+end.
+
+(* Additional stores must be at "shadow_ret" *)
 Definition store_to_ret Ps1 Ps2 fid2 (ptr:sterm) : bool :=
 if (function_returns_pointer Ps1 fid2) then
    match lookupFdefViaIDFromProducts Ps2 fid2 with      
    | Some (fdef_intro (fheader_intro _  _ ((_,re)::_)) _) =>
-       eq_sterm (get_ptr_object ptr) (sterm_val (value_id re))
+       match remove_cast ptr with
+       | sterm_gep _ _ (sterm_val (value_id id0)) 
+          (Cons_list_sterm (sterm_val (value_const (const_int _ i0)))
+          (Cons_list_sterm (sterm_val (value_const (const_int _ i1)))
+            Nil_list_sterm)) =>
+            eq_id id0 re && eq_INT_Z i0 0%Z &&
+            (eq_INT_Z i1 0%Z || eq_INT_Z i1 1%Z || eq_INT_Z i1 2%Z) 
+       | _ => false
+       end
    | _ => false
    end
 else false.
@@ -1263,6 +1272,7 @@ match (sm1, sm2) with
     tv_smem Ps1 Ps2 fid sm1 sm2 && tv_typ t1 t2 && 
     tv_sterm Ps1 Ps2 fid st1 st2 && tv_align a1 a2
 | (smem_alloca sm1 t1 st1 a1, smem_alloca sm2 t2 st2 a2) =>
+    (* additionl alloca *)
     if (tv_typ t1 t2 && tv_sterm Ps1 Ps2 fid st1 st2 && tv_align a1 a2)
     then tv_smem Ps1 Ps2 fid sm1 sm2
     else tv_smem Ps1 Ps2 fid (smem_alloca sm1 t1 st1 a1) sm2
@@ -1300,6 +1310,7 @@ Fixpoint tv_sframe Ps1 Ps2 fid (sf1 sf2:sframe) : bool :=
 match (sf1, sf2) with
 | (sframe_init, _) => true
 | (sframe_alloca sm1 sf1 t1 st1 a1, sframe_alloca sm2 sf2 t2 st2 a2) =>
+    (* additionl alloca *)
     if (tv_smem Ps1 Ps2 fid sm1 sm2 && tv_typ t1 t2 && 
         tv_sterm Ps1 Ps2 fid st1 st2 && tv_align a1 a2)
     then tv_sframe Ps1 Ps2 fid sf1 sf2
@@ -1318,43 +1329,14 @@ match sm1 with
 end.
 
 Definition sub_sstate Ps1 Ps2 fid s1 s2 := 
-  tv_smap Ps1 Ps2 fid s1.(STerms) s2.(STerms) = true /\ 
-  tv_smem Ps1 Ps2 fid s1.(SMem) s2.(SMem) = true /\
-  tv_sframe Ps1 Ps2 fid s1.(SFrame) s2.(SFrame) = true /\ 
-  s1.(SEffects) = s2.(SEffects).
-
-Lemma sstate_sub_dec : forall Ps1 Ps2 fid (sts1 sts2:sstate), 
-  uniq sts1.(STerms) -> 
-  {sub_sstate Ps1 Ps2 fid sts1 sts2} + {~sub_sstate Ps1 Ps2 fid sts1 sts2}.
-Proof.
-Ltac done_right' := 
-  right; intro J ; destruct J as [ J1 [J2 [J3 J4]]]; simpl in *; auto.
-
-  intros Ps1 Ps2 fid sts1 sts2 Huniq.
-  destruct sts1 as [st1 sm1 sf1 se1].
-  destruct sts2 as [st2 sm2 sf2 se2].
-  destruct (@sterms_dec se1 se2); subst; try solve [done_right'].
-  unfold sub_sstate. simpl.
-  destruct (tv_smap Ps1 Ps2 fid st1 st2); auto.
-  destruct (tv_smem Ps1 Ps2 fid sm1 sm2); auto.
-  destruct (tv_sframe Ps1 Ps2 fid sf1 sf2); auto.
-    right. intro J ; destruct J as [ J1 [J2 [J3 J4]]]. inversion J3.
-    right. intro J ; destruct J as [ J1 [J2 [J3 J4]]]. inversion J2.
-    right. intro J ; destruct J as [ J1 [J2 [J3 J4]]]. inversion J1.
-Qed.
+  tv_smap Ps1 Ps2 fid s1.(STerms) s2.(STerms) &&
+  tv_smem Ps1 Ps2 fid s1.(SMem) s2.(SMem)  &&
+  tv_sframe Ps1 Ps2 fid s1.(SFrame) s2.(SFrame) &&
+  sumbool2bool _ _ (@sterms_dec s1.(SEffects) s2.(SEffects)).
 
 Definition tv_cmds Ps1 Ps2 fid (nbs1 nbs2 : list nbranch) :=
-sumbool2bool _ _ 
-  (sstate_sub_dec Ps1 Ps2 fid 
-    (se_cmds sstate_init nbs1) 
-    (se_cmds sstate_init nbs2) 
-    (se_cmds_init_uniq nbs1)).
+sub_sstate Ps1 Ps2 fid (se_cmds sstate_init nbs1) (se_cmds sstate_init nbs2).
 
-(* Here, we check which function to call conservatively. In practice, a v1
- * is a function pointer, we should look up the function name from the 
- * FunTable. Since the LLVM IR takes function names as function pointers,
- * if a program does not assign them to be other variables, they should
- * be the same. *)
 Fixpoint tv_params Ps1 Ps2 fid (tsts1 tsts2:list (typ*sterm)) : bool :=
 match (tsts1, tsts2) with
 | (nil, _) => true
@@ -1363,10 +1345,6 @@ match (tsts1, tsts2) with
   tv_params Ps1 Ps2 fid tsts1' tsts2'
 | _ => false
 end.
-
-(* Do not check if their tailc flags match. Softbound changes the flag for
- * system calls, say atoi from tailcall to non-tailcall.
- *)
 
 Inductive scall : Set :=
 | stmn_call : id -> noret -> tailc -> typ -> sterm -> list (typ*sterm) -> scall
@@ -1380,6 +1358,14 @@ Proof.
                       (list_param__list_typ_subst_sterm p st.(STerms))).
 Defined.
 
+(* Here, we check which function to call conservatively. In practice, a v1
+ * is a function pointer, we should look up the function name from the 
+ * FunTable. Since the LLVM IR takes function names as function pointers,
+ * if a program does not assign them to be other variables, they should
+ * be the same. 
+ * Do not check if their tailc flags match. Softbound changes the flag for
+ * system calls, say atoi from tailcall to non-tailcall.
+ *)
 Definition tv_scall Ps1 Ps2 fid (c1:scall) (c2:sicall) :=
   let '(stmn_call rid1 nr1 _ ty1 t1 tsts1) := c1 in
   match c2 with
@@ -1391,11 +1377,14 @@ Definition tv_scall Ps1 Ps2 fid (c1:scall) (c2:sicall) :=
   | stmn_icall_ptr rid2 _ _ ty2 t2 _ tsts2 =>
     tv_id fid rid1 rid2 &&
     tv_typ ty1 ty2 && tv_params Ps1 Ps2 fid tsts1 tsts2 && 
-    match (remove_cast t1, remove_cast t2) with
-    | (sterm_val (value_const (const_gid _ fid1)),
-       sterm_val (value_const (const_gid _ fid2))) =>
-      tv_fid fid1 fid2 && function_returns_pointer Ps1 fid2
-    | (st1, st2) => tv_sterm Ps1 Ps2 fid st1 st2
+    match ty1 with
+    | typ_pointer _ =>
+      match (remove_cast t1, remove_cast t2) with
+      | (sterm_val (value_const (const_gid _ fid1)),
+         sterm_val (value_const (const_gid _ fid2))) => tv_fid fid1 fid2
+      | (st1, st2) => tv_sterm Ps1 Ps2 fid st1 st2
+      end
+    | _ => false
     end
   end.
 
@@ -1406,9 +1395,7 @@ match (sb1, sb2) with
   let st2 := se_cmds sstate_init nbs2 in
   let cl1 := se_call st1 call1 iscall1 in
   let cl2 := se_icall st2 call2 in
-   (sumbool2bool _ _ 
-     (sstate_sub_dec Ps1 Ps2 fid st1 st2 (se_cmds_init_uniq nbs1))) &&
-   tv_scall Ps1 Ps2 fid cl1 cl2 
+  sub_sstate Ps1 Ps2 fid st1 st2 && tv_scall Ps1 Ps2 fid cl1 cl2 
 end.
 
 Fixpoint tv_subblocks Ps1 Ps2 fid (sbs1:list subblock) (sbs2:list isubblock) :=
@@ -1482,13 +1469,15 @@ match c1 with
               if (tv_typ t0 (typ_pointer t1) && tv_typ t1 t2 && tv_typ t2 t4 &&
                   eq_id id0 id12 && eq_id id12 id22 && eq_id id22 id42 &&
                   eq_id id11 id62 && eq_id id21 id32 && eq_id id41 id52 &&
-                  eq_const c11 c12 && eq_const c11 c21 && eq_const c11 c41
+                  eq_const c11 c12 && eq_const c11 c21 && eq_const c11 c41 &&
+                  eq_INT_Z i11 0%Z && eq_INT_Z i22 1%Z && eq_INT_Z i42 2%Z
                  ) 
               then 
                 match get_ret_typs nts1 t1 with
                 | Some (t01, t02, t03) => 
                     if (tv_typ t6 t01 && tv_typ t3 t02 && 
-                        tv_typ t5 t03 && tv_typ t02 t03) then
+                        tv_typ t5 t03 && tv_typ t02 t03 &&
+                        tv_typ t02 (typ_pointer (typ_int Size.Eight))) then
                       Some (id12, v3, v5, v6, t6)
                     else None
                 | None => Some (id12, v3, v5, v6, t6)
@@ -1572,36 +1561,44 @@ match (bs1, bs2) with
 | _ => false
 end.
 
-Definition tv_fheader nts1 Ps1 (f1 f2:fheader) := 
+Definition tv_fheader nts1 (f1 f2:fheader) := 
   let '(fheader_intro t1 fid1 a1) := f1 in
   let '(fheader_intro t2 fid2 a2) := f2 in
   tv_fid fid1 fid2 &&
-  if (function_returns_pointer Ps1 fid2) then
-    if (syscall_returns_pointer fid1) then true
-    else
+  match t1 with
+  | typ_pointer _ =>
       match a2 with
       | (typ_pointer t,_)::a2' =>
         match get_ret_typs nts1 t with
         | Some (t01,t02,t03) =>
-          (sumbool2bool _ _ (typ_dec t1 t01)) &&
-          (sumbool2bool _ _ (prefix_dec _ arg_dec a1 a2'))
+            tv_typ t1 t01 && tv_typ t02 t03 && 
+            tv_typ t02 (typ_pointer (typ_int Size.Eight)) &&
+            if syscall_returns_pointer fid1 then
+              (*  System call is only declared, but not defined, LLVM only 
+                  gnerates tmp variable names for its arguments started from
+                  %0. So we simply check if their types are matched.
+               *)
+              let '(ts1,_) := List.split a1 in
+              let '(ts2',_) := List.split a2' in
+              (sumbool2bool _ _ (prefix_dec _ typ_dec ts1 ts2'))
+            else 
+              (sumbool2bool _ _ (prefix_dec _ arg_dec a1 a2'))
         | None => false
         end
       | _ => false
       end
-  else
-    (sumbool2bool _ _ (typ_dec t1 t2)) &&
-    (sumbool2bool _ _ (prefix_dec _ arg_dec a1 a2)).
+  | _ => tv_typ t1 t2 && (sumbool2bool _ _ (prefix_dec _ arg_dec a1 a2))
+  end.
 
-Definition tv_fdec nts1 Ps1 (f1 f2:fdec) :=
+Definition tv_fdec nts1 (f1 f2:fdec) :=
 match (f1, f2) with
-| (fdec_intro fh1, fdec_intro fh2) => tv_fheader nts1 Ps1 fh1 fh2
+| (fdec_intro fh1, fdec_intro fh2) => tv_fheader nts1 fh1 fh2
 end.
 
 Definition tv_fdef nts1 Ps1 Ps2 (f1 f2:fdef) :=
 match (f1, f2) with
 | (fdef_intro (fheader_intro _ fid1 _ as fh1) lb1, fdef_intro fh2 lb2) =>
-  tv_fheader nts1 Ps1 fh1 fh2 && tv_blocks nts1 Ps1 Ps2 fid1 lb1 lb2
+  tv_fheader nts1 fh1 fh2 && tv_blocks nts1 Ps1 Ps2 fid1 lb1 lb2
 end.
 
 Fixpoint lookupGvarViaIDFromProducts (lp:products) (i:id) : option gvar :=
@@ -1625,7 +1622,7 @@ match Ps1 with
 | product_fdec f1::Ps1' =>
   match lookupFdecViaIDFromProducts Ps2 (rename_fid (getFdecID f1)) with
   | None => false
-  | Some f2 => tv_fdec nts1 Ps10 f1 f2 && tv_products nts1 Ps10 Ps1' Ps2 
+  | Some f2 => tv_fdec nts1 f1 f2 && tv_products nts1 Ps10 Ps1' Ps2 
   end
 | product_fdef f1::Ps1' =>
   match lookupFdefViaIDFromProducts Ps2 (rename_fid (getFdefID f1)) with
@@ -1915,14 +1912,13 @@ match (sf1, sf2) with
 | _ => None
 end.
 
-(* Find a (id2,st2) from sm2 where st1 = st2, then return id2 and the rest
-   sm2'. *)
-Fixpoint match_smap Ps1 Ps2 fid r id1 st1 sm2 : option (smap * renaming) :=
+(* Find a (id2,st2) from sm2 where st1 = st2, then return a new renaming. *)
+Fixpoint match_smap Ps1 Ps2 fid r id1 st1 sm2 : option renaming :=
 match sm2 with
 | nil => None
 | (id2,st2)::sm2' => 
     match rtv_sterm Ps1 Ps2 fid r st1 st2 with
-    | Some r' => Some (sm2',(id1,id2)::r')
+    | Some r' => Some ((id1,id2)::r')
     | None => match_smap Ps1 Ps2 fid r id1 st1 sm2'
     end
 end.
@@ -1940,10 +1936,8 @@ match sm1 with
         fun r => rtv_smap Ps1 Ps2 fid r sm1' sm2
     end
   | None => 
-    match match_smap Ps1 Ps2 fid r id1 st1 sm2 with
-    | None => None
-    | Some (sm2',r') => rtv_smap Ps1 Ps2 fid r' sm1' sm2'
-    end
+    match_smap Ps1 Ps2 fid r id1 st1 sm2 >>=
+    fun r' => rtv_smap Ps1 Ps2 fid r' sm1' sm2
   end
 end.
 
@@ -1984,19 +1978,22 @@ Definition rtv_scall Ps1 Ps2 fid r (c1:scall) (c2:sicall) : option renaming :=
       fun r => Some ((rid1,rid2)::r)
     else None
   | stmn_icall_ptr rid2 _ _ ty2 t2 _ tsts2 =>
-    if (tv_typ ty1 ty2) then
-      rtv_params Ps1 Ps2 fid r tsts1 tsts2 >>=
-      fun r => 
-        match (remove_cast t1, remove_cast t2) with
-        | (sterm_val (value_const (const_gid _ fid1)),
-           sterm_val (value_const (const_gid _ fid2))) =>
-           if tv_fid fid1 fid2 && function_returns_pointer Ps1 fid2
-           then Some ((rid1,rid2)::r) else None
-        | (st1, st2) => 
-            rtv_sterm Ps1 Ps2 fid r st1 st2 >>=
-            fun r => Some ((rid1,rid2)::r)
-        end
-    else None
+    match ty1 with
+    | typ_pointer _ =>
+      if (tv_typ ty1 ty2) then
+        rtv_params Ps1 Ps2 fid r tsts1 tsts2 >>=
+        fun r => 
+          match (remove_cast t1, remove_cast t2) with
+          | (sterm_val (value_const (const_gid _ fid1)),
+             sterm_val (value_const (const_gid _ fid2))) =>
+             if tv_fid fid1 fid2 then Some ((rid1,rid2)::r) else None
+          | (st1, st2) => 
+              rtv_sterm Ps1 Ps2 fid r st1 st2 >>=
+              fun r => Some ((rid1,rid2)::r)
+          end
+      else None
+    | _ => None
+    end
   end.
 
 Definition rtv_subblock Ps1 Ps2 fid r (sb1:subblock) (sb2:isubblock) : 
@@ -2137,7 +2134,7 @@ match (f1, f2) with
 | (fdef_intro (fheader_intro _ fid1 _ as fh1) lb1, fdef_intro fh2 lb2) =>
   match rtv_blocks nts1 Ps1 Ps2 fid1 nil lb1 lb2 with
   | None => false
-  | Some _ => tv_fheader nts1 Ps1 fh1 fh2 
+  | Some _ => tv_fheader nts1 fh1 fh2 
   end
 end.
 
@@ -2153,7 +2150,7 @@ match Ps1 with
 | product_fdec f1::Ps1' =>
   match lookupFdecViaIDFromProducts Ps2 (rename_fid (getFdecID f1)) with
   | None => false
-  | Some f2 => tv_fdec nts1 Ps10 f1 f2 && rtv_products nts1 Ps10 Ps1' Ps2 
+  | Some f2 => tv_fdec nts1 f1 f2 && rtv_products nts1 Ps10 Ps1' Ps2 
   end
 | product_fdef f1::Ps1' =>
   match lookupFdefViaIDFromProducts Ps2 (rename_fid (getFdefID f1)) with
@@ -2217,10 +2214,14 @@ match ms with
     is_metadata_aux ms' fid l1 i b e p
 end.
 
+(* We assume there is a way to know the mapping between
+     function id, block, base, bound and ptr *)
+Axiom get_metadata : unit -> list (id * l* nat * id * id * id).
+
 Definition is_metadata (fid:id) (l1:l) (i:nat) (b e p:id) : bool :=
   is_metadata_aux (get_metadata tt) fid l1 i b e p.
 
-Fixpoint check_metadata_aux Ps2 fid l1 i base bound ptr := 
+Fixpoint check_mop_metadata_aux Ps2 fid l1 i base bound ptr := 
 match (base, bound, ptr) with
 | (sterm_val (value_id idb), sterm_val (value_id ide), 
    sterm_val (value_id idp)) => 
@@ -2241,14 +2242,14 @@ match (base, bound, ptr) with
    sterm_val (value_const (const_gep _ (const_gid _ _ as c2)
      (Cons_list_const (const_int _ i2) Nil_list_const))),  
    sterm_val (value_const (const_gid _ _ as c3))) =>
-     eq_const c1 c2 && eq_const c1 c3 && INT_is_one i2   
+     eq_const c1 c2 && eq_const c1 c3 && eq_INT_Z i2 1%Z   
 | (sterm_load sm1 _ st1 _, sterm_load sm2 _ st2 _, st3) =>
      deref_from_metadata fid sm1 st1 st2 st3
 | (sterm_select st10 _ st11 st12, sterm_select st20 _ st21 st22,
    sterm_select st30 _ st31 st32) =>
      eq_sterm st10 st20 && eq_sterm st20 st30 &&
-     check_metadata_aux Ps2 fid l1 i st11 st21 st31 && 
-     check_metadata_aux Ps2 fid l1 i st12 st22 st32
+     check_mop_metadata_aux Ps2 fid l1 i st11 st21 st31 && 
+     check_mop_metadata_aux Ps2 fid l1 i st12 st22 st32
 (*
   Assign external globals infinite base/bound.
 
@@ -2256,13 +2257,18 @@ match (base, bound, ptr) with
   %16 = bitcast i8* inttoptr (i32 2147483647 to i8* ) to i8*
   %bcast_ld_dref_bound20 = bitcast %struct._IO_FILE** @stderr to i8* 
 *)
-| (sterm_val (value_const (const_null _)),
-   sterm_val (value_const (const_int _ _)),
-   sterm_val (value_const (const_gid (typ_pointer _) id))) =>
+| (sterm_val (value_const (const_null t0)),
+   sterm_val (value_const (const_castop castop_inttoptr (const_int _ i0) t1)),
+   sterm_val (value_const (const_gid (typ_pointer (typ_pointer _)) id))) =>
+     tv_typ t0 t1 && tv_typ t0 (typ_pointer (typ_int Size.Eight)) &&
+     eq_INT_Z i0 (two_p 48%Z) &&
      match lookupBindingViaIDFromProducts Ps2 id with 
      | id_binding_gvar (gvar_external _ _ _) => true
      | _ => false
      end
+| (sterm_val (value_const (const_null _)), 
+   sterm_val (value_const (const_null _)),
+   sterm_cast castop_inttoptr _ _ _) => true (* int2ptr *)
 | (sterm_val (value_const (const_null _)), 
    sterm_val (value_const (const_null _)),
    sterm_val (value_const (const_null _))) => true
@@ -2271,8 +2277,9 @@ match (base, bound, ptr) with
    sterm_val (value_const (const_undef _))) => true (* assumed by Softbound *)
 | _ => false
 end.
-Definition check_metadata Ps2 fid l1 i base bound ptr := 
-  check_metadata_aux Ps2 fid l1 i (remove_cast base) (remove_cast bound) 
+
+Definition check_mop_metadata Ps2 fid l1 i base bound ptr := 
+  check_mop_metadata_aux Ps2 fid l1 i (remove_cast base) (remove_cast bound) 
     (get_ptr_object ptr).
 
 Fixpoint check_fptr_metadata_aux Ps2 fid l1 i base bound ptr := 
@@ -2296,9 +2303,14 @@ match (base, bound, ptr) with
    end
 | _ => false
 end.
+
 Definition check_fptr_metadata Ps2 fid l1 i base bound ptr := 
   check_fptr_metadata_aux Ps2 fid l1 i (remove_cast base) (remove_cast bound) 
     (remove_cast ptr).
+
+Definition check_metadata Ps2 fid l1 i base bound ptr := 
+  check_mop_metadata Ps2 fid l1 i base bound ptr ||
+  check_fptr_metadata Ps2 fid l1 i base bound ptr. 
 
 Definition deref_check Ps2 fid l1 i lid sts : bool :=
   if (is_loadStoreDereferenceCheck lid) then
@@ -2308,7 +2320,7 @@ Definition deref_check Ps2 fid l1 i lid sts : bool :=
       (Cons_list_sterm ptr
       (Cons_list_sterm size_of_type
       (Cons_list_sterm _ Nil_list_sterm)))) => 
-        check_metadata Ps2 fid l1 i base bound ptr
+        check_mop_metadata Ps2 fid l1 i base bound ptr
     | _ => false
     end
   else if (is_callDereferenceCheck lid) then
@@ -2321,6 +2333,10 @@ Definition deref_check Ps2 fid l1 i lid sts : bool :=
     end
   else true.
 
+(* 
+   store ptr addr_of_ptr
+   hashStoreBaseBound addr_of_ptr b e _ _ _
+*)
 Fixpoint find_stored_ptr sm addr_of_ptr : option sterm :=
 match sm with
 | smem_init => None
@@ -2334,10 +2350,6 @@ match sm with
     else find_stored_ptr sm1 addr_of_ptr
 end.
 
-(* 
-   store ptr addr_of_ptr
-   hashStoreBaseBound addr_of_ptr b e _ _ _
-*)
 Fixpoint store_to_metadata Ps2 fid l1 i sm (lid:id) sts : bool :=
 if (is_hashLoadBaseBound lid) then
   match sts with
@@ -2354,6 +2366,11 @@ if (is_hashLoadBaseBound lid) then
   | _ => false
   end      
 else true.
+
+(* We assume there is a way to know the mapping between
+     function id, addr_of_base, and addr_of_bound used by __hashLoadBaseBound
+*)
+Axiom get_addrof_be : unit -> list (id * id * id).
 
 Fixpoint is_addrof_be_aux (abes:list (id*id*id)) (fid ab ae:id)
   : bool :=
@@ -2403,7 +2420,8 @@ match sm with
          )
       (Cons_list_sterm _ Nil_list_sterm)))) =>
       if (eq_sterm (get_ptr_object ptr) (get_ptr_object actual_ptr) && 
-         INT_is_one i0 && sumbool2bool _ _ (Size.dec sz Size.ThirtyTwo))
+         eq_INT_Z i0 1%Z && 
+         sumbool2bool _ _ (Size.dec sz Size.ThirtyTwo))
       then true else safe_mem_access fid sm1 t ptr
     | _ => safe_mem_access fid sm1 t ptr
     end
@@ -2503,11 +2521,22 @@ match ms with
       match (lookupAL _ sm b, lookupAL _ sm e, lookupAL _ sm p) with
       | (Some sb, Some se, Some sp) => check_metadata Ps2 fid l1 i1 sb se sp
       | (Some sb, Some se, None) => 
-          (*   b1 = bitcast b; e1 = bitcast e
-               and p is falled-through or  *)
+          (* 
+             l1:  
+               p = malloc; b = p; e = p + size;
+             l2
+               b1 = bitcast b; e1 = bitcast e
+               and p is falled-through or  
+          *)
           check_metadata Ps2 fid l1 i1 sb se (sterm_val (value_id p))
       | (None, None, Some (sterm_gep _ _ _ _)) => 
-          (*   b and e are falled-through  *)
+          (*   
+             l1:  
+               p = malloc; b = p; e = p + size;
+             l2:
+               b and e are falled-through  
+               q = gep p ...
+          *)
           true
       | (None, None, None) => 
           (*   b, e and p are falled-through  *)
@@ -2656,34 +2685,58 @@ Definition mtv_isubblocks Ps1 Ps2 fid l (sbs2:list isubblock) :=
    3) either all of (b e p) are in phinodes, or none of them is...
    Not clear how to implement the checking in a way suitable to proofs.
 *)
-(* We don't need to check them, if the metadata are generated correctly
-Definition mtv_bep_value fid l i (bv ev pv:value) : bool :=
+
+Definition mtv_bep_value Ps2 fid l1 (bv ev pv:value) : bool :=
 match (bv, ev, pv) with
-| (value_id bid, value_id eid, value_id pid) => is_metadata fid l i bid eid pid
+| (value_id bid, value_id eid, value_id pid) => 
+    is_metadata fid l1 O bid eid pid
+| (value_const (const_gid _ _ as c1),
+   value_const (const_gep _ (const_gid _ _ as c2)
+     (Cons_list_const (const_int _ i2) Nil_list_const)),  
+   value_const (const_gid _ _ as c3)) =>
+     eq_const c1 c2 && eq_const c1 c3 && eq_INT_Z i2 1%Z   
+| (value_const (const_null t0),
+   value_const (const_castop castop_inttoptr (const_int _ i0) t1),
+   value_const (const_gid (typ_pointer (typ_pointer _)) id)) =>
+     tv_typ t0 t1 && tv_typ t0 (typ_pointer (typ_int Size.Eight)) &&
+     eq_INT_Z i0 (two_p 48%Z) &&
+     match lookupBindingViaIDFromProducts Ps2 id with 
+     | id_binding_gvar (gvar_external _ _ _) => true
+     | _ => false
+     end
+| (value_const (const_null _), 
+   value_const (const_null _),
+   value_const (const_castop castop_inttoptr _ _)) => true
 | (value_const (const_null _), value_const (const_null _), 
-     value_const (const_null _)) => true
+    value_const (const_null _)) => true
 | (value_const (const_undef _), value_const (const_undef _), 
      value_const (const_undef _)) => 
     (* I dont think this is safe, since undefined values can be
        arbitrary. But Softbound assumes the this is fine. *)
     true
+| (value_const (const_gid _ id1),
+   value_const (const_gid _ id2),
+   value_const (const_gid _ id3)) => (*fptr*)
+   match lookupBindingViaIDFromProducts Ps2 id1 with 
+   | id_binding_fdec _ => eq_id id1 id2 && eq_id id2 id3
+   | _ => false
+   end
 | _ => false
 end.
-*)
 
-Fixpoint mtv_list_value_l (bvls evls pvls:list_value_l) : bool :=
+Fixpoint mtv_list_value_l Ps2 fid (bvls evls pvls:list_value_l) : bool :=
 match bvls with
 | Nil_list_value_l => true
 | Cons_list_value_l bv bl bvls' =>
     match (getValueViaLabelFromValuels evls bl,
            getValueViaLabelFromValuels pvls bl) with
-    | (Some ev, Some pv) => true
+    | (Some ev, Some pv) => mtv_bep_value Ps2 fid bl bv ev pv
     | _ => false
-    end && mtv_list_value_l bvls' evls pvls
+    end && mtv_list_value_l Ps2 fid bvls' evls pvls
 end.
 
-Fixpoint mtv_phinodes_aux fid l1 i1 (ms:list (id*l*nat*id*id*id)) (ps2:phinodes)
-  : bool :=
+Fixpoint mtv_phinodes_aux Ps2 fid l1 i1 (ms:list (id*l*nat*id*id*id)) 
+  (ps2:phinodes) : bool :=
 match ms with
 | nil => true
 | (((((fid',l2),i2),b),e),p)::ms' =>
@@ -2691,22 +2744,22 @@ match ms with
        match (lookupPhinode ps2 b, lookupPhinode ps2 e, lookupPhinode ps2 p) with
        | (None, None, None) => true
        | (Some (insn_phi _ _ bvls), Some (insn_phi _ _ evls), 
-           Some (insn_phi _ _ pvls)) => mtv_list_value_l bvls evls pvls
+           Some (insn_phi _ _ pvls)) => mtv_list_value_l Ps2 fid bvls evls pvls
        | _ => false
        end
      else true) && 
-    mtv_phinodes_aux fid l1 i1 ms' ps2 
+    mtv_phinodes_aux Ps2 fid l1 i1 ms' ps2 
 end.
 
-Definition mtv_phinodes fid l i (ps2:phinodes) : bool :=
-  mtv_phinodes_aux fid l i (get_metadata tt) ps2.
+Definition mtv_phinodes Ps2 fid l i (ps2:phinodes) : bool :=
+  mtv_phinodes_aux Ps2 fid l i (get_metadata tt) ps2.
 
 Definition mtv_block nts1 Ps1 Ps2 fid (b2:block) :=
 match b2 with
 | block_intro l2 ps2 cs2 tmn2 =>
   match cmds2isbs nts1 Ps1 cs2 with
   | (sbs2, nbs2) =>
-    mtv_phinodes fid l2 (S (List.length sbs2)) ps2 &&
+    mtv_phinodes Ps2 fid l2 (S (List.length sbs2)) ps2 &&
     mtv_isubblocks Ps1 Ps2 fid l2 sbs2 && mtv_cmds Ps1 Ps2 fid l2 nbs2
   end
 end.

@@ -9,3 +9,6 @@
 tvcases/milli/undef
 tvcases/milli/funcargsret
 tvcases/milli/select
+tvcases/milli/fptr
+tvcases/milli/fptr2
+tvcases/milli/int2ptr
