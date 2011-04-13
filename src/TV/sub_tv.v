@@ -1216,28 +1216,30 @@ match sm with
     else deref_from_metadata fid sm1 addr_of_b addr_of_e ptr
 end.
 
-Fixpoint is_metadata_aux (ms:list (id*l*nat*id*id*id)) (fid:id) (l1:l) (i:nat)
-  (b e p:id) : bool :=
+Definition metadata := list (id*l*nat*id*id*id*bool).
+
+Fixpoint is_metadata_aux (ms:metadata) (fid:id) (l1:l) (i:nat) (b e p:id) im 
+  : bool :=
 match ms with
 | nil => false
-| (fid',l2,i',b',e',p')::ms' => 
+| (fid',l2,i',b',e',p',im')::ms' => 
     (eq_id fid fid' && eq_l l1 l2 && beq_nat i i' && eq_id b b' && eq_id e e' &&
-     eq_id p p') ||
-    is_metadata_aux ms' fid l1 i b e p
+     eq_id p p' && eqb im im') ||
+    is_metadata_aux ms' fid l1 i b e p im
 end.
 
 (* We assume there is a way to know the mapping between
-     function id, block, base, bound and ptr *)
-Axiom get_metadata : unit -> list (id * l* nat * id * id * id).
+     function id, block, base, bound, ptr and flag *)
+Axiom get_metadata : unit -> metadata.
 
-Definition is_metadata (fid:id) (l1:l) (i:nat) (b e p:id) : bool :=
-  is_metadata_aux (get_metadata tt) fid l1 i b e p.
+Definition is_metadata (fid:id) (l1:l) (i:nat) (b e p:id) (im:bool) : bool :=
+  is_metadata_aux (get_metadata tt) fid l1 i b e p im.
 
-Fixpoint check_mop_metadata_aux Ps2 fid l1 i base bound ptr := 
+Fixpoint check_mptr_metadata_aux Ps2 fid l1 i base bound ptr := 
 match (base, bound, ptr) with
 | (sterm_val (value_id idb), sterm_val (value_id ide), 
    sterm_val (value_id idp)) => 
-    is_metadata fid l1 i idb ide idp
+    is_metadata fid l1 i idb ide idp true
 | (sterm_malloc _ _ st10 _ as st1, 
    sterm_gep _ _ st2 (Cons_list_sterm st20 Nil_list_sterm),  
    sterm_malloc _ _ _ _ as st3) =>
@@ -1260,8 +1262,8 @@ match (base, bound, ptr) with
 | (sterm_select st10 _ st11 st12, sterm_select st20 _ st21 st22,
    sterm_select st30 _ st31 st32) =>
      eq_sterm st10 st20 && eq_sterm st20 st30 &&
-     check_mop_metadata_aux Ps2 fid l1 i st11 st21 st31 && 
-     check_mop_metadata_aux Ps2 fid l1 i st12 st22 st32
+     check_mptr_metadata_aux Ps2 fid l1 i st11 st21 st31 && 
+     check_mptr_metadata_aux Ps2 fid l1 i st12 st22 st32
 (*
   Assign external globals infinite base/bound.
 
@@ -1290,15 +1292,15 @@ match (base, bound, ptr) with
 | _ => false
 end.
 
-Definition check_mop_metadata Ps2 fid l1 i base bound ptr := 
-  check_mop_metadata_aux Ps2 fid l1 i (remove_cast base) (remove_cast bound) 
+Definition check_mptr_metadata Ps2 fid l1 i base bound ptr := 
+  check_mptr_metadata_aux Ps2 fid l1 i (remove_cast base) (remove_cast bound) 
     (get_ptr_object ptr).
 
 Fixpoint check_fptr_metadata_aux Ps2 fid l1 i base bound ptr := 
 match (base, bound, ptr) with
 | (sterm_val (value_id idb), sterm_val (value_id ide), 
    sterm_val (value_id idp)) => 
-    is_metadata fid l1 i idb ide idp
+    is_metadata fid l1 i idb ide idp false
 | (sterm_load sm1 _ st1 _, sterm_load sm2 _ st2 _, st3) =>
      deref_from_metadata fid sm1 st1 st2 st3
 | (sterm_select st10 _ st11 st12, sterm_select st20 _ st21 st22,
@@ -1320,9 +1322,9 @@ Definition check_fptr_metadata Ps2 fid l1 i base bound ptr :=
   check_fptr_metadata_aux Ps2 fid l1 i (remove_cast base) (remove_cast bound) 
     (remove_cast ptr).
 
-Definition check_metadata Ps2 fid l1 i base bound ptr := 
-  check_mop_metadata Ps2 fid l1 i base bound ptr ||
-  check_fptr_metadata Ps2 fid l1 i base bound ptr. 
+Definition check_metadata Ps2 fid l1 i base bound ptr (im:bool) := 
+  if im then check_mptr_metadata Ps2 fid l1 i base bound ptr
+  else check_fptr_metadata Ps2 fid l1 i base bound ptr. 
 
 Definition deref_check Ps2 fid l1 i lid sts : bool :=
   if (is_loadStoreDereferenceCheck lid) then
@@ -1332,7 +1334,7 @@ Definition deref_check Ps2 fid l1 i lid sts : bool :=
       (Cons_list_sterm ptr
       (Cons_list_sterm size_of_type
       (Cons_list_sterm _ Nil_list_sterm)))) => 
-        check_mop_metadata Ps2 fid l1 i base bound ptr
+        check_mptr_metadata Ps2 fid l1 i base bound ptr
     | _ => false
     end
   else if (is_callDereferenceCheck lid) then
@@ -1373,7 +1375,8 @@ if (is_hashLoadBaseBound lid) then
     (Cons_list_sterm _ Nil_list_sterm))))) =>
       match (find_stored_ptr sm addr_of_ptr) with
       | None => false
-      | Some ptr => check_metadata Ps2 fid l1 i base bound ptr
+      | Some ptr => check_mptr_metadata Ps2 fid l1 i base bound ptr ||
+          check_fptr_metadata Ps2 fid l1 i base bound ptr
       end
   | _ => false
   end      
@@ -1524,14 +1527,13 @@ match sm with
     deref_check Ps2 fid l i lid1 sts1
 end.
 
-Fixpoint check_all_metadata_aux Ps2 fid l1 i1 (sm:smap) 
-  (ms:list (id*l*nat*id*id*id)) : bool :=
+Fixpoint check_all_metadata_aux Ps2 fid l1 i1 (sm:smap) (ms:metadata) : bool :=
 match ms with
 | nil => true
-| (fid0,l2,i2,b,e,p)::ms' =>
+| (fid0,l2,i2,b,e,p,im)::ms' =>
     (if (eq_id fid0 fid && eq_l l1 l2 && beq_nat i1 i2) then
       match (lookupAL _ sm b, lookupAL _ sm e, lookupAL _ sm p) with
-      | (Some sb, Some se, Some sp) => check_metadata Ps2 fid l1 i1 sb se sp
+      | (Some sb, Some se, Some sp) => check_metadata Ps2 fid l1 i1 sb se sp im
       | (Some sb, Some se, None) => 
           (* 
              l1:  
@@ -1540,7 +1542,7 @@ match ms with
                b1 = bitcast b; e1 = bitcast e
                and p is falled-through or  
           *)
-          check_metadata Ps2 fid l1 i1 sb se (sterm_val (value_id p))
+          check_metadata Ps2 fid l1 i1 sb se (sterm_val (value_id p)) im
       | (None, None, Some (sterm_gep _ _ _ _)) => 
           (*   
              l1:  
@@ -1586,15 +1588,15 @@ smem_is_memsafe Ps1 Ps2 fid l O st2.(SMem) &&
 check_all_metadata Ps1 fid l O st2.(STerms) &&
 check_addrof_be fid st2.(STerms).
 
-Fixpoint mtv_func_metadata (ms:list (id*l*nat*id*id*id)) Ps2 fid l1 i1 fid2 ars2 
+Fixpoint mtv_func_metadata (ms:metadata) Ps2 fid l1 i1 fid2 ars2 
   sars2 : bool :=
 match ms with
 | nil => true
-| (fid0,l2,i2,b,e,p)::ms' =>
+| (fid0,l2,i2,b,e,p,im)::ms' =>
     (if (eq_id fid0 fid2 && eq_l l2 (l_of_arg tt) && beq_nat i2 O) then
       match (lookupSarg ars2 sars2 b, lookupSarg ars2 sars2 e, 
         lookupSarg ars2 sars2 p) with
-      | (Some sb, Some se, Some sp) => check_metadata Ps2 fid l1 i1 sb se sp
+      | (Some sb, Some se, Some sp) => check_metadata Ps2 fid l1 i1 sb se sp im
       | _ => false
       end
     else true) &&
@@ -1698,10 +1700,10 @@ Definition mtv_isubblocks Ps1 Ps2 fid l (sbs2:list isubblock) :=
    Not clear how to implement the checking in a way suitable to proofs.
 *)
 
-Definition mtv_bep_value Ps2 fid l1 (bv ev pv:value) : bool :=
+Definition mtv_bep_value Ps2 fid l1 (bv ev pv:value) im : bool :=
 match (bv, ev, pv) with
 | (value_id bid, value_id eid, value_id pid) => 
-    is_metadata fid l1 O bid eid pid
+    is_metadata fid l1 O bid eid pid im
 | (value_const (const_gid _ _ as c1),
    value_const (const_gep _ (const_gid _ _ as c2)
      (Cons_list_const (const_int _ i2) Nil_list_const)),  
@@ -1736,27 +1738,27 @@ match (bv, ev, pv) with
 | _ => false
 end.
 
-Fixpoint mtv_list_value_l Ps2 fid (bvls evls pvls:list_value_l) : bool :=
+Fixpoint mtv_list_value_l Ps2 fid (bvls evls pvls:list_value_l) im : bool :=
 match bvls with
 | Nil_list_value_l => true
 | Cons_list_value_l bv bl bvls' =>
     match (getValueViaLabelFromValuels evls bl,
            getValueViaLabelFromValuels pvls bl) with
-    | (Some ev, Some pv) => mtv_bep_value Ps2 fid bl bv ev pv
+    | (Some ev, Some pv) => mtv_bep_value Ps2 fid bl bv ev pv im
     | _ => false
-    end && mtv_list_value_l Ps2 fid bvls' evls pvls
+    end && mtv_list_value_l Ps2 fid bvls' evls pvls im
 end.
 
-Fixpoint mtv_phinodes_aux Ps2 fid l1 i1 (ms:list (id*l*nat*id*id*id)) 
-  (ps2:phinodes) : bool :=
+Fixpoint mtv_phinodes_aux Ps2 fid l1 i1 (ms:metadata) (ps2:phinodes) : bool :=
 match ms with
 | nil => true
-| (((((fid',l2),i2),b),e),p)::ms' =>
+| (fid',l2,i2,b,e,p,im)::ms' =>
     (if (eq_id fid fid' && eq_l l1 l2 && beq_nat i1 i2) then
        match (lookupPhinode ps2 b, lookupPhinode ps2 e, lookupPhinode ps2 p) with
        | (None, None, None) => true
        | (Some (insn_phi _ _ bvls), Some (insn_phi _ _ evls), 
-           Some (insn_phi _ _ pvls)) => mtv_list_value_l Ps2 fid bvls evls pvls
+           Some (insn_phi _ _ pvls)) => 
+           mtv_list_value_l Ps2 fid bvls evls pvls im
        | _ => false
        end
      else true) && 

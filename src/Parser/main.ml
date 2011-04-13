@@ -9,16 +9,16 @@ let metadata_to_file (md:Sub_tv_infer.flnbeps) (addr:Sub_tv_infer.fabes)
   List.iter (fun (fid, lnbeps) ->
     List.iter (fun (lb, nbeps) ->
       List.iter (fun (i, beps) ->
-        List.iter (fun ((b, e), p) ->
-          output_string fo (Printf.sprintf "%s %s %i %s %s %s\n" fid lb 
-            (Camlcoq.camlint_of_nat i) b e p)
+        List.iter (fun (((b, e), p),im) ->
+          output_string fo (Printf.sprintf "%s %s %i %s %s %s %b\n" fid lb 
+            (Camlcoq.camlint_of_nat i) b e p im)
 	  ) beps
         ) nbeps
       ) lnbeps
     ) md;
   List.iter (fun (fid, abes) ->
     List.iter (fun (ab, ae) ->
-        output_string fo (Printf.sprintf "%s entry 0 %s %s -1\n" fid ab ae)
+        output_string fo (Printf.sprintf "%s entry 0 %s %s -1 true\n" fid ab ae)
       ) abes
     ) addr;
   close_out fo
