@@ -349,12 +349,12 @@ Definition sub_sstate Ps1 Ps2 fid s1 s2 :=
 Definition tv_cmds Ps1 Ps2 fid (nbs1 nbs2 : list nbranch) :=
 sub_sstate Ps1 Ps2 fid (se_cmds sstate_init nbs1) (se_cmds sstate_init nbs2).
 
-Fixpoint tv_params Ps1 Ps2 fid (tsts1 tsts2:list (typ*sterm)) : bool :=
+Fixpoint tv_sparams Ps1 Ps2 fid (tsts1 tsts2:list (typ*sterm)) : bool :=
 match (tsts1, tsts2) with
 | (nil, _) => true
 | ((t1,st1)::tsts1', (t2,st2)::tsts2') => 
   tv_typ t1 t2 && tv_sterm Ps1 Ps2 fid st1 st2 && 
-  tv_params Ps1 Ps2 fid tsts1' tsts2'
+  tv_sparams Ps1 Ps2 fid tsts1' tsts2'
 | _ => false
 end.
 
@@ -384,11 +384,11 @@ Definition tv_scall Ps1 Ps2 fid (c1:scall) (c2:sicall) :=
   | stmn_icall_nptr rid2 nr2 _ ty2 t2 tsts2 =>
     tv_id fid rid1 rid2 &&
     (sumbool2bool _ _ (noret_dec nr1 nr2)) &&
-    tv_typ ty1 ty2 && tv_params Ps1 Ps2 fid tsts1 tsts2 && 
+    tv_typ ty1 ty2 && tv_sparams Ps1 Ps2 fid tsts1 tsts2 && 
     tv_sterm Ps1 Ps2 fid (remove_cast t1) (remove_cast t2)
   | stmn_icall_ptr rid2 _ _ ty2 t2 _ tsts2 =>
     tv_id fid rid1 rid2 &&
-    tv_typ ty1 ty2 && tv_params Ps1 Ps2 fid tsts1 tsts2 && 
+    tv_typ ty1 ty2 && tv_sparams Ps1 Ps2 fid tsts1 tsts2 && 
     match ty1 with
     | typ_pointer _ =>
       match (remove_cast t1, remove_cast t2) with
@@ -968,14 +968,14 @@ rsub_sstate Ps1 Ps2 fid r (se_cmds sstate_init nbs1) (se_cmds sstate_init nbs2).
  * FunTable. Since the LLVM IR takes function names as function pointers,
  * if a program does not assign them to be other variables, they should
  * be the same. *)
-Fixpoint rtv_params Ps1 Ps2 fid r (tsts1 tsts2:list (typ*sterm)) : 
+Fixpoint rtv_sparams Ps1 Ps2 fid r (tsts1 tsts2:list (typ*sterm)) : 
   option renaming :=
 match (tsts1, tsts2) with
 | (nil, _) => Some r
 | ((t1,st1)::tsts1', (t2,st2)::tsts2') => 
   if tv_typ t1 t2 then
     rtv_sterm Ps1 Ps2 fid r st1 st2 >>=
-    fun r => rtv_params Ps1 Ps2 fid r tsts1' tsts2'
+    fun r => rtv_sparams Ps1 Ps2 fid r tsts1' tsts2'
   else None
 | _ => None
 end.
@@ -985,7 +985,7 @@ Definition rtv_scall Ps1 Ps2 fid r (c1:scall) (c2:sicall) : option renaming :=
   match c2 with
   | stmn_icall_nptr rid2 nr2 _ ty2 t2 tsts2 =>
     if ((sumbool2bool _ _ (noret_dec nr1 nr2)) && tv_typ ty1 ty2) then
-      rtv_params Ps1 Ps2 fid r tsts1 tsts2 >>=
+      rtv_sparams Ps1 Ps2 fid r tsts1 tsts2 >>=
       fun r => rtv_sterm Ps1 Ps2 fid r (remove_cast t1) (remove_cast t2) >>=
       fun r => Some ((rid1,rid2)::r)
     else None
@@ -993,7 +993,7 @@ Definition rtv_scall Ps1 Ps2 fid r (c1:scall) (c2:sicall) : option renaming :=
     match ty1 with
     | typ_pointer _ =>
       if (tv_typ ty1 ty2) then
-        rtv_params Ps1 Ps2 fid r tsts1 tsts2 >>=
+        rtv_sparams Ps1 Ps2 fid r tsts1 tsts2 >>=
         fun r => 
           match (remove_cast t1, remove_cast t2) with
           | (sterm_val (value_const (const_gid _ fid1)),
