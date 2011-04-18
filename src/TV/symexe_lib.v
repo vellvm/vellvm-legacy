@@ -1381,7 +1381,7 @@ Case "dbCall_internal".
     unfold callUpdateLocals.
     destruct noret0; auto.
       destruct (rt=t=typ_void); auto.
-        destruct (getOperandValue (los, nts) Result lc' gl); auto.
+        destruct (getOperandValue (los, nts) Result0 lc' gl); auto.
           apply updateAddAL_uniq; auto.
 
     eapply H in H3; eauto. clear H.
@@ -1424,18 +1424,24 @@ Case "dbBlocks_cons".
 
 Case "dbFdef_func".
   rewrite e in H1. inversion H1; subst. clear H1.
-  apply entryBlockInSystemBlockFdef' with (los:=los)(nts:=nts)(Ps:=Ps)(S:=S)(fv:=fv)(gl:=gl)(lc:=lc)(fs:=fs) in e0; auto.
-  apply H with (B1:=block_intro l1 ps1 cs1 tmn1)(lc0:=initLocals la0 (params2GVs (los, nts) lp lc gl))(als:=nil)(Mem:=Mem0)
-               (B1':=block_intro l2 ps2 (cs21++cs22) (insn_return rid rt Result))(lc':=lc1)(als':=als1)(Mem':=Mem1) in e0; auto using initLocals_uniq.
+  apply entryBlockInSystemBlockFdef' with (los:=los)(nts:=nts)(Ps:=Ps)(S:=S)
+    (fv:=fv)(gl:=gl)(lc:=lc)(fs:=fs) in e0; auto.
+  apply H with (B1:=block_intro l1 ps1 cs1 tmn1)(lc0:=initLocals la0 
+    (params2GVs (los, nts) lp lc gl))(als:=nil)(Mem:=Mem0)
+    (B1':=block_intro l2 ps2 (cs21++cs22) (insn_return rid rt Result0))
+    (lc':=lc1)(als':=als1)(Mem':=Mem1) in e0; auto using initLocals_uniq.
   clear H. destruct e0 as [uniqc1 Bin].
   eapply H0 in uniqc1; eauto. clear H0.
   apply se_dbCmds_preservation in d1; auto.
 
 Case "dbFdef_proc".
   rewrite e in H1. inversion H1; subst. clear H1.
-  apply entryBlockInSystemBlockFdef' with (los:=los)(nts:=nts)(Ps:=Ps)(S:=S)(fv:=fv)(gl:=gl)(lc:=lc)(fs:=fs) in e0; auto.
-  apply H with (B1:=block_intro l1 ps1 cs1 tmn1)(lc0:=initLocals la0 (params2GVs (los, nts) lp lc gl))(als:=nil)(Mem:=Mem0)
-               (B1':=block_intro l2 ps2 (cs21++cs22) (insn_return_void rid))(lc':=lc1)(als':=als1)(Mem':=Mem1) in e0; auto using initLocals_uniq.
+  apply entryBlockInSystemBlockFdef' with (los:=los)(nts:=nts)(Ps:=Ps)(S:=S)
+    (fv:=fv)(gl:=gl)(lc:=lc)(fs:=fs) in e0; auto.
+  apply H with (B1:=block_intro l1 ps1 cs1 tmn1)(lc0:=initLocals la0 
+    (params2GVs (los, nts) lp lc gl))(als:=nil)(Mem:=Mem0)
+    (B1':=block_intro l2 ps2 (cs21++cs22) (insn_return_void rid))(lc':=lc1)
+    (als':=als1)(Mem':=Mem1) in e0; auto using initLocals_uniq.
   clear H. destruct e0 as [uniqc1 Bin].
   eapply H0 in uniqc1; eauto. clear H0.
   apply se_dbCmds_preservation in d1; auto.
@@ -1761,7 +1767,7 @@ Case "dbCall_internal".
   inversion d; subst.
     apply H with (lc1':=lc1') in H1; auto. clear H.
     destruct H1 as [lc2' [HdbBlocks HeqEnv]].
-    exists (callUpdateLocals TD noret0 rid rt (Some Result) lc1' lc2' gl).
+    exists (callUpdateLocals TD noret0 rid rt (Some Result0) lc1' lc2' gl).
     split; eauto using dbCall_internal, eqAL_callUpdateLocals.
 
     apply H with (lc1':=lc1') in H1; auto. clear H.
@@ -1825,7 +1831,8 @@ Case "dbFdef_func".
   rewrite e in H1. inversion H1; subst. clear H1.
   assert (J:=@eqAL_initLocals la0 lp TD lc gl lc1' H2).
   apply H with (B1:=block_intro l1 ps1 cs1 tmn1)(als:=nil)(Mem:=Mem0)(lc3:=lc1)
-               (B1':=block_intro l2 ps2 (cs21++cs22) (insn_return rid rt Result))(als':=als1)(Mem':=Mem1) in J; auto.
+    (B1':=block_intro l2 ps2 (cs21++cs22) (insn_return rid rt Result0))
+    (als':=als1)(Mem':=Mem1) in J; auto.
   clear H. destruct J as [lc2' [HdbBlocks Heq2]].
   rewrite eqAL_params2GVs with (lc':=lc1') in HdbBlocks; eauto.
   apply H0 in Heq2. clear H0.
@@ -1840,7 +1847,8 @@ Case "dbFdef_proc".
   rewrite e in H1. inversion H1; subst. clear H1.
   assert (J:=@eqAL_initLocals la0 lp TD lc gl lc1' H2).
   apply H with (B1:=block_intro l1 ps1 cs1 tmn1)(als:=nil)(Mem:=Mem0)(lc3:=lc1)
-               (B1':=block_intro l2 ps2 (cs21++cs22) (insn_return_void rid))(als':=als1)(Mem':=Mem1) in J; auto.
+    (B1':=block_intro l2 ps2 (cs21++cs22) (insn_return_void rid))(als':=als1)
+    (Mem':=Mem1) in J; auto.
   clear H. destruct J as [lc2' [HdbBlocks Heq2]].
   rewrite eqAL_params2GVs with (lc':=lc1') in HdbBlocks; eauto.
   apply H0 in Heq2. clear H0.

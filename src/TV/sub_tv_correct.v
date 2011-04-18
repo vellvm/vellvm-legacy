@@ -22,6 +22,7 @@ Require Import symexe_complete.
 Require Import symexe_sound.
 Require Import assoclist.
 Require Import ssa_props.
+Require Import sub_tv_def.
 Require Import sub_tv_dec.
 Require Import sub_tv_infer.
 Require Import sub_tv.
@@ -423,256 +424,6 @@ Proof.
 Qed.
 *)
 
-Module SoftBound.
-
-(*************************************************)
-(* A new opsem for proofs *)
-
-Inductive dbCall : system -> TargetData -> list product -> GVMap -> 
-                   GVMap -> GVMap -> mem -> 
-                   cmd -> 
-                   GVMap -> mem -> 
-                   trace -> Prop :=
-| dbCall_internal : forall S TD Ps lc gl fs rid noret tailc rt fv lp
-                       Rid oResult tr lc' Mem Mem' als' Mem'' B',
-  dbFdef fv rt lp S TD Ps lc gl fs Mem lc' als' Mem' B' Rid oResult tr ->
-  free_allocas TD Mem' als' = Some Mem'' ->
-  isCall (insn_call rid noret tailc rt fv lp) = true ->
-  dbCall S TD Ps fs gl
-    lc Mem
-    (insn_call rid noret tailc rt fv lp)
-    (LLVMopsem.callUpdateLocals TD noret rid rt oResult lc lc' gl) 
-    Mem'' tr
-| dbCall_external : forall S TD Ps lc gl fs rid noret tailc fv fid 
-                          lp rt la Mem oresult Mem',
-  (* only look up the current module for the time being, 
-     do not support linkage. 
-     FIXME: should add excall to trace
-  *)
-  LLVMopsem.lookupExFdecViaGV TD Ps gl lc fs fv = 
-    Some (fdec_intro (fheader_intro rt fid la)) ->
-  LLVMopsem.callExternalFunction Mem fid (params2GVs TD lp lc gl) = 
-    (oresult, Mem') ->
-  isCall (insn_call rid noret tailc rt fv lp) = true ->
-  dbCall S TD Ps fs gl
-    lc Mem
-    (insn_call rid noret tailc rt fv lp)
-    (LLVMopsem.exCallUpdateLocals noret rid rt oresult lc) 
-    Mem' trace_nil
-
-(*
-   call void @softbound_test({ i32*, i8*, i8* }* %ret_tmp, i32 %2)
-   %3 = getelementptr { i32*, i8*, i8* }* %ret_tmp, i32 0, i32 0
-   %4 = load i32** %3          
-   %_base3 = getelementptr { i32*, i8*, i8* }* %ret_tmp, i32 0, i32 1
-   %call_repl_base = load i8** %_base3       
-   %_bound4 = getelementptr { i32*, i8*, i8* }* %ret_tmp, i32 0, i32 2
-   %call_repl_bound = load i8** %_bound4   
-
-   The idea is defining an abstract call
-     {%3, %call_repl_base, %call_repl_bound} = 
-       call void @softbound_test({ i32*, i8*, i8* }* %ret_tmp, i32 %2)
-   that equals to the above seven instructions.
-*)
-with dbiCall : system -> TargetData -> list product -> GVMap -> GVMap -> 
-                  GVMap -> list mblock -> mem -> 
-                  cmds -> 
-                  GVMap -> list mblock -> mem -> 
-                  trace -> Prop :=
-| dbiCall_intro : forall S TD Ps lc1 als1 gl fs Mem1 cs call0 lc2 als2 Mem2 
-    tr1 lc3 Mem3 tr2,
-  dbCall S TD Ps fs gl lc1 Mem1 call0 lc2 Mem2 tr1 ->
-  dbCmds TD gl lc2 als1 Mem2 cs lc3 als2 Mem3 tr2 ->
-  dbiCall S TD Ps fs gl
-             lc1 als1 Mem1
-             (call0::cs) 
-             lc3 als2 Mem3
-             (trace_app tr1 tr2)
-with dbSubblock : system -> TargetData -> list product -> GVMap -> GVMap -> 
-                  GVMap -> list mblock -> mem -> 
-                  cmds -> 
-                  GVMap -> list mblock -> mem -> 
-                  trace -> Prop :=
-| dbSubblock_call : forall S TD Ps lc1 als1 gl fs Mem1 cs call0 lc2 als2 Mem2 
-    tr1 lc3 Mem3 tr2,
-  dbCmds TD gl lc1 als1 Mem1 cs lc2 als2 Mem2 tr1 ->
-  dbCall S TD Ps fs gl lc2 Mem2 call0 lc3 Mem3 tr2 ->
-  dbSubblock S TD Ps fs gl
-             lc1 als1 Mem1
-             (cs++call0::nil) 
-             lc3 als2 Mem3
-             (trace_app tr1 tr2)
-| dbSubblock_icall : forall S TD Ps lc1 als1 gl fs Mem1 cs cs' lc2 als2 
-    Mem2 tr1 lc3 Mem3 als3 tr2,
-  dbCmds TD gl lc1 als1 Mem1 cs lc2 als2 Mem2 tr1 ->
-  dbiCall S TD Ps fs gl lc2 als2 Mem2 cs' lc3 als3 Mem3 tr2 ->
-  dbSubblock S TD Ps fs gl
-             lc1 als1 Mem1
-             (cs++cs') 
-             lc3 als3 Mem3
-             (trace_app tr1 tr2)
-with dbSubblocks : system -> TargetData -> list product -> GVMap -> GVMap -> 
-                   GVMap -> list mblock -> mem -> 
-                   cmds -> 
-                   GVMap -> list mblock -> mem -> 
-                   trace -> Prop :=
-| dbSubblocks_nil : forall S TD Ps lc als gl fs Mem, 
-    dbSubblocks S TD Ps fs gl lc als Mem nil lc als Mem trace_nil
-| dbSubblocks_cons : forall S TD Ps lc1 als1 gl fs Mem1 lc2 als2 Mem2 lc3 als3 
-    Mem3 cs cs' t1 t2,
-    dbSubblock S TD Ps fs gl lc1 als1 Mem1 cs lc2 als2 Mem2 t1 ->
-    dbSubblocks S TD Ps fs gl lc2 als2 Mem2 cs' lc3 als3 Mem3 t2 ->
-    dbSubblocks S TD Ps fs gl lc1 als1 Mem1 (cs++cs') lc3 als3 Mem3 (trace_app t1 t2)
-with dbBlock : system -> TargetData -> list product -> GVMap -> GVMap -> 
-                fdef -> list GenericValue -> State -> State -> trace -> Prop :=
-| dbBlock_intro : forall S TD Ps F tr1 tr2 l ps cs cs' tmn gl fs lc1 als1 Mem1
-                         lc2 als2 Mem2 lc3 als3 Mem3 lc4 B' arg tr3,
-  dbSubblocks S TD Ps fs gl
-    lc1 als1 Mem1
-    cs
-    lc2 als2 Mem2
-    tr1 ->
-  dbCmds TD gl lc2 als2 Mem2 cs' lc3 als3 Mem3 tr2 ->
-  dbTerminator TD F gl
-    (block_intro l ps (cs++cs') tmn) lc3
-    tmn
-    B' lc4
-    tr3 ->
-  dbBlock S TD Ps fs gl F arg
-    (mkState (mkEC (block_intro l ps (cs++cs') tmn) lc1 als1) Mem1)
-    (mkState (mkEC B' lc4 als3) Mem3)
-    (trace_app (trace_app tr1 tr2) tr3)
-with dbBlocks : system -> TargetData -> list product -> GVMap -> GVMap -> 
-                 fdef -> list GenericValue -> State -> State -> trace -> Prop :=
-| dbBlocks_nil : forall S TD Ps gl fs F arg state, 
-    dbBlocks S TD Ps fs gl F arg state state trace_nil
-| dbBlocks_cons : forall S TD Ps gl fs F arg S1 S2 S3 t1 t2,
-    dbBlock S TD Ps fs gl F arg S1 S2 t1 ->
-    dbBlocks S TD Ps fs gl F arg S2 S3 t2 ->
-    dbBlocks S TD Ps fs gl F arg S1 S3 (trace_app t1 t2)
-with dbFdef : value -> typ -> params -> system -> TargetData -> list product -> 
-              GVMap -> GVMap -> GVMap -> mem -> GVMap -> list mblock -> mem -> 
-              block -> id -> option value -> trace -> Prop :=
-| dbFdef_func : forall S TD Ps gl fs fv fid lp lc rid
-                       l1 ps1 cs1 tmn1 rt la lb Result lc1 tr1 Mem Mem1 als1
-                       l2 ps2 cs21 cs22 lc2 als2 Mem2 tr2 lc3 als3 Mem3 tr3,
-  lookupFdefViaGV TD Ps gl lc fs fv = 
-    Some (fdef_intro (fheader_intro rt fid la) lb) ->
-  getEntryBlock (fdef_intro (fheader_intro rt fid la) lb) = 
-    Some (block_intro l1 ps1 cs1 tmn1) ->
-  dbBlocks S TD Ps fs gl (fdef_intro (fheader_intro rt fid la) lb) 
-    (params2GVs TD lp lc gl)
-    (mkState (mkEC (block_intro l1 ps1 cs1 tmn1) 
-      (initLocals la (params2GVs TD lp lc gl)) nil) Mem)
-    (mkState (mkEC (block_intro l2 ps2 (cs21++cs22) (insn_return rid rt Result))
-      lc1 als1) Mem1)
-    tr1 ->
-  dbSubblocks S TD Ps fs gl
-    lc1 als1 Mem1
-    cs21
-    lc2 als2 Mem2
-    tr2 ->
-  dbCmds TD gl
-    lc2 als2 Mem2
-    cs22
-    lc3 als3 Mem3
-    tr3 ->
-  dbFdef fv rt lp S TD Ps lc gl fs Mem lc3 als3 Mem3 
-    (block_intro l2 ps2 (cs21++cs22) (insn_return rid rt Result)) rid 
-    (Some Result) (trace_app (trace_app tr1 tr2) tr3)
-| dbFdef_proc : forall S TD Ps gl fs fv fid lp lc rid
-                       l1 ps1 cs1 tmn1 rt la lb lc1 tr1 Mem Mem1 als1
-                       l2 ps2 cs21 cs22 lc2 als2 Mem2 tr2 lc3 als3 Mem3 tr3,
-  lookupFdefViaGV TD Ps gl lc fs fv = 
-    Some (fdef_intro (fheader_intro rt fid la) lb) ->
-  getEntryBlock (fdef_intro (fheader_intro rt fid la) lb) = 
-    Some (block_intro l1 ps1 cs1 tmn1) ->
-  dbBlocks S TD Ps fs gl (fdef_intro (fheader_intro rt fid la) lb) 
-    (params2GVs TD lp lc gl) 
-    (mkState (mkEC (block_intro l1 ps1 cs1 tmn1) 
-      (initLocals la (params2GVs TD lp lc gl)) nil) Mem)
-    (mkState (mkEC (block_intro l2 ps2 (cs21++cs22) (insn_return_void rid)) lc1 
-      als1) Mem1)
-    tr1 ->
-  dbSubblocks S TD Ps fs gl
-    lc1 als1 Mem1
-    cs21
-    lc2 als2 Mem2
-    tr2 ->
-  dbCmds TD gl
-    lc2 als2 Mem2
-    cs22
-    lc3 als3 Mem3
-    tr3 ->
-  dbFdef fv rt lp S TD Ps lc gl fs Mem lc3 als3 Mem3 
-    (block_intro l2 ps2 (cs21++cs22) (insn_return_void rid)) rid None 
-    (trace_app (trace_app tr1 tr2) tr3)
-| dbFdef_iproc : forall S TD Ps gl fs fv fid lp lc rid
-                       l1 ps1 cs1 tmn1 rt la lb lc1 tr1 Mem Mem1 als1
-                       l2 ps2 cs21 cs22 cs23 lc2 als2 Mem2 tr2 lc3 als3 Mem3 tr3
-                       lc4 als4 Mem4 tr4,
-(*
-  For a function that returns a pointer, Softbound translates
-         ret i32* %8                                                           
-  into
-         %.ptr = getelementptr { i32*, i8*, i8* }* %shadow_ret, i32 0, i32 0
-         %.base = getelementptr { i32*, i8*, i8* }* %shadow_ret, i32 0, i32 1
-         store i8* %bitcast, i8** %.base
-         %.bound = getelementptr { i32*, i8*, i8* }* %shadow_ret, i32 0, i32 2
-         store i8* %bitcast4, i8** %.bound
-         store i32* %8, i32** %.ptr
-          ret void
- 
-  gen_iret returns %shadow_ret %.base %.base %.ptr i32* 
-*)
-  lookupFdefViaGV TD Ps gl lc fs fv = 
-    Some (fdef_intro (fheader_intro rt fid la) lb) ->
-  getEntryBlock (fdef_intro (fheader_intro rt fid la) lb) = 
-    Some (block_intro l1 ps1 cs1 tmn1) ->
-  dbBlocks S TD Ps fs gl (fdef_intro (fheader_intro rt fid la) lb) 
-    (params2GVs TD lp lc gl) 
-    (mkState (mkEC (block_intro l1 ps1 cs1 tmn1) 
-      (initLocals la (params2GVs TD lp lc gl)) nil) Mem)
-    (mkState (mkEC (block_intro l2 ps2 (cs21++cs22) (insn_return_void rid)) lc1 
-      als1) Mem1)
-    tr1 ->
-  dbSubblocks S TD Ps fs gl lc1 als1 Mem1 cs21 lc2 als2 Mem2 tr2 ->
-  dbCmds TD gl lc2 als2 Mem2 cs22 lc3 als3 Mem3 tr3 ->
-  dbCmds TD gl lc3 als3 Mem3 cs23 lc4 als4 Mem4 tr4 ->
-  dbFdef fv rt lp S TD Ps lc gl fs Mem lc4 als4 Mem4 
-    (block_intro l2 ps2 (cs21++cs22++cs23) (insn_return_void rid)) rid None 
-    (trace_app (trace_app (trace_app tr1 tr2) tr3) tr4)
-.
-
-Scheme dbCall_ind3 := Induction for dbCall Sort Prop
-  with dbiCall_ind3 := Induction for dbiCall Sort Prop
-  with dbSubblock_ind3 := Induction for dbSubblock Sort Prop
-  with dbSubblocks_ind3 := Induction for dbSubblocks Sort Prop
-  with dbBlock_ind3 := Induction for dbBlock Sort Prop
-  with dbBlocks_ind3 := Induction for dbBlocks Sort Prop
-  with dbFdef_ind3 := Induction for dbFdef Sort Prop.
-
-Combined Scheme sb_db_mutind from dbCall_ind3, dbiCall_ind3, dbSubblock_ind3,
-  dbSubblocks_ind3, dbBlock_ind3, dbBlocks_ind3, dbFdef_ind3.
-
-Tactic Notation "sb_db_mutind_cases" tactic(first) tactic(c) :=
-  first;
-  [ c "dbCall_internal" | c "dbCall_external" | c "dbiCall_intro" |
-    c "dbSubblock_call" | c "dbSubblock_icall" | 
-    c "dbSubblocks_nil" | c "dbSubblocks_cons" | 
-    c "dbBlock_intro" | c "dbBlocks_nil" | c "dbBlocks_cons" | 
-    c "dbFdef_func" | c "dbFdef_proc" | c "dbFdef_iproc" ].
-
-Hint Constructors dbCall dbiCall dbSubblock dbSubblocks dbBlock dbBlocks dbFdef.
-
-Lemma sbop_dbFdef__seop_dbFdef : 
-  forall fid rt lp S los nts Ps lc gl fs Mem lc' als' Mem' B' Rid oResult tr,
-  dbFdef fid rt lp S (los, nts) Ps lc gl fs Mem lc' als' Mem' B' Rid 
-    oResult tr <->
-  SimpleSE.dbFdef fid rt lp S (los, nts) Ps lc gl fs Mem lc' als' Mem' B' Rid 
-    oResult tr.
-Admitted.
-
 Definition smap_sub_prop Ps1 Ps2 fid sm1 sm2 := 
   forall i st1,
     lookupAL _ sm1 i = Some st1 ->
@@ -753,24 +504,27 @@ Lemma tv_cmds__is__correct :
   uniq lc1 ->  
   wf_nbranchs nbs' ->
   tv_cmds Ps1 Ps2 fid nbs nbs' ->
-  dbCmds TD gl lc1 als1 Mem1 (nbranchs2cmds nbs) lc2 als2 Mem2 tr ->
+  SBopsem.dbCmds TD gl lc1 als1 Mem1 (nbranchs2cmds nbs') lc2 als2 Mem2 tr Rok 
+    ->
   sub_state fid lc1 lc1' als1 als1' f1 Mem1 Mem1' ->
   exists lc2', exists als2', exists f2, exists Mem2',
-    dbCmds TD gl lc1' als1 Mem1' (nbranchs2cmds nbs') lc2' als2' Mem2' tr /\
+    SimpleSE.dbCmds TD gl lc1' als1 Mem1' (nbranchs2cmds nbs) lc2' als2' Mem2' 
+      tr /\
     sub_state fid lc2 lc2' als2 als2' f2 Mem2 Mem2' /\
     Values.inject_incr f1 f2.
 Admitted.
 
-Lemma lookup_tv_blocks__tv_block : forall nts1 Ps1 Ps2 fid lb1 lb2 l0 B1,
+(*
+Lemma lookup_tv_blocks__tv_block : forall Ps1 Ps2 fid lb1 lb2 l0 B1,
   uniqBlocks lb1 ->
   uniqBlocks lb2 ->
-  tv_blocks nts1 Ps1 Ps2 fid lb1 lb2 ->
+  tv_blocks Ps1 Ps2 fid lb1 lb2 ->
   lookupAL _ (genLabel2Block_blocks lb1) l0 = Some B1 ->
   exists B2, exists n,
-    tv_block nts1 Ps1 Ps2 fid B1 B2 /\
+    tv_block Ps1 Ps2 fid B1 B2 /\
     nth_error lb1 n = Some B1 /\
     nth_error lb2 n = Some B2 /\
-    lookupAL _ (genLabel2Block_blocks lb2) l0 = Some B2.
+    lookupAL _ (SBsyntax.genLabel2Block_blocks lb2) l0 = Some B2.
 Proof.
   induction lb1; intros; simpl in *.
     inversion H2.
@@ -870,6 +624,7 @@ Proof.
   split; auto.
 *)
 Qed.
+*)
  
 Definition phinodes_sub_prop fid (ps1 ps2:phinodes) :=
   forall i p1,
@@ -999,7 +754,6 @@ Proof.
   destruct H0 as [_ [H0 _]].
   erewrite tv_getIncomingValuesForBlockFromPHINodes; simpl; eauto.
 Qed.
-*)
 
 Lemma tv_terminator__is__correct : forall los nts Ps1 Ps2 fh1 lb1 fh2 lb2 B1 B2 
   lc1 lc1' gl tmn B1' lc2 tr fid,
@@ -1014,8 +768,6 @@ Lemma tv_terminator__is__correct : forall los nts Ps1 Ps2 fh1 lb1 fh2 lb2 B1 B2
     nth_error lb1 n = Some B1' /\
     nth_error lb2 n = Some B2' /\
     dbTerminator (los,nts) (fdef_intro fh2 lb2) gl B2 lc2' tmn B2' lc2' tr.
-Admitted.
-(*
 Proof.
   intros TD fh1 lb1 fh2 lb2 B1 B2 lc gl tmn B1' lc' tr HuniqF1 HuniqF2 Htv_fdef Htv_block HdbTerminator.
   inversion HdbTerminator; subst.
@@ -1056,7 +808,6 @@ Proof.
     apply dbBranch_uncond; auto.
       eapply tv_switchToNewBasicBlock; eauto.
 Qed.
-*)
 
 Definition products_sub_prop nts1 (Ps1 Ps2:products) := forall id1, 
   In id1 (getProductsIDs Ps1) ->
@@ -1446,31 +1197,6 @@ match (p1, p2) with
 | _ => false
 end.
 
-Definition icall rid2 nr2 tc2 t2 v2 p2 rid id1 id2 id3 id4 id5 id6 :=
-let sz32 := Size.ThirtyTwo in
-let i32 := typ_int sz32 in
-let i8 := typ_int Size.Eight in
-let p32 := typ_pointer i32 in
-let p8 := typ_pointer i8 in
-let pp32 := typ_pointer p32 in
-let pp8 := typ_pointer p8 in
-let c0 := (value_const (const_int sz32 0%Z)) in
-let c1 := (value_const (const_int sz32 1%Z)) in
-let c2 := (value_const (const_int sz32 2%Z)) in
-let cs c1 c2 := Cons_list_value c1 (Cons_list_value c2 Nil_list_value) in
-let vret := value_id rid in
-let tret := typ_pointer (typ_struct 
-  (Cons_list_typ (typ_pointer p32) 
-  (Cons_list_typ (typ_pointer p8)
-  (Cons_list_typ (typ_pointer p8) Nil_list_typ)))) in
-insn_call rid2 nr2 tc2 t2 v2 ((tret,vret)::p2)::
-insn_gep id1 false tret vret (cs c0 c0)::
-insn_load id2 pp32 (value_id id1) Align.One::
-insn_gep id3 false tret vret (cs c0 c1)::
-insn_load id4 pp32 (value_id id3) Align.One::
-insn_gep id5 false tret vret (cs c0 c2)::
-insn_load id6 pp32 (value_id id5) Align.One::nil.
-
 Definition tv_dbCall__is__correct_prop S1 TD Ps1 fs gl lc1 Mem1 call1 lc1' Mem1'
   tr (db:SimpleSE.dbCall S1 TD Ps1 fs gl lc1 Mem1 call1 lc1' Mem1' tr) :=
   forall S2 Ps2 los nts f1 lc2 fid1 rid1 nr1 tc1 t1 v1 p1 rid2 nr2 tc2 t2 v2 p2
@@ -1490,7 +1216,7 @@ Definition tv_dbCall__is__correct_prop S1 TD Ps1 fs gl lc1 Mem1 call1 lc1' Mem1'
   Memory.Mem.mem_inj f1 Mem1 Mem2 ->
   ((isPointerTypB t1 = true ->
   exists lc2', exists f2, exists Mem2',
-    dbCall S2 TD Ps2 fs gl lc2 Mem2 (insn_call rid2 nr2 tc2 t2 v2 p2) lc2' Mem2' tr /\
+    dbCall S2 TD Ps2 fs gl lc2 Mem2 (insn_call rid2 nr2 tc2 t2 v2 p2) lc2' Mem2' tr Rok /\
     subAL _ fid1 lc1' lc2' /\
     Memory.Mem.mem_inj f2 Mem1' Mem2' /\ 
     Values.inject_incr f1 f2) \/ 
@@ -1498,8 +1224,8 @@ Definition tv_dbCall__is__correct_prop S1 TD Ps1 fs gl lc1 Mem1 call1 lc1' Mem1'
   exists lc2', exists f2, exists Mem2', exists rid, exists id1, exists id2,
   exists id3, exists id4, exists id5, exists id6,
     dbiCall S2 TD Ps2 fs gl lc2 als Mem2 
-    (icall rid2 nr2 tc2 t2 v2 p2 rid id1 id2 id3 id4 id5 id6) lc2' als Mem2' tr 
-    /\
+      (icall rid2 nr2 tc2 t2 v2 p2 rid id1 id2 id3 id4 id5 id6) lc2' als Mem2' 
+      tr Rok /\
     subAL _ fid1 lc1' lc2' /\
     Memory.Mem.mem_inj f2 Mem1' Mem2' /\ 
     Values.inject_incr f1 f2)).
@@ -1523,7 +1249,7 @@ Definition tv_subblock__is__correct_prop S1 TD Ps1 fs gl lc1 als1 Mem1 cs1 lc1'
   TD = (los, nts) ->
   sub_state fid1 lc1 lc2 als1 als2 f1 Mem1 Mem2 ->
   exists lc2', exists als2', exists f2, exists Mem2',
-    dbSubblock S2 TD Ps2 fs gl lc2 als2 Mem2 cs2 lc2' als2' Mem2' tr /\
+    dbSubblock S2 TD Ps2 fs gl lc2 als2 Mem2 cs2 lc2' als2' Mem2' tr Rok /\
     sub_state fid1 lc1' lc2' als1' als2' f2 Mem1' Mem2' /\
     Values.inject_incr f1 f2.    
 
@@ -1546,7 +1272,7 @@ Definition tv_subblocks__is__correct_prop S1 TD Ps1 fs gl lc1 als1 Mem1 cs1 lc1'
   TD = (los, nts) ->
   sub_state fid1 lc1 lc2 als1 als2 f1 Mem1 Mem2 ->
   exists lc2', exists als2', exists f2, exists Mem2',
-    dbSubblocks S2 TD Ps2 fs gl lc2 als2 Mem2 cs2 lc2' als2' Mem2' tr /\ 
+    dbSubblocks S2 TD Ps2 fs gl lc2 als2 Mem2 cs2 lc2' als2' Mem2' tr Rok /\ 
     sub_state fid1 lc1' lc2' als1' als2' f2 Mem1' Mem2' /\
     Values.inject_incr f1 f2.    
 
@@ -1574,7 +1300,7 @@ Definition tv_block__is__correct_prop S1 TD Ps1 fs gl F1 arg state1 state2 tr
     dbBlock S2 TD Ps2 fs gl (fdef_intro fh2 lb2) arg 
       (mkState (mkEC B2 lc2 als2) Mem2) 
       (mkState (mkEC B2' lc2' als2') Mem2')
-      tr /\
+      tr Rok /\
     nth_error lb1 n = Some B1' /\
     nth_error lb2 n = Some B2' /\
     tv_block nts Ps1 Ps2 fid1 B1' B2' /\
@@ -1613,7 +1339,7 @@ Definition tv_blocks__is__correct_prop S1 TD Ps1 fs gl F1 lp state1 state2 tr
     dbBlocks S2 TD Ps2 fs gl (fdef_intro fh2 lb2) lp
       (mkState (mkEC (block_intro l2 ps2 cs2 tmn2) lc2 als2) Mem2)
       (mkState (mkEC (block_intro l2' ps2' cs2' tmn2') lc2' als2') Mem2')
-      tr /\
+      tr Rok /\
     sub_state fid1 lc1' lc2' als1' als2' f2 Mem1' Mem2' /\
     Values.inject_incr f1 f2.    
 
@@ -1641,7 +1367,8 @@ Definition tv_fdef__is__correct_prop fv rt lp S1 TD Ps1 lc1 gl fs Mem1 lc1'
       Some (fdef_intro (fheader_intro rt fid2 la) lb2) /\
     tv_fid fid1 fid2 /\
     tv_blocks nts Ps1 Ps2 fid1 lb1 lb2 /\
-    dbFdef fv rt lp S2 TD Ps2 lc2 gl fs Mem2 lc2' als2' Mem2' B2' Rid oResult tr /\
+    dbFdef fv rt lp S2 TD Ps2 lc2 gl fs Mem2 lc2' als2' Mem2' B2' Rid oResult 
+      tr Rok /\
     sub_state fid1 lc1' lc2' als1' als2' f2 Mem1' Mem2' /\
     Values.inject_incr f1 f2.
 
@@ -2106,8 +1833,7 @@ Case "dbFdef_proc". admit.
 *)
 Qed.   
 *)
-
-End SoftBound.
+*)
 
 (*****************************)
 (*

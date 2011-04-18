@@ -43,10 +43,21 @@ Frame          : ExecutionContext;
 Mem            : mem
 }.
 
+
+Inductive Result : Set :=
+| Rok : Result
+| Rabort : Result
+.
+
 (* Symbolic execution may take some functions as special cmds with a big-step.
-   For example, Sofbound's metadata functions. They may not be external functions.
-   But we do not want to analyze them... *)
-Axiom callLib : mem -> id -> list GenericValue -> option ((option GenericValue)*mem).
+   For example, Sofbound's metadata functions. They may not be external 
+   functions.
+   But we do not want to analyze them... 
+
+   Return None if the lib call is not a lib.
+*)
+Axiom callLib : mem -> id -> list GenericValue -> 
+  option ((option GenericValue)*mem*Result).
 
 (* Must be realized when being extracted. E.g Softbound TV should say 
      isCallLib "__loadDereferenceCheck" = true *)
@@ -56,13 +67,15 @@ Axiom callLib__is__defined : forall Mem fid gvs,
   callLib Mem fid gvs <> None <-> isCallLib fid = true. 
 
 Axiom callLib__is__correct : 
-  forall Mem ft fid TD lp lc gl oresult Mem' F B ECs arg tmn cs als Ps fs rid rt S noret tailc,
+  forall Mem ft fid TD lp lc gl oresult Mem' F B ECs arg tmn cs als Ps fs rid rt
+    S noret tailc r,
   isCallLib fid = true ->
-  (callLib Mem fid (params2GVs TD lp lc gl) = Some (oresult, Mem') <->
+  (callLib Mem fid (params2GVs TD lp lc gl) = Some (oresult, Mem', r) <->
   LLVMopsem.dbInsn
     (LLVMopsem.mkState S TD Ps 
       ((LLVMopsem.mkEC F B 
-        ((insn_call rid noret tailc rt (value_const (const_gid ft fid)) lp)::cs) tmn lc arg als)::ECs) 
+        ((insn_call rid noret tailc rt (value_const (const_gid ft fid)) lp)::cs)
+            tmn lc arg als)::ECs) 
       gl fs Mem)
     (LLVMopsem.mkState S TD Ps 
       ((LLVMopsem.mkEC F B cs tmn 
@@ -212,14 +225,15 @@ Inductive dbCmd : TargetData -> GVMap ->
   dbCmd TD gl
     lc als Mem
     (insn_select id v0 t v1 v2)
-    (if isGVZero TD cond then updateAddAL _ lc id gv2 else updateAddAL _ lc id gv1) als Mem
+    (if isGVZero TD cond then updateAddAL _ lc id gv2 
+     else updateAddAL _ lc id gv1) als Mem
     trace_nil
 | dbLib : forall TD lc gl rid noret tailc ft fid 
-                          lp rt Mem oresult Mem' als,
+                          lp rt Mem oresult Mem' als r,
   (* Like isCall, we only consider direct call to libraries. Function pointers
      are conservatively taken as non-lib. The dbCmd is defined to prove the
      correctness of TV. So it should be as "weak" as the TV. *)
-  callLib Mem fid (params2GVs TD lp lc gl) = Some (oresult, Mem') ->
+  callLib Mem fid (params2GVs TD lp lc gl) = Some (oresult, Mem', r) ->
   dbCmd TD gl
     lc als Mem
     (insn_call rid noret tailc rt (value_const (const_gid ft fid)) lp)
@@ -302,8 +316,8 @@ with dbSubblock : system -> TargetData -> list product -> GVMap -> GVMap ->
                   cmds -> 
                   GVMap -> list mblock -> mem -> 
                   trace -> Prop :=
-| dbSubblock_intro : forall S TD Ps lc1 als1 gl fs Mem1 cs call0 lc2 als2 Mem2 tr1 
-                     lc3 Mem3 tr2,
+| dbSubblock_intro : forall S TD Ps lc1 als1 gl fs Mem1 cs call0 lc2 als2 Mem2 
+                     tr1 lc3 Mem3 tr2,
   dbCmds TD gl lc1 als1 Mem1 cs lc2 als2 Mem2 tr1 ->
   dbCall S TD Ps fs gl lc2 Mem2 call0 lc3 Mem3 tr2 ->
   dbSubblock S TD Ps fs gl
@@ -318,11 +332,14 @@ with dbSubblocks : system -> TargetData -> list product -> GVMap -> GVMap ->
                    trace -> Prop :=
 | dbSubblocks_nil : forall S TD Ps lc als gl fs Mem, 
     dbSubblocks S TD Ps fs gl lc als Mem nil lc als Mem trace_nil
-| dbSubblocks_cons : forall S TD Ps lc1 als1 gl fs Mem1 lc2 als2 Mem2 lc3 als3 Mem3 cs cs' t1 t2,
+| dbSubblocks_cons : forall S TD Ps lc1 als1 gl fs Mem1 lc2 als2 Mem2 lc3 als3 
+                     Mem3 cs cs' t1 t2,
     dbSubblock S TD Ps fs gl lc1 als1 Mem1 cs lc2 als2 Mem2 t1 ->
     dbSubblocks S TD Ps fs gl lc2 als2 Mem2 cs' lc3 als3 Mem3 t2 ->
-    dbSubblocks S TD Ps fs gl lc1 als1 Mem1 (cs++cs') lc3 als3 Mem3 (trace_app t1 t2)
-with dbBlock : system -> TargetData -> list product -> GVMap -> GVMap -> fdef -> list GenericValue -> State -> State -> trace -> Prop :=
+    dbSubblocks S TD Ps fs gl lc1 als1 Mem1 (cs++cs') lc3 als3 Mem3 
+      (trace_app t1 t2)
+with dbBlock : system -> TargetData -> list product -> GVMap -> GVMap -> fdef ->
+               list GenericValue -> State -> State -> trace -> Prop :=
 | dbBlock_intro : forall S TD Ps F tr1 tr2 l ps cs cs' tmn gl fs lc1 als1 Mem1
                          lc2 als2 Mem2 lc3 als3 Mem3 lc4 B' arg tr3,
   dbSubblocks S TD Ps fs gl
@@ -340,21 +357,29 @@ with dbBlock : system -> TargetData -> list product -> GVMap -> GVMap -> fdef ->
     (mkState (mkEC (block_intro l ps (cs++cs') tmn) lc1 als1) Mem1)
     (mkState (mkEC B' lc4 als3) Mem3)
     (trace_app (trace_app tr1 tr2) tr3)
-with dbBlocks : system -> TargetData -> list product -> GVMap -> GVMap -> fdef -> list GenericValue -> State -> State -> trace -> Prop :=
-| dbBlocks_nil : forall S TD Ps gl fs F arg state, dbBlocks S TD Ps fs gl F arg state state trace_nil
+with dbBlocks : system -> TargetData -> list product -> GVMap -> GVMap -> fdef ->
+                list GenericValue -> State -> State -> trace -> Prop :=
+| dbBlocks_nil : forall S TD Ps gl fs F arg state, 
+    dbBlocks S TD Ps fs gl F arg state state trace_nil
 | dbBlocks_cons : forall S TD Ps gl fs F arg S1 S2 S3 t1 t2,
     dbBlock S TD Ps fs gl F arg S1 S2 t1 ->
     dbBlocks S TD Ps fs gl F arg S2 S3 t2 ->
     dbBlocks S TD Ps fs gl F arg S1 S3 (trace_app t1 t2)
-with dbFdef : value -> typ -> params -> system -> TargetData -> list product -> GVMap -> GVMap -> GVMap -> mem -> GVMap -> list mblock -> mem -> block -> id -> option value -> trace -> Prop :=
+with dbFdef : value -> typ -> params -> system -> TargetData -> list product -> 
+              GVMap -> GVMap -> GVMap -> mem -> GVMap -> list mblock -> mem -> 
+              block -> id -> option value -> trace -> Prop :=
 | dbFdef_func : forall S TD Ps gl fs fv fid lp lc rid
                        l1 ps1 cs1 tmn1 rt la lb Result lc1 tr1 Mem Mem1 als1
                        l2 ps2 cs21 cs22 lc2 als2 Mem2 tr2 lc3 als3 Mem3 tr3,
   lookupFdefViaGV TD Ps gl lc fs fv = Some (fdef_intro (fheader_intro rt fid la) lb) ->
-  getEntryBlock (fdef_intro (fheader_intro rt fid la) lb) = Some (block_intro l1 ps1 cs1 tmn1) ->
-  dbBlocks S TD Ps fs gl (fdef_intro (fheader_intro rt fid la) lb) (params2GVs TD lp lc gl)
-    (mkState (mkEC (block_intro l1 ps1 cs1 tmn1) (initLocals la (params2GVs TD lp lc gl)) nil) Mem)
-    (mkState (mkEC (block_intro l2 ps2 (cs21++cs22) (insn_return rid rt Result)) lc1 als1) Mem1)
+  getEntryBlock (fdef_intro (fheader_intro rt fid la) lb) = 
+    Some (block_intro l1 ps1 cs1 tmn1) ->
+  dbBlocks S TD Ps fs gl (fdef_intro (fheader_intro rt fid la) lb) 
+    (params2GVs TD lp lc gl)
+    (mkState (mkEC (block_intro l1 ps1 cs1 tmn1) 
+      (initLocals la (params2GVs TD lp lc gl)) nil) Mem)
+    (mkState (mkEC (block_intro l2 ps2 (cs21++cs22) (insn_return rid rt Result))
+      lc1 als1) Mem1)
     tr1 ->
   dbSubblocks S TD Ps fs gl
     lc1 als1 Mem1
@@ -366,15 +391,21 @@ with dbFdef : value -> typ -> params -> system -> TargetData -> list product -> 
     cs22
     lc3 als3 Mem3
     tr3 ->
-  dbFdef fv rt lp S TD Ps lc gl fs Mem lc3 als3 Mem3 (block_intro l2 ps2 (cs21++cs22) (insn_return rid rt Result)) rid (Some Result) (trace_app (trace_app tr1 tr2) tr3)
+  dbFdef fv rt lp S TD Ps lc gl fs Mem lc3 als3 Mem3 
+    (block_intro l2 ps2 (cs21++cs22) (insn_return rid rt Result)) rid 
+    (Some Result) (trace_app (trace_app tr1 tr2) tr3)
 | dbFdef_proc : forall S TD Ps gl fs fv fid lp lc rid
                        l1 ps1 cs1 tmn1 rt la lb lc1 tr1 Mem Mem1 als1
                        l2 ps2 cs21 cs22 lc2 als2 Mem2 tr2 lc3 als3 Mem3 tr3,
   lookupFdefViaGV TD Ps gl lc fs fv = Some (fdef_intro (fheader_intro rt fid la) lb) ->
-  getEntryBlock (fdef_intro (fheader_intro rt fid la) lb) = Some (block_intro l1 ps1 cs1 tmn1) ->
-  dbBlocks S TD Ps fs gl (fdef_intro (fheader_intro rt fid la) lb) (params2GVs TD lp lc gl) 
-    (mkState (mkEC (block_intro l1 ps1 cs1 tmn1) (initLocals la (params2GVs TD lp lc gl)) nil) Mem)
-    (mkState (mkEC (block_intro l2 ps2 (cs21++cs22) (insn_return_void rid)) lc1 als1) Mem1)
+  getEntryBlock (fdef_intro (fheader_intro rt fid la) lb) = 
+    Some (block_intro l1 ps1 cs1 tmn1) ->
+  dbBlocks S TD Ps fs gl (fdef_intro (fheader_intro rt fid la) lb) 
+    (params2GVs TD lp lc gl) 
+    (mkState (mkEC (block_intro l1 ps1 cs1 tmn1) 
+      (initLocals la (params2GVs TD lp lc gl)) nil) Mem)
+    (mkState (mkEC (block_intro l2 ps2 (cs21++cs22) (insn_return_void rid)) lc1 
+      als1) Mem1)
     tr1 ->
   dbSubblocks S TD Ps fs gl
     lc1 als1 Mem1
@@ -386,7 +417,9 @@ with dbFdef : value -> typ -> params -> system -> TargetData -> list product -> 
     cs22
     lc3 als3 Mem3
     tr3 ->
-  dbFdef fv rt lp S TD Ps lc gl fs Mem lc3 als3 Mem3 (block_intro l2 ps2 (cs21++cs22) (insn_return_void rid)) rid None (trace_app (trace_app tr1 tr2) tr3)
+  dbFdef fv rt lp S TD Ps lc gl fs Mem lc3 als3 Mem3 
+    (block_intro l2 ps2 (cs21++cs22) (insn_return_void rid)) rid None 
+    (trace_app (trace_app tr1 tr2) tr3)
 .
 
 Scheme dbCall_ind2 := Induction for dbCall Sort Prop
@@ -1060,11 +1093,11 @@ Inductive sterm_denotes_genericvalue :
   sterm_denotes_genericvalue TD lc gl Mem st2 gv2 ->
   (if isGVZero TD gv0 then gv2 else gv1) = gv3 -> 
   sterm_denotes_genericvalue TD lc gl Mem (sterm_select st0 t0 st1 st2) gv3
-| sterm_lib_denotes : forall TD lc gl Mem0 Mem1 Mem2 sm0 id0 sts0 gvs0 gv1,
+| sterm_lib_denotes : forall TD lc gl Mem0 Mem1 Mem2 sm0 id0 sts0 gvs0 gv1 r,
   smem_denotes_mem TD lc gl Mem0 sm0 Mem1 ->
   sterms_denote_genericvalues TD lc gl Mem0 sts0 gvs0 ->
   (* FIXME: id0 can be a function w/o return. What should we do? *)
-  callLib Mem1 id0 gvs0 = Some (Some gv1, Mem2) ->
+  callLib Mem1 id0 gvs0 = Some (Some gv1, Mem2, r) ->
   sterm_denotes_genericvalue TD lc gl Mem0 (sterm_lib sm0 id0 sts0) gv1
 with sterms_denote_genericvalues : 
    TargetData ->               (* CurTatgetData *)
@@ -1116,10 +1149,10 @@ with smem_denotes_mem :
   smem_denotes_mem TD lc gl Mem0 sm0 Mem1 ->
   mstore TD Mem1 gv2 t0 gv1 align0 = Some Mem2 ->
   smem_denotes_mem TD lc gl Mem0 (smem_store sm0 t0 st1 st2 align0) Mem2
-| smem_lib_denotes : forall TD lc gl Mem0 Mem1 Mem2 sm0 id0 sts0 gvs0 gv1,
+| smem_lib_denotes : forall TD lc gl Mem0 Mem1 Mem2 sm0 id0 sts0 gvs0 gv1 r,
   smem_denotes_mem TD lc gl Mem0 sm0 Mem1 ->
   sterms_denote_genericvalues TD lc gl Mem0 sts0 gvs0 ->
-  callLib Mem1 id0 gvs0 = Some (Some gv1, Mem2) ->
+  callLib Mem1 id0 gvs0 = Some (Some gv1,Mem2,r) ->
   smem_denotes_mem TD lc gl Mem0 (smem_lib sm0 id0 sts0) Mem2
 .
 

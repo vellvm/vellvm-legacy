@@ -15,6 +15,7 @@ Require Import symexe_tactic.
 Require Import assoclist.
 Require Import eq_tv_dec.
 Require Import sub_tv_dec.
+Require Import sub_tv_def.
 Require Import sub_tv_infer.
 Require Import Coq.Bool.Sumbool.
 Require Import monad.
@@ -191,8 +192,8 @@ end.
 (* Additional stores must be at "shadow_ret" *)
 Definition store_to_ret Ps1 Ps2 fid2 (ptr:sterm) : bool :=
 if (function_returns_pointer Ps1 fid2) then
-   match lookupFdefViaIDFromProducts Ps2 fid2 with      
-   | Some (fdef_intro (fheader_intro _  _ ((_,re)::_)) _) =>
+   match SBsyntax.lookupFdefViaIDFromProducts Ps2 fid2 with      
+   | Some (SBsyntax.fdef_intro (fheader_intro _  _ ((_,re)::_)) _) =>
        match remove_cast ptr with
        | sterm_gep _ _ (sterm_val (value_id id0)) 
           (Cons_list_sterm (sterm_val (value_const (const_int _ i0)))
@@ -386,7 +387,7 @@ Definition tv_scall Ps1 Ps2 fid (c1:scall) (c2:sicall) :=
     (sumbool2bool _ _ (noret_dec nr1 nr2)) &&
     tv_typ ty1 ty2 && tv_sparams Ps1 Ps2 fid tsts1 tsts2 && 
     tv_sterm Ps1 Ps2 fid (remove_cast t1) (remove_cast t2)
-  | stmn_icall_ptr rid2 _ _ ty2 t2 _ tsts2 =>
+  | stmn_icall_ptr _ _ _ ty2 t2 tsts2 _ _ rid2 _ _ _ _ _ _ _ =>
     tv_id fid rid1 rid2 &&
     tv_typ ty1 ty2 && tv_sparams Ps1 Ps2 fid tsts1 tsts2 && 
     match ty1 with
@@ -400,9 +401,9 @@ Definition tv_scall Ps1 Ps2 fid (c1:scall) (c2:sicall) :=
     end
   end.
 
-Definition tv_subblock Ps1 Ps2 fid (sb1:subblock) (sb2:isubblock) :=
+Definition tv_subblock Ps1 Ps2 fid (sb1:subblock) (sb2:SBsyntax.subblock) :=
 match (sb1, sb2) with
-| (mkSB nbs1 call1 iscall1, mkiSB nbs2 call2) =>
+| (mkSB nbs1 call1 iscall1, SBsyntax.mkSB nbs2 call2) =>
   let st1 := se_cmds sstate_init nbs1 in
   let st2 := se_cmds sstate_init nbs2 in
   let cl1 := se_call st1 call1 iscall1 in
@@ -410,7 +411,8 @@ match (sb1, sb2) with
   sub_sstate Ps1 Ps2 fid st1 st2 && tv_scall Ps1 Ps2 fid cl1 cl2 
 end.
 
-Fixpoint tv_subblocks Ps1 Ps2 fid (sbs1:list subblock) (sbs2:list isubblock) :=
+Fixpoint tv_subblocks Ps1 Ps2 fid (sbs1:list subblock) 
+  (sbs2:list SBsyntax.subblock) :=
 match (sbs1, sbs2) with
 | (nil, nil) => true
 | (sb1::sbs1', sb2::sbs2') => 
@@ -442,72 +444,6 @@ match ps1 with
   end
 end.
 
-(*
-  For a function that returns a pointer, Softbound translates
-         ret i32* %8                                                           
-  into
-         %.ptr = getelementptr { i32*, i8*, i8* }* %shadow_ret, i32 0, i32 0
-         %.base = getelementptr { i32*, i8*, i8* }* %shadow_ret, i32 0, i32 1
-         store i8* %bitcast, i8** %.base
-         %.bound = getelementptr { i32*, i8*, i8* }* %shadow_ret, i32 0, i32 2
-         store i8* %bitcast4, i8** %.bound
-         store i32* %8, i32** %.ptr
-          ret void
- 
-  gen_iret returns %shadow_ret %.base %.base %.ptr i32* 
-*)
-Definition gen_iret nts1 t0 id0 (c1 c2 c3 c4 c5 c6:cmd) :=
-match c1 with
-|insn_gep id11 _ t1 (value_id id12)
-   (Cons_list_value (value_const (const_int _ i11 as c11)) 
-     (Cons_list_value (value_const (const_int _ i12 as c12)) 
-      Nil_list_value)) =>
-  match c2 with 
-  |insn_gep id21 _ t2 (value_id id22) 
-     (Cons_list_value (value_const (const_int _ i21 as c21)) 
-       (Cons_list_value (value_const (const_int _ i22 as c22)) 
-       Nil_list_value)) =>
-    match c3 with
-    |insn_store id31 t3 v3 (value_id id32) _ =>
-      match c4 with
-      |insn_gep id41 _ t4 (value_id id42)
-         (Cons_list_value (value_const (const_int _ i41 as c41)) 
-         (Cons_list_value (value_const (const_int _ i42 as c42)) 
-            Nil_list_value)) =>
-        match c5 with
-        |insn_store id51 t5 v5 (value_id id52) _ =>
-           match c6 with
-           |insn_store id61 t6 v6 (value_id id62) _ =>
-              if (tv_typ t0 (typ_pointer t1) && tv_typ t1 t2 && tv_typ t2 t4 &&
-                  eq_id id0 id12 && eq_id id12 id22 && eq_id id22 id42 &&
-                  eq_id id11 id62 && eq_id id21 id32 && eq_id id41 id52 &&
-                  eq_const c11 c12 && eq_const c11 c21 && eq_const c11 c41 &&
-                  eq_INT_Z i11 0%Z && eq_INT_Z i22 1%Z && eq_INT_Z i42 2%Z
-                 ) 
-              then 
-                match get_ret_typs nts1 t1 with
-                | Some (t01, t02, t03) => 
-                    if (tv_typ t6 t01 && tv_typ t3 t02 && 
-                        tv_typ t5 t03 && tv_typ t02 t03 &&
-                        tv_typ t02 (typ_pointer (typ_int Size.Eight))) then
-                      Some (id12, v3, v5, v6, t6)
-                    else None
-                | None => Some (id12, v3, v5, v6, t6)
-                end
-              else None
-           | _ => None
-           end
-        | _ => None
-        end
-      | _ => None
-      end
-    | _ => None
-    end
-  | _ => None
-  end
-| _ => None
-end.
-
 Definition tv_terminator fid (tmn1 tmn2:terminator) : bool :=
 match (tmn1, tmn2) with
 | (insn_return id1 t1 v1, insn_return id2 t2 v2) => 
@@ -521,55 +457,35 @@ match (tmn1, tmn2) with
 | _ => false
 end.
 
-Definition get_last_six_insns (cs:cmds) :=
-match (List.rev cs) with
-| c6::c5::c4::c3::c2::c1::cs' => (List.rev cs', Some (c1, c2, c3, c4, c5, c6))
-| _ => (cs, None)
-end.
-
-Definition tv_block nts1 Ps1 Ps2 fid (b1 b2:block) :=
+Definition tv_block Ps1 Ps2 fid (b1:block) (b2:SBsyntax.block) :=
 match (b1, b2) with
-| (block_intro l1 ps1 cs1 tmn1, block_intro l2 ps2 cs2 tmn2) =>
-  let '(cs2', op) :=
-    match lookupFdefViaIDFromProducts Ps1 fid with      
-    | Some (fdef_intro (fheader_intro (typ_pointer _ as tp) _ _) _) =>
-      match lookupFdefViaIDFromProducts Ps2 (rename_fid fid) with 
-      | Some (fdef_intro (fheader_intro _ _ ((t2,id2)::_)) _) =>
-          let '(cs2', opcs6) := get_last_six_insns cs2 in
-          match opcs6 with
-          | Some (c1,c2,c3,c4,c5,c6) => 
-             (* gen_iret returns %shadow_ret %.base %.base %.ptr i32 *)
-             match gen_iret nts1 t2 id2 c1 c2 c3 c4 c5 c6 with
-             | None => (cs2, None)
-             | op => (cs2', op)
-             end
-          | None => (cs2, None)
-          end
-      | _ => (cs2, None)
-      end
-    | _ => (cs2, None)
-    end in 
-  match (cmds2sbs cs1, cmds2isbs nts1 Ps1 cs2') with
-  | ((sbs1, nbs1), (sbs2, nbs2)) =>
+| (block_intro l1 ps1 cs1 tmn1, SBsyntax.block_common l2 ps2 sbs2 nbs2 tmn2) =>
+  match (cmds2sbs cs1) with
+  | (sbs1, nbs1) =>
     eq_l l1 l2 && tv_phinodes fid ps1 ps2 && 
     tv_subblocks Ps1 Ps2 fid sbs1 sbs2 &&
     tv_cmds Ps1 Ps2 fid nbs1 nbs2 && 
-    match op with 
-    | Some (id20, v21, v22, v23, t20) =>
-        match (tmn1, tmn2) with
-        | (insn_return id1 t1 v1, insn_return_void _) => tv_value fid v1 v23
-        | _ => tv_terminator fid tmn1 tmn2
-        end
-    | None => tv_terminator fid tmn1 tmn2
+    tv_terminator fid tmn1 tmn2
+  end 
+| (block_intro l1 ps1 cs1 tmn1, SBsyntax.block_ret_ptr l2 ps2 sbs2 nbs2
+    (SBsyntax.insn_return_ptr _ _ _ _ _ _ _ _ _ _ vp _ _ _ _)) =>
+  match (cmds2sbs cs1) with
+  | (sbs1, nbs1) =>
+    eq_l l1 l2 && tv_phinodes fid ps1 ps2 && 
+    tv_subblocks Ps1 Ps2 fid sbs1 sbs2 &&
+    tv_cmds Ps1 Ps2 fid nbs1 nbs2 && 
+    match tmn1 with
+    | insn_return id1 _ v1 => tv_value fid v1 vp
+    | _ => false
     end
   end 
 end.
 
-Fixpoint tv_blocks nts1 Ps1 Ps2 fid (bs1 bs2:blocks):=
+Fixpoint tv_blocks Ps1 Ps2 fid (bs1:blocks) (bs2:SBsyntax.blocks):=
 match (bs1, bs2) with
 | (nil, nil) => true
 | (b1::bs1', b2::bs2') => 
-    tv_block nts1 Ps1 Ps2 fid b1 b2 && tv_blocks nts1 Ps1 Ps2 fid bs1' bs2'
+    tv_block Ps1 Ps2 fid b1 b2 && tv_blocks Ps1 Ps2 fid bs1' bs2'
 | _ => false
 end.
 
@@ -581,7 +497,7 @@ Definition tv_fheader nts1 (f1 f2:fheader) :=
   | typ_pointer _ =>
       match a2 with
       | (typ_pointer t,_)::a2' =>
-        match get_ret_typs nts1 t with
+        match SBsyntax.get_ret_typs nts1 t with
         | Some (t01,t02,t03) =>
             tv_typ t1 t01 && tv_typ t02 t03 && 
             tv_typ t02 (typ_pointer (typ_int Size.Eight)) &&
@@ -607,51 +523,43 @@ match (f1, f2) with
 | (fdec_intro fh1, fdec_intro fh2) => tv_fheader nts1 fh1 fh2
 end.
 
-Definition tv_fdef nts1 Ps1 Ps2 (f1 f2:fdef) :=
+Definition tv_fdef nts1 Ps1 Ps2 (f1:fdef) (f2:SBsyntax.fdef) :=
 match (f1, f2) with
-| (fdef_intro (fheader_intro _ fid1 _ as fh1) lb1, fdef_intro fh2 lb2) =>
-  tv_fheader nts1 fh1 fh2 && tv_blocks nts1 Ps1 Ps2 fid1 lb1 lb2
+| (fdef_intro (fheader_intro _ fid1 _ as fh1) lb1, 
+   SBsyntax.fdef_intro fh2 lb2) =>
+  tv_fheader nts1 fh1 fh2 && tv_blocks Ps1 Ps2 fid1 lb1 lb2
 end.
 
-Fixpoint lookupGvarViaIDFromProducts (lp:products) (i:id) : option gvar :=
-match lp with
-| nil => None
-| (product_gvar gv)::lp' => 
-    if (eq_dec (getGvarID gv) i) then Some gv
-    else lookupGvarViaIDFromProducts lp' i
-| _::lp' => lookupGvarViaIDFromProducts lp' i
-end.
-
-Fixpoint tv_products nts1 (Ps10 Ps1 Ps2:products) : bool :=
+Fixpoint tv_products nts1 (Ps10 Ps1:products) (Ps2:SBsyntax.products) : bool :=
 match Ps1 with
 | nil => true
 | product_gvar gv1::Ps1' =>
-  match lookupGvarViaIDFromProducts Ps2 (getGvarID gv1) with
+  match SBsyntax.lookupGvarViaIDFromProducts Ps2 (getGvarID gv1) with
   | None => false
   | Some gv2 => 
       sumbool2bool _ _ (gvar_dec gv1 gv2) && tv_products nts1 Ps10 Ps1' Ps2 
   end
 | product_fdec f1::Ps1' =>
-  match lookupFdecViaIDFromProducts Ps2 (rename_fid (getFdecID f1)) with
+  match SBsyntax.lookupFdecViaIDFromProducts Ps2 (rename_fid (getFdecID f1)) with
   | None => false
   | Some f2 => tv_fdec nts1 f1 f2 && tv_products nts1 Ps10 Ps1' Ps2 
   end
 | product_fdef f1::Ps1' =>
-  match lookupFdefViaIDFromProducts Ps2 (rename_fid (getFdefID f1)) with
+  match SBsyntax.lookupFdefViaIDFromProducts Ps2 (rename_fid (getFdefID f1)) with
   | None => false
   | Some f2 => tv_fdef nts1 Ps10 Ps2 f1 f2 && tv_products nts1 Ps10 Ps1' Ps2 
   end
 end.
 
-Definition tv_module (m1 m2:module) :=
+Definition tv_module (m1:module) (m2:SBsyntax.module) :=
 match (m1, m2) with
-| (module_intro los1 nts1 Ps1, module_intro los2 nts2 Ps2) =>
+| (module_intro los1 nts1 Ps1, SBsyntax.module_intro los2 nts2 Ps2) =>
   sumbool2bool _ _ (layouts_dec los1 los2) &&
   sumbool2bool _ _ (namedts_dec nts1 nts2) &&
   tv_products nts1 Ps1 Ps1 Ps2
 end.
 
-Fixpoint tv_system (S1 S2:system) :=
+Fixpoint tv_system (S1:system) (S2:SBsyntax.system) :=
 match (S1, S2) with
 | (nil, nil) => true
 | (m1::S1', m2::S2') => tv_module m1 m2 && tv_system S1' S2'
@@ -989,7 +897,7 @@ Definition rtv_scall Ps1 Ps2 fid r (c1:scall) (c2:sicall) : option renaming :=
       fun r => rtv_sterm Ps1 Ps2 fid r (remove_cast t1) (remove_cast t2) >>=
       fun r => Some ((rid1,rid2)::r)
     else None
-  | stmn_icall_ptr rid2 _ _ ty2 t2 _ tsts2 =>
+  | stmn_icall_ptr _ _ _ ty2 t2 tsts2 _ _ rid2 _ _ _ _ _ _ _=>
     match ty1 with
     | typ_pointer _ =>
       if (tv_typ ty1 ty2) then
@@ -1008,10 +916,10 @@ Definition rtv_scall Ps1 Ps2 fid r (c1:scall) (c2:sicall) : option renaming :=
     end
   end.
 
-Definition rtv_subblock Ps1 Ps2 fid r (sb1:subblock) (sb2:isubblock) : 
+Definition rtv_subblock Ps1 Ps2 fid r (sb1:subblock) (sb2:SBsyntax.subblock) : 
   option renaming :=
 match (sb1, sb2) with
-| (mkSB nbs1 call1 iscall1, mkiSB nbs2 call2) =>
+| (mkSB nbs1 call1 iscall1, SBsyntax.mkSB nbs2 call2) =>
   let st1 := se_cmds sstate_init nbs1 in
   let st2 := se_cmds sstate_init nbs2 in
   let cl1 := se_call st1 call1 iscall1 in
@@ -1020,8 +928,8 @@ match (sb1, sb2) with
   fun r => rtv_scall Ps1 Ps2 fid r cl1 cl2 
 end.
 
-Fixpoint rtv_subblocks Ps1 Ps2 fid r (sbs1:list subblock) (sbs2:list isubblock) :
-  option renaming :=
+Fixpoint rtv_subblocks Ps1 Ps2 fid r (sbs1:list subblock) 
+  (sbs2:list SBsyntax.subblock) : option renaming :=
 match (sbs1, sbs2) with
 | (nil, nil) => Some r
 | (sb1::sbs1', sb2::sbs2') => 
@@ -1090,90 +998,79 @@ match (tmn1, tmn2) with
 | _ => None
 end.
 
-Definition rtv_block nts1 Ps1 Ps2 fid r (b1 b2:block) : option renaming :=
+Definition rtv_block Ps1 Ps2 fid r (b1:block) (b2:SBsyntax.block) 
+  : option renaming :=
 match (b1, b2) with
-| (block_intro l1 ps1 cs1 tmn1, block_intro l2 ps2 cs2 tmn2) =>
-  let '(cs2', op) :=
-    match lookupFdefViaIDFromProducts Ps1 fid with      
-    | Some (fdef_intro (fheader_intro (typ_pointer _ as tp) _ _) _) =>
-      match lookupFdefViaIDFromProducts Ps2 (rename_fid fid) with 
-      | Some (fdef_intro (fheader_intro _ _ ((t2,id2)::_)) _) =>
-          let '(cs2', opcs6) := get_last_six_insns cs2 in
-          match opcs6 with
-          | Some (c1,c2,c3,c4,c5,c6) => 
-             (* gen_iret returns %shadow_ret %.base %.base %.ptr i32 *)
-             match gen_iret nts1 t2 id2 c1 c2 c3 c4 c5 c6 with
-             | None => (cs2, None)
-             | op => (cs2', op)
-             end
-          | None => (cs2, None)
-          end
-      | _ => (cs2, None)
-      end
-    | _ => (cs2, None)
-    end in 
-  match (cmds2sbs cs1, cmds2isbs nts1 Ps1 cs2') with
-  | ((sbs1, nbs1), (sbs2, nbs2)) =>
+| (block_intro l1 ps1 cs1 tmn1, SBsyntax.block_common l2 ps2 sbs2 nbs2 tmn2) =>
+  match cmds2sbs cs1 with
+  | (sbs1, nbs1) =>
     if eq_l l1 l2 then
       rtv_phinodes r ps1 ps2 >>=
       fun r => rtv_subblocks Ps1 Ps2 fid r sbs1 sbs2 >>=
       fun r => rtv_cmds Ps1 Ps2 fid r nbs1 nbs2 >>=
-      fun r => 
-            match op with 
-            | Some (id20, v21, v22, v23, t20) =>
-              match (tmn1, tmn2) with
-              | (insn_return id1 t1 v1, insn_return_void _) => 
-                rtv_value r v1 v23
-              | _ => rtv_terminator r tmn1 tmn2
-              end
-            | None => rtv_terminator r tmn1 tmn2
-            end
+      fun r => rtv_terminator r tmn1 tmn2
+    else None
+  end 
+| (block_intro l1 ps1 cs1 tmn1, SBsyntax.block_ret_ptr l2 ps2 sbs2 nbs2
+    (SBsyntax.insn_return_ptr _ _ _ _ _ _ _ _ _ _ vp _ _ _ _)) =>
+  match cmds2sbs cs1 with
+  | (sbs1, nbs1) =>
+    if eq_l l1 l2 then
+      rtv_phinodes r ps1 ps2 >>=
+      fun r => rtv_subblocks Ps1 Ps2 fid r sbs1 sbs2 >>=
+      fun r => rtv_cmds Ps1 Ps2 fid r nbs1 nbs2 >>=
+      fun r =>
+        match tmn1 with
+        | insn_return id1 _ v1 => rtv_value r v1 vp
+        | _ => None
+        end
     else None
   end 
 end.
 
-Fixpoint rtv_blocks nts1 Ps1 Ps2 fid r (bs1 bs2:blocks):=
+Fixpoint rtv_blocks Ps1 Ps2 fid r (bs1:blocks) (bs2:SBsyntax.blocks):=
 match (bs1, bs2) with
 | (nil, nil) => Some r
 | (b1::bs1', b2::bs2') => 
-    rtv_block nts1 Ps1 Ps2 fid r b1 b2 >>=
-    fun r => rtv_blocks nts1 Ps1 Ps2 fid r bs1' bs2'
+    rtv_block Ps1 Ps2 fid r b1 b2 >>=
+    fun r => rtv_blocks Ps1 Ps2 fid r bs1' bs2'
 | _ => None
 end.
 
-Definition rtv_fdef nts1 Ps1 Ps2 (f1 f2:fdef) :=
+Definition rtv_fdef nts1 Ps1 Ps2 (f1:fdef) (f2:SBsyntax.fdef) :=
 match (f1, f2) with
-| (fdef_intro (fheader_intro _ fid1 _ as fh1) lb1, fdef_intro fh2 lb2) =>
-  match rtv_blocks nts1 Ps1 Ps2 fid1 nil lb1 lb2 with
+| (fdef_intro (fheader_intro _ fid1 _ as fh1) lb1, 
+   SBsyntax.fdef_intro fh2 lb2) =>
+  match rtv_blocks Ps1 Ps2 fid1 nil lb1 lb2 with
   | None => false
   | Some _ => tv_fheader nts1 fh1 fh2 
   end
 end.
 
-Fixpoint rtv_products nts1 (Ps10 Ps1 Ps2:products) : bool :=
+Fixpoint rtv_products nts1 (Ps10 Ps1:products) (Ps2:SBsyntax.products) : bool :=
 match Ps1 with
 | nil => true
 | product_gvar gv1::Ps1' =>
-  match lookupGvarViaIDFromProducts Ps2 (getGvarID gv1) with
+  match SBsyntax.lookupGvarViaIDFromProducts Ps2 (getGvarID gv1) with
   | None => false
   | Some gv2 => sumbool2bool _ _ (gvar_dec gv1 gv2) && 
                 rtv_products nts1 Ps10 Ps1' Ps2 
   end
 | product_fdec f1::Ps1' =>
-  match lookupFdecViaIDFromProducts Ps2 (rename_fid (getFdecID f1)) with
+  match SBsyntax.lookupFdecViaIDFromProducts Ps2 (rename_fid (getFdecID f1)) with
   | None => false
   | Some f2 => tv_fdec nts1 f1 f2 && rtv_products nts1 Ps10 Ps1' Ps2 
   end
 | product_fdef f1::Ps1' =>
-  match lookupFdefViaIDFromProducts Ps2 (rename_fid (getFdefID f1)) with
+  match SBsyntax.lookupFdefViaIDFromProducts Ps2 (rename_fid (getFdefID f1)) with
   | None => false
   | Some f2 => rtv_fdef nts1 Ps10 Ps2 f1 f2 && rtv_products nts1 Ps10 Ps1' Ps2 
   end
 end.
 
-Definition rtv_module (m1 m2:module) :=
+Definition rtv_module (m1:module) (m2:SBsyntax.module) :=
 match (m1, m2) with
-| (module_intro los1 nts1 Ps1, module_intro los2 nts2 Ps2) =>
+| (module_intro los1 nts1 Ps1, SBsyntax.module_intro los2 nts2 Ps2) =>
   sumbool2bool _ _ (layouts_dec los1 los2) &&
   sumbool2bool _ _ (namedts_dec nts1 nts2) &&
   rtv_products nts1 Ps1 Ps1 Ps2
@@ -1235,7 +1132,8 @@ Axiom get_metadata : unit -> metadata.
 Definition is_metadata (fid:id) (l1:l) (i:nat) (b e p:id) (im:bool) : bool :=
   is_metadata_aux (get_metadata tt) fid l1 i b e p im.
 
-Fixpoint check_mptr_metadata_aux Ps2 fid l1 i base bound ptr := 
+Fixpoint check_mptr_metadata_aux (Ps2:SBsyntax.products) fid l1 i base bound ptr
+  := 
 match (base, bound, ptr) with
 | (sterm_val (value_id idb), sterm_val (value_id ide), 
    sterm_val (value_id idp)) => 
@@ -1276,7 +1174,7 @@ match (base, bound, ptr) with
    sterm_val (value_const (const_gid (typ_pointer (typ_pointer _)) id))) =>
      tv_typ t0 t1 && tv_typ t0 (typ_pointer (typ_int Size.Eight)) &&
      eq_INT_Z i0 (two_p 48%Z) &&
-     match lookupBindingViaIDFromProducts Ps2 id with 
+     match SBsyntax.lookupBindingViaIDFromProducts Ps2 id with 
      | id_binding_gvar (gvar_external _ _ _) => true
      | _ => false
      end
@@ -1292,11 +1190,13 @@ match (base, bound, ptr) with
 | _ => false
 end.
 
-Definition check_mptr_metadata Ps2 fid l1 i base bound ptr := 
+Definition check_mptr_metadata (Ps2:SBsyntax.products) fid l1 i base bound ptr 
+  := 
   check_mptr_metadata_aux Ps2 fid l1 i (remove_cast base) (remove_cast bound) 
     (get_ptr_object ptr).
 
-Fixpoint check_fptr_metadata_aux Ps2 fid l1 i base bound ptr := 
+Fixpoint check_fptr_metadata_aux (Ps2:SBsyntax.products) fid l1 i base bound ptr
+  := 
 match (base, bound, ptr) with
 | (sterm_val (value_id idb), sterm_val (value_id ide), 
    sterm_val (value_id idp)) => 
@@ -1311,18 +1211,20 @@ match (base, bound, ptr) with
 | (sterm_val (value_const (const_gid _ id1)),
    sterm_val (value_const (const_gid _ id2)),
    sterm_val (value_const (const_gid _ id3))) => (*fptr*)
-   match lookupBindingViaIDFromProducts Ps2 id1 with 
+   match SBsyntax.lookupBindingViaIDFromProducts Ps2 id1 with 
    | id_binding_fdec _ => eq_id id1 id2 && eq_id id2 id3
    | _ => false
    end
 | _ => false
 end.
 
-Definition check_fptr_metadata Ps2 fid l1 i base bound ptr := 
+Definition check_fptr_metadata (Ps2:SBsyntax.products) fid l1 i base bound ptr 
+  := 
   check_fptr_metadata_aux Ps2 fid l1 i (remove_cast base) (remove_cast bound) 
     (remove_cast ptr).
 
-Definition check_metadata Ps2 fid l1 i base bound ptr (im:bool) := 
+Definition check_metadata (Ps2:SBsyntax.products) fid l1 i base bound ptr 
+  (im:bool) := 
   if im then check_mptr_metadata Ps2 fid l1 i base bound ptr
   else check_fptr_metadata Ps2 fid l1 i base bound ptr. 
 
@@ -1364,7 +1266,8 @@ match sm with
     else find_stored_ptr sm1 addr_of_ptr
 end.
 
-Fixpoint store_to_metadata Ps2 fid l1 i sm (lid:id) sts : bool :=
+Fixpoint store_to_metadata (Ps2:SBsyntax.products) fid l1 i sm (lid:id) sts 
+  : bool :=
 if (is_hashLoadBaseBound lid) then
   match sts with
   |  Cons_list_sterm addr_of_ptr 
@@ -1458,7 +1361,8 @@ match sm with
   else safe_mem_access fid sm1 t ptr
 end.
 
-Fixpoint sterm_is_memsafe Ps1 Ps2 fid l i (st:sterm) : bool :=
+Fixpoint sterm_is_memsafe (Ps1:products) (Ps2:SBsyntax.products) fid l i 
+  (st:sterm) : bool :=
 match st with
 | sterm_val v => true
 | sterm_bop _ _ st1 st2 
@@ -1490,21 +1394,24 @@ match st with
     list_sterm_is_memsafe Ps1 Ps2 fid l i sts && 
     store_to_metadata Ps2 fid l i sm lid sts
 end
-with list_sterm_is_memsafe Ps1 Ps2 fid l i (sts:list_sterm) : bool :=
+with list_sterm_is_memsafe Ps1 (Ps2:SBsyntax.products) fid l i (sts:list_sterm) 
+  : bool :=
 match sts with
 | Nil_list_sterm => true
 | Cons_list_sterm st sts0 => 
     sterm_is_memsafe Ps1 Ps2 fid l i st && 
     list_sterm_is_memsafe Ps1 Ps2 fid l i sts0
 end
-with list_sterm_l_is_memsafe Ps1 Ps2 fid l i (stls:list_sterm_l) : bool :=
+with list_sterm_l_is_memsafe Ps1 (Ps2:SBsyntax.products) fid l i 
+  (stls:list_sterm_l) : bool :=
 match stls with
 | Nil_list_sterm_l => true
 | Cons_list_sterm_l st _ stls0 =>
     sterm_is_memsafe Ps1 Ps2 fid l i st && 
     list_sterm_l_is_memsafe Ps1 Ps2 fid l i stls0
 end
-with smem_is_memsafe Ps1 Ps2 fid l i (sm:smem) : bool :=
+with smem_is_memsafe (Ps1:products) (Ps2:SBsyntax.products) fid l i (sm:smem) 
+  : bool :=
 match sm with
 | smem_init => true
 | smem_malloc sm1 _ st1 _
@@ -1527,7 +1434,8 @@ match sm with
     deref_check Ps2 fid l i lid1 sts1
 end.
 
-Fixpoint check_all_metadata_aux Ps2 fid l1 i1 (sm:smap) (ms:metadata) : bool :=
+Fixpoint check_all_metadata_aux (Ps2:SBsyntax.products) fid l1 i1 (sm:smap) 
+  (ms:metadata) : bool :=
 match ms with
 | nil => true
 | (fid0,l2,i2,b,e,p,im)::ms' =>
@@ -1561,7 +1469,7 @@ match ms with
     check_all_metadata_aux Ps2 fid l1 i1 sm ms'
 end.
 
-Definition check_all_metadata Ps2 fid l i sm :=
+Definition check_all_metadata (Ps2:SBsyntax.products) fid l i sm :=
   check_all_metadata_aux Ps2 fid l i sm (get_metadata tt).
 
 Fixpoint check_addrof_be_aux fid (sm:smap) (abes:list (id*id*id))
@@ -1585,11 +1493,11 @@ Definition check_addrof_be fid sm :=
 Definition mtv_cmds Ps1 Ps2 fid l (nbs2 : list nbranch) :=
 let st2 := se_cmds sstate_init nbs2 in 
 smem_is_memsafe Ps1 Ps2 fid l O st2.(SMem) &&
-check_all_metadata Ps1 fid l O st2.(STerms) &&
+check_all_metadata Ps2 fid l O st2.(STerms) &&
 check_addrof_be fid st2.(STerms).
 
-Fixpoint mtv_func_metadata (ms:metadata) Ps2 fid l1 i1 fid2 ars2 
-  sars2 : bool :=
+Fixpoint mtv_func_metadata (ms:metadata) (Ps2:SBsyntax.products) fid l1 i1 fid2 
+  ars2 sars2 : bool :=
 match ms with
 | nil => true
 | (fid0,l2,i2,b,e,p,im)::ms' =>
@@ -1639,27 +1547,27 @@ match ptr with
 | _ => safe_fptr_access_aux sm ptr
 end.
 
-Definition mtv_iscall Ps2 fid l1 i1 sm (c2:sicall) :=
+Definition mtv_iscall (Ps2:SBsyntax.products) fid l1 i1 sm (c2:sicall) :=
 match c2 with
 | stmn_icall_nptr _ _ _ _ t2 tsts2 =>
   match remove_cast t2 with
   | sterm_val (value_const (const_gid _ fid2)) as st2 =>
       if (isCallLib fid2) then true
       else
-        match (lookupFdefViaIDFromProducts Ps2 fid2) with
+        match (SBsyntax.lookupFdefViaIDFromProducts Ps2 fid2) with
         | None => true
-        | Some (fdef_intro (fheader_intro _ _ args2) _) =>
+        | Some (SBsyntax.fdef_intro (fheader_intro _ _ args2) _) =>
             mtv_func_metadata (get_metadata tt) Ps2 fid l1 i1 fid2 args2 tsts2
         end
   | _ => true
   end && safe_fptr_access sm t2
-| stmn_icall_ptr _ _ _ _ t2 _ tsts2 =>
+| stmn_icall_ptr _ _ _ _ t2 tsts2 _ _ _ _ _ _ _ _ _ _=>
   match remove_cast t2 with
   | sterm_val (value_const (const_gid _ fid2)) as st2 =>
       if (isCallLib fid2) then true
       else
-        match (lookupFdefViaIDFromProducts Ps2 fid2) with
-        | Some (fdef_intro (fheader_intro _ _ (_::args2)) _) =>
+        match (SBsyntax.lookupFdefViaIDFromProducts Ps2 fid2) with
+        | Some (SBsyntax.fdef_intro (fheader_intro _ _ (_::args2)) _) =>
             mtv_func_metadata (get_metadata tt) Ps2 fid l1 i1 fid2 args2 tsts2
         | _ => true
         end
@@ -1667,9 +1575,9 @@ match c2 with
   end && safe_fptr_access sm t2
 end.
 
-Definition mtv_isubblock Ps1 Ps2 fid l nth (sb2:isubblock) :=
+Definition mtv_subblock Ps1 Ps2 fid l nth (sb2:SBsyntax.subblock) :=
 match sb2 with
-| mkiSB nbs2 call2 =>
+| SBsyntax.mkSB nbs2 call2 =>
   let st2 := se_cmds sstate_init nbs2 in
   let cl2 := se_icall st2 call2 in
    smem_is_memsafe Ps1 Ps2 fid l nth st2.(SMem) &&
@@ -1678,16 +1586,16 @@ match sb2 with
    mtv_iscall Ps2 fid l nth st2.(SMem) cl2
 end.
 
-Fixpoint mtv_isubblocks_aux Ps1 Ps2 fid l len (sbs2:list isubblock) :=
+Fixpoint mtv_subblocks_aux Ps1 Ps2 fid l len (sbs2:list SBsyntax.subblock) :=
 match sbs2 with
 | nil => true
 | sb2::sbs2' => 
-    mtv_isubblock Ps1 Ps2 fid l (len - List.length sbs2') sb2 && 
-    mtv_isubblocks_aux Ps1 Ps2 fid l len sbs2'
+    mtv_subblock Ps1 Ps2 fid l (len - List.length sbs2') sb2 && 
+    mtv_subblocks_aux Ps1 Ps2 fid l len sbs2'
 end.
 
-Definition mtv_isubblocks Ps1 Ps2 fid l (sbs2:list isubblock) :=
-  mtv_isubblocks_aux Ps1 Ps2 fid l (List.length sbs2) (List.rev sbs2).
+Definition mtv_subblocks Ps1 Ps2 fid l (sbs2:list SBsyntax.subblock) :=
+  mtv_subblocks_aux Ps1 Ps2 fid l (List.length sbs2) (List.rev sbs2).
 
 (* Check
    1) i = phi l1 i1, l2 i2, ..., ln in
@@ -1700,7 +1608,8 @@ Definition mtv_isubblocks Ps1 Ps2 fid l (sbs2:list isubblock) :=
    Not clear how to implement the checking in a way suitable to proofs.
 *)
 
-Definition mtv_bep_value Ps2 fid l1 (bv ev pv:value) im : bool :=
+Definition mtv_bep_value (Ps2:SBsyntax.products) fid l1 (bv ev pv:value) im 
+  : bool :=
 match (bv, ev, pv) with
 | (value_id bid, value_id eid, value_id pid) => 
     is_metadata fid l1 O bid eid pid im
@@ -1714,7 +1623,7 @@ match (bv, ev, pv) with
    value_const (const_gid (typ_pointer (typ_pointer _)) id)) =>
      tv_typ t0 t1 && tv_typ t0 (typ_pointer (typ_int Size.Eight)) &&
      eq_INT_Z i0 (two_p 48%Z) &&
-     match lookupBindingViaIDFromProducts Ps2 id with 
+     match SBsyntax.lookupBindingViaIDFromProducts Ps2 id with 
      | id_binding_gvar (gvar_external _ _ _) => true
      | _ => false
      end
@@ -1731,7 +1640,7 @@ match (bv, ev, pv) with
 | (value_const (const_gid _ id1),
    value_const (const_gid _ id2),
    value_const (const_gid _ id3)) => (*fptr*)
-   match lookupBindingViaIDFromProducts Ps2 id1 with 
+   match SBsyntax.lookupBindingViaIDFromProducts Ps2 id1 with 
    | id_binding_fdec _ => eq_id id1 id2 && eq_id id2 id3
    | _ => false
    end
@@ -1768,40 +1677,43 @@ end.
 Definition mtv_phinodes Ps2 fid l i (ps2:phinodes) : bool :=
   mtv_phinodes_aux Ps2 fid l i (get_metadata tt) ps2.
 
-Definition mtv_block nts1 Ps1 Ps2 fid (b2:block) :=
+Definition mtv_block Ps1 Ps2 fid (b2:SBsyntax.block) :=
 match b2 with
-| block_intro l2 ps2 cs2 tmn2 =>
-  match cmds2isbs nts1 Ps1 cs2 with
-  | (sbs2, nbs2) =>
+| SBsyntax.block_common l2 ps2 sbs2 nbs2 tmn2 =>
     mtv_phinodes Ps2 fid l2 (S (List.length sbs2)) ps2 &&
-    mtv_isubblocks Ps1 Ps2 fid l2 sbs2 && mtv_cmds Ps1 Ps2 fid l2 nbs2
-  end
+    mtv_subblocks Ps1 Ps2 fid l2 sbs2 && mtv_cmds Ps1 Ps2 fid l2 nbs2
+| SBsyntax.block_ret_ptr l2 ps2 sbs2 nbs2
+    (SBsyntax.insn_return_ptr _ _ _ _ _ vb _ _ ve _ vp _ _ _ _) =>
+    mtv_phinodes Ps2 fid l2 (S (List.length sbs2)) ps2 &&
+    mtv_subblocks Ps1 Ps2 fid l2 sbs2 && mtv_cmds Ps1 Ps2 fid l2 nbs2 &&
+    (mtv_bep_value Ps2 fid l2 vb ve vp true ||
+     mtv_bep_value Ps2 fid l2 vb ve vp false)
 end.
 
-Fixpoint mtv_blocks nts1 Ps1 Ps2 fid (bs2:blocks):=
+Fixpoint mtv_blocks Ps1 Ps2 fid (bs2:SBsyntax.blocks):=
 match bs2 with
 | nil => true
-| b2::bs2' => mtv_block nts1 Ps1 Ps2 fid b2 && mtv_blocks nts1 Ps1 Ps2 fid bs2'
+| b2::bs2' => mtv_block Ps1 Ps2 fid b2 && mtv_blocks Ps1 Ps2 fid bs2'
 end.
 
-Definition mtv_fdef nts1 Ps1 Ps2 (f2:fdef) :=
+Definition mtv_fdef Ps1 Ps2 (f2:SBsyntax.fdef) :=
 match f2 with
-| fdef_intro ((fheader_intro t2 fid2 a2) as fh2) lb2 =>
-  if (isCallLib fid2) then true else mtv_blocks nts1 Ps1 Ps2 fid2 lb2
+| SBsyntax.fdef_intro ((fheader_intro t2 fid2 a2) as fh2) lb2 =>
+  if (isCallLib fid2) then true else mtv_blocks Ps1 Ps2 fid2 lb2
 end.
 
-Fixpoint mtv_products nts1 Ps1 (Ps20 Ps2:products) : bool :=
+Fixpoint mtv_products Ps1 (Ps20 Ps2:SBsyntax.products) : bool :=
 match Ps2 with
 | nil => true
-| product_fdef f2::Ps2' => mtv_fdef nts1 Ps1 Ps20 f2 && 
-    mtv_products nts1 Ps1 Ps20 Ps2'
-| _::Ps2' => mtv_products nts1 Ps1 Ps20 Ps2'
+| SBsyntax.product_fdef f2::Ps2' => mtv_fdef Ps1 Ps20 f2 && 
+    mtv_products Ps1 Ps20 Ps2'
+| _::Ps2' => mtv_products Ps1 Ps20 Ps2'
 end.
 
-Definition mtv_module (m1:module) (m2:module) :=
+Definition mtv_module (m1:module) (m2:SBsyntax.module) :=
 match (m1, m2) with
-| (module_intro _ nts1 Ps1, module_intro _ _ Ps2) => 
-    mtv_products nts1 Ps1 Ps2 Ps2
+| (module_intro _ _ Ps1, SBsyntax.module_intro _ _ Ps2) => 
+    mtv_products Ps1 Ps2 Ps2
 end.
 
 (***********************************)

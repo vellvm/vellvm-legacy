@@ -572,7 +572,7 @@ Case "dbCall_internal".
     eapply H with (S2:=S2)(Ps2:=Ps2) in H7; eauto.
     clear H.
     destruct H7 as [lb2 [B2' [n [slc [J1 [J2 [J3 [J4 [J5 [J6 HeqEnv]]]]]]]]]].
-    exists (callUpdateLocals (los, nts) noret0 rid rt (Some Result) lc slc gl).
+    exists (callUpdateLocals (los, nts) noret0 rid rt (Some Result0) lc slc gl).
     split; eauto using eqAL_callUpdateLocals, eqAL_refl.
 
     eapply H with (S2:=S2)(Ps2:=Ps2) in H7; eauto.

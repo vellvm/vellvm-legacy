@@ -61,7 +61,7 @@ Proof.
     assert (SimpleSE.callLib Mem0 fid (params2GVs TD lp lc gl) <> None) as J.
       rewrite H. intro J. inversion J.
     apply SimpleSE.callLib__is__defined in J.
-    eapply SimpleSE.callLib__is__correct; auto.
+    apply SimpleSE.callLib__is__correct with (r:=r); auto.
 Qed.
   
 Lemma seop_dbCmds__llvmop_dbop : forall TD lc als gl fs Mem cs cs' lc' als' Mem' tr S Ps F B ECs arg tmn,
@@ -768,7 +768,7 @@ Case "dbCall".
     destruct fv as [fid | cn]; try solve [inversion isCall_false].
     destruct cn; try solve [inversion isCall_false].
     split; auto.
-      apply SimpleSE.dbLib.
+      apply SimpleSE.dbLib with (r:=SimpleSE.Rok).
       eapply SimpleSE.callLib__is__correct with (noret:=noret0) (rid:=rid) (rt:=rt).
       eapply negb_false_iff; auto.
         erewrite EQ. eauto.
@@ -790,13 +790,13 @@ Case "dbExCall".
     destruct fv as [fid0 | cn]; try solve [inversion isCall_false].
     destruct cn; try solve [inversion isCall_false].
     split; auto.
-      apply SimpleSE.dbLib.
+      apply SimpleSE.dbLib with (r:=SimpleSE.Rok).
       apply negb_false_iff in isCall_false.
       apply SimpleSE.callLib__is__correct with (ft:=t)(noret:=noret0)(rid:=rid)
         (rt:=rt)(S:=S0)(TD:=(los,nts))(Ps:=Ps0)(cs:=cs)(tmn:=tmn0)(arg:=arg1)
         (als:=als0)(F:=F0)(B:=block_intro l0 ps cs1 tmn0)(fs:=fs0)(ECs:=ECs) 
         (Mem:=Mem1)(lp:=lp)(lc:=lc0)(gl:=gl0)(oresult:=oresult)(Mem':=Mem')
-        (tailc:=tailc0) in isCall_false.
+        (tailc:=tailc0)(r:=SimpleSE.Rok) in isCall_false.
       eapply isCall_false.
         apply LLVMopsem.dbExCall with (fid:=fid)(la:=la); auto.
 

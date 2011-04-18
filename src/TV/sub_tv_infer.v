@@ -15,21 +15,11 @@ Require Import symexe_tactic.
 Require Import assoclist.
 Require Import eq_tv_dec.
 Require Import sub_tv_dec.
+Require Import sub_tv_def.
 Require Import Coq.Bool.Sumbool.
 Require Import monad.
 
 Export SimpleSE.
-
-(* Syntactical equivalence *)
-Definition eq_value (v v':value) := sumbool2bool _ _ (value_dec v v').
-Definition tv_typ (t t':typ) := sumbool2bool _ _ (typ_dec t t').
-Definition tv_align (a a':align) := sumbool2bool _ _ (Align.dec a a').
-Definition eq_sterm (st st':sterm) := sumbool2bool _ _ (sterm_dec st st').
-Definition eq_smem (sm sm':smem) := sumbool2bool _ _ (smem_dec sm sm').
-Definition eq_id (i i':id) := sumbool2bool _ _ (id_dec i i').
-Definition eq_const (c c':const) := sumbool2bool _ _ (const_dec c c').
-Definition eq_l (l1 l2:l) := sumbool2bool _ _ (l_dec l1 l2).
-Definition bzeq (x y:Z) := sumbool2bool _ _ (Coqlib.zeq x y).
 
 (* true <-> id == @__hashLoadBaseBound *)
 Axiom is_hashLoadBaseBound : id -> bool.
@@ -46,9 +36,6 @@ Axiom is_callDereferenceCheck : id -> bool.
 
 (* true <-> id == @__hashStoreBaseBound *)
 Axiom is_hashStoreBaseBound : id -> bool.
-
-
-Axiom eq_INT_Z : INT -> Z -> bool.
 
 (***************************************************************)
 (* Simplification w.r.t program equivalence. *)
@@ -101,214 +88,6 @@ end.
 
 Definition eq_sterm_upto_cast (st1 st2:sterm) : bool :=
 eq_sterm (remove_cast st1) (remove_cast st2).
-
-(***************************************************************)
-(** LLVM.syntax -> Symexe.syntax 
- * 
-   If a function returns a pointer, e.g.
-     define i32* @test(i32 %mm) nounwind
-   Softbound translates it to be
-     define void @softbound_test({ i32*, i8*, i8* }* %shadow_ret, i32 %mm)
-
-   %shadow_ret is a returned pointer with its base and bound.
-
-   At callsite,
-     %3 = tail call i32* @test(i32 %2) nounwind
-   is translated to be
-
-     call void @softbound_test({ i32*, i8*, i8* }* %ret_tmp, i32 %2)
-     %3 = getelementptr { i32*, i8*, i8* }* %ret_tmp, i32 0, i32 0
-     %4 = load i32** %3          
-     %_base3 = getelementptr { i32*, i8*, i8* }* %ret_tmp, i32 0, i32 1
-     %call_repl_base = load i8** %_base3       
-     %_bound4 = getelementptr { i32*, i8*, i8* }* %ret_tmp, i32 0, i32 2
-     %call_repl_bound = load i8** %_bound4   
-
-   The idea is defining an abstract call (icall_ptr)
-     {%3, %call_repl_base, %call_repl_bound} = 
-       call void @softbound_test({ i32*, i8*, i8* }* %ret_tmp, i32 %2)
-   that equals to the above seven instructions.
-
-   icall_nptr presents a normal call.
-*)
-
-Inductive icall : Set :=
- | icall_nptr : id -> noret -> tailc -> typ -> value -> params -> icall
- | icall_ptr : id -> id -> id -> typ -> value -> id -> params -> icall.
-
-Record isubblock := mkiSB
-{
-  iNBs : list nbranch;
-  icall_cmd : icall
-}.
-
-Lemma isCall_inv : forall (c:cmd), isCall c = true -> 
-  id * noret * tailc * typ * value * params.
-Proof.
-  destruct c; intros H; try solve [inversion H].
-  split; auto.
-Defined. 
-
-(*
-     %3 = getelementptr { i32*, i8*, i8* }* %ret_tmp, i32 0, i32 0
-     %4 = load i32** %3          
-     %_base3 = getelementptr { i32*, i8*, i8* }* %ret_tmp, i32 0, i32 1
-     %call_repl_base = load i8** %_base3       
-     %_bound4 = getelementptr { i32*, i8*, i8* }* %ret_tmp, i32 0, i32 2
-     %call_repl_bound = load i8** %_bound4    
-*)
-
-(* Check if tid is { i32*, i8*, i8* } *)
-Fixpoint get_named_ret_typs nts tid {struct nts} : option (typ*typ*typ) :=
-match nts with
-| nil => None
-| namedt_intro tid' t'::nts' =>
-    if (eq_id tid tid') then
-      match t' with
-      | typ_namedt t0 => get_named_ret_typs nts' tid
-      | typ_struct 
-         (Cons_list_typ (typ_pointer _ as t01) 
-         (Cons_list_typ (typ_pointer _ as t02)
-         (Cons_list_typ (typ_pointer _ as t03) Nil_list_typ))) =>
-         Some (t01,t02,t03)
-      | _ => None
-      end
-    else get_named_ret_typs nts' tid
-end.
-
-(* Check if t is { i32*, i8*, i8* } *)
-Fixpoint get_ret_typs nts t: option (typ*typ*typ) :=
-match t with
-| typ_struct 
-    (Cons_list_typ (typ_pointer _ as t01) 
-    (Cons_list_typ (typ_pointer _ as t02)
-    (Cons_list_typ (typ_pointer _ as t03) Nil_list_typ))) =>
-      Some (t01,t02,t03)
-| typ_namedt tid => get_named_ret_typs nts tid
-| _ => None
-end.
-
-(* Constructing a icall_ptr from the six instructions. *)
-Definition gen_icall nts (v:value) (pa0:params) (c1 c2 c3 c4 c5 c6:cmd) 
-  : option icall :=
-match c1 with
-|insn_gep id11 _ t1 (value_id id12)
-   (Cons_list_value (value_const (const_int _ i11 as c11)) 
-     (Cons_list_value (value_const (const_int _ i12 as c12)) 
-      Nil_list_value)) =>
-  match c2 with
-  |insn_load id21 t2 (value_id id22) _ =>
-    match c3 with 
-    |insn_gep id31 _ t3 (value_id id32) 
-       (Cons_list_value (value_const (const_int _ i31 as c31)) 
-         (Cons_list_value (value_const (const_int _ i32 as c32)) 
-         Nil_list_value)) =>
-      match c4 with
-      |insn_load id41 t4 (value_id id42) _ =>
-        match c5 with
-        |insn_gep id51 _ t5 (value_id id52)
-           (Cons_list_value (value_const (const_int _ i51 as c51)) 
-           (Cons_list_value (value_const (const_int _ i52 as c52)) 
-              Nil_list_value)) =>
-           match c6 with
-           |insn_load id61 t6 (value_id id62) _ =>
-              match pa0 with
-              | (typ_pointer t0, value_id id0)::pa0' =>
-                if (tv_typ t1 t3 && tv_typ t3 t5 && tv_typ t5 t0 &&
-                    eq_id id0 id12 && eq_id id0 id32 && eq_id id0 id52 &&
-                    eq_id id11 id22 && eq_id id31 id42 && eq_id id51 id62 &&
-                    eq_const c11 c12 && eq_const c11 c31 && eq_const c11 c51 &&
-                    eq_INT_Z i11 0%Z && eq_INT_Z i32 1%Z && eq_INT_Z i52 2%Z
-                   ) 
-                then 
-                  match get_ret_typs nts t0 with
-                  | Some (t01, t02, t03) => 
-                    if (tv_typ t2 t01 && tv_typ t4 t02 && 
-                        tv_typ t6 t03 && tv_typ t02 t03 &&
-                        tv_typ t02 (typ_pointer (typ_int Size.Eight))) then
-                      Some (icall_ptr id21 id41 id61 t2 v id0 pa0')
-                    else None
-                  | _ => None
-                  end
-                else None
-              | _ => None
-              end
-           | _ => None
-           end
-        | _ => None
-        end
-      | _ => None
-      end
-    | _ => None
-    end
-  | _ => None
-  end
-| _ => None
-end.
-
-Fixpoint cmds2isbs nts1 (Ps1:products) (cs:cmds) : (list isubblock*list nbranch)
-  :=
-match cs with
-| nil => (nil,nil)
-| c::cs' =>
-  match (isCall_dec c) with
-  | left isnotcall => 
-    match (cmds2isbs nts1 Ps1 cs') with
-    | (nil, nbs0) => (nil, mkNB c isnotcall::nbs0) 
-    | (mkiSB nbs call0::sbs', nbs0) => 
-      (mkiSB (mkNB c isnotcall::nbs) call0::sbs', nbs0) 
-    end
-  | right iscall => 
-    let '(id1, nr1, tc1, t1, v1, pa1) := isCall_inv c iscall in
-    let '(sbs, nbs0, ic) :=
-(*
-    The [c] is in the output program. So we don't know if it returns pointer
-    w/o its signature in its input.
-
-    But we do not check if the called function returns ptr. The problem is
-    v1 can be a value that represents a function pointer. Statically, we 
-    need more work to identify it.
-
-    We check this property at tv_call.
-*)
-        match cs' with
-        | c1::c2::c3::c4::c5::c6::cs'' =>
-          match (gen_icall nts1 v1 pa1 c1 c2 c3 c4 c5 c6) with
-          | Some ic => (cmds2isbs nts1 Ps1 cs'', ic)
-          | None => (cmds2isbs nts1 Ps1 cs', icall_nptr id1 nr1 tc1 t1 v1 pa1)
-          end
-        | _ => (cmds2isbs nts1 Ps1 cs', icall_nptr id1 nr1 tc1 t1 v1 pa1)
-        end
-    in (mkiSB nil ic::sbs, nbs0) 
-  end
-end.
-
-Inductive wf_inbranchs : list nbranch -> Prop :=
-| wf_inbranchs_intro : forall nts Ps cs nbs, 
-  cmds2isbs nts Ps cs = (nil, nbs) ->
-  NoDup (getCmdsIDs cs) ->
-  wf_inbranchs nbs.
-
-Inductive wf_isubblock : isubblock -> Prop :=
-| wf_isubblock_intro : forall nbs call0, 
-  wf_inbranchs nbs ->
-  wf_isubblock (mkiSB nbs call0).
-
-Inductive wf_isubblocks : list isubblock -> Prop :=
-| wf_isubblocks_nil : wf_isubblocks nil
-| wf_isubblocks_cons : forall sb sbs,
-  wf_isubblock sb ->
-  wf_isubblocks sbs ->
-  wf_isubblocks (sb::sbs).
-
-Inductive wf_iblock : block -> Prop :=
-| wf_iblock_intro : forall nts Ps l ps cs sbs nbs tmn, 
-  cmds2isbs nts Ps cs = (sbs,nbs) ->
-  wf_isubblocks sbs ->
-  wf_inbranchs nbs ->
-  wf_iblock (block_intro l ps cs tmn).
-
-Hint Constructors wf_isubblocks.
 
 (************************************************************)
 (* Generating metadata *) 
@@ -538,18 +317,20 @@ Inductive sicall : Set :=
 | stmn_icall_nptr : 
     id -> noret -> tailc -> typ -> sterm -> list (typ*sterm) -> sicall
 | stmn_icall_ptr : 
-    id -> id -> id -> typ -> sterm -> sterm -> list (typ*sterm) -> sicall
+    id -> noret -> tailc -> typ -> sterm -> list (typ*sterm) ->
+    id -> id -> id -> id -> id -> id -> id -> const -> const -> const -> sicall
 .
 
-Definition se_icall (st:sstate) (i:icall) : sicall :=
+Definition se_icall (st:sstate) (i:SBsyntax.call) : sicall :=
 match i with
-| icall_nptr id0 nr tc t0 v0 p0 =>
+| SBsyntax.insn_call_nptr id0 nr tc t0 v0 p0 =>
     stmn_icall_nptr id0 nr tc t0 (value2Sterm st.(STerms) v0) 
       (list_param__list_typ_subst_sterm p0 st.(STerms))
-| icall_ptr id0 id1 id2 t0 v0 id4 p0 =>
-    stmn_icall_ptr id0 id1 id2 t0 (value2Sterm st.(STerms) v0) 
-      (lookupSmap st.(STerms) id4)
+| SBsyntax.insn_call_ptr id0 nr tc t0 v0 p0 sid id1 id2 id3 id4 id5 id6 
+    cst0 cst1 cts2 =>
+    stmn_icall_ptr id0 nr tc t0 (value2Sterm st.(STerms) v0) 
       (list_param__list_typ_subst_sterm p0 st.(STerms))
+      sid id1 id2 id3 id4 id5 id6 cst0 cst1 cts2
 end.
 
 Definition metadata_from_iscall Ps2 (flnbep0:flnbeps) (accum:beps) (c2:sicall) 
@@ -560,20 +341,20 @@ match c2 with
   | sterm_val (value_const (const_gid _ fid2)) =>
       if (isCallLib fid2) then accum
       else
-        match (lookupFdefViaIDFromProducts Ps2 fid2) with
+        match (SBsyntax.lookupFdefViaIDFromProducts Ps2 fid2) with
         | None => accum
-        | Some (fdef_intro (fheader_intro _ _ args2) _) =>
+        | Some (SBsyntax.fdef_intro (fheader_intro _ _ args2) _) =>
            metadata_from_params (get_arg_metadata flnbep0 fid2) args2 tsts2 accum
         end
   | _ => accum
   end
-| stmn_icall_ptr _ _ _ _ t2 _ tsts2 =>
+| stmn_icall_ptr _ _ _ _ t2 tsts2 _ _ _ _ _ _ _ _ _ _ =>
   match remove_cast t2 with
   | sterm_val (value_const (const_gid _ fid2)) =>
       if (isCallLib fid2) then accum
       else
-        match (lookupFdefViaIDFromProducts Ps2 fid2) with
-        | Some (fdef_intro (fheader_intro _ _ (_::args2)) _) =>
+        match (SBsyntax.lookupFdefViaIDFromProducts Ps2 fid2) with
+        | Some (SBsyntax.fdef_intro (fheader_intro _ _ (_::args2)) _) =>
            metadata_from_params (get_arg_metadata flnbep0 fid2) args2 tsts2 accum
         | _ => accum
         end
@@ -581,10 +362,10 @@ match c2 with
   end
 end.
 
-Definition metadata_from_isubblock Ps2 flnbep (sb2:isubblock)
+Definition metadata_from_subblock Ps2 flnbep (sb2:SBsyntax.subblock)
   (accum:beps) : beps :=
 match sb2 with
-| mkiSB nbs2 call2 => 
+| SBsyntax.mkSB nbs2 call2 => 
   let st2 := se_cmds sstate_init nbs2 in 
   let cl2 := se_icall st2 call2 in
   let accum' := metadata_from_iscall Ps2 flnbep accum cl2 in
@@ -613,8 +394,8 @@ Definition update_pred_subblock (accum:nbeps) nth bep : nbeps :=
 
 (* The indices of subblocks are [1 .. len]. Subblocks are visited in a 
    reversed order. *)
-Fixpoint metadata_from_isubblocks_aux Ps2 flnbep len (sbs2:list isubblock) 
-  (accum:nbeps) : nbeps :=
+Fixpoint metadata_from_subblocks_aux Ps2 flnbep len 
+  (sbs2:list SBsyntax.subblock) (accum:nbeps) : nbeps :=
 match sbs2 with
 | nil => accum
 | sb2::sbs2' => 
@@ -624,16 +405,16 @@ match sbs2 with
       | Some bep => bep 
       | None => nil
       end in
-    let bep' := metadata_from_isubblock Ps2 flnbep sb2 bep in
+    let bep' := metadata_from_subblock Ps2 flnbep sb2 bep in
     let accum' := update_nbeps accum (len - nth) bep' in
     let accum'' := update_pred_subblock accum' nth 
-      (metadata_diff_cmds bep' (nbranchs2cmds sb2.(iNBs))) in
-    metadata_from_isubblocks_aux Ps2 flnbep len sbs2' accum''
+      (metadata_diff_cmds bep' (nbranchs2cmds sb2.(SBsyntax.NBs))) in
+    metadata_from_subblocks_aux Ps2 flnbep len sbs2' accum''
 end.
 
-Definition metadata_from_isubblocks Ps2 flnbep (sbs2:list isubblock) 
+Definition metadata_from_subblocks Ps2 flnbep (sbs2:list SBsyntax.subblock) 
   (accum:nbeps) : nbeps :=
-metadata_from_isubblocks_aux Ps2 flnbep (List.length sbs2) (List.rev sbs2) accum.
+metadata_from_subblocks_aux Ps2 flnbep (List.length sbs2) (List.rev sbs2) accum.
 
 (* from phinodes 
     b = phi b1 b2 ...
@@ -722,12 +503,13 @@ match md with
 end.
 
 (* The beps not in the current ps2 and cs2 are falled-through from
-   previous blocks. *)
-Definition falling_through_metadata (md:beps) (b2:block) : beps :=
+   previous blocks. 
+Definition falling_through_metadata (md:beps) (b2:SBsyntax.block) : beps :=
 match b2 with
-| block_intro l2 ps2 cs2 tmn2 =>
+| SBsyntax.block_common l2 ps2 cs2 tmn2 =>
     metadata_diff_cmds (metadata_diff_phinodes md ps2) cs2
 end.
+*)
 
 (* Reimplement usedef, the one in ssa_lib is WRONG!!!!!!!!!! *)
 Definition usedef_block := list (l*list l).
@@ -745,12 +527,13 @@ end.
 
 Definition genBlockUseDef_block b (udb:usedef_block) : usedef_block :=
 match b with
-| block_intro l0 _ _ tmn2 =>
+| SBsyntax.block_common l0 _ _ _ tmn2 =>
   match tmn2 with
   | insn_br _ _ l1 l2 => update_udb (update_udb udb l0 l2) l0 l1
   | insn_br_uncond _ l1 => update_udb udb l0 l1
   | _ => udb
   end
+| _ => udb
 end.
 
 Fixpoint genBlockUseDef_blocks bs (udb:usedef_block) : usedef_block :=
@@ -761,14 +544,10 @@ end.
 
 Definition genBlockUseDef_fdef f2 : usedef_block :=
 match f2 with
-| fdef_intro _ lb2 => genBlockUseDef_blocks lb2 nil
+| SBsyntax.fdef_intro _ lb2 => genBlockUseDef_blocks lb2 nil
 end.
 
-Definition metadata_from_block nts1 Ps1 Ps2 flnbep (b2:block) (udb:usedef_block) 
-  (lnbep:lnbeps) : lnbeps :=
-match b2 with
-| block_intro l2 ps2 cs2 tmn2 =>
-  let (sbs2, nbs2) := cmds2isbs nts1 Ps1 cs2 in
+Definition metadata_from_block_aux Ps2 flnbep lnbep l2 ps2 sbs2 nbs2 udb :=
   let nbep0 :=
     match lookupAL _ lnbep l2 with
     | None => nil
@@ -783,7 +562,7 @@ match b2 with
   let nbep1 := updateAdd_nbeps nbep0 0 bep1 in
   let nbep2 := update_pred_subblock nbep1 0 
     (metadata_diff_cmds bep1 (nbranchs2cmds nbs2)) in
-  let nbep3 := metadata_from_isubblocks Ps2 flnbep sbs2 nbep2 in
+  let nbep3 := metadata_from_subblocks Ps2 flnbep sbs2 nbep2 in
   let lnbep' := updateAddAL _ lnbep l2 nbep3 in
   let bep_phi :=
     match lookup_nbeps nbep3 (List.length sbs2+1) with
@@ -797,14 +576,25 @@ match b2 with
     | None => nil
     end in
   updatePredBlocks preds lnbep'' (metadata_diff_phinodes bep_phi ps2)
+.
+
+Definition metadata_from_block Ps2 flnbep (b2:SBsyntax.block) 
+  (udb:usedef_block) (lnbep:lnbeps) : lnbeps :=
+match b2 with
+| SBsyntax.block_common l2 ps2 sbs2 nbs2 tmn2 =>
+    metadata_from_block_aux Ps2 flnbep lnbep l2 ps2 sbs2 nbs2 udb
+| SBsyntax.block_ret_ptr l2 ps2 sbs2 nbs2 
+    (SBsyntax.insn_return_ptr _ _ _ _ _ vb _ _ ve _ vp _ _ _ _) =>
+    let lnbep := metadata_from_value l2 vb ve vp true lnbep in 
+    metadata_from_block_aux Ps2 flnbep lnbep l2 ps2 sbs2 nbs2 udb
 end.
 
-Fixpoint metadata_from_blocks_aux nts1 Ps1 Ps2 flnbep (bs2:blocks) 
+Fixpoint metadata_from_blocks_aux Ps2 flnbep (bs2:SBsyntax.blocks) 
   (udb:usedef_block) (lnbep:lnbeps) : lnbeps :=
 match bs2 with
 | nil => lnbep
-| b2::bs2' => metadata_from_blocks_aux nts1 Ps1 Ps2 flnbep bs2' udb 
-    (metadata_from_block nts1 Ps1 Ps2 flnbep b2 udb lnbep)
+| b2::bs2' => metadata_from_blocks_aux Ps2 flnbep bs2' udb 
+    (metadata_from_block Ps2 flnbep b2 udb lnbep)
 end.
 
 Fixpoint eq_nbeps (md1 md2:nbeps) : bool :=
@@ -828,14 +618,14 @@ Inductive onat :=
 | Ozero : onat
 | Osucc : onat -> onat.
 
-Fixpoint metadata_from_blocks nts1 Ps1 Ps2 flbep (bs2:blocks) (udb:usedef_block) 
+Fixpoint metadata_from_blocks Ps2 flbep (bs2:SBsyntax.blocks) (udb:usedef_block) 
   (md:lnbeps) (bsteps:onat) : lnbeps :=
 match bsteps with
 | Ozero => md 
 | Osucc bsteps' => 
-  let md' := metadata_from_blocks_aux nts1 Ps1 Ps2 flbep bs2 udb md in
+  let md' := metadata_from_blocks_aux Ps2 flbep bs2 udb md in
   if eq_lnbeps md md' then md'
-  else metadata_from_blocks nts1 Ps1 Ps2 flbep bs2 udb md' bsteps'
+  else metadata_from_blocks Ps2 flbep bs2 udb md' bsteps'
 end.
 
 Fixpoint metadata_from_args (a:args) (md accum:beps) : beps :=
@@ -852,17 +642,18 @@ match md with
        end)
 end.
 
-Definition metadata_from_fdef nts1 Ps1 Ps2 flbep (f2:fdef) (md:lnbeps) 
+Definition metadata_from_fdef Ps2 flbep (f2:SBsyntax.fdef) (md:lnbeps) 
   (bsteps:onat) : lnbeps :=
 match f2 with
-| fdef_intro ((fheader_intro t2 fid2 a2) as fh2) lb2 =>
+| SBsyntax.fdef_intro ((fheader_intro t2 fid2 a2) as fh2) lb2 =>
   if (isCallLib fid2) then md 
   else 
-   let accum := metadata_from_blocks nts1 Ps1 Ps2 flbep lb2 
+   let accum := metadata_from_blocks Ps2 flbep lb2 
      (genBlockUseDef_fdef f2) md bsteps in 
-      match getEntryBlock f2 with
+      match SBsyntax.getEntryBlock f2 with
        | None => accum
-       | Some (block_intro l2 _ _ _) =>
+       | Some (SBsyntax.block_common l2 _ _ _ _)
+       | Some (SBsyntax.block_ret_ptr l2 _ _ _ _) =>
            match lookupAL _ accum l2 with
            | Some nbep => 
              match lookup_nbeps nbep (List.length nbep - 1) with
@@ -876,19 +667,19 @@ match f2 with
        end
 end.
 
-Fixpoint metadata_from_products_aux nts1 (Ps10 Ps20 Ps2:products) (md:flnbeps) 
-  (bsteps:onat) : flnbeps :=
+Fixpoint metadata_from_products_aux (Ps20 Ps2:SBsyntax.products) 
+  (md:flnbeps) (bsteps:onat) : flnbeps :=
 match Ps2 with
 | nil => md
-| product_fdef f2::Ps2' => 
-    let lnbep0 := match lookupAL _ md (getFdefID f2) with
+| SBsyntax.product_fdef f2::Ps2' => 
+    let lnbep0 := match lookupAL _ md (SBsyntax.getFdefID f2) with
       | Some md => md 
       | None => nil
       end in 
-    let lnbep := metadata_from_fdef nts1 Ps10 Ps20 md f2 lnbep0 bsteps in
-    let md' := updateAddAL _ md (getFdefID f2) lnbep in
-    metadata_from_products_aux nts1 Ps10 Ps20 Ps2' md' bsteps
-| _::Ps2' => metadata_from_products_aux nts1 Ps10 Ps20 Ps2' md bsteps
+    let lnbep := metadata_from_fdef Ps20 md f2 lnbep0 bsteps in
+    let md' := updateAddAL _ md (SBsyntax.getFdefID f2) lnbep in
+    metadata_from_products_aux Ps20 Ps2' md' bsteps
+| _::Ps2' => metadata_from_products_aux Ps20 Ps2' md bsteps
 end.
 
 Fixpoint eq_flnbeps (md1 md2:flnbeps) : bool :=
@@ -899,28 +690,27 @@ match (md1, md2) with
 | _ => false
 end.
 
-Fixpoint metadata_from_products nts1 (Ps1 Ps2:products) (md:flnbeps) 
+Fixpoint metadata_from_products (Ps2:SBsyntax.products) (md:flnbeps) 
   (bsteps:onat) (psteps:onat) : flnbeps :=
 match psteps with
 | Ozero => md 
 | Osucc psteps' => 
-  let md' := metadata_from_products_aux nts1 Ps1 Ps2 Ps2 md bsteps in
+  let md' := metadata_from_products_aux Ps2 Ps2 md bsteps in
   if eq_flnbeps md md' then md'
-  else metadata_from_products nts1 Ps1 Ps2 md' bsteps psteps'
+  else metadata_from_products Ps2 md' bsteps psteps'
 end.
 
-Definition metadata_from_module (m1 m2:module) (bsteps psteps:onat) :=
-match (m1, m2) with
-| (module_intro _ nts1 Ps1, module_intro _ _ Ps2) => 
-    metadata_from_products nts1 Ps1 Ps2 nil bsteps psteps
+Definition metadata_from_module (m2:SBsyntax.module) (bsteps psteps:onat) :=
+match m2 with
+| SBsyntax.module_intro _ _ Ps2 => metadata_from_products Ps2 nil bsteps psteps
 end.
 
 (************************************************************)
 (* Validating metadata *) 
 
-Definition validate_metadata_from_blocks nts1 Ps1 Ps2 flbep (bs2:blocks) 
+Definition validate_metadata_from_blocks Ps2 flbep (bs2:SBsyntax.blocks) 
   (udb:usedef_block) (md:lnbeps) : bool :=
-let md' := metadata_from_blocks_aux nts1 Ps1 Ps2 flbep bs2 udb md in
+let md' := metadata_from_blocks_aux Ps2 flbep bs2 udb md in
 eq_lnbeps md md'.
 
 Fixpoint nbeps_to_beps (nbep:nbeps) (accum:beps) : beps :=
@@ -953,18 +743,18 @@ end.
 Definition disjoint_mptr_fptr_metadata (md:lnbeps) : bool :=
 disjoint_mptr_fptr_metadata_aux (nbeps_to_beps (lnbeps_to_nbeps md nil) nil).
 
-Definition validate_metadata_from_fdef nts1 Ps1 Ps2 flbep (f2:fdef) (md:lnbeps) 
+Definition validate_metadata_from_fdef Ps2 flbep (f2:SBsyntax.fdef) (md:lnbeps) 
   : bool :=
 match f2 with
-| fdef_intro ((fheader_intro t2 fid2 a2) as fh2) lb2 =>
+| SBsyntax.fdef_intro ((fheader_intro t2 fid2 a2) as fh2) lb2 =>
   if (isCallLib fid2) then true
   else 
     disjoint_mptr_fptr_metadata md &&
-    validate_metadata_from_blocks nts1 Ps1 Ps2 flbep lb2 
-      (genBlockUseDef_fdef f2) md &&
-    match getEntryBlock f2 with
+    validate_metadata_from_blocks Ps2 flbep lb2 (genBlockUseDef_fdef f2) md &&
+    match SBsyntax.getEntryBlock f2 with
     | None => false
-    | Some (block_intro l2 _ _ _) =>
+    | Some (SBsyntax.block_common l2 _ _ _ _)
+    | Some (SBsyntax.block_ret_ptr l2 _ _ _ _) =>
         match lookupAL _ md l2 with
         | Some nbep => 
           match lookup_nbeps nbep (List.length nbep - 1) with
@@ -981,24 +771,24 @@ match f2 with
     end
 end.
 
-Fixpoint validate_metadata_from_products_aux nts1 (Ps10 Ps20 Ps2:products) 
+Fixpoint validate_metadata_from_products_aux (Ps20 Ps2:SBsyntax.products) 
   (md:flnbeps) : bool :=
 match Ps2 with
 | nil => true
-| product_fdef f2::Ps2' => 
-    match lookupAL _ md (getFdefID f2) with
+| SBsyntax.product_fdef f2::Ps2' => 
+    match lookupAL _ md (SBsyntax.getFdefID f2) with
     | Some lnbep =>
-        validate_metadata_from_fdef nts1 Ps10 Ps20 md f2 lnbep &&
-        validate_metadata_from_products_aux nts1 Ps10 Ps20 Ps2' md
+        validate_metadata_from_fdef Ps20 md f2 lnbep &&
+        validate_metadata_from_products_aux Ps20 Ps2' md
     | None => false
     end
-| _::Ps2' => validate_metadata_from_products_aux nts1 Ps10 Ps20 Ps2' md
+| _::Ps2' => validate_metadata_from_products_aux Ps20 Ps2' md
 end.
 
-Definition validate_metadata_from_module (m1 m2:module) (md:flnbeps) : bool :=
-match (m1, m2) with
-| (module_intro _ nts1 Ps1, module_intro _ _ Ps2) => 
-    validate_metadata_from_products_aux nts1 Ps1 Ps2 Ps2 md
+Definition validate_metadata_from_module (m2:SBsyntax.module) (md:flnbeps) 
+  : bool :=
+match m2 with
+| SBsyntax.module_intro _ _ Ps2 => validate_metadata_from_products_aux Ps2 Ps2 md
 end.
 
 (************************************************************)
@@ -1047,53 +837,54 @@ Definition addrofbe_from_cmds (nbs2 : list nbranch) (md:abes) : abes :=
 let st2 := se_cmds sstate_init nbs2 in 
 addrofbe_from_smem st2.(SMem) md.
 
-Definition addrofbe_from_subblock (sb2:subblock) (md:abes) : abes :=
+Definition addrofbe_from_subblock (sb2:SBsyntax.subblock) (md:abes) : abes :=
 match sb2 with
-| mkSB nbs2 _ _ => addrofbe_from_cmds nbs2 md
+| SBsyntax.mkSB nbs2 _ => addrofbe_from_cmds nbs2 md
 end.
 
-Fixpoint addrofbe_from_subblocks (sbs2:list subblock) (md:abes) : abes :=
+Fixpoint addrofbe_from_subblocks (sbs2:list SBsyntax.subblock) (md:abes) 
+  : abes :=
 match sbs2 with
 | nil => md
 | sb2::sbs2' => addrofbe_from_subblocks sbs2' (addrofbe_from_subblock sb2 md)
 end.
 
-Definition addrofbe_from_block (b2:block) (md:abes) : abes :=
+Definition addrofbe_from_block (b2:SBsyntax.block) (md:abes) : abes :=
 match b2 with
-| block_intro l2 ps2 cs2 tmn2 =>
-  let (sbs2, nbs2) := cmds2sbs cs2 in
+| SBsyntax.block_common l2 ps2 sbs2 nbs2 _ 
+| SBsyntax.block_ret_ptr l2 ps2 sbs2 nbs2 _ =>
   let accum1 := addrofbe_from_cmds nbs2 md in
   addrofbe_from_subblocks sbs2 accum1
 end.
 
-Fixpoint addrofbe_from_blocks (bs2:blocks) (md:abes) : abes :=
+Fixpoint addrofbe_from_blocks (bs2:SBsyntax.blocks) (md:abes) : abes :=
 match bs2 with
 | nil => md
 | b2::bs2' => addrofbe_from_blocks bs2' (addrofbe_from_block b2 md)
 end.
 
-Definition addrofbe_from_fdef (f2:fdef) (md:abes) : abes :=
+Definition addrofbe_from_fdef (f2:SBsyntax.fdef) (md:abes) : abes :=
 match f2 with
-| fdef_intro ((fheader_intro t2 fid2 a2) as fh2) lb2 =>
+| SBsyntax.fdef_intro ((fheader_intro t2 fid2 a2) as fh2) lb2 =>
   if (isCallLib fid2) then md 
   else addrofbe_from_blocks lb2 nil
 end.
 
 Definition fabes := list (id*abes).
 
-Fixpoint addrofbe_from_products (Ps2:products) (md:fabes) : fabes :=
+Fixpoint addrofbe_from_products (Ps2:SBsyntax.products) (md:fabes) : fabes :=
 match Ps2 with
 | nil => md
-| product_fdef f2::Ps2' => 
+| SBsyntax.product_fdef f2::Ps2' => 
     let abes := addrofbe_from_fdef f2 nil in
-    let md' := updateAddAL _ md (getFdefID f2) abes in
+    let md' := updateAddAL _ md (SBsyntax.getFdefID f2) abes in
     addrofbe_from_products Ps2' md'
 | _::Ps2' => addrofbe_from_products Ps2' md
 end.
 
-Definition addrofbe_from_module (m2:module) :=
+Definition addrofbe_from_module (m2:SBsyntax.module) :=
 match m2 with
-| module_intro _ _ Ps2 => addrofbe_from_products Ps2 nil
+| SBsyntax.module_intro _ _ Ps2 => addrofbe_from_products Ps2 nil
 end.
 
 (*****************************)

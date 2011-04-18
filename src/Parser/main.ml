@@ -42,14 +42,15 @@ let main in_filename out_filename =
   let coqom = Llvm2coq.translate_module debug ost om in
       
   (* eprintf "EqTV=%b\n" (Eq_tv.tv_module coqim coqom); *)
-  
-  let md = Sub_tv_infer.metadata_from_module coqim coqom 1000 1000 in
-  let addr = Sub_tv_infer.addrofbe_from_module coqom in
+
+  let sbom = Sub_tv_def.SBsyntax.of_llvm_module coqom in  
+  let md = Sub_tv_infer.metadata_from_module sbom 1000 1000 in
+  let addr = Sub_tv_infer.addrofbe_from_module sbom in
   metadata_to_file md addr "metadata.db";
   eprintf "Meta=%b SubTV=%b RSubTV=%b MTV=%b\n" 
-    (Sub_tv_infer.validate_metadata_from_module coqim coqom md)
-    (Sub_tv.tv_module coqim coqom) (Sub_tv.rtv_module coqim coqom) 
-    (Sub_tv.mtv_module coqim coqom);
+    (Sub_tv_infer.validate_metadata_from_module sbom md)
+    (Sub_tv.tv_module coqim sbom) (Sub_tv.rtv_module coqim sbom) 
+    (Sub_tv.mtv_module coqim sbom);
   
   (* Coq2llvm.translate_module coqom; *)
   
