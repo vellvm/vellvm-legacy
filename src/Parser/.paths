@@ -5,3 +5,7 @@
 /home/jianzhou/Download/llvm-2.6z/bindings/ocaml/executionengine
 /home/jianzhou/Download/llvm-2.6z/bindings/ocaml/llvm
 /home/jianzhou/SVN/sol/vol/src/Extraction/_build/
+tvcases/milli/fptr3
+tvcases/milli/fptrret
+tvcases/milli/funcargs2
+tvcases/milli/funcret2
