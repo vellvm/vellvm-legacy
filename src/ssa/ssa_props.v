@@ -1,6 +1,7 @@
 Add LoadPath "./ott".
 Add LoadPath "./monads".
-(*Add LoadPath "../../../theory/metatheory".*)
+Add LoadPath "./compcert".
+Add LoadPath "../../../theory/metatheory_8.3".
 Require Import ssa_def.
 Require Import ssa_lib.
 Require Import Coq.Program.Equality.
@@ -530,13 +531,13 @@ Proof.
         apply IHPs in H. auto. 
 Qed.
 
-Lemma lookupFdefViaGV_inv : forall los Ps gl lc fs fv F,
-  lookupFdefViaGV los Ps gl lc fs fv = Some F ->
+Lemma lookupFdefViaGV_inv : forall TD M Ps gl lc fs fv F,
+  lookupFdefViaGV TD M Ps gl lc fs fv = Some F ->
   InProductsB (product_fdef F) Ps.
 Proof.
   intros.
   unfold lookupFdefViaGV in H.
-  destruct (getOperandValue los fv lc gl); try solve [inversion H].
+  destruct (getOperandValue TD M fv lc gl); simpl in H; try solve [inversion H].
   destruct (lookupFdefViaGVFromFunTable fs g); try solve [inversion H].
   apply lookupFdefViaIDFromProducts_inv in H; auto.
 Qed.
@@ -649,9 +650,9 @@ Proof.
   apply blockInSystemModuleFdef_intro; auto.
 Qed.
 
-Lemma entryBlockInSystemBlockFdef' : forall los nts Ps gl lc fs fv F S B,
+Lemma entryBlockInSystemBlockFdef' : forall los nts M Ps gl lc fs fv F S B,
   moduleInSystem (module_intro los nts Ps) S ->
-  lookupFdefViaGV (los, nts) Ps gl lc fs fv = Some F ->
+  lookupFdefViaGV (los, nts) M Ps gl lc fs fv = Some F ->
   getEntryBlock F = Some B ->
   blockInSystemModuleFdef B S (module_intro los nts Ps) F.
 Proof.
@@ -696,9 +697,9 @@ Proof.
   apply productInSystemModuleB_intro; auto.
 Qed.
 
-Lemma lookupFdefViaGVInSystem : forall los nts Ps gl lc fs S fv F,
+Lemma lookupFdefViaGVInSystem : forall los nts M Ps gl lc fs S fv F,
   moduleInSystem (module_intro los nts Ps) S ->
-  lookupFdefViaGV (los, nts) Ps gl lc fs fv = Some F ->
+  lookupFdefViaGV (los, nts) M Ps gl lc fs fv = Some F ->
   productInSystemModuleB (product_fdef F) S (module_intro los nts Ps).
 Proof.
   intros.
@@ -901,10 +902,10 @@ Proof.
   eapply uniqProducts__uniqFdef; simpl; eauto.
 Qed.
 
-Lemma lookupFdefViaGV_uniq : forall los nts Ps gl lc fs S fv F,
+Lemma lookupFdefViaGV_uniq : forall los nts M Ps gl lc fs S fv F,
   uniqSystem S ->
   moduleInSystem (module_intro los nts Ps) S ->
-  lookupFdefViaGV (los, nts) Ps gl lc fs fv = Some F ->
+  lookupFdefViaGV (los, nts) M Ps gl lc fs fv = Some F ->
   uniqFdef F.
 Proof.
   intros.
@@ -1063,18 +1064,18 @@ Proof.
 Qed.     
 
 
-Lemma eqAL_lookupExFdecViaGV : forall gl TD Ps lc lc' fs fv,
+Lemma eqAL_lookupExFdecViaGV : forall gl TD M Ps lc lc' fs fv,
   eqAL _ lc lc' ->
-  lookupExFdecViaGV TD Ps gl lc fs fv = lookupExFdecViaGV TD Ps gl lc' fs fv.
+  lookupExFdecViaGV TD M Ps gl lc fs fv = lookupExFdecViaGV TD M Ps gl lc' fs fv.
 Proof.
   intros.
   unfold lookupExFdecViaGV.
   erewrite getOperandValue_eqAL; eauto.
 Qed.
 
-Lemma eqAL_lookupExFdefViaGV : forall gl TD Ps lc lc' fs fv,
+Lemma eqAL_lookupExFdefViaGV : forall gl TD M Ps lc lc' fs fv,
   eqAL _ lc lc' ->
-  lookupFdefViaGV TD Ps gl lc fs fv = lookupFdefViaGV TD Ps gl lc' fs fv.
+  lookupFdefViaGV TD M Ps gl lc fs fv = lookupFdefViaGV TD M Ps gl lc' fs fv.
 Proof.
   intros.
   unfold lookupFdefViaGV.
@@ -1082,3 +1083,10 @@ Proof.
 Qed.
 
   
+(*****************************)
+(*
+*** Local Variables: ***
+*** coq-prog-name: "coqtop" ***
+*** coq-prog-args: ("-emacs-U" "-I" "~/SVN/sol/vol/src/ssa/monads" "-I" "~/SVN/sol/vol/src/ssa/ott" "-I" "~/SVN/sol/vol/src/ssa/compcert" "-I" "~/SVN/sol/theory/metatheory_8.3") ***
+*** End: ***
+ *)

@@ -10,7 +10,6 @@ Require Import targetdata.
 Require Import monad.
 Require Import Arith.
 Require Import Metatheory.
-Require Import ssa_mem.
 Require Import genericvalues.
 Require Import ssa_dynamic.
 Require Import trace.
@@ -27,11 +26,12 @@ Export SimpleSE.
    denote some concrete states w.r.t the initial state, it is possible to
    execute the subblock to completion from this initial state. *)
 
-Lemma value2Sterm_denotes__implies__genericvalue : forall TD lc0 Mem0 smap1 lc gl v gv,
+Lemma value2Sterm_denotes__implies__genericvalue : forall TD lc0 Mem0 smap1 lc 
+    gl v gv,
   uniq smap1 ->
   smap_denotes_gvmap TD lc0 gl Mem0 smap1 lc ->
   sterm_denotes_genericvalue TD lc0 gl Mem0 (value2Sterm smap1 v) gv ->
-  getOperandValue TD v lc gl = Some gv.
+  getOperandValue TD Mem0 v lc gl = Some gv.
 Proof.
   intros D lc0 Mem0 smap1 lc gl v gv Huniq Hdenotes J.
   unfold smap_denotes_gvmap in Hdenotes.
@@ -60,26 +60,30 @@ Proof.
     inversion J. auto.
 Qed.
 
-Lemma value2Sterm_denote__imply__genericvalues : forall l0 TD lc0 Mem0 smap1 lc gl gvs0,
+Lemma value2Sterm_denote__imply__genericvalues : forall l0 TD lc0 Mem0 smap1 lc 
+    gl gvs0,
   uniq smap1 ->
   smap_denotes_gvmap TD lc0 gl Mem0 smap1 lc ->
   sterms_denote_genericvalues TD lc0 gl Mem0 
     (make_list_sterm (map_list_value (value2Sterm smap1) l0)) gvs0 ->
-  values2GVs TD l0 lc gl = Some gvs0.
+  values2GVs TD Mem0 l0 lc gl = Some gvs0.
 Proof.
   induction l0; intros; simpl in *.
     inversion H1; subst; auto.
 
     inversion H1; subst.
-    apply value2Sterm_denotes__implies__genericvalue with (lc:=lc)(gl:=gl) in H10; auto.
+    apply value2Sterm_denotes__implies__genericvalue with (lc:=lc)(gl:=gl) in H10
+      ; auto.
     rewrite H10.
     erewrite IHl0; eauto.
 Qed.
 
-Lemma aux__se_cmd__denotes__exists_op_cmd : forall TD c nc lc als gl Mem1 lc' als' Mem2 lc0 als0 Mem0 sstate1 tr1 tr2,
+Lemma aux__se_cmd__denotes__exists_op_cmd : forall TD c nc lc als gl Mem1 lc' 
+    als' Mem2 lc0 als0 Mem0 sstate1 tr1 tr2,
   uniq sstate1.(STerms) ->
   sstate_denotes_state TD lc0 gl als0 Mem0 sstate1 lc als Mem1 tr1 ->
-  sstate_denotes_state TD lc0 gl als0 Mem0 (se_cmd sstate1 (mkNB c nc)) lc' als' Mem2 tr2 ->
+  sstate_denotes_state TD lc0 gl als0 Mem0 (se_cmd sstate1 (mkNB c nc)) lc' als' 
+    Mem2 tr2 ->
   exists lc',  exists als', exists Mem2, exists tr,
     dbCmd TD gl lc als Mem1 c lc' als' Mem2 tr /\
     tr2 = trace_app tr1 tr.
@@ -103,7 +107,9 @@ Proof.
     apply value2Sterm_denotes__implies__genericvalue with (lc:=lc)(gl:=gl) in H10; auto.
     apply value2Sterm_denotes__implies__genericvalue with (lc:=lc)(gl:=gl) in H11; auto.
     exists (updateAddAL _ lc i0 gv3). exists als. exists Mem1. exists trace_nil. 
-    assert (BOP TD lc gl b s v v0 = Some gv3) as J.
+    assert (BOP TD Mem1 lc gl b s v v0 = Some gv3) as J.
+      apply wrong_assumption1 with (M2:=Mem1) in H10.
+      apply wrong_assumption1 with (M2:=Mem1) in H11.
       unfold BOP. rewrite H10. rewrite H11. auto.
     split; eauto.
 
@@ -119,7 +125,9 @@ Proof.
     apply value2Sterm_denotes__implies__genericvalue with (lc:=lc)(gl:=gl) in H10; auto.
     apply value2Sterm_denotes__implies__genericvalue with (lc:=lc)(gl:=gl) in H11; auto.
     exists (updateAddAL _ lc i0 gv3). exists als. exists Mem1. exists trace_nil. 
-    assert (FBOP TD lc gl f f0 v v0 = Some gv3) as J.
+    assert (FBOP TD Mem1 lc gl f f0 v v0 = Some gv3) as J.
+      apply wrong_assumption1 with (M2:=Mem1) in H10.
+      apply wrong_assumption1 with (M2:=Mem1) in H11.
       unfold FBOP. rewrite H10. rewrite H11. auto.
     split; eauto.
 
@@ -133,6 +141,7 @@ Proof.
     inversion extractvalue_denotes_gv'; subst.
     apply value2Sterm_denotes__implies__genericvalue with (lc:=lc)(gl:=gl) in H9; auto.
     exists (updateAddAL _ lc i0 gv'). exists als. exists Mem1. exists trace_nil.
+    apply wrong_assumption1 with (M2:=Mem1) in H9.
     split; eauto.
 
   Case "insn_insertvalue".
@@ -146,6 +155,8 @@ Proof.
     apply value2Sterm_denotes__implies__genericvalue with (lc:=lc)(gl:=gl) in H11; auto.
     apply value2Sterm_denotes__implies__genericvalue with (lc:=lc)(gl:=gl) in H12; auto.
     exists (updateAddAL _ lc i0 gv'). exists als. exists Mem1. exists trace_nil.
+    apply wrong_assumption1 with (M2:=Mem1) in H11.
+    apply wrong_assumption1 with (M2:=Mem1) in H12.
     split; eauto.
 
   Case "insn_malloc".
@@ -160,6 +171,7 @@ Proof.
     apply smem_denotes_mem_det with (Mem2:=Mem1) in H9; auto.
     subst.
     exists (updateAddAL _ lc i0 (blk2GV TD mb)). exists als. exists Mem5. exists trace_nil.
+    apply wrong_assumption1 with (M2:=Mem1) in H12.
     split; eauto.
 
   Case "insn_free".
@@ -168,6 +180,7 @@ Proof.
     apply smem_denotes_mem_det with (Mem2:=Mem1) in H10; auto.
     subst.
     exists lc. exists als. exists Mem2. exists trace_nil.
+    apply wrong_assumption1 with (M2:=Mem1) in H8.
     split; eauto.
 
   Case "insn_alloca".
@@ -182,6 +195,7 @@ Proof.
     apply smem_denotes_mem_det with (Mem2:=Mem1) in H9; auto.
     subst.
     exists (updateAddAL _ lc i0 (blk2GV TD mb)). exists (mb::als). exists Mem5. exists trace_nil.
+    apply wrong_assumption1 with (M2:=Mem1) in H12.
     split; eauto.
 
   Case "insn_load".
@@ -196,6 +210,7 @@ Proof.
     apply smem_denotes_mem_det with (Mem2:=Mem1) in H11; auto.
     subst.
     exists (updateAddAL _ lc i0 gv'). exists als. exists Mem1. exists trace_nil.
+    apply wrong_assumption1 with (M2:=Mem1) in H10.
     split; eauto.
 
   Case "insn_store".
@@ -205,6 +220,8 @@ Proof.
     apply smem_denotes_mem_det with (Mem2:=Mem1) in H13; auto.
     subst.
     exists lc. exists als. exists Mem2. exists trace_nil.
+    apply wrong_assumption1 with (M2:=Mem1) in H11.
+    apply wrong_assumption1 with (M2:=Mem1) in H12.
     split; eauto.
 
   Case "insn_gep".
@@ -218,6 +235,8 @@ Proof.
     apply value2Sterm_denotes__implies__genericvalue with (lc:=lc)(gl:=gl) in H10; auto.
     apply value2Sterm_denote__imply__genericvalues with (lc:=lc)(gl:=gl) in H11; auto.
     exists (updateAddAL _ lc i0 gv'). exists als. exists Mem1. exists trace_nil.
+    apply wrong_assumption1 with (M2:=Mem1) in H10.
+    apply wrong_assumption2 with (M2:=Mem1) in H11.
     split; eauto.
 
   Case "insn_trunc".
@@ -230,7 +249,8 @@ Proof.
     inversion trunc_denotes_gv3; subst.
     apply value2Sterm_denotes__implies__genericvalue with (lc:=lc)(gl:=gl) in H10; auto.
     exists (updateAddAL _ lc i0 gv3). exists als. exists Mem1. exists trace_nil. 
-    assert (TRUNC TD lc gl t t0 v t1 = Some gv3) as J.
+    assert (TRUNC TD Mem1 lc gl t t0 v t1 = Some gv3) as J.
+      apply wrong_assumption1 with (M2:=Mem1) in H10.
       unfold TRUNC. rewrite H10. auto.
     split; eauto.
 
@@ -244,7 +264,8 @@ Proof.
     inversion ext_denotes_gv3; subst.
     apply value2Sterm_denotes__implies__genericvalue with (lc:=lc)(gl:=gl) in H10; auto.
     exists (updateAddAL _ lc i0 gv3). exists als. exists Mem1. exists trace_nil. 
-    assert (EXT TD lc gl e t v t0 = Some gv3) as J.
+    assert (EXT TD Mem1 lc gl e t v t0 = Some gv3) as J.
+      apply wrong_assumption1 with (M2:=Mem1) in H10.
       unfold EXT. rewrite H10. auto.
     split; eauto.
 
@@ -258,7 +279,9 @@ Proof.
     inversion cast_denotes_gv3; subst.
     apply value2Sterm_denotes__implies__genericvalue with (lc:=lc)(gl:=gl) in H10; auto.
     exists (updateAddAL _ lc i0 gv3). exists als. exists Mem1. exists trace_nil. 
-    assert (CAST TD lc gl c t v t0 = Some gv3) as J.
+    assert (CAST TD Mem1 lc gl c t v t0 = Some gv3) as J.
+      apply wrong_assumption1 with (M2:=Mem1) in H10.
+      apply wrong_assumption3 with (M2:=Mem1) in H11.
       unfold CAST. rewrite H10. auto.
     split; eauto.
 
@@ -273,7 +296,9 @@ Proof.
     apply value2Sterm_denotes__implies__genericvalue with (lc:=lc)(gl:=gl) in H10; auto.
     apply value2Sterm_denotes__implies__genericvalue with (lc:=lc)(gl:=gl) in H11; auto.
     exists (updateAddAL _ lc i0 gv3). exists als. exists Mem1. exists trace_nil. 
-    assert (ICMP TD lc gl c t v v0 = Some gv3) as J.
+    assert (ICMP TD Mem1 lc gl c t v v0 = Some gv3) as J.
+      apply wrong_assumption1 with (M2:=Mem1) in H10.
+      apply wrong_assumption1 with (M2:=Mem1) in H11.
       unfold ICMP. rewrite H10. rewrite H11. auto.
     split; eauto.
 
@@ -288,7 +313,9 @@ Proof.
     apply value2Sterm_denotes__implies__genericvalue with (lc:=lc)(gl:=gl) in H10; auto.
     apply value2Sterm_denotes__implies__genericvalue with (lc:=lc)(gl:=gl) in H11; auto.
     exists (updateAddAL _ lc i0 gv3). exists als. exists Mem1. exists trace_nil. 
-    assert (FCMP TD lc gl f f0 v v0 = Some gv3) as J.
+    assert (FCMP TD Mem1 lc gl f f0 v v0 = Some gv3) as J.
+      apply wrong_assumption1 with (M2:=Mem1) in H10.
+      apply wrong_assumption1 with (M2:=Mem1) in H11.
       unfold FCMP. rewrite H10. rewrite H11. auto.
     split; eauto.
 
@@ -304,6 +331,9 @@ Proof.
     apply value2Sterm_denotes__implies__genericvalue with (lc:=lc)(gl:=gl) in H11; auto.
     apply value2Sterm_denotes__implies__genericvalue with (lc:=lc)(gl:=gl) in H12; auto.
     exists (if isGVZero TD gv0 then updateAddAL _ lc i0 gv2 else updateAddAL _ lc i0 gv1). exists als. exists Mem1. exists trace_nil. 
+    apply wrong_assumption1 with (M2:=Mem1) in H9.
+    apply wrong_assumption1 with (M2:=Mem1) in H11.
+    apply wrong_assumption1 with (M2:=Mem1) in H12.
     split; eauto.
 
   Case "insn_call".
@@ -791,7 +821,7 @@ Proof.
             apply sterm_bop_denotes with (gv1:=gv1)(gv2:=gv2); eauto
                   using value2Sterm_denotes__implies__genericvalue,
                         genericvalue__implies__value2Sterm_denotes,
-                        init_denotes_gvmap.
+                        init_denotes_gvmap, wrong_assumption1.
 
             apply se_cmds_denotes__decomposes__prefix_last__case1 with (i0:=i0)(lc0:=lc0); auto.
 
@@ -807,7 +837,7 @@ Proof.
             apply sterm_bop_denotes with (gv1:=gv1)(gv2:=gv2); eauto
               using value2Sterm_denotes__implies__genericvalue,
                     genericvalue__implies__value2Sterm_denotes,
-                    init_denotes_gvmap.
+                    init_denotes_gvmap, wrong_assumption1.
 
             rewrite lookupAL_rollbackAL_neq with (id0:=i0)(lc0:=lc0) in id'_in_env2; auto.
 
@@ -842,7 +872,7 @@ Proof.
             apply sterm_fbop_denotes with (gv1:=gv1)(gv2:=gv2); eauto
                   using value2Sterm_denotes__implies__genericvalue,
                         genericvalue__implies__value2Sterm_denotes,
-                        init_denotes_gvmap.
+                        init_denotes_gvmap, wrong_assumption1.
 
             apply se_cmds_denotes__decomposes__prefix_last__case1 with (i0:=i0)(lc0:=lc0); auto.
 
@@ -858,7 +888,7 @@ Proof.
             apply sterm_fbop_denotes with (gv1:=gv1)(gv2:=gv2); eauto
               using value2Sterm_denotes__implies__genericvalue,
                     genericvalue__implies__value2Sterm_denotes,
-                    init_denotes_gvmap.
+                    init_denotes_gvmap, wrong_assumption1.
 
             rewrite lookupAL_rollbackAL_neq with (id0:=i0)(lc0:=lc0) in id'_in_env2; auto.
 
@@ -893,7 +923,7 @@ Proof.
             apply sterm_extractvalue_denotes with (gv1:=gv1); eauto
                   using value2Sterm_denotes__implies__genericvalue,
                         genericvalue__implies__value2Sterm_denotes,
-                        init_denotes_gvmap.
+                        init_denotes_gvmap, wrong_assumption1.
 
             apply se_cmds_denotes__decomposes__prefix_last__case1 with (i0:=i0)(lc0:=lc0); auto.
 
@@ -909,7 +939,7 @@ Proof.
             apply sterm_extractvalue_denotes with (gv1:=gv1); eauto
               using value2Sterm_denotes__implies__genericvalue,
                     genericvalue__implies__value2Sterm_denotes,
-                    init_denotes_gvmap.
+                    init_denotes_gvmap, wrong_assumption1.
 
             rewrite lookupAL_rollbackAL_neq with (id0:=i0)(lc0:=lc0) in id'_in_env2; auto.
 
@@ -944,7 +974,7 @@ Proof.
             apply sterm_insertvalue_denotes with (gv1:=gv1)(gv2:=gv2); eauto
                   using value2Sterm_denotes__implies__genericvalue,
                         genericvalue__implies__value2Sterm_denotes,
-                        init_denotes_gvmap.
+                        init_denotes_gvmap, wrong_assumption1.
 
             apply se_cmds_denotes__decomposes__prefix_last__case1 with (i0:=i0)(lc0:=lc0); auto.
 
@@ -960,7 +990,7 @@ Proof.
             apply sterm_insertvalue_denotes with (gv1:=gv1)(gv2:=gv2); eauto
               using value2Sterm_denotes__implies__genericvalue,
                     genericvalue__implies__value2Sterm_denotes,
-                    init_denotes_gvmap.
+                    init_denotes_gvmap, wrong_assumption1.
 
             rewrite lookupAL_rollbackAL_neq with (id0:=i0)(lc0:=lc0) in id'_in_env2; auto.
 
@@ -1000,7 +1030,7 @@ Proof.
             eapply sterm_malloc_denotes; eauto
                   using value2Sterm_denotes__implies__genericvalue,
                         genericvalue__implies__value2Sterm_denotes,
-                        init_denotes_gvmap.
+                        init_denotes_gvmap, wrong_assumption1.
 
             apply se_cmds_denotes__decomposes__prefix_last__case1 with (i0:=i0)(lc0:=lc0); auto.
 
@@ -1020,14 +1050,19 @@ Proof.
             eapply sterm_malloc_denotes; eauto
               using value2Sterm_denotes__implies__genericvalue,
                     genericvalue__implies__value2Sterm_denotes,
-                    init_denotes_gvmap.
+                    init_denotes_gvmap, wrong_assumption1.
 
             rewrite lookupAL_rollbackAL_neq with (id0:=i0)(lc0:=lc0) in id'_in_env2; auto.
 
       split; simpl; eauto
               using value2Sterm_denotes__implies__genericvalue,
                     genericvalue__implies__value2Sterm_denotes,
-                    init_denotes_gvmap.
+                    init_denotes_gvmap, wrong_assumption1.
+
+        eapply smem_malloc_denotes; eauto.
+          eapply genericvalue__implies__value2Sterm_denotes; eauto.
+          eapply init_denotes_gvmap; eauto.
+          apply value2Sterm_denotes__implies__genericvalue with (lc:=rollbackAL _ lc2 i0 lc0) in H10; eauto using wrong_assumption1.
     
   Case "insn_free".
     inversion Hsmem_denotes; subst.
@@ -1047,7 +1082,7 @@ Proof.
         apply value2Sterm_denotes__implies__genericvalue with (lc:=lc2) in H6; try solve [auto | split; auto].
         eapply smem_free_denotes; eauto 
                   using genericvalue__implies__value2Sterm_denotes,
-                        init_denotes_gvmap.        
+                        init_denotes_gvmap, wrong_assumption1.        
 
   Case "insn_alloca".
     assert (i0 `in` dom (STerms (se_cmd (se_cmds sstate_init nbs) (mkNB (insn_alloca i0 t v a) nc))) `union` dom lc0) as J.
@@ -1090,7 +1125,7 @@ Proof.
             eapply sterm_alloca_denotes; eauto
                   using value2Sterm_denotes__implies__genericvalue,
                         genericvalue__implies__value2Sterm_denotes,
-                        init_denotes_gvmap.
+                        init_denotes_gvmap, wrong_assumption1.
 
             apply se_cmds_denotes__decomposes__prefix_last__case1 with (i0:=i0)(lc0:=lc0); auto.
 
@@ -1110,7 +1145,7 @@ Proof.
             eapply sterm_alloca_denotes; eauto
                   using value2Sterm_denotes__implies__genericvalue,
                         genericvalue__implies__value2Sterm_denotes,
-                        init_denotes_gvmap.
+                        init_denotes_gvmap, wrong_assumption1.
 
             rewrite lookupAL_rollbackAL_neq with (id0:=i0)(lc0:=lc0) in id'_in_env2; auto.
 
@@ -1118,10 +1153,21 @@ Proof.
               using value2Sterm_denotes__implies__genericvalue,
                     genericvalue__implies__value2Sterm_denotes,
                     init_denotes_gvmap.
+
+        eapply smem_alloca_denotes; eauto.
+          eapply genericvalue__implies__value2Sterm_denotes; eauto.
+          eapply init_denotes_gvmap; eauto.
+          apply value2Sterm_denotes__implies__genericvalue with (lc:=rollbackAL _ lc2 i0 lc0) in H17; eauto using wrong_assumption1.
+    
       split; simpl; eauto
               using value2Sterm_denotes__implies__genericvalue,
                     genericvalue__implies__value2Sterm_denotes,
                     init_denotes_gvmap.
+
+        eapply sframe_alloca_denotes; eauto.
+          eapply genericvalue__implies__value2Sterm_denotes; eauto.
+          eapply init_denotes_gvmap; eauto.
+          apply value2Sterm_denotes__implies__genericvalue with (lc:=rollbackAL _ lc2 i0 lc0) in H17; eauto using wrong_assumption1.
 
   Case "insn_load".
     assert (i0 `in` dom (STerms (se_cmd (se_cmds sstate_init nbs) (mkNB (insn_load i0 t v a) nc))) `union` dom lc0) as J.
@@ -1156,7 +1202,7 @@ Proof.
             eapply sterm_load_denotes with (gv0:=gv0); eauto
                   using value2Sterm_denotes__implies__genericvalue,
                         genericvalue__implies__value2Sterm_denotes,
-                        init_denotes_gvmap.
+                        init_denotes_gvmap, wrong_assumption1.
 
             apply se_cmds_denotes__decomposes__prefix_last__case1 with (i0:=i0)(lc0:=lc0); auto.
 
@@ -1173,7 +1219,7 @@ Proof.
             eapply sterm_load_denotes with (gv0:=gv0); eauto
               using value2Sterm_denotes__implies__genericvalue,
                     genericvalue__implies__value2Sterm_denotes,
-                    init_denotes_gvmap.
+                    init_denotes_gvmap, wrong_assumption1.
 
             rewrite lookupAL_rollbackAL_neq with (id0:=i0)(lc0:=lc0) in id'_in_env2; auto.
 
@@ -1199,7 +1245,7 @@ Proof.
         apply value2Sterm_denotes__implies__genericvalue with (lc:=lc2) in H10; try solve [auto | split; auto].
         eapply smem_store_denotes; eauto 
                   using genericvalue__implies__value2Sterm_denotes,
-                        init_denotes_gvmap.        
+                        init_denotes_gvmap, wrong_assumption1.        
 
   Case "insn_gep".
     assert (i0 `in` dom (STerms (se_cmd (se_cmds sstate_init nbs) (mkNB (insn_gep i0 i1 t v l0) nc))) `union` dom lc0) as J.
@@ -1233,8 +1279,9 @@ Proof.
             eapply sterm_gep_denotes with (gv0:=gv0)(gvs0:=gvs0); eauto
                   using value2Sterm_denotes__implies__genericvalue,
                         genericvalue__implies__value2Sterm_denotes,
-                        init_denotes_gvmap.
-              eapply genericvalues__imply__value2Sterm_denote; eauto using init_denotes_gvmap.
+                        init_denotes_gvmap, wrong_assumption1.
+              eapply genericvalues__imply__value2Sterm_denote; eauto 
+                using init_denotes_gvmap, wrong_assumption2.
 
             apply se_cmds_denotes__decomposes__prefix_last__case1 with (i0:=i0)(lc0:=lc0); auto.
 
@@ -1251,8 +1298,8 @@ Proof.
             eapply sterm_gep_denotes with (gv0:=gv0)(gvs0:=gvs0); eauto
               using value2Sterm_denotes__implies__genericvalue,
                     genericvalue__implies__value2Sterm_denotes,
-                    init_denotes_gvmap.
-              eapply genericvalues__imply__value2Sterm_denote; eauto using init_denotes_gvmap.
+                    init_denotes_gvmap, wrong_assumption1.
+              eapply genericvalues__imply__value2Sterm_denote; eauto using init_denotes_gvmap, wrong_assumption2.
 
             rewrite lookupAL_rollbackAL_neq with (id0:=i0)(lc0:=lc0) in id'_in_env2; auto.
 
@@ -1287,7 +1334,7 @@ Proof.
             apply sterm_trunc_denotes with (gv1:=gv1); eauto
                   using value2Sterm_denotes__implies__genericvalue,
                         genericvalue__implies__value2Sterm_denotes,
-                        init_denotes_gvmap.
+                        init_denotes_gvmap, wrong_assumption1.
 
             apply se_cmds_denotes__decomposes__prefix_last__case1 with (i0:=i0)(lc0:=lc0); auto.
 
@@ -1303,7 +1350,7 @@ Proof.
             apply sterm_trunc_denotes with (gv1:=gv1); eauto
               using value2Sterm_denotes__implies__genericvalue,
                     genericvalue__implies__value2Sterm_denotes,
-                    init_denotes_gvmap.
+                    init_denotes_gvmap, wrong_assumption1.
 
             rewrite lookupAL_rollbackAL_neq with (id0:=i0)(lc0:=lc0) in id'_in_env2; auto.
 
@@ -1338,7 +1385,7 @@ Proof.
             apply sterm_ext_denotes with (gv1:=gv1); eauto
                   using value2Sterm_denotes__implies__genericvalue,
                         genericvalue__implies__value2Sterm_denotes,
-                        init_denotes_gvmap.
+                        init_denotes_gvmap, wrong_assumption1.
 
             apply se_cmds_denotes__decomposes__prefix_last__case1 with (i0:=i0)(lc0:=lc0); auto.
 
@@ -1354,7 +1401,7 @@ Proof.
             apply sterm_ext_denotes with (gv1:=gv1); eauto
               using value2Sterm_denotes__implies__genericvalue,
                     genericvalue__implies__value2Sterm_denotes,
-                    init_denotes_gvmap.
+                    init_denotes_gvmap, wrong_assumption1.
 
             rewrite lookupAL_rollbackAL_neq with (id0:=i0)(lc0:=lc0) in id'_in_env2; auto.
 
@@ -1389,7 +1436,7 @@ Proof.
             apply sterm_cast_denotes with (gv1:=gv1); eauto
                   using value2Sterm_denotes__implies__genericvalue,
                         genericvalue__implies__value2Sterm_denotes,
-                        init_denotes_gvmap.
+                        init_denotes_gvmap, wrong_assumption1, wrong_assumption3.
 
             apply se_cmds_denotes__decomposes__prefix_last__case1 with (i0:=i0)(lc0:=lc0); auto.
 
@@ -1405,7 +1452,7 @@ Proof.
             apply sterm_cast_denotes with (gv1:=gv1); eauto
               using value2Sterm_denotes__implies__genericvalue,
                     genericvalue__implies__value2Sterm_denotes,
-                    init_denotes_gvmap.
+                    init_denotes_gvmap, wrong_assumption1, wrong_assumption3.
 
             rewrite lookupAL_rollbackAL_neq with (id0:=i0)(lc0:=lc0) in id'_in_env2; auto.
 
@@ -1440,7 +1487,7 @@ Proof.
             apply sterm_icmp_denotes with (gv1:=gv1)(gv2:=gv2); eauto
                   using value2Sterm_denotes__implies__genericvalue,
                         genericvalue__implies__value2Sterm_denotes,
-                        init_denotes_gvmap.
+                        init_denotes_gvmap, wrong_assumption1.
 
             apply se_cmds_denotes__decomposes__prefix_last__case1 with (i0:=i0)(lc0:=lc0); auto.
 
@@ -1456,7 +1503,7 @@ Proof.
             apply sterm_icmp_denotes with (gv1:=gv1)(gv2:=gv2); eauto
               using value2Sterm_denotes__implies__genericvalue,
                     genericvalue__implies__value2Sterm_denotes,
-                    init_denotes_gvmap.
+                    init_denotes_gvmap, wrong_assumption1.
 
             rewrite lookupAL_rollbackAL_neq with (id0:=i0)(lc0:=lc0) in id'_in_env2; auto.
 
@@ -1491,7 +1538,7 @@ Proof.
             apply sterm_fcmp_denotes with (gv1:=gv1)(gv2:=gv2); eauto
                   using value2Sterm_denotes__implies__genericvalue,
                         genericvalue__implies__value2Sterm_denotes,
-                        init_denotes_gvmap.
+                        init_denotes_gvmap, wrong_assumption1.
 
             apply se_cmds_denotes__decomposes__prefix_last__case1 with (i0:=i0)(lc0:=lc0); auto.
 
@@ -1507,7 +1554,7 @@ Proof.
             apply sterm_fcmp_denotes with (gv1:=gv1)(gv2:=gv2); eauto
               using value2Sterm_denotes__implies__genericvalue,
                     genericvalue__implies__value2Sterm_denotes,
-                    init_denotes_gvmap.
+                    init_denotes_gvmap, wrong_assumption1.
 
             rewrite lookupAL_rollbackAL_neq with (id0:=i0)(lc0:=lc0) in id'_in_env2; auto.
 
@@ -1542,7 +1589,7 @@ Proof.
             eapply sterm_select_denotes with (gv0:=gv0)(gv1:=gv1)(gv2:=gv2); eauto
                   using value2Sterm_denotes__implies__genericvalue,
                         genericvalue__implies__value2Sterm_denotes,
-                        init_denotes_gvmap.
+                        init_denotes_gvmap, wrong_assumption1.
 
             apply se_cmds_denotes__decomposes__prefix_last__case1 with (i0:=i0)(lc0:=lc0); auto.
 
@@ -1558,7 +1605,7 @@ Proof.
             eapply sterm_select_denotes with (gv0:=gv0)(gv1:=gv1)(gv2:=gv2); eauto
               using value2Sterm_denotes__implies__genericvalue,
                     genericvalue__implies__value2Sterm_denotes,
-                    init_denotes_gvmap.
+                    init_denotes_gvmap, wrong_assumption1.
 
             rewrite lookupAL_rollbackAL_neq with (id0:=i0)(lc0:=lc0) in id'_in_env2; auto.
 
@@ -1601,9 +1648,10 @@ Lemma se_cmds_denotes__composes__prefix_last__case2 : forall TD lc1 gl Mem1 lc0 
   sterm_denotes_genericvalue TD lc0 gl Mem0 (value2Sterm (STerms (se_cmds sstate_init nbs)) v) gv1.
 Proof.
   intros TD lc1 gl Mem1 lc0 Mem0 v gv1 nbs U1 H1 H2.
-                apply value2Sterm_denotes__implies__genericvalue with (lc:=lc1) in H2; auto.
-                  apply genericvalue__implies__value2Sterm_denotes with (lc:=lc1); auto using se_cmds_init_uniq.
-                  apply init_denotes_gvmap; auto.
+  apply value2Sterm_denotes__implies__genericvalue with (lc:=lc1) in H2; auto.
+  apply genericvalue__implies__value2Sterm_denotes with (lc:=lc1); 
+    eauto using se_cmds_init_uniq, wrong_assumption1.
+  apply init_denotes_gvmap; auto.
 Qed.
     
 Lemma se_cmds_denotes__composes__prefix_last__case3 : forall TD lc1 gl Mem1 lc0 Mem0 nbs gv' id' i0 st0,  
@@ -1871,7 +1919,7 @@ Proof.
            simpl. 
            apply value2Sterm_denotes__implies__genericvalue with (lc:=lc1) in H6; 
             try solve [eauto using init_denotes_gvmap| split; auto].
-           eapply smem_free_denotes; eauto using genericvalue__implies__value2Sterm_denotes.
+           eapply smem_free_denotes; eauto using genericvalue__implies__value2Sterm_denotes, wrong_assumption1.
     split. inversion Hsframe_denotes2; subst; auto.
            inversion Hseffects_denote1; inversion Hseffects_denote2; subst; auto.
 
@@ -1999,7 +2047,7 @@ Proof.
             try solve [eauto using init_denotes_gvmap| split; auto].
            apply value2Sterm_denotes__implies__genericvalue with (lc:=lc1) in H10; 
             try solve [eauto using init_denotes_gvmap| split; auto].
-           eapply smem_store_denotes; eauto using genericvalue__implies__value2Sterm_denotes.
+           eapply smem_store_denotes; eauto using genericvalue__implies__value2Sterm_denotes, wrong_assumption1.
     split. inversion Hsframe_denotes2; subst; auto.
            inversion Hseffects_denote1; inversion Hseffects_denote2; subst; auto.
 
@@ -2025,7 +2073,8 @@ Proof.
               eapply sterm_gep_denotes with (gv0:=gv0)(gvs0:=gvs0);
                 try solve [eauto | apply se_cmds_denotes__composes__prefix_last__case2 with (lc1:=lc1)(Mem1:=Mem1); auto].
                 apply value2Sterm_denote__imply__genericvalues with (lc:=lc1) in H9; auto.
-                  apply genericvalues__imply__value2Sterm_denote with (lc:=lc1); auto using se_cmds_uniq.
+                  apply genericvalues__imply__value2Sterm_denote with (lc:=lc1);
+                    eauto using se_cmds_uniq, wrong_assumption2.
                   apply init_denotes_gvmap; auto.
 
         apply Hsterms_denote22 in H.
@@ -2036,7 +2085,8 @@ Proof.
           apply sterm_gep_denotes with (gv0:=gv0)(gvs0:=gvs0);
                 try solve [auto | apply se_cmds_denotes__composes__prefix_last__case2 with (lc1:=lc1)(Mem1:=Mem1); auto].
                 apply value2Sterm_denote__imply__genericvalues with (lc:=lc1) in H10; auto.
-                  apply genericvalues__imply__value2Sterm_denote with (lc:=lc1); auto using se_cmds_uniq.
+                  apply genericvalues__imply__value2Sterm_denote with (lc:=lc1); 
+                    eauto using se_cmds_uniq, wrong_assumption2.
                   apply init_denotes_gvmap; auto.
 
           apply se_cmds_denotes__composes__prefix_last__case3 with (lc1:=lc1)(Mem1:=Mem1)(i0:=i0); try solve [auto | split; auto].
@@ -2137,7 +2187,7 @@ Proof.
 
               rewrite lookupSmap_updateAddAL_eq.
               apply sterm_cast_denotes with (gv1:=gv1); 
-                try solve [auto | apply se_cmds_denotes__composes__prefix_last__case2 with (lc1:=lc1)(Mem1:=Mem1); auto].
+                try solve [eauto using wrong_assumption3 | apply se_cmds_denotes__composes__prefix_last__case2 with (lc1:=lc1)(Mem1:=Mem1); auto].
 
         apply Hsterms_denote22 in H.
         simpl in H. simpl.
@@ -2145,7 +2195,7 @@ Proof.
           rewrite lookupSmap_updateAddAL_eq.
           inversion H; subst.
           apply sterm_cast_denotes with (gv1:=gv1);
-                try solve [auto | apply se_cmds_denotes__composes__prefix_last__case2 with (lc1:=lc1)(Mem1:=Mem1); auto].
+                try solve [eauto using wrong_assumption3 | apply se_cmds_denotes__composes__prefix_last__case2 with (lc1:=lc1)(Mem1:=Mem1); auto].
 
           apply se_cmds_denotes__composes__prefix_last__case3 with (lc1:=lc1)(Mem1:=Mem1)(i0:=i0); try solve [auto | split; auto].
 

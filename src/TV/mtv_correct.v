@@ -1,3 +1,4 @@
+(*
 Add LoadPath "../ssa/ott".
 Add LoadPath "../ssa/monads".
 Add LoadPath "../ssa".
@@ -193,6 +194,7 @@ Lemma mtv_cmds__is__correct : forall Ps1 Ps2 fid1 l1 TD lc1 als1 gl Mem1 fs
     /\
     valid_metadata TD fs lc2 Mem2 md = true).
 Admitted.
+*)
 
 (*****************************)
 (*

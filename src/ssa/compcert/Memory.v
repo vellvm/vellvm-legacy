@@ -68,20 +68,40 @@ Record mem_ : Type := mkmem {
   mem_access: block -> Z -> option permission;
   bounds: block -> Z * Z;
   nextblock: block;
+  maxaddress: Z;
+  ptr2int: block -> Z -> option Z;
+  int2ptr: Z -> option (block * Z);
+
   nextblock_pos: nextblock > 0;
   nextblock_noaccess: forall b, 0 < b < nextblock \/ bounds b = (0,0) ;
   bounds_noaccess: forall b ofs, ofs < fst(bounds b) \/ ofs >= snd(bounds b) -> mem_access b ofs = None;
-  noread_undef: forall b ofs,  perm_order' (mem_access b ofs) Readable \/ mem_contents b ofs = Undef
+  noread_undef: forall b ofs, perm_order' (mem_access b ofs) Readable \/ mem_contents b ofs = Undef;
+
+  maxaddress_pos: maxaddress >= 0;  
+  conversion_props : 
+    (forall b ofs, mem_access b ofs <> None <-> exists z, ptr2int b ofs = Some z)
+      /\
+    (forall b ofs z, ptr2int b ofs = Some z <-> int2ptr z = Some (b, ofs)) /\
+    (forall b ofs1 ofs2 z1 z2, 
+      ptr2int b ofs1 = Some z1 -> ptr2int b ofs2 = Some z2 -> 
+      ofs2 - ofs1 = z2 - z1
+    ) /\ 
+    (forall b1 b2 ofs1 ofs2 z1 z2, 
+      b1 <> b2 -> ptr2int b1 ofs1 = Some z1 -> ptr2int b2 ofs2 = Some z2 -> 
+      z1 <> z2
+    ) /\  
+    (forall b ofs z, ptr2int b ofs = Some z -> 0 < z <= maxaddress)   
 }.
 
 Definition mem := mem_.
 
 Lemma mkmem_ext:
- forall cont1 cont2 acc1 acc2 bound1 bound2 next1 next2 
-          a1 a2 b1 b2 c1 c2 d1 d2,
+ forall cont1 cont2 acc1 acc2 bound1 bound2 next1 next2 max1 max2 
+        p2i1 p2i2 i2p1 i2p2 a1 a2 b1 b2 c1 c2 d1 d2 e1 e2 f1 f2,
   cont1=cont2 -> acc1=acc2 -> bound1=bound2 -> next1=next2 ->
-  mkmem cont1 acc1 bound1 next1 a1 b1 c1 d1 =
-  mkmem cont2 acc2 bound2 next2 a2 b2 c2 d2.
+  max1=max2 -> p2i1=p2i2 -> i2p1=i2p2 -> 
+  mkmem cont1 acc1 bound1 next1 max1 p2i1 i2p1 a1 b1 c1 d1 e1 f1 =
+  mkmem cont2 acc2 bound2 next2 max2 p2i2 i2p2 a2 b2 c2 d2 e2 f2.
 Proof.
   intros. subst. f_equal; apply proof_irr.
 Qed.
@@ -337,9 +357,27 @@ Program Definition empty: mem :=
   mkmem (fun b ofs => Undef)
         (fun b ofs => None)
         (fun b => (0,0))
-        1 _ _ _ _.
+        1
+        0
+        (fun b ofs => None)
+        (fun z => None)
+        _ _ _ _ _ _.
 Next Obligation.
   omega.
+Qed.
+Next Obligation.
+  split.
+    intros b z.
+    split; intro H; try solve [contradict H; auto].
+      destruct H as [z0 H]. inversion H.
+  split.
+    intros b ofs z.
+    split; intro H; try solve [inversion H].
+  split.
+    intros b ofs1 ofs2 z1 z2 H; try solve [inversion H].
+  split.
+    intros b1 b2 z10 z20 z1 z2 H1 H2; try solve [inversion H2].
+    intros b ofs z H; try solve [inversion H].
 Qed.
 
 Definition nullptr: block := 0.
@@ -348,6 +386,121 @@ Definition nullptr: block := 0.
   memory state and the address of the fresh block, which initially contains
   undefined cells.  Note that allocation never fails: we model an
   infinite memory. *)
+
+Fixpoint update_int2ptr (f : Z -> option (block * Z)) (b: block) 
+  (maxaddress lo: Z) (ofs: nat) : Z -> option (block * Z) :=
+match ofs with
+| S ofs' => update (maxaddress + 1 + (Z_of_nat ofs')) 
+              (Some (b, lo + (Z_of_nat ofs'))) 
+              (update_int2ptr f b maxaddress lo ofs')
+| O => f
+end.
+
+Lemma update_int2ptr_spec1 : forall f b ma lo sz ofs,
+  0 <= ofs - lo < Z_of_nat sz -> 
+  update_int2ptr f b ma lo sz (ma + 1 + (ofs - lo)) = Some (b, ofs).
+Proof.
+  induction sz; intros ofs H; simpl in *.
+    assert (0 < 0). auto with zarith.
+    contradict H; auto with zarith.    
+    
+    unfold update.
+    destruct (zeq (ma + 1 + (ofs - lo)) (ma + 1 + Z_of_nat sz)).
+      assert (lo +  Z_of_nat sz = ofs) as EQ.
+        auto with zarith.
+      rewrite EQ. auto.
+
+      apply IHsz. 
+      assert (ofs - lo <> Z_of_nat sz) as NEQ.
+        auto with zarith.
+      rewrite Zpos_P_of_succ_nat in H.
+      auto with zarith.
+Qed.      
+
+Lemma update_int2ptr_spec2 : forall f b ma lo sz ofs x,
+  update_int2ptr f b ma lo sz x = Some (b, ofs) ->
+  x = ma + 1 + (ofs - lo) \/ f x = Some (b, ofs).
+Proof.
+  induction sz; intros ofs x H; simpl in *; auto.
+    unfold update in H.
+    destruct (zeq x (ma + 1 + Z_of_nat sz)); subst.
+      inversion H; subst.
+      auto with zarith.
+
+      apply IHsz in H; auto.
+Qed.      
+
+Lemma O_le_Z_of_nat : forall n, Z_of_nat n >= 0.
+Proof.
+  destruct n; auto using O_lt_Z_of_S with zarith.
+Qed.
+
+Lemma update_int2ptr_spec3 : forall f b ma lo sz ofs x,
+  update_int2ptr f b ma lo sz x = Some (b, ofs) ->
+  lo <= ofs < lo + Z_of_nat sz \/ f x = Some (b, ofs).
+Proof.
+  induction sz; intros ofs x H; simpl in *; auto.
+    unfold update in H.
+    rewrite Zpos_P_of_succ_nat.
+    destruct (zeq x (ma + 1 + Z_of_nat sz)); subst.
+      inversion H; subst.
+      auto using O_le_Z_of_nat with zarith.
+
+      apply IHsz in H; auto. 
+      destruct H as [H | H]; auto with zarith.
+Qed.      
+ 
+Lemma int2ptr_some_is_false : forall int2ptr0 
+  (mem_access0: block -> Z -> option permission) (bounds0: block -> Z * Z) 
+  (ptr2int0: block -> Z -> option Z) nextblock0 (ofs:Z) z,
+  int2ptr0 z = Some (nextblock0, ofs) ->
+  (forall b, 0 < b < nextblock0 \/ bounds0 b = (0,0)) ->
+  (forall b ofs, ofs < fst(bounds0 b) \/ ofs >= snd(bounds0 b) -> 
+    mem_access0 b ofs = None) ->
+  (forall b ofs, mem_access0 b ofs <> None <-> 
+    exists z, ptr2int0 b ofs = Some z) ->
+  (forall b ofs z, ptr2int0 b ofs = Some z <-> int2ptr0 z = Some (b, ofs)) ->
+  False.
+Proof.
+  intros int2ptr0 mem_access0 bounds0 ptr2int0 nextblock0 ofs z H 
+    nextblock_noaccess0 bounds_noaccess0 cprop1 cprop2.
+  destruct (@cprop2 nextblock0 ofs z) as [J1 J2].
+  apply J2 in H.
+  assert (exists z, ptr2int0 nextblock0 ofs = Some z) as EXIST.
+    exists z. assumption.
+  destruct (@cprop1 nextblock0 ofs) as [J3 J4].
+  apply J4 in EXIST.
+  assert (bounds0 nextblock0 = (0,0)) as J.                
+    destruct (@nextblock_noaccess0 nextblock0) as [J | ]; auto.
+      contradict J; auto with zarith.                    
+  assert (mem_access0 nextblock0 ofs = None) as J5. 
+    apply bounds_noaccess0.
+    rewrite J. simpl.
+    destruct (@Z_lt_dec ofs 0) as [J5 | J5]; auto.
+  rewrite J5 in EXIST. contradict EXIST; auto.
+Qed.
+
+Lemma update_int2ptr_spec4 : forall f b ma lo sz z,
+  z <= ma -> 
+  update_int2ptr f b ma lo sz z = f z.
+Proof.
+  induction sz; intros z H; simpl in *; auto.
+    unfold update.  
+    destruct (zeq z (ma + 1 + Z_of_nat sz)); subst; auto.
+      contradict H; auto with zarith.
+Qed.
+
+Lemma update_int2ptr_spec5 : forall f b ma lo sz z b' ofs,
+  update_int2ptr f b ma lo sz z = Some (b', ofs) ->
+  b <> b' ->
+  f z = Some (b', ofs). 
+Proof.
+  induction sz; intros z b' ofs H1 H2; simpl in *; auto.
+    unfold update in H1.  
+    destruct (zeq z (ma + 1 + Z_of_nat sz)); subst; auto.
+      inversion H1; subst.
+      contradict H2; auto.
+Qed.
 
 Program Definition alloc (m: mem) (lo hi: Z) :=
   (mkmem (update m.(nextblock) 
@@ -358,7 +511,17 @@ Program Definition alloc (m: mem) (lo hi: Z) :=
                  m.(mem_access))
          (update m.(nextblock) (lo, hi) m.(bounds))
          (Zsucc m.(nextblock))
-         _ _ _ _,
+         (m.(maxaddress) + if zlt lo hi then hi - lo else 0)
+         (update m.(nextblock) 
+                 (fun ofs => 
+                   if zle lo ofs && zlt ofs hi then 
+                     Some (m.(maxaddress) + 1 + (ofs - lo)) 
+                   else None
+                 ) 
+                 m.(ptr2int))
+         (update_int2ptr m.(int2ptr) m.(nextblock) m.(maxaddress) lo 
+           (nat_of_Z (hi - lo)))
+         _ _ _ _ _ _,
    m.(nextblock)).
 Next Obligation.
   generalize (nextblock_pos m). omega. 
@@ -386,8 +549,107 @@ unfold update.
 destruct (zeq b (nextblock m)); auto.
 apply noread_undef.
 Qed.
+Next Obligation.
+  generalize (maxaddress_pos m).
+  destruct (zlt lo hi); omega.
+Qed.
+Next Obligation.
+  destruct m. simpl.
+  destruct conversion_props0 as [cprop1 [cprop2 [cprop3 [cprop4 cprop5]]]].
+  unfold update.
+  split.
+    intros b ofs.
+    destruct (zeq b nextblock0); subst; auto.
+      destruct (zle lo ofs && zlt ofs hi).
+        split; intro H.
+          exists (maxaddress0 + 1 + (ofs - lo)). auto.
+          intro J. inversion J.
+        split; intro H. contradict H; auto.
+          destruct H as [z H]. inversion H.
+  split.
+    intros b ofs z.
+    destruct (zeq b nextblock0); subst; auto.
+      destruct (zle lo ofs); simpl.
+        destruct (zlt ofs hi); simpl.
+          split; intro H.
+            inversion H; subst.
+            apply update_int2ptr_spec1. 
+              rewrite nat_of_Z_eq; auto with zarith.
+           
+            apply update_int2ptr_spec2 in H; auto.
+            destruct H as [H | H]; subst; auto.
+              eapply int2ptr_some_is_false in H; eauto.
+              inversion H.
 
+          split; intro H; try solve [inversion H].
+            apply update_int2ptr_spec3 in H; auto.
+            destruct H as [H | H]; subst; auto.
+              destruct (@Z_le_dec lo hi) as [J | J].
+                rewrite nat_of_Z_eq in H; auto with zarith. 
+                assert (lo + (hi - lo) = hi) as EQ. auto with zarith.
+                contradict H; auto with zarith.
 
+                rewrite nat_of_Z_neg in H; auto with zarith.
+                simpl in H. contradict H; auto with zarith.
+              eapply int2ptr_some_is_false in H; eauto.
+              inversion H.
+        split; intro H; try solve [inversion H].
+          apply update_int2ptr_spec3 in H; auto.
+          destruct H as [H | H]; subst; auto.
+            contradict H; auto with zarith.
+
+            eapply int2ptr_some_is_false in H; eauto.
+            inversion H.
+      split; intro H.   
+        destruct (@cprop2 b ofs z) as [J1 J2].
+        assert (J3:=H).
+        apply J1 in H.
+        apply cprop5 in J3.
+        rewrite update_int2ptr_spec4; auto with zarith.
+
+        apply update_int2ptr_spec5 in H; auto.
+        apply cprop2; auto.
+  split.
+    intros b ofs1 ofs2 z1 z2 H1 H2.               
+    destruct (zeq b nextblock0); subst; eauto. 
+      destruct (zle lo ofs1); simpl in H1; try solve [inversion H1].
+      destruct (zlt ofs1 hi); simpl in H1; try solve [inversion H1].
+      destruct (zle lo ofs2); simpl in H2; try solve [inversion H2].
+      destruct (zlt ofs2 hi); simpl in H2; try solve [inversion H2].
+      inversion H1; subst.
+      inversion H2; subst.
+      clear H1 H2.
+      auto with zarith.      
+  split.
+    intros b1 b2 ofs1 ofs2 z1 z2 H1 H2 H3.               
+    destruct (zeq b1 nextblock0); subst; eauto. 
+      destruct (zeq b2 nextblock0); subst; eauto. 
+      destruct (zle lo ofs1); simpl in H2; try solve [inversion H2].
+      destruct (zlt ofs1 hi); simpl in H2; try solve [inversion H2].
+      inversion H2; subst.
+      clear H2.
+      apply cprop5 in H3.
+      auto with zarith.      
+
+      destruct (zeq b2 nextblock0); subst; eauto. 
+      destruct (zle lo ofs2); simpl in H3; try solve [inversion H3].
+      destruct (zlt ofs2 hi); simpl in H3; try solve [inversion H3].
+      inversion H3; subst.
+      clear H3.
+      apply cprop5 in H2.
+      auto with zarith.      
+      
+    intros b ofs z H.
+    destruct (zeq b nextblock0); subst; eauto. 
+      destruct (zle lo ofs); simpl in H; try solve [inversion H].
+      destruct (zlt ofs hi); simpl in H; try solve [inversion H].
+      inversion H; subst.
+      destruct (zlt lo hi); simpl in H; auto with zarith.      
+
+      apply cprop5 in H.
+      destruct (zlt lo hi); simpl in H; auto with zarith.      
+Qed.          
+         
 (** Freeing a block between the given bounds.
   Return the updated memory state where the given range of the given block
   has been invalidated: future reads and writes to this
@@ -396,8 +658,8 @@ Qed.
 Definition clearN (m: block -> Z -> memval) (b: block) (lo hi: Z) : 
     block -> Z -> memval :=
    fun b' ofs => if zeq b' b 
-                         then if zle lo ofs && zlt ofs hi then Undef else m b' ofs
-                         else m b' ofs.
+                 then if zle lo ofs && zlt ofs hi then Undef else m b' ofs
+                 else m b' ofs.
 
 Lemma clearN_in:
    forall m b lo hi ofs, lo <= ofs < hi -> clearN m b lo hi b ofs = Undef.
@@ -418,14 +680,34 @@ destruct (zlt ofs hi); auto.
 elimtype False; omega.
 Qed.
 
+Definition clear_ptr2int (f: block -> Z -> option Z) (b: block) (lo hi: Z)
+  : block -> Z -> option Z :=
+fun b' ofs => if zeq b' b 
+              then if zle lo ofs && zlt ofs hi then None else f b' ofs
+              else f b' ofs.
+  
+Definition clear_int2ptr (f: Z -> option (block * Z)) (b: block) (lo hi: Z)
+  : Z -> option (block * Z) :=
+fun i => match f i with
+         | Some (b', ofs) =>
+             if zeq b' b 
+             then if zle lo ofs && zlt ofs hi then None else Some (b', ofs)
+             else Some (b', ofs)
+         | None => None
+         end.
 
 Program Definition unchecked_free (m: mem) (b: block) (lo hi: Z): mem :=
   mkmem (clearN m.(mem_contents) b lo hi)
         (update b 
-                (fun ofs => if zle lo ofs && zlt ofs hi then None else m.(mem_access) b ofs)
+                (fun ofs => if zle lo ofs && zlt ofs hi then None 
+                            else m.(mem_access) b ofs)
                 m.(mem_access))
         m.(bounds)
-        m.(nextblock) _ _ _ _.
+        m.(nextblock)
+        m.(maxaddress)
+        (clear_ptr2int m.(ptr2int) b lo hi)
+        (clear_int2ptr m.(int2ptr) b lo hi)
+         _ _ _ _ _ _.
 Next Obligation.
   apply nextblock_pos. 
 Qed.
@@ -448,6 +730,163 @@ Next Obligation.
   apply noread_undef.
   apply noread_undef.
   apply noread_undef.
+Qed.
+Next Obligation.
+  apply maxaddress_pos.
+Qed.
+Next Obligation.
+  destruct m. simpl in *.
+  destruct conversion_props0 as [cprop1 [cprop2 [cprop3 [cprop4 cprop5]]]].
+  unfold clear_ptr2int, clear_int2ptr, update.
+  split.
+    intros b0 ofs.
+    destruct (zeq b0 b); subst; auto.
+    destruct (zle lo ofs); simpl; auto.
+    destruct (zlt ofs hi); simpl; auto.
+      split; intro J.    
+        contradict J; auto.
+        destruct J as [x J]. inversion J.
+  split.
+    intros b0 ofs z.
+    remember (int2ptr0 z) as R.
+    destruct R.
+    destruct p.     
+    destruct (zeq b0 b); subst.
+      destruct (zeq b1 b); subst.
+        destruct (zle lo ofs); simpl.
+          destruct (zlt ofs hi); simpl.
+            destruct (zle lo z0); simpl.
+              destruct (zlt z0 hi); simpl.
+                split; intro J; inversion J.
+                split; intro J; inversion J; subst.
+                  contradict z2; auto.
+              split; intro J; inversion J; subst.
+                contradict z1; auto.
+            destruct (zle lo z0); simpl.
+              destruct (zlt z0 hi); simpl.
+                split; intro J; try solve [inversion J].
+                  destruct (@cprop2 b ofs z) as [J1 J2].
+                  apply J1 in J. rewrite J in HeqR. inversion HeqR; subst.
+                  contradict z2; auto.                  
+                split; intro J.
+                  destruct (@cprop2 b ofs z) as [J1 J2].
+                  apply J1 in J. rewrite J in HeqR. inversion HeqR; subst; auto.
+
+                  inversion J; subst.
+                  eapply cprop2; eauto.
+              split; intro J.
+                destruct (@cprop2 b ofs z) as [J1 J2].
+                apply J1 in J. rewrite J in HeqR. inversion HeqR; subst; auto.
+
+                inversion J; subst.
+                eapply cprop2; eauto.
+
+          destruct (zle lo z0); simpl.
+            destruct (zlt z0 hi); simpl.
+              split; intro J; try solve [inversion J].
+                destruct (@cprop2 b ofs z) as [J1 J2].
+                apply J1 in J. rewrite J in HeqR. inversion HeqR; subst.
+                contradict z2; auto.                  
+              split; intro J.
+                destruct (@cprop2 b ofs z) as [J1 J2].
+                apply J1 in J. rewrite J in HeqR. inversion HeqR; subst; auto.
+
+                inversion J; subst.
+                eapply cprop2; eauto.
+            split; intro J.
+              destruct (@cprop2 b ofs z) as [J1 J2].
+              apply J1 in J. rewrite J in HeqR. inversion HeqR; subst; auto.
+
+              inversion J; subst.
+              eapply cprop2; eauto.
+        destruct (zle lo ofs); simpl.
+          destruct (zlt ofs hi); simpl.
+            split; intro J; inversion J; subst.
+              contradict n; auto.
+
+            split; intro J.
+              destruct (@cprop2 b ofs z) as [J1 J2].
+              apply J1 in J. rewrite J in HeqR. inversion HeqR; subst; auto.
+
+              inversion J; subst.
+              eapply cprop2; eauto.
+          split; intro J.
+            destruct (@cprop2 b ofs z) as [J1 J2].
+            apply J1 in J. rewrite J in HeqR. inversion HeqR; subst; auto.
+
+            inversion J; subst.
+            eapply cprop2; eauto.
+
+      destruct (zeq b1 b); subst.
+        destruct (zle lo z0); simpl.
+          destruct (zlt z0 hi); simpl.
+            split; intro J; try solve [inversion J].
+              destruct (@cprop2 b0 ofs z) as [J1 J2].
+              apply J1 in J. rewrite J in HeqR. inversion HeqR; subst.
+              contradict n; auto.                  
+            split; intro J.
+              destruct (@cprop2 b0 ofs z) as [J1 J2].
+              apply J1 in J. rewrite J in HeqR. inversion HeqR; subst; auto.
+
+              inversion J; subst.
+              eapply cprop2; eauto.
+          split; intro J.
+            destruct (@cprop2 b0 ofs z) as [J1 J2].
+            apply J1 in J. rewrite J in HeqR. inversion HeqR; subst; auto.
+
+            inversion J; subst.
+            eapply cprop2; eauto.
+        split; intro J.
+          destruct (@cprop2 b0 ofs z) as [J1 J2].
+          apply J1 in J. rewrite J in HeqR. inversion HeqR; subst; auto.
+
+          inversion J; subst.
+          eapply cprop2; eauto.
+    destruct (zeq b0 b); subst.
+      destruct (zle lo ofs); simpl.
+        destruct (zlt ofs hi); simpl.
+          split; intro J; inversion J; subst.
+
+          split; intro J; try solve [inversion J].
+            destruct (@cprop2 b ofs z) as [J1 J2].
+            apply J1 in J. rewrite J in HeqR. inversion HeqR.
+
+        split; intro J; try solve [inversion J].
+          destruct (@cprop2 b ofs z) as [J1 J2].
+          apply J1 in J. rewrite J in HeqR. inversion HeqR.
+
+      split; intro J; try solve [inversion J].
+        destruct (@cprop2 b0 ofs z) as [J1 J2].
+        apply J1 in J. rewrite J in HeqR. inversion HeqR.
+
+  split.
+    intros b0 ofs1 ofs2 z1 z2 H1 H2.  
+    destruct (zeq b0 b); subst; eauto.
+      destruct (zle lo ofs1); simpl in H1; try solve [inversion H1].
+      destruct (zlt ofs1 hi); simpl in H1; try solve [inversion H1]; eauto.
+      destruct (zle lo ofs2); simpl in H2; try solve [inversion H2]; eauto.
+      destruct (zlt ofs2 hi); simpl in H2; try solve [inversion H2]; eauto. 
+
+      destruct (zle lo ofs2); simpl in H2; try solve [inversion H2]; eauto.
+      destruct (zlt ofs2 hi); simpl in H2; try solve [inversion H2]; eauto. 
+
+  split.
+    intros b1 b2 ofs1 ofs2 z1 z2 H1 H2 H3.
+    destruct (zeq b1 b); subst.
+      destruct (zeq b2 b); subst.
+        contradict H1; auto.
+
+        destruct (zle lo ofs1); simpl in H2; try solve [inversion H2]; eauto.
+        destruct (zlt ofs1 hi); simpl in H2; try solve [inversion H2]; eauto.
+
+      destruct (zeq b2 b); subst; eauto.
+        destruct (zle lo ofs2); simpl in H3; try solve [inversion H3]; eauto.
+        destruct (zlt ofs2 hi); simpl in H3; try solve [inversion H3]; eauto. 
+
+    intros b0 ofs z H.
+    destruct (zeq b0 b); subst; eauto.
+      destruct (zle lo ofs); simpl in H; try solve [inversion H]; eauto.
+      destruct (zlt ofs hi); simpl in H; try solve [inversion H]; eauto.
 Qed.
 
 Definition free (m: mem) (b: block) (lo hi: Z): option mem :=
@@ -598,10 +1037,15 @@ Definition store (chunk: memory_chunk) (m: mem) (b: block) (ofs: Z) (v: val): op
                     m.(mem_access)
                     m.(bounds)
                     m.(nextblock)
+                    m.(maxaddress)
+                    m.(ptr2int)
+                    m.(int2ptr)
                     m.(nextblock_pos)
                     m.(nextblock_noaccess)
                     m.(bounds_noaccess)
-                    (store_noread_undef m chunk b ofs VA v))
+                    (store_noread_undef m chunk b ofs VA v)
+                    m.(maxaddress_pos)
+                    m.(conversion_props))
  | right _ => None
  end.
 
@@ -619,7 +1063,8 @@ Definition storev (chunk: memory_chunk) (m: mem) (addr v: val) : option mem :=
     at least [p] in the initial memory state [m].
     Returns updated memory state, or [None] if insufficient permissions. *)
 
-Program Definition drop_perm (m: mem) (b: block) (lo hi: Z) (p: permission): option mem :=
+Program Definition drop_perm (m: mem) (b: block) (lo hi: Z) (p: permission)
+  : option mem :=
   if range_perm_dec m b lo hi p then
     Some (mkmem (update b 
                         (fun ofs => if zle lo ofs && zlt ofs hi && negb (perm_order_dec p Readable)
@@ -628,7 +1073,12 @@ Program Definition drop_perm (m: mem) (b: block) (lo hi: Z) (p: permission): opt
                 (update b
                         (fun ofs => if zle lo ofs && zlt ofs hi then Some p else m.(mem_access) b ofs)
                         m.(mem_access))
-                m.(bounds) m.(nextblock) _ _ _ _)
+                m.(bounds) 
+                m.(nextblock) 
+                m.(maxaddress)
+                m.(ptr2int)
+                m.(int2ptr)
+                _ _ _ _ _ _)
   else None.
 Next Obligation.
   destruct m; auto.
@@ -650,6 +1100,31 @@ Next Obligation.
   destruct (perm_order_dec p Readable); simpl; auto.
   eapply noread_undef; eauto.
   eapply noread_undef; eauto.
+Qed.
+Next Obligation.
+  destruct m; auto.
+Qed.
+Next Obligation.
+  destruct m; simpl in *.
+  destruct conversion_props0 as [cprop1 [cprop2 [cprop3 [cprop4 cprop5]]]].
+  unfold update, range_perm, perm, perm_order', mem_access in *.
+
+  split.
+    intros b0 ofs.
+    destruct (zeq b0 b); subst; auto.
+      destruct (zle lo ofs); simpl; auto.
+        destruct (zlt ofs hi); simpl; auto.
+          split; intro J.
+            apply cprop1.
+            assert (lo <= ofs < hi) as J'.
+              auto with zarith.
+            assert (J'':=@H ofs J').
+            destruct (mem_access0 b ofs); 
+              try solve [inversion J'' | intro J0; inversion J0].
+            
+            intro J0. inversion J0.
+
+  split; auto.
 Qed.
 
 (** * Properties of the memory operations *)
@@ -2036,9 +2511,12 @@ Lemma mem_ext':
   forall m1 m2, 
   mem_access m1 = mem_access m2 ->
   nextblock m1 = nextblock m2 ->
+  maxaddress m1 = maxaddress m2 ->
   (forall b, 0 < b < nextblock m1 -> bounds m1 b = bounds m2 b) ->
   (forall b ofs, perm_order' (mem_access m1 b ofs) Readable -> 
                           mem_contents m1 b ofs = mem_contents m2 b ofs) ->
+  (forall b ofs, ptr2int m1 b ofs = ptr2int m2 b ofs) ->
+  (forall i, int2ptr m1 i = int2ptr m2 i) ->
   m1 = m2.
 Proof.
   intros.
@@ -2056,25 +2534,35 @@ Proof.
   destruct (nextblock_noaccess0 b); auto.
   destruct (nextblock_noaccess1 b); auto.
   congruence.
+
+  apply extensionality; intro b.
+  apply extensionality; intro ofs. 
+  auto.
+
+  apply extensionality; intro z.
+  auto.
 Qed.
 
 Theorem mem_ext:
   forall m1 m2, 
   perm m1 = perm m2 ->
   nextblock m1 = nextblock m2 ->
+  maxaddress m1 = maxaddress m2 ->
   (forall b, 0 < b < nextblock m1 -> bounds m1 b = bounds m2 b) ->
   (forall b ofs, loadbytes m1 b ofs 1 = loadbytes m2 b ofs 1) ->
+  (forall b ofs, ptr2int m1 b ofs = ptr2int m2 b ofs) ->
+  (forall i, int2ptr m1 i = int2ptr m2 i) ->
   m1 = m2.
 Proof.
-  intros.
+  intros m1 m2 H H0 H1 H2 H3 H4 H5.
   generalize (mem_access_ext _ _ H); clear H; intro.
   apply mem_ext'; auto.
   intros.
-  specialize (H2 b ofs).
-  unfold loadbytes in H2; simpl in H2.
+  specialize (H3 b ofs).
+  unfold loadbytes in H3; simpl in H3.
   destruct (range_perm_dec m1 b ofs (ofs+1)).
   destruct (range_perm_dec m2 b ofs (ofs+1)).
-  inv H2; auto.
+  inv H3; auto.
   contradict n.
   intros ofs' ?; assert (ofs'=ofs) by omega; subst ofs'.
   unfold perm, perm_order'.
@@ -3502,3 +3990,11 @@ Hint Resolve
   Mem.valid_access_free_inv_1
   Mem.valid_access_free_inv_2
 : mem.
+
+(*****************************)
+(*
+*** Local Variables: ***
+*** coq-prog-name: "coqtop" ***
+*** coq-prog-args: ("-emacs-U" "-I" "~/SVN/sol/vol/src/ssa/monads" "-I" "~/SVN/sol/vol/src/ssa/ott" "-I" "~/SVN/sol/vol/src/ssa/compcert" "-I" "~/SVN/sol/theory/metatheory_8.3") ***
+*** End: ***
+ *)

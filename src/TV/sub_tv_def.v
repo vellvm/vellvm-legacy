@@ -13,6 +13,7 @@ Require Import symexe_def.
 Require Import trace.
 Require Import assoclist.
 Require Import eq_tv_dec.
+Require Import monad.
 
 Export SimpleSE.
 
@@ -579,26 +580,46 @@ match i with
 | insn_phi _ _ vls => getValueViaBlockFromValuels vls b
 end.
 
-Fixpoint getIncomingValuesForBlockFromPHINodes (TD:TargetData) (PNs:list phinode)
-  (b:block) (globals locals:GVMap) : list (id*(option GenericValue)) :=
+Fixpoint getIncomingValuesForBlockFromPHINodes (TD:TargetData) (M:mem) 
+  (PNs:list phinode) (b:block) (globals locals:GVMap) : 
+  option (list (id*GenericValue)) :=
 match PNs with
-| nil => nil
+| nil => Some nil
 | (insn_phi id0 t vls)::PNs => 
   match (getValueViaBlockFromPHINode (insn_phi id0 t vls) b) with
-  | None => getIncomingValuesForBlockFromPHINodes TD PNs b globals locals
-  | Some (value_id id1) => (id0, lookupAL _ locals id1)::
-            getIncomingValuesForBlockFromPHINodes TD PNs b globals locals
-  | Some (value_const c) => (id0, const2GV TD globals c)::
-            getIncomingValuesForBlockFromPHINodes TD PNs b globals locals
+  | None => None
+  | Some (value_id id1) => 
+      match (lookupAL _ locals id1, 
+             getIncomingValuesForBlockFromPHINodes TD M PNs b globals locals)
+      with
+      | (Some gv1, Some idgvs) => Some ((id0,gv1)::idgvs)
+      | _ => None
+      end               
+  | Some (value_const c) => 
+      match (const2GV TD M globals c, 
+             getIncomingValuesForBlockFromPHINodes TD M PNs b globals locals)
+      with
+      | (Some gv1, Some idgvs) => Some ((id0,gv1)::idgvs)
+      | _ => None
+      end
   end
 end.
 
-Definition switchToNewBasicBlock (TD:TargetData) (Dest:block) (PrevBB:block) 
-  (globals locals:GVMap): GVMap :=
+Fixpoint updateValuesForNewBlock (ResultValues:list (id*GenericValue)) 
+  (locals:GVMap) : GVMap :=
+match ResultValues with
+| nil => locals
+| (id, v)::ResultValues' => 
+    updateAddAL _ (updateValuesForNewBlock ResultValues' locals) id v
+end.
+
+Definition switchToNewBasicBlock (TD:TargetData) (M:mem) (Dest:block) 
+  (PrevBB:block) (globals locals:GVMap): option GVMap :=
   let PNs := getPHINodesFromBlock Dest in
-  let ResultValues := getIncomingValuesForBlockFromPHINodes TD PNs PrevBB 
-    globals locals in
-  LLVMopsem.updateValuesForNewBlock ResultValues locals.
+  match getIncomingValuesForBlockFromPHINodes TD M PNs PrevBB globals locals with
+  | Some ResultValues => Some (updateValuesForNewBlock ResultValues locals)
+  | None => None
+  end.
 
 Definition lookupFdecViaIDFromProduct (p:product) (i:id) : option fdec :=
 match p with
@@ -637,24 +658,29 @@ match lp with
   end
 end.
 
-Definition lookupExFdecViaGV (TD:TargetData) (Ps:products) (gl lc:GVMap) 
+Fixpoint lookupFdefViaGVFromFunTable (fs:GVMap) (fptr:GenericValue) : option id 
+  :=
+match fs with
+| nil => None
+| (id0,gv0)::fs' => 
+  if eq_gv gv0 fptr
+  then Some id0 
+  else lookupFdefViaGVFromFunTable fs' fptr
+end.
+
+Definition lookupExFdecViaGV (TD:TargetData) (M:mem) (Ps:products) (gl lc:GVMap)
   (fs:GVMap) (fv:value) : option fdec :=
-match getOperandValue TD fv lc gl with
-| Some fptr =>
-  match LLVMopsem.lookupFdefViaGVFromFunTable fs fptr with
-  | Some fn => 
+do fptr <- getOperandValue TD M fv lc gl;
+do fn <- lookupFdefViaGVFromFunTable fs fptr;
     match lookupFdefViaIDFromProducts Ps fn with 
     | Some _ => None
     | None => lookupFdecViaIDFromProducts Ps fn
     end
-  | None => None
-  end
-| None => None
-end.
+.
 
-Definition lookupFdefViaGV (TD:TargetData) (Ps:products) (gl lc:GVMap) (fs:GVMap)
-  (fv:value) : option fdef :=
-match getOperandValue TD fv lc gl with
+Definition lookupFdefViaGV (TD:TargetData) (M:mem) (Ps:products) (gl lc:GVMap) 
+  (fs:GVMap) (fv:value) : option fdef :=
+match getOperandValue TD M fv lc gl with
 | Some fptr =>
   match LLVMopsem.lookupFdefViaGVFromFunTable fs fptr with
   | Some fn => lookupFdefViaIDFromProducts Ps fn
@@ -726,21 +752,21 @@ Inductive dbCmd : TargetData -> GVMap ->
                   GVMap -> list mblock -> mem -> 
                   trace -> SimpleSE.Result -> Prop :=
 | dbBop: forall TD lc gl id bop sz v1 v2 gv3 Mem als,
-  BOP TD lc gl bop sz v1 v2 = Some gv3 ->
+  BOP TD Mem lc gl bop sz v1 v2 = Some gv3 ->
   dbCmd TD gl
     lc als Mem
     (insn_bop id bop sz v1 v2)
     (updateAddAL _ lc id gv3) als Mem
     trace_nil SimpleSE.Rok
 | dbFBop: forall TD lc gl id fbop fp v1 v2 gv3 Mem als,
-  FBOP TD lc gl fbop fp v1 v2 = Some gv3 ->
+  FBOP TD Mem lc gl fbop fp v1 v2 = Some gv3 ->
   dbCmd TD gl
     lc als Mem
     (insn_fbop id fbop fp v1 v2)
     (updateAddAL _ lc id gv3) als Mem
     trace_nil SimpleSE.Rok 
 | dbExtractValue : forall TD lc gl id t v gv gv' Mem als idxs,
-  getOperandValue TD v lc gl = Some gv ->
+  getOperandValue TD Mem v lc gl = Some gv ->
   extractGenericValue TD t gv idxs = Some gv' ->
   dbCmd TD gl
     lc als Mem
@@ -748,8 +774,8 @@ Inductive dbCmd : TargetData -> GVMap ->
     (updateAddAL _ lc id gv') als Mem
     trace_nil SimpleSE.Rok 
 | dbInsertValue : forall TD lc gl id t v t' v' gv gv' gv'' idxs Mem als,
-  getOperandValue TD v lc gl = Some gv ->
-  getOperandValue TD v' lc gl = Some gv' ->
+  getOperandValue TD Mem v lc gl = Some gv ->
+  getOperandValue TD Mem v' lc gl = Some gv' ->
   insertGenericValue TD t gv idxs t' gv' = Some gv'' ->
   dbCmd TD gl
     lc als Mem
@@ -758,7 +784,7 @@ Inductive dbCmd : TargetData -> GVMap ->
     trace_nil SimpleSE.Rok 
 | dbMalloc : forall TD lc gl id t v gn align Mem als Mem' tsz mb,
   getTypeAllocSize TD t = Some tsz ->
-  getOperandValue TD v lc gl = Some gn ->
+  getOperandValue TD Mem v lc gl = Some gn ->
   malloc TD Mem tsz gn align = Some (Mem', mb) ->
   dbCmd TD gl
     lc als Mem
@@ -766,7 +792,7 @@ Inductive dbCmd : TargetData -> GVMap ->
     (updateAddAL _ lc id (blk2GV TD mb)) als Mem'
     trace_nil SimpleSE.Rok
 | dbFree : forall TD lc gl fid t v Mem als Mem' mptr,
-  getOperandValue TD v lc gl = Some mptr ->
+  getOperandValue TD Mem v lc gl = Some mptr ->
   free TD Mem mptr = Some Mem'->
   dbCmd TD gl
     lc als Mem
@@ -775,7 +801,7 @@ Inductive dbCmd : TargetData -> GVMap ->
     trace_nil SimpleSE.Rok
 | dbAlloca : forall TD lc gl id t v gn align Mem als Mem' tsz mb,
   getTypeAllocSize TD t = Some tsz ->
-  getOperandValue TD v lc gl = Some gn ->
+  getOperandValue TD Mem v lc gl = Some gn ->
   malloc TD Mem tsz gn align = Some (Mem', mb) ->
   dbCmd TD gl
     lc als Mem
@@ -783,7 +809,7 @@ Inductive dbCmd : TargetData -> GVMap ->
     (updateAddAL _ lc id (blk2GV TD mb)) (mb::als) Mem'
     trace_nil SimpleSE.Rok
 | dbLoad : forall TD lc gl id t v align Mem als mp gv,
-  getOperandValue TD v lc gl = Some mp ->
+  getOperandValue TD Mem v lc gl = Some mp ->
   mload TD Mem mp t align = Some gv ->
   dbCmd TD gl
     lc als Mem
@@ -791,8 +817,8 @@ Inductive dbCmd : TargetData -> GVMap ->
     (updateAddAL _ lc id gv) als Mem
     trace_nil SimpleSE.Rok
 | dbStore : forall TD lc gl sid t v1 v2 align Mem als mp2 gv1 Mem',
-  getOperandValue TD v1 lc gl = Some gv1 ->
-  getOperandValue TD v2 lc gl = Some mp2 ->
+  getOperandValue TD Mem v1 lc gl = Some gv1 ->
+  getOperandValue TD Mem v2 lc gl = Some mp2 ->
   mstore TD Mem mp2 t gv1 align = Some Mem' ->
   dbCmd TD gl 
     lc als Mem
@@ -800,8 +826,8 @@ Inductive dbCmd : TargetData -> GVMap ->
     lc als Mem'
     trace_nil SimpleSE.Rok
 | dbGEP : forall TD lc gl id inbounds t v idxs vidxs mp mp' Mem als,
-  getOperandValue TD v lc gl = Some mp ->
-  values2GVs TD idxs lc gl = Some vidxs ->
+  getOperandValue TD Mem v lc gl = Some mp ->
+  values2GVs TD Mem idxs lc gl = Some vidxs ->
   GEP TD t mp vidxs inbounds = Some mp' ->
   dbCmd TD gl
     lc als Mem
@@ -809,44 +835,44 @@ Inductive dbCmd : TargetData -> GVMap ->
     (updateAddAL _ lc id mp') als Mem
     trace_nil SimpleSE.Rok 
 | dbTrunc : forall TD lc gl id truncop t1 v1 t2 gv2 Mem als,
-  TRUNC TD lc gl truncop t1 v1 t2 = Some gv2 ->
+  TRUNC TD Mem lc gl truncop t1 v1 t2 = Some gv2 ->
   dbCmd TD gl
     lc als Mem
     (insn_trunc id truncop t1 v1 t2)
     (updateAddAL _ lc id gv2) als Mem
     trace_nil SimpleSE.Rok
 | dbExt : forall TD lc gl id extop t1 v1 t2 gv2 Mem als,
-  EXT TD lc gl extop t1 v1 t2 = Some gv2 ->
+  EXT TD Mem lc gl extop t1 v1 t2 = Some gv2 ->
   dbCmd TD gl
     lc als Mem
     (insn_ext id extop t1 v1 t2)
     (updateAddAL _ lc id gv2) als Mem
     trace_nil SimpleSE.Rok
 | dbCast : forall TD lc gl id castop t1 v1 t2 gv2 Mem als,
-  CAST TD lc gl castop t1 v1 t2 = Some gv2 ->
+  CAST TD Mem lc gl castop t1 v1 t2 = Some gv2 ->
   dbCmd TD gl
     lc als Mem
     (insn_cast id castop t1 v1 t2)
     (updateAddAL _ lc id gv2) als Mem
     trace_nil SimpleSE.Rok
 | dbIcmp : forall TD lc gl id cond t v1 v2 gv3 Mem als,
-  ICMP TD lc gl cond t v1 v2 = Some gv3 ->
+  ICMP TD Mem lc gl cond t v1 v2 = Some gv3 ->
   dbCmd TD gl
     lc als Mem
     (insn_icmp id cond t v1 v2)
     (updateAddAL _ lc id gv3) als Mem
     trace_nil SimpleSE.Rok
 | dbFcmp : forall TD lc gl id fcond fp v1 v2 gv3 Mem als,
-  FCMP TD lc gl fcond fp v1 v2 = Some gv3 ->
+  FCMP TD Mem lc gl fcond fp v1 v2 = Some gv3 ->
   dbCmd TD gl
     lc als Mem
     (insn_fcmp id fcond fp v1 v2)
     (updateAddAL _ lc id gv3) als Mem
     trace_nil SimpleSE.Rok
 | dbSelect : forall TD lc gl id v0 t v1 v2 cond Mem als gv1 gv2,
-  getOperandValue TD v0 lc gl = Some cond ->
-  getOperandValue TD v1 lc gl = Some gv1 ->
-  getOperandValue TD v2 lc gl = Some gv2 ->
+  getOperandValue TD Mem v0 lc gl = Some cond ->
+  getOperandValue TD Mem v1 lc gl = Some gv1 ->
+  getOperandValue TD Mem v2 lc gl = Some gv2 ->
   dbCmd TD gl
     lc als Mem
     (insn_select id v0 t v1 v2)
@@ -854,15 +880,17 @@ Inductive dbCmd : TargetData -> GVMap ->
      else updateAddAL _ lc id gv1) als Mem
     trace_nil SimpleSE.Rok
 | dbLib : forall TD lc gl rid noret tailc ft fid 
-                          lp rt Mem oresult Mem' als r,
+                          lp rt Mem oresult Mem' als r lc',
   (* Like isCall, we only consider direct call to libraries. Function pointers
      are conservatively taken as non-lib. The dbCmd is defined to prove the
      correctness of TV. So it should be as "weak" as the TV. *)
-  SimpleSE.callLib Mem fid (params2GVs TD lp lc gl) = Some (oresult, Mem', r) ->
+  SimpleSE.callLib Mem fid (params2GVs TD Mem lp lc gl) = Some (oresult, Mem', r)
+    ->
+  LLVMopsem.exCallUpdateLocals noret rid oresult lc = Some lc' ->
   dbCmd TD gl
     lc als Mem
     (insn_call rid noret tailc rt (value_const (const_gid ft fid)) lp)
-    (LLVMopsem.exCallUpdateLocals noret rid rt oresult lc) als Mem'
+    lc' als Mem'
     trace_nil r
 .
 
@@ -893,22 +921,22 @@ Inductive dbNbranches : TargetData -> GVMap ->
     dbNbranches TD gl lc1 als1 Mem1 cs lc2 als2 Mem2 tr r.
 
 Inductive dbTerminator : 
-  TargetData -> fdef -> GVMap -> 
+  TargetData -> mem -> fdef -> GVMap -> 
   block -> GVMap -> 
   terminator -> 
   block -> GVMap -> 
   trace -> Prop :=
-| dbBranch : forall TD F B lc gl bid Cond l1 l2 c B' lc',   
-  getOperandValue TD Cond lc gl = Some c ->
+| dbBranch : forall TD Mem F B lc gl bid Cond l1 l2 c B' lc',   
+  getOperandValue TD Mem Cond lc gl = Some c ->
   Some B' = (if isGVZero TD c
     then (lookupBlockViaLabelFromFdef F l2)
     else (lookupBlockViaLabelFromFdef F l1)) ->
-  lc' = switchToNewBasicBlock TD B' B gl lc ->
-  dbTerminator TD F gl B lc (insn_br bid Cond l1 l2) B' lc' trace_nil 
-| dbBranch_uncond : forall TD F B lc gl l bid B' lc',   
+  Some lc' = switchToNewBasicBlock TD Mem B' B gl lc ->
+  dbTerminator TD Mem F gl B lc (insn_br bid Cond l1 l2) B' lc' trace_nil 
+| dbBranch_uncond : forall TD Mem F B lc gl l bid B' lc',   
   Some B' = lookupBlockViaLabelFromFdef F l ->
-  lc' = switchToNewBasicBlock TD B' B gl lc ->
-  dbTerminator TD F gl B lc (insn_br_uncond bid l) B' lc' trace_nil 
+  Some lc' = switchToNewBasicBlock TD Mem B' B gl lc ->
+  dbTerminator TD Mem F gl B lc (insn_br_uncond bid l) B' lc' trace_nil 
 .
 
 Record ExecutionContext : Type := mkEC
@@ -922,27 +950,29 @@ Inductive dbCall : system -> TargetData -> list product -> GVMap ->
                    GVMap -> list mblock -> mem -> 
                    trace -> Result -> Prop :=
 | dbCall_internal : forall S TD Ps lc gl fs rid noret tailc rt fv lp
-                       Rid oResult tr lc' Mem Mem' als' Mem'' B' r als,
+                       Rid oResult tr lc' Mem Mem' als' Mem'' B' r als lc'',
   dbFdef fv rt lp S TD Ps lc gl fs Mem lc' als' Mem' B' Rid oResult tr r ->
   free_allocas TD Mem' als' = Some Mem'' ->
+  LLVMopsem.callUpdateLocals TD Mem'' noret rid oResult lc lc' gl = Some lc'' ->
   dbCall S TD Ps fs gl lc als Mem
     (insn_call_nptr rid noret tailc rt fv lp)
-    (LLVMopsem.callUpdateLocals TD noret rid rt oResult lc lc' gl) 
-    als Mem'' tr r
+    lc'' als Mem'' tr r
+
 | dbCall_external : forall S TD Ps lc gl fs rid noret tailc fv fid 
-                          lp rt la Mem oresult Mem' als,
+                          lp rt la Mem oresult Mem' als lc',
   (* only look up the current module for the time being, 
      do not support linkage. 
      FIXME: should add excall to trace
   *)
-  lookupExFdecViaGV TD Ps gl lc fs fv = 
+  lookupExFdecViaGV TD Mem Ps gl lc fs fv = 
     Some (fdec_intro (fheader_intro rt fid la)) ->
-  LLVMopsem.callExternalFunction Mem fid (params2GVs TD lp lc gl) = 
+  LLVMopsem.callExternalFunction Mem fid (params2GVs TD Mem lp lc gl) = 
     (oresult, Mem') ->
+  LLVMopsem.exCallUpdateLocals noret rid oresult lc = Some lc' ->
   dbCall S TD Ps fs gl lc als Mem
     (insn_call_nptr rid noret tailc rt fv lp)
-    (LLVMopsem.exCallUpdateLocals noret rid rt oresult lc) 
-    als Mem' trace_nil Rok
+    lc' als Mem' trace_nil Rok
+
 | dbiCall : forall S TD Ps lc1 als1 gl fs Mem1 lc2 als2 Mem2 
     tr1 lc3 Mem3 tr2 rid nr tc t v p sid id1 id2 id3 id4 id5 id6 call0 
     cst0 cst1 cst2 cs,
@@ -953,6 +983,7 @@ Inductive dbCall : system -> TargetData -> list product -> GVMap ->
   dbCall S TD Ps fs gl lc1 als1 Mem1
     (insn_call_ptr rid nr tc t v p sid id1 id2 id3 id4 id5 id6 cst0 cst1 cst2)
     lc3 als2 Mem3 (trace_app tr1 tr2) Rok
+
 | dbiCall_abort : forall S TD Ps lc1 als1 gl fs Mem1 lc2 Mem2 
     tr1 rid nr tc t v p sid id1 id2 id3 id4 id5 id6 cst0 cst1 cst2 call0 cs,
   call_ptr rid nr tc t v p sid id1 id2 id3 id4 id5 id6 cst0 cst1 cst2 = 
@@ -1003,7 +1034,7 @@ with dbBlock : system -> TargetData -> list product -> GVMap -> GVMap ->
     lc2 als2 Mem2
     tr1 Rok ->
   dbNbranches TD gl lc2 als2 Mem2 cs lc3 als3 Mem3 tr2 Rok ->
-  dbTerminator TD F gl
+  dbTerminator TD Mem3 F gl
     (block_common l ps sbs cs tmn) lc3
     tmn
     B' lc4
@@ -1051,13 +1082,13 @@ with dbFdef : value -> typ -> params -> system -> TargetData -> list product ->
 | dbFdef_func : forall S TD Ps gl fs fv fid lp lc rid
                        B1 rt la lb Result lc1 tr1 Mem Mem1 als1
                        l2 ps2 sbs2 cs2 lc2 als2 Mem2 tr2 lc3 als3 Mem3 tr3 r,
-  lookupFdefViaGV TD Ps gl lc fs fv = 
+  lookupFdefViaGV TD Mem Ps gl lc fs fv = 
     Some (fdef_intro (fheader_intro rt fid la) lb) ->
   getEntryBlock (fdef_intro (fheader_intro rt fid la) lb) = Some B1 ->
   dbBlocks S TD Ps fs gl (fdef_intro (fheader_intro rt fid la) lb) 
-    (params2GVs TD lp lc gl)
+    (params2GVs TD Mem lp lc gl)
     (mkState (mkEC B1
-      (initLocals la (params2GVs TD lp lc gl)) nil) Mem)
+      (initLocals la (params2GVs TD Mem lp lc gl)) nil) Mem)
     (mkState (mkEC (block_common l2 ps2 sbs2 cs2 (insn_return rid rt Result))
       lc1 als1) Mem1)
     tr1 Rok ->
@@ -1066,16 +1097,17 @@ with dbFdef : value -> typ -> params -> system -> TargetData -> list product ->
   dbFdef fv rt lp S TD Ps lc gl fs Mem lc3 als3 Mem3 
     (block_common l2 ps2 sbs2 cs2 (insn_return rid rt Result)) rid 
     (Some Result) (trace_app (trace_app tr1 tr2) tr3) r
+
 | dbFdef_func_abort1 : forall S TD Ps gl fs fv fid lp lc rid
                        B1 rt la lb Result lc1 tr1 Mem Mem1 als1
                        l2 ps2 sbs2 cs2 lc2 als2 Mem2 tr2,
-  lookupFdefViaGV TD Ps gl lc fs fv = 
+  lookupFdefViaGV TD Mem Ps gl lc fs fv = 
     Some (fdef_intro (fheader_intro rt fid la) lb) ->
   getEntryBlock (fdef_intro (fheader_intro rt fid la) lb) = Some B1 ->
   dbBlocks S TD Ps fs gl (fdef_intro (fheader_intro rt fid la) lb) 
-    (params2GVs TD lp lc gl)
+    (params2GVs TD Mem lp lc gl)
     (mkState (mkEC B1
-      (initLocals la (params2GVs TD lp lc gl)) nil) Mem)
+      (initLocals la (params2GVs TD Mem lp lc gl)) nil) Mem)
     (mkState (mkEC (block_common l2 ps2 sbs2 cs2 (insn_return rid rt Result))
       lc1 als1) Mem1)
     tr1 Rok ->
@@ -1083,28 +1115,30 @@ with dbFdef : value -> typ -> params -> system -> TargetData -> list product ->
   dbFdef fv rt lp S TD Ps lc gl fs Mem lc2 als2 Mem2 
     (block_common l2 ps2 sbs2 cs2 (insn_return rid rt Result)) rid 
     (Some Result) (trace_app tr1 tr2) Rabort
+
 | dbFdef_func_abort2 : forall S TD Ps gl fs fv fid lp lc rid
                        B1 rt la lb lc1 tr1 Mem Mem1 als1 B,
-  lookupFdefViaGV TD Ps gl lc fs fv = 
+  lookupFdefViaGV TD Mem Ps gl lc fs fv = 
     Some (fdef_intro (fheader_intro rt fid la) lb) ->
   getEntryBlock (fdef_intro (fheader_intro rt fid la) lb) = Some B1 ->
   dbBlocks S TD Ps fs gl (fdef_intro (fheader_intro rt fid la) lb) 
-    (params2GVs TD lp lc gl)
+    (params2GVs TD Mem lp lc gl)
     (mkState (mkEC B1
-      (initLocals la (params2GVs TD lp lc gl)) nil) Mem)
+      (initLocals la (params2GVs TD Mem lp lc gl)) nil) Mem)
     (mkState (mkEC B lc1 als1) Mem1)
     tr1 Rabort ->
   dbFdef fv rt lp S TD Ps lc gl fs Mem lc1 als1 Mem1 B rid None tr1 Rabort
+
 | dbFdef_proc : forall S TD Ps gl fs fv fid lp lc rid
                        B1 rt la lb lc1 tr1 Mem Mem1 als1
                        l2 ps2 sbs2 cs2 lc2 als2 Mem2 tr2 lc3 als3 Mem3 tr3 r,
-  lookupFdefViaGV TD Ps gl lc fs fv = 
+  lookupFdefViaGV TD Mem Ps gl lc fs fv = 
     Some (fdef_intro (fheader_intro rt fid la) lb) ->
   getEntryBlock (fdef_intro (fheader_intro rt fid la) lb) = Some B1 ->
   dbBlocks S TD Ps fs gl (fdef_intro (fheader_intro rt fid la) lb) 
-    (params2GVs TD lp lc gl) 
+    (params2GVs TD Mem lp lc gl) 
     (mkState (mkEC B1
-      (initLocals la (params2GVs TD lp lc gl)) nil) Mem)
+      (initLocals la (params2GVs TD Mem lp lc gl)) nil) Mem)
     (mkState (mkEC (block_common l2 ps2 sbs2 cs2 (insn_return_void rid)) lc1 
       als1) Mem1)
     tr1 Rok ->
@@ -1113,16 +1147,17 @@ with dbFdef : value -> typ -> params -> system -> TargetData -> list product ->
   dbFdef fv rt lp S TD Ps lc gl fs Mem lc3 als3 Mem3 
     (block_common l2 ps2 sbs2 cs2 (insn_return_void rid)) rid None 
     (trace_app (trace_app tr1 tr2) tr3) r
+
 | dbFdef_proc_abort1 : forall S TD Ps gl fs fv fid lp lc rid
                        B1 rt la lb lc1 tr1 Mem Mem1 als1
                        l2 ps2 sbs2 cs2 lc2 als2 Mem2 tr2,
-  lookupFdefViaGV TD Ps gl lc fs fv = 
+  lookupFdefViaGV TD Mem Ps gl lc fs fv = 
     Some (fdef_intro (fheader_intro rt fid la) lb) ->
   getEntryBlock (fdef_intro (fheader_intro rt fid la) lb) = Some B1 ->
   dbBlocks S TD Ps fs gl (fdef_intro (fheader_intro rt fid la) lb) 
-    (params2GVs TD lp lc gl) 
+    (params2GVs TD Mem lp lc gl) 
     (mkState (mkEC B1
-      (initLocals la (params2GVs TD lp lc gl)) nil) Mem)
+      (initLocals la (params2GVs TD Mem lp lc gl)) nil) Mem)
     (mkState (mkEC (block_common l2 ps2 sbs2 cs2 (insn_return_void rid)) lc1 
       als1) Mem1)
     tr1 Rok ->
@@ -1130,23 +1165,25 @@ with dbFdef : value -> typ -> params -> system -> TargetData -> list product ->
   dbFdef fv rt lp S TD Ps lc gl fs Mem lc2 als2 Mem2
     (block_common l2 ps2 sbs2 cs2 (insn_return_void rid)) rid None 
     (trace_app tr1 tr2) Rabort
+
 | dbFdef_proc_abort2 : forall S TD Ps gl fs fv fid lp lc rid
                        B1 rt la lb lc1 tr1 Mem Mem1 als1 B,
-  lookupFdefViaGV TD Ps gl lc fs fv = 
+  lookupFdefViaGV TD Mem Ps gl lc fs fv = 
     Some (fdef_intro (fheader_intro rt fid la) lb) ->
   getEntryBlock (fdef_intro (fheader_intro rt fid la) lb) = Some B1 ->
   dbBlocks S TD Ps fs gl (fdef_intro (fheader_intro rt fid la) lb) 
-    (params2GVs TD lp lc gl) 
+    (params2GVs TD Mem lp lc gl) 
     (mkState (mkEC B1
-      (initLocals la (params2GVs TD lp lc gl)) nil) Mem)
+      (initLocals la (params2GVs TD Mem lp lc gl)) nil) Mem)
     (mkState (mkEC B lc1 als1) Mem1)
     tr1 Rabort ->
   dbFdef fv rt lp S TD Ps lc gl fs Mem lc1 als1 Mem1 B rid None tr1 Rabort
+
 | dbFdef_iproc : forall S TD Ps gl fs fv fid lp lc rid
                        B1 rt la lb lc1 tr1 Mem Mem1 als1
                        l2 ps2 sbs2 cs2 cs3 lc2 als2 Mem2 tr2 lc3 als3 Mem3 tr3
                        lc4 als4 Mem4 tr4
-                       sid t id1 id2 id30 id31 id4 id50 id51 id60 id61 id7 ret
+                       sid t id1 id2 id30 id31 id4 id50 id51 id60 id61 id7 mret
                        cst0 cst1 cst2,
 (*
   For a function that returns a pointer, Softbound translates
@@ -1162,12 +1199,12 @@ with dbFdef : value -> typ -> params -> system -> TargetData -> list product ->
  
   gen_iret returns %shadow_ret %.base %.base %.ptr i32* 
 *)
-  lookupFdefViaGV TD Ps gl lc fs fv = 
+  lookupFdefViaGV TD Mem Ps gl lc fs fv = 
     Some (fdef_intro (fheader_intro rt fid la) lb) ->
   getEntryBlock (fdef_intro (fheader_intro rt fid la) lb) = Some B1 ->
   dbBlocks S TD Ps fs gl (fdef_intro (fheader_intro rt fid la) lb) 
-    (params2GVs TD lp lc gl) 
-    (mkState (mkEC B1 (initLocals la (params2GVs TD lp lc gl)) nil) Mem)
+    (params2GVs TD Mem lp lc gl) 
+    (mkState (mkEC B1 (initLocals la (params2GVs TD Mem lp lc gl)) nil) Mem)
     (mkState (mkEC 
       (block_ret_ptr l2 ps2 sbs2 cs2 
         (insn_return_ptr sid t id1 id2 id30 id31 id4 id50 id51 id60 id61 id7
@@ -1177,7 +1214,7 @@ with dbFdef : value -> typ -> params -> system -> TargetData -> list product ->
   dbSubblocks S TD Ps fs gl lc1 als1 Mem1 sbs2 lc2 als2 Mem2 tr2 Rok ->
   dbNbranches TD gl lc2 als2 Mem2 cs2 lc3 als3 Mem3 tr3 Rok ->
   ret_ptr sid t id1 id2 id30 id31 id4 id50 id51 id60 id61 id7 cst0 cst1 cst2 = 
-    (cs3, ret) ->
+    (cs3, mret) ->
   dbCmds TD gl lc3 als3 Mem3 cs3 lc4 als4 Mem4 tr4 Rok ->
   dbFdef fv rt lp S TD Ps lc gl fs Mem lc4 als4 Mem4 
     (block_ret_ptr l2 ps2 sbs2 cs2 
@@ -1185,17 +1222,18 @@ with dbFdef : value -> typ -> params -> system -> TargetData -> list product ->
         cst0 cst1 cst2)
     ) rid None 
     (trace_app (trace_app (trace_app tr1 tr2) tr3) tr4) Rok
+
 | dbFdef_iproc_abort1 : forall S TD Ps gl fs fv fid lp lc rid
                        B1 rt la lb lc1 tr1 Mem Mem1 als1
                        l2 ps2 sbs2 cs2 lc2 als2 Mem2 tr2 lc3 als3 Mem3 tr3
                        sid t id1 id2 id30 id31 id4 id50 id51 id60 id61 id7
                        cst0 cst1 cst2,
-  lookupFdefViaGV TD Ps gl lc fs fv = 
+  lookupFdefViaGV TD Mem Ps gl lc fs fv = 
     Some (fdef_intro (fheader_intro rt fid la) lb) ->
   getEntryBlock (fdef_intro (fheader_intro rt fid la) lb) = Some B1 ->
   dbBlocks S TD Ps fs gl (fdef_intro (fheader_intro rt fid la) lb) 
-    (params2GVs TD lp lc gl) 
-    (mkState (mkEC B1 (initLocals la (params2GVs TD lp lc gl)) nil) Mem)
+    (params2GVs TD Mem lp lc gl) 
+    (mkState (mkEC B1 (initLocals la (params2GVs TD Mem lp lc gl)) nil) Mem)
     (mkState (mkEC 
       (block_ret_ptr l2 ps2 sbs2 cs2 
         (insn_return_ptr sid t id1 id2 id30 id31 id4 id50 id51 id60 id61 id7
@@ -1210,17 +1248,18 @@ with dbFdef : value -> typ -> params -> system -> TargetData -> list product ->
         cst0 cst1 cst2)
     ) rid None 
     (trace_app (trace_app tr1 tr2) tr3) Rabort
+
 | dbFdef_iproc_abort2 : forall S TD Ps gl fs fv fid lp lc rid
                        B1 rt la lb lc1 tr1 Mem Mem1 als1
                        l2 ps2 sbs2 cs2 lc2 als2 Mem2 tr2
                        sid t id1 id2 id30 id31 id4 id50 id51 id60 id61 id7
                        cst0 cst1 cst2,
-  lookupFdefViaGV TD Ps gl lc fs fv = 
+  lookupFdefViaGV TD Mem Ps gl lc fs fv = 
     Some (fdef_intro (fheader_intro rt fid la) lb) ->
   getEntryBlock (fdef_intro (fheader_intro rt fid la) lb) = Some B1 ->
   dbBlocks S TD Ps fs gl (fdef_intro (fheader_intro rt fid la) lb) 
-    (params2GVs TD lp lc gl) 
-    (mkState (mkEC B1 (initLocals la (params2GVs TD lp lc gl)) nil) Mem)
+    (params2GVs TD Mem lp lc gl) 
+    (mkState (mkEC B1 (initLocals la (params2GVs TD Mem lp lc gl)) nil) Mem)
     (mkState (mkEC 
       (block_ret_ptr l2 ps2 sbs2 cs2 
         (insn_return_ptr sid t id1 id2 id30 id31 id4 id50 id51 id60 id61 id7
@@ -1234,14 +1273,15 @@ with dbFdef : value -> typ -> params -> system -> TargetData -> list product ->
         cst0 cst1 cst2)
     ) rid None 
     (trace_app tr1 tr2) Rabort
+
 | dbFdef_iproc_abort3 : forall S TD Ps gl fs fv fid lp lc rid
                        B1 rt la lb lc1 tr1 Mem Mem1 als1 B2,
-  lookupFdefViaGV TD Ps gl lc fs fv = 
+  lookupFdefViaGV TD Mem Ps gl lc fs fv = 
     Some (fdef_intro (fheader_intro rt fid la) lb) ->
   getEntryBlock (fdef_intro (fheader_intro rt fid la) lb) = Some B1 ->
   dbBlocks S TD Ps fs gl (fdef_intro (fheader_intro rt fid la) lb) 
-    (params2GVs TD lp lc gl) 
-    (mkState (mkEC B1 (initLocals la (params2GVs TD lp lc gl)) nil) Mem)
+    (params2GVs TD Mem lp lc gl) 
+    (mkState (mkEC B1 (initLocals la (params2GVs TD Mem lp lc gl)) nil) Mem)
     (mkState (mkEC B2 lc1 als1) Mem1)
     tr1 Rabort ->
   dbFdef fv rt lp S TD Ps lc gl fs Mem lc1 als1 Mem1 B2 rid None tr1 Rabort

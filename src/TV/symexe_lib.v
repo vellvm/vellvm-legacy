@@ -10,7 +10,6 @@ Require Import targetdata.
 Require Import monad.
 Require Import Arith.
 Require Import Metatheory.
-Require Import ssa_mem.
 Require Import genericvalues.
 Require Import ssa_dynamic.
 Require Import opsem_pp.
@@ -1230,16 +1229,33 @@ Proof.
 Qed.
 
 (* p&p *)
-Lemma exCallUpdateLocals_uniq : forall noret0 rid rt oresult lc,
+Lemma exCallUpdateLocals_uniq : forall noret0 rid oresult lc lc',
   uniq lc ->
-  uniq (exCallUpdateLocals noret0 rid rt oresult lc).
+  exCallUpdateLocals noret0 rid oresult lc = Some lc' ->
+  uniq lc'.
 Proof.
   intros.
-  unfold exCallUpdateLocals.
+  unfold exCallUpdateLocals in H0.
   destruct noret0; auto.
-  destruct (rt=t=typ_void); auto.
-  destruct oresult; auto.
-  apply updateAddAL_uniq; auto.
+    inversion H0; subst; auto.
+
+    destruct oresult; inversion H0; subst; auto.
+      apply updateAddAL_uniq; auto.
+Qed.
+
+Lemma callUpdateLocals_uniq : forall TD M noret0 rid oresult lc lc' gl lc'',
+  uniq lc ->
+  callUpdateLocals TD M noret0 rid oresult lc lc' gl = Some lc'' ->
+  uniq lc''.
+Proof.
+  intros.
+  unfold callUpdateLocals in H0.
+  destruct noret0; auto.
+    inversion H0; subst; auto.
+
+    destruct oresult; try solve [inversion H0; subst; auto].
+    destruct (getOperandValue TD M v lc' gl); inversion H0; subst; auto.
+      apply updateAddAL_uniq; auto.
 Qed.
 
 Lemma se_dbCmd_preservation : forall TD lc als gl Mem0 c lc' als' Mem' tr,
@@ -1252,7 +1268,7 @@ Proof.
   Case "dbSelect".
     destruct (isGVZero TD cond0); eauto using updateAddAL_uniq.
   Case "dbLib".
-    apply exCallUpdateLocals_uniq; auto.      
+    apply exCallUpdateLocals_uniq in H0; auto.      
 Qed.
 
 Lemma se_dbCmds_preservation : forall TD lc als gl Mem0 cs lc' als' Mem' tr,
@@ -1265,22 +1281,22 @@ Proof.
     apply se_dbCmd_preservation in H; auto.
 Qed.
 
-Lemma se_dbTerminator_preservation : forall TD F B gl lc c B' lc' tr,
-  dbTerminator TD F gl B lc c B' lc' tr ->
+Lemma se_dbTerminator_preservation : forall TD M F B gl lc c B' lc' tr,
+  dbTerminator TD M F gl B lc c B' lc' tr ->
   uniq lc ->
   uniqFdef F ->
   blockInFdefB B F ->
   uniq lc' /\ blockInFdefB B' F.
 Proof.
-  intros TD F gl B lc c B' lc' tr HdbTerminator Uniqlc UniqF Hblockin.
+  intros TD M F gl B lc c B' lc' tr HdbTerminator Uniqlc UniqF Hblockin.
   inversion HdbTerminator; subst.
     destruct (isGVZero TD c0).
-      split; auto using switchToNewBasicBlock_uniq.
+      split; eauto using switchToNewBasicBlock_uniq.
         symmetry in H0.
         apply lookupBlockViaLabelFromFdef_inv in H0; auto.
         destruct H0; auto.
 
-      split; auto using switchToNewBasicBlock_uniq.
+      split; eauto using switchToNewBasicBlock_uniq.
         symmetry in H0.
         apply lookupBlockViaLabelFromFdef_inv in H0; auto.
         destruct H0; auto.
@@ -1288,7 +1304,7 @@ Proof.
     symmetry in H.
     apply lookupBlockViaLabelFromFdef_inv in H; auto.
     destruct H.
-    split; auto using switchToNewBasicBlock_uniq.
+    split; eauto using switchToNewBasicBlock_uniq.
 Qed.
 
 Definition se_dbCall_preservation_prop S TD Ps fs gl lc Mem0 call0 lc' Mem' tr
@@ -1299,24 +1315,24 @@ Definition se_dbCall_preservation_prop S TD Ps fs gl lc Mem0 call0 lc' Mem' tr
   moduleInSystem (module_intro los nts Ps) S ->
   TD = (los, nts) ->
   uniq lc' .
-Definition se_dbSubblock_preservation_prop S TD Ps fs gl lc als Mem cs lc' als' Mem' tr
-  (db:dbSubblock S TD Ps fs gl lc als Mem cs lc' als' Mem' tr) :=
+Definition se_dbSubblock_preservation_prop S TD Ps fs gl lc als Mem cs lc' als' 
+  Mem' tr (db:dbSubblock S TD Ps fs gl lc als Mem cs lc' als' Mem' tr) :=
   forall los nts,
   uniq lc ->
   uniqSystem S ->
   moduleInSystem (module_intro los nts Ps) S ->
   TD = (los, nts) ->
   uniq lc'.
-Definition se_dbSubblocks_preservation_prop S TD Ps fs gl lc als Mem cs lc' als' Mem' tr
-  (db:dbSubblocks S TD Ps fs gl lc als Mem cs lc' als' Mem' tr) :=
+Definition se_dbSubblocks_preservation_prop S TD Ps fs gl lc als Mem cs lc' als'
+  Mem' tr (db:dbSubblocks S TD Ps fs gl lc als Mem cs lc' als' Mem' tr) :=
   forall los nts,
   uniq lc ->
   uniqSystem S ->
   moduleInSystem (module_intro los nts Ps) S ->
   TD = (los, nts) ->
   uniq lc'.
-Definition se_dbBlock_preservation_prop S TD Ps fs gl F arg state1 state2 tr
-  (db:dbBlock S TD Ps fs gl F arg state1 state2 tr) :=
+Definition se_dbBlock_preservation_prop S TD Ps fs gl F state1 state2 tr
+  (db:dbBlock S TD Ps fs gl F state1 state2 tr) :=
   forall B1 lc als Mem B1' lc' als' Mem' los nts,
   state1 = mkState (mkEC B1 lc als) Mem ->
   state2 = mkState (mkEC B1' lc' als') Mem' ->
@@ -1326,8 +1342,8 @@ Definition se_dbBlock_preservation_prop S TD Ps fs gl F arg state1 state2 tr
   TD = (los, nts) ->
   uniq lc' /\ 
   blockInSystemModuleFdef B1' S (module_intro los nts Ps) F.
-Definition se_dbBlocks_preservation_prop S TD Ps fs gl F lp state1 state2 tr
-  (db:dbBlocks S TD Ps fs gl F lp state1 state2 tr) :=
+Definition se_dbBlocks_preservation_prop S TD Ps fs gl F state1 state2 tr
+  (db:dbBlocks S TD Ps fs gl F state1 state2 tr) :=
   forall B1 lc als Mem B1' lc' als' Mem' los nts,
   state1 = (mkState (mkEC B1 lc als) Mem) ->
   state2 = (mkState (mkEC B1' lc' als') Mem') ->
@@ -1337,10 +1353,12 @@ Definition se_dbBlocks_preservation_prop S TD Ps fs gl F lp state1 state2 tr
   TD = (los, nts) ->
   uniq lc' /\ 
   blockInSystemModuleFdef B1' S (module_intro los nts Ps) F.
-Definition se_dbFdef_preservation_prop fv rt lp S TD Ps lc gl fs Mem lc' als' Mem' B' Rid oResult tr
+Definition se_dbFdef_preservation_prop fv rt lp S TD Ps lc gl fs Mem lc' als' 
+  Mem' B' Rid oResult tr
   (db:dbFdef fv rt lp S TD Ps lc gl fs Mem lc' als' Mem' B' Rid oResult tr) :=
   forall fid la lb los nts,
-  lookupFdefViaGV TD Ps gl lc fs fv = Some (fdef_intro (fheader_intro rt fid la) lb) ->
+  lookupFdefViaGV TD Mem Ps gl lc fs fv = 
+    Some (fdef_intro (fheader_intro rt fid la) lb) ->
   uniq lc ->
   uniqSystem S ->
   moduleInSystem (module_intro los nts Ps) S ->
@@ -1355,10 +1373,10 @@ Lemma se_db_preservation :
      se_dbSubblock_preservation_prop S TD Ps fs gl lc als Mem sb lc' als' Mem' tr db) /\
   (forall S TD Ps fs gl lc als Mem sbs lc' als' Mem' tr db,
      se_dbSubblocks_preservation_prop S TD Ps fs gl lc als Mem sbs lc' als' Mem' tr db) /\
-  (forall S TD Ps fs gl F arg state1 state2 tr db,
-     se_dbBlock_preservation_prop S TD Ps fs gl F arg state1 state2 tr db) /\
-  (forall S TD Ps fs gl F lp state1 state2 tr db,
-     se_dbBlocks_preservation_prop S TD Ps fs gl F lp state1 state2 tr db) /\
+  (forall S TD Ps fs gl F state1 state2 tr db,
+     se_dbBlock_preservation_prop S TD Ps fs gl F state1 state2 tr db) /\
+  (forall S TD Ps fs gl F state1 state2 tr db,
+     se_dbBlocks_preservation_prop S TD Ps fs gl F state1 state2 tr db) /\
   (forall fid rt lp S TD Ps lc gl fs Mem lc' als' Mem' B' Rid oResult tr db,
      se_dbFdef_preservation_prop fid rt lp S TD Ps lc gl fs Mem lc' als' Mem' B' Rid oResult tr db).
 Proof.
@@ -1375,23 +1393,10 @@ Proof.
          se_dbBlock_preservation_prop, se_dbBlocks_preservation_prop,
          se_dbFdef_preservation_prop; intros; subst; eauto.
 Case "dbCall_internal".
-  inversion d; subst.
-    eapply H in H3; eauto. clear H.
-    destruct H3 as [Huniqlc' Hblockin].
-    unfold callUpdateLocals.
-    destruct noret0; auto.
-      destruct (rt=t=typ_void); auto.
-        destruct (getOperandValue (los, nts) Result0 lc' gl); auto.
-          apply updateAddAL_uniq; auto.
-
-    eapply H in H3; eauto. clear H.
-    destruct H3 as [Huniqlc' Hblockin].
-    unfold callUpdateLocals.
-    destruct noret0; auto.
-      destruct (rt=t=typ_void); auto.
+  inversion d; subst; apply callUpdateLocals_uniq in e1; auto.      
 
 Case "dbCall_external".
-  apply exCallUpdateLocals_uniq; auto.      
+  apply exCallUpdateLocals_uniq in e2; auto.      
 
 Case "dbSubblock_intro".
   apply se_dbCmds_preservation in d; eauto.
@@ -1416,8 +1421,8 @@ Case "dbBlocks_nil".
 Case "dbBlocks_cons".
   inversion d; subst.
   assert (J:=H4).
-  eapply H with (B1:=block_intro l0 ps (cs++cs') tmn)(lc0:=lc)(als0:=als)(Mem:=Mem0) 
-               (B1':=B')(lc':=lc4)(als':=als3)(Mem':=Mem3) in J; eauto.
+  eapply H with (B1:=block_intro l0 ps (cs++cs') tmn)(lc0:=lc)(als0:=als)
+            (Mem:=Mem0)(B1':=B')(lc':=lc4)(als':=als3)(Mem':=Mem3) in J; eauto.
   clear H.
   destruct J as [uniqc4 B'in].
   eapply H0; eauto.
@@ -1425,9 +1430,9 @@ Case "dbBlocks_cons".
 Case "dbFdef_func".
   rewrite e in H1. inversion H1; subst. clear H1.
   apply entryBlockInSystemBlockFdef' with (los:=los)(nts:=nts)(Ps:=Ps)(S:=S)
-    (fv:=fv)(gl:=gl)(lc:=lc)(fs:=fs) in e0; auto.
+    (fv:=fv)(gl:=gl)(lc:=lc)(fs:=fs)(M:=Mem0) in e0; auto.
   apply H with (B1:=block_intro l1 ps1 cs1 tmn1)(lc0:=initLocals la0 
-    (params2GVs (los, nts) lp lc gl))(als:=nil)(Mem:=Mem0)
+    (params2GVs (los, nts) Mem0 lp lc gl))(als:=nil)(Mem:=Mem0)
     (B1':=block_intro l2 ps2 (cs21++cs22) (insn_return rid rt Result0))
     (lc':=lc1)(als':=als1)(Mem':=Mem1) in e0; auto using initLocals_uniq.
   clear H. destruct e0 as [uniqc1 Bin].
@@ -1437,9 +1442,9 @@ Case "dbFdef_func".
 Case "dbFdef_proc".
   rewrite e in H1. inversion H1; subst. clear H1.
   apply entryBlockInSystemBlockFdef' with (los:=los)(nts:=nts)(Ps:=Ps)(S:=S)
-    (fv:=fv)(gl:=gl)(lc:=lc)(fs:=fs) in e0; auto.
+    (fv:=fv)(gl:=gl)(lc:=lc)(fs:=fs)(M:=Mem0) in e0; auto.
   apply H with (B1:=block_intro l1 ps1 cs1 tmn1)(lc0:=initLocals la0 
-    (params2GVs (los, nts) lp lc gl))(als:=nil)(Mem:=Mem0)
+    (params2GVs (los, nts) Mem0 lp lc gl))(als:=nil)(Mem:=Mem0)
     (B1':=block_intro l2 ps2 (cs21++cs22) (insn_return_void rid))(lc':=lc1)
     (als':=als1)(Mem':=Mem1) in e0; auto using initLocals_uniq.
   clear H. destruct e0 as [uniqc1 Bin].
@@ -1447,7 +1452,8 @@ Case "dbFdef_proc".
   apply se_dbCmds_preservation in d1; auto.
 Qed.
 
-Lemma se_dbCall_preservation : forall S los nts Ps fs lc gl Mem0 call0 lc' Mem' tr,
+Lemma se_dbCall_preservation : forall S los nts Ps fs lc gl Mem0 call0 lc' Mem' 
+  tr,
   dbCall S (los, nts) Ps fs gl lc Mem0 call0 lc' Mem' tr ->
   uniq lc ->
   uniqSystem S ->
@@ -1483,8 +1489,9 @@ Proof.
   unfold se_dbSubblocks_preservation_prop in J. eauto.
 Qed.
 
-Lemma se_dbBlock_preservation : forall S los nts Ps fs gl F arg tr B1 lc als Mem B1' lc' als' Mem',
-  dbBlock S (los, nts)  Ps fs gl F arg 
+Lemma se_dbBlock_preservation : forall S los nts Ps fs gl F tr B1 lc als Mem B1'
+    lc' als' Mem',
+  dbBlock S (los, nts) Ps fs gl F
     (mkState (mkEC B1 lc als) Mem) 
     (mkState (mkEC B1' lc' als') Mem') tr ->
   uniq lc ->
@@ -1498,8 +1505,9 @@ Proof.
   unfold se_dbBlock_preservation_prop in J. eauto.
 Qed.
 
-Lemma se_dbBlocks_preservation : forall S los nts Ps fs gl F lp tr B1 lc als Mem B1' lc' als' Mem',
-  dbBlocks S (los, nts) Ps fs gl F lp 
+Lemma se_dbBlocks_preservation : forall S los nts Ps fs gl F tr B1 lc als Mem
+    B1' lc' als' Mem',
+  dbBlocks S (los, nts) Ps fs gl F 
     (mkState (mkEC B1 lc als) Mem)
     (mkState (mkEC B1' lc' als') Mem') tr ->
   uniq lc ->
@@ -1513,9 +1521,11 @@ Proof.
   unfold se_dbBlocks_preservation_prop in J. eauto.
 Qed.
 
-Lemma se_dbFdef_preservation : forall fv rt lp S los nts Ps lc gl fs Mem lc' als' Mem' B' Rid oResult tr fid la lb,
+Lemma se_dbFdef_preservation : forall fv rt lp S los nts Ps lc gl fs Mem lc' als'
+    Mem' B' Rid oResult tr fid la lb,
   dbFdef fv rt lp S (los, nts) Ps lc gl fs Mem lc' als' Mem' B' Rid oResult tr ->
-  lookupFdefViaGV (los, nts) Ps gl lc fs fv = Some (fdef_intro (fheader_intro rt fid la) lb) ->
+  lookupFdefViaGV (los, nts) Mem Ps gl lc fs fv = 
+    Some (fdef_intro (fheader_intro rt fid la) lb) ->
   uniq lc ->
   uniqSystem S ->
   moduleInSystem (module_intro los nts Ps) S ->
@@ -1662,26 +1672,72 @@ Proof.
     split; eauto.
 Qed.
 
-Lemma dbTerminator_eqEnv : forall TD F gl lc1 tmn lc2 tr lc1' B B',
-  dbTerminator TD F gl B lc1 tmn B' lc2 tr ->
+Lemma eqAL_switchToNewBasicBlock' : forall TD M B1 B2 gl lc lc' lc1,
+  eqAL _ lc lc' ->
+  switchToNewBasicBlock TD M B1 B2 gl lc = Some lc1 ->
+  exists lc1', switchToNewBasicBlock TD M B1 B2 gl lc' = Some lc1' /\
+               eqAL _ lc1 lc1'.
+Proof.
+  intros.
+  assert (J:=@eqAL_switchToNewBasicBlock TD M B1 B2 gl lc lc' H).
+  rewrite H0 in J.
+  destruct (switchToNewBasicBlock TD M B1 B2 gl lc'); try solve [inversion J].
+  exists g. auto.
+Qed.
+
+Lemma dbTerminator_eqEnv : forall TD M F gl lc1 tmn lc2 tr lc1' B B',
+  dbTerminator TD M F gl B lc1 tmn B' lc2 tr ->
   eqAL _ lc1 lc1' ->
   exists lc2',
-    dbTerminator TD F gl B lc1' tmn B' lc2' tr /\
+    dbTerminator TD M F gl B lc1' tmn B' lc2' tr /\
     eqAL _ lc2 lc2'.
 Proof.
-  intros TD F gl lc1 tmn lc2 tr lc1' B B' HdbTerminator HeqAL.
+  intros TD M F gl lc1 tmn lc2 tr lc1' B B' HdbTerminator HeqAL.
   inversion HdbTerminator; subst.
-    exists (switchToNewBasicBlock TD (block_intro l' ps' sbs' tmn') B gl lc1').
-    split.
+    symmetry in H1.
+    apply eqAL_switchToNewBasicBlock' with (lc':=lc1') in H1; auto.
+    destruct H1 as [lc2' [H10 H11]].
+    exists lc2'.
+    split; auto.
       apply dbBranch with (c:=c); auto.
         erewrite <- getOperandValue_eqAL; eauto.
-      apply eqAL_switchToNewBasicBlock; auto.     
-  
-    exists (switchToNewBasicBlock TD (block_intro l' ps' sbs' tmn') B gl lc1').
-    split.
-      apply dbBranch_uncond; auto.
-      apply eqAL_switchToNewBasicBlock; auto.
+
+    symmetry in H0.
+    apply eqAL_switchToNewBasicBlock' with (lc':=lc1') in H0; auto.
+    destruct H0 as [lc2' [H00 H01]].
+    exists lc2'.
+    split; auto.
 Qed.     
+
+Lemma eqAL_callUpdateLocals' : forall TD M noret0 rid oResult lc1 lc2 gl lc1' 
+    lc2' lc,
+  eqAL _ lc1 lc1' ->
+  eqAL _ lc2 lc2' ->
+  callUpdateLocals TD M noret0 rid oResult lc1 lc2 gl = Some lc ->
+  exists lc', callUpdateLocals TD M noret0 rid oResult lc1' lc2' gl = Some lc' /\
+              eqAL _ lc lc'.
+Proof.
+  intros TD M noret0 rid oResult lc1 lc2 gl lc1' lc2' lc H H0 H1.
+  assert (J:=@eqAL_callUpdateLocals TD M noret0 rid oResult lc1 lc2 gl lc1' lc2' 
+    H H0).
+  rewrite H1 in J.
+  destruct (callUpdateLocals TD M noret0 rid oResult lc1' lc2' gl);
+    try solve [inversion J].
+  exists g. auto.
+Qed.
+
+Lemma eqAL_exCallUpdateLocals' : forall noret0 rid oResult lc lc' lc0,
+  eqAL _ lc lc' ->
+  exCallUpdateLocals noret0 rid oResult lc = Some lc0 ->
+  exists lc0', exCallUpdateLocals noret0 rid oResult lc' = Some lc0' /\
+               eqAL _ lc0 lc0'.
+Proof.
+  intros noret0 rid oResult lc lc' lc0 H H0.
+  assert (J:=@eqAL_exCallUpdateLocals noret0 rid oResult lc lc' H).
+  rewrite H0 in J.
+  destruct (exCallUpdateLocals noret0 rid oResult lc'); try solve [inversion J].
+  exists g. auto.
+Qed.
 
 Definition dbCall_eqEnv_prop S TD Ps fs gl lc1 Mem0 call0 lc2 Mem' tr
   (db:dbCall S TD Ps fs gl lc1 Mem0 call0 lc2 Mem' tr) := 
@@ -1704,34 +1760,36 @@ Definition dbSubblocks_eqEnv_prop S TD Ps fs gl lc1 als Mem cs lc2 als' Mem' tr
   exists lc2',
     dbSubblocks S TD Ps fs gl lc1' als Mem cs lc2' als' Mem' tr /\
     eqAL _ lc2 lc2'.
-Definition dbBlock_eqEnv_prop S TD Ps fs gl F arg state1 state2 tr
-  (db:dbBlock S TD Ps fs gl F arg state1 state2 tr) :=
+Definition dbBlock_eqEnv_prop S TD Ps fs gl F state1 state2 tr
+  (db:dbBlock S TD Ps fs gl F state1 state2 tr) :=
   forall B1 lc1 als Mem B1' lc2 als' Mem' lc1',
   state1 = mkState (mkEC B1 lc1 als) Mem ->
   state2 = mkState (mkEC B1' lc2 als') Mem' ->
   eqAL _ lc1 lc1' ->
   exists lc2',
-    dbBlock S TD Ps fs gl F arg 
+    dbBlock S TD Ps fs gl F 
      (mkState (mkEC B1 lc1' als) Mem) 
      (mkState (mkEC B1' lc2' als') Mem') 
      tr /\
     eqAL _ lc2 lc2'.
-Definition dbBlocks_eqEnv_prop S TD Ps fs gl F lp state1 state2 tr
-  (db:dbBlocks S TD Ps fs gl F lp state1 state2 tr) :=
+Definition dbBlocks_eqEnv_prop S TD Ps fs gl F state1 state2 tr
+  (db:dbBlocks S TD Ps fs gl F state1 state2 tr) :=
   forall B1 lc1 als Mem B1' lc2 als' Mem' lc1',
   state1 = mkState (mkEC B1 lc1 als) Mem ->
   state2 = mkState (mkEC B1' lc2 als') Mem' ->
   eqAL _ lc1 lc1' ->
   exists lc2',
-    dbBlocks S TD Ps fs gl F lp 
+    dbBlocks S TD Ps fs gl F 
      (mkState (mkEC B1 lc1' als) Mem) 
      (mkState (mkEC B1' lc2' als') Mem') 
      tr /\
     eqAL _ lc2 lc2'.
-Definition dbFdef_eqEnv_prop fv rt lp S TD Ps lc1 gl fs Mem lc2 als' Mem' B' Rid oResult tr
+Definition dbFdef_eqEnv_prop fv rt lp S TD Ps lc1 gl fs Mem lc2 als' Mem' B' Rid 
+  oResult tr
   (db:dbFdef fv rt lp S TD Ps lc1 gl fs Mem lc2 als' Mem' B' Rid oResult tr) :=
   forall fid la lb lc1',
-  lookupFdefViaGV TD Ps gl lc1 fs fv = Some (fdef_intro (fheader_intro rt fid la) lb) ->
+  lookupFdefViaGV TD Mem Ps gl lc1 fs fv = 
+    Some (fdef_intro (fheader_intro rt fid la) lb) ->
   eqAL _ lc1 lc1' ->
   exists lc2',
     dbFdef fv rt lp S TD Ps lc1' gl fs Mem lc2' als' Mem' B' Rid oResult tr /\
@@ -1744,12 +1802,13 @@ Lemma db_eqEnv :
      dbSubblock_eqEnv_prop S TD Ps fs gl lc als Mem sb lc' als' Mem' tr db) /\
   (forall S TD Ps fs gl lc als Mem sbs lc' als' Mem' tr db,
      dbSubblocks_eqEnv_prop S TD Ps fs gl lc als Mem sbs lc' als' Mem' tr db) /\
-  (forall S TD Ps fs gl F arg state1 state2 tr db,
-     dbBlock_eqEnv_prop S TD Ps fs gl F arg state1 state2 tr db) /\
-  (forall S TD Ps fs gl F lp state1 state2 tr db,
-     dbBlocks_eqEnv_prop S TD Ps fs gl F lp state1 state2 tr db) /\
+  (forall S TD Ps fs gl F state1 state2 tr db,
+     dbBlock_eqEnv_prop S TD Ps fs gl F state1 state2 tr db) /\
+  (forall S TD Ps fs gl F state1 state2 tr db,
+     dbBlocks_eqEnv_prop S TD Ps fs gl F state1 state2 tr db) /\
   (forall fid rt lp S TD Ps lc gl fs Mem lc' als' Mem' B' Rid oResult tr db,
-     dbFdef_eqEnv_prop fid rt lp S TD Ps lc gl fs Mem lc' als' Mem' B' Rid oResult tr db).
+     dbFdef_eqEnv_prop fid rt lp S TD Ps lc gl fs Mem lc' als' Mem' B' Rid 
+       oResult tr db).
 Proof.
 (db_mutind_cases
   apply db_mutind with
@@ -1767,16 +1826,22 @@ Case "dbCall_internal".
   inversion d; subst.
     apply H with (lc1':=lc1') in H1; auto. clear H.
     destruct H1 as [lc2' [HdbBlocks HeqEnv]].
-    exists (callUpdateLocals TD noret0 rid rt (Some Result0) lc1' lc2' gl).
-    split; eauto using dbCall_internal, eqAL_callUpdateLocals.
+    apply eqAL_callUpdateLocals' with (lc1':=lc1')(lc2':=lc2') in e1; auto.
+    destruct e1 as [lc2'' [J1 J2]].
+    exists lc2''.
+    split; eauto using dbCall_internal.
 
     apply H with (lc1':=lc1') in H1; auto. clear H.
     destruct H1 as [lc2' [HdbBlocks HeqEnv]].
-    exists (callUpdateLocals TD noret0 rid rt None lc1' lc2' gl).
-    split; eauto using dbCall_internal, eqAL_callUpdateLocals.
+    apply eqAL_callUpdateLocals' with (lc1':=lc1')(lc2':=lc2') in e1; auto.
+    destruct e1 as [lc2'' [J1 J2]].
+    exists lc2''.
+    split; eauto using dbCall_internal.
 
 Case "dbCall_external".
-  exists (exCallUpdateLocals noret0 rid rt oresult lc1').
+  apply eqAL_exCallUpdateLocals' with (lc':=lc1')in e2; auto.
+  destruct e2 as [lc2' [J1 J2]].
+  exists lc2'.
   split; eauto using eqAL_exCallUpdateLocals.
     eapply dbCall_external; eauto.
       erewrite eqAL_lookupExFdecViaGV; eauto using eqAL_sym.
@@ -1829,12 +1894,11 @@ Case "dbBlocks_cons".
 
 Case "dbFdef_func".
   rewrite e in H1. inversion H1; subst. clear H1.
-  assert (J:=@eqAL_initLocals la0 lp TD lc gl lc1' H2).
+  assert (J:=@eqAL_initLocals la0 TD Mem0 lp lc gl lc1' H2).
   apply H with (B1:=block_intro l1 ps1 cs1 tmn1)(als:=nil)(Mem:=Mem0)(lc3:=lc1)
     (B1':=block_intro l2 ps2 (cs21++cs22) (insn_return rid rt Result0))
     (als':=als1)(Mem':=Mem1) in J; auto.
   clear H. destruct J as [lc2' [HdbBlocks Heq2]].
-  rewrite eqAL_params2GVs with (lc':=lc1') in HdbBlocks; eauto.
   apply H0 in Heq2. clear H0.
   destruct Heq2 as [lc3' [Hsubblocks Heq3]].
   apply dbCmds_eqEnv with (lc1':=lc3') in d1; auto.
@@ -1845,12 +1909,11 @@ Case "dbFdef_func".
 
 Case "dbFdef_proc".
   rewrite e in H1. inversion H1; subst. clear H1.
-  assert (J:=@eqAL_initLocals la0 lp TD lc gl lc1' H2).
+  assert (J:=@eqAL_initLocals la0 TD Mem0 lp lc gl lc1' H2).
   apply H with (B1:=block_intro l1 ps1 cs1 tmn1)(als:=nil)(Mem:=Mem0)(lc3:=lc1)
     (B1':=block_intro l2 ps2 (cs21++cs22) (insn_return_void rid))(als':=als1)
     (Mem':=Mem1) in J; auto.
   clear H. destruct J as [lc2' [HdbBlocks Heq2]].
-  rewrite eqAL_params2GVs with (lc':=lc1') in HdbBlocks; eauto.
   apply H0 in Heq2. clear H0.
   destruct Heq2 as [lc3' [Hsubblocks Heq3]].
   apply dbCmds_eqEnv with (lc1':=lc3') in d1; auto.
@@ -1896,14 +1959,15 @@ Proof.
   unfold dbSubblocks_eqEnv_prop in J. eauto.
 Qed.
 
-Lemma dbBlock_eqEnv : forall S TD Ps fs gl F arg tr B1 lc1 als Mem B1' lc2 als' Mem' lc1',
-  dbBlock S TD Ps fs gl F arg 
+Lemma dbBlock_eqEnv : forall S TD Ps fs gl F tr B1 lc1 als Mem B1' lc2 als' Mem'
+  lc1',
+  dbBlock S TD Ps fs gl F
     (mkState (mkEC B1 lc1 als) Mem) 
     (mkState (mkEC B1' lc2 als') Mem') 
     tr ->
   eqAL _ lc1 lc1' ->
   exists lc2',
-    dbBlock S TD Ps fs gl F arg 
+    dbBlock S TD Ps fs gl F 
      (mkState (mkEC B1 lc1' als) Mem) 
      (mkState (mkEC B1' lc2' als') Mem') 
      tr /\
@@ -1914,14 +1978,15 @@ Proof.
   unfold dbBlock_eqEnv_prop in J. eauto.
 Qed.
 
-Lemma dbBlocks_eqEnv : forall S TD Ps fs gl F lp tr B1 lc1 als Mem B1' lc2 als' Mem' lc1',
-  dbBlocks S TD Ps fs gl F lp
+Lemma dbBlocks_eqEnv : forall S TD Ps fs gl F tr B1 lc1 als Mem B1' lc2 als' 
+    Mem' lc1',
+  dbBlocks S TD Ps fs gl F
     (mkState (mkEC B1 lc1 als) Mem)
     (mkState (mkEC B1' lc2 als') Mem')
     tr ->
   eqAL _ lc1 lc1' ->
   exists lc2',
-    dbBlocks S TD Ps fs gl F lp 
+    dbBlocks S TD Ps fs gl F 
      (mkState (mkEC B1 lc1' als) Mem) 
      (mkState (mkEC B1' lc2' als') Mem') 
      tr /\
@@ -1932,9 +1997,11 @@ Proof.
   unfold dbBlocks_eqEnv_prop in J. eauto.
 Qed.
 
-Lemma dbFdef_eqEnv : forall fv fid rt lp S TD Ps lc1 gl fs Mem lc2 als' Mem' B' Rid oResult tr la lb lc1',
+Lemma dbFdef_eqEnv : forall fv fid rt lp S TD Ps lc1 gl fs Mem lc2 als' Mem' B' 
+    Rid oResult tr la lb lc1',
   dbFdef fv rt lp S TD Ps lc1 gl fs Mem lc2 als' Mem' B' Rid oResult tr ->
-  lookupFdefViaGV TD Ps gl lc1 fs fv = Some (fdef_intro (fheader_intro rt fid la) lb) ->
+  lookupFdefViaGV TD Mem Ps gl lc1 fs fv = 
+    Some (fdef_intro (fheader_intro rt fid la) lb) ->
   eqAL _ lc1 lc1' ->
   exists lc2',
     dbFdef fv rt lp S TD Ps lc1' gl fs Mem lc2' als' Mem' B' Rid oResult tr /\

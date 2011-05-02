@@ -2,7 +2,6 @@ Add LoadPath "./ott".
 Add LoadPath "./monads".
 Add LoadPath "./compcert".
 Add LoadPath "../../../theory/metatheory_8.3".
-Require Import ssa_mem.
 Require Import genericvalues.
 Require Import ssa_dynamic.
 Require Import ssa_def.
@@ -18,9 +17,11 @@ Export LLVMsyntax.
 Export LLVMlib.
 Export LLVMopsem.
 
-Lemma func_callUpdateLocals_is_returnUpdateLocals : forall TD rid noret0 tailc0 rt fid lp Result lc lc' gl,
-  returnUpdateLocals TD (insn_call rid noret0 tailc0 rt fid lp) rt Result lc lc' gl =
-  callUpdateLocals TD noret0 rid rt (Some Result) lc' lc gl.
+Lemma func_callUpdateLocals_is_returnUpdateLocals : 
+  forall TD Mem rid noret0 tailc0 rt fid lp Result lc lc' gl,
+  returnUpdateLocals TD Mem (insn_call rid noret0 tailc0 rt fid lp) Result 
+    lc lc' gl =
+  callUpdateLocals TD Mem noret0 rid (Some Result) lc' lc gl.
 Proof.
   intros.
   unfold returnUpdateLocals. 
@@ -29,13 +30,12 @@ Proof.
   destruct noret0; auto.
 Qed.
 
-Lemma proc_callUpdateLocals_is_id : forall TD rid noret0 rt lc lc' gl,
-  callUpdateLocals TD noret0 rid rt None lc' lc gl = lc'.
+Lemma proc_callUpdateLocals_is_id : forall TD Mem rid noret0 lc lc' gl lc'',
+  callUpdateLocals TD Mem noret0 rid None lc' lc gl = Some lc'' -> lc' = lc''.
 Proof.
   intros.
-  unfold callUpdateLocals.
-  destruct noret0; auto.
-  destruct (rt =t= typ_void); auto.
+  unfold callUpdateLocals in H. 
+  destruct noret0; inversion H; auto.
 Qed.
 
 (***********************************************************)
@@ -204,39 +204,52 @@ Definition dbInsn__implies__dsop_plus_prop state state' tr (db:dbInsn state stat
   dsop_plus state state' tr.
 Definition dbop__implies__dsop_star_prop state state' tr (db:dbop state state' tr) := 
   dsop_star state state' tr.
-Definition dbFdef__implies__dsop_star_prop fv rt lp S TD Ps ECs lc gl fs Mem lc' als' Mem' B'' rid oResult tr 
-           (db:dbFdef fv rt lp S TD Ps ECs lc gl fs Mem lc' als' Mem' B'' rid oResult tr) := 
+Definition dbFdef__implies__dsop_star_prop fv rt lp S TD Ps ECs lc gl fs Mem lc'
+als' Mem' B'' rid oResult tr 
+(db:dbFdef fv rt lp S TD Ps ECs lc gl fs Mem lc' als' Mem' B'' rid oResult tr) 
+  := 
   match oResult with
   | Some Result => forall fid l' ps' cs' tmn' la lb,
-    lookupFdefViaGV TD Ps gl lc fs fv = Some (fdef_intro (fheader_intro rt fid la) lb) ->
-    getEntryBlock (fdef_intro (fheader_intro rt fid la) lb) = Some (block_intro l' ps' cs' tmn') ->
+    lookupFdefViaGV TD Mem Ps gl lc fs fv =
+      Some (fdef_intro (fheader_intro rt fid la) lb) ->
+    getEntryBlock (fdef_intro (fheader_intro rt fid la) lb) = 
+      Some (block_intro l' ps' cs' tmn') ->
     dsop_star
       (mkState S TD Ps ((mkEC (fdef_intro (fheader_intro rt fid la) lb) 
-                              (block_intro l' ps' cs' tmn') cs' tmn' (initLocals la (params2GVs TD lp lc gl))
-                              (params2GVs TD lp lc gl) nil)::ECs) gl fs Mem)
+                              (block_intro l' ps' cs' tmn') cs' tmn' 
+                              (initLocals la (params2GVs TD Mem lp lc gl))
+                               nil)::ECs) gl fs Mem)
       (mkState S TD Ps ((mkEC (fdef_intro (fheader_intro rt fid la) lb) 
                                B'' nil (insn_return rid rt Result) lc'
-                              (params2GVs TD lp lc gl) als')::ECs) gl fs Mem')
+                               als')::ECs) gl fs 
+                               Mem')
       tr
   | None => forall fid l' ps' cs' tmn' la lb,
-    lookupFdefViaGV TD Ps gl lc fs fv = Some (fdef_intro (fheader_intro rt fid la) lb) ->
-    getEntryBlock (fdef_intro (fheader_intro rt fid la) lb) = Some (block_intro l' ps' cs' tmn') ->  
+    lookupFdefViaGV TD Mem Ps gl lc fs fv = 
+      Some (fdef_intro (fheader_intro rt fid la) lb) ->
+    getEntryBlock (fdef_intro (fheader_intro rt fid la) lb) = 
+      Some (block_intro l' ps' cs' tmn') ->  
     dsop_star
       (mkState S TD Ps ((mkEC (fdef_intro (fheader_intro rt fid la) lb) 
-                              (block_intro l' ps' cs' tmn') cs' tmn' (initLocals la (params2GVs TD lp lc gl))
-                              (params2GVs TD lp lc gl) nil)::ECs) gl fs Mem)
+                              (block_intro l' ps' cs' tmn') cs' tmn' 
+                              (initLocals la (params2GVs TD Mem lp lc gl))
+                              nil)::ECs) gl fs Mem)
       (mkState S TD Ps ((mkEC (fdef_intro (fheader_intro rt fid la) lb) 
                                B'' nil (insn_return_void rid) lc'
-                              (params2GVs TD lp lc gl) als')::ECs) gl fs Mem')
+                               als')::ECs) gl fs 
+                               Mem')
       tr
   end
   .
 
 Lemma db__implies__ds:
-  (forall state state' t  db, @dbInsn__implies__dsop_plus_prop state state' t db) /\
-  (forall state state' t  db, @dbop__implies__dsop_star_prop state state' t db) /\
+  (forall state state' t  db, @dbInsn__implies__dsop_plus_prop state state' t db)
+    /\
+  (forall state state' t  db, @dbop__implies__dsop_star_prop state state' t db) 
+    /\
   (forall fv rt lp S TD Ps ECs lc gl fs Mem lc' als' Mem' B'' rid oret tr db, 
-     @dbFdef__implies__dsop_star_prop fv rt lp S TD Ps ECs lc gl fs Mem lc' als' Mem' B'' rid oret tr db).
+     @dbFdef__implies__dsop_star_prop fv rt lp S TD Ps ECs lc gl fs Mem lc' als' 
+       Mem' B'' rid oret tr db).
 Proof.
 (db_mutind_cases
   apply db_mutind with
@@ -256,19 +269,25 @@ Proof.
     rewrite <- nil_app_trace__eq__trace.
     apply dsop_plus_cons with 
       (state2:=mkState S TD Ps ((mkEC (fdef_intro (fheader_intro rt fid la) lb)
-                               (block_intro l' ps' cs' tmn') cs' tmn' (initLocals la (params2GVs TD lp lc gl)) 
-                               (params2GVs TD lp lc gl) nil)::
-                        (mkEC F B ((insn_call rid noret0 tailc0 rt fv lp)::cs) tmn lc arg0 als)::EC) 
+                               (block_intro l' ps' cs' tmn') cs' tmn' 
+                               (initLocals la (params2GVs TD Mem0 lp lc gl)) 
+                               nil)::
+                        (mkEC F B ((insn_call rid noret0 tailc0 rt fv lp)::cs) 
+                         tmn lc als)::EC) 
                         gl fs Mem0); auto.
     rewrite <- trace_app_nil__eq__trace.
     apply dsop_star_trans with 
       (state2:=mkState S TD Ps ((mkEC (fdef_intro (fheader_intro rt fid la) lb) 
-                               (block_intro l'' ps'' cs'' (insn_return Rid rt Result)) nil (insn_return Rid rt Result) lc'
-                               (params2GVs TD lp lc gl) als')::
-                        (mkEC F B ((insn_call rid noret0 tailc0 rt fv lp)::cs) tmn lc arg0 als)::EC) 
-                        gl fs Mem'); auto.
+                               (block_intro l'' ps'' cs'' 
+                                (insn_return Rid rt Result)) nil 
+                                (insn_return Rid rt Result) lc'
+                                als')::
+                        (mkEC F B ((insn_call rid noret0 tailc0 rt fv lp)::cs) 
+                         tmn lc als)::EC) 
+                         gl fs Mem'); auto.
       apply dsInsn__implies__dsop_star.
-      erewrite <- func_callUpdateLocals_is_returnUpdateLocals; eauto.
+        apply dsReturn; auto.
+          erewrite func_callUpdateLocals_is_returnUpdateLocals; eauto.
 
     SCase "dbFdef_proc".
     assert (Hlookup:=H0).
@@ -276,18 +295,22 @@ Proof.
     rewrite <- nil_app_trace__eq__trace.
     apply dsop_plus_cons with 
       (state2:=mkState S TD Ps ((mkEC (fdef_intro (fheader_intro rt fid la) lb)
-                               (block_intro l' ps' cs' tmn') cs' tmn' (initLocals la (params2GVs TD lp lc gl)) 
-                               (params2GVs TD lp lc gl) nil)::
-                        (mkEC F B ((insn_call rid noret0 tailc0 rt fv lp)::cs) tmn lc arg0 als)::EC) 
+                               (block_intro l' ps' cs' tmn') cs' tmn' 
+                                (initLocals la (params2GVs TD Mem0 lp lc gl)) 
+                                nil)::
+                        (mkEC F B ((insn_call rid noret0 tailc0 rt fv lp)::cs) 
+                         tmn lc als)::EC) 
                         gl fs Mem0); auto.
     rewrite <- trace_app_nil__eq__trace.
+    apply proc_callUpdateLocals_is_id in e0; subst.
     apply dsop_star_trans with 
       (state2:=mkState S TD Ps ((mkEC (fdef_intro (fheader_intro rt fid la) lb) 
-                               (block_intro l'' ps'' cs'' (insn_return_void Rid)) nil (insn_return_void Rid) lc'
-                               (params2GVs TD lp lc gl) als')::
-                        (mkEC F B ((insn_call rid noret0 tailc0 rt fv lp)::cs) tmn lc arg0 als)::EC) 
+                               (block_intro l'' ps'' cs'' (insn_return_void Rid))
+                                nil (insn_return_void Rid) lc'
+                                als')::
+                        (mkEC F B ((insn_call rid noret0 tailc0 rt fv lp)::cs) 
+                         tmn lc'' als)::EC) 
                         gl fs Mem'); auto.
-      rewrite proc_callUpdateLocals_is_id; eauto.
 
   Case "dbop_cons".
     apply dsop_star_trans with (state2:=S2); auto.
@@ -325,40 +348,53 @@ Proof.
   destruct db__implies__ds as [_ [J _]]. eauto.
 Qed.
 
-Lemma dbFdef_func__implies__dsop_star : forall fv fid rt lp S TD Ps ECs lc gl fs Mem lc' als' Mem' B'' rid Result tr l' ps' cs' tmn' la lb,
-  dbFdef fv rt lp S TD Ps ECs lc gl fs Mem lc' als' Mem' B'' rid (Some Result) tr ->
-  lookupFdefViaGV TD Ps gl lc fs fv = Some (fdef_intro (fheader_intro rt fid la) lb) ->
-  getEntryBlock (fdef_intro (fheader_intro rt fid la) lb) = Some (block_intro l' ps' cs' tmn') ->
+Lemma dbFdef_func__implies__dsop_star : forall fv fid rt lp S TD Ps ECs lc gl fs
+    Mem lc' als' Mem' B'' rid Result tr l' ps' cs' tmn' la lb,
+  dbFdef fv rt lp S TD Ps ECs lc gl fs Mem lc' als' Mem' B'' rid (Some Result) 
+    tr ->
+  lookupFdefViaGV TD Mem Ps gl lc fs fv = 
+    Some (fdef_intro (fheader_intro rt fid la) lb) ->
+  getEntryBlock (fdef_intro (fheader_intro rt fid la) lb) = 
+    Some (block_intro l' ps' cs' tmn') ->
   dsop_star 
     (mkState S TD Ps ((mkEC (fdef_intro (fheader_intro rt fid la) lb) 
-                             (block_intro l' ps' cs' tmn') cs' tmn' (initLocals la (params2GVs TD lp lc gl))
-                            (params2GVs TD lp lc gl) nil)::ECs) gl fs Mem)
+                             (block_intro l' ps' cs' tmn') cs' tmn' 
+                             (initLocals la (params2GVs TD Mem lp lc gl))
+                             nil)::ECs) gl fs Mem)
     (mkState S TD Ps ((mkEC (fdef_intro (fheader_intro rt fid la) lb) 
                              B'' nil (insn_return rid rt Result) lc'
-                            (params2GVs TD lp lc gl) als')::ECs) gl fs Mem')
+                             als')::ECs) gl fs Mem')
     tr.
 Proof.
-  intros fv fid rt lp S TD Ps EC lc gl fs Mem0 lc' als' Mem' B'' rid Result tr l' ps' cs' tmn' la lb H H1 H2.
+  intros fv fid rt lp S TD Ps EC lc gl fs Mem0 lc' als' Mem' B'' rid Result tr 
+    l' ps' cs' tmn' la lb H H1 H2.
   destruct db__implies__ds as [_ [_ J]]. 
-  assert (K:=@J fv rt lp S TD Ps EC lc gl fs Mem0 lc' als' Mem' B'' rid (Some Result) tr H fid l' ps' cs' tmn' la lb H1 H2); auto.
+  assert (K:=@J fv rt lp S TD Ps EC lc gl fs Mem0 lc' als' Mem' B'' rid 
+    (Some Result) tr H fid l' ps' cs' tmn' la lb H1 H2); auto.
 Qed.
 
-Lemma dbFdef_proc__implies__dsop_star : forall fv fid rt lp S TD Ps ECs lc gl fs Mem lc' als' Mem' B'' rid tr l' ps' cs' tmn' la lb,
+Lemma dbFdef_proc__implies__dsop_star : forall fv fid rt lp S TD Ps ECs lc gl fs
+    Mem lc' als' Mem' B'' rid tr l' ps' cs' tmn' la lb,
   dbFdef fv rt lp S TD Ps ECs lc gl fs  Mem lc' als' Mem' B'' rid None tr ->
-  lookupFdefViaGV TD Ps gl lc fs fv = Some (fdef_intro (fheader_intro rt fid la) lb) ->
-  getEntryBlock (fdef_intro (fheader_intro rt fid la) lb) = Some (block_intro l' ps' cs' tmn') ->
+  lookupFdefViaGV TD Mem Ps gl lc fs fv = 
+    Some (fdef_intro (fheader_intro rt fid la) lb) ->
+  getEntryBlock (fdef_intro (fheader_intro rt fid la) lb) = 
+    Some (block_intro l' ps' cs' tmn') ->
   dsop_star 
     (mkState S TD Ps ((mkEC (fdef_intro (fheader_intro rt fid la) lb) 
-                            (block_intro l' ps' cs' tmn') cs' tmn' (initLocals la (params2GVs TD lp lc gl))
-                            (params2GVs TD lp lc gl) nil)::ECs) gl fs Mem)
+                            (block_intro l' ps' cs' tmn') cs' tmn' 
+                            (initLocals la (params2GVs TD Mem lp lc gl))
+                            nil)::ECs) gl fs Mem)
     (mkState S TD Ps ((mkEC (fdef_intro (fheader_intro rt fid la) lb) 
                              B'' nil (insn_return_void rid) lc'
-                            (params2GVs TD lp lc gl) als')::ECs) gl fs Mem')
+                             als')::ECs) gl fs Mem')
     tr.
 Proof.
-  intros fv fid rt lp S TD Ps EC lc gl fs Mem0 lc' als' Mem' B'' rid tr l' ps' cs' tmn' la lb H H1 H2.
+  intros fv fid rt lp S TD Ps EC lc gl fs Mem0 lc' als' Mem' B'' rid tr l' ps' 
+    cs' tmn' la lb H H1 H2.
   destruct db__implies__ds as [_ [_ J]]. 
-  assert (K:=@J fv rt lp S TD Ps EC lc gl fs Mem0 lc' als' Mem' B'' rid None tr H fid l' ps' cs' tmn' la lb H1 H2); auto.
+  assert (K:=@J fv rt lp S TD Ps EC lc gl fs Mem0 lc' als' Mem' B'' rid None tr 
+    H fid l' ps' cs' tmn' la lb H1 H2); auto.
 Qed.
 
 (** Then we prove that the whole program holds the same property. *)
@@ -389,14 +425,18 @@ Qed.
 (** First,we prove that dbInsn, dbop and dbFdef imply small-step semantics,
     by nested coinduction. *)
 
-Lemma dbFdefInf__implies__dsop_diverges : forall fv fid rt lp S TD Ps ECs lc gl fs Mem tr l' ps' cs' tmn' la lb,
+Lemma dbFdefInf__implies__dsop_diverges : forall fv fid rt lp S TD Ps ECs lc gl 
+    fs Mem tr l' ps' cs' tmn' la lb,
   dbFdefInf fv rt lp S TD Ps ECs lc gl fs Mem tr ->
-  lookupFdefViaGV TD Ps gl lc fs fv = Some (fdef_intro (fheader_intro rt fid la) lb) ->
-  getEntryBlock (fdef_intro (fheader_intro rt fid la) lb) = Some (block_intro l' ps' cs' tmn') ->
+  lookupFdefViaGV TD Mem Ps gl lc fs fv = 
+    Some (fdef_intro (fheader_intro rt fid la) lb) ->
+  getEntryBlock (fdef_intro (fheader_intro rt fid la) lb) = 
+    Some (block_intro l' ps' cs' tmn') ->
   dsop_diverges 
-    (mkState S TD Ps ((mkEC (fdef_intro (fheader_intro rt fid la) lb) (block_intro l' ps' cs' tmn') cs' tmn'
-                        (initLocals la (params2GVs TD lp lc gl)) 
-                        (params2GVs TD lp lc gl) nil)::ECs) gl fs Mem)
+    (mkState S TD Ps ((mkEC (fdef_intro (fheader_intro rt fid la) lb) 
+                        (block_intro l' ps' cs' tmn') cs' tmn'
+                        (initLocals la (params2GVs TD Mem lp lc gl)) 
+                        nil)::ECs) gl fs Mem)
     tr.
 Proof.
   cofix CIH_dbFdefInf.
@@ -413,12 +453,15 @@ Proof.
     inversion H; subst.
     apply dsop_diverges_intro with 
       (state2:=mkState S TD Ps ((mkEC (fdef_intro (fheader_intro rt fid la) lb)
-                               (block_intro l' ps' cs' tmn') cs' tmn' (initLocals la (params2GVs TD lp lc gl)) 
-                               (params2GVs TD lp lc gl) nil)::
-                        (mkEC F B ((insn_call rid noret0 tailc0 rt fv lp)::cs) tmn lc arg0 als)::EC) 
-                        gl fs Mem0); 
+                               (block_intro l' ps' cs' tmn') cs' tmn' 
+                               (initLocals la (params2GVs TD Mem0 lp lc gl)) 
+                               nil)::
+                        (mkEC F B ((insn_call rid noret0 tailc0 rt fv lp)::cs) 
+                         tmn lc als)::EC) 
+                         gl fs Mem0); 
       try solve [clear CIH_dbFdefInf CIH_dbInsnInf; auto].
-      apply CIH_dbFdefInf with (fid:=fid)(l':=l')(ps':=ps')(cs':=cs')(tmn':=tmn')(la:=la)(lb:=lb) in HdbFdefInf; auto.
+      apply CIH_dbFdefInf with (fid:=fid)(l':=l')(ps':=ps')(cs':=cs')(tmn':=tmn')
+        (la:=la)(lb:=lb) in HdbFdefInf; auto.
 
   assert (forall state tr, 
           dbopInf state tr -> 
@@ -456,12 +499,15 @@ Proof.
   inversion H; subst.
   apply dsop_diverges_intro with 
     (state2:=mkState S TD Ps ((mkEC (fdef_intro (fheader_intro rt fid la) lb)
-                             (block_intro l' ps' cs' tmn') cs' tmn' (initLocals la (params2GVs TD lp lc gl)) 
-                             (params2GVs TD lp lc gl) nil)::
-                      (mkEC F B ((insn_call rid noret0 tailc0 rt fv lp)::cs) tmn lc arg0 als)::EC) 
-                      gl fs Mem0); 
+                             (block_intro l' ps' cs' tmn') cs' tmn' 
+                             (initLocals la (params2GVs TD Mem0 lp lc gl)) 
+                             nil)::
+                      (mkEC F B ((insn_call rid noret0 tailc0 rt fv lp)::cs) tmn
+                       lc als)::EC) 
+                       gl fs Mem0); 
     try solve [clear CIH_dbInsnInf; auto].
-    apply dbFdefInf__implies__dsop_diverges with (fid:=fid)(l':=l')(ps':=ps')(cs':=cs')(tmn':=tmn')(la:=la)(lb:=lb) in HdbFdefInf; auto.
+    apply dbFdefInf__implies__dsop_diverges with (fid:=fid)(l':=l')(ps':=ps')
+      (cs':=cs')(tmn':=tmn')(la:=la)(lb:=lb) in HdbFdefInf; auto.
 Qed.
 
 Lemma dbopInf__implies__dsop_diverges : forall state tr, 
@@ -498,29 +544,44 @@ Qed.
 (** First, by mutual induction, we prove that nbInsn, nbop and  
     nbFdef imply small-step semantics. *)
 
-Definition nbInsn__implies__nsop_plus_prop state_tr states' (nb:nbInsn state_tr states') := 
-  nsop_plus (state_tr::nil) states'.
-Definition nbop_star__implies__nsop_star_prop states states' (nb:nbop_star states states') := 
+Definition nbInsn__implies__nsop_plus_prop state_tr states' 
+  (nb:nbInsn state_tr states') := nsop_plus (state_tr::nil) states'.
+Definition nbop_star__implies__nsop_star_prop states states' 
+  (nb:nbop_star states states') := 
   nsop_star states states'.
-Definition nbFdef__implies__nsop_star_prop fv rt lp S TD Ps ECs lc gl fs Mem tr lc_gl_als_Mem_block_rid_ore_trs 
-           (nb:nbFdef fv rt lp S TD Ps ECs lc gl fs Mem tr lc_gl_als_Mem_block_rid_ore_trs) := 
+Definition nbFdef__implies__nsop_star_prop fv rt lp S TD Ps ECs lc gl fs Mem tr 
+lc_gl_als_Mem_block_rid_ore_trs 
+(nb:nbFdef fv rt lp S TD Ps ECs lc gl fs Mem tr lc_gl_als_Mem_block_rid_ore_trs)
+  := 
   forall fid l' ps' cs' tmn' la lb,
-  lookupFdefViaGV TD Ps gl lc fs fv = Some (fdef_intro (fheader_intro rt fid la) lb) ->
-  getEntryBlock (fdef_intro (fheader_intro rt fid la) lb) = Some (block_intro l' ps' cs' tmn') ->
+  lookupFdefViaGV TD Mem Ps gl lc fs fv = 
+    Some (fdef_intro (fheader_intro rt fid la) lb) ->
+  getEntryBlock (fdef_intro (fheader_intro rt fid la) lb) = 
+    Some (block_intro l' ps' cs' tmn') ->
   nsop_star
     ((mkState S TD Ps ((mkEC (fdef_intro (fheader_intro rt fid la) lb) 
-                            (block_intro l' ps' cs' tmn') cs' tmn' (initLocals la (params2GVs TD lp lc gl))
-                            (params2GVs TD lp lc gl) nil)::ECs) gl fs Mem, tr)::nil)
-    (returnStatesFromOp S TD Ps ECs lp lc gl fs rt fid la lb lc_gl_als_Mem_block_rid_ore_trs)
+                            (block_intro l' ps' cs' tmn') cs' tmn' 
+                            (initLocals la (params2GVs TD Mem lp lc gl))
+                            nil)::ECs) gl fs Mem, 
+                             tr)::nil)
+    (returnStatesFromOp S TD Ps ECs gl fs rt fid la lb 
+      lc_gl_als_Mem_block_rid_ore_trs)
   .
 
+Lemma getOperandValue_free_allocas : forall TD Mem v lc gl als Mem',
+  free_allocas TD Mem als = Some Mem' ->
+  getOperandValue TD Mem v lc gl = getOperandValue TD Mem' v lc gl.
+Admitted.
+
 Lemma returnStatesFromOp__nsop_star__updateStatesFromReturns : 
-forall lc_als_Mem_block_rid_ore_trs S TD Ps F B rid noret tailc (rt:typ) fv (fid:id) lp
-       (lc:GVMap) arg als EC cs tmn lc gl fs rt fid la lb states,
-  updateStatesFromReturns S TD Ps F B cs tmn lc gl fs rid rt arg als EC noret lc_als_Mem_block_rid_ore_trs = Some states ->
+forall lc_als_Mem_block_rid_ore_trs S TD Ps F B rid noret tailc (rt:typ) fv 
+  (fid:id) lp (lc:GVMap) als EC cs tmn lc gl fs rt fid la lb states,
+  updateStatesFromReturns S TD Ps F B cs tmn lc gl fs rid als EC noret 
+    lc_als_Mem_block_rid_ore_trs = Some states ->
   nsop_star
-    (returnStatesFromOp S TD Ps (mkEC F B ((insn_call rid noret tailc rt fv lp)::cs) tmn lc arg als::EC)
-                        lp lc gl fs rt fid la lb lc_als_Mem_block_rid_ore_trs)
+    (returnStatesFromOp S TD Ps (mkEC F B ((insn_call rid noret tailc rt fv lp)::
+      cs) tmn lc als::EC)
+      gl fs rt fid la lb lc_als_Mem_block_rid_ore_trs)
     states.
 Proof.
   induction lc_als_Mem_block_rid_ore_trs; simpl; intros.
@@ -532,139 +593,84 @@ Proof.
   destruct p as [p B'']. 
   destruct p as [p Mem']. 
   destruct p as [lc' als'].
-  remember (rt0 =t= typ_void) as rt0_eq_void.
-  destruct rt0_eq_void.
-  Case "rt0_is_void".
-   destruct ore as [ re | ].
-   SCase "ore = Some re".    
+  destruct ore as [ re | ].
+  Case "ore = Some re".    
     destruct noret0.
-    SSCase "noret = true".
+    SCase "noret = true".
       remember (free_allocas TD Mem' als') as Mem''.
       destruct Mem''; simpl in H; try solve [inversion H; subst].
-      remember (updateStatesFromReturns S TD Ps F B cs tmn lc0 gl fs rid rt0 arg0 als EC true lc_als_Mem_block_rid_ore_trs) as states2.
+      remember (updateStatesFromReturns S TD Ps F B cs tmn lc0 gl fs rid als
+        EC true lc_als_Mem_block_rid_ore_trs) as states2.
       destruct states2; simpl in H; inversion H; subst.
       assert (
-        (mkState S TD Ps (mkEC F B cs tmn lc0 arg0 als::EC) gl fs m, tr)::s = 
-        ((mkState S TD Ps (mkEC F B cs tmn (returnUpdateLocals TD (insn_call rid true tailc0 rt0 fv lp) rt0 re lc' lc0 gl) arg0 als::EC) gl fs m, tr)::nil) ++ s
+        (mkState S TD Ps (mkEC F B cs tmn lc0 als::EC) gl fs m, tr)::s = 
+        ((mkState S TD Ps (mkEC F B cs tmn lc0 als::EC) 
+          gl fs m, tr)::nil) ++ s
       ) as EQ. auto.
       rewrite EQ.
       apply nsop_star_cons; auto.
 
-    SSCase "noret=false".
+    SCase "noret=false".
+      remember (getOperandValue TD Mem' re lc' gl) as ogv.
+      destruct ogv as [g |]; try solve [inversion H].
       remember (free_allocas TD Mem' als') as Mem''.
-      destruct Mem''; simpl in H; try solve [inversion H; subst].
-      remember (updateStatesFromReturns S TD Ps F B cs tmn lc0 gl fs rid rt0 arg0 als EC false lc_als_Mem_block_rid_ore_trs) as states2.
+      destruct Mem''; simpl in H; try solve [inversion H].
+      remember (updateStatesFromReturns S TD Ps F B cs tmn lc0 gl fs rid 
+        als EC false lc_als_Mem_block_rid_ore_trs) as states2.
       destruct states2; simpl in H; inversion H; subst.
       assert (
-        (mkState S TD Ps (mkEC F B cs tmn lc0 arg0 als::EC) gl fs m, tr)::s = 
-        ((mkState S TD Ps (mkEC F B cs tmn (returnUpdateLocals TD (insn_call rid false tailc0 rt0 fv lp) rt0 re lc' lc0 gl) arg0 als::EC) gl fs m, tr)::nil) ++ s
-      ) as EQ.
-        unfold returnUpdateLocals. 
-        simpl. 
-        rewrite <- Heqrt0_eq_void. auto.
+        (mkState S TD Ps (mkEC F B cs tmn (assoclist.updateAddAL _ lc0 rid g) 
+                           als::EC) gl fs m, tr)::s = 
+        ((mkState S TD Ps (mkEC F B cs tmn (assoclist.updateAddAL _ lc0 rid g) 
+                            als::EC) gl fs m, tr)::nil) 
+          ++ s
+      ) as EQ. simpl. auto.
       rewrite EQ.
       apply nsop_star_cons; auto.
-   SCase "ore = None".    
+        apply nsReturn; auto.
+          unfold returnUpdateLocals. 
+          rewrite <- getOperandValue_free_allocas with (Mem:=Mem')(als:=als'); auto.
+          rewrite <- Heqogv; auto.
+
+   Case "ore = None".    
     destruct noret0.
-    SSCase "noret = true".
+    SCase "noret = true".
       remember (free_allocas TD Mem' als') as Mem''.
       destruct Mem''; simpl in H; try solve [inversion H; subst].
-      remember (updateStatesFromReturns S TD Ps F B cs tmn lc0 gl fs rid rt0 arg0 als EC true lc_als_Mem_block_rid_ore_trs) as states2.
+      remember (updateStatesFromReturns S TD Ps F B cs tmn lc0 gl fs rid 
+        als EC true lc_als_Mem_block_rid_ore_trs) as states2.
       destruct states2; simpl in H; inversion H; subst.
       assert (
-        (mkState S TD Ps (mkEC F B cs tmn lc0 arg0 als::EC) gl fs m, tr)::s = 
-        ((mkState S TD Ps (mkEC F B cs tmn lc0 arg0 als::EC) gl fs m, tr)::nil) ++ s
-      ) as EQ. auto.
-      rewrite EQ.
-      apply nsop_star_cons; auto.
-    SSCase "noret = flase".
-      remember (free_allocas TD Mem' als') as Mem''.
-      destruct Mem''; simpl in H; try solve [inversion H; subst].
-      remember (updateStatesFromReturns S TD Ps F B cs tmn lc0 gl fs rid rt0 arg0 als EC false lc_als_Mem_block_rid_ore_trs) as states2.
-      destruct states2; simpl in H; inversion H; subst.
-      assert (
-        (mkState S TD Ps (mkEC F B cs tmn lc0 arg0 als::EC) gl fs m, tr)::s = 
-        ((mkState S TD Ps (mkEC F B cs tmn lc0 arg0 als::EC) gl fs m, tr)::nil) ++ s
+        (mkState S TD Ps (mkEC F B cs tmn lc0 als::EC) gl fs m, tr)::s = 
+        ((mkState S TD Ps (mkEC F B cs tmn lc0 als::EC) gl fs m, tr)::nil) 
+          ++ s
       ) as EQ. auto.
       rewrite EQ.
       apply nsop_star_cons; auto.
 
-  Case "rt0_isnt_void".
-   destruct ore as [ re | ].
-   SCase "ore = Some re".    
-    destruct noret0.
-    SSCase "noret = true".
+    SCase "noret = flase".
       remember (free_allocas TD Mem' als') as Mem''.
       destruct Mem''; simpl in H; try solve [inversion H; subst].
-      remember (updateStatesFromReturns S TD Ps F B cs tmn lc0 gl fs rid rt0 arg0 als EC true lc_als_Mem_block_rid_ore_trs) as states2.
+      remember (updateStatesFromReturns S TD Ps F B cs tmn lc0 gl fs rid 
+        als EC false lc_als_Mem_block_rid_ore_trs) as states2.
       destruct states2; simpl in H; inversion H; subst.
       assert (
-        (mkState S TD Ps (mkEC F B cs tmn lc0 arg0 als::EC) gl fs m, tr)::s = 
-        ((mkState S TD Ps (mkEC F B cs tmn (returnUpdateLocals TD (insn_call rid true tailc0 rt0 fv lp) rt0 re lc' lc0 gl) arg0 als::EC) gl fs m, tr)::nil) ++ s
-      ) as EQ. auto.
-      rewrite EQ.
-      apply nsop_star_cons; auto.
-    SSCase "noret = false".
-      remember (getOperandValue TD re lc' gl) as ogv.
-      destruct ogv as [g |].
-        remember (free_allocas TD Mem' als') as Mem''.
-        destruct Mem''; simpl in H; try solve [inversion H; subst].
-        remember (updateStatesFromReturns S TD Ps F B cs tmn lc0 gl fs rid rt0 arg0 als EC false lc_als_Mem_block_rid_ore_trs) as states2.
-        destruct states2; simpl in H; inversion H; subst.
-        assert (
-          (mkState S TD Ps (mkEC F B cs tmn (assoclist.updateAddAL _ lc0 rid g) arg0 als::EC) gl fs m, tr)::s = 
-          ((mkState S TD Ps (mkEC F B cs tmn (returnUpdateLocals TD (insn_call rid false tailc0 rt0 fv lp) rt0 re lc' lc0 gl) arg0 als::EC) gl fs m, tr)::nil) ++ s
-        ) as EQ. 
-          unfold returnUpdateLocals.
-          rewrite <- Heqogv.
-          rewrite <- Heqrt0_eq_void. auto.
-        rewrite EQ.
-        apply nsop_star_cons; auto.
-
-        remember (free_allocas TD Mem' als') as Mem''.
-        destruct Mem''; simpl in H; try solve [inversion H; subst].
-        remember (updateStatesFromReturns S TD Ps F B cs tmn lc0 gl fs rid rt0 arg0 als EC false lc_als_Mem_block_rid_ore_trs) as states2.
-        destruct states2; simpl in H; inversion H; subst.
-        assert (
-          (mkState S TD Ps (mkEC F B cs tmn lc0 arg0 als::EC) gl fs m, tr)::s = 
-          ((mkState S TD Ps (mkEC F B cs tmn (returnUpdateLocals TD (insn_call rid false tailc0 rt0 fv lp) rt0 re lc' lc0 gl) arg0 als::EC) gl fs m, tr)::nil) ++ s
-        ) as EQ. 
-          unfold returnUpdateLocals.
-          rewrite <- Heqogv.
-          rewrite <- Heqrt0_eq_void. auto.
-        rewrite EQ.
-        apply nsop_star_cons; auto.
-   SCase "ore = None".    
-    destruct noret0.
-    SSCase "noret = true".
-      remember (free_allocas TD Mem' als') as Mem''.
-      destruct Mem''; simpl in H; try solve [inversion H; subst].
-      remember (updateStatesFromReturns S TD Ps F B cs tmn lc0 gl fs rid rt0 arg0 als EC true lc_als_Mem_block_rid_ore_trs) as states2.
-      destruct states2; simpl in H; inversion H; subst.
-      assert (
-        ((mkState S TD Ps (mkEC F B cs tmn lc0 arg0 als::EC) gl fs m, tr)::s) = 
-        ((mkState S TD Ps (mkEC F B cs tmn lc0 arg0 als::EC) gl fs m, tr)::nil) ++ s
-      ) as EQ. auto.
-      rewrite EQ.
-      apply nsop_star_cons; eauto.
-    SSCase "noret = false".
-      remember (free_allocas TD Mem' als') as Mem''.
-      destruct Mem''; simpl in H; try solve [inversion H; subst].
-      remember (updateStatesFromReturns S TD Ps F B cs tmn lc0 gl fs rid rt0 arg0 als EC false lc_als_Mem_block_rid_ore_trs) as states2.
-      destruct states2; simpl in H; inversion H; subst.
-      assert (
-        (mkState S TD Ps (mkEC F B cs tmn lc0 arg0 als::EC) gl fs m, tr)::s = 
-        ((mkState S TD Ps (mkEC F B cs tmn lc0 arg0 als::EC) gl fs m, tr)::nil) ++ s
+        (mkState S TD Ps (mkEC F B cs tmn lc0 als::EC) gl fs m, tr)::s = 
+        ((mkState S TD Ps (mkEC F B cs tmn lc0 als::EC) gl fs m, tr)::nil) 
+         ++ s
       ) as EQ. auto.
       rewrite EQ.
       apply nsop_star_cons; auto.
 Qed.
 
 Lemma nb__implies__ns:
-  (forall state_tr states' nb, @nbInsn__implies__nsop_plus_prop state_tr states' nb) /\
-  (forall states states' nb, @nbop_star__implies__nsop_star_prop states states' nb) /\
+  (forall state_tr states' nb, 
+     @nbInsn__implies__nsop_plus_prop state_tr states' nb) /\
+  (forall states states' nb, 
+     @nbop_star__implies__nsop_star_prop states states' nb) /\
   (forall fv rt lp S TD Ps ECs lc gl fs Mem tr lc_Mem_block_re_trs nb, 
-     @nbFdef__implies__nsop_star_prop fv rt lp S TD Ps ECs lc gl fs Mem tr lc_Mem_block_re_trs nb).
+     @nbFdef__implies__nsop_star_prop fv rt lp S TD Ps ECs lc gl fs Mem tr 
+       lc_Mem_block_re_trs nb).
 Proof.
 (nb_mutind_cases
   apply nb_mutind with
@@ -678,62 +684,87 @@ Proof.
   intros; subst; simpl; 
     try solve [intuition].
   Case "nbBranch_def".
-    apply nsop_plus_trans with (states2:=(mkState S TD Ps (mkEC F (block_intro l' ps' cs' tmn') cs' tmn' (switchToNewBasicBlock TD (block_intro l' ps' cs' tmn') B gl lc) arg0 als::EC) gl fs Mem0, tr)::nil); auto.
+    apply nsop_plus_trans with (states2:=(mkState S TD Ps 
+      (mkEC F (block_intro l' ps' cs' tmn') cs' tmn' lc' als::EC) gl fs Mem0
+       , tr)::nil); auto.
       rewrite app_nil_end; eauto.
   Case "nbBranch_undef".
-    apply nsop_plus_trans with (states2:=(mkState S TD Ps (mkEC F (block_intro l1' ps1' cs1' tmn1') cs1' tmn1' (switchToNewBasicBlock TD (block_intro l1' ps1' cs1' tmn1') B gl lc) arg0 als::EC) gl fs Mem0, tr)::
-                                        (mkState S TD Ps (mkEC F (block_intro l2' ps2' cs2' tmn2') cs2' tmn2' (switchToNewBasicBlock TD (block_intro l2' ps2' cs2' tmn2') B gl lc) arg0 als::EC) gl fs Mem0, tr)::nil); auto.
+    apply nsop_plus_trans with (states2:=(mkState S TD Ps 
+      (mkEC F (block_intro l1' ps1' cs1' tmn1') cs1' tmn1' lc1' als::EC) gl
+        fs Mem0, tr)::
+      (mkState S TD Ps (mkEC F (block_intro l2' ps2' cs2' tmn2') cs2' tmn2' lc2'
+        als::EC) gl fs Mem0, tr)::nil); auto.
       rewrite app_nil_end; eauto.
   Case "nbBranch_uncond".
-    apply nsop_plus_trans with (states2:=(mkState S TD Ps (mkEC F (block_intro l' ps' cs' tmn') cs' tmn' (switchToNewBasicBlock TD (block_intro l' ps' cs' tmn') B gl lc) arg0 als::EC) gl fs Mem0, tr)::nil); auto.
+    apply nsop_plus_trans with (states2:=(mkState S TD Ps 
+      (mkEC F (block_intro l' ps' cs' tmn') cs' tmn' lc' als::EC) gl fs Mem0
+       , tr)::nil); auto.
       rewrite app_nil_end; eauto.
   Case "nbBop".
-    apply nsop_plus_trans with (states2:=(mkState S TD Ps (mkEC F B cs tmn (updateAddAL _ lc id0 gv3) arg0 als::EC) gl fs Mem0, tr)::nil); 
+    apply nsop_plus_trans with (states2:=(mkState S TD Ps (mkEC F B cs tmn 
+      (updateAddAL _ lc id0 gv3) als::EC) gl fs Mem0, tr)::nil); 
       try solve [auto | rewrite app_nil_end; eauto].
   Case "nbFBop".
-    apply nsop_plus_trans with (states2:=(mkState S TD Ps (mkEC F B cs tmn (updateAddAL _ lc id0 gv3) arg0 als::EC) gl fs Mem0, tr)::nil); 
+    apply nsop_plus_trans with (states2:=(mkState S TD Ps (mkEC F B cs tmn 
+      (updateAddAL _ lc id0 gv3) als::EC) gl fs Mem0, tr)::nil); 
       try solve [auto | rewrite app_nil_end; eauto].
   Case "nbExtractValue".
-    apply nsop_plus_trans with (states2:=(mkState S TD Ps (mkEC F B cs tmn (updateAddAL _ lc id0 gv') arg0 als::EC) gl fs Mem0, tr)::nil); 
+    apply nsop_plus_trans with (states2:=(mkState S TD Ps (mkEC F B cs tmn 
+      (updateAddAL _ lc id0 gv') als::EC) gl fs Mem0, tr)::nil); 
       try solve [auto | rewrite app_nil_end; eauto].
   Case "nbInsertValue".
-    apply nsop_plus_trans with (states2:=(mkState S TD Ps (mkEC F B cs tmn (updateAddAL _ lc id0 gv'') arg0 als::EC) gl fs Mem0, tr)::nil); 
+    apply nsop_plus_trans with (states2:=(mkState S TD Ps (mkEC F B cs tmn 
+      (updateAddAL _ lc id0 gv'') als::EC) gl fs Mem0, tr)::nil); 
       try solve [auto | rewrite app_nil_end; eauto].
   Case "nbMalloc".
-    apply nsop_plus_trans with (states2:=(mkState S TD Ps (mkEC F B cs tmn (updateAddAL _ lc id0 (blk2GV TD mb)) arg0 als::EC) gl fs Mem', tr)::nil); 
+    apply nsop_plus_trans with (states2:=(mkState S TD Ps (mkEC F B cs tmn 
+      (updateAddAL _ lc id0 (blk2GV TD mb)) als::EC) gl fs Mem', tr)::nil); 
       try solve [auto | rewrite app_nil_end; eauto].
   Case "nbFree".
-    apply nsop_plus_trans with (states2:=(mkState S TD Ps (mkEC F B cs tmn lc arg0 als::EC) gl fs Mem', tr)::nil); 
+    apply nsop_plus_trans with (states2:=(mkState S TD Ps (mkEC F B cs tmn lc 
+      als::EC) gl fs Mem', tr)::nil); 
       try solve [auto | rewrite app_nil_end; eauto].
   Case "nbAlloca".
-    apply nsop_plus_trans with (states2:=(mkState S TD Ps (mkEC F B cs tmn (updateAddAL _ lc id0 (blk2GV TD mb)) arg0 (mb::als)::EC) gl fs Mem', tr)::nil); auto.
+    apply nsop_plus_trans with (states2:=(mkState S TD Ps (mkEC F B cs tmn 
+      (updateAddAL _ lc id0 (blk2GV TD mb)) (mb::als)::EC) gl fs Mem', tr)
+      ::nil); auto.
       rewrite app_nil_end; eauto.
   Case "nbLoad".
-    apply nsop_plus_trans with (states2:=(mkState S TD Ps (mkEC F B cs tmn (updateAddAL _ lc id0 gv) arg0 als::EC) gl fs Mem0, tr)::nil); auto.
+    apply nsop_plus_trans with (states2:=(mkState S TD Ps (mkEC F B cs tmn 
+      (updateAddAL _ lc id0 gv) als::EC) gl fs Mem0, tr)::nil); auto.
       rewrite app_nil_end; eauto.
   Case "nbStore".
-    apply nsop_plus_trans with (states2:=(mkState S TD Ps (mkEC F B cs tmn lc arg0 als::EC) gl fs Mem', tr)::nil); auto.
+    apply nsop_plus_trans with (states2:=(mkState S TD Ps (mkEC F B cs tmn lc 
+      als::EC) gl fs Mem', tr)::nil); auto.
       rewrite app_nil_end; eauto.
   Case "nbGEP".
-    apply nsop_plus_trans with (states2:=(mkState S TD Ps (mkEC F B cs tmn (updateAddAL _ lc id0 mp') arg0 als::EC) gl fs Mem0, tr)::nil); auto.
+    apply nsop_plus_trans with (states2:=(mkState S TD Ps (mkEC F B cs tmn 
+      (updateAddAL _ lc id0 mp') als::EC) gl fs Mem0, tr)::nil); auto.
       rewrite app_nil_end; eauto.
   Case "nbTrunc".
-    apply nsop_plus_trans with (states2:=(mkState S TD Ps (mkEC F B cs tmn (updateAddAL _ lc id0 gv2) arg0 als::EC) gl fs Mem0, tr)::nil); 
+    apply nsop_plus_trans with (states2:=(mkState S TD Ps (mkEC F B cs tmn 
+      (updateAddAL _ lc id0 gv2) als::EC) gl fs Mem0, tr)::nil); 
       try solve [auto | rewrite app_nil_end; eauto].
   Case "nbExt".
-    apply nsop_plus_trans with (states2:=(mkState S TD Ps (mkEC F B cs tmn (updateAddAL _ lc id0 gv2) arg0 als::EC) gl fs Mem0, tr)::nil); 
+    apply nsop_plus_trans with (states2:=(mkState S TD Ps (mkEC F B cs tmn 
+      (updateAddAL _ lc id0 gv2) als::EC) gl fs Mem0, tr)::nil); 
       try solve [auto | rewrite app_nil_end; eauto].
   Case "nbCast".
-    apply nsop_plus_trans with (states2:=(mkState S TD Ps (mkEC F B cs tmn (updateAddAL _ lc id0 gv2) arg0 als::EC) gl fs Mem0, tr)::nil); 
+    apply nsop_plus_trans with (states2:=(mkState S TD Ps (mkEC F B cs tmn 
+      (updateAddAL _ lc id0 gv2) als::EC) gl fs Mem0, tr)::nil); 
       try solve [auto | rewrite app_nil_end; eauto].
   Case "nbIcmp".
-    apply nsop_plus_trans with (states2:=(mkState S TD Ps (mkEC F B cs tmn (updateAddAL _ lc id0 gv3) arg0 als::EC) gl fs Mem0, tr)::nil); 
+    apply nsop_plus_trans with (states2:=(mkState S TD Ps (mkEC F B cs tmn 
+      (updateAddAL _ lc id0 gv3) als::EC) gl fs Mem0, tr)::nil); 
       try solve [auto | rewrite app_nil_end; eauto].
   Case "nbFcmp".
-    apply nsop_plus_trans with (states2:=(mkState S TD Ps (mkEC F B cs tmn (updateAddAL _ lc id0 gv3) arg0 als::EC) gl fs Mem0, tr)::nil); 
+    apply nsop_plus_trans with (states2:=(mkState S TD Ps (mkEC F B cs tmn 
+      (updateAddAL _ lc id0 gv3) als::EC) gl fs Mem0, tr)::nil); 
       try solve [auto | rewrite app_nil_end; eauto].
   Case "nbSelect".
-    apply nsop_plus_trans with (states2:=(mkState S TD Ps (mkEC F B cs tmn (if isGVZero TD c then updateAddAL _ lc id0 gv2 else updateAddAL _ lc id0 gv1) arg0 als::EC) gl fs Mem0, tr)::nil); 
+    apply nsop_plus_trans with (states2:=(mkState S TD Ps (mkEC F B cs tmn 
+      (if isGVZero TD c then updateAddAL _ lc id0 gv2 
+       else updateAddAL _ lc id0 gv1) als::EC) gl fs Mem0, tr)::nil); 
       try solve [auto | rewrite app_nil_end; eauto].
   Case "nbCall".
     inversion n. subst.
@@ -741,18 +772,22 @@ Proof.
     apply H with (l':=l')(ps':=ps')(cs':=cs')(tmn':=tmn') in H0; auto.
     apply nsop_plus_trans with 
       (states2:=(mkState S TD Ps ((mkEC (fdef_intro (fheader_intro rt fid la) lb)
-                               (block_intro l' ps' cs' tmn') cs' tmn' (initLocals la (params2GVs TD lp lc gl)) 
-                               (params2GVs TD lp lc gl) nil)::
-                               (mkEC F B ((insn_call rid noret0 tailc0 rt fv lp)::cs) tmn lc arg0 als)::EC) 
-                               gl fs Mem0, tr)::nil); auto.
+        (block_intro l' ps' cs' tmn') cs' tmn' 
+        (initLocals la (params2GVs TD Mem0 lp lc gl)) 
+        nil)::
+        (mkEC F B ((insn_call rid noret0 tailc0 rt fv lp)::cs) tmn lc als)
+        ::EC) gl fs Mem0, tr)::nil); auto.
       rewrite app_nil_end; eauto.
 
       apply nsop_star_trans with 
-        (states2:=returnStatesFromOp S TD Ps (mkEC F B ((insn_call rid noret0 tailc0 rt fv lp)::cs) tmn lc arg0 als::EC)
-                              lp lc gl fs rt fid la lb lc_als_Mem_block_rid_ore_trs); auto.
-      apply returnStatesFromOp__nsop_star__updateStatesFromReturns with (cs:=cs); auto.
+        (states2:=returnStatesFromOp S TD Ps (mkEC F B 
+          ((insn_call rid noret0 tailc0 rt fv lp)::cs) tmn lc als::EC)
+          gl fs rt fid la lb lc_als_Mem_block_rid_ore_trs); auto.
+      apply returnStatesFromOp__nsop_star__updateStatesFromReturns with (cs:=cs);
+        auto.
   Case "nbExCall".
-    apply nsop_plus_trans with (states2:=(mkState S TD Ps (mkEC F B cs tmn (exCallUpdateLocals noret0 rid rt oresult lc) arg0 als::EC) gl fs Mem', tr)::nil); 
+    apply nsop_plus_trans with (states2:=(mkState S TD Ps (mkEC F B cs tmn 
+      lc' als::EC) gl fs Mem', tr)::nil); 
       try solve [auto | rewrite app_nil_end; eauto].
 
   Case "nbop_star_cons".
@@ -807,19 +842,26 @@ Proof.
     apply nsop_plus_trans with (states2:=states2); auto.
 Qed.
 
-Lemma nbFdef__implies__nsop_star : forall fv fid rt lp S TD Ps ECs lc gl fs Mem tr lc_gl_als_Mem_block_rid_re_trs l' ps' cs' tmn' la lb,
+Lemma nbFdef__implies__nsop_star : forall fv fid rt lp S TD Ps ECs lc gl fs Mem 
+  tr lc_gl_als_Mem_block_rid_re_trs l' ps' cs' tmn' la lb,
   nbFdef fv rt lp S TD Ps ECs lc gl fs Mem tr lc_gl_als_Mem_block_rid_re_trs ->
-  lookupFdefViaGV TD Ps gl lc fs fv = Some (fdef_intro (fheader_intro rt fid la) lb) ->
-  getEntryBlock (fdef_intro (fheader_intro rt fid la) lb) = Some (block_intro l' ps' cs' tmn') ->
+  lookupFdefViaGV TD Mem Ps gl lc fs fv = 
+    Some (fdef_intro (fheader_intro rt fid la) lb) ->
+  getEntryBlock (fdef_intro (fheader_intro rt fid la) lb) = 
+    Some (block_intro l' ps' cs' tmn') ->
   nsop_star
     ((mkState S TD Ps ((mkEC (fdef_intro (fheader_intro rt fid la) lb) 
-                            (block_intro l' ps' cs' tmn') cs' tmn' (initLocals la (params2GVs TD lp lc gl))
-                            (params2GVs TD lp lc gl) nil)::ECs) gl fs Mem, tr)::nil)
-    (returnStatesFromOp S TD Ps ECs lp lc gl fs rt fid la lb lc_gl_als_Mem_block_rid_re_trs)
+     (block_intro l' ps' cs' tmn') cs' tmn' 
+     (initLocals la (params2GVs TD Mem lp lc gl))
+     nil)::ECs) gl fs Mem, tr)::nil)
+     (returnStatesFromOp S TD Ps ECs gl fs rt fid la lb 
+       lc_gl_als_Mem_block_rid_re_trs)
   .
 Proof.
-  intros fv fid rt lp S TD Ps ECs lc gl fs Mem0 tr lc_gl_als_Mem_block_rid_re_trs l' ps' cs' tmn' la lb H.
-  revert fv rt lp S TD Ps ECs lc gl fs Mem0 tr lc_gl_als_Mem_block_rid_re_trs H fid l' ps' cs' tmn' la lb.
+  intros fv fid rt lp S TD Ps ECs lc gl fs Mem0 tr 
+    lc_gl_als_Mem_block_rid_re_trs l' ps' cs' tmn' la lb H.
+  revert fv rt lp S TD Ps ECs lc gl fs Mem0 tr lc_gl_als_Mem_block_rid_re_trs H 
+    fid l' ps' cs' tmn' la lb.
   destruct nb__implies__ns as [_ [_ J]]. eauto.
 Qed.
 
@@ -851,14 +893,18 @@ Qed.
 (** First,we prove that nbInsn, nbop and nbFdef imply small-step semantics,
     by nested coinduction. *)
 
-Lemma nbFdefInf__implies__nsop_diverges : forall fv fid rt lp S TD Ps ECs lc gl fs Mem tr l' ps' cs' tmn' la lb trs',
+Lemma nbFdefInf__implies__nsop_diverges : forall fv fid rt lp S TD Ps ECs lc gl 
+  fs Mem tr l' ps' cs' tmn' la lb trs',
   nbFdefInf fv rt lp S TD Ps ECs lc gl fs Mem tr trs' ->
-  lookupFdefViaGV TD Ps gl lc fs fv = Some (fdef_intro (fheader_intro rt fid la) lb) ->
-  getEntryBlock (fdef_intro (fheader_intro rt fid la) lb) = Some (block_intro l' ps' cs' tmn') ->
+  lookupFdefViaGV TD Mem Ps gl lc fs fv = 
+    Some (fdef_intro (fheader_intro rt fid la) lb) ->
+  getEntryBlock (fdef_intro (fheader_intro rt fid la) lb) = 
+    Some (block_intro l' ps' cs' tmn') ->
   nsop_diverges 
-    ((mkState S TD Ps ((mkEC (fdef_intro (fheader_intro rt fid la) lb) (block_intro l' ps' cs' tmn') cs' tmn'
-                        (initLocals la (params2GVs TD lp lc gl)) 
-                        (params2GVs TD lp lc gl) nil)::ECs) gl fs Mem, tr)::nil) trs'.
+    ((mkState S TD Ps ((mkEC (fdef_intro (fheader_intro rt fid la) lb) 
+      (block_intro l' ps' cs' tmn') cs' tmn'
+      (initLocals la (params2GVs TD Mem lp lc gl)) 
+      nil)::ECs) gl fs Mem, tr)::nil) trs'.
 Proof.
   cofix CIH_nbFdefInf.
 
@@ -873,19 +919,23 @@ Proof.
     inversion H; subst.
     apply nsop_diverges_trans with 
       (states':=(mkState S TD Ps ((mkEC (fdef_intro (fheader_intro rt fid la) lb)
-                               (block_intro l' ps' cs' tmn') cs' tmn' (initLocals la (params2GVs TD lp lc gl)) 
-                               (params2GVs TD lp lc gl) nil)::
-                        (mkEC F B ((insn_call rid noret0 tailc0 rt fv lp)::cs) tmn lc arg0 als)::EC) 
-                        gl fs Mem0, tr)::nil).
+        (block_intro l' ps' cs' tmn') cs' tmn' 
+        (initLocals la (params2GVs TD Mem0 lp lc gl)) 
+        nil)::
+        (mkEC F B ((insn_call rid noret0 tailc0 rt fv lp)::cs) tmn lc als)
+        ::EC) gl fs Mem0, tr)::nil).
       apply nsop_plus_trans 
-        with (states2:=(mkState S TD Ps ((mkEC (fdef_intro (fheader_intro rt fid la) lb)
-                                         (block_intro l' ps' cs' tmn') cs' tmn' (initLocals la (params2GVs TD lp lc gl)) 
-                                         (params2GVs TD lp lc gl) nil)::
-                                     (mkEC F B ((insn_call rid noret0 tailc0 rt fv lp)::cs) tmn lc arg0 als)::EC) 
-                                     gl fs Mem0, tr)::nil); auto.
+        with (states2:=(mkState S TD Ps 
+          ((mkEC (fdef_intro (fheader_intro rt fid la) lb)
+          (block_intro l' ps' cs' tmn') cs' tmn' 
+          (initLocals la (params2GVs TD Mem0 lp lc gl)) 
+          nil)::
+          (mkEC F B ((insn_call rid noret0 tailc0 rt fv lp)::cs) tmn lc als)
+          ::EC) gl fs Mem0, tr)::nil); auto.
         rewrite app_nil_end; eauto.
       
-      apply CIH_nbFdefInf with (fid:=fid)(l':=l')(ps':=ps')(cs':=cs')(tmn':=tmn')(la:=la)(lb:=lb) in HnbFdefInf; auto.
+      apply CIH_nbFdefInf with (fid:=fid)(l':=l')(ps':=ps')(cs':=cs')(tmn':=tmn')
+        (la:=la)(lb:=lb) in HnbFdefInf; auto.
 
   assert (forall states trs, 
           nbopInf states trs -> 
@@ -921,19 +971,23 @@ Proof.
   inversion H; subst.
   apply nsop_diverges_trans with 
     (states':=(mkState S TD Ps ((mkEC (fdef_intro (fheader_intro rt fid la) lb)
-                             (block_intro l' ps' cs' tmn') cs' tmn' (initLocals la (params2GVs TD lp lc gl)) 
-                             (params2GVs TD lp lc gl) nil)::
-                      (mkEC F B ((insn_call rid noret0 tailc0 rt fv lp)::cs) tmn lc arg0 als)::EC) 
-                      gl fs Mem0, tr)::nil).
+      (block_intro l' ps' cs' tmn') cs' tmn' 
+      (initLocals la (params2GVs TD Mem0 lp lc gl)) 
+      nil)::
+      (mkEC F B ((insn_call rid noret0 tailc0 rt fv lp)::cs) tmn lc als)::
+      EC) gl fs Mem0, tr)::nil).
     apply nsop_plus_trans 
-      with (states2:=(mkState S TD Ps ((mkEC (fdef_intro (fheader_intro rt fid la) lb)
-                                       (block_intro l' ps' cs' tmn') cs' tmn' (initLocals la (params2GVs TD lp lc gl)) 
-                                       (params2GVs TD lp lc gl) nil)::
-                                   (mkEC F B ((insn_call rid noret0 tailc0 rt fv lp)::cs) tmn lc arg0 als)::EC) 
-                                   gl fs Mem0, tr)::nil); auto.
+      with (states2:=(mkState S TD Ps 
+        ((mkEC (fdef_intro (fheader_intro rt fid la) lb)
+        (block_intro l' ps' cs' tmn') cs' tmn' 
+        (initLocals la (params2GVs TD Mem0 lp lc gl)) 
+        nil)::
+        (mkEC F B ((insn_call rid noret0 tailc0 rt fv lp)::cs) tmn lc als)
+        ::EC) gl fs Mem0, tr)::nil); auto.
       rewrite app_nil_end; eauto.
     
-    apply nbFdefInf__implies__nsop_diverges with (fid:=fid)(l':=l')(ps':=ps')(cs':=cs')(tmn':=tmn')(la:=la)(lb:=lb) in HnbFdefInf; auto.
+    apply nbFdefInf__implies__nsop_diverges with (fid:=fid)(l':=l')(ps':=ps')
+      (cs':=cs')(tmn':=tmn')(la:=la)(lb:=lb) in HnbFdefInf; auto.
 Qed.
 
 Lemma nbopInf__implies__nsop_diverges :forall states trs, 
@@ -1023,3 +1077,10 @@ Proof.
     apply dsop_diverging_trans with (state':=state4)(tr1:=tr6); auto.
 Qed.
 
+(*****************************)
+(*
+*** Local Variables: ***
+*** coq-prog-name: "coqtop" ***
+*** coq-prog-args: ("-emacs-U" "-I" "~/SVN/sol/vol/src/ssa/monads" "-I" "~/SVN/sol/vol/src/ssa/ott" "-I" "~/SVN/sol/vol/src/ssa/compcert" "-I" "~/SVN/sol/theory/metatheory_8.3") ***
+*** End: ***
+ *)

@@ -53,25 +53,22 @@ tactics.vo: tactics.v
 targetdata.vo: targetdata.v ssa_def.vo ssa_lib.vo
 	$(COQC) $(COQARG) targetdata.v
 
-ssa_mem.vo: ssa_mem.v ssa_def.vo ssa_lib.vo tactics.vo targetdata.vo genericvalues.vo
-	$(COQC) $(COQARG) ssa_mem.v
-
 trace.vo: trace.v
 	$(COQC) $(COQARG) trace.v
 
-genericvalues.vo: ssa_def.vo ssa_lib.vo tactics.vo trace.vo genericvalues.v assoclist.vo targetdata.vo
+genericvalues.vo: ssa_def.vo ssa_lib.vo tactics.vo trace.vo genericvalues.v assoclist.vo targetdata.vo compcert/Memory.vo
 	$(COQC) $(COQARG) genericvalues.v
 
-ssa_dynamic.vo: ssa_dynamic.v ssa_def.vo ssa_lib.vo tactics.vo ssa_mem.vo trace.vo genericvalues.vo assoclist.vo
+ssa_dynamic.vo: ssa_dynamic.v ssa_def.vo ssa_lib.vo tactics.vo trace.vo genericvalues.vo assoclist.vo
 	$(COQC) $(COQARG) ssa_dynamic.v
 
-ssa_interpreter.vo: ssa_interpreter.v ssa_dynamic.vo ssa_def.vo ssa_lib.vo tactics.vo ssa_mem.vo trace.vo genericvalues.vo assoclist.vo
+ssa_interpreter.vo: ssa_interpreter.v ssa_dynamic.vo ssa_def.vo ssa_lib.vo tactics.vo trace.vo genericvalues.vo assoclist.vo
 	$(COQC) $(COQARG) ssa_interpreter.v
 
 ssa_props.vo: ssa_props.v ssa_def.vo ssa_lib.vo genericvalues.vo assoclist.vo ssa_dynamic.vo
 	$(COQC) $(COQARG) ssa_props.v
 
-opsem_pp.vo: opsem_pp.v ssa_dynamic.vo ssa_def.vo ssa_lib.vo ssa_mem.vo genericvalues.vo assoclist.vo ssa_props.vo
+opsem_pp.vo: opsem_pp.v ssa_dynamic.vo ssa_def.vo ssa_lib.vo genericvalues.vo assoclist.vo ssa_props.vo
 	$(COQC) $(COQARG) opsem_pp.v
 
 opsem_conv.vo: opsem_conv.v ssa_dynamic.vo ssa_def.vo ssa_lib.vo trace.vo

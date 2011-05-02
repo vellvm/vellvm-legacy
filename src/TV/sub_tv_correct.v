@@ -11,7 +11,6 @@ Require Import monad.
 Require Import Arith.
 Require Import ZArith.
 Require Import Metatheory.
-Require Import ssa_mem.
 Require Import ssa_dynamic.
 Require Import genericvalues.
 Require Import opsem_pp.
