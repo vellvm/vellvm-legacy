@@ -28,33 +28,6 @@ End Lists.
 
 Require Import ZArith.
 
-(*
-Module Type DataType.
-
-Parameter t : Set.
-Parameter dec : forall x y : t, {x=y} + {x<>y}.
-Parameter Zero : t.
-Parameter One : t.
-Parameter Two : t.
-Parameter Four : t.
-Parameter Eight : t.
-Parameter Sixteen : t.
-Parameter ThirtyTwo : t.
-Parameter SixtyFour : t.
-Parameter from_nat : nat -> t.
-Parameter to_nat : t -> nat.
-Parameter to_Z : t -> Z.
-Parameter from_Z : Z -> t.
-Parameter add : t -> t -> t.
-Parameter sub : t -> t -> t.
-Parameter mul : t -> t ->t.
-Parameter div : t -> t -> t.
-Parameter gt : t -> t -> Prop.
-Parameter lt : t -> t -> Prop.
-
-End DataType.
-*)
-
 Module Size.
 
 Definition t := nat.
@@ -109,28 +82,8 @@ Module INTEGER.
 
 Definition t := Z.
 Definition dec : forall x y : t, {x=y} + {x<>y} := zeq.
-(*
-Definition Zero : t := 0%Z.
-Definition One : t := 1%Z.
-Definition Two : t := 2%Z.
-Definition Four : t := 4%Z.
-Definition Eight : t := 8%Z.
-Definition Sixteen : t := 16%Z.
-Definition ThirtyTwo : t := 32%Z.
-Definition SixtyFour : t := 64%Z.
-Definition from_nat (i:nat) : t := Z_of_nat i.
-*)
 Definition to_nat (i:t) : nat := nat_of_Z i.
 Definition to_Z (i:t) : Z := i.
-(*
-Definition from_Z (i:Z) : t := i.
-Definition add (a b:t) : t := (a + b)%Z.
-Definition sub (a b:t) : t := (a - b)%Z.
-Definition mul (a b:t) : t := (a * b)%Z.
-Definition div (a b:t) : t := (a / b)%Z.
-Definition gt (a b:t) : Prop := (a > b)%Z.
-Definition lt (a b:t) : Prop := (a < b)%Z.
-*)
 
 End INTEGER.
 

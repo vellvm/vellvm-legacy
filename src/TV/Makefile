@@ -123,8 +123,7 @@ VFILES:=seop_llvmop.v\
   sub_tv_infer.v\
   sub_tv.v\
   sub_tv_correct.v \
-  mtv_correct.v \
-  softbound_tv_correct.v
+  mtv_correct.v
 VOFILES:=$(VFILES:.v=.vo)
 VOFILES0:=$(filter-out ,$(VOFILES))
 GLOBFILES:=$(VFILES:.v=.glob)
