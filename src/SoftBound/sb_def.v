@@ -16,6 +16,7 @@ Require Import Values.
 Require Import Coqlib.
 Require Import monad.
 Require Import Metatheory.
+Require Import symexe_def.
 
 Export LLVMsyntax.
 Export LLVMgv.
@@ -222,7 +223,7 @@ Inductive dbCmd : TargetData -> GVMap ->
   mload TD Mem gvp t align = Some gv ->
   isPointerTyp t ->
   get_mem_metadata TD MM gvp = Some md' -> 
-  prop_reg_metadata lc rm id gvp md' = (lc', rm') ->
+  prop_reg_metadata lc rm id gv md' = (lc', rm') ->
   dbCmd TD gl lc rm als Mem MM (insn_load id t vp align) lc' rm' als Mem MM 
     trace_nil rok
 
@@ -314,7 +315,7 @@ Inductive dbCmd : TargetData -> GVMap ->
   isPointerTyp t1 ->
   get_reg_metadata TD Mem gl rm v1 = Some md ->
   prop_reg_metadata lc rm id gv2 md = (lc', rm') ->
-  dbCmd TD gl lc rm als Mem MM (insn_cast id castop_inttoptr t1 v1 t2) lc' rm' 
+  dbCmd TD gl lc rm als Mem MM (insn_cast id castop_bitcast t1 v1 t2) lc' rm' 
     als Mem MM trace_nil rok
 
 | dbInttoptr : forall TD rm lc gl id t1 v1 t2 gv2 Mem MM als lc' rm',
@@ -379,6 +380,25 @@ Inductive dbCmd : TargetData -> GVMap ->
   SELECT TD Mem v0 v1 v2 lc gl = None ->
   dbCmd TD gl lc rm als Mem MM (insn_select id v0 t v1 v2) lc rm als Mem MM
     trace_nil rerror
+
+| dbLib : forall TD lc gl rid noret tailc ft fid rm MM
+                          lp rt Mem oresult Mem' lc' als r,
+  SimpleSE.callLib Mem fid (params2GVs TD Mem lp lc gl) = 
+    Some (oresult, Mem', r) ->
+  LLVMopsem.exCallUpdateLocals noret rid oresult lc = Some lc' ->
+  dbCmd TD gl
+    lc rm als Mem MM
+    (insn_call rid noret tailc rt (value_const (const_gid ft fid)) lp)
+    lc' rm als Mem' MM trace_nil rok
+
+| dbLib_error : forall TD lc gl rid noret tailc ft fid rm MM
+                          lp rt Mem oresult Mem' als r,
+  SimpleSE.callLib Mem fid (params2GVs TD Mem lp lc gl) = 
+    Some (oresult, Mem', r) ->
+  dbCmd TD gl
+    lc rm als Mem MM
+    (insn_call rid noret tailc rt (value_const (const_gid ft fid)) lp)
+    lc rm als Mem' MM trace_nil rerror
 .
 
 Definition is_error r :=
@@ -407,25 +427,6 @@ Inductive dbCmds : TargetData -> GVMap ->
     dbCmd TD gl lc1 rm1 als1 Mem1 MM1 c lc2 rm2 als2 Mem2 MM2 t1 r ->
     is_error r ->
     dbCmds TD gl lc1 rm1 als1 Mem1 MM1 (c::cs) lc2 rm2 als2 Mem2 MM2 t1 r
-.
-
-Inductive dbTerminator : 
-  TargetData -> mem -> fdef -> GVMap -> 
-  block -> GVMap -> 
-  terminator -> 
-  block -> GVMap -> 
-  trace -> Prop :=
-| dbBranch : forall TD Mem F B lc gl bid Cond l1 l2 c B' lc',   
-  getOperandValue TD Mem Cond lc gl = Some c ->
-  Some B' = (if isGVZero TD c
-    then (lookupBlockViaLabelFromFdef F l2)
-    else (lookupBlockViaLabelFromFdef F l1)) ->
-  Some lc' = LLVMopsem.switchToNewBasicBlock TD Mem B' B gl lc ->
-  dbTerminator TD Mem F gl B lc (insn_br bid Cond l1 l2) B' lc' trace_nil 
-| dbBranch_uncond : forall TD Mem F B lc gl l bid B' lc',   
-  Some B' = lookupBlockViaLabelFromFdef F l ->
-  Some lc' = LLVMopsem.switchToNewBasicBlock TD Mem B' B gl lc ->
-  dbTerminator TD Mem F gl B lc (insn_br_uncond bid l) B' lc' trace_nil 
 .
 
 Record ExecutionContext : Type := mkEC
@@ -489,6 +490,7 @@ Inductive dbCall : system -> TargetData -> list product -> GVMap ->
   dbFdef fv rt lp S TD Ps lc rm gl fs Mem MM lc' rm' als' Mem' MM' B' Rid 
     oResult tr rok ->
   free_allocas TD Mem' als' = Some Mem'' ->
+  SimpleSE.isCall (insn_call rid noret tailc rt fv lp) = true ->
   callUpdateLocals TD Mem'' noret rid oResult rm rm' lc lc' gl = 
     Some (lc'',rm'') ->
   dbCall S TD Ps fs gl lc rm Mem MM (insn_call rid noret tailc rt fv lp) lc'' 
@@ -504,6 +506,7 @@ Inductive dbCall : system -> TargetData -> list product -> GVMap ->
     Some (fdec_intro (fheader_intro rt fid la)) ->
   LLVMopsem.callExternalFunction Mem fid (params2GVs TD Mem lp lc gl) = 
     (oresult, Mem') ->
+  SimpleSE.isCall (insn_call rid noret tailc rt fv lp) = true ->
   LLVMopsem.exCallUpdateLocals noret rid oresult lc = Some lc' ->
   dbCall S TD Ps fs gl lc rm Mem MM (insn_call rid noret tailc rt fv lp) lc' rm 
     Mem' MM trace_nil rok
@@ -532,13 +535,13 @@ Inductive dbCall : system -> TargetData -> list product -> GVMap ->
     (oresult, Mem') ->
   LLVMopsem.exCallUpdateLocals noret rid oresult lc = None ->
   dbCall S TD Ps fs gl lc rm Mem MM (insn_call rid noret tailc rt fv lp) lc rm 
-    Mem' MM trace_nil rok
+    Mem' MM trace_nil rerror
 
 | dbCall_external_error2 : forall S TD Ps lc gl fs rid noret tailc fv lp rt Mem 
                            MM rm,
   LLVMopsem.lookupExFdecViaGV TD Mem Ps gl lc fs fv = None ->
   dbCall S TD Ps fs gl lc rm Mem MM (insn_call rid noret tailc rt fv lp) lc rm 
-    Mem MM trace_nil rok
+    Mem MM trace_nil rerror
 
 with dbSubblock : system -> TargetData -> list product -> GVMap -> GVMap -> 
                   GVMap -> rmetadata -> list mblock -> mem -> mmetadata ->
@@ -591,7 +594,7 @@ with dbBlock : system -> TargetData -> list product -> GVMap -> GVMap ->
   dbSubblocks S TD Ps fs gl lc1 rm1 als1 Mem1 MM1 cs lc2 rm2 als2 Mem2 MM2 tr1 
     rok ->
   dbCmds TD gl lc2 rm2 als2 Mem2 MM2 cs' lc3 rm3 als3 Mem3 MM3 tr2 rok ->
-  dbTerminator TD Mem3 F gl (block_intro l ps (cs++cs') tmn) lc3
+  SimpleSE.dbTerminator TD Mem3 F gl (block_intro l ps (cs++cs') tmn) lc3
     tmn B' lc4 tr3 ->
   dbBlock S TD Ps fs gl F
     (mkState (mkEC (block_intro l ps (cs++cs') tmn) lc1 rm1 als1) Mem1 MM1)
@@ -841,6 +844,6 @@ End SoftBound.
 (*
 *** Local Variables: ***
 *** coq-prog-name: "coqtop" ***
-*** coq-prog-args: ("-emacs-U" "-I" "~/SVN/sol/vol/src/ssa/monads" "-I" "~/SVN/sol/vol/src/ssa/ott" "-I" "~/SVN/sol/vol/src/ssa/compcert" "-I" "~/SVN/sol/theory/metatheory_8.3") ***
+*** coq-prog-args: ("-emacs-U" "-I" "~/SVN/sol/vol/src/ssa/monads" "-I" "~/SVN/sol/vol/src/ssa/ott" "-I" "~/SVN/sol/vol/src/ssa/compcert" "-I" "~/SVN/sol/theory/metatheory_8.3" "-I" "~/SVN/sol/vol/src/TV") ***
 *** End: ***
  *)

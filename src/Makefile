@@ -17,6 +17,7 @@ coq:
 	+make -C ./ssa
 	+make -C ./TV
 	+make -C ./Extraction
+	+make -C ./SoftBound
 
 ocaml: coq $(CMAS) $(CMXAS)
 	ocamlbuild -clean
@@ -27,6 +28,7 @@ clean:
 	+make -C ./ssa clean
 	+make -C ./TV clean
 	+make -C ./Extraction clean
+	+make -c ./SoftBound clean
 	ocamlbuild -clean
 
 ocamlclean:
