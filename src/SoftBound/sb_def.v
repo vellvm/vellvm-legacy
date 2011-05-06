@@ -17,6 +17,7 @@ Require Import Coqlib.
 Require Import monad.
 Require Import Metatheory.
 Require Import symexe_def.
+Require Import Znumtheory.
 
 Export LLVMsyntax.
 Export LLVMgv.
@@ -38,8 +39,8 @@ Inductive result : Set :=
 Definition base2GV (TD:TargetData) (b:mblock) : GenericValue :=
 ptr2GV TD (Vptr b (Int.repr 31 0)).
 
-Definition bound2GV (TD:TargetData) (b:mblock) (s:sz) : GenericValue :=
-ptr2GV TD (Vptr b (Int.repr 31 (Size.to_Z s))).
+Definition bound2GV (TD:TargetData) (b:mblock) (s:sz) n : GenericValue :=
+ptr2GV TD (Vptr b (Int.repr 31 ((Size.to_Z s)*n))).
 
 Fixpoint get_const_metadata (c:const) : option (const*const) :=
 match c with
@@ -163,12 +164,13 @@ Inductive dbCmd : TargetData -> GVMap ->
   dbCmd TD gl lc rm als Mem MM (insn_insertvalue id t v t' v' idxs) lc rm als Mem
     MM trace_nil rerror
 
-| dbMalloc : forall TD rm lc gl id t v gn align Mem MM als Mem' tsz mb lc' rm',
+| dbMalloc : forall TD rm lc gl id t v gn align Mem MM als Mem' tsz mb lc' rm' n,
   getTypeAllocSize TD t = Some tsz ->
   getOperandValue TD Mem v lc gl = Some gn ->
   malloc TD Mem tsz gn align = Some (Mem', mb) ->
+  GV2int TD Size.ThirtyTwo gn = Some n ->
   prop_reg_metadata lc rm id (blk2GV TD mb) (mkMD (base2GV TD mb) 
-    (bound2GV TD mb tsz)) = (lc',rm') ->
+    (bound2GV TD mb tsz n)) = (lc',rm') ->
   dbCmd TD gl lc rm als Mem MM (insn_malloc id t v align) lc' rm' als Mem' MM
     trace_nil rok
 
@@ -191,12 +193,13 @@ Inductive dbCmd : TargetData -> GVMap ->
   dbCmd TD gl lc rm als Mem MM (insn_free fid t v) lc rm als Mem MM trace_nil 
     rerror
 
-| dbAlloca : forall TD rm lc gl id t v gn align Mem MM als Mem' tsz mb lc' rm',
+| dbAlloca : forall TD rm lc gl id t v gn align Mem MM als Mem' tsz mb lc' rm' n,
   getTypeAllocSize TD t = Some tsz ->
   getOperandValue TD Mem v lc gl = Some gn ->
   malloc TD Mem tsz gn align = Some (Mem', mb) ->
+  GV2int TD Size.ThirtyTwo gn = Some n ->
   prop_reg_metadata lc rm id (blk2GV TD mb) (mkMD (base2GV TD mb) 
-    (bound2GV TD mb tsz)) = (lc', rm') ->
+    (bound2GV TD mb tsz n)) = (lc', rm') ->
   dbCmd TD gl lc rm als Mem MM (insn_alloca id t v align) lc' rm' (mb::als) Mem' 
     MM trace_nil rok
 
@@ -227,6 +230,27 @@ Inductive dbCmd : TargetData -> GVMap ->
   dbCmd TD gl lc rm als Mem MM (insn_load id t vp align) lc' rm' als Mem MM 
     trace_nil rok
 
+| dbLoad_error1 : forall TD rm lc gl id t vp align Mem MM als gvp,
+  getOperandValue TD Mem vp lc gl = Some gvp ->
+  GV2ptr TD (getPointerSize TD) gvp = None ->
+  dbCmd TD gl lc rm als Mem MM (insn_load id t vp align) lc rm als Mem MM 
+    trace_nil rerror
+
+| dbLoad_error2 : forall TD rm lc gl id t vp align Mem MM als gvp b ofs,
+  getOperandValue TD Mem vp lc gl = Some gvp ->
+  GV2ptr TD (getPointerSize TD) gvp = Some (Vptr b ofs) ->
+  typ2memory_chunk t = None ->
+  dbCmd TD gl lc rm als Mem MM (insn_load id t vp align) lc rm als Mem MM 
+    trace_nil rerror
+
+| dbLoad_error3 : forall TD rm lc gl id t vp align Mem MM als gvp b ofs c,
+  getOperandValue TD Mem vp lc gl = Some gvp ->
+  GV2ptr TD (getPointerSize TD) gvp = Some (Vptr b ofs) ->
+  typ2memory_chunk t = Some c ->
+  ~ (align_chunk c | (Int.unsigned 31 ofs)) ->
+  dbCmd TD gl lc rm als Mem MM (insn_load id t vp align) lc rm als Mem MM 
+    trace_nil rerror
+
 | dbLoad_abort : forall TD rm lc gl id t vp align Mem MM als gvp md,
   get_reg_metadata TD Mem gl rm vp = Some md ->
   getOperandValue TD Mem vp lc gl = Some gvp ->
@@ -234,15 +258,14 @@ Inductive dbCmd : TargetData -> GVMap ->
   dbCmd TD gl lc rm als Mem MM (insn_load id t vp align) lc rm als Mem MM
     trace_nil rabort
 
-| dbStore_nptr : forall TD rm lc gl sid t v vp align Mem MM als gv gvp md Mem' 
-                        MM',
+| dbStore_nptr : forall TD rm lc gl sid t v vp align Mem MM als gv gvp md Mem',
   get_reg_metadata TD Mem gl rm vp = Some md ->
   getOperandValue TD Mem v lc gl = Some gv ->
   getOperandValue TD Mem vp lc gl = Some gvp ->
   assert_mptr TD t gvp md ->
   mstore TD Mem gvp t gv align = Some Mem' ->
   ~ isPointerTyp t ->
-  dbCmd TD gl lc rm als Mem MM (insn_store sid t v vp align) lc rm als Mem' MM'
+  dbCmd TD gl lc rm als Mem MM (insn_store sid t v vp align) lc rm als Mem' MM
     trace_nil rok
 
 | dbStore_ptr : forall TD rm lc gl sid t v vp align Mem MM als gv gvp md Mem' 
@@ -257,6 +280,32 @@ Inductive dbCmd : TargetData -> GVMap ->
   set_mem_metadata TD MM gvp md' = MM' -> 
   dbCmd TD gl lc rm als Mem MM (insn_store sid t v vp align) lc rm als Mem' MM'
     trace_nil rok
+
+| dbStore_error1 : forall TD rm lc gl sid t v vp align Mem MM als gv gvp,
+  getOperandValue TD Mem v lc gl = Some gv ->
+  getOperandValue TD Mem vp lc gl = Some gvp ->
+  GV2ptr TD (getPointerSize TD) gvp = None ->
+  dbCmd TD gl lc rm als Mem MM (insn_store sid t v vp align) lc rm als Mem MM
+    trace_nil rerror
+
+| dbStore_error2 : forall TD rm lc gl sid t v vp align Mem MM als gv gvp b ofs,
+  getOperandValue TD Mem v lc gl = Some gv ->
+  getOperandValue TD Mem vp lc gl = Some gvp ->
+  GV2ptr TD (getPointerSize TD) gvp = Some (Vptr b ofs) ->
+  typ2memory_chunk t = None \/ GV2val TD gvp = None ->
+  dbCmd TD gl lc rm als Mem MM (insn_store sid t v vp align) lc rm als Mem MM
+    trace_nil rerror
+
+| dbStore_error3 : forall TD rm lc gl sid t v vp align Mem MM als gv gvp b ofs
+                          c v0,
+  getOperandValue TD Mem v lc gl = Some gv ->
+  getOperandValue TD Mem vp lc gl = Some gvp ->
+  GV2ptr TD (getPointerSize TD) gvp = Some (Vptr b ofs) ->
+  typ2memory_chunk t = Some c ->
+  GV2val TD gvp = Some v0 ->
+  ~ (align_chunk c | (Int.unsigned 31 ofs)) ->
+  dbCmd TD gl lc rm als Mem MM (insn_store sid t v vp align) lc rm als Mem MM
+    trace_nil rerror
 
 | dbStore_abort : forall TD rm lc gl sid t v vp align Mem MM als gv gvp md,
   get_reg_metadata TD Mem gl rm vp = Some md ->
@@ -821,6 +870,39 @@ Scheme dbCall_ind3 := Induction for dbCall Sort Prop
 Combined Scheme sb_db_mutind from dbCall_ind3, dbSubblock_ind3,
   dbSubblocks_ind3, dbBlock_ind3, dbBlocks_ind3, dbFdef_ind3.
 
+Hint Constructors dbCall dbSubblock dbSubblocks dbBlock dbBlocks dbFdef.
+
+End SoftBound.
+
+Tactic Notation "sb_dbCmd_cases" tactic(first) tactic(c) :=
+  first;
+  [ c "dbBop" | c "dbBop_error" | c "dbFBop" | c "dbFBop_eror" |
+    c "dbExtractValue" | c "dbExtractValue_error" | 
+    c "dbInsertValue" | c "dbInsertValue_error" |
+    c "dbMalloc" | c "dbMalloc_error" | c "dbFree" | c "dbFree_error" |
+    c "dbAlloca" | c "dbAlloca_error" | 
+    c "dbLoad_nptr" | c "dbLoad_ptr" | c "dbLoad_error1" | 
+    c "dbLoad_error2" | c "dbLoad_error3" | c "dbLoad_abort" |
+    c "dbStore_nptr" | c "dbStore_ptr" | c "dbStore_error1" |
+    c "dbStore_error2" | c "dbStore_error3" | c "dbStore_abort" |  
+    c "dbGEP" | c "dbGEP_error" |
+    c "dbTrunc" | c "dbTrunc_error" |
+    c "dbExt" | c "dbExt_error" |
+    c "dbBitcast_nptr" | c "dbBitcast_ptr" | c "dbInttoptr" | c "dbOtherCast" |
+    c "dbCast_error" | 
+    c "dbIcmp" | c "dbIcmp_error" |
+    c "dbFcmp" | c "dbFcmp_error" | 
+    c "dbSelect_nptr" | c "dbSelect_ptr"| c "dbSelect_error" |
+    c "dbLib" | c "dbLib_error" ].
+
+Tactic Notation "sb_dbTerminator_cases" tactic(first) tactic(c) :=
+  first;
+  [ c "dbBranch" | c "dbBranch_uncond" ].
+
+Tactic Notation "sb_dbCmds_cases" tactic(first) tactic(c) :=
+  first;
+  [ c "dbCmds_nil" | c "dbCmds_cons" | c "dbCmds_cons_error" ].
+
 Tactic Notation "sb_db_mutind_cases" tactic(first) tactic(c) :=
   first;
   [ c "dbCall_internal" | c "dbCall_external" |
@@ -835,10 +917,6 @@ Tactic Notation "sb_db_mutind_cases" tactic(first) tactic(c) :=
     c "dbFdef_proc" | c "dbFdef_proc_error1" | c "dbFdef_proc_error2" |
     c "dbFdef_proc_error3" | c "dbFdef_proc_error4" | c "dbFdef_proc_error5"
   ].
-
-Hint Constructors dbCall dbSubblock dbSubblocks dbBlock dbBlocks dbFdef.
-
-End SoftBound.
 
 (*****************************)
 (*

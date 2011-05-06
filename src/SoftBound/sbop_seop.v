@@ -17,52 +17,23 @@ Require Import symexe_def.
 Require Import ssa_props.
 Require Import assoclist.
 Require Import sb_def.
+Require Import sb_tactic.
 
 Export LLVMsyntax.
 Export LLVMlib.
 
-Tactic Notation "sb_dbCmd_cases" tactic(first) tactic(c) :=
-  first;
-  [ c "dbBop" | c "dbBop_error" | c "dbFBop" | c "dbFBop_eror" |
-    c "dbExtractValue" | c "dbExtractValue_error" | 
-    c "dbInsertValue" | c "dbInsertValue_error" |
-    c "dbMalloc" | c "dbMalloc_error" | c "dbFree" | c "dbFree_error" |
-    c "dbAlloca" | c "dbAlloca_error" | 
-    c "dbLoad_nptr" | c "dbLoad_ptr" | c "dbLoad_abort" |
-    c "dbStore_nptr" | c "dbStore_ptr" | c "dbStore_abort" |  
-    c "dbGEP" | c "dbGEP_error" |
-    c "dbTrunc" | c "dbTrunc_error" |
-    c "dbExt" | c "dbExt_error" |
-    c "dbBitcast_nptr" | c "dbBitcast_ptr" | c "dbInttoptr" | c "dbOtherCast" |
-    c "dbCast_error" | 
-    c "dbIcmp" | c "dbIcmp_error" |
-    c "dbFcmp" | c "dbFcmp_error" | 
-    c "dbSelect_nptr" | c "dbSelect_ptr"| c "dbSelect_error" |
-    c "dbLib" | c "dbLib_error" ].
-
-Tactic Notation "sb_dbTerminator_cases" tactic(first) tactic(c) :=
-  first;
-  [ c "dbBranch" | c "dbBranch_uncond" ].
-
-Tactic Notation "sb_dbCmds_cases" tactic(first) tactic(c) :=
-  first;
-  [ c "dbCmds_nil" | c "dbCmds_cons" | c "dbCmds_cons_error" ].
-
 (****************************************************)
 (* sbop -> seop *)
-
-Ltac invert_prop_reg_metadata :=
-  match goal with
-  | [H : SoftBound.prop_reg_metadata _ _ _ _ _ = (_, _) |- _ ] =>
-      inversion H; subst; eauto
-  end.
 
 Lemma updateAddAL_if_commut : forall lc id0 TD cond gv2 gv1,
   updateAddAL GenericValue lc id0 (if isGVZero TD cond then gv2 else gv1) =
   if isGVZero TD cond then 
     (updateAddAL GenericValue lc id0 gv2) else 
     (updateAddAL GenericValue lc id0 gv1).
-Admitted.
+Proof.
+  intros.
+  destruct (isGVZero TD cond0); auto.
+Qed.
 
 Lemma sbop_dbCmd__seop_dbCmd : forall TD lc rm als gl Mem MM c lc' rm' als' 
     Mem' MM' tr r, 
@@ -99,15 +70,6 @@ Proof.
     rewrite EQ. eauto.
 Qed.
   
-Ltac invert_result :=
-  match goal with
-  | [H : SoftBound.is_error SoftBound.rok |- _ ] => inversion H
-  | [H : SoftBound.rerror = SoftBound.rok |- _ ] => inversion H
-  | [H : SoftBound.rabort = SoftBound.rok |- _ ] => inversion H 
-  | [H : SoftBound.rok = SoftBound.rerror |- _ ] => inversion H 
-  | [H : SoftBound.rok = SoftBound.rabort |- _ ] => inversion H 
- end.
-
 Lemma sbop_dbCmds__seop_dbCmds : forall TD lc rm als gl Mem MM cs lc' rm' 
     als' Mem' MM' tr r,
   SoftBound.dbCmds TD gl lc rm als Mem MM cs lc' rm' als' Mem' MM' tr r ->
@@ -189,21 +151,6 @@ Definition sbop_dbFdef__seop_dbFdef_prop fid rt lp S TD Ps lc rm gl fs Mem MM lc
   r = SoftBound.rok ->
   SimpleSE.dbFdef fid rt lp S TD Ps lc gl fs Mem lc' als' Mem' B' Rid oResult
     tr.
-
-Tactic Notation "sb_db_mutind_cases" tactic(first) tactic(c) :=
-  first;
-  [ c "dbCall_internal" | c "dbCall_external" |
-    c "dbCall_internal_error1" | c "dbCall_internal_error2" |
-    c "dbCall_external_error1" | c "dbCall_external_error2" |
-    c "dbSubblock_ok" | c "dbSubblock_error" | 
-    c "dbSubblocks_nil" | c "dbSubblocks_cons" | c "dbSubblocks_cons_error" |
-    c "dbBlock_ok" | c "dbBlock_error1" | c "dbBlock_error2" | 
-    c "dbBlocks_nil" | c "dbBlocks_cons" | c "dbBlocks_cons_error" | 
-    c "dbFdef_func" | c "dbFdef_func_error1" | c "dbFdef_func_error2" |
-    c "dbFdef_func_error3" | c "dbFdef_func_error4" | c "dbFdef_func_error5" |
-    c "dbFdef_proc" | c "dbFdef_proc_error1" | c "dbFdef_proc_error2" |
-    c "dbFdef_proc_error3" | c "dbFdef_proc_error4" | c "dbFdef_proc_error5"
-  ].
 
 Lemma sbop__seop :
   (forall S TD Ps fs gl lc rm Mem0 MM0 call0 lc' rm' Mem' MM' tr r db, 
