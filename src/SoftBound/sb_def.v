@@ -54,17 +54,25 @@ match c with
 | _ => None
 end.
 
-Definition get_reg_metadata TD M gl (rm:rmetadata) (v:value) 
-  : option metadata :=
+Definition get_reg_metadata TD M gl (rm:rmetadata) (v:value) : metadata :=
   match v with
-  | value_id pid => lookupAL _ rm pid
+  | value_id pid => 
+      match lookupAL _ rm pid with
+      | Some md => md
+      | None => mkMD null null
+      end
   | value_const c => 
       match get_const_metadata c with
       | Some (bc, ec) => 
-          do gvb <- const2GV TD M gl bc;
-          do gve <- const2GV TD M gl ec;
-          ret (mkMD gvb gve)
-      | None => None
+          match 
+            (do gvb <- const2GV TD M gl bc;
+             do gve <- const2GV TD M gl ec;
+             ret (mkMD gvb gve))
+          with
+          | Some (mkMD gvb gve) => mkMD gvb gve
+          | None => mkMD null null
+          end
+      | None => mkMD null null
       end
   end.
 
@@ -78,8 +86,8 @@ Definition assert_mptr (TD:TargetData) (t:typ) (ptr:GenericValue) (md:metadata)
   | (Some (Vptr pb pofs), Some (Vptr bb bofs), Some (Vptr eb eofs), Some tsz) =>
       zeq pb bb /\ zeq bb eb /\
       zle (Integers.Int.unsigned 31 bofs) (Integers.Int.unsigned 31 pofs) /\ 
-      zle (Integers.Int.unsigned 31 pofs) 
-          (Integers.Int.unsigned 31 eofs + Z_of_nat tsz)
+      zle (Integers.Int.unsigned 31 pofs + Z_of_nat tsz) 
+          (Integers.Int.unsigned 31 eofs)
   | _ => False
   end.  
 
@@ -97,10 +105,14 @@ Definition prop_reg_metadata lc rmd pid gvp (md:metadata) :
 
 Definition mmetadata := Values.block -> int32 -> option metadata.
 
-Definition get_mem_metadata TD MM (gv:GenericValue) : option metadata :=
+Definition get_mem_metadata TD MM (gv:GenericValue) : metadata :=
   match (GV2ptr TD (getPointerSize TD) gv) with
-  | Some (Vptr b ofs) => MM b ofs
-  | _ => None
+  | Some (Vptr b ofs) => 
+      match MM b ofs with
+      | Some md => md
+      | _ => mkMD null null
+      end
+  | _ => mkMD null null
   end.
 
 Definition set_mem_metadata TD MM (gv:GenericValue) (md:metadata) 
@@ -211,7 +223,7 @@ Inductive dbCmd : TargetData -> GVMap ->
     trace_nil rerror
 
 | dbLoad_nptr : forall TD rm lc gl id t vp align Mem MM als gvp md gv,
-  get_reg_metadata TD Mem gl rm vp = Some md ->
+  get_reg_metadata TD Mem gl rm vp = md ->
   getOperandValue TD Mem vp lc gl = Some gvp ->
   assert_mptr TD t gvp md ->
   mload TD Mem gvp t align = Some gv ->
@@ -220,12 +232,12 @@ Inductive dbCmd : TargetData -> GVMap ->
     rm als Mem MM trace_nil rok
 
 | dbLoad_ptr : forall TD rm lc gl id t vp align Mem MM als gvp md gv md' lc' rm',
-  get_reg_metadata TD Mem gl rm vp = Some md ->
+  get_reg_metadata TD Mem gl rm vp = md ->
   getOperandValue TD Mem vp lc gl = Some gvp ->
   assert_mptr TD t gvp md ->
   mload TD Mem gvp t align = Some gv ->
   isPointerTyp t ->
-  get_mem_metadata TD MM gvp = Some md' -> 
+  get_mem_metadata TD MM gvp = md' -> 
   prop_reg_metadata lc rm id gv md' = (lc', rm') ->
   dbCmd TD gl lc rm als Mem MM (insn_load id t vp align) lc' rm' als Mem MM 
     trace_nil rok
@@ -252,14 +264,14 @@ Inductive dbCmd : TargetData -> GVMap ->
     trace_nil rerror
 
 | dbLoad_abort : forall TD rm lc gl id t vp align Mem MM als gvp md,
-  get_reg_metadata TD Mem gl rm vp = Some md ->
+  get_reg_metadata TD Mem gl rm vp = md ->
   getOperandValue TD Mem vp lc gl = Some gvp ->
   ~ assert_mptr TD t gvp md ->
   dbCmd TD gl lc rm als Mem MM (insn_load id t vp align) lc rm als Mem MM
     trace_nil rabort
 
 | dbStore_nptr : forall TD rm lc gl sid t v vp align Mem MM als gv gvp md Mem',
-  get_reg_metadata TD Mem gl rm vp = Some md ->
+  get_reg_metadata TD Mem gl rm vp = md ->
   getOperandValue TD Mem v lc gl = Some gv ->
   getOperandValue TD Mem vp lc gl = Some gvp ->
   assert_mptr TD t gvp md ->
@@ -270,13 +282,13 @@ Inductive dbCmd : TargetData -> GVMap ->
 
 | dbStore_ptr : forall TD rm lc gl sid t v vp align Mem MM als gv gvp md Mem' 
                        md' MM',
-  get_reg_metadata TD Mem gl rm vp = Some md ->
+  get_reg_metadata TD Mem gl rm vp = md ->
   getOperandValue TD Mem v lc gl = Some gv ->
   getOperandValue TD Mem vp lc gl = Some gvp ->
   assert_mptr TD t gvp md ->
   mstore TD Mem gvp t gv align = Some Mem' ->
   isPointerTyp t ->
-  get_reg_metadata TD Mem gl rm v = Some md' ->
+  get_reg_metadata TD Mem gl rm v = md' ->
   set_mem_metadata TD MM gvp md' = MM' -> 
   dbCmd TD gl lc rm als Mem MM (insn_store sid t v vp align) lc rm als Mem' MM'
     trace_nil rok
@@ -308,7 +320,7 @@ Inductive dbCmd : TargetData -> GVMap ->
     trace_nil rerror
 
 | dbStore_abort : forall TD rm lc gl sid t v vp align Mem MM als gv gvp md,
-  get_reg_metadata TD Mem gl rm vp = Some md ->
+  get_reg_metadata TD Mem gl rm vp = md ->
   getOperandValue TD Mem v lc gl = Some gv ->
   getOperandValue TD Mem vp lc gl = Some gvp ->
   ~ assert_mptr TD t gvp md ->
@@ -318,7 +330,7 @@ Inductive dbCmd : TargetData -> GVMap ->
 
 | dbGEP : forall TD rm lc gl id inbounds t vp idxs vidxs gvp' Mem MM als gvp md 
                  lc' rm',
-  get_reg_metadata TD Mem gl rm vp = Some md ->
+  get_reg_metadata TD Mem gl rm vp = md ->
   getOperandValue TD Mem vp lc gl = Some gvp ->
   values2GVs TD Mem idxs lc gl = Some vidxs ->
   GEP TD t gvp vidxs inbounds = Some gvp' ->
@@ -362,7 +374,7 @@ Inductive dbCmd : TargetData -> GVMap ->
 | dbBitcast_ptr : forall TD rm lc gl id t1 v1 t2 gv2 Mem MM als lc' md rm',
   CAST TD Mem lc gl castop_bitcast t1 v1 t2 = Some gv2 ->
   isPointerTyp t1 ->
-  get_reg_metadata TD Mem gl rm v1 = Some md ->
+  get_reg_metadata TD Mem gl rm v1 = md ->
   prop_reg_metadata lc rm id gv2 md = (lc', rm') ->
   dbCmd TD gl lc rm als Mem MM (insn_cast id castop_bitcast t1 v1 t2) lc' rm' 
     als Mem MM trace_nil rok
@@ -414,8 +426,8 @@ Inductive dbCmd : TargetData -> GVMap ->
                  rm',
   SELECT TD Mem v0 v1 v2 lc gl = Some gv ->
   isPointerTyp t ->
-  get_reg_metadata TD Mem gl rm v1 = Some md1 ->
-  get_reg_metadata TD Mem gl rm v2 = Some md2 ->
+  get_reg_metadata TD Mem gl rm v1 = md1 ->
+  get_reg_metadata TD Mem gl rm v2 = md2 ->
   getOperandValue TD Mem v0 lc gl = Some cond ->
   (if isGVZero TD cond then 
     prop_reg_metadata lc rm id gv md2
@@ -499,11 +511,8 @@ Definition callUpdateLocals (TD:TargetData) (M:mem) (noret:bool) (rid:id)
         | Some Result => 
           match (getOperandValue TD M Result lc' gl) with 
           | Some gr => 
-              match get_reg_metadata TD M gl rm' Result with
-              | None => Some (updateAddAL _ lc rid gr, rm)
-              | Some md' => Some (updateAddAL _ lc rid gr, 
-                                  updateAddAL _ rm rid md')
-              end
+              let md' := get_reg_metadata TD M gl rm' Result in
+               Some (updateAddAL _ lc rid gr, updateAddAL _ rm rid md')
           | None => None
           end
         end
@@ -515,11 +524,8 @@ Fixpoint initRmetadata_aux TD Mem gl (la:args) (lp:params) (rm accum:rmetadata)
 match (la, lp) with
 | ((t,id)::la', (_,v)::lp') =>
     if isPointerTypB t then
-      match get_reg_metadata TD Mem gl rm v with 
-      | Some md => 
-          initRmetadata_aux TD Mem gl la' lp' rm (updateAddAL _ accum id md)
-      | None => None
-      end
+      let md := get_reg_metadata TD Mem gl rm v in 
+      initRmetadata_aux TD Mem gl la' lp' rm (updateAddAL _ accum id md)
     else initRmetadata_aux TD Mem gl la' lp' rm accum
 | (nil, nil) => Some accum
 | _ => None
@@ -658,7 +664,7 @@ with dbBlock : system -> TargetData -> list product -> GVMap -> GVMap ->
   is_error r ->
   dbBlock S TD Ps fs gl F
     (mkState (mkEC (block_intro l ps (cs++cs') tmn) lc1 rm1 als1) Mem1 MM1)
-    (mkState (mkEC (block_intro l ps (cs++cs') tmn) lc3 rm3 als3) Mem3 MM2)
+    (mkState (mkEC (block_intro l ps (cs++cs') tmn) lc3 rm3 als3) Mem3 MM3)
     (trace_app tr1 tr2) r
 
 | dbBlock_error2 : forall S TD Ps F tr1 tr2 l ps cs cs' tmn gl fs lc1 rm1 als1 
@@ -681,10 +687,11 @@ with dbBlocks : system -> TargetData -> list product -> GVMap -> GVMap ->
     dbBlocks S TD Ps fs gl F S2 S3 t2 r ->
     dbBlocks S TD Ps fs gl F S1 S3 (trace_app t1 t2) r
 
-| dbBlocks_cons_error : forall S TD Ps gl fs F S1 S2 S3 t1 r,
-    dbBlock S TD Ps fs gl F S1 S2 t1 r ->
+| dbBlocks_cons_error : forall S TD Ps gl fs F S1 B2 lc2 rm2 als2 Mem2 MM2 B3 t1 
+                        r,
+    dbBlock S TD Ps fs gl F S1 (mkState (mkEC B2 lc2 rm2 als2) Mem2 MM2) t1 r ->
     is_error r ->
-    dbBlocks S TD Ps fs gl F S1 S3 t1 r
+    dbBlocks S TD Ps fs gl F S1 (mkState (mkEC B3 lc2 rm2 als2) Mem2 MM2) t1 r
 
 with dbFdef : value -> typ -> params -> system -> TargetData -> list product -> 
               GVMap -> rmetadata ->GVMap -> GVMap -> 

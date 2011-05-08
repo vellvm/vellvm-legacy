@@ -85,14 +85,149 @@ match (GV2int TD Size.One gv) with
 | Some z => if Coqlib.zeq z 0 then true else false
 | _ => false
 end.
-Definition mgetoffset (TD:TargetData) (t:typ) (idx:list Z) : option int32 := 
-  None.
+
+Inductive utyp : Set := 
+ | utyp_int : sz -> utyp
+ | utyp_floatpoint : floating_point -> utyp
+ | utyp_void : utyp
+ | utyp_label : utyp
+ | utyp_metadata : utyp
+ | utyp_array : sz -> utyp -> utyp
+ | utyp_function : utyp -> list_utyp -> utyp
+ | utyp_struct : list_utyp -> utyp
+ | utyp_pointer : utyp -> utyp
+ | utyp_opaque : utyp
+with list_utyp : Set := 
+ | Nil_list_utyp : list_utyp
+ | Cons_list_utyp : utyp -> list_utyp -> list_utyp.
+
+Fixpoint typ2utyp_aux (m:list(id*utyp)) (t:typ) : option utyp :=
+ match t with
+ | typ_int s => Some (utyp_int s)
+ | typ_floatpoint f => Some (utyp_floatpoint f)
+ | typ_void => Some utyp_void
+ | typ_label => Some utyp_label
+ | typ_metadata => Some utyp_metadata
+ | typ_array s t0 => do ut0 <- typ2utyp_aux m t0; ret (utyp_array s ut0)
+ | typ_function t0 ts0 => 
+     do ut0 <- typ2utyp_aux m t0;
+     do uts0 <- typs2utyps_aux m ts0;
+        ret (utyp_function ut0 uts0)
+ | typ_struct ts0 => do uts0 <- typs2utyps_aux m ts0; ret (utyp_struct uts0)
+ | typ_pointer t0 => do ut0 <- typ2utyp_aux m t0; ret (utyp_pointer ut0)
+ | typ_opaque => Some utyp_opaque
+ | typ_namedt i => lookupAL _ m i
+ end
+with typs2utyps_aux (m:list(id*utyp)) (ts:list_typ) : option list_utyp := 
+ match ts with
+ | Nil_list_typ => Some Nil_list_utyp
+ | Cons_list_typ t0 ts0 =>
+     do ut0 <- typ2utyp_aux m t0; 
+     do uts0 <- typs2utyps_aux m ts0; 
+     ret (Cons_list_utyp ut0 uts0)
+ end.
+
+Fixpoint gen_utyp_maps (nts:namedts) : list (id*utyp) :=
+match nts with
+| nil => nil 
+| namedt_intro id0 t::nts' =>
+  let results := gen_utyp_maps nts' in
+  match typ2utyp_aux results t with
+  | None => results
+  | Some r => (id0, r)::results
+  end
+end.
+
+Definition typ2utyp (nts:namedts) (t:typ) : option utyp :=
+let m := gen_utyp_maps (List.rev nts) in
+typ2utyp_aux m t.
+
+Fixpoint utyp2typ (t:utyp) : typ :=
+ match t with
+ | utyp_int s => typ_int s
+ | utyp_floatpoint f => typ_floatpoint f
+ | utyp_void => typ_void
+ | utyp_label => typ_label
+ | utyp_metadata => typ_metadata
+ | utyp_array s t0 => typ_array s (utyp2typ t0)
+ | utyp_function t0 ts0 => 
+     typ_function (utyp2typ t0) (utyps2typs ts0)
+ | utyp_struct ts0 => typ_struct (utyps2typs ts0)
+ | utyp_pointer t0 => typ_pointer (utyp2typ t0)
+ | utyp_opaque => typ_opaque
+ end
+with utyps2typs (ts:list_utyp) : list_typ := 
+ match ts with
+ | Nil_list_utyp => Nil_list_typ
+ | Cons_list_utyp t0 ts0 =>
+     Cons_list_typ (utyp2typ t0) (utyps2typs ts0)
+ end.
+
+Fixpoint nth_list_utyp (n:nat) (l0:list_utyp) {struct n} : option utyp :=
+  match n,l0 with
+  | O, Cons_list_utyp h tl_ => Some h 
+  | O, other => None
+  | S m, Nil_list_utyp => None
+  | S m, Cons_list_utyp h tl_ => nth_list_utyp m tl_
+  end.
+
+Fixpoint mgetoffset_aux (TD:TargetData) (t:utyp) (idxs:list Z) (accum:Z) 
+  : option Z := 
+  match idxs with
+  | nil => Some accum
+  | idx::idxs' =>
+     match t with
+     | utyp_array _ t' =>
+         match (getTypeAllocSize TD (utyp2typ t')) with
+         | Some sz => 
+             mgetoffset_aux TD t' idxs' (accum + (Z_of_nat sz) * idx)
+         | _ => None
+         end
+     | utyp_struct lt => 
+         match (getStructElementOffset TD (utyp2typ t) (Coqlib.nat_of_Z idx)) 
+         with
+         | Some ofs =>
+             do t' <- nth_list_utyp (Coqlib.nat_of_Z idx) lt;
+               mgetoffset_aux TD t' idxs' (accum + (Z_of_nat ofs))
+         | _ => None
+         end
+     | _ => None
+     end
+  end.  
+
+Definition mgetoffset (TD:TargetData) (t:typ) (idxs:list Z) : option int32 := 
+let (_, nts) := TD in
+do ut <- typ2utyp nts t;
+do z <- mgetoffset_aux TD ut idxs 0;
+ret (Int.repr 31 z).
+
+Definition mgep (TD:TargetData) (t:typ) (ma:val) (idxs:list Z) : option val :=
+match ma with
+| Vptr b ofs => 
+  match idxs with
+  | nil => None
+  | (idx::idxs') =>
+    match (mgetoffset TD (typ_array 0 t) idxs') with
+    | Some offset => Some (Vptr b (Int.add 31 ofs offset))
+    | _ => None
+    end
+  end
+| _ => None
+end.
+
 Definition mget (TD:TargetData) (v:GenericValue) (o:int32) (t:typ) 
-  : option GenericValue := None.
+  : option GenericValue :=
+do s <- getTypeStoreSize TD t;
+   ret firstn s (skipn (Coqlib.nat_of_Z (Int.unsigned 31 o)) v).
+
 Definition mset (TD:TargetData) (v:GenericValue) (o:int32) (t0:typ) 
-  (v0:GenericValue) : option GenericValue := None.
-Definition mgep (TD:TargetData) (t:typ) (ma:val) (idxs:list Z) : option val := 
-  None.
+  (v0:GenericValue) : option GenericValue :=
+let n := Coqlib.nat_of_Z (Int.unsigned 31 o) in
+do s <- getTypeStoreSize TD t0;
+   If (beq_nat s (length v0))
+   then ret ((firstn s (skipn n v))++v0++(skipn n v))
+   else None
+   endif.
 
 Fixpoint intConsts2Nats (TD:TargetData) (lv:list_const) : option (list Z):=
 match lv with
@@ -989,7 +1124,10 @@ Proof.
   remember (GVs2Nats TD vidxs) as oidxs.
   remember (GV2ptr TD (getPointerSize TD) ma) as R.
   destruct R; try solve [inversion H; subst].
-    destruct oidxs; try solve [inversion H; subst].
+  destruct oidxs; try solve [inversion H; subst].
+  remember (mgep TD t v l0) as og.
+  destruct og; inversion H; subst.
+  exists l0. exists v. exists v0. auto.
 Qed.
 
 Lemma intValues2Nats_inversion : forall l0 lc gl TD M ns0,
@@ -1300,59 +1438,6 @@ match GV2ptr TD (getPointerSize TD) ptr with
   end
 | _ => None
 end.
-
-(*
-(** translating [mvalue] to value of specific typ, failed when [mvalue] is not
-    of size [sz]. *)
-Variable mvalue2nat : TargetData -> sz -> mvalue -> option nat.
-Variable mvalue2mptr : TargetData -> sz -> mvalue -> option mptr.
-(** checking if list of bytes or uninit is undef, should all elements in list be uninits? *)
-Variable isMvalueUndef : list layout -> typ -> mvalue -> Prop.
-
-(** translating value to [mvalue] with size [sz]. *)
-Variable nat2mvalue : TargetData -> nat -> sz -> mvalue.
-Variable mptr2mvalue : TargetData -> mptr -> sz -> mvalue.
-(** translating undef to mvalue with StoreSize, failed when typ is not storable. *)
-Variable undef2mvalue : list layout -> typ -> option mvalue.
-
-(** addition of two [mvalue]'s with size [sz], could be none if
-    overflow happens. *)
-Variable mvalue_add : TargetData -> sz -> mvalue -> mvalue -> option mvalue.
-
-(** [sz] uninitialized [mvalue]. *)
-Fixpoint muninits (sz:nat) : mvalue :=
-match sz with
-| 0 => nil
-| S sz' => mbyte_uninit::muninits sz'
-end.
-
-(** compute offset in typ with list of idxs, typ and its subtypes cannot be ptr. *)
-Variable mgetoffset : TargetData -> typ -> list nat -> option moffset.
-
-Definition mgep (TD:TargetData) (t:typ) (ma:mptr) (idxs:list nat) : option mptr :=
-match ma with
-| (mb, mo) => 
-  match idxs with
-  | nil => None
-  | (idx::idxs') =>
-    match (getTypeAllocSize TD t, mgetoffset TD t idxs') with
-    | (Some sz, Some offset) => Some (mb, mo+sz*idx+offset)
-    | _ => None
-    end
-  end
-end.
-
-Definition mget (TD:list layout) (v:mvalue) (o:moffset) (t:typ) : option mvalue :=
-do s <- getTypeStoreSize TD t;
-   ret firstn s (skipn o v).
-
-Definition mset (TD:list layout) (v:mvalue) (o:moffset) (t0:typ) (v0:mvalue) : option mvalue :=
-do s <- getTypeStoreSize TD t0;
-   If (beq_nat s (length v0))
-   then ret ((firstn s (skipn o v))++v0++(skipn o v))
-   else None
-   endif.
-*)
 
 End LLVMgv.
 
