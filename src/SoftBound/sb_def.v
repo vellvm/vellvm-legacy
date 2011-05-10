@@ -36,8 +36,7 @@ Inductive result : Set :=
 | rerror : result
 .  
 
-Definition base2GV (TD:TargetData) (b:mblock) : GenericValue :=
-ptr2GV TD (Vptr b (Int.repr 31 0)).
+Definition base2GV := blk2GV.
 
 Definition bound2GV (TD:TargetData) (b:mblock) (s:sz) n : GenericValue :=
 ptr2GV TD (Vptr b (Int.repr 31 ((Size.to_Z s)*n))).
@@ -48,7 +47,8 @@ match c with
     match t with
     | typ_function _ _ => Some (c, c)
     | _ => Some (c, const_gep false c 
-             (Cons_list_const (const_int Size.ThirtyTwo 1%Z) Nil_list_const))
+             (Cons_list_const (const_int Size.ThirtyTwo 
+               (INTEGER.of_Z 32%Z 1%Z false)) Nil_list_const))
     end
 | const_gep _ pc _ => get_const_metadata pc
 | _ => None
@@ -77,18 +77,18 @@ Definition get_reg_metadata TD M gl (rm:rmetadata) (v:value) : metadata :=
   end.
 
 Definition assert_mptr (TD:TargetData) (t:typ) (ptr:GenericValue) (md:metadata)
-  : Prop :=
+  : bool :=
   let 'mkMD base bound := md in
   match (GV2ptr TD (getPointerSize TD) ptr,
          GV2ptr TD (getPointerSize TD) base,
          GV2ptr TD (getPointerSize TD) bound,
          getTypeAllocSize TD t) with
   | (Some (Vptr pb pofs), Some (Vptr bb bofs), Some (Vptr eb eofs), Some tsz) =>
-      zeq pb bb /\ zeq bb eb /\
-      zle (Integers.Int.unsigned 31 bofs) (Integers.Int.unsigned 31 pofs) /\ 
-      zle (Integers.Int.unsigned 31 pofs + Z_of_nat tsz) 
+      zeq pb bb && zeq bb eb &&
+      zle (Integers.Int.unsigned 31 bofs) (Integers.Int.unsigned 31 pofs) &&
+      zle (Integers.Int.unsigned 31 pofs + Size.to_Z tsz) 
           (Integers.Int.unsigned 31 eofs)
-  | _ => False
+  | _ => false
   end.  
 
 Definition SELECT TD Mem v0 v1 v2 lc gl : option GenericValue :=

@@ -84,6 +84,7 @@ Definition t := Z.
 Definition dec : forall x y : t, {x=y} + {x<>y} := zeq.
 Definition to_nat (i:t) : nat := nat_of_Z i.
 Definition to_Z (i:t) : Z := i.
+Definition of_Z (bitwidth:Z) (v:Z) (is_signed:bool) : t := v.
 
 End INTEGER.
 

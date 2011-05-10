@@ -89,5 +89,5 @@ clean:
 	+make -C ./compcert clean
 	+make -C ./monads clean	
 	+make -C ./llvm_op clean
-	rm -rf ssa.tex main.pdf main.log main.aux main.log main.tex ssa_def.v ssa_lib.v ssa_static.vo *.vo *.glob merge.ott m_*.ott
+	rm -rf main.pdf main.log main.aux main.log ssa_def.v ssa_lib.v ssa_static.vo *.vo *.glob merge.ott m_*.ott
 

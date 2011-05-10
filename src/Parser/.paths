@@ -9,3 +9,6 @@ tvcases/milli/fptr3
 tvcases/milli/fptrret
 tvcases/milli/funcargs2
 tvcases/milli/funcret2
+tvcases/milli/bug1
+tvcases/milli/bug2
+tvcases/milli/funcret3

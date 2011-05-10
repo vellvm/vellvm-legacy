@@ -22,6 +22,7 @@ Require Import Memory.
 Require Import Integers.
 Require Import sb_tactic.
 Require Import symexe_def.
+Require Import symexe_tactic.
 
 Import SoftBound.
 
@@ -718,7 +719,7 @@ Proof.
         destruct R6; try solve [inversion J].
         simpl in J.
         intros z Jz.
-        destruct J as [J1 [_ [J2 J3]]].
+        bdestruct4 J as J1 J4 J2 J3.
         destruct (zeq b b1); subst; try solve [inversion J1].
         apply Heqmd.
         clear - J2 J3 Jz HeqR6 R4.
