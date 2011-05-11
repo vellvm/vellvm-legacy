@@ -19,6 +19,7 @@ Require Import Znumtheory.
 Require Import sb_def.
 Require Import symexe_def.
 Require Import sb_tactic.
+Require Import sub_tv.
 
 Module SBpass.
 
@@ -482,6 +483,8 @@ match ms with
     end
 end.
 
+(* Simulation *)
+
 Definition reg_simulation (rm1:SoftBound.rmetadata) (rm2:rmap) (lc1 lc2:GVMap) 
   : Prop :=
 (forall i0 gv, lookupAL _ lc1 i0 = Some gv -> lookupAL _ lc2 i0 = Some gv) /\
@@ -839,6 +842,128 @@ Lemma trans_cmds__is__correct : forall cs TD lc1 rm1 als gl Mem1 MM1 lc1' als'
     reg_simulation rm1' rm2 lc1' lc2' /\
     mem_simulation TD MM1' Mem1' Mem2'.
 Admitted.
+
+(* Validation *)
+
+(*
+Require Import sub_tv_def.
+
+Fixpoint tv_sterm fid (st st':sterm) : bool :=
+match (st, st') with
+| (sterm_val v, sterm_val v') => tv_value fid v v'
+| (sterm_bop b sz st1 st2, sterm_bop b' sz' st1' st2') =>
+    sumbool2bool _ _ (bop_dec b b') && sumbool2bool _ _ (Size.dec sz sz') &&
+    tv_sterm fid st1 st1' && tv_sterm fid st2 st2'
+| (sterm_fbop b f st1 st2, sterm_fbop b' f' st1' st2') =>
+    sumbool2bool _ _ (fbop_dec b b') && 
+    sumbool2bool _ _ (floating_point_dec f f') &&
+    tv_sterm fid st1 st1' && tv_sterm fid st2 st2'
+| (sterm_extractvalue t st1 cs, sterm_extractvalue t' st1' cs') =>
+    tv_typ t t' && tv_sterm fid st1 st1' &&
+  sumbool2bool _ _ (list_const_dec cs cs')
+| (sterm_insertvalue t1 st1 t2 st2 cs, 
+   sterm_insertvalue t1' st1' t2' st2' cs') =>
+    tv_typ t1 t1' && tv_sterm fid st1 st1' && 
+    tv_typ t2 t2' && tv_sterm fid st2 st2' &&
+    sumbool2bool _ _ (list_const_dec cs cs')
+| (sterm_malloc sm t st1 a, sterm_malloc sm' t' st1' a') =>
+    tv_smem fid sm sm' && tv_typ t t' && 
+    tv_sterm fid st1 st1' && tv_align a a'
+| (sterm_alloca sm t st1 a, sterm_alloca sm' t' st1' a') =>
+    tv_smem fid sm sm' && tv_typ t t' && 
+    tv_sterm fid st1 st1' && tv_align a a'
+| (sterm_load sm t st1 a, sterm_load sm' t' st1' a') =>
+    tv_smem fid sm sm' && tv_typ t t' && 
+    tv_sterm fid st1 st1' && tv_align a a'
+| (sterm_gep i t st1 sts2, sterm_gep i' t' st1' sts2') =>
+    sumbool2bool _ _ (bool_dec i i') && tv_typ t t' &&
+    tv_sterm fid st1 st1' && tv_list_sterm fid sts2 sts2'
+| (sterm_trunc top t1 st1 t2, sterm_trunc top' t1' st1' t2') =>
+    sumbool2bool _ _ (truncop_dec top top') && tv_typ t1 t1' &&
+    tv_sterm fid st1 st1' && tv_typ t2 t2'
+| (sterm_ext eo t1 st1 t2, sterm_ext eo' t1' st1' t2') =>
+    sumbool2bool _ _ (extop_dec eo eo') && tv_typ t1 t1' &&
+    tv_sterm fid st1 st1' && tv_typ t2 t2' 
+| (sterm_cast co t1 st1 t2, sterm_cast co' t1' st1' t2') =>
+    sumbool2bool _ _ (castop_dec co co') && tv_typ t1 t1' &&
+    tv_sterm fid st1 st1' && tv_typ t2 t2' 
+| (sterm_icmp c t st1 st2, sterm_icmp c' t' st1' st2') =>
+    sumbool2bool _ _ (cond_dec c c') && tv_typ t t' &&
+    tv_sterm fid st1 st1' && tv_sterm fid st2 st2'
+| (sterm_fcmp c ft st1 st2, sterm_fcmp c' ft' st1' st2') =>
+    sumbool2bool _ _ (fcond_dec c c') &&
+    sumbool2bool _ _ (floating_point_dec ft ft') &&
+    tv_sterm fid st1 st1' && tv_sterm fid st2 st2'
+| (sterm_phi t stls, sterm_phi t' stls') =>
+    tv_typ t t' && tv_list_sterm_l fid stls stls'
+| (sterm_select st1 t st2 st3, sterm_select st1' t' st2' st3') =>
+    tv_sterm fid st1 st1' && tv_typ t t' && 
+    tv_sterm fid st2 st2' && tv_sterm fid st3 st3'
+| (sterm_lib sm i sts, sterm_lib sm' i' sts') =>
+    tv_smem fid sm sm' && eq_id i i' && 
+    tv_list_sterm fid sts sts'
+| _ => false
+end
+with tv_list_sterm fid (sts sts':list_sterm) : bool :=
+match (sts, sts') with
+| (Nil_list_sterm, Nil_list_sterm) => true
+| (Cons_list_sterm st sts0, Cons_list_sterm st' sts0') =>
+    tv_sterm fid st st' && tv_list_sterm fid sts0 sts0'
+| _ => false
+end
+with tv_list_sterm_l fid (stls stls':list_sterm_l) : bool :=
+match (stls, stls') with
+| (Nil_list_sterm_l, Nil_list_sterm_l) => true
+| (Cons_list_sterm_l st l stls0, Cons_list_sterm_l st' l' stls0') =>
+    tv_sterm fid st st' && sumbool2bool _ _ (l_dec l l') && 
+    tv_list_sterm_l fid stls0 stls0'
+| _ => false
+end
+with tv_smem fid (sm1 sm2:smem) : bool :=
+match (sm1, sm2) with
+| (smem_init, _) => true
+| (smem_malloc sm1 t1 st1 a1, smem_malloc sm2 t2 st2 a2) =>
+    tv_smem fid sm1 sm2 && tv_typ t1 t2 && 
+    tv_sterm fid st1 st2 && tv_align a1 a2
+| (smem_alloca sm1 t1 st1 a1, smem_alloca sm2 t2 st2 a2) =>
+    tv_smem fid sm1 sm2 && tv_typ t1 t2 && 
+    tv_sterm fid st1 st2 && tv_align a1 a2
+| (smem_free sm1 t1 st1, smem_free sm2 t2 st2) =>
+    tv_smem fid sm1 sm2 && tv_typ t1 t2 && tv_sterm fid st1 st2
+| (smem_load sm1 t1 st1 a1, smem_load sm2 t2 st2 a2) =>
+    tv_smem fid sm1 sm2 && tv_typ t1 t2 && 
+    tv_sterm fid st1 st2 && tv_align a1 a2
+| (smem_store sm1 t1 st11 st12 a1, smem_store sm2 t2 st21 st22 a2) =>
+    tv_smem fid sm1 sm2 && tv_typ t1 t2 && 
+    tv_sterm fid st11 st21 &&
+    tv_sterm fid st12 st22 && tv_align a1 a2
+| (smem_lib sm1 fid1 sts1, smem_lib sm2 fid2 sts2) => 
+    tv_smem fid sm1 sm2 && eq_id fid1 fid2 && 
+    tv_list_sterm fid sts1 sts2
+| _ => false
+end.
+
+Fixpoint tv_sframe fid (sf1 sf2:sframe) : bool :=
+match (sf1, sf2) with
+| (sframe_init, _) => true
+| (sframe_alloca sm1 sf1 t1 st1 a1, sframe_alloca sm2 sf2 t2 st2 a2) =>
+    tv_smem fid sm1 sm2 && tv_typ t1 t2 && 
+    tv_sterm fid st1 st2 && tv_align a1 a2 &&
+    tv_sframe fid sf1 sf2
+| _ => false
+end.
+
+Fixpoint tv_smap fid (rm1:rmap) (rm2:metadata) (sm1 sm2:smap) : bool :=
+match sm1 with
+| nil => true
+| (id1,st1)::sm1' =>
+  match (lookupAL _ sm2 (rename_id fid id1), 
+         lookupAL _ with
+  | None => false
+  | Some st2 => tv_sterm Ps1 Ps2 fid st1 st2 && tv_smap Ps1 Ps2 fid sm1' sm2
+  end
+end.
+*)
 
 End SBpass.
 

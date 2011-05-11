@@ -76,11 +76,10 @@ vol/src/ssa        : The Formalisms of LLVM IR
                       of user-defined data layout in IR.
 
   genericvalues.v   : Representations of run-time values used in the operational 
-                      semantics
-
-  ssa_mem.v         : The LLVM memory model, which is actually a wrapper of the 
-                      CompCert memory model, with conversion between LLVM datatypes
-                      and datatypes that CompCert memory model can handle.
+                      semantics, and the LLVM memory model, which is actually a 
+                      wrapper of the CompCert memory model, with conversion 
+                      between LLVM datatypes and datatypes that CompCert memory 
+                      model can handle.
 
   trace.v           : I/O events that track observable behaviors of an execution
 
@@ -95,42 +94,49 @@ vol/src/ssa        : The Formalisms of LLVM IR
 
   ssa_interpreter.v : An interpreter that is consistent with operational semantics 
 
-  ssa_extract.v     : Extracting an OCaml interpreter into 
-                        vol/src/Interpreter
-
   ssa_static.ott    : A verifier that checks if an LLVM IR is well-formed
 
 vol/src/ssa/llvm_op : Obsolete
 
 vol/src/Interpreter : Extracted interpreter
-  llvm_aux.ml/llvm_pretty_printer.ml : printing llvm AST
-  coq_pretty_printer.ml  : printing Coq AST
-  coq2llvm.ml            : Translating Coq AST to LLVM AST
-  llvm2coq.ml            : Translating LLVM AST to Coq AST
-  llvmcaml.ml/Camlcoq.ml : Realizing performance-sensitive operations into C++ definitions,
-                           for example, memory operations, int/float operations
-  ssa_main.ml            : The main entry that reads in an LLVM IR, converts it into 
-                           the Coq representation, and interpretes it.
-  testcases              : Simple testcases
+  main.ml           : The main entry that reads in an LLVM IR, converts it into 
+                      the Coq representation, and interpretes it.
+  testcases         : Simple testcases
 
 vol/src/Interpreter/testcases: Simple test cases of this interpreter, run 'make'
   
+vol/src/TV/         : A simple trivial translation validator (eq_tv*), which only
+                      checks equivalence between corresponding blocks of an input 
+                      program and the transformed program. The optimization under 
+                      validation cannot change CFGs.
 
-vol/src/TV/         : A simple trivial translation validator, which only checks equivalence
-                      between corresponding blocks of an input program and the transformed
-                      program. The optimization under validation cannot change CFGs.
   symexe_def.v      : Defining symbolic values and states of LLVM IR, and an operational 
                       semantics that simplifies the proofs about this TV.
   seop_llvmop.v     : Proved that this special operational semantics is equivalent to 
                       the ones defined in vol/src/ssa/ssa_dynamic.v
   symexe_dec.v      : Decidability of equations over symbolic values and states
-  symexe_sound.v/symexe_complete.v  : Symbolic states are sound/complete wrt concrete states
-  symexe_correct.v  : If the TV returns true, the two programs are indeed equivalent.
-  symexe_extract.v  : Extracting an OCaml TV into 
-                        vol/src/ssa/extraction
+  symexe_sound.v/symexe_complete.v  : Symbolic states are sound/complete wrt 
+                                      concrete states
+  eq_tv_correct.v  : If the TV returns true, the two programs are indeed equivalent.
+  sub_tv_*.v/mtv*.v : A validator that may work for SoftBound
 
 vol/src/Parser/     : The main entry of the TV, which reads the original and transformed IRs,
                       converts them into the Coq ASTs, and validates them.
+
+vol/src/Parser/testcases : Test cases for SoftBound validators.
+
+vol/src/SoftBound   : A verified Softbound pass (which we are still working on).
+
+vol/src/Extraction  :
+  extraction_interpreter.v           : Extracting an OCaml interpreter
+  extraction_tv.v                    : Extracting an OCaml TV
+  extraction_sb.v                    : Extracting an OCaml SoftBound
+  llvm_aux.ml/llvm_pretty_printer.ml : printing llvm AST
+  coq_pretty_printer.ml              : printing Coq AST
+  coq2llvm.ml                        : Translating Coq AST to LLVM AST
+  llvm2coq.ml                        : Translating LLVM AST to Coq AST
+  llvmcaml.ml/Camlcoq.ml             : Realizing performance-sensitive operations
+      into C++ definitions, for example, memory operations, int/float operations
 
 vol/src/BigSmallStep : Reproved generic relations between the bigstep and the smallstep in CompCert,
                        which is not used in this project
@@ -219,7 +225,7 @@ RELEASE = $(WHERE_RELEASE_IS)
 METALIB = $(RELEASE)/theory/metatheory_8.3
 LLVM_LIB = $(WHERE_LLVM_IS)/lib/
 LLVM_OCAML_LIB = $(LLVM_LIB)/ocaml/
-TV_LIB = $(RELEASE)/vol/src/TV/extraction/_build/
+EXTRACTION_LIB = $(RELEASE)/vol/src/TV/extraction/_build/
 
 Then, in $(VOL)/src
 
@@ -265,7 +271,8 @@ To evaluate the extracted interpreter,
                               NOTE
 ===========================================================================
 
-If OcaIDE is installed, at $(VOL)/src, you can open a eclipse project : Parser.
+If OcaIDE is installed, at $(VOL)/src, you can open two eclipse projects : 
+Parser and SoftBound.
    Setting: Property -> project
     -libs: llvm,llvm_analysis,llvm_executionengine,llvm_target,llvm_bitreader,llvm_bitwriter,llvm_scalar_opts,sub_tv,coq2llvm,coq_pretty_printer,eq_tv
     -cflags: -I /home/jianzhou/Tools/llvm-2.6/lib/ocaml/ -I /home/jianzhou/SVN/sol/vol/src/_build/Extraction/
