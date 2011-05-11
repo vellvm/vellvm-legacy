@@ -188,12 +188,6 @@ match idxs with
      end
 end.
 
-Definition getLoadTyp (t:typ) : option typ :=
-match t with
-| typ_pointer t' => Some t'
-| _ => None
-end.
-
 Definition getCmdTyp (i:cmd) : option typ :=
 match i with
 | insn_bop _ _ sz _ _ => Some (typ_int sz)
@@ -206,7 +200,7 @@ match i with
 | insn_malloc _ typ _ _ => Some (typ_pointer typ)
 | insn_free _ typ _ => Some typ_void
 | insn_alloca _ typ _ _ => Some (typ_pointer typ)
-| insn_load _ typ _ _ => getLoadTyp typ
+| insn_load _ typ _ _ => Some typ
 | insn_store _ _ _ _ _ => Some typ_void
 | insn_gep _ _ typ _ idxs => getGEPTyp idxs typ
 | insn_trunc _ _ _ _ typ => Some typ

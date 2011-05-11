@@ -877,7 +877,8 @@ Scheme dbCall_ind3 := Induction for dbCall Sort Prop
 Combined Scheme sb_db_mutind from dbCall_ind3, dbSubblock_ind3,
   dbSubblocks_ind3, dbBlock_ind3, dbBlocks_ind3, dbFdef_ind3.
 
-Hint Constructors dbCall dbSubblock dbSubblocks dbBlock dbBlocks dbFdef.
+Hint Constructors dbCmd dbCmds dbCall dbSubblock dbSubblocks dbBlock dbBlocks 
+  dbFdef.
 
 End SoftBound.
 
