@@ -3082,7 +3082,7 @@ Fixpoint getTyp (c:const) : option typ :=
    | Some lt => Some (typ_struct lt)
    | None => None
    end
- | const_gid t _ => Some (typ_pointer t)
+ | const_gid t _ => Some t
  | const_truncop _ _ t => Some t
  | const_extop _ _ t => Some t
  | const_castop _ _ t => Some t

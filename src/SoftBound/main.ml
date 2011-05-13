@@ -15,9 +15,12 @@ let main in_filename =
   let coqim = Llvm2coq.translate_module !Globalstates.debug ist im in
   (if !Globalstates.debug then Coq_pretty_printer.travel_module coqim);
 
+  Coq2ll.travel_module coqim;
+
+(*
   (match SBpass.trans_module coqim with
-    | Some coqom -> 
-        Coq_pretty_printer.travel_module coqom;
+  | Some coqom -> 
+        Coq2ll.travel_module coqom
 (*
         let om = Coq2llvm2.translate_module coqom in
         (* write the module to a file *)
@@ -25,6 +28,7 @@ let main in_filename =
           exit 1
 *)
     | None -> failwith "failed");
+*)
 
   SlotTracker.dispose ist;
   dispose_module im

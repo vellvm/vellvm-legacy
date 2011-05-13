@@ -848,6 +848,37 @@ Admitted.
 (*
 Require Import sub_tv_def.
 
+(*
+  rename_id ids rm fid id
+  ids are IDs of the original function fid
+  rm is meta data maps
+  id is the ID to rename.
+  if id is in ids, 
+  then renaming.db tells us its renamed id
+  else we search in rmap to see if id is a metadata, 
+    if so, returns its corresponding metadata if it exists
+    otherwise, return None.
+  Note that we do not check temp variables.
+*)
+Definition tv_id (lc:ids) (rm:rmap) (fid:id) (id1 id2:id) : bool :=
+match in_dec _ id_dec id1 lc with
+| left _ => eq_id (rename_id id1) id2
+| right _ =>
+end.
+
+Definition tv_id lc rm fid (id1 id2:id) : bool :=
+  match (rename_id lc rm fid id1) with
+  | Some id1' => eq_id id1' id2
+  | None => false
+  end.
+
+Definition tv_value fid v1 v2 : bool :=
+match (v1, v2) with
+| (value_id id1, value_id id2) => tv_id fid id1 id2
+| (value_const c1, value_const c2) => tv_const fid c1 c2
+| _ => false
+end.
+
 Fixpoint tv_sterm fid (st st':sterm) : bool :=
 match (st, st') with
 | (sterm_val v, sterm_val v') => tv_value fid v v'
@@ -921,7 +952,7 @@ match (stls, stls') with
 end
 with tv_smem fid (sm1 sm2:smem) : bool :=
 match (sm1, sm2) with
-| (smem_init, _) => true
+| (smem_init, smem_init) => true
 | (smem_malloc sm1 t1 st1 a1, smem_malloc sm2 t2 st2 a2) =>
     tv_smem fid sm1 sm2 && tv_typ t1 t2 && 
     tv_sterm fid st1 st2 && tv_align a1 a2
@@ -945,7 +976,7 @@ end.
 
 Fixpoint tv_sframe fid (sf1 sf2:sframe) : bool :=
 match (sf1, sf2) with
-| (sframe_init, _) => true
+| (sframe_init, sframe_init) => true
 | (sframe_alloca sm1 sf1 t1 st1 a1, sframe_alloca sm2 sf2 t2 st2 a2) =>
     tv_smem fid sm1 sm2 && tv_typ t1 t2 && 
     tv_sterm fid st1 st2 && tv_align a1 a2 &&
