@@ -36,7 +36,7 @@ let rec string_of_typ ty =
                      "{ " ^ string_of_list_typ ts ^ " }"
   | LLVMsyntax.Coq_typ_pointer t -> (string_of_typ t) ^ "*"
   | LLVMsyntax.Coq_typ_opaque -> "opaque"
-  | LLVMsyntax.Coq_typ_namedt id -> id
+  | LLVMsyntax.Coq_typ_namedt id -> "%"^id
 and string_of_list_typ ts =
   String.concat "," (List.map string_of_typ (LLVMsyntax.unmake_list_typ ts))
 
@@ -124,26 +124,35 @@ let rec string_of_constant c =
   | LLVMsyntax.Coq_const_undef _ -> "undef"
   | LLVMsyntax.Coq_const_null _ -> "null"
   | LLVMsyntax.Coq_const_arr (_, cs) -> "[" ^ string_of_list_constant cs ^ "]"
-  | LLVMsyntax.Coq_const_struct cs -> string_of_list_constant cs
+  | LLVMsyntax.Coq_const_struct cs -> "{" ^ string_of_list_constant cs ^ "}"
   | LLVMsyntax.Coq_const_gid (_,id) -> id
   | LLVMsyntax.Coq_const_zeroinitializer _ -> "zeroinitializer"
   | LLVMsyntax.Coq_const_floatpoint (_, f) -> APFloat.to_string f
   | LLVMsyntax.Coq_const_truncop (op, c, t) -> 
-      string_of_truncop op^" ("^string_of_constant c^" to "^string_of_typ t^")" 
+      (match (Ssa_lib.LLVMlib.Constant.getTyp c) with
+        | Some t' -> string_of_truncop op^" ("^string_of_typ t'^" "^
+            string_of_constant c^" to "^string_of_typ t^")" 
+        | None -> failwith "const gep must be of a typ.")
   | LLVMsyntax.Coq_const_extop (op, c, t) -> 
-      string_of_extop op^" ("^string_of_constant c^" to "^string_of_typ t^")" 
+      (match (Ssa_lib.LLVMlib.Constant.getTyp c) with
+        | Some t' -> string_of_extop op^" ("^string_of_typ t'^" "^
+            string_of_constant c^" to "^string_of_typ t^")" 
+        | None -> failwith "const gep must be of a typ.")
   | LLVMsyntax.Coq_const_castop (op, c, t) -> 
-      string_of_castop op^" ("^string_of_constant c^" to "^string_of_typ t^")" 
+      (match (Ssa_lib.LLVMlib.Constant.getTyp c) with
+        | Some t' -> string_of_castop op^" ("^string_of_typ t'^" "^
+            string_of_constant c^" to "^string_of_typ t^")" 
+        | None -> failwith "const gep must be of a typ.")
   | LLVMsyntax.Coq_const_gep (ib, c, cs) -> 
-      "getelementptr "^
-        (match ib with
-          | true -> "inbounds"
-          | false -> "") ^" ("^
-        (match (Ssa_lib.LLVMlib.Constant.getTyp c) with
-          | Some t -> string_of_typ t
-          | None -> failwith "const gep must be of a typ.")^" "^
-        string_of_constant c^", "^
-        string_of_list_constant cs^")"
+      (match (Ssa_lib.LLVMlib.Constant.getTyp c) with
+        | Some t -> "getelementptr "^
+            (match ib with
+              | true -> "inbounds"
+              | false -> "") ^" ("^
+            string_of_typ t ^" "^
+            string_of_constant c^", "^
+            string_of_list_constant cs^")"
+        | None -> failwith "const gep must be of a typ.")
   |  LLVMsyntax.Coq_const_select (c0, c1, c2) -> 
     "select ("^string_of_constant c0^" "^string_of_constant c1^" "^
       string_of_constant c2^")"  
@@ -194,8 +203,21 @@ let rec string_of_list_value_l vls =
     (LLVMsyntax.unmake_list_value_l vls))
 
 let string_of_args args =
-  "(" ^ (String.concat "," 
-    (List.map (fun (t,id) -> (string_of_typ t) ^ " " ^ id) args)) ^ ")"
+  "(" ^ 
+  (String.concat "," 
+    (List.map 
+      (fun (t,id) -> 
+        (string_of_typ t) ^ 
+        (try 
+          let id' = getRealName id in
+          ignore(int_of_string id');
+          ""
+        with 
+          | _ -> " " ^ id)
+      ) args
+    )
+  ) ^ 
+  ")"
 
 let travel_terminator i =
   match i with 
@@ -203,7 +225,7 @@ let travel_terminator i =
       eprintf "  br i1 %s, label %s, label %s\n" (string_of_value v) 
         (name_of_label l1) (name_of_label  l2)
   | LLVMsyntax.Coq_insn_br_uncond (_, l) -> 
-      eprintf "  br i1 %s \n" (name_of_label  l)
+      eprintf "  br label %s \n" (name_of_label  l)
   | LLVMsyntax.Coq_insn_return (_, t, v) ->
       eprintf "  ret %s %s\n" (string_of_typ t) (string_of_value v)
   | LLVMsyntax.Coq_insn_return_void _ ->
@@ -235,27 +257,29 @@ let travel_cmd i =
   | LLVMsyntax.Coq_insn_alloca (id, t, v, align) ->
       eprintf "  %s = alloca %s, i32 %s%s\n" id (string_of_typ t) 
         (string_of_value v) 
-        (if align = 0 then "" else ", align" ^ string_of_int align)
+        (if align = 0 then "" else ", align " ^ string_of_int align)
   | LLVMsyntax.Coq_insn_free (_, t, v) ->
       eprintf "  free %s %s\n" (string_of_typ t) (string_of_value v)
   | LLVMsyntax.Coq_insn_load (id, t, v, a) ->
-      eprintf "  %s = load %s* %s, align %d\n" id (string_of_typ t) 
-        (string_of_value v) a
+      eprintf "  %s = load %s* %s%s\n" id (string_of_typ t) 
+        (string_of_value v)
+        (if a = 0 then "" else ", align " ^ string_of_int a)
   | LLVMsyntax.Coq_insn_store (_, t, v1, v2, a) ->
-      eprintf "  store %s %s, %s, align %d\n" (string_of_typ t) 
-        (string_of_value v1) (string_of_value v2) a
+      eprintf "  store %s %s, %s* %s%s\n" (string_of_typ t) 
+        (string_of_value v1) (string_of_typ t) (string_of_value v2)
+        (if a = 0 then "" else ", align " ^ string_of_int a)
   | LLVMsyntax.Coq_insn_gep (id, inbounds, t, v, vs) ->
       eprintf "  %s = getelementptr %s %s* %s, %s\n" id 
         (if inbounds then "inbounds" else "") (string_of_typ t) 
         (string_of_value v) (string_of_list_value vs)
   | LLVMsyntax.Coq_insn_trunc (id, truncop, t1, v, t2) ->
-      eprintf "  %s = %s %s %s, %s\n" id (string_of_truncop truncop) 
+      eprintf "  %s = %s %s %s to %s\n" id (string_of_truncop truncop) 
         (string_of_typ t1) (string_of_value v) (string_of_typ t2)
   | LLVMsyntax.Coq_insn_ext (id, extop, t1, v, t2) ->
-      eprintf "  %s = %s %s %s %s\n" id (string_of_extop extop) 
+      eprintf "  %s = %s %s %s to %s\n" id (string_of_extop extop) 
         (string_of_typ t1) (string_of_value v) (string_of_typ t2)
   | LLVMsyntax.Coq_insn_cast (id, castop, t1, v, t2) ->
-      eprintf "  %s = %s %s %s %s\n" id (string_of_castop castop) 
+      eprintf "  %s = %s %s %s to %s\n" id (string_of_castop castop) 
         (string_of_typ t1) (string_of_value v) (string_of_typ t2)
   | LLVMsyntax.Coq_insn_icmp (id, cond, t, v1, v2) ->
       eprintf "  %s = icmp %s %s %s, %s\n" id (string_of_cond cond) 
@@ -264,14 +288,18 @@ let travel_cmd i =
       eprintf "  %s = fcmp %s %s %s, %s\n" id (string_of_fcond fcond) 
         (string_of_floating_point fp) (string_of_value v1) (string_of_value v2)
   | LLVMsyntax.Coq_insn_select (id, v, t, v1, v2) ->
-      eprintf "  %s = select %s %s %s, %s\n" id (string_of_value v) 
-        (string_of_typ t) (string_of_value v1) (string_of_value v2)
+      eprintf "  %s = select i1 %s, %s %s, %s %s\n" id (string_of_value v) 
+        (string_of_typ t) (string_of_value v1) (string_of_typ t) 
+        (string_of_value v2)
   | LLVMsyntax.Coq_insn_call (id, noret, tailc, t, fv, ps) ->
       let (ts, _) = List.split ps in
-      eprintf "  %s %s call %s(%s)* %s %s\n"  (if noret then "" else id ^ "=") 
-        (if tailc then "tail" else "") (string_of_typ t) 
-        (String.concat "," (List.map string_of_typ ts)) (string_of_value fv) 
-        (string_of_params ps)
+      let ps' = String.concat "," (List.map string_of_typ ts) in
+      eprintf "  %s%scall %s(%s)* %s %s\n"  (if noret then "" else id ^ " = ") 
+        (if tailc then "tail " else "") (string_of_typ t) 
+        (match fv with
+          | LLVMsyntax.Coq_value_const (LLVMsyntax.Coq_const_gid (_, fid)) ->      
+              if (fid = "@printf") then "i8*,..." else ps'              
+          | _ -> ps') (string_of_value fv) (string_of_params ps)
   ;
   flush_all ()        
           
@@ -291,14 +319,16 @@ let travel_block b =
     List.iter travel_cmd cs;
     travel_terminator tmn
 
-let string_of_args' args =
+let string_of_args' fid args =
   "(" ^ (String.concat "," 
-    (List.map (fun (t,_) -> (string_of_typ t)) args)) ^ ")"
+     (List.map (fun (t,_) -> (string_of_typ t)) args)) ^ 
+     (if (fid = "@printf") then ",...)" else ")")
 
 let travel_fdec f =
   match f with
   | LLVMsyntax.Coq_fheader_intro (t, fid, args) ->
-    eprintf "declare %s %s %s\n" (string_of_typ t) fid (string_of_args' args); 
+    eprintf "declare %s %s %s\n" (string_of_typ t) fid 
+      (string_of_args' fid args); 
     flush_all ()
 
 let travel_fdef f =
@@ -323,14 +353,18 @@ let travel_product g =
         | LLVMsyntax.Coq_typ_pointer t -> 
           eprintf "%s = internal %s %s %s%s\n" id 
             (string_of_gvar_spec spec) (string_of_typ t) (string_of_constant c) 
-            (if a = 0 then "" else ", align" ^ string_of_int a);
+            (if a = 0 then "" else ", align " ^ string_of_int a);
           flush_all ()
         | _ -> failwith "global must be of pointer type."
       end
   | LLVMsyntax.Coq_product_gvar (LLVMsyntax.Coq_gvar_external (id, spec, t)) -> 
-    eprintf "%s = external %s %s\n" id (string_of_gvar_spec spec) 
-      (string_of_typ t); 
-    flush_all ()
+      begin match t with
+        | LLVMsyntax.Coq_typ_pointer t -> 
+            eprintf "%s = external %s %s\n" id (string_of_gvar_spec spec) 
+              (string_of_typ t); 
+            flush_all ()
+        | _ -> failwith "global must be of pointer type."
+      end
   | LLVMsyntax.Coq_product_fdec f -> travel_fdec f
   | LLVMsyntax.Coq_product_fdef f -> travel_fdef f
 
@@ -349,7 +383,7 @@ let travel_layout dlt =
 let travel_namedt nt =
   match nt with
   | (LLVMsyntax.Coq_namedt_intro (id, t)) ->
-    eprintf "%s = type %s\n" id (string_of_typ t); 
+    eprintf "%%%s = type %s\n" id (string_of_typ t); 
     flush_all ()
 
 let travel_module m =
@@ -357,7 +391,7 @@ let travel_module m =
   | LLVMsyntax.Coq_module_intro (dlts, nts, ps) -> 
 (*    List.iter travel_layout dlts;*)
     List.iter travel_namedt nts;
-    List.iter travel_product (List.rev ps)
+    List.iter travel_product ps
 
 
 

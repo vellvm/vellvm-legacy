@@ -26,6 +26,46 @@ Module SBpass.
 Export LLVMsyntax.
 Export LLVMgv.
 
+Definition simpl_typ (nts:namedts) (t:typ) : option typ :=
+do ut <- typ2utyp nts t; ret (utyp2typ ut).
+
+Definition getGEPTyp (nts:namedts) (idxs : list_value) (t : typ) : option typ :=
+match idxs with
+| Nil_list_value => None
+| Cons_list_value idx idxs' =>
+    do t <- simpl_typ nts t;
+    (* The input t is already an element of a pointer typ *)
+    do t' <- getSubTypFromValueIdxs idxs' t;
+    ret (typ_pointer t')
+end.
+
+Definition getCmdTyp (nts:namedts) (i:cmd) : option typ :=
+match i with
+| insn_bop _ _ sz _ _ => Some (typ_int sz)
+| insn_fbop _ _ ft _ _ => Some (typ_floatpoint ft)
+(*
+| insn_extractelement _ typ _ _ => getElementTyp typ
+| insn_insertelement _ typ _ _ _ _ => typ *)
+| insn_extractvalue _ typ _ idxs => 
+    do t <- simpl_typ nts typ;
+    getSubTypFromConstIdxs idxs t
+| insn_insertvalue _ typ _ _ _ _ => Some typ
+| insn_malloc _ typ _ _ => Some (typ_pointer typ)
+| insn_free _ typ _ => Some typ_void
+| insn_alloca _ typ _ _ => Some (typ_pointer typ)
+| insn_load _ typ _ _ => Some typ
+| insn_store _ _ _ _ _ => Some typ_void
+| insn_gep _ _ typ _ idxs => getGEPTyp nts idxs typ
+| insn_trunc _ _ _ _ typ => Some typ
+| insn_ext _ _ _ _ typ2 => Some typ2
+| insn_cast _ _ _ _ typ => Some typ
+| insn_icmp _ _ _ _ _ => Some (typ_int Size.One)
+| insn_fcmp _ _ _ _ _ => Some (typ_int Size.One)
+| insn_select _ _ typ _ _ => Some typ
+| insn_call _ true _ typ _ _ => Some typ_void
+| insn_call _ false _ typ _ _ => Some typ
+end.
+
 Definition rmap := list (id*(id*id)).
 
 Definition getFdefIDs fdef : ids :=
@@ -41,16 +81,17 @@ let '(exist b _) := AtomImpl.atom_fresh_for_list ex_ids in
 let '(exist e _) := AtomImpl.atom_fresh_for_list (b::ex_ids) in
 (b, e, b::e::ex_ids, (id0,(b,e))::rm).
 
-Fixpoint gen_metedata_cmds (ex_ids:ids) (rm:rmap) (cs:cmds) : option(ids*rmap) :=
+Fixpoint gen_metedata_cmds nts (ex_ids:ids) (rm:rmap) (cs:cmds) 
+  : option(ids*rmap) :=
 match cs with
 | nil => Some (ex_ids,rm)
 | c::cs' => 
-   do t <- getCmdTyp c;
+   do t <- getCmdTyp nts c;
    if isPointerTypB t then
      let id0 := getCmdID c in
      let '(_,_,ex_ids',rm') := gen_metadata_id ex_ids rm id0 in
-     gen_metedata_cmds ex_ids' rm' cs'
-   else gen_metedata_cmds ex_ids rm cs'
+     gen_metedata_cmds nts ex_ids' rm' cs'
+   else gen_metedata_cmds nts ex_ids rm cs'
 end.
 
 Fixpoint gen_metedata_phinodes (ex_ids:ids) (rm:rmap) (ps:phinodes) : ids*rmap :=
@@ -65,19 +106,19 @@ match ps with
    else gen_metedata_phinodes ex_ids rm ps'
 end.
 
-Definition gen_metedata_block (ex_ids:ids) (rm:rmap) (b:block) : option(ids*rmap)
-  :=
+Definition gen_metedata_block nts (ex_ids:ids) (rm:rmap) (b:block) 
+  : option(ids*rmap) :=
 let '(block_intro _ ps cs _) := b in
 let '(ex_ids', rm') := gen_metedata_phinodes ex_ids rm ps in
-gen_metedata_cmds ex_ids' rm' cs.
+gen_metedata_cmds nts ex_ids' rm' cs.
 
-Fixpoint gen_metedata_blocks (ex_ids:ids) (rm:rmap) (bs:blocks) 
+Fixpoint gen_metedata_blocks nts (ex_ids:ids) (rm:rmap) (bs:blocks) 
   : option(ids*rmap) :=
 match bs with
 | nil => Some (ex_ids,rm)
 | b::bs' => 
-    match gen_metedata_block ex_ids rm b with
-    | Some (ex_ids',rm') => gen_metedata_blocks ex_ids' rm' bs'
+    match gen_metedata_block nts ex_ids rm b with
+    | Some (ex_ids',rm') => gen_metedata_blocks nts ex_ids' rm' bs'
     | None => None
     end
 end.
@@ -92,37 +133,37 @@ match la with
    else gen_metedata_args ex_ids rm la'
 end.
 
-Definition gen_metedata_fdef (ex_ids:ids) (rm:rmap) (f:fdef) : option(ids*rmap)
-  :=
+Definition gen_metedata_fdef nts (ex_ids:ids) (rm:rmap) (f:fdef) 
+  : option(ids*rmap) :=
 let '(fdef_intro (fheader_intro _ _ la) bs) := f in
 let '(ex_ids', rm') := gen_metedata_args ex_ids rm la in
-gen_metedata_blocks ex_ids' rm' bs.
+gen_metedata_blocks nts ex_ids' rm' bs.
 
 Definition mk_tmp (ex_ids:ids) : id * ids :=
 let '(exist tmp _) := AtomImpl.atom_fresh_for_list ex_ids in
 (tmp, tmp::ex_ids).
 
 Definition i8 := typ_int Size.Eight.
+Definition i32 := typ_int Size.ThirtyTwo.
 Definition p8 := typ_pointer i8.
 Definition pp8 := typ_pointer p8.
-Definition c1 := 
-  Cons_list_value 
-    (value_const 
-      (const_int Size.ThirtyTwo 
-        (INTEGER.of_Z 32%Z 1%Z false))) 
-    Nil_list_value.
+Definition p32 := typ_pointer i32.
+Definition int1 := const_int Size.ThirtyTwo (INTEGER.of_Z 32%Z 1%Z false).
+Definition c1 := Cons_list_value (value_const int1) Nil_list_value.
 
-Definition get_reg_metadata (rm:rmap) (v:value) : option (value * value) :=
+Definition get_reg_metadata (rm:rmap) (v:value) : option (typ * value * value) :=
   match v with
   | value_id pid => 
       match lookupAL _ rm pid with
-      | Some (bid, eid) => Some (value_id bid, value_id eid)
+      | Some (bid, eid) => Some (p8, value_id bid, value_id eid)
       | None => None
       end
   | value_const c => 
-      match SoftBound.get_const_metadata c with
-      | Some (bc, ec) => Some (value_const bc, value_const ec)
-      | None => None
+      match (SoftBound.get_const_metadata c, Constant.getTyp c) with
+      | (Some (bc, ec), Some t) => Some (t, value_const bc, value_const ec)
+      | (None, Some t) => Some (t, value_const (const_null t), 
+                                   value_const (const_null t))
+      | _ => None
       end
   end.
 
@@ -135,7 +176,11 @@ Definition assert_mptr_fn : value :=
   value_const
     (const_gid 
       (typ_function typ_void 
-        (Cons_list_typ p8 (Cons_list_typ p8 (Cons_list_typ p8 Nil_list_typ))))
+        (Cons_list_typ p8 
+        (Cons_list_typ p8 
+        (Cons_list_typ p8
+        (Cons_list_typ i32
+        (Cons_list_typ i32 Nil_list_typ))))))
       assert_mptr_fid).
 
 Definition get_mmetadata_fn : value :=
@@ -144,7 +189,10 @@ Definition get_mmetadata_fn : value :=
       (typ_function typ_void 
         (Cons_list_typ p8 
         (Cons_list_typ pp8 
-        (Cons_list_typ pp8 Nil_list_typ))))
+        (Cons_list_typ pp8
+        (Cons_list_typ p8
+        (Cons_list_typ i32
+        (Cons_list_typ p32 Nil_list_typ)))))))
       get_mmetadata_fid).
 
 Definition set_mmetadata_fn : value :=
@@ -153,36 +201,61 @@ Definition set_mmetadata_fn : value :=
       (typ_function typ_void 
         (Cons_list_typ p8 
         (Cons_list_typ p8 
-        (Cons_list_typ p8 Nil_list_typ))))
+        (Cons_list_typ p8
+        (Cons_list_typ p8
+        (Cons_list_typ i32
+        (Cons_list_typ i32 Nil_list_typ)))))))
       set_mmetadata_fid).
 
 Definition prop_metadata (ex_ids tmps:ids) rm c v1 id0 :=
   match (get_reg_metadata rm v1, lookupAL _ rm id0) with
-  | (Some (bv, ev), Some (bid0, eid0)) =>
+  | (Some (t, bv, ev), Some (bid0, eid0)) =>
       Some (ex_ids, tmps,
         c::
-        insn_cast bid0 castop_bitcast p8 bv p8:: 
-        insn_cast eid0 castop_bitcast p8 ev p8:: 
+        insn_cast bid0 castop_bitcast t bv p8:: 
+        insn_cast eid0 castop_bitcast t ev p8:: 
         nil)
   | _ => None
   end.
 
-Fixpoint trans_params (rm:rmap) (lp:params) : option params :=
+Fixpoint trans_params (ex_ids tmps:ids) (rm:rmap) (lp:params) 
+  : option (ids*ids*cmds*params) :=
 match lp with
-| nil => Some nil
+| nil => Some (ex_ids, tmps, nil, nil)
 | (t0,v0) as p::lp' =>
-    match trans_params rm lp' with
+    match trans_params ex_ids tmps rm lp' with
     | None => None
-    | Some lp2 =>
+    | Some (ex_ids',tmps',cs,lp2) =>
       if isPointerTypB t0 then
         match get_reg_metadata rm v0 with
-        | Some (bv0, ev0) =>
-            Some ((p8,bv0)::(p8,ev0)::lp2)
+        | Some (mt, bv0, ev0) =>
+            let '(btmp,ex_ids') := mk_tmp ex_ids' in
+            let '(etmp,ex_ids') := mk_tmp ex_ids' in
+            Some (
+               ex_ids',
+               btmp::etmp::tmps',
+               insn_cast btmp castop_bitcast mt bv0 p8:: 
+               insn_cast etmp castop_bitcast mt ev0 p8:: 
+               cs,
+               (p8,value_id btmp)::(p8,value_id etmp)::lp2
+             )
         | _ => None
         end
-      else Some lp2
+      else Some (ex_ids',tmps',cs,lp2)
     end
 end.
+
+Axiom isSysLib : id -> bool.
+
+Definition type_size t :=
+  value_const
+    (const_castop 
+      castop_ptrtoint 
+      (const_gep false 
+        (const_null t) 
+        (Cons_list_const int1 Nil_list_const))
+      (typ_int Size.ThirtyTwo)
+    ).
 
 Definition trans_cmd (ex_ids tmps:ids) (addrb addre:id) (rm:rmap) (c:cmd) 
   : option (ids*ids*cmds) :=
@@ -194,7 +267,7 @@ match c with
       Some (ex_ids', tmp::tmps,
        c::
        insn_cast bid castop_bitcast (typ_pointer t1) (value_id id0) p8:: 
-       insn_gep tmp false (typ_pointer t1) (value_id id0) 
+       insn_gep tmp false t1 (value_id id0) 
          (Cons_list_value v1 Nil_list_value) :: 
        insn_cast eid castop_bitcast (typ_pointer t1) (value_id tmp) p8:: 
        nil)
@@ -203,7 +276,7 @@ match c with
 
 | insn_load id0 t2 v2 align => 
     match get_reg_metadata rm v2 with
-    | Some (bv, ev) =>
+    | Some (mt, bv, ev) =>
       let '(ptmp,ex_ids) := mk_tmp ex_ids in
       let '(btmp,ex_ids) := mk_tmp ex_ids in
       let '(etmp,ex_ids) := mk_tmp ex_ids in
@@ -213,9 +286,13 @@ match c with
           | Some (bid0, eid0) =>
               Some
                 (insn_call fake_id true false typ_void get_mmetadata_fn 
-                  ((p8,v2)::
-                   (p8,(value_id addrb))::
-                   (p8,(value_id addre))::nil)::
+                  ((p8,(value_id ptmp))::
+                   (pp8,(value_id addrb))::
+                   (pp8,(value_id addre))::
+                   (p8,(value_const (const_null p8)))::
+                   (i32,(value_const int1))::
+                   (p32,(value_const (const_null p32)))::
+                   nil)::
                  insn_load bid0 p8 (value_id addrb) Align.Zero::
                  insn_load eid0 p8 (value_id addre) Align.Zero::   
                  nil)
@@ -227,12 +304,14 @@ match c with
       | Some cs =>
         Some (ex_ids, ptmp::btmp::etmp::tmps,
          insn_cast ptmp castop_bitcast (typ_pointer t2) v2 p8:: 
-         insn_cast btmp castop_bitcast (typ_pointer t2) bv p8:: 
-         insn_cast etmp castop_bitcast (typ_pointer t2) ev p8:: 
+         insn_cast btmp castop_bitcast mt bv p8:: 
+         insn_cast etmp castop_bitcast mt ev p8:: 
          insn_call fake_id true false typ_void assert_mptr_fn 
            ((p8,(value_id ptmp))::
             (p8,(value_id btmp))::
-            (p8,(value_id etmp))::nil)::
+            (p8,(value_id etmp))::
+            (i32,type_size t2)::
+            (i32,(value_const int1))::nil)::
          c::
          cs)
       end
@@ -241,19 +320,23 @@ match c with
 
 | insn_store id0 t0 v1 v2 align =>
     match get_reg_metadata rm v2 with
-    | Some (bv, ev) =>
+    | Some (mt2, bv, ev) =>
       let '(ptmp,ex_ids) := mk_tmp ex_ids in
       let '(btmp,ex_ids) := mk_tmp ex_ids in
       let '(etmp,ex_ids) := mk_tmp ex_ids in
       let optcs := 
         if isPointerTypB t0 then
           match get_reg_metadata rm v1 with
-          | Some (bv0, ev0) =>
+          | Some (mt1, bv0, ev0) =>
               Some
                 (insn_call fake_id true false typ_void set_mmetadata_fn 
                   ((p8,(value_id ptmp))::
                    (p8,bv0)::
-                   (p8,ev0)::nil)::
+                   (p8,ev0)::
+                   (p8,(value_const (const_null p8)))::
+                   (i32,(value_const int1))::
+                   (i32,(value_const int1))::
+                   nil)::
                  nil)
           | None => None
           end
@@ -263,12 +346,14 @@ match c with
       | Some cs =>
         Some (ex_ids, ptmp::btmp::etmp::tmps,
          insn_cast ptmp castop_bitcast (typ_pointer t0) v2 p8:: 
-         insn_cast btmp castop_bitcast (typ_pointer t0) bv p8:: 
-         insn_cast etmp castop_bitcast (typ_pointer t0) ev p8:: 
+         insn_cast btmp castop_bitcast mt2 bv p8:: 
+         insn_cast etmp castop_bitcast mt2 ev p8:: 
          insn_call fake_id true false typ_void assert_mptr_fn 
            ((p8,(value_id ptmp))::
             (p8,(value_id btmp))::
-            (p8,(value_id etmp))::nil)::
+            (p8,(value_id etmp))::
+            (i32,(type_size t0))::
+            (i32,(value_const int1))::nil)::
          c::
          cs)
       end
@@ -300,19 +385,29 @@ match c with
     if isPointerTypB t0 then
       match (get_reg_metadata rm v1, get_reg_metadata rm v2, 
              lookupAL _ rm id0) with
-      | (Some (bv1, ev1), Some (bv2, ev2), Some (bid0, eid0)) =>
+      | (Some (mt1, bv1, ev1), Some (mt2, bv2, ev2), Some (bid0, eid0)) =>
           Some (ex_ids, tmps,
             c::
-            insn_select bid0 v0 p8 bv1 bv2:: 
-            insn_select eid0 v0 p8 ev1 ev2:: 
+            insn_select bid0 v0 mt1 bv1 bv2:: 
+            insn_select eid0 v0 mt1 ev1 ev2:: 
             nil)
       | _ => None
       end
     else Some (ex_ids, tmps, [c])
 
 | insn_call id0 noret0 tailc0 rt fv lp =>
-    do lp' <- trans_params rm lp;
-    ret (ex_ids, tmps, [insn_call id0 noret0 tailc0 rt fv (lp++lp')])
+    match
+      (match fv with
+       | value_const (const_gid _ fid) =>
+           if isSysLib fid then 
+             Some (ex_ids, tmps, nil, nil) 
+           else trans_params ex_ids tmps rm lp
+       | _ => trans_params ex_ids tmps rm lp
+       end) with
+    | Some (ex_ids', tmps', cs, lp') =>
+        Some (ex_ids', tmps', cs++[insn_call id0 noret0 tailc0 rt fv (lp++lp')])
+    | None => None
+    end
 | _ => Some (ex_ids, tmps, [c])
 end.
 
@@ -337,7 +432,7 @@ match vls with
 | Nil_list_value_l => Some (baccum, eaccum)
 | Cons_list_value_l v0 l0 vls' => 
     match get_reg_metadata rm v0 with
-    | Some (bv, ev) =>
+    | Some (mt, bv, ev) =>
         get_metadata_from_list_value_l rm vls' 
           (Cons_list_value_l bv l0 baccum) (Cons_list_value_l ev l0 eaccum)
     | _ => None
@@ -411,52 +506,52 @@ end.
 Definition insert_more_allocas (addrb addre:id) (b:block) : block :=
 let '(block_intro l1 ps1 cs1 tmn1) := b in
 block_intro l1 ps1
-  (insn_alloca addrb p8 
-    (value_const (const_int Size.ThirtyTwo (INTEGER.of_Z 32%Z 1%Z false))) 
-    Align.Zero::
-  insn_alloca addre p8 
-    (value_const (const_int Size.ThirtyTwo (INTEGER.of_Z 32%Z 1%Z false))) 
-    Align.Zero::cs1) tmn1.
+  (insn_alloca addrb p8 (value_const int1) Align.Zero::
+  insn_alloca addre p8 (value_const int1) Align.Zero::cs1) tmn1.
 
-Definition trans_fdef (f:fdef) : option (rmap*ids*fdef) :=
+Axiom rename_fid : id -> id.
+
+Definition trans_fdef nts (f:fdef) : option (rmap*ids*fdef) :=
 let '(fdef_intro (fheader_intro t fid la) bs) := f in
-let ex_ids := getFdefIDs f in
-match gen_metedata_fdef ex_ids nil f with
-| Some (ex_ids,rm) =>
-    match (trans_args rm la) with
-    | Some la' =>
-        let '(addrb,ex_ids) := mk_tmp ex_ids in
-        let '(addre,ex_ids) := mk_tmp ex_ids in
-        match (trans_blocks ex_ids (addrb::addre::nil) addrb addre rm bs) with
-        | Some (ex_ids, tmps, b'::bs') => 
-            Some (rm, tmps, 
-              fdef_intro 
-                (fheader_intro t fid (la++la')) 
-                ((insert_more_allocas addrb addre b')::bs'))
-        | _ => None
-        end
-    | _ => None
-    end
-| None => None
-end.
+if SimpleSE.isCallLib fid then Some (nil, nil, f)
+else
+  let ex_ids := getFdefIDs f in
+  match gen_metedata_fdef nts ex_ids nil f with
+  | Some (ex_ids,rm) =>
+      match (trans_args rm la) with
+      | Some la' =>
+          let '(addrb,ex_ids) := mk_tmp ex_ids in
+          let '(addre,ex_ids) := mk_tmp ex_ids in
+          match (trans_blocks ex_ids (addrb::addre::nil) addrb addre rm bs) with
+          | Some (ex_ids, tmps, b'::bs') => 
+              Some (rm, tmps, 
+                fdef_intro 
+                  (fheader_intro t (rename_fid fid) (la++la')) 
+                  ((insert_more_allocas addrb addre b')::bs'))
+          | _ => None
+          end
+      | _ => None
+      end
+  | None => None
+  end.
 
-Fixpoint trans_product (p:product) : option product :=
+Fixpoint trans_product nts (p:product) : option product :=
 match p with
 | product_fdef f =>
-    match trans_fdef f with
+    match trans_fdef nts f with
     | None => None
     | Some (_,_,f') => Some (product_fdef f')
     end
 | _ => Some p
 end.
 
-Fixpoint trans_products (ps:products) : option products :=
+Fixpoint trans_products nts (ps:products) : option products :=
 match ps with
 | nil => Some nil
 | p::ps' =>
-    match (trans_product p) with
+    match (trans_product nts p) with
     | Some p1 =>
-        match (trans_products ps') with
+        match (trans_products nts ps') with
         | Some ps2 => Some (p1::ps2)
         | _ => None
         end
@@ -466,7 +561,7 @@ end.
 
 Definition trans_module (m:module) : option module :=
 let '(module_intro los nts ps) := m in
-do ps' <- trans_products ps;
+do ps' <- trans_products nts ps;
 ret (module_intro los nts ps').
 
 Fixpoint trans_system (ms:system) : option system :=
@@ -715,13 +810,13 @@ Case "dbLoad_nptr".
 Case "dbLoad_ptr".
   remember (get_reg_metadata rm2 vp) as R.
   destruct R; try solve [inversion Htrans].
-  destruct p as [bv ev].
+  destruct p as [[mt bv] ev].
   remember (mk_tmp ex_ids) as R1. 
-  destruct R1 as [ptmp ex_ids1].
-  remember (mk_tmp ex_ids1) as R2. 
-  destruct R2 as [btmp ex_ids2].
-  remember (mk_tmp ex_ids2) as R3. 
-  destruct R3 as [etmp ex_ids3].
+  destruct R1 as [ptmp ex_ids2].
+  remember (mk_tmp ex_ids2) as R2. 
+  destruct R2 as [btmp ex_ids3].
+  remember (mk_tmp ex_ids3) as R3. 
+  destruct R3 as [etmp ex_ids4].
   remember (isPointerTypB t) as R4.
   destruct R4.
     remember (lookupAL (id * id) rm2 id0) as R5.
@@ -739,13 +834,13 @@ admit. admit. admit.
 Case "dbLoad_abort".
   remember (get_reg_metadata rm2 vp) as R.
   destruct R; try solve [inversion Htrans].
-  destruct p as [bv ev].
+  destruct p as [[mt bv] ev].
   remember (mk_tmp ex_ids) as R1. 
-  destruct R1 as [ptmp ex_ids1].
-  remember (mk_tmp ex_ids1) as R2. 
-  destruct R2 as [btmp ex_ids2].
-  remember (mk_tmp ex_ids2) as R3. 
-  destruct R3 as [etmp ex_ids3].
+  destruct R1 as [ptmp ex_ids2].
+  remember (mk_tmp ex_ids2) as R2. 
+  destruct R2 as [btmp ex_ids3].
+  remember (mk_tmp ex_ids3) as R3. 
+  destruct R3 as [etmp ex_ids4].
   remember (isPointerTypB t) as R4.
   destruct R4.
     remember (lookupAL (id * id) rm2 id0) as R5.
@@ -760,7 +855,7 @@ Case "dbLoad_abort".
 Case "dbStore_nptr".
   remember (get_reg_metadata rm2 vp) as R.
   destruct R; try solve [inversion Htrans].
-  destruct p as [bv ev].
+  destruct p as [[mt bv] ev].
   remember (mk_tmp ex_ids) as R1. 
   destruct R1 as [ptmp ex_ids1].
   remember (mk_tmp ex_ids1) as R2. 
@@ -779,7 +874,7 @@ Case "dbStore_nptr".
 Case "dbStore_ptr".
   remember (get_reg_metadata rm2 vp) as R.
   destruct R; try solve [inversion Htrans].
-  destruct p as [bv ev].
+  destruct p as [[mt bv] ev].
   remember (mk_tmp ex_ids) as R1. 
   destruct R1 as [ptmp ex_ids1].
   remember (mk_tmp ex_ids1) as R2. 
@@ -790,7 +885,7 @@ Case "dbStore_ptr".
   destruct R4.
     remember (get_reg_metadata rm2 v) as R5.
     destruct R5; try solve [inversion Htrans].
-    destruct p as [bv0 ev0].
+    destruct p as [[mt0 bv0] ev0].
     inv Htrans.
     admit.
 
@@ -803,7 +898,7 @@ admit. admit. admit.
 Case "dbStore_abort".
   remember (get_reg_metadata rm2 vp) as R.
   destruct R; try solve [inversion Htrans].
-  destruct p as [bv ev].
+  destruct p as [[mt bv] ev].
   remember (mk_tmp ex_ids) as R1. 
   destruct R1 as [ptmp ex_ids1].
   remember (mk_tmp ex_ids1) as R2. 

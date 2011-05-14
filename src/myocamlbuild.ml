@@ -11,10 +11,10 @@ ocaml_lib ~extern:true "ssa_def";;
 ocaml_lib ~extern:true "ssa_lib";;
 ocaml_lib ~extern:true "ssa_dynamic";;
 ocaml_lib ~extern:true "trace";;
+ocaml_lib ~extern:true "str";; 
 ocaml_lib ~extern:true "coqllvm";;
 ocaml_lib ~extern:true "globalstates";;
 ocaml_lib ~extern:true "eq_tv";;
-ocaml_lib ~extern:true "str";; 
 (* adding str before sub_tv is important, because sub_tv needs str, and
  * ocamlbuild links libs in term of the order in the file. *)
 ocaml_lib ~extern:true "sub_tv";;
