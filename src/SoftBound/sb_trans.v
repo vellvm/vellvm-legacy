@@ -20,6 +20,7 @@ Require Import sb_def.
 Require Import symexe_def.
 Require Import sb_tactic.
 Require Import sub_tv.
+Require Import sb_pp.
 
 Module SBpass.
 
@@ -149,7 +150,10 @@ Definition p8 := typ_pointer i8.
 Definition pp8 := typ_pointer p8.
 Definition p32 := typ_pointer i32.
 Definition int1 := const_int Size.ThirtyTwo (INTEGER.of_Z 32%Z 1%Z false).
-Definition c1 := Cons_list_value (value_const int1) Nil_list_value.
+Definition vint1 := value_const int1.
+Definition c1 := Cons_list_value vint1 Nil_list_value.
+Definition vnullp8 := value_const (const_null p8).
+Definition vnullp32 := value_const (const_null p32).
 
 Definition get_reg_metadata (rm:rmap) (v:value) : option (typ * value * value) :=
   match v with
@@ -207,14 +211,16 @@ Definition set_mmetadata_fn : value :=
         (Cons_list_typ i32 Nil_list_typ)))))))
       set_mmetadata_fid).
 
-Definition prop_metadata (ex_ids tmps:ids) rm c v1 id0 :=
+Definition prop_metadata (ex_ids tmps:ids) (optaddrb optaddre: option id) rm c v1
+  id0 :=
   match (get_reg_metadata rm v1, lookupAL _ rm id0) with
   | (Some (t, bv, ev), Some (bid0, eid0)) =>
       Some (ex_ids, tmps,
         c::
         insn_cast bid0 castop_bitcast t bv p8:: 
         insn_cast eid0 castop_bitcast t ev p8:: 
-        nil)
+        nil, 
+        optaddrb, optaddre)
   | _ => None
   end.
 
@@ -257,8 +263,8 @@ Definition type_size t :=
       (typ_int Size.ThirtyTwo)
     ).
 
-Definition trans_cmd (ex_ids tmps:ids) (addrb addre:id) (rm:rmap) (c:cmd) 
-  : option (ids*ids*cmds) :=
+Definition trans_cmd (ex_ids tmps:ids) (optaddrb optaddre:option id) (rm:rmap) 
+  (c:cmd) : option (ids*ids*cmds*option id*option id) :=
 match c with 
 | insn_malloc id0 t1 v1 al1 | insn_alloca id0 t1 v1 al1 =>
     match lookupAL _ rm id0 with
@@ -270,7 +276,8 @@ match c with
        insn_gep tmp false t1 (value_id id0) 
          (Cons_list_value v1 Nil_list_value) :: 
        insn_cast eid castop_bitcast (typ_pointer t1) (value_id tmp) p8:: 
-       nil)
+       nil,
+       optaddrb, optaddre)
     | _ => None
     end
 
@@ -280,25 +287,44 @@ match c with
       let '(ptmp,ex_ids) := mk_tmp ex_ids in
       let '(btmp,ex_ids) := mk_tmp ex_ids in
       let '(etmp,ex_ids) := mk_tmp ex_ids in
-      let optcs := 
+      let '(optcs, ex_ids, tmps, optaddrb, optaddre) := 
         if isPointerTypB t2 then
           match lookupAL _ rm id0 with
           | Some (bid0, eid0) =>
-              Some
-                (insn_call fake_id true false typ_void get_mmetadata_fn 
-                  ((p8,(value_id ptmp))::
-                   (pp8,(value_id addrb))::
-                   (pp8,(value_id addre))::
-                   (p8,(value_const (const_null p8)))::
-                   (i32,(value_const int1))::
-                   (p32,(value_const (const_null p32)))::
-                   nil)::
-                 insn_load bid0 p8 (value_id addrb) Align.Zero::
-                 insn_load eid0 p8 (value_id addre) Align.Zero::   
-                 nil)
-          | None => None
+              match (optaddrb, optaddre) with
+              | (Some addrb, Some addre) =>
+                   (Some
+                     (insn_call fake_id true false typ_void get_mmetadata_fn 
+                       ((p8,(value_id ptmp))::
+                        (pp8,(value_id addrb))::
+                        (pp8,(value_id addre))::
+                        (p8,vnullp8)::
+                        (i32,vint1)::
+                        (p32,vnullp32)::
+                        nil)::
+                      insn_load bid0 p8 (value_id addrb) Align.Zero::
+                      insn_load eid0 p8 (value_id addre) Align.Zero::   
+                      nil), ex_ids, tmps, Some addrb, Some addre)
+              | (None, None) =>
+                   let '(addrb,ex_ids) := mk_tmp ex_ids in
+                   let '(addre,ex_ids) := mk_tmp ex_ids in
+                   (Some
+                     (insn_call fake_id true false typ_void get_mmetadata_fn 
+                       ((p8,(value_id ptmp))::
+                        (pp8,(value_id addrb))::
+                        (pp8,(value_id addre))::
+                        (p8,vnullp8)::
+                        (i32,vint1)::
+                        (p32,vnullp32)::
+                        nil)::
+                      insn_load bid0 p8 (value_id addrb) Align.Zero::
+                      insn_load eid0 p8 (value_id addre) Align.Zero::   
+                      nil), ex_ids, addrb::addre::tmps, Some addrb, Some addre)
+              | _ => (None, ex_ids, tmps, optaddrb, optaddre)
+              end
+          | None => (None, ex_ids, tmps, optaddrb, optaddre)
           end
-        else Some nil in
+        else (Some nil, ex_ids, tmps, optaddrb, optaddre) in
       match optcs with
       | None => None
       | Some cs =>
@@ -311,9 +337,9 @@ match c with
             (p8,(value_id btmp))::
             (p8,(value_id etmp))::
             (i32,type_size t2)::
-            (i32,(value_const int1))::nil)::
+            (i32,vint1)::nil)::
          c::
-         cs)
+         cs, optaddrb, optaddre)
       end
     | None => None
     end
@@ -333,9 +359,9 @@ match c with
                   ((p8,(value_id ptmp))::
                    (p8,bv0)::
                    (p8,ev0)::
-                   (p8,(value_const (const_null p8)))::
-                   (i32,(value_const int1))::
-                   (i32,(value_const int1))::
+                   (p8,vnullp8)::
+                   (i32,vint1)::
+                   (i32,vint1)::
                    nil)::
                  nil)
           | None => None
@@ -353,32 +379,33 @@ match c with
             (p8,(value_id btmp))::
             (p8,(value_id etmp))::
             (i32,(type_size t0))::
-            (i32,(value_const int1))::nil)::
+            (i32,vint1)::nil)::
          c::
-         cs)
+         cs, optaddrb, optaddre)
       end
     | None => None
     end
 
-| insn_gep id0 inbounds0 t1 v1 lv2 => prop_metadata ex_ids tmps rm c v1 id0
+| insn_gep id0 inbounds0 t1 v1 lv2 => 
+    prop_metadata ex_ids tmps optaddrb optaddre rm c v1 id0
 
 | insn_cast id0 op0 t1 v1 t2 => 
     match op0 with
     | castop_bitcast =>
         if isPointerTypB t1 then
-          prop_metadata ex_ids tmps rm c v1 id0
-        else Some (ex_ids, tmps, [c])
+          prop_metadata ex_ids tmps optaddrb optaddre rm c v1 id0
+        else Some (ex_ids, tmps, [c], optaddrb, optaddre)
     | castop_inttoptr =>
         match lookupAL _ rm id0 with
         | Some (bid0, eid0) =>
             Some (ex_ids, tmps,
               c::
-              insn_cast bid0 castop_bitcast p8 (value_const (const_null p8)) p8::
-              insn_cast eid0 castop_bitcast p8 (value_const (const_null p8)) p8::
-              nil)
+              insn_cast bid0 castop_bitcast p8 vnullp8 p8::
+              insn_cast eid0 castop_bitcast p8 vnullp8 p8::
+              nil, optaddrb, optaddre)
         | _ => None
         end
-    | _ => Some (ex_ids, tmps, [c])
+    | _ => Some (ex_ids, tmps, [c], optaddrb, optaddre)
     end
 
 | insn_select id0 v0 t0 v1 v2 =>
@@ -390,10 +417,10 @@ match c with
             c::
             insn_select bid0 v0 mt1 bv1 bv2:: 
             insn_select eid0 v0 mt1 ev1 ev2:: 
-            nil)
+            nil, optaddrb, optaddre)
       | _ => None
       end
-    else Some (ex_ids, tmps, [c])
+    else Some (ex_ids, tmps, [c], optaddrb, optaddre)
 
 | insn_call id0 noret0 tailc0 rt fv lp =>
     match
@@ -405,21 +432,24 @@ match c with
        | _ => trans_params ex_ids tmps rm lp
        end) with
     | Some (ex_ids', tmps', cs, lp') =>
-        Some (ex_ids', tmps', cs++[insn_call id0 noret0 tailc0 rt fv (lp++lp')])
+        Some (ex_ids', tmps', cs++[insn_call id0 noret0 tailc0 rt fv (lp++lp')],
+              optaddrb, optaddre)
     | None => None
     end
-| _ => Some (ex_ids, tmps, [c])
+
+| _ => Some (ex_ids, tmps, [c], optaddrb, optaddre)
 end.
 
-Fixpoint trans_cmds (ex_ids tmps:ids) (addrb addre:id) (rm:rmap) (cs:cmds) 
-  : option (ids*ids*cmds) :=
+Fixpoint trans_cmds (ex_ids tmps:ids) (optaddrb optaddre:option id) (rm:rmap) 
+  (cs:cmds) : option (ids*ids*cmds*option id*option id) :=
 match cs with
-| nil => Some (ex_ids, tmps, nil)
+| nil => Some (ex_ids, tmps, nil, optaddrb, optaddre)
 | c::cs' =>
-    match (trans_cmd ex_ids tmps addrb addre rm c) with
-    | Some (ex_ids1, tmps1, cs1) =>
-        match (trans_cmds ex_ids1 tmps1 addrb addre rm cs') with
-        | Some (ex_ids2, tmps2, cs2) => Some (ex_ids2, tmps2, cs1++cs2)
+    match (trans_cmd ex_ids tmps optaddrb optaddre rm c) with
+    | Some (ex_ids1, tmps1, cs1, optaddrb, optaddre) =>
+        match (trans_cmds ex_ids1 tmps1 optaddrb optaddre rm cs') with
+        | Some (ex_ids2, tmps2, cs2, optaddrb, optaddre) => 
+            Some (ex_ids2, tmps2, cs1++cs2, optaddrb, optaddre)
         | _ => None
         end
     | _ => None
@@ -458,28 +488,29 @@ match ps with
     end
 end.
 
-Definition trans_block (ex_ids tmps:ids) (addrb addre:id) (rm:rmap) (b:block) 
-  : option (ids*ids*block) :=
+Definition trans_block (ex_ids tmps:ids) (optaddrb optaddre:option id) (rm:rmap)
+  (b:block) : option (ids*ids*option id*option id*block) :=
 let '(block_intro l1 ps1 cs1 tmn1) := b in
 match trans_phinodes rm ps1 with
 | None => None
 | Some ps2 => 
-    match trans_cmds ex_ids tmps addrb addre rm cs1 with
-    | Some (ex_ids',tmps',cs2) => 
-        Some (ex_ids',tmps',block_intro l1 ps2 cs2 tmn1)
+    match trans_cmds ex_ids tmps optaddrb optaddre rm cs1 with
+    | Some (ex_ids',tmps',cs2,optaddrb,optaddre) => 
+        Some (ex_ids',tmps',optaddrb,optaddre,block_intro l1 ps2 cs2 tmn1)
     | None => None
     end
 end.
 
-Fixpoint trans_blocks (ex_ids tmps:ids) (addrb addre:id) (rm:rmap) (bs:blocks) 
-  : option (ids*ids*blocks) :=
+Fixpoint trans_blocks (ex_ids tmps:ids) (optaddrb optaddre:option id) (rm:rmap) 
+  (bs:blocks) : option (ids*ids*option id*option id*blocks) :=
 match bs with
-| nil => Some (ex_ids, tmps, nil)
+| nil => Some (ex_ids, tmps, optaddrb, optaddre, nil)
 | b::bs' =>
-    match (trans_block ex_ids tmps addrb addre rm b) with
-    | Some (ex_ids1, tmps1, b1) =>
-        match (trans_blocks ex_ids1 tmps1 addrb addre rm bs') with
-        | Some (ex_ids2, tmps2, bs2) => Some (ex_ids2, tmps2, b1::bs2)
+    match (trans_block ex_ids tmps optaddrb optaddre rm b) with
+    | Some (ex_ids1, tmps1, optaddrb, optaddre, b1) =>
+        match (trans_blocks ex_ids1 tmps1 optaddrb optaddre rm bs') with
+        | Some (ex_ids2, tmps2, optaddrb, optaddre, bs2) => 
+            Some (ex_ids2, tmps2, optaddrb, optaddre, b1::bs2)
         | _ => None
         end
     | _ => None
@@ -503,11 +534,15 @@ match la with
     end
 end.
 
-Definition insert_more_allocas (addrb addre:id) (b:block) : block :=
-let '(block_intro l1 ps1 cs1 tmn1) := b in
-block_intro l1 ps1
-  (insn_alloca addrb p8 (value_const int1) Align.Zero::
-  insn_alloca addre p8 (value_const int1) Align.Zero::cs1) tmn1.
+Definition insert_more_allocas (optaddrb optaddre:option id) (b:block) : block :=
+match (optaddrb, optaddre) with
+| (Some addrb, Some addre) =>
+  let '(block_intro l1 ps1 cs1 tmn1) := b in  
+  block_intro l1 ps1
+    (insn_alloca addrb p8 vint1 Align.Zero::
+    insn_alloca addre p8 vint1 Align.Zero::cs1) tmn1
+| _ => b
+end.
 
 Axiom rename_fid : id -> id.
 
@@ -520,14 +555,12 @@ else
   | Some (ex_ids,rm) =>
       match (trans_args rm la) with
       | Some la' =>
-          let '(addrb,ex_ids) := mk_tmp ex_ids in
-          let '(addre,ex_ids) := mk_tmp ex_ids in
-          match (trans_blocks ex_ids (addrb::addre::nil) addrb addre rm bs) with
-          | Some (ex_ids, tmps, b'::bs') => 
+          match (trans_blocks ex_ids nil None None rm bs) with
+          | Some (ex_ids, tmps, optaddrb, optaddre, b'::bs') => 
               Some (rm, tmps, 
                 fdef_intro 
                   (fheader_intro t (rename_fid fid) (la++la')) 
-                  ((insert_more_allocas addrb addre b')::bs'))
+                  ((insert_more_allocas optaddrb optaddre b')::bs'))
           | _ => None
           end
       | _ => None
@@ -602,30 +635,30 @@ Definition sb_mem_inj (M M':mem) := Memory.Mem.mem_inj sb_meminj M M'.
 
 Definition mem_simulation TD (MM1:SoftBound.mmetadata) (Mem1 Mem2:mem) : Prop :=
 sb_mem_inj Mem1 Mem2 /\
-(forall lc gl b i bgv egv als lc' Mem1' tr addrb addre bid0 eid0 als' v, 
+(forall lc gl b i bgv egv als lc' Mem2' tr addrb addre bid0 eid0 als' v, 
   MM1 b i = Some (SoftBound.mkMD bgv egv) ->
   getOperandValue TD Mem1 v lc gl = Some (ptr2GV TD (Vptr b i)) ->
-  SimpleSE.dbCmds TD gl lc als Mem1
+  SimpleSE.dbCmds TD gl lc als Mem2
     (insn_call fake_id true false typ_void get_mmetadata_fn 
        ((p8,v)::
         (p8,(value_id addrb))::
         (p8,(value_id addre))::nil)::
      insn_load bid0 p8 (value_id addrb) Align.Zero::
      insn_load eid0 p8 (value_id addre) Align.Zero::   
-     nil) lc' als' Mem1' tr ->
+     nil) lc' als' Mem2' tr ->
   lookupAL _ lc' bid0 = Some bgv /\
   lookupAL _ lc' bid0 = Some egv
 ) /\
-(forall lc gl b i bgv egv als lc' Mem1' tr addrb addre bid0 eid0 als' v, 
+(forall lc gl b i bgv egv als lc' Mem2' tr addrb addre bid0 eid0 als' v, 
   getOperandValue TD Mem1 v lc gl = Some (ptr2GV TD (Vptr b i)) ->
-  SimpleSE.dbCmds TD gl lc als Mem1
+  SimpleSE.dbCmds TD gl lc als Mem2
     (insn_call fake_id true false typ_void get_mmetadata_fn 
        ((p8,v)::
         (p8,(value_id addrb))::
         (p8,(value_id addre))::nil)::
      insn_load bid0 p8 (value_id addrb) Align.Zero::
      insn_load eid0 p8 (value_id addre) Align.Zero::   
-     nil) lc' als' Mem1' tr ->
+     nil) lc' als' Mem2' tr ->
   lookupAL _ lc' bid0 = Some bgv ->
   lookupAL _ lc' bid0 = Some egv ->
   MM1 b i = Some (SoftBound.mkMD bgv egv)
@@ -637,12 +670,240 @@ match rm with
 | (_,(bid,eid))::rm' => singleton bid `union` singleton eid `union` codom rm'
 end.
 
+Lemma in_codom_of_rmap : forall rm2 pid bid eid,
+  lookupAL (id * id) rm2 pid = ret (bid, eid) ->
+  bid `in` codom rm2 /\ eid `in` codom rm2.
+Proof.
+  induction rm2; intros pid bid eid J.
+    inversion J.  
+
+    simpl in J.
+    destruct a.
+    destruct (pid == a); subst.
+      inv J.
+      simpl. auto.
+
+      apply IHrm2 in J.
+      destruct J as [J1 J2].
+      simpl. destruct p.
+      auto.
+Qed.
+
 Lemma reg_simulation__updateAddAL : forall rm1 rm2 lc1 lc2 i0 gv',
   reg_simulation rm1 rm2 lc1 lc2 ->
   i0 `notin` codom rm2 ->
   reg_simulation rm1 rm2 (updateAddAL GenericValue lc1 i0 gv')
     (updateAddAL GenericValue lc2 i0 gv').
-Admitted.
+Proof.
+  intros rm1 rm2 lc1 lc2 i0 gv' Hsim Hnotin. 
+  destruct Hsim as [J1 [J2 J3]].    
+  split.
+    intros i1 gv J.
+    destruct (id_dec i0 i1); subst.
+      rewrite lookupAL_updateAddAL_eq in *; auto.
+    
+      rewrite <- lookupAL_updateAddAL_neq in J; auto.
+      rewrite <- lookupAL_updateAddAL_neq; auto.
+  split.
+    intros pid bbgv egv J.
+    apply J2 in J. 
+    destruct J as [bid [eid [J11 [J12 J13]]]].
+    exists bid. exists eid.
+    split; auto.
+      apply in_codom_of_rmap in J11.    
+      destruct J11 as [J11 J14].
+      
+      rewrite <- lookupAL_updateAddAL_neq; try solve [fsetdec].
+      rewrite <- lookupAL_updateAddAL_neq; try solve [fsetdec].
+
+    intros pid bid eid bgv egv H1 H2 H3.
+    assert (H1':=H1).
+    apply in_codom_of_rmap in H1'.    
+    destruct H1' as [H11 H12].
+    rewrite <- lookupAL_updateAddAL_neq in H2; try solve [fsetdec].
+    rewrite <- lookupAL_updateAddAL_neq in H3; try solve [fsetdec].
+    eauto.
+Qed.
+
+
+Definition sb_mem_inj__const2GV_prop (c:const) := forall Mem1 Mem2 TD gl gv,
+  sb_mem_inj Mem1 Mem2 ->
+  _const2GV TD Mem1 gl c = Some gv ->
+  _const2GV TD Mem2 gl c = Some gv.
+
+Definition sb_mem_inj__list_const2GV_prop (lc:list_const) := 
+  forall Mem1 Mem2 TD gl,
+  sb_mem_inj Mem1 Mem2 ->
+  (forall gv, 
+    _list_const_arr2GV TD Mem1 gl lc = Some gv ->
+    _list_const_arr2GV TD Mem2 gl lc = Some gv) /\
+  (forall R, 
+    _list_const_struct2GV TD Mem1 gl lc = Some R ->
+    _list_const_struct2GV TD Mem2 gl lc = Some R).
+
+Lemma sb_mem_inj__const2GV_mutrec :
+  (forall c, sb_mem_inj__const2GV_prop c) *
+  (forall lc, sb_mem_inj__list_const2GV_prop lc).
+Proof.
+  apply const_mutrec; 
+    unfold sb_mem_inj__const2GV_prop, sb_mem_inj__list_const2GV_prop;
+    intros; simpl in *; eauto.
+
+  apply H with (TD:=TD)(gl:=gl) in H0.
+  destruct H0; eauto.
+
+  apply H with (TD:=TD)(gl:=gl) in H0.
+  destruct H0 as [H00 H01].
+  remember (_list_const_struct2GV TD Mem1 gl l0) as R.
+  destruct R as [[[gv1 t1] a1]|]; inv H1.
+  erewrite H01; eauto.
+  simpl. auto.
+
+  remember (_const2GV TD Mem1 gl c) as R.
+  destruct R as [[gv1 t1]|]; inv H1.
+  erewrite H; eauto.
+  simpl; auto.
+
+  remember (_const2GV TD Mem1 gl c) as R.
+  destruct R as [[gv1 t1]|]; inv H1.
+  erewrite H; eauto.
+  simpl; auto.
+
+      remember (_const2GV TD Mem1 gl c0) as R.
+      destruct R as [[gv1 t1]|]; inv H1.
+      erewrite H; eauto.
+      simpl.
+      admit.
+
+      remember (Constant.getTyp c) as R.
+      destruct R; inv H2.       
+      destruct t; inv H4.       
+      remember (_const2GV TD Mem1 gl c) as R1.
+      destruct R1 as [[gv1 t1]|]; inv H3.
+      erewrite H; eauto.
+      simpl. auto.
+
+      remember (_const2GV TD Mem1 gl c) as R2.
+      destruct R2 as [[gv2 t2]|]; inv H3.
+      remember (_const2GV TD Mem1 gl c0) as R3.
+      destruct R3 as [[gv3 t3]|]; inv H5.
+      remember (_const2GV TD Mem1 gl c2) as R4.
+      destruct R4 as [[gv4 t4]|]; inv H4.
+      erewrite H; eauto.
+      erewrite H0; eauto.
+      erewrite H1; eauto.
+
+      remember (_const2GV TD Mem1 gl c0) as R3.
+      destruct R3 as [[gv3 t3]|]; inv H2.
+      remember (_const2GV TD Mem1 gl c2) as R4.
+      destruct R4 as [[gv4 t4]|]; inv H4.
+      erewrite H; eauto.
+      erewrite H0; eauto.
+      simpl. auto.
+
+      remember (_const2GV TD Mem1 gl c) as R3.
+      destruct R3 as [[gv3 t3]|]; inv H2.
+      remember (_const2GV TD Mem1 gl c0) as R4.
+      destruct R4 as [[gv4 t4]|]; inv H4.
+        erewrite H; eauto.
+        erewrite H0; eauto.
+        simpl. auto.
+
+        destruct t3; inv H3.
+      
+  remember (_const2GV TD Mem1 gl c) as R.
+  destruct R as [[gv1 t1]|]; inv H2.
+  erewrite H; eauto.
+  simpl; auto.
+
+      remember (_const2GV TD Mem1 gl c) as R3.
+      destruct R3 as [[gv3 t3]|]; inv H3.
+      remember (_const2GV TD Mem1 gl c0) as R4.
+      destruct R4 as [[gv4 t4]|]; inv H5.
+      erewrite H; eauto.
+      erewrite H0; eauto.
+      simpl. auto.
+
+      remember (_const2GV TD Mem1 gl c) as R3.
+      destruct R3 as [[gv3 t3]|]; inv H2.
+      remember (_const2GV TD Mem1 gl c0) as R4.
+      destruct R4 as [[gv4 t4]|]; inv H4.
+        erewrite H; eauto.
+        erewrite H0; eauto.
+        simpl. auto.
+
+        destruct t3; inv H3.
+
+      remember (_const2GV TD Mem1 gl c) as R3.
+      destruct R3 as [[gv3 t3]|]; inv H2.
+      remember (_const2GV TD Mem1 gl c0) as R4.
+      destruct R4 as [[gv4 t4]|]; inv H4.
+        erewrite H; eauto.
+        erewrite H0; eauto.
+        simpl. auto.
+
+        destruct t3; inv H3.
+
+  assert (H1':=H1).
+  apply H0 with (TD:=TD)(gl:=gl) in H1'.
+  destruct H1' as [H10 H11].
+  split; intros.
+    remember (_list_const_arr2GV TD Mem1 gl l0) as R3.
+    destruct R3 as [[gv3 t3]|]; inv H2.
+    remember (_const2GV TD Mem1 gl c) as R4.
+    destruct R4 as [[gv4 t4]|]; inv H4.
+    erewrite H; eauto.
+    erewrite H10; eauto.
+    simpl. auto.
+
+    remember (_list_const_struct2GV TD Mem1 gl l0) as R3.
+    destruct R3 as [[[gv3 t3] a3]|]; inv H2.
+    remember (_const2GV TD Mem1 gl c) as R4.
+    destruct R4 as [[gv4 t4]|]; inv H4.
+    erewrite H; eauto.
+    erewrite H11; eauto.
+    simpl. auto.
+Qed.
+
+Lemma sb_mem_inj___const2GV : forall Mem1 Mem2 TD gl c gv,
+  sb_mem_inj Mem1 Mem2 ->
+  _const2GV TD Mem1 gl c = Some gv ->
+  _const2GV TD Mem2 gl c = Some gv.
+Proof.
+  destruct sb_mem_inj__const2GV_mutrec as [J _].
+  unfold sb_mem_inj__const2GV_prop in J. eauto.
+Qed.
+
+Lemma sb_mem_inj__const2GV : forall Mem Mem' TD gl c gv,
+  sb_mem_inj Mem Mem' ->
+  const2GV TD Mem gl c = Some gv ->
+  const2GV TD Mem' gl c = Some gv.
+Proof.
+  intros.
+  unfold const2GV in *.
+  remember (_const2GV TD Mem0 gl c) as R.
+  destruct R; try solve [inversion H0].
+  destruct p.
+  inv H0.
+  symmetry in HeqR.
+  erewrite sb_mem_inj___const2GV; eauto.
+  simpl. auto.
+Qed.
+
+Lemma simulation__getOperandValue : forall rm rm2 lc lc2 TD MM Mem Mem2 gl v gv,
+  reg_simulation rm rm2 lc lc2 ->
+  mem_simulation TD MM Mem Mem2 ->
+  getOperandValue TD Mem v lc gl = ret gv ->
+  getOperandValue TD Mem2 v lc2 gl = ret gv.
+Proof.
+  intros rm rm2 lc lc2 TD MM Mem Mem2 gl v gv H1 H2 H3.
+  unfold getOperandValue in *.
+  destruct v.
+    destruct H1 as [H1 _]; eauto.
+
+    destruct H2 as [H2 _].
+    eapply sb_mem_inj__const2GV; eauto.
+Qed.
 
 Lemma simulation__BOP : forall rm rm2 lc lc2 TD MM Mem Mem2 gl bop0 sz0 v1 v2 
                         gv3,
@@ -650,21 +911,42 @@ Lemma simulation__BOP : forall rm rm2 lc lc2 TD MM Mem Mem2 gl bop0 sz0 v1 v2
   mem_simulation TD MM Mem Mem2 ->
   BOP TD Mem lc gl bop0 sz0 v1 v2 = ret gv3 ->
   BOP TD Mem2 lc2 gl bop0 sz0 v1 v2 = ret gv3.
-Admitted.
+Proof.
+  intros rm rm2 lc lc2 TD MM Mem Mem2 gl bop0 sz0 v1 v2 gv3 H1 H2 H3.
+  unfold BOP in *.
+  remember (getOperandValue TD Mem v1 lc gl) as R1.
+  destruct R1; inv H3.
+  remember (getOperandValue TD Mem v2 lc gl) as R2.
+  destruct R2; inv H0.
+  erewrite simulation__getOperandValue; eauto.
+  erewrite simulation__getOperandValue; eauto.
+Qed.
 
 Lemma mem_simulation__malloc : forall TD MM Mem Mem2 tsz gn align0 Mem' mb,
   mem_simulation TD MM Mem Mem2 ->
   malloc TD Mem tsz gn align0 = ret (Mem', mb) ->
-  exists Mem2',
-    malloc TD Mem2 tsz gn align0 = ret (Mem2', mb) /\
+  exists Mem2', exists mb',
+    malloc TD Mem2 tsz gn align0 = ret (Mem2', mb') /\
     mem_simulation TD MM Mem' Mem2'.
-Admitted.
+Proof.
+  intros TD MM Mem Mem2 tsz gn align0 Mem' mb Hmsim Halloc.
+  destruct Hmsim as [H1 [H2 H3]].
+  unfold malloc in *.
+  remember (GV2int TD Size.ThirtyTwo gn) as R.
+  destruct R; try solve [inversion Halloc].
+  remember (Mem.alloc Mem 0 (Size.to_Z tsz * z)) as R1.
+  destruct R1 as [Mem1 mb1].
+  inv Halloc.
+  remember (Mem.alloc Mem2 0 (Size.to_Z tsz * z)) as R2.
+  destruct R2 as [Mem2' mb2].
+  exists Mem2'. exists mb2.
+  split; auto.
+  split.
+    clear H2 H3.
 
-Lemma simulation__getOperandValue : forall rm rm2 lc lc2 TD MM Mem Mem2 gl v gv,
-  reg_simulation rm rm2 lc lc2 ->
-  mem_simulation TD MM Mem Mem2 ->
-  getOperandValue TD Mem v lc gl = ret gv ->
-  getOperandValue TD Mem2 v lc2 gl = ret gv.
+unfold sb_mem_inj in *.
+unfold sb_meminj in *.
+
 Admitted.
 
 Lemma mem_simulation__free : forall TD MM Mem Mem2 mptr0 Mem',
@@ -676,9 +958,12 @@ Lemma mem_simulation__free : forall TD MM Mem Mem2 mptr0 Mem',
 Admitted.
 
 Lemma trans_cmd__is__correct : forall c TD lc1 rm1 als gl Mem1 MM1 lc1' als' 
-    Mem1' MM1' tr lc2 Mem2 rm2 rm1' cs ex_ids tmps addrb addre ex_ids' tmps' r,  
+    Mem1' MM1' tr lc2 Mem2 rm2 rm1' cs ex_ids tmps ex_ids' tmps' r
+    optaddrb optaddre optaddrb' optaddre',  
+  non_temporal_cmd c ->
   getCmdID c `notin` codom rm2 ->
-  trans_cmd ex_ids tmps addrb addre rm2 c = Some (ex_ids', tmps', cs) ->
+  trans_cmd ex_ids tmps optaddrb optaddre rm2 c = 
+    Some (ex_ids', tmps', cs, optaddrb', optaddre') ->
   reg_simulation rm1 rm2 lc1 lc2 ->
   mem_simulation TD MM1 Mem1 Mem2 ->
   SoftBound.dbCmd TD gl lc1 rm1 als Mem1 MM1 c lc1' rm1' als' Mem1' MM1' tr r ->
@@ -688,8 +973,10 @@ Lemma trans_cmd__is__correct : forall c TD lc1 rm1 als gl Mem1 MM1 lc1' als'
    mem_simulation TD MM1' Mem1' Mem2'.
 Proof.
   intros c TD lc1 rm1 als gl Mem1 MM1 lc1' als' Mem1' MM1' tr lc2 Mem2 rm2 rm1' 
-    cs ex_ids tmps addrb addre ex_ids' tmps' r Hnotin Htrans Hrsim Hmsim HdbCmd.
-  (sb_dbCmd_cases (destruct HdbCmd) Case); simpl in Htrans.
+    cs ex_ids tmps ex_ids' tmps' r optaddrb optaddre optaddrb' optaddre' 
+    Hnontemp Hnotin Htrans Hrsim Hmsim HdbCmd.
+  (sb_dbCmd_cases (destruct HdbCmd) Case); simpl in Htrans;
+    try solve [inversion Hnontemp].
 
 Case "dbBop".
   inv Htrans.
@@ -702,7 +989,7 @@ Case "dbBop".
   split; auto.
     apply reg_simulation__updateAddAL; auto.
 
-admit. admit. admit. admit. admit. admit. admit.
+admit. admit. admit.
 
 Case "dbMalloc".
   remember (lookupAL (id * id) rm2 id0) as R1.
@@ -713,29 +1000,29 @@ Case "dbMalloc".
   inv Htrans.
   invert_prop_reg_metadata.
   apply mem_simulation__malloc with (MM:=MM)(Mem2:=Mem2) in H1; auto.
-  destruct H1 as [Mem2' [H11 H12]].
+  destruct H1 as [Mem2' [mb' [H11 H12]]].
   exists 
     (updateAddAL _ 
       (updateAddAL _ 
         (updateAddAL _ 
-          (updateAddAL GenericValue lc2 id0 (blk2GV TD mb))
-          bid (SoftBound.base2GV TD mb))
-        tmp (SoftBound.bound2GV TD mb tsz n))
-      eid (SoftBound.bound2GV TD mb tsz n)).
+          (updateAddAL GenericValue lc2 id0 (blk2GV TD mb'))
+          bid (SoftBound.base2GV TD mb'))
+        tmp (SoftBound.bound2GV TD mb' tsz n))
+      eid (SoftBound.bound2GV TD mb' tsz n)).
   exists Mem2'.
   split.
     assert (trace_nil = trace_app trace_nil trace_nil) as EQ. auto.
     rewrite EQ.
     apply SimpleSE.dbCmds_cons with 
-      (lc2:=updateAddAL GenericValue lc2 id0 (blk2GV TD mb))(als2:=als)
+      (lc2:=updateAddAL GenericValue lc2 id0 (blk2GV TD mb'))(als2:=als)
       (Mem2:=Mem2'); auto.
       apply SimpleSE.dbMalloc with (gn:=gn)(tsz:=tsz); 
         eauto using simulation__getOperandValue.
     rewrite EQ.
     apply SimpleSE.dbCmds_cons with 
       (lc2:=updateAddAL _
-              (updateAddAL GenericValue lc2 id0 (blk2GV TD mb))
-              bid (SoftBound.base2GV TD mb)
+              (updateAddAL GenericValue lc2 id0 (blk2GV TD mb'))
+              bid (SoftBound.base2GV TD mb')
       )
       (als2:=als)
       (Mem2:=Mem2'); auto.
@@ -745,23 +1032,23 @@ Case "dbMalloc".
     apply SimpleSE.dbCmds_cons with 
       (lc2:=updateAddAL _
               (updateAddAL _
-                (updateAddAL GenericValue lc2 id0 (blk2GV TD mb))
-                 bid (SoftBound.base2GV TD mb))
-               tmp (SoftBound.bound2GV TD mb tsz n)
+                (updateAddAL GenericValue lc2 id0 (blk2GV TD mb'))
+                 bid (SoftBound.base2GV TD mb'))
+               tmp (SoftBound.bound2GV TD mb' tsz n)
       )
       (als2:=als)
       (Mem2:=Mem2'); auto.
-      apply SimpleSE.dbGEP with (mp:=blk2GV TD mb)(vidxs:=[gn]); auto.
+      apply SimpleSE.dbGEP with (mp:=blk2GV TD mb')(vidxs:=[gn]); auto.
         admit. admit. admit.
     rewrite EQ.
     apply SimpleSE.dbCmds_cons with 
       (lc2:=updateAddAL _
               (updateAddAL _
                 (updateAddAL _
-                  (updateAddAL GenericValue lc2 id0 (blk2GV TD mb))
-                   bid (SoftBound.base2GV TD mb))
-                 tmp (SoftBound.bound2GV TD mb tsz n))
-               eid (SoftBound.bound2GV TD mb tsz n)
+                  (updateAddAL GenericValue lc2 id0 (blk2GV TD mb'))
+                   bid (SoftBound.base2GV TD mb'))
+                 tmp (SoftBound.bound2GV TD mb' tsz n))
+               eid (SoftBound.bound2GV TD mb' tsz n)
       )
       (als2:=als)
       (Mem2:=Mem2'); auto.
@@ -771,22 +1058,14 @@ Case "dbMalloc".
   split; auto.
     admit.
 
-admit.    
+Case "dbMalloc_error".
+  admit.    
 
-Case "dbFree".
-  inv Htrans.
-  apply mem_simulation__free with (MM:=MM)(Mem2:=Mem2) in H0; auto.
-  destruct H0 as [Mem2' [H01 H02]].
-  exists lc2. exists Mem2'. 
-  split.
-   assert (trace_nil = trace_app trace_nil trace_nil) as EQ. auto.
-   rewrite EQ.
-   eapply SimpleSE.dbCmds_cons; eauto.
-     apply SimpleSE.dbFree with (mptr:=mptr0); 
-       eauto using simulation__getOperandValue.
-  split; auto.
+Case "dbAlloca".
+  admit. 
 
-admit. admit. admit.
+Case "dbAlloca_error".
+  admit. 
 
 Case "dbLoad_nptr".
   remember (get_reg_metadata rm2 vp) as R.
@@ -925,9 +1204,12 @@ match cs with
 end.
 
 Lemma trans_cmds__is__correct : forall cs TD lc1 rm1 als gl Mem1 MM1 lc1' als' 
-    Mem1' MM1' tr lc2 Mem2 rm2 rm1' cs' ex_ids tmps addrb addre ex_ids' tmps' r, 
+    Mem1' MM1' tr lc2 Mem2 rm2 rm1' cs' ex_ids tmps ex_ids' tmps' r
+    optaddrb optaddre optaddrb' optaddre', 
+  non_temporal_cmds cs ->
   AtomSetImpl.inter (getCmdsIDs cs) (codom rm2) [<=] empty ->
-  trans_cmds ex_ids tmps addrb addre rm2 cs = Some (ex_ids', tmps', cs') ->
+  trans_cmds ex_ids tmps optaddrb optaddre rm2 cs = 
+    Some (ex_ids', tmps', cs', optaddrb', optaddre') ->
   reg_simulation rm1 rm2 lc1 lc2 ->
   mem_simulation TD MM1 Mem1 Mem2 ->
   SoftBound.dbCmds TD gl lc1 rm1 als Mem1 MM1 cs lc1' rm1' als' Mem1' MM1' tr r 
@@ -937,159 +1219,6 @@ Lemma trans_cmds__is__correct : forall cs TD lc1 rm1 als gl Mem1 MM1 lc1' als'
     reg_simulation rm1' rm2 lc1' lc2' /\
     mem_simulation TD MM1' Mem1' Mem2'.
 Admitted.
-
-(* Validation *)
-
-(*
-Require Import sub_tv_def.
-
-(*
-  rename_id ids rm fid id
-  ids are IDs of the original function fid
-  rm is meta data maps
-  id is the ID to rename.
-  if id is in ids, 
-  then renaming.db tells us its renamed id
-  else we search in rmap to see if id is a metadata, 
-    if so, returns its corresponding metadata if it exists
-    otherwise, return None.
-  Note that we do not check temp variables.
-*)
-Definition tv_id (lc:ids) (rm:rmap) (fid:id) (id1 id2:id) : bool :=
-match in_dec _ id_dec id1 lc with
-| left _ => eq_id (rename_id id1) id2
-| right _ =>
-end.
-
-Definition tv_id lc rm fid (id1 id2:id) : bool :=
-  match (rename_id lc rm fid id1) with
-  | Some id1' => eq_id id1' id2
-  | None => false
-  end.
-
-Definition tv_value fid v1 v2 : bool :=
-match (v1, v2) with
-| (value_id id1, value_id id2) => tv_id fid id1 id2
-| (value_const c1, value_const c2) => tv_const fid c1 c2
-| _ => false
-end.
-
-Fixpoint tv_sterm fid (st st':sterm) : bool :=
-match (st, st') with
-| (sterm_val v, sterm_val v') => tv_value fid v v'
-| (sterm_bop b sz st1 st2, sterm_bop b' sz' st1' st2') =>
-    sumbool2bool _ _ (bop_dec b b') && sumbool2bool _ _ (Size.dec sz sz') &&
-    tv_sterm fid st1 st1' && tv_sterm fid st2 st2'
-| (sterm_fbop b f st1 st2, sterm_fbop b' f' st1' st2') =>
-    sumbool2bool _ _ (fbop_dec b b') && 
-    sumbool2bool _ _ (floating_point_dec f f') &&
-    tv_sterm fid st1 st1' && tv_sterm fid st2 st2'
-| (sterm_extractvalue t st1 cs, sterm_extractvalue t' st1' cs') =>
-    tv_typ t t' && tv_sterm fid st1 st1' &&
-  sumbool2bool _ _ (list_const_dec cs cs')
-| (sterm_insertvalue t1 st1 t2 st2 cs, 
-   sterm_insertvalue t1' st1' t2' st2' cs') =>
-    tv_typ t1 t1' && tv_sterm fid st1 st1' && 
-    tv_typ t2 t2' && tv_sterm fid st2 st2' &&
-    sumbool2bool _ _ (list_const_dec cs cs')
-| (sterm_malloc sm t st1 a, sterm_malloc sm' t' st1' a') =>
-    tv_smem fid sm sm' && tv_typ t t' && 
-    tv_sterm fid st1 st1' && tv_align a a'
-| (sterm_alloca sm t st1 a, sterm_alloca sm' t' st1' a') =>
-    tv_smem fid sm sm' && tv_typ t t' && 
-    tv_sterm fid st1 st1' && tv_align a a'
-| (sterm_load sm t st1 a, sterm_load sm' t' st1' a') =>
-    tv_smem fid sm sm' && tv_typ t t' && 
-    tv_sterm fid st1 st1' && tv_align a a'
-| (sterm_gep i t st1 sts2, sterm_gep i' t' st1' sts2') =>
-    sumbool2bool _ _ (bool_dec i i') && tv_typ t t' &&
-    tv_sterm fid st1 st1' && tv_list_sterm fid sts2 sts2'
-| (sterm_trunc top t1 st1 t2, sterm_trunc top' t1' st1' t2') =>
-    sumbool2bool _ _ (truncop_dec top top') && tv_typ t1 t1' &&
-    tv_sterm fid st1 st1' && tv_typ t2 t2'
-| (sterm_ext eo t1 st1 t2, sterm_ext eo' t1' st1' t2') =>
-    sumbool2bool _ _ (extop_dec eo eo') && tv_typ t1 t1' &&
-    tv_sterm fid st1 st1' && tv_typ t2 t2' 
-| (sterm_cast co t1 st1 t2, sterm_cast co' t1' st1' t2') =>
-    sumbool2bool _ _ (castop_dec co co') && tv_typ t1 t1' &&
-    tv_sterm fid st1 st1' && tv_typ t2 t2' 
-| (sterm_icmp c t st1 st2, sterm_icmp c' t' st1' st2') =>
-    sumbool2bool _ _ (cond_dec c c') && tv_typ t t' &&
-    tv_sterm fid st1 st1' && tv_sterm fid st2 st2'
-| (sterm_fcmp c ft st1 st2, sterm_fcmp c' ft' st1' st2') =>
-    sumbool2bool _ _ (fcond_dec c c') &&
-    sumbool2bool _ _ (floating_point_dec ft ft') &&
-    tv_sterm fid st1 st1' && tv_sterm fid st2 st2'
-| (sterm_phi t stls, sterm_phi t' stls') =>
-    tv_typ t t' && tv_list_sterm_l fid stls stls'
-| (sterm_select st1 t st2 st3, sterm_select st1' t' st2' st3') =>
-    tv_sterm fid st1 st1' && tv_typ t t' && 
-    tv_sterm fid st2 st2' && tv_sterm fid st3 st3'
-| (sterm_lib sm i sts, sterm_lib sm' i' sts') =>
-    tv_smem fid sm sm' && eq_id i i' && 
-    tv_list_sterm fid sts sts'
-| _ => false
-end
-with tv_list_sterm fid (sts sts':list_sterm) : bool :=
-match (sts, sts') with
-| (Nil_list_sterm, Nil_list_sterm) => true
-| (Cons_list_sterm st sts0, Cons_list_sterm st' sts0') =>
-    tv_sterm fid st st' && tv_list_sterm fid sts0 sts0'
-| _ => false
-end
-with tv_list_sterm_l fid (stls stls':list_sterm_l) : bool :=
-match (stls, stls') with
-| (Nil_list_sterm_l, Nil_list_sterm_l) => true
-| (Cons_list_sterm_l st l stls0, Cons_list_sterm_l st' l' stls0') =>
-    tv_sterm fid st st' && sumbool2bool _ _ (l_dec l l') && 
-    tv_list_sterm_l fid stls0 stls0'
-| _ => false
-end
-with tv_smem fid (sm1 sm2:smem) : bool :=
-match (sm1, sm2) with
-| (smem_init, smem_init) => true
-| (smem_malloc sm1 t1 st1 a1, smem_malloc sm2 t2 st2 a2) =>
-    tv_smem fid sm1 sm2 && tv_typ t1 t2 && 
-    tv_sterm fid st1 st2 && tv_align a1 a2
-| (smem_alloca sm1 t1 st1 a1, smem_alloca sm2 t2 st2 a2) =>
-    tv_smem fid sm1 sm2 && tv_typ t1 t2 && 
-    tv_sterm fid st1 st2 && tv_align a1 a2
-| (smem_free sm1 t1 st1, smem_free sm2 t2 st2) =>
-    tv_smem fid sm1 sm2 && tv_typ t1 t2 && tv_sterm fid st1 st2
-| (smem_load sm1 t1 st1 a1, smem_load sm2 t2 st2 a2) =>
-    tv_smem fid sm1 sm2 && tv_typ t1 t2 && 
-    tv_sterm fid st1 st2 && tv_align a1 a2
-| (smem_store sm1 t1 st11 st12 a1, smem_store sm2 t2 st21 st22 a2) =>
-    tv_smem fid sm1 sm2 && tv_typ t1 t2 && 
-    tv_sterm fid st11 st21 &&
-    tv_sterm fid st12 st22 && tv_align a1 a2
-| (smem_lib sm1 fid1 sts1, smem_lib sm2 fid2 sts2) => 
-    tv_smem fid sm1 sm2 && eq_id fid1 fid2 && 
-    tv_list_sterm fid sts1 sts2
-| _ => false
-end.
-
-Fixpoint tv_sframe fid (sf1 sf2:sframe) : bool :=
-match (sf1, sf2) with
-| (sframe_init, sframe_init) => true
-| (sframe_alloca sm1 sf1 t1 st1 a1, sframe_alloca sm2 sf2 t2 st2 a2) =>
-    tv_smem fid sm1 sm2 && tv_typ t1 t2 && 
-    tv_sterm fid st1 st2 && tv_align a1 a2 &&
-    tv_sframe fid sf1 sf2
-| _ => false
-end.
-
-Fixpoint tv_smap fid (rm1:rmap) (rm2:metadata) (sm1 sm2:smap) : bool :=
-match sm1 with
-| nil => true
-| (id1,st1)::sm1' =>
-  match (lookupAL _ sm2 (rename_id fid id1), 
-         lookupAL _ with
-  | None => false
-  | Some st2 => tv_sterm Ps1 Ps2 fid st1 st2 && tv_smap Ps1 Ps2 fid sm1' sm2
-  end
-end.
-*)
 
 End SBpass.
 

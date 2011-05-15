@@ -23,6 +23,7 @@ Require Import Integers.
 Require Import sb_tactic.
 Require Import symexe_def.
 Require Import symexe_tactic.
+Require Import Znumtheory.
 
 Import SoftBound.
 
@@ -54,24 +55,42 @@ Lemma range_perm_alloc_other:
   Mem.range_perm m1 b' lo' hi' p ->
   Mem.range_perm m2 b' lo' hi' p.
 Proof.
-  intros. inv H. red.
-Admitted. (* mem *)
+  intros.
+  unfold Mem.range_perm in *.
+  intros ofs J.
+  apply H0 in J.
+  eapply Mem.perm_alloc_1; eauto.
+Qed.
 
 Lemma store_range_perm_1:
   forall chunk m1 b ofs v m2, Mem.store chunk m1 b ofs v = Some m2 ->
   forall b' lo' hi' p,
   Mem.range_perm m1 b' lo' hi' p -> Mem.range_perm m2 b' lo' hi' p.
-Admitted. (* mem *)
+Proof.
+  intros.
+  unfold Mem.range_perm in *.
+  intros ofs0 J.
+  apply H0 in J.
+  eapply Mem.perm_store_1; eauto.
+Qed.
 
 Lemma GV2ptr_base2GV : forall TD mb,
   GV2ptr TD (getPointerSize TD) (base2GV TD mb) = 
     Some (Values.Vptr mb (Int.repr 31 0)).
-Admitted. (* could be wrong *)
+Proof.
+  intros TD mb.
+  unfold GV2ptr. unfold base2GV. unfold blk2GV. unfold ptr2GV. unfold val2GV.
+  auto.
+Qed.
 
 Lemma GV2ptr_bound2GV : forall TD mb tsz n,
   GV2ptr TD (getPointerSize TD) (bound2GV TD mb tsz n) = 
     Some (Values.Vptr mb (Int.repr 31 ((Size.to_Z tsz)*n))).
-Admitted. (* could be wrong *)
+Proof.
+  intros TD mb tsz n.
+  unfold GV2ptr. unfold bound2GV. unfold ptr2GV. unfold val2GV.
+  auto.
+Qed.
 
 Lemma wf_mmetadata__wf_data : forall Mem0 TD MM b0 ofs gvb gve,
   wf_mmetadata TD Mem0 MM ->
@@ -150,7 +169,51 @@ Proof.
   destruct R4; inv HeqR0.
   simpl in *.
   inv HeqR3. inv HeqR. inv HeqR1.
-  admit.
+  
+  unfold GV2ptr in *.
+  destruct g; inv HeqR2.
+  destruct p.
+  destruct v1; inv H0.
+  destruct g; inv H1.
+  unfold mgep in *.
+  remember (mgetoffset TD (typ_array 0%nat t2) (INTEGER.to_Z 1 :: nil)) as R.
+  destruct R; inv HeqR4.
+  unfold mgetoffset in HeqR.
+  destruct TD.
+  remember (typ2utyp n (typ_array 0%nat t2)) as R1.
+  destruct R1; inv HeqR.
+  destruct u; inv H0.
+    remember (getTypeAllocSize (l0, n) (utyp2typ u)) as R2.
+    destruct R2; inv H1.
+
+    unfold wf_data.
+    unfold GV2ptr.
+    unfold ptr2GV. unfold val2GV.
+    destruct (zeq b b); auto.
+    admit. (* wf of globals *)
+ 
+    admit. (* HeqR1 is false *)
+Qed.
+
+Lemma eq_gv_is_wf_data : forall TD Mem gv bb bofs,
+  GV2ptr TD (getPointerSize TD) gv = Some (Values.Vptr bb bofs) ->
+  wf_data TD Mem gv gv.
+Proof.
+  intros TD Mem gv bb bofs H.
+  unfold wf_data.
+  rewrite H.
+  destruct (zeq bb bb); auto.
+  intros ofs J.
+  contradict J; auto with zarith.
+Qed.
+
+Lemma null_is_wf_data : forall TD Mem,
+  wf_data TD Mem null null.
+Proof.
+  intros TD Mem.
+  eapply eq_gv_is_wf_data.
+  unfold GV2ptr.
+  simpl. eauto.
 Qed.
 
 Lemma wf_rmetadata__get_const_metadata : forall TD gl Mem0 rm c gvb gve c0 c1,
@@ -168,17 +231,18 @@ Proof.
     remember (_const2GV TD Mem0 gl (const_gid (typ_function t l0) i0)) as R.
     destruct R; try solve [inversion H2 | inversion H3].
     destruct p. inv H2. inv H3.
-    admit. (* fptr, we should change opsem of call to check *)
+    unfold GV2ptr.
+    unfold _const2GV in HeqR.
+    remember (lookupAL GenericValue gl i0) as R1.
+    destruct R1; inv HeqR.
+    assert (exists b, exists ofs, 
+      GV2ptr TD (getPointerSize TD) g = Some (Values.Vptr b ofs)) as J.
+      admit. (* wf of globals *)
+    destruct J as [b [ofs J]].
+    eapply eq_gv_is_wf_data; eauto.
 
     simpl in H1; eauto.
 Qed.
-
-Lemma null_is_wf_data : forall TD Mem,
-  wf_data TD Mem null null.
-Proof.
-  intros TD Mem.
-  unfold wf_data.
-Admitted.
 
 Lemma wf_rmetadata__get_reg_metadata : forall TD Mem0 rm gl vp gvb gve,
   wf_rmetadata TD Mem0 rm ->
@@ -222,14 +286,23 @@ Proof.
   apply Hwfm in HeqR'; auto.
 Qed.
 
+Definition non_temporal_cmd c : Prop :=
+match c with
+| insn_extractvalue _ _ _ _ | insn_insertvalue _ _ _ _ _ _ 
+| insn_free _ _ _ | insn_call _ _ _ _ _ _ => False
+| _ => True
+end.
+
 Lemma dbCmd_preservation : forall TD lc rm als gl Mem MM c lc' rm' als' Mem' MM' 
     tr r, 
   dbCmd TD gl lc rm als Mem MM c lc' rm' als' Mem' MM' tr r ->
+  non_temporal_cmd c ->
   wf_metadata TD Mem rm MM ->
   wf_metadata TD Mem' rm' MM'.
 Proof.
   intros TD lc rm als gl Mem MM c lc' rm' als' Mem' MM' tr r H.
-  (sb_dbCmd_cases (destruct H) Case); intro Hwf; eauto.
+  (sb_dbCmd_cases (destruct H) Case); intros Hnontemp Hwf; 
+    try solve [eauto | inversion Hnontemp].
 
 Case "dbMalloc".
   invert_prop_reg_metadata. clear H3.
@@ -282,9 +355,6 @@ Case "dbMalloc".
     destruct (GV2ptr TD (getPointerSize TD) gve); auto.
     destruct v0; auto.
     destruct (zeq b0 b1); eauto using range_perm_alloc_other.
-
-Case "dbFree".
-  admit. (* goal is false*)
 
 Case "dbAlloca".
   invert_prop_reg_metadata. clear H3.
@@ -454,7 +524,7 @@ Case "dbInttoptr".
       unfold wf_data.
       simpl.
       intros ofs J.
-      admit. (* J is false. *)
+      contradict J; auto with zarith.
 
       rewrite <- lookupAL_updateAddAL_neq in J; auto.
       apply Hwfr in J; auto.
@@ -483,20 +553,27 @@ Case "dbSelect_ptr".
 
         rewrite <- lookupAL_updateAddAL_neq in J; auto.
         apply Hwfr in J; auto.
-
-Case "dbLib". admit. (* goal is false *)
-Case "dbLib_error". admit. (* goal is false *)
 Qed.
+
+Definition non_temporal_cmds cs : Prop :=
+  fold_right (fun c => fun p => p /\ non_temporal_cmd c) True cs.
 
 Lemma dbCmds_preservation : forall TD lc rm als gl Mem MM cs lc' rm' als' Mem' 
     MM' tr r,
   SoftBound.dbCmds TD gl lc rm als Mem MM cs lc' rm' als' Mem' MM' tr r ->
+  non_temporal_cmds cs ->
   wf_metadata TD Mem rm MM ->
   wf_metadata TD Mem' rm' MM'.
 Proof.
-  intros TD lc rm als gl Mem MM cs lc' rm' als' Mem' MM' tr r H.
+  intros TD lc rm als gl Mem MM cs lc' rm' als' Mem' MM' tr r H Hnontemp.
   (sb_dbCmds_cases (induction H) Case); intros J; subst;
-    try solve [invert_result | eauto using dbCmd_preservation].
+    try solve [
+      invert_result | 
+
+      simpl in Hnontemp;
+      destruct Hnontemp as [Hnontemp1 Hnontemp2];
+      eauto using dbCmd_preservation
+    ].
 Qed.
 
 Lemma initRmetadata_aux__wf_metadata : forall TD Mem0 gl la lp rm accum rm0 MM,
@@ -591,6 +668,9 @@ Definition dbFdef_preservation_prop fid rt lp S TD Ps lc rm gl fs Mem MM lc'
   wf_metadata TD Mem rm MM ->
   wf_metadata TD Mem' rm' MM'.
 
+Lemma non_temporal_cmds_axiom : forall cs, non_temporal_cmds cs.
+Admitted. (* This is not true. We need to restrict code w/o free and calls. *)
+
 Lemma sbop_preservation :
   (forall S TD Ps fs gl lc rm Mem0 MM0 call0 lc' rm' Mem' MM' tr r db, 
      dbCall_preservation_prop S TD Ps fs gl lc rm Mem0 MM0 call0 lc' rm' 
@@ -624,7 +704,7 @@ Proof.
          dbSubblocks_preservation_prop, 
          dbBlock_preservation_prop,
          dbBlocks_preservation_prop; intros; subst; 
-    try solve [ eauto using dbCmds_preservation ].
+    try solve [ eauto using dbCmds_preservation, non_temporal_cmds_axiom ].
 Case "dbCall_internal". admit. (* goal is false *)
 Case "dbCall_external". admit. (* goal is false *)
 Case "dbCall_internal_error1". admit. (* goal is false *)
@@ -632,11 +712,11 @@ Case "dbCall_external_error1". admit. (* goal is false *)
 
 Case "dbBlock_ok".
   inv H1. inv H0.
-  apply dbCmds_preservation in d0; eauto.
+  apply dbCmds_preservation in d0; eauto using non_temporal_cmds_axiom.
 
 Case "dbBlock_error1".
   inv H1. inv H0. eauto.
-  apply dbCmds_preservation in d0; eauto.
+  apply dbCmds_preservation in d0; eauto using non_temporal_cmds_axiom.
 
 Case "dbBlock_error2".
   inv H1. inv H0. eauto.
@@ -653,7 +733,7 @@ Case "dbBlocks_cons_error".
   destruct B2. eauto.
 
 Case "dbFdef_func".
-  apply dbCmds_preservation in d1; eauto.
+  apply dbCmds_preservation in d1; eauto using non_temporal_cmds_axiom.
   apply H0; auto.
   eapply H; eauto.
   eapply initRmetadata__wf_metadata in e1; eauto.
@@ -668,7 +748,7 @@ Case "dbFdef_func_error2".
   eapply initRmetadata__wf_metadata in e1; eauto.
 
 Case "dbFdef_proc".
-  apply dbCmds_preservation in d1; eauto.
+  apply dbCmds_preservation in d1; eauto using non_temporal_cmds_axiom.
   apply H0; auto.
   eapply H; eauto.
   eapply initRmetadata__wf_metadata in e1; eauto.
@@ -683,11 +763,33 @@ Case "dbFdef_proc_error2".
   eapply initRmetadata__wf_metadata in e1; eauto.
 Qed.
 
-Require Import Znumtheory.
-
 Lemma assert_mptr_dec : forall TD t ptr md,
   assert_mptr TD t ptr md \/ ~ assert_mptr TD t ptr md.
-Admitted.
+Proof.
+  intros.
+  unfold is_true. 
+  destruct (assert_mptr TD t ptr md); auto.
+Qed.
+
+Lemma typ2memory_chunk__le__getTypeAllocSize : forall t c s TD,
+  typ2memory_chunk t = Some c ->
+  Some s = getTypeAllocSize TD t ->
+  size_chunk c <= Size.to_Z s.
+Proof.
+  intros t c s TD H1 H2.
+  destruct t; inv H1;
+    unfold getTypeAllocSize, getTypeStoreSize, getTypeSizeInBits, 
+           getTypeSizeInBits_and_Alignment in H2;
+    destruct TD; inv H2;
+    simpl; unfold bytesize_chunk, RoundUpAlignment, Size.to_Z.
+    admit. (* zarith *)
+
+    destruct f; inv H0; inv H1; simpl.
+      admit. (* zarith *) 
+      admit. (* zarith *)
+
+    admit. (* assume getPointerSizeInBits = 32 *)
+Qed.
 
 Lemma assert_mptr__valid_access : forall md TD Mem gl rm v MM t g b ofs c,
   wf_metadata TD Mem rm MM ->
@@ -695,40 +797,46 @@ Lemma assert_mptr__valid_access : forall md TD Mem gl rm v MM t g b ofs c,
   assert_mptr TD t g md ->
   GV2ptr TD (getPointerSize TD) g = ret Values.Vptr b ofs ->
   typ2memory_chunk t = ret c ->
-  (align_chunk c | Int.unsigned 31 ofs) ->
-  Mem.valid_access Mem c b (Int.unsigned 31 ofs) Writable.
+  (align_chunk c | Int.signed 31 ofs) ->
+  Mem.valid_access Mem c b (Int.signed 31 ofs) Writable.
 Proof.
   intros md TD Mem gl rm v MM t g b ofs c Hwf Heqmd J R3 R4 R5.
-      unfold Mem.valid_access.
-      split; auto.
-        unfold assert_mptr in J.
-        rewrite R3 in J.
-        symmetry in Heqmd.  
-        destruct md.
-        destruct Hwf as [Hwfr Hwfm].
-        apply wf_rmetadata__get_reg_metadata in Heqmd; auto.
-        unfold wf_data in Heqmd.
-        destruct (GV2ptr TD (getPointerSize TD) md_base0); 
-          try solve [inversion Heqmd].
-        destruct v0; try solve [inversion Heqmd].
-        destruct (GV2ptr TD (getPointerSize TD) md_bound0); 
-          try solve [inversion Heqmd].
-        destruct v0; try solve [inversion Heqmd].
-        destruct (zeq b0 b1); subst; try solve [inversion Heqmd].
-        remember (getTypeAllocSize TD t) as R6.
-        destruct R6; try solve [inversion J].
-        simpl in J.
-        intros z Jz.
-        bdestruct4 J as J1 J4 J2 J3.
-        destruct (zeq b b1); subst; try solve [inversion J1].
-        apply Heqmd.
-        clear - J2 J3 Jz HeqR6 R4.
-        admit.        
+  unfold Mem.valid_access.
+  split; auto.
+    unfold assert_mptr in J.
+    rewrite R3 in J.
+    symmetry in Heqmd.  
+    destruct md.
+    destruct Hwf as [Hwfr Hwfm].
+    apply wf_rmetadata__get_reg_metadata in Heqmd; auto.
+    unfold wf_data in Heqmd.
+    destruct (GV2ptr TD (getPointerSize TD) md_base0); 
+      try solve [inversion Heqmd].
+    destruct v0; try solve [inversion Heqmd].
+    destruct (GV2ptr TD (getPointerSize TD) md_bound0); 
+      try solve [inversion Heqmd].
+    destruct v0; try solve [inversion Heqmd].
+    destruct (zeq b0 b1); subst; try solve [inversion Heqmd].
+    remember (getTypeAllocSize TD t) as R6.
+    destruct R6; try solve [inversion J].
+    simpl in J.
+    intros z Jz.
+    bdestruct4 J as J1 J4 J2 J3.
+    destruct (zeq b b1); subst; try solve [inversion J1].
+    apply Heqmd.
+    clear - J2 J3 Jz HeqR6 R4.
+    assert (size_chunk c <= Size.to_Z s) as J4.
+      eapply typ2memory_chunk__le__getTypeAllocSize; eauto.
+    destruct (zle (Int.signed 31 i0) (Int.signed 31 ofs)); 
+      simpl in J2; inversion J2.
+    destruct (zle (Int.signed 31 ofs + Size.to_Z s) (Int.signed 31 i1)); 
+      simpl in J3; inversion J3.
+    eauto with zarith.
 Qed.
 
 Lemma dbCmd_progress : forall TD lc rm als gl Mem MM c, 
   wf_metadata TD Mem rm MM ->
-  SimpleSE.isCall c = false ->
+  non_temporal_cmd c ->
   exists lc', exists rm', exists als', exists Mem', exists MM', exists tr, 
   exists r, 
     dbCmd TD gl lc rm als Mem MM c lc' rm' als' Mem' MM' tr r.
@@ -747,8 +855,31 @@ Case "insn_bop".
     exists rerror.
     apply dbBop_error; auto.
 
-admit. admit. admit.
-admit. admit. admit.
+Case "insn_fbop".
+  remember (FBOP TD Mem lc gl f f0 v v0) as R.
+  destruct R.
+    exists (updateAddAL _ lc i0 g). exists rm. exists als. exists Mem.
+    exists MM. exists trace_nil. exists rok.
+    apply dbFBop; auto.
+
+    exists lc. exists rm. exists als. exists Mem. exists MM. exists trace_nil. 
+    exists rerror.
+    apply dbFBop_error; auto.
+
+Case "insn_extractvalue".
+  admit. 
+
+Case "insn_insertvalue".
+  admit. 
+
+Case "insn_malloc".
+  admit.
+
+Case "insn_free".
+  admit.
+
+Case "insn_alloca".
+  admit.
 
 Case "insn_load".
 
@@ -766,12 +897,12 @@ Case "insn_load".
       admit. (* from wf *)
     destruct R3 as [b [ofs R3]].
     destruct R4 as [c R4].
-    destruct (Zdivide_dec (align_chunk c) (Int.unsigned 31 ofs)) as [R5 | R5].
+    destruct (Zdivide_dec (align_chunk c) (Int.signed 31 ofs)) as [R5 | R5].
     SSCase "align ok".
       assert (exists gv, mload TD Mem g t a = Some gv) as R6.
         unfold mload.
         rewrite R3. rewrite R4.
-        assert (Mem.valid_access Mem c b (Int.unsigned 31 ofs) Readable) as J'.
+        assert (Mem.valid_access Mem c b (Int.signed 31 ofs) Readable) as J'.
           apply Mem.valid_access_implies with (p1:=Writable); auto with mem.
           eapply assert_mptr__valid_access; eauto.
         apply Mem.valid_access_load in J'.
@@ -822,19 +953,19 @@ Case "insn_store".
     destruct R3 as [b [ofs R3]].
     destruct R4 as [c R4].
     assert (exists v1, GV2val TD gv = Some v1) as R8.
-      admit. (* ?!? *)
+      admit. (* wf *)
     assert (exists v2, GV2val TD gvp = Some v2) as R9.
-      admit. (* ?!? *)
+      admit. (* wf *)
     destruct R8 as [v1 R8].
     destruct R9 as [v2 R9].
-    destruct (Zdivide_dec (align_chunk c) (Int.unsigned 31 ofs)) as [R5 | R5].
+    destruct (Zdivide_dec (align_chunk c) (Int.signed 31 ofs)) as [R5 | R5].
     SSCase "align ok".
       assert (exists Mem', mstore TD Mem gvp t gv a = Some Mem') as R6.
         unfold mstore.
         rewrite R3. rewrite R4.
-        assert (Mem.valid_access Mem c b (Int.unsigned 31 ofs) Writable) as J'.
+        assert (Mem.valid_access Mem c b (Int.signed 31 ofs) Writable) as J'.
           eapply assert_mptr__valid_access; eauto.
-        assert (J2:=@Mem.valid_access_store Mem c b (Int.unsigned 31 ofs) v1 J').
+        assert (J2:=@Mem.valid_access_store Mem c b (Int.signed 31 ofs) v1 J').
         destruct J2 as [Mem' J2].
         rewrite R8.
         exists Mem'. auto.
@@ -866,15 +997,9 @@ Case "insn_gep".
 
 Admitted.
 
-Fixpoint NonCallCmds (cs:cmds) : Prop :=
-match cs with
-| nil => True
-| c::cs' => SimpleSE.isCall c = false /\ NonCallCmds cs'
-end.
-
 Lemma dbCmds_progress : forall cs TD lc rm als gl Mem MM, 
   wf_metadata TD Mem rm MM ->
-  NonCallCmds cs ->
+  non_temporal_cmds cs ->
   exists lc', exists rm', exists als', exists Mem', exists MM', exists tr, 
   exists r, 
     dbCmds TD gl lc rm als Mem MM cs lc' rm' als' Mem' MM' tr r.
@@ -892,7 +1017,7 @@ Proof.
     destruct r.
       assert (J3:=H).
       apply dbCmd_preservation in J3; auto.
-      assert (J:=@IHcs TD lc' rm' als' gl Mem' MM' J3 J2).
+      assert (J:=@IHcs TD lc' rm' als' gl Mem' MM' J3 J1).
       destruct J as [lc'' [rm'' [als'' [Mem'' [MM'' [tr' [r' J]]]]]]].
       exists lc''. exists rm''. exists als''. exists Mem''. exists MM''. 
       exists (trace_app tr tr'). exists r'. 

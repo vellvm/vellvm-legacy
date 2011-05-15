@@ -59,7 +59,7 @@ Definition GV2int (TD:TargetData) (bsz:sz) (gv:GenericValue) : option Z :=
 match gv with
 | (Vint wz i,c)::nil => 
   if eq_nat_dec (wz+1) (Size.to_nat bsz)
-  then Some (Int.unsigned wz i)
+  then Some (Int.signed wz i)
   else None
 | _ => None
 end.
@@ -206,8 +206,8 @@ match ma with
 | Vptr b ofs => 
   match idxs with
   | nil => None
-  | (idx::idxs') =>
-    match (mgetoffset TD (typ_array 0 t) idxs') with
+  | _ =>
+    match (mgetoffset TD (typ_array 0 t) idxs) with
     | Some offset => Some (Vptr b (Int.add 31 ofs offset))
     | _ => None
     end
@@ -218,11 +218,11 @@ end.
 Definition mget (TD:TargetData) (v:GenericValue) (o:int32) (t:typ) 
   : option GenericValue :=
 do s <- getTypeStoreSize TD t;
-   ret firstn s (skipn (Coqlib.nat_of_Z (Int.unsigned 31 o)) v).
+   ret firstn s (skipn (Coqlib.nat_of_Z (Int.signed 31 o)) v).
 
 Definition mset (TD:TargetData) (v:GenericValue) (o:int32) (t0:typ) 
   (v0:GenericValue) : option GenericValue :=
-let n := Coqlib.nat_of_Z (Int.unsigned 31 o) in
+let n := Coqlib.nat_of_Z (Int.signed 31 o) in
 do s <- getTypeStoreSize TD t0;
    If (beq_nat s (length v0))
    then ret ((firstn s (skipn n v))++v0++(skipn n v))
@@ -366,7 +366,7 @@ match op with
   | (typ_int sz1, typ_pointer _) => 
     match GV2val TD gv1 with
     | Some (Vint wz1 i1) =>
-        match Mem.int2ptr M (Int.unsigned wz1 i1) with
+        match Mem.int2ptr M (Int.signed wz1 i1) with
         | Some (b,ofs) => Some (ptr2GV TD (Vptr b (Int.repr 31 ofs)))
         | None => Some null
         end
@@ -382,7 +382,7 @@ match op with
         match Mem.ptr2int M b1 0 with
         | Some z => 
             Some (val2GV TD 
-                   (Vint sz2 (Int.repr sz2 (z + Int.unsigned 31 ofs1))) 
+                   (Vint sz2 (Int.repr sz2 (z + Int.signed 31 ofs1))) 
                    (Mint sz2))
         | None => Some (val2GV TD (Vint sz2 (Int.zero sz2)) (Mint sz2))
         end
@@ -1386,7 +1386,7 @@ Some (Mem.alloc M 0 (Size.to_Z bsz)).
 Definition free (TD:TargetData) (M:mem) (ptr:mptr) : option mem :=
 match GV2ptr TD (getPointerSize TD) ptr with
 | Some (Vptr b i) =>
-  if Coqlib.zeq (Int.unsigned 31 i) 0 
+  if Coqlib.zeq (Int.signed 31 i) 0 
   then
     match (Mem.bounds M b) with
     | (l, h) => Mem.free M b l h
@@ -1420,7 +1420,7 @@ match GV2ptr TD (getPointerSize TD) ptr with
 | Some (Vptr b ofs) =>
   match typ2memory_chunk t with
   | Some c => 
-    match (Mem.load c M b (Int.unsigned 31 ofs)) with
+    match (Mem.load c M b (Int.signed 31 ofs)) with
     | Some v => Some (val2GV TD v c)
     | None => None
     end
@@ -1433,7 +1433,7 @@ Definition mstore (TD:TargetData) (M:mem) (ptr:mptr) (t:typ) (gv:GenericValue) (
 match GV2ptr TD (getPointerSize TD) ptr with
 | Some (Vptr b ofs) =>
   match typ2memory_chunk t, GV2val TD gv with
-  | Some c, Some v => Mem.store c M b (Int.unsigned 31 ofs) v
+  | Some c, Some v => Mem.store c M b (Int.signed 31 ofs) v
   | _, _ => None
   end
 | _ => None

@@ -85,9 +85,9 @@ Definition assert_mptr (TD:TargetData) (t:typ) (ptr:GenericValue) (md:metadata)
          getTypeAllocSize TD t) with
   | (Some (Vptr pb pofs), Some (Vptr bb bofs), Some (Vptr eb eofs), Some tsz) =>
       zeq pb bb && zeq bb eb &&
-      zle (Integers.Int.unsigned 31 bofs) (Integers.Int.unsigned 31 pofs) &&
-      zle (Integers.Int.unsigned 31 pofs + Size.to_Z tsz) 
-          (Integers.Int.unsigned 31 eofs)
+      zle (Integers.Int.signed 31 bofs) (Integers.Int.signed 31 pofs) &&
+      zle (Integers.Int.signed 31 pofs + Size.to_Z tsz) 
+          (Integers.Int.signed 31 eofs)
   | _ => false
   end.  
 
@@ -259,7 +259,7 @@ Inductive dbCmd : TargetData -> GVMap ->
   getOperandValue TD Mem vp lc gl = Some gvp ->
   GV2ptr TD (getPointerSize TD) gvp = Some (Vptr b ofs) ->
   typ2memory_chunk t = Some c ->
-  ~ (align_chunk c | (Int.unsigned 31 ofs)) ->
+  ~ (align_chunk c | (Int.signed 31 ofs)) ->
   dbCmd TD gl lc rm als Mem MM (insn_load id t vp align) lc rm als Mem MM 
     trace_nil rerror
 
@@ -315,7 +315,7 @@ Inductive dbCmd : TargetData -> GVMap ->
   GV2ptr TD (getPointerSize TD) gvp = Some (Vptr b ofs) ->
   typ2memory_chunk t = Some c ->
   GV2val TD gvp = Some v0 ->
-  ~ (align_chunk c | (Int.unsigned 31 ofs)) ->
+  ~ (align_chunk c | (Int.signed 31 ofs)) ->
   dbCmd TD gl lc rm als Mem MM (insn_store sid t v vp align) lc rm als Mem MM
     trace_nil rerror
 
