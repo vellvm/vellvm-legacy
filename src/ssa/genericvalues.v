@@ -393,6 +393,7 @@ match op with
 | castop_bitcase =>
   match (t1, t2) with
   | (typ_int sz1, typ_int sz2) => Some gv1
+  | (typ_pointer _, typ_pointer _) => Some gv1
   | _ => None
   end
 end.
