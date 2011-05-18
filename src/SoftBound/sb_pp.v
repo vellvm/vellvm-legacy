@@ -246,25 +246,22 @@ Qed.
 
 Lemma wf_rmetadata__get_reg_metadata : forall TD Mem0 rm gl vp gvb gve,
   wf_rmetadata TD Mem0 rm ->
-  get_reg_metadata TD Mem0 gl rm vp = mkMD gvb gve ->
+  get_reg_metadata TD Mem0 gl rm vp = Some (mkMD gvb gve) ->
   wf_data TD Mem0 gvb gve.
 Proof.
   intros TD Mem0 rm gl vp gvb gve Hwfr J.
   unfold get_reg_metadata in J.
   destruct vp.
-    remember (lookupAL metadata rm i0) as R.
-    destruct R; inversion J; subst; auto using null_is_wf_data.
-      symmetry in HeqR.
-      apply Hwfr in HeqR; auto.
+    apply Hwfr in J; auto.
 
     remember (get_const_metadata c) as R.
     destruct R; try solve [inversion J; subst; auto using null_is_wf_data].
     destruct p.
     remember (const2GV TD Mem0 gl c0) as R0.
     remember (const2GV TD Mem0 gl c1) as R1.
-    destruct R0; try solve [inversion J; subst; auto using null_is_wf_data]. 
+    destruct R0; try solve [inversion J]. 
     simpl in J.
-    destruct R1; try solve [inversion J; subst; auto using null_is_wf_data]. 
+    destruct R1; try solve [inversion J]. 
     simpl in J.
     inv J.
     eapply wf_rmetadata__get_const_metadata; eauto.
@@ -417,7 +414,7 @@ Case "dbLoad_ptr".
       clear Hwfr.
       rewrite lookupAL_updateAddAL_eq in J.
       inversion J; subst. clear J.
-      eapply wf_mmetadata__get_mem_metadata in H4; eauto.
+      eapply wf_mmetadata__get_mem_metadata in H5; eauto.
 
       clear Hwfm.
       rewrite <- lookupAL_updateAddAL_neq in J; auto.
@@ -793,7 +790,7 @@ Qed.
 
 Lemma assert_mptr__valid_access : forall md TD Mem gl rm v MM t g b ofs c,
   wf_metadata TD Mem rm MM ->
-  md = get_reg_metadata TD Mem gl rm v ->
+  Some md = get_reg_metadata TD Mem gl rm v ->
   assert_mptr TD t g md ->
   GV2ptr TD (getPointerSize TD) g = ret Values.Vptr b ofs ->
   typ2memory_chunk t = ret c ->
@@ -886,8 +883,10 @@ Case "insn_load".
   assert (exists g, getOperandValue TD Mem v lc gl = Some g) as R2.
     admit. (* wont be stuck for well-formed SSA. *)
   destruct R2 as [g R2].
+  assert (exists md, get_reg_metadata TD Mem gl rm v = Some md) as R2'.
+    admit. (* wont be stuck for well-formed SSA. *)
+  destruct R2' as [md R2'].
   remember (isPointerTypB t) as R1.
-  remember (get_reg_metadata TD Mem gl rm v) as md.
   destruct (assert_mptr_dec TD t g md) as [J | J].
   SCase "assert ok".
     assert (exists b, exists ofs, 
@@ -941,8 +940,10 @@ Case "insn_store".
     admit. (* wont be stuck for well-formed SSA. *)
   destruct R21 as [gv R21].
   destruct R22 as [gvp R22].
+  assert (exists md, get_reg_metadata TD Mem gl rm v0 = Some md) as R21'.
+    admit. (* wont be stuck for well-formed SSA. *)
+  destruct R21' as [md R21'].
   remember (isPointerTypB t) as R1.
-  remember (get_reg_metadata TD Mem gl rm v0) as md.
   destruct (assert_mptr_dec TD t gvp md) as [J | J].
   SCase "assert ok".
     assert (exists b, exists ofs, 
@@ -972,9 +973,13 @@ Case "insn_store".
       destruct R6 as [Mem' R6].
       destruct R1.
       SSSCase "t is ptr".
+        assert (exists md', get_reg_metadata TD Mem gl rm v = Some md') as R22'.
+          admit. (* wont be stuck for well-formed SSA. And we generate rm for
+                    all pointer registers. *)
+        destruct R22' as [md' R22'].
         subst.
         exists lc. exists rm. exists als. exists Mem'. 
-        exists (set_mem_metadata TD MM gvp (get_reg_metadata TD Mem gl rm v)). 
+        exists (set_mem_metadata TD MM gvp md'). 
         exists trace_nil. exists rok. 
         eapply dbStore_ptr; eauto.
           unfold isPointerTyp. auto.

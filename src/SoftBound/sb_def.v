@@ -54,25 +54,16 @@ match c with
 | _ => None
 end.
 
-Definition get_reg_metadata TD M gl (rm:rmetadata) (v:value) : metadata :=
+Definition get_reg_metadata TD M gl (rm:rmetadata) (v:value) : option metadata :=
   match v with
-  | value_id pid => 
-      match lookupAL _ rm pid with
-      | Some md => md
-      | None => mkMD null null
-      end
+  | value_id pid => lookupAL _ rm pid
   | value_const c => 
       match get_const_metadata c with
       | Some (bc, ec) => 
-          match 
-            (do gvb <- const2GV TD M gl bc;
-             do gve <- const2GV TD M gl ec;
-             ret (mkMD gvb gve))
-          with
-          | Some (mkMD gvb gve) => mkMD gvb gve
-          | None => mkMD null null
-          end
-      | None => mkMD null null
+          do gvb <- const2GV TD M gl bc;
+          do gve <- const2GV TD M gl ec;
+          ret (mkMD gvb gve)
+      | None => Some (mkMD null null)
       end
   end.
 
@@ -223,7 +214,7 @@ Inductive dbCmd : TargetData -> GVMap ->
     trace_nil rerror
 
 | dbLoad_nptr : forall TD rm lc gl id t vp align Mem MM als gvp md gv,
-  get_reg_metadata TD Mem gl rm vp = md ->
+  get_reg_metadata TD Mem gl rm vp = Some md ->
   getOperandValue TD Mem vp lc gl = Some gvp ->
   assert_mptr TD t gvp md ->
   mload TD Mem gvp t align = Some gv ->
@@ -232,7 +223,7 @@ Inductive dbCmd : TargetData -> GVMap ->
     rm als Mem MM trace_nil rok
 
 | dbLoad_ptr : forall TD rm lc gl id t vp align Mem MM als gvp md gv md' lc' rm',
-  get_reg_metadata TD Mem gl rm vp = md ->
+  get_reg_metadata TD Mem gl rm vp = Some md ->
   getOperandValue TD Mem vp lc gl = Some gvp ->
   assert_mptr TD t gvp md ->
   mload TD Mem gvp t align = Some gv ->
@@ -264,14 +255,14 @@ Inductive dbCmd : TargetData -> GVMap ->
     trace_nil rerror
 
 | dbLoad_abort : forall TD rm lc gl id t vp align Mem MM als gvp md,
-  get_reg_metadata TD Mem gl rm vp = md ->
+  get_reg_metadata TD Mem gl rm vp = Some md ->
   getOperandValue TD Mem vp lc gl = Some gvp ->
   ~ assert_mptr TD t gvp md ->
   dbCmd TD gl lc rm als Mem MM (insn_load id t vp align) lc rm als Mem MM
     trace_nil rabort
 
 | dbStore_nptr : forall TD rm lc gl sid t v vp align Mem MM als gv gvp md Mem',
-  get_reg_metadata TD Mem gl rm vp = md ->
+  get_reg_metadata TD Mem gl rm vp = Some md ->
   getOperandValue TD Mem v lc gl = Some gv ->
   getOperandValue TD Mem vp lc gl = Some gvp ->
   assert_mptr TD t gvp md ->
@@ -282,13 +273,13 @@ Inductive dbCmd : TargetData -> GVMap ->
 
 | dbStore_ptr : forall TD rm lc gl sid t v vp align Mem MM als gv gvp md Mem' 
                        md' MM',
-  get_reg_metadata TD Mem gl rm vp = md ->
+  get_reg_metadata TD Mem gl rm vp = Some md ->
   getOperandValue TD Mem v lc gl = Some gv ->
   getOperandValue TD Mem vp lc gl = Some gvp ->
   assert_mptr TD t gvp md ->
   mstore TD Mem gvp t gv align = Some Mem' ->
   isPointerTyp t ->
-  get_reg_metadata TD Mem gl rm v = md' ->
+  get_reg_metadata TD Mem gl rm v = Some md' ->
   set_mem_metadata TD MM gvp md' = MM' -> 
   dbCmd TD gl lc rm als Mem MM (insn_store sid t v vp align) lc rm als Mem' MM'
     trace_nil rok
@@ -320,7 +311,7 @@ Inductive dbCmd : TargetData -> GVMap ->
     trace_nil rerror
 
 | dbStore_abort : forall TD rm lc gl sid t v vp align Mem MM als gv gvp md,
-  get_reg_metadata TD Mem gl rm vp = md ->
+  get_reg_metadata TD Mem gl rm vp = Some md ->
   getOperandValue TD Mem v lc gl = Some gv ->
   getOperandValue TD Mem vp lc gl = Some gvp ->
   ~ assert_mptr TD t gvp md ->
@@ -330,7 +321,7 @@ Inductive dbCmd : TargetData -> GVMap ->
 
 | dbGEP : forall TD rm lc gl id inbounds t vp idxs vidxs gvp' Mem MM als gvp md 
                  lc' rm',
-  get_reg_metadata TD Mem gl rm vp = md ->
+  get_reg_metadata TD Mem gl rm vp = Some md ->
   getOperandValue TD Mem vp lc gl = Some gvp ->
   values2GVs TD Mem idxs lc gl = Some vidxs ->
   GEP TD t gvp vidxs inbounds = Some gvp' ->
@@ -374,7 +365,7 @@ Inductive dbCmd : TargetData -> GVMap ->
 | dbBitcast_ptr : forall TD rm lc gl id t1 v1 t2 gv2 Mem MM als lc' md rm',
   CAST TD Mem lc gl castop_bitcast t1 v1 t2 = Some gv2 ->
   isPointerTyp t1 ->
-  get_reg_metadata TD Mem gl rm v1 = md ->
+  get_reg_metadata TD Mem gl rm v1 = Some md ->
   prop_reg_metadata lc rm id gv2 md = (lc', rm') ->
   dbCmd TD gl lc rm als Mem MM (insn_cast id castop_bitcast t1 v1 t2) lc' rm' 
     als Mem MM trace_nil rok
@@ -426,8 +417,8 @@ Inductive dbCmd : TargetData -> GVMap ->
                  rm',
   SELECT TD Mem v0 v1 v2 lc gl = Some gv ->
   isPointerTyp t ->
-  get_reg_metadata TD Mem gl rm v1 = md1 ->
-  get_reg_metadata TD Mem gl rm v2 = md2 ->
+  get_reg_metadata TD Mem gl rm v1 = Some md1 ->
+  get_reg_metadata TD Mem gl rm v2 = Some md2 ->
   getOperandValue TD Mem v0 lc gl = Some cond ->
   (if isGVZero TD cond then 
     prop_reg_metadata lc rm id gv md2
@@ -511,8 +502,8 @@ Definition callUpdateLocals (TD:TargetData) (M:mem) (noret:bool) (rid:id)
         | Some Result => 
           match (getOperandValue TD M Result lc' gl) with 
           | Some gr => 
-              let md' := get_reg_metadata TD M gl rm' Result in
-               Some (updateAddAL _ lc rid gr, updateAddAL _ rm rid md')
+              do md' <- get_reg_metadata TD M gl rm' Result;
+              ret (updateAddAL _ lc rid gr, updateAddAL _ rm rid md')
           | None => None
           end
         end
@@ -524,7 +515,7 @@ Fixpoint initRmetadata_aux TD Mem gl (la:args) (lp:params) (rm accum:rmetadata)
 match (la, lp) with
 | ((t,id)::la', (_,v)::lp') =>
     if isPointerTypB t then
-      let md := get_reg_metadata TD Mem gl rm v in 
+      do md <- get_reg_metadata TD Mem gl rm v;
       initRmetadata_aux TD Mem gl la' lp' rm (updateAddAL _ accum id md)
     else initRmetadata_aux TD Mem gl la' lp' rm accum
 | (nil, nil) => Some accum
