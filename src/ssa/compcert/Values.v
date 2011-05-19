@@ -39,7 +39,8 @@ Inductive val: Type :=
   | Vundef: val
   | Vint: forall (wz:nat), Int.int wz -> val
   | Vfloat: float -> val
-  | Vptr: block -> int32 -> val.
+  | Vptr: block -> int32 -> val
+  | Vinttoptr: int32 -> val.
 
 Definition zero (wz:nat) := (Int.zero wz).
 Definition one (wz:nat) := (Int.one wz).
@@ -64,7 +65,7 @@ Definition eq_Vbool (wz:nat) (v v':val) :=
 
 Module Val.
 
-(* FIXME: Comparision between float and int may not bt correct. 
+(* FIXME: Comparision between float and int may not be correct. 
    But we only need the eq to define LLVMgv.eq, which is only used for 
    pointer comparision. *)
 Definition eq (v1 v2:val) : bool :=
@@ -72,21 +73,28 @@ match v1, v2 with
 | Vundef, _ => false
 | _, Vundef => false
 | Vint wz1 i1, Vint wz2 i2 => zeq (Int.unsigned wz1 i1) (Int.unsigned wz2 i2)
-| Vint wz1 i1, Vfloat f2 => zeq (Int.unsigned wz1 i1) (Int.unsigned 31 (Float.intuoffloat f2))
-| Vfloat f1, Vint wz2 i2 => zeq (Int.unsigned 31 (Float.intuoffloat f1)) (Int.unsigned wz2 i2)
+| Vint wz1 i1, Vfloat f2 => 
+    zeq (Int.unsigned wz1 i1) (Int.unsigned 31 (Float.intuoffloat f2))
+| Vfloat f1, Vint wz2 i2 => 
+    zeq (Int.unsigned 31 (Float.intuoffloat f1)) (Int.unsigned wz2 i2)
 | Vfloat f1, Vfloat f2 => match (Float.eq_dec f1 f2) with
                           | left _ => true
                           | right _ => false
                           end
 | Vptr b1 o1, Vptr b2 o2 => eq_block b1 b2 && 
                             zeq (Int.unsigned 31 o1) (Int.unsigned 31 o2)
+| Vinttoptr i1, Vinttoptr i2 => 
+    (* FIXME: Should we compare Vinttoptr and Vptr? *)
+    zeq (Int.unsigned 31 i1) (Int.unsigned 31 i2)
 | _, _ => false
 end.
 
 Definition get_wordsize (v : val) : option nat :=
   match v with
   | Vint wz _ => Some wz
-  | Vptr _ _ => Some 31%nat
+  | Vptr _ _ | Vinttoptr _ => 
+      (* This is incorrect, size of ptr is configured differently. *)
+      Some 31%nat
   | _ => None
   end.
 
@@ -99,6 +107,7 @@ Definition has_type (v: val) (t: typ) : Prop :=
   | Vint _ _, Tint => True
   | Vfloat _, Tfloat => True
   | Vptr _ _, Tint => True
+  | Vinttoptr _, Tint => True
   | _, _ => False
   end.
 
@@ -116,7 +125,7 @@ Fixpoint has_type_list (vl: list val) (tl: list typ) {struct vl} : Prop :=
 Definition is_true (v: val) : Prop :=
   match v with
   | Vint wz n => n <> zero wz
-  | Vptr b ofs => True
+  | Vptr _ _ | Vinttoptr _ => True
   | _ => False
   end.
 
@@ -130,10 +139,11 @@ Inductive bool_of_val: val -> bool -> Prop :=
   | bool_of_val_int_true:
       forall wz n, n <> zero wz -> bool_of_val (Vint wz n) true
   | bool_of_val_int_false:
-      forall wz, 
-      bool_of_val (Vzero wz) false
+      forall wz, bool_of_val (Vzero wz) false
   | bool_of_val_ptr:
-      forall b ofs, bool_of_val (Vptr b ofs) true.
+      forall b ofs, bool_of_val (Vptr b ofs) true
+  | bool_of_val_inttoptr:
+      forall n, bool_of_val (Vinttoptr n) true.
 
 Definition neg (v: val) : val :=
   match v with
@@ -206,7 +216,7 @@ Definition notint (v: val) : val :=
 Definition notbool (v: val) : val :=
   match v with
   | Vint wz n => of_bool (Int.eq wz n (zero wz))
-  | Vptr b ofs => Vfalse
+  | Vptr _ _ | Vinttoptr _ => Vfalse
   | _ => Vundef
   end.
 
@@ -244,6 +254,16 @@ add (Vint wz1 n1) (Vptr b2 ofs2) with (eq_nat_dec wz1 31) := {
      Vptr b2 (Int.add 31 ofs2 n1);
   add (Vint wz1 n1) (Vptr b2 ofs2) (right p) := Vundef
   };
+add (Vinttoptr n1) (Vint wz2 n2) with (eq_nat_dec wz2 31) := {
+  add (Vinttoptr n1) (Vint ?(wz1) n2) (left eq_refl) :=
+     Vinttoptr (Int.add 31 n1 n2);
+  add (Vinttoptr n1) (Vint wz2 n2) (right p) := Vundef  
+  };
+add (Vint wz1 n1) (Vinttoptr n2) with (eq_nat_dec wz1 31) := {
+  add (Vint wz1 n1) (Vinttoptr n2) (left eq_refl) :=
+     Vinttoptr (Int.add wz1 n1 n2);
+  add (Vint wz1 n1) (Vinttoptr n2) (right p) := Vundef  
+  };
 add _ _ := Vundef.
 
 Equations sub (v1 v2: val): val :=
@@ -259,6 +279,12 @@ sub (Vptr b1 ofs1) (Vint wz2 n2) with (eq_nat_dec wz2 31) := {
   };
 sub (Vptr b1 ofs1) (Vptr b2 ofs2) := 
   if zeq b1 b2 then Vint 31 (Int.sub 31 ofs1 ofs2) else Vundef;
+sub (Vinttoptr n1) (Vint wz2 n2) with (eq_nat_dec wz2 31) := {
+  sub (Vinttoptr n1) (Vint ?(wz2) n2) (left eq_refl) :=
+     Vinttoptr (Int.sub 31 n1 n2);
+  sub (Vinttoptr n1) (Vint ?(wz2) n2) (right p) := Vundef
+  };
+sub (Vinttoptr n1) (Vinttoptr n2) := Vint 31 (Int.sub 31 n1 n2);
 sub _ _ := Vundef.
 
 Equations mul (v1 v2: val): val :=
@@ -507,6 +533,16 @@ cmp c (Vptr b1 ofs1) (Vint wz2 n2) with (eq_nat_dec wz2 31) := {
     if Int.eq 31 n2 (Int.zero 31) then cmp_mismatch c else Vundef;
   cmp c (Vptr b1 ofs1) (Vint wz2 n2) (right p) := Vundef
   };
+cmp c (Vint wz1 n1) (Vinttoptr n2) with (eq_nat_dec wz1 31) := {
+  cmp c (Vint wz1 n1) (Vinttoptr n2) (left eq_refl) := Vundef;
+  cmp c (Vint wz1 n1) (Vinttoptr n2) (right p) := Vundef  
+  };
+cmp c (Vinttoptr n1) (Vinttoptr n2) := of_bool (Int.cmp 31 c n1 n2);
+cmp c (Vinttoptr n1) (Vint wz2 n2) with (eq_nat_dec wz2 31) := {
+  cmp c (Vinttoptr n1) (Vint ?(wz2) n2) (left eq_refl) := Vundef;
+  cmp c (Vinttoptr n1) (Vint wz2 n2) (right p) := Vundef  
+  };
+(* FIXME: Vptr and Vinttoptr are not compariable. *)
 cmp _ _ _ := Vundef.
 
 Equations cmpu (c: comparison) (v1 v2: val): val :=
@@ -529,6 +565,16 @@ cmpu c (Vptr b1 ofs1) (Vint wz2 n2) with (eq_nat_dec wz2 31) := {
     if Int.eq 31 n2 (Int.zero 31) then cmp_mismatch c else Vundef;
   cmpu c (Vptr b1 ofs1) (Vint wz2 n2) (right p) := Vundef
   };
+cmpu c (Vint wz1 n1) (Vinttoptr n2) with (eq_nat_dec wz1 31) := {
+  cmpu c (Vint wz1 n1) (Vinttoptr n2) (left eq_refl) := Vundef;
+  cmpu c (Vint wz1 n1) (Vinttoptr n2) (right p) := Vundef  
+  };
+cmpu c (Vinttoptr n1) (Vinttoptr n2) := of_bool (Int.cmpu 31 c n1 n2);
+cmpu c (Vinttoptr n1) (Vint wz2 n2) with (eq_nat_dec wz2 31) := {
+  cmpu c (Vinttoptr n1) (Vint ?(wz2) n2) (left eq_refl) := Vundef;
+  cmpu c (Vinttoptr n1) (Vint wz2 n2) (right p) := Vundef  
+  };
+(* FIXME: Vptr and Vinttoptr are not compariable. *)
 cmpu _ _ _ := Vundef.
 
 Definition cmpf (c: comparison) (v1 v2: val): val :=
@@ -597,15 +643,25 @@ Ltac simpl_add :=
     unfold eq_rect;
     simpl
 
+  | [ |- context [add (Vint ?wz ?i) (Vinttoptr ?i0) ] ] =>
+  rewrite add_equation_6;
+  unfold add_obligation_9;
+  unfold add_obligation_8;
+  unfold add_obligation_7;
+  unfold solution_left;
+  unfold eq_rect_r;
+  unfold eq_rect;
+  destruct (eq_nat_dec wz 31); subst
+
   | [ |- context [add (Vfloat ?f) _] ] =>
-      rewrite add_equation_6
-  | [ |- context [add (Vptr ?b ?i) Vundef] ] =>
       rewrite add_equation_7
+  | [ |- context [add (Vptr ?b ?i) Vundef] ] =>
+      rewrite add_equation_8
 
   | [ |- context [add (Vptr _ _) (Vint ?wz ?i)] ] =>
-  rewrite add_equation_8;
-  unfold add_obligation_10;
-  unfold add_obligation_9;
+  rewrite add_equation_9;
+  unfold add_obligation_13;
+  unfold add_obligation_12;
   destruct (eq_nat_dec wz 31); subst
   | [ |- context [add_obligation_8] ] =>
   unfold add_obligation_8;
@@ -615,9 +671,37 @@ Ltac simpl_add :=
   simpl
 
   | [ |- context [add (Vptr ?b ?i) (Vfloat ?f)] ] =>
-      rewrite add_equation_9
-  | [ |- context [add (Vptr ?b ?i) (Vptr ?b0 ?i0)] ] =>
       rewrite add_equation_10
+  | [ |- context [add (Vptr ?b ?i) (Vptr ?b0 ?i0)] ] =>
+      rewrite add_equation_11
+
+  | [ |- context [add (Vptr ?b ?i) (Vinttoptr ?i0)] ] =>
+      rewrite add_equation_12
+  | [ |- context [add (Vinttoptr ?i) Vundef] ] => 
+      rewrite add_equation_13
+
+  | [ |- context [add (Vinttoptr ?i0) (Vint ?wz ?i)] ] =>
+  rewrite add_equation_14;
+  unfold add_obligation_17;
+  unfold add_obligation_16;
+  unfold add_obligation_15;
+  unfold solution_left;
+  unfold eq_rect_r;
+  unfold eq_rect;
+  destruct (eq_nat_dec wz 31); subst
+
+  | [ |- context [add (Vinttoptr ?i) (Vfloat ?f)] ] => 
+      rewrite add_equation_15
+
+  | [ |- context [add (Vinttoptr ?i) (Vptr ?b ?i0)] ] => 
+      rewrite add_equation_16
+
+  | [ |- context [add (Vinttoptr ?i) (Vinttoptr ?i0)] ] => 
+      rewrite add_equation_17
+
+  | [ |- context [add_obligation_11] ] =>
+      unfold add_obligation_11, solution_left, eq_rect_r, eq_rect
+
   end).
 
 Ltac ctx_contradiction :=
@@ -671,6 +755,7 @@ Ltac ctx_contradiction :=
       |- _] => 
     simpl in H'; inversion H'; subst;
     contradiction H; auto
+  | [ H : ?wz ≠ ?wz |- _] => contradict H; auto
   end.
 
 Ltac simpl_sub :=
@@ -696,15 +781,21 @@ Ltac simpl_sub :=
       rewrite sub_equation_4
   | [ |- context [sub (Vint ?wz ?i) (Vptr ?b ?i0)] ] =>
       rewrite sub_equation_5
-  | [ |- context [sub (Vfloat ?f) _] ] =>
+  | [ |- context [sub (Vint ?wz ?i) (Vinttoptr ?i0)] ] =>
       rewrite sub_equation_6
-  | [ |- context [sub (Vptr ?b ?i) Vundef] ] =>
+  | [ |- context [sub (Vfloat ?f) _] ] =>
       rewrite sub_equation_7
+  | [ |- context [sub (Vptr ?b ?i) Vundef] ] =>
+      rewrite sub_equation_8
 
   | [ |- context [sub (Vptr ?b ?i) (Vint ?wz0 ?i0)] ] =>
-      rewrite sub_equation_8;
+      rewrite sub_equation_9;
       unfold sub_obligation_7;
       unfold sub_obligation_6;
+      unfold sub_obligation_5;
+      unfold solution_left;
+      unfold eq_rect_r;
+      unfold eq_rect;
       destruct (eq_nat_dec wz0 31); subst
   | [ |- context [sub_obligation_5] ] =>
       unfold sub_obligation_5;
@@ -714,9 +805,31 @@ Ltac simpl_sub :=
       simpl
 
   | [ |- context [sub (Vptr ?b ?i) (Vfloat ?f)] ] =>
-      rewrite sub_equation_9
-  | [ |- context [sub (Vptr ?b ?i) (Vptr ?b0 ?i0)] ] =>
       rewrite sub_equation_10
+  | [ |- context [sub (Vptr ?b ?i) (Vptr ?b0 ?i0)] ] =>
+      rewrite sub_equation_11
+  | [ |- context [sub (Vptr ?b ?i) (Vinttoptr ?i0)] ] =>
+      rewrite sub_equation_12
+  | [ |- context [sub (Vinttoptr ?i) Vundef] ] =>
+      rewrite sub_equation_13
+
+  | [ |- context [sub (Vinttoptr ?i) (Vint ?wz0 ?i0)] ] =>
+      rewrite sub_equation_14;
+      unfold sub_obligation_11;
+      unfold sub_obligation_10;
+      unfold sub_obligation_9;
+      unfold solution_left;
+      unfold eq_rect_r;
+      unfold eq_rect;
+      destruct (eq_nat_dec wz0 31); subst
+
+  | [ |- context [sub (Vinttoptr ?i) (Vfloat ?f)] ] =>
+      rewrite sub_equation_15
+  | [ |- context [sub (Vinttoptr ?i) (Vptr ?b0 ?i0)] ] =>
+      rewrite sub_equation_16
+  | [ |- context [sub (Vinttoptr ?i) (Vinttoptr ?i0)] ] =>
+      rewrite sub_equation_17
+
   end).
 
 Ltac simpl_mul :=
@@ -1160,16 +1273,31 @@ Ltac simpl_cmp :=
     unfold eq_rect;
     simpl
 
+  | [ |- context [cmp _ (Vint ?wz ?i) (Vinttoptr ?i0)] ] =>
+  rewrite cmp_equation_6;
+  unfold cmp_obligation_9;
+  unfold cmp_obligation_8;
+  unfold cmp_obligation_7;
+  unfold solution_left;
+  unfold eq_rect_r;
+  unfold eq_rect;
+  destruct (eq_nat_dec wz 31); subst
+
   | [ |- context [cmp _ (Vfloat ?f) _] ] =>
-      rewrite cmp_equation_6
-  | [ |- context [cmp _ (Vptr ?b ?i) Vundef] ] =>
       rewrite cmp_equation_7
+  | [ |- context [cmp _ (Vptr ?b ?i) Vundef] ] =>
+      rewrite cmp_equation_8
 
   | [ |- context [cmp _ (Vptr _ _) (Vint ?wz ?i)] ] =>
-  rewrite cmp_equation_8;
-  unfold cmp_obligation_10;
-  unfold cmp_obligation_9;
+  rewrite cmp_equation_9;
+  unfold cmp_obligation_13;
+  unfold cmp_obligation_12;
+  unfold cmp_obligation_11;
+  unfold solution_left;
+  unfold eq_rect_r;
+  unfold eq_rect;
   destruct (eq_nat_dec wz 31); subst
+
   | [ |- context [cmp_obligation_8] ] =>
   unfold cmp_obligation_8;
   unfold solution_left;
@@ -1178,9 +1306,31 @@ Ltac simpl_cmp :=
   simpl
 
   | [ |- context [cmp _ (Vptr ?b ?i) (Vfloat ?f)] ] =>
-      rewrite cmp_equation_9
-  | [ |- context [cmp _ (Vptr ?b ?i) (Vptr ?b0 ?i0)] ] =>
       rewrite cmp_equation_10
+  | [ |- context [cmp _ (Vptr ?b ?i) (Vptr ?b0 ?i0)] ] =>
+      rewrite cmp_equation_11
+  | [ |- context [cmp _ (Vptr ?b ?i) (Vinttoptr ?i0)] ] =>
+      rewrite cmp_equation_12
+  | [ |- context [cmp _ (Vinttoptr ?i) Vundef] ] =>
+      rewrite cmp_equation_13
+
+  | [ |- context [cmp _ (Vinttoptr ?i) (Vint ?wz0 ?i0)] ] =>
+  rewrite cmp_equation_14;
+  unfold cmp_obligation_17;
+  unfold cmp_obligation_16;
+  unfold cmp_obligation_15;
+  unfold solution_left;
+  unfold eq_rect_r;
+  unfold eq_rect;
+  destruct (eq_nat_dec wz0 31); subst
+
+  | [ |- context [cmp _ (Vinttoptr ?i) (Vfloat ?f0)] ] =>
+      rewrite cmp_equation_15
+  | [ |- context [cmp _ (Vinttoptr ?i) (Vptr ?b0 ?i0)] ] =>
+      rewrite cmp_equation_16
+  | [ |- context [cmp _ (Vinttoptr ?i) (Vinttoptr ?i0)] ] =>
+      rewrite cmp_equation_17
+
   end).
 
 Ltac simpl_cmpu :=
@@ -1217,16 +1367,31 @@ Ltac simpl_cmpu :=
     unfold eq_rect;
     simpl
 
+  | [ |- context [cmpu _ (Vint ?wz ?i) (Vinttoptr ?i0)] ] =>
+  rewrite cmpu_equation_6;
+  unfold cmpu_obligation_9;
+  unfold cmpu_obligation_8;
+  unfold cmpu_obligation_7;
+  unfold solution_left;
+  unfold eq_rect_r;
+  unfold eq_rect;
+  destruct (eq_nat_dec wz 31); subst
+
   | [ |- context [cmpu _ (Vfloat ?f) _] ] =>
-      rewrite cmpu_equation_6
-  | [ |- context [cmpu _ (Vptr ?b ?i) Vundef] ] =>
       rewrite cmpu_equation_7
+  | [ |- context [cmpu _ (Vptr ?b ?i) Vundef] ] =>
+      rewrite cmpu_equation_8
 
   | [ |- context [cmpu _ (Vptr _ _) (Vint ?wz ?i)] ] =>
-  rewrite cmpu_equation_8;
-  unfold cmpu_obligation_10;
-  unfold cmpu_obligation_9;
+  rewrite cmpu_equation_9;
+  unfold cmpu_obligation_13;
+  unfold cmpu_obligation_12;
+  unfold cmpu_obligation_11;
+  unfold solution_left;
+  unfold eq_rect_r;
+  unfold eq_rect;
   destruct (eq_nat_dec wz 31); subst
+
   | [ |- context [cmpu_obligation_8] ] =>
   unfold cmpu_obligation_8;
   unfold solution_left;
@@ -1235,20 +1400,43 @@ Ltac simpl_cmpu :=
   simpl
 
   | [ |- context [cmpu _ (Vptr ?b ?i) (Vfloat ?f)] ] =>
-      rewrite cmpu_equation_9
-  | [ |- context [cmpu _ (Vptr ?b ?i) (Vptr ?b0 ?i0)] ] =>
       rewrite cmpu_equation_10
+  | [ |- context [cmpu _ (Vptr ?b ?i) (Vptr ?b0 ?i0)] ] =>
+      rewrite cmpu_equation_11
+  | [ |- context [cmpu _ (Vptr ?b ?i) (Vinttoptr ?i0)] ] =>
+      rewrite cmpu_equation_12
+  | [ |- context [cmpu _ (Vinttoptr ?i) Vundef] ] =>
+      rewrite cmpu_equation_13
+
+  | [ |- context [cmpu _ (Vinttoptr ?i) (Vint ?wz0 ?i0)] ] =>
+  rewrite cmpu_equation_14;
+  unfold cmpu_obligation_17;
+  unfold cmpu_obligation_16;
+  unfold cmpu_obligation_15;
+  unfold solution_left;
+  unfold eq_rect_r;
+  unfold eq_rect;
+  destruct (eq_nat_dec wz0 31); subst
+
+  | [ |- context [cmpu _ (Vinttoptr ?i) (Vfloat ?f0)] ] =>
+      rewrite cmpu_equation_15
+  | [ |- context [cmpu _ (Vinttoptr ?i) (Vptr ?b0 ?i0)] ] =>
+      rewrite cmpu_equation_16
+  | [ |- context [cmpu _ (Vinttoptr ?i) (Vinttoptr ?i0)] ] =>
+      rewrite cmpu_equation_17
+
   end).
 
 Ltac simpl_equations := repeat 
   (simpl || simpl_misc || 
    simpl_add || simpl_sub || 
    simpl_mul || simpl_divs || simpl_mods || simpl_divu || simpl_modu ||
-   simpl_shl || simpl_shr || simpl_shr_carry || simpl_shrx || simpl_shru || simpl_ror ||
-   simpl_and || simpl_or || simpl_xor ||
+   simpl_shl || simpl_shr || simpl_shr_carry || simpl_shrx || simpl_shru || 
+   simpl_ror || simpl_and || simpl_or || simpl_xor ||
    simpl_cmp || simpl_cmpu ).
 
-Ltac simpl_auto_equations := simpl_equations; try solve [auto | ctx_contradiction].
+Ltac simpl_auto_equations := 
+  simpl_equations; try solve [auto | ctx_contradiction].
 
 
 (** [load_result] is used in the memory model (library [Mem])
@@ -1264,6 +1452,7 @@ Definition load_result (chunk: memory_chunk) (v: val) :=
   match chunk, v with
   | Mint wz1, Vint wz2 n => if eq_nat_dec wz1 wz2 then Vint wz2 n else Vundef
   | Mint wz, Vptr b ofs => if eq_nat_dec wz 31 then Vptr b ofs else Vundef
+  | Mint wz, Vinttoptr i => if eq_nat_dec wz 31 then Vinttoptr i else Vundef
   | Mfloat32, Vfloat f => Vfloat(Float.singleoffloat f)
   | Mfloat64, Vfloat f => Vfloat f
   | _, _ => Vundef
@@ -1317,7 +1506,7 @@ Theorem bool_of_true_val:
   forall v, is_true v -> bool_of_val v true.
 Proof.
   intro. destruct v; simpl; intros; try contradiction.
-  constructor; auto. constructor.
+  constructor; auto. constructor. constructor.
 Qed.
 
 Theorem bool_of_true_val2:
@@ -1349,7 +1538,7 @@ Theorem bool_of_false_val_inv:
   forall v b, is_false v -> bool_of_val v b -> b = false.
 Proof.
   intros. inversion H0; subst v b; simpl in H.
-  congruence. auto. contradiction.
+  congruence. auto. contradiction. contradiction.
 Qed.
 
 Theorem notbool_negb_1:
@@ -1377,19 +1566,24 @@ Proof.
   case (Int.eq wz i (zero wz)); reflexivity.
 Qed.
 
+Lemma sym_refl__eq__refl : forall A (x:A) (e:x=x), Logic.eq_sym e = eq_refl.
+Admitted.
+
 Theorem add_commut: forall x y, add x y = add y x.
 Proof.
-  destruct x; destruct y; simpl_auto_equations.
-  decEq. apply Int.add_commut.
+  destruct x; destruct y; simpl_auto_equations;
+    decEq; apply Int.add_commut.
 Qed.
 
 Theorem add_assoc: forall x y z, add (add x y) z = add x (add y z).
 Proof.
-  destruct x; destruct y; destruct z; simpl_auto_equations.
-  decEq. rewrite Int.add_assoc. auto.
-  decEq. rewrite Int.add_assoc. rewrite (Int.add_commut 31 i i0). auto.
-  decEq. rewrite Int.add_assoc. rewrite (Int.add_commut 31 i i1). rewrite <- Int.add_assoc. auto.
-  decEq. rewrite Int.add_assoc. auto.
+  destruct x; destruct y; destruct z; simpl_auto_equations;
+    try solve [
+      decEq; rewrite Int.add_assoc; auto |
+      decEq; rewrite Int.add_assoc; rewrite (Int.add_commut 31 i i0); auto |
+      decEq; rewrite Int.add_assoc; rewrite (Int.add_commut 31 i i1); 
+        rewrite <- Int.add_assoc; auto
+    ].
 Qed.
 
 Theorem add_permut: forall x y z, add x (add y z) = add y (add x z).
@@ -1416,7 +1610,8 @@ Proof.
   decEq. apply Int.neg_add_distr.
 Qed.
 
-Theorem sub_zero_r: forall x wz, get_wordsize x = Some wz -> sub (Vzero wz) x = neg x.
+Theorem sub_zero_r: forall x wz, 
+  get_wordsize x = Some wz -> sub (Vzero wz) x = neg x.
 Proof.
   destruct x; intros wz0 H; simpl_auto_equations.
 Qed.
@@ -1425,9 +1620,8 @@ Theorem sub_add_opp: forall x wz y,
   get_wordsize x = Some wz -> 
   sub x (Vint wz y) = add x (Vint wz (Int.neg wz y)).
 Proof.
-  destruct x; intros wz0 y H; simpl_auto_equations.
-  rewrite Int.sub_add_opp; auto.
-  rewrite Int.sub_add_opp; auto.
+  destruct x; intros wz0 y H; simpl_auto_equations;
+    rewrite Int.sub_add_opp; auto.
 Qed.
 
 Theorem sub_opp_add: forall x wz y, 
@@ -1435,9 +1629,8 @@ Theorem sub_opp_add: forall x wz y,
   sub x (Vint wz (Int.neg wz y)) = add x (Vint wz y).
 Proof.
   intros x wz y H.
-  destruct x; simpl_auto_equations.
-  rewrite Int.sub_add_opp; rewrite Int.neg_involutive; auto.
-  rewrite Int.sub_add_opp; rewrite Int.neg_involutive; auto.
+  destruct x; simpl_auto_equations;
+    rewrite Int.sub_add_opp; rewrite Int.neg_involutive; auto.
 Qed.
 
 Theorem sub_add_l:
@@ -1445,11 +1638,11 @@ Theorem sub_add_l:
   get_wordsize v1 = Some wz -> 
   sub (add v1 (Vint wz i)) v2 = add (sub v1 v2) (Vint wz i).
 Proof.
-  destruct v1; destruct v2; intros wz5 i5 H; simpl_auto_equations.
-  rewrite Int.sub_add_l. auto.
-  rewrite Int.sub_add_l. auto.
-  case (zeq b b0); intro; auto.
-    rewrite Int.sub_add_l; auto.
+  destruct v1; destruct v2; intros wz5 i5 H; simpl_auto_equations;
+    try solve [
+      rewrite Int.sub_add_l; auto |
+      case (zeq b b0); intro; auto; rewrite Int.sub_add_l; auto
+    ].
 Qed.
 
 Theorem sub_add_r:
@@ -1470,6 +1663,14 @@ Proof.
   repeat rewrite Int.sub_add_opp.
   rewrite Int.add_assoc. decEq. decEq. decEq.
   apply Int.neg_add_distr.
+
+  rewrite Int.sub_add_r. auto.
+  repeat rewrite Int.sub_add_opp. decEq. 
+  repeat rewrite Int.add_assoc. decEq. apply Int.add_commut.
+
+  rewrite Int.sub_add_r. auto.
+  repeat rewrite Int.sub_add_opp. decEq. 
+  repeat rewrite Int.add_assoc. decEq. apply Int.add_commut.
 Qed.
 
 Theorem mul_commut: forall x y, mul x y = mul y x.
@@ -1683,26 +1884,32 @@ Theorem negate_cmp:
   forall c x y,
   cmp (negate_comparison c) x y = notbool (cmp c x y).
 Proof.
-  destruct x; destruct y; simpl_auto_equations.
-  rewrite Int.negate_cmp. apply notbool_negb_1.
-  case (Int.eq 31 i (Int.zero 31)). apply negate_cmp_mismatch. reflexivity.
-  case (Int.eq 31 i0 (Int.zero 31)). apply negate_cmp_mismatch. reflexivity.
-  case (zeq b b0); intro.
-  rewrite Int.negate_cmp. apply notbool_negb_1.
-  apply negate_cmp_mismatch.
+  destruct x; destruct y; simpl_auto_equations; try solve [
+    rewrite Int.negate_cmp; apply notbool_negb_1 |
+    case (Int.eq 31 i (Int.zero 31)); try solve [
+      apply negate_cmp_mismatch | reflexivity ] |
+    case (Int.eq 31 i0 (Int.zero 31)); try solve [
+      apply negate_cmp_mismatch | reflexivity ] |
+    case (zeq b b0); intro; try solve [
+      rewrite Int.negate_cmp; apply notbool_negb_1 |
+      apply negate_cmp_mismatch ]
+    ].
 Qed.
 
 Theorem negate_cmpu:
   forall c x y,
   cmpu (negate_comparison c) x y = notbool (cmpu c x y).
 Proof.
-  destruct x; destruct y; simpl_auto_equations.
-  rewrite Int.negate_cmpu. apply notbool_negb_1.
-  case (Int.eq 31 i (Int.zero 31)). apply negate_cmp_mismatch. reflexivity.
-  case (Int.eq 31 i0 (Int.zero 31)). apply negate_cmp_mismatch. reflexivity.
-  case (zeq b b0); intro.
-  rewrite Int.negate_cmpu. apply notbool_negb_1.
-  apply negate_cmp_mismatch.
+  destruct x; destruct y; simpl_auto_equations; try solve [
+      rewrite Int.negate_cmpu; apply notbool_negb_1
+    ].
+    case (Int.eq 31 i (Int.zero 31)); try solve [
+      apply negate_cmp_mismatch | reflexivity ].
+    case (Int.eq 31 i0 (Int.zero 31)); try solve [
+      apply negate_cmp_mismatch | reflexivity ].
+    case (zeq b b0); intro; try solve [
+      rewrite Int.negate_cmpu; apply notbool_negb_1 |
+      apply negate_cmp_mismatch ].
 Qed.
 
 Lemma swap_cmp_mismatch:
@@ -1715,26 +1922,28 @@ Theorem swap_cmp:
   forall c x y,
   cmp (swap_comparison c) x y = cmp c y x.
 Proof.
-  destruct x; destruct y; simpl_auto_equations.
-  rewrite Int.swap_cmp. auto.
+  destruct x; destruct y; simpl_auto_equations; try solve [
+      rewrite Int.swap_cmp; auto
+    ].
   case (Int.eq 31 i (Int.zero 31)). apply swap_cmp_mismatch. auto.
   case (Int.eq 31 i0 (Int.zero 31)). apply swap_cmp_mismatch. auto.
   case (zeq b b0); intro.
-  subst b0. rewrite zeq_true. rewrite Int.swap_cmp. auto.
-  rewrite zeq_false. apply swap_cmp_mismatch. auto.
+    subst b0. rewrite zeq_true. rewrite Int.swap_cmp. auto.
+    rewrite zeq_false. apply swap_cmp_mismatch. auto.
 Qed.
 
 Theorem swap_cmpu:
   forall c x y,
   cmpu (swap_comparison c) x y = cmpu c y x.
 Proof.
-  destruct x; destruct y; simpl_auto_equations.
-  rewrite Int.swap_cmpu. auto.
+  destruct x; destruct y; simpl_auto_equations; try solve [
+      rewrite Int.swap_cmpu; auto
+    ].
   case (Int.eq 31 i (Int.zero 31)). apply swap_cmp_mismatch. auto.
   case (Int.eq 31 i0 (Int.zero 31)). apply swap_cmp_mismatch. auto.
   case (zeq b b0); intro.
-  subst b0. rewrite zeq_true. rewrite Int.swap_cmpu. auto.
-  rewrite zeq_false. apply swap_cmp_mismatch. auto.
+    subst b0. rewrite zeq_true. rewrite Int.swap_cmpu. auto.
+    rewrite zeq_false. apply swap_cmp_mismatch. auto.
 Qed.
 
 Theorem negate_cmpf_eq:
@@ -1795,21 +2004,33 @@ Qed.
 Lemma cmp_is_bool:
   forall c v1 v2, is_bool (cmp c v1 v2).
 Proof.
-  destruct v1; destruct v2; simpl_auto_equations; try apply undef_is_bool.
-  apply of_bool_is_bool.
-  case (Int.eq 31 i (Int.zero 31)). apply cmp_mismatch_is_bool. apply undef_is_bool.
-  case (Int.eq 31 i0 (Int.zero 31)). apply cmp_mismatch_is_bool. apply undef_is_bool.
-  case (zeq b b0); intro. apply of_bool_is_bool. apply cmp_mismatch_is_bool.
+  destruct v1; destruct v2; simpl_auto_equations; try apply undef_is_bool;
+    try solve [apply of_bool_is_bool].
+  case (Int.eq 31 i (Int.zero 31)). 
+    apply cmp_mismatch_is_bool. 
+    apply undef_is_bool.
+  case (Int.eq 31 i0 (Int.zero 31)). 
+    apply cmp_mismatch_is_bool. 
+    apply undef_is_bool.
+  case (zeq b b0); intro. 
+    apply of_bool_is_bool. 
+    apply cmp_mismatch_is_bool.
 Qed.
 
 Lemma cmpu_is_bool:
   forall c v1 v2, is_bool (cmpu c v1 v2).
 Proof.
-  destruct v1; destruct v2; simpl_auto_equations; try apply undef_is_bool.
-  apply of_bool_is_bool.
-  case (Int.eq 31 i (Int.zero 31)). apply cmp_mismatch_is_bool. apply undef_is_bool.
-  case (Int.eq 31 i0 (Int.zero 31)). apply cmp_mismatch_is_bool. apply undef_is_bool.
-  case (zeq b b0); intro. apply of_bool_is_bool. apply cmp_mismatch_is_bool.
+  destruct v1; destruct v2; simpl_auto_equations; try apply undef_is_bool;
+    try solve [apply of_bool_is_bool].
+  case (Int.eq 31 i (Int.zero 31)). 
+    apply cmp_mismatch_is_bool. 
+    apply undef_is_bool.
+  case (Int.eq 31 i0 (Int.zero 31)). 
+    apply cmp_mismatch_is_bool. 
+    apply undef_is_bool.
+  case (zeq b b0); intro. 
+    apply of_bool_is_bool. 
+    apply cmp_mismatch_is_bool.
 Qed.
 
 Lemma cmpf_is_bool:
@@ -1825,6 +2046,7 @@ Proof.
   destruct v; simpl_auto_equations.
   apply undef_is_bool. apply of_bool_is_bool. 
   apply undef_is_bool. unfold is_bool; tauto.
+  unfold is_bool. auto.
 Qed.
 
 Lemma notbool_xor:
@@ -1871,9 +2093,11 @@ Qed.
 Lemma rolm_lt_zero:
   forall v, 
   get_wordsize v = Some 31%nat ->
-  eq_Vbool 31 (rolm v (Int.one 31) (Int.one 31)) (cmp Clt v (Vint 31 (Int.zero 31))).
+  eq_Vbool 31 (rolm v (Int.one 31) (Int.one 31)) 
+              (cmp Clt v (Vint 31 (Int.zero 31))).
 Proof.
-  intros. destruct v; simpl_auto_equations; try solve [apply Vundef__eq_Vbool__Vundef].
+  intros. destruct v; simpl_auto_equations; 
+    try solve [apply Vundef__eq_Vbool__Vundef].
 
   assert (Vint 31 (Int.shru 31 i (Int.repr 31 (Z_of_nat 32 - 1))) =
           Vint 31 (Int.rolm 31 i (Int.one 31) (Int.one 31))) as EQ.
@@ -1981,10 +2205,12 @@ Inductive val_inject (mi: meminj): val -> val -> Prop :=
       mi b1 = Some (b2, delta) ->
       ofs2 = Int.add 31 ofs1 (Int.repr 31 delta) ->
       val_inject mi (Vptr b1 ofs1) (Vptr b2 ofs2)
+  | val_inject_inttoptr:
+      forall i, val_inject mi (Vinttoptr i) (Vinttoptr i)
   | val_inject_undef: forall v,
       val_inject mi Vundef v.
 
-Hint Resolve val_inject_int val_inject_float val_inject_ptr 
+Hint Resolve val_inject_int val_inject_float val_inject_ptr val_inject_inttoptr 
              val_inject_undef.
 
 Inductive val_list_inject (mi: meminj): list val -> list val-> Prop:= 
@@ -2003,6 +2229,7 @@ Lemma val_load_result_inject:
 Proof.
   intros. inv H; destruct chunk; simpl; try econstructor; eauto.
     destruct (eq_nat_dec n wz); try econstructor; eauto.
+    destruct (eq_nat_dec n 31); try econstructor; eauto.
     destruct (eq_nat_dec n 31); try econstructor; eauto.
 Qed.
 
@@ -2042,3 +2269,10 @@ Qed.
 
 Hint Resolve inject_incr_refl val_inject_incr val_list_inject_incr.
 
+(*****************************)
+(*
+*** Local Variables: ***
+*** coq-prog-name: "coqtop" ***
+*** coq-prog-args: ("-emacs-U" "-I" "~/SVN/sol/vol/src/ssa/monads" "-I" "~/SVN/sol/vol/src/ssa/ott" "-I" "~/SVN/sol/vol/src/ssa/compcert" "-I" "~/SVN/sol/theory/metatheory_8.3") ***
+*** End: ***
+ *)

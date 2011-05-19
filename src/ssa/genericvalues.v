@@ -368,7 +368,8 @@ match op with
     | Some (Vint wz1 i1) =>
         match Mem.int2ptr M (Int.signed wz1 i1) with
         | Some (b,ofs) => Some (ptr2GV TD (Vptr b (Int.repr 31 ofs)))
-        | None => Some null
+        | None => 
+            Some (ptr2GV TD (Vinttoptr (Int.repr 31 (Int.unsigned wz1 i1))))
         end
     | _ => None
     end
@@ -386,6 +387,8 @@ match op with
                    (Mint sz2))
         | None => Some (val2GV TD (Vint sz2 (Int.zero sz2)) (Mint sz2))
         end
+    | Some (Vinttoptr i) => 
+        Some (val2GV TD (Vint sz2 (Int.repr sz2 (Int.unsigned 31 i))) (Mint sz2))
     | _ => None
     end
   | _ => None
@@ -398,7 +401,8 @@ match op with
   end
 end.
 
-Definition mext (TD:TargetData) (op:extop) (t1:typ) (gv1:GenericValue) (t2:typ) : option GenericValue :=
+Definition mext (TD:TargetData) (op:extop) (t1:typ) (gv1:GenericValue) (t2:typ) 
+  : option GenericValue :=
 match (t1, t2) with
 | (typ_int sz1, typ_int sz2) => 
    match (GV2val TD gv1) with
@@ -427,7 +431,8 @@ match (t1, t2) with
 | (_, _) => None
 end.
 
-Definition micmp (TD:TargetData) (c:cond) (t:typ) (gv1 gv2:GenericValue) : option GenericValue :=
+Definition micmp (TD:TargetData) (c:cond) (t:typ) (gv1 gv2:GenericValue) 
+  : option GenericValue :=
 match t with
 | typ_int sz =>
   match (GV2val TD gv1, GV2val TD gv2) with
@@ -459,7 +464,8 @@ match t with
 | _ => None
 end.
 
-Definition mfcmp (TD:TargetData) (c:fcond) (fp:floating_point) (gv1 gv2:GenericValue) : option GenericValue :=
+Definition mfcmp (TD:TargetData) (c:fcond) (fp:floating_point) 
+  (gv1 gv2:GenericValue) : option GenericValue :=
 match (GV2val TD gv1, GV2val TD gv2) with
 | (Some (Vfloat f1), Some (Vfloat f2)) => 
    let ov := 

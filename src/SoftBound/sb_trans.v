@@ -1440,9 +1440,10 @@ Case "cast".
         destruct g; try solve [inversion H0].
         destruct p.
         destruct g; try solve [inversion H0].
-        destruct v; try solve [inversion H0].
         right. right. intros.
-        destruct (Mem.ptr2int Mem2' b 0); inv H0; intro J; inversion J.
+        destruct v; try solve [inversion H0].
+          destruct (Mem.ptr2int Mem2' b 0); inv H0; intro J; inversion J.
+          inv H0; intro J; inversion J.
 
       SSCase "cast.1.2".
         destruct t1; try solve [inversion H0].
@@ -1485,7 +1486,15 @@ Case "cast".
     SCase "cast.3".
       admit.
 
-Admitted.
+Case "gep". admit.
+Case "select". admit. 
+Case "icmp". admit. 
+Case "fcmp". admit. 
+Case "extractvalue". admit. 
+Case "insertvalue". admit. 
+Case "bop". admit. 
+Case "fbop". admit. 
+Qed.
 
 Lemma alloc_getOperandValue_inv : forall Mem2 lo hi Mem2' mb2 TD v lc2 gl gv,
   Mem.alloc Mem2 lo hi = (Mem2', mb2) ->
