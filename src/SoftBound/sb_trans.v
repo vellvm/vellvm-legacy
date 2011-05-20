@@ -1693,11 +1693,216 @@ Global Opaque Mem.alloc.
       contradict H; auto.
 Qed.
 
+Definition veq Mem (v1 v2:val) : bool :=
+match v1, v2 with
+| Vundef, Vundef => true
+| Vundef, _ => false
+| _, Vundef => false
+| Vint wz1 i1, Vint wz2 i2 => zeq (Int.unsigned wz1 i1) (Int.unsigned wz2 i2)
+| Vint wz1 i1, Vfloat f2 => 
+    zeq (Int.unsigned wz1 i1) (Int.unsigned 31 (Floats.Float.intuoffloat f2))
+| Vfloat f1, Vint wz2 i2 => 
+    zeq (Int.unsigned 31 (Floats.Float.intuoffloat f1)) (Int.unsigned wz2 i2)
+| Vfloat f1, Vfloat f2 => match (Floats.Float.eq_dec f1 f2) with
+                          | left _ => true
+                          | right _ => false
+                          end
+| Vptr b1 o1, Vptr b2 o2 => eq_block b1 b2 && 
+                            zeq (Int.unsigned 31 o1) (Int.unsigned 31 o2)
+| Vinttoptr i1, Vinttoptr i2 => 
+    (* FIXME: Should we compare Vinttoptr and Vptr? *)
+    zeq (Int.unsigned 31 i1) (Int.unsigned 31 i2)
+| Vptr b1 o1, Vinttoptr i2 =>
+    match Mem.ptr2int Mem b1 0 with
+    | ret z => zeq (z + Int.signed 31 o1) (Int.unsigned 31 i2)
+    | merror => false
+    end
+| Vinttoptr i1, Vptr b2 o2 =>
+    match Mem.ptr2int Mem b2 0 with
+    | ret z => zeq (z + Int.signed 31 o2) (Int.unsigned 31 i1)
+    | merror => false
+    end
+| _, _ => false
+end.
+
+Fixpoint gveq Mem (gv1 gv2:GenericValue) : bool :=
+match gv1, gv2 with
+| nil, nil => true
+| (v1,c1)::gv1', (v2,c2)::gv2' => veq Mem v1 v2 && 
+                                  AST.memory_chunk_eq c1 c2 && 
+                                  gveq Mem gv1' gv2'
+| _, _ => false
+end.
+
+Lemma veq_refl : forall M v, veq M v v = true.
+Proof.
+  destruct v; simpl; auto.
+Admitted.
+
+Lemma gveq_refl : forall M gv, gveq M gv gv = true.
+Admitted.
+
+Require Import symexe_tactic.
+
+Lemma gveq__GV2val__veq : forall M gv1 gv2 TD v1, 
+  gveq M gv1 gv2 = true ->
+  GV2val TD gv1 = Some v1 ->
+  exists v2, GV2val TD gv2 = Some v2 /\ veq M v1 v2.
+Proof.
+  intros M gv1 gv2 TD v1 H1 H2.
+  unfold GV2val in H2.
+  destruct gv1; inv H2.
+  destruct p.
+  destruct gv1; inv H0.
+  simpl in H1.
+  destruct gv2; inv H1.
+  destruct p.
+  bdestruct3 H0 as H1 H2 H3.
+  destruct gv2.
+    exists v. simpl. auto.
+    inversion H3.
+Qed.
+
+Lemma alloc_ptr2int : forall z Mem0 b0 ofs0 lo hi Mem' b,
+  ret z = Mem.ptr2int Mem0 b0 ofs0 ->
+  Mem.alloc Mem0 lo hi = (Mem', b) ->
+  ret z = Mem.ptr2int Mem' b0 ofs0.
+Admitted.
+
+Lemma alloc_ptr2int' : forall Mem0 b0 ofs0 lo hi Mem' b,
+  None = Mem.ptr2int Mem0 b0 ofs0 ->
+  Mem.alloc Mem0 lo hi = (Mem', b) ->
+  (b <> b0 -> None = Mem.ptr2int Mem' b0 ofs0) \/
+  (b = b0 -> lo <= ofs0 < hi -> Some (ofs0 - lo) = Mem.ptr2int Mem' b0 ofs0) \/
+  (b = b0 -> ~ lo <= ofs0 < hi -> None = Mem.ptr2int Mem' b0 ofs0).
+Admitted.
+
+Lemma alloc__const2GV : forall lo hi Mem' b TD Mem gl c gv t, 
+  _const2GV TD Mem gl c = ret (gv,t) ->
+  Mem.alloc Mem lo hi = (Mem', b) ->
+  exists gv', _const2GV TD Mem' gl c = ret (gv',t) /\ gveq Mem' gv gv' = true.
+Proof.
+  induction c; intros; simpl in *.
+  
+  exists gv. auto using gveq_refl.
+    
+admit.
+admit.
+admit.
+admit.
+admit.
+admit.
+admit.
+admit.
+admit.
+
+(*
+  remember (_const2GV TD Mem0 gl c) as R.
+  destruct R as [[gv1 t1]|]; try solve [inversion H].
+    erewrite IHc; eauto.
+    simpl; auto.
+*)
+  remember (_const2GV TD Mem0 gl c0) as R.
+  destruct R as [[gv1 t1]|]; try solve [inversion H].
+    assert (J:=H0).
+    eapply IHc in J; eauto.
+    destruct J as [gv' [J1 J2]].
+    rewrite J1.
+    unfold mcast in *.
+    destruct c.
+(*
+      destruct t1; try solve [inversion H].
+        destruct t; try solve [inversion H]; auto.
+        destruct t; try solve [inversion H]; auto.
+*)
+      admit.
+      admit.
+      admit.
+      admit.
+
+Case "cast".
+      destruct t1; try solve [inversion H].
+      destruct t; try solve [inversion H].
+      remember (GV2val TD gv1) as R.
+      destruct R; try solve [inversion H].
+      eapply gveq__GV2val__veq in J2; eauto.          
+      destruct J2 as [v2 [J21 J22]].
+      rewrite J21.
+      destruct v; try solve [inversion H].
+        unfold veq in J22.
+        unfold is_true in J22.
+        destruct v2; try solve [inversion J22].
+            remember (Mem.ptr2int Mem0 b0 0) as R'.
+            destruct R'; inv H.
+              bdestruct J22 as J2 J3.
+              destruct (eq_block b0 b1); subst; try solve [inversion J2].
+                eapply alloc_ptr2int in HeqR'; eauto.
+                rewrite <- HeqR'.
+                exists (val2GV TD (Vint s (Int.repr s (z + Int.signed 31 i1))) (AST.Mint s)).
+                split; auto.
+                  unfold val2GV.
+                  simpl. bsplit; auto with zarith. 
+                    admit. (* zarith *)
+
+              (* vptr should take addr *)
+              admit.
+                
+            remember (Mem.ptr2int Mem0 b0 0) as R'.
+            destruct R'; inv H.
+              eapply alloc_ptr2int in HeqR'; eauto.
+              rewrite <- HeqR' in J22; try solve [inversion J22].
+              exists (val2GV TD (Vint s (Int.repr s (Int.unsigned 31 i1))) (AST.Mint s)).
+              split; auto.
+                unfold val2GV.
+                simpl. bsplit; auto with zarith.
+                  admit. (* zarith *)
+
+              (* vptr should take addr *)
+              admit.
+
+        inv H.
+        unfold veq in J22.
+        unfold is_true in J22.
+        destruct v2; try solve [inversion J22].
+            remember (Mem.ptr2int Mem' b0 0) as R'.
+            destruct R'; inv J22.
+              exists (val2GV TD (Vint s (Int.repr s (z + Int.signed 31 i1))) (AST.Mint s)).
+              split; auto.
+                  unfold val2GV.
+                  simpl.
+                    admit. (* zarith *)
+
+            exists (val2GV TD (Vint s (Int.repr s (Int.unsigned 31 i1))) (AST.Mint s)).
+            split; auto.
+                unfold val2GV.
+                simpl. 
+                  admit. (* zarith *)
+
+Case "gep".
+
+Admitted.
+
+Lemma alloc_const2GV : forall TD Mem gl c gv lo hi Mem' b, 
+  const2GV TD Mem gl c = ret gv ->
+  Mem.alloc Mem lo hi = (Mem', b) ->
+  exists gv', const2GV TD Mem' gl c = ret gv' /\ gveq Mem' gv gv' = true.
+Proof.
+  intros.
+  unfold const2GV in *.
+  remember (_const2GV TD Mem0 gl c) as R. 
+  destruct R; inv H.
+  destruct p; inv H2.
+  eapply alloc__const2GV in H0; eauto.
+  destruct H0 as [gv' [H01 H02]].
+  exists gv'. rewrite H01. auto.
+Qed.
+
 Lemma malloc_getOperandValue_inv : 
   forall Mem2 tsz gn a0 Mem2' TD v lc2 gl gv mb2,
   malloc TD Mem2 tsz gn a0 = Some (Mem2', mb2) ->
   getOperandValue TD Mem2 v lc2 gl = Some gv ->
-  getOperandValue TD Mem2' v lc2 gl = Some gv.
+  exists gv', 
+    getOperandValue TD Mem2' v lc2 gl = Some gv' /\ gveq Mem2' gv gv' = true.
 Proof.
   intros Mem2 tsz gn a0 Mem2' TD v lc2 gl gv mb2 Hmalloc Hget.
   unfold malloc in Hmalloc.
@@ -1705,10 +1910,10 @@ Proof.
   destruct R; inv Hmalloc.
   case_eq (Mem.alloc Mem2 0 (Size.to_Z tsz * z)).
   intros m b Halloc.
-  (* This could be wrong! if v is (inttoptr 42), and 42 is within the newly-
-     allocated block!. Then, Hget returns null, while the goal returns a good
-     ptr gv. *)
-Admitted. 
+  destruct v as [vid |]; simpl in *; auto.
+    exists gv. split; auto using gveq_refl.
+    eapply alloc_const2GV; eauto.
+Qed.
 
 Lemma simulation__eq__GV2int : forall mi gn gn' TD,
   gv_inject mi gn gn' ->
@@ -1721,6 +1926,27 @@ Lemma simulation__mload : forall mi TD MM Mem0 Mem2 gvp align0 gv t gvp2,
   gv_inject mi gvp gvp2 ->
   exists gv2, mload TD Mem2 gvp2 t align0 = ret gv2 /\ gv_inject mi gv gv2.
 Admitted.
+
+Lemma gveq__eq__GV2int : forall Mem gn gn' TD,
+  gveq Mem gn gn' ->
+  GV2int TD Size.ThirtyTwo gn = GV2int TD Size.ThirtyTwo gn'.
+Proof.
+  intros.
+  unfold GV2int.
+  destruct gn.
+    destruct gn'; auto.
+      simpl in H. unfold is_true in H. inv H.
+    destruct gn'.
+      simpl in H. destruct p. unfold is_true in H. inv H.
+      simpl in H. destruct p. destruct p0.
+      bdestruct3 H as H1 H2 H3.
+      destruct v; destruct v0; try solve [auto | inversion H1].
+        destruct gn; destruct gn'; try solve [auto | inversion H3].
+          admit.    
+          simpl in H3. destruct p. inversion H3.
+        admit. (* H1 shoule be false *)
+        admit. (* H1 shoule be false *)
+Qed.
 
 Lemma trans_cmd__is__correct__dbMalloc : forall 
   (lc2 : GVMap)
@@ -1832,13 +2058,16 @@ Proof.
       (Mem2:=Mem2'); auto.
 
       assert (exists gn', getOperandValue TD Mem2' v lc2 gl = ret gn' /\
-                          gv_inject mi gn gn') as H4.
+              GV2int TD Size.ThirtyTwo gn = GV2int TD Size.ThirtyTwo gn') as H4.
         eapply simulation__getOperandValue with (MM:=MM)(Mem2:=Mem2) in H0
           ; eauto.
         destruct H0 as [gv' [H00 H01]].
         apply malloc_getOperandValue_inv with (tsz:=tsz)(gn:=gn)(a0:=align0)
          (Mem2':=Mem2')(mb2:=mb') in H00; auto.
-        exists gv'. auto.
+        destruct H00 as [gv'' [H0a H0b]].
+        exists gv''. split; auto.
+          rewrite simulation__eq__GV2int with (mi:=mi)(gn':=gv'); eauto.
+          eapply gveq__eq__GV2int; eauto.
       destruct H4 as [gn' [H41 H42]].
       apply SimpleSE.dbGEP with (mp:=blk2GV TD mb')(vidxs:=[gn']); auto.
         simpl.
@@ -1857,8 +2086,7 @@ Proof.
 
         unfold SoftBound.bound2GV, GEP, blk2GV, GV2ptr, ptr2GV, val2GV.
         simpl.
-        erewrite simulation__eq__GV2int in H2; eauto.
-        rewrite H2.
+        rewrite <- H42. rewrite H2.
         unfold mgetoffset. destruct TD.
         unfold typ2utyp. simpl.
         assert (exists ut, typ2utyp_aux (gen_utyp_maps (rev n0)) t = Some ut)
