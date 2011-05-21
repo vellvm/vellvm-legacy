@@ -1763,18 +1763,17 @@ Proof.
     inversion H3.
 Qed.
 
-Lemma alloc_ptr2int : forall z Mem0 b0 ofs0 lo hi Mem' b,
-  ret z = Mem.ptr2int Mem0 b0 ofs0 ->
+Lemma alloc_ptr2int : forall Mem0 b0 ofs0 lo hi Mem' b,
   Mem.alloc Mem0 lo hi = (Mem', b) ->
-  ret z = Mem.ptr2int Mem' b0 ofs0.
-Admitted.
-
-Lemma alloc_ptr2int' : forall Mem0 b0 ofs0 lo hi Mem' b,
-  None = Mem.ptr2int Mem0 b0 ofs0 ->
-  Mem.alloc Mem0 lo hi = (Mem', b) ->
-  (b <> b0 -> None = Mem.ptr2int Mem' b0 ofs0) \/
-  (b = b0 -> lo <= ofs0 < hi -> Some (ofs0 - lo) = Mem.ptr2int Mem' b0 ofs0) \/
-  (b = b0 -> ~ lo <= ofs0 < hi -> None = Mem.ptr2int Mem' b0 ofs0).
+  Mem.ptr2int Mem0 b0 ofs0 = Mem.ptr2int Mem' b0 ofs0.
+(* 
+  This is true if b0 and ofs0 are less then mem.nextblock. 
+  alloc_ptr2int is used in alloc__const2GV, so the b0 and ofs0 must be from
+    1) null
+    2) globals
+    3) inttoptr (disallowed by SB)
+  So this should be correct.
+*)
 Admitted.
 
 Lemma alloc__const2GV : forall lo hi Mem' b TD Mem gl c gv t, 
@@ -1832,33 +1831,22 @@ Case "cast".
         unfold veq in J22.
         unfold is_true in J22.
         destruct v2; try solve [inversion J22].
-            remember (Mem.ptr2int Mem0 b0 0) as R'.
-            destruct R'; inv H.
-              bdestruct J22 as J2 J3.
-              destruct (eq_block b0 b1); subst; try solve [inversion J2].
-                eapply alloc_ptr2int in HeqR'; eauto.
-                rewrite <- HeqR'.
-                exists (val2GV TD (Vint s (Int.repr s (z + Int.signed 31 i1))) (AST.Mint s)).
-                split; auto.
-                  unfold val2GV.
-                  simpl. bsplit; auto with zarith. 
-                    admit. (* zarith *)
-
-              (* vptr should take addr *)
-              admit.
-                
-            remember (Mem.ptr2int Mem0 b0 0) as R'.
-            destruct R'; inv H.
-              eapply alloc_ptr2int in HeqR'; eauto.
-              rewrite <- HeqR' in J22; try solve [inversion J22].
-              exists (val2GV TD (Vint s (Int.repr s (Int.unsigned 31 i1))) (AST.Mint s)).
-              split; auto.
-                unfold val2GV.
-                simpl. bsplit; auto with zarith.
+            bdestruct J22 as J2 J3.
+            destruct (eq_block b0 b1); subst; try solve [inversion J2].
+              erewrite <- alloc_ptr2int; eauto.
+              exists gv.
+              split; auto using gveq_refl.
+                destruct (Mem.ptr2int Mem0 b1 0); inv H; auto.
                   admit. (* zarith *)
 
-              (* vptr should take addr *)
-              admit.
+            erewrite <- alloc_ptr2int in J22; eauto.
+            destruct (Mem.ptr2int Mem0 b0 0); try solve [inversion J22].
+            inv H.
+            exists (val2GV TD (Vint s (Int.repr s (Int.unsigned 31 i1))) (AST.Mint s)).
+            split; auto.
+              unfold val2GV.
+              simpl. bsplit; auto with zarith.
+                admit. (* zarith *)
 
         inv H.
         unfold veq in J22.
@@ -1925,7 +1913,49 @@ Lemma simulation__mload : forall mi TD MM Mem0 Mem2 gvp align0 gv t gvp2,
   mload TD Mem0 gvp t align0 = ret gv ->
   gv_inject mi gvp gvp2 ->
   exists gv2, mload TD Mem2 gvp2 t align0 = ret gv2 /\ gv_inject mi gv gv2.
-Admitted.
+Proof.
+  intros mi TD MM Mem0 Mem2 gvp align0 gv t gvp2 Hmsim Hmload Hginject.
+  unfold mload in *.
+  remember (GV2ptr TD (getPointerSize TD) gvp) as R.
+  destruct R; try solve [inversion Hmload].
+  destruct v; try solve [inversion Hmload].
+  remember (typ2memory_chunk t) as R'.
+  destruct R'; try solve [inversion Hmload].
+  remember (Mem.load m Mem0 b (Int.signed 31 i0)) as R1.
+  destruct R1; try solve [inversion Hmload].
+  unfold GV2ptr in *.
+  destruct gvp; inv HeqR.
+  destruct p.
+  destruct v0; inv H0.
+  destruct gvp; inv H1.
+  unfold gv_inject in *.
+  simpl in Hginject.
+  remember (split gvp2) as R2.
+  destruct R2; simpl in Hginject.
+  destruct Hginject as [J1 J2].
+  inversion J1; subst.
+  inversion H3; subst.
+  inversion H1; subst.
+  destruct gvp2; try solve [inversion HeqR2].
+  destruct p. simpl in HeqR2.
+  remember (split gvp2) as R3.
+  destruct R3; inv HeqR2.
+  destruct gvp2.
+    inv Hmload.
+    symmetry in HeqR1.
+    destruct Hmsim as [Hmsim _].
+    eapply Mem.load_inj in HeqR1; eauto.
+    destruct HeqR1 as [v2 [J2 J3]].
+    exists (val2GV TD v2 m).
+    split.
+      admit. (* J2 *)
+
+      unfold val2GV. simpl. 
+      split; auto.
+
+
+    destruct p. simpl in HeqR3. destruct (split gvp2). inversion HeqR3.
+Qed.
 
 Lemma gveq__eq__GV2int : forall Mem gn gn' TD,
   gveq Mem gn gn' ->
@@ -2567,16 +2597,178 @@ Proof.
       admit. (* lets see if the proofs need this direction. *)
 Qed.
 
+Lemma int2ptr__mstore : forall Mem chk b ofs v Mem' z,
+  Mem.store chk Mem b ofs v = Some Mem' ->
+  Mem.int2ptr Mem z = Mem.int2ptr Mem' z. 
+Admitted.
+
+Lemma ptr2int__mstore : forall Mem chk b ofs v Mem' b' z',
+  Mem.store chk Mem b ofs v = Some Mem' ->
+  Mem.ptr2int Mem b' z' = Mem.ptr2int Mem' b' z'.
+Admitted.
+
+Lemma const2GV__mstore' : forall TD Mem chk b ofs v Mem' gl c,
+  Mem.store chk Mem b ofs v = Some Mem' ->
+  _const2GV TD Mem gl c = _const2GV TD Mem' gl c.
+Proof.
+  intros TD Mem chk b ofs v Mem' gl c Hstore.
+  induction c; simpl in *; try solve 
+    [ auto | rewrite IHc; auto | 
+      rewrite IHc1; rewrite IHc2; auto |
+      rewrite IHc1; rewrite IHc2; rewrite IHc3; auto ].
+    admit.
+    admit.
+    rewrite IHc.
+    destruct (_const2GV TD Mem' gl c0); auto.
+    destruct p.
+    unfold mcast.
+    destruct t0; auto.
+      destruct c; auto.
+        destruct t; auto.
+          destruct (GV2val TD g); auto.
+            destruct v0; auto.
+              erewrite int2ptr__mstore; eauto.
+      destruct c; auto.
+        destruct t; auto.
+          destruct (GV2val TD g); auto.
+            destruct v0; auto.
+              erewrite ptr2int__mstore; eauto.
+Qed.  
+
+Lemma const2GV__mstore : forall TD Mem gvp t gv align0 Mem' gl c,
+  mstore TD Mem gvp t gv align0 = Some Mem' ->
+  const2GV TD Mem gl c = const2GV TD Mem' gl c.
+Proof.
+  intros TD Mem gvp t gv align0 Mem' gl c Hmstore. unfold const2GV.
+  unfold mstore in Hmstore.
+  remember (GV2ptr TD (getPointerSize TD) gvp) as R.
+  destruct R; try solve [inversion Hmstore].  
+  destruct v; try solve [inversion Hmstore].  
+  remember (typ2memory_chunk t) as R1.
+  destruct R1; try solve [inversion Hmstore].  
+  remember (GV2val TD gv) as R2.
+  destruct R2; try solve [inversion Hmstore].  
+  erewrite const2GV__mstore'; eauto.
+Qed.
+
+Lemma getOperandValue__mstore : forall TD Mem gvp t gv align0 Mem' gl lc v,
+  mstore TD Mem gvp t gv align0 = Some Mem' ->
+  getOperandValue TD Mem v lc gl = getOperandValue TD Mem' v lc gl.
+Proof.
+  intros TD Mem gvp t gv align0 Mem' gl lc v Hmstore.
+  destruct v as [vid |]; simpl; auto.
+    erewrite const2GV__mstore; eauto.
+Qed.
+
+Lemma get_mmetadata_fn__prop : forall m Mem2 b2 ofs2 v1 Mem2' lc2 gl als addrb
+    addre bid0 eid0 bgv' egv' Mem3 TD v,
+  Mem.store m Mem2 b2 ofs2 v = ret Mem2' ->
+  dbCmds TD gl lc2 als Mem2
+         (insn_call fake_id true false typ_void get_mmetadata_fn
+            ((p8, v1) :: (p8, value_id addrb) :: (p8, value_id addre) :: nil)
+          :: insn_load bid0 p8 (value_id addrb) Align.Zero
+             :: insn_load eid0 p8 (value_id addre) Align.Zero :: nil)
+         (updateAddAL GenericValue (updateAddAL GenericValue lc2 bid0 bgv')
+            eid0 egv') als Mem3 trace_nil ->
+   exists Mem2'0 : mem,
+     dbCmds TD gl lc2 als Mem2'
+       (insn_call fake_id true false typ_void get_mmetadata_fn
+          ((p8, v1) :: (p8, value_id addrb) :: (p8, value_id addre) :: nil)
+        :: insn_load bid0 p8 (value_id addrb) Align.Zero
+           :: insn_load eid0 p8 (value_id addre) Align.Zero :: nil)
+       (updateAddAL GenericValue (updateAddAL GenericValue lc2 bid0 bgv')
+          eid0 egv') als Mem2'0 trace_nil /\
+     Mem.mem_inj inject_id Mem2' Mem2'0.
+Admitted.
+
 Lemma simulation__mstore : forall mi TD MM Mem0 Mem2 gvp align0 gv t gvp2 gv2
                                   Mem0',
   mem_simulation mi TD MM Mem0 Mem2 ->
+  Mem.meminj_no_overlap mi Mem0 ->
   mstore TD Mem0 gvp t gv align0 = ret Mem0' ->
   gv_inject mi gvp gvp2 ->
   gv_inject mi gv gv2 ->
   exists Mem2', 
     mstore TD Mem2 gvp2 t gv2 align0 = ret Mem2' /\ 
     mem_simulation mi TD MM Mem0' Mem2'.
-Admitted.
+Proof.
+  intros mi TD MM Mem0 Mem2 gvp align0 gv t gvp2 gv2 Mem0' Hmsim Hnlap Hmstore 
+    Hginject1 Hginject2.
+  assert (Hmstore':=Hmstore).
+  unfold mstore in Hmstore.
+  remember (GV2ptr TD (getPointerSize TD) gvp) as R.
+  destruct R; try solve [inversion Hmstore].
+  destruct v; try solve [inversion Hmstore].
+  remember (typ2memory_chunk t) as R'.
+  destruct R'; try solve [inversion Hmstore].
+  remember (GV2val TD gv) as R1.
+  destruct R1; try solve [inversion Hmstore].
+  unfold GV2ptr in *.
+  destruct gvp; inv HeqR.
+  destruct p.
+  destruct v0; inv H0.
+  destruct gvp; inv H1.
+  unfold gv_inject in *.
+  simpl in Hginject1.
+  remember (split gvp2) as R2.
+  destruct R2; simpl in Hginject1.
+  destruct Hginject1 as [J1 J2].
+  inversion J1; subst.
+  inversion H3; subst.
+  inversion H1; subst.
+  destruct gvp2; try solve [inversion HeqR2].
+  destruct p. simpl in HeqR2.
+  remember (split gvp2) as R3.
+  destruct R3; inv HeqR2.
+  destruct gvp2.
+    unfold GV2val in *.
+    destruct gv; inv HeqR1.
+    destruct p.
+    destruct gv; inv H0.
+    simpl in Hginject2.    
+    remember (split gv2) as R3.
+    destruct R3; simpl in Hginject2.
+    destruct Hginject2 as [J3 J4].
+    inversion J3; subst. 
+    inversion H6; subst.
+    destruct gv2; try solve [inversion HeqR0].
+    destruct p. simpl in HeqR0.
+    remember (split gv2) as R4.
+    destruct R4; inv HeqR0.
+      inv Hmstore.
+      destruct Hmsim as [Hmsim1 [Hmsim2 Hmsim3]].
+      eapply Mem.store_mapped_inj with (f:=mi)(m2:=Mem2) in H0; eauto.
+      destruct H0 as [Mem2' [J2 J4]].
+      exists Mem2'.
+      destruct gv2.
+        assert ( mstore TD Mem2
+          ((Vptr b2 (Int.add 31 i1 (Int.repr 31 delta)), m1) :: nil) t
+          ((v, m2) :: nil) align0 = ret Mem2') as J.
+          unfold mstore. simpl. rewrite <- HeqR'.
+          admit. (* J2 *)
+        split; auto.
+          split; auto.
+          split.
+            clear Hmsim1 Hmsim3.
+            intros lc2 gl pgv bgv egv als addrb addre bid0 eid0 v1 pgv' G1 G2 G3.
+            assert (G3':=G3).
+            erewrite <- getOperandValue__mstore with (Mem:=Mem2)(t:=t)
+            (gvp:=(Vptr b2 (Int.add 31 i1 (Int.repr 31 delta)), m1) :: nil)
+            (gv:=(v, m2) :: nil)(align0:=align0) in G3'; eauto.
+            apply Hmsim2 with (bgv:=bgv)(egv:=egv)(als:=als)(addrb:=addrb)
+              (addre:=addre)(bid0:=bid0)(eid0:=eid0)(pgv:=pgv) in G3'; auto.
+            destruct G3' as [bgv' [egv' [Mem3 [G4 [G5 [G6 G7]]]]]].
+            exists bgv'. exists egv'.
+            eapply get_mmetadata_fn__prop in G4; eauto.
+            destruct G4 as [Mem3' [G41 G42]].
+            exists Mem3'. split; auto.
+
+            (* skip this direction for now. *)            
+            admit.
+
+      destruct p. simpl in HeqR4. destruct (split gv2). inversion HeqR4.
+    destruct p. simpl in HeqR3. destruct (split gvp2). inversion HeqR3.
+Qed.
 
 Lemma trans_cmd__is__correct__dbStore_nptr: forall
   (lc2 : GVMap)
@@ -2668,6 +2860,7 @@ Proof.
   eapply simulation__getOperandValue in H1; eauto.
   destruct H1 as [gvp2 [H10 H11]].            
   unfold SoftBound.get_reg_metadata in H.
+  assert (Mem.meminj_no_overlap mi Mem0) as W. admit.
   eapply simulation__mstore in H3; eauto.
   destruct H3 as [Mem2' [H31 H32]].
   destruct Hrsim as [Hrsim1 [Hrsim2 Hrsim3]].
@@ -2758,6 +2951,16 @@ Proof.
       admit. (* lets see if the proofs need this direction. *)
 Qed.
 
+Lemma set_mmetadata_fn__prop : forall TD gl lc2 als Mem2 ptmp pgv' bv0 ev0,
+  lookupAL _ lc2 ptmp = Some pgv' ->
+  exists Mem2',
+    SimpleSE.dbCmd TD gl lc2 als Mem2
+      (insn_call fake_id true false typ_void set_mmetadata_fn
+        ((p8, value_id ptmp) :: (p8, bv0) :: (p8, ev0) :: (p8, vnullp8) :: 
+         (i32, vint1) :: (i32, vint1) :: nil)) 
+      lc2 als Mem2' trace_nil.
+Admitted.
+
 Lemma simulation__set_mmetadata_fn : forall lc2 gl pgv bgv egv als  
     pgv' bgv' egv' mi ptmp bv0 ev0 MM1 Mem1 Mem2 TD rm v,  
   mem_simulation mi TD MM1 Mem1 Mem2 ->
@@ -2777,19 +2980,64 @@ Lemma simulation__set_mmetadata_fn : forall lc2 gl pgv bgv egv als
       mem_simulation mi TD 
         (SoftBound.set_mem_metadata TD MM1 pgv (SoftBound.mkMD bgv egv)) 
         Mem1 Mem2'.
-Admitted.
+Proof.
+  intros lc2 gl pgv bgv egv als pgv' bgv' egv' mi ptmp bv0 ev0 MM1 Mem1 Mem2 TD 
+    rm v Hmsim Hgetm Hlookup Hgetb Hgete Hinjp Hinjb Hinje.
+  destruct (@set_mmetadata_fn__prop TD gl lc2 als Mem2 ptmp pgv' bv0 ev0 Hlookup)
+    as [Mem2' J].
+  exists Mem2'.
+  split; auto.
+  destruct Hmsim as [Hmsim1 [Hmsim2 Hmsim3]].
+  split. 
+    clear Hmsim2 Hmsim3.
+    admit.
+  split. 
+    clear Hmsim1 Hmsim3.
+    intros lc0 gl0 pgv0 bgv0 egv0 als0 addrb addre bid0 eid0 v0 pgv'0 J1 J2 J3.
+    
+    assert (getOperandValue TD Mem2 v0 lc0 gl0 = ret pgv'0) as G.
+      admit. (* set_mmetadata_fn does not change int2ptr and ptr2int *)
+    unfold SoftBound.set_mem_metadata, SoftBound.get_mem_metadata in J1.
+    assert (exists b, exists ofs', 
+      GV2ptr TD (getPointerSize TD) pgv0 = Some (Vptr b ofs')) as R.
+      admit. (* Lets only consider the case when pgv0 is a pointer *)
+    assert (exists b2, exists ofs2, 
+      GV2ptr TD (getPointerSize TD) pgv = Some (Vptr b2 ofs2)) as R'.
+      admit. (* ditto *)
+    destruct R as [b1 [ofs1 R]]. 
+    destruct R' as [b2 [ofs2 R']].
+    rewrite R in J1. rewrite R' in J1.
+    destruct (zeq b1 b2); subst; simpl in J1.
+      destruct (Int.eq_dec 31 ofs2 ofs1); subst; simpl in J1.
+        inv J1.      
+        exists bgv'. exists egv'.
+        admit. (* set_mmetadata_fn__prop *) 
+        
+        apply Hmsim2 with (pgv:=pgv0)(bgv:=bgv0)(egv:=egv0)(als:=als0)
+          (addrb:=addrb)(addre:=addre)(bid0:=bid0)(eid0:=eid0) in G; auto.
+        
+          destruct G as [bgv0' [egv0' [Mem3' [G1 [G2 [G3 G4]]]]]]. 
+          exists bgv0'.  exists egv0'.
+            clear - G1 J G2 G3 G4.
+            admit. (* get_mmetadata_fn__prop1 *) 
 
-Lemma const2GV__mstore : forall TD Mem gvp t gv align0 Mem' c2 cgv gl,
-  mstore TD Mem gvp t gv align0 = Some Mem' ->
-  const2GV TD Mem gl c2 = Some cgv ->
-  const2GV TD Mem' gl c2 = Some cgv.
-Admitted.
+          unfold SoftBound.get_mem_metadata.
+          rewrite R; auto.
 
-Lemma getOperandValue__mstore : forall TD Mem gvp t gv align0 Mem' gv' gl lc v,
-  mstore TD Mem gvp t gv align0 = Some Mem' ->
-  getOperandValue TD Mem v lc gl = ret gv' ->
-  getOperandValue TD Mem' v lc gl = ret gv'.
-Admitted.
+      apply Hmsim2 with (pgv:=pgv0)(bgv:=bgv0)(egv:=egv0)(als:=als0)
+        (addrb:=addrb)(addre:=addre)(bid0:=bid0)(eid0:=eid0) in G; auto.
+        
+        destruct G as [bgv0' [egv0' [Mem3' [G1 [G2 [G3 G4]]]]]]. 
+        exists bgv0'.  exists egv0'.
+          clear - G1 J G2 G3 G4.
+          admit. (* get_mmetadata_fn__prop1 *) 
+
+        unfold SoftBound.get_mem_metadata.
+        rewrite R; auto.
+
+    (* ignore this direction *)
+    admit.
+Qed.
 
 Lemma trans_cmd__is__correct__dbStore_ptr : forall
   (lc2 : GVMap)
@@ -2884,6 +3132,7 @@ Proof.
   destruct H1 as [gvp2 [H10 H11]].            
   unfold SoftBound.get_reg_metadata in H.
   assert (H3':=H3).
+  assert (Mem.meminj_no_overlap mi Mem0) as G. admit.
   eapply simulation__mstore in H3'; eauto.
   destruct H3' as [Mem2' [H31 H32]].
   destruct Hrsim as [Hrsim1 [Hrsim2 Hrsim3]].
@@ -2928,8 +3177,10 @@ Proof.
         destruct R'; try solve [inv H5; auto].
         simpl in *.
         inv H5.
-        erewrite const2GV__mstore; eauto.
-        erewrite const2GV__mstore; eauto.
+        erewrite <- const2GV__mstore with (Mem:=Mem0); eauto.
+        rewrite <- HeqR'.
+        erewrite <- const2GV__mstore with (Mem:=Mem0); eauto.
+        rewrite <- HeqR.
         simpl. auto.
           
       rewrite <- lookupAL_updateAddAL_neq.
@@ -2941,7 +3192,8 @@ Proof.
       rewrite <- getOperandValue_eq_fresh_id.
       rewrite <- getOperandValue_eq_fresh_id.
       rewrite <- getOperandValue_eq_fresh_id.
-        erewrite getOperandValue__mstore; eauto.
+        clear - J2' H31.
+        erewrite <- getOperandValue__mstore; eauto.
         admit. (* fresh *)
         admit. (* fresh *)
         admit. (* fresh *)
@@ -2949,7 +3201,8 @@ Proof.
       rewrite <- getOperandValue_eq_fresh_id.
       rewrite <- getOperandValue_eq_fresh_id.
       rewrite <- getOperandValue_eq_fresh_id.
-        erewrite getOperandValue__mstore; eauto.
+        clear - J3' H31.
+        erewrite <- getOperandValue__mstore; eauto.
         admit. (* fresh *)
         admit. (* fresh *)
         admit. (* fresh *)
