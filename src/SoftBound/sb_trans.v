@@ -1439,7 +1439,7 @@ Proof.
       inv Hc2g; unfold GV2val, val2GV, ptr2GV in Hg2v; inv Hg2v
     ].
 
-    admit.
+    admit. (* zero *)
 
     destruct f; inv Hc2g; unfold GV2val, val2GV, ptr2GV in Hg2v; inv Hg2v.
 
@@ -1595,8 +1595,8 @@ Proof.
     [ auto | rewrite IHc; auto | 
       rewrite IHc1; auto; rewrite IHc2; auto |
       rewrite IHc1; auto; rewrite IHc2; auto; rewrite IHc3; auto ].
-    admit.
-    admit.
+    admit. (*arr*)
+    admit. (*struct*)
 
     rewrite IHc; auto.
     destruct (_const2GV TD Mem' gl c0); auto.
@@ -2073,7 +2073,7 @@ Lemma trans_cmd__is__correct__dbMalloc : forall
   (t : typ)
   (v : value)
   (align0 : align)
-  (Hnontemp : non_temporal_cmd (insn_malloc id0 t v align0))
+  (Hnontemp : unsupported_cmd (insn_malloc id0 t v align0))
   (Hnotin : getCmdID (insn_malloc id0 t v align0) `notin` codom rm2)
   (Htrans : trans_cmd ex_ids tmps optaddrb optaddre rm2
              (insn_malloc id0 t v align0) =
@@ -2494,7 +2494,7 @@ Lemma trans_cmd__is__correct__dbLoad_nptr : forall
   (t : typ)
   (vp : value)
   (align0 : align)
-  (Hnontemp : non_temporal_cmd (insn_load id0 t vp align0))
+  (Hnontemp : unsupported_cmd (insn_load id0 t vp align0))
   (Hnotin : getCmdID (insn_load id0 t vp align0) `notin` codom rm2)
   (Htrans : trans_cmd ex_ids tmps optaddrb optaddre rm2
              (insn_load id0 t vp align0) =
@@ -2770,7 +2770,7 @@ Lemma trans_cmd__is__correct__dbLoad_ptr: forall
   (t : typ)
   (vp : value)
   (align0 : align)
-  (Hnontemp : non_temporal_cmd (insn_load id0 t vp align0))
+  (Hnontemp : unsupported_cmd (insn_load id0 t vp align0))
   (Hnotin : getCmdID (insn_load id0 t vp align0) `notin` codom rm2)
   (mt : typ)
   (bv : value)
@@ -3258,7 +3258,7 @@ Lemma trans_cmd__is__correct__dbStore_nptr: forall
   (v : value)
   (vp : value)
   (align0 : align)
-  (Hnontemp : non_temporal_cmd (insn_store sid t v vp align0))
+  (Hnontemp : unsupported_cmd (insn_store sid t v vp align0))
   (Hnotin : getCmdID (insn_store sid t v vp align0) `notin` codom rm2)
   (Htrans : trans_cmd ex_ids tmps optaddrb optaddre rm2
              (insn_store sid t v vp align0) =
@@ -3675,7 +3675,7 @@ Lemma trans_cmd__is__correct__dbStore_ptr : forall
   (v : value)
   (vp : value)
   (align0 : align)
-  (Hnontemp : non_temporal_cmd (insn_store sid t v vp align0))
+  (Hnontemp : unsupported_cmd (insn_store sid t v vp align0))
   (Hnotin : getCmdID (insn_store sid t v vp align0) `notin` codom rm2)
   (Htrans : trans_cmd ex_ids tmps optaddrb optaddre rm2
              (insn_store sid t v vp align0) =
@@ -3973,7 +3973,7 @@ Lemma trans_cmd__is__correct__dbLoad_abort : forall
   (t : typ)
   (vp : value)
   (align0 : align)
-  (Hnontemp : non_temporal_cmd (insn_load id0 t vp align0))
+  (Hnontemp : unsupported_cmd (insn_load id0 t vp align0))
   (Hnotin : getCmdID (insn_load id0 t vp align0) `notin` codom rm2)
   (Htrans : trans_cmd ex_ids tmps optaddrb optaddre rm2
              (insn_load id0 t vp align0) =
@@ -4116,7 +4116,7 @@ Lemma trans_cmd__is__correct : forall c TD lc1 rm1 als gl Mem1 MM1 lc1' als'
     optaddrb optaddre optaddrb' optaddre' mi mgb,  
   wf_cmd c ->
   wf_globals mgb gl ->
-  non_temporal_cmd c ->
+  unsupported_cmd c ->
   getCmdID c `notin` codom rm2 ->
   trans_cmd ex_ids tmps optaddrb optaddre rm2 c = 
     Some (ex_ids', tmps', cs, optaddrb', optaddre') ->
@@ -4158,6 +4158,85 @@ Case "dbMalloc".
 
 Case "dbMalloc_error".
   admit.    
+
+Case "dbFree".
+  inv Htrans.
+  unfold free in H0.
+  remember (GV2ptr TD (getPointerSize TD) mptr0) as R0.
+  destruct R0; try solve [inversion H0].
+  destruct v0; try solve [inversion H0].
+  remember (zeq (Int.signed 31 i0) 0) as R1.
+  destruct R1; try solve [inversion H0].
+  remember (Mem.bounds Mem0 b) as R2.  
+  destruct R2 as [lo hi].
+  eapply simulation__getOperandValue in H; eauto.
+  destruct H as [mptr0' [H1 H2]].
+  symmetry in HeqR0.
+  eapply simulation__GV2ptr in HeqR0; eauto.
+  destruct HeqR0 as [v' [J1 J2]].
+  inv J2.
+  destruct Hmsim as [Hmsim1 [Hsim2 Hsim3]].  
+  assert ({ Mem2':Mem.mem | Mem.free Mem2 b2 (lo+delta) (hi+delta) = ret Mem2'}) 
+    as J.
+    apply Mem.range_perm_free.
+    apply Mem.free_range_perm in H0.
+    clear - H0 Hmsim1 H4.
+    unfold Mem.range_perm in *.
+    intros ofs J.
+    assert (lo <= ofs - delta < hi) as J'.
+      auto with zarith.
+    apply H0 in J'.
+    eapply Mem.perm_inj in J'; eauto.
+    assert (ofs - delta + delta = ofs) as EQ. auto with zarith.
+    rewrite EQ in J'. auto.
+  destruct J as [Mem2' J].
+  exists lc2. exists Mem2'. exists mi.
+  split.
+  SCase "dbCmds".
+    assert (trace_nil = trace_app trace_nil trace_nil) as EQ. auto.
+    rewrite EQ.
+    eapply SimpleSE.dbCmds_cons; eauto.
+      apply SimpleSE.dbFree with (mptr:=mptr0'); auto.
+        unfold free.     
+        rewrite J1.
+        assert (delta = 0) as EQ'. 
+          admit. (* mi should not change delta. *)
+        subst.
+        destruct (zeq (Int.signed 31 (Int.add 31 i0 (Int.repr 31 0))) 0).
+          assert ((lo, hi) = Mem.bounds Mem2 b2) as EQ'.
+            admit. (* mi should not change bounds. *)
+          rewrite <- EQ'.   
+          assert (lo + 0 = lo) as EQ''. auto with zarith. 
+          rewrite EQ'' in J. clear EQ''.
+          assert (hi + 0 = hi) as EQ''. auto with zarith.
+          rewrite EQ'' in J. clear EQ''.
+          auto.
+
+          clear - e n.
+          admit. (* int *)
+  split.
+  SCase "wfmi".
+    clear - Hwfmi H0 J H4.
+    inversion_clear Hwfmi.
+    split; auto.
+      intros. erewrite Mem.nextblock_free in H; eauto.
+      intros. erewrite Mem.nextblock_free; eauto.
+
+  split. 
+  SCase "rsim".
+    destruct Hrsim as [Hrsim1 Hrsim2].
+    split; auto.
+    SSCase "rsim2".
+      clear - Hrsim2 J H4 H0.
+      intros vp bgv1 egv1 J1.
+      admit.
+
+  split; auto.
+  SCase "msim".
+    admit.
+
+Case "dbFree_error".
+  admit. 
 
 Case "dbAlloca".
   admit. 
@@ -4272,7 +4351,7 @@ Lemma trans_cmds__is__correct : forall cs TD lc1 rm1 als gl Mem1 MM1 lc1' als'
     optaddrb optaddre optaddrb' optaddre' mi, 
   wf_cmds cs ->
   wf_globals mgb gl ->
-  non_temporal_cmds cs ->
+  unsupported_cmds cs ->
   AtomSetImpl.inter (getCmdsIDs cs) (codom rm2) [<=] empty ->
   trans_cmds ex_ids tmps optaddrb optaddre rm2 cs = 
     Some (ex_ids', tmps', cs', optaddrb', optaddre') ->

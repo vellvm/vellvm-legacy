@@ -116,6 +116,16 @@ Definition set_mem_metadata TD MM (gv:GenericValue) (md:metadata)
   | _ => MM
   end.
 
+Definition blk_temporal_safe M b : Prop :=
+let (lo, _) := Mem.bounds M b in
+Mem.perm M b lo Nonempty.
+
+Definition temporal_safe (TD:TargetData) (M:mem) (ptr:mptr) : Prop :=
+match GV2ptr TD (getPointerSize TD) ptr with
+| Some (Vptr b _) => blk_temporal_safe M b
+| _ => False
+end.
+
 Inductive dbCmd : TargetData -> GVMap -> 
                   GVMap -> rmetadata ->list mblock -> mem -> mmetadata ->
                   cmd -> 
@@ -250,7 +260,7 @@ Inductive dbCmd : TargetData -> GVMap ->
   getOperandValue TD Mem vp lc gl = Some gvp ->
   GV2ptr TD (getPointerSize TD) gvp = Some (Vptr b ofs) ->
   typ2memory_chunk t = Some c ->
-  ~ (align_chunk c | (Int.signed 31 ofs)) ->
+  ~ ((align_chunk c | (Int.signed 31 ofs)) /\ blk_temporal_safe Mem b) ->
   dbCmd TD gl lc rm als Mem MM (insn_load id t vp align) lc rm als Mem MM 
     trace_nil rerror
 
@@ -306,7 +316,7 @@ Inductive dbCmd : TargetData -> GVMap ->
   GV2ptr TD (getPointerSize TD) gvp = Some (Vptr b ofs) ->
   typ2memory_chunk t = Some c ->
   GV2val TD gvp = Some v0 ->
-  ~ (align_chunk c | (Int.signed 31 ofs)) ->
+  ~ ((align_chunk c | (Int.signed 31 ofs)) /\ blk_temporal_safe Mem b) ->
   dbCmd TD gl lc rm als Mem MM (insn_store sid t v vp align) lc rm als Mem MM
     trace_nil rerror
 
@@ -316,8 +326,7 @@ Inductive dbCmd : TargetData -> GVMap ->
   getOperandValue TD Mem vp lc gl = Some gvp ->
   ~ assert_mptr TD t gvp md ->
   dbCmd TD gl lc rm als Mem MM (insn_store sid t v vp align) lc rm als Mem MM 
-    trace_nil
-    rabort
+    trace_nil rabort
 
 | dbGEP : forall TD rm lc gl id inbounds t vp idxs vidxs gvp' Mem MM als gvp md 
                  lc' rm',
