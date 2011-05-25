@@ -79,8 +79,8 @@ Record mem_ : Type := mkmem {
 
   maxaddress_pos: maxaddress >= 0;  
   conversion_props : 
-    (forall b ofs, mem_access b ofs <> None <-> exists z, ptr2int b ofs = Some z)
-      /\
+    (forall b ofs, (0 < b < nextblock /\ fst(bounds b) <= ofs < snd(bounds b))
+      <-> exists z, ptr2int b ofs = Some z) /\
     (forall b ofs z, ptr2int b ofs = Some z <-> int2ptr z = Some (b, ofs)) /\
     (forall b ofs1 ofs2 z1 z2, 
       ptr2int b ofs1 = Some z1 -> ptr2int b ofs2 = Some z2 -> 
@@ -368,7 +368,8 @@ Qed.
 Next Obligation.
   split.
     intros b z.
-    split; intro H; try solve [contradict H; auto].
+    split; intro H.
+      contradict H; auto with zarith.      
       destruct H as [z0 H]. inversion H.
   split.
     intros b ofs z.
@@ -417,6 +418,17 @@ Proof.
       auto with zarith.
 Qed.      
 
+Lemma update_int2ptr_spec1' : forall f b ma lo sz x,
+  ma + 1 <= x < ma + 1 + Z_of_nat sz -> 
+  update_int2ptr f b ma lo sz x = Some (b, lo + x - ma - 1).
+Proof.
+  intros.
+  assert (x = ma + 1 + (lo + x - ma - 1 - lo)) as EQ.
+    auto with zarith.
+  rewrite EQ at 1.
+  apply update_int2ptr_spec1; auto with zarith.
+Qed.      
+
 Lemma update_int2ptr_spec2 : forall f b ma lo sz ofs x,
   update_int2ptr f b ma lo sz x = Some (b, ofs) ->
   x = ma + 1 + (ofs - lo) \/ f x = Some (b, ofs).
@@ -457,7 +469,8 @@ Lemma int2ptr_some_is_false : forall int2ptr0
   (forall b, 0 < b < nextblock0 \/ bounds0 b = (0,0)) ->
   (forall b ofs, ofs < fst(bounds0 b) \/ ofs >= snd(bounds0 b) -> 
     mem_access0 b ofs = None) ->
-  (forall b ofs, mem_access0 b ofs <> None <-> 
+  (forall b ofs, 
+    0 < b < nextblock0 /\ fst (bounds0 b) <= ofs < snd (bounds0 b) <-> 
     exists z, ptr2int0 b ofs = Some z) ->
   (forall b ofs z, ptr2int0 b ofs = Some z <-> int2ptr0 z = Some (b, ofs)) ->
   False.
@@ -470,24 +483,35 @@ Proof.
     exists z. assumption.
   destruct (@cprop1 nextblock0 ofs) as [J3 J4].
   apply J4 in EXIST.
-  assert (bounds0 nextblock0 = (0,0)) as J.                
-    destruct (@nextblock_noaccess0 nextblock0) as [J | ]; auto.
-      contradict J; auto with zarith.                    
-  assert (mem_access0 nextblock0 ofs = None) as J5. 
-    apply bounds_noaccess0.
-    rewrite J. simpl.
-    destruct (@Z_lt_dec ofs 0) as [J5 | J5]; auto.
-  rewrite J5 in EXIST. contradict EXIST; auto.
+  destruct EXIST as [EXIST _].
+  contradict EXIST; auto with zarith.
 Qed.
+
+Lemma update_int2ptr_spec4' : forall f b ma lo sz x,
+  x < ma + 1 \/ x >= ma + 1 + Z_of_nat sz -> 
+  update_int2ptr f b ma lo sz x = f x.
+Proof.
+  induction sz; intros x H; simpl in *; auto.
+    unfold update.
+    destruct (zeq x (ma + 1 + Z_of_nat sz)); subst.
+      destruct H as [H | H].
+        contradict H; auto using O_le_Z_of_nat with zarith. 
+
+        rewrite Zpos_P_of_succ_nat in H.
+        contradict H; auto with zarith. 
+
+      rewrite Zpos_P_of_succ_nat in H.
+      apply IHsz.
+      destruct H as [H | H]; auto.
+      right. auto with zarith.
+Qed.      
 
 Lemma update_int2ptr_spec4 : forall f b ma lo sz z,
   z <= ma -> 
   update_int2ptr f b ma lo sz z = f z.
 Proof.
-  induction sz; intros z H; simpl in *; auto.
-    unfold update.  
-    destruct (zeq z (ma + 1 + Z_of_nat sz)); subst; auto.
-      contradict H; auto with zarith.
+  intros.
+  apply update_int2ptr_spec4'; auto with zarith.
 Qed.
 
 Lemma update_int2ptr_spec5 : forall f b ma lo sz z b' ofs,
@@ -559,13 +583,24 @@ Next Obligation.
   unfold update.
   split.
     intros b ofs.
-    destruct (zeq b nextblock0); subst; auto.
-      destruct (zle lo ofs && zlt ofs hi).
+    destruct (zeq b nextblock0); subst.
+      destruct (zle lo ofs); simpl.
+        destruct (zlt ofs hi); simpl.
+          split; intro H.
+            exists (maxaddress0 + 1 + (ofs - lo)). auto.
+            auto with zarith.
+          split; intro H.
+            destruct H as [_ [_ H]]. contradict H; auto.
+            destruct H as [z1 H]. inversion H.
         split; intro H.
-          exists (maxaddress0 + 1 + (ofs - lo)). auto.
-          intro J. inversion J.
-        split; intro H. contradict H; auto.
-          destruct H as [z H]. inversion H.
+          destruct H as [_ [H _]]. contradict H; auto.
+          destruct H as [z1 H]. inversion H.
+     split; intros H.
+       destruct H as [H1 H2].
+       apply cprop1. split; auto with zarith.
+
+       apply cprop1 in H. destruct H as [H1 H2]. 
+       split; auto with zarith.
   split.
     intros b ofs z.
     destruct (zeq b nextblock0); subst; auto.
@@ -705,8 +740,8 @@ Program Definition unchecked_free (m: mem) (b: block) (lo hi: Z): mem :=
         m.(bounds)
         m.(nextblock)
         m.(maxaddress)
-        (clear_ptr2int m.(ptr2int) b lo hi)
-        (clear_int2ptr m.(int2ptr) b lo hi)
+        m.(ptr2int)
+        m.(int2ptr)
          _ _ _ _ _ _.
 Next Obligation.
   apply nextblock_pos. 
@@ -735,158 +770,7 @@ Next Obligation.
   apply maxaddress_pos.
 Qed.
 Next Obligation.
-  destruct m. simpl in *.
-  destruct conversion_props0 as [cprop1 [cprop2 [cprop3 [cprop4 cprop5]]]].
-  unfold clear_ptr2int, clear_int2ptr, update.
-  split.
-    intros b0 ofs.
-    destruct (zeq b0 b); subst; auto.
-    destruct (zle lo ofs); simpl; auto.
-    destruct (zlt ofs hi); simpl; auto.
-      split; intro J.    
-        contradict J; auto.
-        destruct J as [x J]. inversion J.
-  split.
-    intros b0 ofs z.
-    remember (int2ptr0 z) as R.
-    destruct R.
-    destruct p.     
-    destruct (zeq b0 b); subst.
-      destruct (zeq b1 b); subst.
-        destruct (zle lo ofs); simpl.
-          destruct (zlt ofs hi); simpl.
-            destruct (zle lo z0); simpl.
-              destruct (zlt z0 hi); simpl.
-                split; intro J; inversion J.
-                split; intro J; inversion J; subst.
-                  contradict z2; auto.
-              split; intro J; inversion J; subst.
-                contradict z1; auto.
-            destruct (zle lo z0); simpl.
-              destruct (zlt z0 hi); simpl.
-                split; intro J; try solve [inversion J].
-                  destruct (@cprop2 b ofs z) as [J1 J2].
-                  apply J1 in J. rewrite J in HeqR. inversion HeqR; subst.
-                  contradict z2; auto.                  
-                split; intro J.
-                  destruct (@cprop2 b ofs z) as [J1 J2].
-                  apply J1 in J. rewrite J in HeqR. inversion HeqR; subst; auto.
-
-                  inversion J; subst.
-                  eapply cprop2; eauto.
-              split; intro J.
-                destruct (@cprop2 b ofs z) as [J1 J2].
-                apply J1 in J. rewrite J in HeqR. inversion HeqR; subst; auto.
-
-                inversion J; subst.
-                eapply cprop2; eauto.
-
-          destruct (zle lo z0); simpl.
-            destruct (zlt z0 hi); simpl.
-              split; intro J; try solve [inversion J].
-                destruct (@cprop2 b ofs z) as [J1 J2].
-                apply J1 in J. rewrite J in HeqR. inversion HeqR; subst.
-                contradict z2; auto.                  
-              split; intro J.
-                destruct (@cprop2 b ofs z) as [J1 J2].
-                apply J1 in J. rewrite J in HeqR. inversion HeqR; subst; auto.
-
-                inversion J; subst.
-                eapply cprop2; eauto.
-            split; intro J.
-              destruct (@cprop2 b ofs z) as [J1 J2].
-              apply J1 in J. rewrite J in HeqR. inversion HeqR; subst; auto.
-
-              inversion J; subst.
-              eapply cprop2; eauto.
-        destruct (zle lo ofs); simpl.
-          destruct (zlt ofs hi); simpl.
-            split; intro J; inversion J; subst.
-              contradict n; auto.
-
-            split; intro J.
-              destruct (@cprop2 b ofs z) as [J1 J2].
-              apply J1 in J. rewrite J in HeqR. inversion HeqR; subst; auto.
-
-              inversion J; subst.
-              eapply cprop2; eauto.
-          split; intro J.
-            destruct (@cprop2 b ofs z) as [J1 J2].
-            apply J1 in J. rewrite J in HeqR. inversion HeqR; subst; auto.
-
-            inversion J; subst.
-            eapply cprop2; eauto.
-
-      destruct (zeq b1 b); subst.
-        destruct (zle lo z0); simpl.
-          destruct (zlt z0 hi); simpl.
-            split; intro J; try solve [inversion J].
-              destruct (@cprop2 b0 ofs z) as [J1 J2].
-              apply J1 in J. rewrite J in HeqR. inversion HeqR; subst.
-              contradict n; auto.                  
-            split; intro J.
-              destruct (@cprop2 b0 ofs z) as [J1 J2].
-              apply J1 in J. rewrite J in HeqR. inversion HeqR; subst; auto.
-
-              inversion J; subst.
-              eapply cprop2; eauto.
-          split; intro J.
-            destruct (@cprop2 b0 ofs z) as [J1 J2].
-            apply J1 in J. rewrite J in HeqR. inversion HeqR; subst; auto.
-
-            inversion J; subst.
-            eapply cprop2; eauto.
-        split; intro J.
-          destruct (@cprop2 b0 ofs z) as [J1 J2].
-          apply J1 in J. rewrite J in HeqR. inversion HeqR; subst; auto.
-
-          inversion J; subst.
-          eapply cprop2; eauto.
-    destruct (zeq b0 b); subst.
-      destruct (zle lo ofs); simpl.
-        destruct (zlt ofs hi); simpl.
-          split; intro J; inversion J; subst.
-
-          split; intro J; try solve [inversion J].
-            destruct (@cprop2 b ofs z) as [J1 J2].
-            apply J1 in J. rewrite J in HeqR. inversion HeqR.
-
-        split; intro J; try solve [inversion J].
-          destruct (@cprop2 b ofs z) as [J1 J2].
-          apply J1 in J. rewrite J in HeqR. inversion HeqR.
-
-      split; intro J; try solve [inversion J].
-        destruct (@cprop2 b0 ofs z) as [J1 J2].
-        apply J1 in J. rewrite J in HeqR. inversion HeqR.
-
-  split.
-    intros b0 ofs1 ofs2 z1 z2 H1 H2.  
-    destruct (zeq b0 b); subst; eauto.
-      destruct (zle lo ofs1); simpl in H1; try solve [inversion H1].
-      destruct (zlt ofs1 hi); simpl in H1; try solve [inversion H1]; eauto.
-      destruct (zle lo ofs2); simpl in H2; try solve [inversion H2]; eauto.
-      destruct (zlt ofs2 hi); simpl in H2; try solve [inversion H2]; eauto. 
-
-      destruct (zle lo ofs2); simpl in H2; try solve [inversion H2]; eauto.
-      destruct (zlt ofs2 hi); simpl in H2; try solve [inversion H2]; eauto. 
-
-  split.
-    intros b1 b2 ofs1 ofs2 z1 z2 H1 H2 H3.
-    destruct (zeq b1 b); subst.
-      destruct (zeq b2 b); subst.
-        contradict H1; auto.
-
-        destruct (zle lo ofs1); simpl in H2; try solve [inversion H2]; eauto.
-        destruct (zlt ofs1 hi); simpl in H2; try solve [inversion H2]; eauto.
-
-      destruct (zeq b2 b); subst; eauto.
-        destruct (zle lo ofs2); simpl in H3; try solve [inversion H3]; eauto.
-        destruct (zlt ofs2 hi); simpl in H3; try solve [inversion H3]; eauto. 
-
-    intros b0 ofs z H.
-    destruct (zeq b0 b); subst; eauto.
-      destruct (zle lo ofs); simpl in H; try solve [inversion H]; eauto.
-      destruct (zlt ofs hi); simpl in H; try solve [inversion H]; eauto.
+  destruct m. simpl in *. auto.
 Qed.
 
 Definition free (m: mem) (b: block) (lo hi: Z): option mem :=
@@ -1108,22 +992,6 @@ Next Obligation.
   destruct m; simpl in *.
   destruct conversion_props0 as [cprop1 [cprop2 [cprop3 [cprop4 cprop5]]]].
   unfold update, range_perm, perm, perm_order', mem_access in *.
-
-  split.
-    intros b0 ofs.
-    destruct (zeq b0 b); subst; auto.
-      destruct (zle lo ofs); simpl; auto.
-        destruct (zlt ofs hi); simpl; auto.
-          split; intro J.
-            apply cprop1.
-            assert (lo <= ofs < hi) as J'.
-              auto with zarith.
-            assert (J'':=@H ofs J').
-            destruct (mem_access0 b ofs); 
-              try solve [inversion J'' | intro J0; inversion J0].
-            
-            intro J0. inversion J0.
-
   split; auto.
 Qed.
 
@@ -1649,6 +1517,22 @@ Proof.
   contradiction.
 Qed.
 
+Lemma int2ptr_store : forall z, int2ptr m1 z = int2ptr m2 z. 
+Proof.
+  intro z.
+  unfold store in STORE. 
+  destruct ( valid_access_dec m1 chunk b ofs Writable); inv STORE.
+  auto.
+Qed.
+
+Lemma ptr2int_store : forall b1 ofs1, ptr2int m1 b1 ofs1 = ptr2int m2 b1 ofs1.
+Proof.
+  intro z.
+  unfold store in STORE. 
+  destruct ( valid_access_dec m1 chunk b ofs Writable); inv STORE.
+  auto.
+Qed.
+
 End STORE.
 
 Hint Local Resolve perm_store_1 perm_store_2: mem.
@@ -2151,6 +2035,52 @@ Proof.
   eapply load_alloc_same; eauto.
 Qed.
 
+Lemma int2ptr_alloc_1 : forall z b1 ofs1,
+  int2ptr m1 z = Some (b1, ofs1) -> int2ptr m2 z = Some (b1, ofs1). 
+Proof.
+  intros.
+  injection ALLOC; intros; subst; simpl.
+  rewrite <- H.
+  apply update_int2ptr_spec4.
+  destruct (conversion_props m1) as [cprop1 [cprop2 [cprop3 [cprop4 cprop5]]]].
+  apply cprop2 in H.
+  apply cprop5 in H; auto with zarith.
+Qed.
+
+Lemma int2ptr_alloc_2 : forall z b1 ofs1,
+  int2ptr m1 z = None -> int2ptr m2 z = Some (b1, ofs1) -> b = b1.
+Proof.
+  intros.
+  injection ALLOC; intros; subst; simpl in *.
+  destruct (eq_block (nextblock m1) b1); auto.
+    apply update_int2ptr_spec5 in H0; auto.
+    rewrite H in H0. inversion H0.
+Qed.
+
+Lemma int2ptr_alloc_3 : forall z,
+  int2ptr m2 z = None -> int2ptr m1 z = None. 
+Proof.
+  intros.
+  remember (int2ptr m1 z) as R.
+  destruct R as [[b1 ofs1]|]; auto.
+  symmetry in HeqR.
+  apply int2ptr_alloc_1 in HeqR.
+  rewrite H in HeqR. inversion HeqR.
+Qed.
+
+Lemma ptr2int_alloc : forall b0 ofs0,
+  b0 < Mem.nextblock m1 -> ptr2int m1 b0 ofs0 = ptr2int m2 b0 ofs0.
+Proof.
+  intros b0 ofs0 Hless.
+  unfold alloc in ALLOC.
+  inv ALLOC.
+  destruct m1.
+  simpl in *.
+  unfold update.
+  destruct (zeq b0 nextblock0); subst; auto.
+    contradict Hless; auto with zarith.
+Qed.
+
 End ALLOC.
 
 Hint Local Resolve valid_block_alloc fresh_block_alloc valid_new_block: mem.
@@ -2330,6 +2260,16 @@ Proof.
   apply valid_access_free_inv_1; auto. 
   rewrite pred_dec_false; auto.
   red; intro; elim n. eapply valid_access_free_1; eauto. 
+Qed.
+
+Lemma int2ptr_free : forall z, int2ptr m1 z = int2ptr m2 z. 
+Proof.
+  intros. rewrite free_result. reflexivity.
+Qed.
+
+Lemma ptr2int_free : forall b1 ofs1, ptr2int m1 b1 ofs1 = ptr2int m2 b1 ofs1.
+Proof.
+  intros. rewrite free_result. reflexivity.
 Qed.
 
 End FREE.

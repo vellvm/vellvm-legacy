@@ -1566,9 +1566,6 @@ Proof.
   case (Int.eq wz i (zero wz)); reflexivity.
 Qed.
 
-Lemma sym_refl__eq__refl : forall A (x:A) (e:x=x), Logic.eq_sym e = eq_refl.
-Admitted.
-
 Theorem add_commut: forall x y, add x y = add y x.
 Proof.
   destruct x; destruct y; simpl_auto_equations;

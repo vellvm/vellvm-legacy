@@ -27,6 +27,9 @@ Require Import Znumtheory.
 
 Import SoftBound.
 
+Ltac zauto := auto with zarith.
+Ltac zeauto := eauto with zarith.
+
 Definition wf_data (TD:TargetData) (M:mem) (gvb gve:GenericValue) : Prop :=
   match (GV2ptr TD (getPointerSize TD) gvb,
          GV2ptr TD (getPointerSize TD) gve) with
@@ -230,7 +233,7 @@ Proof.
   destruct (zeq bb bb); auto.
   split; auto.
     intros Hwfb ofs J.
-    contradict J; auto with zarith.
+    contradict J; zauto.
 Qed.
 
 Lemma nullptr_lt_nextblock : forall Mem0,
@@ -239,7 +242,7 @@ Proof.
   intros.
   assert (J:=@Mem.nextblock_pos Mem0).
   unfold Mem.nullptr.
-  auto with zarith.
+  zauto.
 Qed.
 
 Lemma null_is_wf_data : forall TD Mem,
@@ -366,7 +369,7 @@ Proof.
   destruct J' as [J1' J2'].
   split.
     apply Mem.nextblock_alloc in H4.
-    rewrite H4. auto with zarith.
+    rewrite H4. zauto.
 
     intro Hwfb.
     assert (Halloc := H4).
@@ -374,7 +377,7 @@ Proof.
     destruct (Values.eq_block b0 mb); subst.
       apply Mem.alloc_result in Halloc.    
       rewrite <- Halloc in J1'.
-      contradict J1'; auto with zarith.
+      contradict J1'; zauto.
       
       apply J2' in H4.
       eauto using range_perm_alloc_other.
@@ -433,7 +436,7 @@ Proof.
         assert (H4':=H4).
         apply Mem.alloc_result in H4.
         apply Mem.nextblock_alloc in H4'.
-        rewrite H4. rewrite H4'. auto with zarith.
+        rewrite H4. rewrite H4'. zauto.
 
         intros Hwfb ofs J1. 
 (*
@@ -446,12 +449,32 @@ Proof.
           unfold Mem.range_perm in J2.
           apply Mem.perm_implies with (p1:=Freeable); auto with mem.
           apply J2.
-          simpl. unfold bytesize_chunk. admit. (*zarith*)
+          simpl. clear.
+          assert (J:=@bytesize_chunk_pos 7).
+          zauto.
 
-          admit. (*zarith*)
-          simpl. unfold bytesize_chunk. admit. (*zarith*)
-          simpl. unfold bytesize_chunk. admit. (*zarith*)
-      
+          rewrite Int.signed_repr in J1; zauto. clear.
+          assert (J1:=@Int.min_signed_neg 31).          
+          assert (J2:=@Int.max_signed_pos 31).          
+          zauto.
+
+          simpl. rewrite bytesize_chunk_7_eq_1. 
+          destruct J1 as [_ J1].
+          unfold Int.signed in J1.
+          unfold Int.unsigned in J1.
+          simpl in J1.
+          clear - J1.
+          assert (J:=@Int.modulus_pos 31).
+          assert ((Size.to_Z tsz * n) mod Int.modulus 31 <= (Size.to_Z tsz * n)) 
+            as LE.
+            apply Zmod_le.
+              zauto.
+              admit. (* tsz * n >= 0 *)
+          destruct (zlt ((Size.to_Z tsz * n) mod Int.modulus 31) 
+            (Int.half_modulus 31)); zeauto.
+
+          simpl. rewrite bytesize_chunk_7_eq_1. zauto.
+
     SSCase "id0<>i0".
       rewrite <- lookupAL_updateAddAL_neq in J; auto.
       assert (J':=@Hwfr i0 gvb gve J). clear Hwfr.    
@@ -499,7 +522,7 @@ Proof.
         rewrite <- HeqR in Hwfb.
         destruct (Z_lt_dec z z0).
           apply Mem.perm_free_2 with (ofs:=z)(p:=Nonempty) in H0; 
-            eauto with zarith.
+            zeauto.
           contradict Hwfb; auto.
 
           rewrite <- HeqR in J2.   
@@ -511,7 +534,7 @@ Proof.
             clear - n.
             destruct (Z_lt_dec ofs z); auto.
             destruct (Z_le_dec z0 ofs); auto.
-            assert (False) as H. eauto with zarith. 
+            assert (False) as H. zeauto. 
             inversion H.
 
        destruct (Mem.bounds Mem0 b1).
@@ -520,7 +543,7 @@ Proof.
        unfold Mem.range_perm in *.
        intros ofs J. apply Hwfb in J.
         apply Mem.perm_free_1 with (b:=b1)(ofs:=ofs)(p:=Writable) in H0;
-          eauto with zarith.
+          zeauto.
 Qed.     
 
 Lemma dbCmd_preservation : forall TD lc rm als gl Mem MM c lc' rm' als' Mem' MM' 
@@ -669,7 +692,7 @@ Case "dbInttoptr".
         apply nullptr_lt_nextblock.
 
         intros Htmp ofs J.
-        contradict J; auto with zarith.
+        contradict J; zauto.
 
       rewrite <- lookupAL_updateAddAL_neq in J; auto.
       apply Hwfr in J; auto.
@@ -922,16 +945,54 @@ Lemma typ2memory_chunk__le__getTypeAllocSize : forall t c s TD,
   size_chunk c <= Size.to_Z s.
 Proof.
   intros t c s TD H1 H2.
-  destruct t; inv H1;
-    unfold getTypeAllocSize, getTypeStoreSize, getTypeSizeInBits, 
-           getTypeSizeInBits_and_Alignment in H2;
-    destruct TD; inv H2;
-    simpl; unfold bytesize_chunk, RoundUpAlignment, Size.to_Z.
-    admit. (* zarith *)
-
-    destruct f; inv H0; inv H1; simpl.
-      admit. (* zarith *) 
+  unfold getTypeAllocSize, getTypeStoreSize, getTypeSizeInBits, 
+         getTypeSizeInBits_and_Alignment in H2.
+  destruct TD.
+  destruct t; inv H1; inv H2;
+    simpl; unfold bytesize_chunk, Size.to_nat, RoundUpAlignment, Size.to_Z, ndiv.
+    assert (Z_of_nat (s0 + 7) / Z_of_nat 8 >= 0) as J.
+      assert (J1:=@Z_of_S_gt_O (s0 + 6)).
+      assert (S (s0 + 6) = (s0 + 7)%nat) as EQ. auto.
+      rewrite EQ in J1.        
+      assert (J2:=@O_lt_Z_of_S 7).
+      assert (0 <= Z_of_nat (s0 + 7) / Z_of_nat 8) as J3.
+        apply Z_div_pos; auto with zarith.
+       zauto.
+    assert (two_power_nat (getIntAlignmentInfo l0 s0 true) >= 0 ) as J2.
       admit. (* zarith *)
+    rewrite nat_of_Z_eq.
+      rewrite nat_of_Z_eq; auto.
+        admit. (* zarith *)
+      rewrite nat_of_Z_eq; auto.
+        admit. (* zarith *)
+
+    destruct f; inv H0; inv H1; simpl; unfold RoundUpAlignment, ndiv.
+      assert (Z_of_nat 39 / Z_of_nat 8 = 4) as EQ.
+        simpl. admit. (* zarith *) 
+      rewrite EQ.
+      rewrite nat_of_Z_eq.
+        rewrite nat_of_Z_eq.
+(*
+Z_mod_lt
+Z_div_plus_full
+Z_div_mod_eq_full
+*)
+          admit. (* zarith *) 
+          zauto. (* zarith *) 
+        rewrite nat_of_Z_eq.
+          admit. (* zarith *) 
+          zauto. (* zarith *) 
+
+      assert (Z_of_nat 71 / Z_of_nat 8 = 8) as EQ.
+        simpl. admit. (* zarith *) 
+      rewrite EQ.
+      rewrite nat_of_Z_eq.
+        rewrite nat_of_Z_eq.
+          admit. (* zarith *) 
+          zauto. (* zarith *) 
+        rewrite nat_of_Z_eq.
+          admit. (* zarith *) 
+          zauto. (* zarith *) 
 
     admit. (* assume getPointerSizeInBits = 32 *)
 Qed.
@@ -977,7 +1038,7 @@ Proof.
       simpl in J2; inversion J2.
     destruct (zle (Int.signed 31 ofs + Size.to_Z s) (Int.signed 31 i1)); 
       simpl in J3; inversion J3.
-    eauto with zarith.
+    zeauto.
 Qed.
 
 Lemma blk_temporal_safe_dec : forall M b,
