@@ -3929,6 +3929,14 @@ Hint Resolve
   Mem.valid_access_free_2
   Mem.valid_access_free_inv_1
   Mem.valid_access_free_inv_2
+  Mem.int2ptr_store
+  Mem.ptr2int_store
+  Mem.int2ptr_alloc_1
+  Mem.int2ptr_alloc_2
+  Mem.int2ptr_alloc_3
+  Mem.ptr2int_alloc
+  Mem.int2ptr_free
+  Mem.ptr2int_free
 : mem.
 
 (*****************************)
