@@ -20,7 +20,7 @@ Require Import sb_def.
 Require Import symexe_def.
 Require Import sb_tactic.
 Require Import sub_tv.
-Require Import sb_pp.
+Require Import sb_db_pp.
 
 Module SBpass.
 

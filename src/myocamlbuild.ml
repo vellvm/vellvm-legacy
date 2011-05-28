@@ -18,7 +18,7 @@ ocaml_lib ~extern:true "eq_tv";;
 (* adding str before sub_tv is important, because sub_tv needs str, and
  * ocamlbuild links libs in term of the order in the file. *)
 ocaml_lib ~extern:true "sub_tv";;
-ocaml_lib ~extern:true "sb_trans";;
+ocaml_lib ~extern:true "sb_db_trans";;
 
 flag ["link"; "ocaml"; "g++"] (S[A"-cc"; A"g++"]);;
 dep ["link"; "ocaml"; "use_bindings"] ;;

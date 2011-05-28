@@ -4,7 +4,7 @@ Add LoadPath "../ssa".
 Add LoadPath "../ssa/compcert".
 Add LoadPath "../../../theory/metatheory_8.3".
 Add LoadPath "../TV".
-Require Import sb_trans.
+Require Import sb_db_trans.
 Require Import ssa_def.
 Require Import ssa_lib.
 Require Import trace.
@@ -21,7 +21,7 @@ Require Import sb_def.
 Require Import symexe_def.
 Require Import sb_tactic.
 Require Import sub_tv.
-Require Import sb_pp.
+Require Import sb_db_pp.
 Require Import symexe_tactic.
 Require Import ssa_dynamic.
 Require Import symexe_lib.
