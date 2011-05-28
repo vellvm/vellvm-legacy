@@ -296,10 +296,10 @@ Proof.
     apply Hwfr in J; auto.
 
     remember (get_const_metadata c) as R.
-    destruct R; try solve [inversion J; subst; auto using null_is_wf_data].
-    destruct p.
-    remember (const2GV TD Mem0 gl c0) as R0.
-    remember (const2GV TD Mem0 gl c1) as R1.
+    destruct R as [[bc ec] |]; 
+      try solve [inversion J; subst; auto using null_is_wf_data].
+    remember (const2GV TD Mem0 gl bc) as R0.
+    remember (const2GV TD Mem0 gl ec) as R1.
     destruct R0; try solve [inversion J]. 
     simpl in J.
     destruct R1; try solve [inversion J]. 

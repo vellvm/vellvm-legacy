@@ -12,3 +12,5 @@ tvcases/milli/funcret2
 tvcases/milli/bug1
 tvcases/milli/bug2
 tvcases/milli/funcret3
+tvcases/milli/cint2ptr
+tvcases/milli/mallocsz

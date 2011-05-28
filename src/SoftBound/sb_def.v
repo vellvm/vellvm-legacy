@@ -571,6 +571,7 @@ Inductive dbCall : system -> TargetData -> list product -> GVMap ->
   dbFdef fv rt lp S TD Ps lc rm gl fs Mem MM lc' rm' als' Mem' MM' B' Rid oResult
     tr rok ->
   free_allocas TD Mem' als' = None ->
+  SimpleSE.isCall (insn_call rid noret tailc rt fv lp) = true ->
   dbCall S TD Ps fs gl lc rm Mem MM (insn_call rid noret tailc rt fv lp) lc rm 
     Mem' MM' tr rerror
 
@@ -579,6 +580,7 @@ Inductive dbCall : system -> TargetData -> list product -> GVMap ->
   dbFdef fv rt lp S TD Ps lc rm gl fs Mem MM lc' rm' als' Mem' MM' B' Rid oResult
     tr r ->
   is_error r ->
+  SimpleSE.isCall (insn_call rid noret tailc rt fv lp) = true ->
   dbCall S TD Ps fs gl lc rm Mem MM (insn_call rid noret tailc rt fv lp) lc' rm' 
     Mem' MM' tr r
 
@@ -589,12 +591,14 @@ Inductive dbCall : system -> TargetData -> list product -> GVMap ->
   LLVMopsem.callExternalFunction Mem fid (params2GVs TD Mem lp lc gl) = 
     (oresult, Mem') ->
   LLVMopsem.exCallUpdateLocals noret rid oresult lc = None ->
+  SimpleSE.isCall (insn_call rid noret tailc rt fv lp) = true ->
   dbCall S TD Ps fs gl lc rm Mem MM (insn_call rid noret tailc rt fv lp) lc rm 
     Mem' MM trace_nil rerror
 
 | dbCall_external_error2 : forall S TD Ps lc gl fs rid noret tailc fv lp rt Mem 
                            MM rm,
   LLVMopsem.lookupExFdecViaGV TD Mem Ps gl lc fs fv = None ->
+  SimpleSE.isCall (insn_call rid noret tailc rt fv lp) = true ->
   dbCall S TD Ps fs gl lc rm Mem MM (insn_call rid noret tailc rt fv lp) lc rm 
     Mem MM trace_nil rerror
 
