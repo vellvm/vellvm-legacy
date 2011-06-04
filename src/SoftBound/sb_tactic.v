@@ -26,6 +26,9 @@ Ltac SSSSSCase name := Case_aux subsubsubsubsubcase name.
 Ltac SSSSSSCase name := Case_aux subsubsubsubsubsubcase name.
 Ltac SSSSSSSCase name := Case_aux subsubsubsubsubsubsubcase name.
 
+Ltac zauto := auto with zarith.
+Ltac zeauto := eauto with zarith.
+
 (*****************************)
 (*
 *** Local Variables: ***

@@ -94,7 +94,7 @@ Proof.
   destruct oResult; try solve [inversion H; subst; auto].
   destruct (getOperandValue TD Mem'' v lc' gl); 
     try solve [inversion H; subst; auto].
-  destruct (SoftBound.get_reg_metadata TD Mem'' gl rm' v); 
+  destruct (SoftBound.get_reg_metadata TD Mem'' gl rm' v) as [[md' ?]|]; 
     try solve [inversion H; subst; auto].
 Qed.
 

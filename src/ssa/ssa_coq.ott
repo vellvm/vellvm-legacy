@@ -142,14 +142,14 @@ match idxs with
 end.
 
 Definition getConstGEPTyp (idxs : list_const) (t : typ) : option typ :=
-match idxs with
-| Nil_list_const => None
-| Cons_list_const idx idxs' =>
+match (idxs, t) with
+| (Cons_list_const idx idxs', typ_pointer t0)  =>
      (* The input t is already an element of a pointer typ *)
-     match (getSubTypFromConstIdxs idxs' t) with
+     match (getSubTypFromConstIdxs idxs' t0) with
      | Some t' => Some (typ_pointer t')
      | _ => None
      end
+| _ => None
 end.
 
 Fixpoint getSubTypFromValueIdxs (idxs : list_value) (t : typ) : option typ :=
@@ -3082,7 +3082,7 @@ Fixpoint getTyp (c:const) : option typ :=
  | const_castop _ _ t => Some t
  | const_gep _ c idxs => 
    match (getTyp c) with
-   | Some (typ_pointer t) => getConstGEPTyp idxs t
+   | Some t => getConstGEPTyp idxs t
    | _ => None
    end
  | const_select c0 c1 c2 => getTyp c1

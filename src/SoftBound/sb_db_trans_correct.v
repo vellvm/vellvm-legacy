@@ -25,6 +25,7 @@ Require Import sb_db_pp.
 Require Import symexe_tactic.
 Require Import ssa_dynamic.
 Require Import symexe_lib.
+Require Import sb_metadata.
 
 Import SBpass.
 
@@ -67,7 +68,7 @@ Proof.
       rewrite <- lookupAL_updateAddAL_neq in J; auto.
       rewrite <- lookupAL_updateAddAL_neq; auto.
 
-    intros vp bgv1 egv1 J.
+    intros vp bgv1 egv1 mt J.
     apply J2 in J. 
     destruct J as [t2 [bv2 [ev2 [bgv2 [egv2 [J11 [J12 [J13 [J14 J15]]]]]]]]].
     exists t2. exists bv2. exists ev2. exists bgv2. exists egv2.
@@ -89,9 +90,9 @@ Proof.
         rewrite J in J11. inversion J11.
 
       case_eq (SoftBound.get_const_metadata c).
-        intros [bid eid] J.
+        intros [[bid eid] mt'] J.
         rewrite J in J11.
-        destruct (Constant.getTyp c); inv J11.
+        inv J11.
         simpl in *.
         repeat (split; auto).
 
@@ -412,7 +413,7 @@ Case "cast".
   destruct t0; inv H6.       
   remember (_const2GV TD Mem1 gl c) as R1.
   destruct R1 as [[gv1 t1]|]; inv H5.
-  remember (getConstGEPTyp l0 t0) as R2.
+  remember (getConstGEPTyp l0 (typ_pointer t0)) as R2.
   destruct R2; inv H6.
   remember (GV2ptr TD (getPointerSize TD) gv1) as R3.
   destruct R3; inv H5.
@@ -862,7 +863,7 @@ Proof.
       remember (_const2GV TD Mem gl c) as R.
       destruct R; inv H1.
       destruct p.
-      destruct (getConstGEPTyp l0 t0); inv H0.
+      destruct (getConstGEPTyp l0 (typ_pointer t0)); inv H0.
       remember (GV2ptr TD (getPointerSize TD) g0) as R'.
       destruct R'; inv H1.
       destruct (intConsts2Nats TD l0); inv H0.
@@ -1697,18 +1698,15 @@ Proof.
         unfold SoftBound.bound2GV, GEP, blk2GV, GV2ptr, ptr2GV, val2GV.
         simpl.
         rewrite <- H42. rewrite H2.
-        unfold mgetoffset. destruct TD.
-        unfold typ2utyp. simpl.
-        assert (exists ut, typ2utyp_aux (gen_utyp_maps (rev n0)) t = Some ut)
-          as H5.       
-          admit. (* wft *)
-        destruct H5 as [ut H5]. 
-        rewrite H5. simpl.
-        assert (getTypeAllocSize (l0, n0) t = 
-          getTypeAllocSize (l0, n0) (utyp2typ ut)) as H6.
-          admit. (* ?! *)
-        rewrite <- H6.
-        rewrite H. simpl.
+        unfold mgetoffset, typ2utyp. destruct TD.
+        assert (exists ut, 
+          typ2utyp_aux (gen_utyp_maps (rev n0)) (typ_array 0%nat t) = Some 
+            (typ_array 0%nat ut) /\
+          getTypeAllocSize (l0, n0) ut = getTypeAllocSize (l0, n0) t) as EQ1.
+          admit.
+        destruct EQ1 as [ut [EQ1 EQ2]].
+        rewrite EQ1. simpl.
+        rewrite EQ2. rewrite H. simpl.
         rewrite Int.add_commut.
         rewrite Int.add_zero. auto.
 
@@ -1770,7 +1768,7 @@ Proof.
           eapply gv_inject_incr; eauto.
 
     SSCase "rsim2".
-      intros vp bgv1 egv1 J.
+      intros vp bgv1 egv1 mt J.
       unfold SoftBound.get_reg_metadata in J.
       destruct vp as [pid | ]; simpl.
       SSSCase "vp = pid".
@@ -1810,7 +1808,7 @@ Proof.
         SSSSCase "id0 <> pid".
           rewrite <- lookupAL_updateAddAL_neq in J; auto.
           destruct Hrsim as [_ Hrsim].
-          destruct (@Hrsim (value_id pid) bgv1 egv1) as 
+          destruct (@Hrsim (value_id pid) bgv1 egv1 mt) as 
             [t2 [bv2 [ev2 [bgv2 [egv2 [J1 [J2 [J3 [J4 J5]]]]]]]]]; auto.
           exists t2. exists bv2. exists ev2. exists bgv2. exists egv2.
           simpl in J1.
@@ -1846,8 +1844,7 @@ Proof.
         destruct J' as [t0 J'].
         rewrite J'.
         remember (SoftBound.get_const_metadata c) as R.
-        destruct R.
-          destruct p.
+        destruct R as [[[c0 c2] mt']|].
           remember (const2GV TD Mem' gl c0) as R1.
           destruct R1; try solve [inversion J]. simpl in J.
           remember (const2GV TD Mem' gl c2) as R2.
@@ -1862,6 +1859,7 @@ Proof.
           destruct HeqR0 as [bgv2 [HeqR0 HeqR0']].         
           exists bgv2. exists egv2. 
           split; auto.
+            clear - J' HeqR. admit.
 
           inv J.
           exists t0. exists (value_const (const_null t0)).
@@ -1932,9 +1930,8 @@ Proof.
   destruct Hnotin as [_ [_ [Hnotin _ ]]].
   eapply tmp_is_fresh' with (tmp:=ptmp) in HeqR; eauto. fsetdec.
   
-  destruct (SoftBound.get_const_metadata c0).
-    destruct p.
-    destruct (Constant.getTyp c0); inv J1; simpl; auto.
+  destruct (SoftBound.get_const_metadata c0) as [[[bc ec] mt]|].
+    inv J1; simpl; auto.
     destruct (Constant.getTyp c0); inv J1; simpl; auto.
 Qed.            
 
@@ -1994,9 +1991,9 @@ Proof.
     unfold getCmdIDs in Hnotin. simpl in Hnotin.
     clear - Hnotin J2 J1. fsetdec.
   
-    destruct (SoftBound.get_const_metadata c) as [[be ec]|]; inv J11.
-    destruct (Constant.getTyp c); inv H0. simpl; auto.
-    destruct (Constant.getTyp c); inv H0. simpl; auto.
+    destruct (SoftBound.get_const_metadata c) as [[[be ec] m1]|].
+      inv J11; simpl; auto.
+      destruct (Constant.getTyp c); inv J11; simpl; auto.
 Qed.
 
 Lemma trans_nbranch__is__correct__dbLoad_nptr : forall
@@ -2038,7 +2035,8 @@ Lemma trans_nbranch__is__correct__dbLoad_nptr : forall
   (gvp : GenericValue)
   (md : SoftBound.metadata)
   (gv : GenericValue)
-  (H : SoftBound.get_reg_metadata TD Mem0 gl rm vp = Some md)
+  mt0
+  (H : SoftBound.get_reg_metadata TD Mem0 gl rm vp = Some (md,mt0))
   (H0 : getOperandValue TD Mem0 vp lc gl = ret gvp)
   (H1 : SoftBound.assert_mptr TD t gvp md)
   (H2 : mload TD Mem0 gvp t align0 = ret gv)
@@ -2202,7 +2200,7 @@ Proof.
           admit. (* i0 <> bid eid tmp *)
 
       SSSCase "rsim2".
-      intros vp0 bgv1 egv1 J6.
+      intros vp0 bgv1 egv1 mt1 J6.
       apply Hrsim2 in J6.
       destruct J6 as [t0 [bv0 [ev0 [bgv0 [egv0 [J11 [J21 [J31 [J41 J51]]]]]]]]].
       exists t0. exists bv0. exists ev0. exists bgv0. exists egv0.
@@ -2337,7 +2335,8 @@ Lemma trans_nbranch__is__correct__dbLoad_ptr: forall
   (rm' : SoftBound.rmetadata)
   (Hwfv : wf_value vp)
   (Hwfg : wf_globals mgb gl)
-  (H : SoftBound.get_reg_metadata TD Mem0 gl rm vp = ret md)
+  mt0
+  (H : SoftBound.get_reg_metadata TD Mem0 gl rm vp = ret (md,mt0))
   (H0 : getOperandValue TD Mem0 vp lc gl = ret gvp)
   (H1 : SoftBound.assert_mptr TD t gvp md)
   (H2 : mload TD Mem0 gvp t align0 = ret gv)
@@ -2353,14 +2352,15 @@ Lemma trans_nbranch__is__correct__dbLoad_ptr: forall
             :: insn_cast btmp castop_bitcast mt bv p8
                :: insn_cast etmp castop_bitcast mt ev p8
                   :: insn_call fake_id true false typ_void assert_mptr_fn
-                       ((p8, value_id ptmp)
-                        :: (p8, value_id btmp)
-                           :: (p8, value_id etmp)
+                       ((p8, value_id btmp)
+                        :: (p8, value_id etmp)
+                           :: (p8, value_id ptmp)
                               :: (i32, type_size t) :: (i32, vint1) :: nil)
                      :: insn_load id0 t vp align0
                         :: insn_call fake_id true false typ_void
                              get_mmetadata_fn
                              ((p8, value_id ptmp)
+
                               :: (pp8, value_id addrb)
                                  :: (pp8, value_id addre)
                                     :: (p8, vnullp8)
@@ -2529,7 +2529,7 @@ Proof.
     SSCase "rsim2".
       clear Hrsim1 Hmsim1 Hmsim2 J1 J2 J3 J4 J5.
       inv H5.
-      intros vp0 bgv1 egv1 J6.
+      intros vp0 bgv1 egv1 mt1 J6.
       destruct vp0 as [pid | ]; simpl in *.
       SSSCase "vp = pid".
         destruct (id_dec id0 pid); subst.
@@ -2560,7 +2560,7 @@ Proof.
 
         SSSSCase "id0 <> pid".
           rewrite <- lookupAL_updateAddAL_neq in J6; auto.
-          destruct (@Hrsim2 (value_id pid) bgv1 egv1) as 
+          destruct (@Hrsim2 (value_id pid) bgv1 egv1 mt1) as 
             [t0 [bv0 [ev0 [bgv0 [egv0 [J1 [J2 [J3 [J4 J5]]]]]]]]]; auto.
           exists t0. exists bv0. exists ev0. exists bgv0. exists egv0.
           simpl in J1.
@@ -2614,8 +2614,7 @@ Proof.
         destruct J' as [t0 J'].
         rewrite J'.
         remember (SoftBound.get_const_metadata c) as R.
-        destruct R.
-          destruct p.
+        destruct R as [[[c0 c2] ct]|].
           remember (const2GV TD Mem0 gl c0) as R1.
           destruct R1; try solve [inversion J6]. simpl in J6.
           remember (const2GV TD Mem0 gl c2) as R2.
@@ -2631,6 +2630,7 @@ Proof.
           destruct HeqR10 as [bgv0 [HeqR10 HeqR10']].         
           exists bgv0. exists egv0. 
           split; auto.
+            clear - J' HeqR9. admit.
 
           inv J6.
           exists t0. exists (value_const (const_null t0)).
@@ -2811,12 +2811,13 @@ Proof.
     destruct p. simpl in HeqR3. destruct (split gvp2). inversion HeqR3.
 Qed.
 
-Lemma get_const_metadata__wfc : forall c bc ec,
-  SoftBound.get_const_metadata c = Some (bc, ec) ->
+Lemma get_const_metadata__wfc : forall c bc ec mt,
+  SoftBound.get_const_metadata c = Some ((bc, ec), mt) ->
   wf_const bc /\ wf_const ec.
 Proof.
-  induction c; intros bc ec J; simpl in J; try solve [inversion J | auto].
+  induction c; intros bc ec mt J; simpl in J; try solve [inversion J | auto].
     destruct t; inv J; simpl; auto.
+      eapply IHc; eauto.
 Qed.
 
 Lemma mstore__get_reg_metadata : forall TD Mem0 gvp t gv align0 Mem' gl rm vp0,
@@ -2827,10 +2828,9 @@ Proof.
   intros TD Mem0 gvp t gv align0 Mem' gl rm vp0 Hmstore.
   unfold SoftBound.get_reg_metadata.
   destruct vp0; auto.
-  destruct (SoftBound.get_const_metadata c); auto.  
-  destruct p.
-  erewrite const2GV__mstore; eauto.
-  erewrite const2GV__mstore with (Mem:=Mem0); eauto.
+  destruct (SoftBound.get_const_metadata c) as [[[bc ec] t0]|]; auto.  
+    erewrite const2GV__mstore; eauto.
+    erewrite const2GV__mstore with (Mem:=Mem0); eauto.
 Qed.
 
 Lemma trans_nbranch__is__correct__dbStore_nptr: forall
@@ -2874,7 +2874,8 @@ Lemma trans_nbranch__is__correct__dbStore_nptr: forall
   (gvp : GenericValue)
   (md : SoftBound.metadata)
   (Mem' : mem)
-  (H : SoftBound.get_reg_metadata TD Mem0 gl rm vp = Some md)
+  mt0
+  (H : SoftBound.get_reg_metadata TD Mem0 gl rm vp = Some (md,mt0))
   (H0 : getOperandValue TD Mem0 v lc gl = ret gv)
   (H1 : getOperandValue TD Mem0 vp lc gl = ret gvp)
   (H2 : SoftBound.assert_mptr TD t gvp md)
@@ -3061,7 +3062,7 @@ Proof.
         admit. (* i0 <> bid eid tmp *)
 
     SSSCase "rsim2".
-      intros vp0 bgv1 egv1 J6.
+      intros vp0 bgv1 egv1 mt1 J6.
       erewrite <- mstore__get_reg_metadata in J6; eauto.
       apply Hrsim2 in J6.
       destruct J6 as [t0 [bv0 [ev0 [bgv0 [egv0 [J11 [J21 [J31 [J41 J51]]]]]]]]].
@@ -3124,9 +3125,10 @@ Proof.
 Qed.
 
 Lemma simulation__set_mmetadata_fn : forall lc2 gl b ofs bgv egv als  
-    pgv' bgv' egv' mi ptmp bv0 ev0 MM1 Mem1 Mem2 TD rm v gmb,  
+    pgv' bgv' egv' mi ptmp bv0 ev0 MM1 Mem1 Mem2 TD rm v gmb mt,  
   mem_simulation mi TD gmb MM1 Mem1 Mem2 ->
-  SoftBound.get_reg_metadata TD Mem1 gl rm v = Some (SoftBound.mkMD bgv egv) -> 
+  SoftBound.get_reg_metadata TD Mem1 gl rm v = Some (SoftBound.mkMD bgv egv, mt)
+    -> 
   lookupAL _ lc2 ptmp = Some pgv' ->
   getOperandValue TD Mem2 bv0 lc2 gl = Some bgv' ->
   getOperandValue TD Mem2 ev0 lc2 gl = Some egv' ->
@@ -3144,7 +3146,7 @@ Lemma simulation__set_mmetadata_fn : forall lc2 gl b ofs bgv egv als
         (SoftBound.mkMD bgv egv)) Mem1 Mem2'.
 Proof.
   intros lc2 gl b ofs bgv egv als pgv' bgv' egv' mi ptmp bv0 ev0 MM1 Mem1 Mem2 TD
-    rm v gmb Hmsim Hgetm Hlookup Hgetb Hgete Hinjp Hinjb Hinje.
+    rm v gmb mt Hmsim Hgetm Hlookup Hgetb Hgete Hinjp Hinjb Hinje.
   destruct (@set_mmetadata_fn__prop TD gl lc2 als Mem2 ptmp pgv' bv0 ev0 Hlookup)
     as [Mem2' [J [JW JW']]].
   exists Mem2'.
@@ -3275,13 +3277,15 @@ Lemma trans_nbranch__is__correct__dbStore_ptr : forall
   (Mem' : mem)
   (md' : SoftBound.metadata)
   (MM' : SoftBound.mmetadata)
-  (H : SoftBound.get_reg_metadata TD Mem0 gl rm vp = ret md)
+  mt1
+  (H : SoftBound.get_reg_metadata TD Mem0 gl rm vp = ret (md,mt1))
   (H0 : getOperandValue TD Mem0 v lc gl = ret gv)
   (H1 : getOperandValue TD Mem0 vp lc gl = ret gvp)
   (H2 : SoftBound.assert_mptr TD t gvp md)
   (H3 : mstore TD Mem0 gvp t gv align0 = ret Mem')
   (H4 : isPointerTyp t)
-  (H5 : SoftBound.get_reg_metadata TD Mem0 gl rm v = ret md')
+  mt2
+  (H5 : SoftBound.get_reg_metadata TD Mem0 gl rm v = ret (md',mt2))
   (H6 : SoftBound.set_mem_metadata TD MM gvp md' = MM'),
    exists lc2' : GVMap,
      exists Mem2' : mem,
@@ -3368,23 +3372,30 @@ Proof.
       eapply mstore_inversion; eauto.
     destruct EQ as [b2 [ofs2 EQ]]. subst.
     apply simulation__set_mmetadata_fn with (pgv':=gvp2)(bgv':=bgv2')
-      (egv':=egv2')(rm:=rm)(v:=v); simpl; auto.
-      clear - H5 H3.
+      (egv':=egv2')(rm:=rm)(v:=v)(mt:=t2'); simpl; auto.
+      clear - H5 H3 J1'.
       destruct v; simpl in *; auto.
-        destruct (SoftBound.get_const_metadata c); try solve [inv H5; auto].
-        destruct p.
-        remember (const2GV TD Mem0 gl c0) as R.
-        destruct R; try solve [inv H5; auto].
-        remember (const2GV TD Mem0 gl c2) as R'.
-        destruct R'; try solve [inv H5; auto].
-        simpl in *.
-        inv H5.
-        erewrite <- const2GV__mstore with (Mem:=Mem0); eauto.
-        rewrite <- HeqR'.
-        erewrite <- const2GV__mstore with (Mem:=Mem0); eauto.
-        rewrite <- HeqR.
-        simpl. auto.
-          
+        destruct (lookupAL (id * id) rm2 i0) as [[bid eid]|]; inv J1'; auto.
+        destruct (lookupAL _ rm i0) as [md|]; inv H5; auto.
+
+        destruct (SoftBound.get_const_metadata c) as [[[c0 c2] ct]|].
+          remember (const2GV TD Mem0 gl c0) as R.
+          destruct R; try solve [inv H5; auto].
+          remember (const2GV TD Mem0 gl c2) as R'.
+          destruct R'; try solve [inv H5; auto].
+          simpl in *.
+          inv H5. inv J1'.
+          erewrite <- const2GV__mstore with (Mem:=Mem0); eauto.
+          rewrite <- HeqR'.
+          erewrite <- const2GV__mstore with (Mem:=Mem0); eauto.
+          rewrite <- HeqR.
+          simpl. auto.
+      
+          inv H5. 
+          remember (Constant.getTyp c) as R.
+          destruct R; inv J1'; auto.
+            admit.           
+    
       clear - HeqR1 HeqR2 HeqR3.
       rewrite <- lookupAL_updateAddAL_neq.
       rewrite <- lookupAL_updateAddAL_neq.
@@ -3590,7 +3601,7 @@ Proof.
         admit. (* i0 <> bid eid tmp *)
 
       SSSSCase "rsim2".
-      intros vp0 bgv1 egv1 J6.
+      intros vp0 bgv1 egv1 mt1' J6.
       erewrite <- mstore__get_reg_metadata in J6; eauto.
       apply Hrsim2 in J6.
       destruct J6 as [t0 [bv0 [ev0 [bgv0 [egv0 [J11 [J21 [J31 [J41 J51]]]]]]]]].
@@ -3680,7 +3691,8 @@ Lemma trans_nbranch__is__correct__dbLoad_abort : forall
   (als : list mblock)
   (gvp : GenericValue)
   (md : SoftBound.metadata)
-  (H : SoftBound.get_reg_metadata TD Mem0 gl rm vp = ret md)
+  mt0
+  (H : SoftBound.get_reg_metadata TD Mem0 gl rm vp = ret (md,mt0))
   (H0 : getOperandValue TD Mem0 vp lc gl = ret gvp)
   (H1 : ~ SoftBound.assert_mptr TD t gvp md),
    exists lc2' : GVMap,
@@ -3793,7 +3805,7 @@ Proof.
         admit. (* i0 <> bid eid tmp *)
 
       SSSCase "rsim2".
-      intros vp0 bgv1 egv1 J6.
+      intros vp0 bgv1 egv1 mt1 J6.
       apply Hrsim2 in J6.
       destruct J6 as [t0 [bv0 [ev0 [bgv0 [egv0 [J11 [J21 [J31 [J41 J51]]]]]]]]].
       exists t0. exists bv0. exists ev0. exists bgv0. exists egv0.
@@ -3888,8 +3900,7 @@ Proof.
   intros TD Mem0 b lo hi Mem' gl rm vp0 Hfree.
   unfold SoftBound.get_reg_metadata.
   destruct vp0; auto.
-  destruct (SoftBound.get_const_metadata c); auto.  
-  destruct p.
+  destruct (SoftBound.get_const_metadata c) as [[[bc ec] t]|]; auto.  
   erewrite const2GV__free; eauto.
   erewrite const2GV__free with (Mem0:=Mem0); eauto.
 Qed.
@@ -4015,7 +4026,7 @@ Proof.
     split; auto.
     SSCase "rsim2".
       clear - Hrsim2 J H4 H0.
-      intros vp bgv1 egv1 J1.
+      intros vp bgv1 egv1 mt1 J1.
       erewrite <- free__get_reg_metadata in J1; eauto.
       apply Hrsim2 in J1. 
       destruct J1 as [t2 [bv2 [ev2 [bgv2 [egv2 [J1 [J2 [J3 [J4 J5]]]]]]]]].
@@ -4129,7 +4140,7 @@ Case "dbLoad_ptr".
   simpl in Htrans.
   remember (get_reg_metadata rm2 vp) as R.
   destruct R; try solve [inversion Htrans].
-  destruct p as [[mt bv] ev].
+  destruct p as [[mt1 bv] ev].
   remember (mk_tmp ex_ids) as R1. 
   destruct R1 as [ptmp ex_ids2].
   remember (mk_tmp ex_ids2) as R2. 
@@ -4190,7 +4201,7 @@ Case "dbStore_abort".
   simpl in Htrans.
   remember (get_reg_metadata rm2 vp) as R.
   destruct R; try solve [inversion Htrans].
-  destruct p as [[mt bv] ev].
+  destruct p as [[mt1 bv] ev].
   remember (mk_tmp ex_ids) as R1. 
   destruct R1 as [ptmp ex_ids1].
   remember (mk_tmp ex_ids1) as R2. 

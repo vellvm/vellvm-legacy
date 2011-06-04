@@ -280,6 +280,8 @@ formula :: 'formula_' ::=
                                 {{ coq typEqB [[typ]] [[typ']] = true }}
   | isCallInsn insn                 :: :: isCallInsn
                                 {{ coq isCallInsnB [[insn]] = true }}
+  | getPhiNodeOperands phinode = ids :: :: getPhiNodeOperands
+                                {{ coq getPhiNodeOperands [[phinode]] = [[ids]] }}
   | getLabelsFromPhiNode phinode = ls :: :: getLabelsFromPhiNode
                                 {{ coq getLabelsFromPhiNode [[phinode]] = [[ls]] }}
   | lookupFdefViaIDFromSystem system id = opt_fdef :: :: lookupFdefViaIDFromSystem

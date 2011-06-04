@@ -86,108 +86,100 @@ match (GV2int TD Size.One gv) with
 | _ => false
 end.
 
-Inductive utyp : Set := 
- | utyp_int : sz -> utyp
- | utyp_floatpoint : floating_point -> utyp
- | utyp_void : utyp
- | utyp_label : utyp
- | utyp_metadata : utyp
- | utyp_array : sz -> utyp -> utyp
- | utyp_function : utyp -> list_utyp -> utyp
- | utyp_struct : list_utyp -> utyp
- | utyp_pointer : utyp -> utyp
- | utyp_opaque : utyp
-with list_utyp : Set := 
- | Nil_list_utyp : list_utyp
- | Cons_list_utyp : utyp -> list_utyp -> list_utyp.
-
-Fixpoint typ2utyp_aux (m:list(id*utyp)) (t:typ) : option utyp :=
+Fixpoint gen_utyp_maps_aux (cid:id) (m:list(id*typ)) (t:typ) : option typ :=
  match t with
- | typ_int s => Some (utyp_int s)
- | typ_floatpoint f => Some (utyp_floatpoint f)
- | typ_void => Some utyp_void
- | typ_label => Some utyp_label
- | typ_metadata => Some utyp_metadata
- | typ_array s t0 => do ut0 <- typ2utyp_aux m t0; ret (utyp_array s ut0)
+ | typ_int s => Some (typ_int s)
+ | typ_floatpoint f => Some (typ_floatpoint f)
+ | typ_void => Some typ_void
+ | typ_label => Some typ_label
+ | typ_metadata => Some typ_metadata
+ | typ_array s t0 => do ut0 <- gen_utyp_maps_aux cid m t0; ret (typ_array s ut0)
  | typ_function t0 ts0 => 
-     do ut0 <- typ2utyp_aux m t0;
-     do uts0 <- typs2utyps_aux m ts0;
-        ret (utyp_function ut0 uts0)
- | typ_struct ts0 => do uts0 <- typs2utyps_aux m ts0; ret (utyp_struct uts0)
- | typ_pointer t0 => do ut0 <- typ2utyp_aux m t0; ret (utyp_pointer ut0)
- | typ_opaque => Some utyp_opaque
+     do ut0 <- gen_utyp_maps_aux cid m t0;
+     do uts0 <- gen_utyps_maps_aux cid m ts0;
+        ret (typ_function ut0 uts0)
+ | typ_struct ts0 => 
+     do uts0 <- gen_utyps_maps_aux cid m ts0; ret (typ_struct uts0)
+ | typ_pointer t0 => 
+     match gen_utyp_maps_aux cid m t0 with
+     | Some ut0 => Some (typ_pointer ut0)
+     | None => 
+         match t0 with
+         | typ_namedt i => if eq_atom_dec i cid then Some t else None
+         | _ => None
+         end
+     end
+ | typ_opaque => Some typ_opaque
  | typ_namedt i => lookupAL _ m i
  end
-with typs2utyps_aux (m:list(id*utyp)) (ts:list_typ) : option list_utyp := 
+with gen_utyps_maps_aux (cid:id) (m:list(id*typ)) (ts:list_typ) : option list_typ
+   := 
  match ts with
- | Nil_list_typ => Some Nil_list_utyp
+ | Nil_list_typ => Some Nil_list_typ
  | Cons_list_typ t0 ts0 =>
-     do ut0 <- typ2utyp_aux m t0; 
-     do uts0 <- typs2utyps_aux m ts0; 
-     ret (Cons_list_utyp ut0 uts0)
+     do ut0 <- gen_utyp_maps_aux cid m t0; 
+     do uts0 <- gen_utyps_maps_aux cid m ts0; 
+     ret (Cons_list_typ ut0 uts0)
  end.
 
-Fixpoint gen_utyp_maps (nts:namedts) : list (id*utyp) :=
+Fixpoint gen_utyp_maps (nts:namedts) : list (id*typ) :=
 match nts with
 | nil => nil 
 | namedt_intro id0 t::nts' =>
   let results := gen_utyp_maps nts' in
-  match typ2utyp_aux results t with
+  match gen_utyp_maps_aux id0 results t with
   | None => results
   | Some r => (id0, r)::results
   end
 end.
 
-Definition typ2utyp (nts:namedts) (t:typ) : option utyp :=
+Fixpoint typ2utyp_aux (m:list(id*typ)) (t:typ) : option typ :=
+ match t with
+ | typ_int s => Some (typ_int s)
+ | typ_floatpoint f => Some (typ_floatpoint f)
+ | typ_void => Some typ_void
+ | typ_label => Some typ_label
+ | typ_metadata => Some typ_metadata
+ | typ_array s t0 => do ut0 <- typ2utyp_aux m t0; ret (typ_array s ut0)
+ | typ_function t0 ts0 => 
+     do ut0 <- typ2utyp_aux m t0;
+     do uts0 <- typs2utyps_aux m ts0;
+        ret (typ_function ut0 uts0)
+ | typ_struct ts0 => do uts0 <- typs2utyps_aux m ts0; ret (typ_struct uts0)
+ | typ_pointer t0 => do ut0 <- typ2utyp_aux m t0; ret (typ_pointer ut0)
+ | typ_opaque => Some typ_opaque
+ | typ_namedt i => lookupAL _ m i
+ end
+with typs2utyps_aux (m:list(id*typ)) (ts:list_typ) : option list_typ := 
+ match ts with
+ | Nil_list_typ => Some Nil_list_typ
+ | Cons_list_typ t0 ts0 =>
+     do ut0 <- typ2utyp_aux m t0; 
+     do uts0 <- typs2utyps_aux m ts0; 
+     ret (Cons_list_typ ut0 uts0)
+ end.
+
+Definition typ2utyp (nts:namedts) (t:typ) : option typ :=
 let m := gen_utyp_maps (List.rev nts) in
 typ2utyp_aux m t.
 
-Fixpoint utyp2typ (t:utyp) : typ :=
- match t with
- | utyp_int s => typ_int s
- | utyp_floatpoint f => typ_floatpoint f
- | utyp_void => typ_void
- | utyp_label => typ_label
- | utyp_metadata => typ_metadata
- | utyp_array s t0 => typ_array s (utyp2typ t0)
- | utyp_function t0 ts0 => 
-     typ_function (utyp2typ t0) (utyps2typs ts0)
- | utyp_struct ts0 => typ_struct (utyps2typs ts0)
- | utyp_pointer t0 => typ_pointer (utyp2typ t0)
- | utyp_opaque => typ_opaque
- end
-with utyps2typs (ts:list_utyp) : list_typ := 
- match ts with
- | Nil_list_utyp => Nil_list_typ
- | Cons_list_utyp t0 ts0 =>
-     Cons_list_typ (utyp2typ t0) (utyps2typs ts0)
- end.
-
-Fixpoint nth_list_utyp (n:nat) (l0:list_utyp) {struct n} : option utyp :=
-  match n,l0 with
-  | O, Cons_list_utyp h tl_ => Some h 
-  | O, other => None
-  | S m, Nil_list_utyp => None
-  | S m, Cons_list_utyp h tl_ => nth_list_utyp m tl_
-  end.
-
-Fixpoint mgetoffset_aux (TD:TargetData) (t:utyp) (idxs:list Z) (accum:Z) 
+Fixpoint mgetoffset_aux (TD:TargetData) (t:typ) (idxs:list Z) (accum:Z) 
   : option Z := 
   match idxs with
   | nil => Some accum
   | idx::idxs' =>
      match t with
-     | utyp_array _ t' =>
-         match (getTypeAllocSize TD (utyp2typ t')) with
+     | typ_array _ t' =>
+         match (getTypeAllocSize TD t') with
          | Some sz => 
              mgetoffset_aux TD t' idxs' (accum + (Z_of_nat sz) * idx)
          | _ => None
          end
-     | utyp_struct lt => 
-         match (getStructElementOffset TD (utyp2typ t) (Coqlib.nat_of_Z idx)) 
+     | typ_struct lt => 
+         match (getStructElementOffset TD t (Coqlib.nat_of_Z idx)) 
          with
          | Some ofs =>
-             do t' <- nth_list_utyp (Coqlib.nat_of_Z idx) lt;
+             do t' <- nth_list_typ (Coqlib.nat_of_Z idx) lt;
                mgetoffset_aux TD t' idxs' (accum + (Z_of_nat ofs))
          | _ => None
          end

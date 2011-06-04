@@ -1143,10 +1143,9 @@
 
 \newcommand{\ottdrulewfXXinsnXXbr}[1]{\ottdrule[#1]{%
 \ottpremise{ \ottnt{system}  \vdash  \ottnt{value}  \ottsym{:}  \ottkw{int} \, \ottmv{sz}  \wedge  \ottmv{sz}  =  \ottsym{1} }%
-\ottpremise{\ottkw{lookupBlockViaLabelFromSystem} \, \ottnt{system} \, \ottmv{l_{{\mathrm{1}}}}  =  \ottnt{block_{{\mathrm{1}}}}}%
-\ottpremise{\ottkw{blockInFdef} \, \ottnt{block_{{\mathrm{1}}}} \, \ottnt{fdef}}%
-\ottpremise{\ottkw{lookupBlockViaLabelFromSystem} \, \ottnt{system} \, \ottmv{l_{{\mathrm{2}}}}  =  \ottnt{block_{{\mathrm{2}}}}}%
-\ottpremise{\ottkw{blockInFdef} \, \ottnt{block_{{\mathrm{2}}}} \, \ottnt{fdef}}%
+\ottpremise{\ottkw{lookupBlockViaLabelFromFdef} \, \ottnt{fdef} \, \ottmv{l_{{\mathrm{1}}}}  =  \ottnt{block_{{\mathrm{1}}}}}%
+\ottpremise{\ottkw{lookupBlockViaLabelFromFdef} \, \ottnt{fdef} \, \ottmv{l_{{\mathrm{2}}}}  =  \ottnt{block_{{\mathrm{2}}}}}%
+\ottpremise{ \neg   (  \ottmv{l_{{\mathrm{1}}}}  =  \ottmv{l_{{\mathrm{2}}}}  \!)  }%
 \ottpremise{\ottnt{intrinsic\_funs}  \ottsym{,}  \ottnt{system}  \ottsym{,}  \ottnt{module\_info}  \ottsym{,}  \ottsym{(}  \ottnt{fdef}  \ottsym{,}  \ottnt{dt}  \ottsym{)}  \ottsym{,}  \ottnt{block}  \vdash_{i}  \ottmv{id}  = \, \ottkw{br} \, \ottnt{value} \, \ottmv{l_{{\mathrm{1}}}} \, \ottmv{l_{{\mathrm{2}}}}}%
 }{
 \ottnt{intrinsic\_funs}  \ottsym{,}  \ottnt{system}  \ottsym{,}  \ottnt{module\_info}  \ottsym{,}  \ottsym{(}  \ottnt{fdef}  \ottsym{,}  \ottnt{dt}  \ottsym{)}  \ottsym{,}  \ottnt{block}  \vdash  \ottmv{id}  = \, \ottkw{br} \, \ottnt{value} \, \ottmv{l_{{\mathrm{1}}}} \, \ottmv{l_{{\mathrm{2}}}}}{%
@@ -1155,8 +1154,7 @@
 
 
 \newcommand{\ottdrulewfXXinsnXXbrXXuncond}[1]{\ottdrule[#1]{%
-\ottpremise{\ottkw{lookupBlockViaLabelFromSystem} \, \ottnt{system} \, \ottmv{l}  =  \ottnt{block_{{\mathrm{1}}}}}%
-\ottpremise{\ottkw{blockInFdef} \, \ottnt{block} \, \ottnt{fdef}}%
+\ottpremise{\ottkw{lookupBlockViaLabelFromFdef} \, \ottnt{fdef} \, \ottmv{l}  =  \ottnt{block}}%
 \ottpremise{\ottnt{intrinsic\_funs}  \ottsym{,}  \ottnt{system}  \ottsym{,}  \ottnt{module\_info}  \ottsym{,}  \ottsym{(}  \ottnt{fdef}  \ottsym{,}  \ottnt{dt}  \ottsym{)}  \ottsym{,}  \ottnt{block}  \vdash_{i}  \ottmv{id}  = \, \ottkw{br} \, \ottmv{l}}%
 }{
 \ottnt{intrinsic\_funs}  \ottsym{,}  \ottnt{system}  \ottsym{,}  \ottnt{module\_info}  \ottsym{,}  \ottsym{(}  \ottnt{fdef}  \ottsym{,}  \ottnt{dt}  \ottsym{)}  \ottsym{,}  \ottnt{block}  \vdash  \ottmv{id}  = \, \ottkw{br} \, \ottmv{l}}{%
@@ -1323,7 +1321,7 @@
 
 \newcommand{\ottdrulewfXXinsnXXphi}[1]{\ottdrule[#1]{%
 \ottpremise{\ottcomp{\ottnt{system}  \vdash  \ottnt{value_{\ottmv{j}}}  \ottsym{:}  \ottnt{typ}}{\ottmv{j}}}%
-\ottpremise{\ottkw{getIdUseDef} \, \ottnt{usedef\_id} \, \ottmv{id}  =  \mathit{\{id\} }'}%
+\ottpremise{\ottkw{getPhiNodeOperands} \, \ottsym{(}  \ottmv{id}  = \, \ottkw{phi} \, \ottnt{typ} \, \ottcomp{\ottsym{[}  \ottnt{value_{\ottmv{j}}}  \ottsym{,}  \ottmv{l_{\ottmv{j}}}  \ottsym{]}}{\ottmv{j}}  \ottsym{)}  =  \mathit{\{id\} }'}%
 \ottpremise{\mathit{\{id\} }'  <-> \, \ottcomp{\ottmv{id'_{\ottmv{i}}}}{\ottmv{i}}}%
 \ottpremise{\ottcomp{  (  \neg   \ottmv{id}  =  \ottmv{id'_{\ottmv{i}}}   \!)   \vee   (  \neg   ( \ottkw{isReachableFromEntry} \, \ottnt{fdef\_info} \, \ottnt{block} \!)   \!)  }{\ottmv{i}}}%
 \ottpremise{\texttt{(PHINode.getNumIncomingValues (}\ottsym{(}  \ottmv{id}  = \, \ottkw{phi} \, \ottnt{typ} \, \ottcomp{\ottsym{[}  \ottnt{value_{\ottmv{j}}}  \ottsym{,}  \ottmv{l_{\ottmv{j}}}  \ottsym{]}}{\ottmv{j}}  \ottsym{)}\texttt{) > 0)\%nat }}%

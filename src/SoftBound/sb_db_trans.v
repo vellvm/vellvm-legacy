@@ -27,14 +27,24 @@ Module SBpass.
 Export LLVMsyntax.
 Export LLVMgv.
 
-Definition simpl_typ (nts:namedts) (t:typ) : option typ :=
-do ut <- typ2utyp nts t; ret (utyp2typ ut).
+Definition i8 := typ_int Size.Eight.
+Definition i32 := typ_int Size.ThirtyTwo.
+Definition p8 := typ_pointer i8.
+Definition pp8 := typ_pointer p8.
+Definition p32 := typ_pointer i32.
+Definition int1 := const_int Size.ThirtyTwo (INTEGER.of_Z 32%Z 1%Z false).
+Definition vint1 := value_const int1.
+Definition c1 := Cons_list_value vint1 Nil_list_value.
+Definition vnullp8 := value_const (const_null p8).
+Definition vnullp32 := value_const (const_null p32).
+
+Axiom isSysLib : id -> bool.
 
 Definition getGEPTyp (nts:namedts) (idxs : list_value) (t : typ) : option typ :=
 match idxs with
 | Nil_list_value => None
 | Cons_list_value idx idxs' =>
-    do t <- simpl_typ nts t;
+    do t <- typ2utyp nts t;
     (* The input t is already an element of a pointer typ *)
     do t' <- getSubTypFromValueIdxs idxs' t;
     ret (typ_pointer t')
@@ -48,7 +58,7 @@ match i with
 | insn_extractelement _ typ _ _ => getElementTyp typ
 | insn_insertelement _ typ _ _ _ _ => typ *)
 | insn_extractvalue _ typ _ idxs => 
-    do t <- simpl_typ nts typ;
+    do t <- typ2utyp nts typ;
     getSubTypFromConstIdxs idxs t
 | insn_insertvalue _ typ _ _ _ _ => Some typ
 | insn_malloc _ typ _ _ => Some (typ_pointer typ)
@@ -144,17 +154,6 @@ Definition mk_tmp (ex_ids:ids) : id * ids :=
 let '(exist tmp _) := AtomImpl.atom_fresh_for_list ex_ids in
 (tmp, tmp::ex_ids).
 
-Definition i8 := typ_int Size.Eight.
-Definition i32 := typ_int Size.ThirtyTwo.
-Definition p8 := typ_pointer i8.
-Definition pp8 := typ_pointer p8.
-Definition p32 := typ_pointer i32.
-Definition int1 := const_int Size.ThirtyTwo (INTEGER.of_Z 32%Z 1%Z false).
-Definition vint1 := value_const int1.
-Definition c1 := Cons_list_value vint1 Nil_list_value.
-Definition vnullp8 := value_const (const_null p8).
-Definition vnullp32 := value_const (const_null p32).
-
 Definition get_reg_metadata (rm:rmap) (v:value) : option (typ * value * value) :=
   match v with
   | value_id pid => 
@@ -164,7 +163,7 @@ Definition get_reg_metadata (rm:rmap) (v:value) : option (typ * value * value) :
       end
   | value_const c => 
       match (SoftBound.get_const_metadata c, Constant.getTyp c) with
-      | (Some (bc, ec), Some t) => Some (t, value_const bc, value_const ec)
+      | (Some (bc, ec, mt), _) => Some (mt, value_const bc, value_const ec)
       | (None, Some t) => Some (t, value_const (const_null t), 
                                    value_const (const_null t))
       | _ => None
@@ -332,9 +331,9 @@ match c with
          insn_cast btmp castop_bitcast mt bv p8:: 
          insn_cast etmp castop_bitcast mt ev p8:: 
          insn_call fake_id true false typ_void assert_mptr_fn 
-           ((p8,(value_id ptmp))::
-            (p8,(value_id btmp))::
+           ((p8,(value_id btmp))::
             (p8,(value_id etmp))::
+            (p8,(value_id ptmp))::
             (i32,type_size t2)::
             (i32,vint1)::nil)::
          c::
@@ -374,9 +373,9 @@ match c with
          insn_cast btmp castop_bitcast mt2 bv p8:: 
          insn_cast etmp castop_bitcast mt2 ev p8:: 
          insn_call fake_id true false typ_void assert_mptr_fn 
-           ((p8,(value_id ptmp))::
-            (p8,(value_id btmp))::
+           ((p8,(value_id btmp))::
             (p8,(value_id etmp))::
+            (p8,(value_id ptmp))::
             (i32,(type_size t0))::
             (i32,vint1)::nil)::
          c::
@@ -471,10 +470,6 @@ match ps with
         else Some (p::ps2)
     end
 end.
-
-Axiom isSysLib : id -> bool.
-
-Axiom rename_fid : id -> id.
 
 Definition trans_call_aux
 (ex_ids : ids) (tmps : ids) (optaddrb : monad id) (optaddre : monad id) 
@@ -704,9 +699,9 @@ Definition reg_simulation (mi:Values.meminj) TD gl (rm1:SoftBound.rmetadata)
   exists gv2, 
     lookupAL _ lc2 i0 = Some gv2 /\ gv_inject mi gv1 gv2
 ) /\
-(forall vp bgv1 egv1, 
+(forall vp bgv1 egv1 mt, 
   SoftBound.get_reg_metadata TD Mem1 gl rm1 vp = 
-    Some (SoftBound.mkMD bgv1 egv1) -> 
+    Some (SoftBound.mkMD bgv1 egv1, mt) -> 
   exists t2, exists bv2, exists ev2, exists bgv2, exists egv2,
     get_reg_metadata rm2 vp = Some (t2, bv2, ev2) /\
     getOperandValue TD Mem2 bv2 lc2 gl = Some bgv2 /\
@@ -907,9 +902,9 @@ Axiom assert_mptr_fn__ok : forall
         (updateAddAL GenericValue (updateAddAL GenericValue lc2 ptmp gvp2)
            btmp bgv2) etmp egv2) als Mem2
      (insn_call fake_id true false typ_void assert_mptr_fn
-        ((p8, value_id ptmp)
-         :: (p8, value_id btmp)
-            :: (p8, value_id etmp)
+        ((p8, value_id btmp)
+         :: (p8, value_id etmp)
+            :: (p8, value_id ptmp)
                :: (i32, type_size t) :: (i32, vint1) :: nil))
      (updateAddAL GenericValue
         (updateAddAL GenericValue (updateAddAL GenericValue lc2 ptmp gvp2)

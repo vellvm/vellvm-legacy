@@ -470,18 +470,16 @@ Jwf_insn :: '' ::=
       % Check typs
       system |- value : int sz /\ sz = 1
       % Check labels
-      lookupBlockViaLabelFromSystem system l1 = block1
-      blockInFdef block1 fdef
-      lookupBlockViaLabelFromSystem system l2 = block2
-      blockInFdef block2 fdef
+      lookupBlockViaLabelFromFdef fdef l1 = block1
+      lookupBlockViaLabelFromFdef fdef l2 = block2
+      not (l1 = l2)
       % Check invariance for instructions
       intrinsic_funs , system , module_info , (fdef, dt) , block |-i id = br value l1 l2
       -------------------------------------------------------------------------------------- :: wf_insn_br
       intrinsic_funs , system , module_info , (fdef, dt) , block |- id = br value l1 l2	
 
       % Check labels
-      lookupBlockViaLabelFromSystem system l = block1
-      blockInFdef block fdef
+      lookupBlockViaLabelFromFdef fdef l = block
       % Check invariance for instructions
       intrinsic_funs , system , module_info , (fdef, dt) , block |-i id = br l
       -------------------------------------------------------------------------------------- :: wf_insn_br_uncond
@@ -637,7 +635,7 @@ Jwf_insn :: '' ::=
       % Check typs
       </ system |- valuej : typ // j />
       % LLVM::visitInstruction checks that non-phi nodes are not self referential 
-      getIdUseDef usedef_id id = ids'
+      getPhiNodeOperands (id = phi typ </ [ valuej , lj ] // j />) = ids'
       ids' <-> </ id'i // i />
       </ (not id == id'i) \/ (not (isReachableFromEntry fdef_info block)) // i />
       % The following properties 1-4 are checked in visitBlock by LLVM, but we check them here. 
