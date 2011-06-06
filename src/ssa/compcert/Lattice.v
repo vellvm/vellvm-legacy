@@ -12,9 +12,11 @@
 
 (** Constructions of semi-lattices. *)
 
+Add LoadPath "../../../../theory/metatheory_8.3".
 Require Import Coqlib.
 Require Import Maps.
 Require Import FSets.
+Require Import Metatheory.
 
 (** * Signatures of semi-lattices *)
 
@@ -64,12 +66,12 @@ End SEMILATTICE_WITH_TOP.
 Module LPMap(L: SEMILATTICE_WITH_TOP) <: SEMILATTICE_WITH_TOP.
 
 Inductive t_ : Type :=
-  | Bot_except: PTree.t L.t -> t_
-  | Top_except: PTree.t L.t -> t_.
+  | Bot_except: ATree.t L.t -> t_
+  | Top_except: ATree.t L.t -> t_.
 
 Definition t: Type := t_.
 
-Definition get (p: positive) (x: t) : L.t :=
+Definition get (p: atom) (x: t) : L.t :=
   match x with
   | Bot_except m =>
       match m!p with None => L.bot | Some x => x end
@@ -77,12 +79,12 @@ Definition get (p: positive) (x: t) : L.t :=
       match m!p with None => L.top | Some x => x end
   end.
 
-Definition set (p: positive) (v: L.t) (x: t) : t :=
+Definition set (p: atom) (v: L.t) (x: t) : t :=
   match x with
   | Bot_except m =>
-      Bot_except (if L.beq v L.bot then PTree.remove p m else PTree.set p v m)
+      Bot_except (if L.beq v L.bot then ATree.remove p m else ATree.set p v m)
   | Top_except m =>
-      Top_except (if L.beq v L.top then PTree.remove p m else PTree.set p v m)
+      Top_except (if L.beq v L.top then ATree.remove p m else ATree.set p v m)
   end.
 
 Lemma gss:
@@ -91,11 +93,11 @@ Lemma gss:
 Proof.
   intros. destruct x; simpl. 
   case_eq (L.beq v L.bot); intros.
-  rewrite PTree.grs. apply L.eq_sym. apply L.beq_correct; auto. 
-  rewrite PTree.gss. apply L.eq_refl.
+  rewrite ATree.grs. apply L.eq_sym. apply L.beq_correct; auto. 
+  rewrite ATree.gss. apply L.eq_refl.
   case_eq (L.beq v L.top); intros.
-  rewrite PTree.grs. apply L.eq_sym. apply L.beq_correct; auto. 
-  rewrite PTree.gss. apply L.eq_refl.
+  rewrite ATree.grs. apply L.eq_sym. apply L.beq_correct; auto. 
+  rewrite ATree.gss. apply L.eq_refl.
 Qed.
 
 Lemma gso:
@@ -103,8 +105,8 @@ Lemma gso:
   p <> q -> get p (set q v x) = get p x.
 Proof.
   intros. destruct x; simpl.
-  destruct (L.beq v L.bot). rewrite PTree.gro; auto. rewrite PTree.gso; auto.
-  destruct (L.beq v L.top). rewrite PTree.gro; auto. rewrite PTree.gso; auto.
+  destruct (L.beq v L.bot). rewrite ATree.gro; auto. rewrite ATree.gso; auto.
+  destruct (L.beq v L.top). rewrite ATree.gro; auto. rewrite ATree.gso; auto.
 Qed.
 
 Definition eq (x y: t) : Prop :=
@@ -127,8 +129,8 @@ Qed.
 
 Definition beq (x y: t) : bool :=
   match x, y with
-  | Bot_except m, Bot_except n => PTree.beq L.beq m n
-  | Top_except m, Top_except n => PTree.beq L.beq m n
+  | Bot_except m, Bot_except n => ATree.beq L.beq m n
+  | Top_except m, Top_except n => ATree.beq L.beq m n
   | _, _ => false
   end.
 
@@ -136,10 +138,10 @@ Lemma beq_correct: forall x y, beq x y = true -> eq x y.
 Proof.
   destruct x; destruct y; simpl; intro; try congruence.
   red; intro; simpl.
-  generalize (PTree.beq_correct L.eq L.beq L.beq_correct t0 t1 H p).
+  generalize (@ATree.beq_correct _ L.eq L.beq L.beq_correct t0 t1 H p).
   destruct (t0!p); destruct (t1!p); intuition. apply L.eq_refl.
   red; intro; simpl.
-  generalize (PTree.beq_correct L.eq L.beq L.beq_correct t0 t1 H p).
+  generalize (@ATree.beq_correct _ L.eq L.beq L.beq_correct t0 t1 H p).
   destruct (t0!p); destruct (t1!p); intuition. apply L.eq_refl.
 Qed.
 
@@ -161,11 +163,11 @@ Proof.
   unfold eq,ge; intros. eapply L.ge_compat; eauto.
 Qed.
 
-Definition bot := Bot_except (PTree.empty L.t).
+Definition bot := Bot_except (ATree.empty L.t).
 
 Lemma get_bot: forall p, get p bot = L.bot.
 Proof.
-  unfold bot; intros; simpl. rewrite PTree.gempty. auto.
+  unfold bot; intros; simpl. rewrite ATree.gempty. auto.
 Qed.
 
 Lemma ge_bot: forall x, ge x bot.
@@ -173,11 +175,11 @@ Proof.
   unfold ge; intros. rewrite get_bot. apply L.ge_bot.
 Qed.
 
-Definition top := Top_except (PTree.empty L.t).
+Definition top := Top_except (ATree.empty L.t).
 
 Lemma get_top: forall p, get p top = L.top.
 Proof.
-  unfold top; intros; simpl. rewrite PTree.gempty. auto.
+  unfold top; intros; simpl. rewrite ATree.gempty. auto.
 Qed.
 
 Lemma ge_top: forall x, ge top x.
@@ -193,7 +195,7 @@ Definition lub (x y: t) : t :=
   match x, y with
   | Bot_except m, Bot_except n =>
       Bot_except
-        (PTree.combine 
+        (ATree.combine 
            (fun a b =>
               match a, b with
               | Some u, Some v => Some (L.lub u v)
@@ -203,7 +205,7 @@ Definition lub (x y: t) : t :=
            m n)
   | Bot_except m, Top_except n =>
       Top_except
-        (PTree.combine
+        (ATree.combine
            (fun a b =>
               match a, b with
               | Some u, Some v => opt_lub u v
@@ -213,7 +215,7 @@ Definition lub (x y: t) : t :=
         m n)             
   | Top_except m, Bot_except n =>
       Top_except
-        (PTree.combine
+        (ATree.combine
            (fun a b =>
               match a, b with
               | Some u, Some v => opt_lub u v
@@ -223,7 +225,7 @@ Definition lub (x y: t) : t :=
         m n)             
   | Top_except m, Top_except n =>
       Top_except
-        (PTree.combine 
+        (ATree.combine 
            (fun a b =>
               match a, b with
               | Some u, Some v => opt_lub u v
@@ -252,7 +254,7 @@ Proof.
   eapply L.eq_trans. apply L.lub_commut. apply L.beq_correct; auto.
   apply L.lub_commut.
   destruct x; destruct y; simpl;
-  repeat rewrite PTree.gcombine; auto;
+  repeat rewrite ATree.gcombine; auto;
   destruct t0!p; destruct t1!p;
   auto; apply L.eq_refl || apply L.lub_commut.
 Qed.
@@ -267,28 +269,28 @@ Proof.
 
   unfold ge, get, lub; intros; destruct x; destruct y.
 
-  rewrite PTree.gcombine; auto.
+  rewrite ATree.gcombine; auto.
   destruct t0!p; destruct t1!p.
   apply L.ge_lub_left.
   apply L.ge_refl. apply L.eq_refl. 
   apply L.ge_bot.
   apply L.ge_refl. apply L.eq_refl.
 
-  rewrite PTree.gcombine; auto.
+  rewrite ATree.gcombine; auto.
   destruct t0!p; destruct t1!p.
   auto.
   apply L.ge_top.
   apply L.ge_bot.
   apply L.ge_top.
 
-  rewrite PTree.gcombine; auto.
+  rewrite ATree.gcombine; auto.
   destruct t0!p; destruct t1!p.
   auto.
   apply L.ge_refl. apply L.eq_refl.
   apply L.ge_top.
   apply L.ge_top.
 
-  rewrite PTree.gcombine; auto.
+  rewrite ATree.gcombine; auto.
   destruct t0!p; destruct t1!p.
   auto.
   apply L.ge_top.
@@ -496,3 +498,12 @@ Lemma ge_lub_left: forall x y, ge (lub x y) x.
 Proof. destruct x; destruct y; compute; tauto. Qed.
 
 End LBoolean.
+
+(*****************************)
+(*
+*** Local Variables: ***
+*** coq-prog-name: "coqtop" ***
+*** coq-prog-args: ("-emacs-U" "-I" "~/SVN/sol/vol/src/ssa/monads" "-I" "~/SVN/sol/vol/src/ssa/ott" "-I" "~/SVN/sol/vol/src/ssa/compcert" "-I" "~/SVN/sol/theory/metatheory_8.3") ***
+*** End: ***
+ *)
+

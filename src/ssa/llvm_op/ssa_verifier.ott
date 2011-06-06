@@ -7,6 +7,7 @@ embed
 
 Require Import ssa_def.
 Require Import ssa_lib.
+Require Import ssa_analysis.
 Require Import ListSet.
 
 Module LLVMverifier.
@@ -76,23 +77,23 @@ Jwf_typ :: '' ::=
 defns
 Jwf_operand_insn :: '' ::=
       defn
-      intrinsic_funs , system , module_info , fdef_info , block , insn |- insn' :: :: wf_operand_insn :: ''
-      {{ com [[insn']] is well-formed w.r.t [[insn]] [[block]] in [[fdef_info]] in [[module_info]] [[system]] }} by
+      intrinsic_funs , system , module_info , fdef , block , insn |- insn' :: :: wf_operand_insn :: ''
+      {{ com [[insn']] is well-formed w.r.t [[insn]] [[block]] in [[fdef]] in [[module_info]] [[system]] }} by
 
       getInsnID insn' = id'
       lookupBlockViaIDFromFdef fdef id' = block'
-      (notT isPhiNode insn) implies (insnDominates insn' insn block \/ (not (isReachableFromEntry (fdef, dt) block)))
+      (notT isPhiNode insn) implies (insnDominates insn' insn block \/ (not (isReachableFromEntry fdef block)))
       ------------------------------------------------------------------------------------------------------------- :: wf_operand_insn_intro
-      intrinsic_funs , system , module_info , (fdef, dt) , block , insn |- insn' 
+      intrinsic_funs , system , module_info , fdef , block , insn |- insn' 
 
 defns
 Jwf_operand :: '' ::=
       defn
-      intrinsic_funs , system , module_info , fdef_info , block , insn |- id' :: :: wf_operand :: ''
-      {{ com [[id']] is well-formed w.r.t [[insn]] [[block]] in [[fdef_info]] in [[module_info]] [[system]] }} by
+      intrinsic_funs , system , module_info , fdef , block , insn |- id' :: :: wf_operand :: ''
+      {{ com [[id']] is well-formed w.r.t [[insn]] [[block]] in [[fdef]] in [[module_info]] [[system]] }} by
 
       module = (layouts namedts products)
-      insn in system , (module, usedef_id, usedef_block) , (fdef, dt) , block
+      insn in system , (module, usedef_id, usedef_block) , fdef , block
       getInsnOperands insn = ids
       id' in ids
       lookupBindingViaIDFromSystem system id' = id_binding'
@@ -109,41 +110,41 @@ Jwf_operand :: '' ::=
       % Referencing global in the current module
       % (isBindingG id_binding' = g) implies (g in module)
       % Check when id_binding' is insn
-      (isBindingInsn id_binding' = insn') implies (intrinsic_funs , system , module_info , fdef_info , block , insn |- insn')
+      (isBindingInsn id_binding' = insn') implies (intrinsic_funs , system , module_info , fdef , block , insn |- insn')
       ----------------------------------------------------------------------------------------------------------------------- :: wf_operand_intro
-      intrinsic_funs , system , (module, usedef_id, usedef_block) , (fdef, dt) , block , insn |- id'
+      intrinsic_funs , system , (module, usedef_id, usedef_block) , fdef , block , insn |- id'
 
 defns
 Jwf_label :: '' ::=
       defn
-      intrinsic_funs , system , module_info , fdef_info , block , insn |- l :: :: wf_label :: ''
-      {{ com [[l]] is well-formed w.r.t [[insn]] [[block]] in [[fdef_info]] in [[module_info]] [[system]] }} by
+      intrinsic_funs , system , module_info , fdef , block , insn |- l :: :: wf_label :: ''
+      {{ com [[l]] is well-formed w.r.t [[insn]] [[block]] in [[fdef]] in [[module_info]] [[system]] }} by
 
-      insn in system , (module, usedef_id, usedef_block) , (fdef, dt) , block
+      insn in system , (module, usedef_id, usedef_block) , fdef , block
       getInsnLabels insn = ls
       l in ls
       lookupBlockViaLabelFromSystem system l = block
       % Referring to a basic block in the current function
       blockInFdef block fdef
       ----------------------------------------------------------------------- :: wf_label_intro
-      intrinsic_funs , system , (module, usedef_id, usedef_block) , (fdef, dt) , block , insn |- l
+      intrinsic_funs , system , (module, usedef_id, usedef_block) , fdef , block , insn |- l
 
 defns
 JvisitInstruction :: '' ::=
       defn
-      intrinsic_funs , system , module_info , fdef_info , block |-i insn :: :: visitInstruction :: '' 
-      {{ com [[insn]] is well-formed w.r.t [[block]] in [[fdef_info]] in [[module_info]] [[system]] }} by  
+      intrinsic_funs , system , module_info , fdef , block |-i insn :: :: visitInstruction :: '' 
+      {{ com [[insn]] is well-formed w.r.t [[block]] in [[fdef]] in [[module_info]] [[system]] }} by  
       % Verifier::visitInstruction
 
       % commented because of bugs of ott
       %
       % %%%% Instruction must be embedded in basic block!
-      % insn in system , (module, usedef_id, usedef_block) , (fdef, dt) , block
+      % insn in system , (module, usedef_id, usedef_block) , fdef , block
       % %%%% Check that non-phi nodes are not self referential
       % getInsnID insn = id
       % getIdUseDef usedef_id id = ids'
       % ids' <-> </ id'j // j />
-      % (notT isPhiNode insn) implies </ (not id = id'j) \/ (isReachableFromEntry (fdef, dt) block) // j />
+      % (notT isPhiNode insn) implies </ (not id = id'j) \/ (isReachableFromEntry fdef block) // j />
       % %%%% Verify that if this is a terminator that it is at the end of the block
       % % 
       % %%%% Check that void typed values don't have names
@@ -166,111 +167,111 @@ JvisitInstruction :: '' ::=
       % %%%% Check operands
       % getInsnOperands insn = ids
       % ids <-> </ idj // j />
-      % </ intrinsic_funs , system , module_info , fdef_info , block , insn |- idj // j />
+      % </ intrinsic_funs , system , module_info , fdef , block , insn |- idj // j />
       % %%%%
       % %%%% Check labels
       % getInsnLabels insn = ls
       % ls <-> </ lj // j />
-      % </ intrinsic_funs , system , module_info , fdef_info , block , insn |- lj // j />
+      % </ intrinsic_funs , system , module_info , fdef , block , insn |- lj // j />
       -------------------------------------------------------------------------------------- :: wf_insn_base_intro
-      intrinsic_funs , system , (module, usedef_id, usedef_block) , (fdef, dt) , block |-i insn
+      intrinsic_funs , system , (module, usedef_id, usedef_block) , fdef , block |-i insn
 
 defns
 Jwf_insn :: '' ::=
       defn
-      intrinsic_funs , system , module_info , fdef_info , block |- insn :: :: wf_insn :: '' 
-      {{ com [[insn]] is well-formed w.r.t [[block]] in [[fdef_info]] in [[module_info]] [[system]] }} by  
+      intrinsic_funs , system , module_info , fdef , block |- insn :: :: wf_insn :: '' 
+      {{ com [[insn]] is well-formed w.r.t [[block]] in [[fdef]] in [[module_info]] [[system]] }} by  
 
-      intrinsic_funs , system , module_info , (fdef, dt) , block |-i id = ret typ value
+      intrinsic_funs , system , module_info , fdef , block |-i id = ret typ value
       ------------------------------------------------------ :: wf_insn_return
-      intrinsic_funs , system , module_info , (fdef, dt) , block |- id = ret typ value
+      intrinsic_funs , system , module_info , fdef , block |- id = ret typ value
 
-      intrinsic_funs , system , module_info , (fdef, dt) , block |-i id = ret void
+      intrinsic_funs , system , module_info , fdef , block |-i id = ret void
       ------------------------------------------------------ :: wf_insn_return_void
-      intrinsic_funs , system , module_info , (fdef, dt) , block |- id = ret void
+      intrinsic_funs , system , module_info , fdef , block |- id = ret void
 
-      intrinsic_funs , system , module_info , (fdef, dt) , block |-i id = br value l1 l2
+      intrinsic_funs , system , module_info , fdef , block |-i id = br value l1 l2
       -------------------------------------------------------------------------------------- :: wf_insn_br
-      intrinsic_funs , system , (module, usedef_id, usedef_block), fdef_info , block |- id = br value l1 l2	
+      intrinsic_funs , system , (module, usedef_id, usedef_block), fdef , block |- id = br value l1 l2	
 
-      intrinsic_funs , system , module_info , (fdef, dt) , block |-i id = br l
+      intrinsic_funs , system , module_info , fdef , block |-i id = br l
       -------------------------------------------------------------------------------------- :: wf_insn_br_uncond
-      intrinsic_funs , system , (module, usedef_id, usedef_block), fdef_info , block |- id = br l		
+      intrinsic_funs , system , (module, usedef_id, usedef_block), fdef , block |- id = br l		
 
-      % intrinsic_funs , system , module_info , (fdef, dt) , block |-i id = invoke typ0 id0 params to l1 unwind l2
+      % intrinsic_funs , system , module_info , fdef , block |-i id = invoke typ0 id0 params to l1 unwind l2
       % -------------------------------------------------------------------------------------- :: wf_insn_invoke
-      % intrinsic_funs , system , (module, usedef_id, usedef_block), fdef_info , block |- id = invoke typ0 id0 params to l1 unwind l2
+      % intrinsic_funs , system , (module, usedef_id, usedef_block), fdef , block |- id = invoke typ0 id0 params to l1 unwind l2
 
-      intrinsic_funs , system , module_info , (fdef, dt) , block |-i id = noret tailc call typ0 id0 params
+      intrinsic_funs , system , module_info , fdef , block |-i id = noret tailc call typ0 id0 params
       -------------------------------------------------------------------------------------- :: wf_insn_call
-      intrinsic_funs , system , (module, usedef_id, usedef_block), fdef_info , block |- id = noret tailc call typ0 id0 params
+      intrinsic_funs , system , (module, usedef_id, usedef_block), fdef , block |- id = noret tailc call typ0 id0 params
 
-      intrinsic_funs , system , module_info , (fdef, dt) , block |-i id = unreachable
+      intrinsic_funs , system , module_info , fdef , block |-i id = unreachable
       -------------------------------------------------------------------------------------- :: wf_insn_unreachable
-      intrinsic_funs , system , (module, usedef_id, usedef_block), fdef_info , block |- id = unreachable
+      intrinsic_funs , system , (module, usedef_id, usedef_block), fdef , block |- id = unreachable
 
-      intrinsic_funs , system , module_info , (fdef, dt) , block |-i id = add (int sz) value1 value2
+      intrinsic_funs , system , module_info , fdef , block |-i id = add (int sz) value1 value2
       -------------------------------------------------------------------------------------- :: wf_insn_add
-      intrinsic_funs , system , (module, usedef_id, usedef_block), fdef_info , block |- id = add (int sz) value1 value2
+      intrinsic_funs , system , (module, usedef_id, usedef_block), fdef , block |- id = add (int sz) value1 value2
 
-      intrinsic_funs , system , module_info , (fdef, dt) , block |-i id = phi typ </ [ idj , lj ] // j />
+      intrinsic_funs , system , module_info , fdef , block |-i id = phi typ </ [ idj , lj ] // j />
       -------------------------------------------------------------------------------------- :: wf_insn_phi
-      intrinsic_funs , system , (module, usedef_id, usedef_block), fdef_info , block |- id = phi typ </ [ idj , lj ] // j />
+      intrinsic_funs , system , (module, usedef_id, usedef_block), fdef , block |- id = phi typ </ [ idj , lj ] // j />
 			        
 defns
 Jwf_cmds :: '' ::=
       defn
-      intrinsic_funs , system , module_info , fdef_info , block |- cmds :: :: wf_cmds :: ''
-      {{ com [[cmds]] is well-formed w.r.t. [[block]] [[fdef_info]] in [[module_info]] [[system]] }} by
+      intrinsic_funs , system , module_info , fdef , block |- cmds :: :: wf_cmds :: ''
+      {{ com [[cmds]] is well-formed w.r.t. [[block]] [[fdef]] in [[module_info]] [[system]] }} by
 
       ---------------------------------------------------------------- :: wf_cmds_nil
-      intrinsic_funs , system , module_info , fdef_info , block |- []
+      intrinsic_funs , system , module_info , fdef , block |- []
 
-      intrinsic_funs , system , module_info , fdef_info , block |- cmd
-      intrinsic_funs , system , module_info , fdef_info , block |- cmds
+      intrinsic_funs , system , module_info , fdef , block |- cmd
+      intrinsic_funs , system , module_info , fdef , block |- cmds
       ----------------------------------------------------------------------------- :: wf_cmds_cons
-      intrinsic_funs , system , module_info , fdef_info , block |- cmds , cmd
+      intrinsic_funs , system , module_info , fdef , block |- cmds , cmd
  
 defns
 Jwf_phinodes :: '' ::=
       defn
-      intrinsic_funs , system , module_info , fdef_info , block |- phinodes :: :: wf_phinodes :: ''
-      {{ com [[phinodes]] is well-formed w.r.t. [[block]] [[fdef_info]] in [[module_info]] [[system]] }} by
+      intrinsic_funs , system , module_info , fdef , block |- phinodes :: :: wf_phinodes :: ''
+      {{ com [[phinodes]] is well-formed w.r.t. [[block]] [[fdef]] in [[module_info]] [[system]] }} by
 
       ---------------------------------------------------------------- :: wf_phinodes_nil
-      intrinsic_funs , system , module_info , fdef_info , block |- []
+      intrinsic_funs , system , module_info , fdef , block |- []
 
-      intrinsic_funs , system , module_info , fdef_info , block |- phinode
-      intrinsic_funs , system , module_info , fdef_info , block |- phinodes
+      intrinsic_funs , system , module_info , fdef , block |- phinode
+      intrinsic_funs , system , module_info , fdef , block |- phinodes
       ------------------------------------------------------------------------------------ :: wf_phinodes_cons
-      intrinsic_funs , system , module_info , fdef_info , block |- phinodes , phinode
+      intrinsic_funs , system , module_info , fdef , block |- phinodes , phinode
 
 defns
 Jwf_block :: '' ::=
       defn
-      intrinsic_funs , system , module_info , fdef_info |- block :: :: wf_block :: '' 
-      {{ com [[block]] is well-formed w.r.t. [[fdef_info]] in [[module_info]] [[system]] }} by
+      intrinsic_funs , system , module_info , fdef |- block :: :: wf_block :: '' 
+      {{ com [[block]] is well-formed w.r.t. [[fdef]] in [[module_info]] [[system]] }} by
 
-      (l phinodes cmds terminator) in system , module_info , fdef_info
-      intrinsic_funs , system , module_info , fdef_info , (l phinodes cmds terminator) |- phinodes
-      intrinsic_funs , system , module_info , fdef_info , (l phinodes cmds terminator) |- cmds
-      intrinsic_funs , system , module_info , fdef_info , (l phinodes cmds terminator) |- terminator
+      (l phinodes cmds terminator) in system , module_info , fdef
+      intrinsic_funs , system , module_info , fdef , (l phinodes cmds terminator) |- phinodes
+      intrinsic_funs , system , module_info , fdef , (l phinodes cmds terminator) |- cmds
+      intrinsic_funs , system , module_info , fdef , (l phinodes cmds terminator) |- terminator
       ---------------------------------------------------------------------------------------------- :: wf_block_intro
-      intrinsic_funs , system , module_info , fdef_info |- (l phinodes cmds terminator)
+      intrinsic_funs , system , module_info , fdef |- (l phinodes cmds terminator)
 
 defns
 Jwf_blocks :: '' ::=
       defn
-      intrinsic_funs , system , module_info , fdef_info |- blocks :: :: wf_blocks :: ''
-      {{ com [[blocks]] is well-formed w.r.t. [[fdef_info]] in [[module_info]] [[system]] }} by
+      intrinsic_funs , system , module_info , fdef |- blocks :: :: wf_blocks :: ''
+      {{ com [[blocks]] is well-formed w.r.t. [[fdef]] in [[module_info]] [[system]] }} by
 
       --------------------------------------- :: wf_blocks_nil
-      intrinsic_funs , system , module_info , fdef_info |- []
+      intrinsic_funs , system , module_info , fdef |- []
 
-      intrinsic_funs , system , module_info , fdef_info |- block
-      intrinsic_funs , system , module_info , fdef_info |- blocks
+      intrinsic_funs , system , module_info , fdef |- block
+      intrinsic_funs , system , module_info , fdef |- blocks
       --------------------------------------------------------------------- :: wf_blocks_cons
-      intrinsic_funs , system , module_info , fdef_info |- blocks , block
+      intrinsic_funs , system , module_info , fdef |- blocks , block
  
 
 defns
@@ -280,8 +281,7 @@ Jwf_fdef :: '' ::=
       {{ com [[fdef]] is well-formed w.r.t. [[module_info]] [[system]] }} by
 
       (define fheader { blocks} ) in system , (module, usedef_id, usedef_block)
-      {{ genDominatorTree [[:user_syntax__fdef:define fheader { blocks }]] [[module]] = [[dt]] }}
-      intrinsic_funs , system , (module, usedef_id, usedef_block) , (define fheader { blocks }, dt) |- blocks
+      intrinsic_funs , system , (module, usedef_id, usedef_block) , define fheader { blocks } |- blocks
       ------------------------------------------------------ :: wf_fdef_intro
       intrinsic_funs , system , (module, usedef_id, usedef_block) |-f define fheader { blocks }
 

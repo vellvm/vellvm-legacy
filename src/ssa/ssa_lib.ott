@@ -171,12 +171,9 @@ formula :: 'formula_' ::=
     		     		{{ coq 
                                     removelast [[insns]] = [[insns']]
                                 }}
-  | genDominatorTree fdef module = dt 
-    		      	    	::   :: genDominatorTree
-				{{ coq genDominatorTree [[fdef]] [[module]] = [[dt]] }}				
-  | blockDominates dt block1 block2 
+  | blockDominates fdef block1 block2 
     		       	        ::   :: blockDominates
-				{{ coq blockDominates [[dt]] [[block1]] [[block2]] }} 			
+				{{ coq blockDominates [[fdef]] [[block1]] [[block2]] }} 			
   | insnDominates insn1 insn2 block
     		       	        ::   :: insnDominates
 				{{ coq insnDominates [[insn1]] [[insn2]] [[block]] }} 			
@@ -190,8 +187,8 @@ formula :: 'formula_' ::=
     		  		{{ coq getBlockUseDef [[usedef_block]] [[block]] = [[blocks]] }}
   | succOfBlock block module = blocks	::   :: succOfBlock
     		      		{{ coq succOfBlock [[block]] [[module]] = [[blocks]] }}
-  | isReachableFromEntry fdef_info block  ::   :: isReachableFromEntry
-                                {{ coq isReachableFromEntry [[fdef_info]] [[block]] }}
+  | isReachableFromEntry fdef block  ::   :: isReachableFromEntry
+                                {{ coq isReachableFromEntry [[fdef]] [[block]] }}
   | getInsnID insn = id		       ::   :: getInsnID
     	      	     		{{ coq getInsnID [[insn]] = [[id]] }}
   | getValueID value = opt_id	::   :: getValueID
@@ -244,8 +241,8 @@ formula :: 'formula_' ::=
                                 {{ coq Typ.getPrimitiveSizeInBits [[typ]] = [[sz]] }}
   | isPhiNode insn :: :: isPhiNode
                                 {{ coq isPhiNode [[insn]] }}
-  | insn in system , module_info , fdef_info , block :: :: insnInSystem
-    	    	     		{{ coq insnInSystemModuleIFdefIBlockB [[insn]] [[system]] [[module_info]] [[fdef_info]] [[block]] = true }}
+  | insn in system , module_info , fdef , block :: :: insnInSystem
+    	    	     		{{ coq insnInSystemModuleIFdefBlockB [[insn]] [[system]] [[module_info]] [[fdef]] [[block]] = true }}
   | lookupBlockViaIDFromFdef fdef id = opt_block :: :: lookupBlockViaIDFromFdef
                                 {{ coq lookupBlockViaIDFromFdef [[fdef]] [[id]] = [[opt_block]] }}
   | getLabelViaIDFromPhiNode phinode id = opt_l :: :: getLabelViaIDFromPhiNode
@@ -270,8 +267,8 @@ formula :: 'formula_' ::=
                                 {{ coq getCalledValueID [[insn]] = [[opt_id]] }}
   | blockInFdef block fdef       :: :: blockInFdef
                                 {{ coq blockInFdefB [[block]] [[fdef]] = true }}
-  | block in system , module_info , fdef_info :: :: blockInSystem
-                                {{ coq blockInSystemModuleIFdefIB [[block]] [[system]] [[module_info]] [[fdef_info]] = true }}
+  | block in system , module_info , fdef :: :: blockInSystem
+                                {{ coq blockInSystemModuleIFdefB [[block]] [[system]] [[module_info]] [[fdef]] = true }}
   | product in system , module_info :: :: productInSystem
                                 {{ coq productInSystemModuleIB [[product]] [[system]] [[module_info]] = true }}
   | uniqSystem system               :: :: uniqSystem

@@ -7,7 +7,7 @@
 Add LoadPath "./ott".
 Add LoadPath "./monads".
 Add LoadPath "./compcert".
-(*Add LoadPath "../../../theory/metatheory".*)
+Add LoadPath "../../../theory/metatheory_8.3".
 Require Import ssa_def.
 Require Import Metatheory.
 
@@ -47,16 +47,18 @@ Definition noret_dec : forall x y : noret, {x=y} + {x<>y} := bool_dec.
   Definition lset_add (l1:l) (ls2:ls) := set_add eq_dec l1 ls2.
   Definition lset_union (ls1 ls2:ls) := set_union eq_dec ls1 ls2.
   Definition lset_inter (ls1 ls2:ls) := set_inter eq_dec ls1 ls2.
-  Definition lset_eq (ls1 ls2:ls) := 
+  Definition lset_eqb (ls1 ls2:ls) := 
     match (lset_inter ls1 ls2) with
     | nil => true
     | _ => false
     end.
-  Definition lset_neq (ls1 ls2:ls) := 
+  Definition lset_neqb (ls1 ls2:ls) := 
     match (lset_inter ls1 ls2) with
     | nil => false
     | _ => true
     end.
+  Definition lset_eq (ls1 ls2:ls) := lset_eqb ls1 ls2 = true.
+  Definition lset_neq (ls1 ls2:ls) := lset_neqb ls1 ls2 = true. 
   Definition lset_single (l0:l) := lset_add l0 (lempty_set). 
   Definition lset_mem (l0:l) (ls0:ls) := set_mem eq_dec l0 ls0.
 
@@ -1416,160 +1418,9 @@ lookupTypViaIDFromModules s id0.
   | fdef_intro _ bs => genLabelsFromBlocks bs
   end.
 
-  Fixpoint inputFromPred (bs:blocks) (output:dt) : ls :=
-  match bs with
-  | nil => lempty_set
-  | (block_intro l0 _ _ _)::bs' => lset_union (output l0) (inputFromPred bs' output)
-  end.
-
   Definition outputFromInput (b:block) (input:ls) : ls :=
   match b with
   | block_intro l0 _ _ _=> lset_add l0 input
-  end.
-
-  Definition update_dt (d1:dt) (l0:l) (ls0:ls) : dt :=
-  fun l1 => if eq_dec l1 l0 then ls0 else d1 l1.
-
-  Definition inter_dt (d1 d2:dt) : dt :=
-  fun l0 => lset_inter (d1 l0) (d2 l0).
-
-  Fixpoint genDominatorTree_blocks_innerloop (bs:blocks) (udb:usedef_block) (output:dt) : dt :=
-  match bs with 
-  | nil => output
-  | (block_intro l ps cs t)::bs' => 
-    match (outputFromInput (block_intro l ps cs t) (inputFromPred (predOfBlock (block_intro l ps cs t) udb) output)) with 
-    | ls' => genDominatorTree_blocks_innerloop bs' udb (update_dt output l ls') 
-    end
-(*  | (block_without_label is)::bs' => 
-    genDominatorTree_blocks_innerloop bs' udb output  *)
-  end.  
-
-  (*
-    Check if the two dominator tress are equal w.r.t the domain (blocks of the current function)
-  *)
-  Fixpoint eq_dt (d0 d1:dt) (bs:blocks) : bool :=
-  match bs with
-  | nil => true
-  | (block_intro l0 _ _ _)::bs' =>
-    match (lset_eq (d0 l0) (d1 l0)) with
-    | true => eq_dt d0 d1 bs'
-    | false => false
-    end
-(*  | _::bs' => eq_dt d0 d1 bs' *)
-  end.
-
-  Fixpoint sizeOfDT (bs:blocks) (output:dt) : nat :=
-  match bs with
-  | nil => 0%nat
-  | (block_intro l0 _ _ _)::bs' => (length (output l0) + sizeOfDT bs' output)%nat
-(*  | _::bs'=> sizeOfDT bs' output *)
-  end.
-
-  Definition size (arg:(blocks*dt)) : nat :=
-  match arg with
-  | (bs, output) => sizeOfDT bs output
-  end.
-
-  Function genDominatorTree_blocks (arg:blocks*dt) (udb:usedef_block) {measure size arg} : dt :=
-  match arg with
-  | (bs, output) => 
-    match (genDominatorTree_blocks_innerloop bs udb output) with
-    | output' =>
-      match (eq_dt output output' bs) with
-      | true => output'
-      | false => genDominatorTree_blocks (bs, output') udb
-      end
-    end
-  end.
-  intros.
-  Admitted.
-
-  Fixpoint initialize_genDominatorTree_blocks (bs:blocks) (U:ls) (d0:dt) : dt :=
-  match bs with
-  | nil => d0
-  | (block_intro l0 _ _ _)::bs' => initialize_genDominatorTree_blocks bs' U (update_dt d0 l0 U)
-(*  | _::bs' => initialize_genDominatorTree_blocks bs' U d0 *)
-  end.
-
-  Definition genEmptyDT : dt := fun _ => nil. 
-
-  Definition initialize_genDominatorTree_entry (f:fdef) : dt :=
-  match (getEntryOfFdef f) with
-  | None => genEmptyDT
-  | Some (block_intro l0 _ _ _) => update_dt genEmptyDT l0 (lset_single l0)
-(*  | Some  _ => genEmptyDT *)
-  end.
-
-  Definition initialize_genDominatorTree (f:fdef) (U:ls) : dt :=
-  initialize_genDominatorTree_blocks (getNonEntryOfFdef f) U (initialize_genDominatorTree_entry f).  
-
-  Definition genDominatorTree (f:fdef) (m:module) : dt :=
-  match f with
-  | fdef_intro fheader blocks => 
-    genDominatorTree_blocks (blocks, (initialize_genDominatorTree f (genLabelsFromFdef f))) (genBlockUseDef m)  
-  end.
-
-  Definition blockDominates (d:dt) (b1 b2: block) : Prop :=
-  match b1 with
-  | block_intro l1 _ _ _=>
-    match (d l1) with
-    | ls1 => 
-      match b2 with
-      | block_intro l2 _ _ _=> 
-        match (lset_mem l2 ls1) with
-        | true => True
-        | false => False
-        end
-(*      | _ => False *)
-      end
-    end 
-(*  | _ => False *)
-  end.
-
-  Definition blockDominatesB (d:dt) (b1 b2: block) : bool :=
-  match b1 with
-  | block_intro l1 _ _ _=>
-    match (d l1) with
-    | ls1 => 
-      match b2 with
-      | block_intro l2 _ _ _ => 
-        match (lset_mem l2 ls1) with
-        | true => true
-        | false => false
-        end
-(*      | _ => false *)
-      end
-    end 
-(*  | _ => false *)
-  end.
-
-  Definition insnDominates (i1 i2:insn) (b:block) : Prop :=
-  match b with 
-  | (block_intro l5 ps cs tmn) =>
-    match (i1, i2) with
-    | (insn_cmd _, insn_terminator _) => True  
-    | (insn_phinode _, insn_terminator _) => True
-    | (insn_phinode _, insn_cmd _) => True
-    | (insn_cmd c1, insn_cmd c2) => 
-      (exists cs1, exists cs2, exists cs3, cs = cs1++(c1::cs2)++(c2::cs3))
-    | (insn_phinode p1, insn_phinode p2) => 
-      (exists ps1, exists ps2, exists ps3, ps = ps1++(p1::ps2)++(p2::ps3))
-    | _ => False
-    end
-  end.
-
-  Definition isReachableFromEntry (fi:fdef_info) (b:block) : Prop :=
-  let (f, d) := fi in   
-  match (getEntryOfFdef f) with
-  | None => False
-  | Some be => blockDominates d be b
-  end.
- 
-  Definition isReachableFromEntryB (fi:fdef_info) (b:block) : bool :=
-  let (f, d) := fi in   
-  match (getEntryOfFdef f) with
-  | None => false
-  | Some be => blockDominatesB d be b
   end.
 
 (**********************************)
@@ -2610,50 +2461,50 @@ InModulesB m s.
 Definition productInSystemModuleB (p:product) (s:system) (m:module) : bool :=
 moduleInSystemB m s && productInModuleB p m.
 
-Definition productInSystemModuleIB (p:product) (s:system) (mi:module_info) : bool :=
+Definition productInSystemModuleIB (p:product) (s:system) (mi:module_info) 
+  : bool :=
 match mi with
 | (m, (ui, ub)) => productInSystemModuleB p s m
 end.
 
-Definition blockInSystemModuleFdefB (b:block) (s:system) (m:module) (f:fdef) : bool :=
+Definition blockInSystemModuleFdefB (b:block) (s:system) (m:module) (f:fdef) 
+  : bool :=
 blockInFdefB b f && productInSystemModuleB (product_fdef f) s m.
 
-Definition blockInSystemModuleIFdefIB (b:block) (s:system) (mi:module_info) (fi:fdef_info) : bool :=
-match (mi, fi) with
-| ((m, (ui, ub)), (fd, dt)) => blockInSystemModuleFdefB b s m fd
+Definition blockInSystemModuleIFdefB (b:block) (s:system) (mi:module_info) 
+  (f:fdef) : bool :=
+match mi with
+| (m, (_, _)) => blockInSystemModuleFdefB b s m f
 end.
 
-Definition cmdInSystemModuleFdefBlockB 
+Definition cmdInSystemModuleFdefBlockB   
   (i:cmd) (s:system) (m:module) (f:fdef) (b:block) : bool :=
 cmdInBlockB i b && blockInSystemModuleFdefB b s m f.
 
-Definition cmdInSystemModuleIFdefIBlockB 
-  (i:cmd) (s:system) (mi:module_info) (fi:fdef_info) (b:block) : bool :=
-match (mi, fi) with
-| ((m, (ui, ub)), (fd, dt)) => 
-  cmdInBlockB i b && blockInSystemModuleFdefB b s m fd
+Definition cmdInSystemModuleIFdefBlockB 
+  (i:cmd) (s:system) (mi:module_info) (f:fdef) (b:block) : bool :=
+match mi with
+| (m, (_, _)) => cmdInSystemModuleFdefBlockB i s m f b
 end.
 
 Definition phinodeInSystemModuleFdefBlockB 
   (i:phinode) (s:system) (m:module) (f:fdef) (b:block) : bool :=
 phinodeInBlockB i b && blockInSystemModuleFdefB b s m f.
 
-Definition phinodeInSystemModuleIFdefIBlockB 
-  (i:phinode) (s:system) (mi:module_info) (fi:fdef_info) (b:block) : bool :=
-match (mi, fi) with
-| ((m, (ui, ub)), (fd, dt)) => 
-  phinodeInBlockB i b && blockInSystemModuleFdefB b s m fd
+Definition phinodeInSystemModuleIFdefBlockB 
+  (i:phinode) (s:system) (mi:module_info) (f:fdef) (b:block) : bool :=
+match mi with
+| (m, (_, _)) => phinodeInSystemModuleFdefBlockB i s m f b
 end.
 
 Definition terminatorInSystemModuleFdefBlockB 
   (i:terminator) (s:system) (m:module) (f:fdef) (b:block) : bool :=
 terminatorInBlockB i b && blockInSystemModuleFdefB b s m f.
 
-Definition terminatorInSystemModuleIFdefIBlockB 
-  (i:terminator) (s:system) (mi:module_info) (fi:fdef_info) (b:block) : bool :=
-match (mi, fi) with
-| ((m, (ui, ub)), (fd, dt)) => 
-  terminatorInBlockB i b && blockInSystemModuleFdefB b s m fd
+Definition terminatorInSystemModuleIFdefBlockB 
+  (i:terminator) (s:system) (mi:module_info) (f:fdef) (b:block) : bool :=
+match mi with
+| (m, (_, _)) => terminatorInSystemModuleFdefBlockB i s m f b
 end.
 
 Definition insnInSystemModuleFdefBlockB 
@@ -2664,14 +2515,14 @@ match i with
 | insn_terminator t => terminatorInSystemModuleFdefBlockB t s m f b
 end.
 
-Definition insnInSystemModuleIFdefIBlockB 
-  (i:insn) (s:system) (mi:module_info) (fi:fdef_info) (b:block) : bool :=
-match (mi, fi) with
-| ((m, (ui, ub)), (fd, dt)) => 
-  insnInSystemModuleFdefBlockB i s m fd b
+Definition insnInSystemModuleIFdefBlockB 
+  (i:insn) (s:system) (mi:module_info) (f:fdef) (b:block) : bool :=
+match mi with
+| (m, (_, _)) => insnInSystemModuleFdefBlockB i s m f b
 end.
 
-Definition blockInSystemModuleFdef b S M F := blockInSystemModuleFdefB b S M F = true.
+Definition blockInSystemModuleFdef b S M F := 
+  blockInSystemModuleFdefB b S M F = true.
 
 Definition moduleInSystem M S := moduleInSystemB M S = true.
 
@@ -3386,51 +3237,15 @@ Inductive reflect (P:Prop) : bool -> Set :=
 | ReflectF : ~P -> reflect P false
 .
 
-Section Decidable.
-
-Lemma dec_blockDominates : forall (d:dt) (b1 b2: block),
-  decidable (blockDominates d b1 b2).
-Proof.
-  intros d b1 b2.
-  unfold decidable. unfold blockDominates.
-  destruct b1 as [l1 insns1].
-  destruct b2 as [l2 insns2].
-  destruct (lset_mem l2 (d l1)); auto.
-Qed.
-
-End Decidable.
-
-Section Reflect.
-
-Lemma reflect_blockDominates : forall d b1 b2,
-  reflect (blockDominates d b1 b2) (blockDominatesB d b1 b2).
-Proof.
-  intros d b1 b2.
-  unfold blockDominates. unfold blockDominatesB.
-  destruct b1 as [l1 insns1].
-  destruct b2 as [l2 insns2].
-  remember (lset_mem l2 (d l1)) as c1.
-  destruct c1; auto.
-    apply ReflectT; auto.
-    apply ReflectF; auto.
-Qed.
-
-Definition ifP d b1 b2 (X:Type) (t f : monad X) :=
-match (reflect_blockDominates d b1 b2) with
-| ReflectT _ => t
-| ReflectF _ => f
-end.
-
-End Reflect.
-
 End LLVMlib.
 
 (*ENDCOPY*)
 
+(*****************************)
 (*
 *** Local Variables: ***
 *** coq-prog-name: "coqtop" ***
-*** coq-prog-args: ("-emacs-U" "-I" "./ott" "-I" "./monads") ***
+*** coq-prog-args: ("-emacs-U" "-I" "~/SVN/sol/vol/src/ssa/monads" "-I" "~/SVN/sol/vol/src/ssa/ott" "-I" "~/SVN/sol/vol/src/ssa/compcert" "-I" "~/SVN/sol/theory/metatheory_8.3" "-I" "~/SVN/sol/vol/src/TV") ***
 *** End: ***
  *)
 

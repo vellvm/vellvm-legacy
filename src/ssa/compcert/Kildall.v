@@ -12,10 +12,12 @@
 
 (** Solvers for dataflow inequations. *)
 
+Add LoadPath "../../../../theory/metatheory_8.3".
 Require Import Coqlib.
 Require Import Iteration.
 Require Import Maps.
 Require Import Lattice.
+Require Import Metatheory.
 
 (** A forward dataflow problem is a set of inequations of the form
 - [X(s) >= transf n X(n)] 
@@ -55,7 +57,7 @@ approximations do not exist or are too expensive to compute. *)
 
 (** * Solving forward dataflow problems using Kildall's algorithm *)
 
-Definition successors_list (successors: PTree.t (list positive)) (pc: positive) : list positive :=
+Definition successors_list (successors: ATree.t (list atom)) (pc: atom) : list atom :=
   match successors!pc with None => nil | Some l => l end.
 
 Notation "a !!! b" := (successors_list a b) (at level 1).
@@ -69,10 +71,10 @@ Module Type DATAFLOW_SOLVER.
   Declare Module L: SEMILATTICE.
 
   Variable fixpoint:
-    forall (successors: PTree.t (list positive))
-           (transf: positive -> L.t -> L.t)
-           (entrypoints: list (positive * L.t)),
-    option (PMap.t L.t).
+    forall (successors: ATree.t (list atom))
+           (transf: atom -> L.t -> L.t)
+           (entrypoints: list (atom * L.t)),
+    option (AMap.t L.t).
 
   (** [fixpoint successors transf entrypoints] is the solver.
     It returns either an error or a mapping from program points to
@@ -127,11 +129,11 @@ End DATAFLOW_SOLVER.
 Module Type NODE_SET.
 
   Variable t: Type.
-  Variable add: positive -> t -> t.
-  Variable pick: t -> option (positive * t).
-  Variable initial: PTree.t (list positive) -> t.
+  Variable add: atom -> t -> t.
+  Variable pick: t -> option (atom * t).
+  Variable initial: ATree.t (list atom) -> t.
 
-  Variable In: positive -> t -> Prop.
+  Variable In: atom -> t -> Prop.
   Hypothesis add_spec:
     forall n n' s, In n' (add n s) <-> n = n' \/ In n' s.
   Hypothesis pick_none:
@@ -155,9 +157,9 @@ Module L := LAT.
 
 Section Kildall.
 
-Variable successors: PTree.t (list positive).
-Variable transf: positive -> L.t -> L.t.
-Variable entrypoints: list (positive * L.t).
+Variable successors: ATree.t (list atom).
+Variable transf: atom -> L.t -> L.t.
+Variable entrypoints: list (atom * L.t).
 
 (** The state of the iteration has two components:
 - A mapping from program points to values of type [L.t] representing
@@ -166,7 +168,7 @@ Variable entrypoints: list (positive * L.t).
 *)
 
 Record state : Type :=
-  mkstate { st_in: PMap.t L.t; st_wrk: NS.t }.
+  mkstate { st_in: AMap.t L.t; st_wrk: NS.t }.
 
 (** Kildall's algorithm, in pseudo-code, is as follows:
 <<
@@ -192,12 +194,12 @@ The initial state is built as follows:
   approximations, we actually take the l.u.b. of these approximations.
 - The initial worklist contains all the program points. *)
 
-Fixpoint start_state_in (ep: list (positive * L.t)) : PMap.t L.t :=
+Fixpoint start_state_in (ep: list (atom * L.t)) : AMap.t L.t :=
   match ep with
   | nil =>
-      PMap.init L.bot
+      AMap.init L.bot
   | (n, v) :: rem =>
-      let m := start_state_in rem in PMap.set n (L.lub m!!n v) m
+      let m := start_state_in rem in AMap.set n (L.lub m!!n v) m
   end.
 
 Definition start_state :=
@@ -206,17 +208,17 @@ Definition start_state :=
 (** [propagate_succ] corresponds, in the pseudocode,
   to the body of the [for] loop iterating over all successors. *)
 
-Definition propagate_succ (s: state) (out: L.t) (n: positive) :=
+Definition propagate_succ (s: state) (out: L.t) (n: atom) :=
   let oldl := s.(st_in)!!n in
   let newl := L.lub oldl out in
   if L.beq oldl newl
   then s
-  else mkstate (PMap.set n newl s.(st_in)) (NS.add n s.(st_wrk)).
+  else mkstate (AMap.set n newl s.(st_in)) (NS.add n s.(st_wrk)).
 
 (** [propagate_succ_list] corresponds, in the pseudocode,
   to the [for] loop iterating over all successors. *)
 
-Fixpoint propagate_succ_list (s: state) (out: L.t) (succs: list positive)
+Fixpoint propagate_succ_list (s: state) (out: L.t) (succs: list atom)
                              {struct succs} : state :=
   match succs with
   | nil => s
@@ -226,7 +228,7 @@ Fixpoint propagate_succ_list (s: state) (out: L.t) (succs: list positive)
 (** [step] corresponds to the body of the outer [while] loop in the
   pseudocode. *)
 
-Definition step (s: state) : PMap.t L.t + state :=
+Definition step (s: state) : AMap.t L.t + state :=
   match NS.pick s.(st_wrk) with
   | None => 
       inl _ s.(st_in)
@@ -240,7 +242,7 @@ Definition step (s: state) : PMap.t L.t + state :=
 (** The whole fixpoint computation is the iteration of [step] from
   the start state. *)
 
-Definition fixpoint : option (PMap.t L.t) :=
+Definition fixpoint : option (AMap.t L.t) :=
   PrimIter.iterate _ _ step start_state.
 
 (** ** Monotonicity properties *)
@@ -249,7 +251,7 @@ Definition fixpoint : option (PMap.t L.t) :=
   at each step, the values of the [st_in[n]] either remain the same or
   increase with respect to the [L.ge] ordering. *)
 
-Definition in_incr (in1 in2: PMap.t L.t) : Prop :=
+Definition in_incr (in1 in2: AMap.t L.t) : Prop :=
   forall n, L.ge in2!!n in1!!n.
 
 Lemma in_incr_refl:
@@ -271,9 +273,9 @@ Proof.
   unfold in_incr, propagate_succ; simpl; intros.
   case (L.beq st.(st_in)!!n (L.lub st.(st_in)!!n out)).
   apply L.ge_refl. apply L.eq_refl.
-  simpl. case (peq n n0); intro.
-  subst n0. rewrite PMap.gss. apply L.ge_lub_left.
-  rewrite PMap.gso; auto. apply L.ge_refl. apply L.eq_refl.
+  simpl. case (eq_atom_dec n n0); intro.
+  subst n0. rewrite AMap.gss. apply L.ge_lub_left.
+  rewrite AMap.gso; auto. apply L.ge_refl. apply L.eq_refl.
 Qed.
 
 Lemma propagate_succ_list_incr:
@@ -349,10 +351,10 @@ Proof.
   auto.
 
   simpl. split.
-  rewrite PMap.gss.
+  rewrite AMap.gss.
   eapply L.ge_compat. apply L.lub_commut. apply L.eq_refl. 
   apply L.ge_lub_left. 
-  intros. rewrite PMap.gso; auto.
+  intros. rewrite AMap.gso; auto.
 Qed.
 
 Lemma propagate_succ_list_charact:
@@ -404,9 +406,9 @@ Proof.
   simpl. intros. unfold propagate_succ. 
   case (L.beq (st_in st) !! n (L.lub (st_in st) !! n out)).
   right; auto.
-  case (peq s n); intro.
+  case (eq_atom_dec s n); intro.
   subst s. left. simpl. rewrite NS.add_spec. auto.
-  right. simpl. apply PMap.gso. auto.
+  right. simpl. apply AMap.gso. auto.
 Qed.
 
 Lemma propagate_succ_list_records_changes:
@@ -437,7 +439,7 @@ Proof.
   intro; left; auto.
   simpl; intros EQ. rewrite EQ.
   (* Case 1: x = n *)
-  case (peq x n); intro.
+  case (eq_atom_dec x n); intro.
   subst x.
   right; intros.
   elim (propagate_succ_list_charact out (successors!!!n)
@@ -450,7 +452,7 @@ Proof.
   simpl. rewrite PICK in H. elim H; intro. congruence. auto.
   (* Case 2.2: x was not in worklist *)
   right; intros.
-  case (In_dec peq s (successors!!!n)); intro.
+  case (In_dec eq_atom_dec s (successors!!!n)); intro.
   (* Case 2.2.1: s is a successor of n, it may have increased *)
   apply L.ge_trans with st.(st_in)!!s.
   change st.(st_in)!!s with (mkstate st.(st_in) rem).(st_in)!!s.
@@ -505,11 +507,11 @@ Proof.
   induction ep; simpl; intros.
   elim H.
   elim H; intros.
-  subst a. rewrite PMap.gss.
+  subst a. rewrite AMap.gss.
   eapply L.ge_compat. apply L.lub_commut. apply L.eq_refl. 
   apply L.ge_lub_left.
-  destruct a. rewrite PMap.gsspec. case (peq n p); intro.
-  subst p. apply L.ge_trans with (start_state_in ep)!!n.
+  destruct a. rewrite AMap.gsspec. case (eq_atom_dec n a); intro.
+  subst a. apply L.ge_trans with (start_state_in ep)!!n.
   apply L.ge_lub_left. auto.
   auto.
 Qed.
@@ -543,16 +545,16 @@ Proof.
           (forall n v, In (n, v) ep -> P v) ->
           forall pc, P (start_state_in ep)!!pc).
     induction ep; intros; simpl.
-    rewrite PMap.gi. auto.
+    rewrite AMap.gi. auto.
     simpl in H.
     assert (P (start_state_in ep)!!pc). apply IHep. eauto.  
-    destruct a as [n v]. rewrite PMap.gsspec. destruct (peq pc n).
+    destruct a as [n v]. rewrite AMap.gsspec. destruct (eq_atom_dec pc n).
     apply P_lub. subst. auto. eapply H. left; reflexivity. auto.
   set (inv := fun st => forall pc, P (st.(st_in)!!pc)).
   assert (forall st v n, inv st -> P v -> inv (propagate_succ st v n)).
     unfold inv, propagate_succ. intros. 
     destruct (LAT.beq (st_in st)!!n (LAT.lub (st_in st)!!n v)).
-    auto. simpl. rewrite PMap.gsspec. destruct (peq pc n). 
+    auto. simpl. rewrite AMap.gsspec. destruct (eq_atom_dec pc n). 
     apply P_lub. subst n; auto. auto.
     auto.
   assert (forall l st v, inv st -> P v -> inv (propagate_succ_list st v l)).
@@ -584,14 +586,14 @@ End Dataflow_Solver.
 
 Section Predecessor.
 
-Variable successors: PTree.t (list positive).
+Variable successors: ATree.t (list atom).
 
-Fixpoint add_successors (pred: PTree.t (list positive))
-                        (from: positive) (tolist: list positive)
-                        {struct tolist} : PTree.t (list positive) :=
+Fixpoint add_successors (pred: ATree.t (list atom))
+                        (from: atom) (tolist: list atom)
+                        {struct tolist} : ATree.t (list atom) :=
   match tolist with
   | nil => pred
-  | to :: rem => add_successors (PTree.set to (from :: pred!!!to) pred) from rem
+  | to :: rem => add_successors (ATree.set to (from :: pred!!!to) pred) from rem
   end.
 
 Lemma add_successors_correct:
@@ -602,14 +604,14 @@ Proof.
   induction tolist; simpl; intros.
   tauto.
   apply IHtolist.
-  unfold successors_list at 1. rewrite PTree.gsspec. destruct (peq s a).
+  unfold successors_list at 1. rewrite ATree.gsspec. destruct (ATree.elt_eq s a).
   subst a. destruct H. auto with coqlib. 
   destruct H. subst n. auto with coqlib. 
   fold (successors_list pred s). intuition congruence.
 Qed.
 
-Definition make_predecessors : PTree.t (list positive) :=
-  PTree.fold add_successors successors (PTree.empty (list positive)).
+Definition make_predecessors : ATree.t (list atom) :=
+  ATree.fold add_successors successors (ATree.empty (list atom)).
 
 Lemma make_predecessors_correct:
   forall n s,
@@ -619,16 +621,16 @@ Proof.
   set (P := fun succ pred =>
           forall n s, In s succ!!!n -> In n pred!!!s).
   unfold make_predecessors.
-  apply PTree_Properties.fold_rec with (P := P).
+  apply ATree_Properties.fold_rec with (P := P).
 (* extensionality *)
   unfold P; unfold successors_list; intros.
   rewrite <- H in H1. auto.
 (* base case *)
-  red; unfold successors_list. intros n s. repeat rewrite PTree.gempty. auto.
+  red; unfold successors_list. intros n s. repeat rewrite ATree.gempty. auto.
 (* inductive case *)
   unfold P; intros. apply add_successors_correct.
-  unfold successors_list in H2. rewrite PTree.gsspec in H2. 
-  destruct (peq n k).
+  unfold successors_list in H2. rewrite ATree.gsspec in H2. 
+  destruct (ATree.elt_eq n k).
   subst k. auto.
   fold (successors_list m n) in H2. auto.
 Qed.
@@ -644,10 +646,10 @@ Module Type BACKWARD_DATAFLOW_SOLVER.
   Declare Module L: SEMILATTICE.
 
   Variable fixpoint:
-    PTree.t (list positive) ->
-    (positive -> L.t -> L.t) ->
-    list (positive * L.t) ->
-    option (PMap.t L.t).
+    ATree.t (list atom) ->
+    (atom -> L.t -> L.t) ->
+    list (atom * L.t) ->
+    option (AMap.t L.t).
 
   Hypothesis fixpoint_solution:
     forall successors transf entrypoints res n s,
@@ -686,9 +688,9 @@ Module DS := Dataflow_Solver L NS.
 
 Section Kildall.
 
-Variable successors: PTree.t (list positive).
-Variable transf: positive -> L.t -> L.t.
-Variable entrypoints: list (positive * L.t).
+Variable successors: ATree.t (list atom).
+Variable transf: atom -> L.t -> L.t.
+Variable entrypoints: list (atom * L.t).
 
 Definition fixpoint :=
   DS.fixpoint (make_predecessors successors) transf entrypoints.
@@ -766,10 +768,10 @@ Module Type BBLOCK_SOLVER.
   Declare Module L: ORDERED_TYPE_WITH_TOP.
 
   Variable fixpoint:
-    PTree.t (list positive) ->
-    (positive -> L.t -> L.t) ->
-    positive ->
-    option (PMap.t L.t).
+    ATree.t (list atom) ->
+    (atom -> L.t -> L.t) ->
+    atom ->
+    option (AMap.t L.t).
 
   Hypothesis fixpoint_solution:
     forall successors transf entrypoint res n s,
@@ -803,15 +805,15 @@ Module L := LAT.
 
 Section Solver.
 
-Variable successors: PTree.t (list positive).
-Variable transf: positive -> L.t -> L.t.
-Variable entrypoint: positive.
+Variable successors: ATree.t (list atom).
+Variable transf: atom -> L.t -> L.t.
+Variable entrypoint: atom.
 Variable P: L.t -> Prop.
 Hypothesis Ptop: P L.top.
 Hypothesis Ptransf: forall pc x, P x -> P (transf pc x).
 
-Definition bbmap := positive -> bool.
-Definition result := PMap.t L.t.
+Definition bbmap := atom -> bool.
+Definition result := AMap.t L.t.
 
 (** As in Kildall's solver, the state of the iteration has two components:
 - A mapping from program points to values of type [L.t] representing
@@ -820,7 +822,7 @@ Definition result := PMap.t L.t.
 *)
 
 Record state : Type := mkstate
-  { st_in: result; st_wrk: list positive }.
+  { st_in: result; st_wrk: list atom }.
 
 (** The ``extended basic block'' algorithm, in pseudo-code, is as follows:
 <<
@@ -842,7 +844,7 @@ Record state : Type := mkstate
 **)
 
 Fixpoint propagate_successors
-    (bb: bbmap) (succs: list positive) (l: L.t) (st: state)
+    (bb: bbmap) (succs: list atom) (l: L.t) (st: state)
     {struct succs} : state :=
   match succs with
   | nil => st
@@ -851,7 +853,7 @@ Fixpoint propagate_successors
         propagate_successors bb sl l st
       else
         propagate_successors bb sl l
-          (mkstate (PMap.set s1 l st.(st_in))
+          (mkstate (AMap.set s1 l st.(st_in))
                    (s1 :: st.(st_wrk)))
   end.
 
@@ -868,26 +870,26 @@ Definition step (bb: bbmap) (st: state) : result + state :=
 (** Recognition of program points that have more than one predecessor. *)
 
 Definition is_basic_block_head 
-    (preds: PTree.t (list positive)) (pc: positive) : bool :=
-  if peq pc entrypoint then true else
+    (preds: ATree.t (list atom)) (pc: atom) : bool :=
+  if eq_atom_dec pc entrypoint then true else
     match preds!!!pc with
     | nil => false
-    | s :: nil => peq s pc
+    | s :: nil => eq_atom_dec s pc
     | _ :: _ :: _ => true
     end.
 
 Definition basic_block_map : bbmap :=
   is_basic_block_head (make_predecessors successors).
 
-Definition basic_block_list (bb: bbmap) : list positive :=
-  PTree.fold (fun l pc scs => if bb pc then pc :: l else l)
+Definition basic_block_list (bb: bbmap) : list atom :=
+  ATree.fold (fun l pc scs => if bb pc then pc :: l else l)
              successors nil.
 
 (** The computation of the approximate solution. *)
 
 Definition fixpoint : option result :=
   let bb := basic_block_map in
-  PrimIter.iterate _ _ (step bb) (mkstate (PMap.init L.top) (basic_block_list bb)).
+  PrimIter.iterate _ _ (step bb) (mkstate (AMap.init L.top) (basic_block_list bb)).
 
 (** ** Properties of predecessors and multiple-predecessors nodes *)
 
@@ -911,7 +913,7 @@ Proof.
   assert (In n1 predecessors!!!s). apply predecessors_correct; auto.
   assert (In n2 predecessors!!!s). apply predecessors_correct; auto.
   unfold basic_block_map, is_basic_block_head.
-  destruct (peq s entrypoint). auto. 
+  destruct (eq_atom_dec s entrypoint). auto. 
   fold predecessors.
   destruct (predecessors!!!s). 
   auto.
@@ -925,12 +927,14 @@ Lemma no_self_loop:
   In n (successors!!!n) -> basic_block_map n = true.
 Proof.
   intros. unfold basic_block_map, is_basic_block_head.
-  destruct (peq n entrypoint). auto. 
+  destruct (eq_atom_dec n entrypoint). auto. 
   fold predecessors. 
   generalize (predecessors_correct n n H). intro.
   destruct (predecessors!!!n). auto.
-  destruct l. replace n with p. apply peq_true. simpl in H0. tauto. 
-  auto.
+  destruct l; auto.
+    replace n with a. 
+      destruct (eq_atom_dec a a); auto.
+      simpl in H0. tauto. 
 Qed.
 
 (** ** Correctness invariant *)
@@ -960,7 +964,7 @@ Proof.
   auto.
   apply incl_tran with (a :: st_wrk st).
   apply incl_tl. apply incl_refl.
-  set (st1 := (mkstate (PMap.set a l (st_in st)) (a :: st_wrk st))).
+  set (st1 := (mkstate (AMap.set a l (st_in st)) (a :: st_wrk st))).
   change (a :: st_wrk st) with (st_wrk st1).
   auto.
 Qed.
@@ -980,17 +984,17 @@ Proof.
   split; intros. apply A; auto.
   elim H0; intro. subst a. congruence. auto. 
   apply B. tauto. 
-  set (st1 := mkstate (PMap.set a l (st_in st)) (a :: st_wrk st)).
+  set (st1 := mkstate (AMap.set a l (st_in st)) (a :: st_wrk st)).
   elim (IHsuccs l st1 n); intros A B.
   split; intros.
   elim H0; intros.
   subst n. split.
   apply propagate_successors_charact1. simpl. tauto.
-  case (In_dec peq a succs); intro.
+  case (In_dec eq_atom_dec a succs); intro.
   elim (A i H1); auto.
-  rewrite B. unfold st1; simpl. apply PMap.gss. tauto.
+  rewrite B. unfold st1; simpl. apply AMap.gss. tauto.
   apply A; auto.
-  rewrite B. unfold st1; simpl. apply PMap.gso. 
+  rewrite B. unfold st1; simpl. apply AMap.gso. 
   red; intro; subst n. elim H0; intro. tauto. congruence.
   tauto. 
 Qed.
@@ -1017,7 +1021,7 @@ Proof.
   elim (A n); intros C D. rewrite D. simpl. apply INV1. auto. tauto. 
   (* Second part: monotonicity *)
   (* Case 1: n = pc *)
-  case (peq pc n); intros.
+  case (eq_atom_dec pc n); intros.
   subst n. right; intros. 
   elim (A s); intros C D.
   replace (st1.(st_in)!!pc) with res!!pc. fold l. 
@@ -1025,7 +1029,7 @@ Proof.
   rewrite D. simpl. rewrite INV1. apply L.top_ge. auto. tauto. 
   elim (C H H0); intros. rewrite H2. apply L.refl_ge. 
   elim (A pc); intros E F. rewrite F. reflexivity. 
-  case (In_dec peq pc (successors!!!pc)); intro.
+  case (In_dec eq_atom_dec pc (successors!!!pc)); intro.
   right. apply no_self_loop; auto. 
   left; auto.
   (* Case 2: n <> pc *)
@@ -1039,10 +1043,10 @@ Proof.
        but that gives them two different predecessors, so
        they are basic block heads, and thus do not change! *)
     intros. elim (A s); intros C D. rewrite D. reflexivity. 
-    case (In_dec peq s (successors!!!pc)); intro.
+    case (In_dec eq_atom_dec s (successors!!!pc)); intro.
     right. apply multiple_predecessors with n pc; auto.
     left; auto.
-  case (In_dec peq n (successors!!!pc)); intro.
+  case (In_dec eq_atom_dec n (successors!!!pc)); intro.
   (* Case 2.2.1: n is a successor of pc. Either it is in the
      worklist or it did not change *)
   caseEq (basic_block_map n); intro.
@@ -1058,11 +1062,11 @@ Proof.
 Qed.
 
 Lemma initial_state_invariant:
-  state_invariant (mkstate (PMap.init L.top) (basic_block_list basic_block_map)).
+  state_invariant (mkstate (AMap.init L.top) (basic_block_list basic_block_map)).
 Proof.
   split; simpl; intros.
-  apply PMap.gi.
-  right. intros. repeat rewrite PMap.gi. apply L.top_ge.
+  apply AMap.gi.
+  right. intros. repeat rewrite AMap.gi. apply L.top_ge.
 Qed.
 
 Lemma analyze_invariant:
@@ -1111,7 +1115,7 @@ Proof.
   eapply analyze_invariant; eauto. 
   elim H0; simpl; intros. 
   apply H1. unfold basic_block_map, is_basic_block_head.
-  fold predecessors. apply peq_true. 
+  fold predecessors. destruct (eq_atom_dec entrypoint entrypoint); auto. 
 Qed. 
 
 (** ** Preservation of a property over solutions *)
@@ -1130,7 +1134,7 @@ Proof.
   auto.
   case (bb a). auto. 
   apply IHsuccs. red; simpl; intros. 
-  rewrite PMap.gsspec. case (peq pc a); intro.
+  rewrite AMap.gsspec. case (eq_atom_dec pc a); intro.
   auto. apply H0.
 Qed.
 
@@ -1146,7 +1150,7 @@ Proof.
     red; intro; simpl. apply PS.
   apply propagate_successors_P. auto. auto. eauto. 
 
-  red; intro; simpl. rewrite PMap.gi. apply Ptop.
+  red; intro; simpl. rewrite AMap.gi. apply Ptop.
 Qed.
 
 End Solver.
@@ -1154,6 +1158,94 @@ End Solver.
 End BBlock_solver.
 
 (** ** Node sets *)
+
+Require Import ListSet.
+
+Module AtomNodeSet <: NODE_SET.
+  Definition t := set atom.
+  Definition add (n: atom) (s: t) : t := set_add eq_atom_dec n s.
+  Definition pick (s: t) :=
+    match s with
+    | n::s' => Some(n, set_remove eq_atom_dec n s')
+    | nil => None
+    end.
+  Definition initial (successors: ATree.t (list atom)) :=
+    ATree.fold (fun s pc scs => add pc s) successors (empty_set atom).
+  Definition In := (@set_In atom).
+
+  Lemma add_spec:
+    forall n n' s, In n' (add n s) <-> n = n' \/ In n' s.
+  Proof.
+    intros. 
+    split; intro J.
+      apply (@set_add_elim atom eq_atom_dec n' n s) in J.
+      destruct J; auto.
+
+      apply (@set_add_intro atom eq_atom_dec).
+      destruct J; auto.
+  Qed.
+    
+  Lemma pick_none:
+    forall s n, pick s = None -> ~In n s.
+  Proof.
+    intros until n; unfold pick. 
+    destruct s; auto.
+      intro J. inversion J.
+  Qed.
+
+  Lemma set_remove_spec1 : forall s n n',
+    In n' s -> n <> n' -> In n' (set_remove eq_atom_dec n s).
+  Proof.
+    induction s; intros; simpl in *; auto.
+      destruct H as [H | H]; subst.
+        destruct (eq_atom_dec n n') as [J1 | J2]; subst; 
+          try solve [simpl; auto | contradict H0; auto].
+
+        destruct (eq_atom_dec n a) as [J1 | J2]; subst; simpl; auto.
+  Qed.
+
+  Lemma set_remove_spec2 : forall s n n',
+    In n' (set_remove eq_atom_dec n s) -> In n' s.
+  Proof.
+    induction s; intros; simpl in *; auto.
+      destruct (eq_atom_dec n a) as [J1 | J2]; subst; simpl in *; auto.
+        destruct H as [H | H]; eauto.
+  Qed.
+
+  Lemma pick_some:
+    forall s n s', pick s = Some(n, s') ->
+    forall n', In n' s <-> n = n' \/ In n' s'.
+  Proof.
+    intros until s'; unfold pick.
+    destruct s; intro H0; inv H0.
+    intros n'.
+    split; intros.
+      simpl in H.
+      inv H; auto.
+        destruct (eq_atom_dec n n') as [J1 | J2]; subst; auto.
+          right. apply set_remove_spec1; auto.
+
+      destruct H as [H | H]; subst; simpl; auto.
+          right. eapply set_remove_spec2; eauto.
+  Qed.
+
+  Lemma initial_spec:
+    forall successors n s, 
+    successors!n = Some s -> In n (initial successors).
+  Proof.
+    intros successors.
+    apply ATree_Properties.fold_rec with
+      (P := fun succ set =>
+              forall n s, succ!n = Some s -> In n set).
+    (* extensionality *)
+    intros. rewrite <- H in H1. eauto.
+    (* base case *)
+    intros. rewrite ATree.gempty in H. congruence.
+    (* inductive case *)
+    intros. rewrite ATree.gsspec in H2. rewrite add_spec.
+    destruct (ATree.elt_eq n k). auto. eauto.
+  Qed.
+End AtomNodeSet.
 
 (** We now define implementations of the [NODE_SET] interface
   appropriate for forward and backward dataflow analysis.
@@ -1168,6 +1260,7 @@ End BBlock_solver.
   greatest node in the working list.  For backward analysis,
   we will similarly pick the smallest node in the working list. *)
 
+(*
 Require Import FSets.
 Require Import FSetAVL.
 Require Import Ordered.
@@ -1274,4 +1367,12 @@ Module NodeSetBackward <: NODE_SET.
     successors!n = Some s -> In n (initial successors).
   Proof NodeSetForward.initial_spec.
 End NodeSetBackward.
+*)
 
+(*****************************)
+(*
+*** Local Variables: ***
+*** coq-prog-name: "coqtop" ***
+*** coq-prog-args: ("-emacs-U" "-I" "~/SVN/sol/vol/src/ssa/monads" "-I" "~/SVN/sol/vol/src/ssa/ott" "-I" "~/SVN/sol/vol/src/ssa/compcert" "-I" "~/SVN/sol/theory/metatheory_8.3") ***
+*** End: ***
+ *)

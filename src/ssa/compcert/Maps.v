@@ -32,7 +32,9 @@
   inefficient implementation of maps as functions is also provided.
 *)
 
+Add LoadPath "../../../../theory/metatheory_8.3".
 Require Import Coqlib.
+Require Import Metatheory.
 
 Set Implicit Arguments.
 
@@ -1025,6 +1027,125 @@ Module PTree <: TREE.
 
 End PTree.
 
+(** * An implementation of trees over type [atom] *)
+
+(* FIXME: We cannot implement Tree by atom. *)
+Module ATree <: TREE.
+  Definition elt := atom.
+  Definition elt_eq := eq_atom_dec.
+
+  Inductive tree (A : Type) : Type :=
+    | Leaf : tree A
+    | Node : tree A -> option A -> tree A -> tree A
+  .
+  Implicit Arguments Leaf [A].
+  Implicit Arguments Node [A].
+
+  Definition t := tree.
+
+  Variable eq: forall (A: Type), (forall (x y: A), {x=y} + {x<>y}) ->
+                forall (a b: t A), {a = b} + {a <> b}.
+  Variable empty: forall (A: Type), t A.
+  Variable get: forall (A: Type), elt -> t A -> option A.
+  Variable set: forall (A: Type), elt -> A -> t A -> t A.
+  Variable remove: forall (A: Type), elt -> t A -> t A.
+
+  (** The ``good variables'' properties for trees, expressing
+    commutations between [get], [set] and [remove]. *)
+  Hypothesis gempty:
+    forall (A: Type) (i: elt), get i (empty A) = None.
+  Hypothesis gss:
+    forall (A: Type) (i: elt) (x: A) (m: t A), get i (set i x m) = Some x.
+  Hypothesis gso:
+    forall (A: Type) (i j: elt) (x: A) (m: t A),
+    i <> j -> get i (set j x m) = get i m.
+  Hypothesis gsspec:
+    forall (A: Type) (i j: elt) (x: A) (m: t A),
+    get i (set j x m) = if elt_eq i j then Some x else get i m.
+  Hypothesis gsident:
+    forall (A: Type) (i: elt) (m: t A) (v: A),
+    get i m = Some v -> set i v m = m.
+  (* We could implement the following, but it's not needed for the moment.
+    Hypothesis grident:
+      forall (A: Type) (i: elt) (m: t A) (v: A),
+      get i m = None -> remove i m = m.
+  *)
+  Hypothesis grs:
+    forall (A: Type) (i: elt) (m: t A), get i (remove i m) = None.
+  Hypothesis gro:
+    forall (A: Type) (i j: elt) (m: t A),
+    i <> j -> get i (remove j m) = get i m.
+  Hypothesis grspec:
+    forall (A: Type) (i j: elt) (m: t A),
+    get i (remove j m) = if elt_eq i j then None else get i m.
+
+  (** Extensional equality between trees. *)
+  Variable beq: forall (A: Type), (A -> A -> bool) -> t A -> t A -> bool.
+  Hypothesis beq_correct:
+    forall (A: Type) (P: A -> A -> Prop) (cmp: A -> A -> bool),
+    (forall (x y: A), cmp x y = true -> P x y) ->
+    forall (t1 t2: t A), beq cmp t1 t2 = true ->
+    forall (x: elt),
+    match get x t1, get x t2 with
+    | None, None => True
+    | Some y1, Some y2 => P y1 y2
+    | _, _ => False
+    end.
+
+  (** Applying a function to all data of a tree. *)
+  Variable map:
+    forall (A B: Type), (elt -> A -> B) -> t A -> t B.
+  Hypothesis gmap:
+    forall (A B: Type) (f: elt -> A -> B) (i: elt) (m: t A),
+    get i (map f m) = option_map (f i) (get i m).
+
+  (** Applying a function pairwise to all data of two trees. *)
+  Variable combine:
+    forall (A: Type), (option A -> option A -> option A) -> t A -> t A -> t A.
+  Hypothesis gcombine:
+    forall (A: Type) (f: option A -> option A -> option A),
+    f None None = None ->
+    forall (m1 m2: t A) (i: elt),
+    get i (combine f m1 m2) = f (get i m1) (get i m2).
+  Hypothesis combine_commut:
+    forall (A: Type) (f g: option A -> option A -> option A),
+    (forall (i j: option A), f i j = g j i) ->
+    forall (m1 m2: t A),
+    combine f m1 m2 = combine g m2 m1.
+
+  (** Enumerating the bindings of a tree. *)
+  Variable elements:
+    forall (A: Type), t A -> list (elt * A).
+  Hypothesis elements_correct:
+    forall (A: Type) (m: t A) (i: elt) (v: A),
+    get i m = Some v -> In (i, v) (elements m).
+  Hypothesis elements_complete:
+    forall (A: Type) (m: t A) (i: elt) (v: A),
+    In (i, v) (elements m) -> get i m = Some v.
+  Hypothesis elements_keys_norepet:
+    forall (A: Type) (m: t A), 
+    list_norepet (List.map (@fst elt A) (elements m)).
+  Hypothesis elements_canonical_order:
+    forall (A B: Type) (R: A -> B -> Prop) (m: t A) (n: t B),
+    (forall i x, get i m = Some x -> exists y, get i n = Some y /\ R x y) ->
+    (forall i y, get i n = Some y -> exists x, get i m = Some x /\ R x y) ->
+    list_forall2
+      (fun i_x i_y => fst i_x = fst i_y /\ R (snd i_x) (snd i_y))
+      (elements m) (elements n).
+  Hypothesis elements_extensional:
+    forall (A: Type) (m n: t A),
+    (forall i, get i m = get i n) ->
+    elements m = elements n.
+
+  (** Folding a function over all bindings of a tree. *)
+  Variable fold:
+    forall (A B: Type), (B -> elt -> A -> B) -> t A -> B -> B.
+  Hypothesis fold_spec:
+    forall (A B: Type) (f: B -> elt -> A -> B) (v: B) (m: t A),
+    fold f m v =
+    List.fold_left (fun a p => f a (fst p) (snd p)) (elements m) v.
+End ATree.
+
 (** * An implementation of maps over type [positive] *)
 
 Module PMap <: MAP.
@@ -1102,6 +1223,84 @@ Module PMap <: MAP.
   Qed.
 
 End PMap.
+
+(** * An implementation of maps over type [atom] *)
+
+Module AMap <: MAP.
+  Definition elt := atom.
+  Definition elt_eq := eq_atom_dec.
+
+  Definition t (A : Type) : Type := (A * ATree.t A)%type.
+
+  Definition eq: forall (A: Type), (forall (x y: A), {x=y} + {x<>y}) ->
+                 forall (a b: t A), {a = b} + {a <> b}.
+  Proof.
+    intros. 
+    generalize (ATree.eq X). intros. 
+    decide equality.
+  Qed.
+
+  Definition init (A : Type) (x : A) :=
+    (x, ATree.empty A).
+
+  Definition get (A : Type) (i : atom) (m : t A) :=
+    match ATree.get i (snd m) with
+    | Some x => x
+    | None => fst m
+    end.
+
+  Definition set (A : Type) (i : atom) (x : A) (m : t A) :=
+    (fst m, ATree.set i x (snd m)).
+
+  Theorem gi:
+    forall (A: Type) (i: atom) (x: A), get i (init x) = x.
+  Proof.
+    intros. unfold init. unfold get. simpl. rewrite ATree.gempty. auto.
+  Qed.
+
+  Theorem gss:
+    forall (A: Type) (i: atom) (x: A) (m: t A), get i (set i x m) = x.
+  Proof.
+    intros. unfold get. unfold set. simpl. rewrite ATree.gss. auto.
+  Qed.
+
+  Theorem gso:
+    forall (A: Type) (i j:atom) (x: A) (m: t A),
+    i <> j -> get i (set j x m) = get i m.
+  Proof.
+    intros. unfold get. unfold set. simpl. rewrite ATree.gso; auto.
+  Qed.
+
+  Theorem gsspec:
+    forall (A: Type) (i j: atom) (x: A) (m: t A),
+    get i (set j x m) = if eq_atom_dec i j then x else get i m.
+  Proof.
+    intros. destruct (eq_atom_dec i j).
+     rewrite e. apply gss. auto.
+     apply gso. auto.
+  Qed.
+
+  Theorem gsident:
+    forall (A: Type) (i j: atom) (m: t A),
+    get j (set i (get i m) m) = get j m.
+  Proof.
+    intros. destruct (eq_atom_dec i j).
+     rewrite e. rewrite gss. auto.
+     rewrite gso; auto.
+  Qed.
+
+  Definition map (A B : Type) (f : A -> B) (m : t A) : t B :=
+    (f (fst m), ATree.map (fun _ => f) (snd m)).
+
+  Theorem gmap:
+    forall (A B: Type) (f: A -> B) (i: atom) (m: t A),
+    get i (map f m) = f(get i m).
+  Proof.
+    intros. unfold map. unfold get. simpl. rewrite ATree.gmap.
+    unfold option_map. destruct (ATree.get i (snd m)); auto.
+  Qed.
+
+End AMap.
 
 (** * An implementation of maps over any type that injects into type [positive] *)
 
@@ -1341,7 +1540,7 @@ Proof.
   destruct a as [k v]; simpl in *. inv H1. 
   change ((k, v) :: l1) with (((k, v) :: nil) ++ l1). rewrite <- List.app_ass. apply IHl1.
   rewrite app_ass. auto.
-  red; intros. rewrite map_app in H3. destruct (in_app_or _ _ _ H3). apply H0; auto with coqlib. 
+  red; intros. rewrite List.map_app in H3. destruct (in_app_or _ _ _ H3). apply H0; auto with coqlib. 
   simpl in H4. intuition congruence.
   auto.
   unfold f'. simpl. apply H_rec'; auto. eapply list_disjoint_notin; eauto with coqlib.
@@ -1365,11 +1564,19 @@ End TREE_FOLD_IND.
 
 End Tree_Properties.
 
-Module PTree_Properties := Tree_Properties(PTree).
+Module ATree_Properties := Tree_Properties(ATree).
 
 (** * Useful notations *)
 
-Notation "a ! b" := (PTree.get b a) (at level 1).
-Notation "a !! b" := (PMap.get b a) (at level 1).
+Notation "a ! b" := (ATree.get b a) (at level 1).
+Notation "a !! b" := (AMap.get b a) (at level 1).
+
+(*****************************)
+(*
+*** Local Variables: ***
+*** coq-prog-name: "coqtop" ***
+*** coq-prog-args: ("-emacs-U" "-I" "~/SVN/sol/vol/src/ssa/monads" "-I" "~/SVN/sol/vol/src/ssa/ott" "-I" "~/SVN/sol/vol/src/ssa/compcert" "-I" "~/SVN/sol/theory/metatheory_8.3") ***
+*** End: ***
+ *)
 
 (* $Id: Maps.v,v 1.12.4.4 2006/01/07 11:46:55 xleroy Exp $ *)

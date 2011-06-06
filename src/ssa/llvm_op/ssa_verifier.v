@@ -1,3 +1,8 @@
+Add LoadPath "../ott".
+Add LoadPath "../monads".
+Add LoadPath "../compcert".
+Add LoadPath "../../../../theory/metatheory_8.3".
+Add LoadPath "../".
 Require Import ssa_def.
 Require Import ssa_lib.
 Require Import List.
@@ -8,6 +13,7 @@ Require Import Arith.
 Require Import Bool.
 Require Import Compare_dec.
 Require Import Metatheory.
+Require Import ssa_analysis.
 
 Module LLVMverifier.
 
@@ -32,11 +38,10 @@ Inductive wf_typ : typ -> Prop :=    (* defn wf_typ *)
 Definition wf_operand_insn (intrinsic_funs5:intrinsic_funs) 
                            (system5:system)
                            (module_info5:module_info)
-                           (fdef_info5:fdef_info)
+                           (fdef5:fdef)
                            (block5:block)
                            (insn5 op:insn) : Prop :=
   let '(module5, (usedef_insn5, usedef_block5)) := module_info5 in
-  let (fdef5, dt5) := fdef_info5 in 
   {{{
   do id' <- ret (getInsnID  op);
   do OpBlock <- (lookupBlockViaIDFromFdef fdef5 id');
@@ -68,18 +73,18 @@ Definition wf_operand_insn (intrinsic_funs5:intrinsic_funs)
         then
         (* Special case of a phi node in the normal destination or the unwind
            destination *)
-           Assert (block5 = NormalDest /\ isReachableFromEntry fdef_info5 UseBlock)
+           Assert (block5 = NormalDest /\ isReachableFromEntry fdef5 UseBlock)
         else
         (* Invoke result does dominate all uses! *)
         do Assert (blockDominates dt5 NormalDest UseBlock \/ 
-                ~ (isReachableFromEntry fdef_info5 UseBlock));
+                ~ (isReachableFromEntry fdef5 UseBlock));
 
         (* If the normal successor of an invoke instruction has multiple
            predecessors, then the normal edge from the invoke is critical,
            so the invoke value can only be live if the destination block
            dominates all of it's predecessors (other than the invoke). *)
            If (negb (hasSinglePredecessor NormalDest usedef_block5) &&
-               (isReachableFromEntryB fdef_info5 UseBlock)
+               (isReachableFromEntryB fdef5 UseBlock)
               )
            then
            (* If it is used by something non-phi, then the other case is that
@@ -91,7 +96,7 @@ Definition wf_operand_insn (intrinsic_funs5:intrinsic_funs)
                then
                do parentOfOp <- getParentOfInsnFromSystemC op system5;
                   If (negb (blockDominatesB dt5 NormalDest PI) && 
-                      isReachableFromEntryB fdef_info5 PI)
+                      isReachableFromEntryB fdef5 PI)
                   then ret False
                   endif
                endif
@@ -106,7 +111,7 @@ Definition wf_operand_insn (intrinsic_funs5:intrinsic_funs)
      do predl <- getLabelViaIDPhiNode insn5 id';
      do PredBB <- lookupBlockViaLabelFromSystem system5 predl;
         (* Instruction must dominate all uses! *) 
-        Assert (blockDominates dt5 OpBlock PredBB \/ ~ isReachableFromEntry fdef_info5 PredBB)
+        Assert (blockDominates fdef5 OpBlock PredBB \/ ~ isReachableFromEntry fdef5 PredBB)
      else       
      (* 
         LLVM uses InstsInThisBlock to remember checked insns within the currren block,
@@ -128,7 +133,7 @@ Definition wf_operand_insn (intrinsic_funs5:intrinsic_funs)
         But we don't do this in Coq, and check Dominance everytime.
      *)
         (* Definition must dominate use unless use is unreachable! *)
-        Assert (insnDominates op insn5 block5 \/ ~ isReachableFromEntry fdef_info5 block5)
+        Assert (insnDominates op insn5 block5 \/ ~ isReachableFromEntry fdef5 block5)
      endif
   }}}.
 
@@ -136,18 +141,17 @@ Definition wf_operand_insn (intrinsic_funs5:intrinsic_funs)
 Definition wf_operand (intrinsic_funs5:intrinsic_funs) 
                             (system5:system)
                             (module_info5:module_info)
-                            (fdef_info5:fdef_info)
+                            (fdef5:fdef)
                             (block5:block)
                             (insn5:insn) 
                             (id':id): Prop :=
   let '((module_intro list_layout5 namedts5 list_product5), (usedef_insn5, usedef_block5)) := module_info5 in
-  let (fdef5, dt5) := fdef_info5 in 
   {{{
-  do ret (insnInSystemModuleIFdefIBlockB
+  do ret (insnInSystemModuleIFdefBlockB
             insn5 
             system5  
             ( (module_intro list_layout5 namedts5 list_product5) , ( usedef_insn5 ,  usedef_block5 )) 
-            ( fdef5 ,  dt5 )   
+            fdef5   
             block5);
   do ids5 <- ret (getInsnOperands insn5);
   do ret ( set_In  id' ids5 );
@@ -194,38 +198,37 @@ Definition wf_operand (intrinsic_funs5:intrinsic_funs)
      then 
      (*  Check when id_binding' is insn *)
      do insn' <- getBindingInsn id_binding';
-        ret (wf_operand_insn intrinsic_funs5 system5 module_info5 fdef_info5 block5 insn5 insn')
+        ret (wf_operand_insn intrinsic_funs5 system5 module_info5 fdef5 block5 insn5 insn')
      endif;
 
      ret True
   }}}.
   
 (* defns Jwf_label *)
-Inductive wf_label : intrinsic_funs -> system -> module_info -> fdef_info -> block -> insn -> l -> Prop :=    (* defn wf_label *)
- | wf_label_intro : forall (intrinsic_funs5:intrinsic_funs) (system5:system) (module5:module) (usedef_insn5:usedef_id) (usedef_block5:usedef_block) (fdef5:fdef) (dt5:dt) (block5:block) (insn5:insn) (l5:l) (ls5:ls),
-     insnInSystemModuleIFdefIBlockB insn5 system5   ( module5 , ( usedef_insn5 ,  usedef_block5 ))     ( fdef5 ,  dt5 )   block5 = true ->
+Inductive wf_label : intrinsic_funs -> system -> module_info -> fdef -> block -> insn -> l -> Prop :=    (* defn wf_label *)
+ | wf_label_intro : forall (intrinsic_funs5:intrinsic_funs) (system5:system) (module5:module) (usedef_insn5:usedef_id) (usedef_block5:usedef_block) (fdef5:fdef) (block5:block) (insn5:insn) (l5:l) (ls5:ls),
+     insnInSystemModuleIFdefBlockB insn5 system5   ( module5 , ( usedef_insn5 ,  usedef_block5 ))  fdef5   block5 = true ->
      getInsnLabels insn5 = ls5 ->
       ( set_In  l5   ls5 )  ->
       (lookupBlockViaLabelFromSystem  system5   l5  =   (Some  block5 )  )  ->
      blockInFdefB block5 fdef5 = true ->
-     wf_label intrinsic_funs5 system5   ( module5 , ( usedef_insn5 ,  usedef_block5 ))     ( fdef5 ,  dt5 )   block5 insn5 l5.
+     wf_label intrinsic_funs5 system5   ( module5 , ( usedef_insn5 ,  usedef_block5 ))     fdef5   block5 insn5 l5.
 
 (* defns JvisitInstruction *)
 Definition visitInstruction (intrinsic_funs5:intrinsic_funs) 
                             (system5:system)
                             (module_info5:module_info)
-                            (fdef_info5:fdef_info)
+                            (fdef5:fdef)
                             (block5:block)
                             (insn5:insn) : Prop :=
   let '(module5, (usedef_insn5, usedef_block5)) := module_info5 in
-  let (fdef5, dt5) := fdef_info5 in 
   {{{
   (* Instruction must be embedded in basic block! *)
-  do ret (insnInSystemModuleIFdefIBlockB 
+  do ret (insnInSystemModuleIFdefBlockB 
             insn5   
             system5   
             ( module5 , ( usedef_insn5 ,  usedef_block5 ))     
-            ( fdef5 ,  dt5 )   
+            fdef5
             block5);
 
   (* Check that non-phi nodes are not self referential *)
@@ -234,7 +237,7 @@ Definition visitInstruction (intrinsic_funs5:intrinsic_funs)
      do id5 <- ret (getInsnID insn5);
         for id5' in (getIdUseDef usedef_insn5 id5) do
           Assert ((not (id5 = id5')) \/ 
-                  (not (isReachableFromEntry (fdef5, dt5) block5)))
+                  (not (isReachableFromEntry fdef5 block5)))
         endfor
      endif;
 
@@ -270,12 +273,12 @@ Definition visitInstruction (intrinsic_funs5:intrinsic_funs)
   do for insn in (getInsnOperands insn5) do
      (* Check to make sure that only first-class-values are operands to
         instructions. *)
-       ret (wf_operand intrinsic_funs5 system5 module_info5 fdef_info5 block5 insn5 insn)
+       ret (wf_operand intrinsic_funs5 system5 module_info5 fdef5 block5 insn5 insn)
      endfor;
 
   (* Check labels *)
      for l in (getInsnLabels insn5) do
-       ret (wf_label intrinsic_funs5 system5 module_info5 fdef_info5 block5 insn5 l)
+       ret (wf_label intrinsic_funs5 system5 module_info5 fdef5 block5 insn5 l)
      endfor
   }}}.
 
@@ -283,23 +286,23 @@ Definition visitInstruction (intrinsic_funs5:intrinsic_funs)
 Definition visitTerminatorInst (intrinsic_funs5:intrinsic_funs) 
                                (system5:system)
                                (module_info5:module_info)
-                               (fdef_info5:fdef_info)
+                               (fdef5:fdef)
                                (block5:block)
                                (insn5:insn) : Prop :=
   (* Ensure that terminators only exist at the end of the basic block. *)
   {{{
-     ret (visitInstruction intrinsic_funs5 system5 module_info5 fdef_info5 block5 insn5)
+     ret (visitInstruction intrinsic_funs5 system5 module_info5 fdef5 block5 insn5)
   }}}.
 
 Definition visitReturnInst (intrinsic_funs5:intrinsic_funs) 
                            (system5:system)
                            (module_info5:module_info)
-                           (fdef_info5:fdef_info)
+                           (fdef5:fdef)
                            (block5:block)                              
                            (RI:terminator)                              (* ReturnInst *)
                            : Prop :=
   let '(module5, (usedef_insn5, usedef_block5)) := module_info5 in
-  let (F, dt5) := fdef_info5 in 
+  let F := fdef5 in 
   {{{
   do N <- ret (ReturnInst.getNumOperands (insn_terminator RI));
   do If ((Function.getDefReturnType F) =t= typ_void)
@@ -346,18 +349,18 @@ Definition visitReturnInst (intrinsic_funs5:intrinsic_funs)
 
   (* Check to make sure that the return value has necessary properties for
      terminators... *)
-     ret (visitTerminatorInst intrinsic_funs5 system5 module_info5 fdef_info5 block5 (insn_terminator RI))
+     ret (visitTerminatorInst intrinsic_funs5 system5 module_info5 fdef5 block5 (insn_terminator RI))
   }}}.
 
 Definition verifyCallSite (intrinsic_funs5:intrinsic_funs) 
                            (system5:system)
                            (module_info5:module_info)
-                           (fdef_info5:fdef_info)
+                           (fdef5:fdef)
                            (block5:block)                              
                            (CS:cmd)                              (* CallSite *)
                            : Prop :=
   let '(module5, (usedef_insn5, usedef_block5)) := module_info5 in
-  let (F, dt5) := fdef_info5 in 
+  let F := fdef5 in 
   {{{
   do I <- ret CS;
   (* LLVM checks that 
@@ -406,14 +409,14 @@ Definition verifyCallSite (intrinsic_funs5:intrinsic_funs)
   (* Verify that there's no metadata unless it's a direct call to an intrinsic. 
      Open soooon... *)
 
-     ret (visitInstruction intrinsic_funs5 system5 module_info5 fdef_info5 block5 (insn_cmd CS))
+     ret (visitInstruction intrinsic_funs5 system5 module_info5 fdef5 block5 (insn_cmd CS))
   }}}.  
 
 
 Definition visitCallInst (intrinsic_funs5:intrinsic_funs) 
                            (system5:system)
                            (module_info5:module_info)
-                           (fdef_info5:fdef_info)
+                           (fdef5:fdef)
                            (block5:block)                              
                            (CI:cmd)                              (* CallInst *)
                            : Prop :=
@@ -422,22 +425,22 @@ Definition visitCallInst (intrinsic_funs5:intrinsic_funs)
     if (Intrinsic::ID ID = (Intrinsic::ID)F->getIntrinsicID())
       visitIntrinsicFunctionCall(ID, CI);
 *)
-  verifyCallSite intrinsic_funs5 system5 module_info5 fdef_info5 block5 CI.
+  verifyCallSite intrinsic_funs5 system5 module_info5 fdef5 block5 CI.
 
 
 Definition visitInvokeInst (intrinsic_funs5:intrinsic_funs) 
                            (system5:system)
                            (module_info5:module_info)
-                           (fdef_info5:fdef_info)
+                           (fdef5:fdef)
                            (block5:block)                              
                            (II:cmd)                              (* InvokeInst *)
                            : Prop :=
-  verifyCallSite intrinsic_funs5 system5 module_info5 fdef_info5 block5 II.
+  verifyCallSite intrinsic_funs5 system5 module_info5 fdef5 block5 II.
 
 Definition visitBinaryOperator (intrinsic_funs5:intrinsic_funs) 
                            (system5:system)
                            (module_info5:module_info)
-                           (fdef_info5:fdef_info)
+                           (fdef5:fdef)
                            (block5:block)                              
                            (B:cmd)                              (* BinaryOperator *)
                            : Prop :=
@@ -455,7 +458,7 @@ Definition visitBinaryOperator (intrinsic_funs5:intrinsic_funs)
   (* Integer arithmetic operators must have same type for operands and result *)
   do Assert (rT =t= firstT);
 
-     ret (visitInstruction intrinsic_funs5 system5 module_info5 fdef_info5 block5 (insn_cmd B))
+     ret (visitInstruction intrinsic_funs5 system5 module_info5 fdef5 block5 (insn_cmd B))
   }}}.  
 
 (* Check to make sure that if there is more than one entry for a
@@ -488,12 +491,12 @@ end.
 Definition visitPHINode (intrinsic_funs5:intrinsic_funs) 
                            (system5:system)
                            (module_info5:module_info)
-                           (fdef_info5:fdef_info)
+                           (fdef5:fdef)
                            (block5:block)                              
                            (PN:phinode)                              (* PHINode *)
                            : Prop :=
   let '(module5, (usedef_insn5, usedef_block5)) := module_info5 in
-  let (F, dt5) := fdef_info5 in 
+  let F := fdef5 in 
   {{{
   (* Ensure that the PHI nodes are all grouped together at the top of the block.
      This can be tested by checking whether the instruction before this is
@@ -533,69 +536,69 @@ Definition visitPHINode (intrinsic_funs5:intrinsic_funs)
      endfor;
 
   (* All other PHI node constraints are checked in the visitBasicBlock method. *)
-     ret (visitInstruction intrinsic_funs5 system5 module_info5 fdef_info5 block5 (insn_phinode PN))
+     ret (visitInstruction intrinsic_funs5 system5 module_info5 fdef5 block5 (insn_phinode PN))
   }}}. 
 
 (* defns Jwf_insn *)
-Inductive wf_insn : intrinsic_funs -> system -> module_info -> fdef_info -> block -> insn -> Prop :=    (* defn wf_insn *)
- | wf_insn_return : forall (intrinsic_funs5:intrinsic_funs) (system5:system) (module_info5:module_info) (fdef5:fdef) (dt5:dt) (block5:block) rid (typ5:typ) (value5:value),
-     visitReturnInst intrinsic_funs5 system5 module_info5   ( fdef5 ,  dt5 )   block5 (insn_return rid typ5 value5) ->
-     wf_insn intrinsic_funs5 system5 module_info5   ( fdef5 ,  dt5 )   block5 (insn_terminator (insn_return rid typ5 value5))
+Inductive wf_insn : intrinsic_funs -> system -> module_info -> fdef -> block -> insn -> Prop :=    (* defn wf_insn *)
+ | wf_insn_return : forall (intrinsic_funs5:intrinsic_funs) (system5:system) (module_info5:module_info) (fdef5:fdef) (block5:block) rid (typ5:typ) (value5:value),
+     visitReturnInst intrinsic_funs5 system5 module_info5   fdef5   block5 (insn_return rid typ5 value5) ->
+     wf_insn intrinsic_funs5 system5 module_info5   fdef5   block5 (insn_terminator (insn_return rid typ5 value5))
 (*
  | wf_insn_return_void : forall (intrinsic_funs5:intrinsic_funs) (system5:system) (module_info5:module_info) (fdef5:fdef) (dt5:dt) (block5:block),
-     visitReturnInst intrinsic_funs5 system5 module_info5   ( fdef5 ,  dt5 )   block5 insn_return_void ->
-     wf_insn intrinsic_funs5 system5 module_info5   ( fdef5 ,  dt5 )   block5 insn_return_void
+     visitReturnInst intrinsic_funs5 system5 module_info5   fdef5   block5 insn_return_void ->
+     wf_insn intrinsic_funs5 system5 module_info5   fdef5   block5 insn_return_void
 *)
- | wf_insn_br : forall (intrinsic_funs5:intrinsic_funs) (system5:system) (module_info5:module_info) (block5:block) bid (value5:value) (l1 l2:l) (fdef5:fdef) (dt5:dt) ,
-     visitTerminatorInst intrinsic_funs5 system5 module_info5   ( fdef5 ,  dt5 )   block5 (insn_terminator (insn_br bid value5 l1 l2)) ->
-     wf_insn intrinsic_funs5 system5   module_info5  ( fdef5 ,  dt5 ) block5 (insn_terminator (insn_br bid value5 l1 l2))
- | wf_insn_br_uncond : forall (intrinsic_funs5:intrinsic_funs) (system5:system) (block5:block) (bid l5:l) (module_info5:module_info) (fdef5:fdef) (dt5:dt),
-     visitTerminatorInst intrinsic_funs5 system5 module_info5   ( fdef5 ,  dt5 )   block5 (insn_terminator (insn_br_uncond bid l5)) ->
-     wf_insn intrinsic_funs5 system5   module_info5   ( fdef5 ,  dt5 ) block5 (insn_terminator (insn_br_uncond bid l5))
+ | wf_insn_br : forall (intrinsic_funs5:intrinsic_funs) (system5:system) (module_info5:module_info) (block5:block) bid (value5:value) (l1 l2:l) (fdef5:fdef) ,
+     visitTerminatorInst intrinsic_funs5 system5 module_info5   fdef5   block5 (insn_terminator (insn_br bid value5 l1 l2)) ->
+     wf_insn intrinsic_funs5 system5   module_info5  fdef5 block5 (insn_terminator (insn_br bid value5 l1 l2))
+ | wf_insn_br_uncond : forall (intrinsic_funs5:intrinsic_funs) (system5:system) (block5:block) (bid l5:l) (module_info5:module_info) (fdef5:fdef),
+     visitTerminatorInst intrinsic_funs5 system5 module_info5   fdef5   block5 (insn_terminator (insn_br_uncond bid l5)) ->
+     wf_insn intrinsic_funs5 system5   module_info5   fdef5 block5 (insn_terminator (insn_br_uncond bid l5))
 (*
  | wf_insn_invoke : forall (intrinsic_funs5:intrinsic_funs) (system5:system) (block5:block) (id_5:id) (typ0:typ) (id0:id) (list_param5:list_param) (l1 l2:l) (module_info5:module_info) (fdef5:fdef) (dt5:dt),
-     visitInvokeInst intrinsic_funs5 system5 module_info5   ( fdef5 ,  dt5 )   block5 (insn_invoke id_5 typ0 id0 list_param5 l1 l2) ->
-     wf_insn intrinsic_funs5 system5   module_info5   ( fdef5 ,  dt5 ) block5 (insn_invoke id_5 typ0 id0 list_param5 l1 l2)
+     visitInvokeInst intrinsic_funs5 system5 module_info5   fdef5   block5 (insn_invoke id_5 typ0 id0 list_param5 l1 l2) ->
+     wf_insn intrinsic_funs5 system5   module_info5   fdef5 block5 (insn_invoke id_5 typ0 id0 list_param5 l1 l2)
 *)
- | wf_insn_call : forall (intrinsic_funs5:intrinsic_funs) (system5:system) (block5:block) (id_5:id) (typ0:typ) (v0:value) (list_param5:params) (module_info5:module_info) (fdef5:fdef) (dt5:dt),
-     visitCallInst intrinsic_funs5 system5 module_info5   ( fdef5 ,  dt5 )   block5 (insn_call id_5 false false typ0 v0 list_param5) ->
-     wf_insn intrinsic_funs5 system5   module_info5   ( fdef5 ,  dt5 ) block5 (insn_cmd (insn_call id_5 false false typ0 v0 list_param5))
- | wf_insn_unreachable : forall (intrinsic_funs5:intrinsic_funs) (system5:system) (fdef_info5:fdef_info) (block5:block) (module_info5:module_info) (fdef5:fdef) (dt5:dt) bid,
-     visitTerminatorInst intrinsic_funs5 system5 module_info5   ( fdef5 ,  dt5 )   block5 (insn_terminator (insn_unreachable bid)) ->
-     wf_insn intrinsic_funs5 system5   module_info5   ( fdef5 ,  dt5 ) block5 (insn_terminator (insn_unreachable bid))
- | wf_insn_add : forall (intrinsic_funs5:intrinsic_funs) (system5:system) (fdef_info5:fdef_info) (block5:block) (id5:id) (sz5:nat) (value1 value2:value) (module_info5:module_info) (fdef5:fdef) (dt5:dt),
-     visitBinaryOperator intrinsic_funs5 system5 module_info5   ( fdef5 ,  dt5 )   block5 (insn_bop id5 bop_add sz5 value1 value2) ->
-     wf_insn intrinsic_funs5 system5   module_info5   ( fdef5 ,  dt5 ) block5 (insn_cmd (insn_bop id5 bop_add sz5 value1 value2))
- | wf_insn_phi : forall (id_l_list:list_value_l) (intrinsic_funs5:intrinsic_funs) (system5:system) (fdef_info5:fdef_info) (block5:block) (id_5:id) (typ5:typ) (module_info5:module_info) (fdef5:fdef) (dt5:dt),
-     visitPHINode intrinsic_funs5 system5 module_info5   ( fdef5 ,  dt5 )   block5 (insn_phi id_5 typ5 id_l_list) ->
-     wf_insn intrinsic_funs5 system5   module_info5   ( fdef5 ,  dt5 ) block5 (insn_phinode (insn_phi id_5 typ5 id_l_list))
+ | wf_insn_call : forall (intrinsic_funs5:intrinsic_funs) (system5:system) (block5:block) (id_5:id) (typ0:typ) (v0:value) (list_param5:params) (module_info5:module_info) (fdef5:fdef) ,
+     visitCallInst intrinsic_funs5 system5 module_info5   fdef5   block5 (insn_call id_5 false false typ0 v0 list_param5) ->
+     wf_insn intrinsic_funs5 system5   module_info5   fdef5 block5 (insn_cmd (insn_call id_5 false false typ0 v0 list_param5))
+ | wf_insn_unreachable : forall (intrinsic_funs5:intrinsic_funs) (system5:system) (fdef5:fdef) (block5:block) (module_info5:module_info) (fdef5:fdef)  bid,
+     visitTerminatorInst intrinsic_funs5 system5 module_info5   fdef5   block5 (insn_terminator (insn_unreachable bid)) ->
+     wf_insn intrinsic_funs5 system5   module_info5   fdef5 block5 (insn_terminator (insn_unreachable bid))
+ | wf_insn_add : forall (intrinsic_funs5:intrinsic_funs) (system5:system) (fdef5:fdef) (block5:block) (id5:id) (sz5:nat) (value1 value2:value) (module_info5:module_info) (fdef5:fdef) ,
+     visitBinaryOperator intrinsic_funs5 system5 module_info5   fdef5   block5 (insn_bop id5 bop_add sz5 value1 value2) ->
+     wf_insn intrinsic_funs5 system5   module_info5   fdef5 block5 (insn_cmd (insn_bop id5 bop_add sz5 value1 value2))
+ | wf_insn_phi : forall (id_l_list:list_value_l) (intrinsic_funs5:intrinsic_funs) (system5:system) (fdef5:fdef) (block5:block) (id_5:id) (typ5:typ) (module_info5:module_info) (fdef5:fdef) ,
+     visitPHINode intrinsic_funs5 system5 module_info5   fdef5   block5 (insn_phi id_5 typ5 id_l_list) ->
+     wf_insn intrinsic_funs5 system5   module_info5   fdef5 block5 (insn_phinode (insn_phi id_5 typ5 id_l_list))
  .
 
-Inductive wf_list_cmd : intrinsic_funs -> system -> module_info -> fdef_info -> block -> cmds -> Prop :=  
- | wf_list_cmd_nil : forall (intrinsic_funs5:intrinsic_funs) (system5:system) (module_info5:module_info) (fdef_info5:fdef_info) (block5:block),
-     wf_list_cmd intrinsic_funs5 system5 module_info5 fdef_info5 block5  nil 
- | wf_list_cmd_cons : forall (intrinsic_funs5:intrinsic_funs) (system5:system) (module_info5:module_info) (fdef_info5:fdef_info) (block5:block) (list_cmd5:cmds) (cmd5:cmd),
-     wf_insn intrinsic_funs5 system5 module_info5 fdef_info5 block5 (insn_cmd cmd5) ->
-     wf_list_cmd intrinsic_funs5 system5 module_info5 fdef_info5 block5 list_cmd5 ->
-     wf_list_cmd intrinsic_funs5 system5 module_info5 fdef_info5 block5  ( cmd5 :: list_cmd5 ) .
+Inductive wf_list_cmd : intrinsic_funs -> system -> module_info -> fdef -> block -> cmds -> Prop :=  
+ | wf_list_cmd_nil : forall (intrinsic_funs5:intrinsic_funs) (system5:system) (module_info5:module_info) (fdef5:fdef) (block5:block),
+     wf_list_cmd intrinsic_funs5 system5 module_info5 fdef5 block5  nil 
+ | wf_list_cmd_cons : forall (intrinsic_funs5:intrinsic_funs) (system5:system) (module_info5:module_info) (fdef5:fdef) (block5:block) (list_cmd5:cmds) (cmd5:cmd),
+     wf_insn intrinsic_funs5 system5 module_info5 fdef5 block5 (insn_cmd cmd5) ->
+     wf_list_cmd intrinsic_funs5 system5 module_info5 fdef5 block5 list_cmd5 ->
+     wf_list_cmd intrinsic_funs5 system5 module_info5 fdef5 block5  ( cmd5 :: list_cmd5 ) .
 
-Inductive wf_list_phinode : intrinsic_funs -> system -> module_info -> fdef_info -> block -> phinodes -> Prop :=  
- | wf_list_phinode_nil : forall (intrinsic_funs5:intrinsic_funs) (system5:system) (module_info5:module_info) (fdef_info5:fdef_info) (block5:block),
-     wf_list_phinode intrinsic_funs5 system5 module_info5 fdef_info5 block5  nil 
- | wf_list_phinode_cons : forall (intrinsic_funs5:intrinsic_funs) (system5:system) (module_info5:module_info) (fdef_info5:fdef_info) (block5:block) (list_phinode5:phinodes) (phinode5:phinode),
-     wf_insn intrinsic_funs5 system5 module_info5 fdef_info5 block5 (insn_phinode phinode5) ->
-     wf_list_phinode intrinsic_funs5 system5 module_info5 fdef_info5 block5 list_phinode5 ->
-     wf_list_phinode intrinsic_funs5 system5 module_info5 fdef_info5 block5  ( phinode5 :: list_phinode5 ) .
+Inductive wf_list_phinode : intrinsic_funs -> system -> module_info -> fdef -> block -> phinodes -> Prop :=  
+ | wf_list_phinode_nil : forall (intrinsic_funs5:intrinsic_funs) (system5:system) (module_info5:module_info) (fdef5:fdef) (block5:block),
+     wf_list_phinode intrinsic_funs5 system5 module_info5 fdef5 block5  nil 
+ | wf_list_phinode_cons : forall (intrinsic_funs5:intrinsic_funs) (system5:system) (module_info5:module_info) (fdef5:fdef) (block5:block) (list_phinode5:phinodes) (phinode5:phinode),
+     wf_insn intrinsic_funs5 system5 module_info5 fdef5 block5 (insn_phinode phinode5) ->
+     wf_list_phinode intrinsic_funs5 system5 module_info5 fdef5 block5 list_phinode5 ->
+     wf_list_phinode intrinsic_funs5 system5 module_info5 fdef5 block5  ( phinode5 :: list_phinode5 ) .
 
 
 (* verifyBasicBlock - Verify that a basic block is well formed... *)
-Inductive verifyBasicBlock : intrinsic_funs -> system -> module_info -> fdef_info -> block -> Prop :=    (* defn wf_block *)
- | verifyBasicBlock_intro : forall (intrinsic_funs5:intrinsic_funs) (system5:system) (module_info5:module_info) (fdef_info5:fdef_info) (l5:l) list_phinode5 (list_cmd5:cmds) terminator5,
-     blockInSystemModuleIFdefIB (block_intro l5 list_phinode5 list_cmd5 terminator5)  system5 module_info5 fdef_info5 = true ->
+Inductive verifyBasicBlock : intrinsic_funs -> system -> module_info -> fdef -> block -> Prop :=    (* defn wf_block *)
+ | verifyBasicBlock_intro : forall (intrinsic_funs5:intrinsic_funs) (system5:system) (module_info5:module_info) (fdef5:fdef) (l5:l) list_phinode5 (list_cmd5:cmds) terminator5,
+     blockInSystemModuleIFdefB (block_intro l5 list_phinode5 list_cmd5 terminator5)  system5 module_info5 fdef5 = true ->
 
-     wf_list_cmd intrinsic_funs5 system5 module_info5 fdef_info5 (block_intro l5 list_phinode5 list_cmd5 terminator5) list_cmd5 ->
-     wf_list_phinode intrinsic_funs5 system5 module_info5 fdef_info5 (block_intro l5 list_phinode5 list_cmd5 terminator5) list_phinode5 ->
-     wf_insn intrinsic_funs5 system5 module_info5 fdef_info5 (block_intro l5 list_phinode5 list_cmd5 terminator5) (insn_terminator terminator5) ->
+     wf_list_cmd intrinsic_funs5 system5 module_info5 fdef5 (block_intro l5 list_phinode5 list_cmd5 terminator5) list_cmd5 ->
+     wf_list_phinode intrinsic_funs5 system5 module_info5 fdef5 (block_intro l5 list_phinode5 list_cmd5 terminator5) list_phinode5 ->
+     wf_insn intrinsic_funs5 system5 module_info5 fdef5 (block_intro l5 list_phinode5 list_cmd5 terminator5) (insn_terminator terminator5) ->
 
     (* Ensure that the PHI nodes are all grouped together at the top of the block.
        This can be tested by checking whether the instruction before this is
@@ -609,16 +612,16 @@ Inductive verifyBasicBlock : intrinsic_funs -> system -> module_info -> fdef_inf
 
      (* We moved some assertions to visitPhiNode *)
 
-     verifyBasicBlock intrinsic_funs5 system5 module_info5 fdef_info5 (block_intro l5 list_phinode5 list_cmd5 terminator5).
+     verifyBasicBlock intrinsic_funs5 system5 module_info5 fdef5 (block_intro l5 list_phinode5 list_cmd5 terminator5).
 
 (* defns Jwf_list_block *)
-Inductive wf_list_block : intrinsic_funs -> system -> module_info -> fdef_info -> blocks -> Prop :=    (* defn wf_list_block *)
- | wf_list_block_nil : forall (intrinsic_funs5:intrinsic_funs) (system5:system) (module_info5:module_info) (fdef_info5:fdef_info),
-     wf_list_block intrinsic_funs5 system5 module_info5 fdef_info5  nil 
- | wf_list_block_cons : forall (intrinsic_funs5:intrinsic_funs) (system5:system) (module_info5:module_info) (fdef_info5:fdef_info) (list_block5:blocks) (block5:block),
-     verifyBasicBlock intrinsic_funs5 system5 module_info5 fdef_info5 block5 ->
-     wf_list_block intrinsic_funs5 system5 module_info5 fdef_info5 list_block5 ->
-     wf_list_block intrinsic_funs5 system5 module_info5 fdef_info5  ( block5 :: list_block5 ) .
+Inductive wf_list_block : intrinsic_funs -> system -> module_info -> fdef -> blocks -> Prop :=    (* defn wf_list_block *)
+ | wf_list_block_nil : forall (intrinsic_funs5:intrinsic_funs) (system5:system) (module_info5:module_info) (fdef5:fdef),
+     wf_list_block intrinsic_funs5 system5 module_info5 fdef5  nil 
+ | wf_list_block_cons : forall (intrinsic_funs5:intrinsic_funs) (system5:system) (module_info5:module_info) (fdef5:fdef) (list_block5:blocks) (block5:block),
+     verifyBasicBlock intrinsic_funs5 system5 module_info5 fdef5 block5 ->
+     wf_list_block intrinsic_funs5 system5 module_info5 fdef5 list_block5 ->
+     wf_list_block intrinsic_funs5 system5 module_info5 fdef5  ( block5 :: list_block5 ) .
 
 (* visitFunctionDef - Verify that a function def is ok. *)
 Definition visitFunctionDef (intrinsic_funs5:intrinsic_funs) 
@@ -715,18 +718,17 @@ Definition visitFunctionDec (intrinsic_funs5:intrinsic_funs)
 
 (* defns Jwf_fdef *)
 Inductive wf_fdef : intrinsic_funs -> system -> module_info -> fdef -> Prop :=    (* defn wf_fdef *)
- | wf_fdef_intro : forall (intrinsic_funs5:intrinsic_funs) (system5:system) (module5:module) (usedef_insn5:usedef_id) (usedef_block5:usedef_block) (fheader5:fheader) (list_block5:blocks) (dt5:dt),
+ | wf_fdef_intro : forall (intrinsic_funs5:intrinsic_funs) (system5:system) (module5:module) (usedef_insn5:usedef_id) (usedef_block5:usedef_block) (fheader5:fheader) (list_block5:blocks) ,
      productInSystemModuleIB (product_fdef  (fdef_intro fheader5 list_block5) ) system5   ( module5 , ( usedef_insn5 ,  usedef_block5 )) = true  ->
 
      visitFunctionDef intrinsic_funs5 system5 ( module5 , ( usedef_insn5 ,  usedef_block5 )) (fdef_intro fheader5 list_block5) ->
 
-     genDominatorTree (fdef_intro fheader5 list_block5) module5 = dt5  ->
-     wf_list_block intrinsic_funs5 system5   ( module5 , ( usedef_insn5 ,  usedef_block5 ))     ( (fdef_intro fheader5 list_block5) ,  dt5 )   list_block5 ->
+     wf_list_block intrinsic_funs5 system5   ( module5 , ( usedef_insn5 ,  usedef_block5 ))     (fdef_intro fheader5 list_block5)   list_block5 ->
      wf_fdef intrinsic_funs5 system5   ( module5 , ( usedef_insn5 ,  usedef_block5 ))   (fdef_intro fheader5 list_block5).
 
 (* defns Jwf_fdec *)
 Inductive wf_fdec : intrinsic_funs -> system -> module_info -> fdec -> Prop :=    (* defn wf_fdef *)
- | wf_fdec_intro : forall (intrinsic_funs5:intrinsic_funs) (system5:system) (module5:module) (usedef_insn5:usedef_id) (usedef_block5:usedef_block) (fheader5:fheader) (list_block5:blocks) (dt5:dt),
+ | wf_fdec_intro : forall (intrinsic_funs5:intrinsic_funs) (system5:system) (module5:module) (usedef_insn5:usedef_id) (usedef_block5:usedef_block) (fheader5:fheader) (list_block5:blocks) ,
      productInSystemModuleIB (product_fdef  (fdef_intro fheader5 list_block5) ) system5   ( module5 , ( usedef_insn5 ,  usedef_block5 )) = true  ->
      visitFunctionDec intrinsic_funs5 system5 ( module5 , ( usedef_insn5 ,  usedef_block5 )) (fdec_intro fheader5) ->
      wf_fdec intrinsic_funs5 system5   ( module5 , ( usedef_insn5 ,  usedef_block5 ))   (fdec_intro fheader5).
@@ -776,10 +778,12 @@ Inductive wf_system : intrinsic_funs -> system -> Prop :=    (* defn wf_system *
 
 End LLVMverifier.
 
+(*****************************)
 (*
 *** Local Variables: ***
 *** coq-prog-name: "coqtop" ***
-*** coq-prog-args: ("-emacs-U" "-I" "../monads" "-I" "../ott" "-I" "../") ***
+*** coq-prog-args: ("-emacs-U" "-I" "~/SVN/sol/vol/src/ssa/monads" "-I" "~/SVN/sol/vol/src/ssa/ott" "-I" "~/SVN/sol/vol/src/ssa/compcert" "-I" "~/SVN/sol/theory/metatheory_8.3" "-I" "~/SVN/sol/vol/src/TV") ***
 *** End: ***
  *)
+
 
