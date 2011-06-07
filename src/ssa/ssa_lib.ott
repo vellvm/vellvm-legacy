@@ -247,6 +247,8 @@ formula :: 'formula_' ::=
                                 {{ coq Typ.getPrimitiveSizeInBits [[typ]] = [[sz]] }}
   | isPhiNode insn :: :: isPhiNode
                                 {{ coq isPhiNode [[insn]] }}
+  | insn in fdef , block :: :: insnInFdef
+    	    	     		{{ coq insnInFdefBlockB [[insn]] [[fdef]] [[block]] = true }}
   | insn in system , module , fdef , block :: :: insnInSystem
     	    	     		{{ coq insnInSystemModuleFdefBlockB [[insn]] [[system]] [[module]] [[fdef]] [[block]] = true }}
   | lookupBlockViaIDFromFdef fdef id = opt_block :: :: lookupBlockViaIDFromFdef

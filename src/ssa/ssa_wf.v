@@ -169,6 +169,7 @@ Inductive wf_defs : fdef -> GVMap -> ids -> Prop :=
 
 Definition wf_ExecutionContext (ps:list product) (ec:ExecutionContext) : Prop :=
 let '(mkEC f b cs tmn lc als) := ec in
+(*isReachableFromEntry f b /\*)
 blockInFdefB b f = true /\
 InProductsB (product_fdef f) ps = true /\
 match cs with
@@ -622,19 +623,19 @@ Case "ret".
   simpl in H6. unfold getValueIDs in H6. simpl in H6.
   destruct id_list; inv H6.
   simpl in H8.
-  inv H8. clear H16. 
+  inv H8. clear H13. 
   inv H7.             
   assert (isBindingInsn (lookupBindingViaIDFromFdef f i0) = ret insn') as J.
     admit.
   assert (J':=J).
-  apply H15 in J'. clear H15.
+  apply H14 in J'. clear H14.
   inv J'.
   clear H8.
   unfold isPhiNode in H11.
   simpl in H11.
   assert (notT (false = true)) as J'. 
     intro J2. inversion J2.
-  apply H11 in J'. clear H11.
+  apply H14 in J'. clear H14.
   clear - J J' HwfDefs Hinscope H0.
   assert (i0 `in` defs) as J1.
     admit.
@@ -665,6 +666,189 @@ Lemma wf_system__lookup__wf_block : forall b f l0 ps los nts s ifs,
   wf_system ifs s ->
   wf_block ifs s (module_intro los nts ps) f b.
 Admitted.
+
+
+Lemma wf_operand_list__wf_operand : forall id_list fdef5 block5 insn5 id_ n,
+  wf_operand_list (make_list_fdef_block_insn_id (map_list_id
+    (fun id_ : id => (fdef5, block5, insn5, id_)) id_list)) ->
+  nth_list_id n id_list = Some id_ ->
+  wf_operand fdef5 block5 insn5 id_.
+Proof.
+  induction id_list; intros fdef5 block5 insn5 id_ n Hwfops Hnth.
+    destruct n; inversion Hnth.
+
+    simpl in Hwfops.
+    inv Hwfops.
+    destruct n; inv Hnth; eauto.
+Qed.        
+
+
+Lemma getValueViaLabelFromValuels__getInsnOperands : forall
+  (lc : GVMap)
+  (l1 : l)
+  (i1 : id)
+  (t0 : typ)
+  (vid : id)
+  (value_l_id_block_list : list_value_l_id_block)
+  (J : getValueViaLabelFromValuels
+        (make_list_value_l
+           (map_list_value_l_id_block
+              (fun (value_ : value) (l_ : l) (_ : id) (_ : block) =>
+               (value_, l_)) value_l_id_block_list)) l1 = 
+      ret value_id vid)
+  (id_list : list_id)
+  (H10 : getInsnOperands
+          (insn_phinode
+             (insn_phi i1 t0
+                (make_list_value_l
+                   (map_list_value_l_id_block
+                      (fun (value_ : value) (l_ : l) (_ : id) (_ : block) =>
+                       (value_, l_)) value_l_id_block_list)))) =
+        unmake_list_id id_list),
+  exists n, nth_list_id n id_list = Some vid.
+Proof.
+  intros.
+  generalize dependent id_list.
+  induction value_l_id_block_list; intros; simpl in *.
+    inversion J.
+
+    destruct (l0 == l1); subst.
+      inv J; simpl in *.
+      destruct id_list; inv H10.
+        exists 0%nat. auto.
+
+      destruct v.
+        destruct id_list; inv H10.
+          apply IHvalue_l_id_block_list with (id_list:=id_list) in J; eauto.
+          destruct J as [n' J].
+          destruct (i3 == vid); subst.
+            exists 0%nat. simpl. auto.
+            exists (S n'). simpl. auto.
+
+          apply IHvalue_l_id_block_list with (id_list:=id_list) in J; eauto.
+Qed.
+
+
+Lemma wf_value_list__wf_value : forall
+  (s : system)
+  (f : fdef)
+  (lc : GVMap)
+  (l1 : l)
+  (t0 : typ)
+  (vid : id)
+  (value_l_id_block_list : list_value_l_id_block)
+  (H2 : wf_value_list
+         (make_list_system_fdef_value_typ
+            (map_list_value_l_id_block
+               (fun (value_ : value) (_ : l) (_ : id) (_ : block) =>
+                (s, f, value_, t0)) value_l_id_block_list)))
+  (J : getValueViaLabelFromValuels
+        (make_list_value_l
+           (map_list_value_l_id_block
+              (fun (value_ : value) (l_ : l) (_ : id) (_ : block) =>
+               (value_, l_)) value_l_id_block_list)) l1 = 
+      ret value_id vid),
+  wf_value s f (value_id vid) t0.
+Proof.
+  intros.
+  induction value_l_id_block_list; simpl in *.
+    inversion J.
+    
+    inv H2.
+    destruct (l0==l1); subst; eauto.
+      inv J. auto.
+Qed.        
+
+
+Lemma wf_phinodes__getIncomingValuesForBlockFromPHINodes : forall
+  (s : system)
+  (los : layouts)
+  (nts : namedts)
+  (ps : list product)
+  (f : fdef)
+  (i0 : id)
+  (l0 : l)
+  (lc : GVMap)
+  (gl : GVMap)
+  (M : mem)
+  (t : atoms)
+  l1 ps1 cs1
+  (HeqR : ret t = inscope_of_tmn f 
+    (block_intro l1 ps1 cs1 (insn_br_uncond i0 l0)) (insn_br_uncond i0 l0))
+  (Hinscope : wf_defs f lc (AtomSetImpl.elements t))
+  (ps' : phinodes)
+  (cs' : cmds)
+  (tmn' : terminator)
+  ps2
+  (HbInF : wf_block nil s (module_intro los nts ps) f 
+             (block_intro l1 ps1 cs1 (insn_br_uncond i0 l0)))
+  (H8 : wf_phinodes nil s (module_intro los nts ps) f
+         (block_intro l0 ps' cs' tmn') ps2)
+  (Hin: exists ps1, ps' = ps1 ++ ps2),
+   exists RVs : list (id * GenericValue),
+     getIncomingValuesForBlockFromPHINodes (los, nts) M ps2 
+       (block_intro l1 ps1 cs1 (insn_br_uncond i0 l0)) gl lc =
+       ret RVs.
+Proof.
+  intros.
+        induction ps2; simpl.
+          exists nil. auto.
+
+          destruct a.
+          assert (exists v, getValueViaLabelFromValuels l2 l1 = Some v) as J.
+            admit. (*wf*)
+          destruct J as [v J].
+          rewrite J.
+          destruct v as [vid | vc].
+            inv H8.
+            assert (exists gv1, lookupAL GenericValue lc vid = Some gv1) as J1.
+              Focus.
+              inv H6.              
+              inv H23.
+              eapply getValueViaLabelFromValuels__getInsnOperands in H10; eauto.
+              destruct H10 as [n H10].
+              eapply wf_operand_list__wf_operand in H12; eauto.
+              assert (HwfV:=J).
+              eapply wf_value_list__wf_value in HwfV; eauto.
+              clear - H10 HeqR Hinscope H12 J HwfV H15.
+              inv H12.  
+              assert (isBindingInsn (lookupBindingViaIDFromFdef f vid) = 
+                ret insn') as HBind.
+                admit.
+              assert (HwfSSA:=HBind).
+              apply H6 in HwfSSA. clear H6.
+              inv HwfSSA. clear H7.
+              unfold isPhiNode in H6.
+              simpl in H6.
+              destruct H6 as [J1 [J2 J3]]; auto.
+              assert (l'' = l1) as EQ.
+                clear - H15 J J1 HBind.
+                admit. (* incoming edges are identical. *)
+              subst.
+              assert (block'' = 
+                block_intro l1 ps1 (cs1 ++ nil) (insn_br_uncond i0 l0)) as EQ.
+                clear - J2. admit. (* block IDs are unique. *)
+              subst.
+              assert (getInsnID insn' = vid) as EQ.
+                clear - HBind. admit.
+              subst.
+              clear - J3 Hinscope HeqR H2.
+              admit. (* ?!?!?!? *)
+              Unfocus.
+
+            destruct J1 as [gv1 J1].
+            rewrite J1. 
+            apply IHps2 in H7.
+              destruct H7 as [RVs H7].
+              rewrite H7. 
+              exists ((i1, gv1) :: RVs). auto.
+
+              destruct Hin as [ps3 Hin]. subst.
+              exists (ps3++[insn_phi i1 t0 l2]).
+              simpl_env. auto.
+
+            admit. (* constant *)
+Qed.
 
 Lemma progress : forall S1,
   wf_State S1 -> 
@@ -732,54 +916,36 @@ Proof.
     SCase "tmn=br". admit.
     SCase "tmn=br_uncond". 
       right.
-      assert (exists B0, Some B0 = lookupBlockViaLabelFromFdef f l0) as HlkB.
+      assert (exists ps', exists cs', exists tmn',
+        Some (block_intro l0 ps' cs' tmn') = lookupBlockViaLabelFromFdef f l0) 
+          as HlkB.
         admit. (* wf *)
-      destruct HlkB as [B0 HlkB].
-      destruct B0 as [l' ps' cs' tmn'].
+      destruct HlkB as [ps' [cs' [tmn' HlkB]]].
       assert (exists RVs, 
         getIncomingValuesForBlockFromPHINodes (los, nts) M ps'
           (block_intro l1 ps1 (cs1 ++ nil) (insn_br_uncond i0 l0)) gl lc =
         Some RVs) as J.
-
         eapply wf_system__blockInFdefB__wf_block in HbInF; eauto.
         eapply wf_system__lookup__wf_block in HlkB; eauto.
         clear - HeqR Hinscope HbInF HlkB.
         inv HlkB. clear H9 H10 H7.
-        induction ps'; simpl.
+        eapply wf_phinodes__getIncomingValuesForBlockFromPHINodes; eauto.      
           exists nil. auto.
 
-          destruct a.
-          assert (exists v, getValueViaLabelFromValuels l2 l1 = Some v) as J.
-            admit. (*wf*)
-          destruct J as [v J].
-          rewrite J.
-          destruct v as [vid | vc].
-            inv H8.
-            assert (exists gv1, lookupAL GenericValue lc vid = Some gv1) as J1.
-              inv H6.              
-              inv H23.
-              admit.
-            destruct J1 as [gv1 J1].
-            rewrite J1. 
-            apply IHps' in H7.
-            destruct H7 as [RVs H7].
-            rewrite H7. 
-            exists ((i1, gv1) :: RVs). auto.
-
-            admit. (* constant *)
       destruct J as [RVs J].
       assert (exists lc', switchToNewBasicBlock (los, nts) M
-        (block_intro l' ps' cs' tmn') 
+        (block_intro l0 ps' cs' tmn') 
         (block_intro l1 ps1 (cs1 ++ nil) (insn_br_uncond i0 l0)) gl lc = 
           Some lc') as Hswitch.
         unfold switchToNewBasicBlock. simpl.
         rewrite J. 
         exists (updateValuesForNewBlock RVs lc). auto.
-     destruct Hswitch as [lc' Hswitch].
-     exists (mkState s (los, nts) ps 
-              ((mkEC f (block_intro l' ps' cs' tmn') cs' tmn' lc' als)
+      destruct Hswitch as [lc' Hswitch].
+      exists (mkState s (los, nts) ps 
+              ((mkEC f (block_intro l0 ps' cs' tmn') cs' tmn' lc' als)
               ::ecs) gl fs M).
-     exists trace_nil. eauto.
+      exists trace_nil. eauto.
+
     SCase "tmn=unreachable". admit.
 
   Case "cs<>nil".

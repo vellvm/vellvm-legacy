@@ -2534,6 +2534,14 @@ match mi with
 | (m, (_, _)) => insnInSystemModuleFdefBlockB i s m f b
 end.
 
+Definition insnInFdefBlockB 
+  (i:insn) (f:fdef) (b:block) : bool :=
+match i with
+| insn_phinode p => phinodeInBlockB p b && blockInFdefB b f
+| insn_cmd c => cmdInBlockB c b && blockInFdefB b f
+| insn_terminator t => terminatorInBlockB t b && blockInFdefB b f
+end.
+
 Definition blockInSystemModuleFdef b S M F := 
   blockInSystemModuleFdefB b S M F = true.
 

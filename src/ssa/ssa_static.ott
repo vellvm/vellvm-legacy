@@ -261,8 +261,8 @@ Jwf_value :: '' ::=
 defns
 Jwf_ssa :: '' ::=
       defn
-      intrinsic_funs , system , module , fdef , block , insn |- insn' :: :: wf_ssa :: ''
-      {{ com [[insn']] is well-formed w.r.t [[insn]] [[block]] in [[fdef]] in [[module]] [[system]] }} by
+      fdef , block , insn |- insn' :: :: wf_ssa :: ''
+      {{ com [[insn']] is well-formed w.r.t [[insn]] [[block]] in [[fdef]] }} by
 
       getInsnID insn' = id'
       lookupBlockViaIDFromFdef fdef id' = block'
@@ -273,7 +273,7 @@ Jwf_ssa :: '' ::=
 <<
       (isPhiNode insn) implies 
         (getLabelViaIDPhiNode insn id' = l'' /\ 
-         lookupBlockViaLabelFromSystem system l'' = block'' /\ 
+         lookupBlockViaLabelFromFdef fdef l'' = block'' /\ 
          (
           (blockDominates fdef block' block'') \/ 
           (not (isReachableFromEntry fdef block )) 
@@ -290,16 +290,16 @@ Jwf_ssa :: '' ::=
         )
 >>
       -------------------------------------------------------------------------------------------------------------------------- :: wf_ssa_intro
-      intrinsic_funs , system , module , fdef , block , insn |- insn' 
+      fdef , block , insn |- insn' 
 
 defns
 Jwf_operand :: '' ::=
       defn
-      intrinsic_funs , system , module , fdef , block , insn |- id' :: :: wf_operand :: ''
-      {{ com [[id']] is well-formed w.r.t [[insn]] [[block]] in [[fdef]] in [[module]] [[system]] }} by
+      fdef , block , insn |- id' :: :: wf_operand :: ''
+      {{ com [[id']] is well-formed w.r.t [[insn]] [[block]] in [[fdef]] }} by
 
-      module = (layouts namedts products)
-      insn in system , module , fdef , block
+      %module = (layouts namedts products)
+      insn in fdef , block
       getInsnOperands insn = ids
       id' in ids
       % FIXME: lookupBindingViaIDFromSystem is not correct, it should only search bindings within the current
@@ -320,19 +320,19 @@ Jwf_operand :: '' ::=
       %(isBindingGvar id_binding' = gvar) implies (gvar in products)
       %
       % Check when id_binding' is insn
-      (isBindingInsn id_binding' = insn') implies (intrinsic_funs , system , module , fdef, block , insn |- insn')
+      (isBindingInsn id_binding' = insn') implies (fdef, block , insn |- insn')
       ----------------------------------------------------------------------------------------------------------------------- :: wf_operand_intro
-      intrinsic_funs , system , module , fdef , block , insn |- id'
+      fdef , block , insn |- id'
 
 defns
 Jwf_insn_base :: '' ::=
       defn
-      intrinsic_funs , system , module , fdef , block |-i insn :: :: wf_insn_base :: '' 
-      {{ com [[insn]] is well-formed w.r.t [[block]] in [[fdef]] in [[module]] [[system]] }} by  
+      fdef , block |-i insn :: :: wf_insn_base :: '' 
+      {{ com [[insn]] is well-formed w.r.t [[block]] in [[fdef]] }} by  
       % Verifier::visitInstruction
 
       % Instruction must be embedded in basic block!
-      insn in system , module , fdef , block
+      insn in fdef , block
       % Check that non-phi nodes are not self referential in wf_insn_base::PhiNode
       %
       % Verify that if this is a terminator that it is at the end of the block in wf_block
@@ -356,9 +356,9 @@ Jwf_insn_base :: '' ::=
       % Check operands
       getInsnOperands insn = ids
       ids <-> </ idj // j />
-      </ intrinsic_funs , system , module , fdef , block , insn |- idj // j />
+      </ fdef , block , insn |- idj // j />
       -------------------------------------------------------------------------------------- :: wf_insn_base_intro
-      intrinsic_funs , system , module , fdef , block |-i insn
+      fdef , block |-i insn
 
 defns
 Jwf_cast :: '' ::=
@@ -369,7 +369,7 @@ Jwf_cast :: '' ::=
       % Check typs
       system , fdef |- value1 : typ *
       % Check invariance for instructions 
-      intrinsic_funs , system , module , fdef , block |-i id = ptrtoint ( typ * ) value1 to ( int sz )
+      fdef , block |-i id = ptrtoint ( typ * ) value1 to ( int sz )
       ------------------------------------------------------------------------------------------------------- :: wf_cast_ptrtoint
       intrinsic_funs , system , module , fdef , block |-cast id = ptrtoint ( typ * ) value1 to ( int sz )	
 
@@ -377,7 +377,7 @@ Jwf_cast :: '' ::=
       % Check typs
       system , fdef |- value1 : int sz
       % Check invariance for instructions 
-      intrinsic_funs , system , module , fdef , block |-i id = inttoptr ( int sz ) value1 to ( typ * )	
+      fdef , block |-i id = inttoptr ( int sz ) value1 to ( typ * )	
       ------------------------------------------------------------------------------------------------------------ :: wf_cast_inttoptr
       intrinsic_funs , system , module , fdef , block |-cast id = inttoptr ( int sz ) value1 to ( typ * )
 
@@ -392,7 +392,7 @@ Jwf_cast :: '' ::=
       % Disallow aggregates.
       (not isAggregateTyp typ1) /\ (not isAggregateTyp typ2)
       % Check invariance for instructions 
-      intrinsic_funs , system , module , fdef , block |-i id = bitcast typ1 value1 to typ2		
+      fdef , block |-i id = bitcast typ1 value1 to typ2		
       ----------------------------------------------------------------------------------------------- :: wf_cast_bitcast
       intrinsic_funs , system , module , fdef , block |-cast id = bitcast typ1 value1 to typ2		
 
@@ -407,7 +407,7 @@ Jwf_trunc :: '' ::=
       % bitwidth of dest typ is less then src typ
       sz2 < sz1
       % Check invariance for instructions 
-      intrinsic_funs , system , module , fdef , block |-i id = trunc_int ( int sz1 ) value1 to ( int sz2 )
+      fdef , block |-i id = trunc_int ( int sz1 ) value1 to ( int sz2 )
       ----------------------------------------------------------------------------------------------- :: wf_trunc_int
       intrinsic_funs , system , module , fdef , block |-trunc id = trunc_int ( int sz1 ) value1 to ( int sz2 )	
 
@@ -416,7 +416,7 @@ Jwf_trunc :: '' ::=
       % bitwidth of dest typ is less then src typ
       floating_point2 < floating_point1
       % Check invariance for instructions 
-      intrinsic_funs , system , module , fdef , block |-i id = trunc_fp floating_point1 value1 to floating_point2
+      fdef , block |-i id = trunc_fp floating_point1 value1 to floating_point2
       ----------------------------------------------------------------------------------------------- :: wf_trunc_fp
       intrinsic_funs , system , module , fdef , block |-trunc id = trunc_fp floating_point1 value1 to floating_point2	
 
@@ -431,7 +431,7 @@ Jwf_ext :: '' ::=
       % bitwidth of src typ is less then dest typ
       sz1 < sz2
       % Check invariance for instructions 
-      intrinsic_funs , system , module , fdef , block |-i id = zext ( int sz1 ) value1 to ( int sz2 )
+      fdef , block |-i id = zext ( int sz1 ) value1 to ( int sz2 )
       ------------------------------------------------------------------------------------------------------- :: wf_ext_z
       intrinsic_funs , system , module , fdef , block |-ext id = zext ( int sz1 ) value1 to ( int sz2 )	
 
@@ -440,7 +440,7 @@ Jwf_ext :: '' ::=
       % bitwidth of src typ is less then dest typ
       sz1 < sz2
       % Check invariance for instructions 
-      intrinsic_funs , system , module , fdef , block |-i id = sext ( int sz1 ) value1 to ( int sz2 )
+      fdef , block |-i id = sext ( int sz1 ) value1 to ( int sz2 )
       ------------------------------------------------------------------------------------------------------- :: wf_ext_s
       intrinsic_funs , system , module , fdef , block |-ext id = sext ( int sz1 ) value1 to ( int sz2 )	
 
@@ -449,7 +449,7 @@ Jwf_ext :: '' ::=
       % bitwidth of src typ is less then dest typ
       floating_point1 < floating_point2
       % Check invariance for instructions 
-      intrinsic_funs , system , module , fdef , block |-i id = fpext floating_point1 value1 to floating_point2
+      fdef , block |-i id = fpext floating_point1 value1 to floating_point2
       ------------------------------------------------------------------------------------------------------- :: wf_ext_fp
       intrinsic_funs , system , module , fdef , block |-ext id = fpext floating_point1 value1 to floating_point2	
 
@@ -464,14 +464,14 @@ Jwf_insn :: '' ::=
       % Exactly one return value and it matches the return type. Good. 
       Function.getDefReturnType fdef = typ
       % Check invariance for instructions
-      intrinsic_funs , system , module , fdef , block |-i id = ret typ value
+      fdef , block |-i id = ret typ value
       ------------------------------------------------------ :: wf_insn_return
       intrinsic_funs , system , module , fdef , block |- id = ret typ value
 
       % return instr that returns void in Function can be of void return type! 
       Function.getDefReturnType fdef = void
       % Check invariance for instructions
-      intrinsic_funs , system , module , fdef , block |-i id = ret void
+      fdef , block |-i id = ret void
       ------------------------------------------------------- :: wf_insn_return_void
       intrinsic_funs , system , module , fdef , block |- id = ret void
 
@@ -482,23 +482,23 @@ Jwf_insn :: '' ::=
       lookupBlockViaLabelFromFdef fdef l2 = block2
       not (l1 = l2)
       % Check invariance for instructions
-      intrinsic_funs , system , module , fdef , block |-i id = br value l1 l2
+      fdef , block |-i id = br value l1 l2
       -------------------------------------------------------------------------------------- :: wf_insn_br
       intrinsic_funs , system , module , fdef , block |- id = br value l1 l2	
 
       % Check labels
       lookupBlockViaLabelFromFdef fdef l = block
       % Check invariance for instructions
-      intrinsic_funs , system , module , fdef , block |-i id = br l
+      fdef , block |-i id = br l
       -------------------------------------------------------------------------------------- :: wf_insn_br_uncond
       intrinsic_funs , system , module, fdef , block |- id = br l		
 
-      % intrinsic_funs , system , module , fdef , block |-i id = invoke typ0 id0 params to l1 unwind l2
+      % fdef , block |-i id = invoke typ0 id0 params to l1 unwind l2
       % -------------------------------------------------------------------------------------- :: wf_insn_invoke
       % intrinsic_funs , system , module, fdef , block |- id = invoke typ0 id0 params to l1 unwind l2
 
       % Check invariance for instructions
-      intrinsic_funs , system , module , fdef , block |-i id = unreachable
+      fdef , block |-i id = unreachable
       -------------------------------------------------------------------------------------- :: wf_insn_unreachable
       intrinsic_funs , system , module, fdef , block |- id = unreachable
 
@@ -509,7 +509,7 @@ Jwf_insn :: '' ::=
       % Integer arithmetic operators only work with integral types 
       % Typ.isIntOrIntVector typ
       % Check invariance for instructions
-      intrinsic_funs , system , module , fdef , block |-i id = bop (int sz) value1 value2
+      fdef , block |-i id = bop (int sz) value1 value2
       -------------------------------------------------------------------------------------- :: wf_insn_bop
       intrinsic_funs , system , module, fdef , block |- id = bop (int sz) value1 value2
 
@@ -520,7 +520,7 @@ Jwf_insn :: '' ::=
       % Integer arithmetic operators only work with integral types 
       % Typ.isIntOrIntVector typ
       % Check invariance for instructions
-      intrinsic_funs , system , module , fdef , block |-i id = fbop floating_point value1 value2
+      fdef , block |-i id = fbop floating_point value1 value2
       ----------------------------------------------------------------------------------------------------- :: wf_insn_fbop
       intrinsic_funs , system , module, fdef , block |- id = fbop floating_point value1 value2
 
@@ -530,7 +530,7 @@ Jwf_insn :: '' ::=
       % Check indexs
       getSubTypFromConstIdxs </ constj // j /> typ = typ'
       % Check invariance for instructions
-      intrinsic_funs , system , module , fdef , block |-i id = extractvalue typ value </ constj // j />
+      fdef , block |-i id = extractvalue typ value </ constj // j />
       -------------------------------------------------------------------------------------- :: wf_insn_extractvalue
       intrinsic_funs , system , module , fdef , block |- id = extractvalue typ value </ constj // j />
 
@@ -541,7 +541,7 @@ Jwf_insn :: '' ::=
       % Check indexs
       getSubTypFromConstIdxs </ constj // j /> typ = typ'
       % Check invariance for instructions
-      intrinsic_funs , system , module , fdef , block |-i id = insertvalue typ value typ' value' </ constj // j />
+      fdef , block |-i id = insertvalue typ value typ' value' </ constj // j />
       -------------------------------------------------------------------------------------- :: wf_insn_insertvalue
       intrinsic_funs , system , module , fdef , block |- id = insertvalue typ value typ' value' </ constj // j />
 
@@ -554,14 +554,14 @@ Jwf_insn :: '' ::=
       system |- typ
       Typ.isSized typ
       % Check invariance for instructions
-      intrinsic_funs , system , module , fdef , block |-i id = malloc typ value align 
+      fdef , block |-i id = malloc typ value align 
       -------------------------------------------------------------------------------------- :: wf_insn_malloc
       intrinsic_funs , system , module , fdef , block |- id = malloc typ value align 
 
       % Check typs
       system , fdef |- value : typ*
       % Check invariance for instructions
-      intrinsic_funs , system , module , fdef , block |-i id = free (typ*) value
+      fdef , block |-i id = free (typ*) value
       -------------------------------------------------------------------------------------- :: wf_insn_free
       intrinsic_funs , system , module , fdef , block |- id = free (typ*) value
 
@@ -574,7 +574,7 @@ Jwf_insn :: '' ::=
       system |- typ
       Typ.isSized typ
       % Check invariance for instructions
-      intrinsic_funs , system , module , fdef , block |-i id = alloca typ value align 
+      fdef , block |-i id = alloca typ value align 
       -------------------------------------------------------------------------------------- :: wf_insn_alloca
       intrinsic_funs , system , module , fdef , block |- id = alloca typ value align 
 
@@ -582,7 +582,7 @@ Jwf_insn :: '' ::=
       % Load result type does not match pointer operand type!
       system , fdef |- value1 : typ1*
       % Check invariance for instructions
-      intrinsic_funs , system , module , fdef , block |-i id = load (typ1*) value1 align
+      fdef , block |-i id = load (typ1*) value1 align
       ---------------------------------------------------------------------------------------------- :: wf_insn_load
       intrinsic_funs , system , module , fdef , block |- id = load (typ1*) value1 align		
 
@@ -591,7 +591,7 @@ Jwf_insn :: '' ::=
       system , fdef |- value1 : typ
       system , fdef |- value2 : typ*
       % Check invariance for instructions
-      intrinsic_funs , system , module , fdef , block |-i id = store typ value1 value2 align
+      fdef , block |-i id = store typ value1 value2 align
       ------------------------------------------------------------------------------------------------- :: wf_insn_store
       intrinsic_funs , system , module , fdef , block |- id = store typ value1 value2 align
 
@@ -601,7 +601,7 @@ Jwf_insn :: '' ::=
       % Check indexs
       getGEPTyp </ valuej // j /> (typ*) = typ'
       % Check invariance for instructions
-      intrinsic_funs , system , module , fdef , block |-i id = getelementptr inbounds (typ*) value </ valuej // j />
+      fdef , block |-i id = getelementptr inbounds (typ*) value </ valuej // j />
       ---------------------------------------------------------------------------------------- :: wf_insn_gep
       intrinsic_funs , system , module , fdef , block |- id = getelementptr inbounds (typ*) value </ valuej // j />
 
@@ -626,7 +626,7 @@ Jwf_insn :: '' ::=
       % types can only be int, vector or ptr
       Typ.isIntOrIntVector typ \/ isPointerTyp typ
       % Check invariance for instructions
-      intrinsic_funs , system , module , fdef , block |-i id = icmp cond typ value1 value2
+      fdef , block |-i id = icmp cond typ value1 value2
       --------------------------------------------------------------------------------------------------- :: wf_insn_icmp
       intrinsic_funs , system , module , fdef , block |- id = icmp cond typ value1 value2
 
@@ -635,7 +635,7 @@ Jwf_insn :: '' ::=
       system , fdef |- value1 : floating_point
       system , fdef |- value2 : floating_point
       % Check invariance for instructions
-      intrinsic_funs , system , module , fdef , block |-i id = fcmp fcond floating_point value1 value2
+      fdef , block |-i id = fcmp fcond floating_point value1 value2
       ------------------------------------------------------------------------------------------------------- :: wf_insn_fcmp
       intrinsic_funs , system , module , fdef , block |- id = fcmp fcond floating_point value1 value2
 
@@ -669,7 +669,7 @@ Jwf_insn :: '' ::=
       % Check labels
       </ lookupBlockViaLabelFromSystem system lj = blockj /\ blockInFdef blockj fdef // j />
       % Check invariance for instructions
-      intrinsic_funs , system , module , fdef , block |-i id = phi typ </ [ valuej , lj ] // j />
+      fdef , block |-i id = phi typ </ [ valuej , lj ] // j />
       ------------------------------------------------------------------------------------------------ :: wf_insn_phi
       intrinsic_funs , system , module , fdef , block |- id = phi typ </ [ valuej , lj ] // j />
 			        
@@ -679,7 +679,7 @@ Jwf_insn :: '' ::=
       system , fdef |- value1 : typ
       system , fdef |- value2 : typ
       % Check invariance for instructions
-      intrinsic_funs , system , module , fdef , block |-i id = select value0 typ value1 value2
+      fdef , block |-i id = select value0 typ value1 value2
       ------------------------------------------------------------------------------------------------------- :: wf_insn_select
       intrinsic_funs , system , module , fdef , block |- id = select value0 typ value1 value2
 
@@ -703,7 +703,7 @@ Jwf_insn :: '' ::=
       %   Open soooon...
       %  
       % Check invariance for instructions
-      intrinsic_funs , system , module , fdef , block |-i id = noret tailc call typ0 value0 params
+      fdef , block |-i id = noret tailc call typ0 value0 params
       -------------------------------------------------------------------------------------------------- :: wf_insn_call
       intrinsic_funs , system , module , fdef , block |- id = noret tailc call typ0 value0 params
 
@@ -755,10 +755,10 @@ Jwf_block :: '' ::=
       % We moved some assertions to visitPhiNode 
       %
       % Check instruction
-      intrinsic_funs , system , module , fdef , block |- phinodes
-      intrinsic_funs , system , module , fdef , block |- cmds
-      intrinsic_funs , system , module , fdef , block |- terminator
-      ----------------------------------------------------------------------- :: wf_block_intro
+      intrinsic_funs , system , module , fdef , (l phinodes cmds terminator) |- phinodes
+      intrinsic_funs , system , module , fdef , (l phinodes cmds terminator) |- cmds
+      intrinsic_funs , system , module , fdef , (l phinodes cmds terminator) |- terminator
+      ------------------------------------------------------------------------------------- :: wf_block_intro
       intrinsic_funs , system , module , fdef |- l phinodes cmds terminator
 
 defns

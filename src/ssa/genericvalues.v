@@ -159,8 +159,43 @@ with typs2utyps_aux (m:list(id*typ)) (ts:list_typ) : option list_typ :=
      ret (Cons_list_typ ut0 uts0)
  end.
 
-Definition typ2utyp (nts:namedts) (t:typ) : option typ :=
+Definition typ2utyp' (nts:namedts) (t:typ) : option typ :=
 let m := gen_utyp_maps (List.rev nts) in
+typ2utyp_aux m t.
+
+Fixpoint subst_typ (i':id) (t' t:typ) : typ :=
+ match t with
+ | typ_int _ | typ_floatpoint _ | typ_void | typ_label | typ_metadata 
+ | typ_opaque => t
+ | typ_array s t0 => typ_array s (subst_typ i' t' t0)
+ | typ_function t0 ts0 => 
+     typ_function (subst_typ i' t' t0) (subst_typs i' t' ts0)
+ | typ_struct ts0 => typ_struct (subst_typs i' t' ts0)
+ | typ_pointer t0 => typ_pointer (subst_typ i' t' t0)
+ | typ_namedt i => if (eq_atom_dec i i') then t' else t
+ end
+with subst_typs (i':id) (t':typ) (ts:list_typ) : list_typ := 
+ match ts with
+ | Nil_list_typ => Nil_list_typ
+ | Cons_list_typ t0 ts0 =>
+     Cons_list_typ (subst_typ i' t' t0) (subst_typs i' t' ts0)
+ end.
+
+Fixpoint subst_typ_by_nts (nts:namedts) (t:typ) : typ :=
+match nts with
+| nil => t
+| (namedt_intro id' t')::nts' => subst_typ_by_nts nts' (subst_typ id' t' t)
+end.
+
+Fixpoint subst_nts_by_nts (nts0 nts:namedts) : list (id*typ) :=
+match nts with
+| nil => nil
+| (namedt_intro id' t')::nts' => 
+    (id',(subst_typ_by_nts nts0 t'))::subst_nts_by_nts nts0 nts'
+end.
+
+Definition typ2utyp (nts:namedts) (t:typ) : option typ :=
+let m := subst_nts_by_nts nts nts in
 typ2utyp_aux m t.
 
 Fixpoint mgetoffset_aux (TD:TargetData) (t:typ) (idxs:list Z) (accum:Z) 

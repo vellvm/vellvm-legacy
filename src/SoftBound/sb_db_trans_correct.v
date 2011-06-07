@@ -1700,7 +1700,8 @@ Proof.
         rewrite <- H42. rewrite H2.
         unfold mgetoffset, typ2utyp. destruct TD.
         assert (exists ut, 
-          typ2utyp_aux (gen_utyp_maps (rev n0)) (typ_array 0%nat t) = Some 
+(*          typ2utyp_aux (gen_utyp_maps (rev n0)) (typ_array 0%nat t) = Some *)
+          typ2utyp_aux (subst_nts_by_nts n0 n0) (typ_array 0%nat t) = Some
             (typ_array 0%nat ut) /\
           getTypeAllocSize (l0, n0) ut = getTypeAllocSize (l0, n0) t) as EQ1.
           admit.
