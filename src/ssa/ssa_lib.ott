@@ -32,7 +32,7 @@ formula :: 'formula_' ::=
 	  			{{ coq ( forall [[C]], [[ formula ]] ) }}
   | formula implies formula'    :: M :: implies
             	    		{{ tex [[formula]] \mathit{implies} [[formula']] }}
-	  			{{ coq [[formula]] -> [[ formula' ]] }}
+	  			{{ coq ([[formula]] -> [[ formula' ]]) }}
   | formula iff formula'        :: M :: iff
             	    		{{ tex [[formula]] \mathit{iff} [[formula']] }}
 	  			{{ coq ([[formula]] <-> [[ formula' ]]) }}
@@ -179,6 +179,8 @@ formula :: 'formula_' ::=
 				{{ coq insnDominates [[insn1]] [[insn2]] [[block]] }} 			
   | genInsnUseDef module = usedef_insn		::   :: genInsnUseDef
     		  		{{ coq genInsnUseDef [[module]] = [[usedef_insn]] }}
+  | genBlockUseDef_fdef fdef = usedef_block	::   :: genBlockUseDefFdef
+    		  		{{ coq genBlockUseDef_fdef [[fdef]] = [[usedef_block]] }}
   | genBlockUseDef module = usedef_block	::   :: genBlockUseDef
     		  		{{ coq genBlockUseDef [[module]] = [[usedef_block]] }}
   | getIdUseDef usedef_id id = ids		::   :: getInsnUseDef
@@ -203,12 +205,16 @@ formula :: 'formula_' ::=
                                 {{ coq getLabelsFromBlocks [[blocks]] = [[ls]] }}
   | checkIdenticalIncomingValues phinode           :: :: checkIdenticalIncomingValues
                                 {{ coq checkIdenticalIncomingValues [[phinode]] }}
-  | lookupTypViaIDFromSystem system id = opt_typ :: :: lookupTypViaIDFromSystem
-                                {{ coq lookupTypViaIDFromSystem [[system]] [[id]] = [[opt_typ]] }}
-  | BinaryOperator.getFirstOperandType system insn = opt_typ  :: :: BinaryOperatorGetFirstOperandType
-                                {{ coq BinaryOperator.getFirstOperandType [[system]] [[insn]] = [[opt_typ]] }}
-  | BinaryOperator.getSecondOperandType system insn = opt_typ  :: :: BinaryOperatorGetSecondOperandType
-                                {{ coq BinaryOperator.getSecondOperandType [[system]] [[insn]] = [[opt_typ]] }}
+  | lookupTypViaIDFromFdef fdef id = opt_typ :: :: lookupTypViaIDFromFdef
+                                {{ coq lookupTypViaIDFromFdef [[fdef]] [[id]] = [[opt_typ]] }}
+  | lookupTypViaTIDFromSystem system id = opt_typ :: :: lookupTypViaTIDFromSystem
+                                {{ coq lookupTypViaTIDFromSystem [[system]] [[id]] = [[opt_typ]] }}
+  | lookupTypViaGIDFromSystem system id = opt_typ :: :: lookupTypViaGIDFromSystem
+                                {{ coq lookupTypViaGIDFromSystem [[system]] [[id]] = [[opt_typ]] }}
+  | BinaryOperator.getFirstOperandType fdef insn = opt_typ  :: :: BinaryOperatorGetFirstOperandType
+                                {{ coq BinaryOperator.getFirstOperandType [[fdef]] [[insn]] = [[opt_typ]] }}
+  | BinaryOperator.getSecondOperandType fdef insn = opt_typ  :: :: BinaryOperatorGetSecondOperandType
+                                {{ coq BinaryOperator.getSecondOperandType [[fdef]] [[insn]] = [[opt_typ]] }}
   | Typ.isIntOrIntVector typ :: :: TypIsIntOrIntVector
                                 {{ coq Typ.isIntOrIntVector [[typ]] }}
   | CallSite.getCalledFunction insn system = opt_fdef :: :: CallSiteGetCalledFunction
@@ -241,12 +247,14 @@ formula :: 'formula_' ::=
                                 {{ coq Typ.getPrimitiveSizeInBits [[typ]] = [[sz]] }}
   | isPhiNode insn :: :: isPhiNode
                                 {{ coq isPhiNode [[insn]] }}
-  | insn in system , module_info , fdef , block :: :: insnInSystem
-    	    	     		{{ coq insnInSystemModuleIFdefBlockB [[insn]] [[system]] [[module_info]] [[fdef]] [[block]] = true }}
+  | insn in system , module , fdef , block :: :: insnInSystem
+    	    	     		{{ coq insnInSystemModuleFdefBlockB [[insn]] [[system]] [[module]] [[fdef]] [[block]] = true }}
   | lookupBlockViaIDFromFdef fdef id = opt_block :: :: lookupBlockViaIDFromFdef
                                 {{ coq lookupBlockViaIDFromFdef [[fdef]] [[id]] = [[opt_block]] }}
   | getLabelViaIDFromPhiNode phinode id = opt_l :: :: getLabelViaIDFromPhiNode
                                 {{ coq getLabelViaIDFromPhiNode [[phinode]] [[id]] = [[opt_l]] }}
+  | lookupBindingViaIDFromFdef fdef id = id_binding :: :: lookupBindingViaIDFromFdef
+                                {{ coq lookupBindingViaIDFromFdef [[fdef]] [[id]] = [[id_binding]] }}  
   | lookupBindingViaIDFromSystem system id = id_binding :: :: lookupBindingViaIDFromSystem
                                 {{ coq lookupBindingViaIDFromSystem [[system]] [[id]] = [[id_binding]] }}
   | getBindingTyp id_binding = opt_typ :: :: getBindingTyp
@@ -267,10 +275,10 @@ formula :: 'formula_' ::=
                                 {{ coq getCalledValueID [[insn]] = [[opt_id]] }}
   | blockInFdef block fdef       :: :: blockInFdef
                                 {{ coq blockInFdefB [[block]] [[fdef]] = true }}
-  | block in system , module_info , fdef :: :: blockInSystem
-                                {{ coq blockInSystemModuleIFdefB [[block]] [[system]] [[module_info]] [[fdef]] = true }}
-  | product in system , module_info :: :: productInSystem
-                                {{ coq productInSystemModuleIB [[product]] [[system]] [[module_info]] = true }}
+  | block in system , module , fdef :: :: blockInSystem
+                                {{ coq blockInSystemModuleFdefB [[block]] [[system]] [[module]] [[fdef]] = true }}
+  | product in system , module :: :: productInSystem
+                                {{ coq productInSystemModuleB [[product]] [[system]] [[module]] = true }}
   | uniqSystem system               :: :: uniqSystem
                                 {{ coq uniqSystem [[system]] }}
   | typ =t= typ'                     :: :: typEq 

@@ -107,7 +107,6 @@ Definition noret_dec : forall x y : noret, {x=y} + {x<>y} := bool_dec.
   Definition getValueID (v:value) : option id :=
   match v with
   | value_id id => Some id
-  | value_const (const_gid _ id) => Some id
   | value_const _ => None
   end.
 
@@ -955,52 +954,66 @@ match fd with
 | (fdef_intro _ lb) => lookupTypViaIDFromBlocks lb id0
 end.
 
-Definition lookupTypViaIDFromProduct (p:product) (id0:id) : option typ :=
+Definition lookupTypViaGIDFromProduct (p:product) (id0:id) : option typ :=
 match p with
-| product_fdef fd => lookupTypViaIDFromFdef fd id0
+| product_fdef fd => None
 | product_gvar (gvar_intro id spec t _ _) => if id0==id then Some t else None
 | product_gvar (gvar_external id spec t) => if id0==id then Some t else None
 | _ => None
 end.
 
-Fixpoint lookupTypViaIDFromProducts (lp:products) (id0:id) : option typ :=
+Fixpoint lookupTypViaGIDFromProducts (lp:products) (id0:id) : option typ :=
 match lp with
 | nil => None
 | p::lp' =>
-  match (lookupTypViaIDFromProduct p id0) with
+  match (lookupTypViaGIDFromProduct p id0) with
   | Some t => Some t
-  | None => lookupTypViaIDFromProducts lp' id0
+  | None => lookupTypViaGIDFromProducts lp' id0
   end
 end.
 
-Fixpoint lookupTypViaIDFromNamedts (nts:namedts) (id0:id) : option typ :=
+Definition lookupTypViaGIDFromModule (m:module) (id0:id) : option typ :=
+  let (os, dts, ps) := m in  
+  lookupTypViaGIDFromProducts ps id0.
+     
+Fixpoint lookupTypViaGIDFromModules (lm:modules) (id0:id) : option typ :=
+match lm with
+| nil => None
+| m::lm' =>
+  match (lookupTypViaGIDFromModule m id0) with
+  | Some t => Some t
+  | None => lookupTypViaGIDFromModules lm' id0
+  end
+end.
+
+Definition lookupTypViaGIDFromSystem (s:system) (id0:id) : option typ :=
+lookupTypViaGIDFromModules s id0.
+
+Fixpoint lookupTypViaTIDFromNamedts (nts:namedts) (id0:id) : option typ :=
 match nts with
 | nil => None
 | namedt_intro id1 typ1::nts' =>
   if (eq_dec id0 id1) 
   then Some typ1
-  else lookupTypViaIDFromNamedts nts' id0
+  else lookupTypViaTIDFromNamedts nts' id0
 end.
 
-Definition lookupTypViaIDFromModule (m:module) (id0:id) : option typ :=
-  let (os, dts, ps) := m in 
-  match lookupTypViaIDFromNamedts dts id0 with
-  | None => lookupTypViaIDFromProducts ps id0
-  | Some t => Some t
-  end.
+Definition lookupTypViaTIDFromModule (m:module) (id0:id) : option typ :=
+  let (os, dts, ps) := m in  
+  lookupTypViaTIDFromNamedts dts id0.
      
-Fixpoint lookupTypViaIDFromModules (lm:modules) (id0:id) : option typ :=
+Fixpoint lookupTypViaTIDFromModules (lm:modules) (id0:id) : option typ :=
 match lm with
 | nil => None
 | m::lm' =>
-  match (lookupTypViaIDFromModule m id0) with
+  match (lookupTypViaTIDFromModule m id0) with
   | Some t => Some t
-  | None => lookupTypViaIDFromModules lm' id0
+  | None => lookupTypViaTIDFromModules lm' id0
   end
 end.
 
-Definition lookupTypViaIDFromSystem (s:system) (id0:id) : option typ :=
-lookupTypViaIDFromModules s id0.
+Definition lookupTypViaTIDFromSystem (s:system) (id0:id) : option typ :=
+lookupTypViaTIDFromModules s id0.
 
 (**********************************)
 (* SSA. *)
@@ -2846,8 +2859,8 @@ End SigInvokeInst.
 Module Type SigBinaryOperator.
  Include SigInstruction.
 
- Parameter getFirstOperandType : system -> cmd -> option typ.
- Parameter getSecondOperandType : system -> cmd -> option typ.
+ Parameter getFirstOperandType : fdef -> cmd -> option typ.
+ Parameter getSecondOperandType : fdef -> cmd -> option typ.
  Parameter getResultType : cmd -> option typ.
 
 End SigBinaryOperator.
@@ -2856,7 +2869,7 @@ Module Type SigPHINode.
  Include SigInstruction.
 
  Parameter getNumIncomingValues : phinode -> nat.
- Parameter getIncomingValueType : system  -> phinode -> i -> option typ.
+ Parameter getIncomingValueType : fdef  -> phinode -> i -> option typ.
 End SigPHINode.
 
 (* Type Signature *)
@@ -3081,21 +3094,21 @@ End InvokeInst.
 Module BinaryOperator <: SigBinaryOperator.
  Include Instruction.
 
- Definition getFirstOperandType (s:system) (i:cmd) : option typ := 
+ Definition getFirstOperandType (f:fdef) (i:cmd) : option typ := 
  match i with
  | insn_bop _ _ _ v1 _ => 
    match v1 with
-   | value_id id1 => lookupTypViaIDFromSystem s id1
+   | value_id id1 => lookupTypViaIDFromFdef f id1
    | value_const c => Constant.getTyp c
    end
  | _ => None
  end.
 
- Definition getSecondOperandType (s:system) (i:cmd) : option typ := 
+ Definition getSecondOperandType (f:fdef) (i:cmd) : option typ := 
  match i with
  | insn_bop _ _ _ _ v2 => 
    match v2 with
-   | value_id id2 => lookupTypViaIDFromSystem s id2
+   | value_id id2 => lookupTypViaIDFromFdef f id2
    | value_const c => Constant.getTyp c
    end
  | _ => None
@@ -3113,11 +3126,11 @@ Module PHINode <: SigPHINode.
  | (insn_phi _ _ ln) => (length (unmake_list_value_l ln))
  end.
 
- Definition getIncomingValueType (s:system) (i:phinode) (n:nat) : option typ :=
+ Definition getIncomingValueType (f:fdef) (i:phinode) (n:nat) : option typ :=
  match i with
  | (insn_phi _ _ ln) => 
     match (nth_list_value_l n ln) with
-    | Some (value_id id, _) => lookupTypViaIDFromSystem s id
+    | Some (value_id id, _) => lookupTypViaIDFromFdef f id
     | Some (value_const c, _) => Constant.getTyp c
     | None => None
     end

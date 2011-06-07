@@ -8,7 +8,7 @@ all:
 	+make -C ./ott
 	+make -C ./compcert 
 	+make ott 
-	+make -C ./llvm_op
+#	+make -C ./llvm_op
 
 ott: main.pdf ssa_dynamic.vo opsem_conv.vo opsem_pp.vo ssa_static.vo \
 	ssa_interpreter.vo ssa_wf.vo
@@ -61,7 +61,8 @@ targetdata.vo: targetdata.v ssa_def.vo ssa_lib.vo
 trace.vo: trace.v
 	$(COQC) $(COQARG) trace.v
 
-ssa_analysis.vo: ssa_def.vo ssa_lib.vo tactics.vo assoclist.vo compcert/Kildall.vo
+ssa_analysis.vo: ssa_analysis.v ssa_def.vo ssa_lib.vo tactics.vo assoclist.vo \
+	compcert/Kildall.vo
 	$(COQC) $(COQARG) ssa_analysis.v
 
 genericvalues.vo: ssa_def.vo ssa_lib.vo tactics.vo trace.vo genericvalues.v \

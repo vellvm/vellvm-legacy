@@ -219,6 +219,7 @@ Inductive dsInsn : State -> State -> trace -> Prop :=
                             F' B' c' cs' tmn' lc' EC
                             Mem Mem' als als' lc'',   
   Instruction.isCallInst c' = true ->
+  (* FIXME: we should get Result before free?! *)
   free_allocas TD Mem als = Some Mem' ->
   returnUpdateLocals TD Mem' c' Result lc lc' gl = Some lc'' ->
   dsInsn 

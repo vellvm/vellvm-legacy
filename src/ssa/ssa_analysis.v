@@ -155,7 +155,11 @@ Module Dominators.
     else
       x.
   Next Obligation.
-  Admitted.
+    assert ({{a}} [<=] bound) as J. 
+      clear - H.
+      admit. (* fsetdec? *)
+    fsetdec.
+  Qed.
 
   End VarBoundSec. 
 End Dominators.
@@ -663,13 +667,15 @@ Definition insnDominates (i1 i2:insn) (b:block) : Prop :=
 match b with 
 | (block_intro l5 ps cs tmn) =>
     match (i1, i2) with
-    | (insn_cmd _, insn_terminator _) => True  
-    | (insn_phinode _, insn_terminator _) => True
-    | (insn_phinode _, insn_cmd _) => True
+    | (insn_cmd c1, insn_terminator tmn2) =>
+        (exists cs1, exists cs2, cs = cs1++c1::cs2) /\ tmn2 = tmn
+    | (insn_phinode p1, insn_terminator tmn2) =>
+        (exists ps1, exists ps2, ps = ps1++p1::ps2) /\ tmn2 = tmn
+    | (insn_phinode p1, insn_cmd c2) =>
+        (exists ps1, exists ps2, ps = ps1++p1::ps2) /\
+        (exists cs1, exists cs2, cs = cs1++c2::cs2)
     | (insn_cmd c1, insn_cmd c2) => 
-      (exists cs1, exists cs2, exists cs3, cs = cs1++(c1::cs2)++(c2::cs3))
-    | (insn_phinode p1, insn_phinode p2) => 
-      (exists ps1, exists ps2, exists ps3, ps = ps1++(p1::ps2)++(p2::ps3))
+        (exists cs1, exists cs2, exists cs3, cs = cs1++(c1::cs2)++(c2::cs3))
     | _ => False
     end
 end.

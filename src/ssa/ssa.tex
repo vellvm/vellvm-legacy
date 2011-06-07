@@ -584,7 +584,7 @@
 
 
 \newcommand{\ottdrulewfXXtypXXnamedt}[1]{\ottdrule[#1]{%
-\ottpremise{\ottkw{lookupTypViaIDFromSystem} \, \ottnt{system} \, \ottmv{id}  =  \mathit{opt_{typ} }}%
+\ottpremise{\ottkw{lookupTypViaTIDFromSystem} \, \ottnt{system} \, \ottmv{id}  =  \mathit{opt_{typ} }}%
 }{
 \ottnt{system}  \vdash  \ottmv{id}}{%
 {\ottdrulename{wf\_typ\_namedt}}{}%
@@ -670,7 +670,7 @@
 
 \newcommand{\ottdrulewfXXconstXXgid}[1]{\ottdrule[#1]{%
 \ottpremise{\ottnt{system}  \vdash  \ottnt{typ}  \ottsym{*}}%
-\ottpremise{\ottkw{lookupTypViaIDFromSystem} \, \ottnt{system} \, \ottmv{id}  =  \ottnt{typ}  \ottsym{*}}%
+\ottpremise{\ottkw{lookupTypViaGIDFromSystem} \, \ottnt{system} \, \ottmv{id}  =  \ottnt{typ}  \ottsym{*}}%
 }{
 \ottnt{system}  \ottsym{\mbox{$\mid$}-c}  \ottnt{typ}  \ottsym{*}  \ottmv{id}  \ottsym{:}  \ottnt{typ}  \ottsym{*}}{%
 {\ottdrulename{wf\_const\_gid}}{}%
@@ -907,20 +907,20 @@
 \newcommand{\ottdrulewfXXvalueXXconst}[1]{\ottdrule[#1]{%
 \ottpremise{\ottnt{system}  \ottsym{\mbox{$\mid$}-c}  \ottnt{const}  \ottsym{:}  \ottnt{typ}}%
 }{
-\ottnt{system}  \vdash  \ottnt{const}  \ottsym{:}  \ottnt{typ}}{%
+\ottnt{system}  \ottsym{,}  \ottnt{fdef}  \vdash  \ottnt{const}  \ottsym{:}  \ottnt{typ}}{%
 {\ottdrulename{wf\_value\_const}}{}%
 }}
 
 
 \newcommand{\ottdrulewfXXvalueXXid}[1]{\ottdrule[#1]{%
 \ottpremise{\ottnt{system}  \vdash  \ottnt{typ}}%
-\ottpremise{\ottkw{lookupTypViaIDFromSystem} \, \ottnt{system} \, \ottmv{id}  =  \ottnt{typ}}%
+\ottpremise{\ottkw{lookupTypViaIDFromFdef} \, \ottnt{fdef} \, \ottmv{id}  =  \ottnt{typ}}%
 }{
-\ottnt{system}  \vdash  \ottmv{id}  \ottsym{:}  \ottnt{typ}}{%
+\ottnt{system}  \ottsym{,}  \ottnt{fdef}  \vdash  \ottmv{id}  \ottsym{:}  \ottnt{typ}}{%
 {\ottdrulename{wf\_value\_id}}{}%
 }}
 
-\newcommand{\ottdefnwfXXvalue}[1]{\begin{ottdefnblock}[#1]{$\ottnt{system}  \vdash  \ottnt{value}  \ottsym{:}  \ottnt{typ}$}{\ottcom{$\ottnt{value}$ has $\ottnt{typ}$ wrt $\ottnt{system}$}}
+\newcommand{\ottdefnwfXXvalue}[1]{\begin{ottdefnblock}[#1]{$\ottnt{system}  \ottsym{,}  \ottnt{fdef}  \vdash  \ottnt{value}  \ottsym{:}  \ottnt{typ}$}{\ottcom{$\ottnt{value}$ has $\ottnt{typ}$ wrt $\ottnt{system}$ and [fdef]}}
 \ottusedrule{\ottdrulewfXXvalueXXconst{}}
 \ottusedrule{\ottdrulewfXXvalueXXid{}}
 \end{ottdefnblock}}
@@ -938,11 +938,11 @@
 \ottpremise{  ( \ottkw{isPhiNode} \, \ottnt{insn} \!)   \mathit{implies}   (   \ottkw{getLabelViaIDPhiNode} \, \ottnt{insn} \, \ottmv{id'}  =  \ottmv{l''}  \wedge  \ottkw{lookupBlockViaLabelFromSystem} \, \ottnt{system} \, \ottmv{l''}  =  \ottnt{block''}   \wedge   (   ( \ottkw{blockDominates} \, \ottnt{fdef} \, \ottnt{block'} \, \ottnt{block''} \!)   \vee   (  \neg   ( \ottkw{isReachableFromEntry} \, \ottnt{fdef} \, \ottnt{block} \!)   \!)   \!)   \!)  }%
 \ottpremise{  (  \neg  \ottkw{isPhiNode} \, \ottnt{insn}  \!)   \mathit{implies}   (   \ottkw{insnDominates} \, \ottnt{insn'} \, \ottnt{insn} \, \ottnt{block}  \vee  \ottkw{blockDominates} \, \ottnt{fdef} \, \ottnt{block'} \, \ottnt{block}   \vee   (  \neg   ( \ottkw{isReachableFromEntry} \, \ottnt{fdef} \, \ottnt{block} \!)   \!)   \!)  }%
 }{
-\ottnt{intrinsic\_funs}  \ottsym{,}  \ottnt{system}  \ottsym{,}  \ottnt{module\_info}  \ottsym{,}  \ottnt{fdef}  \ottsym{,}  \ottnt{block}  \ottsym{,}  \ottnt{insn}  \vdash  \ottnt{insn'}}{%
+\ottnt{intrinsic\_funs}  \ottsym{,}  \ottnt{system}  \ottsym{,}  \ottnt{module}  \ottsym{,}  \ottnt{fdef}  \ottsym{,}  \ottnt{block}  \ottsym{,}  \ottnt{insn}  \vdash  \ottnt{insn'}}{%
 {\ottdrulename{wf\_ssa\_intro}}{}%
 }}
 
-\newcommand{\ottdefnwfXXssa}[1]{\begin{ottdefnblock}[#1]{$\ottnt{intrinsic\_funs}  \ottsym{,}  \ottnt{system}  \ottsym{,}  \ottnt{module\_info}  \ottsym{,}  \ottnt{fdef}  \ottsym{,}  \ottnt{block}  \ottsym{,}  \ottnt{insn}  \vdash  \ottnt{insn'}$}{\ottcom{$\ottnt{insn'}$ is well-formed w.r.t $\ottnt{insn}$ $\ottnt{block}$ in $\ottnt{fdef}$ in $\ottnt{module\_info}$ $\ottnt{system}$}}
+\newcommand{\ottdefnwfXXssa}[1]{\begin{ottdefnblock}[#1]{$\ottnt{intrinsic\_funs}  \ottsym{,}  \ottnt{system}  \ottsym{,}  \ottnt{module}  \ottsym{,}  \ottnt{fdef}  \ottsym{,}  \ottnt{block}  \ottsym{,}  \ottnt{insn}  \vdash  \ottnt{insn'}$}{\ottcom{$\ottnt{insn'}$ is well-formed w.r.t $\ottnt{insn}$ $\ottnt{block}$ in $\ottnt{fdef}$ in $\ottnt{module}$ $\ottnt{system}$}}
 \ottusedrule{\ottdrulewfXXssaXXintro{}}
 \end{ottdefnblock}}
 
@@ -955,23 +955,20 @@
 % defn wf_operand
 \newcommand{\ottdrulewfXXoperandXXintro}[1]{\ottdrule[#1]{%
 \ottpremise{\ottnt{module}  =  \ottsym{(}  \mathit{\overline{layout} } \, \mathit{\overline{namedt} } \, \mathit{\overline{product} }  \ottsym{)}}%
-\ottpremise{\ottnt{insn} \, \in \, \ottnt{system}  \ottsym{,}  \ottsym{(}  \ottnt{module}  \ottsym{,}  \ottnt{usedef\_id}  \ottsym{,}  \ottnt{usedef\_block}  \ottsym{)}  \ottsym{,}  \ottnt{fdef}  \ottsym{,}  \ottnt{block}}%
+\ottpremise{\ottnt{insn} \, \in \, \ottnt{system}  \ottsym{,}  \ottnt{module}  \ottsym{,}  \ottnt{fdef}  \ottsym{,}  \ottnt{block}}%
 \ottpremise{\ottkw{getInsnOperands} \, \ottnt{insn}  =  \mathit{\{id\} }}%
 \ottpremise{ \ottmv{id'}  \in  \mathit{\{id\} } }%
-\ottpremise{\ottkw{lookupBindingViaIDFromSystem} \, \ottnt{system} \, \ottmv{id'}  =  \ottnt{id\_binding'}}%
+\ottpremise{\ottkw{lookupBindingViaIDFromFdef} \, \ottnt{fdef} \, \ottmv{id'}  =  \ottnt{id\_binding'}}%
 \ottpremise{\ottkw{getBindingTyp} \, \ottnt{id\_binding'}  =  \ottnt{typ'}}%
 \ottpremise{\ottkw{isFirstClassTyp} \, \ottnt{typ'}}%
 \ottpremise{  ( \ottkw{getPointerEltTyp} \, \ottnt{typ'}  =  \ottnt{typ''} \!)   \mathit{implies}   (  \neg  \ottnt{typ''}  \ottsym{=t=}  \ottkw{metadata}  \!)  }%
-\ottpremise{  ( \ottkw{isBindingFdec} \, \ottnt{id\_binding'}  =  \ottnt{fdec} \!)   \mathit{implies}   (   \ottkw{getFdecID} \, \ottnt{fdec}  =  \ottmv{id_{{\mathrm{0}}}}  \wedge   (   \ottmv{id_{{\mathrm{0}}}}  \notin  \ottnt{intrinsic\_funs}   \vee  \ottkw{getCalledValueID} \, \ottnt{insn}  =  \ottmv{id'}  \!)    \wedge   \ottnt{fdec}  \in  \mathit{\overline{product} }   \!)  }%
-\ottpremise{  ( \ottkw{isBindingArg} \, \ottnt{id\_binding'}  =  \ottnt{arg} \!)   \mathit{implies}   ( \ottkw{argInFdef} \, \ottnt{arg} \, \ottnt{fdef} \!)  }%
-\ottpremise{  ( \ottkw{isBindingGvar} \, \ottnt{id\_binding'}  =  \ottnt{gvar} \!)   \mathit{implies}   (  \ottnt{gvar}  \in  \mathit{\overline{product} }  \!)  }%
-\ottpremise{  ( \ottkw{isBindingInsn} \, \ottnt{id\_binding'}  =  \ottnt{insn'} \!)   \mathit{implies}   ( \ottnt{intrinsic\_funs}  \ottsym{,}  \ottnt{system}  \ottsym{,}  \ottsym{(}  \ottnt{module}  \ottsym{,}  \ottnt{usedef\_id}  \ottsym{,}  \ottnt{usedef\_block}  \ottsym{)}  \ottsym{,}  \ottnt{fdef}  \ottsym{,}  \ottnt{block}  \ottsym{,}  \ottnt{insn}  \vdash  \ottnt{insn'} \!)  }%
+\ottpremise{  ( \ottkw{isBindingInsn} \, \ottnt{id\_binding'}  =  \ottnt{insn'} \!)   \mathit{implies}   ( \ottnt{intrinsic\_funs}  \ottsym{,}  \ottnt{system}  \ottsym{,}  \ottnt{module}  \ottsym{,}  \ottnt{fdef}  \ottsym{,}  \ottnt{block}  \ottsym{,}  \ottnt{insn}  \vdash  \ottnt{insn'} \!)  }%
 }{
-\ottnt{intrinsic\_funs}  \ottsym{,}  \ottnt{system}  \ottsym{,}  \ottsym{(}  \ottnt{module}  \ottsym{,}  \ottnt{usedef\_id}  \ottsym{,}  \ottnt{usedef\_block}  \ottsym{)}  \ottsym{,}  \ottnt{fdef}  \ottsym{,}  \ottnt{block}  \ottsym{,}  \ottnt{insn}  \vdash  \ottmv{id'}}{%
+\ottnt{intrinsic\_funs}  \ottsym{,}  \ottnt{system}  \ottsym{,}  \ottnt{module}  \ottsym{,}  \ottnt{fdef}  \ottsym{,}  \ottnt{block}  \ottsym{,}  \ottnt{insn}  \vdash  \ottmv{id'}}{%
 {\ottdrulename{wf\_operand\_intro}}{}%
 }}
 
-\newcommand{\ottdefnwfXXoperand}[1]{\begin{ottdefnblock}[#1]{$\ottnt{intrinsic\_funs}  \ottsym{,}  \ottnt{system}  \ottsym{,}  \ottnt{module\_info}  \ottsym{,}  \ottnt{fdef}  \ottsym{,}  \ottnt{block}  \ottsym{,}  \ottnt{insn}  \vdash  \ottmv{id'}$}{\ottcom{$\ottmv{id'}$ is well-formed w.r.t $\ottnt{insn}$ $\ottnt{block}$ in $\ottnt{fdef}$ in $\ottnt{module\_info}$ $\ottnt{system}$}}
+\newcommand{\ottdefnwfXXoperand}[1]{\begin{ottdefnblock}[#1]{$\ottnt{intrinsic\_funs}  \ottsym{,}  \ottnt{system}  \ottsym{,}  \ottnt{module}  \ottsym{,}  \ottnt{fdef}  \ottsym{,}  \ottnt{block}  \ottsym{,}  \ottnt{insn}  \vdash  \ottmv{id'}$}{\ottcom{$\ottmv{id'}$ is well-formed w.r.t $\ottnt{insn}$ $\ottnt{block}$ in $\ottnt{fdef}$ in $\ottnt{module}$ $\ottnt{system}$}}
 \ottusedrule{\ottdrulewfXXoperandXXintro{}}
 \end{ottdefnblock}}
 
@@ -983,20 +980,20 @@
 % defns Jwf_insn_base
 % defn wf_insn_base
 \newcommand{\ottdrulewfXXinsnXXbaseXXintro}[1]{\ottdrule[#1]{%
-\ottpremise{\ottnt{insn} \, \in \, \ottnt{system}  \ottsym{,}  \ottnt{module\_info}  \ottsym{,}  \ottnt{fdef}  \ottsym{,}  \ottnt{block}}%
+\ottpremise{\ottnt{insn} \, \in \, \ottnt{system}  \ottsym{,}  \ottnt{module}  \ottsym{,}  \ottnt{fdef}  \ottsym{,}  \ottnt{block}}%
 \ottpremise{\ottkw{getInsnTyp} \, \ottnt{insn}  =  \ottnt{typ}}%
 \ottpremise{ \ottnt{typ}  \ottsym{=t=}  \ottkw{void}  \vee  \ottkw{isFirstClassTyp} \, \ottnt{typ} }%
 \ottpremise{  (  \neg  \ottnt{typ}  \ottsym{=t=}  \ottkw{metadata}  \!)   \vee  \ottkw{isCallInsn} \, \ottnt{insn} }%
 \ottpremise{  ( \ottkw{isPointerTyp} \, \ottnt{typ} \!)   \mathit{implies}   (  \ottkw{getPointerEltTyp} \, \ottnt{typ}  =  \ottnt{typ'}  \wedge   (  \neg  \ottnt{typ'}  \ottsym{=t=}  \ottkw{metadata}  \!)   \!)  }%
 \ottpremise{\ottkw{getInsnOperands} \, \ottnt{insn}  =  \mathit{\{id\} }}%
 \ottpremise{\mathit{\{id\} }  <-> \, \ottcomp{\ottmv{id_{\ottmv{j}}}}{\ottmv{j}}}%
-\ottpremise{\ottcomp{\ottnt{intrinsic\_funs}  \ottsym{,}  \ottnt{system}  \ottsym{,}  \ottnt{module\_info}  \ottsym{,}  \ottnt{fdef}  \ottsym{,}  \ottnt{block}  \ottsym{,}  \ottnt{insn}  \vdash  \ottmv{id_{\ottmv{j}}}}{\ottmv{j}}}%
+\ottpremise{\ottcomp{\ottnt{intrinsic\_funs}  \ottsym{,}  \ottnt{system}  \ottsym{,}  \ottnt{module}  \ottsym{,}  \ottnt{fdef}  \ottsym{,}  \ottnt{block}  \ottsym{,}  \ottnt{insn}  \vdash  \ottmv{id_{\ottmv{j}}}}{\ottmv{j}}}%
 }{
-\ottnt{intrinsic\_funs}  \ottsym{,}  \ottnt{system}  \ottsym{,}  \ottnt{module\_info}  \ottsym{,}  \ottnt{fdef}  \ottsym{,}  \ottnt{block}  \vdash_{i}  \ottnt{insn}}{%
+\ottnt{intrinsic\_funs}  \ottsym{,}  \ottnt{system}  \ottsym{,}  \ottnt{module}  \ottsym{,}  \ottnt{fdef}  \ottsym{,}  \ottnt{block}  \vdash_{i}  \ottnt{insn}}{%
 {\ottdrulename{wf\_insn\_base\_intro}}{}%
 }}
 
-\newcommand{\ottdefnwfXXinsnXXbase}[1]{\begin{ottdefnblock}[#1]{$\ottnt{intrinsic\_funs}  \ottsym{,}  \ottnt{system}  \ottsym{,}  \ottnt{module\_info}  \ottsym{,}  \ottnt{fdef}  \ottsym{,}  \ottnt{block}  \vdash_{i}  \ottnt{insn}$}{\ottcom{$\ottnt{insn}$ is well-formed w.r.t $\ottnt{block}$ in $\ottnt{fdef}$ in $\ottnt{module\_info}$ $\ottnt{system}$}}
+\newcommand{\ottdefnwfXXinsnXXbase}[1]{\begin{ottdefnblock}[#1]{$\ottnt{intrinsic\_funs}  \ottsym{,}  \ottnt{system}  \ottsym{,}  \ottnt{module}  \ottsym{,}  \ottnt{fdef}  \ottsym{,}  \ottnt{block}  \vdash_{i}  \ottnt{insn}$}{\ottcom{$\ottnt{insn}$ is well-formed w.r.t $\ottnt{block}$ in $\ottnt{fdef}$ in $\ottnt{module}$ $\ottnt{system}$}}
 \ottusedrule{\ottdrulewfXXinsnXXbaseXXintro{}}
 \end{ottdefnblock}}
 
@@ -1008,35 +1005,35 @@
 % defns Jwf_cast
 % defn wf_cast
 \newcommand{\ottdrulewfXXcastXXptrtoint}[1]{\ottdrule[#1]{%
-\ottpremise{\ottnt{system}  \vdash  \ottnt{value_{{\mathrm{1}}}}  \ottsym{:}  \ottnt{typ}  \ottsym{*}}%
-\ottpremise{\ottnt{intrinsic\_funs}  \ottsym{,}  \ottnt{system}  \ottsym{,}  \ottnt{module\_info}  \ottsym{,}  \ottnt{fdef}  \ottsym{,}  \ottnt{block}  \vdash_{i}  \ottmv{id}  =  \ottkw{ptrtoint} \, \ottsym{(}  \ottnt{typ}  \ottsym{*}  \ottsym{)} \, \ottnt{value_{{\mathrm{1}}}} \, \ottkw{to} \, \ottsym{(}  \ottkw{int} \, \ottmv{sz}  \ottsym{)}}%
+\ottpremise{\ottnt{system}  \ottsym{,}  \ottnt{fdef}  \vdash  \ottnt{value_{{\mathrm{1}}}}  \ottsym{:}  \ottnt{typ}  \ottsym{*}}%
+\ottpremise{\ottnt{intrinsic\_funs}  \ottsym{,}  \ottnt{system}  \ottsym{,}  \ottnt{module}  \ottsym{,}  \ottnt{fdef}  \ottsym{,}  \ottnt{block}  \vdash_{i}  \ottmv{id}  =  \ottkw{ptrtoint} \, \ottsym{(}  \ottnt{typ}  \ottsym{*}  \ottsym{)} \, \ottnt{value_{{\mathrm{1}}}} \, \ottkw{to} \, \ottsym{(}  \ottkw{int} \, \ottmv{sz}  \ottsym{)}}%
 }{
-\ottnt{intrinsic\_funs}  \ottsym{,}  \ottnt{system}  \ottsym{,}  \ottnt{module\_info}  \ottsym{,}  \ottnt{fdef}  \ottsym{,}  \ottnt{block}  \ottsym{\mbox{$\mid$}-cast}  \ottmv{id}  =  \ottkw{ptrtoint} \, \ottsym{(}  \ottnt{typ}  \ottsym{*}  \ottsym{)} \, \ottnt{value_{{\mathrm{1}}}} \, \ottkw{to} \, \ottsym{(}  \ottkw{int} \, \ottmv{sz}  \ottsym{)}}{%
+\ottnt{intrinsic\_funs}  \ottsym{,}  \ottnt{system}  \ottsym{,}  \ottnt{module}  \ottsym{,}  \ottnt{fdef}  \ottsym{,}  \ottnt{block}  \ottsym{\mbox{$\mid$}-cast}  \ottmv{id}  =  \ottkw{ptrtoint} \, \ottsym{(}  \ottnt{typ}  \ottsym{*}  \ottsym{)} \, \ottnt{value_{{\mathrm{1}}}} \, \ottkw{to} \, \ottsym{(}  \ottkw{int} \, \ottmv{sz}  \ottsym{)}}{%
 {\ottdrulename{wf\_cast\_ptrtoint}}{}%
 }}
 
 
 \newcommand{\ottdrulewfXXcastXXinttoptr}[1]{\ottdrule[#1]{%
-\ottpremise{\ottnt{system}  \vdash  \ottnt{value_{{\mathrm{1}}}}  \ottsym{:}  \ottkw{int} \, \ottmv{sz}}%
-\ottpremise{\ottnt{intrinsic\_funs}  \ottsym{,}  \ottnt{system}  \ottsym{,}  \ottnt{module\_info}  \ottsym{,}  \ottnt{fdef}  \ottsym{,}  \ottnt{block}  \vdash_{i}  \ottmv{id}  =  \ottkw{inttoptr} \, \ottsym{(}  \ottkw{int} \, \ottmv{sz}  \ottsym{)} \, \ottnt{value_{{\mathrm{1}}}} \, \ottkw{to} \, \ottsym{(}  \ottnt{typ}  \ottsym{*}  \ottsym{)}}%
+\ottpremise{\ottnt{system}  \ottsym{,}  \ottnt{fdef}  \vdash  \ottnt{value_{{\mathrm{1}}}}  \ottsym{:}  \ottkw{int} \, \ottmv{sz}}%
+\ottpremise{\ottnt{intrinsic\_funs}  \ottsym{,}  \ottnt{system}  \ottsym{,}  \ottnt{module}  \ottsym{,}  \ottnt{fdef}  \ottsym{,}  \ottnt{block}  \vdash_{i}  \ottmv{id}  =  \ottkw{inttoptr} \, \ottsym{(}  \ottkw{int} \, \ottmv{sz}  \ottsym{)} \, \ottnt{value_{{\mathrm{1}}}} \, \ottkw{to} \, \ottsym{(}  \ottnt{typ}  \ottsym{*}  \ottsym{)}}%
 }{
-\ottnt{intrinsic\_funs}  \ottsym{,}  \ottnt{system}  \ottsym{,}  \ottnt{module\_info}  \ottsym{,}  \ottnt{fdef}  \ottsym{,}  \ottnt{block}  \ottsym{\mbox{$\mid$}-cast}  \ottmv{id}  =  \ottkw{inttoptr} \, \ottsym{(}  \ottkw{int} \, \ottmv{sz}  \ottsym{)} \, \ottnt{value_{{\mathrm{1}}}} \, \ottkw{to} \, \ottsym{(}  \ottnt{typ}  \ottsym{*}  \ottsym{)}}{%
+\ottnt{intrinsic\_funs}  \ottsym{,}  \ottnt{system}  \ottsym{,}  \ottnt{module}  \ottsym{,}  \ottnt{fdef}  \ottsym{,}  \ottnt{block}  \ottsym{\mbox{$\mid$}-cast}  \ottmv{id}  =  \ottkw{inttoptr} \, \ottsym{(}  \ottkw{int} \, \ottmv{sz}  \ottsym{)} \, \ottnt{value_{{\mathrm{1}}}} \, \ottkw{to} \, \ottsym{(}  \ottnt{typ}  \ottsym{*}  \ottsym{)}}{%
 {\ottdrulename{wf\_cast\_inttoptr}}{}%
 }}
 
 
 \newcommand{\ottdrulewfXXcastXXbitcast}[1]{\ottdrule[#1]{%
-\ottpremise{\ottnt{system}  \vdash  \ottnt{value_{{\mathrm{1}}}}  \ottsym{:}  \ottnt{typ_{{\mathrm{1}}}}}%
+\ottpremise{\ottnt{system}  \ottsym{,}  \ottnt{fdef}  \vdash  \ottnt{value_{{\mathrm{1}}}}  \ottsym{:}  \ottnt{typ_{{\mathrm{1}}}}}%
 \ottpremise{  \ottsym{Typ.getPrimitiveSizeInBits}  \ottnt{typ_{{\mathrm{1}}}}  =  \ottmv{sz_{{\mathrm{1}}}}  \wedge  \ottsym{Typ.getPrimitiveSizeInBits}  \ottnt{typ_{{\mathrm{2}}}}  =  \ottmv{sz_{{\mathrm{2}}}}   \wedge   \ottmv{sz_{{\mathrm{1}}}}  =  \ottmv{sz_{{\mathrm{2}}}}  }%
 \ottpremise{ \ottkw{isPointerTyp} \, \ottnt{typ_{{\mathrm{1}}}}  \mathit{iff}  \ottkw{isPointerTyp} \, \ottnt{typ_{{\mathrm{2}}}} }%
 \ottpremise{  (  \neg  \ottkw{isAggregateTyp} \, \ottnt{typ_{{\mathrm{1}}}}  \!)   \wedge   (  \neg  \ottkw{isAggregateTyp} \, \ottnt{typ_{{\mathrm{2}}}}  \!)  }%
-\ottpremise{\ottnt{intrinsic\_funs}  \ottsym{,}  \ottnt{system}  \ottsym{,}  \ottnt{module\_info}  \ottsym{,}  \ottnt{fdef}  \ottsym{,}  \ottnt{block}  \vdash_{i}  \ottmv{id}  =  \ottkw{bitcast} \, \ottnt{typ_{{\mathrm{1}}}} \, \ottnt{value_{{\mathrm{1}}}} \, \ottkw{to} \, \ottnt{typ_{{\mathrm{2}}}}}%
+\ottpremise{\ottnt{intrinsic\_funs}  \ottsym{,}  \ottnt{system}  \ottsym{,}  \ottnt{module}  \ottsym{,}  \ottnt{fdef}  \ottsym{,}  \ottnt{block}  \vdash_{i}  \ottmv{id}  =  \ottkw{bitcast} \, \ottnt{typ_{{\mathrm{1}}}} \, \ottnt{value_{{\mathrm{1}}}} \, \ottkw{to} \, \ottnt{typ_{{\mathrm{2}}}}}%
 }{
-\ottnt{intrinsic\_funs}  \ottsym{,}  \ottnt{system}  \ottsym{,}  \ottnt{module\_info}  \ottsym{,}  \ottnt{fdef}  \ottsym{,}  \ottnt{block}  \ottsym{\mbox{$\mid$}-cast}  \ottmv{id}  =  \ottkw{bitcast} \, \ottnt{typ_{{\mathrm{1}}}} \, \ottnt{value_{{\mathrm{1}}}} \, \ottkw{to} \, \ottnt{typ_{{\mathrm{2}}}}}{%
+\ottnt{intrinsic\_funs}  \ottsym{,}  \ottnt{system}  \ottsym{,}  \ottnt{module}  \ottsym{,}  \ottnt{fdef}  \ottsym{,}  \ottnt{block}  \ottsym{\mbox{$\mid$}-cast}  \ottmv{id}  =  \ottkw{bitcast} \, \ottnt{typ_{{\mathrm{1}}}} \, \ottnt{value_{{\mathrm{1}}}} \, \ottkw{to} \, \ottnt{typ_{{\mathrm{2}}}}}{%
 {\ottdrulename{wf\_cast\_bitcast}}{}%
 }}
 
-\newcommand{\ottdefnwfXXcast}[1]{\begin{ottdefnblock}[#1]{$\ottnt{intrinsic\_funs}  \ottsym{,}  \ottnt{system}  \ottsym{,}  \ottnt{module\_info}  \ottsym{,}  \ottnt{fdef}  \ottsym{,}  \ottnt{block}  \ottsym{\mbox{$\mid$}-cast}  \ottnt{insn}$}{\ottcom{cast $\ottnt{insn}$ is well-formed w.r.t $\ottnt{block}$ in $\ottnt{fdef}$ in $\ottnt{module\_info}$ $\ottnt{system}$}}
+\newcommand{\ottdefnwfXXcast}[1]{\begin{ottdefnblock}[#1]{$\ottnt{intrinsic\_funs}  \ottsym{,}  \ottnt{system}  \ottsym{,}  \ottnt{module}  \ottsym{,}  \ottnt{fdef}  \ottsym{,}  \ottnt{block}  \ottsym{\mbox{$\mid$}-cast}  \ottnt{insn}$}{\ottcom{cast $\ottnt{insn}$ is well-formed w.r.t $\ottnt{block}$ in $\ottnt{fdef}$ in $\ottnt{module}$ $\ottnt{system}$}}
 \ottusedrule{\ottdrulewfXXcastXXptrtoint{}}
 \ottusedrule{\ottdrulewfXXcastXXinttoptr{}}
 \ottusedrule{\ottdrulewfXXcastXXbitcast{}}
@@ -1050,25 +1047,25 @@
 % defns Jwf_trunc
 % defn wf_trunc
 \newcommand{\ottdrulewfXXtruncXXint}[1]{\ottdrule[#1]{%
-\ottpremise{\ottnt{system}  \vdash  \ottnt{value_{{\mathrm{1}}}}  \ottsym{:}  \ottkw{int} \, \ottmv{sz_{{\mathrm{1}}}}}%
+\ottpremise{\ottnt{system}  \ottsym{,}  \ottnt{fdef}  \vdash  \ottnt{value_{{\mathrm{1}}}}  \ottsym{:}  \ottkw{int} \, \ottmv{sz_{{\mathrm{1}}}}}%
 \ottpremise{ ( \ottmv{sz_{{\mathrm{2}}}}  <  \ottmv{sz_{{\mathrm{1}}}} ) }%
-\ottpremise{\ottnt{intrinsic\_funs}  \ottsym{,}  \ottnt{system}  \ottsym{,}  \ottnt{module\_info}  \ottsym{,}  \ottnt{fdef}  \ottsym{,}  \ottnt{block}  \vdash_{i}  \ottmv{id}  =  \ottsym{trunc\_int} \, \ottsym{(}  \ottkw{int} \, \ottmv{sz_{{\mathrm{1}}}}  \ottsym{)} \, \ottnt{value_{{\mathrm{1}}}} \, \ottkw{to} \, \ottsym{(}  \ottkw{int} \, \ottmv{sz_{{\mathrm{2}}}}  \ottsym{)}}%
+\ottpremise{\ottnt{intrinsic\_funs}  \ottsym{,}  \ottnt{system}  \ottsym{,}  \ottnt{module}  \ottsym{,}  \ottnt{fdef}  \ottsym{,}  \ottnt{block}  \vdash_{i}  \ottmv{id}  =  \ottsym{trunc\_int} \, \ottsym{(}  \ottkw{int} \, \ottmv{sz_{{\mathrm{1}}}}  \ottsym{)} \, \ottnt{value_{{\mathrm{1}}}} \, \ottkw{to} \, \ottsym{(}  \ottkw{int} \, \ottmv{sz_{{\mathrm{2}}}}  \ottsym{)}}%
 }{
-\ottnt{intrinsic\_funs}  \ottsym{,}  \ottnt{system}  \ottsym{,}  \ottnt{module\_info}  \ottsym{,}  \ottnt{fdef}  \ottsym{,}  \ottnt{block}  \ottsym{\mbox{$\mid$}-trunc}  \ottmv{id}  =  \ottsym{trunc\_int} \, \ottsym{(}  \ottkw{int} \, \ottmv{sz_{{\mathrm{1}}}}  \ottsym{)} \, \ottnt{value_{{\mathrm{1}}}} \, \ottkw{to} \, \ottsym{(}  \ottkw{int} \, \ottmv{sz_{{\mathrm{2}}}}  \ottsym{)}}{%
+\ottnt{intrinsic\_funs}  \ottsym{,}  \ottnt{system}  \ottsym{,}  \ottnt{module}  \ottsym{,}  \ottnt{fdef}  \ottsym{,}  \ottnt{block}  \ottsym{\mbox{$\mid$}-trunc}  \ottmv{id}  =  \ottsym{trunc\_int} \, \ottsym{(}  \ottkw{int} \, \ottmv{sz_{{\mathrm{1}}}}  \ottsym{)} \, \ottnt{value_{{\mathrm{1}}}} \, \ottkw{to} \, \ottsym{(}  \ottkw{int} \, \ottmv{sz_{{\mathrm{2}}}}  \ottsym{)}}{%
 {\ottdrulename{wf\_trunc\_int}}{}%
 }}
 
 
 \newcommand{\ottdrulewfXXtruncXXfp}[1]{\ottdrule[#1]{%
-\ottpremise{\ottnt{system}  \vdash  \ottnt{value_{{\mathrm{1}}}}  \ottsym{:}  \ottnt{floating\_point_{{\mathrm{11}}}}}%
+\ottpremise{\ottnt{system}  \ottsym{,}  \ottnt{fdef}  \vdash  \ottnt{value_{{\mathrm{1}}}}  \ottsym{:}  \ottnt{floating\_point_{{\mathrm{11}}}}}%
 \ottpremise{\ottnt{floating\_point_{{\mathrm{2}}}}  \le  \ottnt{floating\_point_{{\mathrm{1}}}}}%
-\ottpremise{\ottnt{intrinsic\_funs}  \ottsym{,}  \ottnt{system}  \ottsym{,}  \ottnt{module\_info}  \ottsym{,}  \ottnt{fdef}  \ottsym{,}  \ottnt{block}  \vdash_{i}  \ottmv{id}  =  \ottsym{trunc\_fp} \, \ottnt{floating\_point_{{\mathrm{1}}}} \, \ottnt{value_{{\mathrm{1}}}} \, \ottkw{to} \, \ottnt{floating\_point_{{\mathrm{2}}}}}%
+\ottpremise{\ottnt{intrinsic\_funs}  \ottsym{,}  \ottnt{system}  \ottsym{,}  \ottnt{module}  \ottsym{,}  \ottnt{fdef}  \ottsym{,}  \ottnt{block}  \vdash_{i}  \ottmv{id}  =  \ottsym{trunc\_fp} \, \ottnt{floating\_point_{{\mathrm{1}}}} \, \ottnt{value_{{\mathrm{1}}}} \, \ottkw{to} \, \ottnt{floating\_point_{{\mathrm{2}}}}}%
 }{
-\ottnt{intrinsic\_funs}  \ottsym{,}  \ottnt{system}  \ottsym{,}  \ottnt{module\_info}  \ottsym{,}  \ottnt{fdef}  \ottsym{,}  \ottnt{block}  \ottsym{\mbox{$\mid$}-trunc}  \ottmv{id}  =  \ottsym{trunc\_fp} \, \ottnt{floating\_point_{{\mathrm{1}}}} \, \ottnt{value_{{\mathrm{1}}}} \, \ottkw{to} \, \ottnt{floating\_point_{{\mathrm{2}}}}}{%
+\ottnt{intrinsic\_funs}  \ottsym{,}  \ottnt{system}  \ottsym{,}  \ottnt{module}  \ottsym{,}  \ottnt{fdef}  \ottsym{,}  \ottnt{block}  \ottsym{\mbox{$\mid$}-trunc}  \ottmv{id}  =  \ottsym{trunc\_fp} \, \ottnt{floating\_point_{{\mathrm{1}}}} \, \ottnt{value_{{\mathrm{1}}}} \, \ottkw{to} \, \ottnt{floating\_point_{{\mathrm{2}}}}}{%
 {\ottdrulename{wf\_trunc\_fp}}{}%
 }}
 
-\newcommand{\ottdefnwfXXtrunc}[1]{\begin{ottdefnblock}[#1]{$\ottnt{intrinsic\_funs}  \ottsym{,}  \ottnt{system}  \ottsym{,}  \ottnt{module\_info}  \ottsym{,}  \ottnt{fdef}  \ottsym{,}  \ottnt{block}  \ottsym{\mbox{$\mid$}-trunc}  \ottnt{insn}$}{\ottcom{trunc $\ottnt{insn}$ is well-formed w.r.t $\ottnt{block}$ in $\ottnt{fdef}$ in $\ottnt{module\_info}$ $\ottnt{system}$}}
+\newcommand{\ottdefnwfXXtrunc}[1]{\begin{ottdefnblock}[#1]{$\ottnt{intrinsic\_funs}  \ottsym{,}  \ottnt{system}  \ottsym{,}  \ottnt{module}  \ottsym{,}  \ottnt{fdef}  \ottsym{,}  \ottnt{block}  \ottsym{\mbox{$\mid$}-trunc}  \ottnt{insn}$}{\ottcom{trunc $\ottnt{insn}$ is well-formed w.r.t $\ottnt{block}$ in $\ottnt{fdef}$ in $\ottnt{module}$ $\ottnt{system}$}}
 \ottusedrule{\ottdrulewfXXtruncXXint{}}
 \ottusedrule{\ottdrulewfXXtruncXXfp{}}
 \end{ottdefnblock}}
@@ -1081,35 +1078,35 @@
 % defns Jwf_ext
 % defn wf_ext
 \newcommand{\ottdrulewfXXextXXz}[1]{\ottdrule[#1]{%
-\ottpremise{\ottnt{system}  \vdash  \ottnt{value_{{\mathrm{1}}}}  \ottsym{:}  \ottkw{int} \, \ottmv{sz_{{\mathrm{1}}}}}%
+\ottpremise{\ottnt{system}  \ottsym{,}  \ottnt{fdef}  \vdash  \ottnt{value_{{\mathrm{1}}}}  \ottsym{:}  \ottkw{int} \, \ottmv{sz_{{\mathrm{1}}}}}%
 \ottpremise{ ( \ottmv{sz_{{\mathrm{1}}}}  <  \ottmv{sz_{{\mathrm{2}}}} ) }%
-\ottpremise{\ottnt{intrinsic\_funs}  \ottsym{,}  \ottnt{system}  \ottsym{,}  \ottnt{module\_info}  \ottsym{,}  \ottnt{fdef}  \ottsym{,}  \ottnt{block}  \vdash_{i}  \ottmv{id}  =  \ottkw{zext} \, \ottsym{(}  \ottkw{int} \, \ottmv{sz_{{\mathrm{1}}}}  \ottsym{)} \, \ottnt{value_{{\mathrm{1}}}} \, \ottkw{to} \, \ottsym{(}  \ottkw{int} \, \ottmv{sz_{{\mathrm{2}}}}  \ottsym{)}}%
+\ottpremise{\ottnt{intrinsic\_funs}  \ottsym{,}  \ottnt{system}  \ottsym{,}  \ottnt{module}  \ottsym{,}  \ottnt{fdef}  \ottsym{,}  \ottnt{block}  \vdash_{i}  \ottmv{id}  =  \ottkw{zext} \, \ottsym{(}  \ottkw{int} \, \ottmv{sz_{{\mathrm{1}}}}  \ottsym{)} \, \ottnt{value_{{\mathrm{1}}}} \, \ottkw{to} \, \ottsym{(}  \ottkw{int} \, \ottmv{sz_{{\mathrm{2}}}}  \ottsym{)}}%
 }{
-\ottnt{intrinsic\_funs}  \ottsym{,}  \ottnt{system}  \ottsym{,}  \ottnt{module\_info}  \ottsym{,}  \ottnt{fdef}  \ottsym{,}  \ottnt{block}  \ottsym{\mbox{$\mid$}-ext}  \ottmv{id}  =  \ottkw{zext} \, \ottsym{(}  \ottkw{int} \, \ottmv{sz_{{\mathrm{1}}}}  \ottsym{)} \, \ottnt{value_{{\mathrm{1}}}} \, \ottkw{to} \, \ottsym{(}  \ottkw{int} \, \ottmv{sz_{{\mathrm{2}}}}  \ottsym{)}}{%
+\ottnt{intrinsic\_funs}  \ottsym{,}  \ottnt{system}  \ottsym{,}  \ottnt{module}  \ottsym{,}  \ottnt{fdef}  \ottsym{,}  \ottnt{block}  \ottsym{\mbox{$\mid$}-ext}  \ottmv{id}  =  \ottkw{zext} \, \ottsym{(}  \ottkw{int} \, \ottmv{sz_{{\mathrm{1}}}}  \ottsym{)} \, \ottnt{value_{{\mathrm{1}}}} \, \ottkw{to} \, \ottsym{(}  \ottkw{int} \, \ottmv{sz_{{\mathrm{2}}}}  \ottsym{)}}{%
 {\ottdrulename{wf\_ext\_z}}{}%
 }}
 
 
 \newcommand{\ottdrulewfXXextXXs}[1]{\ottdrule[#1]{%
-\ottpremise{\ottnt{system}  \vdash  \ottnt{value_{{\mathrm{1}}}}  \ottsym{:}  \ottkw{int} \, \ottmv{sz_{{\mathrm{1}}}}}%
+\ottpremise{\ottnt{system}  \ottsym{,}  \ottnt{fdef}  \vdash  \ottnt{value_{{\mathrm{1}}}}  \ottsym{:}  \ottkw{int} \, \ottmv{sz_{{\mathrm{1}}}}}%
 \ottpremise{ ( \ottmv{sz_{{\mathrm{1}}}}  <  \ottmv{sz_{{\mathrm{2}}}} ) }%
-\ottpremise{\ottnt{intrinsic\_funs}  \ottsym{,}  \ottnt{system}  \ottsym{,}  \ottnt{module\_info}  \ottsym{,}  \ottnt{fdef}  \ottsym{,}  \ottnt{block}  \vdash_{i}  \ottmv{id}  =  \ottkw{sext} \, \ottsym{(}  \ottkw{int} \, \ottmv{sz_{{\mathrm{1}}}}  \ottsym{)} \, \ottnt{value_{{\mathrm{1}}}} \, \ottkw{to} \, \ottsym{(}  \ottkw{int} \, \ottmv{sz_{{\mathrm{2}}}}  \ottsym{)}}%
+\ottpremise{\ottnt{intrinsic\_funs}  \ottsym{,}  \ottnt{system}  \ottsym{,}  \ottnt{module}  \ottsym{,}  \ottnt{fdef}  \ottsym{,}  \ottnt{block}  \vdash_{i}  \ottmv{id}  =  \ottkw{sext} \, \ottsym{(}  \ottkw{int} \, \ottmv{sz_{{\mathrm{1}}}}  \ottsym{)} \, \ottnt{value_{{\mathrm{1}}}} \, \ottkw{to} \, \ottsym{(}  \ottkw{int} \, \ottmv{sz_{{\mathrm{2}}}}  \ottsym{)}}%
 }{
-\ottnt{intrinsic\_funs}  \ottsym{,}  \ottnt{system}  \ottsym{,}  \ottnt{module\_info}  \ottsym{,}  \ottnt{fdef}  \ottsym{,}  \ottnt{block}  \ottsym{\mbox{$\mid$}-ext}  \ottmv{id}  =  \ottkw{sext} \, \ottsym{(}  \ottkw{int} \, \ottmv{sz_{{\mathrm{1}}}}  \ottsym{)} \, \ottnt{value_{{\mathrm{1}}}} \, \ottkw{to} \, \ottsym{(}  \ottkw{int} \, \ottmv{sz_{{\mathrm{2}}}}  \ottsym{)}}{%
+\ottnt{intrinsic\_funs}  \ottsym{,}  \ottnt{system}  \ottsym{,}  \ottnt{module}  \ottsym{,}  \ottnt{fdef}  \ottsym{,}  \ottnt{block}  \ottsym{\mbox{$\mid$}-ext}  \ottmv{id}  =  \ottkw{sext} \, \ottsym{(}  \ottkw{int} \, \ottmv{sz_{{\mathrm{1}}}}  \ottsym{)} \, \ottnt{value_{{\mathrm{1}}}} \, \ottkw{to} \, \ottsym{(}  \ottkw{int} \, \ottmv{sz_{{\mathrm{2}}}}  \ottsym{)}}{%
 {\ottdrulename{wf\_ext\_s}}{}%
 }}
 
 
 \newcommand{\ottdrulewfXXextXXfp}[1]{\ottdrule[#1]{%
-\ottpremise{\ottnt{system}  \vdash  \ottnt{value_{{\mathrm{1}}}}  \ottsym{:}  \ottnt{floating\_point_{{\mathrm{1}}}}}%
+\ottpremise{\ottnt{system}  \ottsym{,}  \ottnt{fdef}  \vdash  \ottnt{value_{{\mathrm{1}}}}  \ottsym{:}  \ottnt{floating\_point_{{\mathrm{1}}}}}%
 \ottpremise{\ottnt{floating\_point_{{\mathrm{1}}}}  \le  \ottnt{floating\_point_{{\mathrm{2}}}}}%
-\ottpremise{\ottnt{intrinsic\_funs}  \ottsym{,}  \ottnt{system}  \ottsym{,}  \ottnt{module\_info}  \ottsym{,}  \ottnt{fdef}  \ottsym{,}  \ottnt{block}  \vdash_{i}  \ottmv{id}  =  \ottkw{fpext} \, \ottnt{floating\_point_{{\mathrm{1}}}} \, \ottnt{value_{{\mathrm{1}}}} \, \ottkw{to} \, \ottnt{floating\_point_{{\mathrm{2}}}}}%
+\ottpremise{\ottnt{intrinsic\_funs}  \ottsym{,}  \ottnt{system}  \ottsym{,}  \ottnt{module}  \ottsym{,}  \ottnt{fdef}  \ottsym{,}  \ottnt{block}  \vdash_{i}  \ottmv{id}  =  \ottkw{fpext} \, \ottnt{floating\_point_{{\mathrm{1}}}} \, \ottnt{value_{{\mathrm{1}}}} \, \ottkw{to} \, \ottnt{floating\_point_{{\mathrm{2}}}}}%
 }{
-\ottnt{intrinsic\_funs}  \ottsym{,}  \ottnt{system}  \ottsym{,}  \ottnt{module\_info}  \ottsym{,}  \ottnt{fdef}  \ottsym{,}  \ottnt{block}  \ottsym{\mbox{$\mid$}-ext}  \ottmv{id}  =  \ottkw{fpext} \, \ottnt{floating\_point_{{\mathrm{1}}}} \, \ottnt{value_{{\mathrm{1}}}} \, \ottkw{to} \, \ottnt{floating\_point_{{\mathrm{2}}}}}{%
+\ottnt{intrinsic\_funs}  \ottsym{,}  \ottnt{system}  \ottsym{,}  \ottnt{module}  \ottsym{,}  \ottnt{fdef}  \ottsym{,}  \ottnt{block}  \ottsym{\mbox{$\mid$}-ext}  \ottmv{id}  =  \ottkw{fpext} \, \ottnt{floating\_point_{{\mathrm{1}}}} \, \ottnt{value_{{\mathrm{1}}}} \, \ottkw{to} \, \ottnt{floating\_point_{{\mathrm{2}}}}}{%
 {\ottdrulename{wf\_ext\_fp}}{}%
 }}
 
-\newcommand{\ottdefnwfXXext}[1]{\begin{ottdefnblock}[#1]{$\ottnt{intrinsic\_funs}  \ottsym{,}  \ottnt{system}  \ottsym{,}  \ottnt{module\_info}  \ottsym{,}  \ottnt{fdef}  \ottsym{,}  \ottnt{block}  \ottsym{\mbox{$\mid$}-ext}  \ottnt{insn}$}{\ottcom{ext $\ottnt{insn}$ is well-formed w.r.t $\ottnt{block}$ in $\ottnt{fdef}$ in $\ottnt{module\_info}$ $\ottnt{system}$}}
+\newcommand{\ottdefnwfXXext}[1]{\begin{ottdefnblock}[#1]{$\ottnt{intrinsic\_funs}  \ottsym{,}  \ottnt{system}  \ottsym{,}  \ottnt{module}  \ottsym{,}  \ottnt{fdef}  \ottsym{,}  \ottnt{block}  \ottsym{\mbox{$\mid$}-ext}  \ottnt{insn}$}{\ottcom{ext $\ottnt{insn}$ is well-formed w.r.t $\ottnt{block}$ in $\ottnt{fdef}$ in $\ottnt{module}$ $\ottnt{system}$}}
 \ottusedrule{\ottdrulewfXXextXXz{}}
 \ottusedrule{\ottdrulewfXXextXXs{}}
 \ottusedrule{\ottdrulewfXXextXXfp{}}
@@ -1123,249 +1120,250 @@
 % defns Jwf_insn
 % defn wf_insn
 \newcommand{\ottdrulewfXXinsnXXreturn}[1]{\ottdrule[#1]{%
-\ottpremise{\ottnt{system}  \vdash  \ottnt{value}  \ottsym{:}  \ottnt{typ}}%
+\ottpremise{\ottnt{system}  \ottsym{,}  \ottnt{fdef}  \vdash  \ottnt{value}  \ottsym{:}  \ottnt{typ}}%
 \ottpremise{\ottsym{Function.getDefReturnType}  \ottnt{fdef}  =  \ottnt{typ}}%
-\ottpremise{\ottnt{intrinsic\_funs}  \ottsym{,}  \ottnt{system}  \ottsym{,}  \ottnt{module\_info}  \ottsym{,}  \ottnt{fdef}  \ottsym{,}  \ottnt{block}  \vdash_{i}  \ottmv{id}  = \, \ottkw{ret} \, \ottnt{typ} \, \ottnt{value}}%
+\ottpremise{\ottnt{intrinsic\_funs}  \ottsym{,}  \ottnt{system}  \ottsym{,}  \ottnt{module}  \ottsym{,}  \ottnt{fdef}  \ottsym{,}  \ottnt{block}  \vdash_{i}  \ottmv{id}  = \, \ottkw{ret} \, \ottnt{typ} \, \ottnt{value}}%
 }{
-\ottnt{intrinsic\_funs}  \ottsym{,}  \ottnt{system}  \ottsym{,}  \ottnt{module\_info}  \ottsym{,}  \ottnt{fdef}  \ottsym{,}  \ottnt{block}  \vdash  \ottmv{id}  = \, \ottkw{ret} \, \ottnt{typ} \, \ottnt{value}}{%
+\ottnt{intrinsic\_funs}  \ottsym{,}  \ottnt{system}  \ottsym{,}  \ottnt{module}  \ottsym{,}  \ottnt{fdef}  \ottsym{,}  \ottnt{block}  \vdash  \ottmv{id}  = \, \ottkw{ret} \, \ottnt{typ} \, \ottnt{value}}{%
 {\ottdrulename{wf\_insn\_return}}{}%
 }}
 
 
 \newcommand{\ottdrulewfXXinsnXXreturnXXvoid}[1]{\ottdrule[#1]{%
 \ottpremise{\ottsym{Function.getDefReturnType}  \ottnt{fdef}  =  \ottkw{void}}%
-\ottpremise{\ottnt{intrinsic\_funs}  \ottsym{,}  \ottnt{system}  \ottsym{,}  \ottnt{module\_info}  \ottsym{,}  \ottnt{fdef}  \ottsym{,}  \ottnt{block}  \vdash_{i}  \ottmv{id}  = \, \ottkw{ret} \, \ottkw{void}}%
+\ottpremise{\ottnt{intrinsic\_funs}  \ottsym{,}  \ottnt{system}  \ottsym{,}  \ottnt{module}  \ottsym{,}  \ottnt{fdef}  \ottsym{,}  \ottnt{block}  \vdash_{i}  \ottmv{id}  = \, \ottkw{ret} \, \ottkw{void}}%
 }{
-\ottnt{intrinsic\_funs}  \ottsym{,}  \ottnt{system}  \ottsym{,}  \ottnt{module\_info}  \ottsym{,}  \ottnt{fdef}  \ottsym{,}  \ottnt{block}  \vdash  \ottmv{id}  = \, \ottkw{ret} \, \ottkw{void}}{%
+\ottnt{intrinsic\_funs}  \ottsym{,}  \ottnt{system}  \ottsym{,}  \ottnt{module}  \ottsym{,}  \ottnt{fdef}  \ottsym{,}  \ottnt{block}  \vdash  \ottmv{id}  = \, \ottkw{ret} \, \ottkw{void}}{%
 {\ottdrulename{wf\_insn\_return\_void}}{}%
 }}
 
 
 \newcommand{\ottdrulewfXXinsnXXbr}[1]{\ottdrule[#1]{%
-\ottpremise{ \ottnt{system}  \vdash  \ottnt{value}  \ottsym{:}  \ottkw{int} \, \ottmv{sz}  \wedge  \ottmv{sz}  =  \ottsym{1} }%
+\ottpremise{ \ottnt{system}  \ottsym{,}  \ottnt{fdef}  \vdash  \ottnt{value}  \ottsym{:}  \ottkw{int} \, \ottmv{sz}  \wedge  \ottmv{sz}  =  \ottsym{1} }%
 \ottpremise{\ottkw{lookupBlockViaLabelFromFdef} \, \ottnt{fdef} \, \ottmv{l_{{\mathrm{1}}}}  =  \ottnt{block_{{\mathrm{1}}}}}%
 \ottpremise{\ottkw{lookupBlockViaLabelFromFdef} \, \ottnt{fdef} \, \ottmv{l_{{\mathrm{2}}}}  =  \ottnt{block_{{\mathrm{2}}}}}%
 \ottpremise{ \neg   (  \ottmv{l_{{\mathrm{1}}}}  =  \ottmv{l_{{\mathrm{2}}}}  \!)  }%
-\ottpremise{\ottnt{intrinsic\_funs}  \ottsym{,}  \ottnt{system}  \ottsym{,}  \ottnt{module\_info}  \ottsym{,}  \ottnt{fdef}  \ottsym{,}  \ottnt{block}  \vdash_{i}  \ottmv{id}  = \, \ottkw{br} \, \ottnt{value} \, \ottmv{l_{{\mathrm{1}}}} \, \ottmv{l_{{\mathrm{2}}}}}%
+\ottpremise{\ottnt{intrinsic\_funs}  \ottsym{,}  \ottnt{system}  \ottsym{,}  \ottnt{module}  \ottsym{,}  \ottnt{fdef}  \ottsym{,}  \ottnt{block}  \vdash_{i}  \ottmv{id}  = \, \ottkw{br} \, \ottnt{value} \, \ottmv{l_{{\mathrm{1}}}} \, \ottmv{l_{{\mathrm{2}}}}}%
 }{
-\ottnt{intrinsic\_funs}  \ottsym{,}  \ottnt{system}  \ottsym{,}  \ottnt{module\_info}  \ottsym{,}  \ottnt{fdef}  \ottsym{,}  \ottnt{block}  \vdash  \ottmv{id}  = \, \ottkw{br} \, \ottnt{value} \, \ottmv{l_{{\mathrm{1}}}} \, \ottmv{l_{{\mathrm{2}}}}}{%
+\ottnt{intrinsic\_funs}  \ottsym{,}  \ottnt{system}  \ottsym{,}  \ottnt{module}  \ottsym{,}  \ottnt{fdef}  \ottsym{,}  \ottnt{block}  \vdash  \ottmv{id}  = \, \ottkw{br} \, \ottnt{value} \, \ottmv{l_{{\mathrm{1}}}} \, \ottmv{l_{{\mathrm{2}}}}}{%
 {\ottdrulename{wf\_insn\_br}}{}%
 }}
 
 
 \newcommand{\ottdrulewfXXinsnXXbrXXuncond}[1]{\ottdrule[#1]{%
 \ottpremise{\ottkw{lookupBlockViaLabelFromFdef} \, \ottnt{fdef} \, \ottmv{l}  =  \ottnt{block}}%
-\ottpremise{\ottnt{intrinsic\_funs}  \ottsym{,}  \ottnt{system}  \ottsym{,}  \ottnt{module\_info}  \ottsym{,}  \ottnt{fdef}  \ottsym{,}  \ottnt{block}  \vdash_{i}  \ottmv{id}  = \, \ottkw{br} \, \ottmv{l}}%
+\ottpremise{\ottnt{intrinsic\_funs}  \ottsym{,}  \ottnt{system}  \ottsym{,}  \ottnt{module}  \ottsym{,}  \ottnt{fdef}  \ottsym{,}  \ottnt{block}  \vdash_{i}  \ottmv{id}  = \, \ottkw{br} \, \ottmv{l}}%
 }{
-\ottnt{intrinsic\_funs}  \ottsym{,}  \ottnt{system}  \ottsym{,}  \ottnt{module\_info}  \ottsym{,}  \ottnt{fdef}  \ottsym{,}  \ottnt{block}  \vdash  \ottmv{id}  = \, \ottkw{br} \, \ottmv{l}}{%
+\ottnt{intrinsic\_funs}  \ottsym{,}  \ottnt{system}  \ottsym{,}  \ottnt{module}  \ottsym{,}  \ottnt{fdef}  \ottsym{,}  \ottnt{block}  \vdash  \ottmv{id}  = \, \ottkw{br} \, \ottmv{l}}{%
 {\ottdrulename{wf\_insn\_br\_uncond}}{}%
 }}
 
 
 \newcommand{\ottdrulewfXXinsnXXunreachable}[1]{\ottdrule[#1]{%
-\ottpremise{\ottnt{intrinsic\_funs}  \ottsym{,}  \ottnt{system}  \ottsym{,}  \ottnt{module\_info}  \ottsym{,}  \ottnt{fdef}  \ottsym{,}  \ottnt{block}  \vdash_{i}  \ottmv{id}  = \, \ottkw{unreachable}}%
+\ottpremise{\ottnt{intrinsic\_funs}  \ottsym{,}  \ottnt{system}  \ottsym{,}  \ottnt{module}  \ottsym{,}  \ottnt{fdef}  \ottsym{,}  \ottnt{block}  \vdash_{i}  \ottmv{id}  = \, \ottkw{unreachable}}%
 }{
-\ottnt{intrinsic\_funs}  \ottsym{,}  \ottnt{system}  \ottsym{,}  \ottnt{module\_info}  \ottsym{,}  \ottnt{fdef}  \ottsym{,}  \ottnt{block}  \vdash  \ottmv{id}  = \, \ottkw{unreachable}}{%
+\ottnt{intrinsic\_funs}  \ottsym{,}  \ottnt{system}  \ottsym{,}  \ottnt{module}  \ottsym{,}  \ottnt{fdef}  \ottsym{,}  \ottnt{block}  \vdash  \ottmv{id}  = \, \ottkw{unreachable}}{%
 {\ottdrulename{wf\_insn\_unreachable}}{}%
 }}
 
 
 \newcommand{\ottdrulewfXXinsnXXbop}[1]{\ottdrule[#1]{%
-\ottpremise{\ottnt{system}  \vdash  \ottnt{value_{{\mathrm{1}}}}  \ottsym{:}  \ottkw{int} \, \ottmv{sz}}%
-\ottpremise{\ottnt{system}  \vdash  \ottnt{value_{{\mathrm{2}}}}  \ottsym{:}  \ottkw{int} \, \ottmv{sz}}%
-\ottpremise{\ottnt{intrinsic\_funs}  \ottsym{,}  \ottnt{system}  \ottsym{,}  \ottnt{module\_info}  \ottsym{,}  \ottnt{fdef}  \ottsym{,}  \ottnt{block}  \vdash_{i}  \ottmv{id}  =  \ottnt{bop}  \ottsym{(} \, \ottkw{int} \, \ottmv{sz}  \ottsym{)}  \ottnt{value_{{\mathrm{1}}}} \, \ottnt{value_{{\mathrm{2}}}}}%
+\ottpremise{\ottnt{system}  \ottsym{,}  \ottnt{fdef}  \vdash  \ottnt{value_{{\mathrm{1}}}}  \ottsym{:}  \ottkw{int} \, \ottmv{sz}}%
+\ottpremise{\ottnt{system}  \ottsym{,}  \ottnt{fdef}  \vdash  \ottnt{value_{{\mathrm{2}}}}  \ottsym{:}  \ottkw{int} \, \ottmv{sz}}%
+\ottpremise{\ottnt{intrinsic\_funs}  \ottsym{,}  \ottnt{system}  \ottsym{,}  \ottnt{module}  \ottsym{,}  \ottnt{fdef}  \ottsym{,}  \ottnt{block}  \vdash_{i}  \ottmv{id}  =  \ottnt{bop}  \ottsym{(} \, \ottkw{int} \, \ottmv{sz}  \ottsym{)}  \ottnt{value_{{\mathrm{1}}}} \, \ottnt{value_{{\mathrm{2}}}}}%
 }{
-\ottnt{intrinsic\_funs}  \ottsym{,}  \ottnt{system}  \ottsym{,}  \ottnt{module\_info}  \ottsym{,}  \ottnt{fdef}  \ottsym{,}  \ottnt{block}  \vdash  \ottmv{id}  =  \ottnt{bop}  \ottsym{(} \, \ottkw{int} \, \ottmv{sz}  \ottsym{)}  \ottnt{value_{{\mathrm{1}}}} \, \ottnt{value_{{\mathrm{2}}}}}{%
+\ottnt{intrinsic\_funs}  \ottsym{,}  \ottnt{system}  \ottsym{,}  \ottnt{module}  \ottsym{,}  \ottnt{fdef}  \ottsym{,}  \ottnt{block}  \vdash  \ottmv{id}  =  \ottnt{bop}  \ottsym{(} \, \ottkw{int} \, \ottmv{sz}  \ottsym{)}  \ottnt{value_{{\mathrm{1}}}} \, \ottnt{value_{{\mathrm{2}}}}}{%
 {\ottdrulename{wf\_insn\_bop}}{}%
 }}
 
 
 \newcommand{\ottdrulewfXXinsnXXfbop}[1]{\ottdrule[#1]{%
-\ottpremise{\ottnt{system}  \vdash  \ottnt{value_{{\mathrm{1}}}}  \ottsym{:}  \ottnt{floating\_point}}%
-\ottpremise{\ottnt{system}  \vdash  \ottnt{value_{{\mathrm{2}}}}  \ottsym{:}  \ottnt{floating\_point}}%
-\ottpremise{\ottnt{intrinsic\_funs}  \ottsym{,}  \ottnt{system}  \ottsym{,}  \ottnt{module\_info}  \ottsym{,}  \ottnt{fdef}  \ottsym{,}  \ottnt{block}  \vdash_{i}  \ottmv{id}  =  \ottnt{fbop} \, \ottnt{floating\_point} \, \ottnt{value_{{\mathrm{1}}}} \, \ottnt{value_{{\mathrm{2}}}}}%
+\ottpremise{\ottnt{system}  \ottsym{,}  \ottnt{fdef}  \vdash  \ottnt{value_{{\mathrm{1}}}}  \ottsym{:}  \ottnt{floating\_point}}%
+\ottpremise{\ottnt{system}  \ottsym{,}  \ottnt{fdef}  \vdash  \ottnt{value_{{\mathrm{2}}}}  \ottsym{:}  \ottnt{floating\_point}}%
+\ottpremise{\ottnt{intrinsic\_funs}  \ottsym{,}  \ottnt{system}  \ottsym{,}  \ottnt{module}  \ottsym{,}  \ottnt{fdef}  \ottsym{,}  \ottnt{block}  \vdash_{i}  \ottmv{id}  =  \ottnt{fbop} \, \ottnt{floating\_point} \, \ottnt{value_{{\mathrm{1}}}} \, \ottnt{value_{{\mathrm{2}}}}}%
 }{
-\ottnt{intrinsic\_funs}  \ottsym{,}  \ottnt{system}  \ottsym{,}  \ottnt{module\_info}  \ottsym{,}  \ottnt{fdef}  \ottsym{,}  \ottnt{block}  \vdash  \ottmv{id}  =  \ottnt{fbop} \, \ottnt{floating\_point} \, \ottnt{value_{{\mathrm{1}}}} \, \ottnt{value_{{\mathrm{2}}}}}{%
+\ottnt{intrinsic\_funs}  \ottsym{,}  \ottnt{system}  \ottsym{,}  \ottnt{module}  \ottsym{,}  \ottnt{fdef}  \ottsym{,}  \ottnt{block}  \vdash  \ottmv{id}  =  \ottnt{fbop} \, \ottnt{floating\_point} \, \ottnt{value_{{\mathrm{1}}}} \, \ottnt{value_{{\mathrm{2}}}}}{%
 {\ottdrulename{wf\_insn\_fbop}}{}%
 }}
 
 
 \newcommand{\ottdrulewfXXinsnXXextractvalue}[1]{\ottdrule[#1]{%
-\ottpremise{\ottnt{system}  \vdash  \ottnt{value}  \ottsym{:}  \ottnt{typ}}%
-\ottpremise{\ottcomp{ \ottnt{system}  \vdash  \ottnt{const_{\ottmv{j}}}  \ottsym{:}  \ottkw{int} \, \ottmv{sz}  \wedge  \ottmv{sz}  =  \ottsym{32} }{\ottmv{j}}}%
+\ottpremise{\ottnt{system}  \ottsym{,}  \ottnt{fdef}  \vdash  \ottnt{value}  \ottsym{:}  \ottnt{typ}}%
+\ottpremise{\ottcomp{ \ottnt{system}  \ottsym{\mbox{$\mid$}-c}  \ottnt{const_{\ottmv{j}}}  \ottsym{:}  \ottkw{int} \, \ottmv{sz}  \wedge  \ottmv{sz}  =  \ottsym{32} }{\ottmv{j}}}%
 \ottpremise{\ottkw{getSubTypFromConstIdxs} \, \ottcomp{\ottnt{const_{\ottmv{j}}}}{\ottmv{j}} \, \ottnt{typ}  =  \ottnt{typ'}}%
-\ottpremise{\ottnt{intrinsic\_funs}  \ottsym{,}  \ottnt{system}  \ottsym{,}  \ottnt{module\_info}  \ottsym{,}  \ottnt{fdef}  \ottsym{,}  \ottnt{block}  \vdash_{i}  \ottmv{id}  = \, \ottkw{extractvalue} \, \ottnt{typ} \, \ottnt{value} \, \ottcomp{\ottnt{const_{\ottmv{j}}}}{\ottmv{j}}}%
+\ottpremise{\ottnt{intrinsic\_funs}  \ottsym{,}  \ottnt{system}  \ottsym{,}  \ottnt{module}  \ottsym{,}  \ottnt{fdef}  \ottsym{,}  \ottnt{block}  \vdash_{i}  \ottmv{id}  = \, \ottkw{extractvalue} \, \ottnt{typ} \, \ottnt{value} \, \ottcomp{\ottnt{const_{\ottmv{j}}}}{\ottmv{j}}}%
 }{
-\ottnt{intrinsic\_funs}  \ottsym{,}  \ottnt{system}  \ottsym{,}  \ottnt{module\_info}  \ottsym{,}  \ottnt{fdef}  \ottsym{,}  \ottnt{block}  \vdash  \ottmv{id}  = \, \ottkw{extractvalue} \, \ottnt{typ} \, \ottnt{value} \, \ottcomp{\ottnt{const_{\ottmv{j}}}}{\ottmv{j}}}{%
+\ottnt{intrinsic\_funs}  \ottsym{,}  \ottnt{system}  \ottsym{,}  \ottnt{module}  \ottsym{,}  \ottnt{fdef}  \ottsym{,}  \ottnt{block}  \vdash  \ottmv{id}  = \, \ottkw{extractvalue} \, \ottnt{typ} \, \ottnt{value} \, \ottcomp{\ottnt{const_{\ottmv{j}}}}{\ottmv{j}}}{%
 {\ottdrulename{wf\_insn\_extractvalue}}{}%
 }}
 
 
 \newcommand{\ottdrulewfXXinsnXXinsertvalue}[1]{\ottdrule[#1]{%
-\ottpremise{\ottnt{system}  \vdash  \ottnt{value}  \ottsym{:}  \ottnt{typ}}%
-\ottpremise{\ottnt{system}  \vdash  \ottnt{value'}  \ottsym{:}  \ottnt{typ'}}%
-\ottpremise{\ottcomp{ \ottnt{system}  \vdash  \ottnt{const_{\ottmv{j}}}  \ottsym{:}  \ottkw{int} \, \ottmv{sz}  \wedge  \ottmv{sz}  =  \ottsym{32} }{\ottmv{j}}}%
+\ottpremise{\ottnt{system}  \ottsym{,}  \ottnt{fdef}  \vdash  \ottnt{value}  \ottsym{:}  \ottnt{typ}}%
+\ottpremise{\ottnt{system}  \ottsym{,}  \ottnt{fdef}  \vdash  \ottnt{value'}  \ottsym{:}  \ottnt{typ'}}%
+\ottpremise{\ottcomp{ \ottnt{system}  \ottsym{\mbox{$\mid$}-c}  \ottnt{const_{\ottmv{j}}}  \ottsym{:}  \ottkw{int} \, \ottmv{sz}  \wedge  \ottmv{sz}  =  \ottsym{32} }{\ottmv{j}}}%
 \ottpremise{\ottkw{getSubTypFromConstIdxs} \, \ottcomp{\ottnt{const_{\ottmv{j}}}}{\ottmv{j}} \, \ottnt{typ}  =  \ottnt{typ'}}%
-\ottpremise{\ottnt{intrinsic\_funs}  \ottsym{,}  \ottnt{system}  \ottsym{,}  \ottnt{module\_info}  \ottsym{,}  \ottnt{fdef}  \ottsym{,}  \ottnt{block}  \vdash_{i}  \ottmv{id}  = \, \ottkw{insertvalue} \, \ottnt{typ} \, \ottnt{value} \, \ottnt{typ'} \, \ottnt{value'} \, \ottcomp{\ottnt{const_{\ottmv{j}}}}{\ottmv{j}}}%
+\ottpremise{\ottnt{intrinsic\_funs}  \ottsym{,}  \ottnt{system}  \ottsym{,}  \ottnt{module}  \ottsym{,}  \ottnt{fdef}  \ottsym{,}  \ottnt{block}  \vdash_{i}  \ottmv{id}  = \, \ottkw{insertvalue} \, \ottnt{typ} \, \ottnt{value} \, \ottnt{typ'} \, \ottnt{value'} \, \ottcomp{\ottnt{const_{\ottmv{j}}}}{\ottmv{j}}}%
 }{
-\ottnt{intrinsic\_funs}  \ottsym{,}  \ottnt{system}  \ottsym{,}  \ottnt{module\_info}  \ottsym{,}  \ottnt{fdef}  \ottsym{,}  \ottnt{block}  \vdash  \ottmv{id}  = \, \ottkw{insertvalue} \, \ottnt{typ} \, \ottnt{value} \, \ottnt{typ'} \, \ottnt{value'} \, \ottcomp{\ottnt{const_{\ottmv{j}}}}{\ottmv{j}}}{%
+\ottnt{intrinsic\_funs}  \ottsym{,}  \ottnt{system}  \ottsym{,}  \ottnt{module}  \ottsym{,}  \ottnt{fdef}  \ottsym{,}  \ottnt{block}  \vdash  \ottmv{id}  = \, \ottkw{insertvalue} \, \ottnt{typ} \, \ottnt{value} \, \ottnt{typ'} \, \ottnt{value'} \, \ottcomp{\ottnt{const_{\ottmv{j}}}}{\ottmv{j}}}{%
 {\ottdrulename{wf\_insn\_insertvalue}}{}%
 }}
 
 
 \newcommand{\ottdrulewfXXinsnXXmalloc}[1]{\ottdrule[#1]{%
-\ottpremise{ \ottnt{system}  \vdash  \ottnt{value}  \ottsym{:}  \ottkw{int} \, \ottmv{sz}  \wedge  \ottmv{sz}  =  \ottsym{32} }%
+\ottpremise{ \ottnt{system}  \ottsym{,}  \ottnt{fdef}  \vdash  \ottnt{value}  \ottsym{:}  \ottkw{int} \, \ottmv{sz}  \wedge  \ottmv{sz}  =  \ottsym{32} }%
 \ottpremise{\ottnt{system}  \vdash  \ottnt{typ}}%
 \ottpremise{\ottsym{Typ.isSized}  \ottnt{typ}}%
-\ottpremise{\ottnt{intrinsic\_funs}  \ottsym{,}  \ottnt{system}  \ottsym{,}  \ottnt{module\_info}  \ottsym{,}  \ottnt{fdef}  \ottsym{,}  \ottnt{block}  \vdash_{i}  \ottmv{id}  = \, \ottkw{malloc} \, \ottnt{typ} \, \ottnt{value} \, \ottmv{align}}%
+\ottpremise{\ottnt{intrinsic\_funs}  \ottsym{,}  \ottnt{system}  \ottsym{,}  \ottnt{module}  \ottsym{,}  \ottnt{fdef}  \ottsym{,}  \ottnt{block}  \vdash_{i}  \ottmv{id}  = \, \ottkw{malloc} \, \ottnt{typ} \, \ottnt{value} \, \ottmv{align}}%
 }{
-\ottnt{intrinsic\_funs}  \ottsym{,}  \ottnt{system}  \ottsym{,}  \ottnt{module\_info}  \ottsym{,}  \ottnt{fdef}  \ottsym{,}  \ottnt{block}  \vdash  \ottmv{id}  = \, \ottkw{malloc} \, \ottnt{typ} \, \ottnt{value} \, \ottmv{align}}{%
+\ottnt{intrinsic\_funs}  \ottsym{,}  \ottnt{system}  \ottsym{,}  \ottnt{module}  \ottsym{,}  \ottnt{fdef}  \ottsym{,}  \ottnt{block}  \vdash  \ottmv{id}  = \, \ottkw{malloc} \, \ottnt{typ} \, \ottnt{value} \, \ottmv{align}}{%
 {\ottdrulename{wf\_insn\_malloc}}{}%
 }}
 
 
 \newcommand{\ottdrulewfXXinsnXXfree}[1]{\ottdrule[#1]{%
-\ottpremise{\ottnt{system}  \vdash  \ottnt{value}  \ottsym{:}  \ottnt{typ}  \ottsym{*}}%
-\ottpremise{\ottnt{intrinsic\_funs}  \ottsym{,}  \ottnt{system}  \ottsym{,}  \ottnt{module\_info}  \ottsym{,}  \ottnt{fdef}  \ottsym{,}  \ottnt{block}  \vdash_{i}  \ottmv{id}  = \, \ottkw{free} \, \ottsym{(}  \ottnt{typ}  \ottsym{*}  \ottsym{)}  \ottnt{value}}%
+\ottpremise{\ottnt{system}  \ottsym{,}  \ottnt{fdef}  \vdash  \ottnt{value}  \ottsym{:}  \ottnt{typ}  \ottsym{*}}%
+\ottpremise{\ottnt{intrinsic\_funs}  \ottsym{,}  \ottnt{system}  \ottsym{,}  \ottnt{module}  \ottsym{,}  \ottnt{fdef}  \ottsym{,}  \ottnt{block}  \vdash_{i}  \ottmv{id}  = \, \ottkw{free} \, \ottsym{(}  \ottnt{typ}  \ottsym{*}  \ottsym{)}  \ottnt{value}}%
 }{
-\ottnt{intrinsic\_funs}  \ottsym{,}  \ottnt{system}  \ottsym{,}  \ottnt{module\_info}  \ottsym{,}  \ottnt{fdef}  \ottsym{,}  \ottnt{block}  \vdash  \ottmv{id}  = \, \ottkw{free} \, \ottsym{(}  \ottnt{typ}  \ottsym{*}  \ottsym{)}  \ottnt{value}}{%
+\ottnt{intrinsic\_funs}  \ottsym{,}  \ottnt{system}  \ottsym{,}  \ottnt{module}  \ottsym{,}  \ottnt{fdef}  \ottsym{,}  \ottnt{block}  \vdash  \ottmv{id}  = \, \ottkw{free} \, \ottsym{(}  \ottnt{typ}  \ottsym{*}  \ottsym{)}  \ottnt{value}}{%
 {\ottdrulename{wf\_insn\_free}}{}%
 }}
 
 
 \newcommand{\ottdrulewfXXinsnXXalloca}[1]{\ottdrule[#1]{%
-\ottpremise{ \ottnt{system}  \vdash  \ottnt{value}  \ottsym{:}  \ottkw{int} \, \ottmv{sz}  \wedge  \ottmv{sz}  =  \ottsym{32} }%
+\ottpremise{ \ottnt{system}  \ottsym{,}  \ottnt{fdef}  \vdash  \ottnt{value}  \ottsym{:}  \ottkw{int} \, \ottmv{sz}  \wedge  \ottmv{sz}  =  \ottsym{32} }%
 \ottpremise{\ottnt{system}  \vdash  \ottnt{typ}}%
 \ottpremise{\ottsym{Typ.isSized}  \ottnt{typ}}%
-\ottpremise{\ottnt{intrinsic\_funs}  \ottsym{,}  \ottnt{system}  \ottsym{,}  \ottnt{module\_info}  \ottsym{,}  \ottnt{fdef}  \ottsym{,}  \ottnt{block}  \vdash_{i}  \ottmv{id}  = \, \ottkw{alloca} \, \ottnt{typ} \, \ottnt{value} \, \ottmv{align}}%
+\ottpremise{\ottnt{intrinsic\_funs}  \ottsym{,}  \ottnt{system}  \ottsym{,}  \ottnt{module}  \ottsym{,}  \ottnt{fdef}  \ottsym{,}  \ottnt{block}  \vdash_{i}  \ottmv{id}  = \, \ottkw{alloca} \, \ottnt{typ} \, \ottnt{value} \, \ottmv{align}}%
 }{
-\ottnt{intrinsic\_funs}  \ottsym{,}  \ottnt{system}  \ottsym{,}  \ottnt{module\_info}  \ottsym{,}  \ottnt{fdef}  \ottsym{,}  \ottnt{block}  \vdash  \ottmv{id}  = \, \ottkw{alloca} \, \ottnt{typ} \, \ottnt{value} \, \ottmv{align}}{%
+\ottnt{intrinsic\_funs}  \ottsym{,}  \ottnt{system}  \ottsym{,}  \ottnt{module}  \ottsym{,}  \ottnt{fdef}  \ottsym{,}  \ottnt{block}  \vdash  \ottmv{id}  = \, \ottkw{alloca} \, \ottnt{typ} \, \ottnt{value} \, \ottmv{align}}{%
 {\ottdrulename{wf\_insn\_alloca}}{}%
 }}
 
 
 \newcommand{\ottdrulewfXXinsnXXload}[1]{\ottdrule[#1]{%
-\ottpremise{\ottnt{system}  \vdash  \ottnt{value_{{\mathrm{1}}}}  \ottsym{:}  \ottnt{typ_{{\mathrm{1}}}}  \ottsym{*}}%
-\ottpremise{\ottnt{intrinsic\_funs}  \ottsym{,}  \ottnt{system}  \ottsym{,}  \ottnt{module\_info}  \ottsym{,}  \ottnt{fdef}  \ottsym{,}  \ottnt{block}  \vdash_{i}  \ottmv{id}  = \, \ottkw{load} \, \ottsym{(}  \ottnt{typ_{{\mathrm{1}}}}  \ottsym{*}  \ottsym{)}  \ottnt{value_{{\mathrm{1}}}} \, \ottmv{align}}%
+\ottpremise{\ottnt{system}  \ottsym{,}  \ottnt{fdef}  \vdash  \ottnt{value_{{\mathrm{1}}}}  \ottsym{:}  \ottnt{typ_{{\mathrm{1}}}}  \ottsym{*}}%
+\ottpremise{\ottnt{intrinsic\_funs}  \ottsym{,}  \ottnt{system}  \ottsym{,}  \ottnt{module}  \ottsym{,}  \ottnt{fdef}  \ottsym{,}  \ottnt{block}  \vdash_{i}  \ottmv{id}  = \, \ottkw{load} \, \ottsym{(}  \ottnt{typ_{{\mathrm{1}}}}  \ottsym{*}  \ottsym{)}  \ottnt{value_{{\mathrm{1}}}} \, \ottmv{align}}%
 }{
-\ottnt{intrinsic\_funs}  \ottsym{,}  \ottnt{system}  \ottsym{,}  \ottnt{module\_info}  \ottsym{,}  \ottnt{fdef}  \ottsym{,}  \ottnt{block}  \vdash  \ottmv{id}  = \, \ottkw{load} \, \ottsym{(}  \ottnt{typ_{{\mathrm{1}}}}  \ottsym{*}  \ottsym{)}  \ottnt{value_{{\mathrm{1}}}} \, \ottmv{align}}{%
+\ottnt{intrinsic\_funs}  \ottsym{,}  \ottnt{system}  \ottsym{,}  \ottnt{module}  \ottsym{,}  \ottnt{fdef}  \ottsym{,}  \ottnt{block}  \vdash  \ottmv{id}  = \, \ottkw{load} \, \ottsym{(}  \ottnt{typ_{{\mathrm{1}}}}  \ottsym{*}  \ottsym{)}  \ottnt{value_{{\mathrm{1}}}} \, \ottmv{align}}{%
 {\ottdrulename{wf\_insn\_load}}{}%
 }}
 
 
 \newcommand{\ottdrulewfXXinsnXXstore}[1]{\ottdrule[#1]{%
-\ottpremise{\ottnt{system}  \vdash  \ottnt{value_{{\mathrm{1}}}}  \ottsym{:}  \ottnt{typ}}%
-\ottpremise{\ottnt{system}  \vdash  \ottnt{value_{{\mathrm{2}}}}  \ottsym{:}  \ottnt{typ}  \ottsym{*}}%
-\ottpremise{\ottnt{intrinsic\_funs}  \ottsym{,}  \ottnt{system}  \ottsym{,}  \ottnt{module\_info}  \ottsym{,}  \ottnt{fdef}  \ottsym{,}  \ottnt{block}  \vdash_{i}  \ottmv{id}  = \, \ottkw{store} \, \ottnt{typ} \, \ottnt{value_{{\mathrm{1}}}} \, \ottnt{value_{{\mathrm{2}}}} \, \ottmv{align}}%
+\ottpremise{\ottnt{system}  \ottsym{,}  \ottnt{fdef}  \vdash  \ottnt{value_{{\mathrm{1}}}}  \ottsym{:}  \ottnt{typ}}%
+\ottpremise{\ottnt{system}  \ottsym{,}  \ottnt{fdef}  \vdash  \ottnt{value_{{\mathrm{2}}}}  \ottsym{:}  \ottnt{typ}  \ottsym{*}}%
+\ottpremise{\ottnt{intrinsic\_funs}  \ottsym{,}  \ottnt{system}  \ottsym{,}  \ottnt{module}  \ottsym{,}  \ottnt{fdef}  \ottsym{,}  \ottnt{block}  \vdash_{i}  \ottmv{id}  = \, \ottkw{store} \, \ottnt{typ} \, \ottnt{value_{{\mathrm{1}}}} \, \ottnt{value_{{\mathrm{2}}}} \, \ottmv{align}}%
 }{
-\ottnt{intrinsic\_funs}  \ottsym{,}  \ottnt{system}  \ottsym{,}  \ottnt{module\_info}  \ottsym{,}  \ottnt{fdef}  \ottsym{,}  \ottnt{block}  \vdash  \ottmv{id}  = \, \ottkw{store} \, \ottnt{typ} \, \ottnt{value_{{\mathrm{1}}}} \, \ottnt{value_{{\mathrm{2}}}} \, \ottmv{align}}{%
+\ottnt{intrinsic\_funs}  \ottsym{,}  \ottnt{system}  \ottsym{,}  \ottnt{module}  \ottsym{,}  \ottnt{fdef}  \ottsym{,}  \ottnt{block}  \vdash  \ottmv{id}  = \, \ottkw{store} \, \ottnt{typ} \, \ottnt{value_{{\mathrm{1}}}} \, \ottnt{value_{{\mathrm{2}}}} \, \ottmv{align}}{%
 {\ottdrulename{wf\_insn\_store}}{}%
 }}
 
 
 \newcommand{\ottdrulewfXXinsnXXgep}[1]{\ottdrule[#1]{%
-\ottpremise{\ottnt{system}  \vdash  \ottnt{value}  \ottsym{:}  \ottnt{typ}  \ottsym{*}}%
-\ottpremise{\ottcomp{ \ottnt{system}  \vdash  \ottnt{value_{\ottmv{j}}}  \ottsym{:}  \ottkw{int} \, \ottmv{sz}  \wedge  \ottmv{sz}  =  \ottsym{32} }{\ottmv{j}}}%
+\ottpremise{\ottnt{system}  \ottsym{,}  \ottnt{fdef}  \vdash  \ottnt{value}  \ottsym{:}  \ottnt{typ}  \ottsym{*}}%
+\ottpremise{\ottcomp{ \ottnt{system}  \ottsym{,}  \ottnt{fdef}  \vdash  \ottnt{value_{\ottmv{j}}}  \ottsym{:}  \ottkw{int} \, \ottmv{sz}  \wedge  \ottmv{sz}  =  \ottsym{32} }{\ottmv{j}}}%
 \ottpremise{\ottkw{getGEPTyp} \, \ottcomp{\ottnt{value_{\ottmv{j}}}}{\ottmv{j}} \, \ottsym{(}  \ottnt{typ}  \ottsym{*}  \ottsym{)}  =  \ottnt{typ'}}%
-\ottpremise{\ottnt{intrinsic\_funs}  \ottsym{,}  \ottnt{system}  \ottsym{,}  \ottnt{module\_info}  \ottsym{,}  \ottnt{fdef}  \ottsym{,}  \ottnt{block}  \vdash_{i}  \ottmv{id}  = \, \ottkw{getelementptr} \, \ottnt{inbounds}  \ottsym{(}  \ottnt{typ}  \ottsym{*}  \ottsym{)}  \ottnt{value} \, \ottcomp{\ottnt{value_{\ottmv{j}}}}{\ottmv{j}}}%
+\ottpremise{\ottnt{intrinsic\_funs}  \ottsym{,}  \ottnt{system}  \ottsym{,}  \ottnt{module}  \ottsym{,}  \ottnt{fdef}  \ottsym{,}  \ottnt{block}  \vdash_{i}  \ottmv{id}  = \, \ottkw{getelementptr} \, \ottnt{inbounds}  \ottsym{(}  \ottnt{typ}  \ottsym{*}  \ottsym{)}  \ottnt{value} \, \ottcomp{\ottnt{value_{\ottmv{j}}}}{\ottmv{j}}}%
 }{
-\ottnt{intrinsic\_funs}  \ottsym{,}  \ottnt{system}  \ottsym{,}  \ottnt{module\_info}  \ottsym{,}  \ottnt{fdef}  \ottsym{,}  \ottnt{block}  \vdash  \ottmv{id}  = \, \ottkw{getelementptr} \, \ottnt{inbounds}  \ottsym{(}  \ottnt{typ}  \ottsym{*}  \ottsym{)}  \ottnt{value} \, \ottcomp{\ottnt{value_{\ottmv{j}}}}{\ottmv{j}}}{%
+\ottnt{intrinsic\_funs}  \ottsym{,}  \ottnt{system}  \ottsym{,}  \ottnt{module}  \ottsym{,}  \ottnt{fdef}  \ottsym{,}  \ottnt{block}  \vdash  \ottmv{id}  = \, \ottkw{getelementptr} \, \ottnt{inbounds}  \ottsym{(}  \ottnt{typ}  \ottsym{*}  \ottsym{)}  \ottnt{value} \, \ottcomp{\ottnt{value_{\ottmv{j}}}}{\ottmv{j}}}{%
 {\ottdrulename{wf\_insn\_gep}}{}%
 }}
 
 
 \newcommand{\ottdrulewfXXinsnXXtrunc}[1]{\ottdrule[#1]{%
-\ottpremise{\ottnt{intrinsic\_funs}  \ottsym{,}  \ottnt{system}  \ottsym{,}  \ottnt{module\_info}  \ottsym{,}  \ottnt{fdef}  \ottsym{,}  \ottnt{block}  \ottsym{\mbox{$\mid$}-trunc}  \ottmv{id}  =  \ottnt{truncop} \, \ottnt{typ_{{\mathrm{1}}}} \, \ottnt{value_{{\mathrm{1}}}} \, \ottkw{to} \, \ottnt{typ_{{\mathrm{2}}}}}%
+\ottpremise{\ottnt{intrinsic\_funs}  \ottsym{,}  \ottnt{system}  \ottsym{,}  \ottnt{module}  \ottsym{,}  \ottnt{fdef}  \ottsym{,}  \ottnt{block}  \ottsym{\mbox{$\mid$}-trunc}  \ottmv{id}  =  \ottnt{truncop} \, \ottnt{typ_{{\mathrm{1}}}} \, \ottnt{value_{{\mathrm{1}}}} \, \ottkw{to} \, \ottnt{typ_{{\mathrm{2}}}}}%
 }{
-\ottnt{intrinsic\_funs}  \ottsym{,}  \ottnt{system}  \ottsym{,}  \ottnt{module\_info}  \ottsym{,}  \ottnt{fdef}  \ottsym{,}  \ottnt{block}  \vdash  \ottmv{id}  =  \ottnt{truncop} \, \ottnt{typ_{{\mathrm{1}}}} \, \ottnt{value_{{\mathrm{1}}}} \, \ottkw{to} \, \ottnt{typ_{{\mathrm{2}}}}}{%
+\ottnt{intrinsic\_funs}  \ottsym{,}  \ottnt{system}  \ottsym{,}  \ottnt{module}  \ottsym{,}  \ottnt{fdef}  \ottsym{,}  \ottnt{block}  \vdash  \ottmv{id}  =  \ottnt{truncop} \, \ottnt{typ_{{\mathrm{1}}}} \, \ottnt{value_{{\mathrm{1}}}} \, \ottkw{to} \, \ottnt{typ_{{\mathrm{2}}}}}{%
 {\ottdrulename{wf\_insn\_trunc}}{}%
 }}
 
 
 \newcommand{\ottdrulewfXXinsnXXext}[1]{\ottdrule[#1]{%
-\ottpremise{\ottnt{intrinsic\_funs}  \ottsym{,}  \ottnt{system}  \ottsym{,}  \ottnt{module\_info}  \ottsym{,}  \ottnt{fdef}  \ottsym{,}  \ottnt{block}  \ottsym{\mbox{$\mid$}-ext}  \ottmv{id}  =  \ottnt{extop} \, \ottnt{typ_{{\mathrm{1}}}} \, \ottnt{value_{{\mathrm{1}}}} \, \ottkw{to} \, \ottnt{typ_{{\mathrm{2}}}}}%
+\ottpremise{\ottnt{intrinsic\_funs}  \ottsym{,}  \ottnt{system}  \ottsym{,}  \ottnt{module}  \ottsym{,}  \ottnt{fdef}  \ottsym{,}  \ottnt{block}  \ottsym{\mbox{$\mid$}-ext}  \ottmv{id}  =  \ottnt{extop} \, \ottnt{typ_{{\mathrm{1}}}} \, \ottnt{value_{{\mathrm{1}}}} \, \ottkw{to} \, \ottnt{typ_{{\mathrm{2}}}}}%
 }{
-\ottnt{intrinsic\_funs}  \ottsym{,}  \ottnt{system}  \ottsym{,}  \ottnt{module\_info}  \ottsym{,}  \ottnt{fdef}  \ottsym{,}  \ottnt{block}  \vdash  \ottmv{id}  =  \ottnt{extop} \, \ottnt{typ_{{\mathrm{1}}}} \, \ottnt{value_{{\mathrm{1}}}} \, \ottkw{to} \, \ottnt{typ_{{\mathrm{2}}}}}{%
+\ottnt{intrinsic\_funs}  \ottsym{,}  \ottnt{system}  \ottsym{,}  \ottnt{module}  \ottsym{,}  \ottnt{fdef}  \ottsym{,}  \ottnt{block}  \vdash  \ottmv{id}  =  \ottnt{extop} \, \ottnt{typ_{{\mathrm{1}}}} \, \ottnt{value_{{\mathrm{1}}}} \, \ottkw{to} \, \ottnt{typ_{{\mathrm{2}}}}}{%
 {\ottdrulename{wf\_insn\_ext}}{}%
 }}
 
 
 \newcommand{\ottdrulewfXXinsnXXcast}[1]{\ottdrule[#1]{%
-\ottpremise{\ottnt{intrinsic\_funs}  \ottsym{,}  \ottnt{system}  \ottsym{,}  \ottnt{module\_info}  \ottsym{,}  \ottnt{fdef}  \ottsym{,}  \ottnt{block}  \ottsym{\mbox{$\mid$}-cast}  \ottmv{id}  =  \ottnt{castop} \, \ottnt{typ_{{\mathrm{1}}}} \, \ottnt{value_{{\mathrm{1}}}} \, \ottkw{to} \, \ottnt{typ_{{\mathrm{2}}}}}%
+\ottpremise{\ottnt{intrinsic\_funs}  \ottsym{,}  \ottnt{system}  \ottsym{,}  \ottnt{module}  \ottsym{,}  \ottnt{fdef}  \ottsym{,}  \ottnt{block}  \ottsym{\mbox{$\mid$}-cast}  \ottmv{id}  =  \ottnt{castop} \, \ottnt{typ_{{\mathrm{1}}}} \, \ottnt{value_{{\mathrm{1}}}} \, \ottkw{to} \, \ottnt{typ_{{\mathrm{2}}}}}%
 }{
-\ottnt{intrinsic\_funs}  \ottsym{,}  \ottnt{system}  \ottsym{,}  \ottnt{module\_info}  \ottsym{,}  \ottnt{fdef}  \ottsym{,}  \ottnt{block}  \vdash  \ottmv{id}  =  \ottnt{castop} \, \ottnt{typ_{{\mathrm{1}}}} \, \ottnt{value_{{\mathrm{1}}}} \, \ottkw{to} \, \ottnt{typ_{{\mathrm{2}}}}}{%
+\ottnt{intrinsic\_funs}  \ottsym{,}  \ottnt{system}  \ottsym{,}  \ottnt{module}  \ottsym{,}  \ottnt{fdef}  \ottsym{,}  \ottnt{block}  \vdash  \ottmv{id}  =  \ottnt{castop} \, \ottnt{typ_{{\mathrm{1}}}} \, \ottnt{value_{{\mathrm{1}}}} \, \ottkw{to} \, \ottnt{typ_{{\mathrm{2}}}}}{%
 {\ottdrulename{wf\_insn\_cast}}{}%
 }}
 
 
 \newcommand{\ottdrulewfXXinsnXXicmp}[1]{\ottdrule[#1]{%
-\ottpremise{\ottnt{system}  \vdash  \ottnt{value_{{\mathrm{1}}}}  \ottsym{:}  \ottnt{typ}}%
-\ottpremise{\ottnt{system}  \vdash  \ottnt{value_{{\mathrm{2}}}}  \ottsym{:}  \ottnt{typ}}%
+\ottpremise{\ottnt{system}  \ottsym{,}  \ottnt{fdef}  \vdash  \ottnt{value_{{\mathrm{1}}}}  \ottsym{:}  \ottnt{typ}}%
+\ottpremise{\ottnt{system}  \ottsym{,}  \ottnt{fdef}  \vdash  \ottnt{value_{{\mathrm{2}}}}  \ottsym{:}  \ottnt{typ}}%
 \ottpremise{ \ottsym{Typ.isIntOrIntVector}  \ottnt{typ}  \vee  \ottkw{isPointerTyp} \, \ottnt{typ} }%
-\ottpremise{\ottnt{intrinsic\_funs}  \ottsym{,}  \ottnt{system}  \ottsym{,}  \ottnt{module\_info}  \ottsym{,}  \ottnt{fdef}  \ottsym{,}  \ottnt{block}  \vdash_{i}  \ottmv{id}  = \, \ottkw{icmp} \, \ottnt{cond} \, \ottnt{typ} \, \ottnt{value_{{\mathrm{1}}}} \, \ottnt{value_{{\mathrm{2}}}}}%
+\ottpremise{\ottnt{intrinsic\_funs}  \ottsym{,}  \ottnt{system}  \ottsym{,}  \ottnt{module}  \ottsym{,}  \ottnt{fdef}  \ottsym{,}  \ottnt{block}  \vdash_{i}  \ottmv{id}  = \, \ottkw{icmp} \, \ottnt{cond} \, \ottnt{typ} \, \ottnt{value_{{\mathrm{1}}}} \, \ottnt{value_{{\mathrm{2}}}}}%
 }{
-\ottnt{intrinsic\_funs}  \ottsym{,}  \ottnt{system}  \ottsym{,}  \ottnt{module\_info}  \ottsym{,}  \ottnt{fdef}  \ottsym{,}  \ottnt{block}  \vdash  \ottmv{id}  = \, \ottkw{icmp} \, \ottnt{cond} \, \ottnt{typ} \, \ottnt{value_{{\mathrm{1}}}} \, \ottnt{value_{{\mathrm{2}}}}}{%
+\ottnt{intrinsic\_funs}  \ottsym{,}  \ottnt{system}  \ottsym{,}  \ottnt{module}  \ottsym{,}  \ottnt{fdef}  \ottsym{,}  \ottnt{block}  \vdash  \ottmv{id}  = \, \ottkw{icmp} \, \ottnt{cond} \, \ottnt{typ} \, \ottnt{value_{{\mathrm{1}}}} \, \ottnt{value_{{\mathrm{2}}}}}{%
 {\ottdrulename{wf\_insn\_icmp}}{}%
 }}
 
 
 \newcommand{\ottdrulewfXXinsnXXfcmp}[1]{\ottdrule[#1]{%
-\ottpremise{\ottnt{system}  \vdash  \ottnt{value_{{\mathrm{1}}}}  \ottsym{:}  \ottnt{floating\_point}}%
-\ottpremise{\ottnt{system}  \vdash  \ottnt{value_{{\mathrm{2}}}}  \ottsym{:}  \ottnt{floating\_point}}%
-\ottpremise{\ottnt{intrinsic\_funs}  \ottsym{,}  \ottnt{system}  \ottsym{,}  \ottnt{module\_info}  \ottsym{,}  \ottnt{fdef}  \ottsym{,}  \ottnt{block}  \vdash_{i}  \ottmv{id}  = \, \ottkw{fcmp} \, \ottnt{fcond} \, \ottnt{floating\_point} \, \ottnt{value_{{\mathrm{1}}}} \, \ottnt{value_{{\mathrm{2}}}}}%
+\ottpremise{\ottnt{system}  \ottsym{,}  \ottnt{fdef}  \vdash  \ottnt{value_{{\mathrm{1}}}}  \ottsym{:}  \ottnt{floating\_point}}%
+\ottpremise{\ottnt{system}  \ottsym{,}  \ottnt{fdef}  \vdash  \ottnt{value_{{\mathrm{2}}}}  \ottsym{:}  \ottnt{floating\_point}}%
+\ottpremise{\ottnt{intrinsic\_funs}  \ottsym{,}  \ottnt{system}  \ottsym{,}  \ottnt{module}  \ottsym{,}  \ottnt{fdef}  \ottsym{,}  \ottnt{block}  \vdash_{i}  \ottmv{id}  = \, \ottkw{fcmp} \, \ottnt{fcond} \, \ottnt{floating\_point} \, \ottnt{value_{{\mathrm{1}}}} \, \ottnt{value_{{\mathrm{2}}}}}%
 }{
-\ottnt{intrinsic\_funs}  \ottsym{,}  \ottnt{system}  \ottsym{,}  \ottnt{module\_info}  \ottsym{,}  \ottnt{fdef}  \ottsym{,}  \ottnt{block}  \vdash  \ottmv{id}  = \, \ottkw{fcmp} \, \ottnt{fcond} \, \ottnt{floating\_point} \, \ottnt{value_{{\mathrm{1}}}} \, \ottnt{value_{{\mathrm{2}}}}}{%
+\ottnt{intrinsic\_funs}  \ottsym{,}  \ottnt{system}  \ottsym{,}  \ottnt{module}  \ottsym{,}  \ottnt{fdef}  \ottsym{,}  \ottnt{block}  \vdash  \ottmv{id}  = \, \ottkw{fcmp} \, \ottnt{fcond} \, \ottnt{floating\_point} \, \ottnt{value_{{\mathrm{1}}}} \, \ottnt{value_{{\mathrm{2}}}}}{%
 {\ottdrulename{wf\_insn\_fcmp}}{}%
 }}
 
 
 \newcommand{\ottdrulewfXXinsnXXphi}[1]{\ottdrule[#1]{%
-\ottpremise{\ottcomp{\ottnt{system}  \vdash  \ottnt{value_{\ottmv{j}}}  \ottsym{:}  \ottnt{typ}}{\ottmv{j}}}%
+\ottpremise{\ottcomp{\ottnt{system}  \ottsym{,}  \ottnt{fdef}  \vdash  \ottnt{value_{\ottmv{j}}}  \ottsym{:}  \ottnt{typ}}{\ottmv{j}}}%
 \ottpremise{\ottkw{getPhiNodeOperands} \, \ottsym{(}  \ottmv{id}  = \, \ottkw{phi} \, \ottnt{typ} \, \ottcomp{\ottsym{[}  \ottnt{value_{\ottmv{j}}}  \ottsym{,}  \ottmv{l_{\ottmv{j}}}  \ottsym{]}}{\ottmv{j}}  \ottsym{)}  =  \mathit{\{id\} }'}%
 \ottpremise{\mathit{\{id\} }'  <-> \, \ottcomp{\ottmv{id'_{\ottmv{i}}}}{\ottmv{i}}}%
 \ottpremise{\ottcomp{  (  \neg   \ottmv{id}  =  \ottmv{id'_{\ottmv{i}}}   \!)   \vee   (  \neg   ( \ottkw{isReachableFromEntry} \, \ottnt{fdef} \, \ottnt{block} \!)   \!)  }{\ottmv{i}}}%
 \ottpremise{\texttt{(PHINode.getNumIncomingValues (}\ottsym{(}  \ottmv{id}  = \, \ottkw{phi} \, \ottnt{typ} \, \ottcomp{\ottsym{[}  \ottnt{value_{\ottmv{j}}}  \ottsym{,}  \ottmv{l_{\ottmv{j}}}  \ottsym{]}}{\ottmv{j}}  \ottsym{)}\texttt{) > 0)\%nat }}%
+\ottpremise{\texttt{genBlockUseDef\_fdef }\ottnt{fdef}\texttt{ = }\ottnt{usedef\_block}\texttt{ }}%
 \ottpremise{\ottkw{predOfBlock} \, \ottnt{block} \, \ottnt{usedef\_block}  =  \mathit{\overline{block} }}%
 \ottpremise{\texttt{PHINode.getNumIncomingValues (}\ottsym{(}  \ottmv{id}  = \, \ottkw{phi} \, \ottnt{typ} \, \ottcomp{\ottsym{[}  \ottnt{value_{\ottmv{j}}}  \ottsym{,}  \ottmv{l_{\ottmv{j}}}  \ottsym{]}}{\ottmv{j}}  \ottsym{)}\texttt{) = length }\mathit{\overline{block} }}%
 \ottpremise{\ottkw{getLabelsFromBlocks} \, \mathit{\overline{block} }  =  \mathit{\{l\} }_{{\mathrm{1}}}}%
 \ottpremise{\ottkw{getLabelsFromPhiNode} \, \ottsym{(}  \ottmv{id}  = \, \ottkw{phi} \, \ottnt{typ} \, \ottcomp{\ottsym{[}  \ottnt{value_{\ottmv{j}}}  \ottsym{,}  \ottmv{l_{\ottmv{j}}}  \ottsym{]}}{\ottmv{j}}  \ottsym{)}  =  \mathit{\{l\} }_{{\mathrm{2}}}}%
 \ottpremise{ \mathit{\{l\} }_{{\mathrm{1}}}  =  \mathit{\{l\} }_{{\mathrm{2}}} }%
 \ottpremise{\ottkw{checkIdenticalIncomingValues} \, \ottsym{(}  \ottmv{id}  = \, \ottkw{phi} \, \ottnt{typ} \, \ottcomp{\ottsym{[}  \ottnt{value_{\ottmv{j}}}  \ottsym{,}  \ottmv{l_{\ottmv{j}}}  \ottsym{]}}{\ottmv{j}}  \ottsym{)}}%
-\ottpremise{\ottcomp{\ottkw{lookupTypViaIDFromSystem} \, \ottnt{system} \, \ottmv{id_{\ottmv{j}}}  =  \ottnt{typ}}{\ottmv{j}}}%
+\ottpremise{\ottcomp{\ottkw{lookupTypViaIDFromFdef} \, \ottnt{fdef} \, \ottmv{id_{\ottmv{j}}}  =  \ottnt{typ}}{\ottmv{j}}}%
 \ottpremise{\ottcomp{ \ottkw{lookupBlockViaLabelFromSystem} \, \ottnt{system} \, \ottmv{l_{\ottmv{j}}}  =  \ottnt{block_{\ottmv{j}}}  \wedge  \ottkw{blockInFdef} \, \ottnt{block_{\ottmv{j}}} \, \ottnt{fdef} }{\ottmv{j}}}%
-\ottpremise{\ottnt{intrinsic\_funs}  \ottsym{,}  \ottnt{system}  \ottsym{,}  \ottsym{(}  \ottnt{module}  \ottsym{,}  \ottnt{usedef\_id}  \ottsym{,}  \ottnt{usedef\_block}  \ottsym{)}  \ottsym{,}  \ottnt{fdef}  \ottsym{,}  \ottnt{block}  \vdash_{i}  \ottmv{id}  = \, \ottkw{phi} \, \ottnt{typ} \, \ottcomp{\ottsym{[}  \ottnt{value_{\ottmv{j}}}  \ottsym{,}  \ottmv{l_{\ottmv{j}}}  \ottsym{]}}{\ottmv{j}}}%
+\ottpremise{\ottnt{intrinsic\_funs}  \ottsym{,}  \ottnt{system}  \ottsym{,}  \ottnt{module}  \ottsym{,}  \ottnt{fdef}  \ottsym{,}  \ottnt{block}  \vdash_{i}  \ottmv{id}  = \, \ottkw{phi} \, \ottnt{typ} \, \ottcomp{\ottsym{[}  \ottnt{value_{\ottmv{j}}}  \ottsym{,}  \ottmv{l_{\ottmv{j}}}  \ottsym{]}}{\ottmv{j}}}%
 }{
-\ottnt{intrinsic\_funs}  \ottsym{,}  \ottnt{system}  \ottsym{,}  \ottsym{(}  \ottnt{module}  \ottsym{,}  \ottnt{usedef\_id}  \ottsym{,}  \ottnt{usedef\_block}  \ottsym{)}  \ottsym{,}  \ottnt{fdef}  \ottsym{,}  \ottnt{block}  \vdash  \ottmv{id}  = \, \ottkw{phi} \, \ottnt{typ} \, \ottcomp{\ottsym{[}  \ottnt{value_{\ottmv{j}}}  \ottsym{,}  \ottmv{l_{\ottmv{j}}}  \ottsym{]}}{\ottmv{j}}}{%
+\ottnt{intrinsic\_funs}  \ottsym{,}  \ottnt{system}  \ottsym{,}  \ottnt{module}  \ottsym{,}  \ottnt{fdef}  \ottsym{,}  \ottnt{block}  \vdash  \ottmv{id}  = \, \ottkw{phi} \, \ottnt{typ} \, \ottcomp{\ottsym{[}  \ottnt{value_{\ottmv{j}}}  \ottsym{,}  \ottmv{l_{\ottmv{j}}}  \ottsym{]}}{\ottmv{j}}}{%
 {\ottdrulename{wf\_insn\_phi}}{}%
 }}
 
 
 \newcommand{\ottdrulewfXXinsnXXselect}[1]{\ottdrule[#1]{%
-\ottpremise{ \ottnt{system}  \vdash  \ottnt{value_{{\mathrm{0}}}}  \ottsym{:}  \ottkw{int} \, \ottmv{sz}  \wedge  \ottmv{sz}  =  \ottsym{1} }%
-\ottpremise{\ottnt{system}  \vdash  \ottnt{value_{{\mathrm{1}}}}  \ottsym{:}  \ottnt{typ}}%
-\ottpremise{\ottnt{system}  \vdash  \ottnt{value_{{\mathrm{2}}}}  \ottsym{:}  \ottnt{typ}}%
-\ottpremise{\ottnt{intrinsic\_funs}  \ottsym{,}  \ottnt{system}  \ottsym{,}  \ottnt{module\_info}  \ottsym{,}  \ottnt{fdef}  \ottsym{,}  \ottnt{block}  \vdash_{i}  \ottmv{id}  = \, \ottkw{select} \, \ottnt{value_{{\mathrm{0}}}} \, \ottnt{typ} \, \ottnt{value_{{\mathrm{1}}}} \, \ottnt{value_{{\mathrm{2}}}}}%
+\ottpremise{ \ottnt{system}  \ottsym{,}  \ottnt{fdef}  \vdash  \ottnt{value_{{\mathrm{0}}}}  \ottsym{:}  \ottkw{int} \, \ottmv{sz}  \wedge  \ottmv{sz}  =  \ottsym{1} }%
+\ottpremise{\ottnt{system}  \ottsym{,}  \ottnt{fdef}  \vdash  \ottnt{value_{{\mathrm{1}}}}  \ottsym{:}  \ottnt{typ}}%
+\ottpremise{\ottnt{system}  \ottsym{,}  \ottnt{fdef}  \vdash  \ottnt{value_{{\mathrm{2}}}}  \ottsym{:}  \ottnt{typ}}%
+\ottpremise{\ottnt{intrinsic\_funs}  \ottsym{,}  \ottnt{system}  \ottsym{,}  \ottnt{module}  \ottsym{,}  \ottnt{fdef}  \ottsym{,}  \ottnt{block}  \vdash_{i}  \ottmv{id}  = \, \ottkw{select} \, \ottnt{value_{{\mathrm{0}}}} \, \ottnt{typ} \, \ottnt{value_{{\mathrm{1}}}} \, \ottnt{value_{{\mathrm{2}}}}}%
 }{
-\ottnt{intrinsic\_funs}  \ottsym{,}  \ottnt{system}  \ottsym{,}  \ottnt{module\_info}  \ottsym{,}  \ottnt{fdef}  \ottsym{,}  \ottnt{block}  \vdash  \ottmv{id}  = \, \ottkw{select} \, \ottnt{value_{{\mathrm{0}}}} \, \ottnt{typ} \, \ottnt{value_{{\mathrm{1}}}} \, \ottnt{value_{{\mathrm{2}}}}}{%
+\ottnt{intrinsic\_funs}  \ottsym{,}  \ottnt{system}  \ottsym{,}  \ottnt{module}  \ottsym{,}  \ottnt{fdef}  \ottsym{,}  \ottnt{block}  \vdash  \ottmv{id}  = \, \ottkw{select} \, \ottnt{value_{{\mathrm{0}}}} \, \ottnt{typ} \, \ottnt{value_{{\mathrm{1}}}} \, \ottnt{value_{{\mathrm{2}}}}}{%
 {\ottdrulename{wf\_insn\_select}}{}%
 }}
 
 
 \newcommand{\ottdrulewfXXinsnXXcall}[1]{\ottdrule[#1]{%
-\ottpremise{\ottnt{system}  \vdash  \ottnt{value_{{\mathrm{0}}}}  \ottsym{:}  \ottnt{typ_{{\mathrm{1}}}}}%
+\ottpremise{\ottnt{system}  \ottsym{,}  \ottnt{fdef}  \vdash  \ottnt{value_{{\mathrm{0}}}}  \ottsym{:}  \ottnt{typ_{{\mathrm{1}}}}}%
 \ottpremise{\ottkw{isFunctionPointerTyp} \, \ottnt{typ_{{\mathrm{1}}}}}%
 \ottpremise{\texttt{FunctionType.getNumParams }\ottnt{typ_{{\mathrm{1}}}}\texttt{ = Some (length }\mathit{\overline{param} }\texttt{) }}%
 \ottpremise{\mathit{\overline{param} }  <-> \, \ottcomp{\ottsym{(}  \ottnt{typ'_{\ottmv{j}}} \, \ottnt{value''_{\ottmv{j}}}  \ottsym{)}}{\ottmv{j}}}%
 \ottpremise{\ottnt{typ_{{\mathrm{1}}}}  =  \ottnt{typ_{{\mathrm{0}}}}  \ottsym{(} \, \ottcomp{\ottnt{typ'_{\ottmv{j}}}}{\ottmv{j}} \, \ottsym{)}}%
-\ottpremise{\ottcomp{\ottnt{system}  \vdash  \ottnt{value''_{\ottmv{j}}}  \ottsym{:}  \ottnt{typ'_{\ottmv{j}}}}{\ottmv{j}}}%
+\ottpremise{\ottcomp{\ottnt{system}  \ottsym{,}  \ottnt{fdef}  \vdash  \ottnt{value''_{\ottmv{j}}}  \ottsym{:}  \ottnt{typ'_{\ottmv{j}}}}{\ottmv{j}}}%
 \ottpremise{ \ottnt{typ_{{\mathrm{0}}}}  \ottsym{=t=}  \ottkw{void}  \mathit{implies}  \ottnt{noret}  = \, \ottkw{yes} }%
-\ottpremise{\ottnt{intrinsic\_funs}  \ottsym{,}  \ottnt{system}  \ottsym{,}  \ottnt{module\_info}  \ottsym{,}  \ottnt{fdef}  \ottsym{,}  \ottnt{block}  \vdash_{i}  \ottmv{id}  =  \ottnt{noret} \, \ottnt{tailc} \, \ottkw{call} \, \ottnt{typ_{{\mathrm{0}}}} \, \ottnt{value_{{\mathrm{0}}}} \, \mathit{\overline{param} }}%
+\ottpremise{\ottnt{intrinsic\_funs}  \ottsym{,}  \ottnt{system}  \ottsym{,}  \ottnt{module}  \ottsym{,}  \ottnt{fdef}  \ottsym{,}  \ottnt{block}  \vdash_{i}  \ottmv{id}  =  \ottnt{noret} \, \ottnt{tailc} \, \ottkw{call} \, \ottnt{typ_{{\mathrm{0}}}} \, \ottnt{value_{{\mathrm{0}}}} \, \mathit{\overline{param} }}%
 }{
-\ottnt{intrinsic\_funs}  \ottsym{,}  \ottnt{system}  \ottsym{,}  \ottnt{module\_info}  \ottsym{,}  \ottnt{fdef}  \ottsym{,}  \ottnt{block}  \vdash  \ottmv{id}  =  \ottnt{noret} \, \ottnt{tailc} \, \ottkw{call} \, \ottnt{typ_{{\mathrm{0}}}} \, \ottnt{value_{{\mathrm{0}}}} \, \mathit{\overline{param} }}{%
+\ottnt{intrinsic\_funs}  \ottsym{,}  \ottnt{system}  \ottsym{,}  \ottnt{module}  \ottsym{,}  \ottnt{fdef}  \ottsym{,}  \ottnt{block}  \vdash  \ottmv{id}  =  \ottnt{noret} \, \ottnt{tailc} \, \ottkw{call} \, \ottnt{typ_{{\mathrm{0}}}} \, \ottnt{value_{{\mathrm{0}}}} \, \mathit{\overline{param} }}{%
 {\ottdrulename{wf\_insn\_call}}{}%
 }}
 
-\newcommand{\ottdefnwfXXinsn}[1]{\begin{ottdefnblock}[#1]{$\ottnt{intrinsic\_funs}  \ottsym{,}  \ottnt{system}  \ottsym{,}  \ottnt{module\_info}  \ottsym{,}  \ottnt{fdef}  \ottsym{,}  \ottnt{block}  \vdash  \ottnt{insn}$}{\ottcom{$\ottnt{insn}$ is well-formed w.r.t $\ottnt{block}$ in $\ottnt{fdef}$ in $\ottnt{module\_info}$ $\ottnt{system}$}}
+\newcommand{\ottdefnwfXXinsn}[1]{\begin{ottdefnblock}[#1]{$\ottnt{intrinsic\_funs}  \ottsym{,}  \ottnt{system}  \ottsym{,}  \ottnt{module}  \ottsym{,}  \ottnt{fdef}  \ottsym{,}  \ottnt{block}  \vdash  \ottnt{insn}$}{\ottcom{$\ottnt{insn}$ is well-formed w.r.t $\ottnt{block}$ in $\ottnt{fdef}$ in $\ottnt{module}$ $\ottnt{system}$}}
 \ottusedrule{\ottdrulewfXXinsnXXreturn{}}
 \ottusedrule{\ottdrulewfXXinsnXXreturnXXvoid{}}
 \ottusedrule{\ottdrulewfXXinsnXXbr{}}
@@ -1400,20 +1398,20 @@
 % defn wf_cmds
 \newcommand{\ottdrulewfXXcmdsXXnil}[1]{\ottdrule[#1]{%
 }{
-\ottnt{intrinsic\_funs}  \ottsym{,}  \ottnt{system}  \ottsym{,}  \ottnt{module\_info}  \ottsym{,}  \ottnt{fdef}  \ottsym{,}  \ottnt{block}  \vdash  \ottsym{[]}}{%
+\ottnt{intrinsic\_funs}  \ottsym{,}  \ottnt{system}  \ottsym{,}  \ottnt{module}  \ottsym{,}  \ottnt{fdef}  \ottsym{,}  \ottnt{block}  \vdash  \ottsym{[]}}{%
 {\ottdrulename{wf\_cmds\_nil}}{}%
 }}
 
 
 \newcommand{\ottdrulewfXXcmdsXXcons}[1]{\ottdrule[#1]{%
-\ottpremise{\ottnt{intrinsic\_funs}  \ottsym{,}  \ottnt{system}  \ottsym{,}  \ottnt{module\_info}  \ottsym{,}  \ottnt{fdef}  \ottsym{,}  \ottnt{block}  \vdash  \ottnt{cmd}}%
-\ottpremise{\ottnt{intrinsic\_funs}  \ottsym{,}  \ottnt{system}  \ottsym{,}  \ottnt{module\_info}  \ottsym{,}  \ottnt{fdef}  \ottsym{,}  \ottnt{block}  \vdash  \mathit{\overline{cmd} }}%
+\ottpremise{\ottnt{intrinsic\_funs}  \ottsym{,}  \ottnt{system}  \ottsym{,}  \ottnt{module}  \ottsym{,}  \ottnt{fdef}  \ottsym{,}  \ottnt{block}  \vdash  \ottnt{cmd}}%
+\ottpremise{\ottnt{intrinsic\_funs}  \ottsym{,}  \ottnt{system}  \ottsym{,}  \ottnt{module}  \ottsym{,}  \ottnt{fdef}  \ottsym{,}  \ottnt{block}  \vdash  \mathit{\overline{cmd} }}%
 }{
-\ottnt{intrinsic\_funs}  \ottsym{,}  \ottnt{system}  \ottsym{,}  \ottnt{module\_info}  \ottsym{,}  \ottnt{fdef}  \ottsym{,}  \ottnt{block}  \vdash  \mathit{\overline{cmd} }  \ottsym{,}  \ottnt{cmd}}{%
+\ottnt{intrinsic\_funs}  \ottsym{,}  \ottnt{system}  \ottsym{,}  \ottnt{module}  \ottsym{,}  \ottnt{fdef}  \ottsym{,}  \ottnt{block}  \vdash  \mathit{\overline{cmd} }  \ottsym{,}  \ottnt{cmd}}{%
 {\ottdrulename{wf\_cmds\_cons}}{}%
 }}
 
-\newcommand{\ottdefnwfXXcmds}[1]{\begin{ottdefnblock}[#1]{$\ottnt{intrinsic\_funs}  \ottsym{,}  \ottnt{system}  \ottsym{,}  \ottnt{module\_info}  \ottsym{,}  \ottnt{fdef}  \ottsym{,}  \ottnt{block}  \vdash  \mathit{\overline{cmd} }$}{\ottcom{$\mathit{\overline{cmd} }$ is well-formed w.r.t. $\ottnt{block}$ $\ottnt{fdef}$ in $\ottnt{module\_info}$ $\ottnt{system}$}}
+\newcommand{\ottdefnwfXXcmds}[1]{\begin{ottdefnblock}[#1]{$\ottnt{intrinsic\_funs}  \ottsym{,}  \ottnt{system}  \ottsym{,}  \ottnt{module}  \ottsym{,}  \ottnt{fdef}  \ottsym{,}  \ottnt{block}  \vdash  \mathit{\overline{cmd} }$}{\ottcom{$\mathit{\overline{cmd} }$ is well-formed w.r.t. $\ottnt{block}$ $\ottnt{fdef}$ in $\ottnt{module}$ $\ottnt{system}$}}
 \ottusedrule{\ottdrulewfXXcmdsXXnil{}}
 \ottusedrule{\ottdrulewfXXcmdsXXcons{}}
 \end{ottdefnblock}}
@@ -1427,20 +1425,20 @@
 % defn wf_phinodes
 \newcommand{\ottdrulewfXXphinodesXXnil}[1]{\ottdrule[#1]{%
 }{
-\ottnt{intrinsic\_funs}  \ottsym{,}  \ottnt{system}  \ottsym{,}  \ottnt{module\_info}  \ottsym{,}  \ottnt{fdef}  \ottsym{,}  \ottnt{block}  \vdash  \ottsym{[]}}{%
+\ottnt{intrinsic\_funs}  \ottsym{,}  \ottnt{system}  \ottsym{,}  \ottnt{module}  \ottsym{,}  \ottnt{fdef}  \ottsym{,}  \ottnt{block}  \vdash  \ottsym{[]}}{%
 {\ottdrulename{wf\_phinodes\_nil}}{}%
 }}
 
 
 \newcommand{\ottdrulewfXXphinodesXXcons}[1]{\ottdrule[#1]{%
-\ottpremise{\ottnt{intrinsic\_funs}  \ottsym{,}  \ottnt{system}  \ottsym{,}  \ottnt{module\_info}  \ottsym{,}  \ottnt{fdef}  \ottsym{,}  \ottnt{block}  \vdash  \ottnt{phinode}}%
-\ottpremise{\ottnt{intrinsic\_funs}  \ottsym{,}  \ottnt{system}  \ottsym{,}  \ottnt{module\_info}  \ottsym{,}  \ottnt{fdef}  \ottsym{,}  \ottnt{block}  \vdash  \mathit{\overline{phinode} }}%
+\ottpremise{\ottnt{intrinsic\_funs}  \ottsym{,}  \ottnt{system}  \ottsym{,}  \ottnt{module}  \ottsym{,}  \ottnt{fdef}  \ottsym{,}  \ottnt{block}  \vdash  \ottnt{phinode}}%
+\ottpremise{\ottnt{intrinsic\_funs}  \ottsym{,}  \ottnt{system}  \ottsym{,}  \ottnt{module}  \ottsym{,}  \ottnt{fdef}  \ottsym{,}  \ottnt{block}  \vdash  \mathit{\overline{phinode} }}%
 }{
-\ottnt{intrinsic\_funs}  \ottsym{,}  \ottnt{system}  \ottsym{,}  \ottnt{module\_info}  \ottsym{,}  \ottnt{fdef}  \ottsym{,}  \ottnt{block}  \vdash  \mathit{\overline{phinode} }  \ottsym{,}  \ottnt{phinode}}{%
+\ottnt{intrinsic\_funs}  \ottsym{,}  \ottnt{system}  \ottsym{,}  \ottnt{module}  \ottsym{,}  \ottnt{fdef}  \ottsym{,}  \ottnt{block}  \vdash  \mathit{\overline{phinode} }  \ottsym{,}  \ottnt{phinode}}{%
 {\ottdrulename{wf\_phinodes\_cons}}{}%
 }}
 
-\newcommand{\ottdefnwfXXphinodes}[1]{\begin{ottdefnblock}[#1]{$\ottnt{intrinsic\_funs}  \ottsym{,}  \ottnt{system}  \ottsym{,}  \ottnt{module\_info}  \ottsym{,}  \ottnt{fdef}  \ottsym{,}  \ottnt{block}  \vdash  \mathit{\overline{phinode} }$}{\ottcom{$\mathit{\overline{phinode} }$ is well-formed w.r.t. $\ottnt{block}$ $\ottnt{fdef}$ in $\ottnt{module\_info}$ $\ottnt{system}$}}
+\newcommand{\ottdefnwfXXphinodes}[1]{\begin{ottdefnblock}[#1]{$\ottnt{intrinsic\_funs}  \ottsym{,}  \ottnt{system}  \ottsym{,}  \ottnt{module}  \ottsym{,}  \ottnt{fdef}  \ottsym{,}  \ottnt{block}  \vdash  \mathit{\overline{phinode} }$}{\ottcom{$\mathit{\overline{phinode} }$ is well-formed w.r.t. $\ottnt{block}$ $\ottnt{fdef}$ in $\ottnt{module}$ $\ottnt{system}$}}
 \ottusedrule{\ottdrulewfXXphinodesXXnil{}}
 \ottusedrule{\ottdrulewfXXphinodesXXcons{}}
 \end{ottdefnblock}}
@@ -1453,16 +1451,16 @@
 % defns Jwf_block
 % defn wf_block
 \newcommand{\ottdrulewfXXblockXXintro}[1]{\ottdrule[#1]{%
-\ottpremise{\ottsym{(}  \ottmv{l} \, \mathit{\overline{phinode} } \, \mathit{\overline{cmd} } \, \ottnt{terminator}  \ottsym{)} \, \in \, \ottnt{system}  \ottsym{,}  \ottnt{module\_info}  \ottsym{,}  \ottnt{fdef}}%
-\ottpremise{\ottnt{intrinsic\_funs}  \ottsym{,}  \ottnt{system}  \ottsym{,}  \ottnt{module\_info}  \ottsym{,}  \ottnt{fdef}  \ottsym{,}  \ottnt{block}  \vdash  \mathit{\overline{phinode} }}%
-\ottpremise{\ottnt{intrinsic\_funs}  \ottsym{,}  \ottnt{system}  \ottsym{,}  \ottnt{module\_info}  \ottsym{,}  \ottnt{fdef}  \ottsym{,}  \ottnt{block}  \vdash  \mathit{\overline{cmd} }}%
-\ottpremise{\ottnt{intrinsic\_funs}  \ottsym{,}  \ottnt{system}  \ottsym{,}  \ottnt{module\_info}  \ottsym{,}  \ottnt{fdef}  \ottsym{,}  \ottnt{block}  \vdash  \ottnt{terminator}}%
+\ottpremise{\ottsym{(}  \ottmv{l} \, \mathit{\overline{phinode} } \, \mathit{\overline{cmd} } \, \ottnt{terminator}  \ottsym{)} \, \in \, \ottnt{system}  \ottsym{,}  \ottnt{module}  \ottsym{,}  \ottnt{fdef}}%
+\ottpremise{\ottnt{intrinsic\_funs}  \ottsym{,}  \ottnt{system}  \ottsym{,}  \ottnt{module}  \ottsym{,}  \ottnt{fdef}  \ottsym{,}  \ottnt{block}  \vdash  \mathit{\overline{phinode} }}%
+\ottpremise{\ottnt{intrinsic\_funs}  \ottsym{,}  \ottnt{system}  \ottsym{,}  \ottnt{module}  \ottsym{,}  \ottnt{fdef}  \ottsym{,}  \ottnt{block}  \vdash  \mathit{\overline{cmd} }}%
+\ottpremise{\ottnt{intrinsic\_funs}  \ottsym{,}  \ottnt{system}  \ottsym{,}  \ottnt{module}  \ottsym{,}  \ottnt{fdef}  \ottsym{,}  \ottnt{block}  \vdash  \ottnt{terminator}}%
 }{
-\ottnt{intrinsic\_funs}  \ottsym{,}  \ottnt{system}  \ottsym{,}  \ottnt{module\_info}  \ottsym{,}  \ottnt{fdef}  \vdash  \ottmv{l} \, \mathit{\overline{phinode} } \, \mathit{\overline{cmd} } \, \ottnt{terminator}}{%
+\ottnt{intrinsic\_funs}  \ottsym{,}  \ottnt{system}  \ottsym{,}  \ottnt{module}  \ottsym{,}  \ottnt{fdef}  \vdash  \ottmv{l} \, \mathit{\overline{phinode} } \, \mathit{\overline{cmd} } \, \ottnt{terminator}}{%
 {\ottdrulename{wf\_block\_intro}}{}%
 }}
 
-\newcommand{\ottdefnwfXXblock}[1]{\begin{ottdefnblock}[#1]{$\ottnt{intrinsic\_funs}  \ottsym{,}  \ottnt{system}  \ottsym{,}  \ottnt{module\_info}  \ottsym{,}  \ottnt{fdef}  \vdash  \ottnt{block}$}{\ottcom{$\ottnt{block}$ is well-formed w.r.t. $\ottnt{fdef}$ in $\ottnt{module\_info}$ $\ottnt{system}$}}
+\newcommand{\ottdefnwfXXblock}[1]{\begin{ottdefnblock}[#1]{$\ottnt{intrinsic\_funs}  \ottsym{,}  \ottnt{system}  \ottsym{,}  \ottnt{module}  \ottsym{,}  \ottnt{fdef}  \vdash  \ottnt{block}$}{\ottcom{$\ottnt{block}$ is well-formed w.r.t. $\ottnt{fdef}$ in $\ottnt{module}$ $\ottnt{system}$}}
 \ottusedrule{\ottdrulewfXXblockXXintro{}}
 \end{ottdefnblock}}
 
@@ -1475,20 +1473,20 @@
 % defn wf_blocks
 \newcommand{\ottdrulewfXXblocksXXnil}[1]{\ottdrule[#1]{%
 }{
-\ottnt{intrinsic\_funs}  \ottsym{,}  \ottnt{system}  \ottsym{,}  \ottnt{module\_info}  \ottsym{,}  \ottnt{fdef}  \vdash  \ottsym{[]}}{%
+\ottnt{intrinsic\_funs}  \ottsym{,}  \ottnt{system}  \ottsym{,}  \ottnt{module}  \ottsym{,}  \ottnt{fdef}  \vdash  \ottsym{[]}}{%
 {\ottdrulename{wf\_blocks\_nil}}{}%
 }}
 
 
 \newcommand{\ottdrulewfXXblocksXXcons}[1]{\ottdrule[#1]{%
-\ottpremise{\ottnt{intrinsic\_funs}  \ottsym{,}  \ottnt{system}  \ottsym{,}  \ottnt{module\_info}  \ottsym{,}  \ottnt{fdef}  \vdash  \ottnt{block}}%
-\ottpremise{\ottnt{intrinsic\_funs}  \ottsym{,}  \ottnt{system}  \ottsym{,}  \ottnt{module\_info}  \ottsym{,}  \ottnt{fdef}  \vdash  \mathit{\overline{block} }}%
+\ottpremise{\ottnt{intrinsic\_funs}  \ottsym{,}  \ottnt{system}  \ottsym{,}  \ottnt{module}  \ottsym{,}  \ottnt{fdef}  \vdash  \ottnt{block}}%
+\ottpremise{\ottnt{intrinsic\_funs}  \ottsym{,}  \ottnt{system}  \ottsym{,}  \ottnt{module}  \ottsym{,}  \ottnt{fdef}  \vdash  \mathit{\overline{block} }}%
 }{
-\ottnt{intrinsic\_funs}  \ottsym{,}  \ottnt{system}  \ottsym{,}  \ottnt{module\_info}  \ottsym{,}  \ottnt{fdef}  \vdash  \mathit{\overline{block} }  \ottsym{,}  \ottnt{block}}{%
+\ottnt{intrinsic\_funs}  \ottsym{,}  \ottnt{system}  \ottsym{,}  \ottnt{module}  \ottsym{,}  \ottnt{fdef}  \vdash  \mathit{\overline{block} }  \ottsym{,}  \ottnt{block}}{%
 {\ottdrulename{wf\_blocks\_cons}}{}%
 }}
 
-\newcommand{\ottdefnwfXXblocks}[1]{\begin{ottdefnblock}[#1]{$\ottnt{intrinsic\_funs}  \ottsym{,}  \ottnt{system}  \ottsym{,}  \ottnt{module\_info}  \ottsym{,}  \ottnt{fdef}  \vdash  \mathit{\overline{block} }$}{\ottcom{$\mathit{\overline{block} }$ is well-formed w.r.t. $\ottnt{fdef}$ in $\ottnt{module\_info}$ $\ottnt{system}$}}
+\newcommand{\ottdefnwfXXblocks}[1]{\begin{ottdefnblock}[#1]{$\ottnt{intrinsic\_funs}  \ottsym{,}  \ottnt{system}  \ottsym{,}  \ottnt{module}  \ottsym{,}  \ottnt{fdef}  \vdash  \mathit{\overline{block} }$}{\ottcom{$\mathit{\overline{block} }$ is well-formed w.r.t. $\ottnt{fdef}$ in $\ottnt{module}$ $\ottnt{system}$}}
 \ottusedrule{\ottdrulewfXXblocksXXnil{}}
 \ottusedrule{\ottdrulewfXXblocksXXcons{}}
 \end{ottdefnblock}}
@@ -1501,16 +1499,16 @@
 % defns Jwf_fdec
 % defn wf_fdec
 \newcommand{\ottdrulewfXXfdecXXintro}[1]{\ottdrule[#1]{%
-\ottpremise{\ottsym{(}  \ottkw{declare} \, \ottsym{(}  \ottnt{typ} \, \ottmv{id}  \ottsym{(}  \mathit{\overline{arg} }  \ottsym{)}  \ottsym{)}  \ottsym{)} \, \in \, \ottnt{system}  \ottsym{,}  \ottsym{(}  \ottnt{module}  \ottsym{,}  \ottnt{usedef\_id}  \ottsym{,}  \ottnt{usedef\_block}  \ottsym{)}}%
+\ottpremise{\ottsym{(}  \ottkw{declare} \, \ottsym{(}  \ottnt{typ} \, \ottmv{id}  \ottsym{(}  \mathit{\overline{arg} }  \ottsym{)}  \ottsym{)}  \ottsym{)} \, \in \, \ottnt{system}  \ottsym{,}  \ottnt{module}}%
 \ottpremise{\mathit{\overline{arg} }  <-> \, \ottcomp{\ottsym{(}  \ottnt{typ_{\ottmv{j}}} \, \ottmv{id_{\ottmv{j}}}  \ottsym{)}}{\ottmv{j}}}%
 \ottpremise{\ottcomp{\ottnt{system}  \vdash  \ottnt{typ_{\ottmv{j}}}}{\ottmv{j}}}%
 \ottpremise{ \ottkw{isFirstClassTyp} \, \ottnt{typ}  \vee  \ottnt{typ}  \ottsym{=t=}  \ottkw{void} }%
 }{
-\ottnt{intrinsic\_funs}  \ottsym{,}  \ottnt{system}  \ottsym{,}  \ottsym{(}  \ottnt{module}  \ottsym{,}  \ottnt{usedef\_id}  \ottsym{,}  \ottnt{usedef\_block}  \ottsym{)}  \vdash_{f}  \ottkw{declare} \, \ottsym{(}  \ottnt{typ} \, \ottmv{id}  \ottsym{(}  \mathit{\overline{arg} }  \ottsym{)}  \ottsym{)}}{%
+\ottnt{intrinsic\_funs}  \ottsym{,}  \ottnt{system}  \ottsym{,}  \ottnt{module}  \vdash_{f}  \ottkw{declare} \, \ottsym{(}  \ottnt{typ} \, \ottmv{id}  \ottsym{(}  \mathit{\overline{arg} }  \ottsym{)}  \ottsym{)}}{%
 {\ottdrulename{wf\_fdec\_intro}}{}%
 }}
 
-\newcommand{\ottdefnwfXXfdec}[1]{\begin{ottdefnblock}[#1]{$\ottnt{intrinsic\_funs}  \ottsym{,}  \ottnt{system}  \ottsym{,}  \ottnt{module\_info}  \vdash_{f}  \ottnt{fdec}$}{\ottcom{$\ottnt{fdec}$ is well-formed w.r.t. $\ottnt{module\_info}$ $\ottnt{system}$}}
+\newcommand{\ottdefnwfXXfdec}[1]{\begin{ottdefnblock}[#1]{$\ottnt{intrinsic\_funs}  \ottsym{,}  \ottnt{system}  \ottsym{,}  \ottnt{module}  \vdash_{f}  \ottnt{fdec}$}{\ottcom{$\ottnt{fdec}$ is well-formed w.r.t. $\ottnt{module}$ $\ottnt{system}$}}
 \ottusedrule{\ottdrulewfXXfdecXXintro{}}
 \end{ottdefnblock}}
 
@@ -1522,20 +1520,21 @@
 % defns Jwf_fdef
 % defn wf_fdef
 \newcommand{\ottdrulewfXXfdefXXintro}[1]{\ottdrule[#1]{%
-\ottpremise{\ottsym{(}  \ottkw{define} \, \ottnt{fheader}  \ottsym{\{}  \mathit{\overline{block} }  \ottsym{\}}  \ottsym{)} \, \in \, \ottnt{system}  \ottsym{,}  \ottsym{(}  \ottnt{module}  \ottsym{,}  \ottnt{usedef\_id}  \ottsym{,}  \ottnt{usedef\_block}  \ottsym{)}}%
+\ottpremise{\ottsym{(}  \ottkw{define} \, \ottnt{fheader}  \ottsym{\{}  \mathit{\overline{block} }  \ottsym{\}}  \ottsym{)} \, \in \, \ottnt{system}  \ottsym{,}  \ottnt{module}}%
 \ottpremise{\mathit{\overline{arg} }  <-> \, \ottcomp{\ottsym{(}  \ottnt{typ_{\ottmv{j}}} \, \ottmv{id_{\ottmv{j}}}  \ottsym{)}}{\ottmv{j}}}%
 \ottpremise{\ottcomp{\ottnt{system}  \vdash  \ottnt{typ_{\ottmv{j}}}}{\ottmv{j}}}%
 \ottpremise{ \ottkw{isFirstClassTyp} \, \ottnt{typ}  \vee  \ottnt{typ}  \ottsym{=t=}  \ottkw{void} }%
 \ottpremise{\ottkw{getEntryOfFdef} \, \ottsym{(}  \ottkw{define} \, \ottnt{fheader}  \ottsym{\{}  \mathit{\overline{block} }  \ottsym{\}}  \ottsym{)}  =  \ottnt{block}}%
+\ottpremise{\texttt{genBlockUseDef\_fdef }\ottnt{fdef}\texttt{ = }\ottnt{usedef\_block}\texttt{ }}%
 \ottpremise{\ottkw{predOfBlock} \, \ottnt{block} \, \ottnt{usedef\_block}  =  \mathit{\overline{block} }'}%
 \ottpremise{\texttt{length }\mathit{\overline{block} }'\texttt{ = 0\%nat }}%
-\ottpremise{\ottnt{intrinsic\_funs}  \ottsym{,}  \ottnt{system}  \ottsym{,}  \ottsym{(}  \ottnt{module}  \ottsym{,}  \ottnt{usedef\_id}  \ottsym{,}  \ottnt{usedef\_block}  \ottsym{)}  \ottsym{,}  \ottkw{define} \, \ottnt{fheader}  \ottsym{\{}  \mathit{\overline{block} }  \ottsym{\}}  \vdash  \mathit{\overline{block} }}%
+\ottpremise{\ottnt{intrinsic\_funs}  \ottsym{,}  \ottnt{system}  \ottsym{,}  \ottnt{module}  \ottsym{,}  \ottkw{define} \, \ottnt{fheader}  \ottsym{\{}  \mathit{\overline{block} }  \ottsym{\}}  \vdash  \mathit{\overline{block} }}%
 }{
-\ottnt{intrinsic\_funs}  \ottsym{,}  \ottnt{system}  \ottsym{,}  \ottsym{(}  \ottnt{module}  \ottsym{,}  \ottnt{usedef\_id}  \ottsym{,}  \ottnt{usedef\_block}  \ottsym{)}  \vdash_{f}  \ottkw{define} \, \ottnt{fheader}  \ottsym{\{}  \mathit{\overline{block} }  \ottsym{\}}}{%
+\ottnt{intrinsic\_funs}  \ottsym{,}  \ottnt{system}  \ottsym{,}  \ottnt{module}  \vdash_{f}  \ottkw{define} \, \ottnt{fheader}  \ottsym{\{}  \mathit{\overline{block} }  \ottsym{\}}}{%
 {\ottdrulename{wf\_fdef\_intro}}{}%
 }}
 
-\newcommand{\ottdefnwfXXfdef}[1]{\begin{ottdefnblock}[#1]{$\ottnt{intrinsic\_funs}  \ottsym{,}  \ottnt{system}  \ottsym{,}  \ottnt{module\_info}  \vdash_{f}  \ottnt{fdef}$}{\ottcom{$\ottnt{fdef}$ is well-formed w.r.t. $\ottnt{module\_info}$ $\ottnt{system}$}}
+\newcommand{\ottdefnwfXXfdef}[1]{\begin{ottdefnblock}[#1]{$\ottnt{intrinsic\_funs}  \ottsym{,}  \ottnt{system}  \ottsym{,}  \ottnt{module}  \vdash_{f}  \ottnt{fdef}$}{\ottcom{$\ottnt{fdef}$ is well-formed w.r.t. $\ottnt{module}$ $\ottnt{system}$}}
 \ottusedrule{\ottdrulewfXXfdefXXintro{}}
 \end{ottdefnblock}}
 
@@ -1548,11 +1547,11 @@
 % defn wf_g
 \newcommand{\ottdrulewfXXgXXintro}[1]{\ottdrule[#1]{%
 }{
-\ottnt{intrinsic\_funs}  \ottsym{,}  \ottnt{system}  \ottsym{,}  \ottnt{module\_info}  \ottsym{\mbox{$\mid$}-g}  \ottnt{product}}{%
+\ottnt{intrinsic\_funs}  \ottsym{,}  \ottnt{system}  \ottsym{,}  \ottnt{module}  \ottsym{\mbox{$\mid$}-g}  \ottnt{product}}{%
 {\ottdrulename{wf\_g\_intro}}{}%
 }}
 
-\newcommand{\ottdefnwfXXg}[1]{\begin{ottdefnblock}[#1]{$\ottnt{intrinsic\_funs}  \ottsym{,}  \ottnt{system}  \ottsym{,}  \ottnt{module\_info}  \ottsym{\mbox{$\mid$}-g}  \ottnt{product}$}{\ottcom{common cases that $\ottnt{product}$ is well-formed w.r.t. $\ottnt{module\_info}$ $\ottnt{system}$}}
+\newcommand{\ottdefnwfXXg}[1]{\begin{ottdefnblock}[#1]{$\ottnt{intrinsic\_funs}  \ottsym{,}  \ottnt{system}  \ottsym{,}  \ottnt{module}  \ottsym{\mbox{$\mid$}-g}  \ottnt{product}$}{\ottcom{common cases that $\ottnt{product}$ is well-formed w.r.t. $\ottnt{module}$ $\ottnt{system}$}}
 \ottusedrule{\ottdrulewfXXgXXintro{}}
 \end{ottdefnblock}}
 
@@ -1564,13 +1563,13 @@
 % defns Jwf_gvar
 % defn wf_gvar
 \newcommand{\ottdrulewfXXvXXintro}[1]{\ottdrule[#1]{%
-\ottpremise{\ottnt{system}  \vdash  \ottnt{const}  \ottsym{:}  \ottnt{typ}}%
+\ottpremise{\ottnt{system}  \ottsym{\mbox{$\mid$}-c}  \ottnt{const}  \ottsym{:}  \ottnt{typ}}%
 }{
-\ottnt{intrinsic\_funs}  \ottsym{,}  \ottnt{system}  \ottsym{,}  \ottnt{module\_info}  \ottsym{\mbox{$\mid$}-v}  \ottmv{id}  =  \ottnt{gvar\_spec} \, \ottnt{typ} \, \ottnt{const} \, \ottmv{align}}{%
+\ottnt{intrinsic\_funs}  \ottsym{,}  \ottnt{system}  \ottsym{,}  \ottnt{module}  \ottsym{\mbox{$\mid$}-v}  \ottmv{id}  =  \ottnt{gvar\_spec} \, \ottnt{typ} \, \ottnt{const} \, \ottmv{align}}{%
 {\ottdrulename{wf\_v\_intro}}{}%
 }}
 
-\newcommand{\ottdefnwfXXgvar}[1]{\begin{ottdefnblock}[#1]{$\ottnt{intrinsic\_funs}  \ottsym{,}  \ottnt{system}  \ottsym{,}  \ottnt{module\_info}  \ottsym{\mbox{$\mid$}-v}  \ottnt{gvar}$}{\ottcom{$\ottnt{gvar}$ is well-formed w.r.t. $\ottnt{module\_info}$ $\ottnt{system}$}}
+\newcommand{\ottdefnwfXXgvar}[1]{\begin{ottdefnblock}[#1]{$\ottnt{intrinsic\_funs}  \ottsym{,}  \ottnt{system}  \ottsym{,}  \ottnt{module}  \ottsym{\mbox{$\mid$}-v}  \ottnt{gvar}$}{\ottcom{$\ottnt{gvar}$ is well-formed w.r.t. $\ottnt{module}$ $\ottnt{system}$}}
 \ottusedrule{\ottdrulewfXXvXXintro{}}
 \end{ottdefnblock}}
 
@@ -1582,32 +1581,32 @@
 % defns Jwf_prod
 % defn wf_prod
 \newcommand{\ottdrulewfXXprodXXglobalXXvar}[1]{\ottdrule[#1]{%
-\ottpremise{\ottnt{intrinsic\_funs}  \ottsym{,}  \ottnt{system}  \ottsym{,}  \ottnt{module\_info}  \ottsym{\mbox{$\mid$}-g}  \ottnt{gvar}}%
-\ottpremise{\ottnt{intrinsic\_funs}  \ottsym{,}  \ottnt{system}  \ottsym{,}  \ottnt{module\_info}  \ottsym{\mbox{$\mid$}-v}  \ottnt{gvar}}%
+\ottpremise{\ottnt{intrinsic\_funs}  \ottsym{,}  \ottnt{system}  \ottsym{,}  \ottnt{module}  \ottsym{\mbox{$\mid$}-g}  \ottnt{gvar}}%
+\ottpremise{\ottnt{intrinsic\_funs}  \ottsym{,}  \ottnt{system}  \ottsym{,}  \ottnt{module}  \ottsym{\mbox{$\mid$}-v}  \ottnt{gvar}}%
 }{
-\ottnt{intrinsic\_funs}  \ottsym{,}  \ottnt{system}  \ottsym{,}  \ottnt{module\_info}  \vdash  \ottnt{gvar}}{%
+\ottnt{intrinsic\_funs}  \ottsym{,}  \ottnt{system}  \ottsym{,}  \ottnt{module}  \vdash  \ottnt{gvar}}{%
 {\ottdrulename{wf\_prod\_global\_var}}{}%
 }}
 
 
 \newcommand{\ottdrulewfXXprodXXfunctionXXdec}[1]{\ottdrule[#1]{%
-\ottpremise{\ottnt{intrinsic\_funs}  \ottsym{,}  \ottnt{system}  \ottsym{,}  \ottnt{module\_info}  \ottsym{\mbox{$\mid$}-g}  \ottnt{fdec}}%
-\ottpremise{\ottnt{intrinsic\_funs}  \ottsym{,}  \ottnt{system}  \ottsym{,}  \ottnt{module\_info}  \vdash_{f}  \ottnt{fdec}}%
+\ottpremise{\ottnt{intrinsic\_funs}  \ottsym{,}  \ottnt{system}  \ottsym{,}  \ottnt{module}  \ottsym{\mbox{$\mid$}-g}  \ottnt{fdec}}%
+\ottpremise{\ottnt{intrinsic\_funs}  \ottsym{,}  \ottnt{system}  \ottsym{,}  \ottnt{module}  \vdash_{f}  \ottnt{fdec}}%
 }{
-\ottnt{intrinsic\_funs}  \ottsym{,}  \ottnt{system}  \ottsym{,}  \ottnt{module\_info}  \vdash  \ottnt{fdec}}{%
+\ottnt{intrinsic\_funs}  \ottsym{,}  \ottnt{system}  \ottsym{,}  \ottnt{module}  \vdash  \ottnt{fdec}}{%
 {\ottdrulename{wf\_prod\_function\_dec}}{}%
 }}
 
 
 \newcommand{\ottdrulewfXXprodXXfunctionXXdef}[1]{\ottdrule[#1]{%
-\ottpremise{\ottnt{intrinsic\_funs}  \ottsym{,}  \ottnt{system}  \ottsym{,}  \ottnt{module\_info}  \ottsym{\mbox{$\mid$}-g}  \ottnt{fdef}}%
-\ottpremise{\ottnt{intrinsic\_funs}  \ottsym{,}  \ottnt{system}  \ottsym{,}  \ottnt{module\_info}  \vdash_{f}  \ottnt{fdef}}%
+\ottpremise{\ottnt{intrinsic\_funs}  \ottsym{,}  \ottnt{system}  \ottsym{,}  \ottnt{module}  \ottsym{\mbox{$\mid$}-g}  \ottnt{fdef}}%
+\ottpremise{\ottnt{intrinsic\_funs}  \ottsym{,}  \ottnt{system}  \ottsym{,}  \ottnt{module}  \vdash_{f}  \ottnt{fdef}}%
 }{
-\ottnt{intrinsic\_funs}  \ottsym{,}  \ottnt{system}  \ottsym{,}  \ottnt{module\_info}  \vdash  \ottnt{fdef}}{%
+\ottnt{intrinsic\_funs}  \ottsym{,}  \ottnt{system}  \ottsym{,}  \ottnt{module}  \vdash  \ottnt{fdef}}{%
 {\ottdrulename{wf\_prod\_function\_def}}{}%
 }}
 
-\newcommand{\ottdefnwfXXprod}[1]{\begin{ottdefnblock}[#1]{$\ottnt{intrinsic\_funs}  \ottsym{,}  \ottnt{system}  \ottsym{,}  \ottnt{module\_info}  \vdash  \ottnt{product}$}{\ottcom{$\ottnt{product}$ is well-formed w.r.t. $\ottnt{module\_info}$ $\ottnt{system}$}}
+\newcommand{\ottdefnwfXXprod}[1]{\begin{ottdefnblock}[#1]{$\ottnt{intrinsic\_funs}  \ottsym{,}  \ottnt{system}  \ottsym{,}  \ottnt{module}  \vdash  \ottnt{product}$}{\ottcom{$\ottnt{product}$ is well-formed w.r.t. $\ottnt{module}$ $\ottnt{system}$}}
 \ottusedrule{\ottdrulewfXXprodXXglobalXXvar{}}
 \ottusedrule{\ottdrulewfXXprodXXfunctionXXdec{}}
 \ottusedrule{\ottdrulewfXXprodXXfunctionXXdef{}}
@@ -1622,20 +1621,20 @@
 % defn wf_prods
 \newcommand{\ottdrulewfXXprodsXXnil}[1]{\ottdrule[#1]{%
 }{
-\ottnt{intrinsic\_funs}  \ottsym{,}  \ottnt{system}  \ottsym{,}  \ottnt{module\_info}  \vdash  \ottsym{[]}}{%
+\ottnt{intrinsic\_funs}  \ottsym{,}  \ottnt{system}  \ottsym{,}  \ottnt{module}  \vdash  \ottsym{[]}}{%
 {\ottdrulename{wf\_prods\_nil}}{}%
 }}
 
 
 \newcommand{\ottdrulewfXXprodsXXcons}[1]{\ottdrule[#1]{%
-\ottpremise{\ottnt{intrinsic\_funs}  \ottsym{,}  \ottnt{system}  \ottsym{,}  \ottnt{module\_info}  \vdash  \mathit{\overline{product} }}%
-\ottpremise{\ottnt{intrinsic\_funs}  \ottsym{,}  \ottnt{system}  \ottsym{,}  \ottnt{module\_info}  \vdash  \ottnt{product}}%
+\ottpremise{\ottnt{intrinsic\_funs}  \ottsym{,}  \ottnt{system}  \ottsym{,}  \ottnt{module}  \vdash  \mathit{\overline{product} }}%
+\ottpremise{\ottnt{intrinsic\_funs}  \ottsym{,}  \ottnt{system}  \ottsym{,}  \ottnt{module}  \vdash  \ottnt{product}}%
 }{
-\ottnt{intrinsic\_funs}  \ottsym{,}  \ottnt{system}  \ottsym{,}  \ottnt{module\_info}  \vdash  \mathit{\overline{product} }  \ottsym{,}  \ottnt{product}}{%
+\ottnt{intrinsic\_funs}  \ottsym{,}  \ottnt{system}  \ottsym{,}  \ottnt{module}  \vdash  \mathit{\overline{product} }  \ottsym{,}  \ottnt{product}}{%
 {\ottdrulename{wf\_prods\_cons}}{}%
 }}
 
-\newcommand{\ottdefnwfXXprods}[1]{\begin{ottdefnblock}[#1]{$\ottnt{intrinsic\_funs}  \ottsym{,}  \ottnt{system}  \ottsym{,}  \ottnt{module\_info}  \vdash  \mathit{\overline{product} }$}{\ottcom{$\mathit{\overline{product} }$ is well-formed w.r.t. $\ottnt{module\_info}$ $\ottnt{system}$}}
+\newcommand{\ottdefnwfXXprods}[1]{\begin{ottdefnblock}[#1]{$\ottnt{intrinsic\_funs}  \ottsym{,}  \ottnt{system}  \ottsym{,}  \ottnt{module}  \vdash  \mathit{\overline{product} }$}{\ottcom{$\mathit{\overline{product} }$ is well-formed w.r.t. $\ottnt{module}$ $\ottnt{system}$}}
 \ottusedrule{\ottdrulewfXXprodsXXnil{}}
 \ottusedrule{\ottdrulewfXXprodsXXcons{}}
 \end{ottdefnblock}}
@@ -1667,9 +1666,7 @@
 \newcommand{\ottdrulewfXXmoduleXXintro}[1]{\ottdrule[#1]{%
 \ottpremise{\vdash  \mathit{\overline{namedt} }}%
 \ottpremise{ \ottsym{(}  \mathit{\overline{layout} } \, \mathit{\overline{namedt} } \, \mathit{\overline{product} }  \ottsym{)}  \in  \ottnt{system} }%
-\ottpremise{\texttt{genIdUseDef }\ottsym{(}  \mathit{\overline{layout} } \, \mathit{\overline{namedt} } \, \mathit{\overline{product} }  \ottsym{)}\texttt{ = }\ottnt{usedef\_id}\texttt{ }}%
-\ottpremise{\texttt{genBlockUseDef }\ottsym{(}  \mathit{\overline{layout} } \, \mathit{\overline{namedt} } \, \mathit{\overline{product} }  \ottsym{)}\texttt{ = }\ottnt{usedef\_block}\texttt{ }}%
-\ottpremise{\ottnt{intrinsic\_funs}  \ottsym{,}  \ottnt{system}  \ottsym{,}  \ottsym{(}  \ottsym{(}  \mathit{\overline{layout} } \, \mathit{\overline{namedt} } \, \mathit{\overline{product} }  \ottsym{)}  \ottsym{,}  \ottnt{usedef\_id}  \ottsym{,}  \ottnt{usedef\_block}  \ottsym{)}  \vdash  \mathit{\overline{product} }}%
+\ottpremise{\ottnt{intrinsic\_funs}  \ottsym{,}  \ottnt{system}  \ottsym{,}  \ottsym{(}  \mathit{\overline{layout} } \, \mathit{\overline{namedt} } \, \mathit{\overline{product} }  \ottsym{)}  \vdash  \mathit{\overline{product} }}%
 }{
 \ottnt{intrinsic\_funs}  \ottsym{,}  \ottnt{system}  \vdash  \ottsym{(}  \mathit{\overline{layout} } \, \mathit{\overline{namedt} } \, \mathit{\overline{product} }  \ottsym{)}}{%
 {\ottdrulename{wf\_module\_intro}}{}%
