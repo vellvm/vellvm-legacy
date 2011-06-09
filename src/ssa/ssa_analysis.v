@@ -767,10 +767,46 @@ match bs with
 | block_intro l0 _ _ tmn :: bs' => l0::(bound_blocks bs')
 end.
 
-Fixpoint bound_fdef (f: fdef) :  set atom :=
+Definition bound_fdef (f: fdef) : set atom :=
 let '(fdef_intro _ bs) := f in
 bound_blocks bs.
 
+Lemma entry_dom : forall (bs:list block), 
+  {oresult : option (l * Dominators.BoundedSet (bound_blocks bs)) &
+     match oresult with
+     | None => bs = nil
+     | Some (le, Dominators.mkBoundedSet (l1::nil) _) => le = l1
+     | _ => False
+     end
+  }.
+Proof.
+  intros.
+  destruct bs; simpl in *.
+    exists None. auto.
+
+    destruct b.
+    assert (incl [l0] (l0 :: bound_blocks bs)) as J.
+      simpl_env.
+      apply incl_appl; auto using incl_refl.
+    exists (Some (l0, Dominators.mkBoundedSet _ [l0] J)).  
+    simpl. auto.
+Defined.
+
+Definition dom_analyze (f: fdef) : AMap.t (Dominators.t (bound_fdef f)) :=
+  let '(fdef_intro _ bs) := f in
+  let bound := bound_blocks bs in
+  let top := Dominators.top bound in
+  match entry_dom bs with
+  | (existT (Some (le, start)) _) =>
+      match DomDS.fixpoint bound (successors_blocks bs) (transfer bound) 
+        ((le, start) :: nil) with
+      | None => AMap.init top
+      | Some res => res
+      end
+  | (existT None _) => AMap.init top
+  end.
+
+(*
 Program Definition dom_analyze (f: fdef): AMap.t (Dominators.t (bound_fdef f)) :=
   let bound := bound_fdef f in
   let top := Dominators.top bound in
@@ -789,6 +825,7 @@ Next Obligation.
     simpl_env.
     apply incl_appl; auto using incl_refl.
 Qed.
+*)
 
 Definition blockDominates (f: fdef) (b1 b2: block) : Prop :=
 let '(block_intro l1 _ _ _) := b1 in

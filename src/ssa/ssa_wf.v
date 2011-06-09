@@ -271,11 +271,29 @@ Qed.
 
 Lemma set_eq_app : forall x1 x2 y1 y2,
   set_eq atom x1 y1 -> set_eq atom x2 y2 -> set_eq atom (x1++x2) (y1++y2).
-Admitted.
+Proof.  
+  intros x1 x2 y1 y2 [Hinc11 Hinc12] [Hinc21 Hinc22].
+  split.
+    apply incl_app.
+      apply incl_appl; auto.
+      apply incl_appr; auto.
+    apply incl_app.
+      apply incl_appl; auto.
+      apply incl_appr; auto.
+Qed.
 
 Lemma set_eq_swap : forall x1 x2,
   set_eq atom (x1++x2) (x2++x1).
-Admitted.
+Proof.
+  intros x1 x2.
+  split.
+    apply incl_app.
+      apply incl_appr; auto using incl_refl.
+      apply incl_appl; auto using incl_refl.
+    apply incl_app.
+      apply incl_appr; auto using incl_refl.
+      apply incl_appl; auto using incl_refl.
+Qed.
 
 Lemma set_eq_empty_inv2 : forall x, 
   set_eq atom (ListSet.empty_set _) x -> x = ListSet.empty_set _.
@@ -646,13 +664,13 @@ Lemma fold_left__spec : forall ls0 l0 init r f,
   fold_left (inscope_of_block f l0) ls0 (Some init) = Some r ->
     incl init r /\
     (forall l1 b1, 
-      In l1 ls0 -> l1 <> l0 -> 
+      In l1 (ListSet.set_diff eq_atom_dec ls0 [l0]) -> 
       lookupBlockViaIDFromFdef f l1 = Some b1 ->
       incl (getBlockIDs' b1) r) /\
     (forall id1,
       In id1 r ->
       In id1 init \/
-      exists b1, exists l1, l1 <> l0 /\ In l1 ls0 /\
+      exists b1, exists l1, In l1 (ListSet.set_diff eq_atom_dec ls0 [l0]) /\
         lookupBlockViaIDFromFdef f l1 = Some b1 /\
         In id1 (getBlockIDs' b1)
     ).
@@ -664,6 +682,138 @@ Lemma fold_left__incl : forall ls0 f l0 init ls1 r0 r1,
   fold_left (inscope_of_block f l0) ls1 (Some init) = Some r1 ->
   incl r0 r1.
 Admitted.
+
+Lemma incl_set_eq_right : forall y1 y2 x,
+  set_eq atom y1 y2 -> incl x y1 -> incl x y2.
+Proof.
+  intros y1 y2 x [J1 J2] Hincl.
+  eapply incl_tran; eauto.
+Qed.
+
+Lemma successors_terminator__successors_blocks : forall
+  (bs : blocks)
+  (l0 : l)
+  (cs : phinodes)
+  (ps : cmds)
+  (tmn : terminator)
+  (l1 : l)
+  (HuniqF : uniqBlocks bs)
+  (HbInF : InBlocksB (block_intro l0 cs ps tmn) bs)
+  (Hin : In l1 (successors_terminator tmn)),
+  successors_terminator tmn = (successors_blocks bs) !!! l0.
+Proof.
+  intros.
+  induction bs.
+    inversion HbInF.
+  
+    assert (J:=HuniqF).
+    simpl_env in J.
+    apply uniqBlocks_inv in J.
+    destruct J as [J1 J2]. 
+    simpl in *.
+    apply orb_prop in HbInF.
+    destruct a.
+    destruct HbInF as [HbInF | HbInF].
+      unfold blockEqB in HbInF.
+      apply sumbool2bool_true in HbInF. inv HbInF.
+      unfold successors_list.
+      rewrite ATree.gss. auto.
+  
+      apply IHbs in J2; auto.
+      unfold successors_list in *.
+      destruct HuniqF as [J _].
+      inv J.
+      rewrite ATree.gso; auto.
+        clear - HbInF H1. 
+        admit. (* wf *)
+Qed.
+
+Lemma dom_successors : forall
+  (t : typ)
+  (i0 : id)
+  (la : args)
+  (bs : blocks)
+  (l3 : l)
+  (l' : l)
+  ps cs tmn fh
+  (Huniq : uniqBlocks bs)
+  (HBinF : blockInFdefB (block_intro l3 ps cs tmn) (fdef_intro fh bs) = true)
+  (Doms : AMap.t
+           (Dominators.t (bound_fdef (fdef_intro fh bs))))
+  (HeqDoms : Doms = dom_analyze (fdef_intro (fheader_intro t i0 la) bs))
+  (contents3 : ListSet.set atom)
+  (inbound3 : incl contents3 (bound_fdef (fdef_intro fh bs)))
+  (Heqdefs3 : {|
+             DomDS.L.bs_contents := contents3;
+             DomDS.L.bs_bound := inbound3 |} = Doms !! l3)
+  (Hsucc : In l' (successors_terminator tmn))
+  (contents' : ListSet.set atom)
+  (inbound' : incl contents' (bound_fdef (fdef_intro fh bs)))
+  (Heqdefs' : {|
+             DomDS.L.bs_contents := contents';
+             DomDS.L.bs_bound := inbound' |} = Doms !! l'),
+  incl contents' (l3 :: contents3).
+Proof. 
+  intros. simpl in *.
+  unfold dom_analyze in *.
+  remember (entry_dom bs) as R.
+  destruct R as [R Hp].
+  destruct R as [[le start] | ].
+  Case "entry is good".
+    remember (DomDS.fixpoint (bound_blocks bs) (successors_blocks bs)
+                (transfer (bound_blocks bs)) ((le, start) :: nil)) as R1.
+    destruct start.
+    destruct bs_contents; try inv Hp.
+    destruct bs_contents; try inv Hp.
+    destruct R1; subst.
+    SCase "analysis is done".
+      symmetry in HeqR1.
+      assert (In l' (successors_blocks bs) !!! l3) as J1.
+        clear - HBinF Hsucc Huniq.
+        assert (successors_terminator tmn = (successors_blocks bs) !!! l3) as EQ.
+          eapply successors_terminator__successors_blocks; eauto.
+        rewrite <- EQ. auto.
+      
+      apply DomDS.fixpoint_solution with (s:=l')(n:=l3) in HeqR1; eauto.
+      unfold transfer, DomDS.L.ge, DomDS.L.top, DomDS.L.bot, DomDS.L.sub, 
+        DomDS.L.eq, Dominators.add in HeqR1.
+      remember (t0 !! l') as R2.
+      destruct R2.              
+      assert (contents' = bs_contents) as EQ.
+        clear - Heqdefs' HeqR2.
+        admit. (* proof irr *)
+      subst.
+      remember (t0 !! l3) as R3.
+      destruct R3.              
+      assert (contents3 = bs_contents0) as EQ.
+        clear - Heqdefs3 HeqR3.
+        admit. (* proof irr *)
+      subst.
+      clear - Heqdefs3 Heqdefs' HeqR2 HeqR3 HeqR1.
+      destruct HeqR1 as [HeqR1 | [HeqR1 | HeqR1]].
+        destruct HeqR1 as [G1 G2].
+        intros x G.
+        apply G1 in G. inversion G.
+        destruct (in_dec eq_atom_dec l3 (bound_blocks bs)).
+          eapply incl_set_eq_right; eauto using set_eq_sym.
+          apply incl_tran with (m:=bs_contents0).
+            eapply incl_set_eq_right; eauto using set_eq_sym.
+            apply incl_tl; auto using incl_refl.
+          
+        destruct (in_dec eq_atom_dec l3 (bound_blocks bs)); auto.
+          apply incl_tl; auto.
+
+    SCase "analysis fails".
+      subst.
+      unfold Dominators.top in Heqdefs3, Heqdefs'.
+      simpl in Heqdefs3, Heqdefs'.
+      rewrite AMap.gi in Heqdefs3, Heqdefs'.
+      inv Heqdefs3. inv Heqdefs'.
+      clear.
+      intros x J. inversion J.
+  Case "entry is wrong".   
+    subst. inversion HBinF.
+Qed.
 
 Lemma inscope_of_tmn_br_aux : forall F l3 ps cs tmn ids0 l' ps' cs' tmn' l0,
 uniqFdef F ->
@@ -686,15 +836,17 @@ Proof.
   unfold inscope_of_tmn in Hinscope.
   unfold inscope_of_tmn. unfold inscope_of_cmd.
   destruct F as [[? ? la] bs].
-  remember ((dom_analyze (fdef_intro (fheader_intro t i0 la) bs)) !! l3)as defs3.
-  remember ((dom_analyze (fdef_intro (fheader_intro t i0 la) bs)) !! l')as defs'.
+  remember (dom_analyze (fdef_intro (fheader_intro t i0 la) bs)) as Doms.
+  remember (Doms !! l3)as defs3.
+  remember (Doms !! l')as defs'.
   destruct defs3 as [contents3 inbound3]. 
   destruct defs' as [contents' inbound']. 
-  simpl in *.
-  assert (incl contents' contents3) as Hsub.
 
+  assert (incl contents' (l3::contents3)) as Hsub.
+    clear - HBinF Hsucc Heqdefs3 Heqdefs' HeqDoms Huniq.
+    simpl in Huniq.
+    eapply dom_successors; eauto.
 
-    admit. (* by correctness of domination analysis *)
   destruct cs'.
   Case "cs'=nil".
     assert (J1:=inbound').
@@ -723,8 +875,11 @@ Proof.
       apply in_or_app. right.
       apply in_or_app; auto.
     SCase "id1 in strict dominating blocks".
-      destruct J as [b1 [l1 [J7 [J8 [J9 J10]]]]].
-      apply Hsub in J8.
+      destruct J as [b1 [l1 [J8 [J9 J10]]]].
+      assert (In l1 contents') as J8'.
+        clear - J8.
+        apply ListSet.set_diff_elim1 in J8. auto.
+      apply Hsub in J8'.
         destruct (eq_atom_dec l1 l3); subst.
           simpl in J9. 
           assert (b1=block_intro l3 ps cs tmn) as EQ.
@@ -737,7 +892,12 @@ Proof.
           apply in_or_app; auto.
 
           apply J5 in J9; auto.
-          
+            simpl in J8'.
+            destruct J8' as [J8' | J8']; try solve [contradict n; auto].
+            apply ListSet.set_diff_intro; auto.
+              intro J. simpl in J. 
+              destruct J as [J | J]; auto.
+
   Case "cs'<>nil".
     assert (J1:=inbound').
     unfold cmds_dominates_cmd. simpl.
@@ -768,8 +928,11 @@ Proof.
       apply in_or_app. right.
       apply in_or_app; auto.
     SCase "id1 in strict dominating blocks".
-      destruct J as [b1 [l1 [J7 [J8 [J9 J10]]]]].
-      apply Hsub in J8.
+      destruct J as [b1 [l1 [J8 [J9 J10]]]].
+      assert (In l1 contents') as J8'.
+        clear - J8.
+        apply ListSet.set_diff_elim1 in J8. auto.
+      apply Hsub in J8'.
         destruct (eq_atom_dec l1 l3); subst.
           simpl in J9. 
           assert (b1=block_intro l3 ps cs tmn) as EQ.
@@ -782,6 +945,11 @@ Proof.
           apply in_or_app; auto.
 
           apply J5 in J9; auto. 
+            simpl in J8'.
+            destruct J8' as [J8' | J8']; try solve [contradict n; auto].
+            apply ListSet.set_diff_intro; auto.
+              intro J. simpl in J. 
+              destruct J as [J | J]; auto.
 Qed.
 
 Lemma inscope_of_tmn_br_uncond : forall F l3 ps cs bid ids0 l' ps' cs' tmn' l0,
@@ -913,29 +1081,8 @@ Proof.
         clear - HuniqF HbInF Hin.
         assert ((successors_terminator tmn) = (successors_blocks bs) !!! l0) 
           as EQ.
-          induction bs.
-            inversion HbInF.
-  
-            assert (J:=HuniqF).
-            simpl_env in J.
-            apply uniqBlocks_inv in J.
-            destruct J as [J1 J2]. 
-            simpl in *.
-            apply orb_prop in HbInF.
-            destruct a.
-            destruct HbInF as [HbInF | HbInF].
-              unfold blockEqB in HbInF.
-              apply sumbool2bool_true in HbInF. inv HbInF.
-              unfold successors_list.
-              rewrite ATree.gss. auto.
-  
-              apply IHbs in J2; auto.
-              unfold successors_list in *.
-              destruct HuniqF as [J _].
-              inv J.
-              rewrite ATree.gso; auto.
-                clear - HbInF H1. admit.
-          rewrite <- EQ; auto.            
+          eapply successors_terminator__successors_blocks; eauto.
+        rewrite <- EQ; auto.            
     elim J; intro. congruence. auto.
 
   intros. apply AMap.gi.
