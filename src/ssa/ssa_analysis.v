@@ -20,8 +20,113 @@ Require Import Maps.
 Require Import Lattice.
 Require Import Iteration.
 Require Import Kildall.
+Require Import ListSet.
 
 Export LLVMlib.
+
+Module AtomSet.
+
+  Definition set_eq A (l1 l2:list A) := incl l1 l2 /\ incl l2 l1.
+
+  Lemma set_eq_dec : forall (l1 l2:set atom), 
+    {set_eq _ l1 l2} + {~ set_eq _ l1 l2}.
+  Proof.
+  induction l1; intros.
+    destruct l2.
+      left. split; intros a H; eauto.
+      right. intro J. destruct J. 
+        assert (J:=@H0 a). 
+        apply J; simpl; auto. 
+
+    destruct l2.
+      right. intro J. destruct J. 
+        assert (J:=@H a). 
+        apply J; simpl; auto. 
+
+        destruct (@IHl1 l2) as [[J1 J2] | J].
+          destruct (eq_atom_dec a a0); subst.
+            left.        
+            split; intros a H; simpl in *; destruct H as [H | H]; auto.
+      
+            destruct(@in_dec _ eq_atom_dec a l2) as [J3 | J3].     
+              destruct(@in_dec _ eq_atom_dec a0 l1) as [J4 | J4].     
+                left. 
+                split; intros a' H; simpl in *; destruct H as [H | H]; 
+                  subst; auto.
+
+                right.
+                intros [J5 J6].
+                assert (J:=@J6 a0).
+                destruct J; simpl; auto.
+
+              right.
+              intros [J5 J6].
+              assert (J:=@J5 a).
+              destruct J; simpl; auto.
+   (* it is easier to prove uniq lists. *)
+  Admitted.
+
+  Lemma set_eq_refl : forall x, set_eq atom x x.  
+    split; apply incl_refl.
+  Qed.
+
+  Lemma set_eq_sym: forall x y, set_eq atom x y -> set_eq atom y x.
+  Proof.
+    intros x y J.
+    destruct J as [J1 J2]. split; auto.
+  Qed.
+  
+  Lemma set_eq_trans: forall x y z, 
+    set_eq atom x y -> set_eq atom y z -> set_eq atom x z.
+  Proof.
+    intros x y z J1 J2.
+    destruct J1 as [J11 J12].
+    destruct J2 as [J21 J22].
+    split; eapply incl_tran; eauto.
+  Qed.
+
+  Lemma incl_empty_inv : forall x, 
+    incl x (empty_set _) -> x = empty_set atom.
+  Proof.
+    destruct x; intro J; auto.
+      assert (J1:=J a).
+      contradict J1; simpl; auto.
+  Qed.
+
+  Lemma set_eq_empty_inv : forall x, 
+    set_eq atom x (empty_set _) -> x = empty_set _.
+  Proof.
+    destruct x; intro J; auto.
+      destruct J as [J1 J2].
+      assert (J:=J1 a).
+      contradict J; simpl; auto.
+  Qed.
+
+  Lemma incl_set_eq_left : forall x1 x2 y,
+    set_eq atom x1 x2 -> incl x1 y -> incl x2 y.
+  Proof.
+    intros x1 x2 y [J1 J2] Hincl.
+    eapply incl_tran; eauto.
+  Qed.
+
+  Lemma set_eq__incl : forall x1 x2, set_eq atom x1 x2 -> incl x1 x2.
+  Proof.
+    intros x1 x2 J.
+    destruct J; auto.
+  Qed.
+
+  Lemma incl_set_eq_both : forall x1 x2 y1 y2,
+    set_eq atom x1 x2 -> 
+    set_eq atom y1 y2 -> 
+    incl x1 y1 -> incl x2 y2.
+  Proof.
+    intros x1 x2 y1 y2 [J1 J2] [J3 J4] J5.
+    apply incl_tran with (m:=y1); auto.
+    apply incl_tran with (m:=x1); auto.
+  Qed.
+
+
+End AtomSet.
 
 (** * Domination analysis *)
 
@@ -32,13 +137,16 @@ Export LLVMlib.
   the approximations. *)
 
 Module Dominators.
+ 
+  Export AtomSet.
+
   Section VarBoundSec.
 
-  Variable bound:atoms.
+  Variable bound:set atom.
 
   Record BoundedSet := mkBoundedSet {
-    bs_contents : atoms;
-    bs_bound : bs_contents [<=] bound
+    bs_contents : set atom;
+    bs_bound : incl bs_contents bound
   }.
 
   Definition t := BoundedSet.
@@ -46,30 +154,30 @@ Module Dominators.
   Definition eq (x y: t) :=
     let '(mkBoundedSet cx _) := x in
     let '(mkBoundedSet cy _) := y in
-    cx [=] cy.
+    set_eq _ cx cy.
 
   Definition eq_refl: forall x, eq x x. 
   Proof.
     unfold eq. intro x. destruct x.
-    fsetdec.
+    apply set_eq_refl.
   Qed.
 
   Definition eq_sym: forall x y, eq x y -> eq y x.
   Proof.
     unfold eq. intros x y J. destruct x. destruct y.
-    fsetdec.
+    apply set_eq_sym; auto.
   Qed.
-  
+ 
   Definition eq_trans: forall x y z, eq x y -> eq y z -> eq x z.
   Proof.
     unfold eq. intros x y z J1 J2. destruct x. destruct y. destruct z.
-    fsetdec.
+    eapply set_eq_trans; eauto.
   Qed.
 
   Lemma eq_dec: forall (x y: t), {eq x y} + {~ eq x y}.
   Proof.
     unfold eq. destruct x. destruct y.
-    apply AtomSetImpl.eq_dec.
+    apply set_eq_dec.
   Qed.
 
   Definition beq (x y: t) := if eq_dec x y then true else false.
@@ -82,16 +190,16 @@ Module Dominators.
   Definition sub (x y: t) :=
     let '(mkBoundedSet cx _) := x in
     let '(mkBoundedSet cy _) := y in
-    cx [<=] cy.
+    incl cx cy.
 
-  Program Definition top : t := mkBoundedSet {} _.
+  Program Definition top : t := mkBoundedSet (empty_set atom) _.
   Next Obligation.
-    fsetdec.
+    intros a H. inversion H.
   Qed.
 
   Program Definition bot : t := mkBoundedSet bound _.
   Next Obligation.
-    fsetdec.
+    apply incl_refl.
   Qed.
 
   Definition ge (x y: t) : Prop := eq x top \/ eq y bot \/ sub x y.
@@ -99,66 +207,98 @@ Module Dominators.
   Lemma ge_refl: forall x y, eq x y -> ge x y.
   Proof.
     unfold ge, eq, sub. destruct x, y. simpl.
-    intro J. right. right. fsetdec.
+    intro J. right. right. destruct J; auto.
   Qed.
+
   Lemma ge_trans: forall x y z, ge x y -> ge y z -> ge x z.
   Proof.
     unfold ge, eq, sub. destruct x, y, z. simpl.
     intros J1 J2.
     destruct J1 as [J11 | [J12 | J13]]; try auto.
       destruct J2 as [J21 | [J22 | J23]]; try auto.
-        assert (bound [=] empty) as EQ by fsetdec.
-        left. fsetdec.
-        right. left. fsetdec.
+        assert (set_eq _ bound (empty_set atom)) as EQ.
+          eapply set_eq_trans with (y:=bs_contents1); eauto using set_eq_sym.
+        left. 
+        apply set_eq_empty_inv in EQ; subst.
+        apply incl_empty_inv in bs_bound0; subst.
+        apply set_eq_refl.
+
+        right. left. 
+        eapply incl_set_eq_left in J23; eauto.
+        split; auto.
+
       destruct J2 as [J21 | [J22 | J23]]; try auto.
-        left. fsetdec.
-        right. right. fsetdec.
+        left. 
+        apply set_eq_empty_inv in J21; subst.
+        apply incl_empty_inv in J13; subst.
+        apply set_eq_refl.
+
+        right. right. eapply incl_tran; eauto.
   Qed.
+
   Lemma ge_compat: forall x x' y y', eq x x' -> eq y y' -> ge x y -> ge x' y'.
   Proof.
     unfold ge, eq, sub. destruct x, x', y, y'. simpl in *. 
     intros J1 J2 J3.
     destruct J3 as [J31 | [J32 | J33]].
-      left. fsetdec.
-      right. left. fsetdec.
-      right. right. fsetdec.
+      left. eapply set_eq_trans with (y:=bs_contents0); eauto using set_eq_sym.
+      right. left. 
+        eapply set_eq_trans with (y:=bs_contents2); eauto using set_eq_sym.
+      right. right. eapply incl_set_eq_both; eauto. 
   Qed.
+
   Lemma ge_bot: forall x, ge x bot.
   Proof.
-    unfold ge, eq, sub. destruct x. simpl. right. left. fsetdec.
+    unfold ge, eq, sub. destruct x. simpl. right. left. apply set_eq_refl.
   Qed.
+
   Lemma ge_top: forall x, ge top x.
   Proof.
-    unfold ge, eq, sub. destruct x. simpl. left. fsetdec.
+    unfold ge, eq, sub. destruct x. simpl. left. apply set_eq_refl.
   Qed.
+
   Program Definition lub (x y: t) : t :=
     let '(mkBoundedSet cx _) := x in
     let '(mkBoundedSet cy _) := y in
-    mkBoundedSet (AtomSetImpl.inter cx cy) _.
+    mkBoundedSet (set_inter eq_atom_dec cx cy) _.
   Next Obligation.
-    fsetdec.
+    intros a J.
+    apply set_inter_elim in J.
+    destruct J as [J1 J2].
+    eauto.
   Qed.
+
   Lemma lub_commut: forall x y, eq (lub x y) (lub y x).
   Proof.
-    unfold lub, eq. destruct x, y. fsetdec.
+    unfold lub, eq. destruct x, y. 
+    split.
+      intros a J.
+      apply set_inter_elim in J. destruct J.
+      apply set_inter_intro; auto.
+
+      intros a J.
+      apply set_inter_elim in J. destruct J.
+      apply set_inter_intro; auto.
   Qed.
+
   Lemma ge_lub_left: forall x y, ge (lub x y) x.
   Proof.
     unfold lub, ge, sub, eq. destruct x, y. simpl.
-    right. right. fsetdec.
+    right. right.
+    intros a J.
+    apply set_inter_elim in J. destruct J. auto.
   Qed.
 
   Program Definition add (x:t) (a:atom) : t := 
     let '(mkBoundedSet cx _) := x in
-    if (AtomSetProperties.In_dec a bound) then
-      mkBoundedSet (AtomSetImpl.add a cx) _
+    if (In_dec eq_atom_dec a bound) then
+      mkBoundedSet (a::cx) _
     else
       x.
   Next Obligation.
-    assert ({{a}} [<=] bound) as J. 
-      clear - H.
-      admit. (* fsetdec? *)
-    fsetdec.
+    intros a' J.
+    simpl in J.
+    destruct J; subst; eauto.
   Qed.
 
   End VarBoundSec. 
@@ -170,7 +310,7 @@ Module L := Dominators.
 
 Section Kildall.
 
-Variable bound : atoms.
+Variable bound : set atom.
 Definition dt := L.t bound.
 Variable successors: ATree.t (list atom).
 Variable transf: atom -> dt -> dt.
@@ -233,7 +373,7 @@ Definition propagate_succ (s: state) (out: dt) (n: atom) :=
 (** [propagate_succ_list] corresponds, in the pseudocode,
   to the [for] loop iterating over all successors. *)
 
-Fixpoint propagate_succ_list (s: state) (out: dt) (succs: list atom)
+Fixpoint propagate_succ_list (s: state) (out: dt) (succs: set atom)
                              {struct succs} : state :=
   match succs with
   | nil => s
@@ -610,7 +750,7 @@ Fixpoint successors (f: fdef) : ATree.t ls :=
 let '(fdef_intro _ bs) := f in
 successors_blocks bs.
 
-Definition transfer (bound: atoms) (lbl: l) (before: Dominators.t bound) :=
+Definition transfer (bound: set atom) (lbl: l) (before: Dominators.t bound) :=
   Dominators.add _ before lbl.
 
 (** The static analysis itself is then an instantiation of Kildall's
@@ -621,13 +761,13 @@ Definition transfer (bound: atoms) (lbl: l) (before: Dominators.t bound) :=
 
 Module DomDS := Dataflow_Solver_Var_Top(AtomNodeSet).
 
-Fixpoint bound_blocks (bs: blocks) :  atoms :=
+Fixpoint bound_blocks (bs: blocks) : set atom :=
 match bs with
-| nil => {}
-| block_intro l0 _ _ tmn :: bs' => {{l0}} `union` (bound_blocks bs')
+| nil => empty_set _
+| block_intro l0 _ _ tmn :: bs' => l0::(bound_blocks bs')
 end.
 
-Fixpoint bound_fdef (f: fdef) :  atoms :=
+Fixpoint bound_fdef (f: fdef) :  set atom :=
 let '(fdef_intro _ bs) := f in
 bound_blocks bs.
 
@@ -637,7 +777,7 @@ Program Definition dom_analyze (f: fdef): AMap.t (Dominators.t (bound_fdef f)) :
   match getEntryBlock f with
   | Some (block_intro le _ _ _) =>
       match DomDS.fixpoint bound (successors f) (transfer bound) 
-        ((le, Dominators.mkBoundedSet _ {{le}} _) :: nil) with
+        ((le, Dominators.mkBoundedSet _ [le] _) :: nil) with
       | None => AMap.init top
       | Some res => res
       end
@@ -646,7 +786,8 @@ Program Definition dom_analyze (f: fdef): AMap.t (Dominators.t (bound_fdef f)) :
 Next Obligation.
   destruct f. 
   destruct b; simpl in *; inv Heq_anonymous. 
-    fsetdec.
+    simpl_env.
+    apply incl_appl; auto using incl_refl.
 Qed.
 
 Definition blockDominates (f: fdef) (b1 b2: block) : Prop :=
@@ -654,14 +795,14 @@ let '(block_intro l1 _ _ _) := b1 in
 let '(block_intro l2 _ _ _) := b2 in
 let 'dt := dom_analyze f in
 let '(Dominators.mkBoundedSet els _) := AMap.get l2 dt in
-AtomSetProperties.In_dec l1 els.
+In_dec eq_atom_dec l1 els.
 
 Definition blockDominatesB (f: fdef) (b1 b2: block) : Prop :=
 let '(block_intro l1 _ _ _) := b1 in
 let '(block_intro l2 _ _ _) := b2 in
 let 'dt := dom_analyze f in
 let '(Dominators.mkBoundedSet els _) := AMap.get l2 dt in
-if AtomSetProperties.In_dec l1 els then true else false.
+if In_dec eq_atom_dec l1 els then true else false.
 
 Definition insnDominates (i1 i2:insn) (b:block) : Prop :=
 match b with 
