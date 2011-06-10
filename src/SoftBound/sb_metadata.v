@@ -209,14 +209,14 @@ Proof.
   destruct v1; inv H0.
   destruct g; inv H1.
   unfold mgep in *.
-  remember (mgetoffset TD (typ_array 0%nat t2) (INTEGER.to_Z 1 :: nil)) as R.
+  remember (mgetoffset TD (typ_array 0%nat t) (INTEGER.to_Z 1 :: nil)) as R.
   destruct R; inv HeqR4.
   unfold mgetoffset in HeqR.
   destruct TD.
-  remember (typ2utyp n (typ_array 0%nat t2)) as R1.
+  remember (typ2utyp n (typ_array 0%nat t)) as R1.
   destruct R1; inv HeqR.
-  destruct t; inv H0.
-    remember (getTypeAllocSize (l0, n) t) as R2.
+  destruct t0; inv H0.
+    remember (getTypeAllocSize (l0, n) t0) as R2.
     destruct R2; inv H1.
     unfold wf_data.
     unfold GV2ptr.

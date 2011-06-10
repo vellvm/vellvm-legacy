@@ -45,10 +45,10 @@ Fixpoint get_const_metadata (c:const) : option (const*const*typ) :=
 match c with
 | const_gid t gid => 
     match t with
-    | typ_function _ _ _ => Some (c, c, t)
+    | typ_function _ _ _ => Some (c, c, (typ_pointer t))
     | _ => Some (c, const_gep false c 
              (Cons_list_const (const_int Size.ThirtyTwo 
-               (INTEGER.of_Z 32%Z 1%Z false)) Nil_list_const), t)
+               (INTEGER.of_Z 32%Z 1%Z false)) Nil_list_const), (typ_pointer t))
     end
 | const_gep _ pc _ => get_const_metadata pc
 | _ => None

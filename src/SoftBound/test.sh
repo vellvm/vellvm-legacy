@@ -17,50 +17,57 @@ OC_DIR=../Parser/tvcases/olden-ccured/
 OC_CASES="bisort em3d health mst treeadd"
 S95_DIR=../Parser/tvcases/spec95-ccured/
 # 099.go 130.li 132.ijpeg has 'switch'
-S95_CASES="129.compress/src"
+S95_CASES="129.compress"
 
 for name in $ML_CASES; do 
-  rm -rf ./test
   echo -e $name": \c" ; 
   llvm-as -f $ML_DIR$name"/test-linked.ll" -o input.bc
   $SB input.bc >& output.ll
   llvm-as -f output.ll
-  llvm-link output.bc softbound.bc softbound-wrappers.bc > test-softbound.bc
-  llvm-ld -native -lm -lcrypt test-softbound.bc -o test
-  ./test 50
-  ./test 55
+  opt -f output.bc -o opt.bc
+  llvm-link opt.bc softbound.bc softbound-wrappers.bc > test-softbound.bc
+  llvm-ld -native -lm -lcrypt test-softbound.bc -o test.exe
+  ./test.exe 50
+  ./test.exe 55
 done;
 for name in $MC_CASES; do 
-  rm -rf ./test
   echo -e $name": \c" ; 
   llvm-as -f $MC_DIR$name"/test-linked.ll" -o input.bc
   $SB input.bc >& output.ll
   llvm-as -f output.ll
-  llvm-link output.bc softbound.bc softbound-wrappers.bc > test-softbound.bc
-  llvm-ld -native -lm -lcrypt test-softbound.bc -o test
-  ./test 50
-  ./test 55
+  opt -f output.bc -o opt.bc
+  llvm-link opt.bc softbound.bc softbound-wrappers.bc > test-softbound.bc
+  llvm-ld -native -lm -lcrypt test-softbound.bc -o test.exe
+  ./test.exe 50
+  ./test.exe 55
 done;
 for name in $OC_CASES; do 
-  rm -rf ./test
   echo -e $name": \c" ; 
-  llvm-as -f $OC_DIR$name"/test-linked.ll" -o input.bc 
-  $SB input.bc >& output.ll
-  llvm-as -f output.ll
-  llvm-link output.bc softbound.bc softbound-wrappers.bc > test-softbound.bc
-  llvm-ld -native -lm -lcrypt test-softbound.bc -o test
-  ./test
+  llvm-as -f $OC_DIR$name"/test-linked.ll" -o $name"i.bc" 
+  $SB $name"i.bc" >& $name"o.ll"
+  llvm-as -f $name"o.ll"
+  opt -f  $name"o.bc" -o $name"opt.bc"
+  llvm-link $name"opt.bc" softbound.bc softbound-wrappers.bc > test-softbound.bc
+  llvm-ld -native -lm -lcrypt test-softbound.bc -o $name".exe"
 done;
+echo -e "bisort: \c"; time ./bisort.exe 5000000 0;
+echo -e "em3d: \c"; time ./em3d.exe 30000 300 50;
+echo -e "health: \c"; time ./health.exe 8 250 1;
+echo -e "mst: \c"; time ./mst.exe 4000;
+echo -e "treeadd: \c"; time ./treeadd.exe 24 10;
 for name in $S95_CASES; do 
-  rm -rf ./test
   echo -e $name": \c" ; 
-  llvm-as -f $S95_DIR$name"/test-linked.ll" -o input.bc 
-  $SB input.bc >& output.ll
-  llvm-as -f output.ll
-  llvm-link output.bc softbound.bc softbound-wrappers.bc > test-softbound.bc
-  llvm-ld -native -lm -lcrypt test-softbound.bc -o test
-  ./test
-done
+  llvm-as -f $S95_DIR$name"/src/test-linked.ll" -o $name"i.bc" 
+  $SB $name"i.bc" >& $name"o.ll"
+  llvm-as -f $name"o.ll"
+  opt -f $name"o.bc" -o $name"opt.bc"
+  llvm-link $name"opt.bc" softbound.bc softbound-wrappers.bc > test-softbound.bc
+  llvm-ld -native -lm -lcrypt test-softbound.bc -o $name".exe"
+  ./$name".exe"
+done;
+rm -f input.* output.* opt.* *.exe *.exe.bc bisort* em3d* health* mst* \
+  treeadd* 129.compress*
+
 
 
 
