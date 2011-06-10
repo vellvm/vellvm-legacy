@@ -1,5 +1,6 @@
 #!/bin/bash
 
+BC_DIR=../Parser/tvcases/
 SB=../_build/SoftBound/main.d.byte
 ML_DIR=../Parser/tvcases/milli/
 ML_CASES="addrof all bug1 bug2 cint2ptr fptr fptr2 fptr3 fptrret free funcargs 
@@ -25,7 +26,7 @@ for name in $ML_CASES; do
   $SB input.bc >& output.ll
   llvm-as -f output.ll
   opt -f output.bc -o opt.bc
-  llvm-link opt.bc softbound.bc softbound-wrappers.bc > test-softbound.bc
+  llvm-link opt.bc $BC_DIR"/softbound.bc" $BC_DIR"/softbound-wrappers.bc" > test-softbound.bc
   llvm-ld -native -lm -lcrypt test-softbound.bc -o test.exe
   ./test.exe 50
   ./test.exe 55
@@ -36,7 +37,7 @@ for name in $MC_CASES; do
   $SB input.bc >& output.ll
   llvm-as -f output.ll
   opt -f output.bc -o opt.bc
-  llvm-link opt.bc softbound.bc softbound-wrappers.bc > test-softbound.bc
+  llvm-link opt.bc $BC_DIR"/softbound.bc" $BC_DIR"/softbound-wrappers.bc" > test-softbound.bc
   llvm-ld -native -lm -lcrypt test-softbound.bc -o test.exe
   ./test.exe 50
   ./test.exe 55
@@ -47,7 +48,7 @@ for name in $OC_CASES; do
   $SB $name"i.bc" >& $name"o.ll"
   llvm-as -f $name"o.ll"
   opt -f  $name"o.bc" -o $name"opt.bc"
-  llvm-link $name"opt.bc" softbound.bc softbound-wrappers.bc > test-softbound.bc
+  llvm-link $name"opt.bc" $BC_DIR"/softbound.bc" $BC_DIR"/softbound-wrappers.bc" > test-softbound.bc
   llvm-ld -native -lm -lcrypt test-softbound.bc -o $name".exe"
 done;
 echo -e "bisort: \c"; time ./bisort.exe 5000000 0;
@@ -61,12 +62,12 @@ for name in $S95_CASES; do
   $SB $name"i.bc" >& $name"o.ll"
   llvm-as -f $name"o.ll"
   opt -f $name"o.bc" -o $name"opt.bc"
-  llvm-link $name"opt.bc" softbound.bc softbound-wrappers.bc > test-softbound.bc
+  llvm-link $name"opt.bc" $BC_DIR"/softbound.bc" $BC_DIR"/softbound-wrappers.bc" > test-softbound.bc
   llvm-ld -native -lm -lcrypt test-softbound.bc -o $name".exe"
   ./$name".exe"
 done;
 rm -f input.* output.* opt.* *.exe *.exe.bc bisort* em3d* health* mst* \
-  treeadd* 129.compress*
+  treeadd* 129.compress* test-softbound.bc
 
 
 
