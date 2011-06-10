@@ -442,7 +442,7 @@ Case "dbop_cons".
   eapply H0; eauto.
 
 Case "dbFdef_func".
-  exists (fdef_intro (fheader_intro rt fid la) lb).
+  exists (fdef_intro (fheader_intro rt fid la va) lb).
   split; auto.
   split; auto.
     eapply lookupFdefViaGV_uniq; eauto.
@@ -452,7 +452,7 @@ Case "dbFdef_func".
       
 
 Case "dbFdef_proc".
-  exists (fdef_intro (fheader_intro rt fid la) lb).
+  exists (fdef_intro (fheader_intro rt fid la va) lb).
   split; auto.
   split; auto.
     eapply lookupFdefViaGV_uniq; eauto.

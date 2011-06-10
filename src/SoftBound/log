@@ -3,223 +3,134 @@ SoftBound: Bounds violation detected
 
 Backtrace:
 ./test[0x8048911]
-/lib/libc.so.6(__libc_start_main+0xfe)[0xb7590ace]
+/lib/libc.so.6(__libc_start_main+0xfe)[0xb7622ace]
 
 
-test.sh: line 22: 12800 Aborted                 ./test 50
+test.sh: line 22: 28516 Aborted                 ./test 50
 
 SoftBound: Bounds violation detected
 
 Backtrace:
 ./test[0x8048911]
-/lib/libc.so.6(__libc_start_main+0xfe)[0xb7531ace]
+/lib/libc.so.6(__libc_start_main+0xfe)[0xb76f8ace]
 
 
-test.sh: line 22: 12801 Aborted                 ./test 55
+test.sh: line 22: 28517 Aborted                 ./test 55
 all: 
 SoftBound: Bounds violation detected
 
 Backtrace:
 ./test[0x8048951]
-/lib/libc.so.6(__libc_start_main+0xfe)[0xb753face]
+/lib/libc.so.6(__libc_start_main+0xfe)[0xb7653ace]
 
 
-test.sh: line 22: 12813 Aborted                 ./test 50
+test.sh: line 22: 28529 Aborted                 ./test 50
 
 SoftBound: Bounds violation detected
 
 Backtrace:
 ./test[0x8048951]
-/lib/libc.so.6(__libc_start_main+0xfe)[0xb76f8ace]
+/lib/libc.so.6(__libc_start_main+0xfe)[0xb7636ace]
 
 
-test.sh: line 22: 12814 Aborted                 ./test 55
+test.sh: line 22: 28530 Aborted                 ./test 55
 bug1: 
 SoftBound: Bounds violation detected
 
 Backtrace:
 ./test[0x8048911]
-/lib/libc.so.6(__libc_start_main+0xfe)[0xb76b2ace]
+/lib/libc.so.6(__libc_start_main+0xfe)[0xb7718ace]
 
 
-test.sh: line 22: 12838 Aborted                 ./test 50
+test.sh: line 22: 28542 Aborted                 ./test 50
 134516041
-bug2: test.sh: line 22: 12851 Segmentation fault      ./test 50
-test.sh: line 22: 12853 Segmentation fault      ./test 55
+bug2: test.sh: line 22: 28555 Segmentation fault      ./test 50
+test.sh: line 22: 28556 Segmentation fault      ./test 55
 cint2ptr: 
 SoftBound: Bounds violation detected
 
 Backtrace:
 ./test[0x8048951]
-/lib/libc.so.6(__libc_start_main+0xfe)[0xb76a9ace]
+/lib/libc.so.6(__libc_start_main+0xfe)[0xb76abace]
 
 
-test.sh: line 22: 12865 Aborted                 ./test 50
+test.sh: line 22: 28580 Aborted                 ./test 50
 
 SoftBound: Bounds violation detected
 
 Backtrace:
 ./test[0x8048951]
-/lib/libc.so.6(__libc_start_main+0xfe)[0xb7601ace]
+/lib/libc.so.6(__libc_start_main+0xfe)[0xb7629ace]
 
 
-test.sh: line 22: 12866 Aborted                 ./test 55
+test.sh: line 22: 28581 Aborted                 ./test 55
 fptr: Hash table full
 
 SoftBound: Bounds violation detected
 
 Backtrace:
 ./test[0x80488a1]
-/lib/libc.so.6(__libc_start_main+0xfe)[0xb75deace]
+/lib/libc.so.6(__libc_start_main+0xfe)[0xb7710ace]
 
 
-test.sh: line 22: 12878 Aborted                 ./test 50
+test.sh: line 22: 28593 Aborted                 ./test 50
 Hash table full
 
 SoftBound: Bounds violation detected
 
 Backtrace:
 ./test[0x80488a1]
-/lib/libc.so.6(__libc_start_main+0xfe)[0xb7542ace]
+/lib/libc.so.6(__libc_start_main+0xfe)[0xb75c0ace]
 
 
-test.sh: line 22: 12879 Aborted                 ./test 55
+test.sh: line 22: 28594 Aborted                 ./test 55
 fptr2: 0000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000fptr3: 
 SoftBound: Bounds violation detected
 
 Backtrace:
 ./test[0x8048981]
-/lib/libc.so.6(__libc_start_main+0xfe)[0xb7521ace]
+/lib/libc.so.6(__libc_start_main+0xfe)[0xb7646ace]
 
 
-test.sh: line 22: 12904 Aborted                 ./test 50
+test.sh: line 22: 28619 Aborted                 ./test 50
 
 SoftBound: Bounds violation detected
 
 Backtrace:
 ./test[0x8048981]
-/lib/libc.so.6(__libc_start_main+0xfe)[0xb7706ace]
+/lib/libc.so.6(__libc_start_main+0xfe)[0xb767eace]
 
 
-test.sh: line 22: 12905 Aborted                 ./test 55
-fptrret: free: test.sh: line 22: 12930 Segmentation fault      ./test 50
-test.sh: line 22: 12931 Segmentation fault      ./test 55
+test.sh: line 22: 28620 Aborted                 ./test 55
+fptrret: free: test.sh: line 22: 28645 Segmentation fault      ./test 50
+test.sh: line 22: 28646 Segmentation fault      ./test 55
 funcargs: 
 SoftBound: Bounds violation detected
 
 Backtrace:
 ./test[0x8048911]
-/lib/libc.so.6(__libc_start_main+0xfe)[0xb76d9ace]
+/lib/libc.so.6(__libc_start_main+0xfe)[0xb76b8ace]
 
 
-test.sh: line 22: 12943 Aborted                 ./test 50
+test.sh: line 22: 28658 Aborted                 ./test 50
 
 SoftBound: Bounds violation detected
 
 Backtrace:
 ./test[0x8048911]
-/lib/libc.so.6(__libc_start_main+0xfe)[0xb75deace]
+/lib/libc.so.6(__libc_start_main+0xfe)[0xb75f5ace]
 
 
-test.sh: line 22: 12944 Aborted                 ./test 55
+test.sh: line 22: 28659 Aborted                 ./test 55
 funcargs2: 
 SoftBound: Bounds violation detected
 
 Backtrace:
 ./test[0x8048911]
-/lib/libc.so.6(__libc_start_main+0xfe)[0xb76d7ace]
+/lib/libc.so.6(__libc_start_main+0xfe)[0xb7646ace]
 
 
-test.sh: line 22: 12956 Aborted                 ./test 50
-
-SoftBound: Bounds violation detected
-
-Backtrace:
-./test[0x8048911]
-/lib/libc.so.6(__libc_start_main+0xfe)[0xb76c1ace]
-
-
-test.sh: line 22: 12957 Aborted                 ./test 55
-funcargsm: 
-SoftBound: Bounds violation detected
-
-Backtrace:
-./test[0x8048911]
-/lib/libc.so.6(__libc_start_main+0xfe)[0xb76d4ace]
-
-
-test.sh: line 22: 12969 Aborted                 ./test 50
-
-SoftBound: Bounds violation detected
-
-Backtrace:
-./test[0x8048911]
-/lib/libc.so.6(__libc_start_main+0xfe)[0xb754aace]
-
-
-test.sh: line 22: 12970 Aborted                 ./test 55
-funcargsret: 
-SoftBound: Bounds violation detected
-
-Backtrace:
-./test[0x8048a71]
-
-
-test.sh: line 22: 12982 Aborted                 ./test 50
-
-SoftBound: Bounds violation detected
-
-Backtrace:
-./test[0x8048a71]
-[0x0]
-
-
-test.sh: line 22: 12983 Aborted                 ./test 55
-funcret: 
-SoftBound: Bounds violation detected
-
-Backtrace:
-./test[0x8048951]
-/lib/libc.so.6(__libc_start_main+0xfe)[0xb7651ace]
-
-
-test.sh: line 22: 12995 Aborted                 ./test 50
-
-SoftBound: Bounds violation detected
-
-Backtrace:
-./test[0x8048951]
-/lib/libc.so.6(__libc_start_main+0xfe)[0xb7694ace]
-
-
-test.sh: line 22: 12996 Aborted                 ./test 55
-funcret2: funcret3: globals: 
-SoftBound: Bounds violation detected
-
-Backtrace:
-./test[0x8048911]
-/lib/libc.so.6(__libc_start_main+0xfe)[0xb756bace]
-
-
-test.sh: line 22: 13034 Aborted                 ./test 50
-
-SoftBound: Bounds violation detected
-
-Backtrace:
-./test[0x8048911]
-/lib/libc.so.6(__libc_start_main+0xfe)[0xb762dace]
-
-
-test.sh: line 22: 13035 Aborted                 ./test 55
-int2ptr: 
-SoftBound: Bounds violation detected
-
-Backtrace:
-./test[0x8048911]
-/lib/libc.so.6(__libc_start_main+0xfe)[0xb752bace]
-
-
-test.sh: line 22: 13047 Aborted                 ./test 50
+test.sh: line 22: 28671 Aborted                 ./test 50
 
 SoftBound: Bounds violation detected
 
@@ -228,8 +139,115 @@ Backtrace:
 /lib/libc.so.6(__libc_start_main+0xfe)[0xb76d6ace]
 
 
-test.sh: line 22: 13048 Aborted                 ./test 55
+test.sh: line 22: 28672 Aborted                 ./test 55
+funcargsm: 
+SoftBound: Bounds violation detected
+
+Backtrace:
+./test[0x8048911]
+/lib/libc.so.6(__libc_start_main+0xfe)[0xb75bdace]
+
+
+test.sh: line 22: 28684 Aborted                 ./test 50
+
+SoftBound: Bounds violation detected
+
+Backtrace:
+./test[0x8048911]
+/lib/libc.so.6(__libc_start_main+0xfe)[0xb76ceace]
+
+
+test.sh: line 22: 28685 Aborted                 ./test 55
+funcargsret: 
+SoftBound: Bounds violation detected
+
+Backtrace:
+./test[0x8048a71]
+
+
+test.sh: line 22: 28697 Aborted                 ./test 50
+
+SoftBound: Bounds violation detected
+
+Backtrace:
+./test[0x8048a71]
+[0x0]
+
+
+test.sh: line 22: 28698 Aborted                 ./test 55
+funcret: 
+SoftBound: Bounds violation detected
+
+Backtrace:
+./test[0x8048951]
+/lib/libc.so.6(__libc_start_main+0xfe)[0xb75eaace]
+
+
+test.sh: line 22: 28710 Aborted                 ./test 50
+
+SoftBound: Bounds violation detected
+
+Backtrace:
+./test[0x8048951]
+/lib/libc.so.6(__libc_start_main+0xfe)[0xb7569ace]
+
+
+test.sh: line 22: 28711 Aborted                 ./test 55
+funcret2: funcret3: globals: 
+SoftBound: Bounds violation detected
+
+Backtrace:
+./test[0x8048911]
+/lib/libc.so.6(__libc_start_main+0xfe)[0xb768aace]
+
+
+test.sh: line 22: 28749 Aborted                 ./test 50
+
+SoftBound: Bounds violation detected
+
+Backtrace:
+./test[0x8048911]
+/lib/libc.so.6(__libc_start_main+0xfe)[0xb7599ace]
+
+
+test.sh: line 22: 28750 Aborted                 ./test 55
+int2ptr: 
+SoftBound: Bounds violation detected
+
+Backtrace:
+./test[0x8048911]
+/lib/libc.so.6(__libc_start_main+0xfe)[0xb7693ace]
+
+
+test.sh: line 22: 28762 Aborted                 ./test 50
+
+SoftBound: Bounds violation detected
+
+Backtrace:
+./test[0x8048911]
+/lib/libc.so.6(__libc_start_main+0xfe)[0xb75ddace]
+
+
+test.sh: line 22: 28763 Aborted                 ./test 55
 loadm: 
+SoftBound: Bounds violation detected
+
+Backtrace:
+./test[0x8048951]
+/lib/libc.so.6(__libc_start_main+0xfe)[0xb770dace]
+
+
+test.sh: line 22: 28775 Aborted                 ./test 50
+
+SoftBound: Bounds violation detected
+
+Backtrace:
+./test[0x8048951]
+/lib/libc.so.6(__libc_start_main+0xfe)[0xb75f6ace]
+
+
+test.sh: line 22: 28776 Aborted                 ./test 55
+loadm2: 
 SoftBound: Bounds violation detected
 
 Backtrace:
@@ -237,7 +255,127 @@ Backtrace:
 /lib/libc.so.6(__libc_start_main+0xfe)[0xb7543ace]
 
 
-test.sh: line 22: 13060 Aborted                 ./test 50
+test.sh: line 22: 28788 Aborted                 ./test 50
+
+SoftBound: Bounds violation detected
+
+Backtrace:
+./test[0x8048951]
+/lib/libc.so.6(__libc_start_main+0xfe)[0xb76ecace]
+
+
+test.sh: line 22: 28789 Aborted                 ./test 55
+loadr: 0
+
+SoftBound: Bounds violation detected
+
+Backtrace:
+./test[0x8048951]
+/lib/libc.so.6(__libc_start_main+0xfe)[0xb7592ace]
+
+
+test.sh: line 22: 28802 Aborted                 ./test 55
+locals: 
+SoftBound: Bounds violation detected
+
+Backtrace:
+./test[0x8048911]
+/lib/libc.so.6(__libc_start_main+0xfe)[0xb770bace]
+
+
+test.sh: line 22: 28814 Aborted                 ./test 50
+
+SoftBound: Bounds violation detected
+
+Backtrace:
+./test[0x8048911]
+/lib/libc.so.6(__libc_start_main+0xfe)[0xb7529ace]
+
+
+test.sh: line 22: 28815 Aborted                 ./test 55
+multimalloc: 2a
+2a
+postalloc: 
+SoftBound: Bounds violation detected
+
+Backtrace:
+./test[0x8048951]
+/lib/libc.so.6(__libc_start_main+0xfe)[0xb76c4ace]
+
+
+test.sh: line 22: 28840 Aborted                 ./test 50
+
+SoftBound: Bounds violation detected
+
+Backtrace:
+./test[0x8048951]
+/lib/libc.so.6(__libc_start_main+0xfe)[0xb7711ace]
+
+
+test.sh: line 22: 28841 Aborted                 ./test 55
+ptr2int: 
+SoftBound: Bounds violation detected
+
+Backtrace:
+./test[0x8048951]
+/lib/libc.so.6(__libc_start_main+0xfe)[0xb7609ace]
+
+
+test.sh: line 22: 28853 Aborted                 ./test 50
+
+SoftBound: Bounds violation detected
+
+Backtrace:
+./test[0x8048951]
+/lib/libc.so.6(__libc_start_main+0xfe)[0xb7566ace]
+
+
+test.sh: line 22: 28854 Aborted                 ./test 55
+samechk: 
+SoftBound: Bounds violation detected
+
+Backtrace:
+./test[0x8048911]
+/lib/libc.so.6(__libc_start_main+0xfe)[0xb770cace]
+
+
+test.sh: line 22: 28866 Aborted                 ./test 50
+
+SoftBound: Bounds violation detected
+
+Backtrace:
+./test[0x8048911]
+/lib/libc.so.6(__libc_start_main+0xfe)[0xb7547ace]
+
+
+test.sh: line 22: 28867 Aborted                 ./test 55
+select: 
+SoftBound: Bounds violation detected
+
+Backtrace:
+./test[0x8048911]
+/lib/libc.so.6(__libc_start_main+0xfe)[0xb765bace]
+
+
+test.sh: line 22: 28879 Aborted                 ./test 50
+
+SoftBound: Bounds violation detected
+
+Backtrace:
+./test[0x8048911]
+/lib/libc.so.6(__libc_start_main+0xfe)[0xb7661ace]
+
+
+test.sh: line 22: 28880 Aborted                 ./test 55
+simple: 
+SoftBound: Bounds violation detected
+
+Backtrace:
+./test[0x8048951]
+/lib/libc.so.6(__libc_start_main+0xfe)[0xb7667ace]
+
+
+test.sh: line 22: 28892 Aborted                 ./test 50
 
 SoftBound: Bounds violation detected
 
@@ -246,145 +384,7 @@ Backtrace:
 /lib/libc.so.6(__libc_start_main+0xfe)[0xb7624ace]
 
 
-test.sh: line 22: 13061 Aborted                 ./test 55
-loadm2: 
-SoftBound: Bounds violation detected
-
-Backtrace:
-./test[0x8048951]
-/lib/libc.so.6(__libc_start_main+0xfe)[0xb7622ace]
-
-
-test.sh: line 22: 13073 Aborted                 ./test 50
-
-SoftBound: Bounds violation detected
-
-Backtrace:
-./test[0x8048951]
-/lib/libc.so.6(__libc_start_main+0xfe)[0xb75d6ace]
-
-
-test.sh: line 22: 13074 Aborted                 ./test 55
-loadr: 0
-
-SoftBound: Bounds violation detected
-
-Backtrace:
-./test[0x8048951]
-/lib/libc.so.6(__libc_start_main+0xfe)[0xb7557ace]
-
-
-test.sh: line 22: 13087 Aborted                 ./test 55
-locals: 
-SoftBound: Bounds violation detected
-
-Backtrace:
-./test[0x8048911]
-/lib/libc.so.6(__libc_start_main+0xfe)[0xb7621ace]
-
-
-test.sh: line 22: 13099 Aborted                 ./test 50
-
-SoftBound: Bounds violation detected
-
-Backtrace:
-./test[0x8048911]
-/lib/libc.so.6(__libc_start_main+0xfe)[0xb770cace]
-
-
-test.sh: line 22: 13100 Aborted                 ./test 55
-multimalloc: 2a
-2a
-postalloc: 
-SoftBound: Bounds violation detected
-
-Backtrace:
-./test[0x8048951]
-/lib/libc.so.6(__libc_start_main+0xfe)[0xb751cace]
-
-
-test.sh: line 22: 13125 Aborted                 ./test 50
-
-SoftBound: Bounds violation detected
-
-Backtrace:
-./test[0x8048951]
-/lib/libc.so.6(__libc_start_main+0xfe)[0xb7631ace]
-
-
-test.sh: line 22: 13126 Aborted                 ./test 55
-ptr2int: 
-SoftBound: Bounds violation detected
-
-Backtrace:
-./test[0x8048951]
-/lib/libc.so.6(__libc_start_main+0xfe)[0xb7603ace]
-
-
-test.sh: line 22: 13138 Aborted                 ./test 50
-
-SoftBound: Bounds violation detected
-
-Backtrace:
-./test[0x8048951]
-/lib/libc.so.6(__libc_start_main+0xfe)[0xb76f2ace]
-
-
-test.sh: line 22: 13139 Aborted                 ./test 55
-samechk: 
-SoftBound: Bounds violation detected
-
-Backtrace:
-./test[0x8048911]
-/lib/libc.so.6(__libc_start_main+0xfe)[0xb7646ace]
-
-
-test.sh: line 22: 13151 Aborted                 ./test 50
-
-SoftBound: Bounds violation detected
-
-Backtrace:
-./test[0x8048911]
-/lib/libc.so.6(__libc_start_main+0xfe)[0xb76c3ace]
-
-
-test.sh: line 22: 13152 Aborted                 ./test 55
-select: 
-SoftBound: Bounds violation detected
-
-Backtrace:
-./test[0x8048911]
-/lib/libc.so.6(__libc_start_main+0xfe)[0xb7590ace]
-
-
-test.sh: line 22: 13164 Aborted                 ./test 50
-
-SoftBound: Bounds violation detected
-
-Backtrace:
-./test[0x8048911]
-/lib/libc.so.6(__libc_start_main+0xfe)[0xb7643ace]
-
-
-test.sh: line 22: 13165 Aborted                 ./test 55
-simple: 
-SoftBound: Bounds violation detected
-
-Backtrace:
-./test[0x8048951]
-/lib/libc.so.6(__libc_start_main+0xfe)[0xb7593ace]
-
-
-test.sh: line 22: 13177 Aborted                 ./test 50
-
-SoftBound: Bounds violation detected
-
-Backtrace:
-./test[0x8048951]
-/lib/libc.so.6(__libc_start_main+0xfe)[0xb76a4ace]
-
-
-test.sh: line 22: 13178 Aborted                 ./test 55
+test.sh: line 22: 28893 Aborted                 ./test 55
 storem: 804c264
 804c278
 storem2: 804c1a4
@@ -397,46 +397,46 @@ SoftBound: Bounds violation detected
 
 Backtrace:
 ./test[0x8048951]
-/lib/libc.so.6(__libc_start_main+0xfe)[0xb76edace]
+/lib/libc.so.6(__libc_start_main+0xfe)[0xb761face]
 
 
-test.sh: line 22: 13217 Aborted                 ./test 55
+test.sh: line 22: 28932 Aborted                 ./test 55
 struct: 
 SoftBound: Bounds violation detected
 
 Backtrace:
 ./test[0x8048911]
-/lib/libc.so.6(__libc_start_main+0xfe)[0xb76aface]
+/lib/libc.so.6(__libc_start_main+0xfe)[0xb76fdace]
 
 
-test.sh: line 22: 13229 Aborted                 ./test 50
+test.sh: line 22: 28944 Aborted                 ./test 50
 
 SoftBound: Bounds violation detected
 
 Backtrace:
 ./test[0x8048911]
-/lib/libc.so.6(__libc_start_main+0xfe)[0xb7538ace]
+/lib/libc.so.6(__libc_start_main+0xfe)[0xb75e0ace]
 
 
-test.sh: line 22: 13230 Aborted                 ./test 55
+test.sh: line 22: 28945 Aborted                 ./test 55
 undef: 
 SoftBound: Bounds violation detected
 
 Backtrace:
 ./test[0x80488e1]
-/lib/libc.so.6(__libc_start_main+0xfe)[0xb75e8ace]
+/lib/libc.so.6(__libc_start_main+0xfe)[0xb75f8ace]
 
 
-test.sh: line 22: 13242 Aborted                 ./test 50
+test.sh: line 22: 28957 Aborted                 ./test 50
 
 SoftBound: Bounds violation detected
 
 Backtrace:
 ./test[0x80488e1]
-/lib/libc.so.6(__libc_start_main+0xfe)[0xb76d0ace]
+/lib/libc.so.6(__libc_start_main+0xfe)[0xb769bace]
 
 
-test.sh: line 22: 13243 Aborted                 ./test 55
+test.sh: line 22: 28958 Aborted                 ./test 55
 array: sum: -805306368
 sum: -805306368
 array2: sum: -805306368
@@ -449,31 +449,131 @@ linkedlist: sum: -1598126997
 sum: -1598126997
 linkedlistloop: sum: f38b4856
 sum: f38b4856
-reference_test: array_begin=bfded29c, array_end=bfded42c, base_ptr= bfded29c, bound_ptr = bfded29c
-array_begin=bf9c6c5c, array_end=bf9c6dec, base_ptr= bf9c6c5c, bound_ptr = bf9c6c5c
+reference_test: array_begin=bfb4e78c, array_end=bfb4e91c, base_ptr= bfb4e78c, bound_ptr = bfb4e78c
+array_begin=bfb4892c, array_end=bfb48abc, base_ptr= bfb4892c, bound_ptr = bfb4892c
 struct_array: sum is 90000000
 sum is 90000000
-bisort: llvm-as: output.ll:1453:33: error: constant expression type mismatch
-  %0 = tail call i32(i32,i8**)* bitcast (i32 (i32,i8**)* @dealwithargs to i32 ()*) (i32 %argc,i8** %argv)
-                                ^
-sum is 90000000
-em3d: llvm-as: output.ll:614:28: error: constant expression type mismatch
-  %0 = call i32(i32,i8**)* bitcast (void (i32,i8**)* @dealwithargs to i32 ()*) (i32 %argc,i8** %argv)
-                           ^
-sum is 90000000
-health: llvm-as: output.ll:2581:23: error: '@chatting' defined with type 'void (i8*)*'
-  call void(i8*,i32)* @chatting (i8* getelementptr  ([14 x i8]* @.str36, i32 0,i32 0),i32 %i.06)
+bisort: Bisort with 16 size
+**************************************
+BEGINNING BITONIC SORT ALGORITHM HERE
+**************************************
+Sorting forward...done
+sorting backward...done
+em3d: Completed a computation phase: 0
+Completed a computation phase: 1
+Completed a computation phase: 2
+Completed a computation phase: 3
+Completed a computation phase: 4
+Completed a computation phase: 5
+Completed a computation phase: 6
+Completed a computation phase: 7
+Completed a computation phase: 8
+Completed a computation phase: 9
+Completed a computation phase: 10
+Completed a computation phase: 11
+Completed a computation phase: 12
+Completed a computation phase: 13
+Completed a computation phase: 14
+Completed a computation phase: 15
+Completed a computation phase: 16
+Completed a computation phase: 17
+Completed a computation phase: 18
+Completed a computation phase: 19
+Completed a computation phase: 20
+Completed a computation phase: 21
+Completed a computation phase: 22
+Completed a computation phase: 23
+Completed a computation phase: 24
+Completed a computation phase: 25
+Completed a computation phase: 26
+Completed a computation phase: 27
+Completed a computation phase: 28
+Completed a computation phase: 29
+Completed a computation phase: 30
+Completed a computation phase: 31
+Completed a computation phase: 32
+Completed a computation phase: 33
+Completed a computation phase: 34
+Completed a computation phase: 35
+Completed a computation phase: 36
+Completed a computation phase: 37
+Completed a computation phase: 38
+Completed a computation phase: 39
+Completed a computation phase: 40
+Completed a computation phase: 41
+Completed a computation phase: 42
+Completed a computation phase: 43
+Completed a computation phase: 44
+Completed a computation phase: 45
+Completed a computation phase: 46
+Completed a computation phase: 47
+Completed a computation phase: 48
+Completed a computation phase: 49
+Completed a computation phase: 50
+Completed a computation phase: 51
+Completed a computation phase: 52
+Completed a computation phase: 53
+Completed a computation phase: 54
+Completed a computation phase: 55
+Completed a computation phase: 56
+Completed a computation phase: 57
+Completed a computation phase: 58
+Completed a computation phase: 59
+Completed a computation phase: 60
+Completed a computation phase: 61
+Completed a computation phase: 62
+Completed a computation phase: 63
+Completed a computation phase: 64
+Completed a computation phase: 65
+Completed a computation phase: 66
+Completed a computation phase: 67
+Completed a computation phase: 68
+Completed a computation phase: 69
+Completed a computation phase: 70
+Completed a computation phase: 71
+Completed a computation phase: 72
+Completed a computation phase: 73
+Completed a computation phase: 74
+Completed a computation phase: 75
+Completed a computation phase: 76
+Completed a computation phase: 77
+Completed a computation phase: 78
+Completed a computation phase: 79
+Completed a computation phase: 80
+Completed a computation phase: 81
+Completed a computation phase: 82
+Completed a computation phase: 83
+Completed a computation phase: 84
+Completed a computation phase: 85
+Completed a computation phase: 86
+Completed a computation phase: 87
+Completed a computation phase: 88
+Completed a computation phase: 89
+Completed a computation phase: 90
+Completed a computation phase: 91
+Completed a computation phase: 92
+Completed a computation phase: 93
+Completed a computation phase: 94
+Completed a computation phase: 95
+Completed a computation phase: 96
+Completed a computation phase: 97
+Completed a computation phase: 98
+Completed a computation phase: 99
+health: usage:  health <# levels> <time> <seed>
+mst: llvm-as: output.ll:1325:34: error: invalid indices for getelementptr
+  %_tmp_460 = bitcast i32 (i32)* getelementptr  (i32 (i32)* @hashfunc, i32 1) to i8*
+                                 ^
+usage:  health <# levels> <time> <seed>
+treeadd: Treeadd with 5 levels
+About to enter TreeAlloc
+About to enter TreeAdd
+Iteration 0...done
+Received result of 31
+129.compress/src: llvm-as: output.ll:3218:23: error: floating point constant invalid for type
+  %9 = fmul float %8, 4.65661287308e-10
                       ^
-sum is 90000000
-mst: llvm-as: output.ll:938:28: error: '@chatting' defined with type 'void (i8*)*'
-  tail call void(i8*,i32)* @chatting (i8* getelementptr  ([22 x i8]* @.str37, i32 0,i32 0),i32 16)
-                           ^
-sum is 90000000
-treeadd: llvm-as: output.ll:484:24: error: '@chatting' defined with type 'void (i8*, i32)*'
-  tail call void(i8*)* @chatting (i8* getelementptr  ([26 x i8]* @.str15, i32 0,i32 0))
-                       ^
-sum is 90000000
-129.compress/src: llvm-as: output.ll:1927:50: error: '@fprintf' defined with type 'i32 ({ i32, i8*, i8*, i8*, i8*, i8*, i8*, i8*, i8*, i8*, i8*, i8*, { \2, \4, i32 }*, \2, i32, i32, i32, i16, i8, [1 x i8], i8*, i64, i8*, i8*, i8*, i8*, i32, i32, [40 x i8] }*, i8*, i8*)*'
-  %6 = tail call i32(%struct._IO_FILE*,i8*,i32)* @fprintf (%struct._IO_FILE* %5,i8* getelementptr  ([11 x i8]* @.str26, i32 0,i32 0),i32 16)
-                                                 ^
-sum is 90000000
+Treeadd with 5 levels
+About to enter TreeAlloc
+About to enter TreeAdd
+Iteration 0...done
+Received result of 31

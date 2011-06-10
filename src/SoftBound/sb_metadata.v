@@ -273,7 +273,7 @@ Proof.
     try solve [ eauto using wf_rmetadata__get_const_metadata_aux ].
 
     unfold const2GV in H2, H3.
-    remember (_const2GV TD Mem0 gl (const_gid (typ_function t l0) i0)) as R.
+    remember (_const2GV TD Mem0 gl (const_gid (typ_function t l0 v) i0)) as R.
     destruct R; try solve [inversion H2 | inversion H3].
     destruct p. inv H2. inv H3.
     unfold GV2ptr.

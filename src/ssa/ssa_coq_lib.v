@@ -38,6 +38,7 @@ Definition id_dec : forall x y : id, {x=y} + {x<>y} := eq_atom_dec.
 Definition l_dec : forall x y : l, {x=y} + {x<>y} := eq_atom_dec.
 Definition inbounds_dec : forall x y : inbounds, {x=y} + {x<>y} := bool_dec.
 Definition tailc_dec : forall x y : tailc, {x=y} + {x<>y} := bool_dec.
+Definition varg_dec : forall x y : varg, {x=y} + {x<>y} := bool_dec.
 Definition noret_dec : forall x y : noret, {x=y} + {x<>y} := bool_dec.
 
 (**********************************)
@@ -127,6 +128,64 @@ Definition noret_dec : forall x y : noret, {x=y} + {x<>y} := bool_dec.
   Definition isPhiNode (i:insn) : Prop :=
   isPhiNodeB i = true.
 
+Definition getCmdID' (i:cmd) : option id :=
+match i with
+| insn_bop id _ sz v1 v2 => Some id
+| insn_fbop id _ _ _ _ => Some id
+(* | insn_extractelement id typ0 id0 c1 => id *)
+(* | insn_insertelement id typ0 id0 typ1 v1 c2 => id *)
+| insn_extractvalue id typs id0 c1 => Some id
+| insn_insertvalue id typs id0 typ1 v1 c2 => Some id 
+| insn_malloc id _ _ _ => Some id
+| insn_free id _ _ => None
+| insn_alloca id _ _ _ => Some id
+| insn_load id typ1 v1 _ => Some id
+| insn_store id typ1 v1 v2 _ => None
+| insn_gep id _ _ _ _ => Some id
+| insn_trunc id _ typ1 v1 typ2 => Some id 
+| insn_ext id _ sz1 v1 sz2 => Some id
+| insn_cast id _ typ1 v1 typ2 => Some id
+| insn_icmp id cond typ v1 v2 => Some id
+| insn_fcmp id cond typ v1 v2 => Some id 
+| insn_select id v0 typ v1 v2 => Some id
+| insn_call id nr _ typ v0 paraml => if nr then None else Some id
+end.
+
+Fixpoint getCmdsIDs' (cs:cmds) : list atom :=
+match cs with
+| nil => nil
+| c::cs' =>
+    match getCmdID' c with 
+    | Some id1 => id1::getCmdsIDs' cs'
+    | None => getCmdsIDs' cs'
+    end
+end.
+
+Fixpoint getPhiNodesIDs' (ps: phinodes) : list atom :=
+match ps with
+| nil => nil
+| p::ps' => getPhiNodeID p :: getPhiNodesIDs' ps'
+end.
+
+Definition getBlockIDs' (b:block) : list atom :=
+let '(block_intro _ ps cs _) := b in
+getPhiNodesIDs' ps ++ getCmdsIDs' cs.
+
+Fixpoint getArgsIDs' (la:args) : list atom :=
+match la with
+| nil => nil
+| (_,id1)::la' => id1::getArgsIDs' la'
+end.
+
+Lemma getCmdID_getCmdID' : forall a i0,
+  getCmdID' a = Some i0 ->
+  getCmdID a = i0.
+Proof.
+  intros a i0 H.
+  destruct a; inv H; auto.
+    simpl. destruct n; inv H1; auto.
+Qed.
+
 (** Statically idx for struct must be int, and idx for arr can be
     anything without checking bounds. *)
 Fixpoint getSubTypFromConstIdxs (idxs : list_const) (t : typ) : option typ :=
@@ -211,7 +270,11 @@ match i with
 | insn_fcmp _ _ _ _ _ => Some (typ_int Size.One)
 | insn_select _ _ typ _ _ => Some typ
 | insn_call _ true _ typ _ _ => Some typ_void
-| insn_call _ false _ typ _ _ => Some typ
+| insn_call _ false _ typ _ _ => 
+    match typ with
+    | typ_function t _ _ => Some t
+    | _ => None
+    end
 end.
 
 Definition getTerminatorTyp (i:terminator) : typ :=
@@ -376,7 +439,7 @@ end.
 
 Definition getFheaderTyp (fh:fheader) : typ :=
 match fh with
-| fheader_intro t _ la => typ_function t (args2Typs la)
+| fheader_intro t _ la va => typ_function t (args2Typs la) va
 end.
 
 Definition getFdecTyp (fdec:fdec) : typ :=
@@ -466,7 +529,7 @@ end.
 
 Definition getFheaderID (fh:fheader) : id :=
 match fh with
-| fheader_intro _ id _ => id
+| fheader_intro _ id _ _ => id
 end.
 
 Definition getFdecID (fd:fdec) : id :=
@@ -552,7 +615,7 @@ end.
 
 Definition getReturnTyp fdef : typ :=
 match fdef with
-| fdef_intro (fheader_intro t _ _) _ => t
+| fdef_intro (fheader_intro t _ _ _) _ => t
 end.
 
 Definition getGvarID g : id :=
@@ -723,15 +786,17 @@ match la with
 end.
 
 Definition lookupBindingViaIDFromFdec (fd:fdec) (id:id) : id_binding :=
-let '(fdec_intro (fheader_intro t id' la)) := fd in
-match (eq_dec id id') with
-| left _ => id_binding_fdec fd
-| right _ => lookupBindingViaIDFromArgs la id
+match fd with
+| fdec_intro (fheader_intro t id' la _) =>
+    match (eq_dec id id') with
+    | left _ => id_binding_fdec fd
+    | right _ => lookupBindingViaIDFromArgs la id
+    end
 end.
 
 Definition lookupBindingViaIDFromFdef (fd:fdef) (id:id) : id_binding :=
-let '(fdef_intro (fheader_intro t id' la) lb) := fd in
-match lookupBindingViaIDFromFdec (fdec_intro (fheader_intro t id' la)) id with
+let '(fdef_intro fh lb) := fd in
+match lookupBindingViaIDFromFdec (fdec_intro fh) id with
 | id_binding_none => lookupBindingViaIDFromBlocks lb id
 | re => re
 end.
@@ -1447,7 +1512,7 @@ end.
 
 Definition isFunctionPointerTypB (t:typ) : bool :=
 match t with
-| typ_pointer (typ_function _ _) => true
+| typ_pointer (typ_function _ _ _) => true
 | _ => false
 end.
 
@@ -1498,7 +1563,7 @@ Definition isNotFirstClassTypB (t:typ) : bool :=
 match t with
 | typ_void => true
 (* | typ_opaque => true *)
-| typ_function _ _ => true
+| typ_function _ _ _ => true
 | _ => false
 end.
 
@@ -1516,7 +1581,7 @@ match t with
 | typ_void => true
 | typ_label => true
 | typ_metadata => true
-| typ_function _ _ => true
+| typ_function _ _ _ => true
 | _ => false
 end.
 
@@ -1794,6 +1859,7 @@ Proof.
 
   destruct t2; try solve [done_right].
   destruct (@H t2); subst; try solve [done_right].
+  destruct (@varg_dec v v0); subst; try solve [done_right].
   destruct (@H0 l1); subst; try solve [subst; auto | done_right].
 
   destruct t2; try solve [done_right].
@@ -2184,6 +2250,7 @@ Proof.
   destruct f1; destruct f2; try solve [subst; auto | done_right].
     destruct (@typ_dec t t0); subst; try solve [done_right].
     destruct (@id_dec i0 i1); subst; try solve [done_right].
+    destruct (@varg_dec v v0); subst; try solve [done_right].
     destruct (@args_dec a a0); subst; try solve [auto | done_right].
 Qed.  
 
@@ -2428,7 +2495,7 @@ end.
 
 Definition argInFheaderB (a:arg) (fh:fheader) : bool :=
 match fh with
-| (fheader_intro t id la) => InArgsB a la
+| (fheader_intro t id la _) => InArgsB a la
 end.
 
 Definition argInFdecB (a:arg) (fd:fdec) : bool :=
@@ -2997,26 +3064,26 @@ Module Function <: SigFunction.
 
  Definition getDefReturnType (fd:fdef) : typ :=
  match fd with
- | fdef_intro (fheader_intro t _ _) _ => t
+ | fdef_intro (fheader_intro t _ _ _) _ => t
  end.
 
  Definition getDefFunctionType (fd:fdef) : typ := getFdefTyp fd.
 
  Definition def_arg_size (fd:fdef) : nat :=
  match fd with
- | (fdef_intro (fheader_intro _ _ la) _) => length la
+ | (fdef_intro (fheader_intro _ _ la _) _) => length la
  end.
 
  Definition getDecReturnType (fd:fdec) : typ :=
  match fd with
- | fdec_intro (fheader_intro t _ _) => t
+ | fdec_intro (fheader_intro t _ _ _) => t
  end.
 
  Definition getDecFunctionType (fd:fdec) : typ := getFdecTyp fd.
 
  Definition dec_arg_size (fd:fdec) : nat :=
  match fd with
- | (fdec_intro (fheader_intro _ _ la)) => length la
+ | (fdec_intro (fheader_intro _ _ la _)) => length la
  end.
 
 End Function.
@@ -3061,12 +3128,12 @@ Definition getCalledFunction (i:cmd) (s:system) : option fdef :=
 
  Definition arg_size (fd:fdef) : nat :=
  match fd with
- | (fdef_intro (fheader_intro _ _ la) _) => length la
+ | (fdef_intro (fheader_intro _ _ la _) _) => length la
  end.
 
  Definition getArgument (fd:fdef) (i:nat) : option arg :=
  match fd with
- | (fdef_intro (fheader_intro _ _ la) _) => 
+ | (fdef_intro (fheader_intro _ _ la _) _) =>
     match (nth_error la i) with
     | Some a => Some a
     | None => None
@@ -3198,7 +3265,8 @@ Module FunctionType <: SigFunctionType.
 
  Definition getNumParams (t:typ) : option nat :=
  match t with
- | (typ_function _ lt) => Some (length (unmake_list_typ lt))
+ | (typ_function _ lt _) => 
+     Some (length (unmake_list_typ lt))
  | _ => None
  end.
 
@@ -3206,7 +3274,7 @@ Module FunctionType <: SigFunctionType.
 
  Definition getParamType (t:typ) (i:nat) : option typ :=
  match t with
- | (typ_function _ lt) => 
+ | (typ_function _ lt _) => 
     match (nth_list_typ i lt) with
     | Some t => Some t
     | None => None

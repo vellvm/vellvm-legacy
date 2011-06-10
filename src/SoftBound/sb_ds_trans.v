@@ -33,48 +33,45 @@ Parameter get_shadowstack_bound_fid : id.
 Parameter allocate_shadowstack_fid : id.
 Parameter free_shadowstack_fid : id.
 
-Definition set_shadowstack_base_fn : value :=
-  value_const
-    (const_gid 
-      (typ_function typ_void 
+Definition set_shadowstack_base_typ : typ :=
+  typ_function typ_void 
         (Cons_list_typ p8 
-        (Cons_list_typ i32 Nil_list_typ)))
-      set_shadowstack_base_fid).
+        (Cons_list_typ i32 Nil_list_typ)) false.
+
+Definition set_shadowstack_base_fn : value :=
+  value_const (const_gid set_shadowstack_base_typ set_shadowstack_base_fid).
+
+Definition set_shadowstack_bound_typ : typ :=
+  typ_function typ_void 
+        (Cons_list_typ p8 
+        (Cons_list_typ i32 Nil_list_typ)) false.
 
 Definition set_shadowstack_bound_fn : value :=
-  value_const
-    (const_gid 
-      (typ_function typ_void 
-        (Cons_list_typ p8 
-        (Cons_list_typ i32 Nil_list_typ)))
-      set_shadowstack_bound_fid).
+  value_const (const_gid set_shadowstack_bound_typ set_shadowstack_bound_fid).
+
+Definition get_shadowstack_base_typ : typ :=
+  typ_function p8 (Cons_list_typ i32 Nil_list_typ) false.
 
 Definition get_shadowstack_base_fn : value :=
-  value_const
-    (const_gid 
-      (typ_function p8
-        (Cons_list_typ i32 Nil_list_typ))
-      get_shadowstack_base_fid).
+  value_const (const_gid get_shadowstack_base_typ get_shadowstack_base_fid).
+
+Definition get_shadowstack_bound_typ  : typ :=
+ typ_function p8 (Cons_list_typ i32 Nil_list_typ) false.
 
 Definition get_shadowstack_bound_fn : value :=
-  value_const
-    (const_gid 
-      (typ_function p8
-        (Cons_list_typ i32 Nil_list_typ))
-      get_shadowstack_bound_fid).
+  value_const (const_gid get_shadowstack_bound_typ get_shadowstack_bound_fid).
+
+Definition allocate_shadowstack_typ : typ :=
+  typ_function typ_void (Cons_list_typ i32 Nil_list_typ) false.
 
 Definition allocate_shadowstack_fn : value :=
-  value_const
-    (const_gid 
-      (typ_function typ_void 
-        (Cons_list_typ i32 Nil_list_typ))
-      allocate_shadowstack_fid).
+  value_const (const_gid allocate_shadowstack_typ allocate_shadowstack_fid).
+
+Definition free_shadowstack_typ : typ :=
+  typ_function typ_void Nil_list_typ false.
 
 Definition free_shadowstack_fn : value :=
-  value_const
-    (const_gid 
-      (typ_function typ_void Nil_list_typ)
-      free_shadowstack_fid).
+  value_const (const_gid free_shadowstack_typ free_shadowstack_fid).
 
 Fixpoint trans_params (ex_ids tmps:ids) (rm:rmap) (lp:params) (idx:Z) (cs:cmds)
   : option (ids*ids*cmds*Z) :=
@@ -89,12 +86,14 @@ match lp with
             trans_params ex_ids (btmp::etmp::tmps) rm lp' (idx+1)
                (insn_cast btmp castop_bitcast mt bv0 p8:: 
                insn_cast etmp castop_bitcast mt ev0 p8:: 
-               insn_call fake_id true false typ_void set_shadowstack_base_fn
+               insn_call fake_id true false 
+                 set_shadowstack_base_typ set_shadowstack_base_fn
                  ((p8,(value_id btmp))::
                   (i32,(value_const (const_int Size.ThirtyTwo 
                          (INTEGER.of_Z 32%Z idx false))))::
                    nil)::               
-               insn_call fake_id true false typ_void set_shadowstack_bound_fn
+               insn_call fake_id true false 
+                 set_shadowstack_bound_typ set_shadowstack_bound_fn
                  ((p8,(value_id etmp))::
                   (i32,(value_const (const_int Size.ThirtyTwo 
                          (INTEGER.of_Z 32%Z idx false))))::
@@ -109,6 +108,12 @@ Definition int0 := const_int Size.ThirtyTwo (INTEGER.of_Z 32%Z 0%Z false).
 Definition vint0 := value_const int0.
 
 Axiom wrapper_fid : id -> id.
+
+Definition isPointerTypB' t0 : bool :=
+match t0 with
+| typ_function t0 _ _ => isPointerTypB t0
+| _ => false
+end.
 
 Definition trans_cmd (ex_ids tmps:ids) (optaddrb optaddre:option id)
   (rm:rmap) (c:cmd) : option (ids*ids*cmds*option id*option id) :=
@@ -141,7 +146,8 @@ match c with
               match (optaddrb, optaddre) with
               | (Some addrb, Some addre) =>
                    (Some
-                     (insn_call fake_id true false typ_void get_mmetadata_fn 
+                     (insn_call fake_id true false 
+                       get_mmetadata_typ get_mmetadata_fn 
                        ((p8,(value_id ptmp))::
                         (pp8,(value_id addrb))::
                         (pp8,(value_id addre))::
@@ -156,7 +162,8 @@ match c with
                    let '(addrb,ex_ids) := mk_tmp ex_ids in
                    let '(addre,ex_ids) := mk_tmp ex_ids in
                    (Some
-                     (insn_call fake_id true false typ_void get_mmetadata_fn 
+                     (insn_call fake_id true false 
+                       get_mmetadata_typ get_mmetadata_fn 
                        ((p8,(value_id ptmp))::
                         (pp8,(value_id addrb))::
                         (pp8,(value_id addre))::
@@ -179,7 +186,7 @@ match c with
          insn_cast ptmp castop_bitcast (typ_pointer t2) v2 p8:: 
          insn_cast btmp castop_bitcast mt bv p8:: 
          insn_cast etmp castop_bitcast mt ev p8:: 
-         insn_call fake_id true false typ_void assert_mptr_fn 
+         insn_call fake_id true false assert_mptr_typ assert_mptr_fn 
            ((p8,(value_id btmp))::
             (p8,(value_id etmp))::
             (p8,(value_id ptmp))::
@@ -202,7 +209,7 @@ match c with
           match get_reg_metadata rm v1 with
           | Some (mt1, bv0, ev0) =>
               Some
-                (insn_call fake_id true false typ_void set_mmetadata_fn 
+                (insn_call fake_id true false set_mmetadata_typ set_mmetadata_fn 
                   ((p8,(value_id ptmp))::
                    (p8,bv0)::
                    (p8,ev0)::
@@ -221,7 +228,7 @@ match c with
          insn_cast ptmp castop_bitcast (typ_pointer t0) v2 p8:: 
          insn_cast btmp castop_bitcast mt2 bv p8:: 
          insn_cast etmp castop_bitcast mt2 ev p8:: 
-         insn_call fake_id true false typ_void assert_mptr_fn 
+         insn_call fake_id true false assert_mptr_typ assert_mptr_fn 
            ((p8,(value_id btmp))::
             (p8,(value_id etmp))::
             (p8,(value_id ptmp))::
@@ -289,25 +296,30 @@ match c with
       end) with
     | (Some (ex_ids', tmps', cs, num), v') =>
         let optcs' :=
-          if isPointerTypB t0 then
+          if isPointerTypB' t0 then
             match (lookupAL _ rm i0) with
             | Some (bid0, eid0) =>
                 Some (
-                  insn_call bid0 false false p8 get_shadowstack_base_fn  
+                  insn_call bid0 false false 
+                    get_shadowstack_base_typ get_shadowstack_base_fn  
                     ((i32,vint0)::nil)::
-                  insn_call eid0 false false p8 get_shadowstack_bound_fn 
+                  insn_call eid0 false false 
+                    get_shadowstack_bound_typ get_shadowstack_bound_fn 
                     ((i32,vint0)::nil)::
-                  insn_call fake_id true false typ_void free_shadowstack_fn nil::
+                  insn_call fake_id true false 
+                    free_shadowstack_typ free_shadowstack_fn nil::
                   nil)
             | None => None
             end
           else 
-            Some [insn_call fake_id true false typ_void free_shadowstack_fn nil]
+            Some [insn_call fake_id true false 
+                    free_shadowstack_typ free_shadowstack_fn nil]
         in
         match optcs' with
         | Some cs' =>
             Some (ex_ids', tmps', 
-                  insn_call fake_id true false typ_void allocate_shadowstack_fn
+                  insn_call fake_id true false 
+                    allocate_shadowstack_typ allocate_shadowstack_fn
                     ((i32,(value_const (const_int Size.ThirtyTwo 
                        (INTEGER.of_Z 32%Z num false))))::
                      nil)::               
@@ -388,9 +400,11 @@ match trans_phinodes rm ps1 with
                   Some (ex_ids', btmp::etmp::tmps',
                    insn_cast btmp castop_bitcast mt2 bv p8:: 
                    insn_cast etmp castop_bitcast mt2 ev p8:: 
-                   insn_call fake_id true false typ_void set_shadowstack_base_fn
+                   insn_call fake_id true false 
+                     set_shadowstack_base_typ set_shadowstack_base_fn
                      ((p8,(value_id btmp))::(i32,vint0)::nil)::
-                   insn_call fake_id true false typ_void set_shadowstack_bound_fn
+                   insn_call fake_id true false 
+                     set_shadowstack_bound_typ set_shadowstack_bound_fn
                      ((p8,(value_id etmp))::(i32,vint0)::nil)::
                    nil)
               | None => None
@@ -434,10 +448,12 @@ match la with
       match (lookupAL _ rm id0) with
       | Some (bid0, eid0) => 
           trans_args rm la' (idx+1)
-                (insn_call bid0 false false p8 get_shadowstack_base_fn  
+                (insn_call bid0 false false 
+                   get_shadowstack_base_typ get_shadowstack_base_fn  
                    ((i32,(value_const (const_int Size.ThirtyTwo 
                          (INTEGER.of_Z 32%Z idx false))))::nil)::
-                 insn_call eid0 false false p8 get_shadowstack_bound_fn 
+                 insn_call eid0 false false 
+                   get_shadowstack_bound_typ get_shadowstack_bound_fn 
                    ((i32,(value_const (const_int Size.ThirtyTwo 
                          (INTEGER.of_Z 32%Z idx false))))::nil)::
                  cs)
@@ -459,7 +475,7 @@ match (optaddrb, optaddre) with
 end.
 
 Definition trans_fdef nts (f:fdef) : option fdef :=
-let '(fdef_intro (fheader_intro t fid la) bs) := f in
+let '(fdef_intro (fheader_intro t fid la va) bs) := f in
 if SimpleSE.isCallLib fid then Some f
 else
   let ex_ids := getFdefIDs f in
@@ -470,7 +486,7 @@ else
           match (trans_blocks ex_ids nil None None rm bs) with
           | Some (ex_ids, tmps, optaddrb, optaddre, b'::bs') => 
               Some (fdef_intro 
-                     (fheader_intro t (wrapper_fid fid) la) 
+                     (fheader_intro t (wrapper_fid fid) la va) 
                      ((insert_more_allocas optaddrb optaddre cs' b')::bs'))
           | _ => None
           end
@@ -480,8 +496,8 @@ else
   end.
 
 Definition trans_fdec (f:fdec) : fdec :=
-let '(fdec_intro (fheader_intro t fid la)) := f in
-fdec_intro (fheader_intro t (wrapper_fid fid) la). 
+let '(fdec_intro (fheader_intro t fid la va)) := f in
+fdec_intro (fheader_intro t (wrapper_fid fid) la va). 
 
 Fixpoint trans_product nts (p:product) : option product :=
 match p with

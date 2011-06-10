@@ -1031,9 +1031,9 @@ Proof.
   eapply uniqBlocks__uniqBlock; eauto.
 Qed.
 
-Lemma lookupFdefViaIDFromProducts_ideq : forall Ps fid rt la lb fid',
+Lemma lookupFdefViaIDFromProducts_ideq : forall Ps fid rt la va lb fid',
   lookupFdefViaIDFromProducts Ps fid = 
-    Some (fdef_intro (fheader_intro rt fid' la) lb) ->
+    Some (fdef_intro (fheader_intro rt fid' la va) lb) ->
   fid = fid'.
 Proof.
   induction Ps; intros.
@@ -1047,9 +1047,9 @@ Proof.
         inversion H; auto.
 Qed.     
 
-Lemma lookupFdecViaIDFromProducts_ideq : forall Ps fid rt la fid',
+Lemma lookupFdecViaIDFromProducts_ideq : forall Ps fid rt la va fid',
   lookupFdecViaIDFromProducts Ps fid = 
-    Some (fdec_intro (fheader_intro rt fid' la)) ->
+    Some (fdec_intro (fheader_intro rt fid' la va)) ->
   fid = fid'.
 Proof.
   induction Ps; intros.

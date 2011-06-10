@@ -177,7 +177,7 @@ match state with
                 (if isGVZero TD cond0 then updateAddAL _ lc id0 gv2 
                  else updateAddAL _ lc id0 gv1) als)::EC) gl fs Mem0),
              trace_nil)  
-    | insn_call rid noret0 tailc0 rt fv lp =>
+    | insn_call rid noret0 tailc0 ft fv lp =>
       (* only look up the current module for the time being, 
          do not support linkage. *)
       do fptr <- getOperandValue TD Mem0 fv lc gl;
@@ -186,9 +186,8 @@ match state with
       | None => 
         match (lookupFdecViaIDFromProducts Ps fid) with
         | None => None
-        | Some (fdec_intro (fheader_intro rt' fid' la)) =>
+        | Some (fdec_intro (fheader_intro rt' fid' la va)) =>
           if id_dec fid fid' then
-            if typ_dec rt rt' then
               match (callExternalFunction Mem0 fid 
                       (params2GVs TD Mem0 lp lc gl))
               with
@@ -199,25 +198,23 @@ match state with
                        gl fs Mem1),
                      trace_nil)
               end
-            else None
           else None
         end
-      | Some (fdef_intro (fheader_intro rt' fid' la) lb) =>
+      | Some (fdef_intro (fheader_intro rt fid' la va) lb) =>
         if id_dec fid fid' then
-          if typ_dec rt rt' then
-            match (getEntryBlock (fdef_intro (fheader_intro rt fid la) lb)) with
+            match (getEntryBlock (fdef_intro (fheader_intro rt fid la va) lb)) 
+              with
             | None => None
             | Some (block_intro l' ps' cs' tmn') =>
                 ret ((mkState Sys TD Ps ((mkEC (fdef_intro 
-                      (fheader_intro rt fid la) lb) 
+                      (fheader_intro rt fid la va) lb) 
                       (block_intro l' ps' cs' tmn') cs' tmn' 
                       (initLocals la (params2GVs TD Mem0 lp lc gl)) 
                       nil)::
-                    (mkEC F B ((insn_call rid noret0 tailc0 rt fv lp)::cs) tmn 
+                    (mkEC F B ((insn_call rid noret0 tailc0 ft fv lp)::cs) tmn 
                       lc als)::EC) gl fs Mem0),
                     trace_nil)
             end
-          else None
         else None
       end
     end
@@ -485,7 +482,6 @@ Proof.
         destruct R1; simpl in HinterInsn.
           destruct f. destruct f.
           destruct (id_dec i1 i2); try solve [inversion HinterInsn]; subst.
-          destruct (typ_dec t0 t1); try solve [inversion HinterInsn]; subst.
           destruct b; try solve [inversion HinterInsn].
           destruct b.
           inversion HinterInsn; subst.
@@ -500,7 +496,6 @@ Proof.
             try solve [inversion HinterInsn].
             destruct f. destruct f.
             destruct (id_dec i1 i2); try solve [inversion HinterInsn]; subst.
-            destruct (typ_dec t0 t1); try solve [inversion HinterInsn]; subst.
             remember (callExternalFunction Mem0 i2 
               (params2GVs CurTargetData0 Mem0 p lc Globals0)) as R3.
             destruct R3.

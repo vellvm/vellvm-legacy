@@ -183,7 +183,7 @@ Definition function_returns_pointer Ps1 fid2 : bool :=
 match (rename_fid_inv fid2) with
 | Some fid1 =>
     match lookupFdefViaIDFromProducts Ps1 fid1 with      
-    | Some (fdef_intro (fheader_intro (typ_pointer _ as tp) _ _) _) => true
+    | Some (fdef_intro (fheader_intro (typ_pointer _ as tp) _ _ _) _) => true
     | _ => false
     end
 | None => false
@@ -193,7 +193,7 @@ end.
 Definition store_to_ret Ps1 Ps2 fid2 (ptr:sterm) : bool :=
 if (function_returns_pointer Ps1 fid2) then
    match SBsyntax.lookupFdefViaIDFromProducts Ps2 fid2 with      
-   | Some (SBsyntax.fdef_intro (fheader_intro _  _ ((_,re)::_)) _) =>
+   | Some (SBsyntax.fdef_intro (fheader_intro _  _ ((_,re)::_) _) _) =>
        match remove_cast ptr with
        | sterm_gep _ _ (sterm_val (value_id id0)) 
           (Cons_list_sterm (sterm_val (value_const (const_int _ i0)))
@@ -490,8 +490,8 @@ match (bs1, bs2) with
 end.
 
 Definition tv_fheader nts1 (f1 f2:fheader) := 
-  let '(fheader_intro t1 fid1 a1) := f1 in
-  let '(fheader_intro t2 fid2 a2) := f2 in
+  let '(fheader_intro t1 fid1 a1 va1) := f1 in
+  let '(fheader_intro t2 fid2 a2 va2) := f2 in
   tv_fid fid1 fid2 &&
   match t1 with
   | typ_pointer _ =>
@@ -525,7 +525,7 @@ end.
 
 Definition tv_fdef nts1 Ps1 Ps2 (f1:fdef) (f2:SBsyntax.fdef) :=
 match (f1, f2) with
-| (fdef_intro (fheader_intro _ fid1 _ as fh1) lb1, 
+| (fdef_intro (fheader_intro _ fid1 _ _ as fh1) lb1, 
    SBsyntax.fdef_intro fh2 lb2) =>
   tv_fheader nts1 fh1 fh2 && tv_blocks Ps1 Ps2 fid1 lb1 lb2
 end.
@@ -1039,7 +1039,7 @@ end.
 
 Definition rtv_fdef nts1 Ps1 Ps2 (f1:fdef) (f2:SBsyntax.fdef) :=
 match (f1, f2) with
-| (fdef_intro (fheader_intro _ fid1 _ as fh1) lb1, 
+| (fdef_intro (fheader_intro _ fid1 _ _ as fh1) lb1, 
    SBsyntax.fdef_intro fh2 lb2) =>
   match rtv_blocks Ps1 Ps2 fid1 nil lb1 lb2 with
   | None => false
@@ -1556,7 +1556,7 @@ match c2 with
       else
         match (SBsyntax.lookupFdefViaIDFromProducts Ps2 fid2) with
         | None => true
-        | Some (SBsyntax.fdef_intro (fheader_intro _ _ args2) _) =>
+        | Some (SBsyntax.fdef_intro (fheader_intro _ _ args2 _) _) =>
             mtv_func_metadata (get_metadata tt) Ps2 fid l1 i1 fid2 args2 tsts2
         end
   | _ => true
@@ -1567,7 +1567,7 @@ match c2 with
       if (isCallLib fid2) then true
       else
         match (SBsyntax.lookupFdefViaIDFromProducts Ps2 fid2) with
-        | Some (SBsyntax.fdef_intro (fheader_intro _ _ (_::args2)) _) =>
+        | Some (SBsyntax.fdef_intro (fheader_intro _ _ (_::args2) _) _) =>
             mtv_func_metadata (get_metadata tt) Ps2 fid l1 i1 fid2 args2 tsts2
         | _ => true
         end
@@ -1698,7 +1698,7 @@ end.
 
 Definition mtv_fdef Ps1 Ps2 (f2:SBsyntax.fdef) :=
 match f2 with
-| SBsyntax.fdef_intro ((fheader_intro t2 fid2 a2) as fh2) lb2 =>
+| SBsyntax.fdef_intro ((fheader_intro t2 fid2 a2 _) as fh2) lb2 =>
   if (isCallLib fid2) then true else mtv_blocks Ps1 Ps2 fid2 lb2
 end.
 

@@ -65,8 +65,8 @@ Axiom callLib__is__defined : forall Mem fid gvs,
   callLib Mem fid gvs <> None <-> isCallLib fid = true. 
 
 Axiom callLib__is__correct : 
-  forall Mem ft fid TD lp lc gl oresult Mem' F B ECs tmn cs als Ps fs rid rt
-    S noret tailc r lc',
+  forall Mem ft fid TD lp lc gl oresult Mem' F B ECs tmn cs als Ps fs rid
+    S noret tailc r lc' ft',
   isCallLib fid = true ->
   (
    (callLib Mem fid (params2GVs TD Mem lp lc gl) = Some (oresult, Mem', r) /\
@@ -74,7 +74,7 @@ Axiom callLib__is__correct :
    LLVMopsem.dbInsn
     (LLVMopsem.mkState S TD Ps 
       ((LLVMopsem.mkEC F B 
-        ((insn_call rid noret tailc rt (value_const (const_gid ft fid)) lp)::cs)
+        ((insn_call rid noret tailc ft (value_const (const_gid ft' fid)) lp)::cs)
             tmn lc als)::ECs) 
       gl fs Mem)
     (LLVMopsem.mkState S TD Ps 
@@ -228,8 +228,8 @@ Inductive dbCmd : TargetData -> GVMap ->
     (if isGVZero TD cond then updateAddAL _ lc id gv2 
      else updateAddAL _ lc id gv1) als Mem
     trace_nil
-| dbLib : forall TD lc gl rid noret tailc ft fid 
-                          lp rt Mem oresult Mem' lc' als r,
+| dbLib : forall TD lc gl rid noret tailc fid 
+                          lp ft Mem oresult Mem' lc' als r ft',
   (* Like isCall, we only consider direct call to libraries. Function pointers
      are conservatively taken as non-lib. The dbCmd is defined to prove the
      correctness of TV. So it should be as "weak" as the TV. *)
@@ -237,7 +237,7 @@ Inductive dbCmd : TargetData -> GVMap ->
   LLVMopsem.exCallUpdateLocals noret rid oresult lc = Some lc' ->
   dbCmd TD gl
     lc als Mem
-    (insn_call rid noret tailc rt (value_const (const_gid ft fid)) lp)
+    (insn_call rid noret tailc ft (value_const (const_gid ft' fid)) lp)
     lc' als Mem' trace_nil
 .
 
@@ -291,26 +291,26 @@ Inductive dbCall : system -> TargetData -> list product -> GVMap ->
                    GVMap -> mem -> 
                    trace -> Prop :=
 | dbCall_internal : forall S TD Ps lc gl fs rid noret tailc rt fv lp
-                       Rid oResult tr lc' Mem Mem' als' Mem'' B' lc'',
+                       Rid oResult tr lc' Mem Mem' als' Mem'' B' lc'' ft,
   dbFdef fv rt lp S TD Ps lc gl fs Mem lc' als' Mem' B' Rid oResult tr ->
   free_allocas TD Mem' als' = Some Mem'' ->
-  isCall (insn_call rid noret tailc rt fv lp) = true ->
+  isCall (insn_call rid noret tailc ft fv lp) = true ->
   LLVMopsem.callUpdateLocals TD Mem'' noret rid oResult lc lc' gl = Some lc'' ->
-  dbCall S TD Ps fs gl lc Mem (insn_call rid noret tailc rt fv lp) lc'' Mem'' tr
+  dbCall S TD Ps fs gl lc Mem (insn_call rid noret tailc ft fv lp) lc'' Mem'' tr
 
 | dbCall_external : forall S TD Ps lc gl fs rid noret tailc fv fid 
-                          lp rt la Mem oresult Mem' lc',
+                          lp rt la va Mem oresult Mem' lc' ft,
   (* only look up the current module for the time being, 
      do not support linkage. 
      FIXME: should add excall to trace
   *)
   LLVMopsem.lookupExFdecViaGV TD Mem Ps gl lc fs fv = 
-    Some (fdec_intro (fheader_intro rt fid la)) ->
+    Some (fdec_intro (fheader_intro rt fid la va)) ->
   LLVMopsem.callExternalFunction Mem fid (params2GVs TD Mem lp lc gl) = 
     (oresult, Mem') ->
-  isCall (insn_call rid noret tailc rt fv lp) = true ->
+  isCall (insn_call rid noret tailc ft fv lp) = true ->
   LLVMopsem.exCallUpdateLocals noret rid oresult lc = Some lc' ->
-  dbCall S TD Ps fs gl lc Mem (insn_call rid noret tailc rt fv lp) lc' Mem' 
+  dbCall S TD Ps fs gl lc Mem (insn_call rid noret tailc ft fv lp) lc' Mem' 
     trace_nil
 
 with dbSubblock : system -> TargetData -> list product -> GVMap -> GVMap -> 
@@ -371,13 +371,13 @@ with dbFdef : value -> typ -> params -> system -> TargetData -> list product ->
               GVMap -> GVMap -> GVMap -> mem -> GVMap -> list mblock -> mem -> 
               block -> id -> option value -> trace -> Prop :=
 | dbFdef_func : forall S TD Ps gl fs fv fid lp lc rid
-                       l1 ps1 cs1 tmn1 rt la lb Result lc1 tr1 Mem Mem1 als1
+                       l1 ps1 cs1 tmn1 rt la va lb Result lc1 tr1 Mem Mem1 als1
                        l2 ps2 cs21 cs22 lc2 als2 Mem2 tr2 lc3 als3 Mem3 tr3,
   lookupFdefViaGV TD Mem Ps gl lc fs fv = 
-    Some (fdef_intro (fheader_intro rt fid la) lb) ->
-  getEntryBlock (fdef_intro (fheader_intro rt fid la) lb) = 
+    Some (fdef_intro (fheader_intro rt fid la va) lb) ->
+  getEntryBlock (fdef_intro (fheader_intro rt fid la va) lb) = 
     Some (block_intro l1 ps1 cs1 tmn1) ->
-  dbBlocks S TD Ps fs gl (fdef_intro (fheader_intro rt fid la) lb) 
+  dbBlocks S TD Ps fs gl (fdef_intro (fheader_intro rt fid la va) lb) 
     (mkState (mkEC (block_intro l1 ps1 cs1 tmn1) 
       (initLocals la (params2GVs TD Mem lp lc gl)) nil) Mem)
     (mkState (mkEC (block_intro l2 ps2 (cs21++cs22) (insn_return rid rt Result))
@@ -397,13 +397,13 @@ with dbFdef : value -> typ -> params -> system -> TargetData -> list product ->
     (block_intro l2 ps2 (cs21++cs22) (insn_return rid rt Result)) rid 
     (Some Result) (trace_app (trace_app tr1 tr2) tr3)
 | dbFdef_proc : forall S TD Ps gl fs fv fid lp lc rid
-                       l1 ps1 cs1 tmn1 rt la lb lc1 tr1 Mem Mem1 als1
+                       l1 ps1 cs1 tmn1 rt la va lb lc1 tr1 Mem Mem1 als1
                        l2 ps2 cs21 cs22 lc2 als2 Mem2 tr2 lc3 als3 Mem3 tr3,
   lookupFdefViaGV TD Mem Ps gl lc fs fv = 
-    Some (fdef_intro (fheader_intro rt fid la) lb) ->
-  getEntryBlock (fdef_intro (fheader_intro rt fid la) lb) = 
+    Some (fdef_intro (fheader_intro rt fid la va) lb) ->
+  getEntryBlock (fdef_intro (fheader_intro rt fid la va) lb) = 
     Some (block_intro l1 ps1 cs1 tmn1) ->
-  dbBlocks S TD Ps fs gl (fdef_intro (fheader_intro rt fid la) lb) 
+  dbBlocks S TD Ps fs gl (fdef_intro (fheader_intro rt fid la va) lb) 
     (mkState (mkEC (block_intro l1 ps1 cs1 tmn1) 
       (initLocals la (params2GVs TD Mem lp lc gl)) nil) Mem)
     (mkState (mkEC (block_intro l2 ps2 (cs21++cs22) (insn_return_void rid)) lc1 
@@ -800,8 +800,8 @@ match list_param1 with
 | (t, v)::list_param1' => (t, (value2Sterm sm v))::(list_param__list_typ_subst_sterm list_param1' sm)
 end.
 
-Definition se_lib : forall i id0 noret0 tailc0 rt fv lp (st:sstate),
-  i=insn_call id0 noret0 tailc0 rt fv lp ->
+Definition se_lib : forall i id0 noret0 tailc0 ft fv lp (st:sstate),
+  i=insn_call id0 noret0 tailc0 ft fv lp ->
   isCall i = false ->
   sstate.
 Proof.
@@ -957,9 +957,9 @@ match c with
                  st.(SMem)
                  st.(SFrame)
                  st.(SEffects))
-  | insn_call id0 noret0 tailc0 rt fv lp =>
-    fun (EQ:i=insn_call id0 noret0 tailc0 rt fv lp ) =>
-    se_lib i id0 noret0 tailc0 rt fv lp st EQ notcall
+  | insn_call id0 noret0 tailc0 ft fv lp =>
+    fun (EQ:i=insn_call id0 noret0 tailc0 ft fv lp ) =>
+    se_lib i id0 noret0 tailc0 ft fv lp st EQ notcall
   end) (@refl_equal _ i)
 end.
 

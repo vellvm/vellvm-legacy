@@ -1,7 +1,7 @@
 Add LoadPath "./ott".
 Add LoadPath "./monads".
 Add LoadPath "./compcert".
-(* Add LoadPath "../../../theory/metatheory". *)
+Add LoadPath "../../../theory/metatheory_8.3". 
 Require Import Zpower.
 Require Import Zdiv.
 Require Import List.
@@ -389,7 +389,7 @@ Fixpoint _getTypeSizeInBits_and_Alignment (los:layouts) (nts:list (id*(nat*nat))
       Some (128%nat, getFloatAlignmentInfo los 128%nat abi_or_pref) 
 
   | typ_metadata => None
-  | typ_function _ _ => None
+  | typ_function _ _ _ => None
   | typ_opaque => None
   | typ_namedt id0 => lookupAL _ nts id0
   end
@@ -689,3 +689,12 @@ match t with
 end.
 
 End LLVMtd.
+
+(*****************************)
+(*
+*** Local Variables: ***
+*** coq-prog-name: "coqtop" ***
+*** coq-prog-args: ("-emacs-U" "-I" "~/SVN/sol/vol/src/ssa/monads" "-I" "~/SVN/sol/vol/src/ssa/ott" "-I" "~/SVN/sol/vol/src/ssa/compcert" "-I" "~/SVN/sol/theory/metatheory_8.3" "-I" "~/SVN/sol/vol/src/TV") ***
+*** End: ***
+ *)
+

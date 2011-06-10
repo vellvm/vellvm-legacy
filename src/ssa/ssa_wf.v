@@ -29,29 +29,6 @@ Require Import ssa_props.
 Export LLVMwf.
 Export AtomSet.
 
-Definition getCmdID' (i:cmd) : option id :=
-match i with
-| insn_bop id _ sz v1 v2 => Some id
-| insn_fbop id _ _ _ _ => Some id
-(* | insn_extractelement id typ0 id0 c1 => id *)
-(* | insn_insertelement id typ0 id0 typ1 v1 c2 => id *)
-| insn_extractvalue id typs id0 c1 => Some id
-| insn_insertvalue id typs id0 typ1 v1 c2 => Some id 
-| insn_malloc id _ _ _ => Some id
-| insn_free id _ _ => None
-| insn_alloca id _ _ _ => Some id
-| insn_load id typ1 v1 _ => Some id
-| insn_store id typ1 v1 v2 _ => None
-| insn_gep id _ _ _ _ => Some id
-| insn_trunc id _ typ1 v1 typ2 => Some id 
-| insn_ext id _ sz1 v1 sz2 => Some id
-| insn_cast id _ typ1 v1 typ2 => Some id
-| insn_icmp id cond typ v1 v2 => Some id
-| insn_fcmp id cond typ v1 v2 => Some id 
-| insn_select id v0 typ v1 v2 => Some id
-| insn_call id nr _ typ v0 paraml => if nr then None else Some id
-end.
-
 Fixpoint cmds_dominates_cmd_aux (cs:cmds) (id0:id) (ctx:list atom) : list atom :=
 match cs with
 | nil => ctx
@@ -66,32 +43,6 @@ end.
 
 Definition cmds_dominates_cmd (cs:cmds) (id0:id) : list atom :=
 cmds_dominates_cmd_aux cs id0 nil. 
-
-Fixpoint getCmdsIDs' (cs:cmds) : list atom :=
-match cs with
-| nil => nil
-| c::cs' =>
-    match getCmdID' c with 
-    | Some id1 => id1::getCmdsIDs' cs'
-    | None => getCmdsIDs' cs'
-    end
-end.
-
-Fixpoint getPhiNodesIDs' (ps: phinodes) : list atom :=
-match ps with
-| nil => nil
-| p::ps' => getPhiNodeID p :: getPhiNodesIDs' ps'
-end.
-
-Definition getBlockIDs' (b:block) : list atom :=
-let '(block_intro _ ps cs _) := b in
-getPhiNodesIDs' ps ++ getCmdsIDs' cs.
-
-Fixpoint getArgsIDs' (la:args) : list atom :=
-match la with
-| nil => nil
-| (_,id1)::la' => id1::getArgsIDs' la'
-end.
 
 Definition inscope_of_block (f:fdef) (l1:l) (opt_ctx:option (list atom)) (lbl:l)
   :=
@@ -109,7 +60,7 @@ Definition inscope_of_block (f:fdef) (l1:l) (opt_ctx:option (list atom)) (lbl:l)
 Definition inscope_of_cmd (f:fdef) (b1:block) (c:cmd) : option (list atom) :=
 let id0 := getCmdID c in
 let '(block_intro l1 ps cs _) := b1 in
-let '(fdef_intro (fheader_intro _ _ la) _) := f in
+let '(fdef_intro (fheader_intro _ _ la _) _) := f in
 let 'dt := dom_analyze f in
 let '(Dominators.mkBoundedSet els _) := AMap.get l1 dt in
 fold_left (inscope_of_block f l1) els
@@ -119,7 +70,7 @@ fold_left (inscope_of_block f l1) els
 Definition inscope_of_tmn (f:fdef) (b1:block) (tmn:terminator) 
   : option (list atom) :=
 let '(block_intro l1 ps cs _) := b1 in
-let '(fdef_intro (fheader_intro _ _ la) _) := f in
+let '(fdef_intro (fheader_intro _ _ la _) _) := f in
 let 'dt := dom_analyze f in
 let '(Dominators.mkBoundedSet els _) := AMap.get l1 dt in
 fold_left (inscope_of_block f l1) els
@@ -259,15 +210,6 @@ let '(mkState s (los, nts) ps ecs _ _ _) := S in
 wf_system nil s /\
 moduleInSystemB (module_intro los nts ps) s = true /\
 wf_ECStack ps ecs.
-
-Lemma getCmdID_getCmdID' : forall a i0,
-  getCmdID' a = Some i0 ->
-  getCmdID a = i0.
-Proof.
-  intros a i0 H.
-  destruct a; inv H; auto.
-    simpl. destruct n; inv H1; auto.
-Qed.
 
 Lemma set_eq_app : forall x1 x2 y1 y2,
   set_eq atom x1 y1 -> set_eq atom x2 y2 -> set_eq atom (x1++x2) (y1++y2).
@@ -489,8 +431,8 @@ Proof.
   intros f l2 ps2 cs2' c' tmn' ids1 Hnotin Hinscope.
   unfold inscope_of_cmd in Hinscope.
   unfold inscope_of_tmn.
-  destruct f as [[? ? la] bs].
-  remember ((dom_analyze (fdef_intro (fheader_intro t i0 la) bs)) !! l2) as R.
+  destruct f as [[? ? la va] bs].
+  remember ((dom_analyze (fdef_intro (fheader_intro t i0 la va) bs)) !! l2) as R.
   destruct R as [R_contents R_bound]. simpl in *.
   apply getCmdsIDs__cmds_dominates_cmd in Hnotin.
   symmetry in Hinscope.
@@ -610,8 +552,8 @@ Proof.
   intros f l2 ps2 cs2' c' c cs' tmn' ids1 Hnodup Hinscope.
   unfold inscope_of_cmd in Hinscope.
   unfold inscope_of_cmd.
-  destruct f as [[? ? la] bs].
-  remember ((dom_analyze (fdef_intro (fheader_intro t i0 la) bs)) !! l2) as R.
+  destruct f as [[? ? la va] bs].
+  remember ((dom_analyze (fdef_intro (fheader_intro t i0 la va) bs)) !! l2) as R.
   destruct R as [R_contents R_bound].
   apply cmds_dominates_cmd__cmds_dominates_cmd in Hnodup. simpl in *.
   symmetry in Hinscope.
@@ -652,11 +594,11 @@ Proof.
       apply set_eq_sym; auto.          
 Qed.
 
-Lemma fold_left__bound_blocks : forall ls0 t i0 la bs l0 init,
+Lemma fold_left__bound_blocks : forall ls0 t i0 la va bs l0 init,
   incl ls0 (bound_blocks bs) ->
   exists r, 
     fold_left (inscope_of_block 
-                (fdef_intro (fheader_intro t i0 la) bs) l0) ls0 (Some init) = 
+                (fdef_intro (fheader_intro t i0 la va) bs) l0) ls0 (Some init) = 
       Some r.
 Admitted.
 
@@ -729,9 +671,6 @@ Proof.
 Qed.
 
 Lemma dom_successors : forall
-  (t : typ)
-  (i0 : id)
-  (la : args)
   (bs : blocks)
   (l3 : l)
   (l' : l)
@@ -740,7 +679,7 @@ Lemma dom_successors : forall
   (HBinF : blockInFdefB (block_intro l3 ps cs tmn) (fdef_intro fh bs) = true)
   (Doms : AMap.t
            (Dominators.t (bound_fdef (fdef_intro fh bs))))
-  (HeqDoms : Doms = dom_analyze (fdef_intro (fheader_intro t i0 la) bs))
+  (HeqDoms : Doms = dom_analyze (fdef_intro fh bs))
   (contents3 : ListSet.set atom)
   (inbound3 : incl contents3 (bound_fdef (fdef_intro fh bs)))
   (Heqdefs3 : {|
@@ -777,13 +716,13 @@ Proof.
       apply DomDS.fixpoint_solution with (s:=l')(n:=l3) in HeqR1; eauto.
       unfold transfer, DomDS.L.ge, DomDS.L.top, DomDS.L.bot, DomDS.L.sub, 
         DomDS.L.eq, Dominators.add in HeqR1.
-      remember (t0 !! l') as R2.
+      remember (t !! l') as R2.
       destruct R2.              
       assert (contents' = bs_contents) as EQ.
         clear - Heqdefs' HeqR2.
         admit. (* proof irr *)
       subst.
-      remember (t0 !! l3) as R3.
+      remember (t !! l3) as R3.
       destruct R3.              
       assert (contents3 = bs_contents0) as EQ.
         clear - Heqdefs3 HeqR3.
@@ -835,8 +774,8 @@ Proof.
   destruct J as [Heq J]; subst.
   unfold inscope_of_tmn in Hinscope.
   unfold inscope_of_tmn. unfold inscope_of_cmd.
-  destruct F as [[? ? la] bs].
-  remember (dom_analyze (fdef_intro (fheader_intro t i0 la) bs)) as Doms.
+  destruct F as [[? ? la va] bs].
+  remember (dom_analyze (fdef_intro (fheader_intro t i0 la va) bs)) as Doms.
   remember (Doms !! l3)as defs3.
   remember (Doms !! l')as defs'.
   destruct defs3 as [contents3 inbound3]. 
@@ -851,8 +790,8 @@ Proof.
   Case "cs'=nil".
     assert (J1:=inbound').
     apply fold_left__bound_blocks with (init:=getPhiNodesIDs' ps' ++ 
-      getCmdsIDs' nil ++ getArgsIDs' la)(t:=t)(i0:=i0)(la:=la)(bs:=bs)(l0:=l')
-      in J1.
+      getCmdsIDs' nil ++ getArgsIDs' la)(t:=t)(i0:=i0)(la:=la)(va:=va)(bs:=bs)
+      (l0:=l') in J1.
     destruct J1 as [r J1].
     exists r. split; auto.
     clear - Hinscope J1 Hsub HBinF.
@@ -905,7 +844,7 @@ Proof.
       try solve [contradict n; auto].
     simpl_env.
     apply fold_left__bound_blocks with (init:=getPhiNodesIDs' ps' ++ 
-      getArgsIDs' la)(t:=t)(i0:=i0)(la:=la)(bs:=bs)(l0:=l') in J1.
+      getArgsIDs' la)(t:=t)(i0:=i0)(la:=la)(va:=va)(bs:=bs)(l0:=l') in J1.
     destruct J1 as [r J1].
     exists r. split; auto.
     clear - Hinscope J1 Hsub HBinF.

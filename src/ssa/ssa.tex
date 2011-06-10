@@ -74,6 +74,11 @@
 \ottprodline{|}{\ottsym{ppc\_fp128}}{}{}{}{\ottcom{ppcfp128}}\\ 
 \ottprodline{|}{\ottsym{(}  \ottnt{floating\_point}  \ottsym{)}} {\textsf{S}}{}{}{}}
 
+\newcommand{\ottvarg}{
+\ottrulehead{\ottnt{varg}}{::=}{\ottcom{var arg}}\\ 
+\ottprodline{|}{\ottsym{varg\_yes}}{}{}{}{\ottcom{yes}}\\ 
+\ottprodline{|}{\ottsym{varg\_no}}{}{}{}{\ottcom{no}}}
+
 \newcommand{\otttyp}{
 \ottrulehead{\ottnt{typ}}{::=}{\ottcom{type}}\\ 
 \ottprodline{|}{\ottkw{int} \, \ottmv{sz}}{}{}{}{\ottcom{integer}}\\ 
@@ -82,7 +87,7 @@
 \ottprodline{|}{\ottkw{label}}{}{}{}{\ottcom{label}}\\ 
 \ottprodline{|}{\ottkw{metadata}}{}{}{}{\ottcom{metadata}}\\ 
 \ottprodline{|}{\ottsym{[}  \ottmv{sz}  \ottsym{*}  \ottnt{typ}  \ottsym{]}}{}{}{}{\ottcom{array}}\\ 
-\ottprodline{|}{\ottnt{typ}  \ottsym{(} \, \ottcomp{\ottnt{typ_{\ottmv{j}}}}{\ottmv{j}} \, \ottsym{)}}{}{}{}{\ottcom{function}}\\ 
+\ottprodline{|}{\ottnt{typ}  \ottsym{(} \, \ottcomp{\ottnt{typ_{\ottmv{j}}}}{\ottmv{j}} \, \ottnt{varg}  \ottsym{)}}{}{}{}{\ottcom{function}}\\ 
 \ottprodline{|}{\ottsym{\{} \, \ottcomp{\ottnt{typ_{\ottmv{j}}}}{\ottmv{j}} \, \ottsym{\}}}{}{}{}{\ottcom{structure}}\\ 
 \ottprodline{|}{\ottnt{typ}  \ottsym{*}}{}{}{}{\ottcom{pointer}}\\ 
 \ottprodline{|}{\ottkw{opaque}}{}{}{}{\ottcom{opaque}}\\ 
@@ -330,7 +335,7 @@
 
 \newcommand{\ottfheader}{
 \ottrulehead{\ottnt{fheader}}{::=}{\ottcom{function header}}\\ 
-\ottprodline{|}{\ottnt{typ} \, \ottmv{id}  \ottsym{(}  \mathit{\overline{arg} }  \ottsym{)}}{}{}{}{}\\ 
+\ottprodline{|}{\ottnt{typ} \, \ottmv{id}  \ottsym{(}  \mathit{\overline{arg} } \, \ottnt{varg}  \ottsym{)}}{}{}{}{}\\ 
 \ottprodline{|}{\ottsym{(}  \ottnt{fheader}  \ottsym{)}} {\textsf{S}}{}{}{}}
 
 \newcommand{\ottfdec}{
@@ -446,6 +451,7 @@
 \ottlayout\ottinterrule
 \ottlayouts\ottinterrule
 \ottfloatingXXpoint\ottinterrule
+\ottvarg\ottinterrule
 \otttyp\ottinterrule
 \ottoptXXtyp\ottinterrule
 \ottcond\ottinterrule
@@ -551,7 +557,7 @@
 \ottpremise{\ottcomp{\ottkw{isValidArgumentTyp} \, \ottnt{typ_{\ottmv{j}}}}{\ottmv{j}}}%
 \ottpremise{\ottcomp{\ottnt{system}  \vdash  \ottnt{typ_{\ottmv{j}}}}{\ottmv{j}}}%
 }{
-\ottnt{system}  \vdash  \ottnt{typ}  \ottsym{(} \, \ottcomp{\ottnt{typ_{\ottmv{j}}}}{\ottmv{j}} \, \ottsym{)}}{%
+\ottnt{system}  \vdash  \ottnt{typ}  \ottsym{(} \, \ottcomp{\ottnt{typ_{\ottmv{j}}}}{\ottmv{j}} \, \ottnt{varg}  \ottsym{)}}{%
 {\ottdrulename{wf\_typ\_function}}{}%
 }}
 
@@ -1349,13 +1355,12 @@
 
 
 \newcommand{\ottdrulewfXXinsnXXcall}[1]{\ottdrule[#1]{%
-\ottpremise{\ottnt{system}  \ottsym{,}  \ottnt{fdef}  \vdash  \ottnt{value_{{\mathrm{0}}}}  \ottsym{:}  \ottnt{typ_{{\mathrm{1}}}}}%
-\ottpremise{\ottkw{isFunctionPointerTyp} \, \ottnt{typ_{{\mathrm{1}}}}}%
+\ottpremise{\ottnt{system}  \ottsym{,}  \ottnt{fdef}  \vdash  \ottnt{value_{{\mathrm{0}}}}  \ottsym{:}  \ottnt{typ_{{\mathrm{0}}}}  \ottsym{*}}%
 \ottpremise{\texttt{FunctionType.getNumParams }\ottnt{typ_{{\mathrm{1}}}}\texttt{ = Some (length }\mathit{\overline{param} }\texttt{) }}%
 \ottpremise{\mathit{\overline{param} }  <-> \, \ottcomp{\ottsym{(}  \ottnt{typ'_{\ottmv{j}}} \, \ottnt{value''_{\ottmv{j}}}  \ottsym{)}}{\ottmv{j}}}%
-\ottpremise{\ottnt{typ_{{\mathrm{1}}}}  =  \ottnt{typ_{{\mathrm{0}}}}  \ottsym{(} \, \ottcomp{\ottnt{typ'_{\ottmv{j}}}}{\ottmv{j}} \, \ottsym{)}}%
+\ottpremise{\ottnt{typ_{{\mathrm{0}}}}  =  \ottnt{typ_{{\mathrm{1}}}}  \ottsym{(} \, \ottcomp{\ottnt{typ'_{\ottmv{j}}}}{\ottmv{j}} \, \ottnt{varg}  \ottsym{)}}%
 \ottpremise{\ottcomp{\ottnt{system}  \ottsym{,}  \ottnt{fdef}  \vdash  \ottnt{value''_{\ottmv{j}}}  \ottsym{:}  \ottnt{typ'_{\ottmv{j}}}}{\ottmv{j}}}%
-\ottpremise{ \ottnt{typ_{{\mathrm{0}}}}  \ottsym{=t=}  \ottkw{void}  \mathit{implies}  \ottnt{noret}  = \, \ottkw{yes} }%
+\ottpremise{ \ottnt{typ_{{\mathrm{1}}}}  \ottsym{=t=}  \ottkw{void}  \mathit{implies}  \ottnt{noret}  = \, \ottkw{yes} }%
 \ottpremise{\ottnt{fdef}  \ottsym{,}  \ottnt{block}  \vdash_{i}  \ottmv{id}  =  \ottnt{noret} \, \ottnt{tailc} \, \ottkw{call} \, \ottnt{typ_{{\mathrm{0}}}} \, \ottnt{value_{{\mathrm{0}}}} \, \mathit{\overline{param} }}%
 }{
 \ottnt{intrinsic\_funs}  \ottsym{,}  \ottnt{system}  \ottsym{,}  \ottnt{module}  \ottsym{,}  \ottnt{fdef}  \ottsym{,}  \ottnt{block}  \vdash  \ottmv{id}  =  \ottnt{noret} \, \ottnt{tailc} \, \ottkw{call} \, \ottnt{typ_{{\mathrm{0}}}} \, \ottnt{value_{{\mathrm{0}}}} \, \mathit{\overline{param} }}{%
@@ -1498,12 +1503,12 @@
 % defns Jwf_fdec
 % defn wf_fdec
 \newcommand{\ottdrulewfXXfdecXXintro}[1]{\ottdrule[#1]{%
-\ottpremise{\ottsym{(}  \ottkw{declare} \, \ottsym{(}  \ottnt{typ} \, \ottmv{id}  \ottsym{(}  \mathit{\overline{arg} }  \ottsym{)}  \ottsym{)}  \ottsym{)} \, \in \, \ottnt{system}  \ottsym{,}  \ottnt{module}}%
+\ottpremise{\ottsym{(}  \ottkw{declare} \, \ottsym{(}  \ottnt{typ} \, \ottmv{id}  \ottsym{(}  \mathit{\overline{arg} } \, \ottnt{varg}  \ottsym{)}  \ottsym{)}  \ottsym{)} \, \in \, \ottnt{system}  \ottsym{,}  \ottnt{module}}%
 \ottpremise{\mathit{\overline{arg} }  <-> \, \ottcomp{\ottsym{(}  \ottnt{typ_{\ottmv{j}}} \, \ottmv{id_{\ottmv{j}}}  \ottsym{)}}{\ottmv{j}}}%
 \ottpremise{\ottcomp{\ottnt{system}  \vdash  \ottnt{typ_{\ottmv{j}}}}{\ottmv{j}}}%
 \ottpremise{ \ottkw{isFirstClassTyp} \, \ottnt{typ}  \vee  \ottnt{typ}  \ottsym{=t=}  \ottkw{void} }%
 }{
-\ottnt{intrinsic\_funs}  \ottsym{,}  \ottnt{system}  \ottsym{,}  \ottnt{module}  \vdash_{f}  \ottkw{declare} \, \ottsym{(}  \ottnt{typ} \, \ottmv{id}  \ottsym{(}  \mathit{\overline{arg} }  \ottsym{)}  \ottsym{)}}{%
+\ottnt{intrinsic\_funs}  \ottsym{,}  \ottnt{system}  \ottsym{,}  \ottnt{module}  \vdash_{f}  \ottkw{declare} \, \ottsym{(}  \ottnt{typ} \, \ottmv{id}  \ottsym{(}  \mathit{\overline{arg} } \, \ottnt{varg}  \ottsym{)}  \ottsym{)}}{%
 {\ottdrulename{wf\_fdec\_intro}}{}%
 }}
 

@@ -1356,15 +1356,15 @@ Definition se_dbBlocks_preservation_prop S TD Ps fs gl F state1 state2 tr
 Definition se_dbFdef_preservation_prop fv rt lp S TD Ps lc gl fs Mem lc' als' 
   Mem' B' Rid oResult tr
   (db:dbFdef fv rt lp S TD Ps lc gl fs Mem lc' als' Mem' B' Rid oResult tr) :=
-  forall fid la lb los nts,
+  forall fid la va lb los nts,
   lookupFdefViaGV TD Mem Ps gl lc fs fv = 
-    Some (fdef_intro (fheader_intro rt fid la) lb) ->
+    Some (fdef_intro (fheader_intro rt fid la va) lb) ->
   uniq lc ->
   uniqSystem S ->
   moduleInSystem (module_intro los nts Ps) S ->
   TD = (los, nts) ->
   uniq lc' /\ 
-  blockInSystemModuleFdef B' S (module_intro los nts Ps) (fdef_intro (fheader_intro rt fid la) lb).
+  blockInSystemModuleFdef B' S (module_intro los nts Ps) (fdef_intro (fheader_intro rt fid la va) lb).
 
 Lemma se_db_preservation :
   (forall S TD Ps fs gl lc Mem0 call0 lc' Mem' tr db, 
@@ -1522,15 +1522,15 @@ Proof.
 Qed.
 
 Lemma se_dbFdef_preservation : forall fv rt lp S los nts Ps lc gl fs Mem lc' als'
-    Mem' B' Rid oResult tr fid la lb,
+    Mem' B' Rid oResult tr fid la va lb,
   dbFdef fv rt lp S (los, nts) Ps lc gl fs Mem lc' als' Mem' B' Rid oResult tr ->
   lookupFdefViaGV (los, nts) Mem Ps gl lc fs fv = 
-    Some (fdef_intro (fheader_intro rt fid la) lb) ->
+    Some (fdef_intro (fheader_intro rt fid la va) lb) ->
   uniq lc ->
   uniqSystem S ->
   moduleInSystem (module_intro los nts Ps) S ->
   uniq lc' /\ 
-  blockInSystemModuleFdef B' S (module_intro los nts Ps) (fdef_intro (fheader_intro rt fid la) lb).
+  blockInSystemModuleFdef B' S (module_intro los nts Ps) (fdef_intro (fheader_intro rt fid la va) lb).
 Proof.
   intros.
   destruct se_db_preservation as [_ [_ [_ [_ [_ J]]]]].
@@ -1787,9 +1787,9 @@ Definition dbBlocks_eqEnv_prop S TD Ps fs gl F state1 state2 tr
 Definition dbFdef_eqEnv_prop fv rt lp S TD Ps lc1 gl fs Mem lc2 als' Mem' B' Rid 
   oResult tr
   (db:dbFdef fv rt lp S TD Ps lc1 gl fs Mem lc2 als' Mem' B' Rid oResult tr) :=
-  forall fid la lb lc1',
+  forall fid la va lb lc1',
   lookupFdefViaGV TD Mem Ps gl lc1 fs fv = 
-    Some (fdef_intro (fheader_intro rt fid la) lb) ->
+    Some (fdef_intro (fheader_intro rt fid la va) lb) ->
   eqAL _ lc1 lc1' ->
   exists lc2',
     dbFdef fv rt lp S TD Ps lc1' gl fs Mem lc2' als' Mem' B' Rid oResult tr /\
@@ -1998,10 +1998,10 @@ Proof.
 Qed.
 
 Lemma dbFdef_eqEnv : forall fv fid rt lp S TD Ps lc1 gl fs Mem lc2 als' Mem' B' 
-    Rid oResult tr la lb lc1',
+    Rid oResult tr la va lb lc1',
   dbFdef fv rt lp S TD Ps lc1 gl fs Mem lc2 als' Mem' B' Rid oResult tr ->
   lookupFdefViaGV TD Mem Ps gl lc1 fs fv = 
-    Some (fdef_intro (fheader_intro rt fid la) lb) ->
+    Some (fdef_intro (fheader_intro rt fid la va) lb) ->
   eqAL _ lc1 lc1' ->
   exists lc2',
     dbFdef fv rt lp S TD Ps lc1' gl fs Mem lc2' als' Mem' B' Rid oResult tr /\

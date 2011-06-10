@@ -206,10 +206,10 @@ Inductive wf_insn : sbState -> Prop :=
       gl fs Mem MM) 
 
 | wf_Call : forall S TD Ps F B lc rm gl fs rid noret tailc fid fv lp cs tmn
-                            l' ps' cs' tmn' EC rt la lb Mem MM als rm',
+                            l' ps' cs' tmn' EC rt la va lb Mem MM als rm',
   LLVMopsem.lookupFdefViaGV TD Mem Ps gl lc fs fv = 
-    Some (fdef_intro (fheader_intro rt fid la) lb) ->
-  getEntryBlock (fdef_intro (fheader_intro rt fid la) lb) = 
+    Some (fdef_intro (fheader_intro rt fid la va) lb) ->
+  getEntryBlock (fdef_intro (fheader_intro rt fid la va) lb) = 
     Some (block_intro l' ps' cs' tmn') ->
   initRmetadata TD Mem gl la lp rm = Some rm' ->
   wf_insn 
@@ -218,9 +218,9 @@ Inductive wf_insn : sbState -> Prop :=
         ::EC) gl fs Mem MM)
 
 | wf_ExCall : forall S TD Ps F B lc rm gl fs rid noret tailc fid fv lp cs tmn EC 
-                    rt la Mem als oresult Mem' lc' MM,
+                    rt la va Mem als oresult Mem' lc' MM,
   LLVMopsem.lookupExFdecViaGV TD Mem Ps gl lc fs fv = 
-    Some (fdec_intro (fheader_intro rt fid la)) ->
+    Some (fdec_intro (fheader_intro rt fid la va)) ->
   LLVMopsem.callExternalFunction Mem fid (params2GVs TD Mem lp lc gl) = 
     (oresult, Mem') ->
   LLVMopsem.exCallUpdateLocals noret rid oresult lc = Some lc' ->
@@ -234,10 +234,11 @@ Definition runtime_domination st :=
   exists S, exists TD, exists Ps, exists B, exists lc, exists rm, exists gl,
   exists fs, exists rid, exists noret, exists tailc, exists fid, exists fv,
   exists lp, exists cs, exists tmn, exists l1, exists ps1, exists cs1, 
-  exists tmn1, exists EC, exists rt, exists la, exists lb, exists Mem, exists MM,
+  exists tmn1, exists EC, exists rt, exists la, exists va, exists lb, exists Mem,
+  exists MM,
   exists als, exists rm1, exists lc2, exists rm2, exists als2, exists cs2,
   exists tmn2, exists B2, exists tr, exists F, exists B1,
-  F = fdef_intro (fheader_intro rt fid la) lb /\
+  F = fdef_intro (fheader_intro rt fid la va) lb /\
   LLVMopsem.lookupFdefViaGV TD Mem Ps gl lc fs fv = Some F /\
   getEntryBlock F = Some B1 /\
   B1 = block_intro l1 ps1 cs1 tmn1 /\

@@ -94,10 +94,10 @@ Fixpoint gen_utyp_maps_aux (cid:id) (m:list(id*typ)) (t:typ) : option typ :=
  | typ_label => Some typ_label
  | typ_metadata => Some typ_metadata
  | typ_array s t0 => do ut0 <- gen_utyp_maps_aux cid m t0; ret (typ_array s ut0)
- | typ_function t0 ts0 => 
+ | typ_function t0 ts0 va => 
      do ut0 <- gen_utyp_maps_aux cid m t0;
      do uts0 <- gen_utyps_maps_aux cid m ts0;
-        ret (typ_function ut0 uts0)
+        ret (typ_function ut0 uts0 va)
  | typ_struct ts0 => 
      do uts0 <- gen_utyps_maps_aux cid m ts0; ret (typ_struct uts0)
  | typ_pointer t0 => 
@@ -141,10 +141,10 @@ Fixpoint typ2utyp_aux (m:list(id*typ)) (t:typ) : option typ :=
  | typ_label => Some typ_label
  | typ_metadata => Some typ_metadata
  | typ_array s t0 => do ut0 <- typ2utyp_aux m t0; ret (typ_array s ut0)
- | typ_function t0 ts0 => 
+ | typ_function t0 ts0 va => 
      do ut0 <- typ2utyp_aux m t0;
      do uts0 <- typs2utyps_aux m ts0;
-        ret (typ_function ut0 uts0)
+        ret (typ_function ut0 uts0 va)
  | typ_struct ts0 => do uts0 <- typs2utyps_aux m ts0; ret (typ_struct uts0)
  | typ_pointer t0 => do ut0 <- typ2utyp_aux m t0; ret (typ_pointer ut0)
  | typ_opaque => Some typ_opaque
@@ -168,8 +168,8 @@ Fixpoint subst_typ (i':id) (t' t:typ) : typ :=
  | typ_int _ | typ_floatpoint _ | typ_void | typ_label | typ_metadata 
  | typ_opaque => t
  | typ_array s t0 => typ_array s (subst_typ i' t' t0)
- | typ_function t0 ts0 => 
-     typ_function (subst_typ i' t' t0) (subst_typs i' t' ts0)
+ | typ_function t0 ts0 va => 
+     typ_function (subst_typ i' t' t0) (subst_typs i' t' ts0) va
  | typ_struct ts0 => typ_struct (subst_typs i' t' ts0)
  | typ_pointer t0 => typ_pointer (subst_typ i' t' t0)
  | typ_namedt i => if (eq_atom_dec i i') then t' else t
@@ -589,7 +589,7 @@ match t with
   | None => None
   end
 | typ_pointer t' => Some null
-| typ_function _ _ => None
+| typ_function _ _ _ => None
 | typ_opaque => None
 | typ_namedt _ => None (*FIXME: Can zeroconstant be of named type? How about termination. *)
 end             

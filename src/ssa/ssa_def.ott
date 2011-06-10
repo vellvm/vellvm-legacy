@@ -159,6 +159,10 @@ floating_point :: 'fp_'					::=  			{{ com floating point types }}
   | ppc_fp128						::   :: ppc_fp128     	{{ com ppcfp128 }}       
   | ( floating_point )					:: S :: paren           {{ coq [[ floating_point ]] }}
 
+varg :: 'varg_'						::=  			{{ com var arg }} {{ coq bool }}
+  | varg_yes						::   :: yes		{{ com yes }} {{ coq true }}
+  | varg_no						::   :: no              {{ com no }} {{ coq false }}
+
 typ :: 'typ_'						::=			{{ com type }}
   | int sz                    				::   :: int         	{{ com integer }}
   | floating_point					::   :: floatpoint	{{ com floating point types }}
@@ -166,7 +170,7 @@ typ :: 'typ_'						::=			{{ com type }}
   | label                                               ::   :: label           {{ com label }}
   | metadata                                            ::   :: metadata        {{ com metadata }}
   | [ sz * typ ]              				::   :: array       	{{ com array }}
-  | typ ( </ typj // j /> )  				::   :: function    	{{ com function }}
+  | typ ( </ typj // j /> varg ) 			::   :: function    	{{ com function }}
   | { </ typj // j /> }       				::   :: struct      	{{ com structure }}
   | typ *                     				::   :: pointer     	{{ com pointer }}
   %| < sz * typ >             				::   :: vector       	{{ com vector }}
@@ -413,7 +417,7 @@ blocks {{ tex \mathit{\overline{block} } }} :: 'blocks_'::=			{{ com blocks }}
   | ( blocks )						:: S :: paren           {{ coq [[ blocks ]] }}
 
 fheader :: 'fheader_'    				::=			{{ com function header }}
-  | typ id ( args ) 					::   :: intro
+  | typ id ( args varg )				::   :: intro
   | ( fheader )						:: S :: paren           {{ coq [[ fheader ]] }}
 
 fdec :: 'fdec_'       					::=			{{ com function declaration }}
@@ -559,7 +563,7 @@ Scheme typ_rec2 := Induction for typ Sort Set
   with list_typ_rec2 := Induction for list_typ Sort Set.
 
 Definition typ_mutrec P P' :=
-  fun h1 h2 h3 h4 h5 h6 h7 h8 h9 h10 h11 h12 h13=>
+  fun h1 h2 h3 h4 h5 h6 h7 h8 h9 h10 h11 h12 h13 =>
       (pair (@typ_rec2 P P' h1 h2 h3 h4 h5 h6 h7 h8 h9 h10 h11 h12 h13)
             (@list_typ_rec2 P P' h1 h2 h3 h4 h5 h6 h7 h8 h9 h10 h11 h12 h13)).
 
@@ -583,8 +587,8 @@ embed
 (*
 *** Local Variables: ***
 *** coq-prog-name: "coqtop" ***
-*** coq-prog-args: ("-emacs-U" "-I" "./monads" "-I" "./ott" "-I" "./compcert" "-I" "/home/jianzhou/SVN/provers/metalib/branches/metatheory_8.3/") ***
+*** coq-prog-args: ("-emacs-U" "-I" "~/SVN/sol/vol/src/ssa/monads" "-I" "~/SVN/sol/vol/src/ssa/ott" "-I" "~/SVN/sol/vol/src/ssa/compcert" "-I" "~/SVN/sol/theory/metatheory_8.3" "-I" "~/SVN/sol/vol/src/TV") ***
 *** End: ***
-*)
+ *)
 }}
 

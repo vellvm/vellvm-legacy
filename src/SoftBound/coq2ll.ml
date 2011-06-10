@@ -30,8 +30,13 @@ let rec string_of_typ ty =
   | LLVMsyntax.Coq_typ_array (sz, t) ->
                      "["   ^ (string_of_int sz) ^
                       " x " ^ (string_of_typ t) ^ "]"
-  | LLVMsyntax.Coq_typ_function (t, ts) ->    
-                     string_of_typ t ^ " (" ^ string_of_list_typ ts ^ ")"
+  | LLVMsyntax.Coq_typ_function (t, ts, va) ->    
+      string_of_typ t ^ " (" ^ string_of_list_typ ts ^ 
+        (if va then 
+           (if List.length (LLVMsyntax.unmake_list_typ ts) = 0 
+            then "... " else ", ... ")
+         else "") ^
+        ")"
   | LLVMsyntax.Coq_typ_struct ts ->
                      "{ " ^ string_of_list_typ ts ^ " }"
   | LLVMsyntax.Coq_typ_pointer t -> (string_of_typ t) ^ "*"
@@ -202,7 +207,7 @@ let rec string_of_list_value_l vls =
       (fun (v, l) -> "[" ^ (string_of_value v) ^ ", " ^ name_of_label l ^ "]") 
     (LLVMsyntax.unmake_list_value_l vls))
 
-let string_of_args args =
+let string_of_args_def args va =
   "(" ^ 
   (String.concat "," 
     (List.map 
@@ -217,6 +222,7 @@ let string_of_args args =
       ) args
     )
   ) ^ 
+  (if va then (if List.length args = 0 then "... " else ", ... ") else "") ^ 
   ")"
 
 let travel_terminator i =
@@ -292,14 +298,9 @@ let travel_cmd i =
         (string_of_typ t) (string_of_value v1) (string_of_typ t) 
         (string_of_value v2)
   | LLVMsyntax.Coq_insn_call (id, noret, tailc, t, fv, ps) ->
-      let (ts, _) = List.split ps in
-      let ps' = String.concat "," (List.map string_of_typ ts) in
-      eprintf "  %s%scall %s(%s)* %s %s\n"  (if noret then "" else id ^ " = ") 
+      eprintf "  %s%scall %s* %s %s\n"  (if noret then "" else id ^ " = ") 
         (if tailc then "tail " else "") (string_of_typ t) 
-        (match fv with
-          | LLVMsyntax.Coq_value_const (LLVMsyntax.Coq_const_gid (_, fid)) ->      
-              if (fid = "@printf") then "i8*,..." else ps'              
-          | _ -> ps') (string_of_value fv) (string_of_params ps)
+        (string_of_value fv) (string_of_params ps)
   ;
   flush_all ()        
           
@@ -319,23 +320,25 @@ let travel_block b =
     List.iter travel_cmd cs;
     travel_terminator tmn
 
-let string_of_args' fid args =
+let string_of_args_dec fid args va =
   "(" ^ (String.concat "," 
      (List.map (fun (t,_) -> (string_of_typ t)) args)) ^ 
-     (if (fid = "@printf") then ",...)" else ")")
+     (if va then (if List.length args = 0 then "... " else ", ... ") else "") ^ 
+   ")"
 
 let travel_fdec f =
   match f with
-  | LLVMsyntax.Coq_fheader_intro (t, fid, args) ->
+  | LLVMsyntax.Coq_fheader_intro (t, fid, args, va) ->
     eprintf "declare %s %s %s\n" (string_of_typ t) fid 
-      (string_of_args' fid args); 
+      (string_of_args_dec fid args va); 
     flush_all ()
 
 let travel_fdef f =
   match f with
-  | LLVMsyntax.Coq_fdef_intro (LLVMsyntax.Coq_fheader_intro (t, fid, args), bs) 
-    ->
-    eprintf "define %s %s %s{\n" (string_of_typ t) fid (string_of_args args); 
+  | LLVMsyntax.Coq_fdef_intro 
+      (LLVMsyntax.Coq_fheader_intro (t, fid, args, va), bs) ->
+    eprintf "define %s %s %s{\n" (string_of_typ t) fid 
+      (string_of_args_def args va); 
     flush_all ();
     List.iter travel_block bs;
     eprintf "}\n"

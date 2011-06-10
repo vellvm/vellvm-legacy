@@ -44,7 +44,7 @@ Jwf_typ :: '' ::=
       </ isValidArgumentTyp typj // j />
       </ system |- typj // j /> 
       -------------------------------------------------- :: wf_typ_function
-      system |- typ ( </ typj // j /> ) 
+      system |- typ ( </ typj // j /> varg ) 
      
       </ isValidElementTyp typj // j />
       </ system |- typj // j /> 
@@ -686,17 +686,16 @@ Jwf_insn :: '' ::=
       % LLVM checks that 
       %   "Called function must be a pointer!"
       %   "Called function has to be a pointer to function type!"
-      system , fdef |- value0 : typ1
-      isFunctionPointerTyp typ1
+      system , fdef |- value0 : typ0*
       % Verify that the correct number of arguments are being passed 
       % Correct number of arguments passed to called function! 
       {{ FunctionType.getNumParams [[:user_syntax__typ:typ1]] = Some (length [[params]]) }}
       % Verify that all arguments to the call match the function type... 
       params <-> </ (typj' valuej'') // j />
-      typ1 = typ0 ( </ typj' // j /> )
+      typ0 = typ1 ( </ typj' // j /> varg )
       </ system , fdef |- valuej'' : typj' // j />
       % instructions returning void cannot have a name
-      typ0 =t= void implies noret = yes
+      typ1 =t= void implies noret = yes
       % Will Verify call attributes later... 
       %
       % Verify that there's no metadata unless it's a direct call to an intrinsic. 
@@ -783,7 +782,7 @@ Jwf_fdec :: '' ::=
       {{ com [[fdec]] is well-formed w.r.t. [[module]] [[system]] }} by
 
       % Inclusion
-      (declare ( typ id ( args ) )) in system , module
+      (declare ( typ id ( args varg ) )) in system , module
       % Check function arguments.
       args <-> </ (typj idj) // j />
       </ system |- typj // j />      
@@ -813,7 +812,7 @@ Jwf_fdec :: '' ::=
       %
       % Check invalid linkage type for function declaration 
       -------------------------------------------------------------------------------------------------- :: wf_fdec_intro
-      intrinsic_funs , system , module |-f declare ( typ id ( args ) )
+      intrinsic_funs , system , module |-f declare ( typ id ( args varg ) )
 
 defns
 Jwf_fdef :: '' ::=

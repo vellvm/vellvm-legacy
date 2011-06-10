@@ -343,7 +343,7 @@ match c2 with
       else
         match (SBsyntax.lookupFdefViaIDFromProducts Ps2 fid2) with
         | None => accum
-        | Some (SBsyntax.fdef_intro (fheader_intro _ _ args2) _) =>
+        | Some (SBsyntax.fdef_intro (fheader_intro _ _ args2 _) _) =>
            metadata_from_params (get_arg_metadata flnbep0 fid2) args2 tsts2 accum
         end
   | _ => accum
@@ -354,7 +354,7 @@ match c2 with
       if (isCallLib fid2) then accum
       else
         match (SBsyntax.lookupFdefViaIDFromProducts Ps2 fid2) with
-        | Some (SBsyntax.fdef_intro (fheader_intro _ _ (_::args2)) _) =>
+        | Some (SBsyntax.fdef_intro (fheader_intro _ _ (_::args2) _) _) =>
            metadata_from_params (get_arg_metadata flnbep0 fid2) args2 tsts2 accum
         | _ => accum
         end
@@ -645,7 +645,7 @@ end.
 Definition metadata_from_fdef Ps2 flbep (f2:SBsyntax.fdef) (md:lnbeps) 
   (bsteps:onat) : lnbeps :=
 match f2 with
-| SBsyntax.fdef_intro ((fheader_intro t2 fid2 a2) as fh2) lb2 =>
+| SBsyntax.fdef_intro ((fheader_intro t2 fid2 a2 _) as fh2) lb2 =>
   if (isCallLib fid2) then md 
   else 
    let accum := metadata_from_blocks Ps2 flbep lb2 
@@ -746,7 +746,7 @@ disjoint_mptr_fptr_metadata_aux (nbeps_to_beps (lnbeps_to_nbeps md nil) nil).
 Definition validate_metadata_from_fdef Ps2 flbep (f2:SBsyntax.fdef) (md:lnbeps) 
   : bool :=
 match f2 with
-| SBsyntax.fdef_intro ((fheader_intro t2 fid2 a2) as fh2) lb2 =>
+| SBsyntax.fdef_intro ((fheader_intro t2 fid2 a2 _) as fh2) lb2 =>
   if (isCallLib fid2) then true
   else 
     disjoint_mptr_fptr_metadata md &&
@@ -865,7 +865,7 @@ end.
 
 Definition addrofbe_from_fdef (f2:SBsyntax.fdef) (md:abes) : abes :=
 match f2 with
-| SBsyntax.fdef_intro ((fheader_intro t2 fid2 a2) as fh2) lb2 =>
+| SBsyntax.fdef_intro ((fheader_intro t2 fid2 a2 _) as fh2) lb2 =>
   if (isCallLib fid2) then md 
   else addrofbe_from_blocks lb2 nil
 end.
