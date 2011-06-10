@@ -177,7 +177,7 @@ vol/tests : Potential test cases for a verified Softbound
   fuctions.
 
   If you install libffi after installing LLVM, you need re-configure and 
-  recompile the LLVM.
+  recompile the LLVM. 
  
 * The modified LLVM 2.6 
     * Download the http://www.cis.upenn.edu/~jianzhou/vol/llvm-2.6z.tgz
@@ -185,7 +185,7 @@ vol/tests : Potential test cases for a verified Softbound
     * mkdir llvm-2.6z-obj
     * mkdir $WHERE_TO_INSTALL
     * cd llvm-2.6z-obj
-    * ../llvm-2.6z/configure --prefix=$WHERE_TO_INSTALL
+    * ../llvm-2.6z/configure --prefix=$WHERE_TO_INSTALL --enable-libffi
 
     The llvm-2.6z-obj/lib/OCamlPass depends on the LLVM IR formalism, while the LLVM IR Coq
     code also depends on the modified llvm-2.6. To break the circularity, when
