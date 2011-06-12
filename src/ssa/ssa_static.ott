@@ -6,8 +6,8 @@ embed
 
 Require Import ssa_def.
 Require Import ssa_lib.
-Require Import ssa_analysis.
 Require Import ListSet.
+Require Import ssa_analysis.
 
 Module LLVMwf.
 Export LLVMsyntax.
@@ -259,69 +259,24 @@ Jwf_value :: '' ::=
       system , fdef |- id : typ
 
 defns
-Jwf_ssa :: '' ::=
-      defn
-      fdef , block , insn |- insn' :: :: wf_ssa :: ''
-      {{ com [[insn']] is well-formed w.r.t [[insn]] [[block]] in [[fdef]] }} by
-
-      getInsnID insn' = id'
-      lookupBlockViaIDFromFdef fdef id' = block'
-      % Check that a definition dominates all of its uses *)
-      %
-      % PHI nodes are more difficult than other nodes because they actually
-      % "use" the value in the predecessor basic blocks they correspond to. 
-<<
-      (isPhiNode insn) implies 
-        (getLabelViaIDPhiNode insn id' = l'' /\ 
-         lookupBlockViaLabelFromFdef fdef l'' = block'' /\ 
-         (
-          (blockDominates fdef block' block'') \/ 
-          (not (isReachableFromEntry fdef block )) 
-         ) 
-        )
->>
-      % if insn is not PhiNode, make sure that the definition comes before the use
-<<
-      (notT isPhiNode insn) implies 
-        (
-         insnDominates insn' insn block \/ 
-         blockDominates fdef block' block \/ 
-         (not (isReachableFromEntry fdef block))
-        )
->>
-      -------------------------------------------------------------------------------------------------------------------------- :: wf_ssa_intro
-      fdef , block , insn |- insn' 
-
-defns
 Jwf_operand :: '' ::=
       defn
       fdef , block , insn |- id' :: :: wf_operand :: ''
       {{ com [[id']] is well-formed w.r.t [[insn]] [[block]] in [[fdef]] }} by
 
-      %module = (layouts namedts products)
       insn in fdef , block
       getInsnOperands insn = ids
       id' in ids
-      % FIXME: lookupBindingViaIDFromSystem is not correct, it should only search bindings within the current
-      % scopes where id' is, rather than seaching any functions, because in other function, there could be 
-      % variables with same names
-      lookupBindingViaIDFromFdef fdef id' = id_binding'
-      % Check to make sure that only first-class-values are operands to instructions.
-      getBindingTyp id_binding' = typ'     
-      isFirstClassTyp typ'
-      % Valid use of metadata pointer.
-      (getPointerEltTyp typ' = typ'') implies (not typ'' =t= metadata)
-      % Check to make sure that the "address of" an intrinsic function is never
-      % taken, and referencing function exists in current module!
-      %(isBindingFdec id_binding' = fdec) implies (getFdecID fdec = id0 /\ (id0 notin intrinsic_funs \/ getCalledValueID insn = id') /\ fdec in products)
-      % Referring to an argument in the current function
-      %(isBindingArg id_binding' = arg) implies (argInFdef arg fdef)
-      % Referencing global in the current module
-      %(isBindingGvar id_binding' = gvar) implies (gvar in products)
-      %
-      % Check when id_binding' is insn
-      (isBindingInsn id_binding' = insn') implies (fdef, block , insn |- insn')
-      ----------------------------------------------------------------------------------------------------------------------- :: wf_operand_intro
+      lookupBlockViaIDFromFdef fdef id' = block'
+      notT isPhiNode insn
+<<
+        (
+         insnDominates id' insn block \/ 
+         blockStrictDominates fdef block' block \/ 
+         (not (isReachableFromEntry fdef block))
+        )
+>>
+      -------------------------------------------------------- :: wf_operand_intro
       fdef , block , insn |- id'
 
 defns
@@ -639,41 +594,21 @@ Jwf_insn :: '' ::=
       ------------------------------------------------------------------------------------------------------- :: wf_insn_fcmp
       intrinsic_funs , system , module , fdef , block |- id = fcmp fcond floating_point value1 value2
 
-
       % Check typs
       </ system , fdef |- valuej : typ // j />
-      % LLVM::visitInstruction checks that non-phi nodes are not self referential 
-      getPhiNodeOperands (id = phi typ </ [ valuej , lj ] // j />) = ids'
-      ids' <-> </ id'i // i />
-      </ (not id == id'i) \/ (not (isReachableFromEntry fdef block)) // i />
-      % The following properties 1-4 are checked in visitBlock by LLVM, but we check them here. 
-      % 1 Ensure that PHI nodes have at least one entry! 
-      {{ (PHINode.getNumIncomingValues ([[:user_syntax__phinode:(id = phi typ </ [ valuej , lj ] // j />)]]) > 0)%nat }}
-      % 2 PHINode should have one entry for each predecessor of its parent basic block!
-      {{ genBlockUseDef_fdef [[:user_syntax__fdef:fdef]] = [[usedef_block]] }}
-      predOfBlock block usedef_block = blocks
-      {{ PHINode.getNumIncomingValues ([[:user_syntax__phinode:(id = phi typ </ [ valuej , lj ] // j />)]]) = length [[blocks]]}}
-      % 3 Check to make sure that the predecessors and PHI node entries are matched up.
-      getLabelsFromBlocks blocks = ls1
-      getLabelsFromPhiNode (id = phi typ </ [ valuej , lj ] // j />) =ls2
-      ls1 == ls2
-      % 4 Check to make sure that if there is more than one entry for a
-      %   particular basic block in this PHI node, that the incoming values are
-      %   all identical.
-      checkIdenticalIncomingValues (id = phi typ </ [ valuej , lj ] // j />)
-      % Check that all of the operands of the PHI node have the same type as the result.
-      </ lookupTypViaIDFromFdef fdef idj = typ // j />
-      %
-      % All other PHI node constraints are checked in the visitBasicBlock method.
-      %
-      % Check labels
-      </ lookupBlockViaLabelFromSystem system lj = blockj /\ blockInFdef blockj fdef // j />
+      typ =t= void \/ isFirstClassTyp typ
+      % Check that the instruction doesn't produce metadata or metadata*. Calls
+      % all already checked against the callee type.
+      not typ =t= metadata
+      % Instructions may not produce pointer to metadata.
+      (isPointerTyp typ) implies (getPointerEltTyp typ = typ' /\ (not typ' =t= metadata)) 
       % Check invariance for instructions
-      fdef , block |-i id = phi typ </ [ valuej , lj ] // j />
-      ------------------------------------------------------------------------------------------------ :: wf_insn_phi
+      {{ insnInFdefBlockB [[:user_syntax__insn:id = phi typ </ [ valuej , lj ] // j />]] [[:user_syntax__fdef:fdef]] [[:user_syntax__block:block]] = true }}
+      %
+      {{ wf_phinode [[:user_syntax__fdef:fdef]] [[:user_syntax__block:block]] [[:user_syntax__phinode:id = phi typ </ [ valuej , lj ] // j />]] }}
+      --------------------------------------------------------------------------------------------------------------------------------------------- :: wf_insn_phi
       intrinsic_funs , system , module , fdef , block |- id = phi typ </ [ valuej , lj ] // j />
 			        
-
       % Check typs
       system , fdef |- value0 : int sz /\ sz = 1
       system , fdef |- value1 : typ
@@ -853,9 +788,8 @@ Jwf_fdef :: '' ::=
       % Check the entry node 
       % Entry block to function must not have predecessors! 
       getEntryOfFdef (define fheader { blocks }) = block
-      {{ genBlockUseDef_fdef [[:user_syntax__fdef:fdef]] = [[usedef_block]] }}
-      predOfBlock block usedef_block = blocks'
-      {{ length [[blocks']] = 0%nat }}
+      {{ genBlockUseDef_fdef [[:user_syntax__fdef:define fheader { blocks }]] = [[usedef_block]] }}
+      {{ hasNonePredecessor [[:user_syntax__block:block]] [[usedef_block]] = true }}
       % Checking function body
       intrinsic_funs , system , module , define fheader { blocks } |- blocks
       ------------------------------------------------------------------------------------------------- :: wf_fdef_intro

@@ -138,7 +138,7 @@ formula :: 'formula_' ::=
 				{{ coq [[ids]] = unmake_list_id [[ </ idj // j /> ]] }}
   | ls <-> </ lj // j /> 	:: M :: ls_alias
     	      	   	        {{ com ls alias }}
-				{{ coq [[ls]] = unmake_list_l [[ </ lj // j /> ]] }}
+				{{ coq [[ls]] = (unmake_list_l [[ </ lj // j /> ]] }}
   | args <-> </ argj // j /> :: M :: args_alias
     	      	   	        {{ com args alias }}
 				{{ coq [[args]] = [[ </ argj // j /> ]] }}
@@ -174,9 +174,12 @@ formula :: 'formula_' ::=
   | blockDominates fdef block1 block2 
     		       	        ::   :: blockDominates
 				{{ coq blockDominates [[fdef]] [[block1]] [[block2]] }} 			
-  | insnDominates insn1 insn2 block
+  | blockStrictDominates fdef block1 block2 
+    		       	        ::   :: blockStrictDominates
+				{{ coq blockStrictDominates [[fdef]] [[block1]] [[block2]] }} 			
+  | insnDominates id1 insn2 block
     		       	        ::   :: insnDominates
-				{{ coq insnDominates [[insn1]] [[insn2]] [[block]] }} 			
+				{{ coq insnDominates [[id1]] [[insn2]] [[block]] }} 			
   | genInsnUseDef module = usedef_insn		::   :: genInsnUseDef
     		  		{{ coq genInsnUseDef [[module]] = [[usedef_insn]] }}
   | genBlockUseDef_fdef fdef = usedef_block	::   :: genBlockUseDefFdef
@@ -195,12 +198,10 @@ formula :: 'formula_' ::=
     	      	     		{{ coq getInsnID [[insn]] = [[id]] }}
   | getValueID value = opt_id	::   :: getValueID
     	      	     		{{ coq getValueID [[value]] = [[opt_id]] }}
-  | lookupBlockViaLabelFromSystem system l = opt_block ::  :: lookupBlockViarLabelFromSystem
-    		   	    	{{ coq lookupBlockViaLabelFromSystem [[system]] [[l]] = [[opt_block]] }}
   | getEntryOfFdef fdef = opt_block	        :: :: getEntryOfFdef
     	      	     		{{ coq getEntryOfFdef [[fdef]] = [[opt_block]] }}
-  | predOfBlock block usedef_block = blocks :: :: prefOfBlock
-                                {{ coq predOfBlock [[block]] [[usedef_block]] = [[blocks]] }}
+  | predOfBlock block usedef_block = ls :: :: prefOfBlock
+                                {{ coq predOfBlock [[block]] [[usedef_block]] = [[ls]] }}
   | getLabelsFromBlocks blocks = ls         :: :: getLabelsFromBlocks
                                 {{ coq getLabelsFromBlocks [[blocks]] = [[ls]] }}
   | checkIdenticalIncomingValues phinode           :: :: checkIdenticalIncomingValues
@@ -255,10 +256,10 @@ formula :: 'formula_' ::=
                                 {{ coq lookupBlockViaIDFromFdef [[fdef]] [[id]] = [[opt_block]] }}
   | getLabelViaIDFromPhiNode phinode id = opt_l :: :: getLabelViaIDFromPhiNode
                                 {{ coq getLabelViaIDFromPhiNode [[phinode]] [[id]] = [[opt_l]] }}
-  | lookupBindingViaIDFromFdef fdef id = id_binding :: :: lookupBindingViaIDFromFdef
-                                {{ coq lookupBindingViaIDFromFdef [[fdef]] [[id]] = [[id_binding]] }}  
-  | lookupBindingViaIDFromSystem system id = id_binding :: :: lookupBindingViaIDFromSystem
-                                {{ coq lookupBindingViaIDFromSystem [[system]] [[id]] = [[id_binding]] }}
+%  | lookupBindingViaIDFromFdef fdef id = id_binding :: :: lookupBindingViaIDFromFdef
+%                                {{ coq lookupBindingViaIDFromFdef [[fdef]] [[id]] = [[id_binding]] }}  
+%  | lookupBindingViaIDFromSystem system id = id_binding :: :: lookupBindingViaIDFromSystem
+%                                {{ coq lookupBindingViaIDFromSystem [[system]] [[id]] = [[id_binding]] }}
   | getBindingTyp id_binding = opt_typ :: :: getBindingTyp
                                 {{ coq getBindingTyp [[id_binding]] = [[opt_typ]] }}
   | getPointerEltTyp typ1 = opt_typ2 :: :: getPointerEltTyp

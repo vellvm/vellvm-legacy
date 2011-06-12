@@ -10,6 +10,7 @@ Require Import Metatheory.
 Require Import ZArith.
 Require Import Coqlib.
 Require Import Floats.
+Require Import assoclist.
 
 Module LLVMsyntax.
 
@@ -372,7 +373,7 @@ terminator :: 'insn_'					::=  			{{ com termniators }}
   | ( terminator )					:: S :: paren1          {{ coq [[ terminator ]] }}
 
 phinode :: 'insn_'					::=  			{{ com phinodes }}
-  | id = phi typ </ [ valuej , lj ] // j />		::   :: phi  	    	{{ com def }}
+  | id = phi typ </ [ valuej , lj ] // j />	        ::   :: phi  	    	{{ com def }}
   | ( phinode )						:: S :: paren2          {{ coq [[ phinode ]] }}
 
 insn :: 'insn_'						::=  			{{ com instructions }}
@@ -498,26 +499,9 @@ system :: 'system_'					::=  			{{ com system }}
   | modules						::   :: def		{{ com list of modules }}
     							     			{{ coq [[modules]] }}
 
-dt :: 'dt_'						::=  			{{ com dominator }}
-       										{{ coq (l -> list l) }}
-
-usedef_id :: 'usedef_id_'				::=			{{ com id usedef }}
-       	  									{{ coq (id -> (list id)) }} 
-
 usedef_block :: 'usedef_block_'				::=			{{ com label usedef }}
-       	  									{{ coq (block -> (list block)) }} 
-
-module_info :: 'module_info_'				::=			{{ com module information }}
-	       									{{ coq (prod module (prod usedef_id usedef_block)) }}		
-  | module , usedef_id , usedef_block			::   ::	def		{{ com def }} 
-   	     		  				     			{{ coq ([[module]], ([[usedef_id]], [[usedef_block]])) }}	
-  | ( module_info )					:: S :: paren           {{ coq [[ module_info ]] }}
-
-fdef_info :: 'fdef_info_'				::=  			{{ com fdef information }}
-	     									{{ coq (prod fdef dt) }}
-  | fdef , dt						::   :: def		{{ com def }}
-    	   						     			{{ coq ([[fdef]], [[dt]]) }}
-  | ( fdef_info )					:: S :: paren		{{ coq [[ fdef_info ]] }}						
+                                                                                {{ coq-universe Type }} 
+       	  									{{ coq AssocList (list l) }} 
 
 intrinsic_funs :: 'intrinsic_funs_'			::=  			{{ com intrinsic functions }}
 	      	 								{{ coq ids }}

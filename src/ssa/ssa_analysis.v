@@ -2,69 +2,146 @@ Add LoadPath "./ott".
 Add LoadPath "./monads".
 Add LoadPath "./compcert".
 Add LoadPath "../../../theory/metatheory_8.3".
-Require Import ssa_def.
-Require Import ssa_lib.
 Require Import List.
 Require Import Arith.
-Require Import tactics.
 Require Import monad.
-Require Import trace.
 Require Import Metatheory.
 Require Import assoclist.
 Require Import Values.
 Require Import Memory.
 Require Import Integers.
 Require Import Coqlib.
-Require Import targetdata.
 Require Import Maps.
 Require Import Lattice.
 Require Import Iteration.
 Require Import Kildall.
 Require Import ListSet.
 
-Export LLVMlib.
-
 Module AtomSet.
 
   Definition set_eq A (l1 l2:list A) := incl l1 l2 /\ incl l2 l1.
 
+  Definition incl_dec_prop (n:nat) :=
+    forall (l1 l2:list atom), length l1 = n -> {incl l1 l2} + {~ incl l1 l2}.
+
+  Lemma remove_length : forall A (dec:forall x y : A, {x = y} + {x <> y}) 
+      (l1:list A) (a:A),
+    (length (List.remove dec a l1) <= length l1)%nat.
+  Proof.
+    induction l1; intros; simpl; auto.
+      assert (J:=@IHl1 a0).
+      destruct (dec a0 a); subst; simpl; auto. 
+        omega.
+  Qed.      
+
+  Lemma remove_In_neq1 : forall A (dec:forall x y : A, {x = y} + {x <> y}) 
+      (l1:list A) (a x:A),
+    a <> x -> In x l1 -> In x (List.remove dec a l1).
+  Proof.
+    induction l1; intros; simpl in *; auto.
+      destruct H0 as [H0 | H0]; subst.
+        destruct (dec a0 x); subst. 
+          contradict H; auto.
+          simpl; auto.
+
+        destruct (dec a0 a); subst; simpl; auto.
+  Qed.          
+
+  Lemma remove_In_neq2 : forall A (dec:forall x y : A, {x = y} + {x <> y}) 
+      (l1:list A) (a x:A),
+    a <> x -> In x (List.remove dec a l1) -> In x l1.
+  Proof.
+    induction l1; intros; simpl in *; auto.
+      destruct (dec a0 a); subst; eauto.
+        simpl in H0.
+        destruct H0 as [H0 | H0]; subst; eauto.
+  Qed.          
+
+  Lemma incl_dec_aux : forall n, incl_dec_prop n. 
+  Proof.
+    intro n.  
+    apply lt_wf_rec. clear n.
+    intros n H.
+    unfold incl_dec_prop in *.
+    destruct l1; intros l2 Hlength.
+      left. intros x J. inversion J.
+
+      simpl in *.
+      assert (((length (List.remove eq_atom_dec a l1)) < n)%nat) as LT.
+        assert (J:=@remove_length atom eq_atom_dec l1 a).
+        omega.  
+      destruct (@H (length (List.remove eq_atom_dec a l1)) LT
+                  (List.remove eq_atom_dec a l1) l2) as [J1 | J1]; auto.
+        destruct(@in_dec _ eq_atom_dec a l2) as [J2 | J2].
+          left. intros x J. simpl in J. 
+          destruct J as [J | J]; subst; auto.
+          destruct (eq_atom_dec x a); subst; auto.            
+          apply J1.
+          apply remove_In_neq1; auto.
+          
+          right. intros G. apply J2. apply G; simpl; auto.
+
+        destruct(@in_dec _ eq_atom_dec a l2) as [J2 | J2].
+          right. intros G. apply J1. intros x J3. apply G. simpl.
+          destruct (eq_atom_dec x a); subst; auto.            
+            right. eapply remove_In_neq2; eauto.
+
+          right. intro J. apply J2. apply J. simpl; auto.
+  Qed.
+
+  Lemma incl_dec : forall (l1 l2:list atom), {incl l1 l2} + {~ incl l1 l2}.
+  Proof.
+    intros l1.
+    assert (J:=@incl_dec_aux (length l1)).
+    unfold incl_dec_prop in J. eauto.
+  Qed.              
+
   Lemma set_eq_dec : forall (l1 l2:set atom), 
     {set_eq _ l1 l2} + {~ set_eq _ l1 l2}.
   Proof.
-  induction l1; intros.
-    destruct l2.
-      left. split; intros a H; eauto.
-      right. intro J. destruct J. 
-        assert (J:=@H0 a). 
-        apply J; simpl; auto. 
+    intros l1 l2.
+    destruct (@incl_dec l1 l2) as [J | J].
+      destruct (@incl_dec l2 l1) as [J' | J'].
+        left. split; auto.
+        right. intro G. destruct G as [G1 G2]. auto.
+      destruct (@incl_dec l2 l1) as [J' | J'].
+        right. intro G. destruct G as [G1 G2]. auto.
+        right. intro G. destruct G as [G1 G2]. auto.
+  Qed.
 
-    destruct l2.
-      right. intro J. destruct J. 
-        assert (J:=@H a). 
-        apply J; simpl; auto. 
+  Lemma set_eq_app : forall x1 x2 y1 y2,
+    set_eq atom x1 y1 -> set_eq atom x2 y2 -> set_eq atom (x1++x2) (y1++y2).
+  Proof.  
+    intros x1 x2 y1 y2 [Hinc11 Hinc12] [Hinc21 Hinc22].
+    split.
+      apply incl_app.
+        apply incl_appl; auto.
+        apply incl_appr; auto.
+      apply incl_app.
+        apply incl_appl; auto.
+        apply incl_appr; auto.
+  Qed.
 
-        destruct (@IHl1 l2) as [[J1 J2] | J].
-          destruct (eq_atom_dec a a0); subst.
-            left.        
-            split; intros a H; simpl in *; destruct H as [H | H]; auto.
-      
-            destruct(@in_dec _ eq_atom_dec a l2) as [J3 | J3].     
-              destruct(@in_dec _ eq_atom_dec a0 l1) as [J4 | J4].     
-                left. 
-                split; intros a' H; simpl in *; destruct H as [H | H]; 
-                  subst; auto.
+  Lemma set_eq_swap : forall x1 x2,
+    set_eq atom (x1++x2) (x2++x1).
+  Proof.
+    intros x1 x2.
+    split.
+      apply incl_app.
+        apply incl_appr; auto using incl_refl.
+        apply incl_appl; auto using incl_refl.
+      apply incl_app.
+        apply incl_appr; auto using incl_refl.
+        apply incl_appl; auto using incl_refl.
+  Qed.
 
-                right.
-                intros [J5 J6].
-                assert (J:=@J6 a0).
-                destruct J; simpl; auto.
-
-              right.
-              intros [J5 J6].
-              assert (J:=@J5 a).
-              destruct J; simpl; auto.
-   (* it is easier to prove uniq lists. *)
-  Admitted.
+  Lemma set_eq__rewrite_env : forall x1 x2 x3 y1 y2 y3,
+    set_eq atom ((x1 ++ x2) ++ x3) ((y1 ++ y2) ++ y3) ->
+    set_eq atom (x1 ++ x2 ++ x3) (y1 ++ y2 ++ y3).
+  Proof.
+    intros.
+    simpl_env in H. auto.
+  Qed.
 
   Lemma set_eq_refl : forall x, set_eq atom x x.  
     split; apply incl_refl.
@@ -125,6 +202,36 @@ Module AtomSet.
     apply incl_tran with (m:=x1); auto.
   Qed.
 
+  Lemma set_eq_empty_inv2 : forall x, 
+    set_eq atom (ListSet.empty_set _) x -> x = ListSet.empty_set _.
+  Proof.
+    intros.
+    apply set_eq_sym in H.
+    eapply set_eq_empty_inv; eauto.
+  Qed.
+
+  Lemma incl_app_invr : forall A (l1 l2 l:list A),
+    incl (l1++l2) l -> incl l2 l.
+  Proof.
+    intros A l1 l2 l H x J.
+    apply H. 
+    apply (@incl_appr _ l2 l1 l2); auto using incl_refl.
+  Qed.
+
+  Lemma incl_app_invl : forall A (l1 l2 l:list A),
+    incl (l1++l2) l -> incl l1 l.
+  Proof.
+    intros A l1 l2 l H x J.
+    apply H. 
+    apply (@incl_appl _ l1 l2 l1); auto using incl_refl.
+  Qed.
+  
+  Lemma incl_set_eq_right : forall y1 y2 x,
+    set_eq atom y1 y2 -> incl x y1 -> incl x y2.
+  Proof.
+    intros y1 y2 x [J1 J2] Hincl.
+    eapply incl_tran; eauto.
+  Qed.
 
 End AtomSet.
 
@@ -730,153 +837,6 @@ End Kildall.
 
 End Dataflow_Solver_Var_Top.
 
-Definition successors_terminator (tmn: terminator) : ls :=
-match tmn with
-| insn_return _ _ _ => nil
-| insn_return_void _ => nil
-| insn_br _ _ l1 l2 => l1::l2::nil
-| insn_br_uncond _ l1 => l1::nil
-| insn_unreachable _ => nil
-end.
-
-Fixpoint successors_blocks (bs: blocks) : ATree.t ls :=
-match bs with
-| nil => ATree.empty ls
-| block_intro l0 _ _ tmn :: bs' => 
-    ATree.set l0 (successors_terminator tmn) (successors_blocks bs')
-end.
-
-Fixpoint successors (f: fdef) : ATree.t ls :=
-let '(fdef_intro _ bs) := f in
-successors_blocks bs.
-
-Definition transfer (bound: set atom) (lbl: l) (before: Dominators.t bound) :=
-  Dominators.add _ before lbl.
-
-(** The static analysis itself is then an instantiation of Kildall's
-  generic solver for forward dataflow inequations. [analyze f]
-  returns a mapping from program points to mappings of pseudo-registers
-  to approximations.  It can fail to reach a fixpoint in a reasonable
-  number of iterations, in which case [None] is returned. *)
-
-Module DomDS := Dataflow_Solver_Var_Top(AtomNodeSet).
-
-Fixpoint bound_blocks (bs: blocks) : set atom :=
-match bs with
-| nil => empty_set _
-| block_intro l0 _ _ tmn :: bs' => l0::(bound_blocks bs')
-end.
-
-Definition bound_fdef (f: fdef) : set atom :=
-let '(fdef_intro _ bs) := f in
-bound_blocks bs.
-
-Lemma entry_dom : forall (bs:list block), 
-  {oresult : option (l * Dominators.BoundedSet (bound_blocks bs)) &
-     match oresult with
-     | None => bs = nil
-     | Some (le, Dominators.mkBoundedSet (l1::nil) _) => le = l1
-     | _ => False
-     end
-  }.
-Proof.
-  intros.
-  destruct bs; simpl in *.
-    exists None. auto.
-
-    destruct b.
-    assert (incl [l0] (l0 :: bound_blocks bs)) as J.
-      simpl_env.
-      apply incl_appl; auto using incl_refl.
-    exists (Some (l0, Dominators.mkBoundedSet _ [l0] J)).  
-    simpl. auto.
-Defined.
-
-Definition dom_analyze (f: fdef) : AMap.t (Dominators.t (bound_fdef f)) :=
-  let '(fdef_intro _ bs) := f in
-  let bound := bound_blocks bs in
-  let top := Dominators.top bound in
-  match entry_dom bs with
-  | (existT (Some (le, start)) _) =>
-      match DomDS.fixpoint bound (successors_blocks bs) (transfer bound) 
-        ((le, start) :: nil) with
-      | None => AMap.init top
-      | Some res => res
-      end
-  | (existT None _) => AMap.init top
-  end.
-
-(*
-Program Definition dom_analyze (f: fdef): AMap.t (Dominators.t (bound_fdef f)) :=
-  let bound := bound_fdef f in
-  let top := Dominators.top bound in
-  match getEntryBlock f with
-  | Some (block_intro le _ _ _) =>
-      match DomDS.fixpoint bound (successors f) (transfer bound) 
-        ((le, Dominators.mkBoundedSet _ [le] _) :: nil) with
-      | None => AMap.init top
-      | Some res => res
-      end
-  | None => AMap.init top
-  end.
-Next Obligation.
-  destruct f. 
-  destruct b; simpl in *; inv Heq_anonymous. 
-    simpl_env.
-    apply incl_appl; auto using incl_refl.
-Qed.
-*)
-
-Definition blockDominates (f: fdef) (b1 b2: block) : Prop :=
-let '(block_intro l1 _ _ _) := b1 in
-let '(block_intro l2 _ _ _) := b2 in
-let 'dt := dom_analyze f in
-let '(Dominators.mkBoundedSet els _) := AMap.get l2 dt in
-In_dec eq_atom_dec l1 els.
-
-Definition blockDominatesB (f: fdef) (b1 b2: block) : Prop :=
-let '(block_intro l1 _ _ _) := b1 in
-let '(block_intro l2 _ _ _) := b2 in
-let 'dt := dom_analyze f in
-let '(Dominators.mkBoundedSet els _) := AMap.get l2 dt in
-if In_dec eq_atom_dec l1 els then true else false.
-
-Definition insnDominates (i1 i2:insn) (b:block) : Prop :=
-match b with 
-| (block_intro l5 ps cs tmn) =>
-    match (i1, i2) with
-    | (insn_cmd c1, insn_terminator tmn2) =>
-        (exists cs1, exists cs2, cs = cs1++c1::cs2) /\ tmn2 = tmn
-    | (insn_phinode p1, insn_terminator tmn2) =>
-        (exists ps1, exists ps2, ps = ps1++p1::ps2) /\ tmn2 = tmn
-    | (insn_phinode p1, insn_cmd c2) =>
-        (exists ps1, exists ps2, ps = ps1++p1::ps2) /\
-        (exists cs1, exists cs2, cs = cs1++c2::cs2)
-    | (insn_cmd c1, insn_cmd c2) => 
-        (exists cs1, exists cs2, exists cs3, cs = cs1++(c1::cs2)++(c2::cs3))
-    | _ => False
-    end
-end.
-
-Module ReachDS := Dataflow_Solver(LBoolean)(AtomNodeSet).
-
-Definition reachable_aux (f: fdef) : option (AMap.t bool) :=
-  match getEntryBlock f with
-  | Some (block_intro le _ _ _) =>
-     ReachDS.fixpoint (successors f) (fun pc r => r) ((le, true) :: nil)
-  | None => None
-  end.
-
-Definition reachable (f: fdef) : AMap.t bool :=
-  match reachable_aux f with  
-  | None => AMap.init true
-  | Some rs => rs
-  end.
-
-Definition isReachableFromEntry (f:fdef) (b1:block) : Prop :=
-let '(block_intro l1 _ _ _) := b1 in
-AMap.get l1 (reachable f).
- 
 (* blocks to CFG, which may not be useful. *)
 (*
 Fixpoint blocks_to_Vset (bs:blocks) : V_set :=

@@ -421,24 +421,8 @@
 \ottrulehead{\ottnt{system}}{::=}{\ottcom{system}}\\ 
 \ottprodline{|}{\mathit{\overline{module} }}{}{}{}{\ottcom{list of modules}}}
 
-\newcommand{\ottdt}{
-\ottrulehead{\ottnt{dt}}{::=}{\ottcom{dominator}}}
-
-\newcommand{\ottusedefXXid}{
-\ottrulehead{\ottnt{usedef\_id}}{::=}{\ottcom{id usedef}}}
-
 \newcommand{\ottusedefXXblock}{
 \ottrulehead{\ottnt{usedef\_block}}{::=}{\ottcom{label usedef}}}
-
-\newcommand{\ottmoduleXXinfo}{
-\ottrulehead{\ottnt{module\_info}}{::=}{\ottcom{module information}}\\ 
-\ottprodline{|}{\ottnt{module}  \ottsym{,}  \ottnt{usedef\_id}  \ottsym{,}  \ottnt{usedef\_block}}{}{}{}{\ottcom{def}}\\ 
-\ottprodline{|}{\ottsym{(}  \ottnt{module\_info}  \ottsym{)}} {\textsf{S}}{}{}{}}
-
-\newcommand{\ottfdefXXinfo}{
-\ottrulehead{\ottnt{fdef\_info}}{::=}{\ottcom{fdef information}}\\ 
-\ottprodline{|}{\ottnt{fdef}  \ottsym{,}  \ottnt{dt}}{}{}{}{\ottcom{def}}\\ 
-\ottprodline{|}{\ottsym{(}  \ottnt{fdef\_info}  \ottsym{)}} {\textsf{S}}{}{}{}}
 
 \newcommand{\ottintrinsicXXfuns}{
 \ottrulehead{\ottnt{intrinsic\_funs}}{::=}{\ottcom{intrinsic functions}}}
@@ -497,11 +481,7 @@
 \ottmodule\ottinterrule
 \ottmodules\ottinterrule
 \ottsystem\ottinterrule
-\ottdt\ottinterrule
-\ottusedefXXid\ottinterrule
 \ottusedefXXblock\ottinterrule
-\ottmoduleXXinfo\ottinterrule
-\ottfdefXXinfo\ottinterrule
 \ottintrinsicXXfuns\ottafterlastrule
 }}
 
@@ -936,38 +916,15 @@
 \ottdefnwfXXvalue{}}
 
 
-% defns Jwf_ssa
-% defn wf_ssa
-\newcommand{\ottdrulewfXXssaXXintro}[1]{\ottdrule[#1]{%
-\ottpremise{\ottkw{getInsnID} \, \ottnt{insn'}  =  \ottmv{id'}}%
-\ottpremise{\ottkw{lookupBlockViaIDFromFdef} \, \ottnt{fdef} \, \ottmv{id'}  =  \ottnt{block'}}%
-\ottpremise{  ( \ottkw{isPhiNode} \, \ottnt{insn} \!)   \mathit{implies}   (   \ottkw{getLabelViaIDPhiNode} \, \ottnt{insn} \, \ottmv{id'}  =  \ottmv{l''}  \wedge  \ottkw{lookupBlockViaLabelFromFdef} \, \ottnt{fdef} \, \ottmv{l''}  =  \ottnt{block''}   \wedge   (   ( \ottkw{blockDominates} \, \ottnt{fdef} \, \ottnt{block'} \, \ottnt{block''} \!)   \vee   (  \neg   ( \ottkw{isReachableFromEntry} \, \ottnt{fdef} \, \ottnt{block} \!)   \!)   \!)   \!)  }%
-\ottpremise{  (  \neg  \ottkw{isPhiNode} \, \ottnt{insn}  \!)   \mathit{implies}   (   \ottkw{insnDominates} \, \ottnt{insn'} \, \ottnt{insn} \, \ottnt{block}  \vee  \ottkw{blockDominates} \, \ottnt{fdef} \, \ottnt{block'} \, \ottnt{block}   \vee   (  \neg   ( \ottkw{isReachableFromEntry} \, \ottnt{fdef} \, \ottnt{block} \!)   \!)   \!)  }%
-}{
-\ottnt{fdef}  \ottsym{,}  \ottnt{block}  \ottsym{,}  \ottnt{insn}  \vdash  \ottnt{insn'}}{%
-{\ottdrulename{wf\_ssa\_intro}}{}%
-}}
-
-\newcommand{\ottdefnwfXXssa}[1]{\begin{ottdefnblock}[#1]{$\ottnt{fdef}  \ottsym{,}  \ottnt{block}  \ottsym{,}  \ottnt{insn}  \vdash  \ottnt{insn'}$}{\ottcom{$\ottnt{insn'}$ is well-formed w.r.t $\ottnt{insn}$ $\ottnt{block}$ in $\ottnt{fdef}$}}
-\ottusedrule{\ottdrulewfXXssaXXintro{}}
-\end{ottdefnblock}}
-
-
-\newcommand{\ottdefnsJwfXXssa}{
-\ottdefnwfXXssa{}}
-
-
 % defns Jwf_operand
 % defn wf_operand
 \newcommand{\ottdrulewfXXoperandXXintro}[1]{\ottdrule[#1]{%
 \ottpremise{\ottnt{insn} \, \in \, \ottnt{fdef}  \ottsym{,}  \ottnt{block}}%
 \ottpremise{\ottkw{getInsnOperands} \, \ottnt{insn}  =  \mathit{\{id\} }}%
 \ottpremise{ \ottmv{id'}  \in  \mathit{\{id\} } }%
-\ottpremise{\ottkw{lookupBindingViaIDFromFdef} \, \ottnt{fdef} \, \ottmv{id'}  =  \ottnt{id\_binding'}}%
-\ottpremise{\ottkw{getBindingTyp} \, \ottnt{id\_binding'}  =  \ottnt{typ'}}%
-\ottpremise{\ottkw{isFirstClassTyp} \, \ottnt{typ'}}%
-\ottpremise{  ( \ottkw{getPointerEltTyp} \, \ottnt{typ'}  =  \ottnt{typ''} \!)   \mathit{implies}   (  \neg  \ottnt{typ''}  \ottsym{=t=}  \ottkw{metadata}  \!)  }%
-\ottpremise{  ( \ottkw{isBindingInsn} \, \ottnt{id\_binding'}  =  \ottnt{insn'} \!)   \mathit{implies}   ( \ottnt{fdef}  \ottsym{,}  \ottnt{block}  \ottsym{,}  \ottnt{insn}  \vdash  \ottnt{insn'} \!)  }%
+\ottpremise{\ottkw{lookupBlockViaIDFromFdef} \, \ottnt{fdef} \, \ottmv{id'}  =  \ottnt{block'}}%
+\ottpremise{ \neg  \ottkw{isPhiNode} \, \ottnt{insn} }%
+\ottpremise{ (   \ottkw{insnDominates} \, \ottmv{id'} \, \ottnt{insn} \, \ottnt{block}  \vee  \ottkw{blockStrictDominates} \, \ottnt{fdef} \, \ottnt{block'} \, \ottnt{block}   \vee   (  \neg   ( \ottkw{isReachableFromEntry} \, \ottnt{fdef} \, \ottnt{block} \!)   \!)   \!) }%
 }{
 \ottnt{fdef}  \ottsym{,}  \ottnt{block}  \ottsym{,}  \ottnt{insn}  \vdash  \ottmv{id'}}{%
 {\ottdrulename{wf\_operand\_intro}}{}%
@@ -1323,20 +1280,11 @@
 
 \newcommand{\ottdrulewfXXinsnXXphi}[1]{\ottdrule[#1]{%
 \ottpremise{\ottcomp{\ottnt{system}  \ottsym{,}  \ottnt{fdef}  \vdash  \ottnt{value_{\ottmv{j}}}  \ottsym{:}  \ottnt{typ}}{\ottmv{j}}}%
-\ottpremise{\ottkw{getPhiNodeOperands} \, \ottsym{(}  \ottmv{id}  = \, \ottkw{phi} \, \ottnt{typ} \, \ottcomp{\ottsym{[}  \ottnt{value_{\ottmv{j}}}  \ottsym{,}  \ottmv{l_{\ottmv{j}}}  \ottsym{]}}{\ottmv{j}}  \ottsym{)}  =  \mathit{\{id\} }'}%
-\ottpremise{\mathit{\{id\} }'  <-> \, \ottcomp{\ottmv{id'_{\ottmv{i}}}}{\ottmv{i}}}%
-\ottpremise{\ottcomp{  (  \neg   \ottmv{id}  =  \ottmv{id'_{\ottmv{i}}}   \!)   \vee   (  \neg   ( \ottkw{isReachableFromEntry} \, \ottnt{fdef} \, \ottnt{block} \!)   \!)  }{\ottmv{i}}}%
-\ottpremise{\texttt{(PHINode.getNumIncomingValues (}\ottsym{(}  \ottmv{id}  = \, \ottkw{phi} \, \ottnt{typ} \, \ottcomp{\ottsym{[}  \ottnt{value_{\ottmv{j}}}  \ottsym{,}  \ottmv{l_{\ottmv{j}}}  \ottsym{]}}{\ottmv{j}}  \ottsym{)}\texttt{) > 0)\%nat }}%
-\ottpremise{\texttt{genBlockUseDef\_fdef }\ottnt{fdef}\texttt{ = }\ottnt{usedef\_block}\texttt{ }}%
-\ottpremise{\ottkw{predOfBlock} \, \ottnt{block} \, \ottnt{usedef\_block}  =  \mathit{\overline{block} }}%
-\ottpremise{\texttt{PHINode.getNumIncomingValues (}\ottsym{(}  \ottmv{id}  = \, \ottkw{phi} \, \ottnt{typ} \, \ottcomp{\ottsym{[}  \ottnt{value_{\ottmv{j}}}  \ottsym{,}  \ottmv{l_{\ottmv{j}}}  \ottsym{]}}{\ottmv{j}}  \ottsym{)}\texttt{) = length }\mathit{\overline{block} }}%
-\ottpremise{\ottkw{getLabelsFromBlocks} \, \mathit{\overline{block} }  =  \mathit{\{l\} }_{{\mathrm{1}}}}%
-\ottpremise{\ottkw{getLabelsFromPhiNode} \, \ottsym{(}  \ottmv{id}  = \, \ottkw{phi} \, \ottnt{typ} \, \ottcomp{\ottsym{[}  \ottnt{value_{\ottmv{j}}}  \ottsym{,}  \ottmv{l_{\ottmv{j}}}  \ottsym{]}}{\ottmv{j}}  \ottsym{)}  =  \mathit{\{l\} }_{{\mathrm{2}}}}%
-\ottpremise{ \mathit{\{l\} }_{{\mathrm{1}}}  =  \mathit{\{l\} }_{{\mathrm{2}}} }%
-\ottpremise{\ottkw{checkIdenticalIncomingValues} \, \ottsym{(}  \ottmv{id}  = \, \ottkw{phi} \, \ottnt{typ} \, \ottcomp{\ottsym{[}  \ottnt{value_{\ottmv{j}}}  \ottsym{,}  \ottmv{l_{\ottmv{j}}}  \ottsym{]}}{\ottmv{j}}  \ottsym{)}}%
-\ottpremise{\ottcomp{\ottkw{lookupTypViaIDFromFdef} \, \ottnt{fdef} \, \ottmv{id_{\ottmv{j}}}  =  \ottnt{typ}}{\ottmv{j}}}%
-\ottpremise{\ottcomp{ \ottkw{lookupBlockViaLabelFromSystem} \, \ottnt{system} \, \ottmv{l_{\ottmv{j}}}  =  \ottnt{block_{\ottmv{j}}}  \wedge  \ottkw{blockInFdef} \, \ottnt{block_{\ottmv{j}}} \, \ottnt{fdef} }{\ottmv{j}}}%
-\ottpremise{\ottnt{fdef}  \ottsym{,}  \ottnt{block}  \vdash_{i}  \ottmv{id}  = \, \ottkw{phi} \, \ottnt{typ} \, \ottcomp{\ottsym{[}  \ottnt{value_{\ottmv{j}}}  \ottsym{,}  \ottmv{l_{\ottmv{j}}}  \ottsym{]}}{\ottmv{j}}}%
+\ottpremise{ \ottnt{typ}  \ottsym{=t=}  \ottkw{void}  \vee  \ottkw{isFirstClassTyp} \, \ottnt{typ} }%
+\ottpremise{ \neg  \ottnt{typ}  \ottsym{=t=}  \ottkw{metadata} }%
+\ottpremise{  ( \ottkw{isPointerTyp} \, \ottnt{typ} \!)   \mathit{implies}   (  \ottkw{getPointerEltTyp} \, \ottnt{typ}  =  \ottnt{typ'}  \wedge   (  \neg  \ottnt{typ'}  \ottsym{=t=}  \ottkw{metadata}  \!)   \!)  }%
+\ottpremise{\texttt{insnInFdefBlockB }\ottmv{id}  = \, \ottkw{phi} \, \ottnt{typ} \, \ottcomp{\ottsym{[}  \ottnt{value_{\ottmv{j}}}  \ottsym{,}  \ottmv{l_{\ottmv{j}}}  \ottsym{]}}{\ottmv{j}}\texttt{ }\ottnt{fdef}\texttt{ }\ottnt{block}\texttt{ = true }}%
+\ottpremise{\texttt{wf\_phinode }\ottnt{fdef}\texttt{ }\ottnt{block}\texttt{ }\ottmv{id}  = \, \ottkw{phi} \, \ottnt{typ} \, \ottcomp{\ottsym{[}  \ottnt{value_{\ottmv{j}}}  \ottsym{,}  \ottmv{l_{\ottmv{j}}}  \ottsym{]}}{\ottmv{j}}\texttt{ }}%
 }{
 \ottnt{intrinsic\_funs}  \ottsym{,}  \ottnt{system}  \ottsym{,}  \ottnt{module}  \ottsym{,}  \ottnt{fdef}  \ottsym{,}  \ottnt{block}  \vdash  \ottmv{id}  = \, \ottkw{phi} \, \ottnt{typ} \, \ottcomp{\ottsym{[}  \ottnt{value_{\ottmv{j}}}  \ottsym{,}  \ottmv{l_{\ottmv{j}}}  \ottsym{]}}{\ottmv{j}}}{%
 {\ottdrulename{wf\_insn\_phi}}{}%
@@ -1529,9 +1477,8 @@
 \ottpremise{\ottcomp{\ottnt{system}  \vdash  \ottnt{typ_{\ottmv{j}}}}{\ottmv{j}}}%
 \ottpremise{ \ottkw{isFirstClassTyp} \, \ottnt{typ}  \vee  \ottnt{typ}  \ottsym{=t=}  \ottkw{void} }%
 \ottpremise{\ottkw{getEntryOfFdef} \, \ottsym{(}  \ottkw{define} \, \ottnt{fheader}  \ottsym{\{}  \mathit{\overline{block} }  \ottsym{\}}  \ottsym{)}  =  \ottnt{block}}%
-\ottpremise{\texttt{genBlockUseDef\_fdef }\ottnt{fdef}\texttt{ = }\ottnt{usedef\_block}\texttt{ }}%
-\ottpremise{\ottkw{predOfBlock} \, \ottnt{block} \, \ottnt{usedef\_block}  =  \mathit{\overline{block} }'}%
-\ottpremise{\texttt{length }\mathit{\overline{block} }'\texttt{ = 0\%nat }}%
+\ottpremise{\texttt{genBlockUseDef\_fdef }\ottkw{define} \, \ottnt{fheader}  \ottsym{\{}  \mathit{\overline{block} }  \ottsym{\}}\texttt{ = }\ottnt{usedef\_block}\texttt{ }}%
+\ottpremise{\texttt{hasNonePredecessor }\ottnt{block}\texttt{ }\ottnt{usedef\_block}\texttt{ = true }}%
 \ottpremise{\ottnt{intrinsic\_funs}  \ottsym{,}  \ottnt{system}  \ottsym{,}  \ottnt{module}  \ottsym{,}  \ottkw{define} \, \ottnt{fheader}  \ottsym{\{}  \mathit{\overline{block} }  \ottsym{\}}  \vdash  \mathit{\overline{block} }}%
 }{
 \ottnt{intrinsic\_funs}  \ottsym{,}  \ottnt{system}  \ottsym{,}  \ottnt{module}  \vdash_{f}  \ottkw{define} \, \ottnt{fheader}  \ottsym{\{}  \mathit{\overline{block} }  \ottsym{\}}}{%
@@ -1734,7 +1681,6 @@
 \ottdefnsJwfXXtyp
 \ottdefnsJwfXXconst
 \ottdefnsJwfXXvalue
-\ottdefnsJwfXXssa
 \ottdefnsJwfXXoperand
 \ottdefnsJwfXXinsnXXbase
 \ottdefnsJwfXXcast

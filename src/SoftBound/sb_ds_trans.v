@@ -478,7 +478,7 @@ Definition trans_fdef nts (f:fdef) : option fdef :=
 let '(fdef_intro (fheader_intro t fid la va) bs) := f in
 if SimpleSE.isCallLib fid then Some f
 else
-  let ex_ids := getFdefIDs f in
+  let ex_ids := getFdefLocs f in
   match gen_metadata_fdef nts ex_ids nil f with
   | Some (ex_ids,rm) =>
       match (trans_args rm la 1%Z nil) with

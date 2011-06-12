@@ -83,11 +83,11 @@ end.
 
 Definition rmap := list (id*(id*id)).
 
-Definition getFdefIDs fdef : ids :=
+Definition getFdefLocs fdef : ids :=
 match fdef with
 | fdef_intro (fheader_intro _ _ la _) bs => 
   let '(_, ids0) := List.split la in
-  ids0 ++ getBlocksIDs bs 
+  ids0 ++ getBlocksLocs bs 
 end.
 
 Definition gen_metadata_id (ex_ids:ids) (rm:rmap) (id0:id) 
@@ -103,7 +103,7 @@ match cs with
 | c::cs' => 
    do t <- getCmdTyp nts c;
    if isPointerTypB t then
-     let id0 := getCmdID c in
+     let id0 := getCmdLoc c in
      let '(_,_,ex_ids',rm') := gen_metadata_id ex_ids rm id0 in
      gen_metadata_cmds nts ex_ids' rm' cs'
    else gen_metadata_cmds nts ex_ids rm cs'
@@ -599,7 +599,7 @@ Definition trans_fdef nts (f:fdef) : option fdef :=
 let '(fdef_intro (fheader_intro t fid la va) bs) := f in
 if SimpleSE.isCallLib fid then Some f
 else
-  let ex_ids := getFdefIDs f in
+  let ex_ids := getFdefLocs f in
   match gen_metadata_fdef nts ex_ids nil f with
   | Some (ex_ids,rm) =>
       match (trans_args rm la) with
@@ -1149,7 +1149,7 @@ match i with
 | insn_call _ _ _ _ v0 lp => getValueID v0 `union` getParamsOperand lp
 end.
 
-Definition getCmdIDs (c:cmd) := {{getCmdID c}} `union` getCmdOperands c.
+Definition getCmdIDs (c:cmd) := {{getCmdLoc c}} `union` getCmdOperands c.
 
 Definition id_fresh_in_value v1 i2 : Prop :=
 match v1 with
@@ -1176,7 +1176,7 @@ end.
 
 Definition wf_fresh ex_ids c rm : Prop :=
 AtomSetImpl.inter (getCmdIDs c) (codom rm) [<=] {} /\
-getCmdID c `notin` getCmdOperands c /\
+getCmdLoc c `notin` getCmdOperands c /\
 (getCmdIDs c) `union` codom rm [<=] ids2atoms ex_ids /\
 rm_codom_disjoint rm.
 

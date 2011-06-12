@@ -1174,8 +1174,8 @@ match (base, bound, ptr) with
    sterm_val (value_const (const_gid (typ_pointer (typ_pointer _)) id))) =>
      tv_typ t0 t1 && tv_typ t0 (typ_pointer (typ_int Size.Eight)) &&
      eq_INT_Z i0 (two_p 48%Z) &&
-     match SBsyntax.lookupBindingViaIDFromProducts Ps2 id with 
-     | id_binding_gvar (gvar_external _ _ _) => true
+     match SBsyntax.lookupGvarFromProducts Ps2 id with 
+     | Some (gvar_external _ _ _) => true
      | _ => false
      end
 | (sterm_val (value_const (const_null _)), 
@@ -1211,8 +1211,8 @@ match (base, bound, ptr) with
 | (sterm_val (value_const (const_gid _ id1)),
    sterm_val (value_const (const_gid _ id2)),
    sterm_val (value_const (const_gid _ id3))) => (*fptr*)
-   match SBsyntax.lookupBindingViaIDFromProducts Ps2 id1 with 
-   | id_binding_fdec _ => eq_id id1 id2 && eq_id id2 id3
+   match SBsyntax.lookupFdecFromProducts Ps2 id1 with 
+   | Some _ => eq_id id1 id2 && eq_id id2 id3
    | _ => false
    end
 | _ => false
@@ -1623,8 +1623,8 @@ match (bv, ev, pv) with
    value_const (const_gid (typ_pointer (typ_pointer _)) id)) =>
      tv_typ t0 t1 && tv_typ t0 (typ_pointer (typ_int Size.Eight)) &&
      eq_INT_Z i0 (two_p 48%Z) &&
-     match SBsyntax.lookupBindingViaIDFromProducts Ps2 id with 
-     | id_binding_gvar (gvar_external _ _ _) => true
+     match SBsyntax.lookupGvarFromProducts Ps2 id with 
+     | Some (gvar_external _ _ _) => true
      | _ => false
      end
 | (value_const (const_null _), 
@@ -1640,8 +1640,8 @@ match (bv, ev, pv) with
 | (value_const (const_gid _ id1),
    value_const (const_gid _ id2),
    value_const (const_gid _ id3)) => (*fptr*)
-   match SBsyntax.lookupBindingViaIDFromProducts Ps2 id1 with 
-   | id_binding_fdec _ => eq_id id1 id2 && eq_id id2 id3
+   match SBsyntax.lookupFdecFromProducts Ps2 id1 with 
+   | Some _ => eq_id id1 id2 && eq_id id2 id3
    | _ => false
    end
 | _ => false

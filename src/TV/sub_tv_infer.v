@@ -378,8 +378,8 @@ Fixpoint metadata_diff_cmds (md:beps) (cs2:cmds) : beps :=
 match md with
 | nil => md
 | (b,e,p,im)::md' => 
-    match lookupBindingViaIDFromCmds cs2 p with
-    | id_binding_cmd _ => metadata_diff_cmds md' cs2
+    match lookupCmdViaIDFromCmds cs2 p with
+    | Some _ => metadata_diff_cmds md' cs2
     | _ => (b,e,p,im)::metadata_diff_cmds md' cs2
     end
 end.
@@ -633,11 +633,10 @@ match md with
 | nil => accum
 | (b,e,p,im)::md' => 
     metadata_from_args a md'
-      (match (lookupBindingViaIDFromArgs a b,
-              lookupBindingViaIDFromArgs a e,
-              lookupBindingViaIDFromArgs a p) with
-       | (id_binding_arg _, id_binding_arg _, id_binding_arg _) =>
-           add_bep accum b e p im
+      (match (lookupArgViaIDFromArgs a b,
+              lookupArgViaIDFromArgs a e,
+              lookupArgViaIDFromArgs a p) with
+       | (Some _, Some _, Some _) => add_bep accum b e p im
        | _ => accum
        end)
 end.

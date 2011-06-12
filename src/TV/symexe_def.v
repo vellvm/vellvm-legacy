@@ -575,7 +575,7 @@ Qed.
 Inductive wf_nbranchs : list nbranch -> Prop :=
 | wf_nbranchs_intro : forall cs nbs, 
   cmds2sbs cs = (nil, nbs) ->
-  NoDup (getCmdsIDs cs) ->
+  NoDup (getCmdsLocs cs) ->
   wf_nbranchs nbs.
 
 Inductive wf_subblock : subblock -> Prop :=

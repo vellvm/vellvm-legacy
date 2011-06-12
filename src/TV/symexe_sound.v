@@ -386,23 +386,23 @@ Qed.
 
 Lemma binds_se_cmd : forall c nc i0 i1 st0 smap1 smem1 sframe1 seffects1,
   binds i0 st0 smap1 ->
-  getCmdID c = i1 ->
+  getCmdLoc c = i1 ->
   i0 <> i1 ->
   binds i0 st0 (STerms (se_cmd (mkSstate smap1 smem1 sframe1 seffects1) (mkNB c nc) )).
 Proof.
   destruct c; intros nc id0 id1 st0 smap1 smem1 sframe1 seffects1 Hbinds 
-                     HgetCmdID id0_isnt_id1; simpl;
-    simpl in HgetCmdID; subst; auto using binds_updateAddAL_neq.
+                     HgetCmdLoc id0_isnt_id1; simpl;
+    simpl in HgetCmdLoc; subst; auto using binds_updateAddAL_neq.
     admit.
 Qed.
   
 Lemma binds_se_cmds_onlyif : forall nbs i0 st0 smap1 smem1 sframe1 seffects1 c nc,
   wf_nbranchs (nbs++(mkNB c nc::nil)) ->  
-  getCmdID c = i0 ->
+  getCmdLoc c = i0 ->
   binds i0 st0 smap1 ->
   binds i0 st0 (STerms (se_cmds (mkSstate smap1 smem1 sframe1 seffects1) nbs)).
 Proof.
-  induction nbs; intros i0 st0 smap1 smem1 sframe1 seffects1 c nc Hwf HgetCmdID Hbinds; simpl in *; auto.
+  induction nbs; intros i0 st0 smap1 smem1 sframe1 seffects1 c nc Hwf HgetCmdLoc Hbinds; simpl in *; auto.
     remember (se_cmd (mkSstate smap1 smem1 sframe1 seffects1) a) as R.
     destruct R as [smap0 smem0 sframe0 seffects0].
     apply IHnbs with (c:=c)(nc:=nc); auto.
@@ -416,12 +416,12 @@ Proof.
       simpl in H0.
       inversion H0; subst.
       rewrite nbranchs2cmds_app in H3.
-      rewrite getCmdsIDs_app in H3.
+      rewrite getCmdsLocs_app in H3.
       apply NotIn_inv in H3.
       destruct H3 as [_ H3].
       simpl in H3.
-      assert (getCmdID c <> getCmdID nbranching_cmd0) as neq.
-        destruct (getCmdID c == getCmdID nbranching_cmd0); auto.
+      assert (getCmdLoc c <> getCmdLoc nbranching_cmd0) as neq.
+        destruct (getCmdLoc c == getCmdLoc nbranching_cmd0); auto.
       destruct nbranching_cmd0; simpl in HeqR; inversion HeqR; subst; 
         try solve [
           auto | 
@@ -433,7 +433,7 @@ Qed.
 Lemma binds_se_cmds_strengthen : forall nbs i1 st1 smap1 smem1 sframe1 seffects1,
   uniq smap1 ->
   binds i1 st1 (STerms (se_cmds (mkSstate smap1 smem1 sframe1 seffects1) nbs)) ->
-  ~ In i1 (getCmdsIDs (nbranchs2cmds nbs)) ->
+  ~ In i1 (getCmdsLocs (nbranchs2cmds nbs)) ->
   binds i1 st1 smap1.
 Proof.
   induction nbs; intros i1 st1 smap1 smem1 sframe1 seffects1 Uniq Binds i1_notin; simpl in *; auto.
@@ -449,7 +449,7 @@ Qed.
 Lemma binds_se_cmds_weaken : forall nbs i1 st1 smap1 smem1 sframe1 seffects1,
   uniq smap1 ->
   binds i1 st1 smap1 ->
-  ~ In i1 (getCmdsIDs (nbranchs2cmds nbs)) ->
+  ~ In i1 (getCmdsLocs (nbranchs2cmds nbs)) ->
   binds i1 st1 (STerms (se_cmds (mkSstate smap1 smem1 sframe1 seffects1) nbs)).
 Proof.
   induction nbs; intros i1 st1 smap1 smem1 sframe1 seffects1 Uniq Binds i1_notin; simpl in *; auto.
@@ -464,7 +464,7 @@ Qed.
 Lemma _binds_se_cmds_if : forall nbs i1 st1 smap1 smem1 sframe1 seffects1 i0 st0,
   uniq smap1 ->
   binds i1 st1 (STerms (se_cmds (mkSstate (updateAddAL _ smap1 i0 st0) smem1 sframe1 seffects1) nbs)) ->
-  ~ In i1 (getCmdsIDs (nbranchs2cmds nbs)) ->
+  ~ In i1 (getCmdsLocs (nbranchs2cmds nbs)) ->
   i1 <> i0 ->
   binds i1 st1 (STerms (se_cmds (mkSstate smap1 smem1 sframe1 seffects1) nbs)).
 Proof.
@@ -479,12 +479,12 @@ Qed.
 
 Lemma binds_se_cmds_if : forall nbs i0 st0 smap1 smem1 sframe1 seffects1 c nc,
   wf_nbranchs (nbs++(mkNB c nc::nil)) ->  
-  getCmdID c = i0 ->
+  getCmdLoc c = i0 ->
   uniq smap1 ->
   binds i0 st0 (STerms (se_cmds (mkSstate smap1 smem1 sframe1 seffects1) nbs)) ->
   binds i0 st0 smap1.
 Proof.
-  induction nbs; intros i0 st0 smap1 smem1 sframe1 seffects1 c nc Hwf HgetCmdID Uniq Hbinds; simpl in *; auto.
+  induction nbs; intros i0 st0 smap1 smem1 sframe1 seffects1 c nc Hwf HgetCmdLoc Uniq Hbinds; simpl in *; auto.
     remember (se_cmd (mkSstate smap1 smem1 sframe1 seffects1) a) as R.
     destruct R as [smap0 smem0 sframe0 seffects0].
     apply IHnbs with (c:=c)(nc:=nc)(smem1:=smem0)(sframe1:=sframe0)(seffects1:=seffects0); auto.
@@ -498,15 +498,15 @@ Proof.
       simpl in H0.
       inversion H0; subst.
       rewrite nbranchs2cmds_app in H3.
-      rewrite getCmdsIDs_app in H3.
+      rewrite getCmdsLocs_app in H3.
       apply NotIn_inv in H3.
       destruct H3 as [_ H3].
       simpl in H3.
-      assert (getCmdID c <> getCmdID nbranching_cmd0) as neq.
-        destruct (getCmdID c == getCmdID nbranching_cmd0); auto.
-      assert (~ In (getCmdID c) (getCmdsIDs (nbranchs2cmds nbs))) as notin.
+      assert (getCmdLoc c <> getCmdLoc nbranching_cmd0) as neq.
+        destruct (getCmdLoc c == getCmdLoc nbranching_cmd0); auto.
+      assert (~ In (getCmdLoc c) (getCmdsLocs (nbranchs2cmds nbs))) as notin.
         rewrite nbranchs2cmds_app in H4.
-        rewrite getCmdsIDs_app in H4.
+        rewrite getCmdsLocs_app in H4.
         simpl in H4.
         apply NoDup_last_inv; auto.
       destruct nbranching_cmd0; simpl in HeqR; inversion HeqR; subst; 
@@ -519,7 +519,7 @@ Qed.
 
 Lemma binds_se_cmds : forall i0 st0 smap1 smem1 sframe1 seffects1 nbs c nc,
   wf_nbranchs (nbs++(mkNB c nc::nil)) ->  
-  getCmdID c = i0 ->
+  getCmdLoc c = i0 ->
   binds i0 st0 smap1 ->
   binds i0 st0 (STerms (se_cmds (mkSstate smap1 smem1 sframe1 seffects1) nbs)).
 Proof.
@@ -530,7 +530,7 @@ Qed.
 Lemma binds_se_cmds__prefix_last : forall nbs c nc id' st' smap1 smem1 sframe1 seffects1 i0,
   wf_nbranchs (nbs++(mkNB c nc::nil)) ->  
   binds id' st' (STerms (se_cmds (mkSstate smap1 smem1 sframe1 seffects1) nbs)) ->
-  getCmdID c = i0 ->
+  getCmdLoc c = i0 ->
   uniq smap1 ->
   (id'=i0 /\ binds id' st' smap1) \/ 
   (id' <> i0 /\ 
@@ -547,12 +547,12 @@ Proof.
     left. split; auto.
       eapply binds_se_cmds_if; eauto.
     right. split; auto.
-      apply binds_se_cmd with (i1:=getCmdID c) ; auto.
+      apply binds_se_cmd with (i1:=getCmdLoc c) ; auto.
 Qed.
 
 Lemma se_cmd_updateAddAL_inv : forall c nc st,
   STerms (se_cmd st (mkNB c nc)) = STerms st \/
-  (exists st0, (STerms (se_cmd st (mkNB c nc))) = updateAddAL _ (STerms st) (getCmdID c) st0).
+  (exists st0, (STerms (se_cmd st (mkNB c nc))) = updateAddAL _ (STerms st) (getCmdLoc c) st0).
 Proof.
   destruct c; intros; simpl; auto.
     right. 
@@ -628,7 +628,7 @@ Qed.
 
 Lemma in_se_cmds__prefix_last : forall nbs c nc id' smem1 sframe1 seffects1 i0,
   wf_nbranchs (nbs++(mkNB c nc::nil)) ->  
-  getCmdID c = i0 ->
+  getCmdLoc c = i0 ->
   (id'=i0 /\ 
    lookupSmap (STerms (se_cmds (mkSstate nil smem1 sframe1 seffects1) nbs)) id' = sterm_val (value_id id') /\
    id' `notin` dom (STerms (se_cmds (mkSstate nil smem1 sframe1 seffects1) nbs))
@@ -656,7 +656,7 @@ Proof.
       apply binds_In_inv in id'_in.
       destruct id'_in as [st' Binds].
       rewrite lookupSmap_in with (st0:=st'); auto using se_cmds_uniq.
-      apply binds_se_cmds__prefix_last with (c:=c)(nc:=nc)(i0:=getCmdID c) in Binds; auto.
+      apply binds_se_cmds__prefix_last with (c:=c)(nc:=nc)(i0:=getCmdLoc c) in Binds; auto.
       destruct Binds as [[EQ Binds] | [nEQ Binds]].
         inversion Binds.
         rewrite lookupSmap_in with (st0:=st'); auto using se_cmd_uniq_aux, se_cmds_uniq.
@@ -669,10 +669,10 @@ Qed.
 
 Lemma in_se_cmds__prefix_last__eq : forall nbs c nc smem1 sframe1 seffects1 i0,
   wf_nbranchs (nbs++(mkNB c nc::nil)) ->  
-  getCmdID c = i0 ->
+  getCmdLoc c = i0 ->
   lookupSmap (STerms (se_cmds (mkSstate nil smem1 sframe1 seffects1) nbs)) i0 = sterm_val (value_id i0).
 Proof.
-  intros nbs c nc smem1 sframe1 seffects1 i0 Wf HgetCmdID.
+  intros nbs c nc smem1 sframe1 seffects1 i0 Wf HgetCmdLoc.
   apply in_se_cmds__prefix_last with (id':=i0)(smem1:=smem1)(sframe1:=sframe1)(seffects1:=seffects1)(i0:=i0) in Wf; auto.
   destruct Wf as [[EQ [J J']] | [nEQ J]]; auto.
     contradict nEQ; auto.
@@ -680,15 +680,15 @@ Qed.
 
 Lemma in_se_cmds__prefix_last__neq : forall nbs c nc smem1 sframe1 seffects1 id',
   wf_nbranchs (nbs++(mkNB c nc::nil)) ->  
-  getCmdID c <> id' ->
+  getCmdLoc c <> id' ->
   lookupSmap (STerms (se_cmds (mkSstate nil smem1 sframe1 seffects1) nbs)) id' = 
   lookupSmap (STerms 
                 (se_cmd 
                   (se_cmds (mkSstate nil smem1 sframe1 seffects1) nbs) 
                   (mkNB c nc))) id'.
 Proof.
-  intros nbs c nc smem1 sframe1 seffects1 id' Wf HgetCmdID.
-  apply in_se_cmds__prefix_last with (id':=id')(smem1:=smem1)(sframe1:=sframe1)(seffects1:=seffects1)(i0:=getCmdID c) in Wf; auto.
+  intros nbs c nc smem1 sframe1 seffects1 id' Wf HgetCmdLoc.
+  apply in_se_cmds__prefix_last with (id':=id')(smem1:=smem1)(sframe1:=sframe1)(seffects1:=seffects1)(i0:=getCmdLoc c) in Wf; auto.
   destruct Wf as [[EQ [J J']] | [nEQ J]]; auto.
     contradict EQ; auto.
 Qed.
@@ -699,13 +699,13 @@ Lemma smap_denotes_gvmap_rollbackEnv : forall TD lc0 gl Mem0 nbs c nc lc2 gv3 i0
   wf_nbranchs (nbs++(mkNB c nc::nil)) ->
   smap_denotes_gvmap TD lc0 gl Mem0 (STerms (se_cmd (se_cmds sstate_init nbs) (mkNB c nc))) lc2 ->
   lookupAL _ lc2 i0 = Some gv3 ->
-  getCmdID c = i0 ->
+  getCmdLoc c = i0 ->
   smap_denotes_gvmap TD lc0 gl Mem0
               (STerms (se_cmds sstate_init nbs))
               (rollbackAL _ lc2 i0 lc0).
 Proof.
   intros TD lc0 gl Mem0 nbs c nc lc2 gv3 i0
-        Huniqc0 Huniqc2 Wf [Hsterms_denote1 Hsterms_denote2] gv3_in_env2 HgetCmdID.
+        Huniqc0 Huniqc2 Wf [Hsterms_denote1 Hsterms_denote2] gv3_in_env2 HgetCmdLoc.
   assert (uniq (rollbackAL _ lc2 i0 lc0)) as Huniqc1.
     apply rollbackAL_uniq; auto.
   split; intros.
@@ -714,7 +714,7 @@ Proof.
         destruct J as [[id'_is_i0 [lkSmap_id' id'_notin]] | [i0_isnt_id' lkSmap_id']]; subst.
           unfold sstate_init.
           rewrite lkSmap_id'.
-          assert (getCmdID c `in` dom lc0) as id'_in_lc0.
+          assert (getCmdLoc c `in` dom lc0) as id'_in_lc0.
             clear - id'_notin H. fsetdec.
           erewrite lookupAL_rollbackAL_Some_eq; eauto.
           apply id_denotes_gv; auto.
@@ -1615,7 +1615,7 @@ Qed.
 Lemma se_cmds_denotes__composes__prefix_last__case1 : forall TD lc0 gl Mem0 nbs lc1 lc2 Mem1 id' c nc i0 st0,
   smap_denotes_gvmap TD lc0 gl Mem0 (STerms (se_cmds sstate_init nbs)) lc1 ->
   smap_denotes_gvmap TD lc1 gl Mem1 (STerms (se_cmd sstate_init (mkNB c nc))) lc2 ->
-  getCmdID c = i0 ->
+  getCmdLoc c = i0 ->
   i0 <> id' ->
   id' `in` dom (STerms (se_cmds sstate_init nbs)) `union` dom lc0 ->
   exists gv', 
@@ -1623,7 +1623,7 @@ Lemma se_cmds_denotes__composes__prefix_last__case1 : forall TD lc0 gl Mem0 nbs 
     lookupAL _ lc2 id' = ret gv'.
 Proof.
   intros TD lc0 gl Mem0 nbs lc1 lc2 Mem1 id' c nc i0 st0 [Hsterms_denote11 Hsterms_denote12]
-     [Hsterms_denote21 Hsterms_denote22] HgetCmdID i0_isnt_id' id'_in.
+     [Hsterms_denote21 Hsterms_denote22] HgetCmdLoc i0_isnt_id' id'_in.
             rewrite <- lookupSmap_updateAddAL_neq; auto.
             assert (J:=id'_in).
             apply Hsterms_denote11 in J.
@@ -1631,7 +1631,7 @@ Proof.
             apply lookupAL_Some_indom in id'_gv'_in_env1.
             apply in_dom_ext_left with (D2:=dom (STerms (se_cmd sstate_init (mkNB c nc)))) in id'_gv'_in_env1.
             apply Hsterms_denote21 in id'_gv'_in_env1.           
-            rewrite <- HgetCmdID in i0_isnt_id'.
+            rewrite <- HgetCmdLoc in i0_isnt_id'.
 	    unfold sstate_init in id'_gv'_in_env1.
             rewrite lookupSmap_se_cmd_neq in id'_gv'_in_env1; auto.
             destruct id'_gv'_in_env1 as [gv'0 [id'_denotes_gv'0 id'_gv'0_in_env2]].

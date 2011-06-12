@@ -489,7 +489,7 @@ Proof.
   inversion H; subst.
   apply cmds2nbs_app_inv in H0.
   destruct H0 as [cs1 [cs2 [J1 [J2 J3]]]]; subst.
-  rewrite getCmdsIDs_app in H1.
+  rewrite getCmdsLocs_app in H1.
   apply NoDup_inv in H1.
   destruct H1.
   split; eapply wf_nbranchs_intro; eauto.
@@ -513,7 +513,7 @@ Qed.
 Hint Resolve wf_nbranchs_nil.
 
 Lemma uniqCmds___wf_subblocks_wf_nbranchs : forall cs sbs nbs,
-  NoDup (getCmdsIDs cs) ->
+  NoDup (getCmdsLocs cs) ->
   cmds2sbs cs = (sbs, nbs) ->
   wf_subblocks sbs /\ wf_nbranchs nbs.
 Proof.
@@ -551,7 +551,7 @@ Proof.
             destruct Hcs1NBs0call0 as [cs1' [call0 [EQ [Hcs1'nbs EQ']]]]; subst.
             simpl in *.
             simpl_env in H.
-            rewrite getCmdsIDs_app in H.
+            rewrite getCmdsLocs_app in H.
             rewrite ass_app in H.
             apply NoDup_inv in H. destruct H as [H _].
             apply wf_nbranchs_intro with (cs:=a::cs1'); auto.
@@ -702,7 +702,7 @@ Proof.
 Qed.
 
 Lemma se_cmd_dom_upper : forall sstate0 c nc,
-  dom (STerms (se_cmd sstate0 (mkNB c nc))) [<=] dom (STerms sstate0) `union` {{getCmdID c}}.
+  dom (STerms (se_cmd sstate0 (mkNB c nc))) [<=] dom (STerms sstate0) `union` {{getCmdLoc c}}.
 Proof.
   intros [smap0 sm0 sf0 se0] c nc.
   destruct c; simpl; try solve [rewrite updateAddAL_dom_eq; fsetdec | fsetdec].
@@ -850,7 +850,7 @@ Proof.
 Qed.
 
 Lemma lookupSmap_se_cmd_neq : forall c id' smap1 smem1 sframe1 seffects1 nc,
-  getCmdID c <> id' ->
+  getCmdLoc c <> id' ->
   lookupSmap (STerms (se_cmd (mkSstate smap1 smem1 sframe1 seffects1) (mkNB c nc))) id' =
   lookupSmap smap1 id'.
 Proof.

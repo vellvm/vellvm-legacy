@@ -10,13 +10,13 @@ all:
 	+make ott 
 #	+make -C ./llvm_op
 
-ott: main.pdf ssa_dynamic.vo opsem_conv.vo opsem_pp.vo ssa_static.vo \
-	ssa_interpreter.vo ssa_wf.vo
+ott: main.pdf ssa_static.vo ssa_dynamic.vo ssa_wf.vo opsem_conv.vo \
+	opsem_pp.vo ssa_interpreter.vo
 
 assoclist.vo : assoclist.v
 	$(COQC) $(COQARG) assoclist.v
 
-ssa_coq_lib.vo : ssa_coq_lib.v ssa_def.vo assoclist.vo
+ssa_coq_lib.vo : ssa_coq_lib.v ssa_def.vo assoclist.vo ssa_analysis.vo
 	$(COQC) $(COQARG) ssa_coq_lib.v
 
 ssa_def.vo : ssa_def.v ./monads/monad.vo ./compcert/Floats.vo
@@ -34,7 +34,7 @@ m_ssa_static.ott : ssa_static.ott spanlines.py
 	./spanlines.py ssa_static.ott
 
 ssa_lib.v ssa_static.v: ssa_def.ott ssa_coq_lib.vo ssa_coq.ott ssa_lib.ott \
-	m_ssa_static.ott ./monads/monad.vo
+	m_ssa_static.ott ./monads/monad.vo ssa_analysis.vo
 	$(OTT) -merge false -coq_expand_list_types true \
             -i ssa_def.ott -o _tmp_ssa_def.v \
 	    -i ssa_coq.ott -i ssa_lib.ott -o ssa_lib.v \
@@ -46,10 +46,10 @@ ssa_lib.v ssa_static.v: ssa_def.ott ssa_coq_lib.vo ssa_coq.ott ssa_lib.ott \
 ssa_lib.vo: ssa_lib.v
 	$(COQC) $(COQARG) ssa_lib.v
 
-ssa_static.vo: ssa_static.v ssa_analysis.vo
+ssa_static.vo: ssa_static.v ssa_lib.vo
 	$(COQC) $(COQARG) ssa_static.v
 
-ssa_wf.vo: ssa_static.vo
+ssa_wf.vo: ssa_static.vo ssa_props.vo ssa_wf.v
 	$(COQC) $(COQARG) ssa_wf.v
 
 tactics.vo: tactics.v
@@ -61,8 +61,7 @@ targetdata.vo: targetdata.v ssa_def.vo ssa_lib.vo
 trace.vo: trace.v
 	$(COQC) $(COQARG) trace.v
 
-ssa_analysis.vo: ssa_analysis.v ssa_def.vo ssa_lib.vo tactics.vo assoclist.vo \
-	compcert/Kildall.vo
+ssa_analysis.vo: compcert/Kildall.vo ssa_analysis.v
 	$(COQC) $(COQARG) ssa_analysis.v
 
 genericvalues.vo: ssa_def.vo ssa_lib.vo tactics.vo trace.vo genericvalues.v \

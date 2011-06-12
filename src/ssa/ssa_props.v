@@ -346,15 +346,15 @@ Qed.
 
 (* gets *)
 
-Lemma getCmdsIDs_app : forall cs1 cs2,
-  getCmdsIDs (cs1++cs2) = getCmdsIDs cs1++getCmdsIDs cs2.
+Lemma getCmdsLocs_app : forall cs1 cs2,
+  getCmdsLocs (cs1++cs2) = getCmdsLocs cs1++getCmdsLocs cs2.
 Proof.
   induction cs1; intros; auto.
     simpl. rewrite IHcs1. auto.
 Qed.
 
-Lemma getBlocksIDs_app : forall lb1 lb2,
-  getBlocksIDs (lb1++lb2) = getBlocksIDs lb1++getBlocksIDs lb2.
+Lemma getBlocksLocs_app : forall lb1 lb2,
+  getBlocksLocs (lb1++lb2) = getBlocksLocs lb1++getBlocksLocs lb2.
 Proof.
   induction lb1; intros; auto.
     simpl. rewrite IHlb1. simpl_env. auto.
@@ -449,7 +449,7 @@ Proof.
     inversion H; subst. simpl in *.
     inversion H0; subst.
     clear H H0.
-    rewrite getBlocksIDs_app in H1.
+    rewrite getBlocksLocs_app in H1.
     rewrite getBlocksLabels_app in H4, H5.
     apply NoDup_inv in H5. destruct H5.
     simpl_env in H1.
@@ -1000,7 +1000,7 @@ Qed.
 Lemma uniqBlocks__uniqBlock : forall lb n l1 ps1 cs1 tmn1,
   uniqBlocks lb ->
   nth_error lb n = Some (block_intro l1 ps1 cs1 tmn1) ->
-  NoDup (getCmdsIDs cs1).
+  NoDup (getCmdsLocs cs1).
 Proof.
   induction lb; intros.
     apply nil_nth_error_Some__False in H0.
@@ -1024,7 +1024,7 @@ Qed.
 Lemma uniqFdef__uniqBlock : forall fh lb n l1 ps1 cs1 tmn1,
   uniqFdef (fdef_intro fh lb) ->
   nth_error lb n = Some (block_intro l1 ps1 cs1 tmn1) ->
-  NoDup (getCmdsIDs cs1).
+  NoDup (getCmdsLocs cs1).
 Proof.
   intros.
   unfold uniqFdef in H.

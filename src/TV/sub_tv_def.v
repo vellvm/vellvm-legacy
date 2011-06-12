@@ -705,36 +705,39 @@ match lp with
 | _::lp' => lookupGvarViaIDFromProducts lp' i
 end.
 
-Definition lookupBindingViaIDFromFdef (fd:SBsyntax.fdef) (id:id) : id_binding :=
-let '(SBsyntax.fdef_intro (fheader_intro t id' la va) lb) := fd in
-lookupBindingViaIDFromFdec (fdec_intro (fheader_intro t id' la va)) id.
-
-Definition lookupBindingViaIDFromProduct (p:SBsyntax.product) (id:id) 
-  : id_binding :=
+Definition lookupGvarFromProduct (p:SBsyntax.product) (id:id) : option gvar :=
 match p with
 | SBsyntax.product_gvar (gvar_intro id' spec t c a) =>
   match (eq_dec id id') with
-  | left _ => id_binding_gvar (gvar_intro id' spec t c a)
-  | right _ => id_binding_none
+  | left _ => Some (gvar_intro id' spec t c a)
+  | right _ => None
   end
 | SBsyntax.product_gvar (gvar_external id' spec t) =>
   match (eq_dec id id') with
-  | left _ => id_binding_gvar (gvar_external id' spec t)
-  | right _ => id_binding_none
+  | left _ => Some (gvar_external id' spec t)
+  | right _ => None
   end
-| SBsyntax.product_fdec fdec => lookupBindingViaIDFromFdec fdec id
-| SBsyntax.product_fdef fdef => lookupBindingViaIDFromFdef fdef id
+| _ => None
 end.  
 
-Fixpoint lookupBindingViaIDFromProducts (lp:SBsyntax.products) (id:id) 
-  : id_binding :=
+Fixpoint lookupGvarFromProducts (lp:SBsyntax.products) (id:id) 
+  : option gvar :=
 match lp with
-| nil => id_binding_none
+| nil => None
 | p::lp' => 
-  match (lookupBindingViaIDFromProduct p id) with
-  | id_binding_none => lookupBindingViaIDFromProducts lp' id
+  match (lookupGvarFromProduct p id) with
+  | None => lookupGvarFromProducts lp' id
   | re => re
   end
+end.
+
+Fixpoint lookupFdecFromProducts (lp:SBsyntax.products) (id1:id) : option fdec :=
+match lp with
+| nil => None
+| SBsyntax.product_fdec (fdec_intro (fheader_intro _ fid _ _) as f)::lp' => 
+    if eq_dec id1 fid then Some f
+    else lookupFdecFromProducts lp' id1
+| _::lp' => lookupFdecFromProducts lp' id1
 end.
 
 End SBsyntax.
