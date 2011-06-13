@@ -1,4 +1,4 @@
-(*Add LoadPath "../../../theory/metatheory".*)
+Add LoadPath "../../../theory/metatheory_8.3".
 Require Import Metatheory.
 
 Section MoreDom.
@@ -79,6 +79,19 @@ match (lookupAL lc0 i) with
 | None => deleteAL locals i
 end.
 
+Lemma updateAddAL_mono : forall l1 id0 e0 id1,
+  id1 `in` dom l1 ->
+  id1 `in` dom (updateAddAL l1 id0 e0).
+Proof.
+  induction l1; intros; simpl in *.    
+    contradict H; fsetdec.
+
+    destruct a.
+    destruct (id0 == a); subst; simpl; auto.
+      assert (id1 = a \/ id1 `in` dom l1) as J.
+        fsetdec.
+      destruct J as [J | J]; subst; auto.
+Qed.        
 
 Lemma lookupAL_updateAL_in : forall m id0 gv0,
   id0 `in` dom m ->
@@ -680,4 +693,10 @@ Qed.
 
 End MoreAssocLists.
 
+(*
+*** Local Variables: ***
+*** coq-prog-name: "coqtop" ***
+*** coq-prog-args: ("-emacs-U" "-I" "~/SVN/sol/vol/src/ssa/monads" "-I" "~/SVN/sol/vol/src/ssa/ott" "-I" "~/SVN/sol/vol/src/ssa/compcert" "-I" "~/SVN/sol/theory/metatheory_8.3") ***
+*** End: ***
+ *)
 

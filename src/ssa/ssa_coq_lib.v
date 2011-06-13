@@ -181,6 +181,13 @@ match la with
 | (_,id1)::la' => id1::getArgsIDs la'
 end.
 
+  Definition getInsnID (i:insn) : option id :=
+  match i with
+  | insn_phinode p => Some (getPhiNodeID p)
+  | insn_cmd c => getCmdID c
+  | insn_terminator t => None
+  end.
+
 Lemma getCmdLoc_getCmdID : forall a i0,
   getCmdID a = Some i0 ->
   getCmdLoc a = i0.
@@ -984,9 +991,19 @@ match lb with
   end
 end.
 
+Fixpoint lookupTypViaIDFromArgs (la:args) (id0:id) : option typ :=
+match la with
+| nil => None
+| (t1,id1)::la' => if (id0==id1) then Some t1 else lookupTypViaIDFromArgs la' id0
+end.
+
 Definition lookupTypViaIDFromFdef (fd:fdef) (id0:id) : option typ :=
 match fd with
-| (fdef_intro _ lb) => lookupTypViaIDFromBlocks lb id0
+| (fdef_intro (fheader_intro _ _ la _) lb) => 
+    match lookupTypViaIDFromArgs la id0 with
+    | None => lookupTypViaIDFromBlocks lb id0
+    | Some t => Some t
+    end
 end.
 
 Definition lookupTypViaGIDFromProduct (p:product) (id0:id) : option typ :=

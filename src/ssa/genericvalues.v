@@ -930,6 +930,9 @@ Fixpoint _initializeFrameValues (la:args) (lg:list GenericValue) (locals:GVMap)
 match (la, lg) with
 | ((_, id)::la', g::lg') => 
   updateAddAL _ (_initializeFrameValues la' lg' locals) id g
+| ((t, id)::la', nil) => 
+  (* FIXME: We should initalize them w.r.t their type size. *)
+  updateAddAL _ (_initializeFrameValues la' nil locals) id (uninits 0%nat)
 | _ => locals
 end.
 

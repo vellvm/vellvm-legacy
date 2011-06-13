@@ -353,6 +353,23 @@ Proof.
     simpl. rewrite IHcs1. auto.
 Qed.
 
+Lemma getCmdsIDs_app : forall cs1 cs2,
+  getCmdsIDs (cs1++cs2) = getCmdsIDs cs1++getCmdsIDs cs2.
+Proof.
+  induction cs1; intros; auto.
+    simpl. 
+    rewrite IHcs1.
+    destruct (getCmdID a); auto.
+Qed.
+
+Lemma getPhiNodesIDs_app : forall ps1 ps2,
+  getPhiNodesIDs (ps1++ps2) = getPhiNodesIDs ps1++getPhiNodesIDs ps2.
+Proof.
+  induction ps1; intros; auto.
+    simpl. 
+    rewrite IHps1; auto.
+Qed.
+
 Lemma getBlocksLocs_app : forall lb1 lb2,
   getBlocksLocs (lb1++lb2) = getBlocksLocs lb1++getBlocksLocs lb2.
 Proof.
@@ -393,12 +410,31 @@ Proof.
         apply IHlb in J; auto.
 Qed.
 
+Lemma inc__getLabel2Block_blocks : forall a bs 
+  (Hinc : incl [a] (bound_blocks bs)),
+  exists b : block, lookupAL block (genLabel2Block_blocks bs) a = Some b.
+Proof. 
+  intros.
+  induction bs; simpl in *; auto.
+    assert (J:=@Hinc a). simpl in J. destruct J; auto.
+    destruct a0; simpl in *.
+    destruct (a==l0); subst.
+      exists (block_intro l0 p c t). auto.
+
+      apply IHbs. intros x J.
+      assert (x=a) as EQ.
+        simpl in J. destruct J; auto. inversion H.
+      subst.      
+      apply Hinc in J. simpl in J.
+      destruct J as [J | J]; subst; auto.
+      contradict n; auto.
+Qed.
+
 Lemma getBlockLabel_in_genLabel2Block_block : forall B,
   getBlockLabel B `in` dom (genLabel2Block_block B).
 Proof.
   destruct B. simpl. auto.
 Qed.
-
 
 (* inclusion *)
 
@@ -636,6 +672,50 @@ Proof.
   destruct (@In_dec _ eq_dec l0 (getBlocksLabels lb)) as [J1 | J1]; auto.
     apply NotIn_NotInBlocksB with (ps:=ps)(cs:=cs)(tmn:=tmn) in J1.
     contradict H; auto.
+Qed.
+
+Lemma InBlocksB__NotIn : forall l2 bs l0 cs ps tmn,
+  InBlocksB (block_intro l0 cs ps tmn) bs = true ->
+  ~ In l2 (getBlocksLabels bs) ->
+  l0 <> l2.
+Proof.
+  intros l2 bs l0 cs ps tmn HbInF H1.
+  apply InBlocksB_In in HbInF.
+  destruct (eq_dec l0 l2); subst; auto.
+Qed.
+
+Lemma InBlocksB__lookupAL : forall bs l3 ps cs tmn
+  (Huniq : uniqBlocks bs)
+  (HBinF : InBlocksB (block_intro l3 ps cs tmn) bs = true)
+  (b1 : block)
+  (J9 : lookupAL block (genLabel2Block_blocks bs) l3 = Some b1),
+  b1 = block_intro l3 ps cs tmn.
+Proof.
+  intros.
+  simpl in Huniq.
+  induction bs; simpl in *.
+    inversion J9; subst.
+
+    apply orb_prop in HBinF.   
+    destruct HBinF as [HBinF | HBinF].
+      apply blockEqB_inv in HBinF; subst.
+      simpl in J9.
+      destruct (@eq_dec atom (@EqDec_eq_of_EqDec atom EqDec_atom) l3 l3); subst;
+        simpl.
+        inversion J9; subst; auto.
+        contradict n; auto.
+
+      assert (Huniq':=Huniq).
+      simpl_env in Huniq'.
+      apply uniqBlocks_inv in Huniq'.
+      destruct Huniq'.
+      destruct a. destruct Huniq as [Huniq _]. simpl in *.
+      inversion Huniq; subst.
+      assert (J:=HBinF).
+      apply InBlocksB_In in J.
+      destruct (@eq_dec atom (@EqDec_eq_of_EqDec atom EqDec_atom) l3 l0); subst.
+        contradict J; auto.
+        apply IHbs; auto.
 Qed.
 
 Lemma entryBlockInSystemBlockFdef : forall los nts Ps S fid F B,
@@ -1082,7 +1162,311 @@ Proof.
   erewrite getOperandValue_eqAL; eauto.
 Qed.
 
-  
+Lemma lookupAL_update_udb_eq : forall ud l0 l1,
+  exists ls0, lookupAL _ (update_udb ud l0 l1) l1 = Some ls0 /\ In l0 ls0.
+Proof.
+  intros.
+  unfold update_udb.
+  remember (lookupAL (list l) ud l1) as R1.
+  destruct R1.
+    remember (in_dec l_dec l0 l2) as R2.
+    destruct R2.
+      exists l2. split; auto.
+      exists (l0 :: l2). simpl. split; auto.
+        apply lookupAL_updateAddAL_eq; auto.
+    remember (in_dec l_dec l0 nil) as R2.
+    destruct R2.
+      inversion i0.
+      exists (l0 :: nil). simpl. split; auto.
+        apply lookupAL_updateAddAL_eq; auto.
+Qed.  
+
+Lemma update_udb__mono : forall l0 ud l1 l2,
+  l0 `in` dom ud ->
+  l0 `in` dom (update_udb ud l1 l2).
+Proof.
+  intros.
+  unfold update_udb.
+  destruct (in_dec l_dec l1
+           match lookupAL (list l) ud l2 with
+           | Some ls0 => ls0
+           | merror => nil
+           end); auto.
+    apply updateAddAL_mono; auto.
+Qed. 
+
+Lemma lookupAL_update_udb_spec : forall l0 ud l1 l2 re,
+  lookupAL _ ud l0 = Some re ->
+  exists re', lookupAL _ (update_udb ud l1 l2) l0 = Some re' /\
+    incl re re'.
+Proof.
+  intros.
+  unfold update_udb.
+  remember (lookupAL (list l) ud l2) as R1.
+  destruct R1.
+    remember (in_dec l_dec l1 l3) as R2.
+    destruct R2.
+      exists re. split; auto using incl_refl.
+      destruct (eq_atom_dec l2 l0); subst.
+        rewrite H in HeqR1. inversion HeqR1; subst.
+        exists (l1 :: re). 
+        split.
+          apply lookupAL_updateAddAL_eq; auto.
+          apply incl_tl; auto using incl_refl.
+        exists re. 
+        split.
+          rewrite <- lookupAL_updateAddAL_neq; auto.
+          auto using incl_refl.
+
+    remember (in_dec l_dec l1 nil) as R2.
+    destruct R2.
+      inversion i0.
+      destruct (eq_atom_dec l2 l0); subst.
+        rewrite H in HeqR1. inversion HeqR1.
+
+        exists re. 
+        split.
+          rewrite <- lookupAL_updateAddAL_neq; auto.
+          auto using incl_refl.
+Qed.  
+
+Lemma getValueViaLabelFromValuels__nth_list_value_l : forall
+  (l1 : l)  v vls
+  (J : getValueViaLabelFromValuels vls l1 = Some v),
+  exists n, nth_list_value_l n vls = Some (v, l1).
+Proof.
+  intros.
+  induction vls; intros; simpl in *.
+    inversion J.
+
+    destruct (l0 == l1); subst.
+      inversion J; subst; simpl in *.
+      exists 0%nat. auto.
+
+      destruct IHvls as [n' IHvls]; auto.
+      exists (S n'). simpl. auto.
+Qed.
+
+Lemma genBlockUseDef_blocks__mono : forall bs ud l0,
+  l0 `in` dom ud ->
+  l0 `in` dom (genBlockUseDef_blocks bs ud).
+Proof.
+  induction bs; intros ud l0 Hin; simpl in *; auto.  
+    destruct a; simpl.
+    destruct t; simpl; auto.
+      apply IHbs. 
+        apply update_udb__mono; auto.
+        apply update_udb__mono; auto.
+      apply IHbs. 
+        apply update_udb__mono; auto.
+Qed.        
+
+Lemma lookupAL_genBlockUseDef_blocks_spec : forall bs l0 ud re,
+  lookupAL _ ud l0 = Some re ->
+  exists re', lookupAL _ (genBlockUseDef_blocks bs ud) l0 = Some re' /\
+    incl re re'.
+Proof.
+  induction bs; intros ud l0 re Hin; simpl in *; auto.  
+    exists re. split; auto using incl_refl.
+
+    destruct a.
+    destruct t; simpl; auto.
+      apply lookupAL_update_udb_spec with (l1:=l1)(l2:=l3) in Hin.
+      destruct Hin as [re1 [Hin Hinc1]].
+      apply lookupAL_update_udb_spec with (l1:=l1)(l2:=l2) in Hin.
+      destruct Hin as [re2 [Hin Hinc2]].
+      apply IHbs in Hin.
+      destruct Hin as [re3 [Hin Hinc3]].
+      exists re3. split; eauto using incl_tran.
+
+      apply lookupAL_update_udb_spec with (l1:=l1)(l2:=l2) in Hin.
+      destruct Hin as [re1 [Hin Hinc1]].
+      apply IHbs in Hin.
+      destruct Hin as [re2 [Hin Hinc2]].
+      exists re2. split; eauto using incl_tran.
+Qed.        
+
+Lemma getIncomingValuesForBlockFromPHINodes_spec : forall ps TD Mem0 b gl lc lc'
+    id1,
+  Some lc' = getIncomingValuesForBlockFromPHINodes TD Mem0 ps b gl lc ->
+  In id1 (getPhiNodesIDs ps) ->
+  exists gv, lookupAL _ lc' id1 = Some gv.  
+Proof.    
+  induction ps; intros; simpl in *.
+    inversion H0.
+
+    destruct a.
+    simpl in H0.
+    destruct H0 as [H0 | H0]; subst.
+      destruct (getValueViaBlockFromValuels l0 b); try solve [inversion H].   
+        destruct v.
+          destruct (lookupAL GenericValue lc i0); inversion H; subst. 
+          destruct (getIncomingValuesForBlockFromPHINodes TD Mem0 ps b gl lc);
+            inversion H1; subst.         
+          exists g. simpl. 
+          destruct (id1==id1); auto.
+            contradict n; auto.
+
+          destruct (const2GV TD Mem0 gl c); inversion H; subst.
+          destruct (getIncomingValuesForBlockFromPHINodes TD Mem0 ps b gl lc);
+            inversion H1; subst.
+          exists g. simpl. 
+          destruct (id1==id1); auto.
+            contradict n; auto.
+
+      destruct (getValueViaBlockFromValuels l0 b); try solve [inversion H].   
+        destruct v.
+          destruct (lookupAL GenericValue lc i1); inversion H; subst. 
+          remember (getIncomingValuesForBlockFromPHINodes TD Mem0 ps b gl lc) 
+            as R.
+          destruct R; inversion H2; subst.         
+          simpl.
+          destruct (id1==i0); subst; eauto.
+
+          destruct (const2GV TD Mem0 gl c); inversion H; subst.
+          remember (getIncomingValuesForBlockFromPHINodes TD Mem0 ps b gl lc) 
+            as R.
+          destruct R; inversion H2; subst.         
+          simpl.
+          destruct (id1==i0); subst; eauto.
+Qed.
+    
+Lemma updateValuesForNewBlock_spec1 : forall rs lc id1 gv,
+  lookupAL _ rs id1 = Some gv ->
+  lookupAL _ (updateValuesForNewBlock rs lc) id1 = Some gv.
+Proof.  
+  induction rs; intros; simpl in *.   
+    inversion H.
+
+    destruct a.
+    destruct (id1==a); subst.
+      inversion H; subst. apply lookupAL_updateAddAL_eq; auto.
+      rewrite <- lookupAL_updateAddAL_neq; auto.
+Qed.
+
+Lemma updateValuesForNewBlock_spec2 : forall rs lc id1 gv,
+  lookupAL _ lc id1 = Some gv ->
+  exists gv', lookupAL _ (updateValuesForNewBlock rs lc) id1 = Some gv'.
+Proof.  
+  induction rs; intros; simpl in *.   
+    exists gv. auto.
+
+    destruct a.
+    destruct (id1==i0); subst.
+      exists g. apply lookupAL_updateAddAL_eq; auto.
+      rewrite <- lookupAL_updateAddAL_neq; eauto.
+Qed.
+
+Lemma InPhiNodes_lookupTypViaIDFromPhiNodes : forall ps id1,
+  In id1 (getPhiNodesIDs ps) ->
+  exists t, lookupTypViaIDFromPhiNodes ps id1 = Some t.
+Proof.
+  induction ps; intros; simpl in *.
+    inversion H. 
+
+    destruct H as [H | H]; subst.
+      destruct a. simpl. unfold lookupTypViaIDFromPhiNode. simpl.
+      destruct (i0==i0); subst.
+        exists t. auto.
+        contradict n; auto.
+
+      apply IHps in H.
+      destruct H as [t H].
+      rewrite H.
+      destruct (lookupTypViaIDFromPhiNode a id1).
+        exists t0. auto.
+        exists t. auto.
+Qed.
+
+Lemma InPhiNodes_lookupTypViaIDFromFdef : forall f id1 l' ps cs tmn,
+  Some (block_intro l' ps cs tmn) = lookupBlockViaLabelFromFdef f l' ->
+  In id1 (getPhiNodesIDs ps) ->
+  exists t, lookupTypViaIDFromFdef f id1 = Some t.
+Proof.
+  intros.
+  destruct f. destruct f.
+  simpl in *.
+  destruct (lookupTypViaIDFromArgs a id1).
+    exists t0. auto.
+
+    induction b; simpl in *.
+      inversion H.
+    
+      destruct a0. simpl in *.
+      destruct (@eq_dec atom (@EqDec_eq_of_EqDec atom EqDec_atom) l' l0); subst.
+        inversion H; subst.
+        apply InPhiNodes_lookupTypViaIDFromPhiNodes in H0.
+        destruct H0 as [t1 H0].
+        rewrite H0. exists t1. auto.
+
+        apply IHb in H.
+        destruct H as [t1 H].
+        rewrite H. 
+        destruct (lookupTypViaIDFromPhiNodes p id1).
+          exists t2. auto.
+          destruct (lookupTypViaIDFromCmds c id1).
+            exists t2. auto.
+            destruct (lookupTypViaIDFromTerminator t0 id1).
+              exists t2. auto.
+              exists t1. auto.
+Qed.  
+
+Lemma InArgsIDs_lookupTypViaIDFromArgs : forall la id1,
+  In id1 (getArgsIDs la) ->
+  exists t, lookupTypViaIDFromArgs la id1 = Some t.
+Proof.
+  induction la; intros; simpl in *.
+    inversion H. 
+
+    destruct a.
+    simpl in H.
+    destruct H as [H | H]; subst.
+      destruct (@eq_dec id (@EqDec_eq_of_EqDec id EqDec_atom) id1 id1); subst.
+        exists t. auto.
+        contradict n; auto.
+
+      destruct (@eq_dec id (@EqDec_eq_of_EqDec id EqDec_atom) id1 i0); subst.
+        exists t. auto.
+        eauto.
+Qed.
+
+Lemma InArgsIDs_lookupTypViaIDFromFdef : forall id1 t0 id0 la0 va0 bs,
+  In id1 (getArgsIDs la0) ->
+  exists t, 
+    lookupTypViaIDFromFdef (fdef_intro (fheader_intro t0 id0 la0 va0) bs) id1 = 
+      Some t.
+Proof.
+  intros.
+  simpl in *.
+  apply InArgsIDs_lookupTypViaIDFromArgs in H.
+  destruct H as [t H].
+  rewrite H.
+  exists t.
+  auto.
+Qed.  
+
+Lemma initLocals_spec : forall la gvs id1,
+  In id1 (getArgsIDs la) ->
+  exists gv, lookupAL _ (initLocals la gvs) id1 = Some gv.
+Proof.
+  unfold initLocals.
+  induction la; intros; simpl in *.
+    inversion H.
+
+    destruct a.  
+    simpl in H.
+    destruct H as [H | H]; subst; simpl.
+      destruct gvs. 
+        exists (uninits 0). apply lookupAL_updateAddAL_eq; auto.      
+        exists g. apply lookupAL_updateAddAL_eq; auto.      
+
+      destruct (eq_atom_dec i0 id1); subst.
+        destruct gvs.
+          exists (uninits 0). apply lookupAL_updateAddAL_eq; auto.
+          exists g. apply lookupAL_updateAddAL_eq; auto.
+        destruct gvs; rewrite <- lookupAL_updateAddAL_neq; auto.
+Qed.
+
 (*****************************)
 (*
 *** Local Variables: ***

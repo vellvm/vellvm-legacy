@@ -12,12 +12,13 @@ MC_CASES="array array2 array3 global_array linkedlist linkedlistloop
           reference_test struct_array"
 OC_DIR=../Parser/tvcases/olden-ccured/
 # bh: llvm cannot compile it.
-# power: TV isn't terminating.
+# power: TV isn't terminating, includes floats
 # perimeter tsp have 'switch' instructions that we do not support so far.
 # em3d: removed 'free', since Softbound is not sound with 'free'.
 OC_CASES="bisort em3d health mst treeadd"
 S95_DIR=../Parser/tvcases/spec95-ccured/
 # 099.go 130.li 132.ijpeg has 'switch'
+# 129.compress has floats and functions named like "\01__soc95"
 S95_CASES="129.compress"
 
 for name in $ML_CASES; do 

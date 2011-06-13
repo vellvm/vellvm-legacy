@@ -88,9 +88,13 @@ end.
 Export LLVMgv.
 Export LLVMopsem.
 
-(* FIXME: this could be the tricky part. *)
+(* The relation says that any value can be of any typ, which is exactly true
+   for an LLVM that allows cast between any pointer types. Type safety needs 
+   a subtyping relation w.r.t data type layout. *)
 Inductive wf_genericvalue : GenericValue -> typ -> Prop :=
 | wf_genericvalue_intro : forall gv t, wf_genericvalue gv t.
+
+Hint Constructors wf_genericvalue.
 
 Inductive wf_defs (f:fdef) (lc:GVMap) : list atom -> Prop :=
 | wf_defs_nil : wf_defs f lc nil
@@ -101,7 +105,7 @@ Inductive wf_defs (f:fdef) (lc:GVMap) : list atom -> Prop :=
     wf_defs f lc defs' ->
     wf_defs f lc (id1::defs').
 
-Lemma wf_defs__forall : forall ids1 F lc,
+Lemma wf_defs_elim : forall ids1 F lc,
   wf_defs F lc ids1 ->
   forall id1, In id1 ids1 ->
   exists t1, exists gv1,
@@ -117,7 +121,7 @@ Proof.
     eapply IHids1 in H6; eauto.
 Qed.    
 
-Lemma forall__wf_defs : forall ids1 F lc,
+Lemma wf_defs_intro : forall ids1 F lc,
   (forall id1, In id1 ids1 ->
    exists t1, exists gv1,
      lookupTypViaIDFromFdef F id1 = Some t1 /\
@@ -141,21 +145,38 @@ Lemma wf_defs_eq : forall ids2 ids1 F' lc',
   wf_defs F' lc' ids2.
 Proof.
   intros.
-  apply forall__wf_defs.
+  apply wf_defs_intro.
   intros id1 Hin.
   destruct H as [J1 J2].
-  eapply wf_defs__forall in H0; eauto.
+  eapply wf_defs_elim in H0; eauto.
 Qed.
 
-Lemma wf_defs_updateAddAL : forall g TD Mem' Result lc gl F' lc' ids1 ids2 i1,
-  ret g = getOperandValue TD Mem' Result lc gl ->
+Lemma wf_defs_updateAddAL : forall g F' lc' ids1 ids2 i1 t1,
   wf_defs F' lc' ids1 ->
   set_eq _ (i1::ids1) ids2 ->
+  lookupTypViaIDFromFdef F' i1 = ret t1 ->
   wf_defs F' (updateAddAL GenericValue lc' i1 g) ids2.
 Proof.
-  intros g TD Mem' Result lc gl F' lc' ids1 ids2 i1 Hget HwfDefs Heq.
-  (* need to show that g is welltyped.*)
-Admitted.
+  intros g F' lc' ids1 ids2 i1 t1 HwfDefs Heq Hlkup.  
+  apply wf_defs_intro.  
+  intros id1 Hin.
+  destruct Heq as [Hinc1 Hinc2].
+  apply Hinc2 in Hin.
+  simpl in Hin.
+  destruct (eq_dec i1 id1); subst.
+    exists t1. exists g. 
+    split; auto.
+    split; auto. 
+      apply lookupAL_updateAddAL_eq; auto.      
+
+    destruct Hin as [Eq | Hin]; subst; try solve [contradict n; auto].
+    eapply wf_defs_elim in HwfDefs; eauto.
+    destruct HwfDefs as [t2 [gv2 [J1 [J2 J3]]]].
+    exists t2. exists gv2.
+    split; auto.
+    split; auto. 
+      rewrite <- lookupAL_updateAddAL_neq; auto.      
+Qed.
 
 Definition wf_ExecutionContext (ps:list product) (ec:ExecutionContext) : Prop :=
 let '(mkEC f b cs tmn lc als) := ec in
@@ -478,26 +499,6 @@ Proof.
       apply set_eq_sym; auto.          
 Qed.
 
-Lemma inc__getLabel2Block_blocks : forall a bs 
-  (Hinc : incl [a] (bound_blocks bs)),
-  exists b : block, lookupAL block (genLabel2Block_blocks bs) a = ret b.
-Proof. 
-  intros.
-  induction bs; simpl in *; auto.
-    assert (J:=@Hinc a). simpl in J. destruct J; auto.
-    destruct a0; simpl in *.
-    destruct (a==l0); subst.
-      exists (block_intro l0 p c t). auto.
-
-      apply IHbs. intros x J.
-      assert (x=a) as EQ.
-        simpl in J. destruct J; auto. inversion H.
-      subst.      
-      apply Hinc in J. simpl in J.
-      destruct J as [J | J]; subst; auto.
-      contradict n; auto.
-Qed.
-
 Lemma fold_left__bound_blocks : forall ls0 t i0 la va bs l0 init,
   incl ls0 (bound_blocks bs) ->
   exists r, 
@@ -575,16 +576,6 @@ Proof.
       rewrite fold_left__none in Hfold. inversion Hfold.
 Qed.
 
-Lemma InBlocksB__NotIn : forall l2 bs l0 cs ps tmn,
-  InBlocksB (block_intro l0 cs ps tmn) bs = true ->
-  ~ In l2 (getBlocksLabels bs) ->
-  l0 <> l2.
-Proof.
-  intros l2 bs l0 cs ps tmn HbInF H1.
-  apply InBlocksB_In in HbInF.
-  destruct (eq_dec l0 l2); subst; auto.
-Qed.
-
 Lemma successors_terminator__successors_blocks : forall
   (bs : blocks)
   (l0 : l)
@@ -650,127 +641,6 @@ Lemma atomset_eq__proof_irr2 : forall
              DomDS.L.bs_bound := inbound' |} = a),
   contents' = Dominators.bs_contents max a.
 Admitted.
-
-Lemma updateAddAL_mono : forall X (l1:AssocList X) id0 e0 id1,
-  id1 `in` dom l1 ->
-  id1 `in` dom (updateAddAL _ l1 id0 e0).
-Proof.
-  induction l1; intros; simpl in *.    
-    contradict H; fsetdec.
-
-    destruct a.
-    destruct (id0 == a); subst; simpl; auto.
-      assert (id1 = a \/ id1 `in` dom l1) as J.
-        fsetdec.
-      destruct J as [J | J]; subst; auto.
-Qed.        
-
-Lemma lookupAL_update_udb_eq : forall ud l0 l1,
-  exists ls0, lookupAL _ (update_udb ud l0 l1) l1 = Some ls0 /\ In l0 ls0.
-Proof.
-  intros.
-  unfold update_udb.
-  remember (lookupAL (list l) ud l1) as R1.
-  destruct R1.
-    remember (in_dec l_dec l0 l2) as R2.
-    destruct R2.
-      exists l2. split; auto.
-      exists (l0 :: l2). simpl. split; auto.
-        apply lookupAL_updateAddAL_eq; auto.
-    remember (in_dec l_dec l0 nil) as R2.
-    destruct R2.
-      inversion i0.
-      exists (l0 :: nil). simpl. split; auto.
-        apply lookupAL_updateAddAL_eq; auto.
-Qed.  
-
-Lemma update_udb__mono : forall l0 ud l1 l2,
-  l0 `in` dom ud ->
-  l0 `in` dom (update_udb ud l1 l2).
-Proof.
-  intros.
-  unfold update_udb.
-  destruct (in_dec l_dec l1
-           match lookupAL (list l) ud l2 with
-           | ret ls0 => ls0
-           | merror => nil
-           end); auto.
-    apply updateAddAL_mono; auto.
-Qed. 
-
-Lemma lookupAL_update_udb_spec : forall l0 ud l1 l2 re,
-  lookupAL _ ud l0 = Some re ->
-  exists re', lookupAL _ (update_udb ud l1 l2) l0 = Some re' /\
-    incl re re'.
-Proof.
-  intros.
-  unfold update_udb.
-  remember (lookupAL (list l) ud l2) as R1.
-  destruct R1.
-    remember (in_dec l_dec l1 l3) as R2.
-    destruct R2.
-      exists re. split; auto using incl_refl.
-      destruct (eq_atom_dec l2 l0); subst.
-        rewrite H in HeqR1. inv HeqR1.
-        exists (l1 :: re). 
-        split.
-          apply lookupAL_updateAddAL_eq; auto.
-          apply incl_tl; auto using incl_refl.
-        exists re. 
-        split.
-          rewrite <- lookupAL_updateAddAL_neq; auto.
-          auto using incl_refl.
-
-    remember (in_dec l_dec l1 nil) as R2.
-    destruct R2.
-      inversion i0.
-      destruct (eq_atom_dec l2 l0); subst.
-        rewrite H in HeqR1. inversion HeqR1.
-
-        exists re. 
-        split.
-          rewrite <- lookupAL_updateAddAL_neq; auto.
-          auto using incl_refl.
-Qed.  
-
-Lemma genBlockUseDef_blocks__mono : forall bs ud l0,
-  l0 `in` dom ud ->
-  l0 `in` dom (genBlockUseDef_blocks bs ud).
-Proof.
-  induction bs; intros ud l0 Hin; simpl in *; auto.  
-    destruct a; simpl.
-    destruct t; simpl; auto.
-      apply IHbs. 
-        apply update_udb__mono; auto.
-        apply update_udb__mono; auto.
-      apply IHbs. 
-        apply update_udb__mono; auto.
-Qed.        
-
-Lemma lookupAL_genBlockUseDef_blocks_spec : forall bs l0 ud re,
-  lookupAL _ ud l0 = Some re ->
-  exists re', lookupAL _ (genBlockUseDef_blocks bs ud) l0 = Some re' /\
-    incl re re'.
-Proof.
-  induction bs; intros ud l0 re Hin; simpl in *; auto.  
-    exists re. split; auto using incl_refl.
-
-    destruct a.
-    destruct t; simpl; auto.
-      apply lookupAL_update_udb_spec with (l1:=l1)(l2:=l3) in Hin.
-      destruct Hin as [re1 [Hin Hinc1]].
-      apply lookupAL_update_udb_spec with (l1:=l1)(l2:=l2) in Hin.
-      destruct Hin as [re2 [Hin Hinc2]].
-      apply IHbs in Hin.
-      destruct Hin as [re3 [Hin Hinc3]].
-      exists re3. split; eauto using incl_tran.
-
-      apply lookupAL_update_udb_spec with (l1:=l1)(l2:=l2) in Hin.
-      destruct Hin as [re1 [Hin Hinc1]].
-      apply IHbs in Hin.
-      destruct Hin as [re2 [Hin Hinc2]].
-      exists re2. split; eauto using incl_tran.
-Qed.        
 
 Lemma hasNonPredecessor__mono : forall b bs ud,
   hasNonePredecessor b (genBlockUseDef_blocks bs ud) = true ->
@@ -945,58 +815,67 @@ Proof.
   Case "entry is wrong".   
     subst. inversion HBinF.
 Qed.
-
-Lemma InBlocksB__lookupAL : forall bs l3 ps cs tmn
-  (Huniq : uniqBlocks bs)
-  (HBinF : InBlocksB (block_intro l3 ps cs tmn) bs = true)
-  (b1 : block)
-  (J9 : lookupAL block (genLabel2Block_blocks bs) l3 = ret b1),
-  b1 = block_intro l3 ps cs tmn.
+Lemma wf_defs_br_aux : forall lc l' ps' cs' lc' F tmn' gl TD Mem0
+  (l3 : l)
+  (ps : phinodes)
+  (cs : list cmd) tmn
+  (Hlkup : Some (block_intro l' ps' cs' tmn') = lookupBlockViaLabelFromFdef F l')
+  (Hswitch : switchToNewBasicBlock TD Mem0 (block_intro l' ps' cs' tmn')
+         (block_intro l3 ps cs tmn) gl lc = ret lc')
+  (t : list atom)
+  (Hwfdfs : wf_defs F lc t)
+  (ids0' : list atom)
+  (Hinc : incl (ListSet.set_diff eq_atom_dec ids0' (getPhiNodesIDs ps')) t),
+  wf_defs F lc' ids0'.
 Proof.
   intros.
-  simpl in Huniq.
-  induction bs; simpl in *.
-    inv J9.
+  unfold switchToNewBasicBlock in Hswitch. simpl in Hswitch.
+  apply wf_defs_intro.
+  intros id1 Hid1.
+  remember (getIncomingValuesForBlockFromPHINodes TD Mem0 ps'
+                (block_intro l3 ps cs tmn) gl lc) as R1.
+  destruct R1; inv Hswitch.
+  destruct (In_dec eq_atom_dec id1 (getPhiNodesIDs ps')) as [Hin | Hnotin].
+    eapply getIncomingValuesForBlockFromPHINodes_spec in HeqR1; eauto.
+    destruct HeqR1 as [gv HeqR1].
+    apply updateValuesForNewBlock_spec1 with (lc:=lc) in HeqR1.
+    eapply InPhiNodes_lookupTypViaIDFromFdef in Hlkup; eauto.
+    destruct Hlkup as [t1 Hlkup].
+    exists t1. exists gv.
+    split; auto.
 
-    apply orb_prop in HBinF.   
-    destruct HBinF as [HBinF | HBinF].
-      apply blockEqB_inv in HBinF; subst.
-      simpl in J9.
-      destruct (@eq_dec atom (@EqDec_eq_of_EqDec atom EqDec_atom) l3 l3); subst;
-        simpl.
-        inv J9; auto.
-        contradict n; auto.
-
-      assert (Huniq':=Huniq).
-      simpl_env in Huniq'.
-      apply uniqBlocks_inv in Huniq'.
-      destruct Huniq'.
-      destruct a. destruct Huniq as [Huniq _]. simpl in *.
-      inv Huniq.
-      assert (J:=HBinF).
-      apply InBlocksB_In in J.
-      destruct (@eq_dec atom (@EqDec_eq_of_EqDec atom EqDec_atom) l3 l0); subst.
-        contradict J; auto.
-        apply IHbs; auto.
+    apply ListSet.set_diff_intro with (x:=ids0')(Aeq_dec:=eq_atom_dec) in Hnotin;
+      auto.
+    apply Hinc in Hnotin.
+    apply wf_defs_elim with (id1:=id1) in Hwfdfs; auto.
+    destruct Hwfdfs as [t1 [gv1 [J1 [J2 J3]]]].
+    apply updateValuesForNewBlock_spec2 with (rs:=l0) in J2.
+    destruct J2 as [gv' J2].
+    exists t1. exists gv'. 
+    split; auto.
 Qed.
 
 Lemma inscope_of_tmn_br_aux : forall F l3 ps cs tmn ids0 l' ps' cs' tmn' l0 ifs
-  s m,
+  s m lc lc' TD Mem0 gl,
 wf_fdef ifs s m F ->
 uniqFdef F ->
 blockInFdefB (block_intro l3 ps cs tmn) F = true ->
 In l0 (successors_terminator tmn) ->
 Some ids0 = inscope_of_tmn F (block_intro l3 ps cs tmn) tmn ->
 Some (block_intro l' ps' cs' tmn') = lookupBlockViaLabelFromFdef F l0 ->
+switchToNewBasicBlock TD Mem0 (block_intro l' ps' cs' tmn')
+  (block_intro l3 ps cs tmn) gl lc = Some lc' ->
+wf_defs F lc ids0 ->
 exists ids0',
   match cs' with
   | nil => Some ids0' = inscope_of_tmn F (block_intro l' ps' cs' tmn') tmn'
   | c'::_ => Some ids0' = inscope_of_cmd F (block_intro l' ps' cs' tmn') c'
   end /\
-  incl (ListSet.set_diff eq_atom_dec ids0' (getPhiNodesIDs ps')) ids0.
+  incl (ListSet.set_diff eq_atom_dec ids0' (getPhiNodesIDs ps')) ids0 /\
+  wf_defs F lc' ids0'.
 Proof.
-  intros F l3 ps cs tmn ids0 l' ps' cs' tmn' l0 ifs s m HwfF Huniq HBinF Hsucc 
-    Hinscope Hlkup.
+  intros F l3 ps cs tmn ids0 l' ps' cs' tmn' l0 ifs s m lc lc' TD Mem0 gl HwfF 
+    Huniq HBinF Hsucc Hinscope Hlkup Hswitch Hwfdfs.
   symmetry in Hlkup.
   assert (J:=Hlkup).
   apply lookupBlockViaLabelFromFdef_inv in J; auto.
@@ -1023,50 +902,56 @@ Proof.
       (l0:=l') in J1.
     destruct J1 as [r J1].
     exists r. split; auto.
-    clear - Hinscope J1 Hsub HBinF Huniq.
-    apply fold_left__spec in J1.
-    symmetry in Hinscope.
-    apply fold_left__spec in Hinscope.
-    destruct J1 as [J1 [J2 J3]].
-    destruct Hinscope as [J4 [J5 J6]].
-    intros id1 J.
-    assert (J':=J).
-    apply ListSet.set_diff_elim1 in J.
-    apply ListSet.set_diff_elim2 in J'.
-    apply J3 in J.
-    destruct J as [J | J].
-    SCase "id1 in init and the current block".
-      simpl in J.
-      apply in_app_or in J.
-      destruct J as [J | J]; try solve [contradict J; auto].
-      apply J4.
-      apply in_or_app. right.
-      apply in_or_app; auto.
-    SCase "id1 in strict dominating blocks".
-      destruct J as [b1 [l1 [J8 [J9 J10]]]].
-      assert (In l1 contents') as J8'.
-        clear - J8.
-        apply ListSet.set_diff_elim1 in J8. auto.
-      apply Hsub in J8'.
-        destruct (eq_atom_dec l1 l3); subst.
-          simpl in J9. 
-          assert (b1=block_intro l3 ps cs tmn) as EQ.
-            clear - J9 HBinF Huniq. 
-            eapply InBlocksB__lookupAL; eauto.
-          subst.
-          simpl in J10.
-          apply J4.
-          rewrite_env 
-            ((getPhiNodesIDs ps ++ getCmdsIDs cs) ++ getArgsIDs la).
-          apply in_or_app; auto.
 
-          apply J5 in J9; auto.
-            simpl in J8'.
-            destruct J8' as [J8' | J8']; try solve [contradict n; auto].
-            apply ListSet.set_diff_intro; auto.
-              intro J. simpl in J. 
-              destruct J as [J | J]; auto.
+    assert (incl (ListSet.set_diff eq_atom_dec r (getPhiNodesIDs ps')) ids0)
+      as Jinc.
+      clear - Hinscope J1 Hsub HBinF Huniq.
+      apply fold_left__spec in J1.
+      symmetry in Hinscope.
+      apply fold_left__spec in Hinscope.
+      destruct J1 as [J1 [J2 J3]].
+      destruct Hinscope as [J4 [J5 J6]].
+      intros id1 J.
+      assert (J':=J).
+      apply ListSet.set_diff_elim1 in J.
+      apply ListSet.set_diff_elim2 in J'.
+      apply J3 in J.
+      destruct J as [J | J].
+      SCase "id1 in init and the current block".
+        simpl in J.
+        apply in_app_or in J.
+        destruct J as [J | J]; try solve [contradict J; auto].
+        apply J4.
+        apply in_or_app. right.
+        apply in_or_app; auto.
+      SCase "id1 in strict dominating blocks".
+        destruct J as [b1 [l1 [J8 [J9 J10]]]].
+        assert (In l1 contents') as J8'.
+          clear - J8.
+          apply ListSet.set_diff_elim1 in J8. auto.
+        apply Hsub in J8'.
+          destruct (eq_atom_dec l1 l3); subst.
+            simpl in J9. 
+            assert (b1=block_intro l3 ps cs tmn) as EQ.
+              clear - J9 HBinF Huniq. 
+              eapply InBlocksB__lookupAL; eauto.
+            subst.
+            simpl in J10.
+            apply J4.
+            rewrite_env 
+              ((getPhiNodesIDs ps ++ getCmdsIDs cs) ++ getArgsIDs la).
+            apply in_or_app; auto.
+      
+            apply J5 in J9; auto.
+              simpl in J8'.
+              destruct J8' as [J8' | J8']; try solve [contradict n; auto].
+              apply ListSet.set_diff_intro; auto.
+                intro J. simpl in J. 
+                destruct J as [J | J]; auto.
 
+    split; auto.
+      eapply wf_defs_br_aux; eauto.
+        
   Case "cs'<>nil".
     assert (J1:=inbound').
     unfold cmds_dominates_cmd. simpl.
@@ -1076,66 +961,76 @@ Proof.
     apply fold_left__bound_blocks with (init:=getPhiNodesIDs ps' ++ 
       getArgsIDs la)(t:=t)(i0:=i0)(la:=la)(va:=va)(bs:=bs)(l0:=l') in J1.
     destruct J1 as [r J1].
-    exists r. split; auto.
-    clear - Hinscope J1 Hsub HBinF Huniq.
-    apply fold_left__spec in J1.
-    symmetry in Hinscope.
-    apply fold_left__spec in Hinscope.
-    destruct J1 as [J1 [J2 J3]].
-    destruct Hinscope as [J4 [J5 J6]].
-    intros id1 J.
-    assert (J':=J).
-    apply ListSet.set_diff_elim1 in J.
-    apply ListSet.set_diff_elim2 in J'.
-    apply J3 in J.
-    destruct J as [J | J].
-    SCase "id1 in init and the current block".
-      simpl in J.
-      apply in_app_or in J.
-      destruct J as [J | J]; try solve [contradict J; auto].
-      apply J4.
-      apply in_or_app. right.
-      apply in_or_app; auto.
-    SCase "id1 in strict dominating blocks".
-      destruct J as [b1 [l1 [J8 [J9 J10]]]].
-      assert (In l1 contents') as J8'.
-        clear - J8.
-        apply ListSet.set_diff_elim1 in J8. auto.
-      apply Hsub in J8'.
-        destruct (eq_atom_dec l1 l3); subst.
-          simpl in J9. 
-          assert (b1=block_intro l3 ps cs tmn) as EQ.
-            clear - J9 HBinF Huniq.
-            eapply InBlocksB__lookupAL; eauto.
-          subst.
-          simpl in J10.
-          apply J4.
-          rewrite_env 
-            ((getPhiNodesIDs ps ++ getCmdsIDs cs) ++ getArgsIDs la).
-          apply in_or_app; auto.
+    exists r.  split; auto.
 
-          apply J5 in J9; auto. 
-            simpl in J8'.
-            destruct J8' as [J8' | J8']; try solve [contradict n; auto].
-            apply ListSet.set_diff_intro; auto.
-              intro J. simpl in J. 
-              destruct J as [J | J]; auto.
+    assert (incl (ListSet.set_diff eq_atom_dec r (getPhiNodesIDs ps')) ids0)
+      as Jinc.
+      clear - Hinscope J1 Hsub HBinF Huniq.
+      apply fold_left__spec in J1.
+      symmetry in Hinscope.
+      apply fold_left__spec in Hinscope.
+      destruct J1 as [J1 [J2 J3]].
+      destruct Hinscope as [J4 [J5 J6]].
+      intros id1 J.
+      assert (J':=J).
+      apply ListSet.set_diff_elim1 in J.
+      apply ListSet.set_diff_elim2 in J'.
+      apply J3 in J.
+      destruct J as [J | J].
+      SCase "id1 in init and the current block".
+        simpl in J.
+        apply in_app_or in J.
+        destruct J as [J | J]; try solve [contradict J; auto].
+        apply J4.
+        apply in_or_app. right.
+        apply in_or_app; auto.
+      SCase "id1 in strict dominating blocks".
+        destruct J as [b1 [l1 [J8 [J9 J10]]]].
+        assert (In l1 contents') as J8'.
+          clear - J8.
+          apply ListSet.set_diff_elim1 in J8. auto.
+        apply Hsub in J8'.
+          destruct (eq_atom_dec l1 l3); subst.
+            simpl in J9. 
+            assert (b1=block_intro l3 ps cs tmn) as EQ.
+              clear - J9 HBinF Huniq.
+              eapply InBlocksB__lookupAL; eauto.
+            subst.
+            simpl in J10.
+            apply J4.
+            rewrite_env 
+              ((getPhiNodesIDs ps ++ getCmdsIDs cs) ++ getArgsIDs la).
+            apply in_or_app; auto.
+      
+            apply J5 in J9; auto. 
+              simpl in J8'.
+              destruct J8' as [J8' | J8']; try solve [contradict n; auto].
+              apply ListSet.set_diff_intro; auto.
+                intro J. simpl in J. 
+                destruct J as [J | J]; auto.
+
+    split; auto.
+      eapply wf_defs_br_aux; eauto.
 Qed.
 
 Lemma inscope_of_tmn_br_uncond : forall F l3 ps cs bid ids0 l' ps' cs' tmn' l0 
- ifs s m,
+ ifs s m gl lc lc' TD Mem0,
 wf_fdef ifs s m F ->
 uniqFdef F ->
 blockInFdefB (block_intro l3 ps cs (insn_br_uncond bid l0)) F = true ->
 Some ids0 = inscope_of_tmn F (block_intro l3 ps cs (insn_br_uncond bid l0)) 
   (insn_br_uncond bid l0) ->
 Some (block_intro l' ps' cs' tmn') = lookupBlockViaLabelFromFdef F l0 ->
+switchToNewBasicBlock TD Mem0 (block_intro l' ps' cs' tmn')
+  (block_intro l3 ps cs (insn_br_uncond bid l0)) gl lc = Some lc' ->
+wf_defs F lc ids0 ->
 exists ids0',
   match cs' with
   | nil => Some ids0' = inscope_of_tmn F (block_intro l' ps' cs' tmn') tmn'
   | c'::_ => Some ids0' = inscope_of_cmd F (block_intro l' ps' cs' tmn') c'
   end /\
-  incl (ListSet.set_diff eq_atom_dec ids0' (getPhiNodesIDs ps')) ids0.
+  incl (ListSet.set_diff eq_atom_dec ids0' (getPhiNodesIDs ps')) ids0 /\
+  wf_defs F lc' ids0'.
 Proof.
   intros.
   eapply inscope_of_tmn_br_aux; eauto.
@@ -1143,7 +1038,7 @@ Proof.
 Qed.
 
 Lemma inscope_of_tmn_br : forall F l0 ps cs bid l1 l2 ids0 l' ps' cs' tmn' Cond 
-  c TD Mem0 gl lc ifs s m,
+  c TD Mem0 gl lc ifs s m lc',
 wf_fdef ifs s m F ->
 uniqFdef F ->
 blockInFdefB (block_intro l0 ps cs (insn_br bid Cond l1 l2)) F = true ->
@@ -1154,54 +1049,23 @@ Some (block_intro l' ps' cs' tmn') =
        (if isGVZero TD c
         then lookupBlockViaLabelFromFdef F l2
         else lookupBlockViaLabelFromFdef F l1) ->
+switchToNewBasicBlock TD Mem0 (block_intro l' ps' cs' tmn')
+  (block_intro l0 ps cs (insn_br bid Cond l1 l2)) gl lc = Some lc' ->
+wf_defs F lc ids0 ->
 exists ids0',
   match cs' with
   | nil => Some ids0' = inscope_of_tmn F (block_intro l' ps' cs' tmn') tmn'
   | c'::_ => Some ids0' = inscope_of_cmd F (block_intro l' ps' cs' tmn') c'
   end /\
-  incl (ListSet.set_diff eq_atom_dec ids0' (getPhiNodesIDs ps')) ids0.
+  incl (ListSet.set_diff eq_atom_dec ids0' (getPhiNodesIDs ps')) ids0 /\
+  wf_defs F lc' ids0'.
 Proof.
   intros.
   remember (isGVZero TD c) as R.
   destruct R; eapply inscope_of_tmn_br_aux; eauto; simpl; auto.
 Qed.
 
-Lemma wf_defs_br : forall TD Mem0 Cond lc gl c l' ps' cs' lc' F l1 l2 bid tmn'
-  (H : getOperandValue TD Mem0 Cond lc gl = ret c)
-  (H0 : ret block_intro l' ps' cs' tmn' =
-       (if isGVZero TD c
-        then lookupBlockViaLabelFromFdef F l2
-        else lookupBlockViaLabelFromFdef F l1))
-  (l3 : l)
-  (ps3 : phinodes)
-  (cs3' : list cmd)
-  (H1 : switchToNewBasicBlock TD Mem0 (block_intro l' ps' cs' tmn')
-         (block_intro l3 ps3 (cs3' ++ nil) (insn_br bid Cond l1 l2)) gl lc =
-       ret lc')
-  (t : list atom)
-  (Hinscope1 : wf_defs F lc t)
-  (ids0' : list atom)
-  (HeqR12 : incl (ListSet.set_diff eq_atom_dec ids0' (getPhiNodesIDs ps')) t),
-  wf_defs F lc' ids0'.
-Admitted.
-
-Lemma wf_defs_br_uncond : forall lc l' ps' cs' lc' F bid tmn' gl l0 TD 
-  Mem0
-  (H0 : ret block_intro l' ps' cs' tmn' =lookupBlockViaLabelFromFdef F l0)
-  (l3 : l)
-  (ps3 : phinodes)
-  (cs3' : list cmd)
-  (H1 : switchToNewBasicBlock TD Mem0 (block_intro l' ps' cs' tmn')
-         (block_intro l3 ps3 (cs3' ++ nil) (insn_br_uncond bid l0)) gl lc =
-       ret lc')
-  (t : list atom)
-  (Hinscope1 : wf_defs F lc t)
-  (ids0' : list atom)
-  (HeqR12 : incl (ListSet.set_diff eq_atom_dec ids0' (getPhiNodesIDs ps')) t),
-  wf_defs F lc' ids0'.
-Admitted.
-
-Lemma wf_system__wf_insn : forall l1 ps1 cs1 tmn1 f ps los nts s ifs,
+Lemma wf_system__wf_tmn : forall l1 ps1 cs1 tmn1 f ps los nts s ifs,
   blockInFdefB (block_intro l1 ps1 cs1 tmn1) f = true -> 
   InProductsB (product_fdef f) ps = true ->
   moduleInSystemB (module_intro los nts ps) s = true ->
@@ -1364,11 +1228,18 @@ Proof.
   rewrite J.       
   apply fold_left__spec in J.
   destruct J as [_ [_ J]].
-  apply forall__wf_defs.
+  apply wf_defs_intro.
   intros id1 Hin.
   apply J in Hin.
-  destruct Hin as [Hin | Hin].
-    admit.
+  destruct Hin as [Hin | Hin].    
+    assert (J1:=Hin).
+    apply InArgsIDs_lookupTypViaIDFromFdef with (t0:=rt)(id0:=fid)(la0:=la)
+      (va0:=va)(bs:=lb) in J1.
+    destruct J1 as [t J1].
+    exists t. rewrite J1.
+    apply initLocals_spec with (gvs:=params2GVs (los, nts) Mem0 lp lc gl) in Hin.
+    destruct Hin as [gv Hin].
+    exists gv. split; auto.
   
     destruct Hin as [b1 [l1 [Hin _]]].
     simpl in H0. clear - H0 Hin.
@@ -1380,6 +1251,25 @@ Proof.
     destruct Hin as [Hin | Hin]; subst; try inversion Hin.
     simpl in J. contradict J; auto.
 Qed.
+
+Lemma wf_system__wf_cmd : forall l1 ps1 cs1 tmn1 f ps los nts s ifs c,
+  blockInFdefB (block_intro l1 ps1 cs1 tmn1) f = true -> 
+  InProductsB (product_fdef f) ps = true ->
+  moduleInSystemB (module_intro los nts ps) s = true ->
+  wf_system ifs s ->
+  In c cs1 ->
+  wf_insn ifs s (module_intro los nts ps) f (block_intro l1 ps1 cs1 tmn1) 
+    (insn_cmd c).
+Admitted.
+
+Lemma uniqF__lookupTypViaIDFromFdef : forall l1 ps1 cs1 tmn1 f c i0 t0,
+  uniqFdef f ->
+  blockInFdefB (block_intro l1 ps1 cs1 tmn1) f = true -> 
+  In c cs1 ->
+  getCmdID c = Some i0 ->
+  getCmdTyp c = Some t0 ->
+  lookupTypViaIDFromFdef f i0 = Some t0.
+Admitted.
 
 Lemma preservation : forall S1 S2 tr,
   dsInsn S1 S2 tr -> wf_State S1 -> wf_State S2.
@@ -1427,7 +1317,6 @@ Case "dsReturn".
           rewrite getCmdsLocs_app in J.
           simpl in J.
           apply NoDup_last_inv in J. auto.
-        clear - HeqR2 Hinscope2 H1 H HwfSystem Hnotin.
         apply inscope_of_cmd_tmn in HeqR2; auto.
         destruct HeqR2 as [ids2 [J1 J2]].        
         rewrite <- J1.
@@ -1437,9 +1326,17 @@ Case "dsReturn".
         destruct R.
           destruct n; inv HeqR.
           remember (getOperandValue (los,nts) Mem' Result lc gl) as R1.
-          destruct R1; inv H1.
-          (* ?! how to know if g is well-typed!. *)
-          eapply wf_defs_updateAddAL; eauto.
+          destruct R1; inv H1.          
+          assert (Hwfc := HBinF2).
+          assert (In (insn_call i0 false t t0 v p) 
+            (cs2'++[insn_call i0 false t t0 v p])) as HinCs.
+            apply in_or_app. right. simpl. auto.
+          eapply wf_system__wf_cmd with (c:=insn_call i0 false t t0 v p) 
+            in Hwfc; eauto.
+          inv Hwfc.
+          eapply wf_defs_updateAddAL with (t1:=typ1) ; eauto.
+            eapply uniqF__lookupTypViaIDFromFdef; eauto.
+              eapply wf_system__uniqFdef; eauto.
 
           destruct n; inv HeqR. inv H1.
           eapply wf_defs_eq; eauto. 
@@ -1452,7 +1349,6 @@ Case "dsReturn".
           destruct HwfSystem as [_ J].
           apply NoDup_inv in J.
           destruct J as [J _]. auto.
-        clear - HeqR2 Hinscope2 H1 H HwfSystem Hnodup.
         apply inscope_of_cmd_cmd in HeqR2; auto.
         destruct HeqR2 as [ids2 [J1 J2]].        
         rewrite <- J1.
@@ -1463,7 +1359,16 @@ Case "dsReturn".
           destruct n; inv HeqR.
           remember (getOperandValue (los,nts) Mem' Result lc gl) as R1.
           destruct R1; inv H1.
-          eapply wf_defs_updateAddAL; eauto.
+          assert (In (insn_call i0 false t t0 v p) 
+            (cs2'++[insn_call i0 false t t0 v p] ++ [c] ++ cs')) as HinCs.
+            apply in_or_app. right. simpl. auto.
+          assert (Hwfc := HBinF2).
+          eapply wf_system__wf_cmd with (c:=insn_call i0 false t t0 v p) 
+            in Hwfc; eauto.
+          inv Hwfc.
+          eapply wf_defs_updateAddAL with (t1:=typ1) ; eauto.
+            eapply uniqF__lookupTypViaIDFromFdef; eauto.
+              eapply wf_system__uniqFdef; eauto.
 
           destruct n; inv HeqR. inv H1.
           eapply wf_defs_eq; eauto. 
@@ -1595,15 +1500,8 @@ Case "dsBranch".
       eapply wf_system__uniqFdef with (f:=F) in HwfSystem; eauto.
       clear - H0 HeqR1 H1 Hinscope1 H HwfSystem HBinF1 HwfF.
       eapply inscope_of_tmn_br in HeqR1; eauto.
-      destruct HeqR1 as [ids0' HeqR1].
-      destruct cs'.
-        destruct HeqR1 as [HeqR11 HeqR12]. 
-        rewrite <- HeqR11.
-        eapply wf_defs_br; eauto.
-
-        destruct HeqR1 as [HeqR11 HeqR12]. 
-        rewrite <- HeqR11.
-        eapply wf_defs_br; eauto.
+      destruct HeqR1 as [ids0' [HeqR1 [J1 J2]]].
+      destruct cs'; rewrite <- HeqR1; auto.
 
       exists l'. exists ps'. exists nil. simpl_env. auto.
 Unfocus.
@@ -1644,17 +1542,11 @@ Case "dsBranch_uncond".
       eapply wf_system__wf_fdef with (f:=F) in HwfF; eauto.
       eapply wf_system__uniqFdef with (f:=F) in HwfSystem; eauto.
       clear - H0 HeqR1 Hinscope1 H HwfSystem HBinF1 HwfF.
+      assert (Hwds := HeqR1).
       eapply inscope_of_tmn_br_uncond with (cs':=cs')(l':=l')(ps':=ps')
         (tmn':=tmn') in HeqR1; eauto.
-      destruct HeqR1 as [ids0' HeqR1].
-      destruct cs'.
-        destruct HeqR1 as [HeqR11 HeqR12]. 
-        rewrite <- HeqR11.
-        eapply wf_defs_br_uncond; eauto.
-
-        destruct HeqR1 as [HeqR11 HeqR12]. 
-        rewrite <- HeqR11.
-        eapply wf_defs_br_uncond; eauto.
+      destruct HeqR1 as [ids0' [HeqR1 [J1 J2]]].
+      destruct cs'; rewrite <- HeqR1; auto.
 
       exists l'. exists ps'. exists nil. simpl_env. auto.
 Unfocus.
@@ -1691,12 +1583,19 @@ Case "dsBop".
           rewrite getCmdsLocs_app in J.
           simpl in J.
           apply NoDup_last_inv in J. auto.
-        clear - HeqR1 Hinscope1 H Hnotin.
         apply inscope_of_cmd_tmn in HeqR1; auto.
         destruct HeqR1 as [ids2 [J1 J2]].        
         rewrite <- J1.
         apply BOP_inversion in H.
-        admit. (* need to prove that gv3 is wf-typed. *)
+        assert (In (insn_bop id0 bop0 sz0 v1 v2) 
+          (cs3' ++ [insn_bop id0 bop0 sz0 v1 v2])) as HinCs.
+          apply in_or_app. right. simpl. auto.
+        assert (Hwfc := HBinF1).
+        eapply wf_system__wf_cmd with (c:=insn_bop id0 bop0 sz0 v1 v2) in Hwfc; 
+          eauto.
+        eapply wf_defs_updateAddAL with (t1:=typ_int sz0) ; eauto.
+          eapply uniqF__lookupTypViaIDFromFdef; eauto.
+            eapply wf_system__uniqFdef; eauto.
         
       SSSCase "1.1.2".
         assert (NoDup (getCmdsLocs (cs3' ++ [insn_bop id0 bop0 sz0 v1 v2] ++ [c] 
@@ -1710,7 +1609,15 @@ Case "dsBop".
         apply inscope_of_cmd_cmd in HeqR1; auto.
         destruct HeqR1 as [ids2 [J1 J2]].        
         rewrite <- J1.
-        admit. (* need to prove that gv3 is wf-typed. *)
+        assert (In (insn_bop id0 bop0 sz0 v1 v2) 
+          (cs3' ++ [insn_bop id0 bop0 sz0 v1 v2] ++ [c] ++ cs)) as HinCs.
+          apply in_or_app. right. simpl. auto.
+        assert (Hwfc := HBinF1).
+        eapply wf_system__wf_cmd with (c:=insn_bop id0 bop0 sz0 v1 v2) in Hwfc; 
+          eauto.
+        eapply wf_defs_updateAddAL with (t1:=typ_int sz0) ; eauto.
+          eapply uniqF__lookupTypViaIDFromFdef; eauto.
+            eapply wf_system__uniqFdef; eauto.
 
     SSCase "1.2".
       exists l3. exists ps3. exists (cs3'++[insn_bop id0 bop0 sz0 v1 v2]).   
@@ -1748,7 +1655,6 @@ Case "dsCall".
     split.
       eapply lookupFdefViaGV_inv; eauto.
     split.
-     clear - H0.
      assert (ps'=nil) as EQ. admit. (* entry's phis are empty *)
      subst.
      apply dom_entrypoint in H0.
@@ -1757,8 +1663,9 @@ Case "dsCall".
        remember ((dom_analyze (fdef_intro (fheader_intro rt fid la va) lb)) 
          !! l') as R.
        destruct R.
+       destruct HwfEC as [Hreach [HBinF [HFinPs [Hinscope [l1 [ps [cs' Heq]]]]]]]
+         ; subst.       
        eapply preservation_dbCall_case; eauto.
-
 
        unfold inscope_of_cmd.
        remember ((dom_analyze (fdef_intro (fheader_intro rt fid la va) lb)) 
@@ -1779,23 +1686,6 @@ Case "dsCall".
 Unfocus.
 
 Case "dsExCall". admit.
-Qed.
-
-Lemma getCmdsIDs_app : forall cs1 cs2,
-  getCmdsIDs (cs1++cs2) = getCmdsIDs cs1++getCmdsIDs cs2.
-Proof.
-  induction cs1; intros; auto.
-    simpl. 
-    rewrite IHcs1.
-    destruct (getCmdID a); auto.
-Qed.
-
-Lemma getPhiNodesIDs_app : forall ps1 ps2,
-  getPhiNodesIDs (ps1++ps2) = getPhiNodesIDs ps1++getPhiNodesIDs ps2.
-Proof.
-  induction ps1; intros; auto.
-    simpl. 
-    rewrite IHps1; auto.
 Qed.
 
 Lemma wf_operand_list__elim : forall ops f1 b1 insn1 id1,
@@ -1856,7 +1746,7 @@ Proof.
 
   inv H6.
   clear - H11 HwfDefs Hinscope H0 Hreach H9.
-  eapply wf_defs__forall; eauto.
+  eapply wf_defs_elim; eauto.
     unfold inscope_of_tmn in Hinscope.
     destruct f. destruct f.
     remember ((dom_analyze (fdef_intro (fheader_intro t i0 a v) b)) !! l1) as R.
@@ -1929,7 +1819,7 @@ Proof.
     in H6; auto.
 
   inv H6. 
-  eapply wf_defs__forall; eauto.
+  eapply wf_defs_elim; eauto.
     unfold inscope_of_cmd in Hinscope.
     destruct b. destruct f. destruct f.
     remember ((dom_analyze (fdef_intro (fheader_intro t0 i0 a v) b)) !! l0) as R.
@@ -1998,24 +1888,6 @@ Proof.
     inv Hwfops.
     destruct n; inv Hnth; eauto.
 Qed.        
-
-
-Lemma getValueViaLabelFromValuels__nth_list_value_l : forall
-  (l1 : l)  v vls
-  (J : getValueViaLabelFromValuels vls l1 = ret v),
-  exists n, nth_list_value_l n vls = Some (v, l1).
-Proof.
-  intros.
-  induction vls; intros; simpl in *.
-    inversion J.
-
-    destruct (l0 == l1); subst.
-      inv J; simpl in *.
-      exists 0%nat. auto.
-
-      destruct IHvls as [n' IHvls]; auto.
-      exists (S n'). simpl. auto.
-Qed.
 
 Lemma wf_phi_operands__elim : forall f b i0 t0 vls0 vid1 l1 n,
   wf_phi_operands f b i0 t0 vls0 ->
@@ -2134,8 +2006,8 @@ Proof.
         destruct (eq_atom_dec l3 l1); subst.
           destruct HeqR as [HeqR _].
           assert (In vid t) as G.
-            clear - J HeqR Hlkb1. admit.
-          apply wf_defs__forall with (id1:=vid) in Hinscope; auto.
+            clear - J HeqR Hlkb1. admit. (*wf*)
+          apply wf_defs_elim with (id1:=vid) in Hinscope; auto.
           destruct Hinscope as [? [gv1 [? [Hinscope ?]]]].
           exists gv1. auto.
 
@@ -2150,8 +2022,8 @@ Proof.
           destruct HeqR as [_ [HeqR _]].
           apply HeqR in J1; auto.
           assert (In vid t) as InVid.
-            clear - J1 Hlkvb. admit.
-          apply wf_defs__forall with (id1:=vid) in Hinscope; auto.
+            clear - J1 J Hlkvb. admit.  (*wf*)
+          apply wf_defs_elim with (id1:=vid) in Hinscope; auto.
           destruct Hinscope as [? [gv1 [? [Hinscope ?]]]].
           exists gv1. auto.
         Unfocus.
@@ -2213,7 +2085,7 @@ Proof.
             
             destruct v as [vid | vc].
               assert (HwfInstr:=HbInF).
-              eapply wf_system__wf_insn in HwfInstr; eauto.
+              eapply wf_system__wf_tmn in HwfInstr; eauto.
               assert (exists t, exists gv, 
                 lookupTypViaIDFromFdef f vid = munit t /\
                 lookupAL _ lc vid = Some gv /\ 

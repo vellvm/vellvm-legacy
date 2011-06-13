@@ -19,7 +19,7 @@ assoclist.vo : assoclist.v
 ssa_coq_lib.vo : ssa_coq_lib.v ssa_def.vo assoclist.vo ssa_analysis.vo
 	$(COQC) $(COQARG) ssa_coq_lib.v
 
-ssa_def.vo : ssa_def.v ./monads/monad.vo ./compcert/Floats.vo
+ssa_def.vo : ssa_def.v ./monads/monad.vo ./compcert/Floats.vo assoclist.vo
 	$(COQC) $(COQARG) ssa_def.v
 
 ssa_def.v : ssa_def.ott
@@ -61,7 +61,7 @@ targetdata.vo: targetdata.v ssa_def.vo ssa_lib.vo
 trace.vo: trace.v
 	$(COQC) $(COQARG) trace.v
 
-ssa_analysis.vo: compcert/Kildall.vo ssa_analysis.v
+ssa_analysis.vo: compcert/Kildall.vo ssa_analysis.v assoclist.vo
 	$(COQC) $(COQARG) ssa_analysis.v
 
 genericvalues.vo: ssa_def.vo ssa_lib.vo tactics.vo trace.vo genericvalues.v \
