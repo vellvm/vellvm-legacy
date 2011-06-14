@@ -454,9 +454,26 @@ gvar_spec :: 'gvar_spec_'				::=	     		{{ com gvar spec }}
   | global  						::   :: global		{{ com global }}
   | constant						::   :: constant	{{ com constant }}
 
+linkage :: 'linkage_'					::=  			{{ com linkage }}
+  | External                                            ::   :: external
+  | Available_externally                                ::   :: available_externally
+  | Link_once                                           ::   :: link_once
+  | Link_once_odr                                       ::   :: link_once_odr
+  | Weak                                                ::   :: weak
+  | Weak_odr                                            ::   :: weak_odr
+  | Appending						::   :: appending
+  | Internal						::   :: internal
+  | Private						::   :: private
+  | Linker_private					::   :: linker_private
+  | Dllimport						::   :: dllimport
+  | Dllexport						::   :: dllexport
+  | External_weak					::   :: external_weak
+  | Ghost						::   :: ghost
+  | Common						::   :: common
+
 % global id is also taken as constant addresses
 gvar :: 'gvar_'   	 				::=			{{ com global variables }}
-  | id = gvar_spec typ const align			::   :: intro		{{ com intro }}
+  | id = linkage gvar_spec typ const align		::   :: intro		{{ com intro }}
   | id = gvar_spec typ	      				::   :: external	{{ com external }}
   | ( gvar )	    					:: S :: paren		{{ coq [[ gvar ]] }}
 

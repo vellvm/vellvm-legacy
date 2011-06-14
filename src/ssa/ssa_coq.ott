@@ -462,7 +462,7 @@ match ib with
 | id_binding_cmd i => getCmdTyp i
 | id_binding_terminator i => Some (getTerminatorTyp i)
 | id_binding_phinode i => Some (getPhiNodeTyp i)
-| id_binding_gvar (gvar_intro _ _ t _ _) => Some (typ_pointer t)
+| id_binding_gvar (gvar_intro _ _ _ t _ _) => Some (typ_pointer t)
 | id_binding_gvar (gvar_external _ _ t) => Some (typ_pointer t)
 | id_binding_arg (t, id) => Some t
 | id_binding_fdec fdec => Some (getFdecTyp fdec)
@@ -626,7 +626,7 @@ end.
 
 Definition getGvarID g : id :=
 match g with
-| gvar_intro id _ _ _ _ => id
+| gvar_intro id _ _ _ _ _ => id
 | gvar_external id _ _ => id
 end.
 
@@ -817,19 +817,13 @@ lookupBindingViaIDFromModules s id.
 
 (* Block lookup from ID *)
 
-Definition isIDInBlockB (id:id) (b:block) : bool :=
-match (lookupInsnViaIDFromBlock b id) with
-| None => false
-| _ => true
-end.
-
-Fixpoint lookupBlockViaIDFromBlocks (lb:blocks) (id:id) : option block :=
+Fixpoint lookupBlockViaIDFromBlocks (lb:blocks) (id1:id) : option block :=
 match lb with
 | nil => None  
 | b::lb' => 
-  match (isIDInBlockB id b) with
-  | true => Some b
-  | false => lookupBlockViaIDFromBlocks lb' id
+  match (In_dec eq_dec id1 (getBlockIDs b)) with
+  | left _ => Some b
+  | right _ => lookupBlockViaIDFromBlocks lb' id1
   end
 end.
 
@@ -1003,8 +997,8 @@ end.
 Definition lookupTypViaGIDFromProduct (p:product) (id0:id) : option typ :=
 match p with
 | product_fdef fd => None
-| product_gvar (gvar_intro id spec t _ _) => if id0==id then Some t else None
-| product_gvar (gvar_external id spec t) => if id0==id then Some t else None
+| product_gvar (gvar_intro id1 _ spec t _ _) => if id0==id1 then Some t else None
+| product_gvar (gvar_external id1 spec t) => if id0==id1 then Some t else None
 | _ => None
 end.
 
@@ -1098,15 +1092,6 @@ lookupTypViaTIDFromModules s id0.
   Definition genLabel2Block (m: module) : l2block :=
   let (os, dts, ps) := m in
   genLabel2Block_products ps.
-
-  Definition getEntryOfFdef (f:fdef) : option block :=
-  match f with
-  | fdef_intro fheader blocks => 
-    match blocks with
-    | nil => None
-    | b::blocks' => Some b
-    end 
-  end.  
 
   Definition getNonEntryOfFdef (f:fdef) : blocks :=
   match f with
@@ -2022,10 +2007,16 @@ Proof.
   decide equality.
 Qed.
 
+Lemma linkage_dec : forall (lk1 lk2:linkage), {lk1=lk2}+{~lk1=lk2}.
+Proof.
+  decide equality.
+Qed.
+
 Lemma gvar_dec : forall (g1 g2:gvar), {g1=g2}+{~g1=g2}.
 Proof.
   destruct g1; destruct g2; try solve [subst; auto | done_right].
     destruct (@id_dec i0 i1); subst; try solve [done_right].
+    destruct (@linkage_dec l0 l1); subst; try solve [done_right].
     destruct (@gvar_spec_dec g g0); subst; try solve [done_right].
     destruct (@typ_dec t t0); subst; try solve [done_right].
     destruct (@const_dec c c0); subst; try solve [done_right].

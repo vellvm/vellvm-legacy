@@ -490,7 +490,7 @@ Fixpoint genGlobalAndInitMem (TD:TargetData)(Ps:list product)(gl:GVMap)(fs:GVMap
   (Mem:mem) : option (GVMap*GVMap*mem) :=
 match Ps with
 | nil => Some (gl, fs, Mem)
-| (product_gvar (gvar_intro id0 spec t c align))::Ps' => 
+| (product_gvar (gvar_intro id0 _ spec t c align))::Ps' => 
   match (initGlobal TD gl Mem id0 t c align) with
   | Some (gv, Mem') => 
       genGlobalAndInitMem TD Ps' (updateAddAL _ gl id0 gv) fs Mem'

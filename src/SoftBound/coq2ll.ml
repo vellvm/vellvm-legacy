@@ -348,13 +348,31 @@ let string_of_gvar_spec gs =
   | LLVMsyntax.Coq_gvar_spec_global -> "global"           
   | LLVMsyntax.Coq_gvar_spec_constant -> "constant"
           
+let string_of_linkage lk =
+match lk with
+  | LLVMsyntax.Coq_linkage_external -> ""
+  | LLVMsyntax.Coq_linkage_available_externally -> "available_externally"
+  | LLVMsyntax.Coq_linkage_link_once -> "linkonce"
+  | LLVMsyntax.Coq_linkage_link_once_odr -> "linkonce_odr"
+  | LLVMsyntax.Coq_linkage_weak -> "weak"
+  | LLVMsyntax.Coq_linkage_weak_odr -> "weak_odr"
+  | LLVMsyntax.Coq_linkage_appending -> "appending"
+  | LLVMsyntax.Coq_linkage_internal -> "internal"
+  | LLVMsyntax.Coq_linkage_private -> "private"
+  | LLVMsyntax.Coq_linkage_linker_private -> "linker_private"
+  | LLVMsyntax.Coq_linkage_dllimport -> "dllimport"
+  | LLVMsyntax.Coq_linkage_dllexport -> "dllexport"
+  | LLVMsyntax.Coq_linkage_external_weak -> "external_weak"
+  | LLVMsyntax.Coq_linkage_ghost -> ""
+  | LLVMsyntax.Coq_linkage_common -> "common"
+
 let travel_product g =
   match g with
-  | LLVMsyntax.Coq_product_gvar (LLVMsyntax.Coq_gvar_intro (id, spec, t, c, a)) 
-    -> 
+  | LLVMsyntax.Coq_product_gvar (LLVMsyntax.Coq_gvar_intro 
+      (id, lk, spec, t, c, a)) -> 
       begin match t with
         | LLVMsyntax.Coq_typ_pointer t -> 
-          eprintf "%s = internal %s %s %s%s\n" id 
+          eprintf "%s = %s %s %s %s%s\n" id (string_of_linkage lk)
             (string_of_gvar_spec spec) (string_of_typ t) (string_of_constant c) 
             (if a = 0 then "" else ", align " ^ string_of_int a);
           flush_all ()

@@ -11,22 +11,24 @@ MC_DIR=../Parser/tvcases/microbench/
 MC_CASES="array array2 array3 global_array linkedlist linkedlistloop
           reference_test struct_array"
 OC_DIR=../Parser/tvcases/olden-ccured/
-# bh: llvm cannot compile it.
+# bh: llvm opt fails to optimize SoftBound's instrumentation, soc99.
 # power: TV isn't terminating, includes floats
 # perimeter tsp have 'switch' instructions that we do not support so far.
 # em3d: removed 'free', since Softbound is not sound with 'free'.
-OC_CASES="bisort em3d health mst treeadd"
+OC_CASES="bisort bh em3d health mst perimeter power treeadd tsp"
 S95_DIR=../Parser/tvcases/spec95-ccured/
-# 099.go 130.li 132.ijpeg has 'switch'
 # 129.compress has floats and functions named like "\01__soc95"
-S95_CASES="129.compress"
+# In 099.go 130.li 132.ijpeg there are 'switch'
+# ijpeg: undefined reference to `softbound__01___isoc99_sscanf'
+S95_CASES="099.go 129.compress 130.li"
+OPT_FLAG=
 
 for name in $ML_CASES; do 
   echo -e $name": \c" ; 
   llvm-as -f $ML_DIR$name"/test-linked.ll" -o input.bc
   $SB input.bc >& output.ll
   llvm-as -f output.ll
-  opt -f output.bc -o opt.bc
+  opt $OPT_FLAG -f output.bc -o opt.bc
   llvm-link opt.bc $BC_DIR"/softbound.bc" $BC_DIR"/softbound-wrappers.bc" > test-softbound.bc
   llvm-ld -native -lm -lcrypt test-softbound.bc -o test.exe
   ./test.exe 50
@@ -37,7 +39,7 @@ for name in $MC_CASES; do
   llvm-as -f $MC_DIR$name"/test-linked.ll" -o input.bc
   $SB input.bc >& output.ll
   llvm-as -f output.ll
-  opt -f output.bc -o opt.bc
+  opt $OPT_FLAG -f output.bc -o opt.bc
   llvm-link opt.bc $BC_DIR"/softbound.bc" $BC_DIR"/softbound-wrappers.bc" > test-softbound.bc
   llvm-ld -native -lm -lcrypt test-softbound.bc -o test.exe
   ./test.exe 50
@@ -48,7 +50,7 @@ for name in $OC_CASES; do
   llvm-as -f $OC_DIR$name"/test-linked.ll" -o $name"i.bc" 
   $SB $name"i.bc" >& $name"o.ll"
   llvm-as -f $name"o.ll"
-  opt -f  $name"o.bc" -o $name"opt.bc"
+  opt $OPT_FLAG -f $name"o.bc" -o $name"opt.bc"
   llvm-link $name"opt.bc" $BC_DIR"/softbound.bc" $BC_DIR"/softbound-wrappers.bc" > test-softbound.bc
   llvm-ld -native -lm -lcrypt test-softbound.bc -o $name".exe"
 done;
@@ -56,17 +58,20 @@ echo -e "bisort: \c"; time ./bisort.exe 5000000 0;
 echo -e "em3d: \c"; time ./em3d.exe 30000 300 50;
 echo -e "health: \c"; time ./health.exe 8 250 1;
 echo -e "mst: \c"; time ./mst.exe 4000;
-echo -e "treeadd: \c"; time ./treeadd.exe 24 10;
+echo -e "perimeter: \c"; time ./perimeter.exe 12 2000;
+echo -e "power: \c"; time ./power.exe;
+echo -e "treeadd: \c"; time ./treeadd.exe 24 10; 
+echo -e "tsp: \c"; time ./tsp.exe 2000000 0;
 for name in $S95_CASES; do 
   echo -e $name": \c" ; 
   llvm-as -f $S95_DIR$name"/src/test-linked.ll" -o $name"i.bc" 
   $SB $name"i.bc" >& $name"o.ll"
   llvm-as -f $name"o.ll"
-  opt -f $name"o.bc" -o $name"opt.bc"
+  opt $OPT_FLAG -f $name"o.bc" -o $name"opt.bc"
   llvm-link $name"opt.bc" $BC_DIR"/softbound.bc" $BC_DIR"/softbound-wrappers.bc" > test-softbound.bc
   llvm-ld -native -lm -lcrypt test-softbound.bc -o $name".exe"
-  ./$name".exe"
 done;
+echo -e "099.go: \c"; time ./099.go.exe 100 15;
 rm -f input.* output.* opt.* *.exe *.exe.bc bisort* em3d* health* mst* \
   treeadd* 129.compress* test-softbound.bc
 

@@ -10,6 +10,7 @@ Require Import Metatheory.
 Require Import assoclist.
 Require Import genericvalues.
 Require Import ssa_dynamic.
+Require Import Coqlib.
 
 Export LLVMsyntax.
 Export LLVMlib.
@@ -1465,6 +1466,80 @@ Proof.
           exists (uninits 0). apply lookupAL_updateAddAL_eq; auto.
           exists g. apply lookupAL_updateAddAL_eq; auto.
         destruct gvs; rewrite <- lookupAL_updateAddAL_neq; auto.
+Qed.
+
+Lemma InBlocksB__lookupAL_genLabel2Block_blocks : forall lb1 l' ps' cs' tmn',
+  uniqBlocks lb1 ->
+  InBlocksB (block_intro l' ps' cs' tmn') lb1 ->
+  lookupAL _ (genLabel2Block_blocks lb1) l' = Some (block_intro l' ps' cs' tmn').
+Proof.
+  induction lb1; intros.
+    inversion H0.
+
+    simpl in H0. destruct a. simpl.
+    apply orb_prop in H0.
+    destruct H0 as [H0 | H0].
+      apply blockEqB_inv in H0.
+      inv H0.
+      destruct (@eq_dec atom (EqDec_eq_of_EqDec atom EqDec_atom) l0 l0); subst; 
+        auto.
+        contradict n; auto.
+
+        simpl_env in H.
+        assert (J:=H).
+        apply uniqBlocks_inv in J. destruct J.
+        eapply IHlb1 in H2; eauto.
+        destruct (@eq_dec atom (EqDec_eq_of_EqDec atom EqDec_atom) l' l0); subst;
+          auto.
+
+      destruct H.
+      simpl in H. inv H.
+      apply lookupAL_Some_indom in H2.
+      apply NotInGetBlocksLabels__NotInGenLabel2Block_blocks in H6.
+      contradict H6; auto.
+Qed.          
+
+Lemma blockInFdefB_lookupBlockViaLabelFromFdef : forall F l' ps' cs' tmn',
+  uniqFdef F ->
+  blockInFdefB (block_intro l' ps' cs' tmn') F ->
+  lookupBlockViaLabelFromFdef F l' = Some (block_intro l' ps' cs' tmn').
+Proof.
+  intros. destruct F. simpl in *.
+  apply InBlocksB__lookupAL_genLabel2Block_blocks; auto.
+Qed.
+
+Lemma lookupBlockViaIDFromFdef__blockInFdefB : forall F id1 B,
+  lookupBlockViaIDFromFdef F id1 = Some B ->
+  blockInFdefB B F.
+Proof.         
+  intros.
+  destruct F.
+  simpl in *.
+  induction b; simpl in *.
+    inversion H.
+
+    destruct a. simpl in *.
+    destruct (in_dec eq_dec id1 (getPhiNodesIDs p ++ getCmdsIDs c)).
+      inv H. apply orb_true_iff. left.
+      apply blockEqB_refl.
+
+      apply orb_true_iff. right. apply IHb in H; auto.
+Qed.
+
+Lemma lookupBlockViaIDFromFdef__InGetBlockIDs : forall F id1 B,
+  lookupBlockViaIDFromFdef F id1 = Some B ->
+  In id1 (getBlockIDs B).
+Proof.         
+  intros.
+  destruct F.
+  simpl in *.
+  induction b; simpl in *.
+    inversion H.
+
+    destruct a. simpl in *.
+    remember (in_dec eq_dec id1 (getPhiNodesIDs p ++ getCmdsIDs c)) as R.
+    destruct R; eauto.
+      inv H. auto.
 Qed.
 
 (*****************************)

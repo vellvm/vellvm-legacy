@@ -208,22 +208,27 @@ match c with
         if isPointerTypB t0 then
           match get_reg_metadata rm v1 with
           | Some (mt1, bv0, ev0) =>
+              let '(btmp0,ex_ids) := mk_tmp ex_ids in
+              let '(etmp0,ex_ids) := mk_tmp ex_ids in
               Some
-                (insn_call fake_id true false set_mmetadata_typ set_mmetadata_fn 
+                (
+                 insn_cast btmp0 castop_bitcast mt1 bv0 p8:: 
+                 insn_cast etmp0 castop_bitcast mt1 ev0 p8:: 
+                 insn_call fake_id true false set_mmetadata_typ set_mmetadata_fn 
                   ((p8,(value_id ptmp))::
-                   (p8,bv0)::
-                   (p8,ev0)::
+                   (p8,(value_id btmp0))::
+                   (p8,(value_id etmp0))::
                    (p8,vnullp8)::
                    (i32,vint1)::
                    (i32,vint1)::
                    nil)::
-                 nil)
+                 nil, ex_ids, btmp0::etmp0::tmps)
           | None => None
           end
-        else Some nil in
+        else Some (nil, ex_ids, tmps) in
       match optcs with
       | None => None
-      | Some cs =>
+      | Some (cs, ex_ids, tmps) =>
         Some (ex_ids, ptmp::btmp::etmp::tmps,
          insn_cast ptmp castop_bitcast (typ_pointer t0) v2 p8:: 
          insn_cast btmp castop_bitcast mt2 bv p8:: 

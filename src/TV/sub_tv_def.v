@@ -707,9 +707,9 @@ end.
 
 Definition lookupGvarFromProduct (p:SBsyntax.product) (id:id) : option gvar :=
 match p with
-| SBsyntax.product_gvar (gvar_intro id' spec t c a) =>
+| SBsyntax.product_gvar (gvar_intro id' lk spec t c a) =>
   match (eq_dec id id') with
-  | left _ => Some (gvar_intro id' spec t c a)
+  | left _ => Some (gvar_intro id' lk spec t c a)
   | right _ => None
   end
 | SBsyntax.product_gvar (gvar_external id' spec t) =>

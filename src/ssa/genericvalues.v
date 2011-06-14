@@ -939,12 +939,6 @@ end.
 Definition initLocals (la:args) (lg:list GenericValue): GVMap := 
 _initializeFrameValues la lg nil.
 
-Definition getEntryBlock (fd:fdef) : option block :=
-match fd with
-| fdef_intro _ (b::_) => Some b
-| _ => None
-end.
-
 Definition getEntryCmds (b:block) : cmds :=
 match b with
 | block_intro _ _ lc _ => lc

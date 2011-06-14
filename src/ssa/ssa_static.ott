@@ -787,7 +787,7 @@ Jwf_fdef :: '' ::=
       % 
       % Check the entry node 
       % Entry block to function must not have predecessors! 
-      getEntryOfFdef (define fheader { blocks }) = block
+      getEntryBlock (define fheader { blocks }) = block
       {{ genBlockUseDef_fdef [[:user_syntax__fdef:define fheader { blocks }]] = [[usedef_block]] }}
       {{ hasNonePredecessor [[:user_syntax__block:block]] [[usedef_block]] = true }}
       % Checking function body
@@ -811,8 +811,8 @@ Jwf_gvar :: '' ::=  % visitGlobalVariable
       {{ com [[gvar]] is well-formed w.r.t. [[module]] [[system]]}} by 
 
       system |-c const : typ
-      ------------------------------------------------------------------------- :: wf_v_intro
-      intrinsic_funs , system , module |-v id = gvar_spec typ const align
+      ----------------------------------------------------------------------------- :: wf_gv_intro
+      intrinsic_funs , system , module |-v id = linkage gvar_spec typ const align
 
 defns
 Jwf_prod :: '' ::=

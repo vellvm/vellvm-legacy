@@ -647,7 +647,7 @@ Lemma hasNonPredecessor__mono : forall b bs ud,
   hasNonePredecessor b (genBlockUseDef_blocks bs nil) = true.
 Admitted.
 
-Lemma getEntryOfFdef_inv : forall 
+Lemma getEntryBlock_inv : forall 
   (bs : blocks)
   (l3 : l)
   (l' : l)
@@ -663,7 +663,7 @@ Lemma getEntryOfFdef_inv : forall
   (a : atom)
   (Hsucc : In l' (successors_terminator tmn))
   ps1 cs1 tmn1
-  (H : getEntryOfFdef (fdef_intro fh bs) = ret block_intro a ps1 cs1 tmn1),
+  (H : getEntryBlock (fdef_intro fh bs) = ret block_intro a ps1 cs1 tmn1),
   l' <> a.
 Proof.
   intros.  
@@ -796,7 +796,7 @@ Proof.
       unfold Dominators.top in Heqdefs3, Heqdefs'.
       simpl in Heqdefs3, Heqdefs'.
       assert (exists ps, exists cs, exists tmn,
-        getEntryOfFdef (fdef_intro fh bs) = Some (block_intro a ps cs tmn)).
+        getEntryBlock (fdef_intro fh bs) = Some (block_intro a ps cs tmn)).
         unfold entry_dom in HeqR.
         destruct bs.
           inversion HeqR.
@@ -805,7 +805,7 @@ Proof.
       assert (l' <> a) as Neq.
         clear - H Hsucc HwfF HBinF. 
         destruct H as [ps1 [cs1 [tmn1 H]]].
-        eapply getEntryOfFdef_inv; eauto.
+        eapply getEntryBlock_inv; eauto.
       rewrite AMap.gso in Heqdefs'; auto.
       rewrite AMap.gi in Heqdefs'.
       inv Heqdefs'.
@@ -815,6 +815,7 @@ Proof.
   Case "entry is wrong".   
     subst. inversion HBinF.
 Qed.
+
 Lemma wf_defs_br_aux : forall lc l' ps' cs' lc' F tmn' gl TD Mem0
   (l3 : l)
   (ps : phinodes)
@@ -1271,6 +1272,57 @@ Lemma uniqF__lookupTypViaIDFromFdef : forall l1 ps1 cs1 tmn1 f c i0 t0,
   lookupTypViaIDFromFdef f i0 = Some t0.
 Admitted.
 
+Lemma wf_system__blockInFdefB__wf_block : forall b f ps los nts s ifs,
+  blockInFdefB b f = true -> 
+  InProductsB (product_fdef f) ps = true ->
+  moduleInSystemB (module_intro los nts ps) s = true ->
+  wf_system ifs s ->
+  wf_block ifs s (module_intro los nts ps) f b.
+Admitted.
+
+Lemma wf_system__lookup__wf_block : forall b f l0 ps los nts s ifs,
+  Some b = lookupBlockViaLabelFromFdef f l0 ->
+  InProductsB (product_fdef f) ps = true ->
+  moduleInSystemB (module_intro los nts ps) s = true ->
+  wf_system ifs s ->
+  wf_block ifs s (module_intro los nts ps) f b.
+Admitted.
+
+Lemma entryBlock_has_no_phinodes : forall ifs s f l1 ps1 cs1 tmn1 los nts ps,
+  InProductsB (product_fdef f) ps = true ->
+  moduleInSystemB (module_intro los nts ps) s = true ->
+  wf_system ifs s ->
+  getEntryBlock f = Some (block_intro l1 ps1 cs1 tmn1) ->
+  ps1 = nil.  
+Proof.
+  intros ifs s f l1 ps1 cs1 tmn1 los nts ps HFinP HMinS Hwfs Hentry.
+  assert (wf_fdef ifs s (module_intro los nts ps) f) as Hwff.
+    eapply wf_system__wf_fdef; eauto.
+  assert (wf_block ifs s (module_intro los nts ps) f 
+    (block_intro l1 ps1 cs1 tmn1)) as Hwfb.
+    apply entryBlockInFdef in Hentry.
+    eapply wf_system__blockInFdefB__wf_block; eauto.
+  inv Hwfb.
+  clear H9 H10.
+  destruct ps1; auto.
+  inv H8.
+  clear H9.
+  inv H6.
+  inv H12.
+  unfold check_list_value_l in H5.
+  remember (split (unmake_list_value_l value_l_list)) as R.
+  destruct R.
+  destruct H5 as [J1 [J2 J3]].
+  inv Hwff.
+  rewrite H10 in Hentry. inv Hentry.
+  unfold hasNonePredecessor in H12.
+  simpl in *.
+  destruct (predOfBlock
+            (block_intro l1 (insn_phi id5 typ5 value_l_list :: ps1) cs1 tmn1)
+            (genBlockUseDef_blocks blocks5 nil)); inversion H12.
+  simpl in J1. contradict J1. omega.
+Qed.
+
 Lemma preservation : forall S1 S2 tr,
   dsInsn S1 S2 tr -> wf_State S1 -> wf_State S2.
 Proof.
@@ -1644,18 +1696,21 @@ Case "dsSelect". admit.
 Focus.
 Case "dsCall".
   destruct HwfS1 as [HwfSys [HmInS [HwfEC [HwfECs HwfCall]]]].
+  assert (InProductsB (product_fdef (fdef_intro (fheader_intro rt fid la va) 
+    lb)) Ps = true) as HFinPs'.
+    eapply lookupFdefViaGV_inv; eauto.
   split; auto.
   split; auto.
   split.
-  SCase "1".
+  SCase "1".     
     split.
       simpl. eapply reachable_entrypoint; eauto.
     split.
-      apply entryBlockInFdef in H0; auto.
+     apply entryBlockInFdef in H0; auto.
+    split; auto.
     split.
-      eapply lookupFdefViaGV_inv; eauto.
-    split.
-     assert (ps'=nil) as EQ. admit. (* entry's phis are empty *)
+     assert (ps'=nil) as EQ.
+       eapply entryBlock_has_no_phinodes with (ifs:=nil)(s:=S); eauto.        
      subst.
      apply dom_entrypoint in H0.
      destruct cs'.
@@ -1682,7 +1737,10 @@ Case "dsCall".
   SCase "3".
     simpl. intros b HbInBs. destruct b.
     destruct t; auto.
-      admit. (* static: void cannot be assigned as a call ret. *)
+      (* We cannot show: void cannot be assigned as a call ret. Because a 
+         function can have a wrong signature, which cannot be checked
+         statically. *)
+      admit.
 Unfocus.
 
 Case "dsExCall". admit.
@@ -1717,13 +1775,14 @@ Lemma state_tmn_typing : forall ifs s m f l1 ps1 cs1 tmn1 defs id1 lc,
   wf_insn ifs s m f (block_intro l1 ps1 cs1 tmn1) (insn_terminator tmn1) ->
   Some defs = inscope_of_tmn f (block_intro l1 ps1 cs1 tmn1) tmn1 ->
   wf_defs f lc defs ->
+  uniqFdef f ->
   In id1 (getInsnOperands (insn_terminator tmn1)) ->
   exists t, exists gv, 
     lookupTypViaIDFromFdef f id1 = munit t /\
     lookupAL _ lc id1 = Some gv /\ wf_genericvalue gv t.
 Proof.
   intros ifs s m f l1 ps1 cs1 tmn1 defs id1 lc Hreach HwfInstr Hinscope HwfDefs 
-    HinOps.
+    HuniqF HinOps.
   apply wf_insn__wf_insn_base in HwfInstr; 
     try solve [unfold isPhiNode; simpl; auto].
   inv HwfInstr.  
@@ -1745,7 +1804,7 @@ Proof.
     (insn1:=insn_terminator tmn1)(id1:=id1) in H6; auto.
 
   inv H6.
-  clear - H11 HwfDefs Hinscope H0 Hreach H9.
+  clear - H11 HwfDefs Hinscope H0 Hreach H9 HuniqF.
   eapply wf_defs_elim; eauto.
     unfold inscope_of_tmn in Hinscope.
     destruct f. destruct f.
@@ -1768,7 +1827,6 @@ Proof.
         apply in_or_app. left. 
         apply in_or_app. right. simpl. auto.
           
-     clear Hreach H0 HwfDefs.
      unfold blockStrictDominates in J'.
      rewrite <- HeqR in J'.
      destruct block'.
@@ -1780,10 +1838,33 @@ Proof.
      assert (
        lookupBlockViaLabelFromFdef (fdef_intro (fheader_intro t i0 a v) b) l0 =
        ret block_intro l0 p c t0) as J1.
-       clear - H9.  admit. (* wf *)
+       apply blockInFdefB_lookupBlockViaLabelFromFdef; auto.
+         eapply lookupBlockViaIDFromFdef__blockInFdefB; eauto. 
      apply Hinscope with (b1:=block_intro l0 p c t0) in J; auto.
-       clear - H9 J. admit. (* wf *) 
+       apply J.
+       eapply lookupBlockViaIDFromFdef__InGetBlockIDs; eauto.
 Qed.
+
+Lemma NoDup__In_cmds_dominates_cmd : forall cs1 c cs2 id1,
+  NoDup (getCmdsLocs (cs1 ++ c :: cs2)) ->
+  In id1 (getCmdsIDs cs1) ->
+  In id1 (cmds_dominates_cmd (cs1 ++ c :: cs2) (getCmdLoc c)).
+Proof.
+  induction cs1; intros; simpl in *.
+    inversion H0.
+
+    inv H.
+    destruct (eq_atom_dec (getCmdLoc a) (getCmdLoc c)).
+      assert (False) as F.
+        apply H3. 
+        rewrite e.
+        rewrite getCmdsLocs_app. simpl.
+        apply in_or_app. right. simpl. auto.
+      inversion F.
+
+      destruct (getCmdID a); auto.
+      simpl in *. destruct H0 as [H0 | H0]; auto.
+Qed.   
 
 Lemma state_cmd_typing : forall ifs s m f b c defs id1 lc,
   NoDup (getBlockLocs b) ->
@@ -1791,13 +1872,14 @@ Lemma state_cmd_typing : forall ifs s m f b c defs id1 lc,
   wf_insn ifs s m f b (insn_cmd c) ->
   Some defs = inscope_of_cmd f b c ->
   wf_defs f lc defs ->
+  uniqFdef f ->
   In id1 (getInsnOperands (insn_cmd c)) ->
   exists t, exists gv, 
     lookupTypViaIDFromFdef f id1 = munit t /\
     lookupAL _ lc id1 = Some gv /\ wf_genericvalue gv t.
 Proof.
   intros ifs s m f b c defs id1 lc Hnodup Hreach HwfInstr Hinscope HwfDefs 
-    HinOps.
+    HuniqF HinOps.
   apply wf_insn__wf_insn_base in HwfInstr;
     try solve [unfold isPhiNode; simpl; auto].
   inv HwfInstr.  
@@ -1840,7 +1922,15 @@ Proof.
         clear - J2 Hnodup.
         apply in_or_app. right.
         apply in_or_app. left. 
-          admit. (* wf *)
+          simpl in Hnodup. apply NoDup_inv in Hnodup.
+          destruct Hnodup as [_ Hnodup].
+          apply NoDup_inv in Hnodup.
+          destruct Hnodup as [Hnodup _].
+          rewrite_env ((cs1 ++ c1 :: cs2) ++ c :: cs3).
+          rewrite_env ((cs1 ++ c1 :: cs2) ++ c :: cs3) in Hnodup.
+          apply NoDup__In_cmds_dominates_cmd; auto.
+            rewrite getCmdsIDs_app.
+            apply in_or_app. right. simpl. rewrite J2. simpl. auto.
     
      clear Hreach H0 HwfDefs.
      unfold blockStrictDominates in J'.
@@ -1854,26 +1944,12 @@ Proof.
      assert (
        lookupBlockViaLabelFromFdef (fdef_intro (fheader_intro t0 i0 a v) b) l1 =
        ret block_intro l1 p0 c1 t1) as J1.
-       clear - H9. admit. (* wf *)
+       apply blockInFdefB_lookupBlockViaLabelFromFdef; auto.
+         eapply lookupBlockViaIDFromFdef__blockInFdefB; eauto. 
      apply Hinscope with (b1:=block_intro l1 p0 c1 t1) in J; auto.
-       clear - H9 J. admit. (* wf *) 
+       apply J.
+       eapply lookupBlockViaIDFromFdef__InGetBlockIDs; eauto.
 Qed.
-
-Lemma wf_system__blockInFdefB__wf_block : forall b f ps los nts s ifs,
-  blockInFdefB b f = true -> 
-  InProductsB (product_fdef f) ps = true ->
-  moduleInSystemB (module_intro los nts ps) s = true ->
-  wf_system ifs s ->
-  wf_block ifs s (module_intro los nts ps) f b.
-Admitted.
-
-Lemma wf_system__lookup__wf_block : forall b f l0 ps los nts s ifs,
-  Some b = lookupBlockViaLabelFromFdef f l0 ->
-  InProductsB (product_fdef f) ps = true ->
-  moduleInSystemB (module_intro los nts ps) s = true ->
-  wf_system ifs s ->
-  wf_block ifs s (module_intro los nts ps) f b.
-Admitted.
 
 Lemma wf_operand_list__wf_operand : forall id_list fdef5 block5 insn5 id_ n,
   wf_operand_list (make_list_fdef_block_insn_id (map_list_id
@@ -1932,6 +2008,44 @@ Proof.
       inv J. auto.
 Qed.        
 
+Lemma getValueViaLabelFromValuels__In : forall vls v l1 vs1 ls1,
+  getValueViaLabelFromValuels vls l1 = Some v ->
+  split (unmake_list_value_l vls) = (vs1, ls1) ->
+  In l1 ls1.
+Proof.
+  induction vls; intros; simpl in *.
+    inversion H.
+
+    remember (split (unmake_list_value_l vls)) as R.
+    destruct R.
+    inv H0.
+    destruct (l0 == l1); subst.
+      simpl. auto.
+
+      simpl. right. eauto.
+Qed.
+
+Lemma In__getValueViaLabelFromValuels : forall vls l1 vs1 ls1,
+  In l1 ls1 ->
+  split (unmake_list_value_l vls) = (vs1, ls1) ->
+  NoDup ls1 ->
+  exists v, getValueViaLabelFromValuels vls l1 = Some v.
+Proof.
+  induction vls; intros; simpl in *.
+    inv H0. inversion H.
+   
+    destruct (l0 == l1); subst; eauto.
+    remember (split (unmake_list_value_l vls)) as R.
+    destruct R.
+    symmetry in HeqR.
+    inv H0. inv H1.
+    simpl in H.
+    destruct H as [H | H]; subst.
+      contradict n; auto.
+    
+      eapply IHvls in H; eauto.
+Qed.      
+
 Lemma wf_phinodes__getIncomingValuesForBlockFromPHINodes : forall
   (s : system)
   (los : layouts)
@@ -1972,6 +2086,13 @@ Proof.
     destruct a. inv H8. inv H6.
     assert (exists v, getValueViaLabelFromValuels l2 l1 = Some v) as J.      
       clear - H14 HbInF.
+      inv H14.
+      unfold check_list_value_l in H0.
+      remember (split (unmake_list_value_l l2)) as R.
+      destruct R.
+      destruct H0 as [J1 [J2 J3]].
+      eapply In__getValueViaLabelFromValuels; eauto.
+      unfold predOfBlock in J2. simpl in J2.
       admit. (*wf*)
     destruct J as [v J].
     rewrite J.
@@ -2094,6 +2215,7 @@ Proof.
                   (insn_return i0 t (value_id vid))))) as HinOps.
                   simpl. auto.
                 eapply state_tmn_typing in HwfInstr; eauto.
+                  eapply wf_system__uniqFdef; eauto.
 
               destruct Hlkup as [gt [gv [Hlktyp [Hlkup Hwfgv]]]].
               simpl.
