@@ -184,7 +184,7 @@ and string_of_list_constant cs =
       | Some t -> string_of_typ t ^ " " ^ string_of_constant c
       | None -> failwith "const must be of type.") 
     (LLVMsyntax.unmake_list_const cs))
-  
+
 let string_of_value v =
   match v with
   | LLVMsyntax.Coq_value_id id -> id
@@ -329,7 +329,7 @@ let string_of_args_dec fid args va =
 let travel_fdec f =
   match f with
   | LLVMsyntax.Coq_fheader_intro (t, fid, args, va) ->
-    eprintf "declare %s %s %s\n" (string_of_typ t) fid 
+    eprintf "declare %s %s %s\n" (string_of_typ t) fid
       (string_of_args_dec fid args va); 
     flush_all ()
 
