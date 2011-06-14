@@ -7,7 +7,7 @@ Require Import Zdiv.
 Require Import List.
 Require Import ssa_def.
 Require Import Coqlib.
-Require Import assoclist.
+Require Import alist.
 
 Module LLVMtd.
 

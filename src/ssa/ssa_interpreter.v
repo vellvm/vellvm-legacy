@@ -5,7 +5,7 @@ Add LoadPath "../../../theory/metatheory_8.3".
 Require Import ssa_dynamic.
 Require Import trace.
 Require Import Metatheory.
-Require Import assoclist.
+Require Import alist.
 Require Import monad.
 Require Import genericvalues.
 Require Import Values.

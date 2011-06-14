@@ -17,7 +17,7 @@ Require Import Values.
 Require Import ssa_mem.
 Require Import trace.
 Require Import symexe_def.
-Require Import assoclist.
+Require Import alist.
 Require Import ssa_props.
 Require Import sub_tv_def.
 Require Import sub_tv_dec.

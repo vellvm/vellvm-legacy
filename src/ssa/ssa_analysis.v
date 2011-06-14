@@ -6,7 +6,7 @@ Require Import List.
 Require Import Arith.
 Require Import monad.
 Require Import Metatheory.
-Require Import assoclist.
+Require Import alist.
 Require Import Values.
 Require Import Memory.
 Require Import Integers.

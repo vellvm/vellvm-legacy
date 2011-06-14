@@ -11,7 +11,7 @@ Require Import ZArith.
 Require Import Metatheory.
 Require Import symexe_def.
 Require Import trace.
-Require Import assoclist.
+Require Import alist.
 Require Import eq_tv_dec.
 Require Import monad.
 

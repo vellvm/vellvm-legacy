@@ -13,7 +13,7 @@ Require Import Coq.Program.Equality.
 Require Import CoqListFacts.
 Require Import Bool.
 Require Import Metatheory.
-Require Import assoclist.
+Require Import alist.
 Require Import ssa_props.
 
 Export LLVMsyntax.

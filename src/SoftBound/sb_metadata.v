@@ -14,7 +14,7 @@ Require Import Metatheory.
 Require Import genericvalues.
 Require Import trace.
 Require Import ssa_props.
-Require Import assoclist.
+Require Import alist.
 Require Import sb_def.
 Require Import Coqlib.
 Require Import Memdata.

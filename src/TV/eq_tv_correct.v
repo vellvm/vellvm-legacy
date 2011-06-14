@@ -19,7 +19,7 @@ Require Import symexe_lib.
 Require Import symexe_complete.
 Require Import symexe_sound.
 Require Import seop_llvmop.
-Require Import assoclist.
+Require Import alist.
 Require Import ssa_props.
 Require Import eq_tv.
 Require Import eq_tv_dec.

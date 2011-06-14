@@ -7,7 +7,7 @@ Require Import ssa_lib.
 Require Import Coq.Program.Equality.
 Require Import CoqListFacts.
 Require Import Metatheory.
-Require Import assoclist.
+Require Import alist.
 Require Import genericvalues.
 Require Import ssa_dynamic.
 Require Import Coqlib.
@@ -1541,6 +1541,44 @@ Proof.
     destruct R; eauto.
       inv H. auto.
 Qed.
+
+Lemma getValueViaLabelFromValuels__In : forall vls v l1 vs1 ls1,
+  getValueViaLabelFromValuels vls l1 = Some v ->
+  split (unmake_list_value_l vls) = (vs1, ls1) ->
+  In l1 ls1.
+Proof.
+  induction vls; intros; simpl in *.
+    inversion H.
+
+    remember (split (unmake_list_value_l vls)) as R.
+    destruct R.
+    inv H0.
+    destruct (l0 == l1); subst.
+      simpl. auto.
+
+      simpl. right. eauto.
+Qed.
+
+Lemma In__getValueViaLabelFromValuels : forall vls l1 vs1 ls1,
+  In l1 ls1 ->
+  split (unmake_list_value_l vls) = (vs1, ls1) ->
+  NoDup ls1 ->
+  exists v, getValueViaLabelFromValuels vls l1 = Some v.
+Proof.
+  induction vls; intros; simpl in *.
+    inv H0. inversion H.
+   
+    destruct (l0 == l1); subst; eauto.
+    remember (split (unmake_list_value_l vls)) as R.
+    destruct R.
+    symmetry in HeqR.
+    inv H0. inv H1.
+    simpl in H.
+    destruct H as [H | H]; subst.
+      contradict n; auto.
+    
+      eapply IHvls in H; eauto.
+Qed.      
 
 (*****************************)
 (*

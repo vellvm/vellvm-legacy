@@ -16,7 +16,7 @@ Require Import trace.
 Require Import symexe_def.
 Require Import symexe_lib.
 Require Import symexe_complete.
-Require Import assoclist.
+Require Import alist.
 Require Import ssa_props.
 
 Export SimpleSE.

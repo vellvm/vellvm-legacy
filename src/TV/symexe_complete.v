@@ -15,7 +15,7 @@ Require Import ssa_dynamic.
 Require Import trace.
 Require Import symexe_def.
 Require Import symexe_lib.
-Require Import assoclist.
+Require Import alist.
 Require Import ZArith.
 
 Export SimpleSE.

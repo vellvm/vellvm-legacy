@@ -10,7 +10,7 @@ Require Import Metatheory.
 Require Import ZArith.
 Require Import Coqlib.
 Require Import Floats.
-Require Import assoclist.
+Require Import alist.
 
 Module LLVMsyntax.
 

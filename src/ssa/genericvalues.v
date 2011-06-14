@@ -7,7 +7,7 @@ Require Import Arith.
 Require Import monad.
 Require Import trace.
 Require Import Metatheory.
-Require Import assoclist.
+Require Import alist.
 Require Import ssa_def.
 Require Import ssa_lib.
 Require Import Memory.

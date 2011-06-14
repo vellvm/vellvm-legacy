@@ -17,7 +17,7 @@ Require Import opsem_pp.
 Require Import trace.
 Require Import symexe_def.
 Require Import ssa_props.
-Require Import assoclist.
+Require Import alist.
 
 Export LLVMsyntax.
 Export LLVMlib.

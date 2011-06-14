@@ -13,13 +13,13 @@ all:
 ott: main.pdf ssa_static.vo ssa_dynamic.vo ssa_wf.vo opsem_conv.vo \
 	opsem_pp.vo ssa_interpreter.vo
 
-assoclist.vo : assoclist.v
-	$(COQC) $(COQARG) assoclist.v
+alist.vo : alist.v
+	$(COQC) $(COQARG) alist.v
 
-ssa_coq_lib.vo : ssa_coq_lib.v ssa_def.vo assoclist.vo ssa_analysis.vo
+ssa_coq_lib.vo : ssa_coq_lib.v ssa_def.vo alist.vo ssa_analysis.vo
 	$(COQC) $(COQARG) ssa_coq_lib.v
 
-ssa_def.vo : ssa_def.v ./monads/monad.vo ./compcert/Floats.vo assoclist.vo
+ssa_def.vo : ssa_def.v ./monads/monad.vo ./compcert/Floats.vo alist.vo
 	$(COQC) $(COQARG) ssa_def.v
 
 ssa_def.v : ssa_def.ott
@@ -61,27 +61,27 @@ targetdata.vo: targetdata.v ssa_def.vo ssa_lib.vo
 trace.vo: trace.v
 	$(COQC) $(COQARG) trace.v
 
-ssa_analysis.vo: compcert/Kildall.vo ssa_analysis.v assoclist.vo
+ssa_analysis.vo: compcert/Kildall.vo ssa_analysis.v alist.vo
 	$(COQC) $(COQARG) ssa_analysis.v
 
 genericvalues.vo: ssa_def.vo ssa_lib.vo tactics.vo trace.vo genericvalues.v \
-	assoclist.vo targetdata.vo compcert/Memory.vo
+	alist.vo targetdata.vo compcert/Memory.vo
 	$(COQC) $(COQARG) genericvalues.v
 
 ssa_dynamic.vo: ssa_dynamic.v ssa_def.vo ssa_lib.vo tactics.vo trace.vo \
-	genericvalues.vo assoclist.vo
+	genericvalues.vo alist.vo
 	$(COQC) $(COQARG) ssa_dynamic.v
 
 ssa_interpreter.vo: ssa_interpreter.v ssa_dynamic.vo ssa_def.vo ssa_lib.vo \
-	tactics.vo trace.vo genericvalues.vo assoclist.vo
+	tactics.vo trace.vo genericvalues.vo alist.vo ssa_props.vo
 	$(COQC) $(COQARG) ssa_interpreter.v
 
-ssa_props.vo: ssa_props.v ssa_def.vo ssa_lib.vo genericvalues.vo assoclist.vo \
+ssa_props.vo: ssa_props.v ssa_def.vo ssa_lib.vo genericvalues.vo alist.vo \
 	ssa_dynamic.vo
 	$(COQC) $(COQARG) ssa_props.v
 
 opsem_pp.vo: opsem_pp.v ssa_dynamic.vo ssa_def.vo ssa_lib.vo genericvalues.vo \
-	assoclist.vo ssa_props.vo
+	alist.vo ssa_props.vo
 	$(COQC) $(COQARG) opsem_pp.v
 
 opsem_conv.vo: opsem_conv.v ssa_dynamic.vo ssa_def.vo ssa_lib.vo trace.vo

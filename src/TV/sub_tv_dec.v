@@ -14,7 +14,7 @@ Require Import Metatheory.
 Require Import genericvalues.
 Require Import ssa_dynamic.
 Require Import trace.
-Require Import assoclist.
+Require Import alist.
 Require Import ssa_props.
 Require Import CoqListFacts.
 Require Import symexe_def.

@@ -11,7 +11,7 @@ Require Import monad.
 Require Import trace.
 Require Import Metatheory.
 Require Import genericvalues.
-Require Import assoclist.
+Require Import alist.
 Require Import Values.
 Require Import Memory.
 Require Import Integers.

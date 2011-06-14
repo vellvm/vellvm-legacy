@@ -19,7 +19,7 @@ Require Import symexe_def.
 Require Import symexe_lib.
 Require Import symexe_complete.
 Require Import symexe_sound.
-Require Import assoclist.
+Require Import alist.
 Require Import ssa_props.
 Require Import sub_tv_def.
 Require Import sub_tv_dec.

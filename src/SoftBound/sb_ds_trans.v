@@ -9,7 +9,7 @@ Require Import ssa_lib.
 Require Import trace.
 Require Import Memory.
 Require Import genericvalues.
-Require Import assoclist.
+Require Import alist.
 Require Import Integers.
 Require Import Values.
 Require Import Coqlib.

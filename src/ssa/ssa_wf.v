@@ -11,7 +11,7 @@ Require Import monad.
 Require Import trace.
 Require Import Metatheory.
 Require Import genericvalues.
-Require Import assoclist.
+Require Import alist.
 Require Import Values.
 Require Import Memory.
 Require Import Integers.
@@ -2008,43 +2008,68 @@ Proof.
       inv J. auto.
 Qed.        
 
-Lemma getValueViaLabelFromValuels__In : forall vls v l1 vs1 ls1,
-  getValueViaLabelFromValuels vls l1 = Some v ->
-  split (unmake_list_value_l vls) = (vs1, ls1) ->
-  In l1 ls1.
+Lemma successors_predOfBlock : forall f l1 ps1 cs1 tmn1 l0 ps0 cs0 tmn0,
+  uniqFdef f ->
+  blockInFdefB (block_intro l1 ps1 cs1 tmn1) f = true ->
+  In l0 (successors_terminator tmn1) ->
+  In l1 (predOfBlock (block_intro l0 ps0 cs0 tmn0) (genBlockUseDef_fdef f)).
 Proof.
-  induction vls; intros; simpl in *.
-    inversion H.
+  unfold predOfBlock.
+  destruct f. induction b; intros; simpl in *.
+    inversion H0.
 
-    remember (split (unmake_list_value_l vls)) as R.
-    destruct R.
-    inv H0.
-    destruct (l0 == l1); subst.
-      simpl. auto.
+    assert (G:=H). simpl_env in G.
+    apply uniqBlocks_inv in G.
+    destruct G as [G1 G2].
+    destruct a. simpl.
+    apply orb_prop in H0.
+    destruct H0 as [H0 | H0].
+      apply blockEqB_inv in H0.
+      inv H0.
+      destruct t; eauto.
+        simpl in H1.
+        destruct H1 as [H1 | [H1 | H1]]; subst.
+          assert (J:=@lookupAL_update_udb_eq (update_udb nil l2 l3) l2 l0).
+          destruct J as [ls0 [J1 J2]].
+          apply lookupAL_genBlockUseDef_blocks_spec with (bs:=b) in J1; auto.
+          destruct J1 as [ls1 [J1 J3]].
+          rewrite J1. apply J3; auto.
 
-      simpl. right. eauto.
-Qed.
+          assert (J:=@lookupAL_update_udb_eq nil l2 l0).
+          destruct J as [ls0 [J J0]].
+          apply lookupAL_update_udb_spec with (l1:=l2)(l2:=l1) in J; auto.
+          destruct J as [ls1 [J J1]].
+          apply lookupAL_genBlockUseDef_blocks_spec with (bs:=b) in J; auto.
+          destruct J as [ls2 [J J2]].
+          rewrite J. apply J2. apply J1. auto.
 
-Lemma In__getValueViaLabelFromValuels : forall vls l1 vs1 ls1,
-  In l1 ls1 ->
-  split (unmake_list_value_l vls) = (vs1, ls1) ->
-  NoDup ls1 ->
-  exists v, getValueViaLabelFromValuels vls l1 = Some v.
-Proof.
-  induction vls; intros; simpl in *.
-    inv H0. inversion H.
-   
-    destruct (l0 == l1); subst; eauto.
-    remember (split (unmake_list_value_l vls)) as R.
-    destruct R.
-    symmetry in HeqR.
-    inv H0. inv H1.
-    simpl in H.
-    destruct H as [H | H]; subst.
-      contradict n; auto.
-    
-      eapply IHvls in H; eauto.
-Qed.      
+          inversion H1.
+        simpl in H1.
+        destruct H1 as [H1 | H1]; subst.
+          assert (J:=@lookupAL_update_udb_eq nil l2 l0).
+          destruct J as [ls0 [J J0]].
+          apply lookupAL_genBlockUseDef_blocks_spec with (bs:=b) in J; auto.
+          destruct J as [ls2 [J J2]].
+          rewrite J. apply J2. auto.
+
+          inversion H1.
+
+      eapply IHb in H1; eauto.
+        remember (lookupAL (list l) (genBlockUseDef_blocks b nil) l0) as R.
+        destruct R; try solve [inversion H1].
+        destruct H as [J1 J2].
+        simpl in J1.
+        inv J1.
+        apply InBlocksB_In in H0.
+        destruct (eq_atom_dec l1 l2); subst.
+          contradict H0; auto.
+Admitted.
+
+Lemma const2GV_isnt_stuck : forall TD M gl vc,
+  exists gv, const2GV TD M gl vc = Some gv.
+ (* what if a constant is stuck~? if int2ptr is not allowed,
+    we should prove this, because globals are not changed! *)
+Admitted.
 
 Lemma wf_phinodes__getIncomingValuesForBlockFromPHINodes : forall
   (s : system)
@@ -2062,6 +2087,7 @@ Lemma wf_phinodes__getIncomingValuesForBlockFromPHINodes : forall
   (HeqR : ret t = inscope_of_tmn f 
     (block_intro l1 ps1 cs1 (insn_br_uncond i0 l0)) (insn_br_uncond i0 l0))
   (Hinscope : wf_defs f lc t)
+  (HuniqF : uniqFdef f)
   (ps' : phinodes)
   (cs' : cmds)
   (tmn' : terminator)
@@ -2085,15 +2111,18 @@ Proof.
   
     destruct a. inv H8. inv H6.
     assert (exists v, getValueViaLabelFromValuels l2 l1 = Some v) as J.      
-      clear - H14 HbInF.
+      clear - H14 HbInF HuniqF.
       inv H14.
       unfold check_list_value_l in H0.
       remember (split (unmake_list_value_l l2)) as R.
       destruct R.
       destruct H0 as [J1 [J2 J3]].
       eapply In__getValueViaLabelFromValuels; eauto.
-      unfold predOfBlock in J2. simpl in J2.
-      admit. (*wf*)
+      destruct J2 as [_ J2].
+      apply J2.
+      eapply successors_predOfBlock; eauto.
+        simpl. auto.
+
     destruct J as [v J].
     rewrite J.
     destruct v as [vid | vc].
@@ -2110,9 +2139,12 @@ Proof.
         destruct Hwfops as [Hneqid [vb [b1 [Hlkvb [Hlkb1 Hdom]]]]].
         assert (b1 = block_intro l1 ps1 cs1 (insn_br_uncond i0 l0)) 
           as EQ.
-          clear - Hlkb1 HbInF. admit. (* block IDs are unique. *)
+          clear - Hlkb1 HbInF HuniqF.
+          apply blockInFdefB_lookupBlockViaLabelFromFdef in HbInF; auto.
+          rewrite HbInF in Hlkb1. inv Hlkb1; auto.
+
         subst.
-        clear - Hdom Hinscope HeqR J Hreach H2 HbInF Hlkvb Hlkb1.
+        clear - Hdom Hinscope HeqR J Hreach H2 HbInF Hlkvb Hlkb1 HuniqF.
         destruct Hdom as [J3 | J3]; try solve [contradict Hreach; auto].
         clear Hreach.        
         unfold blockDominates in J3.         
@@ -2125,13 +2157,26 @@ Proof.
         symmetry in HeqR.    
         apply fold_left__spec in HeqR.
         destruct (eq_atom_dec l3 l1); subst.
+        SCase "l3=l1".
           destruct HeqR as [HeqR _].
           assert (In vid t) as G.
-            clear - J HeqR Hlkb1. admit. (*wf*)
+            clear - J HeqR Hlkb1 J3 Hlkvb HbInF HuniqF.
+            assert (J':=Hlkvb).
+            apply lookupBlockViaIDFromFdef__blockInFdefB in Hlkvb.
+            apply lookupBlockViaLabelFromFdef_inv in Hlkb1; auto.
+            destruct Hlkb1 as [J1 J2].
+            eapply blockInFdefB_uniq in J2; eauto.
+            destruct J2 as [J2 [J4 J5]]; subst.
+            apply lookupBlockViaIDFromFdef__InGetBlockIDs in J'.
+            simpl in J'.
+            apply HeqR.
+            rewrite_env ((getPhiNodesIDs ps1 ++ getCmdsIDs cs1)++getArgsIDs a).
+            apply in_or_app; auto.       
           apply wf_defs_elim with (id1:=vid) in Hinscope; auto.
           destruct Hinscope as [? [gv1 [? [Hinscope ?]]]].
           exists gv1. auto.
 
+        SCase "l3<>l1".
           assert (In l3 (ListSet.set_diff eq_atom_dec bs_contents [l1])) as G.
             apply ListSet.set_diff_intro; auto.
               simpl. intro JJ. destruct JJ as [JJ | JJ]; auto.
@@ -2139,11 +2184,15 @@ Proof.
             lookupBlockViaLabelFromFdef 
               (fdef_intro (fheader_intro t2 i1 a v) b) l3 = 
               ret block_intro l3 p c t1) as J1.
-            clear - Hlkvb.  admit. (* wf *)
+            clear - Hlkvb HuniqF.
+            apply lookupBlockViaIDFromFdef__blockInFdefB in Hlkvb.
+            apply blockInFdefB_lookupBlockViaLabelFromFdef in Hlkvb; auto.
           destruct HeqR as [_ [HeqR _]].
           apply HeqR in J1; auto.
           assert (In vid t) as InVid.
-            clear - J1 J Hlkvb. admit.  (*wf*)
+            clear - J1 HeqR Hlkb1 J3 Hlkvb HbInF HuniqF.
+            apply J1.
+            apply lookupBlockViaIDFromFdef__InGetBlockIDs in Hlkvb; auto.
           apply wf_defs_elim with (id1:=vid) in Hinscope; auto.
           destruct Hinscope as [? [gv1 [? [Hinscope ?]]]].
           exists gv1. auto.
@@ -2161,7 +2210,16 @@ Proof.
         simpl_env. auto.
   
     Case "vc".
-      admit. (* constant *)
+      destruct (@const2GV_isnt_stuck (los,nts) M gl vc).
+      rewrite H.
+      apply IHps2 in H7.
+        destruct H7 as [RVs H7].
+        rewrite H7. 
+        exists ((i1, x) :: RVs). auto.
+  
+        destruct Hin as [ps3 Hin]. subst.
+        exists (ps3++[insn_phi i1 t0 l2]).
+        simpl_env. auto.
 Qed.
 
 Lemma progress : forall S1,
@@ -2221,9 +2279,10 @@ Proof.
               simpl.
               rewrite Hlkup. exists (updateAddAL GenericValue lc' i1 gv). auto.
 
-              admit. (* what if a constant is stuck~? if int2ptr is not allowed,
-                        we should prove this, because globals are not changed!
-                      *)
+              simpl.
+              destruct (@const2GV_isnt_stuck (los,nts) M' gl vc).
+              rewrite H.
+              exists (updateAddAL GenericValue lc' i1 x). auto.
           
             destruct Hretup as [lc'' Hretup].
             exists (mkState s (los, nts) ps ((mkEC f' b' cs' tmn' lc'' als')::
@@ -2235,10 +2294,18 @@ Proof.
     SCase "tmn=br". admit.
     SCase "tmn=br_uncond". 
       right.
+      assert (uniqFdef f) as HuniqF.
+        eapply wf_system__uniqFdef; eauto.
       assert (exists ps', exists cs', exists tmn',
         Some (block_intro l2 ps' cs' tmn') = lookupBlockViaLabelFromFdef f l2) 
           as HlkB.
-        admit. (* wf *)
+        eapply wf_system__wf_tmn in HbInF; eauto.
+        inv HbInF.        
+        exists ps1. exists (cs1++nil). exists (insn_br_uncond i0 l2).
+        rewrite H6. 
+        apply lookupBlockViaLabelFromFdef_inv in H6; auto.
+        destruct H6 as [H6 _]; subst. auto.
+
       destruct HlkB as [ps' [cs' [tmn' HlkB]]].
       assert (exists RVs, 
         getIncomingValuesForBlockFromPHINodes (los, nts) M ps'
@@ -2247,8 +2314,6 @@ Proof.
         assert (HwfB := HbInF).
         eapply wf_system__blockInFdefB__wf_block in HwfB; eauto.
         eapply wf_system__lookup__wf_block in HlkB; eauto.
-        assert (uniqFdef f) as HuniqF.
-          eapply wf_system__uniqFdef; eauto.
         clear - HeqR Hinscope HbInF HlkB HwfB Hreach HuniqF.
         inv HlkB. clear H9 H10.
         eapply wf_phinodes__getIncomingValuesForBlockFromPHINodes; eauto.      

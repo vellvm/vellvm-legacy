@@ -11,7 +11,7 @@ Require Import List.
 Require Import tactics.
 Require Import Coq.Program.Equality.
 Require Import CoqListFacts.
-Require Import assoclist.
+Require Import alist.
 
 Export LLVMsyntax.
 Export LLVMlib.
@@ -619,9 +619,9 @@ Proof.
         als EC false lc_als_Mem_block_rid_ore_trs) as states2.
       destruct states2; simpl in H; inversion H; subst.
       assert (
-        (mkState S TD Ps (mkEC F B cs tmn (assoclist.updateAddAL _ lc0 rid g) 
+        (mkState S TD Ps (mkEC F B cs tmn (alist.updateAddAL _ lc0 rid g) 
                            als::EC) gl fs m, tr)::s = 
-        ((mkState S TD Ps (mkEC F B cs tmn (assoclist.updateAddAL _ lc0 rid g) 
+        ((mkState S TD Ps (mkEC F B cs tmn (alist.updateAddAL _ lc0 rid g) 
                             als::EC) gl fs m, tr)::nil) 
           ++ s
       ) as EQ. simpl. auto.
