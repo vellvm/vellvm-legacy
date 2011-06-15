@@ -647,7 +647,7 @@ Proof.
     intros. assert (J:=@updateAddAL_dom_eq _ sm id0 st0). fsetdec. 
   destruct c; simpl; try solve [eauto using J| fsetdec].
     destruct v; simpl; try solve [simpl in nocall; inversion nocall].
-    destruct c; simpl; try solve [simpl in nocall; inversion nocall].
+    destruct c0; simpl; try solve [simpl in nocall; inversion nocall].
       eauto using J.      
 Qed.
 
@@ -658,7 +658,7 @@ Proof.
   intros [c nocall] sstate0 Huniq.
   destruct c; simpl; try solve [apply updateAddAL_uniq; auto | auto].
     destruct v; simpl; try solve [simpl in nocall; inversion nocall].
-    destruct c; simpl; try solve [simpl in nocall; inversion nocall].
+    destruct c0; simpl; try solve [simpl in nocall; inversion nocall].
       apply updateAddAL_uniq; auto.
 Qed.
 
@@ -707,7 +707,7 @@ Proof.
   intros [smap0 sm0 sf0 se0] c nc.
   destruct c; simpl; try solve [rewrite updateAddAL_dom_eq; fsetdec | fsetdec].
     destruct v; simpl; try solve [simpl in nc; inversion nc].
-    destruct c; simpl; try solve [simpl in nc; inversion nc].
+    destruct c0; simpl; try solve [simpl in nc; inversion nc].
       rewrite updateAddAL_dom_eq; fsetdec. 
 Qed.
 
@@ -857,7 +857,7 @@ Proof.
   destruct c; intros id' smap1 smem1 sframe1 seffects1 nc HnEQ; simpl;
     try solve [rewrite <- lookupSmap_updateAddAL_neq; auto | auto].
     destruct v; simpl; try solve [inversion nc].
-    destruct c; simpl; try solve [inversion nc].
+    destruct c0; simpl; try solve [inversion nc].
       rewrite <- lookupSmap_updateAddAL_neq; auto.
 Qed.
 
@@ -1356,15 +1356,15 @@ Definition se_dbBlocks_preservation_prop S TD Ps fs gl F state1 state2 tr
 Definition se_dbFdef_preservation_prop fv rt lp S TD Ps lc gl fs Mem lc' als' 
   Mem' B' Rid oResult tr
   (db:dbFdef fv rt lp S TD Ps lc gl fs Mem lc' als' Mem' B' Rid oResult tr) :=
-  forall fid la va lb los nts,
+  forall fa fid la va lb los nts,
   lookupFdefViaGV TD Mem Ps gl lc fs fv = 
-    Some (fdef_intro (fheader_intro rt fid la va) lb) ->
+    Some (fdef_intro (fheader_intro fa rt fid la va) lb) ->
   uniq lc ->
   uniqSystem S ->
   moduleInSystem (module_intro los nts Ps) S ->
   TD = (los, nts) ->
   uniq lc' /\ 
-  blockInSystemModuleFdef B' S (module_intro los nts Ps) (fdef_intro (fheader_intro rt fid la va) lb).
+  blockInSystemModuleFdef B' S (module_intro los nts Ps) (fdef_intro (fheader_intro fa rt fid la va) lb).
 
 Lemma se_db_preservation :
   (forall S TD Ps fs gl lc Mem0 call0 lc' Mem' tr db, 
@@ -1522,15 +1522,15 @@ Proof.
 Qed.
 
 Lemma se_dbFdef_preservation : forall fv rt lp S los nts Ps lc gl fs Mem lc' als'
-    Mem' B' Rid oResult tr fid la va lb,
+    Mem' B' Rid oResult tr fid fa la va lb,
   dbFdef fv rt lp S (los, nts) Ps lc gl fs Mem lc' als' Mem' B' Rid oResult tr ->
   lookupFdefViaGV (los, nts) Mem Ps gl lc fs fv = 
-    Some (fdef_intro (fheader_intro rt fid la va) lb) ->
+    Some (fdef_intro (fheader_intro fa rt fid la va) lb) ->
   uniq lc ->
   uniqSystem S ->
   moduleInSystem (module_intro los nts Ps) S ->
   uniq lc' /\ 
-  blockInSystemModuleFdef B' S (module_intro los nts Ps) (fdef_intro (fheader_intro rt fid la va) lb).
+  blockInSystemModuleFdef B' S (module_intro los nts Ps) (fdef_intro (fheader_intro fa rt fid la va) lb).
 Proof.
   intros.
   destruct se_db_preservation as [_ [_ [_ [_ [_ J]]]]].
@@ -1787,9 +1787,9 @@ Definition dbBlocks_eqEnv_prop S TD Ps fs gl F state1 state2 tr
 Definition dbFdef_eqEnv_prop fv rt lp S TD Ps lc1 gl fs Mem lc2 als' Mem' B' Rid 
   oResult tr
   (db:dbFdef fv rt lp S TD Ps lc1 gl fs Mem lc2 als' Mem' B' Rid oResult tr) :=
-  forall fid la va lb lc1',
+  forall fid fa la va lb lc1',
   lookupFdefViaGV TD Mem Ps gl lc1 fs fv = 
-    Some (fdef_intro (fheader_intro rt fid la va) lb) ->
+    Some (fdef_intro (fheader_intro fa rt fid la va) lb) ->
   eqAL _ lc1 lc1' ->
   exists lc2',
     dbFdef fv rt lp S TD Ps lc1' gl fs Mem lc2' als' Mem' B' Rid oResult tr /\
@@ -1998,10 +1998,10 @@ Proof.
 Qed.
 
 Lemma dbFdef_eqEnv : forall fv fid rt lp S TD Ps lc1 gl fs Mem lc2 als' Mem' B' 
-    Rid oResult tr la va lb lc1',
+    Rid oResult tr fa la va lb lc1',
   dbFdef fv rt lp S TD Ps lc1 gl fs Mem lc2 als' Mem' B' Rid oResult tr ->
   lookupFdefViaGV TD Mem Ps gl lc1 fs fv = 
-    Some (fdef_intro (fheader_intro rt fid la va) lb) ->
+    Some (fdef_intro (fheader_intro fa rt fid la va) lb) ->
   eqAL _ lc1 lc1' ->
   exists lc2',
     dbFdef fv rt lp S TD Ps lc1' gl fs Mem lc2' als' Mem' B' Rid oResult tr /\

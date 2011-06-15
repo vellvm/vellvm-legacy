@@ -205,31 +205,32 @@ Inductive wf_insn : sbState -> Prop :=
       ((mk_sbEC F B ((insn_select id v0 t v1 v2)::cs) tmn lc rm als)::EC) 
       gl fs Mem MM) 
 
-| wf_Call : forall S TD Ps F B lc rm gl fs rid noret tailc fid fv lp cs tmn
-                            l' ps' cs' tmn' EC rt la va lb Mem MM als rm',
+| wf_Call : forall S TD Ps F B lc rm gl fs rid noret ca fid fv lp cs tmn
+                            l' ps' cs' tmn' EC fa rt la va lb Mem MM als rm',
   LLVMopsem.lookupFdefViaGV TD Mem Ps gl lc fs fv = 
-    Some (fdef_intro (fheader_intro rt fid la va) lb) ->
-  getEntryBlock (fdef_intro (fheader_intro rt fid la va) lb) = 
+    Some (fdef_intro (fheader_intro fa rt fid la va) lb) ->
+  getEntryBlock (fdef_intro (fheader_intro fa rt fid la va) lb) = 
     Some (block_intro l' ps' cs' tmn') ->
   initRmetadata TD Mem gl la lp rm = Some rm' ->
   wf_insn 
     (mk_sbState S TD Ps 
-      ((mk_sbEC F B ((insn_call rid noret tailc rt fv lp)::cs) tmn lc rm als)
+      ((mk_sbEC F B ((insn_call rid noret ca rt fv lp)::cs) tmn lc rm als)
         ::EC) gl fs Mem MM)
 
-| wf_ExCall : forall S TD Ps F B lc rm gl fs rid noret tailc fid fv lp cs tmn EC 
-                    rt la va Mem als oresult Mem' lc' MM,
+| wf_ExCall : forall S TD Ps F B lc rm gl fs rid noret ca fid fv lp cs tmn EC 
+                    fa rt la va Mem als oresult Mem' lc' MM,
   LLVMopsem.lookupExFdecViaGV TD Mem Ps gl lc fs fv = 
-    Some (fdec_intro (fheader_intro rt fid la va)) ->
+    Some (fdec_intro (fheader_intro fa rt fid la va)) ->
   LLVMopsem.callExternalFunction Mem fid (params2GVs TD Mem lp lc gl) = 
     (oresult, Mem') ->
   LLVMopsem.exCallUpdateLocals noret rid oresult lc = Some lc' ->
   wf_insn 
     (mk_sbState S TD Ps 
-      ((mk_sbEC F B ((insn_call rid noret tailc rt fv lp)::cs) tmn lc rm als)
+      ((mk_sbEC F B ((insn_call rid noret ca rt fv lp)::cs) tmn lc rm als)
        ::EC) gl fs Mem MM)
 .
 
+(*
 Definition runtime_domination st :=
   exists S, exists TD, exists Ps, exists B, exists lc, exists rm, exists gl,
   exists fs, exists rid, exists noret, exists tailc, exists fid, exists fv,
@@ -333,6 +334,8 @@ admit.
 admit.
 
 Admitted.
+*)
+
 
 (*
 Lemma dsInsn__progress : forall st1,

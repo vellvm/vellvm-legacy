@@ -244,11 +244,14 @@ Proof.
       erewrite <- tv_switchToNewBasicBlock; eauto.
 Qed.
 
-Lemma tv_products__lookupFdefViaIDFromProducts : forall Ps1 Ps2 fid rt la va lb1,
+Lemma tv_products__lookupFdefViaIDFromProducts : 
+  forall Ps1 Ps2 fid fa rt la va lb1,
   tv_products Ps1 Ps2 ->
-  lookupFdefViaIDFromProducts Ps1 fid = Some (fdef_intro (fheader_intro rt fid la va) lb1) ->
+  lookupFdefViaIDFromProducts Ps1 fid = 
+    Some (fdef_intro (fheader_intro fa rt fid la va) lb1) ->
   exists lb2,
-    lookupFdefViaIDFromProducts Ps2 fid = Some (fdef_intro (fheader_intro rt fid la va) lb2) /\
+    lookupFdefViaIDFromProducts Ps2 fid = 
+      Some (fdef_intro (fheader_intro fa rt fid la va) lb2) /\
     tv_blocks lb1 lb2.
 Proof.
   induction Ps1; intros.
@@ -261,14 +264,16 @@ Proof.
       simpl in H0.
       destruct p; try solve [inversion H].
       bdestruct H as H1 H2.
-      apply IHPs1 with (fid:=fid)(rt:=rt)(la:=la)(va:=va)(lb1:=lb1) in H2; auto.
+      apply IHPs1 with (fid:=fid)(rt:=rt)(la:=la)(va:=va)(lb1:=lb1)(fa:=fa) 
+        in H2; auto.
  
     Case "product_fdec".
       destruct Ps2; try solve [inversion H].
       simpl in H0.
       destruct p; try solve [inversion H].
       bdestruct H as H1 H2.
-      apply IHPs1 with (fid:=fid)(rt:=rt)(la:=la)(va:=va)(lb1:=lb1) in H2; auto.
+      apply IHPs1 with (fid:=fid)(rt:=rt)(la:=la)(va:=va)(lb1:=lb1)(fa:=fa) 
+        in H2; auto.
 
     Case "product_fdef".
       destruct Ps2; try solve [inversion H].
@@ -291,13 +296,13 @@ Proof.
 Qed.
 
 Lemma tv_products__lookupFdefViaGV : forall Ps1 Ps2 fv fid rt la va lb1 TD M gl 
-  lc fs,
+  lc fs fa,
   tv_products Ps1 Ps2 ->
   lookupFdefViaGV TD M Ps1 gl lc fs fv = 
-    Some (fdef_intro (fheader_intro rt fid la va) lb1) ->
+    Some (fdef_intro (fheader_intro fa rt fid la va) lb1) ->
   exists lb2,
     lookupFdefViaGV TD M Ps2 gl lc fs fv = 
-      Some (fdef_intro (fheader_intro rt fid la va) lb2) /\
+      Some (fdef_intro (fheader_intro fa rt fid la va) lb2) /\
     tv_blocks lb1 lb2.
 Proof.
   intros.
@@ -528,9 +533,9 @@ Definition tv_blocks__is__correct_prop S1 TD Ps1 fs gl F1 state1 state2 tr
     eqAL _ slc lc'.
 Definition tv_fdef__is__correct_prop fv rt lp S1 TD Ps1 lc gl fs Mem lc' als' Mem' B1' Rid oResult tr
   (db:dbFdef fv rt lp S1 TD Ps1 lc gl fs Mem lc' als' Mem' B1' Rid oResult tr) :=
-  forall fid Ps2 S2 la va lb1 los nts,
+  forall fid Ps2 S2 la va lb1 los nts fa,
   lookupFdefViaGV TD Mem Ps1 gl lc fs fv = 
-    Some (fdef_intro (fheader_intro rt fid la va) lb1) ->
+    Some (fdef_intro (fheader_intro fa rt fid la va) lb1) ->
   uniq lc ->
   uniqSystem S1 ->
   uniqSystem S2 ->
@@ -545,7 +550,7 @@ Definition tv_fdef__is__correct_prop fv rt lp S1 TD Ps1 lc gl fs Mem lc' als' Me
     nth_error lb2 n = Some B2' /\
     tv_block B1' B2' /\
     lookupFdefViaGV TD Mem Ps2 gl lc fs fv = 
-      Some (fdef_intro (fheader_intro rt fid la va) lb2) /\
+      Some (fdef_intro (fheader_intro fa rt fid la va) lb2) /\
     tv_blocks lb1 lb2 /\
     dbFdef fv rt lp S2 TD Ps2 lc gl fs Mem slc als' Mem' B2' Rid oResult tr /\
     eqAL _ slc lc'.
@@ -599,11 +604,11 @@ Case "dbCall_internal".
 
 Case "dbCall_external".
   intros S TD Ps lc gl fs rid noret0 tailc0 fv fid lp rt la va Mem0 oresult Mem'
-         lc' ft H Hex HisCall Hexcall S2 Ps2 los nts H0 H1 H2 H3 H4 H5 H6 H7.
+         lc' ft fa H Hex HisCall Hexcall S2 Ps2 los nts H0 H1 H2 H3 H4 H5 H6 H7.
   exists lc'.
   split; auto using eqAL_exCallUpdateLocals, eqAL_refl.
-    eapply dbCall_external with (fid:=fid)(la:=la)(va:=va)(rt:=rt); eauto.
-      rewrite <- tv_products__lookupExFdecViaGV with (Ps1:=Ps); auto.
+   eapply dbCall_external with (fid:=fid)(la:=la)(va:=va)(rt:=rt)(fa:=fa); eauto.
+     rewrite <- tv_products__lookupExFdecViaGV with (Ps1:=Ps); auto.
 
 Case "dbSubblock_intro".
   intros S TD Ps lc1 als1 gl fs Mem1 cs call0 lc2 als2 Mem2 tr1 lc3 Mem3 tr2 d 
@@ -801,21 +806,21 @@ Case "dbBlocks_cons".
     apply uniqFdef__wf_block with (fh:=fh2)(lb:=lb2)(n:=n); eauto using uniqSystem__uniqFdef.
 
 Case "dbFdef_func".
-    intros S TD Ps gl fs fv fid lp lc rid l1 ps1 cs1 tmn1 rt la va lb Result lc1 
-           tr1 Mem0 Mem1 als1
+    intros S TD Ps gl fs fv fid lp lc rid l1 ps1 cs1 tmn1 fa rt la va lb Result 
+           lc1 tr1 Mem0 Mem1 als1
            l2 ps2 cs21 cs22 lc2 als2 Mem2 tr2 lc3 als3 Mem3 tr3 e e0 d H d0 H0 d1
-           fid0 Ps2 S2 la0 va0 lb1 los nts H1 H2 H3 H4 H5 H6 H7 H8 H9.
+           fid0 Ps2 S2 la0 va0 lb1 los nts fa0 H1 H2 H3 H4 H5 H6 H7 H8 H9.
     rewrite H1 in e. inversion e; subst. clear e.
     assert (exists lb2, lookupFdefViaGV (los, nts) Mem0 Ps2 gl lc fs fv = 
-              Some (fdef_intro (fheader_intro rt fid la va) lb2) /\
+              Some (fdef_intro (fheader_intro fa rt fid la va) lb2) /\
               tv_blocks lb lb2) as J.
       apply tv_products__lookupFdefViaGV with (Ps1:=Ps); auto.
     destruct J as [lb2 [H10 H11]].
     assert (uniq (initLocals la (params2GVs (los, nts) Mem0 lp lc gl))) as uniqInitLocals.
       apply initLocals_uniq.
     assert (Htv_blocks:=H11).
-    eapply H with (S2:=S2)(Ps2:=Ps2)(fh1:=fheader_intro rt fid la va)
-      (fh2:=fheader_intro rt fid la va)(n:=0)
+    eapply H with (S2:=S2)(Ps2:=Ps2)(fh1:=fheader_intro fa rt fid la va)
+      (fh2:=fheader_intro fa rt fid la va)(n:=0)
       (ps1':=ps2)(l1':=l2)(als:=nil)(lc':=lc1) 
       (lc0:=initLocals la (params2GVs (los, nts) Mem0 lp lc gl))
       (Mem:=Mem0)(Mem':=Mem1)(als':=als1)(tmn1':=insn_return rid rt Result)
@@ -909,21 +914,21 @@ Case "dbFdef_func".
       repeat_bsplit.
 
 Case "dbFdef_proc".
-    intros S TD Ps gl fs fv fid lp lc rid l1 ps1 cs1 tmn1 rt la va lb lc1 tr1 
-           Mem0 Mem1 als1
-           l2 ps2 cs21 cs22 lc2 als2 Mem2 tr2 lc3 als3 Mem3 tr3 e e0 d H d0 H0 d1
-           fid0 Ps2 S2 la0 va0 lb1 los nts H1 H2 H3 H4 H5 H6 H7 H8 H9.
+    intros S TD Ps gl fs fv fid lp lc rid l1 ps1 cs1 tmn1 fa rt la va lb lc1 tr1 
+           Mem0 Mem1 als1 l2 ps2 cs21 cs22 lc2 als2 Mem2 tr2 lc3 als3 Mem3 tr3 e 
+           e0 d H d0 H0 d1 fid0 Ps2 S2 la0 va0 lb1 los nts fa0 H1 H2 H3 H4 H5 H6 
+           H7 H8 H9.
     rewrite H1 in e. inversion e; subst. clear e.
     assert (exists lb2, lookupFdefViaGV (los, nts) Mem0 Ps2 gl lc fs fv = 
-              Some (fdef_intro (fheader_intro rt fid la va) lb2) /\
+              Some (fdef_intro (fheader_intro fa rt fid la va) lb2) /\
               tv_blocks lb lb2) as J.
       apply tv_products__lookupFdefViaGV with (Ps1:=Ps); auto.
     destruct J as [lb2 [H10 H11]].
     assert (uniq (initLocals la (params2GVs (los, nts) Mem0 lp lc gl))) as uniqInitLocals.
       apply initLocals_uniq.
     assert (Htv_blocks:=H11).
-    eapply H with (S2:=S2)(Ps2:=Ps2)(fh1:=fheader_intro rt fid la va)
-      (fh2:=fheader_intro rt fid la va)(n:=0)
+    eapply H with (S2:=S2)(Ps2:=Ps2)(fh1:=fheader_intro fa rt fid la va)
+      (fh2:=fheader_intro fa rt fid la va)(n:=0)
       (ps1':=ps2)(l1':=l2)(als:=nil)(lc':=lc1)
       (lc0:=(initLocals la (params2GVs (los, nts) Mem0 lp lc gl)))
       (Mem:=Mem0)(Mem':=Mem1)(als':=als1)(tmn1':=insn_return_void rid)
@@ -1146,11 +1151,11 @@ Proof.
 Qed.
 
 Lemma _tv_fdef__is__correct : forall fv rt lp S1 los nts Ps1 lc gl fs Mem lc' 
-    als' Mem' B1' Rid oResult tr fid Ps2 S2 la va lb1,
+    als' Mem' B1' Rid oResult tr fid Ps2 S2 fa la va lb1,
   dbFdef fv rt lp S1 (los, nts) Ps1 lc gl fs Mem lc' als' Mem' B1' Rid oResult 
     tr ->
   lookupFdefViaGV (los, nts) Mem Ps1 gl lc fs fv = 
-    Some (fdef_intro (fheader_intro rt fid la va) lb1) ->
+    Some (fdef_intro (fheader_intro fa rt fid la va) lb1) ->
   uniq lc ->
   uniqSystem S1 ->
   uniqSystem S2 ->
@@ -1163,7 +1168,7 @@ Lemma _tv_fdef__is__correct : forall fv rt lp S1 los nts Ps1 lc gl fs Mem lc'
     nth_error lb2 n = Some B2' /\
     tv_block B1' B2' /\
     lookupFdefViaGV (los, nts) Mem Ps2 gl lc fs fv = 
-      Some (fdef_intro (fheader_intro rt fid la va) lb2) /\
+      Some (fdef_intro (fheader_intro fa rt fid la va) lb2) /\
     tv_blocks lb1 lb2 /\
     dbFdef fv rt lp S2 (los, nts) Ps2 lc gl fs Mem slc als' Mem' B2' Rid oResult
       tr /\
@@ -1176,7 +1181,7 @@ Proof.
 Qed.
 
 Lemma tv_fdef__is__correct : forall ECs fv rt lp S1 los nts Ps1 lc gl fs Mem lc'
-    als' Mem' B1' Rid oResult tr fid Ps2 S2 la va lb1,
+    als' Mem' B1' Rid oResult tr fid Ps2 S2 fa la va lb1,
   LLVMopsem.dbFdef fv rt lp S1 (los, nts) Ps1 ECs lc gl fs Mem lc' als' Mem' B1'
     Rid oResult tr ->
   uniq gl ->
@@ -1186,7 +1191,7 @@ Lemma tv_fdef__is__correct : forall ECs fv rt lp S1 los nts Ps1 lc gl fs Mem lc'
   moduleInSystem (module_intro los nts Ps1) S1 ->
   moduleInSystem (module_intro los nts Ps2) S2 ->
   lookupFdefViaGV (los, nts) Mem Ps1 gl lc fs fv = 
-    Some (fdef_intro (fheader_intro rt fid la va) lb1) ->
+    Some (fdef_intro (fheader_intro fa rt fid la va) lb1) ->
   tv_system S1 S2 ->
   tv_products Ps1 Ps2 ->
   exists lb2, exists B2', exists n, exists slc,
@@ -1194,7 +1199,7 @@ Lemma tv_fdef__is__correct : forall ECs fv rt lp S1 los nts Ps1 lc gl fs Mem lc'
     nth_error lb2 n = Some B2' /\
     tv_block B1' B2' /\
     lookupFdefViaGV (los, nts) Mem Ps2 gl lc fs fv = 
-      Some (fdef_intro (fheader_intro rt fid la va) lb2) /\
+      Some (fdef_intro (fheader_intro fa rt fid la va) lb2) /\
     tv_blocks lb1 lb2 /\
     LLVMopsem.dbFdef fv rt lp S2 (los, nts) Ps2 ECs lc gl fs Mem slc als' Mem' 
       B2' Rid oResult tr /\
@@ -1203,7 +1208,7 @@ Proof.
   intros.
   apply llvmop_dbFdef__seop_dbFdef in H; auto.
   apply _tv_fdef__is__correct with (fid:=fid)(Ps2:=Ps2)(S2:=S2)(la:=la)(lb1:=lb1)
-    (va:=va) in H; auto.
+    (va:=va)(fa:=fa) in H; auto.
   destruct H as [lb2 [B2' [n [slc [J1 [J2 [J3 [J4 [J5 [J6 J7]]]]]]]]]].
   exists lb2. exists B2'. exists n. exists slc.
   repeat (split; auto).

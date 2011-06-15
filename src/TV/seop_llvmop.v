@@ -223,38 +223,38 @@ Case "dbBlocks_cons".
 
 Case "dbFdef_func".
   apply dbFdef_func with (fid:=fid)(l':=l1)(ps':=ps1)(cs':=cs1)(tmn':=tmn1)
-    (la:=la)(va:=va)(lb:=lb); auto.
+    (fa:=fa)(la:=la)(va:=va)(lb:=lb); auto.
     rewrite <- trace_app_commute.
     apply seop_dbCmds__llvmop_dbop with (fs:=fs)(Ps:=Ps)(F:=fdef_intro 
-      (fheader_intro rt fid la va) lb)(B:=block_intro l2 ps2 (cs21++cs22) 
+      (fheader_intro fa rt fid la va) lb)(B:=block_intro l2 ps2 (cs21++cs22) 
         (insn_return rid rt Result))(ECs:=ECs)(S:=S)(cs':=nil)
       (tmn:=insn_return rid rt Result) in d1.
     simpl_env in d1. 
     apply dbop_trans with (state2:=mkState S TD Ps 
-      (mkEC (fdef_intro (fheader_intro rt fid la va) lb) 
+      (mkEC (fdef_intro (fheader_intro fa rt fid la va) lb) 
         (block_intro l2 ps2 (cs21++cs22) (insn_return rid rt Result)) 
         (cs21++cs22) (insn_return rid rt Result) lc1 als1::ECs) gl fs Mem1); 
       auto.
     apply dbop_trans with (state2:=mkState S TD Ps 
-      (mkEC (fdef_intro (fheader_intro rt fid la va) lb) 
+      (mkEC (fdef_intro (fheader_intro fa rt fid la va) lb) 
         (block_intro l2 ps2 (cs21++cs22) (insn_return rid rt Result)) cs22 
         (insn_return rid rt Result) lc2 als2::ECs) gl fs Mem2); auto.
 
 Case "dbFdef_proc".
   apply dbFdef_proc with (fid:=fid)(l':=l1)(ps':=ps1)(cs':=cs1)(tmn':=tmn1)
-    (la:=la)(va:=va)(lb:=lb); auto.
+    (fa:=fa)(la:=la)(va:=va)(lb:=lb); auto.
     rewrite <- trace_app_commute.
     apply seop_dbCmds__llvmop_dbop with (fs:=fs)(Ps:=Ps)
-      (F:=fdef_intro (fheader_intro rt fid la va) lb)
+      (F:=fdef_intro (fheader_intro fa rt fid la va) lb)
       (B:=block_intro l2 ps2 (cs21++cs22) (insn_return_void rid))(ECs:=ECs)
         (S:=S)(cs':=nil)(tmn:=insn_return_void rid) in d1.
     simpl_env in d1. 
     apply dbop_trans with (state2:=mkState S TD Ps 
-      (mkEC (fdef_intro (fheader_intro rt fid la va) lb) 
+      (mkEC (fdef_intro (fheader_intro fa rt fid la va) lb) 
         (block_intro l2 ps2 (cs21++cs22) (insn_return_void rid)) (cs21++cs22) 
         (insn_return_void rid) lc1 als1::ECs) gl fs Mem1); auto.
     apply dbop_trans with (state2:=mkState S TD Ps (mkEC (fdef_intro 
-      (fheader_intro rt fid la va) lb) (block_intro l2 ps2 (cs21++cs22) 
+      (fheader_intro fa rt fid la va) lb) (block_intro l2 ps2 (cs21++cs22) 
       (insn_return_void rid)) cs22 (insn_return_void rid) lc2 als2::ECs) gl fs
       Mem2); auto.
 Qed.
@@ -839,7 +839,7 @@ Case "dbCall".
   exists l0. exists ps. exists cs. exists tmn0. exists lc''.
   exists als0. exists Mem''.
   exists cs1. split; auto.
-  destruct (SimpleSE.isCall_dec (insn_call rid noret0 tailc0 ft fv lp)) 
+  destruct (SimpleSE.isCall_dec (insn_call rid noret0 ca ft fv lp)) 
     as [isCall_false | isCall_true].
     (* 
       Like subAL_callUpdateLocals, we should prove that
@@ -852,7 +852,7 @@ Case "dbCall".
       admit.
     destruct EQ as [oresult EQ].
     right. left.
-    exists (insn_call rid noret0 tailc0 ft fv lp).
+    exists (insn_call rid noret0 ca ft fv lp).
     rewrite <- EQ in e0.
     (* The axiom callLib should also specify trace. *)
     assert (tr = trace_nil) as EQ'. admit.
@@ -867,7 +867,7 @@ Case "dbCall".
         eapply negb_false_iff; auto.
 
     right. right.
-    exists (insn_call rid noret0 tailc0 ft fv lp).
+    exists (insn_call rid noret0 ca ft fv lp).
     split; eauto.
 
 Case "dbExCall".
@@ -875,10 +875,10 @@ Case "dbExCall".
   exists l0. exists ps. exists cs. exists tmn0. exists lc'.
   exists als0. exists Mem'.
   exists cs1. split; auto.
-  destruct (SimpleSE.isCall_dec (insn_call rid noret0 tailc0 ft fv lp)) 
+  destruct (SimpleSE.isCall_dec (insn_call rid noret0 ca ft fv lp)) 
     as [isCall_false | isCall_true].
     right. left.
-    exists (insn_call rid noret0 tailc0 ft fv lp).
+    exists (insn_call rid noret0 ca ft fv lp).
     simpl in isCall_false. 
     destruct fv as [fid0 | cn]; try solve [inversion isCall_false].
     destruct cn; try solve [inversion isCall_false].
@@ -889,13 +889,13 @@ Case "dbExCall".
         (ft':=t)(S:=S0)(TD:=(los,nts))(Ps:=Ps0)(cs:=cs)(tmn:=tmn0)
         (als:=als0)(F:=F0)(B:=block_intro l0 ps cs1 tmn0)(fs:=fs0)(ECs:=ECs) 
         (Mem:=Mem1)(lp:=lp)(lc:=lc0)(gl:=gl0)(oresult:=oresult)(Mem':=Mem')
-        (tailc:=tailc0)(r:=SimpleSE.Rok)(lc':=lc') in isCall_false.
+        (r:=SimpleSE.Rok)(lc':=lc')(ca:=ca) in isCall_false.
       eapply isCall_false.
-        apply LLVMopsem.dbExCall with (fid:=fid)(la:=la)(va:=va)(rt:=rt)
+        apply LLVMopsem.dbExCall with (fid:=fid)(la:=la)(va:=va)(rt:=rt)(fa:=fa)
           (oresult:=oresult); auto.
 
   right. right.
-  exists (insn_call rid noret0 tailc0 ft fv lp).
+  exists (insn_call rid noret0 ca ft fv lp).
   split; eauto.
 
 Case "dbop_nil".
@@ -1061,13 +1061,13 @@ Case "dbop_cons".
 Case "dbFdef_func".
   assert (mkState S (los, nts) Ps 
            (mkEC 
-             (fdef_intro (fheader_intro rt fid la va) lb) 
+             (fdef_intro (fheader_intro fa rt fid la va) lb) 
              (block_intro l' ps' cs' tmn') cs' tmn' 
              (initLocals la (params2GVs (los, nts) Mem0 lp lc gl)) 
              nil::ECs) gl fs Mem0 =
           mkState S (los, nts) Ps 
            (mkEC 
-             (fdef_intro (fheader_intro rt fid la va) lb) 
+             (fdef_intro (fheader_intro fa rt fid la va) lb) 
              (block_intro l' ps' cs' tmn') cs' tmn' 
              (initLocals la (params2GVs (los, nts) Mem0 lp lc gl)) 
              nil::ECs) gl fs Mem0) as J. auto.
@@ -1091,12 +1091,12 @@ Case "dbFdef_func".
 
 Case "dbFdef_proc".
   assert (mkState S (los, nts) Ps 
-           (mkEC (fdef_intro (fheader_intro rt fid la va) lb) 
+           (mkEC (fdef_intro (fheader_intro fa rt fid la va) lb) 
                  (block_intro l' ps' cs' tmn') cs' tmn' 
                  (initLocals la (params2GVs (los, nts) Mem0 lp lc gl)) 
                  nil::ECs) gl fs Mem0 =
           mkState S (los, nts) Ps 
-           (mkEC (fdef_intro (fheader_intro rt fid la va) lb) 
+           (mkEC (fdef_intro (fheader_intro fa rt fid la va) lb) 
                  (block_intro l' ps' cs' tmn') cs' tmn' 
                  (initLocals la (params2GVs (los, nts) Mem0 lp lc gl)) 
                  nil::ECs) gl fs Mem0) as J. auto.

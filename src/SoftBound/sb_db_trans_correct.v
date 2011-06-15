@@ -1237,7 +1237,8 @@ Global Opaque Mem.alloc.
         clear H2.
         assert (exists Mem21', 
           dbCmds TD gl lc2 als Mem2'
-             (insn_call fake_id true false get_mmetadata_typ get_mmetadata_fn
+             (insn_call fake_id true sb_call_attrs get_mmetadata_typ 
+                get_mmetadata_fn
                 ((p8, v)
                  :: (p8, value_id addrb0) :: (p8, value_id addre0) :: nil)
               :: insn_load bid0 p8 (value_id addrb0) Align.Zero
@@ -2352,13 +2353,13 @@ Lemma trans_nbranch__is__correct__dbLoad_ptr: forall
            (insn_cast ptmp castop_bitcast (typ_pointer t) vp p8
             :: insn_cast btmp castop_bitcast mt bv p8
                :: insn_cast etmp castop_bitcast mt ev p8
-                  :: insn_call fake_id true false assert_mptr_typ assert_mptr_fn
+                  :: insn_call fake_id true sb_call_attrs assert_mptr_typ assert_mptr_fn
                        ((p8, value_id btmp)
                         :: (p8, value_id etmp)
                            :: (p8, value_id ptmp)
                               :: (i32, type_size t) :: (i32, vint1) :: nil)
                      :: insn_load id0 t vp align0
-                        :: insn_call fake_id true false get_mmetadata_typ
+                        :: insn_call fake_id true sb_call_attrs get_mmetadata_typ
                              get_mmetadata_fn
                              ((p8, value_id ptmp)
 
@@ -3138,7 +3139,7 @@ Lemma simulation__set_mmetadata_fn : forall lc2 gl b ofs bgv egv als
   gv_inject mi egv egv' ->
   exists Mem2',
     SimpleSE.dbCmd TD gl lc2 als Mem2
-      (insn_call fake_id true false set_mmetadata_typ set_mmetadata_fn
+      (insn_call fake_id true sb_call_attrs set_mmetadata_typ set_mmetadata_fn
         ((p8, value_id ptmp) :: (p8, bv0) :: (p8, ev0) :: (p8, vnullp8) :: 
          (i32, vint1) :: (i32, vint1) :: nil)) 
       lc2 als Mem2' trace_nil /\
@@ -3355,7 +3356,7 @@ Proof.
       (updateAddAL _ (updateAddAL _ (updateAddAL GenericValue lc2 ptmp gvp2)
         btmp bgv2) etmp egv2)
       als Mem2'
-      (insn_call fake_id true false set_mmetadata_typ set_mmetadata_fn
+      (insn_call fake_id true sb_call_attrs set_mmetadata_typ set_mmetadata_fn
         ((p8, value_id ptmp) :: 
          (p8, bv2') :: 
          (p8, ev2') :: (p8, vnullp8) :: 

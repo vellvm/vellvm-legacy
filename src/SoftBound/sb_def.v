@@ -532,7 +532,7 @@ Definition callUpdateLocals (TD:TargetData) (M:mem) (noret:bool) (rid:id)
 Fixpoint initRmetadata_aux TD Mem gl (la:args) (lp:params) (rm accum:rmetadata) 
   : option rmetadata :=
 match (la, lp) with
-| ((t,id)::la', (_,v)::lp') =>
+| ((t,_,id)::la', (_,v)::lp') =>
     if isPointerTypB t then
       match get_reg_metadata TD Mem gl rm v with
       | Some (md, mt) =>
@@ -564,19 +564,19 @@ Inductive dbCall : system -> TargetData -> list product -> GVMap ->
   dbCall S TD Ps fs gl lc rm Mem MM (insn_call rid noret tailc ft fv lp) lc'' 
     rm'' Mem'' MM' tr rok
 
-| dbCall_external : forall S TD Ps lc gl fs rid noret tailc fv fid 
-                          lp rt ft la va Mem MM oresult Mem' lc' rm,
+| dbCall_external : forall S TD Ps lc gl fs rid noret ca fv fid 
+                          lp fa rt ft la va Mem MM oresult Mem' lc' rm,
   (* only look up the current module for the time being, 
      do not support linkage. 
      FIXME: should add excall to trace
   *)
   LLVMopsem.lookupExFdecViaGV TD Mem Ps gl lc fs fv = 
-    Some (fdec_intro (fheader_intro rt fid la va)) ->
+    Some (fdec_intro (fheader_intro fa rt fid la va)) ->
   LLVMopsem.callExternalFunction Mem fid (params2GVs TD Mem lp lc gl) = 
     (oresult, Mem') ->
-  SimpleSE.isCall (insn_call rid noret tailc ft fv lp) = true ->
+  SimpleSE.isCall (insn_call rid noret ca ft fv lp) = true ->
   LLVMopsem.exCallUpdateLocals noret rid oresult lc = Some lc' ->
-  dbCall S TD Ps fs gl lc rm Mem MM (insn_call rid noret tailc ft fv lp) lc' rm 
+  dbCall S TD Ps fs gl lc rm Mem MM (insn_call rid noret ca ft fv lp) lc' rm 
     Mem' MM trace_nil rok
 
 | dbCall_internal_error1 : forall S TD Ps lc rm gl fs rid noret tailc rt fv lp
@@ -597,15 +597,15 @@ Inductive dbCall : system -> TargetData -> list product -> GVMap ->
   dbCall S TD Ps fs gl lc rm Mem MM (insn_call rid noret tailc rt fv lp) lc' rm' 
     Mem' MM' tr r
 
-| dbCall_external_error1 : forall S TD Ps lc gl fs rid noret tailc fv fid 
-                          lp rt la va Mem MM oresult Mem' rm,
+| dbCall_external_error1 : forall S TD Ps lc gl fs rid noret ca fv fid 
+                          lp fa rt la va Mem MM oresult Mem' rm,
   LLVMopsem.lookupExFdecViaGV TD Mem Ps gl lc fs fv = 
-    Some (fdec_intro (fheader_intro rt fid la va)) ->
+    Some (fdec_intro (fheader_intro fa rt fid la va)) ->
   LLVMopsem.callExternalFunction Mem fid (params2GVs TD Mem lp lc gl) = 
     (oresult, Mem') ->
   LLVMopsem.exCallUpdateLocals noret rid oresult lc = None ->
-  SimpleSE.isCall (insn_call rid noret tailc rt fv lp) = true ->
-  dbCall S TD Ps fs gl lc rm Mem MM (insn_call rid noret tailc rt fv lp) lc rm 
+  SimpleSE.isCall (insn_call rid noret ca rt fv lp) = true ->
+  dbCall S TD Ps fs gl lc rm Mem MM (insn_call rid noret ca rt fv lp) lc rm 
     Mem' MM trace_nil rerror
 
 | dbCall_external_error2 : forall S TD Ps lc gl fs rid noret tailc fv lp rt Mem 
@@ -716,14 +716,14 @@ with dbFdef : value -> typ -> params -> system -> TargetData -> list product ->
               mem -> mmetadata ->
               block -> id -> option value -> trace -> result -> Prop :=
 | dbFdef_func : forall S TD Ps gl fs fv fid lp lc rm rm0 rid
-         l1 ps1 cs1 tmn1 rt la va lb Result lc1 rm1 tr1 Mem MM Mem1 MM1 als1
+         l1 ps1 cs1 tmn1 fa rt la va lb Result lc1 rm1 tr1 Mem MM Mem1 MM1 als1
          l2 ps2 cs21 cs22 lc2 rm2 als2 Mem2 MM2 tr2 lc3 rm3 als3 Mem3 MM3 tr3 r,
   LLVMopsem.lookupFdefViaGV TD Mem Ps gl lc fs fv = 
-    Some (fdef_intro (fheader_intro rt fid la va) lb) ->
-  getEntryBlock (fdef_intro (fheader_intro rt fid la va) lb) = 
+    Some (fdef_intro (fheader_intro fa rt fid la va) lb) ->
+  getEntryBlock (fdef_intro (fheader_intro fa rt fid la va) lb) = 
     Some (block_intro l1 ps1 cs1 tmn1) ->
   initRmetadata TD Mem gl la lp rm = Some rm0 ->
-  dbBlocks S TD Ps fs gl (fdef_intro (fheader_intro rt fid la va) lb) 
+  dbBlocks S TD Ps fs gl (fdef_intro (fheader_intro fa rt fid la va) lb) 
     (mkState (mkEC (block_intro l1 ps1 cs1 tmn1) 
       (initLocals la (params2GVs TD Mem lp lc gl)) rm0 nil) Mem MM)
     (mkState (mkEC (block_intro l2 ps2 (cs21++cs22) (insn_return rid rt Result))
@@ -737,14 +737,14 @@ with dbFdef : value -> typ -> params -> system -> TargetData -> list product ->
     (Some Result) (trace_app (trace_app tr1 tr2) tr3) r
 
 | dbFdef_func_error1 : forall S TD Ps gl fs fv fid lp lc rm rm0 rid
-                l1 ps1 cs1 tmn1 rt la va lb Result lc1 rm1 tr1 Mem MM Mem1 MM1 
+                l1 ps1 cs1 tmn1 fa rt la va lb Result lc1 rm1 tr1 Mem MM Mem1 MM1
                 als1 l2 ps2 cs21 cs22 lc2 rm2 als2 Mem2 MM2 tr2 r,
   LLVMopsem.lookupFdefViaGV TD Mem Ps gl lc fs fv = 
-    Some (fdef_intro (fheader_intro rt fid la va) lb) ->
-  getEntryBlock (fdef_intro (fheader_intro rt fid la va) lb) = 
+    Some (fdef_intro (fheader_intro fa rt fid la va) lb) ->
+  getEntryBlock (fdef_intro (fheader_intro fa rt fid la va) lb) = 
     Some (block_intro l1 ps1 cs1 tmn1) ->
   initRmetadata TD Mem gl la lp rm = Some rm0 ->
-  dbBlocks S TD Ps fs gl (fdef_intro (fheader_intro rt fid la va) lb) 
+  dbBlocks S TD Ps fs gl (fdef_intro (fheader_intro fa rt fid la va) lb) 
     (mkState (mkEC (block_intro l1 ps1 cs1 tmn1) 
       (initLocals la (params2GVs TD Mem lp lc gl)) rm0 nil) Mem MM)
     (mkState (mkEC (block_intro l2 ps2 (cs21++cs22) (insn_return rid rt Result))
@@ -758,14 +758,14 @@ with dbFdef : value -> typ -> params -> system -> TargetData -> list product ->
     (Some Result) (trace_app tr1 tr2) r
 
 | dbFdef_func_error2 : forall S TD Ps gl fs fv fid lp lc rm rm0 rid
-                l1 ps1 cs1 tmn1 rt la va lb Result lc1 rm1 tr1 Mem MM Mem1 MM1 
+                l1 ps1 cs1 tmn1 fa rt la va lb Result lc1 rm1 tr1 Mem MM Mem1 MM1
                 als1 l2 ps2 cs21 cs22 r,
   LLVMopsem.lookupFdefViaGV TD Mem Ps gl lc fs fv = 
-    Some (fdef_intro (fheader_intro rt fid la va) lb) ->
-  getEntryBlock (fdef_intro (fheader_intro rt fid la va) lb) = 
+    Some (fdef_intro (fheader_intro fa rt fid la va) lb) ->
+  getEntryBlock (fdef_intro (fheader_intro fa rt fid la va) lb) = 
     Some (block_intro l1 ps1 cs1 tmn1) ->
   initRmetadata TD Mem gl la lp rm = Some rm0 ->
-  dbBlocks S TD Ps fs gl (fdef_intro (fheader_intro rt fid la va) lb) 
+  dbBlocks S TD Ps fs gl (fdef_intro (fheader_intro fa rt fid la va) lb) 
     (mkState (mkEC (block_intro l1 ps1 cs1 tmn1) 
       (initLocals la (params2GVs TD Mem lp lc gl)) rm0 nil) Mem MM)
     (mkState (mkEC (block_intro l2 ps2 (cs21++cs22) (insn_return rid rt Result))
@@ -777,20 +777,20 @@ with dbFdef : value -> typ -> params -> system -> TargetData -> list product ->
     (Some Result) tr1 r
 
 | dbFdef_func_error3 : forall S TD Ps gl fs fv fid lp lc rm rid
-                l1 ps1 cs1 tmn1 rt la va lb Mem MM,
+                l1 ps1 cs1 tmn1 fa rt la va lb Mem MM,
   LLVMopsem.lookupFdefViaGV TD Mem Ps gl lc fs fv = 
-    Some (fdef_intro (fheader_intro rt fid la va) lb) ->
-  getEntryBlock (fdef_intro (fheader_intro rt fid la va) lb) = 
+    Some (fdef_intro (fheader_intro fa rt fid la va) lb) ->
+  getEntryBlock (fdef_intro (fheader_intro fa rt fid la va) lb) = 
     Some (block_intro l1 ps1 cs1 tmn1) ->
   initRmetadata TD Mem gl la lp rm = None ->
   dbFdef fv rt lp S TD Ps lc rm gl fs Mem MM lc rm nil Mem MM
     (block_intro l1 ps1 cs1 tmn1) rid None trace_nil rerror
 
-| dbFdef_func_error4 : forall S TD Ps gl fs fv fid lp lc rm rid B rt la va lb Mem
-                       MM,
+| dbFdef_func_error4 : forall S TD Ps gl fs fv fid lp lc rm rid B fa rt la va lb 
+                       Mem MM,
   LLVMopsem.lookupFdefViaGV TD Mem Ps gl lc fs fv = 
-    Some (fdef_intro (fheader_intro rt fid la va) lb) ->
-  getEntryBlock (fdef_intro (fheader_intro rt fid la va) lb) = None ->
+    Some (fdef_intro (fheader_intro fa rt fid la va) lb) ->
+  getEntryBlock (fdef_intro (fheader_intro fa rt fid la va) lb) = None ->
   dbFdef fv rt lp S TD Ps lc rm gl fs Mem MM lc rm nil Mem MM B rid None 
     trace_nil rerror
 
@@ -800,14 +800,14 @@ with dbFdef : value -> typ -> params -> system -> TargetData -> list product ->
     trace_nil rerror
 
 | dbFdef_proc : forall S TD Ps gl fs fv fid lp lc rm rm0 rid
-          l1 ps1 cs1 tmn1 rt la va lb lc1 rm1 tr1 Mem MM Mem1 MM1 als1
+          l1 ps1 cs1 tmn1 fa rt la va lb lc1 rm1 tr1 Mem MM Mem1 MM1 als1
           l2 ps2 cs21 cs22 lc2 rm2 als2 Mem2 MM2 tr2 lc3 rm3 als3 Mem3 MM3 tr3 r,
   LLVMopsem.lookupFdefViaGV TD Mem Ps gl lc fs fv = 
-    Some (fdef_intro (fheader_intro rt fid la va) lb) ->
-  getEntryBlock (fdef_intro (fheader_intro rt fid la va) lb) = 
+    Some (fdef_intro (fheader_intro fa rt fid la va) lb) ->
+  getEntryBlock (fdef_intro (fheader_intro fa rt fid la va) lb) = 
     Some (block_intro l1 ps1 cs1 tmn1) ->
   initRmetadata TD Mem gl la lp rm = Some rm0 ->
-  dbBlocks S TD Ps fs gl (fdef_intro (fheader_intro rt fid la va) lb) 
+  dbBlocks S TD Ps fs gl (fdef_intro (fheader_intro fa rt fid la va) lb) 
     (mkState (mkEC (block_intro l1 ps1 cs1 tmn1) 
       (initLocals la (params2GVs TD Mem lp lc gl)) rm0 nil) Mem MM)
     (mkState (mkEC (block_intro l2 ps2 (cs21++cs22) (insn_return_void rid)) lc1 
@@ -821,14 +821,14 @@ with dbFdef : value -> typ -> params -> system -> TargetData -> list product ->
     (trace_app (trace_app tr1 tr2) tr3) r
 
 | dbFdef_proc_error1 : forall S TD Ps gl fs fv fid lp lc rm rm0 rid
-                 l1 ps1 cs1 tmn1 rt la va lb lc1 rm1 tr1 Mem MM Mem1 MM1 als1
+                 l1 ps1 cs1 tmn1 fa rt la va lb lc1 rm1 tr1 Mem MM Mem1 MM1 als1
                  l2 ps2 cs21 cs22 lc2 rm2 als2 Mem2 MM2 tr2 r,
   LLVMopsem.lookupFdefViaGV TD Mem Ps gl lc fs fv = 
-    Some (fdef_intro (fheader_intro rt fid la va) lb) ->
-  getEntryBlock (fdef_intro (fheader_intro rt fid la va) lb) = 
+    Some (fdef_intro (fheader_intro fa rt fid la va) lb) ->
+  getEntryBlock (fdef_intro (fheader_intro fa rt fid la va) lb) = 
     Some (block_intro l1 ps1 cs1 tmn1) ->
   initRmetadata TD Mem gl la lp rm = Some rm0 ->
-  dbBlocks S TD Ps fs gl (fdef_intro (fheader_intro rt fid la va) lb) 
+  dbBlocks S TD Ps fs gl (fdef_intro (fheader_intro fa rt fid la va) lb) 
     (mkState (mkEC (block_intro l1 ps1 cs1 tmn1) 
       (initLocals la (params2GVs TD Mem lp lc gl)) rm0 nil) Mem MM)
     (mkState (mkEC (block_intro l2 ps2 (cs21++cs22) (insn_return_void rid)) lc1 
@@ -842,14 +842,14 @@ with dbFdef : value -> typ -> params -> system -> TargetData -> list product ->
     (trace_app tr1 tr2) r
 
 | dbFdef_proc_error2 : forall S TD Ps gl fs fv fid lp lc rm rm0 rid
-                 l1 ps1 cs1 tmn1 rt la va lb lc1 rm1 tr1 Mem MM Mem1 MM1 als1
+                 l1 ps1 cs1 tmn1 fa rt la va lb lc1 rm1 tr1 Mem MM Mem1 MM1 als1
                  l2 ps2 cs21 cs22 r,
   LLVMopsem.lookupFdefViaGV TD Mem Ps gl lc fs fv = 
-    Some (fdef_intro (fheader_intro rt fid la va) lb) ->
-  getEntryBlock (fdef_intro (fheader_intro rt fid la va) lb) = 
+    Some (fdef_intro (fheader_intro fa rt fid la va) lb) ->
+  getEntryBlock (fdef_intro (fheader_intro fa rt fid la va) lb) = 
     Some (block_intro l1 ps1 cs1 tmn1) ->
   initRmetadata TD Mem gl la lp rm = Some rm0 ->
-  dbBlocks S TD Ps fs gl (fdef_intro (fheader_intro rt fid la va) lb) 
+  dbBlocks S TD Ps fs gl (fdef_intro (fheader_intro fa rt fid la va) lb) 
     (mkState (mkEC (block_intro l1 ps1 cs1 tmn1) 
       (initLocals la (params2GVs TD Mem lp lc gl)) rm0 nil) Mem MM)
     (mkState (mkEC (block_intro l2 ps2 (cs21++cs22) (insn_return_void rid)) lc1 
@@ -860,21 +860,21 @@ with dbFdef : value -> typ -> params -> system -> TargetData -> list product ->
     (block_intro l2 ps2 (cs21++cs22) (insn_return_void rid)) rid None 
     tr1 r
 
-| dbFdef_proc_error3 : forall S TD Ps gl fs fv fid lp lc rm rid rt la va lb Mem 
-                              MM l1 ps1 cs1 tmn1,
+| dbFdef_proc_error3 : forall S TD Ps gl fs fv fid lp lc rm rid fa rt la va lb 
+                         Mem MM l1 ps1 cs1 tmn1,
   LLVMopsem.lookupFdefViaGV TD Mem Ps gl lc fs fv = 
-    Some (fdef_intro (fheader_intro rt fid la va) lb) ->
-  getEntryBlock (fdef_intro (fheader_intro rt fid la va) lb) = 
+    Some (fdef_intro (fheader_intro fa rt fid la va) lb) ->
+  getEntryBlock (fdef_intro (fheader_intro fa rt fid la va) lb) = 
     Some (block_intro l1 ps1 cs1 tmn1) ->
   initRmetadata TD Mem gl la lp rm = None ->
   dbFdef fv rt lp S TD Ps lc rm gl fs Mem MM lc rm nil Mem MM
     (block_intro l1 ps1 cs1 tmn1) rid None trace_nil rerror
 
-| dbFdef_proc_error4 : forall S TD Ps gl fs fv fid lp lc rm rid rt la va lb Mem 
-                              MM B,
+| dbFdef_proc_error4 : forall S TD Ps gl fs fv fid lp lc rm rid fa rt la va lb 
+                         Mem MM B,
   LLVMopsem.lookupFdefViaGV TD Mem Ps gl lc fs fv = 
-    Some (fdef_intro (fheader_intro rt fid la va) lb) ->
-  getEntryBlock (fdef_intro (fheader_intro rt fid la va) lb) = None ->
+    Some (fdef_intro (fheader_intro fa rt fid la va) lb) ->
+  getEntryBlock (fdef_intro (fheader_intro fa rt fid la va) lb) = None ->
   dbFdef fv rt lp S TD Ps lc rm gl fs Mem MM lc rm nil Mem MM
     B rid None trace_nil rerror
 
@@ -1356,36 +1356,36 @@ Inductive dsInsn : sbState -> sbState -> trace -> Prop :=
       gl fs Mem MM)
     trace_nil
 
-| dsCall : forall S TD Ps F B lc rm gl fs rid noret tailc fid fv lp cs tmn
-                            l' ps' cs' tmn' EC rt la va lb Mem MM als rm',
+| dsCall : forall S TD Ps F B lc rm gl fs rid noret ca fid fv lp cs tmn
+                            l' ps' cs' tmn' EC fa rt la va lb Mem MM als rm',
   (* only look up the current module for the time being, 
      do not support linkage. *)
   LLVMopsem.lookupFdefViaGV TD Mem Ps gl lc fs fv = 
-    Some (fdef_intro (fheader_intro rt fid la va) lb) ->
-  getEntryBlock (fdef_intro (fheader_intro rt fid la va) lb) = 
+    Some (fdef_intro (fheader_intro fa rt fid la va) lb) ->
+  getEntryBlock (fdef_intro (fheader_intro fa rt fid la va) lb) = 
     Some (block_intro l' ps' cs' tmn') ->
   initRmetadata TD Mem gl la lp rm = Some rm' ->
   dsInsn 
     (mk_sbState S TD Ps 
-      ((mk_sbEC F B ((insn_call rid noret tailc rt fv lp)::cs) tmn lc rm als)
+      ((mk_sbEC F B ((insn_call rid noret ca rt fv lp)::cs) tmn lc rm als)
         ::EC) gl fs Mem MM)
     (mk_sbState S TD Ps 
-      ((mk_sbEC (fdef_intro (fheader_intro rt fid la va) lb) 
+      ((mk_sbEC (fdef_intro (fheader_intro fa rt fid la va) lb) 
                 (block_intro l' ps' cs' tmn') cs' tmn' 
                 (initLocals la (params2GVs TD Mem lp lc gl))
                 rm' nil)::
-       (mk_sbEC F B ((insn_call rid noret tailc rt fv lp)::cs) tmn lc rm als)
+       (mk_sbEC F B ((insn_call rid noret ca rt fv lp)::cs) tmn lc rm als)
          ::EC) gl fs Mem MM)
     trace_nil 
 
 | dsExCall : forall S TD Ps F B lc rm gl fs rid noret tailc fid fv lp cs tmn EC 
-                    rt la va Mem als oresult Mem' lc' MM,
+                    fa rt la va Mem als oresult Mem' lc' MM,
   (* only look up the current module for the time being, 
      do not support linkage. 
      FIXME: should add excall to trace
   *)
   LLVMopsem.lookupExFdecViaGV TD Mem Ps gl lc fs fv = 
-    Some (fdec_intro (fheader_intro rt fid la va)) ->
+    Some (fdec_intro (fheader_intro fa rt fid la va)) ->
   LLVMopsem.callExternalFunction Mem fid (params2GVs TD Mem lp lc gl) = 
     (oresult, Mem') ->
   LLVMopsem.exCallUpdateLocals noret rid oresult lc = Some lc' ->

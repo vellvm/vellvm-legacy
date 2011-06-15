@@ -3,161 +3,141 @@ SoftBound: Bounds violation detected
 
 Backtrace:
 ./test.exe[0x8048921]
-/lib/libc.so.6(__libc_start_main+0xfe)[0xb75aaace]
+/lib/libc.so.6(__libc_start_main+0xfe)[0xb7557ace]
 
 
-test.sh: line 26: 16895 Aborted                 ./test.exe 50
+test.sh: line 26: 28487 Aborted                 ./test.exe 50
 
 SoftBound: Bounds violation detected
 
 Backtrace:
 ./test.exe[0x8048921]
-/lib/libc.so.6(__libc_start_main+0xfe)[0xb75f0ace]
+/lib/libc.so.6(__libc_start_main+0xfe)[0xb7578ace]
 
 
-test.sh: line 26: 16896 Aborted                 ./test.exe 55
+test.sh: line 26: 28488 Aborted                 ./test.exe 55
 all: 
 SoftBound: Bounds violation detected
 
 Backtrace:
 ./test.exe[0x8048951]
-/lib/libc.so.6(__libc_start_main+0xfe)[0xb75d5ace]
+/lib/libc.so.6(__libc_start_main+0xfe)[0xb7712ace]
 
 
-test.sh: line 26: 16908 Aborted                 ./test.exe 50
+test.sh: line 26: 28500 Aborted                 ./test.exe 50
 
 SoftBound: Bounds violation detected
 
 Backtrace:
 ./test.exe[0x8048951]
-/lib/libc.so.6(__libc_start_main+0xfe)[0xb7717ace]
+/lib/libc.so.6(__libc_start_main+0xfe)[0xb7571ace]
 
 
-test.sh: line 26: 16909 Aborted                 ./test.exe 55
+test.sh: line 26: 28501 Aborted                 ./test.exe 55
 bug1: 
 SoftBound: Bounds violation detected
 
 Backtrace:
 ./test.exe[0x8048921]
-/lib/libc.so.6(__libc_start_main+0xfe)[0xb7681ace]
+/lib/libc.so.6(__libc_start_main+0xfe)[0xb75acace]
 
 
-test.sh: line 26: 16921 Aborted                 ./test.exe 50
+test.sh: line 26: 28513 Aborted                 ./test.exe 50
 134516025
-bug2: test.sh: line 26: 16934 Segmentation fault      ./test.exe 50
-test.sh: line 26: 16935 Segmentation fault      ./test.exe 55
+bug2: test.sh: line 26: 28526 Segmentation fault      ./test.exe 50
+test.sh: line 26: 28527 Segmentation fault      ./test.exe 55
 cint2ptr: 
 SoftBound: Bounds violation detected
 
 Backtrace:
 ./test.exe[0x8048951]
-/lib/libc.so.6(__libc_start_main+0xfe)[0xb754cace]
+/lib/libc.so.6(__libc_start_main+0xfe)[0xb763cace]
 
 
-test.sh: line 26: 16948 Aborted                 ./test.exe 50
+test.sh: line 26: 28540 Aborted                 ./test.exe 50
 
 SoftBound: Bounds violation detected
 
 Backtrace:
 ./test.exe[0x8048951]
-/lib/libc.so.6(__libc_start_main+0xfe)[0xb757face]
+/lib/libc.so.6(__libc_start_main+0xfe)[0xb76beace]
 
 
-test.sh: line 26: 16949 Aborted                 ./test.exe 55
-fptr: Hash table full
-
-SoftBound: Bounds violation detected
-
-Backtrace:
-./test.exe[0x80488b1]
-/lib/libc.so.6(__libc_start_main+0xfe)[0xb7691ace]
-
-
-test.sh: line 26: 16961 Aborted                 ./test.exe 50
-Hash table full
-
-SoftBound: Bounds violation detected
-
-Backtrace:
-./test.exe[0x80488b1]
-/lib/libc.so.6(__libc_start_main+0xfe)[0xb764cace]
-
-
-test.sh: line 26: 16962 Aborted                 ./test.exe 55
-fptr2: 0000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000fptr3: 
+test.sh: line 26: 28541 Aborted                 ./test.exe 55
+fptr: fptr2: 0000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000fptr3: 
 SoftBound: Bounds violation detected
 
 Backtrace:
 ./test.exe[0x8048991]
-/lib/libc.so.6(__libc_start_main+0xfe)[0xb7666ace]
+/lib/libc.so.6(__libc_start_main+0xfe)[0xb7547ace]
 
 
-test.sh: line 26: 16987 Aborted                 ./test.exe 50
+test.sh: line 26: 28579 Aborted                 ./test.exe 50
 
 SoftBound: Bounds violation detected
 
 Backtrace:
 ./test.exe[0x8048991]
-/lib/libc.so.6(__libc_start_main+0xfe)[0xb761face]
+/lib/libc.so.6(__libc_start_main+0xfe)[0xb7623ace]
 
 
-test.sh: line 26: 16988 Aborted                 ./test.exe 55
-fptrret: free: test.sh: line 26: 17013 Segmentation fault      ./test.exe 50
-test.sh: line 26: 17014 Segmentation fault      ./test.exe 55
+test.sh: line 26: 28580 Aborted                 ./test.exe 55
+fptrret: free: test.sh: line 26: 28605 Segmentation fault      ./test.exe 50
+test.sh: line 26: 28606 Segmentation fault      ./test.exe 55
 funcargs: 
 SoftBound: Bounds violation detected
 
 Backtrace:
 ./test.exe[0x8048921]
-/lib/libc.so.6(__libc_start_main+0xfe)[0xb7670ace]
+/lib/libc.so.6(__libc_start_main+0xfe)[0xb7709ace]
 
 
-test.sh: line 26: 17026 Aborted                 ./test.exe 50
+test.sh: line 26: 28618 Aborted                 ./test.exe 50
 
 SoftBound: Bounds violation detected
 
 Backtrace:
 ./test.exe[0x8048921]
-/lib/libc.so.6(__libc_start_main+0xfe)[0xb7554ace]
+/lib/libc.so.6(__libc_start_main+0xfe)[0xb7653ace]
 
 
-test.sh: line 26: 17027 Aborted                 ./test.exe 55
+test.sh: line 26: 28619 Aborted                 ./test.exe 55
 funcargs2: 
 SoftBound: Bounds violation detected
 
 Backtrace:
 ./test.exe[0x8048921]
-/lib/libc.so.6(__libc_start_main+0xfe)[0xb7669ace]
+/lib/libc.so.6(__libc_start_main+0xfe)[0xb767eace]
 
 
-test.sh: line 26: 17039 Aborted                 ./test.exe 50
+test.sh: line 26: 28631 Aborted                 ./test.exe 50
 
 SoftBound: Bounds violation detected
 
 Backtrace:
 ./test.exe[0x8048921]
-/lib/libc.so.6(__libc_start_main+0xfe)[0xb76e2ace]
+/lib/libc.so.6(__libc_start_main+0xfe)[0xb7524ace]
 
 
-test.sh: line 26: 17040 Aborted                 ./test.exe 55
+test.sh: line 26: 28632 Aborted                 ./test.exe 55
 funcargsm: 
 SoftBound: Bounds violation detected
 
 Backtrace:
 ./test.exe[0x8048921]
-/lib/libc.so.6(__libc_start_main+0xfe)[0xb7702ace]
+/lib/libc.so.6(__libc_start_main+0xfe)[0xb768aace]
 
 
-test.sh: line 26: 17052 Aborted                 ./test.exe 50
+test.sh: line 26: 28644 Aborted                 ./test.exe 50
 
 SoftBound: Bounds violation detected
 
 Backtrace:
 ./test.exe[0x8048921]
-/lib/libc.so.6(__libc_start_main+0xfe)[0xb7540ace]
+/lib/libc.so.6(__libc_start_main+0xfe)[0xb767aace]
 
 
-test.sh: line 26: 17053 Aborted                 ./test.exe 55
+test.sh: line 26: 28645 Aborted                 ./test.exe 55
 funcargsret: 
 SoftBound: Bounds violation detected
 
@@ -165,7 +145,7 @@ Backtrace:
 ./test.exe[0x8048a51]
 
 
-test.sh: line 26: 17065 Aborted                 ./test.exe 50
+test.sh: line 26: 28657 Aborted                 ./test.exe 50
 
 SoftBound: Bounds violation detected
 
@@ -174,125 +154,125 @@ Backtrace:
 [0x0]
 
 
-test.sh: line 26: 17066 Aborted                 ./test.exe 55
+test.sh: line 26: 28658 Aborted                 ./test.exe 55
 funcret: 
 SoftBound: Bounds violation detected
 
 Backtrace:
 ./test.exe[0x8048951]
-/lib/libc.so.6(__libc_start_main+0xfe)[0xb7605ace]
+/lib/libc.so.6(__libc_start_main+0xfe)[0xb7549ace]
 
 
-test.sh: line 26: 17078 Aborted                 ./test.exe 50
+test.sh: line 26: 28670 Aborted                 ./test.exe 50
 
 SoftBound: Bounds violation detected
 
 Backtrace:
 ./test.exe[0x8048951]
-/lib/libc.so.6(__libc_start_main+0xfe)[0xb7530ace]
+/lib/libc.so.6(__libc_start_main+0xfe)[0xb75a8ace]
 
 
-test.sh: line 26: 17079 Aborted                 ./test.exe 55
+test.sh: line 26: 28671 Aborted                 ./test.exe 55
 funcret2: funcret3: globals: 
 SoftBound: Bounds violation detected
 
 Backtrace:
 ./test.exe[0x8048921]
-/lib/libc.so.6(__libc_start_main+0xfe)[0xb76c5ace]
+/lib/libc.so.6(__libc_start_main+0xfe)[0xb76c1ace]
 
 
-test.sh: line 26: 17129 Aborted                 ./test.exe 50
+test.sh: line 26: 28721 Aborted                 ./test.exe 50
 
 SoftBound: Bounds violation detected
 
 Backtrace:
 ./test.exe[0x8048921]
-/lib/libc.so.6(__libc_start_main+0xfe)[0xb76c0ace]
+/lib/libc.so.6(__libc_start_main+0xfe)[0xb75b5ace]
 
 
-test.sh: line 26: 17130 Aborted                 ./test.exe 55
+test.sh: line 26: 28722 Aborted                 ./test.exe 55
 int2ptr: 
 SoftBound: Bounds violation detected
 
 Backtrace:
 ./test.exe[0x8048921]
-/lib/libc.so.6(__libc_start_main+0xfe)[0xb76eface]
+/lib/libc.so.6(__libc_start_main+0xfe)[0xb7716ace]
 
 
-test.sh: line 26: 17142 Aborted                 ./test.exe 50
+test.sh: line 26: 28734 Aborted                 ./test.exe 50
 
 SoftBound: Bounds violation detected
 
 Backtrace:
 ./test.exe[0x8048921]
-/lib/libc.so.6(__libc_start_main+0xfe)[0xb76deace]
+/lib/libc.so.6(__libc_start_main+0xfe)[0xb770aace]
 
 
-test.sh: line 26: 17143 Aborted                 ./test.exe 55
+test.sh: line 26: 28735 Aborted                 ./test.exe 55
 loadm: 
 SoftBound: Bounds violation detected
 
 Backtrace:
 ./test.exe[0x8048951]
-/lib/libc.so.6(__libc_start_main+0xfe)[0xb7639ace]
+/lib/libc.so.6(__libc_start_main+0xfe)[0xb7598ace]
 
 
-test.sh: line 26: 17155 Aborted                 ./test.exe 50
+test.sh: line 26: 28747 Aborted                 ./test.exe 50
 
 SoftBound: Bounds violation detected
 
 Backtrace:
 ./test.exe[0x8048951]
-/lib/libc.so.6(__libc_start_main+0xfe)[0xb76eaace]
+/lib/libc.so.6(__libc_start_main+0xfe)[0xb768aace]
 
 
-test.sh: line 26: 17156 Aborted                 ./test.exe 55
+test.sh: line 26: 28748 Aborted                 ./test.exe 55
 loadm2: 
 SoftBound: Bounds violation detected
 
 Backtrace:
 ./test.exe[0x8048951]
-/lib/libc.so.6(__libc_start_main+0xfe)[0xb7660ace]
+/lib/libc.so.6(__libc_start_main+0xfe)[0xb7648ace]
 
 
-test.sh: line 26: 17168 Aborted                 ./test.exe 50
+test.sh: line 26: 28760 Aborted                 ./test.exe 50
 
 SoftBound: Bounds violation detected
 
 Backtrace:
 ./test.exe[0x8048951]
-/lib/libc.so.6(__libc_start_main+0xfe)[0xb7619ace]
+/lib/libc.so.6(__libc_start_main+0xfe)[0xb7585ace]
 
 
-test.sh: line 26: 17169 Aborted                 ./test.exe 55
+test.sh: line 26: 28761 Aborted                 ./test.exe 55
 loadr: 0
 
 SoftBound: Bounds violation detected
 
 Backtrace:
 ./test.exe[0x8048951]
-/lib/libc.so.6(__libc_start_main+0xfe)[0xb764eace]
+/lib/libc.so.6(__libc_start_main+0xfe)[0xb7585ace]
 
 
-test.sh: line 26: 17182 Aborted                 ./test.exe 55
+test.sh: line 26: 28774 Aborted                 ./test.exe 55
 locals: 
 SoftBound: Bounds violation detected
 
 Backtrace:
 ./test.exe[0x8048921]
-/lib/libc.so.6(__libc_start_main+0xfe)[0xb756cace]
+/lib/libc.so.6(__libc_start_main+0xfe)[0xb76aface]
 
 
-test.sh: line 26: 17194 Aborted                 ./test.exe 50
+test.sh: line 26: 28786 Aborted                 ./test.exe 50
 
 SoftBound: Bounds violation detected
 
 Backtrace:
 ./test.exe[0x8048921]
-/lib/libc.so.6(__libc_start_main+0xfe)[0xb7717ace]
+/lib/libc.so.6(__libc_start_main+0xfe)[0xb75f3ace]
 
 
-test.sh: line 26: 17195 Aborted                 ./test.exe 55
+test.sh: line 26: 28787 Aborted                 ./test.exe 55
 multimalloc: 2a
 2a
 postalloc: 
@@ -300,91 +280,91 @@ SoftBound: Bounds violation detected
 
 Backtrace:
 ./test.exe[0x8048951]
-/lib/libc.so.6(__libc_start_main+0xfe)[0xb7687ace]
+/lib/libc.so.6(__libc_start_main+0xfe)[0xb7580ace]
 
 
-test.sh: line 26: 17220 Aborted                 ./test.exe 50
+test.sh: line 26: 28812 Aborted                 ./test.exe 50
 
 SoftBound: Bounds violation detected
 
 Backtrace:
 ./test.exe[0x8048951]
-/lib/libc.so.6(__libc_start_main+0xfe)[0xb76fbace]
+/lib/libc.so.6(__libc_start_main+0xfe)[0xb767aace]
 
 
-test.sh: line 26: 17221 Aborted                 ./test.exe 55
+test.sh: line 26: 28813 Aborted                 ./test.exe 55
 ptr2int: 
 SoftBound: Bounds violation detected
 
 Backtrace:
 ./test.exe[0x8048951]
-/lib/libc.so.6(__libc_start_main+0xfe)[0xb760face]
+/lib/libc.so.6(__libc_start_main+0xfe)[0xb7553ace]
 
 
-test.sh: line 26: 17233 Aborted                 ./test.exe 50
+test.sh: line 26: 28825 Aborted                 ./test.exe 50
 
 SoftBound: Bounds violation detected
 
 Backtrace:
 ./test.exe[0x8048951]
-/lib/libc.so.6(__libc_start_main+0xfe)[0xb7563ace]
+/lib/libc.so.6(__libc_start_main+0xfe)[0xb7660ace]
 
 
-test.sh: line 26: 17234 Aborted                 ./test.exe 55
+test.sh: line 26: 28826 Aborted                 ./test.exe 55
 samechk: 
 SoftBound: Bounds violation detected
 
 Backtrace:
 ./test.exe[0x8048921]
-/lib/libc.so.6(__libc_start_main+0xfe)[0xb7613ace]
+/lib/libc.so.6(__libc_start_main+0xfe)[0xb75c2ace]
 
 
-test.sh: line 26: 17246 Aborted                 ./test.exe 50
+test.sh: line 26: 28838 Aborted                 ./test.exe 50
 
 SoftBound: Bounds violation detected
 
 Backtrace:
 ./test.exe[0x8048921]
-/lib/libc.so.6(__libc_start_main+0xfe)[0xb75a6ace]
+/lib/libc.so.6(__libc_start_main+0xfe)[0xb767cace]
 
 
-test.sh: line 26: 17247 Aborted                 ./test.exe 55
+test.sh: line 26: 28839 Aborted                 ./test.exe 55
 select: 
 SoftBound: Bounds violation detected
 
 Backtrace:
 ./test.exe[0x8048921]
-/lib/libc.so.6(__libc_start_main+0xfe)[0xb766dace]
+/lib/libc.so.6(__libc_start_main+0xfe)[0xb751eace]
 
 
-test.sh: line 26: 17259 Aborted                 ./test.exe 50
+test.sh: line 26: 28851 Aborted                 ./test.exe 50
 
 SoftBound: Bounds violation detected
 
 Backtrace:
 ./test.exe[0x8048921]
-/lib/libc.so.6(__libc_start_main+0xfe)[0xb757aace]
+/lib/libc.so.6(__libc_start_main+0xfe)[0xb7572ace]
 
 
-test.sh: line 26: 17260 Aborted                 ./test.exe 55
+test.sh: line 26: 28852 Aborted                 ./test.exe 55
 simple: 
 SoftBound: Bounds violation detected
 
 Backtrace:
 ./test.exe[0x8048951]
-/lib/libc.so.6(__libc_start_main+0xfe)[0xb76abace]
+/lib/libc.so.6(__libc_start_main+0xfe)[0xb7583ace]
 
 
-test.sh: line 26: 17272 Aborted                 ./test.exe 50
+test.sh: line 26: 28864 Aborted                 ./test.exe 50
 
 SoftBound: Bounds violation detected
 
 Backtrace:
 ./test.exe[0x8048951]
-/lib/libc.so.6(__libc_start_main+0xfe)[0xb75d4ace]
+/lib/libc.so.6(__libc_start_main+0xfe)[0xb76d7ace]
 
 
-test.sh: line 26: 17273 Aborted                 ./test.exe 55
+test.sh: line 26: 28865 Aborted                 ./test.exe 55
 storem: 804c264
 804c278
 storem2: 804c1a4
@@ -397,46 +377,46 @@ SoftBound: Bounds violation detected
 
 Backtrace:
 ./test.exe[0x8048951]
-/lib/libc.so.6(__libc_start_main+0xfe)[0xb76ddace]
+/lib/libc.so.6(__libc_start_main+0xfe)[0xb76aface]
 
 
-test.sh: line 26: 17312 Aborted                 ./test.exe 55
+test.sh: line 26: 28904 Aborted                 ./test.exe 55
 struct: 
 SoftBound: Bounds violation detected
 
 Backtrace:
 ./test.exe[0x8048921]
-/lib/libc.so.6(__libc_start_main+0xfe)[0xb7714ace]
+/lib/libc.so.6(__libc_start_main+0xfe)[0xb767cace]
 
 
-test.sh: line 26: 17324 Aborted                 ./test.exe 50
+test.sh: line 26: 28916 Aborted                 ./test.exe 50
 
 SoftBound: Bounds violation detected
 
 Backtrace:
 ./test.exe[0x8048921]
-/lib/libc.so.6(__libc_start_main+0xfe)[0xb75a2ace]
+/lib/libc.so.6(__libc_start_main+0xfe)[0xb7681ace]
 
 
-test.sh: line 26: 17325 Aborted                 ./test.exe 55
+test.sh: line 26: 28917 Aborted                 ./test.exe 55
 undef: 
 SoftBound: Bounds violation detected
 
 Backtrace:
 ./test.exe[0x80488f1]
-/lib/libc.so.6(__libc_start_main+0xfe)[0xb7521ace]
+/lib/libc.so.6(__libc_start_main+0xfe)[0xb770bace]
 
 
-test.sh: line 26: 17337 Aborted                 ./test.exe 50
+test.sh: line 26: 28929 Aborted                 ./test.exe 50
 
 SoftBound: Bounds violation detected
 
 Backtrace:
 ./test.exe[0x80488f1]
-/lib/libc.so.6(__libc_start_main+0xfe)[0xb75a1ace]
+/lib/libc.so.6(__libc_start_main+0xfe)[0xb7607ace]
 
 
-test.sh: line 26: 17338 Aborted                 ./test.exe 55
+test.sh: line 26: 28930 Aborted                 ./test.exe 55
 array: sum: -805306368
 sum: -805306368
 array2: sum: -805306368
@@ -449,13 +429,13 @@ linkedlist: sum: -1598126997
 sum: -1598126997
 linkedlistloop: sum: f38b4856
 sum: f38b4856
-reference_test: array_begin=bfdaca7c, array_end=bfdacc0c, base_ptr= bfdaca7c, bound_ptr = bfdaca7c
-array_begin=bfe6430c, array_end=bfe6449c, base_ptr= bfe6430c, bound_ptr = bfe6430c
+reference_test: array_begin=bff44ecc, array_end=bff4505c, base_ptr= bff44ecc, bound_ptr = bff44ecc
+array_begin=bfd5c1dc, array_end=bfd5c36c, base_ptr= bfd5c1dc, bound_ptr = bfd5c1dc
 struct_array: sum is 90000000
 sum is 90000000
-bisort: bh: llvm-as: bho.ll:1443:44: error: expected value token
-  %6 = call i32 (%struct.FILE*,i8*, ... )* @__isoc99_fscanf (%struct.FILE* %1,i8* getelementptr  ([3 x i8]* @.str3711, i32 0,i32 0),i32* %i)
-                                           ^
+bisort: bh: llvm-as: bho.ll:1443:46: error: expected value token
+  %6 = call   i32 (%struct.FILE*,i8*, ... )* @__isoc99_fscanf (%struct.FILE* %1,i8* getelementptr  ([3 x i8]* @.str3711, i32 0,i32 0),i32* %i) nounwind
+                                             ^
 opt: could not open file
 Bitcode file: 'bhopt.bc' does not exist.
 llvm-link: error loading file 'bhopt.bc'
@@ -471,9 +451,9 @@ BEGINNING BITONIC SORT ALGORITHM HERE
 Sorting forward...done
 sorting backward...done
 
-real	0m22.036s
-user	0m21.062s
-sys	0m0.488s
+real	0m21.341s
+user	0m20.595s
+sys	0m0.237s
 em3d: Completed a computation phase: 0
 Completed a computation phase: 1
 Completed a computation phase: 2
@@ -525,9 +505,9 @@ Completed a computation phase: 47
 Completed a computation phase: 48
 Completed a computation phase: 49
 
-real	0m51.858s
-user	0m50.308s
-sys	0m0.915s
+real	0m54.726s
+user	0m52.785s
+sys	0m0.826s
 health: This is max_level : 8
 This is max_time : 250
 
@@ -568,9 +548,9 @@ Average length of stay:           79.992935 time units
 Average # of hospitals visited:   1.073413 hospitals
 
 
-real	0m14.876s
-user	0m14.273s
-sys	0m0.394s
+real	0m17.573s
+user	0m16.797s
+sys	0m0.488s
 mst: Hash entry size = 16
 Hash size = 16
 Vertex size = 16
@@ -585,18 +565,18 @@ Compute phase 1
 Compute phase 2
 MST has cost 9040
 
-real	0m8.378s
-user	0m7.593s
-sys	0m0.713s
+real	0m9.011s
+user	0m8.019s
+sys	0m0.825s
 perimeter: Level: 12
 Iterations : 2000
 Perimeter with 12 levels on 1 processors
 # of leaves is 73432
 perimeter is 24576
-Time elapsed = 22830.000000 milliseconds
+Time elapsed = 24750.000000 milliseconds
 
-real	0m23.164s
-user	0m22.841s
+real	0m25.178s
+user	0m24.751s
 sys	0m0.013s
 power: Past initialization
 Built tree
@@ -635,11 +615,11 @@ D TR- -0.000000788, TI=  0.000003856
 TR=  0.703475123, TI=  0.141860705, P0=7034.728125735, Q0=1418.724316582
 D TR- -0.000000579, TI=  0.000002903
 TR=  0.703474543, TI=  0.141863609, P0=7034.728179606, Q0=1418.724327422
-Elapsed time 350.000000
+Elapsed time 90.000000
 
-real	0m0.356s
-user	0m0.353s
-sys	0m0.003s
+real	0m0.367s
+user	0m0.091s
+sys	0m0.000s
 treeadd: Treeadd with 24 levels
 About to enter TreeAlloc
 About to enter TreeAdd
@@ -655,19 +635,19 @@ Iteration 8...done
 Iteration 9...done
 Received result of 16777215
 
-real	0m5.331s
-user	0m1.139s
-sys	0m0.200s
+real	0m5.915s
+user	0m4.985s
+sys	0m0.919s
 tsp: Building tree of size 2000000
 Past build
-Time for TSP = 3540.000000
+Time for TSP = 3530.000000
 
-real	0m4.354s
-user	0m4.053s
-sys	0m0.230s
-099.go: 129.compress: llvm-as: 129.compresso.ll:2748:30: error: expected value token
-  %1 = call i32 (i8*, ... )* @__isoc99_scanf (i8* getelementptr  ([9 x i8]* @.str715, i32 0,i32 0),i32* %count,i8* %start_char,i32* @seedi)
-                             ^
+real	0m4.418s
+user	0m4.036s
+sys	0m0.269s
+099.go: 129.compress: llvm-as: 129.compresso.ll:2748:32: error: expected value token
+  %1 = call   i32 (i8*, ... )* @__isoc99_scanf (i8* getelementptr  ([9 x i8]* @.str715, i32 0,i32 0),i32* %count,i8* %start_char,i32* @seedi) nounwind
+                               ^
 opt: could not open file
 Bitcode file: '129.compressopt.bc' does not exist.
 llvm-link: error loading file '129.compressopt.bc'
@@ -680,11 +660,16 @@ llvm-ld:
 SoftBound: Bounds violation detected
 
 Backtrace:
-./099.go.exe[0x80ef8e1]
+./099.go.exe[0x80f0341]
 
 
-test.sh: line 74: 17744 Aborted                 ./099.go.exe 100 15
+test.sh: line 74: 29459 Aborted                 ./099.go.exe 100 15
 
 real	0m0.002s
 user	0m0.000s
-sys	0m0.001s
+sys	0m0.000s
+130.li: test.sh: line 75: 29460 Segmentation fault      ./130.li.exe ../Parser/tvcases/spec95-ccured/130.li/src/ref.lsp
+
+real	0m0.002s
+user	0m0.000s
+sys	0m0.002s

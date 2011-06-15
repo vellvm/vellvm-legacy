@@ -207,12 +207,38 @@ let rec string_of_list_value_l vls =
       (fun (v, l) -> "[" ^ (string_of_value v) ^ ", " ^ name_of_label l ^ "]") 
     (LLVMsyntax.unmake_list_value_l vls))
 
+let string_of_attribute a =
+match a with
+  | LLVMsyntax.Coq_attribute_zext -> "zeroext"
+  | LLVMsyntax.Coq_attribute_sext -> "signext"
+  | LLVMsyntax.Coq_attribute_noreturn -> "noreturn"
+  | LLVMsyntax.Coq_attribute_inreg -> "inreg"
+  | LLVMsyntax.Coq_attribute_structret -> "sret"
+  | LLVMsyntax.Coq_attribute_nounwind -> "nounwind"
+  | LLVMsyntax.Coq_attribute_noalias -> "noalias"
+  | LLVMsyntax.Coq_attribute_byval -> "byval"
+  | LLVMsyntax.Coq_attribute_nest -> "nest"
+  | LLVMsyntax.Coq_attribute_readnone -> "readnone"
+  | LLVMsyntax.Coq_attribute_readonly -> "readonly"
+  | LLVMsyntax.Coq_attribute_noinline -> "noinline"
+  | LLVMsyntax.Coq_attribute_alwaysinline -> "alwaysinline"
+  | LLVMsyntax.Coq_attribute_optforsize -> "optsize"
+  | LLVMsyntax.Coq_attribute_stackprotect -> "ssp"
+  | LLVMsyntax.Coq_attribute_stackprotectreq -> "sspreq"
+  | LLVMsyntax.Coq_attribute_nocapture -> "nocapture"
+  | LLVMsyntax.Coq_attribute_noredzone -> "noredzone"
+  | LLVMsyntax.Coq_attribute_implicitfloat -> "noimplicitfloat"
+  | LLVMsyntax.Coq_attribute_naked -> "naked"
+
+let string_of_attributes attrs =
+  String.concat " " (List.map (fun attr -> string_of_attribute attr) attrs) 
+
 let string_of_args_def args va =
   "(" ^ 
   (String.concat "," 
     (List.map 
-      (fun (t,id) -> 
-        (string_of_typ t) ^ 
+      (fun ((t,attrs),id) -> 
+        (string_of_typ t) ^ " " ^ (string_of_attributes attrs) ^ 
         (try 
           let id' = getRealName id in
           ignore(int_of_string id');
@@ -240,6 +266,14 @@ let travel_terminator i =
       eprintf "  unreachable\n"
   ;
   flush_all ()      
+
+let string_of_callconv cc =
+match cc with
+  | LLVMsyntax.Coq_callconv_ccc -> ""
+  | LLVMsyntax.Coq_callconv_fast -> "fastcc"
+  | LLVMsyntax.Coq_callconv_cold -> "coldcc"
+  | LLVMsyntax.Coq_callconv_x86_stdcall -> "cc 64"
+  | LLVMsyntax.Coq_callconv_x86_fastcall -> "cc 65"
 
 let travel_cmd i =
   match i with
@@ -297,10 +331,13 @@ let travel_cmd i =
       eprintf "  %s = select i1 %s, %s %s, %s %s\n" id (string_of_value v) 
         (string_of_typ t) (string_of_value v1) (string_of_typ t) 
         (string_of_value v2)
-  | LLVMsyntax.Coq_insn_call (id, noret, tailc, t, fv, ps) ->
-      eprintf "  %s%scall %s* %s %s\n"  (if noret then "" else id ^ " = ") 
-        (if tailc then "tail " else "") (string_of_typ t) 
-        (string_of_value fv) (string_of_params ps)
+  | LLVMsyntax.Coq_insn_call (id, noret, 
+        LLVMsyntax.Coq_clattrs_intro (tailc, cc, ra, ca), t, fv, ps) ->
+      eprintf "  %s%scall %s %s %s* %s %s %s\n"  
+        (if noret then "" else id ^ " = ") 
+        (if tailc then "tail " else "") (string_of_callconv cc) 
+        (string_of_attributes ra) (string_of_typ t)
+        (string_of_value fv) (string_of_params ps) (string_of_attributes ca) 
   ;
   flush_all ()        
           
@@ -322,31 +359,10 @@ let travel_block b =
 
 let string_of_args_dec fid args va =
   "(" ^ (String.concat "," 
-     (List.map (fun (t,_) -> (string_of_typ t)) args)) ^ 
+     (List.map (fun ((t,attrs),_) -> 
+       (string_of_typ t)^ " " ^(string_of_attributes attrs)) args)) ^ 
      (if va then (if List.length args = 0 then "... " else ", ... ") else "") ^ 
    ")"
-
-let travel_fdec f =
-  match f with
-  | LLVMsyntax.Coq_fheader_intro (t, fid, args, va) ->
-    eprintf "declare %s %s %s\n" (string_of_typ t) fid
-      (string_of_args_dec fid args va); 
-    flush_all ()
-
-let travel_fdef f =
-  match f with
-  | LLVMsyntax.Coq_fdef_intro 
-      (LLVMsyntax.Coq_fheader_intro (t, fid, args, va), bs) ->
-    eprintf "define %s %s %s{\n" (string_of_typ t) fid 
-      (string_of_args_def args va); 
-    flush_all ();
-    List.iter travel_block bs;
-    eprintf "}\n"
-          
-let string_of_gvar_spec gs =
-  match gs with
-  | LLVMsyntax.Coq_gvar_spec_global -> "global"           
-  | LLVMsyntax.Coq_gvar_spec_constant -> "constant"
           
 let string_of_linkage lk =
 match lk with
@@ -366,6 +382,40 @@ match lk with
   | LLVMsyntax.Coq_linkage_ghost -> ""
   | LLVMsyntax.Coq_linkage_common -> "common"
 
+let string_of_visibility v =
+match v with
+  | LLVMsyntax.Coq_visibility_default -> ""
+  | LLVMsyntax.Coq_visibility_hidden -> "hidden"
+  | LLVMsyntax.Coq_visibility_protected -> "protected"
+
+let travel_fdec f =
+  match f with
+  | LLVMsyntax.Coq_fheader_intro (
+      (LLVMsyntax.Coq_fnattrs_intro (lk, vz, cc, ra, fa)), t, fid, args, va) ->
+    eprintf "declare %s %s %s %s %s %s %s %s\n" (string_of_linkage lk)
+      (string_of_visibility vz) (string_of_callconv cc) 
+      (string_of_attributes ra) (string_of_typ t) fid
+      (string_of_args_dec fid args va) (string_of_attributes fa); 
+    flush_all ()
+
+let travel_fdef f =
+  match f with
+  | LLVMsyntax.Coq_fdef_intro 
+      (LLVMsyntax.Coq_fheader_intro (
+        (LLVMsyntax.Coq_fnattrs_intro (lk, vz, cc, ra, fa)), 
+        t, fid, args, va), bs) ->
+      eprintf "define %s %s %s %s %s %s %s %s{\n"  (string_of_linkage lk)
+        (string_of_visibility vz) (string_of_callconv cc) 
+        (string_of_attributes ra) (string_of_typ t) fid 
+        (string_of_args_def args va) (string_of_attributes fa); 
+    flush_all ();
+    List.iter travel_block bs;
+    eprintf "}\n"
+          
+let string_of_gvar_spec gs =
+  match gs with
+  | LLVMsyntax.Coq_gvar_spec_global -> "global"           
+  | LLVMsyntax.Coq_gvar_spec_constant -> "constant"
 let travel_product g =
   match g with
   | LLVMsyntax.Coq_product_gvar (LLVMsyntax.Coq_gvar_intro 

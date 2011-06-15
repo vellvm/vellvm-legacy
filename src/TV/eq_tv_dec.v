@@ -234,8 +234,14 @@ Proof.
   decide equality.
     destruct (@list_typ_sterm_dec l0 l1); subst; try solve [auto | done_right].
     destruct (@value_dec v v0); subst; try solve [auto | done_right].
-    destruct (@typ_dec t0 t2); subst; try solve [auto | done_right].
-    destruct (@bool_dec t t1); subst; try solve [auto | done_right].
+    destruct (@typ_dec t t0); subst; try solve [auto | done_right].
+
+    destruct c. destruct c0.
+    destruct (@bool_dec t1 t2); subst; try solve [auto | done_right].
+    destruct (@callconv_dec c c0); subst; try solve [auto | done_right].
+    destruct (@attributes_dec a a1); subst; try solve [auto | done_right].
+    destruct (@attributes_dec a0 a2); subst; try solve [auto | done_right].
+
     destruct (@bool_dec n n0); subst; try solve [auto | done_right].
 Qed.
 

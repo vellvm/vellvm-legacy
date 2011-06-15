@@ -637,9 +637,9 @@ Jwf_insn :: '' ::=
       %   Open soooon...
       %  
       % Check invariance for instructions
-      fdef , block |-i id = noret tailc call typ0 value0 params
+      fdef , block |-i id = noret clattrs call typ0 value0 params
       -------------------------------------------------------------------------------------------------- :: wf_insn_call
-      intrinsic_funs , system , module , fdef , block |- id = noret tailc call typ0 value0 params
+      intrinsic_funs , system , module , fdef , block |- id = noret clattrs call typ0 value0 params
 
 defns
 Jwf_cmds :: '' ::=
@@ -717,9 +717,9 @@ Jwf_fdec :: '' ::=
       {{ com [[fdec]] is well-formed w.r.t. [[module]] [[system]] }} by
 
       % Inclusion
-      (declare ( typ id ( args varg ) )) in system , module
+      (declare ( fnattrs typ id ( args varg ) )) in system , module
       % Check function arguments.
-      args <-> </ (typj idj) // j />
+      args <-> </ (typj attributesj idj) // j />
       </ system |- typj // j />      
       % Functions may not have common linkage 
       %
@@ -747,7 +747,7 @@ Jwf_fdec :: '' ::=
       %
       % Check invalid linkage type for function declaration 
       -------------------------------------------------------------------------------------------------- :: wf_fdec_intro
-      intrinsic_funs , system , module |-f declare ( typ id ( args varg ) )
+      intrinsic_funs , system , module |-f declare ( fnattrs typ id ( args varg ) )
 
 defns
 Jwf_fdef :: '' ::=
@@ -758,7 +758,7 @@ Jwf_fdef :: '' ::=
       % Inclusion
       (define fheader { blocks } ) in system , module
       % Check function arguments.
-      args <-> </ (typj idj) // j />
+      args <-> </ (typj attributesj idj) // j />
       </ system |- typj // j />      
       % Functions may not have common linkage 
       %

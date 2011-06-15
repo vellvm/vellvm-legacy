@@ -360,7 +360,7 @@ Proof.
   induction la; intros lp rm accum rm0 MM H Hwf; simpl in H.
     destruct lp; inv H; auto.
 
-    destruct a.
+    destruct a. destruct p.
     destruct lp; inv H; auto.
     destruct p.
     destruct (isPointerTypB t); eauto.

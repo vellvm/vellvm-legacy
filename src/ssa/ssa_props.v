@@ -1112,9 +1112,9 @@ Proof.
   eapply uniqBlocks__uniqBlock; eauto.
 Qed.
 
-Lemma lookupFdefViaIDFromProducts_ideq : forall Ps fid rt la va lb fid',
+Lemma lookupFdefViaIDFromProducts_ideq : forall Ps fid fa rt la va lb fid',
   lookupFdefViaIDFromProducts Ps fid = 
-    Some (fdef_intro (fheader_intro rt fid' la va) lb) ->
+    Some (fdef_intro (fheader_intro fa rt fid' la va) lb) ->
   fid = fid'.
 Proof.
   induction Ps; intros.
@@ -1124,13 +1124,14 @@ Proof.
     destruct a; simpl in H; eauto.
       destruct f. destruct f.
       simpl in H.
-      destruct (@eq_dec id (EqDec_eq_of_EqDec id EqDec_atom) i0 fid); simpl in H; subst; eauto.
+      destruct (@eq_dec id (EqDec_eq_of_EqDec id EqDec_atom) i0 fid); 
+        simpl in H; subst; eauto.
         inversion H; auto.
 Qed.     
 
-Lemma lookupFdecViaIDFromProducts_ideq : forall Ps fid rt la va fid',
+Lemma lookupFdecViaIDFromProducts_ideq : forall Ps fid fa rt la va fid',
   lookupFdecViaIDFromProducts Ps fid = 
-    Some (fdec_intro (fheader_intro rt fid' la va)) ->
+    Some (fdec_intro (fheader_intro fa rt fid' la va)) ->
   fid = fid'.
 Proof.
   induction Ps; intros.
@@ -1419,7 +1420,7 @@ Proof.
   induction la; intros; simpl in *.
     inversion H. 
 
-    destruct a.
+    destruct a. destruct p.
     simpl in H.
     destruct H as [H | H]; subst.
       destruct (@eq_dec id (@EqDec_eq_of_EqDec id EqDec_atom) id1 id1); subst.
@@ -1431,11 +1432,11 @@ Proof.
         eauto.
 Qed.
 
-Lemma InArgsIDs_lookupTypViaIDFromFdef : forall id1 t0 id0 la0 va0 bs,
+Lemma InArgsIDs_lookupTypViaIDFromFdef : forall id1 t0 fa id0 la0 va0 bs,
   In id1 (getArgsIDs la0) ->
   exists t, 
-    lookupTypViaIDFromFdef (fdef_intro (fheader_intro t0 id0 la0 va0) bs) id1 = 
-      Some t.
+  lookupTypViaIDFromFdef (fdef_intro (fheader_intro fa t0 id0 la0 va0) bs) id1 =
+    Some t.
 Proof.
   intros.
   simpl in *.

@@ -85,7 +85,7 @@ Definition rmap := list (id*(id*id)).
 
 Definition getFdefLocs fdef : ids :=
 match fdef with
-| fdef_intro (fheader_intro _ _ la _) bs => 
+| fdef_intro (fheader_intro _ _ _ la _) bs => 
   let '(_, ids0) := List.split la in
   ids0 ++ getBlocksLocs bs 
 end.
@@ -141,7 +141,7 @@ end.
 Fixpoint gen_metadata_args (ex_ids:ids) (rm:rmap) (la:args) : ids*rmap :=
 match la with
 | nil => (ex_ids,rm)
-| (t,id0)::la' => 
+| (t,_,id0)::la' => 
    if isPointerTypB t then
      let '(_,_,ex_ids',rm') := gen_metadata_id ex_ids rm id0 in
      gen_metadata_args ex_ids' rm' la'
@@ -150,7 +150,7 @@ end.
 
 Definition gen_metadata_fdef nts (ex_ids:ids) (rm:rmap) (f:fdef) 
   : option(ids*rmap) :=
-let '(fdef_intro (fheader_intro _ _ la _) bs) := f in
+let '(fdef_intro (fheader_intro _ _ _ la _) bs) := f in
 let '(ex_ids', rm') := gen_metadata_args ex_ids rm la in
 gen_metadata_blocks nts ex_ids' rm' bs.
 
@@ -264,6 +264,8 @@ Definition type_size t :=
       (typ_int Size.ThirtyTwo)
     ).
 
+Definition sb_call_attrs := clattrs_intro false callconv_ccc nil nil.
+
 Definition trans_nbranch (ex_ids tmps:ids) (optaddrb optaddre:option id)
   (rm:rmap) (nb:nbranch) : option (ids*ids*cmds*option id*option id) :=
 let '(mkNB c notcall) := nb in
@@ -296,7 +298,7 @@ match c with
               match (optaddrb, optaddre) with
               | (Some addrb, Some addre) =>
                    (Some
-                     (insn_call fake_id true false 
+                     (insn_call fake_id true sb_call_attrs
                        get_mmetadata_typ get_mmetadata_fn 
                        ((p8,(value_id ptmp))::
                         (pp8,(value_id addrb))::
@@ -312,7 +314,7 @@ match c with
                    let '(addrb,ex_ids) := mk_tmp ex_ids in
                    let '(addre,ex_ids) := mk_tmp ex_ids in
                    (Some
-                     (insn_call fake_id true false 
+                     (insn_call fake_id true sb_call_attrs
                        get_mmetadata_typ get_mmetadata_fn 
                        ((p8,(value_id ptmp))::
                         (pp8,(value_id addrb))::
@@ -336,7 +338,7 @@ match c with
          insn_cast ptmp castop_bitcast (typ_pointer t2) v2 p8:: 
          insn_cast btmp castop_bitcast mt bv p8:: 
          insn_cast etmp castop_bitcast mt ev p8:: 
-         insn_call fake_id true false assert_mptr_typ assert_mptr_fn 
+         insn_call fake_id true sb_call_attrs assert_mptr_typ assert_mptr_fn 
            ((p8,(value_id btmp))::
             (p8,(value_id etmp))::
             (p8,(value_id ptmp))::
@@ -359,7 +361,8 @@ match c with
           match get_reg_metadata rm v1 with
           | Some (mt1, bv0, ev0) =>
               Some
-                (insn_call fake_id true false set_mmetadata_typ set_mmetadata_fn 
+                (insn_call fake_id true sb_call_attrs 
+                  set_mmetadata_typ set_mmetadata_fn 
                   ((p8,(value_id ptmp))::
                    (p8,bv0)::
                    (p8,ev0)::
@@ -378,7 +381,7 @@ match c with
          insn_cast ptmp castop_bitcast (typ_pointer t0) v2 p8:: 
          insn_cast btmp castop_bitcast mt2 bv p8:: 
          insn_cast etmp castop_bitcast mt2 ev p8:: 
-         insn_call fake_id true false assert_mptr_typ assert_mptr_fn 
+         insn_call fake_id true sb_call_attrs assert_mptr_typ assert_mptr_fn 
            ((p8,(value_id btmp))::
             (p8,(value_id etmp))::
             (p8,(value_id ptmp))::
@@ -479,7 +482,7 @@ end.
 
 Definition trans_call_aux
 (ex_ids : ids) (tmps : ids) (optaddrb : monad id) (optaddre : monad id) 
-(rm : rmap) (i0 : id) (n : noret) (t : tailc) (t0 : typ) (v : value)
+(rm : rmap) (i0 : id) (n : noret) (ca : clattrs) (t0 : typ) (v : value)
 (p : params) : option (ids*ids*cmds*option id*option id) :=
 match
   (match v with
@@ -490,7 +493,7 @@ match
    | _ => trans_params ex_ids tmps rm p
   end) with
 | Some (ex_ids', tmps', cs, p') =>
-        Some (ex_ids', tmps', cs++[insn_call i0 n t t0 v (p++p')],
+        Some (ex_ids', tmps', cs++[insn_call i0 n ca t0 v (p++p')],
               optaddrb, optaddre)
 | None => None
 end.
@@ -501,7 +504,7 @@ Definition trans_call : forall (ex_ids tmps:ids) (optaddrb optaddre:option id)
 Proof.
   intros. unfold isCall in iscall.
   destruct c; try solve [inversion iscall].
-  apply (trans_call_aux ex_ids tmps optaddrb optaddre rm i0 n t t0 v p).
+  apply (trans_call_aux ex_ids tmps optaddrb optaddre rm i0 n c t v p).
 Qed.
 
 Definition trans_subblock (ex_ids tmps:ids) (optaddrb optaddre:option id) 
@@ -571,14 +574,14 @@ end.
 Fixpoint trans_args (rm:rmap) (la:args) : option args :=
 match la with
 | nil => Some nil
-| (t0,id0) as a::la' =>
+| (t0,_,id0) as a::la' =>
     match trans_args rm la' with
     | None => None
     | Some la2 =>
       if isPointerTypB t0 then
         match (lookupAL _ rm id0) with
         | Some (bid0, eid0) => 
-            Some ((p8,bid0)::(p8,eid0)::la2)
+            Some ((p8,nil,bid0)::(p8,nil,eid0)::la2)
         | _ => None
         end
       else Some la2
@@ -596,7 +599,7 @@ match (optaddrb, optaddre) with
 end.
 
 Definition trans_fdef nts (f:fdef) : option fdef :=
-let '(fdef_intro (fheader_intro t fid la va) bs) := f in
+let '(fdef_intro (fheader_intro fa t fid la va) bs) := f in
 if SimpleSE.isCallLib fid then Some f
 else
   let ex_ids := getFdefLocs f in
@@ -607,7 +610,7 @@ else
           match (trans_blocks ex_ids nil None None rm bs) with
           | Some (ex_ids, tmps, optaddrb, optaddre, b'::bs') => 
               Some (fdef_intro 
-                     (fheader_intro t (rename_fid fid) (la++la') va) 
+                     (fheader_intro fa t (rename_fid fid) (la++la') va) 
                      ((insert_more_allocas optaddrb optaddre b')::bs'))
           | _ => None
           end
@@ -767,7 +770,7 @@ Mem.mem_inj mi Mem1 Mem2 /\
   getOperandValue TD Mem2 v lc2 gl = Some pgv' ->
   exists bgv', exists egv', exists Mem2',
   SimpleSE.dbCmds TD gl lc2 als Mem2
-    (insn_call fake_id true false get_mmetadata_typ get_mmetadata_fn 
+    (insn_call fake_id true sb_call_attrs get_mmetadata_typ get_mmetadata_fn 
        ((p8,v)::
         (p8,(value_id addrb))::
         (p8,(value_id addre))::nil)::
@@ -847,7 +850,7 @@ Axiom get_mmetadata_fn__alloc : forall
   (egv' : GenericValue)
   (Mem21 : mem)
   (J37 : dbCmds TD gl lc2 als Mem2
-          (insn_call fake_id true false get_mmetadata_typ get_mmetadata_fn
+         (insn_call fake_id true sb_call_attrs get_mmetadata_typ get_mmetadata_fn
              ((p8, v)
               :: (p8, value_id addrb0) :: (p8, value_id addre0) :: nil)
            :: insn_load bid0 p8 (value_id addrb0) Align.Zero
@@ -856,7 +859,7 @@ Axiom get_mmetadata_fn__alloc : forall
              eid0 egv') als Mem21 trace_nil),
    exists Mem21' : mem,
      dbCmds TD gl lc2 als Mem2'
-       (insn_call fake_id true false get_mmetadata_typ get_mmetadata_fn
+       (insn_call fake_id true sb_call_attrs get_mmetadata_typ get_mmetadata_fn
           ((p8, v) :: (p8, value_id addrb0) :: (p8, value_id addre0) :: nil)
         :: insn_load bid0 p8 (value_id addrb0) Align.Zero
            :: insn_load eid0 p8 (value_id addre0) Align.Zero :: nil)
@@ -907,7 +910,7 @@ Axiom assert_mptr_fn__ok : forall
      (updateAddAL GenericValue
         (updateAddAL GenericValue (updateAddAL GenericValue lc2 ptmp gvp2)
            btmp bgv2) etmp egv2) als Mem2
-     (insn_call fake_id true false assert_mptr_typ assert_mptr_fn
+     (insn_call fake_id true sb_call_attrs assert_mptr_typ assert_mptr_fn
         ((p8, value_id btmp)
          :: (p8, value_id etmp)
             :: (p8, value_id ptmp)
@@ -938,7 +941,7 @@ Axiom get_mmetadata_fn__weaken : forall
   (egv' : GenericValue)
   (Mem2' : mem)
   (JJ1 : dbCmds TD gl lc2 als Mem2
-          (insn_call fake_id true false get_mmetadata_typ get_mmetadata_fn
+        (insn_call fake_id true sb_call_attrs get_mmetadata_typ get_mmetadata_fn
              ((p8, vp) :: (p8, value_id addrb) :: (p8, value_id addre) :: nil)
            :: insn_load bid0 p8 (value_id addrb) Align.Zero
               :: insn_load eid0 p8 (value_id addre) Align.Zero :: nil)
@@ -951,7 +954,7 @@ Axiom get_mmetadata_fn__weaken : forall
         (updateAddAL GenericValue
            (updateAddAL GenericValue (updateAddAL GenericValue lc2 ptmp gvp2)
               btmp bgv2) etmp egv2) id0 gv2) als Mem2
-     (insn_call fake_id true false get_mmetadata_typ get_mmetadata_fn
+     (insn_call fake_id true sb_call_attrs get_mmetadata_typ get_mmetadata_fn
         ((p8, value_id ptmp)
          :: (pp8, value_id addrb)
             :: (pp8, value_id addre)
@@ -970,7 +973,7 @@ Axiom get_mmetadata_fn__prop : forall m Mem2 b2 ofs2 v1 Mem2' lc2 gl als addrb
     addre bid0 eid0 bgv' egv' Mem3 TD v,
   Mem.store m Mem2 b2 ofs2 v = ret Mem2' ->
   dbCmds TD gl lc2 als Mem2
-         (insn_call fake_id true false get_mmetadata_typ get_mmetadata_fn
+         (insn_call fake_id true sb_call_attrs get_mmetadata_typ get_mmetadata_fn
             ((p8, v1) :: (p8, value_id addrb) :: (p8, value_id addre) :: nil)
           :: insn_load bid0 p8 (value_id addrb) Align.Zero
              :: insn_load eid0 p8 (value_id addre) Align.Zero :: nil)
@@ -978,7 +981,7 @@ Axiom get_mmetadata_fn__prop : forall m Mem2 b2 ofs2 v1 Mem2' lc2 gl als addrb
             eid0 egv') als Mem3 trace_nil ->
    exists Mem2'0 : mem,
      dbCmds TD gl lc2 als Mem2'
-       (insn_call fake_id true false get_mmetadata_typ get_mmetadata_fn
+       (insn_call fake_id true sb_call_attrs get_mmetadata_typ get_mmetadata_fn
           ((p8, v1) :: (p8, value_id addrb) :: (p8, value_id addre) :: nil)
         :: insn_load bid0 p8 (value_id addrb) Align.Zero
            :: insn_load eid0 p8 (value_id addre) Align.Zero :: nil)
@@ -990,7 +993,7 @@ Axiom set_mmetadata_fn__prop : forall TD gl lc2 als Mem2 ptmp pgv' bv0 ev0,
   lookupAL _ lc2 ptmp = Some pgv' ->
   exists Mem2',
     SimpleSE.dbCmd TD gl lc2 als Mem2
-      (insn_call fake_id true false set_mmetadata_typ set_mmetadata_fn
+      (insn_call fake_id true sb_call_attrs set_mmetadata_typ set_mmetadata_fn
         ((p8, value_id ptmp) :: (p8, bv0) :: (p8, ev0) :: (p8, vnullp8) :: 
          (i32, vint1) :: (i32, vint1) :: nil)) 
       lc2 als Mem2' trace_nil /\
@@ -1008,7 +1011,7 @@ Axiom set_mmetadata_fn__getOperandValue : forall
   (TD : TargetData)
   (Mem2' : mem)
   (J : dbCmd TD gl lc2 als Mem2
-        (insn_call fake_id true false set_mmetadata_typ set_mmetadata_fn
+        (insn_call fake_id true sb_call_attrs set_mmetadata_typ set_mmetadata_fn
            ((p8, value_id ptmp)
             :: (p8, bv0)
                :: (p8, ev0)
@@ -1038,7 +1041,7 @@ Axiom get_set_mmetadata_fn : forall
   (Hgete : getOperandValue TD Mem2 ev0 lc2 gl = ret egv')
   (Mem2' : mem)
   (J : dbCmd TD gl lc2 als Mem2
-        (insn_call fake_id true false set_mmetadata_typ set_mmetadata_fn
+        (insn_call fake_id true sb_call_attrs set_mmetadata_typ set_mmetadata_fn
            ((p8, value_id ptmp)
             :: (p8, bv0)
                :: (p8, ev0)
@@ -1061,7 +1064,7 @@ Axiom get_set_mmetadata_fn : forall
   (Hinjp : gv_inject mi (ptr2GV TD (Vptr b ofs0)) pgv'),
   exists Mem2'0 : mem,
      dbCmds TD gl0 lc0 als0 Mem2'
-       (insn_call fake_id true false get_mmetadata_typ get_mmetadata_fn
+       (insn_call fake_id true sb_call_attrs get_mmetadata_typ get_mmetadata_fn
           ((p8, v0) :: (p8, value_id addrb) :: (p8, value_id addre) :: nil)
         :: insn_load bid0 p8 (value_id addrb) Align.Zero
            :: insn_load eid0 p8 (value_id addre) Align.Zero :: nil)
@@ -1071,8 +1074,8 @@ Axiom get_set_mmetadata_fn : forall
 
 Axiom set_mmetadata_fn__prop' : forall TD gl lc1 Mem1 args lc2 als Mem2,
   dbCmd TD gl lc1 als Mem1 
-    (insn_call fake_id true false set_mmetadata_typ set_mmetadata_fn args)
-    lc2 als Mem2 trace_nil ->
+   (insn_call fake_id true sb_call_attrs set_mmetadata_typ set_mmetadata_fn args)
+   lc2 als Mem2 trace_nil ->
   Mem.nextblock Mem1 <= Mem.nextblock Mem2 /\
   (forall b2, Mem.valid_block Mem1 b2 -> Mem.valid_block Mem2 b2) /\
   (forall b0, Mem.bounds Mem1 b0 = Mem.bounds Mem2 b0).
@@ -1081,7 +1084,7 @@ Axiom get_mmetadata_fn__prop' : forall Mem2 b lo hi v1 Mem2' lc2 gl als addrb
     addre bid0 eid0 bgv' egv' Mem3 TD,
   Mem.free Mem2 b lo hi = ret Mem2' ->
   dbCmds TD gl lc2 als Mem2
-         (insn_call fake_id true false get_mmetadata_typ get_mmetadata_fn
+         (insn_call fake_id true sb_call_attrs get_mmetadata_typ get_mmetadata_fn
             ((p8, v1) :: (p8, value_id addrb) :: (p8, value_id addre) :: nil)
           :: insn_load bid0 p8 (value_id addrb) Align.Zero
              :: insn_load eid0 p8 (value_id addre) Align.Zero :: nil)
@@ -1089,7 +1092,7 @@ Axiom get_mmetadata_fn__prop' : forall Mem2 b lo hi v1 Mem2' lc2 gl als addrb
             eid0 egv') als Mem3 trace_nil ->
    exists Mem2'0 : mem,
      dbCmds TD gl lc2 als Mem2'
-       (insn_call fake_id true false get_mmetadata_typ get_mmetadata_fn
+       (insn_call fake_id true sb_call_attrs get_mmetadata_typ get_mmetadata_fn
           ((p8, v1) :: (p8, value_id addrb) :: (p8, value_id addre) :: nil)
         :: insn_load bid0 p8 (value_id addrb) Align.Zero
            :: insn_load eid0 p8 (value_id addre) Align.Zero :: nil)

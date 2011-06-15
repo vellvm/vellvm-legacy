@@ -72,8 +72,9 @@ for name in $S95_CASES; do
   llvm-ld -native -lm -lcrypt test-softbound.bc -o $name".exe"
 done;
 echo -e "099.go: \c"; time ./099.go.exe 100 15;
+echo -e "130.li: \c"; time ./130.li.exe ../Parser/tvcases/spec95-ccured/130.li/src/ref.lsp;
 rm -f input.* output.* opt.* *.exe *.exe.bc bisort* em3d* health* mst* \
-  treeadd* 129.compress* test-softbound.bc
+  treeadd* 129.compress* test-softbound.bc 130.li* 099.go*
 
 
 

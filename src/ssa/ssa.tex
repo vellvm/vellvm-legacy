@@ -224,9 +224,39 @@
 \ottprodline{|}{\ottnt{value}}{}{}{}{}\\ 
 \ottprodline{|}{\ottsym{(}  \mathit{opt_{value} }  \ottsym{)}} {\textsf{S}}{}{}{}}
 
+\newcommand{\ottattribute}{
+\ottrulehead{\ottnt{attribute}}{::=}{\ottcom{attribute}}\\ 
+\ottprodline{|}{\ottkw{zext}}{}{}{}{}\\ 
+\ottprodline{|}{\ottkw{sext}}{}{}{}{}\\ 
+\ottprodline{|}{\ottkw{noreturn}}{}{}{}{}\\ 
+\ottprodline{|}{\ottkw{inreg}}{}{}{}{}\\ 
+\ottprodline{|}{\ottkw{structret}}{}{}{}{}\\ 
+\ottprodline{|}{\ottkw{nounwind}}{}{}{}{}\\ 
+\ottprodline{|}{\ottkw{noalias}}{}{}{}{}\\ 
+\ottprodline{|}{\ottkw{byval}}{}{}{}{}\\ 
+\ottprodline{|}{\ottkw{nest}}{}{}{}{}\\ 
+\ottprodline{|}{\ottkw{readnone}}{}{}{}{}\\ 
+\ottprodline{|}{\ottkw{readonly}}{}{}{}{}\\ 
+\ottprodline{|}{\ottkw{noinline}}{}{}{}{}\\ 
+\ottprodline{|}{\ottkw{alwaysinline}}{}{}{}{}\\ 
+\ottprodline{|}{\ottkw{optforsize}}{}{}{}{}\\ 
+\ottprodline{|}{\ottkw{stackprotect}}{}{}{}{}\\ 
+\ottprodline{|}{\ottkw{stackprotectreq}}{}{}{}{}\\ 
+\ottprodline{|}{\ottkw{nocapture}}{}{}{}{}\\ 
+\ottprodline{|}{\ottkw{noredzone}}{}{}{}{}\\ 
+\ottprodline{|}{\ottkw{implicitfloat}}{}{}{}{}\\ 
+\ottprodline{|}{\ottkw{naked}}{}{}{}{}}
+
+\newcommand{\ottattributes}{
+\ottrulehead{\mathit{\overline{attribute} }}{::=}{\ottcom{attributes}}\\ 
+\ottprodline{|}{\ottsym{[]}}{}{}{}{}\\ 
+\ottprodline{|}{\mathit{\overline{attribute} }  \ottsym{,}  \ottnt{attribute}}{}{}{}{}\\ 
+\ottprodline{|}{\mathit{\overline{attribute} }  ;  \mathit{\overline{attribute} }'}{}{}{}{}\\ 
+\ottprodline{|}{\ottsym{(}  \mathit{\overline{attribute} }  \ottsym{)}} {\textsf{S}}{}{}{}}
+
 \newcommand{\ottarg}{
 \ottrulehead{\ottnt{arg}}{::=}{\ottcom{argument}}\\ 
-\ottprodline{|}{\ottnt{typ} \, \ottmv{id}}{}{}{}{}\\ 
+\ottprodline{|}{\ottnt{typ} \, \mathit{\overline{attribute} } \, \ottmv{id}}{}{}{}{}\\ 
 \ottprodline{|}{\ottsym{(}  \ottnt{arg}  \ottsym{)}} {\textsf{S}}{}{}{}}
 
 \newcommand{\ottargs}{
@@ -256,6 +286,18 @@
 \ottprodline{|}{\mathit{\{l\} }  ;  \mathit{\{l\} }'}{}{}{}{}\\ 
 \ottprodline{|}{\ottsym{(}  \mathit{\{l\} }  \ottsym{)}} {\textsf{S}}{}{}{}}
 
+\newcommand{\ottcallconv}{
+\ottrulehead{\ottnt{callconv}}{::=}{\ottcom{calling convention}}\\ 
+\ottprodline{|}{\ottkw{ccc}}{}{}{}{}\\ 
+\ottprodline{|}{\ottkw{fast}}{}{}{}{}\\ 
+\ottprodline{|}{\ottkw{cold}}{}{}{}{}\\ 
+\ottprodline{|}{\ottsym{x86\_stdcall}}{}{}{}{}\\ 
+\ottprodline{|}{\ottsym{x86\_fastcall}}{}{}{}{}}
+
+\newcommand{\ottclattrs}{
+\ottrulehead{\ottnt{clattrs}}{::=}{\ottcom{call attributtes}}\\ 
+\ottprodline{|}{\ottnt{tailc} \, \ottnt{callconv} \, \mathit{\overline{attribute} }_{{\mathrm{1}}} \, \mathit{\overline{attribute} }_{{\mathrm{2}}}}{}{}{}{}}
+
 \newcommand{\ottcmd}{
 \ottrulehead{\ottnt{cmd}}{::=}{\ottcom{commands}}\\ 
 \ottprodline{|}{\ottmv{id}  =  \ottnt{bop}  \ottsym{(} \, \ottkw{int} \, \ottmv{sz}  \ottsym{)}  \ottnt{value_{{\mathrm{1}}}} \, \ottnt{value_{{\mathrm{2}}}}}{}{}{}{\ottcom{bop}}\\ 
@@ -274,7 +316,7 @@
 \ottprodline{|}{\ottmv{id}  = \, \ottkw{icmp} \, \ottnt{cond} \, \ottnt{typ} \, \ottnt{value_{{\mathrm{1}}}} \, \ottnt{value_{{\mathrm{2}}}}}{}{}{}{\ottcom{icmp}}\\ 
 \ottprodline{|}{\ottmv{id}  = \, \ottkw{fcmp} \, \ottnt{fcond} \, \ottnt{floating\_point} \, \ottnt{value_{{\mathrm{1}}}} \, \ottnt{value_{{\mathrm{2}}}}}{}{}{}{\ottcom{fcmp}}\\ 
 \ottprodline{|}{\ottmv{id}  = \, \ottkw{select} \, \ottnt{value_{{\mathrm{0}}}} \, \ottnt{typ} \, \ottnt{value_{{\mathrm{1}}}} \, \ottnt{value_{{\mathrm{2}}}}}{}{}{}{\ottcom{select}}\\ 
-\ottprodline{|}{\ottmv{id}  =  \ottnt{noret} \, \ottnt{tailc} \, \ottkw{call} \, \ottnt{typ_{{\mathrm{0}}}} \, \ottnt{value_{{\mathrm{0}}}} \, \mathit{\overline{param} }}{}{}{}{\ottcom{call}}\\ 
+\ottprodline{|}{\ottmv{id}  =  \ottnt{noret} \, \ottnt{clattrs} \, \ottkw{call} \, \ottnt{typ_{{\mathrm{0}}}} \, \ottnt{value_{{\mathrm{0}}}} \, \mathit{\overline{param} }}{}{}{}{\ottcom{call}}\\ 
 \ottprodline{|}{\ottsym{(}  \ottnt{insn}  \ottsym{)}} {\textsf{S}}{}{}{}}
 
 \newcommand{\ottterminator}{
@@ -333,9 +375,37 @@
 \ottprodline{|}{\mathit{\overline{block} }  ;  \mathit{\overline{block} }'}{}{}{}{}\\ 
 \ottprodline{|}{\ottsym{(}  \mathit{\overline{block} }  \ottsym{)}} {\textsf{S}}{}{}{}}
 
+\newcommand{\ottvisibility}{
+\ottrulehead{\ottnt{visibility}}{::=}{\ottcom{visibility}}\\ 
+\ottprodline{|}{\ottkw{default}}{}{}{}{}\\ 
+\ottprodline{|}{\ottkw{hidden}}{}{}{}{}\\ 
+\ottprodline{|}{\ottkw{protected}}{}{}{}{}}
+
+\newcommand{\ottlinkage}{
+\ottrulehead{\ottnt{linkage}}{::=}{\ottcom{linkage}}\\ 
+\ottprodline{|}{\ottkw{External}}{}{}{}{}\\ 
+\ottprodline{|}{\ottsym{Available\_externally}}{}{}{}{}\\ 
+\ottprodline{|}{\ottsym{Link\_once}}{}{}{}{}\\ 
+\ottprodline{|}{\ottsym{Link\_once\_odr}}{}{}{}{}\\ 
+\ottprodline{|}{\ottkw{Weak}}{}{}{}{}\\ 
+\ottprodline{|}{\ottsym{Weak\_odr}}{}{}{}{}\\ 
+\ottprodline{|}{\ottkw{Appending}}{}{}{}{}\\ 
+\ottprodline{|}{\ottkw{Internal}}{}{}{}{}\\ 
+\ottprodline{|}{\ottkw{Private}}{}{}{}{}\\ 
+\ottprodline{|}{\ottsym{Linker\_private}}{}{}{}{}\\ 
+\ottprodline{|}{\ottkw{Dllimport}}{}{}{}{}\\ 
+\ottprodline{|}{\ottkw{Dllexport}}{}{}{}{}\\ 
+\ottprodline{|}{\ottsym{External\_weak}}{}{}{}{}\\ 
+\ottprodline{|}{\ottkw{Ghost}}{}{}{}{}\\ 
+\ottprodline{|}{\ottkw{Common}}{}{}{}{}}
+
+\newcommand{\ottfnattrs}{
+\ottrulehead{\ottnt{fnattrs}}{::=}{\ottcom{function attributtes}}\\ 
+\ottprodline{|}{\ottnt{linkage} \, \ottnt{visibility} \, \ottnt{callconv} \, \mathit{\overline{attribute} }_{{\mathrm{1}}} \, \mathit{\overline{attribute} }_{{\mathrm{2}}}}{}{}{}{}}
+
 \newcommand{\ottfheader}{
 \ottrulehead{\ottnt{fheader}}{::=}{\ottcom{function header}}\\ 
-\ottprodline{|}{\ottnt{typ} \, \ottmv{id}  \ottsym{(}  \mathit{\overline{arg} } \, \ottnt{varg}  \ottsym{)}}{}{}{}{}\\ 
+\ottprodline{|}{\ottnt{fnattrs} \, \ottnt{typ} \, \ottmv{id}  \ottsym{(}  \mathit{\overline{arg} } \, \ottnt{varg}  \ottsym{)}}{}{}{}{}\\ 
 \ottprodline{|}{\ottsym{(}  \ottnt{fheader}  \ottsym{)}} {\textsf{S}}{}{}{}}
 
 \newcommand{\ottfdec}{
@@ -376,24 +446,6 @@
 \ottrulehead{\ottnt{gvar\_spec}}{::=}{\ottcom{gvar spec}}\\ 
 \ottprodline{|}{\ottkw{global}}{}{}{}{\ottcom{global}}\\ 
 \ottprodline{|}{\ottkw{constant}}{}{}{}{\ottcom{constant}}}
-
-\newcommand{\ottlinkage}{
-\ottrulehead{\ottnt{linkage}}{::=}{\ottcom{linkage}}\\ 
-\ottprodline{|}{\ottkw{External}}{}{}{}{}\\ 
-\ottprodline{|}{\ottsym{Available\_externally}}{}{}{}{}\\ 
-\ottprodline{|}{\ottsym{Link\_once}}{}{}{}{}\\ 
-\ottprodline{|}{\ottsym{Link\_once\_odr}}{}{}{}{}\\ 
-\ottprodline{|}{\ottkw{Weak}}{}{}{}{}\\ 
-\ottprodline{|}{\ottsym{Weak\_odr}}{}{}{}{}\\ 
-\ottprodline{|}{\ottkw{Appending}}{}{}{}{}\\ 
-\ottprodline{|}{\ottkw{Internal}}{}{}{}{}\\ 
-\ottprodline{|}{\ottkw{Private}}{}{}{}{}\\ 
-\ottprodline{|}{\ottsym{Linker\_private}}{}{}{}{}\\ 
-\ottprodline{|}{\ottkw{Dllimport}}{}{}{}{}\\ 
-\ottprodline{|}{\ottkw{Dllexport}}{}{}{}{}\\ 
-\ottprodline{|}{\ottsym{External\_weak}}{}{}{}{}\\ 
-\ottprodline{|}{\ottkw{Ghost}}{}{}{}{}\\ 
-\ottprodline{|}{\ottkw{Common}}{}{}{}{}}
 
 \newcommand{\ottgvar}{
 \ottrulehead{\ottnt{gvar}}{::=}{\ottcom{global variables}}\\ 
@@ -469,11 +521,15 @@
 \ottconst\ottinterrule
 \ottvalue\ottinterrule
 \ottoptXXvalue\ottinterrule
+\ottattribute\ottinterrule
+\ottattributes\ottinterrule
 \ottarg\ottinterrule
 \ottargs\ottinterrule
 \ottparam\ottinterrule
 \ottparams\ottinterrule
 \ottls\ottinterrule
+\ottcallconv\ottinterrule
+\ottclattrs\ottinterrule
 \ottcmd\ottinterrule
 \ottterminator\ottinterrule
 \ottphinode\ottinterrule
@@ -484,6 +540,9 @@
 \ottblock\ottinterrule
 \ottoptXXblock\ottinterrule
 \ottblocks\ottinterrule
+\ottvisibility\ottinterrule
+\ottlinkage\ottinterrule
+\ottfnattrs\ottinterrule
 \ottfheader\ottinterrule
 \ottfdec\ottinterrule
 \ottfdef\ottinterrule
@@ -492,7 +551,6 @@
 \ottnamedt\ottinterrule
 \ottnamedts\ottinterrule
 \ottgvarXXspec\ottinterrule
-\ottlinkage\ottinterrule
 \ottgvar\ottinterrule
 \ottidXXbinding\ottinterrule
 \ottproduct\ottinterrule
@@ -1328,9 +1386,9 @@
 \ottpremise{\ottnt{typ_{{\mathrm{0}}}}  =  \ottnt{typ_{{\mathrm{1}}}}  \ottsym{(} \, \ottcomp{\ottnt{typ'_{\ottmv{j}}}}{\ottmv{j}} \, \ottnt{varg}  \ottsym{)}}%
 \ottpremise{\ottcomp{\ottnt{system}  \ottsym{,}  \ottnt{fdef}  \vdash  \ottnt{value''_{\ottmv{j}}}  \ottsym{:}  \ottnt{typ'_{\ottmv{j}}}}{\ottmv{j}}}%
 \ottpremise{ \ottnt{typ_{{\mathrm{1}}}}  \ottsym{=t=}  \ottkw{void}  \mathit{implies}  \ottnt{noret}  = \, \ottkw{yes} }%
-\ottpremise{\ottnt{fdef}  \ottsym{,}  \ottnt{block}  \vdash_{i}  \ottmv{id}  =  \ottnt{noret} \, \ottnt{tailc} \, \ottkw{call} \, \ottnt{typ_{{\mathrm{0}}}} \, \ottnt{value_{{\mathrm{0}}}} \, \mathit{\overline{param} }}%
+\ottpremise{\ottnt{fdef}  \ottsym{,}  \ottnt{block}  \vdash_{i}  \ottmv{id}  =  \ottnt{noret} \, \ottnt{clattrs} \, \ottkw{call} \, \ottnt{typ_{{\mathrm{0}}}} \, \ottnt{value_{{\mathrm{0}}}} \, \mathit{\overline{param} }}%
 }{
-\ottnt{intrinsic\_funs}  \ottsym{,}  \ottnt{system}  \ottsym{,}  \ottnt{module}  \ottsym{,}  \ottnt{fdef}  \ottsym{,}  \ottnt{block}  \vdash  \ottmv{id}  =  \ottnt{noret} \, \ottnt{tailc} \, \ottkw{call} \, \ottnt{typ_{{\mathrm{0}}}} \, \ottnt{value_{{\mathrm{0}}}} \, \mathit{\overline{param} }}{%
+\ottnt{intrinsic\_funs}  \ottsym{,}  \ottnt{system}  \ottsym{,}  \ottnt{module}  \ottsym{,}  \ottnt{fdef}  \ottsym{,}  \ottnt{block}  \vdash  \ottmv{id}  =  \ottnt{noret} \, \ottnt{clattrs} \, \ottkw{call} \, \ottnt{typ_{{\mathrm{0}}}} \, \ottnt{value_{{\mathrm{0}}}} \, \mathit{\overline{param} }}{%
 {\ottdrulename{wf\_insn\_call}}{}%
 }}
 
@@ -1470,12 +1528,12 @@
 % defns Jwf_fdec
 % defn wf_fdec
 \newcommand{\ottdrulewfXXfdecXXintro}[1]{\ottdrule[#1]{%
-\ottpremise{\ottsym{(}  \ottkw{declare} \, \ottsym{(}  \ottnt{typ} \, \ottmv{id}  \ottsym{(}  \mathit{\overline{arg} } \, \ottnt{varg}  \ottsym{)}  \ottsym{)}  \ottsym{)} \, \in \, \ottnt{system}  \ottsym{,}  \ottnt{module}}%
-\ottpremise{\mathit{\overline{arg} }  <-> \, \ottcomp{\ottsym{(}  \ottnt{typ_{\ottmv{j}}} \, \ottmv{id_{\ottmv{j}}}  \ottsym{)}}{\ottmv{j}}}%
+\ottpremise{\ottsym{(}  \ottkw{declare} \, \ottsym{(}  \ottnt{fnattrs} \, \ottnt{typ} \, \ottmv{id}  \ottsym{(}  \mathit{\overline{arg} } \, \ottnt{varg}  \ottsym{)}  \ottsym{)}  \ottsym{)} \, \in \, \ottnt{system}  \ottsym{,}  \ottnt{module}}%
+\ottpremise{\mathit{\overline{arg} }  <-> \, \ottcomp{\ottsym{(}  \ottnt{typ_{\ottmv{j}}} \, \mathit{\overline{attribute} }_{\ottmv{j}} \, \ottmv{id_{\ottmv{j}}}  \ottsym{)}}{\ottmv{j}}}%
 \ottpremise{\ottcomp{\ottnt{system}  \vdash  \ottnt{typ_{\ottmv{j}}}}{\ottmv{j}}}%
 \ottpremise{ \ottkw{isFirstClassTyp} \, \ottnt{typ}  \vee  \ottnt{typ}  \ottsym{=t=}  \ottkw{void} }%
 }{
-\ottnt{intrinsic\_funs}  \ottsym{,}  \ottnt{system}  \ottsym{,}  \ottnt{module}  \vdash_{f}  \ottkw{declare} \, \ottsym{(}  \ottnt{typ} \, \ottmv{id}  \ottsym{(}  \mathit{\overline{arg} } \, \ottnt{varg}  \ottsym{)}  \ottsym{)}}{%
+\ottnt{intrinsic\_funs}  \ottsym{,}  \ottnt{system}  \ottsym{,}  \ottnt{module}  \vdash_{f}  \ottkw{declare} \, \ottsym{(}  \ottnt{fnattrs} \, \ottnt{typ} \, \ottmv{id}  \ottsym{(}  \mathit{\overline{arg} } \, \ottnt{varg}  \ottsym{)}  \ottsym{)}}{%
 {\ottdrulename{wf\_fdec\_intro}}{}%
 }}
 
@@ -1492,7 +1550,7 @@
 % defn wf_fdef
 \newcommand{\ottdrulewfXXfdefXXintro}[1]{\ottdrule[#1]{%
 \ottpremise{\ottsym{(}  \ottkw{define} \, \ottnt{fheader}  \ottsym{\{}  \mathit{\overline{block} }  \ottsym{\}}  \ottsym{)} \, \in \, \ottnt{system}  \ottsym{,}  \ottnt{module}}%
-\ottpremise{\mathit{\overline{arg} }  <-> \, \ottcomp{\ottsym{(}  \ottnt{typ_{\ottmv{j}}} \, \ottmv{id_{\ottmv{j}}}  \ottsym{)}}{\ottmv{j}}}%
+\ottpremise{\mathit{\overline{arg} }  <-> \, \ottcomp{\ottsym{(}  \ottnt{typ_{\ottmv{j}}} \, \mathit{\overline{attribute} }_{\ottmv{j}} \, \ottmv{id_{\ottmv{j}}}  \ottsym{)}}{\ottmv{j}}}%
 \ottpremise{\ottcomp{\ottnt{system}  \vdash  \ottnt{typ_{\ottmv{j}}}}{\ottmv{j}}}%
 \ottpremise{ \ottkw{isFirstClassTyp} \, \ottnt{typ}  \vee  \ottnt{typ}  \ottsym{=t=}  \ottkw{void} }%
 \ottpremise{\ottkw{getEntryBlock} \, \ottsym{(}  \ottkw{define} \, \ottnt{fheader}  \ottsym{\{}  \mathit{\overline{block} }  \ottsym{\}}  \ottsym{)}  =  \ottnt{block}}%

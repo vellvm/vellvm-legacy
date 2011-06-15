@@ -66,7 +66,7 @@ Axiom callLib__is__defined : forall Mem fid gvs,
 
 Axiom callLib__is__correct : 
   forall Mem ft fid TD lp lc gl oresult Mem' F B ECs tmn cs als Ps fs rid
-    S noret tailc r lc' ft',
+    S noret ca r lc' ft',
   isCallLib fid = true ->
   (
    (callLib Mem fid (params2GVs TD Mem lp lc gl) = Some (oresult, Mem', r) /\
@@ -74,7 +74,7 @@ Axiom callLib__is__correct :
    LLVMopsem.dbInsn
     (LLVMopsem.mkState S TD Ps 
       ((LLVMopsem.mkEC F B 
-        ((insn_call rid noret tailc ft (value_const (const_gid ft' fid)) lp)::cs)
+        ((insn_call rid noret ca ft (value_const (const_gid ft' fid)) lp)::cs)
             tmn lc als)::ECs) 
       gl fs Mem)
     (LLVMopsem.mkState S TD Ps 
@@ -298,19 +298,19 @@ Inductive dbCall : system -> TargetData -> list product -> GVMap ->
   LLVMopsem.callUpdateLocals TD Mem'' noret rid oResult lc lc' gl = Some lc'' ->
   dbCall S TD Ps fs gl lc Mem (insn_call rid noret tailc ft fv lp) lc'' Mem'' tr
 
-| dbCall_external : forall S TD Ps lc gl fs rid noret tailc fv fid 
-                          lp rt la va Mem oresult Mem' lc' ft,
+| dbCall_external : forall S TD Ps lc gl fs rid noret ca fv fid 
+                          lp rt la va Mem oresult Mem' lc' ft fa,
   (* only look up the current module for the time being, 
      do not support linkage. 
      FIXME: should add excall to trace
   *)
   LLVMopsem.lookupExFdecViaGV TD Mem Ps gl lc fs fv = 
-    Some (fdec_intro (fheader_intro rt fid la va)) ->
+    Some (fdec_intro (fheader_intro fa rt fid la va)) ->
   LLVMopsem.callExternalFunction Mem fid (params2GVs TD Mem lp lc gl) = 
     (oresult, Mem') ->
-  isCall (insn_call rid noret tailc ft fv lp) = true ->
+  isCall (insn_call rid noret ca ft fv lp) = true ->
   LLVMopsem.exCallUpdateLocals noret rid oresult lc = Some lc' ->
-  dbCall S TD Ps fs gl lc Mem (insn_call rid noret tailc ft fv lp) lc' Mem' 
+  dbCall S TD Ps fs gl lc Mem (insn_call rid noret ca ft fv lp) lc' Mem' 
     trace_nil
 
 with dbSubblock : system -> TargetData -> list product -> GVMap -> GVMap -> 
@@ -371,13 +371,13 @@ with dbFdef : value -> typ -> params -> system -> TargetData -> list product ->
               GVMap -> GVMap -> GVMap -> mem -> GVMap -> list mblock -> mem -> 
               block -> id -> option value -> trace -> Prop :=
 | dbFdef_func : forall S TD Ps gl fs fv fid lp lc rid
-                       l1 ps1 cs1 tmn1 rt la va lb Result lc1 tr1 Mem Mem1 als1
-                       l2 ps2 cs21 cs22 lc2 als2 Mem2 tr2 lc3 als3 Mem3 tr3,
+                     l1 ps1 cs1 tmn1 fa rt la va lb Result lc1 tr1 Mem Mem1 als1
+                     l2 ps2 cs21 cs22 lc2 als2 Mem2 tr2 lc3 als3 Mem3 tr3,
   lookupFdefViaGV TD Mem Ps gl lc fs fv = 
-    Some (fdef_intro (fheader_intro rt fid la va) lb) ->
-  getEntryBlock (fdef_intro (fheader_intro rt fid la va) lb) = 
+    Some (fdef_intro (fheader_intro fa rt fid la va) lb) ->
+  getEntryBlock (fdef_intro (fheader_intro fa rt fid la va) lb) = 
     Some (block_intro l1 ps1 cs1 tmn1) ->
-  dbBlocks S TD Ps fs gl (fdef_intro (fheader_intro rt fid la va) lb) 
+  dbBlocks S TD Ps fs gl (fdef_intro (fheader_intro fa rt fid la va) lb) 
     (mkState (mkEC (block_intro l1 ps1 cs1 tmn1) 
       (initLocals la (params2GVs TD Mem lp lc gl)) nil) Mem)
     (mkState (mkEC (block_intro l2 ps2 (cs21++cs22) (insn_return rid rt Result))
@@ -397,13 +397,13 @@ with dbFdef : value -> typ -> params -> system -> TargetData -> list product ->
     (block_intro l2 ps2 (cs21++cs22) (insn_return rid rt Result)) rid 
     (Some Result) (trace_app (trace_app tr1 tr2) tr3)
 | dbFdef_proc : forall S TD Ps gl fs fv fid lp lc rid
-                       l1 ps1 cs1 tmn1 rt la va lb lc1 tr1 Mem Mem1 als1
+                       l1 ps1 cs1 tmn1 fa rt la va lb lc1 tr1 Mem Mem1 als1
                        l2 ps2 cs21 cs22 lc2 als2 Mem2 tr2 lc3 als3 Mem3 tr3,
   lookupFdefViaGV TD Mem Ps gl lc fs fv = 
-    Some (fdef_intro (fheader_intro rt fid la va) lb) ->
-  getEntryBlock (fdef_intro (fheader_intro rt fid la va) lb) = 
+    Some (fdef_intro (fheader_intro fa rt fid la va) lb) ->
+  getEntryBlock (fdef_intro (fheader_intro fa rt fid la va) lb) = 
     Some (block_intro l1 ps1 cs1 tmn1) ->
-  dbBlocks S TD Ps fs gl (fdef_intro (fheader_intro rt fid la va) lb) 
+  dbBlocks S TD Ps fs gl (fdef_intro (fheader_intro fa rt fid la va) lb) 
     (mkState (mkEC (block_intro l1 ps1 cs1 tmn1) 
       (initLocals la (params2GVs TD Mem lp lc gl)) nil) Mem)
     (mkState (mkEC (block_intro l2 ps2 (cs21++cs22) (insn_return_void rid)) lc1 
@@ -480,7 +480,7 @@ Lemma isCall_dec : forall c,
 Proof.
   destruct c; simpl; auto.
     destruct v; simpl; auto.
-      destruct c; simpl; auto.
+      destruct c0; simpl; auto.
         destruct (isCallLib i1); simpl; auto.
 Qed.
 
@@ -766,7 +766,7 @@ Inductive sterminator : Set :=
 
 Inductive scall : Set :=
 (* FIXME: the value should be a sterm!!! *)
-| stmn_call : id -> noret -> tailc -> typ -> value -> list (typ*sterm) -> scall
+| stmn_call : id -> noret -> clattrs -> typ -> value -> list (typ*sterm) -> scall
 .
 
 Definition smap := list (atom*sterm).
@@ -1009,7 +1009,7 @@ Definition se_call : forall (st : sstate) (i:cmd) (iscall:isCall i = true), scal
 Proof.
   intros. unfold isCall in iscall.
   destruct i0; try solve [inversion iscall].
-  apply (@stmn_call i0 n t t0 v 
+  apply (@stmn_call i0 n c t v 
                       (list_param__list_typ_subst_sterm p st.(STerms))).
 Defined.
 

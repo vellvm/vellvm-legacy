@@ -186,7 +186,7 @@ match state with
       | None => 
         match (lookupFdecViaIDFromProducts Ps fid) with
         | None => None
-        | Some (fdec_intro (fheader_intro rt' fid' la va)) =>
+        | Some (fdec_intro (fheader_intro fa rt' fid' la va)) =>
           if id_dec fid fid' then
               match (callExternalFunction Mem0 fid 
                       (params2GVs TD Mem0 lp lc gl))
@@ -200,14 +200,14 @@ match state with
               end
           else None
         end
-      | Some (fdef_intro (fheader_intro rt fid' la va) lb) =>
+      | Some (fdef_intro (fheader_intro fa rt fid' la va) lb) =>
         if id_dec fid fid' then
-            match (getEntryBlock (fdef_intro (fheader_intro rt fid la va) lb)) 
+            match (getEntryBlock (fdef_intro (fheader_intro fa rt fid la va) lb))
               with
             | None => None
             | Some (block_intro l' ps' cs' tmn') =>
                 ret ((mkState Sys TD Ps ((mkEC (fdef_intro 
-                      (fheader_intro rt fid la va) lb) 
+                      (fheader_intro fa rt fid la va) lb) 
                       (block_intro l' ps' cs' tmn') cs' tmn' 
                       (initLocals la (params2GVs TD Mem0 lp lc gl)) 
                       nil)::

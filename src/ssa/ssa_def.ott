@@ -148,9 +148,9 @@ layout :: 'layout_'					::=  			{{ com data layout }}
 layouts {{ tex \mathit{\overline{layout} } }} :: 'layouts_'	::=  		{{ com layouts }}
      	    			     	   					{{ coq (list layout) }}
   | []   		 				::   :: nil		{{ coq nil }}
-  | layouts , layout					::   :: cons		{{ coq ([[layout]]::[[lists]]) }}
-  | layouts ; layouts'					::   :: append		{{ coq ([[lists]]++[[lists']]) }}
-  | ( layouts )						:: S :: paren           {{ coq [[ lists ]] }}
+  | layouts , layout					::   :: cons		{{ coq ([[layout]]::[[layouts]]) }}
+  | layouts ; layouts'					::   :: append		{{ coq ([[layouts]]++[[layouts']]) }}
+  | ( layouts )						:: S :: paren           {{ coq [[ layouts ]] }}
 
 floating_point :: 'fp_'					::=  			{{ com floating point types }}
   | float						::   :: float		{{ com float }}
@@ -299,13 +299,42 @@ opt_value {{ tex \mathit{opt_{value} } }} :: 'opt_value_'	::= 		{{ com option va
   | value						::   :: value		{{ coq (Some [[value]]) }}
   | ( opt_value )					:: S :: paren		{{ coq [[ opt_value ]] }}
 
+attribute :: 'attribute_'				::=  			{{ com attribute }}
+  | zext     						::   :: zext
+  | sext						::   :: sext
+  | noreturn						::   :: noreturn
+  | inreg						::   :: inreg
+  | structret						::   :: structret
+  | nounwind						::   :: nounwind
+  | noalias						::   :: noalias
+  | byval						::   :: byval
+  | nest						::   :: nest
+  | readnone						::   :: readnone
+  | readonly						::   :: readonly
+  | noinline						::   :: noinline
+  | alwaysinline					::   :: alwaysinline
+  | optforsize						::   :: optforsize
+  | stackprotect					::   :: stackprotect
+  | stackprotectreq					::   :: stackprotectreq
+  | nocapture						::   :: nocapture
+  | noredzone						::   :: noredzone
+  | implicitfloat					::   :: implicitfloat
+  | naked                                               ::   :: naked
+
+attributes {{ tex \mathit{\overline{attribute} } }} :: 'attributes_'	::=     {{ com attributes }}
+     	    			     	   					{{ coq (list attribute) }}
+  | []   		 				::   :: nil		{{ coq nil }}
+  | attributes , attribute				::   :: cons		{{ coq ([[attribute]]::[[attributes]]) }}
+  | attributes ; attributes'				::   :: append		{{ coq ([[attributes]]++[[attributes']]) }}
+  | ( attributes )					:: S :: paren           {{ coq [[ attributes ]] }}
+
 arg :: 'arg_'  						::=  			{{ com argument }}
-       										{{ coq (prod typ id) }}
-  | typ id						::   :: def		{{ coq ([[typ]],[[id]]) }}
+       										{{ coq (typ * attributes * id)%type }}
+  | typ attributes id					::   :: def		{{ coq (([[typ]], [[attributes]]), [[id]]) }}
   | ( arg )						:: S :: paren		{{ coq [[ arg ]] }} 			
 
 args {{ tex \mathit{\overline{arg} } }} :: 'args_'	::=  			{{ com arguments }}
-     	    			     	   					{{ coq (list (typ*id)) }}
+     	    			     	   					{{ coq (list (typ*attributes*id)) }}
   | []   		 				::   :: nil		{{ coq nil }}
   | args , arg 						::   :: cons		{{ coq ([[arg]]::[[args]]) }}
   | args ; args'					::   :: append		{{ coq ([[args]]++[[args']]) }}
@@ -330,6 +359,16 @@ ls {{ tex \mathit{\{l\} } }} :: 'ls_'			::=			{{ com label set }}
   | ls , l						::   :: cons		{{ coq (set_add eq_dec [[l]] [[ls]]) }}
   | ls ; ls'						::   :: append		{{ coq (set_union eq_dec [[ls]] [[ls']]) }}
   | ( ls )						:: S :: paren		{{ coq [[ ls ]] }}
+
+callconv :: 'callconv_'					::=			{{ com calling convention }}
+  | ccc   						::   :: ccc
+  | fast						::   :: fast
+  | cold						::   :: cold
+  | x86_stdcall	 					::   :: x86_stdcall
+  | x86_fastcall					::   :: x86_fastcall
+
+clattrs :: 'clattrs_'                                   ::=                     {{ com call attributtes }}
+  | tailc callconv attributes1 attributes2              ::   :: intro
 
 cmd :: 'insn_'					    	::=			{{ com commands }}
 %% Binary Operations and Bitwise Binary Operations
@@ -356,7 +395,7 @@ cmd :: 'insn_'					    	::=			{{ com commands }}
   | id = icmp cond typ value1 value2			::   :: icmp		{{ com icmp }}
   | id = fcmp fcond floating_point value1 value2	::   :: fcmp		{{ com fcmp }}
   | id = select value0 typ value1 value2                ::   :: select          {{ com select }}
-  | id = noret tailc call typ0 value0 params  	 	::   :: call		{{ com call }} 
+  | id = noret clattrs call typ0 value0 params    	::   :: call		{{ com call }} 
   %| va_arg
   | ( insn )						:: S :: paren           {{ coq [[ insn ]] }}
 
@@ -417,8 +456,33 @@ blocks {{ tex \mathit{\overline{block} } }} :: 'blocks_'::=			{{ com blocks }}
   | blocks ; blocks'					::   :: append		{{ coq ([[blocks]]++[[blocks']]) }}
   | ( blocks )						:: S :: paren           {{ coq [[ blocks ]] }}
 
+visibility :: 'visibility_'				::=  			{{ com visibility }}
+  | default   						::   :: default		
+  | hidden						::   :: hidden
+  | protected						::   :: protected
+
+linkage :: 'linkage_'					::=  			{{ com linkage }}
+  | External                                            ::   :: external
+  | Available_externally                                ::   :: available_externally
+  | Link_once                                           ::   :: link_once
+  | Link_once_odr                                       ::   :: link_once_odr
+  | Weak                                                ::   :: weak
+  | Weak_odr                                            ::   :: weak_odr
+  | Appending						::   :: appending
+  | Internal						::   :: internal
+  | Private						::   :: private
+  | Linker_private					::   :: linker_private
+  | Dllimport						::   :: dllimport
+  | Dllexport						::   :: dllexport
+  | External_weak					::   :: external_weak
+  | Ghost						::   :: ghost
+  | Common						::   :: common
+
+fnattrs ::  'fnattrs_'                                  ::=                     {{ com function attributtes }}
+  | linkage visibility callconv attributes1 attributes2 ::   :: intro
+
 fheader :: 'fheader_'    				::=			{{ com function header }}
-  | typ id ( args varg )				::   :: intro
+  | fnattrs typ id ( args varg )      	      	  	::   :: intro
   | ( fheader )						:: S :: paren           {{ coq [[ fheader ]] }}
 
 fdec :: 'fdec_'       					::=			{{ com function declaration }}
@@ -453,23 +517,6 @@ namedts {{ tex \mathit{\overline{namedt} } }} :: 'namedts_'	::=		{{ com namedts 
 gvar_spec :: 'gvar_spec_'				::=	     		{{ com gvar spec }}
   | global  						::   :: global		{{ com global }}
   | constant						::   :: constant	{{ com constant }}
-
-linkage :: 'linkage_'					::=  			{{ com linkage }}
-  | External                                            ::   :: external
-  | Available_externally                                ::   :: available_externally
-  | Link_once                                           ::   :: link_once
-  | Link_once_odr                                       ::   :: link_once_odr
-  | Weak                                                ::   :: weak
-  | Weak_odr                                            ::   :: weak_odr
-  | Appending						::   :: appending
-  | Internal						::   :: internal
-  | Private						::   :: private
-  | Linker_private					::   :: linker_private
-  | Dllimport						::   :: dllimport
-  | Dllexport						::   :: dllexport
-  | External_weak					::   :: external_weak
-  | Ghost						::   :: ghost
-  | Common						::   :: common
 
 % global id is also taken as constant addresses
 gvar :: 'gvar_'   	 				::=			{{ com global variables }}

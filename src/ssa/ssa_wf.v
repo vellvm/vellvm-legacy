@@ -58,7 +58,7 @@ Definition inscope_of_block (f:fdef) (l1:l) (opt_ctx:option (list atom)) (lbl:l)
 Definition inscope_of_cmd (f:fdef) (b1:block) (c:cmd) : option (list atom) :=
 let id0 := getCmdLoc c in
 let '(block_intro l1 ps cs _) := b1 in
-let '(fdef_intro (fheader_intro _ _ la _) _) := f in
+let '(fdef_intro (fheader_intro _ _ _ la _) _) := f in
 let 'dt := dom_analyze f in
 let '(Dominators.mkBoundedSet els _) := AMap.get l1 dt in
 fold_left (inscope_of_block f l1) els
@@ -68,7 +68,7 @@ fold_left (inscope_of_block f l1) els
 Definition inscope_of_tmn (f:fdef) (b1:block) (tmn:terminator) 
   : option (list atom) :=
 let '(block_intro l1 ps cs _) := b1 in
-let '(fdef_intro (fheader_intro _ _ la _) _) := f in
+let '(fdef_intro (fheader_intro _ _ _ la _) _) := f in
 let 'dt := dom_analyze f in
 let '(Dominators.mkBoundedSet els _) := AMap.get l1 dt in
 fold_left (inscope_of_block f l1) els
@@ -364,8 +364,8 @@ Proof.
   intros f l2 ps2 cs2' c' tmn' ids1 Hnotin Hinscope.
   unfold inscope_of_cmd in Hinscope.
   unfold inscope_of_tmn.
-  destruct f as [[? ? la va] bs].
-  remember ((dom_analyze (fdef_intro (fheader_intro t i0 la va) bs)) !! l2) as R.
+  destruct f as [[? ? ? la va] bs].
+  remember ((dom_analyze (fdef_intro (fheader_intro f t i0 la va) bs)) !! l2) as R.
   destruct R as [R_contents R_bound]. simpl in *.
   apply getCmdsIDs__cmds_dominates_cmd in Hnotin.
   symmetry in Hinscope.
@@ -457,8 +457,8 @@ Proof.
   intros f l2 ps2 cs2' c' c cs' tmn' ids1 Hnodup Hinscope.
   unfold inscope_of_cmd in Hinscope.
   unfold inscope_of_cmd.
-  destruct f as [[? ? la va] bs].
-  remember ((dom_analyze (fdef_intro (fheader_intro t i0 la va) bs)) !! l2) as R.
+  destruct f as [[? ? ? la va] bs].
+  remember ((dom_analyze (fdef_intro (fheader_intro f t i0 la va) bs)) !! l2) as R.
   destruct R as [R_contents R_bound].
   apply cmds_dominates_cmd__cmds_dominates_cmd in Hnodup. simpl in *.
   symmetry in Hinscope.
@@ -499,14 +499,14 @@ Proof.
       apply set_eq_sym; auto.          
 Qed.
 
-Lemma fold_left__bound_blocks : forall ls0 t i0 la va bs l0 init,
+Lemma fold_left__bound_blocks : forall ls0 fa t i0 la va bs l0 init,
   incl ls0 (bound_blocks bs) ->
   exists r, 
     fold_left (inscope_of_block 
-                (fdef_intro (fheader_intro t i0 la va) bs) l0) ls0 (Some init) = 
-      Some r.
+      (fdef_intro (fheader_intro fa t i0 la va) bs) l0) ls0 (Some init) = 
+       Some r.
 Proof.
-  induction ls0; intros t i0 la va bs l0 init Hinc; simpl in *.
+  induction ls0; intros fa t i0 la va bs l0 init Hinc; simpl in *.
     exists init. auto.
 
     assert (incl ls0 (bound_blocks bs)) as J.
@@ -883,8 +883,8 @@ Proof.
   destruct J as [Heq J]; subst.
   unfold inscope_of_tmn in Hinscope.
   unfold inscope_of_tmn. unfold inscope_of_cmd.
-  destruct F as [[? ? la va] bs].
-  remember (dom_analyze (fdef_intro (fheader_intro t i0 la va) bs)) as Doms.
+  destruct F as [[? ? ? la va] bs].
+  remember (dom_analyze (fdef_intro (fheader_intro f t i0 la va) bs)) as Doms.
   remember (Doms !! l3)as defs3.
   remember (Doms !! l')as defs'.
   destruct defs3 as [contents3 inbound3]. 
@@ -900,7 +900,7 @@ Proof.
     assert (J1:=inbound').
     apply fold_left__bound_blocks with (init:=getPhiNodesIDs ps' ++ 
       getCmdsIDs nil ++ getArgsIDs la)(t:=t)(i0:=i0)(la:=la)(va:=va)(bs:=bs)
-      (l0:=l') in J1.
+      (fa:=f)(l0:=l') in J1.
     destruct J1 as [r J1].
     exists r. split; auto.
 
@@ -960,7 +960,7 @@ Proof.
       try solve [contradict n; auto].
     simpl_env.
     apply fold_left__bound_blocks with (init:=getPhiNodesIDs ps' ++ 
-      getArgsIDs la)(t:=t)(i0:=i0)(la:=la)(va:=va)(bs:=bs)(l0:=l') in J1.
+      getArgsIDs la)(t:=t)(i0:=i0)(la:=la)(va:=va)(bs:=bs)(l0:=l')(fa:=f) in J1.
     destruct J1 as [r J1].
     exists r.  split; auto.
 
@@ -1206,24 +1206,24 @@ Proof.
     subst. inversion Hentry.
 Qed.
 
-Lemma preservation_dbCall_case : forall los nts lc gl fid lp l' rt la va lb Mem0 
-  bs_contents
+Lemma preservation_dbCall_case : forall los nts lc gl fid lp l' fa rt la va lb 
+  Mem0 bs_contents
   (bs_bound : incl bs_contents (bound_blocks lb))
   (H0 : incl bs_contents [l']),
    match
      fold_left
-       (inscope_of_block (fdef_intro (fheader_intro rt fid la va) lb) l')
+       (inscope_of_block (fdef_intro (fheader_intro fa rt fid la va) lb) l')
        bs_contents (ret getArgsIDs la)
    with
    | ret ids0 =>
-       wf_defs (fdef_intro (fheader_intro rt fid la va) lb)
+       wf_defs (fdef_intro (fheader_intro fa rt fid la va) lb)
          (initLocals la (params2GVs (los, nts) Mem0 lp lc gl)) ids0
    | merror => False
    end.
 Proof.
   intros.
   assert (J:=bs_bound).
-  apply fold_left__bound_blocks with (t:=rt)(i0:=fid)(la:=la)(va:=va)
+  apply fold_left__bound_blocks with (t:=rt)(i0:=fid)(la:=la)(va:=va)(fa:=fa)
     (l0:=l')(init:=getArgsIDs la) in J.
   destruct J as [r J].
   rewrite J.       
@@ -1235,7 +1235,7 @@ Proof.
   destruct Hin as [Hin | Hin].    
     assert (J1:=Hin).
     apply InArgsIDs_lookupTypViaIDFromFdef with (t0:=rt)(id0:=fid)(la0:=la)
-      (va0:=va)(bs:=lb) in J1.
+      (va0:=va)(bs:=lb)(fa:=fa) in J1.
     destruct J1 as [t J1].
     exists t. rewrite J1.
     apply initLocals_spec with (gvs:=params2GVs (los, nts) Mem0 lp lc gl) in Hin.
@@ -1380,10 +1380,10 @@ Case "dsReturn".
           remember (getOperandValue (los,nts) Mem' Result lc gl) as R1.
           destruct R1; inv H1.          
           assert (Hwfc := HBinF2).
-          assert (In (insn_call i0 false t t0 v p) 
-            (cs2'++[insn_call i0 false t t0 v p])) as HinCs.
+          assert (In (insn_call i0 false c t v p) 
+            (cs2'++[insn_call i0 false c t v p])) as HinCs.
             apply in_or_app. right. simpl. auto.
-          eapply wf_system__wf_cmd with (c:=insn_call i0 false t t0 v p) 
+          eapply wf_system__wf_cmd with (c:=insn_call i0 false c t v p) 
             in Hwfc; eauto.
           inv Hwfc.
           eapply wf_defs_updateAddAL with (t1:=typ1) ; eauto.
@@ -1411,11 +1411,11 @@ Case "dsReturn".
           destruct n; inv HeqR.
           remember (getOperandValue (los,nts) Mem' Result lc gl) as R1.
           destruct R1; inv H1.
-          assert (In (insn_call i0 false t t0 v p) 
-            (cs2'++[insn_call i0 false t t0 v p] ++ [c] ++ cs')) as HinCs.
+          assert (In (insn_call i0 false c0 t v p) 
+            (cs2'++[insn_call i0 false c0 t v p] ++ [c] ++ cs')) as HinCs.
             apply in_or_app. right. simpl. auto.
           assert (Hwfc := HBinF2).
-          eapply wf_system__wf_cmd with (c:=insn_call i0 false t t0 v p) 
+          eapply wf_system__wf_cmd with (c:=insn_call i0 false c0 t v p) 
             in Hwfc; eauto.
           inv Hwfc.
           eapply wf_defs_updateAddAL with (t1:=typ1) ; eauto.
@@ -1696,8 +1696,8 @@ Case "dsSelect". admit.
 Focus.
 Case "dsCall".
   destruct HwfS1 as [HwfSys [HmInS [HwfEC [HwfECs HwfCall]]]].
-  assert (InProductsB (product_fdef (fdef_intro (fheader_intro rt fid la va) 
-    lb)) Ps = true) as HFinPs'.
+  assert (InProductsB (product_fdef (fdef_intro 
+    (fheader_intro fa rt fid la va) lb)) Ps = true) as HFinPs'.
     eapply lookupFdefViaGV_inv; eauto.
   split; auto.
   split; auto.
@@ -1715,7 +1715,7 @@ Case "dsCall".
      apply dom_entrypoint in H0.
      destruct cs'.
        unfold inscope_of_tmn.
-       remember ((dom_analyze (fdef_intro (fheader_intro rt fid la va) lb)) 
+       remember ((dom_analyze (fdef_intro (fheader_intro fa rt fid la va) lb)) 
          !! l') as R.
        destruct R.
        destruct HwfEC as [Hreach [HBinF [HFinPs [Hinscope [l1 [ps [cs' Heq]]]]]]]
@@ -1723,7 +1723,7 @@ Case "dsCall".
        eapply preservation_dbCall_case; eauto.
 
        unfold inscope_of_cmd.
-       remember ((dom_analyze (fdef_intro (fheader_intro rt fid la va) lb)) 
+       remember ((dom_analyze (fdef_intro (fheader_intro fa rt fid la va) lb)) 
          !! l') as R.
        destruct R. simpl.
        destruct (eq_atom_dec (getCmdLoc c) (getCmdLoc c)) as [|n]; 
@@ -1808,7 +1808,8 @@ Proof.
   eapply wf_defs_elim; eauto.
     unfold inscope_of_tmn in Hinscope.
     destruct f. destruct f.
-    remember ((dom_analyze (fdef_intro (fheader_intro t i0 a v) b)) !! l1) as R.
+    remember ((dom_analyze (fdef_intro (fheader_intro f t i0 a v) b)) !! l1) 
+      as R.
     destruct R.  
     symmetry in Hinscope.  
     apply fold_left__spec in Hinscope.
@@ -1836,7 +1837,7 @@ Proof.
          simpl. intro J. destruct J as [J | J]; auto.
      destruct Hinscope as [_ [Hinscope _]].
      assert (
-       lookupBlockViaLabelFromFdef (fdef_intro (fheader_intro t i0 a v) b) l0 =
+       lookupBlockViaLabelFromFdef (fdef_intro (fheader_intro f t i0 a v) b) l0 =
        ret block_intro l0 p c t0) as J1.
        apply blockInFdefB_lookupBlockViaLabelFromFdef; auto.
          eapply lookupBlockViaIDFromFdef__blockInFdefB; eauto. 
@@ -1904,7 +1905,8 @@ Proof.
   eapply wf_defs_elim; eauto.
     unfold inscope_of_cmd in Hinscope.
     destruct b. destruct f. destruct f.
-    remember ((dom_analyze (fdef_intro (fheader_intro t0 i0 a v) b)) !! l0) as R.
+    remember ((dom_analyze (fdef_intro (fheader_intro f t0 i0 a v) b)) !! l0) 
+      as R.
     destruct R.  
     symmetry in Hinscope.  
     apply fold_left__spec in Hinscope.
@@ -1942,8 +1944,8 @@ Proof.
          simpl. intro J. destruct J as [J | J]; auto.
      destruct Hinscope as [_ [Hinscope _]].
      assert (
-       lookupBlockViaLabelFromFdef (fdef_intro (fheader_intro t0 i0 a v) b) l1 =
-       ret block_intro l1 p0 c1 t1) as J1.
+       lookupBlockViaLabelFromFdef (fdef_intro (fheader_intro f t0 i0 a v) b) l1
+         = ret block_intro l1 p0 c1 t1) as J1.
        apply blockInFdefB_lookupBlockViaLabelFromFdef; auto.
          eapply lookupBlockViaIDFromFdef__blockInFdefB; eauto. 
      apply Hinscope with (b1:=block_intro l1 p0 c1 t1) in J; auto.
@@ -2151,7 +2153,7 @@ Proof.
         destruct vb.
         unfold inscope_of_tmn in HeqR.
         destruct f. destruct f.
-        remember ((dom_analyze (fdef_intro (fheader_intro t2 i1 a v) b)) !! l1)
+        remember ((dom_analyze (fdef_intro (fheader_intro f t2 i1 a v) b)) !! l1)
           as R1.
         destruct R1.
         symmetry in HeqR.    
@@ -2182,7 +2184,7 @@ Proof.
               simpl. intro JJ. destruct JJ as [JJ | JJ]; auto.
           assert (
             lookupBlockViaLabelFromFdef 
-              (fdef_intro (fheader_intro t2 i1 a v) b) l3 = 
+              (fdef_intro (fheader_intro f t2 i1 a v) b) l3 = 
               ret block_intro l3 p c t1) as J1.
             clear - Hlkvb HuniqF.
             apply lookupBlockViaIDFromFdef__blockInFdefB in Hlkvb.
@@ -2256,7 +2258,7 @@ Proof.
           admit.
         destruct J as [M' J].
         assert (exists lc'', 
-          returnUpdateLocals (los,nts) M' (insn_call i1 n t0 t1 v0 p) v lc lc' gl
+          returnUpdateLocals (los,nts) M' (insn_call i1 n c t0 v0 p) v lc lc' gl
             = Some lc'') as Hretup.
           unfold returnUpdateLocals. simpl.
           destruct n.
