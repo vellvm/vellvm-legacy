@@ -22,7 +22,7 @@ Require Import Znumtheory.
 Require Export List.
 Require Export Bool.
 Require Import Wf_nat.
-
+Require Import Psatz.
 
 (***
 
@@ -700,27 +700,26 @@ Proof.
     subst. auto.
 Qed.
 
-(** * zdiv zmod *)
-
-Lemma Zmod_lt: forall a b, 0 < b -> 0 < a -> a mod b < a.
-Admitted.
-
-Lemma Z_div_gt0 : forall a b,
-  a > 0 -> b > 0 -> a / b > 0.
+Lemma Zpos_P_of_succ_nat_mono : forall m n,
+  (m <= n)%nat ->
+  Zpos (P_of_succ_nat m) <= Zpos (P_of_succ_nat n).
 Proof.
-  intros.
-  assert (J:=@Z_div_mod_eq a b H0).
-  assert (J':=H0).
-  apply Z_div_ge0 with (a:=a) in J'; try omega.
-  destruct (a/b).
-    ring_simplify in J.
-    assert (a mod b < a).
-      apply Zmod_lt; try omega.
-    rewrite <- J in H1. contradict H1; auto with zarith.
-
+  induction m; destruct n; simpl; intros; auto with zarith.
+    rewrite Zpos_succ_morphism. simpl.
+    rewrite Zpos_plus_distr.
+    assert (Zpos (P_of_succ_nat n) > 0) as F.
+      auto with zarith.
     auto with zarith.
-    contradict H0. auto with zarith.  
+    
+    rewrite Zpos_succ_morphism.
+    rewrite Zpos_succ_morphism.
+    unfold Zsucc.
+    assert (Zpos (P_of_succ_nat m) <= Zpos (P_of_succ_nat n)) as J.
+      apply IHm; auto with zarith.
+    auto with zarith.
 Qed.
+
+(** * zdiv zmod *)
 
 Lemma mod_prop1 : forall wz,
   Z_of_nat (S wz) mod 8 >= 0.
@@ -773,13 +772,31 @@ Proof.
     assert (J:=@Z_div_ge0 a b H0 H). auto with zarith.
 Qed.
 
+Lemma Zpos_Zneg_Zmul : forall a b, a > 0 -> b < 0 -> a * b < 0.
+Proof. intros. psatz Z. Qed.
+
 Lemma ZRdiv_prop3 : forall a b, a > 0 -> b > 0 -> ZRdiv a b > 0.
 Proof.
   intros.
   unfold ZRdiv.
+  assert (J:=@Z_div_mod_eq a b H0).
   destruct (zeq (a mod b) 0).
-    apply Z_div_gt0; auto.
-    assert (J:=@Z_div_gt0 a b H H0). auto with zarith.
+    rewrite e in J.
+    ring_simplify in J.
+    destruct (a / b).
+      ring_simplify in J.
+      subst. contradict H; auto with zarith.
+
+      auto with zarith.
+      rewrite J in H.
+      assert (Zneg p <0) as Hneg. unfold Zlt. simpl. auto.
+      assert (b * Zneg p < 0) as J'.
+        eapply Zpos_Zneg_Zmul; eauto.
+      contradict J'; auto with zarith.
+
+    assert (a / b >= 0) as J'.
+      eapply Z_div_ge0; eauto with zarith.      
+    auto with zarith.
 Qed.
 
 Lemma ZRdiv_prop4 : forall wz,

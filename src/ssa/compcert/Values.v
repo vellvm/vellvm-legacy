@@ -1450,7 +1450,7 @@ Ltac simpl_auto_equations :=
 
 Definition load_result (chunk: memory_chunk) (v: val) :=
   match chunk, v with
-  | Mint wz1, Vint wz2 n => if eq_nat_dec wz1 wz2 then Vint wz2 n else Vundef
+  | Mint wz1, Vint wz2 n => Vint wz1 (Int.repr wz1 (Int.unsigned wz2 n))
   | Mint wz, Vptr b ofs => if eq_nat_dec wz 31 then Vptr b ofs else Vundef
   | Mint wz, Vinttoptr i => if eq_nat_dec wz 31 then Vinttoptr i else Vundef
   | Mfloat32, Vfloat f => Vfloat(Float.singleoffloat f)
@@ -2225,7 +2225,6 @@ Lemma val_load_result_inject:
   val_inject f (Val.load_result chunk v1) (Val.load_result chunk v2).
 Proof.
   intros. inv H; destruct chunk; simpl; try econstructor; eauto.
-    destruct (eq_nat_dec n wz); try econstructor; eauto.
     destruct (eq_nat_dec n 31); try econstructor; eauto.
     destruct (eq_nat_dec n 31); try econstructor; eauto.
 Qed.

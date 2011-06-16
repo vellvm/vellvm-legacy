@@ -19,10 +19,11 @@ alist.vo : alist.v
 ssa_coq_lib.vo : ssa_coq_lib.v ssa_def.vo alist.vo ssa_analysis.vo
 	$(COQC) $(COQARG) ssa_coq_lib.v
 
-ssa_def.vo : ssa_def.v ./monads/monad.vo ./compcert/Floats.vo alist.vo
+ssa_def.vo : ssa_def.v ./monads/monad.vo ./compcert/Floats.vo alist.vo \
+	./compcert/Memory.vo
 	$(COQC) $(COQARG) ssa_def.v
 
-ssa_def.v : ssa_def.ott
+ssa_def.v : ssa_def.ott ./
 	$(OTT) -coq_expand_list_types true -i ssa_def.ott -o ssa_def.v
 	./fixott.py ssa_def.v
 

@@ -1645,44 +1645,28 @@ Opaque encode_val.
           | _ => False
           end).
 Transparent encode_val.
-  unfold e, encode_val. rewrite SZ. destruct chunk; simpl; auto.
+  unfold e, encode_val. rewrite SZ. 
+  destruct chunk; simpl; auto.
+    destruct (eq_nat_dec n 31); subst; auto.
 
-  destruct (eq_nat_dec n 31); subst; auto.
-    unfold size_chunk_nat, size_chunk. rewrite bytesize_chunk_31_eq_4.
-    simpl. auto.
+    destruct e as [ | e1 el]. contradiction.
+    rewrite SZ'. simpl. rewrite setN_outside. rewrite update_s. 
+    destruct e1; try contradiction. 
+      destruct chunk'; auto. 
+        unfold decode_val. simpl.
+        destruct (eq_nat_dec n 31); auto.
 
-  destruct e as [ | e1 el]. contradiction.
-  rewrite SZ'. simpl. rewrite setN_outside. rewrite update_s. 
-  destruct e1; try contradiction. 
-    destruct chunk'; auto. 
-      simpl.
-      unfold decode_int.
-      admit.
-
-    subst.
-    destruct H1 as [H1 | H1].   
-      contradict H1; auto.
+      subst.
+      destruct H1 as [H1 | H1].   
+        contradict H1; auto.
     
-      destruct chunk'; auto.
-        simpl.
-        destruct (eq_nat_dec n0 31); subst.
-          contradict H1; auto.
-              
-          unfold decode_int.
-          admit.
-  omega.
+        destruct chunk'; auto.
+          unfold decode_val.
+          destruct (eq_nat_dec n0 31); subst.
+            contradict H1; auto.
+            simpl. auto.
+      omega.
 Qed.
-
-Lemma bytesize_chunk_neq : forall n1 n2,
-  (n1 <= 31)%nat -> (n2 > 31)%nat ->
-  bytesize_chunk n1 <> bytesize_chunk n2.
-Admitted.
-
-Lemma bytesize_chunk_lt_31 : forall n,
-  (n < 31)%nat ->
-  bytesize_chunk n < 4.
-Proof.
-Admitted.
 
 Lemma store_similar_chunks:
   forall chunk1 chunk2 v1 v2 m b ofs,
@@ -1701,7 +1685,8 @@ Proof.
   f_equal. apply mkmem_ext; auto. congruence.
 
   elimtype False.
-  destruct chunk1; destruct chunk2;  inv H0; unfold valid_access, align_chunk in *; try contradiction.
+  destruct chunk1; destruct chunk2;  inv H0; 
+    unfold valid_access, align_chunk in *; try contradiction.
 
     unfold range_perm in v.
     unfold size_chunk_nat, size_chunk in v.
@@ -1719,16 +1704,17 @@ Proof.
     rewrite H2 in v.
     destruct (le_lt_dec n0 31).
       apply n; auto.
-      apply bytesize_chunk_gt_31 in l; auto.
+      apply bytesize_chunk_gt_31 in l.
+        contradict H2; omega.
 
     unfold range_perm in v.
     unfold size_chunk_nat, size_chunk in v.
     rewrite H2 in v.
     destruct (le_lt_dec n0 31).
-      simpl in n. destruct v.
-      apply n. split; auto. clear - H1. admit.
+      apply bytesize_chunk_le_31 in l. contradict H2; omega.
 
-    apply n; auto.
+      simpl in n. destruct v.
+      apply n. split; auto.
 
     destruct (le_lt_dec n0 31).
       unfold size_chunk_nat, size_chunk in n.
@@ -1747,7 +1733,8 @@ Proof.
       apply n; auto.
 
   elimtype False.
-  destruct chunk1; destruct chunk2;  inv H0; unfold valid_access, align_chunk in *; try contradiction.
+  destruct chunk1; destruct chunk2; inv H0; 
+    unfold valid_access, align_chunk in *; try contradiction.
 
     unfold range_perm in v.
     unfold size_chunk_nat, size_chunk in v.
@@ -1772,10 +1759,10 @@ Proof.
     unfold size_chunk_nat, size_chunk in v.
     rewrite <- H2 in v.
     destruct (le_lt_dec n0 31).
-      simpl in n. destruct v.
-      apply n. split; auto. clear - H1. admit.
+      apply bytesize_chunk_le_31 in l. contradict H2; omega.
 
-    apply n; auto.
+      simpl in n. destruct v.
+      apply n. rewrite H2 in *. split; auto. 
 
     destruct (le_lt_dec n0 31).
       unfold size_chunk_nat, size_chunk in n, v.
@@ -2020,7 +2007,12 @@ Proof.
   intros. exploit load_result; eauto. intro. rewrite H0. 
   injection ALLOC; intros. rewrite <- H2; simpl. rewrite <- H1.
   rewrite update_s. destruct chunk; try reflexivity. 
-    simpl. admit.
+  unfold decode_val.
+  rewrite proj_bytes_undef.
+  destruct (eq_nat_dec n 31); subst; auto.
+    assert (J:=size_chunk_nat_pos' (Mint n)). 
+    destruct (size_chunk_nat (Mint n)); simpl; auto.
+      contradict J; omega.
 Qed.
 
 Theorem load_alloc_same':

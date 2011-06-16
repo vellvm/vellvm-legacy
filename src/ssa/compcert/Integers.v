@@ -2463,11 +2463,11 @@ Proof.
   apply Z_of_bits_of_Z.
 Qed.
 
+(*
 Lemma and_two_p_ge_wz : forall x,
   n >= Z_of_nat wordsize -> 
   and x (repr (two_p n - 1)) = x.
-Proof.
-Admitted.
+Qed.
 
 Theorem zero_ext_and_ge_wz:
   forall x, 
@@ -2487,6 +2487,7 @@ Proof.
   intros. repeat (rewrite zero_ext_and_ge_wz; auto). 
   rewrite and_assoc. rewrite and_idem. auto.
 Qed.
+*)
 
 Theorem sign_ext_idem_ge_wz:
   forall x, 
@@ -2905,3 +2906,10 @@ Proof.
   exists (two_p (32-5)); reflexivity.
 Qed.
 
+(*****************************)
+(*
+*** Local Variables: ***
+*** coq-prog-name: "coqtop" ***
+*** coq-prog-args: ("-emacs-U" "-I" "~/SVN/sol/vol/src/ssa/monads" "-I" "~/SVN/sol/vol/src/ssa/ott" "-I" "~/SVN/sol/vol/src/ssa/compcert" "-I" "~/SVN/sol/theory/metatheory_8.3") ***
+*** End: ***
+ *)
