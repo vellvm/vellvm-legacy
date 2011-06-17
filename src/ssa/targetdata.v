@@ -13,33 +13,6 @@ Module LLVMtd.
 
 Export LLVMsyntax.
 
-(*
-Definition nat_of_Z (z: Z) : nat :=
-  match z with
-  | Z0 => O
-  | Zpos p => nat_of_P p
-  | Zneg p => O
-end.
-
-Lemma Z_of_nat__nat_of_Z:
-  forall z, (z >= 0)%Z -> Z_of_nat (nat_of_Z z) = z.
-Proof.
-  intros. destruct z; simpl.
-  auto.
-  symmetry. apply Zpos_eq_Z_of_nat_o_nat_of_P.
-  compute in H. congruence.
-Qed.
-
-Lemma nat_of_Z__Z_of_nat : forall n,
-  n >= 0 ->
-  nat_of_Z (Z_of_nat n) = n.
-Proof.
-  intros. destruct n; simpl.
-  auto.
-  apply nat_of_P_o_P_of_succ_nat_eq_succ.
-Qed.
-*)
-
 Definition ndiv (n m:nat) := nat_of_Z (Zdiv (Z_of_nat (n)) (Z_of_nat m)).  
 
 (**
@@ -56,8 +29,8 @@ Definition ndiv (n m:nat) := nat_of_Z (Zdiv (Z_of_nat (n)) (Z_of_nat m)).
  p:size:abi_align:pref_align: Pointer size, ABI and preferred alignment.
 
  Type:size:abi_align:pref_align: Numeric type alignment. Type is one of i|f|v|a, 
- corresponding to integer, floating point, or aggregate.  Size indicates the size, 
- e.g., 32 or 64 bits.
+ corresponding to integer, floating point, or aggregate.  Size indicates the 
+ size, e.g., 32 or 64 bits.
 
  Note that in the case of aggregates, 0 is the default ABI and preferred
  alignment. This is a special case, where the aggregate's computed worst-case
@@ -76,7 +49,7 @@ Definition ndiv (n m:nat) := nat_of_Z (Zdiv (Z_of_nat (n)) (Z_of_nat m)).
   FLOAT_ALIGN,     4,         4,          32  // f32
   FLOAT_ALIGN,     8,         8,          64  // f64
   AGGREGATE_ALIGN, 0,         8,          0   // struct
-  PTR,             8,         8,          64  // ptr
+  PTR,             8,         8,          32  // ptr
   BigEndian
 
  When LLVM is determining the alignment for a given type, it uses the following 
@@ -92,20 +65,18 @@ Definition ndiv (n m:nat) := nat_of_Z (Zdiv (Z_of_nat (n)) (Z_of_nat m)).
       specified).
 *)
 
-Definition TargetData := (layouts*
-                          namedts)%type.
+Definition TargetData := (layouts * namedts)%type.
 
-Definition DTD := 
-                   (layout_be::
+Definition DTD :=  (layout_be::
                     layout_int Size.One Align.One Align.One::
                     layout_int Size.Eight Align.One Align.One::
                     layout_int Size.Sixteen Align.Two Align.Two::
                     layout_int Size.ThirtyTwo Align.Four Align.Four::
-                    layout_int Size.SixtyFour Align.Four Align.Eight::
+                    layout_int Size.SixtyFour Align.Four Align.Four::
                     layout_float Size.ThirtyTwo Align.Four Align.Four::
-                    layout_float Size.SixtyFour Align.Four Align.Eight::
+                    layout_float Size.SixtyFour Align.Four Align.Four::
                     layout_aggr Size.Zero Align.Zero Align.Eight::
-                    layout_ptr Size.SixtyFour Align.Zero Align.Zero::nil).
+                    layout_ptr Size.ThirtyTwo Align.Four Align.Four::nil).
 
 (** RoundUpAlignment - Round the specified value up to the next alignment
     boundary specified by Alignment.  For example, 7 rounded up to an
@@ -113,7 +84,7 @@ Definition DTD :=
     is 8 because it is already aligned. *)
 Definition RoundUpAlignment (val alignment:nat) : nat :=
   let zv := Z_of_nat val in
-  let za := two_power_nat alignment in
+  let za := Z_of_nat alignment in
   let zr := (zv + za)%Z in
   nat_of_Z (zr / za * za).
 
@@ -290,7 +261,7 @@ Fixpoint _getPointerSize (los:layouts) : option sz :=
 Definition getPointerSize0 (los:layouts) : sz :=
   match (_getPointerSize los) with
   | Some n => n
-  | None => Size.Eight
+  | None => Size.Four
   end.
 
 Definition getPointerSize (TD:TargetData) : sz :=
@@ -589,47 +560,29 @@ match t with
 end.
 
 Fixpoint _getStructElementOffset (TD:TargetData) (ts:list_typ) (idx:nat) 
-         (struct_sz struct_al : nat) : option nat :=
+         (ofs : nat) : option nat :=
 match (ts, idx) with
-| (Cons_list_typ t Nil_list_typ, O) => 
-        match (getTypeAllocSize TD t, getABITypeAlignment TD t) with
-        | (Some sub_sz, Some sub_al) =>
-           (* Add padding if necessary to align the data element properly. *)
-           Some (RoundUpAlignment struct_sz sub_al)
-        | _ => None
-        end
+| (_, O) => Some ofs
 | (Cons_list_typ t ts', S idx') =>
-        match (getTypeAllocSize TD t, getABITypeAlignment TD t) with
-        | (Some sub_sz, Some sub_al) =>
-          (* Add padding if necessary to align the data element properly. *)
-          (* Keep track of maximum alignment constraint. *)
-          (* Consume space for this data item *)
-          match (le_lt_dec sub_al struct_al) with
-          | left _ (* struct_al <= sub_al *) =>
-            _getStructElementOffset TD ts' idx'
-              (RoundUpAlignment struct_sz sub_al + sub_sz)
-              sub_al
-          | right _ (* sub_al < struct_al *) =>
-            _getStructElementOffset TD ts' idx'
-              (RoundUpAlignment struct_sz sub_al + sub_sz)
-              struct_al
-          end
-        | _ => None
-        end
+    match (getTypeAllocSize TD t, getABITypeAlignment TD t) with
+    | (Some sub_sz, Some sub_al) =>
+       _getStructElementOffset TD ts' idx' (ofs + RoundUpAlignment sub_sz sub_al)
+    | _ => None
+    end
 | _ => None
 end.
 
 Definition getStructElementOffset (TD:TargetData) (t:typ) (idx:nat) : option nat
   :=
 match t with
-| typ_struct lt => _getStructElementOffset TD lt idx 0 0
+| typ_struct lt => _getStructElementOffset TD lt idx 0
 | _ => None
 end.
 
 Definition getStructElementOffsetInBits (TD:TargetData) (t:typ) (idx:nat) 
   : option nat :=
 match t with
-| typ_struct lt => match (_getStructElementOffset TD lt idx 0 0) with
+| typ_struct lt => match (_getStructElementOffset TD lt idx 0) with
                    | None => None
                    | Some n => Some (n*8)%nat
                    end
@@ -639,39 +592,20 @@ end.
 (** getElementContainingOffset - Given a valid offset into the structure,
     return the structure index that contains it. *)
 Fixpoint _getStructElementContainingOffset (TD:TargetData) (ts:list_typ) 
-  (offset:nat) (idx:nat) (struct_sz struct_al : nat) : option nat :=
+  (offset:nat) (idx:nat) (cur : nat) : option nat :=
 match ts with
 | Nil_list_typ => None
 | Cons_list_typ t ts' =>
-        match (getTypeAllocSize TD t, getABITypeAlignment TD t) with
-        | (Some sub_sz, Some sub_al) =>
-          (* Add padding if necessary to align the data element properly. *)
-          (* Keep track of maximum alignment constraint. *)
-          (* Consume space for this data item *)
-          match (le_lt_dec sub_al struct_al) with
-          | left _ (* struct_al <= sub_al *) =>
-             match (le_lt_dec offset (RoundUpAlignment struct_sz sub_al + sub_sz)
-                   ) with
-             | left _ (* (RoundUpAlignment struct_sz sub_al + sub_sz) <= offset*)
-                 => 
-                _getStructElementContainingOffset TD ts' offset (S idx)
-                   (RoundUpAlignment struct_sz sub_al + sub_sz)
-                    sub_al
-             | right _ => Some idx
-             end
-          | right _ (* sub_al < struct_al *) =>
-             match (le_lt_dec offset (RoundUpAlignment struct_sz sub_al + sub_sz)
-             ) with
-             | left _ (* (RoundUpAlignment struct_sz sub_al + sub_sz) <= offset*)
-                 => 
-                _getStructElementContainingOffset TD ts' offset (S idx)
-                   (RoundUpAlignment struct_sz sub_al + sub_sz)
-                    struct_al
-             | right _ => Some idx
-             end
-          end
-        | _ => None
-        end
+    match (getTypeAllocSize TD t, getABITypeAlignment TD t) with
+    | (Some sub_sz, Some sub_al) =>
+         match (le_lt_dec offset (RoundUpAlignment sub_sz sub_al + cur)) with
+         | left _ (* (RoundUpAlignment struct_sz sub_al + sub_sz) <= offset*)
+             => _getStructElementContainingOffset TD ts' offset (S idx)
+                   (RoundUpAlignment sub_sz sub_al + cur)
+         | right _ => Some idx
+         end
+    | _ => None
+    end
 end.
 
 (** 
@@ -684,7 +618,7 @@ end.
 Definition getStructElementContainingOffset (TD:TargetData) (t:typ) (offset:nat) 
   : option nat :=
 match t with
-| typ_struct lt => _getStructElementContainingOffset TD lt offset 0 0 0
+| typ_struct lt => _getStructElementContainingOffset TD lt offset 0 0
 | _ => None
 end.
 

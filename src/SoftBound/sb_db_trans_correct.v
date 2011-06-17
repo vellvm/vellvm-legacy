@@ -107,10 +107,10 @@ Lemma _zeroconst2GV__gv_inject_refl : forall TD t gv mi,
   gv_inject mi gv gv.
 Admitted.
 
-Lemma gv_inject__eq__sizeGenericValue : forall mi gv1 gv2,
+(*Lemma gv_inject__eq__sizeGenericValue : forall mi gv1 gv2,
   gv_inject mi gv1 gv2 ->
   sizeGenericValue gv1 = sizeGenericValue gv2.
-Admitted.
+Admitted.*)
 
 Lemma val_list_inject_app : forall mi vs1 vs1' vs2 vs2',
   val_list_inject mi vs1 vs2 ->
@@ -272,6 +272,9 @@ Lemma simulation__insertGenericValue : forall mi gv1 gv1' TD t1 l0 gv t2 gv2
     gv_inject mi gv gv'.
 Admitted.
 
+Lemma gv_inject_uninits : forall mi n, gv_inject mi (uninits n) (uninits n).
+Admitted.
+
 Definition sb_mem_inj__const2GV_prop (c:const) := forall maxb mi Mem1 Mem2 TD gl 
     gv t,
   Mem.mem_inj mi Mem1 Mem2 ->
@@ -349,18 +352,17 @@ Case "struct".
   destruct R as [[[gv1 t1] a1]|]; inv H3.
   destruct (@H01 gv1 t1 a1) as [gv' [H02 H03]]; auto.
   rewrite H02; auto.
-  erewrite <- gv_inject__eq__sizeGenericValue; eauto.
-  remember (sizeGenericValue gv1) as R1.
-  destruct R1; inv H4.
-    exists (uninits (Align.to_nat a1)).
-    split; auto.
-      unfold uninits, gv_inject; simpl; auto.
+  destruct (getTypeAllocSize TD (typ_struct t1)); try solve [inv H4].
+  destruct l0; inv H4.
+    exists (uninits s).
+    split; auto. 
+      apply gv_inject_uninits.
 
-    exists (gv' ++ uninits (Align.to_nat a1 - S R1)).
+    exists (gv' ++ uninits (a1 - s)).
     split; auto.
-      unfold uninits.
       apply gv_inject_app; auto.
-        unfold gv_inject; simpl; auto.       
+        apply gv_inject_uninits.
+
 Case "gid".
   remember (lookupAL GenericValue gl i0) as R.
   destruct R; inv H2.
@@ -606,13 +608,13 @@ Case "cast".
     rewrite J1.
     destruct (@H10 gv3 t3) as [gv3' [J3 J4]]; auto.
     rewrite J3.
+    destruct (getTypeStoreSize TD t4); try solve [inv H5].
     destruct (getTypeAllocSize TD t4); inv H5.
-    exists ((gv3' ++ gv4') ++ uninits (s - sizeGenericValue gv4')).
-    erewrite <- gv_inject__eq__sizeGenericValue; eauto.
+    exists ((gv3' ++ gv4') ++ uninits (s - n)).
     split; auto.    
       apply gv_inject_app.
         apply gv_inject_app; auto.
-          unfold uninits, gv_inject. simpl. auto.
+          apply gv_inject_uninits.
 
     remember (_list_const_struct2GV TD Mem1 gl l0) as R3.
     destruct R3 as [[[gv3 t3] a3]|]; inv H4.
@@ -625,28 +627,13 @@ Case "cast".
     symmetry in HeqR3.
     destruct (@H11 gv3 t3 a3) as [gv3' [J3 J4]]; auto.
     rewrite J3.
-    destruct (getABITypeAlignment TD t4); inv H5.
+    destruct (getTypeStoreSize TD t4); inv H5.
     destruct (getTypeAllocSize TD t4); inv H6.
-    exists (gv3' ++
-            [(Vundef, AST.Mint ((n - sizeGenericValue gv4') * 8 - 1))]
-            ++ gv4' ++ uninits (s - sizeGenericValue gv4')).
-    erewrite <- gv_inject__eq__sizeGenericValue; eauto.
-    destruct (le_lt_dec n (Align.to_nat a3)); inv H5.
-      simpl_env.
-      split; auto.
+    exists (gv3' ++ gv4' ++ uninits (s - n)).
+    split; auto.
+      apply gv_inject_app; auto.
         apply gv_inject_app; auto.
-         apply gv_inject_app; auto.
-            unfold gv_inject. simpl. auto.
-         apply gv_inject_app; auto.
-            unfold uninits, gv_inject. simpl. auto.
-
-      simpl_env.
-      split; auto.
-        apply gv_inject_app; auto.
-         apply gv_inject_app; auto.
-            unfold gv_inject. simpl. auto.
-         apply gv_inject_app; auto.
-            unfold uninits, gv_inject. simpl. auto.
+          apply gv_inject_uninits.
 Qed.
 
 Lemma sb_mem_inj___const2GV : forall maxb mi Mem1 Mem2 TD gl c gv t,

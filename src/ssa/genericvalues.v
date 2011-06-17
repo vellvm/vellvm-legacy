@@ -43,13 +43,8 @@ match gv1, gv2 with
 | _, _ => false
 end.
 
-Fixpoint sizeGenericValue (gv:GenericValue) : nat := 
-match gv with
-| nil => O
-| (_, c)::gv' => size_chunk_nat c + sizeGenericValue gv'
-end.
-
-Definition uninits (n:nat) : GenericValue := (Vundef, Mint (n*8-1))::nil.
+Definition uninits (n:nat) : GenericValue := 
+   Coqlib.list_repeat n (Vundef, Mint 7).
 Definition GV2val (TD:TargetData) (gv:GenericValue) : option val :=
 match gv with
 | (v,c)::nil => Some v
@@ -575,17 +570,25 @@ match t with
 | typ_array sz t => 
   match _zeroconst2GV TD t with
   | Some gv0 =>
-    match (getTypeAllocSize TD t) with
-   | Some sz0 => 
-       Some (repeatGV (gv0++uninits (Size.to_nat sz0 - sizeGenericValue gv0)) 
+    match (getTypeStoreSize TD t, getTypeAllocSize TD t) with
+    | (Some ssz, Some asz) => 
+       Some (repeatGV (gv0++uninits (Size.to_nat asz - Size.to_nat ssz)) 
              (Size.to_nat sz))
-   | None => None 
-   end
+    | _ => None 
+    end
   | _ => None
   end
 | typ_struct ts => 
   match _list_typ_zerostruct2GV TD ts with
-  | Some (gv0, _) => Some gv0
+  | Some (gv0, tsz) => 
+      match getTypeAllocSize TD t with
+      | Some asz => 
+          match ts with
+          | Nil_list_typ => Some (uninits asz)
+          | _ =>  Some (gv0++uninits (tsz - asz)) 
+          end
+      | None => None
+      end
   | None => None
   end
 | typ_pointer t' => Some null
@@ -594,34 +597,16 @@ match t with
 | typ_namedt _ => None (*FIXME: Can zeroconstant be of named type? How about termination. *)
 end             
 with _list_typ_zerostruct2GV (TD:TargetData) (lt:list_typ) 
-  : option (GenericValue*align) := 
+  : option (GenericValue * nat) := 
 match lt with
-| Nil_list_typ => Some (nil, Align.Zero)
+| Nil_list_typ => Some (nil, 0)
 | Cons_list_typ t lt' =>
   match (_list_typ_zerostruct2GV TD lt', _zeroconst2GV TD t) with
-  | (Some (gv, struct_al), Some gv0) =>
-             match (getABITypeAlignment TD t, getTypeAllocSize TD t) with
-             | (Some sub_al, Some sub_sz) => 
-               match (le_lt_dec sub_al (Align.to_nat struct_al)) with
-               | left _ (* struct_al <= sub_al *) =>
-                 Some (
-                  gv++
-                  (uninits (sub_al - sizeGenericValue gv0))++
-                  gv0++
-                  (uninits (sub_sz - sizeGenericValue gv0)),
-                  (Align.from_nat sub_al)
-                 )
-               | right _ (* sub_al < struct_al *) =>
-                 Some (
-                  gv++
-                  (uninits (sub_al - sizeGenericValue gv0))++
-                  gv0++
-                  (uninits (sub_sz - sizeGenericValue gv0)),
-                  struct_al
-                 )
-               end
-             | _ => None 
-             end
+  | (Some (gv, tsz), Some gv0) =>
+       match (getTypeStoreSize TD t, getTypeAllocSize TD t) with
+       | (Some ssz, Some asz) => Some (gv++gv0++uninits (asz - ssz), tsz+asz)
+       | _ => None 
+       end
   | _ => None
   end
 end
@@ -656,11 +641,15 @@ match c with
 | const_struct lc =>
          match (_list_const_struct2GV TD M gl lc) with
          | None => None
-         | Some ((gv, t), al) => 
-           match (sizeGenericValue gv) with
-           | 0 => Some (uninits (Align.to_nat al), t)
-           | _ => Some (gv++uninits (Align.to_nat al-sizeGenericValue gv), t)
-           end
+         | Some ((gv, ts), tsz) => 
+             match getTypeAllocSize TD (typ_struct ts) with
+             | Some asz => 
+                 match lc with
+                 | Nil_list_const => Some (uninits asz, typ_struct ts)
+                 | _ =>  Some (gv++uninits (tsz - asz), typ_struct ts) 
+                 end
+             | None => None
+             end
          end
 | const_gid t id =>
          match (lookupAL _ gl id) with
@@ -780,45 +769,26 @@ match cs with
 | Cons_list_const c lc' =>
   match (_list_const_arr2GV TD M gl lc', _const2GV TD M gl c) with
   | (Some (gv, t), Some (gv0,t0)) =>
-             match (getTypeAllocSize TD t0) with
-             | Some sz0 => 
-                 Some ((gv++gv0)++uninits (sz0 - sizeGenericValue gv0), t0)
-             | None => None 
+             match (getTypeStoreSize TD t0, getTypeAllocSize TD t0) with
+             | (Some ssz0, Some asz0) => 
+                 Some ((gv++gv0)++uninits (asz0 - ssz0), t0)
+             | _ => None 
              end
   | _ => None
   end
 end
 with _list_const_struct2GV (TD:TargetData) (M:mem) (gl:GVMap) (cs:list_const) 
-  : option (GenericValue*typ*align) := 
+  : option (GenericValue*list_typ*nat) := 
 match cs with
-| Nil_list_const => Some ((nil, typ_int Size.Zero), Align.Zero)
+| Nil_list_const => Some ((nil, Nil_list_typ), 0)
 | Cons_list_const c lc' =>
   match (_list_const_struct2GV TD M gl lc', _const2GV TD M gl c) with
-  | (Some (gv, t, struct_al), Some (gv0,t0)) =>
-             match (getABITypeAlignment TD t0, getTypeAllocSize TD t0) with
-             | (Some sub_al, Some sub_sz) => 
-               match (le_lt_dec sub_al (Align.to_nat struct_al)) with
-               | left _ (* struct_al <= sub_al *) =>
-                 Some (
-                  (gv++
-                  (uninits (sub_al - sizeGenericValue gv0))++
-                  gv0++
-                  (uninits (sub_sz - sizeGenericValue gv0)),
-                  t0),
-                  (Align.from_nat sub_al)
-                 )
-               | right _ (* sub_al < struct_al *) =>
-                 Some (
-                  (gv++
-                  (uninits (sub_al - sizeGenericValue gv0))++
-                  gv0++
-                  (uninits (sub_sz - sizeGenericValue gv0)),
-                  t0),
-                  struct_al
-                 )
-               end
-             | _ => None 
-             end
+  | (Some (gv, ts, tsz), Some (gv0,t0)) =>
+       match (getTypeStoreSize TD t0, getTypeAllocSize TD t0) with
+       | (Some ssz, Some asz) => 
+            Some (gv++gv0++uninits (asz - ssz), Cons_list_typ t0 ts, tsz+asz)
+       | _ => None 
+       end
   | _ => None
   end
 end

@@ -33,7 +33,6 @@ Definition Mint32 := Mint 31.
 
 Definition bytesize_chunk (wz:nat) := ZRdiv (Z_of_nat (S wz)) 8.
 Definition bytesize_chunk_nat (wz:nat) := nat_of_Z (bytesize_chunk wz).
-Definition wordsize_chunk (wz:nat) := (bytesize_chunk wz) * 8.
 
 Lemma bytesize_chunk_pos:
   forall wz, bytesize_chunk wz > 0.

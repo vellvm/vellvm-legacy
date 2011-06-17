@@ -19,7 +19,7 @@ alist.vo : alist.v
 ssa_coq_lib.vo : ssa_coq_lib.v ssa_def.vo alist.vo ssa_analysis.vo
 	$(COQC) $(COQARG) ssa_coq_lib.v
 
-ssa_def.vo : ssa_def.v ./monads/monad.vo ./compcert/Floats.vo alist.vo \
+ssa_def.vo : ./monads/monad.vo ./compcert/Floats.vo alist.vo \
 	./compcert/Memory.vo
 	$(COQC) $(COQARG) ssa_def.v
 
@@ -62,7 +62,7 @@ targetdata.vo: targetdata.v ssa_def.vo ssa_lib.vo
 trace.vo: trace.v
 	$(COQC) $(COQARG) trace.v
 
-ssa_analysis.vo: compcert/Kildall.vo ssa_analysis.v alist.vo
+ssa_analysis.vo: compcert/Kildall.vo ssa_analysis.v alist.vo compcert/Memory.vo
 	$(COQC) $(COQARG) ssa_analysis.v
 
 genericvalues.vo: ssa_def.vo ssa_lib.vo tactics.vo trace.vo genericvalues.v \
