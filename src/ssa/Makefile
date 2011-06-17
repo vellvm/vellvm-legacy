@@ -23,7 +23,7 @@ ssa_def.vo : ./monads/monad.vo ./compcert/Floats.vo alist.vo \
 	./compcert/Memory.vo
 	$(COQC) $(COQARG) ssa_def.v
 
-ssa_def.v : ssa_def.ott ./
+ssa_def.v : ssa_def.ott 
 	$(OTT) -coq_expand_list_types true -i ssa_def.ott -o ssa_def.v
 	./fixott.py ssa_def.v
 

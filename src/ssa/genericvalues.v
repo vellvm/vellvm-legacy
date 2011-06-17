@@ -237,19 +237,53 @@ match ma with
 | _ => None
 end.
 
-Definition mget (TD:TargetData) (v:GenericValue) (o:int32) (t:typ) 
+Fixpoint sizeGenericValue (gv:GenericValue) : nat :=
+match gv with
+| nil => 0
+| (v,c)::gv' => size_chunk_nat c + sizeGenericValue gv'
+end.
+
+Fixpoint splitGenericValue (gv:GenericValue) (pos:Z): 
+  option (GenericValue*GenericValue) :=
+if (Coqlib.zeq pos 0) then Some (nil, gv)
+else
+  if (Coqlib.zlt pos 0) then None
+  else
+    match gv with
+    | nil => None
+    | (v,c)::gv' => 
+        match splitGenericValue gv' (pos - size_chunk c) with
+        | Some (gvl', gvr') => Some ((v,c)::gvl', gvr')
+        | None => None
+        end
+    end.
+
+Definition mget (TD:TargetData) (gv:GenericValue) (o:int32) (t:typ) 
   : option GenericValue :=
 do s <- getTypeStoreSize TD t;
-   ret firstn s (skipn (Coqlib.nat_of_Z (Int.signed 31 o)) v).
+  match (splitGenericValue gv (Int.signed 31 o)) with
+  | Some (gvl, gvr) =>
+      match (splitGenericValue gvr (Z_of_nat s)) with
+      | Some (gvrl, gvrr) => Some gvrl
+      | None => None
+      end
+  | None => None
+  end.
 
-Definition mset (TD:TargetData) (v:GenericValue) (o:int32) (t0:typ) 
-  (v0:GenericValue) : option GenericValue :=
+Definition mset (TD:TargetData) (gv:GenericValue) (o:int32) (t0:typ) 
+  (gv0:GenericValue) : option GenericValue :=
 let n := Coqlib.nat_of_Z (Int.signed 31 o) in
 do s <- getTypeStoreSize TD t0;
-   If (beq_nat s (length v0))
-   then ret ((firstn s (skipn n v))++v0++(skipn n v))
-   else None
-   endif.
+  if (beq_nat s (length gv0)) then 
+    match (splitGenericValue gv (Int.signed 31 o)) with
+    | Some (gvl, gvr) =>
+       match (splitGenericValue gvr (Z_of_nat s)) with
+       | Some (gvrl, gvrr) => Some (gvl++gv0++gvrr)
+       | None => None
+       end
+    | None => None
+    end
+  else None.
 
 Fixpoint intConsts2Nats (TD:TargetData) (lv:list_const) : option (list Z):=
 match lv with
@@ -909,11 +943,6 @@ end.
 Definition initLocals (la:args) (lg:list GenericValue): GVMap := 
 _initializeFrameValues la lg nil.
 
-Definition getEntryCmds (b:block) : cmds :=
-match b with
-| block_intro _ _ lc _ => lc
-end.
-
 Definition BOP (TD:TargetData) (M:mem) (lc gl:GVMap) (op:bop) (bsz:sz) 
   (v1 v2:value) : option GenericValue :=
 match (getOperandValue TD M v1 lc gl, getOperandValue TD M v2 lc gl) with
@@ -1375,13 +1404,15 @@ Qed.
 *)
 
 (** allocate memory with size and alignment *)
-Definition malloc (TD:TargetData) (M:mem) (bsz:sz) (gn:GenericValue) (al:align) : option (mem * mblock)%type :=
+Definition malloc (TD:TargetData) (M:mem) (bsz:sz) (gn:GenericValue) (al:align) 
+  : option (mem * mblock)%type :=
 match GV2int TD Size.ThirtyTwo gn with
 | Some n => Some (Mem.alloc M 0 ((Size.to_Z bsz) * n))
 | None => None
 end.
 
-Definition malloc_one (TD:TargetData) (M:mem) (bsz:sz) (al:align) : option (mem * mblock)%type :=
+Definition malloc_one (TD:TargetData) (M:mem) (bsz:sz) (al:align) 
+  : option (mem * mblock)%type :=
 Some (Mem.alloc M 0 (Size.to_Z bsz)).
 
 Definition free (TD:TargetData) (M:mem) (ptr:mptr) : option mem :=
@@ -1396,7 +1427,8 @@ match GV2ptr TD (getPointerSize TD) ptr with
 | _ => None
 end.
 
-Fixpoint free_allocas (TD:TargetData) (Mem:mem) (allocas:list mblock) : option mem :=
+Fixpoint free_allocas (TD:TargetData) (Mem:mem) (allocas:list mblock) 
+  : option mem :=
 match allocas with
 | nil => Some Mem
 | alloca::allocas' =>
@@ -1416,7 +1448,8 @@ Definition typ2memory_chunk (t:typ) : option memory_chunk :=
   | _ => None
   end.
 
-Definition mload (TD:TargetData) (M:mem) (ptr:mptr) (t:typ) (a:align) : option GenericValue :=
+Definition mload (TD:TargetData) (M:mem) (ptr:mptr) (t:typ) (a:align) 
+  : option GenericValue :=
 match GV2ptr TD (getPointerSize TD) ptr with
 | Some (Vptr b ofs) =>
   match typ2memory_chunk t with
@@ -1430,7 +1463,8 @@ match GV2ptr TD (getPointerSize TD) ptr with
 | _ => None
 end.
 
-Definition mstore (TD:TargetData) (M:mem) (ptr:mptr) (t:typ) (gv:GenericValue) (a:align) : option mem :=
+Definition mstore (TD:TargetData) (M:mem) (ptr:mptr) (t:typ) (gv:GenericValue) 
+  (a:align) : option mem :=
 match GV2ptr TD (getPointerSize TD) ptr with
 | Some (Vptr b ofs) =>
   match typ2memory_chunk t, GV2val TD gv with

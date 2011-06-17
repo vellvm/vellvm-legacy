@@ -1066,6 +1066,91 @@ Proof.
   destruct R; eapply inscope_of_tmn_br_aux; eauto; simpl; auto.
 Qed.
 
+Lemma wf_modules__wf_module : forall ifs S ms m,
+  wf_modules ifs S ms -> 
+  moduleInSystemB m ms ->
+  wf_module ifs S m.
+Proof.
+  induction ms; intros m HwfS HMinS; simpl in *.
+    inv HMinS.
+
+    inv HwfS.
+    apply orb_prop in HMinS.
+    inv HMinS; auto.
+      apply moduleEqB_inv in H.
+      subst. auto.
+Qed.
+
+Lemma wf_prods__wf_prod : forall ifs S los nts Ps f,
+  wf_module ifs S (module_intro los nts Ps) ->
+  InProductsB (product_fdef f) Ps = true ->
+  wf_fdef ifs S (module_intro los nts Ps) f.
+Proof.
+  induction Ps; intros f HwfM HFinM.
+    inv HFinM.
+Admitted.
+
+Lemma wf_system__wf_fdef : forall ifs S los nts Ps f,
+  wf_system ifs S -> 
+  moduleInSystemB (module_intro los nts Ps) S = true ->
+  InProductsB (product_fdef f) Ps = true ->
+  wf_fdef ifs S (module_intro los nts Ps) f.
+Proof.
+  intros ifs S los nts Ps f HwfS HMinS HPinM.
+  inv HwfS. 
+  eapply wf_modules__wf_module in HMinS; eauto.
+  inv HMinS.
+Admitted.
+
+Lemma wf_system__uniqFdef : forall ifs S los nts Ps f,
+  wf_system ifs S -> 
+  moduleInSystemB (module_intro los nts Ps) S = true ->
+  InProductsB (product_fdef f) Ps = true ->
+  uniqFdef f.
+Admitted.
+
+Lemma wf_system__blockInFdefB__wf_block : forall b f ps los nts s ifs,
+  blockInFdefB b f = true -> 
+  InProductsB (product_fdef f) ps = true ->
+  moduleInSystemB (module_intro los nts ps) s = true ->
+  wf_system ifs s ->
+  wf_block ifs s (module_intro los nts ps) f b.
+Admitted.
+
+Lemma wf_system__lookup__wf_block : forall b f l0 ps los nts s ifs,
+  Some b = lookupBlockViaLabelFromFdef f l0 ->
+  InProductsB (product_fdef f) ps = true ->
+  moduleInSystemB (module_intro los nts ps) s = true ->
+  wf_system ifs s ->
+  wf_block ifs s (module_intro los nts ps) f b.
+Admitted.
+
+Lemma wf_system__wf_block : forall b f ps los nts s ifs,
+  blockInFdefB b f = true -> 
+  InProductsB (product_fdef f) ps = true ->
+  moduleInSystemB (module_intro los nts ps) s = true ->
+  wf_system ifs s ->
+  wf_block ifs s (module_intro los nts ps) f b.
+Admitted.
+
+Lemma wf_system__uniq_block : forall b f ps los nts s ifs,
+  blockInFdefB b f = true -> 
+  InProductsB (product_fdef f) ps = true ->
+  moduleInSystemB (module_intro los nts ps) s = true ->
+  wf_system ifs s ->
+  NoDup (getBlockLocs b).
+Admitted.
+
+Lemma wf_system__wf_cmd : forall l1 ps1 cs1 tmn1 f ps los nts s ifs c,
+  blockInFdefB (block_intro l1 ps1 cs1 tmn1) f = true -> 
+  InProductsB (product_fdef f) ps = true ->
+  moduleInSystemB (module_intro los nts ps) s = true ->
+  wf_system ifs s ->
+  In c cs1 ->
+  wf_insn ifs s (module_intro los nts ps) f (block_intro l1 ps1 cs1 tmn1) 
+    (insn_cmd c).
+Admitted.
+
 Lemma wf_system__wf_tmn : forall l1 ps1 cs1 tmn1 f ps los nts s ifs,
   blockInFdefB (block_intro l1 ps1 cs1 tmn1) f = true -> 
   InProductsB (product_fdef f) ps = true ->
@@ -1073,6 +1158,15 @@ Lemma wf_system__wf_tmn : forall l1 ps1 cs1 tmn1 f ps los nts s ifs,
   wf_system ifs s ->
   wf_insn ifs s (module_intro los nts ps) f (block_intro l1 ps1 cs1 tmn1) 
     (insn_terminator tmn1).
+Admitted.
+
+Lemma uniqF__lookupTypViaIDFromFdef : forall l1 ps1 cs1 tmn1 f c i0 t0,
+  uniqFdef f ->
+  blockInFdefB (block_intro l1 ps1 cs1 tmn1) f = true -> 
+  In c cs1 ->
+  getCmdID c = Some i0 ->
+  getCmdTyp c = Some t0 ->
+  lookupTypViaIDFromFdef f i0 = Some t0.
 Admitted.
 
 (** * Correctness of reachability analysis *)
@@ -1125,36 +1219,6 @@ Proof.
 
   intros. apply AMap.gi.
 Qed.
-
-Lemma wf_system__uniqFdef : forall ifs S los nts Ps f,
-  wf_system ifs S -> 
-  moduleInSystemB (module_intro los nts Ps) S = true ->
-  InProductsB (product_fdef f) Ps = true ->
-  uniqFdef f.
-Admitted.
-
-Lemma wf_system__wf_fdef : forall ifs S los nts Ps f,
-  wf_system ifs S -> 
-  moduleInSystemB (module_intro los nts Ps) S = true ->
-  InProductsB (product_fdef f) Ps = true ->
-  wf_fdef ifs S (module_intro los nts Ps) f.
-Admitted.
-
-Lemma wf_system__wf_block : forall b f ps los nts s ifs,
-  blockInFdefB b f = true -> 
-  InProductsB (product_fdef f) ps = true ->
-  moduleInSystemB (module_intro los nts ps) s = true ->
-  wf_system ifs s ->
-  wf_block ifs s (module_intro los nts ps) f b.
-Admitted.
-
-Lemma wf_system__uniq_block : forall b f ps los nts s ifs,
-  blockInFdefB b f = true -> 
-  InProductsB (product_fdef f) ps = true ->
-  moduleInSystemB (module_intro los nts ps) s = true ->
-  wf_system ifs s ->
-  NoDup (getBlockLocs b).
-Admitted.
 
 Lemma dom_entrypoint : forall f l0 ps cs tmn
   (Hentry : LLVMlib.getEntryBlock f = Some (block_intro l0 ps cs tmn)),
@@ -1252,41 +1316,6 @@ Proof.
     destruct Hin as [Hin | Hin]; subst; try inversion Hin.
     simpl in J. contradict J; auto.
 Qed.
-
-Lemma wf_system__wf_cmd : forall l1 ps1 cs1 tmn1 f ps los nts s ifs c,
-  blockInFdefB (block_intro l1 ps1 cs1 tmn1) f = true -> 
-  InProductsB (product_fdef f) ps = true ->
-  moduleInSystemB (module_intro los nts ps) s = true ->
-  wf_system ifs s ->
-  In c cs1 ->
-  wf_insn ifs s (module_intro los nts ps) f (block_intro l1 ps1 cs1 tmn1) 
-    (insn_cmd c).
-Admitted.
-
-Lemma uniqF__lookupTypViaIDFromFdef : forall l1 ps1 cs1 tmn1 f c i0 t0,
-  uniqFdef f ->
-  blockInFdefB (block_intro l1 ps1 cs1 tmn1) f = true -> 
-  In c cs1 ->
-  getCmdID c = Some i0 ->
-  getCmdTyp c = Some t0 ->
-  lookupTypViaIDFromFdef f i0 = Some t0.
-Admitted.
-
-Lemma wf_system__blockInFdefB__wf_block : forall b f ps los nts s ifs,
-  blockInFdefB b f = true -> 
-  InProductsB (product_fdef f) ps = true ->
-  moduleInSystemB (module_intro los nts ps) s = true ->
-  wf_system ifs s ->
-  wf_block ifs s (module_intro los nts ps) f b.
-Admitted.
-
-Lemma wf_system__lookup__wf_block : forall b f l0 ps los nts s ifs,
-  Some b = lookupBlockViaLabelFromFdef f l0 ->
-  InProductsB (product_fdef f) ps = true ->
-  moduleInSystemB (module_intro los nts ps) s = true ->
-  wf_system ifs s ->
-  wf_block ifs s (module_intro los nts ps) f b.
-Admitted.
 
 Lemma entryBlock_has_no_phinodes : forall ifs s f l1 ps1 cs1 tmn1 los nts ps,
   InProductsB (product_fdef f) ps = true ->
