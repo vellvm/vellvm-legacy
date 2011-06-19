@@ -59,8 +59,12 @@ formula :: 'formula_' ::=
   | block1 = block2 		::   :: eqBlock
 				{{ tex [[block1]] = [[block2]] }}
 				{{ coq [[block1]] = [[block2]] }}
+  | int1			::   :: intone
+       	 			{{ coq [[typ_int Size.One]] }} 
   | sz = 1			::   :: isOne
        	 			{{ coq [[sz]] = Size.One }} 
+  | typ = i32	        	::   :: thirtyTwoInt
+       	 			{{ coq [[typ]] = typ_int Size.ThirtyTwo }}
   | sz = 32			::   :: isThirtyTwo
        	 			{{ coq [[sz]] = Size.ThirtyTwo }}
   | sz > 0			::   :: gtZero

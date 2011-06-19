@@ -1083,7 +1083,7 @@ Inductive sterm_denotes_genericvalue :
 | sterm_icmp_denotes : forall TD lc gl Mem cond0 t0 st1 st2 gv1 gv2 gv3,
   sterm_denotes_genericvalue TD lc gl Mem st1 gv1 ->
   sterm_denotes_genericvalue TD lc gl Mem st2 gv2 ->
-  micmp TD cond0 t0 gv1 gv2 = Some gv3 ->
+  micmp TD Mem cond0 t0 gv1 gv2 = Some gv3 ->
   sterm_denotes_genericvalue TD lc gl Mem (sterm_icmp cond0 t0 st1 st2) gv3
 | sterm_fcmp_denotes : forall TD lc gl Mem cond0 fp0 st1 st2 gv1 gv2 gv3,
   sterm_denotes_genericvalue TD lc gl Mem st1 gv1 ->

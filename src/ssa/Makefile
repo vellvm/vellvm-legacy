@@ -16,11 +16,11 @@ ott: main.pdf ssa_static.vo ssa_dynamic.vo ssa_wf.vo opsem_conv.vo \
 alist.vo : alist.v
 	$(COQC) $(COQARG) alist.v
 
-ssa_coq_lib.vo : ssa_coq_lib.v ssa_def.vo alist.vo ssa_analysis.vo
+ssa_coq_lib.vo : ssa_coq_lib.v ssa_def.vo alist.vo ssa_analysis.vo targetdata.vo
 	$(COQC) $(COQARG) ssa_coq_lib.v
 
 ssa_def.vo : ./monads/monad.vo ./compcert/Floats.vo alist.vo \
-	./compcert/Memory.vo
+	./compcert/Memory.vo ssa_def.v
 	$(COQC) $(COQARG) ssa_def.v
 
 ssa_def.v : ssa_def.ott 
@@ -35,7 +35,7 @@ m_ssa_static.ott : ssa_static.ott spanlines.py
 	./spanlines.py ssa_static.ott
 
 ssa_lib.v ssa_static.v: ssa_def.ott ssa_coq_lib.vo ssa_coq.ott ssa_lib.ott \
-	m_ssa_static.ott ./monads/monad.vo ssa_analysis.vo
+	m_ssa_static.ott ./monads/monad.vo ssa_analysis.vo targetdata.vo
 	$(OTT) -merge false -coq_expand_list_types true \
             -i ssa_def.ott -o _tmp_ssa_def.v \
 	    -i ssa_coq.ott -i ssa_lib.ott -o ssa_lib.v \
@@ -56,7 +56,7 @@ ssa_wf.vo: ssa_static.vo ssa_props.vo ssa_wf.v
 tactics.vo: tactics.v
 	$(COQC) $(COQARG) tactics.v
 
-targetdata.vo: targetdata.v ssa_def.vo ssa_lib.vo
+targetdata.vo: targetdata.v ssa_def.vo
 	$(COQC) $(COQARG) targetdata.v
 
 trace.vo: trace.v

@@ -437,6 +437,8 @@ Inductive id_binding : Set :=
  | id_binding_fdec : fdec -> id_binding
  | id_binding_arg : arg -> id_binding.
 
+Definition targetdata : Set := (prod (list layout) (list namedt)).
+
 Definition system : Set := modules.
 
 Definition usedef_block : Type := AssocList (list l).

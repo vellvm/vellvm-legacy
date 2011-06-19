@@ -447,6 +447,12 @@ Definition getTypeSizeInBits_and_Alignment (TD:TargetData) (abi_or_pref:bool)
     abi_or_pref t.
 
 
+Definition getListTypeSizeInBits_and_Alignment (TD:TargetData) (abi_or_pref:bool)
+  (lt:list_typ) : option (nat*nat) :=
+  let '(los, nts) := TD in
+  _getListTypeSizeInBits_and_Alignment los
+    (getTypeSizeInBits_and_Alignment_for_namedts TD abi_or_pref) lt.
+
 (** abi_or_pref Flag that determines which alignment is returned. true
   returns the ABI alignment, false returns the preferred alignment.
 

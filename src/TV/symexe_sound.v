@@ -299,6 +299,7 @@ Proof.
     assert (ICMP TD Mem1 lc gl c t v v0 = Some gv3) as J.
       apply wrong_assumption1 with (M2:=Mem1) in H10.
       apply wrong_assumption1 with (M2:=Mem1) in H11.
+      apply wrong_assumption4 with (M2:=Mem1) in H12.
       unfold ICMP. rewrite H10. rewrite H11. auto.
     split; eauto.
 
@@ -1487,7 +1488,7 @@ Proof.
             apply sterm_icmp_denotes with (gv1:=gv1)(gv2:=gv2); eauto
                   using value2Sterm_denotes__implies__genericvalue,
                         genericvalue__implies__value2Sterm_denotes,
-                        init_denotes_gvmap, wrong_assumption1.
+                        init_denotes_gvmap, wrong_assumption1, wrong_assumption4.
 
             apply se_cmds_denotes__decomposes__prefix_last__case1 with (i0:=i0)(lc0:=lc0); auto.
 
@@ -1503,7 +1504,7 @@ Proof.
             apply sterm_icmp_denotes with (gv1:=gv1)(gv2:=gv2); eauto
               using value2Sterm_denotes__implies__genericvalue,
                     genericvalue__implies__value2Sterm_denotes,
-                    init_denotes_gvmap, wrong_assumption1.
+                    init_denotes_gvmap, wrong_assumption1, wrong_assumption4.
 
             rewrite lookupAL_rollbackAL_neq with (id0:=i0)(lc0:=lc0) in id'_in_env2; auto.
 
@@ -2223,7 +2224,7 @@ Proof.
 
               rewrite lookupSmap_updateAddAL_eq.
               apply sterm_icmp_denotes with (gv1:=gv1)(gv2:=gv2); 
-                try solve [auto | apply se_cmds_denotes__composes__prefix_last__case2 with (lc1:=lc1)(Mem1:=Mem1); auto].
+                try solve [eauto using wrong_assumption4  | apply se_cmds_denotes__composes__prefix_last__case2 with (lc1:=lc1)(Mem1:=Mem1); auto].
 
         apply Hsterms_denote22 in H.
         simpl in H. simpl.
@@ -2231,7 +2232,7 @@ Proof.
           rewrite lookupSmap_updateAddAL_eq.
           inversion H; subst.
           apply sterm_icmp_denotes with (gv1:=gv1)(gv2:=gv2);
-                try solve [auto | apply se_cmds_denotes__composes__prefix_last__case2 with (lc1:=lc1)(Mem1:=Mem1); auto].
+                try solve [eauto using wrong_assumption4  | apply se_cmds_denotes__composes__prefix_last__case2 with (lc1:=lc1)(Mem1:=Mem1); auto].
 
           apply se_cmds_denotes__composes__prefix_last__case3 with (lc1:=lc1)(Mem1:=Mem1)(i0:=i0); try solve [auto | split; auto].
 

@@ -29,6 +29,656 @@ Require Import ssa_analysis.
 Export LLVMwf.
 Export AtomSet.
 
+Definition wf_zeroconst2GV_total_prop (t:typ) := forall TD,
+  Constant.wf_zeroconst_typ t -> Constant.feasible_typ TD t ->
+  exists gv, zeroconst2GV TD t = Some gv.
+
+Definition wf_zeroconsts2GV_total_prop (lt:list_typ) := forall TD,
+  Constant.wf_zeroconsts_typ lt -> Constant.feasible_typs TD lt ->
+  exists gvn, zeroconsts2GV TD lt = Some gvn.
+
+Lemma feasible_typ_inv : forall TD t,
+  Constant.feasible_typ TD t -> 
+  exists ssz, exists asz, 
+    getTypeStoreSize TD t = Some ssz /\ getTypeAllocSize TD t = Some asz.
+Proof.
+  intros TD t Hs.
+  unfold Constant.feasible_typ in Hs.  
+  unfold getTypeAllocSize, getTypeStoreSize, getTypeSizeInBits, 
+    getABITypeAlignment, getAlignment.
+  destruct (getTypeSizeInBits_and_Alignment TD true t); try solve [inversion Hs].
+  destruct p. 
+  exists (ndiv (n + 7) 8). exists (RoundUpAlignment (ndiv (n + 7) 8) n0).
+  split; auto.
+Qed.
+
+Lemma wf_zeroconst2GV_total_mutrec :
+  (forall t, wf_zeroconst2GV_total_prop t) *
+  (forall lt, wf_zeroconsts2GV_total_prop lt).
+Proof.
+  apply typ_mutrec; 
+    unfold wf_zeroconst2GV_total_prop, wf_zeroconsts2GV_total_prop;
+    intros; simpl in *; try solve [eauto | inversion H | inversion H1 ].
+Case "float".
+  destruct f; try solve [eauto | inversion H].
+Case "array".
+  assert (Constant.feasible_typ TD t) as J.
+    unfold Constant.feasible_typ in *.
+    unfold getTypeSizeInBits_and_Alignment in *.
+    destruct TD.
+    simpl in *.
+    destruct (_getTypeSizeInBits_and_Alignment l0
+             (_getTypeSizeInBits_and_Alignment_for_namedts l0 (rev n) true)
+             true t); eauto.
+  destruct H with (TD:=TD) as [gv Hz2c]; auto.
+  rewrite Hz2c.
+  apply feasible_typ_inv in J.  
+  destruct J as [ssz [asz [J1 J2]]].
+  rewrite J1. rewrite J2.
+  eauto.
+
+Case "struct".
+  assert (Constant.feasible_typs TD l0) as J.
+    unfold Constant.feasible_typ in H1.
+    unfold Constant.feasible_typs.
+    unfold getTypeSizeInBits_and_Alignment in H1.
+    unfold getListTypeSizeInBits_and_Alignment.
+    destruct TD.
+    simpl in *.
+    destruct (_getListTypeSizeInBits_and_Alignment l1
+             (_getTypeSizeInBits_and_Alignment_for_namedts l1 (rev n) true)
+             l0); eauto.
+  destruct (@H TD) as [gv Hz2c]; auto.
+  rewrite Hz2c. destruct gv.
+  apply feasible_typ_inv in H1.  
+  destruct H1 as [ssz [asz [J1 J2]]].
+  rewrite J2.
+  destruct l0; eauto.
+Case "cons".
+  destruct H1 as [J1 J2].
+  assert (Constant.feasible_typs TD l0 /\ Constant.feasible_typ TD t) as J.
+    unfold Constant.feasible_typs in *.
+    unfold Constant.feasible_typ.
+    unfold getTypeSizeInBits_and_Alignment.
+    unfold getListTypeSizeInBits_and_Alignment in *.
+    destruct TD.
+    simpl in *.
+    destruct (_getListTypeSizeInBits_and_Alignment l1
+             (_getTypeSizeInBits_and_Alignment_for_namedts l1 (rev n) true)
+             l0); try solve [inversion H2].
+    destruct p.
+    destruct (_getTypeSizeInBits_and_Alignment l1
+             (_getTypeSizeInBits_and_Alignment_for_namedts l1 (rev n) true)
+             true t); eauto.
+  destruct J as [J3 J4].
+  destruct (@H TD) as [gv Hz2c]; auto.
+  destruct (@H0 TD) as [gvs Hz2cs]; auto.
+  rewrite Hz2cs. destruct gvs.
+  rewrite Hz2c.
+  apply feasible_typ_inv in J4.  
+  destruct J4 as [ssz [asz [J4 J5]]].
+  rewrite J5. rewrite J4. eauto.
+Qed.
+
+Lemma wf_zeroconst2GV_total : forall TD t,
+  Constant.wf_zeroconst_typ t ->
+  Constant.feasible_typ TD t ->
+  exists gv, zeroconst2GV TD t = Some gv.
+Proof.
+  intros.
+  destruct wf_zeroconst2GV_total_mutrec as [J _].
+  apply J; auto.
+Qed.
+
+Scheme wf_const_ind2 := Induction for wf_const Sort Prop
+  with wf_const_list_ind2 := Induction for wf_const_list Sort Prop.
+
+Combined Scheme wf_const_mutind from wf_const_ind2, wf_const_list_ind2.
+
+Definition wf_global system5 gl := forall id5 typ5, 
+  lookupTypViaGIDFromSystem system5 id5 = ret typ5 ->
+  exists gv : GenericValue, lookupAL GenericValue gl id5 = Some gv.
+
+Definition const2GV_isnt_stuck_Prop S TD c t (H:wf_const S TD c t) := 
+  forall M gl,
+  Constant.feasible_typ TD t ->
+  wf_global S gl ->
+  exists gv, _const2GV TD M gl c = Some (gv, t).
+
+Definition wf_list_targetdata_typ (S:system) (TD:targetdata) gl lsd :=
+  forall S1 TD1, In (S1,TD1) lsd -> wf_global S1 gl /\ S = S1 /\ TD = TD1.
+
+Definition consts2GV_isnt_stuck_Prop sdct (H:wf_const_list sdct) := 
+  let 'lsdct := unmake_list_system_targetdata_const_typ sdct in
+  let '(lsdc, lt) := split lsdct in
+  let '(lsd, lc) := split lsdc in
+  let '(ls, ld) := split lsd in
+  forall S TD M gl, 
+  wf_list_targetdata_typ S TD gl lsd ->
+  Constant.feasible_typs TD (make_list_typ lt) ->
+  (exists gv, _list_const_arr2GV TD M gl (make_list_const lc) = Some gv) /\
+  (exists gv, exists n, _list_const_struct2GV TD M gl (make_list_const lc) = 
+    Some (gv, (make_list_typ lt), n)).
+
+Lemma make_list_const_spec1 : forall
+  (const_list : list_const)
+  (system5 : system)
+  (td5 : targetdata)
+  (typ5 : typ)
+  (sz5 : sz)
+  (lsdc : list (system * targetdata * const))
+  (lt : list typ)
+  (HeqR : (lsdc, lt) =
+         split
+           (unmake_list_system_targetdata_const_typ
+              (make_list_system_targetdata_const_typ
+                 (map_list_const
+                    (fun const_ : const => (system5, td5, const_, typ5))
+                    const_list))))
+  (TD : TargetData)
+  (H0 : Constant.feasible_typ TD (typ_array sz5 typ5)),
+  Constant.feasible_typs TD (make_list_typ lt).
+Proof.
+  intros.
+  unfold Constant.feasible_typs.
+  unfold Constant.feasible_typ in H0.
+  unfold getTypeSizeInBits_and_Alignment in H0.
+  destruct TD. simpl in H0.
+  remember (_getTypeSizeInBits_and_Alignment l0
+           (_getTypeSizeInBits_and_Alignment_for_namedts l0 (rev n) true)
+           true typ5) as R1.
+  destruct R1; try solve [inversion H0]. destruct p.
+  unfold getListTypeSizeInBits_and_Alignment.
+  generalize dependent lsdc.
+  generalize dependent lt.
+  induction const_list; intros; simpl in *.
+     inv HeqR. simpl. auto.
+  
+     remember (split
+              (unmake_list_system_targetdata_const_typ
+                 (make_list_system_targetdata_const_typ
+                    (map_list_const
+                       (fun const_ : const => (system5, td5, const_, typ5))
+                       const_list)))) as R2.
+     destruct R2. inv HeqR. simpl.
+     rewrite <- HeqR1.
+     assert ((l1, l2) = (l1, l2)) as EQ. auto.
+     apply IHconst_list in EQ. clear IHconst_list.
+     destruct (_getListTypeSizeInBits_and_Alignment l0
+         (_getTypeSizeInBits_and_Alignment_for_namedts l0 (rev n) true)
+         (make_list_typ l2)); try solve [inversion EQ].
+     destruct p.
+     destruct (le_lt_dec n1 n3); auto.
+Qed.
+
+Lemma make_list_const_spec2 : forall
+  (const_list : list_const)
+  (system5 : system)
+  (typ5 : typ)
+  (td5 : targetdata)
+  (typ5 : typ)
+  (sz5 : sz)
+  (lsdc : list (system * targetdata * const))
+  (lt : list typ)
+  (HeqR : (lsdc, lt) =
+         split
+           (unmake_list_system_targetdata_const_typ
+              (make_list_system_targetdata_const_typ
+                 (map_list_const
+                    (fun const_ : const => (system5, td5, const_, typ5))
+                    const_list))))
+  (lsd : list (system*targetdata))
+  (lc : list const)
+  (HeqR' : (lsd, lc) = split lsdc),
+  make_list_const lc = const_list.
+Proof.
+  induction const_list; intros; simpl in *.
+    inv HeqR. simpl in HeqR'. inv HeqR'. auto.
+  
+    remember (split
+           (unmake_list_system_targetdata_const_typ
+              (make_list_system_targetdata_const_typ
+                 (map_list_const
+                    (fun const_ : const => (system5, td5, const_, typ5))
+                    const_list)))) as R1.
+    destruct R1. inv HeqR. simpl in HeqR'.
+    remember (split (unmake_list_system_targetdata_const_typ
+                 (make_list_system_targetdata_const_typ
+                    (map_list_const
+                       (fun const_ : const => (system5, td5, const_, typ0))
+                       const_list)))) as R2.
+    destruct R2. inv H0; simpl.
+    simpl in HeqR'.
+    remember (split l2) as R3.
+    destruct R3. inv HeqR'. simpl.
+    erewrite IHconst_list; eauto.        
+Qed.
+
+Lemma const2GV_isnt_stuck_mutind : 
+  (forall S td c t H, @const2GV_isnt_stuck_Prop S td c t H) /\
+  (forall sdct H, @consts2GV_isnt_stuck_Prop sdct H).
+Proof.
+  apply wf_const_mutind with
+    (P  := const2GV_isnt_stuck_Prop)
+    (P0 := consts2GV_isnt_stuck_Prop);
+    unfold const2GV_isnt_stuck_Prop, consts2GV_isnt_stuck_Prop;
+    intros; subst; simpl; eauto.
+Case "zeroinit".
+  destruct (@wf_zeroconst2GV_total targetdata5 typ5) as [gv J]; auto.
+  rewrite J. eauto.
+Case "float". 
+  inv w; eauto.
+Case "undef".
+  unfold getTypeSizeInBits.
+  unfold Constant.feasible_typ in H.
+  destruct (getTypeSizeInBits_and_Alignment targetdata5 true typ5); 
+    try solve [inversion H].
+  destruct p. eauto.
+Case "array".
+  remember (split
+             (unmake_list_system_targetdata_const_typ
+                (make_list_system_targetdata_const_typ
+                   (map_list_const
+                      (fun const_ : const => 
+                        (system5, targetdata5, const_, typ5))
+                      const_list)))) as R.
+  destruct R as [lsdc lt].
+  remember (split lsdc) as R'.
+  destruct R' as [lsd lc].
+  remember (split lsd) as R''.
+  destruct R'' as [ls ld].
+  destruct (@H system5 targetdata5 M gl) as [[gv1 J1] [gv2 [n2 J2]]]; auto.
+    unfold wf_list_targetdata_typ.
+    clear - HeqR HeqR' HeqR'' H1.
+    generalize dependent lsdc.
+    generalize dependent lt.
+    generalize dependent lc.
+    generalize dependent ld.
+    generalize dependent ls.
+    generalize dependent lsd.
+    induction const_list; intros; simpl in *.
+      inv HeqR. inv HeqR'. inv H.
+      
+      remember (split
+                (unmake_list_system_targetdata_const_typ
+                   (make_list_system_targetdata_const_typ
+                      (map_list_const
+                         (fun const_ : const =>
+                          (system5, targetdata5, const_, typ5)) const_list))))
+        as R.
+      destruct R.
+      inv HeqR. simpl in HeqR'.
+      remember (split l0) as R1.
+      destruct R1.
+      inv HeqR'. simpl in HeqR''.
+      remember (split l2) as R2.
+      destruct R2.
+      inv HeqR''. simpl in H.
+      destruct H as [H | H]; subst; eauto.
+        inv H. split; auto.
+
+    eapply make_list_const_spec1; eauto.
+
+    assert (make_list_const lc = const_list) as EQ.
+      eapply make_list_const_spec2; eauto.
+    rewrite e. rewrite <- EQ. unfold Size.to_nat. 
+    rewrite J1. eauto.
+Case "struct".
+  remember (split
+             (unmake_list_system_targetdata_const_typ
+                (make_list_system_targetdata_const_typ
+                   (map_list_const_typ
+                      (fun (const_ : const) (typ_ : typ) => 
+                         (system5, targetdata5, const_, typ_))
+                      const_typ_list)))) as R.
+  destruct R as [lsdc lt].
+  remember (split lsdc) as R'.
+  destruct R' as [lsd lc].
+  remember (split lsd) as R''.
+  destruct R'' as [ls ld].
+  assert (lt = (map_list_const_typ (fun (_ : const) (typ_ : typ) => typ_)
+                  const_typ_list)) as EQ.
+    clear - HeqR.
+    generalize dependent lsdc.
+    generalize dependent lt.
+    induction const_typ_list; simpl; intros.
+      inv HeqR. auto.
+      
+      remember (split
+                (unmake_list_system_targetdata_const_typ
+                   (make_list_system_targetdata_const_typ
+                      (map_list_const_typ
+                         (fun (const_ : const) (typ_ : typ) =>
+                          (system5, targetdata5, const_, typ_))
+                         const_typ_list)))) as R1. 
+      destruct R1. inv HeqR.
+      erewrite <- IHconst_typ_list; eauto.
+
+  rewrite <- EQ in H0. rewrite <- EQ. clear EQ.
+  destruct (@H system5 targetdata5 M gl) as [[gv1 J1] [gv2 [n J2]]]; auto.
+    clear - HeqR HeqR' H1 f.
+    generalize dependent lsdc.
+    generalize dependent lt.
+    generalize dependent lc.
+    generalize dependent lsd.
+    induction const_typ_list; simpl; intros.
+      inv HeqR. simpl in HeqR'. inv HeqR'.
+      unfold wf_list_targetdata_typ.
+      intros S TD Hin. inversion Hin.
+      
+      remember (split
+                (unmake_list_system_targetdata_const_typ
+                   (make_list_system_targetdata_const_typ
+                      (map_list_const_typ
+                         (fun (const_ : const) (typ_ : typ) =>
+                          (system5, targetdata5, const_, typ_))
+                         const_typ_list)))) as R1. 
+      destruct R1. inv HeqR. simpl in HeqR'.
+      remember (split l0) as R2.
+      destruct R2. inv HeqR'.
+      unfold wf_list_targetdata_typ in *.
+      intros S TD Hin. 
+      simpl in Hin.
+      inv f.
+      destruct Hin as [Hin | Hin]; eauto.
+        inv Hin. split; auto.
+
+    clear - H0 HeqR.
+    unfold Constant.feasible_typs.
+    unfold Constant.feasible_typ in H0.
+    unfold getTypeSizeInBits_and_Alignment in H0.
+    unfold getListTypeSizeInBits_and_Alignment.
+    destruct targetdata5. simpl in H0. simpl.
+    remember (_getListTypeSizeInBits_and_Alignment l0
+             (_getTypeSizeInBits_and_Alignment_for_namedts l0 (rev l1) true)
+             (make_list_typ lt)) as R1.
+    destruct R1; try solve [inversion H0 | auto].
+
+    assert (lc = (map_list_const_typ (fun (const_ : const) (_ : typ) => const_)
+                 const_typ_list)) as EQ.
+      clear - HeqR HeqR'.
+      generalize dependent lsdc.
+      generalize dependent lt.
+      generalize dependent lc. 
+      generalize dependent lsd.
+      induction const_typ_list; simpl; intros.
+        inv HeqR. inv HeqR'. auto.
+      
+        remember (split
+                (unmake_list_system_targetdata_const_typ
+                   (make_list_system_targetdata_const_typ
+                      (map_list_const_typ
+                         (fun (const_ : const) (typ_ : typ) =>
+                          (system5, targetdata5, const_, typ_))
+                         const_typ_list)))) as R1. 
+        destruct R1. inv HeqR.
+        simpl in HeqR'.
+        remember (split l0).
+        destruct p. inv HeqR'.
+        erewrite <- IHconst_typ_list; eauto.
+
+    rewrite <- EQ. clear EQ.
+    rewrite J2.
+    apply feasible_typ_inv in H0.
+    destruct H0 as [ssz [asz [H3 H2]]].    
+    rewrite H2. 
+    destruct (make_list_const lc); eauto.
+Case "gid".
+  apply H0 in e.  
+  destruct e as [gv e].
+  rewrite e. eauto.
+Case "trunc_int".
+  inv f.
+  eapply H with (M:=M) in H1; eauto.
+  destruct H1 as [gv H1].
+  rewrite H1.
+  unfold mtrunc.
+  destruct (GV2val targetdata5 gv); eauto.
+  destruct v; eauto.
+Case "trunc_fp".
+  inv f.
+  eapply H with (M:=M) in H1; eauto.
+  destruct H1 as [gv H1].
+  rewrite H1.
+  unfold mtrunc. rewrite e.
+  destruct (GV2val targetdata5 gv); eauto.
+  destruct v; eauto.
+  destruct floating_point2; try solve [eauto | inversion w0].
+Case "zext".
+  inv f.
+  eapply H with (M:=M) in H1; eauto.
+  destruct H1 as [gv H1].
+  rewrite H1.
+  unfold mext.
+  destruct (GV2val targetdata5 gv); eauto.
+  destruct v; eauto.
+Case "sext".
+  inv f.
+  eapply H with (M:=M) in H1; eauto.
+  destruct H1 as [gv H1].
+  rewrite H1.
+  unfold mext.
+  destruct (GV2val targetdata5 gv); eauto.
+  destruct v; eauto.
+Case "fpext".
+  inv f.
+  eapply H with (M:=M) in H1; eauto.
+  destruct H1 as [gv H1].
+  rewrite H1.
+  unfold mext. rewrite e.
+  destruct (GV2val targetdata5 gv); eauto.
+  destruct v; eauto.
+Case "ptrtoint".
+  inv f. unfold mptrtoint.
+  eapply H with (M:=M) in H1; eauto.
+  destruct H1 as [gv H1].
+  rewrite H1. 
+  destruct (GV2val targetdata5 gv); eauto.
+  destruct v; eauto.
+  destruct (Mem.ptr2int M b 0); eauto.
+Case "inttoptr".
+  inv f.
+  eapply H with (M:=M) in H1; eauto.
+  destruct H1 as [gv H1].
+  rewrite H1.
+  destruct (GV2val targetdata5 gv); eauto.
+  destruct v; eauto.
+  destruct (Mem.int2ptr M (Int.signed wz i0)); eauto.
+  destruct p; eauto.
+Case "bitcast".
+  inv f.
+  eapply H with (M:=M) in H1; eauto.
+  destruct H1 as [gv H1].
+  rewrite H1. eauto.
+Case "gep".
+  inv f.
+  eapply H with (M:=M) in H3; eauto.
+  destruct H3 as [gv H3].
+  rewrite H3. rewrite e0.
+  destruct (GV2ptr targetdata5 (getPointerSize targetdata5) gv); eauto.
+  destruct (intConsts2Nats targetdata5 const_list); eauto.
+  destruct (mgep targetdata5 typ5 v l0); eauto.
+Case "select".
+  assert (J:=H2).
+  eapply H0 in H2; eauto.
+  destruct H2 as [gv H2].
+  rewrite H2. 
+  eapply H1 in J; eauto.
+  destruct J as [gv' J].
+  rewrite J. 
+  inv f.
+  eapply H in H4; eauto.
+  destruct H4 as [gv'' H4].
+  rewrite H4.
+  destruct (isGVZero targetdata5 gv''); eauto.
+Case "icmp".
+  inv f.
+  assert (J:=H3).
+  eapply H in H3; eauto.
+  destruct H3 as [gv H3].
+  rewrite H3. 
+  eapply H0 in J; eauto.
+  destruct J as [gv' J].
+  rewrite J. 
+  unfold micmp.
+  unfold isPointerTyp in o. unfold is_true in o.
+  unfold micmp_int.
+  destruct o as [o | o].
+    destruct typ5; try solve [simpl in o; contradict o; auto].
+    destruct (GV2val targetdata5 gv); eauto.
+    destruct v; eauto.
+    destruct (GV2val targetdata5 gv'); eauto.
+    destruct v; eauto.
+    destruct cond5; eauto.
+
+    destruct typ5; try solve [simpl in o; contradict o; auto].
+    destruct (mptrtoint targetdata5 M gv Size.ThirtyTwo); eauto.
+    destruct (mptrtoint targetdata5 M gv' Size.ThirtyTwo); eauto.
+    destruct (GV2val targetdata5 g); eauto.
+    destruct v; eauto.
+    destruct (GV2val targetdata5 g0); eauto.
+    destruct v; eauto.
+    destruct cond5; eauto.
+Case "fcmp".
+  inv f.
+  assert (J:=H3).
+  eapply H in H3; eauto.
+  destruct H3 as [gv H3].
+  rewrite H3. 
+  eapply H0 in J; eauto.
+  destruct J as [gv' J].
+  rewrite J. 
+  unfold mfcmp.
+  destruct (GV2val targetdata5 gv); eauto.
+  destruct v; eauto.
+  destruct (GV2val targetdata5 gv'); eauto.
+  destruct v; eauto.
+  destruct floating_point5; try solve [eauto | inversion w1].
+    destruct fcond5; try solve [eauto | inversion e].
+    destruct fcond5; try solve [eauto | inversion e].
+Case "extractvalue".
+  inv f.
+  eapply H with (M:=M) in H3; eauto.
+  destruct H3 as [gv H3].
+  rewrite H3. rewrite e0. 
+  unfold extractGenericValue.
+  destruct (intConsts2Nats targetdata5 const_list); eauto.
+  destruct (mgetoffset targetdata5 typ5 l0); eauto.
+  destruct (mget targetdata5 gv i0 typ5); eauto.
+Case "insertvalue".
+  inv f.
+  eapply H with (M:=M) in H2; eauto.
+  destruct H2 as [gv H2].
+  rewrite H2.
+  eapply H0 with (M:=M) in H4; eauto.
+  destruct H4 as [gv' H4].
+  rewrite H4.
+  unfold insertGenericValue.
+  destruct (intConsts2Nats targetdata5 const_list); eauto.
+  destruct (mgetoffset targetdata5 typ5 l0); eauto.
+  destruct (mset targetdata5 gv i0 typ' gv'); eauto.
+Case "bop".
+  assert (J:=H1).
+  eapply H with (M:=M) in H1; eauto.
+  destruct H1 as [gv H1].
+  rewrite H1.
+  eapply H0 with (M:=M) in J; eauto.
+  destruct J as [gv' J].
+  rewrite J.
+  unfold mbop. 
+  destruct (GV2val targetdata5 gv); eauto.
+  destruct (GV2val targetdata5 gv'); eauto.
+  destruct v; eauto.
+  destruct v0; eauto.
+  destruct (eq_nat_dec (wz + 1) (Size.to_nat sz5)); eauto.
+  destruct bop5; eauto.
+  destruct v; eauto.
+Case "fbop".
+  assert (J:=H1).
+  eapply H with (M:=M) in H1; eauto.
+  destruct H1 as [gv H1].
+  rewrite H1.
+  eapply H0 with (M:=M) in J; eauto.
+  destruct J as [gv' J].
+  rewrite J.
+  unfold mfbop. 
+  destruct (GV2val targetdata5 gv); eauto.
+  destruct (GV2val targetdata5 gv'); eauto.
+  destruct v; eauto.
+  destruct v0; eauto.
+  destruct floating_point5; try solve [eauto | inversion w1].
+  destruct v; eauto.
+Case "cons".
+  remember (split (unmake_list_system_targetdata_const_typ l')) as R1.
+  destruct R1 as [lsdc lt].
+  simpl.  
+  remember (split lsdc) as R2.
+  destruct R2 as [lsd lc].
+  simpl.  
+  remember (split lsd) as R3.
+  destruct R3 as [ls ld].
+  simpl.
+  intros S TD M gl Hwfl Hft.
+  assert (Constant.feasible_typs TD (make_list_typ lt) /\
+          Constant.feasible_typ TD typ5) as J.
+    clear - Hft.
+    unfold Constant.feasible_typs in *. unfold Constant.feasible_typ.
+    unfold getListTypeSizeInBits_and_Alignment in *.
+    unfold getTypeSizeInBits_and_Alignment.
+    destruct TD. simpl in *.
+    destruct (_getListTypeSizeInBits_and_Alignment l0
+              (_getTypeSizeInBits_and_Alignment_for_namedts l0 (rev l1) true)
+              (make_list_typ lt)); try solve [inversion Hft].
+    destruct p.
+    destruct (_getTypeSizeInBits_and_Alignment l0
+       (_getTypeSizeInBits_and_Alignment_for_namedts l0 (rev l1) true) true
+       typ5); eauto.
+  destruct J as [J1 J2].
+  assert (wf_list_targetdata_typ S TD gl lsd /\ system5 = S /\ targetdata5 = TD
+            /\ wf_global S gl) 
+    as Hwfl'.
+    clear - Hwfl.
+    unfold wf_list_targetdata_typ in *.
+    assert (In (system5, targetdata5) ((system5, targetdata5) :: lsd)) as J.
+      simpl. auto.
+    apply Hwfl in J. 
+    destruct J as [J1 [J2 J3]]; subst.
+    split.
+      intros S1 TD1 Hin.    
+      apply Hwfl. simpl. auto.
+    split; auto.
+
+  destruct Hwfl' as [Hwfl' [Heq1 [Heq2 Hwfg]]]; subst.  
+  assert (J2':=J2).
+  eapply H with (M:=M) in J2'; eauto.
+  destruct J2' as [gv J2'].
+  rewrite J2'.
+  assert (J1':=J1).
+  eapply H0 with (M:=M) in J1'; eauto.
+  destruct J1' as [[gv1 J11] [g2 [n J12]]].
+  rewrite J11. rewrite J12.
+  apply feasible_typ_inv in J2.  
+  destruct J2 as [ssz [asz [J21 J22]]].
+  rewrite J21. rewrite J22.
+  split; eauto.  
+Qed.
+
+Lemma const2GV_isnt_stuck : forall TD S M gl c t,
+  wf_const S TD c t ->
+  feasible_typ TD t ->
+  wf_global S gl ->
+  exists gv, const2GV TD M gl c = Some gv.
+Proof.
+  intros.
+  destruct const2GV_isnt_stuck_mutind as [J _].
+  unfold const2GV_isnt_stuck_Prop in J.
+  unfold const2GV.
+  inv H0.
+  eapply J in H; eauto.
+  destruct H as [gv H].
+  rewrite H. eauto.
+Qed.
+
 Fixpoint cmds_dominates_cmd (cs:cmds) (id0:id) : list atom :=
 match cs with
 | nil => nil
@@ -225,7 +875,8 @@ match ecs with
 end.
 
 Definition wf_State (S:State) : Prop :=
-let '(mkState s (los, nts) ps ecs _ _ _) := S in
+let '(mkState s (los, nts) ps ecs gl _ _) := S in
+wf_global s gl /\
 wf_system nil s /\
 moduleInSystemB (module_intro los nts ps) s = true /\
 wf_ECStack ps ecs.
@@ -1360,7 +2011,7 @@ Proof.
 Focus.
 Case "dsReturn".
   destruct HwfS1 as 
-    [HwfSystem [HmInS [
+    [Hwfg [HwfSystem [HmInS [
      [Hreach1 [HBinF1 [HFinPs1 [Hinscope1 [l1 [ps1 [cs1' Heq1]]]]]]] 
      [
        [
@@ -1369,7 +2020,7 @@ Case "dsReturn".
        ]
        HwfCall'
      ]
-    ]]]; subst.
+    ]]]]; subst.
   remember (inscope_of_cmd F' (block_intro l2 ps2 (cs2' ++ c' :: cs') tmn') c')
     as R2.
   destruct R2; try solve [inversion Hinscope2].
@@ -1383,6 +2034,7 @@ Case "dsReturn".
     split; auto.
     split; auto.  
     split; auto. 
+    split; auto.
     split; auto.
     split.
     SSCase "1.1".
@@ -1461,7 +2113,7 @@ Unfocus.
 Focus.
 Case "dsReturnVoid".
   destruct HwfS1 as 
-    [HwfSystem [HmInS [
+    [Hwfg [HwfSystem [HmInS [
      [Hreach1 [HBinF1 [HFinPs1 [Hinscope1 [l1 [ps1 [cs1' Heq1]]]]]]] 
      [
        [
@@ -1470,7 +2122,7 @@ Case "dsReturnVoid".
        ]
        HwfCall'
      ]
-    ]]]; subst.
+    ]]]]; subst.
   remember (inscope_of_cmd F' (block_intro l2 ps2 (cs2' ++ c' :: cs') tmn') c')
     as R2.
   destruct R2; try solve [inversion Hinscope2].
@@ -1481,6 +2133,7 @@ Case "dsReturnVoid".
   split; auto.
   split; auto.
   SCase "1".
+    split; auto.
     split; auto.
     split; auto.
     split; auto.
@@ -1536,14 +2189,15 @@ Unfocus.
 Focus.
 Case "dsBranch".
   destruct HwfS1 as 
-    [HwfSystem [HmInS [
+    [Hwfg [HwfSystem [HmInS [
      [Hreach1 [HBinF1 [HFinPs1 [Hinscope1 [l3 [ps3 [cs3' Heq1]]]]]]]
-     [HwfEC HwfCall]]]
+     [HwfEC HwfCall]]]]
     ]; subst.
   remember (inscope_of_tmn F
              (block_intro l3 ps3 (cs3' ++ nil)(insn_br bid Cond l1 l2))
              (insn_br bid Cond l1 l2)) as R1. 
   destruct R1; try solve [inversion Hinscope1].
+  split; auto.
   split; auto.
   split; auto.
   split; auto.
@@ -1590,14 +2244,15 @@ Unfocus.
 Focus.
 Case "dsBranch_uncond".
   destruct HwfS1 as 
-    [HwfSystem [HmInS [
+    [Hwfg [HwfSystem [HmInS [
      [Hreach1 [HBinF1 [HFinPs1 [Hinscope1 [l3 [ps3 [cs3' Heq1]]]]]]] 
-     [HwfEC HwfCall]]]
+     [HwfEC HwfCall]]]]
     ]; subst.
   remember (inscope_of_tmn F
              (block_intro l3 ps3 (cs3' ++ nil)(insn_br_uncond bid l0))
              (insn_br_uncond bid l0)) as R1. 
   destruct R1; try solve [inversion Hinscope1].
+  split; auto.
   split; auto.
   split; auto.
   SCase "1".
@@ -1635,14 +2290,15 @@ Unfocus.
 Focus.
 Case "dsBop".
   destruct HwfS1 as 
-    [HwfSystem [HmInS [
+    [Hwfg [HwfSystem [HmInS [
      [Hreach1 [HBinF1 [HFinPs1 [Hinscope1 [l3 [ps3 [cs3' Heq1]]]]]]]
-     [HwfEC HwfCall]]]
+     [HwfEC HwfCall]]]]
     ]; subst.
   remember (inscope_of_cmd F
              (block_intro l3 ps3 (cs3' ++ insn_bop id0 bop0 sz0 v1 v2 :: cs) tmn)
              (insn_bop id0 bop0 sz0 v1 v2)) as R1. 
   destruct R1; try solve [inversion Hinscope1].
+  split; auto.
   split; auto.
   split; auto.
   split.
@@ -1724,10 +2380,11 @@ Case "dsSelect". admit.
 
 Focus.
 Case "dsCall".
-  destruct HwfS1 as [HwfSys [HmInS [HwfEC [HwfECs HwfCall]]]].
+  destruct HwfS1 as [Hwfg [HwfSys [HmInS [HwfEC [HwfECs HwfCall]]]]].
   assert (InProductsB (product_fdef (fdef_intro 
     (fheader_intro fa rt fid la va) lb)) Ps = true) as HFinPs'.
     eapply lookupFdefViaGV_inv; eauto.
+  split; auto.
   split; auto.
   split; auto.
   split.
@@ -2017,18 +2674,19 @@ Qed.
 
 Lemma wf_value_list__wf_value : forall
   (s : system)
+  (m : module)
   (f : fdef)
   (lc : GVMap)
   (l1 : l)
   (t0 : typ)
-  (vid : id)
+  v
   l2
   (H2 : wf_value_list
-         (make_list_system_fdef_value_typ
+         (make_list_system_module_fdef_value_typ
             (map_list_value_l
-               (fun (value_ : value) (_ : l) => (s, f, value_, t0)) l2)))
-  (J : getValueViaLabelFromValuels l2 l1 = ret value_id vid),
-  wf_value s f (value_id vid) t0.
+               (fun (value_ : value) (_ : l) => (s, m, f, value_, t0)) l2)))
+  (J : getValueViaLabelFromValuels l2 l1 = ret v),
+  wf_value s m f v t0.
 Proof.
   intros.
   induction l2; simpl in *.
@@ -2096,12 +2754,6 @@ Proof.
           contradict H0; auto.
 Admitted.
 
-Lemma const2GV_isnt_stuck : forall TD M gl vc,
-  exists gv, const2GV TD M gl vc = Some gv.
- (* what if a constant is stuck~? if int2ptr is not allowed,
-    we should prove this, because globals are not changed! *)
-Admitted.
-
 Lemma wf_phinodes__getIncomingValuesForBlockFromPHINodes : forall
   (s : system)
   (los : layouts)
@@ -2115,6 +2767,7 @@ Lemma wf_phinodes__getIncomingValuesForBlockFromPHINodes : forall
   (M : mem)
   (t : list atom)
   l1 ps1 cs1
+  (Hwfg : wf_global s gl)
   (HeqR : ret t = inscope_of_tmn f 
     (block_intro l1 ps1 cs1 (insn_br_uncond i0 l0)) (insn_br_uncond i0 l0))
   (Hinscope : wf_defs f lc t)
@@ -2241,7 +2894,9 @@ Proof.
         simpl_env. auto.
   
     Case "vc".
-      destruct (@const2GV_isnt_stuck (los,nts) M gl vc).
+      eapply wf_value_list__wf_value in H2; eauto.
+      inv H2.
+      destruct (@const2GV_isnt_stuck (los,nts) s M gl vc t0); auto.
       rewrite H.
       apply IHps2 in H7.
         destruct H7 as [RVs H7].
@@ -2253,13 +2908,109 @@ Proof.
         simpl_env. auto.
 Qed.
 
+Lemma In_middle : forall A (c:A) cs1 cs2, In c (cs1++c::cs2).
+Proof.                    
+  induction cs1; simpl; auto.
+Qed.
+
+Lemma valueInValues__InOps : forall vid l0,
+  In (value_id vid) (unmake_list_value l0) ->
+  In vid (values2ids (unmake_list_value l0)).
+Proof.
+  induction l0; intros; simpl in *; auto.
+    destruct H as [H | H]; subst; simpl; auto.
+    destruct v; simpl; eauto.
+Qed.
+
+Lemma valueInParams__InOps : forall vid p,
+  valueInParams (value_id vid) p -> In vid (getParamsOperand p).
+Proof.
+  unfold getParamsOperand, valueInParams.
+  induction p; intros; simpl in *; auto.
+    destruct a.
+    remember (split p) as R.
+    destruct R; simpl in *.
+    destruct H as [H | H]; subst; simpl in *; auto.
+    destruct v; simpl; eauto.
+Qed.
+
+Lemma valueInCmdOperands__InOps : forall vid c,
+  valueInCmdOperands (value_id vid) c ->
+  In vid (getInsnOperands (insn_cmd c)).
+Proof.
+  intros vid c H.
+  destruct c; simpl in *; try solve [
+    destruct H; subst; simpl; try solve [auto | apply in_or_app; simpl; auto]
+  ].
+
+    destruct H; subst; simpl; auto.
+      apply in_or_app. right. apply valueInValues__InOps; auto.
+
+    destruct H; subst; simpl; auto.
+    destruct H; subst; simpl.
+      apply in_or_app; simpl; auto.
+      apply in_or_app. right.
+        apply in_or_app; simpl; auto.
+
+    destruct H; subst; simpl; auto.
+      apply in_or_app. right. apply valueInParams__InOps; auto.
+Qed.
+
+Lemma getOperandValue_inCmdOperans_isnt_stuck : forall
+  (s : system)
+  (los : layouts)
+  (nts : namedts)
+  (ps : list product)
+  (f : fdef)
+  (cs : list cmd)
+  (tmn : terminator)
+  (lc : GVMap)
+  (gl : GVMap)
+  (M : mem)
+  (Hwfg : wf_global s gl)
+  (HwfSys1 : wf_system nil s)
+  (HmInS1 : moduleInSystemB (module_intro los nts ps) s = true)
+  (HfInPs : InProductsB (product_fdef f) ps = true)
+  (l1 : l)
+  (ps1 : phinodes)
+  (cs1 : list cmd)
+  (c : cmd)
+  (Hreach : isReachableFromEntry f (block_intro l1 ps1 (cs1 ++ c :: cs) tmn))
+  (HbInF : blockInFdefB (block_intro l1 ps1 (cs1 ++ c :: cs) tmn) f = true)
+  (l0 : list atom)
+  (HeqR : ret l0 = inscope_of_cmd f (block_intro l1 ps1 (cs1 ++ c :: cs) tmn) c)
+  (Hinscope : wf_defs f lc l0)
+  (v : value)
+  (Hvincs : valueInCmdOperands v c),
+  exists gv : GenericValue, getOperandValue (los, nts) M v lc gl = ret gv.
+Proof.
+  intros.
+  destruct v as [vid | vc]; simpl.
+  assert (exists t, exists gv, 
+                lookupTypViaIDFromFdef f vid = munit t /\
+                lookupAL _ lc vid = Some gv /\ 
+                wf_genericvalue gv t) as Hlkup.
+    eapply state_cmd_typing; eauto. 
+    eapply wf_system__uniq_block; eauto.
+    eapply wf_system__wf_cmd; eauto using In_middle.
+    eapply wf_system__uniqFdef; eauto.
+    apply valueInCmdOperands__InOps; auto.
+  destruct Hlkup as [gt [gv [Hlktyp [Hlkup Hwfgv]]]].
+  simpl.
+  rewrite Hlkup. eauto.
+
+  apply const2GV_isnt_stuck with (S:=s)(t:=typ_void); eauto.
+    admit.
+    admit.
+Qed.
+
 Lemma progress : forall S1,
   wf_State S1 -> 
     ds_isFinialState S1 = true \/ exists S2, exists tr, dsInsn S1 S2 tr.
 Proof.
   intros S1 HwfS1.
   destruct S1 as [s [los nts] ps ecs gl fs M].
-  destruct HwfS1 as [HwfSys1 [HmInS1 HwfECs]].
+  destruct HwfS1 as [Hwfg1 [HwfSys1 [HmInS1 HwfECs]]].
   destruct ecs.
     admit. (* we should rule out this case. *)
 
@@ -2292,7 +3043,7 @@ Proof.
           unfold returnUpdateLocals. simpl.
           destruct n.
             exists lc'. auto.
-            
+
             destruct v as [vid | vc].
               assert (HwfInstr:=HbInF).
               eapply wf_system__wf_tmn in HwfInstr; eauto.
@@ -2311,9 +3062,11 @@ Proof.
               rewrite Hlkup. exists (updateAddAL GenericValue lc' i1 gv). auto.
 
               simpl.
-              destruct (@const2GV_isnt_stuck (los,nts) M' gl vc).
-              rewrite H.
-              exists (updateAddAL GenericValue lc' i1 x). auto.
+              destruct (@const2GV_isnt_stuck (los,nts) s M' gl vc t); auto.
+                admit.
+                admit.
+                rewrite H.
+                exists (updateAddAL GenericValue lc' i1 x). auto.
           
             destruct Hretup as [lc'' Hretup].
             exists (mkState s (los, nts) ps ((mkEC f' b' cs' tmn' lc'' als')::
@@ -2345,7 +3098,7 @@ Proof.
         assert (HwfB := HbInF).
         eapply wf_system__blockInFdefB__wf_block in HwfB; eauto.
         eapply wf_system__lookup__wf_block in HlkB; eauto.
-        clear - HeqR Hinscope HbInF HlkB HwfB Hreach HuniqF.
+        clear - HeqR Hinscope HbInF HlkB HwfB Hreach HuniqF Hwfg1.
         inv HlkB. clear H9 H10.
         eapply wf_phinodes__getIncomingValuesForBlockFromPHINodes; eauto.      
           simpl in *.
@@ -2371,8 +3124,55 @@ Proof.
     SCase "tmn=unreachable". admit.
 
   Case "cs<>nil".
-    admit.
-Qed.
+    remember (inscope_of_cmd f (block_intro l1 ps1 (cs1 ++ c :: cs) tmn) c) as R.
+    destruct R; try solve [inversion Hinscope].
+    right.
+    destruct c.
+  SCase "c=bop". Focus.
+    assert (exists gv3, BOP (los,nts) M lc gl b s0 v v0 = Some gv3) as Hinsn_bop.
+      unfold BOP.      
+      assert (exists gv, getOperandValue (los, nts) M v lc gl = Some gv) as J.
+        eapply getOperandValue_inCmdOperans_isnt_stuck; eauto.
+          simpl; auto.
+      assert (exists gv, getOperandValue (los, nts) M v0 lc gl = Some gv) as J0.
+        eapply getOperandValue_inCmdOperans_isnt_stuck; eauto.
+          simpl; auto.
+      destruct J as [gv J].
+      destruct J0 as [gv0 J0].
+      rewrite J. rewrite J0. 
+      unfold mbop. 
+      destruct (GV2val (los, nts) gv); eauto.
+      destruct v1; eauto.
+      destruct (GV2val (los, nts) gv0); eauto.
+      destruct v1; eauto.
+      destruct (eq_nat_dec (wz + 1) (Size.to_nat s0)); eauto.
+      destruct b; eauto.
+    destruct Hinsn_bop as [gv3 Hinsn_bop].
+    exists 
+         {|
+         CurSystem := s;
+         CurTargetData := (los, nts);
+         CurProducts := ps;
+         ECS := {|
+                CurFunction := f;
+                CurBB := block_intro l1 ps1
+                           (cs1 ++ insn_bop i0 b s0 v v0 :: cs) tmn;
+                CurCmds := cs;
+                Terminator := tmn;
+                Locals := (updateAddAL _ lc i0 gv3);
+                Allocas := als |} :: ecs;
+         Globals := gl;
+         FunTable := fs;
+         Mem := M |}.
+     exists trace_nil. eauto.
+  Unfocus.
+
+  SCase "c=fbop". admit.
+  SCase "c=extractvalue". admit.
+  SCase "c=insertvalue". admit.
+  SCase "c=malloc". admit.
+
+Admitted.
 
 (*****************************)
 (*

@@ -183,48 +183,39 @@ Proof.
   destruct R1; try solve [inversion H2].
   destruct p. inv H2.
   unfold _const2GV in *.
+(*
   remember (Constant.getTyp (const_gid t i0)) as R.
   destruct R; try solve [inversion HeqR0].
   destruct t2; try solve [inversion HeqR0].
+*)
   remember (lookupAL GenericValue gl i0) as R'.
   destruct R'; try solve [inversion HeqR0].
   inv HeqR1.
-  remember (Constant.getTyp
-    (const_gep false (const_gid t i0)
-      (Cons_list_const (const_int Size.ThirtyTwo 1) Nil_list_const))) as R1.
+  remember (getConstGEPTyp
+              (Cons_list_const (const_int Size.ThirtyTwo 1) Nil_list_const)
+              (typ_pointer t)) as R1.
   destruct R1; try solve [inversion HeqR0].
-  remember (GV2ptr TD (getPointerSize TD) g) as R2.
-  destruct R2; try solve [inversion HeqR0].
-  remember (intConsts2Nats TD
-    (Cons_list_const (const_int Size.ThirtyTwo 1) Nil_list_const)) as R3.
-  destruct R3; try solve [inversion HeqR0].
-  remember (mgep TD t2 v l0) as R4.
-  destruct R4; inv HeqR0.
-  simpl in *.
-  inv HeqR3. inv HeqR. inv HeqR1.
-  
-  unfold GV2ptr in *.
-  destruct g; inv HeqR2.
-  destruct p.
-  destruct v1; inv H0.
-  destruct g; inv H1.
-  unfold mgep in *.
-  remember (mgetoffset TD (typ_array 0%nat t) (INTEGER.to_Z 1 :: nil)) as R.
-  destruct R; inv HeqR4.
-  unfold mgetoffset in HeqR.
+  assert (exists b, exists ofs, GV2ptr TD (getPointerSize TD) g = 
+    Some (Values.Vptr b ofs)) as R2.
+    admit. (* this must be true if g is in globals*)
+  destruct R2 as [b [ofs HeqR2]].
+  rewrite HeqR2 in HeqR0.
+  simpl in HeqR0.
+  unfold mgetoffset in HeqR0.
   destruct TD.
-  remember (typ2utyp n (typ_array 0%nat t)) as R1.
-  destruct R1; inv HeqR.
-  destruct t0; inv H0.
-    remember (getTypeAllocSize (l0, n) t0) as R2.
-    destruct R2; inv H1.
-    unfold wf_data.
-    unfold GV2ptr.
-    unfold ptr2GV. unfold val2GV.
-    destruct (zeq b b); auto.
-      admit. (* wf of globals *)
- 
-    admit. (* HeqR1 is false *)
+  assert (exists ut2, typ2utyp n (typ_array 0%nat t) = 
+    Some (typ_array 0%nat ut2)) as J.
+    admit. (* wft *)
+  destruct J as [ut2 J].
+  rewrite J in HeqR0. simpl in HeqR0.
+  assert (exists sz, getTypeAllocSize (l0, n) ut2 = Some sz) as J'.
+    admit. (* wft *)   
+  destruct J' as [sz J'].
+  rewrite J' in HeqR0. simpl in HeqR0.
+  inv HeqR0.
+  unfold wf_data. rewrite HeqR2. simpl.
+  destruct (zeq b b); auto.
+    admit. (* wf of globals *)
 Qed.
 
 Lemma eq_gv_is_wf_data : forall TD Mem gv bb bofs,

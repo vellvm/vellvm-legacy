@@ -1459,12 +1459,12 @@ Proof.
     simpl in H.
     destruct H as [H | H]; subst; simpl.
       destruct gvs. 
-        exists (uninits 0). apply lookupAL_updateAddAL_eq; auto.      
+        exists gundef. apply lookupAL_updateAddAL_eq; auto.      
         exists g. apply lookupAL_updateAddAL_eq; auto.      
 
       destruct (eq_atom_dec i0 id1); subst.
         destruct gvs.
-          exists (uninits 0). apply lookupAL_updateAddAL_eq; auto.
+          exists gundef. apply lookupAL_updateAddAL_eq; auto.
           exists g. apply lookupAL_updateAddAL_eq; auto.
         destruct gvs; rewrite <- lookupAL_updateAddAL_neq; auto.
 Qed.

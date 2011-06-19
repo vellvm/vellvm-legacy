@@ -475,6 +475,11 @@
 \ottprodline{|}{\mathit{\overline{product} }  \ottsym{,}  \ottnt{product}}{}{}{}{\ottcom{cons}}\\ 
 \ottprodline{|}{\ottsym{(}  \mathit{\overline{product} }  \ottsym{)}} {\textsf{S}}{}{}{}}
 
+\newcommand{\otttargetdata}{
+\ottrulehead{\ottnt{targetdata}}{::=}{\ottcom{targetdata}}\\ 
+\ottprodline{|}{\mathit{\overline{layout} } \, \mathit{\overline{namedt} }}{}{}{}{}\\ 
+\ottprodline{|}{\ottsym{(}  \ottnt{targetdata}  \ottsym{)}} {\textsf{S}}{}{}{}}
+
 \newcommand{\ottmodule}{
 \ottrulehead{\ottnt{module}}{::=}{\ottcom{module}}\\ 
 \ottprodline{|}{\mathit{\overline{layout} } \, \mathit{\overline{namedt} } \, \mathit{\overline{product} }}{}{}{}{\ottcom{prods}}\\ 
@@ -555,6 +560,7 @@
 \ottidXXbinding\ottinterrule
 \ottproduct\ottinterrule
 \ottproducts\ottinterrule
+\otttargetdata\ottinterrule
 \ottmodule\ottinterrule
 \ottmodules\ottinterrule
 \ottsystem\ottinterrule
@@ -573,10 +579,17 @@
 }}
 
 
-\newcommand{\ottdrulewfXXtypXXfloatpoint}[1]{\ottdrule[#1]{%
+\newcommand{\ottdrulewfXXtypXXfloat}[1]{\ottdrule[#1]{%
 }{
-\ottnt{system}  \vdash  \ottnt{floating\_point}}{%
-{\ottdrulename{wf\_typ\_floatpoint}}{}%
+\ottnt{system}  \vdash  \ottkw{float}}{%
+{\ottdrulename{wf\_typ\_float}}{}%
+}}
+
+
+\newcommand{\ottdrulewfXXtypXXdouble}[1]{\ottdrule[#1]{%
+}{
+\ottnt{system}  \vdash  \ottkw{double}}{%
+{\ottdrulename{wf\_typ\_double}}{}%
 }}
 
 
@@ -655,7 +668,8 @@
 
 \newcommand{\ottdefnwfXXtyp}[1]{\begin{ottdefnblock}[#1]{$\ottnt{system}  \vdash  \ottnt{typ}$}{\ottcom{$\ottnt{typ}$ is well-formed}}
 \ottusedrule{\ottdrulewfXXtypXXint{}}
-\ottusedrule{\ottdrulewfXXtypXXfloatpoint{}}
+\ottusedrule{\ottdrulewfXXtypXXfloat{}}
+\ottusedrule{\ottdrulewfXXtypXXdouble{}}
 \ottusedrule{\ottdrulewfXXtypXXvoid{}}
 \ottusedrule{\ottdrulewfXXtypXXlabel{}}
 \ottusedrule{\ottdrulewfXXtypXXmetadate{}}
@@ -672,12 +686,31 @@
 \ottdefnwfXXtyp{}}
 
 
+% defns Jfeasible_typ
+% defn feasible_typ
+\newcommand{\ottdrulefeasibleXXtypXXintro}[1]{\ottdrule[#1]{%
+\ottpremise{\texttt{Constant.feasible\_typ }\ottnt{targetdata}\texttt{ }\ottnt{typ}\texttt{ }}%
+}{
+\ottnt{targetdata}  \vdash  \ottnt{typ}}{%
+{\ottdrulename{feasible\_typ\_intro}}{}%
+}}
+
+\newcommand{\ottdefnfeasibleXXtyp}[1]{\begin{ottdefnblock}[#1]{$\ottnt{targetdata}  \vdash  \ottnt{typ}$}{\ottcom{$\ottnt{typ}$ is well-formed}}
+\ottusedrule{\ottdrulefeasibleXXtypXXintro{}}
+\end{ottdefnblock}}
+
+
+\newcommand{\ottdefnsJfeasibleXXtyp}{
+\ottdefnfeasibleXXtyp{}}
+
+
 % defns Jwf_const
 % defn wf_const
 \newcommand{\ottdrulewfXXconstXXzeroinitializer}[1]{\ottdrule[#1]{%
 \ottpremise{\ottnt{system}  \vdash  \ottnt{typ}}%
+\ottpremise{\texttt{Constant.wf\_zeroconst\_typ }\ottnt{typ}\texttt{ }}%
 }{
-\ottnt{system}  \ottsym{\mbox{$\mid$}-c}  \ottnt{typ} \, \ottkw{zeroinitializer}  \ottsym{:}  \ottnt{typ}}{%
+\ottnt{system}  \ottsym{,}  \ottnt{targetdata}  \ottsym{\mbox{$\mid$}-c}  \ottnt{typ} \, \ottkw{zeroinitializer}  \ottsym{:}  \ottnt{typ}}{%
 {\ottdrulename{wf\_const\_zeroinitializer}}{}%
 }}
 
@@ -685,15 +718,18 @@
 \newcommand{\ottdrulewfXXconstXXint}[1]{\ottdrule[#1]{%
 \ottpremise{\ottnt{system}  \vdash  \ottkw{int} \, \ottmv{sz}}%
 \ottpremise{\ottmv{sz}  \ottsym{>}  \ottsym{0}}%
+\ottpremise{\ottnt{targetdata}  \vdash  \ottkw{int} \, \ottmv{sz}}%
 }{
-\ottnt{system}  \ottsym{\mbox{$\mid$}-c}  \ottsym{(} \, \ottkw{int} \, \ottmv{sz}  \ottsym{)}  \ottmv{INT}  \ottsym{:}  \ottkw{int} \, \ottmv{sz}}{%
+\ottnt{system}  \ottsym{,}  \ottnt{targetdata}  \ottsym{\mbox{$\mid$}-c}  \ottsym{(} \, \ottkw{int} \, \ottmv{sz}  \ottsym{)}  \ottmv{INT}  \ottsym{:}  \ottkw{int} \, \ottmv{sz}}{%
 {\ottdrulename{wf\_const\_int}}{}%
 }}
 
 
 \newcommand{\ottdrulewfXXconstXXfloatpoint}[1]{\ottdrule[#1]{%
+\ottpremise{\ottnt{system}  \vdash  \ottnt{floating\_point}}%
+\ottpremise{\ottnt{targetdata}  \vdash  \ottnt{typ}}%
 }{
-\ottnt{system}  \ottsym{\mbox{$\mid$}-c}  \ottnt{floating\_point} \, \ottmv{Float}  \ottsym{:}  \ottnt{floating\_point}}{%
+\ottnt{system}  \ottsym{,}  \ottnt{targetdata}  \ottsym{\mbox{$\mid$}-c}  \ottnt{floating\_point} \, \ottmv{Float}  \ottsym{:}  \ottnt{floating\_point}}{%
 {\ottdrulename{wf\_const\_floatpoint}}{}%
 }}
 
@@ -701,7 +737,7 @@
 \newcommand{\ottdrulewfXXconstXXundef}[1]{\ottdrule[#1]{%
 \ottpremise{\ottnt{system}  \vdash  \ottnt{typ}}%
 }{
-\ottnt{system}  \ottsym{\mbox{$\mid$}-c}  \ottnt{typ} \, \ottkw{undef}  \ottsym{:}  \ottnt{typ}}{%
+\ottnt{system}  \ottsym{,}  \ottnt{targetdata}  \ottsym{\mbox{$\mid$}-c}  \ottnt{typ} \, \ottkw{undef}  \ottsym{:}  \ottnt{typ}}{%
 {\ottdrulename{wf\_const\_undef}}{}%
 }}
 
@@ -709,24 +745,25 @@
 \newcommand{\ottdrulewfXXconstXXnull}[1]{\ottdrule[#1]{%
 \ottpremise{\ottnt{system}  \vdash  \ottnt{typ}  \ottsym{*}}%
 }{
-\ottnt{system}  \ottsym{\mbox{$\mid$}-c}  \ottsym{(}  \ottnt{typ}  \ottsym{*}  \ottsym{)} \, \ottkw{null}  \ottsym{:}  \ottnt{typ}  \ottsym{*}}{%
+\ottnt{system}  \ottsym{,}  \ottnt{targetdata}  \ottsym{\mbox{$\mid$}-c}  \ottsym{(}  \ottnt{typ}  \ottsym{*}  \ottsym{)} \, \ottkw{null}  \ottsym{:}  \ottnt{typ}  \ottsym{*}}{%
 {\ottdrulename{wf\_const\_null}}{}%
 }}
 
 
 \newcommand{\ottdrulewfXXconstXXarr}[1]{\ottdrule[#1]{%
-\ottpremise{\ottcomp{\ottnt{system}  \ottsym{\mbox{$\mid$}-c}  \ottnt{const_{\ottmv{j}}}  \ottsym{:}  \ottnt{typ}}{\ottmv{j}}}%
+\ottpremise{\ottcomp{\ottnt{system}  \ottsym{,}  \ottnt{targetdata}  \ottsym{\mbox{$\mid$}-c}  \ottnt{const_{\ottmv{j}}}  \ottsym{:}  \ottnt{typ}}{\ottmv{j}}}%
 \ottpremise{\ottkw{length} \, \ottcomp{\ottnt{const_{\ottmv{j}}}}{\ottmv{j}} \, =  \ottmv{sz}}%
 }{
-\ottnt{system}  \ottsym{\mbox{$\mid$}-c}  \ottnt{typ}  \ottsym{[} \, \ottcomp{\ottnt{const_{\ottmv{j}}}}{\ottmv{j}} \, \ottsym{]}  \ottsym{:}  \ottsym{[}  \ottmv{sz}  \ottsym{*}  \ottnt{typ}  \ottsym{]}}{%
+\ottnt{system}  \ottsym{,}  \ottnt{targetdata}  \ottsym{\mbox{$\mid$}-c}  \ottnt{typ}  \ottsym{[} \, \ottcomp{\ottnt{const_{\ottmv{j}}}}{\ottmv{j}} \, \ottsym{]}  \ottsym{:}  \ottsym{[}  \ottmv{sz}  \ottsym{*}  \ottnt{typ}  \ottsym{]}}{%
 {\ottdrulename{wf\_const\_arr}}{}%
 }}
 
 
 \newcommand{\ottdrulewfXXconstXXstruct}[1]{\ottdrule[#1]{%
-\ottpremise{\ottcompu{\ottnt{system}  \ottsym{\mbox{$\mid$}-c}  \ottnt{const_{\ottmv{j}}}  \ottsym{:}  \ottnt{typ_{\ottmv{j}}}}{\ottmv{j}}{\ottmv{n}}}%
+\ottpremise{\ottcomp{\ottnt{system}  \ottsym{,}  \ottnt{targetdata}  \ottsym{\mbox{$\mid$}-c}  \ottnt{const_{\ottmv{j}}}  \ottsym{:}  \ottnt{typ_{\ottmv{j}}}}{\ottmv{j}}}%
+\ottpremise{\ottcomp{\ottnt{targetdata}  \vdash  \ottnt{typ_{\ottmv{j}}}}{\ottmv{j}}}%
 }{
-\ottnt{system}  \ottsym{\mbox{$\mid$}-c}  \ottsym{\{} \, \ottcompu{\ottnt{const_{\ottmv{j}}}}{\ottmv{j}}{\ottmv{n}} \, \ottsym{\}}  \ottsym{:}  \ottsym{\{} \, \ottcompu{\ottnt{typ_{\ottmv{j}}}}{\ottmv{j}}{\ottmv{n}} \, \ottsym{\}}}{%
+\ottnt{system}  \ottsym{,}  \ottnt{targetdata}  \ottsym{\mbox{$\mid$}-c}  \ottsym{\{} \, \ottcomp{\ottnt{const_{\ottmv{j}}}}{\ottmv{j}} \, \ottsym{\}}  \ottsym{:}  \ottsym{\{} \, \ottcomp{\ottnt{typ_{\ottmv{j}}}}{\ottmv{j}} \, \ottsym{\}}}{%
 {\ottdrulename{wf\_const\_struct}}{}%
 }}
 
@@ -735,201 +772,193 @@
 \ottpremise{\ottnt{system}  \vdash  \ottnt{typ}  \ottsym{*}}%
 \ottpremise{\ottkw{lookupTypViaGIDFromSystem} \, \ottnt{system} \, \ottmv{id}  =  \ottnt{typ}  \ottsym{*}}%
 }{
-\ottnt{system}  \ottsym{\mbox{$\mid$}-c}  \ottnt{typ}  \ottsym{*}  \ottmv{id}  \ottsym{:}  \ottnt{typ}  \ottsym{*}}{%
+\ottnt{system}  \ottsym{,}  \ottnt{targetdata}  \ottsym{\mbox{$\mid$}-c}  \ottnt{typ}  \ottsym{*}  \ottmv{id}  \ottsym{:}  \ottnt{typ}  \ottsym{*}}{%
 {\ottdrulename{wf\_const\_gid}}{}%
 }}
 
 
 \newcommand{\ottdrulewfXXconstXXtruncXXint}[1]{\ottdrule[#1]{%
-\ottpremise{\ottnt{system}  \ottsym{\mbox{$\mid$}-c}  \ottnt{const}  \ottsym{:}  \ottkw{int} \, \ottmv{sz_{{\mathrm{1}}}}}%
+\ottpremise{\ottnt{system}  \ottsym{,}  \ottnt{targetdata}  \ottsym{\mbox{$\mid$}-c}  \ottnt{const}  \ottsym{:}  \ottkw{int} \, \ottmv{sz_{{\mathrm{1}}}}}%
 \ottpremise{\ottnt{system}  \vdash  \ottkw{int} \, \ottmv{sz_{{\mathrm{2}}}}}%
 \ottpremise{ ( \ottmv{sz_{{\mathrm{2}}}}  <  \ottmv{sz_{{\mathrm{1}}}} ) }%
+\ottpremise{\ottnt{targetdata}  \vdash  \ottkw{int} \, \ottmv{sz_{{\mathrm{1}}}}}%
 }{
-\ottnt{system}  \ottsym{\mbox{$\mid$}-c}  \ottsym{trunc\_int} \, \ottnt{const} \, \ottkw{to} \, \ottsym{(}  \ottkw{int} \, \ottmv{sz_{{\mathrm{2}}}}  \ottsym{)}  \ottsym{:}  \ottkw{int} \, \ottmv{sz_{{\mathrm{2}}}}}{%
+\ottnt{system}  \ottsym{,}  \ottnt{targetdata}  \ottsym{\mbox{$\mid$}-c}  \ottsym{trunc\_int} \, \ottnt{const} \, \ottkw{to} \, \ottsym{(}  \ottkw{int} \, \ottmv{sz_{{\mathrm{2}}}}  \ottsym{)}  \ottsym{:}  \ottkw{int} \, \ottmv{sz_{{\mathrm{2}}}}}{%
 {\ottdrulename{wf\_const\_trunc\_int}}{}%
 }}
 
 
 \newcommand{\ottdrulewfXXconstXXtruncXXfp}[1]{\ottdrule[#1]{%
-\ottpremise{\ottnt{system}  \ottsym{\mbox{$\mid$}-c}  \ottnt{const}  \ottsym{:}  \ottnt{floating\_point_{{\mathrm{1}}}}}%
+\ottpremise{\ottnt{system}  \ottsym{,}  \ottnt{targetdata}  \ottsym{\mbox{$\mid$}-c}  \ottnt{const}  \ottsym{:}  \ottnt{floating\_point_{{\mathrm{1}}}}}%
 \ottpremise{\ottnt{floating\_point_{{\mathrm{2}}}}  \le  \ottnt{floating\_point_{{\mathrm{1}}}}}%
+\ottpremise{\ottnt{targetdata}  \vdash  \ottnt{floating\_point_{{\mathrm{1}}}}}%
+\ottpremise{\ottnt{system}  \vdash  \ottnt{floating\_point_{{\mathrm{2}}}}}%
 }{
-\ottnt{system}  \ottsym{\mbox{$\mid$}-c}  \ottsym{trunc\_int} \, \ottnt{const} \, \ottkw{to} \, \ottnt{floating\_point_{{\mathrm{2}}}}  \ottsym{:}  \ottnt{floating\_point_{{\mathrm{2}}}}}{%
+\ottnt{system}  \ottsym{,}  \ottnt{targetdata}  \ottsym{\mbox{$\mid$}-c}  \ottsym{trunc\_int} \, \ottnt{const} \, \ottkw{to} \, \ottnt{floating\_point_{{\mathrm{2}}}}  \ottsym{:}  \ottnt{floating\_point_{{\mathrm{2}}}}}{%
 {\ottdrulename{wf\_const\_trunc\_fp}}{}%
 }}
 
 
 \newcommand{\ottdrulewfXXconstXXzext}[1]{\ottdrule[#1]{%
-\ottpremise{\ottnt{system}  \ottsym{\mbox{$\mid$}-c}  \ottnt{const}  \ottsym{:}  \ottkw{int} \, \ottmv{sz_{{\mathrm{1}}}}}%
+\ottpremise{\ottnt{system}  \ottsym{,}  \ottnt{targetdata}  \ottsym{\mbox{$\mid$}-c}  \ottnt{const}  \ottsym{:}  \ottkw{int} \, \ottmv{sz_{{\mathrm{1}}}}}%
+\ottpremise{\ottnt{targetdata}  \vdash  \ottkw{int} \, \ottmv{sz_{{\mathrm{1}}}}}%
 \ottpremise{\ottnt{system}  \vdash  \ottkw{int} \, \ottmv{sz_{{\mathrm{2}}}}}%
 \ottpremise{ ( \ottmv{sz_{{\mathrm{1}}}}  <  \ottmv{sz_{{\mathrm{2}}}} ) }%
 }{
-\ottnt{system}  \ottsym{\mbox{$\mid$}-c}  \ottkw{zext} \, \ottnt{const} \, \ottkw{to} \, \ottnt{typ}  \ottsym{:}  \ottkw{int} \, \ottmv{sz_{{\mathrm{2}}}}}{%
+\ottnt{system}  \ottsym{,}  \ottnt{targetdata}  \ottsym{\mbox{$\mid$}-c}  \ottkw{zext} \, \ottnt{const} \, \ottkw{to} \, \ottsym{(}  \ottkw{int} \, \ottmv{sz_{{\mathrm{2}}}}  \ottsym{)}  \ottsym{:}  \ottkw{int} \, \ottmv{sz_{{\mathrm{2}}}}}{%
 {\ottdrulename{wf\_const\_zext}}{}%
 }}
 
 
 \newcommand{\ottdrulewfXXconstXXsext}[1]{\ottdrule[#1]{%
-\ottpremise{\ottnt{system}  \ottsym{\mbox{$\mid$}-c}  \ottnt{const}  \ottsym{:}  \ottkw{int} \, \ottmv{sz_{{\mathrm{1}}}}}%
+\ottpremise{\ottnt{system}  \ottsym{,}  \ottnt{targetdata}  \ottsym{\mbox{$\mid$}-c}  \ottnt{const}  \ottsym{:}  \ottkw{int} \, \ottmv{sz_{{\mathrm{1}}}}}%
+\ottpremise{\ottnt{targetdata}  \vdash  \ottkw{int} \, \ottmv{sz_{{\mathrm{1}}}}}%
 \ottpremise{\ottnt{system}  \vdash  \ottkw{int} \, \ottmv{sz_{{\mathrm{2}}}}}%
 \ottpremise{ ( \ottmv{sz_{{\mathrm{1}}}}  <  \ottmv{sz_{{\mathrm{2}}}} ) }%
 }{
-\ottnt{system}  \ottsym{\mbox{$\mid$}-c}  \ottkw{sext} \, \ottnt{const} \, \ottkw{to} \, \ottnt{typ}  \ottsym{:}  \ottkw{int} \, \ottmv{sz_{{\mathrm{2}}}}}{%
+\ottnt{system}  \ottsym{,}  \ottnt{targetdata}  \ottsym{\mbox{$\mid$}-c}  \ottkw{sext} \, \ottnt{const} \, \ottkw{to} \, \ottsym{(}  \ottkw{int} \, \ottmv{sz_{{\mathrm{2}}}}  \ottsym{)}  \ottsym{:}  \ottkw{int} \, \ottmv{sz_{{\mathrm{2}}}}}{%
 {\ottdrulename{wf\_const\_sext}}{}%
 }}
 
 
 \newcommand{\ottdrulewfXXconstXXfpext}[1]{\ottdrule[#1]{%
-\ottpremise{\ottnt{system}  \ottsym{\mbox{$\mid$}-c}  \ottnt{const}  \ottsym{:}  \ottnt{floating\_point_{{\mathrm{1}}}}}%
+\ottpremise{\ottnt{system}  \ottsym{,}  \ottnt{targetdata}  \ottsym{\mbox{$\mid$}-c}  \ottnt{const}  \ottsym{:}  \ottnt{floating\_point_{{\mathrm{1}}}}}%
 \ottpremise{\ottnt{floating\_point_{{\mathrm{1}}}}  \le  \ottnt{floating\_point_{{\mathrm{2}}}}}%
+\ottpremise{\ottnt{targetdata}  \vdash  \ottnt{floating\_point_{{\mathrm{1}}}}}%
+\ottpremise{\ottnt{system}  \vdash  \ottnt{floating\_point_{{\mathrm{2}}}}}%
 }{
-\ottnt{system}  \ottsym{\mbox{$\mid$}-c}  \ottkw{fpext} \, \ottnt{const} \, \ottkw{to} \, \ottnt{typ}  \ottsym{:}  \ottnt{floating\_point_{{\mathrm{2}}}}}{%
+\ottnt{system}  \ottsym{,}  \ottnt{targetdata}  \ottsym{\mbox{$\mid$}-c}  \ottkw{fpext} \, \ottnt{const} \, \ottkw{to} \, \ottnt{floating\_point_{{\mathrm{2}}}}  \ottsym{:}  \ottnt{floating\_point_{{\mathrm{2}}}}}{%
 {\ottdrulename{wf\_const\_fpext}}{}%
 }}
 
 
-\newcommand{\ottdrulewfXXconstXXfptoui}[1]{\ottdrule[#1]{%
-\ottpremise{\ottnt{system}  \ottsym{\mbox{$\mid$}-c}  \ottnt{const}  \ottsym{:}  \ottnt{floating\_point}}%
-\ottpremise{\ottnt{system}  \vdash  \ottkw{int} \, \ottmv{sz}}%
-}{
-\ottnt{system}  \ottsym{\mbox{$\mid$}-c}  \ottkw{fptoui} \, \ottnt{const} \, \ottkw{to} \, \ottsym{(}  \ottkw{int} \, \ottmv{sz}  \ottsym{)}  \ottsym{:}  \ottkw{int} \, \ottmv{sz}}{%
-{\ottdrulename{wf\_const\_fptoui}}{}%
-}}
-
-
-\newcommand{\ottdrulewfXXconstXXfptosi}[1]{\ottdrule[#1]{%
-\ottpremise{\ottnt{system}  \ottsym{\mbox{$\mid$}-c}  \ottnt{const}  \ottsym{:}  \ottnt{floating\_point}}%
-\ottpremise{\ottnt{system}  \vdash  \ottkw{int} \, \ottmv{sz}}%
-}{
-\ottnt{system}  \ottsym{\mbox{$\mid$}-c}  \ottkw{fptosi} \, \ottnt{const} \, \ottkw{to} \, \ottsym{(}  \ottkw{int} \, \ottmv{sz}  \ottsym{)}  \ottsym{:}  \ottkw{int} \, \ottmv{sz}}{%
-{\ottdrulename{wf\_const\_fptosi}}{}%
-}}
-
-
-\newcommand{\ottdrulewfXXconstXXuitofp}[1]{\ottdrule[#1]{%
-\ottpremise{\ottnt{system}  \ottsym{\mbox{$\mid$}-c}  \ottnt{const}  \ottsym{:}  \ottkw{int} \, \ottmv{sz}}%
-}{
-\ottnt{system}  \ottsym{\mbox{$\mid$}-c}  \ottkw{uitofp} \, \ottnt{const} \, \ottkw{to} \, \ottnt{floating\_point}  \ottsym{:}  \ottnt{floating\_point}}{%
-{\ottdrulename{wf\_const\_uitofp}}{}%
-}}
-
-
-\newcommand{\ottdrulewfXXconstXXsitofp}[1]{\ottdrule[#1]{%
-\ottpremise{\ottnt{system}  \ottsym{\mbox{$\mid$}-c}  \ottnt{const}  \ottsym{:}  \ottkw{int} \, \ottmv{sz}}%
-}{
-\ottnt{system}  \ottsym{\mbox{$\mid$}-c}  \ottkw{sitofp} \, \ottnt{const} \, \ottkw{to} \, \ottnt{floating\_point}  \ottsym{:}  \ottnt{floating\_point}}{%
-{\ottdrulename{wf\_const\_sitofp}}{}%
-}}
-
-
 \newcommand{\ottdrulewfXXconstXXptrtoint}[1]{\ottdrule[#1]{%
-\ottpremise{\ottnt{system}  \ottsym{\mbox{$\mid$}-c}  \ottnt{const}  \ottsym{:}  \ottnt{typ}  \ottsym{*}}%
+\ottpremise{\ottnt{system}  \ottsym{,}  \ottnt{targetdata}  \ottsym{\mbox{$\mid$}-c}  \ottnt{const}  \ottsym{:}  \ottnt{typ}  \ottsym{*}}%
+\ottpremise{\ottnt{targetdata}  \vdash  \ottnt{typ}  \ottsym{*}}%
 \ottpremise{\ottnt{system}  \vdash  \ottkw{int} \, \ottmv{sz}}%
 }{
-\ottnt{system}  \ottsym{\mbox{$\mid$}-c}  \ottkw{ptrtoint} \, \ottnt{const} \, \ottkw{to} \, \ottsym{(}  \ottkw{int} \, \ottmv{sz}  \ottsym{)}  \ottsym{:}  \ottkw{int} \, \ottmv{sz}}{%
+\ottnt{system}  \ottsym{,}  \ottnt{targetdata}  \ottsym{\mbox{$\mid$}-c}  \ottkw{ptrtoint} \, \ottnt{const} \, \ottkw{to} \, \ottsym{(}  \ottkw{int} \, \ottmv{sz}  \ottsym{)}  \ottsym{:}  \ottkw{int} \, \ottmv{sz}}{%
 {\ottdrulename{wf\_const\_ptrtoint}}{}%
 }}
 
 
 \newcommand{\ottdrulewfXXconstXXinttoptr}[1]{\ottdrule[#1]{%
-\ottpremise{\ottnt{system}  \ottsym{\mbox{$\mid$}-c}  \ottnt{const}  \ottsym{:}  \ottkw{int} \, \ottmv{sz}}%
+\ottpremise{\ottnt{system}  \ottsym{,}  \ottnt{targetdata}  \ottsym{\mbox{$\mid$}-c}  \ottnt{const}  \ottsym{:}  \ottkw{int} \, \ottmv{sz}}%
+\ottpremise{\ottnt{targetdata}  \vdash  \ottkw{int} \, \ottmv{sz}}%
 \ottpremise{\ottnt{system}  \vdash  \ottnt{typ}  \ottsym{*}}%
 }{
-\ottnt{system}  \ottsym{\mbox{$\mid$}-c}  \ottkw{ptrtoint} \, \ottnt{const} \, \ottkw{to} \, \ottsym{(}  \ottnt{typ}  \ottsym{*}  \ottsym{)}  \ottsym{:}  \ottnt{typ}  \ottsym{*}}{%
+\ottnt{system}  \ottsym{,}  \ottnt{targetdata}  \ottsym{\mbox{$\mid$}-c}  \ottkw{inttoptr} \, \ottnt{const} \, \ottkw{to} \, \ottsym{(}  \ottnt{typ}  \ottsym{*}  \ottsym{)}  \ottsym{:}  \ottnt{typ}  \ottsym{*}}{%
 {\ottdrulename{wf\_const\_inttoptr}}{}%
 }}
 
 
 \newcommand{\ottdrulewfXXconstXXbitcast}[1]{\ottdrule[#1]{%
-\ottpremise{\ottnt{system}  \ottsym{\mbox{$\mid$}-c}  \ottnt{const}  \ottsym{:}  \ottnt{typ_{{\mathrm{1}}}}}%
-\ottpremise{\ottnt{system}  \vdash  \ottnt{typ_{{\mathrm{2}}}}}%
-\ottpremise{  \ottsym{Typ.getPrimitiveSizeInBits}  \ottnt{typ_{{\mathrm{1}}}}  =  \ottmv{sz_{{\mathrm{1}}}}  \wedge  \ottsym{Typ.getPrimitiveSizeInBits}  \ottnt{typ_{{\mathrm{2}}}}  =  \ottmv{sz_{{\mathrm{2}}}}   \wedge   \ottmv{sz_{{\mathrm{1}}}}  =  \ottmv{sz_{{\mathrm{2}}}}  }%
-\ottpremise{ \ottkw{isPointerTyp} \, \ottnt{typ_{{\mathrm{1}}}}  \mathit{iff}  \ottkw{isPointerTyp} \, \ottnt{typ_{{\mathrm{2}}}} }%
-\ottpremise{  (  \neg  \ottkw{isAggregateTyp} \, \ottnt{typ_{{\mathrm{1}}}}  \!)   \wedge   (  \neg  \ottkw{isAggregateTyp} \, \ottnt{typ_{{\mathrm{2}}}}  \!)  }%
+\ottpremise{\ottnt{system}  \ottsym{,}  \ottnt{targetdata}  \ottsym{\mbox{$\mid$}-c}  \ottnt{const}  \ottsym{:}  \ottnt{typ_{{\mathrm{1}}}}  \ottsym{*}}%
+\ottpremise{\ottnt{targetdata}  \vdash  \ottnt{typ_{{\mathrm{1}}}}  \ottsym{*}}%
+\ottpremise{\ottnt{system}  \vdash  \ottnt{typ_{{\mathrm{2}}}}  \ottsym{*}}%
 }{
-\ottnt{system}  \ottsym{\mbox{$\mid$}-c}  \ottkw{ptrtoint} \, \ottnt{const} \, \ottkw{to} \, \ottnt{typ_{{\mathrm{2}}}}  \ottsym{:}  \ottnt{typ_{{\mathrm{2}}}}}{%
+\ottnt{system}  \ottsym{,}  \ottnt{targetdata}  \ottsym{\mbox{$\mid$}-c}  \ottkw{bitcast} \, \ottnt{const} \, \ottkw{to} \, \ottnt{typ_{{\mathrm{2}}}}  \ottsym{*}  \ottsym{:}  \ottnt{typ_{{\mathrm{2}}}}  \ottsym{*}}{%
 {\ottdrulename{wf\_const\_bitcast}}{}%
 }}
 
 
 \newcommand{\ottdrulewfXXconstXXgep}[1]{\ottdrule[#1]{%
-\ottpremise{\ottnt{system}  \ottsym{\mbox{$\mid$}-c}  \ottnt{const}  \ottsym{:}  \ottnt{typ}  \ottsym{*}}%
-\ottpremise{\ottcomp{ \ottnt{system}  \ottsym{\mbox{$\mid$}-c}  \ottnt{const_{\ottmv{j}}}  \ottsym{:}  \ottkw{int} \, \ottmv{sz}  \wedge  \ottmv{sz}  =  \ottsym{32} }{\ottmv{j}}}%
+\ottpremise{\ottnt{system}  \ottsym{,}  \ottnt{targetdata}  \ottsym{\mbox{$\mid$}-c}  \ottnt{const}  \ottsym{:}  \ottnt{typ}  \ottsym{*}}%
+\ottpremise{\ottnt{targetdata}  \vdash  \ottnt{typ}  \ottsym{*}}%
+\ottpremise{\ottcomp{\ottnt{system}  \ottsym{,}  \ottnt{targetdata}  \ottsym{\mbox{$\mid$}-c}  \ottnt{const_{\ottmv{j}}}  \ottsym{:}  \ottnt{typ''}}{\ottmv{j}}}%
+\ottpremise{\ottnt{typ''}  =  \ottsym{i32}}%
 \ottpremise{\ottkw{getConstGEPTyp} \, \ottcomp{\ottnt{const_{\ottmv{j}}}}{\ottmv{j}} \, \ottsym{(}  \ottnt{typ}  \ottsym{*}  \ottsym{)}  =  \ottnt{typ'}}%
 }{
-\ottnt{system}  \ottsym{\mbox{$\mid$}-c}  \ottkw{getelementptr} \, \ottnt{inbounds} \, \ottnt{const} \, \ottcomp{\ottnt{const_{\ottmv{j}}}}{\ottmv{j}}  \ottsym{:}  \ottnt{typ'}}{%
+\ottnt{system}  \ottsym{,}  \ottnt{targetdata}  \ottsym{\mbox{$\mid$}-c}  \ottkw{getelementptr} \, \ottnt{inbounds} \, \ottnt{const} \, \ottcomp{\ottnt{const_{\ottmv{j}}}}{\ottmv{j}}  \ottsym{:}  \ottnt{typ'}}{%
 {\ottdrulename{wf\_const\_gep}}{}%
 }}
 
 
 \newcommand{\ottdrulewfXXconstXXselect}[1]{\ottdrule[#1]{%
-\ottpremise{ \ottnt{system}  \ottsym{\mbox{$\mid$}-c}  \ottnt{const_{{\mathrm{0}}}}  \ottsym{:}  \ottkw{int} \, \ottmv{sz}  \wedge  \ottmv{sz}  =  \ottsym{1} }%
-\ottpremise{\ottnt{system}  \ottsym{\mbox{$\mid$}-c}  \ottnt{const_{{\mathrm{1}}}}  \ottsym{:}  \ottnt{typ}}%
-\ottpremise{\ottnt{system}  \ottsym{\mbox{$\mid$}-c}  \ottnt{const_{{\mathrm{2}}}}  \ottsym{:}  \ottnt{typ}}%
+\ottpremise{\ottnt{system}  \ottsym{,}  \ottnt{targetdata}  \ottsym{\mbox{$\mid$}-c}  \ottnt{const_{{\mathrm{0}}}}  \ottsym{:}  \ottkw{int} \, \ottmv{sz}}%
+\ottpremise{\ottmv{sz}  =  \ottsym{1}}%
+\ottpremise{\ottnt{system}  \ottsym{,}  \ottnt{targetdata}  \ottsym{\mbox{$\mid$}-c}  \ottnt{const_{{\mathrm{1}}}}  \ottsym{:}  \ottnt{typ}}%
+\ottpremise{\ottnt{system}  \ottsym{,}  \ottnt{targetdata}  \ottsym{\mbox{$\mid$}-c}  \ottnt{const_{{\mathrm{2}}}}  \ottsym{:}  \ottnt{typ}}%
+\ottpremise{\ottnt{targetdata}  \vdash  \ottkw{int} \, \ottmv{sz}}%
 }{
-\ottnt{system}  \ottsym{\mbox{$\mid$}-c}  \ottkw{select} \, \ottnt{const_{{\mathrm{0}}}} \, \ottnt{const_{{\mathrm{1}}}} \, \ottnt{const_{{\mathrm{2}}}}  \ottsym{:}  \ottnt{typ}}{%
+\ottnt{system}  \ottsym{,}  \ottnt{targetdata}  \ottsym{\mbox{$\mid$}-c}  \ottkw{select} \, \ottnt{const_{{\mathrm{0}}}} \, \ottnt{const_{{\mathrm{1}}}} \, \ottnt{const_{{\mathrm{2}}}}  \ottsym{:}  \ottnt{typ}}{%
 {\ottdrulename{wf\_const\_select}}{}%
 }}
 
 
 \newcommand{\ottdrulewfXXconstXXicmp}[1]{\ottdrule[#1]{%
-\ottpremise{\ottnt{system}  \ottsym{\mbox{$\mid$}-c}  \ottnt{const_{{\mathrm{1}}}}  \ottsym{:}  \ottnt{typ}}%
-\ottpremise{\ottnt{system}  \ottsym{\mbox{$\mid$}-c}  \ottnt{const_{{\mathrm{2}}}}  \ottsym{:}  \ottnt{typ}}%
+\ottpremise{\ottnt{system}  \ottsym{,}  \ottnt{targetdata}  \ottsym{\mbox{$\mid$}-c}  \ottnt{const_{{\mathrm{1}}}}  \ottsym{:}  \ottnt{typ}}%
+\ottpremise{\ottnt{system}  \ottsym{,}  \ottnt{targetdata}  \ottsym{\mbox{$\mid$}-c}  \ottnt{const_{{\mathrm{2}}}}  \ottsym{:}  \ottnt{typ}}%
+\ottpremise{\ottnt{targetdata}  \vdash  \ottnt{typ}}%
 \ottpremise{ \ottsym{Typ.isIntOrIntVector}  \ottnt{typ}  \vee  \ottkw{isPointerTyp} \, \ottnt{typ} }%
+\ottpremise{\ottnt{targetdata}  \vdash  \ottkw{int} \, \ottmv{sz}}%
+\ottpremise{\ottmv{sz}  =  \ottsym{1}}%
 }{
-\ottnt{system}  \ottsym{\mbox{$\mid$}-c}  \ottkw{icmp} \, \ottnt{cond} \, \ottnt{const_{{\mathrm{1}}}} \, \ottnt{const_{{\mathrm{2}}}}  \ottsym{:}  \ottnt{typ}}{%
+\ottnt{system}  \ottsym{,}  \ottnt{targetdata}  \ottsym{\mbox{$\mid$}-c}  \ottkw{icmp} \, \ottnt{cond} \, \ottnt{const_{{\mathrm{1}}}} \, \ottnt{const_{{\mathrm{2}}}}  \ottsym{:}  \ottkw{int} \, \ottmv{sz}}{%
 {\ottdrulename{wf\_const\_icmp}}{}%
 }}
 
 
 \newcommand{\ottdrulewfXXconstXXfcmp}[1]{\ottdrule[#1]{%
-\ottpremise{\ottnt{system}  \ottsym{\mbox{$\mid$}-c}  \ottnt{const_{{\mathrm{1}}}}  \ottsym{:}  \ottnt{floating\_point}}%
-\ottpremise{\ottnt{system}  \ottsym{\mbox{$\mid$}-c}  \ottnt{const_{{\mathrm{2}}}}  \ottsym{:}  \ottnt{floating\_point}}%
+\ottpremise{\texttt{wf\_fcond }\ottnt{fcond}\texttt{ = true }}%
+\ottpremise{\ottnt{system}  \ottsym{,}  \ottnt{targetdata}  \ottsym{\mbox{$\mid$}-c}  \ottnt{const_{{\mathrm{1}}}}  \ottsym{:}  \ottnt{floating\_point}}%
+\ottpremise{\ottnt{system}  \ottsym{,}  \ottnt{targetdata}  \ottsym{\mbox{$\mid$}-c}  \ottnt{const_{{\mathrm{2}}}}  \ottsym{:}  \ottnt{floating\_point}}%
+\ottpremise{\ottnt{targetdata}  \vdash  \ottnt{floating\_point}}%
+\ottpremise{\ottnt{targetdata}  \vdash  \ottkw{int} \, \ottmv{sz}}%
+\ottpremise{\ottmv{sz}  =  \ottsym{1}}%
+\ottpremise{\ottnt{system}  \vdash  \ottnt{floating\_point}}%
 }{
-\ottnt{system}  \ottsym{\mbox{$\mid$}-c}  \ottkw{fcmp} \, \ottnt{fcond} \, \ottnt{const_{{\mathrm{1}}}} \, \ottnt{const_{{\mathrm{2}}}}  \ottsym{:}  \ottnt{floating\_point}}{%
+\ottnt{system}  \ottsym{,}  \ottnt{targetdata}  \ottsym{\mbox{$\mid$}-c}  \ottkw{fcmp} \, \ottnt{fcond} \, \ottnt{const_{{\mathrm{1}}}} \, \ottnt{const_{{\mathrm{2}}}}  \ottsym{:}  \ottkw{int} \, \ottmv{sz}}{%
 {\ottdrulename{wf\_const\_fcmp}}{}%
 }}
 
 
 \newcommand{\ottdrulewfXXconstXXextractvalue}[1]{\ottdrule[#1]{%
-\ottpremise{\ottnt{system}  \ottsym{\mbox{$\mid$}-c}  \ottnt{const}  \ottsym{:}  \ottnt{typ}}%
-\ottpremise{\ottcomp{ \ottnt{system}  \ottsym{\mbox{$\mid$}-c}  \ottnt{const_{\ottmv{j}}}  \ottsym{:}  \ottkw{int} \, \ottmv{sz}  \wedge  \ottmv{sz}  =  \ottsym{32} }{\ottmv{j}}}%
+\ottpremise{\ottnt{system}  \ottsym{,}  \ottnt{targetdata}  \ottsym{\mbox{$\mid$}-c}  \ottnt{const}  \ottsym{:}  \ottnt{typ}}%
+\ottpremise{\ottnt{targetdata}  \vdash  \ottnt{typ}}%
+\ottpremise{\ottcomp{\ottnt{system}  \ottsym{,}  \ottnt{targetdata}  \ottsym{\mbox{$\mid$}-c}  \ottnt{const_{\ottmv{j}}}  \ottsym{:}  \ottnt{typ''}}{\ottmv{j}}}%
+\ottpremise{\ottnt{typ''}  =  \ottsym{i32}}%
+\ottpremise{\ottnt{targetdata}  \vdash  \ottnt{typ''}}%
 \ottpremise{\ottkw{getSubTypFromConstIdxs} \, \ottcomp{\ottnt{const_{\ottmv{j}}}}{\ottmv{j}} \, \ottnt{typ}  =  \ottnt{typ'}}%
 }{
-\ottnt{system}  \ottsym{\mbox{$\mid$}-c}  \ottkw{extractvalue} \, \ottnt{const} \, \ottcomp{\ottnt{const_{\ottmv{j}}}}{\ottmv{j}}  \ottsym{:}  \ottnt{typ'}}{%
+\ottnt{system}  \ottsym{,}  \ottnt{targetdata}  \ottsym{\mbox{$\mid$}-c}  \ottkw{extractvalue} \, \ottnt{const} \, \ottcomp{\ottnt{const_{\ottmv{j}}}}{\ottmv{j}}  \ottsym{:}  \ottnt{typ'}}{%
 {\ottdrulename{wf\_const\_extractvalue}}{}%
 }}
 
 
 \newcommand{\ottdrulewfXXconstXXinsertvalue}[1]{\ottdrule[#1]{%
-\ottpremise{\ottnt{system}  \ottsym{\mbox{$\mid$}-c}  \ottnt{const}  \ottsym{:}  \ottnt{typ}}%
-\ottpremise{\ottnt{system}  \ottsym{\mbox{$\mid$}-c}  \ottnt{const'}  \ottsym{:}  \ottnt{typ'}}%
-\ottpremise{\ottcomp{ \ottnt{system}  \ottsym{\mbox{$\mid$}-c}  \ottnt{const_{\ottmv{j}}}  \ottsym{:}  \ottkw{int} \, \ottmv{sz}  \wedge  \ottmv{sz}  =  \ottsym{32} }{\ottmv{j}}}%
+\ottpremise{\ottnt{system}  \ottsym{,}  \ottnt{targetdata}  \ottsym{\mbox{$\mid$}-c}  \ottnt{const}  \ottsym{:}  \ottnt{typ}}%
+\ottpremise{\ottnt{system}  \ottsym{,}  \ottnt{targetdata}  \ottsym{\mbox{$\mid$}-c}  \ottnt{const'}  \ottsym{:}  \ottnt{typ'}}%
+\ottpremise{\ottnt{targetdata}  \vdash  \ottnt{typ'}}%
+\ottpremise{\ottcomp{\ottnt{system}  \ottsym{,}  \ottnt{targetdata}  \ottsym{\mbox{$\mid$}-c}  \ottnt{const_{\ottmv{j}}}  \ottsym{:}  \ottnt{typ''}}{\ottmv{j}}}%
+\ottpremise{\ottnt{typ''}  =  \ottsym{i32}}%
+\ottpremise{\ottnt{targetdata}  \vdash  \ottnt{typ''}}%
 \ottpremise{\ottkw{getSubTypFromConstIdxs} \, \ottcomp{\ottnt{const_{\ottmv{j}}}}{\ottmv{j}} \, \ottnt{typ}  =  \ottnt{typ'}}%
 }{
-\ottnt{system}  \ottsym{\mbox{$\mid$}-c}  \ottkw{insertvalue} \, \ottnt{const} \, \ottnt{const'} \, \ottcomp{\ottnt{const_{\ottmv{j}}}}{\ottmv{j}}  \ottsym{:}  \ottnt{typ}}{%
+\ottnt{system}  \ottsym{,}  \ottnt{targetdata}  \ottsym{\mbox{$\mid$}-c}  \ottkw{insertvalue} \, \ottnt{const} \, \ottnt{const'} \, \ottcomp{\ottnt{const_{\ottmv{j}}}}{\ottmv{j}}  \ottsym{:}  \ottnt{typ}}{%
 {\ottdrulename{wf\_const\_insertvalue}}{}%
 }}
 
 
 \newcommand{\ottdrulewfXXconstXXbop}[1]{\ottdrule[#1]{%
-\ottpremise{\ottnt{system}  \ottsym{\mbox{$\mid$}-c}  \ottnt{const_{{\mathrm{1}}}}  \ottsym{:}  \ottkw{int} \, \ottmv{sz}}%
-\ottpremise{\ottnt{system}  \ottsym{\mbox{$\mid$}-c}  \ottnt{const_{{\mathrm{2}}}}  \ottsym{:}  \ottkw{int} \, \ottmv{sz}}%
+\ottpremise{\ottnt{system}  \ottsym{,}  \ottnt{targetdata}  \ottsym{\mbox{$\mid$}-c}  \ottnt{const_{{\mathrm{1}}}}  \ottsym{:}  \ottkw{int} \, \ottmv{sz}}%
+\ottpremise{\ottnt{system}  \ottsym{,}  \ottnt{targetdata}  \ottsym{\mbox{$\mid$}-c}  \ottnt{const_{{\mathrm{2}}}}  \ottsym{:}  \ottkw{int} \, \ottmv{sz}}%
 }{
-\ottnt{system}  \ottsym{\mbox{$\mid$}-c}  \ottnt{bop} \, \ottnt{const_{{\mathrm{1}}}} \, \ottnt{const_{{\mathrm{2}}}}  \ottsym{:}  \ottkw{int} \, \ottmv{sz}}{%
+\ottnt{system}  \ottsym{,}  \ottnt{targetdata}  \ottsym{\mbox{$\mid$}-c}  \ottnt{bop} \, \ottnt{const_{{\mathrm{1}}}} \, \ottnt{const_{{\mathrm{2}}}}  \ottsym{:}  \ottkw{int} \, \ottmv{sz}}{%
 {\ottdrulename{wf\_const\_bop}}{}%
 }}
 
 
 \newcommand{\ottdrulewfXXconstXXfbop}[1]{\ottdrule[#1]{%
-\ottpremise{\ottnt{system}  \ottsym{\mbox{$\mid$}-c}  \ottnt{const_{{\mathrm{1}}}}  \ottsym{:}  \ottnt{floating\_point}}%
-\ottpremise{\ottnt{system}  \ottsym{\mbox{$\mid$}-c}  \ottnt{const_{{\mathrm{2}}}}  \ottsym{:}  \ottnt{floating\_point}}%
+\ottpremise{\ottnt{system}  \ottsym{,}  \ottnt{targetdata}  \ottsym{\mbox{$\mid$}-c}  \ottnt{const_{{\mathrm{1}}}}  \ottsym{:}  \ottnt{floating\_point}}%
+\ottpremise{\ottnt{system}  \ottsym{,}  \ottnt{targetdata}  \ottsym{\mbox{$\mid$}-c}  \ottnt{const_{{\mathrm{2}}}}  \ottsym{:}  \ottnt{floating\_point}}%
+\ottpremise{\ottnt{system}  \vdash  \ottnt{floating\_point}}%
 }{
-\ottnt{system}  \ottsym{\mbox{$\mid$}-c}  \ottnt{fbop} \, \ottnt{const_{{\mathrm{1}}}} \, \ottnt{const_{{\mathrm{2}}}}  \ottsym{:}  \ottnt{floating\_point}}{%
+\ottnt{system}  \ottsym{,}  \ottnt{targetdata}  \ottsym{\mbox{$\mid$}-c}  \ottnt{fbop} \, \ottnt{const_{{\mathrm{1}}}} \, \ottnt{const_{{\mathrm{2}}}}  \ottsym{:}  \ottnt{floating\_point}}{%
 {\ottdrulename{wf\_const\_fbop}}{}%
 }}
 
-\newcommand{\ottdefnwfXXconst}[1]{\begin{ottdefnblock}[#1]{$\ottnt{system}  \ottsym{\mbox{$\mid$}-c}  \ottnt{const}  \ottsym{:}  \ottnt{typ}$}{\ottcom{$\ottnt{const}$ has $\ottnt{typ}$}}
+\newcommand{\ottdefnwfXXconst}[1]{\begin{ottdefnblock}[#1]{$\ottnt{system}  \ottsym{,}  \ottnt{targetdata}  \ottsym{\mbox{$\mid$}-c}  \ottnt{const}  \ottsym{:}  \ottnt{typ}$}{\ottcom{$\ottnt{const}$ has $\ottnt{typ}$}}
 \ottusedrule{\ottdrulewfXXconstXXzeroinitializer{}}
 \ottusedrule{\ottdrulewfXXconstXXint{}}
 \ottusedrule{\ottdrulewfXXconstXXfloatpoint{}}
@@ -943,10 +972,6 @@
 \ottusedrule{\ottdrulewfXXconstXXzext{}}
 \ottusedrule{\ottdrulewfXXconstXXsext{}}
 \ottusedrule{\ottdrulewfXXconstXXfpext{}}
-\ottusedrule{\ottdrulewfXXconstXXfptoui{}}
-\ottusedrule{\ottdrulewfXXconstXXfptosi{}}
-\ottusedrule{\ottdrulewfXXconstXXuitofp{}}
-\ottusedrule{\ottdrulewfXXconstXXsitofp{}}
 \ottusedrule{\ottdrulewfXXconstXXptrtoint{}}
 \ottusedrule{\ottdrulewfXXconstXXinttoptr{}}
 \ottusedrule{\ottdrulewfXXconstXXbitcast{}}
@@ -968,22 +993,24 @@
 % defns Jwf_value
 % defn wf_value
 \newcommand{\ottdrulewfXXvalueXXconst}[1]{\ottdrule[#1]{%
-\ottpremise{\ottnt{system}  \ottsym{\mbox{$\mid$}-c}  \ottnt{const}  \ottsym{:}  \ottnt{typ}}%
+\ottpremise{\ottnt{system}  \ottsym{,}  \ottsym{(}  \mathit{\overline{layout} } \, \mathit{\overline{namedt} }  \ottsym{)}  \ottsym{\mbox{$\mid$}-c}  \ottnt{const}  \ottsym{:}  \ottnt{typ}}%
+\ottpremise{\ottsym{(}  \mathit{\overline{layout} } \, \mathit{\overline{namedt} }  \ottsym{)}  \vdash  \ottnt{typ}}%
 }{
-\ottnt{system}  \ottsym{,}  \ottnt{fdef}  \vdash  \ottnt{const}  \ottsym{:}  \ottnt{typ}}{%
+\ottnt{system}  \ottsym{,}  \ottsym{(}  \mathit{\overline{layout} } \, \mathit{\overline{namedt} } \, \mathit{\overline{product} }  \ottsym{)}  \ottsym{,}  \ottnt{fdef}  \vdash  \ottnt{const}  \ottsym{:}  \ottnt{typ}}{%
 {\ottdrulename{wf\_value\_const}}{}%
 }}
 
 
 \newcommand{\ottdrulewfXXvalueXXid}[1]{\ottdrule[#1]{%
 \ottpremise{\ottnt{system}  \vdash  \ottnt{typ}}%
+\ottpremise{\ottsym{(}  \mathit{\overline{layout} } \, \mathit{\overline{namedt} }  \ottsym{)}  \vdash  \ottnt{typ}}%
 \ottpremise{\ottkw{lookupTypViaIDFromFdef} \, \ottnt{fdef} \, \ottmv{id}  =  \ottnt{typ}}%
 }{
-\ottnt{system}  \ottsym{,}  \ottnt{fdef}  \vdash  \ottmv{id}  \ottsym{:}  \ottnt{typ}}{%
+\ottnt{system}  \ottsym{,}  \ottsym{(}  \mathit{\overline{layout} } \, \mathit{\overline{namedt} } \, \mathit{\overline{product} }  \ottsym{)}  \ottsym{,}  \ottnt{fdef}  \vdash  \ottmv{id}  \ottsym{:}  \ottnt{typ}}{%
 {\ottdrulename{wf\_value\_id}}{}%
 }}
 
-\newcommand{\ottdefnwfXXvalue}[1]{\begin{ottdefnblock}[#1]{$\ottnt{system}  \ottsym{,}  \ottnt{fdef}  \vdash  \ottnt{value}  \ottsym{:}  \ottnt{typ}$}{\ottcom{$\ottnt{value}$ has $\ottnt{typ}$ wrt $\ottnt{system}$ and [fdef]}}
+\newcommand{\ottdefnwfXXvalue}[1]{\begin{ottdefnblock}[#1]{$\ottnt{system}  \ottsym{,}  \ottnt{module}  \ottsym{,}  \ottnt{fdef}  \vdash  \ottnt{value}  \ottsym{:}  \ottnt{typ}$}{\ottcom{$\ottnt{value}$ has $\ottnt{typ}$ wrt $\ottnt{system}$ and [fdef]}}
 \ottusedrule{\ottdrulewfXXvalueXXconst{}}
 \ottusedrule{\ottdrulewfXXvalueXXid{}}
 \end{ottdefnblock}}
@@ -1044,7 +1071,7 @@
 % defns Jwf_cast
 % defn wf_cast
 \newcommand{\ottdrulewfXXcastXXptrtoint}[1]{\ottdrule[#1]{%
-\ottpremise{\ottnt{system}  \ottsym{,}  \ottnt{fdef}  \vdash  \ottnt{value_{{\mathrm{1}}}}  \ottsym{:}  \ottnt{typ}  \ottsym{*}}%
+\ottpremise{\ottnt{system}  \ottsym{,}  \ottnt{module}  \ottsym{,}  \ottnt{fdef}  \vdash  \ottnt{value_{{\mathrm{1}}}}  \ottsym{:}  \ottnt{typ}  \ottsym{*}}%
 \ottpremise{\ottnt{fdef}  \ottsym{,}  \ottnt{block}  \vdash_{i}  \ottmv{id}  =  \ottkw{ptrtoint} \, \ottsym{(}  \ottnt{typ}  \ottsym{*}  \ottsym{)} \, \ottnt{value_{{\mathrm{1}}}} \, \ottkw{to} \, \ottsym{(}  \ottkw{int} \, \ottmv{sz}  \ottsym{)}}%
 }{
 \ottnt{intrinsic\_funs}  \ottsym{,}  \ottnt{system}  \ottsym{,}  \ottnt{module}  \ottsym{,}  \ottnt{fdef}  \ottsym{,}  \ottnt{block}  \ottsym{\mbox{$\mid$}-cast}  \ottmv{id}  =  \ottkw{ptrtoint} \, \ottsym{(}  \ottnt{typ}  \ottsym{*}  \ottsym{)} \, \ottnt{value_{{\mathrm{1}}}} \, \ottkw{to} \, \ottsym{(}  \ottkw{int} \, \ottmv{sz}  \ottsym{)}}{%
@@ -1053,7 +1080,7 @@
 
 
 \newcommand{\ottdrulewfXXcastXXinttoptr}[1]{\ottdrule[#1]{%
-\ottpremise{\ottnt{system}  \ottsym{,}  \ottnt{fdef}  \vdash  \ottnt{value_{{\mathrm{1}}}}  \ottsym{:}  \ottkw{int} \, \ottmv{sz}}%
+\ottpremise{\ottnt{system}  \ottsym{,}  \ottnt{module}  \ottsym{,}  \ottnt{fdef}  \vdash  \ottnt{value_{{\mathrm{1}}}}  \ottsym{:}  \ottkw{int} \, \ottmv{sz}}%
 \ottpremise{\ottnt{fdef}  \ottsym{,}  \ottnt{block}  \vdash_{i}  \ottmv{id}  =  \ottkw{inttoptr} \, \ottsym{(}  \ottkw{int} \, \ottmv{sz}  \ottsym{)} \, \ottnt{value_{{\mathrm{1}}}} \, \ottkw{to} \, \ottsym{(}  \ottnt{typ}  \ottsym{*}  \ottsym{)}}%
 }{
 \ottnt{intrinsic\_funs}  \ottsym{,}  \ottnt{system}  \ottsym{,}  \ottnt{module}  \ottsym{,}  \ottnt{fdef}  \ottsym{,}  \ottnt{block}  \ottsym{\mbox{$\mid$}-cast}  \ottmv{id}  =  \ottkw{inttoptr} \, \ottsym{(}  \ottkw{int} \, \ottmv{sz}  \ottsym{)} \, \ottnt{value_{{\mathrm{1}}}} \, \ottkw{to} \, \ottsym{(}  \ottnt{typ}  \ottsym{*}  \ottsym{)}}{%
@@ -1062,7 +1089,7 @@
 
 
 \newcommand{\ottdrulewfXXcastXXbitcast}[1]{\ottdrule[#1]{%
-\ottpremise{\ottnt{system}  \ottsym{,}  \ottnt{fdef}  \vdash  \ottnt{value_{{\mathrm{1}}}}  \ottsym{:}  \ottnt{typ_{{\mathrm{1}}}}}%
+\ottpremise{\ottnt{system}  \ottsym{,}  \ottnt{module}  \ottsym{,}  \ottnt{fdef}  \vdash  \ottnt{value_{{\mathrm{1}}}}  \ottsym{:}  \ottnt{typ_{{\mathrm{1}}}}}%
 \ottpremise{  \ottsym{Typ.getPrimitiveSizeInBits}  \ottnt{typ_{{\mathrm{1}}}}  =  \ottmv{sz_{{\mathrm{1}}}}  \wedge  \ottsym{Typ.getPrimitiveSizeInBits}  \ottnt{typ_{{\mathrm{2}}}}  =  \ottmv{sz_{{\mathrm{2}}}}   \wedge   \ottmv{sz_{{\mathrm{1}}}}  =  \ottmv{sz_{{\mathrm{2}}}}  }%
 \ottpremise{ \ottkw{isPointerTyp} \, \ottnt{typ_{{\mathrm{1}}}}  \mathit{iff}  \ottkw{isPointerTyp} \, \ottnt{typ_{{\mathrm{2}}}} }%
 \ottpremise{  (  \neg  \ottkw{isAggregateTyp} \, \ottnt{typ_{{\mathrm{1}}}}  \!)   \wedge   (  \neg  \ottkw{isAggregateTyp} \, \ottnt{typ_{{\mathrm{2}}}}  \!)  }%
@@ -1086,7 +1113,7 @@
 % defns Jwf_trunc
 % defn wf_trunc
 \newcommand{\ottdrulewfXXtruncXXint}[1]{\ottdrule[#1]{%
-\ottpremise{\ottnt{system}  \ottsym{,}  \ottnt{fdef}  \vdash  \ottnt{value_{{\mathrm{1}}}}  \ottsym{:}  \ottkw{int} \, \ottmv{sz_{{\mathrm{1}}}}}%
+\ottpremise{\ottnt{system}  \ottsym{,}  \ottnt{module}  \ottsym{,}  \ottnt{fdef}  \vdash  \ottnt{value_{{\mathrm{1}}}}  \ottsym{:}  \ottkw{int} \, \ottmv{sz_{{\mathrm{1}}}}}%
 \ottpremise{ ( \ottmv{sz_{{\mathrm{2}}}}  <  \ottmv{sz_{{\mathrm{1}}}} ) }%
 \ottpremise{\ottnt{fdef}  \ottsym{,}  \ottnt{block}  \vdash_{i}  \ottmv{id}  =  \ottsym{trunc\_int} \, \ottsym{(}  \ottkw{int} \, \ottmv{sz_{{\mathrm{1}}}}  \ottsym{)} \, \ottnt{value_{{\mathrm{1}}}} \, \ottkw{to} \, \ottsym{(}  \ottkw{int} \, \ottmv{sz_{{\mathrm{2}}}}  \ottsym{)}}%
 }{
@@ -1096,7 +1123,7 @@
 
 
 \newcommand{\ottdrulewfXXtruncXXfp}[1]{\ottdrule[#1]{%
-\ottpremise{\ottnt{system}  \ottsym{,}  \ottnt{fdef}  \vdash  \ottnt{value_{{\mathrm{1}}}}  \ottsym{:}  \ottnt{floating\_point_{{\mathrm{11}}}}}%
+\ottpremise{\ottnt{system}  \ottsym{,}  \ottnt{module}  \ottsym{,}  \ottnt{fdef}  \vdash  \ottnt{value_{{\mathrm{1}}}}  \ottsym{:}  \ottnt{floating\_point_{{\mathrm{11}}}}}%
 \ottpremise{\ottnt{floating\_point_{{\mathrm{2}}}}  \le  \ottnt{floating\_point_{{\mathrm{1}}}}}%
 \ottpremise{\ottnt{fdef}  \ottsym{,}  \ottnt{block}  \vdash_{i}  \ottmv{id}  =  \ottsym{trunc\_fp} \, \ottnt{floating\_point_{{\mathrm{1}}}} \, \ottnt{value_{{\mathrm{1}}}} \, \ottkw{to} \, \ottnt{floating\_point_{{\mathrm{2}}}}}%
 }{
@@ -1117,7 +1144,7 @@
 % defns Jwf_ext
 % defn wf_ext
 \newcommand{\ottdrulewfXXextXXz}[1]{\ottdrule[#1]{%
-\ottpremise{\ottnt{system}  \ottsym{,}  \ottnt{fdef}  \vdash  \ottnt{value_{{\mathrm{1}}}}  \ottsym{:}  \ottkw{int} \, \ottmv{sz_{{\mathrm{1}}}}}%
+\ottpremise{\ottnt{system}  \ottsym{,}  \ottnt{module}  \ottsym{,}  \ottnt{fdef}  \vdash  \ottnt{value_{{\mathrm{1}}}}  \ottsym{:}  \ottkw{int} \, \ottmv{sz_{{\mathrm{1}}}}}%
 \ottpremise{ ( \ottmv{sz_{{\mathrm{1}}}}  <  \ottmv{sz_{{\mathrm{2}}}} ) }%
 \ottpremise{\ottnt{fdef}  \ottsym{,}  \ottnt{block}  \vdash_{i}  \ottmv{id}  =  \ottkw{zext} \, \ottsym{(}  \ottkw{int} \, \ottmv{sz_{{\mathrm{1}}}}  \ottsym{)} \, \ottnt{value_{{\mathrm{1}}}} \, \ottkw{to} \, \ottsym{(}  \ottkw{int} \, \ottmv{sz_{{\mathrm{2}}}}  \ottsym{)}}%
 }{
@@ -1127,7 +1154,7 @@
 
 
 \newcommand{\ottdrulewfXXextXXs}[1]{\ottdrule[#1]{%
-\ottpremise{\ottnt{system}  \ottsym{,}  \ottnt{fdef}  \vdash  \ottnt{value_{{\mathrm{1}}}}  \ottsym{:}  \ottkw{int} \, \ottmv{sz_{{\mathrm{1}}}}}%
+\ottpremise{\ottnt{system}  \ottsym{,}  \ottnt{module}  \ottsym{,}  \ottnt{fdef}  \vdash  \ottnt{value_{{\mathrm{1}}}}  \ottsym{:}  \ottkw{int} \, \ottmv{sz_{{\mathrm{1}}}}}%
 \ottpremise{ ( \ottmv{sz_{{\mathrm{1}}}}  <  \ottmv{sz_{{\mathrm{2}}}} ) }%
 \ottpremise{\ottnt{fdef}  \ottsym{,}  \ottnt{block}  \vdash_{i}  \ottmv{id}  =  \ottkw{sext} \, \ottsym{(}  \ottkw{int} \, \ottmv{sz_{{\mathrm{1}}}}  \ottsym{)} \, \ottnt{value_{{\mathrm{1}}}} \, \ottkw{to} \, \ottsym{(}  \ottkw{int} \, \ottmv{sz_{{\mathrm{2}}}}  \ottsym{)}}%
 }{
@@ -1137,7 +1164,7 @@
 
 
 \newcommand{\ottdrulewfXXextXXfp}[1]{\ottdrule[#1]{%
-\ottpremise{\ottnt{system}  \ottsym{,}  \ottnt{fdef}  \vdash  \ottnt{value_{{\mathrm{1}}}}  \ottsym{:}  \ottnt{floating\_point_{{\mathrm{1}}}}}%
+\ottpremise{\ottnt{system}  \ottsym{,}  \ottnt{module}  \ottsym{,}  \ottnt{fdef}  \vdash  \ottnt{value_{{\mathrm{1}}}}  \ottsym{:}  \ottnt{floating\_point_{{\mathrm{1}}}}}%
 \ottpremise{\ottnt{floating\_point_{{\mathrm{1}}}}  \le  \ottnt{floating\_point_{{\mathrm{2}}}}}%
 \ottpremise{\ottnt{fdef}  \ottsym{,}  \ottnt{block}  \vdash_{i}  \ottmv{id}  =  \ottkw{fpext} \, \ottnt{floating\_point_{{\mathrm{1}}}} \, \ottnt{value_{{\mathrm{1}}}} \, \ottkw{to} \, \ottnt{floating\_point_{{\mathrm{2}}}}}%
 }{
@@ -1159,7 +1186,7 @@
 % defns Jwf_insn
 % defn wf_insn
 \newcommand{\ottdrulewfXXinsnXXreturn}[1]{\ottdrule[#1]{%
-\ottpremise{\ottnt{system}  \ottsym{,}  \ottnt{fdef}  \vdash  \ottnt{value}  \ottsym{:}  \ottnt{typ}}%
+\ottpremise{\ottnt{system}  \ottsym{,}  \ottnt{module}  \ottsym{,}  \ottnt{fdef}  \vdash  \ottnt{value}  \ottsym{:}  \ottnt{typ}}%
 \ottpremise{\ottsym{Function.getDefReturnType}  \ottnt{fdef}  =  \ottnt{typ}}%
 \ottpremise{\ottnt{fdef}  \ottsym{,}  \ottnt{block}  \vdash_{i}  \ottmv{id}  = \, \ottkw{ret} \, \ottnt{typ} \, \ottnt{value}}%
 }{
@@ -1178,7 +1205,7 @@
 
 
 \newcommand{\ottdrulewfXXinsnXXbr}[1]{\ottdrule[#1]{%
-\ottpremise{ \ottnt{system}  \ottsym{,}  \ottnt{fdef}  \vdash  \ottnt{value}  \ottsym{:}  \ottkw{int} \, \ottmv{sz}  \wedge  \ottmv{sz}  =  \ottsym{1} }%
+\ottpremise{ \ottnt{system}  \ottsym{,}  \ottnt{module}  \ottsym{,}  \ottnt{fdef}  \vdash  \ottnt{value}  \ottsym{:}  \ottkw{int} \, \ottmv{sz}  \wedge  \ottmv{sz}  =  \ottsym{1} }%
 \ottpremise{\ottkw{lookupBlockViaLabelFromFdef} \, \ottnt{fdef} \, \ottmv{l_{{\mathrm{1}}}}  =  \ottnt{block_{{\mathrm{1}}}}}%
 \ottpremise{\ottkw{lookupBlockViaLabelFromFdef} \, \ottnt{fdef} \, \ottmv{l_{{\mathrm{2}}}}  =  \ottnt{block_{{\mathrm{2}}}}}%
 \ottpremise{ \neg   (  \ottmv{l_{{\mathrm{1}}}}  =  \ottmv{l_{{\mathrm{2}}}}  \!)  }%
@@ -1207,8 +1234,8 @@
 
 
 \newcommand{\ottdrulewfXXinsnXXbop}[1]{\ottdrule[#1]{%
-\ottpremise{\ottnt{system}  \ottsym{,}  \ottnt{fdef}  \vdash  \ottnt{value_{{\mathrm{1}}}}  \ottsym{:}  \ottkw{int} \, \ottmv{sz}}%
-\ottpremise{\ottnt{system}  \ottsym{,}  \ottnt{fdef}  \vdash  \ottnt{value_{{\mathrm{2}}}}  \ottsym{:}  \ottkw{int} \, \ottmv{sz}}%
+\ottpremise{\ottnt{system}  \ottsym{,}  \ottnt{module}  \ottsym{,}  \ottnt{fdef}  \vdash  \ottnt{value_{{\mathrm{1}}}}  \ottsym{:}  \ottkw{int} \, \ottmv{sz}}%
+\ottpremise{\ottnt{system}  \ottsym{,}  \ottnt{module}  \ottsym{,}  \ottnt{fdef}  \vdash  \ottnt{value_{{\mathrm{2}}}}  \ottsym{:}  \ottkw{int} \, \ottmv{sz}}%
 \ottpremise{\ottnt{fdef}  \ottsym{,}  \ottnt{block}  \vdash_{i}  \ottmv{id}  =  \ottnt{bop}  \ottsym{(} \, \ottkw{int} \, \ottmv{sz}  \ottsym{)}  \ottnt{value_{{\mathrm{1}}}} \, \ottnt{value_{{\mathrm{2}}}}}%
 }{
 \ottnt{intrinsic\_funs}  \ottsym{,}  \ottnt{system}  \ottsym{,}  \ottnt{module}  \ottsym{,}  \ottnt{fdef}  \ottsym{,}  \ottnt{block}  \vdash  \ottmv{id}  =  \ottnt{bop}  \ottsym{(} \, \ottkw{int} \, \ottmv{sz}  \ottsym{)}  \ottnt{value_{{\mathrm{1}}}} \, \ottnt{value_{{\mathrm{2}}}}}{%
@@ -1217,8 +1244,8 @@
 
 
 \newcommand{\ottdrulewfXXinsnXXfbop}[1]{\ottdrule[#1]{%
-\ottpremise{\ottnt{system}  \ottsym{,}  \ottnt{fdef}  \vdash  \ottnt{value_{{\mathrm{1}}}}  \ottsym{:}  \ottnt{floating\_point}}%
-\ottpremise{\ottnt{system}  \ottsym{,}  \ottnt{fdef}  \vdash  \ottnt{value_{{\mathrm{2}}}}  \ottsym{:}  \ottnt{floating\_point}}%
+\ottpremise{\ottnt{system}  \ottsym{,}  \ottnt{module}  \ottsym{,}  \ottnt{fdef}  \vdash  \ottnt{value_{{\mathrm{1}}}}  \ottsym{:}  \ottnt{floating\_point}}%
+\ottpremise{\ottnt{system}  \ottsym{,}  \ottnt{module}  \ottsym{,}  \ottnt{fdef}  \vdash  \ottnt{value_{{\mathrm{2}}}}  \ottsym{:}  \ottnt{floating\_point}}%
 \ottpremise{\ottnt{fdef}  \ottsym{,}  \ottnt{block}  \vdash_{i}  \ottmv{id}  =  \ottnt{fbop} \, \ottnt{floating\_point} \, \ottnt{value_{{\mathrm{1}}}} \, \ottnt{value_{{\mathrm{2}}}}}%
 }{
 \ottnt{intrinsic\_funs}  \ottsym{,}  \ottnt{system}  \ottsym{,}  \ottnt{module}  \ottsym{,}  \ottnt{fdef}  \ottsym{,}  \ottnt{block}  \vdash  \ottmv{id}  =  \ottnt{fbop} \, \ottnt{floating\_point} \, \ottnt{value_{{\mathrm{1}}}} \, \ottnt{value_{{\mathrm{2}}}}}{%
@@ -1227,8 +1254,9 @@
 
 
 \newcommand{\ottdrulewfXXinsnXXextractvalue}[1]{\ottdrule[#1]{%
-\ottpremise{\ottnt{system}  \ottsym{,}  \ottnt{fdef}  \vdash  \ottnt{value}  \ottsym{:}  \ottnt{typ}}%
-\ottpremise{\ottcomp{ \ottnt{system}  \ottsym{\mbox{$\mid$}-c}  \ottnt{const_{\ottmv{j}}}  \ottsym{:}  \ottkw{int} \, \ottmv{sz}  \wedge  \ottmv{sz}  =  \ottsym{32} }{\ottmv{j}}}%
+\ottpremise{\ottnt{system}  \ottsym{,}  \ottnt{module}  \ottsym{,}  \ottnt{fdef}  \vdash  \ottnt{value}  \ottsym{:}  \ottnt{typ}}%
+\ottpremise{\ottcomp{\ottnt{system}  \ottsym{,}  \ottnt{targetdata}  \ottsym{\mbox{$\mid$}-c}  \ottnt{const_{\ottmv{j}}}  \ottsym{:}  \ottnt{typ''}}{\ottmv{j}}}%
+\ottpremise{\ottnt{typ''}  =  \ottsym{i32}}%
 \ottpremise{\ottkw{getSubTypFromConstIdxs} \, \ottcomp{\ottnt{const_{\ottmv{j}}}}{\ottmv{j}} \, \ottnt{typ}  =  \ottnt{typ'}}%
 \ottpremise{\ottnt{fdef}  \ottsym{,}  \ottnt{block}  \vdash_{i}  \ottmv{id}  = \, \ottkw{extractvalue} \, \ottnt{typ} \, \ottnt{value} \, \ottcomp{\ottnt{const_{\ottmv{j}}}}{\ottmv{j}}}%
 }{
@@ -1238,9 +1266,10 @@
 
 
 \newcommand{\ottdrulewfXXinsnXXinsertvalue}[1]{\ottdrule[#1]{%
-\ottpremise{\ottnt{system}  \ottsym{,}  \ottnt{fdef}  \vdash  \ottnt{value}  \ottsym{:}  \ottnt{typ}}%
-\ottpremise{\ottnt{system}  \ottsym{,}  \ottnt{fdef}  \vdash  \ottnt{value'}  \ottsym{:}  \ottnt{typ'}}%
-\ottpremise{\ottcomp{ \ottnt{system}  \ottsym{\mbox{$\mid$}-c}  \ottnt{const_{\ottmv{j}}}  \ottsym{:}  \ottkw{int} \, \ottmv{sz}  \wedge  \ottmv{sz}  =  \ottsym{32} }{\ottmv{j}}}%
+\ottpremise{\ottnt{system}  \ottsym{,}  \ottnt{module}  \ottsym{,}  \ottnt{fdef}  \vdash  \ottnt{value}  \ottsym{:}  \ottnt{typ}}%
+\ottpremise{\ottnt{system}  \ottsym{,}  \ottnt{module}  \ottsym{,}  \ottnt{fdef}  \vdash  \ottnt{value'}  \ottsym{:}  \ottnt{typ'}}%
+\ottpremise{\ottcomp{\ottnt{system}  \ottsym{,}  \ottnt{targetdata}  \ottsym{\mbox{$\mid$}-c}  \ottnt{const_{\ottmv{j}}}  \ottsym{:}  \ottnt{typ''}}{\ottmv{j}}}%
+\ottpremise{\ottnt{typ''}  =  \ottsym{i32}}%
 \ottpremise{\ottkw{getSubTypFromConstIdxs} \, \ottcomp{\ottnt{const_{\ottmv{j}}}}{\ottmv{j}} \, \ottnt{typ}  =  \ottnt{typ'}}%
 \ottpremise{\ottnt{fdef}  \ottsym{,}  \ottnt{block}  \vdash_{i}  \ottmv{id}  = \, \ottkw{insertvalue} \, \ottnt{typ} \, \ottnt{value} \, \ottnt{typ'} \, \ottnt{value'} \, \ottcomp{\ottnt{const_{\ottmv{j}}}}{\ottmv{j}}}%
 }{
@@ -1250,7 +1279,7 @@
 
 
 \newcommand{\ottdrulewfXXinsnXXmalloc}[1]{\ottdrule[#1]{%
-\ottpremise{ \ottnt{system}  \ottsym{,}  \ottnt{fdef}  \vdash  \ottnt{value}  \ottsym{:}  \ottkw{int} \, \ottmv{sz}  \wedge  \ottmv{sz}  =  \ottsym{32} }%
+\ottpremise{ \ottnt{system}  \ottsym{,}  \ottnt{module}  \ottsym{,}  \ottnt{fdef}  \vdash  \ottnt{value}  \ottsym{:}  \ottkw{int} \, \ottmv{sz}  \wedge  \ottmv{sz}  =  \ottsym{32} }%
 \ottpremise{\ottnt{system}  \vdash  \ottnt{typ}}%
 \ottpremise{\ottsym{Typ.isSized}  \ottnt{typ}}%
 \ottpremise{\ottnt{fdef}  \ottsym{,}  \ottnt{block}  \vdash_{i}  \ottmv{id}  = \, \ottkw{malloc} \, \ottnt{typ} \, \ottnt{value} \, \ottmv{align}}%
@@ -1261,7 +1290,7 @@
 
 
 \newcommand{\ottdrulewfXXinsnXXfree}[1]{\ottdrule[#1]{%
-\ottpremise{\ottnt{system}  \ottsym{,}  \ottnt{fdef}  \vdash  \ottnt{value}  \ottsym{:}  \ottnt{typ}  \ottsym{*}}%
+\ottpremise{\ottnt{system}  \ottsym{,}  \ottnt{module}  \ottsym{,}  \ottnt{fdef}  \vdash  \ottnt{value}  \ottsym{:}  \ottnt{typ}  \ottsym{*}}%
 \ottpremise{\ottnt{fdef}  \ottsym{,}  \ottnt{block}  \vdash_{i}  \ottmv{id}  = \, \ottkw{free} \, \ottsym{(}  \ottnt{typ}  \ottsym{*}  \ottsym{)}  \ottnt{value}}%
 }{
 \ottnt{intrinsic\_funs}  \ottsym{,}  \ottnt{system}  \ottsym{,}  \ottnt{module}  \ottsym{,}  \ottnt{fdef}  \ottsym{,}  \ottnt{block}  \vdash  \ottmv{id}  = \, \ottkw{free} \, \ottsym{(}  \ottnt{typ}  \ottsym{*}  \ottsym{)}  \ottnt{value}}{%
@@ -1270,7 +1299,7 @@
 
 
 \newcommand{\ottdrulewfXXinsnXXalloca}[1]{\ottdrule[#1]{%
-\ottpremise{ \ottnt{system}  \ottsym{,}  \ottnt{fdef}  \vdash  \ottnt{value}  \ottsym{:}  \ottkw{int} \, \ottmv{sz}  \wedge  \ottmv{sz}  =  \ottsym{32} }%
+\ottpremise{ \ottnt{system}  \ottsym{,}  \ottnt{module}  \ottsym{,}  \ottnt{fdef}  \vdash  \ottnt{value}  \ottsym{:}  \ottkw{int} \, \ottmv{sz}  \wedge  \ottmv{sz}  =  \ottsym{32} }%
 \ottpremise{\ottnt{system}  \vdash  \ottnt{typ}}%
 \ottpremise{\ottsym{Typ.isSized}  \ottnt{typ}}%
 \ottpremise{\ottnt{fdef}  \ottsym{,}  \ottnt{block}  \vdash_{i}  \ottmv{id}  = \, \ottkw{alloca} \, \ottnt{typ} \, \ottnt{value} \, \ottmv{align}}%
@@ -1281,7 +1310,7 @@
 
 
 \newcommand{\ottdrulewfXXinsnXXload}[1]{\ottdrule[#1]{%
-\ottpremise{\ottnt{system}  \ottsym{,}  \ottnt{fdef}  \vdash  \ottnt{value_{{\mathrm{1}}}}  \ottsym{:}  \ottnt{typ_{{\mathrm{1}}}}  \ottsym{*}}%
+\ottpremise{\ottnt{system}  \ottsym{,}  \ottnt{module}  \ottsym{,}  \ottnt{fdef}  \vdash  \ottnt{value_{{\mathrm{1}}}}  \ottsym{:}  \ottnt{typ_{{\mathrm{1}}}}  \ottsym{*}}%
 \ottpremise{\ottnt{fdef}  \ottsym{,}  \ottnt{block}  \vdash_{i}  \ottmv{id}  = \, \ottkw{load} \, \ottsym{(}  \ottnt{typ_{{\mathrm{1}}}}  \ottsym{*}  \ottsym{)}  \ottnt{value_{{\mathrm{1}}}} \, \ottmv{align}}%
 }{
 \ottnt{intrinsic\_funs}  \ottsym{,}  \ottnt{system}  \ottsym{,}  \ottnt{module}  \ottsym{,}  \ottnt{fdef}  \ottsym{,}  \ottnt{block}  \vdash  \ottmv{id}  = \, \ottkw{load} \, \ottsym{(}  \ottnt{typ_{{\mathrm{1}}}}  \ottsym{*}  \ottsym{)}  \ottnt{value_{{\mathrm{1}}}} \, \ottmv{align}}{%
@@ -1290,8 +1319,8 @@
 
 
 \newcommand{\ottdrulewfXXinsnXXstore}[1]{\ottdrule[#1]{%
-\ottpremise{\ottnt{system}  \ottsym{,}  \ottnt{fdef}  \vdash  \ottnt{value_{{\mathrm{1}}}}  \ottsym{:}  \ottnt{typ}}%
-\ottpremise{\ottnt{system}  \ottsym{,}  \ottnt{fdef}  \vdash  \ottnt{value_{{\mathrm{2}}}}  \ottsym{:}  \ottnt{typ}  \ottsym{*}}%
+\ottpremise{\ottnt{system}  \ottsym{,}  \ottnt{module}  \ottsym{,}  \ottnt{fdef}  \vdash  \ottnt{value_{{\mathrm{1}}}}  \ottsym{:}  \ottnt{typ}}%
+\ottpremise{\ottnt{system}  \ottsym{,}  \ottnt{module}  \ottsym{,}  \ottnt{fdef}  \vdash  \ottnt{value_{{\mathrm{2}}}}  \ottsym{:}  \ottnt{typ}  \ottsym{*}}%
 \ottpremise{\ottnt{fdef}  \ottsym{,}  \ottnt{block}  \vdash_{i}  \ottmv{id}  = \, \ottkw{store} \, \ottnt{typ} \, \ottnt{value_{{\mathrm{1}}}} \, \ottnt{value_{{\mathrm{2}}}} \, \ottmv{align}}%
 }{
 \ottnt{intrinsic\_funs}  \ottsym{,}  \ottnt{system}  \ottsym{,}  \ottnt{module}  \ottsym{,}  \ottnt{fdef}  \ottsym{,}  \ottnt{block}  \vdash  \ottmv{id}  = \, \ottkw{store} \, \ottnt{typ} \, \ottnt{value_{{\mathrm{1}}}} \, \ottnt{value_{{\mathrm{2}}}} \, \ottmv{align}}{%
@@ -1300,8 +1329,9 @@
 
 
 \newcommand{\ottdrulewfXXinsnXXgep}[1]{\ottdrule[#1]{%
-\ottpremise{\ottnt{system}  \ottsym{,}  \ottnt{fdef}  \vdash  \ottnt{value}  \ottsym{:}  \ottnt{typ}  \ottsym{*}}%
-\ottpremise{\ottcomp{ \ottnt{system}  \ottsym{,}  \ottnt{fdef}  \vdash  \ottnt{value_{\ottmv{j}}}  \ottsym{:}  \ottkw{int} \, \ottmv{sz}  \wedge  \ottmv{sz}  =  \ottsym{32} }{\ottmv{j}}}%
+\ottpremise{\ottnt{system}  \ottsym{,}  \ottnt{module}  \ottsym{,}  \ottnt{fdef}  \vdash  \ottnt{value}  \ottsym{:}  \ottnt{typ}  \ottsym{*}}%
+\ottpremise{\ottcomp{\ottnt{system}  \ottsym{,}  \ottnt{module}  \ottsym{,}  \ottnt{fdef}  \vdash  \ottnt{value_{\ottmv{j}}}  \ottsym{:}  \ottnt{typ''}}{\ottmv{j}}}%
+\ottpremise{\ottnt{typ''}  =  \ottsym{i32}}%
 \ottpremise{\ottkw{getGEPTyp} \, \ottcomp{\ottnt{value_{\ottmv{j}}}}{\ottmv{j}} \, \ottsym{(}  \ottnt{typ}  \ottsym{*}  \ottsym{)}  =  \ottnt{typ'}}%
 \ottpremise{\ottnt{fdef}  \ottsym{,}  \ottnt{block}  \vdash_{i}  \ottmv{id}  = \, \ottkw{getelementptr} \, \ottnt{inbounds}  \ottsym{(}  \ottnt{typ}  \ottsym{*}  \ottsym{)}  \ottnt{value} \, \ottcomp{\ottnt{value_{\ottmv{j}}}}{\ottmv{j}}}%
 }{
@@ -1335,8 +1365,8 @@
 
 
 \newcommand{\ottdrulewfXXinsnXXicmp}[1]{\ottdrule[#1]{%
-\ottpremise{\ottnt{system}  \ottsym{,}  \ottnt{fdef}  \vdash  \ottnt{value_{{\mathrm{1}}}}  \ottsym{:}  \ottnt{typ}}%
-\ottpremise{\ottnt{system}  \ottsym{,}  \ottnt{fdef}  \vdash  \ottnt{value_{{\mathrm{2}}}}  \ottsym{:}  \ottnt{typ}}%
+\ottpremise{\ottnt{system}  \ottsym{,}  \ottnt{module}  \ottsym{,}  \ottnt{fdef}  \vdash  \ottnt{value_{{\mathrm{1}}}}  \ottsym{:}  \ottnt{typ}}%
+\ottpremise{\ottnt{system}  \ottsym{,}  \ottnt{module}  \ottsym{,}  \ottnt{fdef}  \vdash  \ottnt{value_{{\mathrm{2}}}}  \ottsym{:}  \ottnt{typ}}%
 \ottpremise{ \ottsym{Typ.isIntOrIntVector}  \ottnt{typ}  \vee  \ottkw{isPointerTyp} \, \ottnt{typ} }%
 \ottpremise{\ottnt{fdef}  \ottsym{,}  \ottnt{block}  \vdash_{i}  \ottmv{id}  = \, \ottkw{icmp} \, \ottnt{cond} \, \ottnt{typ} \, \ottnt{value_{{\mathrm{1}}}} \, \ottnt{value_{{\mathrm{2}}}}}%
 }{
@@ -1346,8 +1376,9 @@
 
 
 \newcommand{\ottdrulewfXXinsnXXfcmp}[1]{\ottdrule[#1]{%
-\ottpremise{\ottnt{system}  \ottsym{,}  \ottnt{fdef}  \vdash  \ottnt{value_{{\mathrm{1}}}}  \ottsym{:}  \ottnt{floating\_point}}%
-\ottpremise{\ottnt{system}  \ottsym{,}  \ottnt{fdef}  \vdash  \ottnt{value_{{\mathrm{2}}}}  \ottsym{:}  \ottnt{floating\_point}}%
+\ottpremise{\texttt{wf\_fcond }\ottnt{fcond}\texttt{ = true }}%
+\ottpremise{\ottnt{system}  \ottsym{,}  \ottnt{module}  \ottsym{,}  \ottnt{fdef}  \vdash  \ottnt{value_{{\mathrm{1}}}}  \ottsym{:}  \ottnt{floating\_point}}%
+\ottpremise{\ottnt{system}  \ottsym{,}  \ottnt{module}  \ottsym{,}  \ottnt{fdef}  \vdash  \ottnt{value_{{\mathrm{2}}}}  \ottsym{:}  \ottnt{floating\_point}}%
 \ottpremise{\ottnt{fdef}  \ottsym{,}  \ottnt{block}  \vdash_{i}  \ottmv{id}  = \, \ottkw{fcmp} \, \ottnt{fcond} \, \ottnt{floating\_point} \, \ottnt{value_{{\mathrm{1}}}} \, \ottnt{value_{{\mathrm{2}}}}}%
 }{
 \ottnt{intrinsic\_funs}  \ottsym{,}  \ottnt{system}  \ottsym{,}  \ottnt{module}  \ottsym{,}  \ottnt{fdef}  \ottsym{,}  \ottnt{block}  \vdash  \ottmv{id}  = \, \ottkw{fcmp} \, \ottnt{fcond} \, \ottnt{floating\_point} \, \ottnt{value_{{\mathrm{1}}}} \, \ottnt{value_{{\mathrm{2}}}}}{%
@@ -1356,7 +1387,7 @@
 
 
 \newcommand{\ottdrulewfXXinsnXXphi}[1]{\ottdrule[#1]{%
-\ottpremise{\ottcomp{\ottnt{system}  \ottsym{,}  \ottnt{fdef}  \vdash  \ottnt{value_{\ottmv{j}}}  \ottsym{:}  \ottnt{typ}}{\ottmv{j}}}%
+\ottpremise{\ottcomp{\ottnt{system}  \ottsym{,}  \ottnt{module}  \ottsym{,}  \ottnt{fdef}  \vdash  \ottnt{value_{\ottmv{j}}}  \ottsym{:}  \ottnt{typ}}{\ottmv{j}}}%
 \ottpremise{ \ottnt{typ}  \ottsym{=t=}  \ottkw{void}  \vee  \ottkw{isFirstClassTyp} \, \ottnt{typ} }%
 \ottpremise{ \neg  \ottnt{typ}  \ottsym{=t=}  \ottkw{metadata} }%
 \ottpremise{  ( \ottkw{isPointerTyp} \, \ottnt{typ} \!)   \mathit{implies}   (  \ottkw{getPointerEltTyp} \, \ottnt{typ}  =  \ottnt{typ'}  \wedge   (  \neg  \ottnt{typ'}  \ottsym{=t=}  \ottkw{metadata}  \!)   \!)  }%
@@ -1369,9 +1400,9 @@
 
 
 \newcommand{\ottdrulewfXXinsnXXselect}[1]{\ottdrule[#1]{%
-\ottpremise{ \ottnt{system}  \ottsym{,}  \ottnt{fdef}  \vdash  \ottnt{value_{{\mathrm{0}}}}  \ottsym{:}  \ottkw{int} \, \ottmv{sz}  \wedge  \ottmv{sz}  =  \ottsym{1} }%
-\ottpremise{\ottnt{system}  \ottsym{,}  \ottnt{fdef}  \vdash  \ottnt{value_{{\mathrm{1}}}}  \ottsym{:}  \ottnt{typ}}%
-\ottpremise{\ottnt{system}  \ottsym{,}  \ottnt{fdef}  \vdash  \ottnt{value_{{\mathrm{2}}}}  \ottsym{:}  \ottnt{typ}}%
+\ottpremise{ \ottnt{system}  \ottsym{,}  \ottnt{module}  \ottsym{,}  \ottnt{fdef}  \vdash  \ottnt{value_{{\mathrm{0}}}}  \ottsym{:}  \ottkw{int} \, \ottmv{sz}  \wedge  \ottmv{sz}  =  \ottsym{1} }%
+\ottpremise{\ottnt{system}  \ottsym{,}  \ottnt{module}  \ottsym{,}  \ottnt{fdef}  \vdash  \ottnt{value_{{\mathrm{1}}}}  \ottsym{:}  \ottnt{typ}}%
+\ottpremise{\ottnt{system}  \ottsym{,}  \ottnt{module}  \ottsym{,}  \ottnt{fdef}  \vdash  \ottnt{value_{{\mathrm{2}}}}  \ottsym{:}  \ottnt{typ}}%
 \ottpremise{\ottnt{fdef}  \ottsym{,}  \ottnt{block}  \vdash_{i}  \ottmv{id}  = \, \ottkw{select} \, \ottnt{value_{{\mathrm{0}}}} \, \ottnt{typ} \, \ottnt{value_{{\mathrm{1}}}} \, \ottnt{value_{{\mathrm{2}}}}}%
 }{
 \ottnt{intrinsic\_funs}  \ottsym{,}  \ottnt{system}  \ottsym{,}  \ottnt{module}  \ottsym{,}  \ottnt{fdef}  \ottsym{,}  \ottnt{block}  \vdash  \ottmv{id}  = \, \ottkw{select} \, \ottnt{value_{{\mathrm{0}}}} \, \ottnt{typ} \, \ottnt{value_{{\mathrm{1}}}} \, \ottnt{value_{{\mathrm{2}}}}}{%
@@ -1380,11 +1411,11 @@
 
 
 \newcommand{\ottdrulewfXXinsnXXcall}[1]{\ottdrule[#1]{%
-\ottpremise{\ottnt{system}  \ottsym{,}  \ottnt{fdef}  \vdash  \ottnt{value_{{\mathrm{0}}}}  \ottsym{:}  \ottnt{typ_{{\mathrm{0}}}}  \ottsym{*}}%
+\ottpremise{\ottnt{system}  \ottsym{,}  \ottnt{module}  \ottsym{,}  \ottnt{fdef}  \vdash  \ottnt{value_{{\mathrm{0}}}}  \ottsym{:}  \ottnt{typ_{{\mathrm{0}}}}  \ottsym{*}}%
 \ottpremise{\texttt{FunctionType.getNumParams }\ottnt{typ_{{\mathrm{1}}}}\texttt{ = Some (length }\mathit{\overline{param} }\texttt{) }}%
 \ottpremise{\mathit{\overline{param} }  <-> \, \ottcomp{\ottsym{(}  \ottnt{typ'_{\ottmv{j}}} \, \ottnt{value''_{\ottmv{j}}}  \ottsym{)}}{\ottmv{j}}}%
 \ottpremise{\ottnt{typ_{{\mathrm{0}}}}  =  \ottnt{typ_{{\mathrm{1}}}}  \ottsym{(} \, \ottcomp{\ottnt{typ'_{\ottmv{j}}}}{\ottmv{j}} \, \ottnt{varg}  \ottsym{)}}%
-\ottpremise{\ottcomp{\ottnt{system}  \ottsym{,}  \ottnt{fdef}  \vdash  \ottnt{value''_{\ottmv{j}}}  \ottsym{:}  \ottnt{typ'_{\ottmv{j}}}}{\ottmv{j}}}%
+\ottpremise{\ottcomp{\ottnt{system}  \ottsym{,}  \ottnt{module}  \ottsym{,}  \ottnt{fdef}  \vdash  \ottnt{value''_{\ottmv{j}}}  \ottsym{:}  \ottnt{typ'_{\ottmv{j}}}}{\ottmv{j}}}%
 \ottpremise{ \ottnt{typ_{{\mathrm{1}}}}  \ottsym{=t=}  \ottkw{void}  \mathit{implies}  \ottnt{noret}  = \, \ottkw{yes} }%
 \ottpremise{\ottnt{fdef}  \ottsym{,}  \ottnt{block}  \vdash_{i}  \ottmv{id}  =  \ottnt{noret} \, \ottnt{clattrs} \, \ottkw{call} \, \ottnt{typ_{{\mathrm{0}}}} \, \ottnt{value_{{\mathrm{0}}}} \, \mathit{\overline{param} }}%
 }{
@@ -1591,7 +1622,7 @@
 % defns Jwf_gvar
 % defn wf_gvar
 \newcommand{\ottdrulewfXXgvXXintro}[1]{\ottdrule[#1]{%
-\ottpremise{\ottnt{system}  \ottsym{\mbox{$\mid$}-c}  \ottnt{const}  \ottsym{:}  \ottnt{typ}}%
+\ottpremise{\ottnt{system}  \ottsym{,}  \ottnt{targetdata}  \ottsym{\mbox{$\mid$}-c}  \ottnt{const}  \ottsym{:}  \ottnt{typ}}%
 }{
 \ottnt{intrinsic\_funs}  \ottsym{,}  \ottnt{system}  \ottsym{,}  \ottnt{module}  \ottsym{\mbox{$\mid$}-v}  \ottmv{id}  =  \ottnt{linkage} \, \ottnt{gvar\_spec} \, \ottnt{typ} \, \ottnt{const} \, \ottmv{align}}{%
 {\ottdrulename{wf\_gv\_intro}}{}%
@@ -1756,6 +1787,7 @@
 
 \newcommand{\ottdefnss}{
 \ottdefnsJwfXXtyp
+\ottdefnsJfeasibleXXtyp
 \ottdefnsJwfXXconst
 \ottdefnsJwfXXvalue
 \ottdefnsJwfXXoperand

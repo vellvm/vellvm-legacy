@@ -24,6 +24,7 @@ Require Import ssa_analysis.
 Require Import Maps.
 Require Import Kildall.
 Require Import Lattice.
+Require Import targetdata.
 
 Module LLVMlib.
 
@@ -317,11 +318,15 @@ match (getValueID v) with
 | Some id => id::nil
 end.
 
-Fixpoint getParamsOperand (lp:params) : ids :=
-match lp with
+Fixpoint values2ids (vs:list value) : ids :=
+match vs with
 | nil => nil
-| (t, v)::lp' => (getValueIDs v) ++ (getParamsOperand lp')
+| value_id id::vs' => id::values2ids vs'
+| _::vs' => values2ids vs'
 end.
+
+Definition getParamsOperand (lp:params) : ids :=
+let '(_,vs) := split lp in values2ids vs.
 
 Fixpoint list_prj1 (X Y:Type) (ls : list (X*Y)) : list X :=
 match ls with
@@ -344,12 +349,12 @@ match i with
 *)
 | insn_extractvalue _ _ v _ => getValueIDs v
 | insn_insertvalue _ _ v1 _ v2 _ => getValueIDs v1 ++ getValueIDs v2
-| insn_malloc _ _ _ _ => nil
+| insn_malloc _ _ v _ => getValueIDs v
 | insn_free _ _ v => getValueIDs v
-| insn_alloca _ _ _ _ => nil
+| insn_alloca _ _ v _ => getValueIDs v
 | insn_load _ _ v _ => getValueIDs v
 | insn_store _ _ v1 v2 _ => getValueIDs v1 ++ getValueIDs v2
-| insn_gep _ _ _ v _ => getValueIDs v
+| insn_gep _ _ _ v vs => getValueIDs v ++ values2ids (unmake_list_value vs)
 | insn_trunc _ _ _ v _ => getValueIDs v
 | insn_ext _ _ _ v1 typ2 => getValueIDs v1
 | insn_cast _ _ _ v _ => getValueIDs v
@@ -357,6 +362,33 @@ match i with
 | insn_fcmp _ _ _ v1 v2 => getValueIDs v1 ++ getValueIDs v2
 | insn_select _ v0 _ v1 v2 => getValueIDs v0 ++ getValueIDs v1 ++ getValueIDs v2
 | insn_call _ _ _ _ v0 lp => getValueIDs v0 ++ getParamsOperand lp
+end.
+
+Fixpoint valueInListValue (v0:value) (vs:list_value) : Prop :=
+In v0 (unmake_list_value vs).
+
+Definition valueInParams (v0:value) (lp:params) : Prop :=
+let '(_, vs) := split lp in In v0 vs.
+
+Definition valueInCmdOperands (v0:value) (i:cmd) : Prop :=
+match i with
+| insn_bop _ _ _ v1 v2 => v0 = v1 \/ v0 = v2
+| insn_fbop _ _ _ v1 v2 => v0 = v1 \/ v0 = v2
+| insn_extractvalue _ _ v _ => v0 = v
+| insn_insertvalue _ _ v1 _ v2 _ => v0 = v1 \/ v0 = v2
+| insn_malloc _ _ v _ => v0 = v
+| insn_free _ _ v => v0 = v
+| insn_alloca _ _ v _ => v0 = v
+| insn_load _ _ v _ => v0 = v
+| insn_store _ _ v1 v2 _ => v0 = v1 \/ v0 = v2
+| insn_gep _ _ _ v vs => v0 = v \/ valueInListValue v0 vs
+| insn_trunc _ _ _ v _ => v0 = v
+| insn_ext _ _ _ v1 _ => v0 = v1
+| insn_cast _ _ _ v _ => v0 = v
+| insn_icmp _ _ _ v1 v2 => v0 = v1 \/ v0 = v2
+| insn_fcmp _ _ _ v1 v2 => v0 = v1 \/ v0 = v2
+| insn_select _ v1 _ v2 v3 => v0 = v1 \/ v0 = v2 \/ v0 = v3
+| insn_call _ _ _ _ v1 lp => v0 = v1 \/ valueInParams v0 lp
 end.
 
 Definition getTerminatorOperands (i:terminator) : ids :=
@@ -368,13 +400,6 @@ match i with
 (* | insn_switch _ _ value _ _ => getValueIDs value *)
 (* | insn_invoke _ _ _ lp _ _ => getParamsOperand lp *)
 | insn_unreachable _ => nil
-end.
-
-Fixpoint values2ids (vs:list value) : ids :=
-match vs with
-| nil => nil
-| value_id id::vs' => id::values2ids vs'
-| _::vs' => values2ids vs'
 end.
 
 Definition getPhiNodeOperands (i:phinode) : ids :=
@@ -697,6 +722,13 @@ match (fp1, fp2) with
 | (fp_x86_fp80, fp_ppc_fp128) => true
 | (fp_x86_fp80, fp_fp128) => true
 | (_, _) => false
+end.
+
+Definition wf_fcond (fc : fcond) : bool :=
+match fc with
+| fcond_ord => false
+| fcond_uno => false
+| _ => true
 end.
 
 (**********************************)
@@ -2749,6 +2781,42 @@ End User.
 
 Module Constant <: SigConstant.
  Include Value.
+
+Definition feasible_typ TD t :=
+  match LLVMtd.getTypeSizeInBits_and_Alignment TD true t with
+  | None => False
+  | _ => True
+  end.
+
+Fixpoint wf_zeroconst_typ (t:typ) : Prop :=
+match t with
+| typ_int sz => True
+| typ_floatpoint fp =>
+  match fp with
+  | fp_float | fp_double => True
+  | _ => False (* FIXME: not supported 80 and 128 yet. *)
+  end
+| typ_void | typ_label | typ_metadata => False
+| typ_array sz t => wf_zeroconst_typ t
+| typ_struct ts => wf_zeroconsts_typ ts
+| typ_pointer t' => True
+| typ_function _ _ _ => False
+| typ_opaque => False
+| typ_namedt _ => False
+end             
+with wf_zeroconsts_typ (lt:list_typ) : Prop := 
+match lt with
+| Nil_list_typ => True
+| Cons_list_typ t lt' => wf_zeroconsts_typ lt' /\ wf_zeroconst_typ t
+end
+.
+
+Definition feasible_typs TD lt :=
+  match LLVMtd.getListTypeSizeInBits_and_Alignment TD true lt with
+  | None => False
+  | _ => True
+  end.
+Definition wf_zeroconst TD t := wf_zeroconst_typ t /\ feasible_typ TD t.
 
 Fixpoint getTyp (c:const) : option typ :=
  match c with

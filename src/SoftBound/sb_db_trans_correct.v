@@ -102,8 +102,8 @@ Proof.
         repeat (split; auto).
 Qed.
 
-Lemma _zeroconst2GV__gv_inject_refl : forall TD t gv mi,
-  _zeroconst2GV TD t = Some gv ->
+Lemma zeroconst2GV__gv_inject_refl : forall TD t gv mi,
+  zeroconst2GV TD t = Some gv ->
   gv_inject mi gv gv.
 Admitted.
 
@@ -215,12 +215,13 @@ Lemma simulation__mcast : forall mi TD Mem1 Mem2 op t1 gv1 gv1' t2 gv2,
     gv_inject mi gv2 gv2'.
 Admitted.
 
-Lemma simulation__micmp : forall mi TD c t gv1 gv1' gv2 gv2' gv3,
+Lemma simulation__micmp : forall mi TD Mem1 Mem2 c t gv1 gv1' gv2 gv2' gv3,
   gv_inject mi gv1 gv1' ->
   gv_inject mi gv2 gv2' ->
-  micmp TD c t gv1 gv2 = Some gv3 ->
+  Mem.mem_inj mi Mem1 Mem2 ->  
+  micmp TD Mem1 c t gv1 gv2 = Some gv3 ->
   exists gv3',
-    micmp TD c t gv1' gv2' = Some gv3' /\
+    micmp TD Mem2 c t gv1' gv2' = Some gv3' /\
     gv_inject mi gv3 gv3'.
 Admitted.
 
@@ -290,10 +291,10 @@ Definition sb_mem_inj__list_const2GV_prop (lc:list_const) :=
   Mem.mem_inj mi Mem1 Mem2 ->
   wf_sb_mi maxb mi Mem1 Mem2 ->
   wf_globals maxb gl -> 
-  (forall gv t, 
-    _list_const_arr2GV TD Mem1 gl lc = Some (gv,t) ->
+  (forall gv, 
+    _list_const_arr2GV TD Mem1 gl lc = Some gv ->
     exists gv',
-      _list_const_arr2GV TD Mem2 gl lc = Some (gv',t) /\
+      _list_const_arr2GV TD Mem2 gl lc = Some gv' /\
       gv_inject mi gv gv'
   ) /\
   (forall gv t a, 
@@ -311,9 +312,9 @@ Proof.
     unfold sb_mem_inj__const2GV_prop, sb_mem_inj__list_const2GV_prop;
     intros; simpl in *; eauto.
 Case "zero".
-  remember (_zeroconst2GV TD t) as R.
+  remember (zeroconst2GV TD t) as R.
   destruct R; inv H2.
-  exists gv. split; eauto using _zeroconst2GV__gv_inject_refl.
+  exists gv. split; eauto using zeroconst2GV__gv_inject_refl.
 Case "int".
   inv H2.
   exists (val2GV TD
@@ -345,6 +346,11 @@ Case "null".
 Case "arr". 
   eapply H with (TD:=TD)(gl:=gl) in H2; eauto.
   destruct H2; eauto.
+  remember (_list_const_arr2GV TD Mem1 gl l0) as R.
+  destruct R; inv H3.
+  destruct (@H2 gv) as [gv' [J1 J2]]; auto.
+  exists gv'. rewrite J1; auto.
+
 Case "struct". 
   eapply H with (TD:=TD)(gl:=gl) in H2; eauto.
   destruct H2 as [H00 H01].
@@ -409,35 +415,35 @@ Case "cast".
   destruct HeqR1 as [gv2' [J3 J4]].
   rewrite J3.
   exists gv2'. split; auto.
-
-  remember (Constant.getTyp c) as R.
-  destruct R; inv H4.       
-  destruct t0; inv H6.       
+Case "gep".
   remember (_const2GV TD Mem1 gl c) as R1.
-  destruct R1 as [[gv1 t1]|]; inv H5.
-  remember (getConstGEPTyp l0 (typ_pointer t0)) as R2.
-  destruct R2; inv H6.
+  destruct R1 as [[gv1 t1]|]; inv H4.
+  destruct t1; inv H6.
+  remember (getConstGEPTyp l0 (typ_pointer t1)) as R2.
+  destruct R2; inv H5.
   remember (GV2ptr TD (getPointerSize TD) gv1) as R3.
-  destruct R3; inv H5.
-  remember (intConsts2Nats TD l0) as R4.
-  destruct R4; inv H6.
-  remember (mgep TD t0 v l1) as R5.
-  destruct R5; inv H5.
-  symmetry in HeqR1.
-  eapply H in HeqR1; eauto.
-  destruct HeqR1 as [gv1' [J1 J2]].
-  rewrite J1.
-  symmetry in HeqR3.
-  eapply simulation__GV2ptr in HeqR3; eauto.
-  destruct HeqR3 as [v' [J3 J4]].
-  rewrite J3.  
-  symmetry in HeqR5.
-  eapply simulation__mgep in HeqR5; eauto.
-  destruct HeqR5 as [v0' [J5 J6]].
-  rewrite J5.
-  exists (ptr2GV TD v0').
-  split; auto.
-    unfold ptr2GV, val2GV, gv_inject. simpl. auto.
+  destruct R3; inv H6.
+    remember (intConsts2Nats TD l0) as R4.
+    destruct R4; inv H5.
+      remember (mgep TD t1 v l1) as R5.
+      destruct R5; inv H6.
+      symmetry in HeqR1.
+      eapply H in HeqR1; eauto.
+      destruct HeqR1 as [gv1' [J1 J2]].
+      rewrite J1.
+      symmetry in HeqR3.
+      eapply simulation__GV2ptr in HeqR3; eauto.
+      destruct HeqR3 as [v' [J3 J4]].
+      rewrite J3.  
+      symmetry in HeqR5.
+      eapply simulation__mgep in HeqR5; eauto.
+      destruct HeqR5 as [v0' [J5 J6]].
+      rewrite <- HeqR2. rewrite J5.
+      exists (ptr2GV TD v0').
+      split; auto.
+        unfold ptr2GV, val2GV, gv_inject. simpl. auto.
+
+      admit. admit. admit.
 
   remember (_const2GV TD Mem1 gl c) as R2.
   destruct R2 as [[gv2 t2]|]; inv H5.
@@ -474,7 +480,7 @@ Case "cast".
   eapply H0 in HeqR4; eauto.
   destruct HeqR4 as [gv4' [J5 J6]].
   rewrite J5.
-  remember (micmp TD c t3 gv3 gv4) as R1.
+  remember (micmp TD Mem1 c t3 gv3 gv4) as R1.
   destruct R1; inv H5.
   symmetry in HeqR1.
   eapply simulation__micmp in HeqR1; eauto.
@@ -503,6 +509,8 @@ Case "cast".
   rewrite J7.
   exists gv'. split; auto.
      
+  admit. admit.
+(*
   remember (_const2GV TD Mem1 gl c) as R.
   destruct R as [[gv1 t1]|]; inv H4.
   remember (Constant.getTyp c) as R1.
@@ -542,6 +550,7 @@ Case "cast".
   destruct HeqR3 as [gv' [J5 J6]].
   rewrite J5.
   exists gv'. split; auto.
+*)
 
   remember (_const2GV TD Mem1 gl c) as R3.
   destruct R3 as [[gv3 t3]|]; inv H4.
@@ -586,7 +595,7 @@ Case "cast".
   exists gv'. split; auto.
 
   split.
-    intros gv t J.
+    intros gv J.
     inv J.
     exists nil. unfold gv_inject. simpl. split; auto.
  
@@ -599,14 +608,14 @@ Case "cast".
   destruct H1' as [H10 H11].
   split; intros.
     remember (_list_const_arr2GV TD Mem1 gl l0) as R3.
-    destruct R3 as [[gv3 t3]|]; inv H4.
+    destruct R3 as [gv3|]; inv H4.
     remember (_const2GV TD Mem1 gl c) as R4.
     destruct R4 as [[gv4 t4]|]; inv H6.
     symmetry in HeqR4.
     eapply H in HeqR4; eauto.
     destruct HeqR4 as [gv4' [J1 J2]].
     rewrite J1.
-    destruct (@H10 gv3 t3) as [gv3' [J3 J4]]; auto.
+    destruct (@H10 gv3) as [gv3' [J3 J4]]; auto.
     rewrite J3.
     destruct (getTypeStoreSize TD t4); try solve [inv H5].
     destruct (getTypeAllocSize TD t4); inv H5.
@@ -748,6 +757,8 @@ Lemma const2GV_lt_nextblock_aux : forall TD Mem mgb gl c g t b ofs,
   _const2GV TD Mem gl c = Some (g, t) -> 
   GV2val TD g = Some (Vptr b ofs) ->
   b <= mgb.
+Admitted.
+(*
 Proof.
   intros TD Mem mgb gl c g t b ofs Hwfc Hwfg Hblock Hc2g Hg2v.
   generalize dependent b.
@@ -786,7 +797,7 @@ Proof.
     destruct v; inv H1.
       destruct t2; inv H0.
         destruct t0; inv H1.
-        destruct (eq_nat_dec wz s); inv H0.   
+        destruct (eq_nat_dec wz s0); inv Hg2v.   
           unfold GV2val, val2GV, ptr2GV in Hg2v.
           destruct (le_lt_dec s s0); inv Hg2v.
       destruct t2; inv H0.
@@ -898,6 +909,7 @@ Proof.
 
     admit. (*fbop*)
 Qed.
+*)
 
 Lemma const2GV__malloc_aux : forall TD Mem lo hi Mem' mb gl c mgb,
   wf_const c ->
@@ -920,7 +932,7 @@ Proof.
     rewrite IHc; auto.
     destruct (_const2GV TD Mem' gl c0); auto.
     destruct p.
-    unfold mcast.
+    unfold mcast, mptrtoint.
     destruct t0; auto.
       destruct c; auto.
         contradict Hwfc1; auto.
@@ -935,6 +947,8 @@ Proof.
                 destruct Hmgb.
                 eapply const2GV_lt_nextblock_aux in J; eauto with zarith.
                   clear - H0 J. eauto with zarith.
+
+    admit.
 Qed.  
 
 Lemma const2GV__malloc : forall TD Mem lo hi Mem' mb gl c mgb ,
@@ -2644,7 +2658,7 @@ Proof.
     rewrite IHc.
     destruct (_const2GV TD Mem' gl c0); auto.
     destruct p.
-    unfold mcast.
+    unfold mcast, mptrtoint.
     destruct t0; auto.
       destruct c; auto.
         destruct t; auto.
@@ -2656,6 +2670,7 @@ Proof.
           destruct (GV2val TD g); auto.
             destruct v0; auto.
               erewrite Mem.ptr2int_store; eauto.
+    admit.
 Qed.  
 
 Lemma const2GV__mstore : forall TD Mem gvp t gv align0 Mem' gl c,
@@ -3850,7 +3865,7 @@ Proof.
     rewrite IHc.
     destruct (_const2GV TD Mem' gl c0); auto.
     destruct p.
-    unfold mcast.
+    unfold mcast, mptrtoint.
     destruct t0; auto.
       destruct c; auto.
         destruct t; auto.
@@ -3862,6 +3877,7 @@ Proof.
           destruct (GV2val TD g); auto.
             destruct v; auto.
               erewrite Mem.ptr2int_free; eauto.
+    admit.
 Qed.  
 
 Lemma const2GV__free : forall TD Mem0 b lo hi Mem' gl c,

@@ -121,6 +121,11 @@ Lemma wrong_assumption3 : forall TD M1 M2 c t gv1 t0 r,
   mcast TD M2 c t gv1 t0 = r.
 Admitted.
 
+Lemma wrong_assumption4 : forall TD M1 M2 c t gv1 t0 r, 
+  micmp TD M1 c t gv1 t0 = r -> 
+  micmp TD M2 c t gv1 t0 = r.
+Admitted.
+
 Lemma op_cmd__satisfies__se_cmd : forall TD c nc lc als gl lc0 als0 Mem0 lc' als' Mem1 Mem2 sstate1 tr tr1,
   dbCmd TD gl lc als Mem1 c lc' als' Mem2 tr -> 
   uniq sstate1.(STerms) ->
@@ -351,12 +356,11 @@ Proof.
 
           rewrite lookupAL_updateAddAL_eq.
           rewrite lookupSmap_updateAddAL_eq.
-          apply GEP_inversion in H15.
-          destruct H15 as [idxs [ptr [ptr0 [J3 [J4 [J5 J6]]]]]].
           exists mp'.
           split; auto.
-            eapply sterm_gep_denotes; eauto using genericvalue__implies__value2Sterm_denotes, genericvalues__imply__value2Sterm_denote.
-              unfold GEP. rewrite J3, J4, J5, J6. auto.
+            eapply sterm_gep_denotes; eauto using 
+              genericvalue__implies__value2Sterm_denotes, 
+              genericvalues__imply__value2Sterm_denote.
 
         intros id' gv' HlookupAL.
         simpl. 
@@ -364,10 +368,9 @@ Proof.
           rewrite lookupAL_updateAddAL_eq in HlookupAL.
           inversion HlookupAL; subst.
           rewrite lookupSmap_updateAddAL_eq.
-          apply GEP_inversion in H15.
-          destruct H15 as [idxs [ptr [ptr0 [J3 [J4 [J5 J6]]]]]].
-          eapply sterm_gep_denotes; eauto using genericvalue__implies__value2Sterm_denotes, genericvalues__imply__value2Sterm_denote.
-            unfold GEP. rewrite J3, J4, J5, J6. auto.
+          eapply sterm_gep_denotes; eauto using 
+            genericvalue__implies__value2Sterm_denotes, 
+            genericvalues__imply__value2Sterm_denote.
 
           eapply se_cmd__denotes__op_cmd__case2; eauto.
 
@@ -386,7 +389,8 @@ Proof.
           destruct H13 as [gv1 [J1 J2]].
           exists gv2. split; auto.
             apply wrong_assumption1 with (M2:=Mem0) in J1.
-            apply sterm_trunc_denotes with (gv1:=gv1); eauto using genericvalue__implies__value2Sterm_denotes.
+            apply sterm_trunc_denotes with (gv1:=gv1); eauto using        
+              genericvalue__implies__value2Sterm_denotes.
 
         intros id' gv' HlookupAL.
         simpl. 
@@ -397,7 +401,8 @@ Proof.
           apply TRUNC_inversion in H13.
           destruct H13 as [gv1 [J1 J2]].
           apply wrong_assumption1 with (M2:=Mem0) in J1.
-          apply sterm_trunc_denotes with (gv1:=gv1); eauto using genericvalue__implies__value2Sterm_denotes.
+          apply sterm_trunc_denotes with (gv1:=gv1); eauto using 
+            genericvalue__implies__value2Sterm_denotes.
 
           eapply se_cmd__denotes__op_cmd__case2; eauto.
 
@@ -416,7 +421,8 @@ Proof.
           destruct H13 as [gv1 [J1 J2]].
           exists gv2. split; auto.
             apply wrong_assumption1 with (M2:=Mem0) in J1.
-            apply sterm_ext_denotes with (gv1:=gv1); eauto using genericvalue__implies__value2Sterm_denotes.
+            apply sterm_ext_denotes with (gv1:=gv1); eauto using 
+              genericvalue__implies__value2Sterm_denotes.
 
         intros id' gv' HlookupAL.
         simpl. 
@@ -427,7 +433,8 @@ Proof.
           apply EXT_inversion in H13.
           destruct H13 as [gv1 [J1 J2]].
           apply wrong_assumption1 with (M2:=Mem0) in J1.
-          apply sterm_ext_denotes with (gv1:=gv1); eauto using genericvalue__implies__value2Sterm_denotes.
+          apply sterm_ext_denotes with (gv1:=gv1); eauto using 
+            genericvalue__implies__value2Sterm_denotes.
 
           eapply se_cmd__denotes__op_cmd__case2; eauto.
 
@@ -447,7 +454,8 @@ Proof.
           exists gv2. split; auto.
             apply wrong_assumption1 with (M2:=Mem0) in J1.
             apply wrong_assumption3 with (M2:=Mem0) in J2.
-            apply sterm_cast_denotes with (gv1:=gv1); eauto using genericvalue__implies__value2Sterm_denotes.
+            apply sterm_cast_denotes with (gv1:=gv1); eauto using 
+              genericvalue__implies__value2Sterm_denotes.
 
         intros id' gv' HlookupAL.
         simpl. 
@@ -459,7 +467,8 @@ Proof.
           destruct H13 as [gv1 [J1 J2]].
           apply wrong_assumption1 with (M2:=Mem0) in J1.
           apply wrong_assumption3 with (M2:=Mem0) in J2.
-          apply sterm_cast_denotes with (gv1:=gv1); eauto using genericvalue__implies__value2Sterm_denotes.
+          apply sterm_cast_denotes with (gv1:=gv1); eauto using 
+            genericvalue__implies__value2Sterm_denotes.
 
           eapply se_cmd__denotes__op_cmd__case2; eauto.
 
@@ -479,7 +488,9 @@ Proof.
           exists gv3. split; auto.
             apply wrong_assumption1 with (M2:=Mem0) in J1.
             apply wrong_assumption1 with (M2:=Mem0) in J2.
-            apply sterm_icmp_denotes with (gv1:=gv1)(gv2:=gv2); eauto using genericvalue__implies__value2Sterm_denotes.
+            apply wrong_assumption4 with (M2:=Mem0) in J3.
+            apply sterm_icmp_denotes with (gv1:=gv1)(gv2:=gv2); eauto using 
+              genericvalue__implies__value2Sterm_denotes.
 
         intros id' gv' HlookupAL.
         simpl. 
@@ -491,7 +502,9 @@ Proof.
           destruct H13 as [gv1 [gv2 [J1 [J2 J3]]]].
           apply wrong_assumption1 with (M2:=Mem0) in J1.
           apply wrong_assumption1 with (M2:=Mem0) in J2.
-          apply sterm_icmp_denotes with (gv1:=gv1)(gv2:=gv2); eauto using genericvalue__implies__value2Sterm_denotes.
+          apply wrong_assumption4 with (M2:=Mem0) in J3.
+          apply sterm_icmp_denotes with (gv1:=gv1)(gv2:=gv2); eauto using 
+            genericvalue__implies__value2Sterm_denotes.
 
           eapply se_cmd__denotes__op_cmd__case2; eauto.
 
@@ -511,7 +524,8 @@ Proof.
           exists gv3. split; auto.
             apply wrong_assumption1 with (M2:=Mem0) in J1.
             apply wrong_assumption1 with (M2:=Mem0) in J2.
-            apply sterm_fcmp_denotes with (gv1:=gv1)(gv2:=gv2); eauto using genericvalue__implies__value2Sterm_denotes.
+            apply sterm_fcmp_denotes with (gv1:=gv1)(gv2:=gv2); eauto using 
+              genericvalue__implies__value2Sterm_denotes.
 
         intros id' gv' HlookupAL.
         simpl. 
@@ -523,7 +537,8 @@ Proof.
           destruct H13 as [gv1 [gv2 [J1 [J2 J3]]]].
           apply wrong_assumption1 with (M2:=Mem0) in J1.
           apply wrong_assumption1 with (M2:=Mem0) in J2.
-          apply sterm_fcmp_denotes with (gv1:=gv1)(gv2:=gv2); eauto using genericvalue__implies__value2Sterm_denotes.
+          apply sterm_fcmp_denotes with (gv1:=gv1)(gv2:=gv2); eauto using 
+            genericvalue__implies__value2Sterm_denotes.
 
           eapply se_cmd__denotes__op_cmd__case2; eauto.
 

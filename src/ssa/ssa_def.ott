@@ -157,7 +157,7 @@ floating_point :: 'fp_'					::=  			{{ com floating point types }}
   | double						::   :: double          {{ com double }}
   | fp128						::   :: fp128           {{ com fp128 }} 
   | x86_fp80						::   :: x86_fp80	{{ com x86fp80 }}
-  | ppc_fp128						::   :: ppc_fp128     	{{ com ppcfp128 }}       
+  | ppc_fp128						::   :: ppc_fp128     	{{ com ppcfp128 }}
   | ( floating_point )					:: S :: paren           {{ coq [[ floating_point ]] }}
 
 varg :: 'varg_'						::=  			{{ com var arg }} {{ coq bool }}
@@ -543,9 +543,14 @@ products {{ tex \mathit{\overline{product} } }} :: 'products_'::=		{{ com produc
 	    				     	   				{{ coq (list product) }}	   
   | []   						::   :: nil        	{{ com nil }}
     							     			{{ coq nil }}
-  | products , product				::   :: cons            {{ com cons }}
+  | products , product					::   :: cons            {{ com cons }}
     	       						     			{{ coq ([[product]]::[[products]]) }}
   | ( products )					:: S :: paren		{{ coq [[ products ]] }}			
+
+targetdata :: 'targetdata_'  				::=  			{{ com targetdata }}
+       										{{ coq (prod (list layout) (list namedt)) }}
+  | layouts namedts					::   :: def		{{ coq ([[layouts]],[[namedts]]) }}
+  | ( targetdata )					:: S :: paren		{{ coq [[ targetdata ]] }}
 
 module :: 'module_'					::=  			{{ com module }}
   | layouts namedts products 				::   :: intro		{{ com prods }}
