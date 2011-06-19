@@ -991,6 +991,7 @@ Inductive dsInsn : sbState -> sbState -> trace -> Prop :=
     Mem MM Mem' als als',   
   Instruction.isCallInst c' = true ->
   free_allocas TD Mem als = Some Mem' ->
+  getCallerReturnID c' = None ->
   dsInsn 
     (mk_sbState S TD Ps 
       ((mk_sbEC F B nil (insn_return_void rid) lc rm als)::

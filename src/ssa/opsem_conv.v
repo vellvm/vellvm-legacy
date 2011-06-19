@@ -31,7 +31,8 @@ Proof.
 Qed.
 
 Lemma proc_callUpdateLocals_is_id : forall TD Mem rid noret0 lc lc' gl lc'',
-  callUpdateLocals TD Mem noret0 rid None lc' lc gl = Some lc'' -> lc' = lc''.
+  callUpdateLocals TD Mem noret0 rid None lc' lc gl = Some lc'' -> 
+  lc' = lc'' /\ noret0 = true.
 Proof.
   intros.
   unfold callUpdateLocals in H. 
@@ -305,14 +306,15 @@ Proof.
                          tmn lc als)::EC) 
                         gl fs Mem0); auto.
     rewrite <- trace_app_nil__eq__trace.
-    apply proc_callUpdateLocals_is_id in e0; subst.
+    apply proc_callUpdateLocals_is_id in e0.
+    destruct e0; subst.
     apply dsop_star_trans with 
       (state2:=mkState S TD Ps 
                        ((mkEC (fdef_intro (fheader_intro fa rt fid la va)lb)
                                (block_intro l'' ps'' cs'' (insn_return_void Rid))
                                 nil (insn_return_void Rid) lc'
                                 als')::
-                        (mkEC F B ((insn_call rid noret0 ca ft fv lp)::cs) 
+                        (mkEC F B ((insn_call rid true ca ft fv lp)::cs) 
                          tmn lc'' als)::EC) 
                         gl fs Mem'); auto.
 
@@ -574,11 +576,6 @@ lc_gl_als_Mem_block_rid_ore_trs
       lc_gl_als_Mem_block_rid_ore_trs)
   .
 
-Lemma getOperandValue_free_allocas : forall TD Mem v lc gl als Mem',
-  free_allocas TD Mem als = Some Mem' ->
-  getOperandValue TD Mem v lc gl = getOperandValue TD Mem' v lc gl.
-Admitted.
-
 Lemma returnStatesFromOp__nsop_star__updateStatesFromReturns : 
 forall lc_als_Mem_block_rid_ore_trs S TD Ps F B rid noret tailc (rt:typ) fv 
   (fid:id) lp (lc:GVMap) als EC cs tmn lc gl fs ft fid la va lb states fa,
@@ -617,10 +614,10 @@ Proof.
       apply nsop_star_cons; auto.
 
     SCase "noret=false".
-      remember (getOperandValue TD Mem' re lc' gl) as ogv.
-      destruct ogv as [g |]; try solve [inversion H].
       remember (free_allocas TD Mem' als') as Mem''.
       destruct Mem''; simpl in H; try solve [inversion H].
+      remember (getOperandValue TD m re lc' gl) as ogv.
+      destruct ogv as [g |]; try solve [inversion H].
       remember (updateStatesFromReturns S TD Ps F B cs tmn lc0 gl fs rid 
         als EC false lc_als_Mem_block_rid_ore_trs) as states2.
       destruct states2; simpl in H; inversion H; subst.
@@ -635,7 +632,6 @@ Proof.
       apply nsop_star_cons; auto.
         apply nsReturn; auto.
           unfold returnUpdateLocals. 
-          rewrite <- getOperandValue_free_allocas with (Mem:=Mem')(als:=als'); auto.
           rewrite <- Heqogv; auto.
 
    Case "ore = None".    
@@ -657,16 +653,6 @@ Proof.
     SCase "noret = flase".
       remember (free_allocas TD Mem' als') as Mem''.
       destruct Mem''; simpl in H; try solve [inversion H; subst].
-      remember (updateStatesFromReturns S TD Ps F B cs tmn lc0 gl fs rid 
-        als EC false lc_als_Mem_block_rid_ore_trs) as states2.
-      destruct states2; simpl in H; inversion H; subst.
-      assert (
-        (mkState S TD Ps (mkEC F B cs tmn lc0 als::EC) gl fs m, tr)::s = 
-        ((mkState S TD Ps (mkEC F B cs tmn lc0 als::EC) gl fs m, tr)::nil) 
-         ++ s
-      ) as EQ. auto.
-      rewrite EQ.
-      apply nsop_star_cons; auto.
 Qed.
 
 Lemma nb__implies__ns:
@@ -1025,65 +1011,6 @@ Proof.
   inversion Hnb_diverges; subst.
   apply ns_diverges_intro with (IS:=IS)(trs:=trs); auto.
   apply nbopInf__implies__nsop_diverges; auto.
-Qed.
-
-(***********************************************************)
-(** misc *)
-
-(** We cannot prove tr1 and tr2 are equal, because the Leibniz
-    equivalence is too strong to reason about infinite objects.
-    We should prove tr1 and tr2 are bisimilar, but we also need
-    to change semantics with bisimilarity closure. We dont have
-    interesting traces now, so we leave this as future work.
-*)
-Lemma Trace_eq_head__eq_tail : forall tr tr1 tr2,
-  Trace_app tr tr1 = Trace_app tr tr2 ->
-  tr1 = tr2.
-Proof.
-Admitted.
-
-(** Potentially useful when proving small-step -> bigstep.
-*)
-Lemma dbopInf__dsInsn_dbopInf : forall state tr,
-  dbopInf state tr ->
-  exists state', exists tr1, exists tr2,
-    dsInsn state state' tr1 /\ dbopInf state' tr2 /\ Trace_app tr1 tr2 = tr.
-Proof.
-  intros state tr state_dbopInf.
-  inversion state_dbopInf; subst.
-Admitted.
-
-Lemma dsInsn_derministic : forall state state1 state2 tr1 tr2,
-  dsInsn state state1 tr1 ->
-  dsInsn state state2 tr2 ->
-  state1 = state2 /\ tr1 = tr2.
-Proof.
-  intros state state1 state2 tr1 tr2 HdsInsn1.
-  generalize dependent state2.
-  generalize dependent tr2.
-  (dsInsn_cases (induction HdsInsn1) Case); intros tr2 state2 HdsInsn2.
-  Case "dsReturn".
-    (dsInsn_cases (destruct HdsInsn2) SCase); auto.
-    SCase "dsReturn".
-Admitted.
-
-Lemma dsop_diverging__im_dsop_diverging : forall state tr1 state' tr2,
-  dsop_diverges state (Trace_app tr1 tr2) ->
-  dsop_star state state' tr1 ->
-  dsop_diverges state' tr2.
-Proof.
-  intros state tr1 state' tr2 state_dsop_diverges state_dsop_state'.
-  induction state_dsop_state'; auto.
-    apply IHstate_dsop_state'; auto.
-    rewrite <- Trace_app_commute in state_dsop_diverges.
-    inversion state_dsop_diverges; subst.
-    inversion H1; subst.
-    apply dsInsn_derministic with (state2:=state2)(tr2:=tr1) in H2; auto.
-    destruct H2; subst.
-    rewrite <- Trace_app_commute in H0.
-    apply Trace_eq_head__eq_tail in H0; subst.
-    rewrite <- H0.
-    apply dsop_diverging_trans with (state':=state4)(tr1:=tr6); auto.
 Qed.
 
 (*****************************)

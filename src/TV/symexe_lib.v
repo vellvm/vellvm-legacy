@@ -611,6 +611,7 @@ Proof.
   intros.
   unfold uniqFdef in H.
   eapply uniqBlocks__wf_block; eauto.
+    destruct fh. inversion H; auto.
 Qed.
 
 (* Properties of se *)

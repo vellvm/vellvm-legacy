@@ -1034,12 +1034,7 @@ Module ATree <: TREE.
   Definition elt := atom.
   Definition elt_eq := eq_atom_dec.
 
-  Inductive tree (A : Type) : Type :=
-    | Leaf : tree A
-    | Node : tree A -> option A -> tree A -> tree A
-  .
-  Implicit Arguments Leaf [A].
-  Implicit Arguments Node [A].
+  Definition tree (A : Type) : Type := list (atom*A).
 
   Definition t := tree.
 

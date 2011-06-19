@@ -233,6 +233,7 @@ Inductive dsInsn : State -> State -> trace -> Prop :=
                             cs' Mem Mem' als als',   
   Instruction.isCallInst c' = true ->
   free_allocas TD Mem als = Some Mem' ->
+  getCallerReturnID c' = None ->
   dsInsn 
     (mkState S TD Ps ((mkEC F B nil (insn_return_void rid) lc als)::
                       (mkEC F' B' (c'::cs') tmn' lc' als')::EC) gl fs Mem)
@@ -645,6 +646,7 @@ Inductive nsInsn : State*trace -> States -> Prop :=
                             cs' tmn' Mem Mem' als als' tr,   
   Instruction.isCallInst c' = true ->
   free_allocas TD Mem als = Some Mem' ->
+  getCallerReturnID c' = None ->
   nsInsn 
     (mkState S TD Ps ((mkEC F B nil (insn_return_void rid) lc als)::
                       (mkEC F' B' (c'::cs') tmn' lc' als')::EC) gl fs Mem, 
@@ -1385,22 +1387,27 @@ Fixpoint updateStatesFromReturns S TD Ps F B cs tmn lc gl fs rid als EC
 match lc_als_Mem_block_rid_re_trs with 
 | nil => Some nil
 | (lc', als', Mem', B', _, Some re, tr)::lc_als_Mem_block_rid_ore_trs' => 
+  do Mem'' <- free_allocas TD Mem' als';
   do lc'' <- 
     match noret with
     | false =>
-        match (getOperandValue TD Mem' re lc' gl) with
+        match (getOperandValue TD Mem'' re lc' gl) with
         | Some gr => Some (updateAddAL _ lc rid gr)
         | None => None
         end
     | true => Some lc
     end;
-  do Mem'' <- free_allocas TD Mem' als';
   do states <- updateStatesFromReturns S TD Ps F B cs tmn lc gl fs rid als 
                  EC noret lc_als_Mem_block_rid_ore_trs';
      ret ((mkState S TD Ps ((mkEC F B cs tmn lc'' als)::EC) 
                            gl fs Mem'', tr)::states)
 | (lc', als', Mem', B', _, None, tr)::lc_als_Mem_block_rid_ore_trs' => 
   do Mem'' <- free_allocas TD Mem' als';
+  do lc'' <- 
+    match noret with
+    | false => None
+    | true => Some lc
+    end;
   do states <- updateStatesFromReturns S TD Ps F B cs tmn lc gl fs rid als
                  EC noret lc_als_Mem_block_rid_ore_trs';
      ret ((mkState S TD Ps ((mkEC F B cs tmn lc als)::EC) 

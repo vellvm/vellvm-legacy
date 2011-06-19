@@ -302,6 +302,7 @@ Jwf_value :: '' ::=
 
       system , (layouts namedts) |-c const : typ
       (layouts namedts) |- typ
+      system |- typ
       --------------------------------------------------------- :: wf_value_const
       system , (layouts namedts products) , fdef |- const : typ
 
@@ -391,18 +392,19 @@ Jwf_cast :: '' ::=
 
 
       % Check typs
-      system , module , fdef |- value1 : typ1
+      system , module , fdef |- value1 : typ1*
       % BitCast implies a no-op cast of type only. No bits change.
       % However, you can't cast pointers to anything but pointers.
-      Typ.getPrimitiveSizeInBits typ1 = sz1 /\ Typ.getPrimitiveSizeInBits typ2 = sz2 /\ sz1 = sz2
+      %Typ.getPrimitiveSizeInBits typ1 = sz1 /\ Typ.getPrimitiveSizeInBits typ2 = sz2 /\ sz1 = sz2
       % Bitcast requires types of same width.
-      isPointerTyp typ1 iff isPointerTyp typ2 
+      %isPointerTyp typ1 iff isPointerTyp typ2 
       % Disallow aggregates.
-      (not isAggregateTyp typ1) /\ (not isAggregateTyp typ2)
+      %(not isAggregateTyp typ1) /\ (not isAggregateTyp typ2)
       % Check invariance for instructions 
-      fdef , block |-i id = bitcast typ1 value1 to typ2		
-      ----------------------------------------------------------------------------------------------- :: wf_cast_bitcast
-      intrinsic_funs , system , module , fdef , block |-cast id = bitcast typ1 value1 to typ2		
+      fdef , block |-i id = bitcast typ1* value1 to typ2*
+      system |- typ2*		
+      --------------------------------------------------------------------------------------------- :: wf_cast_bitcast
+      intrinsic_funs , system , module , fdef , block |-cast id = bitcast typ1* value1 to typ2*		
 
 defns
 Jwf_trunc :: '' ::=
@@ -425,6 +427,7 @@ Jwf_trunc :: '' ::=
       floating_point2 < floating_point1
       % Check invariance for instructions 
       fdef , block |-i id = trunc_fp floating_point1 value1 to floating_point2
+      system |- floating_point2
       ----------------------------------------------------------------------------------------------- :: wf_trunc_fp
       intrinsic_funs , system , module , fdef , block |-trunc id = trunc_fp floating_point1 value1 to floating_point2	
 
@@ -484,7 +487,8 @@ Jwf_insn :: '' ::=
       intrinsic_funs , system , module , fdef , block |- id = ret void
 
       % Check typs
-      system , module , fdef |- value : int sz /\ sz = 1
+      system , module , fdef |- value : int sz 
+      sz = 1
       % Check labels
       lookupBlockViaLabelFromFdef fdef l1 = block1
       lookupBlockViaLabelFromFdef fdef l2 = block2
@@ -558,15 +562,16 @@ Jwf_insn :: '' ::=
       % Allocation instruction pointer not in the generic address space!
       %
       % Alloca array size must be i32
-      system , module , fdef |- value : int sz /\ sz = 32
+      system , (layouts namedts products) , fdef |- value : int sz 
+      sz = 32
       %
       % Cannot allocate unsized type"
+      (layouts namedts) |- typ
       system |- typ
-      Typ.isSized typ
       % Check invariance for instructions
       fdef , block |-i id = malloc typ value align 
-      -------------------------------------------------------------------------------------- :: wf_insn_malloc
-      intrinsic_funs , system , module , fdef , block |- id = malloc typ value align 
+      --------------------------------------------------------------------------------------------------- :: wf_insn_malloc
+      intrinsic_funs , system , (layouts namedts products) , fdef , block |- id = malloc typ value align 
 
       % Check typs
       system , module , fdef |- value : typ*
@@ -578,22 +583,23 @@ Jwf_insn :: '' ::=
       % Allocation instruction pointer not in the generic address space!
       %
       % Alloca array size must be i32
-      system , module , fdef |- value : int sz /\ sz = 32
+      system , (layouts namedts products) , fdef |- value : int sz 
+      sz = 32
       %
       % Cannot allocate unsized type"
+      (layouts namedts) |- typ
       system |- typ
-      Typ.isSized typ
       % Check invariance for instructions
       fdef , block |-i id = alloca typ value align 
-      -------------------------------------------------------------------------------------- :: wf_insn_alloca
-      intrinsic_funs , system , module , fdef , block |- id = alloca typ value align 
+      -------------------------------------------------------------------------------------------------- :: wf_insn_alloca
+      intrinsic_funs , system , (layouts namedts products) , fdef , block |- id = alloca typ value align 
 
       % Load operand must be a pointer.
       % Load result type does not match pointer operand type!
       system , module , fdef |- value1 : typ1*
       % Check invariance for instructions
       fdef , block |-i id = load (typ1*) value1 align
-      ---------------------------------------------------------------------------------------------- :: wf_insn_load
+      ---------------------------------------------------------------------------------- :: wf_insn_load
       intrinsic_funs , system , module , fdef , block |- id = load (typ1*) value1 align		
 
       % Store operand must be a pointer.
@@ -610,7 +616,7 @@ Jwf_insn :: '' ::=
       </ system , module , fdef |- valuej : typ'' // j />
       typ'' = i32
       % Check indexs
-      getGEPTyp </ valuej // j /> (typ*) = typ'
+      getGEPTyp </ valuej // j /> typ = typ'
       % Check invariance for instructions
       fdef , block |-i id = getelementptr inbounds (typ*) value </ valuej // j />
       ---------------------------------------------------------------------------------------- :: wf_insn_gep
@@ -667,7 +673,8 @@ Jwf_insn :: '' ::=
       intrinsic_funs , system , module , fdef , block |- id = phi typ </ [ valuej , lj ] // j />
 			        
       % Check typs
-      system , module , fdef |- value0 : int sz /\ sz = 1
+      system , module , fdef |- value0 : int sz 
+      sz = 1
       system , module , fdef |- value1 : typ
       system , module , fdef |- value2 : typ
       % Check invariance for instructions

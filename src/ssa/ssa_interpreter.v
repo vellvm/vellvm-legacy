@@ -53,9 +53,13 @@ match state with
         (* there must be a caller of the current function. *)
         if (Instruction.isCallInst c')
         then
-          do Mem' <- free_allocas TD Mem0 als;
-             ret ((mkState Sys TD Ps ((mkEC F' B' cs' tmn' lc' als')::EC'') 
-                   gl fs Mem'), trace_nil)
+          match (getCallerReturnID c') with 
+          | None =>
+              do Mem' <- free_allocas TD Mem0 als;
+                 ret ((mkState Sys TD Ps ((mkEC F' B' cs' tmn' lc' als')::EC'') 
+                       gl fs Mem'), trace_nil)
+          | _ => None
+          end
         else None
       end
     | insn_br bid Cond l1 l2 =>
@@ -301,7 +305,9 @@ Proof.
 
             remember (Instruction.isCallInst c) as R1.
             remember (free_allocas CurTargetData0 Mem0 als) as R2.
+            remember (getCallerReturnID c) as R3.
             destruct R1; try solve [inversion HinterInsn].
+            destruct R3; try solve [inversion HinterInsn].
             destruct R2; inversion HinterInsn; subst; eauto.
 
       Case "insn_br".

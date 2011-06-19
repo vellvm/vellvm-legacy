@@ -205,6 +205,8 @@ Lemma tv_terminator__is__correct : forall TD M fh1 lb1 fh2 lb2 B1 B2 lc gl tmn
 Proof.
   intros TD M fh1 lb1 fh2 lb2 B1 B2 lc gl tmn B1' lc' tr HuniqF1 HuniqF2 Htv_fdef
     Htv_block HdbTerminator.
+  assert (uniqBlocks lb1) as Huniqlb1. destruct fh1. inversion HuniqF1; auto.
+  assert (uniqBlocks lb2) as Huniqlb2. destruct fh2. inversion HuniqF2; auto.
   inversion HdbTerminator; subst.
     remember (isGVZero TD c) as R.
     destruct R; subst.
@@ -759,6 +761,8 @@ Case "dbBlocks_nil".
   exists l2. exists ps2. exists cs2. exists tmn2. 
   exists n. exists lc'.
   repeat (split; auto).
+    destruct fh1. inversion H4; auto.
+    destruct fh2. inversion H5; auto.
 
 Case "dbBlocks_cons".
   intros S TD Ps fs gl F S1 S2 S3 t1 t2 d H d0 H0 S0 Ps2 fh1 lb1 fh2 lb2 lc n 
@@ -804,6 +808,9 @@ Case "dbBlocks_cons".
     split; eauto using eqAL_sym, eqAL_trans.
 
     apply uniqFdef__wf_block with (fh:=fh2)(lb:=lb2)(n:=n); eauto using uniqSystem__uniqFdef.
+      destruct fh1. inversion uniqF1; auto.
+      destruct fh2. inversion uniqF2; auto.
+
 
 Case "dbFdef_func".
     intros S TD Ps gl fs fv fid lp lc rid l1 ps1 cs1 tmn1 fa rt la va lb Result 

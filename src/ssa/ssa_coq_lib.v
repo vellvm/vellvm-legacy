@@ -370,7 +370,7 @@ match i with
 | insn_call _ _ _ _ v0 lp => getValueIDs v0 ++ getParamsOperand lp
 end.
 
-Fixpoint valueInListValue (v0:value) (vs:list_value) : Prop :=
+Definition valueInListValue (v0:value) (vs:list_value) : Prop :=
 In v0 (unmake_list_value vs).
 
 Definition valueInParams (v0:value) (lp:params) : Prop :=
@@ -395,6 +395,15 @@ match i with
 | insn_fcmp _ _ _ v1 v2 => v0 = v1 \/ v0 = v2
 | insn_select _ v1 _ v2 v3 => v0 = v1 \/ v0 = v2 \/ v0 = v3
 | insn_call _ _ _ _ v1 lp => v0 = v1 \/ valueInParams v0 lp
+end.
+
+Definition valueInTmnOperands (v0:value) (i:terminator) : Prop :=
+match i with
+| insn_return _ _ v => v = v0
+| insn_return_void _ => False
+| insn_br _ v _ _ => v = v0
+| insn_br_uncond _ _ => False
+| insn_unreachable _ => False
 end.
 
 Definition getTerminatorOperands (i:terminator) : ids :=
@@ -1506,7 +1515,8 @@ NoDup ls /\ NoDup ids.
 
 Definition uniqFdef fdef : Prop :=
 match fdef with
-| (fdef_intro _ bs) => uniqBlocks bs
+| (fdef_intro (fheader_intro _ _ _ la _) bs) => 
+    uniqBlocks bs /\ NoDup (getArgsIDs la ++ getBlocksLocs bs)
 end.
 
 Definition getProductID product : id :=
@@ -3059,8 +3069,10 @@ Module Typ <: SigType.
  Fixpoint isSized (t:typ) : bool :=
  match t with
  | typ_int _ => true
+ | typ_floatpoint _ => true
  | typ_array _ t' => isSized t'
  | typ_struct lt => isSizedListTyp lt
+ | typ_pointer _ => true
  | _ => false
  end
  with isSizedListTyp (lt : list_typ) : bool :=
