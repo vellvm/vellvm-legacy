@@ -897,24 +897,17 @@ end.
 (**************************************)
 (* conversion between different lists *)
 
-Fixpoint params2OpGVs (TD:TargetData) (M:mem) (lp:params) (locals:GVMap) 
-  (globals:GVMap) : list (option GenericValue):=
+Fixpoint params2GVs (TD:TargetData) (M:mem) (lp:params) (locals:GVMap) 
+  (globals:GVMap) : option (list GenericValue) :=
 match lp with
-| nil => nil
+| nil => Some nil
 | (_, v)::lp' => 
-  getOperandValue TD M v locals globals::params2OpGVs TD M lp' locals globals
+    match (getOperandValue TD M v locals globals, 
+          params2GVs TD M lp' locals globals) with
+    | (Some gv, Some gvs) => Some (gv::gvs)
+    | _ => None
+    end
 end.
-
-Fixpoint opGVs2GVs (lg:list (option GenericValue)) : list GenericValue :=
-match lg with
-| nil => nil
-| (Some g)::lg' => g::opGVs2GVs lg'
-| _::lg' => opGVs2GVs lg'
-end.
-
-Definition params2GVs (TD:TargetData) (M:mem) (lp:params) (locals:GVMap) 
-  (globals:GVMap) : list GenericValue  := 
-  opGVs2GVs (params2OpGVs TD M lp locals globals).
 
 Fixpoint values2GVs (TD:TargetData) (M:mem) (lv:list_value) (locals:GVMap) 
   (globals:GVMap) : option (list GenericValue):=

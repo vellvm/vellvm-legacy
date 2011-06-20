@@ -436,33 +436,35 @@ Inductive dsInsn : State -> State -> trace -> Prop :=
     trace_nil
 
 | dsCall : forall S TD Ps F B lc gl fs rid noret ca fid fv lp cs tmn
-                            l' ps' cs' tmn' EC rt la va lb Mem als ft fa,
+                            l' ps' cs' tmn' EC rt la va lb Mem als ft fa gvs,
   (* only look up the current module for the time being, 
      do not support linkage. *)
   lookupFdefViaGV TD Mem Ps gl lc fs fv = 
     Some (fdef_intro (fheader_intro fa rt fid la va) lb) ->
   getEntryBlock (fdef_intro (fheader_intro fa rt fid la va) lb) = 
     Some (block_intro l' ps' cs' tmn') ->
+  params2GVs TD Mem lp lc gl = Some gvs ->
   dsInsn 
     (mkState S TD Ps ((mkEC F B ((insn_call rid noret ca ft fv lp)::cs) tmn 
                        lc als)::EC) gl fs Mem)
     (mkState S TD Ps ((mkEC (fdef_intro (fheader_intro fa rt fid la va) lb) 
                        (block_intro l' ps' cs' tmn') cs' tmn' 
-                       (initLocals la (params2GVs TD Mem lp lc gl)) 
+                       (initLocals la gvs) 
                        nil)::
                       (mkEC F B ((insn_call rid noret ca ft fv lp)::cs) tmn 
                        lc als)::EC) gl fs Mem)
     trace_nil 
 
 | dsExCall : forall S TD Ps F B lc gl fs rid noret ca fid fv lp cs tmn EC 
-                    rt la Mem als oresult Mem' lc' va ft fa,
+                    rt la Mem als oresult Mem' lc' va ft fa gvs,
   (* only look up the current module for the time being, 
      do not support linkage. 
      FIXME: should add excall to trace
   *)
   lookupExFdecViaGV TD Mem Ps gl lc fs fv = 
     Some (fdec_intro (fheader_intro fa rt fid la va)) ->
-  callExternalFunction Mem fid (params2GVs TD Mem lp lc gl) = (oresult, Mem') ->
+  params2GVs TD Mem lp lc gl = Some gvs ->
+  callExternalFunction Mem fid gvs = (oresult, Mem') ->
   exCallUpdateLocals noret rid oresult lc = Some lc' ->
   dsInsn 
     (mkState S TD Ps ((mkEC F B ((insn_call rid noret ca ft fv lp)::cs) tmn 
@@ -855,30 +857,32 @@ Inductive nsInsn : State*trace -> States -> Prop :=
                          gl fs Mem, tr)::nil)
 
 | nsCall : forall S TD Ps F B lc gl fs rid noret fv fid lp cs tmn
-                fa ca l' ps' cs' tmn' EC rt id la va lb tr Mem als ft,
+                fa ca l' ps' cs' tmn' EC rt id la va lb tr Mem als ft gvs,
   lookupFdefViaGV TD Mem Ps gl lc fs fv = 
     Some (fdef_intro (fheader_intro fa rt fid la va) lb) ->
   getEntryBlock (fdef_intro (fheader_intro fa rt fid la va) lb) = 
     Some (block_intro l' ps' cs' tmn') ->
+  params2GVs TD Mem lp lc gl = Some gvs ->
   nsInsn 
     (mkState S TD Ps ((mkEC F B ((insn_call rid noret ca ft fv lp)::cs) tmn 
                       lc als)::EC) gl fs Mem, tr)
     ((mkState S TD Ps ((mkEC (fdef_intro (fheader_intro fa rt id la va) lb) 
                        (block_intro l' ps' cs' tmn') cs' tmn' 
-                         (initLocals la (params2GVs TD Mem lp lc gl)) 
+                         (initLocals la gvs) 
                          nil)::
                        (mkEC F B ((insn_call rid noret ca ft fv lp)::cs) tmn 
                        lc als)::EC) gl fs Mem, tr)::nil)
 
 | nsExCall : forall S TD Ps F B lc gl fs rid noret ca fv fid lp cs tmn EC
-                    rt la va Mem als tr oresult Mem' lc' ft fa,
+                    rt la va Mem als tr oresult Mem' lc' ft fa gvs,
   (* only look up the current module for the time being, 
      do not support linkage. 
      FIXME: should add excall to trace
   *)
   lookupExFdecViaGV TD Mem Ps gl lc fs fv = 
     Some (fdec_intro (fheader_intro fa rt fid la va)) ->
-  callExternalFunction Mem fid (params2GVs TD Mem lp lc gl) = (oresult, Mem') ->
+  params2GVs TD Mem lp lc gl = Some gvs ->
+  callExternalFunction Mem fid gvs = (oresult, Mem') ->
   exCallUpdateLocals noret rid oresult lc = Some lc' ->
   nsInsn 
     (mkState S TD Ps ((mkEC F B ((insn_call rid noret ca ft fv lp)::cs) tmn 
@@ -1228,14 +1232,15 @@ Inductive dbInsn : State -> State -> trace -> Prop :=
     tr
 
 | dbExCall : forall S TD Ps F B lc gl fs rid noret fv fid lp cs tmn EC
-                    rt la va Mem als oresult Mem' lc' ft fa ca,
+                    rt la va Mem als oresult Mem' lc' ft fa ca gvs,
   (* only look up the current module for the time being, 
      do not support linkage. 
      FIXME: should add excall to trace
   *)
   lookupExFdecViaGV TD Mem Ps gl lc fs fv = 
     Some (fdec_intro (fheader_intro fa rt fid la va)) ->
-  callExternalFunction Mem fid (params2GVs TD Mem lp lc gl) = (oresult, Mem') ->
+  params2GVs TD Mem lp lc gl = Some gvs ->
+  callExternalFunction Mem fid gvs = (oresult, Mem') ->
   exCallUpdateLocals noret rid oresult lc = Some lc' ->
   dbInsn 
     (mkState S TD Ps ((mkEC F B ((insn_call rid noret ca ft fv lp)::cs) tmn 
@@ -1254,15 +1259,16 @@ with dbFdef : value -> typ -> params -> system -> TargetData -> products ->
             list ExecutionContext -> GVMap -> GVMap -> GVMap -> mem -> GVMap ->
             list mblock -> mem -> block -> id -> option value -> trace -> Prop :=
 | dbFdef_func : forall S TD Ps gl fs fv fid lp lc rid fa
-      l' ps' cs' tmn' rt la lb l'' ps'' cs'' Result lc' tr ECs Mem Mem' als' va,
+   l' ps' cs' tmn' rt la lb l'' ps'' cs'' Result lc' tr ECs Mem Mem' als' va gvs,
   lookupFdefViaGV TD Mem Ps gl lc fs fv = 
     Some (fdef_intro (fheader_intro fa rt fid la va) lb) ->
   getEntryBlock (fdef_intro (fheader_intro fa rt fid la va) lb) = 
     Some (block_intro l' ps' cs' tmn') ->
+  params2GVs TD Mem lp lc gl = Some gvs ->
   dbop 
     (mkState S TD Ps ((mkEC (fdef_intro (fheader_intro fa rt fid la va) lb) 
                              (block_intro l' ps' cs' tmn') cs' tmn' 
-                             (initLocals la (params2GVs TD Mem lp lc gl))
+                             (initLocals la gvs)
                             nil)::ECs) gl fs Mem)
     (mkState S TD Ps ((mkEC (fdef_intro (fheader_intro fa rt fid la va) lb) 
                              (block_intro l'' ps'' cs'' 
@@ -1274,15 +1280,16 @@ with dbFdef : value -> typ -> params -> system -> TargetData -> products ->
     (block_intro l'' ps'' cs'' (insn_return rid rt Result)) rid (Some Result) tr
 
 | dbFdef_proc : forall S TD Ps gl fs fv fid lp lc rid fa 
-           l' ps' cs' tmn' rt la lb l'' ps'' cs'' lc' tr ECs Mem Mem' als' va,
+       l' ps' cs' tmn' rt la lb l'' ps'' cs'' lc' tr ECs Mem Mem' als' va gvs,
   lookupFdefViaGV TD Mem Ps gl lc fs fv = 
     Some (fdef_intro (fheader_intro fa rt fid la va) lb) ->
   getEntryBlock (fdef_intro (fheader_intro fa rt fid la va) lb) = 
     Some (block_intro l' ps' cs' tmn') ->
+  params2GVs TD Mem lp lc gl = Some gvs ->
   dbop 
     (mkState S TD Ps ((mkEC (fdef_intro (fheader_intro fa rt fid la va) lb) 
                              (block_intro l' ps' cs' tmn') cs' tmn' 
-                             (initLocals la (params2GVs TD Mem lp lc gl))
+                             (initLocals la gvs)
                             nil)::ECs) gl fs Mem)
     (mkState S TD Ps ((mkEC (fdef_intro (fheader_intro fa rt fid la va) lb) 
                              (block_intro l'' ps'' cs'' (insn_return_void rid)) 
@@ -1314,15 +1321,16 @@ with dbopInf : State -> Trace -> Prop :=
 with dbFdefInf : value -> typ -> params -> system -> TargetData -> products -> 
   list ExecutionContext -> GVMap -> GVMap  -> GVMap -> mem -> Trace -> Prop :=
 | dbFdefInf_intro : forall S TD Ps lc gl fs fv fid lp fa
-                           l' ps' cs' tmn' rt la va lb tr ECs Mem,
+                           l' ps' cs' tmn' rt la va lb tr ECs Mem gvs,
   lookupFdefViaGV TD Mem Ps gl lc fs fv = 
     Some (fdef_intro (fheader_intro fa rt fid la va) lb) ->
   getEntryBlock (fdef_intro (fheader_intro fa rt fid la va) lb) = 
     Some (block_intro l' ps' cs' tmn') ->
+  params2GVs TD Mem lp lc gl = Some gvs ->
   dbopInf 
     (mkState S TD Ps ((mkEC (fdef_intro (fheader_intro fa rt fid la va) lb) 
                         (block_intro l' ps' cs' tmn') cs' tmn'
-                        (initLocals la (params2GVs TD Mem lp lc gl)) 
+                        (initLocals la gvs) 
                         nil)::ECs) gl fs Mem)
     tr ->
   dbFdefInf fv rt lp S TD Ps ECs lc gl fs Mem tr
@@ -1625,14 +1633,15 @@ Inductive nbInsn : State*trace -> States -> Prop :=
                        lc als)::EC) gl fs Mem, tr) states    
 
 | nbExCall : forall S TD Ps F B lc gl fs rid noret ca fv fid lp cs tmn EC
-                     rt la va Mem als tr oresult Mem' lc' ft fa,
+                     rt la va Mem als tr oresult Mem' lc' ft fa gvs,
   (* only look up the current module for the time being, 
      do not support linkage. 
      FIXME: should add excall to trace
   *)
   lookupExFdecViaGV TD Mem Ps gl lc fs fv = 
     Some (fdec_intro (fheader_intro fa rt fid la va)) ->
-  callExternalFunction Mem fid (params2GVs TD Mem lp lc gl) = (oresult, Mem') ->
+  params2GVs TD Mem lp lc gl = Some gvs ->
+  callExternalFunction Mem fid gvs = (oresult, Mem') ->
   exCallUpdateLocals noret rid oresult lc = Some lc' ->
   nbInsn 
     (mkState S TD Ps ((mkEC F B ((insn_call rid noret ca ft fv lp)::cs) tmn 
@@ -1657,15 +1666,16 @@ with nbFdef : value -> typ -> params -> system -> TargetData -> products ->
   list ExecutionContext -> GVMap -> GVMap -> GVMap -> mem -> trace -> 
   list (GVMap*list mblock*mem*block*id*option value*trace) -> Prop :=
 | nbFdef_intro : forall S TD Ps lc gl fs fv fid lp fa
-            l' ps' cs' tmn' rt la va lb tr lc_als_Mem_block_rid_ore_trs ECs Mem,
+       l' ps' cs' tmn' rt la va lb tr lc_als_Mem_block_rid_ore_trs ECs Mem gvs,
   lookupFdefViaGV TD Mem Ps gl lc fs fv = 
     Some (fdef_intro (fheader_intro fa rt fid la va) lb) ->
   getEntryBlock (fdef_intro (fheader_intro fa rt fid la va) lb) = 
     Some (block_intro l' ps' cs' tmn') ->
+  params2GVs TD Mem lp lc gl = Some gvs ->
   nbop_star 
     ((mkState S TD Ps ((mkEC (fdef_intro (fheader_intro fa rt fid la va) lb) 
                          (block_intro l' ps' cs' tmn') cs' tmn' 
-                         (initLocals la (params2GVs TD Mem lp lc gl)) 
+                         (initLocals la gvs) 
                          nil)::ECs) gl fs Mem, tr)
                          ::nil)
     (returnStatesFromOp S TD Ps ECs gl fs fa rt fid la va lb 
@@ -1718,15 +1728,16 @@ with nbFdefInf : value -> typ -> params -> system -> TargetData -> products ->
                  list ExecutionContext -> GVMap -> GVMap -> GVMap -> mem -> 
                  trace -> list Trace -> Prop :=
 | nbFdefInf_intro : forall S TD Ps lc gl fs fv fid lp fa
-                            l' ps' cs' tmn' ECs rt la va lb tr trs' Mem,
+                            l' ps' cs' tmn' ECs rt la va lb tr trs' Mem gvs,
   lookupFdefViaGV TD Mem Ps gl lc fs fv = 
     Some (fdef_intro (fheader_intro fa rt fid la va) lb) ->
   getEntryBlock (fdef_intro (fheader_intro fa rt fid la va) lb) = 
     Some (block_intro l' ps' cs' tmn') ->
+  params2GVs TD Mem lp lc gl = Some gvs ->
   nbopInf 
     ((mkState S TD Ps ((mkEC (fdef_intro (fheader_intro fa rt fid la va) lb) 
                           (block_intro l' ps' cs' tmn') cs' tmn' 
-                          (initLocals la (params2GVs TD Mem lp lc gl)) 
+                          (initLocals la gvs) 
                           nil)::ECs) gl fs Mem, tr)
                           ::nil) 
     trs' ->

@@ -537,31 +537,31 @@ Case "dbFdef_func".
   apply dbCmds_preservation in d1; eauto using unsupported_cmds_axiom.
   apply H0; auto.
   eapply H; eauto.
-  eapply initRmetadata__wf_metadata in e1; eauto.
+  eapply initRmetadata__wf_metadata in e2; eauto.
 
 Case "dbFdef_func_error1".
   apply H0; auto.
   eapply H; eauto.
-  eapply initRmetadata__wf_metadata in e1; eauto.
+  eapply initRmetadata__wf_metadata in e2; eauto.
 
 Case "dbFdef_func_error2".
   eapply H; eauto.
-  eapply initRmetadata__wf_metadata in e1; eauto.
+  eapply initRmetadata__wf_metadata in e2; eauto.
 
 Case "dbFdef_proc".
   apply dbCmds_preservation in d1; eauto using unsupported_cmds_axiom.
   apply H0; auto.
   eapply H; eauto.
-  eapply initRmetadata__wf_metadata in e1; eauto.
+  eapply initRmetadata__wf_metadata in e2; eauto.
 
 Case "dbFdef_proc_error1".
   apply H0; auto.
   eapply H; eauto.
-  eapply initRmetadata__wf_metadata in e1; eauto.
+  eapply initRmetadata__wf_metadata in e2; eauto.
 
 Case "dbFdef_proc_error2".
   eapply H; eauto.
-  eapply initRmetadata__wf_metadata in e1; eauto.
+  eapply initRmetadata__wf_metadata in e2; eauto.
 Qed.
 
 Lemma dbCmd_progress : forall TD lc rm als gl Mem MM c, 

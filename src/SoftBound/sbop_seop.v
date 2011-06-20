@@ -68,6 +68,8 @@ Proof.
       remember (isGVZero TD cond0) as R3.
       destruct R3; inversion H4; subst; auto.
     rewrite EQ. eauto.
+
+  admit.
 Qed.
   
 Lemma sbop_dbCmds__seop_dbCmds : forall TD lc rm als gl Mem MM cs lc' rm' 

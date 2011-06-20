@@ -192,8 +192,8 @@ match state with
         | None => None
         | Some (fdec_intro (fheader_intro fa rt' fid' la va)) =>
           if id_dec fid fid' then
-              match (callExternalFunction Mem0 fid 
-                      (params2GVs TD Mem0 lp lc gl))
+            do gvs <- params2GVs TD Mem0 lp lc gl;
+              match (callExternalFunction Mem0 fid gvs)
               with
               | (oresult, Mem1) =>
                 do lc' <- exCallUpdateLocals noret0 rid oresult lc;
@@ -210,10 +210,11 @@ match state with
               with
             | None => None
             | Some (block_intro l' ps' cs' tmn') =>
+                do gvs <- params2GVs TD Mem0 lp lc gl;
                 ret ((mkState Sys TD Ps ((mkEC (fdef_intro 
                       (fheader_intro fa rt fid la va) lb) 
                       (block_intro l' ps' cs' tmn') cs' tmn' 
-                      (initLocals la (params2GVs TD Mem0 lp lc gl)) 
+                      (initLocals la gvs) 
                       nil)::
                     (mkEC F B ((insn_call rid noret0 tailc0 ft fv lp)::cs) tmn 
                       lc als)::EC) gl fs Mem0),
@@ -246,6 +247,7 @@ Proof.
     destruct (lookupFdefViaGVFromFunTable fs g); try solve [inversion H]. simpl.
     simpl in H. rewrite H. simpl in H0. rewrite H0. 
     apply lookupFdefViaIDFromProducts_ideq in H; subst.
+    rewrite H1.
     destruct (id_dec fid fid); auto.
       destruct (typ_dec rt rt); auto.
         contradict n; auto.
@@ -259,7 +261,7 @@ Proof.
     destruct (lookupFdefViaIDFromProducts Ps i0); try solve [inversion H].
     rewrite H.
     apply lookupFdecViaIDFromProducts_ideq in H; subst.
-    rewrite H0. rewrite H1.
+    rewrite H0. simpl. rewrite H1. rewrite H2.
     destruct (id_dec fid fid); auto.
       destruct (typ_dec rt rt); auto.        
         contradict n; auto.
@@ -490,6 +492,8 @@ Proof.
           destruct (id_dec i1 i2); try solve [inversion HinterInsn]; subst.
           destruct b; try solve [inversion HinterInsn].
           destruct b.
+          remember (params2GVs CurTargetData0 Mem0 p lc Globals0) as R10.
+          destruct R10; try solve [inversion HinterInsn]. simpl in HinterInsn.
           inversion HinterInsn; subst.
           eapply dsCall; eauto.
             unfold lookupFdefViaGV.
@@ -502,8 +506,10 @@ Proof.
             try solve [inversion HinterInsn].
             destruct f. destruct f.
             destruct (id_dec i1 i2); try solve [inversion HinterInsn]; subst.
-            remember (callExternalFunction Mem0 i2 
-              (params2GVs CurTargetData0 Mem0 p lc Globals0)) as R3.
+            remember (params2GVs CurTargetData0 Mem0 p lc Globals0) as R5.
+            destruct R5; try solve [inversion HinterInsn]; subst.
+            simpl in HinterInsn.
+            remember (callExternalFunction Mem0 i2 l0) as R3.
             destruct R3.
             remember (exCallUpdateLocals n i0 o lc) as R4.
             destruct R4; inversion HinterInsn; subst.

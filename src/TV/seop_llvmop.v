@@ -35,7 +35,7 @@ Tactic Notation "se_dbCmd_cases" tactic(first) tactic(c) :=
     c "dbMalloc" | c "dbFree" |
     c "dbAlloca" | c "dbLoad" | c "dbStore" | c "dbGEP" |
     c "dbTrunc" | c "dbExt" | c "dbCast" | 
-    c "dbIcmp" | c "dbFcmp" | c "dbSelect" | c "dbLib" ].
+    c "dbIcmp" | c "dbFcmp" | c "dbSelect" ].
 
 Tactic Notation "se_dbTerminator_cases" tactic(first) tactic(c) :=
   first;
@@ -58,11 +58,6 @@ Lemma seop_dbCmd__llvmop_dbInsn : forall TD lc als gl fs Mem c lc' als' Mem' tr
 Proof.
   intros TD lc als gl fs Mem0 c lc' als' Mem' tr S Ps F B ECs tmn cs H.
   (se_dbCmd_cases (destruct H) Case); eauto.
-    assert (SimpleSE.callLib Mem0 fid (params2GVs TD Mem0 lp lc gl) <> None)as J.
-      rewrite H. intro J. inversion J.
-    apply SimpleSE.callLib__is__defined in J.
-    eapply SimpleSE.callLib__is__correct with (r:=r); auto.
-      split; eauto.
 Qed.
   
 Lemma seop_dbCmds__llvmop_dbop : forall TD lc als gl fs Mem cs cs' lc' als' Mem'
@@ -223,7 +218,7 @@ Case "dbBlocks_cons".
 
 Case "dbFdef_func".
   apply dbFdef_func with (fid:=fid)(l':=l1)(ps':=ps1)(cs':=cs1)(tmn':=tmn1)
-    (fa:=fa)(la:=la)(va:=va)(lb:=lb); auto.
+    (fa:=fa)(la:=la)(va:=va)(lb:=lb)(gvs:=gvs); auto.
     rewrite <- trace_app_commute.
     apply seop_dbCmds__llvmop_dbop with (fs:=fs)(Ps:=Ps)(F:=fdef_intro 
       (fheader_intro fa rt fid la va) lb)(B:=block_intro l2 ps2 (cs21++cs22) 
@@ -242,7 +237,7 @@ Case "dbFdef_func".
 
 Case "dbFdef_proc".
   apply dbFdef_proc with (fid:=fid)(l':=l1)(ps':=ps1)(cs':=cs1)(tmn':=tmn1)
-    (fa:=fa)(la:=la)(va:=va)(lb:=lb); auto.
+    (fa:=fa)(la:=la)(va:=va)(lb:=lb)(gvs:=gvs); auto.
     rewrite <- trace_app_commute.
     apply seop_dbCmds__llvmop_dbop with (fs:=fs)(Ps:=Ps)
       (F:=fdef_intro (fheader_intro fa rt fid la va) lb)
@@ -839,33 +834,6 @@ Case "dbCall".
   exists l0. exists ps. exists cs. exists tmn0. exists lc''.
   exists als0. exists Mem''.
   exists cs1. split; auto.
-  destruct (SimpleSE.isCall_dec (insn_call rid noret0 ca ft fv lp)) 
-    as [isCall_false | isCall_true].
-    (* 
-      Like subAL_callUpdateLocals, we should prove that
-        if oResult is Some v, callUpdate = exCallupdate, which means that 
-           if v is id, the id must be defined ! 
-        if oResult is None, they are obviously equivalent. 
-     *)
-    assert (exists oresult, exCallUpdateLocals noret0 rid oresult lc0 =
-      callUpdateLocals (los, nts) Mem'' noret0 rid oResult lc0 lc' gl0) as EQ. 
-      admit.
-    destruct EQ as [oresult EQ].
-    right. left.
-    exists (insn_call rid noret0 ca ft fv lp).
-    rewrite <- EQ in e0.
-    (* The axiom callLib should also specify trace. *)
-    assert (tr = trace_nil) as EQ'. admit.
-    subst.
-    simpl in isCall_false. 
-    destruct fv as [fid | cn]; try solve [inversion isCall_false].
-    destruct cn; try solve [inversion isCall_false].
-    split; auto.
-      apply SimpleSE.dbLib with (r:=SimpleSE.Rok)(oresult:=oresult); auto.
-      rewrite EQ in e0.
-      eapply SimpleSE.callLib__is__correct with (noret:=noret0) (rid:=rid) (ft:=ft) (lc':=lc''); eauto.
-        eapply negb_false_iff; auto.
-
     right. right.
     exists (insn_call rid noret0 ca ft fv lp).
     split; eauto.
@@ -875,25 +843,6 @@ Case "dbExCall".
   exists l0. exists ps. exists cs. exists tmn0. exists lc'.
   exists als0. exists Mem'.
   exists cs1. split; auto.
-  destruct (SimpleSE.isCall_dec (insn_call rid noret0 ca ft fv lp)) 
-    as [isCall_false | isCall_true].
-    right. left.
-    exists (insn_call rid noret0 ca ft fv lp).
-    simpl in isCall_false. 
-    destruct fv as [fid0 | cn]; try solve [inversion isCall_false].
-    destruct cn; try solve [inversion isCall_false].
-    split; auto.
-      apply SimpleSE.dbLib with (r:=SimpleSE.Rok)(oresult:=oresult); auto.
-      apply negb_false_iff in isCall_false.
-      apply SimpleSE.callLib__is__correct with (ft:=t)(noret:=noret0)(rid:=rid)
-        (ft':=t)(S:=S0)(TD:=(los,nts))(Ps:=Ps0)(cs:=cs)(tmn:=tmn0)
-        (als:=als0)(F:=F0)(B:=block_intro l0 ps cs1 tmn0)(fs:=fs0)(ECs:=ECs) 
-        (Mem:=Mem1)(lp:=lp)(lc:=lc0)(gl:=gl0)(oresult:=oresult)(Mem':=Mem')
-        (r:=SimpleSE.Rok)(lc':=lc')(ca:=ca) in isCall_false.
-      eapply isCall_false.
-        apply LLVMopsem.dbExCall with (fid:=fid)(la:=la)(va:=va)(rt:=rt)(fa:=fa)
-          (oresult:=oresult); auto.
-
   right. right.
   exists (insn_call rid noret0 ca ft fv lp).
   split; eauto.
@@ -1063,13 +1012,13 @@ Case "dbFdef_func".
            (mkEC 
              (fdef_intro (fheader_intro fa rt fid la va) lb) 
              (block_intro l' ps' cs' tmn') cs' tmn' 
-             (initLocals la (params2GVs (los, nts) Mem0 lp lc gl)) 
+             (initLocals la gvs) 
              nil::ECs) gl fs Mem0 =
           mkState S (los, nts) Ps 
            (mkEC 
              (fdef_intro (fheader_intro fa rt fid la va) lb) 
              (block_intro l' ps' cs' tmn') cs' tmn' 
-             (initLocals la (params2GVs (los, nts) Mem0 lp lc gl)) 
+             (initLocals la gvs) 
              nil::ECs) gl fs Mem0) as J. auto.
   apply H with (l'0:=l'')(ps'0:=ps'')(cs'0:=nil)
     (tmn'0:=insn_return rid rt Result)(lc'0:=lc')(als'0:=als')(gl':=gl)(fs':=fs)
@@ -1093,12 +1042,12 @@ Case "dbFdef_proc".
   assert (mkState S (los, nts) Ps 
            (mkEC (fdef_intro (fheader_intro fa rt fid la va) lb) 
                  (block_intro l' ps' cs' tmn') cs' tmn' 
-                 (initLocals la (params2GVs (los, nts) Mem0 lp lc gl)) 
+                 (initLocals la gvs) 
                  nil::ECs) gl fs Mem0 =
           mkState S (los, nts) Ps 
            (mkEC (fdef_intro (fheader_intro fa rt fid la va) lb) 
                  (block_intro l' ps' cs' tmn') cs' tmn' 
-                 (initLocals la (params2GVs (los, nts) Mem0 lp lc gl)) 
+                 (initLocals la gvs) 
                  nil::ECs) gl fs Mem0) as J. auto.
   apply H with (l'0:=l'')(ps'0:=ps'')(cs'0:=nil)(tmn'0:=insn_return_void rid)
     (lc'0:=lc')(als'0:=als')(gl':=gl)(fs':=fs)(Mem'0:=Mem')(cs0':=cs'') in J;

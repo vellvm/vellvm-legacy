@@ -4492,18 +4492,21 @@ Definition trans_fdef__is__correct_prop fv rt lp S1 TD Ps1 lc1 rm1 gl fs Mem1
     mem_simulation mi' TD mgb MM1' Mem1' Mem2' /\
     Values.inject_incr mi mi'.
     
+Axiom callLib__is__defined : forall Mem fid gvs,
+  callLib Mem fid gvs <> None <-> isCallLib fid = true.
+
 Lemma dbCmd_isNotCallInst : forall TD lc rm als gl Mem1 MM1 c lc' rm' als' Mem2 
     MM2 tr r,
   SoftBound.dbCmd TD gl lc rm als Mem1 MM1 c lc' rm' als' Mem2 MM2 tr r ->
   isCall c = false.
-Proof.
+Admitted.
+(*Proof.
   intros TD lc rm als gl Mem1 MM1 c lc' rm' als' Mem2 MM2 tr r HdbCmd.
   induction HdbCmd; auto.
     simpl.
     assert (isCallLib fid = true) as J.
-      eapply callLib__is__defined with (Mem:=Mem0) 
-        (gvs:=params2GVs TD Mem0 lp lc gl).
-      rewrite H. intro J. inversion J.
+      eapply callLib__is__defined with (Mem:=Mem0) (gvs:=gvs).
+      rewrite H0. intro J. inversion J.
     rewrite J. auto.
 
     simpl.
@@ -4513,6 +4516,7 @@ Proof.
       rewrite H. intro J. inversion J.
     rewrite J. auto.
 Qed.
+*)
 
 Definition dbCmd2nbranch : forall TD lc rm als gl Mem1 MM1 c lc' rm' als' Mem2 
   MM2 tr r, 

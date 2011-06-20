@@ -17,7 +17,7 @@ Require Import monad.
 Require Import Metatheory.
 Require Import Znumtheory.
 Require Import sb_def.
-Require Import symexe_def.
+Require Import sub_symexe.
 Require Import sb_tactic.
 Require Import sub_tv.
 Require Import sb_db_trans.
@@ -485,7 +485,7 @@ end.
 
 Definition trans_fdef nts (f:fdef) : option fdef :=
 let '(fdef_intro (fheader_intro fa t fid la va) bs) := f in
-if SimpleSE.isCallLib fid then Some f
+if SBSE.isCallLib fid then Some f
 else
   let ex_ids := getFdefLocs f in
   match gen_metadata_fdef nts ex_ids nil f with

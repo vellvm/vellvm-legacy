@@ -9,8 +9,7 @@ Require Import List.
 Require Import Arith.
 Require Import ZArith.
 Require Import Metatheory.
-Require Import symexe_def.
-Require Import symexe_lib.
+Require Import sub_symexe.
 Require Import symexe_tactic.
 Require Import alist.
 Require Import eq_tv_dec.
@@ -19,7 +18,7 @@ Require Import sub_tv_def.
 Require Import Coq.Bool.Sumbool.
 Require Import monad.
 
-Export SimpleSE.
+Export SBSE.
 
 (* true <-> id == @__hashLoadBaseBound *)
 Axiom is_hashLoadBaseBound : id -> bool.

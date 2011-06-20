@@ -127,11 +127,6 @@ Proof.
     destruct (@H st2_1); subst; try solve [done_right].
     destruct (@H0 st2_2); subst; try solve [done_right].
     destruct (@H1 st2_3); subst; try solve [auto | done_right].
-  Case "sterm_lib".
-    destruct st2; try solve [done_right].
-    destruct (@id_dec i0 i1); subst; try solve [done_right].
-    destruct (@H s0); subst; try solve [done_right].
-    destruct (@H0 l1); subst; try solve [auto | done_right].    
   Case "list_sterm_nil".
     destruct sts2; subst; try solve [auto | done_right].
   Case "list_sterm_cons".
@@ -177,11 +172,6 @@ Proof.
     destruct (@Align.dec a a0); subst; try solve [done_right].
     destruct (@H0 s2); subst; try solve [auto | done_right].
     destruct (@H1 s3); subst; try solve [auto | done_right].
-  Case "smem_lib".
-    destruct sm2; try solve [done_right].
-    destruct (@id_dec i0 i1); subst; try solve [done_right].
-    destruct (@H sm2); subst; try solve [done_right].
-    destruct (@H0 l1); subst; try solve [auto | done_right].    
   Case "sframe_init".
     destruct sf2; subst; try solve [auto | done_right].
   Case "sframe_alloca".
@@ -227,22 +217,6 @@ Proof.
     destruct a. destruct p.
     destruct (@typ_dec t t0); subst; try solve [done_right].
     destruct (@sterm_dec s s0); subst; try solve [auto | done_right].
-Qed.
-
-Lemma scall_dec : forall (sc1 sc2:scall), {sc1=sc2} + {~sc1=sc2}.
-Proof.
-  decide equality.
-    destruct (@list_typ_sterm_dec l0 l1); subst; try solve [auto | done_right].
-    destruct (@value_dec v v0); subst; try solve [auto | done_right].
-    destruct (@typ_dec t t0); subst; try solve [auto | done_right].
-
-    destruct c. destruct c0.
-    destruct (@bool_dec t1 t2); subst; try solve [auto | done_right].
-    destruct (@callconv_dec c c0); subst; try solve [auto | done_right].
-    destruct (@attributes_dec a a1); subst; try solve [auto | done_right].
-    destruct (@attributes_dec a0 a2); subst; try solve [auto | done_right].
-
-    destruct (@bool_dec n n0); subst; try solve [auto | done_right].
 Qed.
 
 Lemma smap_dec : forall (sm1 sm2:smap), {sm1=sm2}+{~sm1=sm2}.

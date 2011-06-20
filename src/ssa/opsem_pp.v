@@ -81,33 +81,15 @@ Proof.
     lc'); auto using eqAL_updateValuesForNewBlock.
 Qed.
 
-Lemma eqAL_params2OpGVs : forall lp TD M lc gl lc',
+Lemma eqAL_params2GVs : forall lp TD M lc gl lc',
   eqAL _ lc lc' ->
-  params2OpGVs TD M lp lc gl = params2OpGVs TD M lp lc' gl.
+  params2GVs TD M lp lc gl = params2GVs TD M lp lc' gl.
 Proof.
   induction lp; intros; simpl; auto.
     destruct a. 
     destruct v; simpl.
       rewrite H. erewrite IHlp; eauto.
       erewrite IHlp; eauto.
-Qed.
-
-Lemma eqAL_params2GVs : forall lp TD M lc gl lc',
-  eqAL _ lc lc' ->
-  params2GVs TD M lp lc gl = params2GVs TD M lp lc' gl.
-Proof.
-  induction lp; intros; simpl; auto.
-    destruct a.
-    unfold params2GVs.
-    erewrite eqAL_params2OpGVs; eauto.
-Qed.
-
-Lemma eqAL_initLocals : forall la TD M lp lc gl lc',
-  eqAL _ lc lc' ->
-  eqAL _ (initLocals la (params2GVs TD M lp lc gl)) 
-         (initLocals la (params2GVs TD M lp lc' gl)).
-Proof.
-  intros. erewrite eqAL_params2GVs; eauto using eqAL_refl. 
 Qed.
 
 Lemma eqAL_exCallUpdateLocals : forall noret0 rid oResult lc lc',

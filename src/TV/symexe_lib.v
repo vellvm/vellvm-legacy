@@ -615,19 +615,6 @@ Proof.
 Qed.
 
 (* Properties of se *)
-
-Lemma se_lib_uniq: forall id0 noret0 tailc0 rt fv lp st
-  (nocall : isCall (insn_call id0 noret0 tailc0 rt fv lp) = false),
-  uniq (STerms st) ->
-  uniq (STerms (se_lib (insn_call id0 noret0 tailc0 rt fv lp) 
-    id0 noret0 tailc0 rt fv lp st eq_refl nocall)).
-Proof.
-  intros.
-  destruct fv; simpl; try solve [simpl in nocall; inversion nocall].
-  destruct c; simpl; try solve [simpl in nocall; inversion nocall].
-    apply updateAddAL_uniq; auto.    
-Qed.
-
 Lemma se_cmd_uniq : forall smap0 sm0 sf0 se0 c,
   uniq smap0 ->
   uniq (STerms (se_cmd (mkSstate smap0 sm0 sf0 se0) c)).
@@ -637,7 +624,7 @@ Proof.
     try solve [
       apply updateAddAL_uniq; auto | 
       auto | 
-      apply se_lib_uniq; auto].
+      inversion nocall].
 Qed.
 
 Lemma se_cmd_dom_mono : forall smap0 sm0 sf0 se0 c,
@@ -648,8 +635,6 @@ Proof.
     intros. assert (J:=@updateAddAL_dom_eq _ sm id0 st0). fsetdec. 
   destruct c; simpl; try solve [eauto using J| fsetdec].
     destruct v; simpl; try solve [simpl in nocall; inversion nocall].
-    destruct c0; simpl; try solve [simpl in nocall; inversion nocall].
-      eauto using J.      
 Qed.
 
 Lemma se_cmd_uniq_aux : forall c sstate0,
@@ -659,8 +644,6 @@ Proof.
   intros [c nocall] sstate0 Huniq.
   destruct c; simpl; try solve [apply updateAddAL_uniq; auto | auto].
     destruct v; simpl; try solve [simpl in nocall; inversion nocall].
-    destruct c0; simpl; try solve [simpl in nocall; inversion nocall].
-      apply updateAddAL_uniq; auto.
 Qed.
 
 Lemma se_cmds_uniq_aux : forall cs sstate0,
@@ -708,8 +691,6 @@ Proof.
   intros [smap0 sm0 sf0 se0] c nc.
   destruct c; simpl; try solve [rewrite updateAddAL_dom_eq; fsetdec | fsetdec].
     destruct v; simpl; try solve [simpl in nc; inversion nc].
-    destruct c0; simpl; try solve [simpl in nc; inversion nc].
-      rewrite updateAddAL_dom_eq; fsetdec. 
 Qed.
 
 Lemma se_cmd_dom_mono' : forall sstate0 c,
@@ -858,8 +839,6 @@ Proof.
   destruct c; intros id' smap1 smem1 sframe1 seffects1 nc HnEQ; simpl;
     try solve [rewrite <- lookupSmap_updateAddAL_neq; auto | auto].
     destruct v; simpl; try solve [inversion nc].
-    destruct c0; simpl; try solve [inversion nc].
-      rewrite <- lookupSmap_updateAddAL_neq; auto.
 Qed.
 
 Lemma init_denotes_id : forall TD lc gl als Mem0,
@@ -1010,12 +989,6 @@ Case "sterm_select_denotes".
   apply H in H11; subst.
   apply H0 in H13; subst.
   apply H1 in H14; subst; auto.
-Case "sterm_lib_denotes".
-  inversion H1; subst.
-  apply H in H9; subst.  
-  apply H0 in H11; subst.
-  rewrite H12 in e.
-  injection e; auto.
 Case "sterms_nil_denote".
   inversion H; auto.
 Case "sterms_cons_denote".
@@ -1050,12 +1023,6 @@ Case "smem_store_denotes".
   apply H0 in H14; subst. 
   apply H1 in H15; subst. 
   rewrite H16 in e. inversion e; auto.
-Case "smem_lib_denotes".
-  inversion H1; subst.
-  apply H in H9; subst.  
-  apply H0 in H11; subst.
-  rewrite H12 in e.
-  injection e; auto.  
 Qed.
 
 Lemma sterm_denotes_genericvalue_det : forall TD lc gl Mem0 st0 gv1 gv2,
@@ -1268,8 +1235,6 @@ Proof.
   (dbCmd_cases (inversion HdbCmd) Case); subst; auto using updateAddAL_uniq.
   Case "dbSelect".
     destruct (isGVZero TD cond0); eauto using updateAddAL_uniq.
-  Case "dbLib".
-    apply exCallUpdateLocals_uniq in H0; auto.      
 Qed.
 
 Lemma se_dbCmds_preservation : forall TD lc als gl Mem0 cs lc' als' Mem' tr,
@@ -1397,7 +1362,7 @@ Case "dbCall_internal".
   inversion d; subst; apply callUpdateLocals_uniq in e1; auto.      
 
 Case "dbCall_external".
-  apply exCallUpdateLocals_uniq in e2; auto.      
+  apply exCallUpdateLocals_uniq in e3; auto.      
 
 Case "dbSubblock_intro".
   apply se_dbCmds_preservation in d; eauto.
@@ -1432,9 +1397,9 @@ Case "dbFdef_func".
   rewrite e in H1. inversion H1; subst. clear H1.
   apply entryBlockInSystemBlockFdef' with (los:=los)(nts:=nts)(Ps:=Ps)(S:=S)
     (fv:=fv)(gl:=gl)(lc:=lc)(fs:=fs)(M:=Mem0) in e0; auto.
-  apply H with (B1:=block_intro l1 ps1 cs1 tmn1)(lc0:=initLocals la0 
-    (params2GVs (los, nts) Mem0 lp lc gl))(als:=nil)(Mem:=Mem0)
-    (B1':=block_intro l2 ps2 (cs21++cs22) (insn_return rid rt Result0))
+  apply H with (B1:=block_intro l1 ps1 cs1 tmn1)(lc:=initLocals la0 gvs)
+    (als:=nil)(Mem:=Mem0)
+    (B1':=block_intro l2 ps2 (cs21++cs22) (insn_return rid rt Result))
     (lc':=lc1)(als':=als1)(Mem':=Mem1) in e0; auto using initLocals_uniq.
   clear H. destruct e0 as [uniqc1 Bin].
   eapply H0 in uniqc1; eauto. clear H0.
@@ -1444,8 +1409,8 @@ Case "dbFdef_proc".
   rewrite e in H1. inversion H1; subst. clear H1.
   apply entryBlockInSystemBlockFdef' with (los:=los)(nts:=nts)(Ps:=Ps)(S:=S)
     (fv:=fv)(gl:=gl)(lc:=lc)(fs:=fs)(M:=Mem0) in e0; auto.
-  apply H with (B1:=block_intro l1 ps1 cs1 tmn1)(lc0:=initLocals la0 
-    (params2GVs (los, nts) Mem0 lp lc gl))(als:=nil)(Mem:=Mem0)
+  apply H with (B1:=block_intro l1 ps1 cs1 tmn1)(lc:=initLocals la0 gvs)
+    (als:=nil)(Mem:=Mem0)
     (B1':=block_intro l2 ps2 (cs21++cs22) (insn_return_void rid))(lc':=lc1)
     (als':=als1)(Mem':=Mem1) in e0; auto using initLocals_uniq.
   clear H. destruct e0 as [uniqc1 Bin].
@@ -1648,9 +1613,6 @@ Case "dbSelect".
   exists (if isGVZero TD cond0 then updateAddAL _ lc1' id0 gv2 else updateAddAL _ lc1' id0 gv1).
   split; auto.
     destruct (isGVZero TD cond0); auto using eqAL_updateAddAL.
-
-Case "dbLib".
-  admit.
 Qed.
 
 Lemma dbCmds_eqEnv : forall TD cs lc1 als1 gl Mem1 lc2 als2 Mem2 tr lc1',
@@ -1840,8 +1802,8 @@ Case "dbCall_internal".
     split; eauto using dbCall_internal.
 
 Case "dbCall_external".
-  apply eqAL_exCallUpdateLocals' with (lc':=lc1')in e2; auto.
-  destruct e2 as [lc2' [J1 J2]].
+  apply eqAL_exCallUpdateLocals' with (lc':=lc1')in e3; auto.
+  destruct e3 as [lc2' [J1 J2]].
   exists lc2'.
   split; eauto using eqAL_exCallUpdateLocals.
     eapply dbCall_external; eauto.
@@ -1895,11 +1857,14 @@ Case "dbBlocks_cons".
 
 Case "dbFdef_func".
   rewrite e in H1. inversion H1; subst. clear H1.
-  assert (J:=@eqAL_initLocals la0 TD Mem0 lp lc gl lc1' H2).
+  assert (J:=@eqAL_params2GVs lp TD Mem0 lc gl lc1' H2).
+  rewrite e1 in J.
+  assert (eqAL _ (initLocals la0 gvs) (initLocals la0 gvs)) as J'.
+    apply eqAL_refl.
   apply H with (B1:=block_intro l1 ps1 cs1 tmn1)(als:=nil)(Mem:=Mem0)(lc3:=lc1)
-    (B1':=block_intro l2 ps2 (cs21++cs22) (insn_return rid rt Result0))
-    (als':=als1)(Mem':=Mem1) in J; auto.
-  clear H. destruct J as [lc2' [HdbBlocks Heq2]].
+    (B1':=block_intro l2 ps2 (cs21++cs22) (insn_return rid rt Result))
+    (als':=als1)(Mem':=Mem1) in J'; auto.
+  clear H. destruct J' as [lc2' [HdbBlocks Heq2]].
   apply H0 in Heq2. clear H0.
   destruct Heq2 as [lc3' [Hsubblocks Heq3]].
   apply dbCmds_eqEnv with (lc1':=lc3') in d1; auto.
@@ -1910,11 +1875,14 @@ Case "dbFdef_func".
 
 Case "dbFdef_proc".
   rewrite e in H1. inversion H1; subst. clear H1.
-  assert (J:=@eqAL_initLocals la0 TD Mem0 lp lc gl lc1' H2).
+  assert (J:=@eqAL_params2GVs lp TD Mem0 lc gl lc1' H2).
+  rewrite e1 in J.
+  assert (eqAL _ (initLocals la0 gvs) (initLocals la0 gvs)) as J'.
+    apply eqAL_refl.
   apply H with (B1:=block_intro l1 ps1 cs1 tmn1)(als:=nil)(Mem:=Mem0)(lc3:=lc1)
     (B1':=block_intro l2 ps2 (cs21++cs22) (insn_return_void rid))(als':=als1)
-    (Mem':=Mem1) in J; auto.
-  clear H. destruct J as [lc2' [HdbBlocks Heq2]].
+    (Mem':=Mem1) in J'; auto.
+  clear H. destruct J' as [lc2' [HdbBlocks Heq2]].
   apply H0 in Heq2. clear H0.
   destruct Heq2 as [lc3' [Hsubblocks Heq3]].
   apply dbCmds_eqEnv with (lc1':=lc3') in d1; auto.

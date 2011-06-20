@@ -34,8 +34,6 @@ match (sb1, sb2) with
 | (mkSB nbs1 call1 iscall1, mkSB nbs2 call2 iscall2) =>
   let st1 := se_cmds sstate_init nbs1 in
   let st2 := se_cmds sstate_init nbs2 in
-  let cl1 := se_call st1 call1 iscall1 in
-  let cl2 := se_call st2 call2 iscall2 in
    (sumbool2bool _ _ (sstate_dec st1 st2)) &&
    (sumbool2bool _ _ (cmd_dec call1 call2))
 end.

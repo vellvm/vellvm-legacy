@@ -17,11 +17,9 @@ Require Import trace.
 Require Import alist.
 Require Import ssa_props.
 Require Import CoqListFacts.
-Require Import symexe_def.
-Require Import symexe_lib.
-Require Import eq_tv_dec.
+Require Import sub_symexe.
 
-Export SimpleSE.
+Export SBSE.
 
 Definition prefix A (l1 l:list A) := exists l2, l1 ++ l2 = l.
 

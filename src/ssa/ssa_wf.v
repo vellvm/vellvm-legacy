@@ -1477,8 +1477,7 @@ Qed.
 (*********************************************)
 (** * Preservation *)
 
-Lemma preservation_dbCall_case : forall los nts lc gl fid lp l' fa rt la va lb 
-  Mem0 bs_contents
+Lemma preservation_dbCall_case : forall fid l' fa rt la va lb bs_contents gvs
   (bs_bound : incl bs_contents (bound_blocks lb))
   (H0 : incl bs_contents [l']),
    match
@@ -1488,7 +1487,7 @@ Lemma preservation_dbCall_case : forall los nts lc gl fid lp l' fa rt la va lb
    with
    | ret ids0 =>
        wf_defs (fdef_intro (fheader_intro fa rt fid la va) lb)
-         (initLocals la (params2GVs (los, nts) Mem0 lp lc gl)) ids0
+         (initLocals la gvs) ids0
    | merror => False
    end.
 Proof.
@@ -1509,7 +1508,7 @@ Proof.
       (va0:=va)(bs:=lb)(fa:=fa) in J1.
     destruct J1 as [t J1].
     exists t. rewrite J1.
-    apply initLocals_spec with (gvs:=params2GVs (los, nts) Mem0 lp lc gl) in Hin.
+    apply initLocals_spec with (gvs:=gvs) in Hin.
     destruct Hin as [gv Hin].
     exists gv. split; auto.
   
@@ -2172,12 +2171,12 @@ Case "dsCall".
 Unfocus.
 
 Case "dsExCall". 
-  unfold exCallUpdateLocals in H1.
+  unfold exCallUpdateLocals in H2.
   destruct noret0.
-    inv H1.
-    eapply preservation_cmd_non_updated_case in HwfS1; eauto.
+    inv H2.
 
-    destruct oresult; inv H1.
+    eapply preservation_cmd_non_updated_case in HwfS1; eauto.
+    destruct oresult; inv H2.
     assert (exists t0, getCmdTyp (insn_call rid false ca ft fv lp) = Some t0)
       as J.
       destruct HwfS1 as 
@@ -3316,6 +3315,61 @@ Proof.
         simpl_env. auto.
 Qed.
 
+Lemma params2GVs_isnt_stuck : forall
+  p22
+  (s : system)
+  los nts
+  (ps : list product)
+  (f : fdef)
+  (i0 : id)
+  n c t v p2
+  (cs : list cmd)
+  (tmn : terminator)
+  (lc : GVMap)
+  (gl : GVMap)
+  (M : mem)
+  (Hwfg1 : wf_global s gl)
+  (HwfSys1 : wf_system nil s)
+  (HmInS1 : moduleInSystemB (module_intro los nts ps) s = true)
+  (HfInPs : InProductsB (product_fdef f) ps = true)
+  (l1 : l)
+  (ps1 : phinodes)
+  (cs1 : list cmd)
+  (Hreach : isReachableFromEntry f
+             (block_intro l1 ps1 (cs1 ++ insn_call i0 n c t v p2 :: cs) tmn))
+  (HbInF : blockInFdefB
+            (block_intro l1 ps1 (cs1 ++ insn_call i0 n c t v p2 :: cs) tmn) f =
+          true)
+  (l0 : list atom)
+  (HeqR : ret l0 =
+         inscope_of_cmd f
+           (block_intro l1 ps1 (cs1 ++ insn_call i0 n c t v p2 :: cs) tmn)
+           (insn_call i0 n c t v p2))
+  (Hinscope : wf_defs f lc l0)
+  (Hex : exists p21, p2 = p21 ++ p22),
+  exists gvs, params2GVs (los, nts) M p22 lc gl = Some gvs.
+Proof.
+  induction p22; intros; simpl; eauto.
+
+    destruct a.
+    destruct Hex as [p21 Hex]; subst.
+    assert (exists gv, getOperandValue (los, nts) M v0 lc gl = Some gv) as J.
+      eapply getOperandValue_inCmdOps_isnt_stuck; eauto.
+        simpl. unfold valueInParams. right. 
+        assert (J:=@in_split_r _ _ (p21 ++ (t0, v0) :: p22) (t0, v0)).
+        remember (split (p21 ++ (t0, v0) :: p22)) as R.
+        destruct R.
+        simpl in J. apply J.
+        apply In_middle.
+    destruct J as [gv J]. 
+    rewrite J.         
+    eapply IHp22 with (M:=M) in HbInF; eauto.  
+      destruct HbInF as [vidxs HbInF].
+      rewrite HbInF. eauto.
+
+      exists (p21 ++ [(t0,v0)]). simpl_env. auto.
+Qed.
+
 Definition undefined_state S : Prop :=
   match S with
   | {| CurTargetData := td;
@@ -3429,12 +3483,16 @@ Definition undefined_state S : Prop :=
        match lookupFdefViaGV td M ps gl lc fs v, 
              lookupExFdecViaGV td M ps gl lc fs v with
        | None, Some (fdec_intro (fheader_intro fa rt fid la va)) =>
-           match callExternalFunction M fid (params2GVs td M p lc gl) with
-           | (oresult, _) =>
+           match params2GVs td M p lc gl with
+           | Some gvs =>
+             match callExternalFunction M fid gvs with
+             | (oresult, _) =>
                 match exCallUpdateLocals n i0 oresult lc with
                 | None => True
                 | _ => False
                 end
+             end
+           | _ => False
            end
        | None, None => True
        | _, _ => False
@@ -4252,6 +4310,10 @@ Proof.
      exists trace_nil. eauto.
 
   SCase "call". 
+    assert (exists gvs, params2GVs (los, nts) M p lc gl = Some gvs) as G.
+      eapply params2GVs_isnt_stuck; eauto. 
+        exists nil. auto.
+    destruct G as [gvs G].
     remember (lookupFdefViaGV (los, nts) M ps gl lc fs v) as Hlk. 
     destruct Hlk as [f' |].
     SSCase "internal call".
@@ -4269,7 +4331,7 @@ Proof.
          CurProducts := ps;
          ECS :=(mkEC (fdef_intro (fheader_intro fa rt fid la va) lb) 
                        (block_intro l5 ps5 cs5 tmn5) cs5 tmn5 
-                       (initLocals la (params2GVs (los, nts) M p lc gl)) 
+                       (initLocals la gvs) 
                        nil)::
                {|
                 CurFunction := f;
@@ -4289,7 +4351,7 @@ Proof.
     destruct Helk as [f' |].
     SSCase "external call".
     destruct f' as [[fa rt fid la va]].
-    remember (callExternalFunction M fid (params2GVs (los, nts) M p lc gl)) as R.
+    remember (callExternalFunction M fid gvs) as R.
     destruct R as [oresult Mem'].
     remember (exCallUpdateLocals n i0 oresult lc) as R'.
     destruct R' as [lc' |].
@@ -4315,9 +4377,8 @@ Proof.
 
       right.
       unfold undefined_state.
-      right. rewrite <- HeqHlk. rewrite <- HeqHelk. rewrite <- HeqR0. 
+      right. rewrite <- HeqHlk. rewrite <- HeqHelk. rewrite G. rewrite <- HeqR0.
       rewrite <- HeqR'. undefbehave.
-
 
     SSCase "stuck".
       right.

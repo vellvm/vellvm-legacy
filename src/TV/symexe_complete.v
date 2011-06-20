@@ -577,8 +577,6 @@ Proof.
             inversion HlookupAL; subst; auto.
 
           destruct (isGVZero TD cond0); eapply se_cmd__denotes__op_cmd__case2; eauto.
-
-  Case "insn_call". admit.
 Qed.
 
 Lemma aux__op_cmds__satisfy__se_cmds : forall nbs TD lc0 als als0 Mem0 lc als' gl Mem1 sstate1 lc' Mem2 tr tr1,
