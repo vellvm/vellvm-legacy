@@ -1521,6 +1521,15 @@ Proof.
     ].
 
     simpl in *.
+    destruct c; try solve [inversion J2].
+    destruct t; inv J2.
+    remember (_const2GV TD M gl vc) as R.
+    destruct R as [[gv2 t2]|]; try solve [inv HeqJ3].
+    destruct (mcast TD M castop_bitcast t2 gv2 (typ_pointer t)); 
+      try solve [inv HeqJ3].
+    apply IHvc with (gv:=gv2)(t3:=t2) in H0; auto.
+    
+    simpl in *.
     remember (_const2GV TD M gl vc) as R.
     destruct R as [[gv2 t2]|]; try solve [inv HeqJ3].
     apply IHvc with (gv:=gv2)(t3:=t2) in J2; auto.
