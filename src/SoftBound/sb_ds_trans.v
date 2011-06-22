@@ -86,6 +86,7 @@ match c with
                    (INTEGER.of_Z 32%Z 1%Z false)) Nil_list_const)) p8)
     end
 | const_gep _ pc _ => get_const_metadata pc
+| const_castop castop_bitcast pc (typ_pointer _) => get_const_metadata pc
 | _ => None
 end.
 

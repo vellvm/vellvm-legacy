@@ -278,6 +278,8 @@ Proof.
     destruct J as [b [ofs [J1 J2]]].
     eapply eq_gv_is_wf_data; eauto.
 
+    admit.
+
     simpl in H1; eauto.
 Qed.
 

@@ -21,16 +21,16 @@ Require Import ssa_dynamic.
 Export LLVMsyntax.
 Export LLVMlib.
 
-Definition sbEC_simulates_EC (sbEC:SoftBound.ExecutionContext) 
+Definition sbEC_simulates_EC (sbEC:SBopsem.ExecutionContext) 
   (EC:LLVMopsem.ExecutionContext) : Prop :=
   match (sbEC, EC) with
-  | (SoftBound.mkEC f1 b1 cs1 tmn1 lc1 rm1 als1, 
+  | (SBopsem.mkEC f1 b1 cs1 tmn1 lc1 rm1 als1, 
      LLVMopsem.mkEC f2 b2 cs2 tmn2 lc2 als2) =>
        f1 = f2 /\ b1 = b2 /\ cs1 = cs2 /\ tmn1 = tmn2 /\ lc1 = lc2 /\
        als1 = als2
   end.
 
-Fixpoint sbECs_simulate_ECs (sbECs:SoftBound.ECStack) (ECs:LLVMopsem.ECStack) 
+Fixpoint sbECs_simulate_ECs (sbECs:SBopsem.ECStack) (ECs:LLVMopsem.ECStack) 
   : Prop :=
   match sbECs, ECs with
   | nil, nil => True
@@ -39,10 +39,10 @@ Fixpoint sbECs_simulate_ECs (sbECs:SoftBound.ECStack) (ECs:LLVMopsem.ECStack)
   | _, _ => False
   end.
 
-Definition sbState_simulates_State (sbSt:SoftBound.State) (St:LLVMopsem.State) 
+Definition sbState_simulates_State (sbSt:SBopsem.State) (St:LLVMopsem.State) 
   : Prop :=
   match (sbSt, St) with
-  | (SoftBound.mkState S1 TD1 Ps1 ECs1 gl1 fs1 M1 MM1,
+  | (SBopsem.mkState S1 TD1 Ps1 ECs1 gl1 fs1 M1 MM1,
      LLVMopsem.mkState S2 TD2 Ps2 ECs2 gl2 fs2 M2) =>
       S1 = S2 /\ TD1 = TD2 /\ Ps1 = Ps2 /\ sbECs_simulate_ECs ECs1 ECs2 /\
       gl1 = gl2 /\ fs1 = fs2 /\ M1 = M2
@@ -50,25 +50,40 @@ Definition sbState_simulates_State (sbSt:SoftBound.State) (St:LLVMopsem.State)
 
 Lemma returnUpdateLocals_sim : forall TD' Mem' c' Result lc1' lc2' rm rm' gl' 
     lc'' rm'', 
-  SoftBound.returnUpdateLocals TD' Mem' c' Result lc1' lc2' rm rm' gl' = 
+  SBopsem.returnUpdateLocals TD' Mem' c' Result lc1' lc2' rm rm' gl' = 
     ret (lc'', rm'') ->
   returnUpdateLocals TD' Mem' c' Result lc1' lc2' gl' = ret lc''.
 Proof.
   intros.  
-  unfold SoftBound.returnUpdateLocals in H.
+  unfold SBopsem.returnUpdateLocals in H.
   unfold returnUpdateLocals.
-  destruct (getCallerReturnID c'); try solve [inversion H; auto].
+  destruct c'; try solve [inversion H; auto].
+  destruct n; try solve [inversion H; auto].
   destruct (getOperandValue TD' Mem' Result lc1' gl'); 
     try solve [inversion H; auto].
-  unfold SoftBound.prop_reg_metadata in H.
-  destruct (SoftBound.get_reg_metadata TD' Mem' gl' rm Result); 
-    inversion H; auto.
-  destruct p. inversion H1; auto.
+  unfold SBopsem.prop_reg_metadata in H.
+  destruct t; try solve [inversion H; auto].
+  destruct t; try solve [inversion H; auto].
+  destruct (SBopsem.get_reg_metadata TD' Mem' gl' rm Result) as [[md ?]|]; 
+    try solve [inversion H; auto].
+Qed.
+
+Lemma exCallUpdateLocals_sim : forall ft noret rid oResult lc rm lc'' rm'', 
+  SBopsem.exCallUpdateLocals ft noret rid oResult lc rm = ret (lc'', rm'') ->
+  exCallUpdateLocals noret rid oResult lc = ret lc''.
+Proof.
+  intros.  
+  unfold SBopsem.exCallUpdateLocals in H.
+  unfold exCallUpdateLocals.
+  destruct noret0; try solve [inversion H; auto].
+  destruct oResult; try solve [inversion H; auto].
+  destruct ft; try solve [inversion H; auto].
+  destruct ft; inversion H; auto.
 Qed.
 
 Lemma getIncomingValuesForBlockFromPHINodes_sim : forall ps TD' M' b1' gl' lc1'
     rm l1,
-  SoftBound.getIncomingValuesForBlockFromPHINodes TD' M' ps b1' gl' lc1' rm =
+  SBopsem.getIncomingValuesForBlockFromPHINodes TD' M' ps b1' gl' lc1' rm =
     Some l1 ->
   exists l2, exists l3, 
     getIncomingValuesForBlockFromPHINodes TD' M' ps b1' gl' lc1' = Some l2 /\ 
@@ -78,25 +93,44 @@ Proof.
     inversion H; subst.
     exists nil. exists nil. eauto.
 
-    destruct a. unfold SoftBound.get_reg_metadata in H.
+    destruct a. unfold SBopsem.get_reg_metadata in H.
     destruct (getValueViaBlockFromValuels l0 b1'); try solve [inversion H].
     remember (getOperandValue TD' M' v lc1' gl') as R0.
     destruct R0; try solve [inversion H].
-    remember (SoftBound.getIncomingValuesForBlockFromPHINodes TD' M' ps b1' gl'
+    remember (SBopsem.getIncomingValuesForBlockFromPHINodes TD' M' ps b1' gl'
           lc1' rm) as R.
     destruct R; try solve [inversion H].
     symmetry in HeqR.
     apply IHps in HeqR.
     destruct HeqR as [l3 [l4 [J1 J2]]].
     rewrite J1.
-    inversion H; subst. clear H. simpl. rewrite J2.
-    destruct v; simpl in *.
-      rewrite <- HeqR0. eauto.
-      rewrite <- HeqR0. eauto.
+    destruct (isPointerTypB t); inversion H; subst; clear H.
+      destruct v; simpl in *.
+        destruct (lookupAL SBopsem.metadata rm i1); inversion H1; subst.
+          rewrite <- HeqR0. simpl. rewrite J2. eauto.
+
+        rewrite <- HeqR0.
+        destruct (
+          match SBopsem.get_const_metadata c with
+         | ret (bc, ec, t) =>
+             do gvb <- const2GV TD' M' gl' bc;
+             (do gve <- const2GV TD' M' gl' ec;
+              ret ({| SBopsem.md_base := gvb; SBopsem.md_bound := gve |}, t))
+         | merror =>
+             ret ({| SBopsem.md_base := null; SBopsem.md_bound := null |},
+                 typ_pointer (typ_int Size.Eight))
+         end
+        ) as [[md mt]|]; inversion H1; subst; simpl; eauto.
+          rewrite J2. eauto.
+
+      simpl. rewrite J2.
+      destruct v; simpl in *.
+        rewrite <- HeqR0. eauto.
+        rewrite <- HeqR0. eauto.
 Qed.
 
 Lemma updateValuesForNewBlock_sim : forall l0 lc1' rm lc' rm' l2 l3,
-  SoftBound.updateValuesForNewBlock l0 lc1' rm = (lc', rm') ->
+  SBopsem.updateValuesForNewBlock l0 lc1' rm = (lc', rm') ->
   split l0 = (l2, l3) ->
   updateValuesForNewBlock l2 lc1' = lc'.
 Proof.
@@ -106,11 +140,11 @@ Proof.
     simpl; auto.
 
     destruct a. destruct p. 
-    remember (SoftBound.updateValuesForNewBlock l0 lc1' rm) as R.
+    remember (SBopsem.updateValuesForNewBlock l0 lc1' rm) as R.
     destruct R.
     remember (split l0) as R1.
     destruct R1. inversion H0; subst.
-    simpl. unfold SoftBound.prop_reg_metadata in H.
+    simpl. unfold SBopsem.prop_reg_metadata in H.
     destruct o.
       destruct p. inversion H; subst.
       erewrite IHl0 with (lc1':=lc1'); eauto.
@@ -120,13 +154,13 @@ Proof.
 Qed.
 
 Lemma switchToNewBasicBlock_sim : forall TD' M' b' b1' gl' lc1' rm lc' rm',
-  SoftBound.switchToNewBasicBlock TD' M' b' b1' gl' lc1' rm = ret (lc', rm') ->
+  SBopsem.switchToNewBasicBlock TD' M' b' b1' gl' lc1' rm = ret (lc', rm') ->
   switchToNewBasicBlock TD' M' b' b1' gl' lc1' = ret lc'.
 Proof.
   intros.
-  unfold SoftBound.switchToNewBasicBlock in H.
+  unfold SBopsem.switchToNewBasicBlock in H.
   unfold switchToNewBasicBlock.
-  remember (SoftBound.getIncomingValuesForBlockFromPHINodes TD' M'
+  remember (SBopsem.getIncomingValuesForBlockFromPHINodes TD' M'
     (getPHINodesFromBlock b') b1' gl' lc1' rm) as R.
   destruct R; try solve [inversion H].
   symmetry in HeqR.
@@ -139,7 +173,7 @@ Proof.
 Qed.
 
 Lemma params2GVs_sim : forall lp gl' TD' M' lc1' rm ogvs,
-  SoftBound.params2GVs TD' M' lp lc1' gl' rm = ret ogvs ->
+  SBopsem.params2GVs TD' M' lp lc1' gl' rm = ret ogvs ->
   exists gvs, exists l2, params2GVs TD' M' lp lc1' gl' = ret gvs /\
     split ogvs = (gvs, l2).
 Proof.
@@ -149,53 +183,55 @@ Proof.
 
     destruct a.
     destruct (getOperandValue TD' M' v lc1' gl'); try solve [inversion H; subst].
-    remember (SoftBound.params2GVs TD' M' lp lc1' gl' rm) as R.
-    destruct R; inversion H; subst.
-      symmetry in HeqR.
-      apply IHlp in HeqR; auto.      
-      destruct HeqR as [gvs [l2 [J1 J2]]].
-      simpl. rewrite J2. rewrite J1.
-      eauto.
+    remember (SBopsem.params2GVs TD' M' lp lc1' gl' rm) as R.
+    destruct R; try solve [inversion H].
+    symmetry in HeqR.
+    apply IHlp in HeqR; auto.      
+    destruct HeqR as [gvs [l2 [J1 J2]]].
+    destruct (isPointerTypB t); inversion H; subst; 
+      simpl; rewrite J2; rewrite J1; eauto.
 Qed.
 
 Lemma initializeFrameValues_sim : forall la rm ogvs lc lc' rm' gvs l2,
-  SoftBound._initializeFrameValues la ogvs lc rm = (lc', rm') -> 
+  SBopsem._initializeFrameValues la ogvs lc rm = (lc', rm') -> 
   split ogvs = (gvs, l2) ->  
   _initializeFrameValues la gvs lc = lc'.
 Proof.
   induction la; simpl; intros.
     inversion H; subst; auto.
 
-    destruct a.
+    destruct a. destruct p.
     destruct ogvs.
       simpl in H0. inversion H0; subst.
-      remember (SoftBound._initializeFrameValues la nil lc rm) as R.
-      destruct R.      
+      remember (SBopsem._initializeFrameValues la nil lc rm) as R.
+      destruct R as [lc1 rm1].
+      unfold SBopsem.prop_reg_metadata in H.     
       symmetry in HeqR.
       eapply IHla in HeqR; eauto.
-      inversion H; subst; auto.
+      destruct (isPointerTypB t); inversion H; subst; auto.
 
-      destruct p0.
+      destruct p.
       simpl in H0. 
       remember (split ogvs) as R'.
       destruct R'.
       inversion H0; subst.
-      remember (SoftBound._initializeFrameValues la ogvs lc rm) as R.
-      destruct R.      
+      remember (SBopsem._initializeFrameValues la ogvs lc rm) as R.
+      destruct R as [lc1 rm1].
       symmetry in HeqR.
       eapply IHla in HeqR; eauto.
-      unfold SoftBound.prop_reg_metadata in H.
-      destruct o; inversion H; subst; auto.
-        destruct p0; inversion H; subst; auto.
+      destruct (isPointerTypB t); try solve [inversion H; subst; auto].
+        unfold SBopsem.prop_reg_metadata in H.
+        destruct o; try solve [inversion H; subst; auto].
+          destruct p; inversion H; subst; auto.
 Qed.
 
 Lemma initLocals_params2GVs_sim : forall lp gl' TD' M' lc1' rm ogvs la lc' rm',
-  SoftBound.params2GVs TD' M' lp lc1' gl' rm = ret ogvs ->
-  SoftBound.initLocals la ogvs rm = (lc', rm') -> 
+  SBopsem.params2GVs TD' M' lp lc1' gl' rm = ret ogvs ->
+  SBopsem.initLocals la ogvs rm = (lc', rm') -> 
   exists gvs, params2GVs TD' M' lp lc1' gl' = ret gvs /\
     initLocals la gvs = lc'.
 Proof.
-  unfold SoftBound.initLocals, initLocals.
+  unfold SBopsem.initLocals, initLocals.
   intros.
   apply params2GVs_sim in H.
   destruct H as [gvs [l2 [J1 J2]]].
@@ -207,14 +243,14 @@ Ltac simpl_sbds_llvmds :=
   match goal with
   | [Hsim : sbState_simulates_State 
            {|
-           SoftBound.CurSystem := _;
-           SoftBound.CurTargetData := _;
-           SoftBound.CurProducts := _;
-           SoftBound.ECS := _::_::_;
-           SoftBound.Globals := _;
-           SoftBound.FunTable := _;
-           SoftBound.Mem := _;
-           SoftBound.Mmap := _ |} ?St |- _ ] =>
+           SBopsem.CurSystem := _;
+           SBopsem.CurTargetData := _;
+           SBopsem.CurProducts := _;
+           SBopsem.ECS := _::_::_;
+           SBopsem.Globals := _;
+           SBopsem.FunTable := _;
+           SBopsem.Mem := _;
+           SBopsem.Mmap := _ |} ?St |- _ ] =>
      destruct St as [S' TD' Ps' ECs' gl' fs' M'];
      destruct Hsim as [Hsim1 [Hims2 [Hsim3 [Hsim4 [Hsim5 [Hsim6 Hsim7]]]]]]; 
        subst;
@@ -228,14 +264,14 @@ Ltac simpl_sbds_llvmds :=
      destruct Hsim42 as [J1 [J2 [J3 [J4 [J5 J6]]]]]; subst
   | [Hsim : sbState_simulates_State 
            {|
-           SoftBound.CurSystem := _;
-           SoftBound.CurTargetData := _;
-           SoftBound.CurProducts := _;
-           SoftBound.ECS := _::_;
-           SoftBound.Globals := _;
-           SoftBound.FunTable := _;
-           SoftBound.Mem := _;
-           SoftBound.Mmap := _ |} ?St |- _ ] =>
+           SBopsem.CurSystem := _;
+           SBopsem.CurTargetData := _;
+           SBopsem.CurProducts := _;
+           SBopsem.ECS := _::_;
+           SBopsem.Globals := _;
+           SBopsem.FunTable := _;
+           SBopsem.Mem := _;
+           SBopsem.Mmap := _ |} ?St |- _ ] =>
      destruct St as [S' TD' Ps' ECs' gl' fs' M'];
      destruct Hsim as [Hsim1 [Hims2 [Hsim3 [Hsim4 [Hsim5 [Hsim6 Hsim7]]]]]]; 
        subst;
@@ -247,43 +283,13 @@ Ltac simpl_sbds_llvmds :=
 
 Ltac invert_prop_reg_metadata :=
   match goal with
-  | [H : SoftBound.prop_reg_metadata _ _ _ _ _ = (_, _) |- _ ] =>
+  | [H : SBopsem.prop_reg_metadata _ _ _ _ _ = (_, _) |- _ ] =>
       inversion H; subst; eauto
-  end.
-
-Definition memory_violation_abort sbSt : Prop :=
-  match sbSt with
-  | {| SoftBound.CurTargetData := TD;
-       SoftBound.ECS := {| SoftBound.CurCmds := insn_load _ t vp _ :: cs;
-                           SoftBound.Locals := lc;
-                           SoftBound.Rmap := rm
-                         |} :: _;
-        SoftBound.Globals := gl;
-        SoftBound.Mem := Mem0 |} => 
-      match SoftBound.get_reg_metadata TD Mem0 gl rm vp, 
-            getOperandValue TD Mem0 vp lc gl with
-      | ret (md, mt), ret gvp => ~ SoftBound.assert_mptr TD t gvp md
-      | _, _ => False
-      end
-  | {| SoftBound.CurTargetData := TD;
-       SoftBound.ECS := {| SoftBound.CurCmds := insn_store _ t v vp _ :: cs;
-                           SoftBound.Locals := lc;
-                           SoftBound.Rmap := rm
-                         |} :: _;
-        SoftBound.Globals := gl;
-        SoftBound.Mem := Mem0 |} => 
-      match SoftBound.get_reg_metadata TD Mem0 gl rm vp, 
-            getOperandValue TD Mem0 vp lc gl with
-      | ret (md, mt), ret gvp => ~ SoftBound.assert_mptr TD t gvp md
-      | _, _ => False
-      end
-  | _ => False
   end.
 
 Lemma sbds__llvmds : forall sbSt St sbSt' tr,
   sbState_simulates_State sbSt St ->
-  SoftBound.dsInsn sbSt sbSt' tr ->
-  memory_violation_abort sbSt \/
+  SBopsem.dsInsn sbSt sbSt' tr ->
   exists St', 
     LLVMopsem.dsInsn St St' tr /\
     sbState_simulates_State sbSt' St'.
@@ -292,7 +298,7 @@ Proof.
   generalize dependent St.
   (sb_dsInsn_cases (induction HdsInsn) Case); intros; simpl_sbds_llvmds; 
     try invert_prop_reg_metadata.
-  Case "dsReturn". right.
+  Case "dsReturn". 
      exists {|
        CurSystem := S';
        CurTargetData := TD';
@@ -307,7 +313,7 @@ Proof.
        FunTable := fs';
        Mem := Mem' |}.
      repeat (split; eauto using returnUpdateLocals_sim).
-  Case "dsReturnVoid". right.
+  Case "dsReturnVoid". 
      exists {|
        CurSystem := S';
        CurTargetData := TD';
@@ -322,7 +328,7 @@ Proof.
        FunTable := fs';
        Mem := Mem' |}.
      repeat (split; eauto).
-  Case "dsBranch". right.
+  Case "dsBranch". 
      exists {|
        CurSystem := S';
        CurTargetData := TD';
@@ -337,7 +343,7 @@ Proof.
        FunTable := fs';
        Mem := M' |}.
      repeat (split; eauto using switchToNewBasicBlock_sim).
-  Case "dsBranch_uncond". right.
+  Case "dsBranch_uncond". 
      exists {|
        CurSystem := S';
        CurTargetData := TD';
@@ -352,7 +358,7 @@ Proof.
        FunTable := fs';
        Mem := M' |}.
      repeat (split; eauto using switchToNewBasicBlock_sim).
-  Case "dsBop". right.
+  Case "dsBop". 
      exists {|
        CurSystem := S';
        CurTargetData := TD';
@@ -367,7 +373,7 @@ Proof.
        FunTable := fs';
        Mem := M' |}.
      repeat (split; eauto).
-  Case "dsFBop". right.
+  Case "dsFBop". 
      exists {|
        CurSystem := S';
        CurTargetData := TD';
@@ -382,7 +388,7 @@ Proof.
        FunTable := fs';
        Mem := M' |}.
      repeat (split; eauto).
-  Case "dsExtractValue". right.
+  Case "dsExtractValue". 
      exists {|
        CurSystem := S';
        CurTargetData := TD';
@@ -397,7 +403,7 @@ Proof.
        FunTable := fs';
        Mem := M' |}.
      repeat (split; eauto).
-  Case "dsInsertValue". right.
+  Case "dsInsertValue". 
      exists {|
        CurSystem := S';
        CurTargetData := TD';
@@ -412,7 +418,7 @@ Proof.
        FunTable := fs';
        Mem := M' |}.
      repeat (split; eauto).
-  Case "dsMalloc". right.
+  Case "dsMalloc". 
      exists {|
        CurSystem := S';
        CurTargetData := TD';
@@ -427,7 +433,7 @@ Proof.
        FunTable := fs';
        Mem := Mem' |}.
      repeat (split; eauto).
-  Case "dsFree". right.
+  Case "dsFree". 
      exists {|
        CurSystem := S';
        CurTargetData := TD';
@@ -442,7 +448,7 @@ Proof.
        FunTable := fs';
        Mem := Mem' |}.
      repeat (split; eauto).
-  Case "dsAlloca". right.
+  Case "dsAlloca". 
      exists {|
        CurSystem := S';
        CurTargetData := TD';
@@ -457,7 +463,7 @@ Proof.
        FunTable := fs';
        Mem := Mem' |}.
      repeat (split; eauto).
-  Case "dsLoad_nptr". right.
+  Case "dsLoad_nptr". 
      exists {|
        CurSystem := S';
        CurTargetData := TD';
@@ -472,7 +478,7 @@ Proof.
        FunTable := fs';
        Mem := M' |}.
      repeat (split; eauto).
-  Case "dsLoad_ptr". right.
+  Case "dsLoad_ptr". 
      exists {|
        CurSystem := S';
        CurTargetData := TD';
@@ -487,9 +493,7 @@ Proof.
        FunTable := fs';
        Mem := M' |}.
      repeat (split; eauto).
-  Case "dsLoad_abort".
-     left. simpl. rewrite H. rewrite H0. auto.
-  Case "dsStore_nptr". right.
+  Case "dsStore_nptr". 
      exists {|
        CurSystem := S';
        CurTargetData := TD';
@@ -504,7 +508,7 @@ Proof.
        FunTable := fs';
        Mem := Mem' |}.
      repeat (split; eauto).
-  Case "dsStore_ptr". right.
+  Case "dsStore_ptr". 
      exists {|
        CurSystem := S';
        CurTargetData := TD';
@@ -519,9 +523,7 @@ Proof.
        FunTable := fs';
        Mem := Mem' |}.
      repeat (split; eauto).
-  Case "dsStore_abort".
-     left. simpl. rewrite H. rewrite H1. auto.
-  Case "dsGEP". right.
+  Case "dsGEP". 
      exists {|
        CurSystem := S';
        CurTargetData := TD';
@@ -536,7 +538,7 @@ Proof.
        FunTable := fs';
        Mem := M' |}.
      repeat (split; eauto).
-  Case "dsTrunc". right.
+  Case "dsTrunc". 
      exists {|
        CurSystem := S';
        CurTargetData := TD';
@@ -551,7 +553,7 @@ Proof.
        FunTable := fs';
        Mem := M' |}.
      repeat (split; eauto).
-  Case "dsExt". right.
+  Case "dsExt". 
      exists {|
        CurSystem := S';
        CurTargetData := TD';
@@ -566,7 +568,7 @@ Proof.
        FunTable := fs';
        Mem := M' |}.
      repeat (split; eauto).
-  Case "dsBitcast_nptr". right.
+  Case "dsBitcast_nptr". 
      exists {|
        CurSystem := S';
        CurTargetData := TD';
@@ -581,7 +583,7 @@ Proof.
        FunTable := fs';
        Mem := M' |}.
      repeat (split; eauto).
-  Case "dsBitcast_ptr". right.
+  Case "dsBitcast_ptr". 
      exists {|
        CurSystem := S';
        CurTargetData := TD';
@@ -596,7 +598,7 @@ Proof.
        FunTable := fs';
        Mem := M' |}.
      repeat (split; eauto).
-  Case "dsInttoptr". right.
+  Case "dsInttoptr". 
      exists {|
        CurSystem := S';
        CurTargetData := TD';
@@ -611,7 +613,7 @@ Proof.
        FunTable := fs';
        Mem := M' |}.
      repeat (split; eauto).
-  Case "dsOthercast". right.
+  Case "dsOthercast". 
      exists {|
        CurSystem := S';
        CurTargetData := TD';
@@ -626,7 +628,7 @@ Proof.
        FunTable := fs';
        Mem := M' |}.
      repeat (split; eauto).
-  Case "dsIcmp". right.
+  Case "dsIcmp". 
      exists {|
        CurSystem := S';
        CurTargetData := TD';
@@ -641,7 +643,7 @@ Proof.
        FunTable := fs';
        Mem := M' |}.
      repeat (split; eauto).
-  Case "dsFcmp". right.
+  Case "dsFcmp". 
      exists {|
        CurSystem := S';
        CurTargetData := TD';
@@ -656,7 +658,7 @@ Proof.
        FunTable := fs';
        Mem := M' |}.
      repeat (split; eauto).
-  Case "dsSelect_nptr". right.
+  Case "dsSelect_nptr". 
      exists {|
        CurSystem := S';
        CurTargetData := TD';
@@ -673,7 +675,7 @@ Proof.
        FunTable := fs';
        Mem := M' |}.
      repeat (split; eauto).
-  Case "dsSelect_ptr". right.
+  Case "dsSelect_ptr". 
      exists {|
        CurSystem := S';
        CurTargetData := TD';
@@ -691,7 +693,7 @@ Proof.
        Mem := M' |}.
      repeat (split; eauto).
        destruct (isGVZero TD' c); invert_prop_reg_metadata; auto.
-  Case "dsCall". right.
+  Case "dsCall". 
      eapply initLocals_params2GVs_sim in H1; eauto.
      destruct H1 as [gvs [J1 J2]].
      exists {|
@@ -706,7 +708,7 @@ Proof.
                  Allocas := nil |} ::
               {| CurFunction := f1';
                  CurBB := b1';
-                 CurCmds := insn_call rid noret0 ca rt fv lp :: cs;
+                 CurCmds := insn_call rid noret0 ca ft fv lp :: cs;
                  Terminator := tmn1';
                  Locals := lc1' ;
                  Allocas := als1' |} :: ECs';
@@ -714,7 +716,7 @@ Proof.
        FunTable := fs';
        Mem := M' |}.
      repeat (split; eauto).
-  Case "dsExCall". right.
+  Case "dsExCall". 
      exists {|
        CurSystem := S';
        CurTargetData := TD';
@@ -728,7 +730,7 @@ Proof.
        Globals := gl';
        FunTable := fs';
        Mem := Mem' |}.
-     repeat (split; eauto).
+     repeat (split; eauto using exCallUpdateLocals_sim).
 Qed.
 
 (*****************************)

@@ -2821,7 +2821,12 @@ Lemma get_const_metadata__wfc : forall c bc ec mt,
 Proof.
   induction c; intros bc ec mt J; simpl in J; try solve [inversion J | auto].
     destruct t; inv J; simpl; auto.
-      eapply IHc; eauto.
+
+    destruct c; inv J; simpl; auto.
+      destruct t; inv H0; simpl; auto.
+        eapply IHc; eauto.
+
+    eapply IHc; eauto.
 Qed.
 
 Lemma mstore__get_reg_metadata : forall TD Mem0 gvp t gv align0 Mem' gl rm vp0,
