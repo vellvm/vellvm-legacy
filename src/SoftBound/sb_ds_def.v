@@ -234,7 +234,7 @@ Definition returnUpdateLocals (TD:TargetData) (M:mem) (c':cmd)
               match get_reg_metadata TD M gl rm Result with
               | Some (md,_) => Some (prop_reg_metadata lc' rm' id0 gr md)
               | None => Some 
-                  (prop_reg_metadata lc' rm' id0 gr (mkMD gundef gundef))
+                  (prop_reg_metadata lc' rm' id0 gr (mkMD null null))
               end
             | _ => Some (updateAddAL _ lc' id0 gr, rm')
             end
@@ -254,7 +254,7 @@ Definition exCallUpdateLocals (ft:typ) (noret:bool) (rid:id)
           match ft with
           | typ_function (typ_pointer _) _ _ => 
                          Some (updateAddAL _ lc rid Result, 
-                               updateAddAL _ rm rid (mkMD gundef gundef))
+                               updateAddAL _ rm rid (mkMD null null))
           | _ => Some (updateAddAL _ lc rid Result, rm)
           end
       end
@@ -282,14 +282,14 @@ match (la, lg) with
      let '(lc',rm') := _initializeFrameValues la' lg' lc rm in
      if isPointerTypB t then
        match opmd with
-       | None => (prop_reg_metadata lc' rm' id0 gv (mkMD gundef gundef))
+       | None => (prop_reg_metadata lc' rm' id0 gv (mkMD null null))
        | Some (md,_) => (prop_reg_metadata lc' rm' id0 gv md)
        end
      else (updateAddAL _ lc' id0 gv, rm')
 | ((t, _, id0)::la', nil) => 
      let '(lc',rm') := _initializeFrameValues la' nil lc rm in
      if isPointerTypB t then
-       (prop_reg_metadata lc' rm' id0 gundef (mkMD gundef gundef))
+       (prop_reg_metadata lc' rm' id0 gundef (mkMD null null))
      else (updateAddAL _ lc' id0 gundef, rm')
 | _ => (lc, rm)
 end.
