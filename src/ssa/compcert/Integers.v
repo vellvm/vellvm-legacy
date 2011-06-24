@@ -18,6 +18,7 @@
 Require Import Axioms.
 Require Import Znumtheory.
 Require Import Coqlib.
+Require Import Psatz.
 
 (** * Comparisons *)
 
@@ -645,6 +646,21 @@ Proof.
   unfold z', max_unsigned. unfold min_signed, max_signed in H.
   rewrite half_modulus_modulus. omega. 
   apply eqm_samerepr. unfold z'; red. exists 1. omega.
+Qed.
+
+Lemma signed_repr_ge_0 : forall z, z >=0 -> signed (repr z) <= z.
+Proof.
+  intros.
+  unfold signed, repr, unsigned, half_modulus, modulus. simpl. 
+  assert (J:=@two_power_nat_pos wordsize).
+  assert (z mod two_power_nat wordsize <= z) as J3.
+  assert (J1:=@Z_div_mod_eq z (two_power_nat wordsize) J).
+  rewrite J1 at 2.
+  assert (z / two_power_nat wordsize >=0) as J2.
+    apply Z_div_ge0; auto.
+      psatz Z.
+  destruct (zlt (z mod two_power_nat wordsize) (two_power_nat wordsize / 2));
+    auto with zarith.
 Qed.
 
 Theorem signed_eq_unsigned:

@@ -46,7 +46,7 @@ Definition getGEPTyp (nts:namedts) (idxs : list_value) (t : typ) : option typ :=
 match idxs with
 | Nil_list_value => None
 | Cons_list_value idx idxs' =>
-    do t <- typ2utyp nts t;
+    do t <- Constant.typ2utyp nts t;
     (* The input t is already an element of a pointer typ *)
     do t' <- getSubTypFromValueIdxs idxs' t;
     ret (typ_pointer t')
@@ -60,7 +60,7 @@ match i with
 | insn_extractelement _ typ _ _ => getElementTyp typ
 | insn_insertelement _ typ _ _ _ _ => typ *)
 | insn_extractvalue _ typ _ idxs => 
-    do t <- typ2utyp nts typ;
+    do t <- Constant.typ2utyp nts typ;
     getSubTypFromConstIdxs idxs t
 | insn_insertvalue _ typ _ _ _ _ => Some typ
 | insn_malloc _ typ _ _ => Some (typ_pointer typ)

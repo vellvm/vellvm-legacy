@@ -127,7 +127,8 @@ Jwf_const :: '' ::=
 
       system |- typ*
       lookupTypViaGIDFromSystem system id = typ*
-      ------------------------------------------- :: wf_const_gid
+      {{ Constant.unifiable_typ [[targetdata]] [[:user_syntax__typ:typ]] }}
+      -------------------------------------------------------------------- :: wf_const_gid
       system , targetdata |-c typ * id : typ*
 
       system , targetdata |-c const : int sz1
@@ -595,21 +596,23 @@ Jwf_insn :: '' ::=
       intrinsic_funs , system , (layouts namedts products) , fdef , block |- id = alloca typ value align 
 
       % Load operand must be a pointer.
-      system , module , fdef |- value1 : typ1*
+      system , (layouts namedts products) , fdef |- value1 : typ1*
       {{ typ2memory_chunk [[:user_syntax__typ:typ1]] <> None }}
+      {{ wf_alignment [[(layouts namedts)]] [[:user_syntax__typ:typ1]] }}
       % Check invariance for instructions
       fdef , block |-i id = load (typ1*) value1 align
-      ---------------------------------------------------------------------------------- :: wf_insn_load
-      intrinsic_funs , system , module , fdef , block |- id = load (typ1*) value1 align		
+      ------------------------------------------------------------------------------------------------------- :: wf_insn_load
+      intrinsic_funs , system , (layouts namedts products) , fdef , block |- id = load (typ1*) value1 align		
 
       % Store operand must be a pointer.
-      system , module , fdef |- value1 : typ
-      system , module , fdef |- value2 : typ*
+      system , (layouts namedts products) , fdef |- value1 : typ
+      system , (layouts namedts products) , fdef |- value2 : typ*
       {{ typ2memory_chunk [[:user_syntax__typ:typ]] <> None }}
+      {{ wf_alignment [[(layouts namedts)]] [[:user_syntax__typ:typ]] }}
       % Check invariance for instructions
       fdef , block |-i id = store typ value1 value2 align
-      ------------------------------------------------------------------------------------------------- :: wf_insn_store
-      intrinsic_funs , system , module , fdef , block |- id = store typ value1 value2 align
+      --------------------------------------------------------------------------------------------------------- :: wf_insn_store
+      intrinsic_funs , system , (layouts namedts products) , fdef , block |- id = store typ value1 value2 align
 
       % Check typs
       system , module , fdef |- value : typ*

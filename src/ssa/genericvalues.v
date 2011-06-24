@@ -82,118 +82,6 @@ match (GV2int TD Size.One gv) with
 | _ => false
 end.
 
-Fixpoint gen_utyp_maps_aux (cid:id) (m:list(id*typ)) (t:typ) : option typ :=
- match t with
- | typ_int s => Some (typ_int s)
- | typ_floatpoint f => Some (typ_floatpoint f)
- | typ_void => Some typ_void
- | typ_label => Some typ_label
- | typ_metadata => Some typ_metadata
- | typ_array s t0 => do ut0 <- gen_utyp_maps_aux cid m t0; ret (typ_array s ut0)
- | typ_function t0 ts0 va => 
-     do ut0 <- gen_utyp_maps_aux cid m t0;
-     do uts0 <- gen_utyps_maps_aux cid m ts0;
-        ret (typ_function ut0 uts0 va)
- | typ_struct ts0 => 
-     do uts0 <- gen_utyps_maps_aux cid m ts0; ret (typ_struct uts0)
- | typ_pointer t0 => 
-     match gen_utyp_maps_aux cid m t0 with
-     | Some ut0 => Some (typ_pointer ut0)
-     | None => 
-         match t0 with
-         | typ_namedt i => if eq_atom_dec i cid then Some t else None
-         | _ => None
-         end
-     end
- | typ_opaque => Some typ_opaque
- | typ_namedt i => lookupAL _ m i
- end
-with gen_utyps_maps_aux (cid:id) (m:list(id*typ)) (ts:list_typ) : option list_typ
-   := 
- match ts with
- | Nil_list_typ => Some Nil_list_typ
- | Cons_list_typ t0 ts0 =>
-     do ut0 <- gen_utyp_maps_aux cid m t0; 
-     do uts0 <- gen_utyps_maps_aux cid m ts0; 
-     ret (Cons_list_typ ut0 uts0)
- end.
-
-Fixpoint gen_utyp_maps (nts:namedts) : list (id*typ) :=
-match nts with
-| nil => nil 
-| namedt_intro id0 t::nts' =>
-  let results := gen_utyp_maps nts' in
-  match gen_utyp_maps_aux id0 results t with
-  | None => results
-  | Some r => (id0, r)::results
-  end
-end.
-
-Fixpoint typ2utyp_aux (m:list(id*typ)) (t:typ) : option typ :=
- match t with
- | typ_int s => Some (typ_int s)
- | typ_floatpoint f => Some (typ_floatpoint f)
- | typ_void => Some typ_void
- | typ_label => Some typ_label
- | typ_metadata => Some typ_metadata
- | typ_array s t0 => do ut0 <- typ2utyp_aux m t0; ret (typ_array s ut0)
- | typ_function t0 ts0 va => 
-     do ut0 <- typ2utyp_aux m t0;
-     do uts0 <- typs2utyps_aux m ts0;
-        ret (typ_function ut0 uts0 va)
- | typ_struct ts0 => do uts0 <- typs2utyps_aux m ts0; ret (typ_struct uts0)
- | typ_pointer t0 => do ut0 <- typ2utyp_aux m t0; ret (typ_pointer ut0)
- | typ_opaque => Some typ_opaque
- | typ_namedt i => lookupAL _ m i
- end
-with typs2utyps_aux (m:list(id*typ)) (ts:list_typ) : option list_typ := 
- match ts with
- | Nil_list_typ => Some Nil_list_typ
- | Cons_list_typ t0 ts0 =>
-     do ut0 <- typ2utyp_aux m t0; 
-     do uts0 <- typs2utyps_aux m ts0; 
-     ret (Cons_list_typ ut0 uts0)
- end.
-
-Definition typ2utyp' (nts:namedts) (t:typ) : option typ :=
-let m := gen_utyp_maps (List.rev nts) in
-typ2utyp_aux m t.
-
-Fixpoint subst_typ (i':id) (t' t:typ) : typ :=
- match t with
- | typ_int _ | typ_floatpoint _ | typ_void | typ_label | typ_metadata 
- | typ_opaque => t
- | typ_array s t0 => typ_array s (subst_typ i' t' t0)
- | typ_function t0 ts0 va => 
-     typ_function (subst_typ i' t' t0) (subst_typs i' t' ts0) va
- | typ_struct ts0 => typ_struct (subst_typs i' t' ts0)
- | typ_pointer t0 => typ_pointer (subst_typ i' t' t0)
- | typ_namedt i => if (eq_atom_dec i i') then t' else t
- end
-with subst_typs (i':id) (t':typ) (ts:list_typ) : list_typ := 
- match ts with
- | Nil_list_typ => Nil_list_typ
- | Cons_list_typ t0 ts0 =>
-     Cons_list_typ (subst_typ i' t' t0) (subst_typs i' t' ts0)
- end.
-
-Fixpoint subst_typ_by_nts (nts:namedts) (t:typ) : typ :=
-match nts with
-| nil => t
-| (namedt_intro id' t')::nts' => subst_typ_by_nts nts' (subst_typ id' t' t)
-end.
-
-Fixpoint subst_nts_by_nts (nts0 nts:namedts) : list (id*typ) :=
-match nts with
-| nil => nil
-| (namedt_intro id' t')::nts' => 
-    (id',(subst_typ_by_nts nts0 t'))::subst_nts_by_nts nts0 nts'
-end.
-
-Definition typ2utyp (nts:namedts) (t:typ) : option typ :=
-let m := subst_nts_by_nts nts nts in
-typ2utyp_aux m t.
-
 Fixpoint mgetoffset_aux (TD:TargetData) (t:typ) (idxs:list Z) (accum:Z) 
   : option Z := 
   match idxs with
@@ -220,7 +108,7 @@ Fixpoint mgetoffset_aux (TD:TargetData) (t:typ) (idxs:list Z) (accum:Z)
 
 Definition mgetoffset (TD:TargetData) (t:typ) (idxs:list Z) : option int32 := 
 let (_, nts) := TD in
-do ut <- typ2utyp nts t;
+do ut <- Constant.typ2utyp nts t;
 do z <- mgetoffset_aux TD ut idxs 0;
 ret (Int.repr 31 z).
 
@@ -1441,16 +1329,22 @@ Qed.
 *)
 
 (** allocate memory with size and alignment *)
+
 Definition malloc (TD:TargetData) (M:mem) (bsz:sz) (gn:GenericValue) (al:align) 
   : option (mem * mblock)%type :=
 match GV2int TD Size.ThirtyTwo gn with
-| Some n => Some (Mem.alloc M 0 ((Size.to_Z bsz) * n))
+| Some n => 
+    if (Coqlib.zle 0 ((Size.to_Z bsz) * n)) then
+      Some (Mem.alloc M 0 ((Size.to_Z bsz) * n))
+    else None
 | None => None
 end.
 
 Definition malloc_one (TD:TargetData) (M:mem) (bsz:sz) (al:align) 
   : option (mem * mblock)%type :=
-Some (Mem.alloc M 0 (Size.to_Z bsz)).
+if (Coqlib.zle 0 (Size.to_Z bsz)) then
+  Some (Mem.alloc M 0 (Size.to_Z bsz))
+else None.
 
 Definition free (TD:TargetData) (M:mem) (ptr:mptr) : option mem :=
 match GV2ptr TD (getPointerSize TD) ptr with
@@ -1500,6 +1394,57 @@ match GV2ptr TD (getPointerSize TD) ptr with
   end
 | _ => None
 end.
+
+Lemma free_inv : forall TD Mem0 gv Mem',
+  free TD Mem0 gv = ret Mem' ->
+  exists blk, exists ofs, exists hi, exists lo,
+    GV2ptr TD (getPointerSize TD) gv = Some (Vptr blk ofs) /\
+    Int.signed 31 ofs = 0%Z /\
+    (lo, hi) = Mem.bounds Mem0 blk /\
+    Mem.free Mem0 blk lo hi = Some Mem'.
+Proof.
+  intros TD Mem0 gv Mem' H0.
+  unfold free in H0.
+  destruct (GV2ptr TD (getPointerSize TD) gv); try solve [inversion H0; subst].
+  destruct v; try solve [inversion H0; subst].
+  destruct (Coqlib.zeq (Int.signed 31 i0) 0); try solve [inversion H0; subst].
+  remember (Mem.bounds Mem0 b) as R.
+  destruct R as [l h].
+  exists b. exists i0. rewrite e. rewrite <- HeqR. exists h. exists l.
+  repeat (split; auto).
+Qed.  
+
+Lemma malloc_inv : forall TD Mem0 tsz gn align0 Mem' mb,
+  malloc TD Mem0 tsz gn align0 = ret (Mem', mb) ->
+  exists n, GV2int TD Size.ThirtyTwo gn = Some n /\
+    (0 <= (Size.to_Z tsz) * n)%Z /\
+    Mem.alloc Mem0 0 (Size.to_Z tsz * n) = (Mem', mb).
+Proof.
+  intros.
+  unfold malloc in H.
+  destruct (GV2int TD Size.ThirtyTwo gn); try solve [inversion H; subst].
+  destruct (Coqlib.zle 0 (Size.to_Z tsz * z)); inversion H; subst.
+  exists z.
+  destruct (Mem.alloc Mem0 0 (Size.to_Z tsz * z)).
+  repeat (split; auto).
+Qed.
+
+Lemma store_inv : forall TD Mem0 gvp t gv align Mem',
+  mstore TD Mem0 gvp t gv align = Some Mem' ->
+  exists b, exists ofs, exists c, exists v0,
+    GV2ptr TD (getPointerSize TD) gvp = Some (Vptr b ofs) /\
+    typ2memory_chunk t = Some c /\
+    GV2val TD gv = Some v0 /\
+    Mem.store c Mem0 b (Int.signed 31 ofs) v0 = Some Mem'.
+Proof.
+  intros TD Mem0 gvp t gv align Mem' H.
+  unfold mstore in H.
+  destruct (GV2ptr TD (getPointerSize TD) gvp); try solve [inversion H; subst].
+  destruct v; try solve [inversion H; subst].
+  destruct (typ2memory_chunk t); try solve [inversion H; subst].
+  destruct (GV2val TD gv); try solve [inversion H; subst].
+  exists b. exists i0. exists m. exists v. split; auto.
+Qed.
 
 End LLVMgv.
 

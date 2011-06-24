@@ -813,6 +813,56 @@ Proof.
   exists l3. exists ps3. exists (cs3'++[c0]). simpl_env. auto.
 Qed.
 
+(* extract/insert values are not supported. *)
+Axiom extractValue_preserves_wf_rmap : forall los nts Mem0 v lc gl 
+  t gv idxs gv' rm fs EC B S Ps F MM id0 als tmn cs
+  (H : getOperandValue (los, nts) Mem0 v lc gl = ret gv)
+  (H0 : extractGenericValue (los, nts) t gv idxs = ret gv')
+  (HwfS1 : wf_State
+            {|
+            CurSystem := S;
+            CurTargetData := (los, nts);
+            CurProducts := Ps;
+            ECS := {|
+                   CurFunction := F;
+                   CurBB := B;
+                   CurCmds := insn_extractvalue id0 t v idxs :: cs;
+                   Terminator := tmn;
+                   Locals := lc;
+                   Rmap := rm;
+                   Allocas := als |} :: EC;
+            Globals := gl;
+            FunTable := fs;
+            Mem := Mem0;
+            Mmap := MM |}),
+   wf_rmap F lc rm -> 
+   wf_rmap F (updateAddAL GenericValue lc id0 gv') rm.
+
+Axiom insertValue_preserves_wf_rmap : forall los nts Mem0 v lc gl 
+  t gv idxs gv' rm fs EC B S Ps F MM id0 als tmn cs t' v' gv''
+  (H : getOperandValue (los, nts) Mem0 v lc gl = ret gv)
+  (H0 : getOperandValue (los, nts) Mem0 v' lc gl = ret gv')
+  (H1 : insertGenericValue (los, nts) t gv idxs t' gv' = ret gv'')
+  (HwfS1 : wf_State
+            {|
+            CurSystem := S;
+            CurTargetData := (los, nts);
+            CurProducts := Ps;
+            ECS := {|
+                   CurFunction := F;
+                   CurBB := B;
+                   CurCmds := insn_insertvalue id0 t v t' v' idxs :: cs;
+                   Terminator := tmn;
+                   Locals := lc;
+                   Rmap := rm;
+                   Allocas := als |} :: EC;
+            Globals := gl;
+            FunTable := fs;
+            Mem := Mem0;
+            Mmap := MM |}),
+   wf_rmap F lc rm -> 
+   wf_rmap F (updateAddAL GenericValue lc id0 gv'') rm.
+
 Ltac preservation_tac HwfS1 :=
   eapply preservation_cmd_updated_case in HwfS1; simpl; try solve [
       eauto | 
@@ -1164,20 +1214,13 @@ Case "dsExtractValue".
       apply in_or_app; simpl; auto.
 
   destruct J as [t0 J].
-  eapply preservation_cmd_updated_case in HwfS1; simpl; eauto.
-    intro J0. 
-    apply updateAddAL_nptr__wf_rmap; auto.
-      apply wf_State__cmd__lookupTypViaIDFromFdef in HwfS1.
-      rewrite HwfS1; simpl; auto. 
-        rewrite J. 
-          admit. (* unsupported *)
+  preservation_tac HwfS1. 
+    eapply extractValue_preserves_wf_rmap; eauto.
+
 Case "dsInsertValue". 
-  eapply preservation_cmd_updated_case with (rm':=rm) in HwfS1; simpl; eauto.
-    intro J. 
-    apply updateAddAL_nptr__wf_rmap; auto.
-      apply wf_State__cmd__lookupTypViaIDFromFdef in HwfS1.
-      rewrite HwfS1; simpl; auto. 
-        admit. (* unsupported *)
+  preservation_tac HwfS1. 
+    eapply insertValue_preserves_wf_rmap with (gv:=gv); eauto.
+
 Case "dsMalloc". 
   eapply preservation_cmd_updated_case with (rm':=
           updateAddAL SBopsem.metadata rm id0
@@ -2502,9 +2545,9 @@ Proof.
         destruct (GV2ptr (los, nts) (getPointerSize (los, nts)) gv); 
           try solve [inv J3].
         destruct v0; inv J3; eauto.
+      inv Hwfc. 
       assert (exists c, typ2memory_chunk t = Some c) as R4. 
-        inv Hwfc. 
-        destruct (typ2memory_chunk t); try solve [eauto | contradict H9; auto].
+        destruct (typ2memory_chunk t); try solve [eauto | contradict H11; auto].
       destruct R3 as [b [ofs R3]].
       destruct R4 as [c R4].
       destruct (Zdivide_dec (align_chunk c) (Int.signed 31 ofs)) as [R5 | R5].
@@ -2516,9 +2559,10 @@ Proof.
             rewrite R3. rewrite R4.
             assert (Mem.valid_access M c b (Int.signed 31 ofs) Readable) as J'.
               apply Mem.valid_access_implies with (p1:=Writable); auto with mem.
-              eapply assert_mptr__valid_access; eauto. split; eauto.
-                inv Hwfc; eauto.
-                admit. (* wf align *)
+              eapply assert_mptr__valid_access; eauto. 
+                split; eauto.
+                apply wf_value__wf_typ in H8. 
+                  destruct H8 as [H8 _]. inv H8; auto.
             apply Mem.valid_access_load in J'.
             destruct J' as [v0 J'].
             rewrite J'.
@@ -2611,9 +2655,9 @@ Proof.
         destruct (GV2ptr (los, nts) (getPointerSize (los, nts)) mgv); 
           try solve [inv J3].
         destruct v1; inv J3; eauto.
+      inv Hwfc. 
       assert (exists c, typ2memory_chunk t = Some c) as R4. 
-        inv Hwfc. 
-        destruct (typ2memory_chunk t); try solve [eauto | contradict H11; auto].
+        destruct (typ2memory_chunk t); try solve [eauto | contradict H13; auto].
       assert (exists v1, GV2val (los, nts) gv = Some v1) as R8.
         destruct gv; simpl; eauto.  
         destruct p; simpl; eauto.  
@@ -2630,9 +2674,10 @@ Proof.
             unfold mstore.
             rewrite R3. rewrite R8. rewrite R4.
             assert (Mem.valid_access M c b (Int.signed 31 ofs) Writable) as J'.
-              eapply assert_mptr__valid_access; eauto. split; eauto.
-                inv Hwfc; eauto.
-                admit. (* wf align *)
+              eapply assert_mptr__valid_access; eauto.
+                split; eauto.
+                apply wf_value__wf_typ in H9. 
+                  destruct H9 as [H9 _]; auto.
             assert (J4:=@Mem.valid_access_store M c b (Int.signed 31 ofs) v1 J').
             destruct J4 as [M' J4].
             rewrite J4.

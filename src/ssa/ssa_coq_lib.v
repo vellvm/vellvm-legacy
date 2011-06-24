@@ -2884,6 +2884,124 @@ match cs with
   end
 end.
 
+
+Fixpoint gen_utyp_maps_aux (cid:id) (m:list(id*typ)) (t:typ) : option typ :=
+ match t with
+ | typ_int s => Some (typ_int s)
+ | typ_floatpoint f => Some (typ_floatpoint f)
+ | typ_void => Some typ_void
+ | typ_label => Some typ_label
+ | typ_metadata => Some typ_metadata
+ | typ_array s t0 => do ut0 <- gen_utyp_maps_aux cid m t0; ret (typ_array s ut0)
+ | typ_function t0 ts0 va => 
+     do ut0 <- gen_utyp_maps_aux cid m t0;
+     do uts0 <- gen_utyps_maps_aux cid m ts0;
+        ret (typ_function ut0 uts0 va)
+ | typ_struct ts0 => 
+     do uts0 <- gen_utyps_maps_aux cid m ts0; ret (typ_struct uts0)
+ | typ_pointer t0 => 
+     match gen_utyp_maps_aux cid m t0 with
+     | Some ut0 => Some (typ_pointer ut0)
+     | None => 
+         match t0 with
+         | typ_namedt i => if eq_atom_dec i cid then Some t else None
+         | _ => None
+         end
+     end
+ | typ_opaque => Some typ_opaque
+ | typ_namedt i => lookupAL _ m i
+ end
+with gen_utyps_maps_aux (cid:id) (m:list(id*typ)) (ts:list_typ) : option list_typ
+   := 
+ match ts with
+ | Nil_list_typ => Some Nil_list_typ
+ | Cons_list_typ t0 ts0 =>
+     do ut0 <- gen_utyp_maps_aux cid m t0; 
+     do uts0 <- gen_utyps_maps_aux cid m ts0; 
+     ret (Cons_list_typ ut0 uts0)
+ end.
+
+Fixpoint gen_utyp_maps (nts:namedts) : list (id*typ) :=
+match nts with
+| nil => nil 
+| namedt_intro id0 t::nts' =>
+  let results := gen_utyp_maps nts' in
+  match gen_utyp_maps_aux id0 results t with
+  | None => results
+  | Some r => (id0, r)::results
+  end
+end.
+
+Fixpoint typ2utyp_aux (m:list(id*typ)) (t:typ) : option typ :=
+ match t with
+ | typ_int s => Some (typ_int s)
+ | typ_floatpoint f => Some (typ_floatpoint f)
+ | typ_void => Some typ_void
+ | typ_label => Some typ_label
+ | typ_metadata => Some typ_metadata
+ | typ_array s t0 => do ut0 <- typ2utyp_aux m t0; ret (typ_array s ut0)
+ | typ_function t0 ts0 va => 
+     do ut0 <- typ2utyp_aux m t0;
+     do uts0 <- typs2utyps_aux m ts0;
+        ret (typ_function ut0 uts0 va)
+ | typ_struct ts0 => do uts0 <- typs2utyps_aux m ts0; ret (typ_struct uts0)
+ | typ_pointer t0 => do ut0 <- typ2utyp_aux m t0; ret (typ_pointer ut0)
+ | typ_opaque => Some typ_opaque
+ | typ_namedt i => lookupAL _ m i
+ end
+with typs2utyps_aux (m:list(id*typ)) (ts:list_typ) : option list_typ := 
+ match ts with
+ | Nil_list_typ => Some Nil_list_typ
+ | Cons_list_typ t0 ts0 =>
+     do ut0 <- typ2utyp_aux m t0; 
+     do uts0 <- typs2utyps_aux m ts0; 
+     ret (Cons_list_typ ut0 uts0)
+ end.
+
+Definition typ2utyp' (nts:namedts) (t:typ) : option typ :=
+let m := gen_utyp_maps (List.rev nts) in
+typ2utyp_aux m t.
+
+Fixpoint subst_typ (i':id) (t' t:typ) : typ :=
+ match t with
+ | typ_int _ | typ_floatpoint _ | typ_void | typ_label | typ_metadata 
+ | typ_opaque => t
+ | typ_array s t0 => typ_array s (subst_typ i' t' t0)
+ | typ_function t0 ts0 va => 
+     typ_function (subst_typ i' t' t0) (subst_typs i' t' ts0) va
+ | typ_struct ts0 => typ_struct (subst_typs i' t' ts0)
+ | typ_pointer t0 => typ_pointer (subst_typ i' t' t0)
+ | typ_namedt i => if (eq_atom_dec i i') then t' else t
+ end
+with subst_typs (i':id) (t':typ) (ts:list_typ) : list_typ := 
+ match ts with
+ | Nil_list_typ => Nil_list_typ
+ | Cons_list_typ t0 ts0 =>
+     Cons_list_typ (subst_typ i' t' t0) (subst_typs i' t' ts0)
+ end.
+
+Fixpoint subst_typ_by_nts (nts:namedts) (t:typ) : typ :=
+match nts with
+| nil => t
+| (namedt_intro id' t')::nts' => subst_typ_by_nts nts' (subst_typ id' t' t)
+end.
+
+Fixpoint subst_nts_by_nts (nts0 nts:namedts) : list (id*typ) :=
+match nts with
+| nil => nil
+| (namedt_intro id' t')::nts' => 
+    (id',(subst_typ_by_nts nts0 t'))::subst_nts_by_nts nts0 nts'
+end.
+
+Definition typ2utyp (nts:namedts) (t:typ) : option typ :=
+let m := subst_nts_by_nts nts nts in
+typ2utyp_aux m t.
+
+Definition unifiable_typ (TD:LLVMtd.TargetData) (t:typ) : Prop :=
+  let '(los,nts) := TD in
+  exists ut, typ2utyp nts t = Some ut /\ 
+    LLVMtd.getTypeAllocSize TD ut = LLVMtd.getTypeAllocSize TD t.
+
 End Constant.
 
 Module GlobalValue <: SigGlobalValue.
@@ -3159,6 +3277,11 @@ Definition typ2memory_chunk (t:typ) : option AST.memory_chunk :=
   | typ_pointer _ => Some (AST.Mint 31)
   | _ => None
   end.
+
+Definition wf_alignment (TD:LLVMtd.TargetData) (t:typ) : Prop := 
+forall s a (abi_or_pref:bool), 
+  LLVMtd.getTypeSizeInBits_and_Alignment TD abi_or_pref t = Some (s,a) -> 
+  (a > 0)%nat.
 
 (**********************************)
 (* reflect *)

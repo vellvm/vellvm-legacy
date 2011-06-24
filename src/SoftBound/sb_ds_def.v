@@ -16,7 +16,6 @@ Require Import Values.
 Require Import Coqlib.
 Require Import monad.
 Require Import Metatheory.
-Require Import sub_symexe.
 Require Import Znumtheory.
 
 Export LLVMsyntax.

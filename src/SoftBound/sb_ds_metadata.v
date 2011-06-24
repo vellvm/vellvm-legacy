@@ -69,31 +69,6 @@ Export SBopsem.
 
 (*****************************************)
 (* misc *)
-Lemma range_perm_alloc_other:
-  forall m1 lo hi m2 b, Mem.alloc m1 lo hi = (m2, b) ->
-  forall b' lo' hi' p,
-  Mem.range_perm m1 b' lo' hi' p ->
-  Mem.range_perm m2 b' lo' hi' p.
-Proof.
-  intros.
-  unfold Mem.range_perm in *.
-  intros ofs J.
-  apply H0 in J.
-  eapply Mem.perm_alloc_1; eauto.
-Qed.
-
-Lemma store_range_perm_1:
-  forall chunk m1 b ofs v m2, Mem.store chunk m1 b ofs v = Some m2 ->
-  forall b' lo' hi' p,
-  Mem.range_perm m1 b' lo' hi' p -> Mem.range_perm m2 b' lo' hi' p.
-Proof.
-  intros.
-  unfold Mem.range_perm in *.
-  intros ofs0 J.
-  apply H0 in J.
-  eapply Mem.perm_store_1; eauto.
-Qed.
-
 Lemma GV2ptr_base2GV : forall TD mb,
   GV2ptr TD (getPointerSize TD) (base2GV TD mb) = 
     Some (Values.Vptr mb (Int.repr 31 0)).
@@ -111,91 +86,6 @@ Proof.
   unfold GV2ptr. unfold bound2GV. unfold ptr2GV. unfold val2GV.
   auto.
 Qed.
-
-Lemma two_power_nat_le_zero : forall n, two_power_nat n >= 0.
-Proof.
-  induction n; simpl.
-    unfold two_power_nat. unfold shift_nat. simpl. zauto.
-    rewrite two_power_nat_S. zauto.
-Qed.
-
-Lemma roundup_is_correct : forall a b, b >0 -> (a + b) / b * b >= a.
-Proof.
-  intros.
-  assert (b<>0). zauto.
-  assert (J:=@Z_div_mod_eq_full (a+b) b H0).
-  assert (b * ((a + b) / b) = a + b - (a + b) mod b) as EQ.
-    zauto.
-  assert (b * ((a + b) / b) = (a + b) / b * b) as EQ'.
-    zauto.
-  rewrite <- EQ'.
-  rewrite EQ.
-  assert (J1:=@Z_mod_lt a b H).
-  assert (J2:=@Z_mod_plus_full a 1 b).
-  rewrite Zmult_1_l in J2.
-  rewrite J2.
-  clear - J1.
-  zauto.
-Qed.
-
-Lemma free_inv : forall TD Mem0 gv Mem',
-  free TD Mem0 gv = ret Mem' ->
-  exists blk, exists ofs, exists hi, exists lo,
-    GV2ptr TD (getPointerSize TD) gv = Some (Vptr blk ofs) /\
-    zeq (Int.signed 31 ofs) 0 /\
-    (lo, hi) = Mem.bounds Mem0 blk /\
-    Mem.free Mem0 blk lo hi = Some Mem'.
-Proof.
-  intros TD Mem0 gv Mem' H0.
-  unfold free in H0.
-  destruct (GV2ptr TD (getPointerSize TD) gv); try solve [inv H0].
-  destruct v; try solve [inv H0].
-  destruct (zeq (Int.signed 31 i0) 0); try solve [inv H0].
-  remember (Mem.bounds Mem0 b) as R.
-  destruct R as [l h].
-  exists b. exists i0. rewrite e. rewrite <- HeqR. exists h. exists l.
-  repeat (split; auto).
-Qed.  
-
-Lemma malloc_inv : forall TD Mem0 tsz gn align0 Mem' mb,
-  malloc TD Mem0 tsz gn align0 = ret (Mem', mb) ->
-  exists n, GV2int TD Size.ThirtyTwo gn = Some n /\
-    Mem.alloc Mem0 0 (Size.to_Z tsz * n) = (Mem', mb).
-Proof.
-  intros.
-  unfold malloc in H.
-  destruct (GV2int TD Size.ThirtyTwo gn); inv H.
-  exists z.
-  destruct (Mem.alloc Mem0 0 (Size.to_Z tsz * z)).
-  split; auto.
-Qed.
-
-Lemma store_inv : forall TD Mem0 gvp t gv align Mem',
-  mstore TD Mem0 gvp t gv align = Some Mem' ->
-  exists b, exists ofs, exists c, exists v0,
-    GV2ptr TD (getPointerSize TD) gvp = Some (Vptr b ofs) /\
-    typ2memory_chunk t = Some c /\
-    GV2val TD gv = Some v0 /\
-    Mem.store c Mem0 b (Int.signed 31 ofs) v0 = Some Mem'.
-Proof.
-  intros TD Mem0 gvp t gv align Mem' H.
-  unfold mstore in H.
-  destruct (GV2ptr TD (getPointerSize TD) gvp); try solve [inv H].
-  destruct v; try solve [inv H].
-  destruct (typ2memory_chunk t); try solve [inv H].
-  destruct (GV2val TD gv); try solve [inv H].
-  exists b. exists i0. exists m. exists v. split; auto.
-Qed.
-
-Lemma uniqFdef__uniqBlockLocs : forall F b1,
-  uniqFdef F -> blockInFdefB b1 F -> NoDup (getBlockLocs b1).
-Proof.
-  intros.
-  destruct F. destruct f.
-  destruct H as [H _]. simpl in H0. destruct H.
-  apply NoDup__InBlocksB in H0; auto.
-Qed.
-
 Lemma updateValuesForNewBlock_spec4 : forall rvs lc x rm lc' rm' md,
   lookupAL _ rm x = None ->
   (lc', rm') = updateValuesForNewBlock rvs lc rm ->
@@ -353,153 +243,6 @@ Proof.
         eapply IHrvs in HeqR; eauto.
 Qed.
 
-Lemma notInBlocks__lookupTypViaIDFromBlocks : forall bs i0,
-  ~ In i0 (getBlocksLocs bs) ->
-  lookupTypViaIDFromBlocks bs i0 = None.
-Proof.
-  induction bs; simpl; intros; auto.
-    rewrite notInBlock__lookupTypViaIDFromBlock.
-      rewrite IHbs; auto.
-      intro J. apply H. apply in_or_app. auto.
-    intro J. apply H. apply in_or_app. auto.
-Qed.    
-
-Lemma lookupTypViaIDFromBlocks__inBlocks : forall bs b i0,
-  NoDup (getBlocksLocs bs) ->
-  InBlocksB b bs = true ->
-  In i0 (getBlockLocs b) ->
-  lookupTypViaIDFromBlocks bs i0 = lookupTypViaIDFromBlock b i0.
-Proof.
-  induction bs; simpl; intros.
-    inversion H0.
-
-    assert (J:=H).
-    apply NoDup_inv in H. destruct H.
-    apply orb_prop in H0. 
-    destruct H0 as [H0 | H0]; eauto.
-      apply blockEqB_inv in H0. subst.
-      apply NoDup_disjoint' with (i0:=i0) in J; auto.
-      apply notInBlocks__lookupTypViaIDFromBlocks in J.
-      rewrite J. destruct (lookupTypViaIDFromBlock a i0); auto.
-
-      apply NoDup_disjoint with (i0:=i0) in J;
-        eauto using in_getBlockLocs__in_getBlocksLocs.
-      rewrite notInBlock__lookupTypViaIDFromBlock; auto.
-Qed.
-
-Lemma InCmds_lookupTypViaIDFromCmds' : forall cs id1 c,
-  NoDup (getCmdsLocs cs) ->
-  In c cs ->
-  getCmdID c = Some id1 ->
-  lookupTypViaIDFromCmds cs id1 = getCmdTyp c.
-Proof.
-  induction cs; intros.
-    inversion H0.
-
-    simpl in *.
-    inv H. unfold lookupTypViaIDFromCmd.
-    destruct H0 as [H0 | H0]; subst.
-      apply getCmdLoc_getCmdID in H1.
-      rewrite H1.
-      destruct (@eq_dec id (@EqDec_eq_of_EqDec id EqDec_atom) id1 id1); subst.
-        rewrite NotInCmdLocs__lookupTypViaIDFromCmds; auto.
-        destruct (getCmdTyp c); auto.
-
-        contradict n; auto.
-
-      remember (getCmdTyp a) as R.
-      destruct R; eauto.
-      destruct (@eq_dec id (@EqDec_eq_of_EqDec id EqDec_atom) id1 (getCmdLoc a));
-        subst; eauto.
-
-        apply getCmdID_in_getCmdsLocs with (i0:=getCmdLoc a) in H0; auto.
-        contradict H0; auto.
-Qed.
-
-Lemma uniqF__lookupTypViaIDFromFdef' : forall l1 ps1 cs1 tmn1 f c i0,
-  uniqFdef f ->
-  blockInFdefB (block_intro l1 ps1 cs1 tmn1) f = true -> 
-  In c cs1 ->
-  getCmdID c = Some i0 ->
-  lookupTypViaIDFromFdef f i0 = getCmdTyp c.
-Proof.
-  intros.
-  destruct f. destruct f. inversion H.
-  apply NoDup_inv in H4.
-  destruct H4.
-  simpl in *.
-  assert (In i0 (getCmdsLocs cs1)) as HInCs.
-    eapply getCmdID_in_getCmdsLocs in H1; eauto.
-  assert (In i0 (getBlocksLocs b)) as Hin.
-    eapply in_getBlockLocs__in_getBlocksLocs in H0; eauto.
-    simpl. apply in_or_app. right. apply in_or_app; auto.
-  destruct H as [J1 J2].
-  assert (~ In i0 (getArgsIDs a)) as Hnotin.
-    eapply NoDup_disjoint; eauto.
-  apply NotInArgsIDs_lookupTypViaIDFromArgs in Hnotin.
-  rewrite Hnotin.
-  erewrite lookupTypViaIDFromBlocks__inBlocks; eauto. 
-    simpl.
-    apply NoDup__InBlocksB in H0; auto.
-    assert (J:=H0).
-    rewrite_env ((getPhiNodesIDs ps1 ++ getCmdsLocs cs1) ++ 
-      [getTerminatorID tmn1]) in H0.
-    apply NoDup_inv in H0. destruct H0 as [H0 _].
-    assert (~ In i0 (getPhiNodesIDs ps1)) as HnotinPs.
-      eapply NoDup_disjoint in H0; eauto.
-    apply NotInPhiNodesIDs__lookupTypViaIDFromPhiNodes in HnotinPs.
-    rewrite HnotinPs.
-    apply NoDup_inv in H0. destruct H0 as [_ H0]. 
-    erewrite InCmds_lookupTypViaIDFromCmds'; eauto.
-    destruct (getCmdTyp c); auto.
-      unfold lookupTypViaIDFromTerminator.
-      destruct (i0 == getTerminatorID tmn1); subst; auto.
-        clear - J HInCs.
-        simpl in J.
-        apply NoDup_inv in J. destruct J as [_ J].
-        eapply NoDup_disjoint' in J; eauto.
-          contradict J; simpl; auto.
-
-    simpl. apply in_or_app. right. apply in_or_app. auto.
-Qed.
-
-Lemma lookupTypViaIDFromFdef__lookupTypViaIDFromPhiNodes : forall F id1 t b1,
-  uniqFdef F ->
-  lookupTypViaIDFromFdef F id1 = Some t ->
-  blockInFdefB b1 F ->
-  In id1 (getPhiNodesIDs (getPHINodesFromBlock b1)) ->
-  lookupTypViaIDFromPhiNodes (getPHINodesFromBlock b1) id1 = Some t. 
-Proof.
-  intros F id1 t b1 Huniq Hlk HBinF Hin.
-  destruct F. destruct f. simpl in *.
-  destruct Huniq as [Huniq1 Huniq2].
-  destruct Huniq1 as [_ Huniq1].
-  assert (Huniq1':=Huniq1).
-  eapply NoDup__InBlocksB with (b:=b1) in Huniq1; eauto.
-  destruct b1. simpl in *.
-  eapply NoDup_disjoint with (i0:=id1) in Huniq2; eauto.
-    rewrite NotInArgsIDs_lookupTypViaIDFromArgs in Hlk; auto.
-    erewrite lookupTypViaIDFromBlocks__inBlocks in Hlk; eauto.
-      simpl in Hlk.
-      destruct (lookupTypViaIDFromPhiNodes p id1); auto. 
-      remember (lookupTypViaIDFromCmds c id1) as R.
-      destruct R.
-        symmetry in HeqR.
-        apply lookupTypViaIDFromCmds__InCmdsLocs in HeqR.
-        eapply NoDup_disjoint' with (i0:=id1) in Huniq1; eauto.
-          contradict Huniq1. apply in_or_app; auto.
-        
-        unfold lookupTypViaIDFromTerminator in Hlk.
-        destruct (id1 == getTerminatorID t1); subst; try solve [inv Hlk].
-        eapply NoDup_disjoint' with (i0:=getTerminatorID t1) in Huniq1; eauto.
-          contradict Huniq1. apply in_or_app. simpl. auto.
-        
-      simpl. apply in_or_app. auto.
-
-    eapply in_getBlockLocs__in_getBlocksLocs; eauto.
-      simpl. apply in_or_app. auto.
-Qed.
-
 Lemma initializeFrameValues_spec1 : forall la lc1 rm1 x md lc2 rm2,
   lookupAL _ rm1 x = Some md ->
   (lc2, rm2) = _initializeFrameValues la nil lc1 rm1 ->
@@ -515,78 +258,6 @@ Proof.
       destruct (eq_atom_dec i0 x); subst.
         rewrite lookupAL_updateAddAL_eq; eauto.
         rewrite <- lookupAL_updateAddAL_neq; eauto.
-Qed.
-
-Lemma getArgsIDs_app : forall l1 l2,
-  getArgsIDs (l1++l2) = getArgsIDs l1 ++ getArgsIDs l2.
-Proof.
-  induction l1; simpl; intros; auto.
-    destruct a. simpl. rewrite IHl1; auto.
-Qed.
-
-Lemma NoDup_lookupTypViaIDFromArgs : forall la1 t a i0 la2,
-  NoDup (getArgsIDs (la1 ++ (t, a, i0) :: la2)) ->
-  lookupTypViaIDFromArgs (la1 ++ (t, a, i0) :: la2) i0 = ret t.
-Proof.
-  induction la1; simpl; intros.
-    destruct (i0 == i0); auto.
-      contradict n; auto.
-
-    destruct a. destruct p.
-    inv H.
-    destruct (i0 == i1); subst; auto.
-      rewrite getArgsIDs_app in H2. simpl in H2.
-      contradict H2.
-      apply in_or_app. simpl. auto.
-Qed.
-
-Lemma NoDupBlockLocs__notInCmds : forall l2 ps2 cs2' c' tmn',
-  NoDup (getBlockLocs (block_intro l2 ps2 (cs2' ++ [c']) tmn')) ->
-  ~ In (getCmdLoc c') (getCmdsLocs cs2').
-Proof.
-  intros.
-  simpl in H.
-  apply NoDup_inv in H.
-  destruct H as [_ J].
-  apply NoDup_inv in J.
-  destruct J as [J _].
-  rewrite getCmdsLocs_app in J.
-  simpl in J.
-  apply NoDup_last_inv in J. auto.
-Qed.
-
-Lemma NoDupBlockLocs__NoDupCmds : forall l2 ps2 cs2' tmn',
-  NoDup (getBlockLocs (block_intro l2 ps2 cs2' tmn')) ->
-  NoDup (getCmdsLocs cs2').
-Proof.
-  intros.
-  simpl in H.
-  apply NoDup_inv in H.
-  destruct H as [_ J].
-  apply NoDup_inv in J.
-  destruct J as [J _]. auto.
-Qed.
-
-Lemma wf_value_list__in_params__wf_value : forall S m F tvs
-  (H18: wf_value_list
-          (make_list_system_module_fdef_value_typ
-             (map_list_typ_value
-                (fun (typ_' : typ) (value_'' : value) =>
-                 (S, m, F, value_'', typ_'))
-                tvs)))
-  (t1 : typ) (v1 : value),
-    In (t1, v1)
-     (map_list_typ_value
-        (fun (typ_' : typ) (value_'' : value) => (typ_', value_''))
-        tvs) ->
-    wf_value S m F v1 t1.
-Proof.
-  induction tvs; simpl; intros.
-    inv H.
- 
-    inv H18. 
-    destruct H as [H | H]; eauto.
-      inv H; auto.
 Qed.
 
 Lemma initializeFrameValues_spec3 : forall la lc x rm lc' rm' md,
@@ -783,7 +454,7 @@ Proof.
       intro H.
       eapply blk_temporal_safe_store_2 in H; eauto.
       apply J2 in H.
-      eauto using store_range_perm_1.
+      eauto using Mem.store_range_perm_1.
 Qed.
 
 Lemma free_preserves_temporal_prop : forall (Mem0 Mem' : mem) (b : Values.block)
@@ -875,7 +546,7 @@ Proof.
       contradict J1'; zauto.
       
       apply J2' in H4.
-      eauto using range_perm_alloc_other.
+      eauto using Mem.range_perm_alloc_other.
 Qed.
 
 (***********************************************)
@@ -917,39 +588,6 @@ Proof.
   intros m Mem0 b ofs0 v0 Mem' TD MM b0 ofs gvb gve H1 Hwfm J.
   apply wf_mmetadata__wf_data with (Mem0:=Mem0)(TD:=TD) in J; eauto.
   eapply wf_data__store__wf_data; eauto.
-Qed.
-
-Lemma Z_of_nat_ge_0 : forall n, Z_of_nat n >= 0.
-Proof.
-  induction n.
-    simpl. zauto.
-    assert (J:=@Z_of_S_gt_O n). zauto.
-Qed.
-
-Require Import Psatz.         
-
-Lemma two_power_nat_pos : forall n, two_power_nat n > 0.
-Proof.
-  induction n.
-    rewrite two_power_nat_correct.
-    unfold Zpower_nat. simpl. zauto.
-    rewrite two_power_nat_S. zauto.
-Qed.
-
-Lemma signed_repr_ge_0 : forall z, z >=0 -> Int.signed 31 (Int.repr 31 z) <= z.
-Proof.
-  intros.
-  unfold Int.signed, Int.repr, Int.unsigned, Int.half_modulus, Int.modulus, 
-    Int.wordsize. simpl. 
-  assert (J:=@two_power_nat_pos 32).
-  assert (z mod two_power_nat 32 <= z) as J3.
-  assert (J1:=@Z_div_mod_eq z (two_power_nat 32) J).
-  rewrite J1 at 2.
-  assert (z / two_power_nat 32 >=0) as J2.
-    apply Z_div_ge0; auto.
-      psatz Z.
-  destruct (zlt (z mod two_power_nat 32) (two_power_nat 32 / 2));
-    zauto.
 Qed.
 
 Lemma get_const_metadata_gid__wf_data : forall S TD Mem0 gl t i0 gvb gve,
@@ -996,11 +634,14 @@ Proof.
   simpl in HeqR0.
   unfold mgetoffset in HeqR0.
   destruct TD.
-  assert (exists ut2, typ2utyp l1 (typ_array 0%nat t) = 
+  assert (exists ut2, Constant.typ2utyp l1 (typ_array 0%nat t) = 
     Some (typ_array 0%nat ut2) /\
     getTypeAllocSize (l0, l1) ut2 = getTypeAllocSize (l0, l1) t) as J.
-    unfold typ2utyp. simpl.
-    admit. (* wft *)
+    clear - Hwfc. inv Hwfc. 
+    unfold Constant.unifiable_typ in H5.
+    destruct H5 as [ut [H5 H6]].
+    unfold Constant.typ2utyp in *.
+    simpl. rewrite H5. simpl. rewrite <- H6. eauto.
   destruct J as [ut2 [J6 J7]].
   rewrite J6 in HeqR0. simpl in HeqR0.
   rewrite J7 in HeqR0. rewrite J2 in HeqR0. simpl in HeqR0.
@@ -1019,7 +660,7 @@ Proof.
     rewrite EQ.
     intros z Hz.
     apply Htmp.
-    assert (J:=@signed_repr_ge_0 (Z_of_nat sz) (Z_of_nat_ge_0 sz)).
+    assert (J:=@Int.signed_repr_ge_0 31 (Z_of_nat sz) (Z_of_nat_ge_0 sz)).
     zauto.
 Qed.
 
@@ -1233,7 +874,7 @@ Lemma malloc_preserves_wf_global_ptr : forall S TD Mem0 gl tsz gn align0 Mem' mb
 Proof.
   intros.
   apply malloc_inv in H.
-  destruct H as [n [J1 J2]].
+  destruct H as [n [J1 [J0 J2]]].
   intros x gv0 typ0 Hlk Hwfc.
   eapply H0 in Hwfc; eauto.
   destruct Hwfc as [b [sz0 [J5 [J6 [J3 J4]]]]].
@@ -1322,7 +963,7 @@ Lemma malloc_preserves_wf_rmetadata : forall (TD : TargetData) rm gn align0
 Proof.
   intros. 
   apply malloc_inv in H1. 
-  destruct H1 as [n [J1 J2]].
+  destruct H1 as [n [J1 [J2 J3]]].
   intros i1 gvb gve J.
   apply Hwfr in J.   
   eapply alloc_preserves_wf_data; eauto.
@@ -1354,6 +995,7 @@ Proof.
   invert_prop_reg_metadata. clear H3.
   unfold malloc in H1.
   rewrite H2 in H1.
+  destruct (zle 0 (Size.to_Z tsz * n)); try solve [inversion H1].
   remember (Mem.alloc Mem0 0 (Size.to_Z tsz * n)) as R.
   inversion H1. clear H1. subst.
   clear H2.
@@ -1388,18 +1030,12 @@ Proof.
           assert (J2:=@Int.max_signed_pos 31).          
           zauto.
 
-          assert (0 <= Size.to_Z tsz * n) as GE.
-            clear - J1.
-            rewrite Int.signed_zero in J1.
-            unfold Int.repr, Int.signed, Int.modulus, Int.half_modulus, 
-              Int.wordsize in J1. simpl in J1.
-            admit. (* tsz * n >= 0 *)
           simpl. rewrite bytesize_chunk_7_eq_1. 
           destruct J1 as [_ J1].
           unfold Int.signed in J1.
           unfold Int.unsigned in J1.
           simpl in J1.
-          clear - J1 GE.
+          clear - J1 z.
           assert (J:=@Int.modulus_pos 31).
           assert ((Size.to_Z tsz * n) mod Int.modulus 31 <= (Size.to_Z tsz * n)) 
             as LE.
@@ -1818,7 +1454,7 @@ Lemma malloc_preserves_wf_mmetadata : forall (TD : TargetData) MM gn align0
 Proof.
   intros. 
   apply malloc_inv in H1. 
-  destruct H1 as [n [J1 J2]].
+  destruct H1 as [n [J1 [J2 J3]]].
   intros b ofs gvb gve J.
   assert (J':=@Hwfm b ofs gvb gve J).
   eapply alloc_preserves_wf_data; eauto.
@@ -1850,6 +1486,7 @@ Proof.
   invert_prop_reg_metadata. clear H3.
   unfold malloc in H1.
   rewrite H2 in H1.
+  destruct (zle 0 (Size.to_Z tsz * n)); try solve [inversion H1].
   remember (Mem.alloc Mem0 0 (Size.to_Z tsz * n)) as R.
   inversion H1. clear H1. subst.
   intros b ofs gvb gve J.
@@ -1927,7 +1564,8 @@ Qed.
 (********************************************)
 (* assert_mptr *)
 
-Lemma typ2memory_chunk__le__getTypeAllocSize : forall t c s TD,
+Lemma typ2memory_chunk__le__getTypeAllocSize : forall sys t c s TD,
+  wf_typ sys t ->
   (forall a b o, 
     getTypeSizeInBits_and_Alignment TD o t = Some (a,b) ->
     (b > 0)%nat) ->
@@ -1935,29 +1573,27 @@ Lemma typ2memory_chunk__le__getTypeAllocSize : forall t c s TD,
   Some s = getTypeAllocSize TD t ->
   size_chunk c <= Size.to_Z s.
 Proof.
-  intros t c s TD GOODA H1 H2.
+  intros sys t c s TD Hwft Hwfa H1 H2.
   unfold getTypeAllocSize, getTypeStoreSize, getTypeSizeInBits, 
          getTypeSizeInBits_and_Alignment in H2.
   assert (Z_of_nat 0 = 0) as EQ0. simpl. auto.
   destruct TD.
   destruct t; inv H1; inv H2;
-    simpl; unfold bytesize_chunk, Size.to_nat, RoundUpAlignment, Size.to_Z, ndiv.
-    assert (Z_of_nat (s0 + 7) / Z_of_nat 8 >= 0) as J.
-      assert (J1:=@Z_of_S_gt_O (s0 + 6)).
-      assert (S (s0 + 6) = (s0 + 7)%nat) as EQ. auto.
-      rewrite EQ in J1.        
-      assert (J2:=@O_lt_Z_of_S 7).
-      assert (0 <= Z_of_nat (s0 + 7) / Z_of_nat 8) as J3.
-        apply Z_div_pos; auto with zarith.
-       zauto.
+    simpl; unfold bytesize_chunk, Size.to_nat, RoundUpAlignment, Size.to_Z.
+    assert (ZRdiv (Z_of_nat s0) 8 >= 0) as J.
+      apply ZRdiv_prop2; zauto.
     assert (Z_of_nat 0 = 0) as EQ. simpl. auto.
     assert (Z_of_nat (getIntAlignmentInfo l0 s0 true) > 0) as GT.
       rewrite <- EQ0.
       apply inj_gt.
-      eapply GOODA; simpl; eauto.
-    assert (ZRdiv (Z_of_nat (S (s0 - 1))) 8 <= Z_of_nat (s0 + 7) / Z_of_nat 8) as
-      IAMEQ.  admit.
-    assert (J':=@roundup_is_correct (Z_of_nat (s0 + 7) / Z_of_nat 8)
+      eapply Hwfa; simpl; eauto.
+    assert (ZRdiv (Z_of_nat (S (s0 - 1))) 8 <= ZRdiv (Z_of_nat s0) 8) as J2.  
+      unfold ZRdiv.
+      apply ZRdiv_prop7.
+        apply inj_le.
+          inv Hwft. unfold Size.gt in H1. omega.
+        apply Z_of_S_gt_O.
+    assert (J':=@roundup_is_correct (ZRdiv (Z_of_nat s0) 8)
       (Z_of_nat (getIntAlignmentInfo l0 s0 true)) GT). 
     rewrite nat_of_Z_eq.
       rewrite nat_of_Z_eq; auto.
@@ -1965,45 +1601,36 @@ Proof.
       rewrite nat_of_Z_eq; auto.
         zauto.
 
-    destruct f; inv H0; inv H1; simpl; unfold RoundUpAlignment, ndiv.
-      assert (Z_of_nat 39 / Z_of_nat 8 = 4) as EQ.
-        zauto.
-      rewrite EQ.
+    destruct f; inv H0; inv H1; simpl; unfold RoundUpAlignment.
       assert (Z_of_nat (getFloatAlignmentInfo l0 32 true) > 0) as GT.
         rewrite <- EQ0.
         apply inj_gt.
-        eapply GOODA; simpl; eauto.
+        eapply Hwfa; simpl; eauto.
+      rewrite <- Zpos_eq_Z_of_nat_o_nat_of_P.
       assert (J:=@roundup_is_correct 4 (Z_of_nat 
         (getFloatAlignmentInfo l0 32 true)) GT).
-      rewrite nat_of_Z_eq; rewrite nat_of_Z_eq; zauto. 
+      rewrite nat_of_Z_eq; zauto. 
 
-      assert (Z_of_nat 71 / Z_of_nat 8 = 8) as EQ.
-        simpl. zauto.
-      rewrite EQ.
       assert (Z_of_nat (getFloatAlignmentInfo l0 64 true) > 0) as GT.
         rewrite <- EQ0.
         apply inj_gt.
-        eapply GOODA; simpl; eauto.
+        eapply Hwfa; simpl; eauto.
+      rewrite <- Zpos_eq_Z_of_nat_o_nat_of_P.
       assert (J:=@roundup_is_correct 8 (Z_of_nat 
         (getFloatAlignmentInfo l0 64 true)) GT).
-      rewrite nat_of_Z_eq; rewrite nat_of_Z_eq; zauto. 
+      rewrite nat_of_Z_eq; zauto. 
 
     assert (Z_of_nat (getPointerAlignmentInfo l0 true) > 0) as GT.
       rewrite <- EQ0.
       apply inj_gt.
-      eapply GOODA; simpl; eauto.
-    assert (Z_of_nat 39 / Z_of_nat 8 = 4) as EQ.
-      zauto.
-    rewrite EQ. clear EQ.
+      eapply Hwfa; simpl; eauto.
+    rewrite <- Zpos_eq_Z_of_nat_o_nat_of_P.
     assert (J:=@roundup_is_correct 4 (Z_of_nat 
       (getPointerAlignmentInfo l0 true)) GT).
     assert (ZRdiv (Z_of_nat 32) 8 = 4) as EQ.
       unfold ZRdiv. simpl. zauto.
     rewrite EQ. clear EQ.
     rewrite nat_of_Z_max.
-    rewrite nat_of_Z_max.
-    assert (Zmax 4 0 = 4) as EQ. unfold Zmax. simpl. auto.
-    rewrite EQ. 
     rewrite Zmax_left; zauto.
 Qed.
 
@@ -2013,6 +1640,7 @@ Lemma assert_mptr__valid_access : forall S md los nts Ps Mem gl rm MM t g b ofs
   wf_global_ptr S (los, nts) Mem gl ->
   wf_value S (module_intro los nts Ps) f v tv ->
   Some (md,mt) = get_reg_metadata (los, nts) Mem gl rm v ->
+  wf_typ S t ->
   (forall a b o, 
     getTypeSizeInBits_and_Alignment (los, nts) o t = Some (a,b) ->
     (b > 0)%nat) ->
@@ -2024,7 +1652,7 @@ Lemma assert_mptr__valid_access : forall S md los nts Ps Mem gl rm MM t g b ofs
   Mem.valid_access Mem c b (Int.signed 31 ofs) Writable.
 Proof.
   intros S md los nts Ps Mem gl rm MM t g b ofs c mt f v tv Hwf Hwfg Hwfv Heqmd
-    Hgood J R3 R4 R5 Htmp.
+    Hwft Hwfa J R3 R4 R5 Htmp.
   unfold Mem.valid_access.
   split; auto.
     unfold assert_mptr in J.
@@ -2054,7 +1682,7 @@ Proof.
     bdestruct4 J as J1 J4 J2 J3.
     destruct (zeq b b1); subst; try solve [inversion J1].
     apply Heqmd; auto.
-    clear - J2 J3 Jz HeqR6 R4 Hgood.
+    clear - J2 J3 Jz HeqR6 R4 Hwfa Hwft.
     assert (size_chunk c <= Size.to_Z s) as J4.
       eapply typ2memory_chunk__le__getTypeAllocSize; eauto.
     destruct (zle (Int.signed 31 i0) (Int.signed 31 ofs)); 

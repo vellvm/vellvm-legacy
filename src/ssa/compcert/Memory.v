@@ -1533,6 +1533,17 @@ Proof.
   auto.
 Qed.
 
+Lemma store_range_perm_1:
+  forall b' lo' hi' p,
+  Mem.range_perm m1 b' lo' hi' p -> Mem.range_perm m2 b' lo' hi' p.
+Proof.
+  intros.
+  unfold Mem.range_perm in *.
+  intros ofs0 J.
+  apply H in J.
+  eapply perm_store_1; eauto.
+Qed.
+
 End STORE.
 
 Hint Local Resolve perm_store_1 perm_store_2: mem.
@@ -2071,6 +2082,18 @@ Proof.
   unfold update.
   destruct (zeq b0 nextblock0); subst; auto.
     contradict Hless; auto with zarith.
+Qed.
+
+Lemma range_perm_alloc_other:
+  forall b' lo' hi' p,
+  Mem.range_perm m1 b' lo' hi' p ->
+  Mem.range_perm m2 b' lo' hi' p.
+Proof.
+  intros.
+  unfold Mem.range_perm in *.
+  intros ofs J.
+  apply H in J.
+  eapply perm_alloc_1; eauto.
 Qed.
 
 End ALLOC.

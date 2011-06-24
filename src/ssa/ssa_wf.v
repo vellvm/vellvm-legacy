@@ -431,6 +431,28 @@ Proof.
     inv HvInOps; eauto.
 Qed.        
 
+Lemma wf_value_list__in_params__wf_value : forall S m F tvs
+  (H18: wf_value_list
+          (make_list_system_module_fdef_value_typ
+             (map_list_typ_value
+                (fun (typ_' : typ) (value_'' : value) =>
+                 (S, m, F, value_'', typ_'))
+                tvs)))
+  (t1 : typ) (v1 : value),
+    In (t1, v1)
+     (map_list_typ_value
+        (fun (typ_' : typ) (value_'' : value) => (typ_', value_''))
+        tvs) ->
+    wf_value S m F v1 t1.
+Proof.
+  induction tvs; simpl; intros.
+    inv H.
+ 
+    inv H18. 
+    destruct H as [H | H]; eauto.
+      inv H; auto.
+Qed.
+
 Lemma wf_cmd__wf_value : forall ifs s m f b c v,
   wf_insn ifs s m f b (insn_cmd c) ->
   valueInCmdOperands v c ->
@@ -2216,9 +2238,7 @@ Proof.
   unfold getTypeAllocSize, getTypeStoreSize, getTypeSizeInBits, 
     getABITypeAlignment, getAlignment.
   destruct (getTypeSizeInBits_and_Alignment TD true t); try solve [inversion Hs].
-  destruct p. 
-  exists (ndiv (n + 7) 8). exists (RoundUpAlignment (ndiv (n + 7) 8) n0).
-  split; auto.
+  destruct p. eauto.
 Qed.
 
 Lemma wf_zeroconst2GV_total_mutrec :

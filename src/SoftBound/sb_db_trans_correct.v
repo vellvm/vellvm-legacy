@@ -987,7 +987,9 @@ Proof.
   remember (GV2int TD Size.ThirtyTwo gn) as R.
   destruct R; inv Hmalloc.
   case_eq (Mem.alloc Mem2 0 (Size.to_Z tsz * z)).
+  destruct (zle 0 (Size.to_Z tsz * z)); inv H0.
   intros m b Halloc.
+  rewrite Halloc.
   eapply alloc_getOperandValue_inv; eauto.
 Qed.
 
@@ -1025,7 +1027,7 @@ Proof.
   destruct R; try solve [inversion Halloc].
   remember (Mem.alloc Mem 0 (Size.to_Z tsz * z)) as R1.
   destruct R1 as [Mem1 mb1].
-  inv Halloc.
+  destruct (zle 0 (Size.to_Z tsz * z)); inv Halloc.
   remember (Mem.alloc Mem2 0 (Size.to_Z tsz * z)) as R2.
   destruct R2 as [Mem2' mb2].
   exists (fun b => if zeq b mb then Some (mb2,0%Z) else mi b).
@@ -1710,11 +1712,11 @@ Proof.
         unfold SoftBound.bound2GV, GEP, blk2GV, GV2ptr, ptr2GV, val2GV.
         simpl.
         rewrite <- H42. rewrite H2.
-        unfold mgetoffset, typ2utyp. destruct TD.
+        unfold mgetoffset, Constant.typ2utyp. destruct TD.
         assert (exists ut, 
 (*          typ2utyp_aux (gen_utyp_maps (rev n0)) (typ_array 0%nat t) = Some *)
-          typ2utyp_aux (subst_nts_by_nts n0 n0) (typ_array 0%nat t) = Some
-            (typ_array 0%nat ut) /\
+          Constant.typ2utyp_aux (Constant.subst_nts_by_nts n0 n0) 
+            (typ_array 0%nat t) = Some (typ_array 0%nat ut) /\
           getTypeAllocSize (l0, n0) ut = getTypeAllocSize (l0, n0) t) as EQ1.
           admit.
         destruct EQ1 as [ut [EQ1 EQ2]].

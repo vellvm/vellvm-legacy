@@ -775,6 +775,39 @@ Qed.
 Lemma Zpos_Zneg_Zmul : forall a b, a > 0 -> b < 0 -> a * b < 0.
 Proof. intros. psatz Z. Qed.
 
+Lemma Z_of_nat_ge_0 : forall n, Z_of_nat n >= 0.
+Proof.
+  induction n.
+    simpl. auto with zarith.
+    assert (J:=@Z_of_S_gt_O n). auto with zarith.
+Qed.
+
+Lemma two_power_nat_le_zero : forall n, two_power_nat n >= 0.
+Proof.
+  induction n; simpl.
+    unfold two_power_nat. unfold shift_nat. simpl. auto with zarith.
+    rewrite two_power_nat_S. auto with zarith.
+Qed.
+
+Lemma roundup_is_correct : forall a b, b >0 -> (a + b) / b * b >= a.
+Proof.
+  intros.
+  assert (b<>0). auto with zarith.
+  assert (J:=@Z_div_mod_eq_full (a+b) b H0).
+  assert (b * ((a + b) / b) = a + b - (a + b) mod b) as EQ.
+    auto with zarith.
+  assert (b * ((a + b) / b) = (a + b) / b * b) as EQ'.
+    auto with zarith.
+  rewrite <- EQ'.
+  rewrite EQ.
+  assert (J1:=@Z_mod_lt a b H).
+  assert (J2:=@Z_mod_plus_full a 1 b).
+  rewrite Zmult_1_l in J2.
+  rewrite J2.
+  clear - J1.
+  auto with zarith.
+Qed.
+
 Lemma ZRdiv_prop3 : forall a b, a > 0 -> b > 0 -> ZRdiv a b > 0.
 Proof.
   intros.
@@ -820,6 +853,29 @@ Proof.
   intro.
   apply nat_of_Z_pos.
   apply ZRdiv_prop5.
+Qed.
+
+Lemma ZRdiv_prop7 : forall z1 z2 (A : z1 <= z2) (C: z1 > 0),
+   (if zeq (z1 mod 8) 0 then z1 / 8 else z1 / 8 + 1) <=
+   (if zeq (z2 mod 8) 0 then z2 / 8 else z2 / 8 + 1).
+Proof.
+  intros.
+  assert (z1 / 8 <= z2 / 8) as B.
+    apply Z_div_le; auto with zarith.
+  destruct (zeq (z1 mod 8) 0).
+    destruct (zeq (z2 mod 8) 0); auto with zarith.
+    destruct (zeq (z2 mod 8) 0); auto with zarith.
+      assert (z1 = 8*(z1/8) + (z1 mod 8)) as Z1.
+        apply Z_div_mod_eq; auto with zarith.
+      assert (z2 = 8*(z2/8) + (z2 mod 8)) as Z2.
+        apply Z_div_mod_eq; auto with zarith.
+      rewrite e in Z2.
+      assert (0 <= z1 mod 8 < 8) as D.
+        apply Z_mod_lt; auto with zarith.
+      destruct (Z_le_dec (z1 / 8 + 1) (z2 / 8)); auto.
+        contradict A.
+        rewrite Z1. rewrite Z2.
+        clear Z1 Z2 e. auto with zarith.
 Qed.
 
 Lemma zrdiv_zmod_prop1 : forall a1 a2 b,

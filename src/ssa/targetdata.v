@@ -13,8 +13,6 @@ Module LLVMtd.
 
 Export LLVMsyntax.
 
-Definition ndiv (n m:nat) := nat_of_Z (Zdiv (Z_of_nat (n)) (Z_of_nat m)).  
-
 (**
  Alignments come in two flavors: ABI and preferred. ABI alignment (abi_align,
  below) dictates how a type will be aligned within an aggregate and when used
@@ -85,7 +83,7 @@ Definition DTD :=  (layout_be::
 Definition RoundUpAlignment (val alignment:nat) : nat :=
   let zv := Z_of_nat val in
   let za := Z_of_nat alignment in
-  let zr := (zv + za)%Z in
+  let zr := zv + za in
   nat_of_Z (zr / za * za).
 
 (** getAlignmentInfo - Return the alignment (either ABI if ABIInfo = true or
@@ -254,7 +252,7 @@ Fixpoint _getPointerSize (los:layouts) : option sz :=
   match los with
   | nil => None
   | (layout_ptr psz abi pre)::_ => 
-      Some (Size.from_nat (ndiv (Size.to_nat psz) 8))
+      Some (nat_of_Z (ZRdiv (Z_of_nat psz) 8))
   | _::los' => _getPointerSize los'
   end.
 
@@ -305,7 +303,7 @@ Fixpoint getFloatAlignmentInfo (los:layouts)  (BitWidth: nat) (ABIInfo: bool)
 Fixpoint _getTypeSizeInBits_and_Alignment (los:layouts) (nts:list (id*(nat*nat)))
   (abi_or_pref:bool) (t:typ) : option (nat*nat) :=
   let getTypeStoreSize := 
-      fun typeSizeInBits => ndiv (typeSizeInBits+7%nat) 8%nat in
+      fun typeSizeInBits => nat_of_Z (ZRdiv (Z_of_nat typeSizeInBits) 8) in
 
   let getTypeAllocSize :=
       fun typeSizeInBits ABIalignment =>
@@ -369,7 +367,7 @@ Fixpoint _getTypeSizeInBits_and_Alignment (los:layouts) (nts:list (id*(nat*nat))
 with _getListTypeSizeInBits_and_Alignment (los:layouts) (nts:list (id*(nat*nat)))
   (lt:list_typ) : option (nat*nat) :=
   let getTypeStoreSize := 
-      fun typeSizeInBits => ndiv (typeSizeInBits+7%nat) 8%nat in
+      fun typeSizeInBits => nat_of_Z (ZRdiv (Z_of_nat typeSizeInBits) 8) in
 
   let getTypeAllocSize :=
       fun typeSizeInBits ABIalignment =>
@@ -511,7 +509,7 @@ Definition getTypeSizeInBits (TD:TargetData) (t:typ) : option nat :=
 Definition getTypeStoreSize (TD:TargetData) (t:typ) : option nat :=
   match (getTypeSizeInBits TD t) with
   | None => None
-  | Some sz => Some (ndiv (sz+7) 8)
+  | Some sz => Some (nat_of_Z (ZRdiv (Z_of_nat sz) 8))
   end.
 
 (** getTypeStoreSizeInBits - Return the maximum number of bits that may be
@@ -549,7 +547,7 @@ Definition getStructSizeInBytes (TD:TargetData) (t:typ) : option nat :=
 match t with
 | typ_struct lt => 
   match (getTypeSizeInBits TD t) with
-  | Some sz => Some (ndiv sz 8)
+  | Some sz => Some (nat_of_Z (ZRdiv (Z_of_nat sz) 8))
   | None => None
   end
 | _ => None

@@ -771,6 +771,7 @@
 \newcommand{\ottdrulewfXXconstXXgid}[1]{\ottdrule[#1]{%
 \ottpremise{\ottnt{system}  \vdash  \ottnt{typ}  \ottsym{*}}%
 \ottpremise{\ottkw{lookupTypViaGIDFromSystem} \, \ottnt{system} \, \ottmv{id}  =  \ottnt{typ}  \ottsym{*}}%
+\ottpremise{\texttt{Constant.unifiable\_typ }\ottnt{targetdata}\texttt{ }\ottnt{typ}\texttt{ }}%
 }{
 \ottnt{system}  \ottsym{,}  \ottnt{targetdata}  \ottsym{\mbox{$\mid$}-c}  \ottnt{typ}  \ottsym{*}  \ottmv{id}  \ottsym{:}  \ottnt{typ}  \ottsym{*}}{%
 {\ottdrulename{wf\_const\_gid}}{}%
@@ -1313,22 +1314,24 @@
 
 
 \newcommand{\ottdrulewfXXinsnXXload}[1]{\ottdrule[#1]{%
-\ottpremise{\ottnt{system}  \ottsym{,}  \ottnt{module}  \ottsym{,}  \ottnt{fdef}  \vdash  \ottnt{value_{{\mathrm{1}}}}  \ottsym{:}  \ottnt{typ_{{\mathrm{1}}}}  \ottsym{*}}%
+\ottpremise{\ottnt{system}  \ottsym{,}  \ottsym{(}  \mathit{\overline{layout} } \, \mathit{\overline{namedt} } \, \mathit{\overline{product} }  \ottsym{)}  \ottsym{,}  \ottnt{fdef}  \vdash  \ottnt{value_{{\mathrm{1}}}}  \ottsym{:}  \ottnt{typ_{{\mathrm{1}}}}  \ottsym{*}}%
 \ottpremise{\texttt{typ2memory\_chunk }\ottnt{typ_{{\mathrm{1}}}}\texttt{ <> None }}%
+\ottpremise{\texttt{wf\_alignment }\ottsym{(}  \mathit{\overline{layout} } \, \mathit{\overline{namedt} }  \ottsym{)}\texttt{ }\ottnt{typ_{{\mathrm{1}}}}\texttt{ }}%
 \ottpremise{\ottnt{fdef}  \ottsym{,}  \ottnt{block}  \vdash_{i}  \ottmv{id}  = \, \ottkw{load} \, \ottsym{(}  \ottnt{typ_{{\mathrm{1}}}}  \ottsym{*}  \ottsym{)}  \ottnt{value_{{\mathrm{1}}}} \, \ottmv{align}}%
 }{
-\ottnt{intrinsic\_funs}  \ottsym{,}  \ottnt{system}  \ottsym{,}  \ottnt{module}  \ottsym{,}  \ottnt{fdef}  \ottsym{,}  \ottnt{block}  \vdash  \ottmv{id}  = \, \ottkw{load} \, \ottsym{(}  \ottnt{typ_{{\mathrm{1}}}}  \ottsym{*}  \ottsym{)}  \ottnt{value_{{\mathrm{1}}}} \, \ottmv{align}}{%
+\ottnt{intrinsic\_funs}  \ottsym{,}  \ottnt{system}  \ottsym{,}  \ottsym{(}  \mathit{\overline{layout} } \, \mathit{\overline{namedt} } \, \mathit{\overline{product} }  \ottsym{)}  \ottsym{,}  \ottnt{fdef}  \ottsym{,}  \ottnt{block}  \vdash  \ottmv{id}  = \, \ottkw{load} \, \ottsym{(}  \ottnt{typ_{{\mathrm{1}}}}  \ottsym{*}  \ottsym{)}  \ottnt{value_{{\mathrm{1}}}} \, \ottmv{align}}{%
 {\ottdrulename{wf\_insn\_load}}{}%
 }}
 
 
 \newcommand{\ottdrulewfXXinsnXXstore}[1]{\ottdrule[#1]{%
-\ottpremise{\ottnt{system}  \ottsym{,}  \ottnt{module}  \ottsym{,}  \ottnt{fdef}  \vdash  \ottnt{value_{{\mathrm{1}}}}  \ottsym{:}  \ottnt{typ}}%
-\ottpremise{\ottnt{system}  \ottsym{,}  \ottnt{module}  \ottsym{,}  \ottnt{fdef}  \vdash  \ottnt{value_{{\mathrm{2}}}}  \ottsym{:}  \ottnt{typ}  \ottsym{*}}%
+\ottpremise{\ottnt{system}  \ottsym{,}  \ottsym{(}  \mathit{\overline{layout} } \, \mathit{\overline{namedt} } \, \mathit{\overline{product} }  \ottsym{)}  \ottsym{,}  \ottnt{fdef}  \vdash  \ottnt{value_{{\mathrm{1}}}}  \ottsym{:}  \ottnt{typ}}%
+\ottpremise{\ottnt{system}  \ottsym{,}  \ottsym{(}  \mathit{\overline{layout} } \, \mathit{\overline{namedt} } \, \mathit{\overline{product} }  \ottsym{)}  \ottsym{,}  \ottnt{fdef}  \vdash  \ottnt{value_{{\mathrm{2}}}}  \ottsym{:}  \ottnt{typ}  \ottsym{*}}%
 \ottpremise{\texttt{typ2memory\_chunk }\ottnt{typ}\texttt{ <> None }}%
+\ottpremise{\texttt{wf\_alignment }\ottsym{(}  \mathit{\overline{layout} } \, \mathit{\overline{namedt} }  \ottsym{)}\texttt{ }\ottnt{typ}\texttt{ }}%
 \ottpremise{\ottnt{fdef}  \ottsym{,}  \ottnt{block}  \vdash_{i}  \ottmv{id}  = \, \ottkw{store} \, \ottnt{typ} \, \ottnt{value_{{\mathrm{1}}}} \, \ottnt{value_{{\mathrm{2}}}} \, \ottmv{align}}%
 }{
-\ottnt{intrinsic\_funs}  \ottsym{,}  \ottnt{system}  \ottsym{,}  \ottnt{module}  \ottsym{,}  \ottnt{fdef}  \ottsym{,}  \ottnt{block}  \vdash  \ottmv{id}  = \, \ottkw{store} \, \ottnt{typ} \, \ottnt{value_{{\mathrm{1}}}} \, \ottnt{value_{{\mathrm{2}}}} \, \ottmv{align}}{%
+\ottnt{intrinsic\_funs}  \ottsym{,}  \ottnt{system}  \ottsym{,}  \ottsym{(}  \mathit{\overline{layout} } \, \mathit{\overline{namedt} } \, \mathit{\overline{product} }  \ottsym{)}  \ottsym{,}  \ottnt{fdef}  \ottsym{,}  \ottnt{block}  \vdash  \ottmv{id}  = \, \ottkw{store} \, \ottnt{typ} \, \ottnt{value_{{\mathrm{1}}}} \, \ottnt{value_{{\mathrm{2}}}} \, \ottmv{align}}{%
 {\ottdrulename{wf\_insn\_store}}{}%
 }}
 
