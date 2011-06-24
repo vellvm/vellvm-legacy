@@ -16,22 +16,72 @@ Require Import Coqlib.
 Require Import monad.
 Require Import Metatheory.
 Require Import Znumtheory.
-Require Import sb_def.
-Require Import sub_symexe.
-Require Import sb_tactic.
-Require Import sub_tv.
-Require Import sb_db_trans.
-
-Import SBpass.
 
 Module SB_ds_pass.
 
+Export LLVMsyntax.
+Export LLVMgv.
+
+(********************************************)
+(** syntax *)
+Definition i8 := typ_int Size.Eight.
+Definition i32 := typ_int Size.ThirtyTwo.
+Definition p8 := typ_pointer i8.
+Definition pp8 := typ_pointer p8.
+Definition p32 := typ_pointer i32.
+Definition int1 := const_int Size.ThirtyTwo (INTEGER.of_Z 32%Z 1%Z false).
+Definition vint1 := value_const int1.
+Definition c1 := Cons_list_value vint1 Nil_list_value.
+Definition vnullp8 := value_const (const_null p8).
+Definition vnullp32 := value_const (const_null p32).
+Definition int0 := const_int Size.ThirtyTwo (INTEGER.of_Z 32%Z 0%Z false).
+Definition vint0 := value_const int0.
+
+Parameter assert_mptr_fid : id.
+Parameter fake_id : id.
+Parameter get_mmetadata_fid : id.
+Parameter set_mmetadata_fid : id.
 Parameter set_shadowstack_base_fid : id.
 Parameter set_shadowstack_bound_fid : id.
 Parameter get_shadowstack_base_fid : id.
 Parameter get_shadowstack_bound_fid : id.
 Parameter allocate_shadowstack_fid : id.
 Parameter free_shadowstack_fid : id.
+
+Definition assert_mptr_typ : typ :=
+  typ_function typ_void 
+        (Cons_list_typ p8 
+        (Cons_list_typ p8 
+        (Cons_list_typ p8
+        (Cons_list_typ i32
+        (Cons_list_typ i32 Nil_list_typ))))) false.
+
+Definition assert_mptr_fn : value :=
+  value_const (const_gid assert_mptr_typ assert_mptr_fid).
+
+Definition get_mmetadata_typ : typ :=
+  typ_function typ_void 
+        (Cons_list_typ p8 
+        (Cons_list_typ pp8 
+        (Cons_list_typ pp8
+        (Cons_list_typ p8
+        (Cons_list_typ i32
+        (Cons_list_typ p32 Nil_list_typ)))))) false.
+
+Definition get_mmetadata_fn : value :=
+  value_const (const_gid get_mmetadata_typ get_mmetadata_fid).
+
+Definition set_mmetadata_typ : typ :=
+  typ_function typ_void 
+        (Cons_list_typ p8 
+        (Cons_list_typ p8 
+        (Cons_list_typ p8
+        (Cons_list_typ p8
+        (Cons_list_typ i32
+        (Cons_list_typ i32 Nil_list_typ)))))) false.
+
+Definition set_mmetadata_fn : value :=
+  value_const (const_gid set_mmetadata_typ set_mmetadata_fid).
 
 Definition set_shadowstack_base_typ : typ :=
   typ_function typ_void 
@@ -73,6 +123,148 @@ Definition free_shadowstack_typ : typ :=
 Definition free_shadowstack_fn : value :=
   value_const (const_gid free_shadowstack_typ free_shadowstack_fid).
 
+Definition sb_call_attrs := clattrs_intro false callconv_ccc nil nil.
+
+(*******************************)
+(* Generate metadata *)
+
+Definition getGEPTyp (nts:namedts) (idxs : list_value) (t : typ) : option typ :=
+match idxs with
+| Nil_list_value => None
+| Cons_list_value idx idxs' =>
+    do t <- Constant.typ2utyp nts t;
+    (* The input t is already an element of a pointer typ *)
+    do t' <- getSubTypFromValueIdxs idxs' t;
+    ret (typ_pointer t')
+end.
+
+Definition getCmdTyp (nts:namedts) (i:cmd) : option typ :=
+match i with
+| insn_bop _ _ sz _ _ => Some (typ_int sz)
+| insn_fbop _ _ ft _ _ => Some (typ_floatpoint ft)
+(*
+| insn_extractelement _ typ _ _ => getElementTyp typ
+| insn_insertelement _ typ _ _ _ _ => typ *)
+| insn_extractvalue _ typ _ idxs => 
+    do t <- Constant.typ2utyp nts typ;
+    getSubTypFromConstIdxs idxs t
+| insn_insertvalue _ typ _ _ _ _ => Some typ
+| insn_malloc _ typ _ _ => Some (typ_pointer typ)
+| insn_free _ typ _ => Some typ_void
+| insn_alloca _ typ _ _ => Some (typ_pointer typ)
+| insn_load _ typ _ _ => Some typ
+| insn_store _ _ _ _ _ => Some typ_void
+| insn_gep _ _ typ _ idxs => getGEPTyp nts idxs typ
+| insn_trunc _ _ _ _ typ => Some typ
+| insn_ext _ _ _ _ typ2 => Some typ2
+| insn_cast _ _ _ _ typ => Some typ
+| insn_icmp _ _ _ _ _ => Some (typ_int Size.One)
+| insn_fcmp _ _ _ _ _ => Some (typ_int Size.One)
+| insn_select _ _ typ _ _ => Some typ
+| insn_call _ true _ typ _ _ => Some typ_void
+| insn_call _ false _ typ _ _ => 
+    match typ with
+    | typ_function t _ _ => Some t
+    | _ => None
+    end
+end.
+
+Definition rmap := list (id*(id*id)).
+
+Definition getFdefLocs fdef : ids :=
+match fdef with
+| fdef_intro (fheader_intro _ _ _ la _) bs => 
+  let '(_, ids0) := List.split la in
+  ids0 ++ getBlocksLocs bs 
+end.
+
+Definition gen_metadata_id (ex_ids:ids) (rm:rmap) (id0:id) 
+  : id * id * ids * rmap :=
+let '(exist b _) := AtomImpl.atom_fresh_for_list ex_ids in
+let '(exist e _) := AtomImpl.atom_fresh_for_list (b::ex_ids) in
+(b, e, b::e::ex_ids, (id0,(b,e))::rm).
+
+Fixpoint gen_metadata_cmds nts (ex_ids:ids) (rm:rmap) (cs:cmds) 
+  : option(ids*rmap) :=
+match cs with
+| nil => Some (ex_ids,rm)
+| c::cs' => 
+   do t <- getCmdTyp nts c;
+   if isPointerTypB t then
+     let id0 := getCmdLoc c in
+     let '(_,_,ex_ids',rm') := gen_metadata_id ex_ids rm id0 in
+     gen_metadata_cmds nts ex_ids' rm' cs'
+   else gen_metadata_cmds nts ex_ids rm cs'
+end.
+
+Fixpoint gen_metadata_phinodes (ex_ids:ids) (rm:rmap) (ps:phinodes) : ids*rmap :=
+match ps with
+| nil => (ex_ids,rm)
+| p::ps' => 
+   let t := getPhiNodeTyp p in
+   if isPointerTypB t then
+     let id0 := getPhiNodeID p in
+     let '(_,_,ex_ids',rm') := gen_metadata_id ex_ids rm id0 in
+     gen_metadata_phinodes ex_ids' rm' ps'
+   else gen_metadata_phinodes ex_ids rm ps'
+end.
+
+Definition gen_metadata_block nts (ex_ids:ids) (rm:rmap) (b:block) 
+  : option(ids*rmap) :=
+let '(block_intro _ ps cs _) := b in
+let '(ex_ids', rm') := gen_metadata_phinodes ex_ids rm ps in
+gen_metadata_cmds nts ex_ids' rm' cs.
+
+Fixpoint gen_metadata_blocks nts (ex_ids:ids) (rm:rmap) (bs:blocks) 
+  : option(ids*rmap) :=
+match bs with
+| nil => Some (ex_ids,rm)
+| b::bs' => 
+    match gen_metadata_block nts ex_ids rm b with
+    | Some (ex_ids',rm') => gen_metadata_blocks nts ex_ids' rm' bs'
+    | None => None
+    end
+end.
+
+Fixpoint gen_metadata_args (ex_ids:ids) (rm:rmap) (la:args) : ids*rmap :=
+match la with
+| nil => (ex_ids,rm)
+| (t,_,id0)::la' => 
+   if isPointerTypB t then
+     let '(_,_,ex_ids',rm') := gen_metadata_id ex_ids rm id0 in
+     gen_metadata_args ex_ids' rm' la'
+   else gen_metadata_args ex_ids rm la'
+end.
+
+Definition gen_metadata_fdef nts (ex_ids:ids) (rm:rmap) (f:fdef) 
+  : option(ids*rmap) :=
+let '(fdef_intro (fheader_intro _ _ _ la _) bs) := f in
+let '(ex_ids', rm') := gen_metadata_args ex_ids rm la in
+gen_metadata_blocks nts ex_ids' rm' bs.
+
+(******************************)
+(** Translation *)
+
+Axiom isSysLib : id -> bool.
+
+Axiom wrapper_fid : id -> id.
+
+Axiom isCallLib : id -> bool.
+
+Definition mk_tmp (ex_ids:ids) : id * ids :=
+let '(exist tmp _) := AtomImpl.atom_fresh_for_list ex_ids in
+(tmp, tmp::ex_ids).
+
+Definition type_size t :=
+  value_const
+    (const_castop 
+      castop_ptrtoint 
+      (const_gep false 
+        (const_null t) 
+        (Cons_list_const int1 Nil_list_const))
+      (typ_int Size.ThirtyTwo)
+    ).
+
 Fixpoint get_const_metadata (c:const) : option (const*const) :=
 match c with
 | const_gid t gid => 
@@ -100,11 +292,36 @@ Definition get_reg_metadata (rm:rmap) (v:value) : option (value * value) :=
   | value_const c => 
       match (get_const_metadata c, Constant.getTyp c) with
       | (Some (bc, ec), _) => Some (value_const bc, value_const ec)
-      | (None, Some t) => Some (value_const (const_null p8), 
-                                value_const (const_null p8))
+      | (None, Some t) => Some (vnullp8, vnullp8)
       | _ => None
       end
   end.
+
+Definition prop_metadata (ex_ids tmps:ids) rm c v1 id0 :=
+  match (get_reg_metadata rm v1, lookupAL _ rm id0) with
+  | (Some (bv, ev), Some (bid0, eid0)) =>
+      Some (ex_ids, tmps,
+        c::
+        insn_cast bid0 castop_bitcast p8 bv p8:: 
+        insn_cast eid0 castop_bitcast p8 ev p8:: 
+        nil)
+  | _ => None
+  end.
+
+Definition val32 z := (i32,(value_const (const_int Size.ThirtyTwo 
+                            (INTEGER.of_Z 32%Z z false)))).
+
+Definition call_set_shadowstack bv0 ev0 idx cs : cmds :=
+  insn_call fake_id true sb_call_attrs
+    set_shadowstack_base_typ set_shadowstack_base_fn
+      ((p8,bv0)::
+       (val32 idx)::
+       nil)::
+  insn_call fake_id true sb_call_attrs
+    set_shadowstack_bound_typ set_shadowstack_bound_fn
+      ((p8,ev0)::
+       (val32 idx)::
+       nil)::cs.
 
 Fixpoint trans_params (rm:rmap) (lp:params) (idx:Z) (cs:cmds) : option (cmds*Z) 
   :=
@@ -114,51 +331,35 @@ match lp with
     if isPointerTypB t0 then
       match get_reg_metadata rm v0 with
       | Some (bv0, ev0) =>
-            trans_params rm lp' (idx+1)
-               (insn_call fake_id true sb_call_attrs
-                 set_shadowstack_base_typ set_shadowstack_base_fn
-                 ((p8,bv0)::
-                  (i32,(value_const (const_int Size.ThirtyTwo 
-                         (INTEGER.of_Z 32%Z idx false))))::
-                   nil)::               
-               insn_call fake_id true sb_call_attrs
-                 set_shadowstack_bound_typ set_shadowstack_bound_fn
-                 ((p8,ev0)::
-                  (i32,(value_const (const_int Size.ThirtyTwo 
-                         (INTEGER.of_Z 32%Z idx false))))::
-                   nil)::               
-                   cs)
+          trans_params rm lp' (idx+1) (call_set_shadowstack bv0 ev0 idx cs)
       | _ => None
       end
-    else trans_params rm lp' idx cs
+    else 
+      trans_params rm lp' (idx+1) (call_set_shadowstack vnullp8 vnullp8 idx cs)
 end.
 
-Definition int0 := const_int Size.ThirtyTwo (INTEGER.of_Z 32%Z 0%Z false).
-Definition vint0 := value_const int0.
-
-Axiom wrapper_fid : id -> id.
-
-Definition isPointerTypB' t0 : bool :=
+Definition isReturnPointerTypB t0 : bool :=
 match t0 with
 | typ_function t0 _ _ => isPointerTypB t0
 | _ => false
 end.
 
-Definition trans_cmd (ex_ids tmps:ids) (optaddrb optaddre:option id)
-  (rm:rmap) (c:cmd) : option (ids*ids*cmds*option id*option id) :=
+Definition trans_cmd (ex_ids tmps:ids) (addrb addre:id) (rm:rmap) (c:cmd) 
+  : option (ids*ids*cmds) :=
 match c with 
-| insn_malloc id0 t1 v1 al1 | insn_alloca id0 t1 v1 al1 =>
+| insn_malloc id0 t1 v1 _ | insn_alloca id0 t1 v1 _ =>
     match lookupAL _ rm id0 with
     | Some (bid, eid) =>
-      let '(tmp,ex_ids') := mk_tmp ex_ids in
-      Some (ex_ids', tmp::tmps,
+      let '(etmp,ex_ids) := mk_tmp ex_ids in
+      let '(num,ex_ids) := mk_tmp ex_ids in
+      Some (ex_ids, num::etmp::tmps,
+       insn_cast num castop_bitcast i32 v1 i32:: 
        c::
        insn_cast bid castop_bitcast (typ_pointer t1) (value_id id0) p8:: 
-       insn_gep tmp false t1 (value_id id0) 
-         (Cons_list_value v1 Nil_list_value) :: 
-       insn_cast eid castop_bitcast (typ_pointer t1) (value_id tmp) p8:: 
-       nil,
-       optaddrb, optaddre)
+       insn_gep etmp false t1 (value_id id0) 
+         (Cons_list_value (value_id num) Nil_list_value) :: 
+       insn_cast eid castop_bitcast (typ_pointer t1) (value_id etmp) p8:: 
+       nil)
     | _ => None
     end
 
@@ -166,12 +367,10 @@ match c with
     match get_reg_metadata rm v2 with
     | Some (bv, ev) =>
       let '(ptmp,ex_ids) := mk_tmp ex_ids in
-      let '(optcs, ex_ids, tmps, optaddrb, optaddre) := 
+      let '(optcs, ex_ids, tmps) := 
         if isPointerTypB t2 then
           match lookupAL _ rm id0 with
           | Some (bid0, eid0) =>
-              match (optaddrb, optaddre) with
-              | (Some addrb, Some addre) =>
                    (Some
                      (insn_call fake_id true sb_call_attrs
                        get_mmetadata_typ get_mmetadata_fn 
@@ -184,28 +383,10 @@ match c with
                         nil)::
                       insn_load bid0 p8 (value_id addrb) Align.Zero::
                       insn_load eid0 p8 (value_id addre) Align.Zero::   
-                      nil), ex_ids, tmps, Some addrb, Some addre)
-              | (None, None) =>
-                   let '(addrb,ex_ids) := mk_tmp ex_ids in
-                   let '(addre,ex_ids) := mk_tmp ex_ids in
-                   (Some
-                     (insn_call fake_id true sb_call_attrs
-                       get_mmetadata_typ get_mmetadata_fn 
-                       ((p8,(value_id ptmp))::
-                        (pp8,(value_id addrb))::
-                        (pp8,(value_id addre))::
-                        (p8,vnullp8)::
-                        (i32,vint1)::
-                        (p32,vnullp32)::
-                        nil)::
-                      insn_load bid0 p8 (value_id addrb) Align.Zero::
-                      insn_load eid0 p8 (value_id addre) Align.Zero::   
-                      nil), ex_ids, addrb::addre::tmps, Some addrb, Some addre)
-              | _ => (None, ex_ids, tmps, optaddrb, optaddre)
-              end
-          | None => (None, ex_ids, tmps, optaddrb, optaddre)
+                      nil), ex_ids, tmps)
+          | None => (None, ex_ids, tmps)
           end
-        else (Some nil, ex_ids, tmps, optaddrb, optaddre) in
+        else (Some nil, ex_ids, tmps) in
       match optcs with
       | None => None
       | Some cs =>
@@ -218,7 +399,7 @@ match c with
             (i32,type_size t2)::
             (i32,vint1)::nil)::
          c::
-         cs, optaddrb, optaddre)
+         cs)
       end
     | None => None
     end
@@ -257,20 +438,20 @@ match c with
             (i32,(type_size t0))::
             (i32,vint1)::nil)::
          c::
-         cs, optaddrb, optaddre)
+         cs)
       end
     | None => None
     end
 
 | insn_gep id0 inbounds0 t1 v1 lv2 => 
-    prop_metadata ex_ids tmps optaddrb optaddre rm c v1 id0
+    prop_metadata ex_ids tmps rm c v1 id0
 
 | insn_cast id0 op0 t1 v1 t2 => 
     match op0 with
     | castop_bitcast =>
         if isPointerTypB t1 then
-          prop_metadata ex_ids tmps optaddrb optaddre rm c v1 id0
-        else Some (ex_ids, tmps, [c], optaddrb, optaddre)
+          prop_metadata ex_ids tmps rm c v1 id0
+        else Some (ex_ids, tmps, [c])
     | castop_inttoptr =>
         match lookupAL _ rm id0 with
         | Some (bid0, eid0) =>
@@ -278,10 +459,10 @@ match c with
               c::
               insn_cast bid0 castop_bitcast p8 vnullp8 p8::
               insn_cast eid0 castop_bitcast p8 vnullp8 p8::
-              nil, optaddrb, optaddre)
+              nil)
         | _ => None
         end
-    | _ => Some (ex_ids, tmps, [c], optaddrb, optaddre)
+    | _ => Some (ex_ids, tmps, [c])
     end
 
 | insn_select id0 v0 t0 v1 v2 =>
@@ -293,10 +474,10 @@ match c with
             c::
             insn_select bid0 v0 p8 bv1 bv2:: 
             insn_select eid0 v0 p8 ev1 ev2:: 
-            nil, optaddrb, optaddre)
+            nil)
       | _ => None
       end
-    else Some (ex_ids, tmps, [c], optaddrb, optaddre)
+    else Some (ex_ids, tmps, [c])
 
 | insn_call i0 n t t0 v p =>
     match
@@ -310,7 +491,7 @@ match c with
       end) with
     | (Some (cs, num), v') =>
         let optcs' :=
-          if isPointerTypB' t0 then
+          if isReturnPointerTypB t0 then
             match (lookupAL _ rm i0) with
             | Some (bid0, eid0) =>
                 Some (
@@ -334,29 +515,27 @@ match c with
             Some (ex_ids, tmps, 
                   insn_call fake_id true sb_call_attrs
                     allocate_shadowstack_typ allocate_shadowstack_fn
-                    ((i32,(value_const (const_int Size.ThirtyTwo 
-                       (INTEGER.of_Z 32%Z num false))))::
+                    (val32 num::
                      nil)::               
-                  cs++[insn_call i0 n t t0 v' p]++cs',
-                  optaddrb, optaddre)
+                  cs++[insn_call i0 n t t0 v' p]++cs')
         | None => None
         end
     | (None, _) => None
     end
 
-| _ => Some (ex_ids, tmps, [c], optaddrb, optaddre)
+| _ => Some (ex_ids, tmps, [c])
 end.
 
-Fixpoint trans_cmds (ex_ids tmps:ids) (optaddrb optaddre:option id) 
-  (rm:rmap) (cs:list cmd) : option (ids*ids*cmds*option id*option id) :=
+Fixpoint trans_cmds (ex_ids tmps:ids) (addrb addre:id) (rm:rmap) (cs:list cmd) 
+  : option (ids*ids*cmds) :=
 match cs with
-| nil => Some (ex_ids, tmps, nil, optaddrb, optaddre)
+| nil => Some (ex_ids, tmps, nil)
 | c::cs' =>
-    match (trans_cmd ex_ids tmps optaddrb optaddre rm c) with
-    | Some (ex_ids1, tmps1, cs1, optaddrb, optaddre) =>
-        match (trans_cmds ex_ids1 tmps1 optaddrb optaddre rm cs') with
-        | Some (ex_ids2, tmps2, cs2, optaddrb, optaddre) => 
-            Some (ex_ids2, tmps2, cs1++cs2, optaddrb, optaddre)
+    match (trans_cmd ex_ids tmps addrb addre rm c) with
+    | Some (ex_ids1, tmps1, cs1) =>
+        match (trans_cmds ex_ids1 tmps1 addrb addre rm cs') with
+        | Some (ex_ids2, tmps2, cs2) => 
+            Some (ex_ids2, tmps2, cs1++cs2)
         | _ => None
         end
     | _ => None
@@ -395,14 +574,14 @@ match ps with
     end
 end.
 
-Definition trans_block (ex_ids tmps:ids) (optaddrb optaddre:option id) (rm:rmap)
-  (b:block) : option (ids*ids*option id*option id*block) :=
+Definition trans_block (ex_ids tmps:ids) (addrb addre:id) (rm:rmap)
+  (b:block) : option (ids*ids*block) :=
 let '(block_intro l1 ps1 cs1 tmn1) := b in
 match trans_phinodes rm ps1 with
 | None => None
 | Some ps2 => 
-    match trans_cmds ex_ids tmps optaddrb optaddre rm cs1 with
-    | Some (ex_ids',tmps',cs2,optaddrb,optaddre) => 
+    match trans_cmds ex_ids tmps addrb addre rm cs1 with
+    | Some (ex_ids',tmps',cs2) => 
         let opt :=
           match tmn1 with
           | insn_return _ t0 v0 =>
@@ -426,29 +605,39 @@ match trans_phinodes rm ps1 with
         in
         match opt with
         | Some cs' =>
-            Some (ex_ids',tmps',optaddrb,optaddre, 
-              block_intro l1 ps2 (cs2++cs') tmn1)
+            Some (ex_ids',tmps',block_intro l1 ps2 (cs2++cs') tmn1)
         | _ => None
         end
     | None => None
     end
 end.
 
-Fixpoint trans_blocks (ex_ids tmps:ids) (optaddrb optaddre:option id) (rm:rmap) 
-  (bs:blocks) : option (ids*ids*option id*option id*blocks) :=
+Fixpoint trans_blocks (ex_ids tmps:ids) (addrb addre:id) (rm:rmap) 
+  (bs:blocks) : option (ids*ids*blocks) :=
 match bs with
-| nil => Some (ex_ids, tmps, optaddrb, optaddre, nil)
+| nil => Some (ex_ids, tmps, nil)
 | b::bs' =>
-    match (trans_block ex_ids tmps optaddrb optaddre rm b) with
-    | Some (ex_ids1, tmps1, optaddrb, optaddre, b1) =>
-        match (trans_blocks ex_ids1 tmps1 optaddrb optaddre rm bs') with
-        | Some (ex_ids2, tmps2, optaddrb, optaddre, bs2) => 
-            Some (ex_ids2, tmps2, optaddrb, optaddre, b1::bs2)
+    match (trans_block ex_ids tmps addrb addre rm b) with
+    | Some (ex_ids1, tmps1, b1) =>
+        match (trans_blocks ex_ids1 tmps1 addrb addre rm bs') with
+        | Some (ex_ids2, tmps2, bs2) => 
+            Some (ex_ids2, tmps2, b1::bs2)
         | _ => None
         end
     | _ => None
     end
 end.
+
+Definition call_get_shadowstack bid0 eid0 idx cs : cmds :=
+  insn_call bid0 false sb_call_attrs
+    get_shadowstack_base_typ get_shadowstack_base_fn  
+      ((i32,(value_const (const_int Size.ThirtyTwo 
+        (INTEGER.of_Z 32%Z idx false))))::nil)::
+  insn_call eid0 false sb_call_attrs
+    get_shadowstack_bound_typ get_shadowstack_bound_fn 
+      ((i32,(value_const (const_int Size.ThirtyTwo 
+        (INTEGER.of_Z 32%Z idx false))))::nil)::
+  cs.
 
 Fixpoint trans_args (rm:rmap) (la:args) (idx:Z) (cs:cmds) : option cmds :=
 match la with
@@ -457,47 +646,35 @@ match la with
     if isPointerTypB t0 then
       match (lookupAL _ rm id0) with
       | Some (bid0, eid0) => 
-          trans_args rm la' (idx+1)
-                (insn_call bid0 false sb_call_attrs
-                   get_shadowstack_base_typ get_shadowstack_base_fn  
-                   ((i32,(value_const (const_int Size.ThirtyTwo 
-                         (INTEGER.of_Z 32%Z idx false))))::nil)::
-                 insn_call eid0 false sb_call_attrs
-                   get_shadowstack_bound_typ get_shadowstack_bound_fn 
-                   ((i32,(value_const (const_int Size.ThirtyTwo 
-                         (INTEGER.of_Z 32%Z idx false))))::nil)::
-                 cs)
+          trans_args rm la' (idx+1) (call_get_shadowstack bid0 eid0 idx cs)
       | _ => None
       end
-    else trans_args rm la' idx cs
+    else trans_args rm la' (idx+1) cs
 end.
 
-Definition insert_more_allocas (optaddrb optaddre:option id) (argsmd:cmds) 
-  (b:block) : block :=
+Definition insert_more_allocas (addrb addre:id) (argsmd:cmds) (b:block) : block 
+  :=
 let '(block_intro l1 ps1 cs1 tmn1) := b in  
-match (optaddrb, optaddre) with
-| (Some addrb, Some addre) =>
-  block_intro l1 ps1
-    (insn_alloca addrb p8 vint1 Align.Zero::
-    insn_alloca addre p8 vint1 Align.Zero::argsmd++cs1) tmn1
-| _ => 
-    block_intro l1 ps1 (argsmd++cs1) tmn1
-end.
+block_intro l1 ps1
+  (insn_alloca addrb p8 vint1 Align.Zero::
+   insn_alloca addre p8 vint1 Align.Zero::argsmd++cs1) tmn1.
 
 Definition trans_fdef nts (f:fdef) : option fdef :=
 let '(fdef_intro (fheader_intro fa t fid la va) bs) := f in
-if SBSE.isCallLib fid then Some f
+if isCallLib fid then Some f
 else
   let ex_ids := getFdefLocs f in
   match gen_metadata_fdef nts ex_ids nil f with
   | Some (ex_ids,rm) =>
       match (trans_args rm la 1%Z nil) with
       | Some cs' =>
-          match (trans_blocks ex_ids nil None None rm bs) with
-          | Some (ex_ids, tmps, optaddrb, optaddre, b'::bs') => 
+         let '(addrb,ex_ids) := mk_tmp ex_ids in
+         let '(addre,ex_ids) := mk_tmp ex_ids in
+          match (trans_blocks ex_ids nil addrb addre rm bs) with
+          | Some (ex_ids, tmps, b'::bs') => 
               Some (fdef_intro 
                      (fheader_intro fa t (wrapper_fid fid) la va) 
-                     ((insert_more_allocas optaddrb optaddre cs' b')::bs'))
+                     ((insert_more_allocas addrb addre cs' b')::bs'))
           | _ => None
           end
       | _ => None

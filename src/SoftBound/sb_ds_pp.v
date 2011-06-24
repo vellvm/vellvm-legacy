@@ -348,14 +348,14 @@ Proof.
       inv Hlk.
       simpl in Hget.
       remember (get_reg_metadata TD M gl rm v) as R.
-      destruct R as [[md mt]|]; inv Hget.
+      destruct R as [md|]; inv Hget.
       simpl in Hin.
       destruct Hin as [Hin | Hin]; try (inv Hin; congruence).
         simpl in H1.         
         eapply getIncomingValuesForBlockFromPHINodes_spec in HeqR; eauto.
 
       destruct (isPointerTypB t); inv Hget.
-        destruct (get_reg_metadata TD M gl rm v) as [[md mt]|]; inv H0.
+        destruct (get_reg_metadata TD M gl rm v) as [md|]; inv H0.
         simpl in Hin.
         destruct Hin as [Hin | Hin].
           inv Hin. congruence.
@@ -405,7 +405,7 @@ Proof.
           eapply updateValuesForNewBlock_spec1 in HeqR0; eauto.
           destruct HeqR0 as [omd HeqR0].
           apply Hprop with (gv1:=gvx)(opmd1:=omd) in Htyp; eauto.
-            destruct omd as [[md1 mt1]|]; try solve [contradict Htyp; auto].
+            destruct omd as [md1|]; try solve [contradict Htyp; auto].
             eapply updateValuesForNewBlock_spec3 in HeqR; eauto.
 
             apply in_or_app. simpl. auto.
@@ -430,7 +430,7 @@ Proof.
           eapply updateValuesForNewBlock_spec1 in HeqR0; eauto.
           destruct HeqR0 as [omd HeqR0].
           eapply Hprop with (gv1:=gvx)(opmd1:=omd) in Htyp; eauto.
-            destruct omd as [[md1 mt1]|]; try solve [contradict Htyp; auto].
+            destruct omd as [md1|]; try solve [contradict Htyp; auto].
             eapply updateValuesForNewBlock_spec3 in HeqR; eauto.
 
             apply in_or_app. simpl. auto.
@@ -1555,25 +1555,24 @@ Qed.
 
 (*********************************************)
 (** * not stuck *)
-Lemma get_const_metadata_isnt_stuck : forall TD M gl vc gv bc ec t1,
+Lemma get_const_metadata_isnt_stuck : forall TD M gl vc gv bc ec,
   const2GV TD M gl vc = Some gv ->
-  get_const_metadata vc = Some (bc, ec, t1) ->
+  get_const_metadata vc = Some (bc, ec) ->
   exists gvb, exists gve, 
     const2GV TD M gl bc = Some gvb /\ const2GV TD M gl ec = Some gve.
 Proof.
   unfold const2GV.
-  intros TD M gl vc gv bc ec t1 J1 J2.  
+  intros TD M gl vc gv bc ec J1 J2.  
   remember (_const2GV TD M gl vc) as J3.
   destruct J3 as [[gv3 t3]|]; inv J1.
   generalize dependent gv.
   generalize dependent t3.
   generalize dependent ec.
   generalize dependent bc.
-  generalize dependent t1.
   induction vc; intros; try solve [inversion J2].
     exists gv.
     remember t as T.
-    destruct T; inversion J2; clear J2; subst bc ec t1; simpl in *; try solve [
+    destruct T; inversion J2; clear J2; subst bc ec; simpl in *; try solve [
       destruct (lookupAL GenericValue gl i0); inversion HeqJ3; subst gv t3;
       destruct (GV2ptr TD (getPointerSize TD) g); eauto;
       remember (mgep TD t v 
@@ -1627,7 +1626,7 @@ Lemma wf_phinodes__getIncomingValuesForBlockFromPHINodes : forall
   (Hsucc : In l0 (successors_terminator tmn1))
   rm (Hwfm: wf_rmap f lc rm)
   (Hin: exists ps1, ps' = ps1 ++ ps2),
-   exists RVs : list (id * GenericValue * option (metadata * typ)),
+   exists RVs : list (id * GenericValue * option metadata),
      getIncomingValuesForBlockFromPHINodes (los, nts) M ps2 
        (block_intro l1 ps1 cs1 tmn1) gl lc rm =
        ret RVs.
@@ -1750,7 +1749,7 @@ Proof.
         destruct H7 as [RVs H7].
         rewrite H7. 
         remember (get_const_metadata vc) as R.
-        destruct R as [[[bc ec] tc]|].
+        destruct R as [[bc ec]|].
           eapply get_const_metadata_isnt_stuck in H; eauto.
           destruct H as [gvb [gve [Hc1 Hc2]]].
           rewrite Hc1. rewrite Hc2. simpl.
@@ -1826,7 +1825,7 @@ Lemma get_reg_metadata_isnt_stuck : forall s los nts Ps t f rm gl lc M gv v
   (Hptr : true = isPointerTypB t)
   (Hget : getOperandValue (los, nts) M v lc gl = ret gv)
   (Hwfm : wf_rmap f lc rm),
-  exists omd : metadata * typ, get_reg_metadata (los, nts) M gl rm v = ret omd.
+  exists omd : metadata, get_reg_metadata (los, nts) M gl rm v = ret omd.
 Proof.
   intros.
   destruct v; simpl in *.
@@ -1838,7 +1837,7 @@ Proof.
     rewrite J0; eauto.
   
     remember (get_const_metadata c) as R.
-    destruct R as [[[bc ec] tc]|]; eauto.
+    destruct R as [[bc ec]|]; eauto.
       eapply get_const_metadata_isnt_stuck in Hget; eauto.
       destruct Hget as [gvb [gve [Hc1 Hc2]]].
       rewrite Hc1. rewrite Hc2. simpl.
@@ -1859,7 +1858,7 @@ Definition spatial_memory_violation S : Prop :=
         SBopsem.Mem := Mem0 |} => 
       match SBopsem.get_reg_metadata TD Mem0 gl rm vp, 
             getOperandValue TD Mem0 vp lc gl with
-      | ret (md, mt), ret gvp => ~ SBopsem.assert_mptr TD t gvp md
+      | ret md, ret gvp => ~ SBopsem.assert_mptr TD t gvp md
       | _, _ => False
       end
   | {| SBopsem.CurTargetData := TD;
@@ -1871,7 +1870,7 @@ Definition spatial_memory_violation S : Prop :=
         SBopsem.Mem := Mem0 |} => 
       match SBopsem.get_reg_metadata TD Mem0 gl rm vp, 
             getOperandValue TD Mem0 vp lc gl with
-      | ret (md, mt), ret gvp => ~ SBopsem.assert_mptr TD t gvp md
+      | ret md, ret gvp => ~ SBopsem.assert_mptr TD t gvp md
       | _, _ => False
       end
   | _ => False
@@ -2534,7 +2533,7 @@ Proof.
     assert (exists omd, SBopsem.get_reg_metadata (los, nts) M gl rm v = 
       Some omd) as J2.
       eapply get_reg_metadata_isnt_stuck; try solve [eauto | inv Hwfc; eauto].
-    destruct J2 as [[md mt] J2].
+    destruct J2 as [md J2].
     destruct (assert_mptr_dec (los, nts) t gv md) as [J3 | J3].
     SSCase "assert ok".
       assert (exists b, exists ofs, 
@@ -2644,7 +2643,7 @@ Proof.
     assert (exists omd, SBopsem.get_reg_metadata (los, nts) M gl rm v0 = 
       Some omd) as J2.
       eapply get_reg_metadata_isnt_stuck; try solve [eauto | inv Hwfc; eauto].
-    destruct J2 as [[md mt] J2].
+    destruct J2 as [md J2].
     destruct (assert_mptr_dec (los, nts) t mgv md) as [J3 | J3].
     SSCase "assert ok".
       assert (exists b, exists ofs, 
@@ -2690,7 +2689,7 @@ Proof.
               Some omd) as J4.
               eapply get_reg_metadata_isnt_stuck; 
                 try solve [eauto | inv Hwfc; eauto].
-            destruct J4 as [[md' mt'] J4].
+            destruct J4 as [md' J4].
             left.
             remember (set_mem_metadata (los, nts) Mmap0 mgv md') as Mmap0'.
             exists 
@@ -2771,7 +2770,7 @@ Proof.
     assert (exists omd, SBopsem.get_reg_metadata (los, nts) M gl rm v = 
       Some omd) as J4.
       eapply get_reg_metadata_isnt_stuck; try solve [eauto | inv Hwfc; eauto].
-    destruct J4 as [[md mt] J4].
+    destruct J4 as [md J4].
     remember (prop_reg_metadata lc rm i0 mp' md) as R.
     destruct R as [lc' rm'].
     exists 
@@ -2946,7 +2945,7 @@ Proof.
           Some omd) as J4.
           eapply get_reg_metadata_isnt_stuck; eauto.
              inv Hwfc. inv H5; eauto.
-        destruct J4 as [[md mt] J4].
+        destruct J4 as [md J4].
         remember (prop_reg_metadata lc rm i0 gv2 md) as R.
         destruct R as [lc' rm'].
         exists 
@@ -3113,11 +3112,11 @@ Proof.
       assert (exists omd, SBopsem.get_reg_metadata (los, nts) M gl rm v0 = 
           Some omd) as J2.
         eapply get_reg_metadata_isnt_stuck; try solve [eauto | inv Hwfc; eauto].
-      destruct J2 as [[md0 mt0] J2].
+      destruct J2 as [md0 J2].
       assert (exists omd, SBopsem.get_reg_metadata (los, nts) M gl rm v1 = 
           Some omd) as J3.
         eapply get_reg_metadata_isnt_stuck; try solve [eauto | inv Hwfc; eauto].
-      destruct J3 as [[md1 mt1] J3].
+      destruct J3 as [md1 J3].
       remember (if isGVZero (los, nts) gv then 
                   prop_reg_metadata lc rm i0 gv1 md1
                 else

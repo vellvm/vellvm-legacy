@@ -112,15 +112,14 @@ Proof.
         rewrite <- HeqR0.
         destruct (
           match SBopsem.get_const_metadata c with
-         | ret (bc, ec, t) =>
+         | ret (bc, ec) =>
              do gvb <- const2GV TD' M' gl' bc;
              (do gve <- const2GV TD' M' gl' ec;
-              ret ({| SBopsem.md_base := gvb; SBopsem.md_bound := gve |}, t))
+              ret {| SBopsem.md_base := gvb; SBopsem.md_bound := gve |})
          | merror =>
-             ret ({| SBopsem.md_base := null; SBopsem.md_bound := null |},
-                 typ_pointer (typ_int Size.Eight))
+             ret {| SBopsem.md_base := null; SBopsem.md_bound := null |}
          end
-        ) as [[md mt]|]; inversion H1; subst; simpl; eauto.
+        ) as [md|]; inversion H1; subst; simpl; eauto.
           rewrite J2. eauto.
 
       simpl. rewrite J2.
@@ -146,7 +145,7 @@ Proof.
     destruct R1. inversion H0; subst.
     simpl. unfold SBopsem.prop_reg_metadata in H.
     destruct o.
-      destruct p. inversion H; subst.
+      inversion H; subst.
       erewrite IHl0 with (lc1':=lc1'); eauto.
 
       inversion H; subst.
@@ -222,7 +221,6 @@ Proof.
       destruct (isPointerTypB t); try solve [inversion H; subst; auto].
         unfold SBopsem.prop_reg_metadata in H.
         destruct o; try solve [inversion H; subst; auto].
-          destruct p; inversion H; subst; auto.
 Qed.
 
 Lemma initLocals_params2GVs_sim : forall lp gl' TD' M' lc1' rm ogvs la lc' rm',
