@@ -1,585 +1,835 @@
-------------------------------------------------------------------------
-r3001 | jianzhou | 2011-06-24 13:54:34 -0400 (Fri, 24 Jun 2011) | 68 lines
-
-simplified the SBpass design
-  1) at the beginning of a function, always allocates two slots for loading 
-metadata of pointers from memory, so we do not need to prove that it is
-safe to ignore them when there are no pointer-loading in the function.
-  2) We had a problem about proving malloc does not change constant
-values. The case is like this
-   suppose the original code is 
-     %1 = malloc typ, i32 const ;; here const is the size to allocate,
-   if the instrumentation is 
-     %1 = malloc typ, i32 const
-     %base = %1
-     %bound gep %1, i32 const
-   we need to argument that the value represented by const is the 'same'
-before and after this malloc, which is obvious, but needs some work.
-   Currently, we transformed it by
-     %tmp = bitcast i32 cosnt to i32
-     %1 = malloc typ, i32 %tmp
-     %base = %1
-     %bound gep %1, i32 %tmp
-   Now the result is trivial, since registered values are unchanged for
-sure.
-  3) decomposed the dependency with sb_db_trans.v, which will be removed
-when sb_ds_trans is proved.
-  4) The requirememt of shadow-stack:
+addrof: 
+SoftBound: Bounds violation detected
 
-caller pushes normal base/bound for ptr parameters, but, rather than
-skipping nptr parameters, also pushes null/null for them.
- for example, if a caller thinks a call has signature
-     i8 %1 = foo (i8* a) (i8 b) (i8* c)
- it does
-     allocate_ss (1 + 3) // 1 for ret, 3 for parameters
-     set_ss_basebound a_metadata 1
-     set_ss_basebound null 2
-     set_ss_basebound c_metadata 3
-     call foo...
-     deallocate_ss
+Backtrace:
+./test.exe[0x8048e51]
+/lib/libc.so.6(__libc_start_main+0xfe)[0xb75c8ace]
 
-If the allocate_ss always zero-outs allocated shadow-stack, caller does
-not need to push null/null additionally.
 
-callee pops ptr argument's metadata w.r.t its index (the index of the
-whole arg lists, not only args with ptr typs)
- e.g. if a call has signature
-      %1 foo (i8 a) (i8* b) (i8* c) { .. }
- it does, at its beginning
-     b_metadata = get_ss_basebound 2
-     c_metadata = get_ss_basebound 3
+test.sh: line 27:  7968 Aborted                 ./test.exe 50
 
- If callee wants to pop more than caller pushs, it returns null/null
- the default metadata for return is null/null in the case caller sets
-nothing to its return.
+SoftBound: Bounds violation detected
 
-To make the wrapper just work (for the program with matched function types), 
-We simply changed in softbound.c @ main to be
+Backtrace:
+./test.exe[0x8048e51]
+/lib/libc.so.6(__libc_start_main+0xfe)[0xb7605ace]
 
-__softboundcetswithss_allocate_shadow_stack_space(3);   // from 2 to 3
-__softboundcetswithss_store_base_shadow_stack(NULL, 1); // added
-__softboundcetswithss_store_bound_shadow_stack(NULL, 1); // added
-__softboundcetswithss_store_base_shadow_stack(&new_argv[0], 2); // 1 to 2
-__softboundcetswithss_store_bound_shadow_stack(temp_ptr, 2); // 1 to 2
-return_value = softbound_pseudo_main(argc, new_argv);
-__softboundcetswithss_deallocate_shadow_stack_space();
 
-All existing wrappers only have ptr args as its first argument, so we do not 
-need to change them. But if not so, we need to ensure indices are
-matched.
+test.sh: line 27:  7969 Aborted                 ./test.exe 55
+all: 
+SoftBound: Bounds violation detected
 
+Backtrace:
+./test.exe[0x8048fb1]
+/lib/libc.so.6(__libc_start_main+0xfe)[0xb76cdace]
 
-------------------------------------------------------------------------
-r2998 | jianzhou | 2011-06-24 01:32:28 -0400 (Fri, 24 Jun 2011) | 13 lines
 
-finished the first stage of the SoftBound proofs
- 1) SB semantics back-simulates LLVM opsem if it does not abort
- 2) SB opsem is not stuck because of spatial memory violation, although
-it can still be stuck by temporal violation or alignment failtures
+test.sh: line 27:  7981 Aborted                 ./test.exe 50
 
-The version and the last checkin added some new well-formedness rules :
-  all types are well-formed --- can be allocated, and well-alignmented;
-  plus, recursive types are not cyclic.
+SoftBound: Bounds violation detected
 
-The proofs assume 1) external calls are spatial memory safe, 2)
-extractValue and insertValue do nothing about pointers.
+Backtrace:
+./test.exe[0x8048fb1]
+/lib/libc.so.6(__libc_start_main+0xfe)[0xb76a8ace]
 
 
-------------------------------------------------------------------------
-r2997 | jianzhou | 2011-06-23 21:25:39 -0400 (Thu, 23 Jun 2011) | 3 lines
+test.sh: line 27:  7982 Aborted                 ./test.exe 55
+bug1: 
+SoftBound: Bounds violation detected
 
-checkpoint for updating typing rules.
+Backtrace:
+./test.exe[0x8048de1]
+/lib/libc.so.6(__libc_start_main+0xfe)[0xb75f3ace]
 
 
-------------------------------------------------------------------------
-r2995 | jianzhou | 2011-06-22 21:22:08 -0400 (Wed, 22 Jun 2011) | 4 lines
+test.sh: line 27:  7994 Aborted                 ./test.exe 50
+134516537
+bug2: test.sh: line 27:  8007 Segmentation fault      ./test.exe 50
+test.sh: line 27:  8008 Segmentation fault      ./test.exe 55
+cint2ptr: 
+SoftBound: Bounds violation detected
 
-Checkpoint of SoftBound p&p w.r.t memory safety.
-We need to change some typing rules.
+Backtrace:
+./test.exe[0x8048e51]
+/lib/libc.so.6(__libc_start_main+0xfe)[0xb7717ace]
 
 
-------------------------------------------------------------------------
-r2993 | jianzhou | 2011-06-22 01:38:39 -0400 (Wed, 22 Jun 2011) | 3 lines
+test.sh: line 27:  8021 Aborted                 ./test.exe 50
 
-fixed the broken lemma in the last check-in
+SoftBound: Bounds violation detected
 
+Backtrace:
+./test.exe[0x8048e51]
+/lib/libc.so.6(__libc_start_main+0xfe)[0xb7667ace]
 
-------------------------------------------------------------------------
-r2992 | jianzhou | 2011-06-22 01:26:51 -0400 (Wed, 22 Jun 2011) | 5 lines
 
-1) proved SB spec's preservation and progress w/o considering memory
-violation aborts.
-2) fixed the issue of generating metadata for bitcast @global to ptr*
+test.sh: line 27:  8022 Aborted                 ./test.exe 55
+fptr: fptr2: 0000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000fptr3: 
+SoftBound: Bounds violation detected
 
+Backtrace:
+./test.exe[0x8048ca1]
+/lib/libc.so.6(__libc_start_main+0xfe)[0xb76feace]
 
-------------------------------------------------------------------------
-r2990 | jianzhou | 2011-06-20 15:09:08 -0400 (Mon, 20 Jun 2011) | 4 lines
 
-added the small-step SoftBound spec, and proved that it back-simulates
-llvm dsop if it does not abort via memort safety violation.
+test.sh: line 27:  8062 Aborted                 ./test.exe 50
 
+SoftBound: Bounds violation detected
 
-------------------------------------------------------------------------
-r2989 | jianzhou | 2011-06-20 02:14:21 -0400 (Mon, 20 Jun 2011) | 4 lines
+Backtrace:
+./test.exe[0x8048ca1]
+/lib/libc.so.6(__libc_start_main+0xfe)[0xb7600ace]
 
-1) fixed a bug of llvmop, params2GV should be partial
-2) split eq_tv and sub_tv, so removed the unprovable lemmas from sub_tv.
 
+test.sh: line 27:  8063 Aborted                 ./test.exe 55
+fptrret: free: test.sh: line 27:  8088 Aborted                 ./test.exe 50
+test.sh: line 27:  8089 Aborted                 ./test.exe 55
+funcargs: 
+SoftBound: Bounds violation detected
 
-------------------------------------------------------------------------
-r2984 | jianzhou | 2011-06-19 19:19:19 -0400 (Sun, 19 Jun 2011) | 5 lines
+Backtrace:
+./test.exe[0x8048e11]
+/lib/libc.so.6(__libc_start_main+0xfe)[0xb76fbace]
 
-finished progress & preservation of the standard LLVM semantics.
-There is still one admitted lemma in src/ssa, which needs the proof
-irrelevance axiom.
 
+test.sh: line 27:  8101 Aborted                 ./test.exe 50
 
-------------------------------------------------------------------------
-r2978 | jianzhou | 2011-06-18 20:02:31 -0400 (Sat, 18 Jun 2011) | 12 lines
+SoftBound: Bounds violation detected
 
+Backtrace:
+./test.exe[0x8048e11]
+/lib/libc.so.6(__libc_start_main+0xfe)[0xb75b7ace]
 
-1) redesigned computation by the undef values ideas, proved that
-const2GV is not stuck
-2) supported LLVM names with escaped chars
-3) recovered interpreter regression, which is failed from version 2964,
-from then, the constant null's type is restricted to be pointer types
-syntactially, while interpreter was not consistent with this invariant.
-4) A known problem of OCaml llvm bindings, the translation of 129.compress 
-outputs a strange '^@' where it should print '0', this could be by some
-illegal memory access from ocaml-llvm bindings.
 
+test.sh: line 27:  8102 Aborted                 ./test.exe 55
+funcargs2: 
+SoftBound: Bounds violation detected
 
-------------------------------------------------------------------------
-r2974 | jianzhou | 2011-06-16 22:12:31 -0400 (Thu, 16 Jun 2011) | 4 lines
+Backtrace:
+./test.exe[0x8048e41]
+/lib/libc.so.6(__libc_start_main+0xfe)[0xb75f0ace]
 
-fixed some bugs of computing data layout, and flattenning data values.
-fixed cyclic dependence in ssa/Makefile.
 
+test.sh: line 27:  8114 Aborted                 ./test.exe 50
 
-------------------------------------------------------------------------
-r2969 | jianzhou | 2011-06-15 01:04:05 -0400 (Wed, 15 Jun 2011) | 14 lines
+SoftBound: Bounds violation detected
 
-Keep linkage, visibility, call conversion and all other attributes for
-functions, arguments and callsites during translation.
+Backtrace:
+./test.exe[0x8048e41]
+/lib/libc.so.6(__libc_start_main+0xfe)[0xb7682ace]
 
-Need to update the following LLVM source code, and recompile:
-  vol/examples/HowToCallOCamlFromLLVM/llvm-2.6/include/llvm-c/Core.h
-  vol/examples/HowToCallOCamlFromLLVM/llvm-2.6/lib/VMCore/Core.cpp
-  vol/examples/HowToCallOCamlFromLLVM/llvm-2.6/bindings/ocaml/llvm/llvm.ml
-  vol/examples/HowToCallOCamlFromLLVM/llvm-2.6/bindings/ocaml/llvm/llvm_ocaml.c
-  vol/examples/HowToCallOCamlFromLLVM/llvm-2.6/bindings/ocaml/llvm/llvm.mli
 
-The optimization result is not changed, -O3 does not lead to observable 
-operformance improvement. 
+test.sh: line 27:  8115 Aborted                 ./test.exe 55
+funcargsm: 
+SoftBound: Bounds violation detected
 
+Backtrace:
+./test.exe[0x8048f31]
+/lib/libc.so.6(__libc_start_main+0xfe)[0xb763cace]
 
-------------------------------------------------------------------------
-r2967 | jianzhou | 2011-06-14 16:49:12 -0400 (Tue, 14 Jun 2011) | 3 lines
 
-renamed assoclist.v to alist.v
+test.sh: line 27:  8127 Aborted                 ./test.exe 50
 
+SoftBound: Bounds violation detected
 
-------------------------------------------------------------------------
-r2966 | jianzhou | 2011-06-14 10:24:26 -0400 (Tue, 14 Jun 2011) | 5 lines
+Backtrace:
+./test.exe[0x8048f31]
+/lib/libc.so.6(__libc_start_main+0xfe)[0xb7612ace]
 
-simplified bitcast in SBpass, we do not additional bitcast for metadata
-variables to change them to i8*, we only need constant bitcast
-expressions for constant metadata.
 
+test.sh: line 27:  8128 Aborted                 ./test.exe 55
+funcargsret: 
+SoftBound: Bounds violation detected
 
-------------------------------------------------------------------------
-r2964 | jianzhou | 2011-06-14 01:40:39 -0400 (Tue, 14 Jun 2011) | 14 lines
+Backtrace:
+./test.exe[0x8048f51]
 
-1) add linkage attributes for globals: for example, external, appending,
-weak, ...
-2) used the -lower-switch flag to replace switch by br
-3) implemented a C++ floating point printer with its OCaml binding
-(almost copied from VMCore/AsmWriter.cpp)
-4) fixed a bug in SBpass, we need one more bitcast before set_mmetadata. 
-5) made power, perimeter, tsp in olden-ccured work
 
-Two more things to fix:
-1) bitcast metadata in phinodes 
-2) correctly print the char \01 in function names, for example
-"\01__isoc99_scanf"
+test.sh: line 27:  8140 Aborted                 ./test.exe 50
 
+SoftBound: Bounds violation detected
 
-------------------------------------------------------------------------
-r2963 | jianzhou | 2011-06-13 09:04:06 -0400 (Mon, 13 Jun 2011) | 7 lines
+Backtrace:
+./test.exe[0x8048f51]
+[0x0]
 
-added -no-sbpass flag for debugging. for example
 
-_build/SoftBound/main.d.byte -no-sbpass input.bc >& output.ll
+test.sh: line 27:  8141 Aborted                 ./test.exe 55
+funcret: 
+SoftBound: Bounds violation detected
 
-it disables instrumentation in input.bc.
+Backtrace:
+./test.exe[0x8048e71]
+/lib/libc.so.6(__libc_start_main+0xfe)[0xb7676ace]
 
 
-------------------------------------------------------------------------
-r2962 | jianzhou | 2011-06-13 00:54:11 -0400 (Mon, 13 Jun 2011) | 3 lines
+test.sh: line 27:  8153 Aborted                 ./test.exe 50
 
-cp
+SoftBound: Bounds violation detected
 
+Backtrace:
+./test.exe[0x8048e71]
+/lib/libc.so.6(__libc_start_main+0xfe)[0xb7719ace]
 
-------------------------------------------------------------------------
-r2960 | jianzhou | 2011-06-12 00:33:53 -0400 (Sun, 12 Jun 2011) | 5 lines
 
-redefined some typing rules (phi nodes, ssa properties) in Ott, s.t. Ott
-can generate simple and easy to prove Coq code... also redesigned a lot
-of helper functions in ssa_coq_lib.v to simplify proofs.
+test.sh: line 27:  8154 Aborted                 ./test.exe 55
+funcret2: funcret3: globals: 
+SoftBound: Bounds violation detected
 
+Backtrace:
+./test.exe[0x8048e01]
+/lib/libc.so.6(__libc_start_main+0xfe)[0xb766cace]
 
-------------------------------------------------------------------------
-r2957 | jianzhou | 2011-06-10 12:04:20 -0400 (Fri, 10 Jun 2011) | 3 lines
 
-cleaned testing script
+test.sh: line 27:  8192 Aborted                 ./test.exe 50
 
+SoftBound: Bounds violation detected
 
-------------------------------------------------------------------------
-r2956 | jianzhou | 2011-06-10 11:32:48 -0400 (Fri, 10 Jun 2011) | 21 lines
+Backtrace:
+./test.exe[0x8048e01]
+/lib/libc.so.6(__libc_start_main+0xfe)[0xb7586ace]
 
-fixed a bug in the llvm2coq translation, which should check global
-variables are always of pointer typ, so we can safely use its element
-typ. In the formal syntax, a global constant can only have a pointer
-type synatically.
 
-Now SBpass works for all olden-ccured cases that we should support.
-Times:
-./bisort.exe 5000000 0;    7.8s
-./em3d.exe 30000 300 50;   47.8s
-./health.exe 8 250 1;      14.2s
-./mst.exe 4000;            7.8s
-./treeadd.exe 24 10;       5.6s
-This is much slower (2-4x)than SoftBound. And the instrumented code is not
-optimized before linking, because the LLVM optimizer gets failed at -O1 level,
-the failure is from its Global Variable Opt pass..
+test.sh: line 27:  8193 Aborted                 ./test.exe 55
+int2ptr: 
+SoftBound: Bounds violation detected
 
-The instrumentation of 129.compress is still failed, because the printer
-of float value does not generate a right format that LLVM asm reader can
-understand.
+Backtrace:
+./test.exe[0x8048da1]
+/lib/libc.so.6(__libc_start_main+0xfe)[0xb76cface]
 
 
-------------------------------------------------------------------------
-r2955 | jianzhou | 2011-06-10 01:41:36 -0400 (Fri, 10 Jun 2011) | 4 lines
+test.sh: line 27:  8205 Aborted                 ./test.exe 50
 
-supported var_arg syntactically to allow SBpass for more test cases
-(bisort, treeadd, health), not defined its semantics yet.
+SoftBound: Bounds violation detected
 
+Backtrace:
+./test.exe[0x8048da1]
+/lib/libc.so.6(__libc_start_main+0xfe)[0xb7717ace]
 
-------------------------------------------------------------------------
-r2953 | jianzhou | 2011-06-09 23:04:32 -0400 (Thu, 09 Jun 2011) | 3 lines
 
-added the missing file.
+test.sh: line 27:  8206 Aborted                 ./test.exe 55
+loadm: 
+SoftBound: Bounds violation detected
 
+Backtrace:
+./test.exe[0x8048e81]
+/lib/libc.so.6(__libc_start_main+0xfe)[0xb76b8ace]
 
-------------------------------------------------------------------------
-r2949 | jianzhou | 2011-06-07 17:00:24 -0400 (Tue, 07 Jun 2011) | 6 lines
 
-fixed the problems about recursive type and type definitions. 
-1) take one pass to collect all mapping from named types to their
-definition.
-2) take the second pass to substitute type names by their definitions.
+test.sh: line 27:  8218 Aborted                 ./test.exe 50
 
+SoftBound: Bounds violation detected
 
-------------------------------------------------------------------------
-r2926 | jianzhou | 2011-06-04 00:53:43 -0400 (Sat, 04 Jun 2011) | 14 lines
+Backtrace:
+./test.exe[0x8048e81]
+/lib/libc.so.6(__libc_start_main+0xfe)[0xb75c8ace]
 
-1) SoftBound interfaces w/o shadow-stack were moved to
-src/Parser/tvcases/softbound-nss
-2) *.c/h @ src/Parser/tvcases is the SoftBound with shadow stack
-3) the src/Parser/tvcases/compileall.sh recompiles all cases under
-tvcases, setpath needs to be 'source' first. 
-4) extended SBpass to support functions, src/SoftBound/test.sh runs all
-available cases, fixed some bugs along the development.
-  Unfixed problems:
-  a) vargs is not supported, but all cases in olden-ccured/spec95 need
-this feathure.
-  b) failed for mutual recursive types, t1 = {t2*}  t2 = {t1*}
-  These two features disallow all large examples...
 
+test.sh: line 27:  8219 Aborted                 ./test.exe 55
+loadm2: 
+SoftBound: Bounds violation detected
 
-------------------------------------------------------------------------
-r2914 | jianzhou | 2011-05-28 17:31:00 -0400 (Sat, 28 May 2011) | 11 lines
+Backtrace:
+./test.exe[0x8048fa1]
+/lib/libc.so.6(__libc_start_main+0xfe)[0xb7635ace]
 
-switched to small-step semantics.
-The big-step semantics is good when proving validation, but hard for
-progress proofs. Progress proofs do induction over syntactic terms
-(instructions): one problematic case is callsite 
-   call func-name args ...
-Here, func-name does not give us the expected IH --- properties of
-calling the function 'func-name' with one big-step.
 
-Small-step could solve the problem.
+test.sh: line 27:  8231 Aborted                 ./test.exe 50
 
+SoftBound: Bounds violation detected
 
-------------------------------------------------------------------------
-r2913 | jianzhou | 2011-05-27 20:21:51 -0400 (Fri, 27 May 2011) | 5 lines
+Backtrace:
+./test.exe[0x8048fa1]
+/lib/libc.so.6(__libc_start_main+0xfe)[0xb7694ace]
 
-1) updated SBpass design with 'subblock' ideas, to make it provable.
-2) added the mutual proofs for the correctness of blocks-transformation.
-3) split sb_trans.v to be sb_trans/sb_trans_correct.v.
 
+test.sh: line 27:  8232 Aborted                 ./test.exe 55
+loadr: 0
 
-------------------------------------------------------------------------
-r2911 | jianzhou | 2011-05-26 13:31:57 -0400 (Thu, 26 May 2011) | 5 lines
+SoftBound: Bounds violation detected
 
-1) strengthened simrel: every valid block must be mapped; delta is
-always 0; bounds are not changed; globals are id-mapped.
-2) fixed most of admit's about freshness.
+Backtrace:
+./test.exe[0x8048e31]
+/lib/libc.so.6(__libc_start_main+0xfe)[0xb7624ace]
 
 
-------------------------------------------------------------------------
-r2907 | jianzhou | 2011-05-24 23:37:00 -0400 (Tue, 24 May 2011) | 3 lines
+test.sh: line 27:  8245 Aborted                 ./test.exe 55
+locals: 
+SoftBound: Bounds violation detected
 
-changed int2ptr and ptr2int, so they are not cleared on free.
+Backtrace:
+./test.exe[0x8048e01]
+/lib/libc.so.6(__libc_start_main+0xfe)[0xb758dace]
 
 
-------------------------------------------------------------------------
-r2905 | jianzhou | 2011-05-23 23:30:04 -0400 (Mon, 23 May 2011) | 5 lines
+test.sh: line 27:  8257 Aborted                 ./test.exe 50
 
-split memory error to be spatial and temporal errors.
-Spatial error: accessing out-of-bound offsets of a valid block
-Temporal error: accessing released blocks
+SoftBound: Bounds violation detected
 
+Backtrace:
+./test.exe[0x8048e01]
+/lib/libc.so.6(__libc_start_main+0xfe)[0xb7633ace]
 
-------------------------------------------------------------------------
-r2904 | jianzhou | 2011-05-23 15:21:06 -0400 (Mon, 23 May 2011) | 6 lines
 
-defined wf constants that disallow inttoptr, and wf values/cmds as well.
-defined wf globals where all globals have blocks less than other
-heap-allocated blocks at runtime.
-mem-simulation are defined w.r.t them.
+test.sh: line 27:  8258 Aborted                 ./test.exe 55
+multimalloc: 2a
+2a
+postalloc: 
+SoftBound: Bounds violation detected
 
+Backtrace:
+./test.exe[0x8048e51]
+/lib/libc.so.6(__libc_start_main+0xfe)[0xb7680ace]
 
-------------------------------------------------------------------------
-r2903 | jianzhou | 2011-05-22 20:06:25 -0400 (Sun, 22 May 2011) | 5 lines
 
-1) removed the backward part from the simuluation relations
-2) defined wellformed meminj
-3) extracted axioms for metadata space interfaces.
+test.sh: line 27:  8283 Aborted                 ./test.exe 50
 
+SoftBound: Bounds violation detected
 
-------------------------------------------------------------------------
-r2901 | jianzhou | 2011-05-21 15:30:21 -0400 (Sat, 21 May 2011) | 3 lines
+Backtrace:
+./test.exe[0x8048e51]
+/lib/libc.so.6(__libc_start_main+0xfe)[0xb75e6ace]
 
-cp before some more changes of simulation relations.
 
+test.sh: line 27:  8284 Aborted                 ./test.exe 55
+ptr2int: 
+SoftBound: Bounds violation detected
 
-------------------------------------------------------------------------
-r2897 | jianzhou | 2011-05-19 22:00:36 -0400 (Thu, 19 May 2011) | 37 lines
+Backtrace:
+./test.exe[0x8048e51]
+/lib/libc.so.6(__libc_start_main+0xfe)[0xb7590ace]
 
-Another problem: How to make ptr2int to be total.
 
-The current ptr2int has two cases
- ptr2int (Vint2ptr i) = i // the easy case
- ptr2int (Vptr b ofs) = ..?
+test.sh: line 27:  8296 Aborted                 ./test.exe 50
 
-The later case searchs the mapping from block-ofs to addresses, which
-can be None if b does not exist. For example
-  p = malloc ...;
-  free p;
-  i = ptrtoint p; // Here, the p is not valid, so we are stuck.
+SoftBound: Bounds violation detected
 
-For the current proof (proving a value is not changed before and after a
-malloc), this does not seem to be matter. Because,
-1) if ptrtoint is legal before malloc, it should returns the same thing
-after malloc, because malloc does not break existing blocks
-2) if ptrtoint is None by pointing to a dead block, it should still
-point to the dead block since malloc does not reuse any old blocks.
+Backtrace:
+./test.exe[0x8048e51]
+/lib/libc.so.6(__libc_start_main+0xfe)[0xb7686ace]
 
-The rest reasoning is to show that a well-formed program cannot forge a
-ptr to a blk-ofs out-of-thin-air, which could be a hard proof.
 
-But, even the above idea works, it is not extensible to a practical
-memory model that reuses memory.
- 
-One idea is to split Vint to be a normal Vint and a Vptrtoint b ofs;
-keeping track free-ed blocks. But we still need to argue that a program
-cannot 'create' a ptr w/o malloc --- pointing to a block that is not
-form malloc. Secondly, this is not extensible to reallocating malloc
-either, because at the case, a blk can be mapped to more than one
-concrete addresses. 
+test.sh: line 27:  8297 Aborted                 ./test.exe 55
+samechk: 
+SoftBound: Bounds violation detected
 
-The other idea is to let Vptr to be
-  blk -> ofs -> addr -> val
-here, the addr is its concrete addr.
+Backtrace:
+./test.exe[0x8048e61]
+/lib/libc.so.6(__libc_start_main+0xfe)[0xb76a4ace]
 
 
-------------------------------------------------------------------------
-r2893 | jianzhou | 2011-05-18 23:16:13 -0400 (Wed, 18 May 2011) | 3 lines
+test.sh: line 27:  8309 Aborted                 ./test.exe 50
 
-added Vinttoptr in the memory model.
+SoftBound: Bounds violation detected
 
+Backtrace:
+./test.exe[0x8048e61]
+/lib/libc.so.6(__libc_start_main+0xfe)[0xb7536ace]
 
-------------------------------------------------------------------------
-r2886 | jianzhou | 2011-05-18 12:13:35 -0400 (Wed, 18 May 2011) | 29 lines
 
-1) Fixed rmap to be parial
-2) simplified simulation relations, s.t. they consider both value_id and
-value_const cases, which reduces 1/3 size of the proofs
+test.sh: line 27:  8310 Aborted                 ./test.exe 55
+select: 
+SoftBound: Bounds violation detected
 
-Checkpoint before another change.
+Backtrace:
+./test.exe[0x8048e21]
+/lib/libc.so.6(__libc_start_main+0xfe)[0xb76beace]
 
-Here is the problem. The SoftBound instrumentation of malloc is like
-this:
-%p = malloc i8, i32 (ptrtoint (i32* (inttoptr (i32 42 to i32*)) %to i32))
-%b = bitcast i8* %p to i8*
-%e = gep i8* %p, i32 (ptrtoint (i32* (inttoptr (i32 42 to i32*)) %to i32))
 
-[NOTE: The ptrtoint and inttoptr things are optimized away by llvm-as
--disable-opt. From the log of llvm-as, I cannot find which pass it runs
-to do such constant-fold. Maybe by default such folding should happen.
-So we cannot create a case to show the problem.]
+test.sh: line 27:  8322 Aborted                 ./test.exe 50
 
-In term of the current memory model, if 42 is not a valid address for
-any allocated blocks, inttoptr returns null, and the final reresult
-before malloc is 0. Suppose the malloc turns 42 to be an allocated
-address, the constant returns 42 after the malloc. This is inconsistent
-with LLVM.
+SoftBound: Bounds violation detected
 
-To fix it, we are intruducing a new value, Vint2ptr : int -> val. Given
-an inttoptr i, if the i is within a good memory block b with ofs, it
-returns Vptr b ofs, otherwise it returns Vint2ptr i. In such an way, we
-turned int2ptr to be total w/o losing any information.
+Backtrace:
+./test.exe[0x8048e21]
+/lib/libc.so.6(__libc_start_main+0xfe)[0xb75ddace]
 
 
-------------------------------------------------------------------------
-r2884 | jianzhou | 2011-05-17 11:24:14 -0400 (Tue, 17 May 2011) | 12 lines
+test.sh: line 27:  8323 Aborted                 ./test.exe 55
+simple: 
+SoftBound: Bounds violation detected
 
-Update:
-  mem_simulation takes MM as a total function : addr -> metadata, the
-default value is (null, null). In SoftBound this means that loading an
-unused metadata returns an illegal range.
+Backtrace:
+./test.exe[0x8048e11]
+/lib/libc.so.6(__libc_start_main+0xfe)[0xb75dcace]
 
-Checkpoint before updating reg_simulation:
- The rmap in reg_simulation must be a partial function (r -> option (r*r)), 
-although a well-formed code is not stuck at this partial behavior (a use
-must be defined). The current rmap in sb_def.v is a total function
-(incorrect). 
 
+test.sh: line 27:  8335 Aborted                 ./test.exe 50
 
-------------------------------------------------------------------------
-r2881 | jianzhou | 2011-05-16 20:54:25 -0400 (Mon, 16 May 2011) | 21 lines
+SoftBound: Bounds violation detected
 
+Backtrace:
+./test.exe[0x8048e11]
+/lib/libc.so.6(__libc_start_main+0xfe)[0xb7577ace]
 
-checkpoint before some more updates of mem-simulation.
 
-NOTE: found an inconsistent between this proof and the old proofs. The
-old proofs assume that malloc zeros-out all metadata indiced by the
-address in the allocation range. Otherwise, if malloc reuses free-ed
-addresses that have old metadata, then runtime can load wrong metadata
-for the reused address.
+test.sh: line 27:  8336 Aborted                 ./test.exe 55
+storem: 804c264
+804c278
+storem2: 804c1a4
+804c1a4
+804c1a4
+804c1a4
+storer: 804c0d0
 
-The SoftBound implementation for llvm-2.6 does not create wrappers for
-malloc, so the above assumption (zero-out metadata) is not true. This is
-because llvm 2.6 takes malloc as a primitive insn. SoftBound supports
-malloc wrapper for llvm 2.7>=, which takes malloc as intrinsic
-functions.
+SoftBound: Bounds violation detected
 
-This is not a problem for the current memory model because it has
-infinite memory, and does not reuse any deallocated address. But this
-must be a problem to prove CETS for llvm 2.6 since we need a more
-realistic memory model that reuses memory.
+Backtrace:
+./test.exe[0x8048e41]
+/lib/libc.so.6(__libc_start_main+0xfe)[0xb751face]
 
 
-------------------------------------------------------------------------
-r2879 | jianzhou | 2011-05-15 09:57:14 -0400 (Sun, 15 May 2011) | 6 lines
+test.sh: line 27:  8375 Aborted                 ./test.exe 55
+struct: 
+SoftBound: Bounds violation detected
 
-1) solved some admit's
-2) replaced Int.unsigned with Int.signed when converting Int to Z
-because CompCertMM allows negative offset.
-2) checkpoint before checking the mem-simulation relation.
+Backtrace:
+./test.exe[0x8048f61]
+/lib/libc.so.6(__libc_start_main+0xfe)[0xb755cace]
 
 
-------------------------------------------------------------------------
-r2878 | jianzhou | 2011-05-13 22:55:09 -0400 (Fri, 13 May 2011) | 21 lines
+test.sh: line 27:  8387 Aborted                 ./test.exe 50
 
-a SoftBound pass for memory accesses (no function pointers), and a
-translation from Coq AST to *.ll bitcode.
+SoftBound: Bounds violation detected
 
-SoftBound/test.sh uses this pass for milli and micro test cases, whose
-result is in SoftBound/log.
+Backtrace:
+./test.exe[0x8048f61]
+/lib/libc.so.6(__libc_start_main+0xfe)[0xb7541ace]
 
-Problems:
-1) validating outputs of this SoftBound and the real SoftBound needs to
-solve the following problems:
-  renaming of local variables, additional temps from both sides,
-value-numbering, dead-code eliminations, and ...
 
-We can reuse PLDI11's LLVM validator to check such equivalence,
-although that validator is not formally verified. Verifying such a
-validator has different interests than designing a memory model.
+test.sh: line 27:  8388 Aborted                 ./test.exe 55
+undef: 
+SoftBound: Bounds violation detected
 
-2) @ssa/genericvalues.v, the utyp <-> typ translation does not work for
-recursive types. We need to fix them. For example, micro/linklist is
-failed because of this problem. utyp <-> typ is used to defined GEP.
+Backtrace:
+./test.exe[0x8048ca1]
+/lib/libc.so.6(__libc_start_main+0xfe)[0xb76a1ace]
 
 
-------------------------------------------------------------------------
-r2872 | jianzhou | 2011-05-13 00:02:03 -0400 (Fri, 13 May 2011) | 3 lines
+test.sh: line 27:  8400 Aborted                 ./test.exe 50
 
-print Coq AST to *.ll
+SoftBound: Bounds violation detected
 
+Backtrace:
+./test.exe[0x8048ca1]
+/lib/libc.so.6(__libc_start_main+0xfe)[0xb7547ace]
 
-------------------------------------------------------------------------
-r2870 | jianzhou | 2011-05-11 15:09:18 -0400 (Wed, 11 May 2011) | 3 lines
 
-a release to Greg.
+test.sh: line 27:  8401 Aborted                 ./test.exe 55
+array: sum: -805306368
+sum: -805306368
+array2: sum: -805306368
+sum: -805306368
+array3: sum: -805306368
+sum: -805306368
+global_array: sum: -805306368
+sum: -805306368
+linkedlist: sum: -1598126997
+sum: -1598126997
+linkedlistloop: sum: f38b4856
+sum: f38b4856
+reference_test: array_begin=bfbf5adc, array_end=bfbf5c6c, base_ptr= bfbf5adc, bound_ptr = bfbf5adc
+array_begin=bf8968dc, array_end=bf896a6c, base_ptr= bf8968dc, bound_ptr = bf8968dc
+struct_array: sum is 90000000
+sum is 90000000
+bisort: bh: /tmp/ccZPtrWg.o: In function `getparam':
+bh.exe.bc:(.text+0xeff): warning: the `gets' function is dangerous and should not be used.
+em3d: health: mst: perimeter: power: treeadd: tsp: bh: 
+SoftBound: Bounds violation detected
 
+Backtrace:
+./bh.exe[0x8049e91]
+/lib/libc.so.6(__libc_start_main+0xfe)[0xb7635ace]
 
-------------------------------------------------------------------------
-r2869 | jianzhou | 2011-05-10 23:33:04 -0400 (Tue, 10 May 2011) | 20 lines
 
-1) proving forward-simulation of sb_trans. Given a deterministic opsem,
-forward-simulation also implies backward-simulation. This proof requires
-a simulation relation over registers and memory states, which is a
-relation different from the injection and extension relations of
-CompCert memory model, because it allows possibly more blocks in a
-transformed program.
+test.sh: line 58:  8660 Aborted                 ./bh.exe
 
-We need this relation because SoftBound uses additional memory blocks to
-keep track meta data. This makes back-simulation failed: for example,
-given a
-  inttoptr ((i32 42) to i32*)
-42 could be a valid address in those additional blocks of a transformed
-program, but not a valid address of its original one.
+real	0m0.003s
+user	0m0.000s
+sys	0m0.000s
+bisort: Bisort with 5000000 size
+**************************************
+BEGINNING BITONIC SORT ALGORITHM HERE
+**************************************
+Sorting forward...done
+sorting backward...done
 
-2) fixed a bug of llvm bindings: should use Int64_val to convert Caml
-value to a unsiged long long.
+real	0m20.005s
+user	0m19.466s
+sys	0m0.180s
+em3d: Completed a computation phase: 0
+Completed a computation phase: 1
+Completed a computation phase: 2
+Completed a computation phase: 3
+Completed a computation phase: 4
+Completed a computation phase: 5
+Completed a computation phase: 6
+Completed a computation phase: 7
+Completed a computation phase: 8
+Completed a computation phase: 9
+Completed a computation phase: 10
+Completed a computation phase: 11
+Completed a computation phase: 12
+Completed a computation phase: 13
+Completed a computation phase: 14
+Completed a computation phase: 15
+Completed a computation phase: 16
+Completed a computation phase: 17
+Completed a computation phase: 18
+Completed a computation phase: 19
+Completed a computation phase: 20
+Completed a computation phase: 21
+Completed a computation phase: 22
+Completed a computation phase: 23
+Completed a computation phase: 24
+Completed a computation phase: 25
+Completed a computation phase: 26
+Completed a computation phase: 27
+Completed a computation phase: 28
+Completed a computation phase: 29
+Completed a computation phase: 30
+Completed a computation phase: 31
+Completed a computation phase: 32
+Completed a computation phase: 33
+Completed a computation phase: 34
+Completed a computation phase: 35
+Completed a computation phase: 36
+Completed a computation phase: 37
+Completed a computation phase: 38
+Completed a computation phase: 39
+Completed a computation phase: 40
+Completed a computation phase: 41
+Completed a computation phase: 42
+Completed a computation phase: 43
+Completed a computation phase: 44
+Completed a computation phase: 45
+Completed a computation phase: 46
+Completed a computation phase: 47
+Completed a computation phase: 48
+Completed a computation phase: 49
 
-3) One more case for an inttoptr constant expression
+real	0m51.026s
+user	0m49.226s
+sys	0m0.753s
+health: This is max_level : 8
+This is max_time : 250
 
 
-------------------------------------------------------------------------
-r2868 | jianzhou | 2011-05-09 22:48:06 -0400 (Mon, 09 May 2011) | 5 lines
+    Colombian Health Care Simulator
 
-1) added the design of SoftBound pass
-2) added one more binding of APInt --- of_int64
-3) changed the structure of extracted code
+Working...
+This is max_time right before the loop: 250
+iteration 0
+iteration 10
+iteration 20
+iteration 30
+iteration 40
+iteration 50
+iteration 60
+iteration 70
+iteration 80
+iteration 90
+iteration 100
+iteration 110
+iteration 120
+iteration 130
+iteration 140
+iteration 150
+iteration 160
+iteration 170
+iteration 180
+iteration 190
+iteration 200
+iteration 210
+iteration 220
+iteration 230
+iteration 240
+Done.
 
+# of people treated:              548319.000000 people
+Average length of stay:           79.992935 time units
+Average # of hospitals visited:   1.073413 hospitals
 
-------------------------------------------------------------------------
-r2865 | jianzhou | 2011-05-07 21:01:53 -0400 (Sat, 07 May 2011) | 4 lines
 
-1) defined mgep/mset/mget
-2) check point of progress
-
-
-------------------------------------------------------------------------
-r2859 | jianzhou | 2011-05-05 23:58:11 -0400 (Thu, 05 May 2011) | 3 lines
-
-check point of preservation.
-
-
-------------------------------------------------------------------------
-r2856 | jianzhou | 2011-05-05 14:23:33 -0400 (Thu, 05 May 2011) | 3 lines
-
-SB's spec back-simulates SimpleSE.opsem.
-
-
-------------------------------------------------------------------------
-r2853 | jianzhou | 2011-05-04 23:59:12 -0400 (Wed, 04 May 2011) | 3 lines
-
-A spec for softbound
-
-
-------------------------------------------------------------------------
+real	0m17.980s
+user	0m17.020s
+sys	0m0.341s
+mst: Hash entry size = 16
+Hash size = 16
+Vertex size = 16
+Making graph of size 4000
+Make phase 1: Creating hash tables
+Make phase 3: Creating graph
+15996000 edges inserted
+Make returning
+Graph completed
+About to compute mst 
+Compute phase 1
+Compute phase 2
+MST has cost 9040
+
+real	0m7.500s
+user	0m6.771s
+sys	0m0.610s
+perimeter: Level: 12
+Iterations : 2000
+Perimeter with 12 levels on 1 processors
+# of leaves is 73432
+perimeter is 24576
+Time elapsed = 14490.000000 milliseconds
+
+real	0m23.718s
+user	0m14.483s
+sys	0m0.024s
+power: Past initialization
+Built tree
+TR=  0.700000000, TI=  0.140000000, P0=7368.112832400, Q0=1486.612062543
+D TR-  0.008993314, TI=  0.002144467
+TR=  0.708993314, TI=  0.142144467, P0=6825.690778911, Q0=1376.204035277
+D TR- -0.006624389, TI= -0.001149403
+TR=  0.702368925, TI=  0.140995064, P0=7102.879810191, Q0=1432.597592985
+D TR-  0.001985258, TI=  0.000560726
+TR=  0.704354182, TI=  0.141555790, P0=7000.949225670, Q0=1411.850856448
+D TR- -0.001067770, TI= -0.000091784
+TR=  0.703286413, TI=  0.141464005, P0=7047.525235330, Q0=1421.328911545
+D TR-  0.000367545, TI=  0.000165612
+TR=  0.703653957, TI=  0.141629618, P0=7029.016413112, Q0=1417.561973940
+D TR- -0.000188601, TI=  0.000031340
+TR=  0.703465356, TI=  0.141660958, P0=7037.017091154, Q0=1419.190170882
+D TR-  0.000059252, TI=  0.000063894
+TR=  0.703524609, TI=  0.141724852, P0=7033.770028550, Q0=1418.529337081
+D TR- -0.000037004, TI=  0.000031712
+TR=  0.703487605, TI=  0.141756564, P0=7035.109740589, Q0=1418.801987941
+D TR-  0.000005859, TI=  0.000030611
+TR=  0.703493463, TI=  0.141787176, P0=7034.592291839, Q0=1418.696672952
+D TR- -0.000008582, TI=  0.000020424
+TR=  0.703484881, TI=  0.141807600, P0=7034.765506736, Q0=1418.731929680
+D TR- -0.000002088, TI=  0.000016240
+TR=  0.703482793, TI=  0.141823841, P0=7034.732061578, Q0=1418.725114940
+D TR- -0.000002403, TI=  0.000012051
+TR=  0.703480389, TI=  0.141835891, P0=7034.727015493, Q0=1418.724090100
+D TR- -0.000001927, TI=  0.000009042
+TR=  0.703478462, TI=  0.141844933, P0=7034.726009751, Q0=1418.723886234
+D TR- -0.000001469, TI=  0.000006798
+TR=  0.703476993, TI=  0.141851731, P0=7034.726759246, Q0=1418.724038881
+D TR- -0.000001082, TI=  0.000005119
+TR=  0.703475911, TI=  0.141856849, P0=7034.727671084, Q0=1418.724224278
+D TR- -0.000000788, TI=  0.000003856
+TR=  0.703475123, TI=  0.141860705, P0=7034.728125735, Q0=1418.724316582
+D TR- -0.000000579, TI=  0.000002903
+TR=  0.703474543, TI=  0.141863609, P0=7034.728179606, Q0=1418.724327422
+Elapsed time 360.000000
+
+real	0m0.385s
+user	0m0.368s
+sys	0m0.001s
+treeadd: Treeadd with 24 levels
+About to enter TreeAlloc
+About to enter TreeAdd
+Iteration 0...done
+Iteration 1...done
+Iteration 2...done
+Iteration 3...done
+Iteration 4...done
+Iteration 5...done
+Iteration 6...done
+Iteration 7...done
+Iteration 8...done
+Iteration 9...done
+Received result of 16777215
+
+real	0m5.026s
+user	0m4.232s
+sys	0m0.687s
+tsp: Building tree of size 2000000
+Past build
+Time for TSP = 3320.000000
+
+real	0m4.209s
+user	0m3.870s
+sys	0m0.213s
+099.go: 130.li: 099.go:   1 B D13 
+  2 W C4 
+  3 B N12 
+  4 W M4 
+  5 B C11 
+  6 W L12 
+  7 B E4 
+  8 W N13 
+  9 B F13 
+ 10 W D6 
+ 11 B C3 
+ 12 W B3 
+ 13 B D3 
+ 14 W O12 
+ 15 B B2 
+ 16 W B4 
+ 17 B J13 
+ 18 W A2 
+ 19 B L14 
+ 20 W N11 
+ 21 B N9 
+ 22 W M14 
+ 23 B N6 
+ 24 W M10 
+ 25 B C8 
+ 26 W K4 
+ 27 B E6 
+ 28 W M9 
+ 29 B O10 
+ 30 W N8 
+ 31 B B1 
+ 32 W K13 
+ 33 B D7 
+ 34 W G3 
+ 35 B C6 
+ 36 W D5 
+ 37 B J12 
+ 38 W F4 
+ 39 B E8 
+ 40 W E5 
+ 41 B F6 
+ 42 W K14 
+ 43 B F5 
+ 44 W D2 
+ 45 B G4 
+ 46 W L7 
+ 47 B B5 
+ 48 W H4 
+ 49 B C2 
+ 50 W G5 
+ 51 B C5 
+ 52 W E2 
+ 53 B J14 
+ 54 W N5 
+ 55 B J10 
+ 56 W C13 
+ 57 B C14 
+ 58 W J8 
+ 59 B K15 
+ 60 W G8 
+ 61 B N4 
+ 62 W G10 
+ 63 B O5 
+ 64 W M5 
+ 65 B N3 
+ 66 W M6 
+ 67 B O6 
+ 68 W O8 
+ 69 B L3 
+ 70 W G12 
+ 71 B G13 
+ 72 W K3 
+ 73 B M3 
+ 74 W L2 
+ 75 B M2 
+ 76 W E10 
+ 77 B J9 
+ 78 W H9 
+ 79 B F9 
+ 80 W F10 
+ 81 B K8 
+ 82 W K7 
+ 83 B L9 
+ 84 W H7 
+ 85 B K2 
+ 86 W F7 
+ 87 B E7 
+ 88 W D9 
+ 89 B J2 
+ 90 W H10 
+ 91 B J11 
+ 92 W G6 
+ 93 B C9 
+ 94 W C10 
+ 95 B B10 
+ 96 W D12 
+ 97 B E13 
+ 98 W C12 
+ 99 B D11 
+100 W E11 
+101 B B12 
+102 W D10 
+103 B B13 
+104 W H15 
+105 B L15 
+106 W M15 
+107 B L13 
+108 W M13 
+109 B J15 
+110 W E12 
+111 B F1 
+112 W E3 
+113 B A4 
+114 W D4 
+115 B A5 
+116 W B11 
+117 B A11 
+118 W C11 
+119 B B9 
+120 W G2 
+121 B A3 
+122 W E4 
+123 B J3 
+124 W B7 
+125 B A8 
+126 W D8 
+127 B B8 
+128 W D1 
+129 B A1 
+130 W E9 
+131 B C7 
+132 W C1 
+133 B A2 
+134 W K12 
+135 B F8 
+136 W J4 
+137 B L10 
+138 W G7 
+139 B N10 
+140 W M12 
+141 B H2 
+142 W G1 
+143 B N7 
+144 W P10 
+145 B O7 
+146 W O11 
+147 B H11 
+148 W H1 
+149 B J1 
+150 W H3 
+151 B L1 
+152 W H12 
+153 B G11 
+154 W F12 
+155 B H13 
+156 W K11 
+157 B L4 
+158 W L5 
+159 B M7 
+160 W L8 
+161 B M8 
+162 W M11 
+163 B P8 
+164 W O9 
+165 B P7 
+166 W K9 
+167 B K10 
+168 W K8 
+169 B F11 
+170 W L11 
+171 B G9 
+172 W P9 
+173 B pass
+174 W pass
+Game over
+
+real	0m6.073s
+user	0m5.974s
+sys	0m0.003s
+130.li: test.sh: line 77:  8885 Segmentation fault      ./130.li.exe ../Parser/tvcases/spec95-ccured/130.li/src/ref.lsp
+
+real	0m0.002s
+user	0m0.000s
+sys	0m0.003s
