@@ -39,6 +39,7 @@ Export LLVMgv.
 Export SBopsem.
 
 (*****************************************)
+(* Definitions *)
 
 Definition wf_rmap (f:fdef) (lc:GVMap) (rm:rmetadata) : Prop :=
 forall id1 gv1 t1, 
@@ -102,249 +103,167 @@ moduleInSystemB (module_intro los nts ps) s = true /\
 wf_ECStack (los, nts) M ps ecs.
 
 (*********************************************)
-(** * Preservation *)
+(** * wf_state *)
 
-Lemma preservation_cmd_updated_case : forall
-  (S : system)
-  (los : layouts)
-  (nts : namedts)
-  (Ps : list product)
-  (F : fdef)
-  (B : block)
-  (lc : GVMap)
-  (gl : GVMap)
-  (fs : GVMap)
-  (gv3 : GenericValue)
-  (EC : list SBopsem.ExecutionContext)
-  (cs : list cmd)
-  (tmn : terminator)
-  (Mem0 Mem': mem)
-  (als : list mblock)
-  id0 c0
-  (Hid : Some id0 = getCmdID c0)
-  t0
-  (Htyp : Some t0 = getCmdTyp c0)
-  MM rm rm'
-  (Hp1: wf_rmap F lc rm -> wf_rmap F (updateAddAL GenericValue lc id0 gv3) rm')
-  (Hp2 : wf_rmetadata (los, nts) Mem0 rm -> wf_rmetadata (los, nts) Mem' rm')
-  (Hp3 : wf_mmetadata (los, nts) Mem0 MM -> wf_mmetadata (los, nts) Mem' MM)
-  (Hp4 : wf_global_ptr S (los, nts) Mem0 gl -> 
-         wf_global_ptr S (los, nts) Mem' gl)
-  (Hp5 : wf_ECStack (los, nts) Mem0 Ps EC -> wf_ECStack (los, nts) Mem' Ps EC)
-  (HwfS1 : wf_State
-            {|
-            SBopsem.CurSystem := S;
-            SBopsem.CurTargetData := (los, nts);
-            SBopsem.CurProducts := Ps;
-            SBopsem.ECS := {|
-                   SBopsem.CurFunction := F;
-                   SBopsem.CurBB := B;
-                   SBopsem.CurCmds := c0 :: cs;
-                   SBopsem.Terminator := tmn;
-                   SBopsem.Locals := lc;
-                   SBopsem.Rmap := rm;
-                   SBopsem.Allocas := als |} :: EC;
-            SBopsem.Globals := gl;
-            SBopsem.FunTable := fs;
-            SBopsem.Mem := Mem0;
-            SBopsem.Mmap := MM |}),
-   wf_State
-     {|
-     SBopsem.CurSystem := S;
-     SBopsem.CurTargetData := (los, nts);
-     SBopsem.CurProducts := Ps;
-     SBopsem.ECS := {|
-            SBopsem.CurFunction := F;
-            SBopsem.CurBB := B;
-            SBopsem.CurCmds := cs;
-            SBopsem.Terminator := tmn;
-            SBopsem.Locals := updateAddAL GenericValue lc id0 gv3;
-            SBopsem.Rmap := rm';
-            SBopsem.Allocas := als |} :: EC;
-     SBopsem.Globals := gl;
-     SBopsem.FunTable := fs;
-     SBopsem.Mem := Mem';
-     SBopsem.Mmap := MM |}.
+Lemma wf_State__cmd__lookupTypViaIDFromFdef : forall S,
+  wf_State S ->
+  match S with 
+  | {| ECS := {|CurFunction := F; CurCmds := c :: cs |} :: EC |} =>
+      forall id0, getCmdID c = Some id0 ->
+      lookupTypViaIDFromFdef F id0 = getCmdTyp c
+  | _ => True
+  end.
 Proof.
-  intros.
-  destruct HwfS1 as 
-    [HwfMM [Hwfg [Hwfg' [HwfSystem [HmInS [
-     [Hreach1 [HBinF1 [HFinPs1 [Hinscope1 [Hwfm [Hwfm' 
-       [l3 [ps3 [cs3' Heq1]]]]]]]]]
-     [HwfEC HwfCall]]]]
-    ]]]; subst.
-  remember (inscope_of_cmd F (block_intro l3 ps3 (cs3' ++ c0 :: cs) tmn) c0) 
-    as R1. 
-  destruct R1; try solve [inversion Hinscope1].
-  repeat (split; try solve [auto]).
-      assert (Hid':=Hid).
-      symmetry in Hid.
-      apply getCmdLoc_getCmdID in Hid.
-       subst.
-      destruct cs; simpl_env in *.
-      Case "1.1.1".
-        assert (~ In (getCmdLoc c0) (getCmdsLocs cs3')) as Hnotin.
-          eapply wf_system__uniq_block with (f:=F) in HwfSystem; eauto.        
-          simpl in HwfSystem.
-          apply NoDup_inv in HwfSystem.
-          destruct HwfSystem as [_ J].
-          apply NoDup_inv in J.
-          destruct J as [J _].
-          rewrite getCmdsLocs_app in J.
-          simpl in J.
-          apply NoDup_last_inv in J. auto.
-
-        apply inscope_of_cmd_tmn in HeqR1; auto.
-        destruct HeqR1 as [ids2 [J1 J2]].        
-        rewrite <- J1.
-        assert (In c0 (cs3' ++ [c0])) as HinCs.
-          apply in_or_app. right. simpl. auto.
-        assert (Hwfc := HBinF1).
-        eapply wf_system__wf_cmd with (c:=c0) in Hwfc; 
-          eauto.
-        rewrite <- Hid' in J2.
-        eapply wf_defs_updateAddAL with (t1:=t0) ; eauto.
-          eapply uniqF__lookupTypViaIDFromFdef; eauto.
-            eapply wf_system__uniqFdef; eauto.
-        
-      Case "1.1.2".
-        assert (NoDup (getCmdsLocs (cs3' ++ [c0] ++ [c] ++ cs))) as Hnodup.
-          eapply wf_system__uniq_block with (f:=F) in HwfSystem; eauto.        
-          simpl in HwfSystem.
-          apply NoDup_inv in HwfSystem.
-          destruct HwfSystem as [_ J].
-          apply NoDup_inv in J.
-          destruct J as [J _]. auto.
-        apply inscope_of_cmd_cmd in HeqR1; auto.
-        destruct HeqR1 as [ids2 [J1 J2]].        
-        rewrite <- J1.
-        assert (In c0 (cs3' ++ [c0] ++ [c] ++ cs)) as HinCs.
-          apply in_or_app. right. simpl. auto.
-        assert (Hwfc := HBinF1).
-        eapply wf_system__wf_cmd with (c:=c0) in Hwfc; 
-          eauto.
-        rewrite <- Hid' in J2.
-        eapply wf_defs_updateAddAL with (t1:=t0) ; eauto.
-          eapply uniqF__lookupTypViaIDFromFdef; eauto.
-            eapply wf_system__uniqFdef; eauto.
-
-  exists l3. exists ps3. exists (cs3'++[c0]). simpl_env. auto.
+  intros S HwfS.
+  destruct S.
+  destruct CurTargetData0.
+  destruct ECS0; auto.
+  destruct e; auto.
+  destruct CurCmds0; auto.
+  destruct HwfS as 
+      [HwfMM [Hwfg [Hwfg' [HwfSystem [HmInS [
+         [Hreach1 [HBinF1 [HFinPs1 [Hinscope1 [Hwfm1 [Hwfm1' 
+           [l3 [ps3 [cs3' Heq1]]]]]]]]]
+         [HwfEC HwfCall]]]]
+      ]]]; subst.
+  intros id0 HgetID.
+  eapply uniqF__lookupTypViaIDFromFdef'; eauto.
+    eapply wf_system__uniqFdef; eauto.
+    apply in_or_app; simpl; auto.
 Qed.
 
-Lemma preservation_cmd_non_updated_case : forall
-  (S : system)
-  (los : layouts)
-  (nts : namedts)
-  (Ps : list product)
-  (F : fdef)
-  (B : block)
-  (lc : GVMap)
-  (gl : GVMap)
-  (fs : GVMap)
-  (EC : list SBopsem.ExecutionContext)
-  (cs : list cmd)
-  (tmn : terminator)
-  (Mem0 Mem': mem)
-  (als : list mblock)
-  c0
-  (Hid : getCmdID c0 = None)
-  rm MM MM'
-  (Hp1 : wf_rmetadata (los, nts) Mem0 rm -> wf_rmetadata (los, nts) Mem' rm)
-  (Hp2 : wf_mmetadata (los, nts) Mem0 MM -> wf_mmetadata (los, nts) Mem' MM')
-  (Hp3 : wf_global_ptr S (los, nts) Mem0 gl -> 
-         wf_global_ptr S (los, nts) Mem' gl)
-  (Hp4 : wf_ECStack (los, nts) Mem0 Ps EC -> wf_ECStack (los, nts) Mem' Ps EC)
-  (HwfS1 : wf_State
-            {|
-            SBopsem.CurSystem := S;
-            SBopsem.CurTargetData := (los, nts);
-            SBopsem.CurProducts := Ps;
-            SBopsem.ECS := {|
-                   SBopsem.CurFunction := F;
-                   SBopsem.CurBB := B;
-                   SBopsem.CurCmds := c0 :: cs;
-                   SBopsem.Terminator := tmn;
-                   SBopsem.Locals := lc;
-                   SBopsem.Rmap := rm;
-                   SBopsem.Allocas := als |} :: EC;
-            SBopsem.Globals := gl;
-            SBopsem.FunTable := fs;
-            SBopsem.Mem := Mem0;
-            SBopsem.Mmap := MM |}),
-   wf_State
-     {|
-     SBopsem.CurSystem := S;
-     SBopsem.CurTargetData := (los, nts);
-     SBopsem.CurProducts := Ps;
-     SBopsem.ECS := {|
-            SBopsem.CurFunction := F;
-            SBopsem.CurBB := B;
-            SBopsem.CurCmds := cs;
-            SBopsem.Terminator := tmn;
-            SBopsem.Locals := lc;
-            SBopsem.Rmap := rm;
-            SBopsem.Allocas := als |} :: EC;
-     SBopsem.Globals := gl;
-     SBopsem.FunTable := fs;
-     SBopsem.Mem := Mem';
-     SBopsem.Mmap := MM' |}.
+Lemma wf_State__wf_cmd : forall St,
+  wf_State St ->
+  match St with 
+  | {| CurSystem := sys;
+       CurTargetData := (los, nts);
+       CurProducts := Ps;
+       ECS := {|CurFunction := F; CurBB := B; CurCmds := c :: cs |} :: EC 
+     |} => wf_insn nil sys (module_intro los nts Ps) F B (insn_cmd c)
+  | _ => True
+  end.
 Proof.
-  intros.
-  destruct HwfS1 as 
-    [HwfMM [Hwfg [Hwfg' [HwfSystem [HmInS [
-     [Hreach1 [HBinF1 [HFinPs1 [Hinscope1 [Hwfm [Hwfm'
-       [l3 [ps3 [cs3' Heq1]]]]]]]]]
-     [HwfEC HwfCall]]]]
-    ]]]; subst.
-  remember (inscope_of_cmd F (block_intro l3 ps3 (cs3' ++ c0 :: cs) tmn) c0) 
-    as R1. 
-  destruct R1; try solve [inversion Hinscope1].
-  repeat (split; try solve [auto]).
-      destruct cs; simpl_env in *.
-      Case "1.1.1".
-        assert (~ In (getCmdLoc c0) (getCmdsLocs cs3')) as Hnotin.
-          eapply wf_system__uniq_block with (f:=F) in HwfSystem; eauto.        
-          simpl in HwfSystem.
-          apply NoDup_inv in HwfSystem.
-          destruct HwfSystem as [_ J].
-          apply NoDup_inv in J.
-          destruct J as [J _].
-          rewrite getCmdsLocs_app in J.
-          simpl in J.
-          apply NoDup_last_inv in J. auto.
-
-        apply inscope_of_cmd_tmn in HeqR1; auto.
-        destruct HeqR1 as [ids2 [J1 J2]].        
-        rewrite <- J1.
-        assert (In c0 (cs3' ++ [c0])) as HinCs.
-          apply in_or_app. right. simpl. auto.
-        assert (Hwfc := HBinF1).
-        eapply wf_system__wf_cmd with (c:=c0) in Hwfc; 
-          eauto.
-        rewrite Hid in J2.
-        eapply wf_defs_eq; eauto.
-        
-      Case "1.1.2".
-        assert (NoDup (getCmdsLocs (cs3' ++ [c0] ++ [c] ++ cs))) as Hnodup.
-          eapply wf_system__uniq_block with (f:=F) in HwfSystem; eauto.        
-          simpl in HwfSystem.
-          apply NoDup_inv in HwfSystem.
-          destruct HwfSystem as [_ J].
-          apply NoDup_inv in J.
-          destruct J as [J _]. auto.
-        apply inscope_of_cmd_cmd in HeqR1; auto.
-        destruct HeqR1 as [ids2 [J1 J2]].        
-        rewrite <- J1.
-        assert (In c0 (cs3' ++ [c0] ++ [c] ++ cs)) as HinCs.
-          apply in_or_app. right. simpl. auto.
-        assert (Hwfc := HBinF1).
-        eapply wf_system__wf_cmd with (c:=c0) in Hwfc; 
-          eauto.
-        rewrite Hid in J2.
-        eapply wf_defs_eq ; eauto.
-
-  exists l3. exists ps3. exists (cs3'++[c0]). simpl_env. auto.
+  intros S HwfS.
+  destruct S.
+  destruct CurTargetData0.
+  destruct ECS0; auto.
+  destruct e; auto.
+  destruct CurCmds0; auto.
+  destruct HwfS as 
+      [HwfMM [Hwfg [Hwfg' [HwfSystem [HmInS [
+         [Hreach1 [HBinF1 [HFinPs1 [Hinscope1 [Hwfm1 [Hwfm1' 
+           [l3 [ps3 [cs3' Heq1]]]]]]]]]
+         [HwfEC HwfCall]]]]
+      ]]]; subst.
+  eapply wf_system__wf_cmd with(c:=c) in HBinF1; 
+    try solve [eauto | apply in_or_app; simpl; auto].
 Qed.
+
+Lemma free_allocas_preserves_wf_EC : forall EC TD M M' als Ps,
+  free_allocas TD M als = Some M' ->
+  wf_ExecutionContext TD M Ps EC ->
+  wf_ExecutionContext TD M' Ps EC.
+Proof.
+  destruct EC; simpl; intros TD M M' als Ps Hfrees HwfEC.
+  destruct HwfEC as [J1 [J2 [J3 [J4 [J5 [J6 J7]]]]]].
+  repeat (split; eauto using free_allocas_preserves_wf_rmetadata).
+Qed.  
+
+Lemma free_allocas_preserves_wf_ECStack : forall EC TD M M' als Ps,
+  free_allocas TD M als = Some M' ->
+  wf_ECStack TD M Ps EC ->
+  wf_ECStack TD M' Ps EC.
+Proof.
+  induction EC; simpl; intros TD M M' als Ps Hfrees HwfECs; auto.
+  destruct HwfECs as [J1 [J2 J3]].
+  repeat (split; eauto using free_allocas_preserves_wf_EC).
+Qed.
+
+Lemma free_preserves_wf_EC : forall EC TD M M' gv Ps,
+  free TD M gv = Some M' ->
+  wf_ExecutionContext TD M Ps EC ->
+  wf_ExecutionContext TD M' Ps EC.
+Proof.
+  destruct EC; simpl; intros TD M M' als Ps Hfrees HwfEC.
+  destruct HwfEC as [J1 [J2 [J3 [J4 [J5 [J6 J7]]]]]].
+  repeat (split; eauto using free_preserves_wf_rmetadata).
+Qed.  
+
+Lemma free_preserves_wf_ECStack : forall ECs TD M M' gv Ps,
+  free TD M gv = Some M' ->
+  wf_ECStack TD M Ps ECs ->
+  wf_ECStack TD M' Ps ECs.
+Proof.
+  induction ECs; simpl; intros TD M M' als Ps Hfrees HwfECs; auto.
+  destruct HwfECs as [J1 [J2 J3]].
+  repeat (split; eauto using free_preserves_wf_EC).
+Qed.
+
+Lemma malloc_preserves_wf_EC : forall EC TD M tsz gn align0 M' mb Ps,
+  malloc TD M tsz gn align0 = ret (M', mb) ->
+  wf_ExecutionContext TD M Ps EC ->
+  wf_ExecutionContext TD M' Ps EC.
+Proof.
+  destruct EC; simpl; intros TD M tsz gn align0 M' mb Ps Hmalloc HwfEC.
+  destruct HwfEC as [J1 [J2 [J3 [J4 [J5 [J6 J7]]]]]].
+  repeat (split; eauto using malloc_preserves_wf_rmetadata).
+Qed.
+
+Lemma malloc_preserves_wf_ECStack : forall ECs TD M tsz gn align0 M' mb Ps,
+  malloc TD M tsz gn align0 = ret (M', mb) ->
+  wf_ECStack TD M Ps ECs ->
+  wf_ECStack TD M' Ps ECs.
+Proof.
+  induction ECs; simpl; intros TD M tsz gn align0 M' mb Ps Halloc HwfECs; auto.
+  destruct HwfECs as [J1 [J2 J3]].
+  repeat (split; eauto using malloc_preserves_wf_EC).
+Qed.
+
+Lemma store_preserves_wf_EC : forall EC TD M gvp t gv align M' Ps,
+  mstore TD M gvp t gv align = Some M' ->
+  wf_ExecutionContext TD M Ps EC ->
+  wf_ExecutionContext TD M' Ps EC.
+Proof.
+  destruct EC; simpl; intros TD M gvp t gv align M' Ps Hstore HwfEC.
+  destruct HwfEC as [J1 [J2 [J3 [J4 [J5 [J6 J7]]]]]].
+  repeat (split; eauto using store_preserves_wf_rmetadata).
+Qed.
+
+Lemma store_preserves_wf_ECStack : forall ECs TD M gvp t gv align M' Ps,
+  mstore TD M gvp t gv align = Some M' ->
+  wf_ECStack TD M Ps ECs ->
+  wf_ECStack TD M' Ps ECs.
+Proof.
+  induction ECs; simpl; intros TD M gvp t gv align M' Ps Hstore HwfECs; auto.
+  destruct HwfECs as [J1 [J2 J3]].
+  repeat (split; eauto using store_preserves_wf_EC).
+Qed.
+
+Lemma callExternalFunction_preserves_wf_EC : forall EC M fid gvs oresult M' TD 
+    Ps,
+  callExternalFunction M fid gvs = (oresult, M') ->
+  wf_ExecutionContext TD M Ps EC ->
+  wf_ExecutionContext TD M' Ps EC.
+Proof.
+  destruct EC; simpl; intros M fid gvs oresult M' TD Ps Hcall HwfEC.
+  destruct HwfEC as [J1 [J2 [J3 [J4 [J5 [J6 J7]]]]]].
+  repeat (split; eauto using callExternalFunction_preserves_wf_rmetadata).
+Qed.
+
+Lemma callExternalFunction_preserves_wf_ECStack : forall ECs Mem0 fid gvs oresult
+    Mem' TD Ps,
+  callExternalFunction Mem0 fid gvs = (oresult, Mem') ->
+  wf_ECStack TD Mem0 Ps ECs ->
+  wf_ECStack TD Mem' Ps ECs.
+Proof.
+  induction ECs; simpl; intros Mem0 fid gvs oresult Mem' TD Ps Hcall HwfECs; 
+    auto.
+  destruct HwfECs as [J1 [J2 J3]].
+  repeat (split; eauto using callExternalFunction_preserves_wf_EC).
+Qed.
+
+(*********************************************)
+(** * wf_rmap *)
 
 Lemma returnUpdateLocals__wf_rmap : 
   forall los nts Mem' c' Result lc lc' rm rm' gl lc'' rm'' F' tmn' cs' Ps S
@@ -406,32 +325,6 @@ Proof.
       ].
 Qed.
 
-Lemma getIncomingValuesForBlockFromPHINodes_spec : forall ps TD Mem0 b gl lc id1
-    rm re gv1 opmd1,
-  Some re = getIncomingValuesForBlockFromPHINodes TD Mem0 ps b gl lc rm ->
-  In (id1, gv1, opmd1) re ->
-  In id1 (getPhiNodesIDs ps).
-Proof.    
-  induction ps; intros; simpl in *.
-    inv H. inversion H0.
-
-    destruct a.
-    destruct (getValueViaBlockFromValuels l0 b); try solve [inversion H].   
-    destruct (getOperandValue TD Mem0 v lc gl); try solve [inversion H].   
-    remember (getIncomingValuesForBlockFromPHINodes TD Mem0 ps b gl lc rm) as R.
-    destruct R; try solve [inv H].
-    simpl.
-    destruct (isPointerTypB t); inv H.
-      destruct (get_reg_metadata TD Mem0 gl rm v) as [[md mt]|]; inv H2.      
-      simpl in H0.
-      destruct H0 as [H0 | H0]; eauto.  
-        inv H0; auto.
-
-      simpl in H0.
-      destruct H0 as [H0 | H0]; eauto.  
-        inv H0; auto.
-Qed.
-
 Lemma getIncomingValuesForBlockFromPHINodes__wf_rmap : forall PNs TD M b gl lc rm
    re id1 gv1 opmd1 t1,
   NoDup (getPhiNodesIDs PNs) ->
@@ -473,83 +366,6 @@ Proof.
           eauto.
 Qed.
 
-Lemma updateValuesForNewBlock_spec1 : forall rvs lc x rm lc' rm' gv,
-  lookupAL _ lc x = None ->
-  (lc', rm') = updateValuesForNewBlock rvs lc rm ->
-  lookupAL _ lc' x = Some gv ->
-  exists omd, In (x, gv, omd) rvs.
-Proof.
-  induction rvs; simpl; intros lc x rm lc' rm' gv Hlk Hupdate Hlk'.
-    inv Hupdate. rewrite Hlk in Hlk'. inversion Hlk'.
-
-    destruct a. destruct p.
-    remember (updateValuesForNewBlock rvs lc rm) as R.
-    destruct R as [lc1 rm1].
-    destruct o as [[md ?]|]; inv Hupdate.
-      destruct (eq_atom_dec i0 x); subst.
-        rewrite lookupAL_updateAddAL_eq in Hlk'; auto.
-        inv Hlk'. eauto.
-
-        rewrite <- lookupAL_updateAddAL_neq in Hlk'; auto.
-        eapply IHrvs in HeqR; eauto.
-        destruct HeqR as [omd HeqR]. eauto.
-
-      destruct (eq_atom_dec i0 x); subst.
-        rewrite lookupAL_updateAddAL_eq in Hlk'; auto.
-        inv Hlk'. eauto.
-
-        rewrite <- lookupAL_updateAddAL_neq in Hlk'; auto.
-        eapply IHrvs in HeqR; eauto.
-        destruct HeqR as [omd HeqR]. eauto.
-Qed.
-
-Lemma updateValuesForNewBlock_spec2 : forall rvs lc x rm lc' rm' md,
-  lookupAL _ rm x = Some md ->
-  (lc', rm') = updateValuesForNewBlock rvs lc rm ->
-  exists md, lookupAL _ rm' x = Some md.
-Proof.
-  induction rvs; simpl; intros lc x rm lc' rm' md Hlk Hupdate.
-    inv Hupdate; eauto.
-
-    destruct a. destruct p.
-    remember (updateValuesForNewBlock rvs lc rm) as R.
-    destruct R as [lc1 rm1].
-    destruct o as [[md1 ?]|]; inv Hupdate.
-      destruct (eq_atom_dec i0 x); subst.
-        rewrite lookupAL_updateAddAL_eq.
-        eauto.
-
-        rewrite <- lookupAL_updateAddAL_neq; auto.
-        eapply IHrvs in HeqR; eauto.
-
-      eapply IHrvs in HeqR; eauto.
-Qed.
-
-Lemma updateValuesForNewBlock_spec3 : forall rvs lc x rm lc' rm' gvx md mt,
-  In (x, gvx, Some (md,mt)) rvs ->
-  (lc', rm') = updateValuesForNewBlock rvs lc rm ->
-  exists md, lookupAL _ rm' x = Some md.
-Proof.
-  induction rvs; simpl; intros lc x rm lc' rm' gvx md mt Hin Hupdate.
-    inversion Hin.
-
-    destruct a. destruct p.
-    remember (updateValuesForNewBlock rvs lc rm) as R.
-    destruct R as [lc1 rm1].
-    destruct o as [[md1 ?]|]; inv Hupdate.
-      destruct (eq_atom_dec i0 x); subst.
-        rewrite lookupAL_updateAddAL_eq. eauto.
-
-        rewrite <- lookupAL_updateAddAL_neq; auto.
-        destruct Hin as [Hin | Hin].
-          inv Hin. contradict n; auto.
-          eapply IHrvs in HeqR; eauto.
-
-      destruct Hin as [Hin | Hin].
-        inv Hin. 
-        eapply IHrvs in HeqR; eauto.
-Qed.
-
 Lemma updateValuesForNewBlock__wf_rmap_aux : forall rvs F rm lc,
   (forall id1 gv1 opmd1 t1, 
     In (id1,gv1,opmd1) rvs ->
@@ -583,7 +399,7 @@ Proof.
           assert (exists md0, lookupAL metadata rm1 x = ret md0) as J.
             eapply Hrmap1; eauto.
           destruct J as [md0 J].
-          eapply updateValuesForNewBlock_spec2 in J; eauto.
+          eapply updateValuesForNewBlock_spec5 in J; eauto.
 
           symmetry in HeqR0.
           eapply updateValuesForNewBlock_spec1 in HeqR0; eauto.
@@ -608,7 +424,7 @@ Proof.
           assert (exists md0, lookupAL metadata rm1 x = ret md0) as J.
             eapply Hrmap1; eauto.
           destruct J as [md0 J].
-          eapply updateValuesForNewBlock_spec2 in J; eauto.
+          eapply updateValuesForNewBlock_spec5 in J; eauto.
 
           symmetry in HeqR0.
           eapply updateValuesForNewBlock_spec1 in HeqR0; eauto.
@@ -634,23 +450,6 @@ Proof.
     (rvs2:=rvs); simpl; eauto.
 Qed.
 
-Lemma lookupTypViaIDFromFdef__lookupTypViaIDFromPhiNodes : forall F id1 t b1,
-  uniqFdef F ->
-  lookupTypViaIDFromFdef F id1 = Some t ->
-  blockInFdefB b1 F ->
-  In id1 (getPhiNodesIDs (getPHINodesFromBlock b1)) ->
-  lookupTypViaIDFromPhiNodes (getPHINodesFromBlock b1) id1 = Some t. 
-Admitted.
-
-Lemma uniqFdef__uniqBlock : forall F b1,
-  uniqFdef F -> blockInFdefB b1 F -> NoDup (getBlockLocs b1).
-Proof.
-  intros.
-  destruct F. destruct f.
-  destruct H as [H _]. simpl in H0. destruct H.
-  apply NoDup__InBlocksB in H0; auto.
-Qed.
-
 Lemma switchToNewBasicBlock__wf_rmap : forall F TD M b1 b2 gl lc rm lc' rm',
   uniqFdef F ->
   blockInFdefB b1 F ->
@@ -666,7 +465,7 @@ Proof.
   eapply updateValuesForNewBlock__wf_rmap; eauto.
   intros.
   eapply getIncomingValuesForBlockFromPHINodes__wf_rmap with (t1:=t1); eauto.
-    apply uniqFdef__uniqBlock in HBinF; auto.
+    apply uniqFdef__uniqBlockLocs in HBinF; auto.
     destruct b1. simpl in HBinF. simpl.
     apply NoDup_inv in HBinF. destruct HBinF; auto.
 
@@ -700,43 +499,6 @@ Proof.
 
     rewrite <- lookupAL_updateAddAL_neq in J1; auto.
     rewrite <- lookupAL_updateAddAL_neq; eauto. 
-Qed.
-
-Lemma initializeFrameValues_spec1 : forall la lc1 rm1 x md lc2 rm2,
-  lookupAL _ rm1 x = Some md ->
-  (lc2, rm2) = _initializeFrameValues la nil lc1 rm1 ->
-  exists md, lookupAL _ rm2 x = Some md.
-Proof.
-  induction la; simpl; intros lc1 rm1 x md lc2 rm2 Hlk Hinit.  
-    inv Hinit. eauto.
-
-    destruct a. destruct p.
-    remember (_initializeFrameValues la nil lc1 rm1) as R.
-    destruct R as [lc1' rm1'].
-    destruct (isPointerTypB t); inv Hinit; eauto.
-      destruct (eq_atom_dec i0 x); subst.
-        rewrite lookupAL_updateAddAL_eq; eauto.
-        rewrite <- lookupAL_updateAddAL_neq; eauto.
-Qed.
-
-Lemma getArgsIDs_app : forall l1 l2,
-  getArgsIDs (l1++l2) = getArgsIDs l1 ++ getArgsIDs l2.
-Admitted.
-
-Lemma NoDup_lookupTypViaIDFromArgs : forall la1 t a i0 la2,
-  NoDup (getArgsIDs (la1 ++ (t, a, i0) :: la2)) ->
-  lookupTypViaIDFromArgs (la1 ++ (t, a, i0) :: la2) i0 = ret t.
-Proof.
-  induction la1; simpl; intros.
-    destruct (i0 == i0); auto.
-      contradict n; auto.
-
-    destruct a. destruct p.
-    inv H.
-    destruct (i0 == i1); subst; auto.
-      rewrite getArgsIDs_app in H2. simpl in H2.
-      contradict H2.
-      apply in_or_app. simpl. auto.
 Qed.
 
 Lemma initializeFrameValues__wf_rmap : forall la2 la1 ogvs2 lc' rm' 
@@ -815,113 +577,241 @@ Proof.
     intros x gvx tx Hlk. inv Hlk.
 Qed.
 
-Lemma wf_State__cmd__lookupTypViaIDFromFdef : forall S,
-  wf_State S ->
-  match S with 
-  | {| ECS := {|CurFunction := F; CurCmds := c :: cs |} :: EC |} =>
-      forall id0, getCmdID c = Some id0 ->
-      lookupTypViaIDFromFdef F id0 = getCmdTyp c
-  | _ => True
-  end.
-Admitted.
 
-Lemma wf_State__wf_cmd : forall St,
-  wf_State St ->
-  match St with 
-  | {| CurSystem := sys;
-       CurTargetData := (los, nts);
-       CurProducts := Ps;
-       ECS := {|CurFunction := F; CurBB := B; CurCmds := c :: cs |} :: EC 
-     |} => wf_insn nil sys (module_intro los nts Ps) F B (insn_cmd c)
-  | _ => True
-  end.
-Admitted.
+(*********************************************)
+(** * Preservation *)
 
-Lemma NoDupBlockLocs__notInCmds : forall l2 ps2 cs2' c' tmn',
-  NoDup (getBlockLocs (block_intro l2 ps2 (cs2' ++ [c']) tmn')) ->
-  ~ In (getCmdLoc c') (getCmdsLocs cs2').
+Lemma preservation_cmd_updated_case : forall
+  (S : system)
+  (los : layouts)
+  (nts : namedts)
+  (Ps : list product)
+  (F : fdef)
+  (B : block)
+  (lc : GVMap)
+  (gl : GVMap)
+  (fs : GVMap)
+  (gv3 : GenericValue)
+  (EC : list SBopsem.ExecutionContext)
+  (cs : list cmd)
+  (tmn : terminator)
+  (Mem0 Mem': mem)
+  (als : list mblock)
+  id0 c0
+  (Hid : Some id0 = getCmdID c0)
+  t0
+  (Htyp : Some t0 = getCmdTyp c0)
+  MM rm rm'
+  (Hp1: wf_rmap F lc rm -> wf_rmap F (updateAddAL GenericValue lc id0 gv3) rm')
+  (Hp2 : wf_rmetadata (los, nts) Mem0 rm -> wf_rmetadata (los, nts) Mem' rm')
+  (Hp3 : wf_mmetadata (los, nts) Mem0 MM -> wf_mmetadata (los, nts) Mem' MM)
+  (Hp4 : wf_global_ptr S (los, nts) Mem0 gl -> 
+         wf_global_ptr S (los, nts) Mem' gl)
+  (Hp5 : wf_ECStack (los, nts) Mem0 Ps EC -> wf_ECStack (los, nts) Mem' Ps EC)
+  (HwfS1 : wf_State
+            {|
+            SBopsem.CurSystem := S;
+            SBopsem.CurTargetData := (los, nts);
+            SBopsem.CurProducts := Ps;
+            SBopsem.ECS := {|
+                   SBopsem.CurFunction := F;
+                   SBopsem.CurBB := B;
+                   SBopsem.CurCmds := c0 :: cs;
+                   SBopsem.Terminator := tmn;
+                   SBopsem.Locals := lc;
+                   SBopsem.Rmap := rm;
+                   SBopsem.Allocas := als |} :: EC;
+            SBopsem.Globals := gl;
+            SBopsem.FunTable := fs;
+            SBopsem.Mem := Mem0;
+            SBopsem.Mmap := MM |}),
+   wf_State
+     {|
+     SBopsem.CurSystem := S;
+     SBopsem.CurTargetData := (los, nts);
+     SBopsem.CurProducts := Ps;
+     SBopsem.ECS := {|
+            SBopsem.CurFunction := F;
+            SBopsem.CurBB := B;
+            SBopsem.CurCmds := cs;
+            SBopsem.Terminator := tmn;
+            SBopsem.Locals := updateAddAL GenericValue lc id0 gv3;
+            SBopsem.Rmap := rm';
+            SBopsem.Allocas := als |} :: EC;
+     SBopsem.Globals := gl;
+     SBopsem.FunTable := fs;
+     SBopsem.Mem := Mem';
+     SBopsem.Mmap := MM |}.
 Proof.
   intros.
-  simpl in H.
-  apply NoDup_inv in H.
-  destruct H as [_ J].
-  apply NoDup_inv in J.
-  destruct J as [J _].
-  rewrite getCmdsLocs_app in J.
-  simpl in J.
-  apply NoDup_last_inv in J. auto.
+  assert (Hwfc := HwfS1). apply wf_State__wf_cmd in Hwfc.
+  destruct HwfS1 as 
+    [HwfMM [Hwfg [Hwfg' [HwfSystem [HmInS [
+     [Hreach1 [HBinF1 [HFinPs1 [Hinscope1 [Hwfm [Hwfm' 
+       [l3 [ps3 [cs3' Heq1]]]]]]]]]
+     [HwfEC HwfCall]]]]
+    ]]]; subst.
+  remember (inscope_of_cmd F (block_intro l3 ps3 (cs3' ++ c0 :: cs) tmn) c0) 
+    as R1. 
+  destruct R1; try solve [inversion Hinscope1].
+  repeat (split; try solve [auto]).
+      assert (Hid':=Hid).
+      symmetry in Hid.
+      apply getCmdLoc_getCmdID in Hid.
+       subst.
+      destruct cs; simpl_env in *.
+      Case "1.1.1".
+        assert (~ In (getCmdLoc c0) (getCmdsLocs cs3')) as Hnotin.
+          eapply wf_system__uniq_block with (f:=F) in HwfSystem; eauto.        
+          simpl in HwfSystem.
+          apply NoDup_inv in HwfSystem.
+          destruct HwfSystem as [_ J].
+          apply NoDup_inv in J.
+          destruct J as [J _].
+          rewrite getCmdsLocs_app in J.
+          simpl in J.
+          apply NoDup_last_inv in J. auto.
+
+        apply inscope_of_cmd_tmn in HeqR1; auto.
+        destruct HeqR1 as [ids2 [J1 J2]].        
+        rewrite <- J1.
+        assert (In c0 (cs3' ++ [c0])) as HinCs.
+          apply in_or_app. right. simpl. auto.
+        rewrite <- Hid' in J2.
+        eapply wf_defs_updateAddAL with (t1:=t0) ; eauto.
+          eapply uniqF__lookupTypViaIDFromFdef; eauto.
+            eapply wf_system__uniqFdef; eauto.
+        
+      Case "1.1.2".
+        assert (NoDup (getCmdsLocs (cs3' ++ [c0] ++ [c] ++ cs))) as Hnodup.
+          eapply wf_system__uniq_block with (f:=F) in HwfSystem; eauto.        
+          simpl in HwfSystem.
+          apply NoDup_inv in HwfSystem.
+          destruct HwfSystem as [_ J].
+          apply NoDup_inv in J.
+          destruct J as [J _]. auto.
+        apply inscope_of_cmd_cmd in HeqR1; auto.
+        destruct HeqR1 as [ids2 [J1 J2]].        
+        rewrite <- J1.
+        assert (In c0 (cs3' ++ [c0] ++ [c] ++ cs)) as HinCs.
+          apply in_or_app. right. simpl. auto.
+        rewrite <- Hid' in J2.
+        eapply wf_defs_updateAddAL with (t1:=t0) ; eauto.
+          eapply uniqF__lookupTypViaIDFromFdef; eauto.
+            eapply wf_system__uniqFdef; eauto.
+
+  exists l3. exists ps3. exists (cs3'++[c0]). simpl_env. auto.
 Qed.
 
-Lemma NoDupBlockLocs__NoDupCmds : forall l2 ps2 cs2' tmn',
-  NoDup (getBlockLocs (block_intro l2 ps2 cs2' tmn')) ->
-  NoDup (getCmdsLocs cs2').
+Lemma preservation_cmd_non_updated_case : forall
+  (S : system)
+  (los : layouts)
+  (nts : namedts)
+  (Ps : list product)
+  (F : fdef)
+  (B : block)
+  (lc : GVMap)
+  (gl : GVMap)
+  (fs : GVMap)
+  (EC : list SBopsem.ExecutionContext)
+  (cs : list cmd)
+  (tmn : terminator)
+  (Mem0 Mem': mem)
+  (als : list mblock)
+  c0
+  (Hid : getCmdID c0 = None)
+  rm MM MM'
+  (Hp1 : wf_rmetadata (los, nts) Mem0 rm -> wf_rmetadata (los, nts) Mem' rm)
+  (Hp2 : wf_mmetadata (los, nts) Mem0 MM -> wf_mmetadata (los, nts) Mem' MM')
+  (Hp3 : wf_global_ptr S (los, nts) Mem0 gl -> 
+         wf_global_ptr S (los, nts) Mem' gl)
+  (Hp4 : wf_ECStack (los, nts) Mem0 Ps EC -> wf_ECStack (los, nts) Mem' Ps EC)
+  (HwfS1 : wf_State
+            {|
+            SBopsem.CurSystem := S;
+            SBopsem.CurTargetData := (los, nts);
+            SBopsem.CurProducts := Ps;
+            SBopsem.ECS := {|
+                   SBopsem.CurFunction := F;
+                   SBopsem.CurBB := B;
+                   SBopsem.CurCmds := c0 :: cs;
+                   SBopsem.Terminator := tmn;
+                   SBopsem.Locals := lc;
+                   SBopsem.Rmap := rm;
+                   SBopsem.Allocas := als |} :: EC;
+            SBopsem.Globals := gl;
+            SBopsem.FunTable := fs;
+            SBopsem.Mem := Mem0;
+            SBopsem.Mmap := MM |}),
+   wf_State
+     {|
+     SBopsem.CurSystem := S;
+     SBopsem.CurTargetData := (los, nts);
+     SBopsem.CurProducts := Ps;
+     SBopsem.ECS := {|
+            SBopsem.CurFunction := F;
+            SBopsem.CurBB := B;
+            SBopsem.CurCmds := cs;
+            SBopsem.Terminator := tmn;
+            SBopsem.Locals := lc;
+            SBopsem.Rmap := rm;
+            SBopsem.Allocas := als |} :: EC;
+     SBopsem.Globals := gl;
+     SBopsem.FunTable := fs;
+     SBopsem.Mem := Mem';
+     SBopsem.Mmap := MM' |}.
 Proof.
   intros.
-  simpl in H.
-  apply NoDup_inv in H.
-  destruct H as [_ J].
-  apply NoDup_inv in J.
-  destruct J as [J _]. auto.
+  assert (Hwfc := HwfS1). apply wf_State__wf_cmd in Hwfc.
+  destruct HwfS1 as 
+    [HwfMM [Hwfg [Hwfg' [HwfSystem [HmInS [
+     [Hreach1 [HBinF1 [HFinPs1 [Hinscope1 [Hwfm [Hwfm'
+       [l3 [ps3 [cs3' Heq1]]]]]]]]]
+     [HwfEC HwfCall]]]]
+    ]]]; subst.
+  remember (inscope_of_cmd F (block_intro l3 ps3 (cs3' ++ c0 :: cs) tmn) c0) 
+    as R1. 
+  destruct R1; try solve [inversion Hinscope1].
+  repeat (split; try solve [auto]).
+      destruct cs; simpl_env in *.
+      Case "1.1.1".
+        assert (~ In (getCmdLoc c0) (getCmdsLocs cs3')) as Hnotin.
+          eapply wf_system__uniq_block with (f:=F) in HwfSystem; eauto.        
+          simpl in HwfSystem.
+          apply NoDup_inv in HwfSystem.
+          destruct HwfSystem as [_ J].
+          apply NoDup_inv in J.
+          destruct J as [J _].
+          rewrite getCmdsLocs_app in J.
+          simpl in J.
+          apply NoDup_last_inv in J. auto.
+
+        apply inscope_of_cmd_tmn in HeqR1; auto.
+        destruct HeqR1 as [ids2 [J1 J2]].        
+        rewrite <- J1.
+        assert (In c0 (cs3' ++ [c0])) as HinCs.
+          apply in_or_app. right. simpl. auto.
+        rewrite Hid in J2.
+        eapply wf_defs_eq; eauto.
+        
+      Case "1.1.2".
+        assert (NoDup (getCmdsLocs (cs3' ++ [c0] ++ [c] ++ cs))) as Hnodup.
+          eapply wf_system__uniq_block with (f:=F) in HwfSystem; eauto.        
+          simpl in HwfSystem.
+          apply NoDup_inv in HwfSystem.
+          destruct HwfSystem as [_ J].
+          apply NoDup_inv in J.
+          destruct J as [J _]. auto.
+        apply inscope_of_cmd_cmd in HeqR1; auto.
+        destruct HeqR1 as [ids2 [J1 J2]].        
+        rewrite <- J1.
+        assert (In c0 (cs3' ++ [c0] ++ [c] ++ cs)) as HinCs.
+          apply in_or_app. right. simpl. auto.
+        rewrite Hid in J2.
+        eapply wf_defs_eq ; eauto.
+
+  exists l3. exists ps3. exists (cs3'++[c0]). simpl_env. auto.
 Qed.
-
-Lemma free_allocas_preserves_wf_EC : forall EC TD M M' als Ps,
-  free_allocas TD M als = Some M' ->
-  wf_ExecutionContext TD M Ps EC ->
-  wf_ExecutionContext TD M' Ps EC.
-Proof.
-  destruct EC; simpl; intros TD M M' als Ps Hfrees HwfEC.
-  destruct HwfEC as [J1 [J2 [J3 [J4 [J5 [J6 J7]]]]]].
-  repeat (split; eauto using free_allocas_preserves_wf_rmetadata).
-Qed.  
-
-Lemma free_allocas_preserves_wf_ECStack : forall EC TD M M' als Ps,
-  free_allocas TD M als = Some M' ->
-  wf_ECStack TD M Ps EC ->
-  wf_ECStack TD M' Ps EC.
-Proof.
-  induction EC; simpl; intros TD M M' als Ps Hfrees HwfECs; auto.
-  destruct HwfECs as [J1 [J2 J3]].
-  repeat (split; eauto using free_allocas_preserves_wf_EC).
-Qed.
-
-Lemma free_preserves_wf_EC : forall EC TD M M' gv Ps,
-  free TD M gv = Some M' ->
-  wf_ExecutionContext TD M Ps EC ->
-  wf_ExecutionContext TD M' Ps EC.
-Proof.
-  destruct EC; simpl; intros TD M M' als Ps Hfrees HwfEC.
-  destruct HwfEC as [J1 [J2 [J3 [J4 [J5 [J6 J7]]]]]].
-  repeat (split; eauto using free_preserves_wf_rmetadata).
-Qed.  
-
-Lemma free_preserves_wf_ECStack : forall EC TD M M' gv Ps,
-  free TD M gv = Some M' ->
-  wf_ECStack TD M Ps EC ->
-  wf_ECStack TD M' Ps EC.
-Proof.
-  induction EC; simpl; intros TD M M' als Ps Hfrees HwfECs; auto.
-  destruct HwfECs as [J1 [J2 J3]].
-  repeat (split; eauto using free_preserves_wf_EC).
-Qed.
-
-Lemma malloc_preserves_wf_ECStack : forall TD M EC tsz gn align0 M' mb Ps,
-  malloc TD M tsz gn align0 = ret (M', mb) ->
-  wf_ECStack TD M Ps EC ->
-  wf_ECStack TD M' Ps EC.
-Admitted.
-
-Lemma store_preserves_wf_ECStack : forall TD M gvp t gv align M' Ps EC,
-  mstore TD M gvp t gv align = Some M' ->
-  wf_ECStack TD M Ps EC ->
-  wf_ECStack TD M' Ps EC.
-Admitted.
-
-Lemma callExternalFunction_preserves_wf_ECStack : forall Mem0 fid gvs oresult
-    Mem' TD Ps EC,
-  callExternalFunction Mem0 fid gvs = (oresult, Mem') ->
-  wf_ECStack TD Mem0 Ps EC ->
-  wf_ECStack TD Mem' Ps EC.
-Admitted.
 
 Ltac preservation_tac HwfS1 :=
   eapply preservation_cmd_updated_case in HwfS1; simpl; try solve [
@@ -1159,6 +1049,8 @@ Case "dsBranch".
   split; auto.
     assert (uniqFdef F) as HuniqF.
       eapply wf_system__uniqFdef in HwfSystem; eauto.   
+    assert (HwfF := HwfSystem).
+    eapply wf_system__wf_fdef with (f:=F) in HwfF; eauto.
     assert (blockInFdefB (block_intro l' ps' cs' tmn') F = true) as HBinF.
       clear - H0 HBinF1 HFinPs1 HmInS HwfSystem HuniqF.
       destruct (isGVZero (los, nts) c).
@@ -1186,8 +1078,6 @@ Case "dsBranch".
     split; auto.
     split; auto.
     split.
-      assert (HwfF := HwfSystem).
-      eapply wf_system__wf_fdef with (f:=F) in HwfF; eauto.
       clear - H0 HeqR1 H1 Hinscope1 H HwfSystem HBinF1 HwfF HuniqF.
       eapply inscope_of_tmn_br in HeqR1; eauto.
         destruct HeqR1 as [ids0' [HeqR1 [J1 J2]]].
@@ -1225,6 +1115,8 @@ Case "dsBranch_uncond".
   SCase "1".
     assert (uniqFdef F) as HuniqF.
       eapply wf_system__uniqFdef in HwfSystem; eauto.   
+    assert (HwfF := HwfSystem).
+    eapply wf_system__wf_fdef with (f:=F) in HwfF; eauto.
     assert (H':=H).
     symmetry in H'.
     apply lookupBlockViaLabelFromFdef_inv in H'; auto.
@@ -1238,8 +1130,6 @@ Case "dsBranch_uncond".
     split; auto.
     split; auto.
     split.
-      assert (HwfF := HwfSystem).
-      eapply wf_system__wf_fdef with (f:=F) in HwfF; eauto.
       clear - H0 HeqR1 Hinscope1 HwfSystem HBinF1 HwfF HuniqF HBinF H.
       assert (Hwds := HeqR1).
       eapply inscope_of_tmn_br_uncond with (cs':=cs')(l':=l')(ps':=ps')
@@ -1295,8 +1185,8 @@ Case "dsMalloc".
                SBopsem.md_bound := SBopsem.bound2GV (los, nts) mb tsz n |})
    in HwfS1; simpl; eauto.
     apply updateAddAL_ptr__wf_rmap; auto. 
-    eapply malloc_preserves_wf_rmetadata; eauto.
-    eapply malloc_preserves_wf_mmetadata; eauto.
+    eapply malloc_extends_wf_rmetadata; eauto.
+    eapply malloc_extends_wf_mmetadata; eauto.
     eapply malloc_preserves_wf_global_ptr; eauto.
     eapply malloc_preserves_wf_ECStack; eauto.
 Case "dsFree". 
@@ -1312,8 +1202,8 @@ Case "dsAlloca".
                SBopsem.md_bound := SBopsem.bound2GV (los, nts) mb tsz n |})
    in HwfS1; simpl; eauto.
     apply updateAddAL_ptr__wf_rmap; auto. 
-    eapply malloc_preserves_wf_rmetadata; eauto.
-    eapply malloc_preserves_wf_mmetadata; eauto.
+    eapply malloc_extends_wf_rmetadata; eauto.
+    eapply malloc_extends_wf_mmetadata; eauto.
     eapply malloc_preserves_wf_global_ptr; eauto.
     eapply malloc_preserves_wf_ECStack; eauto.
 Case "dsLoad_nptr". 
@@ -1367,9 +1257,7 @@ Case "dsGEP".
            [l3 [ps3 [cs3' Heq1]]]]]]]]]
          [HwfEC HwfCall]]]]
       ]]]; subst.
-  assert (Hwfc := HBinF1).
-  eapply wf_system__wf_cmd with(c:=insn_gep id0 inbounds0 t vp idxs) in Hwfc;
-    try solve [eauto | apply in_or_app; simpl; auto].
+  assert (Hwfc:=HwfS1). apply wf_State__wf_cmd in Hwfc.
   assert (exists t0, getGEPTyp idxs t = Some t0) as J.
     inv Hwfc; eauto.
   destruct J as [t0 J].
@@ -1415,9 +1303,7 @@ Case "dsBitcast_ptr".
            [l3 [ps3 [cs3' Heq1]]]]]]]]]
          [HwfEC HwfCall]]]]
       ]]]; subst.
-  assert (Hwfc := HBinF1).
-  eapply wf_system__wf_cmd with(c:=insn_cast id0 castop_bitcast t1 v1 t2) 
-    in Hwfc; try solve [eauto | apply in_or_app; simpl; auto].
+  assert (Hwfc:=HwfS1). apply wf_State__wf_cmd in Hwfc.
   eapply preservation_cmd_updated_case with (rm':=updateAddAL metadata rm id0 md)
     in HwfS1; simpl; eauto.
     apply updateAddAL_ptr__wf_rmap; auto.
@@ -1481,9 +1367,7 @@ Case "dsSelect_ptr".
            [l3 [ps3 [cs3' Heq1]]]]]]]]]
          [HwfEC HwfCall]]]]
       ]]]; subst.
-  assert (Hwfc := HBinF1).
-  eapply wf_system__wf_cmd with(c:=insn_select id0 v0 t v1 v2) 
-    in Hwfc; try solve [eauto | apply in_or_app; simpl; auto].
+  assert (Hwfc:=HwfS1). apply wf_State__wf_cmd in Hwfc.
   inv Hwfc.
   destruct (isGVZero (los, nts) c); try invert_prop_reg_metadata.
     eapply preservation_cmd_updated_case with 
@@ -1497,6 +1381,8 @@ Case "dsSelect_ptr".
 
 Focus.
 Case "dsCall".
+  assert (Hwfc:=HwfS1).
+  apply wf_State__wf_cmd in Hwfc.
   destruct HwfS1 as 
     [HwfMM [Hwfg [Hwfg' [HwfSys [HmInS [HwfEC [HwfECs HwfCall]]]]]]].
   assert (InProductsB (product_fdef (fdef_intro 
@@ -1540,7 +1426,15 @@ Case "dsCall".
     split.
       eapply initLocals__wf_rmap; eauto.
         eapply wf_system__uniqFdef; eauto.
-    split. eapply initLocals__wf_rmetadata; eauto.
+    split. 
+      eapply initLocals__wf_rmetadata; eauto.
+        inv Hwfc. clear - H18.
+        apply wf_value_list__in_params__wf_value; eauto.
+
+        destruct HwfEC as
+        [Hreach2 [HBinF2 [HFinPs2 [Hinscope2 [Hwfm2 [Hwfm2' 
+          [l3 [ps3 [cs3' Heq1]]]]]]]]]; auto.
+
       exists l'. exists ps'. exists nil. simpl_env. auto.
   split.
   SCase "2".
@@ -1617,188 +1511,7 @@ Case "dsExCall".
 Qed.
 
 (*********************************************)
-(** * Progress *)
-
-Definition spatial_memory_violation S : Prop :=
-  match S with
-  | {| SBopsem.CurTargetData := TD;
-       SBopsem.ECS := {| SBopsem.CurCmds := insn_load _ t vp _ :: cs;
-                           SBopsem.Locals := lc;
-                           SBopsem.Rmap := rm
-                         |} :: _;
-        SBopsem.Globals := gl;
-        SBopsem.Mem := Mem0 |} => 
-      match SBopsem.get_reg_metadata TD Mem0 gl rm vp, 
-            getOperandValue TD Mem0 vp lc gl with
-      | ret (md, mt), ret gvp => ~ SBopsem.assert_mptr TD t gvp md
-      | _, _ => False
-      end
-  | {| SBopsem.CurTargetData := TD;
-       SBopsem.ECS := {| SBopsem.CurCmds := insn_store _ t v vp _ :: cs;
-                           SBopsem.Locals := lc;
-                           SBopsem.Rmap := rm
-                         |} :: _;
-        SBopsem.Globals := gl;
-        SBopsem.Mem := Mem0 |} => 
-      match SBopsem.get_reg_metadata TD Mem0 gl rm vp, 
-            getOperandValue TD Mem0 vp lc gl with
-      | ret (md, mt), ret gvp => ~ SBopsem.assert_mptr TD t gvp md
-      | _, _ => False
-      end
-  | _ => False
-  end.
-
-Definition other_memory_violation TD M t gv : Prop :=
-  match (GV2ptr TD (getPointerSize TD) gv) with
-  | Some (Values.Vptr b ofs) =>
-      match (typ2memory_chunk t) with
-      | Some c => 
-          ~ (align_chunk c | Int.signed 31 ofs) \/ ~ blk_temporal_safe M b
-      | _ => False
-      end
-  | _ => False
-  end.
-
-Definition undefined_state S : Prop :=
-  match S with
-  | {| SBopsem.CurTargetData := td;
-       SBopsem.ECS := {|
-                SBopsem.CurCmds := nil;
-                SBopsem.Terminator := insn_return _ _ _;
-                SBopsem.Allocas := als |} :: 
-              {| SBopsem.CurCmds := c::_ |} :: _;
-       SBopsem.Mem := M |} => free_allocas td M als = None
-  | _ => False
-  end \/
-  match S with
-  | {| SBopsem.CurTargetData := td;
-       SBopsem.ECS := {|
-                SBopsem.CurBB := _;
-                SBopsem.CurCmds := nil;
-                SBopsem.Terminator := insn_return_void _;
-                SBopsem.Allocas := als |} :: 
-              {| SBopsem.CurCmds := c::_ |} :: _;
-       SBopsem.Mem := M |} => 
-                      free_allocas td M als = None \/ 
-                      match getCallerReturnID c with
-                      | Some _ => True
-                      | _ => False
-                      end
-  | _ => False
-  end \/
-  match S with
-  | {| SBopsem.ECS := {|
-                SBopsem.CurBB := block_intro _ _ _ (insn_unreachable _);
-                SBopsem.CurCmds := nil;
-                SBopsem.Terminator := (insn_unreachable _)
-               |} :: _
-     |} => True
-  | _ => False
-  end \/
-  match S with
-  | {| SBopsem.CurTargetData := td;
-       SBopsem.ECS := 
-         {| SBopsem.CurCmds := insn_malloc _ t v a::_ ; 
-            SBopsem.Locals := lc|} :: _;
-       SBopsem.Globals := gl;
-      SBopsem.Mem := M |}
-  | {| SBopsem.CurTargetData := td;
-       SBopsem.ECS := 
-         {| SBopsem.CurCmds := insn_alloca _ t v a::_ ; 
-            SBopsem.Locals := lc|} :: _;
-       SBopsem.Globals := gl;
-       SBopsem.Mem := M |} =>
-       match getOperandValue td M v lc gl with
-       | Some gv =>
-           match getTypeAllocSize td t with
-           | Some asz =>
-               match malloc td M asz gv a with
-               | None => True
-               | _ => False
-               end
-           | _ => False
-           end
-       | _ => False
-       end
-  | _ => False
-  end \/
-  match S with
-  | {| SBopsem.CurTargetData := td;
-       SBopsem.ECS := 
-         {| SBopsem.CurCmds := insn_free _ _ v::_ ; SBopsem.Locals := lc|} 
-         :: _;
-       SBopsem.Globals := gl;
-       SBopsem.Mem := M |} =>
-       match getOperandValue td M v lc gl with
-       | Some gv =>
-           match free td M gv with
-           | None => True
-           | _ => False
-           end
-       | _ => False
-       end
-  | _ => False
-  end \/
-  match S with
-  | {| SBopsem.CurTargetData := td;
-       SBopsem.ECS := 
-         {| SBopsem.CurCmds := insn_load _ t v a::_ ; 
-            SBopsem.Locals := lc|} :: _;
-       SBopsem.Globals := gl;
-       SBopsem.Mem := M |} =>
-       match getOperandValue td M v lc gl with
-       | Some gv => other_memory_violation td M t gv
-       | _ => False
-       end
-  | _ => False
-  end \/
-  match S with
-  | {| SBopsem.CurTargetData := td;
-       SBopsem.ECS := 
-         {| SBopsem.CurCmds := insn_store _ t v v0 a::_ ; 
-            SBopsem.Locals := lc|} :: _;
-       SBopsem.Globals := gl;
-       SBopsem.Mem := M |} =>
-       match getOperandValue td M v lc gl, getOperandValue td M v0 lc gl with
-       | Some gv, Some mgv => other_memory_violation td M t mgv
-       | _, _ => False
-       end
-  | _ => False
-  end \/
-  match S with
-  | {| SBopsem.CurTargetData := td;
-       SBopsem.CurProducts := ps;
-       SBopsem.ECS := 
-         {| SBopsem.CurCmds := insn_call i0 n _ ft v p::_ ; 
-            SBopsem.Locals := lc; SBopsem.Rmap := rm |} :: _;
-       SBopsem.Globals := gl;
-       SBopsem.FunTable := fs;
-       SBopsem.Mem := M |} =>
-       match lookupFdefViaGV td M ps gl lc fs v, 
-             lookupExFdecViaGV td M ps gl lc fs v with
-       | None, Some (fdec_intro (fheader_intro fa rt fid la va)) =>
-           match LLVMgv.params2GVs td M p lc gl with
-           | Some gvs =>
-             match LLVMopsem.callExternalFunction M fid gvs with
-             | (oresult, _) =>
-                match exCallUpdateLocals ft n i0 oresult lc rm with
-                | None => True
-                | _ => False
-                end
-             end
-           | _ => False
-           end
-       | None, None => True
-       | _, _ => False
-       end
-  | _ => False
-  end \/
-  spatial_memory_violation S.
-
-Hint Unfold undefined_state spatial_memory_violation other_memory_violation.
-
-Hint Constructors SBopsem.dsInsn.
-
+(** * not stuck *)
 Lemma get_const_metadata_isnt_stuck : forall TD M gl vc gv bc ec t1,
   const2GV TD M gl vc = Some gv ->
   get_const_metadata vc = Some (bc, ec, t1) ->
@@ -2088,6 +1801,189 @@ Proof.
       rewrite Hc1. rewrite Hc2. simpl.
       eauto.
 Qed.
+
+(*********************************************)
+(** * Progress *)
+
+Definition spatial_memory_violation S : Prop :=
+  match S with
+  | {| SBopsem.CurTargetData := TD;
+       SBopsem.ECS := {| SBopsem.CurCmds := insn_load _ t vp _ :: cs;
+                           SBopsem.Locals := lc;
+                           SBopsem.Rmap := rm
+                         |} :: _;
+        SBopsem.Globals := gl;
+        SBopsem.Mem := Mem0 |} => 
+      match SBopsem.get_reg_metadata TD Mem0 gl rm vp, 
+            getOperandValue TD Mem0 vp lc gl with
+      | ret (md, mt), ret gvp => ~ SBopsem.assert_mptr TD t gvp md
+      | _, _ => False
+      end
+  | {| SBopsem.CurTargetData := TD;
+       SBopsem.ECS := {| SBopsem.CurCmds := insn_store _ t v vp _ :: cs;
+                           SBopsem.Locals := lc;
+                           SBopsem.Rmap := rm
+                         |} :: _;
+        SBopsem.Globals := gl;
+        SBopsem.Mem := Mem0 |} => 
+      match SBopsem.get_reg_metadata TD Mem0 gl rm vp, 
+            getOperandValue TD Mem0 vp lc gl with
+      | ret (md, mt), ret gvp => ~ SBopsem.assert_mptr TD t gvp md
+      | _, _ => False
+      end
+  | _ => False
+  end.
+
+Definition other_memory_violation TD M t gv : Prop :=
+  match (GV2ptr TD (getPointerSize TD) gv) with
+  | Some (Values.Vptr b ofs) =>
+      match (typ2memory_chunk t) with
+      | Some c => 
+          ~ (align_chunk c | Int.signed 31 ofs) \/ ~ blk_temporal_safe M b
+      | _ => False
+      end
+  | _ => False
+  end.
+
+Definition undefined_state S : Prop :=
+  match S with
+  | {| SBopsem.CurTargetData := td;
+       SBopsem.ECS := {|
+                SBopsem.CurCmds := nil;
+                SBopsem.Terminator := insn_return _ _ _;
+                SBopsem.Allocas := als |} :: 
+              {| SBopsem.CurCmds := c::_ |} :: _;
+       SBopsem.Mem := M |} => free_allocas td M als = None
+  | _ => False
+  end \/
+  match S with
+  | {| SBopsem.CurTargetData := td;
+       SBopsem.ECS := {|
+                SBopsem.CurBB := _;
+                SBopsem.CurCmds := nil;
+                SBopsem.Terminator := insn_return_void _;
+                SBopsem.Allocas := als |} :: 
+              {| SBopsem.CurCmds := c::_ |} :: _;
+       SBopsem.Mem := M |} => 
+                      free_allocas td M als = None \/ 
+                      match getCallerReturnID c with
+                      | Some _ => True
+                      | _ => False
+                      end
+  | _ => False
+  end \/
+  match S with
+  | {| SBopsem.ECS := {|
+                SBopsem.CurBB := block_intro _ _ _ (insn_unreachable _);
+                SBopsem.CurCmds := nil;
+                SBopsem.Terminator := (insn_unreachable _)
+               |} :: _
+     |} => True
+  | _ => False
+  end \/
+  match S with
+  | {| SBopsem.CurTargetData := td;
+       SBopsem.ECS := 
+         {| SBopsem.CurCmds := insn_malloc _ t v a::_ ; 
+            SBopsem.Locals := lc|} :: _;
+       SBopsem.Globals := gl;
+      SBopsem.Mem := M |}
+  | {| SBopsem.CurTargetData := td;
+       SBopsem.ECS := 
+         {| SBopsem.CurCmds := insn_alloca _ t v a::_ ; 
+            SBopsem.Locals := lc|} :: _;
+       SBopsem.Globals := gl;
+       SBopsem.Mem := M |} =>
+       match getOperandValue td M v lc gl with
+       | Some gv =>
+           match getTypeAllocSize td t with
+           | Some asz =>
+               match malloc td M asz gv a with
+               | None => True
+               | _ => False
+               end
+           | _ => False
+           end
+       | _ => False
+       end
+  | _ => False
+  end \/
+  match S with
+  | {| SBopsem.CurTargetData := td;
+       SBopsem.ECS := 
+         {| SBopsem.CurCmds := insn_free _ _ v::_ ; SBopsem.Locals := lc|} 
+         :: _;
+       SBopsem.Globals := gl;
+       SBopsem.Mem := M |} =>
+       match getOperandValue td M v lc gl with
+       | Some gv =>
+           match free td M gv with
+           | None => True
+           | _ => False
+           end
+       | _ => False
+       end
+  | _ => False
+  end \/
+  match S with
+  | {| SBopsem.CurTargetData := td;
+       SBopsem.ECS := 
+         {| SBopsem.CurCmds := insn_load _ t v a::_ ; 
+            SBopsem.Locals := lc|} :: _;
+       SBopsem.Globals := gl;
+       SBopsem.Mem := M |} =>
+       match getOperandValue td M v lc gl with
+       | Some gv => other_memory_violation td M t gv
+       | _ => False
+       end
+  | _ => False
+  end \/
+  match S with
+  | {| SBopsem.CurTargetData := td;
+       SBopsem.ECS := 
+         {| SBopsem.CurCmds := insn_store _ t v v0 a::_ ; 
+            SBopsem.Locals := lc|} :: _;
+       SBopsem.Globals := gl;
+       SBopsem.Mem := M |} =>
+       match getOperandValue td M v lc gl, getOperandValue td M v0 lc gl with
+       | Some gv, Some mgv => other_memory_violation td M t mgv
+       | _, _ => False
+       end
+  | _ => False
+  end \/
+  match S with
+  | {| SBopsem.CurTargetData := td;
+       SBopsem.CurProducts := ps;
+       SBopsem.ECS := 
+         {| SBopsem.CurCmds := insn_call i0 n _ ft v p::_ ; 
+            SBopsem.Locals := lc; SBopsem.Rmap := rm |} :: _;
+       SBopsem.Globals := gl;
+       SBopsem.FunTable := fs;
+       SBopsem.Mem := M |} =>
+       match lookupFdefViaGV td M ps gl lc fs v, 
+             lookupExFdecViaGV td M ps gl lc fs v with
+       | None, Some (fdec_intro (fheader_intro fa rt fid la va)) =>
+           match LLVMgv.params2GVs td M p lc gl with
+           | Some gvs =>
+             match LLVMopsem.callExternalFunction M fid gvs with
+             | (oresult, _) =>
+                match exCallUpdateLocals ft n i0 oresult lc rm with
+                | None => True
+                | _ => False
+                end
+             end
+           | _ => False
+           end
+       | None, None => True
+       | _, _ => False
+       end
+  | _ => False
+  end \/
+  spatial_memory_violation S.
+
+Hint Unfold undefined_state spatial_memory_violation other_memory_violation.
+
+Hint Constructors SBopsem.dsInsn.
 
 Ltac undefbehave := unfold undefined_state; simpl; 
   try solve [
@@ -2601,9 +2497,14 @@ Proof.
       assert (exists b, exists ofs, 
         GV2ptr (los,nts) (getPointerSize (los,nts)) gv = Some (Values.Vptr b ofs)
         ) as R3. 
-        admit. (* from wf *)
+        unfold assert_mptr in J3.
+        destruct md.
+        destruct (GV2ptr (los, nts) (getPointerSize (los, nts)) gv); 
+          try solve [inv J3].
+        destruct v0; inv J3; eauto.
       assert (exists c, typ2memory_chunk t = Some c) as R4. 
-        admit. (* from wf *)
+        inv Hwfc. 
+        destruct (typ2memory_chunk t); try solve [eauto | contradict H9; auto].
       destruct R3 as [b [ofs R3]].
       destruct R4 as [c R4].
       destruct (Zdivide_dec (align_chunk c) (Int.signed 31 ofs)) as [R5 | R5].
@@ -2617,6 +2518,7 @@ Proof.
               apply Mem.valid_access_implies with (p1:=Writable); auto with mem.
               eapply assert_mptr__valid_access; eauto. split; eauto.
                 inv Hwfc; eauto.
+                admit. (* wf align *)
             apply Mem.valid_access_load in J'.
             destruct J' as [v0 J'].
             rewrite J'.
@@ -2703,12 +2605,19 @@ Proof.
     SSCase "assert ok".
       assert (exists b, exists ofs, 
        GV2ptr (los,nts) (getPointerSize (los,nts)) mgv = Some (Values.Vptr b ofs)
-       ) as R3. 
-        admit. (* from wf *)
+       ) as R3.
+        unfold assert_mptr in J3.
+        destruct md.
+        destruct (GV2ptr (los, nts) (getPointerSize (los, nts)) mgv); 
+          try solve [inv J3].
+        destruct v1; inv J3; eauto.
       assert (exists c, typ2memory_chunk t = Some c) as R4. 
-        admit. (* from wf *)
+        inv Hwfc. 
+        destruct (typ2memory_chunk t); try solve [eauto | contradict H11; auto].
       assert (exists v1, GV2val (los, nts) gv = Some v1) as R8.
-        admit. (* wf *)
+        destruct gv; simpl; eauto.  
+        destruct p; simpl; eauto.  
+        destruct gv; simpl; eauto.  
       destruct R3 as [b [ofs R3]].
       destruct R4 as [c R4].
       destruct R8 as [v1 R8].
@@ -2723,6 +2632,7 @@ Proof.
             assert (Mem.valid_access M c b (Int.signed 31 ofs) Writable) as J'.
               eapply assert_mptr__valid_access; eauto. split; eauto.
                 inv Hwfc; eauto.
+                admit. (* wf align *)
             assert (J4:=@Mem.valid_access_store M c b (Int.signed 31 ofs) v1 J').
             destruct J4 as [M' J4].
             rewrite J4.

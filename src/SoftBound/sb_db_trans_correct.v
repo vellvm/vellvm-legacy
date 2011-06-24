@@ -1281,15 +1281,25 @@ Proof.
   intros M gv1 gv2 TD v1 H1 H2.
   unfold GV2val in H2.
   destruct gv1; inv H2.
-  destruct p.
-  destruct gv1; inv H0.
-  simpl in H1.
-  destruct gv2; inv H1.
-  destruct p.
-  bdestruct3 H0 as H1 H2 H3.
-  destruct gv2.
-    exists v. simpl. auto.
-    inversion H3.
+    destruct gv2; inv H1.
+    exists Vundef. simpl. unfold is_true. split; auto.
+ 
+    destruct p.
+    destruct gv1; inv H0.
+      simpl in H1.
+      destruct gv2; inv H1.
+      destruct p.
+      bdestruct3 H0 as H1 H2 H3.
+      destruct gv2.
+        exists v. simpl. auto.
+        inversion H3.
+
+      destruct gv2; inv H1.
+      destruct p0. destruct p.
+      destruct gv2; inv H0; simpl.     
+        bdestruct3 H1 as H1 H2 H3. inv H3.
+
+        exists Vundef. unfold is_true. split; auto.
 Qed.
 
 Lemma simulation__eq__GV2int : forall mi gn gn' TD,
@@ -2740,9 +2750,9 @@ Proof.
   destruct R3; inv HeqR2.
   destruct gvp2.
     unfold GV2val in *.
-    destruct gv; inv HeqR1.
-    destruct p.
-    destruct gv; inv H0.
+    assert (exists v, exists m2, gv = [(v,m2)]) as EQ. admit.
+    destruct EQ as [v' [m2 EQ]]; subst.
+    inv HeqR1.
     simpl in Hginject2.    
     remember (split gv2) as R3.
     destruct R3; simpl in Hginject2.
@@ -2763,7 +2773,7 @@ Proof.
       destruct gv2.
         assert ( mstore TD Mem2
           ((Vptr b2 (Int.add 31 i1 (Int.repr 31 delta)), m1) :: nil) t
-          ((v, m2) :: nil) align0 = ret Mem2') as J.
+          ((v, m0) :: nil) align0 = ret Mem2') as J.
           unfold mstore. simpl. rewrite <- HeqR'.
           clear - J2 Hwfmi H2.
           inversion_clear Hwfmi.
@@ -2802,7 +2812,7 @@ Proof.
             assert (G3':=G3).
             erewrite <- getOperandValue__mstore with (Mem:=Mem2)(t:=t)
             (gvp:=(Vptr b2 (Int.add 31 i1 (Int.repr 31 delta)), m1) :: nil)
-            (gv:=(v, m2) :: nil)(align0:=align0) in G3'; eauto.
+            (gv:=(v, m0) :: nil)(align0:=align0) in G3'; eauto.
             apply Hmsim2 with (bgv:=bgv)(egv:=egv)(als:=als)(addrb:=addrb)
              (addre:=addre)(bid0:=bid0)(eid0:=eid0)(b:=b)(ofs:=ofs) in G3'; auto.
             destruct G3' as [bgv' [egv' [Mem3 [G4 [G5 [G6 G7]]]]]].

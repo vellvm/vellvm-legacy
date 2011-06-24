@@ -49,7 +49,7 @@ Definition gundef := uninits 1.
 Definition GV2val (TD:TargetData) (gv:GenericValue) : option val :=
 match gv with
 | (v,c)::nil => Some v
-| _ => None
+| _ => Some Vundef
 end.
 Definition GV2int (TD:TargetData) (bsz:sz) (gv:GenericValue) : option Z :=
 match gv with
@@ -1474,16 +1474,6 @@ match allocas with
   | None => None
   end
 end.
-
-Definition typ2memory_chunk (t:typ) : option memory_chunk :=
-  match t with
-  | typ_int bsz => Some (Mint (Size.to_nat bsz -1))
-  | typ_floatpoint fp_float => Some Mfloat32
-  | typ_floatpoint fp_double => Some Mfloat64
-  | typ_floatpoint _ => None
-  | typ_pointer _ => Some (Mint 31)
-  | _ => None
-  end.
 
 Definition mload (TD:TargetData) (M:mem) (ptr:mptr) (t:typ) (a:align) 
   : option GenericValue :=

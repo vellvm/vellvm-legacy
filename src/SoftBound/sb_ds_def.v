@@ -122,16 +122,6 @@ Definition set_mem_metadata TD MM (gv:GenericValue) (md:metadata)
   | _ => MM
   end.
 
-Definition blk_temporal_safe M b : Prop :=
-let (lo, _) := Mem.bounds M b in
-Mem.perm M b lo Nonempty.
-
-Definition temporal_safe (TD:TargetData) (M:mem) (ptr:mptr) : Prop :=
-match GV2ptr TD (getPointerSize TD) ptr with
-| Some (Vptr b _) => blk_temporal_safe M b
-| _ => False
-end.
-
 Record ExecutionContext : Type := mkEC {
 CurFunction : fdef;
 CurBB       : block;

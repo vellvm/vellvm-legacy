@@ -258,11 +258,13 @@ Fixpoint _getPointerSize (los:layouts) : option sz :=
   | _::los' => _getPointerSize los'
   end.
 
-Definition getPointerSize0 (los:layouts) : sz :=
+Definition getPointerSize0 (los:layouts) : sz := Size.Four.
+(* FIXME: ptr size is always 4-byte for the POPL submission
   match (_getPointerSize los) with
   | Some n => n
   | None => Size.Four
   end.
+*)
 
 Definition getPointerSize (TD:TargetData) : sz :=
   let '(td, _) := TD in

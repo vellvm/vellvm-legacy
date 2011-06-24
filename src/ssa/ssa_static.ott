@@ -595,17 +595,17 @@ Jwf_insn :: '' ::=
       intrinsic_funs , system , (layouts namedts products) , fdef , block |- id = alloca typ value align 
 
       % Load operand must be a pointer.
-      % Load result type does not match pointer operand type!
       system , module , fdef |- value1 : typ1*
+      {{ typ2memory_chunk [[:user_syntax__typ:typ1]] <> None }}
       % Check invariance for instructions
       fdef , block |-i id = load (typ1*) value1 align
       ---------------------------------------------------------------------------------- :: wf_insn_load
       intrinsic_funs , system , module , fdef , block |- id = load (typ1*) value1 align		
 
       % Store operand must be a pointer.
-      % Stored value type does not match pointer operand type!
       system , module , fdef |- value1 : typ
       system , module , fdef |- value2 : typ*
+      {{ typ2memory_chunk [[:user_syntax__typ:typ]] <> None }}
       % Check invariance for instructions
       fdef , block |-i id = store typ value1 value2 align
       ------------------------------------------------------------------------------------------------- :: wf_insn_store

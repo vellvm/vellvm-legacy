@@ -118,6 +118,7 @@ VFILES:=seop_llvmop.v\
   eq_tv.v\
   eq_tv_dec.v\
   eq_tv_correct.v\
+  sub_symexe.v\
   sub_tv_dec.v\
   sub_tv_def.v\
   sub_tv_infer.v\
