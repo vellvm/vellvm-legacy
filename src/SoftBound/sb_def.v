@@ -530,7 +530,15 @@ Definition callUpdateLocals (TD:TargetData) (M:mem) (noret:bool) (rid:id)
           | None => None
           end
         end
-    | true => Some (lc,rm)
+    | true =>
+        match oResult with
+        | None => Some (lc,rm)
+        | Some Result => 
+          match (getOperandValue TD M Result lc' gl) with 
+          | Some gr => Some (lc,rm)
+          | None => None
+          end
+        end
     end.
 
 Fixpoint initRmetadata_aux TD Mem gl (la:args) (lp:params) (rm accum:rmetadata) 
@@ -578,7 +586,7 @@ Inductive dbCall : system -> TargetData -> list product -> GVMap ->
     Some (fdec_intro (fheader_intro fa rt fid la va)) ->
   params2GVs TD Mem lp lc gl = Some gvs ->
   LLVMopsem.callExternalFunction Mem fid gvs = 
-    (oresult, Mem') ->
+    Some (oresult, Mem') ->
   SBSE.isCall (insn_call rid noret ca ft fv lp) = true ->
   LLVMopsem.exCallUpdateLocals noret rid oresult lc = Some lc' ->
   dbCall S TD Ps fs gl lc rm Mem MM (insn_call rid noret ca ft fv lp) lc' rm 
@@ -608,7 +616,7 @@ Inductive dbCall : system -> TargetData -> list product -> GVMap ->
     Some (fdec_intro (fheader_intro fa rt fid la va)) ->
   params2GVs TD Mem lp lc gl = Some gvs ->
   LLVMopsem.callExternalFunction Mem fid gvs = 
-    (oresult, Mem') ->
+    Some (oresult, Mem') ->
   LLVMopsem.exCallUpdateLocals noret rid oresult lc = None ->
   SBSE.isCall (insn_call rid noret ca rt fv lp) = true ->
   dbCall S TD Ps fs gl lc rm Mem MM (insn_call rid noret ca rt fv lp) lc rm 

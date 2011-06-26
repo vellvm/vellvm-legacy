@@ -92,12 +92,16 @@ Proof.
   intros. 
   unfold SoftBound.callUpdateLocals in H.
   unfold callUpdateLocals.
-  destruct noret0; try solve [inversion H; subst; auto].
-  destruct oResult; try solve [inversion H; subst; auto].
-  destruct (getOperandValue TD Mem'' v lc' gl); 
-    try solve [inversion H; subst; auto].
-  destruct (SoftBound.get_reg_metadata TD Mem'' gl rm' v) as [[md' ?]|]; 
-    try solve [inversion H; subst; auto].
+  destruct noret0.
+    destruct oResult; try solve [inversion H; subst; auto].
+    destruct (getOperandValue TD Mem'' v lc' gl); 
+      try solve [inversion H; subst; auto].
+
+    destruct oResult; try solve [inversion H; subst; auto].
+    destruct (getOperandValue TD Mem'' v lc' gl); 
+      try solve [inversion H; subst; auto].
+    destruct (SoftBound.get_reg_metadata TD Mem'' gl rm' v) as [[md' ?]|]; 
+      try solve [inversion H; subst; auto].
 Qed.
 
 Definition sbop_dbCall__seop_dbCall_prop S TD Ps fs gl lc rm Mem0 MM0 call0 lc'

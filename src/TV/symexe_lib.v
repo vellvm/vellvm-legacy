@@ -1219,7 +1219,8 @@ Proof.
   intros.
   unfold callUpdateLocals in H0.
   destruct noret0; auto.
-    inversion H0; subst; auto.
+    destruct oresult; try solve [inversion H0; subst; auto].
+    destruct (getOperandValue TD M v lc' gl); inversion H0; subst; auto.
 
     destruct oresult; try solve [inversion H0; subst; auto].
     destruct (getOperandValue TD M v lc' gl); inversion H0; subst; auto.

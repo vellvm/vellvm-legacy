@@ -241,7 +241,7 @@ Qed.
 
 Lemma callExternalFunction_preserves_wf_EC : forall EC M fid gvs oresult M' TD 
     Ps,
-  callExternalFunction M fid gvs = (oresult, M') ->
+  callExternalFunction M fid gvs = Some (oresult, M') ->
   wf_ExecutionContext TD M Ps EC ->
   wf_ExecutionContext TD M' Ps EC.
 Proof.
@@ -252,7 +252,7 @@ Qed.
 
 Lemma callExternalFunction_preserves_wf_ECStack : forall ECs Mem0 fid gvs oresult
     Mem' TD Ps,
-  callExternalFunction Mem0 fid gvs = (oresult, Mem') ->
+  callExternalFunction Mem0 fid gvs = Some (oresult, Mem') ->
   wf_ECStack TD Mem0 Ps ECs ->
   wf_ECStack TD Mem' Ps ECs.
 Proof.
@@ -266,8 +266,8 @@ Qed.
 (** * wf_rmap *)
 
 Lemma returnUpdateLocals__wf_rmap : 
-  forall los nts Mem' c' Result lc lc' rm rm' gl lc'' rm'' F' tmn' cs' Ps S
-  (H1 : returnUpdateLocals (los, nts) Mem' c' Result lc lc' rm rm' gl =
+  forall los nts Mem' c' rt Result lc lc' rm rm' gl lc'' rm'' F' tmn' cs' Ps S
+  (H1 : returnUpdateLocals (los, nts) Mem' c' rt Result lc lc' rm rm' gl =
        ret (lc'', rm''))
   (HwfSystem : wf_system nil S)
   (HmInS : moduleInSystemB (module_intro los nts Ps) S = true)
@@ -285,44 +285,81 @@ Lemma returnUpdateLocals__wf_rmap :
 Proof.
   intros.
   eapply wf_system__uniqFdef with (f:=F') in HwfSystem; eauto.
-  unfold returnUpdateLocals in H1.
-  destruct c'; inv H1; auto.
-  destruct n; inv H0; auto.
+  unfold returnUpdateLocals, returnResult in H1.
   remember (getOperandValue (los, nts) Mem' Result lc gl) as R1.
   destruct R1; inv H1.
-  inv Hwfc. 
-  clear H12 H17 H6 H15 H16.
-  assert (lookupTypViaIDFromFdef F' i0 = Some typ1) as J.
-    eapply uniqF__lookupTypViaIDFromFdef with 
-      (c:=insn_call i0 false c
-               (typ_function typ1
-                  (make_list_typ
-                     (map_list_typ_value
-                        (fun (typ_' : typ) (_ : value) => typ_')
-                        typ'_value''_list)) varg5) v
-               (map_list_typ_value
-                  (fun (typ_' : typ) (value_'' : value) =>
-                   (typ_', value_'')) typ'_value''_list))(i0:=i0)(t0:=typ1)
-      in HBinF2; eauto.
-      apply in_or_app. right. simpl. auto.
-  clear HBinF2.
-  intros x gvx tx Hin Htyp.
-  destruct (eq_atom_dec x i0); subst.        
-    rewrite J in Htyp. inv Htyp.
+  destruct (isPointerTypB rt).
     remember (get_reg_metadata (los, nts) Mem' gl rm Result) as R3.
     destruct R3 as [[md ?]|]; inv H0.
-      rewrite lookupAL_updateAddAL_eq. eauto.
-      rewrite lookupAL_updateAddAL_eq. eauto.
-   
-    destruct typ1; inv H0; try solve [
-      rewrite <- lookupAL_updateAddAL_neq in Hin; auto;
-      eapply Hwfm2 in Hin; eauto
-    ].
-      destruct (get_reg_metadata (los, nts) Mem' gl rm Result)
-        as [[md ?]|]; inv H1; try solve [
-        rewrite <- lookupAL_updateAddAL_neq in Hin; auto;
-        rewrite <- lookupAL_updateAddAL_neq; eauto
-      ].
+    destruct c'; inv H1; auto.
+    destruct n; inv H0; auto.
+    inv Hwfc. 
+    clear H12 H17 H6 H15 H16.
+    assert (lookupTypViaIDFromFdef F' i0 = Some typ1) as J.
+      eapply uniqF__lookupTypViaIDFromFdef with 
+        (c:=insn_call i0 false c
+                 (typ_function typ1
+                    (make_list_typ
+                       (map_list_typ_value
+                          (fun (typ_' : typ) (_ : value) => typ_')
+                          typ'_value''_list)) varg5) v
+                 (map_list_typ_value
+                    (fun (typ_' : typ) (value_'' : value) =>
+                     (typ_', value_'')) typ'_value''_list))(i0:=i0)(t0:=typ1)
+        in HBinF2; eauto.
+        apply in_or_app. right. simpl. auto.
+    clear HBinF2.
+    simpl in H1.
+    remember (isPointerTypB typ1) as R.
+    destruct R; inv H1.
+      intros x gvx tx Hin Htyp.
+      destruct (eq_atom_dec x i0); subst.        
+        rewrite J in Htyp. inv Htyp.
+        rewrite lookupAL_updateAddAL_eq. eauto.
+
+        rewrite <- lookupAL_updateAddAL_neq in Hin; auto.
+        rewrite <- lookupAL_updateAddAL_neq; eauto.
+
+      intros x gvx tx Hin Htyp.
+      destruct (eq_atom_dec x i0); subst.        
+        rewrite J in Htyp. inv Htyp. inv HeqR.
+
+        rewrite <- lookupAL_updateAddAL_neq in Hin; eauto.
+
+    destruct c'; try solve [inv H0; auto].
+    destruct n; inv H0; auto.
+    inv Hwfc. 
+    clear H12 H17 H6 H15 H16.
+    assert (lookupTypViaIDFromFdef F' i0 = Some typ1) as J.
+      eapply uniqF__lookupTypViaIDFromFdef with 
+        (c:=insn_call i0 false c
+                 (typ_function typ1
+                    (make_list_typ
+                       (map_list_typ_value
+                          (fun (typ_' : typ) (_ : value) => typ_')
+                          typ'_value''_list)) varg5) v
+                 (map_list_typ_value
+                    (fun (typ_' : typ) (value_'' : value) =>
+                     (typ_', value_'')) typ'_value''_list))(i0:=i0)(t0:=typ1)
+        in HBinF2; eauto.
+        apply in_or_app. right. simpl. auto.
+    clear HBinF2.
+    simpl in H1.
+    remember (isPointerTypB typ1) as R.
+    destruct R; inv H1.
+      intros x gvx tx Hin Htyp.
+      destruct (eq_atom_dec x i0); subst.        
+        rewrite J in Htyp. inv Htyp.
+        rewrite lookupAL_updateAddAL_eq. eauto.
+
+        rewrite <- lookupAL_updateAddAL_neq in Hin; auto.
+        rewrite <- lookupAL_updateAddAL_neq; eauto.
+
+      intros x gvx tx Hin Htyp.
+      destruct (eq_atom_dec x i0); subst.        
+        rewrite J in Htyp. inv Htyp. inv HeqR.
+
+        rewrite <- lookupAL_updateAddAL_neq in Hin; eauto.
 Qed.
 
 Lemma getIncomingValuesForBlockFromPHINodes__wf_rmap : forall PNs TD M b gl lc rm
@@ -925,27 +962,42 @@ Case "dsReturn".
         destruct HeqR2 as [ids2 [J1 J2]].        
         rewrite <- J1.
         remember (getCmdID c') as R.
-        destruct c'; try solve [inversion H].
-        unfold SBopsem.returnUpdateLocals in H1. simpl in H1.
-        destruct R.
-          destruct n; inv HeqR.
-          remember (getOperandValue (los,nts) Mem' Result lc gl) as R1.
-          destruct R1; inv H1.          
-          inv Hwfc. 
-          remember (SBopsem.get_reg_metadata (los, nts) Mem' gl rm Result) 
-            as R2.
-          unfold SBopsem.prop_reg_metadata in H3.
-          assert (wf_defs F' (updateAddAL GenericValue lc' i0 g) ids2) as J.
-            eapply wf_defs_updateAddAL with (t1:=typ1) ; eauto.
-              eapply uniqF__lookupTypViaIDFromFdef; eauto.
-                eapply wf_system__uniqFdef; eauto.
-          destruct typ1; inv H3; auto.
-            destruct (get_reg_metadata (los, nts) Mem' gl rm Result) as 
-              [[md ?]|]; inv H2; auto.
+        unfold SBopsem.returnUpdateLocals, returnResult in H1.
+        remember (getOperandValue (los,nts) Mem' Result lc gl) as R1.
+        destruct R1; try solve [inv H1].          
+        destruct (isPointerTypB RetTy).        
+          destruct (get_reg_metadata (los, nts) Mem' gl rm Result) as 
+            [[md ?]|]; try solve [inv H1; auto].
+          destruct c'; try solve [inversion H].
+          destruct R.
+            destruct n; inv HeqR.
+            inv Hwfc. 
+            remember (SBopsem.get_reg_metadata (los, nts) Mem' gl rm Result) 
+              as R2.
+            unfold SBopsem.prop_reg_metadata in H1.
+            assert (wf_defs F' (updateAddAL GenericValue lc' i0 g) ids2) as J.
+              eapply wf_defs_updateAddAL with (t1:=typ1) ; eauto.
+                eapply uniqF__lookupTypViaIDFromFdef; eauto.
+                  eapply wf_system__uniqFdef; eauto.
+            destruct typ1; inv H1; auto.
 
-          destruct n; inv HeqR. inv H1.
-          eapply wf_defs_eq; eauto. 
-        
+            destruct n; inv HeqR. inv H1.
+            eapply wf_defs_eq; eauto. 
+
+          destruct c'; try solve [inversion H].
+          destruct R.
+            destruct n; inv HeqR.
+            inv Hwfc. 
+            unfold SBopsem.prop_reg_metadata in H1.
+            assert (wf_defs F' (updateAddAL GenericValue lc' i0 g) ids2) as J.
+              eapply wf_defs_updateAddAL with (t1:=typ1) ; eauto.
+                eapply uniqF__lookupTypViaIDFromFdef; eauto.
+                  eapply wf_system__uniqFdef; eauto.
+            destruct typ1; inv H1; auto.
+
+            destruct n; inv HeqR. inv H1.
+            eapply wf_defs_eq; eauto. 
+
       SSSCase "1.1.2".
         assert (NoDup (getCmdsLocs (cs2' ++ [c'] ++ [c] ++ cs'))) as Hnodup.
           eapply wf_system__uniq_block with (f:=F') in HwfSystem; eauto.        
@@ -954,26 +1006,39 @@ Case "dsReturn".
         destruct HeqR2 as [ids2 [J1 J2]].        
         rewrite <- J1.
         remember (getCmdID c') as R.
-        destruct c'; try solve [inversion H].
-        unfold SBopsem.returnUpdateLocals in H1. simpl in H1.
-        destruct R.
-          destruct n; inv HeqR.
-          remember (getOperandValue (los,nts) Mem' Result lc gl) as R1.
-          destruct R1; inv H1.
-          inv Hwfc.
-          remember (SBopsem.get_reg_metadata (los, nts) Mem' gl rm Result) 
-            as R2.
-          unfold SBopsem.prop_reg_metadata in H3.
-          assert (wf_defs F' (updateAddAL GenericValue lc' i0 g) ids2) as J.
-            eapply wf_defs_updateAddAL with (t1:=typ1) ; eauto.
-              eapply uniqF__lookupTypViaIDFromFdef; eauto.
-                eapply wf_system__uniqFdef; eauto.
-          destruct typ1; inv H3; auto.
-            destruct (get_reg_metadata (los, nts) Mem' gl rm Result) as 
-              [[md ?]|]; inv H2; auto.
+        unfold SBopsem.returnUpdateLocals, returnResult in H1.
+        remember (getOperandValue (los,nts) Mem' Result lc gl) as R1.
+        destruct R1; try solve [inv H1].          
+        destruct (isPointerTypB RetTy).        
+          destruct (get_reg_metadata (los, nts) Mem' gl rm Result) as 
+            [[md ?]|]; try solve [inv H1; auto].
+          destruct c'; try solve [inversion H].
+          destruct R.
+            destruct n; inv HeqR.
+            inv Hwfc.
+            unfold SBopsem.prop_reg_metadata in H1.
+            assert (wf_defs F' (updateAddAL GenericValue lc' i0 g) ids2) as J.
+              eapply wf_defs_updateAddAL with (t1:=typ1) ; eauto.
+                eapply uniqF__lookupTypViaIDFromFdef; eauto.
+                  eapply wf_system__uniqFdef; eauto.
+            destruct typ1; inv H1; auto.
 
-          destruct n; inv HeqR. inv H1.
-          eapply wf_defs_eq; eauto. 
+            destruct n; inv HeqR. inv H1.
+            eapply wf_defs_eq; eauto. 
+
+          destruct c'; try solve [inversion H].
+          destruct R.
+            destruct n; inv HeqR.
+            inv Hwfc.
+            unfold SBopsem.prop_reg_metadata in H1.
+            assert (wf_defs F' (updateAddAL GenericValue lc' i0 g) ids2) as J.
+              eapply wf_defs_updateAddAL with (t1:=typ1) ; eauto.
+                eapply uniqF__lookupTypViaIDFromFdef; eauto.
+                  eapply wf_system__uniqFdef; eauto.
+            destruct typ1; inv H1; auto.
+
+            destruct n; inv HeqR. inv H1.
+            eapply wf_defs_eq; eauto. 
 
     split.
     SSCase "1.2".
@@ -2008,11 +2073,12 @@ Definition undefined_state S : Prop :=
            match LLVMgv.params2GVs td M p lc gl with
            | Some gvs =>
              match LLVMopsem.callExternalFunction M fid gvs with
-             | (oresult, _) =>
+             | Some (oresult, _) =>
                 match exCallUpdateLocals ft n i0 oresult lc rm with
                 | None => True
                 | _ => False
                 end
+             | None => True
              end
            | _ => False
            end
@@ -2079,20 +2145,33 @@ Proof.
         left. symmetry in HeqRm.
         rename HeqRm into J.
         assert (exists lc'', exists rm'', SBopsem.returnUpdateLocals (los,nts) 
-            M' (insn_call i1 n c t0 v0 p) v lc lc' rm rm' gl = Some (lc'',rm'')) 
-            as Hretup.
-          unfold SBopsem.returnUpdateLocals.
-          destruct n; eauto.
+            M' (insn_call i1 n c t0 v0 p) t v lc lc' rm rm' gl = 
+            Some (lc'',rm'')) as Hretup.
+          unfold SBopsem.returnUpdateLocals, returnResult.
           assert (exists gv : GenericValue, 
             getOperandValue (los, nts) M' v lc gl = ret gv) as H.
             eapply getOperandValue_inTmnOperans_isnt_stuck; eauto.
               simpl. auto.
           destruct H as [gv H]. rewrite H.
-          destruct t0; eauto.
-          destruct t0; eauto.
           unfold SBopsem.prop_reg_metadata.            
-          destruct (SBopsem.get_reg_metadata (los, nts) M' gl rm v) as 
-            [[md ?]|]; eauto.
+          remember (isPointerTypB t) as Hptr.
+          destruct Hptr.
+            destruct t; inv HeqHptr.
+            assert (wf_insn nil s (module_intro los nts ps) f 
+              (block_intro l1 ps1 (cs1 ++ nil) 
+                 (insn_return i0 (typ_pointer t) v)) 
+              (insn_terminator (insn_return i0 (typ_pointer t) v))) as Hwfc.
+              eapply wf_system__wf_tmn in HbInF; eauto.
+            assert (exists omd, SBopsem.get_reg_metadata (los, nts) M' gl rm v = 
+              Some omd) as J2.
+              eapply get_reg_metadata_isnt_stuck; 
+                try solve [eauto | inv Hwfc; eauto].
+            destruct J2 as [md J2]. rewrite J2. 
+            destruct n; eauto.
+            destruct (isReturnPointerTypB t0); eauto.
+
+            destruct n; eauto.
+            destruct (isReturnPointerTypB t0); eauto.
          
         destruct Hretup as [lc'' [rm'' Hretup]].
         exists (SBopsem.mkState s (los, nts) ps 
@@ -3217,11 +3296,11 @@ Proof.
     destruct G as [gvs G].
     destruct f' as [[fa rt fid la va]].
     remember (callExternalFunction M fid gvs) as R.
-    destruct R as [oresult Mem'].
-    remember (exCallUpdateLocals t n i0 oresult lc rm) as R'.
-    destruct R' as [[lc' rm']|].
-      left.
-      exists 
+    destruct R as [[oresult Mem']|].
+      remember (exCallUpdateLocals t n i0 oresult lc rm) as R'.
+      destruct R' as [[lc' rm']|].
+        left.
+        exists 
          {|
          CurSystem := s;
          CurTargetData := (los, nts);
@@ -3239,18 +3318,23 @@ Proof.
          FunTable := fs;
          Mem := Mem';
          Mmap := Mmap0 |}.
-      exists trace_nil.
-      eauto.
+        exists trace_nil.
+        eauto.
+
+        right.
+        unfold undefined_state.
+        right. rewrite <- HeqHlk. rewrite <- HeqHelk. rewrite G. 
+        rewrite <- HeqR0. rewrite <- HeqR'. undefbehave.
 
       right.
       unfold undefined_state.
-      right. rewrite <- HeqHlk. rewrite <- HeqHelk. rewrite G. rewrite <- HeqR0.
-      rewrite <- HeqR'. undefbehave.
+      right. rewrite <- HeqHlk. rewrite <- HeqHelk. rewrite G. 
+      rewrite <- HeqR0. undefbehave.
 
-    SSCase "stuck".
-      right.
-      unfold undefined_state.
-      right. rewrite <- HeqHlk. rewrite <- HeqHelk. undefbehave.
+   SSCase "stuck".
+     right.
+     unfold undefined_state.
+     right. rewrite <- HeqHlk. rewrite <- HeqHelk. undefbehave.
 Qed.
 
 

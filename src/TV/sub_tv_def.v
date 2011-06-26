@@ -971,7 +971,7 @@ Inductive dbCall : system -> TargetData -> list product -> GVMap ->
     Some (fdec_intro (fheader_intro fa rt fid la va)) ->
   params2GVs TD Mem lp lc gl = Some gvs ->
   LLVMopsem.callExternalFunction Mem fid gvs = 
-    (oresult, Mem') ->
+    Some (oresult, Mem') ->
   LLVMopsem.exCallUpdateLocals noret rid oresult lc = Some lc' ->
   dbCall S TD Ps fs gl lc als Mem
     (insn_call_nptr rid noret tailc rt fv lp)

@@ -195,12 +195,13 @@ match state with
             do gvs <- params2GVs TD Mem0 lp lc gl;
               match (callExternalFunction Mem0 fid gvs)
               with
-              | (oresult, Mem1) =>
+              | Some (oresult, Mem1) =>
                 do lc' <- exCallUpdateLocals noret0 rid oresult lc;
                 ret ((mkState Sys TD Ps 
                       ((mkEC F B cs tmn lc' als)::EC) 
                        gl fs Mem1),
                      trace_nil)
+              | None => None
               end
           else None
         end
@@ -510,8 +511,8 @@ Proof.
             destruct R5; try solve [inversion HinterInsn]; subst.
             simpl in HinterInsn.
             remember (callExternalFunction Mem0 i2 l0) as R3.
-            destruct R3.
-            remember (exCallUpdateLocals n i0 o lc) as R4.
+            destruct R3 as [[oresult Mem1]|]; inversion HinterInsn; subst.
+            remember (exCallUpdateLocals n i0 oresult lc) as R4.
             destruct R4; inversion HinterInsn; subst.
             eapply dsExCall; eauto.
               unfold lookupExFdecViaGV.

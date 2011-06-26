@@ -48,24 +48,31 @@ Definition sbState_simulates_State (sbSt:SBopsem.State) (St:LLVMopsem.State)
       gl1 = gl2 /\ fs1 = fs2 /\ M1 = M2
   end.
 
-Lemma returnUpdateLocals_sim : forall TD' Mem' c' Result lc1' lc2' rm rm' gl' 
+Lemma returnUpdateLocals_sim : forall TD' Mem' c' rt Result lc1' lc2' rm rm' gl' 
     lc'' rm'', 
-  SBopsem.returnUpdateLocals TD' Mem' c' Result lc1' lc2' rm rm' gl' = 
+  SBopsem.returnUpdateLocals TD' Mem' c' rt Result lc1' lc2' rm rm' gl' = 
     ret (lc'', rm'') ->
   returnUpdateLocals TD' Mem' c' Result lc1' lc2' gl' = ret lc''.
 Proof.
   intros.  
-  unfold SBopsem.returnUpdateLocals in H.
+  unfold SBopsem.returnUpdateLocals, SBopsem.returnResult in H.
   unfold returnUpdateLocals.
-  destruct c'; try solve [inversion H; auto].
-  destruct n; try solve [inversion H; auto].
   destruct (getOperandValue TD' Mem' Result lc1' gl'); 
     try solve [inversion H; auto].
-  unfold SBopsem.prop_reg_metadata in H.
-  destruct t; try solve [inversion H; auto].
-  destruct t; try solve [inversion H; auto].
-  destruct (SBopsem.get_reg_metadata TD' Mem' gl' rm Result) as [[md ?]|]; 
-    try solve [inversion H; auto].
+  destruct (isPointerTypB rt); try solve [inversion H; auto].
+    destruct (SBopsem.get_reg_metadata TD' Mem' gl' rm Result) as [[md ?]|]; 
+      try solve [inversion H; auto].
+    destruct c'; try solve [inversion H; auto].
+    destruct n; try solve [inversion H; auto].
+    unfold SBopsem.prop_reg_metadata in H.  
+    destruct t; try solve [inversion H; auto].
+    destruct t; try solve [inversion H; auto].
+
+    destruct c'; try solve [inversion H; auto].
+    destruct n; try solve [inversion H; auto].
+    unfold SBopsem.prop_reg_metadata in H.  
+    destruct t; try solve [inversion H; auto].
+    destruct t; try solve [inversion H; auto].
 Qed.
 
 Lemma exCallUpdateLocals_sim : forall ft noret rid oResult lc rm lc'' rm'', 

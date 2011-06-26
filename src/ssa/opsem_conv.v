@@ -612,6 +612,8 @@ Proof.
     SCase "noret = true".
       remember (free_allocas TD Mem' als') as Mem''.
       destruct Mem''; simpl in H; try solve [inversion H; subst].
+      remember (getOperandValue TD m re lc' gl) as ogv.
+      destruct ogv as [g |]; try solve [inversion H].      
       remember (updateStatesFromReturns S TD Ps F B cs tmn lc0 gl fs rid als
         EC true lc_als_Mem_block_rid_ore_trs) as states2.
       destruct states2; simpl in H; inversion H; subst.
@@ -622,6 +624,9 @@ Proof.
       ) as EQ. auto.
       rewrite EQ.
       apply nsop_star_cons; auto.
+        apply nsReturn; auto.
+          unfold returnUpdateLocals. 
+          rewrite <- Heqogv; auto.
 
     SCase "noret=false".
       remember (free_allocas TD Mem' als') as Mem''.

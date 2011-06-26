@@ -380,12 +380,12 @@ Definition wf_global_ptr S TD Mem0 gl : Prop :=
 (* axiom *)
 
 Axiom callExternalFunction_mem_bounds : forall Mem0 fid gvs oresult Mem' b,
-  callExternalFunction Mem0 fid gvs = (oresult, Mem') ->
+  callExternalFunction Mem0 fid gvs = Some (oresult, Mem') ->
   Mem.bounds Mem0 b = Mem.bounds Mem' b.
 
 Axiom callExternalFunction_temporal_prop : forall Mem0 fid gvs oresult Mem' base
     bound b,
-  callExternalFunction Mem0 fid gvs = (oresult, Mem') ->
+  callExternalFunction Mem0 fid gvs = Some (oresult, Mem') ->
   b < Mem.nextblock Mem0 /\
   (blk_temporal_safe Mem0 b -> Mem.range_perm Mem0 b base bound Writable) ->
   b < Mem.nextblock Mem' /\
@@ -913,7 +913,7 @@ Qed.
 
 Lemma callExternalFunction_preserves_wf_global_ptr : forall Mem0 fid gvs oresult
     Mem' S TD gl,
-  callExternalFunction Mem0 fid gvs = (oresult, Mem') ->
+  callExternalFunction Mem0 fid gvs = Some (oresult, Mem') ->
   wf_global_ptr S TD Mem0 gl ->
   wf_global_ptr S TD Mem' gl.
 Proof.
@@ -1056,40 +1056,47 @@ Lemma returnUpdateLocals__wf_rmetadata : forall los nts Result lc rm gl c' lc'
   (Hwfg : wf_global_ptr S (los, nts) Mem0 gl)
   (Hwfv : wf_value S (module_intro los nts Ps) f Result rt)
   (H0 : free_allocas (los, nts) Mem0 als = ret Mem')
-  (H1 : returnUpdateLocals (los, nts) Mem' c' Result lc lc' rm rm' gl =
+  (H1 : returnUpdateLocals (los, nts) Mem' c' rt Result lc lc' rm rm' gl =
        ret (lc'', rm''))
   (Hwfm1' : wf_rmetadata (los, nts) Mem0 rm)
   (Hwfm2' : wf_rmetadata (los, nts) Mem0 rm'),
   wf_rmetadata (los, nts) Mem' rm''.
 Proof.
   intros.
-  unfold returnUpdateLocals in H1.
+  unfold returnUpdateLocals, returnResult in H1.
   assert (wf_rmetadata (los, nts) Mem' rm') as Hwfm.
     eauto using free_allocas_preserves_wf_rmetadata.
-  destruct c'; try solve [inv H1; auto].
-  destruct n; try solve [inv H1; auto].
   remember (getOperandValue (los, nts) Mem' Result lc gl) as R1.
   destruct R1; try solve [inv H1; auto].
-  destruct t; try solve [inv H1; auto].
-  destruct t; try solve [inv H1; auto].
-  remember (get_reg_metadata (los, nts) Mem' gl rm Result) as R3.
-  destruct R3 as [[md ?]|]; inv H1; auto.
-    intros x gvb gve Hlk.
-    destruct (eq_atom_dec i0 x); subst.
-      rewrite lookupAL_updateAddAL_eq in Hlk.
-      inv Hlk. symmetry in HeqR3.
-      eapply wf_rmetadata__get_reg_metadata with (rm:=rm); eauto.
-        eapply free_allocas_preserves_wf_global_ptr in H0; eauto.
-        eapply free_allocas_preserves_wf_rmetadata in H0; eauto.
+  destruct (isPointerTypB rt).
+    remember (get_reg_metadata (los, nts) Mem' gl rm Result) as R3.
+    destruct R3 as [[md ?]|]; try solve [inv H1; auto].
+    destruct c'; try solve [inv H1; auto].
+    destruct n; try solve [inv H1; auto].
+    unfold isReturnPointerTypB, isPointerTypB in H1.
+    destruct t; try solve [inv H1; auto].
+    destruct t; inv H1; auto.
+      intros x gvb gve Hlk.
+      destruct (eq_atom_dec i0 x); subst.
+        rewrite lookupAL_updateAddAL_eq in Hlk.
+        inv Hlk. symmetry in HeqR3.
+        eapply wf_rmetadata__get_reg_metadata with (rm:=rm); eauto.
+          eapply free_allocas_preserves_wf_global_ptr in H0; eauto.
+          eapply free_allocas_preserves_wf_rmetadata in H0; eauto.
+ 
+        rewrite <- lookupAL_updateAddAL_neq in Hlk; eauto.
 
-      rewrite <- lookupAL_updateAddAL_neq in Hlk; eauto.
+    destruct c'; try solve [inv H1; auto].
+    destruct n; try solve [inv H1; auto].
+    unfold isReturnPointerTypB, isPointerTypB in H1.
+    destruct t; try solve [inv H1; auto].
+    destruct t; inv H1; auto.
+      intros x gvb gve Hlk.
+      destruct (eq_atom_dec i0 x); subst.
+        rewrite lookupAL_updateAddAL_eq in Hlk.
+        inv Hlk. apply null_is_wf_data.
 
-    intros x gvb gve Hlk.
-    destruct (eq_atom_dec i0 x); subst.
-      rewrite lookupAL_updateAddAL_eq in Hlk.
-      inv Hlk. apply null_is_wf_data.
-
-      rewrite <- lookupAL_updateAddAL_neq in Hlk; eauto.
+        rewrite <- lookupAL_updateAddAL_neq in Hlk; eauto.
 Qed.
 
 Lemma getIncomingValuesForBlockFromPHINodes__wf_rmetadata : forall los nts M f b
@@ -1401,7 +1408,7 @@ Qed.
 
 Lemma callExternalFunction_preserves_wf_rmetadata : forall Mem0 fid gvs oresult
     Mem' rm TD,
-  callExternalFunction Mem0 fid gvs = (oresult, Mem') ->
+  callExternalFunction Mem0 fid gvs = Some (oresult, Mem') ->
   wf_rmetadata TD Mem0 rm ->
   wf_rmetadata TD Mem' rm.
 Proof.
@@ -1545,7 +1552,7 @@ Qed.
 
 Lemma callExternalFunction_preserves_wf_mmetadata : forall Mem0 fid gvs oresult
     Mem' TD MM,
-  callExternalFunction Mem0 fid gvs = (oresult, Mem') ->
+  callExternalFunction Mem0 fid gvs = Some (oresult, Mem') ->
   wf_mmetadata TD Mem0 MM ->
   wf_mmetadata TD Mem' MM.
 Proof.

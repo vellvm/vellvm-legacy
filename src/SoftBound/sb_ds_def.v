@@ -210,26 +210,39 @@ Definition switchToNewBasicBlock (TD:TargetData) (M:mem) (Dest:block)
   returning arbitrary values.
 *)
 
-Definition returnUpdateLocals (TD:TargetData) (M:mem) (c':cmd)
+Definition isReturnPointerTypB t0 : bool :=
+match t0 with
+| typ_function t0 _ _ => isPointerTypB t0
+| _ => false
+end.
+
+Definition returnResult (TD:TargetData) (M:mem) (rt:typ) (Result:value) 
+  (lc:GVMap) (rm:rmetadata) (gl:GVMap) : option (GenericValue * metadata) :=
+  match getOperandValue TD M Result lc gl with
+  | Some gr =>
+      if isPointerTypB rt then
+        match get_reg_metadata TD M gl rm Result with
+        | Some md => Some (gr, md)
+        | None => None
+        end
+      else Some (gr, (mkMD null null))
+  | _ => None
+  end.
+
+Definition returnUpdateLocals (TD:TargetData) (M:mem) (c':cmd) (rt:typ) 
   (Result:value) (lc lc':GVMap) (rm rm':rmetadata) (gl:GVMap) 
   : option (GVMap * rmetadata) :=
-    match c' with
-    | insn_call id0 false _ t _ _ =>
-        match getOperandValue TD M Result lc gl with
-        | Some gr =>
-            match t with
-            | typ_function (typ_pointer _) _ _ =>
-              match get_reg_metadata TD M gl rm Result with
-              | Some md => Some (prop_reg_metadata lc' rm' id0 gr md)
-              | None => Some 
-                  (prop_reg_metadata lc' rm' id0 gr (mkMD null null))
-              end
-            | _ => Some (updateAddAL _ lc' id0 gr, rm')
-            end
-        | _ => None
-        end
-    | _ => Some (lc', rm')
-    end.
+  match returnResult TD M rt Result lc rm gl with
+  | Some (gr,md) =>
+      match c' with
+      | insn_call id0 false _ t _ _ =>
+          if isReturnPointerTypB t then 
+            Some (prop_reg_metadata lc' rm' id0 gr md)
+          else Some (updateAddAL _ lc' id0 gr, rm')
+      | _ => Some (lc', rm')
+      end
+  | _ => None
+  end.
 
 Definition exCallUpdateLocals (ft:typ) (noret:bool) (rid:id) 
   (oResult:option GenericValue) (lc :GVMap) (rm:rmetadata) 
@@ -291,7 +304,8 @@ Inductive dsInsn : State -> State -> trace -> Prop :=
     lc' rm' EC Mem MM Mem' als als' lc'' rm'',   
   Instruction.isCallInst c' = true ->
   free_allocas TD Mem als = Some Mem' ->
-  returnUpdateLocals TD Mem' c' Result lc lc' rm rm' gl = Some (lc'', rm'') ->
+  returnUpdateLocals TD Mem' c' RetTy Result lc lc' rm rm' gl = 
+    Some (lc'', rm'') ->
   dsInsn 
     (mkState S TD Ps 
       ((mkEC F B nil (insn_return rid RetTy Result) lc rm als)::
@@ -676,7 +690,7 @@ Inductive dsInsn : State -> State -> trace -> Prop :=
   LLVMopsem.lookupExFdecViaGV TD Mem Ps gl lc fs fv = 
     Some (fdec_intro (fheader_intro fa rt fid la va)) -> 
   LLVMgv.params2GVs TD Mem lp lc gl = Some gvs ->
-  LLVMopsem.callExternalFunction Mem fid gvs = (oresult, Mem') ->
+  LLVMopsem.callExternalFunction Mem fid gvs = Some (oresult, Mem') ->
   exCallUpdateLocals ft noret rid oresult lc rm = Some (lc',rm') ->
   dsInsn 
     (mkState S TD Ps 

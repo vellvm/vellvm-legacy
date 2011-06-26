@@ -1868,10 +1868,10 @@ Case "dsReturn".
         remember (getCmdID c') as R.
         destruct c'; try solve [inversion H].
         unfold returnUpdateLocals in H1. simpl in H1.
+        remember (getOperandValue (los,nts) Mem' Result lc gl) as R1.
+        destruct R1; try solve [inv H1].
         destruct R.
-          destruct n; inv HeqR.
-          remember (getOperandValue (los,nts) Mem' Result lc gl) as R1.
-          destruct R1; inv H1.          
+          destruct n; inv HeqR. inv H1.
           assert (Hwfc := HBinF2).
           assert (In (insn_call i0 false c t v p) 
             (cs2'++[insn_call i0 false c t v p])) as HinCs.
@@ -1900,10 +1900,10 @@ Case "dsReturn".
         remember (getCmdID c') as R.
         destruct c'; try solve [inversion H].
         unfold returnUpdateLocals in H1. simpl in H1.
+        remember (getOperandValue (los,nts) Mem' Result lc gl) as R1.
+        destruct R1; try solve [inv H1].
         destruct R.
-          destruct n; inv HeqR.
-          remember (getOperandValue (los,nts) Mem' Result lc gl) as R1.
-          destruct R1; inv H1.
+          destruct n; inv HeqR. inv H1.
           assert (In (insn_call i0 false c0 t v p) 
             (cs2'++[insn_call i0 false c0 t v p] ++ [c] ++ cs')) as HinCs.
             apply in_or_app. right. simpl. auto.
@@ -3506,11 +3506,12 @@ Definition undefined_state S : Prop :=
            match params2GVs td M p lc gl with
            | Some gvs =>
              match callExternalFunction M fid gvs with
-             | (oresult, _) =>
+             | Some (oresult, _) =>
                 match exCallUpdateLocals n i0 oresult lc with
                 | None => True
                 | _ => False
                 end
+             | None => True
              end
            | _ => False
            end
@@ -3570,13 +3571,13 @@ Proof.
           returnUpdateLocals (los,nts) M' (insn_call i1 n c t0 v0 p) v lc lc' gl
             = Some lc'') as Hretup.
           unfold returnUpdateLocals. simpl.
+          assert (exists gv : GenericValue, 
+            getOperandValue (los, nts) M' v lc gl = ret gv) as H.
+            eapply getOperandValue_inTmnOperans_isnt_stuck; eauto.
+              simpl. auto.
+          destruct H as [gv H]. rewrite H.
           destruct n.
             exists lc'. auto.
-            assert (exists gv : GenericValue, 
-              getOperandValue (los, nts) M' v lc gl = ret gv) as H.
-              eapply getOperandValue_inTmnOperans_isnt_stuck; eauto.
-                simpl. auto.
-            destruct H as [gv H]. rewrite H.
             exists (updateAddAL GenericValue lc' i1 gv). auto.
           
         destruct Hretup as [lc'' Hretup].
@@ -4372,11 +4373,11 @@ Proof.
     SSCase "external call".
     destruct f' as [[fa rt fid la va]].
     remember (callExternalFunction M fid gvs) as R.
-    destruct R as [oresult Mem'].
-    remember (exCallUpdateLocals n i0 oresult lc) as R'.
-    destruct R' as [lc' |].
-      left.
-      exists 
+      destruct R as [[oresult Mem']|].
+      remember (exCallUpdateLocals n i0 oresult lc) as R'.
+      destruct R' as [lc' |].
+        left.
+        exists 
          {|
          CurSystem := s;
          CurTargetData := (los, nts);
@@ -4392,19 +4393,24 @@ Proof.
          Globals := gl;
          FunTable := fs;
          Mem := Mem' |}.
-      exists trace_nil.
-      eauto.     
+        exists trace_nil.
+        eauto.     
+
+        right.
+        unfold undefined_state.
+        right. rewrite <- HeqHlk. rewrite <- HeqHelk. rewrite G. 
+        rewrite <- HeqR0.
+        rewrite <- HeqR'. undefbehave.
 
       right.
       unfold undefined_state.
-      right. rewrite <- HeqHlk. rewrite <- HeqHelk. rewrite G. rewrite <- HeqR0.
-      rewrite <- HeqR'. undefbehave.
+      right. rewrite <- HeqHlk. rewrite <- HeqHelk. rewrite G.
+      rewrite <- HeqR0. undefbehave.
 
     SSCase "stuck".
       right.
       unfold undefined_state.
       right. rewrite <- HeqHlk. rewrite <- HeqHelk. undefbehave.
-
 Qed.
 
 

@@ -16,6 +16,7 @@ Require Import Coqlib.
 Require Import monad.
 Require Import Metatheory.
 Require Import Znumtheory.
+Require Import sb_ds_def.
 
 Module SB_ds_pass.
 
@@ -37,18 +38,18 @@ Definition vnullp32 := value_const (const_null p32).
 Definition int0 := const_int Size.ThirtyTwo (INTEGER.of_Z 32%Z 0%Z false).
 Definition vint0 := value_const int0.
 
-Parameter assert_mptr_fid : id.
+Parameter assert_fid : id.
 Parameter fake_id : id.
-Parameter get_mmetadata_fid : id.
-Parameter set_mmetadata_fid : id.
-Parameter set_shadowstack_base_fid : id.
-Parameter set_shadowstack_bound_fid : id.
-Parameter get_shadowstack_base_fid : id.
-Parameter get_shadowstack_bound_fid : id.
-Parameter allocate_shadowstack_fid : id.
-Parameter free_shadowstack_fid : id.
+Parameter gmd_fid : id.
+Parameter smd_fid : id.
+Parameter sbase_fid : id.
+Parameter sbound_fid : id.
+Parameter gbase_fid : id.
+Parameter gbound_fid : id.
+Parameter astk_fid : id.
+Parameter dstk_fid : id.
 
-Definition assert_mptr_typ : typ :=
+Definition assert_typ : typ :=
   typ_function typ_void 
         (Cons_list_typ p8 
         (Cons_list_typ p8 
@@ -56,10 +57,10 @@ Definition assert_mptr_typ : typ :=
         (Cons_list_typ i32
         (Cons_list_typ i32 Nil_list_typ))))) false.
 
-Definition assert_mptr_fn : value :=
-  value_const (const_gid assert_mptr_typ assert_mptr_fid).
+Definition assert_fn : value :=
+  value_const (const_gid assert_typ assert_fid).
 
-Definition get_mmetadata_typ : typ :=
+Definition gmd_typ : typ :=
   typ_function typ_void 
         (Cons_list_typ p8 
         (Cons_list_typ pp8 
@@ -68,10 +69,10 @@ Definition get_mmetadata_typ : typ :=
         (Cons_list_typ i32
         (Cons_list_typ p32 Nil_list_typ)))))) false.
 
-Definition get_mmetadata_fn : value :=
-  value_const (const_gid get_mmetadata_typ get_mmetadata_fid).
+Definition gmd_fn : value :=
+  value_const (const_gid gmd_typ gmd_fid).
 
-Definition set_mmetadata_typ : typ :=
+Definition smd_typ : typ :=
   typ_function typ_void 
         (Cons_list_typ p8 
         (Cons_list_typ p8 
@@ -80,50 +81,50 @@ Definition set_mmetadata_typ : typ :=
         (Cons_list_typ i32
         (Cons_list_typ i32 Nil_list_typ)))))) false.
 
-Definition set_mmetadata_fn : value :=
-  value_const (const_gid set_mmetadata_typ set_mmetadata_fid).
+Definition smd_fn : value :=
+  value_const (const_gid smd_typ smd_fid).
 
-Definition set_shadowstack_base_typ : typ :=
+Definition sbase_typ : typ :=
   typ_function typ_void 
         (Cons_list_typ p8 
         (Cons_list_typ i32 Nil_list_typ)) false.
 
-Definition set_shadowstack_base_fn : value :=
-  value_const (const_gid set_shadowstack_base_typ set_shadowstack_base_fid).
+Definition sbase_fn : value :=
+  value_const (const_gid sbase_typ sbase_fid).
 
-Definition set_shadowstack_bound_typ : typ :=
+Definition sbound_typ : typ :=
   typ_function typ_void 
         (Cons_list_typ p8 
         (Cons_list_typ i32 Nil_list_typ)) false.
 
-Definition set_shadowstack_bound_fn : value :=
-  value_const (const_gid set_shadowstack_bound_typ set_shadowstack_bound_fid).
+Definition sbound_fn : value :=
+  value_const (const_gid sbound_typ sbound_fid).
 
-Definition get_shadowstack_base_typ : typ :=
+Definition gbase_typ : typ :=
   typ_function p8 (Cons_list_typ i32 Nil_list_typ) false.
 
-Definition get_shadowstack_base_fn : value :=
-  value_const (const_gid get_shadowstack_base_typ get_shadowstack_base_fid).
+Definition gbase_fn : value :=
+  value_const (const_gid gbase_typ gbase_fid).
 
-Definition get_shadowstack_bound_typ  : typ :=
+Definition gbound_typ  : typ :=
  typ_function p8 (Cons_list_typ i32 Nil_list_typ) false.
 
-Definition get_shadowstack_bound_fn : value :=
-  value_const (const_gid get_shadowstack_bound_typ get_shadowstack_bound_fid).
+Definition gbound_fn : value :=
+  value_const (const_gid gbound_typ gbound_fid).
 
-Definition allocate_shadowstack_typ : typ :=
+Definition astk_typ : typ :=
   typ_function typ_void (Cons_list_typ i32 Nil_list_typ) false.
 
-Definition allocate_shadowstack_fn : value :=
-  value_const (const_gid allocate_shadowstack_typ allocate_shadowstack_fid).
+Definition astk_fn : value :=
+  value_const (const_gid astk_typ astk_fid).
 
-Definition free_shadowstack_typ : typ :=
+Definition dstk_typ : typ :=
   typ_function typ_void Nil_list_typ false.
 
-Definition free_shadowstack_fn : value :=
-  value_const (const_gid free_shadowstack_typ free_shadowstack_fid).
+Definition dstk_fn : value :=
+  value_const (const_gid dstk_typ dstk_fid).
 
-Definition sb_call_attrs := clattrs_intro false callconv_ccc nil nil.
+Definition attrs := clattrs_intro false callconv_ccc nil nil.
 
 (*******************************)
 (* Generate metadata *)
@@ -297,10 +298,10 @@ Definition get_reg_metadata (rm:rmap) (v:value) : option (value * value) :=
       end
   end.
 
-Definition prop_metadata (ex_ids tmps:ids) rm c v1 id0 :=
+Definition prop_metadata (ex_ids : ids) rm c v1 id0 :=
   match (get_reg_metadata rm v1, lookupAL _ rm id0) with
   | (Some (bv, ev), Some (bid0, eid0)) =>
-      Some (ex_ids, tmps,
+      Some (ex_ids,
         c::
         insn_cast bid0 castop_bitcast p8 bv p8:: 
         insn_cast eid0 castop_bitcast p8 ev p8:: 
@@ -312,13 +313,11 @@ Definition val32 z := (i32,(value_const (const_int Size.ThirtyTwo
                             (INTEGER.of_Z 32%Z z false)))).
 
 Definition call_set_shadowstack bv0 ev0 idx cs : cmds :=
-  insn_call fake_id true sb_call_attrs
-    set_shadowstack_base_typ set_shadowstack_base_fn
+  insn_call fake_id true attrs sbase_typ sbase_fn
       ((p8,bv0)::
        (val32 idx)::
        nil)::
-  insn_call fake_id true sb_call_attrs
-    set_shadowstack_bound_typ set_shadowstack_bound_fn
+  insn_call fake_id true attrs sbound_typ sbound_fn
       ((p8,ev0)::
        (val32 idx)::
        nil)::cs.
@@ -338,26 +337,46 @@ match lp with
       trans_params rm lp' (idx+1) (call_set_shadowstack vnullp8 vnullp8 idx cs)
 end.
 
-Definition isReturnPointerTypB t0 : bool :=
-match t0 with
-| typ_function t0 _ _ => isPointerTypB t0
-| _ => false
+Definition wrap_call v : value :=
+match v with
+| value_const (const_gid ft fid) => value_const (const_gid ft (wrapper_fid fid))
+| _ => v
 end.
 
-Definition trans_cmd (ex_ids tmps:ids) (addrb addre:id) (rm:rmap) (c:cmd) 
-  : option (ids*ids*cmds) :=
+Definition call_suffix i0 nr ca t0 v p rm : option cmds :=
+  let optcs' :=
+    if negb nr && SBopsem.isReturnPointerTypB t0 then
+      match (lookupAL _ rm i0) with
+      | Some (bid0, eid0) =>
+          Some (
+            insn_call bid0 false attrs gbase_typ gbase_fn  
+              ((i32,vint0)::nil)::
+            insn_call eid0 false attrs gbound_typ gbound_fn 
+              ((i32,vint0)::nil)::
+            insn_call fake_id true attrs dstk_typ dstk_fn nil::
+            nil)
+      | None => None
+      end
+    else 
+      Some [insn_call fake_id true attrs dstk_typ dstk_fn nil]
+  in
+  match optcs' with
+  | Some cs' => Some ([insn_call i0 nr ca t0 (wrap_call v) p]++cs')
+  | None => None
+  end.
+
+Definition trans_cmd (ex_ids:ids) (addrb addre:id) (rm:rmap) (c:cmd) 
+  : option (ids*cmds) :=
 match c with 
 | insn_malloc id0 t1 v1 _ | insn_alloca id0 t1 v1 _ =>
     match lookupAL _ rm id0 with
     | Some (bid, eid) =>
       let '(etmp,ex_ids) := mk_tmp ex_ids in
-      let '(num,ex_ids) := mk_tmp ex_ids in
-      Some (ex_ids, num::etmp::tmps,
-       insn_cast num castop_bitcast i32 v1 i32:: 
+      Some (ex_ids,
        c::
        insn_cast bid castop_bitcast (typ_pointer t1) (value_id id0) p8:: 
        insn_gep etmp false t1 (value_id id0) 
-         (Cons_list_value (value_id num) Nil_list_value) :: 
+         (Cons_list_value v1 Nil_list_value) :: 
        insn_cast eid castop_bitcast (typ_pointer t1) (value_id etmp) p8:: 
        nil)
     | _ => None
@@ -367,13 +386,12 @@ match c with
     match get_reg_metadata rm v2 with
     | Some (bv, ev) =>
       let '(ptmp,ex_ids) := mk_tmp ex_ids in
-      let '(optcs, ex_ids, tmps) := 
+      let '(optcs, ex_ids) := 
         if isPointerTypB t2 then
           match lookupAL _ rm id0 with
           | Some (bid0, eid0) =>
                    (Some
-                     (insn_call fake_id true sb_call_attrs
-                       get_mmetadata_typ get_mmetadata_fn 
+                     (insn_call fake_id true attrs gmd_typ gmd_fn 
                        ((p8,(value_id ptmp))::
                         (pp8,(value_id addrb))::
                         (pp8,(value_id addre))::
@@ -383,16 +401,16 @@ match c with
                         nil)::
                       insn_load bid0 p8 (value_id addrb) Align.Zero::
                       insn_load eid0 p8 (value_id addre) Align.Zero::   
-                      nil), ex_ids, tmps)
-          | None => (None, ex_ids, tmps)
+                      nil), ex_ids)
+          | None => (None, ex_ids)
           end
-        else (Some nil, ex_ids, tmps) in
+        else (Some nil, ex_ids) in
       match optcs with
       | None => None
       | Some cs =>
-        Some (ex_ids, ptmp::tmps,
+        Some (ex_ids,
          insn_cast ptmp castop_bitcast (typ_pointer t2) v2 p8:: 
-         insn_call fake_id true sb_call_attrs assert_mptr_typ assert_mptr_fn 
+         insn_call fake_id true attrs assert_typ assert_fn 
            ((p8,bv)::
             (p8,ev)::
             (p8,(value_id ptmp))::
@@ -413,8 +431,7 @@ match c with
           match get_reg_metadata rm v1 with
           | Some (bv0, ev0) =>
               Some
-                (insn_call fake_id true sb_call_attrs set_mmetadata_typ 
-                  set_mmetadata_fn 
+                (insn_call fake_id true attrs smd_typ smd_fn 
                   ((p8,(value_id ptmp))::
                    (p8,bv0)::
                    (p8,ev0)::
@@ -429,9 +446,9 @@ match c with
       match optcs with
       | None => None
       | Some cs =>
-        Some (ex_ids, ptmp::tmps,
+        Some (ex_ids,
          insn_cast ptmp castop_bitcast (typ_pointer t0) v2 p8:: 
-         insn_call fake_id true sb_call_attrs assert_mptr_typ assert_mptr_fn 
+         insn_call fake_id true attrs assert_typ assert_fn 
            ((p8,bv)::
             (p8,ev)::
             (p8,(value_id ptmp))::
@@ -444,25 +461,25 @@ match c with
     end
 
 | insn_gep id0 inbounds0 t1 v1 lv2 => 
-    prop_metadata ex_ids tmps rm c v1 id0
+    prop_metadata ex_ids rm c v1 id0
 
 | insn_cast id0 op0 t1 v1 t2 => 
     match op0 with
     | castop_bitcast =>
         if isPointerTypB t1 then
-          prop_metadata ex_ids tmps rm c v1 id0
-        else Some (ex_ids, tmps, [c])
+          prop_metadata ex_ids rm c v1 id0
+        else Some (ex_ids, [c])
     | castop_inttoptr =>
         match lookupAL _ rm id0 with
         | Some (bid0, eid0) =>
-            Some (ex_ids, tmps,
+            Some (ex_ids, 
               c::
               insn_cast bid0 castop_bitcast p8 vnullp8 p8::
               insn_cast eid0 castop_bitcast p8 vnullp8 p8::
               nil)
         | _ => None
         end
-    | _ => Some (ex_ids, tmps, [c])
+    | _ => Some (ex_ids, [c])
     end
 
 | insn_select id0 v0 t0 v1 v2 =>
@@ -470,72 +487,40 @@ match c with
       match (get_reg_metadata rm v1, get_reg_metadata rm v2, 
              lookupAL _ rm id0) with
       | (Some (bv1, ev1), Some (bv2, ev2), Some (bid0, eid0)) =>
-          Some (ex_ids, tmps,
+          Some (ex_ids,
             c::
             insn_select bid0 v0 p8 bv1 bv2:: 
             insn_select eid0 v0 p8 ev1 ev2:: 
             nil)
       | _ => None
       end
-    else Some (ex_ids, tmps, [c])
+    else Some (ex_ids, [c])
 
-| insn_call i0 n t t0 v p =>
-    match
-      (match v with
-       | value_const (const_gid ft fid) =>
-           if isSysLib fid then
-              (Some (nil, 0%Z), v)
-           else (trans_params rm p 1%Z nil, 
-                 value_const (const_gid ft (wrapper_fid fid)))
-       | _ => (trans_params rm p 1%Z nil, v)
-      end) with
-    | (Some (cs, num), v') =>
-        let optcs' :=
-          if isReturnPointerTypB t0 then
-            match (lookupAL _ rm i0) with
-            | Some (bid0, eid0) =>
-                Some (
-                  insn_call bid0 false sb_call_attrs 
-                    get_shadowstack_base_typ get_shadowstack_base_fn  
-                    ((i32,vint0)::nil)::
-                  insn_call eid0 false sb_call_attrs
-                    get_shadowstack_bound_typ get_shadowstack_bound_fn 
-                    ((i32,vint0)::nil)::
-                  insn_call fake_id true sb_call_attrs
-                    free_shadowstack_typ free_shadowstack_fn nil::
-                  nil)
-            | None => None
-            end
-          else 
-            Some [insn_call fake_id true sb_call_attrs
-                    free_shadowstack_typ free_shadowstack_fn nil]
-        in
-        match optcs' with
-        | Some cs' =>
-            Some (ex_ids, tmps, 
-                  insn_call fake_id true sb_call_attrs
-                    allocate_shadowstack_typ allocate_shadowstack_fn
-                    (val32 num::
-                     nil)::               
-                  cs++[insn_call i0 n t t0 v' p]++cs')
-        | None => None
-        end
-    | (None, _) => None
+| insn_call i0 n ca t0 v p =>
+    match trans_params rm p 1%Z nil, call_suffix i0 n ca t0 v p rm with
+    | Some (cs, num), Some cs' =>
+        Some (ex_ids, 
+              insn_call fake_id true attrs
+                astk_typ astk_fn
+                (val32 num::
+                nil)::               
+              cs++cs')
+     | _, _ => None
     end
 
-| _ => Some (ex_ids, tmps, [c])
+| _ => Some (ex_ids, [c])
 end.
 
-Fixpoint trans_cmds (ex_ids tmps:ids) (addrb addre:id) (rm:rmap) (cs:list cmd) 
-  : option (ids*ids*cmds) :=
+Fixpoint trans_cmds (ex_ids:ids) (addrb addre:id) (rm:rmap) (cs:list cmd) 
+  : option (ids*cmds) :=
 match cs with
-| nil => Some (ex_ids, tmps, nil)
+| nil => Some (ex_ids, nil)
 | c::cs' =>
-    match (trans_cmd ex_ids tmps addrb addre rm c) with
-    | Some (ex_ids1, tmps1, cs1) =>
-        match (trans_cmds ex_ids1 tmps1 addrb addre rm cs') with
-        | Some (ex_ids2, tmps2, cs2) => 
-            Some (ex_ids2, tmps2, cs1++cs2)
+    match (trans_cmd ex_ids addrb addre rm c) with
+    | Some (ex_ids1, cs1) =>
+        match (trans_cmds ex_ids1 addrb addre rm cs') with
+        | Some (ex_ids2, cs2) => 
+            Some (ex_ids2, cs1++cs2)
         | _ => None
         end
     | _ => None
@@ -574,54 +559,57 @@ match ps with
     end
 end.
 
-Definition trans_block (ex_ids tmps:ids) (addrb addre:id) (rm:rmap)
-  (b:block) : option (ids*ids*block) :=
+Definition trans_terminator (rm:rmap) (tmn1:terminator) : option cmds :=
+  match tmn1 with
+  | insn_return _ t0 v0 =>
+    if isPointerTypB t0 then
+      match get_reg_metadata rm v0 with
+      | Some (bv, ev) =>
+          Some (
+           insn_call fake_id true attrs sbase_typ sbase_fn
+             ((p8,bv)::(i32,vint0)::nil)::
+           insn_call fake_id true attrs sbound_typ sbound_fn
+             ((p8,ev)::(i32,vint0)::nil)::
+           nil)
+      | None => None
+      end
+    else 
+      Some (
+        insn_call fake_id true attrs sbase_typ sbase_fn
+          ((p8,vnullp8)::(i32,vint0)::nil)::
+        insn_call fake_id true attrs sbound_typ sbound_fn
+          ((p8,vnullp8)::(i32,vint0)::nil)::
+        nil)
+  | _ => Some nil
+  end.
+
+Definition trans_block (ex_ids:ids) (addrb addre:id) (rm:rmap) (b:block) 
+  : option (ids*block) :=
 let '(block_intro l1 ps1 cs1 tmn1) := b in
 match trans_phinodes rm ps1 with
 | None => None
 | Some ps2 => 
-    match trans_cmds ex_ids tmps addrb addre rm cs1 with
-    | Some (ex_ids',tmps',cs2) => 
-        let opt :=
-          match tmn1 with
-          | insn_return _ t0 v0 =>
-            if isPointerTypB t0 then
-              match get_reg_metadata rm v0 with
-              | Some (bv, ev) =>
-                  Some (
-                   insn_call fake_id true sb_call_attrs
-                     set_shadowstack_base_typ set_shadowstack_base_fn
-                     ((p8,bv)::(i32,vint0)::nil)::
-                   insn_call fake_id true sb_call_attrs
-                     set_shadowstack_bound_typ set_shadowstack_bound_fn
-                     ((p8,ev)::(i32,vint0)::nil)::
-                   nil)
-              | None => None
-              end
-            else 
-              Some nil
-          | _ => Some nil
-          end
-        in
-        match opt with
+    match trans_cmds ex_ids addrb addre rm cs1 with
+    | Some (ex_ids',cs2) => 
+        match trans_terminator rm tmn1 with
         | Some cs' =>
-            Some (ex_ids',tmps',block_intro l1 ps2 (cs2++cs') tmn1)
+            Some (ex_ids',block_intro l1 ps2 (cs2++cs') tmn1)
         | _ => None
         end
     | None => None
     end
 end.
 
-Fixpoint trans_blocks (ex_ids tmps:ids) (addrb addre:id) (rm:rmap) 
-  (bs:blocks) : option (ids*ids*blocks) :=
+Fixpoint trans_blocks (ex_ids:ids) (addrb addre:id) (rm:rmap) (bs:blocks) 
+  : option (ids*blocks) :=
 match bs with
-| nil => Some (ex_ids, tmps, nil)
+| nil => Some (ex_ids, nil)
 | b::bs' =>
-    match (trans_block ex_ids tmps addrb addre rm b) with
-    | Some (ex_ids1, tmps1, b1) =>
-        match (trans_blocks ex_ids1 tmps1 addrb addre rm bs') with
-        | Some (ex_ids2, tmps2, bs2) => 
-            Some (ex_ids2, tmps2, b1::bs2)
+    match (trans_block ex_ids addrb addre rm b) with
+    | Some (ex_ids1, b1) =>
+        match (trans_blocks ex_ids1 addrb addre rm bs') with
+        | Some (ex_ids2, bs2) => 
+            Some (ex_ids2, b1::bs2)
         | _ => None
         end
     | _ => None
@@ -629,12 +617,12 @@ match bs with
 end.
 
 Definition call_get_shadowstack bid0 eid0 idx cs : cmds :=
-  insn_call bid0 false sb_call_attrs
-    get_shadowstack_base_typ get_shadowstack_base_fn  
+  insn_call bid0 false attrs
+    gbase_typ gbase_fn  
       ((i32,(value_const (const_int Size.ThirtyTwo 
         (INTEGER.of_Z 32%Z idx false))))::nil)::
-  insn_call eid0 false sb_call_attrs
-    get_shadowstack_bound_typ get_shadowstack_bound_fn 
+  insn_call eid0 false attrs
+    gbound_typ gbound_fn 
       ((i32,(value_const (const_int Size.ThirtyTwo 
         (INTEGER.of_Z 32%Z idx false))))::nil)::
   cs.
@@ -656,8 +644,9 @@ Definition insert_more_allocas (addrb addre:id) (argsmd:cmds) (b:block) : block
   :=
 let '(block_intro l1 ps1 cs1 tmn1) := b in  
 block_intro l1 ps1
-  (insn_alloca addrb p8 vint1 Align.Zero::
-   insn_alloca addre p8 vint1 Align.Zero::argsmd++cs1) tmn1.
+  (argsmd++
+   insn_alloca addrb p8 vint1 Align.Zero::insn_alloca addre p8 vint1 Align.Zero::
+   cs1) tmn1.
 
 Definition trans_fdef nts (f:fdef) : option fdef :=
 let '(fdef_intro (fheader_intro fa t fid la va) bs) := f in
@@ -670,8 +659,8 @@ else
       | Some cs' =>
          let '(addrb,ex_ids) := mk_tmp ex_ids in
          let '(addre,ex_ids) := mk_tmp ex_ids in
-          match (trans_blocks ex_ids nil addrb addre rm bs) with
-          | Some (ex_ids, tmps, b'::bs') => 
+          match (trans_blocks ex_ids addrb addre rm bs) with
+          | Some (ex_ids, b'::bs') => 
               Some (fdef_intro 
                      (fheader_intro fa t (wrapper_fid fid) la va) 
                      ((insert_more_allocas addrb addre cs' b')::bs'))

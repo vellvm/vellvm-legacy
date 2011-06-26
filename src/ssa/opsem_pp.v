@@ -42,6 +42,12 @@ Proof.
           destruct (lookupAL _ lc2' i0); auto using eqAL_updateAddAL.
 
           destruct (const2GV TD M gl c); auto using eqAL_updateAddAL.
+      destruct oResult; simpl; auto.
+        destruct v; simpl.
+          rewrite H2.
+          destruct (lookupAL _ lc2' i0); auto using eqAL_updateAddAL.
+
+          destruct (const2GV TD M gl c); auto using eqAL_updateAddAL.
 Qed.
 
 Lemma eqAL_getIncomingValuesForBlockFromPHINodes : forall TD M ps B gl lc lc',

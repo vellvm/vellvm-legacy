@@ -177,7 +177,7 @@ do fn <- lookupFdefViaGVFromFunTable fs fptr;
 (**************************************)
 (* Realized by libffi in LLVM *)
 Axiom callExternalFunction : mem -> id -> list GenericValue -> 
-  ((option GenericValue)*mem).
+  option ((option GenericValue)*mem).
 
 Definition lookupExFdecViaGV (TD:TargetData) (M:mem) (Ps:products) (gl lc:GVMap)
   (fs:GVMap) (fv:value) : option fdec :=
@@ -205,14 +205,14 @@ Definition exCallUpdateLocals (noret:bool) (rid:id) (oResult:option GenericValue
 
 Definition returnUpdateLocals (TD:TargetData) (M:mem) (c':cmd) (Result:value) 
   (lc lc' gl:GVMap) : option GVMap :=
-    match (getCallerReturnID c') with
-    | Some id0 =>
-        match (getOperandValue TD M Result lc gl) with
-        | Some gr => Some (updateAddAL _ lc' id0 gr)
-        | None => None
-        end
-    | None => Some lc'
-    end.
+  match (getOperandValue TD M Result lc gl) with
+  | Some gr =>    
+      match (getCallerReturnID c') with
+      | Some id0 => Some (updateAddAL _ lc' id0 gr)
+      | None => Some lc'
+      end
+  | None => None
+  end.
 
 Inductive dsInsn : State -> State -> trace -> Prop :=
 | dsReturn : forall S TD Ps F B rid RetTy Result lc gl fs
@@ -464,7 +464,7 @@ Inductive dsInsn : State -> State -> trace -> Prop :=
   lookupExFdecViaGV TD Mem Ps gl lc fs fv = 
     Some (fdec_intro (fheader_intro fa rt fid la va)) ->
   params2GVs TD Mem lp lc gl = Some gvs ->
-  callExternalFunction Mem fid gvs = (oresult, Mem') ->
+  callExternalFunction Mem fid gvs = Some (oresult, Mem') ->
   exCallUpdateLocals noret rid oresult lc = Some lc' ->
   dsInsn 
     (mkState S TD Ps ((mkEC F B ((insn_call rid noret ca ft fv lp)::cs) tmn 
@@ -882,7 +882,7 @@ Inductive nsInsn : State*trace -> States -> Prop :=
   lookupExFdecViaGV TD Mem Ps gl lc fs fv = 
     Some (fdec_intro (fheader_intro fa rt fid la va)) ->
   params2GVs TD Mem lp lc gl = Some gvs ->
-  callExternalFunction Mem fid gvs = (oresult, Mem') ->
+  callExternalFunction Mem fid gvs = Some (oresult, Mem') ->
   exCallUpdateLocals noret rid oresult lc = Some lc' ->
   nsInsn 
     (mkState S TD Ps ((mkEC F B ((insn_call rid noret ca ft fv lp)::cs) tmn 
@@ -1021,7 +1021,15 @@ Definition callUpdateLocals (TD:TargetData) (M:mem) (noret:bool) (rid:id)
           | None => None
           end
         end
-    | true => Some lc
+    | true => 
+        match oResult with
+        | None => Some lc
+        | Some Result => 
+          match (getOperandValue TD M Result lc' gl) with 
+          | Some gr => Some lc
+          | None => None
+          end
+        end
     end.
 
 Inductive dbInsn : State -> State -> trace -> Prop :=
@@ -1240,7 +1248,7 @@ Inductive dbInsn : State -> State -> trace -> Prop :=
   lookupExFdecViaGV TD Mem Ps gl lc fs fv = 
     Some (fdec_intro (fheader_intro fa rt fid la va)) ->
   params2GVs TD Mem lp lc gl = Some gvs ->
-  callExternalFunction Mem fid gvs = (oresult, Mem') ->
+  callExternalFunction Mem fid gvs = Some (oresult, Mem') ->
   exCallUpdateLocals noret rid oresult lc = Some lc' ->
   dbInsn 
     (mkState S TD Ps ((mkEC F B ((insn_call rid noret ca ft fv lp)::cs) tmn 
@@ -1403,7 +1411,11 @@ match lc_als_Mem_block_rid_re_trs with
         | Some gr => Some (updateAddAL _ lc rid gr)
         | None => None
         end
-    | true => Some lc
+    | true =>
+        match (getOperandValue TD Mem'' re lc' gl) with
+        | Some gr => Some lc
+        | None => None
+        end
     end;
   do states <- updateStatesFromReturns S TD Ps F B cs tmn lc gl fs rid als 
                  EC noret lc_als_Mem_block_rid_ore_trs';
@@ -1641,7 +1653,7 @@ Inductive nbInsn : State*trace -> States -> Prop :=
   lookupExFdecViaGV TD Mem Ps gl lc fs fv = 
     Some (fdec_intro (fheader_intro fa rt fid la va)) ->
   params2GVs TD Mem lp lc gl = Some gvs ->
-  callExternalFunction Mem fid gvs = (oresult, Mem') ->
+  callExternalFunction Mem fid gvs = Some (oresult, Mem') ->
   exCallUpdateLocals noret rid oresult lc = Some lc' ->
   nbInsn 
     (mkState S TD Ps ((mkEC F B ((insn_call rid noret ca ft fv lp)::cs) tmn 
