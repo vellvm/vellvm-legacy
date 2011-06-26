@@ -54,7 +54,7 @@ match c with
 | _ => None
 end.
 
-Definition get_reg_metadata TD M gl (rm:rmetadata) (v:value) : option metadata :=
+Definition get_reg_metadata TD gl (rm:rmetadata) (v:value) : option metadata :=
   match v with
   | value_id pid => 
       match lookupAL _ rm pid with
@@ -64,8 +64,8 @@ Definition get_reg_metadata TD M gl (rm:rmetadata) (v:value) : option metadata :
   | value_const c => 
       match get_const_metadata c with
       | Some (bc, ec) => 
-          do gvb <- const2GV TD M gl bc;
-          do gve <- const2GV TD M gl ec;
+          do gvb <- const2GV TD gl bc;
+          do gve <- const2GV TD gl ec;
           ret (mkMD gvb gve)
       | None => Some (mkMD null null)
       end
@@ -85,14 +85,6 @@ Definition assert_mptr (TD:TargetData) (t:typ) (ptr:GenericValue) (md:metadata)
           (Integers.Int.signed 31 eofs)
   | _ => false
   end.  
-
-Definition SELECT TD Mem v0 v1 v2 lc gl : option GenericValue :=
-  match (getOperandValue TD Mem v0 lc gl, getOperandValue TD Mem v1 lc gl,
-         getOperandValue TD Mem v2 lc gl) with
-  | (Some cond, Some gv1, Some gv2) => 
-      Some (if isGVZero TD cond then gv2 else gv1)
-  | _ => None
-  end.
 
 Definition prop_reg_metadata lc rmd pid gvp (md:metadata) : 
     GVMap * rmetadata  :=
@@ -144,7 +136,7 @@ Mmap               : mmetadata
 }.
 
 
-Fixpoint getIncomingValuesForBlockFromPHINodes (TD:TargetData) (M:mem) 
+Fixpoint getIncomingValuesForBlockFromPHINodes (TD:TargetData)
   (PNs:list phinode) (b:block) (gl lc:GVMap) (rm:rmetadata) : 
   option (list (id * GenericValue * option metadata)) :=
 match PNs with
@@ -153,12 +145,12 @@ match PNs with
   match (getValueViaBlockFromPHINode (insn_phi id0 t vls) b) with
   | None => None
   | Some v => 
-      match (getOperandValue TD M v lc gl, 
-             getIncomingValuesForBlockFromPHINodes TD M PNs b gl lc rm)
+      match (getOperandValue TD v lc gl, 
+             getIncomingValuesForBlockFromPHINodes TD PNs b gl lc rm)
       with
       | (Some gv1, Some idgvs) => 
           if isPointerTypB t then
-            match get_reg_metadata TD M gl rm v with
+            match get_reg_metadata TD gl rm v with
             | Some md => Some ((id0,gv1,Some md)::idgvs)
             | None => None
             end
@@ -181,10 +173,10 @@ match ResultValues with
     end
 end.
 
-Definition switchToNewBasicBlock (TD:TargetData) (M:mem) (Dest:block) 
+Definition switchToNewBasicBlock (TD:TargetData) (Dest:block) 
   (PrevBB:block) (gl lc:GVMap) (rm:rmetadata): option (GVMap * rmetadata) :=
   let PNs := getPHINodesFromBlock Dest in
-  match getIncomingValuesForBlockFromPHINodes TD M PNs PrevBB gl lc rm with
+  match getIncomingValuesForBlockFromPHINodes TD PNs PrevBB gl lc rm with
   | Some ResultValues => Some (updateValuesForNewBlock ResultValues lc rm)
   | None => None
   end.
@@ -216,12 +208,12 @@ match t0 with
 | _ => false
 end.
 
-Definition returnResult (TD:TargetData) (M:mem) (rt:typ) (Result:value) 
+Definition returnResult (TD:TargetData) (rt:typ) (Result:value) 
   (lc:GVMap) (rm:rmetadata) (gl:GVMap) : option (GenericValue * metadata) :=
-  match getOperandValue TD M Result lc gl with
+  match getOperandValue TD Result lc gl with
   | Some gr =>
       if isPointerTypB rt then
-        match get_reg_metadata TD M gl rm Result with
+        match get_reg_metadata TD gl rm Result with
         | Some md => Some (gr, md)
         | None => None
         end
@@ -229,10 +221,10 @@ Definition returnResult (TD:TargetData) (M:mem) (rt:typ) (Result:value)
   | _ => None
   end.
 
-Definition returnUpdateLocals (TD:TargetData) (M:mem) (c':cmd) (rt:typ) 
+Definition returnUpdateLocals (TD:TargetData) (c':cmd) (rt:typ) 
   (Result:value) (lc lc':GVMap) (rm rm':rmetadata) (gl:GVMap) 
   : option (GVMap * rmetadata) :=
-  match returnResult TD M rt Result lc rm gl with
+  match returnResult TD rt Result lc rm gl with
   | Some (gr,md) =>
       match c' with
       | insn_call id0 false _ t _ _ =>
@@ -262,14 +254,14 @@ Definition exCallUpdateLocals (ft:typ) (noret:bool) (rid:id)
   | true => Some (lc, rm)
   end.
 
-Fixpoint params2GVs (TD:TargetData) (M:mem) (lp:params) (lc gl:GVMap) 
- (rm:rmetadata) : option (list (GenericValue * option metadata)) :=
+Fixpoint params2GVs (TD:TargetData) (lp:params) (lc gl:GVMap) (rm:rmetadata) 
+  : option (list (GenericValue * option metadata)) :=
 match lp with
 | nil => Some nil
 | (t, v)::lp' => 
-    match (getOperandValue TD M v lc gl, params2GVs TD M lp' lc gl rm) with
+    match (getOperandValue TD v lc gl, params2GVs TD lp' lc gl rm) with
     | (Some gv, Some gvs) =>
-       if isPointerTypB t then Some ((gv, get_reg_metadata TD M gl rm v)::gvs)
+       if isPointerTypB t then Some ((gv, get_reg_metadata TD gl rm v)::gvs)
        else Some ((gv, None)::gvs)
     | _ => None
     end
@@ -304,8 +296,7 @@ Inductive dsInsn : State -> State -> trace -> Prop :=
     lc' rm' EC Mem MM Mem' als als' lc'' rm'',   
   Instruction.isCallInst c' = true ->
   free_allocas TD Mem als = Some Mem' ->
-  returnUpdateLocals TD Mem' c' RetTy Result lc lc' rm rm' gl = 
-    Some (lc'', rm'') ->
+  returnUpdateLocals TD c' RetTy Result lc lc' rm rm' gl = Some (lc'', rm'') ->
   dsInsn 
     (mkState S TD Ps 
       ((mkEC F B nil (insn_return rid RetTy Result) lc rm als)::
@@ -329,11 +320,11 @@ Inductive dsInsn : State -> State -> trace -> Prop :=
 
 | dsBranch : forall S TD Ps F B lc rm gl fs bid Cond l1 l2 c l' ps' cs' tmn' lc' 
     rm' EC Mem MM als,   
-  getOperandValue TD Mem Cond lc gl = Some c ->
+  getOperandValue TD Cond lc gl = Some c ->
   Some (block_intro l' ps' cs' tmn') = (if isGVZero TD c
                then lookupBlockViaLabelFromFdef F l2
                else lookupBlockViaLabelFromFdef F l1) ->
-  switchToNewBasicBlock TD Mem (block_intro l' ps' cs' tmn') B gl lc rm = 
+  switchToNewBasicBlock TD (block_intro l' ps' cs' tmn') B gl lc rm = 
     Some (lc', rm') ->
   dsInsn 
     (mkState S TD Ps 
@@ -347,7 +338,7 @@ Inductive dsInsn : State -> State -> trace -> Prop :=
 | dsBranch_uncond : forall S TD Ps F B lc rm gl fs bid l l' ps' cs' tmn' lc' rm'
     EC Mem MM als,   
   Some (block_intro l' ps' cs' tmn') = (lookupBlockViaLabelFromFdef F l) ->
-  switchToNewBasicBlock TD Mem (block_intro l' ps' cs' tmn') B gl lc rm = 
+  switchToNewBasicBlock TD (block_intro l' ps' cs' tmn') B gl lc rm = 
     Some (lc', rm') ->
   dsInsn 
     (mkState S TD Ps 
@@ -359,7 +350,7 @@ Inductive dsInsn : State -> State -> trace -> Prop :=
     trace_nil
 
 | dsBop: forall S TD Ps F B lc rm gl fs id bop sz v1 v2 gv3 EC cs tmn Mem MM als,
-  BOP TD Mem lc gl bop sz v1 v2 = Some gv3 ->
+  BOP TD lc gl bop sz v1 v2 = Some gv3 ->
   dsInsn 
     (mkState S TD Ps 
       ((mkEC F B ((insn_bop id bop sz v1 v2)::cs) tmn lc rm als)::EC) 
@@ -370,7 +361,7 @@ Inductive dsInsn : State -> State -> trace -> Prop :=
 
 | dsFBop: forall S TD Ps F B lc rm gl fs id fbop fp v1 v2 gv3 EC cs tmn Mem MM 
     als,
-  FBOP TD Mem lc gl fbop fp v1 v2 = Some gv3 ->
+  FBOP TD lc gl fbop fp v1 v2 = Some gv3 ->
   dsInsn 
     (mkState S TD Ps 
       ((mkEC F B ((insn_fbop id fbop fp v1 v2)::cs) tmn lc rm als)::EC) 
@@ -382,7 +373,7 @@ Inductive dsInsn : State -> State -> trace -> Prop :=
 
 | dsExtractValue : forall S TD Ps F B lc rm gl fs id t v gv gv' idxs EC cs tmn 
     Mem MM als,
-  getOperandValue TD Mem v lc gl = Some gv ->
+  getOperandValue TD v lc gl = Some gv ->
   extractGenericValue TD t gv idxs = Some gv' ->
   dsInsn 
     (mkState S TD Ps 
@@ -394,8 +385,8 @@ Inductive dsInsn : State -> State -> trace -> Prop :=
 
 | dsInsertValue : forall S TD Ps F B lc rm gl fs id t v t' v' gv gv' gv'' idxs 
     EC cs tmn Mem MM als,
-  getOperandValue TD Mem v lc gl = Some gv ->
-  getOperandValue TD Mem v' lc gl = Some gv' ->
+  getOperandValue TD v lc gl = Some gv ->
+  getOperandValue TD v' lc gl = Some gv' ->
   insertGenericValue TD t gv idxs t' gv' = Some gv'' ->
   dsInsn 
     (mkState S TD Ps 
@@ -408,7 +399,7 @@ Inductive dsInsn : State -> State -> trace -> Prop :=
 | dsMalloc : forall S TD Ps F B lc rm gl fs id t v gn align EC cs tmn Mem MM als 
     Mem' tsz mb lc' rm' n,
   getTypeAllocSize TD t = Some tsz ->
-  getOperandValue TD Mem v lc gl = Some gn ->
+  getOperandValue TD v lc gl = Some gn ->
   malloc TD Mem tsz gn align = Some (Mem', mb) ->
   GV2int TD Size.ThirtyTwo gn = Some n ->
   prop_reg_metadata lc rm id (blk2GV TD mb) (mkMD (base2GV TD mb) 
@@ -422,7 +413,7 @@ Inductive dsInsn : State -> State -> trace -> Prop :=
     trace_nil
 
 | dsFree : forall S TD Ps F B lc rm gl fs fid t v EC cs tmn Mem als Mem' mptr MM,
-  getOperandValue TD Mem v lc gl = Some mptr ->
+  getOperandValue TD v lc gl = Some mptr ->
   free TD Mem mptr = Some Mem'->
   dsInsn 
     (mkState S TD Ps 
@@ -433,7 +424,7 @@ Inductive dsInsn : State -> State -> trace -> Prop :=
 | dsAlloca : forall S TD Ps F B lc rm gl fs id t v gn align EC cs tmn Mem MM als 
     Mem' tsz mb lc' rm' n,
   getTypeAllocSize TD t = Some tsz ->
-  getOperandValue TD Mem v lc gl = Some gn ->
+  getOperandValue TD v lc gl = Some gn ->
   malloc TD Mem tsz gn align = Some (Mem', mb) ->
   GV2int TD Size.ThirtyTwo gn = Some n ->
   prop_reg_metadata lc rm id (blk2GV TD mb) (mkMD (base2GV TD mb) 
@@ -448,8 +439,8 @@ Inductive dsInsn : State -> State -> trace -> Prop :=
 
 | dsLoad_nptr : forall S TD Ps F B lc rm gl fs id t align vp EC cs tmn Mem als 
     gvp gv MM md,
-  get_reg_metadata TD Mem gl rm vp = Some md ->
-  getOperandValue TD Mem vp lc gl = Some gvp ->
+  get_reg_metadata TD gl rm vp = Some md ->
+  getOperandValue TD vp lc gl = Some gvp ->
   assert_mptr TD t gvp md ->
   mload TD Mem gvp t align = Some gv ->
   isPointerTypB t = false ->
@@ -463,8 +454,8 @@ Inductive dsInsn : State -> State -> trace -> Prop :=
 
 | dsLoad_ptr : forall S TD Ps F B lc rm gl fs id t align vp EC cs tmn Mem MM als 
     gvp gv md md' lc' rm',
-  get_reg_metadata TD Mem gl rm vp = Some md ->
-  getOperandValue TD Mem vp lc gl = Some gvp ->
+  get_reg_metadata TD gl rm vp = Some md ->
+  getOperandValue TD vp lc gl = Some gvp ->
   assert_mptr TD t gvp md ->
   mload TD Mem gvp t align = Some gv ->
   isPointerTypB t = true ->
@@ -479,9 +470,9 @@ Inductive dsInsn : State -> State -> trace -> Prop :=
 
 | dsStore_nptr : forall S TD Ps F B lc rm gl fs sid t align v vp EC cs tmn Mem MM
     als gv gvp md Mem',
-  get_reg_metadata TD Mem gl rm vp = Some md ->
-  getOperandValue TD Mem v lc gl = Some gv ->
-  getOperandValue TD Mem vp lc gl = Some gvp ->
+  get_reg_metadata TD gl rm vp = Some md ->
+  getOperandValue TD v lc gl = Some gv ->
+  getOperandValue TD vp lc gl = Some gvp ->
   assert_mptr TD t gvp md ->
   mstore TD Mem gvp t gv align = Some Mem' ->
   isPointerTypB t = false ->
@@ -495,13 +486,13 @@ Inductive dsInsn : State -> State -> trace -> Prop :=
 
 | dsStore_ptr : forall S TD Ps F B lc rm gl fs sid t align v vp EC cs tmn Mem MM
     als gv gvp md md' Mem' MM',
-  get_reg_metadata TD Mem gl rm vp = Some md ->
-  getOperandValue TD Mem v lc gl = Some gv ->
-  getOperandValue TD Mem vp lc gl = Some gvp ->
+  get_reg_metadata TD gl rm vp = Some md ->
+  getOperandValue TD v lc gl = Some gv ->
+  getOperandValue TD vp lc gl = Some gvp ->
   assert_mptr TD t gvp md ->
   mstore TD Mem gvp t gv align = Some Mem' ->
   isPointerTypB t = true ->
-  get_reg_metadata TD Mem gl rm v = Some md' ->
+  get_reg_metadata TD gl rm v = Some md' ->
   set_mem_metadata TD MM gvp md' = MM' -> 
   dsInsn 
     (mkState S TD Ps 
@@ -513,9 +504,9 @@ Inductive dsInsn : State -> State -> trace -> Prop :=
 
 | dsGEP : forall S TD Ps F B lc rm gl fs id inbounds t vp idxs vidxs EC gvp gvp' 
                  cs tmn Mem MM als lc' rm' md,
-  get_reg_metadata TD Mem gl rm vp = Some md ->
-  getOperandValue TD Mem vp lc gl = Some gvp ->
-  values2GVs TD Mem idxs lc gl = Some vidxs ->
+  get_reg_metadata TD gl rm vp = Some md ->
+  getOperandValue TD vp lc gl = Some gvp ->
+  values2GVs TD idxs lc gl = Some vidxs ->
   GEP TD t gvp vidxs inbounds = Some gvp' ->
   prop_reg_metadata lc rm id gvp' md = (lc', rm') ->
   dsInsn 
@@ -527,7 +518,7 @@ Inductive dsInsn : State -> State -> trace -> Prop :=
 
 | dsTrunc : forall S TD Ps F B lc rm gl fs id truncop t1 v1 t2 gv2 EC cs tmn 
                    Mem MM als,
-  TRUNC TD Mem lc gl truncop t1 v1 t2 = Some gv2 ->
+  TRUNC TD lc gl truncop t1 v1 t2 = Some gv2 ->
   dsInsn 
     (mkState S TD Ps 
       ((mkEC F B ((insn_trunc id truncop t1 v1 t2)::cs) tmn lc rm als)::EC) 
@@ -538,7 +529,7 @@ Inductive dsInsn : State -> State -> trace -> Prop :=
 
 | dsExt : forall S TD Ps F B lc rm gl fs id extop t1 v1 t2 gv2 EC cs tmn Mem MM
                  als,
-  EXT TD Mem lc gl extop t1 v1 t2 = Some gv2 ->
+  EXT TD lc gl extop t1 v1 t2 = Some gv2 ->
   dsInsn 
     (mkState S TD Ps 
       ((mkEC F B ((insn_ext id extop t1 v1 t2)::cs) tmn lc rm als)::EC) 
@@ -549,7 +540,7 @@ Inductive dsInsn : State -> State -> trace -> Prop :=
 
 | dsBitcast_nptr : forall S TD Ps F B lc rm gl fs id t1 v1 t2 gv2 EC cs tmn Mem 
     MM als,
-  CAST TD Mem lc gl castop_bitcast t1 v1 t2 = Some gv2 ->
+  CAST TD lc gl castop_bitcast t1 v1 t2 = Some gv2 ->
   isPointerTypB t1 = false ->
   dsInsn 
     (mkState S TD Ps 
@@ -562,9 +553,9 @@ Inductive dsInsn : State -> State -> trace -> Prop :=
 
 | dsBitcast_ptr : forall S TD Ps F B lc rm gl fs id t1 v1 t2 gv2 EC cs tmn Mem MM
     als md lc' rm',
-  CAST TD Mem lc gl castop_bitcast t1 v1 t2 = Some gv2 ->
+  CAST TD lc gl castop_bitcast t1 v1 t2 = Some gv2 ->
   isPointerTypB t1 = true ->
-  get_reg_metadata TD Mem gl rm v1 = Some md ->
+  get_reg_metadata TD gl rm v1 = Some md ->
   prop_reg_metadata lc rm id gv2 md = (lc', rm') ->
   dsInsn 
     (mkState S TD Ps 
@@ -576,7 +567,7 @@ Inductive dsInsn : State -> State -> trace -> Prop :=
 
 | dsInttoptr : forall S TD Ps F B lc rm gl fs id t1 v1 t2 gv2 EC cs tmn Mem MM
     als lc' rm',
-  CAST TD Mem lc gl castop_inttoptr t1 v1 t2 = Some gv2 ->
+  CAST TD lc gl castop_inttoptr t1 v1 t2 = Some gv2 ->
   prop_reg_metadata lc rm id gv2 (mkMD null null) = (lc', rm') ->
   dsInsn 
     (mkState S TD Ps 
@@ -588,7 +579,7 @@ Inductive dsInsn : State -> State -> trace -> Prop :=
 
 | dsOtherCast : forall S TD Ps F B lc rm gl fs id castop t1 v1 t2 gv2 EC cs tmn 
     Mem MM als,
-  CAST TD Mem lc gl castop t1 v1 t2 = Some gv2 ->
+  CAST TD lc gl castop t1 v1 t2 = Some gv2 ->
   castop <> castop_bitcast /\ castop <> castop_inttoptr ->
   dsInsn 
     (mkState S TD Ps 
@@ -600,7 +591,7 @@ Inductive dsInsn : State -> State -> trace -> Prop :=
 
 | dsIcmp : forall S TD Ps F B lc rm gl fs id cond t v1 v2 gv3 EC cs tmn Mem MM 
     als,
-  ICMP TD Mem lc gl cond t v1 v2 = Some gv3 ->
+  ICMP TD lc gl cond t v1 v2 = Some gv3 ->
   dsInsn 
     (mkState S TD Ps 
       ((mkEC F B ((insn_icmp id cond t v1 v2)::cs) tmn lc rm als)::EC) 
@@ -611,7 +602,7 @@ Inductive dsInsn : State -> State -> trace -> Prop :=
 
 | dsFcmp : forall S TD Ps F B lc rm gl fs id fcond fp v1 v2 gv3 EC cs tmn Mem MM
     als,
-  FCMP TD Mem lc gl fcond fp v1 v2 = Some gv3 ->
+  FCMP TD lc gl fcond fp v1 v2 = Some gv3 ->
   dsInsn 
     (mkState S TD Ps 
       ((mkEC F B ((insn_fcmp id fcond fp v1 v2)::cs) tmn lc rm als)::EC) 
@@ -622,9 +613,9 @@ Inductive dsInsn : State -> State -> trace -> Prop :=
 
 | dsSelect_nptr : forall S TD Ps F B lc rm gl fs id v0 t v1 v2 c EC cs tmn Mem MM
     als gv1 gv2,
-  getOperandValue TD Mem v0 lc gl = Some c ->
-  getOperandValue TD Mem v1 lc gl = Some gv1 ->
-  getOperandValue TD Mem v2 lc gl = Some gv2 ->
+  getOperandValue TD v0 lc gl = Some c ->
+  getOperandValue TD v1 lc gl = Some gv1 ->
+  getOperandValue TD v2 lc gl = Some gv2 ->
   isPointerTypB t = false ->
   dsInsn 
     (mkState S TD Ps 
@@ -639,12 +630,12 @@ Inductive dsInsn : State -> State -> trace -> Prop :=
 
 | dsSelect_ptr : forall S TD Ps F B lc rm gl fs id v0 t v1 v2 c EC cs tmn Mem MM
     als gv1 gv2 md1 md2 lc' rm',
-  getOperandValue TD Mem v0 lc gl = Some c ->
-  getOperandValue TD Mem v1 lc gl = Some gv1 ->
-  getOperandValue TD Mem v2 lc gl = Some gv2 ->
+  getOperandValue TD v0 lc gl = Some c ->
+  getOperandValue TD v1 lc gl = Some gv1 ->
+  getOperandValue TD v2 lc gl = Some gv2 ->
   isPointerTypB t = true ->
-  get_reg_metadata TD Mem gl rm v1 = Some md1 ->
-  get_reg_metadata TD Mem gl rm v2 = Some md2 ->
+  get_reg_metadata TD gl rm v1 = Some md1 ->
+  get_reg_metadata TD gl rm v2 = Some md2 ->
   (if isGVZero TD c then 
     prop_reg_metadata lc rm id gv2 md2
   else
@@ -663,11 +654,11 @@ Inductive dsInsn : State -> State -> trace -> Prop :=
                         ft l' ps' cs' tmn' EC fa rt la va lb Mem MM als rm' lc',
   (* only look up the current module for the time being, 
      do not support linkage. *)
-  LLVMopsem.lookupFdefViaGV TD Mem Ps gl lc fs fv = 
+  LLVMopsem.lookupFdefViaGV TD Ps gl lc fs fv = 
     Some (fdef_intro (fheader_intro fa rt fid la va) lb) ->
   getEntryBlock (fdef_intro (fheader_intro fa rt fid la va) lb) = 
     Some (block_intro l' ps' cs' tmn') ->
-  params2GVs TD Mem lp lc gl rm = Some ogvs ->
+  params2GVs TD lp lc gl rm = Some ogvs ->
   initLocals la ogvs rm = (lc', rm') ->
   dsInsn 
     (mkState S TD Ps 
@@ -687,9 +678,9 @@ Inductive dsInsn : State -> State -> trace -> Prop :=
      do not support linkage. 
      FIXME: should add excall to trace
   *)
-  LLVMopsem.lookupExFdecViaGV TD Mem Ps gl lc fs fv = 
+  LLVMopsem.lookupExFdecViaGV TD Ps gl lc fs fv = 
     Some (fdec_intro (fheader_intro fa rt fid la va)) -> 
-  LLVMgv.params2GVs TD Mem lp lc gl = Some gvs ->
+  LLVMgv.params2GVs TD lp lc gl = Some gvs ->
   LLVMopsem.callExternalFunction Mem fid gvs = Some (oresult, Mem') ->
   exCallUpdateLocals ft noret rid oresult lc rm = Some (lc',rm') ->
   dsInsn 

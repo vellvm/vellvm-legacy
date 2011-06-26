@@ -163,8 +163,8 @@ Proof.
 Qed.
 
 Lemma wf_rmetadata__get_const_metadata_aux : forall TD Mem0 gl t i0 gvb gve,
-  const2GV TD Mem0 gl (const_gid t i0) = ret gvb ->
-  const2GV TD Mem0 gl
+  const2GV TD gl (const_gid t i0) = ret gvb ->
+  const2GV TD gl
          (const_gep false (const_gid t i0)
             (Cons_list_const (const_int Size.ThirtyTwo 1) Nil_list_const)) =
        ret gve ->
@@ -172,14 +172,14 @@ Lemma wf_rmetadata__get_const_metadata_aux : forall TD Mem0 gl t i0 gvb gve,
 Proof.
   intros TD Mem0 gl t i0 gvb gve H2 H3.
   unfold const2GV in H3.
-  remember (_const2GV TD Mem0 gl
+  remember (_const2GV TD gl
            (const_gep false (const_gid t i0)
               (Cons_list_const (const_int Size.ThirtyTwo 1) Nil_list_const))) 
     as R0.
   destruct R0; try solve [inversion H3].
   destruct p. inv H3.
   unfold const2GV in H2.
-  remember (_const2GV TD Mem0 gl (const_gid t i0)) as R1.
+  remember (_const2GV TD gl (const_gid t i0)) as R1.
   destruct R1; try solve [inversion H2].
   destruct p. inv H2.
   unfold _const2GV in *.
@@ -255,8 +255,8 @@ Qed.
 Lemma wf_rmetadata__get_const_metadata : forall TD gl Mem0 rm c gvb gve c0 c1 ct,
   wf_rmetadata TD Mem0 rm ->
   get_const_metadata c = Some (c0,c1,ct) ->
-  const2GV TD Mem0 gl c0 = Some gvb ->
-  const2GV TD Mem0 gl c1 = Some gve ->
+  const2GV TD gl c0 = Some gvb ->
+  const2GV TD gl c1 = Some gve ->
   wf_data TD Mem0 gvb gve.
 Proof.
   induction c; intros gvb gve cc0 cc1 ct Hwfr H1 H2 H3; try solve [inversion H1].
@@ -264,7 +264,7 @@ Proof.
     try solve [ eauto using wf_rmetadata__get_const_metadata_aux ].
 
     unfold const2GV in H2, H3.
-    remember (_const2GV TD Mem0 gl (const_gid (typ_function t l0 v) i0)) as R.
+    remember (_const2GV TD gl (const_gid (typ_function t l0 v) i0)) as R.
     destruct R; try solve [inversion H2 | inversion H3].
     destruct p. inv H2. inv H3.
     unfold GV2ptr.
@@ -285,7 +285,7 @@ Qed.
 
 Lemma wf_rmetadata__get_reg_metadata : forall TD Mem0 rm gl vp gvb gve t,
   wf_rmetadata TD Mem0 rm ->
-  get_reg_metadata TD Mem0 gl rm vp = Some (mkMD gvb gve, t) ->
+  get_reg_metadata TD gl rm vp = Some (mkMD gvb gve, t) ->
   wf_data TD Mem0 gvb gve.
 Proof.
   intros TD Mem0 rm gl vp gvb gve t Hwfr J.
@@ -299,8 +299,8 @@ Proof.
     remember (get_const_metadata c) as R.
     destruct R as [[[bc ec] ct] |]; 
       try solve [inversion J; subst; auto using null_is_wf_data].
-    remember (const2GV TD Mem0 gl bc) as R0.
-    remember (const2GV TD Mem0 gl ec) as R1.
+    remember (const2GV TD gl bc) as R0.
+    remember (const2GV TD gl ec) as R1.
     destruct R0; try solve [inversion J]. 
     simpl in J.
     destruct R1; try solve [inversion J]. 
@@ -345,7 +345,7 @@ Proof.
 Qed.
 
 Lemma initRmetadata_aux__wf_metadata : forall TD Mem0 gl la lp rm accum rm0 MM,
-  initRmetadata_aux TD Mem0 gl la lp rm accum = ret rm0 ->
+  initRmetadata_aux TD gl la lp rm accum = ret rm0 ->
   wf_metadata TD Mem0 rm MM ->
   wf_metadata TD Mem0 accum MM ->
   wf_metadata TD Mem0 rm0 MM.
@@ -357,7 +357,7 @@ Proof.
     destruct lp; inv H; auto.
     destruct p.
     destruct (isPointerTypB t); eauto.
-    remember (get_reg_metadata TD Mem0 gl rm v) as R.
+    remember (get_reg_metadata TD gl rm v) as R.
     destruct R as [[md ?]|]; try solve [inv H1].
       intro Hwf'.
       apply IHla with (MM:=MM) in H1; auto.
@@ -376,7 +376,7 @@ Proof.
 Qed.
 
 Lemma initRmetadata__wf_metadata : forall TD Mem0 gl la lp rm rm0 MM,
-  initRmetadata TD Mem0 gl la lp rm = ret rm0 ->
+  initRmetadata TD gl la lp rm = ret rm0 ->
   wf_metadata TD Mem0 rm MM ->
   wf_metadata TD Mem0 rm0 MM.
 Proof.
@@ -460,7 +460,7 @@ Qed.
 
 Lemma assert_mptr__valid_access : forall md TD Mem gl rm v MM t g b ofs c mt,
   wf_metadata TD Mem rm MM ->
-  Some (md,mt) = get_reg_metadata TD Mem gl rm v ->
+  Some (md,mt) = get_reg_metadata TD gl rm v ->
   assert_mptr TD t g md ->
   GV2ptr TD (getPointerSize TD) g = ret Values.Vptr b ofs ->
   typ2memory_chunk t = ret c ->
@@ -476,7 +476,7 @@ Proof.
     symmetry in Heqmd.  
     destruct md.
     destruct Hwf as [Hwfr Hwfm].
-    apply wf_rmetadata__get_reg_metadata in Heqmd; auto.
+    apply wf_rmetadata__get_reg_metadata with (Mem0:=Mem) in Heqmd; auto.
     unfold wf_data in Heqmd.
     destruct (GV2ptr TD (getPointerSize TD) md_base0); 
       try solve [inversion Heqmd].

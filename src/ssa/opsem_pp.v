@@ -22,18 +22,18 @@ Export LLVMopsem.
 
 (* prop *)
 
-Lemma eqAL_callUpdateLocals : forall TD M noret0 rid oResult lc1 lc2 gl lc1' 
+Lemma eqAL_callUpdateLocals : forall TD noret0 rid oResult lc1 lc2 gl lc1' 
   lc2',
   eqAL _ lc1 lc1' ->
   eqAL _ lc2 lc2' ->
-  match (callUpdateLocals TD M noret0 rid oResult lc1 lc2 gl,
-         callUpdateLocals TD M noret0 rid oResult lc1' lc2' gl) with
+  match (callUpdateLocals TD noret0 rid oResult lc1 lc2 gl,
+         callUpdateLocals TD noret0 rid oResult lc1' lc2' gl) with
   | (Some lc, Some lc') => eqAL _ lc lc'
   | (None, None) => True
   | _ => False
   end.
 Proof.
-  intros TD M noret0 rid oResult lc1 lc2 gl lc1' lc2' H1 H2.
+  intros TD noret0 rid oResult lc1 lc2 gl lc1' lc2' H1 H2.
     unfold callUpdateLocals.
     destruct noret0; auto.
       destruct oResult; simpl; auto.
@@ -41,19 +41,19 @@ Proof.
           rewrite H2.
           destruct (lookupAL _ lc2' i0); auto using eqAL_updateAddAL.
 
-          destruct (const2GV TD M gl c); auto using eqAL_updateAddAL.
+          destruct (const2GV TD gl c); auto using eqAL_updateAddAL.
       destruct oResult; simpl; auto.
         destruct v; simpl.
           rewrite H2.
           destruct (lookupAL _ lc2' i0); auto using eqAL_updateAddAL.
 
-          destruct (const2GV TD M gl c); auto using eqAL_updateAddAL.
+          destruct (const2GV TD gl c); auto using eqAL_updateAddAL.
 Qed.
 
-Lemma eqAL_getIncomingValuesForBlockFromPHINodes : forall TD M ps B gl lc lc',
+Lemma eqAL_getIncomingValuesForBlockFromPHINodes : forall TD ps B gl lc lc',
   eqAL _ lc lc' ->
-  getIncomingValuesForBlockFromPHINodes TD M ps B gl lc = 
-  getIncomingValuesForBlockFromPHINodes TD M ps B gl lc'.
+  getIncomingValuesForBlockFromPHINodes TD ps B gl lc = 
+  getIncomingValuesForBlockFromPHINodes TD ps B gl lc'.
 Proof.
   induction ps; intros; simpl; auto.
     destruct a; auto.
@@ -70,10 +70,10 @@ Proof.
     destruct a; auto using eqAL_updateAddAL.
 Qed.
 
-Lemma eqAL_switchToNewBasicBlock : forall TD M B1 B2 gl lc lc',
+Lemma eqAL_switchToNewBasicBlock : forall TD B1 B2 gl lc lc',
   eqAL _ lc lc' ->
-  match (switchToNewBasicBlock TD M B1 B2 gl lc,
-         switchToNewBasicBlock TD M B1 B2 gl lc') with
+  match (switchToNewBasicBlock TD B1 B2 gl lc,
+         switchToNewBasicBlock TD B1 B2 gl lc') with
   | (Some lc1, Some lc1') => eqAL _ lc1 lc1'
   | (None, None) => True
   | _ => False
@@ -83,13 +83,13 @@ Proof.
   unfold switchToNewBasicBlock.
   erewrite eqAL_getIncomingValuesForBlockFromPHINodes; eauto.
   destruct 
-    (getIncomingValuesForBlockFromPHINodes TD M (getPHINodesFromBlock B1) B2 gl 
+    (getIncomingValuesForBlockFromPHINodes TD (getPHINodesFromBlock B1) B2 gl 
     lc'); auto using eqAL_updateValuesForNewBlock.
 Qed.
 
-Lemma eqAL_params2GVs : forall lp TD M lc gl lc',
+Lemma eqAL_params2GVs : forall lp TD lc gl lc',
   eqAL _ lc lc' ->
-  params2GVs TD M lp lc gl = params2GVs TD M lp lc' gl.
+  params2GVs TD lp lc gl = params2GVs TD lp lc' gl.
 Proof.
   induction lp; intros; simpl; auto.
     destruct a. 
@@ -121,14 +121,14 @@ Proof.
     destruct a; apply updateAddAL_uniq; auto.
 Qed.
 
-Lemma switchToNewBasicBlock_uniq : forall TD M B1 B2 gl lc lc',
+Lemma switchToNewBasicBlock_uniq : forall TD B1 B2 gl lc lc',
   uniq lc ->
-  switchToNewBasicBlock TD M B1 B2 gl lc = Some lc' ->
+  switchToNewBasicBlock TD B1 B2 gl lc = Some lc' ->
   uniq lc'.
 Proof.
-  intros TD M B1 B2 gl lc lc' Uniqc H.
+  intros TD B1 B2 gl lc lc' Uniqc H.
   unfold switchToNewBasicBlock in H.
-  destruct (getIncomingValuesForBlockFromPHINodes TD M (getPHINodesFromBlock B1)
+  destruct (getIncomingValuesForBlockFromPHINodes TD (getPHINodesFromBlock B1)
     B2 gl lc); inversion H; subst.
   apply updateValuesForNewBlock_uniq; auto.
 Qed.      
@@ -150,9 +150,9 @@ Proof.
 Qed.
 
 Lemma getIncomingValuesForBlockFromPHINodes_eq : 
-  forall ps TD M l1 ps1 cs1 tmn1 ps2 cs2 tmn2,
-  getIncomingValuesForBlockFromPHINodes TD M ps (block_intro l1 ps1 cs1 tmn1) =
-  getIncomingValuesForBlockFromPHINodes TD M ps (block_intro l1 ps2 cs2 tmn2).
+  forall ps TD l1 ps1 cs1 tmn1 ps2 cs2 tmn2,
+  getIncomingValuesForBlockFromPHINodes TD ps (block_intro l1 ps1 cs1 tmn1) =
+  getIncomingValuesForBlockFromPHINodes TD ps (block_intro l1 ps2 cs2 tmn2).
 Proof.
   induction ps; intros; auto.
     simpl.
@@ -160,9 +160,9 @@ Proof.
 Qed.
 
 Lemma switchToNewBasicBlock_eq : 
-  forall TD M B l1 ps1 cs1 tmn1 ps2 cs2 tmn2 gl lc,
-  switchToNewBasicBlock TD M B (block_intro l1 ps1 cs1 tmn1) gl lc =
-  switchToNewBasicBlock TD M B (block_intro l1 ps2 cs2 tmn2) gl lc.
+  forall TD B l1 ps1 cs1 tmn1 ps2 cs2 tmn2 gl lc,
+  switchToNewBasicBlock TD B (block_intro l1 ps1 cs1 tmn1) gl lc =
+  switchToNewBasicBlock TD B (block_intro l1 ps2 cs2 tmn2) gl lc.
 Proof.
   intros.
   unfold switchToNewBasicBlock.
@@ -261,7 +261,7 @@ Definition dbFdef_preservation_prop fv rt lp S TD Ps ECs lc gl fs Mem lc' als'
   uniqSystem S ->
   moduleInSystem (module_intro los nts Ps) S ->
   exists F, 
-    lookupFdefViaGV TD Mem Ps gl lc fs fv = Some F /\
+    lookupFdefViaGV TD Ps gl lc fs fv = Some F /\
     uniqFdef F /\
     blockInSystemModuleFdef B' S (module_intro los nts Ps) F.
 
@@ -510,7 +510,7 @@ Lemma dbFdef_preservation : forall fv rt lp S los nts Ps ECs lc gl fs Mem lc'
   uniqSystem S ->
   moduleInSystem (module_intro los nts Ps) S ->
   exists F, 
-    lookupFdefViaGV (los, nts) Mem Ps gl lc fs fv = Some F /\
+    lookupFdefViaGV (los, nts) Ps gl lc fs fv = Some F /\
     uniqFdef F /\
     blockInSystemModuleFdef B' S (module_intro los nts Ps) F.
 Proof.

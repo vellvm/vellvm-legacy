@@ -570,13 +570,13 @@ Proof.
         apply IHPs in H. auto. 
 Qed.
 
-Lemma lookupFdefViaGV_inv : forall TD M Ps gl lc fs fv F,
-  lookupFdefViaGV TD M Ps gl lc fs fv = Some F ->
+Lemma lookupFdefViaGV_inv : forall TD Ps gl lc fs fv F,
+  lookupFdefViaGV TD Ps gl lc fs fv = Some F ->
   InProductsB (product_fdef F) Ps.
 Proof.
   intros.
   unfold lookupFdefViaGV in H.
-  destruct (getOperandValue TD M fv lc gl); simpl in H; try solve [inversion H].
+  destruct (getOperandValue TD fv lc gl); simpl in H; try solve [inversion H].
   destruct (lookupFdefViaGVFromFunTable fs g); try solve [inversion H].
   apply lookupFdefViaIDFromProducts_inv in H; auto.
 Qed.
@@ -733,9 +733,9 @@ Proof.
   apply blockInSystemModuleFdef_intro; auto.
 Qed.
 
-Lemma entryBlockInSystemBlockFdef' : forall los nts M Ps gl lc fs fv F S B,
+Lemma entryBlockInSystemBlockFdef' : forall los nts Ps gl lc fs fv F S B,
   moduleInSystem (module_intro los nts Ps) S ->
-  lookupFdefViaGV (los, nts) M Ps gl lc fs fv = Some F ->
+  lookupFdefViaGV (los, nts) Ps gl lc fs fv = Some F ->
   getEntryBlock F = Some B ->
   blockInSystemModuleFdef B S (module_intro los nts Ps) F.
 Proof.
@@ -780,9 +780,9 @@ Proof.
   apply productInSystemModuleB_intro; auto.
 Qed.
 
-Lemma lookupFdefViaGVInSystem : forall los nts M Ps gl lc fs S fv F,
+Lemma lookupFdefViaGVInSystem : forall los nts Ps gl lc fs S fv F,
   moduleInSystem (module_intro los nts Ps) S ->
-  lookupFdefViaGV (los, nts) M Ps gl lc fs fv = Some F ->
+  lookupFdefViaGV (los, nts) Ps gl lc fs fv = Some F ->
   productInSystemModuleB (product_fdef F) S (module_intro los nts Ps).
 Proof.
   intros.
@@ -985,10 +985,10 @@ Proof.
   eapply uniqProducts__uniqFdef; simpl; eauto.
 Qed.
 
-Lemma lookupFdefViaGV_uniq : forall los nts M Ps gl lc fs S fv F,
+Lemma lookupFdefViaGV_uniq : forall los nts Ps gl lc fs S fv F,
   uniqSystem S ->
   moduleInSystem (module_intro los nts Ps) S ->
-  lookupFdefViaGV (los, nts) M Ps gl lc fs fv = Some F ->
+  lookupFdefViaGV (los, nts) Ps gl lc fs fv = Some F ->
   uniqFdef F.
 Proof.
   intros.
@@ -1148,18 +1148,18 @@ Proof.
 Qed.     
 
 
-Lemma eqAL_lookupExFdecViaGV : forall gl TD M Ps lc lc' fs fv,
+Lemma eqAL_lookupExFdecViaGV : forall gl TD Ps lc lc' fs fv,
   eqAL _ lc lc' ->
-  lookupExFdecViaGV TD M Ps gl lc fs fv = lookupExFdecViaGV TD M Ps gl lc' fs fv.
+  lookupExFdecViaGV TD Ps gl lc fs fv = lookupExFdecViaGV TD Ps gl lc' fs fv.
 Proof.
   intros.
   unfold lookupExFdecViaGV.
   erewrite getOperandValue_eqAL; eauto.
 Qed.
 
-Lemma eqAL_lookupExFdefViaGV : forall gl TD M Ps lc lc' fs fv,
+Lemma eqAL_lookupExFdefViaGV : forall gl TD Ps lc lc' fs fv,
   eqAL _ lc lc' ->
-  lookupFdefViaGV TD M Ps gl lc fs fv = lookupFdefViaGV TD M Ps gl lc' fs fv.
+  lookupFdefViaGV TD Ps gl lc fs fv = lookupFdefViaGV TD Ps gl lc' fs fv.
 Proof.
   intros.
   unfold lookupFdefViaGV.
@@ -1423,9 +1423,9 @@ Proof.
       exists re2. split; eauto using incl_tran.
 Qed.        
 
-Lemma getIncomingValuesForBlockFromPHINodes_spec : forall ps TD Mem0 b gl lc lc'
+Lemma getIncomingValuesForBlockFromPHINodes_spec : forall ps TD b gl lc lc'
     id1,
-  Some lc' = getIncomingValuesForBlockFromPHINodes TD Mem0 ps b gl lc ->
+  Some lc' = getIncomingValuesForBlockFromPHINodes TD ps b gl lc ->
   In id1 (getPhiNodesIDs ps) ->
   exists gv, lookupAL _ lc' id1 = Some gv.  
 Proof.    
@@ -1438,14 +1438,14 @@ Proof.
       destruct (getValueViaBlockFromValuels l0 b); try solve [inversion H].   
         destruct v.
           destruct (lookupAL GenericValue lc i0); inversion H; subst. 
-          destruct (getIncomingValuesForBlockFromPHINodes TD Mem0 ps b gl lc);
+          destruct (getIncomingValuesForBlockFromPHINodes TD ps b gl lc);
             inversion H1; subst.         
           exists g. simpl. 
           destruct (id1==id1); auto.
             contradict n; auto.
 
-          destruct (const2GV TD Mem0 gl c); inversion H; subst.
-          destruct (getIncomingValuesForBlockFromPHINodes TD Mem0 ps b gl lc);
+          destruct (const2GV TD gl c); inversion H; subst.
+          destruct (getIncomingValuesForBlockFromPHINodes TD ps b gl lc);
             inversion H1; subst.
           exists g. simpl. 
           destruct (id1==id1); auto.
@@ -1454,14 +1454,14 @@ Proof.
       destruct (getValueViaBlockFromValuels l0 b); try solve [inversion H].   
         destruct v.
           destruct (lookupAL GenericValue lc i1); inversion H; subst. 
-          remember (getIncomingValuesForBlockFromPHINodes TD Mem0 ps b gl lc) 
+          remember (getIncomingValuesForBlockFromPHINodes TD ps b gl lc) 
             as R.
           destruct R; inversion H2; subst.         
           simpl.
           destruct (id1==i0); subst; eauto.
 
-          destruct (const2GV TD Mem0 gl c); inversion H; subst.
-          remember (getIncomingValuesForBlockFromPHINodes TD Mem0 ps b gl lc) 
+          destruct (const2GV TD gl c); inversion H; subst.
+          remember (getIncomingValuesForBlockFromPHINodes TD ps b gl lc) 
             as R.
           destruct R; inversion H2; subst.         
           simpl.

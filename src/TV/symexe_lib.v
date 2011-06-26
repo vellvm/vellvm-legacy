@@ -1211,19 +1211,19 @@ Proof.
       apply updateAddAL_uniq; auto.
 Qed.
 
-Lemma callUpdateLocals_uniq : forall TD M noret0 rid oresult lc lc' gl lc'',
+Lemma callUpdateLocals_uniq : forall TD noret0 rid oresult lc lc' gl lc'',
   uniq lc ->
-  callUpdateLocals TD M noret0 rid oresult lc lc' gl = Some lc'' ->
+  callUpdateLocals TD noret0 rid oresult lc lc' gl = Some lc'' ->
   uniq lc''.
 Proof.
   intros.
   unfold callUpdateLocals in H0.
   destruct noret0; auto.
     destruct oresult; try solve [inversion H0; subst; auto].
-    destruct (getOperandValue TD M v lc' gl); inversion H0; subst; auto.
+    destruct (getOperandValue TD v lc' gl); inversion H0; subst; auto.
 
     destruct oresult; try solve [inversion H0; subst; auto].
-    destruct (getOperandValue TD M v lc' gl); inversion H0; subst; auto.
+    destruct (getOperandValue TD v lc' gl); inversion H0; subst; auto.
       apply updateAddAL_uniq; auto.
 Qed.
 
@@ -1324,7 +1324,7 @@ Definition se_dbFdef_preservation_prop fv rt lp S TD Ps lc gl fs Mem lc' als'
   Mem' B' Rid oResult tr
   (db:dbFdef fv rt lp S TD Ps lc gl fs Mem lc' als' Mem' B' Rid oResult tr) :=
   forall fa fid la va lb los nts,
-  lookupFdefViaGV TD Mem Ps gl lc fs fv = 
+  lookupFdefViaGV TD Ps gl lc fs fv = 
     Some (fdef_intro (fheader_intro fa rt fid la va) lb) ->
   uniq lc ->
   uniqSystem S ->
@@ -1397,7 +1397,7 @@ Case "dbBlocks_cons".
 Case "dbFdef_func".
   rewrite e in H1. inversion H1; subst. clear H1.
   apply entryBlockInSystemBlockFdef' with (los:=los)(nts:=nts)(Ps:=Ps)(S:=S)
-    (fv:=fv)(gl:=gl)(lc:=lc)(fs:=fs)(M:=Mem0) in e0; auto.
+    (fv:=fv)(gl:=gl)(lc:=lc)(fs:=fs)in e0; auto.
   apply H with (B1:=block_intro l1 ps1 cs1 tmn1)(lc:=initLocals la0 gvs)
     (als:=nil)(Mem:=Mem0)
     (B1':=block_intro l2 ps2 (cs21++cs22) (insn_return rid rt Result))
@@ -1409,7 +1409,7 @@ Case "dbFdef_func".
 Case "dbFdef_proc".
   rewrite e in H1. inversion H1; subst. clear H1.
   apply entryBlockInSystemBlockFdef' with (los:=los)(nts:=nts)(Ps:=Ps)(S:=S)
-    (fv:=fv)(gl:=gl)(lc:=lc)(fs:=fs)(M:=Mem0) in e0; auto.
+    (fv:=fv)(gl:=gl)(lc:=lc)(fs:=fs) in e0; auto.
   apply H with (B1:=block_intro l1 ps1 cs1 tmn1)(lc:=initLocals la0 gvs)
     (als:=nil)(Mem:=Mem0)
     (B1':=block_intro l2 ps2 (cs21++cs22) (insn_return_void rid))(lc':=lc1)
@@ -1491,7 +1491,7 @@ Qed.
 Lemma se_dbFdef_preservation : forall fv rt lp S los nts Ps lc gl fs Mem lc' als'
     Mem' B' Rid oResult tr fid fa la va lb,
   dbFdef fv rt lp S (los, nts) Ps lc gl fs Mem lc' als' Mem' B' Rid oResult tr ->
-  lookupFdefViaGV (los, nts) Mem Ps gl lc fs fv = 
+  lookupFdefViaGV (los, nts) Ps gl lc fs fv = 
     Some (fdef_intro (fheader_intro fa rt fid la va) lb) ->
   uniq lc ->
   uniqSystem S ->
@@ -1636,16 +1636,16 @@ Proof.
     split; eauto.
 Qed.
 
-Lemma eqAL_switchToNewBasicBlock' : forall TD M B1 B2 gl lc lc' lc1,
+Lemma eqAL_switchToNewBasicBlock' : forall TD B1 B2 gl lc lc' lc1,
   eqAL _ lc lc' ->
-  switchToNewBasicBlock TD M B1 B2 gl lc = Some lc1 ->
-  exists lc1', switchToNewBasicBlock TD M B1 B2 gl lc' = Some lc1' /\
+  switchToNewBasicBlock TD B1 B2 gl lc = Some lc1 ->
+  exists lc1', switchToNewBasicBlock TD B1 B2 gl lc' = Some lc1' /\
                eqAL _ lc1 lc1'.
 Proof.
   intros.
-  assert (J:=@eqAL_switchToNewBasicBlock TD M B1 B2 gl lc lc' H).
+  assert (J:=@eqAL_switchToNewBasicBlock TD B1 B2 gl lc lc' H).
   rewrite H0 in J.
-  destruct (switchToNewBasicBlock TD M B1 B2 gl lc'); try solve [inversion J].
+  destruct (switchToNewBasicBlock TD B1 B2 gl lc'); try solve [inversion J].
   exists g. auto.
 Qed.
 
@@ -1673,19 +1673,19 @@ Proof.
     split; auto.
 Qed.     
 
-Lemma eqAL_callUpdateLocals' : forall TD M noret0 rid oResult lc1 lc2 gl lc1' 
+Lemma eqAL_callUpdateLocals' : forall TD noret0 rid oResult lc1 lc2 gl lc1' 
     lc2' lc,
   eqAL _ lc1 lc1' ->
   eqAL _ lc2 lc2' ->
-  callUpdateLocals TD M noret0 rid oResult lc1 lc2 gl = Some lc ->
-  exists lc', callUpdateLocals TD M noret0 rid oResult lc1' lc2' gl = Some lc' /\
+  callUpdateLocals TD noret0 rid oResult lc1 lc2 gl = Some lc ->
+  exists lc', callUpdateLocals TD noret0 rid oResult lc1' lc2' gl = Some lc' /\
               eqAL _ lc lc'.
 Proof.
-  intros TD M noret0 rid oResult lc1 lc2 gl lc1' lc2' lc H H0 H1.
-  assert (J:=@eqAL_callUpdateLocals TD M noret0 rid oResult lc1 lc2 gl lc1' lc2' 
+  intros TD noret0 rid oResult lc1 lc2 gl lc1' lc2' lc H H0 H1.
+  assert (J:=@eqAL_callUpdateLocals TD noret0 rid oResult lc1 lc2 gl lc1' lc2' 
     H H0).
   rewrite H1 in J.
-  destruct (callUpdateLocals TD M noret0 rid oResult lc1' lc2' gl);
+  destruct (callUpdateLocals TD noret0 rid oResult lc1' lc2' gl);
     try solve [inversion J].
   exists g. auto.
 Qed.
@@ -1752,7 +1752,7 @@ Definition dbFdef_eqEnv_prop fv rt lp S TD Ps lc1 gl fs Mem lc2 als' Mem' B' Rid
   oResult tr
   (db:dbFdef fv rt lp S TD Ps lc1 gl fs Mem lc2 als' Mem' B' Rid oResult tr) :=
   forall fid fa la va lb lc1',
-  lookupFdefViaGV TD Mem Ps gl lc1 fs fv = 
+  lookupFdefViaGV TD Ps gl lc1 fs fv = 
     Some (fdef_intro (fheader_intro fa rt fid la va) lb) ->
   eqAL _ lc1 lc1' ->
   exists lc2',
@@ -1858,7 +1858,7 @@ Case "dbBlocks_cons".
 
 Case "dbFdef_func".
   rewrite e in H1. inversion H1; subst. clear H1.
-  assert (J:=@eqAL_params2GVs lp TD Mem0 lc gl lc1' H2).
+  assert (J:=@eqAL_params2GVs lp TD lc gl lc1' H2).
   rewrite e1 in J.
   assert (eqAL _ (initLocals la0 gvs) (initLocals la0 gvs)) as J'.
     apply eqAL_refl.
@@ -1876,7 +1876,7 @@ Case "dbFdef_func".
 
 Case "dbFdef_proc".
   rewrite e in H1. inversion H1; subst. clear H1.
-  assert (J:=@eqAL_params2GVs lp TD Mem0 lc gl lc1' H2).
+  assert (J:=@eqAL_params2GVs lp TD lc gl lc1' H2).
   rewrite e1 in J.
   assert (eqAL _ (initLocals la0 gvs) (initLocals la0 gvs)) as J'.
     apply eqAL_refl.
@@ -1970,7 +1970,7 @@ Qed.
 Lemma dbFdef_eqEnv : forall fv fid rt lp S TD Ps lc1 gl fs Mem lc2 als' Mem' B' 
     Rid oResult tr fa la va lb lc1',
   dbFdef fv rt lp S TD Ps lc1 gl fs Mem lc2 als' Mem' B' Rid oResult tr ->
-  lookupFdefViaGV TD Mem Ps gl lc1 fs fv = 
+  lookupFdefViaGV TD Ps gl lc1 fs fv = 
     Some (fdef_intro (fheader_intro fa rt fid la va) lb) ->
   eqAL _ lc1 lc1' ->
   exists lc2',

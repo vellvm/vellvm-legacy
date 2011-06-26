@@ -46,9 +46,9 @@ Proof.
     try solve [inversion J; invert_prop_reg_metadata | eauto].
   Case "dbSelect_nptr".
     unfold SoftBound.SELECT in H.
-    remember (getOperandValue TD Mem0 v0 lc gl) as R0.
-    remember (getOperandValue TD Mem0 v1 lc gl) as R1.
-    remember (getOperandValue TD Mem0 v2 lc gl) as R2.
+    remember (getOperandValue TD v0 lc gl) as R0.
+    remember (getOperandValue TD v1 lc gl) as R1.
+    remember (getOperandValue TD v2 lc gl) as R2.
     destruct R0 as [cond |]; try solve [inversion H].
     destruct R1 as [gv1 |]; try solve [inversion H].
     destruct R2 as [gv2 |]; inversion H; subst.
@@ -56,9 +56,9 @@ Proof.
 
   Case "dbSelect_ptr".
     unfold SoftBound.SELECT in H.
-    remember (getOperandValue TD Mem0 v0 lc gl) as R0.
-    remember (getOperandValue TD Mem0 v1 lc gl) as R1.
-    remember (getOperandValue TD Mem0 v2 lc gl) as R2.
+    remember (getOperandValue TD v0 lc gl) as R0.
+    remember (getOperandValue TD v1 lc gl) as R1.
+    remember (getOperandValue TD v2 lc gl) as R2.
     destruct R0 as [cond |]; try solve [inversion H].
     destruct R1 as [gv1 |]; try solve [inversion H].
     destruct R2 as [gv2 |]; inversion H; subst.
@@ -83,24 +83,24 @@ Proof.
     try solve [invert_result | eauto using sbop_dbCmd__seop_dbCmd].
 Qed.
 
-Lemma sbop_callUpdateLocals__seop_callUpdateLocals : forall TD Mem'' noret0 rid 
+Lemma sbop_callUpdateLocals__seop_callUpdateLocals : forall TD noret0 rid 
   oResult rm rm' lc lc' gl lc'' rm'',
-  SoftBound.callUpdateLocals TD Mem'' noret0 rid oResult rm rm' lc lc' gl = 
+  SoftBound.callUpdateLocals TD noret0 rid oResult rm rm' lc lc' gl = 
     ret (lc'', rm'') ->
-  callUpdateLocals TD Mem'' noret0 rid oResult lc lc' gl = ret lc''.
+  callUpdateLocals TD noret0 rid oResult lc lc' gl = ret lc''.
 Proof.
   intros. 
   unfold SoftBound.callUpdateLocals in H.
   unfold callUpdateLocals.
   destruct noret0.
     destruct oResult; try solve [inversion H; subst; auto].
-    destruct (getOperandValue TD Mem'' v lc' gl); 
+    destruct (getOperandValue TD v lc' gl); 
       try solve [inversion H; subst; auto].
 
     destruct oResult; try solve [inversion H; subst; auto].
-    destruct (getOperandValue TD Mem'' v lc' gl); 
+    destruct (getOperandValue TD v lc' gl); 
       try solve [inversion H; subst; auto].
-    destruct (SoftBound.get_reg_metadata TD Mem'' gl rm' v) as [[md' ?]|]; 
+    destruct (SoftBound.get_reg_metadata TD gl rm' v) as [[md' ?]|]; 
       try solve [inversion H; subst; auto].
 Qed.
 

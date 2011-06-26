@@ -62,19 +62,19 @@ let '(vals',mks') := List.split gv' in
 val_list_inject mi vals vals' /\ mks = mks'.
 
 Definition reg_simulation (mi:Values.meminj) TD gl (rm1:SBopsem.rmetadata) 
-  (rm2:rmap) Mem1 Mem2 (lc1 lc2:GVMap) : Prop :=
+  (rm2:rmap) (lc1 lc2:GVMap) : Prop :=
 (forall i0 gv1, 
   lookupAL _ lc1 i0 = Some gv1 -> 
   exists gv2, 
     lookupAL _ lc2 i0 = Some gv2 /\ gv_inject mi gv1 gv2
 ) /\
 (forall vp bgv1 egv1, 
-  SBopsem.get_reg_metadata TD Mem1 gl rm1 vp = 
+  SBopsem.get_reg_metadata TD gl rm1 vp = 
     Some (SBopsem.mkMD bgv1 egv1) -> 
   exists bv2, exists ev2, exists bgv2, exists egv2,
     get_reg_metadata rm2 vp = Some (bv2, ev2) /\
-    getOperandValue TD Mem2 bv2 lc2 gl = Some bgv2 /\
-    getOperandValue TD Mem2 ev2 lc2 gl = Some egv2 /\
+    getOperandValue TD bv2 lc2 gl = Some bgv2 /\
+    getOperandValue TD ev2 lc2 gl = Some egv2 /\
     gv_inject mi bgv1 bgv2 /\
     gv_inject mi egv1 egv2
 ).
@@ -103,7 +103,7 @@ Mem.mem_inj mi Mem1 Mem2 /\
   SBopsem.get_mem_metadata TD MM1 (ptr2GV TD (Vptr b ofs)) = 
     SBopsem.mkMD bgv egv -> 
   gv_inject mi (ptr2GV TD (Vptr b ofs)) pgv' ->
-  getOperandValue TD Mem2 v lc2 gl = Some pgv' ->
+  getOperandValue TD v lc2 gl = Some pgv' ->
   exists bgv', exists egv',
   LLVMopsem.dsInsn 
     (LLVMopsem.mkState S TD Ps 
@@ -150,7 +150,7 @@ match als2' with
 | _ => False
 end.
 
-Definition sbEC_simulates_EC_tail (TD:TargetData) M1 M2 gl (mi:Values.meminj) 
+Definition sbEC_simulates_EC_tail (TD:TargetData) gl (mi:Values.meminj) 
   (sbEC:SBopsem.ExecutionContext) (EC:LLVMopsem.ExecutionContext) : Prop :=
   match (sbEC, EC) with
   | (SBopsem.mkEC f1 b1 ((insn_call i0 nr ca t0 v p)::cs13) tmn1 lc1 rm1 als1, 
@@ -170,7 +170,7 @@ Definition sbEC_simulates_EC_tail (TD:TargetData) M1 M2 gl (mi:Values.meminj)
        exists addrb, exists ex_ids1, exists addre, exists ex_ids2, 
        exists ex_ids3, exists ex_ids4, exists cs22, exists cs23, exists cs24,
          gen_metadata_fdef nts (getFdefLocs f1) nil f1 = Some (ex_ids, rm2) /\
-         reg_simulation mi TD gl rm1 rm2 M1 M2 lc1 lc2 /\
+         reg_simulation mi TD gl rm1 rm2 lc1 lc2 /\
          (addrb,ex_ids1) = mk_tmp ex_ids /\
          (addre,ex_ids2) = mk_tmp ex_ids1 /\
          allocas_simulation TD mi lc2 addrb addre als1 als2 /\
@@ -182,7 +182,7 @@ Definition sbEC_simulates_EC_tail (TD:TargetData) M1 M2 gl (mi:Values.meminj)
   | _ => False
   end.
 
-Definition sbEC_simulates_EC_head (TD:TargetData) M1 M2 gl (mi:Values.meminj) 
+Definition sbEC_simulates_EC_head (TD:TargetData) gl (mi:Values.meminj) 
   (sbEC:SBopsem.ExecutionContext) (EC:LLVMopsem.ExecutionContext) : Prop :=
   match (sbEC, EC) with
   | (SBopsem.mkEC f1 b1 cs12 tmn1 lc1 rm1 als1, 
@@ -201,7 +201,7 @@ Definition sbEC_simulates_EC_head (TD:TargetData) M1 M2 gl (mi:Values.meminj)
        exists addrb, exists ex_ids1, exists addre, exists ex_ids2, 
        exists ex_ids3, exists ex_ids4, exists cs22, exists cs23,
          gen_metadata_fdef nts (getFdefLocs f1) nil f1 = Some (ex_ids, rm2) /\
-         reg_simulation mi TD gl rm1 rm2 M1 M2 lc1 lc2 /\
+         reg_simulation mi TD gl rm1 rm2 lc1 lc2 /\
          (addrb,ex_ids1) = mk_tmp ex_ids /\
          (addre,ex_ids2) = mk_tmp ex_ids1 /\
          allocas_simulation TD mi lc2 addrb addre als1 als2 /\
@@ -211,22 +211,22 @@ Definition sbEC_simulates_EC_head (TD:TargetData) M1 M2 gl (mi:Values.meminj)
          cs2 = cs22 ++ cs23
   end.
 
-Fixpoint sbECs_simulate_ECs_tail (TD:TargetData) M1 M2 gl (mi:Values.meminj) 
+Fixpoint sbECs_simulate_ECs_tail (TD:TargetData) gl (mi:Values.meminj) 
   (sbECs:SBopsem.ECStack) (ECs:LLVMopsem.ECStack) : Prop :=
   match sbECs, ECs with
   | nil, nil => True
   | sbEC::sbECs', EC::ECs' => 
-      sbEC_simulates_EC_tail TD M1 M2 gl mi sbEC EC /\ 
-      sbECs_simulate_ECs_tail TD M1 M2 gl mi sbECs' ECs'
+      sbEC_simulates_EC_tail TD gl mi sbEC EC /\ 
+      sbECs_simulate_ECs_tail TD gl mi sbECs' ECs'
   | _, _ => False
   end.
 
-Definition sbECs_simulate_ECs (TD:TargetData) M1 M2 gl (mi:Values.meminj) 
+Definition sbECs_simulate_ECs (TD:TargetData) gl (mi:Values.meminj) 
   (sbECs:SBopsem.ECStack) (ECs:LLVMopsem.ECStack) : Prop :=
   match sbECs, ECs with
   | sbEC::sbECs', EC::ECs' => 
-      sbEC_simulates_EC_head TD M1 M2 gl mi sbEC EC /\ 
-      sbECs_simulate_ECs_tail TD M1 M2 gl mi sbECs' ECs'
+      sbEC_simulates_EC_head TD gl mi sbEC EC /\ 
+      sbECs_simulate_ECs_tail TD gl mi sbECs' ECs'
   | _, _ => False
   end.
 
@@ -239,25 +239,20 @@ Definition sbState_simulates_State (mi:Values.meminj) (mgb:Values.block)
       trans_system S1 = Some S2 /\ 
       TD1 = TD2 /\ 
       trans_products nts Ps1 = trans_products nts Ps2 /\ 
-      sbECs_simulate_ECs TD1 M1 M2 gl1 mi ECs1 ECs2 /\
+      sbECs_simulate_ECs TD1 gl1 mi ECs1 ECs2 /\
       gl1 = gl2 /\ 
       fs1 = fs2 /\ 
       wf_sb_mi mgb mi M1 M2 /\
       mem_simulation mi TD1 mgb MM1 M1 M2 
   end.
 
-Lemma free_allocas_sim : forall TD M1 als1 M2 mi als2 M1' MM mgb lc1 lc2 rm1 rm2 
-    gl ECsc1 ECs2 addrb addre lc,
+Lemma free_allocas_sim : forall TD M1 als1 M2 mi als2 M1' MM mgb addrb addre lc,
   free_allocas TD M1 als1 = Some M1' ->
   allocas_simulation TD mi lc addrb addre als1 als2 ->
   mem_simulation mi TD mgb MM M1 M2 ->
-  reg_simulation mi TD gl rm1 rm2 M1 M2 lc1 lc2 ->
-  sbECs_simulate_ECs_tail TD M1 M2 gl mi ECsc1 ECs2 ->
   wf_sb_mi mgb mi M1 M2 ->
   exists M2', free_allocas TD M2 als2 = Some M2' /\ 
     mem_simulation mi TD mgb MM M1' M2' /\
-    reg_simulation mi TD gl rm1 rm2 M1' M2' lc1 lc2 /\
-    sbECs_simulate_ECs_tail TD M1' M2' gl mi ECsc1 ECs2 /\
     wf_sb_mi mgb mi M1' M2'.
 Admitted.
 
@@ -267,18 +262,15 @@ Definition sb_fnattrs := fnattrs_intro linkage_external visibility_default
 Axiom dstk_spec : forall M, 
   LLVMopsem.callExternalFunction M dstk_fid nil = Some (None, M).
 
-Axiom dstk_is_found : forall TD M Ps gl lc fs, 
-  LLVMopsem.lookupExFdecViaGV TD M Ps gl lc fs dstk_fn = Some
+Axiom dstk_is_found : forall TD Ps gl lc fs, 
+  LLVMopsem.lookupExFdecViaGV TD Ps gl lc fs dstk_fn = Some
     (fdec_intro (fheader_intro sb_fnattrs dstk_typ dstk_fid nil false)).
 
 Definition int2GV n :=
   (Vint 31 (Int.repr 31 (INTEGER.to_Z n)), AST.Mint 31)::nil.
 
-Axiom stk_ret_sim : forall TD M1 M2 mi MM mgb lc1 lc2 rm1 rm2 gl ECsc1 ECs2 bgv
-    egv,
+Axiom stk_ret_sim : forall TD M1 M2 mi MM mgb bgv egv,
   mem_simulation mi TD mgb MM M1 M2 ->
-  reg_simulation mi TD gl rm1 rm2 M1 M2 lc1 lc2 ->
-  sbECs_simulate_ECs_tail TD M1 M2 gl mi ECsc1 ECs2 ->
   wf_sb_mi mgb mi M1 M2 ->
   exists M2',  exists M2'',
     LLVMopsem.callExternalFunction M2 sbase_fid (bgv::int2GV 0%Z::nil) = 
@@ -286,28 +278,26 @@ Axiom stk_ret_sim : forall TD M1 M2 mi MM mgb lc1 lc2 rm1 rm2 gl ECsc1 ECs2 bgv
     LLVMopsem.callExternalFunction M2' sbound_fid (egv::int2GV 0%Z::nil) = 
       Some (None, M2'') /\
     mem_simulation mi TD mgb MM M1 M2'' /\
-    reg_simulation mi TD gl rm1 rm2 M1 M2'' lc1 lc2 /\
-    sbECs_simulate_ECs_tail TD M1 M2'' gl mi ECsc1 ECs2 /\
     wf_sb_mi mgb mi M1 M2'' /\
     LLVMopsem.callExternalFunction M2'' gbase_fid [int2GV 0%Z] = 
       Some (Some bgv, M2'') /\
     LLVMopsem.callExternalFunction M2'' gbound_fid [int2GV 0%Z] = 
       Some (Some egv, M2'').
 
-Axiom sbase_is_found : forall TD M Ps gl lc fs, 
-  LLVMopsem.lookupExFdecViaGV TD M Ps gl lc fs sbase_fn = Some
+Axiom sbase_is_found : forall TD Ps gl lc fs, 
+  LLVMopsem.lookupExFdecViaGV TD Ps gl lc fs sbase_fn = Some
     (fdec_intro (fheader_intro sb_fnattrs dstk_typ sbase_fid nil false)).
 
-Axiom sbound_is_found : forall TD M Ps gl lc fs, 
-  LLVMopsem.lookupExFdecViaGV TD M Ps gl lc fs sbound_fn = Some
+Axiom sbound_is_found : forall TD Ps gl lc fs, 
+  LLVMopsem.lookupExFdecViaGV TD Ps gl lc fs sbound_fn = Some
     (fdec_intro (fheader_intro sb_fnattrs dstk_typ sbound_fid nil false)).
 
-Axiom gbase_is_found : forall TD M Ps gl lc fs, 
-  LLVMopsem.lookupExFdecViaGV TD M Ps gl lc fs gbase_fn = Some
+Axiom gbase_is_found : forall TD Ps gl lc fs, 
+  LLVMopsem.lookupExFdecViaGV TD Ps gl lc fs gbase_fn = Some
     (fdec_intro (fheader_intro sb_fnattrs dstk_typ gbase_fid nil false)).
 
-Axiom gbound_is_found : forall TD M Ps gl lc fs, 
-  LLVMopsem.lookupExFdecViaGV TD M Ps gl lc fs gbound_fn = Some
+Axiom gbound_is_found : forall TD Ps gl lc fs, 
+  LLVMopsem.lookupExFdecViaGV TD Ps gl lc fs gbound_fn = Some
     (fdec_intro (fheader_intro sb_fnattrs dstk_typ gbound_fid nil false)).
 
 Lemma SBpass_is_correct : forall mi mgb sbSt St sbSt' tr,
@@ -350,10 +340,10 @@ Case "dsReturn". Focus.
   simpl in H1.
   unfold call_suffix in Hcall'.
   unfold SBopsem.returnUpdateLocals in H1.
-  remember (SBopsem.returnResult (los, nts) Mem' RetTy Result lc rm gl2) as Ret.
+  remember (SBopsem.returnResult (los, nts) RetTy Result lc rm gl2) as Ret.
   destruct Ret as [[gr md]|]; try solve [inv H1].
   unfold SBopsem.returnResult in HeqRet.
-  remember (getOperandValue (los, nts) Mem' Result lc gl2) as ogr.
+  remember (getOperandValue (los, nts) Result lc gl2) as ogr.
   destruct ogr as [ogr|]; try solve [inv HeqRet].
   destruct n.
   SCase "nret = true".
@@ -362,18 +352,17 @@ Case "dsReturn". Focus.
     simpl in Httmn.
     destruct (isPointerTypB RetTy).
     SSCase "rt is ptr". Focus.
-      remember (SBopsem.get_reg_metadata (los, nts) Mem' gl2 rm Result) as oRmd.
+      remember (SBopsem.get_reg_metadata (los, nts) gl2 rm Result) as oRmd.
       destruct oRmd as [[bgv1 egv1]|]; inv HeqRet.
       assert (exists bv2, exists ev2, exists bgv2, exists egv2,
         get_reg_metadata rm2 Result = Some (bv2, ev2) /\
-        getOperandValue (los,nts) M2 bv2 lc2 gl2 = Some bgv2 /\
-        getOperandValue (los,nts) M2 ev2 lc2 gl2 = Some egv2 /\
+        getOperandValue (los,nts) bv2 lc2 gl2 = Some bgv2 /\
+        getOperandValue (los,nts) ev2 lc2 gl2 = Some egv2 /\
         gv_inject mi bgv1 bgv2 /\
         gv_inject mi egv1 egv2) as J.
         clear - HeqoRmd Hrsim. 
         destruct Hrsim as [_ Hrsim].
         apply Hrsim; auto.
-          admit. (* const2GV *)
       destruct J as [bv2 [ev2 [bgv2 [egv2 [Hgetrmd [Hgetbgv2 [Hgetegv2 [Hinj1 
         Hinj2]]]]]]]]. rewrite Hgetrmd in Httmn. inv Httmn.
 Admitted.

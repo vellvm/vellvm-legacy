@@ -53,21 +53,21 @@ Inductive dbCmd : TargetData -> GVMap ->
                   GVMap -> list mblock -> mem -> 
                   trace -> Prop :=
 | dbBop: forall TD lc gl id bop sz v1 v2 gv3 Mem als,
-  BOP TD Mem lc gl bop sz v1 v2 = Some gv3 ->
+  BOP TD lc gl bop sz v1 v2 = Some gv3 ->
   dbCmd TD gl
     lc als Mem
     (insn_bop id bop sz v1 v2)
     (updateAddAL _ lc id gv3) als Mem
     trace_nil 
 | dbFBop: forall TD lc gl id fbop fp v1 v2 gv3 Mem als,
-  FBOP TD Mem lc gl fbop fp v1 v2 = Some gv3 ->
+  FBOP TD lc gl fbop fp v1 v2 = Some gv3 ->
   dbCmd TD gl
     lc als Mem
     (insn_fbop id fbop fp v1 v2)
     (updateAddAL _ lc id gv3) als Mem
     trace_nil 
 | dbExtractValue : forall TD lc gl id t v gv gv' Mem als idxs,
-  getOperandValue TD Mem v lc gl = Some gv ->
+  getOperandValue TD v lc gl = Some gv ->
   extractGenericValue TD t gv idxs = Some gv' ->
   dbCmd TD gl
     lc als Mem
@@ -75,8 +75,8 @@ Inductive dbCmd : TargetData -> GVMap ->
     (updateAddAL _ lc id gv') als Mem
     trace_nil 
 | dbInsertValue : forall TD lc gl id t v t' v' gv gv' gv'' idxs Mem als,
-  getOperandValue TD Mem v lc gl = Some gv ->
-  getOperandValue TD Mem v' lc gl = Some gv' ->
+  getOperandValue TD v lc gl = Some gv ->
+  getOperandValue TD v' lc gl = Some gv' ->
   insertGenericValue TD t gv idxs t' gv' = Some gv'' ->
   dbCmd TD gl
     lc als Mem
@@ -85,7 +85,7 @@ Inductive dbCmd : TargetData -> GVMap ->
     trace_nil 
 | dbMalloc : forall TD lc gl id t v gn align Mem als Mem' tsz mb,
   getTypeAllocSize TD t = Some tsz ->
-  getOperandValue TD Mem v lc gl = Some gn ->
+  getOperandValue TD v lc gl = Some gn ->
   malloc TD Mem tsz gn align = Some (Mem', mb) ->
   dbCmd TD gl
     lc als Mem
@@ -93,7 +93,7 @@ Inductive dbCmd : TargetData -> GVMap ->
     (updateAddAL _ lc id (blk2GV TD mb)) als Mem'
     trace_nil
 | dbFree : forall TD lc gl fid t v Mem als Mem' mptr,
-  getOperandValue TD Mem v lc gl = Some mptr ->
+  getOperandValue TD v lc gl = Some mptr ->
   free TD Mem mptr = Some Mem'->
   dbCmd TD gl
     lc als Mem
@@ -102,7 +102,7 @@ Inductive dbCmd : TargetData -> GVMap ->
     trace_nil
 | dbAlloca : forall TD lc gl id t v gn align Mem als Mem' tsz mb,
   getTypeAllocSize TD t = Some tsz ->
-  getOperandValue TD Mem v lc gl = Some gn ->
+  getOperandValue TD v lc gl = Some gn ->
   malloc TD Mem tsz gn align = Some (Mem', mb) ->
   dbCmd TD gl
     lc als Mem
@@ -110,7 +110,7 @@ Inductive dbCmd : TargetData -> GVMap ->
     (updateAddAL _ lc id (blk2GV TD mb)) (mb::als) Mem'
     trace_nil
 | dbLoad : forall TD lc gl id t v align Mem als mp gv,
-  getOperandValue TD Mem v lc gl = Some mp ->
+  getOperandValue TD v lc gl = Some mp ->
   mload TD Mem mp t align = Some gv ->
   dbCmd TD gl
     lc als Mem
@@ -118,8 +118,8 @@ Inductive dbCmd : TargetData -> GVMap ->
     (updateAddAL _ lc id gv) als Mem
     trace_nil
 | dbStore : forall TD lc gl sid t v1 v2 align Mem als mp2 gv1 Mem',
-  getOperandValue TD Mem v1 lc gl = Some gv1 ->
-  getOperandValue TD Mem v2 lc gl = Some mp2 ->
+  getOperandValue TD v1 lc gl = Some gv1 ->
+  getOperandValue TD v2 lc gl = Some mp2 ->
   mstore TD Mem mp2 t gv1 align = Some Mem' ->
   dbCmd TD gl 
     lc als Mem
@@ -127,8 +127,8 @@ Inductive dbCmd : TargetData -> GVMap ->
     lc als Mem'
     trace_nil
 | dbGEP : forall TD lc gl id inbounds t v idxs vidxs mp mp' Mem als,
-  getOperandValue TD Mem v lc gl = Some mp ->
-  values2GVs TD Mem idxs lc gl = Some vidxs ->
+  getOperandValue TD v lc gl = Some mp ->
+  values2GVs TD idxs lc gl = Some vidxs ->
   GEP TD t mp vidxs inbounds = Some mp' ->
   dbCmd TD gl
     lc als Mem
@@ -136,44 +136,44 @@ Inductive dbCmd : TargetData -> GVMap ->
     (updateAddAL _ lc id mp') als Mem
     trace_nil 
 | dbTrunc : forall TD lc gl id truncop t1 v1 t2 gv2 Mem als,
-  TRUNC TD Mem lc gl truncop t1 v1 t2 = Some gv2 ->
+  TRUNC TD lc gl truncop t1 v1 t2 = Some gv2 ->
   dbCmd TD gl
     lc als Mem
     (insn_trunc id truncop t1 v1 t2)
     (updateAddAL _ lc id gv2) als Mem
     trace_nil
 | dbExt : forall TD lc gl id extop t1 v1 t2 gv2 Mem als,
-  EXT TD Mem lc gl extop t1 v1 t2 = Some gv2 ->
+  EXT TD lc gl extop t1 v1 t2 = Some gv2 ->
   dbCmd TD gl
     lc als Mem
     (insn_ext id extop t1 v1 t2)
     (updateAddAL _ lc id gv2) als Mem
     trace_nil
 | dbCast : forall TD lc gl id castop t1 v1 t2 gv2 Mem als,
-  CAST TD Mem lc gl castop t1 v1 t2 = Some gv2 ->
+  CAST TD lc gl castop t1 v1 t2 = Some gv2 ->
   dbCmd TD gl
     lc als Mem
     (insn_cast id castop t1 v1 t2)
     (updateAddAL _ lc id gv2) als Mem
     trace_nil
 | dbIcmp : forall TD lc gl id cond t v1 v2 gv3 Mem als,
-  ICMP TD Mem lc gl cond t v1 v2 = Some gv3 ->
+  ICMP TD lc gl cond t v1 v2 = Some gv3 ->
   dbCmd TD gl
     lc als Mem
     (insn_icmp id cond t v1 v2)
     (updateAddAL _ lc id gv3) als Mem
     trace_nil
 | dbFcmp : forall TD lc gl id fcond fp v1 v2 gv3 Mem als,
-  FCMP TD Mem lc gl fcond fp v1 v2 = Some gv3 ->
+  FCMP TD lc gl fcond fp v1 v2 = Some gv3 ->
   dbCmd TD gl
     lc als Mem
     (insn_fcmp id fcond fp v1 v2)
     (updateAddAL _ lc id gv3) als Mem
     trace_nil
 | dbSelect : forall TD lc gl id v0 t v1 v2 cond Mem als gv1 gv2,
-  getOperandValue TD Mem v0 lc gl = Some cond ->
-  getOperandValue TD Mem v1 lc gl = Some gv1 ->
-  getOperandValue TD Mem v2 lc gl = Some gv2 ->
+  getOperandValue TD v0 lc gl = Some cond ->
+  getOperandValue TD v1 lc gl = Some gv1 ->
+  getOperandValue TD v2 lc gl = Some gv2 ->
   dbCmd TD gl
     lc als Mem
     (insn_select id v0 t v1 v2)
@@ -190,11 +190,11 @@ Inductive dbTerminator :
   trace -> Prop :=
 | dbBranch : forall TD Mem F B lc gl bid Cond l1 l2 c
                               l' ps' sbs' tmn' lc',   
-  getOperandValue TD Mem Cond lc gl = Some c ->
+  getOperandValue TD Cond lc gl = Some c ->
   Some (block_intro l' ps' sbs' tmn') = (if isGVZero TD c
                then lookupBlockViaLabelFromFdef F l2
                else lookupBlockViaLabelFromFdef F l1) ->
-  Some lc' = LLVMopsem.switchToNewBasicBlock TD Mem 
+  Some lc' = LLVMopsem.switchToNewBasicBlock TD
     (block_intro l' ps' sbs' tmn') B gl lc ->
   dbTerminator TD Mem F gl
     B lc
@@ -204,7 +204,7 @@ Inductive dbTerminator :
 | dbBranch_uncond : forall TD Mem F B lc gl l bid
                               l' ps' sbs' tmn' lc',   
   Some (block_intro l' ps' sbs' tmn') = lookupBlockViaLabelFromFdef F l ->
-  Some lc' = LLVMopsem.switchToNewBasicBlock TD Mem 
+  Some lc' = LLVMopsem.switchToNewBasicBlock TD
     (block_intro l' ps' sbs' tmn') B gl lc ->
   dbTerminator TD Mem F gl
     B lc
@@ -236,7 +236,7 @@ Inductive dbCall : system -> TargetData -> list product -> GVMap ->
   dbFdef fv rt lp S TD Ps lc gl fs Mem lc' als' Mem' B' Rid oResult tr ->
   free_allocas TD Mem' als' = Some Mem'' ->
   isCall (insn_call rid noret tailc ft fv lp) = true ->
-  LLVMopsem.callUpdateLocals TD Mem'' noret rid oResult lc lc' gl = Some lc'' ->
+  LLVMopsem.callUpdateLocals TD noret rid oResult lc lc' gl = Some lc'' ->
   dbCall S TD Ps fs gl lc Mem (insn_call rid noret tailc ft fv lp) lc'' Mem'' tr
 
 | dbCall_external : forall S TD Ps lc gl fs rid noret ca fv fid 
@@ -245,9 +245,9 @@ Inductive dbCall : system -> TargetData -> list product -> GVMap ->
      do not support linkage. 
      FIXME: should add excall to trace
   *)
-  LLVMopsem.lookupExFdecViaGV TD Mem Ps gl lc fs fv = 
+  LLVMopsem.lookupExFdecViaGV TD Ps gl lc fs fv = 
     Some (fdec_intro (fheader_intro fa rt fid la va)) ->
-  params2GVs TD Mem lp lc gl = Some gvs ->
+  params2GVs TD lp lc gl = Some gvs ->
   LLVMopsem.callExternalFunction Mem fid gvs = Some (oresult, Mem') ->
   isCall (insn_call rid noret ca ft fv lp) = true ->
   LLVMopsem.exCallUpdateLocals noret rid oresult lc = Some lc' ->
@@ -314,11 +314,11 @@ with dbFdef : value -> typ -> params -> system -> TargetData -> list product ->
 | dbFdef_func : forall S TD Ps gl fs fv fid lp lc rid
                      l1 ps1 cs1 tmn1 fa rt la va lb Result lc1 tr1 Mem Mem1 als1
                      l2 ps2 cs21 cs22 lc2 als2 Mem2 tr2 lc3 als3 Mem3 tr3 gvs,
-  lookupFdefViaGV TD Mem Ps gl lc fs fv = 
+  lookupFdefViaGV TD Ps gl lc fs fv = 
     Some (fdef_intro (fheader_intro fa rt fid la va) lb) ->
   getEntryBlock (fdef_intro (fheader_intro fa rt fid la va) lb) = 
     Some (block_intro l1 ps1 cs1 tmn1) ->
-  params2GVs TD Mem lp lc gl = Some gvs ->
+  params2GVs TD lp lc gl = Some gvs ->
   dbBlocks S TD Ps fs gl (fdef_intro (fheader_intro fa rt fid la va) lb) 
     (mkState (mkEC (block_intro l1 ps1 cs1 tmn1) 
       (initLocals la gvs) nil) Mem)
@@ -341,11 +341,11 @@ with dbFdef : value -> typ -> params -> system -> TargetData -> list product ->
 | dbFdef_proc : forall S TD Ps gl fs fv fid lp lc rid
                        l1 ps1 cs1 tmn1 fa rt la va lb lc1 tr1 Mem Mem1 als1
                        l2 ps2 cs21 cs22 lc2 als2 Mem2 tr2 lc3 als3 Mem3 tr3 gvs,
-  lookupFdefViaGV TD Mem Ps gl lc fs fv = 
+  lookupFdefViaGV TD Ps gl lc fs fv = 
     Some (fdef_intro (fheader_intro fa rt fid la va) lb) ->
   getEntryBlock (fdef_intro (fheader_intro fa rt fid la va) lb) = 
     Some (block_intro l1 ps1 cs1 tmn1) ->
-  params2GVs TD Mem lp lc gl = Some gvs ->
+  params2GVs TD lp lc gl = Some gvs ->
   dbBlocks S TD Ps fs gl (fdef_intro (fheader_intro fa rt fid la va) lb) 
     (mkState (mkEC (block_intro l1 ps1 cs1 tmn1) 
       (initLocals la gvs) nil) Mem)
@@ -925,7 +925,7 @@ Inductive sterm_denotes_genericvalue :
    GenericValue ->          (* value that denotes sterm *)
    Prop :=
 | sterm_val_denotes : forall TD lc gl Mem v gv,
-  getOperandValue TD Mem v lc gl = Some gv ->  
+  getOperandValue TD v lc gl = Some gv ->  
   sterm_denotes_genericvalue TD lc gl Mem (sterm_val v) gv
 | sterm_bop_denotes : forall TD lc gl Mem op0 sz0 st1 st2 gv1 gv2 gv3,
   sterm_denotes_genericvalue TD lc gl Mem st1 gv1 ->
@@ -978,12 +978,12 @@ Inductive sterm_denotes_genericvalue :
   sterm_denotes_genericvalue TD lc gl Mem (sterm_ext op0 t1 st1 t2) gv2
 | sterm_cast_denotes : forall TD lc gl Mem op0 t1 st1 t2 gv1 gv2,
   sterm_denotes_genericvalue TD lc gl Mem st1 gv1 ->
-  mcast TD Mem op0 t1 gv1 t2 = Some gv2 ->
+  mcast TD op0 t1 gv1 t2 = Some gv2 ->
   sterm_denotes_genericvalue TD lc gl Mem (sterm_cast op0 t1 st1 t2) gv2
 | sterm_icmp_denotes : forall TD lc gl Mem cond0 t0 st1 st2 gv1 gv2 gv3,
   sterm_denotes_genericvalue TD lc gl Mem st1 gv1 ->
   sterm_denotes_genericvalue TD lc gl Mem st2 gv2 ->
-  micmp TD Mem cond0 t0 gv1 gv2 = Some gv3 ->
+  micmp TD cond0 t0 gv1 gv2 = Some gv3 ->
   sterm_denotes_genericvalue TD lc gl Mem (sterm_icmp cond0 t0 st1 st2) gv3
 | sterm_fcmp_denotes : forall TD lc gl Mem cond0 fp0 st1 st2 gv1 gv2 gv3,
   sterm_denotes_genericvalue TD lc gl Mem st1 gv1 ->

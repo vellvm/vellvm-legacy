@@ -81,7 +81,7 @@ Lemma dbCmd_preservation__dbMalloc : forall
   (rm' : rmetadata)
   (n : Z)
   (H : getTypeAllocSize TD t = ret tsz)
-  (H0 : getOperandValue TD Mem0 v lc gl = ret gn)
+  (H0 : getOperandValue TD v lc gl = ret gn)
   (H1 : malloc TD Mem0 tsz gn align0 = ret (Mem', mb))
   (H2 : GV2int TD Size.ThirtyTwo gn = ret n)
   (H3 : prop_reg_metadata lc rm id0 (blk2GV TD mb)
@@ -327,7 +327,7 @@ Case "dbStore_ptr".
        simpl in J; eauto using wf_mmetadata__store__wf_data.
   
        inversion J; subst. clear J.
-       apply wf_rmetadata__get_reg_metadata in H5; auto.
+       apply wf_rmetadata__get_reg_metadata with (Mem0:=Mem0) in H5; auto.
        eapply wf_data__store__wf_data; eauto.
 
 Case "dbGEP".
@@ -578,7 +578,7 @@ Proof.
   cmd_cases (destruct c) Case.
 
 Case "insn_bop".
-  remember (BOP TD Mem lc gl b s v v0) as R.
+  remember (BOP TD lc gl b s v v0) as R.
   destruct R.
     exists (updateAddAL _ lc i0 g). exists rm. exists als. exists Mem.
     exists MM. exists trace_nil. exists rok.
@@ -589,7 +589,7 @@ Case "insn_bop".
     apply dbBop_error; auto.
 
 Case "insn_fbop".
-  remember (FBOP TD Mem lc gl f f0 v v0) as R.
+  remember (FBOP TD lc gl f f0 v v0) as R.
   destruct R.
     exists (updateAddAL _ lc i0 g). exists rm. exists als. exists Mem.
     exists MM. exists trace_nil. exists rok.
@@ -616,10 +616,10 @@ Case "insn_alloca".
 
 Case "insn_load".
 
-  assert (exists g, getOperandValue TD Mem v lc gl = Some g) as R2.
+  assert (exists g, getOperandValue TD v lc gl = Some g) as R2.
     admit. (* wont be stuck for well-formed SSA. *)
   destruct R2 as [g R2].
-  assert (exists md, get_reg_metadata TD Mem gl rm v = Some md) as R2'.
+  assert (exists md, get_reg_metadata TD gl rm v = Some md) as R2'.
     admit. (* wont be stuck for well-formed SSA. *)
   destruct R2' as [[md mt] R2'].
   remember (isPointerTypB t) as R1.
@@ -678,13 +678,13 @@ Case "insn_load".
 
 Case "insn_store".
 
-  assert (exists gv, getOperandValue TD Mem v lc gl = Some gv) as R21.
+  assert (exists gv, getOperandValue TD v lc gl = Some gv) as R21.
     admit. (* wont be stuck for well-formed SSA. *)
-  assert (exists gvp, getOperandValue TD Mem v0 lc gl = Some gvp) as R22.
+  assert (exists gvp, getOperandValue TD v0 lc gl = Some gvp) as R22.
     admit. (* wont be stuck for well-formed SSA. *)
   destruct R21 as [gv R21].
   destruct R22 as [gvp R22].
-  assert (exists md, get_reg_metadata TD Mem gl rm v0 = Some md) as R21'.
+  assert (exists md, get_reg_metadata TD gl rm v0 = Some md) as R21'.
     admit. (* wont be stuck for well-formed SSA. *)
   destruct R21' as [[md mt] R21'].
   remember (isPointerTypB t) as R1.
@@ -719,7 +719,7 @@ Case "insn_store".
         destruct R6 as [Mem' R6].
         destruct R1.
         SSSSCase "t is ptr".
-          assert (exists md', get_reg_metadata TD Mem gl rm v = Some md') 
+          assert (exists md', get_reg_metadata TD gl rm v = Some md') 
             as R22'.
             admit. (* wont be stuck for well-formed SSA. And we generate rm for
                       all pointer registers. *)

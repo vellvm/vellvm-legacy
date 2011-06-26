@@ -140,9 +140,9 @@ Proof.
        right. exists id1. exists gv1. auto.
 Qed.
 
-Lemma getIncomingValuesForBlockFromPHINodes_spec : forall ps TD Mem0 b gl lc id1
+Lemma getIncomingValuesForBlockFromPHINodes_spec : forall ps TD b gl lc id1
     rm re gv1 opmd1,
-  Some re = getIncomingValuesForBlockFromPHINodes TD Mem0 ps b gl lc rm ->
+  Some re = getIncomingValuesForBlockFromPHINodes TD ps b gl lc rm ->
   In (id1, gv1, opmd1) re ->
   In id1 (getPhiNodesIDs ps).
 Proof.    
@@ -151,12 +151,12 @@ Proof.
 
     destruct a.
     destruct (getValueViaBlockFromValuels l0 b); try solve [inversion H].   
-    destruct (getOperandValue TD Mem0 v lc gl); try solve [inversion H].   
-    remember (getIncomingValuesForBlockFromPHINodes TD Mem0 ps b gl lc rm) as R.
+    destruct (getOperandValue TD v lc gl); try solve [inversion H].   
+    remember (getIncomingValuesForBlockFromPHINodes TD ps b gl lc rm) as R.
     destruct R; try solve [inv H].
     simpl.
     destruct (isPointerTypB t); inv H.
-      destruct (get_reg_metadata TD Mem0 gl rm v) as [[md mt]|]; inv H2.      
+      destruct (get_reg_metadata TD gl rm v) as [[md mt]|]; inv H2.      
       simpl in H0.
       destruct H0 as [H0 | H0]; eauto.  
         inv H0; auto.
@@ -593,8 +593,8 @@ Qed.
 Lemma get_const_metadata_gid__wf_data : forall S TD Mem0 gl t i0 gvb gve,
   wf_global_ptr S TD Mem0 gl ->
   wf_const S TD (const_gid t i0) (typ_pointer t) ->
-  const2GV TD Mem0 gl (const_gid t i0) = ret gvb ->
-  const2GV TD Mem0 gl
+  const2GV TD gl (const_gid t i0) = ret gvb ->
+  const2GV TD gl
          (const_gep false (const_gid t i0)
             (Cons_list_const (const_int Size.ThirtyTwo 1) Nil_list_const)) =
        ret gve ->
@@ -602,14 +602,14 @@ Lemma get_const_metadata_gid__wf_data : forall S TD Mem0 gl t i0 gvb gve,
 Proof.
   intros S TD Mem0 gl t i0 gvb gve Hwfg Hwfc H2 H3.
   unfold const2GV in H3.
-  remember (_const2GV TD Mem0 gl
+  remember (_const2GV TD gl
            (const_gep false (const_gid t i0)
               (Cons_list_const (const_int Size.ThirtyTwo 1) Nil_list_const))) 
     as R0.
   destruct R0; try solve [inversion H3].
   destruct p. inv H3.
   unfold const2GV in H2.
-  remember (_const2GV TD Mem0 gl (const_gid t i0)) as R1.
+  remember (_const2GV TD gl (const_gid t i0)) as R1.
   destruct R1; try solve [inversion H2].
   destruct p. inv H2.
   unfold _const2GV in *.
@@ -704,8 +704,8 @@ Lemma wf_rmetadata__get_const_metadata : forall S TD gl Mem0 rm c gvb gve c0 c1
   wf_const S TD c ct' ->
   wf_rmetadata TD Mem0 rm ->
   get_const_metadata c = Some (c0,c1) ->
-  const2GV TD Mem0 gl c0 = Some gvb ->
-  const2GV TD Mem0 gl c1 = Some gve ->
+  const2GV TD gl c0 = Some gvb ->
+  const2GV TD gl c1 = Some gve ->
   wf_data TD Mem0 gvb gve.
 Proof.
   induction c; intros gvb gve cc0 cc1 ct' Hwfg Hwfc Hwfr H1 H2 H3; 
@@ -718,7 +718,7 @@ Proof.
     ].
 
     unfold const2GV in H2, H3.
-    remember (_const2GV TD Mem0 gl (const_gid (typ_function t l0 v) i0)) as R.
+    remember (_const2GV TD gl (const_gid (typ_function t l0 v) i0)) as R.
     destruct R; try solve [inversion H2 | inversion H3].
     destruct p. inv H2. inv H3.
     unfold GV2ptr.
@@ -751,7 +751,7 @@ Lemma wf_rmetadata__get_reg_metadata : forall S los nts Ps Mem0 rm gl vp gvb gve
   wf_global_ptr S (los, nts) Mem0 gl ->
   wf_rmetadata (los, nts) Mem0 rm ->
   wf_value S (module_intro los nts Ps) f vp tp ->
-  get_reg_metadata (los, nts) Mem0 gl rm vp = Some (mkMD gvb gve) ->
+  get_reg_metadata (los, nts) gl rm vp = Some (mkMD gvb gve) ->
   wf_data (los, nts) Mem0 gvb gve.
 Proof.
   intros S los nts Ps Mem0 rm gl vp gvb gve t tp Hwfg Hwfr Hwfv J.
@@ -765,8 +765,8 @@ Proof.
     remember (get_const_metadata c) as R.
     destruct R as [[bc ec] |]; 
       try solve [inversion J; subst; auto using null_is_wf_data].
-    remember (const2GV (los, nts) Mem0 gl bc) as R0.
-    remember (const2GV (los, nts) Mem0 gl ec) as R1.
+    remember (const2GV (los, nts) gl bc) as R0.
+    remember (const2GV (los, nts) gl ec) as R1.
     destruct R0; try solve [inversion J]. 
     simpl in J.
     destruct R1; try solve [inversion J]. 
@@ -1056,7 +1056,7 @@ Lemma returnUpdateLocals__wf_rmetadata : forall los nts Result lc rm gl c' lc'
   (Hwfg : wf_global_ptr S (los, nts) Mem0 gl)
   (Hwfv : wf_value S (module_intro los nts Ps) f Result rt)
   (H0 : free_allocas (los, nts) Mem0 als = ret Mem')
-  (H1 : returnUpdateLocals (los, nts) Mem' c' rt Result lc lc' rm rm' gl =
+  (H1 : returnUpdateLocals (los, nts) c' rt Result lc lc' rm rm' gl =
        ret (lc'', rm''))
   (Hwfm1' : wf_rmetadata (los, nts) Mem0 rm)
   (Hwfm2' : wf_rmetadata (los, nts) Mem0 rm'),
@@ -1066,10 +1066,10 @@ Proof.
   unfold returnUpdateLocals, returnResult in H1.
   assert (wf_rmetadata (los, nts) Mem' rm') as Hwfm.
     eauto using free_allocas_preserves_wf_rmetadata.
-  remember (getOperandValue (los, nts) Mem' Result lc gl) as R1.
+  remember (getOperandValue (los, nts) Result lc gl) as R1.
   destruct R1; try solve [inv H1; auto].
   destruct (isPointerTypB rt).
-    remember (get_reg_metadata (los, nts) Mem' gl rm Result) as R3.
+    remember (get_reg_metadata (los, nts) gl rm Result) as R3.
     destruct R3 as [[md ?]|]; try solve [inv H1; auto].
     destruct c'; try solve [inv H1; auto].
     destruct n; try solve [inv H1; auto].
@@ -1105,7 +1105,7 @@ Lemma getIncomingValuesForBlockFromPHINodes__wf_rmetadata : forall los nts M f b
   (Hwfps : wf_phinodes ifs S (module_intro los nts ps) f b' PNs),
   NoDup (getPhiNodesIDs PNs) ->
   wf_rmetadata (los, nts) M rm ->
-  getIncomingValuesForBlockFromPHINodes (los, nts) M PNs b gl lc rm = Some re ->
+  getIncomingValuesForBlockFromPHINodes (los, nts) PNs b gl lc rm = Some re ->
   In (id1,gv1,Some (mkMD bv1 ev1)) re ->
   wf_data (los, nts) M bv1 ev1.
 Proof.
@@ -1117,12 +1117,12 @@ Proof.
     destruct a.
     remember (getValueViaBlockFromValuels l0 b) as R0.
     destruct R0; try solve [inv Hget].
-    destruct (getOperandValue (los,nts) M v lc gl); try solve [inv Hget].    
-    remember (getIncomingValuesForBlockFromPHINodes (los,nts) M PNs b gl lc rm) 
+    destruct (getOperandValue (los,nts) v lc gl); try solve [inv Hget].    
+    remember (getIncomingValuesForBlockFromPHINodes (los,nts) PNs b gl lc rm) 
       as R.
     destruct R; try solve [inv Hget].
     destruct (isPointerTypB t); inv Hget.
-      remember (get_reg_metadata (los,nts) M gl rm v) as R1.
+      remember (get_reg_metadata (los,nts) gl rm v) as R1.
       destruct R1 as [[bv ev]|]; inv H0.
       simpl in Hin.
       destruct Hin as [Hin | Hin]; eauto.
@@ -1197,13 +1197,13 @@ Lemma switchToNewBasicBlock__wf_rmetadata : forall S M b1 b2 gl lc rm lc' rm'
   uniqFdef F ->
   blockInFdefB b1 F ->
   wf_rmetadata (los, nts) M rm ->
-  switchToNewBasicBlock (los, nts) M b1 b2 gl lc rm = Some (lc', rm') ->
+  switchToNewBasicBlock (los, nts) b1 b2 gl lc rm = Some (lc', rm') ->
   wf_rmetadata (los, nts) M rm'.
 Proof.
   intros S M b1 b2 gl lc rm lc' rm' F ifs los nts m Hwfg HwfF Huniq HBinF Hwfr 
     Hswitch.
   unfold switchToNewBasicBlock in Hswitch.
-  remember (getIncomingValuesForBlockFromPHINodes (los, nts) M 
+  remember (getIncomingValuesForBlockFromPHINodes (los, nts)  
              (getPHINodesFromBlock b1) b2 gl lc rm) as R.
   destruct R; inv Hswitch.
   eapply updateValuesForNewBlock__wf_rmetadata; eauto.
@@ -1251,7 +1251,7 @@ Qed.
 
 Lemma prop_metadata_preserves_wf_rmetadata : forall los nts Mem0 rm md gl S Ps
     f t id0 vp
-  (H : get_reg_metadata (los, nts) Mem0 gl rm vp = ret md)
+  (H : get_reg_metadata (los, nts) gl rm vp = ret md)
   (Hwfg' : wf_global_ptr S (los, nts) Mem0 gl)
   (Hwfv : wf_value S (module_intro los nts Ps) f vp t)
   (Hwfr : wf_rmetadata (los, nts) Mem0 rm),
@@ -1295,7 +1295,7 @@ Lemma params2GVs__wf_rmetadata : forall S los nts Ps f M rm lc gl ps ogvs
     wf_value S (module_intro los nts Ps) f v1 t1)
   (Hwfg : wf_global_ptr S (los, nts) M gl),
   wf_rmetadata (los,nts) M rm ->
-  params2GVs (los,nts) M ps lc gl rm = Some ogvs ->
+  params2GVs (los,nts) ps lc gl rm = Some ogvs ->
   forall gv1 bv1 ev1,
     In (gv1, Some (mkMD bv1 ev1)) ogvs ->
     wf_data (los,nts) M bv1 ev1.
@@ -1304,8 +1304,8 @@ Proof.
     inv Hp2ogvs. inv Hin.
 
     destruct a.
-    destruct (getOperandValue (los,nts) M v lc gl); try solve [inv Hp2ogvs].
-    remember (params2GVs (los,nts) M ps lc gl rm) as R.
+    destruct (getOperandValue (los,nts) v lc gl); try solve [inv Hp2ogvs].
+    remember (params2GVs (los,nts) ps lc gl rm) as R.
     destruct R; try solve [inv Hp2ogvs].
     destruct (isPointerTypB t); inv Hp2ogvs.
       simpl in Hin. 
@@ -1393,7 +1393,7 @@ Lemma initLocals__wf_rmetadata : forall ogvs (rm : rmetadata) (lc' : GVMap)
     wf_value S (module_intro los nts Ps) f v1 t1)
   (Hwfg : wf_global_ptr S (los, nts) M gl),
   wf_rmetadata (los,nts) M rm ->
-  params2GVs (los,nts) M ps lc gl rm = Some ogvs ->
+  params2GVs (los,nts) ps lc gl rm = Some ogvs ->
   initLocals la ogvs rm = (lc', rm') ->
   wf_rmetadata (los,nts) M rm'.
 Proof.
@@ -1522,7 +1522,7 @@ Lemma store_ptr_preserves_wf_mmetadata : forall los nts Mem0 rm MM md' gl S
   (Hwfg' : wf_global_ptr S (los, nts) Mem0 gl)
   (Hwfm1' : wf_rmetadata (los, nts) Mem0 rm)
   (H3 : mstore (los, nts) Mem0 gvp t gv align0 = ret Mem')
-  (H5 : get_reg_metadata (los, nts) Mem0 gl rm v = ret md')
+  (H5 : get_reg_metadata (los, nts) gl rm v = ret md')
   (Hwfv : wf_value S (module_intro los nts Ps) f v t)
   (Hwfm : wf_mmetadata (los, nts) Mem0 MM),
   wf_mmetadata (los, nts) Mem' (set_mem_metadata (los, nts) MM gvp md').
@@ -1546,7 +1546,7 @@ Proof.
        simpl in J; eauto using wf_mmetadata__store__wf_data.
   
        inversion J; subst. clear J.
-       eapply wf_rmetadata__get_reg_metadata in H5; eauto.
+       eapply wf_rmetadata__get_reg_metadata with (Mem0:=Mem0) in H5; eauto.
          eapply wf_data__store__wf_data; eauto.
 Qed.
 
@@ -1646,7 +1646,7 @@ Lemma assert_mptr__valid_access : forall S md los nts Ps Mem gl rm MM t g b ofs
   wf_metadata (los, nts) Mem rm MM ->
   wf_global_ptr S (los, nts) Mem gl ->
   wf_value S (module_intro los nts Ps) f v tv ->
-  Some md = get_reg_metadata (los, nts) Mem gl rm v ->
+  Some md = get_reg_metadata (los, nts) gl rm v ->
   wf_typ S t ->
   (forall a b o, 
     getTypeSizeInBits_and_Alignment (los, nts) o t = Some (a,b) ->

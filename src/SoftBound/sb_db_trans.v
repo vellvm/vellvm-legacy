@@ -704,19 +704,19 @@ let '(vals',mks') := List.split gv' in
 val_list_inject mi vals vals' /\ mks = mks'.
 
 Definition reg_simulation (mi:Values.meminj) TD gl (rm1:SoftBound.rmetadata) 
-  (rm2:rmap) Mem1 Mem2 (lc1 lc2:GVMap) : Prop :=
+  (rm2:rmap) (lc1 lc2:GVMap) : Prop :=
 (forall i0 gv1, 
   lookupAL _ lc1 i0 = Some gv1 -> 
   exists gv2, 
     lookupAL _ lc2 i0 = Some gv2 /\ gv_inject mi gv1 gv2
 ) /\
 (forall vp bgv1 egv1 mt, 
-  SoftBound.get_reg_metadata TD Mem1 gl rm1 vp = 
+  SoftBound.get_reg_metadata TD gl rm1 vp = 
     Some (SoftBound.mkMD bgv1 egv1, mt) -> 
   exists t2, exists bv2, exists ev2, exists bgv2, exists egv2,
     get_reg_metadata rm2 vp = Some (t2, bv2, ev2) /\
-    getOperandValue TD Mem2 bv2 lc2 gl = Some bgv2 /\
-    getOperandValue TD Mem2 ev2 lc2 gl = Some egv2 /\
+    getOperandValue TD bv2 lc2 gl = Some bgv2 /\
+    getOperandValue TD ev2 lc2 gl = Some egv2 /\
     gv_inject mi bgv1 bgv2 /\
     gv_inject mi egv1 egv2
 ).
@@ -769,7 +769,7 @@ Mem.mem_inj mi Mem1 Mem2 /\
   SoftBound.get_mem_metadata TD MM1 (ptr2GV TD (Vptr b ofs)) = 
     SoftBound.mkMD bgv egv -> 
   gv_inject mi (ptr2GV TD (Vptr b ofs)) pgv' ->
-  getOperandValue TD Mem2 v lc2 gl = Some pgv' ->
+  getOperandValue TD v lc2 gl = Some pgv' ->
   exists bgv', exists egv', exists Mem2',
   SimpleSE.dbCmds TD gl lc2 als Mem2
     (insn_call fake_id true sb_call_attrs get_mmetadata_typ get_mmetadata_fn 
@@ -898,14 +898,14 @@ Axiom assert_mptr_fn__ok : forall
   (J : zeq b b0 && zeq b0 b1 && zle (Int.signed 31 i1) (Int.signed 31 i0) &&
       zle (Int.signed 31 i0 + Size.to_Z s) (Int.signed 31 i2))
   (gvp2 : GenericValue)
-  (H00 : getOperandValue TD Mem2 vp lc2 gl = ret gvp2)
+  (H00 : getOperandValue TD vp lc2 gl = ret gvp2)
   (H01 : gv_inject mi gvp gvp2)
   (bv2 : value)
   (ev2 : value)
   (bgv2 : GenericValue)
   (egv2 : GenericValue)
-  (J2 : getOperandValue TD Mem2 bv2 lc2 gl = ret bgv2)
-  (J3 : getOperandValue TD Mem2 ev2 lc2 gl = ret egv2)
+  (J2 : getOperandValue TD bv2 lc2 gl = ret bgv2)
+  (J3 : getOperandValue TD ev2 lc2 gl = ret egv2)
   (J4 : gv_inject mi md_base bgv2)
   (J5 : gv_inject mi md_bound egv2),
    dbCmd TD gl
@@ -937,7 +937,7 @@ Axiom get_mmetadata_fn__weaken : forall
   (gl : GVMap)
   (als : list mblock)
   (gvp2 : GenericValue)
-  (H00 : getOperandValue TD Mem2 vp lc2 gl = ret gvp2)
+  (H00 : getOperandValue TD vp lc2 gl = ret gvp2)
   (gv2 : GenericValue)
   (bgv' : GenericValue)
   (egv' : GenericValue)
@@ -1022,7 +1022,7 @@ Axiom set_mmetadata_fn__getOperandValue : forall
   (lc0 : GVMap)
   (gl0 : GVMap)
   (v0 : value),
-  getOperandValue TD Mem2' v0 lc0 gl0 = getOperandValue TD Mem2 v0 lc0 gl0.
+  getOperandValue TD v0 lc0 gl0 = getOperandValue TD v0 lc0 gl0.
 
 Axiom get_set_mmetadata_fn : forall
   (lc2 : AssocList GenericValue)
@@ -1039,8 +1039,8 @@ Axiom get_set_mmetadata_fn : forall
   (Mem2 : mem)
   (TD : TargetData)
   (Hlookup : lookupAL GenericValue lc2 ptmp = ret pgv')
-  (Hgetb : getOperandValue TD Mem2 bv0 lc2 gl = ret bgv')
-  (Hgete : getOperandValue TD Mem2 ev0 lc2 gl = ret egv')
+  (Hgetb : getOperandValue TD bv0 lc2 gl = ret bgv')
+  (Hgete : getOperandValue TD ev0 lc2 gl = ret egv')
   (Mem2' : mem)
   (J : dbCmd TD gl lc2 als Mem2
         (insn_call fake_id true sb_call_attrs set_mmetadata_typ set_mmetadata_fn
@@ -1061,7 +1061,7 @@ Axiom get_set_mmetadata_fn : forall
   (eid0 : id)
   (v0 : value)
   (pgv'0 : GenericValue)
-  (J3 : getOperandValue TD Mem2' v0 lc0 gl0 = ret pgv'0)
+  (J3 : getOperandValue TD v0 lc0 gl0 = ret pgv'0)
   (J2 : gv_inject mi (ptr2GV TD (Vptr b ofs0)) pgv'0)
   (Hinjp : gv_inject mi (ptr2GV TD (Vptr b ofs0)) pgv'),
   exists Mem2'0 : mem,

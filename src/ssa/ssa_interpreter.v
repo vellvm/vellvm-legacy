@@ -37,7 +37,7 @@ match state with
         if (Instruction.isCallInst c') 
         then 
           do Mem' <- free_allocas TD Mem0 als;
-          do lc'' <- returnUpdateLocals TD Mem' c' Result lc lc' gl;
+          do lc'' <- returnUpdateLocals TD c' Result lc lc' gl;
              ret ((mkState Sys TD Ps ((mkEC F' B' cs' tmn' 
                lc'' als')
                ::EC'') gl fs Mem'), trace_nil)
@@ -64,14 +64,14 @@ match state with
       end
     | insn_br bid Cond l1 l2 =>
       (* read the value of Cond *)
-      do cond0 <- (getOperandValue TD Mem0 Cond lc gl);
+      do cond0 <- (getOperandValue TD Cond lc gl);
       (* look up the target block *)
         match (if isGVZero TD cond0
                then lookupBlockViaLabelFromFdef F l2
                else lookupBlockViaLabelFromFdef F l1) with
         | None => None
         | Some (block_intro l' ps' cs' tmn') =>
-            do lc' <- (switchToNewBasicBlock TD Mem0 (block_intro l' ps' cs' 
+            do lc' <- (switchToNewBasicBlock TD (block_intro l' ps' cs' 
                       tmn') B gl lc);
                ret ((mkState Sys TD Ps ((mkEC F (block_intro l' ps' cs' tmn') cs'
                      tmn' lc' als)::EC) gl fs Mem0), trace_nil)
@@ -81,7 +81,7 @@ match state with
       match (lookupBlockViaLabelFromFdef F l0) with
       | None => None
       | Some (block_intro l' ps' cs' tmn') =>
-          do lc' <- (switchToNewBasicBlock TD Mem0 (block_intro l' ps' cs' tmn')
+          do lc' <- (switchToNewBasicBlock TD (block_intro l' ps' cs' tmn')
                      B gl lc);
           ret ((mkState Sys TD Ps ((mkEC F (block_intro l' ps' cs' tmn') cs' 
                  tmn' lc' als)::EC) gl fs Mem0), trace_nil)
@@ -92,27 +92,27 @@ match state with
   | c::cs => (* non-terminator *)
     match c with
     | insn_bop id0 bop0 sz0 v1 v2 => 
-      do gv3 <- BOP TD Mem0 lc gl bop0 sz0 v1 v2;
+      do gv3 <- BOP TD lc gl bop0 sz0 v1 v2;
          ret ((mkState Sys TD Ps ((mkEC F B cs tmn (updateAddAL _ lc id0 gv3) 
               als)::EC) gl fs Mem0), trace_nil)         
     | insn_fbop id0 fbop0 fp0 v1 v2 => 
-      do gv3 <- FBOP TD Mem0 lc gl fbop0 fp0 v1 v2;
+      do gv3 <- FBOP TD lc gl fbop0 fp0 v1 v2;
          ret ((mkState Sys TD Ps ((mkEC F B cs tmn (updateAddAL _ lc id0 gv3) 
               als)::EC) gl fs Mem0), trace_nil)         
     | insn_extractvalue id0 t v idxs =>
-      do gv <- getOperandValue TD Mem0 v lc gl;
+      do gv <- getOperandValue TD v lc gl;
       do gv' <- extractGenericValue TD t gv idxs;
          ret ((mkState Sys TD Ps ((mkEC F B cs tmn (updateAddAL _ lc id0 gv')
                als)::EC) gl fs Mem0), trace_nil)
     | insn_insertvalue id0 t v t' v' idxs =>
-      do gv <- getOperandValue TD Mem0 v lc gl;
-      do gv' <- getOperandValue TD Mem0 v' lc gl;
+      do gv <- getOperandValue TD v lc gl;
+      do gv' <- getOperandValue TD v' lc gl;
       do gv'' <- insertGenericValue TD t gv idxs t' gv';
          ret ((mkState Sys TD Ps ((mkEC F B cs tmn (updateAddAL _ lc id0 gv'') 
               als)::EC) gl fs Mem0), trace_nil)
     | insn_malloc id0 t v0 align0 =>
       do tsz <- getTypeAllocSize TD t;
-      do gn <- getOperandValue TD Mem0 v0 lc gl;
+      do gn <- getOperandValue TD v0 lc gl;
       match (malloc TD Mem0 tsz gn align0) with
       | None => None
       | Some (Mem', mb) =>
@@ -121,13 +121,13 @@ match state with
             trace_nil)
       end
     | insn_free fid t v =>
-      do mptr <- getOperandValue TD Mem0 v lc gl;
+      do mptr <- getOperandValue TD v lc gl;
       do Mem' <- free TD Mem0 mptr;
          ret ((mkState Sys TD Ps ((mkEC F B cs tmn lc als)::EC) gl fs Mem'), 
                trace_nil)
     | insn_alloca id0 t v0 align0 =>
       do tsz <- getTypeAllocSize TD t;
-      do gn <- getOperandValue TD Mem0 v0 lc gl;
+      do gn <- getOperandValue TD v0 lc gl;
       match (malloc TD Mem0 tsz gn align0) with
       | None => None
       | Some (Mem', mb) =>
@@ -136,47 +136,47 @@ match state with
                trace_nil)
       end
     | insn_load id0 t v align0 =>
-      do mp <- getOperandValue TD Mem0 v lc gl;
+      do mp <- getOperandValue TD v lc gl;
       do gv <- mload TD Mem0 mp t align0;
          ret ((mkState Sys TD Ps ((mkEC F B cs tmn (updateAddAL _ lc id0 gv) als)
               ::EC) gl fs Mem0), trace_nil)
     | insn_store sid t v1 v2 align0 =>
-      do gv1 <- getOperandValue TD Mem0 v1 lc gl;
-      do mp2 <- getOperandValue TD Mem0 v2 lc gl;
+      do gv1 <- getOperandValue TD v1 lc gl;
+      do mp2 <- getOperandValue TD v2 lc gl;
       do Mem' <- mstore TD Mem0 mp2 t gv1 align0;
          ret ((mkState Sys TD Ps ((mkEC F B cs tmn lc als)::EC) gl fs Mem'),
              trace_nil)
     | insn_gep id0 inbounds0 t v idxs =>
-      do mp <- getOperandValue TD Mem0 v lc gl;
-      do vidxs <- values2GVs TD Mem0 idxs lc gl;
+      do mp <- getOperandValue TD v lc gl;
+      do vidxs <- values2GVs TD idxs lc gl;
       do mp' <- GEP TD t mp vidxs inbounds0;
          ret ((mkState Sys TD Ps ((mkEC F B cs tmn (updateAddAL _ lc id0 mp') 
                als)::EC) gl fs Mem0), trace_nil)
     | insn_trunc id0 truncop0 t1 v1 t2 =>
-      do gv2 <- TRUNC TD Mem0 lc gl truncop0 t1 v1 t2;
+      do gv2 <- TRUNC TD lc gl truncop0 t1 v1 t2;
          ret ((mkState Sys TD Ps ((mkEC F B cs tmn (updateAddAL _ lc id0 gv2)
                als)::EC) gl fs Mem0), trace_nil)
     | insn_ext id0 extop0 t1 v1 t2 =>
-      do gv2 <- EXT TD Mem0 lc gl extop0 t1 v1 t2;
+      do gv2 <- EXT TD lc gl extop0 t1 v1 t2;
          ret ((mkState Sys TD Ps ((mkEC F B cs tmn (updateAddAL _ lc id0 gv2)
                als)::EC) gl fs Mem0), trace_nil)
     | insn_cast id0 castop0 t1 v1 t2 =>
-      do gv2 <- CAST TD Mem0 lc gl castop0 t1 v1 t2;
+      do gv2 <- CAST TD lc gl castop0 t1 v1 t2;
          ret ((mkState Sys TD Ps ((mkEC F B cs tmn (updateAddAL _ lc id0 gv2) 
                als)::EC) gl fs Mem0), trace_nil)
 
     | insn_icmp id0 cond0 t v1 v2 =>
-      do gv3 <- ICMP TD Mem0 lc gl cond0 t v1 v2;
+      do gv3 <- ICMP TD lc gl cond0 t v1 v2;
          ret ((mkState Sys TD Ps ((mkEC F B cs tmn (updateAddAL _ lc id0 gv3) 
                als)::EC) gl fs Mem0), trace_nil)
     | insn_fcmp id0 fcond0 fp v1 v2 =>
-      do gv3 <- FCMP TD Mem0 lc gl fcond0 fp v1 v2;
+      do gv3 <- FCMP TD lc gl fcond0 fp v1 v2;
          ret ((mkState Sys TD Ps ((mkEC F B cs tmn (updateAddAL _ lc id0 gv3) 
                als)::EC) gl fs Mem0), trace_nil)
     | insn_select id0 v0 t v1 v2 =>
-      do cond0 <- getOperandValue TD Mem0 v0 lc gl;
-      do gv1 <- getOperandValue TD Mem0 v1 lc gl;
-      do gv2 <- getOperandValue TD Mem0 v2 lc gl;
+      do cond0 <- getOperandValue TD v0 lc gl;
+      do gv1 <- getOperandValue TD v1 lc gl;
+      do gv2 <- getOperandValue TD v2 lc gl;
          ret ((mkState Sys TD Ps ((mkEC F B cs tmn 
                 (if isGVZero TD cond0 then updateAddAL _ lc id0 gv2 
                  else updateAddAL _ lc id0 gv1) als)::EC) gl fs Mem0),
@@ -184,7 +184,7 @@ match state with
     | insn_call rid noret0 tailc0 ft fv lp =>
       (* only look up the current module for the time being, 
          do not support linkage. *)
-      do fptr <- getOperandValue TD Mem0 fv lc gl;
+      do fptr <- getOperandValue TD fv lc gl;
       do fid <- lookupFdefViaGVFromFunTable fs fptr;
       match (lookupFdefViaIDFromProducts Ps fid) with
       | None => 
@@ -192,7 +192,7 @@ match state with
         | None => None
         | Some (fdec_intro (fheader_intro fa rt' fid' la va)) =>
           if id_dec fid fid' then
-            do gvs <- params2GVs TD Mem0 lp lc gl;
+            do gvs <- params2GVs TD lp lc gl;
               match (callExternalFunction Mem0 fid gvs)
               with
               | Some (oresult, Mem1) =>
@@ -211,7 +211,7 @@ match state with
               with
             | None => None
             | Some (block_intro l' ps' cs' tmn') =>
-                do gvs <- params2GVs TD Mem0 lp lc gl;
+                do gvs <- params2GVs TD lp lc gl;
                 ret ((mkState Sys TD Ps ((mkEC (fdef_intro 
                       (fheader_intro fa rt fid la va) lb) 
                       (block_intro l' ps' cs' tmn') cs' tmn' 
@@ -243,7 +243,7 @@ Proof.
     simpl. rewrite <- H. simpl. rewrite H0. simpl. auto.
   Case "dsCall".
     unfold lookupFdefViaGV in H.
-    destruct (getOperandValue TD Mem0 fv lc gl); try solve [inversion H]. simpl.
+    destruct (getOperandValue TD fv lc gl); try solve [inversion H]. simpl.
     simpl in H.
     destruct (lookupFdefViaGVFromFunTable fs g); try solve [inversion H]. simpl.
     simpl in H. rewrite H. simpl in H0. rewrite H0. 
@@ -255,7 +255,7 @@ Proof.
       contradict n; auto.
   Case "dsExCall".
     unfold lookupExFdecViaGV in H.
-    destruct (getOperandValue TD Mem0 fv lc gl); try solve [inversion H]. simpl.
+    destruct (getOperandValue TD fv lc gl); try solve [inversion H]. simpl.
     simpl in H.
     destruct (lookupFdefViaGVFromFunTable fs g); try solve [inversion H]. simpl.
     simpl in H.
@@ -294,7 +294,7 @@ Proof.
             destruct R1; try solve [inversion HinterInsn].
             destruct R2; try solve [inversion HinterInsn]. 
             simpl in HinterInsn.
-            remember (returnUpdateLocals CurTargetData0 m c v lc lc' Globals0)
+            remember (returnUpdateLocals CurTargetData0 c v lc lc' Globals0)
               as R3.
             destruct R3; inversion HinterInsn; subst; eauto.
 
@@ -314,7 +314,7 @@ Proof.
             destruct R2; inversion HinterInsn; subst; eauto.
 
       Case "insn_br".
-        remember (getOperandValue CurTargetData0 Mem0 v lc Globals0) as R1.
+        remember (getOperandValue CurTargetData0 v lc Globals0) as R1.
         destruct R1; try solve [inversion HinterInsn].
           simpl in HinterInsn.
           remember (isGVZero CurTargetData0 g) as R3.
@@ -322,7 +322,7 @@ Proof.
             remember (lookupBlockViaLabelFromFdef F l1) as R2.
             destruct R2; inversion HinterInsn; subst.
               destruct b.
-              remember (switchToNewBasicBlock CurTargetData0 Mem0 
+              remember (switchToNewBasicBlock CurTargetData0
                 (block_intro l2 p c t) B Globals0 lc) as R4.
               destruct R4; inversion HinterInsn; subst.
               eapply dsBranch; eauto.
@@ -331,7 +331,7 @@ Proof.
             remember (lookupBlockViaLabelFromFdef F l0) as R2.
             destruct R2; inversion HinterInsn; subst.
               destruct b.
-              remember (switchToNewBasicBlock CurTargetData0 Mem0 
+              remember (switchToNewBasicBlock CurTargetData0
                 (block_intro l2 p c t) B Globals0 lc) as R4.
               destruct R4; inversion HinterInsn; subst.
               eapply dsBranch; eauto.    
@@ -341,7 +341,7 @@ Proof.
         remember (lookupBlockViaLabelFromFdef F l0) as R2.
         destruct R2; inversion HinterInsn; subst.
           destruct b.
-          remember (switchToNewBasicBlock CurTargetData0 Mem0 
+          remember (switchToNewBasicBlock CurTargetData0
             (block_intro l1 p c t) B Globals0 lc) as R3.
           destruct R3; inversion HinterInsn; subst.
           inversion HinterInsn; subst; eauto.
@@ -351,19 +351,19 @@ Proof.
                     
       destruct c.
       Case "insn_bop".
-        remember (BOP CurTargetData0 Mem0 lc Globals0 b s v v0) as R1.
+        remember (BOP CurTargetData0 lc Globals0 b s v v0) as R1.
         destruct R1; 
           simpl in HinterInsn;
           inversion HinterInsn; subst; eauto.
           
       Case "insn_fbop".
-        remember (FBOP CurTargetData0 Mem0 lc Globals0 f f0 v v0) as R1.
+        remember (FBOP CurTargetData0 lc Globals0 f f0 v v0) as R1.
         destruct R1; 
           simpl in HinterInsn;
           inversion HinterInsn; subst; eauto.
 
       Case "insn_extractvalue".
-        remember (getOperandValue CurTargetData0 Mem0 v lc Globals0) as R1.
+        remember (getOperandValue CurTargetData0 v lc Globals0) as R1.
         destruct R1; simpl in HinterInsn; 
           try solve [inversion HinterInsn].         
         remember (extractGenericValue CurTargetData0 t g l0) as R2.
@@ -371,10 +371,10 @@ Proof.
           inversion HinterInsn; subst; eauto.
 
       Case "insn_insertvalue".
-        remember (getOperandValue CurTargetData0 Mem0 v lc Globals0) as R1.
+        remember (getOperandValue CurTargetData0 v lc Globals0) as R1.
         destruct R1; simpl in HinterInsn; 
           try solve [inversion HinterInsn].         
-        remember (getOperandValue CurTargetData0 Mem0 v0 lc Globals0) as R2.
+        remember (getOperandValue CurTargetData0 v0 lc Globals0) as R2.
         destruct R2; simpl in HinterInsn; 
           try solve [inversion HinterInsn].         
         remember (insertGenericValue CurTargetData0 t g l0 t0 g0) as R3.
@@ -385,7 +385,7 @@ Proof.
         remember (getTypeAllocSize CurTargetData0 t) as R1.
         destruct R1; simpl in HinterInsn; 
           try solve [inversion HinterInsn]. 
-        remember (getOperandValue CurTargetData0 Mem0 v lc Globals0) as R3.
+        remember (getOperandValue CurTargetData0 v lc Globals0) as R3.
         destruct R3; simpl in HinterInsn;
           try solve [inversion HinterInsn].         
         remember (malloc CurTargetData0 Mem0 s g a) as R2.
@@ -395,7 +395,7 @@ Proof.
           inversion HinterInsn; subst; eauto.
           
       Case "insn_free".
-        remember (getOperandValue CurTargetData0 Mem0 v lc Globals0) as R1.
+        remember (getOperandValue CurTargetData0 v lc Globals0) as R1.
         destruct R1; simpl in HinterInsn; 
           try solve [inversion HinterInsn].         
         remember (free CurTargetData0 Mem0 g) as R2.
@@ -406,7 +406,7 @@ Proof.
         remember (getTypeAllocSize CurTargetData0 t) as R1.
         destruct R1; simpl in HinterInsn; 
           try solve [inversion HinterInsn].         
-        remember (getOperandValue CurTargetData0 Mem0 v lc Globals0) as R3.
+        remember (getOperandValue CurTargetData0 v lc Globals0) as R3.
         destruct R3; simpl in HinterInsn;
           try solve [inversion HinterInsn].         
         remember (malloc CurTargetData0 Mem0 s g a) as R2.
@@ -416,7 +416,7 @@ Proof.
           inversion HinterInsn; subst; eauto.
           
       Case "insn_load".
-        remember (getOperandValue CurTargetData0 Mem0 v lc Globals0) as R1.
+        remember (getOperandValue CurTargetData0 v lc Globals0) as R1.
         destruct R1; simpl in HinterInsn; 
           try solve [inversion HinterInsn].         
         remember (mload CurTargetData0 Mem0 g t a) as R2.
@@ -424,10 +424,10 @@ Proof.
           inversion HinterInsn; subst; eauto.
           
       Case "insn_store".
-        remember (getOperandValue CurTargetData0 Mem0 v lc Globals0) as R1.
+        remember (getOperandValue CurTargetData0 v lc Globals0) as R1.
         destruct R1; simpl in HinterInsn; 
           try solve [inversion HinterInsn].         
-        remember (getOperandValue CurTargetData0 Mem0 v0 lc Globals0) as R2.
+        remember (getOperandValue CurTargetData0 v0 lc Globals0) as R2.
         destruct R2; simpl in HinterInsn; 
           try solve [inversion HinterInsn].         
         remember (mstore CurTargetData0 Mem0 g0 t g a) as R3.
@@ -435,10 +435,10 @@ Proof.
           inversion HinterInsn; subst; eauto.
           
       Case "insn_gep".
-        remember (getOperandValue CurTargetData0 Mem0 v lc Globals0) as R1.
+        remember (getOperandValue CurTargetData0 v lc Globals0) as R1.
         destruct R1; simpl in HinterInsn; 
           try solve [inversion HinterInsn].         
-        remember (values2GVs CurTargetData0 Mem0 l0 lc Globals0) as R3.
+        remember (values2GVs CurTargetData0 l0 lc Globals0) as R3.
         destruct R3; simpl in HinterInsn; 
           try solve [inversion HinterInsn].         
         remember (GEP CurTargetData0 t g l1 i1) as R2.
@@ -446,44 +446,44 @@ Proof.
           inversion HinterInsn; subst; eauto.
 
       Case "insn_trunc".
-        remember (TRUNC CurTargetData0 Mem0 lc Globals0 t t0 v t1) as R.
+        remember (TRUNC CurTargetData0 lc Globals0 t t0 v t1) as R.
         destruct R; simpl in HinterInsn; 
           inversion HinterInsn; subst; eauto.
 
       Case "insn_ext".
-        remember (EXT CurTargetData0 Mem0 lc Globals0 e t v t0) as R.
+        remember (EXT CurTargetData0 lc Globals0 e t v t0) as R.
         destruct R; simpl in HinterInsn; 
           inversion HinterInsn; subst; eauto.
 
       Case "insn_cast".
-        remember (CAST CurTargetData0 Mem0 lc Globals0 c t v t0) as R.
+        remember (CAST CurTargetData0 lc Globals0 c t v t0) as R.
         destruct R; simpl in HinterInsn; 
           inversion HinterInsn; subst; eauto.
 
       Case "insn_icmp".
-        remember (ICMP CurTargetData0 Mem0 lc Globals0 c t v v0) as R.
+        remember (ICMP CurTargetData0 lc Globals0 c t v v0) as R.
         destruct R; simpl in HinterInsn; 
           inversion HinterInsn; subst; eauto.
 
       Case "insn_fcmp".
-        remember (FCMP CurTargetData0 Mem0 lc Globals0 f f0 v v0) as R.
+        remember (FCMP CurTargetData0 lc Globals0 f f0 v v0) as R.
         destruct R; simpl in HinterInsn; 
           inversion HinterInsn; subst; eauto.
 
       Case "insn_select".
-        remember (getOperandValue CurTargetData0 Mem0 v lc Globals0) as R1.
+        remember (getOperandValue CurTargetData0 v lc Globals0) as R1.
         destruct R1; simpl in HinterInsn; 
           try solve [inversion HinterInsn].         
-        remember (getOperandValue CurTargetData0 Mem0 v0 lc Globals0) as R2.
+        remember (getOperandValue CurTargetData0 v0 lc Globals0) as R2.
         destruct R2; simpl in HinterInsn; 
           try solve [inversion HinterInsn].         
-        remember (getOperandValue CurTargetData0 Mem0 v1 lc Globals0) as R3.
+        remember (getOperandValue CurTargetData0 v1 lc Globals0) as R3.
         destruct R3; simpl in HinterInsn; 
           try solve [inversion HinterInsn].
         inversion HinterInsn; subst; eauto.
 
       Case "insn_call".
-        remember (getOperandValue CurTargetData0 Mem0 v lc Globals0) as R0.
+        remember (getOperandValue CurTargetData0 v lc Globals0) as R0.
         destruct R0; try solve [inversion HinterInsn]. simpl in HinterInsn.
         remember (lookupFdefViaGVFromFunTable FunTable0 g) as R4.
         destruct R4; try solve [inversion HinterInsn]. simpl in HinterInsn.
@@ -493,7 +493,7 @@ Proof.
           destruct (id_dec i1 i2); try solve [inversion HinterInsn]; subst.
           destruct b; try solve [inversion HinterInsn].
           destruct b.
-          remember (params2GVs CurTargetData0 Mem0 p lc Globals0) as R10.
+          remember (params2GVs CurTargetData0 p lc Globals0) as R10.
           destruct R10; try solve [inversion HinterInsn]. simpl in HinterInsn.
           inversion HinterInsn; subst.
           eapply dsCall; eauto.
@@ -507,7 +507,7 @@ Proof.
             try solve [inversion HinterInsn].
             destruct f. destruct f.
             destruct (id_dec i1 i2); try solve [inversion HinterInsn]; subst.
-            remember (params2GVs CurTargetData0 Mem0 p lc Globals0) as R5.
+            remember (params2GVs CurTargetData0 p lc Globals0) as R5.
             destruct R5; try solve [inversion HinterInsn]; subst.
             simpl in HinterInsn.
             remember (callExternalFunction Mem0 i2 l0) as R3.

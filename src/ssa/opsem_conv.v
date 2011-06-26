@@ -18,10 +18,10 @@ Export LLVMlib.
 Export LLVMopsem.
 
 Lemma func_callUpdateLocals_is_returnUpdateLocals : 
-  forall TD Mem rid noret0 tailc0 ft fid lp Result lc lc' gl,
-  returnUpdateLocals TD Mem (insn_call rid noret0 tailc0 ft fid lp) Result 
+  forall TD rid noret0 tailc0 ft fid lp Result lc lc' gl,
+  returnUpdateLocals TD (insn_call rid noret0 tailc0 ft fid lp) Result 
     lc lc' gl =
-  callUpdateLocals TD Mem noret0 rid (Some Result) lc' lc gl.
+  callUpdateLocals TD  noret0 rid (Some Result) lc' lc gl.
 Proof.
   intros.
   unfold returnUpdateLocals. 
@@ -30,8 +30,8 @@ Proof.
   destruct noret0; auto.
 Qed.
 
-Lemma proc_callUpdateLocals_is_id : forall TD Mem rid noret0 lc lc' gl lc'',
-  callUpdateLocals TD Mem noret0 rid None lc' lc gl = Some lc'' -> 
+Lemma proc_callUpdateLocals_is_id : forall TD rid noret0 lc lc' gl lc'',
+  callUpdateLocals TD noret0 rid None lc' lc gl = Some lc'' -> 
   lc' = lc'' /\ noret0 = true.
 Proof.
   intros.
@@ -211,11 +211,11 @@ als' Mem' B'' rid oResult tr
   := 
   match oResult with
   | Some Result => forall fid l' ps' cs' tmn' fa la va lb gvs,
-    lookupFdefViaGV TD Mem Ps gl lc fs fv =
+    lookupFdefViaGV TD Ps gl lc fs fv =
       Some (fdef_intro (fheader_intro fa rt fid la va) lb) ->
     getEntryBlock (fdef_intro (fheader_intro fa rt fid la va) lb) = 
       Some (block_intro l' ps' cs' tmn') ->
-    params2GVs TD Mem lp lc gl = Some gvs ->
+    params2GVs TD lp lc gl = Some gvs ->
     dsop_star
       (mkState S TD Ps ((mkEC (fdef_intro (fheader_intro fa rt fid la va) lb) 
                               (block_intro l' ps' cs' tmn') cs' tmn' 
@@ -227,11 +227,11 @@ als' Mem' B'' rid oResult tr
                                Mem')
       tr
   | None => forall fid l' ps' cs' tmn' fa la va lb gvs,
-    lookupFdefViaGV TD Mem Ps gl lc fs fv = 
+    lookupFdefViaGV TD Ps gl lc fs fv = 
       Some (fdef_intro (fheader_intro fa rt fid la va) lb) ->
     getEntryBlock (fdef_intro (fheader_intro fa rt fid la va) lb) = 
       Some (block_intro l' ps' cs' tmn') ->  
-    params2GVs TD Mem lp lc gl = Some gvs ->
+    params2GVs TD lp lc gl = Some gvs ->
     dsop_star
       (mkState S TD Ps ((mkEC (fdef_intro (fheader_intro fa rt fid la va) lb) 
                               (block_intro l' ps' cs' tmn') cs' tmn' 
@@ -362,11 +362,11 @@ Lemma dbFdef_func__implies__dsop_star : forall fv fid rt lp S TD Ps ECs lc gl fs
     Mem lc' als' Mem' B'' rid Result tr l' ps' cs' tmn' fa la va lb gvs,
   dbFdef fv rt lp S TD Ps ECs lc gl fs Mem lc' als' Mem' B'' rid (Some Result) 
     tr ->
-  lookupFdefViaGV TD Mem Ps gl lc fs fv = 
+  lookupFdefViaGV TD Ps gl lc fs fv = 
     Some (fdef_intro (fheader_intro fa rt fid la va) lb) ->
   getEntryBlock (fdef_intro (fheader_intro fa rt fid la va) lb) = 
     Some (block_intro l' ps' cs' tmn') ->
-  params2GVs TD Mem lp lc gl = Some gvs ->
+  params2GVs TD lp lc gl = Some gvs ->
   dsop_star 
     (mkState S TD Ps ((mkEC (fdef_intro (fheader_intro fa rt fid la va) lb) 
                              (block_intro l' ps' cs' tmn') cs' tmn' 
@@ -387,11 +387,11 @@ Qed.
 Lemma dbFdef_proc__implies__dsop_star : forall fv fid rt lp S TD Ps ECs lc gl fs
     Mem lc' als' Mem' B'' rid tr l' ps' cs' tmn' fa la va lb gvs,
   dbFdef fv rt lp S TD Ps ECs lc gl fs  Mem lc' als' Mem' B'' rid None tr ->
-  lookupFdefViaGV TD Mem Ps gl lc fs fv = 
+  lookupFdefViaGV TD Ps gl lc fs fv = 
     Some (fdef_intro (fheader_intro fa rt fid la va) lb) ->
   getEntryBlock (fdef_intro (fheader_intro fa rt fid la va) lb) = 
     Some (block_intro l' ps' cs' tmn') ->
-  params2GVs TD Mem lp lc gl = Some gvs ->
+  params2GVs TD lp lc gl = Some gvs ->
   dsop_star 
     (mkState S TD Ps ((mkEC (fdef_intro (fheader_intro fa rt fid la va) lb) 
                             (block_intro l' ps' cs' tmn') cs' tmn' 
@@ -440,11 +440,11 @@ Qed.
 Lemma dbFdefInf__implies__dsop_diverges : forall fv fid rt lp S TD Ps ECs lc gl 
     fs Mem tr l' ps' cs' tmn' fa la va lb gvs,
   dbFdefInf fv rt lp S TD Ps ECs lc gl fs Mem tr ->
-  lookupFdefViaGV TD Mem Ps gl lc fs fv = 
+  lookupFdefViaGV TD Ps gl lc fs fv = 
     Some (fdef_intro (fheader_intro fa rt fid la va) lb) ->
   getEntryBlock (fdef_intro (fheader_intro fa rt fid la va) lb) = 
     Some (block_intro l' ps' cs' tmn') ->
-  params2GVs TD Mem lp lc gl = Some gvs ->
+  params2GVs TD lp lc gl = Some gvs ->
   dsop_diverges 
     (mkState S TD Ps ((mkEC (fdef_intro (fheader_intro fa rt fid la va) lb) 
                         (block_intro l' ps' cs' tmn') cs' tmn'
@@ -571,11 +571,11 @@ lc_gl_als_Mem_block_rid_ore_trs
 (nb:nbFdef fv rt lp S TD Ps ECs lc gl fs Mem tr lc_gl_als_Mem_block_rid_ore_trs)
   := 
   forall fid l' ps' cs' tmn' fa la va lb gvs,
-  lookupFdefViaGV TD Mem Ps gl lc fs fv = 
+  lookupFdefViaGV TD Ps gl lc fs fv = 
     Some (fdef_intro (fheader_intro fa rt fid la va) lb) ->
   getEntryBlock (fdef_intro (fheader_intro fa rt fid la va) lb) = 
     Some (block_intro l' ps' cs' tmn') ->
-  params2GVs TD Mem lp lc gl = Some gvs ->
+  params2GVs TD lp lc gl = Some gvs ->
   nsop_star
     ((mkState S TD Ps ((mkEC (fdef_intro (fheader_intro fa rt fid la va) lb) 
                             (block_intro l' ps' cs' tmn') cs' tmn' 
@@ -612,7 +612,7 @@ Proof.
     SCase "noret = true".
       remember (free_allocas TD Mem' als') as Mem''.
       destruct Mem''; simpl in H; try solve [inversion H; subst].
-      remember (getOperandValue TD m re lc' gl) as ogv.
+      remember (getOperandValue TD re lc' gl) as ogv.
       destruct ogv as [g |]; try solve [inversion H].      
       remember (updateStatesFromReturns S TD Ps F B cs tmn lc0 gl fs rid als
         EC true lc_als_Mem_block_rid_ore_trs) as states2.
@@ -631,7 +631,7 @@ Proof.
     SCase "noret=false".
       remember (free_allocas TD Mem' als') as Mem''.
       destruct Mem''; simpl in H; try solve [inversion H].
-      remember (getOperandValue TD m re lc' gl) as ogv.
+      remember (getOperandValue TD re lc' gl) as ogv.
       destruct ogv as [g |]; try solve [inversion H].
       remember (updateStatesFromReturns S TD Ps F B cs tmn lc0 gl fs rid 
         als EC false lc_als_Mem_block_rid_ore_trs) as states2.
@@ -854,11 +854,11 @@ Qed.
 Lemma nbFdef__implies__nsop_star : forall fv fid rt lp S TD Ps ECs lc gl fs Mem 
   tr lc_gl_als_Mem_block_rid_re_trs l' ps' cs' tmn' fa la va lb gvs,
   nbFdef fv rt lp S TD Ps ECs lc gl fs Mem tr lc_gl_als_Mem_block_rid_re_trs ->
-  lookupFdefViaGV TD Mem Ps gl lc fs fv = 
+  lookupFdefViaGV TD Ps gl lc fs fv = 
     Some (fdef_intro (fheader_intro fa rt fid la va) lb) ->
   getEntryBlock (fdef_intro (fheader_intro fa rt fid la va) lb) = 
     Some (block_intro l' ps' cs' tmn') ->
-  params2GVs TD Mem lp lc gl = Some gvs ->
+  params2GVs TD lp lc gl = Some gvs ->
   nsop_star
     ((mkState S TD Ps ((mkEC (fdef_intro (fheader_intro fa rt fid la va) lb) 
      (block_intro l' ps' cs' tmn') cs' tmn' 
@@ -906,11 +906,11 @@ Qed.
 Lemma nbFdefInf__implies__nsop_diverges : forall fv fid rt lp S TD Ps ECs lc gl 
   fs Mem tr l' ps' cs' tmn' fa la va lb trs' gvs,
   nbFdefInf fv rt lp S TD Ps ECs lc gl fs Mem tr trs' ->
-  lookupFdefViaGV TD Mem Ps gl lc fs fv = 
+  lookupFdefViaGV TD Ps gl lc fs fv = 
     Some (fdef_intro (fheader_intro fa rt fid la va) lb) ->
   getEntryBlock (fdef_intro (fheader_intro fa rt fid la va) lb) = 
     Some (block_intro l' ps' cs' tmn') ->
-  params2GVs TD Mem lp lc gl = Some gvs ->
+  params2GVs TD lp lc gl = Some gvs ->
   nsop_diverges 
     ((mkState S TD Ps ((mkEC (fdef_intro (fheader_intro fa rt fid la va) lb) 
       (block_intro l' ps' cs' tmn') cs' tmn'

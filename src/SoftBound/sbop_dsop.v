@@ -48,19 +48,19 @@ Definition sbState_simulates_State (sbSt:SBopsem.State) (St:LLVMopsem.State)
       gl1 = gl2 /\ fs1 = fs2 /\ M1 = M2
   end.
 
-Lemma returnUpdateLocals_sim : forall TD' Mem' c' rt Result lc1' lc2' rm rm' gl' 
+Lemma returnUpdateLocals_sim : forall TD' c' rt Result lc1' lc2' rm rm' gl' 
     lc'' rm'', 
-  SBopsem.returnUpdateLocals TD' Mem' c' rt Result lc1' lc2' rm rm' gl' = 
+  SBopsem.returnUpdateLocals TD' c' rt Result lc1' lc2' rm rm' gl' = 
     ret (lc'', rm'') ->
-  returnUpdateLocals TD' Mem' c' Result lc1' lc2' gl' = ret lc''.
+  returnUpdateLocals TD' c' Result lc1' lc2' gl' = ret lc''.
 Proof.
   intros.  
   unfold SBopsem.returnUpdateLocals, SBopsem.returnResult in H.
   unfold returnUpdateLocals.
-  destruct (getOperandValue TD' Mem' Result lc1' gl'); 
+  destruct (getOperandValue TD' Result lc1' gl'); 
     try solve [inversion H; auto].
   destruct (isPointerTypB rt); try solve [inversion H; auto].
-    destruct (SBopsem.get_reg_metadata TD' Mem' gl' rm Result) as [[md ?]|]; 
+    destruct (SBopsem.get_reg_metadata TD' gl' rm Result) as [[md ?]|]; 
       try solve [inversion H; auto].
     destruct c'; try solve [inversion H; auto].
     destruct n; try solve [inversion H; auto].
@@ -88,12 +88,12 @@ Proof.
   destruct ft; inversion H; auto.
 Qed.
 
-Lemma getIncomingValuesForBlockFromPHINodes_sim : forall ps TD' M' b1' gl' lc1'
+Lemma getIncomingValuesForBlockFromPHINodes_sim : forall ps TD' b1' gl' lc1'
     rm l1,
-  SBopsem.getIncomingValuesForBlockFromPHINodes TD' M' ps b1' gl' lc1' rm =
+  SBopsem.getIncomingValuesForBlockFromPHINodes TD' ps b1' gl' lc1' rm =
     Some l1 ->
   exists l2, exists l3, 
-    getIncomingValuesForBlockFromPHINodes TD' M' ps b1' gl' lc1' = Some l2 /\ 
+    getIncomingValuesForBlockFromPHINodes TD' ps b1' gl' lc1' = Some l2 /\ 
     split l1 = (l2, l3).
 Proof.
   induction ps; simpl; intros.
@@ -102,9 +102,9 @@ Proof.
 
     destruct a. unfold SBopsem.get_reg_metadata in H.
     destruct (getValueViaBlockFromValuels l0 b1'); try solve [inversion H].
-    remember (getOperandValue TD' M' v lc1' gl') as R0.
+    remember (getOperandValue TD' v lc1' gl') as R0.
     destruct R0; try solve [inversion H].
-    remember (SBopsem.getIncomingValuesForBlockFromPHINodes TD' M' ps b1' gl'
+    remember (SBopsem.getIncomingValuesForBlockFromPHINodes TD' ps b1' gl'
           lc1' rm) as R.
     destruct R; try solve [inversion H].
     symmetry in HeqR.
@@ -120,8 +120,8 @@ Proof.
         destruct (
           match SBopsem.get_const_metadata c with
          | ret (bc, ec) =>
-             do gvb <- const2GV TD' M' gl' bc;
-             (do gve <- const2GV TD' M' gl' ec;
+             do gvb <- const2GV TD' gl' bc;
+             (do gve <- const2GV TD' gl' ec;
               ret {| SBopsem.md_base := gvb; SBopsem.md_bound := gve |})
          | merror =>
              ret {| SBopsem.md_base := null; SBopsem.md_bound := null |}
@@ -159,14 +159,14 @@ Proof.
       erewrite IHl0 with (lc1':=lc1'); eauto.
 Qed.
 
-Lemma switchToNewBasicBlock_sim : forall TD' M' b' b1' gl' lc1' rm lc' rm',
-  SBopsem.switchToNewBasicBlock TD' M' b' b1' gl' lc1' rm = ret (lc', rm') ->
-  switchToNewBasicBlock TD' M' b' b1' gl' lc1' = ret lc'.
+Lemma switchToNewBasicBlock_sim : forall TD' b' b1' gl' lc1' rm lc' rm',
+  SBopsem.switchToNewBasicBlock TD' b' b1' gl' lc1' rm = ret (lc', rm') ->
+  switchToNewBasicBlock TD' b' b1' gl' lc1' = ret lc'.
 Proof.
   intros.
   unfold SBopsem.switchToNewBasicBlock in H.
   unfold switchToNewBasicBlock.
-  remember (SBopsem.getIncomingValuesForBlockFromPHINodes TD' M'
+  remember (SBopsem.getIncomingValuesForBlockFromPHINodes TD'
     (getPHINodesFromBlock b') b1' gl' lc1' rm) as R.
   destruct R; try solve [inversion H].
   symmetry in HeqR.
@@ -178,9 +178,9 @@ Proof.
   rewrite H1. auto.
 Qed.
 
-Lemma params2GVs_sim : forall lp gl' TD' M' lc1' rm ogvs,
-  SBopsem.params2GVs TD' M' lp lc1' gl' rm = ret ogvs ->
-  exists gvs, exists l2, params2GVs TD' M' lp lc1' gl' = ret gvs /\
+Lemma params2GVs_sim : forall lp gl' TD' lc1' rm ogvs,
+  SBopsem.params2GVs TD' lp lc1' gl' rm = ret ogvs ->
+  exists gvs, exists l2, params2GVs TD' lp lc1' gl' = ret gvs /\
     split ogvs = (gvs, l2).
 Proof.
   induction lp; simpl; intros.
@@ -188,8 +188,8 @@ Proof.
     exists nil. exists nil. auto.
 
     destruct a.
-    destruct (getOperandValue TD' M' v lc1' gl'); try solve [inversion H; subst].
-    remember (SBopsem.params2GVs TD' M' lp lc1' gl' rm) as R.
+    destruct (getOperandValue TD' v lc1' gl'); try solve [inversion H; subst].
+    remember (SBopsem.params2GVs TD' lp lc1' gl' rm) as R.
     destruct R; try solve [inversion H].
     symmetry in HeqR.
     apply IHlp in HeqR; auto.      
@@ -230,10 +230,10 @@ Proof.
         destruct o; try solve [inversion H; subst; auto].
 Qed.
 
-Lemma initLocals_params2GVs_sim : forall lp gl' TD' M' lc1' rm ogvs la lc' rm',
-  SBopsem.params2GVs TD' M' lp lc1' gl' rm = ret ogvs ->
+Lemma initLocals_params2GVs_sim : forall lp gl' TD' lc1' rm ogvs la lc' rm',
+  SBopsem.params2GVs TD' lp lc1' gl' rm = ret ogvs ->
   SBopsem.initLocals la ogvs rm = (lc', rm') -> 
-  exists gvs, params2GVs TD' M' lp lc1' gl' = ret gvs /\
+  exists gvs, params2GVs TD' lp lc1' gl' = ret gvs /\
     initLocals la gvs = lc'.
 Proof.
   unfold SBopsem.initLocals, initLocals.
