@@ -105,15 +105,17 @@ Mem.mem_inj mi Mem1 Mem2 /\
   gv_inject mi (ptr2GV TD (Vptr b ofs)) pgv' ->
   getOperandValue TD v lc2 gl = Some pgv' ->
   exists bgv', exists egv',
-  LLVMopsem.dsInsn 
+  LLVMopsem.dsop_star 
     (LLVMopsem.mkState S TD Ps 
       ((LLVMopsem.mkEC F B 
-        (insn_call fake_id true attrs gmd_typ gmd_fn
+        (insn_call bid0 false attrs gmb_typ gmb_fn
            ((p8,v)::
             (p8,(value_id addrb))::
             (p8,(value_id addre))::nil)::
-         insn_load bid0 p8 (value_id addrb) Align.Zero::
-         insn_load eid0 p8 (value_id addre) Align.Zero::   
+         insn_call eid0 false attrs gmb_typ gmb_fn
+           ((p8,v)::
+            (p8,(value_id addrb))::
+            (p8,(value_id addre))::nil)::
          cs) 
         tmn lc2 als)
         ::EC) gl fs Mem2)
@@ -126,30 +128,6 @@ Mem.mem_inj mi Mem1 Mem2 /\
     gv_inject mi egv egv'
 ).
 
-Definition alloca_simulation (mi:Values.meminj) (b1 b2:Values.block) : Prop := 
-  mi b1 = Some(b2, 0).
-
-Fixpoint allocas_simulation_suffix (mi:Values.meminj) 
-  (als1 als2:list Values.block) : Prop := 
-match als1, als2 with
-| nil, nil => True
-| b1::als1', b2::als2' => alloca_simulation mi b1 b2 /\
-    allocas_simulation_suffix mi als1' als2'
-| _, _ => False
-end.
-
-Definition allocas_simulation TD (mi:Values.meminj) lc2 addrb addre 
-  (als1 als2:list mblock) : Prop := 
-let als1' := rev als1 in
-let als2' := rev als2 in
-match als2' with
-| baddrb::baddre::als2'' => allocas_simulation_suffix mi als1 als2 /\
-    lookupAL _ lc2 addrb = Some (ptr2GV TD (Vptr baddrb (Int.zero 31))) /\
-    lookupAL _ lc2 addre = Some (ptr2GV TD (Vptr baddre (Int.zero 31))) /\
-    forall b1 b2 d, mi b1 = Some (b2, d) -> b2 <> baddrb /\ b2 <> baddre
-| _ => False
-end.
-
 Definition sbEC_simulates_EC_tail (TD:TargetData) gl (mi:Values.meminj) 
   (sbEC:SBopsem.ExecutionContext) (EC:LLVMopsem.ExecutionContext) : Prop :=
   match (sbEC, EC) with
@@ -159,7 +137,7 @@ Definition sbEC_simulates_EC_tail (TD:TargetData) gl (mi:Values.meminj)
        let '(fdef_intro fh2 bs2) := f2 in
        let '(los, nts) := TD in
        trans_fdef nts f1 = Some f2 /\
-       tmn1 = tmn2 /\
+       tmn1 = tmn2 /\ als1 = als2 /\
        (exists n, nth_error bs1 n = Some b1 /\ nth_error bs2 n = Some b2) /\
        (exists l1, exists ps1, exists cs11, 
          b1 = block_intro l1 ps1 (cs11++(insn_call i0 nr ca t0 v p)::cs13) tmn1)
@@ -167,16 +145,12 @@ Definition sbEC_simulates_EC_tail (TD:TargetData) gl (mi:Values.meminj)
        (exists l2, exists ps2, exists cs21,
          b2 = block_intro l2 ps2 (cs21++cs2) tmn2) /\
        exists ex_ids, exists rm2, 
-       exists addrb, exists ex_ids1, exists addre, exists ex_ids2, 
        exists ex_ids3, exists ex_ids4, exists cs22, exists cs23, exists cs24,
          gen_metadata_fdef nts (getFdefLocs f1) nil f1 = Some (ex_ids, rm2) /\
          reg_simulation mi TD gl rm1 rm2 lc1 lc2 /\
-         (addrb,ex_ids1) = mk_tmp ex_ids /\
-         (addre,ex_ids2) = mk_tmp ex_ids1 /\
-         allocas_simulation TD mi lc2 addrb addre als1 als2 /\
-         incl ex_ids2 ex_ids3 /\ 
+         incl ex_ids ex_ids3 /\ 
          call_suffix i0 nr ca t0 v p rm2 = Some cs22 /\
-         trans_cmds ex_ids1 addrb addre rm2 cs13 = Some (ex_ids4,cs23) /\
+         trans_cmds ex_ids3 rm2 cs13 = Some (ex_ids4,cs23) /\
          trans_terminator rm2 tmn1 = Some cs24 /\
          cs2 = cs22 ++ cs23 ++ cs24
   | _ => False
@@ -191,22 +165,18 @@ Definition sbEC_simulates_EC_head (TD:TargetData) gl (mi:Values.meminj)
        let '(fdef_intro fh2 bs2) := f2 in
        let '(los, nts) := TD in
        trans_fdef nts f1 = Some f2 /\
-       tmn1 = tmn2 /\
+       tmn1 = tmn2 /\ als1 = als2 /\
        (exists n, nth_error bs1 n = Some b1 /\ nth_error bs2 n = Some b2) /\
        (exists l1, exists ps1, exists cs11, 
          b1 = block_intro l1 ps1 (cs11++cs12) tmn1) /\
        (exists l2, exists ps2, exists cs21,
          b2 = block_intro l2 ps2 (cs21++cs2) tmn2) /\
        exists ex_ids, exists rm2, 
-       exists addrb, exists ex_ids1, exists addre, exists ex_ids2, 
        exists ex_ids3, exists ex_ids4, exists cs22, exists cs23,
          gen_metadata_fdef nts (getFdefLocs f1) nil f1 = Some (ex_ids, rm2) /\
          reg_simulation mi TD gl rm1 rm2 lc1 lc2 /\
-         (addrb,ex_ids1) = mk_tmp ex_ids /\
-         (addre,ex_ids2) = mk_tmp ex_ids1 /\
-         allocas_simulation TD mi lc2 addrb addre als1 als2 /\
-         incl ex_ids2 ex_ids3 /\ 
-         trans_cmds ex_ids1 addrb addre rm2 cs12 = Some (ex_ids4,cs22) /\
+         incl ex_ids ex_ids3 /\ 
+         trans_cmds ex_ids3 rm2 cs12 = Some (ex_ids4,cs22) /\
          trans_terminator rm2 tmn1 = Some cs23 /\
          cs2 = cs22 ++ cs23
   end.
@@ -246,12 +216,11 @@ Definition sbState_simulates_State (mi:Values.meminj) (mgb:Values.block)
       mem_simulation mi TD1 mgb MM1 M1 M2 
   end.
 
-Lemma free_allocas_sim : forall TD M1 als1 M2 mi als2 M1' MM mgb addrb addre lc,
-  free_allocas TD M1 als1 = Some M1' ->
-  allocas_simulation TD mi lc addrb addre als1 als2 ->
+Lemma free_allocas_sim : forall TD M1 als M2 mi M1' MM mgb,
+  free_allocas TD M1 als = Some M1' ->
   mem_simulation mi TD mgb MM M1 M2 ->
   wf_sb_mi mgb mi M1 M2 ->
-  exists M2', free_allocas TD M2 als2 = Some M2' /\ 
+  exists M2', free_allocas TD M2 als = Some M2' /\ 
     mem_simulation mi TD mgb MM M1' M2' /\
     wf_sb_mi mgb mi M1' M2'.
 Admitted.
@@ -273,32 +242,32 @@ Axiom stk_ret_sim : forall TD M1 M2 mi MM mgb bgv egv,
   mem_simulation mi TD mgb MM M1 M2 ->
   wf_sb_mi mgb mi M1 M2 ->
   exists M2',  exists M2'',
-    LLVMopsem.callExternalFunction M2 sbase_fid (bgv::int2GV 0%Z::nil) = 
+    LLVMopsem.callExternalFunction M2 ssb_fid (bgv::int2GV 0%Z::nil) = 
       Some (None, M2') /\
-    LLVMopsem.callExternalFunction M2' sbound_fid (egv::int2GV 0%Z::nil) = 
+    LLVMopsem.callExternalFunction M2' sse_fid (egv::int2GV 0%Z::nil) = 
       Some (None, M2'') /\
     mem_simulation mi TD mgb MM M1 M2'' /\
     wf_sb_mi mgb mi M1 M2'' /\
-    LLVMopsem.callExternalFunction M2'' gbase_fid [int2GV 0%Z] = 
+    LLVMopsem.callExternalFunction M2'' gsb_fid [int2GV 0%Z] = 
       Some (Some bgv, M2'') /\
-    LLVMopsem.callExternalFunction M2'' gbound_fid [int2GV 0%Z] = 
+    LLVMopsem.callExternalFunction M2'' gse_fid [int2GV 0%Z] = 
       Some (Some egv, M2'').
 
-Axiom sbase_is_found : forall TD Ps gl lc fs, 
-  LLVMopsem.lookupExFdecViaGV TD Ps gl lc fs sbase_fn = Some
-    (fdec_intro (fheader_intro sb_fnattrs dstk_typ sbase_fid nil false)).
+Axiom ssb_is_found : forall TD Ps gl lc fs, 
+  LLVMopsem.lookupExFdecViaGV TD Ps gl lc fs ssb_fn = Some
+    (fdec_intro (fheader_intro sb_fnattrs ssb_typ ssb_fid nil false)).
 
-Axiom sbound_is_found : forall TD Ps gl lc fs, 
-  LLVMopsem.lookupExFdecViaGV TD Ps gl lc fs sbound_fn = Some
-    (fdec_intro (fheader_intro sb_fnattrs dstk_typ sbound_fid nil false)).
+Axiom sse_is_found : forall TD Ps gl lc fs, 
+  LLVMopsem.lookupExFdecViaGV TD Ps gl lc fs sse_fn = Some
+    (fdec_intro (fheader_intro sb_fnattrs sse_typ sse_fid nil false)).
 
-Axiom gbase_is_found : forall TD Ps gl lc fs, 
-  LLVMopsem.lookupExFdecViaGV TD Ps gl lc fs gbase_fn = Some
-    (fdec_intro (fheader_intro sb_fnattrs dstk_typ gbase_fid nil false)).
+Axiom gsb_is_found : forall TD Ps gl lc fs, 
+  LLVMopsem.lookupExFdecViaGV TD Ps gl lc fs gsb_fn = Some
+    (fdec_intro (fheader_intro sb_fnattrs gsb_typ gsb_fid nil false)).
 
-Axiom gbound_is_found : forall TD Ps gl lc fs, 
-  LLVMopsem.lookupExFdecViaGV TD Ps gl lc fs gbound_fn = Some
-    (fdec_intro (fheader_intro sb_fnattrs dstk_typ gbound_fid nil false)).
+Axiom gse_is_found : forall TD Ps gl lc fs, 
+  LLVMopsem.lookupExFdecViaGV TD Ps gl lc fs gse_fn = Some
+    (fdec_intro (fheader_intro sb_fnattrs gse_typ gse_fid nil false)).
 
 Lemma SBpass_is_correct : forall mi mgb sbSt St sbSt' tr,
   sbState_simulates_State mi mgb sbSt St ->
@@ -324,18 +293,16 @@ Case "dsReturn". Focus.
   destruct HsimECs as [HsimEC' HsimECs].
   destruct F as [fh1 bs1].
   destruct F2 as [fh2 bs2].
-  destruct HsimEC as [Htfdef [Heq0 [Hnth [Heqb1 [Heqb2 [ex_ids [rm2 
-    [addrb [ex_ids1 [addre [ex_ids2 [ex_ids3 [ex_ids4 [cs22 [cs23 
-    [Hgenmeta [Hrsim [Hmk1 [Hmk2 [Hals 
-    [Hinc [Htcmds [Httmn Heq1]]]]]]]]]]]]]]]]]]]]]]]; subst.
+  destruct HsimEC as [Htfdef [Heq0 [Heq1 [Hnth [Heqb1 [Heqb2 [ex_ids [rm2 
+    [ex_ids3 [ex_ids4 [cs22 [cs23 [Hgenmeta [Hrsim 
+    [Hinc [Htcmds [Httmn Heq2]]]]]]]]]]]]]]]]]; subst.
   destruct F' as [fh1' bs1'].
   destruct F2' as [fh2' bs2'].
   destruct c'; try solve [inversion HsimEC'].  
-  destruct HsimEC' as [Htfdef' [Heq0' [Hnth' [Heqb1' [Heqb2'
-    [ex_ids' [rm2' [addrb' [ex_ids1' [addre' [ex_ids2' 
-    [ex_ids3' [ex_ids4' [cs22' [cs23' [cs24' 
-    [Hgenmeta' [Hrsim' [Hmk1' [Hmk2' [Hals' 
-    [Hinc' [Hcall' [Htcmds' [Httmn' Heq1']]]]]]]]]]]]]]]]]]]]]]]]]; subst.
+  destruct HsimEC' as [Htfdef' [Heq0' [Heq1' [Hnth' [Heqb1' [Heqb2'
+    [ex_ids' [rm2' [ex_ids3' [ex_ids4' [cs22' [cs23' [cs24' 
+    [Hgenmeta' [Hrsim' [Hinc' [Hcall' [Htcmds' [Httmn' Heq2']]]]]]]]]]]]]]]]]]]; 
+    subst.
   inv Htcmds.
   simpl in H1.
   unfold call_suffix in Hcall'.

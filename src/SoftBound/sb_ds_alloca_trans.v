@@ -40,13 +40,12 @@ Definition vint0 := value_const int0.
 
 Parameter assert_fid : id.
 Parameter fake_id : id.
-Parameter gmb_fid : id.
-Parameter gme_fid : id.
-Parameter smmd_fid : id.
-Parameter ssb_fid : id.
-Parameter sse_fid : id.
-Parameter gsb_fid : id.
-Parameter gse_fid : id.
+Parameter gmd_fid : id.
+Parameter smd_fid : id.
+Parameter sbase_fid : id.
+Parameter sbound_fid : id.
+Parameter gbase_fid : id.
+Parameter gbound_fid : id.
 Parameter astk_fid : id.
 Parameter dstk_fid : id.
 
@@ -61,27 +60,19 @@ Definition assert_typ : typ :=
 Definition assert_fn : value :=
   value_const (const_gid assert_typ assert_fid).
 
-Definition gmb_typ : typ :=
-  typ_function p8 
+Definition gmd_typ : typ :=
+  typ_function typ_void 
         (Cons_list_typ p8 
+        (Cons_list_typ pp8 
+        (Cons_list_typ pp8
         (Cons_list_typ p8
         (Cons_list_typ i32
-        (Cons_list_typ p32 Nil_list_typ)))) false.
+        (Cons_list_typ p32 Nil_list_typ)))))) false.
 
-Definition gmb_fn : value :=
-  value_const (const_gid gmb_typ gmb_fid).
+Definition gmd_fn : value :=
+  value_const (const_gid gmd_typ gmd_fid).
 
-Definition gme_typ : typ :=
-  typ_function p8
-        (Cons_list_typ p8 
-        (Cons_list_typ p8
-        (Cons_list_typ i32
-        (Cons_list_typ p32 Nil_list_typ)))) false.
-
-Definition gme_fn : value :=
-  value_const (const_gid gme_typ gme_fid).
-
-Definition smmd_typ : typ :=
+Definition smd_typ : typ :=
   typ_function typ_void 
         (Cons_list_typ p8 
         (Cons_list_typ p8 
@@ -90,36 +81,36 @@ Definition smmd_typ : typ :=
         (Cons_list_typ i32
         (Cons_list_typ i32 Nil_list_typ)))))) false.
 
-Definition smmd_fn : value :=
-  value_const (const_gid smmd_typ smmd_fid).
+Definition smd_fn : value :=
+  value_const (const_gid smd_typ smd_fid).
 
-Definition ssb_typ : typ :=
+Definition sbase_typ : typ :=
   typ_function typ_void 
         (Cons_list_typ p8 
         (Cons_list_typ i32 Nil_list_typ)) false.
 
-Definition ssb_fn : value :=
-  value_const (const_gid ssb_typ ssb_fid).
+Definition sbase_fn : value :=
+  value_const (const_gid sbase_typ sbase_fid).
 
-Definition sse_typ : typ :=
+Definition sbound_typ : typ :=
   typ_function typ_void 
         (Cons_list_typ p8 
         (Cons_list_typ i32 Nil_list_typ)) false.
 
-Definition sse_fn : value :=
-  value_const (const_gid sse_typ sse_fid).
+Definition sbound_fn : value :=
+  value_const (const_gid sbound_typ sbound_fid).
 
-Definition gsb_typ : typ :=
+Definition gbase_typ : typ :=
   typ_function p8 (Cons_list_typ i32 Nil_list_typ) false.
 
-Definition gsb_fn : value :=
-  value_const (const_gid gsb_typ gsb_fid).
+Definition gbase_fn : value :=
+  value_const (const_gid gbase_typ gbase_fid).
 
-Definition gse_typ  : typ :=
+Definition gbound_typ  : typ :=
  typ_function p8 (Cons_list_typ i32 Nil_list_typ) false.
 
-Definition gse_fn : value :=
-  value_const (const_gid gse_typ gse_fid).
+Definition gbound_fn : value :=
+  value_const (const_gid gbound_typ gbound_fid).
 
 Definition astk_typ : typ :=
   typ_function typ_void (Cons_list_typ i32 Nil_list_typ) false.
@@ -322,11 +313,11 @@ Definition val32 z := (i32,(value_const (const_int Size.ThirtyTwo
                             (INTEGER.of_Z 32%Z z false)))).
 
 Definition call_set_shadowstack bv0 ev0 idx cs : cmds :=
-  insn_call fake_id true attrs ssb_typ ssb_fn
+  insn_call fake_id true attrs sbase_typ sbase_fn
       ((p8,bv0)::
        (val32 idx)::
        nil)::
-  insn_call fake_id true attrs sse_typ sse_fn
+  insn_call fake_id true attrs sbound_typ sbound_fn
       ((p8,ev0)::
        (val32 idx)::
        nil)::cs.
@@ -358,9 +349,9 @@ Definition call_suffix i0 nr ca t0 v p rm : option cmds :=
       match (lookupAL _ rm i0) with
       | Some (bid0, eid0) =>
           Some (
-            insn_call bid0 false attrs gsb_typ gsb_fn  
+            insn_call bid0 false attrs gbase_typ gbase_fn  
               ((i32,vint0)::nil)::
-            insn_call eid0 false attrs gse_typ gse_fn 
+            insn_call eid0 false attrs gbound_typ gbound_fn 
               ((i32,vint0)::nil)::
             insn_call fake_id true attrs dstk_typ dstk_fn nil::
             nil)
@@ -374,7 +365,7 @@ Definition call_suffix i0 nr ca t0 v p rm : option cmds :=
   | None => None
   end.
 
-Definition trans_cmd (ex_ids:ids) (rm:rmap) (c:cmd) 
+Definition trans_cmd (ex_ids:ids) (addrb addre:id) (rm:rmap) (c:cmd) 
   : option (ids*cmds) :=
 match c with 
 | insn_malloc id0 t1 v1 _ | insn_alloca id0 t1 v1 _ =>
@@ -400,18 +391,16 @@ match c with
           match lookupAL _ rm id0 with
           | Some (bid0, eid0) =>
                    (Some
-                     (insn_call bid0 false attrs gmb_typ gmb_fn 
+                     (insn_call fake_id true attrs gmd_typ gmd_fn 
                        ((p8,(value_id ptmp))::
+                        (pp8,(value_id addrb))::
+                        (pp8,(value_id addre))::
                         (p8,vnullp8)::
                         (i32,vint1)::
                         (p32,vnullp32)::
                         nil)::
-                      insn_call eid0 false attrs gme_typ gme_fn 
-                       ((p8,(value_id ptmp))::
-                        (p8,vnullp8)::
-                        (i32,vint1)::
-                        (p32,vnullp32)::
-                        nil)::
+                      insn_load bid0 p8 (value_id addrb) Align.Zero::
+                      insn_load eid0 p8 (value_id addre) Align.Zero::   
                       nil), ex_ids)
           | None => (None, ex_ids)
           end
@@ -442,7 +431,7 @@ match c with
           match get_reg_metadata rm v1 with
           | Some (bv0, ev0) =>
               Some
-                (insn_call fake_id true attrs smmd_typ smmd_fn 
+                (insn_call fake_id true attrs smd_typ smd_fn 
                   ((p8,(value_id ptmp))::
                    (p8,bv0)::
                    (p8,ev0)::
@@ -522,14 +511,14 @@ match c with
 | _ => Some (ex_ids, [c])
 end.
 
-Fixpoint trans_cmds (ex_ids:ids) (rm:rmap) (cs:list cmd) 
+Fixpoint trans_cmds (ex_ids:ids) (addrb addre:id) (rm:rmap) (cs:list cmd) 
   : option (ids*cmds) :=
 match cs with
 | nil => Some (ex_ids, nil)
 | c::cs' =>
-    match (trans_cmd ex_ids rm c) with
+    match (trans_cmd ex_ids addrb addre rm c) with
     | Some (ex_ids1, cs1) =>
-        match (trans_cmds ex_ids1 rm cs') with
+        match (trans_cmds ex_ids1 addrb addre rm cs') with
         | Some (ex_ids2, cs2) => 
             Some (ex_ids2, cs1++cs2)
         | _ => None
@@ -577,30 +566,30 @@ Definition trans_terminator (rm:rmap) (tmn1:terminator) : option cmds :=
       match get_reg_metadata rm v0 with
       | Some (bv, ev) =>
           Some (
-           insn_call fake_id true attrs ssb_typ ssb_fn
+           insn_call fake_id true attrs sbase_typ sbase_fn
              ((p8,bv)::(i32,vint0)::nil)::
-           insn_call fake_id true attrs sse_typ sse_fn
+           insn_call fake_id true attrs sbound_typ sbound_fn
              ((p8,ev)::(i32,vint0)::nil)::
            nil)
       | None => None
       end
     else 
       Some (
-        insn_call fake_id true attrs ssb_typ ssb_fn
+        insn_call fake_id true attrs sbase_typ sbase_fn
           ((p8,vnullp8)::(i32,vint0)::nil)::
-        insn_call fake_id true attrs sse_typ sse_fn
+        insn_call fake_id true attrs sbound_typ sbound_fn
           ((p8,vnullp8)::(i32,vint0)::nil)::
         nil)
   | _ => Some nil
   end.
 
-Definition trans_block (ex_ids:ids) (rm:rmap) (b:block) 
+Definition trans_block (ex_ids:ids) (addrb addre:id) (rm:rmap) (b:block) 
   : option (ids*block) :=
 let '(block_intro l1 ps1 cs1 tmn1) := b in
 match trans_phinodes rm ps1 with
 | None => None
 | Some ps2 => 
-    match trans_cmds ex_ids rm cs1 with
+    match trans_cmds ex_ids addrb addre rm cs1 with
     | Some (ex_ids',cs2) => 
         match trans_terminator rm tmn1 with
         | Some cs' =>
@@ -611,14 +600,14 @@ match trans_phinodes rm ps1 with
     end
 end.
 
-Fixpoint trans_blocks (ex_ids:ids) (rm:rmap) (bs:blocks) 
+Fixpoint trans_blocks (ex_ids:ids) (addrb addre:id) (rm:rmap) (bs:blocks) 
   : option (ids*blocks) :=
 match bs with
 | nil => Some (ex_ids, nil)
 | b::bs' =>
-    match (trans_block ex_ids rm b) with
+    match (trans_block ex_ids addrb addre rm b) with
     | Some (ex_ids1, b1) =>
-        match (trans_blocks ex_ids1 rm bs') with
+        match (trans_blocks ex_ids1 addrb addre rm bs') with
         | Some (ex_ids2, bs2) => 
             Some (ex_ids2, b1::bs2)
         | _ => None
@@ -629,11 +618,11 @@ end.
 
 Definition call_get_shadowstack bid0 eid0 idx cs : cmds :=
   insn_call bid0 false attrs
-    gsb_typ gsb_fn  
+    gbase_typ gbase_fn  
       ((i32,(value_const (const_int Size.ThirtyTwo 
         (INTEGER.of_Z 32%Z idx false))))::nil)::
   insn_call eid0 false attrs
-    gse_typ gse_fn 
+    gbound_typ gbound_fn 
       ((i32,(value_const (const_int Size.ThirtyTwo 
         (INTEGER.of_Z 32%Z idx false))))::nil)::
   cs.
@@ -651,6 +640,14 @@ match la with
     else trans_args rm la' (idx+1) cs
 end.
 
+Definition insert_more_allocas (addrb addre:id) (argsmd:cmds) (b:block) : block 
+  :=
+let '(block_intro l1 ps1 cs1 tmn1) := b in  
+block_intro l1 ps1
+  (argsmd++
+   insn_alloca addrb p8 vint1 Align.Zero::insn_alloca addre p8 vint1 Align.Zero::
+   cs1) tmn1.
+
 Definition trans_fdef nts (f:fdef) : option fdef :=
 let '(fdef_intro (fheader_intro fa t fid la va) bs) := f in
 if isCallLib fid then Some f
@@ -660,11 +657,13 @@ else
   | Some (ex_ids,rm) =>
       match (trans_args rm la 1%Z nil) with
       | Some cs' =>
-          match (trans_blocks ex_ids rm bs) with
-          | Some (ex_ids, (block_intro l1 ps1 cs1 tmn1)::bs') => 
+         let '(addrb,ex_ids) := mk_tmp ex_ids in
+         let '(addre,ex_ids) := mk_tmp ex_ids in
+          match (trans_blocks ex_ids addrb addre rm bs) with
+          | Some (ex_ids, b'::bs') => 
               Some (fdef_intro 
                      (fheader_intro fa t (wrapper_fid fid) la va) 
-                     ((block_intro l1 ps1 (cs'++cs1) tmn1)::bs'))
+                     ((insert_more_allocas addrb addre cs' b')::bs'))
           | _ => None
           end
       | _ => None
