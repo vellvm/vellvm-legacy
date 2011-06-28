@@ -22,12 +22,11 @@ Module SB_ds_pass.
 
 Export LLVMsyntax.
 Export LLVMgv.
+Export SBopsem.
 
 (********************************************)
 (** syntax *)
-Definition i8 := typ_int Size.Eight.
 Definition i32 := typ_int Size.ThirtyTwo.
-Definition p8 := typ_pointer i8.
 Definition pp8 := typ_pointer p8.
 Definition p32 := typ_pointer i32.
 Definition int1 := const_int Size.ThirtyTwo (INTEGER.of_Z 32%Z 1%Z false).
@@ -275,23 +274,6 @@ Definition type_size t :=
       (typ_int Size.ThirtyTwo)
     ).
 
-Fixpoint get_const_metadata (c:const) : option (const*const) :=
-match c with
-| const_gid t gid => 
-    match t with
-    | typ_function _ _ _ => Some (const_castop castop_bitcast c p8,
-                                  const_castop castop_bitcast c p8)
-    | _ => Some (const_castop castop_bitcast c p8,
-                 const_castop castop_bitcast 
-                   (const_gep false c 
-                   (Cons_list_const (const_int Size.ThirtyTwo 
-                   (INTEGER.of_Z 32%Z 1%Z false)) Nil_list_const)) p8)
-    end
-| const_gep _ pc _ => get_const_metadata pc
-| const_castop castop_bitcast pc (typ_pointer _) => get_const_metadata pc
-| _ => None
-end.
-
 Definition get_reg_metadata (rm:rmap) (v:value) : option (value * value) :=
   match v with
   | value_id pid => 
@@ -300,10 +282,9 @@ Definition get_reg_metadata (rm:rmap) (v:value) : option (value * value) :=
       | None => None
       end
   | value_const c => 
-      match (get_const_metadata c, Constant.getTyp c) with
-      | (Some (bc, ec), _) => Some (value_const bc, value_const ec)
-      | (None, Some t) => Some (vnullp8, vnullp8)
-      | _ => None
+      match (SBopsem.get_const_metadata c) with
+      | Some (bc, ec) => Some (value_const bc, value_const ec)
+      | None => Some (vnullp8, vnullp8)
       end
   end.
 
@@ -383,9 +364,9 @@ match c with
       let '(etmp,ex_ids) := mk_tmp ex_ids in
       Some (ex_ids,
        c::
-       insn_cast bid castop_bitcast (typ_pointer t1) (value_id id0) p8:: 
        insn_gep etmp false t1 (value_id id0) 
          (Cons_list_value v1 Nil_list_value) :: 
+       insn_cast bid castop_bitcast (typ_pointer t1) (value_id id0) p8:: 
        insn_cast eid castop_bitcast (typ_pointer t1) (value_id etmp) p8:: 
        nil)
     | _ => None
@@ -427,8 +408,7 @@ match c with
             (p8,(value_id ptmp))::
             (i32,type_size t2)::
             (i32,vint1)::nil)::
-         c::
-         cs)
+            c :: cs)
       end
     | None => None
     end

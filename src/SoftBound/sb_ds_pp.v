@@ -1635,9 +1635,10 @@ Proof.
   generalize dependent ec.
   generalize dependent bc.
   induction vc; intros; try solve [inversion J2].
-    exists gv.
+    exists gv. 
     remember t as T.
-    destruct T; inversion J2; clear J2; subst bc ec; simpl in *; try solve [
+    destruct T; inversion J2; clear J2; subst bc ec; simpl in *; 
+    unfold mbitcast, p8; try solve [
       destruct (lookupAL GenericValue gl i0); inversion HeqJ3; subst gv t3;
       destruct (GV2ptr TD (getPointerSize TD) g); eauto;
       remember (mgep TD t v 

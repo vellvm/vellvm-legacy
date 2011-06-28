@@ -40,14 +40,20 @@ Definition base2GV := blk2GV.
 Definition bound2GV (TD:TargetData) (b:mblock) (s:sz) n : GenericValue :=
 ptr2GV TD (Vptr b (Int.repr 31 ((Size.to_Z s)*n))).
 
+Definition i8 := typ_int Size.Eight.
+Definition p8 := typ_pointer i8.
+
 Fixpoint get_const_metadata (c:const) : option (const*const) :=
 match c with
 | const_gid t gid => 
     match t with
-    | typ_function _ _ _ => Some (c, c)
-    | _ => Some (c, const_gep false c 
-             (Cons_list_const (const_int Size.ThirtyTwo 
-               (INTEGER.of_Z 32%Z 1%Z false)) Nil_list_const))
+    | typ_function _ _ _ => Some (const_castop castop_bitcast c p8,
+                                  const_castop castop_bitcast c p8)
+    | _ => Some (const_castop castop_bitcast c p8,
+                 const_castop castop_bitcast 
+                   (const_gep false c 
+                   (Cons_list_const (const_int Size.ThirtyTwo 
+                   (INTEGER.of_Z 32%Z 1%Z false)) Nil_list_const)) p8)
     end
 | const_gep _ pc _ => get_const_metadata pc
 | const_castop castop_bitcast pc (typ_pointer _) => get_const_metadata pc

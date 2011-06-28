@@ -593,26 +593,28 @@ Qed.
 Lemma get_const_metadata_gid__wf_data : forall S TD Mem0 gl t i0 gvb gve,
   wf_global_ptr S TD Mem0 gl ->
   wf_const S TD (const_gid t i0) (typ_pointer t) ->
-  const2GV TD gl (const_gid t i0) = ret gvb ->
-  const2GV TD gl
+  const2GV TD gl (const_castop castop_bitcast (const_gid t i0) p8) = ret gvb ->
+  const2GV TD gl 
+       (const_castop castop_bitcast
          (const_gep false (const_gid t i0)
-            (Cons_list_const (const_int Size.ThirtyTwo 1) Nil_list_const)) =
-       ret gve ->
+            (Cons_list_const (const_int Size.ThirtyTwo 1) Nil_list_const)) p8)
+       = ret gve ->
   wf_data TD Mem0 gvb gve.
 Proof.
   intros S TD Mem0 gl t i0 gvb gve Hwfg Hwfc H2 H3.
   unfold const2GV in H3.
-  remember (_const2GV TD gl
-           (const_gep false (const_gid t i0)
-              (Cons_list_const (const_int Size.ThirtyTwo 1) Nil_list_const))) 
+  remember (_const2GV TD gl 
+    (const_castop castop_bitcast
+      (const_gep false (const_gid t i0)
+        (Cons_list_const (const_int Size.ThirtyTwo 1) Nil_list_const)) p8))
     as R0.
-  destruct R0; try solve [inversion H3].
-  destruct p. inv H3.
+  destruct R0 as [[gv ?]|]; inv H3.
   unfold const2GV in H2.
-  remember (_const2GV TD gl (const_gid t i0)) as R1.
-  destruct R1; try solve [inversion H2].
-  destruct p. inv H2.
+  remember (_const2GV TD gl (const_castop castop_bitcast (const_gid t i0) p8)) 
+    as R1.
+  destruct R1 as [[gv' ?]|]; inv H2.
   unfold _const2GV in *.
+  unfold mcast, mbitcast, p8 in *.
   remember (lookupAL GenericValue gl i0) as R'.
   destruct R'; try solve [inversion HeqR0].
   inv HeqR1.
@@ -620,6 +622,8 @@ Proof.
               (Cons_list_const (const_int Size.ThirtyTwo 1) Nil_list_const)
               (typ_pointer t)) as R1.
   destruct R1; try solve [inversion HeqR0].
+  unfold getConstGEPTyp in HeqR1.
+  destruct (getSubTypFromConstIdxs Nil_list_const t); inv HeqR1.
   symmetry in HeqR'.
   assert (exists b, exists sz,
     GV2ptr TD (getPointerSize TD) g = Some (Values.Vptr b ((Int.zero 31))) /\
@@ -718,7 +722,8 @@ Proof.
     ].
 
     unfold const2GV in H2, H3.
-    remember (_const2GV TD gl (const_gid (typ_function t l0 v) i0)) as R.
+    remember (_const2GV TD gl (const_castop castop_bitcast (const_gid 
+      (typ_function t l0 v) i0) p8)) as R.
     destruct R; try solve [inversion H2 | inversion H3].
     destruct p. inv H2. inv H3.
     unfold GV2ptr.
