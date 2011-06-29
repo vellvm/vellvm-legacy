@@ -3294,7 +3294,7 @@ Proof.
         Unfocus.
   
       destruct J1 as [gv1 J1].
-      rewrite J1. 
+      simpl. rewrite J1. 
       apply IHps2 in H7.
         destruct H7 as [RVs H7].
         rewrite H7. 
@@ -3308,7 +3308,7 @@ Proof.
       eapply wf_value_list__getValueViaLabelFromValuels__wf_value in H2; eauto.
       inv H2.
       destruct (@const2GV_isnt_stuck (los,nts) s gl vc t0); auto.
-      rewrite H.
+      simpl. rewrite H.
       apply IHps2 in H7.
         destruct H7 as [RVs H7].
         rewrite H7. 

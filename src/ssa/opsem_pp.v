@@ -58,7 +58,7 @@ Proof.
   induction ps; intros; simpl; auto.
     destruct a; auto.
     destruct (getValueViaBlockFromValuels l0 B); auto.
-    destruct v; erewrite IHps; eauto.
+    destruct v; simpl; erewrite IHps; eauto.
       rewrite H. auto.
 Qed.
   

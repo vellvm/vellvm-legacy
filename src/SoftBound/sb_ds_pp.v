@@ -602,13 +602,13 @@ Proof.
             inv Hlk. inversion HeqR1.
 Qed.
 
-Lemma initLocals__wf_rmap : forall ogvs rm lc' rm' fa rt fid la va lb,
+Lemma initLocals__wf_rmap : forall ogvs lc' rm' fa rt fid la va lb,
   uniqFdef (fdef_intro (fheader_intro fa rt fid la va) lb) ->
-  initLocals la ogvs rm = (lc', rm') ->
+  initLocals la ogvs = (lc', rm') ->
   wf_rmap (fdef_intro (fheader_intro fa rt fid la va) lb) lc' rm'.
 Proof.
   unfold initLocals.
-  intros ogvs rm lc' rm' fa rt fid la va lb Huniq Hinit.
+  intros ogvs lc' rm' fa rt fid la va lb Huniq Hinit.
   rewrite_env (nil ++ la).
   eapply initializeFrameValues__wf_rmap; eauto.
     intros x gvx tx Hlk. inv Hlk.
@@ -3258,7 +3258,7 @@ Proof.
     eapply wf_system__wf_fdef in HeqHlk; eauto.
     inv HeqHlk. destruct block5 as [l5 ps5 cs5 tmn5].
     left.
-    remember (initLocals la gvs rm) as R.
+    remember (initLocals la gvs) as R.
     destruct R as [lc' rm'].
     exists 
          {|

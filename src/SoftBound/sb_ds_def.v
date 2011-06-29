@@ -294,8 +294,8 @@ match (la, lg) with
 end.
 
 Definition initLocals (la:args) (lg:list (GenericValue*option metadata)) 
-  (rm : rmetadata) : GVMap * rmetadata :=
-_initializeFrameValues la lg nil rm.
+  : GVMap * rmetadata :=
+_initializeFrameValues la lg nil nil.
 
 Inductive dsInsn : State -> State -> trace -> Prop :=
 | dsReturn : forall S TD Ps F B rid RetTy Result lc rm gl fs F' B' c' cs' tmn' 
@@ -665,7 +665,7 @@ Inductive dsInsn : State -> State -> trace -> Prop :=
   getEntryBlock (fdef_intro (fheader_intro fa rt fid la va) lb) = 
     Some (block_intro l' ps' cs' tmn') ->
   params2GVs TD lp lc gl rm = Some ogvs ->
-  initLocals la ogvs rm = (lc', rm') ->
+  initLocals la ogvs = (lc', rm') ->
   dsInsn 
     (mkState S TD Ps 
       ((mkEC F B ((insn_call rid noret ca ft fv lp)::cs) tmn lc rm als)

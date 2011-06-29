@@ -100,20 +100,13 @@ match PNs with
 | (insn_phi id0 t vls)::PNs => 
   match (getValueViaBlockFromPHINode (insn_phi id0 t vls) b) with
   | None => None
-  | Some (value_id id1) => 
-      match (lookupAL _ locals id1, 
+  | Some v => 
+      match (getOperandValue TD v locals globals, 
              getIncomingValuesForBlockFromPHINodes TD PNs b globals locals)
       with
       | (Some gv1, Some idgvs) => Some ((id0,gv1)::idgvs)
       | _ => None
       end               
-  | Some (value_const c) => 
-      match (const2GV TD globals c, 
-             getIncomingValuesForBlockFromPHINodes TD PNs b globals locals)
-      with
-      | (Some gv1, Some idgvs) => Some ((id0,gv1)::idgvs)
-      | _ => None
-      end
   end
 end.
 

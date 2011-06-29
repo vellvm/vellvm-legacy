@@ -1399,16 +1399,17 @@ Lemma initLocals__wf_rmetadata : forall ogvs (rm : rmetadata) (lc' : GVMap)
   (Hwfg : wf_global_ptr S (los, nts) M gl),
   wf_rmetadata (los,nts) M rm ->
   params2GVs (los,nts) ps lc gl rm = Some ogvs ->
-  initLocals la ogvs rm = (lc', rm') ->
+  initLocals la ogvs = (lc', rm') ->
   wf_rmetadata (los,nts) M rm'.
 Proof.
   intros.
   unfold initLocals in H1.
   rewrite_env (nil++la) in H1.
   rewrite_env (nil++ogvs) in H1.
-  eapply initializeFrameValues__wf_rmetadata with (lc1:=nil)(rm1:=rm)(lc:=nil)
-    (rm:=rm)(ogvs1:=nil)(la1:=nil) in H1; eauto.
+  eapply initializeFrameValues__wf_rmetadata with (lc1:=nil)(rm1:=nil)(lc:=nil)
+    (rm:=nil)(ogvs1:=nil)(la1:=nil) in H1; eauto.
     eapply params2GVs__wf_rmetadata; eauto.
+    intros x bv gv J. inv J.
 Qed.
 
 Lemma callExternalFunction_preserves_wf_rmetadata : forall Mem0 fid gvs oresult

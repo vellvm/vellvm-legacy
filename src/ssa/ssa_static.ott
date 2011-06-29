@@ -569,6 +569,7 @@ Jwf_insn :: '' ::=
       % Cannot allocate unsized type"
       (layouts namedts) |- typ
       system |- typ
+      {{ Constant.unifiable_typ [[(layouts namedts)]] [[:user_syntax__typ:typ]] }}
       % Check invariance for instructions
       fdef , block |-i id = malloc typ value align 
       --------------------------------------------------------------------------------------------------- :: wf_insn_malloc
@@ -590,6 +591,7 @@ Jwf_insn :: '' ::=
       % Cannot allocate unsized type"
       (layouts namedts) |- typ
       system |- typ
+      {{ Constant.unifiable_typ [[(layouts namedts)]] [[:user_syntax__typ:typ]] }}
       % Check invariance for instructions
       fdef , block |-i id = alloca typ value align 
       -------------------------------------------------------------------------------------------------- :: wf_insn_alloca

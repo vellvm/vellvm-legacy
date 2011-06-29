@@ -114,9 +114,8 @@ Proof.
     destruct (isPointerTypB t); inversion H; subst; clear H.
       destruct v; simpl in *.
         destruct (lookupAL SBopsem.metadata rm i1); inversion H1; subst.
-          rewrite <- HeqR0. simpl. rewrite J2. eauto.
+          simpl. rewrite J2. eauto.
 
-        rewrite <- HeqR0.
         destruct (
           match SBopsem.get_const_metadata c with
          | ret (bc, ec) =>
@@ -130,9 +129,7 @@ Proof.
           rewrite J2. eauto.
 
       simpl. rewrite J2.
-      destruct v; simpl in *.
-        rewrite <- HeqR0. eauto.
-        rewrite <- HeqR0. eauto.
+      destruct v; simpl in *; eauto.
 Qed.
 
 Lemma updateValuesForNewBlock_sim : forall l0 lc1' rm lc' rm' l2 l3,
@@ -232,7 +229,7 @@ Qed.
 
 Lemma initLocals_params2GVs_sim : forall lp gl' TD' lc1' rm ogvs la lc' rm',
   SBopsem.params2GVs TD' lp lc1' gl' rm = ret ogvs ->
-  SBopsem.initLocals la ogvs rm = (lc', rm') -> 
+  SBopsem.initLocals la ogvs = (lc', rm') -> 
   exists gvs, params2GVs TD' lp lc1' gl' = ret gvs /\
     initLocals la gvs = lc'.
 Proof.

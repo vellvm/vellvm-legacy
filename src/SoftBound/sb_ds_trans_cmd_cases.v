@@ -20,69 +20,11 @@ Require Import Znumtheory.
 Require Import sb_ds_def.
 Require Import sb_ds_trans.
 Require Import sb_ds_sim.
+Require Import sb_ds_trans_lib.
 Require Import ssa_wf.
 Require Import ssa_props.
 
 Import SB_ds_pass.
-
-Lemma prop_metadata_inv : forall ex_ids3 rm2 c vp id0 ex_ids5 cs1',
-  prop_metadata ex_ids3 rm2 c vp id0 = ret (ex_ids5, cs1') ->
-  exists bv, exists ev, exists bid0, exists eid0,
-     get_reg_metadata rm2 vp = Some (bv, ev) /\
-     lookupAL _ rm2 id0 = Some (bid0, eid0) /\
-     ex_ids5 = ex_ids3 /\ 
-     cs1' = c :: insn_cast bid0 castop_bitcast p8 bv p8
-              :: insn_cast eid0 castop_bitcast p8 ev p8 :: nil.
-Proof.
-  intros.
-  unfold prop_metadata in H.
-  destruct (get_reg_metadata rm2 vp) as [[bv ev]|]; try solve [inversion H].
-  destruct (lookupAL _ rm2 id0) as [[bid0 eid0]|]; inv H.
-  exists bv. exists ev. exists bid0. exists eid0. split; auto.
-Qed.
-
-Fixpoint gvs_inject mi gvs1 gvs2 : Prop :=
-match (gvs1, gvs2) with
-| (nil, nil) => True
-| (gv1::gvs1', gv2::gvs2') => gv_inject mi gv1 gv2 /\ gvs_inject mi gvs1' gvs2'
-| _ => False
-end.
-
-
-Ltac destruct_ctx_other :=
-match goal with
-| [Hsim : sbState_simulates_State _ _
-           {|
-           SBopsem.CurSystem := _;
-           SBopsem.CurTargetData := ?TD;
-           SBopsem.CurProducts := _;
-           SBopsem.ECS := {|
-                          SBopsem.CurFunction := ?F;
-                          SBopsem.CurBB := _;
-                          SBopsem.CurCmds := ?c::_;
-                          SBopsem.Terminator := _;
-                          SBopsem.Locals := _;
-                          SBopsem.Rmap := _;
-                          SBopsem.Allocas := _ |} :: _;
-           SBopsem.Globals := _;
-           SBopsem.FunTable := _;
-           SBopsem.Mem := _;
-           SBopsem.Mmap := _ |} ?St |- _] =>
-  destruct St as [S2 TD2 Ps2 ECs2 gl2 fs2 M2];
-  destruct TD as [los nts];
-  destruct Hsim as [Hwfs [HMinS [Htsym [Heq1 [Htps [HsimECs [Heq2 [Heq3 
-    [Hwfg [Hwfmi HsimM]]]]]]]]]];
-    subst;
-  destruct ECs2 as [|[F2 B2 cs2 tmn2 lc2 als2] ECs2];
-    try solve [inversion HsimECs];
-  simpl in HsimECs;
-  destruct HsimECs as [HsimEC HsimECs];
-  destruct F as [fh1 bs1];
-  destruct F2 as [fh2 bs2];
-  destruct HsimEC as [HBinF [HFinPS [Htfdef [Heq0 [Hasim [Hnth [Heqb1 [Heqb2 
-    [ex_ids [rm2 [ex_ids3 [ex_ids4 [cs22 [cs23 [Hgenmeta [Hrsim [Hinc [Hfresh 
-    [Htcmds [Httmn Heq2]]]]]]]]]]]]]]]]]]]]; subst
-end.
 
 Lemma SBpass_is_correct__dsBop : forall (mi : meminj) (mgb : Values.block)
   (St : LLVMopsem.State) (S : system) (TD : TargetData) (Ps : list product)
@@ -213,29 +155,6 @@ Lemma SBpass_is_correct__dsFBop : forall (mi : meminj) (mgb : Values.block)
          SBopsem.Mem := Mem;
          SBopsem.Mmap := MM |} St' /\ inject_incr mi mi'.
 Admitted.
-
-Lemma simulation__GEP : forall maxb mi TD Mem Mem2 inbounds0
-    vidxs vidxs' gvp1 gvp gvp' t,
-  wf_sb_mi maxb mi Mem Mem2 ->
-  gv_inject mi gvp gvp' ->
-  gvs_inject mi vidxs vidxs' ->
-  GEP TD t gvp vidxs inbounds0 = ret gvp1 ->
-  exists gvp2,
-    GEP TD t gvp' vidxs' inbounds0 = ret gvp2 /\
-    gv_inject mi gvp1 gvp2.
-Admitted.
-
-Lemma simulation__values2GVs : forall maxb mi rm rm2 lc lc2 TD Mem Mem2 
-    gl F idxs gvs,
-  wf_globals maxb gl -> 
-  wf_sb_mi maxb mi Mem Mem2 ->
-  reg_simulation mi TD gl F rm rm2 lc lc2 ->
-  values2GVs TD idxs lc gl = ret gvs ->
-  exists gvs', 
-    values2GVs TD idxs lc2 gl = ret gvs' /\
-    gvs_inject mi gvs gvs'.
-Admitted.
-
 
 Lemma SBpass_is_correct__dsGEP : forall
   (mi : meminj) (mgb : Values.block) (St : LLVMopsem.State) (S : system)
@@ -387,17 +306,6 @@ Proof.
 
 Qed.
 
-Lemma simulation__TRUNC : forall maxb mi rm rm2 lc lc2 TD Mem Mem2 gl F t1 
-    v1 gv3 op t2,
-  wf_globals maxb gl -> 
-  wf_sb_mi maxb mi Mem Mem2 ->
-  reg_simulation mi TD gl F rm rm2 lc lc2 ->
-  TRUNC TD lc gl op t1 v1 t2 = ret gv3 ->
-  exists gv3',
-    TRUNC TD lc2 gl op t1 v1 t2 = ret gv3' /\
-    gv_inject mi gv3 gv3'.
-Admitted.
-
 Lemma SBpass_is_correct__dsTrunc : forall
   (mi : meminj) (mgb : Values.block) (St : LLVMopsem.State) (S : system)
   (TD : TargetData) (Ps : list product) (F : fdef) (B : block) (lc : GVMap)
@@ -480,17 +388,6 @@ Proof.
       repeat (split; auto).
 Qed.
 
-Lemma simulation__EXT : forall maxb mi rm rm2 lc lc2 TD Mem Mem2 gl F t1 
-    v1 gv3 op t2,
-  wf_globals maxb gl -> 
-  wf_sb_mi maxb mi Mem Mem2 ->
-  reg_simulation mi TD gl F rm rm2 lc lc2 ->
-  EXT TD lc gl op t1 v1 t2 = ret gv3 ->
-  exists gv3',
-    EXT TD lc2 gl op t1 v1 t2 = ret gv3' /\
-    gv_inject mi gv3 gv3'.
-Admitted.
-
 Lemma SBpass_is_correct__dsExt : forall
   (mi : meminj) (mgb : Values.block) (St : LLVMopsem.State) (S : system)
   (TD : TargetData) (Ps : list product) (F : fdef) (B : block) (lc : GVMap)
@@ -572,17 +469,6 @@ Proof.
           admit.
       repeat (split; auto).
 Qed.
-
-Lemma simulation__CAST : forall maxb mi rm rm2 lc lc2 TD Mem Mem2 gl F t1 
-    v1 gv3 op t2,
-  wf_globals maxb gl -> 
-  wf_sb_mi maxb mi Mem Mem2 ->
-  reg_simulation mi TD gl F rm rm2 lc lc2 ->
-  CAST TD lc gl op t1 v1 t2 = ret gv3 ->
-  exists gv3',
-    CAST TD lc2 gl op t1 v1 t2 = ret gv3' /\
-    gv_inject mi gv3 gv3'.
-Admitted.
 
 Lemma SBpass_is_correct__dsBitcase_nptr : forall 
   (mi : meminj) (mgb : Values.block) (St : LLVMopsem.State) (S : system)
@@ -1038,17 +924,6 @@ Proof.
       repeat (split; auto).
 Qed.
 
-Lemma simulation__ICMP : forall maxb mi rm rm2 lc lc2 TD Mem Mem2 gl F t1 
-    v1 gv3 cond0 v2,
-  wf_globals maxb gl -> 
-  wf_sb_mi maxb mi Mem Mem2 ->
-  reg_simulation mi TD gl F rm rm2 lc lc2 ->
-  ICMP TD lc gl cond0 t1 v1 v2 = ret gv3 ->
-  exists gv3',
-    ICMP TD lc2 gl cond0 t1 v1 v2 = ret gv3' /\
-    gv_inject mi gv3 gv3'.
-Admitted.
-
 Lemma SBpass_is_correct__dsIcmp : forall
   (mi : meminj) (mgb : Values.block) (St : LLVMopsem.State) (S : system)
   (TD : TargetData) (Ps : list product) (F : fdef) (B : block) (lc : GVMap)
@@ -1131,17 +1006,6 @@ Proof.
       repeat (split; auto).
 Qed.
 
-
-Lemma simulation__FCMP : forall maxb mi rm rm2 lc lc2 TD Mem Mem2 gl F fp 
-    v1 gv3 fcond0 v2,
-  wf_globals maxb gl -> 
-  wf_sb_mi maxb mi Mem Mem2 ->
-  reg_simulation mi TD gl F rm rm2 lc lc2 ->
-  FCMP TD lc gl fcond0 fp v1 v2 = ret gv3 ->
-  exists gv3',
-    FCMP TD lc2 gl fcond0 fp v1 v2 = ret gv3' /\
-    gv_inject mi gv3 gv3'.
-Admitted.
 
 Lemma SBpass_is_correct__dsFcmp : forall
   (mi : meminj) (mgb : Values.block) (St : LLVMopsem.State) (S : system)

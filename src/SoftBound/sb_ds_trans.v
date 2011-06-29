@@ -312,19 +312,20 @@ Definition call_set_shadowstack bv0 ev0 idx cs : cmds :=
        (val32 idx)::
        nil)::cs.
 
-Fixpoint trans_params (rm:rmap) (lp:params) (idx:Z) (cs:cmds) : option (cmds*Z) 
-  :=
+Fixpoint trans_params (rm:rmap) (lp:params) (idx:Z) : option cmds :=
 match lp with
-| nil => Some (cs, idx)
-| (t0,v0) as p::lp' =>
-    if isPointerTypB t0 then
-      match get_reg_metadata rm v0 with
-      | Some (bv0, ev0) =>
-          trans_params rm lp' (idx+1) (call_set_shadowstack bv0 ev0 idx cs)
-      | _ => None
-      end
-    else 
-      trans_params rm lp' (idx+1) (call_set_shadowstack vnullp8 vnullp8 idx cs)
+| nil => Some nil
+| (t0,v0)::lp' =>
+    match trans_params rm lp' (idx+1) with
+    | Some cs =>
+      if isPointerTypB t0 then
+        match get_reg_metadata rm v0 with
+        | Some (bv0, ev0) => Some (call_set_shadowstack bv0 ev0 idx cs)
+        | _ => None
+        end
+      else Some (call_set_shadowstack vnullp8 vnullp8 idx cs) 
+    | _ => None
+    end
 end.
 
 Definition wrap_call v : value :=
@@ -488,12 +489,12 @@ match c with
     else Some (ex_ids, [c])
 
 | insn_call i0 n ca t0 v p =>
-    match trans_params rm p 1%Z nil, call_suffix i0 n ca t0 v p rm with
-    | Some (cs, num), Some cs' =>
+    match trans_params rm p 1%Z, call_suffix i0 n ca t0 v p rm with
+    | Some cs, Some cs' =>
         Some (ex_ids, 
               insn_call fake_id true attrs
                 astk_typ astk_fn
-                (val32 num::
+                (val32 (Z_of_nat (length p+1))::
                 nil)::               
               cs++cs')
      | _, _ => None
@@ -519,14 +520,13 @@ match cs with
 end.
 
 Fixpoint get_metadata_from_list_value_l (rm:rmap) (vls:list_value_l) 
-  (baccum eaccum : list_value_l): option (list_value_l * list_value_l) :=
+  : option (list_value_l * list_value_l) :=
 match vls with
-| Nil_list_value_l => Some (baccum, eaccum)
+| Nil_list_value_l => Some (Nil_list_value_l, Nil_list_value_l)
 | Cons_list_value_l v0 l0 vls' => 
-    match get_reg_metadata rm v0 with
-    | Some (bv, ev) =>
-        get_metadata_from_list_value_l rm vls' 
-          (Cons_list_value_l bv l0 baccum) (Cons_list_value_l ev l0 eaccum)
+    match (get_reg_metadata rm v0, get_metadata_from_list_value_l rm vls') with
+    | (Some (bv, ev), Some (baccum, eaccum)) =>
+        Some (Cons_list_value_l bv l0 baccum, Cons_list_value_l ev l0 eaccum)
     | _ => None
     end
 end.
@@ -539,11 +539,10 @@ match ps with
     | None => None
     | Some ps2 =>
         if isPointerTypB t0 then
-          match (get_metadata_from_list_value_l rm vls0 Nil_list_value_l 
-                 Nil_list_value_l,
+          match (get_metadata_from_list_value_l rm vls0,
                 lookupAL _ rm id0) with
           | (Some (bvls0, evls0), Some (bid0, eid0)) => 
-              Some (p::insn_phi bid0 p8 bvls0::insn_phi eid0 p8 evls0::ps2)
+              Some (insn_phi eid0 p8 evls0::insn_phi bid0 p8 bvls0::p::ps2)
           | _ => None
           end
         else Some (p::ps2)
@@ -618,17 +617,20 @@ Definition call_get_shadowstack bid0 eid0 idx cs : cmds :=
         (INTEGER.of_Z 32%Z idx false))))::nil)::
   cs.
 
-Fixpoint trans_args (rm:rmap) (la:args) (idx:Z) (cs:cmds) : option cmds :=
+Fixpoint trans_args (rm:rmap) (la:args) (idx:Z) : option cmds :=
 match la with
-| nil => Some cs
+| nil => Some nil
 | (t0,_,id0)::la' =>
-    if isPointerTypB t0 then
-      match (lookupAL _ rm id0) with
-      | Some (bid0, eid0) => 
-          trans_args rm la' (idx+1) (call_get_shadowstack bid0 eid0 idx cs)
-      | _ => None
-      end
-    else trans_args rm la' (idx+1) cs
+    match trans_args rm la' (idx+1) with
+    | Some cs =>
+      if isPointerTypB t0 then
+        match (lookupAL _ rm id0) with
+        | Some (bid0, eid0) => Some (call_get_shadowstack bid0 eid0 idx cs)
+        | _ => None
+        end
+      else Some cs
+    | _ => None
+    end
 end.
 
 Definition trans_fdef nts (f:fdef) : option fdef :=
@@ -638,7 +640,7 @@ else
   let ex_ids := getFdefLocs f in
   match gen_metadata_fdef nts ex_ids nil f with
   | Some (ex_ids,rm) =>
-      match (trans_args rm la 1%Z nil) with
+      match (trans_args rm la 1%Z) with
       | Some cs' =>
           match (trans_blocks ex_ids rm bs) with
           | Some (ex_ids, (block_intro l1 ps1 cs1 tmn1)::bs') => 
@@ -656,7 +658,7 @@ Definition trans_fdec (f:fdec) : fdec :=
 let '(fdec_intro (fheader_intro fa t fid la va)) := f in
 fdec_intro (fheader_intro fa t (wrapper_fid fid) la va). 
 
-Fixpoint trans_product nts (p:product) : option product :=
+Definition trans_product nts (p:product) : option product :=
 match p with
 | product_fdef f =>
     match trans_fdef nts f with

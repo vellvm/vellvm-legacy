@@ -20,45 +20,12 @@ Require Import Znumtheory.
 Require Import sb_ds_def.
 Require Import sb_ds_trans.
 Require Import sb_ds_sim.
+Require Import sb_ds_trans_axioms.
+Require Import sb_ds_trans_lib.
 Require Import ssa_wf.
 Require Import ssa_props.
 
 Import SB_ds_pass.
-
-Ltac destruct_ctx_other :=
-match goal with
-| [Hsim : sbState_simulates_State _ _
-           {|
-           SBopsem.CurSystem := _;
-           SBopsem.CurTargetData := ?TD;
-           SBopsem.CurProducts := _;
-           SBopsem.ECS := {|
-                          SBopsem.CurFunction := ?F;
-                          SBopsem.CurBB := _;
-                          SBopsem.CurCmds := ?c::_;
-                          SBopsem.Terminator := _;
-                          SBopsem.Locals := _;
-                          SBopsem.Rmap := _;
-                          SBopsem.Allocas := _ |} :: _;
-           SBopsem.Globals := _;
-           SBopsem.FunTable := _;
-           SBopsem.Mem := _;
-           SBopsem.Mmap := _ |} ?St |- _] =>
-  destruct St as [S2 TD2 Ps2 ECs2 gl2 fs2 M2];
-  destruct TD as [los nts];
-  destruct Hsim as [Hwfs [HMinS [Htsym [Heq1 [Htps [HsimECs [Heq2 [Heq3 
-    [Hwfg [Hwfmi HsimM]]]]]]]]]];
-    subst;
-  destruct ECs2 as [|[F2 B2 cs2 tmn2 lc2 als2] ECs2];
-    try solve [inversion HsimECs];
-  simpl in HsimECs;
-  destruct HsimECs as [HsimEC HsimECs];
-  destruct F as [fh1 bs1];
-  destruct F2 as [fh2 bs2];
-  destruct HsimEC as [HBinF [HFinPS [Htfdef [Heq0 [Hasim [Hnth [Heqb1 [Heqb2 
-    [ex_ids [rm2 [ex_ids3 [ex_ids4 [cs22 [cs23 [Hgenmeta [Hrsim [Hinc [Hfresh 
-    [Htcmds [Httmn Heq2]]]]]]]]]]]]]]]]]]]]; subst
-end.
 
 Lemma SBpass_is_correct__dsMalloc : forall (mi : meminj) (mgb : Values.block)
   (St : LLVMopsem.State) (S : system) (TD : TargetData) (Ps : list product)
@@ -215,10 +182,10 @@ Proof.
           destruct Heqb1 as [l1 [ps1 [cs11 Heqb1]]]; subst.
           eapply wf_system__wf_cmd with (c:=insn_malloc id0 t v align0) in HBinF;
             eauto.
-            inv HBinF. inv H21. 
-            (* ssa_static should check this typ is Constant.unifiable_typ
-               like wf_const_gid *)
-            admit.
+            inv HBinF. inv H21. inv H23.
+            simpl. destruct H3 as [J3 J4].
+            unfold Constant.typ2utyp in J3.
+            rewrite J3. simpl. eauto.
 
             apply in_or_app. simpl. auto.
         destruct EQ1 as [ut [EQ1 EQ2]].
@@ -290,6 +257,7 @@ Proof.
   split; auto.          
   split; auto.          
   split; auto.          
+  split; auto.          
   split; eauto using inject_incr__preserves__als_simulation.
   split; auto.
   split.
@@ -337,6 +305,7 @@ Proof.
       
       clear - HsimECs H13. 
       eapply inject_incr__preserves__sbECs_simulate_ECs_tail; eauto.
+    repeat(split; eauto using inject_incr__preserves__fable_simulation).
 Qed.
 
 Lemma SBpass_is_correct__dsFree : forall (mi : meminj) (mgb : Values.block)
@@ -823,6 +792,7 @@ Proof.
   split; auto.
   split; auto.
   split; auto.
+  split; auto.
   split.
     eapply cmds_at_block_tail_next; eauto.
   split.
@@ -1007,6 +977,7 @@ Proof.
         rewrite <- getOperandValue_eq_fresh_id; auto.
           eapply get_reg_metadata_fresh' with (rm2:=rm2); eauto; try fsetdec.
 
+  split; auto.
   split; auto.
   split; auto.
   split; auto.
@@ -1299,6 +1270,7 @@ Proof.
   split; auto.
   split; auto.
   split; auto.
+  split; auto.
   split.
     eapply cmds_at_block_tail_next; eauto.
   split.
@@ -1511,10 +1483,11 @@ Proof.
           destruct Heqb1 as [l1 [ps1 [cs11 Heqb1]]]; subst.
           eapply wf_system__wf_cmd with (c:=insn_alloca id0 t v align0) in HBinF;
             eauto.
-            inv HBinF. inv H21. 
-            (* ssa_static should check this typ is Constant.unifiable_typ
-               like wf_const_gid *)
-            admit.
+            inv HBinF. inv H21. inv H23.
+            simpl. destruct H3 as [J3 J4].
+            unfold Constant.typ2utyp in J3.
+            rewrite J3. simpl. eauto.
+
             apply in_or_app. simpl. auto.
         destruct EQ1 as [ut [EQ1 EQ2]].
         rewrite EQ1. simpl.
@@ -1580,6 +1553,7 @@ Proof.
   split.
   split; auto.          
   split; auto.          
+  split; auto.          
   split; auto.
   split; auto.
   split; auto.
@@ -1633,6 +1607,7 @@ Proof.
       
       clear - HsimECs H13. 
       eapply inject_incr__preserves__sbECs_simulate_ECs_tail; eauto.
+    repeat(split; eauto using inject_incr__preserves__fable_simulation).
 Qed.
 
 

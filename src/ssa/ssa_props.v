@@ -1436,36 +1436,20 @@ Proof.
     simpl in H0.
     destruct H0 as [H0 | H0]; subst.
       destruct (getValueViaBlockFromValuels l0 b); try solve [inversion H].   
-        destruct v.
-          destruct (lookupAL GenericValue lc i0); inversion H; subst. 
-          destruct (getIncomingValuesForBlockFromPHINodes TD ps b gl lc);
-            inversion H1; subst.         
-          exists g. simpl. 
-          destruct (id1==id1); auto.
-            contradict n; auto.
-
-          destruct (const2GV TD gl c); inversion H; subst.
-          destruct (getIncomingValuesForBlockFromPHINodes TD ps b gl lc);
-            inversion H1; subst.
-          exists g. simpl. 
-          destruct (id1==id1); auto.
-            contradict n; auto.
+        destruct (getOperandValue TD v lc gl); inversion H; subst. 
+        destruct (getIncomingValuesForBlockFromPHINodes TD ps b gl lc);
+          inversion H1; subst.         
+        exists g. simpl. 
+        destruct (id1==id1); auto.
+          contradict n; auto.
 
       destruct (getValueViaBlockFromValuels l0 b); try solve [inversion H].   
-        destruct v.
-          destruct (lookupAL GenericValue lc i1); inversion H; subst. 
-          remember (getIncomingValuesForBlockFromPHINodes TD ps b gl lc) 
-            as R.
-          destruct R; inversion H2; subst.         
-          simpl.
-          destruct (id1==i0); subst; eauto.
-
-          destruct (const2GV TD gl c); inversion H; subst.
-          remember (getIncomingValuesForBlockFromPHINodes TD ps b gl lc) 
-            as R.
-          destruct R; inversion H2; subst.         
-          simpl.
-          destruct (id1==i0); subst; eauto.
+        destruct (getOperandValue TD v lc gl); inversion H; subst. 
+        remember (getIncomingValuesForBlockFromPHINodes TD ps b gl lc) 
+          as R.
+        destruct R; inversion H2; subst.         
+        simpl.
+        destruct (id1==i0); subst; eauto.
 Qed.
     
 Lemma updateValuesForNewBlock_spec1 : forall rs lc id1 gv,
