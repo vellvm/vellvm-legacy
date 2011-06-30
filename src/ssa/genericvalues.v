@@ -248,9 +248,9 @@ match GV2val TD gv1 with
           match fp2 with
           | fp_float => Some (val2GV TD (Val.ftrunc (Vfloat f)) Mfloat32)
           | fp_double => Some (val2GV TD (Val.ftrunc (Vfloat f)) Mfloat64)
-          | _ => None (* FIXME: not supported 80 and 128 yet. *)
+          | _ => Some gundef (* FIXME: not supported 80 and 128 yet. *)
           end
-        else None
+        else Some gundef
     | _ => Some gundef
     end
 | _ => Some gundef
@@ -310,7 +310,7 @@ match (GV2val TD gv1, GV2val TD gv2) with
   match fp with
   | fp_float => Some (val2GV TD v Mfloat32)
   | fp_double => Some (val2GV TD v Mfloat64)
-  | _ => None (* FIXME: not supported 80 and 128 yet. *)
+  | _ => Some gundef (* FIXME: not supported 80 and 128 yet. *)
   end
 | _ => Some gundef
 end.
@@ -422,11 +422,11 @@ match (t1, t2) with
     | Some (Vfloat f1) =>
       match op with
       | extop_fp => Some gv1
-      | _ => None
+      | _ => Some gundef
       end
     | _ => Some gundef
     end
-  else None
+  else Some gundef
 | (_, _) => None
 end.
 
@@ -494,7 +494,7 @@ match (GV2val TD gv1, GV2val TD gv2) with
          Some (val2GV TD (Val.cmpf Cle (Vfloat f1) (Vfloat f2)) (Mint 0))
      | fcond_one => 
          Some (val2GV TD (Val.cmpf Cne (Vfloat f1) (Vfloat f2)) (Mint 0))
-     | fcond_ord => None (*FIXME: not supported yet. *)
+     | fcond_ord => Some gundef (*FIXME: not supported yet. *)
      | fcond_ueq => 
          Some (val2GV TD (Val.cmpf Ceq (Vfloat f1) (Vfloat f2)) (Mint 0))
      | fcond_ugt => 
@@ -507,13 +507,13 @@ match (GV2val TD gv1, GV2val TD gv2) with
          Some (val2GV TD (Val.cmpf Cle (Vfloat f1) (Vfloat f2)) (Mint 0))
      | fcond_une => 
          Some (val2GV TD (Val.cmpf Cne (Vfloat f1) (Vfloat f2)) (Mint 0))
-     | fcond_uno => None (*FIXME: not supported yet. *)
+     | fcond_uno => Some gundef (*FIXME: not supported yet. *)
      | fcond_true => Some (val2GV TD Vtrue (Mint 0))
      end in
    match fp with
    | fp_float => ov
    | fp_double => ov
-   | _ => None (*FIXME: not supported 80 and 128 yet. *)
+   | _ => Some gundef (*FIXME: not supported 80 and 128 yet. *)
    end  
 | _ => Some gundef
 end.

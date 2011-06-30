@@ -60,7 +60,7 @@ Lemma SBpass_is_correct__dsMalloc : forall (mi : meminj) (mgb : Values.block)
          SBopsem.md_base := SBopsem.base2GV TD mb;
          SBopsem.md_bound := SBopsem.bound2GV TD mb tsz n |} = 
        (lc', rm')),
-  exists St' : LLVMopsem.State,
+  (exists St' : LLVMopsem.State,
      exists mi' : meminj,
        LLVMopsem.dsop_star St St' trace_nil /\
        sbState_simulates_State mi' mgb
@@ -79,7 +79,23 @@ Lemma SBpass_is_correct__dsMalloc : forall (mi : meminj) (mgb : Values.block)
          SBopsem.Globals := gl;
          SBopsem.FunTable := fs;
          SBopsem.Mem := Mem';
-         SBopsem.Mmap := MM |} St' /\ inject_incr mi mi'.
+         SBopsem.Mmap := MM |} St' /\ inject_incr mi mi') \/
+   nondet_state {|
+           SBopsem.CurSystem := S;
+           SBopsem.CurTargetData := TD;
+           SBopsem.CurProducts := Ps;
+           SBopsem.ECS := {|
+                          SBopsem.CurFunction := F;
+                          SBopsem.CurBB := B;
+                          SBopsem.CurCmds := insn_malloc id0 t v align0 :: cs;
+                          SBopsem.Terminator := tmn;
+                          SBopsem.Locals := lc;
+                          SBopsem.Rmap := rm;
+                          SBopsem.Allocas := als |} :: EC;
+           SBopsem.Globals := gl;
+           SBopsem.FunTable := fs;
+           SBopsem.Mem := Mem;
+           SBopsem.Mmap := MM |} St.
 Proof.
   intros.
   destruct_ctx_other.
@@ -97,7 +113,16 @@ Proof.
   apply mem_simulation__malloc with (MM:=MM)(mgb:=mgb)(Mem2:=M2)(mi:=mi) in H1;
     auto.
   destruct H1 as [mi' [Mem2' [mb' [H11 [H16 [H12 [H13 [H14 H15]]]]]]]].
-  simpl.
+
+  simpl. rewrite H0.
+  destruct (@defined_gv_dec gn) as [Hdet | Hndet]; auto.
+  eapply simulation__getOperandValue with (mi:=mi)(Mem2:=M2) in H0; eauto.
+  destruct H0 as [gn' [H00 H01]].
+  assert (GV2int (los, nts) Size.ThirtyTwo gn = 
+    GV2int (los, nts) Size.ThirtyTwo gn') as Heqgn.
+    eapply simulation__eq__GV2int; eauto.
+
+  simpl. left.
   exists (LLVMopsem.mkState S2 (los, nts) Ps2
           ((LLVMopsem.mkEC (fdef_intro fh2 bs2) B2
             (cs2' ++ cs23) tmn2 
@@ -126,10 +151,8 @@ Proof.
              (updateAddAL GenericValue lc2 id0 (blk2GV (los, nts) mb'))
              als2):: 
             ECs2) gl2 fs2 Mem2'); auto.
-      eapply simulation__getOperandValue with (mi:=mi)(Mem2:=M2) in H0; eauto.
-      destruct H0 as [gn' [H00 H01]].
       unfold malloc in H11.
-      erewrite simulation__eq__GV2int in H11; eauto.
+      rewrite Heqgn in H11; eauto.
 
     rewrite <- (@trace_app_nil__eq__trace trace_nil).
     apply LLVMopsem.dsop_star_cons with (state2:=
@@ -144,14 +167,6 @@ Proof.
                tmp (SBopsem.bound2GV (los,nts) mb' tsz n))
              als2):: 
             ECs2) gl2 fs2 Mem2'); auto.
-      assert (exists gn', getOperandValue (los,nts) v lc2 gl2 = ret gn' /\
-          GV2int (los,nts) Size.ThirtyTwo gn = 
-          GV2int (los,nts) Size.ThirtyTwo gn') as H4.
-        eapply simulation__getOperandValue with (Mem2:=M2) in H0; eauto.
-        destruct H0 as [gv' [H00 H01]].
-        exists gv'. split; auto.
-          rewrite simulation__eq__GV2int with (mi:=mi)(gn':=gv'); eauto.
-      destruct H4 as [gn' [H41 H42]].
       apply LLVMopsem.dsGEP with (mp:=blk2GV (los,nts) mb')(vidxs:=[gn']); auto.
         simpl.
         rewrite lookupAL_updateAddAL_eq; auto.
@@ -169,11 +184,11 @@ Proof.
               destruct v; simpl in *; fsetdec.
 
         rewrite EQ'. clear EQ'.
-        rewrite H41. auto.
+        rewrite H00. auto.
 
         unfold SBopsem.bound2GV, GEP, blk2GV, GV2ptr, ptr2GV, val2GV.
         simpl.
-        rewrite <- H42. rewrite H2.
+        rewrite <- Heqgn. rewrite H2.
         unfold Constant.typ2utyp.
         assert (exists ut, 
           Constant.typ2utyp_aux (Constant.subst_nts_by_nts nts nts) 
@@ -182,8 +197,8 @@ Proof.
           destruct Heqb1 as [l1 [ps1 [cs11 Heqb1]]]; subst.
           eapply wf_system__wf_cmd with (c:=insn_malloc id0 t v align0) in HBinF;
             eauto.
-            inv HBinF. inv H21. inv H23.
-            simpl. destruct H3 as [J3 J4].
+            inv HBinF. inv H22.
+            simpl. destruct H0 as [J3 J4].
             unfold Constant.typ2utyp in J3.
             rewrite J3. simpl. eauto.
 
@@ -282,8 +297,8 @@ Proof.
       eapply reg_simulation__updateAddAL_tmp; eauto.
       eapply reg_simulation__updateAddAL_lc; eauto.
         eapply inject_incr__preserves__reg_simulation; eauto.
-        admit.
-        admit.
+        admit. (*fresh*)
+        admit. (*fresh*)
 
       unfold gv_inject, blk2GV, ptr2GV, val2GV.
       simpl. apply val_cons_inject; eauto.
@@ -307,6 +322,302 @@ Proof.
       eapply inject_incr__preserves__sbECs_simulate_ECs_tail; eauto.
     repeat(split; eauto using inject_incr__preserves__fable_simulation).
 Qed.
+
+Lemma SBpass_is_correct__dsAlloca : forall 
+  (mi : meminj) (mgb : Values.block) (St : LLVMopsem.State) (S : system)
+  (TD : TargetData) (Ps : list product) (F : fdef) (B : block) (lc : GVMap)
+  (rm : AssocList metadata) (gl : GVMap) (fs : GVMap) (id0 : atom) (t : typ)  
+  (v : value) (align0 : align) (EC : list ExecutionContext) (cs : list cmd)
+  (tmn : terminator) (Mem0 : mem) (MM : mmetadata) (als : list mblock)
+  (Hsim : sbState_simulates_State mi mgb
+           {|
+           CurSystem := S;
+           CurTargetData := TD;
+           CurProducts := Ps;
+           ECS := {|
+                  CurFunction := F;
+                  CurBB := B;
+                  CurCmds := insn_alloca id0 t v align0 :: cs;
+                  Terminator := tmn;
+                  Locals := lc;
+                  Rmap := rm;
+                  Allocas := als |} :: EC;
+           Globals := gl;
+           FunTable := fs;
+           Mem := Mem0;
+           Mmap := MM |} St)
+  (gn : GenericValue) (Mem' : mem) (tsz : sz) (mb : mblock) (lc' : GVMap)
+  (rm' : rmetadata) (n : Z) (H : getTypeAllocSize TD t = ret tsz)
+  (H0 : getOperandValue TD v lc gl = ret gn) 
+  (H1 : malloc TD Mem0 tsz gn align0 = ret (Mem', mb))
+  (H2 : GV2int TD Size.ThirtyTwo gn = ret n)
+  (H3 : prop_reg_metadata lc rm id0 (blk2GV TD mb)
+         {| md_base := base2GV TD mb; md_bound := bound2GV TD mb tsz n |} =
+       (lc', rm')),
+  (exists St' : LLVMopsem.State,
+     exists mi' : meminj,
+       LLVMopsem.dsop_star St St' trace_nil /\
+       sbState_simulates_State mi' mgb
+         {|
+         CurSystem := S;
+         CurTargetData := TD;
+         CurProducts := Ps;
+         ECS := {|
+                CurFunction := F;
+                CurBB := B;
+                CurCmds := cs;
+                Terminator := tmn;
+                Locals := lc';
+                Rmap := rm';
+                Allocas := mb :: als |} :: EC;
+         Globals := gl;
+         FunTable := fs;
+         Mem := Mem';
+         Mmap := MM |} St' /\ inject_incr mi mi') \/
+   nondet_state {|
+           SBopsem.CurSystem := S;
+           SBopsem.CurTargetData := TD;
+           SBopsem.CurProducts := Ps;
+           SBopsem.ECS := {|
+                          SBopsem.CurFunction := F;
+                          SBopsem.CurBB := B;
+                          SBopsem.CurCmds := insn_alloca id0 t v align0 :: cs;
+                          SBopsem.Terminator := tmn;
+                          SBopsem.Locals := lc;
+                          SBopsem.Rmap := rm;
+                          SBopsem.Allocas := als |} :: EC;
+           SBopsem.Globals := gl;
+           SBopsem.FunTable := fs;
+           SBopsem.Mem := Mem0;
+           SBopsem.Mmap := MM |} St.
+Proof.
+  intros.
+  destruct_ctx_other.
+  simpl in Hfresh. destruct Hfresh as [Hnotin Hfresh].
+  apply trans_cmds_inv in Htcmds.
+  destruct Htcmds as [ex_ids5 [cs1' [cs2' [Htcmd [Htcmds Heq]]]]]; subst.
+  simpl in Htcmd.
+  remember (lookupAL (id * id) rm2 id0) as R1.
+  destruct R1 as [[bid eid]|]; try solve [inversion Htcmd].
+  remember (mk_tmp ex_ids3) as R2.
+  destruct R2 as [tmp ex_ids6].
+  inv Htcmd.
+  invert_prop_reg_metadata.
+  assert (Hmalloc:=H1).
+  apply mem_simulation__malloc with (MM:=MM)(mgb:=mgb)(Mem2:=M2)(mi:=mi) in H1;
+    auto.
+  destruct H1 as [mi' [Mem2' [mb' [H11 [H16 [H12 [H13 [H14 H15]]]]]]]].
+
+  simpl. rewrite H0.
+  destruct (@defined_gv_dec gn) as [Hdet | Hndet]; auto.
+  eapply simulation__getOperandValue with (mi:=mi)(Mem2:=M2) in H0; eauto.
+  destruct H0 as [gn' [H00 H01]].
+  assert (GV2int (los, nts) Size.ThirtyTwo gn = 
+    GV2int (los, nts) Size.ThirtyTwo gn') as Heqgn.
+    eapply simulation__eq__GV2int; eauto.
+
+  simpl. left.
+  exists (LLVMopsem.mkState S2 (los, nts) Ps2
+          ((LLVMopsem.mkEC (fdef_intro fh2 bs2) B2
+            (cs2' ++ cs23) tmn2 
+                (updateAddAL _ 
+                  (updateAddAL _ 
+                    (updateAddAL _ 
+                      (updateAddAL GenericValue lc2 id0 (blk2GV (los, nts) mb'))
+                      tmp (SBopsem.bound2GV (los, nts) mb' tsz n))
+                    bid (SBopsem.base2GV (los, nts) mb'))
+                  eid (SBopsem.bound2GV (los, nts) mb' tsz n))
+             (mb'::als2)):: 
+            ECs2) gl2 fs2 Mem2').
+  exists mi'.
+  split.
+  SCase "opsem".
+    rewrite <- (@trace_app_nil__eq__trace trace_nil).
+    apply LLVMopsem.dsop_star_cons with (state2:=
+        LLVMopsem.mkState S2 (los, nts) Ps2
+          ((LLVMopsem.mkEC (fdef_intro fh2 bs2) B2
+             (insn_gep tmp false t (value_id id0) 
+                (Cons_list_value v Nil_list_value):: 
+              insn_cast bid castop_bitcast (typ_pointer t)(value_id id0) p8 :: 
+              insn_cast eid castop_bitcast (typ_pointer t)(value_id tmp) p8 :: 
+              cs2' ++ cs23)
+             tmn2 
+             (updateAddAL GenericValue lc2 id0 (blk2GV (los, nts) mb'))
+             (mb'::als2)):: 
+            ECs2) gl2 fs2 Mem2'); auto.
+      unfold malloc in H11.
+      rewrite Heqgn in H11; eauto.
+
+    rewrite <- (@trace_app_nil__eq__trace trace_nil).
+    apply LLVMopsem.dsop_star_cons with (state2:=
+        LLVMopsem.mkState S2 (los, nts) Ps2
+          ((LLVMopsem.mkEC (fdef_intro fh2 bs2) B2
+             (insn_cast bid castop_bitcast (typ_pointer t)(value_id id0) p8 :: 
+              insn_cast eid castop_bitcast (typ_pointer t)(value_id tmp) p8 :: 
+              cs2' ++ cs23)
+             tmn2 
+             (updateAddAL _
+               (updateAddAL GenericValue lc2 id0 (blk2GV (los,nts) mb'))
+               tmp (SBopsem.bound2GV (los,nts) mb' tsz n))
+             (mb'::als2)):: 
+            ECs2) gl2 fs2 Mem2'); auto.
+      apply LLVMopsem.dsGEP with (mp:=blk2GV (los,nts) mb')(vidxs:=[gn']); auto.
+        simpl.
+        rewrite lookupAL_updateAddAL_eq; auto.
+
+        simpl.
+        assert(getOperandValue (los,nts) v
+          (updateAddAL _ lc2 id0 (blk2GV (los,nts) mb')) gl2 = 
+          getOperandValue (los,nts) v lc2 gl2) as EQ'.
+          clear - Hnotin HeqR1. 
+          destruct Hnotin as [Hnotin1 [Hnotin2 _ ]]. simpl in Hnotin2.
+
+          rewrite <- getOperandValue_eq_fresh_id; auto.
+            unfold getCmdIDs in Hnotin1. simpl in Hnotin1.
+            eapply notin_codom__neq' in HeqR1; eauto.
+              destruct v; simpl in *; fsetdec.
+
+        rewrite EQ'. clear EQ'.
+        rewrite H00. auto.
+
+        unfold SBopsem.bound2GV, GEP, blk2GV, GV2ptr, ptr2GV, val2GV.
+        simpl.
+        rewrite <- Heqgn. rewrite H2.
+        unfold Constant.typ2utyp.
+        assert (exists ut, 
+          Constant.typ2utyp_aux (Constant.subst_nts_by_nts nts nts) 
+            (typ_array 0%nat t) = Some (typ_array 0%nat ut) /\
+          getTypeAllocSize (los, nts) ut = getTypeAllocSize (los, nts) t) as EQ1.
+          destruct Heqb1 as [l1 [ps1 [cs11 Heqb1]]]; subst.
+          eapply wf_system__wf_cmd with (c:=insn_alloca id0 t v align0) in HBinF;
+            eauto.
+            inv HBinF. inv H22.
+            simpl. destruct H0 as [J3 J4].
+            unfold Constant.typ2utyp in J3.
+            rewrite J3. simpl. eauto.
+
+            apply in_or_app. simpl. auto.
+        destruct EQ1 as [ut [EQ1 EQ2]].
+        rewrite EQ1. simpl.
+        rewrite EQ2. rewrite H. simpl.
+        rewrite Int.add_commut.
+        rewrite Int.add_zero. auto.
+
+    rewrite <- (@trace_app_nil__eq__trace trace_nil).
+    apply LLVMopsem.dsop_star_cons with (state2:=
+        LLVMopsem.mkState S2 (los, nts) Ps2
+          ((LLVMopsem.mkEC (fdef_intro fh2 bs2) B2
+             (insn_cast eid castop_bitcast (typ_pointer t)(value_id tmp) p8 :: 
+              cs2' ++ cs23)
+             tmn2 
+             (updateAddAL _
+               (updateAddAL _
+                 (updateAddAL GenericValue lc2 id0 (blk2GV (los,nts) mb'))
+                 tmp (SBopsem.bound2GV (los,nts) mb' tsz n))
+               bid (SBopsem.base2GV (los,nts) mb'))               
+             (mb'::als2)):: 
+            ECs2) gl2 fs2 Mem2'); auto.
+      apply LLVMopsem.dsCast; auto.
+        unfold CAST. simpl.
+        rewrite <- lookupAL_updateAddAL_neq.
+          rewrite lookupAL_updateAddAL_eq.
+          auto.
+
+          clear - Hnotin HeqR1 HeqR2.
+          destruct Hnotin as [Hnotin1 [_ [Hnotin2 _]]]. 
+          unfold getCmdIDs in *. simpl in *.
+          eapply tmp_is_fresh; eauto. fsetdec.
+
+    rewrite <- (@trace_app_nil__eq__trace trace_nil).
+    apply LLVMopsem.dsop_star_cons with (state2:=
+       (LLVMopsem.mkState S2 (los, nts) Ps2
+          ((LLVMopsem.mkEC (fdef_intro fh2 bs2) B2
+            (cs2' ++ cs23) tmn2 
+                (updateAddAL _ 
+                  (updateAddAL _ 
+                    (updateAddAL _ 
+                      (updateAddAL GenericValue lc2 id0 (blk2GV (los, nts) mb'))
+                      tmp (SBopsem.bound2GV (los, nts) mb' tsz n))
+                    bid (SBopsem.base2GV (los, nts) mb'))                    
+                  eid (SBopsem.bound2GV (los, nts) mb' tsz n))
+             (mb'::als2)):: 
+            ECs2) gl2 fs2 Mem2')); auto.
+      apply LLVMopsem.dsCast; auto.
+        unfold CAST. simpl.
+        rewrite <- lookupAL_updateAddAL_neq.
+          rewrite lookupAL_updateAddAL_eq; auto.
+
+          destruct Hnotin as [Hnotin1 [Hnotin2 [Hnotin3 Hnotin4]]]. 
+          unfold getCmdIDs in *.
+          eapply tmp_is_fresh' with (tmp:=tmp) in HeqR1; eauto. 
+            destruct HeqR1; auto.
+            clear - Hnotin3. fsetdec.
+
+  split; auto.
+  split; auto.
+  split; auto.
+  split; auto.
+  split.
+  split.
+  split; auto.          
+  split; auto.          
+  split; auto.          
+  split; auto.
+  split; auto.
+  split; auto.
+  split; auto.
+  split; auto.
+  split; auto.
+    split; eauto using inject_incr__preserves__als_simulation.
+  split; auto.          
+  split; auto.          
+    eapply cmds_at_block_tail_next; eauto.
+  split.
+    destruct Heqb2 as [l2 [ps2 [cs21 Heqb2]]]; subst.
+    exists l2. exists ps2. exists (cs21 ++
+                  (insn_alloca id0 t v align0
+                    :: insn_gep tmp false t (value_id id0)
+                         (Cons_list_value v Nil_list_value)
+                       :: insn_cast bid castop_bitcast 
+                            (typ_pointer t) (value_id id0) p8
+                          :: insn_cast eid castop_bitcast 
+                               (typ_pointer t) (value_id tmp) p8 :: nil)).
+    simpl_env. auto.
+  exists ex_ids. exists rm2.
+  exists ex_ids5. exists ex_ids4. exists cs2'. exists cs23.
+  split; auto.
+  split.
+  SCase "rsim".
+    eapply reg_simulation__updateAddAL_md; eauto.
+      eapply reg_simulation__updateAddAL_tmp; eauto.
+      eapply reg_simulation__updateAddAL_lc; eauto.
+        eapply inject_incr__preserves__reg_simulation; eauto.
+        admit. (*fresh*)
+        admit. (*fresh*)
+
+      unfold gv_inject, blk2GV, ptr2GV, val2GV.
+      simpl. apply val_cons_inject; eauto.
+
+      unfold gv_inject, SBopsem.base2GV, blk2GV, ptr2GV, val2GV.
+      simpl. clear - H14.
+      apply val_cons_inject; eauto.
+
+      unfold gv_inject, SBopsem.base2GV, blk2GV, ptr2GV, val2GV.
+      simpl. clear - H14.
+        apply val_cons_inject; eauto.
+          eapply val_inject_ptr; eauto.
+            rewrite Int.add_zero. auto.
+
+    split; auto.
+      clear - Hinc HeqR2. eapply mk_tmp_inc; eauto.
+    split; auto.
+      clear - Hinc HeqR2 Hfresh. eapply wf_freshs__mk_tmp; eauto.
+      
+      clear - HsimECs H13. 
+      eapply inject_incr__preserves__sbECs_simulate_ECs_tail; eauto.
+    repeat(split; eauto using inject_incr__preserves__fable_simulation).
+Qed.
+
 
 Lemma SBpass_is_correct__dsFree : forall (mi : meminj) (mgb : Values.block)
   (St : LLVMopsem.State) (S : system) (TD : TargetData) (Ps : list product)
@@ -578,8 +889,8 @@ Proof.
   split.
     eapply reg_simulation__updateAddAL_lc; eauto.
       eapply reg_simulation__updateAddAL_tmp; eauto.
-      admit.
-      admit.
+      admit. (*fresh*)
+      admit. (*fresh*)
 
     split; auto.
       clear - Hinc HeqR1. eapply mk_tmp_inc; eauto.
@@ -817,8 +1128,8 @@ Proof.
     inv H5. rewrite JJ.
     eapply reg_simulation__updateAddAL_prop; eauto.
       eapply reg_simulation__updateAddAL_tmp; eauto.
-      admit.
-      admit.
+      admit. (*fresh*)
+      admit. (*fresh*)
     split; auto.
       clear - Hinc HeqR1. eapply mk_tmp_inc; eauto.
     split; auto.
@@ -1327,287 +1638,6 @@ Proof.
       apply mi_bounds in J.
       rewrite <- W3.
       erewrite Mem.bounds_store with (m1:=Mem0); eauto.
-Qed.
-
-
-Lemma SBpass_is_correct__dsAlloca : forall 
-  (mi : meminj) (mgb : Values.block) (St : LLVMopsem.State) (S : system)
-  (TD : TargetData) (Ps : list product) (F : fdef) (B : block) (lc : GVMap)
-  (rm : AssocList metadata) (gl : GVMap) (fs : GVMap) (id0 : atom) (t : typ)  
-  (v : value) (align0 : align) (EC : list ExecutionContext) (cs : list cmd)
-  (tmn : terminator) (Mem0 : mem) (MM : mmetadata) (als : list mblock)
-  (Hsim : sbState_simulates_State mi mgb
-           {|
-           CurSystem := S;
-           CurTargetData := TD;
-           CurProducts := Ps;
-           ECS := {|
-                  CurFunction := F;
-                  CurBB := B;
-                  CurCmds := insn_alloca id0 t v align0 :: cs;
-                  Terminator := tmn;
-                  Locals := lc;
-                  Rmap := rm;
-                  Allocas := als |} :: EC;
-           Globals := gl;
-           FunTable := fs;
-           Mem := Mem0;
-           Mmap := MM |} St)
-  (gn : GenericValue) (Mem' : mem) (tsz : sz) (mb : mblock) (lc' : GVMap)
-  (rm' : rmetadata) (n : Z) (H : getTypeAllocSize TD t = ret tsz)
-  (H0 : getOperandValue TD v lc gl = ret gn) 
-  (H1 : malloc TD Mem0 tsz gn align0 = ret (Mem', mb))
-  (H2 : GV2int TD Size.ThirtyTwo gn = ret n)
-  (H3 : prop_reg_metadata lc rm id0 (blk2GV TD mb)
-         {| md_base := base2GV TD mb; md_bound := bound2GV TD mb tsz n |} =
-       (lc', rm')),
-   exists St' : LLVMopsem.State,
-     exists mi' : meminj,
-       LLVMopsem.dsop_star St St' trace_nil /\
-       sbState_simulates_State mi' mgb
-         {|
-         CurSystem := S;
-         CurTargetData := TD;
-         CurProducts := Ps;
-         ECS := {|
-                CurFunction := F;
-                CurBB := B;
-                CurCmds := cs;
-                Terminator := tmn;
-                Locals := lc';
-                Rmap := rm';
-                Allocas := mb :: als |} :: EC;
-         Globals := gl;
-         FunTable := fs;
-         Mem := Mem';
-         Mmap := MM |} St' /\ inject_incr mi mi'.
-Proof.
-  intros.
-  destruct_ctx_other.
-  simpl in Hfresh. destruct Hfresh as [Hnotin Hfresh].
-  apply trans_cmds_inv in Htcmds.
-  destruct Htcmds as [ex_ids5 [cs1' [cs2' [Htcmd [Htcmds Heq]]]]]; subst.
-  simpl in Htcmd.
-  remember (lookupAL (id * id) rm2 id0) as R1.
-  destruct R1 as [[bid eid]|]; try solve [inversion Htcmd].
-  remember (mk_tmp ex_ids3) as R2.
-  destruct R2 as [tmp ex_ids6].
-  inv Htcmd.
-  invert_prop_reg_metadata.
-  assert (Hmalloc:=H1).
-  apply mem_simulation__malloc with (MM:=MM)(mgb:=mgb)(Mem2:=M2)(mi:=mi) in H1;
-    auto.
-  destruct H1 as [mi' [Mem2' [mb' [H11 [H16 [H12 [H13 [H14 H15]]]]]]]].
-  simpl.
-  exists (LLVMopsem.mkState S2 (los, nts) Ps2
-          ((LLVMopsem.mkEC (fdef_intro fh2 bs2) B2
-            (cs2' ++ cs23) tmn2 
-                (updateAddAL _ 
-                  (updateAddAL _ 
-                    (updateAddAL _ 
-                      (updateAddAL GenericValue lc2 id0 (blk2GV (los, nts) mb'))
-                      tmp (SBopsem.bound2GV (los, nts) mb' tsz n))
-                    bid (SBopsem.base2GV (los, nts) mb'))
-                  eid (SBopsem.bound2GV (los, nts) mb' tsz n))
-             (mb'::als2)):: 
-            ECs2) gl2 fs2 Mem2').
-  exists mi'.
-  split.
-  SCase "opsem".
-    rewrite <- (@trace_app_nil__eq__trace trace_nil).
-    apply LLVMopsem.dsop_star_cons with (state2:=
-        LLVMopsem.mkState S2 (los, nts) Ps2
-          ((LLVMopsem.mkEC (fdef_intro fh2 bs2) B2
-             (insn_gep tmp false t (value_id id0) 
-                (Cons_list_value v Nil_list_value):: 
-              insn_cast bid castop_bitcast (typ_pointer t)(value_id id0) p8 :: 
-              insn_cast eid castop_bitcast (typ_pointer t)(value_id tmp) p8 :: 
-              cs2' ++ cs23)
-             tmn2 
-             (updateAddAL GenericValue lc2 id0 (blk2GV (los, nts) mb'))
-             (mb'::als2)):: 
-            ECs2) gl2 fs2 Mem2'); auto.
-      eapply simulation__getOperandValue with (mi:=mi)(Mem2:=M2) in H0; eauto.
-      destruct H0 as [gn' [H00 H01]].
-      unfold malloc in H11.
-      erewrite simulation__eq__GV2int in H11; eauto.
-
-    rewrite <- (@trace_app_nil__eq__trace trace_nil).
-    apply LLVMopsem.dsop_star_cons with (state2:=
-        LLVMopsem.mkState S2 (los, nts) Ps2
-          ((LLVMopsem.mkEC (fdef_intro fh2 bs2) B2
-             (insn_cast bid castop_bitcast (typ_pointer t)(value_id id0) p8 :: 
-              insn_cast eid castop_bitcast (typ_pointer t)(value_id tmp) p8 :: 
-              cs2' ++ cs23)
-             tmn2 
-             (updateAddAL _
-               (updateAddAL GenericValue lc2 id0 (blk2GV (los,nts) mb'))
-               tmp (SBopsem.bound2GV (los,nts) mb' tsz n))
-             (mb'::als2)):: 
-            ECs2) gl2 fs2 Mem2'); auto.
-      assert (exists gn', getOperandValue (los,nts) v lc2 gl2 = ret gn' /\
-          GV2int (los,nts) Size.ThirtyTwo gn = 
-          GV2int (los,nts) Size.ThirtyTwo gn') as H4.
-        eapply simulation__getOperandValue with (Mem2:=M2) in H0; eauto.
-        destruct H0 as [gv' [H00 H01]].
-        exists gv'. split; auto.
-          rewrite simulation__eq__GV2int with (mi:=mi)(gn':=gv'); eauto.
-      destruct H4 as [gn' [H41 H42]].
-      apply LLVMopsem.dsGEP with (mp:=blk2GV (los,nts) mb')(vidxs:=[gn']); auto.
-        simpl.
-        rewrite lookupAL_updateAddAL_eq; auto.
-
-        simpl.
-        assert(getOperandValue (los,nts) v
-          (updateAddAL _ lc2 id0 (blk2GV (los,nts) mb')) gl2 = 
-          getOperandValue (los,nts) v lc2 gl2) as EQ'.
-          clear - Hnotin HeqR1. 
-          destruct Hnotin as [Hnotin1 [Hnotin2 _ ]]. simpl in Hnotin2.
-
-          rewrite <- getOperandValue_eq_fresh_id; auto.
-            unfold getCmdIDs in Hnotin1. simpl in Hnotin1.
-            eapply notin_codom__neq' in HeqR1; eauto.
-              destruct v; simpl in *; fsetdec.
-
-        rewrite EQ'. clear EQ'.
-        rewrite H41. auto.
-
-        unfold SBopsem.bound2GV, GEP, blk2GV, GV2ptr, ptr2GV, val2GV.
-        simpl.
-        rewrite <- H42. rewrite H2.
-        unfold Constant.typ2utyp.
-        assert (exists ut, 
-          Constant.typ2utyp_aux (Constant.subst_nts_by_nts nts nts) 
-            (typ_array 0%nat t) = Some (typ_array 0%nat ut) /\
-          getTypeAllocSize (los, nts) ut = getTypeAllocSize (los, nts) t) as EQ1.
-          destruct Heqb1 as [l1 [ps1 [cs11 Heqb1]]]; subst.
-          eapply wf_system__wf_cmd with (c:=insn_alloca id0 t v align0) in HBinF;
-            eauto.
-            inv HBinF. inv H21. inv H23.
-            simpl. destruct H3 as [J3 J4].
-            unfold Constant.typ2utyp in J3.
-            rewrite J3. simpl. eauto.
-
-            apply in_or_app. simpl. auto.
-        destruct EQ1 as [ut [EQ1 EQ2]].
-        rewrite EQ1. simpl.
-        rewrite EQ2. rewrite H. simpl.
-        rewrite Int.add_commut.
-        rewrite Int.add_zero. auto.
-
-    rewrite <- (@trace_app_nil__eq__trace trace_nil).
-    apply LLVMopsem.dsop_star_cons with (state2:=
-        LLVMopsem.mkState S2 (los, nts) Ps2
-          ((LLVMopsem.mkEC (fdef_intro fh2 bs2) B2
-             (insn_cast eid castop_bitcast (typ_pointer t)(value_id tmp) p8 :: 
-              cs2' ++ cs23)
-             tmn2 
-             (updateAddAL _
-               (updateAddAL _
-                 (updateAddAL GenericValue lc2 id0 (blk2GV (los,nts) mb'))
-                 tmp (SBopsem.bound2GV (los,nts) mb' tsz n))
-               bid (SBopsem.base2GV (los,nts) mb'))               
-             (mb'::als2)):: 
-            ECs2) gl2 fs2 Mem2'); auto.
-      apply LLVMopsem.dsCast; auto.
-        unfold CAST. simpl.
-        rewrite <- lookupAL_updateAddAL_neq.
-          rewrite lookupAL_updateAddAL_eq.
-          auto.
-
-          clear - Hnotin HeqR1 HeqR2.
-          destruct Hnotin as [Hnotin1 [_ [Hnotin2 _]]]. 
-          unfold getCmdIDs in *. simpl in *.
-          eapply tmp_is_fresh; eauto. fsetdec.
-
-    rewrite <- (@trace_app_nil__eq__trace trace_nil).
-    apply LLVMopsem.dsop_star_cons with (state2:=
-       (LLVMopsem.mkState S2 (los, nts) Ps2
-          ((LLVMopsem.mkEC (fdef_intro fh2 bs2) B2
-            (cs2' ++ cs23) tmn2 
-                (updateAddAL _ 
-                  (updateAddAL _ 
-                    (updateAddAL _ 
-                      (updateAddAL GenericValue lc2 id0 (blk2GV (los, nts) mb'))
-                      tmp (SBopsem.bound2GV (los, nts) mb' tsz n))
-                    bid (SBopsem.base2GV (los, nts) mb'))                    
-                  eid (SBopsem.bound2GV (los, nts) mb' tsz n))
-             (mb'::als2)):: 
-            ECs2) gl2 fs2 Mem2')); auto.
-      apply LLVMopsem.dsCast; auto.
-        unfold CAST. simpl.
-        rewrite <- lookupAL_updateAddAL_neq.
-          rewrite lookupAL_updateAddAL_eq; auto.
-
-          destruct Hnotin as [Hnotin1 [Hnotin2 [Hnotin3 Hnotin4]]]. 
-          unfold getCmdIDs in *.
-          eapply tmp_is_fresh' with (tmp:=tmp) in HeqR1; eauto. 
-            destruct HeqR1; auto.
-            clear - Hnotin3. fsetdec.
-
-  split; auto.
-  split; auto.
-  split; auto.
-  split; auto.
-  split.
-  split.
-  split; auto.          
-  split; auto.          
-  split; auto.          
-  split; auto.
-  split; auto.
-  split; auto.
-  split; auto.
-  split; auto.
-  split; auto.
-    split; eauto using inject_incr__preserves__als_simulation.
-  split; auto.          
-  split; auto.          
-    eapply cmds_at_block_tail_next; eauto.
-  split.
-    destruct Heqb2 as [l2 [ps2 [cs21 Heqb2]]]; subst.
-    exists l2. exists ps2. exists (cs21 ++
-                  (insn_alloca id0 t v align0
-                    :: insn_gep tmp false t (value_id id0)
-                         (Cons_list_value v Nil_list_value)
-                       :: insn_cast bid castop_bitcast 
-                            (typ_pointer t) (value_id id0) p8
-                          :: insn_cast eid castop_bitcast 
-                               (typ_pointer t) (value_id tmp) p8 :: nil)).
-    simpl_env. auto.
-  exists ex_ids. exists rm2.
-  exists ex_ids5. exists ex_ids4. exists cs2'. exists cs23.
-  split; auto.
-  split.
-  SCase "rsim".
-    eapply reg_simulation__updateAddAL_md; eauto.
-      eapply reg_simulation__updateAddAL_tmp; eauto.
-      eapply reg_simulation__updateAddAL_lc; eauto.
-        eapply inject_incr__preserves__reg_simulation; eauto.
-        admit.
-        admit.
-
-      unfold gv_inject, blk2GV, ptr2GV, val2GV.
-      simpl. apply val_cons_inject; eauto.
-
-      unfold gv_inject, SBopsem.base2GV, blk2GV, ptr2GV, val2GV.
-      simpl. clear - H14.
-      apply val_cons_inject; eauto.
-
-      unfold gv_inject, SBopsem.base2GV, blk2GV, ptr2GV, val2GV.
-      simpl. clear - H14.
-        apply val_cons_inject; eauto.
-          eapply val_inject_ptr; eauto.
-            rewrite Int.add_zero. auto.
-
-    split; auto.
-      clear - Hinc HeqR2. eapply mk_tmp_inc; eauto.
-    split; auto.
-      clear - Hinc HeqR2 Hfresh. eapply wf_freshs__mk_tmp; eauto.
-      
-      clear - HsimECs H13. 
-      eapply inject_incr__preserves__sbECs_simulate_ECs_tail; eauto.
-    repeat(split; eauto using inject_incr__preserves__fable_simulation).
 Qed.
 
 

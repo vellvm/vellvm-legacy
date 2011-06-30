@@ -620,6 +620,198 @@ match (ogvs, cs) with
 end.
 
 
+Fixpoint incomingValues_simulation (mi:Values.meminj)
+  (re1:list (id * GenericValue * monad metadata))(rm2:rmap)
+  (re2:list (id * GenericValue)) : Prop :=
+match (re1, re2) with
+| (nil, nil) => True
+| ((i1,gv1,None)::re1', (i2,gv2)::re2') =>
+    i1 = i2 /\ gv_inject mi gv1 gv2 /\ incomingValues_simulation mi re1' rm2 re2'
+| ((i1,gv1,Some (SBopsem.mkMD bgv1 egv1))::re1', 
+   (eid2,egv2)::(bid2,bgv2)::(i2,gv2)::re2') =>
+    i1 = i2 /\ gv_inject mi gv1 gv2 /\ 
+    lookupAL _ rm2 i2 = Some (bid2,eid2) /\
+    gv_inject mi bgv1 bgv2 /\ gv_inject mi egv1 egv2 /\
+    incomingValues_simulation mi re1' rm2 re2'
+| _ => False
+end.
+
+Definition defined_gv (gv:GenericValue) : Prop :=
+match gv with
+| (v,_)::_ => v <> Vundef
+| _ => True
+end.
+
+Fixpoint defined_gvs (gvs:list GenericValue) : Prop :=
+match gvs with
+| gv::gvs' => defined_gv gv /\ defined_gvs gvs'
+| nil => True
+end.
+
+Definition chunk_matched (gv gv':GenericValue) : Prop :=
+let '(_,ms):=split gv in
+let '(_,ms'):=split gv' in
+ms = ms'.
+
+Definition nondet_state sbSt (St : LLVMopsem.State) : Prop :=
+  match sbSt, St with 
+  | {| CurTargetData := TD;
+       ECS := {| CurCmds := insn_gep id0 inbounds0 t vp idxs :: cs;
+                 Locals := lc |} :: _;
+       Globals := gl |}, _ =>
+      match (values2GVs TD idxs lc gl) with
+      | Some vidxs => ~ defined_gvs vidxs
+      | _ => False
+      end
+  | {| CurTargetData := TD;
+       ECS := {| CurCmds := insn_extractvalue _ _ v _ :: _;
+                 Locals := lc |} :: _;
+       Globals := gl |},
+    {| LLVMopsem.CurTargetData := _;
+       LLVMopsem.ECS := {| LLVMopsem.CurCmds := insn_extractvalue _ _ v' _ :: _;
+                 LLVMopsem.Locals := lc' |} :: _;
+       LLVMopsem.Globals := _ |} =>
+      v = v' /\
+      match (getOperandValue TD v lc gl, getOperandValue TD v' lc' gl) with
+      | (Some gv, Some gv') => ~ chunk_matched gv gv'
+      | _ => False
+      end
+  | {| CurTargetData := TD;
+       ECS := {| CurCmds := insn_insertvalue _ _ v1 _ v2 _ :: _;
+                 Locals := lc |} :: _;
+       Globals := gl |},
+    {| LLVMopsem.CurTargetData := _;
+       LLVMopsem.ECS := 
+              {| LLVMopsem.CurCmds := insn_insertvalue _ _ v1' _ v2' _ :: _;
+                 LLVMopsem.Locals := lc' |} :: _;
+       LLVMopsem.Globals := _ |} =>
+      v1 = v1' /\ v2 = v2' /\
+      match (getOperandValue TD v1 lc gl, getOperandValue TD v1' lc' gl,
+             getOperandValue TD v2 lc gl, getOperandValue TD v2' lc' gl) with
+      | (Some gv1, Some gv1', Some gv2, Some gv2') => 
+          ~ chunk_matched gv1 gv1' \/  ~ chunk_matched gv2 gv2'
+      | _ => False
+      end
+  | {| CurTargetData := TD;
+       ECS := {| CurCmds := insn_select id0 v0 _ _ _ :: cs;
+                 Locals := lc |} :: _;
+       Globals := gl |}, _ =>
+      match (getOperandValue TD v0 lc gl) with
+      | Some gv => ~ defined_gv gv
+      | _ => False
+      end
+  | {| CurTargetData := TD;
+       ECS := {| CurCmds := insn_malloc _ _ v0 _ :: cs;
+                 Locals := lc |} :: _;
+       Globals := gl |}, _
+  | {| CurTargetData := TD;
+       ECS := {| CurCmds := insn_alloca _ _ v0 _ :: cs;
+                 Locals := lc |} :: _;
+       Globals := gl |}, _ =>
+      match (getOperandValue TD v0 lc gl) with
+      | Some gv => ~ defined_gv gv
+      | _ => False
+      end
+  | {| CurTargetData := TD;
+       ECS := {| CurCmds := nil; Terminator := insn_br _ Cond _ _;
+                 Locals := lc |} :: _;
+       Globals := gl |}, _ =>
+      match (getOperandValue TD Cond lc gl) with
+      | Some gv => ~ defined_gv gv
+      | _ => False
+      end
+  | _, _ => False
+  end.
+
+Ltac destruct_ctx_br :=
+match goal with
+| [Hsim : sbState_simulates_State _ _
+           {|
+           SBopsem.CurSystem := _;
+           SBopsem.CurTargetData := ?TD;
+           SBopsem.CurProducts := _;
+           SBopsem.ECS := {|
+                          SBopsem.CurFunction := ?F;
+                          SBopsem.CurBB := _;
+                          SBopsem.CurCmds := nil;
+                          SBopsem.Terminator := _;
+                          SBopsem.Locals := _;
+                          SBopsem.Rmap := _;
+                          SBopsem.Allocas := _ |} :: _;
+           SBopsem.Globals := _;
+           SBopsem.FunTable := _;
+           SBopsem.Mem := _;
+           SBopsem.Mmap := _ |} ?St |- _] =>
+  destruct St as [S2 TD2 Ps2 ECs2 gl2 fs2 M2];
+  destruct TD as [los nts];
+  destruct Hsim as [Hwfs [HMinS [Htsym [Heq1 [Htps [HsimECs [Htprds [Hfsim [Hwfg 
+    [Hwfmi HsimM]]]]]]]]]];
+    subst;
+  destruct ECs2 as [|[F2 B2 cs2 tmn2 lc2 als2] ECs2];
+    try solve [inversion HsimECs];
+  simpl in HsimECs;
+  destruct HsimECs as [HsimEC HsimECs];
+  destruct F as [fh1 bs1];
+  destruct F2 as [fh2 bs2];
+  destruct HsimEC as [Hclib [HBinF [HFinPs [Htfdef [Heq0 [Hasim [Hnth [Heqb1 
+    [Heqb2 [ex_ids [rm2 [ex_ids3 [ex_ids4 [cs22 [cs23 [Hgenmeta [Hrsim [Hinc 
+    [Hfresh [Htcmds [Httmn Heq2]]]]]]]]]]]]]]]]]]]]]; subst
+end.
+
+Ltac destruct_ctx_return :=
+match goal with
+| [Hsim : sbState_simulates_State _ _
+           {|
+           SBopsem.CurSystem := _;
+           SBopsem.CurTargetData := ?TD;
+           SBopsem.CurProducts := _;
+           SBopsem.ECS := {|
+                          SBopsem.CurFunction := ?F;
+                          SBopsem.CurBB := _;
+                          SBopsem.CurCmds := nil;
+                          SBopsem.Terminator := _;
+                          SBopsem.Locals := _;
+                          SBopsem.Rmap := _;
+                          SBopsem.Allocas := _ |}
+                          :: {|
+                             SBopsem.CurFunction := ?F';
+                             SBopsem.CurBB := _;
+                             SBopsem.CurCmds := ?c' :: _;
+                             SBopsem.Terminator := _;
+                             SBopsem.Locals := _;
+                             SBopsem.Rmap := _;
+                             SBopsem.Allocas := _ |} :: _;
+           SBopsem.Globals := _;
+           SBopsem.FunTable := _;
+           SBopsem.Mem := _;
+           SBopsem.Mmap := _ |} ?St |- _] =>
+  destruct St as [S2 TD2 Ps2 ECs2 gl2 fs2 M2];
+  destruct TD as [los nts];
+  destruct Hsim as [Hwfs [HMinS [Htsym [Heq1 [Htps [HsimECs [Htprds [Hfsim [Hwfg 
+    [Hwfmi HsimM]]]]]]]]]];
+    subst;
+  destruct ECs2 as [|[F2 B2 cs2 tmn2 lc2 als2] ECs2];
+    try solve [inversion HsimECs];
+  simpl in HsimECs;
+  destruct HsimECs as [HsimEC HsimECs];
+  destruct ECs2 as [|[F2' B2' cs2' tmn2' lc2' als2'] ECs2];
+    try solve [inversion HsimECs];
+  destruct HsimECs as [HsimEC' HsimECs];
+  destruct F as [fh1 bs1];
+  destruct F2 as [fh2 bs2];
+  destruct HsimEC as [Hclib [HBinF [HFinPs [Htfdef [Heq0 [Hasim [Hnth [Heqb1 
+    [Heqb2 [ex_ids [rm2 [ex_ids3 [ex_ids4 [cs22 [cs23 [Hgenmeta [Hrsim [Hinc 
+    [Hfresh [Htcmds [Httmn Heq2]]]]]]]]]]]]]]]]]]]]]; subst;
+  destruct F' as [fh1' bs1'];
+  destruct F2' as [fh2' bs2'];
+  destruct c'; try solve [inversion HsimEC'];
+  destruct HsimEC' as [Hclib' [HBinF' [HFinPs' [Htfdef' [Heq0' [Hasim' [Hnth' 
+    [Heqb1' [Heqb2' [ex_ids' [rm2' [ex_ids3' [ex_ids4' [cs22' [cs23' [cs24' 
+    [Hgenmeta' [Hrsim' [Hinc' [Hcall' [Hfresh' [Htcmds' [Httmn' Heq2']]]]]]]]]]]]
+    ]]]]]]]]]]]; 
+    subst
+end.
+
 (*****************************)
 (*
 *** Local Variables: ***

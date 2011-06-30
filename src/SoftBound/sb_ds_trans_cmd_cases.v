@@ -104,7 +104,7 @@ Proof.
         destruct Hfresh1 as [Hnotin _]. 
         unfold getCmdIDs in Hnotin. simpl in Hnotin.
         apply reg_simulation__updateAddAL_lc; try solve [auto | fsetdec].
-          admit.
+          admit. (* fresh *)
       repeat (split; auto).
 Qed.
 
@@ -154,7 +154,42 @@ Lemma SBpass_is_correct__dsFBop : forall (mi : meminj) (mgb : Values.block)
          SBopsem.FunTable := fs;
          SBopsem.Mem := Mem;
          SBopsem.Mmap := MM |} St' /\ inject_incr mi mi'.
-Admitted.
+Proof.
+  intros.
+  destruct_ctx_other.
+  simpl in Htcmds.
+  remember (trans_cmds ex_ids3 rm2 cs) as R.
+  destruct R as [[ex_ids2 cs2]|]; inv Htcmds.
+  eapply simulation__FBOP in H; eauto.
+  destruct H as [gv3' [Hfbop Hinj]].
+  exists (LLVMopsem.mkState S2 (los, nts) Ps2
+          ((LLVMopsem.mkEC (fdef_intro fh2 bs2) B2
+            (cs2 ++ cs23) tmn2 (updateAddAL GenericValue lc2 id0 gv3') als2):: 
+            ECs2) gl2 fs2 M2).
+  exists mi.
+  split.
+    rewrite <- (@trace_app_nil__eq__trace trace_nil).
+    eapply LLVMopsem.dsop_star_cons; eauto.
+      apply LLVMopsem.dsFBop; auto.
+
+    split; auto using inject_incr_refl.
+    repeat (split; auto).
+      eapply cmds_at_block_tail_next; eauto.
+      eapply cmds_at_block_tail_next; eauto.
+
+      exists ex_ids. exists rm2.
+      exists ex_ids3. exists ex_ids4. exists cs2. exists cs23.
+      simpl in Hfresh. destruct Hfresh as [Hfresh1 Hfresh2].
+      split; auto.
+      split.
+        clear - Hfresh1 Hrsim Hinj.
+        destruct Hfresh1 as [Hnotin _]. 
+        unfold getCmdIDs in Hnotin. simpl in Hnotin.
+        apply reg_simulation__updateAddAL_lc; try solve [auto | fsetdec].
+          admit. (* fresh *)
+      repeat (split; auto).
+Qed.
+
 
 Lemma SBpass_is_correct__dsGEP : forall
   (mi : meminj) (mgb : Values.block) (St : LLVMopsem.State) (S : system)
@@ -187,7 +222,7 @@ Lemma SBpass_is_correct__dsGEP : forall
   (H1 : values2GVs TD idxs lc gl = ret vidxs)
   (H2 : GEP TD t gvp vidxs inbounds0 = ret gvp')
   (H3 : prop_reg_metadata lc rm id0 gvp' md = (lc', rm')),
-   exists St' : LLVMopsem.State,
+   (exists St' : LLVMopsem.State,
      exists mi' : meminj,
        LLVMopsem.dsop_star St St' trace_nil /\
        sbState_simulates_State mi' mgb
@@ -206,7 +241,23 @@ Lemma SBpass_is_correct__dsGEP : forall
          Globals := gl;
          FunTable := fs;
          Mem := Mem0;
-         Mmap := MM |} St' /\ inject_incr mi mi'.
+         Mmap := MM |} St' /\ inject_incr mi mi') \/   
+    nondet_state {|
+           CurSystem := S;
+           CurTargetData := TD;
+           CurProducts := Ps;
+           ECS := {|
+                  CurFunction := F;
+                  CurBB := B;
+                  CurCmds := insn_gep id0 inbounds0 t vp idxs :: cs;
+                  Terminator := tmn;
+                  Locals := lc;
+                  Rmap := rm;
+                  Allocas := als |} :: EC;
+           Globals := gl;
+           FunTable := fs;
+           Mem := Mem0;
+           Mmap := MM |} St.
 Proof.
   intros.
   destruct_ctx_other.
@@ -226,10 +277,13 @@ Proof.
   eapply simulation__getOperandValue with (mi:=mi)(Mem2:=M2) in H0; eauto.
   destruct H0 as [gv' [H0 Hinj]].
   
+  simpl. rewrite H1.
+  destruct (@defined_gvs_dec vidxs) as [Hdet | Hndet]; auto.
   eapply simulation__values2GVs with (mi:=mi)(Mem2:=M2) in H1; eauto.
   destruct H1 as [gvs' [H1 Hinj']].
   eapply simulation__GEP in H2; eauto.
   destruct H2 as [gvp2 [H2 Hinj'']].
+  left.
   exists (LLVMopsem.mkState S2 (los, nts) Ps2
           ((LLVMopsem.mkEC (fdef_intro fh2 bs2) B2
             (cs2' ++ cs23) tmn2 
@@ -274,7 +328,7 @@ Proof.
         rewrite <- getOperandValue_eq_fresh_id; auto.
         rewrite Hget1. auto.
 
-        clear - Hnotin Hgetrm. admit.
+        clear - Hnotin Hgetrm. admit. (* fresh *)
 
     rewrite <- (@trace_app_nil__eq__trace trace_nil).
     eapply LLVMopsem.dsop_star_cons; eauto.
@@ -282,8 +336,7 @@ Proof.
         unfold CAST, mcast, mbitcast, p8. simpl.
         rewrite <- getOperandValue_eq_fresh_id; auto.
         rewrite <- getOperandValue_eq_fresh_id; auto.
-        rewrite Hget2. auto. admit. admit.
-
+        rewrite Hget2. auto. admit. admit. (* fresh *)
 
     repeat (split; auto).
     eapply cmds_at_block_tail_next; eauto.
@@ -300,10 +353,9 @@ Proof.
   split.
   SCase "rsim".
     eapply reg_simulation__updateAddAL_prop; eauto.
-        admit.
-        admit.
+        admit. (* fresh *)
+        admit. (* fresh *)
   split; auto.
-
 Qed.
 
 Lemma SBpass_is_correct__dsTrunc : forall
@@ -384,7 +436,7 @@ Proof.
         destruct Hfresh1 as [Hnotin _]. 
         unfold getCmdIDs in Hnotin. simpl in Hnotin.
         apply reg_simulation__updateAddAL_lc; try solve [auto | fsetdec].
-          admit.
+          admit. (* fresh *)
       repeat (split; auto).
 Qed.
 
@@ -466,7 +518,7 @@ Proof.
         destruct Hfresh1 as [Hnotin _]. 
         unfold getCmdIDs in Hnotin. simpl in Hnotin.
         apply reg_simulation__updateAddAL_lc; try solve [auto | fsetdec].
-          admit.
+          admit.  (* fresh *)
       repeat (split; auto).
 Qed.
 
@@ -550,7 +602,7 @@ Proof.
         destruct Hfresh1 as [Hnotin _]. 
         unfold getCmdIDs in Hnotin. simpl in Hnotin.
         apply reg_simulation__updateAddAL_lc; try solve [auto | fsetdec].
-          admit.
+          admit.  (* fresh *)
       repeat (split; auto).
 Qed.
 
@@ -671,7 +723,7 @@ Proof.
         rewrite <- getOperandValue_eq_fresh_id; auto.
         rewrite Hget1. auto.
 
-        admit.
+        admit.  (* fresh *)
 
     rewrite <- (@trace_app_nil__eq__trace trace_nil).
     eapply LLVMopsem.dsop_star_cons; eauto.
@@ -679,7 +731,7 @@ Proof.
         unfold CAST, mcast, mbitcast, p8. simpl.
         rewrite <- getOperandValue_eq_fresh_id; auto.
         rewrite <- getOperandValue_eq_fresh_id; auto.
-        rewrite Hget2. auto. admit. admit.
+        rewrite Hget2. auto. admit. admit.  (* fresh *)
 
     repeat (split; auto).
     eapply cmds_at_block_tail_next; eauto.
@@ -696,8 +748,8 @@ Proof.
   split.
   SCase "rsim".
     eapply reg_simulation__updateAddAL_prop; eauto.
-        admit.
-        admit.
+        admit.  (* fresh *)
+        admit.  (* fresh *)
   split; auto.
 
 Qed.
@@ -823,11 +875,9 @@ Proof.
   split; auto.
   split.
   SCase "rsim".
-    eapply reg_simulation__updateAddAL_prop; eauto.
-        admit.
-        admit.
-        admit.
-        admit.
+    eapply reg_simulation__updateAddAL_prop; eauto using gv_inject_null_refl.
+        admit.  (* fresh *)
+        admit.  (* fresh *)
   split; auto.
 Qed.
 
@@ -920,7 +970,7 @@ Proof.
         destruct Hfresh1 as [Hnotin _]. 
         unfold getCmdIDs in Hnotin. simpl in Hnotin.
         apply reg_simulation__updateAddAL_lc; try solve [auto | fsetdec].
-          admit.
+          admit. (* fresh *)
       repeat (split; auto).
 Qed.
 
@@ -1002,7 +1052,7 @@ Proof.
         destruct Hfresh1 as [Hnotin _]. 
         unfold getCmdIDs in Hnotin. simpl in Hnotin.
         apply reg_simulation__updateAddAL_lc; try solve [auto | fsetdec].
-          admit.
+          admit. (* fresh *)
       repeat (split; auto).
 Qed.
 
@@ -1085,10 +1135,9 @@ Proof.
         destruct Hfresh1 as [Hnotin _]. 
         unfold getCmdIDs in Hnotin. simpl in Hnotin.
         apply reg_simulation__updateAddAL_lc; try solve [auto | fsetdec].
-          admit.
+          admit. (* fresh *)
       repeat (split; auto).
 Qed.
-
 
 Lemma SBpass_is_correct__dsExtractValue : forall (mi : meminj) 
   (mgb : Values.block)
@@ -1119,7 +1168,7 @@ Lemma SBpass_is_correct__dsExtractValue : forall (mi : meminj)
   (gv' : GenericValue)
   (H : getOperandValue TD v lc gl = ret gv)
   (H0 : extractGenericValue TD t gv idxs = ret gv'),
-  exists St' : LLVMopsem.State,
+  (exists St' : LLVMopsem.State,
      exists mi' : meminj,
        LLVMopsem.dsop_star St St' trace_nil /\
        sbState_simulates_State mi' mgb
@@ -1138,8 +1187,67 @@ Lemma SBpass_is_correct__dsExtractValue : forall (mi : meminj)
          SBopsem.Globals := gl;
          SBopsem.FunTable := fs;
          SBopsem.Mem := Mem;
-         SBopsem.Mmap := MM |} St' /\ inject_incr mi mi'.
-Admitted.
+         SBopsem.Mmap := MM |} St' /\ inject_incr mi mi') \/
+   nondet_state {|
+           SBopsem.CurSystem := S;
+           SBopsem.CurTargetData := TD;
+           SBopsem.CurProducts := Ps;
+           SBopsem.ECS := {|
+                          SBopsem.CurFunction := F;
+                          SBopsem.CurBB := B;
+                          SBopsem.CurCmds := insn_extractvalue id0 t v idxs
+                                             :: cs;
+                          SBopsem.Terminator := tmn;
+                          SBopsem.Locals := lc;
+                          SBopsem.Rmap := rm;
+                          SBopsem.Allocas := als |} :: EC;
+           SBopsem.Globals := gl;
+           SBopsem.FunTable := fs;
+           SBopsem.Mem := Mem;
+           SBopsem.Mmap := MM |} St.
+Proof.
+  intros.
+  destruct_ctx_other.
+  simpl in Htcmds.
+  remember (trans_cmds ex_ids3 rm2 cs) as R.
+  destruct R as [[ex_ids2 cs2]|]; inv Htcmds.
+  assert (Hgetv':=H).
+  eapply simulation__getOperandValue with (mi:=mi)(Mem2:=M2) in Hgetv'; eauto.
+  destruct Hgetv' as [gv2 [Hgetv' Hinj]].
+  simpl. rewrite H. rewrite Hgetv'.
+  destruct (@chunk_matched_dec gv gv2) as [Hdet | Hndet]; auto.
+
+  eapply simulation__extractGenericValue in H0; eauto.
+  destruct H0 as [gv2' [H0 Hinj']].
+  left.
+  exists (LLVMopsem.mkState S2 (los, nts) Ps2
+          ((LLVMopsem.mkEC (fdef_intro fh2 bs2) B2
+            (cs2 ++ cs23) tmn2 (updateAddAL GenericValue lc2 id0 gv2')
+            als2):: 
+            ECs2) gl2 fs2 M2).
+  exists mi.
+  split.
+    rewrite <- (@trace_app_nil__eq__trace trace_nil).
+    eapply LLVMopsem.dsop_star_cons; eauto.
+      eapply LLVMopsem.dsExtractValue; eauto.
+
+    split; auto using inject_incr_refl.
+    repeat (split; auto).
+      eapply cmds_at_block_tail_next; eauto.
+      eapply cmds_at_block_tail_next; eauto.
+
+      exists ex_ids. exists rm2.
+      exists ex_ids3. exists ex_ids4. exists cs2. exists cs23.
+      simpl in Hfresh. destruct Hfresh as [Hfresh1 Hfresh2].
+      split; auto.
+      split.
+        clear - Hfresh1 Hrsim Hinj Hinj'.
+        destruct Hfresh1 as [Hnotin _]. 
+        unfold getCmdIDs in Hnotin. simpl in Hnotin.
+        apply reg_simulation__updateAddAL_lc; try solve [auto | fsetdec].
+          admit. (* fresh *)
+      repeat (split; auto).
+Qed.
 
 Lemma SBpass_is_correct__dsInsertValue : forall (mi : meminj) 
   (mgb : Values.block)
@@ -1171,7 +1279,7 @@ Lemma SBpass_is_correct__dsInsertValue : forall (mi : meminj)
   (H : getOperandValue TD v lc gl = ret gv)
   (H0 : getOperandValue TD v' lc gl = ret gv')
   (H1 : insertGenericValue TD t gv idxs t' gv' = ret gv''),
-  exists St' : LLVMopsem.State,
+  (exists St' : LLVMopsem.State,
      exists mi' : meminj,
        LLVMopsem.dsop_star St St' trace_nil /\
        sbState_simulates_State mi' mgb
@@ -1190,8 +1298,70 @@ Lemma SBpass_is_correct__dsInsertValue : forall (mi : meminj)
          SBopsem.Globals := gl;
          SBopsem.FunTable := fs;
          SBopsem.Mem := Mem;
-         SBopsem.Mmap := MM |} St' /\ inject_incr mi mi'.
-Admitted.
+         SBopsem.Mmap := MM |} St' /\ inject_incr mi mi') \/
+   nondet_state {|
+           SBopsem.CurSystem := S;
+           SBopsem.CurTargetData := TD;
+           SBopsem.CurProducts := Ps;
+           SBopsem.ECS := {|
+                          SBopsem.CurFunction := F;
+                          SBopsem.CurBB := B;
+                          SBopsem.CurCmds := insn_insertvalue id0 t v t' v' idxs
+                                             :: cs;
+                          SBopsem.Terminator := tmn;
+                          SBopsem.Locals := lc;
+                          SBopsem.Rmap := rm;
+                          SBopsem.Allocas := als |} :: EC;
+           SBopsem.Globals := gl;
+           SBopsem.FunTable := fs;
+           SBopsem.Mem := Mem;
+           SBopsem.Mmap := MM |} St.
+Proof.
+  intros.
+  destruct_ctx_other.
+  simpl in Htcmds.
+  remember (trans_cmds ex_ids3 rm2 cs) as R.
+  destruct R as [[ex_ids2 cs2]|]; inv Htcmds.
+  assert (Hgetv2:=H).
+  eapply simulation__getOperandValue with (mi:=mi)(Mem2:=M2) in Hgetv2; eauto.
+  destruct Hgetv2 as [gv2 [Hgetv2 Hinj2]].
+  assert (Hgetv2':=H0).
+  eapply simulation__getOperandValue with (mi:=mi)(Mem2:=M2) in Hgetv2'; eauto.
+  destruct Hgetv2' as [gv2' [Hgetv2' Hinj2']].
+  simpl. rewrite H. rewrite Hgetv2. rewrite H0. rewrite Hgetv2'.
+  destruct (@chunk_matched_dec gv gv2) as [Hdet | Hndet]; auto.
+  destruct (@chunk_matched_dec gv' gv2') as [Hdet' | Hndet']; auto.
+  eapply simulation__insertGenericValue in H1; eauto.
+  destruct H1 as [gv2'' [H1 Hinj']].
+  left.
+  exists (LLVMopsem.mkState S2 (los, nts) Ps2
+          ((LLVMopsem.mkEC (fdef_intro fh2 bs2) B2
+            (cs2 ++ cs23) tmn2 (updateAddAL GenericValue lc2 id0 gv2'')
+            als2):: 
+            ECs2) gl2 fs2 M2).
+  exists mi.
+  split.
+    rewrite <- (@trace_app_nil__eq__trace trace_nil).
+    eapply LLVMopsem.dsop_star_cons; eauto.
+      eapply LLVMopsem.dsInsertValue; eauto.
+
+    split; auto using inject_incr_refl.
+    repeat (split; auto).
+      eapply cmds_at_block_tail_next; eauto.
+      eapply cmds_at_block_tail_next; eauto.
+
+      exists ex_ids. exists rm2.
+      exists ex_ids3. exists ex_ids4. exists cs2. exists cs23.
+      simpl in Hfresh. destruct Hfresh as [Hfresh1 Hfresh2].
+      split; auto.
+      split.
+        clear - Hfresh1 Hrsim Hinj'.
+        destruct Hfresh1 as [Hnotin _]. 
+        unfold getCmdIDs in Hnotin. simpl in Hnotin.
+        apply reg_simulation__updateAddAL_lc; try solve [auto | fsetdec].
+          admit. (* fresh *)
+      repeat (split; auto).
+Qed.
 
 Lemma SBpass_is_correct__dsSelect_nptr : forall (mi : meminj) 
   (mgb : Values.block)
@@ -1222,7 +1392,7 @@ Lemma SBpass_is_correct__dsSelect_nptr : forall (mi : meminj)
   (H0 : getOperandValue TD v1 lc gl = ret gv1)
   (H1 : getOperandValue TD v2 lc gl = ret gv2)
   (H2 : isPointerTypB t = false),
-   exists St' : LLVMopsem.State,
+  (exists St' : LLVMopsem.State,
      exists mi' : meminj,
        LLVMopsem.dsop_star St St' trace_nil /\
        sbState_simulates_State mi' mgb
@@ -1243,8 +1413,81 @@ Lemma SBpass_is_correct__dsSelect_nptr : forall (mi : meminj)
          Globals := gl;
          FunTable := fs;
          Mem := Mem0;
-         Mmap := MM |} St' /\ inject_incr mi mi'.
-Admitted.
+         Mmap := MM |} St' /\ inject_incr mi mi') \/
+   nondet_state {|
+           SBopsem.CurSystem := S;
+           SBopsem.CurTargetData := TD;
+           SBopsem.CurProducts := Ps;
+           SBopsem.ECS := {|
+                          SBopsem.CurFunction := F;
+                          SBopsem.CurBB := B;
+                          SBopsem.CurCmds := insn_select id0 v0 t v1 v2
+                                             :: cs;
+                          SBopsem.Terminator := tmn;
+                          SBopsem.Locals := lc;
+                          SBopsem.Rmap := rm;
+                          SBopsem.Allocas := als |} :: EC;
+           SBopsem.Globals := gl;
+           SBopsem.FunTable := fs;
+           SBopsem.Mem := Mem0;
+           SBopsem.Mmap := MM |} St.
+Proof.
+  intros.
+  destruct_ctx_other.
+  simpl in Htcmds.
+  rewrite H2 in Htcmds.
+  remember (trans_cmds ex_ids3 rm2 cs) as R.
+  destruct R as [[ex_ids2 cs2]|]; inv Htcmds.
+  assert (Hc := H).
+  eapply simulation__getOperandValue with (mi:=mi)(Mem2:=M2) in Hc; eauto.
+  destruct Hc as [c' [Hc Hinjc]].
+  eapply simulation__getOperandValue with (mi:=mi)(Mem2:=M2) in H0; eauto.
+  destruct H0 as [gv1' [H0 Hinj1]].
+  eapply simulation__getOperandValue with (mi:=mi)(Mem2:=M2) in H1; eauto.
+  destruct H1 as [gv2' [H1 Hinj2]].
+
+  simpl. rewrite H.
+  destruct (@defined_gv_dec c) as [Hdet | Hndet]; auto.
+
+  assert (isGVZero (los, nts) c = isGVZero (los, nts) c') as Heqc.
+    eapply simulation__isGVZero; eauto.
+
+  left.
+  exists (LLVMopsem.mkState S2 (los, nts) Ps2
+          ((LLVMopsem.mkEC (fdef_intro fh2 bs2) B2
+            (cs2 ++ cs23) tmn2 
+            (if isGVZero (los, nts) c'
+             then updateAddAL GenericValue lc2 id0 gv2'
+             else updateAddAL GenericValue lc2 id0 gv1')
+            als2):: 
+            ECs2) gl2 fs2 M2).
+  exists mi.
+  split.
+    rewrite <- (@trace_app_nil__eq__trace trace_nil).
+    eapply LLVMopsem.dsop_star_cons; eauto.
+      eapply LLVMopsem.dsSelect; eauto.
+
+    split; auto using inject_incr_refl.
+    repeat (split; auto).
+      eapply cmds_at_block_tail_next; eauto.
+      eapply cmds_at_block_tail_next; eauto.
+
+      exists ex_ids. exists rm2.
+      exists ex_ids3. exists ex_ids4. exists cs2. exists cs23.
+      simpl in Hfresh. destruct Hfresh as [Hfresh1 Hfresh2].
+      split; auto.
+      split.
+        rewrite Heqc.
+        clear - Hfresh1 Hrsim Hinj1 Hinj2 Hinjc.
+        destruct Hfresh1 as [Hnotin _]. 
+        unfold getCmdIDs in Hnotin. simpl in Hnotin.
+        destruct (isGVZero (los,nts) c').
+          apply reg_simulation__updateAddAL_lc; try solve [auto | fsetdec].
+            admit. (* fresh *)
+          apply reg_simulation__updateAddAL_lc; try solve [auto | fsetdec].
+            admit. (* fresh *)
+      repeat (split; auto).
+Qed.
 
 Lemma SBpass_is_correct__dsSelect_ptr : forall (mi : meminj) 
   (mgb : Values.block)
@@ -1281,7 +1524,7 @@ Lemma SBpass_is_correct__dsSelect_ptr : forall (mi : meminj)
         then prop_reg_metadata lc rm id0 gv2 md2
         else prop_reg_metadata lc rm id0 gv1 md1) = 
        (lc', rm')),
-   exists St' : LLVMopsem.State,
+   (exists St' : LLVMopsem.State,
      exists mi' : meminj,
        LLVMopsem.dsop_star St St' trace_nil /\
        sbState_simulates_State mi' mgb
@@ -1300,8 +1543,190 @@ Lemma SBpass_is_correct__dsSelect_ptr : forall (mi : meminj)
          Globals := gl;
          FunTable := fs;
          Mem := Mem0;
-         Mmap := MM |} St' /\ inject_incr mi mi'.
-Admitted.
+         Mmap := MM |} St' /\ inject_incr mi mi') \/
+   nondet_state {|
+           SBopsem.CurSystem := S;
+           SBopsem.CurTargetData := TD;
+           SBopsem.CurProducts := Ps;
+           SBopsem.ECS := {|
+                          SBopsem.CurFunction := F;
+                          SBopsem.CurBB := B;
+                          SBopsem.CurCmds := insn_select id0 v0 t v1 v2
+                                             :: cs;
+                          SBopsem.Terminator := tmn;
+                          SBopsem.Locals := lc;
+                          SBopsem.Rmap := rm;
+                          SBopsem.Allocas := als |} :: EC;
+           SBopsem.Globals := gl;
+           SBopsem.FunTable := fs;
+           SBopsem.Mem := Mem0;
+           SBopsem.Mmap := MM |} St.
+Proof.
+  intros.
+  destruct_ctx_other.
+  simpl in Htcmds.
+  rewrite H2 in Htcmds.
+  assert (Hc := H).
+  eapply simulation__getOperandValue with (mi:=mi)(Mem2:=M2) in Hc; eauto.
+  destruct Hc as [c' [Hc Hinjc]].
+  eapply simulation__getOperandValue with (mi:=mi)(Mem2:=M2) in H0; eauto.
+  destruct H0 as [gv1' [H0 Hinj1]].
+  eapply simulation__getOperandValue with (mi:=mi)(Mem2:=M2) in H1; eauto.
+  destruct H1 as [gv2' [H1 Hinj2]].
+  simpl. rewrite H.
+  destruct (@defined_gv_dec c) as [Hdet | Hndet]; auto.
+  assert (isGVZero (los, nts) c = isGVZero (los, nts) c') as Heqc.
+    eapply simulation__isGVZero; eauto.
+  erewrite Heqc in H5.
+
+  remember (get_reg_metadata rm2 v1) as R1.
+  destruct R1 as [[bv1 ev1]|]; tinv Htcmds.
+  remember (get_reg_metadata rm2 v2) as R2.
+  destruct R2 as [[bv2 ev2]|]; tinv Htcmds.
+  remember (lookupAL (id * id) rm2 id0) as R3.
+  destruct R3 as [[bid0 eid0]|]; tinv Htcmds.
+  remember (trans_cmds ex_ids3 rm2 cs) as R4.
+  destruct R4 as [[ex_ids2 cs2]|]; inv Htcmds.
+
+  assert (Hrsim':=Hrsim).
+  destruct Hrsim as [Hrsim1 Hrsim2].
+  destruct md1 as [bgv1 egv1]. destruct md2 as [bgv2 egv2].
+  eapply Hrsim2 in H3; eauto.
+  destruct H3 as [bv1' [ev1' [bgv1' [egv1' [J1 [J2 [J3 [J4 J5]]]]]]]].
+  eapply Hrsim2 in H4; eauto.
+  destruct H4 as [bv2' [ev2' [bgv2' [egv2' [J1' [J2' [J3' [J4' J5']]]]]]]].
+  rewrite <- HeqR1 in J1. inv J1.
+  rewrite <- HeqR2 in J1'. inv J1'.
+
+  left.
+  exists (LLVMopsem.mkState S2 (los, nts) Ps2
+          ((LLVMopsem.mkEC (fdef_intro fh2 bs2) B2
+            (cs2 ++ cs23) tmn2 
+            (if isGVZero (los, nts) c'
+             then updateAddAL _
+              (if isGVZero (los, nts) c' then
+                 updateAddAL _ 
+                   (if isGVZero (los, nts) c'
+                    then updateAddAL _ lc2 id0 gv2'
+                    else updateAddAL _ lc2 id0 gv1') bid0 bgv2'
+              else
+                 updateAddAL _ 
+                   (if isGVZero (los, nts) c'
+                    then updateAddAL _ lc2 id0 gv2'
+                    else updateAddAL _ lc2 id0 gv1') bid0 bgv1') eid0 egv2'
+             else updateAddAL _
+              (if isGVZero (los, nts) c' then
+                 updateAddAL _ 
+                   (if isGVZero (los, nts) c'
+                    then updateAddAL _ lc2 id0 gv2'
+                    else updateAddAL _ lc2 id0 gv1') bid0 bgv2'
+              else
+                 updateAddAL _ 
+                   (if isGVZero (los, nts) c'
+                    then updateAddAL _ lc2 id0 gv2'
+                    else updateAddAL _ lc2 id0 gv1') bid0 bgv1') eid0 egv1')
+            als2):: 
+            ECs2) gl2 fs2 M2).
+  exists mi.
+  split.
+    rewrite <- (@trace_app_nil__eq__trace trace_nil).
+    apply LLVMopsem.dsop_star_cons with (state2 := 
+        LLVMopsem.mkState S2 (los, nts) Ps2
+          ((LLVMopsem.mkEC (fdef_intro fh2 bs2) B2
+            (insn_select bid0 v0 p8 bv1' bv2' :: 
+             insn_select eid0 v0 p8 ev1' ev2' ::
+             cs2 ++ cs23) tmn2 
+            (if isGVZero (los, nts) c'
+             then updateAddAL _ lc2 id0 gv2'
+             else updateAddAL _ lc2 id0 gv1')
+            als2):: 
+            ECs2) gl2 fs2 M2); auto.
+      eapply LLVMopsem.dsSelect; eauto.
+
+    rewrite <- (@trace_app_nil__eq__trace trace_nil).
+    apply LLVMopsem.dsop_star_cons with (state2 := 
+        LLVMopsem.mkState S2 (los, nts) Ps2
+          ((LLVMopsem.mkEC (fdef_intro fh2 bs2) B2
+            (insn_select eid0 v0 p8 ev1' ev2' ::
+             cs2 ++ cs23) tmn2 
+            (if isGVZero (los, nts) c' then
+               updateAddAL _ 
+                 (if isGVZero (los, nts) c'
+                  then updateAddAL _ lc2 id0 gv2'
+                  else updateAddAL _ lc2 id0 gv1') bid0 bgv2'
+            else
+               updateAddAL _ 
+                 (if isGVZero (los, nts) c'
+                  then updateAddAL _ lc2 id0 gv2'
+                  else updateAddAL _ lc2 id0 gv1') bid0 bgv1')
+            als2):: 
+            ECs2) gl2 fs2 M2); auto.
+      eapply LLVMopsem.dsSelect; eauto.
+        destruct (isGVZero (los, nts) c'); auto.
+          rewrite <- getOperandValue_eq_fresh_id; auto.
+            admit. (* fresh *)          
+          rewrite <- getOperandValue_eq_fresh_id; auto.
+            admit. (* fresh *)          
+        destruct (isGVZero (los, nts) c'); auto.
+          rewrite <- getOperandValue_eq_fresh_id; auto.
+            admit. (* fresh *)          
+          rewrite <- getOperandValue_eq_fresh_id; auto.
+            admit. (* fresh *)          
+        destruct (isGVZero (los, nts) c'); auto.
+          rewrite <- getOperandValue_eq_fresh_id; auto.
+            admit. (* fresh *)          
+          rewrite <- getOperandValue_eq_fresh_id; auto.
+            admit. (* fresh *)          
+
+    rewrite <- (@trace_app_nil__eq__trace trace_nil).
+    eapply LLVMopsem.dsop_star_cons; eauto.
+      eapply LLVMopsem.dsSelect; eauto.
+        destruct (isGVZero (los, nts) c'); auto.
+          rewrite <- getOperandValue_eq_fresh_id; auto.
+          rewrite <- getOperandValue_eq_fresh_id; auto.
+            admit. admit. (* fresh *)          
+          rewrite <- getOperandValue_eq_fresh_id; auto.
+          rewrite <- getOperandValue_eq_fresh_id; auto.
+            admit. admit.  (* fresh *)          
+        destruct (isGVZero (los, nts) c'); auto.
+          rewrite <- getOperandValue_eq_fresh_id; auto.
+          rewrite <- getOperandValue_eq_fresh_id; auto.
+            admit. admit.  (* fresh *)          
+          rewrite <- getOperandValue_eq_fresh_id; auto.
+          rewrite <- getOperandValue_eq_fresh_id; auto.
+            admit. admit.  (* fresh *)          
+        destruct (isGVZero (los, nts) c'); auto.
+          rewrite <- getOperandValue_eq_fresh_id; auto.
+          rewrite <- getOperandValue_eq_fresh_id; auto.
+            admit. admit.  (* fresh *)          
+          rewrite <- getOperandValue_eq_fresh_id; auto.
+          rewrite <- getOperandValue_eq_fresh_id; auto.
+            admit. admit.  (* fresh *)          
+
+    split; auto using inject_incr_refl.
+    repeat (split; auto).
+      eapply cmds_at_block_tail_next; eauto.
+      
+      destruct Heqb2 as [l2 [ps2 [cs21 Heqb2]]]; subst.
+      exists l2. exists ps2. exists (cs21 ++
+                  (insn_select id0 v0 t v1 v2
+                :: insn_select bid0 v0 p8 bv1' bv2'
+                   :: insn_select eid0 v0 p8 ev1' ev2' :: nil)).
+      simpl_env. auto.
+
+      exists ex_ids. exists rm2.
+      exists ex_ids3. exists ex_ids4. exists cs2. exists cs23.
+      simpl in Hfresh. destruct Hfresh as [Hfresh1 Hfresh2].
+      split; auto.
+      split.
+        unfold getCmdIDs in Hfresh1. simpl in Hfresh1.
+        destruct (isGVZero (los,nts) c'); inv H5.
+          eapply reg_simulation__updateAddAL_prop; eauto.
+            admit. admit. (* fresh *)
+          eapply reg_simulation__updateAddAL_prop; eauto.
+            admit. admit. (* fresh *)
+      repeat (split; auto).
+Qed.
 
 (*****************************)
 (*
