@@ -501,7 +501,7 @@ Qed.
 (********************************************)
 (** * Correctness of analysis *)
 
-Lemma atomset_eq__proof_irr2 : forall
+Axiom atomset_eq__proof_irr2 : forall (* proof irrelevence *)
   max
   (contents' : ListSet.set atom)
   (inbound' : incl contents' max)
@@ -510,7 +510,6 @@ Lemma atomset_eq__proof_irr2 : forall
              DomDS.L.bs_contents := contents';
              DomDS.L.bs_bound := inbound' |} = a),
   contents' = Dominators.bs_contents max a.
-Admitted. (* proof irrelevence *)
 
 Lemma atomset_eq__proof_irr1 : forall
   (bs : blocks)

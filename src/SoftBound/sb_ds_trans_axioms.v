@@ -18,15 +18,23 @@ Require Import monad.
 Require Import Metatheory.
 Require Import Znumtheory.
 Require Import sb_ds_def.
+Require Import sb_ds_gv_inject.
 Require Import sb_ds_sim.
 Require Import sb_ds_trans.
 
 Import SB_ds_pass.
 
+Definition sb_fnattrs := fnattrs_intro linkage_external visibility_default 
+  callconv_ccc nil nil.
+
 Axiom inject_incr__preserves__fable_simulation : forall mi fs1 fs2 mi',
   inject_incr mi mi' ->
   ftable_simulation mi fs1 fs2 ->
   ftable_simulation mi' fs1 fs2.
+
+Definition gmmd_args v := 
+  ((p8,v)::(p8,vnullp8):: (i32,vint1)::(p32,vnullp32):: nil).
+Hint Unfold gmmd_args.
 
 Axiom free_doesnt_change_gmmd : forall M2 b2 lo hi Mem2' lc2 gl als
    bid0 eid0 bgv' egv' fs F B cs tmn S Ps EC TD v,
@@ -34,10 +42,8 @@ Axiom free_doesnt_change_gmmd : forall M2 b2 lo hi Mem2' lc2 gl als
   LLVMopsem.dsop_star 
     (LLVMopsem.mkState S TD Ps 
       ((LLVMopsem.mkEC F B 
-        (insn_call bid0 false attrs gmb_typ gmb_fn 
-          ((p8,v)::(p8,vnullp8):: (i32,vint1)::(p32,vnullp32):: nil)::
-         insn_call eid0 false attrs gme_typ gme_fn 
-          ((p8,v)::(p8,vnullp8)::(i32,vint1)::(p32,vnullp32)::nil)::
+        (insn_call bid0 false attrs gmb_typ gmb_fn (gmmd_args v)::
+         insn_call eid0 false attrs gme_typ gme_fn (gmmd_args v)::
          cs) 
         tmn lc2 als)
         ::EC) gl fs M2)
@@ -49,10 +55,8 @@ Axiom free_doesnt_change_gmmd : forall M2 b2 lo hi Mem2' lc2 gl als
   LLVMopsem.dsop_star 
     (LLVMopsem.mkState S TD Ps 
       ((LLVMopsem.mkEC F B 
-        (insn_call bid0 false attrs gmb_typ gmb_fn 
-          ((p8,v)::(p8,vnullp8):: (i32,vint1)::(p32,vnullp32):: nil)::
-         insn_call eid0 false attrs gme_typ gme_fn 
-          ((p8,v)::(p8,vnullp8):: (i32,vint1)::(p32,vnullp32):: nil)::
+        (insn_call bid0 false attrs gmb_typ gmb_fn (gmmd_args v)::
+         insn_call eid0 false attrs gme_typ gme_fn (gmmd_args v)::
          cs) 
         tmn lc2 als)
         ::EC) gl fs Mem2')
@@ -70,10 +74,8 @@ Axiom get_mmetadata_fn__alloc__preserve : forall Mem2 lo hi Mem2' mb2
   (egv' : GenericValue) bid0 eid0 TD v als,
   LLVMopsem.dsop_star
      (LLVMopsem.mkState S TD Ps ((LLVMopsem.mkEC F B
-        (insn_call bid0 false attrs gmb_typ gmb_fn 
-           ((p8, v) :: (p8,vnullp8)::(i32,vint1):: (p32,vnullp32)::nil) :: 
-         insn_call eid0 false attrs gme_typ gme_fn 
-           ((p8, v) :: (p8,vnullp8)::(i32,vint1):: (p32,vnullp32)::nil) :: 
+        (insn_call bid0 false attrs gmb_typ gmb_fn (gmmd_args v) ::
+         insn_call eid0 false attrs gme_typ gme_fn (gmmd_args v) ::
          cs) tmn lc2 als) :: EC) gl fs Mem2)
      (LLVMopsem.mkState S TD Ps ((LLVMopsem.mkEC F B cs tmn
         (updateAddAL _ (updateAddAL _ lc2 bid0 bgv') eid0 egv') als) :: EC) 
@@ -81,10 +83,8 @@ Axiom get_mmetadata_fn__alloc__preserve : forall Mem2 lo hi Mem2' mb2
      trace_nil ->
   LLVMopsem.dsop_star
      (LLVMopsem.mkState S TD Ps ((LLVMopsem.mkEC F B
-        (insn_call bid0 false attrs gmb_typ gmb_fn 
-           ((p8, v) :: (p8,vnullp8)::(i32,vint1):: (p32,vnullp32)::nil) :: 
-         insn_call eid0 false attrs gme_typ gme_fn 
-           ((p8, v) :: (p8,vnullp8)::(i32,vint1):: (p32,vnullp32)::nil) :: 
+        (insn_call bid0 false attrs gmb_typ gmb_fn (gmmd_args v) ::
+         insn_call eid0 false attrs gme_typ gme_fn (gmmd_args v) ::
          cs) tmn lc2 als) :: EC) gl fs Mem2')
      (LLVMopsem.mkState S TD Ps ((LLVMopsem.mkEC F B cs tmn 
         (updateAddAL _ (updateAddAL _ lc2 bid0 bgv') eid0 egv') als) :: EC) 
@@ -100,10 +100,8 @@ Axiom get_mmetadata_fn__alloc__zeroout : forall Mem2 lo hi Mem2' mb2 cm
     Some ((Vptr mb2 (Int.add 31 ofs (Int.repr 31 0)), cm)::nil) ->
   LLVMopsem.dsop_star
      (LLVMopsem.mkState S TD Ps ((LLVMopsem.mkEC F B
-        (insn_call bid0 false attrs gmb_typ gmb_fn 
-           ((p8, v) :: (p8,vnullp8)::(i32,vint1):: (p32,vnullp32)::nil) :: 
-         insn_call eid0 false attrs gme_typ gme_fn 
-           ((p8, v) :: (p8,vnullp8)::(i32,vint1):: (p32,vnullp32)::nil) :: 
+        (insn_call bid0 false attrs gmb_typ gmb_fn (gmmd_args v) ::
+         insn_call eid0 false attrs gme_typ gme_fn (gmmd_args v) ::
          cs) tmn lc2 als) :: EC) gl fs Mem2')
      (LLVMopsem.mkState S TD Ps ((LLVMopsem.mkEC F B cs tmn 
         (updateAddAL _ (updateAddAL _ lc2 bid0 null) eid0 null) als) :: EC) 
@@ -355,6 +353,36 @@ Axiom free_allocas_preserves_gse : forall M2 TD als2 M2' lp re,
   free_allocas TD M2 als2 = ret M2' ->
   LLVMopsem.callExternalFunction M2 gse_fid lp = Some (re, M2) ->
   LLVMopsem.callExternalFunction M2' gse_fid lp = Some (re, M2').
+
+Axiom store_doesnt_change_gmmd : forall M2 b2 ofs v0 Mem2' lc2 gl als
+   bid0 eid0 bgv' egv' fs F B cs tmn S Ps EC TD v ck,
+  Mem.store ck M2 b2 ofs v0 = ret Mem2' ->
+  LLVMopsem.dsop_star 
+    (LLVMopsem.mkState S TD Ps 
+      ((LLVMopsem.mkEC F B 
+        (insn_call bid0 false attrs gmb_typ gmb_fn (gmmd_args v) ::
+         insn_call eid0 false attrs gme_typ gme_fn (gmmd_args v) ::
+         cs) 
+        tmn lc2 als)
+        ::EC) gl fs M2)
+    (LLVMopsem.mkState S TD Ps 
+       ((LLVMopsem.mkEC F B cs tmn 
+         (updateAddAL _ (updateAddAL _ lc2 bid0 bgv') eid0 egv') als)::EC) 
+        gl fs M2)
+    trace_nil ->
+  LLVMopsem.dsop_star 
+    (LLVMopsem.mkState S TD Ps 
+      ((LLVMopsem.mkEC F B 
+        (insn_call bid0 false attrs gmb_typ gmb_fn (gmmd_args v) ::
+         insn_call eid0 false attrs gme_typ gme_fn (gmmd_args v) ::
+         cs) 
+        tmn lc2 als)
+        ::EC) gl fs Mem2')
+    (LLVMopsem.mkState S TD Ps 
+       ((LLVMopsem.mkEC F B cs tmn 
+         (updateAddAL _ (updateAddAL _ lc2 bid0 bgv') eid0 egv') als)::EC) 
+        gl fs Mem2')
+    trace_nil.
 
 (*****************************)
 (*

@@ -4,7 +4,7 @@ Add LoadPath "../ssa/compcert".
 Add LoadPath "../ssa".
 Add LoadPath "../../../theory/metatheory_8.3".
 Add LoadPath "../TV".
-Require Import sb_def.
+Require Import sb_db_def.
 Require Import Metatheory.
 
 Ltac invert_prop_reg_metadata :=

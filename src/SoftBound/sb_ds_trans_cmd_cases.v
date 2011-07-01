@@ -19,6 +19,7 @@ Require Import Metatheory.
 Require Import Znumtheory.
 Require Import sb_ds_def.
 Require Import sb_ds_trans.
+Require Import sb_ds_gv_inject.
 Require Import sb_ds_sim.
 Require Import sb_ds_trans_lib.
 Require Import ssa_wf.
@@ -97,14 +98,11 @@ Proof.
 
       exists ex_ids. exists rm2.
       exists ex_ids3. exists ex_ids4. exists cs2. exists cs23.
-      simpl in Hfresh. destruct Hfresh as [Hfresh1 Hfresh2].
       split; auto.
       split.
-        clear - Hfresh1 Hrsim Hinj.
-        destruct Hfresh1 as [Hnotin _]. 
-        unfold getCmdIDs in Hnotin. simpl in Hnotin.
-        apply reg_simulation__updateAddAL_lc; try solve [auto | fsetdec].
-          admit. (* fresh *)
+        clear - Hgenmeta Hrsim Hinj HBinF Heqb1.
+        apply reg_simulation__updateAddAL_lc with (ex_ids3:=ex_ids); auto.
+          eapply getCmdID_in_getFdefLocs; eauto.
       repeat (split; auto).
 Qed.
 
@@ -179,17 +177,13 @@ Proof.
 
       exists ex_ids. exists rm2.
       exists ex_ids3. exists ex_ids4. exists cs2. exists cs23.
-      simpl in Hfresh. destruct Hfresh as [Hfresh1 Hfresh2].
       split; auto.
       split.
-        clear - Hfresh1 Hrsim Hinj.
-        destruct Hfresh1 as [Hnotin _]. 
-        unfold getCmdIDs in Hnotin. simpl in Hnotin.
-        apply reg_simulation__updateAddAL_lc; try solve [auto | fsetdec].
-          admit. (* fresh *)
+        clear - Hgenmeta Hrsim Hinj HBinF Heqb1.
+        apply reg_simulation__updateAddAL_lc with (ex_ids3:=ex_ids); auto.
+          eapply getCmdID_in_getFdefLocs; eauto.
       repeat (split; auto).
 Qed.
-
 
 Lemma SBpass_is_correct__dsGEP : forall
   (mi : meminj) (mgb : Values.block) (St : LLVMopsem.State) (S : system)
@@ -261,7 +255,6 @@ Lemma SBpass_is_correct__dsGEP : forall
 Proof.
   intros.
   destruct_ctx_other.
-  simpl in Hfresh. destruct Hfresh as [Hnotin Hfresh].
   apply trans_cmds_inv in Htcmds.
   destruct Htcmds as [ex_ids5 [cs1' [cs2' [Htcmd [Htcmds Heq]]]]]; subst.
   simpl in Htcmd. 
@@ -295,6 +288,15 @@ Proof.
              als2):: 
             ECs2) gl2 fs2 M2).
   exists mi.
+
+  assert (Hfr1 := Hgetrm).
+  eapply get_reg_metadata_fresh3 in Hfr1; eauto. destruct Hfr1 as [Hneq1 Hneq2].
+  assert (Hfr2 := Hgetrm).
+  assert (In id0 (getFdefLocs (fdef_intro fh1 bs1))) as Hin. 
+    eapply getCmdID_in_getFdefLocs; eauto.
+  eapply get_reg_metadata_fresh'' with (id0:=id0) in Hfr2; eauto.
+  destruct Hfr2 as [Hneq3 Hneq4].
+
   split.
   SCase "opsem".
     simpl.
@@ -326,9 +328,7 @@ Proof.
       eapply LLVMopsem.dsCast; eauto.
         unfold CAST, mcast, mbitcast, p8. simpl.
         rewrite <- getOperandValue_eq_fresh_id; auto.
-        rewrite Hget1. auto.
-
-        clear - Hnotin Hgetrm. admit. (* fresh *)
+          rewrite Hget1. auto.
 
     rewrite <- (@trace_app_nil__eq__trace trace_nil).
     eapply LLVMopsem.dsop_star_cons; eauto.
@@ -336,7 +336,7 @@ Proof.
         unfold CAST, mcast, mbitcast, p8. simpl.
         rewrite <- getOperandValue_eq_fresh_id; auto.
         rewrite <- getOperandValue_eq_fresh_id; auto.
-        rewrite Hget2. auto. admit. admit. (* fresh *)
+        rewrite Hget2. auto.
 
     repeat (split; auto).
     eapply cmds_at_block_tail_next; eauto.
@@ -353,8 +353,6 @@ Proof.
   split.
   SCase "rsim".
     eapply reg_simulation__updateAddAL_prop; eauto.
-        admit. (* fresh *)
-        admit. (* fresh *)
   split; auto.
 Qed.
 
@@ -429,14 +427,11 @@ Proof.
 
       exists ex_ids. exists rm2.
       exists ex_ids3. exists ex_ids4. exists cs2. exists cs23.
-      simpl in Hfresh. destruct Hfresh as [Hfresh1 Hfresh2].
       split; auto.
       split.
-        clear - Hfresh1 Hrsim Hinj.
-        destruct Hfresh1 as [Hnotin _]. 
-        unfold getCmdIDs in Hnotin. simpl in Hnotin.
-        apply reg_simulation__updateAddAL_lc; try solve [auto | fsetdec].
-          admit. (* fresh *)
+        clear - Hgenmeta Hrsim Hinj HBinF Heqb1.
+        apply reg_simulation__updateAddAL_lc with (ex_ids3:=ex_ids); auto.
+          eapply getCmdID_in_getFdefLocs; eauto.
       repeat (split; auto).
 Qed.
 
@@ -511,14 +506,11 @@ Proof.
 
       exists ex_ids. exists rm2.
       exists ex_ids3. exists ex_ids4. exists cs2. exists cs23.
-      simpl in Hfresh. destruct Hfresh as [Hfresh1 Hfresh2].
       split; auto.
       split.
-        clear - Hfresh1 Hrsim Hinj.
-        destruct Hfresh1 as [Hnotin _]. 
-        unfold getCmdIDs in Hnotin. simpl in Hnotin.
-        apply reg_simulation__updateAddAL_lc; try solve [auto | fsetdec].
-          admit.  (* fresh *)
+        clear - Hgenmeta Hrsim Hinj Heqb1 HBinF.
+        apply reg_simulation__updateAddAL_lc with (ex_ids3:=ex_ids); auto.
+          eapply getCmdID_in_getFdefLocs; eauto.
       repeat (split; auto).
 Qed.
 
@@ -595,17 +587,13 @@ Proof.
 
       exists ex_ids. exists rm2.
       exists ex_ids3. exists ex_ids4. exists cs2. exists cs23.
-      simpl in Hfresh. destruct Hfresh as [Hfresh1 Hfresh2].
       split; auto.
       split.
-        clear - Hfresh1 Hrsim Hinj.
-        destruct Hfresh1 as [Hnotin _]. 
-        unfold getCmdIDs in Hnotin. simpl in Hnotin.
-        apply reg_simulation__updateAddAL_lc; try solve [auto | fsetdec].
-          admit.  (* fresh *)
+        clear - Hgenmeta Hrsim Hinj HBinF Heqb1.
+        apply reg_simulation__updateAddAL_lc with (ex_ids3:=ex_ids); auto.
+          eapply getCmdID_in_getFdefLocs; eauto.
       repeat (split; auto).
 Qed.
-
 
 Lemma SBpass_is_correct__dsBitcase_ptr : forall 
   (mi : meminj) (mgb : Values.block) (St : LLVMopsem.State) (S : system)
@@ -659,7 +647,6 @@ Lemma SBpass_is_correct__dsBitcase_ptr : forall
 Proof.
   intros.
   destruct_ctx_other.
-  simpl in Hfresh. destruct Hfresh as [Hnotin Hfresh].
   simpl in Htcmds.
   rewrite H0 in Htcmds.
   remember (prop_metadata ex_ids3 rm2 (insn_cast id0 castop_bitcast t1 v1 t2) 
@@ -690,6 +677,15 @@ Proof.
                   eid0 egv2) als2):: 
             ECs2) gl2 fs2 M2).
   exists mi.
+
+  assert (Hfr1 := Hgetrm).
+  eapply get_reg_metadata_fresh3 in Hfr1; eauto. destruct Hfr1 as [Hneq1 Hneq2].
+  assert (Hfr2 := Hgetrm).
+  assert (In id0 (getFdefLocs (fdef_intro fh1 bs1))) as Hin. 
+    eapply getCmdID_in_getFdefLocs; eauto.
+  eapply get_reg_metadata_fresh'' with (id0:=id0) in Hfr2; eauto.
+  destruct Hfr2 as [Hneq3 Hneq4].
+
   split.
   SCase "opsem".
     simpl.
@@ -723,15 +719,13 @@ Proof.
         rewrite <- getOperandValue_eq_fresh_id; auto.
         rewrite Hget1. auto.
 
-        admit.  (* fresh *)
-
     rewrite <- (@trace_app_nil__eq__trace trace_nil).
     eapply LLVMopsem.dsop_star_cons; eauto.
       eapply LLVMopsem.dsCast; eauto.
         unfold CAST, mcast, mbitcast, p8. simpl.
         rewrite <- getOperandValue_eq_fresh_id; auto.
         rewrite <- getOperandValue_eq_fresh_id; auto.
-        rewrite Hget2. auto. admit. admit.  (* fresh *)
+        rewrite Hget2. auto. 
 
     repeat (split; auto).
     eapply cmds_at_block_tail_next; eauto.
@@ -748,10 +742,7 @@ Proof.
   split.
   SCase "rsim".
     eapply reg_simulation__updateAddAL_prop; eauto.
-        admit.  (* fresh *)
-        admit.  (* fresh *)
   split; auto.
-
 Qed.
 
 
@@ -807,7 +798,6 @@ Lemma SBpass_is_correct__dsInttoptr : forall
 Proof.
   intros.
   destruct_ctx_other.
-  simpl in Hfresh. destruct Hfresh as [Hnotin Hfresh].
   simpl in Htcmds.
   remember (lookupAL (id * id) rm2 id0) as R.
   destruct R as [[bid0 eid0]|]; try solve [inv Htcmds].
@@ -876,8 +866,7 @@ Proof.
   split.
   SCase "rsim".
     eapply reg_simulation__updateAddAL_prop; eauto using gv_inject_null_refl.
-        admit.  (* fresh *)
-        admit.  (* fresh *)
+      eapply getCmdID_in_getFdefLocs; eauto.
   split; auto.
 Qed.
 
@@ -963,14 +952,11 @@ Proof.
 
       exists ex_ids. exists rm2.
       exists ex_ids3. exists ex_ids4. exists cs2'. exists cs23.
-      simpl in Hfresh. destruct Hfresh as [Hfresh1 Hfresh2].
       split; auto.
       split.
-        clear - Hfresh1 Hrsim Hinj.
-        destruct Hfresh1 as [Hnotin _]. 
-        unfold getCmdIDs in Hnotin. simpl in Hnotin.
-        apply reg_simulation__updateAddAL_lc; try solve [auto | fsetdec].
-          admit. (* fresh *)
+        clear - Hgenmeta Hrsim Hinj HBinF Heqb1.
+        apply reg_simulation__updateAddAL_lc with (ex_ids3:=ex_ids); auto.
+          eapply getCmdID_in_getFdefLocs; eauto.
       repeat (split; auto).
 Qed.
 
@@ -1045,17 +1031,13 @@ Proof.
 
       exists ex_ids. exists rm2.
       exists ex_ids3. exists ex_ids4. exists cs2. exists cs23.
-      simpl in Hfresh. destruct Hfresh as [Hfresh1 Hfresh2].
       split; auto.
       split.
-        clear - Hfresh1 Hrsim Hinj.
-        destruct Hfresh1 as [Hnotin _]. 
-        unfold getCmdIDs in Hnotin. simpl in Hnotin.
-        apply reg_simulation__updateAddAL_lc; try solve [auto | fsetdec].
-          admit. (* fresh *)
+        clear - Hgenmeta Hrsim Hinj HBinF Heqb1.
+        apply reg_simulation__updateAddAL_lc with (ex_ids3:=ex_ids); auto.
+          eapply getCmdID_in_getFdefLocs; eauto.
       repeat (split; auto).
 Qed.
-
 
 Lemma SBpass_is_correct__dsFcmp : forall
   (mi : meminj) (mgb : Values.block) (St : LLVMopsem.State) (S : system)
@@ -1128,14 +1110,11 @@ Proof.
 
       exists ex_ids. exists rm2.
       exists ex_ids3. exists ex_ids4. exists cs2. exists cs23.
-      simpl in Hfresh. destruct Hfresh as [Hfresh1 Hfresh2].
       split; auto.
       split.
-        clear - Hfresh1 Hrsim Hinj.
-        destruct Hfresh1 as [Hnotin _]. 
-        unfold getCmdIDs in Hnotin. simpl in Hnotin.
-        apply reg_simulation__updateAddAL_lc; try solve [auto | fsetdec].
-          admit. (* fresh *)
+        clear - Hgenmeta Hrsim Hinj HBinF Heqb1.
+        apply reg_simulation__updateAddAL_lc with (ex_ids3:=ex_ids); auto.
+          eapply getCmdID_in_getFdefLocs; eauto.
       repeat (split; auto).
 Qed.
 
@@ -1238,14 +1217,11 @@ Proof.
 
       exists ex_ids. exists rm2.
       exists ex_ids3. exists ex_ids4. exists cs2. exists cs23.
-      simpl in Hfresh. destruct Hfresh as [Hfresh1 Hfresh2].
       split; auto.
       split.
-        clear - Hfresh1 Hrsim Hinj Hinj'.
-        destruct Hfresh1 as [Hnotin _]. 
-        unfold getCmdIDs in Hnotin. simpl in Hnotin.
-        apply reg_simulation__updateAddAL_lc; try solve [auto | fsetdec].
-          admit. (* fresh *)
+        clear - Hgenmeta Hrsim Hinj Hinj' HBinF Heqb1.
+        apply reg_simulation__updateAddAL_lc with (ex_ids3:=ex_ids); auto.
+          eapply getCmdID_in_getFdefLocs; eauto.
       repeat (split; auto).
 Qed.
 
@@ -1352,14 +1328,11 @@ Proof.
 
       exists ex_ids. exists rm2.
       exists ex_ids3. exists ex_ids4. exists cs2. exists cs23.
-      simpl in Hfresh. destruct Hfresh as [Hfresh1 Hfresh2].
       split; auto.
       split.
-        clear - Hfresh1 Hrsim Hinj'.
-        destruct Hfresh1 as [Hnotin _]. 
-        unfold getCmdIDs in Hnotin. simpl in Hnotin.
-        apply reg_simulation__updateAddAL_lc; try solve [auto | fsetdec].
-          admit. (* fresh *)
+        clear - Hgenmeta Hrsim Hinj' Hinj2' HBinF Heqb1.
+        apply reg_simulation__updateAddAL_lc with (ex_ids3:=ex_ids); auto.
+          eapply getCmdID_in_getFdefLocs; eauto.
       repeat (split; auto).
 Qed.
 
@@ -1474,18 +1447,13 @@ Proof.
 
       exists ex_ids. exists rm2.
       exists ex_ids3. exists ex_ids4. exists cs2. exists cs23.
-      simpl in Hfresh. destruct Hfresh as [Hfresh1 Hfresh2].
       split; auto.
       split.
         rewrite Heqc.
-        clear - Hfresh1 Hrsim Hinj1 Hinj2 Hinjc.
-        destruct Hfresh1 as [Hnotin _]. 
-        unfold getCmdIDs in Hnotin. simpl in Hnotin.
-        destruct (isGVZero (los,nts) c').
-          apply reg_simulation__updateAddAL_lc; try solve [auto | fsetdec].
-            admit. (* fresh *)
-          apply reg_simulation__updateAddAL_lc; try solve [auto | fsetdec].
-            admit. (* fresh *)
+        clear - Hgenmeta Hrsim Hinj1 Hinj2 Hinjc HBinF Heqb1.
+        destruct (isGVZero (los,nts) c');
+          apply reg_simulation__updateAddAL_lc with (ex_ids3:=ex_ids); eauto
+            using getCmdID_in_getFdefLocs.
       repeat (split; auto).
 Qed.
 
@@ -1585,7 +1553,9 @@ Proof.
   destruct R2 as [[bv2 ev2]|]; tinv Htcmds.
   remember (lookupAL (id * id) rm2 id0) as R3.
   destruct R3 as [[bid0 eid0]|]; tinv Htcmds.
-  remember (trans_cmds ex_ids3 rm2 cs) as R4.
+  remember (mk_tmp ex_ids3) as R9.
+  destruct R9 as [ctmp ex_ids3'].
+  remember (trans_cmds ex_ids3' rm2 cs) as R4.
   destruct R4 as [[ex_ids2 cs2]|]; inv Htcmds.
 
   assert (Hrsim':=Hrsim).
@@ -1598,6 +1568,26 @@ Proof.
   rewrite <- HeqR1 in J1. inv J1.
   rewrite <- HeqR2 in J1'. inv J1'.
 
+  assert (id_fresh_in_value v0 ctmp /\ id_fresh_in_value v1 ctmp /\ 
+          id_fresh_in_value v2 ctmp) as Hfresh_ctmp.
+    assert (Hwfc := HBinF).
+    destruct Heqb1 as [l1 [ps1 [cs11 Heqb1]]]; subst.
+    eapply wf_system__wf_cmd with (c:=insn_select id0 v0 t v1 v2) in Hwfc; eauto.
+      inv Hwfc. 
+      split. eapply wf_value_id__in_getFdefLocs in H14; auto.
+          eapply get_reg_metadata_fresh' with (rm2:=rm2); eauto; try fsetdec.
+      split. eapply wf_value_id__in_getFdefLocs in H16; auto.
+          eapply get_reg_metadata_fresh' with (rm2:=rm2); eauto; try fsetdec.
+             eapply wf_value_id__in_getFdefLocs in H17; auto.
+          eapply get_reg_metadata_fresh' with (rm2:=rm2); eauto; try fsetdec.
+
+      apply in_or_app. right. simpl. auto. 
+  destruct Hfresh_ctmp as [Hfresh_ctmp0 [Hfresh_ctmp1 Hfresh_ctmp2]].
+
+  assert (Hspec := Hgenmeta).
+  apply gen_metadata_fdef_spec in Hspec; auto.
+  destruct Hspec as [Hinc1 [Hdisj1 [Hinc3 Hdisj2]]].
+
   left.
   exists (LLVMopsem.mkState S2 (los, nts) Ps2
           ((LLVMopsem.mkEC (fdef_intro fh2 bs2) B2
@@ -1607,101 +1597,147 @@ Proof.
               (if isGVZero (los, nts) c' then
                  updateAddAL _ 
                    (if isGVZero (los, nts) c'
-                    then updateAddAL _ lc2 id0 gv2'
-                    else updateAddAL _ lc2 id0 gv1') bid0 bgv2'
+                    then updateAddAL _ (updateAddAL _ lc2 ctmp c') id0 gv2'
+                    else updateAddAL _ (updateAddAL _ lc2 ctmp c') id0 gv1') 
+                   bid0 bgv2'
               else
                  updateAddAL _ 
                    (if isGVZero (los, nts) c'
-                    then updateAddAL _ lc2 id0 gv2'
-                    else updateAddAL _ lc2 id0 gv1') bid0 bgv1') eid0 egv2'
+                    then updateAddAL _ (updateAddAL _ lc2 ctmp c') id0 gv2'
+                    else updateAddAL _ (updateAddAL _ lc2 ctmp c') id0 gv1') 
+                   bid0 bgv1') eid0 egv2'
              else updateAddAL _
               (if isGVZero (los, nts) c' then
                  updateAddAL _ 
                    (if isGVZero (los, nts) c'
-                    then updateAddAL _ lc2 id0 gv2'
-                    else updateAddAL _ lc2 id0 gv1') bid0 bgv2'
+                    then updateAddAL _ (updateAddAL _ lc2 ctmp c') id0 gv2'
+                    else updateAddAL _ (updateAddAL _ lc2 ctmp c') id0 gv1') 
+                   bid0 bgv2'
               else
                  updateAddAL _ 
                    (if isGVZero (los, nts) c'
-                    then updateAddAL _ lc2 id0 gv2'
-                    else updateAddAL _ lc2 id0 gv1') bid0 bgv1') eid0 egv1')
+                    then updateAddAL _ (updateAddAL _ lc2 ctmp c') id0 gv2'
+                    else updateAddAL _ (updateAddAL _ lc2 ctmp c') id0 gv1') 
+                   bid0 bgv1') eid0 egv1')
             als2):: 
             ECs2) gl2 fs2 M2).
+
+  symmetry in HeqR1, HeqR2.
+  assert (Hfr1 := HeqR1).
+  eapply get_reg_metadata_fresh3 in Hfr1; eauto. destruct Hfr1 as [Hneq1 Hneq2].
+  assert (Hfr1' := HeqR2). 
+  eapply get_reg_metadata_fresh3 in Hfr1'; eauto. 
+  destruct Hfr1' as [Hneq1' Hneq2'].
+
+  assert (In id0 (getFdefLocs (fdef_intro fh1 bs1))) as Hin. 
+    eauto using getCmdID_in_getFdefLocs.
+  assert (Hfr2 := HeqR1).
+  eapply get_reg_metadata_fresh'' with (id0:=id0) in Hfr2; eauto.
+  destruct Hfr2 as [Hneq3 Hneq4].
+  assert (Hfr2' := HeqR2).
+  eapply get_reg_metadata_fresh'' with (id0:=id0) in Hfr2'; eauto.
+  destruct Hfr2' as [Hneq3' Hneq4'].
+
+  assert (ctmp <> id0) as Hctmp_neq_id0.
+    apply tmp_is_fresh2 with (i0:=id0)(d:=getFdefLocs (fdef_intro fh1 bs1)) 
+      (ex_ids1:=ex_ids) in HeqR9; auto.
+  assert (bid0 <> ctmp /\ eid0 <> ctmp) as Hctmp'.
+    eapply tmp_is_fresh3 with (bid:=bid0)(eid:=eid0)(ex_ids1:=ex_ids) in HeqR9; 
+      eauto.
+  destruct Hctmp' as [Hctmpb Hctmpe].
+
+  assert (id_fresh_in_value bv1' ctmp /\ id_fresh_in_value ev1' ctmp) as Hfr3.
+    eapply get_reg_metadata__fresh; eauto.
+  destruct Hfr3 as [Hfr3a Hfr3b]. 
+  assert (id_fresh_in_value bv2' ctmp /\ id_fresh_in_value ev2' ctmp) as Hfr4.
+    eapply get_reg_metadata__fresh; eauto.
+  destruct Hfr4 as [Hfr4a Hfr4b].
+ 
   exists mi.
   split.
     rewrite <- (@trace_app_nil__eq__trace trace_nil).
     apply LLVMopsem.dsop_star_cons with (state2 := 
         LLVMopsem.mkState S2 (los, nts) Ps2
           ((LLVMopsem.mkEC (fdef_intro fh2 bs2) B2
-            (insn_select bid0 v0 p8 bv1' bv2' :: 
-             insn_select eid0 v0 p8 ev1' ev2' ::
+            (insn_select id0 v0 t v1 v2 ::
+             insn_select bid0 (value_id ctmp) p8 bv1' bv2' :: 
+             insn_select eid0 (value_id ctmp) p8 ev1' ev2' ::
              cs2 ++ cs23) tmn2 
-            (if isGVZero (los, nts) c'
-             then updateAddAL _ lc2 id0 gv2'
-             else updateAddAL _ lc2 id0 gv1')
+             (updateAddAL _ lc2 ctmp c')
             als2):: 
             ECs2) gl2 fs2 M2); auto.
-      eapply LLVMopsem.dsSelect; eauto.
+      eapply LLVMopsem.dsCast; eauto.
+        unfold CAST. rewrite Hc. simpl. unfold mbitcast, i1. auto.
 
     rewrite <- (@trace_app_nil__eq__trace trace_nil).
     apply LLVMopsem.dsop_star_cons with (state2 := 
         LLVMopsem.mkState S2 (los, nts) Ps2
           ((LLVMopsem.mkEC (fdef_intro fh2 bs2) B2
-            (insn_select eid0 v0 p8 ev1' ev2' ::
+            (insn_select bid0 (value_id ctmp) p8 bv1' bv2' :: 
+             insn_select eid0 (value_id ctmp) p8 ev1' ev2' ::
+             cs2 ++ cs23) tmn2 
+            (if isGVZero (los, nts) c'
+             then updateAddAL _ (updateAddAL _ lc2 ctmp c') id0 gv2'
+             else updateAddAL _ (updateAddAL _ lc2 ctmp c') id0 gv1')
+            als2):: 
+            ECs2) gl2 fs2 M2); auto.
+      eapply LLVMopsem.dsSelect; eauto;
+        rewrite <- getOperandValue_eq_fresh_id; auto.
+
+    rewrite <- (@trace_app_nil__eq__trace trace_nil).
+    apply LLVMopsem.dsop_star_cons with (state2 := 
+        LLVMopsem.mkState S2 (los, nts) Ps2
+          ((LLVMopsem.mkEC (fdef_intro fh2 bs2) B2
+            (insn_select eid0 (value_id ctmp) p8 ev1' ev2' ::
              cs2 ++ cs23) tmn2 
             (if isGVZero (los, nts) c' then
                updateAddAL _ 
                  (if isGVZero (los, nts) c'
-                  then updateAddAL _ lc2 id0 gv2'
-                  else updateAddAL _ lc2 id0 gv1') bid0 bgv2'
+                  then updateAddAL _ (updateAddAL _ lc2 ctmp c') id0 gv2'
+                  else updateAddAL _ (updateAddAL _ lc2 ctmp c') id0 gv1') 
+                 bid0 bgv2'
             else
                updateAddAL _ 
                  (if isGVZero (los, nts) c'
-                  then updateAddAL _ lc2 id0 gv2'
-                  else updateAddAL _ lc2 id0 gv1') bid0 bgv1')
+                  then updateAddAL _ (updateAddAL _ lc2 ctmp c') id0 gv2'
+                  else updateAddAL _ (updateAddAL _ lc2 ctmp c') id0 gv1') 
+                bid0 bgv1')
             als2):: 
             ECs2) gl2 fs2 M2); auto.
       eapply LLVMopsem.dsSelect; eauto.
-        destruct (isGVZero (los, nts) c'); auto.
+        destruct (isGVZero (los, nts) c');
+          rewrite <- getOperandValue_eq_fresh_id; simpl;
+            try solve [auto | rewrite lookupAL_updateAddAL_eq; auto].
+        destruct (isGVZero (los, nts) c');
+          rewrite <- getOperandValue_eq_fresh_id; auto;
           rewrite <- getOperandValue_eq_fresh_id; auto.
-            admit. (* fresh *)          
+        destruct (isGVZero (los, nts) c');
+          rewrite <- getOperandValue_eq_fresh_id; auto;
           rewrite <- getOperandValue_eq_fresh_id; auto.
-            admit. (* fresh *)          
-        destruct (isGVZero (los, nts) c'); auto.
-          rewrite <- getOperandValue_eq_fresh_id; auto.
-            admit. (* fresh *)          
-          rewrite <- getOperandValue_eq_fresh_id; auto.
-            admit. (* fresh *)          
-        destruct (isGVZero (los, nts) c'); auto.
-          rewrite <- getOperandValue_eq_fresh_id; auto.
-            admit. (* fresh *)          
-          rewrite <- getOperandValue_eq_fresh_id; auto.
-            admit. (* fresh *)          
 
     rewrite <- (@trace_app_nil__eq__trace trace_nil).
     eapply LLVMopsem.dsop_star_cons; eauto.
       eapply LLVMopsem.dsSelect; eauto.
-        destruct (isGVZero (los, nts) c'); auto.
+        destruct (isGVZero (los, nts) c');
           rewrite <- getOperandValue_eq_fresh_id; auto.
           rewrite <- getOperandValue_eq_fresh_id; auto.
-            admit. admit. (* fresh *)          
+            simpl. rewrite lookupAL_updateAddAL_eq; auto.
+            simpl. clear - Hctmpb. auto.
+          rewrite <- getOperandValue_eq_fresh_id; auto.
+            simpl. rewrite lookupAL_updateAddAL_eq; auto.
+            simpl. clear - Hctmpb. auto.
+        destruct (isGVZero (los, nts) c');
           rewrite <- getOperandValue_eq_fresh_id; auto.
           rewrite <- getOperandValue_eq_fresh_id; auto.
-            admit. admit.  (* fresh *)          
-        destruct (isGVZero (los, nts) c'); auto.
           rewrite <- getOperandValue_eq_fresh_id; auto.
           rewrite <- getOperandValue_eq_fresh_id; auto.
-            admit. admit.  (* fresh *)          
+          rewrite <- getOperandValue_eq_fresh_id; auto.
+        destruct (isGVZero (los, nts) c');
           rewrite <- getOperandValue_eq_fresh_id; auto.
           rewrite <- getOperandValue_eq_fresh_id; auto.
-            admit. admit.  (* fresh *)          
-        destruct (isGVZero (los, nts) c'); auto.
           rewrite <- getOperandValue_eq_fresh_id; auto.
           rewrite <- getOperandValue_eq_fresh_id; auto.
-            admit. admit.  (* fresh *)          
           rewrite <- getOperandValue_eq_fresh_id; auto.
-          rewrite <- getOperandValue_eq_fresh_id; auto.
-            admit. admit.  (* fresh *)          
 
     split; auto using inject_incr_refl.
     repeat (split; auto).
@@ -1709,23 +1745,24 @@ Proof.
       
       destruct Heqb2 as [l2 [ps2 [cs21 Heqb2]]]; subst.
       exists l2. exists ps2. exists (cs21 ++
-                  (insn_select id0 v0 t v1 v2
-                :: insn_select bid0 v0 p8 bv1' bv2'
-                   :: insn_select eid0 v0 p8 ev1' ev2' :: nil)).
+                  (insn_cast ctmp castop_bitcast i1 v0 i1
+                :: insn_select id0 v0 t v1 v2
+                :: insn_select bid0 (value_id ctmp) p8 bv1' bv2'
+                   :: insn_select eid0 (value_id ctmp) p8 ev1' ev2' :: nil)).
       simpl_env. auto.
 
       exists ex_ids. exists rm2.
-      exists ex_ids3. exists ex_ids4. exists cs2. exists cs23.
-      simpl in Hfresh. destruct Hfresh as [Hfresh1 Hfresh2].
+      exists ex_ids3'. exists ex_ids4. exists cs2. exists cs23.
       split; auto.
       split.
-        unfold getCmdIDs in Hfresh1. simpl in Hfresh1.
         destruct (isGVZero (los,nts) c'); inv H5.
           eapply reg_simulation__updateAddAL_prop; eauto.
-            admit. admit. (* fresh *)
+            eapply reg_simulation__updateAddAL_tmp; eauto.
           eapply reg_simulation__updateAddAL_prop; eauto.
-            admit. admit. (* fresh *)
+            eapply reg_simulation__updateAddAL_tmp; eauto.
       repeat (split; auto).
+        clear - Hinc HeqR9.
+        eapply mk_tmp_inc; eauto.
 Qed.
 
 (*****************************)

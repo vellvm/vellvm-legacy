@@ -20,6 +20,7 @@ Require Import Znumtheory.
 Require Import sb_ds_def.
 Require Import sb_ds_trans.
 Require Import sb_ds_metadata.
+Require Import sb_ds_gv_inject.
 Require Import ssa_static.
 Require Import ssa_props.
 Require Import ssa_wf.
@@ -30,19 +31,15 @@ Ltac zeauto := eauto with zarith.
 
 Import SB_ds_pass.
 
-Definition sb_fnattrs := fnattrs_intro linkage_external visibility_default 
-  callconv_ccc nil nil.
-
-
 (* Freshness *)
 
 Definition getValueID (v:value) : atoms :=
 match v with
 | value_id id => {{id}}
-| value_const (const_gid _ id) => {{id}}
 | value_const _ => {}
 end.
 
+(*
 Fixpoint getParamsOperand (lp:params) : atoms :=
 match lp with
 | nil => {}
@@ -53,9 +50,8 @@ Definition getCmdOperands (i:cmd) : atoms :=
 match i with
 | insn_bop _ _ _ v1 v2 => getValueID v1 `union` getValueID v2
 | insn_fbop _ _ _ v1 v2 => getValueID v1 `union` getValueID v2
-(* | insn_extractelement _ _ v _ => getValueID v
+| insn_extractelement _ _ v _ => getValueID v
 | insn_insertelement _ _ v1 _ v2 _ => getValueID v1 `union` getValueID v2
-*)
 | insn_extractvalue _ _ v _ => getValueID v
 | insn_insertvalue _ _ v1 _ v2 _ => getValueID v1 `union` getValueID v2
 | insn_malloc _ _ v _ => getValueID v
@@ -75,6 +71,7 @@ match i with
 end.
 
 Definition getCmdIDs (c:cmd) := {{getCmdLoc c}} `union` getCmdOperands c.
+*)
 
 Definition id_fresh_in_value v1 i2 : Prop :=
 match v1 with
@@ -99,12 +96,13 @@ match rm with
 | nil => True
 | (id0,(bid,eid))::rm' => 
     id0 <> bid /\ id0 <> eid /\ bid <> eid /\ 
-    id0 `notin` dom rm' `union` codom rm' /\
+    id0 `notin` codom rm' /\
     bid `notin` dom rm' `union` codom rm' /\
     eid `notin` dom rm' `union` codom rm' /\
     rm_codom_disjoint rm' 
 end.
 
+(*
 Definition wf_fresh ex_ids c rm : Prop :=
 AtomSetImpl.inter (getCmdIDs c) (codom rm) [<=] {} /\
 getCmdLoc c `notin` getCmdOperands c /\
@@ -116,6 +114,7 @@ match cs with
 | nil => True
 | c::cs' => wf_fresh ex_ids c rm2 /\ wf_freshs ex_ids cs' rm2 
 end.
+*)
 
 Lemma notin_codom__neq : forall rm d id0 id1 bid eid,
   AtomSetImpl.inter d (codom rm) [<=] {} ->
@@ -133,6 +132,7 @@ Proof.
         clear - J1. fsetdec.
 Qed.
 
+(*
 Lemma notin_codom__neq' : forall rm d id1 bid eid,
   AtomSetImpl.inter d (codom rm) [<=] {} ->
   Some (bid, eid) = lookupAL _ rm id1 ->
@@ -147,6 +147,7 @@ Proof.
       eapply IHrm in J2; eauto.
         clear - J1. fsetdec.
 Qed.
+*)
 
 Lemma ids2atoms_dom : forall x d,
   In x d <-> x `in` ids2atoms d.
@@ -271,7 +272,7 @@ Proof.
   apply rmap_lookupAL in H0.
   fsetdec.
 Qed.
-
+(*
 Lemma tmp_is_fresh_rm : forall id1 ex_ids tmp ex_ids' bid eid rm c,
   wf_fresh ex_ids c rm ->
   Some (bid, eid) = lookupAL _ rm id1 ->
@@ -310,6 +311,7 @@ Proof.
       apply ids2atoms_dom; auto.              
     fsetdec.
 Qed.
+*)
 
 Lemma mk_tmp_inc : forall ex_ids ex_ids3 ex_ids5 tmp,
   incl ex_ids ex_ids3 ->
@@ -322,6 +324,7 @@ Proof.
   simpl. auto.
 Qed.
 
+(*
 Lemma wf_freshs__mk_tmp : forall cs ex_ids rm2 ptmp ex_ids1,
   wf_freshs ex_ids cs rm2 ->
   (ptmp, ex_ids1) = mk_tmp ex_ids ->
@@ -331,45 +334,9 @@ Proof.
     destruct H as [J1 J2].
     split; eauto using wf_fresh__mk_tmp.
 Qed.
+*)
 
 (* Simulation *)
-
-Definition meminj_no_overlap (f: meminj) (m: mem) : Prop :=
-  forall b1 b1' delta1 b2 b2' delta2,
-  b1 <> b2 ->
-  f b1 = Some (b1', delta1) ->
-  f b2 = Some (b2', delta2) ->
-  b1' <> b2'.
-
-Lemma meminj_no_overlap__implies : forall f m,
-  meminj_no_overlap f m -> Mem.meminj_no_overlap f m.
-Proof.
-  intros f m J.
-  unfold meminj_no_overlap in J.
-  unfold Mem.meminj_no_overlap.
-  eauto.
-Qed.
-
-Record wf_sb_mi maxb mi Mem1 Mem2 := mk_wf_sb_mi {
-  Hno_overlap : meminj_no_overlap mi Mem1;
-  Hnull : mi Mem.nullptr = Some (Mem.nullptr, 0);
-  Hmap1 : forall b, b >= Mem.nextblock Mem1 -> mi b = None;
-  Hmap2 : forall b1 b2 delta2, 
-    mi b1 = Some (b2, delta2) -> b2 < Mem.nextblock Mem2;
-  mi_freeblocks: forall b, ~(Mem.valid_block Mem1 b) -> mi b = None;
-  mi_mappedblocks: forall b b' delta, 
-    mi b = Some(b', delta) -> Mem.valid_block Mem2 b';
-  mi_range_block: forall b b' delta, 
-    mi b = Some(b', delta) -> delta = 0;
-  mi_bounds: forall b b' delta, 
-    mi b = Some(b', delta) -> Mem.bounds Mem1 b = Mem.bounds Mem2 b';
-  mi_globals : forall b, b <= maxb -> mi b = Some (b, 0)
-  }.
-
-Definition gv_inject (mi: Values.meminj) (gv gv':GenericValue) : Prop :=
-let '(vals,mks) := List.split gv in 
-let '(vals',mks') := List.split gv' in 
-val_list_inject mi vals vals'.
 
 Definition reg_simulation (mi:Values.meminj) TD gl (F:fdef) 
   (rm1:SBopsem.rmetadata) (rm2:rmap) (lc1 lc2:GVMap) : Prop :=
@@ -387,21 +354,8 @@ Definition reg_simulation (mi:Values.meminj) TD gl (F:fdef)
     getOperandValue TD ev2 lc2 gl = Some egv2 /\
     gv_inject mi bgv1 bgv2 /\
     gv_inject mi egv1 egv2
-).
-
-Fixpoint wf_global (maxb:Values.block) (gv:GenericValue) 
-  : Prop :=
-match gv with
-| nil => True
-| (Vptr b _,_)::gv' => b <= maxb /\ wf_global maxb gv'
-| _::gv' => wf_global maxb gv'
-end.
-
-Fixpoint wf_globals maxb (gl:GVMap) : Prop :=
-match gl with
-| nil => True
-| (_,gv)::gl' => wf_global maxb gv /\ wf_globals maxb gl'
-end.
+) /\
+(forall i0 gv1, lookupAL _ lc1 i0 = Some gv1 -> In i0 (getFdefLocs F)).
 
 Definition mem_simulation (mi:Values.meminj) TD (mgb:Values.block) 
   (MM1:SBopsem.mmetadata) (Mem1 Mem2:mem) : Prop :=
@@ -486,7 +440,7 @@ Definition sbEC_simulates_EC_tail (TD:TargetData) Ps1 gl (mi:Values.meminj)
          reg_simulation mi TD gl f1 rm1 rm2 lc1 lc2 /\
          incl ex_ids ex_ids3 /\ 
          call_suffix i0 nr ca t0 v p rm2 = Some cs22 /\
-         wf_freshs ex_ids3 cs13 rm2 /\
+         (*wf_freshs ex_ids3 cs13 rm2 /\*)
          trans_cmds ex_ids3 rm2 cs13 = Some (ex_ids4,cs23) /\
          trans_terminator rm2 tmn1 = Some cs24 /\
          cs2 = cs22 ++ cs23 ++ cs24
@@ -516,7 +470,7 @@ Definition sbEC_simulates_EC_head (TD:TargetData) Ps1 gl (mi:Values.meminj)
          gen_metadata_fdef nts (getFdefLocs f1) nil f1 = Some (ex_ids, rm2) /\
          reg_simulation mi TD gl f1 rm1 rm2 lc1 lc2 /\
          incl ex_ids ex_ids3 /\ 
-         wf_freshs ex_ids3 cs12 rm2 /\
+         (*wf_freshs ex_ids3 cs12 rm2 /\*)
          trans_cmds ex_ids3 rm2 cs12 = Some (ex_ids4,cs22) /\
          trans_terminator rm2 tmn1 = Some cs23 /\
          cs2 = cs22 ++ cs23
@@ -596,7 +550,7 @@ match goal with
   destruct F2 as [fh2 bs2];
   destruct HsimEC as [Hclib [HBinF [HFinPS [Htfdef [Heq0 [Hasim [Hnth [Heqb1 
     [Heqb2 [ex_ids [rm2 [ex_ids3 [ex_ids4 [cs22 [cs23 [Hgenmeta [Hrsim [Hinc 
-    [Hfresh [Htcmds [Httmn Heq2]]]]]]]]]]]]]]]]]]]]]; subst
+    [Htcmds [Httmn Heq2]]]]]]]]]]]]]]]]]]]]; subst
 end.
 
 Fixpoint params_simulation TD gl mi lc2 
@@ -635,23 +589,6 @@ match (re1, re2) with
     incomingValues_simulation mi re1' rm2 re2'
 | _ => False
 end.
-
-Definition defined_gv (gv:GenericValue) : Prop :=
-match gv with
-| (v,_)::_ => v <> Vundef
-| _ => True
-end.
-
-Fixpoint defined_gvs (gvs:list GenericValue) : Prop :=
-match gvs with
-| gv::gvs' => defined_gv gv /\ defined_gvs gvs'
-| nil => True
-end.
-
-Definition chunk_matched (gv gv':GenericValue) : Prop :=
-let '(_,ms):=split gv in
-let '(_,ms'):=split gv' in
-ms = ms'.
 
 Definition nondet_state sbSt (St : LLVMopsem.State) : Prop :=
   match sbSt, St with 
@@ -755,7 +692,7 @@ match goal with
   destruct F2 as [fh2 bs2];
   destruct HsimEC as [Hclib [HBinF [HFinPs [Htfdef [Heq0 [Hasim [Hnth [Heqb1 
     [Heqb2 [ex_ids [rm2 [ex_ids3 [ex_ids4 [cs22 [cs23 [Hgenmeta [Hrsim [Hinc 
-    [Hfresh [Htcmds [Httmn Heq2]]]]]]]]]]]]]]]]]]]]]; subst
+    [Htcmds [Httmn Heq2]]]]]]]]]]]]]]]]]]]]; subst
 end.
 
 Ltac destruct_ctx_return :=
@@ -801,14 +738,14 @@ match goal with
   destruct F2 as [fh2 bs2];
   destruct HsimEC as [Hclib [HBinF [HFinPs [Htfdef [Heq0 [Hasim [Hnth [Heqb1 
     [Heqb2 [ex_ids [rm2 [ex_ids3 [ex_ids4 [cs22 [cs23 [Hgenmeta [Hrsim [Hinc 
-    [Hfresh [Htcmds [Httmn Heq2]]]]]]]]]]]]]]]]]]]]]; subst;
+    [Htcmds [Httmn Heq2]]]]]]]]]]]]]]]]]]]]; subst;
   destruct F' as [fh1' bs1'];
   destruct F2' as [fh2' bs2'];
   destruct c'; try solve [inversion HsimEC'];
   destruct HsimEC' as [Hclib' [HBinF' [HFinPs' [Htfdef' [Heq0' [Hasim' [Hnth' 
     [Heqb1' [Heqb2' [ex_ids' [rm2' [ex_ids3' [ex_ids4' [cs22' [cs23' [cs24' 
-    [Hgenmeta' [Hrsim' [Hinc' [Hcall' [Hfresh' [Htcmds' [Httmn' Heq2']]]]]]]]]]]]
-    ]]]]]]]]]]]; 
+    [Hgenmeta' [Hrsim' [Hinc' [Hcall' [Htcmds' [Httmn' Heq2']]]]]]]]]]]]
+    ]]]]]]]]]]; 
     subst
 end.
 

@@ -27,6 +27,7 @@ Export SBopsem.
 (********************************************)
 (** syntax *)
 Definition i32 := typ_int Size.ThirtyTwo.
+Definition i1 := typ_int Size.One.
 Definition pp8 := typ_pointer p8.
 Definition p32 := typ_pointer i32.
 Definition int1 := const_int Size.ThirtyTwo (INTEGER.of_Z 32%Z 1%Z false).
@@ -182,9 +183,7 @@ Definition rmap := list (id*(id*id)).
 
 Definition getFdefLocs fdef : ids :=
 match fdef with
-| fdef_intro (fheader_intro _ _ _ la _) bs => 
-  let '(_, ids0) := List.split la in
-  ids0 ++ getBlocksLocs bs 
+| fdef_intro (fheader_intro _ _ _ la _) bs => getArgsIDs la ++ getBlocksLocs bs 
 end.
 
 Definition gen_metadata_id (ex_ids:ids) (rm:rmap) (id0:id) 
@@ -362,11 +361,13 @@ match c with
 | insn_malloc id0 t1 v1 _ | insn_alloca id0 t1 v1 _ =>
     match lookupAL _ rm id0 with
     | Some (bid, eid) =>
+      let '(ntmp,ex_ids) := mk_tmp ex_ids in
       let '(etmp,ex_ids) := mk_tmp ex_ids in
       Some (ex_ids,
+       insn_cast ntmp castop_bitcast i32 v1 i32:: 
        c::
        insn_gep etmp false t1 (value_id id0) 
-         (Cons_list_value v1 Nil_list_value) :: 
+         (Cons_list_value (value_id ntmp) Nil_list_value) :: 
        insn_cast bid castop_bitcast (typ_pointer t1) (value_id id0) p8:: 
        insn_cast eid castop_bitcast (typ_pointer t1) (value_id etmp) p8:: 
        nil)
@@ -479,10 +480,12 @@ match c with
       match (get_reg_metadata rm v1, get_reg_metadata rm v2, 
              lookupAL _ rm id0) with
       | (Some (bv1, ev1), Some (bv2, ev2), Some (bid0, eid0)) =>
+          let '(ctmp,ex_ids) := mk_tmp ex_ids in
           Some (ex_ids,
+            insn_cast ctmp castop_bitcast i1 v0 i1::
             c::
-            insn_select bid0 v0 p8 bv1 bv2:: 
-            insn_select eid0 v0 p8 ev1 ev2:: 
+            insn_select bid0 (value_id ctmp) p8 bv1 bv2:: 
+            insn_select eid0 (value_id ctmp) p8 ev1 ev2:: 
             nil)
       | _ => None
       end

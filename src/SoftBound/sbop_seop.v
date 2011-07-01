@@ -16,7 +16,7 @@ Require Import trace.
 Require Import symexe_def.
 Require Import ssa_props.
 Require Import alist.
-Require Import sb_def.
+Require Import sb_db_def.
 Require Import sb_tactic.
 
 Export LLVMsyntax.

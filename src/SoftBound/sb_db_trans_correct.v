@@ -17,7 +17,7 @@ Require Import Coqlib.
 Require Import monad.
 Require Import Metatheory.
 Require Import Znumtheory.
-Require Import sb_def.
+Require Import sb_db_def.
 Require Import symexe_def.
 Require Import sb_tactic.
 Require Import sub_tv.
@@ -25,7 +25,7 @@ Require Import sb_db_pp.
 Require Import symexe_tactic.
 Require Import ssa_dynamic.
 Require Import symexe_lib.
-Require Import sb_metadata.
+Require Import sb_db_metadata.
 
 Import SBpass.
 

@@ -19,6 +19,7 @@ Require Import Metatheory.
 Require Import Znumtheory.
 Require Import sb_ds_def.
 Require Import sb_ds_trans.
+Require Import sb_ds_gv_inject.
 Require Import sb_ds_sim.
 Require Import sb_ds_trans_axioms.
 Require Import sb_ds_trans_lib.
@@ -99,13 +100,14 @@ Lemma SBpass_is_correct__dsMalloc : forall (mi : meminj) (mgb : Values.block)
 Proof.
   intros.
   destruct_ctx_other.
-  simpl in Hfresh. destruct Hfresh as [Hnotin Hfresh].
   apply trans_cmds_inv in Htcmds.
   destruct Htcmds as [ex_ids5 [cs1' [cs2' [Htcmd [Htcmds Heq]]]]]; subst.
   simpl in Htcmd.
   remember (lookupAL (id * id) rm2 id0) as R1.
   destruct R1 as [[bid eid]|]; try solve [inversion Htcmd].
-  remember (mk_tmp ex_ids3) as R2.
+  remember (mk_tmp ex_ids3) as R9.
+  destruct R9 as [ntmp ex_ids6'].
+  remember (mk_tmp ex_ids6') as R2.
   destruct R2 as [tmp ex_ids6].
   inv Htcmd.
   invert_prop_reg_metadata.
@@ -129,30 +131,90 @@ Proof.
                 (updateAddAL _ 
                   (updateAddAL _ 
                     (updateAddAL _ 
-                      (updateAddAL GenericValue lc2 id0 (blk2GV (los, nts) mb'))
+                      (updateAddAL _ 
+                        (updateAddAL _ lc2 ntmp gn') 
+                        id0 (blk2GV (los, nts) mb'))
                       tmp (SBopsem.bound2GV (los, nts) mb' tsz n))
                     bid (SBopsem.base2GV (los, nts) mb'))
                   eid (SBopsem.bound2GV (los, nts) mb' tsz n))
              als2):: 
             ECs2) gl2 fs2 Mem2').
   exists mi'.
+
+  assert (In id0 (getFdefLocs (fdef_intro fh1 bs1))) as Hin. 
+    eauto using getCmdID_in_getFdefLocs.
+  assert (Hspec := Hgenmeta).
+  apply gen_metadata_fdef_spec in Hspec; auto.
+  destruct Hspec as [Hinc1 [Hdisj1 [Hinc3 Hdisj2]]].
+
+  assert (id_fresh_in_value v ntmp) as Hfresh_ctmp.
+    assert (Hwfc := HBinF).
+    destruct Heqb1 as [l1 [ps1 [cs11 Heqb1]]]; subst.
+    eapply wf_system__wf_cmd with (c:=insn_malloc id0 t v align0) in Hwfc; eauto.
+      inv Hwfc. 
+      eapply wf_value_id__in_getFdefLocs in H18; auto.
+        eapply get_reg_metadata_fresh' with (rm2:=rm2); eauto; try fsetdec.
+      apply in_or_app. right. simpl. auto. 
+
+  assert (ntmp <> id0) as Hntmp_neq_id0.
+    apply tmp_is_fresh2 with (i0:=id0)(d:=getFdefLocs (fdef_intro fh1 bs1)) 
+      (ex_ids1:=ex_ids) in HeqR9; auto.
+  assert (bid <> ntmp /\ eid <> ntmp) as Hntmp'.
+    eapply tmp_is_fresh3 with (bid:=bid)(eid:=eid)(ex_ids1:=ex_ids) in HeqR9; 
+      eauto.
+  destruct Hntmp' as [Hntmpb Hntmpe].
+  assert (tmp <> ntmp) as Hneq''.
+    clear - HeqR2 HeqR9.
+    unfold mk_tmp in *.
+    destruct (atom_fresh_for_list ex_ids3).
+    destruct (atom_fresh_for_list ex_ids6').
+    inv HeqR9. inv HeqR2. 
+    simpl in n0. intro J. subst. auto.
+ 
+  assert (incl ex_ids ex_ids6') as Hinc'.
+    eapply mk_tmp_inc in HeqR9; eauto.
+  assert (incl ex_ids ex_ids5) as Hinc''.
+    eapply mk_tmp_inc in HeqR9; eauto.
+    eapply mk_tmp_inc in HeqR2; eauto.
+
   split.
   SCase "opsem".
     rewrite <- (@trace_app_nil__eq__trace trace_nil).
     apply LLVMopsem.dsop_star_cons with (state2:=
         LLVMopsem.mkState S2 (los, nts) Ps2
           ((LLVMopsem.mkEC (fdef_intro fh2 bs2) B2
-             (insn_gep tmp false t (value_id id0) 
-                (Cons_list_value v Nil_list_value):: 
+             (insn_malloc id0 t v align0 ::
+              insn_gep tmp false t (value_id id0) 
+                (Cons_list_value (value_id ntmp) Nil_list_value):: 
               insn_cast bid castop_bitcast (typ_pointer t)(value_id id0) p8 :: 
               insn_cast eid castop_bitcast (typ_pointer t)(value_id tmp) p8 :: 
               cs2' ++ cs23)
              tmn2 
-             (updateAddAL GenericValue lc2 id0 (blk2GV (los, nts) mb'))
+             (updateAddAL GenericValue lc2 ntmp gn')
+             als2):: 
+            ECs2) gl2 fs2 M2); auto.
+      eapply dsCast; eauto.        
+        unfold CAST. simpl. rewrite H00. unfold i32, mbitcast. auto.
+
+    rewrite <- (@trace_app_nil__eq__trace trace_nil).
+    apply LLVMopsem.dsop_star_cons with (state2:=
+        LLVMopsem.mkState S2 (los, nts) Ps2
+          ((LLVMopsem.mkEC (fdef_intro fh2 bs2) B2
+             (insn_gep tmp false t (value_id id0) 
+                (Cons_list_value (value_id ntmp) Nil_list_value):: 
+              insn_cast bid castop_bitcast (typ_pointer t)(value_id id0) p8 :: 
+              insn_cast eid castop_bitcast (typ_pointer t)(value_id tmp) p8 :: 
+              cs2' ++ cs23)
+             tmn2 
+             (updateAddAL _
+                (updateAddAL _ lc2 ntmp gn') 
+                id0 (blk2GV (los, nts) mb'))
              als2):: 
             ECs2) gl2 fs2 Mem2'); auto.
       unfold malloc in H11.
       rewrite Heqgn in H11; eauto.
+      eapply LLVMopsem.dsMalloc; eauto.
+        rewrite <- getOperandValue_eq_fresh_id; auto.
 
     rewrite <- (@trace_app_nil__eq__trace trace_nil).
     apply LLVMopsem.dsop_star_cons with (state2:=
@@ -163,7 +225,8 @@ Proof.
               cs2' ++ cs23)
              tmn2 
              (updateAddAL _
-               (updateAddAL GenericValue lc2 id0 (blk2GV (los,nts) mb'))
+               (updateAddAL _ 
+                 (updateAddAL _ lc2 ntmp gn') id0 (blk2GV (los,nts) mb'))
                tmp (SBopsem.bound2GV (los,nts) mb' tsz n))
              als2):: 
             ECs2) gl2 fs2 Mem2'); auto.
@@ -171,20 +234,15 @@ Proof.
         simpl.
         rewrite lookupAL_updateAddAL_eq; auto.
 
-        simpl.
-        assert(getOperandValue (los,nts) v
-          (updateAddAL _ lc2 id0 (blk2GV (los,nts) mb')) gl2 = 
-          getOperandValue (los,nts) v lc2 gl2) as EQ'.
-          clear - Hnotin HeqR1. 
-          destruct Hnotin as [Hnotin1 [Hnotin2 _ ]]. simpl in Hnotin2.
-
+        assert(getOperandValue (los,nts) (value_id ntmp)
+          (updateAddAL _ (updateAddAL _ lc2 ntmp gn') 
+             id0 (blk2GV (los,nts) mb')) gl2 = Some gn') as EQ'.
           rewrite <- getOperandValue_eq_fresh_id; auto.
-            unfold getCmdIDs in Hnotin1. simpl in Hnotin1.
-            eapply notin_codom__neq' in HeqR1; eauto.
-              destruct v; simpl in *; fsetdec.
-
+          simpl. apply lookupAL_updateAddAL_eq; auto.
+        
+        simpl. simpl in EQ'.
         rewrite EQ'. clear EQ'.
-        rewrite H00. auto.
+        auto.
 
         unfold SBopsem.bound2GV, GEP, blk2GV, GV2ptr, ptr2GV, val2GV.
         simpl.
@@ -218,7 +276,8 @@ Proof.
              tmn2 
              (updateAddAL _
                (updateAddAL _
-                 (updateAddAL GenericValue lc2 id0 (blk2GV (los,nts) mb'))
+                 (updateAddAL _ 
+                   (updateAddAL _ lc2 ntmp gn') id0 (blk2GV (los,nts) mb'))
                  tmp (SBopsem.bound2GV (los,nts) mb' tsz n))
                bid (SBopsem.base2GV (los,nts) mb'))               
              als2):: 
@@ -226,14 +285,11 @@ Proof.
       apply LLVMopsem.dsCast; auto.
         unfold CAST. simpl.
         rewrite <- lookupAL_updateAddAL_neq.
-          rewrite lookupAL_updateAddAL_eq.
-          auto.
+          rewrite lookupAL_updateAddAL_eq; auto.
 
-          clear - Hnotin HeqR1 HeqR2.
-          destruct Hnotin as [Hnotin1 [_ [Hnotin2 _]]]. 
-          unfold getCmdIDs in *. simpl in *.
-          eapply tmp_is_fresh; eauto. fsetdec.
-
+          clear - HeqR2 Hinc1 Hinc' Hin.
+          eapply tmp_is_fresh2 with (d:=getFdefLocs (fdef_intro fh1 bs1)); eauto.
+ 
     rewrite <- (@trace_app_nil__eq__trace trace_nil).
     apply LLVMopsem.dsop_star_cons with (state2:=
        (LLVMopsem.mkState S2 (los, nts) Ps2
@@ -242,7 +298,8 @@ Proof.
                 (updateAddAL _ 
                   (updateAddAL _ 
                     (updateAddAL _ 
-                      (updateAddAL GenericValue lc2 id0 (blk2GV (los, nts) mb'))
+                      (updateAddAL _
+                        (updateAddAL _ lc2 ntmp gn') id0 (blk2GV (los, nts) mb'))
                       tmp (SBopsem.bound2GV (los, nts) mb' tsz n))
                     bid (SBopsem.base2GV (los, nts) mb'))                    
                   eid (SBopsem.bound2GV (los, nts) mb' tsz n))
@@ -253,11 +310,9 @@ Proof.
         rewrite <- lookupAL_updateAddAL_neq.
           rewrite lookupAL_updateAddAL_eq; auto.
 
-          destruct Hnotin as [Hnotin1 [Hnotin2 [Hnotin3 Hnotin4]]]. 
-          unfold getCmdIDs in *.
-          eapply tmp_is_fresh' with (tmp:=tmp) in HeqR1; eauto. 
-            destruct HeqR1; auto.
-            clear - Hnotin3. fsetdec.
+          clear - HeqR2 Hinc3 Hinc' HeqR1.
+          eapply tmp_is_fresh3 with (tmp:=tmp) in HeqR1; eauto.
+          destruct HeqR1; auto.
 
   split; auto.
   split; auto.
@@ -280,9 +335,10 @@ Proof.
   split.
     destruct Heqb2 as [l2 [ps2 [cs21 Heqb2]]]; subst.
     exists l2. exists ps2. exists (cs21 ++
-                  (insn_malloc id0 t v align0
+                  (insn_cast ntmp castop_bitcast i32 v i32 ::
+                    insn_malloc id0 t v align0
                     :: insn_gep tmp false t (value_id id0)
-                         (Cons_list_value v Nil_list_value)
+                         (Cons_list_value (value_id ntmp) Nil_list_value)
                        :: insn_cast bid castop_bitcast 
                             (typ_pointer t) (value_id id0) p8
                           :: insn_cast eid castop_bitcast 
@@ -294,11 +350,12 @@ Proof.
   split.
   SCase "rsim".
     eapply reg_simulation__updateAddAL_md; eauto.
-      eapply reg_simulation__updateAddAL_tmp; eauto.
+      eapply reg_simulation__updateAddAL_tmp with (ex_ids5:=ex_ids5)
+        (ex_ids3':=ex_ids6'); eauto.
       eapply reg_simulation__updateAddAL_lc; eauto.
+      eapply reg_simulation__updateAddAL_tmp with (ex_ids5:=ex_ids6')
+        (ex_ids3':=ex_ids3); eauto.
         eapply inject_incr__preserves__reg_simulation; eauto.
-        admit. (*fresh*)
-        admit. (*fresh*)
 
       unfold gv_inject, blk2GV, ptr2GV, val2GV.
       simpl. apply val_cons_inject; eauto.
@@ -314,10 +371,6 @@ Proof.
             rewrite Int.add_zero. auto.
 
     split; auto.
-      clear - Hinc HeqR2. eapply mk_tmp_inc; eauto.
-    split; auto.
-      clear - Hinc HeqR2 Hfresh. eapply wf_freshs__mk_tmp; eauto.
-      
       clear - HsimECs H13. 
       eapply inject_incr__preserves__sbECs_simulate_ECs_tail; eauto.
     repeat(split; eauto using inject_incr__preserves__fable_simulation).
@@ -391,15 +444,17 @@ Lemma SBpass_is_correct__dsAlloca : forall
            SBopsem.Mem := Mem0;
            SBopsem.Mmap := MM |} St.
 Proof.
+Proof.
   intros.
   destruct_ctx_other.
-  simpl in Hfresh. destruct Hfresh as [Hnotin Hfresh].
   apply trans_cmds_inv in Htcmds.
   destruct Htcmds as [ex_ids5 [cs1' [cs2' [Htcmd [Htcmds Heq]]]]]; subst.
   simpl in Htcmd.
   remember (lookupAL (id * id) rm2 id0) as R1.
   destruct R1 as [[bid eid]|]; try solve [inversion Htcmd].
-  remember (mk_tmp ex_ids3) as R2.
+  remember (mk_tmp ex_ids3) as R9.
+  destruct R9 as [ntmp ex_ids6'].
+  remember (mk_tmp ex_ids6') as R2.
   destruct R2 as [tmp ex_ids6].
   inv Htcmd.
   invert_prop_reg_metadata.
@@ -423,30 +478,90 @@ Proof.
                 (updateAddAL _ 
                   (updateAddAL _ 
                     (updateAddAL _ 
-                      (updateAddAL GenericValue lc2 id0 (blk2GV (los, nts) mb'))
+                      (updateAddAL _ 
+                        (updateAddAL _ lc2 ntmp gn') 
+                        id0 (blk2GV (los, nts) mb'))
                       tmp (SBopsem.bound2GV (los, nts) mb' tsz n))
                     bid (SBopsem.base2GV (los, nts) mb'))
                   eid (SBopsem.bound2GV (los, nts) mb' tsz n))
              (mb'::als2)):: 
             ECs2) gl2 fs2 Mem2').
   exists mi'.
+
+  assert (In id0 (getFdefLocs (fdef_intro fh1 bs1))) as Hin. 
+    eauto using getCmdID_in_getFdefLocs.
+  assert (Hspec := Hgenmeta).
+  apply gen_metadata_fdef_spec in Hspec; auto.
+  destruct Hspec as [Hinc1 [Hdisj1 [Hinc3 Hdisj2]]].
+
+  assert (id_fresh_in_value v ntmp) as Hfresh_ctmp.
+    assert (Hwfc := HBinF).
+    destruct Heqb1 as [l1 [ps1 [cs11 Heqb1]]]; subst.
+    eapply wf_system__wf_cmd with (c:=insn_alloca id0 t v align0) in Hwfc; eauto.
+      inv Hwfc. 
+      eapply wf_value_id__in_getFdefLocs in H18; auto.
+        eapply get_reg_metadata_fresh' with (rm2:=rm2); eauto; try fsetdec.
+      apply in_or_app. right. simpl. auto. 
+
+  assert (ntmp <> id0) as Hntmp_neq_id0.
+    apply tmp_is_fresh2 with (i0:=id0)(d:=getFdefLocs (fdef_intro fh1 bs1)) 
+      (ex_ids1:=ex_ids) in HeqR9; auto.
+  assert (bid <> ntmp /\ eid <> ntmp) as Hntmp'.
+    eapply tmp_is_fresh3 with (bid:=bid)(eid:=eid)(ex_ids1:=ex_ids) in HeqR9; 
+      eauto.
+  destruct Hntmp' as [Hntmpb Hntmpe].
+  assert (tmp <> ntmp) as Hneq''.
+    clear - HeqR2 HeqR9.
+    unfold mk_tmp in *.
+    destruct (atom_fresh_for_list ex_ids3).
+    destruct (atom_fresh_for_list ex_ids6').
+    inv HeqR9. inv HeqR2. 
+    simpl in n0. intro J. subst. auto.
+ 
+  assert (incl ex_ids ex_ids6') as Hinc'.
+    eapply mk_tmp_inc in HeqR9; eauto.
+  assert (incl ex_ids ex_ids5) as Hinc''.
+    eapply mk_tmp_inc in HeqR9; eauto.
+    eapply mk_tmp_inc in HeqR2; eauto.
+
   split.
   SCase "opsem".
     rewrite <- (@trace_app_nil__eq__trace trace_nil).
     apply LLVMopsem.dsop_star_cons with (state2:=
         LLVMopsem.mkState S2 (los, nts) Ps2
           ((LLVMopsem.mkEC (fdef_intro fh2 bs2) B2
-             (insn_gep tmp false t (value_id id0) 
-                (Cons_list_value v Nil_list_value):: 
+             (insn_alloca id0 t v align0 ::
+              insn_gep tmp false t (value_id id0) 
+                (Cons_list_value (value_id ntmp) Nil_list_value):: 
               insn_cast bid castop_bitcast (typ_pointer t)(value_id id0) p8 :: 
               insn_cast eid castop_bitcast (typ_pointer t)(value_id tmp) p8 :: 
               cs2' ++ cs23)
              tmn2 
-             (updateAddAL GenericValue lc2 id0 (blk2GV (los, nts) mb'))
+             (updateAddAL GenericValue lc2 ntmp gn')
+             als2):: 
+            ECs2) gl2 fs2 M2); auto.
+      eapply dsCast; eauto.        
+        unfold CAST. simpl. rewrite H00. unfold i32, mbitcast. auto.
+
+    rewrite <- (@trace_app_nil__eq__trace trace_nil).
+    apply LLVMopsem.dsop_star_cons with (state2:=
+        LLVMopsem.mkState S2 (los, nts) Ps2
+          ((LLVMopsem.mkEC (fdef_intro fh2 bs2) B2
+             (insn_gep tmp false t (value_id id0) 
+                (Cons_list_value (value_id ntmp) Nil_list_value):: 
+              insn_cast bid castop_bitcast (typ_pointer t)(value_id id0) p8 :: 
+              insn_cast eid castop_bitcast (typ_pointer t)(value_id tmp) p8 :: 
+              cs2' ++ cs23)
+             tmn2 
+             (updateAddAL _
+                (updateAddAL _ lc2 ntmp gn') 
+                id0 (blk2GV (los, nts) mb'))
              (mb'::als2)):: 
             ECs2) gl2 fs2 Mem2'); auto.
       unfold malloc in H11.
       rewrite Heqgn in H11; eauto.
+      eapply LLVMopsem.dsAlloca; eauto.
+        rewrite <- getOperandValue_eq_fresh_id; auto.
 
     rewrite <- (@trace_app_nil__eq__trace trace_nil).
     apply LLVMopsem.dsop_star_cons with (state2:=
@@ -457,7 +572,8 @@ Proof.
               cs2' ++ cs23)
              tmn2 
              (updateAddAL _
-               (updateAddAL GenericValue lc2 id0 (blk2GV (los,nts) mb'))
+               (updateAddAL _ 
+                 (updateAddAL _ lc2 ntmp gn') id0 (blk2GV (los,nts) mb'))
                tmp (SBopsem.bound2GV (los,nts) mb' tsz n))
              (mb'::als2)):: 
             ECs2) gl2 fs2 Mem2'); auto.
@@ -465,20 +581,15 @@ Proof.
         simpl.
         rewrite lookupAL_updateAddAL_eq; auto.
 
-        simpl.
-        assert(getOperandValue (los,nts) v
-          (updateAddAL _ lc2 id0 (blk2GV (los,nts) mb')) gl2 = 
-          getOperandValue (los,nts) v lc2 gl2) as EQ'.
-          clear - Hnotin HeqR1. 
-          destruct Hnotin as [Hnotin1 [Hnotin2 _ ]]. simpl in Hnotin2.
-
+        assert(getOperandValue (los,nts) (value_id ntmp)
+          (updateAddAL _ (updateAddAL _ lc2 ntmp gn') 
+             id0 (blk2GV (los,nts) mb')) gl2 = Some gn') as EQ'.
           rewrite <- getOperandValue_eq_fresh_id; auto.
-            unfold getCmdIDs in Hnotin1. simpl in Hnotin1.
-            eapply notin_codom__neq' in HeqR1; eauto.
-              destruct v; simpl in *; fsetdec.
-
+          simpl. apply lookupAL_updateAddAL_eq; auto.
+        
+        simpl. simpl in EQ'.
         rewrite EQ'. clear EQ'.
-        rewrite H00. auto.
+        auto.
 
         unfold SBopsem.bound2GV, GEP, blk2GV, GV2ptr, ptr2GV, val2GV.
         simpl.
@@ -512,7 +623,8 @@ Proof.
              tmn2 
              (updateAddAL _
                (updateAddAL _
-                 (updateAddAL GenericValue lc2 id0 (blk2GV (los,nts) mb'))
+                 (updateAddAL _ 
+                   (updateAddAL _ lc2 ntmp gn') id0 (blk2GV (los,nts) mb'))
                  tmp (SBopsem.bound2GV (los,nts) mb' tsz n))
                bid (SBopsem.base2GV (los,nts) mb'))               
              (mb'::als2)):: 
@@ -520,14 +632,11 @@ Proof.
       apply LLVMopsem.dsCast; auto.
         unfold CAST. simpl.
         rewrite <- lookupAL_updateAddAL_neq.
-          rewrite lookupAL_updateAddAL_eq.
-          auto.
+          rewrite lookupAL_updateAddAL_eq; auto.
 
-          clear - Hnotin HeqR1 HeqR2.
-          destruct Hnotin as [Hnotin1 [_ [Hnotin2 _]]]. 
-          unfold getCmdIDs in *. simpl in *.
-          eapply tmp_is_fresh; eauto. fsetdec.
-
+          clear - HeqR2 Hinc1 Hinc' Hin.
+          eapply tmp_is_fresh2 with (d:=getFdefLocs (fdef_intro fh1 bs1)); eauto.
+ 
     rewrite <- (@trace_app_nil__eq__trace trace_nil).
     apply LLVMopsem.dsop_star_cons with (state2:=
        (LLVMopsem.mkState S2 (los, nts) Ps2
@@ -536,7 +645,8 @@ Proof.
                 (updateAddAL _ 
                   (updateAddAL _ 
                     (updateAddAL _ 
-                      (updateAddAL GenericValue lc2 id0 (blk2GV (los, nts) mb'))
+                      (updateAddAL _
+                        (updateAddAL _ lc2 ntmp gn') id0 (blk2GV (los, nts) mb'))
                       tmp (SBopsem.bound2GV (los, nts) mb' tsz n))
                     bid (SBopsem.base2GV (los, nts) mb'))                    
                   eid (SBopsem.bound2GV (los, nts) mb' tsz n))
@@ -547,11 +657,9 @@ Proof.
         rewrite <- lookupAL_updateAddAL_neq.
           rewrite lookupAL_updateAddAL_eq; auto.
 
-          destruct Hnotin as [Hnotin1 [Hnotin2 [Hnotin3 Hnotin4]]]. 
-          unfold getCmdIDs in *.
-          eapply tmp_is_fresh' with (tmp:=tmp) in HeqR1; eauto. 
-            destruct HeqR1; auto.
-            clear - Hnotin3. fsetdec.
+          clear - HeqR2 Hinc3 Hinc' HeqR1.
+          eapply tmp_is_fresh3 with (tmp:=tmp) in HeqR1; eauto.
+          destruct HeqR1; auto.
 
   split; auto.
   split; auto.
@@ -562,22 +670,23 @@ Proof.
   split; auto.          
   split; auto.          
   split; auto.          
-  split; auto.
-  split; auto.
-  split; auto.
-  split; auto.
-  split; auto.
-  split; auto.
-    split; eauto using inject_incr__preserves__als_simulation.
   split; auto.          
   split; auto.          
+  split; auto.          
+  split; auto.          
+  split; auto.
+  split. 
+    split; eauto using inject_incr__preserves__als_simulation; eauto.
+  split; auto.
+  split.
     eapply cmds_at_block_tail_next; eauto.
   split.
     destruct Heqb2 as [l2 [ps2 [cs21 Heqb2]]]; subst.
     exists l2. exists ps2. exists (cs21 ++
-                  (insn_alloca id0 t v align0
+                  (insn_cast ntmp castop_bitcast i32 v i32 ::
+                    insn_alloca id0 t v align0
                     :: insn_gep tmp false t (value_id id0)
-                         (Cons_list_value v Nil_list_value)
+                         (Cons_list_value (value_id ntmp) Nil_list_value)
                        :: insn_cast bid castop_bitcast 
                             (typ_pointer t) (value_id id0) p8
                           :: insn_cast eid castop_bitcast 
@@ -589,11 +698,12 @@ Proof.
   split.
   SCase "rsim".
     eapply reg_simulation__updateAddAL_md; eauto.
-      eapply reg_simulation__updateAddAL_tmp; eauto.
+      eapply reg_simulation__updateAddAL_tmp with (ex_ids5:=ex_ids5)
+        (ex_ids3':=ex_ids6'); eauto.
       eapply reg_simulation__updateAddAL_lc; eauto.
+      eapply reg_simulation__updateAddAL_tmp with (ex_ids5:=ex_ids6')
+        (ex_ids3':=ex_ids3); eauto.
         eapply inject_incr__preserves__reg_simulation; eauto.
-        admit. (*fresh*)
-        admit. (*fresh*)
 
       unfold gv_inject, blk2GV, ptr2GV, val2GV.
       simpl. apply val_cons_inject; eauto.
@@ -609,15 +719,10 @@ Proof.
             rewrite Int.add_zero. auto.
 
     split; auto.
-      clear - Hinc HeqR2. eapply mk_tmp_inc; eauto.
-    split; auto.
-      clear - Hinc HeqR2 Hfresh. eapply wf_freshs__mk_tmp; eauto.
-      
       clear - HsimECs H13. 
       eapply inject_incr__preserves__sbECs_simulate_ECs_tail; eauto.
     repeat(split; eauto using inject_incr__preserves__fable_simulation).
 Qed.
-
 
 Lemma SBpass_is_correct__dsFree : forall (mi : meminj) (mgb : Values.block)
   (St : LLVMopsem.State) (S : system) (TD : TargetData) (Ps : list product)
@@ -669,7 +774,6 @@ Lemma SBpass_is_correct__dsFree : forall (mi : meminj) (mgb : Values.block)
 Proof.
   intros.
   destruct_ctx_other.
-  simpl in Hfresh. destruct Hfresh as [Hnotin Hfresh].
   apply trans_cmds_inv in Htcmds.
   destruct Htcmds as [ex_ids5 [cs1' [cs2' [Htcmd [Htcmds Heq]]]]]; subst.
   simpl in Htcmd. 
@@ -720,7 +824,6 @@ Proof.
 
   exists ex_ids. exists rm2.
   exists ex_ids5. exists ex_ids4. exists cs2'. exists cs23.
-  split; auto.
   split; auto.
 Qed.
 
@@ -776,7 +879,6 @@ Lemma SBpass_is_correct__dsLoad_nptr : forall
 Proof.
   intros.
   destruct_ctx_other.
-  simpl in Hfresh. destruct Hfresh as [Hnotin Hfresh].
   apply trans_cmds_inv in Htcmds.
   destruct Htcmds as [ex_ids5 [cs1' [cs2' [Htcmd [Htcmds Heq]]]]]; subst.
   simpl in Htcmd. 
@@ -863,10 +965,15 @@ Proof.
              als2):: 
             ECs2) gl2 fs2 M2)); auto.
       apply LLVMopsem.dsLoad with (mp:=gvp2); auto.
-        clear - J1 Hnotin HeqR1 HeqR2 HeqR3 H00.
-        destruct Hnotin as [Hnotin1 [_ [Hnotin2 _]]].
-        unfold getCmdIDs in *. simpl in *.
         rewrite <- getOperandValue_eq_fresh_id; auto.
+          assert (sb_ds_sim.getValueID vp[<=]ids2atoms (getFdefLocs (fdef_intro fh1 bs1))) as Hindom.
+            assert (Hwfc := HBinF).
+            destruct Heqb1 as [l1 [ps1 [cs11 Heqb1]]]; subst.
+            eapply wf_system__wf_cmd with (c:=insn_load id0 t vp align0)  
+              in Hwfc; eauto.
+              inv Hwfc. 
+              eapply wf_value_id__in_getFdefLocs in H11; auto.
+              apply in_or_app. right. simpl. auto.
           eapply get_reg_metadata_fresh' with (rm2:=rm2); eauto; try fsetdec.
 
   repeat (split; auto).
@@ -889,13 +996,10 @@ Proof.
   split.
     eapply reg_simulation__updateAddAL_lc; eauto.
       eapply reg_simulation__updateAddAL_tmp; eauto.
-      admit. (*fresh*)
-      admit. (*fresh*)
+        eauto using getCmdID_in_getFdefLocs.
 
     split; auto.
       clear - Hinc HeqR1. eapply mk_tmp_inc; eauto.
-    split; auto.
-      clear - Hinc HeqR1 Hfresh. eapply wf_freshs__mk_tmp; eauto.
 Qed.
 
 Lemma SBpass_is_correct__dsLoad_ptr : forall 
@@ -953,7 +1057,6 @@ Lemma SBpass_is_correct__dsLoad_ptr : forall
 Proof.
   intros.
   destruct_ctx_other.
-  simpl in Hfresh. destruct Hfresh as [Hnotin Hfresh].
   apply trans_cmds_inv in Htcmds.
   destruct Htcmds as [ex_ids5 [cs1' [cs2' [Htcmd [Htcmds Heq]]]]]; subst.
   simpl in Htcmd. 
@@ -996,14 +1099,20 @@ Proof.
     clear - H2.
     eapply mload_inversion; eauto.
   destruct EQ as [pb [pofs [cm EQ]]]. subst.
+
+  assert (In id0 (getFdefLocs (fdef_intro fh1 bs1))) as Hin. 
+    eauto using getCmdID_in_getFdefLocs.
+  assert (Hspec := Hgenmeta).
+  apply gen_metadata_fdef_spec in Hspec; auto.
+  destruct Hspec as [Hinc1 [Hdisj1 [Hinc3 Hdisj2]]].
+
   assert (getOperandValue (los, nts) (value_id ptmp) 
       (updateAddAL _ (updateAddAL _ lc2 ptmp gvp2) id0 gv2) gl2 = ret gvp2) as K.
-    destruct Hnotin as [Hnotin1 [Hnotin2 [Hnotin3 Hnotin4]]]. 
     simpl.
     rewrite <- lookupAL_updateAddAL_neq; auto.
       rewrite lookupAL_updateAddAL_eq; auto.
-      unfold getCmdIDs in Hnotin3. simpl in Hnotin3.
-      eapply tmp_is_fresh with (i0:=id0) in HeqR1; eauto. clear. fsetdec.
+      apply tmp_is_fresh2 with (i0:=id0)(d:=getFdefLocs (fdef_intro fh1 bs1)) 
+        (ex_ids1:=ex_ids) in HeqR1; auto.
 
   eapply Hmsim2 with (bid0:=bid0)(eid0:=eid0)(lc2:=
     (updateAddAL _ (updateAddAL _ lc2 ptmp gvp2) id0 gv2)) in JJ'; eauto.
@@ -1083,10 +1192,15 @@ Proof.
              als2):: 
             ECs2) gl2 fs2 M2)); eauto.
       apply LLVMopsem.dsLoad with (mp:=gvp2); auto.
-        clear - J1 Hnotin HeqR1 HeqR2 HeqR3 H00.
-        destruct Hnotin as [Hnotin1 [_ [Hnotin2 _]]].
-        unfold getCmdIDs in *. simpl in *.
         rewrite <- getOperandValue_eq_fresh_id; auto.
+        assert (sb_ds_sim.getValueID vp[<=]ids2atoms (getFdefLocs (fdef_intro fh1 bs1))) as Hindom.
+            assert (Hwfc := HBinF).
+            destruct Heqb1 as [l1 [ps1 [cs11 Heqb1]]]; subst.
+            eapply wf_system__wf_cmd with (c:=insn_load id0 t vp align0)  
+              in Hwfc; eauto.
+              inv Hwfc. 
+              eapply wf_value_id__in_getFdefLocs in H13; auto.
+              apply in_or_app. right. simpl. auto.
         eapply get_reg_metadata_fresh' with (rm2:=rm2); eauto; try fsetdec.
 
   split; auto.
@@ -1128,12 +1242,8 @@ Proof.
     inv H5. rewrite JJ.
     eapply reg_simulation__updateAddAL_prop; eauto.
       eapply reg_simulation__updateAddAL_tmp; eauto.
-      admit. (*fresh*)
-      admit. (*fresh*)
     split; auto.
       clear - Hinc HeqR1. eapply mk_tmp_inc; eauto.
-    split; auto.
-      clear - Hinc HeqR1 Hfresh. eapply wf_freshs__mk_tmp; eauto.
 Qed.
 
 Lemma SBpass_is_correct__dsStore_nptr : forall 
@@ -1190,7 +1300,6 @@ Lemma SBpass_is_correct__dsStore_nptr : forall
 Proof.
   intros.
   destruct_ctx_other.
-  simpl in Hfresh. destruct Hfresh as [Hnotin Hfresh].
   apply trans_cmds_inv in Htcmds.
   destruct Htcmds as [ex_ids5 [cs1' [cs2' [Htcmd [Htcmds Heq]]]]]; subst.
   simpl in Htcmd. 
@@ -1275,17 +1384,23 @@ Proof.
               (updateAddAL GenericValue lc2 ptmp gvp2)
              als2):: 
             ECs2) gl2 fs2 Mem2')); auto.
+      assert (Hwfc := HBinF).
+      destruct Heqb1 as [l1 [ps1 [cs11 Heqb1]]]; subst.
+      assert (In (insn_store sid t v vp align0)
+        (cs11 ++ insn_store sid t v vp align0 :: cs)) as HinCs.
+        apply in_or_app. right. simpl. auto.
+      eapply wf_system__wf_cmd with (c:=insn_store sid t v vp align0) in Hwfc; 
+        eauto.
+      inv Hwfc. 
       apply LLVMopsem.dsStore with (mp2:=gvp2)(gv1:=gv2); auto.
-        clear - Hnotin HeqR1 HeqR2 HeqR3 H00.
-        destruct Hnotin as [Hnotin1 [_ [Hnotin2 _]]].
-        unfold getCmdIDs in *. simpl in *.
         rewrite <- getOperandValue_eq_fresh_id; auto.
+          assert (sb_ds_sim.getValueID v[<=]ids2atoms (getFdefLocs (fdef_intro fh1 bs1))) as Hindom.
+            eapply wf_value_id__in_getFdefLocs in H14; auto.
           eapply get_reg_metadata_fresh' with (rm2:=rm2); eauto; try fsetdec.
 
-        clear - Hnotin HeqR1 HeqR2 HeqR3 H10.
-        destruct Hnotin as [Hnotin1 [_ [Hnotin2 _]]].
-        unfold getCmdIDs in *. simpl in *.
         rewrite <- getOperandValue_eq_fresh_id; auto.
+          assert (sb_ds_sim.getValueID vp[<=]ids2atoms (getFdefLocs (fdef_intro fh1 bs1))) as Hindom.
+            eapply wf_value_id__in_getFdefLocs in H17; auto.
           eapply get_reg_metadata_fresh' with (rm2:=rm2); eauto; try fsetdec.
 
   split; auto.
@@ -1323,8 +1438,6 @@ Proof.
     eapply reg_simulation__updateAddAL_tmp; eauto.
     split; auto.
       clear - Hinc HeqR1. eapply mk_tmp_inc; eauto.
-    split; auto.
-      clear - Hinc HeqR1 Hfresh. eapply wf_freshs__mk_tmp; eauto.
   split; auto.
   split; auto.
   split; auto.
@@ -1401,7 +1514,6 @@ Lemma SBpass_is_correct__dsStore_ptr : forall (mi : meminj) (mgb : Values.block)
 Proof.
   intros.
   destruct_ctx_other.
-  simpl in Hfresh. destruct Hfresh as [Hnotin Hfresh].
   apply trans_cmds_inv in Htcmds.
   destruct Htcmds as [ex_ids5 [cs1' [cs2' [Htcmd [Htcmds Heq]]]]]; subst.
   simpl in Htcmd. 
@@ -1482,16 +1594,14 @@ Proof.
       clear - HeqR1 HeqR2 HeqR3.
       rewrite lookupAL_updateAddAL_eq; auto.
 
-      clear - J2' H31 J1' Hnotin HeqR1 HeqR2 HeqR3.
+      clear - J2' H31 J1' HeqR1 HeqR2 HeqR3 Hgenmeta Hinc.
       rewrite <- getOperandValue_eq_fresh_id; eauto.
-        eapply get_reg_metadata__fresh with (rm2:=rm2)
-          (c:=insn_store sid t v vp align0) in J1'; 
+        eapply get_reg_metadata__fresh with (rm2:=rm2) in J1'; 
           eauto; try fsetdec. destruct J1'; auto.
 
-      clear - J3' H31 J1' Hnotin HeqR1 HeqR2 HeqR3.
+      clear - J3' H31 J1' HeqR1 HeqR2 HeqR3 Hgenmeta Hinc.
       rewrite <- getOperandValue_eq_fresh_id; eauto.
-        eapply get_reg_metadata__fresh with (rm2:=rm2)
-          (c:=insn_store sid t v vp align0) in J1'; 
+        eapply get_reg_metadata__fresh with (rm2:=rm2) in J1'; 
           eauto; try fsetdec. destruct J1'; auto.
 
   destruct W as [Mem2'' [W1 W2]].
@@ -1551,17 +1661,23 @@ Proof.
               (updateAddAL GenericValue lc2 ptmp gvp2)
              als2):: 
             ECs2) gl2 fs2 Mem2')); auto.
+      assert (Hwfc := HBinF).
+      destruct Heqb1 as [l1 [ps1 [cs11 Heqb1]]]; subst.
+      assert (In (insn_store sid t v vp align0)
+        (cs11 ++ insn_store sid t v vp align0 :: cs)) as HinCs.
+        apply in_or_app. right. simpl. auto.
+      eapply wf_system__wf_cmd with (c:=insn_store sid t v vp align0) in Hwfc; 
+        eauto.
+      inv Hwfc. 
       apply LLVMopsem.dsStore with (mp2:=gvp2)(gv1:=gv2); auto.
-        clear - Hnotin HeqR1 HeqR2 HeqR3 H00.
-        destruct Hnotin as [Hnotin1 [_ [Hnotin2 _]]].
-        unfold getCmdIDs in *. simpl in *.
         rewrite <- getOperandValue_eq_fresh_id; auto.
+          assert (sb_ds_sim.getValueID v[<=]ids2atoms (getFdefLocs (fdef_intro fh1 bs1))) as Hindom.
+            eapply wf_value_id__in_getFdefLocs in H16; auto.
           eapply get_reg_metadata_fresh' with (rm2:=rm2); eauto; try fsetdec.
 
-        clear - Hnotin HeqR1 HeqR2 HeqR3 H10.
-        destruct Hnotin as [Hnotin1 [_ [Hnotin2 _]]].
-        unfold getCmdIDs in *. simpl in *.
         rewrite <- getOperandValue_eq_fresh_id; auto.
+          assert (sb_ds_sim.getValueID vp[<=]ids2atoms (getFdefLocs (fdef_intro fh1 bs1))) as Hindom.
+            eapply wf_value_id__in_getFdefLocs in H19; auto.
           eapply get_reg_metadata_fresh' with (rm2:=rm2); eauto; try fsetdec.
 
     rewrite <- (@trace_app_nil__eq__trace trace_nil).
@@ -1606,8 +1722,6 @@ Proof.
     eapply reg_simulation__updateAddAL_tmp; eauto.
     split; auto.
       clear - Hinc HeqR1. eapply mk_tmp_inc; eauto.
-    split; auto.
-      clear - Hinc HeqR1 Hfresh. eapply wf_freshs__mk_tmp; eauto.
   split; auto.
   split; auto.
   split; auto.

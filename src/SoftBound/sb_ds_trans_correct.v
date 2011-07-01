@@ -19,6 +19,7 @@ Require Import Metatheory.
 Require Import Znumtheory.
 Require Import sb_ds_def.
 Require Import sb_ds_trans.
+Require Import sb_ds_gv_inject.
 Require Import sb_ds_sim.
 Require Import ssa_wf.
 Require Import ssa_props.
@@ -93,7 +94,6 @@ Lemma SBpass_is_correct__dsCall : forall (mi : meminj)
 Proof.
   intros.
   destruct_ctx_other.
-  simpl in Hfresh. destruct Hfresh as [Hnotin Hfresh].
   apply trans_cmds_inv in Htcmds.
   destruct Htcmds as [ex_ids5 [cs1' [cs2' [Htcmd [Htcmds Heq]]]]]; subst.
   simpl in Htcmd.
@@ -167,8 +167,6 @@ Proof.
        exists ex_ids3. exists rm3. exists ex_ids3. exists ex_ids4'.
        exists c'. exists cs5.
        split; auto. split; auto. split; auto using incl_refl.
-       split. admit. (*fresh*)
-       split; auto. 
        clear - Heqb2. destruct Heqb2 as [l2 [ps2 [cs21 Heqb2]]]; subst.
        exists l2. exists ps2. 
        exists 
@@ -241,7 +239,6 @@ Lemma SBpass_is_correct__dsExCall : forall (mi : meminj)
 Proof.
   intros.
   destruct_ctx_other.
-  simpl in Hfresh. destruct Hfresh as [Hnotin Hfresh].
   apply trans_cmds_inv in Htcmds.
   destruct Htcmds as [ex_ids5 [cs1' [cs2' [Htcmd [Htcmds Heq]]]]]; subst.
   simpl in Htcmd.
@@ -353,7 +350,6 @@ Lemma SBpass_is_correct__dsBranch_uncond : forall
 Proof.
   intros.
   destruct_ctx_br.
-  simpl in Hfresh. destruct Hfresh as [Hnotin Hfresh].
   inv Htcmds. inv Httmn.
 
   assert (HuniqF:=HFinPs).
@@ -377,6 +373,11 @@ Proof.
   apply trans_block_inv in Htblock.
   destruct Htblock as [ps2 [cs2 [cs [JJ1 [JJ2 [JJ3 eq]]]]]]; subst.
 
+  assert (HBinF':=H).
+  apply genLabel2Block_blocks_inv with (f:=(fheader_intro f t i0 a v)) in HBinF';
+    auto. 
+  destruct HBinF' as [EQ HBinF']; subst.
+
   assert (exists lc2', LLVMopsem.switchToNewBasicBlock (los,nts) 
     (block_intro l' ps2 (cs2 ++ cs) tmn') B2 gl2 lc2 = Some lc2' /\
     reg_simulation mi (los, nts) gl2
@@ -399,7 +400,7 @@ Proof.
       eapply LLVMopsem.dsBranch_uncond; eauto.
         simpl. unfold lookupBlockViaLabelFromBlocks in Hlk'.
         rewrite <- Hlk'. simpl.
-        destruct (@eq_dec atom (EqDec_eq_of_EqDec atom EqDec_atom) l0 l1); 
+        destruct (@eq_dec atom (EqDec_eq_of_EqDec atom EqDec_atom) l' l1); 
           subst; auto.
 
           simpl in Hlk'.
@@ -420,16 +421,12 @@ Proof.
            contradict n; auto.
 
   repeat (split; auto).
-    apply genLabel2Block_blocks_inv with (f:=(fheader_intro f t i0 a v)) in H; 
-      auto. destruct H; eauto.
     exists l'. exists ps'. exists nil. auto.
     exists l'. exists ps2. exists nil. auto.
     exists ex_ids1. exists rm2'. exists ex_ids1'. exists ex_ids2. exists cs2.
     exists cs. 
     repeat (split; auto).
-      admit. (* we do not need this fresh. *)
 Qed.
-
 
 Lemma SBpass_is_correct__dsBranch : forall
   (mi : meminj) (mgb : Values.block) (St : LLVMopsem.State) (S : system)
@@ -507,7 +504,6 @@ Lemma SBpass_is_correct__dsBranch : forall
 Proof.
   intros.
   destruct_ctx_br.
-  simpl in Hfresh. destruct Hfresh as [Hnotin Hfresh].
   inv Htcmds. inv Httmn.
 
   assert (HuniqF:=HFinPs).
@@ -545,6 +541,15 @@ Proof.
 
   apply trans_block_inv in Htblock.
   destruct Htblock as [ps2 [cs2 [cs [JJ1 [JJ2 [JJ3 eq]]]]]]; subst.
+
+  assert (blockInFdefB (block_intro l' ps' cs' tmn') 
+    (fdef_intro (fheader_intro f t i0 a v) bs1)) as HBinF'.
+    symmetry in H0.
+    destruct (isGVZero (los,nts) c').
+      apply genLabel2Block_blocks_inv with (f:=(fheader_intro f t i0 a v)) in H0
+        ; auto. destruct H0; eauto.
+      apply genLabel2Block_blocks_inv with (f:=(fheader_intro f t i0 a v)) in H0
+        ; auto. destruct H0; eauto.
 
   assert (exists lc2', LLVMopsem.switchToNewBasicBlock (los,nts) 
     (block_intro l' ps2 (cs2 ++ cs) tmn') B2 gl2 lc2 = Some lc2' /\
@@ -591,18 +596,11 @@ Proof.
           subst; try solve [auto | contradict HA1; auto].
 
   repeat (split; auto).
-    symmetry in H0.
-    destruct (isGVZero (los,nts) c').
-      apply genLabel2Block_blocks_inv with (f:=(fheader_intro f t i0 a v)) in H0
-        ; auto. destruct H0; eauto.
-      apply genLabel2Block_blocks_inv with (f:=(fheader_intro f t i0 a v)) in H0
-        ; auto. destruct H0; eauto.
     exists l'. exists ps'. exists nil. auto.
     exists l'. exists ps2. exists nil. auto.
     exists ex_ids1. exists rm2'. exists ex_ids1'. exists ex_ids2. exists cs2.
     exists cs. 
     repeat (split; auto).
-      admit. (* we do not need this fresh. *)
 Qed.
 
 Lemma SBpass_is_correct__dsReturn : forall 
@@ -890,6 +888,8 @@ Proof.
           repeat (split; auto).
 
   SCase "nret = false".
+    assert (In i0 (getFdefLocs (fdef_intro fh1' bs1'))) as Hin.
+      eauto using getCmdID_in_getFdefLocs.
     destruct (SBopsem.isReturnPointerTypB t).
     SSCase "ct is ptr".
       simpl in Hcall'.
@@ -1042,9 +1042,8 @@ Proof.
           exists ex_ids3'. exists ex_ids4'. exists cs23'. exists cs24'.
           split; auto.              
           split.
-            eapply reg_simulation__updateAddAL_prop with 
-              (c:=insn_call i0 false c t v p)(ex_ids3:=ex_ids); eauto.
-              admit. admit. admit. (*fresh*)
+            eapply reg_simulation__updateAddAL_prop with (ex_ids3:=ex_ids'); 
+              eauto.
             repeat (split; auto).
 
     SSSCase "rt isnt ptr". 
@@ -1175,9 +1174,8 @@ Proof.
           exists ex_ids3'. exists ex_ids4'. exists cs23'. exists cs24'.
           split; auto.              
           split.
-            eapply reg_simulation__updateAddAL_prop with 
-              (c:=insn_call i0 false c t v p)(ex_ids3:=ex_ids); eauto.
-              admit. admit. admit. (*fresh*)
+            eapply reg_simulation__updateAddAL_prop with (ex_ids3:=ex_ids'); 
+              eauto.
               eapply gv_inject_null_refl; eauto.
               eapply gv_inject_null_refl; eauto.
             repeat (split; auto).
@@ -1288,9 +1286,8 @@ Proof.
           exists ex_ids'. exists rm2'.
           exists ex_ids3'. exists ex_ids4'. exists cs23'. exists cs24'.
           apply reg_simulation__updateAddAL_lc with (i0:=i0)(gv:=ogr)(gv':=gr2) 
-            in Hrsim'; auto.
+            (ex_ids3:=ex_ids') in Hrsim'; auto.
             repeat (split; auto).    
-            admit. admit. (*fresh*)
 
     SSSCase "rt isnt ptr". 
       inv H1. inv HeqRet. inv Httmn.
@@ -1379,9 +1376,8 @@ Proof.
           exists ex_ids'. exists rm2'.
           exists ex_ids3'. exists ex_ids4'. exists cs23'. exists cs24'.
           apply reg_simulation__updateAddAL_lc with (i0:=i0)(gv:=ogr)(gv':=gr2) 
-            in Hrsim'; auto.
+            (ex_ids3:=ex_ids') in Hrsim'; auto.
             repeat (split; auto).    
-            admit. admit. (*fresh*)
 Qed.
 
 Lemma SBpass_is_correct__dsReturnVoid : forall

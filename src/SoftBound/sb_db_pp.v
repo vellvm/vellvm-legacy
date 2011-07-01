@@ -15,7 +15,7 @@ Require Import genericvalues.
 Require Import trace.
 Require Import ssa_props.
 Require Import alist.
-Require Import sb_def.
+Require Import sb_db_def.
 Require Import Coqlib.
 Require Import Memdata.
 Require Import Memory.
@@ -24,7 +24,7 @@ Require Import sb_tactic.
 Require Import symexe_def.
 Require Import symexe_tactic.
 Require Import Znumtheory.
-Require Import sb_metadata.
+Require Import sb_db_metadata.
 
 Import SoftBound.
 
