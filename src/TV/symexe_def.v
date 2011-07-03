@@ -970,15 +970,15 @@ Inductive sterm_denotes_genericvalue :
   sterm_denotes_genericvalue TD lc gl Mem (sterm_gep ib0 t0 st0 sts0) gv1
 | sterm_trunc_denotes : forall TD lc gl Mem op0 t1 st1 t2 gv1 gv2,
   sterm_denotes_genericvalue TD lc gl Mem st1 gv1 ->
-  mtrunc TD op0 t1 gv1 t2 = Some gv2 ->
+  mtrunc TD op0 t1 t2 gv1 = Some gv2 ->
   sterm_denotes_genericvalue TD lc gl Mem (sterm_trunc op0 t1 st1 t2) gv2
 | sterm_ext_denotes : forall TD lc gl Mem op0 t1 st1 t2 gv1 gv2,
   sterm_denotes_genericvalue TD lc gl Mem st1 gv1 ->
-  mext TD op0 t1 gv1 t2 = Some gv2 ->
+  mext TD op0 t1 t2 gv1 = Some gv2 ->
   sterm_denotes_genericvalue TD lc gl Mem (sterm_ext op0 t1 st1 t2) gv2
 | sterm_cast_denotes : forall TD lc gl Mem op0 t1 st1 t2 gv1 gv2,
   sterm_denotes_genericvalue TD lc gl Mem st1 gv1 ->
-  mcast TD op0 t1 gv1 t2 = Some gv2 ->
+  mcast TD op0 t1 t2 gv1 = Some gv2 ->
   sterm_denotes_genericvalue TD lc gl Mem (sterm_cast op0 t1 st1 t2) gv2
 | sterm_icmp_denotes : forall TD lc gl Mem cond0 t0 st1 st2 gv1 gv2 gv3,
   sterm_denotes_genericvalue TD lc gl Mem st1 gv1 ->

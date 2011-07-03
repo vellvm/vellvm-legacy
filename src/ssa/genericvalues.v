@@ -231,8 +231,8 @@ match (intConsts2Nats TD cidxs) with
   end
 end.
 
-Definition mtrunc (TD:TargetData) (op:truncop) (t1:typ) (gv1:GenericValue) 
-  (t2:typ) : option GenericValue :=
+Definition mtrunc (TD:TargetData) (op:truncop) (t1:typ) (t2:typ) 
+  (gv1:GenericValue) : option GenericValue :=
 match GV2val TD gv1 with
 | Some (Vint wz1 i1) =>
     match (t1, t2) with
@@ -336,7 +336,7 @@ Definition mbitcast (t1:typ) (gv1:GenericValue)(t2:typ) : option GenericValue :=
 match (t1, t2) with
 | (typ_int sz1, typ_int sz2) => Some gv1
 | (typ_pointer _, typ_pointer _) => Some gv1
-| _ => None
+| _ => Some gundef
 end.
 
 Definition minttoptr (TD:TargetData) (M:mem) (gv1:GenericValue) 
@@ -384,23 +384,23 @@ Definition minttoptr (TD:TargetData) (M:mem) (gv1:GenericValue)
    to be undef, and integers from p2i to be undef, too.
    
 *)
-Definition mcast (TD:TargetData) (op:castop) (t1:typ) (gv1:GenericValue)
-  (t2:typ) : option GenericValue :=
+Definition mcast (TD:TargetData) (op:castop) (t1:typ) (t2:typ) (gv1:GenericValue)
+ : option GenericValue :=
 match op with
 | castop_inttoptr => 
   match (t1, t2) with
   | (typ_int sz1, typ_pointer _) => Some gundef
-  | _ => None
+  | _ => Some gundef
   end
 | castop_ptrtoint => 
   match (t1, t2) with
   | (typ_pointer _, typ_int sz2) => Some gundef
-  | _ => None
+  | _ => Some gundef
   end
 | castop_bitcase => mbitcast t1 gv1 t2 
 end.
 
-Definition mext (TD:TargetData) (op:extop) (t1:typ) (gv1:GenericValue) (t2:typ) 
+Definition mext (TD:TargetData) (op:extop) (t1:typ) (t2:typ) (gv1:GenericValue) 
   : option GenericValue :=
 match (t1, t2) with
 | (typ_int sz1, typ_int sz2) => 
@@ -639,7 +639,7 @@ match c with
 | const_truncop op c1 t2 =>
          match _const2GV TD gl c1 with
          | Some (gv1, t1) => 
-           match mtrunc TD op t1 gv1 t2 with
+           match mtrunc TD op t1 t2 gv1 with
            | Some gv2 => Some (gv2, t2)
            | _ => None
            end
@@ -648,7 +648,7 @@ match c with
 | const_extop op c1 t2 =>
          match _const2GV TD gl c1 with
          | Some (gv1, t1) => 
-           match mext TD op t1 gv1 t2 with
+           match mext TD op t1 t2 gv1 with
            | Some gv2 => Some (gv2, t2)
            | _ => None
            end
@@ -657,7 +657,7 @@ match c with
 | const_castop op c1 t2 =>
          match _const2GV TD gl c1 with
          | Some (gv1, t1) => 
-           match mcast TD op t1 gv1 t2 with
+           match mcast TD op t1 t2 gv1 with
            | Some gv2 => Some (gv2, t2)
            | _ => None
            end
@@ -908,7 +908,7 @@ end
 Definition TRUNC (TD:TargetData) (lc gl:GVMap) (op:truncop) (t1:typ) 
   (v1:value) (t2:typ) : option GenericValue :=
 match (getOperandValue TD v1 lc gl) with
-| (Some gv1) => mtrunc TD op t1 gv1 t2
+| (Some gv1) => mtrunc TD op t1 t2 gv1
 | _ => None
 end
 .
@@ -916,7 +916,7 @@ end
 Definition CAST (TD:TargetData) (lc gl:GVMap) (op:castop) (t1:typ) 
   (v1:value) (t2:typ) : option GenericValue:=
 match (getOperandValue TD v1 lc gl) with
-| (Some gv1) => mcast TD op t1 gv1 t2
+| (Some gv1) => mcast TD op t1 t2 gv1
 | _ => None
 end
 .
@@ -924,7 +924,7 @@ end
 Definition EXT (TD:TargetData) (lc gl:GVMap) (op:extop) (t1:typ) 
   (v1:value) (t2:typ) : option GenericValue :=
 match (getOperandValue TD v1 lc gl) with
-| (Some gv1) => mext TD op t1 gv1 t2
+| (Some gv1) => mext TD op t1 t2 gv1
 | _ => None
 end
 .
@@ -1024,13 +1024,13 @@ Lemma CAST_inversion : forall TD lc gl op t1 v1 t2 gv,
   CAST TD lc gl op t1 v1 t2 = Some gv ->
   exists gv1,
     getOperandValue TD v1 lc gl = Some gv1 /\
-    mcast TD op t1 gv1 t2 = Some gv.
+    mcast TD op t1 t2 gv1 = Some gv.
 Proof.
   intros TD lc gl op t1 v1 t2 gv HCAST.
   unfold CAST in HCAST.
   remember (getOperandValue TD v1 lc gl) as ogv1.
   destruct ogv1; try solve [inversion HCAST].
-    remember (mcast TD op t1 g t2) as R.
+    remember (mcast TD op t1 t2 g) as R.
     destruct R; inversion HCAST; subst.
       exists g. auto.
 Qed.
@@ -1039,13 +1039,13 @@ Lemma TRUNC_inversion : forall TD lc gl op t1 v1 t2 gv,
   TRUNC TD lc gl op t1 v1 t2 = Some gv ->
   exists gv1,
     getOperandValue TD v1 lc gl = Some gv1 /\
-    mtrunc TD op t1 gv1 t2 = Some gv.
+    mtrunc TD op t1 t2 gv1 = Some gv.
 Proof.
   intros TD lc gl op t1 v1 t2 gv HTRUNC.
   unfold TRUNC in HTRUNC.
   remember (getOperandValue TD v1 lc gl) as ogv1.
   destruct ogv1; try solve [inversion HTRUNC].
-    remember (mtrunc TD op t1 g t2) as R.
+    remember (mtrunc TD op t1 t2 g) as R.
     destruct R; inversion HTRUNC; subst.
       exists g. auto.
 Qed.
@@ -1054,13 +1054,13 @@ Lemma EXT_inversion : forall TD lc gl op t1 v1 t2 gv,
   EXT TD lc gl op t1 v1 t2 = Some gv ->
   exists gv1,
     getOperandValue TD v1 lc gl = Some gv1 /\
-    mext TD op t1 gv1 t2 = Some gv.
+    mext TD op t1 t2 gv1 = Some gv.
 Proof.
   intros TD lc gl op t1 v1 t2 gv HEXT.
   unfold EXT in HEXT.
   remember (getOperandValue TD v1 lc gl) as ogv1.
   destruct ogv1; try solve [inversion HEXT].
-    remember (mext TD op t1 g t2) as R.
+    remember (mext TD op t1 t2 g) as R.
     destruct R; inversion HEXT; subst.
       exists g. auto.
 Qed.

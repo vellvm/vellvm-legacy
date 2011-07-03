@@ -173,17 +173,17 @@ Qed.
     
 Lemma simulation__mtrunc : forall mi TD top t1 gv1 t2 gv1' gv2,
   gv_inject mi gv1 gv1' ->
-  mtrunc TD top t1 gv1 t2 = Some gv2 ->
+  mtrunc TD top t1 t2 gv1 = Some gv2 ->
   exists gv2',
-    mtrunc TD top t1 gv1' t2 = Some gv2' /\
+    mtrunc TD top t1 t2 gv1' = Some gv2' /\
     gv_inject mi gv2 gv2'.
 Admitted.
 
 Lemma simulation__mext : forall mi TD eop t1 gv1 t2 gv1' gv2,
   gv_inject mi gv1 gv1' ->
-  mext TD eop t1 gv1 t2 = Some gv2 ->
+  mext TD eop t1 t2 gv1 = Some gv2 ->
   exists gv2',
-    mext TD eop t1 gv1' t2 = Some gv2' /\
+    mext TD eop t1 t2 gv1' = Some gv2' /\
     gv_inject mi gv2 gv2'.
 Admitted.
 
@@ -208,9 +208,9 @@ Admitted.
 Lemma simulation__mcast : forall mi TD Mem1 Mem2 op t1 gv1 gv1' t2 gv2,
   gv_inject mi gv1 gv1' ->
   Mem.mem_inj mi Mem1 Mem2 ->  
-  mcast TD op t1 gv1 t2 = Some gv2 ->
+  mcast TD op t1 t2 gv1 = Some gv2 ->
   exists gv2',
-    mcast TD op t1 gv1' t2 = Some gv2' /\
+    mcast TD op t1 t2 gv1' = Some gv2' /\
     gv_inject mi gv2 gv2'.
 Admitted.
 
@@ -380,7 +380,7 @@ Case "trunc".
   eapply H in HeqR; eauto.
   destruct HeqR as [gv' [J1 J2]].
   rewrite J1.
-  remember (mtrunc TD t t1' gv1 t0) as R1.
+  remember (mtrunc TD t t1' t0 gv1) as R1.
   destruct R1; inv H5.
   symmetry in HeqR1.
   eapply simulation__mtrunc in HeqR1; eauto.
@@ -394,7 +394,7 @@ Case "ext".
   eapply H in HeqR; eauto.
   destruct HeqR as [gv' [J1 J2]].
   rewrite J1.
-  remember (mext TD e t1' gv1 t) as R1.
+  remember (mext TD e t1' t gv1) as R1.
   destruct R1; inv H5.
   symmetry in HeqR1.
   eapply simulation__mext in HeqR1; eauto.
@@ -408,7 +408,7 @@ Case "cast".
   eapply H in HeqR; eauto.
   destruct HeqR as [gv' [J1 J2]].
   rewrite J1.
-  remember (mcast TD Mem1 c t1' gv1 t) as R1.
+  remember (mcast TD Mem1 c t1' t gv1) as R1.
   destruct R1; inv H5.
   symmetry in HeqR1.
   eapply simulation__mcast in HeqR1; eauto.

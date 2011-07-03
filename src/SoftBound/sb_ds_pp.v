@@ -1652,7 +1652,7 @@ Proof.
     destruct t; inv J2.
     remember (_const2GV TD gl vc) as R.
     destruct R as [[gv2 t2]|]; try solve [inv HeqJ3].
-    destruct (mcast TD castop_bitcast t2 gv2 (typ_pointer t)); 
+    destruct (mcast TD castop_bitcast t2 (typ_pointer t) gv2); 
       try solve [inv HeqJ3].
     apply IHvc with (gv:=gv2)(t3:=t2) in H0; auto.
     

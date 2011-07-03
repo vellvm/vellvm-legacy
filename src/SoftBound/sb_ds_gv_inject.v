@@ -327,11 +327,11 @@ Qed.
 
 Lemma simulation__mtrunc_aux : forall mi TD top t1 gv1 t2 gv1' gv2,
   gv_inject mi gv1 gv1' ->
-  mtrunc TD top t1 gv1 t2 = Some gv2 ->
-  (mtrunc TD top t1 gv1 t2 = mtrunc TD top t1 gv1' t2 /\
+  mtrunc TD top t1 t2 gv1 = Some gv2 ->
+  (mtrunc TD top t1 t2 gv1 = mtrunc TD top t1 t2 gv1' /\
     gv_inject mi gv2 gv2) \/
   exists gv2',
-    mtrunc TD top t1 gv1' t2 = Some gv2' /\
+    mtrunc TD top t1 t2 gv1' = Some gv2' /\
     gv_inject mi gv2 gv2'.  
 Proof.
   intros.
@@ -370,9 +370,9 @@ Qed.
 
 Lemma simulation__mtrunc : forall mi TD top t1 gv1 t2 gv1' gv2,
   gv_inject mi gv1 gv1' ->
-  mtrunc TD top t1 gv1 t2 = Some gv2 ->
+  mtrunc TD top t1 t2 gv1 = Some gv2 ->
   exists gv2',
-    mtrunc TD top t1 gv1' t2 = Some gv2' /\
+    mtrunc TD top t1 t2 gv1' = Some gv2' /\
     gv_inject mi gv2 gv2'.
 Proof.
   intros.
@@ -385,11 +385,11 @@ Qed.
 
 Lemma simulation__mext_aux : forall mi TD eop t1 gv1 t2 gv1' gv2,
   gv_inject mi gv1 gv1' ->
-  mext TD eop t1 gv1 t2 = Some gv2 ->
-  (mext TD eop t1 gv1 t2 = mext TD eop t1 gv1' t2 /\
+  mext TD eop t1 t2 gv1 = Some gv2 ->
+  (mext TD eop t1 t2 gv1 = mext TD eop t1 t2 gv1' /\
     gv_inject mi gv2 gv2) \/
   exists gv2',
-    mext TD eop t1 gv1' t2 = Some gv2' /\
+    mext TD eop t1 t2 gv1' = Some gv2' /\
     gv_inject mi gv2 gv2'.  
 Proof.
   intros. assert (J0:=H).
@@ -434,9 +434,9 @@ Qed.
 
 Lemma simulation__mext : forall mi TD eop t1 gv1 t2 gv1' gv2,
   gv_inject mi gv1 gv1' ->
-  mext TD eop t1 gv1 t2 = Some gv2 ->
+  mext TD eop t1 t2 gv1 = Some gv2 ->
   exists gv2',
-    mext TD eop t1 gv1' t2 = Some gv2' /\
+    mext TD eop t1 t2 gv1' = Some gv2' /\
     gv_inject mi gv2 gv2'.
 Proof.
   intros.
@@ -757,11 +757,11 @@ Qed.
 
 Lemma simulation__mcast_aux : forall mi TD op t1 t2 gv1 gv1' gv2,
   gv_inject mi gv1 gv1' ->
-  mcast TD op t1 gv1 t2 = Some gv2 ->
-  (mcast TD op t1 gv1 t2 = mcast TD op t1 gv1' t2 /\
+  mcast TD op t1 t2 gv1 = Some gv2 ->
+  (mcast TD op t1 t2 gv1 = mcast TD op t1 t2 gv1' /\
     gv_inject mi gv2 gv2) \/
   exists gv2',
-    mcast TD op t1 gv1' t2 = Some gv2' /\
+    mcast TD op t1 t2 gv1' = Some gv2' /\
     gv_inject mi gv2 gv2'.  
 Proof.
   intros.  assert (J:=H).
@@ -772,11 +772,8 @@ Proof.
     destruct op; try solve [
       destruct t1; try solve [
         inv H0 |
-        destruct t2; inv H0; [eauto using simulation__mcast_aux_helper]
-      ] |
-      destruct t1; try solve [
-        inv H0 |
-        destruct t2; inv H0; [auto using gv_inject_gundef] 
+        destruct t2; inv H0; eauto using gv_inject_gundef |
+        destruct t2; inv H0; eauto using simulation__mcast_aux_helper
       ]
     ]
   ].
@@ -784,9 +781,9 @@ Qed.
 
 Lemma simulation__mcast : forall mi TD op t1 gv1 gv1' t2 gv2,
   gv_inject mi gv1 gv1' ->
-  mcast TD op t1 gv1 t2 = Some gv2 ->
+  mcast TD op t1 t2 gv1 = Some gv2 ->
   exists gv2',
-    mcast TD op t1 gv1' t2 = Some gv2' /\
+    mcast TD op t1 t2 gv1' = Some gv2' /\
     gv_inject mi gv2 gv2'.
 Proof.
   intros.
@@ -796,7 +793,6 @@ Proof.
     rewrite <- H1.
     exists gv2. split; auto.
 Qed.
-
 
 Lemma cmp_isnt_ptr : forall c wz i0 wz0 i1 b ofs,
   Val.cmp c (Vint wz i0) (Vint wz0 i1) <> Vptr b ofs.
@@ -1312,7 +1308,7 @@ Qed.
 
 Lemma simulation__mtrunc_refl : forall mi TD top t1 gv1 t2 gv2,
   gv_inject mi gv1 gv1 ->
-  mtrunc TD top t1 gv1 t2 = Some gv2 ->
+  mtrunc TD top t1 t2 gv1 = Some gv2 ->
   gv_inject mi gv2 gv2.
 Proof.
   intros.
@@ -1342,7 +1338,7 @@ Qed.
 
 Lemma simulation__mext_refl : forall mi TD eop t1 gv1 t2 gv2,
   gv_inject mi gv1 gv1 ->
-  mext TD eop t1 gv1 t2 = Some gv2 ->
+  mext TD eop t1 t2 gv1 = Some gv2 ->
   gv_inject mi gv2 gv2.
 Proof.
   intros. assert (J0:=H).
@@ -1424,7 +1420,7 @@ Qed.
 
 Lemma simulation__mcast_refl : forall mi TD op t1 t2 gv1 gv2,
   gv_inject mi gv1 gv1 ->
-  mcast TD op t1 gv1 t2 = Some gv2 ->
+  mcast TD op t1 t2 gv1 = Some gv2 ->
   gv_inject mi gv2 gv2.
 Proof.
   intros.  assert (J:=H).
@@ -1695,7 +1691,7 @@ Case "trunc".
   destruct R as [[gv1 t1']|]; try solve [inv H2].
   symmetry in HeqR.
   eapply H in HeqR; eauto.
-  remember (mtrunc TD t t1' gv1 t0) as R1.
+  remember (mtrunc TD t t1' t0 gv1) as R1.
   destruct R1; inv H2.
   symmetry in HeqR1.
   eapply simulation__mtrunc_refl in HeqR1; eauto.
@@ -1704,7 +1700,7 @@ Case "ext".
   destruct R as [[gv1 t1']|]; tinv H2.
   symmetry in HeqR.
   eapply H in HeqR; eauto.
-  remember (mext TD e t1' gv1 t) as R1.
+  remember (mext TD e t1' t gv1) as R1.
   destruct R1; inv H2.
   symmetry in HeqR1.
   eapply simulation__mext_refl in HeqR1; eauto.
@@ -1713,7 +1709,7 @@ Case "cast".
   destruct R as [[gv1 t1']|]; tinv H2.
   symmetry in HeqR.
   eapply H in HeqR; eauto.
-  remember (mcast TD c t1' gv1 t) as R1.
+  remember (mcast TD c t1' t gv1) as R1.
   destruct R1; inv H2.
   symmetry in HeqR1.
   eapply simulation__mcast_refl in HeqR1; eauto.
