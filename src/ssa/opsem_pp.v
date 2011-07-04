@@ -133,11 +133,11 @@ Proof.
   apply updateValuesForNewBlock_uniq; auto.
 Qed.      
 
-Lemma _initializeFrameValues_init : forall la l0,
+Lemma initializeFrameValues_init : forall la l0,
   uniq (_initializeFrameValues la l0 nil).
 Proof.
   induction la; intros; simpl; auto.
-    destruct a.
+    destruct a as [[t ?] id0].
     destruct l0; auto using updateAddAL_uniq.
 Qed.
 
@@ -146,7 +146,7 @@ Lemma initLocals_uniq : forall la ps,
 Proof.
   intros la ps.
   unfold initLocals.
-  apply _initializeFrameValues_init; auto.
+  apply initializeFrameValues_init; auto.
 Qed.
 
 Lemma getIncomingValuesForBlockFromPHINodes_eq : 

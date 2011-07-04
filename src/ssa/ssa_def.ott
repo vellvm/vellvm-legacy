@@ -378,7 +378,7 @@ cmd :: 'insn_'					    	::=			{{ com commands }}
   %| id = extractelement typ0 value0 , const1		::   :: extractelement  {{ com extractelement }}
   %| id = insertelement typ0 value0 , typ1 value1 , const2	::   :: insertelement   {{ com insertelement }}
 %% Aggregate Operations
-  | id = extractvalue typ value </ constj // j />       ::   :: extractvalue	        {{ com extractvalue }}
+  | id = extractvalue typ value </ constj // j />            ::   :: extractvalue       {{ com extractvalue }}
   | id = insertvalue typ value typ' value' </ constj // j /> ::   :: insertvalue	{{ com insertvalue }}
 %% Memory Access and Addressing Operations
   | id = malloc typ value align	         	     	::   :: malloc		{{ com malloc }}

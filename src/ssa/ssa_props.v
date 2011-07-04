@@ -1574,16 +1574,16 @@ Proof.
   induction la; intros; simpl in *.
     inversion H.
 
-    destruct a.  
+    destruct a as [[t c] id0].  
     simpl in H.
     destruct H as [H | H]; subst; simpl.
       destruct gvs. 
-        exists gundef. apply lookupAL_updateAddAL_eq; auto.      
+        exists (gundef t). apply lookupAL_updateAddAL_eq; auto.      
         exists g. apply lookupAL_updateAddAL_eq; auto.      
 
-      destruct (eq_atom_dec i0 id1); subst.
+      destruct (eq_atom_dec id0 id1); subst.
         destruct gvs.
-          exists gundef. apply lookupAL_updateAddAL_eq; auto.
+          exists (gundef t). apply lookupAL_updateAddAL_eq; auto.
           exists g. apply lookupAL_updateAddAL_eq; auto.
         destruct gvs; rewrite <- lookupAL_updateAddAL_neq; auto.
 Qed.

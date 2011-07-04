@@ -76,7 +76,11 @@ ssa_dynamic.vo: ssa_dynamic.v ssa_def.vo ssa_lib.vo tactics.vo trace.vo \
 ndopsem.vo : ndopsem.v genericvalues.vo ssa_dynamic.vo
 	$(COQC) $(COQARG) ndopsem.v
 
-ndopsem_pp.vo : ndopsem_pp.v ndopsem.vo genericvalues.vo ssa_dynamic.vo
+ndopsem_dsop.vo : ndopsem_dsop.v ndopsem.vo genericvalues.vo ssa_dynamic.vo
+	$(COQC) $(COQARG) ndopsem_dsop.v
+
+ndopsem_pp.vo : ndopsem_pp.v ndopsem.vo genericvalues.vo ssa_dynamic.vo \
+	ndopsem_dsop.vo
 	$(COQC) $(COQARG) ndopsem_pp.v
 
 ssa_interpreter.vo: ssa_interpreter.v ssa_dynamic.vo ssa_def.vo ssa_lib.vo \

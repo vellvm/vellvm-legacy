@@ -27,6 +27,7 @@ Require Import ssa_props.
 Require Import ssa_analysis.
 Require Import ssa_wf.
 Require Import ndopsem.
+Require Import ndopsem_dsop.
 
 Export LLVMwf.
 Export AtomSet.
@@ -128,22 +129,6 @@ Qed.
 Definition wf_lc (lc:GVsMap) : Prop :=
 forall i0 gvs0, lookupAL _ lc i0 = Some gvs0 -> Ensembles.Inhabited _ gvs0. 
 
-Lemma gv2gvs__inhabited : forall gv, 
-  Ensembles.Inhabited GenericValue ($ gv $).
-Proof.
-  intros gv.
-  apply Ensembles.Inhabited_intro with (x:=gv).
-  apply gv_in_gv2gvs.
-Qed.
-
-Lemma ogv2gvs__inhabited : forall ogv gvs,
-  %ogv% = ret gvs ->
-  Ensembles.Inhabited GenericValue gvs.
-Proof.
-  destruct ogv; intros; inv H.
-    apply gv2gvs__inhabited.
-Qed.
-
 Lemma getOperandValue__inhabited : forall TD v lc gl gvs,
   wf_lc lc ->
   NDopsem.getOperandValue TD v lc gl = Some gvs ->
@@ -200,8 +185,6 @@ Proof.
       inversion H; subst. apply lookupAL_updateAddAL_eq; auto.
       rewrite <- lookupAL_updateAddAL_neq; auto.
 Qed.
-
-Ltac tinv H := try solve [inv H].
 
 Lemma getIncomingValuesForBlockFromPHINodes_spec2 : forall TD b gl lc 
   (Hwflc: wf_lc lc) ps rs,
@@ -553,16 +536,16 @@ Proof.
   induction la; intros; simpl in *.
     inversion H.
 
-    destruct a.  
+    destruct a. destruct p.
     simpl in H.
     destruct H as [H | H]; subst; simpl.
       destruct gvs. 
-        exists (Ensembles.Full_set _). apply lookupAL_updateAddAL_eq; auto.      
+        exists ($ gundef t $). apply lookupAL_updateAddAL_eq; auto.      
         exists g. apply lookupAL_updateAddAL_eq; auto.      
 
       destruct (eq_atom_dec i0 id1); subst.
         destruct gvs.
-          exists (Ensembles.Full_set _). apply lookupAL_updateAddAL_eq; auto.
+          exists ($ gundef t $). apply lookupAL_updateAddAL_eq; auto.
           exists g. apply lookupAL_updateAddAL_eq; auto.
         destruct gvs; rewrite <- lookupAL_updateAddAL_neq; auto.
 Qed.
@@ -584,10 +567,10 @@ Lemma initializeFrameValues__wf_lc : forall lc1 (Hwflc:wf_lc lc1) la2 gvs2,
   wf_lc (NDopsem._initializeFrameValues la2 gvs2 lc1).
 Proof.
   induction la2; simpl; intros gvs2 Hin; auto.
-    destruct a.
+    destruct a. destruct p.
     destruct gvs2; simpl in *; subst.
       apply wf_lc_updateAddAL; eauto.
-        apply full_set_inhabited.
+        apply gv2gvs__inhabited.
       apply wf_lc_updateAddAL; eauto.
 Qed.
 
@@ -635,23 +618,10 @@ Proof.
   unfold lift_op2. 
   inv H0. inv H1.
   destruct (@H x x0) as [z J].
-  exists z. unfold Ensembles.In. exists x. exists x0. exists z.
+  destruct (@gv2gvs__inhabited z).
+  exists x1. unfold Ensembles.In. exists x. exists x0. exists z.
   rewrite J.
   repeat (split; auto).
-    apply gv_in_gv2gvs.
-Qed.
-
-Lemma mbop_is_total : forall TD bop0 sz0 x y, 
-  exists z, mbop TD bop0 sz0 x y = Some z.
-Proof.
-  intros.
-  unfold mbop.
-  destruct (GV2val TD x); eauto.
-  destruct v; eauto.
-  destruct (GV2val TD y); eauto.
-  destruct v; eauto.
-  destruct (eq_nat_dec (wz + 1) (Size.to_nat sz0)); eauto.
-  destruct bop0; eauto.
 Qed.
 
 Lemma BOP__inhabited : forall TD lc gl bop0 sz0 v1 v2 gvs3,
@@ -703,15 +673,6 @@ Proof.
     exists (x::vidxs0). simpl. simpl; auto.
 Qed.
 
-Lemma GEP_is_total : forall TD t mp vidxs inbounds0,
-  exists mp', GEP TD t mp vidxs inbounds0 = ret mp'.
-Proof.
-  intros. unfold GEP.
-  destruct (GV2ptr TD (getPointerSize TD) mp); eauto.
-  destruct (GVs2Nats TD vidxs); eauto.
-  destruct (mgep TD t v l0); eauto.
-Qed.
-
 Lemma GEP__inhabited : forall TD t mp vidxs inbounds0 mp' vidxs0,
   Ensembles.Inhabited GenericValue mp ->
   vidxs0 @@ vidxs ->
@@ -719,14 +680,14 @@ Lemma GEP__inhabited : forall TD t mp vidxs inbounds0 mp' vidxs0,
   Ensembles.Inhabited GenericValue mp'.
 Proof.
   intros.
-  unfold NDopsem.GEP in H1. inv H1.
-  inv H.
+  unfold NDopsem.GEP in H1. inv H.
+  inv H1.
   destruct (@GEP_is_total TD t x vidxs0 inbounds0) as [mp' J].
-  apply Ensembles.Inhabited_intro with (x:=mp').
+  assert (J1:=@gv2gvs__inhabited mp'). inv J1.
+  apply Ensembles.Inhabited_intro with (x:=x0).
   unfold Ensembles.In.
-  exists x. exists vidxs0. rewrite J. split; auto.
+  exists x. exists vidxs0. exists mp'. rewrite J. split; auto.
 Qed.
-
 
 Lemma lift_op1__inhabited : forall f gvs1
   (H:forall x, exists z, f x = Some z),
@@ -737,18 +698,10 @@ Proof.
   unfold lift_op1. 
   inv H0.
   destruct (@H x) as [z J].
-  exists z. unfold Ensembles.In. exists x. exists z.
+  destruct (@gv2gvs__inhabited z).
+  exists x0. unfold Ensembles.In. exists x. exists z.
   rewrite J.
   repeat (split; auto).
-    apply gv_in_gv2gvs.
-Qed.
-
-Lemma mcast_is_total : forall TD cop0 t1 t2 x, 
-  exists z, mcast TD cop0 t1 t2 x = Some z.
-Proof.
-  intros.
-  unfold mcast, mbitcast.
-  destruct cop0; destruct t1; destruct t2; eauto.
 Qed.
 
 Lemma CAST__inhabited : forall TD lc gl cop0 t1 v1 t2 gvs2,
@@ -1113,13 +1066,6 @@ Tactic Notation "sInsn_cases" tactic(first) tactic(c) :=
     c "sCast" | 
     (*c "sIcmp" | c "sFcmp" | c "sSelect" |  *)
     c "sCall" (*| c "sExCall"*) ].
-
-Lemma lookupFdefViaPtr_inversion : forall Ps fs fptr f,
-  lookupFdefViaPtr Ps fs fptr = Some f ->
-  exists fn,
-    lookupFdefViaGVFromFunTable fs fptr = Some fn /\
-    lookupFdefViaIDFromProducts Ps fn = Some f.
-Admitted.
 
 Lemma preservation : forall S1 S2 tr,
   sInsn S1 S2 tr -> wf_State S1 -> wf_State S2.

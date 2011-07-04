@@ -320,9 +320,45 @@ Proof.
       eauto.
 Qed.
 
-Lemma gv_inject_gundef : forall mi, gv_inject mi gundef gundef.
+Lemma gv_inject_nil_refl : forall mi, gv_inject mi nil nil.
 Proof.
-  intros. unfold gundef. apply gv_inject_uninits.
+  intros. unfold gv_inject. simpl. auto.
+Qed.
+
+Lemma gv_inject_cons_intro : forall mi v1 m1 v2 m2 gv1 gv2,
+  gv_inject mi gv1 gv2 ->
+  val_inject mi v1 v2 ->
+  gv_inject mi ((v1, m1) :: gv1) ((v2, m2) :: gv2).
+Proof.
+  intros.
+  unfold gv_inject in *. simpl.
+  remember (split gv1) as R1.
+  remember (split gv2) as R2.
+  destruct R1. destruct R2.
+  eauto.
+Qed.  
+
+Lemma gv_inject_gundef : forall mi t, gv_inject mi (gundef t) (gundef t).
+Proof.
+  intros. unfold gundef. 
+  destruct (typ2memory_chunk t); auto using gv_inject_uninits.
+    apply gv_inject_cons_intro; auto using gv_inject_nil_refl.
+Qed.
+
+Lemma gv_inject_nptr_val_refl : forall TD v mi m,
+  (forall b ofs, v <> Vptr b ofs) ->
+  gv_inject mi (val2GV TD v m) (val2GV TD v m).
+Proof.
+  intros. unfold val2GV, gv_inject. simpl.
+  destruct v; auto. 
+    assert (J:=@H b i0). contradict J; auto.
+Qed.
+
+Lemma gv_inject_gundef_any_val : forall TD v mi t m,
+  gv_inject mi (gundef t) (val2GV TD v m).
+Proof.
+  intros. unfold val2GV, gv_inject, gundef. 
+  destruct (typ2memory_chunk t); simpl; auto.
 Qed.
 
 Lemma simulation__mtrunc_aux : forall mi TD top t1 gv1 t2 gv1' gv2,
@@ -338,30 +374,44 @@ Proof.
   apply gv_inject__val_inject with (TD:=TD) in H.
   destruct H as [v1 [v2 [J1 [J2 J3]]]].
   unfold mtrunc in *.
-  rewrite J1. rewrite J2. rewrite J1 in H0. unfold gv_inject.
+  rewrite J1. rewrite J2. rewrite J1 in H0.
   inv J3; auto.
-    destruct t1; destruct t2; inv H0; simpl; auto.
-      destruct (le_lt_dec wz s0); auto.
-    destruct t1; destruct t2; inv H0; simpl; auto.
-      destruct (floating_point_order f1 f0); inv H1; simpl; auto.
-      destruct f1; inv H0; simpl; auto.
-    inv H0. simpl. auto.
-    inv H0. simpl. auto.
+    destruct t1; destruct t2; inv H0; try solve [
+      auto using gv_inject_gundef |
+      unfold gv_inject; simpl; destruct (le_lt_dec wz s0); auto
+    ].
+
+    destruct t1; destruct t2; inv H0; auto using gv_inject_gundef.
+      destruct (floating_point_order f1 f0); inv H1; 
+        simpl; auto using gv_inject_gundef.
+      destruct f1; inv H0; unfold gv_inject; simpl; auto using gv_inject_gundef.
+ 
+    inv H0. auto using gv_inject_gundef.
+    inv H0. auto using gv_inject_gundef.
 
     right. inv H0.
-    destruct v2; try solve [exists gundef; simpl; auto using gv_inject_gundef].
-      destruct t1; try solve [exists gundef; simpl; auto using gv_inject_gundef].
-      destruct t2; try solve [exists gundef; simpl; auto using gv_inject_gundef].
+    destruct v2; try solve [exists (gundef t2); auto using gv_inject_gundef].
+      destruct t1; try solve [exists (gundef t2); auto using gv_inject_gundef].
+      remember t2 as t2'.
+      destruct t2; try solve [exists (gundef t2'); subst; 
+        auto using gv_inject_gundef].
+        subst.
         exists (val2GV TD (Val.trunc (Vint wz i0) s0) (AST.Mint s0)).
         split; auto.  
           unfold val2GV, gv_inject. simpl.
           destruct (le_lt_dec wz s0); auto.
 
-      destruct t1; try solve [exists gundef; simpl; auto using gv_inject_gundef].
-      destruct t2; try solve [exists gundef; simpl; auto using gv_inject_gundef].
+      destruct t1; try solve [exists (gundef t2); auto using gv_inject_gundef].
+      remember t2 as t2'.
+      destruct t2; try solve [exists (gundef t2'); subst; 
+         auto using gv_inject_gundef].
+      subst.
       destruct (floating_point_order f1 f0);
-        try solve [exists gundef; simpl; auto using gv_inject_gundef].
-      destruct f1; try solve [exists gundef; simpl; auto using gv_inject_gundef].
+        try solve [exists (gundef (typ_floatpoint f1)); 
+          simpl; auto using gv_inject_gundef].
+      remember f1 as f1'.
+      destruct f1; try solve [exists (gundef (typ_floatpoint f1')); subst;
+          simpl; auto using gv_inject_gundef]; subst; unfold gv_inject.
         exists (val2GV TD (Val.ftrunc (Vfloat f)) AST.Mfloat32).
           simpl. auto.  
         exists (val2GV TD (Val.ftrunc (Vfloat f)) AST.Mfloat64).
@@ -396,40 +446,44 @@ Proof.
   apply gv_inject__val_inject with (TD:=TD) in H.
   destruct H as [v1 [v2 [J1 [J2 J3]]]].
   unfold mext in *.
-  rewrite J1. rewrite J2. rewrite J1 in H0. unfold gv_inject.
+  rewrite J1. rewrite J2. rewrite J1 in H0.
   inv J3; auto.
     destruct t1; destruct t2; inv H0; simpl; auto.
-      destruct eop; inv H1; simpl; auto.
-      destruct (floating_point_order f f0); inv H1; simpl; auto.
+      destruct eop; inv H1; try solve [unfold gv_inject; simpl; auto].
+      destruct (floating_point_order f f0); inv H1; auto using gv_inject_gundef.
 
-    destruct t1; destruct t2; inv H0; simpl; auto.
-      destruct (floating_point_order f0 f1); inv H1; simpl; auto.
-      destruct eop; inv H0; simpl; auto.
+    destruct t1; destruct t2; inv H0; simpl; auto using gv_inject_gundef.
+      destruct (floating_point_order f0 f1); inv H1; simpl; 
+        auto using gv_inject_gundef.
+      destruct eop; inv H0; simpl; auto using gv_inject_gundef.
       right. exists gv1'. split; auto.        
 
-    destruct t1; destruct t2; inv H0; simpl; auto.
-      destruct (floating_point_order f f0); inv H2; simpl; auto.
+    destruct t1; destruct t2; inv H0; simpl; auto using gv_inject_gundef.
+      destruct (floating_point_order f f0); inv H2; auto using gv_inject_gundef.
 
-    destruct t1; destruct t2; inv H0; simpl; auto.
-      destruct (floating_point_order f f0); inv H1; simpl; auto.
+    destruct t1; destruct t2; inv H0; simpl; auto using gv_inject_gundef.
+      destruct (floating_point_order f f0); inv H1; 
+        simpl; auto using gv_inject_gundef.
 
-    destruct t1; destruct t2; inv H0; simpl; auto.
-      destruct v2; simpl; auto.
-      destruct eop; auto.
+    destruct t1; destruct t2; inv H0; simpl; auto using gv_inject_gundef.
+      destruct v2; simpl; auto using gv_inject_gundef.
+      destruct eop; auto using gv_inject_gundef.
         right. exists (val2GV TD (Vint wz (Int.zero_ext wz (Size.to_Z s0) i0))
            (AST.Mint (Size.to_nat s0 - 1))).
-        simpl. auto.
+        unfold gv_inject. simpl. auto.
         right. exists (val2GV TD (Vint wz (Int.sign_ext wz (Size.to_Z s0) i0))
             (AST.Mint (Size.to_nat s0 - 1))).
-        simpl. auto.
-      destruct (floating_point_order f f0); inv H1; simpl; eauto.
-        destruct v2; simpl; auto.
-        destruct eop; simpl; auto.
+        unfold gv_inject. simpl. auto.
+      destruct (floating_point_order f f0); inv H1; 
+        simpl; eauto using gv_inject_gundef.
+        destruct v2; simpl; auto using gv_inject_gundef.
+        destruct eop; simpl; auto using gv_inject_gundef.
           right. exists gv1'. split; auto.
           destruct gv1'; inv J2.
           destruct p.
           destruct gv1'; inv H0.
-          simpl. auto.
+          unfold gv_inject. unfold gundef. simpl. 
+          destruct f0; simpl; auto.
 Qed.
 
 Lemma simulation__mext : forall mi TD eop t1 gv1 t2 gv1' gv2,
@@ -585,22 +639,6 @@ Proof.
     unfold DepElim.solution_left.
     unfold eq_rect_r. simpl. 
     congruence.
-Qed.
-
-Lemma gv_inject_nptr_val_refl : forall TD v mi m,
-  (forall b ofs, v <> Vptr b ofs) ->
-  gv_inject mi (val2GV TD v m) (val2GV TD v m).
-Proof.
-  intros. unfold val2GV, gv_inject. simpl.
-  destruct v; auto. 
-    assert (J:=@H b i0). contradict J; auto.
-Qed.
-
-Lemma gv_inject_gundef_any_val : forall TD v mi m,
-  gv_inject mi gundef (val2GV TD v m).
-Proof.
-  intros. unfold val2GV, gv_inject. simpl.
-  destruct v; auto. 
 Qed.
 
 Lemma simulation__mbop_aux : forall mi TD op bsz gv1 gv1' gv2 gv2' gv3,
@@ -1009,7 +1047,7 @@ Proof.
   destruct v; tinv H0.
   destruct l1; tinv H0.
   inv H.
-  destruct (mgetoffset TD (typ_array 0%nat t0) (z :: l1)); tinv H0.
+  destruct (mgetoffset TD (typ_array 0%nat t0) (z :: l1)) as [[i1 ?]|] ; tinv H0.
   inv H0. 
   exists (Vptr b2 (Int.add 31 (Int.add 31 i0 (Int.repr 31 delta)) i1)).
   split; auto.
@@ -1022,24 +1060,6 @@ Proof.
       rewrite Int.add_assoc. auto.
 Qed.
    
-Lemma gv_inject_nil_refl : forall mi, gv_inject mi nil nil.
-Proof.
-  intros. unfold gv_inject. simpl. auto.
-Qed.
-
-Lemma gv_inject_cons_intro : forall mi v1 m1 v2 m2 gv1 gv2,
-  gv_inject mi gv1 gv2 ->
-  val_inject mi v1 v2 ->
-  gv_inject mi ((v1, m1) :: gv1) ((v2, m2) :: gv2).
-Proof.
-  intros.
-  unfold gv_inject in *. simpl.
-  remember (split gv1) as R1.
-  remember (split gv2) as R2.
-  destruct R1. destruct R2.
-  eauto.
-Qed.  
-
 Definition defined_gv (gv:GenericValue) : Prop :=
 match gv with
 | (v,_)::_ => v <> Vundef
@@ -1181,13 +1201,13 @@ Proof.
   intros mi gv1 gv1' TD t1 l0 gv J H H0.
   unfold extractGenericValue in *.
   destruct (intConsts2Nats TD l0); inv H0; 
-    try solve [exists gundef; auto using gv_inject_gundef].
-  destruct (mgetoffset TD t1 l1); inv H2;
-    try solve [exists gundef; auto using gv_inject_gundef].
+    try solve [exists (uninits 1); auto using gv_inject_uninits].
+  destruct (mgetoffset TD t1 l1) as [[o t']|]; inv H2;
+    try solve [exists (uninits 1); auto using gv_inject_uninits].
   unfold mget in *. 
-  destruct (getTypeStoreSize TD t1); inv H1; 
-    try solve [exists gundef; auto using gv_inject_gundef].
-  remember (splitGenericValue gv1 (Int.signed 31 i0)) as R.
+  destruct (getTypeStoreSize TD t'); inv H1; 
+    try solve [exists (gundef t'); auto using gv_inject_gundef].
+  remember (splitGenericValue gv1 (Int.signed 31 o)) as R.
   destruct R as [[gvl gvr]|].
     symmetry in HeqR.
     eapply simulation__splitGenericValue_some in HeqR; eauto.      
@@ -1203,13 +1223,12 @@ Proof.
       symmetry in HeqR1.
       eapply simulation__splitGenericValue_none in HeqR1; eauto.      
       rewrite HeqR1.     
-      exists gundef. auto using gv_inject_gundef.
+      exists (gundef t'). auto using gv_inject_gundef.
     symmetry in HeqR.
     eapply simulation__splitGenericValue_none in HeqR; eauto.      
     rewrite HeqR. inv H2.    
-    exists gundef. auto using gv_inject_gundef.
+    exists (gundef t'). auto using gv_inject_gundef.
 Qed.
-
 
 Lemma gv_inject_length_eq : forall mi gv1 gv2,
   gv_inject mi gv1 gv2 -> length gv1 = length gv2.
@@ -1236,17 +1255,17 @@ Proof.
   intros mi gv1 gv1' TD t1 l0 gv t2 gv2 gv2' JJ JJ' H H0 H1.
   unfold insertGenericValue in *.
   destruct (intConsts2Nats TD l0); inv H1; 
-    try solve [exists gundef; auto using gv_inject_gundef].
-  destruct (mgetoffset TD t1 l1); inv H3;
-    try solve [exists gundef; auto using gv_inject_gundef].
+    try solve [exists (gundef t1); auto using gv_inject_gundef].
+  destruct (mgetoffset TD t1 l1) as [[o ?]|]; inv H3;
+    try solve [exists (gundef t1); auto using gv_inject_gundef].
   unfold mset in *. 
   destruct (getTypeStoreSize TD t2); inv H2; 
-    try solve [exists gundef; auto using gv_inject_gundef].
+    try solve [exists (gundef t1); auto using gv_inject_gundef].
   assert (J:=@gv_inject_length_eq mi gv2 gv2' H0). 
   rewrite <- J. simpl.
   destruct (n =n= length gv2); subst;
-    try solve [inv H3; exists gundef; auto using gv_inject_gundef].
-  remember (splitGenericValue gv1 (Int.signed 31 i0)) as R.
+    try solve [inv H3; exists (gundef t1); auto using gv_inject_gundef].
+  remember (splitGenericValue gv1 (Int.signed 31 o)) as R.
   destruct R as [[gvl gvr]|].
     symmetry in HeqR.
     eapply simulation__splitGenericValue_some in HeqR; eauto.      
@@ -1266,11 +1285,11 @@ Proof.
       symmetry in HeqR1.
       eapply simulation__splitGenericValue_none in HeqR1; eauto.      
       rewrite HeqR1.     
-      exists gundef. auto using gv_inject_gundef.
+      exists (gundef t1). auto using gv_inject_gundef.
     symmetry in HeqR.
     eapply simulation__splitGenericValue_none in HeqR; eauto.      
     rewrite HeqR. inv H3.    
-    exists gundef. auto using gv_inject_gundef.
+    exists (gundef t1). auto using gv_inject_gundef.
 Qed.
 
 Lemma simulation__eq__GV2int : forall mi gn gn' TD sz,
@@ -1315,22 +1334,23 @@ Proof.
   apply gv_inject__val_inject with (TD:=TD) in H.
   destruct H as [v1 [v2 [J1 [J2 J3]]]].
   unfold mtrunc in *.
-  rewrite J1 in H0. unfold gv_inject.
+  rewrite J1 in H0. 
   rewrite J1 in J2. inv J2.
-  destruct v2; try (inv J3); try solve [inv H0; simpl; auto].
+  destruct v2; try (inv J3); try solve [inv H0; auto using gv_inject_gundef].
     destruct t1; try solve [
-      inv H0; simpl; auto |
+      inv H0; auto using gv_inject_gundef |
       destruct t2; try solve 
-        [inv H0; simpl; auto | inv H0; simpl; destruct (le_lt_dec wz s0); auto]
+        [inv H0; auto using gv_inject_gundef | 
+         inv H0; destruct (le_lt_dec wz s0); unfold gv_inject; simpl; auto]
     ].
 
     destruct t1; try solve [
-      inv H0; simpl; auto |
+      inv H0; auto using gv_inject_gundef |
       destruct t2; try solve [
-        inv H0; simpl; auto |
+        inv H0; auto using gv_inject_gundef |
         destruct (floating_point_order f1 f0); try solve [
-          destruct f1; try solve [inv H0; simpl; auto] |
-          inv H0; simpl; auto
+          destruct f1; try solve [inv H0; unfold gv_inject; simpl; auto] |
+          inv H0; auto using gv_inject_gundef
         ]
       ]
     ].
@@ -1345,14 +1365,16 @@ Proof.
   apply gv_inject__val_inject with (TD:=TD) in H.
   destruct H as [v1 [v2 [J1 [J2 J3]]]].
   unfold mext in *.
-  rewrite J1 in H0. unfold gv_inject.
+  rewrite J1 in H0.
   rewrite J1 in J2. inv J2.
-  destruct t1; destruct t2; inv H0; simpl; auto.
-    destruct v2; inv H1; simpl; auto.
-    destruct eop; inv H0; simpl; auto.
-    destruct (floating_point_order f f0); inv H1; simpl; auto.
-    destruct v2; inv H0; simpl; auto.
-    destruct eop; inv H1; simpl; auto.
+  destruct t1; destruct t2; inv H0; auto using gv_inject_gundef.
+    destruct v2; inv H1; auto using gv_inject_gundef.
+    destruct eop; inv H0; try solve [
+      auto using gv_inject_gundef | unfold gv_inject; simpl; auto].
+    destruct (floating_point_order f f0); inv H1; try solve [
+      auto using gv_inject_gundef | unfold gv_inject; simpl; auto].
+    destruct v2; inv H0; auto using gv_inject_gundef.
+    destruct eop; inv H1; auto using gv_inject_gundef.
 Qed.
 
 Lemma simulation__mbop_refl : forall mi TD op bsz gv1 gv2 gv3,
@@ -1501,7 +1523,7 @@ Proof.
   unfold mgep in *.
   destruct v; tinv H0.
   destruct l1; tinv H0.
-  destruct (mgetoffset TD (typ_array 0%nat t0) (z :: l1)); tinv H0.
+  destruct (mgetoffset TD (typ_array 0%nat t0) (z :: l1)) as [[o ?]|]; tinv H0.
   inv H0.
   inversion H. subst i0 b ofs1 b1.
   eapply val_inject_ptr; eauto.
@@ -1515,7 +1537,6 @@ Proof.
     rewrite <- H5.
     auto.
 Qed.
-
 
 Lemma GV2ptr_refl : forall mi TD gv v,
   gv_inject mi gv gv ->
@@ -1532,7 +1553,6 @@ Proof.
   unfold gv_inject in H.
   simpl in H. inv H; auto.
 Qed.
-
 
 Lemma simulation__splitGenericValue_refl : forall mi gv z gvl gvr,
   gv_inject mi gv gv ->
@@ -1570,13 +1590,13 @@ Proof.
   intros.
   unfold extractGenericValue in *.
   destruct (intConsts2Nats TD l0); inv H0;
-    try solve [auto using gv_inject_gundef].
-  destruct (mgetoffset TD t1 l1); inv H2;
-    try solve [auto using gv_inject_gundef].
+    try solve [auto using gv_inject_uninits].
+  destruct (mgetoffset TD t1 l1) as [[o t']|]; inv H2;
+    try solve [auto using gv_inject_uninits].
   unfold mget in *. 
-  destruct (getTypeStoreSize TD t1); inv H1; 
+  destruct (getTypeStoreSize TD t'); inv H1; 
     try solve [auto using gv_inject_gundef].
-  remember (splitGenericValue gv1 (Int.signed 31 i0)) as R.
+  remember (splitGenericValue gv1 (Int.signed 31 o)) as R.
   destruct R as [[gvl gvr]|]; inv H2;
     try solve [auto using gv_inject_gundef].
   symmetry in HeqR.
@@ -1600,14 +1620,14 @@ Proof.
   unfold insertGenericValue in *.
   destruct (intConsts2Nats TD l0); inv H1; 
     try solve [auto using gv_inject_gundef].
-  destruct (mgetoffset TD t1 l1); inv H3;
+  destruct (mgetoffset TD t1 l1) as [[o ?]|]; inv H3;
     try solve [auto using gv_inject_gundef].
   unfold mset in *. 
   destruct (getTypeStoreSize TD t2); inv H2; 
     try solve [ auto using gv_inject_gundef].
   destruct (n =n= length gv2); subst;
     try solve [inv H3; auto using gv_inject_gundef].
-  remember (splitGenericValue gv1 (Int.signed 31 i0)) as R.
+  remember (splitGenericValue gv1 (Int.signed 31 o)) as R.
   destruct R as [[gvl gvr]|]; inv H3;
     try solve [auto using gv_inject_gundef].
   symmetry in HeqR.
@@ -1661,7 +1681,8 @@ Case "float".
   destruct f; inv H1; unfold val2GV, gv_inject; simpl; auto.
 Case "undef".
   remember (getTypeSizeInBits TD t) as R.
-  destruct R; inv H1; unfold val2GV, gv_inject; simpl; auto.
+  destruct R; inv H1. 
+  apply gv_inject_gundef.
 Case "null".
   inv H1. unfold val2GV, gv_inject; simpl; auto.
       apply val_cons_inject; auto.

@@ -288,8 +288,8 @@ match (la, lg) with
 | ((t, _, id0)::la', nil) => 
      let '(lc',rm') := _initializeFrameValues la' nil lc rm in
      if isPointerTypB t then
-       (prop_reg_metadata lc' rm' id0 gundef (mkMD null null))
-     else (updateAddAL _ lc' id0 gundef, rm')
+       (prop_reg_metadata lc' rm' id0 (gundef t) (mkMD null null))
+     else (updateAddAL _ lc' id0 (gundef t), rm')
 | _ => (lc, rm)
 end.
 

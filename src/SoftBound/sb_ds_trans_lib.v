@@ -183,10 +183,10 @@ Proof.
           exists (ptr2GV TD v0).           
           split; auto. apply gv_inject_gundef_any_val.    
 
-          exists gundef.           
+          exists (gundef (typ_pointer typ_void)).           
           split; auto. apply gv_inject_gundef.
 
-      exists gundef. inv H4.      
+      exists (gundef (typ_pointer typ_void)). inv H4.      
       split; auto. apply gv_inject_gundef.
 
     destruct (GV2ptr TD (getPointerSize TD) gvp').
@@ -194,11 +194,11 @@ Proof.
         destruct (mgep TD t v l0). 
           exists (ptr2GV TD v0).           
           split; auto. apply gv_inject_gundef_any_val.    
-          exists gundef.           
+          exists (gundef (typ_pointer typ_void)).           
           split; auto. apply gv_inject_gundef.
-        exists gundef.           
+        exists (gundef (typ_pointer typ_void)).           
         split; auto. apply gv_inject_gundef.
-      exists gundef.           
+      exists (gundef (typ_pointer typ_void)).           
       split; auto. apply gv_inject_gundef.
 Qed.
 

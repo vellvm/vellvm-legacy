@@ -2735,8 +2735,8 @@ Case "extractvalue".
   rewrite H3. rewrite e0. 
   unfold extractGenericValue.
   destruct (intConsts2Nats targetdata5 const_list); eauto.
-  destruct (mgetoffset targetdata5 typ5 l0); eauto.
-  destruct (mget targetdata5 gv i0 typ5); eauto.
+  destruct (mgetoffset targetdata5 typ5 l0) as [[o t']|]; eauto.
+  destruct (mget targetdata5 gv o t'); eauto.
 Case "insertvalue".
   inv f.
   eapply H in H2; eauto.
@@ -2747,8 +2747,8 @@ Case "insertvalue".
   rewrite H4.
   unfold insertGenericValue.
   destruct (intConsts2Nats targetdata5 const_list); eauto.
-  destruct (mgetoffset targetdata5 typ5 l0); eauto.
-  destruct (mset targetdata5 gv i0 typ' gv'); eauto.
+  destruct (mgetoffset targetdata5 typ5 l0) as [[o t']|]; eauto.
+  destruct (mset targetdata5 gv o typ' gv'); eauto.
 Case "bop".
   assert (J:=H1).
   eapply H in H1; eauto.
@@ -3814,8 +3814,8 @@ Proof.
     assert (exists gv', extractGenericValue (los, nts) t gv l2 = Some gv') as J'.
       unfold extractGenericValue.
       destruct (intConsts2Nats (los, nts) l2); eauto.
-      destruct (mgetoffset (los, nts) t l3); eauto.
-      destruct (mget (los, nts) gv i1 t); eauto.
+      destruct (mgetoffset (los, nts) t l3) as [[o t']|]; eauto.
+      destruct (mget (los, nts) gv o t'); eauto.
     destruct J' as [gv' J'].
     exists 
          {|
@@ -3849,8 +3849,8 @@ Proof.
       Some gv'') as J''.
       unfold insertGenericValue.
       destruct (intConsts2Nats (los, nts) l2); eauto.
-      destruct (mgetoffset (los, nts) t l3); eauto.
-      destruct (mset (los, nts) gv i1 t0 gv'); eauto.
+      destruct (mgetoffset (los, nts) t l3) as [[o ?]|]; eauto.
+      destruct (mset (los, nts) gv o t0 gv'); eauto.
     destruct J'' as [gv'' J''].
     exists 
          {|

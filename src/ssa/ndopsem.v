@@ -19,6 +19,7 @@ Require Import Coqlib.
 Require Import targetdata.
 Require Import Ensembles.
 Require Import ssa_dynamic.
+Require Import Floats.
 
 Module NDopsem.
 
@@ -72,9 +73,16 @@ Proof.
   intros. apply Inhabited_intro with (x:=nil); auto using Full_intro.
 Qed.
 
+Definition undef_gvs c : GVs :=
+match c with
+| AST.Mint sz => fun gv => exists z, gv = (Vint sz z, c)::nil
+| AST.Mfloat32 | AST.Mfloat64 => fun gv => exists f, gv = (Vfloat f, c)::nil
+(*| _ =>  Full_set _*)
+end.
+
 Definition gv2gvs (gv:GenericValue) : GVs :=
 match gv with
-| (Vundef, _)::_ => Full_set _
+| (Vundef, c)::nil => undef_gvs c
 | _ => Singleton GenericValue gv
 end.
 
@@ -82,6 +90,47 @@ Notation "$ gv $" := (gv2gvs gv) (at level 41).
 Notation "% ogv %" := (mmap GenericValue GVs gv2gvs ogv) (at level 41).
 Notation "gv @ gvs" := (Ensembles.In GenericValue gvs gv) 
                          (at level 43, right associativity).
+
+Lemma undef_gvs__inhabited : forall c, 
+  Ensembles.Inhabited GenericValue (undef_gvs c).
+Proof.
+  destruct c; simpl.
+    apply Ensembles.Inhabited_intro with 
+      (x:=(Vint n (Int.zero n), AST.Mint n)::nil).
+    unfold Ensembles.In.
+    exists (Int.zero n). auto.
+    
+    apply Ensembles.Inhabited_intro with 
+      (x:=(Vfloat Float.zero, AST.Mfloat32)::nil).
+    unfold Ensembles.In.
+    exists Float.zero. auto.
+    
+    apply Ensembles.Inhabited_intro with 
+      (x:=(Vfloat Float.zero, AST.Mfloat64)::nil).
+    unfold Ensembles.In.
+    exists Float.zero. auto.
+Qed.
+
+Lemma gv2gvs__inhabited : forall gv, 
+  Ensembles.Inhabited GenericValue ($ gv $).
+Proof.
+  intros gv.
+  destruct gv; simpl.
+    apply Ensembles.Inhabited_intro with (x:=nil).
+    apply Ensembles.In_singleton.
+
+    destruct p.
+    destruct v; auto using singleton_inhabited, undef_gvs__inhabited.
+    destruct gv; auto using singleton_inhabited, undef_gvs__inhabited.
+Qed.
+
+Lemma ogv2gvs__inhabited : forall ogv gvs,
+  %ogv% = ret gvs ->
+  Ensembles.Inhabited GenericValue gvs.
+Proof.
+  destruct ogv; intros; inv H.
+    apply gv2gvs__inhabited.
+Qed.
 
 Definition getOperandValue (TD:TargetData) (v:value) (locals:GVsMap) 
   (globals:GVMap) : option GVs := 
@@ -135,16 +184,6 @@ Definition switchToNewBasicBlock (TD:TargetData) (Dest:block)
   | None => None
   end.
 
-Lemma gv_in_gv2gvs : forall gv, gv @ $ gv $.
-Proof.
-  intros.
-  destruct gv; simpl.
-    apply In_singleton; auto.
-    destruct p; simpl.
-    destruct v; simpl; auto using In_singleton.
-      apply Full_intro.
-Qed.
-
 Definition lift_op2 (f: GenericValue -> GenericValue -> option GenericValue)
   gvs1 gvs2 : GVs :=
   fun gv3 => exists gv1, exists gv2, exists gv3',
@@ -197,8 +236,9 @@ Notation "vidxs @@ vidxss" := (in_list_gvs vidxs vidxss)
 
 Definition GEP (TD:TargetData) (t:typ) (mas:GVs) (vidxss:list GVs) 
   (inbounds:bool) : option GVs :=
-  Some (fun gv => exists ma, exists vidxs, ma @ mas /\ vidxs @@ vidxss /\
-        LLVMgv.GEP TD t ma vidxs inbounds = Some gv).
+  Some (fun gv => exists ma, exists vidxs, exists gv', 
+        ma @ mas /\ vidxs @@ vidxss /\
+        LLVMgv.GEP TD t ma vidxs inbounds = Some gv' /\ (gv @ $ gv' $)).
 
 Fixpoint params2GVs (TD:TargetData) (lp:params) (locals:GVsMap) (globals:GVMap) :
  option (list GVs) :=
@@ -217,9 +257,9 @@ Fixpoint _initializeFrameValues (la:args) (lg:list GVs) (locals:GVsMap)
 match (la, lg) with
 | ((_, id)::la', g::lg') => 
   updateAddAL _ (_initializeFrameValues la' lg' locals) id g
-| ((t, id)::la', nil) => 
+| (((t, _), id)::la', nil) => 
   (* FIXME: We should initalize them w.r.t their type size. *)
-  updateAddAL _ (_initializeFrameValues la' nil locals) id (Full_set _)
+  updateAddAL _ (_initializeFrameValues la' nil locals) id ($(gundef t)$)
 | _ => locals
 end.
 
@@ -600,336 +640,6 @@ Inductive s_goeswrong : system -> id -> list GVs -> State -> Prop :=
   ~ s_isFinialState FS ->
   s_goeswrong s main VarArgs FS
 .
-
-Fixpoint instantiate_locals (lc1 : GVMap) (lc2 : GVsMap) : Prop :=
-match lc1, lc2 with
-| nil, nil => True
-| (id1,gv1)::lc1', (id2,gvs2)::lc2' => 
-    id1=id2 /\ gv1 @ gvs2 /\ instantiate_locals lc1' lc2'
-| _, _ => False
-end.
-
-Definition instantiate_EC (ec1 : LLVMopsem.ExecutionContext) 
-  (ec2 : ExecutionContext) : Prop :=
-match ec1, ec2 with
-| LLVMopsem.mkEC f1 b1 cs1 tmn1 lc1 als1, mkEC f2 b2 cs2 tmn2 lc2 als2 =>
-    f1 = f2 /\ b1 = b2 /\ cs1 = cs2 /\ tmn1 = tmn2 /\
-    instantiate_locals lc1 lc2 /\ als1 = als2
-end.
-
-Fixpoint instantiate_ECs (ecs1 : LLVMopsem.ECStack) (ecs2 : ECStack) : Prop :=
-match ecs1, ecs2 with
-| nil, nil => True
-| ec1::ecs1', ec2::ecs2' => instantiate_EC ec1 ec2 /\ instantiate_ECs ecs1' ecs2'
-| _, _ => False
-end.
-
-Definition instantiate_State (st1 : LLVMopsem.State) (st2 : State) : Prop :=
-match st1, st2 with
-| LLVMopsem.mkState s1 td1 ps1 ecs1 gl1 fs1 M1,
-  mkState s2 td2 ps2 ecs2 gl2 fs2 M2 =>
-    s1 = s2 /\ td1 = td2 /\ ps1 = ps2 /\ instantiate_ECs ecs1 ecs2 /\ gl1 = gl2
-    /\ fs1 = fs2 /\ M1 = M2
-end.
-
-Export LLVMopsem.
-
-Ltac simpl_nd_llvmds :=
-  match goal with
-  | [Hsim : instantiate_State {| ECS := _::_::_ |} ?st2 |- _ ] =>
-     destruct st2 as [S' TD' Ps' ECs' gl' fs' M'];
-     destruct Hsim as [eq1 [eq2 [eq3 [Hsim [eq4 [eq5 eq6]]]]]]; subst;
-     destruct ECs' as [|[f1' b1' cs1' tmn1' lc1' als1'] ECs']; 
-       try solve [inversion Hsim];
-     simpl in Hsim; destruct Hsim as [Hsim1 Hsim2];
-     destruct ECs' as [|[f2' b2' cs2' tmn2' lc2' als2'] ECs'];
-       try solve [inversion Hsim2];
-     destruct Hsim2 as [Hsim2 Hsim3];
-     destruct Hsim1 as [J1 [J2 [J3 [J4 [Hsim1 J6]]]]]; subst;
-     destruct Hsim2 as [J1 [J2 [J3 [J4 [Hsim2 J6]]]]]; subst
-  | [Hsim : instantiate_State {| ECS := _::_|} ?st2 |- _ ] =>
-     destruct st2 as [S' TD' Ps' ECs' gl' fs' M'];
-     destruct Hsim as [eq1 [eq2 [eq3 [Hsim [eq4 [eq5 eq6]]]]]]; subst;
-     destruct ECs' as [|[f1' b1' cs1' tmn1' lc1' als1'] ECs']; 
-       try solve [inversion Hsim];
-     simpl in Hsim; destruct Hsim as [Hsim1 Hsim2];
-     destruct Hsim1 as [J1 [J2 [J3 [J4 [Hsim1 J6]]]]]; subst
-  end.
-
-Lemma instantiate_locals__lookup : forall lc1 lc2 id1 gv1,
-  instantiate_locals lc1 lc2 -> 
-  lookupAL _ lc1 id1 = Some gv1 ->
-  exists gvs2, lookupAL _ lc2 id1 = Some gvs2 /\ gv1 @ gvs2.
-Proof.
-  induction lc1; destruct lc2; simpl; intros id1 gv1 Hinst Hlk.  
-    inv Hlk.
-    inv Hinst.
-    destruct a. inv Hinst.     
-
-    destruct a. destruct p.
-    destruct Hinst as [J1 [J2 J3]]; subst.
-    destruct (id1 == i1); subst; eauto.
-      inv Hlk. eauto.
-Qed.
-
-Lemma instantiate_locals__getOperandValue : forall TD v lc1 lc2 gl gv1,
-  instantiate_locals lc1 lc2 -> 
-  getOperandValue TD v lc1 gl = Some gv1 ->
-  exists gvs2, NDopsem.getOperandValue TD v lc2 gl = Some gvs2 /\
-    gv1 @ gvs2.
-Proof.
-  intros.
-  destruct v; simpl in *.
-    eapply instantiate_locals__lookup; eauto.
-    exists ($ gv1 $). unfold mmap. rewrite H0. simpl. 
-    auto using gv_in_gv2gvs.
-Qed.
-
-Lemma instantiate_locals__returnUpdateLocals : forall TD lc1 lc2 lc1' lc2' Result
-    gl lc1'' c,
-  instantiate_locals lc1 lc2 -> 
-  instantiate_locals lc1' lc2' -> 
-  returnUpdateLocals TD c Result lc1 lc1' gl = ret lc1'' ->
-  exists lc2'', 
-    NDopsem.returnUpdateLocals TD c Result lc2 lc2' gl = ret lc2'' /\
-    instantiate_locals lc1'' lc2''. 
-Proof.
-  intros.
-  unfold returnUpdateLocals in H1.
-
-Admitted.    
-
-Lemma instantiate_locals__switchToNewBasicBlock : forall TD lc1 lc2 gl lc1' b b',
-  instantiate_locals lc1 lc2 -> 
-  switchToNewBasicBlock TD b' b gl lc1 = Some lc1' ->
-  exists lc2', NDopsem.switchToNewBasicBlock TD b' b gl lc2 = Some lc2' /\
-    instantiate_locals lc1' lc2'. 
-Admitted.
-
-Lemma in_lift_op2 : forall f x y z xs ys,
-  f x y = Some z ->
-  x @ xs ->
-  y @ ys ->
-  z @ lift_op2 f xs ys.
-Proof.
-  intros. unfold lift_op2. 
-  unfold Ensembles.In.
-  exists x. exists y. exists z. rewrite H. 
-  repeat (split; auto).
-    apply gv_in_gv2gvs.
-Qed.
-
-Lemma instantiate_locals__BOP : forall TD lc1 lc2 gl v1 v2 gv3 bop sz,
-  instantiate_locals lc1 lc2 -> 
-  BOP TD lc1 gl bop sz v1 v2 = Some gv3 ->
-  exists gvs3', NDopsem.BOP TD lc2 gl bop sz v1 v2 = Some gvs3' /\
-    gv3 @ gvs3'.
-Proof.
-  intros.
-  apply BOP_inversion in H0.
-  destruct H0 as [gv1 [gv2 [J1 [J2 J3]]]].
-  eapply instantiate_locals__getOperandValue in J1; eauto.
-  destruct J1 as [gvs1 [H1 H2]].
-  eapply instantiate_locals__getOperandValue in J2; eauto.
-  destruct J2 as [gvs2 [H3 H4]].
-  unfold NDopsem.BOP.
-  rewrite H1. rewrite H3.
-  exists (lift_op2 (mbop TD bop0 sz0) gvs1 gvs2).
-  split; eauto using in_lift_op2.
-Qed.
-  
-Lemma instantiate_locals__updateAddAL : forall lc1 lc2 id0 gv3 gvs3',
-  instantiate_locals lc1 lc2 -> 
-  gv3 @ gvs3' ->
-  instantiate_locals (updateAddAL GenericValue lc1 id0 gv3)
-    (updateAddAL GVs lc2 id0 gvs3').
-Admitted.
-
-Lemma instantiate_locals__values2GVs : forall TD lc1 lc2 gl vidxs idxs,
-  instantiate_locals lc1 lc2 -> 
-  values2GVs TD idxs lc1 gl = Some vidxs ->
-  exists vidxss, NDopsem.values2GVs TD idxs lc2 gl = Some vidxss /\
-    vidxs @@ vidxss.
-Admitted.
-
-Lemma instantiate_locals__GEP : forall TD t mp1 mp1' vidxs vidxss inbounds mps2,
-  vidxs @@ vidxss ->
-  mp1 @ mps2 ->
-  GEP TD t mp1 vidxs inbounds = Some mp1' ->
-  exists mps2', NDopsem.GEP TD t mps2 vidxss inbounds = Some mps2' /\ 
-    mp1' @ mps2'.
-Admitted.
-
-Lemma instantiate_locals__CAST : forall TD lc1 lc2 gl t1 v1 t2 gv2 castop0,
-  instantiate_locals lc1 lc2 -> 
-  CAST TD lc1 gl castop0 t1 v1 t2 = Some gv2 ->
-  exists gvs2', NDopsem.CAST TD lc2 gl castop0 t1 v1 t2 = Some gvs2' 
-    /\ gv2 @ gvs2'.
-Admitted.
-
-Lemma lookupFdefViaGV_inversion : forall TD Ps gl lc fs fv f,
-  lookupFdefViaGV TD Ps gl lc fs fv = Some f ->
-  exists fptr, exists fn,
-    getOperandValue TD fv lc gl = Some fptr /\
-    lookupFdefViaGVFromFunTable fs fptr = Some fn /\
-    lookupFdefViaIDFromProducts Ps fn = Some f.
-Admitted.
-
-Lemma instantiate_locals__params2GVs : forall TD lc1 lc2 gl lp gvs1,
-  instantiate_locals lc1 lc2 ->
-  params2GVs TD lp lc1 gl = Some gvs1 ->
-  exists gvss2, NDopsem.params2GVs TD lp lc2 gl = Some gvss2 /\
-    gvs1 @@ gvss2.
-Admitted.
-
-Lemma instantiate_locals__initLocals : forall la gvs1 gvss2,
-  gvs1 @@ gvss2 ->
-  instantiate_locals (initLocals la gvs1) (NDopsem.initLocals la gvss2).
-Admitted.
-
-Lemma test : forall st1 st2 st1' tr,
-  instantiate_State st1 st2 ->
-  LLVMopsem.dsInsn st1 st1' tr ->
-  exists st2', sInsn st2 st2' tr /\ instantiate_State st1' st2'.
-Proof.
-  intros st1 st2 st1' tr Hsim Hop.  
-  (dsInsn_cases (induction Hop) Case).
-Case "dsReturn". simpl_nd_llvmds. 
-  eapply instantiate_locals__returnUpdateLocals in H1; eauto.
-  destruct H1 as [lc2'' [H1 H2]].
-  exists (NDopsem.mkState S' TD' Ps' 
-    ((NDopsem.mkEC f2' b2' cs' tmn2' lc2'' als2')::ECs') gl' fs' Mem').
-  split; eauto.
-    repeat (split; auto).
-Case "dsReturnVoid". simpl_nd_llvmds. 
-  exists (NDopsem.mkState S' TD' Ps' 
-    ((NDopsem.mkEC f2' b2' cs' tmn2' lc2' als2')::ECs') gl' fs' Mem').
-  split; eauto.
-    repeat (split; auto).
-Case "dsBranch". simpl_nd_llvmds. 
-  eapply instantiate_locals__switchToNewBasicBlock in H1; eauto.
-  eapply instantiate_locals__getOperandValue in H; eauto.
-  destruct H as [gvs2 [J1 J2]].
-  destruct H1 as [lc2' [J3 J4]].
-  exists (NDopsem.mkState S' TD' Ps' 
-    ((NDopsem.mkEC f1' (block_intro l' ps' cs' tmn') cs' tmn' lc2' als1')
-      ::ECs') gl' fs' M').
-  split; eauto.
-    repeat (split; auto).
-Case "dsBranch_uncond". simpl_nd_llvmds. 
-  eapply instantiate_locals__switchToNewBasicBlock in H0; eauto.
-  destruct H0 as [lc2' [J1 J2]].
-  exists (NDopsem.mkState S' TD' Ps' 
-    ((NDopsem.mkEC f1' (block_intro l' ps' cs' tmn') cs' tmn' lc2' als1')
-      ::ECs') gl' fs' M').
-  split; eauto.
-    repeat (split; auto).
-Case "dsBop". simpl_nd_llvmds. 
-  eapply instantiate_locals__BOP in H; eauto.
-  destruct H as [gvs3' [J1 J2]].
-  exists (NDopsem.mkState S' TD' Ps' 
-    ((NDopsem.mkEC f1' b1' cs tmn1' (updateAddAL _ lc1' id0 gvs3') als1')
-      ::ECs') gl' fs' M').
-  split; eauto.
-    repeat (split; auto using instantiate_locals__updateAddAL).
-Case "dsFBop". admit.
-Case "dsExtractValue". admit.
-Case "dsInsertValue". admit.
-Case "dsMalloc". simpl_nd_llvmds. 
-  eapply instantiate_locals__getOperandValue in H0; eauto.
-  destruct H0 as [gns [J1 J2]].
-  exists (NDopsem.mkState S' TD' Ps' 
-    ((NDopsem.mkEC f1' b1' cs tmn1' 
-      (updateAddAL _ lc1' id0 ($ (blk2GV TD' mb) $)) 
-    als1')::ECs') gl' fs' Mem').
-  split; eauto.
-    repeat (split; auto).
-      apply instantiate_locals__updateAddAL; auto.
-      unfold blk2GV, ptr2GV, val2GV.
-      apply gv_in_gv2gvs.
-Case "dsFree". simpl_nd_llvmds. 
-  eapply instantiate_locals__getOperandValue in H; eauto.
-  destruct H as [gvs [J1 J2]].
-  exists (NDopsem.mkState S' TD' Ps' 
-    ((NDopsem.mkEC f1' b1' cs tmn1' lc1'
-    als1')::ECs') gl' fs' Mem').
-  split; eauto.
-    repeat (split; auto).
-Case "dsAlloca". simpl_nd_llvmds. 
-  eapply instantiate_locals__getOperandValue in H0; eauto.
-  destruct H0 as [gns [J1 J2]].
-  exists (NDopsem.mkState S' TD' Ps' 
-    ((NDopsem.mkEC f1' b1' cs tmn1' 
-      (updateAddAL _ lc1' id0 ($ (blk2GV TD' mb) $)) 
-    (mb::als1'))::ECs') gl' fs' Mem').
-  split; eauto.
-    repeat (split; auto).
-      apply instantiate_locals__updateAddAL; auto.
-      unfold blk2GV, ptr2GV, val2GV.
-      apply gv_in_gv2gvs.
-Case "dsLoad". simpl_nd_llvmds. 
-  eapply instantiate_locals__getOperandValue in H; eauto.
-  destruct H as [gvs2 [J1 J2]].
-  exists (NDopsem.mkState S' TD' Ps' 
-    ((NDopsem.mkEC f1' b1' cs tmn1' (updateAddAL _ lc1' id0 ($ gv $))
-    als1')::ECs') gl' fs' M').
-  split; eauto.
-    repeat (split; auto using instantiate_locals__updateAddAL, gv_in_gv2gvs).
-Case "dsStore". simpl_nd_llvmds. 
-  eapply instantiate_locals__getOperandValue in H; eauto.
-  destruct H as [gvs2 [J1 J2]].
-  eapply instantiate_locals__getOperandValue in H0; eauto.
-  destruct H0 as [mps2 [J3 J4]].
-  exists (NDopsem.mkState S' TD' Ps' 
-    ((NDopsem.mkEC f1' b1' cs tmn1' lc1' als1')::ECs') gl' fs' Mem').
-  split; eauto.
-    repeat (split; auto).
-Case "dsGEP". simpl_nd_llvmds. 
-  eapply instantiate_locals__getOperandValue in H; eauto.
-  destruct H as [mps [J1 J2]].
-  eapply instantiate_locals__values2GVs in H0; eauto.
-  destruct H0 as [vidxss [J3 J4]].
-  eapply instantiate_locals__GEP in H1; eauto.
-  destruct H1 as [mps2' [J5 J6]].
-  exists (NDopsem.mkState S' TD' Ps' 
-    ((NDopsem.mkEC f1' b1' cs tmn1' (updateAddAL _ lc1' id0 mps2') als1')
-      ::ECs') gl' fs' M').
-  split; eauto.
-    repeat (split; auto using instantiate_locals__updateAddAL).
-Case "dsTrunc". admit.
-Case "dsExt". admit.
-Case "dsCast". simpl_nd_llvmds. 
-  eapply instantiate_locals__CAST in H; eauto.
-  destruct H as [gvs2' [J1 J2]].
-  exists (NDopsem.mkState S' TD' Ps' 
-    ((NDopsem.mkEC f1' b1' cs tmn1' (updateAddAL _ lc1' id0 gvs2') als1')
-      ::ECs') gl' fs' M').
-  split; eauto.
-    repeat (split; auto using instantiate_locals__updateAddAL).
-Case "dsIcmp". admit.
-Case "dsFcmp". admit.
-Case "dsSelect". admit.
-Case "dsCall". simpl_nd_llvmds. 
-  apply lookupFdefViaGV_inversion in H.
-  destruct H as [fptr [fn [J1 [J2 J3]]]].
-  eapply instantiate_locals__getOperandValue in J1; eauto.
-  destruct J1 as [gvs2 [J11 J12]].
-  eapply instantiate_locals__params2GVs in H1; eauto.
-  destruct H1 as [gvss2 [H11 H12]].
-  exists (NDopsem.mkState S' TD' Ps' 
-    ((NDopsem.mkEC (fdef_intro (fheader_intro fa rt fid la va) lb) 
-                       (block_intro l' ps' cs' tmn') cs' tmn' 
-                       (NDopsem.initLocals la gvss2) 
-                       nil)::
-     (NDopsem.mkEC f1' b1' (insn_call rid noret0 ca ft fv lp :: cs) tmn1' 
-      lc1' als1') ::ECs') gl' fs' M').
-  split.
-    eapply sCall; eauto.
-      unfold lookupFdefViaPtr. 
-      rewrite J2. simpl. rewrite J3. auto.
-    repeat (split; auto using instantiate_locals__initLocals).
-Case "dsExCall". admit.
-Qed.
 
 End NDopsem.
 

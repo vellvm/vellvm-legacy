@@ -2427,8 +2427,8 @@ Proof.
     assert (exists gv', extractGenericValue (los, nts) t gv l2 = Some gv') as J'.
       unfold extractGenericValue.
       destruct (intConsts2Nats (los, nts) l2); eauto.
-      destruct (mgetoffset (los, nts) t l3); eauto.
-      destruct (mget (los, nts) gv i1 t); eauto.
+      destruct (mgetoffset (los, nts) t l3) as [[i1 t']|]; eauto.
+      destruct (mget (los, nts) gv i1 t'); eauto.
     destruct J' as [gv' J'].
     exists {|
          SBopsem.CurSystem := s;
@@ -2463,7 +2463,7 @@ Proof.
       Some gv'') as J''.
       unfold insertGenericValue.
       destruct (intConsts2Nats (los, nts) l2); eauto.
-      destruct (mgetoffset (los, nts) t l3); eauto.
+      destruct (mgetoffset (los, nts) t l3) as [[i1 ?]|]; eauto.
       destruct (mset (los, nts) gv i1 t0 gv'); eauto.
     destruct J'' as [gv'' J''].
     exists 
