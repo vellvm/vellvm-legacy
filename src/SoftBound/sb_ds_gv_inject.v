@@ -448,7 +448,7 @@ Proof.
   unfold mext in *.
   rewrite J1. rewrite J2. rewrite J1 in H0.
   inv J3; auto.
-    destruct t1; destruct t2; inv H0; simpl; auto.
+    destruct t1; destruct t2; inv H0; simpl; auto using gv_inject_gundef.
       destruct eop; inv H1; try solve [unfold gv_inject; simpl; auto].
       destruct (floating_point_order f f0); inv H1; auto using gv_inject_gundef.
 

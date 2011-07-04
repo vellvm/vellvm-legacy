@@ -392,6 +392,439 @@ Proof.
   split; eauto using instantiate_gv__mbop.
 Qed.
   
+Lemma mfbop_is_total : forall TD fbop0 fp x y, 
+  exists z, mfbop TD fbop0 fp x y = Some z.
+Proof.
+  intros.
+  unfold mfbop.
+  destruct (GV2val TD x); eauto.
+  destruct v; eauto.
+  destruct (GV2val TD y); eauto.
+  destruct v; eauto.
+  destruct fp; eauto.
+Qed.
+
+Lemma instantiate_gv__mfbop__helper : forall x xs y ys TD fbop0 fp
+  (H0 : instantiate_gv x xs)
+  (H1 : instantiate_gv y ys),
+   Inhabited GenericValue
+     (fun gv3 : GenericValue =>
+      exists gv1 : GenericValue,
+        exists gv2 : GenericValue,
+          exists gv3' : GenericValue,
+            gv1 @ xs /\
+            gv2 @ ys /\ mfbop TD fbop0 fp gv1 gv2 = ret gv3' /\ gv3 @ $ gv3' $).
+Proof.
+  intros.
+  apply instantiate_gv__inhabited in H0. inv H0.
+  apply instantiate_gv__inhabited in H1. inv H1.
+  destruct (@mfbop_is_total TD fbop0 fp x0 x1) as [z J].
+  assert (J1:=@gv2gvs__inhabited z). inv J1.
+  exists x2. unfold Ensembles.In. exists x0. exists x1. exists z.
+  split; auto. 
+Qed.
+
+Lemma instantiate_gv__mfbop : forall TD fbop0 fp x y z xs ys,
+  mfbop TD fbop0 fp x y = Some z ->
+  instantiate_gv x xs ->
+  instantiate_gv y ys ->
+  instantiate_gv z (lift_op2 (mfbop TD fbop0 fp) xs ys).
+Proof.
+  intros. unfold lift_op2.
+  destruct x; try solve [inv H; destruct fp; simpl; 
+      eapply instantiate_gv__mfbop__helper; eauto].
+  destruct p.
+  destruct x; try solve [inv H; destruct fp; simpl; 
+      eapply instantiate_gv__mfbop__helper; eauto].
+  destruct v; try solve [inv H; destruct fp; simpl; 
+      eapply instantiate_gv__mfbop__helper; eauto].
+  destruct y; try solve [inv H; destruct fp; simpl; 
+      eapply instantiate_gv__mfbop__helper; eauto].
+  destruct p.
+  destruct y; try solve [inv H; destruct fp; simpl; 
+      eapply instantiate_gv__mfbop__helper; eauto].
+  destruct v; try solve [inv H; destruct fp; simpl; 
+      eapply instantiate_gv__mfbop__helper; eauto].
+  apply Extensionality_Ensembles in H0. subst.
+  apply Extensionality_Ensembles in H1. subst.
+  assert (J1:=@gv2gvs__inhabited z). inv J1.
+
+  assert (exists v, exists c, z = (v,c)::nil) as EQ.
+    unfold mfbop in H.
+    destruct (GV2val TD ((Vfloat f, m) :: nil));
+      try solve [inv H; destruct fp; unfold gundef, uninits; simpl; eauto].
+    destruct v; try solve 
+      [inv H; destruct fp; unfold gundef, uninits; simpl; eauto].
+    destruct (GV2val TD ((Vfloat f0, m0) :: nil));
+      try solve [inv H; destruct fp; unfold gundef, uninits; simpl; eauto].
+    destruct v; try solve 
+      [inv H; destruct fp; unfold gundef, uninits; simpl; eauto].
+    unfold val2GV in *.
+    destruct fp; destruct fbop0; 
+      try solve [inv H; unfold gundef, uninits; simpl; eauto].
+    
+  destruct EQ as [v [c EQ]]. subst.
+  simpl.   
+  destruct v.
+    exists x. exists ((Vfloat f, m) :: nil). exists ((Vfloat f0, m0) :: nil).
+    exists ((Vundef, c) :: nil). 
+    repeat (split; try solve [auto | constructor]).
+
+    unfold Same_set, Included.
+    split; intros.
+      inv H1. unfold Ensembles.In. 
+      exists ((Vfloat f, m) :: nil). exists ((Vfloat f0, m0) :: nil).
+      exists ((Vint wz i0, c) :: nil). 
+      repeat (split; try solve [auto | constructor]).
+
+      inv H1. unfold Ensembles.In. 
+      destruct H2 as [gv2 [gv3 [J1 [J2 [J3 J4]]]]].
+      inv J1. inv J2.
+      rewrite H in J3. inv J3. inv J4. constructor.
+
+    unfold Same_set, Included.
+    split; intros.
+      inv H1. unfold Ensembles.In. 
+      exists ((Vfloat f, m) :: nil). exists ((Vfloat f0, m0) :: nil).
+      exists ((Vfloat f1, c) :: nil). 
+      repeat (split; try solve [auto | constructor]).
+
+      inv H1. unfold Ensembles.In. 
+      destruct H2 as [gv2 [gv3 [J1 [J2 [J3 J4]]]]].
+      inv J1. inv J2.
+      rewrite H in J3. inv J3. inv J4. constructor.
+
+    unfold Same_set, Included.
+    split; intros.
+      inv H0. unfold Ensembles.In. 
+      exists ((Vfloat f, m) :: nil). exists ((Vfloat f0, m0) :: nil).
+      exists ((Vptr b i0, c) :: nil). 
+      repeat (split; try solve [auto | constructor]).
+
+      inv H1. unfold Ensembles.In. 
+      destruct H2 as [gv2 [gv3 [J1 [J2 [J3 J4]]]]].
+      inv J1. inv J2.
+      rewrite H in J3. inv J3. inv J4. constructor.
+
+    unfold Same_set, Included.
+    split; intros.
+      inv H0. unfold Ensembles.In. 
+      exists ((Vfloat f, m) :: nil). exists ((Vfloat f0, m0) :: nil).
+      exists ((Vinttoptr i0, c) :: nil). 
+      repeat (split; try solve [auto | constructor]).
+
+      inv H1. unfold Ensembles.In. 
+      destruct H2 as [gv2 [gv3 [J1 [J2 [J3 J4]]]]].
+      inv J1. inv J2.
+      rewrite H in J3. inv J3. inv J4. constructor.
+Qed.
+
+Lemma instantiate_locals__FBOP : forall TD lc1 lc2 gl v1 v2 gv3 fbop fp,
+  instantiate_locals lc1 lc2 -> 
+  FBOP TD lc1 gl fbop fp v1 v2 = Some gv3 ->
+  exists gvs3', NDopsem.FBOP TD lc2 gl fbop fp v1 v2 = Some gvs3' /\
+    instantiate_gv gv3 gvs3'.
+Proof.
+  intros.
+  apply FBOP_inversion in H0.
+  destruct H0 as [gv1 [gv2 [J1 [J2 J3]]]].
+  eapply instantiate_locals__getOperandValue in J1; eauto.
+  destruct J1 as [gvs1 [H1 H2]].
+  eapply instantiate_locals__getOperandValue in J2; eauto.
+  destruct J2 as [gvs2 [H3 H4]].
+  unfold NDopsem.FBOP.
+  rewrite H1. rewrite H3.
+  exists (lift_op2 (mfbop TD fbop0 fp) gvs1 gvs2).
+  split; eauto using instantiate_gv__mfbop.
+Qed.
+
+Lemma micmp_is_total : forall TD c t x y, 
+  exists z, micmp TD c t x y = Some z.
+Proof.
+  intros.
+  unfold micmp, micmp_int.
+  destruct t; eauto.
+  destruct (GV2val TD x); eauto.
+  destruct v; eauto.
+  destruct (GV2val TD y); eauto.
+  destruct v; eauto.
+  destruct c; eauto.
+Qed.
+
+Lemma instantiate_gv__micmp__helper : forall x xs y ys TD c t
+  (H0 : instantiate_gv x xs)
+  (H1 : instantiate_gv y ys),
+   Inhabited GenericValue
+     (fun gv3 : GenericValue =>
+      exists gv1 : GenericValue,
+        exists gv2 : GenericValue,
+          exists gv3' : GenericValue,
+            gv1 @ xs /\
+            gv2 @ ys /\ micmp TD c t gv1 gv2 = ret gv3' /\ gv3 @ $ gv3' $).
+Proof.
+  intros.
+  apply instantiate_gv__inhabited in H0. inv H0.
+  apply instantiate_gv__inhabited in H1. inv H1.
+  destruct (@micmp_is_total TD c t x0 x1) as [z J].
+  assert (J1:=@gv2gvs__inhabited z). inv J1.
+  exists x2. unfold Ensembles.In. exists x0. exists x1. exists z.
+  split; auto. 
+Qed.
+
+Lemma instantiate_gv__micmp : forall TD c t x y z xs ys,
+  micmp TD c t x y = Some z ->
+  instantiate_gv x xs ->
+  instantiate_gv y ys ->
+  instantiate_gv z (lift_op2 (micmp TD c t) xs ys).
+Proof.
+  intros. unfold lift_op2.
+  unfold micmp in H.
+Opaque micmp.
+  destruct t; try solve [inv H; simpl; 
+      eapply instantiate_gv__micmp__helper; eauto].
+  destruct x; try solve [inv H; simpl; 
+      eapply instantiate_gv__micmp__helper; eauto].
+  destruct p.
+  destruct x; try solve [inv H; simpl; 
+      eapply instantiate_gv__micmp__helper; eauto].
+  destruct v; try solve [inv H; simpl; 
+      eapply instantiate_gv__micmp__helper; eauto].
+  destruct y; try solve [inv H; simpl; 
+      eapply instantiate_gv__micmp__helper; eauto].
+  destruct p.
+  destruct y; try solve [inv H; simpl; 
+      eapply instantiate_gv__micmp__helper; eauto].
+  destruct v; try solve [inv H; simpl; 
+      eapply instantiate_gv__micmp__helper; eauto].
+  apply Extensionality_Ensembles in H0. subst.
+  apply Extensionality_Ensembles in H1. subst.
+  assert (J1:=@gv2gvs__inhabited z). inv J1.
+Transparent micmp.
+  assert (exists v, exists c, z = (v,c)::nil) as EQ.
+    unfold micmp_int in H.
+    destruct (GV2val TD ((Vint wz i0, m) :: nil));
+      try solve [inv H; unfold gundef; simpl; eauto].
+    destruct v; try solve [inv H; unfold gundef; simpl; eauto].
+    destruct (GV2val TD ((Vint wz0 i1, m0) :: nil));
+      try solve [inv H; unfold gundef; simpl; eauto].
+    destruct v; try solve [inv H; unfold gundef; simpl; eauto].
+    unfold val2GV in *.
+    destruct c; try solve [inv H; unfold gundef; simpl; eauto].
+    
+  destruct EQ as [v [c' EQ]]. subst.
+  simpl.   
+  destruct v.
+    exists x. exists ((Vint wz i0, m) :: nil). exists ((Vint wz0 i1, m0) :: nil).
+    exists ((Vundef, c') :: nil). 
+    repeat (split; try solve [auto | constructor]).
+
+    unfold Same_set, Included.
+    split; intros.
+      inv H1. unfold Ensembles.In.
+      exists ((Vint wz i0, m) :: nil). exists ((Vint wz0 i1, m0) :: nil). 
+      exists ((Vint wz1 i2, c') :: nil). 
+      repeat (split; try solve [auto | constructor]).
+
+      inv H1. unfold Ensembles.In. 
+      destruct H2 as [gv2 [gv3 [J1 [J2 [J3 J4]]]]].
+      inv J1. inv J2.
+      rewrite H in J3. inv J3. inv J4. constructor.
+
+    unfold Same_set, Included.
+    split; intros.
+      inv H1. unfold Ensembles.In. 
+      exists ((Vint wz i0, m) :: nil). exists ((Vint wz0 i1, m0) :: nil). 
+      exists ((Vfloat f, c') :: nil). 
+      repeat (split; try solve [auto | constructor]).
+
+      inv H1. unfold Ensembles.In. 
+      destruct H2 as [gv2 [gv3 [J1 [J2 [J3 J4]]]]].
+      inv J1. inv J2.
+      rewrite H in J3. inv J3. inv J4. constructor.
+
+    unfold Same_set, Included.
+    split; intros.
+      inv H0. unfold Ensembles.In. 
+      exists ((Vint wz i0, m) :: nil). exists ((Vint wz0 i1, m0) :: nil). 
+      exists ((Vptr b i2, c') :: nil). 
+      repeat (split; try solve [auto | constructor]).
+
+      inv H1. unfold Ensembles.In. 
+      destruct H2 as [gv2 [gv3 [J1 [J2 [J3 J4]]]]].
+      inv J1. inv J2.
+      rewrite H in J3. inv J3. inv J4. constructor.
+
+    unfold Same_set, Included.
+    split; intros.
+      inv H0. unfold Ensembles.In. 
+      exists ((Vint wz i0, m) :: nil). exists ((Vint wz0 i1, m0) :: nil). 
+      exists ((Vinttoptr i2, c') :: nil). 
+      repeat (split; try solve [auto | constructor]).
+
+      inv H1. unfold Ensembles.In. 
+      destruct H2 as [gv2 [gv3 [J1 [J2 [J3 J4]]]]].
+      inv J1. inv J2.
+      rewrite H in J3. inv J3. inv J4. constructor.
+Qed.
+
+Lemma instantiate_locals__ICMP : forall TD lc1 lc2 gl v1 v2 gv3 c t,
+  instantiate_locals lc1 lc2 -> 
+  ICMP TD lc1 gl c t v1 v2 = Some gv3 ->
+  exists gvs3', NDopsem.ICMP TD lc2 gl c t v1 v2 = Some gvs3' /\
+    instantiate_gv gv3 gvs3'.
+Proof.
+  intros.
+  apply ICMP_inversion in H0.
+  destruct H0 as [gv1 [gv2 [J1 [J2 J3]]]].
+  eapply instantiate_locals__getOperandValue in J1; eauto.
+  destruct J1 as [gvs1 [H1 H2]].
+  eapply instantiate_locals__getOperandValue in J2; eauto.
+  destruct J2 as [gvs2 [H3 H4]].
+  unfold NDopsem.ICMP.
+  rewrite H1. rewrite H3.
+  exists (lift_op2 (micmp TD c t) gvs1 gvs2).
+  split; eauto using instantiate_gv__micmp.
+Qed.
+
+Lemma mfcmp_is_total : forall TD c t x y, 
+  exists z, mfcmp TD c t x y = Some z.
+Proof.
+  intros.
+  unfold mfcmp.
+  destruct (GV2val TD x); eauto.
+  destruct v; eauto.
+  destruct (GV2val TD y); eauto.
+  destruct v; eauto.
+  destruct t; destruct c; eauto.
+Qed.
+
+Lemma instantiate_gv__mfcmp__helper : forall x xs y ys TD c t
+  (H0 : instantiate_gv x xs)
+  (H1 : instantiate_gv y ys),
+   Inhabited GenericValue
+     (fun gv3 : GenericValue =>
+      exists gv1 : GenericValue,
+        exists gv2 : GenericValue,
+          exists gv3' : GenericValue,
+            gv1 @ xs /\
+            gv2 @ ys /\ mfcmp TD c t gv1 gv2 = ret gv3' /\ gv3 @ $ gv3' $).
+Proof.
+  intros.
+  apply instantiate_gv__inhabited in H0. inv H0.
+  apply instantiate_gv__inhabited in H1. inv H1.
+  destruct (@mfcmp_is_total TD c t x0 x1) as [z J].
+  assert (J1:=@gv2gvs__inhabited z). inv J1.
+  exists x2. unfold Ensembles.In. exists x0. exists x1. exists z.
+  split; auto. 
+Qed.
+
+Lemma instantiate_gv__mfcmp : forall TD c t x y z xs ys,
+  mfcmp TD c t x y = Some z ->
+  instantiate_gv x xs ->
+  instantiate_gv y ys ->
+  instantiate_gv z (lift_op2 (mfcmp TD c t) xs ys).
+Proof.
+  intros. unfold lift_op2.
+  unfold mfcmp in H.
+Opaque mfcmp.
+  destruct x; try solve [inv H; simpl; 
+      eapply instantiate_gv__mfcmp__helper; eauto].
+  destruct p.
+  destruct x; try solve [inv H; simpl; 
+      eapply instantiate_gv__mfcmp__helper; eauto].
+  destruct v; try solve [inv H; simpl; 
+      eapply instantiate_gv__mfcmp__helper; eauto].
+  destruct y; try solve [inv H; simpl; 
+      eapply instantiate_gv__mfcmp__helper; eauto].
+  destruct p.
+  destruct y; try solve [inv H; simpl; 
+      eapply instantiate_gv__mfcmp__helper; eauto].
+  destruct v; try solve [inv H; simpl; 
+      eapply instantiate_gv__mfcmp__helper; eauto].
+  simpl in H.
+  apply Extensionality_Ensembles in H0. subst.
+  apply Extensionality_Ensembles in H1. subst.
+  assert (J1:=@gv2gvs__inhabited z). inv J1.
+Transparent mfcmp.
+  assert (exists v, exists c, z = (v,c)::nil) as EQ.
+    unfold val2GV in *.
+    destruct t; destruct c; try solve [inv H; unfold gundef; simpl; eauto].
+  destruct EQ as [v [c' EQ]]. subst.
+  unfold mfcmp.
+  simpl.   
+  destruct v.
+    exists x. exists ((Vfloat f, m) :: nil). exists ((Vfloat f0, m0) :: nil).
+    exists ((Vundef, c') :: nil). 
+    repeat (split; try solve [auto | constructor]).
+
+    unfold Same_set, Included.
+    split; intros.
+      inv H1. unfold Ensembles.In.
+      exists ((Vfloat f, m) :: nil). exists ((Vfloat f0, m0) :: nil).
+      exists ((Vint wz i0, c') :: nil). 
+      repeat (split; try solve [auto | constructor]).
+
+      inv H1. unfold Ensembles.In. 
+      destruct H2 as [gv2 [gv3 [J1 [J2 [J3 J4]]]]].
+      inv J1. inv J2. simpl in J3.
+      rewrite H in J3. inv J3. inv J4. constructor.
+
+    unfold Same_set, Included.
+    split; intros.
+      inv H1. unfold Ensembles.In. 
+      exists ((Vfloat f, m) :: nil). exists ((Vfloat f0, m0) :: nil).
+      exists ((Vfloat f1, c') :: nil). 
+      repeat (split; try solve [auto | constructor]).
+
+      inv H1. unfold Ensembles.In. 
+      destruct H2 as [gv2 [gv3 [J1 [J2 [J3 J4]]]]].
+      inv J1. inv J2. simpl in J3.
+      rewrite H in J3. inv J3. inv J4. constructor.
+
+    unfold Same_set, Included.
+    split; intros.
+      inv H0. unfold Ensembles.In. 
+      exists ((Vfloat f, m) :: nil). exists ((Vfloat f0, m0) :: nil).
+      exists ((Vptr b i0, c') :: nil). 
+      repeat (split; try solve [auto | constructor]).
+
+      inv H1. unfold Ensembles.In. 
+      destruct H2 as [gv2 [gv3 [J1 [J2 [J3 J4]]]]].
+      inv J1. inv J2. simpl in J3.
+      rewrite H in J3. inv J3. inv J4. constructor.
+
+    unfold Same_set, Included.
+    split; intros.
+      inv H0. unfold Ensembles.In. 
+      exists ((Vfloat f, m) :: nil). exists ((Vfloat f0, m0) :: nil).
+      exists ((Vinttoptr i0, c') :: nil). 
+      repeat (split; try solve [auto | constructor]).
+
+      inv H1. unfold Ensembles.In. 
+      destruct H2 as [gv2 [gv3 [J1 [J2 [J3 J4]]]]].
+      inv J1. inv J2. simpl in J3.
+      rewrite H in J3. inv J3. inv J4. constructor.
+Qed.
+
+Lemma instantiate_locals__FCMP : forall TD lc1 lc2 gl v1 v2 gv3 c t,
+  instantiate_locals lc1 lc2 -> 
+  FCMP TD lc1 gl c t v1 v2 = Some gv3 ->
+  exists gvs3', NDopsem.FCMP TD lc2 gl c t v1 v2 = Some gvs3' /\
+    instantiate_gv gv3 gvs3'.
+Proof.
+  intros.
+  apply FCMP_inversion in H0.
+  destruct H0 as [gv1 [gv2 [J1 [J2 J3]]]].
+  eapply instantiate_locals__getOperandValue in J1; eauto.
+  destruct J1 as [gvs1 [H1 H2]].
+  eapply instantiate_locals__getOperandValue in J2; eauto.
+  destruct J2 as [gvs2 [H3 H4]].
+  unfold NDopsem.FCMP.
+  rewrite H1. rewrite H3.
+  exists (lift_op2 (mfcmp TD c t) gvs1 gvs2).
+  split; eauto using instantiate_gv__mfcmp.
+Qed.
+
 Fixpoint instantiate_gvs (l1 : list GenericValue) (l2 : list GVs) :=
 match l1, l2 with
 | nil, nil => True
@@ -649,6 +1082,368 @@ Proof.
     unfold Ensembles.In. constructor.
 Qed.
 
+Lemma mget'_is_total : forall TD ofs t' x, 
+  exists z, mget' TD ofs t' x = Some z.
+Proof.
+  intros.
+  unfold mget'. unfold mget.
+  destruct (getTypeStoreSize TD t'); simpl; eauto.
+  destruct (splitGenericValue x (Int.signed 31 ofs)); eauto.
+  destruct p.  
+  destruct (splitGenericValue g0 (Z_of_nat n)); eauto.
+  destruct p. eauto.
+Qed.
+
+Lemma instantiate_gv__mget'__helper : forall x xs TD ofs t'
+  (H0 : instantiate_gv x xs),
+   Inhabited GenericValue
+     (fun gv2 : GenericValue =>
+      exists gv1 : GenericValue,
+        exists gv2' : GenericValue,
+          gv1 @ xs /\ mget' TD ofs t' gv1 = ret gv2' /\ gv2 @ $ gv2' $).
+Proof.
+  intros.
+  apply instantiate_gv__inhabited in H0. inv H0.
+  destruct (@mget'_is_total TD ofs t' x0) as [z J].
+  assert (J1:=@gv2gvs__inhabited z). inv J1.
+  exists x1. unfold Ensembles.In. exists x0. exists z.
+  split; auto. 
+Qed.
+
+Lemma defined_gv__spec1 : forall gv,
+  defined_gv gv -> gv @ ($ gv $).
+Proof.
+  destruct gv; simpl; intros.
+    unfold Ensembles.In. constructor.
+
+    destruct p.
+    destruct v; try solve [
+      contradict H; auto |
+      unfold Ensembles.In; constructor
+    ].
+Qed.      
+
+Lemma defined_gv__spec2 : forall gv,
+  defined_gv gv -> $ gv $ = Singleton _ gv.
+Proof.
+  destruct gv; simpl; intros; auto.
+    destruct p.
+    destruct v; try solve [
+      contradict H; auto | auto
+    ].
+Qed.      
+
+Lemma instantiate_gv__mget'__helper2 : forall TD ofs t' x gv,
+  mget' TD ofs t' x = ret gv ->
+  defined_gv gv ->
+   Same_set GenericValue (Singleton GenericValue gv)
+     (fun gv2 : GenericValue =>
+      exists gv1 : GenericValue, exists gv2' : GenericValue,
+        gv1 @ Singleton GenericValue x /\
+        mget' TD ofs t' gv1 = ret gv2' /\ gv2 @ $ gv2' $).
+Proof.
+  intros.
+    unfold Same_set, Included.    
+    split; intros.
+      inv H1. unfold Ensembles.In. exists x. exists x0.
+      split; auto. constructor. split; auto. apply defined_gv__spec1; auto.
+
+      inv H1. destruct H2 as [A [J1 [J2 J3]]].
+      inv J1. rewrite J2 in H. inv H. 
+      apply defined_gv__spec2 in H0. rewrite H0 in J3. inv J3. 
+      unfold Ensembles.In. constructor.
+Qed.  
+
+Lemma instantiate_gv__mget'__helper3 : forall TD ofs t' x z xs n
+  (HeqR : ret n = getTypeStoreSize TD t')
+  (g : GenericValue)
+  (gvr : GenericValue)
+  (HeqR1 : ret (g, gvr) = splitGenericValue x (Int.signed 31 ofs))
+  (gvrl : GenericValue)
+  (H0 : Same_set _ (Singleton _ x) xs)
+  (HeqR2 : ret (z, gvrl) = splitGenericValue gvr (Z_of_nat n)),
+   instantiate_gv z
+     (fun gv2 : GenericValue =>
+      exists gv1 : GenericValue, exists gv2' : GenericValue,
+        gv1 @ xs /\ mget' TD ofs t' gv1 = ret gv2' /\ gv2 @ $ gv2'$).
+Proof.
+  intros.
+  assert (mget' TD ofs t' x = ret z) as J.
+    unfold mget'. unfold mget.
+    rewrite <- HeqR. simpl.
+    rewrite <- HeqR1. rewrite <- HeqR2. split; auto. 
+  apply Extensionality_Ensembles in H0. subst. 
+  assert (J1:=@gv2gvs__inhabited z). inv J1.
+  destruct z; simpl.
+    eapply instantiate_gv__mget'__helper2; simpl; eauto.
+
+    destruct p.
+    destruct v.
+      destruct z.
+        exists x0. unfold Ensembles.In. exists x. exists ((Vundef, m) :: nil).
+        split. constructor. split; auto.
+
+        simpl in H. inv H.
+        unfold Same_set, Included.    
+        split; intros.
+          inv H. unfold Ensembles.In. exists x. exists ((Vundef, m) :: p :: z).
+          split. constructor. simpl. split; auto. constructor.
+
+          inv H. destruct H0 as [A [J1 [J2 J3]]].
+          inv J1. rewrite J2 in J. inv J. inv J3.  constructor.
+      eapply instantiate_gv__mget'__helper2; simpl; 
+        try solve [eauto | congruence].
+      eapply instantiate_gv__mget'__helper2; simpl; 
+        try solve [eauto | congruence].
+      eapply instantiate_gv__mget'__helper2; simpl; 
+        try solve [eauto | congruence].
+      eapply instantiate_gv__mget'__helper2; simpl; 
+        try solve [eauto | congruence].
+Qed.
+
+Lemma instantiate_gv__mget' : forall TD ofs t' x z xs,
+  mget' TD ofs t' x = Some z ->
+  defined_gv x ->
+  instantiate_gv x xs ->
+  instantiate_gv z (lift_op1 (mget' TD ofs t') xs).
+Proof.
+  intros TD ofs t' x z xs H G H0. unfold lift_op1. 
+  unfold mget', mget in H.
+Opaque mget'. 
+  remember (getTypeStoreSize TD t') as R.
+  destruct R; try solve [
+    destruct t'; try solve [
+      inv H; simpl; eapply instantiate_gv__mget'__helper; eauto |
+      destruct f; try solve [inv H; simpl; 
+        eapply instantiate_gv__mget'__helper; eauto]
+    ]
+  ].
+  simpl in H.
+  remember (splitGenericValue x (Int.signed 31 ofs)) as R1.
+  destruct R1 as [[? gvr]|]; try solve [
+    destruct t'; try solve [
+      inv H; simpl; eapply instantiate_gv__mget'__helper; eauto |
+      destruct f; try solve [inv H; simpl; 
+        eapply instantiate_gv__mget'__helper; eauto]
+    ]
+  ].
+  remember (splitGenericValue gvr (Z_of_nat n)) as R2.
+  destruct R2 as [[? gvrl]|]; try solve [
+    destruct t'; try solve [
+      inv H; simpl; eapply instantiate_gv__mget'__helper; eauto |
+      destruct f; try solve [inv H; simpl; 
+        eapply instantiate_gv__mget'__helper; eauto]
+    ]
+  ].
+  inv H. 
+
+  destruct x.
+    eapply instantiate_gv__mget'__helper3; eauto.
+    destruct p.
+    destruct v.
+      destruct x.      
+        simpl in G. contradict G; auto.
+        eapply instantiate_gv__mget'__helper3; eauto.
+      eapply instantiate_gv__mget'__helper3; eauto.
+      eapply instantiate_gv__mget'__helper3; eauto.
+      eapply instantiate_gv__mget'__helper3; eauto.
+      eapply instantiate_gv__mget'__helper3; eauto.
+
+Transparent mget'. 
+Qed.    
+
+Lemma instantiate_locals__extractGenericValue : forall TD lc1 lc2 t gv2
+    cidxs gv1 gvs1,
+  instantiate_locals lc1 lc2 -> 
+  instantiate_gv gv1 gvs1 ->
+  extractGenericValue TD t gv1 cidxs = Some gv2 ->
+  defined_gv gv1 ->
+  exists gvs2, NDopsem.extractGenericValue TD t gvs1 cidxs = Some gvs2 
+    /\ instantiate_gv gv2 gvs2.
+Proof.
+  intros.
+  unfold extractGenericValue in H1.
+  unfold NDopsem.extractGenericValue.
+  destruct (intConsts2Nats TD cidxs); inv H1.
+    destruct (mgetoffset TD t l0) as [[]|]; inv H4.
+      exists (lift_op1 (mget' TD i0 t0) gvs1).
+      split; auto.
+        eapply instantiate_gv__mget'; eauto.
+      exists ($ uninits 1 $). split; auto using instantiate_gv__gv2gvs.
+    exists ($ uninits 1 $). split; auto using instantiate_gv__gv2gvs.
+Qed.
+
+Lemma mset'_is_total : forall (TD : TargetData) (ofs : int32) (t1 t2 : typ) 
+  (x y: GenericValue),
+  exists z : GenericValue, mset' TD ofs t1 t2 x y = ret z.
+Proof.
+  intros.
+  unfold mset'.
+  destruct (mset TD x ofs t2 y); eauto.
+Qed.  
+
+Lemma instantiate_gv__mset'__helper : forall x xs y ys TD ofs t1 t2
+  (H0 : instantiate_gv x xs) (H1 : instantiate_gv y ys),
+   Inhabited GenericValue
+     (fun gv3 : GenericValue =>
+      exists gv1 : GenericValue, exists gv2 : GenericValue,
+        exists gv3' : GenericValue,
+          gv1 @ xs /\ gv2 @ ys /\ 
+          mset' TD ofs t1 t2 gv1 gv2 = ret gv3' /\ gv3 @ $ gv3' $).
+Proof.
+  intros.
+  apply instantiate_gv__inhabited in H0. inv H0.
+  apply instantiate_gv__inhabited in H1. inv H1.
+  destruct (@mset'_is_total TD ofs t1 t2 x0 x1) as [z J].
+  assert (J1:=@gv2gvs__inhabited z). inv J1.
+  exists x2. unfold Ensembles.In. exists x0. exists x1. exists z.
+  repeat (split; auto). 
+Qed.
+
+Lemma instantiate_gv__mset' : forall TD ofs t1 t2 x y z xs ys,
+  mset' TD ofs t1 t2 x y = Some z ->
+  defined_gv x ->
+  defined_gv y ->
+  instantiate_gv x xs ->
+  instantiate_gv y ys ->
+  instantiate_gv z (lift_op2 (mset' TD ofs t1 t2) xs ys).
+Proof.
+  intros TD ofs t1 t2 x y z xs ys H G G' H0 H1. unfold lift_op2. 
+  unfold mset', mset in H.
+Opaque mset'. 
+  remember (getTypeStoreSize TD t2) as R.
+  destruct R; try solve [
+    destruct t1; try solve [
+      inv H; simpl; eapply instantiate_gv__mset'__helper; eauto |
+      destruct f; try solve [inv H; simpl; 
+        eapply instantiate_gv__mset'__helper; eauto]
+    ]
+  ].
+  simpl in H.
+  remember (n =n= length y) as R0.
+  destruct R0; try solve [
+    destruct t1; try solve [
+      inv H; simpl; eapply instantiate_gv__mset'__helper; eauto |
+      destruct f; try solve [inv H; simpl; 
+        eapply instantiate_gv__mset'__helper; eauto]
+    ]
+  ].
+  remember (splitGenericValue x (Int.signed 31 ofs)) as R1.
+  destruct R1 as [[? gvr]|]; try solve [
+    destruct t1; try solve [
+      inv H; simpl; eapply instantiate_gv__mset'__helper; eauto |
+      destruct f; try solve [inv H; simpl; 
+        eapply instantiate_gv__mset'__helper; eauto]
+    ]
+  ].
+  remember (splitGenericValue gvr (Z_of_nat n)) as R2.
+  destruct R2 as [[? gvrl]|]; try solve [
+    destruct t1; try solve [
+      inv H; simpl; eapply instantiate_gv__mset'__helper; eauto |
+      destruct f; try solve [inv H; simpl; 
+        eapply instantiate_gv__mset'__helper; eauto]
+    ]
+  ].
+  inv H. 
+  apply defined_gv__same_singleton in H0; auto. subst.
+  apply defined_gv__same_singleton in H1; auto. subst.
+Transparent mset'. 
+ 
+  assert (mset' TD ofs t1 t2 x y = Some (g ++ y ++ gvrl)) as J.
+    unfold mset', mset.
+    rewrite <- HeqR. simpl. rewrite <- HeqR0. rewrite <- HeqR1. rewrite <- HeqR2.
+    auto.
+  assert (J1:=@gv2gvs__inhabited (g ++ y ++ gvrl)). inv J1.
+  destruct (g ++ y ++ gvrl).
+    simpl. unfold Same_set, Included.
+    inv H.
+    split; intros.
+      inv H. unfold Ensembles.In. exists x. exists y. exists nil. simpl.
+      split. constructor. split. constructor. split; auto. constructor.
+
+      inv H. destruct H0 as [A [B [J1 [J2 [J3 J4]]]]]. inv J1. inv J2. 
+      rewrite J3 in J. inv J. inv J4. unfold Ensembles.In. constructor.
+    destruct p.
+    destruct v.
+      destruct l0.
+        simpl. exists x0. unfold Ensembles.In. exists x. exists y.
+        exists ((Vundef, m) :: nil). split. constructor. split. constructor.
+        split; auto.
+
+    simpl. unfold Same_set, Included.
+    inv H.
+    split; intros.
+      inv H. unfold Ensembles.In. exists x. exists y. 
+      exists ((Vundef, m) :: p :: l0). simpl.
+      split. constructor. split. constructor. split; auto. constructor.
+
+      inv H. destruct H0 as [A [B [J1 [J2 [J3 J4]]]]]. inv J1. inv J2. 
+      rewrite J3 in J. inv J. inv J4. unfold Ensembles.In. constructor.
+
+    simpl. unfold Same_set, Included.
+    inv H.
+    split; intros.
+      inv H. unfold Ensembles.In. exists x. exists y. 
+      exists ((Vint wz i0, m) :: l0). simpl.
+      split. constructor. split. constructor. split; auto. constructor.
+
+      inv H. destruct H0 as [A [B [J1 [J2 [J3 J4]]]]]. inv J1. inv J2. 
+      rewrite J3 in J. inv J. inv J4. unfold Ensembles.In. constructor.
+
+    simpl. unfold Same_set, Included.
+    inv H.
+    split; intros.
+      inv H. unfold Ensembles.In. exists x. exists y. 
+      exists ((Vfloat f, m) :: l0). simpl.
+      split. constructor. split. constructor. split; auto. constructor.
+
+      inv H. destruct H0 as [A [B [J1 [J2 [J3 J4]]]]]. inv J1. inv J2. 
+      rewrite J3 in J. inv J. inv J4. unfold Ensembles.In. constructor.
+
+    simpl. unfold Same_set, Included.
+    inv H.
+    split; intros.
+      inv H. unfold Ensembles.In. exists x. exists y. 
+      exists ((Vptr b i0, m) :: l0). simpl.
+      split. constructor. split. constructor. split; auto. constructor.
+
+      inv H. destruct H0 as [A [B [J1 [J2 [J3 J4]]]]]. inv J1. inv J2. 
+      rewrite J3 in J. inv J. inv J4. unfold Ensembles.In. constructor.
+
+    simpl. unfold Same_set, Included.
+    inv H.
+    split; intros.
+      inv H. unfold Ensembles.In. exists x. exists y. 
+      exists ((Vinttoptr i0, m) :: l0). simpl.
+      split. constructor. split. constructor. split; auto. constructor.
+
+      inv H. destruct H0 as [A [B [J1 [J2 [J3 J4]]]]]. inv J1. inv J2. 
+      rewrite J3 in J. inv J. inv J4. unfold Ensembles.In. constructor.
+Qed.    
+
+Lemma instantiate_locals__insertGenericValue : forall TD lc1 lc2 t1 t2 gv2 
+    cidxs gv1 gvs1 gvs2 gv3,
+  instantiate_locals lc1 lc2 -> 
+  instantiate_gv gv1 gvs1 ->
+  instantiate_gv gv2 gvs2 ->
+  insertGenericValue TD t1 gv1 cidxs t2 gv2 = Some gv3 ->
+  defined_gv gv1 ->
+  defined_gv gv2 ->
+  exists gvs3, NDopsem.insertGenericValue TD t1 gvs1 cidxs t2 gvs2 = Some gvs3
+    /\ instantiate_gv gv3 gvs3.
+Proof.
+  intros.
+  unfold insertGenericValue in H2.
+  unfold NDopsem.insertGenericValue.
+  destruct (intConsts2Nats TD cidxs); inv H2.
+    destruct (mgetoffset TD t1 l0) as [[]|]; inv H6.
+      exists (lift_op2 (mset' TD i0 t1 t2) gvs1 gvs2).
+      split; auto.
+        eapply instantiate_gv__mset'; eauto.
+      exists ($ gundef t1 $). split; auto using instantiate_gv__gv2gvs.
+    exists ($ gundef t1 $). split; auto using instantiate_gv__gv2gvs.
+Qed.
+
 Lemma mcast_is_total : forall TD cop0 t1 t2 x, 
   exists z, mcast TD cop0 t1 t2 x = Some z.
 Proof.
@@ -797,6 +1592,295 @@ Proof.
   rewrite H1.
   exists (lift_op1 (mcast TD castop0 t1 t2) gvs1).
   split; eauto using instantiate_gv__mcast.
+Qed.
+
+Lemma mtrunc_is_total : forall TD top0 t1 t2 x, 
+  exists z, mtrunc TD top0 t1 t2 x = Some z.
+Proof.
+  intros.
+  unfold mtrunc.
+  destruct (GV2val TD x); eauto.
+  destruct v; destruct t1; destruct t2; eauto.
+  destruct (floating_point_order f1 f0); eauto.
+  destruct f1; eauto.
+Qed.
+
+Lemma instantiate_gv__mtrunc__helper : forall x xs TD op t1 t2
+  (H0 : instantiate_gv x xs),
+   Inhabited GenericValue
+     (fun gv2 : GenericValue =>
+      exists gv1 : GenericValue,
+        exists gv2' : GenericValue,
+            gv1 @ xs /\ mtrunc TD op t1 t2 gv1 = ret gv2' /\ gv2 @ $ gv2' $).
+Proof.
+  intros.
+  apply instantiate_gv__inhabited in H0. inv H0.
+  destruct (@mtrunc_is_total TD op t1 t2 x0) as [z J].
+  assert (J1:=@gv2gvs__inhabited z). inv J1.
+  exists x1. unfold Ensembles.In. exists x0. exists z.
+  split; auto. 
+Qed.
+
+Lemma instantiate_gv__mtrunc : forall TD top0 t1 t2 x z xs,
+  mtrunc TD top0 t1 t2 x = Some z ->
+  instantiate_gv x xs ->
+  instantiate_gv z (lift_op1 (mtrunc TD top0 t1 t2) xs).
+Proof.
+  intros. unfold lift_op1. 
+  unfold mtrunc in H.
+Opaque mtrunc. 
+  destruct x; try solve [
+    destruct t2; try solve [
+      inv H; simpl; eapply instantiate_gv__mtrunc__helper; eauto |
+      destruct f; try solve [inv H; simpl; 
+        eapply instantiate_gv__mtrunc__helper; eauto]
+    ]
+  ].
+  destruct p.
+  destruct x; try solve [
+    destruct t2; try solve [
+      inv H; simpl; eapply instantiate_gv__mtrunc__helper; eauto |
+      destruct f; try solve [inv H; simpl; 
+        eapply instantiate_gv__mtrunc__helper; eauto]
+    ]
+  ].
+  simpl in H.
+  destruct v; try solve [
+    destruct t2; try solve [
+      inv H; simpl; eapply instantiate_gv__mtrunc__helper; eauto |
+      destruct f; try solve [inv H; simpl; 
+        eapply instantiate_gv__mtrunc__helper; eauto]
+    ] |
+    destruct t1; destruct t2; try solve [
+      inv H; simpl; eapply instantiate_gv__mtrunc__helper; eauto |
+      destruct f0; try solve [inv H; simpl; 
+        eapply instantiate_gv__mtrunc__helper; eauto]
+    ]
+  ].
+
+    destruct t1; destruct t2; try solve [
+      inv H; simpl; eapply instantiate_gv__mtrunc__helper; eauto |
+      destruct f; try solve [inv H; simpl; 
+        eapply instantiate_gv__mtrunc__helper; eauto] |
+      destruct f0; try solve [inv H; simpl; 
+        eapply instantiate_gv__mtrunc__helper; eauto]
+    ]. 
+
+Transparent mtrunc. 
+      inv H.
+      unfold val2GV.
+      destruct (le_lt_dec wz s0); simpl.
+        eapply instantiate_gv__mtrunc__helper; eauto.
+
+        apply Extensionality_Ensembles in H0. subst. 
+        unfold Same_set, Included.
+        split; intros.
+          inv H. unfold Ensembles.In.
+          exists ((Vint wz i0, m) :: nil). 
+          unfold mtrunc. simpl.
+          destruct (le_lt_dec wz s0); simpl.
+            contradict l1. omega.
+            unfold val2GV.
+            exists ((Vint s0 (Int.repr s0 (Int.unsigned wz i0)), AST.Mint s0) :: nil).                    
+            simpl. split. constructor. split; auto. constructor.
+
+          inv H. destruct H0 as [gv2' [J1 [J2 J3]]].
+          inv J1. unfold mtrunc in J2. simpl in J2. inv J2.
+          destruct (le_lt_dec wz s0); simpl.
+            contradict l1. omega.
+            unfold val2GV in J3. inv J3.
+            constructor.
+
+    destruct t1; destruct t2; try solve [
+      inv H; simpl; eapply instantiate_gv__mtrunc__helper; eauto |
+      destruct f0; try solve [inv H; simpl; 
+        eapply instantiate_gv__mtrunc__helper; eauto]
+    ]. 
+
+      remember (floating_point_order f1 f0) as R.
+      destruct R; destruct f1; try solve [
+        inv H; simpl; eapply instantiate_gv__mtrunc__helper; eauto].
+      apply Extensionality_Ensembles in H0. subst. inv H.
+      unfold val2GV. simpl.
+      unfold Same_set, Included.
+      split; intros.
+        inv H. unfold Ensembles.In.
+        exists ((Vfloat f, m) :: nil). 
+        unfold mtrunc. simpl. rewrite <- HeqR.
+        unfold val2GV.
+        exists ((Vfloat f, AST.Mfloat32) :: nil).                    
+        simpl. split. constructor. split; auto. constructor.
+
+        inv H. destruct H0 as [gv2' [J1 [J2 J3]]].
+        inv J1. unfold mtrunc in J2. simpl in J2. 
+        rewrite <- HeqR in J2. inv J2. inv J3.
+        constructor.
+
+     inv H.
+     apply Extensionality_Ensembles in H0. subst. simpl.
+     unfold Same_set, Included.
+     split; intros.
+       inv H. unfold Ensembles.In.
+       exists ((Vfloat f, m) :: nil). 
+       unfold mtrunc. simpl. rewrite <- HeqR.
+       unfold val2GV.
+       exists ((Vfloat f, AST.Mfloat64) :: nil).                    
+       simpl. split. constructor. split; auto. constructor.
+
+       inv H. destruct H0 as [gv2' [J1 [J2 J3]]].
+       inv J1. unfold mtrunc in J2. simpl in J2. 
+       rewrite <- HeqR in J2. inv J2. inv J3.
+       constructor.     
+Qed.    
+
+Lemma instantiate_locals__TRUNC : forall TD lc1 lc2 gl t1 v1 t2 gv2 top0,
+  instantiate_locals lc1 lc2 -> 
+  TRUNC TD lc1 gl top0 t1 v1 t2 = Some gv2 ->
+  exists gvs2', NDopsem.TRUNC TD lc2 gl top0 t1 v1 t2 = Some gvs2' 
+    /\ instantiate_gv gv2 gvs2'.
+Proof.
+  intros.
+  apply TRUNC_inversion in H0.
+  destruct H0 as [gv1 [J1 J2]].
+  eapply instantiate_locals__getOperandValue in J1; eauto.
+  destruct J1 as [gvs1 [H1 H2]].
+  unfold NDopsem.TRUNC.
+  rewrite H1.
+  exists (lift_op1 (mtrunc TD top0 t1 t2) gvs1).
+  split; eauto using instantiate_gv__mtrunc.
+Qed.
+
+Lemma mext_is_total : forall TD eop0 t1 t2 x, 
+  exists z, mext TD eop0 t1 t2 x = Some z.
+Proof.
+  intros.
+  unfold mext.
+  destruct (GV2val TD x); eauto.
+  destruct t1; destruct t2; try solve [
+    destruct v; destruct eop0; 
+      try solve [eauto | destruct (floating_point_order f f0); eauto]
+  ].
+
+  destruct t1; destruct t2; 
+    try solve [destruct (floating_point_order f f0); eauto | eauto].
+Qed.
+
+Lemma instantiate_gv__mext__helper : forall x xs TD op t1 t2
+  (H0 : instantiate_gv x xs),
+   Inhabited GenericValue
+     (fun gv2 : GenericValue =>
+      exists gv1 : GenericValue,
+        exists gv2' : GenericValue,
+            gv1 @ xs /\ mext TD op t1 t2 gv1 = ret gv2' /\ gv2 @ $ gv2' $).
+Proof.
+  intros.
+  apply instantiate_gv__inhabited in H0. inv H0.
+  destruct (@mext_is_total TD op t1 t2 x0) as [z J].
+  assert (J1:=@gv2gvs__inhabited z). inv J1.
+  exists x1. unfold Ensembles.In. exists x0. exists z.
+  split; auto. 
+Qed.
+
+Lemma instantiate_gv__mext : forall TD eop0 t1 t2 x z xs,
+  mext TD eop0 t1 t2 x = Some z ->
+  instantiate_gv x xs ->
+  instantiate_gv z (lift_op1 (mext TD eop0 t1 t2) xs).
+Proof.
+  intros. unfold lift_op1. 
+  unfold mext in H.
+Opaque mext. 
+  destruct t1; destruct t2; try solve [
+    inv H; simpl; eapply instantiate_gv__mext__helper; eauto |
+    inv H; destruct f; simpl; eapply instantiate_gv__mext__helper; eauto
+  ].
+
+  destruct x; try solve 
+    [inv H; simpl; eapply instantiate_gv__mext__helper; eauto].
+  destruct p.
+  destruct x; try solve 
+    [inv H; simpl; eapply instantiate_gv__mext__helper; eauto].
+  destruct v; try solve 
+    [inv H; simpl; eapply instantiate_gv__mext__helper; eauto].
+  destruct eop0; try solve 
+    [inv H; simpl; eapply instantiate_gv__mext__helper; eauto].
+
+Transparent mext. 
+    inv H.
+    apply Extensionality_Ensembles in H0. subst. simpl.
+    unfold Same_set, Included.
+    split; intros.
+      inv H. unfold Ensembles.In. 
+      exists ((Vint wz i0, m) :: nil).
+      exists (val2GV TD (Vint wz (Int.zero_ext wz (Size.to_Z s0) i0))
+          (AST.Mint (Size.to_nat s0 - 1))).  
+      split. constructor.
+      unfold mext. simpl. split; auto. constructor.
+
+      inv H. destruct H0 as [gv2' [J1 [J2 J3]]].
+      inv J1. unfold mext in J2. simpl in J2. inv J2. inv J3.
+      constructor.
+
+Transparent mext. 
+    inv H.
+    apply Extensionality_Ensembles in H0. subst. simpl.
+    unfold Same_set, Included.
+    split; intros.
+      inv H. unfold Ensembles.In. 
+      exists ((Vint wz i0, m) :: nil).
+      exists (val2GV TD (Vint wz (Int.sign_ext wz (Size.to_Z s0) i0))
+          (AST.Mint (Size.to_nat s0 - 1))).  
+      split. constructor.
+      unfold mext. simpl. split; auto. constructor.
+
+      inv H. destruct H0 as [gv2' [J1 [J2 J3]]].
+      inv J1. unfold mext in J2. simpl in J2. inv J2. inv J3.
+      constructor.
+
+  remember (floating_point_order f f0) as R.
+  destruct R; simpl; try solve [
+    destruct f0; inv H; simpl; eapply instantiate_gv__mext__helper; eauto
+  ].
+  destruct x; try solve 
+    [inv H; destruct f0; simpl; eapply instantiate_gv__mext__helper; eauto].
+  destruct p.
+  destruct x; try solve 
+    [inv H; destruct f0; simpl; eapply instantiate_gv__mext__helper; eauto].
+  destruct v; try solve 
+    [inv H; destruct f0; simpl; eapply instantiate_gv__mext__helper; eauto].
+  destruct eop0; try solve 
+    [inv H; destruct f0; simpl; eapply instantiate_gv__mext__helper; eauto].
+
+Transparent mext. 
+    inv H.
+    apply Extensionality_Ensembles in H0. subst. simpl.
+    unfold Same_set, Included.
+    split; intros.
+      inv H. unfold Ensembles.In. 
+      exists ((Vfloat f1, m) :: nil).
+      exists ((Vfloat f1, m) :: nil).
+      split. constructor.
+      unfold mext. simpl. rewrite <- HeqR. split; auto. constructor.
+
+      inv H. destruct H0 as [gv2' [J1 [J2 J3]]].
+      inv J1. unfold mext in J2. rewrite <- HeqR in J2. inv J2. inv J3.
+      constructor.
+Qed.    
+
+Lemma instantiate_locals__EXT : forall TD lc1 lc2 gl t1 v1 t2 gv2 top0,
+  instantiate_locals lc1 lc2 -> 
+  EXT TD lc1 gl top0 t1 v1 t2 = Some gv2 ->
+  exists gvs2', NDopsem.EXT TD lc2 gl top0 t1 v1 t2 = Some gvs2' 
+    /\ instantiate_gv gv2 gvs2'.
+Proof.
+  intros.
+  apply EXT_inversion in H0.
+  destruct H0 as [gv1 [J1 J2]].
+  eapply instantiate_locals__getOperandValue in J1; eauto.
+  destruct J1 as [gvs1 [H1 H2]].
+  unfold NDopsem.EXT.
+  rewrite H1.
+  exists (lift_op1 (mext TD top0 t1 t2) gvs1).
+  split; eauto using instantiate_gv__mext.
 Qed.
 
 Lemma lookupFdefViaGV_inversion : forall TD Ps gl lc fs fv f,
@@ -961,6 +2045,57 @@ Proof.
   simpl. congruence.
 Qed. 
 
+Lemma lookupExFdecViaGV_inversion : forall TD Ps gl lc fs fv f,
+  lookupExFdecViaGV TD Ps gl lc fs fv = Some f ->
+  exists fptr, exists fn,
+    getOperandValue TD fv lc gl = Some fptr /\
+    lookupFdefViaGVFromFunTable fs fptr = Some fn /\
+    lookupFdefViaIDFromProducts Ps fn = None /\
+    lookupFdecViaIDFromProducts Ps fn = Some f.
+Proof.
+  intros.
+  unfold lookupExFdecViaGV in H.
+  destruct (getOperandValue TD fv lc gl); tinv H.
+  simpl in H. exists g.
+  destruct (lookupFdefViaGVFromFunTable fs g); tinv H.
+  simpl in H. exists i0. 
+  destruct (lookupFdefViaIDFromProducts Ps i0); tinv H.
+  eauto.
+Qed.  
+
+Lemma lookupExFdecViaPtr_inversion : forall Ps fs fptr f,
+  lookupExFdecViaPtr Ps fs fptr = Some f ->
+  exists fn,
+    lookupFdefViaGVFromFunTable fs fptr = Some fn /\
+    lookupFdefViaIDFromProducts Ps fn = None /\
+    lookupFdecViaIDFromProducts Ps fn = Some f.
+Proof.
+  intros.
+  unfold lookupExFdecViaPtr in H.
+  destruct (lookupFdefViaGVFromFunTable fs fptr); tinv H.
+  simpl in H. exists i0.
+  destruct (lookupFdefViaIDFromProducts Ps i0); tinv H.
+  eauto.
+Qed.  
+
+Lemma instantiate_locals__exCallUpdateLocals : forall lc1 lc2 lc1' rid oResult 
+    nr,
+  instantiate_locals lc1 lc2 -> 
+  exCallUpdateLocals nr rid oResult lc1 = ret lc1' ->
+  exists lc2', 
+    NDopsem.exCallUpdateLocals nr rid oResult lc2 = ret lc2' /\
+    instantiate_locals lc1' lc2'. 
+Proof.
+  intros.
+  unfold exCallUpdateLocals in H0.
+  unfold NDopsem.exCallUpdateLocals.
+  destruct nr; inv H0; eauto.
+  destruct oResult; inv H2; eauto.
+  exists (updateAddAL GVs lc2 rid ($ g $)).
+  split; auto.
+    apply instantiate_locals__updateAddAL; auto using instantiate_gv__gv2gvs.
+Qed.
+
 Definition undef_state St : Prop :=
   match St with 
   | {| CurTargetData := TD;
@@ -981,12 +2116,36 @@ Definition undef_state St : Prop :=
      | _ => False
      end
   | {| CurTargetData := TD;
-       ECS := {| CurCmds := insn_call _ _ _ _ fv _::_;
+       ECS := {| CurCmds := insn_call _ _ _ _ fv lp::_;
                  Locals := lc |} :: _;
        Globals := gl |} =>
-     match getOperandValue TD fv lc gl with
+     match getOperandValue TD fv lc gl, params2GVs TD lp lc gl with
+     | ret gv, ret gvs => ~ defined_gv gv \/ ~ defined_gvs gvs
+     | _, _ => False
+     end
+  |  {| CurTargetData := TD;
+       ECS := {| CurCmds := insn_select _ v _ _ _::_;
+                 Locals := lc |} :: _;
+       Globals := gl |} =>
+     match getOperandValue TD v lc gl with
      | ret gv => ~ defined_gv gv 
      | _ => False
+     end
+  |  {| CurTargetData := TD;
+       ECS := {| CurCmds := insn_extractvalue _ _ v _::_;
+                 Locals := lc |} :: _;
+       Globals := gl |} =>
+     match getOperandValue TD v lc gl with
+     | ret gv => ~ defined_gv gv 
+     | _ => False
+     end
+  |  {| CurTargetData := TD;
+       ECS := {| CurCmds := insn_insertvalue _ _ v1 _ v2 _ ::_;
+                 Locals := lc |} :: _;
+       Globals := gl |} =>
+     match getOperandValue TD v1 lc gl, getOperandValue TD v2 lc gl with
+     | ret gv1, ret gv2 => ~ defined_gv gv1 \/ ~ defined_gv gv2  
+     | _, _ => False
      end
   | _ => False
   end.
@@ -1041,9 +2200,43 @@ Case "dsBop". simpl_nd_llvmds.
       ::ECs') gl' fs' M').
   split; eauto.
     repeat (split; auto using instantiate_locals__updateAddAL).
-Case "dsFBop". admit.
-Case "dsExtractValue". admit.
-Case "dsInsertValue". admit.
+Case "dsFBop". simpl_nd_llvmds. 
+  eapply instantiate_locals__FBOP in H; eauto.
+  destruct H as [gvs3' [J1 J2]]. left.
+  exists (NDopsem.mkState S' TD' Ps' 
+    ((NDopsem.mkEC f1' b1' cs tmn1' (updateAddAL _ lc1' id0 gvs3') als1')
+      ::ECs') gl' fs' M').
+  split; eauto.
+    repeat (split; auto using instantiate_locals__updateAddAL).
+Case "dsExtractValue". simpl_nd_llvmds. 
+  simpl. rewrite H.
+  destruct (@defined_gv_dec gv) as [Hdet | Hndet]; auto.
+  left.
+  eapply instantiate_locals__getOperandValue in H; eauto.
+  destruct H as [gvs [J1 J2]].
+  eapply instantiate_locals__extractGenericValue in H0; eauto.
+  destruct H0 as [gvs' [J3 J4]].
+  exists (NDopsem.mkState S' TD' Ps' 
+    ((NDopsem.mkEC f1' b1' cs tmn1' (updateAddAL _ lc1' id0 gvs') als1')
+      ::ECs') gl' fs' M').
+  split; eauto.
+    repeat (split; auto using instantiate_locals__updateAddAL).
+Case "dsInsertValue". simpl_nd_llvmds. 
+  simpl. rewrite H. rewrite H0.
+  destruct (@defined_gv_dec gv) as [Hdet | Hndet]; auto.
+  destruct (@defined_gv_dec gv') as [Hdet' | Hndet']; auto.
+  left.
+  eapply instantiate_locals__getOperandValue in H; eauto.
+  destruct H as [gvs [J1 J2]].
+  eapply instantiate_locals__getOperandValue in H0; eauto.
+  destruct H0 as [gvs' [J1' J2']].
+  eapply instantiate_locals__insertGenericValue in H1; eauto.
+  destruct H1 as [gvs'' [J3 J4]].
+  exists (NDopsem.mkState S' TD' Ps' 
+    ((NDopsem.mkEC f1' b1' cs tmn1' (updateAddAL _ lc1' id0 gvs'') als1')
+      ::ECs') gl' fs' M').
+  split; eauto.
+    repeat (split; auto using instantiate_locals__updateAddAL).
 Case "dsMalloc". simpl_nd_llvmds. 
   assert (J:=H1).
   apply malloc__defined_gv in J.
@@ -1125,8 +2318,22 @@ Case "dsGEP". simpl_nd_llvmds.
       ::ECs') gl' fs' M').
   split; eauto.
     repeat (split; auto using instantiate_locals__updateAddAL).
-Case "dsTrunc". admit.
-Case "dsExt". admit.
+Case "dsTrunc". simpl_nd_llvmds. left.
+  eapply instantiate_locals__TRUNC in H; eauto.
+  destruct H as [gvs2' [J1 J2]].
+  exists (NDopsem.mkState S' TD' Ps' 
+    ((NDopsem.mkEC f1' b1' cs tmn1' (updateAddAL _ lc1' id0 gvs2') als1')
+      ::ECs') gl' fs' M').
+  split; eauto.
+    repeat (split; auto using instantiate_locals__updateAddAL).
+Case "dsExt". simpl_nd_llvmds. left.
+  eapply instantiate_locals__EXT in H; eauto.
+  destruct H as [gvs2' [J1 J2]].
+  exists (NDopsem.mkState S' TD' Ps' 
+    ((NDopsem.mkEC f1' b1' cs tmn1' (updateAddAL _ lc1' id0 gvs2') als1')
+      ::ECs') gl' fs' M').
+  split; eauto.
+    repeat (split; auto using instantiate_locals__updateAddAL).
 Case "dsCast". simpl_nd_llvmds. left.
   eapply instantiate_locals__CAST in H; eauto.
   destruct H as [gvs2' [J1 J2]].
@@ -1135,13 +2342,45 @@ Case "dsCast". simpl_nd_llvmds. left.
       ::ECs') gl' fs' M').
   split; eauto.
     repeat (split; auto using instantiate_locals__updateAddAL).
-Case "dsIcmp". admit.
-Case "dsFcmp". admit.
-Case "dsSelect". admit.
+Case "dsIcmp". simpl_nd_llvmds. 
+  eapply instantiate_locals__ICMP in H; eauto.
+  destruct H as [gvs3' [J1 J2]]. left.
+  exists (NDopsem.mkState S' TD' Ps' 
+    ((NDopsem.mkEC f1' b1' cs tmn1' (updateAddAL _ lc1' id0 gvs3') als1')
+      ::ECs') gl' fs' M').
+  split; eauto.
+    repeat (split; auto using instantiate_locals__updateAddAL).
+Case "dsFcmp". simpl_nd_llvmds. 
+  eapply instantiate_locals__FCMP in H; eauto.
+  destruct H as [gvs3' [J1 J2]]. left.
+  exists (NDopsem.mkState S' TD' Ps' 
+    ((NDopsem.mkEC f1' b1' cs tmn1' (updateAddAL _ lc1' id0 gvs3') als1')
+      ::ECs') gl' fs' M').
+  split; eauto.
+    repeat (split; auto using instantiate_locals__updateAddAL).
+Case "dsSelect". simpl_nd_llvmds. 
+  simpl. rewrite H.
+  destruct (@defined_gv_dec c) as [Hdet | Hndet]; auto.
+  left.
+  eapply instantiate_locals__getOperandValue in H; eauto.
+  destruct H as [gvs0' [J1 J2]].
+  apply defined_gv__instantiate_gv in J2; auto.   
+  eapply instantiate_locals__getOperandValue in H0; eauto.
+  destruct H0 as [gvs1' [J3 J4]].
+  eapply instantiate_locals__getOperandValue in H1; eauto.
+  destruct H1 as [gvs2' [J5 J6]].
+  exists (NDopsem.mkState S' TD' Ps' 
+    ((NDopsem.mkEC f1' b1' cs tmn1' (if isGVZero TD' c 
+                                     then updateAddAL _ lc1' id0 gvs2' 
+                                     else updateAddAL _ lc1' id0 gvs1') als1')
+      ::ECs') gl' fs' M').
+  split; eauto.
+    repeat (split; auto).
+      destruct (isGVZero TD' c); auto using instantiate_locals__updateAddAL.
 Case "dsCall". simpl_nd_llvmds. 
   apply lookupFdefViaGV_inversion in H.
   destruct H as [fptr [fn [J1 [J2 J3]]]].
-  simpl. rewrite J1.
+  simpl. rewrite J1. rewrite H1.
   destruct (@defined_gv_dec fptr) as [Hdet | Hndet]; auto.
   left.
   eapply instantiate_locals__getOperandValue in J1; eauto.
@@ -1161,7 +2400,28 @@ Case "dsCall". simpl_nd_llvmds.
       unfold lookupFdefViaPtr. 
       rewrite J2. simpl. rewrite J3. auto.
     repeat (split; auto using instantiate_locals__initLocals).
-Case "dsExCall". admit.
+Case "dsExCall". simpl_nd_llvmds. 
+  apply lookupExFdecViaGV_inversion in H.
+  destruct H as [fptr [fn [J1 [J2 [J3 J4]]]]].
+  simpl. rewrite J1. rewrite H0.
+  destruct (@defined_gv_dec fptr) as [Hdet | Hndet]; auto.
+  destruct (@defined_gvs_dec gvs) as [Hdet' | Hndet']; auto.
+  left.
+  eapply instantiate_locals__getOperandValue in J1; eauto.
+  destruct J1 as [gvs2 [J11 J12]].
+  apply defined_gv__instantiate_gv in J12; auto.   
+  eapply instantiate_locals__params2GVs in H0; eauto.
+  destruct H0 as [gvss2 [H11 H12]].
+  apply defined_gvs__instantiate_gvs in H12; auto.
+  eapply instantiate_locals__exCallUpdateLocals in H2; eauto.
+  destruct H2 as [lc2' [H21 H22]].
+  exists (NDopsem.mkState S' TD' Ps' 
+    ((NDopsem.mkEC f1' b1' cs tmn1' lc2' als1') ::ECs') gl' fs' Mem').
+  split.
+    eapply sExCall; eauto.
+      unfold lookupExFdecViaPtr. 
+      rewrite J2. simpl. rewrite J3. rewrite J4. eauto.
+    repeat (split; auto using instantiate_locals__initLocals).
 Qed.
 
 (*****************************)

@@ -11,7 +11,7 @@ all:
 #	+make -C ./llvm_op
 
 ott: main.pdf ssa_static.vo ssa_dynamic.vo ssa_wf.vo opsem_conv.vo \
-	opsem_pp.vo ssa_interpreter.vo
+	opsem_pp.vo ssa_interpreter.vo ndopsem_pp.vo
 
 alist.vo : alist.v
 	$(COQC) $(COQARG) alist.v

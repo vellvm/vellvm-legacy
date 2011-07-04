@@ -639,6 +639,51 @@ Proof.
   apply mbop_is_total; auto.
 Qed.
 
+Lemma FBOP__inhabited : forall TD lc gl fbop0 fp v1 v2 gvs3,
+  wf_lc lc ->
+  NDopsem.FBOP TD lc gl fbop0 fp v1 v2 = ret gvs3 ->
+  Ensembles.Inhabited GenericValue gvs3.
+Proof.
+  intros TD lc gl fbop0 fp v1 v2 gvs3 Hwflc Hfbop.
+  unfold NDopsem.FBOP in Hfbop.
+  remember(NDopsem.getOperandValue TD v1 lc gl) as R1.
+  destruct R1; tinv Hfbop.
+  remember(NDopsem.getOperandValue TD v2 lc gl) as R2.
+  destruct R2; inv Hfbop.
+  apply lift_op2__inhabited; eauto using getOperandValue__inhabited.
+  apply mfbop_is_total; auto.
+Qed.
+
+Lemma ICMP__inhabited : forall TD lc gl c t v1 v2 gvs3,
+  wf_lc lc ->
+  NDopsem.ICMP TD lc gl c t v1 v2 = ret gvs3 ->
+  Ensembles.Inhabited GenericValue gvs3.
+Proof.
+  intros TD lc gl c t v1 v2 gvs3 Hwflc Hiop.
+  unfold NDopsem.ICMP in Hiop.
+  remember(NDopsem.getOperandValue TD v1 lc gl) as R1.
+  destruct R1; tinv Hiop.
+  remember(NDopsem.getOperandValue TD v2 lc gl) as R2.
+  destruct R2; inv Hiop.
+  apply lift_op2__inhabited; eauto using getOperandValue__inhabited.
+  apply micmp_is_total; auto.
+Qed.
+
+Lemma FCMP__inhabited : forall TD lc gl c t v1 v2 gvs3,
+  wf_lc lc ->
+  NDopsem.FCMP TD lc gl c t v1 v2 = ret gvs3 ->
+  Ensembles.Inhabited GenericValue gvs3.
+Proof.
+  intros TD lc gl c t v1 v2 gvs3 Hwflc Hiop.
+  unfold NDopsem.FCMP in Hiop.
+  remember(NDopsem.getOperandValue TD v1 lc gl) as R1.
+  destruct R1; tinv Hiop.
+  remember(NDopsem.getOperandValue TD v2 lc gl) as R2.
+  destruct R2; inv Hiop.
+  apply lift_op2__inhabited; eauto using getOperandValue__inhabited.
+  apply mfcmp_is_total; auto.
+Qed.
+
 Lemma values2GVs__inhabited' : forall TD lc (Hwflc: wf_lc lc) gl idxs vidxs,
   NDopsem.values2GVs TD idxs lc gl = Some vidxs ->
   (forall gvs, In gvs vidxs -> Ensembles.Inhabited GenericValue gvs).
@@ -715,6 +760,63 @@ Proof.
   destruct R1; inv Hcast.
   apply lift_op1__inhabited; eauto using getOperandValue__inhabited.
   apply mcast_is_total; auto.
+Qed.
+
+Lemma TRUNC__inhabited : forall TD lc gl top0 t1 v1 t2 gvs2,
+  wf_lc lc ->
+  NDopsem.TRUNC TD lc gl top0 t1 v1 t2 = ret gvs2 ->
+  Ensembles.Inhabited GenericValue gvs2.
+Proof.
+  intros TD lc gl top0 t1 v1 t2 gvs2 Hwflc Htrunc.
+  unfold NDopsem.TRUNC in Htrunc.
+  remember(NDopsem.getOperandValue TD v1 lc gl) as R1.
+  destruct R1; inv Htrunc.
+  apply lift_op1__inhabited; eauto using getOperandValue__inhabited.
+  apply mtrunc_is_total; auto.
+Qed.
+
+Lemma EXT__inhabited : forall TD lc gl eop0 t1 v1 t2 gvs2,
+  wf_lc lc ->
+  NDopsem.EXT TD lc gl eop0 t1 v1 t2 = ret gvs2 ->
+  Ensembles.Inhabited GenericValue gvs2.
+Proof.
+  intros TD lc gl eop0 t1 v1 t2 gvs2 Hwflc Hext.
+  unfold NDopsem.EXT in Hext.
+  remember(NDopsem.getOperandValue TD v1 lc gl) as R1.
+  destruct R1; inv Hext.
+  apply lift_op1__inhabited; eauto using getOperandValue__inhabited.
+  apply mext_is_total; auto.
+Qed.
+
+Lemma extractGenericValue__inhabited : forall TD t gvs cidxs gvs',
+  Ensembles.Inhabited GenericValue gvs ->
+  NDopsem.extractGenericValue TD t gvs cidxs = ret gvs' ->
+  Ensembles.Inhabited GenericValue gvs'.
+Proof.  
+  intros TD t gvs cidxs gvs' J1 J2.
+  unfold extractGenericValue in J2.
+  assert (J:=@gv2gvs__inhabited (uninits 1)).
+  destruct (intConsts2Nats TD cidxs); try solve [inv J2; auto].
+  destruct (mgetoffset TD t l0); try solve [inv J2; auto].
+  destruct p. inv J2.
+  apply lift_op1__inhabited; auto.
+    apply mget'_is_total; auto.
+Qed.
+
+Lemma insertGenericValue__inhabited : forall TD t1 t2 gvs1 gvs2 cidxs gvs',
+  Ensembles.Inhabited GenericValue gvs1 ->
+  Ensembles.Inhabited GenericValue gvs2 ->
+  NDopsem.insertGenericValue TD t1 gvs1 cidxs t2 gvs2 = ret gvs' ->
+  Ensembles.Inhabited GenericValue gvs'.
+Proof.  
+  intros TD t1 t2 gvs1 gvs2 cidxs gvs' J1 J2 J3.
+  unfold insertGenericValue in J3.
+  assert (J:=@gv2gvs__inhabited (gundef t1)).
+  destruct (intConsts2Nats TD cidxs); try solve [inv J3; auto].
+  destruct (mgetoffset TD t1 l0); try solve [inv J3; auto].
+  destruct p. inv J3.
+  apply lift_op2__inhabited; auto.
+    apply mset'_is_total; auto.
 Qed.
 
 (*********************************************)
@@ -1059,13 +1161,13 @@ Qed.
 Tactic Notation "sInsn_cases" tactic(first) tactic(c) :=
   first;
   [ c "sReturn" | c "sReturnVoid" | c "sBranch" | c "sBranch_uncond" |
-    c "sBop" | (* c "sFBop" | c "sExtractValue" | c "sInsertValue" |*)
+    c "sBop" | c "sFBop" | c "sExtractValue" | c "sInsertValue" |
     c "sMalloc" | c "sFree" |
     c "sAlloca" | c "sLoad" | c "sStore" | c "sGEP" |
-    (*c "sTrunc" | c "sExt" | *)
+    c "sTrunc" | c "sExt" | 
     c "sCast" | 
-    (*c "sIcmp" | c "sFcmp" | c "sSelect" |  *)
-    c "sCall" (*| c "sExCall"*) ].
+    c "sIcmp" | c "sFcmp" | c "sSelect" |  
+    c "sCall" | c "sExCall" ].
 
 Lemma preservation : forall S1 S2 tr,
   sInsn S1 S2 tr -> wf_State S1 -> wf_State S2.
@@ -1359,25 +1461,31 @@ Unfocus.
 
 Case "sBop". eapply preservation_cmd_updated_case in HwfS1; simpl; eauto.
   eapply BOP__inhabited; eauto using wf_State__wf_lc.
-(*
-Case "dsFBop". eapply preservation_cmd_updated_case in HwfS1; simpl; eauto.
-Case "dsExtractValue".
-  assert (exists t0, getSubTypFromConstIdxs idxs t = Some t0) as J.
-    destruct HwfS1 as 
+Case "sFBop". eapply preservation_cmd_updated_case in HwfS1; simpl; eauto.
+  eapply FBOP__inhabited; eauto using wf_State__wf_lc.
+Case "sExtractValue".
+  assert (J':=HwfS1).
+  destruct J' as 
       [Hwfg [HwfSystem [HmInS [
-         [Hreach1 [HBinF1 [HFinPs1 [Hinscope1 [l3 [ps3 [cs3' Heq1]]]]]]] 
-         [HwfEC HwfCall]]]]
+        [Hreach1 [HBinF1 [HFinPs1 [Hwflc1 [Hinscope1 [l3 [ps3 [cs3' Heq1]]]]]]]] 
+        [HwfEC HwfCall]]]]
       ]; subst.
+  assert (exists t0, getSubTypFromConstIdxs idxs t = Some t0) as J.
     eapply wf_system__wf_cmd with (c:=insn_extractvalue id0 t v idxs) in HBinF1; 
       eauto.
       inv HBinF1; eauto.
       apply in_or_app; simpl; auto.
-
   destruct J as [t0 J].
   eapply preservation_cmd_updated_case in HwfS1; simpl; eauto.
-Case "dsInsertValue". 
+    apply getOperandValue__inhabited in H; auto.
+    eapply extractGenericValue__inhabited in H0; eauto. 
+
+Case "sInsertValue". 
   eapply preservation_cmd_updated_case in HwfS1; simpl; eauto.
-*)
+    apply getOperandValue__inhabited in H; eauto using wf_State__wf_lc. 
+    apply getOperandValue__inhabited in H0; eauto using wf_State__wf_lc. 
+    eapply insertGenericValue__inhabited in H1; eauto using wf_State__wf_lc. 
+
 Case "sMalloc". eapply preservation_cmd_updated_case in HwfS1; simpl; eauto.
   apply singleton_inhabited.
 Case "sFree". eapply preservation_cmd_non_updated_case in HwfS1; eauto.
@@ -1405,19 +1513,21 @@ Case "sGEP".
     destruct H0 as [vidxs0 H0].
     eapply GEP__inhabited in H1; eauto. 
 
-(*
-Case "dsTrunc". eapply preservation_cmd_updated_case in HwfS1; simpl; eauto.
-Case "dsExt". eapply preservation_cmd_updated_case in HwfS1; simpl; eauto.
-*)
+Case "sTrunc". eapply preservation_cmd_updated_case in HwfS1; simpl; eauto.
+  eapply TRUNC__inhabited; eauto using wf_State__wf_lc.
+Case "sExt". eapply preservation_cmd_updated_case in HwfS1; simpl; eauto.
+  eapply EXT__inhabited; eauto using wf_State__wf_lc.
 Case "sCast". eapply preservation_cmd_updated_case in HwfS1; simpl; eauto.
   eapply CAST__inhabited; eauto using wf_State__wf_lc.
-(*
-Case "dsIcmp". eapply preservation_cmd_updated_case in HwfS1; simpl; eauto.
-Case "dsFcmp". eapply preservation_cmd_updated_case in HwfS1; simpl; eauto.
-Case "dsSelect".
+Case "sIcmp". eapply preservation_cmd_updated_case in HwfS1; simpl; eauto.
+  eapply ICMP__inhabited; eauto using wf_State__wf_lc.
+Case "sFcmp". eapply preservation_cmd_updated_case in HwfS1; simpl; eauto.
+  eapply FCMP__inhabited; eauto using wf_State__wf_lc.
+Case "sSelect".
   destruct (isGVZero (los, nts) c); 
   eapply preservation_cmd_updated_case in HwfS1; simpl; eauto.
-*)
+    apply getOperandValue__inhabited in H1; eauto using wf_State__wf_lc.
+    apply getOperandValue__inhabited in H0; eauto using wf_State__wf_lc.
 Focus.
 Case "sCall".
   destruct HwfS1 as [Hwfg [HwfSys [HmInS [
@@ -1473,30 +1583,28 @@ Case "sCall".
 
 Unfocus.
 
-(*
-Case "dsExCall". 
+Case "sExCall". 
   unfold exCallUpdateLocals in H2.
   destruct noret0.
-    inv H2.
-
+    inv H5.
     eapply preservation_cmd_non_updated_case in HwfS1; eauto.
-    destruct oresult; inv H2.
+
+    destruct oresult; inv H5.
     assert (exists t0, getCmdTyp (insn_call rid false ca ft fv lp) = Some t0)
       as J.
       destruct HwfS1 as 
-        [Hwfg [HwfSystem [HmInS [
-           [Hreach1 [HBinF1 [HFinPs1 [Hinscope1 [l3 [ps3 [cs3' Heq1]]]]]]] 
-           [HwfEC HwfCall]]]]
-        ]; subst.
+       [Hwfg [HwfSystem [HmInS [
+         [Hreach1 [HBinF1 [HFinPs1 [Hwflc1 [Hinscope1 [l3 [ps3 [cs3' Heq1]]]]]]]]
+         [HwfEC HwfCall]]]]
+       ]; subst.
       eapply wf_system__wf_cmd with (c:=insn_call rid false ca ft fv lp) 
         in HBinF1; eauto.
       simpl.
       inv HBinF1; eauto. 
       apply in_or_app; simpl; auto.
-
     destruct J as [t0 J].
     eapply preservation_cmd_updated_case with (t0:=t0) in HwfS1; simpl; eauto.
-*)
+      apply gv2gvs__inhabited.
 Qed.
 
 (*********************************************)
@@ -2140,31 +2248,28 @@ Definition undefined_state (S : NDopsem.State): Prop :=
        NDopsem.Globals := gl;
        NDopsem.FunTable := fs;
        NDopsem.Mem := M |} => 
-       match NDopsem.getOperandValue td v lc gl with
-       | Some fptrs =>
-           ~ (exists fptr, exists f, fptr @ fptrs /\ 
-                lookupFdefViaPtr ps fs fptr = Some f)
-       | _ => False
-       end
-(*
-             lookupExFdecViaGV td ps gl lc fs v with
-       | None, Some (fdec_intro (fheader_intro fa rt fid la va)) =>
-           match params2GVs td p lc gl with
-           | Some gvs =>
-             match callExternalFunction M fid gvs with
-             | Some (oresult, _) =>
-                match exCallUpdateLocals n i0 oresult lc with
-                | None => True
+       match NDopsem.getOperandValue td v lc gl, params2GVs td p lc gl with
+       | Some fptrs, Some gvss =>
+           (~ exists fptr, exists f, fptr @ fptrs /\ 
+                lookupFdefViaPtr ps fs fptr = Some f) /\
+           (~ exists fptr, exists gvs, 
+                fptr @ fptrs /\ 
+                gvs @@ gvss /\ 
+                match lookupExFdecViaPtr ps fs fptr with
+                | Some (fdec_intro (fheader_intro _ _ fid _ _)) =>
+                   match callExternalFunction M fid gvs with
+                   | Some (oresult, _) =>
+                      match exCallUpdateLocals n i0 oresult lc with
+                      | None => False
+                      | _ => True
+                      end
+                   | None => False
+                   end
                 | _ => False
                 end
-             | None => True
-             end
-           | _ => False
-           end
-       | None, None => True
+            )
        | _, _ => False
        end
-*)
   | _ => False
   end.
 
@@ -2432,30 +2537,22 @@ Proof.
          NDopsem.Mem := M |}.
      exists trace_nil. eauto.
 
-  SCase "c=fbop". admit.
-(*
+  SCase "c=fbop".
     left.
-    assert (exists gv3, FBOP (los,nts) lc gl f0 f1 v v0 = Some gv3) 
+    assert (exists gv3, NDopsem.FBOP (los,nts) lc gl f0 f1 v v0 = Some gv3) 
       as Hinsn_fbop.
-      unfold FBOP.      
-      assert (exists gv, getOperandValue (los, nts) v lc gl = Some gv) as J.
+      unfold NDopsem.FBOP.      
+      assert (exists gv, NDopsem.getOperandValue (los, nts) v lc gl = Some gv) 
+        as J.
         eapply getOperandValue_inCmdOps_isnt_stuck; eauto.
           simpl; auto.
-      assert (exists gv, getOperandValue (los, nts) v0 lc gl = Some gv) as J0.
+      assert (exists gv, NDopsem.getOperandValue (los, nts) v0 lc gl = Some gv) 
+        as J0.
         eapply getOperandValue_inCmdOps_isnt_stuck; eauto.
           simpl; auto.
       destruct J as [gv J].
       destruct J0 as [gv0 J0].
-      rewrite J. rewrite J0. 
-      unfold mfbop. 
-      destruct (GV2val (los, nts) gv); eauto.
-      destruct v1; eauto.
-      destruct (GV2val (los, nts) gv0); eauto.
-      destruct v1; eauto.
-      inv Hwfc.
-      apply wf_value__wf_typ in H7.
-      destruct H7 as [J1 J2].
-      destruct f1; try solve [eauto | inversion J1].
+      rewrite J. rewrite J0. eauto.
 
     destruct Hinsn_fbop as [gv3 Hinsn_fbop].
     exists 
@@ -2475,19 +2572,18 @@ Proof.
          FunTable := fs;
          Mem := M |}.
      exists trace_nil. eauto.
-*)
-  SCase "c=extractvalue". admit.
-(*
+
+  SCase "c=extractvalue".
     left.
-    assert (exists gv, getOperandValue (los, nts) v lc gl = Some gv) as J.
+    assert (exists gv, NDopsem.getOperandValue (los, nts) v lc gl = Some gv) 
+      as J.
       eapply getOperandValue_inCmdOps_isnt_stuck; eauto.
         simpl; auto.
     destruct J as [gv J].
     assert (exists gv', extractGenericValue (los, nts) t gv l2 = Some gv') as J'.
       unfold extractGenericValue.
       destruct (intConsts2Nats (los, nts) l2); eauto.
-      destruct (mgetoffset (los, nts) t l3); eauto.
-      destruct (mget (los, nts) gv i1 t); eauto.
+      destruct (mgetoffset (los, nts) t l3) as [[]|]; eauto.
     destruct J' as [gv' J'].
     exists 
          {|
@@ -2506,15 +2602,16 @@ Proof.
          FunTable := fs;
          Mem := M |}.
      exists trace_nil. eauto.
-*)
-  SCase "c=insertvalue". admit.
-(*
+
+  SCase "c=insertvalue".
     left.
-    assert (exists gv, getOperandValue (los, nts) v lc gl = Some gv) as J.
+    assert (exists gv, NDopsem.getOperandValue (los, nts) v lc gl = Some gv) 
+      as J.
       eapply getOperandValue_inCmdOps_isnt_stuck; eauto.
         simpl; auto.
     destruct J as [gv J].
-    assert (exists gv', getOperandValue (los, nts) v0 lc gl = Some gv') as J'.
+    assert (exists gv', NDopsem.getOperandValue (los, nts) v0 lc gl = Some gv') 
+      as J'.
       eapply getOperandValue_inCmdOps_isnt_stuck; eauto.
         simpl; auto.
     destruct J' as [gv' J'].
@@ -2522,8 +2619,7 @@ Proof.
       Some gv'') as J''.
       unfold insertGenericValue.
       destruct (intConsts2Nats (los, nts) l2); eauto.
-      destruct (mgetoffset (los, nts) t l3); eauto.
-      destruct (mset (los, nts) gv i1 t0 gv'); eauto.
+      destruct (mgetoffset (los, nts) t l3) as [[]|]; eauto.
     destruct J'' as [gv'' J''].
     exists 
          {|
@@ -2542,7 +2638,6 @@ Proof.
          FunTable := fs;
          Mem := M |}.
      exists trace_nil. eauto.
-*)
 
   SCase "c=malloc". 
     inv Hwfc. inv H12.
@@ -2756,24 +2851,18 @@ Proof.
          NDopsem.Mem := M |}.
      exists trace_nil. eauto.
 
-  SCase "trunc". admit.
-(*
+  SCase "trunc". 
     left.
-    assert (exists gv2, TRUNC (los,nts) lc gl t t0 v t1 = Some gv2) 
+    assert (exists gv2, NDopsem.TRUNC (los,nts) lc gl t t0 v t1 = Some gv2) 
       as Hinsn_trunc.
       unfold TRUNC.      
-      assert (exists gv, getOperandValue (los, nts) v lc gl = Some gv) as J.
+      assert (exists gv, NDopsem.getOperandValue (los, nts) v lc gl = Some gv) 
+        as J.
         eapply getOperandValue_inCmdOps_isnt_stuck; eauto.
           simpl; auto.
       destruct J as [gv J].
-      rewrite J.
-      unfold mtrunc. 
-      destruct (GV2val (los, nts) gv); eauto.
-      inv Hwfc. 
-      inv H5; try solve [destruct v0; eauto].
-        rewrite H11.
-        destruct v0; eauto.
-          destruct floating_point2; try solve [eauto | inversion H13].
+      rewrite J. eauto.
+
     destruct Hinsn_trunc as [gv2 Hinsn_trunc].
     exists 
          {|
@@ -2792,24 +2881,19 @@ Proof.
          FunTable := fs;
          Mem := M |}.
      exists trace_nil. eauto.
-*)
-  SCase "ext". admit.
-(*
+
+  SCase "ext".
     left.
-    assert (exists gv2, EXT (los,nts) lc gl e t v t0 = Some gv2) 
+    assert (exists gv2, NDopsem.EXT (los,nts) lc gl e t v t0 = Some gv2) 
       as Hinsn_ext.
       unfold EXT.      
-      assert (exists gv, getOperandValue (los, nts) v lc gl = Some gv) as J.
+      assert (exists gv, NDopsem.getOperandValue (los, nts) v lc gl = Some gv) 
+        as J.
         eapply getOperandValue_inCmdOps_isnt_stuck; eauto.
           simpl; auto.
       destruct J as [gv J].
-      rewrite J.
-      unfold mext. 
-      inv Hwfc. 
-      inv H5; try solve 
-        [destruct (GV2val (los, nts) gv); eauto; destruct v0; eauto].
-        rewrite H11.
-        destruct (GV2val (los, nts) gv); eauto; destruct v0; eauto.
+      rewrite J. eauto.
+
     destruct Hinsn_ext as [gv2 Hinsn_ext].
     exists 
          {|
@@ -2828,7 +2912,7 @@ Proof.
          FunTable := fs;
          Mem := M |}.
      exists trace_nil. eauto.
-*)
+
   SCase "cast". 
     left.
     assert (exists gvs2, NDopsem.CAST (los,nts) lc gl c t v t0 = Some gvs2) 
@@ -2860,42 +2944,24 @@ Proof.
          NDopsem.Mem := M |}.
      exists trace_nil. eauto.
 
-  SCase "icmp". admit.
-(*
+  SCase "icmp". 
     left.
-    assert (exists gv2, ICMP (los,nts) lc gl c t v v0 = Some gv2) 
+    assert (exists gv2, NDopsem.ICMP (los,nts) lc gl c t v v0 = Some gv2) 
       as Hinsn_icmp.
-      unfold ICMP.      
-      assert (exists gv, getOperandValue (los, nts) v lc gl = Some gv) as J.
+      unfold NDopsem.ICMP.      
+      assert (exists gv, NDopsem.getOperandValue (los, nts) v lc gl = Some gv) 
+        as J.
         eapply getOperandValue_inCmdOps_isnt_stuck; eauto.
           simpl; auto.
       destruct J as [gv J].
       rewrite J.
-      assert (exists gv, getOperandValue (los, nts) v0 lc gl = Some gv) as J0.
+      assert (exists gv, NDopsem.getOperandValue (los, nts) v0 lc gl = Some gv) 
+        as J0.
         eapply getOperandValue_inCmdOps_isnt_stuck; eauto.
           simpl; auto.
       destruct J0 as [gv0 J0].
-      rewrite J0.
-      unfold micmp.
-      inv Hwfc. 
-      unfold isPointerTyp in H11. unfold is_true in H11.
-      unfold micmp_int.
-      destruct H11 as [H11 | H11].
-        destruct t; try solve [simpl in H11; contradict H11; auto].
-        destruct (GV2val (los,nts) gv); eauto.
-        destruct v1; eauto.
-        destruct (GV2val (los,nts) gv0); eauto.
-        destruct v1; eauto.
-        destruct c; eauto.
+      rewrite J0. eauto.
 
-        destruct t; try solve [simpl in H11; contradict H11; auto]. eauto.
-(*      destruct (mptrtoint (los, nts) M gv Size.ThirtyTwo); eauto.
-        destruct (mptrtoint (los, nts) M gv0 Size.ThirtyTwo); eauto.
-        destruct (GV2val (los, nts) g); eauto.
-        destruct v1; eauto.
-        destruct (GV2val (los, nts) g0); eauto.
-        destruct v1; eauto.
-        destruct c; eauto. *)
     destruct Hinsn_icmp as [gv2 Hinsn_icmp].
     exists 
          {|
@@ -2914,34 +2980,25 @@ Proof.
          FunTable := fs;
          Mem := M |}.
      exists trace_nil. eauto.
-*)
-  SCase "fcmp". admit.
-(*
+
+  SCase "fcmp". 
     left.
-    assert (exists gv2, FCMP (los,nts) lc gl f0 f1 v v0 = Some gv2) 
+    assert (exists gv2, NDopsem.FCMP (los,nts) lc gl f0 f1 v v0 = Some gv2) 
       as Hinsn_fcmp.
       unfold FCMP.      
-      assert (exists gv, getOperandValue (los, nts) v lc gl = Some gv) as J.
+      assert (exists gv, NDopsem.getOperandValue (los, nts) v lc gl = Some gv) 
+        as J.
         eapply getOperandValue_inCmdOps_isnt_stuck; eauto.
           simpl; auto.
       destruct J as [gv J].
       rewrite J.
-      assert (exists gv, getOperandValue (los, nts) v0 lc gl = Some gv) as J0.
+      assert (exists gv, NDopsem.getOperandValue (los, nts) v0 lc gl = Some gv) 
+        as J0.
         eapply getOperandValue_inCmdOps_isnt_stuck; eauto.
           simpl; auto.
       destruct J0 as [gv0 J0].
-      rewrite J0.
-      unfold mfcmp.
-      inv Hwfc. 
-      destruct (GV2val (los, nts) gv); eauto.
-      destruct v1; eauto.
-      destruct (GV2val (los, nts) gv0); eauto.
-      destruct v1; eauto.
-      apply wf_value__wf_typ in H10.
-      destruct H10 as [J1 J2].
-      destruct f1; try solve [eauto | inversion J1].
-        destruct f0; try solve [eauto | inversion H8].
-        destruct f0; try solve [eauto | inversion H8].
+      rewrite J0. eauto.
+
     destruct Hinsn_fcmp as [gv2 Hinsn_fcmp].
     exists 
          {|
@@ -2960,18 +3017,24 @@ Proof.
          FunTable := fs;
          Mem := M |}.
      exists trace_nil. eauto.
-*)
-  SCase "select". admit.
-(*
-    assert (exists gv, getOperandValue (los, nts) v lc gl = Some gv) as J.
+
+  SCase "select". 
+    assert (exists gv, NDopsem.getOperandValue (los, nts) v lc gl = Some gv) 
+      as J.
       eapply getOperandValue_inCmdOps_isnt_stuck; eauto.
         simpl; auto.
-    destruct J as [gv J].
-    assert (exists gv0, getOperandValue (los, nts) v0 lc gl = Some gv0) as J0.
+    destruct J as [cond J].
+    assert (exists c, c @ cond) as Hinh.
+      apply getOperandValue__inhabited in J; auto.
+      inv J. eauto.
+    destruct Hinh as [c Hinh].
+    assert (exists gv0, NDopsem.getOperandValue (los, nts) v0 lc gl = Some gv0) 
+      as J0.
       eapply getOperandValue_inCmdOps_isnt_stuck; eauto.
         simpl; auto.
     destruct J0 as [gv0 J0].
-    assert (exists gv1, getOperandValue (los, nts) v1 lc gl = Some gv1) as J1.
+    assert (exists gv1, NDopsem.getOperandValue (los, nts) v1 lc gl = Some gv1) 
+      as J1.
       eapply getOperandValue_inCmdOps_isnt_stuck; eauto.
         simpl; auto.
     destruct J1 as [gv1 J1].
@@ -2987,7 +3050,7 @@ Proof.
                            (cs1 ++ insn_select i0 v t v0 v1 :: cs) tmn;
                 CurCmds := cs;
                 Terminator := tmn;
-                Locals := (if isGVZero (los, nts) gv 
+                Locals := (if isGVZero (los, nts) c 
                            then updateAddAL _ lc i0 gv1 
                            else updateAddAL _ lc i0 gv0);
                 Allocas := als |} :: ecs;
@@ -2995,12 +3058,12 @@ Proof.
          FunTable := fs;
          Mem := M |}.
      exists trace_nil. eauto.
-*)
+
   SCase "call". 
     assert (exists gvs, NDopsem.params2GVs (los, nts) p lc gl = Some gvs) as G.
       eapply params2GVs_isnt_stuck; eauto. 
         exists nil. auto.
-    destruct G as [gvs G].
+    destruct G as [gvss G].
     assert (exists fptrs, NDopsem.getOperandValue (los, nts) v lc gl = 
       Some fptrs) as J'.
       eapply getOperandValue_inCmdOps_isnt_stuck; eauto.
@@ -3026,7 +3089,7 @@ Proof.
          NDopsem.ECS :=(NDopsem.mkEC 
                        (fdef_intro (fheader_intro fa rt fid la va) lb) 
                        (block_intro l5 ps5 cs5 tmn5) cs5 tmn5 
-                       (NDopsem.initLocals la gvs) 
+                       (NDopsem.initLocals la gvss) 
                        nil)::
                {|
                 NDopsem.CurFunction := f;
@@ -3041,50 +3104,58 @@ Proof.
          NDopsem.Mem := M |}.
     exists trace_nil.
     eauto.     
-(*
-    remember (lookupExFdecViaGV (los, nts) ps gl lc fs v) as Helk. 
-    destruct Helk as [f' |].
+
+    destruct (classic 
+          (exists fptr, exists gvs, 
+                fptr @ fptrs /\ 
+                gvs @@ gvss /\ 
+                match lookupExFdecViaPtr ps fs fptr with
+                | Some (fdec_intro (fheader_intro _ _ fid _ _)) =>
+                   match callExternalFunction M fid gvs with
+                   | Some (oresult, _) =>
+                      match exCallUpdateLocals n i0 oresult lc with
+                      | None => False
+                      | _ => True  
+                      end
+                   | None => False
+                   end
+                | _ => False
+                end
+            )) as 
+      [[fptr [gvs [Hgvin [Hgvin' J]]]] | Hnex'].
+
     SSCase "external call".
+    remember (lookupExFdecViaPtr ps fs fptr) as R. 
+    destruct R as [f' |]; tinv J.
     destruct f' as [[fa rt fid la va]].
     remember (callExternalFunction M fid gvs) as R.
-      destruct R as [[oresult Mem']|].
-      remember (exCallUpdateLocals n i0 oresult lc) as R'.
-      destruct R' as [lc' |].
-        left.
-        exists 
-         {|
-         CurSystem := s;
-         CurTargetData := (los, nts);
-         CurProducts := ps;
-         ECS :={|
-                CurFunction := f;
-                CurBB := block_intro l1 ps1
-                           (cs1 ++ insn_call i0 n c t v p :: cs) tmn;
-                CurCmds := cs;
-                Terminator := tmn;
-                Locals := lc';
-                Allocas := als |} :: ecs;
-         Globals := gl;
-         FunTable := fs;
-         Mem := Mem' |}.
-        exists trace_nil.
-        eauto.     
+    destruct R as [[oresult Mem']|]; tinv J.
+    remember (exCallUpdateLocals n i0 oresult lc) as R'.
+    destruct R' as [lc' |]; tinv J.
+      left.
+      exists 
+       {|
+       CurSystem := s;
+       CurTargetData := (los, nts);
+       CurProducts := ps;
+       ECS :={|
+              CurFunction := f;
+              CurBB := block_intro l1 ps1
+                         (cs1 ++ insn_call i0 n c t v p :: cs) tmn;
+              CurCmds := cs;
+              Terminator := tmn;
+              Locals := lc';
+              Allocas := als |} :: ecs;
+       Globals := gl;
+       FunTable := fs;
+       Mem := Mem' |}.
+      exists trace_nil.
+      eauto.     
 
-        right.
-        unfold undefined_state.
-        right. rewrite <- HeqHlk. rewrite <- HeqHelk. rewrite G. 
-        rewrite <- HeqR0.
-        rewrite <- HeqR'. undefbehave.
-
-      right.
-      unfold undefined_state.
-      right. rewrite <- HeqHlk. rewrite <- HeqHelk. rewrite G.
-      rewrite <- HeqR0. undefbehave.
-*)
     SSCase "stuck".
       right.
       unfold undefined_state.
-      right. rewrite J'. undefbehave.
+      right. rewrite J'. rewrite G. undefbehave.
 Qed.
 
 

@@ -436,7 +436,7 @@ match (t1, t2) with
     | _ => Some (gundef t2)
     end
   else Some (gundef t2)
-| (_, _) => None
+| (_, _) => Some (gundef t2)
 end.
 
 Definition micmp_int TD c gv1 gv2 : option GenericValue :=
@@ -480,7 +480,7 @@ Definition micmp (TD:TargetData) (c:cond) (t:typ) (gv1 gv2:GenericValue)
 match t with
 | typ_int sz => micmp_int TD c gv1 gv2
 | typ_pointer _ => Some (gundef (typ_int 1))
-| _ => None
+| _ => Some (gundef (typ_int 1))
 end.
 
 Definition mfcmp (TD:TargetData) (c:fcond) (fp:floating_point) 

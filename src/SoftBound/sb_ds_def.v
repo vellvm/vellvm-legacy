@@ -730,50 +730,6 @@ CoInductive dsop_diverges : State -> Trace -> Prop :=
 
 End SBopsem.
 
-Tactic Notation "sb_dbCmd_cases" tactic(first) tactic(c) :=
-  first;
-  [ c "dbBop" | c "dbBop_error" | c "dbFBop" | c "dbFBop_eror" |
-    c "dbExtractValue" | c "dbExtractValue_error" | 
-    c "dbInsertValue" | c "dbInsertValue_error" |
-    c "dbMalloc" | c "dbMalloc_error" | c "dbFree" | c "dbFree_error" |
-    c "dbAlloca" | c "dbAlloca_error" | 
-    c "dbLoad_nptr" | c "dbLoad_ptr" | c "dbLoad_error1" | 
-    c "dbLoad_error2" | c "dbLoad_error3" | c "dbLoad_abort" |
-    c "dbStore_nptr" | c "dbStore_ptr" | c "dbStore_error1" |
-    c "dbStore_error2" | c "dbStore_error3" | c "dbStore_abort" |  
-    c "dbGEP" | c "dbGEP_error" |
-    c "dbTrunc" | c "dbTrunc_error" |
-    c "dbExt" | c "dbExt_error" |
-    c "dbBitcast_nptr" | c "dbBitcast_ptr" | c "dbInttoptr" | c "dbOtherCast" |
-    c "dbCast_error" | 
-    c "dbIcmp" | c "dbIcmp_error" |
-    c "dbFcmp" | c "dbFcmp_error" | 
-    c "dbSelect_nptr" | c "dbSelect_ptr"| c "dbSelect_error" |
-    c "dbLib" | c "dbLib_error" ].
-
-Tactic Notation "sb_dbTerminator_cases" tactic(first) tactic(c) :=
-  first;
-  [ c "dbBranch" | c "dbBranch_uncond" ].
-
-Tactic Notation "sb_dbCmds_cases" tactic(first) tactic(c) :=
-  first;
-  [ c "dbCmds_nil" | c "dbCmds_cons" | c "dbCmds_cons_error" ].
-
-Tactic Notation "sb_db_mutind_cases" tactic(first) tactic(c) :=
-  first;
-  [ c "dbCall_internal" | c "dbCall_external" |
-    c "dbCall_internal_error1" | c "dbCall_internal_error2" |
-    c "dbCall_external_error1" | c "dbCall_external_error2" |
-    c "dbSubblock_ok" | c "dbSubblock_error" | 
-    c "dbSubblocks_nil" | c "dbSubblocks_cons" | c "dbSubblocks_cons_error" |
-    c "dbBlock_ok" | c "dbBlock_error1" | c "dbBlock_error2" | 
-    c "dbBlocks_nil" | c "dbBlocks_cons" | c "dbBlocks_cons_error" | 
-    c "dbFdef_func" | c "dbFdef_func_error1" | c "dbFdef_func_error2" |
-    c "dbFdef_func_error3" | c "dbFdef_func_error4" | c "dbFdef_func_error5" |
-    c "dbFdef_proc" | c "dbFdef_proc_error1" | c "dbFdef_proc_error2" |
-    c "dbFdef_proc_error3" | c "dbFdef_proc_error4" | c "dbFdef_proc_error5"
-  ].
-
 Tactic Notation "sb_dsInsn_cases" tactic(first) tactic(c) :=
   first;
   [ c "dsReturn" | c "dsReturnVoid" | c "dsBranch" | c "dsBranch_uncond" |
