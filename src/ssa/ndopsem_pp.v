@@ -528,6 +528,25 @@ Proof.
       eapply getOperandValue__inhabited; eauto.
 Qed.
 
+Lemma params2GVs_inhabited' : forall TD gl lc (Hwfc : wf_lc lc) lp gvss,
+  NDopsem.params2GVs TD lp lc gl = Some gvss ->
+  exists gvs, gvs @@ gvss.
+Proof.
+  induction lp; simpl; intros gvss Hp2gv.
+    inv Hp2gv. exists nil. simpl. auto.
+
+    destruct a. 
+    remember (NDopsem.getOperandValue TD v lc gl) as R0.
+    destruct R0; try solve [inv Hp2gv].
+    remember (NDopsem.params2GVs TD lp lc gl) as R.
+    destruct R; inv Hp2gv.
+    symmetry in HeqR0.
+    apply getOperandValue__inhabited in HeqR0; auto.
+    inv HeqR0.
+    destruct (@IHlp l0) as [gvs' J]; auto.
+    exists (x::gvs'). simpl. auto.
+Qed.
+
 Lemma initLocals_spec' : forall la gvs id1,
   In id1 (getArgsIDs la) ->
   exists gv, lookupAL _ (NDopsem.initLocals la gvs) id1 = Some gv.
@@ -1158,24 +1177,24 @@ Proof.
     ]; auto.
 Qed.  
 
-Tactic Notation "sInsn_cases" tactic(first) tactic(c) :=
+Tactic Notation "nsInsn_cases" tactic(first) tactic(c) :=
   first;
-  [ c "sReturn" | c "sReturnVoid" | c "sBranch" | c "sBranch_uncond" |
-    c "sBop" | c "sFBop" | c "sExtractValue" | c "sInsertValue" |
-    c "sMalloc" | c "sFree" |
-    c "sAlloca" | c "sLoad" | c "sStore" | c "sGEP" |
-    c "sTrunc" | c "sExt" | 
-    c "sCast" | 
-    c "sIcmp" | c "sFcmp" | c "sSelect" |  
-    c "sCall" | c "sExCall" ].
+  [ c "nsReturn" | c "nsReturnVoid" | c "nsBranch" | c "nsBranch_uncond" |
+    c "nsBop" | c "nsFBop" | c "nsExtractValue" | c "nsInsertValue" |
+    c "nsMalloc" | c "nsFree" |
+    c "nsAlloca" | c "nsLoad" | c "nsStore" | c "nsGEP" |
+    c "nsTrunc" | c "nsExt" | 
+    c "nsCast" | 
+    c "nsIcmp" | c "nsFcmp" | c "nsSelect" |  
+    c "nsCall" | c "nsExCall" ].
 
 Lemma preservation : forall S1 S2 tr,
-  sInsn S1 S2 tr -> wf_State S1 -> wf_State S2.
+  nsInsn S1 S2 tr -> wf_State S1 -> wf_State S2.
 Proof.
   intros S1 S2 tr HdsInsn HwfS1.
-  (sInsn_cases (induction HdsInsn) Case); destruct TD as [los nts].
+  (nsInsn_cases (induction HdsInsn) Case); destruct TD as [los nts].
 Focus.
-Case "sReturn".
+Case "nsReturn".
   destruct HwfS1 as 
     [Hwfg [HwfSystem [HmInS [
      [Hreach1 [HBinF1 [HFinPs1 [Hwflc1 [Hinscope1 [l1 [ps1 [cs1' Heq1]]]]]]]] 
@@ -1280,7 +1299,7 @@ Case "sReturn".
 Unfocus.
 
 Focus.
-Case "sReturnVoid".
+Case "nsReturnVoid".
   destruct HwfS1 as 
     [Hwfg [HwfSystem [HmInS [
      [Hreach1 [HBinF1 [HFinPs1 [Hwflc1 [Hinscope1 [l1 [ps1 [cs1' Heq1]]]]]]]] 
@@ -1357,7 +1376,7 @@ Case "sReturnVoid".
 Unfocus.
 
 Focus.
-Case "sBranch".
+Case "nsBranch".
   destruct HwfS1 as 
     [Hwfg [HwfSystem [HmInS [
      [Hreach1 [HBinF1 [HFinPs1 [Hwflc1 [Hinscope1 [l3 [ps3 [cs3' Heq1]]]]]]]]
@@ -1413,7 +1432,7 @@ Case "sBranch".
 Unfocus.
 
 Focus.
-Case "sBranch_uncond".
+Case "nsBranch_uncond".
   destruct HwfS1 as 
     [Hwfg [HwfSystem [HmInS [
      [Hreach1 [HBinF1 [HFinPs1 [Hwflc1 [Hinscope1 [l3 [ps3 [cs3' Heq1]]]]]]]] 
@@ -1459,11 +1478,11 @@ Case "sBranch_uncond".
       exists l'. exists ps'. exists nil. simpl_env. auto.
 Unfocus.
 
-Case "sBop". eapply preservation_cmd_updated_case in HwfS1; simpl; eauto.
+Case "nsBop". eapply preservation_cmd_updated_case in HwfS1; simpl; eauto.
   eapply BOP__inhabited; eauto using wf_State__wf_lc.
-Case "sFBop". eapply preservation_cmd_updated_case in HwfS1; simpl; eauto.
+Case "nsFBop". eapply preservation_cmd_updated_case in HwfS1; simpl; eauto.
   eapply FBOP__inhabited; eauto using wf_State__wf_lc.
-Case "sExtractValue".
+Case "nsExtractValue".
   assert (J':=HwfS1).
   destruct J' as 
       [Hwfg [HwfSystem [HmInS [
@@ -1480,21 +1499,21 @@ Case "sExtractValue".
     apply getOperandValue__inhabited in H; auto.
     eapply extractGenericValue__inhabited in H0; eauto. 
 
-Case "sInsertValue". 
+Case "nsInsertValue". 
   eapply preservation_cmd_updated_case in HwfS1; simpl; eauto.
     apply getOperandValue__inhabited in H; eauto using wf_State__wf_lc. 
     apply getOperandValue__inhabited in H0; eauto using wf_State__wf_lc. 
     eapply insertGenericValue__inhabited in H1; eauto using wf_State__wf_lc. 
 
-Case "sMalloc". eapply preservation_cmd_updated_case in HwfS1; simpl; eauto.
+Case "nsMalloc". eapply preservation_cmd_updated_case in HwfS1; simpl; eauto.
   apply singleton_inhabited.
-Case "sFree". eapply preservation_cmd_non_updated_case in HwfS1; eauto.
-Case "sAlloca". eapply preservation_cmd_updated_case in HwfS1; simpl; eauto.
+Case "nsFree". eapply preservation_cmd_non_updated_case in HwfS1; eauto.
+Case "nsAlloca". eapply preservation_cmd_updated_case in HwfS1; simpl; eauto.
   apply singleton_inhabited.
-Case "sLoad".  eapply preservation_cmd_updated_case in HwfS1; simpl; eauto.
+Case "nsLoad".  eapply preservation_cmd_updated_case in HwfS1; simpl; eauto.
   apply gv2gvs__inhabited.
-Case "sStore". eapply preservation_cmd_non_updated_case in HwfS1; eauto.
-Case "sGEP". 
+Case "nsStore". eapply preservation_cmd_non_updated_case in HwfS1; eauto.
+Case "nsGEP". 
   assert (J:=HwfS1).
   destruct J as 
     [Hwfg [HwfSystem [HmInS [
@@ -1513,23 +1532,23 @@ Case "sGEP".
     destruct H0 as [vidxs0 H0].
     eapply GEP__inhabited in H1; eauto. 
 
-Case "sTrunc". eapply preservation_cmd_updated_case in HwfS1; simpl; eauto.
+Case "nsTrunc". eapply preservation_cmd_updated_case in HwfS1; simpl; eauto.
   eapply TRUNC__inhabited; eauto using wf_State__wf_lc.
-Case "sExt". eapply preservation_cmd_updated_case in HwfS1; simpl; eauto.
+Case "nsExt". eapply preservation_cmd_updated_case in HwfS1; simpl; eauto.
   eapply EXT__inhabited; eauto using wf_State__wf_lc.
-Case "sCast". eapply preservation_cmd_updated_case in HwfS1; simpl; eauto.
+Case "nsCast". eapply preservation_cmd_updated_case in HwfS1; simpl; eauto.
   eapply CAST__inhabited; eauto using wf_State__wf_lc.
-Case "sIcmp". eapply preservation_cmd_updated_case in HwfS1; simpl; eauto.
+Case "nsIcmp". eapply preservation_cmd_updated_case in HwfS1; simpl; eauto.
   eapply ICMP__inhabited; eauto using wf_State__wf_lc.
-Case "sFcmp". eapply preservation_cmd_updated_case in HwfS1; simpl; eauto.
+Case "nsFcmp". eapply preservation_cmd_updated_case in HwfS1; simpl; eauto.
   eapply FCMP__inhabited; eauto using wf_State__wf_lc.
-Case "sSelect".
+Case "nsSelect".
   destruct (isGVZero (los, nts) c); 
   eapply preservation_cmd_updated_case in HwfS1; simpl; eauto.
     apply getOperandValue__inhabited in H1; eauto using wf_State__wf_lc.
     apply getOperandValue__inhabited in H0; eauto using wf_State__wf_lc.
 Focus.
-Case "sCall".
+Case "nsCall".
   destruct HwfS1 as [Hwfg [HwfSys [HmInS [
     [Hreach [HBinF [HFinPs [Hwflc [Hinscope [l1 [ps [cs'' Heq]]]]]]]]
     [HwfECs HwfCall]]]]]; subst.
@@ -1583,7 +1602,7 @@ Case "sCall".
 
 Unfocus.
 
-Case "sExCall". 
+Case "nsExCall". 
   unfold exCallUpdateLocals in H2.
   destruct noret0.
     inv H5.
@@ -2289,8 +2308,8 @@ Require Import Classical_Prop.
 
 Lemma progress : forall S1,
   wf_State S1 -> 
-  s_isFinialState S1 = true \/ 
-  (exists S2, exists tr, sInsn S1 S2 tr) \/
+  ns_isFinialState S1 = true \/ 
+  (exists S2, exists tr, nsInsn S1 S2 tr) \/
   undefined_state S1.
 Proof.
   intros S1 HwfS1.

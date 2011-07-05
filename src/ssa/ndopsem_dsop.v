@@ -2153,7 +2153,7 @@ Definition undef_state St : Prop :=
 Lemma instantiate_dsInsn : forall st1 st2 st1' tr,
   instantiate_State st1 st2 ->
   LLVMopsem.dsInsn st1 st1' tr ->
-  (exists st2', sInsn st2 st2' tr /\ instantiate_State st1' st2') \/
+  (exists st2', NDopsem.nsInsn st2 st2' tr /\ instantiate_State st1' st2') \/
   undef_state st1.
 Proof.
   intros st1 st2 st1' tr Hsim Hop.  
@@ -2396,7 +2396,7 @@ Case "dsCall". simpl_nd_llvmds.
      (NDopsem.mkEC f1' b1' (insn_call rid noret0 ca ft fv lp :: cs) tmn1' 
       lc1' als1') ::ECs') gl' fs' M').
   split.
-    eapply sCall; eauto.
+    eapply NDopsem.nsCall; eauto.
       unfold lookupFdefViaPtr. 
       rewrite J2. simpl. rewrite J3. auto.
     repeat (split; auto using instantiate_locals__initLocals).
@@ -2418,7 +2418,7 @@ Case "dsExCall". simpl_nd_llvmds.
   exists (NDopsem.mkState S' TD' Ps' 
     ((NDopsem.mkEC f1' b1' cs tmn1' lc2' als1') ::ECs') gl' fs' Mem').
   split.
-    eapply sExCall; eauto.
+    eapply NDopsem.nsExCall; eauto.
       unfold lookupExFdecViaPtr. 
       rewrite J2. simpl. rewrite J3. rewrite J4. eauto.
     repeat (split; auto using instantiate_locals__initLocals).
