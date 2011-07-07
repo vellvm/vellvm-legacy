@@ -1,5 +1,5 @@
 open Ssa_interpreter
-open Sb_db_trans
+(* open Sb_db_trans *)
 open Sb_ds_trans
 open Printf
 open Llvm
