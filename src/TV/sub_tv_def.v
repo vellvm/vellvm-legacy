@@ -27,7 +27,7 @@ Definition eq_const (c c':const) := sumbool2bool _ _ (const_dec c c').
 Definition eq_l (l1 l2:l) := sumbool2bool _ _ (l_dec l1 l2).
 Definition bzeq (x y:Z) := sumbool2bool _ _ (Coqlib.zeq x y).
 
-Axiom eq_INT_Z : INT -> Z -> bool.
+Axiom eq_INT_Z : Int -> Z -> bool.
 
 Module SBsyntax.
 

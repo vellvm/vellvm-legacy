@@ -99,13 +99,13 @@ End FLOAT.
 
 }}
 
-metavar INT ::= {{ com INT }}
+metavar Int ::= {{ com Int }}
   {{ coq INTEGER.t }} {{ lex numeral }}
 metavar Float ::= {{ com FLOAT }}
   {{ coq FLOAT.t }} {{ lex numeral }}
 metavar sz ::= {{ com sz }}
   {{ coq Size.t }} {{ lex numeral }}
-metavar id ::= {{ com identities }}
+metavar id, fid ::= {{ com identities }}
   {{ coq atom }} {{ lex numeral  }}
 metavar l ::= {{ com labels }}
   {{ coq atom }} {{ lex numeral  }}
@@ -116,9 +116,9 @@ indexvar i, j, n ::= {{ com index }}
  
 grammar
 
-opt_INT {{ tex \mathit{opt_{INT} } }} :: 'opt_INT_'	::=			{{ com option INT }} {{ coq option INT }}
+opt_Int {{ tex \mathit{opt_{Int} } }} :: 'opt_Int_'	::=			{{ com option Int }} {{ coq option Int }}
   |  none 						:: M :: none		{{ com none }} {{ coq None }}
-  |  INT						:: M :: some  		{{ com some }} {{ coq (Some [[INT]]) }}
+  |  Int						:: M :: some  		{{ com some }} {{ coq (Some [[Int]]) }}
 
 opt_l {{ tex \mathit{opt_{l} } }} :: 'opt_l_'		::=			{{ com option l }} {{ coq option l }}
   |  none 						:: M :: none		{{ com none }} {{ coq None }}
@@ -148,7 +148,7 @@ layout :: 'layout_'					::=  			{{ com data layout }}
 layouts {{ tex \mathit{\overline{layout} } }} :: 'layouts_'	::=  		{{ com layouts }}
      	    			     	   					{{ coq (list layout) }}
   | []   		 				::   :: nil		{{ coq nil }}
-  | layouts , layout					::   :: cons		{{ coq ([[layout]]::[[layouts]]) }}
+  | layout , layouts					::   :: cons		{{ coq ([[layout]]::[[layouts]]) }}
   | layouts ; layouts'					::   :: append		{{ coq ([[layouts]]++[[layouts']]) }}
   | ( layouts )						:: S :: paren           {{ coq [[ layouts ]] }}
 
@@ -171,6 +171,7 @@ typ :: 'typ_'						::=			{{ com type }}
   | label                                               ::   :: label           {{ com label }}
   | metadata                                            ::   :: metadata        {{ com metadata }}
   | [ sz * typ ]              				::   :: array       	{{ com array }}
+      {{ tex \ottsym{[}\, [[sz]]\, \times \, [[typ]] \, \ottsym{]}  }}
   | typ ( </ typj // j /> varg ) 			::   :: function    	{{ com function }}
   | { </ typj // j /> }       				::   :: struct      	{{ com structure }}
   | typ *                     				::   :: pointer     	{{ com pointer }}
@@ -268,7 +269,7 @@ truncop :: 'truncop_'					::=  			{{ com trunc operators }}
 
 const :: 'const_'					::=  			{{ com constant }}
   | typ zeroinitializer					::   :: zeroinitializer {{ com zeroinitializer }}
-  | ( int sz ) INT					::   :: int		{{ com int }}	
+  | ( int sz ) Int					::   :: int		{{ com int }}	
   | floating_point Float				::   :: floatpoint	{{ com floatpoint }}
   | typ undef						::   :: undef		{{ com undef }}
   | ( typ * ) null					::   :: null		{{ com null }}
@@ -336,7 +337,7 @@ arg :: 'arg_'  						::=  			{{ com argument }}
 args {{ tex \mathit{\overline{arg} } }} :: 'args_'	::=  			{{ com arguments }}
      	    			     	   					{{ coq (list (typ*attributes*id)) }}
   | []   		 				::   :: nil		{{ coq nil }}
-  | args , arg 						::   :: cons		{{ coq ([[arg]]::[[args]]) }}
+  | arg , args						::   :: cons		{{ coq ([[arg]]::[[args]]) }}
   | args ; args'					::   :: append		{{ coq ([[args]]++[[args']]) }}
   | ( args )						:: S :: paren           {{ coq [[ args ]] }}
 
@@ -348,7 +349,7 @@ param :: 'param_'  					::=  			{{ com argument }}
 params {{ tex \mathit{\overline{param} } }} :: 'params_'::=			{{ com parameters }}
        	      			       	       					{{ coq (list (typ*value)) }}
   | []  						::   :: nil		{{ coq nil }}
-  | params , param           				::   :: cons		{{ coq (([[param]])::[[params]]) }}
+  | param , params           				::   :: cons		{{ coq (([[param]])::[[params]]) }}
   | params ; params'				     	::   :: append		{{ coq ([[params]]++[[params']]) }}
   | ( params )						:: S :: paren           {{ coq [[ params ]] }}
 
@@ -370,7 +371,7 @@ callconv :: 'callconv_'					::=			{{ com calling convention }}
 clattrs :: 'clattrs_'                                   ::=                     {{ com call attributtes }}
   | tailc callconv attributes1 attributes2              ::   :: intro
 
-cmd :: 'insn_'					    	::=			{{ com commands }}
+cmd {{ tex c }} :: 'insn_'					    	::=			{{ com commands }}
 %% Binary Operations and Bitwise Binary Operations
   | id = bop ( int sz ) value1 value2			::   :: bop		{{ com bop }}
   | id = fbop floating_point value1 value2		::   :: fbop		{{ com fbop }}
@@ -383,9 +384,11 @@ cmd :: 'insn_'					    	::=			{{ com commands }}
 %% Memory Access and Addressing Operations
   | id = malloc typ value align	         	     	::   :: malloc		{{ com malloc }}
   | id = free ( typ * ) value     	       	     	::   :: free		{{ com free }}
+      {{ tex \ottkw{free}\, \ottsym{(}\, [[typ]]\, \ottsym{*}\, \ottsym{)}\, [[value]] }}
   | id = alloca typ value align     	       	     	::   :: alloca		{{ com alloca }}
   | id = load ( typ * ) value1 align			::   :: load		{{ com load }}
   | id = store typ value1 value2 align			::   :: store		{{ com store }}
+      {{ tex \ottkw{store}\, [[typ]]\, [[value1]]\, [[value2]]\, [[align]] }}
   | id = getelementptr inbounds ( typ * ) value </ valuej // j />    	      ::  :: gep        {{ com getelementptr }}
 %% Conversion Operations
   | id = truncop typ1 value1 to typ2			::   :: trunc		{{ com trunc }}
@@ -396,22 +399,28 @@ cmd :: 'insn_'					    	::=			{{ com commands }}
   | id = fcmp fcond floating_point value1 value2	::   :: fcmp		{{ com fcmp }}
   | id = select value0 typ value1 value2                ::   :: select          {{ com select }}
   | id = noret clattrs call typ0 value0 params    	::   :: call		{{ com call }} 
+      {{ tex [[id]]\, [[=]]\, \ottkw{call}\, [[typ0]]\, [[value0]]\, [[params]] }}
   %| va_arg
   | ( insn )						:: S :: paren           {{ coq [[ insn ]] }}
 
-terminator :: 'insn_'					::=  			{{ com termniators }}
+terminator {{ tex tmn }} :: 'insn_'					::=  			{{ com termniators }}
   | id = ret typ value        			    	::   :: return      	{{ com return }}
+      {{ tex \ottkw{ret}\, [[typ]]\, [[value]] }}
   | id = ret void   					::   :: return_void  	{{ com return void }}
+      {{ tex \ottkw{ret}\, \ottkw{void} }}
   | id = br value l1 l2		 			::   :: br              {{ com br }}        
+      {{ tex \ottkw{br}\, [[value]]\, [[l1]]\, [[l2]] }}
   | id = br l        	    	  			::   :: br_uncond       {{ com unconditional br }}        
+      {{ tex \ottkw{br}\, [[l]] }}
   %| id = switch typ value , l </ [ constj , lj ] // j />	::   :: switch		{{ com switch }}
   %| indirectbr
   %| id = invoke typ0 id0 list_param to l1 unwind l2 	::   :: invoke		{{ com invoke }} 
   %| unwind
   | id = unreachable   	   	     	 		::   :: unreachable	{{ com unreachable }}
+      {{ tex \ottkw{unreachable} }}
   | ( terminator )					:: S :: paren1          {{ coq [[ terminator ]] }}
 
-phinode :: 'insn_'					::=  			{{ com phinodes }}
+phinode {{ tex \phi }} :: 'insn_'			::=  			{{ com phinodes }}
   | id = phi typ </ [ valuej , lj ] // j />	        ::   :: phi  	    	{{ com def }}
   | ( phinode )						:: S :: paren2          {{ coq [[ phinode ]] }}
 
@@ -427,32 +436,32 @@ insns {{ tex \mathit{\overline{insn} } }} :: 'insns_'	::=			{{ com insns }}
   | insns ; insns'					::   :: append		{{ coq ([[insns]]++[[insns']]) }}
   | ( insns )						:: S :: paren           {{ coq [[ insns]] }}
 
-cmds {{ tex \mathit{\overline{cmd} } }} :: 'cmds_'	::=			{{ com cmds }}
+cmds {{ tex \mathit{\overline{c} } }} :: 'cmds_'	::=			{{ com cmds }}
       	     			       	     					{{ coq (list cmd) }}
   | []	                  				::   :: nil		{{ coq nil }}
-  | cmds , cmd           				::   :: cons		{{ coq ([[cmd]]::[[cmds]]) }}
+  | cmd , cmds           				::   :: cons		{{ coq ([[cmd]]::[[cmds]]) }}
   | cmds ; cmds'					::   :: append		{{ coq ([[cmds]]++[[cmds']]) }}
   | ( cmds )						:: S :: paren           {{ coq [[ cmds ]] }}
 
-phinodes {{ tex \mathit{\overline{phinode} } }} :: 'phinodes_'	::=		{{ com phinodes }}
+phinodes {{ tex \mathit{\overline{\phi} } }} :: 'phinodes_'	::=		{{ com phinodes }}
       	     			       	     					{{ coq (list phinode) }}
   | []	                  				::   :: nil		{{ coq nil }}
-  | phinodes , phinode     				::   :: cons		{{ coq ([[phinode]]::[[phinodes]]) }}
+  | phinode , phinodes     				::   :: cons		{{ coq ([[phinode]]::[[phinodes]]) }}
   | phinodes ; phinodes'				::   :: append		{{ coq ([[phindes]]++[[phinodes']]) }}
   | ( phinodes )					:: S :: paren           {{ coq [[ phinodes ]] }}
 
-block :: 'block_' 					::=			{{ com block }}
+block {{ tex b }} :: 'block_' 	::=	     			{{ com block }}
   | l phinodes cmds terminator				::   :: intro
   | ( block )						:: S :: paren           {{ coq [[ block ]] }}
 
-opt_block {{ tex \mathit{opt_{block} } }} :: 'opt_block_' ::=			{{ com option block }} {{ coq option block }}
+opt_block {{ tex \mathit{opt_{b} } }} :: 'opt_block_' ::=			{{ com option block }} {{ coq option block }}
   |  none 						:: M :: none		{{ com none }} {{ coq None }}
   |  block						:: M :: some  		{{ com some }} {{ coq (Some [[block]]) }}
 		   
-blocks {{ tex \mathit{\overline{block} } }} :: 'blocks_'::=			{{ com blocks }}
+blocks {{ tex \mathit{\overline{b} } }} :: 'blocks_'::=				{{ com blocks }}
       	     			       	     					{{ coq (list block) }}
   | []  						::   :: nil		{{ coq nil }}
-  | blocks , block					::   :: cons		{{ coq ([[block]]::[[blocks]]) }}
+  | block , blocks					::   :: cons		{{ coq ([[block]]::[[blocks]]) }}
   | blocks ; blocks'					::   :: append		{{ coq ([[blocks]]++[[blocks']]) }}
   | ( blocks )						:: S :: paren           {{ coq [[ blocks ]] }}
 
@@ -482,7 +491,7 @@ fnattrs ::  'fnattrs_'                                  ::=                     
   | linkage visibility callconv attributes1 attributes2 ::   :: intro
 
 fheader :: 'fheader_'    				::=			{{ com function header }}
-  | fnattrs typ id ( args varg )      	      	  	::   :: intro
+  | fnattrs typ id ( args varg )      	      	  	::   :: intro           {{ tex [[typ]]\, [[id]]\, ( [[args]] ) }}
   | ( fheader )						:: S :: paren           {{ coq [[ fheader ]] }}
 
 fdec :: 'fdec_'       					::=			{{ com function declaration }}
@@ -495,12 +504,12 @@ fdef :: 'fdef_'          				::=			{{ com function definition }}
 
 opt_fdec {{ tex \mathit{opt_{fdec} } }} :: 'opt_fdec_'	::=  			{{ com option fdec }} {{ coq option fdec }}
   | none 						::   :: none		{{ coq None }}
-  | fdec						::   :: fdec		{{ coq (Some [[fdec]]) }}
+  | fdec						::   :: fdec		{{ coq (Some [[fdec]]) }} {{ tex \lfloor [[fdec]] \rfloor }}
   | ( opt_fdec )					:: S :: paren		{{ coq [[ opt_fdec ]] }}
 
 opt_fdef {{ tex \mathit{opt_{fdef} } }} :: 'opt_fdef_'	::=  			{{ com option fdef }} {{ coq option fdef }}
   | none 						::   :: none		{{ coq None }}
-  | fdef						::   :: fdec		{{ coq (Some [[fdef]]) }}
+  | fdef						::   :: fdec		{{ coq (Some [[fdef]]) }} {{ tex \lfloor [[fdef]] \rfloor }}
   | ( opt_fdef )					:: S :: paren		{{ coq [[ opt_fdef ]] }}
 
 namedt :: 'namedt_'         				::=			{{ com named type }}
@@ -510,7 +519,7 @@ namedt :: 'namedt_'         				::=			{{ com named type }}
 namedts {{ tex \mathit{\overline{namedt} } }} :: 'namedts_'	::=		{{ com namedts }}
       	     			       	     					{{ coq (list namedt) }}
   | []	                  				::   :: nil		{{ coq nil }}
-  | namedts , namedt           				::   :: cons		{{ coq ([[namedt]]::[[namedts]]) }}
+  | namedt , namedts           				::   :: cons		{{ coq ([[namedt]]::[[namedts]]) }}
   | namedts ; namedts'					::   :: append		{{ coq ([[namedts]]++[[namedts']]) }}
   | ( namedts )						:: S :: paren           {{ coq [[ namedts ]] }}
 
@@ -543,7 +552,7 @@ products {{ tex \mathit{\overline{product} } }} :: 'products_'::=		{{ com produc
 	    				     	   				{{ coq (list product) }}	   
   | []   						::   :: nil        	{{ com nil }}
     							     			{{ coq nil }}
-  | products , product					::   :: cons            {{ com cons }}
+  | product , products					::   :: cons            {{ com cons }}
     	       						     			{{ coq ([[product]]::[[products]]) }}
   | ( products )					:: S :: paren		{{ coq [[ products ]] }}			
 
@@ -552,14 +561,14 @@ targetdata :: 'targetdata_'  				::=  			{{ com targetdata }}
   | layouts namedts					::   :: def		{{ coq ([[layouts]],[[namedts]]) }}
   | ( targetdata )					:: S :: paren		{{ coq [[ targetdata ]] }}
 
-module :: 'module_'					::=  			{{ com module }}
+module {{ tex mod }} :: 'module_'					::=  			{{ com module }}
   | layouts namedts products 				::   :: intro		{{ com prods }}
   | ( module )					        :: S :: paren           {{ coq [[ module ]] }}
 
-modules {{ tex \mathit{\overline{module} } }} :: 'modules_'::=  		{{ com modules }}
+modules {{ tex \mathit{\overline{mod} } }} :: 'modules_'::=  		{{ com modules }}
       	     			       	     					{{ coq (list module) }}
   | []  						::   :: nil		{{ coq nil }}
-  | modules , module					::   :: cons		{{ coq ([[module]]::[[modules]]) }}
+  | module , modules					::   :: cons		{{ coq ([[module]]::[[modules]]) }}
   | modules ; modules'					::   :: append		{{ coq ([[modules]]++[[modules']]) }}
   | ( modules )						:: S :: paren           {{ coq [[ modules ]] }}
 
@@ -576,6 +585,17 @@ intrinsic_funs :: 'intrinsic_funs_'			::=  			{{ com intrinsic functions }}
 	      	 								{{ coq ids }}
 
 terminals :: 'terminals_' ::=
+  | <-                  ::   :: larrow         {{ tex \leftarrow }}
+  | ->			::   :: rarrow		{{ tex \rightarrow }}
+  | |->			::   :: mapsto		{{ tex \mapsto }}
+  | [                   ::   :: lsbracket       {{ tex [ }}
+  | ]                   ::   :: rsbracket       {{ tex ] }}
+  | -                   ::   :: minus           {{ tex - }}
+  | |                   ::   :: vbar            {{ tex \mid }}
+  | --\                 ::   :: rharp           {{ tex \rightharpoonup }}
+  | -->>                ::   :: lrdarrow        {{ tex \twoheadrightarrow }}
+  | -->                 ::   :: lrarrow		{{ tex \longrightarrow }}
+  | ==>                 ::   :: Lrarrow		{{ tex \Longrightarrow }}
   | =                   ::   :: assignment      {{ tex = }}
   | <->                 ::   :: alias		{{ tex <-> }}
   | == 			::   :: eq		{{ tex == }}

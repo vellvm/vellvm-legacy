@@ -320,6 +320,11 @@ formula :: 'formula_' ::=
     		     	        {{ coq isBindingGvar [[id_binding]] = Some [[gvar]] }}
   | isBindingInsn id_binding = insn   :: :: isBindingInsn
     		     	        {{ coq isBindingInsn [[id_binding]] = Some [[insn]] }}
+  | v in sv                           ::   :: vinsv
+  | ( gl , lc ) ( value ) = opt_sv    ::   :: value2sv
+  | ( module , ft ) ( v ) = opt_fdef  ::   :: lookupfdef
+  | ( gl , lc ) ( params ) = opt_svs  ::   :: params2svs
+  | init_locals gl lc fdef = lc'      ::   :: initlocals
 
 parsing
 formula_true left formula_not

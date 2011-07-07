@@ -99,7 +99,7 @@ End FLOAT.
 
 
 
-Definition INT := INTEGER.t.
+Definition Int := INTEGER.t.
 
 Definition Float := FLOAT.t.
 
@@ -213,7 +213,7 @@ Inductive truncop : Set :=
 
 Inductive const : Set := 
  | const_zeroinitializer : typ -> const
- | const_int : sz -> INT -> const
+ | const_int : sz -> Int -> const
  | const_floatpoint : floating_point -> Float -> const
  | const_undef : typ -> const
  | const_null : typ -> const
@@ -408,7 +408,7 @@ Definition modules : Set := (list module).
 
 Definition ids : Set := (list id).
 
-Definition opt_INT : Set := option INT.
+Definition opt_Int : Set := option Int.
 
 Definition opt_l : Set := option l.
 

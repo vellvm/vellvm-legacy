@@ -67,7 +67,7 @@ Jwf_typ :: '' ::=
       % |- typ
       % isValidElementTyp typ
       % ------------------- :: wf_typ_vector
-      % |- < INT * typ >
+      % |- < Int * typ >
 
       lookupTypViaTIDFromSystem system id = opt_typ
       ---------------------------------------------- :: wf_typ_namedt
@@ -98,7 +98,7 @@ Jwf_const :: '' ::=
       sz > 0
       targetdata |- int sz
       ------------------------------------------ :: wf_const_int
-      system , targetdata |-c (int sz) INT : int sz
+      system , targetdata |-c (int sz) Int : int sz
 
       system |- floating_point
       targetdata |- typ
@@ -722,7 +722,7 @@ Jwf_cmds :: '' ::=
       intrinsic_funs , system , module , fdef , block |- cmd
       intrinsic_funs , system , module , fdef , block |- cmds
       ------------------------------------------------------------------------------ :: wf_cmds_cons
-      intrinsic_funs , system , module , fdef , block |- cmds , cmd
+      intrinsic_funs , system , module , fdef , block |- cmd , cmds
  
 defns
 Jwf_phinodes :: '' ::=
@@ -736,7 +736,7 @@ Jwf_phinodes :: '' ::=
       intrinsic_funs , system , module , fdef , block |- phinode
       intrinsic_funs , system , module , fdef , block |- phinodes
       ------------------------------------------------------------------------------ :: wf_phinodes_cons
-      intrinsic_funs , system , module , fdef , block |- phinodes , phinode
+      intrinsic_funs , system , module , fdef , block |- phinode , phinodes
 
 defns
 Jwf_block :: '' ::=
@@ -776,7 +776,7 @@ Jwf_blocks :: '' ::=
       intrinsic_funs , system , module , fdef |- block
       intrinsic_funs , system , module , fdef |- blocks
       ------------------------------------------------------------------------ :: wf_blocks_cons
-      intrinsic_funs , system , module , fdef |- blocks , block
+      intrinsic_funs , system , module , fdef |- block , blocks
  
 
 defns
@@ -919,7 +919,7 @@ Jwf_prods :: '' ::=
       intrinsic_funs , system , module |- products
       intrinsic_funs , system , module |- product
       ---------------------------------------------------------------- :: wf_prods_cons
-      intrinsic_funs , system , module |- products , product
+      intrinsic_funs , system , module |- product , products
 
 defns
 Jwf_namedts :: '' ::=
@@ -957,7 +957,7 @@ Jwf_modules :: '' ::=
       intrinsic_funs , system |- module 
       intrinsic_funs , system |- modules
       ----------------------------------------------- :: wf_modules_cons
-      intrinsic_funs, system |- modules , module
+      intrinsic_funs, system |- module , modules
  
 defns
 Jwf_system :: '' ::=
