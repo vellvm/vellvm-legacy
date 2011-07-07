@@ -596,6 +596,7 @@ terminals :: 'terminals_' ::=
   | -->>                ::   :: lrdarrow        {{ tex \twoheadrightarrow }}
   | -->                 ::   :: lrarrow		{{ tex \longrightarrow }}
   | ==>                 ::   :: Lrarrow		{{ tex \Longrightarrow }}
+  | ==>*                ::   :: Lrarrows	{{ tex \Longrightarrow^* }}
   | =                   ::   :: assignment      {{ tex = }}
   | <->                 ::   :: alias		{{ tex <-> }}
   | == 			::   :: eq		{{ tex == }}
