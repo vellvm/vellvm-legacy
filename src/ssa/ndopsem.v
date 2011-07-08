@@ -75,8 +75,12 @@ Qed.
 
 Definition undef_gvs c : GVs :=
 match c with
-| AST.Mint sz => fun gv => exists z, gv = (Vint sz z, c)::nil
-| AST.Mfloat32 | AST.Mfloat64 => fun gv => exists f, gv = (Vfloat f, c)::nil
+| AST.Mint sz => 
+    Ensembles.Union _ (Singleton _ ((Vundef, c)::nil))
+      (fun gv => exists z, gv = (Vint sz z, c)::nil)
+| AST.Mfloat32 | AST.Mfloat64 => 
+    Ensembles.Union _ (Singleton _ ((Vundef, c)::nil))
+      (fun gv => exists f, gv = (Vfloat f, c)::nil)
 (*| _ =>  Full_set _*)
 end.
 
@@ -95,18 +99,21 @@ Lemma undef_gvs__inhabited : forall c,
   Ensembles.Inhabited GenericValue (undef_gvs c).
 Proof.
   destruct c; simpl.
-    apply Ensembles.Inhabited_intro with 
-      (x:=(Vint n (Int.zero n), AST.Mint n)::nil).
+    eapply Ensembles.Inhabited_intro; eauto.
+    unfold Ensembles.In.
+    apply Union_intror.
     unfold Ensembles.In.
     exists (Int.zero n). auto.
     
-    apply Ensembles.Inhabited_intro with 
-      (x:=(Vfloat Float.zero, AST.Mfloat32)::nil).
+    eapply Ensembles.Inhabited_intro; eauto.
+    unfold Ensembles.In.
+    apply Union_intror.
     unfold Ensembles.In.
     exists Float.zero. auto.
     
-    apply Ensembles.Inhabited_intro with 
-      (x:=(Vfloat Float.zero, AST.Mfloat64)::nil).
+    eapply Ensembles.Inhabited_intro; eauto.
+    unfold Ensembles.In.
+    apply Union_intror.
     unfold Ensembles.In.
     exists Float.zero. auto.
 Qed.
