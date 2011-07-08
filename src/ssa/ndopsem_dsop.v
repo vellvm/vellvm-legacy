@@ -121,6 +121,26 @@ Proof.
     try solve [constructor | auto using instantiate_undef__undef_gvs].  
 Qed.
 
+Lemma instantiate_cundef__cundef_gvs : forall m, 
+  instantiate_gv (cundef_gv m) (cundef_gvs m).
+Proof.
+  intros. unfold cundef_gv, cundef_gvs, instantiate_gv.
+  destruct m; simpl.
+    unfold Ensembles.In. exists (Int.zero n). auto.
+    unfold Ensembles.In. exists Float.zero. auto.
+    unfold Ensembles.In. exists Float.zero. auto.
+Qed.
+
+Lemma instantiate_cgv__cgv2gvs : forall gv, instantiate_gv (? gv ?) (cgv2gvs gv).
+Proof.
+  intros.
+  destruct gv; simpl; try constructor.
+  destruct p; simpl; try constructor.
+  destruct v; simpl; try constructor.
+  destruct gv; simpl; 
+    try solve [constructor | auto using instantiate_cundef__cundef_gvs].  
+Qed.
+
 Lemma instantiate_locals__getOperandValue : forall TD v lc1 lc2 gl gv1,
   instantiate_locals lc1 lc2 -> 
   getOperandValue TD v lc1 gl = Some gv1 ->
@@ -130,8 +150,11 @@ Proof.
   intros.
   destruct v; simpl in *.
     eapply instantiate_locals__lookup; eauto.
-    exists ($ gv1 $). unfold mmap. rewrite H0. simpl. 
-    auto using instantiate_gv__gv2gvs.
+
+    unfold const2GV in H0. unfold NDopsem.const2GV.
+    destruct (_const2GV TD gl c) as [[gv ?]|]; inv H0.
+    exists (cgv2gvs gv).
+    split; auto using instantiate_cgv__cgv2gvs.
 Qed.
 
 Ltac tinv H := try solve [inv H].

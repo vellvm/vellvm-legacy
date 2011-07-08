@@ -72,8 +72,8 @@ Definition get_reg_metadata TD gl (rm:rmetadata) (v:value) : option metadata :=
   | value_const c => 
       match get_const_metadata c with
       | Some (bc, ec) => 
-          do gvb <- const2GV TD gl bc;
-          do gve <- const2GV TD gl ec;
+          do gvb <- LLVMgv.const2GV TD gl bc;
+          do gve <- LLVMgv.const2GV TD gl ec;
           ret (mkMD gvb gve)
       | None => Some (mkMD null null)
       end

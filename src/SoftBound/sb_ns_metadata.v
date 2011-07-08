@@ -591,6 +591,15 @@ Proof.
   eapply wf_data__store__wf_data; eauto.
 Qed.
 
+Lemma GV2ptr__cgv2gv : forall TD sz g b ofs, 
+  GV2ptr TD sz g = ret (Vptr b ofs) -> g = ? g ?.
+Proof.
+  intros TD sz g b ofs J1.
+  unfold GV2ptr in J1.    
+  destruct g as [|[[] ?][|]]; inv J1.
+  simpl. auto.
+Qed.
+
 Lemma get_const_metadata_gid__wf_data : forall S TD Mem0 gl t i0 gvb gve,
   wf_global_ptr S TD Mem0 gl ->
   wf_const S TD (const_gid t i0) (typ_pointer t) ->
@@ -651,6 +660,7 @@ Proof.
   rewrite J6 in HeqR0. simpl in HeqR0.
   rewrite J7 in HeqR0. rewrite J2 in HeqR0. simpl in HeqR0.
   inv HeqR0.
+  erewrite <- GV2ptr__cgv2gv with (g:=g); eauto.
   unfold wf_data. rewrite J1. simpl.
   destruct (zeq b b); auto.
     split; auto.  
@@ -732,7 +742,7 @@ Proof.
     remember (lookupAL GenericValue gl i0) as R1.
     destruct R1; inv HeqR.
     assert (exists b, exists sz,
-      GV2ptr TD (getPointerSize TD) g = Some (Values.Vptr b ((Int.zero 31))) /\
+      GV2ptr TD (getPointerSize TD) g0 = Some (Values.Vptr b ((Int.zero 31))) /\
       getTypeAllocSize TD (typ_function t l0 v) = Some sz /\
       Mem.bounds Mem0 b = (0, Z_of_nat sz) /\
       b < Mem.nextblock Mem0 /\
@@ -740,6 +750,7 @@ Proof.
       as J.
       eapply Hwfg; eauto using wf_const_gid.
     destruct J as [b [sz [J1 [J2 [J3 [J4 J5]]]]]].
+    erewrite <- GV2ptr__cgv2gv; eauto.
     eapply eq_gv_is_wf_data; eauto.
 
   simpl in H1.

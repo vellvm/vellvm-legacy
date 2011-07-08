@@ -199,6 +199,7 @@ Proof.
     Some (Values.Vptr b ofs)) as R2.
     admit. (* this must be true if g is in globals*)
   destruct R2 as [b [ofs HeqR2]].
+(*
   rewrite HeqR2 in HeqR0.
   simpl in HeqR0.
   unfold mgetoffset in HeqR0.
@@ -216,7 +217,8 @@ Proof.
   unfold wf_data. rewrite HeqR2. simpl.
   destruct (zeq b b); auto.
     admit. (* wf of globals *)
-Qed.
+*)
+Admitted.
 
 Lemma eq_gv_is_wf_data : forall TD Mem gv bb bofs,
   bb < Mem.nextblock Mem ->
@@ -271,6 +273,7 @@ Proof.
     unfold _const2GV in HeqR.
     remember (lookupAL GenericValue gl i0) as R1.
     destruct R1; inv HeqR.
+(*
     assert (exists b, exists ofs, 
       GV2ptr TD (getPointerSize TD) g = Some (Values.Vptr b ofs) /\
       b < Mem.nextblock Mem0) as J.
@@ -281,7 +284,8 @@ Proof.
     admit.
 
     simpl in H1; eauto.
-Qed.
+*)
+Admitted.
 
 Lemma wf_rmetadata__get_reg_metadata : forall TD Mem0 rm gl vp gvb gve t,
   wf_rmetadata TD Mem0 rm ->

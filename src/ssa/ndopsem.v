@@ -73,6 +73,32 @@ Proof.
   intros. apply Inhabited_intro with (x:=nil); auto using Full_intro.
 Qed.
 
+Definition cundef_gvs c : GVs :=
+match c with
+| AST.Mint sz => fun gv => exists z, gv = (Vint sz z, c)::nil
+| AST.Mfloat32 | AST.Mfloat64 => fun gv => exists f, gv = (Vfloat f, c)::nil
+(*| _ =>  Full_set _*)
+end.
+
+Definition cgv2gvs (gv:GenericValue) : GVs :=
+match gv with
+| (Vundef, c)::nil => cundef_gvs c
+| _ => Singleton GenericValue gv
+end.
+
+Definition const2GV (TD:TargetData) (gl:GVMap) (c:const) : option GVs :=
+match (_const2GV TD gl c) with
+| None => None
+| Some (gv, t) => Some (cgv2gvs gv)
+end.
+
+Definition getOperandValue (TD:TargetData) (v:value) (locals:GVsMap) 
+  (globals:GVMap) : option GVs := 
+match v with
+| value_id id => lookupAL _ locals id 
+| value_const c => const2GV TD globals c
+end.
+
 Definition undef_gvs c : GVs :=
 match c with
 | AST.Mint sz => 
@@ -91,7 +117,6 @@ match gv with
 end.
 
 Notation "$ gv $" := (gv2gvs gv) (at level 41).
-Notation "% ogv %" := (mmap GenericValue GVs gv2gvs ogv) (at level 41).
 Notation "gv @ gvs" := (Ensembles.In GenericValue gvs gv) 
                          (at level 43, right associativity).
 
@@ -131,20 +156,35 @@ Proof.
     destruct gv; auto using singleton_inhabited, undef_gvs__inhabited.
 Qed.
 
-Lemma ogv2gvs__inhabited : forall ogv gvs,
-  %ogv% = ret gvs ->
-  Ensembles.Inhabited GenericValue gvs.
+Lemma cundef_gvs__inhabited : forall c, 
+  Ensembles.Inhabited GenericValue (cundef_gvs c).
 Proof.
-  destruct ogv; intros; inv H.
-    apply gv2gvs__inhabited.
+  destruct c; simpl.
+    eapply Ensembles.Inhabited_intro; eauto.
+    unfold Ensembles.In.
+    exists (Int.zero n). auto.
+    
+    eapply Ensembles.Inhabited_intro; eauto.
+    unfold Ensembles.In.
+    exists Float.zero. auto.
+    
+    eapply Ensembles.Inhabited_intro; eauto.
+    unfold Ensembles.In.
+    exists Float.zero. auto.
 Qed.
 
-Definition getOperandValue (TD:TargetData) (v:value) (locals:GVsMap) 
-  (globals:GVMap) : option GVs := 
-match v with
-| value_id id => lookupAL _ locals id 
-| value_const c => % (const2GV TD globals c) %
-end.
+Lemma cgv2gvs__inhabited : forall gv, 
+  Ensembles.Inhabited GenericValue (cgv2gvs gv).
+Proof.
+  intros gv.
+  destruct gv; simpl.
+    apply Ensembles.Inhabited_intro with (x:=nil).
+    apply Ensembles.In_singleton.
+
+    destruct p.
+    destruct v; auto using singleton_inhabited, cundef_gvs__inhabited.
+    destruct gv; auto using singleton_inhabited, cundef_gvs__inhabited.
+Qed.
 
 Definition returnUpdateLocals (TD:TargetData) (c':cmd) (Result:value) 
   (lc lc':GVsMap) (gl:GVMap) : option GVsMap :=

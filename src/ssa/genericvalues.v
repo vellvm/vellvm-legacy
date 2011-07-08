@@ -790,17 +790,32 @@ match cs with
 end
 .
 
+Definition cundef_gv c : GenericValue :=
+match c with
+| AST.Mint sz => (Vint sz (Int.zero sz), c)::nil
+| AST.Mfloat32 | AST.Mfloat64 => (Vfloat Float.zero, c)::nil
+(*| _ =>  Full_set _*)
+end.
+
+Definition cgv2gv (gv:GenericValue) : GenericValue :=
+match gv with
+| (Vundef, c)::nil => cundef_gv c
+| _ => gv
+end.
+
+Notation "? gv ?" := (cgv2gv gv) (at level 41).
+
 Definition const2GV (TD:TargetData) (gl:GVMap) (c:const) : option GenericValue :=
 match (_const2GV TD gl c) with
 | None => None
-| Some (gv, t) => Some gv
+| Some (gv, t) => Some (? gv ?)
 end.
 
 Definition getOperandValue (TD:TargetData) (v:value) (locals:GVMap) 
   (globals:GVMap) : option GenericValue := 
 match v with
 | value_id id => lookupAL _ locals id 
-| value_const c => (const2GV TD globals c)
+| value_const c => const2GV TD globals c
 end.
 
 Definition getOperandInt (TD:TargetData) (bsz:sz) (v:value) (locals:GVMap) 

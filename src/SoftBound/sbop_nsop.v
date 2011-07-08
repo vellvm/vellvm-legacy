@@ -120,8 +120,8 @@ Proof.
         destruct (
           match SBnsop.get_const_metadata c with
          | ret (bc, ec) =>
-             do gvb <- const2GV TD' gl' bc;
-             (do gve <- const2GV TD' gl' ec;
+             do gvb <- LLVMgv.const2GV TD' gl' bc;
+             (do gve <- LLVMgv.const2GV TD' gl' ec;
               ret {| SBnsop.md_base := gvb; SBnsop.md_bound := gve |})
          | merror =>
              ret {| SBnsop.md_base := null; SBnsop.md_bound := null |}

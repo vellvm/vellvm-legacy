@@ -1942,25 +1942,25 @@ Qed.
 (*********************************************)
 (** * not stuck *)
 Lemma get_const_metadata_isnt_stuck : forall TD gl vc gv bc ec,
-  const2GV TD gl vc = Some gv ->
+  NDopsem.const2GV TD gl vc = Some gv ->
   get_const_metadata vc = Some (bc, ec) ->
   exists gvb, exists gve, 
     const2GV TD gl bc = Some gvb /\ const2GV TD gl ec = Some gve.
 Proof.
-  unfold const2GV.
+  unfold NDopsem.const2GV, const2GV.
   intros TD gl vc gv bc ec J1 J2.  
   remember (_const2GV TD gl vc) as J3.
   destruct J3 as [[gv3 t3]|]; inv J1.
-  generalize dependent gv.
+  generalize dependent gv3.
   generalize dependent t3.
   generalize dependent ec.
   generalize dependent bc.
   induction vc; intros; try solve [inversion J2].
-    exists gv. 
+    exists (? gv3 ?). 
     remember t as T.
     destruct T; inversion J2; clear J2; subst bc ec; simpl in *; 
     unfold mbitcast, p8; try solve [
-      destruct (lookupAL GenericValue gl i0); inversion HeqJ3; subst gv t3;
+      destruct (lookupAL GenericValue gl i0); inversion HeqJ3; subst gv3 t3;
       destruct (GV2ptr TD (getPointerSize TD) g); eauto;
       remember (mgep TD t v 
         (INTEGER.to_Z (INTEGER.of_Z 32 1 false) :: nil)) as optr;
@@ -1975,12 +1975,12 @@ Proof.
     destruct R as [[gv2 t2]|]; try solve [inv HeqJ3].
     destruct (mcast TD castop_bitcast t2 (typ_pointer t) gv2); 
       try solve [inv HeqJ3].
-    apply IHvc with (gv:=gv2)(t3:=t2) in H0; auto.
+    apply IHvc with (gv3:=gv2)(t3:=t2) in H0; auto.
     
     simpl in *.
     remember (_const2GV TD gl vc) as R.
     destruct R as [[gv2 t2]|]; try solve [inv HeqJ3].
-    apply IHvc with (gv:=gv2)(t3:=t2) in J2; auto.
+    apply IHvc with (gv3:=gv2)(t3:=t2) in J2; auto.
 Qed.
 
 Lemma wf_phinodes__getIncomingValuesForBlockFromPHINodes : forall
@@ -2142,9 +2142,9 @@ Proof.
           destruct (isPointerTypB t0); eauto.
 
           destruct (isPointerTypB t0).
-            exists ((i0, $ x $, ret {| md_base := null; md_bound := null |}) :: 
+            exists ((i0, x, ret {| md_base := null; md_bound := null |}) :: 
               RVs). auto.
-            exists ((i0, $ x $, merror) :: RVs). auto.
+            exists ((i0, x, merror) :: RVs). auto.
 
         destruct Hin as [ps3 Hin]. subst.
         exists (ps3++[insn_phi i0 t0 l2]).
@@ -2227,7 +2227,7 @@ Proof.
   
     remember (get_const_metadata c) as R.
     destruct R as [[bc ec]|]; eauto.
-      remember (const2GV (los, nts) gl c) as R.
+      remember (NDopsem.const2GV (los, nts) gl c) as R.
       destruct R; try solve [inv Hget].
       symmetry in HeqR0.
       eapply get_const_metadata_isnt_stuck in HeqR0; eauto.

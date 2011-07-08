@@ -129,13 +129,23 @@ Qed.
 Definition wf_lc (lc:GVsMap) : Prop :=
 forall i0 gvs0, lookupAL _ lc i0 = Some gvs0 -> Ensembles.Inhabited _ gvs0. 
 
+Lemma const2GV__inhabited : forall TD gl c gvs,
+  const2GV TD gl c = Some gvs -> 
+  Ensembles.Inhabited _ gvs.
+Proof.
+  intros TD gl c gvs H.
+  unfold const2GV in H.
+  destruct (_const2GV TD gl c) as [[gv ?]|]; inv H.
+    eauto using cgv2gvs__inhabited.
+Qed.
+
 Lemma getOperandValue__inhabited : forall TD v lc gl gvs,
   wf_lc lc ->
   NDopsem.getOperandValue TD v lc gl = Some gvs ->
   Ensembles.Inhabited _ gvs.
 Proof.
   intros TD v lc gl gvs Hwflc Hget.
-  destruct v; simpl in Hget; eauto using ogv2gvs__inhabited.
+  destruct v; simpl in Hget; eauto using const2GV__inhabited.
 Qed.
     
 Lemma getIncomingValuesForBlockFromPHINodes_spec1 : forall ps TD b gl lc lc'
@@ -1791,13 +1801,21 @@ Proof.
        eapply lookupBlockViaIDFromFdef__InGetBlockIDs; eauto.
 Qed.
 
-Lemma ogvs_lift_some : forall ogv, 
-  (exists gv, ogv = Some gv) -> exists gvs : GVs, %ogv% = ret gvs.
+Lemma const2GV_isnt_stuck : forall TD S gl c t,
+  wf_const S TD c t ->
+  feasible_typ TD t ->
+  wf_global S gl ->
+  exists gv, NDopsem.const2GV TD gl c = Some gv.
 Proof.
   intros.
-  destruct H; subst.
-  simpl. eauto.
-Qed. 
+  destruct const2GV_isnt_stuck_mutind as [J _].
+  unfold const2GV_isnt_stuck_Prop in J.
+  unfold NDopsem.const2GV.
+  inv H0.
+  eapply J in H; eauto.
+  destruct H as [gv H].
+  rewrite H. eauto.
+Qed.
 
 Lemma getOperandValue_inCmdOps_isnt_stuck : forall
   (s : system)
@@ -1847,7 +1865,7 @@ Proof.
     eapply wf_system__wf_cmd with (c:=c) in HbInF; eauto.
     eapply wf_cmd__wf_value with (v:=value_const vc) in HbInF; eauto.
     destruct HbInF as [t Hwfc].
-    inv Hwfc. apply ogvs_lift_some.
+    inv Hwfc.
     eapply const2GV_isnt_stuck with (S:=s)(t:=t); eauto.
 Qed.
 
@@ -1894,7 +1912,7 @@ Proof.
     eapply wf_system__wf_tmn in HbInF; eauto.
     eapply wf_tmn__wf_value with (v:=value_const vc) in HbInF; eauto.
     destruct HbInF as [ct Hwfc].
-    inv Hwfc. apply ogvs_lift_some.
+    inv Hwfc.
     eapply const2GV_isnt_stuck with (S:=s)(t:=ct); eauto.
 Qed.
 
@@ -2098,7 +2116,7 @@ Proof.
       apply IHps2 in H7.
         destruct H7 as [RVs H7].
         rewrite H7. simpl.
-        exists ((i0, $ x $) :: RVs). auto.
+        exists ((i0, x) :: RVs). auto.
   
         destruct Hin as [ps3 Hin]. subst.
         exists (ps3++[insn_phi i0 t0 l2]).
