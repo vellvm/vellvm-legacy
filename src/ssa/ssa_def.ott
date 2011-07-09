@@ -152,7 +152,7 @@ layouts {{ tex \mathit{\overline{layout} } }} :: 'layouts_'	::=  		{{ com layout
   | layouts ; layouts'					::   :: append		{{ coq ([[layouts]]++[[layouts']]) }}
   | ( layouts )						:: S :: paren           {{ coq [[ layouts ]] }}
 
-floating_point :: 'fp_'					::=  			{{ com floating point types }}
+floating_point {{ tex \mathit{fp} }} :: 'fp_'					::=  			{{ com floating point types }}
   | float						::   :: float		{{ com float }}
   | double						::   :: double          {{ com double }}
   | fp128						::   :: fp128           {{ com fp128 }} 
@@ -165,7 +165,7 @@ varg :: 'varg_'						::=  			{{ com var arg }} {{ coq bool }}
   | varg_no						::   :: no              {{ com no }} {{ coq false }}
 
 typ :: 'typ_'						::=			{{ com type }}
-  | int sz                    				::   :: int         	{{ com integer }}
+  | int sz                    				::   :: int         	{{ com integer }} {{ tex \ottkw{i}[[sz]] }}
   | floating_point					::   :: floatpoint	{{ com floating point types }}
   | void                      				::   :: void        	{{ com void }}
   | label                                               ::   :: label           {{ com label }}
@@ -263,13 +263,13 @@ noret :: 'noret_'					::=  			{{ com noret }} {{ coq bool }}
   | noret_yes						::   :: yes		{{ com yes }} {{ coq true }}
   | noret_no						::   :: no              {{ com no }} {{ coq false }}
 
-truncop :: 'truncop_'					::=  			{{ com trunc operators }}
-  | trunc_int						::   :: int		{{ com trunc }}
-  | trunc_fp						::   :: fp		{{ com fptrunc }}
+truncop {{ tex \mathit{trop} }}:: 'truncop_'					::=  			{{ com trunc operators }}
+  | trunc_int						::   :: int		{{ com trunc }}  {{ tex \mathit{trunc\_int} }}
+  | trunc_fp						::   :: fp		{{ com fptrunc }} {{ tex \mathit{trunc\_fp}  }}
 
 const :: 'const_'					::=  			{{ com constant }}
   | typ zeroinitializer					::   :: zeroinitializer {{ com zeroinitializer }}
-  | ( int sz ) Int					::   :: int		{{ com int }}	
+  | ( int sz ) Int					::   :: int		{{ com int }}	{{ tex (\ottkw{i}[[sz]]) [[Int]] }}
   | floating_point Float				::   :: floatpoint	{{ com floatpoint }}
   | typ undef						::   :: undef		{{ com undef }}
   | ( typ * ) null					::   :: null		{{ com null }}
@@ -289,13 +289,13 @@ const :: 'const_'					::=  			{{ com constant }}
   | fbop const1 const2 	     	       	    		::   :: fbop		{{ com fbop }}
   | ( const )						:: S :: paren           {{ coq [[ const ]] }}
 
-value :: 'value_'					::=  			{{ com values }}
+value {{ tex \mathit{val} }} :: 'value_'					::=  			{{ com values }}
       	 									{{ coq-universe Type }} 
   | id	 						::   :: id		{{ com id }}
   | const						::   :: const   	{{ com constant }}
   | ( value )						:: S :: paren           {{ coq [[ value ]] }}
 
-opt_value {{ tex \mathit{opt_{value} } }} :: 'opt_value_'	::= 		{{ com option value }} {{ coq option value }}
+opt_value {{ tex \mathit{opt_{val} } }} :: 'opt_value_'	::= 		{{ com option value }} {{ coq option value }}
   | none 						::   :: none		{{ coq None }}
   | value						::   :: value		{{ coq (Some [[value]]) }}
   | ( opt_value )					:: S :: paren		{{ coq [[ opt_value ]] }}
