@@ -30,9 +30,11 @@ Require Import ssa_wf.
 Require Import ssa_dynamic.
 Require Import ndopsem.
 Require Import ndopsem_pp.
+Require Import sb_ds_def.
 Require Import sb_ns_def.
 Require Import sbop_nsop.
 Require Import Znumtheory.
+Require Import sb_ds_metadata.
 Require Import sb_ns_metadata.
 
 Export LLVMwf.
@@ -43,9 +45,9 @@ Export SBnsop.
 (*****************************************)
 (* Definitions *)
 
-Definition wf_rmap (f:fdef) (lc:GVsMap) (rm:rmetadata) : Prop :=
-forall id1 gv1 t1, 
-  lookupAL _ lc id1 = Some gv1 -> 
+Definition wf_rmap (f:fdef) (lc:GVsMap) (rm:SBopsem.rmetadata) : Prop :=
+forall id1 gv1 t1,
+  lookupAL _ lc id1 = Some gv1 ->
   lookupTypViaIDFromFdef f id1 = Some (typ_pointer t1) ->
   exists md, lookupAL _ rm id1 = Some md.
 
@@ -761,13 +763,13 @@ Proof.
     destruct (get_reg_metadata TD gl rm Result); try solve [inv H1].
     destruct c; inv H1; auto.
     destruct n; inv H3; auto.
-    destruct (isReturnPointerTypB t); inv H2; eauto.
+    destruct (SBopsem.isReturnPointerTypB t); inv H2; eauto.
       apply wf_lc_updateAddAL; eauto using getOperandValue__inhabited.
       apply wf_lc_updateAddAL; eauto using getOperandValue__inhabited.
 
     destruct c; inv H1; auto.
     destruct n; inv H3; auto.
-    destruct (isReturnPointerTypB t); inv H2; eauto.
+    destruct (SBopsem.isReturnPointerTypB t); inv H2; eauto.
       apply wf_lc_updateAddAL; eauto using getOperandValue__inhabited.
       apply wf_lc_updateAddAL; eauto using getOperandValue__inhabited.
 Qed.
@@ -1239,9 +1241,9 @@ Case "nsReturn".
           destruct R.
             destruct n; inv HeqR.
             inv Hwfc. 
-            remember (SBnsop.get_reg_metadata (los, nts) gl rm Result) 
+            remember (SBopsem.get_reg_metadata (los, nts) gl rm Result) 
               as R2.
-            unfold SBnsop.prop_reg_metadata in H1.
+            unfold SBopsem.prop_reg_metadata in H1.
             assert (wf_defs F' (updateAddAL _ lc' i0 g) ids2) as J.
               eapply wf_defs_updateAddAL with (t1:=typ1) ; 
                 eauto using getOperandValue__inhabited.
@@ -1570,9 +1572,9 @@ Case "nsInsertValue".
 
 Case "nsMalloc". 
   eapply preservation_cmd_updated_case with (rm':=
-          updateAddAL SBnsop.metadata rm id0
-            {| SBnsop.md_base := SBnsop.base2GV (los, nts) mb;
-               SBnsop.md_bound := SBnsop.bound2GV (los, nts) mb tsz n |})
+          updateAddAL _ rm id0
+            {| SBopsem.md_base := SBopsem.base2GV (los, nts) mb;
+               SBopsem.md_bound := SBopsem.bound2GV (los, nts) mb tsz n |})
    in HwfS1; simpl; eauto.
     apply singleton_inhabited.
     apply updateAddAL_ptr__wf_rmap; auto. 
@@ -1588,9 +1590,9 @@ Case "nsFree".
     eapply free_preserves_wf_ECStack; eauto.
 Case "nsAlloca".
   eapply preservation_cmd_updated_case with (rm':=
-          updateAddAL SBnsop.metadata rm id0
-            {| SBnsop.md_base := SBnsop.base2GV (los, nts) mb;
-               SBnsop.md_bound := SBnsop.bound2GV (los, nts) mb tsz n |})
+          updateAddAL _ rm id0
+            {| SBopsem.md_base := SBopsem.base2GV (los, nts) mb;
+               SBopsem.md_bound := SBopsem.bound2GV (los, nts) mb tsz n |})
    in HwfS1; simpl; eauto.
     apply singleton_inhabited.
     apply updateAddAL_ptr__wf_rmap; auto. 
@@ -1657,7 +1659,7 @@ Case "nsGEP".
     inv Hwfc; eauto.
   destruct J as [t0 J].
   eapply preservation_cmd_updated_case with 
-    (rm':=updateAddAL SBnsop.metadata rm id0 md) in HwfS1; simpl; eauto.
+    (rm':=updateAddAL _ rm id0 md) in HwfS1; simpl; eauto.
     apply getOperandValue__inhabited in H0; auto.
     apply values2GVs__inhabited in H1; auto.
     destruct H1 as [vidxs0 H1].
@@ -1720,9 +1722,9 @@ Case "nsBitcast_ptr".
 
 Case "nsInttoptr". 
   eapply preservation_cmd_updated_case with (rm':=
-    updateAddAL SBnsop.metadata rm id0 
-      {| SBnsop.md_base := null;
-         SBnsop.md_bound := null |}) in HwfS1; simpl; eauto.
+    updateAddAL SBopsem.metadata rm id0 
+      {| SBopsem.md_base := null;
+         SBopsem.md_bound := null |}) in HwfS1; simpl; eauto.
     eapply CAST__inhabited; eauto using wf_State__wf_lc.
     apply updateAddAL_ptr__wf_rmap; auto.
     apply adding_null_preserves_wf_rmetadata; auto.
@@ -2248,10 +2250,10 @@ Definition spatial_memory_violation S : Prop :=
                          |} :: _;
         SBnsop.Globals := gl;
         SBnsop.Mem := Mem0 |} => 
-      match SBnsop.get_reg_metadata TD gl rm vp, 
+      match SBopsem.get_reg_metadata TD gl rm vp, 
             NDopsem.getOperandValue TD vp lc gl with
       | ret md, ret gvps => 
-          exists gvp, gvp @ gvps /\ ~ SBnsop.assert_mptr TD t gvp md
+          exists gvp, gvp @ gvps /\ ~ SBopsem.assert_mptr TD t gvp md
       | _, _ => False
       end
   | {| SBnsop.CurTargetData := TD;
@@ -2261,10 +2263,10 @@ Definition spatial_memory_violation S : Prop :=
                          |} :: _;
         SBnsop.Globals := gl;
         SBnsop.Mem := Mem0 |} => 
-      match SBnsop.get_reg_metadata TD gl rm vp, 
+      match SBopsem.get_reg_metadata TD gl rm vp, 
             NDopsem.getOperandValue TD vp lc gl with
       | ret md, ret gvps => 
-          exists gvp, gvp @ gvps /\ ~ SBnsop.assert_mptr TD t gvp md
+          exists gvp, gvp @ gvps /\ ~ SBopsem.assert_mptr TD t gvp md
       | _, _ => False
       end
   | _ => False
@@ -2500,16 +2502,16 @@ Proof.
                  (insn_return i0 (typ_pointer t) v)) 
               (insn_terminator (insn_return i0 (typ_pointer t) v))) as Hwfc.
               eapply wf_system__wf_tmn in HbInF; eauto.
-            assert (exists omd, SBnsop.get_reg_metadata (los, nts) gl rm v = 
+            assert (exists omd, SBopsem.get_reg_metadata (los, nts) gl rm v = 
               Some omd) as J2.
               eapply get_reg_metadata_isnt_stuck; 
                 try solve [eauto | inv Hwfc; eauto].
             destruct J2 as [md J2]. rewrite J2. 
             destruct n; eauto.
-            destruct (isReturnPointerTypB t0); eauto.
+            destruct (SBopsem.isReturnPointerTypB t0); eauto.
 
             destruct n; eauto.
-            destruct (isReturnPointerTypB t0); eauto.
+            destruct (SBopsem.isReturnPointerTypB t0); eauto.
          
         destruct Hretup as [lc'' [rm'' Hretup]].
         exists (SBnsop.mkState s (los, nts) ps 
@@ -2965,7 +2967,7 @@ Proof.
       eapply getOperandValue_inCmdOps_isnt_stuck; eauto.
         simpl; auto.
     destruct J as [gvs J].
-    assert (exists omd, SBnsop.get_reg_metadata (los, nts) gl rm v = 
+    assert (exists omd, SBopsem.get_reg_metadata (los, nts) gl rm v = 
       Some omd) as J2.
       eapply get_reg_metadata_isnt_stuck; try solve [eauto | inv Hwfc; eauto].
     destruct J2 as [md J2].
@@ -3010,7 +3012,7 @@ Proof.
           destruct R1.      
           SSSSSCase "load_ptr".
             remember (SBnsop.prop_reg_metadata lc rm i0 ($ gv' # t $) 
-              (SBnsop.get_mem_metadata (los, nts) Mmap0 gv)) as R.
+              (SBopsem.get_mem_metadata (los, nts) Mmap0 gv)) as R.
             destruct R as [lc' rm'].
             left.
             exists 
@@ -3084,7 +3086,7 @@ Proof.
       eapply getOperandValue_inCmdOps_isnt_stuck; eauto.
         simpl; auto.
     destruct J0 as [mgvs J0].
-    assert (exists omd, SBnsop.get_reg_metadata (los, nts) gl rm v0 = 
+    assert (exists omd, SBopsem.get_reg_metadata (los, nts) gl rm v0 = 
       Some omd) as J2.
       eapply get_reg_metadata_isnt_stuck; try solve [eauto | inv Hwfc; eauto].
     destruct J2 as [md J2].
@@ -3137,7 +3139,7 @@ Proof.
           remember (isPointerTypB t) as R1.
           destruct R1.      
           SSSSSCase "store_ptr".
-            assert (exists omd, SBnsop.get_reg_metadata (los, nts) gl rm v = 
+            assert (exists omd, SBopsem.get_reg_metadata (los, nts) gl rm v = 
               Some omd) as J4.
               eapply get_reg_metadata_isnt_stuck; 
                 try solve [eauto | inv Hwfc; eauto].
@@ -3221,7 +3223,7 @@ Proof.
       unfold NDopsem.GEP. eauto.
     destruct J3 as [mp' J3].
     left.
-    assert (exists omd, SBnsop.get_reg_metadata (los, nts) gl rm v = 
+    assert (exists omd, SBopsem.get_reg_metadata (los, nts) gl rm v = 
       Some omd) as J4.
       eapply get_reg_metadata_isnt_stuck; try solve [eauto | inv Hwfc; eauto].
     destruct J4 as [md J4].
@@ -3377,7 +3379,7 @@ Proof.
       destruct R.
       SSSCase "case_ptr".
 
-        assert (exists omd, SBnsop.get_reg_metadata (los, nts) gl rm v = 
+        assert (exists omd, SBopsem.get_reg_metadata (los, nts) gl rm v = 
           Some omd) as J4.
           eapply get_reg_metadata_isnt_stuck; eauto.
              inv Hwfc. inv H5; eauto.
@@ -3527,11 +3529,11 @@ Proof.
     remember (isPointerTypB t) as R.
     destruct R.
     SSCase "select_ptr".
-      assert (exists omd, SBnsop.get_reg_metadata (los, nts) gl rm v0 = 
+      assert (exists omd, SBopsem.get_reg_metadata (los, nts) gl rm v0 = 
           Some omd) as J2.
         eapply get_reg_metadata_isnt_stuck; try solve [eauto | inv Hwfc; eauto].
       destruct J2 as [md0 J2].
-      assert (exists omd, SBnsop.get_reg_metadata (los, nts) gl rm v1 = 
+      assert (exists omd, SBopsem.get_reg_metadata (los, nts) gl rm v1 = 
           Some omd) as J3.
         eapply get_reg_metadata_isnt_stuck; try solve [eauto | inv Hwfc; eauto].
       destruct J3 as [md1 J3].

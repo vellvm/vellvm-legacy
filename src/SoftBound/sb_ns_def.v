@@ -18,107 +18,15 @@ Require Import Metatheory.
 Require Import Znumtheory.
 Require Import ssa_dynamic.
 Require Import ndopsem.
+Require Import sb_ds_def.
 
-Export LLVMsyntax.
-Export LLVMgv.
 Export NDopsem.
 
 Module SBnsop.
 
-Record metadata : Type := mkMD {
-  md_base : GenericValue; md_bound : GenericValue
-}.
-
-Definition rmetadata := list (id*metadata).
-
-Inductive result : Set :=
-| rok : result 
-| rabort : result
-| rerror : result
-.  
-
-Definition base2GV := blk2GV.
-
-Definition bound2GV (TD:TargetData) (b:mblock) (s:sz) n : GenericValue :=
-ptr2GV TD (Vptr b (Int.repr 31 ((Size.to_Z s)*n))).
-
-Definition i8 := typ_int Size.Eight.
-Definition p8 := typ_pointer i8.
-
-Fixpoint get_const_metadata (c:const) : option (const*const) :=
-match c with
-| const_gid t gid => 
-    match t with
-    | typ_function _ _ _ => Some (const_castop castop_bitcast c p8,
-                                  const_castop castop_bitcast c p8)
-    | _ => Some (const_castop castop_bitcast c p8,
-                 const_castop castop_bitcast 
-                   (const_gep false c 
-                   (Cons_list_const (const_int Size.ThirtyTwo 
-                   (INTEGER.of_Z 32%Z 1%Z false)) Nil_list_const)) p8)
-    end
-| const_gep _ pc _ => get_const_metadata pc
-| const_castop castop_bitcast pc (typ_pointer _) => get_const_metadata pc
-| _ => None
-end.
-
-Definition get_reg_metadata TD gl (rm:rmetadata) (v:value) : option metadata :=
-  match v with
-  | value_id pid => 
-      match lookupAL _ rm pid with
-      | Some md => Some md
-      | _ => None
-      end
-  | value_const c => 
-      match get_const_metadata c with
-      | Some (bc, ec) => 
-          do gvb <- LLVMgv.const2GV TD gl bc;
-          do gve <- LLVMgv.const2GV TD gl ec;
-          ret (mkMD gvb gve)
-      | None => Some (mkMD null null)
-      end
-  end.
-
-Definition assert_mptr (TD:TargetData) (t:typ) (ptr:GenericValue) (md:metadata)
-  : bool :=
-  let 'mkMD base bound := md in
-  match (GV2ptr TD (getPointerSize TD) ptr,
-         GV2ptr TD (getPointerSize TD) base,
-         GV2ptr TD (getPointerSize TD) bound,
-         getTypeAllocSize TD t) with
-  | (Some (Vptr pb pofs), Some (Vptr bb bofs), Some (Vptr eb eofs), Some tsz) =>
-      zeq pb bb && zeq bb eb &&
-      zle (Integers.Int.signed 31 bofs) (Integers.Int.signed 31 pofs) &&
-      zle (Integers.Int.signed 31 pofs + Size.to_Z tsz) 
-          (Integers.Int.signed 31 eofs)
-  | _ => false
-  end.  
-
-Definition prop_reg_metadata lc rmd pid gvp (md:metadata) : 
-    GVsMap * rmetadata  :=
+Definition prop_reg_metadata lc rmd pid gvp (md:SBopsem.metadata) : 
+    GVsMap * SBopsem.rmetadata  :=
   (updateAddAL _ lc pid gvp, updateAddAL _ rmd pid md).
-
-Definition mmetadata := Values.block -> int32 -> option metadata.
-
-Definition get_mem_metadata TD MM (gv:GenericValue) : metadata :=
-  match (GV2ptr TD (getPointerSize TD) gv) with
-  | Some (Vptr b ofs) => 
-      match MM b ofs with
-      | Some md => md
-      | _ => mkMD null null
-      end
-  | _ => mkMD null null
-  end.
-
-Definition set_mem_metadata TD MM (gv:GenericValue) (md:metadata) 
-  : mmetadata :=
-  match (GV2ptr TD (getPointerSize TD) gv) with
-  | Some (Vptr b ofs) => 
-     fun b1 => fun ofs1 =>
-       if zeq b1 b && Integers.Int.eq_dec 31 ofs ofs1 then Some md 
-       else MM b1 ofs1
-  | _ => MM
-  end.
 
 Record ExecutionContext : Type := mkEC {
 CurFunction : fdef;
@@ -126,7 +34,7 @@ CurBB       : block;
 CurCmds     : cmds;                  (* cmds to run within CurBB *)
 Terminator  : terminator;
 Locals      : GVsMap;                (* LLVM values used in this invocation *)
-Rmap        : rmetadata;
+Rmap        : SBopsem.rmetadata;
 Allocas     : list mblock            (* Track memory allocated by alloca *)
 }.
 
@@ -140,13 +48,12 @@ ECS                : ECStack;
 Globals            : GVMap;
 FunTable           : GVMap;
 Mem                : mem;
-Mmap               : mmetadata
+Mmap               : SBopsem.mmetadata
 }.
 
-
 Fixpoint getIncomingValuesForBlockFromPHINodes (TD:TargetData)
-  (PNs:list phinode) (b:block) (gl:GVMap) (lc:GVsMap) (rm:rmetadata) : 
-  option (list (id * GVs * option metadata)) :=
+  (PNs:list phinode) (b:block) (gl:GVMap) (lc:GVsMap) (rm:SBopsem.rmetadata) : 
+  option (list (id * GVs * option SBopsem.metadata)) :=
 match PNs with
 | nil => Some nil
 | (insn_phi id0 t vls)::PNs => 
@@ -158,7 +65,7 @@ match PNs with
       with
       | (Some gv1, Some idgvs) => 
           if isPointerTypB t then
-            match get_reg_metadata TD gl rm v with
+            match SBopsem.get_reg_metadata TD gl rm v with
             | Some md => Some ((id0,gv1,Some md)::idgvs)
             | None => None
             end
@@ -169,8 +76,8 @@ match PNs with
 end.
 
 Fixpoint updateValuesForNewBlock 
-  (ResultValues:list (id*GVs*option metadata)) (lc:GVsMap) 
-  (rm:rmetadata) : GVsMap * rmetadata :=
+  (ResultValues:list (id*GVs*option SBopsem.metadata)) (lc:GVsMap) 
+  (rm:SBopsem.rmetadata) : GVsMap * SBopsem.rmetadata :=
 match ResultValues with
 | nil => (lc, rm)
 | (id0, v, opmd)::ResultValues' => 
@@ -182,8 +89,8 @@ match ResultValues with
 end.
 
 Definition switchToNewBasicBlock (TD:TargetData) (Dest:block) 
-  (PrevBB:block) (gl:GVMap) (lc:GVsMap) (rm:rmetadata)
-  : option (GVsMap * rmetadata) :=
+  (PrevBB:block) (gl:GVMap) (lc:GVsMap) (rm:SBopsem.rmetadata)
+  : option (GVsMap * SBopsem.rmetadata) :=
   let PNs := getPHINodesFromBlock Dest in
   match getIncomingValuesForBlockFromPHINodes TD PNs PrevBB gl lc rm with
   | Some ResultValues => Some (updateValuesForNewBlock ResultValues lc rm)
@@ -211,33 +118,28 @@ Definition switchToNewBasicBlock (TD:TargetData) (Dest:block)
   returning arbitrary values.
 *)
 
-Definition isReturnPointerTypB t0 : bool :=
-match t0 with
-| typ_function t0 _ _ => isPointerTypB t0
-| _ => false
-end.
-
 Definition returnResult (TD:TargetData) (rt:typ) (Result:value) 
-  (lc:GVsMap) (rm:rmetadata) (gl:GVMap) : option (GVs * metadata) :=
+  (lc:GVsMap) (rm:SBopsem.rmetadata) (gl:GVMap) : option (GVs * SBopsem.metadata)
+  :=
   match getOperandValue TD Result lc gl with
   | Some gr =>
       if isPointerTypB rt then
-        match get_reg_metadata TD gl rm Result with
+        match SBopsem.get_reg_metadata TD gl rm Result with
         | Some md => Some (gr, md)
         | None => None
         end
-      else Some (gr, (mkMD null null))
+      else Some (gr, (SBopsem.mkMD null null))
   | _ => None
   end.
 
 Definition returnUpdateLocals (TD:TargetData) (c':cmd) (rt:typ) 
-  (Result:value) (lc lc':GVsMap) (rm rm':rmetadata) (gl:GVMap) 
-  : option (GVsMap * rmetadata) :=
+  (Result:value) (lc lc':GVsMap) (rm rm':SBopsem.rmetadata) (gl:GVMap) 
+  : option (GVsMap * SBopsem.rmetadata) :=
   match returnResult TD rt Result lc rm gl with
   | Some (gr,md) =>
       match c' with
       | insn_call id0 false _ t _ _ =>
-          if isReturnPointerTypB t then 
+          if SBopsem.isReturnPointerTypB t then 
             Some (prop_reg_metadata lc' rm' id0 gr md)
           else Some (updateAddAL _ lc' id0 gr, rm')
       | _ => Some (lc', rm')
@@ -246,8 +148,8 @@ Definition returnUpdateLocals (TD:TargetData) (c':cmd) (rt:typ)
   end.
 
 Definition exCallUpdateLocals (ft:typ) (noret:bool) (rid:id) 
-  (oResult:option GenericValue) (lc :GVsMap) (rm:rmetadata) 
-  : option (GVsMap*rmetadata) :=
+  (oResult:option GenericValue) (lc :GVsMap) (rm:SBopsem.rmetadata) 
+  : option (GVsMap*SBopsem.rmetadata) :=
   match noret with
   | false =>
       match oResult with
@@ -256,7 +158,7 @@ Definition exCallUpdateLocals (ft:typ) (noret:bool) (rid:id)
           match ft with
           | typ_function (typ_pointer t) _ _ => 
                      Some (updateAddAL _ lc rid ($ Result # (typ_pointer t) $), 
-                           updateAddAL _ rm rid (mkMD null null))
+                           updateAddAL _ rm rid (SBopsem.mkMD null null))
           | _ => Some (updateAddAL _ lc rid ($ Result # (getReturnTyp ft) $), rm)
           end
       end
@@ -264,39 +166,40 @@ Definition exCallUpdateLocals (ft:typ) (noret:bool) (rid:id)
   end.
 
 Fixpoint params2GVs (TD:TargetData) (lp:params) (lc:GVsMap) (gl:GVMap) 
-  (rm:rmetadata) : option (list (GVs * option metadata)) :=
+  (rm:SBopsem.rmetadata) : option (list (GVs * option SBopsem.metadata)) :=
 match lp with
 | nil => Some nil
 | (t, v)::lp' => 
     match (getOperandValue TD v lc gl, params2GVs TD lp' lc gl rm) with
     | (Some gv, Some gvs) =>
-       if isPointerTypB t then Some ((gv, get_reg_metadata TD gl rm v)::gvs)
+       if isPointerTypB t then 
+         Some ((gv, SBopsem.get_reg_metadata TD gl rm v)::gvs)
        else Some ((gv, None)::gvs)
     | _ => None
     end
 end.
 
-Fixpoint _initializeFrameValues (la:args) (lg:list (GVs*option metadata)) 
-  (lc:GVsMap) (rm : rmetadata) : GVsMap * rmetadata :=
+Fixpoint _initializeFrameValues (la:args) (lg:list (GVs*option SBopsem.metadata))
+  (lc:GVsMap) (rm : SBopsem.rmetadata) : GVsMap * SBopsem.rmetadata :=
 match (la, lg) with
 | ((t, _, id0)::la', (gv, opmd)::lg') => 
      let '(lc',rm') := _initializeFrameValues la' lg' lc rm in
      if isPointerTypB t then
        match opmd with
-       | None => (prop_reg_metadata lc' rm' id0 gv (mkMD null null))
+       | None => (prop_reg_metadata lc' rm' id0 gv (SBopsem.mkMD null null))
        | Some md => (prop_reg_metadata lc' rm' id0 gv md)
        end
      else (updateAddAL _ lc' id0 gv, rm')
 | ((t, _, id0)::la', nil) => 
      let '(lc',rm') := _initializeFrameValues la' nil lc rm in
      if isPointerTypB t then
-       (prop_reg_metadata lc' rm' id0 ($(gundef t) # t$) (mkMD null null))
+      (prop_reg_metadata lc' rm' id0 ($(gundef t) # t$) (SBopsem.mkMD null null))
      else (updateAddAL _ lc' id0 ($(gundef t) # t$), rm')
 | _ => (lc, rm)
 end.
 
-Definition initLocals (la:args) (lg:list (GVs*option metadata)) 
-  : GVsMap * rmetadata :=
+Definition initLocals (la:args) (lg:list (GVs*option SBopsem.metadata)) 
+  : GVsMap * SBopsem.rmetadata :=
 _initializeFrameValues la lg nil nil.
 
 Inductive nsInsn : State -> State -> trace -> Prop :=
@@ -413,7 +316,8 @@ Inductive nsInsn : State -> State -> trace -> Prop :=
   malloc TD Mem tsz gn align = Some (Mem', mb) ->
   GV2int TD Size.ThirtyTwo gn = Some n ->
   prop_reg_metadata lc rm id ($ (blk2GV TD mb) # typ_pointer t $) 
-    (mkMD (base2GV TD mb) (bound2GV TD mb tsz n)) = (lc',rm') ->
+    (SBopsem.mkMD (SBopsem.base2GV TD mb) (SBopsem.bound2GV TD mb tsz n)) = 
+      (lc',rm') ->
   nsInsn 
     (mkState S TD Ps 
       ((mkEC F B ((insn_malloc id t v align)::cs) tmn lc rm als)::EC) 
@@ -441,7 +345,8 @@ Inductive nsInsn : State -> State -> trace -> Prop :=
   malloc TD Mem tsz gn align = Some (Mem', mb) ->
   GV2int TD Size.ThirtyTwo gn = Some n ->
   prop_reg_metadata lc rm id ($(blk2GV TD mb) # typ_pointer t$) 
-    (mkMD (base2GV TD mb) (bound2GV TD mb tsz n)) = (lc',rm') ->
+    (SBopsem.mkMD (SBopsem.base2GV TD mb) (SBopsem.bound2GV TD mb tsz n)) = 
+      (lc',rm') ->
   nsInsn 
     (mkState S TD Ps 
       ((mkEC F B ((insn_alloca id t v align)::cs) tmn lc rm als)::EC) 
@@ -452,10 +357,10 @@ Inductive nsInsn : State -> State -> trace -> Prop :=
 
 | nsLoad_nptr : forall S TD Ps F B lc rm gl fs id t align vp EC cs tmn Mem als 
     gvp gv MM md gvps,
-  get_reg_metadata TD gl rm vp = Some md ->
+  SBopsem.get_reg_metadata TD gl rm vp = Some md ->
   getOperandValue TD vp lc gl = Some gvps ->
   gvp @ gvps ->
-  assert_mptr TD t gvp md ->
+  SBopsem.assert_mptr TD t gvp md ->
   mload TD Mem gvp t align = Some gv ->
   isPointerTypB t = false ->
   nsInsn 
@@ -469,13 +374,13 @@ Inductive nsInsn : State -> State -> trace -> Prop :=
 
 | nsLoad_ptr : forall S TD Ps F B lc rm gl fs id t align vp EC cs tmn Mem MM als 
     gvp gv md md' lc' rm' gvps,
-  get_reg_metadata TD gl rm vp = Some md ->
+  SBopsem.get_reg_metadata TD gl rm vp = Some md ->
   getOperandValue TD vp lc gl = Some gvps ->
   gvp @ gvps ->
-  assert_mptr TD t gvp md ->
+  SBopsem.assert_mptr TD t gvp md ->
   mload TD Mem gvp t align = Some gv ->
   isPointerTypB t = true ->
-  get_mem_metadata TD MM gvp = md' -> 
+  SBopsem.get_mem_metadata TD MM gvp = md' -> 
   prop_reg_metadata lc rm id ($ gv # t $) md' = (lc', rm') ->
   nsInsn 
     (mkState S TD Ps 
@@ -486,11 +391,11 @@ Inductive nsInsn : State -> State -> trace -> Prop :=
 
 | nsStore_nptr : forall S TD Ps F B lc rm gl fs sid t align v vp EC cs tmn Mem MM
     als gv gvp md Mem' gvps gvs,
-  get_reg_metadata TD gl rm vp = Some md ->
+  SBopsem.get_reg_metadata TD gl rm vp = Some md ->
   getOperandValue TD v lc gl = Some gvs ->
   getOperandValue TD vp lc gl = Some gvps ->
   gvp @ gvps -> gv @ gvs ->
-  assert_mptr TD t gvp md ->
+  SBopsem.assert_mptr TD t gvp md ->
   mstore TD Mem gvp t gv align = Some Mem' ->
   isPointerTypB t = false ->
   nsInsn 
@@ -503,15 +408,15 @@ Inductive nsInsn : State -> State -> trace -> Prop :=
 
 | nsStore_ptr : forall S TD Ps F B lc rm gl fs sid t align v vp EC cs tmn Mem MM
     als gv gvp md md' Mem' MM' gvps gvs,
-  get_reg_metadata TD gl rm vp = Some md ->
+  SBopsem.get_reg_metadata TD gl rm vp = Some md ->
   getOperandValue TD v lc gl = Some gvs ->
   getOperandValue TD vp lc gl = Some gvps ->
   gvp @ gvps -> gv @ gvs ->
-  assert_mptr TD t gvp md ->
+  SBopsem.assert_mptr TD t gvp md ->
   mstore TD Mem gvp t gv align = Some Mem' ->
   isPointerTypB t = true ->
-  get_reg_metadata TD gl rm v = Some md' ->
-  set_mem_metadata TD MM gvp md' = MM' -> 
+  SBopsem.get_reg_metadata TD gl rm v = Some md' ->
+  SBopsem.set_mem_metadata TD MM gvp md' = MM' -> 
   nsInsn 
     (mkState S TD Ps 
       ((mkEC F B ((insn_store sid t v vp align)::cs) tmn lc rm als)::EC) 
@@ -522,7 +427,7 @@ Inductive nsInsn : State -> State -> trace -> Prop :=
 
 | nsGEP : forall S TD Ps F B lc rm gl fs id inbounds t vp idxs vidxs EC gvp gvp' 
                  cs tmn Mem MM als lc' rm' md,
-  get_reg_metadata TD gl rm vp = Some md ->
+  SBopsem.get_reg_metadata TD gl rm vp = Some md ->
   getOperandValue TD vp lc gl = Some gvp ->
   values2GVs TD idxs lc gl = Some vidxs ->
   GEP TD t gvp vidxs inbounds = Some gvp' ->
@@ -573,7 +478,7 @@ Inductive nsInsn : State -> State -> trace -> Prop :=
     als md lc' rm',
   CAST TD lc gl castop_bitcast t1 v1 t2 = Some gv2 ->
   isPointerTypB t1 = true ->
-  get_reg_metadata TD gl rm v1 = Some md ->
+  SBopsem.get_reg_metadata TD gl rm v1 = Some md ->
   prop_reg_metadata lc rm id gv2 md = (lc', rm') ->
   nsInsn 
     (mkState S TD Ps 
@@ -586,7 +491,7 @@ Inductive nsInsn : State -> State -> trace -> Prop :=
 | nsInttoptr : forall S TD Ps F B lc rm gl fs id t1 v1 t2 gv2 EC cs tmn Mem MM
     als lc' rm',
   CAST TD lc gl castop_inttoptr t1 v1 t2 = Some gv2 ->
-  prop_reg_metadata lc rm id gv2 (mkMD null null) = (lc', rm') ->
+  prop_reg_metadata lc rm id gv2 (SBopsem.mkMD null null) = (lc', rm') ->
   nsInsn 
     (mkState S TD Ps 
       ((mkEC F B ((insn_cast id castop_inttoptr t1 v1 t2)::cs) tmn lc rm als)
@@ -654,8 +559,8 @@ Inductive nsInsn : State -> State -> trace -> Prop :=
   getOperandValue TD v2 lc gl = Some gv2 ->
   c @ cond ->
   isPointerTypB t = true ->
-  get_reg_metadata TD gl rm v1 = Some md1 ->
-  get_reg_metadata TD gl rm v2 = Some md2 ->
+  SBopsem.get_reg_metadata TD gl rm v1 = Some md1 ->
+  SBopsem.get_reg_metadata TD gl rm v2 = Some md2 ->
   (if isGVZero TD c then 
     prop_reg_metadata lc rm id gv2 md2
   else

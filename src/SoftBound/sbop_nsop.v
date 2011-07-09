@@ -17,6 +17,7 @@ Require Import ssa_props.
 Require Import alist.
 Require Import ssa_dynamic.
 Require Import ndopsem.
+Require Import sb_ds_def.
 Require Import sb_ns_def.
 
 Export LLVMsyntax.
@@ -61,7 +62,7 @@ Proof.
   destruct (getOperandValue TD' Result lc1' gl'); 
     try solve [inversion H; auto].
   destruct (isPointerTypB rt); try solve [inversion H; auto].
-    destruct (SBnsop.get_reg_metadata TD' gl' rm Result) as [[md ?]|]; 
+    destruct (SBopsem.get_reg_metadata TD' gl' rm Result) as [[md ?]|]; 
       try solve [inversion H; auto].
     destruct c'; try solve [inversion H; auto].
     destruct n; try solve [inversion H; auto].
@@ -102,7 +103,7 @@ Proof.
     inversion H; subst.
     exists nil. exists nil. eauto.
 
-    destruct a. unfold SBnsop.get_reg_metadata in H.
+    destruct a. unfold SBopsem.get_reg_metadata in H.
     destruct (getValueViaBlockFromValuels l0 b1'); try solve [inversion H].
     remember (getOperandValue TD' v lc1' gl') as R0.
     destruct R0; try solve [inversion H].
@@ -115,17 +116,17 @@ Proof.
     rewrite J1.
     destruct (isPointerTypB t); inversion H; subst; clear H.
       destruct v; simpl in *.
-        destruct (lookupAL SBnsop.metadata rm i1); inversion H1; subst.
+        destruct (lookupAL SBopsem.metadata rm i1); inversion H1; subst.
           simpl. rewrite J2. eauto.
 
         destruct (
-          match SBnsop.get_const_metadata c with
+          match SBopsem.get_const_metadata c with
          | ret (bc, ec) =>
              do gvb <- LLVMgv.const2GV TD' gl' bc;
              (do gve <- LLVMgv.const2GV TD' gl' ec;
-              ret {| SBnsop.md_base := gvb; SBnsop.md_bound := gve |})
+              ret {| SBopsem.md_base := gvb; SBopsem.md_bound := gve |})
          | merror =>
-             ret {| SBnsop.md_base := null; SBnsop.md_bound := null |}
+             ret {| SBopsem.md_base := null; SBopsem.md_bound := null |}
          end
         ) as [md|]; inversion H1; subst; simpl; eauto.
           rewrite J2. eauto.
