@@ -1866,15 +1866,17 @@ Case "cons".
         apply gv_inject_uninits.
 Qed.
 
-Lemma sb_mem_inj__cgv2gv : forall mi g, 
-  gv_inject mi g g -> gv_inject mi (? g ?) (? g ?).
+Lemma sb_mem_inj__cgv2gv : forall mi g t maxb Mem Mem', 
+  wf_sb_mi maxb mi Mem Mem' ->
+  gv_inject mi g g -> gv_inject mi (? g # t ?) (? g # t ?).
 Proof.
   intros.  
   destruct g; auto.
   destruct p; auto.
   destruct v; auto.
   destruct g; auto.
-  destruct m; apply gv_inject_cons_intro; auto using gv_inject_nil_refl.
+  inv H.
+  destruct t; apply gv_inject_cons_intro; eauto using gv_inject_nil_refl.
 Qed.
 
 Lemma sb_mem_inj__const2GV : forall maxb mi Mem Mem' TD gl c gv,
@@ -1889,7 +1891,7 @@ Proof.
   unfold const2GV in H1.
   remember (_const2GV TD gl c) as R.
   destruct R as [[? ?]|]; inv H1; auto.
-  apply sb_mem_inj__cgv2gv; eauto.
+  eapply sb_mem_inj__cgv2gv; eauto.
 Qed.
 
 Fixpoint gvs_inject mi gvs1 gvs2 : Prop :=

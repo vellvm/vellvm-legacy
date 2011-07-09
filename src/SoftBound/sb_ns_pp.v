@@ -657,8 +657,8 @@ Proof.
         remember (_initializeFrameValues la nil nil nil) as R1.
         destruct R1 as [lc' rm'].
         destruct (isPointerTypB t); inv H0.
-          exists ($ gundef t $). apply lookupAL_updateAddAL_eq; auto.      
-          exists ($ gundef t $). apply lookupAL_updateAddAL_eq; auto.      
+          exists ($ gundef t # t $). apply lookupAL_updateAddAL_eq; auto.      
+          exists ($ gundef t # t $). apply lookupAL_updateAddAL_eq; auto.      
 
         destruct p.
         remember (_initializeFrameValues la gvs nil nil) as R1.
@@ -672,8 +672,8 @@ Proof.
           remember (_initializeFrameValues la nil nil nil) as R1.
           destruct R1 as [lc' rm'].
           destruct (isPointerTypB t); inv H0.
-            exists ($ gundef t $). apply lookupAL_updateAddAL_eq; auto.
-            exists ($ gundef t $). apply lookupAL_updateAddAL_eq; auto.
+            exists ($ gundef t # t $). apply lookupAL_updateAddAL_eq; auto.
+            exists ($ gundef t # t $). apply lookupAL_updateAddAL_eq; auto.
 
           destruct p.
           remember (_initializeFrameValues la gvs nil nil) as R1.
@@ -1956,7 +1956,7 @@ Proof.
   generalize dependent ec.
   generalize dependent bc.
   induction vc; intros; try solve [inversion J2].
-    exists (? gv3 ?). 
+    exists (? gv3 # t3 ?). 
     remember t as T.
     destruct T; inversion J2; clear J2; subst bc ec; simpl in *; 
     unfold mbitcast, p8; try solve [
@@ -2842,7 +2842,8 @@ Proof.
         clear - HeqR0. unfold malloc in HeqR0.
         destruct (GV2int (los, nts) Size.ThirtyTwo gn); inv HeqR0; eauto.
       destruct H as [n H].
-      remember (prop_reg_metadata lc rm i0 ($(blk2GV (los, nts) mb)$) 
+      remember (prop_reg_metadata lc rm i0 
+        ($(blk2GV (los, nts) mb) # typ_pointer t$) 
         (mkMD (base2GV (los, nts) mb) (bound2GV (los, nts) mb asz n))) as R.
       destruct R as [lc' rm'].
       exists 
@@ -2927,7 +2928,8 @@ Proof.
         clear - HeqR0. unfold malloc in HeqR0.
         destruct (GV2int (los, nts) Size.ThirtyTwo gn); inv HeqR0; eauto.
       destruct H as [n H].
-      remember (prop_reg_metadata lc rm i0 ($(blk2GV (los, nts) mb)$)
+      remember (prop_reg_metadata lc rm i0 
+        ($(blk2GV (los, nts) mb) # typ_pointer t$)
         (mkMD (base2GV (los, nts) mb) (bound2GV (los, nts) mb asz n))) as R.
       destruct R as [lc' rm'].
       left.
@@ -3007,7 +3009,7 @@ Proof.
           remember (isPointerTypB t) as R1.
           destruct R1.      
           SSSSSCase "load_ptr".
-            remember (SBnsop.prop_reg_metadata lc rm i0 ($ gv' $) 
+            remember (SBnsop.prop_reg_metadata lc rm i0 ($ gv' # t $) 
               (SBnsop.get_mem_metadata (los, nts) Mmap0 gv)) as R.
             destruct R as [lc' rm'].
             left.
@@ -3044,7 +3046,7 @@ Proof.
                            (cs1 ++ insn_load i0 t v a :: cs) tmn;
                   SBnsop.CurCmds := cs;
                   SBnsop.Terminator := tmn;
-                  SBnsop.Locals := updateAddAL _ lc i0 ($ gv' $);
+                  SBnsop.Locals := updateAddAL _ lc i0 ($ gv' # t $);
                   SBnsop.Rmap := rm;
                   SBnsop.Allocas := als |} :: ecs;
                SBnsop.Globals := gl;

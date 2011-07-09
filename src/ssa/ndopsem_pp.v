@@ -569,12 +569,12 @@ Proof.
     simpl in H.
     destruct H as [H | H]; subst; simpl.
       destruct gvs. 
-        exists ($ gundef t $). apply lookupAL_updateAddAL_eq; auto.      
+        exists ($ gundef t # t $). apply lookupAL_updateAddAL_eq; auto.      
         exists g. apply lookupAL_updateAddAL_eq; auto.      
 
       destruct (eq_atom_dec i0 id1); subst.
         destruct gvs.
-          exists ($ gundef t $). apply lookupAL_updateAddAL_eq; auto.
+          exists ($ gundef t # t $). apply lookupAL_updateAddAL_eq; auto.
           exists g. apply lookupAL_updateAddAL_eq; auto.
         destruct gvs; rewrite <- lookupAL_updateAddAL_neq; auto.
 Qed.
@@ -638,16 +638,16 @@ Proof.
     apply wf_lc_updateAddAL; eauto using getOperandValue__inhabited.
 Qed.
 
-Lemma lift_op2__inhabited : forall f gvs1 gvs2 
+Lemma lift_op2__inhabited : forall f gvs1 gvs2 t
   (H:forall x y, exists z, f x y = Some z),
   Ensembles.Inhabited _ gvs1 -> Ensembles.Inhabited _ gvs2 ->
-  Ensembles.Inhabited _ (lift_op2 f gvs1 gvs2).
+  Ensembles.Inhabited _ (lift_op2 f gvs1 gvs2 t).
 Proof.
   intros.
   unfold lift_op2. 
   inv H0. inv H1.
   destruct (@H x x0) as [z J].
-  destruct (@gv2gvs__inhabited z).
+  destruct (@gv2gvs__inhabited z t).
   exists x1. unfold Ensembles.In. exists x. exists x0. exists z.
   rewrite J.
   repeat (split; auto).
@@ -757,22 +757,22 @@ Proof.
   unfold NDopsem.GEP in H1. inv H.
   inv H1.
   destruct (@GEP_is_total TD t x vidxs0 inbounds0) as [mp' J].
-  assert (J1:=@gv2gvs__inhabited mp'). inv J1.
+  assert (J1:=@gv2gvs__inhabited mp' (typ_pointer typ_void)). inv J1.
   apply Ensembles.Inhabited_intro with (x:=x0).
   unfold Ensembles.In.
   exists x. exists vidxs0. exists mp'. rewrite J. split; auto.
 Qed.
 
-Lemma lift_op1__inhabited : forall f gvs1
+Lemma lift_op1__inhabited : forall f gvs1 t
   (H:forall x, exists z, f x = Some z),
   Ensembles.Inhabited _ gvs1 ->
-  Ensembles.Inhabited _ (lift_op1 f gvs1).
+  Ensembles.Inhabited _ (lift_op1 f gvs1 t).
 Proof.
   intros.
   unfold lift_op1. 
   inv H0.
   destruct (@H x) as [z J].
-  destruct (@gv2gvs__inhabited z).
+  destruct (@gv2gvs__inhabited z t).
   exists x0. unfold Ensembles.In. exists x. exists z.
   rewrite J.
   repeat (split; auto).
@@ -824,7 +824,7 @@ Lemma extractGenericValue__inhabited : forall TD t gvs cidxs gvs',
 Proof.  
   intros TD t gvs cidxs gvs' J1 J2.
   unfold extractGenericValue in J2.
-  assert (J:=@gv2gvs__inhabited (uninits 1)).
+  assert (J:=@gv2gvs__inhabited (uninits 1) (typ_int 7%nat)).
   destruct (intConsts2Nats TD cidxs); try solve [inv J2; auto].
   destruct (mgetoffset TD t l0); try solve [inv J2; auto].
   destruct p. inv J2.
@@ -2280,7 +2280,7 @@ Definition undefined_state (S : NDopsem.State): Prop :=
   match S with
   | {| NDopsem.CurTargetData := td;
        NDopsem.CurProducts := ps;
-       NDopsem.ECS := {| NDopsem.CurCmds := insn_call i0 n _ _ v p::_ ; 
+       NDopsem.ECS := {| NDopsem.CurCmds := insn_call i0 n _ ft v p::_ ; 
                              NDopsem.Locals := lc|} :: _;
        NDopsem.Globals := gl;
        NDopsem.FunTable := fs;
@@ -2296,7 +2296,7 @@ Definition undefined_state (S : NDopsem.State): Prop :=
                 | Some (fdec_intro (fheader_intro _ _ fid _ _)) =>
                    match callExternalFunction M fid gvs with
                    | Some (oresult, _) =>
-                      match exCallUpdateLocals n i0 oresult lc with
+                      match exCallUpdateLocals ft n i0 oresult lc with
                       | None => False
                       | _ => True
                       end
@@ -2702,7 +2702,7 @@ Proof.
                 NDopsem.CurCmds := cs;
                 NDopsem.Terminator := tmn;
                 NDopsem.Locals := 
-                  (updateAddAL _ lc i0 ($ (blk2GV (los, nts) mb) $));
+               (updateAddAL _ lc i0 ($ (blk2GV (los, nts) mb) # typ_pointer t$));
                 NDopsem.Allocas := als |} :: ecs;
          NDopsem.Globals := gl;
          NDopsem.FunTable := fs;
@@ -2771,7 +2771,7 @@ Proof.
                 NDopsem.CurCmds := cs;
                 NDopsem.Terminator := tmn;
                 NDopsem.Locals := 
-                  (updateAddAL _ lc i0 ($ (blk2GV (los, nts) mb) $));
+               (updateAddAL _ lc i0 ($ (blk2GV (los, nts) mb) # typ_pointer t$));
                 NDopsem.Allocas := (mb::als) |} :: ecs;
          NDopsem.Globals := gl;
          NDopsem.FunTable := fs;
@@ -2805,7 +2805,7 @@ Proof.
                            (cs1 ++ insn_load i0 t v a :: cs) tmn;
                 NDopsem.CurCmds := cs;
                 NDopsem.Terminator := tmn;
-                NDopsem.Locals := updateAddAL _ lc i0 ($ gv' $);
+                NDopsem.Locals := updateAddAL _ lc i0 ($ gv' # t$);
                 NDopsem.Allocas := als |} :: ecs;
          NDopsem.Globals := gl;
          NDopsem.FunTable := fs;
@@ -3150,7 +3150,7 @@ Proof.
                 | Some (fdec_intro (fheader_intro _ _ fid _ _)) =>
                    match callExternalFunction M fid gvs with
                    | Some (oresult, _) =>
-                      match exCallUpdateLocals n i0 oresult lc with
+                      match exCallUpdateLocals t n i0 oresult lc with
                       | None => False
                       | _ => True  
                       end
@@ -3167,7 +3167,7 @@ Proof.
     destruct f' as [[fa rt fid la va]].
     remember (callExternalFunction M fid gvs) as R.
     destruct R as [[oresult Mem']|]; tinv J.
-    remember (exCallUpdateLocals n i0 oresult lc) as R'.
+    remember (exCallUpdateLocals t n i0 oresult lc) as R'.
     destruct R' as [lc' |]; tinv J.
       left.
       exists 

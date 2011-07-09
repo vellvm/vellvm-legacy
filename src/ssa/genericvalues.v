@@ -790,25 +790,26 @@ match cs with
 end
 .
 
-Definition cundef_gv c : GenericValue :=
-match c with
-| AST.Mint sz => (Vint sz (Int.zero sz), c)::nil
-| AST.Mfloat32 | AST.Mfloat64 => (Vfloat Float.zero, c)::nil
-(*| _ =>  Full_set _*)
-end.
-
-Definition cgv2gv (gv:GenericValue) : GenericValue :=
-match gv with
-| (Vundef, c)::nil => cundef_gv c
+Definition cundef_gv gv c t : GenericValue :=
+match t with
+| typ_int sz => (Vint sz (Int.zero sz), c)::nil
+| typ_floatpoint _ => (Vfloat Float.zero, c)::nil
+| typ_pointer _ => null
 | _ => gv
 end.
 
-Notation "? gv ?" := (cgv2gv gv) (at level 41).
+Definition cgv2gv (gv:GenericValue) (t:typ) : GenericValue :=
+match gv with
+| (Vundef, c)::nil => cundef_gv gv c t
+| _ => gv
+end.
+
+Notation "? gv # t ?" := (cgv2gv gv t) (at level 41).
 
 Definition const2GV (TD:TargetData) (gl:GVMap) (c:const) : option GenericValue :=
 match (_const2GV TD gl c) with
 | None => None
-| Some (gv, t) => Some (? gv ?)
+| Some (gv, t) => Some (? gv # t ?)
 end.
 
 Definition getOperandValue (TD:TargetData) (v:value) (locals:GVMap) 

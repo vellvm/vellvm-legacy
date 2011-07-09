@@ -590,10 +590,10 @@ Proof.
   eapply wf_data__store__wf_data; eauto.
 Qed.
 
-Lemma GV2ptr__cgv2gv : forall TD sz g b ofs, 
-  GV2ptr TD sz g = ret (Vptr b ofs) -> g = ? g ?.
+Lemma GV2ptr__cgv2gv : forall TD sz g b ofs t, 
+  GV2ptr TD sz g = ret (Vptr b ofs) -> g = ? g # typ_pointer t ?.
 Proof.
-  intros TD sz g b ofs J1.
+  intros TD sz g b ofs t J1.
   unfold GV2ptr in J1.    
   destruct g as [|[[] ?][|]]; inv J1.
   simpl. auto.
@@ -653,9 +653,7 @@ Proof.
   rewrite J6 in HeqR0. simpl in HeqR0.
   rewrite J7 in HeqR0. rewrite J2 in HeqR0. simpl in HeqR0.
   inv HeqR0.
-  assert (g = ? g ?) as EQ.
-    apply GV2ptr__cgv2gv in J1; auto.
-  rewrite <- EQ. clear EQ.
+  erewrite <- GV2ptr__cgv2gv; eauto.
   symmetry in HeqR'.
   unfold wf_data. rewrite J1. simpl.
   destruct (zeq b b); auto.
@@ -746,6 +744,7 @@ Proof.
       as J.
       eapply Hwfg; eauto using wf_const_gid.
     destruct J as [b [sz [J1 [J2 [J3 [J4 J5]]]]]].
+    unfold p8.
     erewrite <- GV2ptr__cgv2gv; eauto.
     eapply eq_gv_is_wf_data; eauto.
 

@@ -104,14 +104,14 @@ Proof.
   unfold Same_set, Included. auto.
 Qed.
 
-Lemma instantiate_undef__undef_gvs : forall m, 
-  instantiate_gv ((Vundef, m) :: nil) (undef_gvs m).
+Lemma instantiate_undef__undef_gvs : forall gv m t, 
+  instantiate_gv ((Vundef, m) :: nil) (undef_gvs gv m t).
 Proof.
   intros. unfold undef_gvs.
-  destruct m; apply Union_introl; constructor.
+  destruct t; apply Union_introl; constructor.
 Qed.
 
-Lemma instantiate_gv__gv2gvs : forall gv, instantiate_gv gv ($ gv $).
+Lemma instantiate_gv__gv2gvs : forall gv t, instantiate_gv gv ($ gv # t $).
 Proof.
   intros.
   destruct gv; simpl; try constructor.
@@ -121,17 +121,18 @@ Proof.
     try solve [constructor | auto using instantiate_undef__undef_gvs].  
 Qed.
 
-Lemma instantiate_cundef__cundef_gvs : forall m, 
-  instantiate_gv (cundef_gv m) (cundef_gvs m).
+Lemma instantiate_cundef__cundef_gvs : forall gv m t, 
+  instantiate_gv (cundef_gv gv m t) (cundef_gvs gv m t).
 Proof.
   intros. unfold cundef_gv, cundef_gvs, instantiate_gv.
-  destruct m; simpl.
-    unfold Ensembles.In. exists (Int.zero n). auto.
+  destruct t; simpl; try constructor.
+    unfold Ensembles.In. exists (Int.zero s). auto.
     unfold Ensembles.In. exists Float.zero. auto.
-    unfold Ensembles.In. exists Float.zero. auto.
+    unfold Ensembles.In. exists Mem.nullptr. exists (Int.repr 31 0). auto.
 Qed.
 
-Lemma instantiate_cgv__cgv2gvs : forall gv, instantiate_gv (? gv ?) (cgv2gvs gv).
+Lemma instantiate_cgv__cgv2gvs : forall gv t, 
+  instantiate_gv (? gv # t?) (cgv2gvs gv t).
 Proof.
   intros.
   destruct gv; simpl; try constructor.
@@ -153,7 +154,7 @@ Proof.
 
     unfold const2GV in H0. unfold NDopsem.const2GV.
     destruct (_const2GV TD gl c) as [[gv ?]|]; inv H0.
-    exists (cgv2gvs gv).
+    exists (cgv2gvs gv t).
     split; auto using instantiate_cgv__cgv2gvs.
 Qed.
 
@@ -278,11 +279,11 @@ Qed.
 
 Hint Unfold instantiate_gv.
 
-Lemma instantiate_gv__lift_op2 : forall f x y z xs ys,
+Lemma instantiate_gv__lift_op2 : forall f x y z xs ys t,
   f x y = Some z ->
   instantiate_gv x xs ->
   instantiate_gv y ys ->
-  instantiate_gv z (lift_op2 f xs ys).
+  instantiate_gv z (lift_op2 f xs ys t).
 Proof.
   intros. unfold lift_op2. 
   exists x. exists y. exists z. 
@@ -305,7 +306,7 @@ Proof.
   destruct J2 as [gvs2 [H3 H4]].
   unfold NDopsem.BOP.
   rewrite H1. rewrite H3.
-  exists (lift_op2 (mbop TD bop0 sz0) gvs1 gvs2).
+  exists (lift_op2 (mbop TD bop0 sz0) gvs1 gvs2 (typ_int sz0)).
   split; eauto using instantiate_gv__lift_op2.
 Qed.
   
@@ -336,7 +337,7 @@ Proof.
   destruct J2 as [gvs2 [H3 H4]].
   unfold NDopsem.FBOP.
   rewrite H1. rewrite H3.
-  exists (lift_op2 (mfbop TD fbop0 fp) gvs1 gvs2).
+  exists (lift_op2 (mfbop TD fbop0 fp) gvs1 gvs2 (typ_floatpoint fp)).
   split; eauto using instantiate_gv__lift_op2.
 Qed.
 
@@ -368,7 +369,7 @@ Proof.
   destruct J2 as [gvs2 [H3 H4]].
   unfold NDopsem.ICMP.
   rewrite H1. rewrite H3.
-  exists (lift_op2 (micmp TD c t) gvs1 gvs2).
+  exists (lift_op2 (micmp TD c t) gvs1 gvs2 (typ_int 0%nat)).
   split; eauto using instantiate_gv__lift_op2.
 Qed.
 
@@ -399,7 +400,7 @@ Proof.
   destruct J2 as [gvs2 [H3 H4]].
   unfold NDopsem.FCMP.
   rewrite H1. rewrite H3.
-  exists (lift_op2 (mfcmp TD c t) gvs1 gvs2).
+  exists (lift_op2 (mfcmp TD c t) gvs1 gvs2 (typ_int 0%nat)).
   split; eauto using instantiate_gv__lift_op2.
 Qed.
 
@@ -612,7 +613,8 @@ Proof.
               exists gv' : GenericValue,
                 ma @ mps2 /\
                 vidxs0 @@ vidxss /\
-                GEP TD t ma vidxs0 inbounds = ret gv' /\ gv @ $ gv' $).
+                GEP TD t ma vidxs0 inbounds = ret gv' /\ 
+                gv @ $ gv' # typ_pointer typ_void $).
   split; auto.
     unfold instantiate_gv, Ensembles.In.
     exists mp1. exists vidxs. exists mp1'.
@@ -632,8 +634,8 @@ Proof.
   destruct p. eauto.
 Qed.
 
-Lemma defined_gv__spec1 : forall gv,
-  defined_gv gv -> gv @ ($ gv $).
+Lemma defined_gv__spec1 : forall gv t,
+  defined_gv gv -> gv @ ($ gv # t $).
 Proof.
   destruct gv; simpl; intros.
     unfold Ensembles.In. constructor.
@@ -645,8 +647,8 @@ Proof.
     ].
 Qed.      
 
-Lemma defined_gv__spec2 : forall gv,
-  defined_gv gv -> $ gv $ = Singleton _ gv.
+Lemma defined_gv__spec2 : forall gv t,
+  defined_gv gv -> $ gv # t $ = Singleton _ gv.
 Proof.
   destruct gv; simpl; intros; auto.
     destruct p.
@@ -655,10 +657,10 @@ Proof.
     ].
 Qed.      
 
-Lemma instantiate_gv__lift_op1 : forall f x z xs,
+Lemma instantiate_gv__lift_op1 : forall f x z xs t,
   f x = Some z ->
   instantiate_gv x xs ->
-  instantiate_gv z (lift_op1 f xs).
+  instantiate_gv z (lift_op1 f xs t).
 Proof.
   intros. unfold lift_op1. 
   exists x. exists z. 
@@ -679,11 +681,13 @@ Proof.
   unfold NDopsem.extractGenericValue.
   destruct (intConsts2Nats TD cidxs); inv H1.
     destruct (mgetoffset TD t l0) as [[]|]; inv H3.
-      exists (lift_op1 (mget' TD i0 t0) gvs1).
+      exists (lift_op1 (mget' TD i0 t0) gvs1 t0).
       split; auto.
         eapply instantiate_gv__lift_op1; eauto.
-      exists ($ uninits 1 $). split; auto using instantiate_gv__gv2gvs.
-    exists ($ uninits 1 $). split; auto using instantiate_gv__gv2gvs.
+      exists ($ uninits 1 # typ_int 7%nat $). 
+      split; auto using instantiate_gv__gv2gvs.
+    exists ($ uninits 1 # typ_int 7%nat $). 
+    split; auto using instantiate_gv__gv2gvs.
 Qed.
 
 Lemma mset'_is_total : forall (TD : TargetData) (ofs : int32) (t1 t2 : typ) 
@@ -709,11 +713,11 @@ Proof.
   unfold NDopsem.insertGenericValue.
   destruct (intConsts2Nats TD cidxs); inv H2.
     destruct (mgetoffset TD t1 l0) as [[]|]; inv H4.
-      exists (lift_op2 (mset' TD i0 t1 t2) gvs1 gvs2).
+      exists (lift_op2 (mset' TD i0 t1 t2) gvs1 gvs2 t1).
       split; auto.
         eapply instantiate_gv__lift_op2; eauto.
-      exists ($ gundef t1 $). split; auto using instantiate_gv__gv2gvs.
-    exists ($ gundef t1 $). split; auto using instantiate_gv__gv2gvs.
+      exists ($ gundef t1 # t1 $). split; auto using instantiate_gv__gv2gvs.
+    exists ($ gundef t1 # t1 $). split; auto using instantiate_gv__gv2gvs.
 Qed.
 
 Lemma mcast_is_total : forall TD cop0 t1 t2 x, 
@@ -737,7 +741,7 @@ Proof.
   destruct J1 as [gvs1 [H1 H2]].
   unfold NDopsem.CAST.
   rewrite H1.
-  exists (lift_op1 (mcast TD castop0 t1 t2) gvs1).
+  exists (lift_op1 (mcast TD castop0 t1 t2) gvs1 t2).
   split; eauto using instantiate_gv__lift_op1.
 Qed.
 
@@ -765,7 +769,7 @@ Proof.
   destruct J1 as [gvs1 [H1 H2]].
   unfold NDopsem.TRUNC.
   rewrite H1.
-  exists (lift_op1 (mtrunc TD top0 t1 t2) gvs1).
+  exists (lift_op1 (mtrunc TD top0 t1 t2) gvs1 t2).
   split; eauto using instantiate_gv__lift_op1.
 Qed.
 
@@ -797,7 +801,7 @@ Proof.
   destruct J1 as [gvs1 [H1 H2]].
   unfold NDopsem.EXT.
   rewrite H1.
-  exists (lift_op1 (mext TD top0 t1 t2) gvs1).
+  exists (lift_op1 (mext TD top0 t1 t2) gvs1 t2).
   split; eauto using instantiate_gv__lift_op1.
 Qed.
 
@@ -997,11 +1001,11 @@ Proof.
 Qed.  
 
 Lemma instantiate_locals__exCallUpdateLocals : forall lc1 lc2 lc1' rid oResult 
-    nr,
+    nr ft,
   instantiate_locals lc1 lc2 -> 
   exCallUpdateLocals nr rid oResult lc1 = ret lc1' ->
   exists lc2', 
-    NDopsem.exCallUpdateLocals nr rid oResult lc2 = ret lc2' /\
+    NDopsem.exCallUpdateLocals ft nr rid oResult lc2 = ret lc2' /\
     instantiate_locals lc1' lc2'. 
 Proof.
   intros.
@@ -1009,7 +1013,7 @@ Proof.
   unfold NDopsem.exCallUpdateLocals.
   destruct nr; inv H0; eauto.
   destruct oResult; inv H2; eauto.
-  exists (updateAddAL GVs lc2 rid ($ g $)).
+  exists (updateAddAL GVs lc2 rid ($ g # NDopsem.getReturnTyp ft $)).
   split; auto.
     apply instantiate_locals__updateAddAL; auto using instantiate_gv__gv2gvs.
 Qed.
@@ -1094,7 +1098,7 @@ Case "dsMalloc". simpl_nd_llvmds.
   destruct H0 as [gns [J1 J2]].
   exists (NDopsem.mkState S' TD' Ps' 
     ((NDopsem.mkEC f1' b1' cs tmn1' 
-      (updateAddAL _ lc1' id0 ($ (blk2GV TD' mb) $)) 
+      (updateAddAL _ lc1' id0 ($ (blk2GV TD' mb) # typ_pointer t $)) 
     als1')::ECs') gl' fs' Mem').
   split; eauto.
     repeat (split; auto using instantiate_locals__updateAddAL, 
@@ -1112,7 +1116,7 @@ Case "dsAlloca". simpl_nd_llvmds.
   destruct H0 as [gns [J1 J2]].
   exists (NDopsem.mkState S' TD' Ps' 
     ((NDopsem.mkEC f1' b1' cs tmn1' 
-      (updateAddAL _ lc1' id0 ($ (blk2GV TD' mb) $)) 
+      (updateAddAL _ lc1' id0 ($ (blk2GV TD' mb) # typ_pointer t $)) 
     (mb::als1'))::ECs') gl' fs' Mem').
   split; eauto.
     repeat (split; auto using instantiate_locals__updateAddAL, 
@@ -1121,7 +1125,7 @@ Case "dsLoad". simpl_nd_llvmds.
   eapply instantiate_locals__getOperandValue in H; eauto.
   destruct H as [gvs2 [J1 J2]].
   exists (NDopsem.mkState S' TD' Ps' 
-    ((NDopsem.mkEC f1' b1' cs tmn1' (updateAddAL _ lc1' id0 ($ gv $))
+    ((NDopsem.mkEC f1' b1' cs tmn1' (updateAddAL _ lc1' id0 ($ gv # t $))
     als1')::ECs') gl' fs' M').
   split; eauto. 
     repeat (split; auto using instantiate_locals__updateAddAL, 

@@ -254,10 +254,10 @@ Definition exCallUpdateLocals (ft:typ) (noret:bool) (rid:id)
       | None => None
       | Some Result => 
           match ft with
-          | typ_function (typ_pointer _) _ _ => 
-                         Some (updateAddAL _ lc rid ($ Result $), 
-                               updateAddAL _ rm rid (mkMD null null))
-          | _ => Some (updateAddAL _ lc rid ($ Result $), rm)
+          | typ_function (typ_pointer t) _ _ => 
+                     Some (updateAddAL _ lc rid ($ Result # (typ_pointer t) $), 
+                           updateAddAL _ rm rid (mkMD null null))
+          | _ => Some (updateAddAL _ lc rid ($ Result # (getReturnTyp ft) $), rm)
           end
       end
   | true => Some (lc, rm)
@@ -290,8 +290,8 @@ match (la, lg) with
 | ((t, _, id0)::la', nil) => 
      let '(lc',rm') := _initializeFrameValues la' nil lc rm in
      if isPointerTypB t then
-       (prop_reg_metadata lc' rm' id0 ($(gundef t)$) (mkMD null null))
-     else (updateAddAL _ lc' id0 ($(gundef t)$), rm')
+       (prop_reg_metadata lc' rm' id0 ($(gundef t) # t$) (mkMD null null))
+     else (updateAddAL _ lc' id0 ($(gundef t) # t$), rm')
 | _ => (lc, rm)
 end.
 
@@ -412,8 +412,8 @@ Inductive nsInsn : State -> State -> trace -> Prop :=
   gn @ gns ->
   malloc TD Mem tsz gn align = Some (Mem', mb) ->
   GV2int TD Size.ThirtyTwo gn = Some n ->
-  prop_reg_metadata lc rm id ($ (blk2GV TD mb) $) (mkMD (base2GV TD mb) 
-    (bound2GV TD mb tsz n)) = (lc',rm') ->
+  prop_reg_metadata lc rm id ($ (blk2GV TD mb) # typ_pointer t $) 
+    (mkMD (base2GV TD mb) (bound2GV TD mb tsz n)) = (lc',rm') ->
   nsInsn 
     (mkState S TD Ps 
       ((mkEC F B ((insn_malloc id t v align)::cs) tmn lc rm als)::EC) 
@@ -440,8 +440,8 @@ Inductive nsInsn : State -> State -> trace -> Prop :=
   gn @ gns ->
   malloc TD Mem tsz gn align = Some (Mem', mb) ->
   GV2int TD Size.ThirtyTwo gn = Some n ->
-  prop_reg_metadata lc rm id ($(blk2GV TD mb)$) (mkMD (base2GV TD mb) 
-    (bound2GV TD mb tsz n)) = (lc',rm') ->
+  prop_reg_metadata lc rm id ($(blk2GV TD mb) # typ_pointer t$) 
+    (mkMD (base2GV TD mb) (bound2GV TD mb tsz n)) = (lc',rm') ->
   nsInsn 
     (mkState S TD Ps 
       ((mkEC F B ((insn_alloca id t v align)::cs) tmn lc rm als)::EC) 
@@ -463,7 +463,8 @@ Inductive nsInsn : State -> State -> trace -> Prop :=
       ((mkEC F B ((insn_load id t vp align)::cs) tmn lc rm als)::EC) 
       gl fs Mem MM) 
     (mkState S TD Ps 
-      ((mkEC F B cs tmn (updateAddAL _ lc id ($ gv $)) rm als)::EC) gl fs Mem MM)
+      ((mkEC F B cs tmn (updateAddAL _ lc id ($ gv # t $)) rm als)::EC) 
+        gl fs Mem MM)
     trace_nil
 
 | nsLoad_ptr : forall S TD Ps F B lc rm gl fs id t align vp EC cs tmn Mem MM als 
@@ -475,7 +476,7 @@ Inductive nsInsn : State -> State -> trace -> Prop :=
   mload TD Mem gvp t align = Some gv ->
   isPointerTypB t = true ->
   get_mem_metadata TD MM gvp = md' -> 
-  prop_reg_metadata lc rm id ($ gv $) md' = (lc', rm') ->
+  prop_reg_metadata lc rm id ($ gv # t $) md' = (lc', rm') ->
   nsInsn 
     (mkState S TD Ps 
       ((mkEC F B ((insn_load id t vp align)::cs) tmn lc rm als)::EC) 

@@ -78,7 +78,7 @@ Qed.
 
 Lemma exCallUpdateLocals_sim : forall ft noret rid oResult lc rm lc'' rm'', 
   SBnsop.exCallUpdateLocals ft noret rid oResult lc rm = ret (lc'', rm'') ->
-  exCallUpdateLocals noret rid oResult lc = ret lc''.
+  exCallUpdateLocals ft noret rid oResult lc = ret lc''.
 Proof.
   intros.  
   unfold SBnsop.exCallUpdateLocals in H.
@@ -86,6 +86,7 @@ Proof.
   destruct noret0; try solve [inversion H; auto].
   destruct oResult; try solve [inversion H; auto].
   destruct ft; try solve [inversion H; auto].
+  simpl.
   destruct ft; inversion H; auto.
 Qed.
 
@@ -430,7 +431,8 @@ Proof.
                  CurBB := b1';
                  CurCmds := cs;
                  Terminator := tmn1';
-                 Locals := updateAddAL _ lc1' id0 ($(blk2GV TD' mb)$);
+                 Locals := updateAddAL _ lc1' id0 
+                             ($(blk2GV TD' mb) # typ_pointer t$);
                  Allocas := als1' |} :: ECs';
        Globals := gl';
        FunTable := fs';
@@ -460,7 +462,8 @@ Proof.
                  CurBB := b1';
                  CurCmds := cs;
                  Terminator := tmn1';
-                 Locals := updateAddAL _ lc1' id0 ($(blk2GV TD' mb)$);
+                 Locals := updateAddAL _ lc1' id0 
+                             ($(blk2GV TD' mb) # typ_pointer t$);
                  Allocas := mb::als1' |} :: ECs';
        Globals := gl';
        FunTable := fs';
@@ -475,7 +478,7 @@ Proof.
                  CurBB := b1';
                  CurCmds := cs;
                  Terminator := tmn1';
-                 Locals := updateAddAL _ lc1' id0 ($ gv $);
+                 Locals := updateAddAL _ lc1' id0 ($ gv # t $);
                  Allocas := als1' |} :: ECs';
        Globals := gl';
        FunTable := fs';
@@ -490,7 +493,7 @@ Proof.
                  CurBB := b1';
                  CurCmds := cs;
                  Terminator := tmn1';
-                 Locals := updateAddAL _ lc1' id0 ($ gv $);
+                 Locals := updateAddAL _ lc1' id0 ($ gv # t$);
                  Allocas := als1' |} :: ECs';
        Globals := gl';
        FunTable := fs';

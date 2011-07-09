@@ -591,10 +591,10 @@ Proof.
   eapply wf_data__store__wf_data; eauto.
 Qed.
 
-Lemma GV2ptr__cgv2gv : forall TD sz g b ofs, 
-  GV2ptr TD sz g = ret (Vptr b ofs) -> g = ? g ?.
+Lemma GV2ptr__cgv2gv : forall TD sz g b ofs t, 
+  GV2ptr TD sz g = ret (Vptr b ofs) -> g = ? g # typ_pointer t ?.
 Proof.
-  intros TD sz g b ofs J1.
+  intros TD sz g b ofs t J1.
   unfold GV2ptr in J1.    
   destruct g as [|[[] ?][|]]; inv J1.
   simpl. auto.
@@ -750,6 +750,7 @@ Proof.
       as J.
       eapply Hwfg; eauto using wf_const_gid.
     destruct J as [b [sz [J1 [J2 [J3 [J4 J5]]]]]].
+    unfold p8.
     erewrite <- GV2ptr__cgv2gv; eauto.
     eapply eq_gv_is_wf_data; eauto.
 
@@ -999,10 +1000,10 @@ Lemma malloc_extends_wf_rmetadata : forall
   (mb : mblock)
   (lc' : GVsMap)
   (rm' : rmetadata)
-  (n : Z)
+  (n : Z) t
   (H1 : malloc TD Mem0 tsz gn align0 = ret (Mem', mb))
   (H2 : GV2int TD Size.ThirtyTwo gn = ret n)
-  (H3 : prop_reg_metadata lc rm id0 ($ (blk2GV TD mb) $)
+  (H3 : prop_reg_metadata lc rm id0 ($ (blk2GV TD mb) # typ_pointer t $)
          {| md_base := base2GV TD mb; md_bound := bound2GV TD mb tsz n |} =
        (lc', rm'))
   (Hwfr : wf_rmetadata TD Mem0 rm),
@@ -1499,10 +1500,10 @@ Lemma malloc_extends_wf_mmetadata : forall
   (mb : mblock)
   (lc' : GVsMap)
   (rm' : rmetadata)
-  (n : Z) rm
+  (n : Z) rm t
   (H1 : malloc TD Mem0 tsz gn align0 = ret (Mem', mb))
   (H2 : GV2int TD Size.ThirtyTwo gn = ret n)
-  (H3 : prop_reg_metadata lc rm id0 ($ (blk2GV TD mb) $)
+  (H3 : prop_reg_metadata lc rm id0 ($ (blk2GV TD mb) # typ_pointer t $)
          {| md_base := base2GV TD mb; md_bound := bound2GV TD mb tsz n |} =
        (lc', rm'))
   (Hwfm : wf_mmetadata TD Mem0 MM),
