@@ -466,7 +466,7 @@ Lemma SBpass_is_correct__dsBranch : forall
         else lookupBlockViaLabelFromFdef F l1))
   (H1 : switchToNewBasicBlock TD (block_intro l' ps' cs' tmn') B gl lc rm =
        ret (lc', rm')),
-  (exists St' : LLVMopsem.State,
+  exists St' : LLVMopsem.State,
      exists mi' : MoreMem.meminj,
        LLVMopsem.dsop_star St St' trace_nil /\
        sbState_simulates_State mi' mgb
@@ -485,23 +485,7 @@ Lemma SBpass_is_correct__dsBranch : forall
          Globals := gl;
          FunTable := fs;
          Mem := Mem0;
-         Mmap := MM |} St' /\ inject_incr mi mi') \/
-  nondet_state {|
-           CurSystem := S;
-           CurTargetData := TD;
-           CurProducts := Ps;
-           ECS := {|
-                  CurFunction := F;
-                  CurBB := B;
-                  CurCmds := nil;
-                  Terminator := insn_br bid Cond l1 l2;
-                  Locals := lc;
-                  Rmap := rm;
-                  Allocas := als |} :: EC;
-           Globals := gl;
-           FunTable := fs;
-           Mem := Mem0;
-           Mmap := MM |} St.
+         Mmap := MM |} St' /\ inject_incr mi mi'.
 Proof.
   intros.
   destruct_ctx_br.
@@ -558,7 +542,6 @@ Proof.
     eapply switchToNewBasicBlock__reg_simulation; eauto.
 
   destruct Hswitch2 as [lc2' [Hswitch2 Hrsim']].
-  left.
   exists (LLVMopsem.mkState S2 (los, nts) Ps2
           ((LLVMopsem.mkEC 
             (fdef_intro (fheader_intro f t (wrapper_fid i0) a v)
@@ -1496,41 +1479,41 @@ Require Import sb_ds_trans_mem_cases.
 Lemma SBpass_is_correct : forall mi mgb sbSt St sbSt' tr,
   sbState_simulates_State mi mgb sbSt St ->
   SBopsem.dsInsn sbSt sbSt' tr -> 
-  (exists St', exists mi',
+  exists St', exists mi',
     LLVMopsem.dsop_star St St' tr /\    
     sbState_simulates_State mi' mgb sbSt' St' /\
-    Values.inject_incr mi mi') \/ nondet_state sbSt St.
+    Values.inject_incr mi mi'.
 Proof.
   intros mi mgb sbSt St sbSt' tr Hsim Hsbop.
   (sb_dsInsn_cases (induction Hsbop) Case).
-Case "dsReturn". left. eapply SBpass_is_correct__dsReturn; eauto.
-Case "dsReturnVoid". left. eapply SBpass_is_correct__dsReturnVoid; eauto.
+Case "dsReturn". eapply SBpass_is_correct__dsReturn; eauto.
+Case "dsReturnVoid". eapply SBpass_is_correct__dsReturnVoid; eauto.
 Case "dsBranch".  eapply SBpass_is_correct__dsBranch; eauto.
-Case "dsBranch_uncond". left. eapply SBpass_is_correct__dsBranch_uncond; eauto.
-Case "dsBop". left. eapply SBpass_is_correct__dsBop; eauto.
-Case "dsFBop". left. eapply SBpass_is_correct__dsFBop; eauto.
+Case "dsBranch_uncond". eapply SBpass_is_correct__dsBranch_uncond; eauto.
+Case "dsBop". eapply SBpass_is_correct__dsBop; eauto.
+Case "dsFBop". eapply SBpass_is_correct__dsFBop; eauto.
 Case "dsExtractValue". eapply SBpass_is_correct__dsExtractValue; eauto.
 Case "dsInsertValue". eapply SBpass_is_correct__dsInsertValue; eauto.
 Case "dsMalloc". eapply SBpass_is_correct__dsMalloc; eauto.
-Case "dsFree". left. eapply SBpass_is_correct__dsFree; eauto.
+Case "dsFree". eapply SBpass_is_correct__dsFree; eauto.
 Case "dsAlloca". eapply SBpass_is_correct__dsAlloca; eauto.
-Case "dsLoad_nptr". left. eapply SBpass_is_correct__dsLoad_nptr; eauto.
-Case "dsLoad_ptr". left. eapply SBpass_is_correct__dsLoad_ptr; eauto.
-Case "dsStore_nptr". left. eapply SBpass_is_correct__dsStore_nptr; eauto.
-Case "dsStore_ptr". left. eapply SBpass_is_correct__dsStore_ptr; eauto.
+Case "dsLoad_nptr". eapply SBpass_is_correct__dsLoad_nptr; eauto.
+Case "dsLoad_ptr". eapply SBpass_is_correct__dsLoad_ptr; eauto.
+Case "dsStore_nptr". eapply SBpass_is_correct__dsStore_nptr; eauto.
+Case "dsStore_ptr". eapply SBpass_is_correct__dsStore_ptr; eauto.
 Case "dsGEP". eapply SBpass_is_correct__dsGEP; eauto.
-Case "dsTrunc". left. eapply SBpass_is_correct__dsTrunc; eauto.
-Case "dsExt". left. eapply SBpass_is_correct__dsExt; eauto.
-Case "dsBitcast_nptr". left. eapply SBpass_is_correct__dsBitcase_nptr; eauto.
-Case "dsBitcast_ptr". left. eapply SBpass_is_correct__dsBitcase_ptr; eauto.
-Case "dsInttoptr". left. eapply SBpass_is_correct__dsInttoptr; eauto.
-Case "dsOthercast". left. eapply SBpass_is_correct__dsOthercast; eauto.
-Case "dsIcmp". left. eapply SBpass_is_correct__dsIcmp; eauto.
-Case "dsFcmp". left. eapply SBpass_is_correct__dsFcmp; eauto.
+Case "dsTrunc". eapply SBpass_is_correct__dsTrunc; eauto.
+Case "dsExt". eapply SBpass_is_correct__dsExt; eauto.
+Case "dsBitcast_nptr". eapply SBpass_is_correct__dsBitcase_nptr; eauto.
+Case "dsBitcast_ptr". eapply SBpass_is_correct__dsBitcase_ptr; eauto.
+Case "dsInttoptr". eapply SBpass_is_correct__dsInttoptr; eauto.
+Case "dsOthercast". eapply SBpass_is_correct__dsOthercast; eauto.
+Case "dsIcmp". eapply SBpass_is_correct__dsIcmp; eauto.
+Case "dsFcmp". eapply SBpass_is_correct__dsFcmp; eauto.
 Case "dsSelect_nptr". eapply SBpass_is_correct__dsSelect_nptr; eauto.
 Case "dsSelect_ptr". eapply SBpass_is_correct__dsSelect_ptr; eauto.
-Case "dsCall".  left. eapply SBpass_is_correct__dsCall; eauto.
-Case "dsExCall". left. eapply SBpass_is_correct__dsExCall; eauto.
+Case "dsCall". eapply SBpass_is_correct__dsCall; eauto.
+Case "dsExCall". eapply SBpass_is_correct__dsExCall; eauto.
 Qed.
 
 (*****************************)

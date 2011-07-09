@@ -62,7 +62,7 @@ Lemma SBpass_is_correct__dsMalloc : forall (mi : meminj) (mgb : Values.block)
          SBopsem.md_base := SBopsem.base2GV TD mb;
          SBopsem.md_bound := SBopsem.bound2GV TD mb tsz n |} = 
        (lc', rm')),
-  (exists St' : LLVMopsem.State,
+  exists St' : LLVMopsem.State,
      exists mi' : MoreMem.meminj,
        LLVMopsem.dsop_star St St' trace_nil /\
        sbState_simulates_State mi' mgb
@@ -81,23 +81,7 @@ Lemma SBpass_is_correct__dsMalloc : forall (mi : meminj) (mgb : Values.block)
          SBopsem.Globals := gl;
          SBopsem.FunTable := fs;
          SBopsem.Mem := Mem';
-         SBopsem.Mmap := MM |} St' /\ inject_incr mi mi') \/
-   nondet_state {|
-           SBopsem.CurSystem := S;
-           SBopsem.CurTargetData := TD;
-           SBopsem.CurProducts := Ps;
-           SBopsem.ECS := {|
-                          SBopsem.CurFunction := F;
-                          SBopsem.CurBB := B;
-                          SBopsem.CurCmds := insn_malloc id0 t v align0 :: cs;
-                          SBopsem.Terminator := tmn;
-                          SBopsem.Locals := lc;
-                          SBopsem.Rmap := rm;
-                          SBopsem.Allocas := als |} :: EC;
-           SBopsem.Globals := gl;
-           SBopsem.FunTable := fs;
-           SBopsem.Mem := Mem;
-           SBopsem.Mmap := MM |} St.
+         SBopsem.Mmap := MM |} St' /\ inject_incr mi mi'.
 Proof.
   intros.
   destruct_ctx_other.
@@ -123,7 +107,6 @@ Proof.
     GV2int (los, nts) Size.ThirtyTwo gn') as Heqgn.
     eapply simulation__eq__GV2int; eauto.
 
-  simpl. left.
   exists (LLVMopsem.mkState S2 (los, nts) Ps2
           ((LLVMopsem.mkEC (fdef_intro fh2 bs2) B2
             (cs2' ++ cs23) tmn2 
@@ -175,7 +158,8 @@ Proof.
   assert (incl ex_ids ex_ids5) as Hinc''.
     eapply mk_tmp_inc in HeqR9; eauto.
     eapply mk_tmp_inc in HeqR2; eauto.
-
+ 
+  simpl.
   split.
   SCase "opsem".
     rewrite <- (@trace_app_nil__eq__trace trace_nil).
@@ -356,16 +340,15 @@ Proof.
         (ex_ids3':=ex_ids3); eauto.
         eapply inject_incr__preserves__reg_simulation; eauto.
 
-      unfold gv_inject, blk2GV, ptr2GV, val2GV.
-      simpl. apply MoreMem.val_cons_inject; eauto.
+      unfold blk2GV, ptr2GV, val2GV.
+      simpl. eauto.
 
-      unfold gv_inject, SBopsem.base2GV, blk2GV, ptr2GV, val2GV.
-      simpl. clear - H14.
-      apply MoreMem.val_cons_inject; eauto.
+      unfold SBopsem.base2GV, blk2GV, ptr2GV, val2GV.
+      simpl. clear - H14. eauto.
 
-      unfold gv_inject, SBopsem.base2GV, blk2GV, ptr2GV, val2GV.
+      unfold SBopsem.bound2GV, blk2GV, ptr2GV, val2GV.
       simpl. clear - H14.
-        apply MoreMem.val_cons_inject; eauto.
+        apply gv_inject_cons; eauto.
           eapply MoreMem.val_inject_ptr; eauto.
             rewrite Int.add_zero. auto.
 
@@ -406,7 +389,7 @@ Lemma SBpass_is_correct__dsAlloca : forall
   (H3 : prop_reg_metadata lc rm id0 (blk2GV TD mb)
          {| md_base := base2GV TD mb; md_bound := bound2GV TD mb tsz n |} =
        (lc', rm')),
-  (exists St' : LLVMopsem.State,
+  exists St' : LLVMopsem.State,
      exists mi' : MoreMem.meminj,
        LLVMopsem.dsop_star St St' trace_nil /\
        sbState_simulates_State mi' mgb
@@ -425,24 +408,7 @@ Lemma SBpass_is_correct__dsAlloca : forall
          Globals := gl;
          FunTable := fs;
          Mem := Mem';
-         Mmap := MM |} St' /\ inject_incr mi mi') \/
-   nondet_state {|
-           SBopsem.CurSystem := S;
-           SBopsem.CurTargetData := TD;
-           SBopsem.CurProducts := Ps;
-           SBopsem.ECS := {|
-                          SBopsem.CurFunction := F;
-                          SBopsem.CurBB := B;
-                          SBopsem.CurCmds := insn_alloca id0 t v align0 :: cs;
-                          SBopsem.Terminator := tmn;
-                          SBopsem.Locals := lc;
-                          SBopsem.Rmap := rm;
-                          SBopsem.Allocas := als |} :: EC;
-           SBopsem.Globals := gl;
-           SBopsem.FunTable := fs;
-           SBopsem.Mem := Mem0;
-           SBopsem.Mmap := MM |} St.
-Proof.
+         Mmap := MM |} St' /\ inject_incr mi mi'.
 Proof.
   intros.
   destruct_ctx_other.
@@ -468,7 +434,6 @@ Proof.
     GV2int (los, nts) Size.ThirtyTwo gn') as Heqgn.
     eapply simulation__eq__GV2int; eauto.
 
-  simpl. left.
   exists (LLVMopsem.mkState S2 (los, nts) Ps2
           ((LLVMopsem.mkEC (fdef_intro fh2 bs2) B2
             (cs2' ++ cs23) tmn2 
@@ -523,6 +488,7 @@ Proof.
 
   split.
   SCase "opsem".
+    simpl.
     rewrite <- (@trace_app_nil__eq__trace trace_nil).
     apply LLVMopsem.dsop_star_cons with (state2:=
         LLVMopsem.mkState S2 (los, nts) Ps2
@@ -702,16 +668,15 @@ Proof.
         (ex_ids3':=ex_ids3); eauto.
         eapply inject_incr__preserves__reg_simulation; eauto.
 
-      unfold gv_inject, blk2GV, ptr2GV, val2GV.
-      simpl. apply MoreMem.val_cons_inject; eauto.
+      unfold blk2GV, ptr2GV, val2GV.
+      simpl. eauto.
 
-      unfold gv_inject, SBopsem.base2GV, blk2GV, ptr2GV, val2GV.
-      simpl. clear - H14.
-      apply MoreMem.val_cons_inject; eauto.
+      unfold SBopsem.base2GV, blk2GV, ptr2GV, val2GV.
+      simpl. clear - H14. eauto.
 
-      unfold gv_inject, SBopsem.base2GV, blk2GV, ptr2GV, val2GV.
+      unfold SBopsem.bound2GV, blk2GV, ptr2GV, val2GV.
       simpl. clear - H14.
-        apply MoreMem.val_cons_inject; eauto.
+        apply gv_inject_cons; eauto.
           eapply MoreMem.val_inject_ptr; eauto.
             rewrite Int.add_zero. auto.
 

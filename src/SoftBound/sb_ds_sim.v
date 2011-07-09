@@ -591,9 +591,9 @@ match (re1, re2) with
 | _ => False
 end.
 
+(*
 Definition nondet_state sbSt (St : LLVMopsem.State) : Prop :=
   match sbSt, St with 
-(*
   | {| CurTargetData := TD;
        ECS := {| CurCmds := insn_gep id0 inbounds0 t vp idxs :: cs;
                  Locals := lc |} :: _;
@@ -602,7 +602,6 @@ Definition nondet_state sbSt (St : LLVMopsem.State) : Prop :=
       | Some vidxs => ~ defined_gvs vidxs
       | _ => False
       end
-*)
   | {| CurTargetData := TD;
        ECS := {| CurCmds := insn_extractvalue _ _ v _ :: _;
                  Locals := lc |} :: _;
@@ -632,7 +631,6 @@ Definition nondet_state sbSt (St : LLVMopsem.State) : Prop :=
           ~ chunk_matched gv1 gv1' \/  ~ chunk_matched gv2 gv2'
       | _ => False
       end
-(*
   | {| CurTargetData := TD;
        ECS := {| CurCmds := insn_select id0 v0 _ _ _ :: cs;
                  Locals := lc |} :: _;
@@ -661,9 +659,9 @@ Definition nondet_state sbSt (St : LLVMopsem.State) : Prop :=
       | Some gv => ~ defined_gv gv
       | _ => False
       end
-*)
   | _, _ => False
   end.
+*)
 
 Ltac destruct_ctx_br :=
 match goal with

@@ -22,11 +22,14 @@ Require Import ssa_props.
 Require Import ssa_wf.
 Require Import sb_msim.
 
-Definition gv_inject (mi: meminj) (gv gv':GenericValue) : Prop :=
-let '(vals,mks) := List.split gv in 
-let '(vals',mks') := List.split gv' in 
-MoreMem.val_list_inject mi vals vals'.
+Inductive gv_inject (mi: meminj) : GenericValue -> GenericValue -> Prop :=
+| gv_inject_nil : gv_inject mi nil nil
+| gv_inject_cons : forall v1 m v2 gv1 gv2, 
+    MoreMem.val_inject mi v1 v2 -> gv_inject mi gv1 gv2 -> 
+    gv_inject mi ((v1,m)::gv1) ((v2,m)::gv2)
+.
 
+Hint Constructors gv_inject.
 Hint Unfold MoreMem.meminj_no_overlap MoreMem.meminj_zero_delta.
 
 Record wf_sb_mi maxb mi Mem1 Mem2 := mk_wf_sb_mi {
@@ -64,11 +67,8 @@ Lemma gv_inject_incr:
   gv_inject f1 v v' ->
   gv_inject f2 v v'.
 Proof.
-  intros. 
-  unfold gv_inject in *.
-  destruct (split v).
-  destruct (split v').
-  eauto using val_list_inject_incr.
+  intros.
+  induction H0; eauto using val_list_inject_incr.
 Qed.
 
 Lemma val_list_inject_app : forall mi vs1 vs1' vs2 vs2',
@@ -84,22 +84,8 @@ Lemma gv_inject_app : forall mi gv1 gv1' gv2 gv2',
   gv_inject mi gv1' gv2' ->
   gv_inject mi (gv1++gv1') (gv2++gv2').
 Proof.
-  unfold gv_inject.
-  induction gv1; destruct gv2; simpl; intros; auto.  
-    destruct p. destruct (split gv2). inv H.
-    destruct a. destruct (split gv1). inv H.
-
-    destruct a. remember (split gv1) as R3. destruct R3.
-    destruct p. remember (split gv2) as R4. destruct R4. 
-    inv H.
-    remember (split (gv1 ++ gv1')) as R1. destruct R1.
-    remember (split (gv2 ++ gv2')) as R2. destruct R2.
-    apply MoreMem.val_cons_inject; auto.
-      assert (J:=@IHgv1 gv1' gv2 gv2').
-      rewrite <- HeqR4 in J.
-      rewrite <- HeqR1 in J.
-      rewrite <- HeqR2 in J.
-      eapply J; eauto.
+  intros.
+  induction H; simpl; eauto.
 Qed.
 
 Definition zeroconst2GV__gv_inject_refl_prop (t:typ) := 
@@ -120,18 +106,13 @@ Lemma gv_inject__repeatGV : forall mi gv1 gv2 n,
   gv_inject mi gv1 gv2 -> 
   gv_inject mi (repeatGV gv1 n) (repeatGV gv2 n).
 Proof.
-  induction n; intros.
-    unfold gv_inject. simpl. auto.
-    simpl. eapply gv_inject_app; eauto.
+  induction n; intros; simpl; eauto using gv_inject_app.
 Qed.
 
 Lemma gv_inject_uninits : forall mi n, gv_inject mi (uninits n) (uninits n).
 Proof.
   unfold uninits.
-  induction n.
-    unfold gv_inject. simpl; auto.
-    simpl. simpl_env. apply gv_inject_app; auto.
-      unfold gv_inject. simpl; auto.
+  induction n; intros; simpl; eauto using gv_inject_app.
 Qed.
 
 Lemma zeroconst2GV__gv_inject_refl_mutrec :
@@ -142,15 +123,11 @@ Proof.
     unfold zeroconst2GV__gv_inject_refl_prop, 
            zeroconsts2GV__gv_inject_refl_prop; 
     intros; simpl in *; 
-    try solve [unfold gv_inject; simpl in *; eauto | 
+    try solve [simpl in *; eauto | 
+               inv H0; unfold val2GV; auto |
                inversion H0 | inversion H1 | inversion H2].
-
-  unfold gv_inject.
-  inv H0. simpl. 
-  apply MoreMem.val_cons_inject; auto.
-
-  unfold gv_inject.
-  destruct f; inv H0; simpl; apply MoreMem.val_cons_inject; auto.
+  
+  destruct f; try solve [inv H0 | inv H0; unfold val2GV; auto].
 
   remember (zeroconst2GV TD t) as R.
   destruct R; tinv H1.
@@ -172,12 +149,7 @@ Proof.
     apply gv_inject_app; auto.
       apply gv_inject_uninits.
  
-  inv H1. unfold gv_inject. simpl.
-  apply MoreMem.val_cons_inject; auto.
-    inv H0. 
-    eapply MoreMem.val_inject_ptr; eauto.
-
-  inv H0. unfold gv_inject. simpl. auto.
+  inv H1. unfold null. inv H0. eauto.
 
   remember (zeroconsts2GV TD l0) as R.
   destruct R as [[gv1 tsz]|]; tinv H2.
@@ -210,19 +182,16 @@ Lemma global_gv_inject_refl_aux : forall maxb mi Mem1 Mem2 gv,
   wf_global maxb gv ->
   gv_inject mi gv gv.
 Proof.
-  unfold gv_inject.
   induction gv; intros; simpl; auto.
     destruct a.
-    remember (split gv) as R.
-    destruct R.
-      destruct v; simpl in *; try solve 
+    destruct v; simpl in *; try solve 
         [assert (J:=@IHgv H H0); eauto].
 
         destruct H0 as [H1 H2].
         assert (J:=(@IHgv H H2)).
         inversion H.
         apply mi_globals0 in H1.
-        apply MoreMem.val_cons_inject; auto.
+        apply gv_inject_cons; auto.
           apply MoreMem.val_inject_ptr with (delta:=0); auto.
             rewrite Int.add_zero; auto.
 Qed.
@@ -251,7 +220,7 @@ Proof.
   eapply global_gv_inject_refl_aux; eauto.
     eapply wf_globals__wf_global; eauto.
 Qed.
-    
+(*    
 Lemma gv_inject_nil_inv : forall mi gv2,
   gv_inject mi nil gv2 -> gv2 = nil.
 Proof.
@@ -284,6 +253,7 @@ Proof.
     unfold gv_inject. rewrite <- HeqR1. rewrite <- HeqR2.
     split; auto.
 Qed.    
+*)
 
 Lemma gv_inject__val_inject : forall mi gv1 gv2 TD,
   gv_inject mi gv1 gv2 ->
@@ -293,19 +263,10 @@ Lemma gv_inject__val_inject : forall mi gv1 gv2 TD,
 Proof.
   intros.
   unfold GV2val in *.
-  destruct gv1.
-    apply gv_inject_nil_inv in H. subst. eauto.
-
-    apply gv_inject_cons_inv in H.
-    destruct H as [gv2' [v1' [m1 [v2 [m2 [J1 [J2 [J3 J4]]]]]]]]; subst.
-    destruct gv1.
-      apply gv_inject_nil_inv in J2. subst. eauto.
-  
-      apply gv_inject_cons_inv in J2.
-      destruct J2 as [gv3 [v2' [m2' [v3 [m3 [J1 [J2 [J5 J4]]]]]]]]; subst.
-      eauto.
+  destruct gv1; inv H; subst. eauto.
+    destruct gv1; inv H4; subst; eauto.
 Qed.
-
+(*
 Lemma gv_inject_nil_refl : forall mi, gv_inject mi nil nil.
 Proof.
   intros. unfold gv_inject. simpl. auto.
@@ -323,19 +284,18 @@ Proof.
   destruct R1. destruct R2.
   eauto.
 Qed.  
-
+*)
 Lemma gv_inject_gundef : forall mi t, gv_inject mi (gundef t) (gundef t).
 Proof.
   intros. unfold gundef. 
   destruct (typ2memory_chunk t); auto using gv_inject_uninits.
-    apply gv_inject_cons_intro; auto using gv_inject_nil_refl.
 Qed.
 
 Lemma gv_inject_nptr_val_refl : forall TD v mi m,
   (forall b ofs, v <> Vptr b ofs) ->
   gv_inject mi (val2GV TD v m) (val2GV TD v m).
 Proof.
-  intros. unfold val2GV, gv_inject. simpl.
+  intros. unfold val2GV.
   destruct v; auto. 
     assert (J:=@H b i0). contradict J; auto.
 Qed.
@@ -366,13 +326,13 @@ Proof.
   inv J3; auto.
     destruct t1; destruct t2; inv H0; try solve [
       auto using gv_inject_gundef |
-      unfold gv_inject; simpl; destruct (le_lt_dec wz s0); auto
+      unfold val2GV; simpl; destruct (le_lt_dec wz s0); auto
     ].
 
     destruct t1; destruct t2; inv H0; auto using gv_inject_gundef.
       destruct (floating_point_order f1 f0); inv H1; 
         simpl; auto using gv_inject_gundef.
-      destruct f1; inv H0; unfold gv_inject; simpl; auto using gv_inject_gundef.
+      destruct f1; inv H0; unfold val2GV; simpl; auto using gv_inject_gundef.
  
     inv H0. auto using gv_inject_gundef.
     inv H0. auto using gv_inject_gundef.
@@ -412,7 +372,8 @@ Proof.
   rewrite J1. rewrite J2. rewrite J1 in H0.
   inv J3; auto.
     destruct t1; destruct t2; inv H0; simpl; auto using gv_inject_gundef.
-      destruct eop; inv H1; try solve [unfold gv_inject; simpl; auto].
+      destruct eop; inv H1; 
+        try solve [unfold val2GV; simpl; auto using gv_inject_gundef].
       destruct (floating_point_order f f0); inv H1; auto using gv_inject_gundef.
 
     destruct t1; destruct t2; inv H0; simpl; auto using gv_inject_gundef.
@@ -703,7 +664,7 @@ Proof. intros.
         destruct p; tinv J1.
         destruct gv2; inv J1.
         right. exists ((v, m) :: nil). 
-        unfold gv_inject. simpl. auto.
+        simpl. auto.
 Qed.
 
 Lemma simulation__mcast_aux : forall mi TD op t1 t2 gv1 gv1' gv2,
@@ -908,12 +869,7 @@ Proof.
   destruct p; tinv H0.
   destruct v0; tinv H0.
   destruct gv1; inv H0.
-  unfold gv_inject in H.
-  destruct gv1'; tinv H.
-  destruct p; tinv H.
-  destruct gv1'; tinv H.
-    destruct v; simpl in H; inv H; inv H3. eauto.
-    destruct p. simpl in H. destruct (split gv1'). inv H. inv H5.
+  inv H. inv H5. inv H4. eauto.
 Qed.
 
 Lemma simulation__mgep : forall mi TD v v' v0 t0 l1,
@@ -952,7 +908,7 @@ match gvs with
 | gv::gvs' => defined_gv gv /\ defined_gvs gvs'
 | nil => True
 end.
-*)
+
 Definition chunk_matched (gv gv':GenericValue) : Prop :=
 let '(_,ms):=split gv in
 let '(_,ms'):=split gv' in
@@ -1006,80 +962,68 @@ Proof.
     unfold chunk_matched. rewrite <- HeqR1. rewrite <- HeqR2.
     split; auto.
 Qed.    
+*)
 
 Lemma simulation__splitGenericValue_some : forall mi gv gv' z gvl gvr,
-  chunk_matched gv gv' ->
   gv_inject mi gv gv' ->
   splitGenericValue gv z = Some (gvl, gvr) ->
   exists gvl', exists gvr', 
     splitGenericValue gv' z = Some (gvl', gvr') /\
-    gv_inject mi gvl gvl' /\ chunk_matched gvl gvl' /\
-    gv_inject mi gvr gvr' /\ chunk_matched gvr gvr'.
+    gv_inject mi gvl gvl' /\ gv_inject mi gvr gvr'.
 Proof.
-  induction gv; simpl; intros gv' z gvl gvr J H H0.
-    apply gv_inject_nil_inv in H. subst.
+  induction gv; simpl; intros gv' z gvl gvr H H0.
+    inv H.
     simpl.
     destruct (zeq z 0); inv H0. 
-      exists nil. exists nil. split; auto using gv_inject_nil_refl.
+      exists nil. exists nil. auto.
       destruct (zlt z 0); inv H1.
 
-    apply gv_inject_cons_inv in H. 
-    destruct H as [gv2' [v1 [m1 [v2 [m2 [J1 [J2 [J3 J4]]]]]]]]; subst.
+    inv H.
     simpl.
     destruct (zeq z 0); inv H0. 
-      exists nil. exists ((v2, m2)::gv2'). 
-      split; auto using gv_inject_nil_refl, gv_inject_cons_intro,
-         chunk_matched_nil_refl, chunk_matched_cons_intro.
+      exists nil. exists ((v2, m)::gv2). 
+      split; auto.
     destruct (zlt z 0); inv H1.
-    remember (splitGenericValue gv (z - size_chunk m1)) as R.
+    remember (splitGenericValue gv (z - size_chunk m)) as R.
     destruct R as [[gvl' gvr']|]; inv H0.
-    apply chunk_matched_cons_inv in J.
-    destruct J as [gv2 [v3 [m3 [v4 [J1 [J2' J3']]]]]]; subst.
-    inv J1. inv J3'.
     symmetry in HeqR.
     eapply IHgv in HeqR; eauto.
-    destruct HeqR as [gvl'0 [gvr' [J4 [J5 [J6 [J7 J8]]]]]].
+    destruct HeqR as [gvl'0 [gvr' [J4 [J5 J6]]]].
     rewrite J4.     
-    exists ((v4, m3) :: gvl'0). exists gvr'. 
-    split; auto using gv_inject_cons_intro, chunk_matched_cons_intro.
+    exists ((v2, m) :: gvl'0). exists gvr'. 
+    split; auto.
 Qed.
    
 Lemma simulation__splitGenericValue_none : forall mi gv gv' z,
-  chunk_matched gv gv' ->
   gv_inject mi gv gv' ->
   splitGenericValue gv z = None ->
   splitGenericValue gv' z = None.
 Proof.
-  induction gv; simpl; intros gv' z J H H0.
-    apply gv_inject_nil_inv in H. subst.
+  induction gv; simpl; intros gv' z H H0.
+    inv H.
     simpl.
     destruct (zeq z 0); inv H0. 
     destruct (zlt z 0); inv H1; auto.
 
-    apply gv_inject_cons_inv in H. 
-    destruct H as [gv2' [v1 [m1 [v2 [m2 [J1 [J2 [J3 J4]]]]]]]]; subst.
+    inv H. 
     simpl.
     destruct (zeq z 0); inv H0. 
     destruct (zlt z 0); inv H1; auto.
-    remember (splitGenericValue gv (z - size_chunk m1)) as R.
+    remember (splitGenericValue gv (z - size_chunk m)) as R.
     destruct R as [[gvl' gvr']|]; inv H0.
-    apply chunk_matched_cons_inv in J.
-    destruct J as [gv2 [v3 [m3 [v4 [J1 [J2' J3']]]]]]; subst.
-    inv J1. inv J3'.
     symmetry in HeqR.
     eapply IHgv in HeqR; eauto.
     rewrite HeqR; auto.
 Qed.
 
 Lemma simulation__extractGenericValue : forall mi gv1 gv1' TD t1 l0 gv,
-  chunk_matched gv1 gv1' ->
   gv_inject mi gv1 gv1' ->
   extractGenericValue TD t1 gv1 l0 = Some gv ->
   exists gv',
     extractGenericValue TD t1 gv1' l0 = Some gv' /\
     gv_inject mi gv gv'.
 Proof.
-  intros mi gv1 gv1' TD t1 l0 gv J H H0.
+  intros mi gv1 gv1' TD t1 l0 gv H H0.
   unfold extractGenericValue in *.
   destruct (intConsts2Nats TD l0); inv H0; 
     try solve [exists (uninits 1); auto using gv_inject_uninits].
@@ -1092,13 +1036,13 @@ Proof.
   destruct R as [[gvl gvr]|].
     symmetry in HeqR.
     eapply simulation__splitGenericValue_some in HeqR; eauto.      
-    destruct HeqR as [gvl' [gvr' [J1 [J2 [J3 [J4 J5]]]]]].
+    destruct HeqR as [gvl' [gvr' [J1 [J2 J3]]]].
     simpl. rewrite J1.
     remember (splitGenericValue gvr (Z_of_nat n)) as R1.
     destruct R1 as [[gvrl gvrr]|]; inv H2.
       symmetry in HeqR1.
       eapply simulation__splitGenericValue_some in HeqR1; eauto.      
-      destruct HeqR1 as [gvrl' [gvrr' [J1' [J2' [J3' [J4' J5']]]]]].
+      destruct HeqR1 as [gvrl' [gvrr' [J1' [J2' J3']]]].
       simpl. rewrite J1'. eauto.
 
       symmetry in HeqR1.
@@ -1114,18 +1058,10 @@ Qed.
 Lemma gv_inject_length_eq : forall mi gv1 gv2,
   gv_inject mi gv1 gv2 -> length gv1 = length gv2.
 Proof.
-  induction gv1; intros.
-    apply gv_inject_nil_inv in H. subst.
-    simpl. auto.
-
-    apply gv_inject_cons_inv in H. 
-    destruct H as [gv2' [v1 [m1 [v2 [m2 [J1 [J2 [J3 J4]]]]]]]]; subst.
-    simpl. eauto.
+  induction 1; intros; simpl; auto.
 Qed.
 
 Lemma simulation__insertGenericValue: forall mi gv1 gv1' TD t1 l0 gv t2 gv2 gv2',
-  chunk_matched gv1 gv1' ->
-  chunk_matched gv2 gv2' ->
   gv_inject mi gv1 gv1' ->
   gv_inject mi gv2 gv2' ->
   insertGenericValue TD t1 gv1 l0 t2 gv2 = Some gv ->
@@ -1133,7 +1069,7 @@ Lemma simulation__insertGenericValue: forall mi gv1 gv1' TD t1 l0 gv t2 gv2 gv2'
     insertGenericValue TD t1 gv1' l0 t2 gv2' = Some gv' /\
     gv_inject mi gv gv'.
 Proof.
-  intros mi gv1 gv1' TD t1 l0 gv t2 gv2 gv2' JJ JJ' H H0 H1.
+  intros mi gv1 gv1' TD t1 l0 gv t2 gv2 gv2' H H0 H1.
   unfold insertGenericValue in *.
   destruct (intConsts2Nats TD l0); inv H1; 
     try solve [exists (gundef t1); auto using gv_inject_gundef].
@@ -1150,13 +1086,13 @@ Proof.
   destruct R as [[gvl gvr]|].
     symmetry in HeqR.
     eapply simulation__splitGenericValue_some in HeqR; eauto.      
-    destruct HeqR as [gvl' [gvr' [J1 [J2 [J3 [J4 J5]]]]]].
+    destruct HeqR as [gvl' [gvr' [J1 [J2 J3]]]].
     simpl. rewrite J1.
     remember (splitGenericValue gvr (Z_of_nat n)) as R1.
     destruct R1 as [[gvrl gvrr]|]; inv H3.
       symmetry in HeqR1.
       eapply simulation__splitGenericValue_some in HeqR1; eauto.      
-      destruct HeqR1 as [gvrl' [gvrr' [J1' [J2' [J3' [J4' J5']]]]]].
+      destruct HeqR1 as [gvrl' [gvrr' [J1' [J2' J3']]]].
       simpl. rewrite J1'. 
       exists (gvl' ++ gv2' ++ gvrr').
       split; auto.
@@ -1180,16 +1116,11 @@ Proof.
   intros mi gn gn' TD sz Hinj.
   unfold GV2int.
   destruct gn.
-    apply gv_inject_nil_inv in Hinj. subst. auto.
+    inv Hinj. subst. auto.
 
-    apply gv_inject_cons_inv in Hinj.
-    destruct Hinj as [gv2 [v1 [m1 [v2 [m2 [J1 [J2 [J3 J4]]]]]]]]; subst.
-    inv J3; auto.
-      destruct gn.   
-        apply gv_inject_nil_inv in J2. subst. auto.
-        apply gv_inject_cons_inv in J2.
-        destruct J2 as [gv2' [v1' [m1' [v2' [m2' [J1' [J2' [J3' J4']]]]]]]]; 
-          subst; auto.
+    inv Hinj.
+    inv H1; auto.
+    destruct gn; inv H3; auto.
 Qed.
 
 Lemma simulation__isGVZero : forall mi c c' TD,
@@ -1217,7 +1148,7 @@ Proof.
       inv H0; auto using gv_inject_gundef |
       destruct t2; try solve 
         [inv H0; auto using gv_inject_gundef | 
-         inv H0; destruct (le_lt_dec wz s0); unfold gv_inject; simpl; auto]
+         inv H0; destruct (le_lt_dec wz s0); unfold val2GV; simpl; auto]
     ].
 
     destruct t1; try solve [
@@ -1225,7 +1156,8 @@ Proof.
       destruct t2; try solve [
         inv H0; auto using gv_inject_gundef |
         destruct (floating_point_order f1 f0); try solve [
-          destruct f1; try solve [inv H0; unfold gv_inject; simpl; auto] |
+          destruct f1; try solve 
+            [inv H0; unfold val2GV; simpl; auto using gv_inject_gundef] |
           inv H0; auto using gv_inject_gundef
         ]
       ]
@@ -1246,9 +1178,9 @@ Proof.
   destruct t1; destruct t2; inv H0; auto using gv_inject_gundef.
     destruct v2; inv H1; auto using gv_inject_gundef.
     destruct eop; inv H0; try solve [
-      auto using gv_inject_gundef | unfold gv_inject; simpl; auto].
+      auto using gv_inject_gundef | unfold val2GV; simpl; auto].
     destruct (floating_point_order f f0); inv H1; try solve [
-      auto using gv_inject_gundef | unfold gv_inject; simpl; auto].
+      auto using gv_inject_gundef | unfold val2GV; simpl; auto].
     destruct v2; inv H0; auto using gv_inject_gundef.
     destruct eop; inv H1; auto using gv_inject_gundef.
 Qed.
@@ -1425,9 +1357,7 @@ Proof.
   destruct p; tinv H0.
   destruct v0; tinv H0.
   destruct gv; tinv H0.
-  inv H0.
-  unfold gv_inject in H.
-  simpl in H. inv H; auto.
+  inv H0. inv H; auto.
 Qed.
 
 Lemma simulation__splitGenericValue_refl : forall mi gv z gvl gvr,
@@ -1436,26 +1366,21 @@ Lemma simulation__splitGenericValue_refl : forall mi gv z gvl gvr,
   gv_inject mi gvl gvl /\
   gv_inject mi gvr gvr.
 Proof.
-  induction gv; simpl; intros.
-    apply gv_inject_nil_inv in H. subst.
-    simpl.
+  induction gv; simpl; intros; inv H; simpl.
     destruct (zeq z 0); inv H0. 
-      auto using gv_inject_nil_refl.
-      destruct (zlt z 0); inv H2.
+      auto.
+      destruct (zlt z 0); inv H1.
 
-    apply gv_inject_cons_inv in H. 
-    destruct H as [gv2' [v1 [m1 [v2 [m2 [J1 [J2 [J3 J4]]]]]]]]; subst.
-    simpl.
     destruct (zeq z 0); inv H0. 
-      inv J1.
-      split; auto using gv_inject_nil_refl, gv_inject_cons_intro.
-    destruct (zlt z 0); inv H1.
-    remember (splitGenericValue gv (z - size_chunk m1)) as R.
-    destruct R as [[gvl' gvr']|]; inv H0.
-    symmetry in HeqR. inv J1.
-    eapply IHgv in HeqR; eauto.
-    destruct HeqR as [J5 J6].
-    split; auto using gv_inject_cons_intro.
+      split; auto.
+
+      destruct (zlt z 0); inv H1.
+      remember (splitGenericValue gv (z - size_chunk m)) as R.
+      destruct R as [[gvl' gvr']|]; inv H0.
+      symmetry in HeqR. 
+      eapply IHgv in HeqR; eauto.
+      destruct HeqR as [J5 J6].
+      split; auto.
 Qed.
 
 Lemma simulation__extractGenericValue_refl : forall mi gv1 TD t1 l0 gv,
@@ -1552,16 +1477,16 @@ Case "zero".
   eauto using zeroconst2GV__gv_inject_refl.
 Case "int".
   inv H1.
-  unfold val2GV, gv_inject; simpl; auto.
+  unfold val2GV; simpl; auto.
 Case "float".
-  destruct f; inv H1; unfold val2GV, gv_inject; simpl; auto.
+  destruct f; inv H1; unfold val2GV; simpl; auto.
 Case "undef".
   remember (getTypeSizeInBits TD t) as R.
   destruct R; inv H1. 
   apply gv_inject_gundef.
 Case "null".
-  inv H1. unfold val2GV, gv_inject; simpl; auto.
-      apply MoreMem.val_cons_inject; auto.
+  inv H1. unfold val2GV; simpl; auto.
+      apply gv_inject_cons; auto.
       apply MoreMem.val_inject_ptr with (delta:=0); auto.
       destruct H. auto.
 Case "arr". 
@@ -1627,7 +1552,7 @@ Case "gep".
         symmetry in HeqR5.
         eapply simulation__mgep_refl with (mi:=mi) in HeqR5; 
           eauto using GV2ptr_refl.
-        unfold ptr2GV, val2GV, gv_inject. simpl. auto.
+        unfold ptr2GV, val2GV. simpl. auto.
 
         apply gv_inject_gundef.
       inv H3. apply gv_inject_gundef.
@@ -1708,9 +1633,9 @@ Case "fbop".
 Case "nil".
   split.
     intros gv J.
-    inv J. apply gv_inject_nil_refl; auto.
+    inv J. auto.
     intros gv t a J.
-    inv J. apply gv_inject_nil_refl; auto.
+    inv J. auto.
 Case "cons".
   split; intros.
     remember (_list_const_arr2GV TD gl l0) as R3.
@@ -1751,8 +1676,8 @@ Proof.
   destruct p; auto.
   destruct v; auto.
   destruct g; auto.
-  inv H.
-  destruct t; apply gv_inject_cons_intro; eauto using gv_inject_nil_refl.
+  inv H. 
+  destruct t; simpl; unfold null; eauto.
 Qed.
 
 Lemma sb_mem_inj__const2GV : forall maxb mi Mem Mem' TD gl c gv,
@@ -1788,26 +1713,46 @@ Proof.
       erewrite IHvidxs; eauto.
 Qed.
 
+Lemma simulation__mgep' : forall mi TD v v' t0 l1,
+  MoreMem.val_inject mi v v' ->
+  mgep TD t0 v l1 = None -> 
+  mgep TD t0 v' l1 = None.
+Proof.
+  intros.
+  unfold mgep in *.
+  inv H; auto.
+  destruct l1; auto.
+  destruct (mgetoffset TD (typ_array 0%nat t0) (z :: l1)) as [[i1 ?]|]; 
+    try solve [inv H0 | auto].
+Qed.
+
+Lemma simulation__GV2ptr' : forall mi TD gv1 gv1',
+  gv_inject mi gv1 gv1' ->
+  GV2ptr TD (getPointerSize TD) gv1 = None ->
+  GV2ptr TD (getPointerSize TD) gv1' = None.
+Proof.
+  intros.
+  unfold GV2ptr in *.
+  destruct gv1'; auto.
+  destruct p.
+  destruct v; auto.
+  destruct gv1'; auto.
+  destruct gv1; tinv H.
+  destruct p; tinv H.
+  inv H. inv H8. inv H3; tinv H0.
+Qed.
+
 Lemma gv_inject_ptr_inv : forall mi b ofs gv' cm,
   gv_inject mi ((Vptr b ofs,cm)::nil) gv' ->
-  exists b', exists ofs', exists cm,
+  exists b', exists ofs',
     gv' = (Vptr b' ofs', cm)::nil /\
     val_inject mi (Vptr b ofs) (Vptr b' ofs').
 Proof.
   intros mi b ofs gv' cm J .
-  unfold gv_inject in J.
-  simpl in J.
-  destruct gv'; simpl in J.
-    inv J.
-
-    destruct p; simpl in J. 
-    destruct gv'; simpl in J.    
-      inv J. 
-      inv H2. exists b2. exists (Int.add 31 ofs (Int.repr 31 delta)). exists m.
-      split; eauto.
-
-      destruct p. destruct (split gv'). 
-      inv J. inv H4.
+  destruct gv'; inv J.
+    inv H5. inv H1.
+    exists b2. exists (Int.add 31 ofs (Int.repr 31 delta)).
+    split; eauto.
 Qed.
 
 (*
@@ -1837,6 +1782,7 @@ Proof.
       right. intros J. inv J. auto.
 Qed.
 
+(*
 Lemma chunk_matched_dec : forall gv1 gv2, 
   chunk_matched gv1 gv2 \/ ~ chunk_matched gv1 gv2.
 Proof.
@@ -1856,11 +1802,12 @@ Proof.
         destruct J1 as [gv2' [v1 [m1 [v2 [J1 [J2 J3]]]]]].
         inv J3. inv J1. congruence.
 Qed.     
+*)
 
 Lemma gv_inject_null_refl : forall mgb mi M1 M2,
   wf_sb_mi mgb mi M1 M2 -> gv_inject mi null null.
 Proof.
-  intros. inv H. unfold gv_inject. simpl. eauto.
+  intros. inv H. unfold null. eauto.
 Qed.
 
 Lemma incl_cons : forall A l1 (x:A), incl l1 (x::l1).
