@@ -251,7 +251,7 @@ castop :: 'castop_'					::=  			{{ com cast operators }}
   | inttoptr						::   :: inttoptr	{{ com inttoptr }}
   | bitcast 						::   :: bitcast		{{ com bitcast }}
 
-inbounds :: 'inbounds_'					::=  			{{ com inbounds }} {{ coq bool }}
+inbounds :: 'inbounds_'					::=  			{{ com inbounds }} {{ coq bool }} {{ tex }}
   | inbounds_yes					::   :: yes		{{ com yes }} {{ coq true }}
   | inbounds_no						::   :: no              {{ com no }} {{ coq false }}
 
