@@ -24,6 +24,7 @@ Require Import ssa_static.
 Require Import ssa_props.
 Require Import ssa_wf.
 Import SB_ds_pass.
+Require Import sb_msim.
 Require Import sb_ds_sim.
 Require Import sb_ds_gv_inject.
 Require Import sb_ds_trans_axioms.
@@ -145,10 +146,44 @@ Proof.
   eapply simulation__mfbop in H3; eauto.
 Qed.
 
+Lemma simulation__mgep' : forall mi TD v v' t0 l1,
+  MoreMem.val_inject mi v v' ->
+  mgep TD t0 v l1 = None -> 
+  mgep TD t0 v' l1 = None.
+Proof.
+  intros.
+  unfold mgep in *.
+  inv H; auto.
+  destruct l1; auto.
+  destruct (mgetoffset TD (typ_array 0%nat t0) (z :: l1)) as [[i1 ?]|]; 
+    try solve [inv H0 | auto].
+Qed.
+
+Lemma simulation__GV2ptr' : forall mi TD gv1 gv1',
+  gv_inject mi gv1 gv1' ->
+  GV2ptr TD (getPointerSize TD) gv1 = None ->
+  GV2ptr TD (getPointerSize TD) gv1' = None.
+Proof.
+  intros.
+  unfold GV2ptr in *.
+  destruct gv1'; auto.
+  destruct p.
+  destruct v; auto.
+  destruct gv1'; auto.
+  destruct gv1; tinv H.
+  destruct p; tinv H.
+  apply gv_inject_cons_inv in H; auto.
+  destruct H as [A [B [C [D [E [J1 [J2 [J3 J4]]]]]]]].
+  inv J1. inv J4.
+  inv J3.
+  destruct gv1; tinv H0.
+  apply gv_inject_cons_inv in J2; auto.
+  destruct J2 as [A' [B' [C' [D' [E' [J1' [J2' [J3' J4']]]]]]]].
+  inv J1'.
+Qed.
 
 Lemma simulation__GEP : forall maxb mi TD Mem Mem2 inbounds0 vidxs vidxs' gvp1 
     gvp gvp' t,
-  defined_gvs vidxs ->
   wf_sb_mi maxb mi Mem Mem2 ->
   gv_inject mi gvp gvp' ->
   gvs_inject mi vidxs vidxs' ->
@@ -157,8 +192,7 @@ Lemma simulation__GEP : forall maxb mi TD Mem Mem2 inbounds0 vidxs vidxs' gvp1
     GEP TD t gvp' vidxs' inbounds0 = ret gvp2 /\
     gv_inject mi gvp1 gvp2.
 Proof.
-  intros maxb mi TD Mem Mem2 inbounds0 vidxs vidxs' gvp1 gvp gvp' t JJ H H0 H1 
-    H2.
+  intros maxb mi TD Mem Mem2 inbounds0 vidxs vidxs' gvp1 gvp gvp' t H H0 H1 H2.
   unfold GEP in *.
   remember (GV2ptr TD (getPointerSize TD) gvp) as R.
   destruct R; inv H2.
@@ -179,27 +213,18 @@ Proof.
         unfold gv_inject, ptr2GV.
         simpl. eauto.
 
-        destruct (mgep TD t v' l0).
-          exists (ptr2GV TD v0).           
-          split; auto. apply gv_inject_gundef_any_val.    
-
-          exists (gundef (typ_pointer typ_void)).           
-          split; auto. apply gv_inject_gundef.
+        symmetry in HeqR1.
+        eapply simulation__mgep' in HeqR1; eauto.
+        rewrite HeqR1.
+        exists (gundef (typ_pointer typ_void)).           
+        split; auto. apply gv_inject_gundef.
 
       exists (gundef (typ_pointer typ_void)). inv H4.      
       split; auto. apply gv_inject_gundef.
 
-    destruct (GV2ptr TD (getPointerSize TD) gvp').
-      destruct (GVs2Nats TD vidxs').
-        destruct (mgep TD t v l0). 
-          exists (ptr2GV TD v0).           
-          split; auto. apply gv_inject_gundef_any_val.    
-          exists (gundef (typ_pointer typ_void)).           
-          split; auto. apply gv_inject_gundef.
-        exists (gundef (typ_pointer typ_void)).           
-        split; auto. apply gv_inject_gundef.
-      exists (gundef (typ_pointer typ_void)).           
-      split; auto. apply gv_inject_gundef.
+    erewrite simulation__GV2ptr'; eauto.
+    exists (gundef (typ_pointer typ_void)).           
+    split; auto. apply gv_inject_gundef.
 Qed.
 
 Lemma simulation__values2GVs : forall maxb mi rm rm2 lc lc2 TD Mem Mem2 
@@ -432,7 +457,7 @@ Proof.
     split.
     SCase "no_overlap".
       clear - Hno_overlap J Hmap2.
-      unfold meminj_no_overlap in *.
+      unfold MoreMem.meminj_no_overlap in *.
       intros.      
       destruct (zeq b1 mb); subst.
         destruct (zeq b2 mb); subst.
@@ -520,7 +545,7 @@ Proof.
     SCase "msim1".
       clear H2.
       destruct H1.
-      apply Mem.mk_mem_inj.
+      apply MoreMem.mk_mem_inj.
       SSCase "mi_access".
         intros b1 b2 d c ofs p J1 J2.
         destruct (zeq b1 mb); subst; inv J1.
@@ -575,7 +600,7 @@ Transparent Mem.alloc.
         SSSCase "b1=nextblock1".
           destruct (zeq b2 b2) as [e | n]; 
             try solve [contradict n; auto].
-          apply memval_inject_undef.
+          apply MoreMem.memval_inject_undef.
 
         SSSCase "b1<>mb".
           destruct (zeq b2 nextblock); subst.
@@ -584,7 +609,7 @@ Transparent Mem.alloc.
             apply Hmap2 in H0.
             contradict H0; auto with zarith.
 
-            apply Memdata.memval_inject_incr with (f:=mi); auto.
+            apply MoreMem.memval_inject_incr with (f:=mi); auto.
               apply mi_memval; auto.
                 clear - J2 n.
                 unfold update in J2.
@@ -628,9 +653,9 @@ Global Opaque Mem.alloc.
           assert (gv_inject (fun b : Z => if zeq b mb then ret (b', 0) else mi b)
             null null) as Hinject_null.
             unfold gv_inject. simpl.
-              apply val_cons_inject; auto.
+              apply MoreMem.val_cons_inject; auto.
                 inv Hwfmi.
-                apply val_inject_ptr with (delta:=0).
+                apply MoreMem.val_inject_ptr with (delta:=0).
                   destruct (zeq Mem.nullptr mb); subst; auto.
                     symmetry in HeqR1.
                     apply Mem.alloc_result in HeqR1.
@@ -647,8 +672,8 @@ Global Opaque Mem.alloc.
             ((Vptr b' (Int.add 31 ofs (Int.repr 31 delta)),cm') :: nil)) as W.
             clear - Hwfg J3 HeqR2 Hmgb n H0.
             unfold ptr2GV, val2GV. unfold gv_inject. simpl.
-              apply val_cons_inject; auto.
-              apply val_inject_ptr with (delta:=delta); auto.
+              apply MoreMem.val_cons_inject; auto.
+              apply MoreMem.val_inject_ptr with (delta:=delta); auto.
             
           assert (get_mem_metadata TD MM ((Vptr b ofs, cm') :: nil) =
             {| md_base := bgv; md_bound := egv |}) as J1'.
@@ -1372,7 +1397,7 @@ Proof.
     assert (lo <= ofs - delta < hi) as J'.
       auto with zarith.
     apply H0 in J'.
-    eapply Mem.perm_inj in J'; eauto.
+    eapply MoreMem.perm_inj in J'; eauto.
     assert (ofs - delta + delta = ofs) as EQ. auto with zarith.
     rewrite EQ in J'. auto.
   destruct J as [Mem2' J].
@@ -1394,18 +1419,8 @@ Proof.
   SCase "msim".
     split.
       clear - Hmsim1 Hwfmi H0 J H4.
-      assert (J':=Hmsim1).
-      eapply Mem.free_left_inj in J'; eauto.
-      eapply Mem.free_right_inj in J'; eauto.
-      intros b1 delta0 ofs p H1 H2 H3.
-      destruct (Values.eq_block blk b1); subst.
-        rewrite H1 in H4. inv H4.
-        apply Mem.perm_free_2 with (p:=p)(ofs:=ofs) in H0; eauto with zarith.
-
-        destruct Hwfmi.
-        unfold meminj_no_overlap in Hno_overlap.
-        apply Hno_overlap with (b1':=b2)(b2':=b2)(delta1:=delta)(delta2:=delta0)
-          in n; auto.
+      inv Hwfmi.
+      eapply MoreMem.free_inj; eauto.
 
     split.
       clear - Hmgb J.
@@ -1585,11 +1600,11 @@ Proof.
     inv Hmload.
     symmetry in HeqR1.
     destruct Hmsim as [Hmsim _].
-    eapply Mem.load_inj in HeqR1; eauto.
+    inversion_clear Hwfmi.
+    eapply MoreMem.load_inj in HeqR1; eauto.
     destruct HeqR1 as [v2 [J2 J3]].
     exists (val2GV TD v2 m).
     split.
-      inversion_clear Hwfmi.
       apply mi_range_block in H2. subst.
       rewrite Int.add_zero.
       assert (Int.signed 31 i2 + 0 = Int.signed 31 i2) as EQ. zauto.
@@ -1731,7 +1746,8 @@ Proof.
   destruct gvp2.
     unfold GV2val in *.
 
-    assert (exists v2, GV2val TD gv2 = Some v2 /\ val_inject mi v v2) as Hvinj.
+    assert (exists v2, GV2val TD gv2 = Some v2 /\ MoreMem.val_inject mi v v2) 
+      as Hvinj.
       clear - HeqR1 Hginject2.
       unfold GV2val.
       destruct gv; simpl in *; inv HeqR1.
@@ -1761,9 +1777,8 @@ Proof.
     destruct Hvinj as [v2 [Hg2v Hvinj]].
     assert (H0:=Hmstore).
     destruct Hmsim as [Hmsim1 [Hmgb [Hzero Hmsim2]]].
-    eapply Mem.store_mapped_inj with (f:=mi)(m2:=Mem2) in H0; 
-      try solve [eauto | 
-        inversion Hwfmi; eauto using meminj_no_overlap__implies].
+    eapply MoreMem.store_mapped_inj with (f:=mi)(m2:=Mem2) in H0; 
+      try solve [eauto | inversion Hwfmi; eauto].
     destruct H0 as [Mem2' [J2 J4]].
     exists Mem2'.
     assert ( mstore TD Mem2

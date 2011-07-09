@@ -19,6 +19,7 @@ Require Import Metatheory.
 Require Import Znumtheory.
 Require Import sb_ds_def.
 Require Import sb_ds_trans.
+Require Import sb_msim.
 Require Import sb_ds_gv_inject.
 Require Import sb_ds_sim.
 Require Import sb_ds_trans_axioms.
@@ -62,7 +63,7 @@ Lemma SBpass_is_correct__dsMalloc : forall (mi : meminj) (mgb : Values.block)
          SBopsem.md_bound := SBopsem.bound2GV TD mb tsz n |} = 
        (lc', rm')),
   (exists St' : LLVMopsem.State,
-     exists mi' : meminj,
+     exists mi' : MoreMem.meminj,
        LLVMopsem.dsop_star St St' trace_nil /\
        sbState_simulates_State mi' mgb
          {|
@@ -116,8 +117,6 @@ Proof.
     auto.
   destruct H1 as [mi' [Mem2' [mb' [H11 [H16 [H12 [H13 [H14 H15]]]]]]]].
 
-  simpl. rewrite H0.
-  destruct (@defined_gv_dec gn) as [Hdet | Hndet]; auto.
   eapply simulation__getOperandValue with (mi:=mi)(Mem2:=M2) in H0; eauto.
   destruct H0 as [gn' [H00 H01]].
   assert (GV2int (los, nts) Size.ThirtyTwo gn = 
@@ -358,16 +357,16 @@ Proof.
         eapply inject_incr__preserves__reg_simulation; eauto.
 
       unfold gv_inject, blk2GV, ptr2GV, val2GV.
-      simpl. apply val_cons_inject; eauto.
+      simpl. apply MoreMem.val_cons_inject; eauto.
 
       unfold gv_inject, SBopsem.base2GV, blk2GV, ptr2GV, val2GV.
       simpl. clear - H14.
-      apply val_cons_inject; eauto.
+      apply MoreMem.val_cons_inject; eauto.
 
       unfold gv_inject, SBopsem.base2GV, blk2GV, ptr2GV, val2GV.
       simpl. clear - H14.
-        apply val_cons_inject; eauto.
-          eapply val_inject_ptr; eauto.
+        apply MoreMem.val_cons_inject; eauto.
+          eapply MoreMem.val_inject_ptr; eauto.
             rewrite Int.add_zero. auto.
 
     split; auto.
@@ -377,7 +376,7 @@ Proof.
 Qed.
 
 Lemma SBpass_is_correct__dsAlloca : forall 
-  (mi : meminj) (mgb : Values.block) (St : LLVMopsem.State) (S : system)
+  (mi : MoreMem.meminj) (mgb : Values.block) (St : LLVMopsem.State) (S : system)
   (TD : TargetData) (Ps : list product) (F : fdef) (B : block) (lc : GVMap)
   (rm : AssocList metadata) (gl : GVMap) (fs : GVMap) (id0 : atom) (t : typ)  
   (v : value) (align0 : align) (EC : list ExecutionContext) (cs : list cmd)
@@ -408,7 +407,7 @@ Lemma SBpass_is_correct__dsAlloca : forall
          {| md_base := base2GV TD mb; md_bound := bound2GV TD mb tsz n |} =
        (lc', rm')),
   (exists St' : LLVMopsem.State,
-     exists mi' : meminj,
+     exists mi' : MoreMem.meminj,
        LLVMopsem.dsop_star St St' trace_nil /\
        sbState_simulates_State mi' mgb
          {|
@@ -463,8 +462,6 @@ Proof.
     auto.
   destruct H1 as [mi' [Mem2' [mb' [H11 [H16 [H12 [H13 [H14 H15]]]]]]]].
 
-  simpl. rewrite H0.
-  destruct (@defined_gv_dec gn) as [Hdet | Hndet]; auto.
   eapply simulation__getOperandValue with (mi:=mi)(Mem2:=M2) in H0; eauto.
   destruct H0 as [gn' [H00 H01]].
   assert (GV2int (los, nts) Size.ThirtyTwo gn = 
@@ -706,16 +703,16 @@ Proof.
         eapply inject_incr__preserves__reg_simulation; eauto.
 
       unfold gv_inject, blk2GV, ptr2GV, val2GV.
-      simpl. apply val_cons_inject; eauto.
+      simpl. apply MoreMem.val_cons_inject; eauto.
 
       unfold gv_inject, SBopsem.base2GV, blk2GV, ptr2GV, val2GV.
       simpl. clear - H14.
-      apply val_cons_inject; eauto.
+      apply MoreMem.val_cons_inject; eauto.
 
       unfold gv_inject, SBopsem.base2GV, blk2GV, ptr2GV, val2GV.
       simpl. clear - H14.
-        apply val_cons_inject; eauto.
-          eapply val_inject_ptr; eauto.
+        apply MoreMem.val_cons_inject; eauto.
+          eapply MoreMem.val_inject_ptr; eauto.
             rewrite Int.add_zero. auto.
 
     split; auto.
@@ -724,7 +721,7 @@ Proof.
     repeat(split; eauto using inject_incr__preserves__fable_simulation).
 Qed.
 
-Lemma SBpass_is_correct__dsFree : forall (mi : meminj) (mgb : Values.block)
+Lemma SBpass_is_correct__dsFree : forall (mi : MoreMem.meminj) (mgb : Values.block)
   (St : LLVMopsem.State) (S : system) (TD : TargetData) (Ps : list product)
   (F : fdef) (B : block) (lc : GVMap) (rm : rmetadata) (gl : GVMap)
   (fs : GVMap) (fid : id) (t : typ) (v : value) (EC : list ExecutionContext)
@@ -752,7 +749,7 @@ Lemma SBpass_is_correct__dsFree : forall (mi : meminj) (mgb : Values.block)
   (H : getOperandValue TD v lc gl = ret mptr0)
   (H0 : free TD Mem0 mptr0 = ret Mem'),
    exists St' : LLVMopsem.State,
-     exists mi' : meminj,
+     exists mi' : MoreMem.meminj,
        LLVMopsem.dsop_star St St' trace_nil /\
        sbState_simulates_State mi' mgb
          {|
@@ -828,7 +825,7 @@ Proof.
 Qed.
 
 Lemma SBpass_is_correct__dsLoad_nptr : forall 
-  (mi : meminj) (mgb : Values.block) (St : LLVMopsem.State) (S : system)
+  (mi : MoreMem.meminj) (mgb : Values.block) (St : LLVMopsem.State) (S : system)
   (TD : TargetData) (Ps : list product) (F : fdef) (B : block) (lc : GVMap)
   (rm : rmetadata) (gl : GVMap) (fs : GVMap) (id0 : id) (t : typ)
   (align0 : align) (vp : value) (EC : list ExecutionContext) (cs : list cmd)
@@ -857,7 +854,7 @@ Lemma SBpass_is_correct__dsLoad_nptr : forall
   (H2 : mload TD Mem0 gvp t align0 = ret gv)
   (H3 : isPointerTypB t = false),
    exists St' : LLVMopsem.State,
-     exists mi' : meminj,
+     exists mi' : MoreMem.meminj,
        LLVMopsem.dsop_star St St' trace_nil /\
        sbState_simulates_State mi' mgb
          {|
@@ -1003,7 +1000,7 @@ Proof.
 Qed.
 
 Lemma SBpass_is_correct__dsLoad_ptr : forall 
-  (mi : meminj) (mgb : Values.block) (St : LLVMopsem.State) (S : system)
+  (mi : MoreMem.meminj) (mgb : Values.block) (St : LLVMopsem.State) (S : system)
   (TD : TargetData) (Ps : list product) (F : fdef) (B : block) (lc : GVMap)
   (rm : rmetadata) (gl : GVMap) (fs : GVMap) (id0 : id) (t : typ)
   (align0 : align) (vp : value) (EC : list ExecutionContext) (cs : list cmd)
@@ -1035,7 +1032,7 @@ Lemma SBpass_is_correct__dsLoad_ptr : forall
   (H4 : get_mem_metadata TD MM gvp = md')
   (H5 : prop_reg_metadata lc rm id0 gv md' = (lc', rm')),
    exists St' : LLVMopsem.State,
-     exists mi' : meminj,
+     exists mi' : MoreMem.meminj,
        LLVMopsem.dsop_star St St' trace_nil /\
        sbState_simulates_State mi' mgb
          {|
@@ -1247,7 +1244,7 @@ Proof.
 Qed.
 
 Lemma SBpass_is_correct__dsStore_nptr : forall 
-  (mi : meminj) (mgb : Values.block) (St : LLVMopsem.State) (S : system)
+  (mi : MoreMem.meminj) (mgb : Values.block) (St : LLVMopsem.State) (S : system)
   (TD : TargetData) (Ps : list product) (F : fdef) (B : block) (lc : GVMap)
   (rm : rmetadata) (gl : GVMap) (fs : GVMap) (sid : id) (t : typ) 
   (align0 : align) (v : value) (vp : value) (EC : list ExecutionContext)
@@ -1278,7 +1275,7 @@ Lemma SBpass_is_correct__dsStore_nptr : forall
   (H3 : mstore TD Mem0 gvp t gv align0 = ret Mem')
   (H4 : isPointerTypB t = false),
    exists St' : LLVMopsem.State,
-     exists mi' : meminj,
+     exists mi' : MoreMem.meminj,
        LLVMopsem.dsop_star St St' trace_nil /\
        sbState_simulates_State mi' mgb
          {|
@@ -1458,7 +1455,7 @@ Proof.
       erewrite Mem.bounds_store with (m1:=Mem0); eauto.
 Qed.
 
-Lemma SBpass_is_correct__dsStore_ptr : forall (mi : meminj) (mgb : Values.block)
+Lemma SBpass_is_correct__dsStore_ptr : forall (mi : MoreMem.meminj) (mgb : Values.block)
   (St : LLVMopsem.State) (S : system) (TD : TargetData) (Ps : list product)
   (F : fdef) (B : block) (lc : GVMap) (rm : rmetadata) (gl : GVMap) (fs : GVMap)
   (sid : id) (t : typ) (align0 : align) (v : value) (vp : value) 
@@ -1492,7 +1489,7 @@ Lemma SBpass_is_correct__dsStore_ptr : forall (mi : meminj) (mgb : Values.block)
   (H5 : SBopsem.get_reg_metadata TD gl rm v = ret md')
   (H6 : set_mem_metadata TD MM gvp md' = MM'),
    exists St' : LLVMopsem.State,
-     exists mi' : meminj,
+     exists mi' : MoreMem.meminj,
        LLVMopsem.dsop_star St St' trace_nil /\
        sbState_simulates_State mi' mgb
          {|

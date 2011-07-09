@@ -20,30 +20,17 @@ Require Import Znumtheory.
 Require Import ssa_static.
 Require Import ssa_props.
 Require Import ssa_wf.
+Require Import sb_msim.
 
-Definition gv_inject (mi: Values.meminj) (gv gv':GenericValue) : Prop :=
+Definition gv_inject (mi: meminj) (gv gv':GenericValue) : Prop :=
 let '(vals,mks) := List.split gv in 
 let '(vals',mks') := List.split gv' in 
-val_list_inject mi vals vals'.
+MoreMem.val_list_inject mi vals vals'.
 
-Definition meminj_no_overlap (f: meminj) (m: mem) : Prop :=
-  forall b1 b1' delta1 b2 b2' delta2,
-  b1 <> b2 ->
-  f b1 = Some (b1', delta1) ->
-  f b2 = Some (b2', delta2) ->
-  b1' <> b2'.
-
-Lemma meminj_no_overlap__implies : forall f m,
-  meminj_no_overlap f m -> Mem.meminj_no_overlap f m.
-Proof.
-  intros f m J.
-  unfold meminj_no_overlap in J.
-  unfold Mem.meminj_no_overlap.
-  eauto.
-Qed.
+Hint Unfold MoreMem.meminj_no_overlap MoreMem.meminj_zero_delta.
 
 Record wf_sb_mi maxb mi Mem1 Mem2 := mk_wf_sb_mi {
-  Hno_overlap : meminj_no_overlap mi Mem1;
+  Hno_overlap : MoreMem.meminj_no_overlap mi;
   Hnull : mi Mem.nullptr = Some (Mem.nullptr, 0);
   Hmap1 : forall b, b >= Mem.nextblock Mem1 -> mi b = None;
   Hmap2 : forall b1 b2 delta2, 
@@ -51,8 +38,7 @@ Record wf_sb_mi maxb mi Mem1 Mem2 := mk_wf_sb_mi {
   mi_freeblocks: forall b, ~(Mem.valid_block Mem1 b) -> mi b = None;
   mi_mappedblocks: forall b b' delta, 
     mi b = Some(b', delta) -> Mem.valid_block Mem2 b';
-  mi_range_block: forall b b' delta, 
-    mi b = Some(b', delta) -> delta = 0;
+  mi_range_block: MoreMem.meminj_zero_delta mi;
   mi_bounds: forall b b' delta, 
     mi b = Some(b', delta) -> Mem.bounds Mem1 b = Mem.bounds Mem2 b';
   mi_globals : forall b, b <= maxb -> mi b = Some (b, 0)
@@ -108,7 +94,7 @@ Proof.
     inv H.
     remember (split (gv1 ++ gv1')) as R1. destruct R1.
     remember (split (gv2 ++ gv2')) as R2. destruct R2.
-    apply val_cons_inject; auto.
+    apply MoreMem.val_cons_inject; auto.
       assert (J:=@IHgv1 gv1' gv2 gv2').
       rewrite <- HeqR4 in J.
       rewrite <- HeqR1 in J.
@@ -161,10 +147,10 @@ Proof.
 
   unfold gv_inject.
   inv H0. simpl. 
-  apply val_cons_inject; auto.
+  apply MoreMem.val_cons_inject; auto.
 
   unfold gv_inject.
-  destruct f; inv H0; simpl; apply val_cons_inject; auto.
+  destruct f; inv H0; simpl; apply MoreMem.val_cons_inject; auto.
 
   remember (zeroconst2GV TD t) as R.
   destruct R; tinv H1.
@@ -187,12 +173,11 @@ Proof.
       apply gv_inject_uninits.
  
   inv H1. unfold gv_inject. simpl.
-  apply val_cons_inject; auto.
+  apply MoreMem.val_cons_inject; auto.
     inv H0. 
-    eapply val_inject_ptr; eauto.
+    eapply MoreMem.val_inject_ptr; eauto.
 
   inv H0. unfold gv_inject. simpl. auto.
-
 
   remember (zeroconsts2GV TD l0) as R.
   destruct R as [[gv1 tsz]|]; tinv H2.
@@ -237,8 +222,8 @@ Proof.
         assert (J:=(@IHgv H H2)).
         inversion H.
         apply mi_globals0 in H1.
-        apply val_cons_inject; auto.
-          apply val_inject_ptr with (delta:=0); auto.
+        apply MoreMem.val_cons_inject; auto.
+          apply MoreMem.val_inject_ptr with (delta:=0); auto.
             rewrite Int.add_zero; auto.
 Qed.
 
@@ -286,8 +271,8 @@ Qed.
 Lemma gv_inject_cons_inv : forall mi g1 gv1 gv2,
   gv_inject mi (g1::gv1) gv2 -> 
   exists gv2', exists v1, exists m1, exists v2, exists m2, 
-    gv2 = (v2,m2)::gv2' /\ gv_inject mi gv1 gv2' /\ val_inject mi v1 v2 /\
-    g1 = (v1,m1).
+    gv2 = (v2,m2)::gv2' /\ gv_inject mi gv1 gv2' /\ MoreMem.val_inject mi v1 v2 
+    /\ g1 = (v1,m1).
 Proof.
   intros.   
   destruct gv2; eauto.
@@ -303,7 +288,8 @@ Qed.
 Lemma gv_inject__val_inject : forall mi gv1 gv2 TD,
   gv_inject mi gv1 gv2 ->
   exists v1, exists v2,
-    GV2val TD gv1 = Some v1 /\ GV2val TD gv2 = Some v2 /\ val_inject mi v1 v2.
+    GV2val TD gv1 = Some v1 /\ GV2val TD gv2 = Some v2 /\ 
+    MoreMem.val_inject mi v1 v2.
 Proof.
   intros.
   unfold GV2val in *.
@@ -327,7 +313,7 @@ Qed.
 
 Lemma gv_inject_cons_intro : forall mi v1 m1 v2 m2 gv1 gv2,
   gv_inject mi gv1 gv2 ->
-  val_inject mi v1 v2 ->
+  MoreMem.val_inject mi v1 v2 ->
   gv_inject mi ((v1, m1) :: gv1) ((v2, m2) :: gv2).
 Proof.
   intros.
@@ -354,12 +340,14 @@ Proof.
     assert (J:=@H b i0). contradict J; auto.
 Qed.
 
+(*
 Lemma gv_inject_gundef_any_val : forall TD v mi t m,
   gv_inject mi (gundef t) (val2GV TD v m).
 Proof.
   intros. unfold val2GV, gv_inject, gundef. 
   destruct (typ2memory_chunk t); simpl; auto.
 Qed.
+*)
 
 Lemma simulation__mtrunc_aux : forall mi TD top t1 gv1 t2 gv1' gv2,
   gv_inject mi gv1 gv1' ->
@@ -390,32 +378,7 @@ Proof.
     inv H0. auto using gv_inject_gundef.
 
     right. inv H0.
-    destruct v2; try solve [exists (gundef t2); auto using gv_inject_gundef].
-      destruct t1; try solve [exists (gundef t2); auto using gv_inject_gundef].
-      remember t2 as t2'.
-      destruct t2; try solve [exists (gundef t2'); subst; 
-        auto using gv_inject_gundef].
-        subst.
-        exists (val2GV TD (Val.trunc (Vint wz i0) s0) (AST.Mint s0)).
-        split; auto.  
-          unfold val2GV, gv_inject. simpl.
-          destruct (le_lt_dec wz s0); auto.
-
-      destruct t1; try solve [exists (gundef t2); auto using gv_inject_gundef].
-      remember t2 as t2'.
-      destruct t2; try solve [exists (gundef t2'); subst; 
-         auto using gv_inject_gundef].
-      subst.
-      destruct (floating_point_order f1 f0);
-        try solve [exists (gundef (typ_floatpoint f1)); 
-          simpl; auto using gv_inject_gundef].
-      remember f1 as f1'.
-      destruct f1; try solve [exists (gundef (typ_floatpoint f1')); subst;
-          simpl; auto using gv_inject_gundef]; subst; unfold gv_inject.
-        exists (val2GV TD (Val.ftrunc (Vfloat f)) AST.Mfloat32).
-          simpl. auto.  
-        exists (val2GV TD (Val.ftrunc (Vfloat f)) AST.Mfloat64).
-          simpl. auto.  
+    exists (gundef t2); auto using gv_inject_gundef.
 Qed.
 
 Lemma simulation__mtrunc : forall mi TD top t1 gv1 t2 gv1' gv2,
@@ -466,24 +429,8 @@ Proof.
         simpl; auto using gv_inject_gundef.
 
     destruct t1; destruct t2; inv H0; simpl; auto using gv_inject_gundef.
-      destruct v2; simpl; auto using gv_inject_gundef.
-      destruct eop; auto using gv_inject_gundef.
-        right. exists (val2GV TD (Vint wz (Int.zero_ext wz (Size.to_Z s0) i0))
-           (AST.Mint (Size.to_nat s0 - 1))).
-        unfold gv_inject. simpl. auto.
-        right. exists (val2GV TD (Vint wz (Int.sign_ext wz (Size.to_Z s0) i0))
-            (AST.Mint (Size.to_nat s0 - 1))).
-        unfold gv_inject. simpl. auto.
       destruct (floating_point_order f f0); inv H1; 
         simpl; eauto using gv_inject_gundef.
-        destruct v2; simpl; auto using gv_inject_gundef.
-        destruct eop; simpl; auto using gv_inject_gundef.
-          right. exists gv1'. split; auto.
-          destruct gv1'; inv J2.
-          destruct p.
-          destruct gv1'; inv H0.
-          unfold gv_inject. unfold gundef. simpl. 
-          destruct f0; simpl; auto.
 Qed.
 
 Lemma simulation__mext : forall mi TD eop t1 gv1 t2 gv1' gv2,
@@ -678,19 +625,6 @@ Proof.
        apply and_isnt_ptr.
        apply or_isnt_ptr.
        apply xor_isnt_ptr.
-
-    inv H1.
-      destruct v2'; auto using gv_inject_gundef.
-      destruct (eq_nat_dec (wz + 1) (Size.to_nat bsz)); 
-        auto using gv_inject_gundef.
-      destruct op; try solve [right; eauto using gv_inject_gundef_any_val].
-
-    inv H1.
-      destruct v1'; try solve [auto using gv_inject_gundef].
-      destruct v2'; try solve [auto using gv_inject_gundef].
-      destruct (eq_nat_dec (wz + 1) (Size.to_nat bsz)); 
-        auto using gv_inject_gundef.
-      destruct op; try solve [right; eauto using gv_inject_gundef_any_val].
 Qed.
 
 Lemma simulation__mbop : forall mi TD op bsz gv1 gv1' gv2 gv2' gv3,
@@ -736,27 +670,6 @@ Proof.
        destruct op; 
           try (left; split; auto; apply gv_inject_nptr_val_refl; 
             try solve [auto | intro; congruence]).
-
-   inv H1. 
-   destruct v2'; auto using gv_inject_gundef.
-   destruct fp; try solve [
-     destruct op; try solve [right; eauto using gv_inject_gundef_any_val] |
-     auto using gv_inject_gundef
-     ].
-
-   destruct v1'; auto using gv_inject_gundef.
-      inv H1. auto using gv_inject_gundef.
-      inv H1. auto using gv_inject_gundef.
-      inv H1. auto using gv_inject_gundef.
-      destruct v2'; auto using gv_inject_gundef.
-
-   destruct fp; try solve [ 
-      destruct op; try solve [right; eauto using gv_inject_gundef_any_val] |
-      auto using gv_inject_gundef |
-      inv H1; auto using gv_inject_gundef
-     ].
-   inv H1. auto using gv_inject_gundef.
-   inv H1. auto using gv_inject_gundef.
 Qed.
 
 Lemma simulation__mfbop : forall mi TD op fp gv1 gv1' gv2 gv2' gv3,
@@ -885,17 +798,10 @@ Proof.
         try (left; split; auto; 
           apply gv_inject_nptr_val_refl; try solve 
             [auto | apply cmp_isnt_ptr | apply cmpu_isnt_ptr]).
-    inv H1.
-     destruct v2'; try solve [auto using gv_inject_gundef].
-     destruct c; try solve [right; eauto using gv_inject_gundef_any_val].
     destruct t; try solve [inv H1; auto using gv_inject_gundef].
     destruct t; try solve [inv H1; auto using gv_inject_gundef].
     destruct t; try solve [inv H1; auto using gv_inject_gundef].
     destruct t; try solve [inv H1; auto using gv_inject_gundef].
-    inv H1.
-     destruct v1'; try solve [auto using gv_inject_gundef].
-     destruct v2'; try solve [auto using gv_inject_gundef].
-     destruct c; try solve [right; eauto using gv_inject_gundef_any_val].
 Qed.
 
 Lemma simulation__micmp : forall mi TD c t gv1 gv1' gv2 gv2' gv3,
@@ -971,31 +877,6 @@ Proof.
             [auto | apply val_of_bool_isnt_ptr | apply Vfalse_isnt_ptr | 
              apply Vtrue_isnt_ptr])
         ].
-
-
-    inv H1.
-     destruct v2'; try solve [auto using gv_inject_gundef].
-     destruct c; try solve [
-       right; eauto using gv_inject_gundef_any_val |
-       auto using gv_inject_gundef
-     ].
-    inv H1.
-     destruct v2'; try solve [auto using gv_inject_gundef].
-     destruct c; try solve [
-       right; eauto using gv_inject_gundef_any_val |
-       auto using gv_inject_gundef
-     ].
-    inv H1. destruct v2'; try solve [auto using gv_inject_gundef].
-    inv H1. destruct v2'; try solve [auto using gv_inject_gundef].
-    inv H1. destruct v2'; try solve [auto using gv_inject_gundef].
-    inv H1.
-     destruct v1'; try solve [auto using gv_inject_gundef].
-     destruct v2'; try solve [auto using gv_inject_gundef].
-     destruct t; try solve [auto using gv_inject_gundef].
-       destruct c; try solve [auto using gv_inject_gundef |
-         right; eauto using gv_inject_gundef_any_val].
-       destruct c; try solve [auto using gv_inject_gundef |
-         right; eauto using gv_inject_gundef_any_val].
 Qed.
 
 Lemma simulation__mfcmp : forall mi TD c t gv1 gv1' gv2 gv2' gv3,
@@ -1019,7 +900,7 @@ Lemma simulation__GV2ptr : forall mi TD gv1 gv1' v,
   GV2ptr TD (getPointerSize TD) gv1 = Some v ->
   exists v',
     GV2ptr TD (getPointerSize TD) gv1' = Some v' /\
-    Values.val_inject mi v v'.
+    MoreMem.val_inject mi v v'.
 Proof.
   intros.
   unfold GV2ptr in *.
@@ -1036,11 +917,11 @@ Proof.
 Qed.
 
 Lemma simulation__mgep : forall mi TD v v' v0 t0 l1,
-  Values.val_inject mi v v' ->
+  MoreMem.val_inject mi v v' ->
   mgep TD t0 v l1 = Some v0 ->
   exists v0',
     mgep TD t0 v' l1 = Some v0' /\
-    Values.val_inject mi v0 v0'.
+    MoreMem.val_inject mi v0 v0'.
 Proof.
   intros.
   unfold mgep in *.
@@ -1051,7 +932,7 @@ Proof.
   inv H0. 
   exists (Vptr b2 (Int.add 31 (Int.add 31 i0 (Int.repr 31 delta)) i1)).
   split; auto.
-    eapply val_inject_ptr; eauto.
+    eapply MoreMem.val_inject_ptr; eauto.
       rewrite Int.add_assoc.
       assert (Int.add 31 (Int.repr 31 delta) i1 = 
               Int.add 31 i1 (Int.repr 31 delta)) as EQ.
@@ -1059,7 +940,7 @@ Proof.
       rewrite EQ.
       rewrite Int.add_assoc. auto.
 Qed.
-   
+(*
 Definition defined_gv (gv:GenericValue) : Prop :=
 match gv with
 | (v,_)::_ => v <> Vundef
@@ -1071,7 +952,7 @@ match gvs with
 | gv::gvs' => defined_gv gv /\ defined_gvs gvs'
 | nil => True
 end.
-
+*)
 Definition chunk_matched (gv gv':GenericValue) : Prop :=
 let '(_,ms):=split gv in
 let '(_,ms'):=split gv' in
@@ -1293,11 +1174,10 @@ Proof.
 Qed.
 
 Lemma simulation__eq__GV2int : forall mi gn gn' TD sz,
-  defined_gv gn ->
   gv_inject mi gn gn' ->
   GV2int TD sz gn = GV2int TD sz gn'.
 Proof.
-  intros mi gn gn' TD sz Hdef Hinj.
+  intros mi gn gn' TD sz Hinj.
   unfold GV2int.
   destruct gn.
     apply gv_inject_nil_inv in Hinj. subst. auto.
@@ -1310,17 +1190,13 @@ Proof.
         apply gv_inject_cons_inv in J2.
         destruct J2 as [gv2' [v1' [m1' [v2' [m2' [J1' [J2' [J3' J4']]]]]]]]; 
           subst; auto.
-        destruct v2; auto.
-          destruct gv2; auto.
-          simpl in Hdef. contradict Hdef; auto.
 Qed.
 
 Lemma simulation__isGVZero : forall mi c c' TD,
-  defined_gv c ->
   gv_inject mi c c' ->
   isGVZero TD c = isGVZero TD c'.
 Proof.
-  intros mi c c' TD Hdef Hinj.
+  intros mi c c' TD Hinj.
   unfold isGVZero.   
   erewrite simulation__eq__GV2int; eauto.
 Qed.
@@ -1515,9 +1391,9 @@ Proof.
 Qed.
 
 Lemma simulation__mgep_refl : forall mi TD v v0 t0 l1,
-  Values.val_inject mi v v ->
+  MoreMem.val_inject mi v v ->
   mgep TD t0 v l1 = Some v0 ->
-  Values.val_inject mi v0 v0.
+  MoreMem.val_inject mi v0 v0.
 Proof.
   intros.
   unfold mgep in *.
@@ -1526,7 +1402,7 @@ Proof.
   destruct (mgetoffset TD (typ_array 0%nat t0) (z :: l1)) as [[o ?]|]; tinv H0.
   inv H0.
   inversion H. subst i0 b ofs1 b1.
-  eapply val_inject_ptr; eauto.
+  eapply MoreMem.val_inject_ptr; eauto.
     assert (Int.add 31 ofs2 (Int.repr 31 delta) = 
             Int.add 31 (Int.repr 31 delta) ofs2) as EQ.
       rewrite <- Int.add_commut. auto. 
@@ -1541,7 +1417,7 @@ Qed.
 Lemma GV2ptr_refl : forall mi TD gv v,
   gv_inject mi gv gv ->
   GV2ptr TD (getPointerSize TD) gv = Some v ->
-  val_inject mi v v.
+  MoreMem.val_inject mi v v.
 Proof.
   intros.
   unfold GV2ptr in H0.
@@ -1685,8 +1561,8 @@ Case "undef".
   apply gv_inject_gundef.
 Case "null".
   inv H1. unfold val2GV, gv_inject; simpl; auto.
-      apply val_cons_inject; auto.
-      apply val_inject_ptr with (delta:=0); auto.
+      apply MoreMem.val_cons_inject; auto.
+      apply MoreMem.val_inject_ptr with (delta:=0); auto.
       destruct H. auto.
 Case "arr". 
   eapply H with (TD:=TD)(gl:=gl) in H1; eauto.
@@ -1902,14 +1778,12 @@ match (gvs1, gvs2) with
 end.
 
 Lemma simulation__GVs2Nats : forall mi TD vidxs vidxs',
-  defined_gvs vidxs ->
   gvs_inject mi vidxs vidxs' ->
   GVs2Nats TD vidxs = GVs2Nats TD vidxs'.
 Proof.
-  induction vidxs; intros vidxs' Hdefs Hinj.
+  induction vidxs; intros vidxs' Hinj.
     destruct vidxs'; inv Hinj; simpl; auto.
     destruct vidxs'; simpl in *; inv Hinj; auto.
-      destruct Hdefs as [J1 J2].
       erewrite simulation__eq__GV2int; eauto.      
       erewrite IHvidxs; eauto.
 Qed.
@@ -1936,6 +1810,7 @@ Proof.
       inv J. inv H4.
 Qed.
 
+(*
 Lemma defined_gv_dec : forall gv, defined_gv gv \/ ~ defined_gv gv.
 Proof.
   destruct gv; simpl; auto.
@@ -1952,6 +1827,7 @@ Proof.
         right. intros [J1 J2]. congruence.
       right. intros [J1 J2]. congruence.
 Qed.
+*)
 
 Lemma memory_chuck_dec : forall (mc1 mc2:AST.memory_chunk), 
   mc1 = mc2 \/ mc1 <> mc2.

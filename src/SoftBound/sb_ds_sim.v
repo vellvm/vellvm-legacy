@@ -20,6 +20,7 @@ Require Import Znumtheory.
 Require Import sb_ds_def.
 Require Import sb_ds_trans.
 Require Import sb_ds_metadata.
+Require Import sb_msim.
 Require Import sb_ds_gv_inject.
 Require Import ssa_static.
 Require Import ssa_props.
@@ -338,7 +339,7 @@ Qed.
 
 (* Simulation *)
 
-Definition reg_simulation (mi:Values.meminj) TD gl (F:fdef) 
+Definition reg_simulation (mi:MoreMem.meminj) TD gl (F:fdef) 
   (rm1:SBopsem.rmetadata) (rm2:rmap) (lc1 lc2:GVMap) : Prop :=
 (forall i0 gv1, 
   lookupAL _ lc1 i0 = Some gv1 -> 
@@ -357,9 +358,9 @@ Definition reg_simulation (mi:Values.meminj) TD gl (F:fdef)
 ) /\
 (forall i0 gv1, lookupAL _ lc1 i0 = Some gv1 -> In i0 (getFdefLocs F)).
 
-Definition mem_simulation (mi:Values.meminj) TD (mgb:Values.block) 
+Definition mem_simulation (mi:MoreMem.meminj) TD (mgb:Values.block) 
   (MM1:SBopsem.mmetadata) (Mem1 Mem2:mem) : Prop :=
-Mem.mem_inj mi Mem1 Mem2 /\
+MoreMem.mem_inj mi Mem1 Mem2 /\
 0 <= mgb < Mem.nextblock Mem2 /\
 (forall b1 ofs1, b1 >= Mem.nextblock Mem1 -> MM1 b1 ofs1 = None) /\
 (forall lc2 gl b ofs bgv egv als bid0 eid0 pgv' fs F B cs tmn S Ps 
@@ -397,7 +398,7 @@ Mem.mem_inj mi Mem1 Mem2 /\
     gv_inject mi egv egv'
 ).
 
-Fixpoint als_simulation (mi:Values.meminj) (als1 als2:list mblock) : Prop :=
+Fixpoint als_simulation (mi:MoreMem.meminj) (als1 als2:list mblock) : Prop :=
   match (als1, als2) with
   | (nil, nil) => True
   | (b1::als1', b2::als2') => 
@@ -415,7 +416,7 @@ match fh1 with
 | (fheader_intro _ _ fid _ _) => isCallLib fid = false
 end.
 
-Definition sbEC_simulates_EC_tail (TD:TargetData) Ps1 gl (mi:Values.meminj) 
+Definition sbEC_simulates_EC_tail (TD:TargetData) Ps1 gl (mi:MoreMem.meminj) 
   (sbEC:SBopsem.ExecutionContext) (EC:LLVMopsem.ExecutionContext) : Prop :=
   match (sbEC, EC) with
   | (SBopsem.mkEC f1 b1 ((insn_call i0 nr ca t0 v p)::cs13) tmn1 lc1 rm1 als1, 
@@ -447,7 +448,7 @@ Definition sbEC_simulates_EC_tail (TD:TargetData) Ps1 gl (mi:Values.meminj)
   | _ => False
   end.
 
-Definition sbEC_simulates_EC_head (TD:TargetData) Ps1 gl (mi:Values.meminj) 
+Definition sbEC_simulates_EC_head (TD:TargetData) Ps1 gl (mi:MoreMem.meminj) 
   (sbEC:SBopsem.ExecutionContext) (EC:LLVMopsem.ExecutionContext) : Prop :=
   match (sbEC, EC) with
   | (SBopsem.mkEC f1 b1 cs12 tmn1 lc1 rm1 als1, 
@@ -476,7 +477,7 @@ Definition sbEC_simulates_EC_head (TD:TargetData) Ps1 gl (mi:Values.meminj)
          cs2 = cs22 ++ cs23
   end.
 
-Fixpoint sbECs_simulate_ECs_tail (TD:TargetData) Ps1 gl (mi:Values.meminj) 
+Fixpoint sbECs_simulate_ECs_tail (TD:TargetData) Ps1 gl (mi:MoreMem.meminj) 
   (sbECs:SBopsem.ECStack) (ECs:LLVMopsem.ECStack) : Prop :=
   match sbECs, ECs with
   | nil, nil => True
@@ -486,7 +487,7 @@ Fixpoint sbECs_simulate_ECs_tail (TD:TargetData) Ps1 gl (mi:Values.meminj)
   | _, _ => False
   end.
 
-Definition sbECs_simulate_ECs (TD:TargetData) Ps1 gl (mi:Values.meminj) 
+Definition sbECs_simulate_ECs (TD:TargetData) Ps1 gl (mi:MoreMem.meminj) 
   (sbECs:SBopsem.ECStack) (ECs:LLVMopsem.ECStack) : Prop :=
   match sbECs, ECs with
   | sbEC::sbECs', EC::ECs' => 
@@ -499,7 +500,7 @@ Definition ftable_simulation mi fs1 fs2 : Prop :=
   forall fv1 fv2, gv_inject mi fv1 fv2 ->
     lookupFdefViaGVFromFunTable fs1 fv1 = lookupFdefViaGVFromFunTable fs2 fv2.
 
-Definition sbState_simulates_State (mi:Values.meminj) (mgb:Values.block)
+Definition sbState_simulates_State (mi:MoreMem.meminj) (mgb:Values.block)
   (sbSt:SBopsem.State) (St:LLVMopsem.State) : Prop :=
   match (sbSt, St) with
   | (SBopsem.mkState S1 TD1 Ps1 ECs1 gl1 fs1 M1 MM1,
@@ -592,6 +593,7 @@ end.
 
 Definition nondet_state sbSt (St : LLVMopsem.State) : Prop :=
   match sbSt, St with 
+(*
   | {| CurTargetData := TD;
        ECS := {| CurCmds := insn_gep id0 inbounds0 t vp idxs :: cs;
                  Locals := lc |} :: _;
@@ -600,6 +602,7 @@ Definition nondet_state sbSt (St : LLVMopsem.State) : Prop :=
       | Some vidxs => ~ defined_gvs vidxs
       | _ => False
       end
+*)
   | {| CurTargetData := TD;
        ECS := {| CurCmds := insn_extractvalue _ _ v _ :: _;
                  Locals := lc |} :: _;
@@ -629,6 +632,7 @@ Definition nondet_state sbSt (St : LLVMopsem.State) : Prop :=
           ~ chunk_matched gv1 gv1' \/  ~ chunk_matched gv2 gv2'
       | _ => False
       end
+(*
   | {| CurTargetData := TD;
        ECS := {| CurCmds := insn_select id0 v0 _ _ _ :: cs;
                  Locals := lc |} :: _;
@@ -657,6 +661,7 @@ Definition nondet_state sbSt (St : LLVMopsem.State) : Prop :=
       | Some gv => ~ defined_gv gv
       | _ => False
       end
+*)
   | _, _ => False
   end.
 

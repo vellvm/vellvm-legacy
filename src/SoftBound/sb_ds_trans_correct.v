@@ -19,6 +19,7 @@ Require Import Metatheory.
 Require Import Znumtheory.
 Require Import sb_ds_def.
 Require Import sb_ds_trans.
+Require Import sb_msim.
 Require Import sb_ds_gv_inject.
 Require Import sb_ds_sim.
 Require Import ssa_wf.
@@ -29,7 +30,7 @@ Require Import sb_ds_trans_lib.
 Import SB_ds_pass.
 
 
-Lemma SBpass_is_correct__dsCall : forall (mi : meminj) 
+Lemma SBpass_is_correct__dsCall : forall (mi : MoreMem.meminj) 
   (mgb : Values.block)
   (St : LLVMopsem.State) (S : system) (TD : TargetData) (Ps : list product)
   (F : fdef) (B : block) (lc : GVMap) (rm : SBopsem.rmetadata) (gl : GVMap)
@@ -64,7 +65,7 @@ Lemma SBpass_is_correct__dsCall : forall (mi : meminj)
   (H1 : params2GVs TD lp lc gl rm = ret ogvs)
   (H2 : initLocals la ogvs = (lc', rm')),
    exists St' : LLVMopsem.State,
-     exists mi' : meminj,
+     exists mi' : MoreMem.meminj,
        LLVMopsem.dsop_star St St' trace_nil /\
        sbState_simulates_State mi' mgb
          {|
@@ -184,7 +185,7 @@ Proof.
 Qed.
        
 
-Lemma SBpass_is_correct__dsExCall : forall (mi : meminj) 
+Lemma SBpass_is_correct__dsExCall : forall (mi : MoreMem.meminj) 
   (mgb : Values.block)
   (St : LLVMopsem.State) (S : system) (TD : TargetData) (Ps : list product)
   (F : fdef) (B : block) (lc : GVMap) (rm : SBopsem.rmetadata) (gl : GVMap)
@@ -217,7 +218,7 @@ Lemma SBpass_is_correct__dsExCall : forall (mi : meminj)
   (H1 : callExternalFunction Mem0 fid gvs = ret (oresult, Mem'))
   (H2 : exCallUpdateLocals ft noret0 rid oresult lc rm = ret (lc', rm')),
    exists St' : LLVMopsem.State,
-     exists mi' : meminj,
+     exists mi' : MoreMem.meminj,
        LLVMopsem.dsop_star St St' trace_nil /\
        sbState_simulates_State mi' mgb
          {|
@@ -301,7 +302,7 @@ Proof.
 Qed.
 
 Lemma SBpass_is_correct__dsBranch_uncond : forall
-  (mi : meminj) (mgb : Values.block) (St : LLVMopsem.State) (S : system)
+  (mi : MoreMem.meminj) (mgb : Values.block) (St : LLVMopsem.State) (S : system)
   (TD : TargetData) (Ps : list product) (F : fdef) (B : block) (lc : GVMap)
   (rm : rmetadata) (gl : GVMap) (fs : GVMap) (bid : id) (l0 : l)
   (EC : list ExecutionContext) (Mem0 : mem) (MM : mmetadata) (als : list mblock)
@@ -328,7 +329,7 @@ Lemma SBpass_is_correct__dsBranch_uncond : forall
   (H0 : switchToNewBasicBlock TD (block_intro l' ps' cs' tmn') B gl lc rm =
        ret (lc', rm')),
    exists St' : LLVMopsem.State,
-     exists mi' : meminj,
+     exists mi' : MoreMem.meminj,
        LLVMopsem.dsop_star St St' trace_nil /\
        sbState_simulates_State mi' mgb
          {|
@@ -429,7 +430,7 @@ Proof.
 Qed.
 
 Lemma SBpass_is_correct__dsBranch : forall
-  (mi : meminj) (mgb : Values.block) (St : LLVMopsem.State) (S : system)
+  (mi : MoreMem.meminj) (mgb : Values.block) (St : LLVMopsem.State) (S : system)
   (TD : TargetData) (Ps : list product) (F : fdef) (B : block) (lc : GVMap)
   (rm : rmetadata) (gl : GVMap) (fs : GVMap) (bid : id) (Cond : value)
   (l1 : l) (l2 : l) (EC : list ExecutionContext) (Mem0 : mem) (MM : mmetadata)
@@ -466,7 +467,7 @@ Lemma SBpass_is_correct__dsBranch : forall
   (H1 : switchToNewBasicBlock TD (block_intro l' ps' cs' tmn') B gl lc rm =
        ret (lc', rm')),
   (exists St' : LLVMopsem.State,
-     exists mi' : meminj,
+     exists mi' : MoreMem.meminj,
        LLVMopsem.dsop_star St St' trace_nil /\
        sbState_simulates_State mi' mgb
          {|
@@ -518,8 +519,6 @@ Proof.
   inv J4.
   rewrite Hgenmeta in J1. inv J1.
 
-  simpl. rewrite <- H.
-  destruct (@defined_gv_dec c) as [Hdet | Hndet]; auto.
   symmetry in H.
   eapply simulation__getOperandValue in H; eauto.
   destruct H as [c' [H Hinj]].
@@ -604,7 +603,7 @@ Proof.
 Qed.
 
 Lemma SBpass_is_correct__dsReturn : forall 
-  (mi : meminj)
+  (mi : MoreMem.meminj)
   (mgb : Values.block)
   (St : LLVMopsem.State)
   (S : system)
@@ -664,7 +663,7 @@ Lemma SBpass_is_correct__dsReturn : forall
   (H1 : SBopsem.returnUpdateLocals TD c' RetTy Result lc lc' rm rm' gl =
        ret (lc'', rm'')),
   exists St' : LLVMopsem.State,
-     exists mi' : meminj,
+     exists mi' : MoreMem.meminj,
        LLVMopsem.dsop_star St St' trace_nil /\
        sbState_simulates_State mi' mgb
          {|
@@ -1381,7 +1380,7 @@ Proof.
 Qed.
 
 Lemma SBpass_is_correct__dsReturnVoid : forall
-  (mi : meminj) (mgb : Values.block) (St : LLVMopsem.State) (S : system)
+  (mi : MoreMem.meminj) (mgb : Values.block) (St : LLVMopsem.State) (S : system)
   (TD : TargetData) (Ps : list product) (F : fdef) (B : block)
   (rid : id) (lc : GVMap) (rm : SBopsem.rmetadata) (gl : GVMap)
   (fs : GVMap) (F' : fdef) (B' : block) (c' : cmd) (tmn' : terminator)
@@ -1418,7 +1417,7 @@ Lemma SBpass_is_correct__dsReturnVoid : forall
   (H0 : free_allocas TD Mem als = ret Mem')
   (H1 : getCallerReturnID c' = merror),
   exists St' : LLVMopsem.State,
-     exists mi' : meminj,
+     exists mi' : MoreMem.meminj,
        LLVMopsem.dsop_star St St' trace_nil /\
        sbState_simulates_State mi' mgb
          {|

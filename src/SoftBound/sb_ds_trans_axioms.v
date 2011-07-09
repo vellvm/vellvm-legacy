@@ -18,6 +18,7 @@ Require Import monad.
 Require Import Metatheory.
 Require Import Znumtheory.
 Require Import sb_ds_def.
+Require Import sb_msim.
 Require Import sb_ds_gv_inject.
 Require Import sb_ds_sim.
 Require Import sb_ds_trans.
@@ -111,7 +112,7 @@ Axiom get_mmetadata_fn__alloc__zeroout : forall Mem2 lo hi Mem2' mb2 cm
 Axiom assert_mptr_fn__ok : forall 
   (lc2 : GVMap)
   (Mem2 : mem)
-  (mi : meminj)
+  (mi : MoreMem.meminj)
   (t : typ)
   (vp : value)
   (ptmp : id)
