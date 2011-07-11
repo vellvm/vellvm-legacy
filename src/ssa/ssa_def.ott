@@ -401,7 +401,7 @@ cmd {{ tex c }} :: 'insn_'					    	::=			{{ com commands }}
   | id = fcmp fcond floating_point value1 value2	::   :: fcmp		{{ com fcmp }}
   | id = select value0 typ value1 value2                ::   :: select          {{ com select }}
   | id = noret clattrs call typ0 value0 params    	::   :: call		{{ com call }} 
-      {{ tex [[id]]\, [[=]]\, \ottkw{call}\, [[typ0]]\, [[value0]]\, [[params]] }}
+      {{ tex \ottnt{option}\,[[id]]\, [[=]]\, \ottkw{call}\, [[typ0]]\, [[value0]]\, [[params]] }}
   %| va_arg
   | ( insn )						:: S :: paren           {{ coq [[ insn ]] }}
 
@@ -610,6 +610,9 @@ terminals :: 'terminals_' ::=
   | |-f			::   :: fshows          {{ tex \vdash_{f} }}
   | in			::   :: in		{{ tex \in }}
   | ;			::   :: colon		{{ tex ; }}
+  | \/                  ::   :: union           {{ tex \cup }}
+  | >>=                 ::   :: ggeq            {{ tex \gg= }}
+  | >>                  ::   :: gg              {{ tex \gg }}
 
 embed 
 {{ coq

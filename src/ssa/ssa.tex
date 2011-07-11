@@ -316,7 +316,7 @@
 \ottprodline{|}{\ottmv{id}  = \, \ottkw{icmp} \, \ottnt{cond} \, \ottnt{typ} \, val_{{\mathrm{1}}} \, val_{{\mathrm{2}}}}{}{}{}{\ottcom{icmp}}\\ 
 \ottprodline{|}{\ottmv{id}  = \, \ottkw{fcmp} \, \ottnt{fcond} \, fp \, val_{{\mathrm{1}}} \, val_{{\mathrm{2}}}}{}{}{}{\ottcom{fcmp}}\\ 
 \ottprodline{|}{\ottmv{id}  = \, \ottkw{select} \, val_{{\mathrm{0}}} \, \ottnt{typ} \, val_{{\mathrm{1}}} \, val_{{\mathrm{2}}}}{}{}{}{\ottcom{select}}\\ 
-\ottprodline{|}{ \ottmv{id} \,  = \, \ottkw{call}\,  \ottnt{typ_{{\mathrm{0}}}} \,  val_{{\mathrm{0}}} \,  \mathit{\overline{param} } }{}{}{}{\ottcom{call}}\\ 
+\ottprodline{|}{ \ottnt{option}\, \ottmv{id} \,  = \, \ottkw{call}\,  \ottnt{typ_{{\mathrm{0}}}} \,  val_{{\mathrm{0}}} \,  \mathit{\overline{param} } }{}{}{}{\ottcom{call}}\\ 
 \ottprodline{|}{\ottsym{(}  \ottnt{insn}  \ottsym{)}} {\textsf{S}}{}{}{}}
 
 \newcommand{\ottterminator}{
@@ -1428,9 +1428,9 @@
 \ottpremise{\ottnt{typ_{{\mathrm{0}}}}  =  \ottnt{typ_{{\mathrm{1}}}}  \ottsym{(} \, \ottcomp{\ottnt{typ'_{\ottmv{j}}}}{\ottmv{j}} \, \ottnt{varg}  \ottsym{)}}%
 \ottpremise{\ottcomp{\ottnt{system}  \ottsym{,}  mod  \ottsym{,}  \ottnt{fdef}  \vdash  val''_{\ottmv{j}}  \ottsym{:}  \ottnt{typ'_{\ottmv{j}}}}{\ottmv{j}}}%
 \ottpremise{ \ottnt{typ_{{\mathrm{1}}}}  \ottsym{=t=}  \ottkw{void}  \mathit{implies}  \ottnt{noret}  = \, \ottkw{yes} }%
-\ottpremise{\ottnt{fdef}  \ottsym{,}  b  \vdash_{i}   \ottmv{id} \,  = \, \ottkw{call}\,  \ottnt{typ_{{\mathrm{0}}}} \,  val_{{\mathrm{0}}} \,  \mathit{\overline{param} } }%
+\ottpremise{\ottnt{fdef}  \ottsym{,}  b  \vdash_{i}   \ottnt{option}\, \ottmv{id} \,  = \, \ottkw{call}\,  \ottnt{typ_{{\mathrm{0}}}} \,  val_{{\mathrm{0}}} \,  \mathit{\overline{param} } }%
 }{
-\ottnt{intrinsic\_funs}  \ottsym{,}  \ottnt{system}  \ottsym{,}  mod  \ottsym{,}  \ottnt{fdef}  \ottsym{,}  b  \vdash   \ottmv{id} \,  = \, \ottkw{call}\,  \ottnt{typ_{{\mathrm{0}}}} \,  val_{{\mathrm{0}}} \,  \mathit{\overline{param} } }{%
+\ottnt{intrinsic\_funs}  \ottsym{,}  \ottnt{system}  \ottsym{,}  mod  \ottsym{,}  \ottnt{fdef}  \ottsym{,}  b  \vdash   \ottnt{option}\, \ottmv{id} \,  = \, \ottkw{call}\,  \ottnt{typ_{{\mathrm{0}}}} \,  val_{{\mathrm{0}}} \,  \mathit{\overline{param} } }{%
 {\ottdrulename{wf\_insn\_call}}{}%
 }}
 
