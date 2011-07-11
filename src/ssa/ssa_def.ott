@@ -152,7 +152,7 @@ layouts {{ tex \mathit{\overline{layout} } }} :: 'layouts_'	::=  		{{ com layout
   | layouts ; layouts'					::   :: append		{{ coq ([[layouts]]++[[layouts']]) }}
   | ( layouts )						:: S :: paren           {{ coq [[ layouts ]] }}
 
-floating_point {{ tex fp }} :: 'fp_'			::=  			{{ com floating point types }}
+floating_point {{ tex \mathit{fp} }} :: 'fp_'			::=  			{{ com floating point types }}
   | float						::   :: float		{{ com float }}
   | double						::   :: double          {{ com double }}
   | fp128						::   :: fp128           {{ com fp128 }} 
@@ -197,7 +197,7 @@ cond :: 'cond_'						::=			{{ com condition code }}
   | slt							::   :: slt		{{ com slt }}
   | sle							::   :: sle		{{ com sle }}
 
-fcond :: 'fcond_'					::=  			{{ com float condition code }}
+fcond {{ tex \mathit{fcond} }} :: 'fcond_'					::=  			{{ com float condition code }}
   | false						::   :: false 		{{ com false }}
   | oeq							::   :: oeq		{{ com oeq }}
   | ogt							::   :: ogt		{{ com ogt }}
@@ -264,10 +264,10 @@ noret :: 'noret_'					::=  			{{ com noret }} {{ coq bool }}
   | noret_no						::   :: no              {{ com no }} {{ coq false }}
 
 truncop {{ tex trop }} :: 'truncop_'			::=  			{{ com trunc operators }}
-  | trunc_int						::   :: int		{{ com trunc }}
-  | trunc_fp						::   :: fp		{{ com fptrunc }}
+  | trunc_int						::   :: int		{{ com trunc }}  {{ tex \ottkw{trunc}_{\mathit{int} } }}
+  | trunc_fp						::   :: fp		{{ com fptrunc }} {{ tex \ottkw{trunc}_{\mathit{fp} } }}
 
-const {{ tex cst }} :: 'const_'				::=  			{{ com constant }}
+const {{ tex \mathit{cnst} }} :: 'const_'				::=  			{{ com constant }}
   | typ zeroinitializer					::   :: zeroinitializer {{ com zeroinitializer }}
   | ( int sz ) Int					::   :: int		{{ com int }}	
   | floating_point Float				::   :: floatpoint	{{ com floatpoint }}
@@ -453,7 +453,7 @@ phinodes {{ tex \mathit{\overline{\phi} } }} :: 'phinodes_'	::=		{{ com phinodes
   | ( phinodes )					:: S :: paren           {{ coq [[ phinodes ]] }}
 
 block {{ tex b }} :: 'block_' 	::=	     			{{ com block }}
-  | l phinodes cmds terminator				::   :: intro
+  | l phinodes cmds terminator				::   :: intro           {{ tex [[l]] [[phinodes]] [[cmds]] [[terminator]] }}
   | ( block )						:: S :: paren           {{ coq [[ block ]] }}
 
 opt_block {{ tex \mathit{opt_{b} } }} :: 'opt_block_' ::=			{{ com option block }} {{ coq option block }}
