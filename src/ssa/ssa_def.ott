@@ -173,6 +173,7 @@ typ :: 'typ_'						::=			{{ com type }}
   | [ sz * typ ]              				::   :: array       	{{ com array }}
       {{ tex \ottsym{[}\, [[sz]]\, \times \, [[typ]] \, \ottsym{]}  }}
   | typ ( </ typj // j /> varg ) 			::   :: function    	{{ com function }}
+      {{ tex [[typ]]\, \overline{typ_j}^{j}  }}
   | { </ typj // j /> }       				::   :: struct      	{{ com structure }}
   | typ *                     				::   :: pointer     	{{ com pointer }}
   %| < sz * typ >             				::   :: vector       	{{ com vector }}
@@ -269,7 +270,7 @@ truncop {{ tex trop }} :: 'truncop_'			::=  			{{ com trunc operators }}
 
 const {{ tex \mathit{cnst} }} :: 'const_'				::=  			{{ com constant }}
   | typ zeroinitializer					::   :: zeroinitializer {{ com zeroinitializer }}
-  | ( int sz ) Int					::   :: int		{{ com int }}	{{ tex [[int sz]] [[Int]] }}
+  | ( int sz ) Int					::   :: int		{{ com int }}	{{ tex \ottkw{i}[[sz]]\,[[Int]] }}
   | floating_point Float				::   :: floatpoint	{{ com floatpoint }}
   | typ undef						::   :: undef		{{ com undef }}
   | ( typ * ) null					::   :: null		{{ com null }}
