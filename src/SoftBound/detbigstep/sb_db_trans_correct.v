@@ -1,9 +1,9 @@
-Add LoadPath "../ssa/ott".
-Add LoadPath "../ssa/monads".
-Add LoadPath "../ssa".
-Add LoadPath "../ssa/compcert".
-Add LoadPath "../../../theory/metatheory_8.3".
-Add LoadPath "../TV".
+Add LoadPath "../../ssa/ott".
+Add LoadPath "../../ssa/monads".
+Add LoadPath "../../ssa".
+Add LoadPath "../../ssa/compcert".
+Add LoadPath "../../../../theory/metatheory_8.3".
+Add LoadPath "../../TV".
 Require Import sb_db_trans.
 Require Import ssa_def.
 Require Import ssa_lib.
