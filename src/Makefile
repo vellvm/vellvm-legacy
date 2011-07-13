@@ -15,6 +15,7 @@ coq:
 	+make -C ./ssa
 	+make -C ./TV
 	+make -C ./SoftBound
+	+make -C ./SoftBound/detbigstep
 	+make -C ./Extraction
 
 ocaml: coq $(CMAS) $(CMXAS)
