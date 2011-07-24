@@ -312,7 +312,7 @@ Fixpoint _getTypeSizeInBits_and_Alignment (los:layouts) (nts:list (id*(nat*nat))
 
   let getTypeAllocSizeInBits :=
       fun typeSizeInBits ABIalignment =>
-      (8 * getTypeAllocSize typeSizeInBits ABIalignment)%nat in
+      (getTypeAllocSize typeSizeInBits ABIalignment * 8)%nat in
 
   match t with
   | typ_label => Some (Size.to_nat (getPointerSizeInBits los), 
@@ -327,11 +327,17 @@ Fixpoint _getTypeSizeInBits_and_Alignment (los:layouts) (nts:list (id*(nat*nat))
                         abi_or_pref) 
 
   | typ_array n t' => 
-    (* getting ABI alignment *)
-    match (_getTypeSizeInBits_and_Alignment los nts true t') with 
-    | None => None
-    | Some (sz, al) => 
-      Some (((getTypeAllocSizeInBits sz al)*Size.to_nat n)%nat, al)
+    match n with
+    | O => 
+      (* Empty arrays have alignment of 1 byte. *)
+      Some (8%nat, 1%nat)
+    | _ =>
+      (* getting ABI alignment *)
+      match (_getTypeSizeInBits_and_Alignment los nts true t') with 
+      | None => None
+      | Some (sz, al) => 
+          Some (((getTypeAllocSizeInBits sz al)*Size.to_nat n)%nat, al)
+      end
     end
 
   | typ_struct lt => 
@@ -343,8 +349,8 @@ Fixpoint _getTypeSizeInBits_and_Alignment (los:layouts) (nts:list (id*(nat*nat))
       (* Add padding to the end of the struct so that it could be put in an array
          and all array elements would be aligned correctly. *)
        match sz with
-       | O => Some ((8*(RoundUpAlignment 1%nat al))%nat, al)
-       | _ => Some ((8*(RoundUpAlignment sz al))%nat, al)
+       | O => Some (8%nat, 1%nat)
+       | _ => Some (sz, al)
        end
     end  
 
@@ -374,6 +380,10 @@ with _getListTypeSizeInBits_and_Alignment (los:layouts) (nts:list (id*(nat*nat))
       (* Round up to the next alignment boundary *)
       RoundUpAlignment (getTypeStoreSize typeSizeInBits) ABIalignment in
 
+  let getTypeAllocSizeInBits :=
+      fun typeSizeInBits ABIalignment =>
+      (getTypeAllocSize typeSizeInBits ABIalignment * 8)%nat in
+
   match lt with
   | Nil_list_typ => Some (0%nat, 0%nat)
   | Cons_list_typ t lt' =>
@@ -384,20 +394,11 @@ with _getListTypeSizeInBits_and_Alignment (los:layouts) (nts:list (id*(nat*nat))
           (* Add padding if necessary to align the data element properly. *)
           (* Keep track of maximum alignment constraint. *)
           (* Consume space for this data item *)
-          match (le_lt_dec sub_al struct_al) with
-          | left _ (* struct_al <= sub_al *) =>
-            Some (
-              (RoundUpAlignment struct_sz sub_al + 
-              getTypeAllocSize sub_sz sub_al)%nat,
-              sub_al
-            )
-          | right _ (* sub_al < struct_al *) =>
-            Some (
-              (RoundUpAlignment struct_sz sub_al + 
-              getTypeAllocSize sub_sz sub_al)%nat,
-              struct_al
-            )
-          end
+          Some ((struct_sz + getTypeAllocSizeInBits sub_sz sub_al)%nat,
+                 match (le_lt_dec sub_al struct_al) with
+                 | left _ (* sub_al <= struct_al *) => struct_al
+                 | right _ (* struct_al < sub_al *) => sub_al
+                 end)
     | _ => None
     end
   end.

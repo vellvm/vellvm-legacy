@@ -238,6 +238,8 @@ formula :: 'formula_' ::=
                                 {{ coq getInsnOperands [[insn]] = [[ids]] }}
   | getInsnLabels insn = ls :: :: getInsnLabels
                                 {{ coq getInsnLabels [[insn]] = [[ls]] }}
+  | checkIndexes targetdata typ </ constj // j /> = typ' :: :: checkIndexes
+      {{ coq (exists idxs, exists o, intConsts2Nats [[targetdata]] [[ </ constj // j /> ]] = Some idxs /\ mgetoffset [[targetdata]] [[typ]] idxs = Some (o, [[typ']])) }}
   | getSubTypFromConstIdxs </ constj // j /> typ = opt_typ :: :: getSubTypFromConstIdxs
                                 {{ coq getSubTypFromConstIdxs [[ </ constj // j /> ]] [[typ]] = [[opt_typ]] }}
   | getConstGEPTyp </ constj // j /> typ = opt_typ :: :: getConstGEPTyp

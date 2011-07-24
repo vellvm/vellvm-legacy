@@ -923,25 +923,6 @@ Proof.
   destruct v; tinv J1. simpl. congruence.
 Qed. 
 
-Lemma mload_inv : forall Mem2 t align0 TD gvp2 
-  (gv2 : GenericValue)
-  (H21 : mload TD Mem2 gvp2 t align0 = ret gv2),
-  exists b, exists ofs, exists m, gvp2 = (Vptr b ofs,m)::nil.
-Proof.
-  intros.
-  unfold mload in H21.
-  remember (GV2ptr TD (getPointerSize TD) gvp2) as R.
-  destruct R; try solve [inversion H21].
-  destruct v; try solve [inversion H21].
-  unfold GV2ptr in HeqR.
-  destruct gvp2; try solve [inversion HeqR].
-  destruct p.
-  destruct v; try solve [inversion HeqR].
-  destruct gvp2; inv HeqR.
-  exists b0. exists i1. 
-  unfold ptr2GV, val2GV. eauto.
-Qed.
-
 Lemma mload__defined_gv : forall TD M ptr t a gv,
   mload TD M ptr t a = Some gv ->
   defined_gv ptr.

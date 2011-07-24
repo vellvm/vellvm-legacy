@@ -193,6 +193,51 @@ Proof.
     simpl. destruct n; inv H1; auto.
 Qed.
 
+Fixpoint mgetoffset_aux (TD:LLVMtd.TargetData) (t:typ) (idxs:list Z) (accum:Z) 
+  : option (Z * typ) := 
+  match idxs with
+  | nil => Some (accum, t)
+  | idx::idxs' =>
+     match t with
+     | typ_array _ t' =>
+         match (LLVMtd.getTypeAllocSize TD t') with
+         | Some sz => 
+             mgetoffset_aux TD t' idxs' (accum + (Z_of_nat sz) * idx)
+         | _ => None
+         end
+     | typ_struct lt => 
+         match (LLVMtd.getStructElementOffset TD t (Coqlib.nat_of_Z idx)) 
+         with
+         | Some ofs =>
+             do t' <- nth_list_typ (Coqlib.nat_of_Z idx) lt;
+               mgetoffset_aux TD t' idxs' (accum + (Z_of_nat ofs))
+         | _ => None
+         end
+     | _ => None
+     end
+  end.  
+
+Definition mgetoffset (TD:LLVMtd.TargetData) (t:typ) (idxs:list Z) 
+  : option (Z * typ) := 
+(*let (_, nts) := TD in
+do ut <- Constant.typ2utyp nts t;*)
+mgetoffset_aux TD t idxs 0.
+
+Fixpoint intConsts2Nats (TD:LLVMtd.TargetData) (lv:list_const) 
+  : option (list Z):=
+match lv with
+| Nil_list_const => Some nil
+| Cons_list_const (const_int sz0 n) lv' => 
+  if Size.dec sz0 Size.ThirtyTwo 
+  then
+    match (intConsts2Nats TD lv') with
+    | Some ns => Some ((INTEGER.to_Z n)::ns)
+    | None => None
+    end
+  else None
+| _ => None
+end.
+
 (** Statically idx for struct must be int, and idx for arr can be
     anything without checking bounds. *)
 Fixpoint getSubTypFromConstIdxs (idxs : list_const) (t : typ) : option typ :=
@@ -2793,12 +2838,6 @@ End User.
 Module Constant <: SigConstant.
  Include Value.
 
-Definition feasible_typ TD t :=
-  match LLVMtd.getTypeSizeInBits_and_Alignment TD true t with
-  | None => False
-  | _ => True
-  end.
-
 Fixpoint wf_zeroconst_typ (t:typ) : Prop :=
 match t with
 | typ_int sz => True
@@ -2822,11 +2861,26 @@ match lt with
 end
 .
 
-Definition feasible_typs TD lt :=
-  match LLVMtd.getListTypeSizeInBits_and_Alignment TD true lt with
-  | None => False
-  | _ => True
-  end.
+Definition feasible_typ_aux TD t : Prop :=
+ match LLVMtd.getTypeSizeInBits_and_Alignment TD true t with
+ | None => False
+ | Some (sz, al) => (al > 0)%nat
+ end.
+
+Fixpoint feasible_typ TD t : Prop :=
+match t with
+| typ_int _ | typ_pointer _ | typ_floatpoint fp_float 
+| typ_floatpoint fp_double => feasible_typ_aux TD t
+| typ_array _ t' => feasible_typ TD t'
+| typ_struct ts => feasible_typs TD ts
+| _ => False
+end
+with feasible_typs (TD:LLVMtd.TargetData) (lt:list_typ) : Prop :=
+match lt with
+| Nil_list_typ => True
+| Cons_list_typ t lt' => feasible_typ TD t /\ feasible_typs TD lt'
+end.
+
 Definition wf_zeroconst TD t := wf_zeroconst_typ t /\ feasible_typ TD t.
 
 Fixpoint getTyp (c:const) : option typ :=

@@ -1566,9 +1566,10 @@ Proof.
   auto.
 Qed.  
 
-Lemma initLocals_spec : forall la gvs id1,
+Lemma initLocals_spec : forall TD la gvs id1 lc,
   In id1 (getArgsIDs la) ->
-  exists gv, lookupAL _ (initLocals la gvs) id1 = Some gv.
+  initLocals TD la gvs = Some lc ->
+  exists gv, lookupAL _ lc id1 = Some gv.
 Proof.
   unfold initLocals.
   induction la; intros; simpl in *.
@@ -1578,14 +1579,50 @@ Proof.
     simpl in H.
     destruct H as [H | H]; subst; simpl.
       destruct gvs. 
-        exists (gundef t). apply lookupAL_updateAddAL_eq; auto.      
-        exists g. apply lookupAL_updateAddAL_eq; auto.      
+        remember (_initializeFrameValues TD la nil nil) as R1.
+        destruct R1; tinv H0.
+        remember (gundef TD t) as R2.
+        destruct R2; inv H0.
+        exists (? g0 # t ?). apply lookupAL_updateAddAL_eq; auto.      
+
+        remember (_initializeFrameValues TD la gvs nil) as R1.
+        destruct R1; tinv H0.
+        remember (fit_gv TD g t) as R2.
+        destruct R2; inv H0.
+        exists (? g1 # t ?). apply lookupAL_updateAddAL_eq; auto.      
 
       destruct (eq_atom_dec id0 id1); subst.
         destruct gvs.
-          exists (gundef t). apply lookupAL_updateAddAL_eq; auto.
-          exists g. apply lookupAL_updateAddAL_eq; auto.
-        destruct gvs; rewrite <- lookupAL_updateAddAL_neq; auto.
+          remember (_initializeFrameValues TD la nil nil) as R1.
+          destruct R1; tinv H0.
+          remember (gundef TD t) as R2.
+          destruct R2; inv H0.
+          exists (? g0 # t ?). apply lookupAL_updateAddAL_eq; auto.      
+
+          remember (_initializeFrameValues TD la gvs nil) as R1.
+          destruct R1; tinv H0.
+          remember (fit_gv TD g t) as R2.
+          destruct R2; inv H0.
+          exists (? g1 # t ?). apply lookupAL_updateAddAL_eq; auto.      
+
+        destruct gvs.
+          remember (_initializeFrameValues TD la nil nil) as R1.
+          destruct R1; tinv H0.
+          remember (gundef TD t) as R2.
+          destruct R2; inv H0.
+          symmetry in HeqR1.
+          eapply IHla in HeqR1; eauto.
+          destruct HeqR1 as [gv HeqR1]. 
+          exists gv. rewrite <- lookupAL_updateAddAL_neq; auto.
+
+          remember (_initializeFrameValues TD la gvs nil) as R1.
+          destruct R1; tinv H0.
+          symmetry in HeqR1.
+          eapply IHla in HeqR1; eauto.
+          destruct HeqR1 as [gv HeqR1]. 
+          remember (fit_gv TD g t) as R2.
+          destruct R2; inv H0.
+          exists gv. rewrite <- lookupAL_updateAddAL_neq; auto.
 Qed.
 
 Lemma InBlocksB__lookupAL_genLabel2Block_blocks : forall lb1 l' ps' cs' tmn',
