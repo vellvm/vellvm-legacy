@@ -371,11 +371,10 @@ Inductive dsInsn : State -> State -> trace -> Prop :=
     trace_nil
 
 | dsGEP : forall S TD Ps F B lc gl fs id inbounds t v idxs vidxs EC mp mp' 
-                 cs tmn Mem als t',
+                 cs tmn Mem als,
   getOperandValue TD v lc gl = Some mp ->
   values2GVs TD idxs lc gl = Some vidxs ->
-  getGEPTyp idxs t = ret t' ->
-  GEP TD t mp vidxs inbounds t' = Some mp' ->
+  GEP TD t mp vidxs inbounds = Some mp' ->
   dsInsn 
     (mkState S TD Ps ((mkEC F B ((insn_gep id inbounds t v idxs)::cs) tmn lc
                        als)::EC) gl fs Mem) 
@@ -803,11 +802,10 @@ Inductive nsInsn : State*trace -> States -> Prop :=
     ((mkState S TD Ps ((mkEC F B cs tmn lc als)::EC) gl fs Mem', tr)::nil)
 
 | nsGEP : forall S TD Ps F B lc gl fs id inbounds t v idxs vidxs EC mp mp' 
-                 cs tmn Mem als tr t',
+                 cs tmn Mem als tr,
   getOperandValue TD v lc gl = Some mp ->
   values2GVs TD idxs lc gl = Some vidxs ->
-  getGEPTyp idxs t = ret t' ->
-  GEP TD t mp vidxs inbounds t' = Some mp' ->
+  GEP TD t mp vidxs inbounds = Some mp' ->
   nsInsn 
     (mkState S TD Ps ((mkEC F B ((insn_gep id inbounds t v idxs)::cs) tmn lc
                        als)::EC) gl fs Mem, tr) 
@@ -1183,11 +1181,10 @@ Inductive dbInsn : State -> State -> trace -> Prop :=
     trace_nil
 
 | dbGEP : forall S TD Ps F B lc gl fs id inbounds t v idxs vidxs EC mp mp' 
-                 cs tmn Mem als t',
+                 cs tmn Mem als,
   getOperandValue TD v lc gl = Some mp ->
   values2GVs TD idxs lc gl = Some vidxs ->
-  getGEPTyp idxs t = ret t' ->
-  GEP TD t mp vidxs inbounds t' = Some mp' ->
+  GEP TD t mp vidxs inbounds = Some mp' ->
   dbInsn 
     (mkState S TD Ps ((mkEC F B ((insn_gep id inbounds t v idxs)::cs) tmn lc
                        als)::EC) gl fs Mem) 
@@ -1606,11 +1603,10 @@ Inductive nbInsn : State*trace -> States -> Prop :=
     ((mkState S TD Ps ((mkEC F B cs tmn lc als)::EC) gl fs Mem', tr)::nil)
 
 | nbGEP : forall S TD Ps F B lc gl fs id inbounds t v idxs vidxs EC mp mp' 
-                 cs tmn Mem als tr t',
+                 cs tmn Mem als tr,
   getOperandValue TD v lc gl = Some mp ->
   values2GVs TD idxs lc gl = Some vidxs ->
-  getGEPTyp idxs t = ret t' ->
-  GEP TD t mp vidxs false t' = Some mp' ->
+  GEP TD t mp vidxs false = Some mp' ->
   nbInsn 
     (mkState S TD Ps ((mkEC F B ((insn_gep id inbounds t v idxs)::cs) tmn lc
                        als)::EC) gl fs Mem, tr) 

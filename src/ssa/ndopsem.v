@@ -414,11 +414,11 @@ Notation "vidxs @@ vidxss" := (in_list_gvs vidxs vidxss)
   (at level 43, right associativity).
 
 Definition GEP (TD:TargetData) (t:typ) (mas:GVs) (vidxss:list GVs) 
-  (inbounds:bool) (t':typ) : option GVs :=
+  (inbounds:bool) : option GVs :=
   Some (fun gv => exists ma, exists vidxs, exists gv', 
         ma @ mas /\ vidxs @@ vidxss /\
-        LLVMgv.GEP TD t ma vidxs inbounds t' = Some gv' /\ 
-        (gv @ $ gv' # t' $)).
+        LLVMgv.GEP TD t ma vidxs inbounds = Some gv' /\ 
+        (gv @ $ gv' # (typ_pointer (typ_int 1%nat)) $)).
 
 Definition mget' TD o t' gv: option GenericValue :=
 match mget TD gv o t' with 
@@ -672,11 +672,10 @@ Inductive nsInsn : State -> State -> trace -> Prop :=
     trace_nil
 
 | nsGEP : forall S TD Ps F B lc gl fs id inbounds t v idxs vidxs EC mp mp' 
-                 cs tmn Mem als t',
+                 cs tmn Mem als,
   getOperandValue TD v lc gl = Some mp ->
   values2GVs TD idxs lc gl = Some vidxs ->
-  getGEPTyp idxs t = ret t' ->
-  GEP TD t mp vidxs inbounds t' = Some mp' ->
+  GEP TD t mp vidxs inbounds = Some mp' ->
   nsInsn 
     (mkState S TD Ps ((mkEC F B ((insn_gep id inbounds t v idxs)::cs) tmn lc
                        als)::EC) gl fs Mem) 

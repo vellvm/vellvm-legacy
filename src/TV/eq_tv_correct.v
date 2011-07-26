@@ -591,7 +591,7 @@ Case "dbCall_internal".
     eapply H with (S2:=S2)(Ps2:=Ps2) in H7; eauto.
     clear H.
     destruct H7 as [lb2 [B2' [n [slc [J1 [J2 [J3 [J4 [J5 [J6 HeqEnv]]]]]]]]]].
-    destruct (@eqAL_callUpdateLocals' (los, nts) noret0 rid (Some Result)
+    destruct (@eqAL_callUpdateLocals' (los, nts) ft noret0 rid (Some Result)
       lc lc' gl lc slc lc'' (@eqAL_refl _ lc) (@eqAL_sym _ slc lc' HeqEnv) Hcall)
       as [lc2'' [J7 J8]].
     exists lc2''. split; eauto using eqAL_sym.
@@ -599,7 +599,7 @@ Case "dbCall_internal".
     eapply H with (S2:=S2)(Ps2:=Ps2) in H7; eauto.
     clear H.
     destruct H7 as [lb2 [B2' [n [slc [J1 [J2 [J3 [J4 [J5 [J6 HeqEnv]]]]]]]]]].
-    destruct (@eqAL_callUpdateLocals' (los, nts) noret0 rid None
+    destruct (@eqAL_callUpdateLocals' (los, nts) ft noret0 rid None
       lc lc' gl lc slc lc'' (@eqAL_refl _ lc) (@eqAL_sym _ slc lc' HeqEnv) Hcall)
       as [lc2'' [J7 J8]].
     exists lc2''. split; eauto using eqAL_sym.
@@ -815,8 +815,8 @@ Case "dbBlocks_cons".
 Case "dbFdef_func".
     intros S TD Ps gl fs fv fid lp lc rid l1 ps1 cs1 tmn1 fa rt la va lb Result 
            lc1 tr1 Mem0 Mem1 als1
-           l2 ps2 cs21 cs22 lc2 als2 Mem2 tr2 lc3 als3 Mem3 tr3 gvs e e0 e1 
-           d H d0 H0 d1
+           l2 ps2 cs21 cs22 lc2 als2 Mem2 tr2 lc3 als3 Mem3 tr3 gvs lc0 e e0 e1 
+           Hinit d H d0 H0 d1
            fid0 Ps2 S2 la0 va0 lb1 los nts fa0 H1 H2 H3 H4 H5 H6 H7 H8 H9.
     rewrite H1 in e. inversion e; subst. clear e.
     assert (exists lb2, lookupFdefViaGV (los, nts) Ps2 gl lc fs fv = 
@@ -824,13 +824,13 @@ Case "dbFdef_func".
               tv_blocks lb lb2) as J.
       apply tv_products__lookupFdefViaGV with (Ps1:=Ps); auto.
     destruct J as [lb2 [H10 H11]].
-    assert (uniq (initLocals la gvs)) as uniqInitLocals.
-      apply initLocals_uniq.
+    assert (uniq lc0) as uniqInitLocals.
+      eapply initLocals_uniq; eauto.
     assert (Htv_blocks:=H11).
     eapply H with (S2:=S2)(Ps2:=Ps2)(fh1:=fheader_intro fa rt fid la va)
       (fh2:=fheader_intro fa rt fid la va)(n:=0)
       (ps1':=ps2)(l1':=l2)(als:=nil)(lc':=lc1) 
-      (lc:=initLocals la gvs)
+      (lc:=lc0)
       (Mem:=Mem0)(Mem':=Mem1)(als':=als1)(tmn1':=insn_return rid rt Result)
       (cs1':=cs21++cs22) 
       (ps3:=ps1)(cs2:=cs1)(tmn2:=tmn1)(l3:=l1)in H11; eauto.
@@ -877,8 +877,8 @@ Case "dbFdef_func".
             eauto using lookupFdefViaGVInSystem.
       assert (wf_subblocks sbs2 /\ wf_nbranchs nbs2) as J.
         apply uniqCmds___wf_subblocks_wf_nbranchs with (cs:=cs41++cs42); auto.
-          clear - J6 J1 H10 H6 H2 H1 H4.
-          apply se_dbBlocks_preservation in J6; auto using initLocals_uniq.
+          clear - J6 J1 H10 H6 H2 H1 H4 uniqInitLocals.
+          apply se_dbBlocks_preservation in J6; eauto using initLocals_uniq.
           destruct J6 as [uinqc1 Bin].
           apply blockInSystemModuleFdef_inv in Bin.
           destruct Bin as [J2 [J3 [J4 J5]]].
@@ -924,21 +924,21 @@ Case "dbFdef_func".
 Case "dbFdef_proc".
     intros S TD Ps gl fs fv fid lp lc rid l1 ps1 cs1 tmn1 fa rt la va lb lc1 tr1 
            Mem0 Mem1 als1 l2 ps2 cs21 cs22 lc2 als2 Mem2 tr2 lc3 als3 Mem3 tr3 
-           gvs e e0 e1 d H d0 H0 d1 fid0 Ps2 S2 la0 va0 lb1 los nts fa0 H1 H2 H3 
-           H4 H5 H6 H7 H8 H9.
+           gvs lc0 e e0 e1 Hinit d H d0 H0 d1 fid0 Ps2 S2 la0 va0 lb1 los nts 
+           fa0 H1 H2 H3 H4 H5 H6 H7 H8 H9.
     rewrite H1 in e. inversion e; subst. clear e.
     assert (exists lb2, lookupFdefViaGV (los, nts) Ps2 gl lc fs fv = 
               Some (fdef_intro (fheader_intro fa rt fid la va) lb2) /\
               tv_blocks lb lb2) as J.
       apply tv_products__lookupFdefViaGV with (Ps1:=Ps); auto.
     destruct J as [lb2 [H10 H11]].
-    assert (uniq (initLocals la gvs)) as uniqInitLocals.
-      apply initLocals_uniq.
+    assert (uniq lc0) as uniqInitLocals.
+      eapply initLocals_uniq; eauto.
     assert (Htv_blocks:=H11).
     eapply H with (S2:=S2)(Ps2:=Ps2)(fh1:=fheader_intro fa rt fid la va)
       (fh2:=fheader_intro fa rt fid la va)(n:=0)
       (ps1':=ps2)(l1':=l2)(als:=nil)(lc':=lc1)
-      (lc:=(initLocals la gvs))
+      (lc:=lc0)
       (Mem:=Mem0)(Mem':=Mem1)(als':=als1)(tmn1':=insn_return_void rid)
       (cs1':=cs21++cs22) 
       (ps3:=ps1)(cs2:=cs1)(tmn2:=tmn1)(l3:=l1)in H11; eauto.
@@ -985,8 +985,8 @@ Case "dbFdef_proc".
             eauto using lookupFdefViaGVInSystem.
       assert (wf_subblocks sbs2 /\ wf_nbranchs nbs2) as J.
         apply uniqCmds___wf_subblocks_wf_nbranchs with (cs:=cs41++cs42); auto.
-          clear - J6 J1 H10 H6 H2 H1 H4.
-          apply se_dbBlocks_preservation in J6; auto using initLocals_uniq.
+          clear - J6 J1 H10 H6 H2 H1 H4 uniqInitLocals.
+          apply se_dbBlocks_preservation in J6; eauto using initLocals_uniq.
           destruct J6 as [uinqc1 Bin].
           apply blockInSystemModuleFdef_inv in Bin.
           destruct Bin as [J2 [J3 [J4 J5]]].

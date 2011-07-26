@@ -1400,7 +1400,6 @@
 \newcommand{\ottdrulewfXXinsnXXicmp}[1]{\ottdrule[#1]{%
 \ottpremise{\ottnt{system}  \ottsym{,}  \ottsym{(}  \mathit{\overline{layout} } \, \mathit{\overline{namedt} } \, \mathit{\overline{prod} }  \ottsym{)}  \ottsym{,}  \ottnt{fdef}  \vdash  val_{{\mathrm{1}}}  \ottsym{:}  \ottnt{typ}}%
 \ottpremise{\ottnt{system}  \ottsym{,}  \ottsym{(}  \mathit{\overline{layout} } \, \mathit{\overline{namedt} } \, \mathit{\overline{prod} }  \ottsym{)}  \ottsym{,}  \ottnt{fdef}  \vdash  val_{{\mathrm{2}}}  \ottsym{:}  \ottnt{typ}}%
-\ottpremise{\texttt{Constant.feasible\_typ }\ottsym{(}  \mathit{\overline{layout} } \, \mathit{\overline{namedt} }  \ottsym{)}\texttt{ (typ\_int Size.One) }}%
 \ottpremise{ \ottsym{Typ.isIntOrIntVector}  \ottnt{typ}  \vee  \ottkw{isPointerTyp} \, \ottnt{typ} }%
 \ottpremise{\ottnt{fdef}  \ottsym{,}  b  \vdash_{i}  \ottmv{id}  = \, \ottkw{icmp} \, \ottnt{cond} \, \ottnt{typ} \, val_{{\mathrm{1}}} \, val_{{\mathrm{2}}}}%
 }{
@@ -1413,7 +1412,6 @@
 \ottpremise{\texttt{wf\_fcond }\mathit{fcond}\texttt{ = true }}%
 \ottpremise{\ottnt{system}  \ottsym{,}  \ottsym{(}  \mathit{\overline{layout} } \, \mathit{\overline{namedt} } \, \mathit{\overline{prod} }  \ottsym{)}  \ottsym{,}  \ottnt{fdef}  \vdash  val_{{\mathrm{1}}}  \ottsym{:}  \mathit{fp}}%
 \ottpremise{\ottnt{system}  \ottsym{,}  \ottsym{(}  \mathit{\overline{layout} } \, \mathit{\overline{namedt} } \, \mathit{\overline{prod} }  \ottsym{)}  \ottsym{,}  \ottnt{fdef}  \vdash  val_{{\mathrm{2}}}  \ottsym{:}  \mathit{fp}}%
-\ottpremise{\texttt{Constant.feasible\_typ }\ottsym{(}  \mathit{\overline{layout} } \, \mathit{\overline{namedt} }  \ottsym{)}\texttt{ (typ\_int Size.One) }}%
 \ottpremise{\ottnt{fdef}  \ottsym{,}  b  \vdash_{i}  \ottmv{id}  = \, \ottkw{fcmp} \, \mathit{fcond} \, \mathit{fp} \, val_{{\mathrm{1}}} \, val_{{\mathrm{2}}}}%
 }{
 \ottnt{intrinsic\_funs}  \ottsym{,}  \ottnt{system}  \ottsym{,}  \ottsym{(}  \mathit{\overline{layout} } \, \mathit{\overline{namedt} } \, \mathit{\overline{prod} }  \ottsym{)}  \ottsym{,}  \ottnt{fdef}  \ottsym{,}  b  \vdash  \ottmv{id}  = \, \ottkw{fcmp} \, \mathit{fcond} \, \mathit{fp} \, val_{{\mathrm{1}}} \, val_{{\mathrm{2}}}}{%

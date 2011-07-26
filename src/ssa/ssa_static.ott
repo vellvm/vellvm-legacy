@@ -668,7 +668,6 @@ Jwf_insn :: '' ::=
       % Check typs
       system , (layouts namedts products) , fdef |- value1 : typ
       system , (layouts namedts products) , fdef |- value2 : typ
-      {{ Constant.feasible_typ [[(layouts namedts)]] (typ_int Size.One) }}
       % types can only be int, vector or ptr
       Typ.isIntOrIntVector typ \/ isPointerTyp typ
       % Check invariance for instructions
@@ -681,7 +680,6 @@ Jwf_insn :: '' ::=
       % Check typs
       system , (layouts namedts products) , fdef |- value1 : floating_point
       system , (layouts namedts products) , fdef |- value2 : floating_point
-      {{ Constant.feasible_typ [[(layouts namedts)]] (typ_int Size.One) }}
       % Check invariance for instructions
       fdef , block |-i id = fcmp fcond floating_point value1 value2
       ------------------------------------------------------------------------------------------------------- :: wf_insn_fcmp

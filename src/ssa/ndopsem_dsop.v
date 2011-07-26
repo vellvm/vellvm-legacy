@@ -574,14 +574,14 @@ Proof.
   split; auto. 
 Qed.  
 *)
-Lemma instantiate_locals__GEP : forall TD t mp1 mp1' vidxs vidxss inbounds mps2 t',
+Lemma instantiate_locals__GEP : forall TD t mp1 mp1' vidxs vidxss inbounds mps2,
   instantiate_gvs vidxs vidxss ->
   instantiate_gv mp1 mps2 ->
-  GEP TD t mp1 vidxs inbounds t' = Some mp1' ->
-  exists mps2', NDopsem.GEP TD t mps2 vidxss inbounds t' = Some mps2' /\ 
+  GEP TD t mp1 vidxs inbounds = Some mp1' ->
+  exists mps2', NDopsem.GEP TD t mps2 vidxss inbounds = Some mps2' /\ 
     instantiate_gv mp1' mps2'.
 Proof.
-  intros TD t mp1 mp1' vidxs vidxss inbounds mps2 t' Hinst1 Hinst2 Hgep.
+  intros TD t mp1 mp1' vidxs vidxss inbounds mps2 Hinst1 Hinst2 Hgep.
   unfold NDopsem.GEP.
   exists (fun gv : GenericValue =>
           exists ma : GenericValue,
@@ -589,8 +589,8 @@ Proof.
               exists gv' : GenericValue,
                 ma @ mps2 /\
                 vidxs0 @@ vidxss /\
-                GEP TD t ma vidxs0 inbounds t' = ret gv' /\ 
-                gv @ $ gv' # t' $).
+                GEP TD t ma vidxs0 inbounds = ret gv' /\ 
+                gv @ $ gv' # (typ_pointer (typ_int 1%nat)) $).
   split; auto.
     unfold instantiate_gv, Ensembles.In.
     exists mp1. exists vidxs. exists mp1'.
@@ -1074,8 +1074,8 @@ Case "dsGEP". simpl_nd_llvmds.
   destruct H as [mps [J1 J2]].
   eapply instantiate_locals__values2GVs in H0; eauto.
   destruct H0 as [vidxss [J3 J4]].
-  eapply instantiate_locals__GEP in H2; eauto.
-  destruct H2 as [mps2' [J5 J6]].
+  eapply instantiate_locals__GEP in H1; eauto.
+  destruct H1 as [mps2' [J5 J6]].
   exists (NDopsem.mkState S' TD' Ps' 
     ((NDopsem.mkEC f1' b1' cs tmn1' (updateAddAL _ lc1' id0 mps2') als1')
       ::ECs') gl' fs' M').

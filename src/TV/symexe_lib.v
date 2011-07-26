@@ -1197,9 +1197,9 @@ Proof.
 Qed.
 
 (* p&p *)
-Lemma exCallUpdateLocals_uniq : forall noret0 rid oresult lc lc',
+Lemma exCallUpdateLocals_uniq : forall TD ft noret0 rid oresult lc lc',
   uniq lc ->
-  exCallUpdateLocals noret0 rid oresult lc = Some lc' ->
+  exCallUpdateLocals TD ft noret0 rid oresult lc = Some lc' ->
   uniq lc'.
 Proof.
   intros.
@@ -1207,13 +1207,15 @@ Proof.
   destruct noret0; auto.
     inversion H0; subst; auto.
 
-    destruct oresult; inversion H0; subst; auto.
+    destruct oresult; try solve [inversion H0].
+    destruct ft; try solve [inversion H0].
+    destruct (fit_gv TD ft g); inversion H0; subst.
       apply updateAddAL_uniq; auto.
 Qed.
 
-Lemma callUpdateLocals_uniq : forall TD noret0 rid oresult lc lc' gl lc'',
+Lemma callUpdateLocals_uniq : forall TD ft noret0 rid oresult lc lc' gl lc'',
   uniq lc ->
-  callUpdateLocals TD noret0 rid oresult lc lc' gl = Some lc'' ->
+  callUpdateLocals TD ft noret0 rid oresult lc lc' gl = Some lc'' ->
   uniq lc''.
 Proof.
   intros.
@@ -1223,7 +1225,9 @@ Proof.
     destruct (getOperandValue TD v lc' gl); inversion H0; subst; auto.
 
     destruct oresult; try solve [inversion H0; subst; auto].
-    destruct (getOperandValue TD v lc' gl); inversion H0; subst; auto.
+    destruct (getOperandValue TD v lc' gl); tinv H0.
+    destruct ft; tinv H0.
+    destruct (fit_gv TD ft g); inv H0.
       apply updateAddAL_uniq; auto.
 Qed.
 
@@ -1398,10 +1402,9 @@ Case "dbFdef_func".
   rewrite e in H1. inversion H1; subst. clear H1.
   apply entryBlockInSystemBlockFdef' with (los:=los)(nts:=nts)(Ps:=Ps)(S:=S)
     (fv:=fv)(gl:=gl)(lc:=lc)(fs:=fs)in e0; auto.
-  apply H with (B1:=block_intro l1 ps1 cs1 tmn1)(lc:=initLocals la0 gvs)
-    (als:=nil)(Mem:=Mem0)
+  apply H with (B1:=block_intro l1 ps1 cs1 tmn1)(lc:=lc0)(als:=nil)(Mem:=Mem0)
     (B1':=block_intro l2 ps2 (cs21++cs22) (insn_return rid rt Result))
-    (lc':=lc1)(als':=als1)(Mem':=Mem1) in e0; auto using initLocals_uniq.
+    (lc':=lc1)(als':=als1)(Mem':=Mem1) in e0; eauto using initLocals_uniq.
   clear H. destruct e0 as [uniqc1 Bin].
   eapply H0 in uniqc1; eauto. clear H0.
   apply se_dbCmds_preservation in d1; auto.
@@ -1410,10 +1413,9 @@ Case "dbFdef_proc".
   rewrite e in H1. inversion H1; subst. clear H1.
   apply entryBlockInSystemBlockFdef' with (los:=los)(nts:=nts)(Ps:=Ps)(S:=S)
     (fv:=fv)(gl:=gl)(lc:=lc)(fs:=fs) in e0; auto.
-  apply H with (B1:=block_intro l1 ps1 cs1 tmn1)(lc:=initLocals la0 gvs)
-    (als:=nil)(Mem:=Mem0)
+  apply H with (B1:=block_intro l1 ps1 cs1 tmn1)(lc:=lc0)(als:=nil)(Mem:=Mem0)
     (B1':=block_intro l2 ps2 (cs21++cs22) (insn_return_void rid))(lc':=lc1)
-    (als':=als1)(Mem':=Mem1) in e0; auto using initLocals_uniq.
+    (als':=als1)(Mem':=Mem1) in e0; eauto using initLocals_uniq.
   clear H. destruct e0 as [uniqc1 Bin].
   eapply H0 in uniqc1; eauto. clear H0.
   apply se_dbCmds_preservation in d1; auto.
@@ -1432,7 +1434,8 @@ Proof.
   unfold se_dbCall_preservation_prop in J. eauto.
 Qed.
 
-Lemma se_dbSubblock_preservation : forall S los nts Ps fs gl lc als Mem cs lc' als' Mem' tr,
+Lemma se_dbSubblock_preservation : forall S los nts Ps fs gl lc als Mem cs lc' 
+  als' Mem' tr,
   dbSubblock S (los, nts) Ps fs gl lc als Mem cs lc' als' Mem' tr ->
   uniq lc ->
   uniqSystem S ->
@@ -1673,33 +1676,35 @@ Proof.
     split; auto.
 Qed.     
 
-Lemma eqAL_callUpdateLocals' : forall TD noret0 rid oResult lc1 lc2 gl lc1' 
+Lemma eqAL_callUpdateLocals' : forall TD ft noret0 rid oResult lc1 lc2 gl lc1' 
     lc2' lc,
   eqAL _ lc1 lc1' ->
   eqAL _ lc2 lc2' ->
-  callUpdateLocals TD noret0 rid oResult lc1 lc2 gl = Some lc ->
-  exists lc', callUpdateLocals TD noret0 rid oResult lc1' lc2' gl = Some lc' /\
-              eqAL _ lc lc'.
+  callUpdateLocals TD ft noret0 rid oResult lc1 lc2 gl = Some lc ->
+  exists lc', 
+    callUpdateLocals TD ft noret0 rid oResult lc1' lc2' gl = Some lc' /\
+    eqAL _ lc lc'.
 Proof.
-  intros TD noret0 rid oResult lc1 lc2 gl lc1' lc2' lc H H0 H1.
-  assert (J:=@eqAL_callUpdateLocals TD noret0 rid oResult lc1 lc2 gl lc1' lc2' 
-    H H0).
+  intros TD ft noret0 rid oResult lc1 lc2 gl lc1' lc2' lc H H0 H1.
+  assert (J:=@eqAL_callUpdateLocals TD noret0 rid oResult lc1 lc2 gl lc1' lc2'
+    ft H H0).
   rewrite H1 in J.
-  destruct (callUpdateLocals TD noret0 rid oResult lc1' lc2' gl);
+  destruct (callUpdateLocals TD ft noret0 rid oResult lc1' lc2' gl);
     try solve [inversion J].
   exists g. auto.
 Qed.
 
-Lemma eqAL_exCallUpdateLocals' : forall noret0 rid oResult lc lc' lc0,
+Lemma eqAL_exCallUpdateLocals' : forall TD ft noret0 rid oResult lc lc' lc0,
   eqAL _ lc lc' ->
-  exCallUpdateLocals noret0 rid oResult lc = Some lc0 ->
-  exists lc0', exCallUpdateLocals noret0 rid oResult lc' = Some lc0' /\
+  exCallUpdateLocals TD ft noret0 rid oResult lc = Some lc0 ->
+  exists lc0', exCallUpdateLocals TD ft noret0 rid oResult lc' = Some lc0' /\
                eqAL _ lc0 lc0'.
 Proof.
-  intros noret0 rid oResult lc lc' lc0 H H0.
-  assert (J:=@eqAL_exCallUpdateLocals noret0 rid oResult lc lc' H).
+  intros TD ft noret0 rid oResult lc lc' lc0 H H0.
+  assert (J:=@eqAL_exCallUpdateLocals TD noret0 rid oResult lc lc' ft H).
   rewrite H0 in J.
-  destruct (exCallUpdateLocals noret0 rid oResult lc'); try solve [inversion J].
+  destruct (exCallUpdateLocals TD ft noret0 rid oResult lc'); 
+    try solve [inversion J].
   exists g. auto.
 Qed.
 
@@ -1860,7 +1865,7 @@ Case "dbFdef_func".
   rewrite e in H1. inversion H1; subst. clear H1.
   assert (J:=@eqAL_params2GVs lp TD lc gl lc1' H2).
   rewrite e1 in J.
-  assert (eqAL _ (initLocals la0 gvs) (initLocals la0 gvs)) as J'.
+  assert (eqAL _ lc0 lc0) as J'.
     apply eqAL_refl.
   apply H with (B1:=block_intro l1 ps1 cs1 tmn1)(als:=nil)(Mem:=Mem0)(lc3:=lc1)
     (B1':=block_intro l2 ps2 (cs21++cs22) (insn_return rid rt Result))
@@ -1878,7 +1883,7 @@ Case "dbFdef_proc".
   rewrite e in H1. inversion H1; subst. clear H1.
   assert (J:=@eqAL_params2GVs lp TD lc gl lc1' H2).
   rewrite e1 in J.
-  assert (eqAL _ (initLocals la0 gvs) (initLocals la0 gvs)) as J'.
+  assert (eqAL _ lc0 lc0) as J'.
     apply eqAL_refl.
   apply H with (B1:=block_intro l1 ps1 cs1 tmn1)(als:=nil)(Mem:=Mem0)(lc3:=lc1)
     (B1':=block_intro l2 ps2 (cs21++cs22) (insn_return_void rid))(als':=als1)

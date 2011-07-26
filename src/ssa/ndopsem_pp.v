@@ -1170,36 +1170,34 @@ Proof.
 Qed.
 
 Lemma micmp_is_total : forall TD c t, 
-  Constant.feasible_typ TD (typ_int Size.One) ->
   Typ.isIntOrIntVector t \/ isPointerTyp t ->
   forall x y, exists z, micmp TD c t x y = Some z.
 Proof.
-  intros TD c t Hft Hwft x y.
+  intros TD c t Hwft x y.
   unfold micmp, micmp_int.
   unfold isPointerTyp in Hwft. unfold is_true in Hwft.
   unfold micmp_int.
   destruct Hwft as [Hwft | Hwft].
     destruct t; try solve [simpl in Hwft; contradict Hwft; auto].
-    destruct (GV2val TD x); eauto using gundef__total.
-    destruct v; eauto using gundef__total.
-    destruct (GV2val TD y); eauto using gundef__total.
-    destruct v; eauto using gundef__total.
-    destruct c; eauto using gundef__total.
+    destruct (GV2val TD x); eauto using gundef_i1__total.
+    destruct v; eauto using gundef_i1__total.
+    destruct (GV2val TD y); eauto using gundef_i1__total.
+    destruct v; eauto using gundef_i1__total.
+    destruct c; eauto using gundef_i1__total.
   
     destruct t; try solve [simpl in Hwft; contradict Hwft; auto]. 
-      eauto using gundef__total.
+      eauto using gundef_i1__total.
 Qed.
 
 Lemma ICMP__wf_gvs : forall S los nts ps F lc gl c t v1 v2 gvs3,
   wf_lc (los,nts) F lc ->
-  Constant.feasible_typ (los,nts) (typ_int Size.One) ->
   Typ.isIntOrIntVector t \/ isPointerTyp t ->
   wf_value S (module_intro los nts ps) F v1 t ->
   wf_value S (module_intro los nts ps) F v2 t ->
   NDopsem.ICMP (los,nts) lc gl c t v1 v2 = ret gvs3 ->
   wf_GVs (los,nts) gvs3 (typ_int Size.One).
 Proof.
-  intros S los nts ps F lc gl c t v1 v2 gvs3 Hwflc Hft Hwft Hwfv1 Hwfv2 Hiop.
+  intros S los nts ps F lc gl c t v1 v2 gvs3 Hwflc Hwft Hwfv1 Hwfv2 Hiop.
   unfold NDopsem.ICMP in Hiop.
   remember(NDopsem.getOperandValue (los,nts) v1 lc gl) as R1.
   destruct R1; tinv Hiop.
@@ -1218,18 +1216,17 @@ Proof.
 Qed.
 
 Lemma mfcmp_is_total : forall S TD c fp, 
-  Constant.feasible_typ TD (typ_int Size.One) ->
   wf_fcond c = true  ->
   wf_typ S (typ_floatpoint fp) ->
   feasible_typ TD (typ_floatpoint fp) ->
   forall x y, exists z, mfcmp TD c fp x y = Some z.
 Proof.
-  intros S TD c fp Hft1 Hc Ht Hft2 x y.
+  intros S TD c fp Hc Ht Hft2 x y.
   unfold mfcmp.
-  destruct (GV2val TD x); eauto using gundef__total.
-  destruct v; eauto using gundef__total.
-  destruct (GV2val TD y); eauto using gundef__total.
-  destruct v; eauto using gundef__total.
+  destruct (GV2val TD x); eauto using gundef_i1__total.
+  destruct v; eauto using gundef_i1__total.
+  destruct (GV2val TD y); eauto using gundef_i1__total.
+  destruct v; eauto using gundef_i1__total.
   destruct fp; try solve [eauto | inversion Ht].
     destruct c; try solve [eauto | inversion Hc].
     destruct c; try solve [eauto | inversion Hc].
@@ -1237,14 +1234,13 @@ Qed.
 
 Lemma FCMP__wf_gvs : forall S los nts ps F lc gl c fp v1 v2 gvs3,
   wf_lc (los,nts) F lc ->
-  Constant.feasible_typ (los,nts) (typ_int Size.One) ->
   wf_fcond c = true  ->
   wf_value S (module_intro los nts ps) F v1 (typ_floatpoint fp) ->
   wf_value S (module_intro los nts ps) F v2 (typ_floatpoint fp) ->
   NDopsem.FCMP (los,nts) lc gl c fp v1 v2 = ret gvs3 ->
   wf_GVs (los,nts) gvs3 (typ_int Size.One).
 Proof.
-  intros S los nts ps F lc gl c fp v1 v2 gvs3 Hwflc Hft Hc Hwfv1 Hwfv2 Hiop.
+  intros S los nts ps F lc gl c fp v1 v2 gvs3 Hwflc Hc Hwfv1 Hwfv2 Hiop.
   unfold NDopsem.FCMP in Hiop.
   remember(NDopsem.getOperandValue (los,nts) v1 lc gl) as R1.
   destruct R1; tinv Hiop.
@@ -1303,14 +1299,13 @@ Proof.
     exists (x::vidxs0). simpl. simpl; auto.
 Qed.
 
-Lemma GEP_is_total : forall S TD t mp vidxs inbounds0 t',
-  wf_typ S t' -> feasible_typ TD t' ->
-  exists mp', LLVMgv.GEP TD t mp vidxs inbounds0 t' = ret mp'.
+Lemma GEP_is_total : forall TD t mp vidxs inbounds0,
+  exists mp', LLVMgv.GEP TD t mp vidxs inbounds0 = ret mp'.
 Proof.
-  intros. unfold LLVMgv.GEP. inv H0.
-  destruct (GV2ptr TD (getPointerSize TD) mp); eauto using gundef__total.
-  destruct (GVs2Nats TD vidxs); eauto using gundef__total.
-  destruct (mgep TD t v l0); eauto using gundef__total.
+  intros. unfold LLVMgv.GEP.
+  destruct (GV2ptr TD (getPointerSize TD) mp); eauto using gundef_p1__total.
+  destruct (GVs2Nats TD vidxs); eauto using gundef_p1__total.
+  destruct (mgep TD t v l0); eauto using gundef_p1__total.
 Qed.
 
 Lemma GEP__wf_gvs : forall S TD t mp vidxs inbounds0 mp' vidxs0 t' gl lc idxs,
@@ -1318,7 +1313,7 @@ Lemma GEP__wf_gvs : forall S TD t mp vidxs inbounds0 mp' vidxs0 t' gl lc idxs,
   wf_GVs TD mp (typ_pointer t) -> vidxs0 @@ vidxs ->
   wf_typ S t' -> feasible_typ TD t' ->
   getGEPTyp idxs t = ret t' ->
-  NDopsem.GEP TD t mp vidxs inbounds0 t' = ret mp' ->
+  NDopsem.GEP TD t mp vidxs inbounds0 = ret mp' ->
   wf_GVs TD mp' t'.
 Proof.
   intros S TD t mp vidxs inbounds0 mp' vidxs0 t' gl lc idxs Hvg2 Hwfgv Hin Hwft 
@@ -1352,10 +1347,8 @@ Proof.
         unfold ptr2GV, val2GV. simpl. auto.
 
     inv Hwfgv. inv H1.
-    apply GEP_is_total with (S:=S)(t:=t)(mp:=x)(vidxs:=vidxs0)
-      (inbounds0:=inbounds0) in Hft; auto.
-    destruct Hft as [mp' J].
-    assert (J1:=@gv2gvs__inhabited mp' (typ_pointer t0)). inv J1.
+    destruct (@GEP_is_total (los,nts) t x vidxs0 inbounds0) as [mp' J].
+    assert (J1:=@gv2gvs__inhabited mp' (typ_pointer (typ_int 1%nat))). inv J1.
     apply Ensembles.Inhabited_intro with (x:=x0).
     unfold Ensembles.In.
     exists x. exists vidxs0. exists mp'. rewrite J. split; auto.
@@ -2476,7 +2469,6 @@ Case "nsGEP".
     assert (H0':=H0).
     eapply values2GVs__inhabited in H0; eauto.
     destruct H0 as [vidxs0 H0].
-    rewrite H1 in H19. inv H19.
     eapply GEP__wf_gvs in H1; eauto. 
 
 Case "nsTrunc". eapply preservation_cmd_updated_case in HwfS1; simpl; eauto.
@@ -3969,7 +3961,7 @@ Proof.
         exists Nil_list_value. auto.
     destruct J2 as [vidxs J2].
     inv Hwfc.
-    assert (exists mp', NDopsem.GEP (los, nts) t mp vidxs i1 typ' = Some mp') as J3.
+    assert (exists mp', NDopsem.GEP (los, nts) t mp vidxs i1 = Some mp') as J3.
       unfold NDopsem.GEP. eauto.
     destruct J3 as [mp' J3].
     left.

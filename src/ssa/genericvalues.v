@@ -1841,65 +1841,58 @@ Proof.
 Qed.
 
 Lemma mcmp_typsize_helper : forall TD gv, 
-  feasible_typ TD (typ_int Size.One) ->
   gundef TD (typ_int 1%nat) = ret gv ->
   Coqlib.nat_of_Z (Coqlib.ZRdiv (Z_of_nat Size.One) 8) = sizeGenericValue gv.
 Proof.
   intros. destruct TD.
-  symmetry in H0.
-  apply gundef__getTypeSizeInBits with (s:=nil) in H0; eauto.
-    simpl in H0. destruct H0 as [sz0 [al [J1 J2]]]. inv J1. auto.
-    apply wf_typ_int; auto. unfold Size.gt, Size.Zero. omega.
-    inv H. auto.
+  unfold gundef in H. simpl in H. inv H. simpl. auto.
 Qed.
 
 Lemma micmp_typsize : forall los nts cond5 t1 gv1 gv2 gv,
-  feasible_typ (los, nts) (typ_int Size.One) ->
   micmp (los,nts) cond5 t1 gv1 gv2 = Some gv ->
   Coqlib.nat_of_Z (Coqlib.ZRdiv (Z_of_nat Size.One) 8) = sizeGenericValue gv.
 Proof.
-  intros. unfold micmp in H0.
+  intros. unfold micmp in H.
   destruct t1;
-    try solve [inversion H0 | eapply mcmp_typsize_helper; eauto].
-  unfold micmp_int, GV2val in H0.
+    try solve [inversion H | eapply mcmp_typsize_helper; eauto].
+  unfold micmp_int, GV2val in H.
   destruct gv1; 
-    try solve [inversion H0 | eapply mcmp_typsize_helper; eauto].
+    try solve [inversion H | eapply mcmp_typsize_helper; eauto].
   destruct p.
   destruct gv1; 
-    try solve [inversion H0 | eapply mcmp_typsize_helper; eauto].
+    try solve [inversion H | eapply mcmp_typsize_helper; eauto].
   destruct v; 
-    try solve [inversion H0 | eapply mcmp_typsize_helper; eauto].
+    try solve [inversion H | eapply mcmp_typsize_helper; eauto].
   destruct gv2; 
-    try solve [inversion H0 | eapply mcmp_typsize_helper; eauto].
+    try solve [inversion H | eapply mcmp_typsize_helper; eauto].
   destruct p.
   destruct gv2; 
-    try solve [inversion H0 | eapply mcmp_typsize_helper; eauto].
+    try solve [inversion H | eapply mcmp_typsize_helper; eauto].
   destruct v; 
-    try solve [inversion H0 | eapply mcmp_typsize_helper; eauto].
-  destruct cond5; inv H0; auto.
+    try solve [inversion H | eapply mcmp_typsize_helper; eauto].
+  destruct cond5; inv H; auto.
 Qed.
 
 Lemma mfcmp_typsize : forall los nts fcond5 fp gv1 gv2 gv,
-  feasible_typ (los, nts) (typ_int Size.One) ->
   mfcmp (los,nts) fcond5 fp gv1 gv2 = Some gv ->
   Coqlib.nat_of_Z (Coqlib.ZRdiv (Z_of_nat Size.One) 8) = sizeGenericValue gv.
 Proof.
-  intros. unfold mfcmp, GV2val in H0.
+  intros. unfold mfcmp, GV2val in H.
   destruct gv1; 
-    try solve [inversion H0 | eapply mcmp_typsize_helper; eauto].
+    try solve [inversion H | eapply mcmp_typsize_helper; eauto].
   destruct p.
   destruct gv1; 
-    try solve [inversion H0 | eapply mcmp_typsize_helper; eauto].
+    try solve [inversion H | eapply mcmp_typsize_helper; eauto].
   destruct v; 
-    try solve [inversion H0 | eapply mcmp_typsize_helper; eauto].
+    try solve [inversion H | eapply mcmp_typsize_helper; eauto].
   destruct gv2; 
-    try solve [inversion H0 | eapply mcmp_typsize_helper; eauto].
+    try solve [inversion H | eapply mcmp_typsize_helper; eauto].
   destruct p.
   destruct gv2; 
-    try solve [inversion H0 | eapply mcmp_typsize_helper; eauto].
+    try solve [inversion H | eapply mcmp_typsize_helper; eauto].
   destruct v; 
-    try solve [inversion H0 | eapply mcmp_typsize_helper; eauto].
-  destruct fp; try solve [inv H0 | destruct fcond5; inv H0; auto].
+    try solve [inversion H | eapply mcmp_typsize_helper; eauto].
+  destruct fp; try solve [inv H | destruct fcond5; inv H; auto].
 Qed.
 
 Lemma getSubTypFromConstIdxs__mgetoffset_aux : forall TD const_list idxs o t' 
@@ -3012,18 +3005,18 @@ match (getOperandValue TD v1 lc gl, getOperandValue TD v2 lc gl) with
 end.
 
 Definition GEP (TD:TargetData) (t:typ) (ma:GenericValue) 
-  (vidxs:list GenericValue) (inbounds:bool) (t':typ) : option GenericValue :=
+  (vidxs:list GenericValue) (inbounds:bool) : option GenericValue :=
 match GV2ptr TD (getPointerSize TD) ma with
 | Some ptr =>
   match GVs2Nats TD vidxs with
-  | None => gundef TD t'
+  | None => gundef TD (typ_pointer (typ_int 1%nat))
   | Some idxs => 
     match (mgep TD t ptr idxs) with
     | Some ptr0 => Some (ptr2GV TD ptr0)
-    | None => gundef TD t'
+    | None => gundef TD (typ_pointer (typ_int 1%nat))
     end
   end
-| None => gundef TD t'
+| None => gundef TD (typ_pointer (typ_int 1%nat))
 end.
 
 Lemma BOP_inversion : forall TD lc gl b s v1 v2 gv,

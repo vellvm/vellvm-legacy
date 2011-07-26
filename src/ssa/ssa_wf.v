@@ -2177,13 +2177,22 @@ Proof.
     rewrite <- H0. auto.
 Qed.  
 
+Lemma gundef_p1__total : forall TD, exists mp', gundef TD (typ_pointer (typ_int 1%nat)) = ret mp'.
+Proof.
+  intros. unfold gundef. destruct TD. simpl. eauto.
+Qed.
+
+Lemma gundef_i1__total : forall TD, exists mp', gundef TD (typ_int 1%nat) = ret mp'.
+Proof.
+  intros. unfold gundef. destruct TD. simpl. eauto.
+Qed.
+
 Lemma FCMP__wf_gv : forall F TD lc gl fcond0 fp v1 v2 gv3,
-  Constant.feasible_typ TD (typ_int Size.One) ->
   wf_lc TD F lc ->
   FCMP TD lc gl fcond0 fp v1 v2 = ret gv3 ->
   wf_genericvalue TD gv3 (typ_int Size.One).
 Proof.
-  intros F TD lc gl fcond0 fp v1 v2 gv3 Hft Hwflc Hfcmp.
+  intros F TD lc gl fcond0 fp v1 v2 gv3 Hwflc Hfcmp.
   unfold FCMP in Hfcmp.
   remember(getOperandValue TD v1 lc gl) as R1.
   destruct R1; tinv Hfcmp.
@@ -2194,12 +2203,11 @@ Proof.
     eapply wf_genericvalue_intro; eauto.
       unfold getTypeSizeInBits.
       simpl. auto.
-    apply feasible_typ_intro; auto.
 Qed.
 
 Lemma GEP__wf_gv : forall S los nts t mp vidxs inbounds0 mp' typ' idxs gl lc
   (H0 : values2GVs (los, nts) idxs lc gl = ret vidxs)
-  (H1 : GEP (los,nts) t mp vidxs inbounds0 typ' = ret mp')
+  (H1 : GEP (los,nts) t mp vidxs inbounds0 = ret mp')
   (H18 : getGEPTyp idxs t = ret typ')
   (H19 : wf_typ S typ')
   (H20 : feasible_typ (los, nts) typ'),
@@ -2316,12 +2324,11 @@ Proof.
 Qed.    
 
 Lemma ICMP__wf_gv : forall F TD lc gl cond0 t v1 v2 gv2,
-  Constant.feasible_typ TD (typ_int Size.One) ->
   wf_lc TD F lc ->
   ICMP TD lc gl cond0 t v1 v2 = ret gv2 ->
   wf_genericvalue TD gv2 (typ_int Size.One).
 Proof.
-  intros F TD lc gl cond0 t v1 v2 gv2 Hft Hwflc Hicmp.
+  intros F TD lc gl cond0 t v1 v2 gv2 Hwflc Hicmp.
   unfold ICMP in Hicmp.
   remember(getOperandValue TD v1 lc gl) as R1.
   destruct R1; tinv Hicmp.
@@ -2332,7 +2339,6 @@ Proof.
     eapply wf_genericvalue_intro; eauto.
       unfold getTypeSizeInBits.
       simpl. auto.
-    apply feasible_typ_intro; auto.
 Qed.
 
 Lemma in_middle : forall A (c:A) cs1 cs2, In c (cs1 ++ c :: cs2).
@@ -3103,7 +3109,6 @@ Case "dsGEP".
     eauto using in_middle.
   inv HBinF1; eauto.
   eapply preservation_cmd_updated_case in HwfS1; simpl; eauto.
-    rewrite H1 in H19. inv H19.
     eapply GEP__wf_gv; eauto.
 
 Case "dsTrunc". eapply preservation_cmd_updated_case in HwfS1; simpl; eauto.
@@ -4996,12 +5001,12 @@ Proof.
         exists Nil_list_value. auto.
     destruct J2 as [vidxs J2].
     inv Hwfc.
-    assert (exists mp', GEP (los, nts) t mp vidxs i1 typ' = Some mp') as J3.
+    assert (exists mp', GEP (los, nts) t mp vidxs i1 = Some mp') as J3.
       unfold GEP. inv H17.
       destruct (GV2ptr (los, nts) (getPointerSize (los, nts)) mp); 
-        eauto using gundef__total.
-      destruct (GVs2Nats (los, nts) vidxs); eauto using gundef__total.
-      destruct (mgep (los, nts) t v0 l3); eauto using gundef__total.
+        eauto using gundef_p1__total.
+      destruct (GVs2Nats (los, nts) vidxs); eauto using gundef_p1__total.
+      destruct (mgep (los, nts) t v0 l3); eauto using gundef_p1__total.
     destruct J3 as [mp' J3].
     left.
     exists 
@@ -5147,18 +5152,18 @@ Proof.
       rewrite J0.
       unfold micmp.
       inv Hwfc. 
-      unfold isPointerTyp in H14. unfold is_true in H14.
+      unfold isPointerTyp in H13. unfold is_true in H13.
       unfold micmp_int.
-      destruct H14 as [H14 | H14].
-        destruct t; try solve [simpl in H14; contradict H14; auto].
-        destruct (GV2val (los,nts) gv); eauto using gundef__total.
-        destruct v1; eauto using gundef__total.
-        destruct (GV2val (los,nts) gv0); eauto using gundef__total.
-        destruct v1; eauto using gundef__total.
-        destruct c; eauto using gundef__total.
+      destruct H13 as [H13 | H13].
+        destruct t; try solve [simpl in H13; contradict H13; auto].
+        destruct (GV2val (los,nts) gv); eauto using gundef_i1__total.
+        destruct v1; eauto using gundef_i1__total.
+        destruct (GV2val (los,nts) gv0); eauto using gundef_i1__total.
+        destruct v1; eauto using gundef_i1__total.
+        destruct c; eauto using gundef_i1__total.
 
-        destruct t; try solve [simpl in H14; contradict H14; auto]. 
-          eauto using gundef__total.
+        destruct t; try solve [simpl in H13; contradict H13; auto]. 
+          eauto using gundef_i1__total.
 (*      destruct (mptrtoint (los, nts) M gv Size.ThirtyTwo); eauto.
         destruct (mptrtoint (los, nts) M gv0 Size.ThirtyTwo); eauto.
         destruct (GV2val (los, nts) g); eauto.
@@ -5202,15 +5207,15 @@ Proof.
       rewrite J0.
       unfold mfcmp.
       inv Hwfc. 
-      destruct (GV2val (los, nts) gv); eauto using gundef__total.
-      destruct v1; eauto using gundef__total.
-      destruct (GV2val (los, nts) gv0); eauto using gundef__total.
-      destruct v1; eauto using gundef__total.
+      destruct (GV2val (los, nts) gv); eauto using gundef_i1__total.
+      destruct v1; eauto using gundef_i1__total.
+      destruct (GV2val (los, nts) gv0); eauto using gundef_i1__total.
+      destruct v1; eauto using gundef_i1__total.
       apply wf_value__wf_typ in H12.
       destruct H12 as [J1 J2].
       destruct f1; try solve [eauto | inversion J1].
-        destruct f0; try solve [eauto | inversion H9].
-        destruct f0; try solve [eauto | inversion H9].
+        destruct f0; try solve [eauto | inversion H8].
+        destruct f0; try solve [eauto | inversion H8].
     destruct Hinsn_fcmp as [gv2 Hinsn_fcmp].
     exists 
          {|

@@ -218,7 +218,7 @@ Case "dbBlocks_cons".
 
 Case "dbFdef_func".
   apply dbFdef_func with (fid:=fid)(l':=l1)(ps':=ps1)(cs':=cs1)(tmn':=tmn1)
-    (fa:=fa)(la:=la)(va:=va)(lb:=lb)(gvs:=gvs); auto.
+    (fa:=fa)(la:=la)(va:=va)(lb:=lb)(gvs:=gvs)(lc0:=lc0); auto.
     rewrite <- trace_app_commute.
     apply seop_dbCmds__llvmop_dbop with (fs:=fs)(Ps:=Ps)(F:=fdef_intro 
       (fheader_intro fa rt fid la va) lb)(B:=block_intro l2 ps2 (cs21++cs22) 
@@ -237,7 +237,7 @@ Case "dbFdef_func".
 
 Case "dbFdef_proc".
   apply dbFdef_proc with (fid:=fid)(l':=l1)(ps':=ps1)(cs':=cs1)(tmn':=tmn1)
-    (fa:=fa)(la:=la)(va:=va)(lb:=lb)(gvs:=gvs); auto.
+    (fa:=fa)(la:=la)(va:=va)(lb:=lb)(gvs:=gvs)(lc0:=lc0); auto.
     rewrite <- trace_app_commute.
     apply seop_dbCmds__llvmop_dbop with (fs:=fs)(Ps:=Ps)
       (F:=fdef_intro (fheader_intro fa rt fid la va) lb)
@@ -1011,14 +1011,12 @@ Case "dbFdef_func".
   assert (mkState S (los, nts) Ps 
            (mkEC 
              (fdef_intro (fheader_intro fa rt fid la va) lb) 
-             (block_intro l' ps' cs' tmn') cs' tmn' 
-             (initLocals la gvs) 
+             (block_intro l' ps' cs' tmn') cs' tmn' lc0
              nil::ECs) gl fs Mem0 =
           mkState S (los, nts) Ps 
            (mkEC 
              (fdef_intro (fheader_intro fa rt fid la va) lb) 
-             (block_intro l' ps' cs' tmn') cs' tmn' 
-             (initLocals la gvs) 
+             (block_intro l' ps' cs' tmn') cs' tmn' lc0
              nil::ECs) gl fs Mem0) as J. auto.
   apply H with (l'0:=l'')(ps'0:=ps'')(cs'0:=nil)
     (tmn'0:=insn_return rid rt Result)(lc'0:=lc')(als'0:=als')(gl':=gl)(fs':=fs)
@@ -1041,13 +1039,11 @@ Case "dbFdef_func".
 Case "dbFdef_proc".
   assert (mkState S (los, nts) Ps 
            (mkEC (fdef_intro (fheader_intro fa rt fid la va) lb) 
-                 (block_intro l' ps' cs' tmn') cs' tmn' 
-                 (initLocals la gvs) 
+                 (block_intro l' ps' cs' tmn') cs' tmn' lc0
                  nil::ECs) gl fs Mem0 =
           mkState S (los, nts) Ps 
            (mkEC (fdef_intro (fheader_intro fa rt fid la va) lb) 
-                 (block_intro l' ps' cs' tmn') cs' tmn' 
-                 (initLocals la gvs) 
+                 (block_intro l' ps' cs' tmn') cs' tmn' lc0
                  nil::ECs) gl fs Mem0) as J. auto.
   apply H with (l'0:=l'')(ps'0:=ps'')(cs'0:=nil)(tmn'0:=insn_return_void rid)
     (lc'0:=lc')(als'0:=als')(gl':=gl)(fs':=fs)(Mem'0:=Mem')(cs0':=cs'') in J;
