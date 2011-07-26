@@ -2894,7 +2894,7 @@ end.
 (**************************************)
 (* helper functions *)
 
-Definition fit_gv TD (gv:GenericValue) (t:typ) : option GenericValue :=
+Definition fit_gv TD (t:typ) (gv:GenericValue) : option GenericValue :=
 match (getTypeSizeInBits TD t) with
 | Some sz => 
     if beq_nat (sizeGenericValue gv) 
@@ -2907,7 +2907,7 @@ end.
 Lemma fit_gv__getTypeSizeInBits : forall TD gv s t gv'
   (Hwft : wf_typ s t)
   (H0 : Constant.feasible_typ TD t)
-  (HeqR : ret gv' = fit_gv TD gv t),
+  (HeqR : ret gv' = fit_gv TD t gv),
   exists sz, 
     getTypeSizeInBits TD t = Some sz /\
     Coqlib.nat_of_Z (Coqlib.ZRdiv (Z_of_nat sz) 8) = sizeGenericValue gv'.
@@ -2941,7 +2941,7 @@ Fixpoint _initializeFrameValues TD (la:args) (lg:list GenericValue)
   (locals:GVMap) : option GVMap :=
 match (la, lg) with
 | (((t, _), id)::la', g::lg') => 
-  match _initializeFrameValues TD la' lg' locals, fit_gv TD g t with
+  match _initializeFrameValues TD la' lg' locals, fit_gv TD t g with
   | Some lc', Some gv => Some (updateAddAL _ lc' id (? gv # t ?))
   | _, _ => None
   end

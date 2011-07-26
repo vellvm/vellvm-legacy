@@ -1909,7 +1909,7 @@ Qed.
 Lemma fit_gv_cgv2gv__wf_gv : forall los nts gv s t gv0
   (Hwft : wf_typ s t)
   (H0 : Constant.feasible_typ (los, nts) t)
-  (HeqR : ret gv = fit_gv (los, nts) gv0 t),
+  (HeqR : ret gv = fit_gv (los, nts) t gv0),
   wf_genericvalue (los, nts) (? gv # t ?) t.
 Proof.
   intros.
@@ -1973,7 +1973,7 @@ Proof.
 
       remember (_initializeFrameValues (los,nts) la2 gvs2 lc1) as R1.
       destruct R1 as [lc'|]; tinv Hin.
-      remember (fit_gv (los,nts) g t) as R2.
+      remember (fit_gv (los,nts) t g) as R2.
       destruct R2; inv Hin.
         apply wf_lc_updateAddAL with (t:=t); eauto.
           rewrite_env ((la1++[(t,a,i0)])++la2).
@@ -2071,7 +2071,7 @@ Proof.
   destruct c; inv H1; auto.
   destruct n; inv H7; auto.
   destruct t0; tinv H6.
-    remember (fit_gv (los, nts) g t0) as R.
+    remember (fit_gv (los, nts) t0 g) as R.
     destruct R; inv H6.
     eapply wf_lc_updateAddAL with (t:=t0); eauto.
       eapply uniqF__lookupTypViaIDFromFdef; eauto.
@@ -2791,7 +2791,7 @@ Case "dsReturn".
         destruct R.
           destruct n; inv HeqR. 
           destruct t; tinv H1.
-          remember (fit_gv (los, nts) g t) as R1.
+          remember (fit_gv (los, nts) t g) as R1.
           destruct R1; inv H1.
           inv Hwfc. inv H16. inv H7. inv H18.
           eapply wf_defs_updateAddAL with (t1:=typ1) ; eauto.
@@ -2820,7 +2820,7 @@ Case "dsReturn".
         destruct R.
           destruct n; inv HeqR. 
           destruct t; tinv H1.
-          remember (fit_gv (los, nts) g t) as R1.
+          remember (fit_gv (los, nts) t g) as R1.
           destruct R1; inv H1.
           inv Hwfc. inv H16. inv H7. inv H18.
           eapply wf_defs_updateAddAL with (t1:=typ1) ; eauto.
@@ -3223,7 +3223,7 @@ Case "dsExCall".
     destruct J as [t0 J].
     destruct oresult; tinv H2.
     destruct ft; tinv H2.
-    remember (fit_gv (los, nts) g ft) as R.
+    remember (fit_gv (los, nts) ft g) as R.
     destruct R; inv H2.
     eapply preservation_cmd_updated_case with (t0:=t0) in HwfS1; simpl; eauto.
       inv J.
@@ -4377,7 +4377,7 @@ Ltac undefbehave := unfold undefined_state; simpl;
 
 Lemma fit_gv__total : forall TD t gv1
   (H0 : Constant.feasible_typ TD t),
-  exists gv, fit_gv TD gv1 t = Some gv.
+  exists gv, fit_gv TD t gv1 = Some gv.
 Proof.
   intros.
   unfold fit_gv.
@@ -4507,7 +4507,7 @@ Proof.
               in HbInF'; eauto using in_middle.
             inv HbInF'.
             inv H6.
-            assert (exists gv0, fit_gv (layouts5, namedts5) gv typ1 = Some gv0)
+            assert (exists gv0, fit_gv (layouts5, namedts5) typ1 gv = Some gv0)
               as G.
               inv H17.
               apply fit_gv__total; auto.

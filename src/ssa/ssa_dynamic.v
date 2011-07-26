@@ -191,7 +191,7 @@ Definition exCallUpdateLocals TD ft (noret:bool) (rid:id)
       | Some Result => 
           match ft with
           | typ_function t _ _ => 
-            match fit_gv TD Result t with
+            match fit_gv TD t Result with
             | Some gr => Some (updateAddAL _ lc rid (? gr # t ?))
             | _ => None
             end
@@ -212,7 +212,7 @@ Definition returnUpdateLocals (TD:TargetData) (c':cmd) (Result:value)
       | insn_call id0 false _ t _ _ => 
         match t with
         | typ_function ct _ _ =>
-          match fit_gv TD gr ct with
+          match fit_gv TD ct gr with
           | Some gr' => Some (updateAddAL _ lc' id0 (? gr' # ct ?))
           | _ => None
           end
@@ -1040,7 +1040,7 @@ Definition callUpdateLocals (TD:TargetData) ft (noret:bool) (rid:id)
           | Some gr =>  
             match ft with
             | typ_function t _ _ => 
-              match fit_gv TD gr t with
+              match fit_gv TD t gr with
               | Some gr' => Some (updateAddAL _ lc rid (? gr' # t ?))
               | None => None
               end
@@ -1306,7 +1306,7 @@ with dbFdef : value -> typ -> params -> system -> TargetData -> products ->
   dbop 
     (mkState S TD Ps ((mkEC (fdef_intro (fheader_intro fa rt fid la va) lb) 
                              (block_intro l' ps' cs' tmn') cs' tmn' 
-                             lc'
+                             lc0
                             nil)::ECs) gl fs Mem)
     (mkState S TD Ps ((mkEC (fdef_intro (fheader_intro fa rt fid la va) lb) 
                              (block_intro l'' ps'' cs'' 
@@ -1443,8 +1443,8 @@ match lc_als_Mem_block_rid_re_trs with
         | Some gr => 
           match ft with
           | typ_function t _ _ =>
-            match fit_gv TD gr t with
-            | Some gr' => Some (updateAddAL _ lc rid (? gr # t ?))
+            match fit_gv TD t gr with
+            | Some gr' => Some (updateAddAL _ lc rid (? gr' # t ?))
             | None => None
             end
           | _ => None

@@ -1587,7 +1587,7 @@ Proof.
 
         remember (_initializeFrameValues TD la gvs nil) as R1.
         destruct R1; tinv H0.
-        remember (fit_gv TD g t) as R2.
+        remember (fit_gv TD t g) as R2.
         destruct R2; inv H0.
         exists (? g1 # t ?). apply lookupAL_updateAddAL_eq; auto.      
 
@@ -1601,7 +1601,7 @@ Proof.
 
           remember (_initializeFrameValues TD la gvs nil) as R1.
           destruct R1; tinv H0.
-          remember (fit_gv TD g t) as R2.
+          remember (fit_gv TD t g) as R2.
           destruct R2; inv H0.
           exists (? g1 # t ?). apply lookupAL_updateAddAL_eq; auto.      
 
@@ -1620,7 +1620,7 @@ Proof.
           symmetry in HeqR1.
           eapply IHla in HeqR1; eauto.
           destruct HeqR1 as [gv HeqR1]. 
-          remember (fit_gv TD g t) as R2.
+          remember (fit_gv TD t g) as R2.
           destruct R2; inv H0.
           exists gv. rewrite <- lookupAL_updateAddAL_neq; auto.
 Qed.

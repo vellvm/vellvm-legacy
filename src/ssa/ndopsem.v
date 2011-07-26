@@ -20,6 +20,7 @@ Require Import targetdata.
 Require Import Ensembles.
 Require Import ssa_dynamic.
 Require Import Floats.
+Require Import AST.
 
 Module NDopsem.
 
@@ -73,93 +74,77 @@ Proof.
   intros. apply Inhabited_intro with (x:=nil); auto using Full_intro.
 Qed.
 
-Definition cundef_gvs gv c t : GVs :=
+Definition cundef_gvs gv t : GVs :=
 match t with
-| typ_int sz => fun gv => exists z, gv = (Vint sz z, c)::nil
-| typ_floatpoint _ => fun gv => exists f, gv = (Vfloat f, c)::nil
+| typ_int sz => fun gv => exists z, gv = (Vint sz z, Mint (sz - 1))::nil
+| typ_floatpoint fp_float => fun gv => exists f, gv = (Vfloat f, Mfloat32)::nil
+| typ_floatpoint fp_double => fun gv => exists f, gv = (Vfloat f, Mfloat64)::nil
 | typ_pointer _ => 
     fun gv => exists b, exists ofs, gv = (Vptr b ofs, AST.Mint 31)::nil
 | _ => Singleton GenericValue gv
 end.
 
-Definition cgv2gvs (gv:GenericValue) t : GVs :=
-match gv with
-| (Vundef, c)::nil => cundef_gvs gv c t
-| _ => Singleton GenericValue gv
-end.
-
-Definition const2GV (TD:TargetData) (gl:GVMap) (c:const) : option GVs :=
-match (_const2GV TD gl c) with
-| None => None
-| Some (gv, t) => Some (cgv2gvs gv t)
-end.
-
-Definition getOperandValue (TD:TargetData) (v:value) (locals:GVsMap) 
-  (globals:GVMap) : option GVs := 
-match v with
-| value_id id => lookupAL _ locals id 
-| value_const c => const2GV TD globals c
-end.
-
-Definition undef_gvs gv c t : GVs :=
-match t with
-| typ_int sz =>
-    Ensembles.Union _ (Singleton _ ((Vundef, c)::nil))
-      (fun gv => exists z, gv = (Vint sz z, c)::nil)
-| typ_floatpoint _ => 
-    Ensembles.Union _ (Singleton _ ((Vundef, c)::nil))
-      (fun gv => exists f, gv = (Vfloat f, c)::nil)
-| typ_pointer _ =>
-    Ensembles.Union _ (Singleton _ ((Vundef, c)::nil))
-      (fun gv => exists b, exists ofs, gv = (Vptr b ofs, c)::nil)
-| _ => Ensembles.Union _ (Singleton _ ((Vundef, c)::nil))
-         (Singleton GenericValue gv)
-end.
-
-Definition gv2gvs (gv:GenericValue) (t:typ) : GVs :=
-match gv with
-| (Vundef, c)::nil => undef_gvs gv c t
-| _ => Singleton GenericValue gv
-end.
-
-Notation "$ gv # t $" := (gv2gvs gv t) (at level 41).
 Notation "gv @ gvs" := (Ensembles.In GenericValue gvs gv) 
                          (at level 43, right associativity).
 
-Lemma undef_gvs__inhabited : forall gv c t, 
-  Ensembles.Inhabited GenericValue (undef_gvs gv c t).
+Lemma cundef_gvs__getTypeSizeInBits : forall S los nts gv t sz al gv',
+  wf_typ S t ->
+  _getTypeSizeInBits_and_Alignment los 
+    (getTypeSizeInBits_and_Alignment_for_namedts (los,nts) true) true t = 
+      Some (sz, al) ->
+  Coqlib.nat_of_Z (Coqlib.ZRdiv (Z_of_nat sz) 8) = sizeGenericValue gv ->
+  gv' @ (cundef_gvs gv t) ->
+  Coqlib.nat_of_Z (Coqlib.ZRdiv (Z_of_nat sz) 8) = 
+    sizeGenericValue gv'.
 Proof.
-  destruct t; simpl;
-    eapply Ensembles.Inhabited_intro; 
-      try solve [eauto | apply Union_introl; constructor].
+  intros S los nts gv t sz al gv' Hwft Heq1 Heq2 Hin.
+  destruct t; simpl in *;
+    try solve [inv Heq1; inv Hin; erewrite int_typsize; eauto |
+               inv Heq1; inv Hin; eauto].
+    destruct f; try solve [inv Heq1; inv Hin; eauto].
+    inv Heq1. inv Hin. inv H. simpl. auto.
 Qed.
 
-Lemma gv2gvs__inhabited : forall gv t, 
-  Ensembles.Inhabited GenericValue ($ gv # t $).
-Proof.
-  intros gv t.
-  destruct gv; simpl.
-    apply Ensembles.Inhabited_intro with (x:=nil).
-    apply Ensembles.In_singleton.
-
-    destruct p.
-    destruct v; auto using singleton_inhabited, undef_gvs__inhabited.
-    destruct gv; auto using singleton_inhabited, undef_gvs__inhabited.
-Qed.
-
-Lemma cundef_gvs__inhabited : forall gv c t, 
-  Ensembles.Inhabited GenericValue (cundef_gvs gv c t).
+Lemma cundef_gvs__inhabited : forall gv t, 
+  Ensembles.Inhabited GenericValue (cundef_gvs gv t).
 Proof.
   destruct t; simpl; 
     try solve [eapply Ensembles.Inhabited_intro; constructor].
     eapply Ensembles.Inhabited_intro.
       exists (Int.zero s). auto.
 
-    eapply Ensembles.Inhabited_intro.
-      exists Float.zero. auto.
+    destruct f; try solve [
+      eapply Ensembles.Inhabited_intro; exists Float.zero; auto |
+      eapply Ensembles.Inhabited_intro; constructor].
 
     eapply Ensembles.Inhabited_intro.
       exists Mem.nullptr. exists (Int.repr 31 0). auto.
+Qed.
+
+Definition cgv2gvs (gv:GenericValue) t : GVs :=
+match gv with
+| (Vundef, _)::nil => cundef_gvs gv t
+| _ => Singleton GenericValue gv
+end.
+
+Lemma cg2gvs__getTypeSizeInBits : forall S los nts gv t sz al gv',
+  wf_typ S t ->
+  _getTypeSizeInBits_and_Alignment los 
+    (getTypeSizeInBits_and_Alignment_for_namedts (los,nts) true) true t = 
+      Some (sz, al) ->
+  Coqlib.nat_of_Z (Coqlib.ZRdiv (Z_of_nat sz) 8) = sizeGenericValue gv ->
+  gv' @ (cgv2gvs gv t) ->
+  Coqlib.nat_of_Z (Coqlib.ZRdiv (Z_of_nat sz) 8) = 
+    sizeGenericValue gv'.
+Proof.
+  intros S los nts gv t sz al gv' Hwft Heq1 Heq2 Hin.
+  destruct gv; simpl in *.
+    inv Hin. simpl. auto.
+
+    destruct p.
+    destruct v; try solve [inv Hin; simpl; auto].
+    destruct gv; try solve [inv Hin; simpl; auto].
+      eapply cundef_gvs__getTypeSizeInBits in Hin; eauto.
 Qed.
 
 Lemma cgv2gvs__inhabited : forall gv t, 
@@ -175,13 +160,131 @@ Proof.
     destruct gv; auto using singleton_inhabited, cundef_gvs__inhabited.
 Qed.
 
+Definition const2GV (TD:TargetData) (gl:GVMap) (c:const) : option GVs :=
+match (_const2GV TD gl c) with
+| None => None
+| Some (gv, t) => Some (cgv2gvs gv t)
+end.
+
+Definition getOperandValue (TD:TargetData) (v:value) (locals:GVsMap) 
+  (globals:GVMap) : option GVs := 
+match v with
+| value_id id => lookupAL _ locals id 
+| value_const c => const2GV TD globals c
+end.
+
+Definition undef_gvs gv t : GVs :=
+match t with
+| typ_int sz =>
+    Ensembles.Union _ (Singleton _ gv)
+      (fun gv => exists z, gv = (Vint sz z, Mint (sz-1))::nil)
+| typ_floatpoint fp_float => 
+    Ensembles.Union _ (Singleton _ gv)
+      (fun gv => exists f, gv = (Vfloat f, Mfloat32)::nil)
+| typ_floatpoint fp_double => 
+    Ensembles.Union _ (Singleton _ gv)
+      (fun gv => exists f, gv = (Vfloat f, Mfloat64)::nil)
+| typ_pointer _ =>
+    Ensembles.Union _ (Singleton _ gv)
+      (fun gv => exists b, exists ofs, gv = (Vptr b ofs, AST.Mint 31)::nil)
+| _ => Singleton GenericValue gv
+end.
+
+Lemma undef_gvs__getTypeSizeInBits : forall S los nts gv t sz al gv',
+  wf_typ S t ->
+  _getTypeSizeInBits_and_Alignment los 
+    (getTypeSizeInBits_and_Alignment_for_namedts (los,nts) true) true t = 
+      Some (sz, al) ->
+  Coqlib.nat_of_Z (Coqlib.ZRdiv (Z_of_nat sz) 8) = sizeGenericValue gv ->
+  gv' @ (undef_gvs gv t) ->
+  Coqlib.nat_of_Z (Coqlib.ZRdiv (Z_of_nat sz) 8) = 
+    sizeGenericValue gv'.
+Proof.
+  intros S los nts gv t sz al gv' Hwft Heq1 Heq2 Hin.
+  destruct t; simpl in *;
+    try solve [inv Heq1; inv Hin; erewrite int_typsize; eauto |
+               inv Heq1; inv Hin; eauto].
+
+    inv Heq1; inv Hin; inv H; unfold Size.to_nat; 
+      try solve [eauto | erewrite int_typsize; eauto].
+
+    destruct f; try solve [inv Heq1; inv Hin; eauto |
+                           inv Heq1; inv Hin; inv H; auto].
+
+    inv Heq1; inv Hin; inv H; auto.
+      inv H0. auto.
+Qed.
+
+Lemma undef_gvs__inhabited : forall gv t, 
+  Ensembles.Inhabited GenericValue (undef_gvs gv t).
+Proof.
+  destruct t; simpl; try solve [
+    eapply Ensembles.Inhabited_intro; apply Union_introl; constructor |
+    eapply Ensembles.Inhabited_intro; constructor].
+
+    destruct f; try solve [
+      eapply Ensembles.Inhabited_intro; apply Union_introl; constructor |
+      eapply Ensembles.Inhabited_intro; constructor].
+Qed.
+
+Definition gv2gvs (gv:GenericValue) (t:typ) : GVs :=
+match gv with
+| (Vundef, _)::nil => undef_gvs gv t
+| _ => Singleton GenericValue gv
+end.
+
+Notation "$ gv # t $" := (gv2gvs gv t) (at level 41).
+
+Lemma g2gvs__getTypeSizeInBits : forall S los nts gv t sz al gv',
+  wf_typ S t ->
+  _getTypeSizeInBits_and_Alignment los 
+    (getTypeSizeInBits_and_Alignment_for_namedts (los,nts) true) true t = 
+      Some (sz, al) ->
+  Coqlib.nat_of_Z (Coqlib.ZRdiv (Z_of_nat sz) 8) = sizeGenericValue gv ->
+  gv' @ (gv2gvs gv t) ->
+  Coqlib.nat_of_Z (Coqlib.ZRdiv (Z_of_nat sz) 8) = 
+    sizeGenericValue gv'.
+Proof.
+  intros S los nts gv t sz al gv' Hwft Heq1 Heq2 Hin.
+  destruct gv; simpl in *.
+    inv Hin. simpl. auto.
+
+    destruct p.
+    destruct v; try solve [inv Hin; simpl; auto].
+    destruct gv; try solve [inv Hin; simpl; auto].
+      eapply undef_gvs__getTypeSizeInBits in Hin; eauto.
+Qed.
+
+Lemma gv2gvs__inhabited : forall gv t, 
+  Ensembles.Inhabited GenericValue ($ gv # t $).
+Proof.
+  intros gv t.
+  destruct gv; simpl.
+    apply Ensembles.Inhabited_intro with (x:=nil).
+    apply Ensembles.In_singleton.
+
+    destruct p.
+    destruct v; auto using singleton_inhabited, undef_gvs__inhabited.
+    destruct gv; auto using singleton_inhabited, undef_gvs__inhabited.
+Qed.
+
+Definition lift_op1 (f: GenericValue -> option GenericValue) gvs1 t : GVs :=
+  fun gv2 => exists gv1, exists gv2', 
+    gv1 @ gvs1 /\ f gv1 = Some gv2' /\ (gv2 @ $ gv2' # t $).
+
 Definition returnUpdateLocals (TD:TargetData) (c':cmd) (Result:value) 
   (lc lc':GVsMap) (gl:GVMap) : option GVsMap :=
   match (getOperandValue TD Result lc gl) with
   | Some gr =>    
-      match (getCallerReturnID c') with
-      | Some id0 => Some (updateAddAL _ lc' id0 gr)
-      | None => Some lc'
+      match c' with
+      | insn_call id0 false _ t _ _ => 
+        match t with
+        | typ_function ct _ _ =>
+           Some (updateAddAL _ lc' id0 ((lift_op1 (fit_gv TD ct) gr ct)))
+        | _ => None
+        end
+      | insn_call _ _ _ _ _ _ => Some lc'
+      | _=> None
       end
   | None => None
   end.
@@ -247,7 +350,7 @@ Definition ICMP (TD:TargetData) (lc:GVsMap) (gl:GVMap) c t (v1 v2:value)
   : option GVs :=
 match (getOperandValue TD v1 lc gl, getOperandValue TD v2 lc gl) with
 | (Some gvs1, Some gvs2) => 
-    Some (lift_op2 (micmp TD c t) gvs1 gvs2 (typ_int 0%nat))
+    Some (lift_op2 (micmp TD c t) gvs1 gvs2 (typ_int 1%nat))
 | _ => None
 end
 .
@@ -256,14 +359,10 @@ Definition FCMP (TD:TargetData) (lc:GVsMap) (gl:GVMap) c fp (v1 v2:value)
   : option GVs :=
 match (getOperandValue TD v1 lc gl, getOperandValue TD v2 lc gl) with
 | (Some gvs1, Some gvs2) => 
-    Some (lift_op2 (mfcmp TD c fp) gvs1 gvs2 (typ_int 0%nat))
+    Some (lift_op2 (mfcmp TD c fp) gvs1 gvs2 (typ_int 1%nat))
 | _ => None
 end
 .
-
-Definition lift_op1 (f: GenericValue -> option GenericValue) gvs1 t : GVs :=
-  fun gv2 => exists gv1, exists gv2', 
-    gv1 @ gvs1 /\ f gv1 = Some gv2' /\ (gv2 @ $ gv2' # t $).
 
 Definition CAST (TD:TargetData) (lc:GVsMap) (gl:GVMap) (op:castop) 
   (t1:typ) (v1:value) (t2:typ) : option GVs:=
@@ -315,43 +414,43 @@ Notation "vidxs @@ vidxss" := (in_list_gvs vidxs vidxss)
   (at level 43, right associativity).
 
 Definition GEP (TD:TargetData) (t:typ) (mas:GVs) (vidxss:list GVs) 
-  (inbounds:bool) : option GVs :=
+  (inbounds:bool) (t':typ) : option GVs :=
   Some (fun gv => exists ma, exists vidxs, exists gv', 
         ma @ mas /\ vidxs @@ vidxss /\
-        LLVMgv.GEP TD t ma vidxs inbounds = Some gv' /\ 
-        (gv @ $ gv' # (typ_pointer typ_void) $)).
+        LLVMgv.GEP TD t ma vidxs inbounds t' = Some gv' /\ 
+        (gv @ $ gv' # t' $)).
 
 Definition mget' TD o t' gv: option GenericValue :=
 match mget TD gv o t' with 
 | Some gv' => Some gv'
-| None => Some (gundef t')
+| None => gundef TD t'
 end.
 
 Definition extractGenericValue (TD:TargetData) (t:typ) (gvs : GVs) 
   (cidxs : list_const) : option GVs :=
 match (intConsts2Nats TD cidxs) with
-| None => Some ($ (uninits 1) # (typ_int 7%nat) $)
+| None => None
 | Some idxs =>
   match (mgetoffset TD t idxs) with
   | Some (o, t') => Some (lift_op1 (mget' TD o t') gvs t')
-  | None => Some ($ (uninits 1) # (typ_int 7%nat) $)
+  | None => None
   end
 end.
 
 Definition mset' TD o t t0 gv gv0 : option GenericValue :=
 match (mset TD gv o t0 gv0) with
 | Some gv' => Some gv'
-| None => Some (gundef t)
+| None => gundef TD t
 end.
 
 Definition insertGenericValue (TD:TargetData) (t:typ) (gvs:GVs)
   (cidxs:list_const) (t0:typ) (gvs0:GVs) : option GVs :=
 match (intConsts2Nats TD cidxs) with
-| None => Some ($ (gundef t) # t $)
+| None => None
 | Some idxs =>
   match (mgetoffset TD t idxs) with
   | Some (o, _) => Some (lift_op2 (mset' TD o t t0) gvs gvs0 t)
-  | None => Some ($ (gundef t) # t $)
+  | None => None
   end
 end.
 
@@ -367,19 +466,25 @@ match lp with
     end
 end.
 
-Fixpoint _initializeFrameValues (la:args) (lg:list GVs) (locals:GVsMap) 
-  : GVsMap :=
+Fixpoint _initializeFrameValues TD (la:args) (lg:list GVs) (locals:GVsMap) 
+  : option GVsMap :=
 match (la, lg) with
-| ((_, id)::la', g::lg') => 
-  updateAddAL _ (_initializeFrameValues la' lg' locals) id g
+| (((t, _), id)::la', g::lg') => 
+  match _initializeFrameValues TD la' lg' locals with
+  | Some lc' => Some (updateAddAL _ lc' id (lift_op1 (fit_gv TD t) g t))
+  | _ => None
+  end
 | (((t, _), id)::la', nil) => 
   (* FIXME: We should initalize them w.r.t their type size. *)
-  updateAddAL _ (_initializeFrameValues la' nil locals) id ($(gundef t) # t$)
-| _ => locals
+  match _initializeFrameValues TD la' nil locals, gundef TD t with
+  | Some lc', Some gv => Some (updateAddAL _ lc' id ($ gv # t $))
+  | _, _ => None
+  end
+| _ => Some locals
 end.
 
-Definition initLocals (la:args) (lg:list GVs): GVsMap := 
-_initializeFrameValues la lg nil.
+Definition initLocals TD (la:args) (lg:list GVs): option GVsMap := 
+_initializeFrameValues TD la lg nil.
 
 Definition lookupFdefViaPtr Ps fs fptr : option fdef :=
   do fn <- LLVMopsem.lookupFdefViaGVFromFunTable fs fptr;
@@ -393,19 +498,21 @@ do fn <- LLVMopsem.lookupFdefViaGVFromFunTable fs fptr;
     end
 .
 
-Definition getReturnTyp t0 : typ :=
-match t0 with
-| typ_function t1 _ _ => t1
-| _ => typ_void
-end.
-
-Definition exCallUpdateLocals (ft:typ) (noret:bool) (rid:id) 
+Definition exCallUpdateLocals TD (ft:typ) (noret:bool) (rid:id) 
   (oResult:option GenericValue) (lc :GVsMap) : option GVsMap :=
   match noret with
   | false =>
       match oResult with
       | None => None
-      | Some Result => Some (updateAddAL _ lc rid ($ Result # getReturnTyp ft $))
+      | Some Result => 
+          match ft with
+          | typ_function t _ _ => 
+            match fit_gv TD t Result with
+            | Some gr => Some (updateAddAL _ lc rid ($ gr # t $))
+            | _ => None
+            end
+          | _ => None
+          end
       end
   | true => Some lc
   end.
@@ -565,10 +672,11 @@ Inductive nsInsn : State -> State -> trace -> Prop :=
     trace_nil
 
 | nsGEP : forall S TD Ps F B lc gl fs id inbounds t v idxs vidxs EC mp mp' 
-                 cs tmn Mem als,
+                 cs tmn Mem als t',
   getOperandValue TD v lc gl = Some mp ->
   values2GVs TD idxs lc gl = Some vidxs ->
-  GEP TD t mp vidxs inbounds = Some mp' ->
+  getGEPTyp idxs t = ret t' ->
+  GEP TD t mp vidxs inbounds t' = Some mp' ->
   nsInsn 
     (mkState S TD Ps ((mkEC F B ((insn_gep id inbounds t v idxs)::cs) tmn lc
                        als)::EC) gl fs Mem) 
@@ -641,7 +749,7 @@ Inductive nsInsn : State -> State -> trace -> Prop :=
     trace_nil
 
 | nsCall : forall S TD Ps F B lc gl fs rid noret ca fid fv lp cs tmn fptrs fptr
-                       l' ps' cs' tmn' EC rt la va lb Mem als ft fa gvs,
+                      lc' l' ps' cs' tmn' EC rt la va lb Mem als ft fa gvs,
   (* only look up the current module for the time being, 
      do not support linkage. *)
   getOperandValue TD fv lc gl = Some fptrs -> 
@@ -651,12 +759,12 @@ Inductive nsInsn : State -> State -> trace -> Prop :=
   getEntryBlock (fdef_intro (fheader_intro fa rt fid la va) lb) = 
     Some (block_intro l' ps' cs' tmn') ->
   params2GVs TD lp lc gl = Some gvs ->
+  initLocals TD la gvs = Some lc' ->
   nsInsn 
     (mkState S TD Ps ((mkEC F B ((insn_call rid noret ca ft fv lp)::cs) tmn 
                        lc als)::EC) gl fs Mem)
     (mkState S TD Ps ((mkEC (fdef_intro (fheader_intro fa rt fid la va) lb) 
-                       (block_intro l' ps' cs' tmn') cs' tmn' 
-                       (initLocals la gvs) 
+                       (block_intro l' ps' cs' tmn') cs' tmn' lc'
                        nil)::
                       (mkEC F B ((insn_call rid noret ca ft fv lp)::cs) tmn 
                        lc als)::EC) gl fs Mem)
@@ -675,7 +783,7 @@ Inductive nsInsn : State -> State -> trace -> Prop :=
   params2GVs TD lp lc gl = Some gvss ->
   gvs @@ gvss ->
   LLVMopsem.callExternalFunction Mem fid gvs = Some (oresult, Mem') ->
-  exCallUpdateLocals ft noret rid oresult lc = Some lc' ->
+  exCallUpdateLocals TD ft noret rid oresult lc = Some lc' ->
   nsInsn 
     (mkState S TD Ps ((mkEC F B ((insn_call rid noret ca ft fv lp)::cs) tmn 
                        lc als)::EC) gl fs Mem)
@@ -704,7 +812,8 @@ match (lookupFdefViaIDFromSystem S main) with
       | Some (block_intro l ps cs tmn) => 
           match CurFunction with 
           | fdef_intro (fheader_intro _ rt _ la _) _ =>
-            let Values := initLocals la Args in
+            match initLocals initargetdata la Args with
+            | Some Values =>
               Some
               (mkState
                 S
@@ -722,6 +831,8 @@ match (lookupFdefViaIDFromSystem S main) with
                 initFunTable
                 initMem
             )          
+            | None => None
+            end
         end
       end
     end

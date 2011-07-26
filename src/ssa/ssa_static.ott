@@ -435,7 +435,7 @@ Jwf_trunc :: '' ::=
       intrinsic_funs , system , (layouts namedts products) , fdef , block |-trunc id = trunc_int ( int sz1 ) value1 to ( int sz2 )	
 
       % Check typs
-      system , (layouts namedts products) , fdef |- value1 : floating_point11 
+      system , (layouts namedts products) , fdef |- value1 : floating_point1
       system |- floating_point2
       (layouts namedts) |- floating_point2
       % bitwidth of dest typ is less then src typ

@@ -149,7 +149,8 @@ match state with
     | insn_gep id0 inbounds0 t v idxs =>
       do mp <- getOperandValue TD v lc gl;
       do vidxs <- values2GVs TD idxs lc gl;
-      do mp' <- GEP TD t mp vidxs inbounds0;
+      do t' <- getGEPTyp idxs t;
+      do mp' <- GEP TD t mp vidxs inbounds0 t';
          ret ((mkState Sys TD Ps ((mkEC F B cs tmn (updateAddAL _ lc id0 mp') 
                als)::EC) gl fs Mem0), trace_nil)
     | insn_trunc id0 truncop0 t1 v1 t2 =>
@@ -196,7 +197,7 @@ match state with
               match (callExternalFunction Mem0 fid gvs)
               with
               | Some (oresult, Mem1) =>
-                do lc' <- exCallUpdateLocals noret0 rid oresult lc;
+                do lc' <- exCallUpdateLocals TD ft noret0 rid oresult lc;
                 ret ((mkState Sys TD Ps 
                       ((mkEC F B cs tmn lc' als)::EC) 
                        gl fs Mem1),
@@ -212,10 +213,10 @@ match state with
             | None => None
             | Some (block_intro l' ps' cs' tmn') =>
                 do gvs <- params2GVs TD lp lc gl;
+                do lc0 <- initLocals TD la gvs;
                 ret ((mkState Sys TD Ps ((mkEC (fdef_intro 
                       (fheader_intro fa rt fid la va) lb) 
-                      (block_intro l' ps' cs' tmn') cs' tmn' 
-                      (initLocals la gvs) 
+                      (block_intro l' ps' cs' tmn') cs' tmn' lc0 
                       nil)::
                     (mkEC F B ((insn_call rid noret0 tailc0 ft fv lp)::cs) tmn 
                       lc als)::EC) gl fs Mem0),
@@ -241,6 +242,8 @@ Proof.
     simpl. rewrite H. simpl. rewrite <- H0. simpl. rewrite H1. simpl. auto.
   Case "dsBranch_uncond".
     simpl. rewrite <- H. simpl. rewrite H0. simpl. auto.
+  Case "dsGEP".
+    rewrite H. simpl. rewrite H0. simpl. rewrite H1. simpl. rewrite H2. auto.
   Case "dsCall".
     unfold lookupFdefViaGV in H.
     destruct (getOperandValue TD fv lc gl); try solve [inversion H]. simpl.
@@ -248,7 +251,7 @@ Proof.
     destruct (lookupFdefViaGVFromFunTable fs g); try solve [inversion H]. simpl.
     simpl in H. rewrite H. simpl in H0. rewrite H0. 
     apply lookupFdefViaIDFromProducts_ideq in H; subst.
-    rewrite H1.
+    rewrite H1. simpl. rewrite H2. simpl.
     destruct (id_dec fid fid); auto.
       destruct (typ_dec rt rt); auto.
         contradict n; auto.
@@ -439,9 +442,10 @@ Proof.
         destruct R1; simpl in HinterInsn; 
           try solve [inversion HinterInsn].         
         remember (values2GVs CurTargetData0 l0 lc Globals0) as R3.
-        destruct R3; simpl in HinterInsn; 
-          try solve [inversion HinterInsn].         
-        remember (GEP CurTargetData0 t g l1 i1) as R2.
+        destruct R3; simpl in HinterInsn; try solve [inversion HinterInsn].     
+        remember (getGEPTyp l0 t) as R4.
+        destruct R4; simpl in HinterInsn; try solve [inversion HinterInsn].
+        remember (GEP CurTargetData0 t g l1 i1 t0) as R2.
         destruct R2; simpl in HinterInsn; 
           inversion HinterInsn; subst; eauto.
 
@@ -495,7 +499,8 @@ Proof.
           destruct b.
           remember (params2GVs CurTargetData0 p lc Globals0) as R10.
           destruct R10; try solve [inversion HinterInsn]. simpl in HinterInsn.
-          inversion HinterInsn; subst.
+          remember (initLocals CurTargetData0 a l1) as R11. 
+          destruct R11; inversion HinterInsn.
           eapply dsCall; eauto.
             unfold lookupFdefViaGV.
             rewrite <- HeqR0. simpl.
@@ -512,7 +517,7 @@ Proof.
             simpl in HinterInsn.
             remember (callExternalFunction Mem0 i2 l0) as R3.
             destruct R3 as [[oresult Mem1]|]; inversion HinterInsn; subst.
-            remember (exCallUpdateLocals n i0 oresult lc) as R4.
+            remember (exCallUpdateLocals CurTargetData0 t n i0 oresult lc) as R4.
             destruct R4; inversion HinterInsn; subst.
             eapply dsExCall; eauto.
               unfold lookupExFdecViaGV.

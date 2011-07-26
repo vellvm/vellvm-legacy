@@ -23,17 +23,17 @@ Export LLVMopsem.
 (* prop *)
 
 Lemma eqAL_callUpdateLocals : forall TD noret0 rid oResult lc1 lc2 gl lc1' 
-  lc2',
+  lc2' ft,
   eqAL _ lc1 lc1' ->
   eqAL _ lc2 lc2' ->
-  match (callUpdateLocals TD noret0 rid oResult lc1 lc2 gl,
-         callUpdateLocals TD noret0 rid oResult lc1' lc2' gl) with
+  match (callUpdateLocals TD ft noret0 rid oResult lc1 lc2 gl,
+         callUpdateLocals TD ft noret0 rid oResult lc1' lc2' gl) with
   | (Some lc, Some lc') => eqAL _ lc lc'
   | (None, None) => True
   | _ => False
   end.
 Proof.
-  intros TD noret0 rid oResult lc1 lc2 gl lc1' lc2' H1 H2.
+  intros TD noret0 rid oResult lc1 lc2 gl lc1' lc2' ft H1 H2.
     unfold callUpdateLocals.
     destruct noret0; auto.
       destruct oResult; simpl; auto.
@@ -45,9 +45,13 @@ Proof.
       destruct oResult; simpl; auto.
         destruct v; simpl.
           rewrite H2.
-          destruct (lookupAL _ lc2' i0); auto using eqAL_updateAddAL.
+          destruct (lookupAL _ lc2' i0); auto.
+          destruct ft; auto.
+          destruct (fit_gv TD ft g); auto using eqAL_updateAddAL.
 
           destruct (const2GV TD gl c); auto using eqAL_updateAddAL.
+          destruct ft; auto.
+          destruct (fit_gv TD ft g); auto using eqAL_updateAddAL.
 Qed.
 
 Lemma eqAL_getIncomingValuesForBlockFromPHINodes : forall TD ps B gl lc lc',
@@ -98,19 +102,21 @@ Proof.
       erewrite IHlp; eauto.
 Qed.
 
-Lemma eqAL_exCallUpdateLocals : forall noret0 rid oResult lc lc',
+Lemma eqAL_exCallUpdateLocals : forall TD noret0 rid oResult lc lc' ft,
   eqAL _ lc lc' ->
-  match (exCallUpdateLocals noret0 rid oResult lc,
-         exCallUpdateLocals noret0 rid oResult lc') with
+  match (exCallUpdateLocals TD ft noret0 rid oResult lc,
+         exCallUpdateLocals TD ft noret0 rid oResult lc') with
   | (Some lc1, Some lc1') => eqAL _ lc1 lc1'
   | (None, None) => True
   | _ => False
   end.
 Proof.
-  intros noret0 rid oResult lc lc' H1.
+  intros TD noret0 rid oResult lc lc' ft H1.
     unfold exCallUpdateLocals.
     destruct noret0; auto.
-    destruct oResult; simpl; auto using eqAL_updateAddAL.
+    destruct oResult; auto.
+    destruct ft; auto.
+    destruct (fit_gv TD ft g); auto using eqAL_updateAddAL.
 Qed.
 
 Lemma updateValuesForNewBlock_uniq : forall l0 lc,
@@ -133,16 +139,26 @@ Proof.
   apply updateValuesForNewBlock_uniq; auto.
 Qed.      
 
-Lemma initializeFrameValues_init : forall la l0,
-  uniq (_initializeFrameValues la l0 nil).
+Lemma initializeFrameValues_init : forall TD la l0 lc,
+  _initializeFrameValues TD la l0 nil = Some lc ->
+  uniq lc.
 Proof.
-  induction la; intros; simpl; auto.
+  induction la; intros; simpl in *; auto.
+    inv H. auto.
+
     destruct a as [[t ?] id0].
-    destruct l0; auto using updateAddAL_uniq.
+    destruct l0.
+      remember (_initializeFrameValues TD la nil nil) as R.
+      destruct R; tinv H.
+      destruct (gundef TD t); inv H; eauto using updateAddAL_uniq.
+
+      remember (_initializeFrameValues TD la l0 nil) as R.
+      destruct R; tinv H.
+      destruct (fit_gv TD t g); inv H; eauto using updateAddAL_uniq.
 Qed.
 
-Lemma initLocals_uniq : forall la ps,
-  uniq (initLocals la ps).
+Lemma initLocals_uniq : forall TD la ps lc,
+  initLocals TD la ps = Some lc -> uniq lc.
 Proof.
   intros la ps.
   unfold initLocals.
