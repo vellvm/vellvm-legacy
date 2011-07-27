@@ -57,27 +57,27 @@ Proof.
   intros.  
   unfold SBopsem.returnUpdateLocals, SBopsem.returnResult in H.
   unfold returnUpdateLocals.
-  destruct (getOperandValue TD' Result lc1' gl'); 
-    try solve [inversion H; auto].
-  destruct (isPointerTypB rt); try solve [inversion H; auto].
-    destruct (SBopsem.get_reg_metadata TD' gl' rm Result) as [[md ?]|]; 
-      try solve [inversion H; auto].
-    destruct c'; try solve [inversion H; auto].
-    destruct n; try solve [inversion H; auto].
-    unfold SBopsem.prop_reg_metadata in H.  
-    destruct t; try solve [inversion H; auto].
-    destruct t; try solve [inversion H; auto].
+  destruct (getOperandValue TD' Result lc1' gl'); tinv H.
+  destruct (isPointerTypB rt); tinv H.
+    destruct (SBopsem.get_reg_metadata TD' gl' rm Result) as [[md ?]|]; tinv H.
+    destruct c'; tinv H.
+    destruct n; inv H; auto.
+    destruct t; tinv H1.
+    destruct (fit_gv TD' t g); tinv H1.
+    unfold SBopsem.prop_reg_metadata in H1.  
+    destruct t; inv H1; auto.
 
-    destruct c'; try solve [inversion H; auto].
-    destruct n; try solve [inversion H; auto].
-    unfold SBopsem.prop_reg_metadata in H.  
-    destruct t; try solve [inversion H; auto].
-    destruct t; try solve [inversion H; auto].
+    destruct c'; tinv H.
+    destruct n; inv H; auto.
+    destruct t; tinv H1.
+    destruct (fit_gv TD' t g); tinv H1.
+    unfold SBopsem.prop_reg_metadata in H1.  
+    destruct t; inv H1; auto.
 Qed.
 
-Lemma exCallUpdateLocals_sim : forall ft noret rid oResult lc rm lc'' rm'', 
-  SBopsem.exCallUpdateLocals ft noret rid oResult lc rm = ret (lc'', rm'') ->
-  exCallUpdateLocals noret rid oResult lc = ret lc''.
+Lemma exCallUpdateLocals_sim : forall TD ft noret rid oResult lc rm lc'' rm'', 
+  SBopsem.exCallUpdateLocals TD ft noret rid oResult lc rm = ret (lc'', rm'') ->
+  exCallUpdateLocals TD ft noret rid oResult lc = ret lc''.
 Proof.
   intros.  
   unfold SBopsem.exCallUpdateLocals in H.
@@ -85,6 +85,7 @@ Proof.
   destruct noret0; try solve [inversion H; auto].
   destruct oResult; try solve [inversion H; auto].
   destruct ft; try solve [inversion H; auto].
+  destruct (fit_gv TD ft g); try solve [inversion H; auto].
   destruct ft; inversion H; auto.
 Qed.
 
@@ -195,10 +196,10 @@ Proof.
       simpl; rewrite J2; rewrite J1; eauto.
 Qed.
 
-Lemma initializeFrameValues_sim : forall la rm ogvs lc lc' rm' gvs l2,
-  SBopsem._initializeFrameValues la ogvs lc rm = (lc', rm') -> 
+Lemma initializeFrameValues_sim : forall TD lc rm la ogvs lc' rm' gvs l2,
+  SBopsem._initializeFrameValues TD la ogvs lc rm = Some (lc', rm') -> 
   split ogvs = (gvs, l2) ->  
-  _initializeFrameValues la gvs lc = lc'.
+  _initializeFrameValues TD la gvs lc = Some lc'.
 Proof.
   induction la; simpl; intros.
     inversion H; subst; auto.
@@ -206,11 +207,12 @@ Proof.
     destruct a. destruct p.
     destruct ogvs.
       simpl in H0. inversion H0; subst.
-      remember (SBopsem._initializeFrameValues la nil lc rm) as R.
-      destruct R as [lc1 rm1].
+      remember (SBopsem._initializeFrameValues TD la nil lc rm) as R.
+      destruct R as [[lc1 rm1]|]; tinv H. 
+      destruct (gundef TD t); tinv H.
       unfold SBopsem.prop_reg_metadata in H.     
       symmetry in HeqR.
-      eapply IHla in HeqR; eauto.
+      eapply IHla in HeqR; eauto. rewrite HeqR.
       destruct (isPointerTypB t); inversion H; subst; auto.
 
       destruct p.
@@ -218,10 +220,11 @@ Proof.
       remember (split ogvs) as R'.
       destruct R'.
       inversion H0; subst.
-      remember (SBopsem._initializeFrameValues la ogvs lc rm) as R.
-      destruct R as [lc1 rm1].
+      remember (SBopsem._initializeFrameValues TD la ogvs lc rm) as R.
+      destruct R as [[lc1 rm1]|]; tinv H.
+      destruct (fit_gv TD t g); tinv H.
       symmetry in HeqR.
-      eapply IHla in HeqR; eauto.
+      eapply IHla in HeqR; eauto. rewrite HeqR.
       destruct (isPointerTypB t); try solve [inversion H; subst; auto].
         unfold SBopsem.prop_reg_metadata in H.
         destruct o; try solve [inversion H; subst; auto].
@@ -229,9 +232,9 @@ Qed.
 
 Lemma initLocals_params2GVs_sim : forall lp gl' TD' lc1' rm ogvs la lc' rm',
   SBopsem.params2GVs TD' lp lc1' gl' rm = ret ogvs ->
-  SBopsem.initLocals la ogvs = (lc', rm') -> 
+  SBopsem.initLocals TD' la ogvs = Some (lc', rm') -> 
   exists gvs, params2GVs TD' lp lc1' gl' = ret gvs /\
-    initLocals la gvs = lc'.
+    initLocals TD' la gvs = Some lc'.
 Proof.
   unfold SBopsem.initLocals, initLocals.
   intros.
@@ -706,7 +709,7 @@ Proof.
                  CurBB := block_intro l' ps' cs' tmn';
                  CurCmds := cs';
                  Terminator := tmn';
-                 Locals := (initLocals la gvs);
+                 Locals := lc';
                  Allocas := nil |} ::
               {| CurFunction := f1';
                  CurBB := b1';

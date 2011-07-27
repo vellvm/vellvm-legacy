@@ -71,6 +71,52 @@ Proof.
     repeat (split; eauto using gv_inject_incr).
 Qed.
 
+Lemma gv_inject__same_size : forall mi gv1 gv2,
+  gv_inject mi gv1 gv2 ->
+  sizeGenericValue gv1 = sizeGenericValue gv2.
+Proof.
+  intros mi gv1 gv2 Hinj.
+  induction Hinj; simpl; auto.
+Qed.
+
+Lemma simulation__fit_gv : forall maxb mi TD t Mem Mem2 gv1 gv1' gv2,
+  wf_sb_mi maxb mi Mem Mem2 ->
+  gv_inject mi gv1 gv2 ->
+  fit_gv TD t gv1 = ret gv1' ->
+  exists gv2', 
+    fit_gv TD t gv2 = ret gv2' /\ gv_inject mi gv1' gv2'.
+Proof.
+  intros maxb mi TD t Mem Mem2 gv1 gv1' gv2 Hwfmi Hinj Hfit.
+  unfold fit_gv in *.
+  destruct (getTypeSizeInBits TD t); tinv Hfit.
+  erewrite <- gv_inject__same_size; eauto.
+  destruct (sizeGenericValue gv1 =n= nat_of_Z (ZRdiv (Z_of_nat n) 8)); 
+    inv Hfit; eauto using gv_inject_gundef.
+Qed.
+
+Lemma simulation___cundef_gv : forall maxb mi t Mem Mem2 gv,
+  wf_sb_mi maxb mi Mem Mem2 ->
+  gv_inject mi gv gv ->
+  gv_inject mi (cundef_gv gv t) (cundef_gv gv t).
+Proof.
+  intros.
+  destruct t; simpl; eauto.
+    destruct f; simpl; eauto.
+    inv H. unfold null. eauto.
+Qed.
+
+Lemma simulation___cgv2gv : forall maxb mi t Mem Mem2 gv1 gv2,
+  wf_sb_mi maxb mi Mem Mem2 ->
+  gv_inject mi gv1 gv2 ->
+  gv_inject mi (? gv1 # t ?) (? gv2 # t ?).
+Proof.
+  intros maxb mi t Mem Mem2 gv1 gv2 Hwfmi Hinj.
+  induction Hinj; auto.
+    inv H; simpl; eauto.
+    destruct gv1; inv Hinj; eauto.
+      eapply simulation___cundef_gv; eauto.
+Qed.
+
 Lemma simulation__getOperandValue : forall maxb mi rm rm2 lc lc2 TD Mem Mem2 
     gl F v gv,
   wf_globals maxb gl -> 
@@ -179,16 +225,13 @@ Proof.
 
         symmetry in HeqR1.
         eapply simulation__mgep' in HeqR1; eauto.
-        rewrite HeqR1.
-        exists (gundef (typ_pointer typ_void)).           
-        split; auto. apply gv_inject_gundef.
+        rewrite HeqR1. rewrite H3.
+        eauto using gv_inject_gundef.
 
-      exists (gundef (typ_pointer typ_void)). inv H4.      
-      split; auto. apply gv_inject_gundef.
+      rewrite H4. eauto using gv_inject_gundef.
 
     erewrite simulation__GV2ptr'; eauto.
-    exists (gundef (typ_pointer typ_void)).           
-    split; auto. apply gv_inject_gundef.
+    rewrite H4. eauto using gv_inject_gundef.
 Qed.
 
 Lemma simulation__values2GVs : forall maxb mi rm rm2 lc lc2 TD Mem Mem2 
@@ -1528,6 +1571,34 @@ Proof.
   eapply reg_simulation__updateAddAL_lc; eauto.
 Qed.
 
+Lemma simulation_mload_aux : forall Mem0 Mem2 b b2 delta mi mgb
+  (Hwfmi : wf_sb_mi mgb mi Mem0 Mem2)
+  (Hmsim : MoreMem.mem_inj mi Mem0 Mem2)
+  (H1 : mi b = ret (b2, delta)) mcs ofs gv
+  (Hmloads : mload_aux Mem0 mcs b ofs = ret gv),
+   exists gv2 : GenericValue,
+     mload_aux Mem2 mcs b2 (ofs + delta) = ret gv2 /\ gv_inject mi gv gv2.
+Proof.
+  induction mcs; simpl; intros.
+    inv Hmloads. eauto.
+
+    remember (Mem.load a Mem0 b ofs) as R.
+    destruct R as [v|]; tinv Hmloads.
+    symmetry in HeqR.
+    inv Hwfmi.
+    eapply MoreMem.load_inj in HeqR; eauto.
+    destruct HeqR as [v2 [Hmload Hinj]].
+    rewrite Hmload.
+    remember (mload_aux Mem0 mcs b (ofs + size_chunk a)) as R1.
+    destruct R1; inv Hmloads.
+    symmetry in HeqR1.
+    apply IHmcs in HeqR1; auto.
+    destruct HeqR1 as [gv2 [Hmloads Hinjs]].
+    assert (ofs + delta + size_chunk a = ofs + size_chunk a + delta) as EQ. ring.
+    rewrite EQ.
+    rewrite Hmloads. eauto.
+Qed.
+
 Lemma simulation__mload : forall mi TD MM Mem0 Mem2 gvp align0 gv t gvp2 mgb,
   wf_sb_mi mgb mi Mem0 Mem2 ->
   mem_simulation mi TD mgb MM Mem0 Mem2 ->
@@ -1536,35 +1607,18 @@ Lemma simulation__mload : forall mi TD MM Mem0 Mem2 gvp align0 gv t gvp2 mgb,
   exists gv2, mload TD Mem2 gvp2 t align0 = ret gv2 /\ gv_inject mi gv gv2.
 Proof.
   intros mi TD MM Mem0 Mem2 gvp align0 gv t gvp2 mgb Hwfmi Hmsim Hmload Hginject.
-  unfold mload in *.
-  remember (GV2ptr TD (getPointerSize TD) gvp) as R.
-  destruct R; try solve [inversion Hmload].
-  destruct v; try solve [inversion Hmload].
-  remember (typ2memory_chunk t) as R'.
-  destruct R'; try solve [inversion Hmload].
-  remember (Mem.load m Mem0 b (Int.signed 31 i0)) as R1.
-  destruct R1; try solve [inversion Hmload].
-  unfold GV2ptr in *.
-  destruct gvp; inv HeqR.
-  destruct p.
-  destruct v0; inv H0.
-  destruct gvp; inv H1.
+  apply mload_inv in Hmload.
+  destruct Hmload as [b [ofs [m [mc [Heq [Hflat Hmload]]]]]]; subst.
   inv Hginject. inv H4. inv H3.
-  inv Hmload.
-  symmetry in HeqR1.
+  unfold mload. simpl. rewrite Hflat.
   destruct Hmsim as [Hmsim _].
-  inversion_clear Hwfmi.
-  eapply MoreMem.load_inj in HeqR1; eauto.
-  destruct HeqR1 as [v2 [J2 J3]].
-  exists (val2GV TD v2 m).
-  split.
-    apply mi_range_block in H1. subst.
-    rewrite Int.add_zero.
-    assert (Int.signed 31 i2 + 0 = Int.signed 31 i2) as EQ. zauto.
-    rewrite EQ in J2. rewrite J2. auto.
-
-    unfold val2GV. simpl. 
-    auto.
+  eapply simulation_mload_aux in Hmload; eauto.
+  destruct Hmload as [gv2 [Hmload Hinj]].
+  inv Hwfmi.
+  apply mi_range_block in H1. subst.
+  rewrite Int.add_zero.
+  assert (Int.signed 31 ofs + 0 = Int.signed 31 ofs) as EQ. zauto.
+  rewrite EQ in Hmload. eauto.
 Qed.
 
 Lemma get_reg_metadata__fresh : forall
@@ -1655,6 +1709,97 @@ Proof.
 Qed.
 *)
 
+Lemma mstore_inversion : forall Mem2 t align0 TD gvp2 Mem2'
+  (gv2 : GenericValue)
+  (H21 : mstore TD Mem2 gvp2 t gv2 align0 = ret Mem2'),
+  exists b, exists ofs, exists cm, 
+    gvp2 = (Vptr b ofs,cm)::nil /\ 
+    mstore_aux Mem2 gv2 b (Int.signed 31 ofs) = ret Mem2'.
+Proof.
+  intros.
+  unfold mstore in H21.
+  remember (GV2ptr TD (getPointerSize TD) gvp2) as R.
+  destruct R; try solve [inversion H21].
+  destruct v; try solve [inversion H21].
+  unfold GV2ptr in HeqR.
+  destruct gvp2; try solve [inversion HeqR].
+  destruct p.
+  destruct v; try solve [inversion HeqR].
+  destruct gvp2; inv HeqR.
+  exists b0. exists i2. exists m. eauto.
+Qed.
+
+Lemma simulation_mstore_aux : forall b b2 delta mi mgb MM TD
+  (H1 : mi b = ret (b2, delta)) gv ofs gv2 Mem0 Mem2 Mem0'
+  (Hwfmi : wf_sb_mi mgb mi Mem0 Mem2)
+  (Hmsim : mem_simulation mi TD mgb MM Mem0 Mem2)
+  (Hinj : gv_inject mi gv gv2)
+  (Hmstores : mstore_aux Mem0 gv b ofs = ret Mem0'),
+   exists Mem2',
+     mstore_aux Mem2 gv2 b2 (ofs + delta) = ret Mem2' /\ 
+     wf_sb_mi mgb mi Mem0' Mem2' /\ 
+     mem_simulation mi TD mgb MM Mem0' Mem2'.
+Proof.
+  induction gv; simpl; intros.
+    inv Hmstores. inv Hinj. simpl. eauto.
+
+    destruct a. inv Hinj.
+    remember (Mem.store m Mem0 b ofs v) as R1.
+    destruct R1 as [M|]; tinv Hmstores.
+    symmetry in HeqR1.
+    destruct Hmsim as [Hmsim1 [Hmgb [Hzero Hmsim2]]].
+    inv Hwfmi.
+    assert (Hmstore0 := HeqR1).
+    eapply MoreMem.store_mapped_inj with (f:=mi)(m2:=Mem2) in HeqR1; 
+      try solve [eauto | inversion Hwfmi; eauto].
+    destruct HeqR1 as [Mem2' [Hmstore Hminj]].
+    simpl. rewrite Hmstore.
+    assert (ofs + delta + size_chunk m = ofs + size_chunk m + delta) as EQ. ring.
+    rewrite EQ.
+    apply IHgv with (Mem0:=M); auto.
+    Case "wf_sb_mi".
+      split; auto.
+      SCase "Hnext1".
+        erewrite <- Mem.nextblock_store with (m1:=Mem0) in Hmap1; eauto.
+      SCase "Hnext2".
+        intros b1 b0 delta2 J.
+        apply Hmap2 in J.
+        apply Mem.nextblock_store in Hmstore.
+        rewrite Hmstore. auto.
+      SCase "mi_freeblocks0".
+        intros b0 J. apply mi_freeblocks. intro J'. apply J.
+        eapply Mem.store_valid_block_1; eauto.
+      SCase "mi_mappedblocks0".
+        intros b0 b' delta0 J.
+        eapply Mem.store_valid_block_1; eauto.
+      SCase "mi_bounds".
+        intros b0 b' delta0 J.
+        apply mi_bounds in J.
+        apply Mem.bounds_store with (b':=b0) in Hmstore0; auto.
+        rewrite Hmstore0. rewrite J.
+        erewrite Mem.bounds_store with (m2:=Mem2'); eauto.
+    
+    Case "msim".
+      split; auto.
+      split.
+        apply Mem.nextblock_store in Hmstore.
+        rewrite Hmstore. auto.
+      split; auto.
+        clear - Hzero Hmstore0.
+        apply Mem.nextblock_store in Hmstore0. intros.
+        apply Hzero. rewrite <- Hmstore0. auto.
+    
+        clear Hmsim1.
+        intros lc2 gl b0 ofs0 bgv egv als bid0 eid0 pgv' fs F B cs tmn S Ps EC
+          v1 cm Hwfg G1 G2 G3.
+        assert (G3':=G3).
+        eapply Hmsim2 with (bgv:=bgv)(egv:=egv)(als:=als)
+          (bid0:=bid0)(eid0:=eid0)(b:=b0)(ofs:=ofs0) in G3'; eauto.
+        destruct G3' as [bgv' [egv' [G4 [G5 G6]]]].
+        exists bgv'. exists egv'.
+        eapply store_doesnt_change_gmmd in G4; eauto.
+Qed.
+
 Lemma simulation__mstore : forall mi TD MM Mem0 Mem2 gvp align0 gv t gvp2 gv2
                                   Mem0' mgb,
   wf_sb_mi mgb mi Mem0 Mem2 ->
@@ -1664,128 +1809,23 @@ Lemma simulation__mstore : forall mi TD MM Mem0 Mem2 gvp align0 gv t gvp2 gv2
   gv_inject mi gv gv2 ->
   exists Mem2', 
     mstore TD Mem2 gvp2 t gv2 align0 = ret Mem2' /\ 
-    wf_sb_mi mgb mi Mem0 Mem2' /\
+    wf_sb_mi mgb mi Mem0' Mem2' /\
     mem_simulation mi TD mgb MM Mem0' Mem2'.
 Proof.
   intros mi TD MM Mem0 Mem2 gvp align0 gv t gvp2 gv2 Mem0' mgb Hwfmi Hmsim 
     Hmstore Hginject1 Hginject2.
-  assert (Hmstore':=Hmstore).
-  unfold mstore in Hmstore.
-  remember (GV2ptr TD (getPointerSize TD) gvp) as R.
-  destruct R; try solve [inversion Hmstore].
-  destruct v; try solve [inversion Hmstore].
-  remember (typ2memory_chunk t) as R'.
-  destruct R'; try solve [inversion Hmstore].
-  remember (GV2val TD gv) as R1.
-  destruct R1; try solve [inversion Hmstore].
-  unfold GV2ptr in *.
-  destruct gvp; inv HeqR.
-  destruct p.
-  destruct v0; inv H0.
-  destruct gvp; inv H1.
+  apply mstore_inversion in Hmstore.
+  destruct Hmstore as [b [ofs [cm [Heq Hmstore]]]]; subst.
   inv Hginject1. inv H4. inv H3.
-  assert (exists v2, GV2val TD gv2 = Some v2 /\ MoreMem.val_inject mi v v2) 
-    as Hvinj.
-      clear - HeqR1 Hginject2.
-      unfold GV2val.
-      destruct gv; simpl in *; inv HeqR1.
-        destruct gv2. exists Vundef. split; auto.
-          destruct p; simpl in *. 
-          destruct (split gv2); simpl in *.
-          inv Hginject2. 
-        destruct p; simpl in *. 
-        destruct gv; inv H0; simpl in *. 
-          destruct gv2; simpl in *.
-            inv Hginject2. 
 
-            destruct p; simpl in *. 
-            destruct gv2. 
-              simpl in *. inv Hginject2. eauto.
-              destruct p. simpl in *.
-              destruct (split gv2). inv Hginject2. inv H6.
-             
-          destruct p. destruct (split gv).
-          destruct gv2; simpl in *. 
-            inv Hginject2. 
-
-            destruct p; simpl in *. 
-            destruct gv2; simpl in *. 
-              inv Hginject2. inv H6.
-              exists Vundef. split; auto.
-  destruct Hvinj as [v2 [Hg2v Hvinj]].
-  assert (H0:=Hmstore).
-  destruct Hmsim as [Hmsim1 [Hmgb [Hzero Hmsim2]]].
-  eapply MoreMem.store_mapped_inj with (f:=mi)(m2:=Mem2) in H0; 
-      try solve [eauto | inversion Hwfmi; eauto].
-  destruct H0 as [Mem2' [J2 J4]].
-  exists Mem2'.
-  assert (mstore TD Mem2
-      ((Vptr b2 (Int.add 31 i2 (Int.repr 31 delta)), m) :: nil) t
-      gv2 align0 = ret Mem2') as J.
-      unfold mstore. simpl. rewrite <- HeqR'. rewrite Hg2v.
-      clear - J2 Hwfmi H1.
-      inversion_clear Hwfmi.
-      apply mi_range_block in H1. subst.
-      rewrite Int.add_zero.
-      assert (Int.signed 31 i2 + 0 = Int.signed 31 i2) as EQ. zauto.
-      rewrite EQ in J2. auto.
-  split; auto.
-  split.
-    Case "wf_sb_mi".
-      clear - Hwfmi J2.
-      inversion Hwfmi.
-      split; auto.
-      SCase "Hmap4".
-        intros b1 b0 delta2 J.
-        apply Hmap2 in J.
-        apply Mem.nextblock_store in J2.
-        rewrite J2. auto.
-      SCase "mi_mappedblocks0".
-        intros b b' delta0 J.
-        eapply Mem.store_valid_block_1; eauto.
-      SCase "mi_reange_blocks0".
-        intros b b' delta0 J.
-        erewrite Mem.bounds_store with (m2:=Mem2'); eauto.
-    
-    Case "msim".
-      split; auto.
-      split.
-        clear - Hmgb J2.
-        apply Mem.nextblock_store in J2.
-        rewrite J2. auto.
-      split; auto.
-        clear - Hzero Hmstore.
-        apply Mem.nextblock_store in Hmstore. intros.
-        apply Hzero. rewrite <- Hmstore. auto.
-    
-        clear Hmsim1.
-        intros lc2 gl b ofs bgv egv als bid0 eid0 pgv' fs F B cs tmn S Ps EC
-          v1 cm Hwfg G1 G2 G3.
-        assert (G3':=G3).
-        eapply Hmsim2 with (bgv:=bgv)(egv:=egv)(als:=als)
-          (bid0:=bid0)(eid0:=eid0)(b:=b)(ofs:=ofs) in G3'; eauto.
-        destruct G3' as [bgv' [egv' [G4 [G5 G6]]]].
-        exists bgv'. exists egv'.
-        eapply store_doesnt_change_gmmd in G4; eauto.
-Qed.
-
-Lemma mload_inversion : forall Mem2 t align0 TD gvp2 
-  (gv2 : GenericValue)
-  (H21 : mload TD Mem2 gvp2 t align0 = ret gv2),
-  exists b, exists ofs, exists m, gvp2 = (Vptr b ofs,m)::nil.
-Proof.
-  intros.
-  unfold mload in H21.
-  remember (GV2ptr TD (getPointerSize TD) gvp2) as R.
-  destruct R; try solve [inversion H21].
-  destruct v; try solve [inversion H21].
-  unfold GV2ptr in HeqR.
-  destruct gvp2; try solve [inversion HeqR].
-  destruct p.
-  destruct v; try solve [inversion HeqR].
-  destruct gvp2; inv HeqR.
-  exists b0. exists i2. 
-  unfold ptr2GV, val2GV. eauto.
+  unfold mstore. simpl.
+  eapply simulation_mstore_aux in Hmstore; eauto.
+  destruct Hmstore as [Mem2' [Hmstore [Hwfmi' Hmsim']]].
+  inv Hwfmi.
+  apply mi_range_block in H1. subst.
+  rewrite Int.add_zero.
+  assert (Int.signed 31 ofs + 0 = Int.signed 31 ofs) as EQ. zauto.
+  rewrite EQ in Hmstore. eauto.
 Qed.
 
 Lemma memval_inject_trans : forall mi mv1 mv2 mv3,
@@ -1803,24 +1843,6 @@ Proof.
       rewrite Int.add_zero. auto.
 
     apply memval_inject_inttoptr; auto.
-Qed.
-
-Lemma mstore_inversion : forall Mem2 t align0 TD gvp2 Mem2'
-  (gv2 : GenericValue)
-  (H21 : mstore TD Mem2 gvp2 t gv2 align0 = ret Mem2'),
-  exists b, exists ofs, exists cm, gvp2 = (Vptr b ofs,cm)::nil.
-Proof.
-  intros.
-  unfold mstore in H21.
-  remember (GV2ptr TD (getPointerSize TD) gvp2) as R.
-  destruct R; try solve [inversion H21].
-  destruct v; try solve [inversion H21].
-  unfold GV2ptr in HeqR.
-  destruct gvp2; try solve [inversion HeqR].
-  destruct p.
-  destruct v; try solve [inversion HeqR].
-  destruct gvp2; inv HeqR.
-  exists b0. exists i2. eauto.
 Qed.
 
 Lemma prop_metadata_inv : forall ex_ids3 rm2 c vp id0 ex_ids5 cs1',

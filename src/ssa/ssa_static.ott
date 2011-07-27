@@ -622,6 +622,7 @@ Jwf_insn :: '' ::=
       % Load operand must be a pointer.
       system , (layouts namedts products) , fdef |- value1 : typ1*
       (layouts namedts) |- typ1
+      {{ Constant.wf_zeroconst_typ [[:user_syntax__typ:typ1]] }}
       % Check invariance for instructions
       fdef , block |-i id = load (typ1*) value1 align
       ------------------------------------------------------------------------------------------------------- :: wf_insn_load

@@ -275,7 +275,7 @@ Axiom shadow_stack_init : forall la ogvs lc' rm' gl mi lc2 lp cs1 rm2 nts los
     ps1 l1 fv ft noret0 ca rid cs22 cs23 bs2 fh2 ECs2 M2 rm3 ex_ids3,
   wf_sb_mi mgb mi Mem0 M2 ->
   mem_simulation mi (los, nts) mgb MM Mem0 M2 -> 
-  initLocals la ogvs = (lc', rm') ->
+  initLocals (los, nts) la ogvs = Some (lc', rm') ->
   params_simulation (los,nts) gl mi lc2 ogvs 1 cs1 -> 
   ret cs1 = trans_params rm2 lp 1 ->
   gen_metadata_fdef nts
@@ -324,7 +324,7 @@ Axiom shadow_stack_exfdec : forall la lc' mi lc2 lp cs1 nts los
   mem_simulation mi (los, nts) mgb MM Mem0 M2 /\
   reg_simulation mi (los, nts) gl2 (fdef_intro fh1 bs1) rm rm2 lc lc2 ->
   LLVMopsem.callExternalFunction Mem0 fid gvs = ret (oresult, Mem') ->
-  exCallUpdateLocals ft noret0 rid oresult lc rm = ret (lc', rm') ->
+  exCallUpdateLocals (los, nts) ft noret0 rid oresult lc rm = ret (lc', rm') ->
   ret cs1 = trans_params rm2 lp 1 ->
   LLVMopsem.lookupExFdecViaGV (los, nts) Ps2 gl2 lc2 fs2 (wrap_call fv) =
           ret fdec_intro (fheader_intro fa rt (wrapper_fid fid) la va) ->

@@ -245,8 +245,10 @@ Proof.
 
             apply in_or_app. simpl. auto.
         destruct EQ1 as [ut [EQ1 EQ2]].
+(*
         rewrite EQ1. simpl.
-        rewrite EQ2. rewrite H. simpl.
+        rewrite EQ2. rewrite H. *)
+        unfold mgetoffset. simpl. rewrite H.
         rewrite Int.add_commut.
         rewrite Int.add_zero. auto.
 
@@ -572,8 +574,9 @@ Proof.
 
             apply in_or_app. simpl. auto.
         destruct EQ1 as [ut [EQ1 EQ2]].
-        rewrite EQ1. simpl.
-        rewrite EQ2. rewrite H. simpl.
+        (* rewrite EQ1. simpl.
+        rewrite EQ2. *) 
+        unfold mgetoffset. simpl. rewrite H.
         rewrite Int.add_commut.
         rewrite Int.add_zero. auto.
 
@@ -1059,7 +1062,8 @@ Proof.
   assert (JJ':=JJ).
   assert (exists b, exists ofs, exists cm, gvp = (Vptr b ofs, cm)::nil) as EQ.
     clear - H2.
-    eapply mload_inversion; eauto.
+    apply mload_inv in H2.
+    destruct H2 as [b [ofs [m [mc [J1 [J2 J3]]]]]]. eauto.
   destruct EQ as [pb [pofs [cm EQ]]]. subst.
 
   assert (In id0 (getFdefLocs (fdef_intro fh1 bs1))) as Hin. 
@@ -1357,7 +1361,7 @@ Proof.
       apply LLVMopsem.dsStore with (mp2:=gvp2)(gv1:=gv2); auto.
         rewrite <- getOperandValue_eq_fresh_id; auto.
           assert (sb_ds_sim.getValueID v[<=]ids2atoms (getFdefLocs (fdef_intro fh1 bs1))) as Hindom.
-            eapply wf_value_id__in_getFdefLocs in H14; auto.
+            eapply wf_value_id__in_getFdefLocs in H13; auto.
           eapply get_reg_metadata_fresh' with (rm2:=rm2); eauto; try fsetdec.
 
         rewrite <- getOperandValue_eq_fresh_id; auto.
@@ -1400,24 +1404,6 @@ Proof.
     eapply reg_simulation__updateAddAL_tmp; eauto.
     split; auto.
       clear - Hinc HeqR1. eapply mk_tmp_inc; eauto.
-  split; auto.
-  split; auto.
-  split; auto.
-  split; auto.
-  SSCase "wfmi".
-    clear - H33 H31 Hmstore Hwfmi.
-    inversion H33.
-    unfold mstore in Hmstore.
-    destruct (GV2ptr (los,nts) (getPointerSize (los,nts)) gvp); 
-      try solve [inversion Hmstore].
-    destruct v; try solve [inversion Hmstore].
-    destruct (typ2memory_chunk t); try solve [inversion Hmstore].
-    destruct (GV2val (los,nts) gv); try solve [inversion Hmstore].
-    erewrite <- Mem.nextblock_store with (m1:=Mem0) in Hmap1; eauto.
-    split; auto.
-    SSSCase "mi_bounds".
-      intros b1 b2 delta J.
-      erewrite Mem.bounds_store with (m1:=Mem0); eauto.
 Qed.
 
 Lemma SBpass_is_correct__dsStore_ptr : forall (mi : MoreMem.meminj) (mgb : Values.block)
@@ -1545,11 +1531,13 @@ Proof.
         (SBopsem.set_mem_metadata (los,nts) MM gvp 
           (SBopsem.mkMD md_base' md_bound')) 
         Mem' Mem2'') as W.
+
     assert (exists b : Values.block, exists ofs : int32, exists cm,
-      gvp = (Vptr b ofs,cm)::nil) as EQ.
-      clear - H11 H31 H3.
+      gvp = (Vptr b ofs,cm)::nil /\ mstore_aux Mem0 gv b (Int.signed 31 ofs) = ret Mem') 
+      as EQ.
+      clear - H3.
       eapply mstore_inversion; eauto.
-    destruct EQ as [b2 [ofs2 [cm EQ]]]. subst.
+    destruct EQ as [b2 [ofs2 [cm [EQ Hmstore_aux]]]]. subst.
 
     eapply simulation__set_mmetadata_fn with (pgv':=gvp2)(bgv':=bgv2')
       (egv':=egv2')(rm:=rm)(v:=v); simpl; eauto.
@@ -1634,7 +1622,7 @@ Proof.
       apply LLVMopsem.dsStore with (mp2:=gvp2)(gv1:=gv2); auto.
         rewrite <- getOperandValue_eq_fresh_id; auto.
           assert (sb_ds_sim.getValueID v[<=]ids2atoms (getFdefLocs (fdef_intro fh1 bs1))) as Hindom.
-            eapply wf_value_id__in_getFdefLocs in H16; auto.
+            eapply wf_value_id__in_getFdefLocs in H15; auto.
           eapply get_reg_metadata_fresh' with (rm2:=rm2); eauto; try fsetdec.
 
         rewrite <- getOperandValue_eq_fresh_id; auto.
@@ -1691,13 +1679,8 @@ Proof.
   SSCase "wfmi".
     clear - H33 H31 H3 Hwfmi W1.
     inversion H33.
-    unfold mstore in H3.
-    destruct (GV2ptr (los,nts) (getPointerSize (los,nts)) gvp); 
-      try solve [inversion H3].
-    destruct v; try solve [inversion H3].
-    destruct (typ2memory_chunk t); try solve [inversion H3].
-    destruct (GV2val (los,nts) gv); try solve [inversion H3].
-    erewrite <- Mem.nextblock_store with (m1:=Mem0) in Hmap1; eauto.
+    apply mstore_inversion in H3.
+    destruct H3 as [b [ofs [cm [Heq H3]]]]; subst.
     apply set_mmetadata_fn__prop in W1.
     destruct W1 as [W1 [W2 W3]].
     split; auto.
@@ -1712,8 +1695,7 @@ Proof.
     SSSCase "bounds0".
       intros b1 b2 delta J.
       apply mi_bounds in J.
-      rewrite <- W3.
-      erewrite Mem.bounds_store with (m1:=Mem0); eauto.
+      rewrite <- W3. auto.
 Qed.
 
 

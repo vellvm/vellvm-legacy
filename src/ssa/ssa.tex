@@ -1340,6 +1340,7 @@
 \newcommand{\ottdrulewfXXinsnXXload}[1]{\ottdrule[#1]{%
 \ottpremise{\ottnt{system}  \ottsym{,}  \ottsym{(}  \mathit{\overline{layout} } \, \mathit{\overline{namedt} } \, \mathit{\overline{prod} }  \ottsym{)}  \ottsym{,}  \ottnt{fdef}  \vdash  val_{{\mathrm{1}}}  \ottsym{:}  \ottnt{typ_{{\mathrm{1}}}}  \ottsym{*}}%
 \ottpremise{\ottsym{(}  \mathit{\overline{layout} } \, \mathit{\overline{namedt} }  \ottsym{)}  \vdash  \ottnt{typ_{{\mathrm{1}}}}}%
+\ottpremise{\texttt{Constant.wf\_zeroconst\_typ }\ottnt{typ_{{\mathrm{1}}}}\texttt{ }}%
 \ottpremise{\ottnt{fdef}  \ottsym{,}  b  \vdash_{i}  \ottmv{id}  = \, \ottkw{load} \, \ottsym{(}  \ottnt{typ_{{\mathrm{1}}}}  \ottsym{*}  \ottsym{)}  val_{{\mathrm{1}}} \, \ottmv{align}}%
 }{
 \ottnt{intrinsic\_funs}  \ottsym{,}  \ottnt{system}  \ottsym{,}  \ottsym{(}  \mathit{\overline{layout} } \, \mathit{\overline{namedt} } \, \mathit{\overline{prod} }  \ottsym{)}  \ottsym{,}  \ottnt{fdef}  \ottsym{,}  b  \vdash  \ottmv{id}  = \, \ottkw{load} \, \ottsym{(}  \ottnt{typ_{{\mathrm{1}}}}  \ottsym{*}  \ottsym{)}  val_{{\mathrm{1}}} \, \ottmv{align}}{%

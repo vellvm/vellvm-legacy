@@ -2440,7 +2440,7 @@ Case "nsLoad".  eapply preservation_cmd_updated_case in HwfS1; simpl; eauto.
   apply wf_State__inv in HwfS1.
   destruct HwfS1 as [Hwfg [Hwflc Hwfc]].
   inv Hwfc.
-  apply wf_value__wf_typ in H10. destruct H10.
+  apply wf_value__wf_typ in H11. destruct H11.
   inv H2. inv H3. inv H14.
   eapply mload__getTypeSizeInBits in H1; eauto.
     destruct H1 as [sz [J1 J2]]. 

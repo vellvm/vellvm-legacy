@@ -63,7 +63,7 @@ Lemma SBpass_is_correct__dsCall : forall (mi : MoreMem.meminj)
   (H0 : getEntryBlock (fdef_intro (fheader_intro fa rt fid la va) lb) =
        ret block_intro l' ps' cs' tmn')
   (H1 : params2GVs TD lp lc gl rm = ret ogvs)
-  (H2 : initLocals la ogvs = (lc', rm')),
+  (H2 : initLocals TD la ogvs = Some (lc', rm')),
    exists St' : LLVMopsem.State,
      exists mi' : MoreMem.meminj,
        LLVMopsem.dsop_star St St' trace_nil /\
@@ -216,7 +216,7 @@ Lemma SBpass_is_correct__dsExCall : forall (mi : MoreMem.meminj)
       ret fdec_intro (fheader_intro fa rt fid la va))
   (H0 : LLVMgv.params2GVs TD lp lc gl = ret gvs)
   (H1 : callExternalFunction Mem0 fid gvs = ret (oresult, Mem'))
-  (H2 : exCallUpdateLocals ft noret0 rid oresult lc rm = ret (lc', rm')),
+  (H2 : exCallUpdateLocals TD ft noret0 rid oresult lc rm = ret (lc', rm')),
    exists St' : LLVMopsem.State,
      exists mi' : MoreMem.meminj,
        LLVMopsem.dsop_star St St' trace_nil /\
@@ -872,9 +872,11 @@ Proof.
   SCase "nret = false".
     assert (In i0 (getFdefLocs (fdef_intro fh1' bs1'))) as Hin.
       eauto using getCmdID_in_getFdefLocs.
-    destruct (SBopsem.isReturnPointerTypB t).
+    destruct t; tinv H1.
+    remember (fit_gv (los, nts) t gr) as Fit.
+    destruct Fit; tinv H1. simpl in Hcall'.
+    destruct (isPointerTypB t).
     SSCase "ct is ptr".
-      simpl in Hcall'.
       remember (lookupAL (id * id) rm2' i0) as R.
       destruct R as [[bid0 eid0]|]; inv Hcall'.
       simpl in Httmn.
@@ -902,10 +904,14 @@ Proof.
       symmetry in Heqogr.
       eapply simulation__getOperandValue in Heqogr; eauto.
       destruct Heqogr as [gr2 [J1 J2]]. 
+      symmetry in HeqFit.
+      eapply simulation__fit_gv in HeqFit; eauto.
+      destruct HeqFit as [gr2' [HeqFit HinjFit]].
       exists (LLVMopsem.mkState S2 (los, nts) Ps2
         ((LLVMopsem.mkEC (fdef_intro fh2' bs2') B2'
             (cs23' ++ cs24') tmn2' 
-            (updateAddAL _ (updateAddAL _ (updateAddAL _ lc2' i0 gr2) bid0 bgv2) 
+            (updateAddAL _ 
+              (updateAddAL _ (updateAddAL _ lc2' i0 (? gr2' # t ?)) bid0 bgv2) 
               eid0 egv2)
             als2'):: ECs2)
         gl2 fs2 M2''').
@@ -920,7 +926,7 @@ Proof.
                   ((p8, ev2)::(i32, vint0) :: nil))::nil)
               (insn_return rid RetTy Result) lc2 als2)::
              (LLVMopsem.mkEC (fdef_intro fh2' bs2') B2'
-              ((insn_call i0 false c t (wrap_call v) p)::
+              ((insn_call i0 false c (typ_function t l0 v0) (wrap_call v) p)::
                insn_call bid0 false attrs gsb_typ gsb_fn((i32, vint0) :: nil):: 
                insn_call eid0 false attrs gse_typ gse_fn((i32, vint0) :: nil)::
                (insn_call fake_id true attrs dstk_typ dstk_fn nil)::
@@ -938,7 +944,7 @@ Proof.
             ((LLVMopsem.mkEC (fdef_intro fh2 bs2) B2 nil
               (insn_return rid RetTy Result) lc2 als2)::
              (LLVMopsem.mkEC (fdef_intro fh2' bs2') B2'
-              ((insn_call i0 false c t (wrap_call v) p)::
+              ((insn_call i0 false c (typ_function t l0 v0) (wrap_call v) p)::
                insn_call bid0 false attrs gsb_typ gsb_fn((i32, vint0) :: nil):: 
                insn_call eid0 false attrs gse_typ gse_fn((i32, vint0) :: nil)::
                (insn_call fake_id true attrs dstk_typ dstk_fn nil)::
@@ -958,11 +964,11 @@ Proof.
                insn_call eid0 false attrs gse_typ gse_fn((i32, vint0) :: nil)::
                insn_call fake_id true attrs dstk_typ dstk_fn nil::
                (cs23' ++ cs24'))
-              tmn2' (updateAddAL _ lc2' i0 gr2) als2'):: ECs2)
+              tmn2' (updateAddAL _ lc2' i0 (? gr2' # t ?)) als2'):: ECs2)
             gl2 fs2 M2''')).
           eapply LLVMopsem.dsReturn; eauto.
-            unfold LLVMopsem.returnUpdateLocals. simpl.
-            rewrite J1. auto.
+            unfold LLVMopsem.returnUpdateLocals.
+            rewrite J1. rewrite HeqFit. auto.
 
         rewrite <- (@trace_app_nil__eq__trace trace_nil).
         apply LLVMopsem.dsop_star_cons with (state2:=
@@ -971,7 +977,8 @@ Proof.
               (insn_call eid0 false attrs gse_typ gse_fn((i32, vint0) :: nil)::
                insn_call fake_id true attrs dstk_typ dstk_fn nil::
                (cs23' ++ cs24'))
-              tmn2' (updateAddAL _ (updateAddAL _ lc2' i0 gr2) bid0 bgv2) 
+              tmn2' 
+              (updateAddAL _ (updateAddAL _ lc2' i0  (? gr2' # t ?)) bid0 bgv2) 
               als2'):: ECs2)
             gl2 fs2 M2''')).
           eapply LLVMopsem.dsExCall with (fid:=gsb_fid)
@@ -979,6 +986,8 @@ Proof.
             eapply gsb_is_found; eauto.
               clear - Hfree2' Hgbase.
               eapply free_doesnt_change_gsb; eauto.
+              unfold gsb_typ, p8. simpl. unfold fit_gv. simpl. 
+              admit. (*md is canonical *)
 
         rewrite <- (@trace_app_nil__eq__trace trace_nil).
         apply LLVMopsem.dsop_star_cons with (state2:=
@@ -986,7 +995,8 @@ Proof.
             ((LLVMopsem.mkEC (fdef_intro fh2' bs2') B2'
               (insn_call fake_id true attrs dstk_typ dstk_fn nil:: 
                cs23' ++ cs24')
-              tmn2' (updateAddAL _ (updateAddAL _ (updateAddAL _ lc2' i0 gr2) 
+              tmn2' (updateAddAL _ (updateAddAL _ 
+                (updateAddAL _ lc2' i0  (? gr2' # t ?)) 
                 bid0 bgv2) eid0 egv2) als2'):: ECs2)
             gl2 fs2 M2''')); auto.
           eapply LLVMopsem.dsExCall with (fid:=gse_fid)
@@ -994,13 +1004,16 @@ Proof.
             eapply gse_is_found; eauto.
               clear - Hfree2' Hgbound.
               eapply free_doesnt_change_gse; eauto.
+              unfold gsb_typ, p8. simpl. unfold fit_gv. simpl.
+              admit. (*md is canonical *)
 
         rewrite <- (@trace_app_nil__eq__trace trace_nil).
         apply LLVMopsem.dsop_star_cons with (state2:=
           (LLVMopsem.mkState S2 (los, nts) Ps2
             ((LLVMopsem.mkEC (fdef_intro fh2' bs2') B2'
               (cs23' ++ cs24')
-              tmn2' (updateAddAL _ (updateAddAL _ (updateAddAL _ lc2' i0 gr2) 
+              tmn2' (updateAddAL _ (updateAddAL _ 
+                (updateAddAL _ lc2' i0  (? gr2' # t ?)) 
                 bid0 bgv2) eid0 egv2) als2'):: ECs2)
             gl2 fs2 M2''')); auto.
           eapply LLVMopsem.dsExCall; simpl; eauto.
@@ -1014,7 +1027,7 @@ Proof.
 
           destruct Heqb2' as [l2' [ps2' [cs21' Heqb2']]]; subst.
           exists l2'. exists ps2'. exists (cs21' ++
-              [insn_call i0 false c t (wrap_call v) p] ++
+              [insn_call i0 false c (typ_function t l0 v0) (wrap_call v) p] ++
               [insn_call bid0 false attrs gsb_typ gsb_fn [(i32, vint0)]] ++
               [insn_call eid0 false attrs gse_typ gse_fn [(i32, vint0)]] ++
               [insn_call fake_id true attrs dstk_typ dstk_fn nil]). 
@@ -1025,7 +1038,7 @@ Proof.
           split; auto.              
           split.
             eapply reg_simulation__updateAddAL_prop with (ex_ids3:=ex_ids'); 
-              eauto.
+              eauto using simulation___cgv2gv.
             repeat (split; auto).
 
     SSSCase "rt isnt ptr". 
@@ -1038,10 +1051,14 @@ Proof.
       symmetry in Heqogr.
       eapply simulation__getOperandValue in Heqogr; eauto.
       destruct Heqogr as [gr2 [J1 J2]]. 
+      symmetry in HeqFit.
+      eapply simulation__fit_gv in HeqFit; eauto.
+      destruct HeqFit as [gr2' [HeqFit HinjFit]].
       exists (LLVMopsem.mkState S2 (los, nts) Ps2
         ((LLVMopsem.mkEC (fdef_intro fh2' bs2') B2'
             (cs23' ++ cs24') tmn2' 
-            (updateAddAL _ (updateAddAL _ (updateAddAL _ lc2' i0 gr2) bid0 null) 
+            (updateAddAL _ (updateAddAL _ 
+              (updateAddAL _ lc2' i0 (? gr2' # t ?)) bid0 null) 
               eid0 null)
             als2'):: ECs2)
         gl2 fs2 M2''').
@@ -1056,7 +1073,7 @@ Proof.
                   ((p8, vnullp8)::(i32, vint0) :: nil))::nil)
               (insn_return rid RetTy Result) lc2 als2)::
              (LLVMopsem.mkEC (fdef_intro fh2' bs2') B2'
-              ((insn_call i0 false c t (wrap_call v) p)::
+              ((insn_call i0 false c (typ_function t l0 v0) (wrap_call v) p)::
                insn_call bid0 false attrs gsb_typ gsb_fn((i32, vint0) :: nil):: 
                insn_call eid0 false attrs gse_typ gse_fn((i32, vint0) :: nil)::
                (insn_call fake_id true attrs dstk_typ dstk_fn nil)::
@@ -1073,7 +1090,7 @@ Proof.
             ((LLVMopsem.mkEC (fdef_intro fh2 bs2) B2 nil
               (insn_return rid RetTy Result) lc2 als2)::
              (LLVMopsem.mkEC (fdef_intro fh2' bs2') B2'
-              ((insn_call i0 false c t (wrap_call v) p)::
+              ((insn_call i0 false c (typ_function t l0 v0) (wrap_call v) p)::
                insn_call bid0 false attrs gsb_typ gsb_fn((i32, vint0) :: nil):: 
                insn_call eid0 false attrs gse_typ gse_fn((i32, vint0) :: nil)::
                (insn_call fake_id true attrs dstk_typ dstk_fn nil)::
@@ -1092,11 +1109,11 @@ Proof.
                insn_call eid0 false attrs gse_typ gse_fn((i32, vint0) :: nil)::
                insn_call fake_id true attrs dstk_typ dstk_fn nil::
                (cs23' ++ cs24'))
-              tmn2' (updateAddAL _ lc2' i0 gr2) als2'):: ECs2)
+              tmn2' (updateAddAL _ lc2' i0 (? gr2' # t ?)) als2'):: ECs2)
             gl2 fs2 M2''')).
           eapply LLVMopsem.dsReturn; eauto.
             unfold LLVMopsem.returnUpdateLocals. simpl.
-            rewrite J1. auto.
+            rewrite J1. rewrite HeqFit. auto.
 
         rewrite <- (@trace_app_nil__eq__trace trace_nil).
         apply LLVMopsem.dsop_star_cons with (state2:=
@@ -1105,7 +1122,8 @@ Proof.
               (insn_call eid0 false attrs gse_typ gse_fn((i32, vint0) :: nil)::
                insn_call fake_id true attrs dstk_typ dstk_fn nil::
                (cs23' ++ cs24'))
-              tmn2' (updateAddAL _ (updateAddAL _ lc2' i0 gr2) bid0 null) 
+              tmn2' 
+              (updateAddAL _ (updateAddAL _ lc2' i0 (? gr2' # t ?)) bid0 null) 
               als2'):: ECs2)
             gl2 fs2 M2''')).
           eapply LLVMopsem.dsExCall with (fid:=gsb_fid)
@@ -1119,7 +1137,8 @@ Proof.
             ((LLVMopsem.mkEC (fdef_intro fh2' bs2') B2'
               (insn_call fake_id true attrs dstk_typ dstk_fn nil:: 
                cs23' ++ cs24')
-              tmn2' (updateAddAL _ (updateAddAL _ (updateAddAL _ lc2' i0 gr2) 
+              tmn2' (updateAddAL _ (updateAddAL _ 
+                (updateAddAL _ lc2' i0 (? gr2' # t ?)) 
                 bid0 null) eid0 null) als2'):: ECs2)
             gl2 fs2 M2''')); auto.
           eapply LLVMopsem.dsExCall with (fid:=gse_fid)
@@ -1132,7 +1151,8 @@ Proof.
           (LLVMopsem.mkState S2 (los, nts) Ps2
             ((LLVMopsem.mkEC (fdef_intro fh2' bs2') B2'
               (cs23' ++ cs24')
-              tmn2' (updateAddAL _ (updateAddAL _ (updateAddAL _ lc2' i0 gr2) 
+              tmn2' (updateAddAL _ (updateAddAL _ 
+                (updateAddAL _ lc2' i0 (? gr2' # t ?)) 
                 bid0 null) eid0 null) als2'):: ECs2)
             gl2 fs2 M2''')); auto.
           eapply LLVMopsem.dsExCall; simpl; eauto.
@@ -1146,7 +1166,7 @@ Proof.
 
           destruct Heqb2' as [l2' [ps2' [cs21' Heqb2']]]; subst.
           exists l2'. exists ps2'. exists (cs21' ++
-              [insn_call i0 false c t (wrap_call v) p] ++
+              [insn_call i0 false c (typ_function t l0 v0) (wrap_call v) p] ++
               [insn_call bid0 false attrs gsb_typ gsb_fn [(i32, vint0)]] ++
               [insn_call eid0 false attrs gse_typ gse_fn [(i32, vint0)]] ++
               [insn_call fake_id true attrs dstk_typ dstk_fn nil]). 
@@ -1157,9 +1177,7 @@ Proof.
           split; auto.              
           split.
             eapply reg_simulation__updateAddAL_prop with (ex_ids3:=ex_ids'); 
-              eauto.
-              eapply gv_inject_null_refl; eauto.
-              eapply gv_inject_null_refl; eauto.
+              eauto using simulation___cgv2gv, gv_inject_null_refl.
             repeat (split; auto).
 
     SSCase "ct isnt ptr".
@@ -1189,9 +1207,12 @@ Proof.
       symmetry in Heqogr.
       eapply simulation__getOperandValue in Heqogr; eauto.
       destruct Heqogr as [gr2 [J1 J2]]. 
+      symmetry in HeqFit.
+      eapply simulation__fit_gv in HeqFit; eauto.
+      destruct HeqFit as [gr2' [HeqFit HinjFit]].
       exists (LLVMopsem.mkState S2 (los, nts) Ps2
         ((LLVMopsem.mkEC (fdef_intro fh2' bs2') B2'
-            (cs23' ++ cs24') tmn2' (updateAddAL _ lc2' i0 gr2)
+            (cs23' ++ cs24') tmn2' (updateAddAL _ lc2' i0 (? gr2' # t ?))
             als2'):: ECs2)
         gl2 fs2 M2''').
       exists mi.
@@ -1205,7 +1226,7 @@ Proof.
                   ((p8, ev2)::(i32, vint0) :: nil))::nil)
               (insn_return rid RetTy Result) lc2 als2)::
              (LLVMopsem.mkEC (fdef_intro fh2' bs2') B2'
-              ((insn_call i0 false c t (wrap_call v) p)::
+              ((insn_call i0 false c (typ_function t l0 v0) (wrap_call v) p)::
                (insn_call fake_id true attrs dstk_typ dstk_fn nil)::
                cs23' ++ cs24')
               tmn2' lc2' als2'):: ECs2)
@@ -1221,7 +1242,7 @@ Proof.
             ((LLVMopsem.mkEC (fdef_intro fh2 bs2) B2 nil
               (insn_return rid RetTy Result) lc2 als2)::
              (LLVMopsem.mkEC (fdef_intro fh2' bs2') B2'
-              ((insn_call i0 false c t (wrap_call v) p)::
+              ((insn_call i0 false c (typ_function t l0 v0) (wrap_call v) p)::
                (insn_call fake_id true attrs dstk_typ dstk_fn nil)::
               (cs23' ++ cs24'))
               tmn2' lc2' als2'):: ECs2)
@@ -1237,18 +1258,18 @@ Proof.
             ((LLVMopsem.mkEC (fdef_intro fh2' bs2') B2'
                (insn_call fake_id true attrs dstk_typ dstk_fn nil::
                 (cs23' ++ cs24'))
-              tmn2' (updateAddAL _ lc2' i0 gr2) als2'):: ECs2)
+              tmn2' (updateAddAL _ lc2' i0 (? gr2' # t ?)) als2'):: ECs2)
             gl2 fs2 M2''')).
           eapply LLVMopsem.dsReturn; eauto.
             unfold LLVMopsem.returnUpdateLocals. simpl.
-            rewrite J1. auto.
+            rewrite J1. rewrite HeqFit. auto.
 
         rewrite <- (@trace_app_nil__eq__trace trace_nil).
         apply LLVMopsem.dsop_star_cons with (state2:=
           (LLVMopsem.mkState S2 (los, nts) Ps2
             ((LLVMopsem.mkEC (fdef_intro fh2' bs2') B2'
               (cs23' ++ cs24')
-              tmn2' (updateAddAL _ lc2' i0 gr2) als2'):: ECs2)
+              tmn2' (updateAddAL _ lc2' i0 (? gr2' # t ?)) als2'):: ECs2)
             gl2 fs2 M2''')); auto.
           eapply LLVMopsem.dsExCall; simpl; eauto.
             eapply dstk_is_found; eauto.
@@ -1261,15 +1282,16 @@ Proof.
 
           destruct Heqb2' as [l2' [ps2' [cs21' Heqb2']]]; subst.
           exists l2'. exists ps2'. exists (cs21' ++
-              [insn_call i0 false c t (wrap_call v) p] ++
+              [insn_call i0 false c (typ_function t l0 v0) (wrap_call v) p] ++
               [insn_call fake_id true attrs dstk_typ dstk_fn nil]). 
           simpl_env. auto.
  
           exists ex_ids'. exists rm2'.
           exists ex_ids3'. exists ex_ids4'. exists cs23'. exists cs24'.
-          apply reg_simulation__updateAddAL_lc with (i0:=i0)(gv:=ogr)(gv':=gr2) 
-            (ex_ids3:=ex_ids') in Hrsim'; auto.
-            repeat (split; auto).    
+          apply reg_simulation__updateAddAL_lc with (i0:=i0)(gv:= (? g # t ?))
+            (gv':= (? gr2' # t ?)) (ex_ids3:=ex_ids') in Hrsim'; 
+            eauto using simulation___cgv2gv.
+          repeat (split; auto).
 
     SSSCase "rt isnt ptr". 
       inv H1. inv HeqRet. inv Httmn.
@@ -1281,9 +1303,12 @@ Proof.
       symmetry in Heqogr.
       eapply simulation__getOperandValue in Heqogr; eauto.
       destruct Heqogr as [gr2 [J1 J2]]. 
+      symmetry in HeqFit.
+      eapply simulation__fit_gv in HeqFit; eauto.
+      destruct HeqFit as [gr2' [HeqFit HinjFit]].
       exists (LLVMopsem.mkState S2 (los, nts) Ps2
         ((LLVMopsem.mkEC (fdef_intro fh2' bs2') B2'
-            (cs23' ++ cs24') tmn2' (updateAddAL _ lc2' i0 gr2)
+            (cs23' ++ cs24') tmn2' (updateAddAL _ lc2' i0 (? gr2' # t ?))
             als2'):: ECs2)
         gl2 fs2 M2''').
       exists mi.
@@ -1297,7 +1322,7 @@ Proof.
                   ((p8, vnullp8)::(i32, vint0) :: nil))::nil)
               (insn_return rid RetTy Result) lc2 als2)::
              (LLVMopsem.mkEC (fdef_intro fh2' bs2') B2'
-              ((insn_call i0 false c t (wrap_call v) p)::
+              ((insn_call i0 false c (typ_function t l0 v0) (wrap_call v) p)::
                (insn_call fake_id true attrs dstk_typ dstk_fn nil)::
                cs23' ++ cs24')
               tmn2' lc2' als2'):: ECs2)
@@ -1312,7 +1337,7 @@ Proof.
             ((LLVMopsem.mkEC (fdef_intro fh2 bs2) B2 nil
               (insn_return rid RetTy Result) lc2 als2)::
              (LLVMopsem.mkEC (fdef_intro fh2' bs2') B2'
-              ((insn_call i0 false c t (wrap_call v) p)::
+              ((insn_call i0 false c (typ_function t l0 v0) (wrap_call v) p)::
                (insn_call fake_id true attrs dstk_typ dstk_fn nil)::
               (cs23' ++ cs24'))
               tmn2' lc2' als2'):: ECs2)
@@ -1327,18 +1352,18 @@ Proof.
             ((LLVMopsem.mkEC (fdef_intro fh2' bs2') B2'
               (insn_call fake_id true attrs dstk_typ dstk_fn nil::
                (cs23' ++ cs24'))
-              tmn2' (updateAddAL _ lc2' i0 gr2) als2'):: ECs2)
+              tmn2' (updateAddAL _ lc2' i0 (? gr2' # t ?)) als2'):: ECs2)
             gl2 fs2 M2''')).
           eapply LLVMopsem.dsReturn; eauto.
             unfold LLVMopsem.returnUpdateLocals. simpl.
-            rewrite J1. auto.
+            rewrite J1. rewrite HeqFit. auto.
 
         rewrite <- (@trace_app_nil__eq__trace trace_nil).
         apply LLVMopsem.dsop_star_cons with (state2:=
           (LLVMopsem.mkState S2 (los, nts) Ps2
             ((LLVMopsem.mkEC (fdef_intro fh2' bs2') B2'
               (cs23' ++ cs24')
-              tmn2' (updateAddAL _ lc2' i0 gr2) als2'):: ECs2)
+              tmn2' (updateAddAL _ lc2' i0 (? gr2' # t ?)) als2'):: ECs2)
             gl2 fs2 M2''')); auto.
           eapply LLVMopsem.dsExCall; simpl; eauto.
             eapply dstk_is_found; eauto.
@@ -1351,15 +1376,16 @@ Proof.
 
           destruct Heqb2' as [l2' [ps2' [cs21' Heqb2']]]; subst.
           exists l2'. exists ps2'. exists (cs21' ++
-              [insn_call i0 false c t (wrap_call v) p] ++
+              [insn_call i0 false c (typ_function t l0 v0) (wrap_call v) p] ++
               [insn_call fake_id true attrs dstk_typ dstk_fn nil]). 
           simpl_env. auto.
  
           exists ex_ids'. exists rm2'.
           exists ex_ids3'. exists ex_ids4'. exists cs23'. exists cs24'.
-          apply reg_simulation__updateAddAL_lc with (i0:=i0)(gv:=ogr)(gv':=gr2) 
-            (ex_ids3:=ex_ids') in Hrsim'; auto.
-            repeat (split; auto).    
+          apply reg_simulation__updateAddAL_lc with (i0:=i0)(gv:= (? g # t ?))
+            (gv':= (? gr2' # t ?)) (ex_ids3:=ex_ids') in Hrsim'; 
+            eauto using simulation___cgv2gv.
+          repeat (split; auto).
 Qed.
 
 Lemma SBpass_is_correct__dsReturnVoid : forall

@@ -234,15 +234,24 @@ Definition returnUpdateLocals (TD:TargetData) (c':cmd) (rt:typ)
   | Some (gr,md) =>
       match c' with
       | insn_call id0 false _ t _ _ =>
-          if isReturnPointerTypB t then 
-            Some (prop_reg_metadata lc' rm' id0 gr md)
-          else Some (updateAddAL _ lc' id0 gr, rm')
-      | _ => Some (lc', rm')
+        match t with
+        | typ_function ct _ _ =>
+          match fit_gv TD ct gr with
+          | Some gr' => 
+            if isPointerTypB ct then 
+              Some (prop_reg_metadata lc' rm' id0 (? gr' # ct ?) md)
+            else Some (updateAddAL _ lc' id0 (? gr' # ct ?), rm')
+          | _ => None
+          end
+        | _ => None
+        end
+      | insn_call _ _ _ _ _ _ => Some (lc', rm')
+      | _=> None
       end
   | _ => None
   end.
 
-Definition exCallUpdateLocals (ft:typ) (noret:bool) (rid:id) 
+Definition exCallUpdateLocals TD (ft:typ) (noret:bool) (rid:id) 
   (oResult:option GenericValue) (lc :GVMap) (rm:rmetadata) 
   : option (GVMap*rmetadata) :=
   match noret with
@@ -251,10 +260,16 @@ Definition exCallUpdateLocals (ft:typ) (noret:bool) (rid:id)
       | None => None
       | Some Result => 
           match ft with
-          | typ_function (typ_pointer _) _ _ => 
-                         Some (updateAddAL _ lc rid Result, 
-                               updateAddAL _ rm rid (mkMD null null))
-          | _ => Some (updateAddAL _ lc rid Result, rm)
+          | typ_function t _ _ => 
+            match fit_gv TD t Result with
+            | Some gr =>
+                if isPointerTypB t then
+                     Some (updateAddAL _ lc rid (? gr # t ?), 
+                           updateAddAL _ rm rid (mkMD null null))
+                else Some (updateAddAL _ lc rid (? gr # t ?), rm)
+            | _ => None
+            end
+          | _ => None
           end
       end
   | true => Some (lc, rm)
@@ -273,29 +288,36 @@ match lp with
     end
 end.
 
-Fixpoint _initializeFrameValues (la:args) 
+Fixpoint _initializeFrameValues TD (la:args) 
   (lg:list (GenericValue*option metadata)) (lc:GVMap) (rm : rmetadata) 
-  : GVMap * rmetadata :=
+  : option (GVMap * rmetadata) :=
 match (la, lg) with
 | ((t, _, id0)::la', (gv, opmd)::lg') => 
-     let '(lc',rm') := _initializeFrameValues la' lg' lc rm in
-     if isPointerTypB t then
-       match opmd with
-       | None => (prop_reg_metadata lc' rm' id0 gv (mkMD null null))
-       | Some md => (prop_reg_metadata lc' rm' id0 gv md)
-       end
-     else (updateAddAL _ lc' id0 gv, rm')
-| ((t, _, id0)::la', nil) => 
-     let '(lc',rm') := _initializeFrameValues la' nil lc rm in
-     if isPointerTypB t then
-       (prop_reg_metadata lc' rm' id0 (gundef t) (mkMD null null))
-     else (updateAddAL _ lc' id0 (gundef t), rm')
-| _ => (lc, rm)
+     match _initializeFrameValues TD la' lg' lc rm, fit_gv TD t gv with
+     | Some (lc',rm'), Some gv' =>
+       if isPointerTypB t then
+         match opmd with
+         | None => 
+             Some (prop_reg_metadata lc' rm' id0 (? gv' # t ?) (mkMD null null))
+         | Some md => Some (prop_reg_metadata lc' rm' id0 (? gv' # t ?) md)
+         end
+       else Some (updateAddAL _ lc' id0 (? gv' # t ?), rm')
+     | _, _ => None
+     end
+| ((t, _, id0)::la', nil) =>
+     match _initializeFrameValues TD la' nil lc rm, gundef TD t with
+     | Some (lc',rm'), Some gv =>
+       if isPointerTypB t then
+         Some (prop_reg_metadata lc' rm' id0 (? gv # t ?) (mkMD null null))
+       else Some (updateAddAL _ lc' id0 (? gv # t ?), rm')
+     | _, _ => None
+     end
+| _ => Some (lc, rm)
 end.
 
-Definition initLocals (la:args) (lg:list (GenericValue*option metadata)) 
-  : GVMap * rmetadata :=
-_initializeFrameValues la lg nil nil.
+Definition initLocals TD (la:args) (lg:list (GenericValue*option metadata)) 
+  : option (GVMap * rmetadata) :=
+_initializeFrameValues TD la lg nil nil.
 
 Inductive dsInsn : State -> State -> trace -> Prop :=
 | dsReturn : forall S TD Ps F B rid RetTy Result lc rm gl fs F' B' c' cs' tmn' 
@@ -665,7 +687,7 @@ Inductive dsInsn : State -> State -> trace -> Prop :=
   getEntryBlock (fdef_intro (fheader_intro fa rt fid la va) lb) = 
     Some (block_intro l' ps' cs' tmn') ->
   params2GVs TD lp lc gl rm = Some ogvs ->
-  initLocals la ogvs = (lc', rm') ->
+  initLocals TD la ogvs = Some (lc', rm') ->
   dsInsn 
     (mkState S TD Ps 
       ((mkEC F B ((insn_call rid noret ca ft fv lp)::cs) tmn lc rm als)
@@ -688,7 +710,7 @@ Inductive dsInsn : State -> State -> trace -> Prop :=
     Some (fdec_intro (fheader_intro fa rt fid la va)) -> 
   LLVMgv.params2GVs TD lp lc gl = Some gvs ->
   LLVMopsem.callExternalFunction Mem fid gvs = Some (oresult, Mem') ->
-  exCallUpdateLocals ft noret rid oresult lc rm = Some (lc',rm') ->
+  exCallUpdateLocals TD ft noret rid oresult lc rm = Some (lc',rm') ->
   dsInsn 
     (mkState S TD Ps 
       ((mkEC F B ((insn_call rid noret ca ft fv lp)::cs) tmn lc rm als)

@@ -3091,7 +3091,7 @@ Case "dsLoad".  eapply preservation_cmd_updated_case in HwfS1; simpl; eauto.
   apply wf_State__inv in HwfS1.
   destruct HwfS1 as [Hwfg [Hwflc Hwfc]].
   inv Hwfc.
-  apply wf_value__wf_typ in H9. destruct H9.
+  apply wf_value__wf_typ in H10. destruct H10.
   inv H1. inv H2. inv H13.
   eapply mload__getTypeSizeInBits in H0; eauto.
     destruct H0 as [sz [J1 J2]]. 
