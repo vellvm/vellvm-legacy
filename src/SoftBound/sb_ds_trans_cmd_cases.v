@@ -28,7 +28,7 @@ Require Import ssa_props.
 
 Import SB_ds_pass.
 
-Lemma SBpass_is_correct__dsBop : forall (mi : MoreMem.meminj) (mgb : Values.block)
+Lemma SBpass_is_correct__dsBop : forall (mi : MoreMem.meminj)(mgb : Values.block)
   (St : LLVMopsem.State) (S : system) (TD : TargetData) (Ps : list product)
   (F : fdef) (B : block) (lc : GVMap) (rm : SBopsem.rmetadata) (gl : GVMap)
   (fs : GVMap) (id0 : id) (bop0 : bop) (sz0 : sz) (v1 : value) (v2 : value)
@@ -754,9 +754,7 @@ Lemma SBpass_is_correct__dsInttoptr : forall
            Mmap := MM |} St)
   (gv2 : GenericValue) (lc' : GVMap) (rm' : rmetadata)
   (H : CAST TD lc gl castop_inttoptr t1 v1 t2 = ret gv2)
-  (H0 : prop_reg_metadata lc rm id0 gv2
-         {| md_base := null; md_bound := null |} = 
-       (lc', rm')),
+  (H0 : prop_reg_metadata lc rm id0 gv2 null_md = (lc', rm')),
    exists St' : LLVMopsem.State,
      exists mi' : MoreMem.meminj,
        LLVMopsem.dsop_star St St' trace_nil /\

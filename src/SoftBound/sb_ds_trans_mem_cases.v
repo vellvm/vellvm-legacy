@@ -29,6 +29,10 @@ Require Import ssa_props.
 
 Import SB_ds_pass.
 
+Definition base2GV := blk2GV.
+Definition bound2GV (TD:TargetData) (b:mblock) (s:sz) n : GenericValue :=
+((Vptr b (Int.repr 31 ((Size.to_Z s)*n)), AST.Mint 31)::nil).
+
 Lemma SBpass_is_correct__dsMalloc : forall (mi : meminj) (mgb : Values.block)
   (St : LLVMopsem.State) (S : system) (TD : TargetData) (Ps : list product)
   (F : fdef) (B : block) (lc : GVMap) (rm : AssocList SBopsem.metadata)
@@ -57,10 +61,7 @@ Lemma SBpass_is_correct__dsMalloc : forall (mi : meminj) (mgb : Values.block)
   (H0 : getOperandValue TD v lc gl = ret gn) 
   (H1 : malloc TD Mem tsz gn align0 = ret (Mem', mb))
   (H2 : GV2int TD Size.ThirtyTwo gn = ret n)
-  (H3 : SBopsem.prop_reg_metadata lc rm id0 (blk2GV TD mb)
-         {|
-         SBopsem.md_base := SBopsem.base2GV TD mb;
-         SBopsem.md_bound := SBopsem.bound2GV TD mb tsz n |} = 
+  (H3 : SBopsem.prop_reg_metadata lc rm id0 (blk2GV TD mb) (bound2MD mb tsz n) = 
        (lc', rm')),
   exists St' : LLVMopsem.State,
      exists mi' : MoreMem.meminj,
@@ -116,9 +117,9 @@ Proof.
                       (updateAddAL _ 
                         (updateAddAL _ lc2 ntmp gn') 
                         id0 (blk2GV (los, nts) mb'))
-                      tmp (SBopsem.bound2GV (los, nts) mb' tsz n))
-                    bid (SBopsem.base2GV (los, nts) mb'))
-                  eid (SBopsem.bound2GV (los, nts) mb' tsz n))
+                      tmp (bound2GV (los, nts) mb' tsz n))
+                    bid (base2GV (los, nts) mb'))
+                  eid (bound2GV (los, nts) mb' tsz n))
              als2):: 
             ECs2) gl2 fs2 Mem2').
   exists mi'.
@@ -210,7 +211,7 @@ Proof.
              (updateAddAL _
                (updateAddAL _ 
                  (updateAddAL _ lc2 ntmp gn') id0 (blk2GV (los,nts) mb'))
-               tmp (SBopsem.bound2GV (los,nts) mb' tsz n))
+               tmp (bound2GV (los,nts) mb' tsz n))
              als2):: 
             ECs2) gl2 fs2 Mem2'); auto.
       apply LLVMopsem.dsGEP with (mp:=blk2GV (los,nts) mb')(vidxs:=[gn']); auto.
@@ -227,7 +228,7 @@ Proof.
         rewrite EQ'. clear EQ'.
         auto.
 
-        unfold SBopsem.bound2GV, GEP, blk2GV, GV2ptr, ptr2GV, val2GV.
+        unfold bound2GV, GEP, blk2GV, GV2ptr, ptr2GV, val2GV.
         simpl.
         rewrite <- Heqgn. rewrite H2.
         unfold Constant.typ2utyp.
@@ -263,8 +264,8 @@ Proof.
                (updateAddAL _
                  (updateAddAL _ 
                    (updateAddAL _ lc2 ntmp gn') id0 (blk2GV (los,nts) mb'))
-                 tmp (SBopsem.bound2GV (los,nts) mb' tsz n))
-               bid (SBopsem.base2GV (los,nts) mb'))               
+                 tmp (bound2GV (los,nts) mb' tsz n))
+               bid (base2GV (los,nts) mb'))               
              als2):: 
             ECs2) gl2 fs2 Mem2'); auto.
       apply LLVMopsem.dsCast; auto.
@@ -285,9 +286,9 @@ Proof.
                     (updateAddAL _ 
                       (updateAddAL _
                         (updateAddAL _ lc2 ntmp gn') id0 (blk2GV (los, nts) mb'))
-                      tmp (SBopsem.bound2GV (los, nts) mb' tsz n))
-                    bid (SBopsem.base2GV (los, nts) mb'))                    
-                  eid (SBopsem.bound2GV (los, nts) mb' tsz n))
+                      tmp (bound2GV (los, nts) mb' tsz n))
+                    bid (base2GV (los, nts) mb'))                    
+                  eid (bound2GV (los, nts) mb' tsz n))
              als2):: 
             ECs2) gl2 fs2 Mem2')); auto.
       apply LLVMopsem.dsCast; auto.
@@ -345,10 +346,10 @@ Proof.
       unfold blk2GV, ptr2GV, val2GV.
       simpl. eauto.
 
-      unfold SBopsem.base2GV, blk2GV, ptr2GV, val2GV.
+      unfold base2GV, blk2GV, ptr2GV, val2GV.
       simpl. clear - H14. eauto.
 
-      unfold SBopsem.bound2GV, blk2GV, ptr2GV, val2GV.
+      unfold bound2GV, blk2GV, ptr2GV, val2GV.
       simpl. clear - H14.
         apply gv_inject_cons; eauto.
           eapply MoreMem.val_inject_ptr; eauto.
@@ -388,8 +389,7 @@ Lemma SBpass_is_correct__dsAlloca : forall
   (H0 : getOperandValue TD v lc gl = ret gn) 
   (H1 : malloc TD Mem0 tsz gn align0 = ret (Mem', mb))
   (H2 : GV2int TD Size.ThirtyTwo gn = ret n)
-  (H3 : prop_reg_metadata lc rm id0 (blk2GV TD mb)
-         {| md_base := base2GV TD mb; md_bound := bound2GV TD mb tsz n |} =
+  (H3 : prop_reg_metadata lc rm id0 (blk2GV TD mb) (bound2MD mb tsz n) =
        (lc', rm')),
   exists St' : LLVMopsem.State,
      exists mi' : MoreMem.meminj,
@@ -445,9 +445,9 @@ Proof.
                       (updateAddAL _ 
                         (updateAddAL _ lc2 ntmp gn') 
                         id0 (blk2GV (los, nts) mb'))
-                      tmp (SBopsem.bound2GV (los, nts) mb' tsz n))
-                    bid (SBopsem.base2GV (los, nts) mb'))
-                  eid (SBopsem.bound2GV (los, nts) mb' tsz n))
+                      tmp (bound2GV (los, nts) mb' tsz n))
+                    bid (base2GV (los, nts) mb'))
+                  eid (bound2GV (los, nts) mb' tsz n))
              (mb'::als2)):: 
             ECs2) gl2 fs2 Mem2').
   exists mi'.
@@ -539,7 +539,7 @@ Proof.
              (updateAddAL _
                (updateAddAL _ 
                  (updateAddAL _ lc2 ntmp gn') id0 (blk2GV (los,nts) mb'))
-               tmp (SBopsem.bound2GV (los,nts) mb' tsz n))
+               tmp (bound2GV (los,nts) mb' tsz n))
              (mb'::als2)):: 
             ECs2) gl2 fs2 Mem2'); auto.
       apply LLVMopsem.dsGEP with (mp:=blk2GV (los,nts) mb')(vidxs:=[gn']); auto.
@@ -556,7 +556,7 @@ Proof.
         rewrite EQ'. clear EQ'.
         auto.
 
-        unfold SBopsem.bound2GV, GEP, blk2GV, GV2ptr, ptr2GV, val2GV.
+        unfold bound2GV, GEP, blk2GV, GV2ptr, ptr2GV, val2GV.
         simpl.
         rewrite <- Heqgn. rewrite H2.
         unfold Constant.typ2utyp.
@@ -591,8 +591,8 @@ Proof.
                (updateAddAL _
                  (updateAddAL _ 
                    (updateAddAL _ lc2 ntmp gn') id0 (blk2GV (los,nts) mb'))
-                 tmp (SBopsem.bound2GV (los,nts) mb' tsz n))
-               bid (SBopsem.base2GV (los,nts) mb'))               
+                 tmp (bound2GV (los,nts) mb' tsz n))
+               bid (base2GV (los,nts) mb'))               
              (mb'::als2)):: 
             ECs2) gl2 fs2 Mem2'); auto.
       apply LLVMopsem.dsCast; auto.
@@ -613,9 +613,9 @@ Proof.
                     (updateAddAL _ 
                       (updateAddAL _
                         (updateAddAL _ lc2 ntmp gn') id0 (blk2GV (los, nts) mb'))
-                      tmp (SBopsem.bound2GV (los, nts) mb' tsz n))
-                    bid (SBopsem.base2GV (los, nts) mb'))                    
-                  eid (SBopsem.bound2GV (los, nts) mb' tsz n))
+                      tmp (bound2GV (los, nts) mb' tsz n))
+                    bid (base2GV (los, nts) mb'))                    
+                  eid (bound2GV (los, nts) mb' tsz n))
              (mb'::als2)):: 
             ECs2) gl2 fs2 Mem2')); auto.
       apply LLVMopsem.dsCast; auto.
@@ -674,10 +674,10 @@ Proof.
       unfold blk2GV, ptr2GV, val2GV.
       simpl. eauto.
 
-      unfold SBopsem.base2GV, blk2GV, ptr2GV, val2GV.
+      unfold base2GV, blk2GV, ptr2GV, val2GV.
       simpl. clear - H14. eauto.
 
-      unfold SBopsem.bound2GV, blk2GV, ptr2GV, val2GV.
+      unfold bound2GV, blk2GV, ptr2GV, val2GV.
       simpl. clear - H14.
         apply gv_inject_cons; eauto.
           eapply MoreMem.val_inject_ptr; eauto.
@@ -689,7 +689,8 @@ Proof.
     repeat(split; eauto using inject_incr__preserves__fable_simulation).
 Qed.
 
-Lemma SBpass_is_correct__dsFree : forall (mi : MoreMem.meminj) (mgb : Values.block)
+Lemma SBpass_is_correct__dsFree : forall (mi : MoreMem.meminj)
+  (mgb : Values.block)
   (St : LLVMopsem.State) (S : system) (TD : TargetData) (Ps : list product)
   (F : fdef) (B : block) (lc : GVMap) (rm : rmetadata) (gl : GVMap)
   (fs : GVMap) (fid : id) (t : typ) (v : value) (EC : list ExecutionContext)
@@ -861,15 +862,9 @@ Proof.
   inv Htcmd.
   assert (J:=H1).
   unfold SBopsem.assert_mptr in J.
-  destruct md as [md_base md_bound].
+  destruct md as [blk bofs eofs].
   remember (GV2ptr (los,nts) (getPointerSize (los,nts)) gvp) as R.
   destruct R; try solve [inversion J].
-  destruct v; try solve [inversion J].
-  remember (GV2ptr (los,nts) (getPointerSize (los,nts)) md_base) as R1.
-  destruct R1; try solve [inversion J].
-  destruct v; try solve [inversion J].
-  remember (GV2ptr (los,nts) (getPointerSize (los,nts)) md_bound) as R2.
-  destruct R2; try solve [inversion J].
   destruct v; try solve [inversion J].
   remember (getTypeAllocSize (los,nts) t) as R3.
   destruct R3; try solve [inversion J].
@@ -918,8 +913,8 @@ Proof.
             (updateAddAL GenericValue lc2 ptmp gvp2)
              als2):: 
             ECs2) gl2 fs2 M2)).
-       clear - H00 J2 J3 J4 J5 J H00 H01 HeqR0 HeqR2 HeqR3 HeqR5.
-       eapply assert_mptr_fn__ok with (b:=b)(b0:=b0)(b1:=b1); eauto.
+       clear - H00 J2 J3 J4 J5 J H00 H01 HeqR0 HeqR3.
+       eapply assert_mptr_fn__ok with (b:=b); eauto.
 
     rewrite <- (@trace_app_nil__eq__trace trace_nil).
     apply LLVMopsem.dsop_star_cons with (state2:=
@@ -931,7 +926,8 @@ Proof.
             ECs2) gl2 fs2 M2)); auto.
       apply LLVMopsem.dsLoad with (mp:=gvp2); auto.
         rewrite <- getOperandValue_eq_fresh_id; auto.
-          assert (sb_ds_sim.getValueID vp[<=]ids2atoms (getFdefLocs (fdef_intro fh1 bs1))) as Hindom.
+          assert (sb_ds_sim.getValueID vp[<=]
+            ids2atoms (getFdefLocs (fdef_intro fh1 bs1))) as Hindom.
             assert (Hwfc := HBinF).
             destruct Heqb1 as [l1 [ps1 [cs11 Heqb1]]]; subst.
             eapply wf_system__wf_cmd with (c:=insn_load id0 t vp align0)  
@@ -1035,15 +1031,9 @@ Proof.
   destruct R5 as [[bid0 eid0]|]; inv Htcmd.
   assert (J:=H1).
   unfold SBopsem.assert_mptr in J.
-  destruct md as [md_base md_bound].
+  destruct md as [blk bofs eofs].
   remember (GV2ptr (los,nts) (getPointerSize (los,nts)) gvp) as R.
   destruct R; try solve [inversion J].
-  destruct v; try solve [inversion J].
-  remember (GV2ptr (los,nts) (getPointerSize (los,nts)) md_base) as R1.
-  destruct R1; try solve [inversion J].
-  destruct v; try solve [inversion J].
-  remember (GV2ptr (los,nts) (getPointerSize (los,nts)) md_bound) as R2.
-  destruct R2; try solve [inversion J].
   destruct v; try solve [inversion J].
   remember (getTypeAllocSize (los,nts) t) as R3.
   destruct R3; try solve [inversion J].
@@ -1056,7 +1046,7 @@ Proof.
   assert (J':=Hrsim).
   destruct J' as [Hrsim1 Hrsim2].
   case_eq (SBopsem.get_mem_metadata (los,nts) MM gvp).
-  intros mb_base0 md_bound0 JJ.
+  intros blk0 bofs0 eofs0 JJ.
   assert (Hmsim':=HsimM).
   destruct Hmsim' as [Hmsim1 [Hmgb [Hzeroout Hmsim2]]].
   assert (JJ':=JJ).
@@ -1140,8 +1130,8 @@ Proof.
             (updateAddAL GenericValue lc2 ptmp gvp2)
              als2):: 
             ECs2) gl2 fs2 M2)).
-       clear - H00 J2 J3 J4 J5 J H00 H01 HeqR0 HeqR2 HeqR3 HeqR5 HeqR6.
-       eapply assert_mptr_fn__ok with (b:=b)(b0:=b0)(b1:=b1); eauto.
+       clear - H00 J2 J3 J4 J5 J H00 H01 HeqR0 HeqR3 HeqR5.
+       eapply assert_mptr_fn__ok with (b:=b); eauto.
 
     rewrite <- (@trace_app_nil__eq__trace trace_nil).
     apply LLVMopsem.dsop_star_cons with (state2:=
@@ -1159,7 +1149,8 @@ Proof.
             ECs2) gl2 fs2 M2)); eauto.
       apply LLVMopsem.dsLoad with (mp:=gvp2); auto.
         rewrite <- getOperandValue_eq_fresh_id; auto.
-        assert (sb_ds_sim.getValueID vp[<=]ids2atoms (getFdefLocs (fdef_intro fh1 bs1))) as Hindom.
+        assert (sb_ds_sim.getValueID vp[<=]
+            ids2atoms (getFdefLocs (fdef_intro fh1 bs1))) as Hindom.
             assert (Hwfc := HBinF).
             destruct Heqb1 as [l1 [ps1 [cs11 Heqb1]]]; subst.
             eapply wf_system__wf_cmd with (c:=insn_load id0 t vp align0)  
@@ -1278,15 +1269,9 @@ Proof.
   inv Htcmd.
   assert (J:=H2).
   unfold SBopsem.assert_mptr in J.
-  destruct md as [md_base md_bound].
+  destruct md as [blk bofs eofs].
   remember (GV2ptr (los,nts) (getPointerSize (los,nts)) gvp) as R.
   destruct R; try solve [inversion J].
-  destruct v0; try solve [inversion J].
-  remember (GV2ptr (los,nts) (getPointerSize (los,nts)) md_base) as R1.
-  destruct R1; try solve [inversion J].
-  destruct v0; try solve [inversion J].
-  remember (GV2ptr (los,nts) (getPointerSize (los,nts)) md_bound) as R2.
-  destruct R2; try solve [inversion J].
   destruct v0; try solve [inversion J].
   remember (getTypeAllocSize (los,nts) t) as R3.
   destruct R3; try solve [inversion J].
@@ -1339,8 +1324,8 @@ Proof.
               (updateAddAL GenericValue lc2 ptmp gvp2)
              als2):: 
             ECs2) gl2 fs2 M2)).
-       clear - H00 J2 J3 J4 J5 J H10 H11 HeqR0 HeqR2 HeqR3 HeqR5.
-       eapply assert_mptr_fn__ok with (b:=b)(b0:=b0)(b1:=b1); eauto.
+       clear - H00 J2 J3 J4 J5 J H10 H11 HeqR0 HeqR3.
+       eapply assert_mptr_fn__ok with (b:=b); eauto.
 
     rewrite <- (@trace_app_nil__eq__trace trace_nil).
     apply LLVMopsem.dsop_star_cons with (state2:=
@@ -1360,12 +1345,14 @@ Proof.
       inv Hwfc. 
       apply LLVMopsem.dsStore with (mp2:=gvp2)(gv1:=gv2); auto.
         rewrite <- getOperandValue_eq_fresh_id; auto.
-          assert (sb_ds_sim.getValueID v[<=]ids2atoms (getFdefLocs (fdef_intro fh1 bs1))) as Hindom.
+          assert (sb_ds_sim.getValueID v[<=]
+            ids2atoms (getFdefLocs (fdef_intro fh1 bs1))) as Hindom.
             eapply wf_value_id__in_getFdefLocs in H13; auto.
           eapply get_reg_metadata_fresh' with (rm2:=rm2); eauto; try fsetdec.
 
         rewrite <- getOperandValue_eq_fresh_id; auto.
-          assert (sb_ds_sim.getValueID vp[<=]ids2atoms (getFdefLocs (fdef_intro fh1 bs1))) as Hindom.
+          assert (sb_ds_sim.getValueID vp[<=]
+            ids2atoms (getFdefLocs (fdef_intro fh1 bs1))) as Hindom.
             eapply wf_value_id__in_getFdefLocs in H17; auto.
           eapply get_reg_metadata_fresh' with (rm2:=rm2); eauto; try fsetdec.
 
@@ -1406,7 +1393,8 @@ Proof.
       clear - Hinc HeqR1. eapply mk_tmp_inc; eauto.
 Qed.
 
-Lemma SBpass_is_correct__dsStore_ptr : forall (mi : MoreMem.meminj) (mgb : Values.block)
+Lemma SBpass_is_correct__dsStore_ptr : forall (mi : MoreMem.meminj) 
+  (mgb : Values.block)
   (St : LLVMopsem.State) (S : system) (TD : TargetData) (Ps : list product)
   (F : fdef) (B : block) (lc : GVMap) (rm : rmetadata) (gl : GVMap) (fs : GVMap)
   (sid : id) (t : typ) (align0 : align) (v : value) (vp : value) 
@@ -1475,15 +1463,9 @@ Proof.
   destruct R5 as [[bv0 ev0]|]; inv Htcmd.
   assert (J:=H2).
   unfold SBopsem.assert_mptr in J.
-  destruct md as [md_base md_bound].
+  destruct md as [blk bofs eofs].
   remember (GV2ptr (los,nts) (getPointerSize (los,nts)) gvp) as R.
   destruct R; try solve [inversion J].
-  destruct v0; try solve [inversion J].
-  remember (GV2ptr (los,nts) (getPointerSize (los,nts)) md_base) as R1.
-  destruct R1; try solve [inversion J].
-  destruct v0; try solve [inversion J].
-  remember (GV2ptr (los,nts) (getPointerSize (los,nts)) md_bound) as R2.
-  destruct R2; try solve [inversion J].
   destruct v0; try solve [inversion J].
   remember (getTypeAllocSize (los,nts) t) as R3.
   destruct R3; try solve [inversion J].
@@ -1498,7 +1480,7 @@ Proof.
   assert (J':=Hrsim).
   destruct J' as [Hrsim1 Hrsim2].
 
-  destruct md' as [md_base' md_bound'].
+  destruct md' as [md_blk' md_bofs' md_eofs'].
   assert (HeqR9':=H).
   apply Hrsim2 in HeqR9'.      
   destruct HeqR9' as [bv2 [ev2 [bgv2 [egv2 [J1 [J2 [J3 [J4 J5]]]]]]]].
@@ -1529,11 +1511,12 @@ Proof.
             ECs2) gl2 fs2 Mem2'') trace_nil /\
       mem_simulation mi (los,nts) mgb
         (SBopsem.set_mem_metadata (los,nts) MM gvp 
-          (SBopsem.mkMD md_base' md_bound')) 
+          (SBopsem.mkMD md_blk' md_bofs' md_eofs')) 
         Mem' Mem2'') as W.
 
     assert (exists b : Values.block, exists ofs : int32, exists cm,
-      gvp = (Vptr b ofs,cm)::nil /\ mstore_aux Mem0 gv b (Int.signed 31 ofs) = ret Mem') 
+      gvp = (Vptr b ofs,cm)::nil /\ 
+      mstore_aux Mem0 gv b (Int.signed 31 ofs) = ret Mem') 
       as EQ.
       clear - H3.
       eapply mstore_inversion; eauto.
@@ -1541,15 +1524,15 @@ Proof.
 
     eapply simulation__set_mmetadata_fn with (pgv':=gvp2)(bgv':=bgv2')
       (egv':=egv2')(rm:=rm)(v:=v); simpl; eauto.
-      clear - HeqR1 HeqR2 HeqR3.
+      clear - HeqR1 HeqR3.
       rewrite lookupAL_updateAddAL_eq; auto.
 
-      clear - J2' H31 J1' HeqR1 HeqR2 HeqR3 Hgenmeta Hinc.
+      clear - J2' H31 J1' HeqR1 HeqR3 Hgenmeta Hinc.
       rewrite <- getOperandValue_eq_fresh_id; eauto.
         eapply get_reg_metadata__fresh with (rm2:=rm2) in J1'; 
           eauto; try fsetdec. destruct J1'; auto.
 
-      clear - J3' H31 J1' HeqR1 HeqR2 HeqR3 Hgenmeta Hinc.
+      clear - J3' H31 J1' HeqR1 HeqR3 Hgenmeta Hinc.
       rewrite <- getOperandValue_eq_fresh_id; eauto.
         eapply get_reg_metadata__fresh with (rm2:=rm2) in J1'; 
           eauto; try fsetdec. destruct J1'; auto.
@@ -1597,8 +1580,8 @@ Proof.
               (updateAddAL GenericValue lc2 ptmp gvp2)
              als2):: 
             ECs2) gl2 fs2 M2)).
-       clear - H00 J2 J3 J4 J5 J H10 H11 HeqR0 HeqR2 HeqR3 HeqR6.
-       eapply assert_mptr_fn__ok with (b:=b)(b0:=b0)(b1:=b1); eauto.
+       clear - H00 J2 J3 J4 J5 J H10 H11 HeqR0 HeqR3.
+       eapply assert_mptr_fn__ok with (b:=b); eauto.
 
     rewrite <- (@trace_app_nil__eq__trace trace_nil).
     apply LLVMopsem.dsop_star_cons with (state2:=
@@ -1621,12 +1604,14 @@ Proof.
       inv Hwfc. 
       apply LLVMopsem.dsStore with (mp2:=gvp2)(gv1:=gv2); auto.
         rewrite <- getOperandValue_eq_fresh_id; auto.
-          assert (sb_ds_sim.getValueID v[<=]ids2atoms (getFdefLocs (fdef_intro fh1 bs1))) as Hindom.
+          assert (sb_ds_sim.getValueID v[<=]
+            ids2atoms (getFdefLocs (fdef_intro fh1 bs1))) as Hindom.
             eapply wf_value_id__in_getFdefLocs in H15; auto.
           eapply get_reg_metadata_fresh' with (rm2:=rm2); eauto; try fsetdec.
 
         rewrite <- getOperandValue_eq_fresh_id; auto.
-          assert (sb_ds_sim.getValueID vp[<=]ids2atoms (getFdefLocs (fdef_intro fh1 bs1))) as Hindom.
+          assert (sb_ds_sim.getValueID vp[<=]
+            ids2atoms (getFdefLocs (fdef_intro fh1 bs1))) as Hindom.
             eapply wf_value_id__in_getFdefLocs in H19; auto.
           eapply get_reg_metadata_fresh' with (rm2:=rm2); eauto; try fsetdec.
 

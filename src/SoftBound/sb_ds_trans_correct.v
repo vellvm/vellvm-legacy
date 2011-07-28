@@ -685,13 +685,13 @@ Proof.
     destruct (isPointerTypB RetTy).
     SSCase "rt is ptr". 
       remember (SBopsem.get_reg_metadata (los, nts) gl2 rm Result) as oRmd.
-      destruct oRmd as [[bgv1 egv1]|]; inv HeqRet.
+      destruct oRmd as [[blk1 bofs1 eofs1]|]; inv HeqRet.
       assert (exists bv2, exists ev2, exists bgv2, exists egv2,
         get_reg_metadata rm2 Result = Some (bv2, ev2) /\
         getOperandValue (los,nts) bv2 lc2 gl2 = Some bgv2 /\
         getOperandValue (los,nts) ev2 lc2 gl2 = Some egv2 /\
-        gv_inject mi bgv1 bgv2 /\
-        gv_inject mi egv1 egv2) as J.
+        gv_inject mi ((Vptr blk1 bofs1, AST.Mint 31)::nil) bgv2 /\
+        gv_inject mi ((Vptr blk1 eofs1, AST.Mint 31)::nil) egv2) as J.
         clear - HeqoRmd Hrsim. 
         destruct Hrsim as [_ Hrsim].
         apply Hrsim; auto.
@@ -884,13 +884,13 @@ Proof.
     SSSCase "rt is ptr". 
       inv H1.
       remember (SBopsem.get_reg_metadata (los, nts) gl2 rm Result) as oRmd.
-      destruct oRmd as [[bgv1 egv1]|]; inv HeqRet.
+      destruct oRmd as [[blk1 bofs1 eofs1]|]; inv HeqRet.
       assert (exists bv2, exists ev2, exists bgv2, exists egv2,
         get_reg_metadata rm2 Result = Some (bv2, ev2) /\
         getOperandValue (los,nts) bv2 lc2 gl2 = Some bgv2 /\
         getOperandValue (los,nts) ev2 lc2 gl2 = Some egv2 /\
-        gv_inject mi bgv1 bgv2 /\
-        gv_inject mi egv1 egv2) as J.
+        gv_inject mi ((Vptr blk1 bofs1, AST.Mint 31)::nil) bgv2 /\
+        gv_inject mi ((Vptr blk1 eofs1, AST.Mint 31)::nil) egv2) as J.
         clear - HeqoRmd Hrsim. 
         destruct Hrsim as [_ Hrsim].
         apply Hrsim; auto.
@@ -986,8 +986,8 @@ Proof.
             eapply gsb_is_found; eauto.
               clear - Hfree2' Hgbase.
               eapply free_doesnt_change_gsb; eauto.
-              unfold gsb_typ, p8. simpl. unfold fit_gv. simpl. 
-              admit. (*md is canonical *)
+              unfold gsb_typ, p8. simpl.
+              inv Hinj1. inv H6. inv H5. auto.
 
         rewrite <- (@trace_app_nil__eq__trace trace_nil).
         apply LLVMopsem.dsop_star_cons with (state2:=
@@ -1004,8 +1004,8 @@ Proof.
             eapply gse_is_found; eauto.
               clear - Hfree2' Hgbound.
               eapply free_doesnt_change_gse; eauto.
-              unfold gsb_typ, p8. simpl. unfold fit_gv. simpl.
-              admit. (*md is canonical *)
+              unfold gsb_typ, p8. simpl.
+              inv Hinj2. inv H6. inv H5. auto.
 
         rewrite <- (@trace_app_nil__eq__trace trace_nil).
         apply LLVMopsem.dsop_star_cons with (state2:=
@@ -1187,16 +1187,15 @@ Proof.
     SSSCase "rt is ptr". 
       inv H1.
       remember (SBopsem.get_reg_metadata (los, nts) gl2 rm Result) as oRmd.
-      destruct oRmd as [[bgv1 egv1]|]; inv HeqRet.
+      destruct oRmd as [[blk1 bofs1 eofs1]|]; inv HeqRet.
       assert (exists bv2, exists ev2, exists bgv2, exists egv2,
         get_reg_metadata rm2 Result = Some (bv2, ev2) /\
         getOperandValue (los,nts) bv2 lc2 gl2 = Some bgv2 /\
         getOperandValue (los,nts) ev2 lc2 gl2 = Some egv2 /\
-        gv_inject mi bgv1 bgv2 /\
-        gv_inject mi egv1 egv2) as J.
-        clear - HeqoRmd Hrsim. 
-        destruct Hrsim as [_ Hrsim].
-        apply Hrsim; auto.
+        gv_inject mi ((Vptr blk1 bofs1, AST.Mint 31)::nil) bgv2 /\
+        gv_inject mi ((Vptr blk1 eofs1, AST.Mint 31)::nil) egv2) as J.
+      destruct Hrsim as [_ Hrsim].
+      apply Hrsim; auto.
       destruct J as [bv2 [ev2 [bgv2 [egv2 [Hgetrmd [Hgetbgv2 [Hgetegv2 [Hinj1 
         Hinj2]]]]]]]]. rewrite Hgetrmd in Httmn. inv Httmn.
       destruct (@stk_ret_sim (los,nts) Mem0 M2 mi mgb MM bgv2 egv2) as 

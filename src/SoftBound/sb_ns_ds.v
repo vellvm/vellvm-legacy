@@ -92,15 +92,18 @@ Proof.
   destruct HeqR as [gvs2 [J1 J2]].
   unfold SBnsop.returnUpdateLocals.
   rewrite J1. 
-  destruct c; inv H1; eauto.
-  destruct n; inv H3.
-    exists lc2'. split; auto.
-    destruct (SBopsem.isReturnPointerTypB t); inv H2.
-      exists (updateAddAL GVs lc2' i0 gvs2).   
-      split; auto using instantiate_locals__updateAddAL.
+  destruct c; tinv H1.
+  destruct n; inv H1; eauto.
+  destruct t; tinv H3.
+  remember (fit_gv TD t gr) as R.
+  destruct R; tinv H3.
+  exists (updateAddAL GVs lc2' i0 (lift_op1 (fit_gv TD t) gvs2 t)).   
+  destruct (isPointerTypB t); inv H3.
+    split; auto.
+      apply instantiate_locals__updateAddAL; eauto using instantiate_fit_gv.
 
-      exists (updateAddAL GVs lc2' i0 gvs2).   
-      split; auto using instantiate_locals__updateAddAL.
+    split; auto.
+      apply instantiate_locals__updateAddAL; eauto using instantiate_fit_gv.
 Qed.
 
 Fixpoint instantiate_localms (lcm1 : list (id*GenericValue*option metadata)) 
@@ -228,12 +231,12 @@ Proof.
       exists ((gvs2, merror) :: gvsss2). simpl. split; auto.
 Qed.
 
-Lemma instantiate_locals__initializeFrameValues : forall lc1 lc2 rm
+Lemma instantiate_locals__initializeFrameValues : forall TD lc1 lc2 rm
   (H2: instantiate_locals lc1 lc2) la gvs1 gvs2 lc1' rm'
   (H1 : instantiate_gvms gvs1 gvs2),
-  _initializeFrameValues la gvs1 lc1 rm = (lc1', rm') ->
+  _initializeFrameValues TD la gvs1 lc1 rm = Some (lc1', rm') ->
   exists lc2', 
-    SBnsop._initializeFrameValues la gvs2 lc2 rm = (lc2', rm') /\
+    SBnsop._initializeFrameValues TD la gvs2 lc2 rm = Some (lc2', rm') /\
     instantiate_locals lc1' lc2'.
 Proof.
   induction la; simpl; intros; auto.
@@ -241,52 +244,58 @@ Proof.
 
     destruct a. destruct p.
     destruct gvs1; simpl.
-      remember (_initializeFrameValues la nil lc1 rm) as R.
-      destruct R as [lc1'' rm''].
+      remember (_initializeFrameValues TD la nil lc1 rm) as R.
+      destruct R as [[lc1'' rm'']|]; tinv H.
       destruct gvs2; inv H1.
       symmetry in HeqR.
+      destruct (gundef TD t); tinv H.
       apply IHla with (gvs2:=nil) in HeqR; simpl; eauto.
       destruct HeqR as [lc2' [J1 J2]].
       rewrite J1.
       destruct (isPointerTypB t); inv H.
         unfold SBnsop.prop_reg_metadata.
-        exists (updateAddAL GVs lc2' i0 ($ gundef t # t $)). 
+        exists (updateAddAL GVs lc2' i0 ($ g # t $)). 
         split; auto.
-          apply instantiate_locals__updateAddAL; 
-            auto using instantiate_gv__gv2gvs. 
+          apply instantiate_locals__updateAddAL; auto.
+            apply instantiate_cgv__gv2gvs; auto.
 
-        exists (updateAddAL GVs lc2' i0 ($ gundef t # t $)). 
+        exists (updateAddAL GVs lc2' i0 ($ g # t $)). 
         split; auto.
-          apply instantiate_locals__updateAddAL; 
-            auto using instantiate_gv__gv2gvs. 
+          apply instantiate_locals__updateAddAL; auto.
+            apply instantiate_cgv__gv2gvs; auto.
 
       destruct p.
       simpl in H1.
       destruct gvs2; tinv H1. 
       destruct p. destruct H1 as [J1 [J2 J3]]; subst.
-      remember (_initializeFrameValues la gvs1 lc1 rm) as R.
-      destruct R as [lc1'' rm''].
+      remember (_initializeFrameValues TD la gvs1 lc1 rm) as R.
+      destruct R as [[lc1'' rm'']|]; tinv H.
+      remember (fit_gv TD t g) as R2.
+      destruct R2; inv H.
       symmetry in HeqR.
       eapply IHla in HeqR; simpl; eauto.
       destruct HeqR as [lc2' [J1' J2']].
       rewrite J1'.
       unfold SBnsop.prop_reg_metadata.
-      destruct (isPointerTypB t); inv H.
-        destruct o0; inv H1.
-          exists (updateAddAL GVs lc2' i0 g0). 
-          split; auto using instantiate_locals__updateAddAL.
-
-          exists (updateAddAL GVs lc2' i0 g0). 
-          split; auto using instantiate_locals__updateAddAL.
-        exists (updateAddAL GVs lc2' i0 g0). 
-        split; auto using instantiate_locals__updateAddAL.
+      exists (updateAddAL GVs lc2' i0 (lift_op1 (fit_gv TD t) g0 t)).
+      destruct (isPointerTypB t); inv H1.
+        destruct o0; inv H0.
+          split; auto.
+            apply instantiate_locals__updateAddAL; auto.
+              eapply instantiate_fit_gv; eauto.
+          split; auto.
+            apply instantiate_locals__updateAddAL; auto.
+              eapply instantiate_fit_gv; eauto.
+        split; auto.
+          apply instantiate_locals__updateAddAL; auto.
+            eapply instantiate_fit_gv; eauto.
 Qed.           
 
-Lemma instantiate_locals__initLocals : forall gvs1 gvss2 lc1 rm
+Lemma instantiate_locals__initLocals : forall TD gvs1 gvss2 lc1 rm
   (H : instantiate_gvms gvs1 gvss2) la,
-  initLocals la gvs1 = (lc1, rm) ->
+  initLocals TD la gvs1 = Some (lc1, rm) ->
   exists lc2, 
-    SBnsop.initLocals la gvss2 = (lc2, rm) /\ instantiate_locals lc1 lc2.
+    SBnsop.initLocals TD la gvss2 = Some (lc2, rm) /\ instantiate_locals lc1 lc2.
 Proof.
   unfold initLocals, SBnsop.initLocals.
   intros.
@@ -294,12 +303,12 @@ Proof.
     simpl. auto.
 Qed.
 
-Lemma instantiate_locals__exCallUpdateLocals : forall lc1 lc2 lc1' rid oResult 
+Lemma instantiate_locals__exCallUpdateLocals : forall TD lc1 lc2 lc1' rid oResult 
     nr ft rm rm',
   instantiate_locals lc1 lc2 -> 
-  SBopsem.exCallUpdateLocals ft nr rid oResult lc1 rm = ret (lc1',rm') ->
+  SBopsem.exCallUpdateLocals TD ft nr rid oResult lc1 rm = ret (lc1',rm') ->
   exists lc2', 
-    SBnsop.exCallUpdateLocals ft nr rid oResult lc2 rm = ret (lc2',rm') /\
+    SBnsop.exCallUpdateLocals TD ft nr rid oResult lc2 rm = ret (lc2',rm') /\
     instantiate_locals lc1' lc2'. 
 Proof.
   intros.
@@ -309,8 +318,14 @@ Proof.
   destruct oResult; inv H2; eauto.
   destruct ft; inv H1; 
     eauto using instantiate_locals__updateAddAL, instantiate_gv__gv2gvs.
-  destruct ft; inv H2; 
-    eauto using instantiate_locals__updateAddAL, instantiate_gv__gv2gvs.
+  remember (fit_gv TD ft g) as R.
+  destruct R; tinv H2.
+  exists (updateAddAL GVs lc2 rid ($ g0 # ft $)).
+  destruct (isPointerTypB ft); inv H2; split; eauto.
+    apply instantiate_locals__updateAddAL; auto.
+      apply instantiate_cgv__gv2gvs.
+    apply instantiate_locals__updateAddAL; auto.
+      apply instantiate_cgv__gv2gvs.
 Qed.
 
 Ltac simpl_nd_sbds :=

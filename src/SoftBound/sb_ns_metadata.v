@@ -230,35 +230,37 @@ Proof.
         eapply IHrvs in HeqR; eauto.
 Qed.
 
-Lemma initializeFrameValues_spec1 : forall la lc1 rm1 x md lc2 rm2,
+Lemma initializeFrameValues_spec1 : forall TD la lc1 rm1 x md lc2 rm2,
   lookupAL _ rm1 x = Some md ->
-  (lc2, rm2) = _initializeFrameValues la nil lc1 rm1 ->
+  Some (lc2, rm2) = _initializeFrameValues TD la nil lc1 rm1 ->
   exists md, lookupAL _ rm2 x = Some md.
 Proof.
   induction la; simpl; intros lc1 rm1 x md lc2 rm2 Hlk Hinit.  
     inv Hinit. eauto.
 
     destruct a. destruct p.
-    remember (_initializeFrameValues la nil lc1 rm1) as R.
-    destruct R as [lc1' rm1'].
+    remember (_initializeFrameValues TD la nil lc1 rm1) as R.
+    destruct R as [[lc1' rm1']|]; tinv Hinit.
+    destruct (gundef TD t); tinv Hinit.
     destruct (isPointerTypB t); inv Hinit; eauto.
       destruct (eq_atom_dec i0 x); subst.
         rewrite lookupAL_updateAddAL_eq; eauto.
         rewrite <- lookupAL_updateAddAL_neq; eauto.
 Qed.
 
-Lemma initializeFrameValues_spec3 : forall la lc x rm lc' rm' md,
-  (lc', rm') = _initializeFrameValues la nil lc rm ->
+Lemma initializeFrameValues_spec3 : forall TD la lc x rm lc' rm' md,
+  Some (lc', rm') = _initializeFrameValues TD la nil lc rm ->
   lookupAL _ rm' x = Some md ->
   lookupAL _ rm x = Some md \/
-  md = SBopsem.mkMD null null.
+  md = null_md.
 Proof.
   induction la; simpl; intros.
     inv H. auto.
 
     destruct a. destruct p.
-    remember (_initializeFrameValues la nil lc rm) as R.
-    destruct R as [lc1 rm1].
+    remember (_initializeFrameValues TD la nil lc rm) as R.
+    destruct R as [[lc1 rm1]|]; tinv H.
+    destruct (gundef TD t); tinv H.
     destruct (isPointerTypB t); inv H.
       destruct (eq_atom_dec i0 x); subst.
         rewrite lookupAL_updateAddAL_eq in H0. 
@@ -269,11 +271,11 @@ Proof.
       eapply IHla in HeqR; eauto. 
 Qed.
 
-Lemma initializeFrameValues_spec2 : forall la ogvs lc x rm lc' rm' md,
-  (lc', rm') = _initializeFrameValues la ogvs lc rm ->
+Lemma initializeFrameValues_spec2 : forall TD la ogvs lc x rm lc' rm' md,
+  Some (lc', rm') = _initializeFrameValues TD la ogvs lc rm ->
   lookupAL _ rm' x = Some md ->
   lookupAL _ rm x = Some md \/
-  md = SBopsem.mkMD null null \/
+  md = null_md \/
   exists gv1, In (gv1,Some md) ogvs.
 Proof.
   induction la; simpl; intros ogvs lc x rm lc' rm' md Hinit Hlk.
@@ -281,8 +283,9 @@ Proof.
 
     destruct a. destruct p.
     destruct ogvs.
-      remember (_initializeFrameValues la nil lc rm) as R.
-      destruct R as [lc1 rm1].
+      remember (_initializeFrameValues TD la nil lc rm) as R.
+      destruct R as [[lc1 rm1]|]; tinv Hinit.
+      destruct (gundef TD t); tinv Hinit.
       destruct (isPointerTypB t); inv Hinit.
         destruct (eq_atom_dec i0 x); subst.
           rewrite lookupAL_updateAddAL_eq in Hlk. 
@@ -295,8 +298,8 @@ Proof.
         destruct HeqR; auto.
 
       destruct p.
-      remember (_initializeFrameValues la ogvs lc rm) as R.
-      destruct R as [lc1 rm1].
+      remember (_initializeFrameValues TD la ogvs lc rm) as R.
+      destruct R as [[lc1 rm1]|]; tinv Hinit.
       destruct (isPointerTypB t); inv Hinit.
         destruct o as [[md1 ?]|]; inv H0.
           destruct (eq_atom_dec i0 x); subst.
@@ -322,161 +325,6 @@ Proof.
           right. right. exists gv1. simpl. auto.
 Qed.
 
-(***********************************************)
-(* wf_data *)
-
-Lemma GV2ptr__cgv2gv : forall TD sz g b ofs t, 
-  GV2ptr TD sz g = ret (Vptr b ofs) -> g = ? g # typ_pointer t ?.
-Proof.
-  intros TD sz g b ofs t J1.
-  unfold GV2ptr in J1.    
-  destruct g as [|[[] ?][|]]; inv J1.
-  simpl. auto.
-Qed.
-
-Lemma get_const_metadata_gid__wf_data : forall S TD Mem0 gl t i0 gvb gve,
-  wf_global_ptr S TD Mem0 gl ->
-  wf_const S TD (const_gid t i0) (typ_pointer t) ->
-  const2GV TD gl (const_castop castop_bitcast (const_gid t i0) p8) = ret gvb ->
-  const2GV TD gl 
-       (const_castop castop_bitcast
-         (const_gep false (const_gid t i0)
-            (Cons_list_const (const_int Size.ThirtyTwo 1) Nil_list_const)) p8)
-       = ret gve ->
-  wf_data TD Mem0 gvb gve.
-Proof.
-  intros S TD Mem0 gl t i0 gvb gve Hwfg Hwfc H2 H3.
-  unfold const2GV in H3.
-  remember (_const2GV TD gl 
-    (const_castop castop_bitcast
-      (const_gep false (const_gid t i0)
-        (Cons_list_const (const_int Size.ThirtyTwo 1) Nil_list_const)) p8))
-    as R0.
-  destruct R0 as [[gv ?]|]; inv H3.
-  unfold const2GV in H2.
-  remember (_const2GV TD gl (const_castop castop_bitcast (const_gid t i0) p8)) 
-    as R1.
-  destruct R1 as [[gv' ?]|]; inv H2.
-  unfold _const2GV in *.
-  unfold mcast, mbitcast, p8 in *.
-  remember (lookupAL GenericValue gl i0) as R'.
-  destruct R'; try solve [inversion HeqR0].
-  inv HeqR1.
-  remember (getConstGEPTyp
-              (Cons_list_const (const_int Size.ThirtyTwo 1) Nil_list_const)
-              (typ_pointer t)) as R1.
-  destruct R1; try solve [inversion HeqR0].
-  unfold getConstGEPTyp in HeqR1.
-  destruct (getSubTypFromConstIdxs Nil_list_const t); inv HeqR1.
-  symmetry in HeqR'.
-  assert (exists b, exists sz,
-    GV2ptr TD (getPointerSize TD) g = Some (Values.Vptr b ((Int.zero 31))) /\
-    getTypeAllocSize TD t = Some sz /\
-    Mem.bounds Mem0 b = (0, Z_of_nat sz) /\
-    b < Mem.nextblock Mem0 /\
-    (blk_temporal_safe Mem0 b -> Mem.range_perm Mem0 b 0 (Z_of_nat sz) Writable))
-    as J.
-    eapply Hwfg; eauto.
-  destruct J as [b [sz [J1 [J2 [J3 [J4 J5]]]]]].
-  rewrite J1 in HeqR0.
-  simpl in HeqR0.
-  unfold mgetoffset in HeqR0.
-  destruct TD.
-  assert (exists ut2, Constant.typ2utyp l1 (typ_array 0%nat t) = 
-    Some (typ_array 0%nat ut2) /\
-    getTypeAllocSize (l0, l1) ut2 = getTypeAllocSize (l0, l1) t) as J.
-    clear - Hwfc. inv Hwfc. 
-    unfold Constant.unifiable_typ in H5.
-    destruct H5 as [ut [H5 H6]].
-    unfold Constant.typ2utyp in *.
-    simpl. rewrite H5. simpl. rewrite <- H6. eauto.
-  destruct J as [ut2 [J6 J7]].
-  rewrite J6 in HeqR0. simpl in HeqR0.
-  rewrite J7 in HeqR0. rewrite J2 in HeqR0. simpl in HeqR0.
-  inv HeqR0.
-  erewrite <- GV2ptr__cgv2gv with (g:=g); eauto.
-  unfold wf_data. rewrite J1. simpl.
-  destruct (zeq b b); auto.
-    split; auto.  
-    
-    intro Htmp.
-    apply J5 in Htmp.
-    rewrite Int.signed_zero. 
-    rewrite (Int.add_commut 31).
-    rewrite (Int.add_zero 31).
-    unfold INTEGER.to_Z. 
-    assert (Z_of_nat sz * 1 = Z_of_nat sz) as EQ. zauto.
-    rewrite EQ.
-    intros z Hz.
-    apply Htmp.
-    assert (J:=@Int.signed_repr_ge_0 31 (Z_of_nat sz) (Z_of_nat_ge_0 sz)).
-    zauto.
-Qed.
-
-Lemma eq_gv_is_wf_data : forall TD Mem gv bb bofs,
-  bb < Mem.nextblock Mem ->
-  GV2ptr TD (getPointerSize TD) gv = Some (Values.Vptr bb bofs) ->
-  wf_data TD Mem gv gv.
-Proof.
-  intros TD Mem gv bb bofs H0 H.
-  unfold wf_data.
-  rewrite H.
-  destruct (zeq bb bb); auto.
-  split; auto.
-    intros Hwfb ofs J.
-    contradict J; zauto.
-Qed.
-
-Lemma wf_rmetadata__get_const_metadata : forall S TD gl Mem0 rm c gvb gve c0 c1
-   ct',
-  wf_global_ptr S TD Mem0 gl ->
-  wf_const S TD c ct' ->
-  wf_rmetadata TD Mem0 rm ->
-  get_const_metadata c = Some (c0,c1) ->
-  const2GV TD gl c0 = Some gvb ->
-  const2GV TD gl c1 = Some gve ->
-  wf_data TD Mem0 gvb gve.
-Proof.
-  induction c; intros gvb gve cc0 cc1 ct' Hwfg Hwfc Hwfr H1 H2 H3; 
-    try solve [inversion H1].
-
-  inv Hwfc.
-  destruct t; inv H1; 
-    try solve [ 
-      eapply get_const_metadata_gid__wf_data; eauto using wf_const_gid
-    ].
-
-    unfold const2GV in H2, H3.
-    remember (_const2GV TD gl (const_castop castop_bitcast (const_gid 
-      (typ_function t l0 v) i0) p8)) as R.
-    destruct R; try solve [inversion H2 | inversion H3].
-    destruct p. inv H2. inv H3.
-    unfold GV2ptr.
-    unfold _const2GV in HeqR.
-    remember (lookupAL GenericValue gl i0) as R1.
-    destruct R1; inv HeqR.
-    assert (exists b, exists sz,
-      GV2ptr TD (getPointerSize TD) g0 = Some (Values.Vptr b ((Int.zero 31))) /\
-      getTypeAllocSize TD (typ_function t l0 v) = Some sz /\
-      Mem.bounds Mem0 b = (0, Z_of_nat sz) /\
-      b < Mem.nextblock Mem0 /\
-      (blk_temporal_safe Mem0 b -> Mem.range_perm Mem0 b 0 (Z_of_nat sz) Writable))
-      as J.
-      eapply Hwfg; eauto using wf_const_gid.
-    destruct J as [b [sz [J1 [J2 [J3 [J4 J5]]]]]].
-    unfold p8.
-    erewrite <- GV2ptr__cgv2gv; eauto.
-    eapply eq_gv_is_wf_data; eauto.
-
-  simpl in H1.
-  destruct c; try solve [inversion H1].
-  destruct t; try solve [inversion H1].
-  inv Hwfc.
-  eapply IHc; eauto.
-     
-  inv Hwfc.
-  simpl in H1; eauto.
-Qed.
 
 (********************************************)
 (* wf_rmetadata *)
@@ -503,10 +351,10 @@ Proof.
     destruct R3 as [[md ?]|]; try solve [inv H1; auto].
     destruct c'; try solve [inv H1; auto].
     destruct n; try solve [inv H1; auto].
-    unfold SBopsem.isReturnPointerTypB, isPointerTypB in H1.
+    unfold isPointerTypB in H1.
     destruct t; try solve [inv H1; auto].
     destruct t; inv H1; auto.
-      intros x gvb gve Hlk.
+      intros x blk bofs eofs Hlk.
       destruct (eq_atom_dec i0 x); subst.
         rewrite lookupAL_updateAddAL_eq in Hlk.
         inv Hlk. symmetry in HeqR3.
@@ -518,29 +366,29 @@ Proof.
 
     destruct c'; try solve [inv H1; auto].
     destruct n; try solve [inv H1; auto].
-    unfold SBopsem.isReturnPointerTypB, isPointerTypB in H1.
+    unfold isPointerTypB in H1.
     destruct t; try solve [inv H1; auto].
     destruct t; inv H1; auto.
-      intros x gvb gve Hlk.
+      intros x blk bofs eofs Hlk.
       destruct (eq_atom_dec i0 x); subst.
         rewrite lookupAL_updateAddAL_eq in Hlk.
-        inv Hlk. apply null_is_wf_data.
+        inv Hlk. apply null_is_wf_data; auto.
 
         rewrite <- lookupAL_updateAddAL_neq in Hlk; eauto.
 Qed.
 
 Lemma getIncomingValuesForBlockFromPHINodes__wf_rmetadata : forall los nts M f b
-  ps gl lc rm S PNs re id1 gv1 bv1 ev1 b' ifs
+  ps gl lc rm S PNs re id1 gv1 blk1 bofs1 eofs1 b' ifs
   (Hwfg : wf_global_ptr S (los, nts) M gl)
   (Hwfps : wf_phinodes ifs S (module_intro los nts ps) f b' PNs),
   NoDup (getPhiNodesIDs PNs) ->
   wf_rmetadata (los, nts) M rm ->
   getIncomingValuesForBlockFromPHINodes (los, nts) PNs b gl lc rm = Some re ->
-  In (id1,gv1,Some (mkMD bv1 ev1)) re ->
-  wf_data (los, nts) M bv1 ev1.
+  In (id1,gv1,Some (mkMD blk1 bofs1 eofs1)) re ->
+  wf_data (los, nts) M blk1 bofs1 eofs1.
 Proof.
-  induction PNs; simpl; intros re id1 gv1 bv1 ev1 b' ifs Hwfg Hwfps Huniq 
-    Hwfr Hget Hin.
+  induction PNs; simpl; intros re id1 gv1 blk1 bofs1 eofs1 b' ifs Hwfg Hwfps 
+    Huniq Hwfr Hget Hin.
     inv Hget. inversion Hin.
 
     inv Huniq. inv Hwfps.
@@ -569,9 +417,9 @@ Proof.
 Qed.
 
 Lemma updateValuesForNewBlock__wf_rmetadata_aux : forall TD M rvs rm lc,
-  (forall id1 gv1 bv1 ev1, 
-    In (id1,gv1,Some (mkMD bv1 ev1)) rvs ->
-    wf_data TD M bv1 ev1) ->
+  (forall id1 gv1 blk1 bofs1 eofs1, 
+    In (id1,gv1,Some (mkMD blk1 bofs1 eofs1)) rvs ->
+    wf_data TD M blk1 bofs1 eofs1) ->
   forall rvs2 rvs1 lc1 rm1 lc2 rm2,
   rvs = rvs1 ++ rvs2 ->
   updateValuesForNewBlock rvs1 lc rm = (lc1, rm1) ->
@@ -587,8 +435,8 @@ Proof.
     destruct a. destruct p.
     remember (updateValuesForNewBlock rvs2 lc1 rm1) as R. 
     destruct R as [lc2' rm2'].
-    destruct o as [[bv ev]|]; inv Hupdate2.
-      intros x gvb gve Hlk.
+    destruct o as [[blk bofs eofs]|]; inv Hupdate2.
+      intros x blk2 bofs2 eofs2 Hlk.
       destruct (eq_atom_dec i0 x); subst.
         rewrite lookupAL_updateAddAL_eq in Hlk. inv Hlk.
         apply Hprop with (id1:=x)(gv1:=g); eauto.
@@ -600,7 +448,7 @@ Proof.
           eapply Hprop; eauto.
             apply in_or_app. simpl. eauto.
                        
-      intros x gvb gve Hlk.
+      intros x blk bofs eofs Hlk.
       eapply updateValuesForNewBlock_spec6 in Hlk; eauto.
       destruct Hlk as [Hlk | [id1 [gv1 Hin]]]; eauto.
         eapply Hprop; eauto.
@@ -608,9 +456,9 @@ Proof.
 Qed.
 
 Lemma updateValuesForNewBlock__wf_rmetadata : forall rvs TD M lc rm lc' rm',
-  (forall id1 gv1 bv1 ev1, 
-    In (id1,gv1,Some (mkMD bv1 ev1)) rvs ->
-    wf_data TD M bv1 ev1) ->
+  (forall id1 gv1 blk1 bofs1 eofs1, 
+    In (id1,gv1,Some (mkMD blk1 bofs1 eofs1)) rvs ->
+    wf_data TD M blk1 bofs1 eofs1) ->
   wf_rmetadata TD M rm ->
   updateValuesForNewBlock rvs lc rm = (lc', rm') ->
   wf_rmetadata TD M rm'.
@@ -639,8 +487,8 @@ Proof.
   eapply updateValuesForNewBlock__wf_rmetadata; eauto.
   intros. 
   inv HwfF.
-  apply wf_blocks__wf_block with (b:=b1) in H8; auto.
-  destruct b1. inv H8.
+  apply wf_blocks__wf_block with (b:=b1) in H15; auto.
+  destruct b1. inv H15.
   eapply getIncomingValuesForBlockFromPHINodes__wf_rmetadata; eauto.
 
     apply uniqFdef__uniqBlockLocs in HBinF; auto.
@@ -656,7 +504,7 @@ Lemma prop_metadata_preserves_wf_rmetadata : forall los nts Mem0 rm md gl S Ps
   wf_rmetadata (los, nts) Mem0 (updateAddAL metadata rm id0 md).
 Proof.
   intros.
-  intros i0 gvb gve J0.
+  intros i0 blk bofs eofs J0.
   destruct (@id_dec id0 i0); subst.
     rewrite lookupAL_updateAddAL_eq in J0.
     inversion J0; subst. clear J0.
@@ -672,11 +520,12 @@ Lemma params2GVs__wf_rmetadata : forall S los nts Ps f M rm lc gl ps ogvs
   (Hwfg : wf_global_ptr S (los, nts) M gl),
   wf_rmetadata (los,nts) M rm ->
   params2GVs (los,nts) ps lc gl rm = Some ogvs ->
-  forall gv1 bv1 ev1,
-    In (gv1, Some (mkMD bv1 ev1)) ogvs ->
-    wf_data (los,nts) M bv1 ev1.
+  forall gv1 blk1 bofs1 eofs1,
+    In (gv1, Some (mkMD blk1 bofs1 eofs1)) ogvs ->
+    wf_data (los,nts) M blk1 bofs1 eofs1.
 Proof.
-  induction ps; simpl; intros ogvs Hwfvs Hwfg Hwfr Hp2ogvs gv1 bv1 ec1 Hin.
+  induction ps; simpl; intros ogvs Hwfvs Hwfg Hwfr Hp2ogvs gv1 blk1 bofs1 eofs1 
+    Hin.
     inv Hp2ogvs. inv Hin.
 
     destruct a.
@@ -696,15 +545,15 @@ Proof.
 Qed.
 
 Lemma initializeFrameValues__wf_rmetadata : forall TD M la ogvs lc rm
-  (Hprop: forall gv1 bv1 ev1, 
-    In (gv1,Some (mkMD bv1 ev1)) ogvs ->
-    wf_data TD M bv1 ev1),
+  (Hprop: forall gv1 blk1 bofs1 eofs1, 
+    In (gv1,Some (mkMD blk1 bofs1 eofs1)) ogvs ->
+    wf_data TD M blk1 bofs1 eofs1),
   forall la2 la1 ogvs1 ogvs2 lc1 rm1 lc2 rm2,
   la = la1 ++ la2 ->
   ogvs = ogvs1 ++ ogvs2 ->
-  _initializeFrameValues la1 ogvs1 lc rm = (lc1, rm1) ->
+  _initializeFrameValues TD la1 ogvs1 lc rm = Some (lc1, rm1) ->
   wf_rmetadata TD M rm1 ->
-  _initializeFrameValues la2 ogvs2 lc1 rm1 = (lc2, rm2) ->
+  _initializeFrameValues TD la2 ogvs2 lc1 rm1 = Some (lc2, rm2) ->
   wf_rmetadata TD M rm2.
 Proof.
   intros TD M la ogvs lc rm Hprop.
@@ -714,28 +563,29 @@ Proof.
 
     destruct a. destruct p.
     destruct ogvs2.
-      remember (_initializeFrameValues la2 nil lc1 rm1) as R.
-      destruct R as [lc' rm'].
+      remember (_initializeFrameValues TD la2 nil lc1 rm1) as R.
+      destruct R as [[lc' rm']|]; tinv Hinit2.
+      destruct (gundef TD t); tinv Hinit2.
       destruct (isPointerTypB t); inv Hinit2.
         apply adding_null_preserves_wf_rmetadata.
-        intros x bv ev Hlk.
+        intros x blk bofs eofs Hlk.
         eapply initializeFrameValues_spec2 in Hlk; eauto.
         destruct Hlk as [Hlk | [Hlk | [gv1 Hlk]]]; eauto.
-          inv Hlk. apply null_is_wf_data.
+          inv Hlk. apply null_is_wf_data; auto.
           inv Hlk.
 
-        intros x bv ev Hlk.
+        intros x blk bofs eofs Hlk.
         eapply initializeFrameValues_spec2 in Hlk; eauto.
         destruct Hlk as [Hlk | [Hlk | [gv1 Hlk]]]; eauto.
-          inv Hlk. apply null_is_wf_data.
+          inv Hlk. apply null_is_wf_data; auto.
           inv Hlk.
 
     destruct p.
-    remember (_initializeFrameValues la2 ogvs2 lc1 rm1) as R.
-    destruct R as [lc' rm'].
+    remember (_initializeFrameValues TD la2 ogvs2 lc1 rm1) as R.
+    destruct R as [[lc' rm']|]; tinv Hinit2.
     destruct (isPointerTypB t); inv Hinit2.
       destruct o as [[md1 ?]|]; inv H0.
-        intros x bv ev Hlk.
+        intros x blk bofs eofs Hlk.
         destruct (eq_atom_dec i0 x); subst.
           rewrite lookupAL_updateAddAL_eq in Hlk. 
           inv Hlk. 
@@ -745,21 +595,21 @@ Proof.
           rewrite <- lookupAL_updateAddAL_neq in Hlk; auto.
           eapply initializeFrameValues_spec2 in Hlk; eauto.
           destruct Hlk as [Hlk | [Hlk | [gv1 Hlk]]]; eauto.
-            inv Hlk. apply null_is_wf_data.
+            inv Hlk. apply null_is_wf_data; auto.
             eapply Hprop; eauto. 
               apply in_or_app. simpl. eauto.
 
         apply adding_null_preserves_wf_rmetadata.
-        intros x bv ev Hlk.
+        intros x blk bofs eofs Hlk.
         eapply initializeFrameValues_spec2 in Hlk; eauto.
         destruct Hlk as [Hlk | [Hlk | [gv1 Hlk]]]; eauto.
-          inv Hlk. apply null_is_wf_data.
+          inv Hlk. apply null_is_wf_data; auto.
           eapply Hprop; eauto. 
             apply in_or_app. simpl. eauto.
-      intros x bv ev Hlk.
+      intros x blk bofs eofs Hlk.
       eapply initializeFrameValues_spec2 in Hlk; eauto.
       destruct Hlk as [Hlk | [Hlk | [gv1 Hlk]]]; eauto.
-        inv Hlk. apply null_is_wf_data.
+        inv Hlk. apply null_is_wf_data; auto.
         eapply Hprop; eauto. 
           apply in_or_app. simpl. eauto.
 Qed.
@@ -771,7 +621,7 @@ Lemma initLocals__wf_rmetadata : forall ogvs (rm : rmetadata) (lc' : GVsMap)
   (Hwfg : wf_global_ptr S (los, nts) M gl),
   wf_rmetadata (los,nts) M rm ->
   params2GVs (los,nts) ps lc gl rm = Some ogvs ->
-  initLocals la ogvs = (lc', rm') ->
+  initLocals (los,nts) la ogvs = Some (lc', rm') ->
   wf_rmetadata (los,nts) M rm'.
 Proof.
   intros.
@@ -781,7 +631,7 @@ Proof.
   eapply initializeFrameValues__wf_rmetadata with (lc1:=nil)(rm1:=nil)(lc:=nil)
     (rm:=nil)(ogvs1:=nil)(la1:=nil) in H1; eauto.
     eapply params2GVs__wf_rmetadata; eauto.
-    intros x bv gv J. inv J.
+    intros x blk bofs eofs J. inv J.
 Qed.
 
 Lemma malloc_extends_wf_rmetadata : forall
@@ -801,8 +651,7 @@ Lemma malloc_extends_wf_rmetadata : forall
   (H1 : malloc TD Mem0 tsz gn align0 = ret (Mem', mb))
   (H2 : GV2int TD Size.ThirtyTwo gn = ret n)
   (H3 : prop_reg_metadata lc rm id0 ($ (blk2GV TD mb) # typ_pointer t $)
-         {| md_base := base2GV TD mb; md_bound := bound2GV TD mb tsz n |} =
-       (lc', rm'))
+          (bound2MD mb tsz n) = (lc', rm'))
   (Hwfr : wf_rmetadata TD Mem0 rm),
   wf_rmetadata TD Mem' rm'.
 Proof.
@@ -814,15 +663,12 @@ Proof.
   remember (Mem.alloc Mem0 0 (Size.to_Z tsz * n)) as R.
   inversion H1. clear H1. subst.
   clear H2.
-  intros i0 gvb gve J.
+  intros i0 blk bofs eofs J.
   destruct (@id_dec id0 i0); subst.
   SCase "id0=i0".
       rewrite lookupAL_updateAddAL_eq in J.
       inversion J; subst. clear J.
       unfold wf_data.
-      rewrite GV2ptr_base2GV. 
-      rewrite GV2ptr_bound2GV. 
-      destruct (zeq mb mb) as [J | J]; try solve [contradict J; auto].
       split.
         assert (H4':=H0).
         apply Mem.alloc_result in H0.
@@ -840,10 +686,13 @@ Proof.
           assert (J:=@bytesize_chunk_pos 7).
           zauto.
 
+          rewrite Int.signed_zero in J1; zauto. 
+(*
           rewrite Int.signed_repr in J1; zauto. clear.
           assert (J1:=@Int.min_signed_neg 31).          
           assert (J2:=@Int.max_signed_pos 31).          
           zauto.
+*)
 
           simpl. rewrite bytesize_chunk_7_eq_1. 
           destruct J1 as [_ J1].
@@ -862,7 +711,7 @@ Proof.
 
   SCase "id0<>i0".
       rewrite <- lookupAL_updateAddAL_neq in J; auto.
-      assert (J':=@Hwfr i0 gvb gve J). clear Hwfr.    
+      assert (J':=@Hwfr i0 blk bofs eofs J). clear Hwfr.    
       eapply alloc_preserves_wf_data; eauto.
 Qed.
 
@@ -886,8 +735,7 @@ Lemma malloc_extends_wf_mmetadata : forall
   (H1 : malloc TD Mem0 tsz gn align0 = ret (Mem', mb))
   (H2 : GV2int TD Size.ThirtyTwo gn = ret n)
   (H3 : prop_reg_metadata lc rm id0 ($ (blk2GV TD mb) # typ_pointer t $)
-         {| md_base := base2GV TD mb; md_bound := bound2GV TD mb tsz n |} =
-       (lc', rm'))
+         (bound2MD mb tsz n) = (lc', rm'))
   (Hwfm : wf_mmetadata TD Mem0 MM),
   wf_mmetadata TD Mem' MM.
 Proof.
@@ -898,8 +746,8 @@ Proof.
   destruct (zle 0 (Size.to_Z tsz * n)); try solve [inversion H1].
   remember (Mem.alloc Mem0 0 (Size.to_Z tsz * n)) as R.
   inversion H1. clear H1. subst.
-  intros b ofs gvb gve J.
-  assert (J':=@Hwfm b ofs gvb gve J). clear Hwfm.
+  intros b ofs blk bofs eofs J.
+  assert (J':=@Hwfm b ofs blk bofs eofs J). clear Hwfm.
   eapply alloc_preserves_wf_data; eauto.
 Qed.
 

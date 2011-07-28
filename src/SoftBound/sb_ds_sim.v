@@ -346,15 +346,15 @@ Definition reg_simulation (mi:MoreMem.meminj) TD gl (F:fdef)
   exists gv2, 
     lookupAL _ lc2 i0 = Some gv2 /\ gv_inject mi gv1 gv2
 ) /\
-(forall vp bgv1 egv1, 
+(forall vp blk1 bofs1 eofs1, 
   SBopsem.get_reg_metadata TD gl rm1 vp = 
-    Some (SBopsem.mkMD bgv1 egv1) -> 
+    Some (SBopsem.mkMD blk1 bofs1 eofs1) -> 
   exists bv2, exists ev2, exists bgv2, exists egv2,
     get_reg_metadata rm2 vp = Some (bv2, ev2) /\
     getOperandValue TD bv2 lc2 gl = Some bgv2 /\
     getOperandValue TD ev2 lc2 gl = Some egv2 /\
-    gv_inject mi bgv1 bgv2 /\
-    gv_inject mi egv1 egv2
+    gv_inject mi ((Vptr blk1 bofs1, AST.Mint 31)::nil) bgv2 /\
+    gv_inject mi ((Vptr blk1 eofs1, AST.Mint 31)::nil) egv2
 ) /\
 (forall i0 gv1, lookupAL _ lc1 i0 = Some gv1 -> In i0 (getFdefLocs F)).
 
@@ -363,11 +363,11 @@ Definition mem_simulation (mi:MoreMem.meminj) TD (mgb:Values.block)
 MoreMem.mem_inj mi Mem1 Mem2 /\
 0 <= mgb < Mem.nextblock Mem2 /\
 (forall b1 ofs1, b1 >= Mem.nextblock Mem1 -> MM1 b1 ofs1 = None) /\
-(forall lc2 gl b ofs bgv egv als bid0 eid0 pgv' fs F B cs tmn S Ps 
+(forall lc2 gl b ofs blk bofs eofs als bid0 eid0 pgv' fs F B cs tmn S Ps 
     EC v cm,  
   wf_globals mgb gl -> 
   SBopsem.get_mem_metadata TD MM1 ((Vptr b ofs,cm)::nil) = 
-    SBopsem.mkMD bgv egv -> 
+    SBopsem.mkMD blk bofs eofs -> 
   gv_inject mi ((Vptr b ofs,cm)::nil) pgv' ->
   getOperandValue TD v lc2 gl = Some pgv' ->
   exists bgv', exists egv',
@@ -394,8 +394,8 @@ MoreMem.mem_inj mi Mem1 Mem2 /\
          (updateAddAL _ (updateAddAL _ lc2 bid0 bgv') eid0 egv') als)::EC) 
         gl fs Mem2)
     trace_nil /\
-    gv_inject mi bgv bgv' /\
-    gv_inject mi egv egv'
+    gv_inject mi ((Vptr blk bofs, AST.Mint 31)::nil) bgv' /\
+    gv_inject mi ((Vptr blk eofs, AST.Mint 31)::nil) egv'
 ).
 
 Fixpoint als_simulation (mi:MoreMem.meminj) (als1 als2:list mblock) : Prop :=
@@ -558,7 +558,7 @@ Fixpoint params_simulation TD gl mi lc2
   (ogvs:list (GenericValue * option metadata)) n (cs:cmds) : Prop :=
 match (ogvs, cs) with
 | (nil, nil) => True
-| ((gv, Some (mkMD bgv1 egv1))::ogvs, c1::c2::cs') =>
+| ((gv, Some (mkMD blk bofs eofs))::ogvs, c1::c2::cs') =>
     exists bv2, exists ev2, exists bgv2, exists egv2, 
       c1 = insn_call fake_id true attrs ssb_typ ssb_fn 
                  ((p8,bv2)::(val32 n)::nil) /\
@@ -566,14 +566,13 @@ match (ogvs, cs) with
                  ((p8,ev2)::(val32 n)::nil) /\
       getOperandValue TD bv2 lc2 gl = Some bgv2 /\
       getOperandValue TD ev2 lc2 gl = Some egv2 /\
-      gv_inject mi bgv1 bgv2 /\
-      gv_inject mi egv1 egv2 /\
+      gv_inject mi ((Vptr blk bofs, AST.Mint 31)::nil) bgv2 /\
+      gv_inject mi ((Vptr blk eofs, AST.Mint 31)::nil) egv2 /\
       params_simulation TD gl mi lc2 ogvs (n+1) cs'
 | ((gv, None)::ogvs, c1::c2::cs') =>
     params_simulation TD gl mi lc2 ogvs (n+1) cs'
 | _ => False
 end.
-
 
 Fixpoint incomingValues_simulation (mi:Values.meminj)
   (re1:list (id * GenericValue * monad metadata))(rm2:rmap)
@@ -582,11 +581,12 @@ match (re1, re2) with
 | (nil, nil) => True
 | ((i1,gv1,None)::re1', (i2,gv2)::re2') =>
     i1 = i2 /\ gv_inject mi gv1 gv2 /\ incomingValues_simulation mi re1' rm2 re2'
-| ((i1,gv1,Some (SBopsem.mkMD bgv1 egv1))::re1', 
+| ((i1,gv1,Some (SBopsem.mkMD  blk1 bofs1 eofs1))::re1', 
    (eid2,egv2)::(bid2,bgv2)::(i2,gv2)::re2') =>
     i1 = i2 /\ gv_inject mi gv1 gv2 /\ 
     lookupAL _ rm2 i2 = Some (bid2,eid2) /\
-    gv_inject mi bgv1 bgv2 /\ gv_inject mi egv1 egv2 /\
+    gv_inject mi ((Vptr blk1 bofs1, AST.Mint 31)::nil) bgv2 /\  
+    gv_inject mi ((Vptr blk1 eofs1, AST.Mint 31)::nil) egv2 /\
     incomingValues_simulation mi re1' rm2 re2'
 | _ => False
 end.

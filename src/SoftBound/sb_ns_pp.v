@@ -57,16 +57,16 @@ let '(SBnsop.mkEC f b cs tmn lc rm als) := ec in
 isReachableFromEntry f b /\
 blockInFdefB b f = true /\
 InProductsB (product_fdef f) ps = true /\
-wf_lc lc /\
+wf_lc TD f lc /\
 match cs with
 | nil => 
     match inscope_of_tmn f b tmn with
-    | Some ids => wf_defs f lc ids
+    | Some ids => wf_defs TD f lc ids
     | None => False
     end
 | c::_ =>
     match inscope_of_cmd f b c with
-    | Some ids => wf_defs f lc ids
+    | Some ids => wf_defs TD f lc ids
     | None => False
     end
 end /\
@@ -101,7 +101,7 @@ end.
 Definition wf_State (S:SBnsop.State) : Prop :=
 let '(SBnsop.mkState s (los, nts) ps ecs gl _ M MM) := S in
 wf_mmetadata (los, nts) M MM /\
-wf_global s gl /\
+wf_global (los, nts) s gl /\
 wf_global_ptr s (los, nts) M gl /\
 wf_system nil s /\
 moduleInSystemB (module_intro los nts ps) s = true /\
@@ -298,8 +298,9 @@ Proof.
     destruct R3 as [[md ?]|]; inv H0.
     destruct c'; inv H1; auto.
     destruct n; inv H0; auto.
-    inv Hwfc. 
-    clear H12 H17 H6 H15 H16.
+    destruct t; tinv H1.
+    inv Hwfc. inv H6. inv H15.
+    clear H19 H17 H8 H18 H16 H20 H7.
     assert (lookupTypViaIDFromFdef F' i0 = Some typ1) as J.
       eapply uniqF__lookupTypViaIDFromFdef with 
         (c:=insn_call i0 false c
@@ -333,8 +334,9 @@ Proof.
 
     destruct c'; try solve [inv H0; auto].
     destruct n; inv H0; auto.
-    inv Hwfc. 
-    clear H12 H17 H6 H15 H16.
+    destruct t; tinv H1.
+    inv Hwfc. inv H6. inv H15.
+    clear H19 H17 H8 H18 H16 H20 H7.
     assert (lookupTypViaIDFromFdef F' i0 = Some typ1) as J.
       eapply uniqF__lookupTypViaIDFromFdef with 
         (c:=insn_call i0 false c
@@ -543,15 +545,14 @@ Proof.
     rewrite <- lookupAL_updateAddAL_neq; eauto. 
 Qed.
 
-Lemma initializeFrameValues__wf_rmap : forall la2 la1 ogvs2 lc' rm' 
-    fa rt fid va lb lc1 rm1,
+Lemma initializeFrameValues__wf_rmap : forall TD fa rt fid va lb lc1 rm1 la2 la1 
+    ogvs2 lc' rm',
   uniqFdef (fdef_intro (fheader_intro fa rt fid (la1++la2) va) lb) ->
   wf_rmap (fdef_intro (fheader_intro fa rt fid (la1++la2) va) lb) lc1 rm1 ->
-  _initializeFrameValues la2 ogvs2 lc1 rm1 = (lc', rm') ->
+  _initializeFrameValues TD la2 ogvs2 lc1 rm1 = Some (lc', rm') ->
   wf_rmap (fdef_intro (fheader_intro fa rt fid (la1++la2) va) lb) lc' rm'.
 Proof.
-  induction la2; intros la1 ogvs2 llc' rm' fa rt fid va lb lc1 rm1 HuniqF Hwfm 
-    Hinit2.
+  induction la2; intros la1 ogvs2 llc' rm' HuniqF Hwfm Hinit2.
     inv Hinit2. auto.
 
     simpl in Hinit2.
@@ -564,8 +565,9 @@ Proof.
       apply NoDup_lookupTypViaIDFromArgs; auto.
 
     destruct ogvs2 as [|[gv opmd] ogvs2'].
-      remember (_initializeFrameValues la2 nil lc1 rm1) as R.      
-      destruct R as [lc2 rm2].
+      remember (_initializeFrameValues TD la2 nil lc1 rm1) as R.      
+      destruct R as [[lc2 rm2]|]; tinv Hinit2.
+      destruct (gundef TD t); tinv Hinit2. 
       remember (isPointerTypB t) as R1.
       destruct R1; inv Hinit2; simpl.
         apply updateAddAL_ptr__wf_rmap; auto.
@@ -585,8 +587,8 @@ Proof.
           rewrite_env ((la1 ++ [(t,a,i0)]) ++ la2) in Htyp.
           eapply IHla2 with (la1:=la1 ++ [(t,a,i0)]); eauto.
 
-      remember (_initializeFrameValues la2 ogvs2' lc1 rm1) as R.      
-      destruct R as [lc2 rm2].
+      remember (_initializeFrameValues TD la2 ogvs2' lc1 rm1) as R.      
+      destruct R as [[lc2 rm2]|]; tinv Hinit2.
       remember (isPointerTypB t) as R1.
       destruct R1; inv Hinit2; simpl.
         destruct opmd as [[md ?]|]; inv H0.
@@ -607,18 +609,18 @@ Proof.
             inv Hlk. inversion HeqR1.
 Qed.
 
-Lemma initLocals__wf_rmap : forall ogvs lc' rm' fa rt fid la va lb,
+Lemma initLocals__wf_rmap : forall TD ogvs lc' rm' fa rt fid la va lb,
   uniqFdef (fdef_intro (fheader_intro fa rt fid la va) lb) ->
-  initLocals la ogvs = (lc', rm') ->
+  initLocals TD la ogvs = Some (lc', rm') ->
   wf_rmap (fdef_intro (fheader_intro fa rt fid la va) lb) lc' rm'.
 Proof.
   unfold initLocals.
-  intros ogvs lc' rm' fa rt fid la va lb Huniq Hinit.
+  intros TD ogvs lc' rm' fa rt fid la va lb Huniq Hinit.
   rewrite_env (nil ++ la).
   eapply initializeFrameValues__wf_rmap; eauto.
     intros x gvx tx Hlk. inv Hlk.
 Qed.
-
+(*
 Lemma params2GVs_inhabited : forall TD gl lc rm (Hwfc : wf_lc lc) lp gvs,
   SBnsop.params2GVs TD lp lc gl rm = Some gvs ->
   (forall gv omd, In (gv,omd) gvs -> Ensembles.Inhabited _ gv).
@@ -642,6 +644,7 @@ Proof.
         inv Hin.
         eapply getOperandValue__inhabited; eauto.
 Qed.
+*)
 
 Lemma initLocals_spec' : forall la gvs id1 lc rm,
   In id1 (getArgsIDs la) ->

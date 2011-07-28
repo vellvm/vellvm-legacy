@@ -24,21 +24,13 @@ Export LLVMgv.
 Module SBopsem.
 
 Record metadata : Type := mkMD {
-  md_base : GenericValue; md_bound : GenericValue
+  md_blk : Values.block; md_bofs : int32; md_eofs : int32
 }.
 
 Definition rmetadata := list (id*metadata).
 
-Inductive result : Set :=
-| rok : result 
-| rabort : result
-| rerror : result
-.  
-
-Definition base2GV := blk2GV.
-
-Definition bound2GV (TD:TargetData) (b:mblock) (s:sz) n : GenericValue :=
-ptr2GV TD (Vptr b (Int.repr 31 ((Size.to_Z s)*n))).
+Definition bound2MD (b:mblock) (s:sz) n : metadata :=
+mkMD b (Int.zero 31) (Int.repr 31 ((Size.to_Z s)*n)).
 
 Definition i8 := typ_int Size.Eight.
 Definition p8 := typ_pointer i8.
@@ -60,6 +52,8 @@ match c with
 | _ => None
 end.
 
+Definition null_md := mkMD Mem.nullptr (Int.zero 31) (Int.zero 31).
+
 Definition get_reg_metadata TD gl (rm:rmetadata) (v:value) : option metadata :=
   match v with
   | value_id pid => 
@@ -70,22 +64,23 @@ Definition get_reg_metadata TD gl (rm:rmetadata) (v:value) : option metadata :=
   | value_const c => 
       match get_const_metadata c with
       | Some (bc, ec) => 
-          do gvb <- const2GV TD gl bc;
-          do gve <- const2GV TD gl ec;
-          ret (mkMD gvb gve)
-      | None => Some (mkMD null null)
+          match const2GV TD gl bc, const2GV TD gl ec with
+          | Some ((Vptr bblk bofs, AST.Mint sz1)::nil), 
+            Some ((Vptr eblk eofs, AST.Mint sz2)::nil) =>
+             if zeq bblk eblk && eq_nat_dec sz1 31 && eq_nat_dec sz2 31 
+             then ret (mkMD bblk bofs eofs) else None
+          | _, _ => None 
+          end
+      | None => Some null_md
       end
   end.
 
 Definition assert_mptr (TD:TargetData) (t:typ) (ptr:GenericValue) (md:metadata)
   : bool :=
-  let 'mkMD base bound := md in
-  match (GV2ptr TD (getPointerSize TD) ptr,
-         GV2ptr TD (getPointerSize TD) base,
-         GV2ptr TD (getPointerSize TD) bound,
-         getTypeAllocSize TD t) with
-  | (Some (Vptr pb pofs), Some (Vptr bb bofs), Some (Vptr eb eofs), Some tsz) =>
-      zeq pb bb && zeq bb eb &&
+  let 'mkMD bb bofs eofs := md in
+  match (GV2ptr TD (getPointerSize TD) ptr, getTypeAllocSize TD t) with
+  | (Some (Vptr pb pofs), Some tsz) =>
+      zeq pb bb &&
       zle (Integers.Int.signed 31 bofs) (Integers.Int.signed 31 pofs) &&
       zle (Integers.Int.signed 31 pofs + Size.to_Z tsz) 
           (Integers.Int.signed 31 eofs)
@@ -103,9 +98,9 @@ Definition get_mem_metadata TD MM (gv:GenericValue) : metadata :=
   | Some (Vptr b ofs) => 
       match MM b ofs with
       | Some md => md
-      | _ => mkMD null null
+      | _ => null_md
       end
-  | _ => mkMD null null
+  | _ => null_md
   end.
 
 Definition set_mem_metadata TD MM (gv:GenericValue) (md:metadata) 
@@ -223,7 +218,7 @@ Definition returnResult (TD:TargetData) (rt:typ) (Result:value)
         | Some md => Some (gr, md)
         | None => None
         end
-      else Some (gr, (mkMD null null))
+      else Some (gr, null_md)
   | _ => None
   end.
 
@@ -265,7 +260,7 @@ Definition exCallUpdateLocals TD (ft:typ) (noret:bool) (rid:id)
             | Some gr =>
                 if isPointerTypB t then
                      Some (updateAddAL _ lc rid (? gr # t ?), 
-                           updateAddAL _ rm rid (mkMD null null))
+                           updateAddAL _ rm rid null_md)
                 else Some (updateAddAL _ lc rid (? gr # t ?), rm)
             | _ => None
             end
@@ -298,7 +293,7 @@ match (la, lg) with
        if isPointerTypB t then
          match opmd with
          | None => 
-             Some (prop_reg_metadata lc' rm' id0 (? gv' # t ?) (mkMD null null))
+             Some (prop_reg_metadata lc' rm' id0 (? gv' # t ?) null_md)
          | Some md => Some (prop_reg_metadata lc' rm' id0 (? gv' # t ?) md)
          end
        else Some (updateAddAL _ lc' id0 (? gv' # t ?), rm')
@@ -308,7 +303,7 @@ match (la, lg) with
      match _initializeFrameValues TD la' nil lc rm, gundef TD t with
      | Some (lc',rm'), Some gv =>
        if isPointerTypB t then
-         Some (prop_reg_metadata lc' rm' id0 (? gv # t ?) (mkMD null null))
+         Some (prop_reg_metadata lc' rm' id0 (? gv # t ?) null_md)
        else Some (updateAddAL _ lc' id0 (? gv # t ?), rm')
      | _, _ => None
      end
@@ -430,8 +425,7 @@ Inductive dsInsn : State -> State -> trace -> Prop :=
   getOperandValue TD v lc gl = Some gn ->
   malloc TD Mem tsz gn align = Some (Mem', mb) ->
   GV2int TD Size.ThirtyTwo gn = Some n ->
-  prop_reg_metadata lc rm id (blk2GV TD mb) (mkMD (base2GV TD mb) 
-    (bound2GV TD mb tsz n)) = (lc',rm') ->
+  prop_reg_metadata lc rm id (blk2GV TD mb) (bound2MD mb tsz n) = (lc',rm') ->
   dsInsn 
     (mkState S TD Ps 
       ((mkEC F B ((insn_malloc id t v align)::cs) tmn lc rm als)::EC) 
@@ -455,8 +449,7 @@ Inductive dsInsn : State -> State -> trace -> Prop :=
   getOperandValue TD v lc gl = Some gn ->
   malloc TD Mem tsz gn align = Some (Mem', mb) ->
   GV2int TD Size.ThirtyTwo gn = Some n ->
-  prop_reg_metadata lc rm id (blk2GV TD mb) (mkMD (base2GV TD mb) 
-    (bound2GV TD mb tsz n)) = (lc',rm') ->
+  prop_reg_metadata lc rm id (blk2GV TD mb) (bound2MD mb tsz n) = (lc',rm') ->
   dsInsn 
     (mkState S TD Ps 
       ((mkEC F B ((insn_alloca id t v align)::cs) tmn lc rm als)::EC) 
@@ -596,7 +589,7 @@ Inductive dsInsn : State -> State -> trace -> Prop :=
 | dsInttoptr : forall S TD Ps F B lc rm gl fs id t1 v1 t2 gv2 EC cs tmn Mem MM
     als lc' rm',
   CAST TD lc gl castop_inttoptr t1 v1 t2 = Some gv2 ->
-  prop_reg_metadata lc rm id gv2 (mkMD null null) = (lc', rm') ->
+  prop_reg_metadata lc rm id gv2 null_md = (lc', rm') ->
   dsInsn 
     (mkState S TD Ps 
       ((mkEC F B ((insn_cast id castop_inttoptr t1 v1 t2)::cs) tmn lc rm als)

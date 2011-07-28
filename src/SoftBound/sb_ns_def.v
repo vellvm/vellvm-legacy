@@ -128,7 +128,7 @@ Definition returnResult (TD:TargetData) (rt:typ) (Result:value)
         | Some md => Some (gr, md)
         | None => None
         end
-      else Some (gr, (SBopsem.mkMD null null))
+      else Some (gr, SBopsem.null_md)
   | _ => None
   end.
 
@@ -142,11 +142,14 @@ Definition returnUpdateLocals (TD:TargetData) (c':cmd) (rt:typ)
         match t with
         | typ_function ct _ _ =>
             if isPointerTypB ct then 
-              Some (prop_reg_metadata lc' rm' id0 ((lift_op1 (fit_gv TD ct) gr ct)) md)
-            else Some (updateAddAL _ lc' id0 ((lift_op1 (fit_gv TD ct) gr ct)), rm')
+              Some (prop_reg_metadata lc' rm' id0 
+                ((lift_op1 (fit_gv TD ct) gr ct)) md)
+            else 
+              Some (updateAddAL _ lc' id0 ((lift_op1 (fit_gv TD ct) gr ct)), rm')
         | _ => None
         end
-      | _ => Some (lc', rm')
+      | insn_call _ _ _ _ _ _ => Some (lc', rm')
+      | _ => None
       end
   | _ => None
   end.
@@ -165,7 +168,7 @@ Definition exCallUpdateLocals TD (ft:typ) (noret:bool) (rid:id)
             | Some gr =>
                 if isPointerTypB t then
                      Some (updateAddAL _ lc rid ($ gr # t $), 
-                           updateAddAL _ rm rid (SBopsem.mkMD null null))
+                           updateAddAL _ rm rid (SBopsem.null_md))
                 else Some (updateAddAL _ lc rid ($ gr # t $), rm)
             | _ => None
             end
@@ -200,7 +203,7 @@ match (la, lg) with
        match opmd with
        | None => 
            Some (prop_reg_metadata lc' rm' id0 (lift_op1 (fit_gv TD t) gv t)
-                   (SBopsem.mkMD null null))
+                   (SBopsem.null_md))
        | Some md => 
            Some (prop_reg_metadata lc' rm' id0 (lift_op1 (fit_gv TD t) gv t) md)
        end
@@ -212,7 +215,7 @@ match (la, lg) with
    | Some (lc',rm'), Some gv =>
      if isPointerTypB t then
        Some (prop_reg_metadata lc' rm' id0 ($ gv # t $) 
-         (SBopsem.mkMD null null))
+         (SBopsem.null_md))
      else Some (updateAddAL _ lc' id0 ($ gv # t $), rm')
    | _, _ => None
    end
@@ -337,8 +340,7 @@ Inductive nsInsn : State -> State -> trace -> Prop :=
   malloc TD Mem tsz gn align = Some (Mem', mb) ->
   GV2int TD Size.ThirtyTwo gn = Some n ->
   prop_reg_metadata lc rm id ($ (blk2GV TD mb) # typ_pointer t $) 
-    (SBopsem.mkMD (SBopsem.base2GV TD mb) (SBopsem.bound2GV TD mb tsz n)) = 
-      (lc',rm') ->
+    (SBopsem.bound2MD mb tsz n) = (lc',rm') ->
   nsInsn 
     (mkState S TD Ps 
       ((mkEC F B ((insn_malloc id t v align)::cs) tmn lc rm als)::EC) 
@@ -366,8 +368,7 @@ Inductive nsInsn : State -> State -> trace -> Prop :=
   malloc TD Mem tsz gn align = Some (Mem', mb) ->
   GV2int TD Size.ThirtyTwo gn = Some n ->
   prop_reg_metadata lc rm id ($(blk2GV TD mb) # typ_pointer t$) 
-    (SBopsem.mkMD (SBopsem.base2GV TD mb) (SBopsem.bound2GV TD mb tsz n)) = 
-      (lc',rm') ->
+    (SBopsem.bound2MD mb tsz n) = (lc',rm') ->
   nsInsn 
     (mkState S TD Ps 
       ((mkEC F B ((insn_alloca id t v align)::cs) tmn lc rm als)::EC) 
@@ -512,7 +513,7 @@ Inductive nsInsn : State -> State -> trace -> Prop :=
 | nsInttoptr : forall S TD Ps F B lc rm gl fs id t1 v1 t2 gv2 EC cs tmn Mem MM
     als lc' rm',
   CAST TD lc gl castop_inttoptr t1 v1 t2 = Some gv2 ->
-  prop_reg_metadata lc rm id gv2 (SBopsem.mkMD null null) = (lc', rm') ->
+  prop_reg_metadata lc rm id gv2 (SBopsem.null_md) = (lc', rm') ->
   nsInsn 
     (mkState S TD Ps 
       ((mkEC F B ((insn_cast id castop_inttoptr t1 v1 t2)::cs) tmn lc rm als)

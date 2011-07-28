@@ -643,8 +643,8 @@ Global Opaque Mem.alloc.
 
     SCase "msim2".
       clear H1.
-      intros lc2 gl b ofs bgv egv als bid0 eid0 pgv' fs F B cs tmn S Ps EC v cm 
-        Hwfg J1 J2 J3.
+      intros lc2 gl b ofs blk bofs eofs als bid0 eid0 pgv' fs F B cs tmn S Ps EC 
+        v cm Hwfg J1 J2 J3.
         apply gv_inject_ptr_inv in J2.
         destruct J2 as [b' [ofs' [J5 J6]]].
         inv J6.
@@ -681,15 +681,10 @@ Global Opaque Mem.alloc.
             unfold ptr2GV, val2GV. simpl.
               apply gv_inject_cons; auto.
               apply MoreMem.val_inject_ptr with (delta:=delta); auto.
-            
-          assert (get_mem_metadata TD MM ((Vptr b ofs, cm) :: nil) =
-            {| md_base := bgv; md_bound := egv |}) as J1'.
-            clear - J1. unfold get_mem_metadata in *. simpl in *. auto.
-
           eapply H2 with (lc2:=lc2)(gl:=gl)(als:=als)(bid0:=bid0)(eid0:=eid0)
-            (v:=v)(fs:=fs)(F:=F)(B:=B)(cs:=cs)(tmn:=tmn)(S:=S)
-            (Ps:=Ps)(EC:=EC)in J1'; eauto.
-          destruct J1' as [bgv' [egv' [J37 [J33 J34]]]].
+            (v:=v)(fs:=fs)(F:=F)(B:=B)(cs:=cs)(tmn:=tmn)(S0:=S)
+            (Ps:=Ps)(EC:=EC)in J1; eauto.
+          destruct J1 as [bgv' [egv' [J37 [J33 J34]]]].
           clear H2.
           exists bgv'. exists egv'. 
           split.
@@ -1078,7 +1073,7 @@ Proof.
       rewrite <- lookupAL_updateAddAL_neq; auto.
 
   split.
-    intros vp bgv1 egv1 J.
+    intros vp blk1 bofs1 eofs1 J.
     apply J2 in J. 
     destruct J as [bv2 [ev2 [bgv2 [egv2 [J11 [J12 [J13 [J14 J15]]]]]]]].
     exists bv2. exists ev2. exists bgv2. exists egv2.
@@ -1119,20 +1114,20 @@ Proof.
 Qed.
 
 Lemma reg_simulation__updateAddAL_md : forall mi los nts gl f1 rm1 rm2 lc1 lc2 
-    id0 bgv1 bgv2 egv1 egv2 bid eid mgb M1 M2 ex_ids
+    id0 blk1 bofs1 eofs1 bgv2 egv2 bid eid mgb M1 M2 ex_ids
   (Hwfmi : wf_sb_mi mgb mi M1 M2)
   (Hwfg : wf_globals mgb gl),
   gen_metadata_fdef nts (getFdefLocs f1) nil f1 = Some (ex_ids,rm2) ->
   reg_simulation mi (los,nts) gl f1 rm1 rm2 lc1 lc2 ->
   ret (bid, eid) = lookupAL (id * id) rm2 id0 ->
-  gv_inject mi bgv1 bgv2 ->
-  gv_inject mi egv1 egv2 ->
+  gv_inject mi ((Vptr blk1 bofs1, AST.Mint 31)::nil) bgv2 ->
+  gv_inject mi ((Vptr blk1 eofs1, AST.Mint 31)::nil) egv2 ->
   reg_simulation mi (los,nts) gl f1 
-    (updateAddAL _ rm1 id0 (mkMD bgv1 egv1)) rm2 lc1
+    (updateAddAL _ rm1 id0 (mkMD blk1 bofs1 eofs1)) rm2 lc1
     (updateAddAL _ (updateAddAL _ lc2 bid bgv2) eid egv2).
 Proof.
-  intros mi los nts gl f1 rm1 rm2 lc1 lc2 id0 bgv1 bgv2 egv1 egv2 bid eid mgb M1 
-    M2 ex_ids Hwfmi Hwfg Hgenmd Hrsim HeqR1 Hbinj Heinj.
+  intros mi los nts gl f1 rm1 rm2 lc1 lc2 id0 blk1 bofs1 eofs1 bgv2 egv2 bid eid 
+    mgb M1 M2 ex_ids Hwfmi Hwfg Hgenmd Hrsim HeqR1 Hbinj Heinj.
   assert (Hspec := Hgenmd).
   apply gen_metadata_fdef_spec in Hspec; auto.
   destruct Hspec as [Hinc1 [Hdisj1 [Hinc3 Hdisj2]]].
@@ -1156,10 +1151,10 @@ Proof.
 
   split.
   SSCase "rsim2".
-      intros vp bgv0 egv0 J.
-      unfold SBopsem.get_reg_metadata in J.
+      intros vp blk0 bofs0 eofs0 J.
       destruct vp as [pid | ]; simpl.
       SSSCase "vp = pid".
+        unfold SBopsem.get_reg_metadata in J.
         destruct (id_dec id0 pid); subst.
         SSSSCase "id0 = pid".
           rewrite <- HeqR1.
@@ -1180,7 +1175,7 @@ Proof.
         SSSSCase "id0 <> pid".
           rewrite <- lookupAL_updateAddAL_neq in J; auto.
           destruct Hrsim as [_ [Hrsim _]].
-          destruct (@Hrsim (value_id pid) bgv0 egv0) as 
+          destruct (@Hrsim (value_id pid) blk0 bofs0 eofs0) as 
             [bv2 [ev2 [bgv2' [egv2' [J1 [J2 [J3 [J4 J5]]]]]]]]; auto.
           exists bv2. exists ev2. exists bgv2'. exists egv2'.
           simpl in J1.
@@ -1199,23 +1194,20 @@ Proof.
             rewrite <- lookupAL_updateAddAL_neq; auto.
 
       SSSCase "vp = c".
-        remember (get_const_metadata c) as R.
-        destruct R as [[c1 c2]|].
-          remember (const2GV (los,nts) gl c1) as R1.
-          destruct R1; try solve [inversion J]. simpl in J.
-          remember (const2GV (los,nts) gl c2) as R2.
-          destruct R2; try solve [inversion J]. simpl in J.
-          inv J.
-          exists (value_const c1). exists (value_const c2). simpl.
-          exists bgv0. exists egv0. 
-          repeat (split; eauto using sb_mem_inj__const2GV).
-
-          inv J.
+        apply get_reg_metadata_const_inv in J.
+        destruct J as [[J1 J2] | [c1 [c2 [J1 [J2 J3]]]]].
+          inv J2.
           exists vnullp8. exists vnullp8. exists null. exists null.
           simpl. unfold const2GV. simpl. unfold null. 
           unfold val2GV.
-          inv Hwfmi.
+          inv Hwfmi. rewrite J1.
           repeat (split; eauto).
+
+          exists (value_const c1). exists (value_const c2). simpl.
+          rewrite J1.
+          exists ((Vptr blk0 bofs0, AST.Mint 31) :: nil). 
+          exists ((Vptr blk0 eofs0, AST.Mint 31) :: nil). 
+          repeat (split; eauto using sb_mem_inj__const2GV).
 
   SSCase "rsim3".
     destruct Hrsim as [_ [_ Hrsim]]; auto.
@@ -1338,12 +1330,12 @@ Proof.
 
     split.
     SSCase "rsim2".
-      intros vp bgv1 egv1 J.
-      unfold SBopsem.get_reg_metadata in J.
+      intros vp blk1 bofs1 eofs1 J.
       destruct vp as [pid | ]; simpl.
       SSSCase "vp = pid".
+          unfold SBopsem.get_reg_metadata in J.
           destruct Hrsim as [_ [Hrsim _]].
-          destruct (@Hrsim (value_id pid) bgv1 egv1) as 
+          destruct (@Hrsim (value_id pid) blk1 bofs1 eofs1) as 
             [bv2 [ev2 [bgv2 [egv2 [J1 [J2 [J3 [J4 J5]]]]]]]]; auto.
           exists bv2. exists ev2. exists bgv2. exists egv2.
           simpl in J1.
@@ -1357,23 +1349,20 @@ Proof.
           rewrite <- lookupAL_updateAddAL_neq; auto.
 
       SSSCase "vp = c".
-        remember (get_const_metadata c) as R.
-        destruct R as [[c1 c2]|].
-          remember (const2GV (los, nts) gl c1) as R1.
-          destruct R1; try solve [inversion J]. simpl in J.
-          remember (const2GV (los, nts) gl c2) as R2.
-          destruct R2; try solve [inversion J]. simpl in J.
-          inv J.
-          exists (value_const c1). exists (value_const c2). simpl.
-          exists bgv1. exists egv1. 
-          repeat (split; eauto using sb_mem_inj__const2GV).
-
-          inv J.
+        apply get_reg_metadata_const_inv in J.
+        destruct J as [[J1 J2] | [c1 [c2 [J1 [J2 J3]]]]].
+          inv J2.
           exists vnullp8. exists vnullp8. exists null. exists null.
           simpl. unfold const2GV. simpl. unfold null. 
           unfold val2GV.
-          inv Hwfmi.
+          inv Hwfmi. rewrite J1.
           repeat (split; eauto).
+
+          exists (value_const c1). exists (value_const c2). simpl.
+          rewrite J1.
+          exists ((Vptr blk1 bofs1, AST.Mint 31) :: nil). 
+          exists ((Vptr blk1 eofs1, AST.Mint 31) :: nil). 
+          repeat (split; eauto using sb_mem_inj__const2GV).
 
     SSCase "rsim3". destruct Hrsim as [_ [_ Hrsim]]; auto.
 Qed.
@@ -1441,10 +1430,10 @@ Proof.
       rewrite <- H0. auto.
 
       clear Hmsim1 Hmgb.
-      intros lc0 gl0 b0 ofs bgv egv als0 bid0 eid0 pgv' fs F B0 cs0 tmn S0 Ps0
-        EC0 v1 cm Hwfg0 G1 G2 G3.
+      intros lc0 gl0 b0 ofs blk0 bofs0 eofs0 als0 bid0 eid0 pgv' fs F B0 cs0 tmn 
+        S0 Ps0 EC0 v1 cm Hwfg0 G1 G2 G3.
       assert (G3':=G3).
-      eapply Hmsim2 with (bgv:=bgv)(egv:=egv)(als:=als0)
+      eapply Hmsim2 with (blk:=blk0)(bofs:=bofs0)(eofs:=eofs0)(als:=als0)
         (bid0:=bid0)(eid0:=eid0)(b:=b0)(ofs:=ofs) in G3'; eauto.
       destruct G3' as [bgv' [egv' [G4 [G5 G6]]]].
       exists bgv'. exists egv'.
@@ -1550,7 +1539,7 @@ Proof.
 Qed.
 
 Lemma reg_simulation__updateAddAL_prop : forall mi los nts gl f1 rm1 rm2 lc1 lc2 
-    bgv1 bgv2 egv1 egv2 bid eid ex_ids3 mgb M1 M2 id0 gv1 gv2
+    blk1 bofs1 eofs1 bgv2 egv2 bid eid ex_ids3 mgb M1 M2 id0 gv1 gv2
   (Hwfmi : wf_sb_mi mgb mi M1 M2)
   (Hwfg : wf_globals mgb gl),
   gen_metadata_fdef nts (getFdefLocs f1) nil f1 = Some (ex_ids3,rm2) ->
@@ -1558,10 +1547,10 @@ Lemma reg_simulation__updateAddAL_prop : forall mi los nts gl f1 rm1 rm2 lc1 lc2
   ret (bid, eid) = lookupAL (id * id) rm2 id0 ->
   In id0 (getFdefLocs f1) ->
   gv_inject mi gv1 gv2 ->
-  gv_inject mi bgv1 bgv2 ->
-  gv_inject mi egv1 egv2 ->
-  reg_simulation mi (los,nts)  gl f1 
-    (updateAddAL _ rm1 id0 (mkMD bgv1 egv1)) rm2 
+  gv_inject mi ((Vptr blk1 bofs1, AST.Mint 31)::nil) bgv2 ->
+  gv_inject mi ((Vptr blk1 eofs1, AST.Mint 31)::nil) egv2 ->
+  reg_simulation mi (los,nts) gl f1 
+    (updateAddAL _ rm1 id0 (mkMD blk1 bofs1 eofs1)) rm2 
     (updateAddAL GenericValue lc1 id0 gv1)
     (updateAddAL _ (updateAddAL _ 
       (updateAddAL GenericValue lc2 id0 gv2) bid bgv2) eid egv2).
@@ -1790,10 +1779,10 @@ Proof.
         apply Hzero. rewrite <- Hmstore0. auto.
     
         clear Hmsim1.
-        intros lc2 gl b0 ofs0 bgv egv als bid0 eid0 pgv' fs F B cs tmn S Ps EC
-          v1 cm Hwfg G1 G2 G3.
+        intros lc2 gl b0 ofs0 blk0 bofs0 efs0 als bid0 eid0 pgv' fs F B cs tmn S 
+          Ps EC v1 cm Hwfg G1 G2 G3.
         assert (G3':=G3).
-        eapply Hmsim2 with (bgv:=bgv)(egv:=egv)(als:=als)
+        eapply Hmsim2 with (blk:=blk0)(bofs:=bofs0)(eofs:=efs0)(als:=als)
           (bid0:=bid0)(eid0:=eid0)(b:=b0)(ofs:=ofs0) in G3'; eauto.
         destruct G3' as [bgv' [egv' [G4 [G5 G6]]]].
         exists bgv'. exists egv'.
@@ -2329,12 +2318,12 @@ Proof.
 Qed.
 
 Lemma get_metadata_from_list_value_l_spec : forall mi TD gl F rm1 rm2 lc1 lc2 B1 
-  B2 bgv1 egv1
+  B2 blk1 bofs1 eofs1
   (Hrsim : reg_simulation mi TD gl F rm1 rm2 lc1 lc2)
   (Heq : label_of_block B1 = label_of_block B2)
   vls v
   (HeqR1 : ret v = getValueViaBlockFromValuels vls B1)
-  (HeqR4 : ret {| md_base := bgv1; md_bound := egv1 |} =
+  (HeqR4 : ret (mkMD blk1 bofs1 eofs1) =
           SBopsem.get_reg_metadata TD gl rm1 v)
   (bvls0 : list_value_l) (evls0 : list_value_l)
   (HeqR5 : ret (bvls0, evls0) =
@@ -2344,8 +2333,8 @@ Lemma get_metadata_from_list_value_l_spec : forall mi TD gl F rm1 rm2 lc1 lc2 B1
     getValueViaBlockFromValuels evls0 B2 = Some ev2 /\
     getOperandValue TD bv2 lc2 gl = Some bgv2 /\
     getOperandValue TD ev2 lc2 gl = Some egv2 /\
-    gv_inject mi bgv1 bgv2 /\
-    gv_inject mi egv1 egv2.
+    gv_inject mi ((Vptr blk1 bofs1, AST.Mint 31)::nil) bgv2 /\
+    gv_inject mi ((Vptr blk1 eofs1, AST.Mint 31)::nil) egv2.
 Proof.
   intros mi TD gl F rm1 rm2 lc1 lc2.
   destruct B1. destruct B2. simpl.

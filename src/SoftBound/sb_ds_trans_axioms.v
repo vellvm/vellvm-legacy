@@ -121,22 +121,14 @@ Axiom assert_mptr_fn__ok : forall
   (TD : TargetData)
   (gl : GVMap)
   (als : list mblock)
-  (gvp : GenericValue)
-  (md_base : GenericValue)
-  (md_bound : GenericValue)
+  (gvp : GenericValue) blk bofs eofs
   (b : Values.block)
   (i0 : int32)
   (HeqR0 : ret Vptr b i0 = GV2ptr TD (getPointerSize TD) gvp)
-  (b0 : Values.block)
-  (i1 : int32)
-  (HeqR5 : ret Vptr b0 i1 = GV2ptr TD (getPointerSize TD) md_base)
-  (b1 : Values.block)
-  (i2 : int32)
-  (HeqR6 : ret Vptr b1 i2 = GV2ptr TD (getPointerSize TD) md_bound)
   (s : sz)
   (HeqR7 : ret s = getTypeAllocSize TD t)
-  (J : zeq b b0 && zeq b0 b1 && zle (Int.signed 31 i1) (Int.signed 31 i0) &&
-      zle (Int.signed 31 i0 + Size.to_Z s) (Int.signed 31 i2))
+  (J : zeq b blk && zle (Int.signed 31 bofs) (Int.signed 31 i0) &&
+      zle (Int.signed 31 i0 + Size.to_Z s) (Int.signed 31 eofs))
   (gvp2 : GenericValue)
   (H00 : getOperandValue TD vp lc2 gl = ret gvp2)
   (H01 : gv_inject mi gvp gvp2)
@@ -146,8 +138,8 @@ Axiom assert_mptr_fn__ok : forall
   (egv2 : GenericValue)
   (J2 : getOperandValue TD bv2 lc2 gl = ret bgv2)
   (J3 : getOperandValue TD ev2 lc2 gl = ret egv2)
-  (J4 : gv_inject mi md_base bgv2)
-  (J5 : gv_inject mi md_bound egv2)
+  (J4 : gv_inject mi ((Vptr blk bofs, AST.Mint 31) :: nil) bgv2)
+  (J5 : gv_inject mi ((Vptr blk eofs, AST.Mint 31) :: nil) egv2)
   S2 Ps2 F2 B2 cs2' als2 fs2 M2 tmn2 ECs2,
   LLVMopsem.dsInsn
        (LLVMopsem.mkState S2 TD Ps2
@@ -166,17 +158,17 @@ Axiom assert_mptr_fn__ok : forall
              als2):: 
             ECs2) gl fs2 M2) trace_nil.
 
-Axiom simulation__set_mmetadata_fn : forall lc2 gl b ofs bgv egv als2 tmn2 ECs2 
+Axiom simulation__set_mmetadata_fn : forall lc2 gl b ofs blk bofs eofs als2 tmn2 ECs2 
   pgv' bgv' egv' mi ptmp bv0 ev0 MM1 Mem1 Mem2 rm v gmb fs2 gl2 cs F2 B2 TD
   Ps2 S2 cm,
   mem_simulation mi TD gmb MM1 Mem1 Mem2 ->
-  SBopsem.get_reg_metadata TD gl rm v = Some (SBopsem.mkMD bgv egv) -> 
+  SBopsem.get_reg_metadata TD gl rm v = Some (SBopsem.mkMD blk bofs eofs) -> 
   lookupAL _ lc2 ptmp = Some pgv' ->
   getOperandValue TD bv0 lc2 gl = Some bgv' ->
   getOperandValue TD ev0 lc2 gl = Some egv' ->
   gv_inject mi ((Vptr b ofs,cm)::nil) pgv' ->
-  gv_inject mi bgv bgv' ->
-  gv_inject mi egv egv' ->
+  gv_inject mi ((Vptr blk bofs, AST.Mint 31)::nil) bgv' ->
+  gv_inject mi ((Vptr blk eofs, AST.Mint 31)::nil) egv' ->
   exists Mem2',
     LLVMopsem.dsInsn
       (LLVMopsem.mkState S2 TD Ps2
@@ -193,7 +185,7 @@ Axiom simulation__set_mmetadata_fn : forall lc2 gl b ofs bgv egv als2 tmn2 ECs2
             ECs2) gl2 fs2 Mem2') trace_nil /\
       mem_simulation mi TD gmb
         (SBopsem.set_mem_metadata TD MM1 ((Vptr b ofs,cm)::nil) 
-        (SBopsem.mkMD bgv egv)) Mem1 Mem2'.
+        (SBopsem.mkMD blk bofs eofs)) Mem1 Mem2'.
 
 Axiom set_mmetadata_fn__prop : forall TD Mem1 lc2 als2 Mem2 S2 Ps2 F2
    B2 tmn2 cs fs2 gl2 ECs2 lp,

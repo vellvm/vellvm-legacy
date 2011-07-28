@@ -1766,9 +1766,7 @@ Case "dsInsertValue".
 
 Case "dsMalloc". 
   eapply preservation_cmd_updated_case with (rm':=
-          updateAddAL SBopsem.metadata rm id0
-            {| SBopsem.md_base := SBopsem.base2GV (los, nts) mb;
-               SBopsem.md_bound := SBopsem.bound2GV (los, nts) mb tsz n |})
+          updateAddAL SBopsem.metadata rm id0 (bound2MD mb tsz n))
    in HwfS1; simpl; eauto.
     unfold blk2GV, ptr2GV, val2GV. simpl.
     eapply wf_genericvalue_intro; eauto.  
@@ -1788,9 +1786,7 @@ Case "dsFree".
     eapply free_preserves_wf_ECStack; eauto.
 Case "dsAlloca".
   eapply preservation_cmd_updated_case with (rm':=
-          updateAddAL SBopsem.metadata rm id0
-            {| SBopsem.md_base := SBopsem.base2GV (los, nts) mb;
-               SBopsem.md_bound := SBopsem.bound2GV (los, nts) mb tsz n |})
+          updateAddAL SBopsem.metadata rm id0 (bound2MD mb tsz n))
    in HwfS1; simpl; eauto.
     unfold blk2GV, ptr2GV, val2GV. simpl.
     eapply wf_genericvalue_intro; eauto.  
@@ -1940,9 +1936,7 @@ Case "dsBitcast_ptr".
 
 Case "dsInttoptr". 
   eapply preservation_cmd_updated_case with (rm':=
-    updateAddAL SBopsem.metadata rm id0 
-      {| SBopsem.md_base := null;
-         SBopsem.md_bound := null |}) in HwfS1; simpl; eauto.
+    updateAddAL SBopsem.metadata rm id0 null_md) in HwfS1; simpl; eauto.
     apply wf_State__inv in HwfS1.
     destruct HwfS1 as [Hwfg [Hwflc Hwfc]].
     inv Hwfc. 
@@ -2135,8 +2129,7 @@ Case "dsExCall".
           eapply callExternalFunction_preserves_wf_ECStack; eauto
         ] |
       eapply preservation_cmd_updated_case with (Mem':=Mem')
-        (rm':=updateAddAL metadata rm rid
-          {| md_base := null; md_bound := null |}) in HwfS1; 
+        (rm':=updateAddAL metadata rm rid null_md) in HwfS1; 
         try solve [simpl; eauto | 
           eapply fit_gv_cgv2gv__wf_gv; eauto |
           intro J0; apply updateAddAL_ptr__wf_rmap; auto |
@@ -2151,48 +2144,97 @@ Qed.
 
 (*********************************************)
 (** * not stuck *)
-Lemma get_const_metadata_isnt_stuck : forall TD gl vc gv bc ec,
+
+Lemma get_const_metadata_isnt_stuck_helper : forall TD gl t0 i0 b sz0
+  (J5 : getTypeAllocSize TD t0 = ret sz0)
+  (Hlk : lookupAL GenericValue gl i0 = 
+     ret ((Vptr b (Int.zero 31), AST.Mint 31) :: nil)),
+   exists blk : Values.block,
+     exists bofs : int32,
+       exists eofs : int32,
+             match
+               _const2GV TD gl
+                 (const_castop castop_bitcast (const_gid t0 i0) p8)
+             with
+             | ret (gv, t) => ret (? gv # t ?)
+             | merror => merror
+             end = ret ((Vptr blk bofs, AST.Mint 31) :: nil) /\
+             match
+               _const2GV TD gl
+                 (const_castop castop_bitcast
+                    (const_gep false (const_gid t0 i0)
+                       (Cons_list_const
+                          (const_int Size.ThirtyTwo (INTEGER.of_Z 32 1 false))
+                          Nil_list_const)) p8)
+             with
+             | ret (gv, t) => ret (? gv # t ?)
+             | merror => merror
+             end = ret ((Vptr blk eofs, AST.Mint 31) :: nil).
+Proof.
+  intros.
+  simpl. rewrite Hlk. simpl.
+  unfold mgetoffset. simpl. rewrite J5. simpl.
+  unfold ptr2GV, val2GV.
+  exists b. exists  (Int.zero 31). 
+  exists (Int.add 31 (Int.zero 31) (Int.repr 31
+           (Z_of_nat sz0 * INTEGER.to_Z (INTEGER.of_Z 32 1 false)))).  
+  destruct TD. simpl.
+  split; auto.
+Qed.
+
+Lemma get_const_metadata_isnt_stuck : forall S TD Mem gl vc ct gv bc ec,
+  wf_global_ptr S TD Mem gl ->
+  wf_const S TD vc ct ->
   const2GV TD gl vc = Some gv ->
   get_const_metadata vc = Some (bc, ec) ->
-  exists gvb, exists gve, 
-    const2GV TD gl bc = Some gvb /\ const2GV TD gl ec = Some gve.
+  exists blk, exists bofs, exists eofs,
+    const2GV TD gl bc = Some ((Vptr blk bofs, AST.Mint 31)::nil) /\ 
+    const2GV TD gl ec = Some ((Vptr blk eofs, AST.Mint 31)::nil).
 Proof.
   unfold const2GV.
-  intros TD gl vc gv bc ec J1 J2.  
+  intros S TD Mem gl vc ct gv bc ec Hwfg Hwfc J1 J2.  
   remember (_const2GV TD gl vc) as J3.
   destruct J3 as [[gv3 t3]|]; inv J1.
   generalize dependent gv3.
   generalize dependent t3.
   generalize dependent ec.
   generalize dependent bc.
+  generalize dependent ct.
   induction vc; intros; try solve [inversion J2].
-    exists (? gv3 # t3 ?). 
-    remember t as T.
-    destruct TD as [los nts].
-    destruct T; inversion J2; clear J2; subst bc ec; simpl in *; 
-    unfold mbitcast, p8; try solve [
-      destruct (lookupAL GenericValue gl i0); inversion HeqJ3; subst gv3 t3;
-      simpl;
-      destruct (GV2ptr (los,nts) (getPointerSize0 los) g); eauto;
-      remember (mgep (los,nts) t v 
-        (INTEGER.to_Z (INTEGER.of_Z 32 1 false) :: nil)) as optr;
-      subst t; rewrite <- Heqoptr;
-      destruct optr; eauto
-    ].
+    simpl in HeqJ3.
+    remember (lookupAL GenericValue gl i0) as R.
+    destruct R; inv HeqJ3.
+    symmetry in HeqR.
+    assert (Hwfc':=Hwfc).
+    inv Hwfc'.
+    unfold wf_global_ptr in Hwfg.
+    assert (Hlk:=HeqR).
+    apply Hwfg with (typ0:=t) in HeqR; simpl; auto.
+    destruct HeqR as [b [sz [J1 [J5 [J3 J4]]]]]; subst.
+    destruct t; inv J2; 
+      try solve [eapply get_const_metadata_isnt_stuck_helper; eauto].
+ 
+      simpl. rewrite Hlk. simpl.
+      unfold mgetoffset. simpl.
+      exists b. exists (Int.zero 31). exists (Int.zero 31). 
+      split; auto.
+
+    destruct c; tinv J2.
+    destruct t; tinv J2.
+    simpl in *. inv Hwfc.
+    remember (_const2GV TD gl vc) as R.
+    destruct R as [[]|]; tinv HeqJ3.
+    destruct t0; inv HeqJ3.
+    eauto.
 
     simpl in *.
-    destruct c; try solve [inversion J2].
-    destruct t; inv J2.
-    remember (_const2GV TD gl vc) as R.
-    destruct R as [[gv2 t2]|]; try solve [inv HeqJ3].
-    destruct (mcast TD castop_bitcast t2 (typ_pointer t) gv2); 
-      try solve [inv HeqJ3].
-    apply IHvc with (gv3:=gv2)(t3:=t2) in H0; auto.
-    
-    simpl in *.
-    remember (_const2GV TD gl vc) as R.
-    destruct R as [[gv2 t2]|]; try solve [inv HeqJ3].
-    apply IHvc with (gv3:=gv2)(t3:=t2) in J2; auto.
+    remember (_const2GV TD gl vc) as R1.
+    destruct R1 as [[]|]; tinv HeqJ3.
+    destruct t; tinv HeqJ3.
+    remember (getConstGEPTyp l0 (typ_pointer t)) as R2.
+    destruct R2; tinv HeqJ3.
+    inv Hwfc.
+    eapply IHvc in J2; eauto.
 Qed.
 
 Lemma wf_phinodes__getIncomingValuesForBlockFromPHINodes : forall
@@ -2205,7 +2247,8 @@ Lemma wf_phinodes__getIncomingValuesForBlockFromPHINodes : forall
   (lc : GVMap)
   (gl : GVMap)
   (t : list atom)
-  l1 ps1 cs1 tmn1
+  l1 ps1 cs1 tmn1 Mem
+  (Hwfgptr : wf_global_ptr s (los,nts) Mem gl)
   (Hwfg : wf_global (los,nts) s gl)
   (HeqR : ret t = inscope_of_tmn f (block_intro l1 ps1 cs1 tmn1) tmn1)
   (Hinscope : wf_defs (los,nts) f lc t)
@@ -2349,9 +2392,12 @@ Proof.
         remember (get_const_metadata vc) as R.
         destruct R as [[bc ec]|].
           eapply get_const_metadata_isnt_stuck in H; eauto.
-          destruct H as [gvb [gve [Hc1 Hc2]]].
-          rewrite Hc1. rewrite Hc2. simpl.
+          destruct H as [blk [bofs [eofs [Hc1 Hc2]]]].
+          rewrite Hc1. rewrite Hc2.
           destruct (isPointerTypB t0); eauto.
+            destruct (zeq blk blk); try solve [contradict n; auto].
+            destruct (eq_nat_dec 31 31); 
+              try solve [contradict n; auto | simpl; eauto].
 
           destruct (isPointerTypB t0); eauto.
   
@@ -2417,7 +2463,8 @@ Proof.
       exists (p21 ++ [(t0,v0)]). simpl_env. auto.
 Qed.
 
-Lemma get_reg_metadata_isnt_stuck : forall s los nts Ps t f rm gl lc gv v
+Lemma get_reg_metadata_isnt_stuck : forall Mem s los nts Ps t f rm gl lc gv v
+  (Hwfgptr : wf_global_ptr s (los,nts) Mem gl)
   (Hwfv : wf_value s (module_intro los nts Ps) f v t)
   (Hptr : true = isPointerTypB t)
   (Hget : getOperandValue (los, nts) v lc gl = ret gv)
@@ -2435,10 +2482,12 @@ Proof.
   
     remember (get_const_metadata c) as R.
     destruct R as [[bc ec]|]; eauto.
+      inv Hwfv.
       eapply get_const_metadata_isnt_stuck in Hget; eauto.
-      destruct Hget as [gvb [gve [Hc1 Hc2]]].
-      rewrite Hc1. rewrite Hc2. simpl.
-      eauto.
+      destruct Hget as [blk [bofs [eofs [Hc1 Hc2]]]].
+      rewrite Hc1. rewrite Hc2.
+      destruct (zeq blk blk); try solve [contradict n; auto].
+      destruct (eq_nat_dec 31 31); try solve [contradict n; auto | simpl; eauto].
 Qed.
 
 Definition flatten_typ_total_prop (t:typ) := forall TD,
@@ -2562,10 +2611,10 @@ Proof.
     right. intro J. apply J1. destruct J; auto.
 Qed.
 
-Lemma mload_aux_isnt_stuck_helper : forall TD M gvb gve gv t b ofs mcs2 mcs1
+Lemma mload_aux_isnt_stuck_helper : forall TD M blk bofs eofs gv t b ofs mcs2 mcs1
   (Hft : feasible_typ TD t)
-  (Hwfd : wf_data TD M gvb gve)
-  (Hassert : assert_mptr TD t gv (mkMD gvb gve))
+  (Hwfd : wf_data TD M blk bofs eofs)
+  (Hassert : assert_mptr TD t gv (mkMD blk bofs eofs))
   (Hptr : GV2ptr TD (getPointerSize TD) gv = ret Vptr b ofs)
   (Hflat : getTypeStoreSize TD t = ret (sizeMC (mcs1 ++ mcs2)))
   (Halign : proper_aligned mcs2 ((Int.signed 31 ofs) + Z_of_nat (sizeMC mcs1))) 
@@ -2597,8 +2646,7 @@ Proof.
       apply Mem.valid_access_implies with (p1:=Writable); auto with mem.
       assert (J:=Hassert).
       apply assert_mptr_inv in J.
-      destruct J as [pb [pofs [bb [bofs [eb [eofs [tsz [J1 [J2 [J3 
-        [J4 J5]]]]]]]]]]].
+      destruct J as [pb [pofs [tsz [J1 [J4 J5]]]]].
       rewrite Hptr in J1. inv J1.
       eapply assert_mptr__valid_access; eauto. 
         apply Z_of_nat_ge_0.
@@ -2620,11 +2668,11 @@ Proof.
     rewrite Hlds. eauto.
 Qed.
 
-Lemma mload_aux_isnt_stuck : forall S TD M gvb gve gv t b ofs mcs
+Lemma mload_aux_isnt_stuck : forall S TD M blk bofs eofs gv t b ofs mcs
   (Hwft : wf_typ S t)
   (Hft : feasible_typ TD t)
-  (Hwfd : wf_data TD M gvb gve)
-  (Hassert : assert_mptr TD t gv (mkMD gvb gve))
+  (Hwfd : wf_data TD M blk bofs eofs)
+  (Hassert : assert_mptr TD t gv (mkMD blk bofs eofs))
   (Hptr : GV2ptr TD (getPointerSize TD) gv = ret Vptr b ofs)
   (Hflat : flatten_typ TD t = ret mcs)
   (Halign : proper_aligned mcs (Int.signed 31 ofs)) 
@@ -2655,10 +2703,10 @@ Proof.
   apply proper_aligned_dec; auto.
 Qed.
 
-Lemma mstore_aux_isnt_stuck_helper : forall TD gvb gve gvp t b ofs gv2 gv1 M
+Lemma mstore_aux_isnt_stuck_helper : forall TD blk bofs eofs gvp t b ofs gv2 gv1 M
   (Hft : feasible_typ TD t)
-  (Hwfd : wf_data TD M gvb gve)
-  (Hassert : assert_mptr TD t gvp (mkMD gvb gve))
+  (Hwfd : wf_data TD M blk bofs eofs)
+  (Hassert : assert_mptr TD t gvp (mkMD blk bofs eofs))
   (Hptr : GV2ptr TD (getPointerSize TD) gvp = ret Vptr b ofs)
   (Hflat : getTypeStoreSize TD t = ret (sizeGenericValue (gv1 ++ gv2)))
   (Halign : aligned_gv gv2 ((Int.signed 31 ofs) + Z_of_nat (sizeGenericValue gv1))) 
@@ -2696,8 +2744,7 @@ Proof.
       apply Mem.valid_access_implies with (p1:=Writable); auto with mem.
       assert (J:=Hassert).
       apply assert_mptr_inv in J.
-      destruct J as [pb [pofs [bb [bofs [eb [eofs [tsz [J1 [J2 [J3 
-        [J4 J5]]]]]]]]]]].
+      destruct J as [pb [pofs [tsz [J1 [J4 J5]]]]].
       rewrite Hptr in J1. inv J1.
       eapply assert_mptr__valid_access; eauto. 
         apply Z_of_nat_ge_0.
@@ -2724,11 +2771,11 @@ Proof.
     rewrite Hsts. eauto.
 Qed.
 
-Lemma mstore_aux_isnt_stuck : forall TD M gvb gve gvp t b ofs gv
+Lemma mstore_aux_isnt_stuck : forall TD M blk bofs eofs gvp t b ofs gv
   (Hft : feasible_typ TD t)
   (Hwfg : wf_genericvalue TD gv t)
-  (Hwfd : wf_data TD M gvb gve)
-  (Hassert : assert_mptr TD t gvp (mkMD gvb gve))
+  (Hwfd : wf_data TD M blk bofs eofs)
+  (Hassert : assert_mptr TD t gvp (mkMD blk bofs eofs))
   (Hptr : GV2ptr TD (getPointerSize TD) gvp = ret Vptr b ofs)
   (Halign : aligned_gv gv (Int.signed 31 ofs)) 
   (Htemp : blk_temporal_safe M b),
@@ -3360,7 +3407,7 @@ Proof.
         destruct (GV2int (los, nts) Size.ThirtyTwo gv); inv HeqR0; eauto.
       destruct H as [n H].
       remember (prop_reg_metadata lc rm i0 (blk2GV (los, nts) mb) 
-        (mkMD (base2GV (los, nts) mb) (bound2GV (los, nts) mb asz n))) as R.
+        (bound2MD mb asz n)) as R.
       destruct R as [lc' rm'].
       exists 
          {|
@@ -3433,7 +3480,7 @@ Proof.
         destruct (GV2int (los, nts) Size.ThirtyTwo gv); inv HeqR0; eauto.
       destruct H as [n H].
       remember (prop_reg_metadata lc rm i0 (blk2GV (los, nts) mb) 
-        (mkMD (base2GV (los, nts) mb) (bound2GV (los, nts) mb asz n))) as R.
+        (bound2MD mb asz n)) as R.
       destruct R as [lc' rm'].
       left.
       exists 
@@ -3834,7 +3881,7 @@ Proof.
        exists trace_nil; subst; eapply dsOtherCast; 
          try solve [eauto | split; congruence]].
     SSCase "case_inttoptr".
-      remember (prop_reg_metadata lc rm i0 gv2 (mkMD null null)) as R.
+      remember (prop_reg_metadata lc rm i0 gv2 null_md) as R.
       destruct R as [lc' rm'].
       exists 
          {|

@@ -101,7 +101,7 @@ Proof.
     inversion H; subst.
     exists nil. exists nil. eauto.
 
-    destruct a. unfold SBopsem.get_reg_metadata in H.
+    destruct a.
     destruct (getValueViaBlockFromValuels l0 b1'); try solve [inversion H].
     remember (getOperandValue TD' v lc1' gl') as R0.
     destruct R0; try solve [inversion H].
@@ -113,20 +113,13 @@ Proof.
     destruct HeqR as [l3 [l4 [J1 J2]]].
     rewrite J1.
     destruct (isPointerTypB t); inversion H; subst; clear H.
-      destruct v; simpl in *.
+      destruct v.
+        simpl in H1.
         destruct (lookupAL SBopsem.metadata rm i1); inversion H1; subst.
           simpl. rewrite J2. eauto.
 
-        destruct (
-          match SBopsem.get_const_metadata c with
-         | ret (bc, ec) =>
-             do gvb <- const2GV TD' gl' bc;
-             (do gve <- const2GV TD' gl' ec;
-              ret {| SBopsem.md_base := gvb; SBopsem.md_bound := gve |})
-         | merror =>
-             ret {| SBopsem.md_base := null; SBopsem.md_bound := null |}
-         end
-        ) as [md|]; inversion H1; subst; simpl; eauto.
+        destruct (SBopsem.get_reg_metadata TD' gl' rm (value_const c))
+          as [md|]; inversion H1; subst; simpl; eauto.
           rewrite J2. eauto.
 
       simpl. rewrite J2.
