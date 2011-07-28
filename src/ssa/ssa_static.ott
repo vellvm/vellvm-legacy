@@ -8,6 +8,7 @@ Require Import ssa_def.
 Require Import ssa_lib.
 Require Import ListSet.
 Require Import ssa_analysis.
+Require Import targetdata.
 
 Module LLVMwf.
 Export LLVMsyntax.
