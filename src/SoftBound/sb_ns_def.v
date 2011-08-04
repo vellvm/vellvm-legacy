@@ -226,111 +226,85 @@ Definition initLocals TD (la:args) (lg:list (GVs*option SBopsem.metadata))
   : option (GVsMap * SBopsem.rmetadata) :=
 _initializeFrameValues TD la lg nil nil.
 
-Inductive nsInsn : State -> State -> trace -> Prop :=
+Inductive nsInsn_delta : State -> State -> Prop :=
 | nsReturn : forall S TD Ps F B rid RetTy Result lc rm gl fs F' B' c' cs' tmn' 
     lc' rm' EC Mem MM Mem' als als' lc'' rm'',   
-  Instruction.isCallInst c' = true ->
-  free_allocas TD Mem als = Some Mem' ->
   returnUpdateLocals TD c' RetTy Result lc lc' rm rm' gl = Some (lc'', rm'') ->
-  nsInsn 
+  nsInsn_delta 
     (mkState S TD Ps 
       ((mkEC F B nil (insn_return rid RetTy Result) lc rm als)::
        (mkEC F' B' (c'::cs') tmn' lc' rm' als')::EC) gl fs Mem MM)
     (mkState S TD Ps 
       ((mkEC F' B' cs' tmn' lc'' rm'' als')::EC) gl fs Mem' MM)
-    trace_nil
 
 | nsReturnVoid : forall S TD Ps F B rid lc rm gl fs F' B' c' tmn' lc' rm' EC cs' 
     Mem MM Mem' als als',   
-  Instruction.isCallInst c' = true ->
-  free_allocas TD Mem als = Some Mem' ->
-  getCallerReturnID c' = None ->
-  nsInsn 
+  nsInsn_delta 
     (mkState S TD Ps 
       ((mkEC F B nil (insn_return_void rid) lc rm als)::
        (mkEC F' B' (c'::cs') tmn' lc' rm' als')::EC) gl fs Mem MM)
     (mkState S TD Ps 
       ((mkEC F' B' cs' tmn' lc' rm' als')::EC) gl fs Mem' MM)
-    trace_nil
 
-| nsBranch : forall S TD Ps F B lc rm gl fs bid Cond l1 l2 c l' ps' cs' tmn' lc' 
-    rm' EC Mem MM als conds,   
-  getOperandValue TD Cond lc gl = Some conds ->
-  c @ conds ->
-  Some (block_intro l' ps' cs' tmn') = (if isGVZero TD c
-               then lookupBlockViaLabelFromFdef F l2
-               else lookupBlockViaLabelFromFdef F l1) ->
+| nsBranch : forall S TD Ps F B lc rm gl fs bid Cond l1 l2 l' ps' cs' tmn' lc' 
+    rm' EC Mem MM als,   
   switchToNewBasicBlock TD (block_intro l' ps' cs' tmn') B gl lc rm = 
     Some (lc', rm') ->
-  nsInsn 
+  nsInsn_delta 
     (mkState S TD Ps 
       ((mkEC F B nil (insn_br bid Cond l1 l2) lc rm als)::EC) 
       gl fs Mem MM)
     (mkState S TD Ps 
       ((mkEC F (block_intro l' ps' cs' tmn') cs' tmn' lc' rm' als)::EC) 
       gl fs Mem MM)
-    trace_nil
 
 | nsBranch_uncond : forall S TD Ps F B lc rm gl fs bid l l' ps' cs' tmn' lc' rm'
     EC Mem MM als,   
-  Some (block_intro l' ps' cs' tmn') = (lookupBlockViaLabelFromFdef F l) ->
   switchToNewBasicBlock TD (block_intro l' ps' cs' tmn') B gl lc rm = 
     Some (lc', rm') ->
-  nsInsn 
+  nsInsn_delta 
     (mkState S TD Ps 
       ((mkEC F B nil (insn_br_uncond bid l) lc rm als)::EC) 
       gl fs Mem MM)
     (mkState S TD Ps 
       ((mkEC F (block_intro l' ps' cs' tmn') cs' tmn' lc' rm' als)::EC) 
       gl fs Mem MM)
-    trace_nil
 
-| nsBop: forall S TD Ps F B lc rm gl fs id bop sz v1 v2 gv3 EC cs tmn Mem MM als,
-  BOP TD lc gl bop sz v1 v2 = Some gv3 ->
-  nsInsn 
+| nsBop: forall S TD Ps F B lc rm gl fs id bop sz v1 v2 lc' EC cs tmn Mem MM als,
+  nsInsn_delta 
     (mkState S TD Ps 
       ((mkEC F B ((insn_bop id bop sz v1 v2)::cs) tmn lc rm als)::EC) 
       gl fs Mem MM) 
     (mkState S TD Ps 
-      ((mkEC F B cs tmn (updateAddAL _ lc id gv3) rm als)::EC) gl fs Mem MM)
-    trace_nil
+      ((mkEC F B cs tmn lc' rm als)::EC) gl fs Mem MM)
 
-| nsFBop: forall S TD Ps F B lc rm gl fs id fbop fp v1 v2 gv3 EC cs tmn Mem MM 
+| nsFBop: forall S TD Ps F B lc rm gl fs id fbop fp v1 v2 lc' EC cs tmn Mem MM 
     als,
-  FBOP TD lc gl fbop fp v1 v2 = Some gv3 ->
-  nsInsn 
+  nsInsn_delta 
     (mkState S TD Ps 
       ((mkEC F B ((insn_fbop id fbop fp v1 v2)::cs) tmn lc rm als)::EC) 
       gl fs Mem MM) 
     (mkState S TD Ps 
-      ((mkEC F B cs tmn (updateAddAL _ lc id gv3) rm als)::EC) 
+      ((mkEC F B cs tmn lc' rm als)::EC) 
       gl fs Mem MM)
-    trace_nil
 
-| nsExtractValue : forall S TD Ps F B lc rm gl fs id t v gv gv' idxs EC cs tmn 
+| nsExtractValue : forall S TD Ps F B lc rm gl fs id t v lc' idxs EC cs tmn 
     Mem MM als,
-  getOperandValue TD v lc gl = Some gv ->
-  extractGenericValue TD t gv idxs = Some gv' ->
-  nsInsn 
+  nsInsn_delta 
     (mkState S TD Ps 
       ((mkEC F B ((insn_extractvalue id t v idxs)::cs) tmn lc rm als)::EC) 
       gl fs Mem MM) 
     (mkState S TD Ps 
-      ((mkEC F B cs tmn (updateAddAL _ lc id gv') rm als)::EC) gl fs Mem MM)
-    trace_nil
+      ((mkEC F B cs tmn lc' rm als)::EC) gl fs Mem MM)
 
-| nsInsertValue : forall S TD Ps F B lc rm gl fs id t v t' v' gv gv' gv'' idxs 
+| nsInsertValue : forall S TD Ps F B lc rm gl fs id t v t' v' lc' idxs 
     EC cs tmn Mem MM als,
-  getOperandValue TD v lc gl = Some gv ->
-  getOperandValue TD v' lc gl = Some gv' ->
-  insertGenericValue TD t gv idxs t' gv' = Some gv'' ->
-  nsInsn 
+  nsInsn_delta 
     (mkState S TD Ps 
       ((mkEC F B ((insn_insertvalue id t v t' v' idxs)::cs) tmn lc rm als)
       ::EC) gl fs Mem MM) 
     (mkState S TD Ps 
-      ((mkEC F B cs tmn (updateAddAL _ lc id gv'') rm als)::EC) gl fs Mem MM)
-    trace_nil
+      ((mkEC F B cs tmn lc' rm als)::EC) gl fs Mem MM)
 
 | nsMalloc : forall S TD Ps F B lc rm gl fs id t v gn align EC cs tmn Mem MM als 
     Mem' tsz mb lc' rm' n gns,
@@ -341,24 +315,18 @@ Inductive nsInsn : State -> State -> trace -> Prop :=
   GV2int TD Size.ThirtyTwo gn = Some n ->
   prop_reg_metadata lc rm id ($ (blk2GV TD mb) # typ_pointer t $) 
     (SBopsem.bound2MD mb tsz n) = (lc',rm') ->
-  nsInsn 
+  nsInsn_delta 
     (mkState S TD Ps 
       ((mkEC F B ((insn_malloc id t v align)::cs) tmn lc rm als)::EC) 
        gl fs Mem MM) 
     (mkState S TD Ps 
       ((mkEC F B cs tmn lc' rm' als)::EC) gl fs Mem' MM)
-    trace_nil
 
-| nsFree : forall S TD Ps F B lc rm gl fs fid t v EC cs tmn Mem als Mem' mptr MM
-    mptrs,
-  getOperandValue TD v lc gl = Some mptrs ->
-  mptr @ mptrs ->
-  free TD Mem mptr = Some Mem'->
-  nsInsn 
+| nsFree : forall S TD Ps F B lc rm gl fs fid t v EC cs tmn Mem als Mem' MM,
+  nsInsn_delta 
     (mkState S TD Ps 
       ((mkEC F B ((insn_free fid t v)::cs) tmn lc rm als)::EC) gl fs Mem MM) 
     (mkState S TD Ps ((mkEC F B cs tmn lc rm als)::EC) gl fs Mem' MM)
-    trace_nil
 
 | nsAlloca : forall S TD Ps F B lc rm gl fs id t v gn align EC cs tmn Mem MM als 
     Mem' tsz mb lc' rm' n gns,
@@ -369,13 +337,12 @@ Inductive nsInsn : State -> State -> trace -> Prop :=
   GV2int TD Size.ThirtyTwo gn = Some n ->
   prop_reg_metadata lc rm id ($(blk2GV TD mb) # typ_pointer t$) 
     (SBopsem.bound2MD mb tsz n) = (lc',rm') ->
-  nsInsn 
+  nsInsn_delta 
     (mkState S TD Ps 
       ((mkEC F B ((insn_alloca id t v align)::cs) tmn lc rm als)::EC) 
       gl fs Mem MM) 
     (mkState S TD Ps 
       ((mkEC F B cs tmn lc' rm' (mb::als))::EC) gl fs Mem' MM)
-    trace_nil
 
 | nsLoad_nptr : forall S TD Ps F B lc rm gl fs id t align vp EC cs tmn Mem als 
     gvp gv MM md gvps,
@@ -385,14 +352,13 @@ Inductive nsInsn : State -> State -> trace -> Prop :=
   SBopsem.assert_mptr TD t gvp md ->
   mload TD Mem gvp t align = Some gv ->
   isPointerTypB t = false ->
-  nsInsn 
+  nsInsn_delta 
     (mkState S TD Ps 
       ((mkEC F B ((insn_load id t vp align)::cs) tmn lc rm als)::EC) 
       gl fs Mem MM) 
     (mkState S TD Ps 
       ((mkEC F B cs tmn (updateAddAL _ lc id ($ gv # t $)) rm als)::EC) 
         gl fs Mem MM)
-    trace_nil
 
 | nsLoad_ptr : forall S TD Ps F B lc rm gl fs id t align vp EC cs tmn Mem MM als 
     gvp gv md md' lc' rm' gvps,
@@ -404,12 +370,11 @@ Inductive nsInsn : State -> State -> trace -> Prop :=
   isPointerTypB t = true ->
   SBopsem.get_mem_metadata TD MM gvp = md' -> 
   prop_reg_metadata lc rm id ($ gv # t $) md' = (lc', rm') ->
-  nsInsn 
+  nsInsn_delta 
     (mkState S TD Ps 
       ((mkEC F B ((insn_load id t vp align)::cs) tmn lc rm als)::EC) 
       gl fs Mem MM) 
     (mkState S TD Ps ((mkEC F B cs tmn lc' rm' als)::EC) gl fs Mem MM)
-    trace_nil
 
 | nsStore_nptr : forall S TD Ps F B lc rm gl fs sid t align v vp EC cs tmn Mem MM
     als gv gvp md Mem' gvps gvs,
@@ -420,13 +385,12 @@ Inductive nsInsn : State -> State -> trace -> Prop :=
   SBopsem.assert_mptr TD t gvp md ->
   mstore TD Mem gvp t gv align = Some Mem' ->
   isPointerTypB t = false ->
-  nsInsn 
+  nsInsn_delta 
     (mkState S TD Ps 
       ((mkEC F B ((insn_store sid t v vp align)::cs) tmn lc rm als)::EC) 
        gl fs Mem MM) 
     (mkState S TD Ps 
       ((mkEC F B cs tmn lc rm als)::EC) gl fs Mem' MM)
-    trace_nil
 
 | nsStore_ptr : forall S TD Ps F B lc rm gl fs sid t align v vp EC cs tmn Mem MM
     als gv gvp md md' Mem' MM' gvps gvs,
@@ -439,143 +403,115 @@ Inductive nsInsn : State -> State -> trace -> Prop :=
   isPointerTypB t = true ->
   SBopsem.get_reg_metadata TD gl rm v = Some md' ->
   SBopsem.set_mem_metadata TD MM gvp md' = MM' -> 
-  nsInsn 
+  nsInsn_delta 
     (mkState S TD Ps 
       ((mkEC F B ((insn_store sid t v vp align)::cs) tmn lc rm als)::EC) 
        gl fs Mem MM) 
     (mkState S TD Ps 
       ((mkEC F B cs tmn lc rm als)::EC) gl fs Mem' MM')
-    trace_nil
 
-| nsGEP : forall S TD Ps F B lc rm gl fs id inbounds t vp idxs vidxs EC gvp gvp' 
+| nsGEP : forall S TD Ps F B lc rm gl fs id inbounds t vp idxs EC  
                  cs tmn Mem MM als lc' rm' md,
   SBopsem.get_reg_metadata TD gl rm vp = Some md ->
-  getOperandValue TD vp lc gl = Some gvp ->
-  values2GVs TD idxs lc gl = Some vidxs ->
-  GEP TD t gvp vidxs inbounds = Some gvp' ->
-  prop_reg_metadata lc rm id gvp' md = (lc', rm') ->
-  nsInsn 
+  updateAddAL _ rm id md = rm' ->
+  nsInsn_delta 
     (mkState S TD Ps 
       ((mkEC F B ((insn_gep id inbounds t vp idxs)::cs) tmn lc rm als)::EC) 
       gl fs Mem MM) 
     (mkState S TD Ps ((mkEC F B cs tmn lc' rm' als)::EC) gl fs Mem MM)
-    trace_nil 
 
-| nsTrunc : forall S TD Ps F B lc rm gl fs id truncop t1 v1 t2 gv2 EC cs tmn 
+| nsTrunc : forall S TD Ps F B lc rm gl fs id truncop t1 v1 t2 lc' EC cs tmn 
                    Mem MM als,
-  TRUNC TD lc gl truncop t1 v1 t2 = Some gv2 ->
-  nsInsn 
+  nsInsn_delta 
     (mkState S TD Ps 
       ((mkEC F B ((insn_trunc id truncop t1 v1 t2)::cs) tmn lc rm als)::EC) 
       gl fs Mem MM) 
     (mkState S TD Ps 
-      ((mkEC F B cs tmn (updateAddAL _ lc id gv2) rm als)::EC) gl fs Mem MM)
-    trace_nil
+      ((mkEC F B cs tmn lc' rm als)::EC) gl fs Mem MM)
 
-| nsExt : forall S TD Ps F B lc rm gl fs id extop t1 v1 t2 gv2 EC cs tmn Mem MM
+| nsExt : forall S TD Ps F B lc rm gl fs id extop t1 v1 t2 lc' EC cs tmn Mem MM
                  als,
-  EXT TD lc gl extop t1 v1 t2 = Some gv2 ->
-  nsInsn 
+  nsInsn_delta 
     (mkState S TD Ps 
       ((mkEC F B ((insn_ext id extop t1 v1 t2)::cs) tmn lc rm als)::EC) 
        gl fs Mem MM) 
     (mkState S TD Ps 
-      ((mkEC F B cs tmn (updateAddAL _ lc id gv2) rm als)::EC) gl fs Mem MM)
-    trace_nil
+      ((mkEC F B cs tmn lc' rm als)::EC) gl fs Mem MM)
 
-| nsBitcast_nptr : forall S TD Ps F B lc rm gl fs id t1 v1 t2 gv2 EC cs tmn Mem 
+| nsBitcast_nptr : forall S TD Ps F B lc rm gl fs id t1 v1 t2 lc' EC cs tmn Mem 
     MM als,
-  CAST TD lc gl castop_bitcast t1 v1 t2 = Some gv2 ->
   isPointerTypB t1 = false ->
-  nsInsn 
+  nsInsn_delta 
     (mkState S TD Ps 
       ((mkEC F B ((insn_cast id castop_bitcast t1 v1 t2)::cs) tmn lc rm als)
         ::EC) 
       gl fs Mem MM) 
     (mkState S TD Ps 
-      ((mkEC F B cs tmn (updateAddAL _ lc id gv2) rm als)::EC) gl fs Mem MM)
-    trace_nil
+      ((mkEC F B cs tmn lc' rm als)::EC) gl fs Mem MM)
 
-| nsBitcast_ptr : forall S TD Ps F B lc rm gl fs id t1 v1 t2 gv2 EC cs tmn Mem MM
+| nsBitcast_ptr : forall S TD Ps F B lc rm gl fs id t1 v1 t2 EC cs tmn Mem MM
     als md lc' rm',
-  CAST TD lc gl castop_bitcast t1 v1 t2 = Some gv2 ->
   isPointerTypB t1 = true ->
   SBopsem.get_reg_metadata TD gl rm v1 = Some md ->
-  prop_reg_metadata lc rm id gv2 md = (lc', rm') ->
-  nsInsn 
+  updateAddAL _ rm id md = rm' ->
+  nsInsn_delta 
     (mkState S TD Ps 
       ((mkEC F B ((insn_cast id castop_bitcast t1 v1 t2)::cs) tmn lc rm als)
         ::EC) 
       gl fs Mem MM) 
     (mkState S TD Ps ((mkEC F B cs tmn lc' rm' als)::EC) gl fs Mem MM)
-    trace_nil
 
-| nsInttoptr : forall S TD Ps F B lc rm gl fs id t1 v1 t2 gv2 EC cs tmn Mem MM
+| nsInttoptr : forall S TD Ps F B lc rm gl fs id t1 v1 t2 EC cs tmn Mem MM
     als lc' rm',
-  CAST TD lc gl castop_inttoptr t1 v1 t2 = Some gv2 ->
-  prop_reg_metadata lc rm id gv2 (SBopsem.null_md) = (lc', rm') ->
-  nsInsn 
+  updateAddAL _ rm id (SBopsem.null_md) = rm' ->
+  nsInsn_delta 
     (mkState S TD Ps 
       ((mkEC F B ((insn_cast id castop_inttoptr t1 v1 t2)::cs) tmn lc rm als)
         ::EC) 
        gl fs Mem MM) 
     (mkState S TD Ps ((mkEC F B cs tmn lc' rm' als)::EC) gl fs Mem MM)
-    trace_nil
 
-| nsOtherCast : forall S TD Ps F B lc rm gl fs id castop t1 v1 t2 gv2 EC cs tmn 
+| nsOtherCast : forall S TD Ps F B lc rm gl fs id castop t1 v1 t2 lc' EC cs tmn 
     Mem MM als,
-  CAST TD lc gl castop t1 v1 t2 = Some gv2 ->
   castop <> castop_bitcast /\ castop <> castop_inttoptr ->
-  nsInsn 
+  nsInsn_delta 
     (mkState S TD Ps 
       ((mkEC F B ((insn_cast id castop t1 v1 t2)::cs) tmn lc rm als)::EC) 
       gl fs Mem MM) 
     (mkState S TD Ps 
-      ((mkEC F B cs tmn (updateAddAL _ lc id gv2) rm als)::EC) gl fs Mem MM)
-    trace_nil
+      ((mkEC F B cs tmn lc' rm als)::EC) gl fs Mem MM)
 
-| nsIcmp : forall S TD Ps F B lc rm gl fs id cond t v1 v2 gv3 EC cs tmn Mem MM 
+| nsIcmp : forall S TD Ps F B lc rm gl fs id cond t v1 v2 lc' EC cs tmn Mem MM 
     als,
-  ICMP TD lc gl cond t v1 v2 = Some gv3 ->
-  nsInsn 
+  nsInsn_delta 
     (mkState S TD Ps 
       ((mkEC F B ((insn_icmp id cond t v1 v2)::cs) tmn lc rm als)::EC) 
       gl fs Mem MM) 
     (mkState S TD Ps 
-      ((mkEC F B cs tmn (updateAddAL _ lc id gv3) rm als)::EC) gl fs Mem MM)
-    trace_nil
+      ((mkEC F B cs tmn lc' rm als)::EC) gl fs Mem MM)
 
-| nsFcmp : forall S TD Ps F B lc rm gl fs id fcond fp v1 v2 gv3 EC cs tmn Mem MM
+| nsFcmp : forall S TD Ps F B lc rm gl fs id fcond fp v1 v2 lc' EC cs tmn Mem MM
     als,
-  FCMP TD lc gl fcond fp v1 v2 = Some gv3 ->
-  nsInsn 
+  nsInsn_delta 
     (mkState S TD Ps 
       ((mkEC F B ((insn_fcmp id fcond fp v1 v2)::cs) tmn lc rm als)::EC) 
       gl fs Mem MM) 
     (mkState S TD Ps   
-      ((mkEC F B cs tmn (updateAddAL _ lc id gv3) rm als)::EC) gl fs Mem MM)
-    trace_nil
+      ((mkEC F B cs tmn lc' rm als)::EC) gl fs Mem MM)
 
-| nsSelect_nptr : forall S TD Ps F B lc rm gl fs id v0 t v1 v2 c EC cs tmn Mem MM
-    als gv1 gv2 cond,
-  getOperandValue TD v0 lc gl = Some cond ->
-  getOperandValue TD v1 lc gl = Some gv1 ->
-  getOperandValue TD v2 lc gl = Some gv2 ->
-  c @ cond ->
+| nsSelect_nptr : forall S TD Ps F B lc rm gl fs id v0 t v1 v2 EC cs tmn Mem MM
+    als lc',
   isPointerTypB t = false ->
-  nsInsn 
+  nsInsn_delta 
     (mkState S TD Ps 
       ((mkEC F B ((insn_select id v0 t v1 v2)::cs) tmn lc rm als)::EC) 
       gl fs Mem MM) 
     (mkState S TD Ps 
-      ((mkEC F B cs tmn (if isGVZero TD c 
-                            then updateAddAL _ lc id gv2 
-                            else updateAddAL _ lc id gv1) rm als)::EC) 
+      ((mkEC F B cs tmn lc' rm als)::EC) 
       gl fs Mem MM)
-    trace_nil
 
 | nsSelect_ptr : forall S TD Ps F B lc rm gl fs id v0 t v1 v2 c EC cs tmn Mem MM
-    als gv1 gv2 md1 md2 lc' rm' cond,
+    als gv1 gv2 md1 md2 cond,
   getOperandValue TD v0 lc gl = Some cond ->
   getOperandValue TD v1 lc gl = Some gv1 ->
   getOperandValue TD v2 lc gl = Some gv2 ->
@@ -583,33 +519,28 @@ Inductive nsInsn : State -> State -> trace -> Prop :=
   isPointerTypB t = true ->
   SBopsem.get_reg_metadata TD gl rm v1 = Some md1 ->
   SBopsem.get_reg_metadata TD gl rm v2 = Some md2 ->
-  (if isGVZero TD c then 
-    prop_reg_metadata lc rm id gv2 md2
-  else
-    prop_reg_metadata lc rm id gv1 md1)
-    = (lc', rm') ->
-  nsInsn 
+  nsInsn_delta 
     (mkState S TD Ps 
       ((mkEC F B ((insn_select id v0 t v1 v2)::cs) tmn lc rm als)::EC) 
       gl fs Mem MM) 
     (mkState S TD Ps 
-      ((mkEC F B cs tmn lc' rm' als)::EC) 
+      ((mkEC F B cs tmn 
+        (if isGVZero TD c 
+         then updateAddAL _ lc id gv2
+         else updateAddAL _ lc id gv1)
+        (if isGVZero TD c 
+         then updateAddAL _ rm id md2
+         else updateAddAL _ rm id md1)
+        als)::EC) 
       gl fs Mem MM)
-    trace_nil
 
 | nsCall : forall S TD Ps F B lc rm gl fs rid noret ca fid fv lp cs tmn ogvs
-             fptr fptrs ft l' ps' cs' tmn' EC fa rt la va lb Mem MM als rm' lc',
+             ft l' ps' cs' tmn' EC fa rt la va lb Mem MM als rm' lc',
   (* only look up the current module for the time being, 
      do not support linkage. *)
-  getOperandValue TD fv lc gl = Some fptrs -> 
-  fptr @ fptrs -> 
-  lookupFdefViaPtr Ps fs fptr = 
-    Some (fdef_intro (fheader_intro fa rt fid la va) lb) ->
-  getEntryBlock (fdef_intro (fheader_intro fa rt fid la va) lb) = 
-    Some (block_intro l' ps' cs' tmn') ->
   params2GVs TD lp lc gl rm = Some ogvs ->
   initLocals TD la ogvs = Some (lc', rm') ->
-  nsInsn 
+  nsInsn_delta 
     (mkState S TD Ps 
       ((mkEC F B ((insn_call rid noret ca ft fv lp)::cs) tmn lc rm als)
         ::EC) gl fs Mem MM)
@@ -619,7 +550,6 @@ Inductive nsInsn : State -> State -> trace -> Prop :=
                 lc' rm' nil)::
        (mkEC F B ((insn_call rid noret ca ft fv lp)::cs) tmn lc rm als)
          ::EC) gl fs Mem MM)
-    trace_nil 
 
 | nsExCall : forall S TD Ps F B lc rm gl fs rid noret ca fid fv lp cs tmn EC 
            gvss fptr fptrs rt fa ft la va Mem als oresult Mem' lc' rm' MM gvs,
@@ -635,12 +565,11 @@ Inductive nsInsn : State -> State -> trace -> Prop :=
   gvs @@ gvss ->
   LLVMopsem.callExternalFunction Mem fid gvs = Some (oresult, Mem') ->
   exCallUpdateLocals TD ft noret rid oresult lc rm = Some (lc',rm') ->
-  nsInsn 
+  nsInsn_delta 
     (mkState S TD Ps 
       ((mkEC F B ((insn_call rid noret ca ft fv lp)::cs) tmn lc rm als)
        ::EC) gl fs Mem MM)
     (mkState S TD Ps ((mkEC F B cs tmn lc' rm' als)::EC) gl fs Mem' MM)
-    trace_nil 
 .
 
 Definition ns_isFinialState (state:State) : bool :=
@@ -651,6 +580,23 @@ match state with
     ((mkEC _ _ nil (insn_return _ _ _) _ _ _)::nil) _ _ _ _) => true 
 | _ => false
 end.
+
+Definition sbEC__EC (ec : ExecutionContext) : NDopsem.ExecutionContext :=
+let '(mkEC f b cs tmn lc _ als) := ec in
+NDopsem.mkEC f b cs tmn lc als.
+
+Definition sbECs__ECs (ecs : ECStack) : NDopsem.ECStack := 
+List.map sbEC__EC ecs.
+
+Definition sbState__State (st : State) : NDopsem.State :=
+let '(mkState Sys TD Ps ecs gl fs M _) := st in
+NDopsem.mkState Sys TD Ps (sbECs__ECs ecs) gl fs M.
+
+Inductive nsInsn : State -> State -> trace -> Prop :=
+| nsInsn_intro : forall S1 S2 tr,
+    nsInsn_delta S1 S2 ->
+    NDopsem.nsInsn (sbState__State S1) (sbState__State S2) tr ->
+    nsInsn S1 S2 tr.
 
 Inductive nsop_star : State -> State -> trace -> Prop :=
 | nsop_star_nil : forall state, nsop_star state state trace_nil

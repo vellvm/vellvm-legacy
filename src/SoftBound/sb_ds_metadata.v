@@ -339,6 +339,183 @@ Proof.
           right. right. exists gv1. simpl. auto.
 Qed.
 
+Lemma initLocals_spec : forall TD la gvs id1 lc rm,
+  In id1 (getArgsIDs la) ->
+  initLocals TD la gvs = Some (lc, rm) ->
+  exists gv, lookupAL _ lc id1 = Some gv.
+Proof.
+  unfold initLocals.
+  induction la; intros; simpl in *.
+    inversion H.
+
+    destruct a as [[t c] id0].  
+    simpl in H.
+    destruct H as [H | H]; subst; simpl.
+      destruct gvs. 
+        remember (_initializeFrameValues TD la nil nil nil) as R1.
+        destruct R1 as [[lc' rm']|]; tinv H0.
+        remember (gundef TD t) as R2.
+        destruct R2; inv H0.
+        destruct (isPointerTypB t); inv H1;
+          exists (? g # t ?); apply lookupAL_updateAddAL_eq; auto.      
+
+        destruct p.
+        remember (_initializeFrameValues TD la gvs nil nil) as R1.
+        destruct R1 as [[lc' rm']|]; tinv H0.
+        remember (fit_gv TD t g) as R2.
+        destruct R2; inv H0.
+        assert (lc = updateAddAL GenericValue lc' id1 (? g0 # t ?)) as EQ.
+          destruct (isPointerTypB t); inv H1; auto.
+          destruct o; inv H0; auto.
+        subst. exists (? g0 # t ?). apply lookupAL_updateAddAL_eq; auto. 
+
+      destruct (eq_atom_dec id0 id1); subst.
+        destruct gvs.
+          remember (_initializeFrameValues TD la nil nil nil) as R1.
+          destruct R1 as [[lc' rm']|]; tinv H0.
+          remember (gundef TD t) as R2.
+          destruct R2; inv H0.
+          destruct (isPointerTypB t); inv H2;
+            exists (? g # t ?); apply lookupAL_updateAddAL_eq; auto.      
+
+          destruct p.
+          remember (_initializeFrameValues TD la gvs nil nil) as R1.
+          destruct R1 as [[lc' rm']|]; tinv H0.
+          remember (fit_gv TD t g) as R2.
+          destruct R2; inv H0.
+          assert (lc = updateAddAL GenericValue lc' id1 (? g0 # t ?)) as EQ.
+            destruct (isPointerTypB t); inv H2; auto.
+            destruct o; inv H1; auto.
+          subst. exists (? g0 # t ?). apply lookupAL_updateAddAL_eq; auto. 
+
+        destruct gvs.
+          remember (_initializeFrameValues TD la nil nil nil) as R1.
+          destruct R1 as [[lc' rm']|]; tinv H0.
+          remember (gundef TD t) as R2.
+          destruct R2; inv H0.
+          symmetry in HeqR1.
+          eapply IHla in HeqR1; eauto.
+          destruct HeqR1 as [gv HeqR1]. 
+          destruct (isPointerTypB t); inv H2;
+            exists gv; rewrite <- lookupAL_updateAddAL_neq; auto.
+
+          destruct p.
+          remember (_initializeFrameValues TD la gvs nil nil) as R1.
+          destruct R1 as [[lc' rm']|]; tinv H0.
+          remember (fit_gv TD t g) as R2.
+          destruct R2; inv H0.
+          assert (lc = updateAddAL GenericValue lc' id0 (? g0 # t ?)) as EQ.
+            destruct (isPointerTypB t); inv H2; auto.
+            destruct o; inv H1; auto.
+          subst.
+          symmetry in HeqR1.
+          eapply IHla in HeqR1; eauto.
+          destruct HeqR1 as [gv HeqR1]. 
+          exists gv. rewrite <- lookupAL_updateAddAL_neq; auto.
+Qed.
+
+Lemma getIncomingValuesForBlockFromPHINodes_spec2_aux : forall ifs s los nts Ps f
+  b gl lc rm l3 cs tmn (Hwflc: wf_lc (los, nts) f lc) 
+  (Hwfg: wf_global (los, nts) s gl) (Huniq: uniqFdef f) ps2 ps1 rs,
+  blockInFdefB (block_intro l3 (ps1++ps2) cs tmn) f ->
+  wf_phinodes ifs s (module_intro los nts Ps) f 
+    (block_intro l3 (ps1++ps2) cs tmn) ps2 ->
+  Some rs = getIncomingValuesForBlockFromPHINodes (los, nts) ps2 b gl lc rm ->
+  (forall id0 gv opmd0 t0, 
+     In (id0,gv,opmd0) rs -> lookupTypViaIDFromFdef f id0 = Some t0 ->
+     wf_genericvalue (los, nts) gv t0).
+Proof.    
+  intros ifs s los nts Ps f b gl lc rm l3 cs tmn Hwflc Hwfg Huniq ps2 ps1 rs 
+    Hbinf.
+  assert (Huniq':=Hbinf).
+  apply uniqFdef__uniqBlockLocs in Huniq'; auto.
+  simpl in Huniq'. 
+  apply NoDup_split in Huniq'.
+  destruct Huniq' as [Huniq' _].
+  generalize dependent rs.
+  generalize dependent ps1.
+  induction ps2; intros ps1 Hbinf Hnup rs Hwfps H id0 gv opmd0 t0 Hin Hlkup; 
+    simpl in *.
+    inv H. inv Hin.
+
+    destruct a.
+    remember (getValueViaBlockFromValuels l0 b) as R1.
+    destruct R1; try solve [inversion H].   
+      remember (getOperandValue (los,nts) v lc gl) as R.
+      destruct R; tinv H.
+      destruct (getIncomingValuesForBlockFromPHINodes (los,nts) ps2 b gl lc rm); 
+        tinv H.
+      assert (exists om, rs = (i0, g, om) :: l1) as EQ.
+        destruct (isPointerTypB t); inv H; eauto.
+        destruct (get_reg_metadata (los, nts) gl rm v); inv H1; eauto.
+      destruct EQ as [om EQ]; subst.  
+      inv Hwfps.
+      simpl in Hin. 
+      destruct Hin as [Hin | Hin]; eauto.
+        inv Hin.
+        inv H7.
+        assert (J:=Hbinf).
+        eapply lookupTypViaIDFromFdef__lookupTypViaIDFromPhiNodes in J; eauto.
+          eapply wf_value_list__getValueViaBlockFromValuels__wf_value in H3; 
+            eauto.
+          simpl in J.
+          rewrite NoDup_lookupTypViaIDFromPhiNodes in J; auto.
+          inv J.
+          symmetry in HeqR. eapply getOperandValue__wf_gv in HeqR; eauto.
+
+          simpl. rewrite getPhiNodesIDs_app.
+          apply in_app_iff; simpl; auto.
+
+        rewrite_env ((ps1 ++ [insn_phi i0 t l0]) ++ ps2) in H8.
+        eapply IHps2 in H8; simpl_env; eauto.
+Qed.
+
+Lemma getIncomingValuesForBlockFromPHINodes_spec2 : forall ifs s los nts Ps f b 
+  gl lc rm l3 cs tmn (Hwflc: wf_lc (los, nts) f lc) 
+  (Hwfg: wf_global (los, nts) s gl) (Huniq: uniqFdef f) ps rs,
+  Some (block_intro l3 ps cs tmn) = lookupBlockViaLabelFromFdef f l3 ->
+  wf_global (los, nts) s gl ->
+  wf_fdef ifs s (module_intro los nts Ps) f ->
+  Some rs = getIncomingValuesForBlockFromPHINodes (los, nts) ps b gl lc rm ->
+  (forall id0 gv opmd0 t0, 
+     In (id0,gv,opmd0) rs -> lookupTypViaIDFromFdef f id0 = Some t0 ->
+     wf_genericvalue (los, nts) gv t0).
+Proof.
+  intros.
+  assert (blockInFdefB (block_intro l3 ps cs tmn) f) as Hbinf.
+    symmetry in H.
+    apply lookupBlockViaLabelFromFdef_inv in H; auto.
+    destruct H; eauto.
+  eapply getIncomingValuesForBlockFromPHINodes_spec2_aux with (ps1:=nil); 
+    eauto using wf_fdef__wf_phinodes.
+Qed.
+
+Lemma updateValuesForNewBlock_spec7 : forall TD f lc rm,
+  wf_lc TD f lc ->
+  forall rs lc' rm', 
+  (forall id0 gv opmd0 t0, 
+     In (id0,gv,opmd0) rs -> lookupTypViaIDFromFdef f id0 = Some t0 ->
+     wf_genericvalue TD gv t0) ->
+  updateValuesForNewBlock rs lc rm = (lc', rm') ->
+  wf_lc TD f lc'.
+Proof.  
+  induction rs; intros; simpl in *.
+    inv H1. auto.
+
+    destruct a. destruct p.
+    remember (updateValuesForNewBlock rs lc rm) as R.
+    destruct R as [lc1 rm1].
+    assert (lc' = updateAddAL GenericValue lc1 i0 g) as EQ.
+      destruct o; inv H1; auto.
+    subst.
+    intros x gvx tx Htyp Hlk.
+    destruct (i0==x); subst.
+      rewrite lookupAL_updateAddAL_eq in Hlk. inv Hlk. eauto.
+
+      rewrite <- lookupAL_updateAddAL_neq in Hlk; auto.
+      eapply IHrs in Hlk; eauto.
+Qed.
+
 (*****************************************)
 (* wf_data *)
 
@@ -1050,7 +1227,6 @@ Qed.
 Lemma malloc_extends_wf_rmetadata : forall
   (TD : TargetData)
   (rm : AssocList metadata)
-  (lc : GVMap)
   (id0 : atom)
   (gn : GenericValue)
   (align0 : align)
@@ -1058,18 +1234,16 @@ Lemma malloc_extends_wf_rmetadata : forall
   (Mem' : mem)
   (tsz : sz)
   (mb : mblock)
-  (lc' : GVMap)
   (rm' : rmetadata)
   (n : Z)
   (H1 : malloc TD Mem0 tsz gn align0 = ret (Mem', mb))
   (H2 : GV2int TD Size.ThirtyTwo gn = ret n)
-  (H3 : prop_reg_metadata lc rm id0 (blk2GV TD mb) (bound2MD mb tsz n) 
-          = (lc', rm'))
+  (H3 : updateAddAL _ rm id0 (bound2MD mb tsz n) = rm')
   (Hwfr : wf_rmetadata TD Mem0 rm),
   wf_rmetadata TD Mem' rm'.
 Proof.
   intros.
-  invert_prop_reg_metadata. clear H3.
+  subst.
   unfold malloc in H1.
   rewrite H2 in H1.
   destruct (zle 0 (Size.to_Z tsz * n)); try solve [inversion H1].
@@ -1555,7 +1729,7 @@ Proof.
   assert (J':=@Hwfm b ofs blk bofs eofs J).
   eapply alloc_preserves_wf_data; eauto.
 Qed.
-  
+
 Lemma malloc_extends_wf_mmetadata : forall
   (TD : TargetData)
   (lc : GVMap)
@@ -1567,18 +1741,13 @@ Lemma malloc_extends_wf_mmetadata : forall
   (Mem' : mem)
   (tsz : sz)
   (mb : mblock)
-  (lc' : GVMap)
-  (rm' : rmetadata)
-  (n : Z) rm
+  (n : Z)
   (H1 : malloc TD Mem0 tsz gn align0 = ret (Mem', mb))
   (H2 : GV2int TD Size.ThirtyTwo gn = ret n)
-  (H3 : prop_reg_metadata lc rm id0 (blk2GV TD mb) (bound2MD mb tsz n) =
-          (lc', rm'))
   (Hwfm : wf_mmetadata TD Mem0 MM),
   wf_mmetadata TD Mem' MM.
 Proof.
-  intros.
-  invert_prop_reg_metadata. clear H3.
+  intros. subst.
   unfold malloc in H1.
   rewrite H2 in H1.
   destruct (zle 0 (Size.to_Z tsz * n)); try solve [inversion H1].

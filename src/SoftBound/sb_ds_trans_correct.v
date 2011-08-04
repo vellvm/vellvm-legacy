@@ -1501,6 +1501,33 @@ Qed.
 Require Import sb_ds_trans_cmd_cases.
 Require Import sb_ds_trans_mem_cases.
 
+Ltac ctx_simpl :=
+  match goal with
+  | [H1 : getOperandValue ?TD ?vp ?lc ?gl = _,
+     H2 : getOperandValue ?TD ?vp ?lc ?gl = _ |- _ ] =>
+    rewrite H1 in H2; inv H2
+  | [H1 : getTypeAllocSize ?TD ?t = _,
+     H2 : getTypeAllocSize ?TD ?t = _ |- _ ] =>
+    rewrite H1 in H2; inv H2
+  | [H1 : malloc ?TD ?Mem0 ?tsz0 ?gn ?align0 = _,
+     H2 : malloc ?TD ?Mem0 ?tsz0 ?gn ?align0 = _ |- _ ] =>
+    rewrite H1 in H2; inv H2
+  | [H1 : lookupExFdecViaGV ?TD ?Ps ?gl ?lc ?fs ?fv = _,
+     H2 : lookupExFdecViaGV ?TD ?Ps ?gl ?lc ?fs ?fv = _ |- _ ] =>
+    rewrite H1 in H2; inv H2
+  | [H1 : LLVMgv.params2GVs ?TD ?lp ?lc ?gl = _,
+     H2 : LLVMgv.params2GVs ?TD ?lp ?lc ?gl = _ |- _ ] =>
+    rewrite H1 in H2; inv H2
+  | [H1 : callExternalFunction ?Mem0 ?fid ?gvs = _,
+     H2 : callExternalFunction ?Mem0 ?fid ?gvs = _ |- _ ] =>
+    rewrite H1 in H2; inv H2
+  end.
+
+Lemma mismatch_cons_false : forall A ECs (EC:A), ECs = EC :: ECs -> False.
+Proof.
+  induction ECs; intros; inversion H; eauto.
+Qed.
+
 Lemma SBpass_is_correct : forall mi mgb sbSt St sbSt' tr,
   sbState_simulates_State mi mgb sbSt St ->
   SBopsem.dsInsn sbSt sbSt' tr -> 
@@ -1510,7 +1537,10 @@ Lemma SBpass_is_correct : forall mi mgb sbSt St sbSt' tr,
     Values.inject_incr mi mi'.
 Proof.
   intros mi mgb sbSt St sbSt' tr Hsim Hsbop.
-  (sb_dsInsn_cases (induction Hsbop) Case).
+  inv Hsbop.
+  rename H into Hsbop.
+  rename H0 into Hllvmop.
+  (sb_dsInsn_cases (induction Hsbop) Case); inv Hllvmop.
 Case "dsReturn". eapply SBpass_is_correct__dsReturn; eauto.
 Case "dsReturnVoid". eapply SBpass_is_correct__dsReturnVoid; eauto.
 Case "dsBranch".  eapply SBpass_is_correct__dsBranch; eauto.
@@ -1519,13 +1549,25 @@ Case "dsBop". eapply SBpass_is_correct__dsBop; eauto.
 Case "dsFBop". eapply SBpass_is_correct__dsFBop; eauto.
 Case "dsExtractValue". eapply SBpass_is_correct__dsExtractValue; eauto.
 Case "dsInsertValue". eapply SBpass_is_correct__dsInsertValue; eauto.
-Case "dsMalloc". eapply SBpass_is_correct__dsMalloc; eauto.
+Case "dsMalloc".
+  repeat ctx_simpl.
+  eapply SBpass_is_correct__dsMalloc; eauto.
 Case "dsFree". eapply SBpass_is_correct__dsFree; eauto.
-Case "dsAlloca". eapply SBpass_is_correct__dsAlloca; eauto.
-Case "dsLoad_nptr". eapply SBpass_is_correct__dsLoad_nptr; eauto.
-Case "dsLoad_ptr". eapply SBpass_is_correct__dsLoad_ptr; eauto.
-Case "dsStore_nptr". eapply SBpass_is_correct__dsStore_nptr; eauto.
-Case "dsStore_ptr". eapply SBpass_is_correct__dsStore_ptr; eauto.
+Case "dsAlloca". 
+  repeat ctx_simpl.
+  eapply SBpass_is_correct__dsAlloca; eauto.
+Case "dsLoad_nptr". 
+  repeat ctx_simpl.
+  eapply SBpass_is_correct__dsLoad_nptr; eauto.
+Case "dsLoad_ptr". 
+  repeat ctx_simpl.
+  eapply SBpass_is_correct__dsLoad_ptr; eauto.
+Case "dsStore_nptr". 
+  repeat ctx_simpl.
+  eapply SBpass_is_correct__dsStore_nptr; eauto.
+Case "dsStore_ptr". 
+  repeat ctx_simpl.
+  eapply SBpass_is_correct__dsStore_ptr; eauto.
 Case "dsGEP". eapply SBpass_is_correct__dsGEP; eauto.
 Case "dsTrunc". eapply SBpass_is_correct__dsTrunc; eauto.
 Case "dsExt". eapply SBpass_is_correct__dsExt; eauto.
@@ -1536,9 +1578,19 @@ Case "dsOthercast". eapply SBpass_is_correct__dsOthercast; eauto.
 Case "dsIcmp". eapply SBpass_is_correct__dsIcmp; eauto.
 Case "dsFcmp". eapply SBpass_is_correct__dsFcmp; eauto.
 Case "dsSelect_nptr". eapply SBpass_is_correct__dsSelect_nptr; eauto.
-Case "dsSelect_ptr". eapply SBpass_is_correct__dsSelect_ptr; eauto.
-Case "dsCall". eapply SBpass_is_correct__dsCall; eauto.
-Case "dsExCall". eapply SBpass_is_correct__dsExCall; eauto.
+Case "dsSelect_ptr". 
+  repeat ctx_simpl.
+  eapply SBpass_is_correct__dsSelect_ptr; eauto.
+  unfold prop_reg_metadata.
+  destruct (isGVZero TD c0); eauto.
+Case "dsCall". 
+  eapply SBpass_is_correct__dsCall; eauto.
+  apply mismatch_cons_false in H27. inv H27.
+Case "dsExCall". 
+  symmetry in H29. apply mismatch_cons_false in H29. inv H29.
+
+  repeat ctx_simpl.
+  eapply SBpass_is_correct__dsExCall; eauto.
 Qed.
 
 (*****************************)
