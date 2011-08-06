@@ -551,6 +551,61 @@ Proof.
   inv H; auto.
 Qed.
 
+(**************************************)
+(* To realize it in LLVM, we can try to dynamically cast fptr to Function*, 
+   if failed, return None
+   if successeful, we can return this function's name *)
+Fixpoint lookupFdefViaGVFromFunTable (fs:GVMap) (fptr:GenericValue) : option id 
+  :=
+match fs with
+| nil => None
+| (id0,gv0)::fs' => 
+  if eq_gv gv0 fptr
+  then Some id0 
+  else lookupFdefViaGVFromFunTable fs' fptr
+end.
+
+Definition lookupFdefViaPtr Ps fs fptr : option fdef :=
+  do fn <- lookupFdefViaGVFromFunTable fs fptr;
+     lookupFdefViaIDFromProducts Ps fn.
+
+Definition lookupExFdecViaPtr (Ps:products) (fs:GVMap) fptr : option fdec :=
+do fn <- lookupFdefViaGVFromFunTable fs fptr;
+    match lookupFdefViaIDFromProducts Ps fn with 
+    | Some _ => None
+    | None => lookupFdecViaIDFromProducts Ps fn
+    end
+.
+
+Lemma lookupFdefViaPtr_inversion : forall Ps fs fptr f,
+  lookupFdefViaPtr Ps fs fptr = Some f ->
+  exists fn,
+    lookupFdefViaGVFromFunTable fs fptr = Some fn /\
+    lookupFdefViaIDFromProducts Ps fn = Some f.
+Proof.
+  intros.
+  unfold lookupFdefViaPtr in H.
+  destruct (lookupFdefViaGVFromFunTable fs fptr); tinv H.
+  simpl in H. exists i0. eauto.
+Qed.  
+
+Lemma lookupExFdecViaPtr_inversion : forall Ps fs fptr f,
+  lookupExFdecViaPtr Ps fs fptr = Some f ->
+  exists fn,
+    lookupFdefViaGVFromFunTable fs fptr = Some fn /\
+    lookupFdefViaIDFromProducts Ps fn = None /\
+    lookupFdecViaIDFromProducts Ps fn = Some f.
+Proof.
+  intros.
+  unfold lookupExFdecViaPtr in H.
+  destruct (lookupFdefViaGVFromFunTable fs fptr); tinv H.
+  simpl in H. exists i0. 
+  destruct (lookupFdefViaIDFromProducts Ps i0); inv H; auto.
+Qed.  
+
+Axiom callExternalFunction : mem -> id -> list GenericValue -> 
+  option ((option GenericValue)*mem).
+
 (************** GVs Interface ******************)
 
 Module Type GenericValuesSig.
@@ -663,499 +718,6 @@ Axiom none_undef2gvs_inv : forall gv gv' t,
 
 End GenericValuesSig.
 
-(************** Instantiate GVs ******************)
-
-Module NDGenericValues : GenericValuesSig.
-
-Export LLVMsyntax.
-Export LLVMgv.
-
-Lemma singleton_inhabited : forall U (x:U), Inhabited U (Singleton U x).
-Proof.
-  intros. apply Inhabited_intro with (x:=x); auto using In_singleton.
-Qed.
-
-Lemma full_set_inhabited : forall U, 
-  (exists x:U, True) -> Inhabited U (Full_set U).
-Proof.
-  intros. inversion H.
-  apply Inhabited_intro with (x:=x); auto using Full_intro.
-Qed.
-
-Definition t := Ensemble GenericValue.
-Definition Map := list (id * t).
-Definition instantiate_gvs (gv : GenericValue) (gvs : t) : Prop :=
-  Ensembles.In _ gvs gv.
-Definition inhabited (gvs : t) : Prop := Ensembles.Inhabited _ gvs.
-Hint Unfold instantiate_gvs inhabited.
-Definition cundef_gvs gv ty : t :=
-match ty with
-| typ_int sz => fun gv => exists z, gv = (Vint sz z, Mint (sz - 1))::nil
-| typ_floatpoint fp_float => fun gv => exists f, gv = (Vfloat f, Mfloat32)::nil
-| typ_floatpoint fp_double => fun gv => exists f, gv = (Vfloat f, Mfloat64)::nil
-| typ_pointer _ => 
-    fun gv => exists b, exists ofs, gv = (Vptr b ofs, AST.Mint 31)::nil
-| _ => Singleton GenericValue gv
-end.
-
-Definition undef_gvs gv ty : t :=
-match ty with
-| typ_int sz =>
-    Ensembles.Union _ (Singleton _ gv)
-      (fun gv => exists z, gv = (Vint sz z, Mint (sz-1))::nil)
-| typ_floatpoint fp_float => 
-    Ensembles.Union _ (Singleton _ gv)
-      (fun gv => exists f, gv = (Vfloat f, Mfloat32)::nil)
-| typ_floatpoint fp_double => 
-    Ensembles.Union _ (Singleton _ gv)
-      (fun gv => exists f, gv = (Vfloat f, Mfloat64)::nil)
-| typ_pointer _ =>
-    Ensembles.Union _ (Singleton _ gv)
-      (fun gv => exists b, exists ofs, gv = (Vptr b ofs, AST.Mint 31)::nil)
-| _ => Singleton GenericValue gv
-end.
-
-Definition cgv2gvs (gv:GenericValue) ty : t :=
-match gv with
-| (Vundef, _)::nil => cundef_gvs gv ty
-| _ => Singleton _ gv
-end.
-
-Definition gv2gvs (gv:GenericValue) (ty:typ) : t :=
-match gv with
-| (Vundef, _)::nil => undef_gvs gv ty
-| _ => Singleton GenericValue gv
-end.
-
-Notation "gv @ gvs" :=  
-  (instantiate_gvs gv gvs) (at level 43, right associativity).
-Notation "$ gv # t $" := (gv2gvs gv t) (at level 41).
-
-Lemma cundef_gvs__getTypeSizeInBits : forall S los nts gv t sz al gv',
-  wf_typ S t ->
-  _getTypeSizeInBits_and_Alignment los 
-    (getTypeSizeInBits_and_Alignment_for_namedts (los,nts) true) true t = 
-      Some (sz, al) ->
-  Coqlib.nat_of_Z (Coqlib.ZRdiv (Z_of_nat sz) 8) = sizeGenericValue gv ->
-  gv' @ (cundef_gvs gv t) ->
-  Coqlib.nat_of_Z (Coqlib.ZRdiv (Z_of_nat sz) 8) = 
-    sizeGenericValue gv'.
-Proof.
-  intros S los nts gv t sz al gv' Hwft Heq1 Heq2 Hin.
-  destruct t; simpl in *;
-    try solve [inv Heq1; inv Hin; erewrite int_typsize; eauto |
-               inv Heq1; inv Hin; eauto].
-    destruct f; try solve [inv Heq1; inv Hin; eauto].
-    inv Heq1. inv Hin. inv H. simpl. auto.
-Qed.
-
-Lemma cundef_gvs__inhabited : forall gv ty, inhabited (cundef_gvs gv ty).
-Proof.
-  destruct ty; simpl; 
-    try solve [eapply Ensembles.Inhabited_intro; constructor].
-    eapply Ensembles.Inhabited_intro.
-      exists (Int.zero s). auto.
-
-    destruct f; try solve [
-      eapply Ensembles.Inhabited_intro; exists Float.zero; auto |
-      eapply Ensembles.Inhabited_intro; constructor].
-
-    eapply Ensembles.Inhabited_intro.
-      exists Mem.nullptr. exists (Int.repr 31 0). auto.
-Qed.
-
-Lemma undef_gvs__getTypeSizeInBits : forall S los nts gv t sz al gv',
-  wf_typ S t ->
-  _getTypeSizeInBits_and_Alignment los 
-    (getTypeSizeInBits_and_Alignment_for_namedts (los,nts) true) true t = 
-      Some (sz, al) ->
-  Coqlib.nat_of_Z (Coqlib.ZRdiv (Z_of_nat sz) 8) = sizeGenericValue gv ->
-  gv' @ (undef_gvs gv t) ->
-  Coqlib.nat_of_Z (Coqlib.ZRdiv (Z_of_nat sz) 8) = 
-    sizeGenericValue gv'.
-Proof.
-  intros S los nts gv t sz al gv' Hwft Heq1 Heq2 Hin.
-  destruct t; simpl in *;
-    try solve [inv Heq1; inv Hin; erewrite int_typsize; eauto |
-               inv Heq1; inv Hin; eauto].
-
-    inv Heq1; inv Hin; inv H; unfold Size.to_nat; 
-      try solve [eauto | erewrite int_typsize; eauto].
-
-    destruct f; try solve [inv Heq1; inv Hin; eauto |
-                           inv Heq1; inv Hin; inv H; auto].
-
-    inv Heq1; inv Hin; inv H; auto.
-      inv H0. auto.
-Qed.
-
-Lemma undef_gvs__inhabited : forall gv ty, inhabited (undef_gvs gv ty).
-Proof.
-  destruct ty; simpl; try solve [
-    eapply Ensembles.Inhabited_intro; apply Union_introl; constructor |
-    eapply Ensembles.Inhabited_intro; constructor].
-
-    destruct f; try solve [
-      eapply Ensembles.Inhabited_intro; apply Union_introl; constructor |
-      eapply Ensembles.Inhabited_intro; constructor].
-Qed.
-
-Lemma cgv2gvs__getTypeSizeInBits : forall S los nts gv t sz al gv',
-  wf_typ S t ->
-  _getTypeSizeInBits_and_Alignment los 
-    (getTypeSizeInBits_and_Alignment_for_namedts (los,nts) true) true t = 
-      Some (sz, al) ->
-  Coqlib.nat_of_Z (Coqlib.ZRdiv (Z_of_nat sz) 8) = sizeGenericValue gv ->
-  gv' @ (cgv2gvs gv t) ->
-  Coqlib.nat_of_Z (Coqlib.ZRdiv (Z_of_nat sz) 8) = 
-    sizeGenericValue gv'.
-Proof.
-  intros S los nts gv t sz al gv' Hwft Heq1 Heq2 Hin.
-  destruct gv; simpl in *.
-    inv Hin. simpl. auto.
-
-    destruct p.
-    destruct v; try solve [inv Hin; simpl; auto].
-    destruct gv; try solve [inv Hin; simpl; auto].
-      eapply cundef_gvs__getTypeSizeInBits in Hin; eauto.
-Qed.
-
-Lemma cgv2gvs__inhabited : forall gv t, inhabited (cgv2gvs gv t).
-Proof.
-  intros gv t.
-  destruct gv; simpl.
-    apply Ensembles.Inhabited_intro with (x:=nil).
-    apply Ensembles.In_singleton.
-
-    destruct p.
-    destruct v; auto using singleton_inhabited, cundef_gvs__inhabited.
-    destruct gv; auto using singleton_inhabited, cundef_gvs__inhabited.
-Qed.
-
-Lemma gv2gvs__getTypeSizeInBits : forall S los nts gv t sz al,
-  wf_typ S t ->
-  _getTypeSizeInBits_and_Alignment los 
-    (getTypeSizeInBits_and_Alignment_for_namedts (los,nts) true) true t = 
-      Some (sz, al) ->
-  Coqlib.nat_of_Z (Coqlib.ZRdiv (Z_of_nat sz) 8) = sizeGenericValue gv ->
-  forall gv', gv' @ (gv2gvs gv t) ->
-  sizeGenericValue gv' = Coqlib.nat_of_Z (Coqlib.ZRdiv (Z_of_nat sz) 8).
-Proof.
-  intros S los nts gv t sz al gv' Hwft Heq1 Heq2 Hin.
-  destruct gv; simpl in *.
-    inv Hin. simpl. auto.
-
-    destruct p.
-    destruct v; try solve [inv Hin; simpl; auto].
-    destruct gv; try solve [inv Hin; simpl; auto].
-      eapply undef_gvs__getTypeSizeInBits in Hin; eauto.
-Qed.
-
-Lemma gv2gvs__inhabited : forall gv t, inhabited ($ gv # t $).
-Proof.
-  intros gv t.
-  destruct gv; simpl.
-    apply Ensembles.Inhabited_intro with (x:=nil).
-    apply Ensembles.In_singleton.
-
-    destruct p.
-    destruct v; auto using singleton_inhabited, undef_gvs__inhabited.
-    destruct gv; auto using singleton_inhabited, undef_gvs__inhabited.
-Qed.
-
-Definition lift_op1 (f: GenericValue -> option GenericValue) gvs1 ty : t :=
-  fun gv2 => exists gv1, exists gv2', 
-    gv1 @ gvs1 /\ f gv1 = Some gv2' /\ (gv2 @ $ gv2' # ty $).
-
-Definition lift_op2 (f: GenericValue -> GenericValue -> option GenericValue)
-  gvs1 gvs2 ty : t :=
-  fun gv3 => exists gv1, exists gv2, exists gv3',
-    gv1 @ gvs1 /\ gv2 @ gvs2 /\ f gv1 gv2 = Some gv3' /\ (gv3 @ $ gv3' # ty $).
-
-Lemma lift_op1__inhabited : forall f gvs1 ty
-  (H:forall x, exists z, f x = Some z),
-  inhabited gvs1 -> inhabited (lift_op1 f gvs1 ty).
-Proof.
-  intros.
-  unfold lift_op1. 
-  inv H0.
-  destruct (@H x) as [z J].
-  destruct (@gv2gvs__inhabited z ty).
-  exists x0. unfold Ensembles.In. exists x. exists z.
-  rewrite J.
-  repeat (split; auto).
-Qed.
-
-Lemma lift_op2__inhabited : forall f gvs1 gvs2 ty
-  (H:forall x y, exists z, f x y = Some z),
-  inhabited gvs1 -> Ensembles.Inhabited _ gvs2 ->
-  inhabited (lift_op2 f gvs1 gvs2 ty).
-Proof.
-  intros.
-  unfold lift_op2. 
-  inv H0. inv H1.
-  destruct (@H x x0) as [z J].
-  destruct (@gv2gvs__inhabited z ty).
-  exists x1. unfold Ensembles.In. exists x. exists x0. exists z.
-  rewrite J.
-  repeat (split; auto).
-Qed.
-
-Lemma lift_op1__getTypeSizeInBits : forall S los nts f g t sz al,
-  wf_typ S t ->
-  _getTypeSizeInBits_and_Alignment los 
-    (getTypeSizeInBits_and_Alignment_for_namedts (los,nts) true) true t = 
-      Some (sz, al) ->
-  (forall x y, x @ g -> f x = Some y -> 
-   sizeGenericValue y = nat_of_Z (ZRdiv (Z_of_nat sz) 8)) ->
-  forall gv : GenericValue,
-  gv @ lift_op1 f g t ->
-  sizeGenericValue gv = nat_of_Z (ZRdiv (Z_of_nat sz) 8).
-Proof.
-  intros.
-  unfold lift_op1 in H2.
-  destruct H2 as [x [y [J1 [J2 J3]]]].
-  apply H1 in J2; auto.
-  eapply gv2gvs__getTypeSizeInBits; eauto.
-Qed.
-
-Lemma lift_op2__getTypeSizeInBits : forall S los nts f g1 g2 t sz al,
-  wf_typ S t ->
-  _getTypeSizeInBits_and_Alignment los 
-    (getTypeSizeInBits_and_Alignment_for_namedts (los,nts) true) true t = 
-      Some (sz, al) ->
-  (forall x y z, x @ g1 -> y @ g2 -> f x y = Some z -> 
-   sizeGenericValue z = nat_of_Z (ZRdiv (Z_of_nat sz) 8)) ->
-  forall gv : GenericValue,
-  gv @ lift_op2 f g1 g2 t ->
-  sizeGenericValue gv = nat_of_Z (ZRdiv (Z_of_nat sz) 8).
-Proof.
-  intros.
-  unfold lift_op2 in H2.
-  destruct H2 as [x [y [z [J1 [J2 [J3 J4]]]]]].
-  apply H1 in J3; auto.
-  eapply gv2gvs__getTypeSizeInBits; eauto.
-Qed.
-
-Lemma inhabited_inv : forall gvs, inhabited gvs -> exists gv, gv @ gvs.
-Proof.
-  intros. inv H; eauto.
-Qed.
-
-Lemma instantiate_undef__undef_gvs : forall gv t, gv @ (undef_gvs gv t).
-Proof.
-  intros. unfold undef_gvs.
-  destruct t0; try solve [apply Union_introl; constructor | constructor].
-  destruct f; try solve [apply Union_introl; constructor | constructor].
-Qed.
-
-Lemma instantiate_gv__gv2gvs : forall gv t, gv @ ($ gv # t $).
-Proof.
-  intros.
-  destruct gv; simpl; try constructor.
-  destruct p; simpl; try constructor.
-  destruct v; simpl; try constructor.
-  destruct gv; simpl; 
-    try solve [constructor | auto using instantiate_undef__undef_gvs].  
-Qed.
-
-Lemma none_undef2gvs_inv : forall gv gv' t,
-  gv @ $ gv' # t $ -> (forall mc, (Vundef, mc)::nil <> gv') -> gv = gv'.
-Proof.
-  intros.
-  destruct gv'; try solve [inv H; auto].
-  destruct p.
-  destruct v; try solve [inv H; auto].
-  destruct gv'; try solve [inv H; auto].
-  assert (J:=@H0 m). congruence.
-Qed.
-
-End NDGenericValues.
-
-Module DGenericValues : GenericValuesSig.
-
-Export LLVMsyntax.
-Export LLVMgv.
-
-Definition t := option GenericValue.
-Definition Map := list (id * t).
-Definition instantiate_gvs (gv : GenericValue) (gvs : t) : Prop := gvs = Some gv.
-Definition inhabited (gvs : t) : Prop := gvs <> None.
-Definition cundef_gvs (gv:GenericValue) (ty:typ) : t := 
-  Some (LLVMgv.cundef_gv gv ty).
-Definition undef_gvs gv (ty:typ) : t := Some gv.
-Definition cgv2gvs (gv:GenericValue) (ty:typ) : t := Some (LLVMgv.cgv2gv gv ty).
-Definition gv2gvs (gv:GenericValue) (ty:typ) : t := Some gv.
-
-Hint Unfold instantiate_gvs inhabited.
-
-Notation "gv @ gvs" :=  
-  (instantiate_gvs gv gvs) (at level 43, right associativity).
-Notation "$ gv # t $" := (gv2gvs gv t) (at level 41).
-
-Lemma cundef_gvs__getTypeSizeInBits : forall S los nts gv ty sz al gv',
-  wf_typ S ty ->
-  _getTypeSizeInBits_and_Alignment los 
-    (getTypeSizeInBits_and_Alignment_for_namedts (los,nts) true) true ty = 
-      Some (sz, al) ->
-  Coqlib.nat_of_Z (Coqlib.ZRdiv (Z_of_nat sz) 8) = sizeGenericValue gv ->
-  gv' @ (cundef_gvs gv ty) ->
-  Coqlib.nat_of_Z (Coqlib.ZRdiv (Z_of_nat sz) 8) = 
-    sizeGenericValue gv'.
-Proof.
-  unfold instantiate_gvs. 
-  intros. inv H2.
-  eapply LLVMgv.cundef_gv__getTypeSizeInBits; eauto.
-Qed.
-
-Lemma cundef_gvs__inhabited : forall gv ty, inhabited (cundef_gvs gv ty).
-Proof. intros. unfold cundef_gvs, inhabited. congruence. Qed.
-
-Lemma undef_gvs__getTypeSizeInBits : forall S los nts gv t sz al gv',
-  wf_typ S t ->
-  _getTypeSizeInBits_and_Alignment los 
-    (getTypeSizeInBits_and_Alignment_for_namedts (los,nts) true) true t = 
-      Some (sz, al) ->
-  Coqlib.nat_of_Z (Coqlib.ZRdiv (Z_of_nat sz) 8) = sizeGenericValue gv ->
-  gv' @ (undef_gvs gv t) ->
-  Coqlib.nat_of_Z (Coqlib.ZRdiv (Z_of_nat sz) 8) = 
-    sizeGenericValue gv'.
-Proof. 
-  unfold instantiate_gvs. 
-  intros. inv H2. auto.
-Qed.
-
-Lemma undef_gvs__inhabited : forall gv ty, inhabited (undef_gvs gv ty).
-Proof. intros. unfold undef_gvs, inhabited. congruence. Qed.
-
-Lemma cgv2gvs__getTypeSizeInBits : forall S los nts gv t sz al gv',
-  wf_typ S t ->
-  _getTypeSizeInBits_and_Alignment los 
-    (getTypeSizeInBits_and_Alignment_for_namedts (los,nts) true) true t = 
-      Some (sz, al) ->
-  Coqlib.nat_of_Z (Coqlib.ZRdiv (Z_of_nat sz) 8) = sizeGenericValue gv ->
-  gv' @ (cgv2gvs gv t) ->
-  Coqlib.nat_of_Z (Coqlib.ZRdiv (Z_of_nat sz) 8) = 
-    sizeGenericValue gv'.
-Proof.
-  unfold instantiate_gvs. 
-  intros. inv H2.
-  eapply LLVMgv.cgv2gv__getTypeSizeInBits; eauto.
-Qed.
-
-Lemma cgv2gvs__inhabited : forall gv t, inhabited (cgv2gvs gv t).
-Proof. intros. unfold cgv2gvs, inhabited. congruence. Qed.
-
-Lemma gv2gvs__getTypeSizeInBits : forall S los nts gv t sz al,
-  wf_typ S t ->
-  _getTypeSizeInBits_and_Alignment los 
-    (getTypeSizeInBits_and_Alignment_for_namedts (los,nts) true) true t = 
-      Some (sz, al) ->
-  Coqlib.nat_of_Z (Coqlib.ZRdiv (Z_of_nat sz) 8) = sizeGenericValue gv ->
-  forall gv', gv' @ (gv2gvs gv t) ->
-  sizeGenericValue gv' = Coqlib.nat_of_Z (Coqlib.ZRdiv (Z_of_nat sz) 8).
-Proof.
-  unfold instantiate_gvs. 
-  intros. inv H2. auto.
-Qed.
-
-Lemma gv2gvs__inhabited : forall gv t, inhabited ($ gv # t $).
-Proof. intros. unfold gv2gvs, inhabited. congruence. Qed.
-
-Definition lift_op1 (f: GenericValue -> option GenericValue) gvs1 (ty:typ) : t :=
-match gvs1 with
-| Some gv1 => f gv1
-| _ => None
-end.
-
-Definition lift_op2 (f: GenericValue -> GenericValue -> option GenericValue)
-  gvs1 gvs2 (ty: typ) : t := 
-match gvs1, gvs2 with
-| Some gv1, Some gv2 => f gv1 gv2
-| _, _ => None
-end.
-
-Lemma lift_op1__inhabited : forall f gvs1 ty
-  (H:forall x, exists z, f x = Some z),
-  inhabited gvs1 -> inhabited (lift_op1 f gvs1 ty).
-Proof.
-  intros.
-  unfold lift_op1. 
-  destruct gvs1; eauto.
-  destruct (@H g) as [z J].
-  rewrite J. congruence.
-Qed.
-
-Lemma lift_op2__inhabited : forall f gvs1 gvs2 t
-  (H:forall x y, exists z, f x y = Some z),
-  inhabited gvs1 -> inhabited gvs2 ->
-  inhabited (lift_op2 f gvs1 gvs2 t).
-Proof.
-  intros.
-  unfold lift_op2. 
-  destruct gvs1; eauto.
-  destruct gvs2; eauto.
-  destruct (@H g g0) as [z J].
-  rewrite J. congruence.
-Qed.
-
-Lemma lift_op1__getTypeSizeInBits : forall S los nts f g t sz al,
-  wf_typ S t ->
-  _getTypeSizeInBits_and_Alignment los 
-    (getTypeSizeInBits_and_Alignment_for_namedts (los,nts) true) true t = 
-      Some (sz, al) ->
-  (forall x y, x @ g -> f x = Some y -> 
-   sizeGenericValue y = nat_of_Z (ZRdiv (Z_of_nat sz) 8)) ->
-  forall gv : GenericValue,
-  gv @ lift_op1 f g t ->
-  sizeGenericValue gv = nat_of_Z (ZRdiv (Z_of_nat sz) 8).
-Proof.
-  intros.
-  unfold lift_op1, instantiate_gvs in H2.
-  destruct g; tinv H2.
-  apply H1 in H2; auto.
-Qed.
-
-Lemma lift_op2__getTypeSizeInBits : forall S los nts f g1 g2 t sz al,
-  wf_typ S t ->
-  _getTypeSizeInBits_and_Alignment los 
-    (getTypeSizeInBits_and_Alignment_for_namedts (los,nts) true) true t = 
-      Some (sz, al) ->
-  (forall x y z, x @ g1 -> y @ g2 -> f x y = Some z -> 
-   sizeGenericValue z = nat_of_Z (ZRdiv (Z_of_nat sz) 8)) ->
-  forall gv : GenericValue,
-  gv @ lift_op2 f g1 g2 t ->
-  sizeGenericValue gv = nat_of_Z (ZRdiv (Z_of_nat sz) 8).
-Proof.
-  intros.
-  unfold lift_op2, instantiate_gvs in H2.
-  destruct g1; tinv H2.
-  destruct g2; tinv H2.
-  apply H1 in H2; auto.
-Qed.
-
-Lemma inhabited_inv : forall gvs, inhabited gvs -> exists gv, gv @ gvs.
-Proof.
-  intros. 
-  destruct gvs; eauto.
-    congruence.
-Qed.
-
-Lemma instantiate_undef__undef_gvs : forall gv t, gv @ (undef_gvs gv t).
-Proof. auto. Qed.
-
-Lemma instantiate_gv__gv2gvs : forall gv t, gv @ ($ gv # t $).
-Proof. auto. Qed.
-
-Lemma none_undef2gvs_inv : forall gv gv' t,
-  gv @ $ gv' # t $ -> (forall mc, (Vundef, mc)::nil <> gv') -> gv = gv'.
-Proof.
-  intros.
-  destruct gv'; try solve [inv H; auto].
-Qed.
-
-End DGenericValues.
-
 (************** Opsem ***************************************************** ***)
 
 Module Opsem (GVsSig : GenericValuesSig).
@@ -1173,12 +735,10 @@ Notation "gv @ gvs" :=
   (GVsSig.instantiate_gvs gv gvs) (at level 43, right associativity).
 Notation "$ gv # t $" := (GVsSig.gv2gvs gv t) (at level 41).
 
-Fixpoint in_list_gvs (l1 : list GenericValue) (l2 : list GVs) : Prop :=
-match l1, l2 with
-| nil, nil => True
-| gv1::l1', gvs2::l2' => gv1 @ gvs2 /\ in_list_gvs l1' l2'
-| _, _ => False
-end.
+Definition in_list_gvs (l1 : list GenericValue) (l2 : list GVs) : Prop :=
+List.Forall2 GVsSig.instantiate_gvs l1 l2.
+
+Hint Unfold in_list_gvs.
 
 Notation "vidxs @@ vidxss" := (in_list_gvs vidxs vidxss) 
   (at level 43, right associativity).
@@ -1292,48 +852,7 @@ match lp with
 end.
 
 (**************************************)
-(* To realize it in LLVM, we can try to dynamically cast fptr to Function*, 
-   if failed, return None
-   if successeful, we can return this function's name *)
-Fixpoint lookupFdefViaGVFromFunTable (fs:GVMap) (fptr:GenericValue) : option id 
-  :=
-match fs with
-| nil => None
-| (id0,gv0)::fs' => 
-  if eq_gv gv0 fptr
-  then Some id0 
-  else lookupFdefViaGVFromFunTable fs' fptr
-end.
-
-Definition lookupFdefViaPtr Ps fs fptr : option fdef :=
-  do fn <- lookupFdefViaGVFromFunTable fs fptr;
-     lookupFdefViaIDFromProducts Ps fn.
-
-Definition lookupExFdecViaPtr (Ps:products) (fs:GVMap) fptr : option fdec :=
-do fn <- lookupFdefViaGVFromFunTable fs fptr;
-    match lookupFdefViaIDFromProducts Ps fn with 
-    | Some _ => None
-    | None => lookupFdecViaIDFromProducts Ps fn
-    end
-.
-
-Lemma lookupFdefViaPtr_inversion : forall Ps fs fptr f,
-  lookupFdefViaPtr Ps fs fptr = Some f ->
-  exists fn,
-    lookupFdefViaGVFromFunTable fs fptr = Some fn /\
-    lookupFdefViaIDFromProducts Ps fn = Some f.
-Proof.
-  intros.
-  unfold lookupFdefViaPtr in H.
-  destruct (lookupFdefViaGVFromFunTable fs fptr); tinv H.
-  simpl in H. exists i0. eauto.
-Qed.  
-
-(**************************************)
 (* Realized by libffi in LLVM *)
-Axiom callExternalFunction : mem -> id -> list GenericValue -> 
-  option ((option GenericValue)*mem).
-
 Definition exCallUpdateLocals TD (ft:typ) (noret:bool) (rid:id) 
   (oResult:option GenericValue) (lc :GVsMap) : option GVsMap :=
   match noret with
@@ -1912,6 +1431,15 @@ Inductive s_goeswrong : system -> id -> list GVs -> State -> Prop :=
   ~ s_isFinialState FS ->
   s_goeswrong s main VarArgs FS
 .
+
+End Opsem.
+
+(************** Opsem PP *********************************************** ***)
+
+Module OpsemPP (GVsSig : GenericValuesSig).
+
+Module OPSEM := Opsem GVsSig.
+Export OPSEM.
 
 Inductive wf_GVs : TargetData -> GVs -> typ -> Prop :=
 | wf_GVs_intro : forall TD gvs t sz, 
@@ -5987,11 +5515,7 @@ Proof.
      exists fptr. rewrite <- HeqHlk. rewrite <- HeqHelk. split; auto. 
 Qed.
 
-End Opsem.
-
-Module NDopsem := Opsem NDGenericValues.
-
-Module Dopsem := Opsem DGenericValues.
+End OpsemPP.
 
 
 (*****************************)
