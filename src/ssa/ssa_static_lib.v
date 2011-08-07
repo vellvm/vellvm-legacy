@@ -1405,6 +1405,531 @@ Proof.
   destruct H; subst. auto.
 Qed.
 
+Lemma wf_trunc__wf_value : forall ifs s los nts ps f b i0 t t0 v t1,
+  wf_trunc ifs s (module_intro los nts ps) f b 
+    (insn_cmd (insn_trunc i0 t t0 v t1)) ->
+  wf_value s (module_intro los nts ps) f v t0.
+Proof.
+  intros.
+  inv H; auto.
+Qed.
+
+Lemma wf_ext__wf_typ : forall ifs s los nts ps f b i0 e t0 v t1,
+  wf_ext ifs s (module_intro los nts ps) f b 
+    (insn_cmd (insn_ext i0 e t0 v t1)) ->
+  wf_typ s t1 /\ feasible_typ (los, nts) t1.
+Proof.
+  intros.
+  inv H; auto.
+Qed.
+
+Lemma wf_ext__wf_value : forall ifs s los nts ps f b i0 e t0 v t1,
+  wf_ext ifs s (module_intro los nts ps) f b 
+    (insn_cmd (insn_ext i0 e t0 v t1)) ->
+  wf_value s (module_intro los nts ps) f v t0.
+Proof.
+  intros.
+  inv H; auto.
+Qed.
+
+(************** GenericValue ******************)
+
+Scheme wf_const_ind2 := Induction for wf_const Sort Prop
+  with wf_const_list_ind2 := Induction for wf_const_list Sort Prop.
+
+Combined Scheme wf_const_mutind from wf_const_ind2, wf_const_list_ind2.
+
+Definition const2GV_isnt_stuck_Prop S TD c t (H:wf_const S TD c t) := 
+  forall gl,
+  Constant.feasible_typ TD t ->
+  wf_global TD S gl ->
+  exists gv, _const2GV TD gl c = Some (gv, t).
+
+Definition consts2GV_isnt_stuck_Prop sdct (H:wf_const_list sdct) := 
+  let 'lsdct := unmake_list_system_targetdata_const_typ sdct in
+  let '(lsdc, lt) := split lsdct in
+  let '(lsd, lc) := split lsdc in
+  let '(ls, ld) := split lsd in
+  forall S TD gl, 
+  wf_list_targetdata_typ S TD gl lsd ->
+  Constant.feasible_typs TD (make_list_typ lt) ->
+  (forall t, (forall t0, In t0 lt -> t0 = t) ->
+    exists gv, _list_const_arr2GV TD gl t (make_list_const lc) = Some gv) /\
+  (exists gv, _list_const_struct2GV TD gl (make_list_const lc) = 
+    Some (gv, (make_list_typ lt))).
+
+Lemma const2GV_isnt_stuck_mutind : 
+  (forall S td c t H, @const2GV_isnt_stuck_Prop S td c t H) /\
+  (forall sdct H, @consts2GV_isnt_stuck_Prop sdct H).
+Proof.
+  (wfconst_cases (apply wf_const_mutind with
+    (P  := const2GV_isnt_stuck_Prop)
+    (P0 := consts2GV_isnt_stuck_Prop)) Case);
+    unfold const2GV_isnt_stuck_Prop, consts2GV_isnt_stuck_Prop;
+    intros; subst; simpl; eauto.
+Case "wfconst_zero".
+  destruct (@wf_zeroconst2GV_total targetdata5 typ5) as [gv J]; auto.
+  rewrite J. eauto.
+Case "wfconst_floatingpoint". 
+  inv w; eauto.
+Case "wfconst_undef".
+  eapply gundef__total in H; eauto.
+  destruct H as [gv H].
+  rewrite H. eauto.
+Case "wfconst_array".
+  remember (split
+             (unmake_list_system_targetdata_const_typ
+                (make_list_system_targetdata_const_typ
+                   (map_list_const
+                      (fun const_ : LLVMsyntax.const => 
+                        (system5, targetdata5, const_, typ5))
+                      const_list)))) as R.
+  destruct R as [lsdc lt].
+  remember (split lsdc) as R'.
+  destruct R' as [lsd lc].
+  remember (split lsd) as R''.
+  destruct R'' as [ls ld].
+  destruct (@H system5 targetdata5 gl) as [J1 [gv2 J2]]; 
+    try solve [destruct targetdata5; eauto using const2GV_typsize_mutind_array].
+
+    eapply make_list_const_spec1; eauto.
+
+    assert (make_list_const lc = const_list) as EQ.
+      eapply make_list_const_spec2; eauto.
+    rewrite e. rewrite <- EQ. unfold Size.to_nat in *. 
+    destruct (@J1 typ5) as [gv1 J3]; eauto using make_list_const_spec4.
+    rewrite J3.
+    destruct sz5; eauto.
+
+Case "wfconst_struct".
+  remember (split
+             (unmake_list_system_targetdata_const_typ
+                (make_list_system_targetdata_const_typ
+                   (map_list_const_typ
+                     (fun (const_ : LLVMsyntax.const) (typ_ : LLVMsyntax.typ) => 
+                        (system5, targetdata5, const_, typ_))
+                      const_typ_list)))) as R.
+  destruct R as [lsdc lt].
+  remember (split lsdc) as R'.
+  destruct R' as [lsd lc].
+  remember (split lsd) as R''.
+  destruct R'' as [ls ld].
+  destruct (@H system5 targetdata5 gl) as [_ [gv2 J2]];
+    try solve [destruct targetdata5; eauto using const2GV_typsize_mutind_struct].
+
+    eapply map_list_const_typ_spec3; eauto.
+
+    erewrite <- map_list_const_typ_spec2; eauto.
+    erewrite <- map_list_const_typ_spec1; eauto.
+    rewrite J2. 
+    destruct gv2; eauto.
+
+Case "wfconst_gid".
+  apply H0 in e.  
+  destruct e as [gv [sz [e [J1 J2]]]].
+  rewrite e. eauto.
+Case "wfconst_trunc_int".
+  inv f.
+  eapply H in H1; eauto.
+  destruct H1 as [gv H1].
+  rewrite H1.
+  unfold mtrunc.
+  assert (exists gv, gundef targetdata5 (typ_int sz2) = Some gv) as J.
+    eapply gundef__total; eauto.
+  destruct J as [gv0 J].
+  rewrite J.
+  destruct (GV2val targetdata5 gv); eauto.
+  destruct v; eauto.
+Case "wfconst_trunc_fp".
+  inv f.
+  eapply H in H1; eauto.
+  destruct H1 as [gv H1].
+  rewrite H1.
+  unfold mtrunc. rewrite e.
+  assert (exists gv, gundef targetdata5 (typ_floatpoint floating_point2) = 
+           Some gv) as J.
+    eapply gundef__total; eauto.
+  destruct J as [gv0 J].
+  rewrite J.
+  destruct (GV2val targetdata5 gv); eauto.
+  destruct v; eauto.
+  destruct floating_point2; try solve [eauto | inversion w0].
+Case "wfconst_zext".
+  inv f.
+  eapply H in H1; eauto.
+  destruct H1 as [gv H1].
+  rewrite H1.
+  unfold mext.
+  assert (exists gv, gundef targetdata5 (typ_int sz2) = Some gv) as J.
+    eapply gundef__total; eauto.
+  destruct J as [gv0 J].
+  rewrite J.
+  destruct (GV2val targetdata5 gv); eauto.
+  destruct v; eauto.
+Case "wfconst_sext".
+  inv f.
+  eapply H in H1; eauto.
+  destruct H1 as [gv H1].
+  rewrite H1.
+  unfold mext.
+  assert (exists gv, gundef targetdata5 (typ_int sz2) = Some gv) as J.
+    eapply gundef__total; eauto.
+  destruct J as [gv0 J].
+  rewrite J.
+  destruct (GV2val targetdata5 gv); eauto.
+  destruct v; eauto.
+Case "wfconst_fpext".
+  inv f.
+  eapply H in H1; eauto.
+  destruct H1 as [gv H1].
+  rewrite H1.
+  unfold mext.
+  assert (exists gv, gundef targetdata5 (typ_floatpoint floating_point2) = 
+    Some gv) as J.
+    eapply gundef__total; eauto.
+  destruct J as [gv0 J].
+  rewrite J.
+  rewrite e.
+  destruct (GV2val targetdata5 gv); eauto.
+  destruct v; eauto.
+  destruct floating_point2; try solve [eauto | inversion w0].
+Case "wfconst_ptrtoint".
+  inv f.
+  eapply H in H1; eauto.
+  destruct H1 as [gv H1].
+  rewrite H1. 
+  assert (exists gv, gundef targetdata5 (typ_int sz5) = 
+    Some gv) as J.
+    eapply gundef__total; eauto.
+  destruct J as [gv0 J].
+  rewrite J. eauto.
+Case "wfconst_inttoptr".
+  inv f.
+  eapply H in H1; eauto.
+  destruct H1 as [gv H1].
+  rewrite H1.
+  assert (exists gv, gundef targetdata5 (typ_pointer typ5) = 
+    Some gv) as J.
+    eapply gundef__total; eauto.
+  destruct J as [gv0 J].
+  rewrite J. eauto.
+Case "wfconst_bitcast".
+  inv f. unfold mbitcast.
+  eapply H in H1; eauto.
+  destruct H1 as [gv H1].
+  rewrite H1. eauto.
+Case "wfconst_gep".
+  clear H0.
+  inv f.
+  eapply H in H2; eauto.
+  destruct H2 as [gv H2].
+  rewrite H2. rewrite e0.
+  assert (exists gv, gundef targetdata5 typ' = Some gv) as J.
+    eapply gundef__total; eauto.
+  destruct J as [gv0 J].
+  rewrite J.
+  destruct (GV2ptr targetdata5 (getPointerSize targetdata5) gv); eauto.
+  destruct (intConsts2Nats targetdata5 const_list); eauto.
+  destruct (mgep targetdata5 typ5 v l0); eauto.
+Case "wfconst_select".
+  assert (J:=H2).
+  eapply H0 in H2; eauto.
+  destruct H2 as [gv H2].
+  rewrite H2. 
+  eapply H1 in J; eauto.
+  destruct J as [gv' J].
+  rewrite J. 
+  inv f.
+  eapply H in H4; eauto.
+  destruct H4 as [gv'' H4].
+  rewrite H4.
+  destruct (isGVZero targetdata5 gv''); eauto.
+Case "wfconst_icmp".
+  inv f.
+  assert (J:=H3).
+  eapply H in H3; eauto.
+  destruct H3 as [gv H3].
+  rewrite H3. 
+  eapply H0 in J; eauto.
+  destruct J as [gv' J].
+  rewrite J. 
+  unfold micmp.
+  unfold isPointerTyp in o. unfold is_true in o.
+  unfold micmp_int.
+  assert (exists gv, gundef targetdata5 (typ_int 1%nat) = 
+           Some gv) as JJ.
+    eapply gundef__total; eauto.
+  destruct JJ as [gv0 JJ].
+  rewrite JJ.
+  destruct o as [o | o].
+    destruct typ5; try solve [simpl in o; contradict o; auto].
+    destruct (GV2val targetdata5 gv); eauto.
+    destruct v; eauto.
+    destruct (GV2val targetdata5 gv'); eauto.
+    destruct v; eauto.
+    destruct cond5; eauto.
+
+    destruct typ5; try solve [eauto | simpl in o; contradict o; auto].
+Case "wfconst_fcmp".
+  inv f.
+  assert (J:=H3).
+  eapply H in H3; eauto.
+  destruct H3 as [gv H3].
+  rewrite H3. 
+  eapply H0 in J; eauto.
+  destruct J as [gv' J].
+  rewrite J. 
+  unfold mfcmp.
+  assert (exists gv, gundef targetdata5 (typ_int 1%nat) = 
+           Some gv) as JJ.
+    eapply gundef__total; eauto.
+  destruct JJ as [gv0 JJ].
+  rewrite JJ.
+  destruct (GV2val targetdata5 gv); eauto.
+  destruct v; eauto.
+  destruct (GV2val targetdata5 gv'); eauto.
+  destruct v; eauto.
+  destruct floating_point5; try solve [eauto | inversion w1].
+    destruct fcond5; try solve [eauto | inversion e].
+    destruct fcond5; try solve [eauto | inversion e].
+Case "wfconst_extractvalue".
+  inv f.
+  eapply H in H3; eauto.
+  destruct H3 as [gv H3].
+  rewrite H3.
+  destruct e0 as [idxs [o [J1 J2]]].
+  erewrite mgetoffset__getSubTypFromConstIdxs; eauto.
+  unfold LLVMgv.extractGenericValue.
+  rewrite J1. rewrite J2.
+  destruct (mget targetdata5 gv o typ'); eauto.
+    eapply gundef__total in H1; eauto.
+    destruct H1. rewrite H1. eauto.
+Case "wfconst_insertvalue".
+  inv f.
+  assert (J:=H2).
+  eapply H in H2; eauto.
+  destruct H2 as [gv H2].
+  rewrite H2.
+  eapply H0 in H4; eauto.
+  destruct H4 as [gv' H4].
+  rewrite H4.
+  unfold LLVMgv.insertGenericValue.
+  destruct e0 as [idxs [o [J1 J2]]].
+  rewrite J1. rewrite J2.
+  destruct (mset targetdata5 gv o typ' gv'); eauto.
+    eapply gundef__total in J; eauto.
+    destruct J as [gv0 J]. rewrite J. eauto.
+Case "wfconst_bop".
+  assert (exists gv, gundef targetdata5 (typ_int sz5) = Some gv) as JJ.
+    eapply gundef__total; eauto.
+  destruct JJ as [gv0 JJ].
+  assert (J:=H1).
+  eapply H in H1; eauto.
+  destruct H1 as [gv H1].
+  rewrite H1.
+  eapply H0 in J; eauto.
+  destruct J as [gv' J].
+  rewrite J.
+  unfold mbop, Size.to_nat. 
+  rewrite JJ.
+  destruct (GV2val targetdata5 gv); eauto.
+  destruct (GV2val targetdata5 gv'); eauto.
+  destruct v; eauto.
+  destruct v0; eauto.
+  destruct (eq_nat_dec (wz + 1) sz5); eauto.
+  destruct bop5; eauto.
+  destruct v; eauto.
+Case "wfconst_fbop".
+  assert (exists gv, gundef targetdata5 (typ_floatpoint floating_point5) 
+    = Some gv) as JJ.
+    eapply gundef__total; eauto.
+  destruct JJ as [gv0 JJ].
+  assert (J:=H1).
+  eapply H in H1; eauto.
+  destruct H1 as [gv H1].
+  rewrite H1.
+  eapply H0 in J; eauto.
+  destruct J as [gv' J].
+  rewrite J.
+  unfold mfbop. rewrite JJ.
+  destruct (GV2val targetdata5 gv); eauto.
+  destruct (GV2val targetdata5 gv'); eauto.
+  destruct v; eauto.
+  destruct v0; eauto.
+  destruct floating_point5; try solve [eauto | inversion w1].
+  destruct v; eauto.
+Case "wfconst_cons".
+  remember (split (unmake_list_system_targetdata_const_typ l')) as R1.
+  destruct R1 as [lsdc lt].
+  simpl.  
+  remember (split lsdc) as R2.
+  destruct R2 as [lsd lc].
+  simpl.  
+  remember (split lsd) as R3.
+  destruct R3 as [ls ld].
+  simpl.
+  intros S TD gl Hwfl Hft.
+  assert (Constant.feasible_typs TD (make_list_typ lt) /\
+          Constant.feasible_typ TD typ5) as J.
+    clear - Hft.
+    destruct Hft.
+    split; auto.
+  destruct J as [J1 J2].
+  assert (wf_list_targetdata_typ S TD gl lsd /\ system5 = S /\ targetdata5 = TD
+            /\ wf_global TD S gl) 
+    as Hwfl'.
+    clear - Hwfl.
+    unfold wf_list_targetdata_typ in *.
+    assert (In (system5, targetdata5) ((system5, targetdata5) :: lsd)) as J.
+      simpl. auto.
+    apply Hwfl in J. 
+    destruct J as [J1 [J2 J3]]; subst.
+    split.
+      intros S1 TD1 Hin.    
+      apply Hwfl. simpl. auto.
+    split; auto.
+
+  destruct Hwfl' as [Hwfl' [Heq1 [Heq2 Hwfg]]]; subst.  
+  assert (J2':=J2).
+  eapply H in J2'; eauto.
+  destruct J2' as [gv J2'].
+  rewrite J2'.
+  assert (J1':=J1).
+  eapply H0 in J1'; eauto.
+  destruct J1' as [J1' [g2 J12]].
+  rewrite J12.
+  apply feasible_typ_inv'' in J2.  
+  destruct J2 as [ssz [asz [J21 J22]]].
+  rewrite J22.
+  split; eauto.  
+    intros.
+    destruct (@J1' t) as [gv0 H2]; eauto.
+    rewrite H2.
+    assert (typ5 = t) as EQ. apply H1; auto.
+    subst.
+    destruct (typ_dec t t); eauto.
+      contradict n; auto.
+Qed.
+
+Lemma mbop_is_total : forall S TD bop0 sz0, 
+  wf_typ S (typ_int sz0) ->
+  feasible_typ TD (typ_int sz0) ->
+  forall x y, exists z, mbop TD bop0 sz0 x y = Some z.
+Proof.
+  intros S TD bop0 sz0 Hwft Hft x y.
+  unfold mbop. inv Hft.
+  destruct (GV2val TD x); eauto using gundef__total.
+  destruct v; eauto using gundef__total.
+  destruct (GV2val TD y); eauto using gundef__total.
+  destruct v; eauto using gundef__total.
+  destruct (eq_nat_dec (wz + 1) (Size.to_nat sz0)); 
+    eauto using gundef__total.
+  destruct bop0; eauto using gundef__total.
+Qed.
+
+Lemma mfbop_is_total : forall S TD fbop0 fp, 
+  wf_typ S (typ_floatpoint fp) ->
+  feasible_typ TD (typ_floatpoint fp) ->
+  forall x y, exists z, mfbop TD fbop0 fp x y = Some z.
+Proof.
+  intros.
+  unfold mfbop. inv H0.
+  destruct (GV2val TD x); eauto using gundef__total.
+  destruct v; eauto using gundef__total.
+  destruct (GV2val TD y); eauto using gundef__total.
+  destruct v; eauto using gundef__total.
+  destruct fp; try solve [eauto | inversion H].
+Qed.
+
+Lemma micmp_is_total : forall TD c t, 
+  Typ.isIntOrIntVector t \/ isPointerTyp t ->
+  forall x y, exists z, micmp TD c t x y = Some z.
+Proof.
+  intros TD c t Hwft x y.
+  unfold micmp, micmp_int.
+  unfold isPointerTyp in Hwft. unfold is_true in Hwft.
+  unfold micmp_int.
+  destruct Hwft as [Hwft | Hwft].
+    destruct t; try solve [simpl in Hwft; contradict Hwft; auto].
+    destruct (GV2val TD x); eauto using gundef_i1__total.
+    destruct v; eauto using gundef_i1__total.
+    destruct (GV2val TD y); eauto using gundef_i1__total.
+    destruct v; eauto using gundef_i1__total.
+    destruct c; eauto using gundef_i1__total.
+  
+    destruct t; try solve [simpl in Hwft; contradict Hwft; auto]. 
+      eauto using gundef_i1__total.
+Qed.
+
+Lemma mfcmp_is_total : forall S TD c fp, 
+  wf_fcond c = true  ->
+  wf_typ S (typ_floatpoint fp) ->
+  feasible_typ TD (typ_floatpoint fp) ->
+  forall x y, exists z, mfcmp TD c fp x y = Some z.
+Proof.
+  intros S TD c fp Hc Ht Hft2 x y.
+  unfold mfcmp.
+  destruct (GV2val TD x); eauto using gundef_i1__total.
+  destruct v; eauto using gundef_i1__total.
+  destruct (GV2val TD y); eauto using gundef_i1__total.
+  destruct v; eauto using gundef_i1__total.
+  destruct fp; try solve [eauto | inversion Ht].
+    destruct c; try solve [eauto | inversion Hc].
+    destruct c; try solve [eauto | inversion Hc].
+Qed.
+
+Lemma GEP_is_total : forall TD t mp vidxs inbounds0,
+  exists mp', LLVMgv.GEP TD t mp vidxs inbounds0 = ret mp'.
+Proof.
+  intros. unfold LLVMgv.GEP.
+  destruct (GV2ptr TD (getPointerSize TD) mp); eauto using gundef_p1__total.
+  destruct (GVs2Nats TD vidxs); eauto using gundef_p1__total.
+  destruct (mgep TD t v l0); eauto using gundef_p1__total.
+Qed.
+
+Lemma mcast_is_total : forall ifs s f b los nts ps id5 cop0 t1 t2 v,
+  wf_cast ifs s (module_intro los nts ps) f b 
+    (insn_cmd (insn_cast id5 cop0 t1 v t2)) ->
+  forall x, exists z, mcast (los,nts) cop0 t1 t2 x = Some z.
+Proof.
+  intros.
+  unfold mcast, mbitcast.
+  inv H; eauto using gundef__total'.
+Qed.
+
+Lemma mtrunc_is_total : forall ifs s f b los nts ps id5 top0 t1 t2 v, 
+  wf_trunc ifs s (module_intro los nts ps) f b 
+    (insn_cmd (insn_trunc id5 top0 t1 v t2)) ->
+  forall x, exists z, mtrunc (los,nts) top0 t1 t2 x = Some z.
+Proof.
+  intros.
+  assert (J:=H).
+  apply wf_trunc__wf_typ in J.
+  destruct J as [J1 J2]. inv J2.
+  unfold mtrunc.
+  destruct (GV2val (los, nts) x); eauto using gundef__total.
+  inv H; try solve [destruct v0; eauto using gundef__total].
+    rewrite H16.
+    destruct v0; eauto using gundef__total.
+      destruct floating_point2; try solve [eauto | inversion H14].
+Qed.
+
+Lemma mext_is_total : forall ifs s f b los nts ps id5 eop0 t1 t2 v, 
+  wf_ext ifs s (module_intro los nts ps) f b 
+    (insn_cmd (insn_ext id5 eop0 t1 v t2)) ->
+  forall x,  exists z, mext (los,nts) eop0 t1 t2 x = Some z.
+Proof.
+  intros.
+  unfold mext.
+  inv H; try solve 
+    [destruct (GV2val (los, nts) x); eauto using gundef__total'; 
+     destruct v0; eauto using gundef__total'].
+    rewrite H15.
+    destruct (GV2val (los, nts) x); eauto using gundef__total'; 
+    destruct v0; eauto using gundef__total'.
+    destruct floating_point2; try solve [inversion H13 | eauto].
+Qed.
+
 (*****************************)
 (*
 *** Local Variables: ***

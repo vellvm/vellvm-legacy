@@ -2,7 +2,6 @@ Add LoadPath "./ott".
 Add LoadPath "./monads".
 Add LoadPath "./compcert".
 Add LoadPath "../../../theory/metatheory_8.3".
-Require Import ssa_dynamic.
 Require Import trace.
 Require Import Metatheory.
 Require Import alist.
@@ -12,9 +11,12 @@ Require Import Values.
 Require Import Memory.
 Require Import Integers.
 Require Import Coqlib.
+Require Import ssa_def.
 Require Import ssa_props.
+Require Import opsem.
+Require Import dopsem.
 
-Export LLVMopsem.
+Export DOS.
 
 Definition interInsn (state:State) : option (State*trace) :=
 (* Check if the stack is empty. *) 
@@ -117,7 +119,7 @@ match state with
       | None => None
       | Some (Mem', mb) =>
         ret ((mkState Sys TD Ps ((mkEC F B cs tmn (updateAddAL _ lc id0 
-              (blk2GV TD mb)) als)::EC) gl fs Mem'),
+               ($ (blk2GV TD mb) # (typ_pointer t) $)) als)::EC) gl fs Mem'),
             trace_nil)
       end
     | insn_free fid t v =>
@@ -132,13 +134,15 @@ match state with
       | None => None
       | Some (Mem', mb) =>
           ret ((mkState Sys TD Ps ((mkEC F B cs tmn (updateAddAL _ lc id0 
-               (blk2GV TD mb)) (mb::als))::EC) gl fs Mem'),
+                 ($ (blk2GV TD mb) # (typ_pointer t) $)) 
+                 (mb::als))::EC) gl fs Mem'),
                trace_nil)
       end
     | insn_load id0 t v align0 =>
       do mp <- getOperandValue TD v lc gl;
       do gv <- mload TD Mem0 mp t align0;
-         ret ((mkState Sys TD Ps ((mkEC F B cs tmn (updateAddAL _ lc id0 gv) als)
+         ret ((mkState Sys TD Ps ((mkEC F B cs tmn (updateAddAL _ lc id0 
+                ($ gv # t $)) als)
               ::EC) gl fs Mem0), trace_nil)
     | insn_store sid t v1 v2 align0 =>
       do gv1 <- getOperandValue TD v1 lc gl;
@@ -185,7 +189,7 @@ match state with
       (* only look up the current module for the time being, 
          do not support linkage. *)
       do fptr <- getOperandValue TD fv lc gl;
-      do fid <- lookupFdefViaGVFromFunTable fs fptr;
+      do fid <- OpsemAux.lookupFdefViaGVFromFunTable fs fptr;
       match (lookupFdefViaIDFromProducts Ps fid) with
       | None => 
         match (lookupFdecViaIDFromProducts Ps fid) with
@@ -193,7 +197,7 @@ match state with
         | Some (fdec_intro (fheader_intro fa rt' fid' la va)) =>
           if id_dec fid fid' then
             do gvs <- params2GVs TD lp lc gl;
-              match (callExternalFunction Mem0 fid gvs)
+              match (OpsemAux.callExternalFunction Mem0 fid gvs)
               with
               | Some (oresult, Mem1) =>
                 do lc' <- exCallUpdateLocals TD ft noret0 rid oresult lc;
@@ -227,52 +231,50 @@ match state with
   end
 end.
 
+Ltac dos_rewrite :=
+  match goal with
+  | [ H : _ = true |- _ ] => rewrite H; simpl
+  | [ H : _ = ret _ |- _ ] => rewrite H; simpl
+  | [ H : ret _ = _ |- _ ] => rewrite <- H; simpl
+  | [ H : _ = merror |- _ ] => rewrite H; simpl
+  end.
+
+Ltac dos_simpl := simpl; repeat dgvs_instantiate_inv; repeat dos_rewrite.
+
 Lemma dsInsn__implies__interInsn : forall state state' tr,
-  dsInsn state state' tr ->
+  DOS.sInsn state state' tr ->
   interInsn state = Some (state', tr).
 Proof. 
   intros state state' tr HdsInsn.
   Opaque malloc. 
-  (dsInsn_cases (destruct HdsInsn) Case); simpl;
-    try solve [rewrite H; simpl; rewrite H0; simpl; rewrite H1; simpl; auto |
-               rewrite H; simpl; rewrite H0; simpl; auto |
-               rewrite H; simpl; auto ].
-  Case "dsBranch".
-    simpl. rewrite H. simpl. rewrite <- H0. simpl. rewrite H1. simpl. auto.
-  Case "dsBranch_uncond".
-    simpl. rewrite <- H. simpl. rewrite H0. simpl. auto.
-  Case "dsCall".
-    unfold lookupFdefViaGV in H.
-    destruct (getOperandValue TD fv lc gl); try solve [inversion H]. simpl.
-    simpl in H.
-    destruct (lookupFdefViaGVFromFunTable fs g); try solve [inversion H]. simpl.
-    simpl in H. rewrite H. simpl in H0. rewrite H0. 
-    apply lookupFdefViaIDFromProducts_ideq in H; subst.
-    rewrite H1. simpl. rewrite H2. simpl.
-    destruct (id_dec fid fid); auto.
-      destruct (typ_dec rt rt); auto.
-        contradict n; auto.
-      contradict n; auto.
-  Case "dsExCall".
-    unfold lookupExFdecViaGV in H.
-    destruct (getOperandValue TD fv lc gl); try solve [inversion H]. simpl.
-    simpl in H.
-    destruct (lookupFdefViaGVFromFunTable fs g); try solve [inversion H]. simpl.
-    simpl in H.
-    destruct (lookupFdefViaIDFromProducts Ps i0); try solve [inversion H].
-    rewrite H.
-    apply lookupFdecViaIDFromProducts_ideq in H; subst.
-    rewrite H0. simpl. rewrite H1. rewrite H2.
-    destruct (id_dec fid fid); auto.
-      destruct (typ_dec rt rt); auto.        
-        contradict n; auto.
-      contradict n; auto.
+  (sInsn_cases (destruct HdsInsn) Case); dos_simpl; auto.
+  Case "sGEP".
+    apply dos_in_list_gvs_inv in H1. subst. dos_simpl; auto.
+  Case "sCall".
+    apply lookupFdefViaPtr_inversion in H1.
+    destruct H1 as [fn [J1 J2]].
+    rewrite J1. simpl.
+    rewrite J2. 
+    apply lookupFdefViaIDFromProducts_ideq in J2; subst; auto.
+    destruct (id_dec fid fid); try congruence.
+    destruct lb; inv H2.
+    rewrite H4. simpl. auto.
+  Case "sExCall".
+    apply lookupExFdecViaPtr_inversion in H1.
+    destruct H1 as [fn [J1 [J2 J3]]].
+    rewrite J1. simpl.
+    rewrite J2. rewrite J3.
+    apply lookupFdecViaIDFromProducts_ideq in J3; subst; auto.
+    destruct (id_dec fid fid); try congruence.
+    apply dos_in_list_gvs_inv in H3. subst.
+    rewrite H4. rewrite H5. simpl. auto.
 Qed.
 
 Lemma interInsn__implies__dsInsn : forall state state' tr,
   interInsn state = Some (state', tr) ->
-  dsInsn state state' tr.
+  DOS.sInsn state state' tr.
 Proof.
+Local Transparent DGVs.instantiate_gvs.
   intros state state' tr HinterInsn.
   destruct state.
   destruct ECS0; simpl in HinterInsn;
@@ -320,12 +322,12 @@ Proof.
           remember (isGVZero CurTargetData0 g) as R3.
           destruct R3.
             remember (lookupBlockViaLabelFromFdef F l1) as R2.
-            destruct R2; inversion HinterInsn; subst.
+            destruct R2; tinv HinterInsn.
               destruct b.
               remember (switchToNewBasicBlock CurTargetData0
                 (block_intro l2 p c t) B Globals0 lc) as R4.
-              destruct R4; inversion HinterInsn; subst.
-              eapply dsBranch; eauto.
+              destruct R4; inv HinterInsn.              
+              eapply sBranch; eauto.
                 rewrite <- HeqR3. auto.
         
             remember (lookupBlockViaLabelFromFdef F l0) as R2.
@@ -333,8 +335,8 @@ Proof.
               destruct b.
               remember (switchToNewBasicBlock CurTargetData0
                 (block_intro l2 p c t) B Globals0 lc) as R4.
-              destruct R4; inversion HinterInsn; subst.
-              eapply dsBranch; eauto.    
+              destruct R4; inv HinterInsn.
+              eapply sBranch; eauto.    
                 rewrite <- HeqR3. auto.
 
       Case "insn_br_uncond".
@@ -367,8 +369,7 @@ Proof.
         destruct R1; simpl in HinterInsn; 
           try solve [inversion HinterInsn].         
         remember (extractGenericValue CurTargetData0 t g l0) as R2.
-        destruct R2; simpl in HinterInsn; 
-          inversion HinterInsn; subst; eauto.
+        destruct R2; simpl in HinterInsn; inv HinterInsn; eauto.
 
       Case "insn_insertvalue".
         remember (getOperandValue CurTargetData0 v lc Globals0) as R1.
@@ -378,8 +379,7 @@ Proof.
         destruct R2; simpl in HinterInsn; 
           try solve [inversion HinterInsn].         
         remember (insertGenericValue CurTargetData0 t g l0 t0 g0) as R3.
-        destruct R3; simpl in HinterInsn; 
-          inversion HinterInsn; subst; eauto.
+        destruct R3; simpl in HinterInsn; inv HinterInsn; eauto.
           
       Case "insn_malloc".
         remember (getTypeAllocSize CurTargetData0 t) as R1.
@@ -389,18 +389,15 @@ Proof.
         destruct R3; simpl in HinterInsn;
           try solve [inversion HinterInsn].         
         remember (malloc CurTargetData0 Mem0 s g a) as R2.
-        destruct R2; simpl in HinterInsn; 
-          try solve [inversion HinterInsn].         
-        destruct p; 
-          inversion HinterInsn; subst; eauto.
+        destruct R2; tinv HinterInsn.
+        destruct p; inv HinterInsn; subst; eauto.
           
       Case "insn_free".
         remember (getOperandValue CurTargetData0 v lc Globals0) as R1.
         destruct R1; simpl in HinterInsn; 
           try solve [inversion HinterInsn].         
         remember (free CurTargetData0 Mem0 g) as R2.
-        destruct R2; simpl in HinterInsn; 
-          inversion HinterInsn; subst; eauto.
+        destruct R2; simpl in HinterInsn; inv HinterInsn; eauto.
           
       Case "insn_alloca".
         remember (getTypeAllocSize CurTargetData0 t) as R1.
@@ -412,16 +409,14 @@ Proof.
         remember (malloc CurTargetData0 Mem0 s g a) as R2.
         destruct R2; simpl in HinterInsn; 
           try solve [inversion HinterInsn].         
-        destruct p; 
-          inversion HinterInsn; subst; eauto.
+        destruct p; inversion HinterInsn; subst; eauto.
           
       Case "insn_load".
         remember (getOperandValue CurTargetData0 v lc Globals0) as R1.
         destruct R1; simpl in HinterInsn; 
           try solve [inversion HinterInsn].         
         remember (mload CurTargetData0 Mem0 g t a) as R2.
-        destruct R2; simpl in HinterInsn; 
-          inversion HinterInsn; subst; eauto.
+        destruct R2; simpl in HinterInsn; inv HinterInsn; eauto.
           
       Case "insn_store".
         remember (getOperandValue CurTargetData0 v lc Globals0) as R1.
@@ -431,8 +426,7 @@ Proof.
         destruct R2; simpl in HinterInsn; 
           try solve [inversion HinterInsn].         
         remember (mstore CurTargetData0 Mem0 g0 t g a) as R3.
-        destruct R3; simpl in HinterInsn; 
-          inversion HinterInsn; subst; eauto.
+        destruct R3; simpl in HinterInsn; inv HinterInsn; eauto.
           
       Case "insn_gep".
         remember (getOperandValue CurTargetData0 v lc Globals0) as R1.
@@ -441,33 +435,28 @@ Proof.
         remember (values2GVs CurTargetData0 l0 lc Globals0) as R3.
         destruct R3; simpl in HinterInsn; try solve [inversion HinterInsn].     
         remember (GEP CurTargetData0 t g l1 i1) as R2.
-        destruct R2; simpl in HinterInsn; 
-          inversion HinterInsn; subst; eauto.
+        destruct R2; simpl in HinterInsn; inv HinterInsn; 
+          eauto using dos_in_list_gvs_intro.
 
       Case "insn_trunc".
         remember (TRUNC CurTargetData0 lc Globals0 t t0 v t1) as R.
-        destruct R; simpl in HinterInsn; 
-          inversion HinterInsn; subst; eauto.
+        destruct R; simpl in HinterInsn; inv HinterInsn; eauto.
 
       Case "insn_ext".
         remember (EXT CurTargetData0 lc Globals0 e t v t0) as R.
-        destruct R; simpl in HinterInsn; 
-          inversion HinterInsn; subst; eauto.
+        destruct R; simpl in HinterInsn; inv HinterInsn; eauto.
 
       Case "insn_cast".
         remember (CAST CurTargetData0 lc Globals0 c t v t0) as R.
-        destruct R; simpl in HinterInsn; 
-          inversion HinterInsn; subst; eauto.
+        destruct R; simpl in HinterInsn; inv HinterInsn; eauto.
 
       Case "insn_icmp".
         remember (ICMP CurTargetData0 lc Globals0 c t v v0) as R.
-        destruct R; simpl in HinterInsn; 
-          inversion HinterInsn; subst; eauto.
+        destruct R; simpl in HinterInsn; inv HinterInsn; eauto.
 
       Case "insn_fcmp".
         remember (FCMP CurTargetData0 lc Globals0 f f0 v v0) as R.
-        destruct R; simpl in HinterInsn; 
-          inversion HinterInsn; subst; eauto.
+        destruct R; simpl in HinterInsn; inv HinterInsn; eauto.
 
       Case "insn_select".
         remember (getOperandValue CurTargetData0 v lc Globals0) as R1.
@@ -477,9 +466,7 @@ Proof.
         destruct R2; simpl in HinterInsn; 
           try solve [inversion HinterInsn].         
         remember (getOperandValue CurTargetData0 v1 lc Globals0) as R3.
-        destruct R3; simpl in HinterInsn; 
-          try solve [inversion HinterInsn].
-        inversion HinterInsn; subst; eauto.
+        destruct R3; simpl in HinterInsn; inv HinterInsn; eauto.
 
       Case "insn_call".
         remember (getOperandValue CurTargetData0 v lc Globals0) as R0.
@@ -495,12 +482,10 @@ Proof.
           remember (params2GVs CurTargetData0 p lc Globals0) as R10.
           destruct R10; try solve [inversion HinterInsn]. simpl in HinterInsn.
           remember (initLocals CurTargetData0 a l1) as R11. 
-          destruct R11; inversion HinterInsn.
-          eapply dsCall; eauto.
-            unfold lookupFdefViaGV.
-            rewrite <- HeqR0. simpl.
-            rewrite <- HeqR4. simpl.
-            rewrite <- HeqR1. auto.
+          destruct R11; inv HinterInsn.
+          eapply sCall; eauto.
+            unfold lookupFdefViaPtr.
+            rewrite <- HeqR4. simpl. auto.
         
           remember (lookupFdecViaIDFromProducts CurProducts0 i1) as R2.
           destruct R2; simpl in HinterInsn;
@@ -511,14 +496,13 @@ Proof.
             destruct R5; try solve [inversion HinterInsn]; subst.
             simpl in HinterInsn.
             remember (callExternalFunction Mem0 i2 l0) as R3.
-            destruct R3 as [[oresult Mem1]|]; inversion HinterInsn; subst.
+            destruct R3 as [[oresult Mem1]|]; tinv HinterInsn.
             remember (exCallUpdateLocals CurTargetData0 t n i0 oresult lc) as R4.
-            destruct R4; inversion HinterInsn; subst.
-            eapply dsExCall; eauto.
-              unfold lookupExFdecViaGV.
-              rewrite <- HeqR0. simpl.
-              rewrite <- HeqR4. simpl.
-              rewrite <- HeqR1. eauto.
+            destruct R4; inv HinterInsn.
+            eapply sExCall; eauto using dos_in_list_gvs_intro.
+              unfold lookupExFdecViaPtr.
+              rewrite <- HeqR4. simpl. rewrite <- HeqR1. eauto.
+Global Opaque DGVs.instantiate_gvs.
 Qed.
 
 (*****************************)

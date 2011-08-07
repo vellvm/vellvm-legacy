@@ -1,3 +1,4 @@
+open Dopsem
 open Ssa_interpreter
 open Ssa_dynamic
 open Printf
@@ -5,12 +6,12 @@ open Llvm
 open Llvm_executionengine
 open Trace
 
-let interInsnLoop (s0:LLVMopsem.coq_State) (tr0:trace) : (LLVMopsem.coq_State*trace) option =
+let interInsnLoop (s0:DOS.coq_State) (tr0:trace) : (DOS.coq_State*trace) option =
   
   let s = ref s0 in
   let n = ref 0 in
   
-  while not (LLVMopsem.ds_isFinialState !s) do
+  while not (DOS.s_isFinialState !s) do
     (if !Globalstates.debug then (eprintf "n=%d\n" !n;   flush_all()));    
     match interInsn !s with
     | Some (s', _) ->
@@ -23,8 +24,9 @@ let interInsnLoop (s0:LLVMopsem.coq_State) (tr0:trace) : (LLVMopsem.coq_State*tr
   
   Some (!s, Coq_trace_nil)
   
-let rec interInsnStar (s:LLVMopsem.coq_State) (tr:trace) (n:int) : (LLVMopsem.coq_State*trace) option =
-  if (LLVMopsem.ds_isFinialState s) 
+let rec interInsnStar (s:DOS.coq_State) (tr:trace) (n:int) 
+  : (DOS.coq_State*trace) option =
+  if (DOS.s_isFinialState s) 
   then 
     begin
       (if !Globalstates.debug then (eprintf "Done!\n";flush_all()));
@@ -67,7 +69,8 @@ let main in_filename argv =
         if !Globalstates.debug then 
           (eprintf "main runs with arguments: \n"; print(); flush_all());
 
-        let gargvs = (GenericValue.of_int (Llvm.integer_type ic 32) (Array.length argv))::
+        let gargvs = (GenericValue.of_int 
+                      (Llvm.integer_type ic 32) (Array.length argv))::
                       ExecutionEngine.to_argv argv ic li::
                       [] in
 
@@ -76,7 +79,7 @@ let main in_filename argv =
         (* llvm.global_ctors/llvm.global_dtors. Are they target-independent? *)
         ExecutionEngine.run_static_ctors li;
 
-        (match LLVMopsem.ds_genInitState (coqim::[]) "@main" gargvs (li, im) with
+        (match DOS.s_genInitState (coqim::[]) "@main" gargvs (li, im) with
           | Some s -> 
             (match interInsnLoop s Coq_trace_nil with
               | Some (s', tr) -> (); ExecutionEngine.run_static_dtors li
