@@ -1364,6 +1364,7 @@ Tactic Notation "sop_star_cases" tactic(first) tactic(c) :=
   first;
   [ c "sop_star_nil" | c "sop_star_cons" ].
 
+
 (*****************************)
 (*
 *** Local Variables: ***
