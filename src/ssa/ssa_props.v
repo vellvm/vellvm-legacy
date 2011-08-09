@@ -17,7 +17,7 @@ Require Import Maps.
 Export LLVMsyntax.
 Export LLVMlib.
 Export LLVMgv.
-Export LLVMopsem.
+Import LLVMopsem.
 
 (* eq is refl *)
 

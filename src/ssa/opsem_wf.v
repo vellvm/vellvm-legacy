@@ -32,10 +32,11 @@ Require Import opsem_props.
 
 Module OpsemPP (GVsSig : GenericValuesSig).
 
-Module OPSEM := Opsem GVsSig.
-Module OPSEMProp := OpsemProps GVsSig.
-Export OPSEM.
-Export OPSEMProp.
+Module Sem := Opsem GVsSig.
+Module SemP := OpsemProps GVsSig.
+Export Sem.
+Export SemP.
+Import AtomSet.
 
 Inductive wf_GVs : TargetData -> GVs -> typ -> Prop :=
 | wf_GVs_intro : forall TD gvs t sz, 

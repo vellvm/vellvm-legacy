@@ -11,16 +11,15 @@ Require Import monad.
 Require Import Arith.
 Require Import Metatheory.
 Require Import genericvalues.
-Require Import ssa_dynamic.
 Require Import trace.
 Require Import alist.
-Require Import ssa_props.
 Require Import CoqListFacts.
 Require Import Coqlib.
+Require Import ssa_dynamic.
+Require Import opsem.
+Require Import dopsem.
 
-Export LLVMsyntax.
-Export LLVMlib.
-Export LLVMgv.
+Export DOS.
 
 (***************************************************************)
 (* Syntax easy to be proved with symbolic execution. *)
@@ -194,7 +193,7 @@ Inductive dbTerminator :
   Some (block_intro l' ps' sbs' tmn') = (if isGVZero TD c
                then lookupBlockViaLabelFromFdef F l2
                else lookupBlockViaLabelFromFdef F l1) ->
-  Some lc' = LLVMopsem.switchToNewBasicBlock TD
+  Some lc' = switchToNewBasicBlock TD
     (block_intro l' ps' sbs' tmn') B gl lc ->
   dbTerminator TD Mem F gl
     B lc
@@ -204,7 +203,7 @@ Inductive dbTerminator :
 | dbBranch_uncond : forall TD Mem F B lc gl l bid
                               l' ps' sbs' tmn' lc',   
   Some (block_intro l' ps' sbs' tmn') = lookupBlockViaLabelFromFdef F l ->
-  Some lc' = LLVMopsem.switchToNewBasicBlock TD
+  Some lc' = switchToNewBasicBlock TD
     (block_intro l' ps' sbs' tmn') B gl lc ->
   dbTerminator TD Mem F gl
     B lc
@@ -236,21 +235,22 @@ Inductive dbCall : system -> TargetData -> list product -> GVMap ->
   dbFdef fv rt lp S TD Ps lc gl fs Mem lc' als' Mem' B' Rid oResult tr ->
   free_allocas TD Mem' als' = Some Mem'' ->
   isCall (insn_call rid noret tailc ft fv lp) = true ->
-  LLVMopsem.callUpdateLocals TD ft noret rid oResult lc lc' gl = Some lc'' ->
+  callUpdateLocals TD ft noret rid oResult lc lc' gl = Some lc'' ->
   dbCall S TD Ps fs gl lc Mem (insn_call rid noret tailc ft fv lp) lc'' Mem'' tr
 
-| dbCall_external : forall S TD Ps lc gl fs rid noret ca fv fid 
+| dbCall_external : forall S TD Ps lc gl fs rid noret ca fv fid fptr
                           lp rt la va Mem oresult Mem' lc' ft fa gvs,
   (* only look up the current module for the time being, 
      do not support linkage. 
      FIXME: should add excall to trace
   *)
-  LLVMopsem.lookupExFdecViaGV TD Ps gl lc fs fv = 
+  getOperandValue TD fv lc gl = Some fptr -> 
+  lookupExFdecViaPtr Ps fs fptr = 
     Some (fdec_intro (fheader_intro fa rt fid la va)) ->
   params2GVs TD lp lc gl = Some gvs ->
-  LLVMopsem.callExternalFunction Mem fid gvs = Some (oresult, Mem') ->
+  callExternalFunction Mem fid gvs = Some (oresult, Mem') ->
   isCall (insn_call rid noret ca ft fv lp) = true ->
-  LLVMopsem.exCallUpdateLocals TD ft noret rid oresult lc = Some lc' ->
+  exCallUpdateLocals TD ft noret rid oresult lc = Some lc' ->
   dbCall S TD Ps fs gl lc Mem (insn_call rid noret ca ft fv lp) lc' Mem' 
     trace_nil
 
@@ -311,10 +311,11 @@ with dbBlocks : system -> TargetData -> list product -> GVMap -> GVMap -> fdef -
 with dbFdef : value -> typ -> params -> system -> TargetData -> list product -> 
               GVMap -> GVMap -> GVMap -> mem -> GVMap -> list mblock -> mem -> 
               block -> id -> option value -> trace -> Prop :=
-| dbFdef_func : forall S TD Ps gl fs fv fid lp lc rid
+| dbFdef_func : forall S TD Ps gl fs fv fid lp lc rid fptr
                     l1 ps1 cs1 tmn1 fa rt la va lb Result lc1 tr1 Mem Mem1 als1
                     l2 ps2 cs21 cs22 lc2 als2 Mem2 tr2 lc3 als3 Mem3 tr3 gvs lc0,
-  lookupFdefViaGV TD Ps gl lc fs fv = 
+  getOperandValue TD fv lc gl = Some fptr -> 
+  lookupFdefViaPtr Ps fs fptr = 
     Some (fdef_intro (fheader_intro fa rt fid la va) lb) ->
   getEntryBlock (fdef_intro (fheader_intro fa rt fid la va) lb) = 
     Some (block_intro l1 ps1 cs1 tmn1) ->
@@ -338,10 +339,11 @@ with dbFdef : value -> typ -> params -> system -> TargetData -> list product ->
   dbFdef fv rt lp S TD Ps lc gl fs Mem lc3 als3 Mem3 
     (block_intro l2 ps2 (cs21++cs22) (insn_return rid rt Result)) rid 
     (Some Result) (trace_app (trace_app tr1 tr2) tr3)
-| dbFdef_proc : forall S TD Ps gl fs fv fid lp lc rid
+| dbFdef_proc : forall S TD Ps gl fs fv fid lp lc rid fptr
                     l1 ps1 cs1 tmn1 fa rt la va lb lc1 tr1 Mem Mem1 als1
                     l2 ps2 cs21 cs22 lc2 als2 Mem2 tr2 lc3 als3 Mem3 tr3 gvs lc0,
-  lookupFdefViaGV TD Ps gl lc fs fv = 
+  getOperandValue TD fv lc gl = Some fptr -> 
+  lookupFdefViaPtr Ps fs fptr = 
     Some (fdef_intro (fheader_intro fa rt fid la va) lb) ->
   getEntryBlock (fdef_intro (fheader_intro fa rt fid la va) lb) = 
     Some (block_intro l1 ps1 cs1 tmn1) ->
@@ -535,6 +537,7 @@ Hint Constructors wf_subblocks.
 
 (***************************************************************)
 (** symbolic terms and memories. *)
+
 Inductive sterm : Set := 
 | sterm_val : value -> sterm
 | sterm_bop : bop -> sz -> sterm -> sterm -> sterm
@@ -618,7 +621,8 @@ Tactic Notation "se_mut_cases" tactic(first) tactic(c) :=
     c "sframe_init" |
     c "sframe_alloca" ].
 
-Fixpoint map_list_sterm (A:Set) (f:sterm->A) (l0:list_sterm) {struct l0} : list A :=
+Fixpoint map_list_sterm (A:Set) (f:sterm->A) (l0:list_sterm) {struct l0} 
+  : list A :=
   match l0 with
   | Nil_list_sterm => nil
   | Cons_list_sterm h tl_ => cons (f h) (map_list_sterm A f tl_)
@@ -652,7 +656,8 @@ Fixpoint app_list_sterm (l0 m:list_sterm) {struct l0} : list_sterm :=
   | Cons_list_sterm h tl_ => Cons_list_sterm h (app_list_sterm tl_ m)
   end.
 
-Fixpoint map_list_sterm_l (A:Set) (f:sterm->l->A) (l0:list_sterm_l) {struct l0} : list A :=
+Fixpoint map_list_sterm_l (A:Set) (f:sterm->l->A) (l0:list_sterm_l) {struct l0} 
+  : list A :=
   match l0 with
   | Nil_list_sterm_l => nil
   | Cons_list_sterm_l h0 h1 tl_ => cons (f h0 h1) (map_list_sterm_l A f tl_)
@@ -671,7 +676,8 @@ Fixpoint unmake_list_sterm_l (l0:list_sterm_l) :  list (sterm*l) :=
   | Cons_list_sterm_l h0 h1 tl_ =>  cons (h0,h1) (unmake_list_sterm_l tl_)
   end.
 
-Fixpoint nth_list_sterm_l (n:nat) (l0:list_sterm_l) {struct n} : option (sterm*l) :=
+Fixpoint nth_list_sterm_l (n:nat) (l0:list_sterm_l) {struct n} : option (sterm*l)
+  :=
   match n,l0 with
   | O, Cons_list_sterm_l h0 h1 tl_ => Some (h0,h1)
   | O, other => None
@@ -683,7 +689,8 @@ Implicit Arguments nth_list_sterm_l.
 Fixpoint app_list_sterm_l (l0 m:list_sterm_l) {struct l0} : list_sterm_l :=
   match l0 with
   | Nil_list_sterm_l => m
-  | Cons_list_sterm_l h0 h1 tl_ => Cons_list_sterm_l h0 h1 (app_list_sterm_l tl_ m)
+  | Cons_list_sterm_l h0 h1 tl_ => 
+      Cons_list_sterm_l h0 h1 (app_list_sterm_l tl_ m)
   end.
 
 Inductive sterminator : Set :=
@@ -719,10 +726,12 @@ match v with
 | value_id i0 => lookupSmap sm i0
 end.
 
-Fixpoint list_param__list_typ_subst_sterm (list_param1:params) (sm:smap) : list (typ*sterm) :=
+Fixpoint list_param__list_typ_subst_sterm (list_param1:params) (sm:smap) 
+  : list (typ*sterm) :=
 match list_param1 with
 | nil => nil
-| (t, v)::list_param1' => (t, (value2Sterm sm v))::(list_param__list_typ_subst_sterm list_param1' sm)
+| (t, v)::list_param1' => 
+    (t, (value2Sterm sm v))::(list_param__list_typ_subst_sterm list_param1' sm)
 end.
 
 Definition se_call : forall i id0 noret0 tailc0 ft fv lp,
@@ -789,7 +798,8 @@ match c with
        (mkSstate (updateAddAL _ st.(STerms) id0 
                    (sterm_alloca st.(SMem) t1 (value2Sterm st.(STerms) v1) al1))
                  (smem_alloca st.(SMem) t1 (value2Sterm st.(STerms) v1) al1)
-                 (sframe_alloca st.(SMem) st.(SFrame) t1 (value2Sterm st.(STerms) v1) al1)
+                 (sframe_alloca st.(SMem) st.(SFrame) t1 
+                 (value2Sterm st.(STerms) v1) al1)
                  st.(SEffects))
   | insn_load id0 t2 v2 align => fun _ =>   
        (mkSstate (updateAddAL _ st.(STerms) id0 
@@ -811,7 +821,8 @@ match c with
        (mkSstate (updateAddAL _ st.(STerms) id0 
                    (sterm_gep inbounds0 t1 
                      (value2Sterm st.(STerms) v1)
-                     (make_list_sterm (map_list_value (value2Sterm st.(STerms)) lv2))))
+                     (make_list_sterm (map_list_value (value2Sterm st.(STerms)) 
+                       lv2))))
                  st.(SMem)
                  st.(SFrame)
                  st.(SEffects))
@@ -941,7 +952,7 @@ Inductive sterm_denotes_genericvalue :
   sterm_denotes_genericvalue TD lc gl Mem st1 gv1 ->
   extractGenericValue TD t1 gv1 idxs0 = Some gv2 ->
   sterm_denotes_genericvalue TD lc gl Mem (sterm_extractvalue t1 st1 idxs0) gv2
-| sterm_insertvalue_denotes : forall TD lc gl Mem t1 st1 t2 st2 idxs0 gv1 gv2 gv3,
+| sterm_insertvalue_denotes: forall TD lc gl Mem t1 st1 t2 st2 idxs0 gv1 gv2 gv3,
   sterm_denotes_genericvalue TD lc gl Mem st1 gv1 ->
   sterm_denotes_genericvalue TD lc gl Mem st2 gv2 ->
   insertGenericValue TD t1 gv1 idxs0 t2 gv2 = Some gv3 ->

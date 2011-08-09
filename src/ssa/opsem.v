@@ -1203,12 +1203,12 @@ Inductive bInsn : State -> State -> trace -> Prop :=
     (mkState S TD Ps ((mkEC F B cs tmn lc' als)::EC) gl fs Mem')
     trace_nil
 
-with bop : State -> State -> trace -> Prop :=
-| bop_nil : forall S, bop S S trace_nil
-| bop_cons : forall S1 S2 S3 t1 t2,
+with bops : State -> State -> trace -> Prop :=
+| bops_nil : forall S, bops S S trace_nil
+| bops_cons : forall S1 S2 S3 t1 t2,
     bInsn S1 S2 t1 ->
-    bop S2 S3 t2 ->
-    bop S1 S3 (trace_app t1 t2)
+    bops S2 S3 t2 ->
+    bops S1 S3 (trace_app t1 t2)
 
 with bFdef : value -> typ -> params -> system -> TargetData -> products -> 
             list ExecutionContext -> GVsMap -> GVMap -> GVMap -> mem -> GVsMap ->
@@ -1223,7 +1223,7 @@ with bFdef : value -> typ -> params -> system -> TargetData -> products ->
     Some (block_intro l' ps' cs' tmn') ->
   params2GVs TD lp lc gl = Some gvs ->
   initLocals TD la gvs = Some lc0 ->
-  bop 
+  bops 
     (mkState S TD Ps ((mkEC (fdef_intro (fheader_intro fa rt fid la va) lb) 
                              (block_intro l' ps' cs' tmn') cs' tmn' 
                              lc0
@@ -1247,7 +1247,7 @@ with bFdef : value -> typ -> params -> system -> TargetData -> products ->
     Some (block_intro l' ps' cs' tmn') ->
   params2GVs TD lp lc gl = Some gvs ->
   initLocals TD la gvs = Some lc0 ->
-  bop 
+  bops 
     (mkState S TD Ps ((mkEC (fdef_intro (fheader_intro fa rt fid la va) lb) 
                              (block_intro l' ps' cs' tmn') cs' tmn' 
                              lc0             
@@ -1307,7 +1307,7 @@ Inductive b_converges : system -> id -> list GVs -> State -> Prop :=
 | b_converges_intro : forall (s:system) (main:id) (VarArgs:list GVs) 
                        (IS FS:State) tr,
   b_genInitState s main VarArgs Mem.empty = Some IS ->
-  bop IS FS tr ->
+  bops IS FS tr ->
   b_isFinialState FS ->
   b_converges s main VarArgs FS
 .
@@ -1324,18 +1324,18 @@ Inductive b_goeswrong : system -> id -> list GVs -> State -> Prop :=
 | b_goeswrong_intro : forall (s:system) (main:id) (VarArgs:list GVs) 
                               (IS FS:State) tr,
   b_genInitState s main VarArgs Mem.empty = Some IS ->
-  bop IS FS tr ->
+  bops IS FS tr ->
   ~ b_isFinialState FS ->
   b_goeswrong s main VarArgs FS
 .
 
 Scheme bInsn_ind2 := Induction for bInsn Sort Prop
-  with bop_ind2 := Induction for bop Sort Prop
+  with bops_ind2 := Induction for bops Sort Prop
   with bFdef_ind2 := Induction for bFdef Sort Prop.
 
-Combined Scheme b_mutind from bInsn_ind2, bop_ind2, bFdef_ind2.
+Combined Scheme b_mutind from bInsn_ind2, bops_ind2, bFdef_ind2.
 
-Hint Constructors bInsn bop bFdef sInsn sop_star sop_diverges sop_plus.
+Hint Constructors bInsn bops bFdef sInsn sop_star sop_diverges sop_plus.
 
 End Opsem.
 
@@ -1358,7 +1358,7 @@ Tactic Notation "b_mutind_cases" tactic(first) tactic(c) :=
     c "bAlloca" | c "bLoad" | c "bStore" | c "bGEP" |
     c "bTrunc" | c "bExt" | c "bCast" | c "bIcmp" | c "bFcmp" |  c "bSelect" | 
     c "bCall" | c "bExCall" |
-    c "bop_nil" | c "bop_cons" | c "bFdef_func" | c "bFdef_proc" ].
+    c "bops_nil" | c "bops_cons" | c "bFdef_func" | c "bFdef_proc" ].
 
 Tactic Notation "sop_star_cases" tactic(first) tactic(c) :=
   first;

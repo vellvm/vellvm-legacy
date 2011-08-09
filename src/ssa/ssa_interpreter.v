@@ -17,6 +17,7 @@ Require Import opsem.
 Require Import dopsem.
 
 Export DOS.
+Export DOS.Sem.
 
 Definition interInsn (state:State) : option (State*trace) :=
 (* Check if the stack is empty. *) 
@@ -242,7 +243,7 @@ Ltac dos_rewrite :=
 Ltac dos_simpl := simpl; repeat dgvs_instantiate_inv; repeat dos_rewrite.
 
 Lemma dsInsn__implies__interInsn : forall state state' tr,
-  DOS.sInsn state state' tr ->
+  DOS.Sem.sInsn state state' tr ->
   interInsn state = Some (state', tr).
 Proof. 
   intros state state' tr HdsInsn.
@@ -272,7 +273,7 @@ Qed.
 
 Lemma interInsn__implies__dsInsn : forall state state' tr,
   interInsn state = Some (state', tr) ->
-  DOS.sInsn state state' tr.
+  DOS.Sem.sInsn state state' tr.
 Proof.
 Local Transparent DGVs.instantiate_gvs.
   intros state state' tr HinterInsn.

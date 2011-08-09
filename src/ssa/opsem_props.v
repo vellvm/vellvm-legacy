@@ -25,10 +25,10 @@ Require Import AST.
 Require Import Maps.
 Require Import opsem.
 
-Module OpsemConv (GVsSig : GenericValuesSig).
+Module OpsemProps (GVsSig : GenericValuesSig).
 
-Module OPSEM := Opsem GVsSig.
-Export OPSEM.
+Module Sem := Opsem GVsSig.
+Export Sem.
 
 Lemma func_callUpdateLocals_is_returnUpdateLocals : 
   forall TD rid noret0 tailc0 ft fid lp Result lc lc' gl,
@@ -107,13 +107,13 @@ Qed.
 (***********************************************************)
 (** big-step convergence -> small-step convergence *)
 
-(** First, by mutual induction, we prove that bInsn, bop and  
+(** First, by mutual induction, we prove that bInsn, bops and  
     bFdef imply small-step semantics. *)
 
 Definition bInsn__implies__sop_plus_prop state state' tr 
   (db:bInsn state state' tr) := sop_plus state state' tr.
-Definition bop__implies__sop_star_prop state state' tr (db:bop state state' tr) 
-  := sop_star state state' tr.
+Definition bops__implies__sop_star_prop state state' tr 
+  (db:bops state state' tr) := sop_star state state' tr.
 Definition bFdef__implies__sop_star_prop fv rt lp S TD Ps ECs lc gl fs Mem lc'
 als' Mem' B'' rid oResult tr 
 (db:bFdef fv rt lp S TD Ps ECs lc gl fs Mem lc' als' Mem' B'' rid oResult tr) 
@@ -167,7 +167,7 @@ als' Mem' B'' rid oResult tr
 Lemma b__implies__s:
   (forall state state' t  db, @bInsn__implies__sop_plus_prop state state' t db)
     /\
-  (forall state state' t  db, @bop__implies__sop_star_prop state state' t db) 
+  (forall state state' t  db, @bops__implies__sop_star_prop state state' t db) 
     /\
   (forall fv rt lp S TD Ps ECs lc gl fs Mem lc' als' Mem' B'' rid oret tr db, 
      @bFdef__implies__sop_star_prop fv rt lp S TD Ps ECs lc gl fs Mem lc' als' 
@@ -176,11 +176,11 @@ Proof.
 (b_mutind_cases
   apply b_mutind with
     (P  := bInsn__implies__sop_plus_prop)
-    (P0 := bop__implies__sop_star_prop)
+    (P0 := bops__implies__sop_star_prop)
     (P1 := bFdef__implies__sop_star_prop)
     Case);
   unfold bInsn__implies__sop_plus_prop, 
-         bop__implies__sop_star_prop, 
+         bops__implies__sop_star_prop, 
          bFdef__implies__sop_star_prop; 
   intros; subst; simpl; intuition; eauto.
   Case "bCall".
@@ -241,7 +241,7 @@ Proof.
                          tmn lc'' als)::EC) 
                         gl fs Mem'); auto.
 
-  Case "bop_cons".
+  Case "bops_cons".
     apply sop_star_trans with (state2:=S2); auto.
         
   Case "bFdef_func".
@@ -270,8 +270,8 @@ Proof.
   apply bInsn__implies__sop_plus in state_dbInsn_state'; auto.
 Qed.
 
-Lemma bop__implies__sop_star : forall state state' tr,
-  bop state state' tr ->
+Lemma bops__implies__sop_star : forall state state' tr,
+  bops state state' tr ->
   sop_star state state' tr.
 Proof.
   destruct b__implies__s as [_ [J _]]. eauto.
@@ -344,7 +344,7 @@ Proof.
   intros sys main VarArgs FS Hdb_converges.
   inversion Hdb_converges; subst.
   apply s_converges_intro with (IS:=IS)(tr:=tr); auto.
-  apply bop__implies__sop_star; auto.
+  apply bops__implies__sop_star; auto.
 Qed.
 
 Lemma b_goeswrong__implies__s_goeswrong : forall sys main VarArgs FS,
@@ -354,13 +354,13 @@ Proof.
   intros sys main VarArgs FS Hdb_goeswrong.
   inversion Hdb_goeswrong; subst.
   apply s_goeswrong_intro with (IS:=IS)(tr:=tr); auto.
-  apply bop__implies__sop_star; auto.
+  apply bops__implies__sop_star; auto.
 Qed.
 
 (***********************************************************)
 (** big-step divergence -> small-step divergence *)
 
-(** First,we prove that bInsn, bop and bFdef imply small-step semantics,
+(** First,we prove that bInsn, bops and bFdef imply small-step semantics,
     by nested coinduction. *)
 
 Lemma bFdefInf_bopInf__implies__sop_diverges : 
@@ -535,13 +535,6 @@ Proof.
   apply s_diverges_intro with (IS:=IS)(tr:=tr); auto.
   apply bopInf__implies__sop_diverges; auto.
 Qed.
-
-End OpsemConv.
-
-Module OpsemProps (GVsSig : GenericValuesSig).
-
-Module OS := Opsem GVsSig.
-Export OS.
 
 Lemma BOP_inversion : forall TD lc gl b s v1 v2 gv2,
   BOP TD lc gl b s v1 v2 = Some gv2 ->
@@ -944,10 +937,10 @@ Proof.
   erewrite getIncomingValuesForBlockFromPHINodes_eq; eauto.
 Qed.
 
-Lemma bop_trans : forall state1 state2 state3 tr1 tr2,
-  bop state1 state2 tr1 ->
-  bop state2 state3 tr2 ->
-  bop state1 state3 (trace_app tr1 tr2).
+Lemma bops_trans : forall state1 state2 state3 tr1 tr2,
+  bops state1 state2 tr1 ->
+  bops state2 state3 tr2 ->
+  bops state1 state3 (trace_app tr1 tr2).
 Proof.
   intros state1 state2 state3 tr1 tr2 H.
   generalize dependent state3.
@@ -956,9 +949,9 @@ Proof.
     rewrite <- trace_app_commute. eauto.
 Qed.
 
-Lemma bInsn__bop : forall state1 state2 tr,
+Lemma bInsn__bops : forall state1 state2 tr,
   bInsn state1 state2 tr ->
-  bop state1 state2 tr.
+  bops state1 state2 tr.
 Proof.
   intros.
   rewrite <- trace_app_nil__eq__trace.
@@ -1027,6 +1020,18 @@ Proof.
   apply blockInSystemModuleFdef_intro; auto.
 Qed.
 
+Lemma lookupFdefViaPtrInSystem : forall los nts Ps fs S fv F,
+  moduleInSystem (module_intro los nts Ps) S ->
+  lookupFdefViaPtr Ps fs fv = Some F ->
+  productInSystemModuleB (product_fdef F) S (module_intro los nts Ps).
+Proof.
+  intros.
+  apply lookupFdefViaPtr_inversion in H0.
+  destruct H0 as [fn [J1 J2]].
+  apply lookupFdefViaIDFromProducts_inv in J2.
+  apply productInSystemModuleB_intro; auto.
+Qed.
+
 (* preservation of uniqueness and inclusion *)
 
 Definition bInsn_preservation_prop state1 state2 tr
@@ -1043,8 +1048,8 @@ Definition bInsn_preservation_prop state1 state2 tr
     tmn' lc' als')::ECs) gl fs Mem') /\
   blockInSystemModuleFdef (block_intro l' ps' cs0' tmn') S 
     (module_intro los nts Ps) F.
-Definition bop_preservation_prop state1 state2 tr
-  (db:bop state1 state2 tr) :=
+Definition bops_preservation_prop state1 state2 tr
+  (db:bops state1 state2 tr) :=
   forall S los nts Ps F l ps cs tmn lc als ECs gl fs Mem l' ps' cs' tmn' lc'
     als' gl' fs' Mem' cs0 cs0',
   state1 = (mkState S (los, nts) Ps ((mkEC F (block_intro l ps cs0 tmn) cs tmn 
@@ -1073,7 +1078,7 @@ Definition bFdef_preservation_prop fv rt lp S TD Ps ECs lc gl fs Mem lc' als'
 
 Lemma b_preservation : 
   (forall state1 state2 tr db, @bInsn_preservation_prop state1 state2 tr db) /\
-  (forall state1 state2 tr db, @bop_preservation_prop state1 state2 tr  db) /\
+  (forall state1 state2 tr db, @bops_preservation_prop state1 state2 tr  db) /\
   (forall fv rt lp S TD Ps lc gl fs Mem lc' als' Mem' B' Rid oResult tr ECs db, 
     @bFdef_preservation_prop fv rt lp S TD Ps lc gl fs Mem lc' als' Mem' B' Rid 
       oResult tr ECs db).
@@ -1081,10 +1086,10 @@ Proof.
 (b_mutind_cases
   apply b_mutind with
     (P  := bInsn_preservation_prop)
-    (P0 := bop_preservation_prop)
+    (P0 := bops_preservation_prop)
     (P1 := bFdef_preservation_prop) Case);
   unfold bInsn_preservation_prop, 
-         bop_preservation_prop, 
+         bops_preservation_prop, 
          bFdef_preservation_prop; intros; subst.
 Case "bBranch".
   inversion H; subst. clear H.
@@ -1226,10 +1231,10 @@ Case "bExCall".
   exists lc'. exists als0. exists Mem'.
   exists cs1. split; auto.
 
-Case "bop_nil".
+Case "bops_nil".
   inversion H0; subst. auto.
   
-Case "bop_cons".
+Case "bops_cons".
   apply H with (cs1:=cs)(lc0:=lc)(als0:=als)(ECs0:=ECs)(gl0:=gl)
     (fs0:=fs)(Mem:=Mem0) in H4; auto.
   clear H.
@@ -1301,9 +1306,9 @@ Proof.
   inversion J1; subst. clear J1. auto.  
 Qed.
 
-Lemma bop_preservation : forall tr S los nts Ps F l ps cs tmn lc als ECs gl
+Lemma bops_preservation : forall tr S los nts Ps F l ps cs tmn lc als ECs gl
     fs Mem l' ps' cs' tmn' lc' als' gl' fs' Mem' cs0 cs0',
-  bop 
+  bops 
     (mkState S (los, nts) Ps 
       ((mkEC F (block_intro l ps cs0 tmn) cs tmn lc als)::ECs) gl fs Mem)
     (mkState S (los, nts) Ps 
@@ -1318,7 +1323,7 @@ Lemma bop_preservation : forall tr S los nts Ps F l ps cs tmn lc als ECs gl
 Proof.
   intros.
   destruct b_preservation as [_ [J _]].
-  unfold bop_preservation_prop in J.
+  unfold bops_preservation_prop in J.
   eapply J; eauto.
 Qed.
 

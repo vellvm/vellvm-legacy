@@ -22,12 +22,11 @@ Require Import Lattice.
 Require Import Iteration.
 Require Import Kildall.
 Require Import ssa_static.
-Require Import ssa_dynamic.
 Require Import ssa_props.
 Require Import ssa_analysis.
 
-Export LLVMwf.
-Export AtomSet.
+Import LLVMwf.
+Import AtomSet.
 
 (********************************************)
 (** * Inversion of well-formedness *)

@@ -13,6 +13,7 @@ Require Import Coqlib.
 Require Import ssa_def.
 Require Import opsem.
 Require Import opsem_props.
+Require Import opsem_wf.
 
 Module DGVs <: GenericValuesSig.
 
@@ -177,25 +178,27 @@ Qed.
 
 End DGVs.
 
-Module DOS := Opsem DGVs.
-
 Ltac dgvs_instantiate_inv :=
   match goal with
   | [ H : DGVs.instantiate_gvs _ _ |- _ ] => inv H
   end.
 
-Lemma dos_in_list_gvs_intro : forall gvs, DOS.in_list_gvs gvs gvs.
+Module DOS := OpsemPP DGVs.
+
+Lemma dos_in_list_gvs_intro : forall gvs, DOS.Sem.in_list_gvs gvs gvs.
 Proof. 
   induction gvs; simpl; auto. 
 Qed.
 
 Lemma dos_in_list_gvs_inv : forall gvs gvss, 
-  DOS.in_list_gvs gvs gvss -> gvs = gvss.
+  DOS.Sem.in_list_gvs gvs gvss -> gvs = gvss.
 Proof.
   induction 1; subst; try dgvs_instantiate_inv; auto. 
 Qed.
 
-Module DOSprop := OpsemProps DGVs.
+Hint Resolve dos_in_list_gvs_intro.
+
+
 
 (*****************************)
 (*
