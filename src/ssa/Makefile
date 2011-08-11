@@ -10,8 +10,7 @@ all:
 	+make ott 
 #	+make -C ./llvm_op
 
-ott: main.pdf ssa_static.vo ssa_dynamic.vo ssa_wf.vo opsem_conv.vo \
-	opsem_pp.vo ssa_interpreter.vo ndopsem_pp.vo
+ott: main.pdf ssa_static.vo ssa_interpreter.vo
 
 alist.vo : alist.v
 	$(COQC) $(COQARG) alist.v
@@ -69,34 +68,34 @@ genericvalues.vo: ssa_def.vo ssa_lib.vo tactics.vo trace.vo genericvalues.v \
 	alist.vo targetdata.vo compcert/Memory.vo
 	$(COQC) $(COQARG) genericvalues.v
 
-ssa_dynamic.vo: ssa_dynamic.v ssa_def.vo ssa_lib.vo tactics.vo trace.vo \
-	genericvalues.vo alist.vo
-	$(COQC) $(COQARG) ssa_dynamic.v
-
-ndopsem.vo : ndopsem.v genericvalues.vo ssa_dynamic.vo
-	$(COQC) $(COQARG) ndopsem.v
-
-ndopsem_dsop.vo : ndopsem_dsop.v ndopsem.vo genericvalues.vo ssa_dynamic.vo
-	$(COQC) $(COQARG) ndopsem_dsop.v
-
-ndopsem_pp.vo : ndopsem_pp.v ndopsem.vo genericvalues.vo ssa_dynamic.vo \
-	ndopsem_dsop.vo
-	$(COQC) $(COQARG) ndopsem_pp.v
-
-ssa_interpreter.vo: ssa_interpreter.v ssa_dynamic.vo ssa_def.vo ssa_lib.vo \
-	tactics.vo trace.vo genericvalues.vo alist.vo ssa_props.vo
+ssa_interpreter.vo: ssa_interpreter.v ssa_def.vo ssa_lib.vo \
+	tactics.vo trace.vo genericvalues.vo alist.vo ssa_props.vo dopsem.vo
 	$(COQC) $(COQARG) ssa_interpreter.v
 
-ssa_props.vo: ssa_props.v ssa_def.vo ssa_lib.vo genericvalues.vo alist.vo \
-	ssa_dynamic.vo
+ssa_props.vo: ssa_props.v ssa_def.vo ssa_lib.vo genericvalues.vo alist.vo
 	$(COQC) $(COQARG) ssa_props.v
 
-opsem_pp.vo: opsem_pp.v ssa_dynamic.vo ssa_def.vo ssa_lib.vo genericvalues.vo \
-	alist.vo ssa_props.vo
-	$(COQC) $(COQARG) opsem_pp.v
+ssa_static_lib.vo: ssa_static_lib.v ssa_def.vo ssa_lib.vo genericvalues.vo \
+	alist.vo ssa_props.vo ssa_analysis.vo
+	$(COQC) $(COQARG) ssa_static_lib.v
 
-opsem_conv.vo: opsem_conv.v ssa_dynamic.vo ssa_def.vo ssa_lib.vo trace.vo
-	$(COQC) $(COQARG) opsem_conv.v
+opsem.vo: opsem.v ssa_static_lib.vo ssa_def.vo ssa_lib.vo genericvalues.vo \
+	alist.vo ssa_props.vo
+	$(COQC) $(COQARG) opsem.v
+
+opsem_props.vo: opsem_props.v opsem.vo ssa_def.vo ssa_lib.vo genericvalues.vo \
+	alist.vo ssa_props.vo
+	$(COQC) $(COQARG) opsem_props.v
+
+opsem_wf.vo: opsem_wf.v opsem_props.vo opsem.vo ssa_def.vo ssa_lib.vo\
+       genericvalues.vo alist.vo ssa_props.vo
+	$(COQC) $(COQARG) opsem_wf.v
+
+dopsem.vo: dopsem.v opsem_wf.vo
+	$(COQC) $(COQARG) dopsem.v
+
+opsem_inst.vo: opsem_inst.v dopsem.vo ssa_def.vo ssa_lib.vo trace.vo
+	$(COQC) $(COQARG) opsem_inst.v
 
 ssa.tex: ssa_def.ott ssa_coq.ott ssa_lib.ott m_ssa_static.ott main.tex 
 	$(OTT) -merge false -o ssa.tex \

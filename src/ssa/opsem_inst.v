@@ -26,6 +26,7 @@ Require Import Floats.
 Require Import AST.
 Require Import Maps.
 Require Import opsem.
+Require Import opsem_wf.
 Require Import dopsem.
 
 (************** Instantiate GVs ******************)
@@ -351,9 +352,12 @@ Qed.
 
 End NDGVs.
 
-Module NDOS := Opsem NDGVs.
+Module OpsemInstantiation (DGVs NDGVs : GenericValuesSig).
 
-Module OpsemInstantiation.
+Module Export DOS := OpsemPP DGVs.
+Module Export NDOS := Opsem NDGVs.
+
+Section Sec.
 
 Definition instantiate_gvs (gvs1:DGVs.t) (gvs2: NDGVs.t) : Prop :=
 forall gv1, 
@@ -367,87 +371,23 @@ Lemma instantiate_gvs__incl : forall x y x0,
   NDGVs.instantiate_gvs x0 y.
 Proof. auto. Qed.
 
-Lemma instantiate_gvs__gv2gvs : forall gv t, 
+Hypothesis instantiate_gvs__gv2gvs : forall gv t, 
   instantiate_gvs (DGVs.gv2gvs gv t) (NDGVs.gv2gvs gv t).
-Proof. 
-  intros.
-  unfold DGVs.gv2gvs, NDGVs.gv2gvs.
-  destruct gv; try solve [intros gvs1 J; inv J; constructor].
-  destruct p.
-  destruct v; try solve [intros gvs1 J; inv J; constructor].
-  destruct gv; try solve [intros gvs1 J; inv J; constructor].
-  destruct t; simpl;
-    try solve [intros gvs1 J; inv J; 
-               (constructor || apply Union_introl; constructor)].
-  destruct f; simpl;
-    try solve [intros gvs1 J; inv J; 
-               (constructor || apply Union_introl; constructor)].
-Qed.
 
-Lemma instantiate_gvs__cgv2gvs : forall gv t, 
+Hypothesis instantiate_gvs__cgv2gvs : forall gv t, 
   instantiate_gvs (DGVs.cgv2gvs gv t) (NDGVs.cgv2gvs gv t).
-Proof. 
-  intros.
-  unfold DGVs.cgv2gvs, NDGVs.cgv2gvs.
-  destruct gv; try solve [intros gvs1 J; inv J; constructor].
-  destruct p.
-  destruct v; try solve [intros gvs1 J; inv J; constructor].
-  destruct gv; try solve [intros gvs1 J; inv J; constructor].
-  destruct t; simpl;
-    try solve [intros gvs1 J; inv J;
-               try solve [constructor |
-               exists (Int.zero s); auto |
-               exists Mem.nullptr; exists (Int.repr 31 0); auto]].
-  destruct f; simpl;
-    try solve [intros gvs1 J; inv J;
-               try solve [constructor |
-               exists Float.zero; auto]].
-Qed.
 
-Lemma instantiate_gvs__lift_op1 : forall f xs1 xs2 t ys1,
+Hypothesis instantiate_gvs__lift_op1 : forall f xs1 xs2 t ys1,
   instantiate_gvs xs1 xs2 ->
   DGVs.lift_op1 f xs1 t = Some ys1 ->
   exists ys2, NDGVs.lift_op1 f xs2 t = Some ys2 /\ instantiate_gvs ys1 ys2.
-Proof.
-  unfold DGVs.lift_op1, NDGVs.lift_op1.
-  intros.
-  exists (fun gv2 : GenericValue =>
-          exists gv1 : GenericValue,
-            exists gv2' : GenericValue,
-              NDGVs.instantiate_gvs gv1 xs2 /\
-              f gv1 = ret gv2' /\
-              NDGVs.instantiate_gvs gv2 (NDGVs.gv2gvs gv2' t)).
-  split; auto.
-  exists xs1. exists gv1. inv H1.
-  repeat (split; eauto using NDGVs.instantiate_gv__gv2gvs).
-Qed.
 
-Lemma instantiate_gvs__lift_op2 : forall f xs1 ys1 xs2 ys2 t zxs1,
+Hypothesis instantiate_gvs__lift_op2 : forall f xs1 ys1 xs2 ys2 t zxs1,
   instantiate_gvs xs1 xs2 ->
   instantiate_gvs ys1 ys2 ->
   DGVs.lift_op2 f xs1 ys1 t = Some zxs1 ->
   exists zxs2, NDGVs.lift_op2 f xs2 ys2 t = Some zxs2 /\ 
     instantiate_gvs zxs1 zxs2.
-Proof.
-  unfold DGVs.lift_op2, NDGVs.lift_op2.
-  intros.
-  exists (fun gv3 : GenericValue =>
-          exists gv1 : GenericValue,
-            exists gv2 : GenericValue,
-              exists gv3' : GenericValue,
-                NDGVs.instantiate_gvs gv1 xs2 /\
-                NDGVs.instantiate_gvs gv2 ys2 /\
-                f gv1 gv2 = ret gv3' /\
-                NDGVs.instantiate_gvs gv3 (NDGVs.gv2gvs gv3' t)).
-  split; auto.
-  exists xs1. exists ys1. exists zxs1. inv H2.
-  repeat (split; eauto using NDGVs.instantiate_gv__gv2gvs).
-Qed.
-
-Global Opaque NDGVs.instantiate_gvs NDGVs.inhabited NDGVs.cgv2gvs NDGVs.gv2gvs
-  NDGVs.lift_op1 NDGVs.lift_op2 NDGVs.t
-  DGVs.instantiate_gvs DGVs.inhabited DGVs.cgv2gvs DGVs.gv2gvs
-  DGVs.lift_op1 DGVs.lift_op2 DGVs.t.
 
 Fixpoint instantiate_locals (lc1 : DOS.Sem.GVsMap) (lc2 : NDOS.GVsMap): Prop :=
 match lc1, lc2 with
@@ -1177,8 +1117,101 @@ Case "sExCall". simpl_nd_llvmds.
     repeat (split; auto).
 Qed.
 
+End Sec.
+
 End OpsemInstantiation.
 
+Module OpsemInst := OpsemInstantiation DGVs NDGVs.
+
+Lemma instantiate_gvs__gv2gvs : forall gv t, 
+  OpsemInst.instantiate_gvs (DGVs.gv2gvs gv t) (NDGVs.gv2gvs gv t).
+Proof. 
+  intros.
+  unfold DGVs.gv2gvs, NDGVs.gv2gvs.
+  destruct gv; try solve [intros gvs1 J; inv J; constructor].
+  destruct p.
+  destruct v; try solve [intros gvs1 J; inv J; constructor].
+  destruct gv; try solve [intros gvs1 J; inv J; constructor].
+  destruct t; simpl;
+    try solve [intros gvs1 J; inv J; 
+               (constructor || apply Union_introl; constructor)].
+  destruct f; simpl;
+    try solve [intros gvs1 J; inv J; 
+               (constructor || apply Union_introl; constructor)].
+Qed.
+
+Lemma instantiate_gvs__cgv2gvs : forall gv t, 
+  OpsemInst.instantiate_gvs (DGVs.cgv2gvs gv t) (NDGVs.cgv2gvs gv t).
+Proof. 
+  intros.
+  unfold DGVs.cgv2gvs, NDGVs.cgv2gvs.
+  destruct gv; try solve [intros gvs1 J; inv J; constructor].
+  destruct p.
+  destruct v; try solve [intros gvs1 J; inv J; constructor].
+  destruct gv; try solve [intros gvs1 J; inv J; constructor].
+  destruct t; simpl;
+    try solve [intros gvs1 J; inv J;
+               try solve [constructor |
+               exists (Int.zero s); auto |
+               exists Mem.nullptr; exists (Int.repr 31 0); auto]].
+  destruct f; simpl;
+    try solve [intros gvs1 J; inv J;
+               try solve [constructor |
+               exists Float.zero; auto]].
+Qed.
+
+Lemma instantiate_gvs__lift_op1 : forall f xs1 xs2 t ys1,
+  OpsemInst.instantiate_gvs xs1 xs2 ->
+  DGVs.lift_op1 f xs1 t = Some ys1 ->
+  exists ys2, NDGVs.lift_op1 f xs2 t = Some ys2 /\ 
+    OpsemInst.instantiate_gvs ys1 ys2.
+Proof.
+  unfold DGVs.lift_op1, NDGVs.lift_op1.
+  intros.
+  exists (fun gv2 : GenericValue =>
+          exists gv1 : GenericValue,
+            exists gv2' : GenericValue,
+              NDGVs.instantiate_gvs gv1 xs2 /\
+              f gv1 = ret gv2' /\
+              NDGVs.instantiate_gvs gv2 (NDGVs.gv2gvs gv2' t)).
+  split; auto.
+  exists xs1. exists gv1. inv H1.
+  repeat (split; eauto using NDGVs.instantiate_gv__gv2gvs).
+Qed.
+
+Lemma instantiate_gvs__lift_op2 : forall f xs1 ys1 xs2 ys2 t zxs1,
+  OpsemInst.instantiate_gvs xs1 xs2 ->
+  OpsemInst.instantiate_gvs ys1 ys2 ->
+  DGVs.lift_op2 f xs1 ys1 t = Some zxs1 ->
+  exists zxs2, NDGVs.lift_op2 f xs2 ys2 t = Some zxs2 /\ 
+    OpsemInst.instantiate_gvs zxs1 zxs2.
+Proof.
+  unfold DGVs.lift_op2, NDGVs.lift_op2.
+  intros.
+  exists (fun gv3 : GenericValue =>
+          exists gv1 : GenericValue,
+            exists gv2 : GenericValue,
+              exists gv3' : GenericValue,
+                NDGVs.instantiate_gvs gv1 xs2 /\
+                NDGVs.instantiate_gvs gv2 ys2 /\
+                f gv1 gv2 = ret gv3' /\
+                NDGVs.instantiate_gvs gv3 (NDGVs.gv2gvs gv3' t)).
+  split; auto.
+  exists xs1. exists ys1. exists zxs1. inv H2.
+  repeat (split; eauto using NDGVs.instantiate_gv__gv2gvs).
+Qed.
+
+Lemma DOS_instantiate_NDOS : forall st1 st2 st1' tr,
+  OpsemInst.instantiate_State st1 st2 ->
+  OpsemInst.DOS.Sem.sInsn st1 st1' tr ->
+  (exists st2', OpsemInst.NDOS.sInsn st2 st2' tr /\ 
+    OpsemInst.instantiate_State st1' st2').
+Proof.
+  intros.
+  eapply OpsemInst.instantiate_dsInsn; eauto using
+    instantiate_gvs__gv2gvs, instantiate_gvs__cgv2gvs,
+    instantiate_gvs__lift_op1, instantiate_gvs__lift_op2.
+Qed.
 
 (*****************************)
 (*

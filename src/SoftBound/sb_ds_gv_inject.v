@@ -6,7 +6,6 @@ Add LoadPath "../../../theory/metatheory_8.3".
 Add LoadPath "../TV".
 Require Import ssa_def.
 Require Import ssa_lib.
-Require Import ssa_dynamic.
 Require Import trace.
 Require Import Memory.
 Require Import genericvalues.
@@ -19,7 +18,6 @@ Require Import Metatheory.
 Require Import Znumtheory.
 Require Import ssa_static.
 Require Import ssa_props.
-Require Import ssa_wf.
 Require Import sb_msim.
 
 Inductive gv_inject (mi: meminj) : GenericValue -> GenericValue -> Prop :=

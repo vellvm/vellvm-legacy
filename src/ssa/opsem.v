@@ -17,6 +17,7 @@ Require Import Memory.
 Require Import Integers.
 Require Import Coqlib.
 Require Import targetdata.
+Require Import ssa_props.
 Require Import ssa_static_lib.
 
 (************** GVs Interface ******************)
@@ -273,6 +274,16 @@ Proof.
   destruct p.  
   destruct (splitGenericValue g0 (Z_of_nat n)); eauto using gundef__total'.
   destruct p. eauto.
+Qed.
+
+Lemma lookupFdefViaPtr_inv : forall Ps fs fv F,
+  lookupFdefViaPtr Ps fs fv = Some F ->
+  InProductsB (product_fdef F) Ps.
+Proof.
+  intros.
+  unfold lookupFdefViaPtr in H.
+  destruct (lookupFdefViaGVFromFunTable fs fv); try solve [inversion H].
+  apply lookupFdefViaIDFromProducts_inv in H; auto.
 Qed.
 
 End OpsemAux.

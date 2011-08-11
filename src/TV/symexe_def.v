@@ -15,7 +15,6 @@ Require Import trace.
 Require Import alist.
 Require Import CoqListFacts.
 Require Import Coqlib.
-Require Import ssa_dynamic.
 Require Import opsem.
 Require Import dopsem.
 

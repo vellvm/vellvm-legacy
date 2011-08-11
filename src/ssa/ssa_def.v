@@ -601,6 +601,26 @@ Tactic Notation "product_cases" tactic(first) tactic(c) :=
   first;
   [ c "product_gvar" | c "product_fdec" | c "product_fdef" ].
 
+Tactic Notation "typ_cases" tactic(first) tactic(c) :=
+  first;
+  [ c "typ_int" | c "typ_floatingpoint" |
+    c "typ_void" | c "typ_label" |
+    c "typ_metadata" | c "typ_array" |
+    c "typ_function" | c "typ_struct" | c "typ_pointer" | c "typ_opaque" |
+    c "typ_namedt" | c "typ_nil" | c "typ_cons" ].
+
+Tactic Notation "wfconst_cases" tactic(first) tactic(c) :=
+  first;
+  [ c "wfconst_zero" | c "wfconst_int" | c "wfconst_floatingpoint" |
+    c "wfconst_undef" | c "wfconst_null" | c "wfconst_array" |
+    c "wfconst_struct" | c "wfconst_gid" | c "wfconst_trunc_int" |
+    c "wfconst_trunc_fp" | c "wfconst_zext" | c "wfconst_sext" |
+    c "wfconst_fpext" | c "wfconst_ptrtoint" | c "wfconst_inttoptr" |
+    c "wfconst_bitcast" | c "wfconst_gep" | c "wfconst_select" |
+    c "wfconst_icmp" | c "wfconst_fcmp" | c "wfconst_extractvalue" | 
+    c "wfconst_insertvalue" | c "wfconst_bop" | c "wfconst_fbop" | 
+    c "wfconst_nil" | c "wfconst_cons" ].
+
 Scheme const_rec2 := Induction for const Sort Set
   with list_const_rec2 := Induction for list_const Sort Set.
 

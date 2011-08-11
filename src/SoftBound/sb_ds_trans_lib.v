@@ -6,7 +6,6 @@ Add LoadPath "../../../theory/metatheory_8.3".
 Add LoadPath "../TV".
 Require Import ssa_def.
 Require Import ssa_lib.
-Require Import ssa_dynamic.
 Require Import trace.
 Require Import Memory.
 Require Import genericvalues.
@@ -17,12 +16,13 @@ Require Import Coqlib.
 Require Import monad.
 Require Import Metatheory.
 Require Import Znumtheory.
-Require Import sb_ds_def.
+Require Import opsem.
+Require Import dopsem.
+Require Import sb_def.
 Require Import sb_ds_trans.
-Require Import sb_ds_metadata.
+Require Import sb_metadata.
 Require Import ssa_static.
 Require Import ssa_props.
-Require Import ssa_wf.
 Import SB_ds_pass.
 Require Import sb_msim.
 Require Import sb_ds_sim.
@@ -539,7 +539,7 @@ Proof.
       destruct (zeq b mb); subst; eauto.
         assert (J'':=J').
         apply mi_globals in J'.
-        destruct (valid_block_dec Mem mb).
+        destruct (DSB.valid_block_dec Mem mb).
           apply Mem.fresh_block_alloc in HeqR1.
           contradict HeqR1; auto.
      
@@ -702,7 +702,7 @@ Qed.
 
 Ltac invert_prop_reg_metadata :=
   match goal with
-  | [H : SBopsem.prop_reg_metadata _ _ _ _ _ = (_, _) |- _ ] =>
+  | [H : DSB.SBSEM.prop_reg_metadata _ _ _ _ _ = (_, _) |- _ ] =>
       inv H; subst; eauto
   end.
 
@@ -759,6 +759,8 @@ Qed.
 Lemma incl_nil : forall A (d:list A), incl nil d.
 Proof. intros. intros x J. inv J. Qed.
 
+Require Import ssa_analysis.
+
 Lemma ids2atoms__inc : forall d1 d2,
   incl d1 d2 <-> ids2atoms d1 [<=] ids2atoms d2.
 Proof.
@@ -768,8 +770,8 @@ Proof.
       fsetdec.
       simpl_env in H.
       assert (H':=H).
-      apply incl_app_invr in H.
-      apply incl_app_invl in H'.
+      apply AtomSet.incl_app_invr in H.
+      apply AtomSet.incl_app_invl in H'.
       apply IHd1 in H.      
       assert (In a [a]) as Hin. simpl. auto.
       apply H' in Hin.
@@ -857,7 +859,7 @@ Proof.
     assert (i0 `in` ids2atoms ex_ids0) as Hin.
       apply ids2atoms__inc in Hinc.
       simpl in Hinc. fsetdec.
-    simpl_env in Hinc. apply incl_app_invr in Hinc.
+    simpl_env in Hinc. apply AtomSet.incl_app_invr in Hinc.
     destruct (isPointerTypB t).
       case_eq (gen_metadata_id ex_ids1 rm1 i0).
       intros [[b e] ex_ids5] rm5 Hgenid.
@@ -895,7 +897,7 @@ Proof.
     assert (i0 `in` ids2atoms ex_ids0) as Hin.
       apply ids2atoms__inc in Hinc.
       simpl in Hinc. fsetdec.
-    simpl_env in Hinc. apply incl_app_invr in Hinc.
+    simpl_env in Hinc. apply AtomSet.incl_app_invr in Hinc.
     destruct (isPointerTypB t).
       case_eq (gen_metadata_id ex_ids1 rm1 i0).
       intros [[b e] ex_ids5] rm5 Hgenid.
@@ -933,7 +935,7 @@ Proof.
     assert ((getCmdLoc a) `in` ids2atoms ex_ids0) as Hin.
       apply ids2atoms__inc in Hinc.
       simpl in Hinc. fsetdec.
-    simpl_env in Hinc. apply incl_app_invr in Hinc.
+    simpl_env in Hinc. apply AtomSet.incl_app_invr in Hinc.
     destruct (isPointerTypB t).
       case_eq (gen_metadata_id ex_ids1 rm1 (getCmdLoc a)).
       intros [[b e] ex_ids5] rm5 Hgenid.
@@ -971,9 +973,9 @@ Proof.
   intros ex_ids5 rm5 Hgenps. rewrite Hgenps in H5.
   simpl in Hinc.
   assert (Hinc':=Hinc). 
-  apply incl_app_invl in Hinc'.
-  apply incl_app_invr in Hinc.
-  apply incl_app_invl in Hinc.
+  apply AtomSet.incl_app_invl in Hinc'.
+  apply AtomSet.incl_app_invr in Hinc.
+  apply AtomSet.incl_app_invl in Hinc.
   eapply gen_metadata_phinodes_spec in Hgenps; eauto.
   destruct Hgenps as [J8 [J9 [J10 [J11 J12]]]].
   assert (ids2atoms ex_ids0[<=]ids2atoms ex_ids5) as Hinc''.
@@ -1002,8 +1004,8 @@ Proof.
     inv H5. split; auto. fsetdec.
 
     assert (Hinc':=Hinc). 
-    apply incl_app_invl in Hinc'.
-    apply incl_app_invr in Hinc.
+    apply AtomSet.incl_app_invl in Hinc'.
+    apply AtomSet.incl_app_invr in Hinc.
     remember (gen_metadata_block nts ex_ids1 rm1 a) as R.
     destruct R as [[ex_ids5 rm5]|]; tinv H5.
     symmetry in HeqR.
@@ -1154,7 +1156,7 @@ Proof.
       intros vp blk0 bofs0 eofs0 J.
       destruct vp as [pid | ]; simpl.
       SSSCase "vp = pid".
-        unfold SBopsem.get_reg_metadata in J.
+        unfold SBspecAux.get_reg_metadata in J.
         destruct (id_dec id0 pid); subst.
         SSSSCase "id0 = pid".
           rewrite <- HeqR1.
@@ -1194,7 +1196,7 @@ Proof.
             rewrite <- lookupAL_updateAddAL_neq; auto.
 
       SSSCase "vp = c".
-        apply get_reg_metadata_const_inv in J.
+        apply DSB.get_reg_metadata_const_inv in J.
         destruct J as [[J1 J2] | [c1 [c2 [J1 [J2 J3]]]]].
           inv J2.
           exists vnullp8. exists vnullp8. exists null. exists null.
@@ -1266,7 +1268,7 @@ Proof.
     clear - Hdisj1 Hin J1 J2.
     fsetdec.
   
-    destruct (SBopsem.get_const_metadata c) as [[be ec]|]; inv J11; simpl; auto.
+    destruct (SBspecAux.get_const_metadata c) as [[be ec]|]; inv J11; simpl;auto.
 Qed.
 
 Lemma get_reg_metadata_fresh3 : forall nts f1 ex_ids3 rm2 vp bv2 ev2 id0 bid0
@@ -1294,7 +1296,7 @@ Proof.
       destruct HeqR as [G1 [G2 [G3 [G4 [G5 [G6 [G7 [G8 [G9 G10]]]]]]]]]. 
       auto.
   
-    destruct (SBopsem.get_const_metadata c) as [[be ec]|]; 
+    destruct (SBspecAux.get_const_metadata c) as [[be ec]|]; 
       inv Hgetr; simpl; auto.
 Qed.        
 
@@ -1333,7 +1335,7 @@ Proof.
       intros vp blk1 bofs1 eofs1 J.
       destruct vp as [pid | ]; simpl.
       SSSCase "vp = pid".
-          unfold SBopsem.get_reg_metadata in J.
+          unfold SBspecAux.get_reg_metadata in J.
           destruct Hrsim as [_ [Hrsim _]].
           destruct (@Hrsim (value_id pid) blk1 bofs1 eofs1) as 
             [bv2 [ev2 [bgv2 [egv2 [J1 [J2 [J3 [J4 J5]]]]]]]]; auto.
@@ -1349,7 +1351,7 @@ Proof.
           rewrite <- lookupAL_updateAddAL_neq; auto.
 
       SSSCase "vp = c".
-        apply get_reg_metadata_const_inv in J.
+        apply DSB.get_reg_metadata_const_inv in J.
         destruct J as [[J1 J2] | [c1 [c2 [J1 [J2 J3]]]]].
           inv J2.
           exists vnullp8. exists vnullp8. exists null. exists null.
@@ -1502,17 +1504,19 @@ Lemma inject_incr__preserves__sbEC_simulate_EC_tail : forall mi mi' TD gl Ps
   sbEC_simulates_EC_tail TD Ps gl mi' EC1 EC2.
 Proof.
   intros.
-  destruct EC1. destruct EC2.
-  destruct TD as [los nts]. destruct CurFunction0. destruct CurFunction1.
-  destruct CurCmds0; try solve [inv H0].
-  destruct c; try solve [inv H0].
+  destruct EC1 as [f1 b1 cs1 tmn1 lc1 rm1 als1].
+  destruct EC2 as [f2 b2 cs2 tmn2 lc2 rm2 als2].
+  destruct TD as [los nts]. destruct f1. destruct f2.
+  destruct b1; try solve [inv H0].
+  destruct cs1; try solve [inv H0].
+  destruct c0; try solve [inv H0].
   destruct H0 as [J0 [J1 [J2 [Htfdef [Heq0 [Hasim [Hnth [Heqb1 [Heqb2 [ex_ids 
-    [rm2 [ex_ids3 [ex_ids4 [cs22 [cs23 [cs24 [Hgenmeta [Hrsim [Hinc [Hcall 
+    [rm2' [ex_ids3 [ex_ids4 [cs22 [cs23 [cs24 [Hgenmeta [Hrsim [Hinc [Hcall 
     [Htcmds [Httmn Heq2]]]]]]]]]]]]]]]]]]]]]]; subst.
   eapply inject_incr__preserves__als_simulation in Hasim; eauto.
   eapply inject_incr__preserves__reg_simulation in Hrsim; eauto.
   repeat (split; auto).
-  exists ex_ids. exists rm2. exists ex_ids3. exists ex_ids4. exists cs22.
+  exists ex_ids. exists rm2'. exists ex_ids3. exists ex_ids4. exists cs22.
   exists cs23. exists cs24.
   repeat (split; auto).
 Qed.
@@ -1629,7 +1633,7 @@ Proof.
   apply ids2atoms__inc in Hinc.
   eapply tmp_is_fresh' with (tmp:=ptmp)(ex_ids:=ex_ids) in HeqR; eauto. 
     fsetdec.
-  destruct (SBopsem.get_const_metadata c) as [[bc ec]|]; inv J1; simpl; auto.
+  destruct (SBspecAux.get_const_metadata c) as [[bc ec]|]; inv J1; simpl; auto.
 Qed.            
 
 Lemma get_reg_metadata_fresh' : forall nts vp rm2 ex_ids3 f1
@@ -2145,37 +2149,40 @@ Proof.
           eauto.
 Qed.
 
-Lemma lookupFdefViaGV__simulation : forall mi los nts gl2 F rm rm2 lc lc2 f1
-    fv Ps1 Ps2 fs1 fs2 M1 M2 mgb,
+Lemma lookupFdefViaPtr__simulation : forall mi los nts gl2 F rm rm2 lc lc2 f1
+    fv Ps1 Ps2 fs1 fs2 M1 M2 mgb fptr1,
   wf_globals mgb  gl2 ->
   wf_sb_mi mgb mi M1 M2 ->
   reg_simulation mi (los,nts) gl2 F rm rm2 lc lc2 ->
   ftable_simulation mi fs1 fs2 ->
-  lookupFdefViaGV (los,nts) Ps1 gl2 lc fs1 fv = Some f1 ->
+  getOperandValue (los, nts) fv lc gl2 = Some fptr1 ->
+  OpsemAux.lookupFdefViaPtr Ps1 fs1 fptr1 = Some f1 ->
   trans_products nts Ps1 = Some Ps2 ->
-  exists f2,
-    lookupFdefViaGV (los,nts) Ps2 gl2 lc2 fs2 (wrap_call fv) = Some f2 /\
+  exists fptr2, exists f2,
+    getOperandValue (los, nts) (wrap_call fv) lc2 gl2 = Some fptr2 /\
+    gv_inject mi fptr1 fptr2 /\
+    OpsemAux.lookupFdefViaPtr Ps2 fs2 fptr2 = Some f2 /\
     trans_fdef nts f1 = Some f2.
 Proof.
   intros.
-  unfold lookupFdefViaGV in *.
-  remember (getOperandValue (los, nts) fv lc gl2) as R1.
-  destruct R1 as [fv1|]; inv H3.
-  remember (lookupFdefViaGVFromFunTable fs1 fv1) as R2.
-  destruct R2 as [fid|]; inv H6.
-  symmetry in HeqR1.
-  eapply simulation__getOperandValue in HeqR1; eauto.
-  destruct HeqR1 as [fv2 [J1 J2]].
+  unfold OpsemAux.lookupFdefViaPtr in *.
+  remember (OpsemAux.lookupFdefViaGVFromFunTable fs1 fptr1) as R2.
+  destruct R2 as [fid|]; inv H4.
+  eapply simulation__getOperandValue in H3; eauto.
+  destruct H3 as [fptr2 [J1 J2]].
   rewrite wrapper_is_identical.
-  rewrite J1. simpl.
+  rewrite J1. simpl. 
+  exists fptr2.
   erewrite <- H2; eauto.
   rewrite <- HeqR2. simpl.
-  eapply trans_products__trans_fdef; eauto.
+  eapply trans_products__trans_fdef in H7; eauto.
+  destruct H7 as [f2 [J3 J4]].
+  eauto.
 Qed.
   
 Lemma trans_params_simulation : forall mi TD gl F rm2 lp n rm1 lc1 lc2 ogvs cs,
   reg_simulation mi TD gl F rm1 rm2 lc1 lc2 ->
-  params2GVs TD lp lc1 gl rm1 = Some ogvs ->
+  DSB.SBSEM.params2GVs TD lp lc1 gl rm1 = Some ogvs ->
   trans_params rm2 lp n = Some cs ->
   params_simulation TD gl mi lc2 ogvs n cs.
 Proof.
@@ -2183,9 +2190,9 @@ Proof.
     inv Hp2gv. inv Htpa. simpl. auto.
 
     destruct a.
-    remember (getOperandValue TD v lc1 gl) as R0.
+    remember (DSB.SBSEM.Sem.SemP.Sem.getOperandValue TD v lc1 gl) as R0.
     destruct R0; try solve [inv Hp2gv].
-    remember (params2GVs TD lp lc1 gl rm1) as R.
+    remember (DSB.SBSEM.params2GVs TD lp lc1 gl rm1) as R.
     destruct R; try solve [inv Hp2gv].
     remember (trans_params rm2 lp (n + 1)) as R1.
     destruct R1; try solve [inv Htpa].
@@ -2194,7 +2201,7 @@ Proof.
       destruct R2 as [[bv2 ev2]|]; inv Htpa.
       unfold call_set_shadowstack.
       simpl.
-      remember (SBopsem.get_reg_metadata TD gl rm1 v) as R3.
+      remember (SBspecAux.get_reg_metadata TD gl rm1 v) as R3.
       destruct R3 as [[bgv1 egv1]|].
         symmetry in HeqR3.
         assert (J:=Hrsim).
@@ -2279,34 +2286,36 @@ Proof.
 Qed.
 
 Lemma lookupExFdecViaGV__simulation : forall mi los nts gl2 F rm rm2 lc lc2 f1
-    fv Ps1 Ps2 fs1 fs2 M1 M2 mgb,
+    fv Ps1 Ps2 fs1 fs2 M1 M2 mgb fptr1,
   wf_globals mgb gl2 ->
   wf_sb_mi mgb mi M1 M2 ->
   reg_simulation mi (los,nts) gl2 F rm rm2 lc lc2 ->
   ftable_simulation mi fs1 fs2 ->
-  lookupExFdecViaGV (los,nts) Ps1 gl2 lc fs1 fv = Some f1 ->
+  getOperandValue (los,nts) fv lc gl2 = Some fptr1 ->
+  OpsemAux.lookupExFdecViaPtr Ps1 fs1 fptr1 = Some f1 ->
   trans_products nts Ps1 = Some Ps2 ->
-  exists f2,
-    lookupExFdecViaGV (los,nts) Ps2 gl2 lc2 fs2 (wrap_call fv) = Some f2 /\
+  exists fptr2, exists f2,
+    getOperandValue (los,nts) (wrap_call fv) lc2 gl2 = Some fptr2 /\
+    OpsemAux.lookupExFdecViaPtr Ps2 fs2 fptr2 = Some f2 /\
+    gv_inject mi fptr1 fptr2 /\
     trans_fdec f1 = f2.
 Proof.
   intros.
-  unfold lookupExFdecViaGV in *.
-  remember (getOperandValue (los, nts) fv lc gl2) as R1.
-  destruct R1 as [fv1|]; inv H3.
-  remember (lookupFdefViaGVFromFunTable fs1 fv1) as R2.
-  destruct R2 as [fid|]; inv H6.
-  symmetry in HeqR1.
-  eapply simulation__getOperandValue in HeqR1; eauto.
-  destruct HeqR1 as [fv2 [J1 J2]].
-  rewrite wrapper_is_identical.
-  rewrite J1. simpl.
+  unfold OpsemAux.lookupExFdecViaPtr in *.
+  remember (OpsemAux.lookupFdefViaGVFromFunTable fs1 fptr1) as R2.
+  destruct R2 as [fid|]; inv H4.
+  eapply simulation__getOperandValue in H3; eauto.
+  destruct H3 as [fptr2 [J1 J2]].
+  rewrite wrapper_is_identical. 
+  exists fptr2.
   erewrite <- H2; eauto.
   rewrite <- HeqR2. simpl.
   remember (lookupFdefViaIDFromProducts Ps1 fid) as R.
-  destruct R; inv H5.
+  destruct R; inv H7.
   erewrite trans_products__none; eauto.
-  eapply trans_products__trans_fdec; eauto.
+  eapply trans_products__trans_fdec in H4; eauto.
+  destruct H4 as [f2 [H4 H6]].
+  eauto.
 Qed.
 
 Lemma getValueViaBlockFromValuels__eql : forall B1 B2 vls,
@@ -2324,7 +2333,7 @@ Lemma get_metadata_from_list_value_l_spec : forall mi TD gl F rm1 rm2 lc1 lc2 B1
   vls v
   (HeqR1 : ret v = getValueViaBlockFromValuels vls B1)
   (HeqR4 : ret (mkMD blk1 bofs1 eofs1) =
-          SBopsem.get_reg_metadata TD gl rm1 v)
+          SBspecAux.get_reg_metadata TD gl rm1 v)
   (bvls0 : list_value_l) (evls0 : list_value_l)
   (HeqR5 : ret (bvls0, evls0) =
           get_metadata_from_list_value_l rm2 vls),
@@ -2359,16 +2368,18 @@ Proof.
       eauto.
 Qed.
 
-Lemma getIncomingValuesForBlockFromPHINodes__reg_simulation : forall M1 M2 TD gl   mi F B1 B2 rm2 mgb
+Lemma getIncomingValuesForBlockFromPHINodes__reg_simulation : forall M1 M2 TD gl 
+  mi F B1 B2 rm2 mgb
   (Hwfmi : wf_sb_mi mgb mi M1 M2)
   (Hwfg : wf_globals mgb gl)
   ps1 lc1 rm1 re1 lc2 ps2,
   reg_simulation mi TD gl F rm1 rm2 lc1 lc2 ->
-  getIncomingValuesForBlockFromPHINodes TD ps1 B1 gl lc1 rm1 = Some re1 ->
+  DSB.SBSEM.getIncomingValuesForBlockFromPHINodes TD ps1 B1 gl lc1 rm1 
+    = Some re1 ->
   label_of_block B1 = label_of_block B2 ->
   trans_phinodes rm2 ps1 = Some ps2 ->
   exists re2, 
-    LLVMopsem.getIncomingValuesForBlockFromPHINodes TD ps2 B2 gl lc2 = Some re2 
+    DOS.Sem.getIncomingValuesForBlockFromPHINodes TD ps2 B2 gl lc2 = Some re2 
       /\ incomingValues_simulation mi re1 rm2 re2.
 Proof.
   induction ps1; simpl; intros lc1 rm1 re1 lc2 ps2 Hrsim Hget Heq Htrans; auto.
@@ -2379,12 +2390,13 @@ Proof.
     destruct R as [ps2'|]; try solve [inv Htrans].
     remember (getValueViaBlockFromValuels vls B1) as R1.
     destruct R1 as [v|]; try solve [inv Hget].
-    remember (getOperandValue TD v lc1 gl) as R2.
+    remember (DSB.SBSEM.Sem.SemP.Sem.getOperandValue TD v lc1 gl) as R2.
     destruct R2 as [gv1|]; try solve [inv Hget].
-    remember (getIncomingValuesForBlockFromPHINodes TD ps1 B1 gl lc1 rm1) as R3.
+    remember (DSB.SBSEM.getIncomingValuesForBlockFromPHINodes TD ps1 B1 gl lc1 
+      rm1) as R3.
     destruct R3 as [idgvs|]; try solve [inv Hget].
     destruct (isPointerTypB t).
-      remember (SBopsem.get_reg_metadata TD gl rm1 v) as R4.
+      remember (SBspecAux.get_reg_metadata TD gl rm1 v) as R4.
       destruct R4 as [[bgv1 egv1]|]; inv Hget.
       remember (get_metadata_from_list_value_l rm2 vls) as R5.
       destruct R5 as [[bvls0 evls0]|]; try solve [inv Htrans].
@@ -2394,7 +2406,9 @@ Proof.
       eapply get_metadata_from_list_value_l_spec in HeqR5; eauto.
       destruct HeqR5 as [bv2 [ev2 [bgv2 [egv2 [Hvb [Hve [Hgetb [Hgete
         [Hinjb Hinje]]]]]]]]].
-      rewrite Hvb. rewrite Hgetb. rewrite Hve. rewrite Hgete.
+      rewrite Hvb. rewrite Hve. 
+      replace DOS.Sem.getOperandValue with getOperandValue; auto.
+      rewrite Hgetb. rewrite Hgete.
       erewrite <- getValueViaBlockFromValuels__eql; eauto.
       rewrite <- HeqR1.
       symmetry in HeqR2.
@@ -2415,6 +2429,7 @@ Proof.
       symmetry in HeqR2.
       eapply simulation__getOperandValue in HeqR2; eauto.
       destruct HeqR2 as [gv2 [HeqR2 Hinj2]].
+      replace DOS.Sem.getOperandValue with getOperandValue; auto.
       rewrite HeqR2.
       symmetry in HeqR3.
       eapply IHps1 in HeqR3; eauto.
@@ -2439,8 +2454,8 @@ Lemma updateValuesForNewBlock__reg_simulation : forall mi los gl f1 rm2 re1
   gen_metadata_fdef nts (getFdefLocs f1) nil f1 = Some (ex_ids,rm2) ->
   reg_simulation mi (los,nts) gl f1 rm1 rm2 lc1 lc2 ->
   incomingValues_simulation mi re1 rm2 re2 ->
-  updateValuesForNewBlock re1 lc1 rm1 = (lc1', rm1') ->
-  LLVMopsem.updateValuesForNewBlock re2 lc2 = lc2' ->
+  DSB.SBSEM.updateValuesForNewBlock re1 lc1 rm1 = (lc1', rm1') ->
+  DOS.Sem.updateValuesForNewBlock re2 lc2 = lc2' ->
   reg_simulation mi (los,nts) gl f1 rm1' rm2 lc1' lc2'.
 Proof.
   induction re1; simpl; intros rm1 lc1 lc2 re2 lc1' rm1' lc2' M1 M2 mgb ex_ids
@@ -2456,7 +2471,7 @@ Proof.
       destruct re2; try solve [inv Hisim].
       destruct p as [i2 gv2].
       destruct Hisim as [Heq [Hginj [Hlk [Hbinj [Heinj Hisim]]]]]; subst.
-      remember (updateValuesForNewBlock re1 lc1 rm1) as R.      
+      remember (DSB.SBSEM.updateValuesForNewBlock re1 lc1 rm1) as R.      
       destruct R as [lc' rm']. inv Hupdate.
       simpl.
       destruct Hindom as [Hin Hindom].
@@ -2465,7 +2480,7 @@ Proof.
       destruct re2; try solve [inv Hisim].
       destruct p as [i2 gv2].
       destruct Hisim as [Heq [Hginj Hisim]]; subst.
-      remember (updateValuesForNewBlock re1 lc1 rm1) as R.      
+      remember (DSB.SBSEM.updateValuesForNewBlock re1 lc1 rm1) as R.      
       destruct R as [lc' rm']. inv Hupdate.
       simpl.
       destruct Hindom as [Hin Hindom].
@@ -2496,7 +2511,8 @@ Qed.
 Lemma getIncomingValues_in_dom_aux : forall l0 cs1 tmn f1 TD B1 gl ps2 ps1 lc1 
     rm1 re1,
   blockInFdefB (block_intro l0 (ps1++ps2) cs1 tmn) f1 = true ->
-  getIncomingValuesForBlockFromPHINodes TD ps2 B1 gl lc1 rm1 = ret re1 ->
+  DSB.SBSEM.getIncomingValuesForBlockFromPHINodes TD ps2 B1 gl lc1 rm1 
+    = ret re1 ->
   incomingValues_in_dom re1 (getFdefLocs f1).
 Proof.
   induction ps2; simpl; intros ps1 lc1 rm1 re1 HBinF Hget. 
@@ -2504,11 +2520,11 @@ Proof.
 
     destruct a.
     destruct (getValueViaBlockFromValuels l1 B1); tinv Hget.
-    destruct (getOperandValue TD v lc1 gl); tinv Hget.
-    remember (getIncomingValuesForBlockFromPHINodes TD ps2 B1 gl lc1 rm1) as R.
+    destruct (DSB.SBSEM.Sem.SemP.Sem.getOperandValue TD v lc1 gl); tinv Hget.
+    remember (DSB.SBSEM.getIncomingValuesForBlockFromPHINodes TD ps2 B1 gl lc1 rm1) as R.
     destruct R; tinv Hget.
     destruct (isPointerTypB t).
-      destruct (SBopsem.get_reg_metadata TD gl rm1 v); inv Hget.
+      destruct (SBspecAux.get_reg_metadata TD gl rm1 v); inv Hget.
       simpl. symmetry in HeqR.
       rewrite_env ((ps1 ++ [insn_phi i0 t l1]) ++ ps2) in HBinF.
       apply IHps2 with (ps1:=ps1 ++ [insn_phi i0 t l1]) in HeqR; simpl; auto.
@@ -2527,7 +2543,8 @@ Qed.
 
 Lemma getIncomingValues_in_dom : forall l0 cs1 tmn f1 TD B1 gl ps1 lc1 rm1 re1,
   blockInFdefB (block_intro l0 ps1 cs1 tmn) f1 = true ->
-  getIncomingValuesForBlockFromPHINodes TD ps1 B1 gl lc1 rm1 = ret re1 ->
+  DSB.SBSEM.getIncomingValuesForBlockFromPHINodes TD ps1 B1 gl lc1 rm1 
+    = ret re1 ->
   incomingValues_in_dom re1 (getFdefLocs f1).
 Proof.
   intros.
@@ -2541,20 +2558,20 @@ Lemma switchToNewBasicBlock__reg_simulation : forall mi nts los gl f1 rm1 rm2 lc
   blockInFdefB (block_intro l0 ps1 cs1 tmn) f1 = true ->
   gen_metadata_fdef nts (getFdefLocs f1) nil f1 = Some (ex_ids,rm2) ->
   reg_simulation mi (los,nts) gl f1 rm1 rm2 lc1 lc2 ->
-  switchToNewBasicBlock (los,nts) (block_intro l0 ps1 cs1 tmn) B1 gl lc1 rm1 = 
-    ret (lc1', rm1') ->
+  DSB.SBSEM.switchToNewBasicBlock (los,nts) (block_intro l0 ps1 cs1 tmn) B1 gl 
+    lc1 rm1 = ret (lc1', rm1') ->
   label_of_block B1 = label_of_block B2 ->
   trans_phinodes rm2 ps1 = Some ps2 ->
-  exists lc2', LLVMopsem.switchToNewBasicBlock (los,nts)
+  exists lc2', DOS.Sem.switchToNewBasicBlock (los,nts)
     (block_intro l0 ps2 cs2 tmn) B2 gl lc2 = Some lc2' /\
     reg_simulation mi (los,nts) gl f1 rm1' rm2 lc1' lc2'.
 Proof.
   intros mi nts los gl f1 rm1 rm2 lc1 lc2 B1 B2 l0 ps1 cs1 tmn ps2 cs2 lc1' rm1' 
     M1 M2 mgb ex_ids Hwfmi Hwfg HBinF Hgenmd Hrsim Hswitch Hleq Htphis.
-  unfold switchToNewBasicBlock in Hswitch.
-  unfold LLVMopsem.switchToNewBasicBlock. simpl in *.
-  remember (getIncomingValuesForBlockFromPHINodes (los,nts) ps1 B1 gl lc1 rm1) 
-    as R.
+  unfold DSB.SBSEM.switchToNewBasicBlock in Hswitch.
+  unfold DOS.Sem.switchToNewBasicBlock. simpl in *.
+  remember (DSB.SBSEM.getIncomingValuesForBlockFromPHINodes (los,nts) ps1 B1 gl 
+    lc1 rm1) as R.
   destruct R; try solve [inv Hswitch].  
     symmetry in HeqR.
     assert (Hindom := HeqR).

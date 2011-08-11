@@ -16,13 +16,13 @@ Require Import Coqlib.
 Require Import monad.
 Require Import Metatheory.
 Require Import Znumtheory.
-Require Import sb_ds_def.
+Require Import sb_def.
 
 Module SB_ds_pass.
 
 Export LLVMsyntax.
 Export LLVMgv.
-Export SBopsem.
+Export SBspecAux.
 
 (********************************************)
 (** syntax *)
@@ -281,7 +281,7 @@ Definition get_reg_metadata (rm:rmap) (v:value) : option (value * value) :=
       | None => None
       end
   | value_const c => 
-      match (SBopsem.get_const_metadata c) with
+      match (get_const_metadata c) with
       | Some (bc, ec) => Some (value_const bc, value_const ec)
       | None => Some (vnullp8, vnullp8)
       end
@@ -333,9 +333,15 @@ match v with
 | _ => v
 end.
 
+Definition isReturnPointerTypB t0 : bool :=
+match t0 with
+| typ_function t0 _ _ => isPointerTypB t0
+| _ => false
+end.
+
 Definition call_suffix i0 nr ca t0 v p rm : option cmds :=
   let optcs' :=
-    if negb nr && SBopsem.isReturnPointerTypB t0 then
+    if negb nr && isReturnPointerTypB t0 then
       match (lookupAL _ rm i0) with
       | Some (bid0, eid0) =>
           Some (

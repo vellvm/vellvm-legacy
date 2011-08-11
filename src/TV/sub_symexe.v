@@ -11,7 +11,6 @@ Require Import monad.
 Require Import Arith.
 Require Import Metatheory.
 Require Import genericvalues.
-Require Import ssa_dynamic.
 Require Import trace.
 Require Import alist.
 Require Import ssa_props.

@@ -9,7 +9,6 @@ Require Import CoqListFacts.
 Require Import Metatheory.
 Require Import alist.
 Require Import genericvalues.
-Require Import ssa_dynamic.
 Require Import Coqlib.
 Require Import Kildall.
 Require Import Maps.
@@ -17,7 +16,6 @@ Require Import Maps.
 Export LLVMsyntax.
 Export LLVMlib.
 Export LLVMgv.
-Import LLVMopsem.
 
 (* eq is refl *)
 
@@ -570,7 +568,7 @@ Proof.
         apply IHPs in H. auto. 
 Qed.
 
-Lemma lookupFdefViaGV_inv : forall TD Ps gl lc fs fv F,
+(*Lemma lookupFdefViaGV_inv : forall TD Ps gl lc fs fv F,
   lookupFdefViaGV TD Ps gl lc fs fv = Some F ->
   InProductsB (product_fdef F) Ps.
 Proof.
@@ -579,7 +577,7 @@ Proof.
   destruct (getOperandValue TD fv lc gl); simpl in H; try solve [inversion H].
   destruct (lookupFdefViaGVFromFunTable fs g); try solve [inversion H].
   apply lookupFdefViaIDFromProducts_inv in H; auto.
-Qed.
+Qed.*)
 
 Lemma entryBlockInFdef : forall F B,
   getEntryBlock F = Some B ->
@@ -733,7 +731,7 @@ Proof.
   apply blockInSystemModuleFdef_intro; auto.
 Qed.
 
-Lemma entryBlockInSystemBlockFdef' : forall los nts Ps gl lc fs fv F S B,
+(*Lemma entryBlockInSystemBlockFdef' : forall los nts Ps gl lc fs fv F S B,
   moduleInSystem (module_intro los nts Ps) S ->
   lookupFdefViaGV (los, nts) Ps gl lc fs fv = Some F ->
   getEntryBlock F = Some B ->
@@ -743,7 +741,7 @@ Proof.
   apply lookupFdefViaGV_inv in H0.
   apply entryBlockInFdef in H1.  
   apply blockInSystemModuleFdef_intro; auto.
-Qed.
+Qed.*)
 
 Lemma productInSystemModuleB_inv : forall F Ps nts los S,
   productInSystemModuleB (product_fdef F) S (module_intro los nts Ps) ->
@@ -780,7 +778,7 @@ Proof.
   apply productInSystemModuleB_intro; auto.
 Qed.
 
-Lemma lookupFdefViaGVInSystem : forall los nts Ps gl lc fs S fv F,
+(*Lemma lookupFdefViaGVInSystem : forall los nts Ps gl lc fs S fv F,
   moduleInSystem (module_intro los nts Ps) S ->
   lookupFdefViaGV (los, nts) Ps gl lc fs fv = Some F ->
   productInSystemModuleB (product_fdef F) S (module_intro los nts Ps).
@@ -788,8 +786,7 @@ Proof.
   intros.
   apply lookupFdefViaGV_inv in H0.
   apply productInSystemModuleB_intro; auto.
-Qed.
-
+Qed.*)
 
 Lemma InBlocksB_uniq : forall lb l1 ps1 cs1 tmn1 ps2 cs2 tmn2,
   uniqBlocks lb ->
@@ -985,7 +982,7 @@ Proof.
   eapply uniqProducts__uniqFdef; simpl; eauto.
 Qed.
 
-Lemma lookupFdefViaGV_uniq : forall los nts Ps gl lc fs S fv F,
+(*Lemma lookupFdefViaGV_uniq : forall los nts Ps gl lc fs S fv F,
   uniqSystem S ->
   moduleInSystem (module_intro los nts Ps) S ->
   lookupFdefViaGV (los, nts) Ps gl lc fs fv = Some F ->
@@ -995,7 +992,7 @@ Proof.
   apply lookupFdefViaGV_inv in H1.
   apply uniqSystem__uniqProducts in H0; auto.
   eapply uniqProducts__uniqFdef; simpl; eauto.
-Qed.
+Qed.*)
 
 Lemma nth_error__lookupAL_genLabel2Block_blocks : forall n lb1 B1,
   uniqBlocks lb1 ->
@@ -1147,8 +1144,7 @@ Proof.
         inversion H; auto.
 Qed.     
 
-
-Lemma eqAL_lookupExFdecViaGV : forall gl TD Ps lc lc' fs fv,
+(*Lemma eqAL_lookupExFdecViaGV : forall gl TD Ps lc lc' fs fv,
   eqAL _ lc lc' ->
   lookupExFdecViaGV TD Ps gl lc fs fv = lookupExFdecViaGV TD Ps gl lc' fs fv.
 Proof.
@@ -1164,7 +1160,7 @@ Proof.
   intros.
   unfold lookupFdefViaGV.
   erewrite getOperandValue_eqAL; eauto.
-Qed.
+Qed.*)
 
 Lemma lookupAL_update_udb_eq : forall ud l0 l1,
   exists ls0, lookupAL _ (update_udb ud l0 l1) l1 = Some ls0 /\ In l0 ls0.
@@ -1422,7 +1418,7 @@ Proof.
       destruct Hin as [re2 [Hin Hinc2]].
       exists re2. split; eauto using incl_tran.
 Qed.        
-
+(*
 Lemma getIncomingValuesForBlockFromPHINodes_spec : forall ps TD b gl lc lc'
     id1,
   Some lc' = getIncomingValuesForBlockFromPHINodes TD ps b gl lc ->
@@ -1477,7 +1473,7 @@ Proof.
       exists g. apply lookupAL_updateAddAL_eq; auto.
       rewrite <- lookupAL_updateAddAL_neq; eauto.
 Qed.
-
+*)
 Lemma InPhiNodes_lookupTypViaIDFromPhiNodes : forall ps id1,
   In id1 (getPhiNodesIDs ps) ->
   exists t, lookupTypViaIDFromPhiNodes ps id1 = Some t.

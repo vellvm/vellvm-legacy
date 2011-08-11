@@ -6,7 +6,6 @@ Add LoadPath "../../../theory/metatheory_8.3".
 Add LoadPath "../TV".
 Require Import ssa_def.
 Require Import ssa_lib.
-Require Import ssa_dynamic.
 Require Import trace.
 Require Import Memory.
 Require Import genericvalues.
@@ -17,63 +16,65 @@ Require Import Coqlib.
 Require Import monad.
 Require Import Metatheory.
 Require Import Znumtheory.
-Require Import sb_ds_def.
+Require Import ssa_props.
+Require Import ssa_static_lib.
+Require Import dopsem.
+Require Import sb_def.
 Require Import sb_ds_trans.
 Require Import sb_msim.
 Require Import sb_ds_gv_inject.
 Require Import sb_ds_sim.
 Require Import sb_ds_trans_lib.
-Require Import ssa_wf.
-Require Import ssa_props.
 
 Import SB_ds_pass.
+Export DSB.SBSEM.
 
 Lemma SBpass_is_correct__dsBop : forall (mi : MoreMem.meminj)(mgb : Values.block)
-  (St : LLVMopsem.State) (S : system) (TD : TargetData) (Ps : list product)
-  (F : fdef) (B : block) (lc : GVMap) (rm : SBopsem.rmetadata) (gl : GVMap)
+  (St : DOS.Sem.State) (S : system) (TD : TargetData) (Ps : list product)
+  (F : fdef) (B : block) (lc : GVMap) (rm : SBspecAux.rmetadata) (gl : GVMap)
   (fs : GVMap) (id0 : id) (bop0 : bop) (sz0 : sz) (v1 : value) (v2 : value)
-  (EC : list SBopsem.ExecutionContext) (cs : list cmd) (tmn : terminator)
-  (Mem : mem) (MM : SBopsem.mmetadata) (als : list mblock)
+  (EC : list DSB.SBSEM.ExecutionContext) (cs : list cmd) (tmn : terminator)
+  (Mem : mem) (MM : SBspecAux.mmetadata) (als : list mblock)
   (Hsim : sbState_simulates_State mi mgb
            {|
-           SBopsem.CurSystem := S;
-           SBopsem.CurTargetData := TD;
-           SBopsem.CurProducts := Ps;
-           SBopsem.ECS := {|
-                          SBopsem.CurFunction := F;
-                          SBopsem.CurBB := B;
-                          SBopsem.CurCmds := insn_bop id0 bop0 sz0 v1 v2
+           DSB.SBSEM.CurSystem := S;
+           DSB.SBSEM.CurTargetData := TD;
+           DSB.SBSEM.CurProducts := Ps;
+           DSB.SBSEM.ECS := {|
+                          DSB.SBSEM.CurFunction := F;
+                          DSB.SBSEM.CurBB := B;
+                          DSB.SBSEM.CurCmds := insn_bop id0 bop0 sz0 v1 v2
                                              :: cs;
-                          SBopsem.Terminator := tmn;
-                          SBopsem.Locals := lc;
-                          SBopsem.Rmap := rm;
-                          SBopsem.Allocas := als |} :: EC;
-           SBopsem.Globals := gl;
-           SBopsem.FunTable := fs;
-           SBopsem.Mem := Mem;
-           SBopsem.Mmap := MM |} St)
+                          DSB.SBSEM.Terminator := tmn;
+                          DSB.SBSEM.Locals := lc;
+                          DSB.SBSEM.Rmap := rm;
+                          DSB.SBSEM.Allocas := als |} :: EC;
+           DSB.SBSEM.Globals := gl;
+           DSB.SBSEM.FunTable := fs;
+           DSB.SBSEM.Mem := Mem;
+           DSB.SBSEM.Mmap := MM |} St)
   (gv3 : GenericValue)
   (H : BOP TD lc gl bop0 sz0 v1 v2 = ret gv3),
-  exists St' : LLVMopsem.State,
+  exists St' : DOS.Sem.State,
      exists mi' : MoreMem.meminj,
-       LLVMopsem.dsop_star St St' trace_nil /\
+       DOS.Sem.sop_star St St' trace_nil /\
        sbState_simulates_State mi' mgb
          {|
-         SBopsem.CurSystem := S;
-         SBopsem.CurTargetData := TD;
-         SBopsem.CurProducts := Ps;
-         SBopsem.ECS := {|
-                        SBopsem.CurFunction := F;
-                        SBopsem.CurBB := B;
-                        SBopsem.CurCmds := cs;
-                        SBopsem.Terminator := tmn;
-                        SBopsem.Locals := updateAddAL GenericValue lc id0 gv3;
-                        SBopsem.Rmap := rm;
-                        SBopsem.Allocas := als |} :: EC;
-         SBopsem.Globals := gl;
-         SBopsem.FunTable := fs;
-         SBopsem.Mem := Mem;
-         SBopsem.Mmap := MM |} St' /\ inject_incr mi mi'.
+         DSB.SBSEM.CurSystem := S;
+         DSB.SBSEM.CurTargetData := TD;
+         DSB.SBSEM.CurProducts := Ps;
+         DSB.SBSEM.ECS := {|
+                        DSB.SBSEM.CurFunction := F;
+                        DSB.SBSEM.CurBB := B;
+                        DSB.SBSEM.CurCmds := cs;
+                        DSB.SBSEM.Terminator := tmn;
+                        DSB.SBSEM.Locals := updateAddAL GenericValue lc id0 gv3;
+                        DSB.SBSEM.Rmap := rm;
+                        DSB.SBSEM.Allocas := als |} :: EC;
+         DSB.SBSEM.Globals := gl;
+         DSB.SBSEM.FunTable := fs;
+         DSB.SBSEM.Mem := Mem;
+         DSB.SBSEM.Mmap := MM |} St' /\ inject_incr mi mi'.
 Proof.
   intros.
   destruct_ctx_other.
@@ -82,15 +83,15 @@ Proof.
   destruct R as [[ex_ids2 cs2]|]; inv Htcmds.
   eapply simulation__BOP in H; eauto.
   destruct H as [gv3' [Hbop Hinj]].
-  exists (LLVMopsem.mkState S2 (los, nts) Ps2
-          ((LLVMopsem.mkEC (fdef_intro fh2 bs2) B2
+  exists (DOS.Sem.mkState S2 (los, nts) Ps2
+          ((DOS.Sem.mkEC (fdef_intro fh2 bs2) B2
             (cs2 ++ cs23) tmn2 (updateAddAL GenericValue lc2 id0 gv3') als2):: 
             ECs2) gl2 fs2 M2).
   exists mi.
   split.
     rewrite <- (@trace_app_nil__eq__trace trace_nil).
-    eapply LLVMopsem.dsop_star_cons; eauto.
-      apply LLVMopsem.dsBop; auto.
+    eapply DOS.Sem.sop_star_cons; eauto.
+      apply DOS.Sem.sBop; auto.
 
     split; auto using inject_incr_refl.
     repeat (split; auto).
@@ -108,51 +109,51 @@ Proof.
 Qed.
 
 Lemma SBpass_is_correct__dsFBop : forall (mi : MoreMem.meminj) (mgb : Values.block)
-  (St : LLVMopsem.State) (S : system) (TD : TargetData) (Ps : list product)
-  (F : fdef) (B : block) (lc : GVMap) (rm : SBopsem.rmetadata) (gl : GVMap)
+  (St : DOS.Sem.State) (S : system) (TD : TargetData) (Ps : list product)
+  (F : fdef) (B : block) (lc : GVMap) (rm : SBspecAux.rmetadata) (gl : GVMap)
   (fs : GVMap) (id0 : id) fbop0 fp (v1 : value) (v2 : value)
-  (EC : list SBopsem.ExecutionContext) (cs : list cmd) (tmn : terminator)
-  (Mem : mem) (MM : SBopsem.mmetadata) (als : list mblock)
+  (EC : list DSB.SBSEM.ExecutionContext) (cs : list cmd) (tmn : terminator)
+  (Mem : mem) (MM : SBspecAux.mmetadata) (als : list mblock)
   (Hsim : sbState_simulates_State mi mgb
            {|
-           SBopsem.CurSystem := S;
-           SBopsem.CurTargetData := TD;
-           SBopsem.CurProducts := Ps;
-           SBopsem.ECS := {|
-                          SBopsem.CurFunction := F;
-                          SBopsem.CurBB := B;
-                          SBopsem.CurCmds := insn_fbop id0 fbop0 fp v1 v2
+           DSB.SBSEM.CurSystem := S;
+           DSB.SBSEM.CurTargetData := TD;
+           DSB.SBSEM.CurProducts := Ps;
+           DSB.SBSEM.ECS := {|
+                          DSB.SBSEM.CurFunction := F;
+                          DSB.SBSEM.CurBB := B;
+                          DSB.SBSEM.CurCmds := insn_fbop id0 fbop0 fp v1 v2
                                              :: cs;
-                          SBopsem.Terminator := tmn;
-                          SBopsem.Locals := lc;
-                          SBopsem.Rmap := rm;
-                          SBopsem.Allocas := als |} :: EC;
-           SBopsem.Globals := gl;
-           SBopsem.FunTable := fs;
-           SBopsem.Mem := Mem;
-           SBopsem.Mmap := MM |} St)
+                          DSB.SBSEM.Terminator := tmn;
+                          DSB.SBSEM.Locals := lc;
+                          DSB.SBSEM.Rmap := rm;
+                          DSB.SBSEM.Allocas := als |} :: EC;
+           DSB.SBSEM.Globals := gl;
+           DSB.SBSEM.FunTable := fs;
+           DSB.SBSEM.Mem := Mem;
+           DSB.SBSEM.Mmap := MM |} St)
   (gv3 : GenericValue)
   (H : FBOP TD lc gl fbop0 fp v1 v2 = ret gv3),
-  exists St' : LLVMopsem.State,
+  exists St' : DOS.Sem.State,
      exists mi' : MoreMem.meminj,
-       LLVMopsem.dsop_star St St' trace_nil /\
+       DOS.Sem.sop_star St St' trace_nil /\
        sbState_simulates_State mi' mgb
          {|
-         SBopsem.CurSystem := S;
-         SBopsem.CurTargetData := TD;
-         SBopsem.CurProducts := Ps;
-         SBopsem.ECS := {|
-                        SBopsem.CurFunction := F;
-                        SBopsem.CurBB := B;
-                        SBopsem.CurCmds := cs;
-                        SBopsem.Terminator := tmn;
-                        SBopsem.Locals := updateAddAL GenericValue lc id0 gv3;
-                        SBopsem.Rmap := rm;
-                        SBopsem.Allocas := als |} :: EC;
-         SBopsem.Globals := gl;
-         SBopsem.FunTable := fs;
-         SBopsem.Mem := Mem;
-         SBopsem.Mmap := MM |} St' /\ inject_incr mi mi'.
+         DSB.SBSEM.CurSystem := S;
+         DSB.SBSEM.CurTargetData := TD;
+         DSB.SBSEM.CurProducts := Ps;
+         DSB.SBSEM.ECS := {|
+                        DSB.SBSEM.CurFunction := F;
+                        DSB.SBSEM.CurBB := B;
+                        DSB.SBSEM.CurCmds := cs;
+                        DSB.SBSEM.Terminator := tmn;
+                        DSB.SBSEM.Locals := updateAddAL GenericValue lc id0 gv3;
+                        DSB.SBSEM.Rmap := rm;
+                        DSB.SBSEM.Allocas := als |} :: EC;
+         DSB.SBSEM.Globals := gl;
+         DSB.SBSEM.FunTable := fs;
+         DSB.SBSEM.Mem := Mem;
+         DSB.SBSEM.Mmap := MM |} St' /\ inject_incr mi mi'.
 Proof.
   intros.
   destruct_ctx_other.
@@ -161,15 +162,15 @@ Proof.
   destruct R as [[ex_ids2 cs2]|]; inv Htcmds.
   eapply simulation__FBOP in H; eauto.
   destruct H as [gv3' [Hfbop Hinj]].
-  exists (LLVMopsem.mkState S2 (los, nts) Ps2
-          ((LLVMopsem.mkEC (fdef_intro fh2 bs2) B2
+  exists (DOS.Sem.mkState S2 (los, nts) Ps2
+          ((DOS.Sem.mkEC (fdef_intro fh2 bs2) B2
             (cs2 ++ cs23) tmn2 (updateAddAL GenericValue lc2 id0 gv3') als2):: 
             ECs2) gl2 fs2 M2).
   exists mi.
   split.
     rewrite <- (@trace_app_nil__eq__trace trace_nil).
-    eapply LLVMopsem.dsop_star_cons; eauto.
-      apply LLVMopsem.dsFBop; auto.
+    eapply DOS.Sem.sop_star_cons; eauto.
+      apply DOS.Sem.sFBop; auto.
 
     split; auto using inject_incr_refl.
     repeat (split; auto).
@@ -187,7 +188,7 @@ Proof.
 Qed.
 
 Lemma SBpass_is_correct__dsGEP : forall
-  (mi : MoreMem.meminj) (mgb : Values.block) (St : LLVMopsem.State) (S : system)
+  (mi : MoreMem.meminj) (mgb : Values.block) (St : DOS.Sem.State) (S : system)
   (TD : TargetData) (Ps : list product) (F : fdef) (B : block) (lc : GVMap)
   (rm : rmetadata) (gl : GVMap) (fs : GVMap) (id0 : atom) (inbounds0 : bool)
   (t : typ) (vp : value) (idxs : list_value) (EC : list ExecutionContext)
@@ -212,14 +213,14 @@ Lemma SBpass_is_correct__dsGEP : forall
            Mmap := MM |} St)
   (vidxs : list GenericValue) (gvp : GenericValue) (gvp' : GenericValue)
   (lc' : GVMap) (rm' : rmetadata) (md : metadata)
-  (H : SBopsem.get_reg_metadata TD gl rm vp = ret md)
+  (H : SBspecAux.get_reg_metadata TD gl rm vp = ret md)
   (H0 : getOperandValue TD vp lc gl = ret gvp)
   (H1 : values2GVs TD idxs lc gl = ret vidxs)
   (H2 : GEP TD t gvp vidxs inbounds0 = ret gvp')
   (H3 : prop_reg_metadata lc rm id0 gvp' md = (lc', rm')),
-   exists St' : LLVMopsem.State,
+   exists St' : DOS.Sem.State,
      exists mi' : MoreMem.meminj,
-       LLVMopsem.dsop_star St St' trace_nil /\
+       DOS.Sem.sop_star St St' trace_nil /\
        sbState_simulates_State mi' mgb
          {|
          CurSystem := S;
@@ -259,8 +260,8 @@ Proof.
   destruct H1 as [gvs' [H1 Hinj']].
   eapply simulation__GEP in H2; eauto.
   destruct H2 as [gvp2 [H2 Hinj'']].
-  exists (LLVMopsem.mkState S2 (los, nts) Ps2
-          ((LLVMopsem.mkEC (fdef_intro fh2 bs2) B2
+  exists (DOS.Sem.mkState S2 (los, nts) Ps2
+          ((DOS.Sem.mkEC (fdef_intro fh2 bs2) B2
             (cs2' ++ cs23) tmn2 
                   (updateAddAL _ 
                     (updateAddAL _ 
@@ -283,9 +284,9 @@ Proof.
   SCase "opsem".
     simpl.
     rewrite <- (@trace_app_nil__eq__trace trace_nil).
-    apply LLVMopsem.dsop_star_cons with (state2:=
-        LLVMopsem.mkState S2 (los, nts) Ps2
-          ((LLVMopsem.mkEC (fdef_intro fh2 bs2) B2
+    apply DOS.Sem.sop_star_cons with (state2:=
+        DOS.Sem.mkState S2 (los, nts) Ps2
+          ((DOS.Sem.mkEC (fdef_intro fh2 bs2) B2
              (insn_cast bid0 castop_bitcast p8 bv2 p8 :: 
               insn_cast eid0 castop_bitcast p8 ev2 p8 :: 
               cs2' ++ cs23)
@@ -293,12 +294,12 @@ Proof.
              (updateAddAL GenericValue lc2 id0 gvp2)
              als2):: 
             ECs2) gl2 fs2 M2).
-      eapply LLVMopsem.dsGEP; eauto.
+      eapply DOS.Sem.sGEP; eauto.
 
     rewrite <- (@trace_app_nil__eq__trace trace_nil).
-    apply LLVMopsem.dsop_star_cons with (state2:=
-        LLVMopsem.mkState S2 (los, nts) Ps2
-          ((LLVMopsem.mkEC (fdef_intro fh2 bs2) B2
+    apply DOS.Sem.sop_star_cons with (state2:=
+        DOS.Sem.mkState S2 (los, nts) Ps2
+          ((DOS.Sem.mkEC (fdef_intro fh2 bs2) B2
              (insn_cast eid0 castop_bitcast p8 ev2 p8 :: 
               cs2' ++ cs23)
              tmn2 
@@ -307,15 +308,15 @@ Proof.
                     bid0 bgv2)
              als2):: 
             ECs2) gl2 fs2 M2).
-      eapply LLVMopsem.dsCast; eauto.
-        unfold CAST, mcast, mbitcast, p8. simpl.
+      eapply DOS.Sem.sCast; eauto.
+        unfold DOS.Sem.CAST, mcast, mbitcast, p8. simpl.
         rewrite <- getOperandValue_eq_fresh_id; auto.
           rewrite Hget1. auto.
 
     rewrite <- (@trace_app_nil__eq__trace trace_nil).
-    eapply LLVMopsem.dsop_star_cons; eauto.
-      eapply LLVMopsem.dsCast; eauto.
-        unfold CAST, mcast, mbitcast, p8. simpl.
+    eapply DOS.Sem.sop_star_cons; eauto.
+      eapply DOS.Sem.sCast; eauto.
+        unfold DOS.Sem.CAST, mcast, mbitcast, p8. simpl.
         rewrite <- getOperandValue_eq_fresh_id; auto.
         rewrite <- getOperandValue_eq_fresh_id; auto.
         rewrite Hget2. auto.
@@ -339,7 +340,7 @@ Proof.
 Qed.
 
 Lemma SBpass_is_correct__dsTrunc : forall
-  (mi : MoreMem.meminj) (mgb : Values.block) (St : LLVMopsem.State) (S : system)
+  (mi : MoreMem.meminj) (mgb : Values.block) (St : DOS.Sem.State) (S : system)
   (TD : TargetData) (Ps : list product) (F : fdef) (B : block) (lc : GVMap)
   (rm : rmetadata) (gl : GVMap) (fs : GVMap) (id0 : id) (truncop0 : truncop)
   (t1 : typ) (v1 : value) (t2 : typ) (EC : list ExecutionContext)
@@ -364,9 +365,9 @@ Lemma SBpass_is_correct__dsTrunc : forall
            Mmap := MM |} St)
   (gv2 : GenericValue)
   (H : TRUNC TD lc gl truncop0 t1 v1 t2 = ret gv2),
-   exists St' : LLVMopsem.State,
+   exists St' : DOS.Sem.State,
      exists mi' : MoreMem.meminj,
-       LLVMopsem.dsop_star St St' trace_nil /\
+       DOS.Sem.sop_star St St' trace_nil /\
        sbState_simulates_State mi' mgb
          {|
          CurSystem := S;
@@ -392,15 +393,15 @@ Proof.
   destruct R as [[ex_ids2 cs2]|]; inv Htcmds.
   eapply simulation__TRUNC in H; eauto.
   destruct H as [gv3' [Htrunc Hinj]].
-  exists (LLVMopsem.mkState S2 (los, nts) Ps2
-          ((LLVMopsem.mkEC (fdef_intro fh2 bs2) B2
+  exists (DOS.Sem.mkState S2 (los, nts) Ps2
+          ((DOS.Sem.mkEC (fdef_intro fh2 bs2) B2
             (cs2 ++ cs23) tmn2 (updateAddAL GenericValue lc2 id0 gv3') als2):: 
             ECs2) gl2 fs2 M2).
   exists mi.
   split.
     rewrite <- (@trace_app_nil__eq__trace trace_nil).
-    eapply LLVMopsem.dsop_star_cons; eauto.
-      apply LLVMopsem.dsTrunc; auto.
+    eapply DOS.Sem.sop_star_cons; eauto.
+      apply DOS.Sem.sTrunc; auto.
 
     split; auto using inject_incr_refl.
     repeat (split; auto).
@@ -418,7 +419,7 @@ Proof.
 Qed.
 
 Lemma SBpass_is_correct__dsExt : forall
-  (mi : MoreMem.meminj) (mgb : Values.block) (St : LLVMopsem.State) (S : system)
+  (mi : MoreMem.meminj) (mgb : Values.block) (St : DOS.Sem.State) (S : system)
   (TD : TargetData) (Ps : list product) (F : fdef) (B : block) (lc : GVMap)
   (rm : rmetadata) (gl : GVMap) (fs : GVMap) (id0 : id) extop0
   (t1 : typ) (v1 : value) (t2 : typ) (EC : list ExecutionContext)
@@ -443,9 +444,9 @@ Lemma SBpass_is_correct__dsExt : forall
            Mmap := MM |} St)
   (gv2 : GenericValue)
   (H : EXT TD lc gl extop0 t1 v1 t2 = ret gv2),
-   exists St' : LLVMopsem.State,
+   exists St' : DOS.Sem.State,
      exists mi' : MoreMem.meminj,
-       LLVMopsem.dsop_star St St' trace_nil /\
+       DOS.Sem.sop_star St St' trace_nil /\
        sbState_simulates_State mi' mgb
          {|
          CurSystem := S;
@@ -471,15 +472,15 @@ Proof.
   destruct R as [[ex_ids2 cs2]|]; inv Htcmds.
   eapply simulation__EXT in H; eauto.
   destruct H as [gv3' [Htrunc Hinj]].
-  exists (LLVMopsem.mkState S2 (los, nts) Ps2
-          ((LLVMopsem.mkEC (fdef_intro fh2 bs2) B2
+  exists (DOS.Sem.mkState S2 (los, nts) Ps2
+          ((DOS.Sem.mkEC (fdef_intro fh2 bs2) B2
             (cs2 ++ cs23) tmn2 (updateAddAL GenericValue lc2 id0 gv3') als2):: 
             ECs2) gl2 fs2 M2).
   exists mi.
   split.
     rewrite <- (@trace_app_nil__eq__trace trace_nil).
-    eapply LLVMopsem.dsop_star_cons; eauto.
-      apply LLVMopsem.dsExt; auto.
+    eapply DOS.Sem.sop_star_cons; eauto.
+      apply DOS.Sem.sExt; auto.
 
     split; auto using inject_incr_refl.
     repeat (split; auto).
@@ -497,7 +498,7 @@ Proof.
 Qed.
 
 Lemma SBpass_is_correct__dsBitcase_nptr : forall 
-  (mi : MoreMem.meminj) (mgb : Values.block) (St : LLVMopsem.State) (S : system)
+  (mi : MoreMem.meminj) (mgb : Values.block) (St : DOS.Sem.State) (S : system)
   (TD : TargetData) (Ps : list product) (F : fdef) (B : block) (lc : GVMap)
   (rm : rmetadata) (gl : GVMap) (fs : GVMap) (id0 : id)
   (t1 : typ) (v1 : value) (t2 : typ) (EC : list ExecutionContext)
@@ -523,9 +524,9 @@ Lemma SBpass_is_correct__dsBitcase_nptr : forall
   (gv2 : GenericValue)
   (H : CAST TD lc gl castop_bitcast t1 v1 t2 = ret gv2)
   (H0 : isPointerTypB t1 = false),
-   exists St' : LLVMopsem.State,
+   exists St' : DOS.Sem.State,
      exists mi' : MoreMem.meminj,
-       LLVMopsem.dsop_star St St' trace_nil /\
+       DOS.Sem.sop_star St St' trace_nil /\
        sbState_simulates_State mi' mgb
          {|
          CurSystem := S;
@@ -552,15 +553,15 @@ Proof.
   destruct R as [[ex_ids2 cs2]|]; inv Htcmds.
   eapply simulation__CAST in H; eauto.
   destruct H as [gv3' [Htrunc Hinj]].
-  exists (LLVMopsem.mkState S2 (los, nts) Ps2
-          ((LLVMopsem.mkEC (fdef_intro fh2 bs2) B2
+  exists (DOS.Sem.mkState S2 (los, nts) Ps2
+          ((DOS.Sem.mkEC (fdef_intro fh2 bs2) B2
             (cs2 ++ cs23) tmn2 (updateAddAL GenericValue lc2 id0 gv3') als2):: 
             ECs2) gl2 fs2 M2).
   exists mi.
   split.
     rewrite <- (@trace_app_nil__eq__trace trace_nil).
-    eapply LLVMopsem.dsop_star_cons; eauto.
-      apply LLVMopsem.dsCast; auto.
+    eapply DOS.Sem.sop_star_cons; eauto.
+      apply DOS.Sem.sCast; auto.
 
     split; auto using inject_incr_refl.
     repeat (split; auto).
@@ -578,7 +579,7 @@ Proof.
 Qed.
 
 Lemma SBpass_is_correct__dsBitcase_ptr : forall 
-  (mi : MoreMem.meminj) (mgb : Values.block) (St : LLVMopsem.State) (S : system)
+  (mi : MoreMem.meminj) (mgb : Values.block) (St : DOS.Sem.State) (S : system)
   (TD : TargetData) (Ps : list product) (F : fdef) (B : block) (lc : GVMap)
   (rm : rmetadata) (gl : GVMap) (fs : GVMap) (id0 : id)
   (t1 : typ) (v1 : value) (t2 : typ) (EC : list ExecutionContext)
@@ -604,11 +605,11 @@ Lemma SBpass_is_correct__dsBitcase_ptr : forall
   (gv2 : GenericValue)
   (H : CAST TD lc gl castop_bitcast t1 v1 t2 = ret gv2)
   (H0 : isPointerTypB t1 = true) md  lc' rm'
-  (H1 : SBopsem.get_reg_metadata TD gl rm v1 = ret md)
+  (H1 : SBspecAux.get_reg_metadata TD gl rm v1 = ret md)
   (H2 : prop_reg_metadata lc rm id0 gv2 md = (lc', rm')),
-   exists St' : LLVMopsem.State,
+   exists St' : DOS.Sem.State,
      exists mi' : MoreMem.meminj,
-       LLVMopsem.dsop_star St St' trace_nil /\
+       DOS.Sem.sop_star St St' trace_nil /\
        sbState_simulates_State mi' mgb
          {|
          CurSystem := S;
@@ -649,8 +650,8 @@ Proof.
   rewrite Hgetrm in Hgetr. inv Hgetr.
   eapply simulation__CAST in H; eauto.
   destruct H as [gv3' [Hcast Hinj]].
-  exists (LLVMopsem.mkState S2 (los, nts) Ps2
-          ((LLVMopsem.mkEC (fdef_intro fh2 bs2) B2
+  exists (DOS.Sem.mkState S2 (los, nts) Ps2
+          ((DOS.Sem.mkEC (fdef_intro fh2 bs2) B2
             (cs3 ++ cs23) tmn2 
                   (updateAddAL _ 
                     (updateAddAL _ 
@@ -672,9 +673,9 @@ Proof.
   SCase "opsem".
     simpl.
     rewrite <- (@trace_app_nil__eq__trace trace_nil).
-    apply LLVMopsem.dsop_star_cons with (state2:=
-        LLVMopsem.mkState S2 (los, nts) Ps2
-          ((LLVMopsem.mkEC (fdef_intro fh2 bs2) B2
+    apply DOS.Sem.sop_star_cons with (state2:=
+        DOS.Sem.mkState S2 (los, nts) Ps2
+          ((DOS.Sem.mkEC (fdef_intro fh2 bs2) B2
              (insn_cast bid0 castop_bitcast p8 bv2 p8 :: 
               insn_cast eid0 castop_bitcast p8 ev2 p8 :: 
               cs3 ++ cs23)
@@ -682,12 +683,12 @@ Proof.
              (updateAddAL GenericValue lc2 id0 gv3')
              als2):: 
             ECs2) gl2 fs2 M2).
-      eapply LLVMopsem.dsCast; eauto.
+      eapply DOS.Sem.sCast; eauto.
 
     rewrite <- (@trace_app_nil__eq__trace trace_nil).
-    apply LLVMopsem.dsop_star_cons with (state2:=
-        LLVMopsem.mkState S2 (los, nts) Ps2
-          ((LLVMopsem.mkEC (fdef_intro fh2 bs2) B2
+    apply DOS.Sem.sop_star_cons with (state2:=
+        DOS.Sem.mkState S2 (los, nts) Ps2
+          ((DOS.Sem.mkEC (fdef_intro fh2 bs2) B2
              (insn_cast eid0 castop_bitcast p8 ev2 p8 :: 
               cs3 ++ cs23)
              tmn2 
@@ -696,15 +697,15 @@ Proof.
                     bid0 bgv2)
              als2):: 
             ECs2) gl2 fs2 M2).
-      eapply LLVMopsem.dsCast; eauto.
-        unfold CAST, mcast, mbitcast, p8. simpl.
+      eapply DOS.Sem.sCast; eauto.
+        unfold DOS.Sem.CAST, mcast, mbitcast, p8. simpl.
         rewrite <- getOperandValue_eq_fresh_id; auto.
         rewrite Hget1. auto.
 
     rewrite <- (@trace_app_nil__eq__trace trace_nil).
-    eapply LLVMopsem.dsop_star_cons; eauto.
-      eapply LLVMopsem.dsCast; eauto.
-        unfold CAST, mcast, mbitcast, p8. simpl.
+    eapply DOS.Sem.sop_star_cons; eauto.
+      eapply DOS.Sem.sCast; eauto.
+        unfold DOS.Sem.CAST, mcast, mbitcast, p8. simpl.
         rewrite <- getOperandValue_eq_fresh_id; auto.
         rewrite <- getOperandValue_eq_fresh_id; auto.
         rewrite Hget2. auto. 
@@ -729,7 +730,7 @@ Qed.
 
 
 Lemma SBpass_is_correct__dsInttoptr : forall
-  (mi : MoreMem.meminj) (mgb : Values.block) (St : LLVMopsem.State) (S : system)
+  (mi : MoreMem.meminj) (mgb : Values.block) (St : DOS.Sem.State) (S : system)
   (TD : TargetData) (Ps : list product) (F : fdef) (B : block) (lc : GVMap)
   (rm : rmetadata) (gl : GVMap) (fs : GVMap) (id0 : id)
   (t1 : typ) (v1 : value) (t2 : typ) (EC : list ExecutionContext)
@@ -755,9 +756,9 @@ Lemma SBpass_is_correct__dsInttoptr : forall
   (gv2 : GenericValue) (lc' : GVMap) (rm' : rmetadata)
   (H : CAST TD lc gl castop_inttoptr t1 v1 t2 = ret gv2)
   (H0 : prop_reg_metadata lc rm id0 gv2 null_md = (lc', rm')),
-   exists St' : LLVMopsem.State,
+   exists St' : DOS.Sem.State,
      exists mi' : MoreMem.meminj,
-       LLVMopsem.dsop_star St St' trace_nil /\
+       DOS.Sem.sop_star St St' trace_nil /\
        sbState_simulates_State mi' mgb
          {|
          CurSystem := S;
@@ -787,8 +788,8 @@ Proof.
   invert_prop_reg_metadata.
   eapply simulation__CAST in H; eauto.
   destruct H as [gv3' [Hcast Hinj]].
-  exists (LLVMopsem.mkState S2 (los, nts) Ps2
-          ((LLVMopsem.mkEC (fdef_intro fh2 bs2) B2
+  exists (DOS.Sem.mkState S2 (los, nts) Ps2
+          ((DOS.Sem.mkEC (fdef_intro fh2 bs2) B2
             (cs3 ++ cs23) tmn2 
                   (updateAddAL _ 
                     (updateAddAL _ 
@@ -801,9 +802,9 @@ Proof.
   SCase "opsem".
     simpl.
     rewrite <- (@trace_app_nil__eq__trace trace_nil).
-    apply LLVMopsem.dsop_star_cons with (state2:=
-        LLVMopsem.mkState S2 (los, nts) Ps2
-          ((LLVMopsem.mkEC (fdef_intro fh2 bs2) B2
+    apply DOS.Sem.sop_star_cons with (state2:=
+        DOS.Sem.mkState S2 (los, nts) Ps2
+          ((DOS.Sem.mkEC (fdef_intro fh2 bs2) B2
              (insn_cast bid0 castop_bitcast p8 vnullp8 p8 :: 
               insn_cast eid0 castop_bitcast p8 vnullp8 p8 :: 
               cs3 ++ cs23)
@@ -811,12 +812,12 @@ Proof.
              (updateAddAL GenericValue lc2 id0 gv3')
              als2):: 
             ECs2) gl2 fs2 M2).
-      eapply LLVMopsem.dsCast; eauto.
+      eapply DOS.Sem.sCast; eauto.
 
     rewrite <- (@trace_app_nil__eq__trace trace_nil).
-    apply LLVMopsem.dsop_star_cons with (state2:=
-        LLVMopsem.mkState S2 (los, nts) Ps2
-          ((LLVMopsem.mkEC (fdef_intro fh2 bs2) B2
+    apply DOS.Sem.sop_star_cons with (state2:=
+        DOS.Sem.mkState S2 (los, nts) Ps2
+          ((DOS.Sem.mkEC (fdef_intro fh2 bs2) B2
              (insn_cast eid0 castop_bitcast p8 vnullp8 p8 :: 
               cs3 ++ cs23)
              tmn2 
@@ -825,11 +826,11 @@ Proof.
                     bid0 null)
              als2):: 
             ECs2) gl2 fs2 M2).
-      eapply LLVMopsem.dsCast; eauto.
+      eapply DOS.Sem.sCast; eauto.
 
     rewrite <- (@trace_app_nil__eq__trace trace_nil).
-    eapply LLVMopsem.dsop_star_cons; eauto.
-      eapply LLVMopsem.dsCast; eauto.
+    eapply DOS.Sem.sop_star_cons; eauto.
+      eapply DOS.Sem.sCast; eauto.
 
     repeat (split; auto).
     eapply cmds_at_block_tail_next; eauto.
@@ -852,7 +853,7 @@ Qed.
 
 
 Lemma SBpass_is_correct__dsOthercast : forall
-  (mi : MoreMem.meminj) (mgb : Values.block) (St : LLVMopsem.State) (S : system)
+  (mi : MoreMem.meminj) (mgb : Values.block) (St : DOS.Sem.State) (S : system)
   (TD : TargetData) (Ps : list product) (F : fdef) (B : block) (lc : GVMap)
   (rm : rmetadata) (gl : GVMap) (fs : GVMap) (id0 : id)
   (t1 : typ) (v1 : value) (t2 : typ) (EC : list ExecutionContext)
@@ -879,9 +880,9 @@ Lemma SBpass_is_correct__dsOthercast : forall
   (gv2 : GenericValue)
   (H : CAST TD lc gl castop0 t1 v1 t2 = ret gv2)
   (H0 : castop0 <> castop_bitcast /\ castop0 <> castop_inttoptr),
-   exists St' : LLVMopsem.State,
+   exists St' : DOS.Sem.State,
      exists mi' : MoreMem.meminj,
-       LLVMopsem.dsop_star St St' trace_nil /\
+       DOS.Sem.sop_star St St' trace_nil /\
        sbState_simulates_State mi' mgb
          {|
          CurSystem := S;
@@ -914,15 +915,15 @@ Proof.
   clear Htcmd. destruct EQ; subst.
 
   simpl.
-  exists (LLVMopsem.mkState S2 (los, nts) Ps2
-          ((LLVMopsem.mkEC (fdef_intro fh2 bs2) B2
+  exists (DOS.Sem.mkState S2 (los, nts) Ps2
+          ((DOS.Sem.mkEC (fdef_intro fh2 bs2) B2
             (cs2' ++ cs23) tmn2 (updateAddAL GenericValue lc2 id0 gv3') als2):: 
             ECs2) gl2 fs2 M2).
   exists mi.
   split.
     rewrite <- (@trace_app_nil__eq__trace trace_nil).
-    eapply LLVMopsem.dsop_star_cons; eauto.
-      apply LLVMopsem.dsCast; auto.
+    eapply DOS.Sem.sop_star_cons; eauto.
+      apply DOS.Sem.sCast; auto.
 
     split; auto using inject_incr_refl.
     repeat (split; auto).
@@ -941,7 +942,7 @@ Proof.
 Qed.
 
 Lemma SBpass_is_correct__dsIcmp : forall
-  (mi : MoreMem.meminj) (mgb : Values.block) (St : LLVMopsem.State) (S : system)
+  (mi : MoreMem.meminj) (mgb : Values.block) (St : DOS.Sem.State) (S : system)
   (TD : TargetData) (Ps : list product) (F : fdef) (B : block) (lc : GVMap)
   (rm : rmetadata) (gl : GVMap) (fs : GVMap) (id0 : id) cond0 
   (t : typ) (v1 : value) v2 (EC : list ExecutionContext)
@@ -966,9 +967,9 @@ Lemma SBpass_is_correct__dsIcmp : forall
            Mmap := MM |} St)
   (gv2 : GenericValue)
   (H : ICMP TD lc gl cond0 t v1 v2 = ret gv2),
-   exists St' : LLVMopsem.State,
+   exists St' : DOS.Sem.State,
      exists mi' : MoreMem.meminj,
-       LLVMopsem.dsop_star St St' trace_nil /\
+       DOS.Sem.sop_star St St' trace_nil /\
        sbState_simulates_State mi' mgb
          {|
          CurSystem := S;
@@ -994,15 +995,15 @@ Proof.
   destruct R as [[ex_ids2 cs2]|]; inv Htcmds.
   eapply simulation__ICMP in H; eauto.
   destruct H as [gv3' [Htrunc Hinj]].
-  exists (LLVMopsem.mkState S2 (los, nts) Ps2
-          ((LLVMopsem.mkEC (fdef_intro fh2 bs2) B2
+  exists (DOS.Sem.mkState S2 (los, nts) Ps2
+          ((DOS.Sem.mkEC (fdef_intro fh2 bs2) B2
             (cs2 ++ cs23) tmn2 (updateAddAL GenericValue lc2 id0 gv3') als2):: 
             ECs2) gl2 fs2 M2).
   exists mi.
   split.
     rewrite <- (@trace_app_nil__eq__trace trace_nil).
-    eapply LLVMopsem.dsop_star_cons; eauto.
-      apply LLVMopsem.dsIcmp; auto.
+    eapply DOS.Sem.sop_star_cons; eauto.
+      apply DOS.Sem.sIcmp; auto.
 
     split; auto using inject_incr_refl.
     repeat (split; auto).
@@ -1020,7 +1021,7 @@ Proof.
 Qed.
 
 Lemma SBpass_is_correct__dsFcmp : forall
-  (mi : MoreMem.meminj) (mgb : Values.block) (St : LLVMopsem.State) (S : system)
+  (mi : MoreMem.meminj) (mgb : Values.block) (St : DOS.Sem.State) (S : system)
   (TD : TargetData) (Ps : list product) (F : fdef) (B : block) (lc : GVMap)
   (rm : rmetadata) (gl : GVMap) (fs : GVMap) (id0 : id) fcond0 
   fp (v1 : value) v2 (EC : list ExecutionContext)
@@ -1045,9 +1046,9 @@ Lemma SBpass_is_correct__dsFcmp : forall
            Mmap := MM |} St)
   (gv2 : GenericValue)
   (H : FCMP TD lc gl fcond0 fp v1 v2 = ret gv2),
-   exists St' : LLVMopsem.State,
+   exists St' : DOS.Sem.State,
      exists mi' : MoreMem.meminj,
-       LLVMopsem.dsop_star St St' trace_nil /\
+       DOS.Sem.sop_star St St' trace_nil /\
        sbState_simulates_State mi' mgb
          {|
          CurSystem := S;
@@ -1073,15 +1074,15 @@ Proof.
   destruct R as [[ex_ids2 cs2]|]; inv Htcmds.
   eapply simulation__FCMP in H; eauto.
   destruct H as [gv3' [Htrunc Hinj]].
-  exists (LLVMopsem.mkState S2 (los, nts) Ps2
-          ((LLVMopsem.mkEC (fdef_intro fh2 bs2) B2
+  exists (DOS.Sem.mkState S2 (los, nts) Ps2
+          ((DOS.Sem.mkEC (fdef_intro fh2 bs2) B2
             (cs2 ++ cs23) tmn2 (updateAddAL GenericValue lc2 id0 gv3') als2):: 
             ECs2) gl2 fs2 M2).
   exists mi.
   split.
     rewrite <- (@trace_app_nil__eq__trace trace_nil).
-    eapply LLVMopsem.dsop_star_cons; eauto.
-      apply LLVMopsem.dsFcmp; auto.
+    eapply DOS.Sem.sop_star_cons; eauto.
+      apply DOS.Sem.sFcmp; auto.
 
     split; auto using inject_incr_refl.
     repeat (split; auto).
@@ -1100,53 +1101,53 @@ Qed.
 
 Lemma SBpass_is_correct__dsExtractValue : forall (mi : MoreMem.meminj) 
   (mgb : Values.block)
-  (St : LLVMopsem.State) (S : system) (TD : TargetData) (Ps : list product)
-  (F : fdef) (B : block) (lc : GVMap) (rm : SBopsem.rmetadata) (gl : GVMap)
+  (St : DOS.Sem.State) (S : system) (TD : TargetData) (Ps : list product)
+  (F : fdef) (B : block) (lc : GVMap) (rm : SBspecAux.rmetadata) (gl : GVMap)
   (fs : GVMap) (id0 : id) t (v : value) idxs
-  (EC : list SBopsem.ExecutionContext) (cs : list cmd) (tmn : terminator)
-  (Mem : mem) (MM : SBopsem.mmetadata) (als : list mblock)
+  (EC : list DSB.SBSEM.ExecutionContext) (cs : list cmd) (tmn : terminator)
+  (Mem : mem) (MM : SBspecAux.mmetadata) (als : list mblock)
   (Hsim : sbState_simulates_State mi mgb
            {|
-           SBopsem.CurSystem := S;
-           SBopsem.CurTargetData := TD;
-           SBopsem.CurProducts := Ps;
-           SBopsem.ECS := {|
-                          SBopsem.CurFunction := F;
-                          SBopsem.CurBB := B;
-                          SBopsem.CurCmds := insn_extractvalue id0 t v idxs
+           DSB.SBSEM.CurSystem := S;
+           DSB.SBSEM.CurTargetData := TD;
+           DSB.SBSEM.CurProducts := Ps;
+           DSB.SBSEM.ECS := {|
+                          DSB.SBSEM.CurFunction := F;
+                          DSB.SBSEM.CurBB := B;
+                          DSB.SBSEM.CurCmds := insn_extractvalue id0 t v idxs
                                              :: cs;
-                          SBopsem.Terminator := tmn;
-                          SBopsem.Locals := lc;
-                          SBopsem.Rmap := rm;
-                          SBopsem.Allocas := als |} :: EC;
-           SBopsem.Globals := gl;
-           SBopsem.FunTable := fs;
-           SBopsem.Mem := Mem;
-           SBopsem.Mmap := MM |} St)
+                          DSB.SBSEM.Terminator := tmn;
+                          DSB.SBSEM.Locals := lc;
+                          DSB.SBSEM.Rmap := rm;
+                          DSB.SBSEM.Allocas := als |} :: EC;
+           DSB.SBSEM.Globals := gl;
+           DSB.SBSEM.FunTable := fs;
+           DSB.SBSEM.Mem := Mem;
+           DSB.SBSEM.Mmap := MM |} St)
   (gv : GenericValue)
   (gv' : GenericValue)
   (H : getOperandValue TD v lc gl = ret gv)
   (H0 : extractGenericValue TD t gv idxs = ret gv'),
-  exists St' : LLVMopsem.State,
+  exists St' : DOS.Sem.State,
      exists mi' : MoreMem.meminj,
-       LLVMopsem.dsop_star St St' trace_nil /\
+       DOS.Sem.sop_star St St' trace_nil /\
        sbState_simulates_State mi' mgb
          {|
-         SBopsem.CurSystem := S;
-         SBopsem.CurTargetData := TD;
-         SBopsem.CurProducts := Ps;
-         SBopsem.ECS := {|
-                        SBopsem.CurFunction := F;
-                        SBopsem.CurBB := B;
-                        SBopsem.CurCmds := cs;
-                        SBopsem.Terminator := tmn;
-                        SBopsem.Locals := updateAddAL GenericValue lc id0 gv';
-                        SBopsem.Rmap := rm;
-                        SBopsem.Allocas := als |} :: EC;
-         SBopsem.Globals := gl;
-         SBopsem.FunTable := fs;
-         SBopsem.Mem := Mem;
-         SBopsem.Mmap := MM |} St' /\ inject_incr mi mi'.
+         DSB.SBSEM.CurSystem := S;
+         DSB.SBSEM.CurTargetData := TD;
+         DSB.SBSEM.CurProducts := Ps;
+         DSB.SBSEM.ECS := {|
+                        DSB.SBSEM.CurFunction := F;
+                        DSB.SBSEM.CurBB := B;
+                        DSB.SBSEM.CurCmds := cs;
+                        DSB.SBSEM.Terminator := tmn;
+                        DSB.SBSEM.Locals := updateAddAL GenericValue lc id0 gv';
+                        DSB.SBSEM.Rmap := rm;
+                        DSB.SBSEM.Allocas := als |} :: EC;
+         DSB.SBSEM.Globals := gl;
+         DSB.SBSEM.FunTable := fs;
+         DSB.SBSEM.Mem := Mem;
+         DSB.SBSEM.Mmap := MM |} St' /\ inject_incr mi mi'.
 Proof.
   intros.
   destruct_ctx_other.
@@ -1159,16 +1160,16 @@ Proof.
 
   eapply simulation__extractGenericValue in H0; eauto.
   destruct H0 as [gv2' [H0 Hinj']].
-  exists (LLVMopsem.mkState S2 (los, nts) Ps2
-          ((LLVMopsem.mkEC (fdef_intro fh2 bs2) B2
+  exists (DOS.Sem.mkState S2 (los, nts) Ps2
+          ((DOS.Sem.mkEC (fdef_intro fh2 bs2) B2
             (cs2 ++ cs23) tmn2 (updateAddAL GenericValue lc2 id0 gv2')
             als2):: 
             ECs2) gl2 fs2 M2).
   exists mi.
   split.
     rewrite <- (@trace_app_nil__eq__trace trace_nil).
-    eapply LLVMopsem.dsop_star_cons; eauto.
-      eapply LLVMopsem.dsExtractValue; eauto.
+    eapply DOS.Sem.sop_star_cons; eauto.
+      eapply DOS.Sem.sExtractValue; eauto.
 
     split; auto using inject_incr_refl.
     repeat (split; auto).
@@ -1187,54 +1188,54 @@ Qed.
 
 Lemma SBpass_is_correct__dsInsertValue : forall (mi : MoreMem.meminj) 
   (mgb : Values.block)
-  (St : LLVMopsem.State) (S : system) (TD : TargetData) (Ps : list product)
-  (F : fdef) (B : block) (lc : GVMap) (rm : SBopsem.rmetadata) (gl : GVMap)
+  (St : DOS.Sem.State) (S : system) (TD : TargetData) (Ps : list product)
+  (F : fdef) (B : block) (lc : GVMap) (rm : SBspecAux.rmetadata) (gl : GVMap)
   (fs : GVMap) (id0 : id) t (v : value) t' v' idxs
-  (EC : list SBopsem.ExecutionContext) (cs : list cmd) (tmn : terminator)
-  (Mem : mem) (MM : SBopsem.mmetadata) (als : list mblock)
+  (EC : list DSB.SBSEM.ExecutionContext) (cs : list cmd) (tmn : terminator)
+  (Mem : mem) (MM : SBspecAux.mmetadata) (als : list mblock)
   (Hsim : sbState_simulates_State mi mgb
            {|
-           SBopsem.CurSystem := S;
-           SBopsem.CurTargetData := TD;
-           SBopsem.CurProducts := Ps;
-           SBopsem.ECS := {|
-                          SBopsem.CurFunction := F;
-                          SBopsem.CurBB := B;
-                          SBopsem.CurCmds := insn_insertvalue id0 t v t' v' idxs
+           DSB.SBSEM.CurSystem := S;
+           DSB.SBSEM.CurTargetData := TD;
+           DSB.SBSEM.CurProducts := Ps;
+           DSB.SBSEM.ECS := {|
+                          DSB.SBSEM.CurFunction := F;
+                          DSB.SBSEM.CurBB := B;
+                          DSB.SBSEM.CurCmds := insn_insertvalue id0 t v t' v' idxs
                                              :: cs;
-                          SBopsem.Terminator := tmn;
-                          SBopsem.Locals := lc;
-                          SBopsem.Rmap := rm;
-                          SBopsem.Allocas := als |} :: EC;
-           SBopsem.Globals := gl;
-           SBopsem.FunTable := fs;
-           SBopsem.Mem := Mem;
-           SBopsem.Mmap := MM |} St)
+                          DSB.SBSEM.Terminator := tmn;
+                          DSB.SBSEM.Locals := lc;
+                          DSB.SBSEM.Rmap := rm;
+                          DSB.SBSEM.Allocas := als |} :: EC;
+           DSB.SBSEM.Globals := gl;
+           DSB.SBSEM.FunTable := fs;
+           DSB.SBSEM.Mem := Mem;
+           DSB.SBSEM.Mmap := MM |} St)
   (gv : GenericValue)
   (gv' gv'': GenericValue)
   (H : getOperandValue TD v lc gl = ret gv)
   (H0 : getOperandValue TD v' lc gl = ret gv')
   (H1 : insertGenericValue TD t gv idxs t' gv' = ret gv''),
-  exists St' : LLVMopsem.State,
+  exists St' : DOS.Sem.State,
      exists mi' : MoreMem.meminj,
-       LLVMopsem.dsop_star St St' trace_nil /\
+       DOS.Sem.sop_star St St' trace_nil /\
        sbState_simulates_State mi' mgb
          {|
-         SBopsem.CurSystem := S;
-         SBopsem.CurTargetData := TD;
-         SBopsem.CurProducts := Ps;
-         SBopsem.ECS := {|
-                        SBopsem.CurFunction := F;
-                        SBopsem.CurBB := B;
-                        SBopsem.CurCmds := cs;
-                        SBopsem.Terminator := tmn;
-                        SBopsem.Locals := updateAddAL GenericValue lc id0 gv'';
-                        SBopsem.Rmap := rm;
-                        SBopsem.Allocas := als |} :: EC;
-         SBopsem.Globals := gl;
-         SBopsem.FunTable := fs;
-         SBopsem.Mem := Mem;
-         SBopsem.Mmap := MM |} St' /\ inject_incr mi mi'.
+         DSB.SBSEM.CurSystem := S;
+         DSB.SBSEM.CurTargetData := TD;
+         DSB.SBSEM.CurProducts := Ps;
+         DSB.SBSEM.ECS := {|
+                        DSB.SBSEM.CurFunction := F;
+                        DSB.SBSEM.CurBB := B;
+                        DSB.SBSEM.CurCmds := cs;
+                        DSB.SBSEM.Terminator := tmn;
+                        DSB.SBSEM.Locals := updateAddAL GenericValue lc id0 gv'';
+                        DSB.SBSEM.Rmap := rm;
+                        DSB.SBSEM.Allocas := als |} :: EC;
+         DSB.SBSEM.Globals := gl;
+         DSB.SBSEM.FunTable := fs;
+         DSB.SBSEM.Mem := Mem;
+         DSB.SBSEM.Mmap := MM |} St' /\ inject_incr mi mi'.
 Proof.
   intros.
   destruct_ctx_other.
@@ -1249,16 +1250,16 @@ Proof.
   destruct Hgetv2' as [gv2' [Hgetv2' Hinj2']].
   eapply simulation__insertGenericValue in H1; eauto.
   destruct H1 as [gv2'' [H1 Hinj']].
-  exists (LLVMopsem.mkState S2 (los, nts) Ps2
-          ((LLVMopsem.mkEC (fdef_intro fh2 bs2) B2
+  exists (DOS.Sem.mkState S2 (los, nts) Ps2
+          ((DOS.Sem.mkEC (fdef_intro fh2 bs2) B2
             (cs2 ++ cs23) tmn2 (updateAddAL GenericValue lc2 id0 gv2'')
             als2):: 
             ECs2) gl2 fs2 M2).
   exists mi.
   split.
     rewrite <- (@trace_app_nil__eq__trace trace_nil).
-    eapply LLVMopsem.dsop_star_cons; eauto.
-      eapply LLVMopsem.dsInsertValue; eauto.
+    eapply DOS.Sem.sop_star_cons; eauto.
+      eapply DOS.Sem.sInsertValue; eauto.
 
     split; auto using inject_incr_refl.
     repeat (split; auto).
@@ -1277,11 +1278,11 @@ Qed.
 
 Lemma SBpass_is_correct__dsSelect_nptr : forall (mi : MoreMem.meminj) 
   (mgb : Values.block)
-  (St : LLVMopsem.State) (S : system) (TD : TargetData) (Ps : list product)
-  (F : fdef) (B : block) (lc : GVMap) (rm : SBopsem.rmetadata) (gl : GVMap)
+  (St : DOS.Sem.State) (S : system) (TD : TargetData) (Ps : list product)
+  (F : fdef) (B : block) (lc : GVMap) (rm : SBspecAux.rmetadata) (gl : GVMap)
   (fs : GVMap) (id0 : id) t (v0 : value) v1 v2
-  (EC : list SBopsem.ExecutionContext) (cs : list cmd) (tmn : terminator)
-  (Mem0 : mem) (MM : SBopsem.mmetadata) (als : list mblock)
+  (EC : list DSB.SBSEM.ExecutionContext) (cs : list cmd) (tmn : terminator)
+  (Mem0 : mem) (MM : SBspecAux.mmetadata) (als : list mblock)
   (Hsim : sbState_simulates_State mi mgb
            {|
            CurSystem := S;
@@ -1304,9 +1305,9 @@ Lemma SBpass_is_correct__dsSelect_nptr : forall (mi : MoreMem.meminj)
   (H0 : getOperandValue TD v1 lc gl = ret gv1)
   (H1 : getOperandValue TD v2 lc gl = ret gv2)
   (H2 : isPointerTypB t = false),
-  exists St' : LLVMopsem.State,
+  exists St' : DOS.Sem.State,
      exists mi' : MoreMem.meminj,
-       LLVMopsem.dsop_star St St' trace_nil /\
+       DOS.Sem.sop_star St St' trace_nil /\
        sbState_simulates_State mi' mgb
          {|
          CurSystem := S;
@@ -1344,8 +1345,8 @@ Proof.
   assert (isGVZero (los, nts) c = isGVZero (los, nts) c') as Heqc.
     eapply simulation__isGVZero; eauto.
 
-  exists (LLVMopsem.mkState S2 (los, nts) Ps2
-          ((LLVMopsem.mkEC (fdef_intro fh2 bs2) B2
+  exists (DOS.Sem.mkState S2 (los, nts) Ps2
+          ((DOS.Sem.mkEC (fdef_intro fh2 bs2) B2
             (cs2 ++ cs23) tmn2 
             (if isGVZero (los, nts) c'
              then updateAddAL GenericValue lc2 id0 gv2'
@@ -1355,8 +1356,8 @@ Proof.
   exists mi.
   split.
     rewrite <- (@trace_app_nil__eq__trace trace_nil).
-    eapply LLVMopsem.dsop_star_cons; eauto.
-      eapply LLVMopsem.dsSelect; eauto.
+    eapply DOS.Sem.sop_star_cons; eauto.
+      eapply DOS.Sem.sSelect; eauto.
 
     split; auto using inject_incr_refl.
     repeat (split; auto).
@@ -1377,11 +1378,11 @@ Qed.
 
 Lemma SBpass_is_correct__dsSelect_ptr : forall (mi : MoreMem.meminj) 
   (mgb : Values.block)
-  (St : LLVMopsem.State) (S : system) (TD : TargetData) (Ps : list product)
-  (F : fdef) (B : block) (lc : GVMap) (rm : SBopsem.rmetadata) (gl : GVMap)
+  (St : DOS.Sem.State) (S : system) (TD : TargetData) (Ps : list product)
+  (F : fdef) (B : block) (lc : GVMap) (rm : SBspecAux.rmetadata) (gl : GVMap)
   (fs : GVMap) (id0 : id) t (v0 : value) v1 v2
-  (EC : list SBopsem.ExecutionContext) (cs : list cmd) (tmn : terminator)
-  (Mem0 : mem) (MM : SBopsem.mmetadata) (als : list mblock)
+  (EC : list DSB.SBSEM.ExecutionContext) (cs : list cmd) (tmn : terminator)
+  (Mem0 : mem) (MM : SBspecAux.mmetadata) (als : list mblock)
   (Hsim : sbState_simulates_State mi mgb
            {|
            CurSystem := S;
@@ -1404,15 +1405,15 @@ Lemma SBpass_is_correct__dsSelect_ptr : forall (mi : MoreMem.meminj)
   (H0 : getOperandValue TD v1 lc gl = ret gv1)
   (H1 : getOperandValue TD v2 lc gl = ret gv2)
   (H2 : isPointerTypB t = true)
-  (H3 : SBopsem.get_reg_metadata TD gl rm v1 = ret md1)
-  (H4 : SBopsem.get_reg_metadata TD gl rm v2 = ret md2)
+  (H3 : SBspecAux.get_reg_metadata TD gl rm v1 = ret md1)
+  (H4 : SBspecAux.get_reg_metadata TD gl rm v2 = ret md2)
   (H5 : (if isGVZero TD c
         then prop_reg_metadata lc rm id0 gv2 md2
         else prop_reg_metadata lc rm id0 gv1 md1) = 
        (lc', rm')),
-   exists St' : LLVMopsem.State,
+   exists St' : DOS.Sem.State,
      exists mi' : MoreMem.meminj,
-       LLVMopsem.dsop_star St St' trace_nil /\
+       DOS.Sem.sop_star St St' trace_nil /\
        sbState_simulates_State mi' mgb
          {|
          CurSystem := S;
@@ -1447,9 +1448,9 @@ Proof.
     eapply simulation__isGVZero; eauto.
   erewrite Heqc in H5.
 
-  remember (get_reg_metadata rm2 v1) as R1.
+  remember (SB_ds_pass.get_reg_metadata rm2 v1) as R1.
   destruct R1 as [[bv1 ev1]|]; tinv Htcmds.
-  remember (get_reg_metadata rm2 v2) as R2.
+  remember (SB_ds_pass.get_reg_metadata rm2 v2) as R2.
   destruct R2 as [[bv2 ev2]|]; tinv Htcmds.
   remember (lookupAL (id * id) rm2 id0) as R3.
   destruct R3 as [[bid0 eid0]|]; tinv Htcmds.
@@ -1488,8 +1489,8 @@ Proof.
   apply gen_metadata_fdef_spec in Hspec; auto.
   destruct Hspec as [Hinc1 [Hdisj1 [Hinc3 Hdisj2]]].
 
-  exists (LLVMopsem.mkState S2 (los, nts) Ps2
-          ((LLVMopsem.mkEC (fdef_intro fh2 bs2) B2
+  exists (DOS.Sem.mkState S2 (los, nts) Ps2
+          ((DOS.Sem.mkEC (fdef_intro fh2 bs2) B2
             (cs2 ++ cs23) tmn2 
             (if isGVZero (los, nts) c'
              then updateAddAL _
@@ -1555,9 +1556,9 @@ Proof.
   exists mi.
   split.
     rewrite <- (@trace_app_nil__eq__trace trace_nil).
-    apply LLVMopsem.dsop_star_cons with (state2 := 
-        LLVMopsem.mkState S2 (los, nts) Ps2
-          ((LLVMopsem.mkEC (fdef_intro fh2 bs2) B2
+    apply DOS.Sem.sop_star_cons with (state2 := 
+        DOS.Sem.mkState S2 (los, nts) Ps2
+          ((DOS.Sem.mkEC (fdef_intro fh2 bs2) B2
             (insn_select id0 v0 t v1 v2 ::
              insn_select bid0 (value_id ctmp) p8 bv1' bv2' :: 
              insn_select eid0 (value_id ctmp) p8 ev1' ev2' ::
@@ -1565,13 +1566,15 @@ Proof.
              (updateAddAL _ lc2 ctmp c')
             als2):: 
             ECs2) gl2 fs2 M2); auto.
-      eapply LLVMopsem.dsCast; eauto.
-        unfold CAST. rewrite Hc. simpl. unfold mbitcast, i1. auto.
+      eapply DOS.Sem.sCast; eauto.
+        unfold DOS.Sem.CAST. 
+        replace DOS.Sem.getOperandValue with LLVMgv.getOperandValue; auto.
+        rewrite Hc. simpl. unfold mbitcast, i1. auto.
 
     rewrite <- (@trace_app_nil__eq__trace trace_nil).
-    apply LLVMopsem.dsop_star_cons with (state2 := 
-        LLVMopsem.mkState S2 (los, nts) Ps2
-          ((LLVMopsem.mkEC (fdef_intro fh2 bs2) B2
+    apply DOS.Sem.sop_star_cons with (state2 := 
+        DOS.Sem.mkState S2 (los, nts) Ps2
+          ((DOS.Sem.mkEC (fdef_intro fh2 bs2) B2
             (insn_select bid0 (value_id ctmp) p8 bv1' bv2' :: 
              insn_select eid0 (value_id ctmp) p8 ev1' ev2' ::
              cs2 ++ cs23) tmn2 
@@ -1580,13 +1583,13 @@ Proof.
              else updateAddAL _ (updateAddAL _ lc2 ctmp c') id0 gv1')
             als2):: 
             ECs2) gl2 fs2 M2); auto.
-      eapply LLVMopsem.dsSelect; eauto;
+      eapply DOS.Sem.sSelect; eauto;
         rewrite <- getOperandValue_eq_fresh_id; auto.
 
     rewrite <- (@trace_app_nil__eq__trace trace_nil).
-    apply LLVMopsem.dsop_star_cons with (state2 := 
-        LLVMopsem.mkState S2 (los, nts) Ps2
-          ((LLVMopsem.mkEC (fdef_intro fh2 bs2) B2
+    apply DOS.Sem.sop_star_cons with (state2 := 
+        DOS.Sem.mkState S2 (los, nts) Ps2
+          ((DOS.Sem.mkEC (fdef_intro fh2 bs2) B2
             (insn_select eid0 (value_id ctmp) p8 ev1' ev2' ::
              cs2 ++ cs23) tmn2 
             (if isGVZero (los, nts) c' then
@@ -1603,7 +1606,7 @@ Proof.
                 bid0 bgv1')
             als2):: 
             ECs2) gl2 fs2 M2); auto.
-      eapply LLVMopsem.dsSelect; eauto.
+      eapply DOS.Sem.sSelect; eauto.
         destruct (isGVZero (los, nts) c');
           rewrite <- getOperandValue_eq_fresh_id; simpl;
             try solve [auto | rewrite lookupAL_updateAddAL_eq; auto].
@@ -1615,8 +1618,8 @@ Proof.
           rewrite <- getOperandValue_eq_fresh_id; auto.
 
     rewrite <- (@trace_app_nil__eq__trace trace_nil).
-    eapply LLVMopsem.dsop_star_cons; eauto.
-      eapply LLVMopsem.dsSelect; eauto.
+    eapply DOS.Sem.sop_star_cons; eauto.
+      eapply DOS.Sem.sSelect; eauto.
         destruct (isGVZero (los, nts) c');
           rewrite <- getOperandValue_eq_fresh_id; auto.
           rewrite <- getOperandValue_eq_fresh_id; auto.

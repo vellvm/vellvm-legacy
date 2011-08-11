@@ -4,7 +4,6 @@ Add LoadPath "../ssa".
 Add LoadPath "../ssa/compcert".
 Add LoadPath "../../../theory/metatheory_8.3".
 Require Import ssa_def.
-Require Import ssa_dynamic.
 Require Import List.
 Require Import Arith.
 Require Import ZArith.
@@ -13,6 +12,7 @@ Require Import sub_symexe.
 Require Import trace.
 Require Import alist.
 Require Import monad.
+Require Import opsem.
 
 Export SBSE.
 
@@ -681,7 +681,7 @@ Definition lookupFdefViaGV (TD:TargetData) (Ps:products) (gl lc:GVMap)
   (fs:GVMap) (fv:value) : option fdef :=
 match getOperandValue TD fv lc gl with
 | Some fptr =>
-  match LLVMopsem.lookupFdefViaGVFromFunTable fs fptr with
+  match OpsemAux.lookupFdefViaGVFromFunTable fs fptr with
   | Some fn => lookupFdefViaIDFromProducts Ps fn
   | None => None
   end
@@ -747,6 +747,25 @@ Export SBsyntax.
 
 (*************************************************)
 (* A new opsem for proofs *)
+
+Definition exCallUpdateLocals TD ft (noret:bool) (rid:id) 
+  (oResult:option GenericValue) (lc :GVMap) : option GVMap :=
+  match noret with
+  | false =>
+      match oResult with
+      | None => None
+      | Some Result => 
+          match ft with
+          | typ_function t _ _ => 
+            match fit_gv TD t Result with
+            | Some gr => Some (updateAddAL _ lc rid (? gr # t ?))
+            | _ => None
+            end
+          | _ => None
+          end
+      end
+  | true => Some lc
+  end.
 
 Inductive dbCmd : TargetData -> GVMap ->
                   GVMap -> list mblock -> mem -> 
@@ -889,7 +908,7 @@ Inductive dbCmd : TargetData -> GVMap ->
   params2GVs TD lp lc gl = Some gvs ->
   SBSE.callLib Mem fid gvs = Some (oresult, Mem', r)
     ->
-  LLVMopsem.exCallUpdateLocals TD ft noret rid oresult lc = Some lc' ->
+  exCallUpdateLocals TD ft noret rid oresult lc = Some lc' ->
   dbCmd TD gl
     lc als Mem
     (insn_call rid noret tailc rt (value_const (const_gid ft fid)) lp)
@@ -947,6 +966,37 @@ Record ExecutionContext : Type := mkEC
 
 Record State : Type := mkState { Frame : ExecutionContext;  Mem : mem }.
 
+Definition callUpdateLocals (TD:TargetData) ft (noret:bool) (rid:id) 
+  (oResult:option value) (lc lc' gl:GVMap) : option GVMap :=
+    match noret with
+    | false =>
+        match oResult with
+        | None => None
+        | Some Result => 
+          match getOperandValue TD Result lc' gl with 
+          | Some gr =>  
+            match ft with
+            | typ_function t _ _ => 
+              match fit_gv TD t gr with
+              | Some gr' => Some (updateAddAL _ lc rid (? gr' # t ?))
+              | None => None
+              end
+            | _ => None
+            end
+          | None => None
+          end
+        end
+    | true => 
+        match oResult with
+        | None => Some lc
+        | Some Result => 
+          match (getOperandValue TD Result lc' gl) with 
+          | Some gr => Some lc
+          | None => None
+          end
+        end
+    end.
+
 Inductive dbCall : system -> TargetData -> list product -> GVMap -> 
                    GVMap -> GVMap -> list mblock -> mem -> 
                    call -> 
@@ -956,7 +1006,7 @@ Inductive dbCall : system -> TargetData -> list product -> GVMap ->
                        Rid oResult tr lc' Mem Mem' als' Mem'' B' r als lc'',
   dbFdef fv rt lp S TD Ps lc gl fs Mem lc' als' Mem' B' Rid oResult tr r ->
   free_allocas TD Mem' als' = Some Mem'' ->
-  LLVMopsem.callUpdateLocals TD rt noret rid oResult lc lc' gl = Some lc'' ->
+  callUpdateLocals TD rt noret rid oResult lc lc' gl = Some lc'' ->
   dbCall S TD Ps fs gl lc als Mem
     (insn_call_nptr rid noret tailc rt fv lp)
     lc'' als Mem'' tr r
@@ -970,9 +1020,9 @@ Inductive dbCall : system -> TargetData -> list product -> GVMap ->
   lookupExFdecViaGV TD Ps gl lc fs fv = 
     Some (fdec_intro (fheader_intro fa rt fid la va)) ->
   params2GVs TD lp lc gl = Some gvs ->
-  LLVMopsem.callExternalFunction Mem fid gvs = 
+  OpsemAux.callExternalFunction Mem fid gvs = 
     Some (oresult, Mem') ->
-  LLVMopsem.exCallUpdateLocals TD rt noret rid oresult lc = Some lc' ->
+  exCallUpdateLocals TD rt noret rid oresult lc = Some lc' ->
   dbCall S TD Ps fs gl lc als Mem
     (insn_call_nptr rid noret tailc rt fv lp)
     lc' als Mem' trace_nil Rok
