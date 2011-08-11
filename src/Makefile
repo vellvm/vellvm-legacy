@@ -20,9 +20,9 @@ coq:
 
 ocaml: coq $(CMAS) $(CMXAS)
 	ocamlbuild -clean
+	ocamlbuild $(OCAMLBUILD_OPT) Interpreter/main.$(OUTPUT_TYPE)
 	ocamlbuild $(OCAMLBUILD_OPT) SoftBound/main.d.byte
 	ocamlbuild $(OCAMLBUILD_OPT) Parser/main.d.byte
-	ocamlbuild $(OCAMLBUILD_OPT) Interpreter/main.$(OUTPUT_TYPE)
 
 clean:
 	+make -C ./ssa clean

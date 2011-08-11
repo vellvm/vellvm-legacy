@@ -1186,9 +1186,9 @@ Proof.
   eapply J; eauto.
 Qed.
 
-Lemma tv_fdef__is__correct : forall ECs fv rt lp S1 los nts Ps1 lc gl fs Mem lc'
+Lemma tv_fdef__is__correct : forall fv rt lp S1 los nts Ps1 lc gl fs Mem lc'
     als' Mem' B1' Rid oResult tr fid Ps2 S2 fa la va lb1 fptr,
-  bFdef fv rt lp S1 (los, nts) Ps1 ECs lc gl fs Mem lc' als' Mem' B1'
+  bFdef fv rt lp S1 (los, nts) Ps1 lc gl fs Mem lc' als' Mem' B1'
     Rid oResult tr ->
   uniq gl ->
   uniq lc ->
@@ -1208,7 +1208,7 @@ Lemma tv_fdef__is__correct : forall ECs fv rt lp S1 los nts Ps1 lc gl fs Mem lc'
     lookupFdefViaPtr Ps2 fs fptr = 
       Some (fdef_intro (fheader_intro fa rt fid la va) lb2) /\
     tv_blocks lb1 lb2 /\
-    bFdef fv rt lp S2 (los, nts) Ps2 ECs lc gl fs Mem slc als' Mem' 
+    bFdef fv rt lp S2 (los, nts) Ps2 lc gl fs Mem slc als' Mem' 
       B2' Rid oResult tr /\
     eqAL _ slc lc'.
 Proof.

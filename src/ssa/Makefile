@@ -10,7 +10,7 @@ all:
 	+make ott 
 #	+make -C ./llvm_op
 
-ott: main.pdf ssa_static.vo ssa_interpreter.vo
+ott: main.pdf ssa_static.vo ssa_interpreter.vo opsem_inst.vo
 
 alist.vo : alist.v
 	$(COQC) $(COQARG) alist.v

@@ -1,3 +1,4 @@
+open Opsem
 open Dopsem
 open Ssa_interpreter
 open Ssa_dynamic
@@ -6,7 +7,7 @@ open Llvm
 open Llvm_executionengine
 open Trace
 
-let interInsnLoop (s0:DOS.Sem.coq_State) (tr0:trace) 
+let interInsnLoop (cfg:OpsemAux.coq_Config) (s0:DOS.Sem.coq_State) (tr0:trace) 
   : (DOS.Sem.coq_State*trace) option =
   
   let s = ref s0 in
@@ -14,7 +15,7 @@ let interInsnLoop (s0:DOS.Sem.coq_State) (tr0:trace)
   
   while not (DOS.Sem.s_isFinialState !s) do
     (if !Globalstates.debug then (eprintf "n=%d\n" !n;   flush_all()));    
-    match interInsn !s with
+    match interInsn cfg !s with
     | Some (s', _) ->
       begin 
         s := s';
@@ -25,8 +26,8 @@ let interInsnLoop (s0:DOS.Sem.coq_State) (tr0:trace)
   
   Some (!s, Coq_trace_nil)
   
-let rec interInsnStar (s:DOS.Sem.coq_State) (tr:trace) (n:int) 
-  : (DOS.Sem.coq_State*trace) option =
+let rec interInsnStar (cfg:OpsemAux.coq_Config) (s:DOS.Sem.coq_State) (tr:trace) 
+  (n:int) : (DOS.Sem.coq_State*trace) option =
   if (DOS.Sem.s_isFinialState s) 
   then 
     begin
@@ -38,8 +39,8 @@ let rec interInsnStar (s:DOS.Sem.coq_State) (tr:trace) (n:int)
     then
       begin
       (if !Globalstates.debug then (eprintf "n=%d\n" n;   flush_all()));    
-      match interInsn s with
-      | Some (s', tr') -> interInsnStar s' (trace_app tr tr') (n-1)  
+      match interInsn cfg s with
+      | Some (s', tr') -> interInsnStar cfg s' (trace_app tr tr') (n-1)  
       | None ->
         eprintf "Stuck!\n";flush_all(); 
         None
@@ -81,8 +82,8 @@ let main in_filename argv =
         ExecutionEngine.run_static_ctors li;
 
         (match DOS.Sem.s_genInitState (coqim::[]) "@main" gargvs (li, im) with
-          | Some s -> 
-            (match interInsnLoop s Coq_trace_nil with
+          | Some (cfg, s) -> 
+            (match interInsnLoop cfg s Coq_trace_nil with
               | Some (s', tr) -> (); ExecutionEngine.run_static_dtors li
               | None -> () )
           | None -> () );

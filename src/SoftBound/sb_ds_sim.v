@@ -373,8 +373,8 @@ MoreMem.mem_inj mi Mem1 Mem2 /\
   gv_inject mi ((Vptr b ofs,cm)::nil) pgv' ->
   getOperandValue TD v lc2 gl = Some pgv' ->
   exists bgv', exists egv',
-  DOS.Sem.sop_star 
-    (DOS.Sem.mkState S TD Ps 
+  DOS.Sem.sop_star (OpsemAux.mkCfg S TD Ps gl fs)
+    (DOS.Sem.mkState 
       ((DOS.Sem.mkEC F B 
         (insn_call bid0 false attrs gmb_typ gmb_fn 
                        ((p8,v)::
@@ -390,11 +390,11 @@ MoreMem.mem_inj mi Mem1 Mem2 /\
                         nil)::
          cs) 
         tmn lc2 als)
-        ::EC) gl fs Mem2)
-    (DOS.Sem.mkState S TD Ps 
+        ::EC) Mem2)
+    (DOS.Sem.mkState
        ((DOS.Sem.mkEC F B cs tmn 
          (updateAddAL _ (updateAddAL _ lc2 bid0 bgv') eid0 egv') als)::EC) 
-        gl fs Mem2)
+         Mem2)
     trace_nil /\
     gv_inject mi ((Vptr blk bofs, AST.Mint 31)::nil) bgv' /\
     gv_inject mi ((Vptr blk eofs, AST.Mint 31)::nil) egv'
@@ -504,10 +504,13 @@ Definition ftable_simulation mi fs1 fs2 : Prop :=
     OpsemAux.lookupFdefViaGVFromFunTable fs2 fv2.
 
 Definition sbState_simulates_State (mi:MoreMem.meminj) (mgb:Values.block)
-  (sbSt:DSB.SBSEM.State) (St:DOS.Sem.State) : Prop :=
+  (sbCfg:OpsemAux.Config) (sbSt:DSB.SBSEM.State) 
+  (Cfg:OpsemAux.Config) (St:DOS.Sem.State) : Prop :=
+let '(OpsemAux.mkCfg S1 TD1 Ps1 gl1 fs1) := sbCfg in
+let '(OpsemAux.mkCfg S2 TD2 Ps2 gl2 fs2) := Cfg in
   match (sbSt, St) with
-  | (DSB.SBSEM.mkState S1 TD1 Ps1 ECs1 gl1 fs1 M1 MM1,
-     DOS.Sem.mkState S2 TD2 Ps2 ECs2 gl2 fs2 M2) =>
+  | (DSB.SBSEM.mkState ECs1 M1 MM1,
+     DOS.Sem.mkState ECs2 M2) =>
       let '(los, nts) := TD1 in
       wf_system nil S1 /\
       moduleInSystemB (module_intro los nts Ps1) S1 = true /\
@@ -526,9 +529,12 @@ Ltac destruct_ctx_other :=
 match goal with
 | [Hsim : sbState_simulates_State _ _
            {|
-           DSB.SBSEM.CurSystem := _;
-           DSB.SBSEM.CurTargetData := ?TD;
-           DSB.SBSEM.CurProducts := _;
+           OpsemAux.CurSystem := _;
+           OpsemAux.CurTargetData := ?TD;
+           OpsemAux.CurProducts := _;
+           OpsemAux.Globals := _;
+           OpsemAux.FunTable := _ |}
+           {|
            DSB.SBSEM.ECS := {|
                           DSB.SBSEM.CurFunction := ?F;
                           DSB.SBSEM.CurBB := _;
@@ -537,11 +543,10 @@ match goal with
                           DSB.SBSEM.Locals := _;
                           DSB.SBSEM.Rmap := _;
                           DSB.SBSEM.Allocas := _ |} :: _;
-           DSB.SBSEM.Globals := _;
-           DSB.SBSEM.FunTable := _;
            DSB.SBSEM.Mem := _;
-           DSB.SBSEM.Mmap := _ |} ?St |- _] =>
-  destruct St as [S2 TD2 Ps2 ECs2 gl2 fs2 M2];
+           DSB.SBSEM.Mmap := _ |} ?Cfg ?St |- _] =>
+  destruct St as [ECs2 M2];
+  destruct Cfg as [S2 TD2 Ps2 gl2 fs2];
   destruct TD as [los nts];
   destruct Hsim as [Hwfs [HMinS [Htsym [Heq1 [Htps [HsimECs [Htprds [Hfsim
     [Hwfg [Hwfmi HsimM]]]]]]]]]];
@@ -598,9 +603,12 @@ Ltac destruct_ctx_br :=
 match goal with
 | [Hsim : sbState_simulates_State _ _
            {|
-           DSB.SBSEM.CurSystem := _;
-           DSB.SBSEM.CurTargetData := ?TD;
-           DSB.SBSEM.CurProducts := _;
+           OpsemAux.CurSystem := _;
+           OpsemAux.CurTargetData := ?TD;
+           OpsemAux.CurProducts := _;
+           OpsemAux.Globals := _;
+           OpsemAux.FunTable := _ |}
+           {|
            DSB.SBSEM.ECS := {|
                           DSB.SBSEM.CurFunction := ?F;
                           DSB.SBSEM.CurBB := _;
@@ -609,11 +617,10 @@ match goal with
                           DSB.SBSEM.Locals := _;
                           DSB.SBSEM.Rmap := _;
                           DSB.SBSEM.Allocas := _ |} :: _;
-           DSB.SBSEM.Globals := _;
-           DSB.SBSEM.FunTable := _;
            DSB.SBSEM.Mem := _;
-           DSB.SBSEM.Mmap := _ |} ?St |- _] =>
-  destruct St as [S2 TD2 Ps2 ECs2 gl2 fs2 M2];
+           DSB.SBSEM.Mmap := _ |} ?Cfg ?St |- _] =>
+  destruct Cfg as [S2 TD2 Ps2 gl2 fs2];
+  destruct St as [ECs2 M2];
   destruct TD as [los nts];
   destruct Hsim as [Hwfs [HMinS [Htsym [Heq1 [Htps [HsimECs [Htprds [Hfsim [Hwfg 
     [Hwfmi HsimM]]]]]]]]]];
@@ -633,9 +640,12 @@ Ltac destruct_ctx_return :=
 match goal with
 | [Hsim : sbState_simulates_State _ _
            {|
-           DSB.SBSEM.CurSystem := _;
-           DSB.SBSEM.CurTargetData := ?TD;
-           DSB.SBSEM.CurProducts := _;
+           OpsemAux.CurSystem := _;
+           OpsemAux.CurTargetData := ?TD;
+           OpsemAux.CurProducts := _;
+           OpsemAux.Globals := _;
+           OpsemAux.FunTable := _ |}
+           {|
            DSB.SBSEM.ECS := {|
                           DSB.SBSEM.CurFunction := ?F;
                           DSB.SBSEM.CurBB := _;
@@ -652,11 +662,10 @@ match goal with
                              DSB.SBSEM.Locals := _;
                              DSB.SBSEM.Rmap := _;
                              DSB.SBSEM.Allocas := _ |} :: _;
-           DSB.SBSEM.Globals := _;
-           DSB.SBSEM.FunTable := _;
            DSB.SBSEM.Mem := _;
-           DSB.SBSEM.Mmap := _ |} ?St |- _] =>
-  destruct St as [S2 TD2 Ps2 ECs2 gl2 fs2 M2];
+           DSB.SBSEM.Mmap := _ |} ?Cfg ?St |- _] =>
+  destruct Cfg as [S2 TD2 Ps2 gl2 fs2];
+  destruct St as [ECs2 M2];
   destruct TD as [los nts];
   destruct Hsim as [Hwfs [HMinS [Htsym [Heq1 [Htps [HsimECs [Htprds [Hfsim [Hwfg 
     [Hwfmi HsimM]]]]]]]]]];

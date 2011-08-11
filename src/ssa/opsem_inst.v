@@ -414,10 +414,7 @@ end.
 
 Definition instantiate_State (st1 : DOS.Sem.State) (st2 : NDOS.State) : Prop :=
 match st1, st2 with
-| DOS.Sem.mkState s1 td1 ps1 ecs1 gl1 fs1 M1,
-  NDOS.mkState s2 td2 ps2 ecs2 gl2 fs2 M2 =>
-    s1 = s2 /\ td1 = td2 /\ ps1 = ps2 /\ instantiate_ECs ecs1 ecs2 /\ gl1 = gl2
-    /\ fs1 = fs2 /\ M1 = M2
+| DOS.Sem.mkState ecs1 M1, NDOS.mkState ecs2 M2 => instantiate_ECs ecs1 ecs2 /\ M1 = M2
 end.
 
 Lemma instantiate_locals__lookup : forall lc1 lc2 id1 gv1,
@@ -880,8 +877,8 @@ Qed.
 Ltac simpl_nd_llvmds :=
   match goal with
   | [Hsim : instantiate_State {| DOS.Sem.ECS := _::_::_ |} ?st2 |- _ ] =>
-     destruct st2 as [S' TD' Ps' ECs' gl' fs' M'];
-     destruct Hsim as [eq1 [eq2 [eq3 [Hsim [eq4 [eq5 eq6]]]]]]; subst;
+     destruct st2 as [ECs' M'];
+     destruct Hsim as [Hsim eq6]; subst;
      destruct ECs' as [|[f1' b1' cs1' tmn1' lc1' als1'] ECs']; 
        try solve [inversion Hsim];
      simpl in Hsim; destruct Hsim as [Hsim1 Hsim2];
@@ -891,31 +888,29 @@ Ltac simpl_nd_llvmds :=
      destruct Hsim1 as [J1 [J2 [J3 [J4 [Hsim1 J6]]]]]; subst;
      destruct Hsim2 as [J1 [J2 [J3 [J4 [Hsim2 J6]]]]]; subst
   | [Hsim : instantiate_State {| DOS.Sem.ECS := _::_|} ?st2 |- _ ] =>
-     destruct st2 as [S' TD' Ps' ECs' gl' fs' M'];
-     destruct Hsim as [eq1 [eq2 [eq3 [Hsim [eq4 [eq5 eq6]]]]]]; subst;
+     destruct st2 as [ECs' M'];
+     destruct Hsim as [Hsim eq6]; subst;
      destruct ECs' as [|[f1' b1' cs1' tmn1' lc1' als1'] ECs']; 
        try solve [inversion Hsim];
      simpl in Hsim; destruct Hsim as [Hsim1 Hsim2];
      destruct Hsim1 as [J1 [J2 [J3 [J4 [Hsim1 J6]]]]]; subst
   end.
 
-Lemma instantiate_dsInsn : forall st1 st2 st1' tr,
+Lemma instantiate_dsInsn : forall cfg st1 st2 st1' tr,
   instantiate_State st1 st2 ->
-  DOS.Sem.sInsn st1 st1' tr ->
-  (exists st2', NDOS.sInsn st2 st2' tr /\ instantiate_State st1' st2').
+  DOS.Sem.sInsn cfg st1 st1' tr ->
+  (exists st2', NDOS.sInsn cfg st2 st2' tr /\ instantiate_State st1' st2').
 Proof.
-  intros st1 st2 st1' tr Hsim Hop.  
+  intros cfg st1 st2 st1' tr Hsim Hop.  
   (sInsn_cases (induction Hop) Case).
 Case "sReturn". simpl_nd_llvmds. 
   eapply instantiate_locals__returnUpdateLocals in H1; eauto.
   destruct H1 as [lc2'' [H1 H2]].
-  exists (NDOS.mkState S' TD' Ps' 
-    ((NDOS.mkEC f2' b2' cs' tmn2' lc2'' als2')::ECs') gl' fs' Mem').
+  exists (NDOS.mkState ((NDOS.mkEC f2' b2' cs' tmn2' lc2'' als2')::ECs') Mem').
   split; eauto.
     repeat (split; auto).
 Case "sReturnVoid". simpl_nd_llvmds. 
-  exists (NDOS.mkState S' TD' Ps' 
-    ((NDOS.mkEC f2' b2' cs' tmn2' lc2' als2')::ECs') gl' fs' Mem').
+  exists (NDOS.mkState ((NDOS.mkEC f2' b2' cs' tmn2' lc2' als2')::ECs') Mem').
   split; eauto.
     repeat (split; auto).
 Case "sBranch". simpl_nd_llvmds. 
@@ -923,33 +918,29 @@ Case "sBranch". simpl_nd_llvmds.
   eapply instantiate_locals__getOperandValue in H; eauto.
   destruct H as [gvs2 [J1 J2]].
   destruct H2 as [lc2' [J3 J4]].
-  exists (NDOS.mkState S' TD' Ps' 
-    ((NDOS.mkEC f1' (block_intro l' ps' cs' tmn') cs' tmn' lc2' als1')
-      ::ECs') gl' fs' M').
+  exists (NDOS.mkState ((NDOS.mkEC f1' (block_intro l' ps' cs' tmn') cs' tmn' lc2' als1')
+      ::ECs') M').
   split; eauto using instantiate_gvs__incl.
     repeat (split; auto).
 Case "sBranch_uncond". simpl_nd_llvmds. 
   eapply instantiate_locals__switchToNewBasicBlock in H0; eauto.
   destruct H0 as [lc2' [J1 J2]]. 
-  exists (NDOS.mkState S' TD' Ps' 
-    ((NDOS.mkEC f1' (block_intro l' ps' cs' tmn') cs' tmn' lc2' als1')
-      ::ECs') gl' fs' M').
+  exists (NDOS.mkState ((NDOS.mkEC f1' (block_intro l' ps' cs' tmn') cs' tmn' lc2' als1')
+      ::ECs') M').
   split; eauto.
     repeat (split; auto).
 Case "sBop". simpl_nd_llvmds. 
   eapply instantiate_locals__BOP in H; eauto.
   destruct H as [gvs3' [J1 J2]].
-  exists (NDOS.mkState S' TD' Ps' 
-    ((NDOS.mkEC f1' b1' cs tmn1' (updateAddAL _ lc1' id0 gvs3') als1')
-      ::ECs') gl' fs' M').
+  exists (NDOS.mkState ((NDOS.mkEC f1' b1' cs tmn1' (updateAddAL _ lc1' id0 gvs3') als1')
+      ::ECs') M').
   split; eauto.
     repeat (split; auto using instantiate_locals__updateAddAL).
 Case "sFBop". simpl_nd_llvmds. 
   eapply instantiate_locals__FBOP in H; eauto.
   destruct H as [gvs3' [J1 J2]]. 
-  exists (NDOS.mkState S' TD' Ps' 
-    ((NDOS.mkEC f1' b1' cs tmn1' (updateAddAL _ lc1' id0 gvs3') als1')
-      ::ECs') gl' fs' M').
+  exists (NDOS.mkState ((NDOS.mkEC f1' b1' cs tmn1' (updateAddAL _ lc1' id0 gvs3') als1')
+      ::ECs') M').
   split; eauto.
     repeat (split; auto using instantiate_locals__updateAddAL).
 Case "sExtractValue". simpl_nd_llvmds. 
@@ -957,9 +948,8 @@ Case "sExtractValue". simpl_nd_llvmds.
   destruct H as [gvs2 [J1 J2]].
   eapply instantiate_locals__extractGenericValue in H0; eauto.
   destruct H0 as [gvs2' [J3 J4]].
-  exists (NDOS.mkState S' TD' Ps' 
-    ((NDOS.mkEC f1' b1' cs tmn1' (updateAddAL _ lc1' id0 gvs2') als1')
-      ::ECs') gl' fs' M').
+  exists (NDOS.mkState ((NDOS.mkEC f1' b1' cs tmn1' (updateAddAL _ lc1' id0 gvs2') als1')
+      ::ECs') M').
   split; eauto.
     repeat (split; auto using instantiate_locals__updateAddAL).
 Case "sInsertValue". simpl_nd_llvmds. 
@@ -969,45 +959,42 @@ Case "sInsertValue". simpl_nd_llvmds.
   destruct H0 as [gvs2' [J1' J2']].
   eapply instantiate_locals__insertGenericValue in H1; eauto.
   destruct H1 as [gvs2'' [J3 J4]].
-  exists (NDOS.mkState S' TD' Ps' 
-    ((NDOS.mkEC f1' b1' cs tmn1' (updateAddAL _ lc1' id0 gvs2'') als1')
-      ::ECs') gl' fs' M').
+  exists (NDOS.mkState((NDOS.mkEC f1' b1' cs tmn1' (updateAddAL _ lc1' id0 gvs2'') als1')
+      ::ECs') M').
   split; eauto.
     repeat (split; auto using instantiate_locals__updateAddAL).
 Case "sMalloc". simpl_nd_llvmds. 
   eapply instantiate_locals__getOperandValue in H0; eauto.
   destruct H0 as [gns2 [J1 J2]].
-  exists (NDOS.mkState S' TD' Ps' 
+  exists (NDOS.mkState
     ((NDOS.mkEC f1' b1' cs tmn1' 
-      (updateAddAL _ lc1' id0 (NDGVs.gv2gvs (blk2GV TD' mb) (typ_pointer t))) 
-    als1')::ECs') gl' fs' Mem').
+      (updateAddAL _ lc1' id0 (NDGVs.gv2gvs (blk2GV TD mb) (typ_pointer t))) 
+    als1')::ECs') Mem').
   split; eauto using instantiate_gvs__incl.
     repeat (split; auto using instantiate_locals__updateAddAL, 
                               instantiate_gvs__gv2gvs).
 Case "sFree". simpl_nd_llvmds. 
   eapply instantiate_locals__getOperandValue in H; eauto.
   destruct H as [gvs [J1 J2]].
-  exists (NDOS.mkState S' TD' Ps' 
-    ((NDOS.mkEC f1' b1' cs tmn1' lc1'
-    als1')::ECs') gl' fs' Mem').
+  exists (NDOS.mkState ((NDOS.mkEC f1' b1' cs tmn1' lc1' als1')::ECs') Mem').
   split; eauto using instantiate_gvs__incl.
     repeat (split; auto).
 Case "sAlloca". simpl_nd_llvmds. 
   eapply instantiate_locals__getOperandValue in H0; eauto.
   destruct H0 as [gns2 [J1 J2]].
-  exists (NDOS.mkState S' TD' Ps' 
+  exists (NDOS.mkState
     ((NDOS.mkEC f1' b1' cs tmn1' 
-      (updateAddAL _ lc1' id0 (NDGVs.gv2gvs  (blk2GV TD' mb) (typ_pointer t))) 
-    (mb::als1'))::ECs') gl' fs' Mem').
+      (updateAddAL _ lc1' id0 (NDGVs.gv2gvs  (blk2GV TD mb) (typ_pointer t))) 
+    (mb::als1'))::ECs') Mem').
   split; eauto using instantiate_gvs__incl.
     repeat (split; auto using instantiate_locals__updateAddAL, 
                               instantiate_gvs__gv2gvs).
 Case "sLoad". simpl_nd_llvmds.
   eapply instantiate_locals__getOperandValue in H; eauto.
   destruct H as [gvs2 [J1 J2]].
-  exists (NDOS.mkState S' TD' Ps' 
+  exists (NDOS.mkState
     ((NDOS.mkEC f1' b1' cs tmn1' (updateAddAL _ lc1' id0 (NDGVs.gv2gvs gv t))
-    als1')::ECs') gl' fs' M').
+    als1')::ECs') M').
   split; eauto using instantiate_gvs__incl.
     repeat (split; auto using instantiate_locals__updateAddAL, 
                               instantiate_gvs__gv2gvs).
@@ -1016,8 +1003,7 @@ Case "sStore". simpl_nd_llvmds.
   destruct H as [gvs2 [J1 J2]].
   eapply instantiate_locals__getOperandValue in H0; eauto.
   destruct H0 as [mps2' [J3 J4]].
-  exists (NDOS.mkState S' TD' Ps' 
-    ((NDOS.mkEC f1' b1' cs tmn1' lc1' als1')::ECs') gl' fs' Mem').
+  exists (NDOS.mkState ((NDOS.mkEC f1' b1' cs tmn1' lc1' als1')::ECs') Mem').
   split; eauto using instantiate_gvs__incl.
     repeat (split; auto).
 Case "sGEP". simpl_nd_llvmds. 
@@ -1027,49 +1013,49 @@ Case "sGEP". simpl_nd_llvmds.
   destruct H0 as [vidxss2 [J3 J4]].
   eapply instantiate_locals__GEP in H1; eauto.
   destruct H1 as [vidxs2 [mps2' [J5 [J6 J7]]]].
-  exists (NDOS.mkState S' TD' Ps' 
+  exists (NDOS.mkState 
     ((NDOS.mkEC f1' b1' cs tmn1' (updateAddAL _ lc1' id0 mps2') als1')
-      ::ECs') gl' fs' M').
+      ::ECs') M').
   split; eauto using instantiate_gvs__incl.
     repeat (split; auto using instantiate_locals__updateAddAL).
 Case "sTrunc". simpl_nd_llvmds.
   eapply instantiate_locals__TRUNC in H; eauto.
   destruct H as [gvs2' [J1 J2]].
-  exists (NDOS.mkState S' TD' Ps' 
+  exists (NDOS.mkState
     ((NDOS.mkEC f1' b1' cs tmn1' (updateAddAL _ lc1' id0 gvs2') als1')
-      ::ECs') gl' fs' M').
+      ::ECs') M').
   split; eauto using instantiate_gvs__incl.
     repeat (split; auto using instantiate_locals__updateAddAL).
 Case "sExt". simpl_nd_llvmds. 
   eapply instantiate_locals__EXT in H; eauto.
   destruct H as [gvs2' [J1 J2]].
-  exists (NDOS.mkState S' TD' Ps' 
+  exists (NDOS.mkState  
     ((NDOS.mkEC f1' b1' cs tmn1' (updateAddAL _ lc1' id0 gvs2') als1')
-      ::ECs') gl' fs' M').
+      ::ECs') M').
   split; eauto using instantiate_gvs__incl.
     repeat (split; auto using instantiate_locals__updateAddAL).
 Case "sCast". simpl_nd_llvmds. 
   eapply instantiate_locals__CAST in H; eauto.
   destruct H as [gvs2' [J1 J2]].
-  exists (NDOS.mkState S' TD' Ps' 
+  exists (NDOS.mkState
     ((NDOS.mkEC f1' b1' cs tmn1' (updateAddAL _ lc1' id0 gvs2') als1')
-      ::ECs') gl' fs' M').
+      ::ECs') M').
   split; eauto using instantiate_gvs__incl.
     repeat (split; auto using instantiate_locals__updateAddAL).
 Case "sIcmp". simpl_nd_llvmds. 
   eapply instantiate_locals__ICMP in H; eauto.
   destruct H as [gvs3' [J1 J2]].
-  exists (NDOS.mkState S' TD' Ps' 
+  exists (NDOS.mkState
     ((NDOS.mkEC f1' b1' cs tmn1' (updateAddAL _ lc1' id0 gvs3') als1')
-      ::ECs') gl' fs' M').
+      ::ECs') M').
   split; eauto using instantiate_gvs__incl.
     repeat (split; auto using instantiate_locals__updateAddAL).
 Case "sFcmp". simpl_nd_llvmds. 
   eapply instantiate_locals__FCMP in H; eauto.
   destruct H as [gvs3' [J1 J2]]. 
-  exists (NDOS.mkState S' TD' Ps' 
+  exists (NDOS.mkState
     ((NDOS.mkEC f1' b1' cs tmn1' (updateAddAL _ lc1' id0 gvs3') als1')
-      ::ECs') gl' fs' M').
+      ::ECs') M').
   split; eauto using instantiate_gvs__incl.
     repeat (split; auto using instantiate_locals__updateAddAL).
 Case "sSelect". simpl_nd_llvmds. 
@@ -1079,14 +1065,14 @@ Case "sSelect". simpl_nd_llvmds.
   destruct H0 as [gvs1' [J3 J4]].
   eapply instantiate_locals__getOperandValue in H1; eauto.
   destruct H1 as [gvs2' [J5 J6]].
-  exists (NDOS.mkState S' TD' Ps' 
-    ((NDOS.mkEC f1' b1' cs tmn1' (if isGVZero TD' c 
+  exists (NDOS.mkState
+    ((NDOS.mkEC f1' b1' cs tmn1' (if isGVZero TD c 
                                      then updateAddAL _ lc1' id0 gvs2' 
                                      else updateAddAL _ lc1' id0 gvs1') als1')
-      ::ECs') gl' fs' M').
+      ::ECs') M').
   split; eauto using instantiate_gvs__incl.
     repeat (split; auto).
-      destruct (isGVZero TD' c); auto using instantiate_locals__updateAddAL.
+      destruct (isGVZero TD c); auto using instantiate_locals__updateAddAL.
 Case "sCall". simpl_nd_llvmds. 
   eapply instantiate_locals__getOperandValue in H; eauto.
   destruct H as [gvs2 [J11 J12]].
@@ -1094,12 +1080,12 @@ Case "sCall". simpl_nd_llvmds.
   destruct H3 as [gvss2 [H11 H12]].
   eapply instantiate_locals__initLocals in H4; eauto.
   destruct H4 as [lc2' [H21 H22]].
-  exists (NDOS.mkState S' TD' Ps' 
+  exists (NDOS.mkState
     ((NDOS.mkEC (fdef_intro (fheader_intro fa rt fid la va) lb) 
                        (block_intro l' ps' cs' tmn') cs' tmn' lc2'
                        nil)::
      (NDOS.mkEC f1' b1' (insn_call rid noret0 ca ft fv lp :: cs) tmn1' 
-      lc1' als1') ::ECs') gl' fs' M').
+      lc1' als1') ::ECs') M').
   split; eauto using instantiate_gvs__incl.
     repeat (split; auto).
 Case "sExCall". simpl_nd_llvmds. 
@@ -1109,8 +1095,7 @@ Case "sExCall". simpl_nd_llvmds.
   destruct H2 as [gvss2 [H11 H12]].
   eapply instantiate_locals__exCallUpdateLocals in H5; eauto.
   destruct H5 as [lc2' [H21 H22]].
-  exists (NDOS.mkState S' TD' Ps' 
-    ((NDOS.mkEC f1' b1' cs tmn1' lc2' als1') ::ECs') gl' fs' Mem').
+  exists (NDOS.mkState ((NDOS.mkEC f1' b1' cs tmn1' lc2' als1') ::ECs') Mem').
   split.
     eapply NDOS.sExCall; eauto using instantiate_gvs__incl,
                                     instantiate_list_gvs__incl.
@@ -1201,10 +1186,10 @@ Proof.
   repeat (split; eauto using NDGVs.instantiate_gv__gv2gvs).
 Qed.
 
-Lemma DOS_instantiate_NDOS : forall st1 st2 st1' tr,
+Lemma DOS_instantiate_NDOS : forall cfg st1 st2 st1' tr,
   OpsemInst.instantiate_State st1 st2 ->
-  OpsemInst.DOS.Sem.sInsn st1 st1' tr ->
-  (exists st2', OpsemInst.NDOS.sInsn st2 st2' tr /\ 
+  OpsemInst.DOS.Sem.sInsn cfg st1 st1' tr ->
+  (exists st2', OpsemInst.NDOS.sInsn cfg st2 st2' tr /\ 
     OpsemInst.instantiate_State st1' st2').
 Proof.
   intros.

@@ -51,53 +51,53 @@ Proof.
   destruct noret0; inversion H; auto.
 Qed.
 
-Lemma sInsn__implies__sop_star : forall state state' tr,
-  sInsn state state' tr ->
-  sop_star state state' tr.
+Lemma sInsn__implies__sop_star : forall cfg state state' tr,
+  sInsn cfg state state' tr ->
+  sop_star cfg state state' tr.
 Proof.
-  intros state state' tr HdsInsn.
+  intros cfg state state' tr HdsInsn.
   rewrite <- trace_app_nil__eq__trace.
   eauto.
 Qed.
 
-Lemma sInsn__implies__sop_plus : forall state state' tr,
-  sInsn state state' tr ->
-  sop_plus state state' tr.
+Lemma sInsn__implies__sop_plus : forall cfg state state' tr,
+  sInsn cfg state state' tr ->
+  sop_plus cfg state state' tr.
 Proof.
-  intros state state' tr HdsInsn.
+  intros cfg state state' tr HdsInsn.
   rewrite <- trace_app_nil__eq__trace.
   eauto.
 Qed.
 
-Lemma sop_plus__implies__sop_star : forall state state' tr,
-  sop_plus state state' tr ->
-  sop_star state state' tr.
+Lemma sop_plus__implies__sop_star : forall cfg state state' tr,
+  sop_plus cfg state state' tr ->
+  sop_star cfg state state' tr.
 Proof.
-  intros state state' tr Hdsop_plus.
+  intros cfg state state' tr Hdsop_plus.
   inversion Hdsop_plus; subst; eauto.
 Qed.
 
 Hint Resolve sInsn__implies__sop_star sInsn__implies__sop_plus 
   sop_plus__implies__sop_star. 
 
-Lemma sop_star_trans : forall state1 state2 state3 tr12 tr23,
-  sop_star state1 state2 tr12 ->
-  sop_star state2 state3 tr23 ->
-  sop_star state1 state3 (trace_app tr12 tr23).
+Lemma sop_star_trans : forall cfg state1 state2 state3 tr12 tr23,
+  sop_star cfg state1 state2 tr12 ->
+  sop_star cfg state2 state3 tr23 ->
+  sop_star cfg state1 state3 (trace_app tr12 tr23).
 Proof.
-  intros state1 state2 state3 tr12 tr23 Hdsop12 Hdsop23.
+  intros cfg state1 state2 state3 tr12 tr23 Hdsop12 Hdsop23.
   generalize dependent state3.
   generalize dependent tr23.
   induction Hdsop12; intros; auto.
     rewrite <- trace_app_commute. eauto.
 Qed.
 
-Lemma sop_diverging_trans : forall state tr1 state' tr2,
-  sop_star state state' tr1 ->
-  sop_diverges state' tr2 ->
-  sop_diverges state (Trace_app tr1 tr2).
+Lemma sop_diverging_trans : forall cfg state tr1 state' tr2,
+  sop_star cfg state state' tr1 ->
+  sop_diverges cfg state' tr2 ->
+  sop_diverges cfg state (Trace_app tr1 tr2).
 Proof. 
-  intros state tr1 state' tr2 state_dsop_state' state'_dsop_diverges.
+  intros cfg state tr1 state' tr2 state_dsop_state' state'_dsop_diverges.
   generalize dependent tr2.
   (sop_star_cases (induction state_dsop_state') Case); intros; auto.
   Case "sop_star_cons".
@@ -110,16 +110,30 @@ Qed.
 (** First, by mutual induction, we prove that bInsn, bops and  
     bFdef imply small-step semantics. *)
 
-Definition bInsn__implies__sop_plus_prop state state' tr 
-  (db:bInsn state state' tr) := sop_plus state state' tr.
-Definition bops__implies__sop_star_prop state state' tr 
-  (db:bops state state' tr) := sop_star state state' tr.
-Definition bFdef__implies__sop_star_prop fv rt lp S TD Ps ECs lc gl fs Mem lc'
+Definition bInsn__implies__sop_plus_prop cfg state state' tr 
+  (db:bInsn cfg state state' tr) := 
+  forall S TD Ps gl fs F B cs tmn lc als Mem B' cs' tmn' lc' als' Mem' ECs,
+  cfg = (mkbCfg S TD Ps gl fs F) ->
+  state = (mkbEC B cs tmn lc als Mem) ->
+  state' = (mkbEC B' cs' tmn' lc' als' Mem') ->
+  sop_plus (mkCfg S TD Ps gl fs) 
+           (mkState ((mkEC F B cs tmn lc als)::ECs) Mem)
+           (mkState ((mkEC F B' cs' tmn' lc' als')::ECs) Mem') tr.
+Definition bops__implies__sop_star_prop cfg state state' tr 
+  (db:bops cfg state state' tr) := 
+  forall S TD Ps gl fs F B cs tmn lc als Mem B' cs' tmn' lc' als' Mem' ECs,
+  cfg = (mkbCfg S TD Ps gl fs F) ->
+  state = (mkbEC B cs tmn lc als Mem) ->
+  state' = (mkbEC B' cs' tmn' lc' als' Mem') ->
+  sop_star (mkCfg S TD Ps gl fs) 
+           (mkState ((mkEC F B cs tmn lc als)::ECs) Mem)
+           (mkState ((mkEC F B' cs' tmn' lc' als')::ECs) Mem') tr.
+Definition bFdef__implies__sop_star_prop fv rt lp S TD Ps lc gl fs Mem lc'
 als' Mem' B'' rid oResult tr 
-(db:bFdef fv rt lp S TD Ps ECs lc gl fs Mem lc' als' Mem' B'' rid oResult tr) 
+(db:bFdef fv rt lp S TD Ps lc gl fs Mem lc' als' Mem' B'' rid oResult tr) 
   := 
   match oResult with
-  | Some Result => forall fptrs,
+  | Some Result => forall ECs fptrs,
     getOperandValue TD fv lc gl = Some fptrs -> 
     exists fptr, exists fa, exists fid, exists la, exists va, exists lb, 
     exists l', exists ps', exists cs', exists tmn', exists gvs, exists lc0, 
@@ -130,17 +144,15 @@ als' Mem' B'' rid oResult tr
       Some (block_intro l' ps' cs' tmn') /\
     params2GVs TD lp lc gl = Some gvs /\
     initLocals TD la gvs = Some lc0 /\
-    sop_star
-      (mkState S TD Ps ((mkEC (fdef_intro (fheader_intro fa rt fid la va) lb) 
+    sop_star (mkCfg S TD Ps gl fs)
+      (mkState ((mkEC (fdef_intro (fheader_intro fa rt fid la va) lb) 
                               (block_intro l' ps' cs' tmn') cs' tmn' 
-                              lc0
-                               nil)::ECs) gl fs Mem)
-      (mkState S TD Ps ((mkEC (fdef_intro (fheader_intro fa rt fid la va) lb) 
+                              lc0 nil)::ECs) Mem)
+      (mkState ((mkEC (fdef_intro (fheader_intro fa rt fid la va) lb) 
                                B'' nil (insn_return rid rt Result) lc'
-                               als')::ECs) gl fs 
-                               Mem')
+                               als')::ECs) Mem')
       tr
-  | None => forall fptrs,
+  | None => forall ECs fptrs,
     getOperandValue TD fv lc gl = Some fptrs -> 
     exists fptr, exists fa, exists fid, exists la, exists va, exists lb, 
     exists l', exists ps', exists cs', exists tmn', exists gvs, exists lc0, 
@@ -151,26 +163,31 @@ als' Mem' B'' rid oResult tr
       Some (block_intro l' ps' cs' tmn') /\
     params2GVs TD lp lc gl = Some gvs /\
     initLocals TD la gvs = Some lc0 /\
-    sop_star
-      (mkState S TD Ps ((mkEC (fdef_intro (fheader_intro fa rt fid la va) lb) 
+    sop_star (mkCfg S TD Ps gl fs)
+      (mkState ((mkEC (fdef_intro (fheader_intro fa rt fid la va) lb) 
                               (block_intro l' ps' cs' tmn') cs' tmn' 
-                              lc0
-                              nil)::ECs) gl fs Mem)
-      (mkState S TD Ps ((mkEC (fdef_intro (fheader_intro fa rt fid la va) lb) 
+                              lc0 nil)::ECs) Mem)
+      (mkState ((mkEC (fdef_intro (fheader_intro fa rt fid la va) lb) 
                                B'' nil (insn_return_void rid) lc'
-                               als')::ECs) gl fs 
-                               Mem')
+                               als')::ECs) Mem')
       tr
   end
   .
 
+Ltac app_inv :=
+  match goal with
+  | [ H: ?f _ _ _ _ _ _ = ?f _ _ _ _ _ _ |- _ ] => inv H
+  | [ H: ?f _ _ _ _ _ = ?f _ _ _ _ _ |- _ ] => inv H
+  | [ H: ?f _ _ = ?f _ _ |- _ ] => inv H
+  end.
+
 Lemma b__implies__s:
-  (forall state state' t  db, @bInsn__implies__sop_plus_prop state state' t db)
-    /\
-  (forall state state' t  db, @bops__implies__sop_star_prop state state' t db) 
-    /\
-  (forall fv rt lp S TD Ps ECs lc gl fs Mem lc' als' Mem' B'' rid oret tr db, 
-     @bFdef__implies__sop_star_prop fv rt lp S TD Ps ECs lc gl fs Mem lc' als' 
+  (forall cfg state state' t db, 
+     @bInsn__implies__sop_plus_prop cfg state state' t db) /\
+  (forall cfg state state' t db, 
+     @bops__implies__sop_star_prop cfg state state' t db) /\
+  (forall fv rt lp S TD Ps lc gl fs Mem lc' als' Mem' B'' rid oret tr db, 
+     @bFdef__implies__sop_star_prop fv rt lp S TD Ps lc gl fs Mem lc' als' 
        Mem' B'' rid oret tr db).
 Proof.
 (b_mutind_cases
@@ -182,67 +199,60 @@ Proof.
   unfold bInsn__implies__sop_plus_prop, 
          bops__implies__sop_star_prop, 
          bFdef__implies__sop_star_prop; 
-  intros; subst; simpl; intuition; eauto.
+  intros; subst; simpl; repeat app_inv; eauto.
   Case "bCall".
     inversion b; subst.
     SCase "bFdef_func".
     assert (Hlookup:=H0).
-    apply H in H0; auto. clear H.
-    destruct H0 as [fptr' [fa0 [fid0 [la0 [va0 [lb0 [l0 [ps0 [cs0 [tmn0 [gvs0 
-      [lc0 [J1 [J2 [J3 [J4 [J5 J6]]]]]]]]]]]]]]]]].
+    apply H with (ECs:=(mkEC F0 B0 ((insn_call rid noret0 ca ft fv lp)::cs') 
+                         tmn0 lc0 als0)::ECs) in H0; auto. clear H.
+    destruct H0 as [fptr' [fa0 [fid0 [la0 [va0 [lb0 [l0 [ps0 [cs0 [tmn0' [gvs0 
+      [lc0' [J1 [J2 [J3 [J4 [J5 J6]]]]]]]]]]]]]]]]].
     rewrite <- nil_app_trace__eq__trace.
     apply sop_plus_cons with 
-      (state2:=mkState S TD Ps 
-                      ((mkEC (fdef_intro (fheader_intro fa0 rt fid0 la0 va0) lb0)
-                               (block_intro l0 ps0 cs0 tmn0) cs0 tmn0 lc0
-                               nil)::
-                        (mkEC F B ((insn_call rid noret0 ca ft fv lp)::cs) 
-                         tmn lc als)::EC) 
-                        gl fs Mem0); eauto.
+     (state2:=mkState ((mkEC (fdef_intro (fheader_intro fa0 rt fid0 la0 va0) lb0)
+                             (block_intro l0 ps0 cs0 tmn0') cs0 tmn0' lc0' nil)::
+                        (mkEC F0 B0 ((insn_call rid noret0 ca ft fv lp)::cs') 
+                         tmn0 lc0 als0)::ECs) Mem1); eauto.
     rewrite <- trace_app_nil__eq__trace.
     apply sop_star_trans with 
-      (state2:=mkState S TD Ps 
-                     ((mkEC (fdef_intro (fheader_intro fa0 rt fid0 la0 va0) lb0)
+     (state2:=mkState ((mkEC (fdef_intro (fheader_intro fa0 rt fid0 la0 va0) lb0)
                                (block_intro l'' ps'' cs'' 
                                 (insn_return Rid rt Result)) nil 
                                 (insn_return Rid rt Result) lc'
                                 als')::
-                        (mkEC F B ((insn_call rid noret0 ca ft fv lp)::cs) 
-                         tmn lc als)::EC) 
-                         gl fs Mem'); auto.
+                        (mkEC F0 B0 ((insn_call rid noret0 ca ft fv lp)::cs') 
+                         tmn0 lc0 als0)::ECs) Mem'); auto.
       apply sInsn__implies__sop_star.
         apply sReturn; auto.
           erewrite func_callUpdateLocals_is_returnUpdateLocals; eauto.
 
     SCase "bFdef_proc".
     assert (Hlookup:=H0).
-    apply H in H0; auto. clear H.
-    destruct H0 as [fptr' [fa0 [fid0 [la0 [va0 [lb0 [l0 [ps0 [cs0 [tmn0 [gvs0 
-      [lc0 [J1 [J2 [J3 [J4 [J5 J6]]]]]]]]]]]]]]]]].
+    apply H with (ECs:=(mkEC F0 B0 ((insn_call rid noret0 ca ft fv lp)::cs') 
+                         tmn0 lc0 als0)::ECs) in H0; auto. clear H.
+    destruct H0 as [fptr' [fa0 [fid0 [la0 [va0 [lb0 [l0 [ps0 [cs0 [tmn0' [gvs0 
+      [lc0'' [J1 [J2 [J3 [J4 [J5 J6]]]]]]]]]]]]]]]]].
     rewrite <- nil_app_trace__eq__trace.
     apply sop_plus_cons with 
-      (state2:=mkState S TD Ps 
-                      ((mkEC (fdef_intro (fheader_intro fa0 rt fid0 la0 va0) lb0)
-                               (block_intro l0 ps0 cs0 tmn0) cs0 tmn0 lc0
-                               nil)::
-                        (mkEC F B ((insn_call rid noret0 ca ft fv lp)::cs) 
-                         tmn lc als)::EC) 
-                        gl fs Mem0); eauto.
+     (state2:=mkState ((mkEC (fdef_intro (fheader_intro fa0 rt fid0 la0 va0) lb0)
+                            (block_intro l0 ps0 cs0 tmn0') cs0 tmn0' lc0'' nil)::
+                        (mkEC F0 B0 ((insn_call rid noret0 ca ft fv lp)::cs') 
+                         tmn0 lc0 als0)::ECs) Mem1); eauto.
     rewrite <- trace_app_nil__eq__trace.
     apply proc_callUpdateLocals_is_id in e0.
     destruct e0; subst.
     apply sop_star_trans with 
-      (state2:=mkState S TD Ps 
-                      ((mkEC (fdef_intro (fheader_intro fa0 rt fid0 la0 va0) lb0)
+     (state2:=mkState ((mkEC (fdef_intro (fheader_intro fa0 rt fid0 la0 va0) lb0)
                                (block_intro l'' ps'' cs'' (insn_return_void Rid))
-                                nil (insn_return_void Rid) lc'
-                                als')::
-                        (mkEC F B ((insn_call rid true ca ft fv lp)::cs) 
-                         tmn lc'' als)::EC) 
-                        gl fs Mem'); auto.
+                                nil (insn_return_void Rid) lc' als')::
+                        (mkEC F0 B0 ((insn_call rid true ca ft fv lp)::cs') 
+                         tmn0 lc'0 als0)::ECs) Mem'); auto.
 
   Case "bops_cons".
-    apply sop_star_trans with (state2:=S2); auto.
+    destruct S2 as [b3 cs3 tmn3 lc3 als3].
+    apply sop_star_trans with 
+      (state2:=mkState ((mkEC F b3 cs3 tmn3 lc3 als3)::ECs) bMem0); auto.
         
   Case "bFdef_func".
     rewrite H0 in e. inv e. exists fptr. exists fa. exists fid. exists la.
@@ -255,32 +265,44 @@ Proof.
     exists gvs. exists lc0. repeat (split; auto).
 Qed.  
     
-Lemma bInsn__implies__sop_plus : forall state state' tr,
-  bInsn state state' tr ->
-  sop_plus state state' tr.
+Lemma bInsn__implies__sop_plus : forall tr S TD Ps gl fs F B cs tmn lc als Mem B'
+    cs' tmn' lc' als' Mem' ECs,
+  bInsn (mkbCfg S TD Ps gl fs F) (mkbEC B cs tmn lc als Mem) 
+    (mkbEC B' cs' tmn' lc' als' Mem') tr ->
+  sop_plus (mkCfg S TD Ps gl fs) 
+           (mkState ((mkEC F B cs tmn lc als)::ECs) Mem)
+           (mkState ((mkEC F B' cs' tmn' lc' als')::ECs) Mem') tr.
 Proof.
-  destruct b__implies__s as [J _]. eauto.
+  destruct b__implies__s as [J _]. intros. 
+  unfold bInsn__implies__sop_plus_prop in J. eapply J; eauto.
 Qed.
 
-Lemma bInsn__implies__sop_star : forall state state' tr,
-  bInsn state state' tr ->
-  sop_star state state' tr.
+Lemma bInsn__implies__sop_star : forall tr S TD Ps gl fs F B cs tmn lc als Mem B'
+    cs' tmn' lc' als' Mem' ECs,
+  bInsn (mkbCfg S TD Ps gl fs F) (mkbEC B cs tmn lc als Mem) 
+    (mkbEC B' cs' tmn' lc' als' Mem') tr ->
+  sop_star (mkCfg S TD Ps gl fs) 
+           (mkState ((mkEC F B cs tmn lc als)::ECs) Mem)
+           (mkState ((mkEC F B' cs' tmn' lc' als')::ECs) Mem') tr.
 Proof. 
-  intros state state' tr state_dbInsn_state'.
-  apply bInsn__implies__sop_plus in state_dbInsn_state'; auto.
+  intros. eapply bInsn__implies__sop_plus in H; eauto.
 Qed.
 
-Lemma bops__implies__sop_star : forall state state' tr,
-  bops state state' tr ->
-  sop_star state state' tr.
+Lemma bops__implies__sop_star : forall tr S TD Ps gl fs F B cs tmn lc als Mem B' 
+    cs' tmn' lc' als' Mem' ECs,
+  bops (mkbCfg S TD Ps gl fs F) (mkbEC B cs tmn lc als Mem) 
+    (mkbEC B' cs' tmn' lc' als' Mem') tr ->
+  sop_star (mkCfg S TD Ps gl fs) 
+           (mkState ((mkEC F B cs tmn lc als)::ECs) Mem)
+           (mkState ((mkEC F B' cs' tmn' lc' als')::ECs) Mem') tr.
 Proof.
-  destruct b__implies__s as [_ [J _]]. eauto.
+  destruct b__implies__s as [_ [J _]]. intros.
+  unfold bops__implies__sop_star_prop in J. eapply J; eauto.
 Qed.
 
 Lemma bFdef_func__implies__sop_star : forall fv rt lp S TD Ps ECs lc gl fs
     Mem lc' als' Mem' B'' rid Result tr fptrs, 
-  bFdef fv rt lp S TD Ps ECs lc gl fs Mem lc' als' Mem' B'' rid (Some Result) 
-    tr ->
+  bFdef fv rt lp S TD Ps lc gl fs Mem lc' als' Mem' B'' rid (Some Result) tr ->
   getOperandValue TD fv lc gl = Some fptrs -> 
   exists fptr, exists fa, exists fid, exists la, exists va, exists lb, 
   exists l', exists ps', exists cs', exists tmn', exists gvs, exists lc0, 
@@ -291,25 +313,25 @@ Lemma bFdef_func__implies__sop_star : forall fv rt lp S TD Ps ECs lc gl fs
     Some (block_intro l' ps' cs' tmn') /\
   params2GVs TD lp lc gl = Some gvs /\
   initLocals TD la gvs = Some lc0 /\
-  sop_star 
-    (mkState S TD Ps ((mkEC (fdef_intro (fheader_intro fa rt fid la va) lb) 
+  sop_star (mkCfg S TD Ps gl fs)
+    (mkState ((mkEC (fdef_intro (fheader_intro fa rt fid la va) lb) 
                              (block_intro l' ps' cs' tmn') cs' tmn' lc0
-                             nil)::ECs) gl fs Mem)
-    (mkState S TD Ps ((mkEC (fdef_intro (fheader_intro fa rt fid la va) lb) 
+                             nil)::ECs) Mem)
+    (mkState ((mkEC (fdef_intro (fheader_intro fa rt fid la va) lb) 
                              B'' nil (insn_return rid rt Result) lc'
-                             als')::ECs) gl fs Mem')
+                             als')::ECs) Mem')
     tr.
 Proof.
-  intros fv rt lp S TD Ps EC lc gl fs Mem0 lc' als' Mem' B'' rid Result tr 
+  intros fv rt lp S TD Ps ECs lc gl fs Mem0 lc' als' Mem' B'' rid Result tr 
     fptrs H H1.
   destruct b__implies__s as [_ [_ J]]. 
-  assert (K:=@J fv rt lp S TD Ps EC lc gl fs Mem0 lc' als' Mem' B'' rid 
-    (Some Result) tr H fptrs H1); auto.
+  assert (K:=@J fv rt lp S TD Ps lc gl fs Mem0 lc' als' Mem' B'' rid 
+    (Some Result) tr H ECs fptrs H1); auto.
 Qed.
 
 Lemma bFdef_proc__implies__sop_star : forall fv rt lp S TD Ps ECs lc gl fs
     Mem lc' als' Mem' B'' rid tr fptrs,
-  bFdef fv rt lp S TD Ps ECs lc gl fs  Mem lc' als' Mem' B'' rid None tr ->
+  bFdef fv rt lp S TD Ps lc gl fs  Mem lc' als' Mem' B'' rid None tr ->
   getOperandValue TD fv lc gl = Some fptrs -> 
   exists fptr, exists fa, exists fid, exists la, exists va, exists lb, 
   exists l', exists ps', exists cs', exists tmn', exists gvs, exists lc0, 
@@ -320,40 +342,62 @@ Lemma bFdef_proc__implies__sop_star : forall fv rt lp S TD Ps ECs lc gl fs
     Some (block_intro l' ps' cs' tmn') /\
   params2GVs TD lp lc gl = Some gvs /\
   initLocals TD la gvs = Some lc0 /\
-  sop_star 
-    (mkState S TD Ps ((mkEC (fdef_intro (fheader_intro fa rt fid la va) lb) 
+  sop_star (mkCfg S TD Ps gl fs) 
+    (mkState ((mkEC (fdef_intro (fheader_intro fa rt fid la va) lb) 
                             (block_intro l' ps' cs' tmn') cs' tmn' lc0
-                            nil)::ECs) gl fs Mem)
-    (mkState S TD Ps ((mkEC (fdef_intro (fheader_intro fa rt fid la va) lb) 
+                            nil)::ECs) Mem)
+    (mkState ((mkEC (fdef_intro (fheader_intro fa rt fid la va) lb) 
                              B'' nil (insn_return_void rid) lc'
-                             als')::ECs) gl fs Mem')
+                             als')::ECs) Mem')
     tr.
 Proof.
-  intros fv rt lp S TD Ps EC lc gl fs Mem0 lc' als' Mem' B'' rid tr fptrs H H1.
+  intros fv rt lp S TD Ps ECs lc gl fs Mem0 lc' als' Mem' B'' rid tr fptrs H H1.
   destruct b__implies__s as [_ [_ J]]. 
-  assert (K:=@J fv rt lp S TD Ps EC lc gl fs Mem0 lc' als' Mem' B'' rid None tr 
-    H fptrs H1); auto.
+  assert (K:=@J fv rt lp S TD Ps lc gl fs Mem0 lc' als' Mem' B'' rid None tr 
+    H ECs fptrs H1); auto.
 Qed.
 
 (** Then we prove that the whole program holds the same property. *)
 
-Lemma b_converges__implies__s_converges : forall sys main VarArgs FS,
-  b_converges sys main VarArgs FS ->
-  s_converges sys main VarArgs FS.
+Lemma b_genInitState_inv : forall S main Args initmem S0 TD Ps gl fs F B cs tmn 
+  lc als M, 
+ b_genInitState S main Args initmem = 
+   Some (mkbCfg S0 TD Ps gl fs F, mkbEC B cs tmn lc als M) ->
+ s_genInitState S main Args initmem =
+   Some (mkCfg S0 TD Ps gl fs, mkState ((mkEC F B cs tmn lc als)::nil) M).
 Proof.
-  intros sys main VarArgs FS Hdb_converges.
-  inversion Hdb_converges; subst.
-  apply s_converges_intro with (IS:=IS)(tr:=tr); auto.
+  intros.
+  unfold b_genInitState in H.
+  remember (s_genInitState S main Args initmem) as R.
+  destruct R as [[]|]; tinv H. destruct c; tinv H. destruct s; tinv H. 
+  destruct ECS0; tinv H. destruct e; tinv H. destruct ECS0; inv H; auto.
+Qed.
+
+Lemma b_converges__implies__s_converges : forall sys main VarArgs B cs tmn lc 
+    als M,
+  b_converges sys main VarArgs (mkbEC B cs tmn lc als M) ->
+  exists F,
+  s_converges sys main VarArgs (mkState ((mkEC F B cs tmn lc als)::nil) M).
+Proof.
+  intros sys main VarArgs B cs tmn lc als M Hdb_converges.
+  inversion Hdb_converges; subst. destruct cfg. destruct IS.
+  apply b_genInitState_inv in H.
+  exists bCurFunction0.
+  eapply s_converges_intro with (tr:=tr); eauto.
   apply bops__implies__sop_star; auto.
 Qed.
 
-Lemma b_goeswrong__implies__s_goeswrong : forall sys main VarArgs FS,
-  b_goeswrong sys main VarArgs FS ->
-  s_goeswrong sys main VarArgs FS.
+Lemma b_goeswrong__implies__s_goeswrong : forall sys main VarArgs B cs tmn lc 
+    als M,
+  b_goeswrong sys main VarArgs (mkbEC B cs tmn lc als M) ->
+  exists F,
+  s_goeswrong sys main VarArgs (mkState ((mkEC F B cs tmn lc als)::nil) M).
 Proof.
-  intros sys main VarArgs FS Hdb_goeswrong.
-  inversion Hdb_goeswrong; subst.
-  apply s_goeswrong_intro with (IS:=IS)(tr:=tr); auto.
+  intros sys main VarArgs B cs tmn lc als M Hdb_goeswrong.
+  inversion Hdb_goeswrong; subst. destruct cfg. destruct IS.
+  apply b_genInitState_inv in H.
+  exists bCurFunction0.
+  eapply s_goeswrong_intro with (tr:=tr); eauto.
   apply bops__implies__sop_star; auto.
 Qed.
 
@@ -378,27 +422,17 @@ Lemma bFdefInf_bopInf__implies__sop_diverges :
    ret block_intro l' ps' cs' tmn' ->
    params2GVs TD lp lc gl = ret gvs ->
    initLocals TD la gvs = ret lc1 ->
-   bopInf
+   bopInf (mkbCfg S TD Ps gl fs (fdef_intro (fheader_intro fa rt fid la va) lb))
      {|
-     CurSystem := S;
-     CurTargetData := TD;
-     CurProducts := Ps;
-     ECS := {|
-            CurFunction := fdef_intro (fheader_intro fa rt fid la va) lb;
-            CurBB := block_intro l' ps' cs' tmn';
-            CurCmds := cs';
-            Terminator := tmn';
-            Locals := lc1;
-            Allocas := nil |} :: ECs;
-     Globals := gl;
-     FunTable := fs;
-     Mem := Mem0 |} tr ->
+     bCurBB := block_intro l' ps' cs' tmn';
+     bCurCmds := cs';
+     bTerminator := tmn';
+     bLocals := lc1;
+     bAllocas := nil;
+     bMem := Mem0 |} tr ->
    getOperandValue TD fv lc gl = ret fptrs0 ->
-   sop_diverges
+   sop_diverges (mkCfg S TD Ps gl fs)
      {|
-     CurSystem := S;
-     CurTargetData := TD;
-     CurProducts := Ps;
      ECS := {|
             CurFunction := fdef_intro (fheader_intro fa rt fid la va) lb;
             CurBB := block_intro l' ps' cs' tmn';
@@ -406,50 +440,51 @@ Lemma bFdefInf_bopInf__implies__sop_diverges :
             Terminator := tmn';
             Locals := lc1;
             Allocas := nil |} :: ECs;
-     Globals := gl;
-     FunTable := fs;
      Mem := Mem0 |} tr.
 Proof.
   cofix CIH_bFdefInf.
 
-  assert (forall state tr, 
-          bInsnInf state tr -> 
-          sop_diverges state tr) as bInsnInf__implies__sop_diverges.
+  assert (forall S tr TD Ps gl fs F B cs tmn lc als Mem ECs,
+          bInsnInf (mkbCfg S TD Ps gl fs F) (mkbEC B cs tmn lc als Mem) tr ->
+          sop_diverges (mkCfg S TD Ps gl fs) 
+                       (mkState ((mkEC F B cs tmn lc als)::ECs) Mem) tr)
+    as bInsnInf__implies__sop_diverges.
     cofix CIH_bInsnInf.
-    intros state tr HbInsnInf.
+    intros S tr TD Ps gl fs F B cs tmn lc als Mem ECs HbInsnInf.
     
     inversion HbInsnInf; subst.
     rewrite <- nil_app_Trace__eq__Trace.
-    assert (HbFdefInf:=H).
-    inversion H; subst.
+    assert (HbFdefInf:=H12).
+    inversion H12; subst.
     apply sop_diverges_intro with 
-      (state2:=mkState S TD Ps 
-                       ((mkEC (fdef_intro (fheader_intro fa rt fid la va)lb)
+      (state2:=mkState ((mkEC (fdef_intro (fheader_intro fa rt fid la va)lb)
                                (block_intro l' ps' cs' tmn') cs' tmn' lc1
                                nil)::
-                        (mkEC F B ((insn_call rid noret0 ca ft fv lp)::cs) 
-                         tmn lc als)::EC) 
-                         gl fs Mem0); 
+                        (mkEC F B ((insn_call rid noret0 ca ft fv lp)::cs0) 
+                         tmn lc als)::ECs) Mem); 
       try solve [clear CIH_bFdefInf CIH_bInsnInf; eauto].
       inv HbFdefInf.
-      apply CIH_bFdefInf with (fid:=fid)(l':=l')(ps':=ps')(cs':=cs')(tmn':=tmn')
+      eapply CIH_bFdefInf with (fid:=fid)(l':=l')(ps':=ps')(cs':=cs')(tmn':=tmn')
         (fa:=fa)(la:=la)(va:=va)(lb:=lb)(gvs:=gvs)(lc1:=lc1)(fptr:=fptr)(fv:=fv)
-        (lp:=lp)(lc:=lc)(fptrs0:=fptrs) in H6; auto.
+        (lp:=lp)(lc:=lc)(fptrs0:=fptrs) in H5; eauto.
 
-  assert (forall state tr, 
-          bopInf state tr -> 
-          sop_diverges state tr) as bopInf__implies__sop_diverges.
+  assert (forall S tr TD Ps gl fs F B cs tmn lc als Mem ECs,
+          bopInf (mkbCfg S TD Ps gl fs F) (mkbEC B cs tmn lc als Mem) tr ->
+          sop_diverges (mkCfg S TD Ps gl fs) 
+                       (mkState ((mkEC F B cs tmn lc als)::ECs) Mem) tr) 
+    as bopInf__implies__sop_diverges.
     cofix CIH_bopInf.
-    intros state tr0 HbopInf.
+    intros S tr TD Ps gl fs F B cs tmn lc als Mem ECs HbopInf.
     inversion HbopInf; subst.
     Case "bopInf_insn".
-      apply bInsnInf__implies__sop_diverges in H; auto.
+      eapply bInsnInf__implies__sop_diverges in H; eauto.
     Case "bopInf_cons".
-      apply bInsn__implies__sop_plus in H.
+      destruct state2.
+      apply bInsn__implies__sop_plus with (ECs:=ECs) in H.
       inversion H; subst.
       SCase "dsop_plus_cons".
-        apply CIH_bopInf in H0. clear CIH_bopInf.
-        apply sop_diverges_intro with (state2:=state2); auto.
+        apply CIH_bopInf with (ECs:=ECs) in H0. clear CIH_bopInf.
+        eapply sop_diverges_intro; eauto.
 
   intros fv rt lp S TD Ps ECs lc gl fs Mem0 tr fid fa lc1 l' ps' cs' tmn' la va 
     lb gvs fptrs0 fptr Hin Hlookup HgetEntryBlock Hp2gvs Hinit HbFdefInf Hget.
@@ -458,7 +493,7 @@ Qed.
 
 Lemma bFdefInf__implies__sop_diverges : forall fv rt lp S TD Ps ECs lc gl fs Mem
     tr fptrs,
-  bFdefInf fv rt lp S TD Ps ECs lc gl fs Mem tr ->
+  bFdefInf fv rt lp S TD Ps lc gl fs Mem tr ->
   getOperandValue TD fv lc gl = Some fptrs -> 
   exists fptr, exists fa, exists fid, exists la, exists va, exists lb, 
   exists l', exists ps', exists cs', exists tmn', exists gvs, exists lc0, 
@@ -469,10 +504,9 @@ Lemma bFdefInf__implies__sop_diverges : forall fv rt lp S TD Ps ECs lc gl fs Mem
     Some (block_intro l' ps' cs' tmn') /\
   params2GVs TD lp lc gl = Some gvs /\
   initLocals TD la gvs = Some lc0 /\
-  sop_diverges 
-    (mkState S TD Ps ((mkEC (fdef_intro (fheader_intro fa rt fid la va) lb) 
-                        (block_intro l' ps' cs' tmn') cs' tmn' lc0
-                        nil)::ECs) gl fs Mem)
+  sop_diverges (mkCfg S TD Ps gl fs)
+    (mkState ((mkEC (fdef_intro (fheader_intro fa rt fid la va) lb) 
+              (block_intro l' ps' cs' tmn') cs' tmn' lc0 nil)::ECs) Mem)
     tr.
 Proof.
   intros fv rt lp S TD Ps ECs lc gl fs Mem0 tr fptrs HdbFdefInf Hget.
@@ -484,44 +518,49 @@ Proof.
     eapply bFdefInf_bopInf__implies__sop_diverges; eauto.
 Qed.
 
-Lemma bInsnInf__implies__sop_diverges : forall state tr, 
-  bInsnInf state tr -> sop_diverges state tr.
+Lemma bInsnInf__implies__sop_diverges : forall S tr TD Ps gl fs F B cs tmn lc als
+  Mem ECs,
+  bInsnInf (mkbCfg S TD Ps gl fs F) (mkbEC B cs tmn lc als Mem) tr ->
+  sop_diverges (mkCfg S TD Ps gl fs) 
+    (mkState ((mkEC F B cs tmn lc als)::ECs) Mem) tr.
 Proof.
   cofix CIH_bInsnInf.
-  intros state tr HbInsnInf.
-    
+  intros S tr TD Ps gl fs F B cs tmn lc als Mem ECs HbInsnInf.
+  
   inversion HbInsnInf; subst.
   rewrite <- nil_app_Trace__eq__Trace.
-  assert (HbFdefInf:=H).
-  inversion H; subst.
+  assert (HbFdefInf:=H12).
+  inversion H12; subst.
   apply sop_diverges_intro with 
-    (state2:=mkState S TD Ps 
-                     ((mkEC (fdef_intro (fheader_intro fa rt fid la va) lb)
+    (state2:=mkState ((mkEC (fdef_intro (fheader_intro fa rt fid la va)lb)
                              (block_intro l' ps' cs' tmn') cs' tmn' lc1
                              nil)::
-                      (mkEC F B ((insn_call rid noret0 ca ft fv lp)::cs) tmn
-                       lc als)::EC) 
-                       gl fs Mem0); 
+                      (mkEC F B ((insn_call rid noret0 ca ft fv lp)::cs0) 
+                       tmn lc als)::ECs) Mem); 
     try solve [clear CIH_bInsnInf; eauto].
     eapply bFdefInf_bopInf__implies__sop_diverges with (l':=l')(ps':=ps')
       (cs':=cs')(tmn':=tmn')(la:=la)(va:=va)(lb:=lb)(fa:=fa)(gvs:=gvs)(lc1:=lc1) 
-      in H6; eauto.
+      in H5; eauto.
 Qed.
 
-Lemma bopInf__implies__sop_diverges : forall state tr, 
-  bopInf state tr -> sop_diverges state tr.
+Lemma bopInf__implies__sop_diverges : forall S tr TD Ps gl fs F B cs tmn lc als
+  Mem ECs,
+  bopInf (mkbCfg S TD Ps gl fs F) (mkbEC B cs tmn lc als Mem) tr ->
+  sop_diverges (mkCfg S TD Ps gl fs) 
+    (mkState ((mkEC F B cs tmn lc als)::ECs) Mem) tr.
 Proof.
   cofix CIH_bopInf.
-  intros state tr HdbopInf.
-  inversion HdbopInf; subst.
+  intros S tr TD Ps gl fs F B cs tmn lc als Mem ECs HbopInf.
+  inversion HbopInf; subst.
   Case "bopInf_insn".
-    apply bInsnInf__implies__sop_diverges in H; auto.
+    eapply bInsnInf__implies__sop_diverges in H; eauto.
   Case "bopInf_cons".
-    apply bInsn__implies__sop_plus in H.
+    destruct state2.
+    apply bInsn__implies__sop_plus with (ECs:=ECs) in H.
     inversion H; subst.
-    SCase "sop_plus_cons".
-      apply CIH_bopInf in H0. clear CIH_bopInf.
-      apply sop_diverges_intro with (state2:=state2); auto.
+    SCase "dsop_plus_cons".
+      apply CIH_bopInf with (ECs:=ECs) in H0. clear CIH_bopInf.
+      eapply sop_diverges_intro; eauto.
 Qed.
 
 (** Then we prove that the whole program holds the same property. *)
@@ -532,7 +571,9 @@ Lemma b_diverges__implies__s_diverges : forall sys main VarArgs tr,
 Proof.
   intros sys main VarArgs tr Hdb_diverges.
   inversion Hdb_diverges; subst.
-  apply s_diverges_intro with (IS:=IS)(tr:=tr); auto.
+  destruct cfg. destruct IS.
+  apply b_genInitState_inv in H.
+  eapply s_diverges_intro with (tr:=tr); eauto.
   apply bopInf__implies__sop_diverges; auto.
 Qed.
 
@@ -937,56 +978,43 @@ Proof.
   erewrite getIncomingValuesForBlockFromPHINodes_eq; eauto.
 Qed.
 
-Lemma bops_trans : forall state1 state2 state3 tr1 tr2,
-  bops state1 state2 tr1 ->
-  bops state2 state3 tr2 ->
-  bops state1 state3 (trace_app tr1 tr2).
+Lemma bops_trans : forall cfg state1 state2 state3 tr1 tr2,
+  bops cfg state1 state2 tr1 ->
+  bops cfg state2 state3 tr2 ->
+  bops cfg state1 state3 (trace_app tr1 tr2).
 Proof.
-  intros state1 state2 state3 tr1 tr2 H.
+  intros cfg state1 state2 state3 tr1 tr2 H.
   generalize dependent state3.
   generalize dependent tr2.
   induction H; intros; auto.
     rewrite <- trace_app_commute. eauto.
 Qed.
 
-Lemma bInsn__bops : forall state1 state2 tr,
-  bInsn state1 state2 tr ->
-  bops state1 state2 tr.
+Lemma bInsn__bops : forall cfg state1 state2 tr,
+  bInsn cfg state1 state2 tr ->
+  bops cfg state1 state2 tr.
 Proof.
   intros.
   rewrite <- trace_app_nil__eq__trace.
   eauto.
 Qed.
 
-Lemma bInsn__inv : forall S1 TD1 Ps1 F1 l1 ps1 cs1 tmn1 c cs tmn3 lc1 als1 
-    ECs1 gl1 fs1 Mem1 S2 TD2 Ps2 F2 l2 ps2 cs2 tmn2 tmn4 lc2 als2 ECs2 gl2 
-    fs2 Mem2 tr,
-  bInsn 
-    (mkState S1 TD1 Ps1 (mkEC F1 (block_intro l1 ps1 cs1 tmn1) (c::cs) tmn3 lc1 
-      als1::ECs1) gl1 fs1 Mem1) 
-    (mkState S2 TD2 Ps2 (mkEC F2 (block_intro l2 ps2 cs2 tmn2) cs tmn4 lc2
-      als2::ECs2) gl2 fs2 Mem2)
-    tr ->
-  S1 = S2 /\ TD1 = TD2 /\ Ps1 = Ps2 /\ F1 = F2 /\ l1 = l2 /\ ps1 = ps2 /\
-  cs1 = cs2 /\ tmn1 = tmn2 /\ tmn3 = tmn4 /\ gl1 = gl2 /\ fs1 = fs2.
+Lemma bInsn__inv : forall cfg B1 c cs tmn3 lc1 als1 Mem1 B2 tmn4 lc2 als2 
+  Mem2 tr,
+  bInsn cfg (mkbEC B1 (c::cs) tmn3 lc1 als1 Mem1) 
+    (mkbEC B2 cs tmn4 lc2 als2 Mem2) tr ->
+  B1 = B2 /\ tmn3 = tmn4.
 Proof.
   intros.
   inversion H; subst; repeat (split; auto).
 Qed.
 
-Lemma bInsn_Call__inv : forall S1 TD1 Ps1 F1 l1 ps1 cs1 tmn1 c cs tmn3 lc1 
-    als1 ECs1 gl1 fs1 Mem1 S2 TD2 Ps2 F2 l2 ps2 cs2 tmn2 tmn4 lc2 als2 ECs2
-     gl2 fs2 Mem2 tr,
-  bInsn 
-    (mkState S1 TD1 Ps1 (mkEC F1 (block_intro l1 ps1 cs1 tmn1) (c::cs) tmn3 lc1 
-      als1::ECs1) gl1 fs1 Mem1) 
-    (mkState S2 TD2 Ps2 (mkEC F2 (block_intro l2 ps2 cs2 tmn2) cs tmn4 lc2 
-      als2::ECs2) gl2 fs2 Mem2)
-    tr ->
+Lemma bInsn_Call__inv : forall cfg B1 c cs tmn3 lc1 als1 Mem1 B2 tmn4 lc2 als2 
+  Mem2 tr,
+  bInsn cfg
+    (mkbEC B1 (c::cs) tmn3 lc1 als1 Mem1) (mkbEC B2 cs tmn4 lc2 als2 Mem2) tr ->
   Instruction.isCallInst c = true ->
-  S1 = S2 /\ TD1 = TD2 /\ Ps1 = Ps2 /\ F1 = F2 /\ l1 = l2 /\ ps1 = ps2 /\
-  cs1 = cs2 /\ tmn1 = tmn2 /\ tmn3 = tmn4 /\ gl1 = gl2  /\ fs1 = fs2 /\ 
-  als1 = als2.
+  B1 = B2 /\ tmn3 = tmn4 /\ als1 = als2.
 Proof.
   intros.
   inversion H; subst; try solve [inversion H0 | repeat (split; auto)].
@@ -1034,36 +1062,27 @@ Qed.
 
 (* preservation of uniqueness and inclusion *)
 
-Definition bInsn_preservation_prop state1 state2 tr
-  (db:bInsn state1 state2 tr) :=
-  forall S los nts Ps F l ps cs tmn lc als ECs gl fs Mem cs0,
-  state1 = (mkState S (los, nts) Ps ((mkEC F (block_intro l ps cs0 tmn) cs tmn 
-    lc als)::ECs) gl fs Mem) ->
+Definition bInsn_preservation_prop cfg state1 state2 tr
+  (db:bInsn cfg state1 state2 tr) :=
+  forall S los nts Ps gl fs F B cs tmn lc als Mem cs' tmn' B' lc' als' Mem',
+  cfg = (mkbCfg S (los, nts) Ps gl fs F) ->
+  state1 = (mkbEC B cs tmn lc als Mem) ->
   uniqSystem S ->
-  blockInSystemModuleFdef (block_intro l ps cs0 tmn) S 
-    (module_intro los nts Ps) F ->
-  exists l', exists ps', exists cs', exists tmn', 
-  exists lc', exists als', exists Mem', exists cs0',
-  state2 = (mkState S (los, nts) Ps ((mkEC F (block_intro l' ps' cs0' tmn') cs' 
-    tmn' lc' als')::ECs) gl fs Mem') /\
-  blockInSystemModuleFdef (block_intro l' ps' cs0' tmn') S 
-    (module_intro los nts Ps) F.
-Definition bops_preservation_prop state1 state2 tr
-  (db:bops state1 state2 tr) :=
-  forall S los nts Ps F l ps cs tmn lc als ECs gl fs Mem l' ps' cs' tmn' lc'
-    als' gl' fs' Mem' cs0 cs0',
-  state1 = (mkState S (los, nts) Ps ((mkEC F (block_intro l ps cs0 tmn) cs tmn 
-    lc als)::ECs) gl fs Mem) ->
-  state2 = (mkState S (los, nts) Ps ((mkEC F (block_intro l' ps' cs0' tmn') cs' 
-    tmn' lc' als')::ECs) gl' fs' Mem') ->
+  blockInSystemModuleFdef B S (module_intro los nts Ps) F ->
+  state2 = (mkbEC B' cs' tmn' lc' als' Mem') ->
+  blockInSystemModuleFdef B' S (module_intro los nts Ps) F.
+Definition bops_preservation_prop cfg state1 state2 tr
+  (db:bops cfg state1 state2 tr) :=
+  forall S los nts Ps gl fs F B cs tmn lc als Mem B' cs' tmn' lc' als' Mem',
+  cfg = (mkbCfg S (los, nts) Ps gl fs F) ->
+  state1 = (mkbEC B cs tmn lc als Mem) ->
+  state2 = (mkbEC B' cs' tmn' lc' als' Mem') ->
   uniqSystem S ->
-  blockInSystemModuleFdef (block_intro l ps cs0 tmn) S 
-    (module_intro los nts Ps) F ->
-  blockInSystemModuleFdef (block_intro l' ps' cs0' tmn') S 
-    (module_intro los nts Ps) F.
-Definition bFdef_preservation_prop fv rt lp S TD Ps ECs lc gl fs Mem lc' als' 
+  blockInSystemModuleFdef B S (module_intro los nts Ps) F ->
+  blockInSystemModuleFdef B' S (module_intro los nts Ps) F.
+Definition bFdef_preservation_prop fv rt lp S TD Ps lc gl fs Mem lc' als' 
   Mem' B' Rid oResult tr
-  (db:bFdef fv rt lp S TD Ps ECs lc gl fs Mem lc' als' Mem' B' Rid oResult tr) 
+  (db:bFdef fv rt lp S TD Ps lc gl fs Mem lc' als' Mem' B' Rid oResult tr) 
   :=
   forall los nts,
   TD = (los, nts) ->
@@ -1077,11 +1096,13 @@ Definition bFdef_preservation_prop fv rt lp S TD Ps ECs lc gl fs Mem lc' als'
     blockInSystemModuleFdef B' S (module_intro los nts Ps) F.
 
 Lemma b_preservation : 
-  (forall state1 state2 tr db, @bInsn_preservation_prop state1 state2 tr db) /\
-  (forall state1 state2 tr db, @bops_preservation_prop state1 state2 tr  db) /\
-  (forall fv rt lp S TD Ps lc gl fs Mem lc' als' Mem' B' Rid oResult tr ECs db, 
+  (forall cfg state1 state2 tr db, 
+     @bInsn_preservation_prop cfg state1 state2 tr db) /\
+  (forall cfg state1 state2 tr db, 
+     @bops_preservation_prop cfg state1 state2 tr  db) /\
+  (forall fv rt lp S TD Ps lc gl fs Mem lc' als' Mem' B' Rid oResult tr db, 
     @bFdef_preservation_prop fv rt lp S TD Ps lc gl fs Mem lc' als' Mem' B' Rid 
-      oResult tr ECs db).
+      oResult tr db).
 Proof.
 (b_mutind_cases
   apply b_mutind with
@@ -1090,14 +1111,10 @@ Proof.
     (P1 := bFdef_preservation_prop) Case);
   unfold bInsn_preservation_prop, 
          bops_preservation_prop, 
-         bFdef_preservation_prop; intros; subst.
+         bFdef_preservation_prop; intros; subst; repeat app_inv; auto.
 Case "bBranch".
-  inversion H; subst. clear H.
-  exists l'. exists ps'. exists cs'. exists tmn'.
-  exists lc'. exists als0. exists Mem1.
-  exists cs'. split; auto.
-  apply andb_true_iff in H1.
-  destruct H1.
+  apply andb_true_iff in H2.
+  destruct H2.
   eapply andb_true_iff.
   split; auto.
     assert (uniqFdef F0) as UniqF0.
@@ -1108,12 +1125,8 @@ Case "bBranch".
       destruct e0; auto.
 
 Case "bBranch_uncond".
-  inversion H; subst. clear H.
-  exists l'. exists ps'. exists cs'. exists tmn'.
-  exists lc'. exists als0. exists Mem1.
-  exists cs'. split; auto.
-  apply andb_true_iff in H1.
-  destruct H1.
+  apply andb_true_iff in H2.
+  destruct H2.
   eapply andb_true_iff.
   split; auto.
     assert (uniqFdef F0) as UniqF0.
@@ -1121,126 +1134,11 @@ Case "bBranch_uncond".
     symmetry in e.
     apply lookupBlockViaLabelFromFdef_inv in e; auto.
     destruct e; auto.
-
-Case "bBop".
-  inversion H; subst.
-  exists l0. exists ps. exists cs. exists tmn0.
-  exists (updateAddAL _ lc0 id0 gv3). exists als0. exists Mem1.
-  exists cs1. split; auto.
-
-Case "bFBop".
-  inversion H; subst.
-  exists l0. exists ps. exists cs. exists tmn0.
-  exists (updateAddAL _ lc0 id0 gv3). exists als0. exists Mem1.
-  exists cs1. split; auto.
-
-Case "bExtractValue".
-  inversion H; subst.
-  exists l0. exists ps. exists cs. exists tmn0.
-  exists (updateAddAL _ lc0 id0 gv'). exists als0. exists Mem1.
-  exists cs1. split; auto.
-
-Case "bInsertValue".
-  inversion H; subst.
-  exists l0. exists ps. exists cs. exists tmn0.
-  exists (updateAddAL _ lc0 id0 gv''). exists als0. exists Mem1.
-  exists cs1. split; auto.
-
-Case "bMalloc".
-  inversion H; subst.
-  exists l0. exists ps. exists cs. exists tmn0.
-  exists (updateAddAL _ lc0 id0 ($ blk2GV (los, nts) mb # typ_pointer t $)). 
-  exists als0. exists Mem'. exists cs1. split; auto.
-
-Case "bFree".
-  inversion H; subst. 
-  exists l0. exists ps. exists cs. exists tmn0.
-  exists lc0. exists als0. exists Mem'.
-  exists cs1. split; auto.
-
-Case "bAlloca".
-  inversion H; subst. 
-  exists l0. exists ps. exists cs. exists tmn0.
-  exists (updateAddAL _ lc0 id0 (($ blk2GV (los, nts) mb # typ_pointer t $))). 
-  exists (mb::als0). exists Mem'. exists cs1. split; auto.
-
-Case "bLoad".
-  inversion H; subst.
-  exists l0. exists ps. exists cs. exists tmn0.
-  exists (updateAddAL _ lc0 id0 ($ gv # t $)). exists als0. exists Mem1.
-  exists cs1. split; auto.
-
-Case "bStore".
-  inversion H; subst. 
-  exists l0. exists ps. exists cs. exists tmn0.
-  exists lc0. exists als0. exists Mem'.
-  exists cs1. split; auto.
-
-Case "bGEP".
-  inversion H; subst.
-  exists l0. exists ps. exists cs. exists tmn0.
-  exists (updateAddAL _ lc0 id0 mp'). exists als0. exists Mem1.
-  exists cs1. split; auto.
-
-Case "bTrunc".
-  inversion H; subst.
-  exists l0. exists ps. exists cs. exists tmn0.
-  exists (updateAddAL _ lc0 id0 gv2). exists als0. exists Mem1.
-  exists cs1. split; auto.
-
-Case "bExt".
-  inversion H; subst.
-  exists l0. exists ps. exists cs. exists tmn0.
-  exists (updateAddAL _ lc0 id0 gv2). exists als0. exists Mem1.
-  exists cs1. split; auto.
-
-Case "bCast".
-  inversion H; subst.
-  exists l0. exists ps. exists cs. exists tmn0.
-  exists (updateAddAL _ lc0 id0 gv2). exists als0. exists Mem1.
-  exists cs1. split; auto.
-
-Case "bIcmp".
-  inversion H; subst.
-  exists l0. exists ps. exists cs. exists tmn0.
-  exists (updateAddAL _ lc0 id0 gv3). exists als0. exists Mem1.
-  exists cs1. split; auto.
-
-Case "bFcmp".
-  inversion H; subst.
-  exists l0. exists ps. exists cs. exists tmn0.
-  exists (updateAddAL _ lc0 id0 gv3). exists als0. exists Mem1.
-  exists cs1. split; auto.
-
-Case "bSelect".
-  inversion H; subst.
-  exists l0. exists ps. exists cs. exists tmn0.
-  exists (if isGVZero (los, nts) c 
-          then updateAddAL _ lc0 id0 gv2 else updateAddAL _ lc0 id0 gv1). 
-  exists als0. exists Mem1. exists cs1. split; auto.
-
-Case "bCall".
-  inversion H0; subst. clear H0.
-  exists l0. exists ps. exists cs. exists tmn0.
-  exists lc''. exists als0. exists Mem''.
-  exists cs1. split; auto.
- 
-Case "bExCall".
-  inversion H; subst.
-  exists l0. exists ps. exists cs. exists tmn0.
-  exists lc'. exists als0. exists Mem'.
-  exists cs1. split; auto.
-
-Case "bops_nil".
-  inversion H0; subst. auto.
   
 Case "bops_cons".
-  apply H with (cs1:=cs)(lc0:=lc)(als0:=als)(ECs0:=ECs)(gl0:=gl)
-    (fs0:=fs)(Mem:=Mem0) in H4; auto.
-  clear H.
-  destruct H4 as [l1 [ps1 [cs1 [tmn1 [lc1 [als1 [Mem1 [cs1' [EQ H4]]]]]]]]]; 
-    subst.
-  eapply H0; eauto.
+  destruct S2 as [b2 cs2 tmn2 lc2 als2 M2].
+  eapply H with (cs0:=cs)(lc0:=lc)(als0:=als)(gl0:=gl)(fs0:=fs)(Mem:=Mem0)
+    (B':=b2)(lc':=lc2)(cs':=cs2)(tmn':=tmn2)(als':=als2)(Mem':=M2) in H5; eauto.
 
 Case "bFdef_func".
   exists fptrs. exists fptr.
@@ -1250,8 +1148,7 @@ Case "bFdef_func".
   split; auto.
   split.
     eapply lookupFdefViaPtr_uniq; eauto.
-    eapply H with (lc'0:=lc')(cs'0:=nil)(als'0:=als')(gl':=gl)(fs':=fs)
-      (Mem'0:=Mem'); 
+    eapply H with (lc'0:=lc')(cs'0:=nil)(als'0:=als')(Mem'0:=Mem'); 
       eauto using entryBlockInSystemBlockFdef''.   
 
 Case "bFdef_proc".
@@ -1265,19 +1162,14 @@ Case "bFdef_proc".
     eapply H; eauto using entryBlockInSystemBlockFdef''.
 Qed.
 
-Lemma _bInsn_preservation : forall state2 tr S los nts Ps F l ps cs tmn lc als 
-  ECs gl fs Mem cs0,
-  bInsn ((mkState S (los, nts) Ps ((mkEC F (block_intro l ps cs0 tmn) cs tmn lc 
-    als)::ECs) gl fs Mem)) state2 tr ->
+Lemma bInsn_preservation : forall tr S los nts Ps F cs tmn lc als 
+  gl fs Mem cs' tmn' lc' als' Mem' B B',
+  bInsn (mkbCfg S (los, nts) Ps gl fs F)
+    (mkbEC B cs tmn lc als Mem) 
+    (mkbEC B' cs' tmn' lc' als' Mem') tr ->
   uniqSystem S ->
-  blockInSystemModuleFdef (block_intro l ps cs0 tmn) S (module_intro los nts Ps) 
-    F ->
-  exists l', exists ps', exists cs', exists tmn', 
-  exists lc', exists als', exists Mem', exists cs0',
-  state2 = (mkState S (los, nts) Ps ((mkEC F (block_intro l' ps' cs0' tmn') cs' 
-    tmn' lc' als')::ECs) gl fs Mem') /\
-  blockInSystemModuleFdef (block_intro l' ps' cs0' tmn') S 
-    (module_intro los nts Ps) F.
+  blockInSystemModuleFdef B S (module_intro los nts Ps) F ->
+  blockInSystemModuleFdef B' S (module_intro los nts Ps) F.
 Proof.
   intros.
   destruct b_preservation as [J _].
@@ -1285,41 +1177,14 @@ Proof.
   eapply J; eauto.
 Qed.
 
-Lemma bInsn_preservation : forall tr S los nts Ps F l ps cs tmn lc als ECs gl 
-    fs Mem cs0 l' ps'  cs' tmn' lc' als' gl' fs' Mem' cs0',
-  bInsn 
-    ((mkState S (los, nts) Ps 
-      ((mkEC F (block_intro l ps cs0 tmn) cs tmn lc als)::ECs) gl fs Mem)) 
-    (mkState S (los, nts) Ps 
-      ((mkEC F (block_intro l' ps' cs0' tmn') cs' tmn' lc' als')::ECs) gl' fs' 
-        Mem')
+Lemma bops_preservation : forall tr S los nts Ps F B cs tmn lc als gl
+    fs Mem B' cs' tmn' lc' als' Mem',
+  bops (mkbCfg S (los, nts) Ps gl fs F)
+    (mkbEC B cs tmn lc als Mem) (mkbEC B' cs' tmn' lc' als' Mem')
     tr ->
   uniqSystem S ->
-  blockInSystemModuleFdef (block_intro l ps cs0 tmn) S (module_intro los nts Ps)
-    F ->
-  blockInSystemModuleFdef (block_intro l' ps' cs0' tmn') S 
-    (module_intro los nts Ps) F.
-Proof.
-  intros.
-  apply _bInsn_preservation in H; auto.
-  destruct H as [l1 [ps1 [cs1 [tmn1 [lc1 [als1 [Mem1 [cs2 [J1 J2]]]]]]]]].
-  inversion J1; subst. clear J1. auto.  
-Qed.
-
-Lemma bops_preservation : forall tr S los nts Ps F l ps cs tmn lc als ECs gl
-    fs Mem l' ps' cs' tmn' lc' als' gl' fs' Mem' cs0 cs0',
-  bops 
-    (mkState S (los, nts) Ps 
-      ((mkEC F (block_intro l ps cs0 tmn) cs tmn lc als)::ECs) gl fs Mem)
-    (mkState S (los, nts) Ps 
-      ((mkEC F (block_intro l' ps' cs0' tmn') cs' tmn' lc' als')::ECs) gl' fs' 
-        Mem')
-    tr ->
-  uniqSystem S ->
-  blockInSystemModuleFdef (block_intro l ps cs0 tmn) S (module_intro los nts Ps)
-    F ->
-  blockInSystemModuleFdef (block_intro l' ps' cs0' tmn') S 
-    (module_intro los nts Ps) F.
+  blockInSystemModuleFdef B S (module_intro los nts Ps) F ->
+  blockInSystemModuleFdef B' S (module_intro los nts Ps) F.
 Proof.
   intros.
   destruct b_preservation as [_ [J _]].
@@ -1327,9 +1192,9 @@ Proof.
   eapply J; eauto.
 Qed.
 
-Lemma bFdef_preservation : forall fv rt lp S los nts Ps ECs lc gl fs Mem lc' 
+Lemma bFdef_preservation : forall fv rt lp S los nts Ps lc gl fs Mem lc' 
     als' Mem' B' Rid oResult tr,
-  bFdef fv rt lp S (los, nts) Ps ECs lc gl fs Mem lc' als' Mem' B' Rid oResult tr
+  bFdef fv rt lp S (los, nts) Ps lc gl fs Mem lc' als' Mem' B' Rid oResult tr
     ->
   uniqSystem S ->
   moduleInSystem (module_intro los nts Ps) S ->

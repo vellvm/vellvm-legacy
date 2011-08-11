@@ -66,10 +66,8 @@ end.
 Definition instantiate_State (st1 : DSB.State) (st2 : NDSB.State) 
   : Prop :=
 match st1, st2 with
-| DSB.mkState s1 td1 ps1 ecs1 gl1 fs1 M1 MM1,
-  NDSB.mkState s2 td2 ps2 ecs2 gl2 fs2 M2 MM2 =>
-    s1 = s2 /\ td1 = td2 /\ ps1 = ps2 /\ instantiate_ECs ecs1 ecs2 /\ gl1 = gl2
-    /\ fs1 = fs2 /\ M1 = M2 /\ MM1 = MM2
+| DSB.mkState ecs1 M1 MM1, NDSB.mkState ecs2 M2 MM2 =>
+    instantiate_ECs ecs1 ecs2 /\ M1 = M2 /\ MM1 = MM2
 end.
 
 Ltac simpl_names := try (
@@ -577,8 +575,8 @@ Ltac instantiate_dsInsn_tac :=
 Ltac simpl_nd_sbds :=
   match goal with
   | [Hsim : instantiate_State {| DSB.ECS := _::_::_ |} ?st2 |- _ ] =>
-     destruct st2 as [S' TD' Ps' ECs' gl' fs' M' MM'];
-     destruct Hsim as [eq1 [eq2 [eq3 [Hsim [eq4 [eq5 [eq6 eq7]]]]]]]; subst;
+     destruct st2 as [ECs' M' MM'];
+     destruct Hsim as [Hsim [eq6 eq7]]; subst;
      destruct ECs' as [|[f1' b1' cs1' tmn1' lc1' rm1' als1'] ECs']; 
        try solve [inversion Hsim];
      simpl in Hsim; destruct Hsim as [Hsim1 Hsim2];
@@ -588,8 +586,8 @@ Ltac simpl_nd_sbds :=
      destruct Hsim1 as [J1 [J2 [J3 [J4 [Hsim1 [J6 J7]]]]]]; subst;
      destruct Hsim2 as [J1 [J2 [J3 [J4 [Hsim2 [J6 J7]]]]]]; subst
   | [Hsim : instantiate_State {| DSB.ECS := _::_|} ?st2 |- _ ] =>
-     destruct st2 as [S' TD' Ps' ECs' gl' fs' M' MM'];
-     destruct Hsim as [eq1 [eq2 [eq3 [Hsim [eq4 [eq5 [eq6 eq7]]]]]]]; subst;
+     destruct st2 as [ECs' M' MM'];
+     destruct Hsim as [Hsim [eq6 eq7]]; subst;
      destruct ECs' as [|[f1' b1' cs1' tmn1' lc1' rm1' als1'] ECs']; 
        try solve [inversion Hsim];
      simpl in Hsim; destruct Hsim as [Hsim1 Hsim2];
@@ -603,12 +601,12 @@ Qed.
 
 Hint Constructors NDSB.sInsn NDSB.sInsn_delta NDOS.sInsn.
 
-Lemma instantiate_dsInsn : forall st1 st2 st1' tr,
+Lemma instantiate_dsInsn : forall cfg st1 st2 st1' tr,
   instantiate_State st1 st2 ->
-  DSB.sInsn st1 st1' tr ->
-  (exists st2', NDSB.sInsn st2 st2' tr /\ instantiate_State st1' st2').
+  DSB.sInsn cfg st1 st1' tr ->
+  (exists st2', NDSB.sInsn cfg st2 st2' tr /\ instantiate_State st1' st2').
 Proof.
-  intros st1 st2 st1' tr Hsim Hop.  
+  intros cfg st1 st2 st1' tr Hsim Hop.  
   inv Hop.
   rename H into Hop.
   rename H0 into Hllvmop.
@@ -616,106 +614,106 @@ Proof.
 Case "sReturn". simpl_nd_sbds. 
   eapply instantiate_locals__returnUpdateLocals in H; eauto.
   destruct H as [lc2'' [H1 H2]].
-  exists (NDSB.mkState S' TD' Ps' 
-    ((NDSB.mkEC f2' b2' cs' tmn2' lc2'' rm'' als2')::ECs') gl' fs' Mem' MM').
+  exists (NDSB.mkState
+    ((NDSB.mkEC f2' b2' cs' tmn2' lc2'' rm'' als2')::ECs') Mem' MM').
   instantiate_dsInsn_tac.
 Case "sReturnVoid". simpl_nd_sbds. 
-  exists (NDSB.mkState S' TD' Ps' 
-    ((NDSB.mkEC f2' b2' cs' tmn2' lc2' rm2' als2')::ECs') gl' fs' Mem' MM').
+  exists (NDSB.mkState 
+    ((NDSB.mkEC f2' b2' cs' tmn2' lc2' rm2' als2')::ECs') Mem' MM').
   instantiate_dsInsn_tac.
 Case "sBranch". simpl_nd_sbds. 
   eapply instantiate_locals__switchToNewBasicBlock in H; eauto.
   eapply instantiate_locals__getOperandValue in H23; eauto.
   destruct H23 as [gvs2 [J1 J2]].
   destruct H as [lc2' [J3 J4]].
-  exists (NDSB.mkState S' TD' Ps' 
+  exists (NDSB.mkState 
     ((NDSB.mkEC f1' (block_intro l' ps' cs' tmn') cs' tmn' lc2' rm' als1')
-      ::ECs') gl' fs' M' MM').
+      ::ECs') M' MM').
   instantiate_dsInsn_tac.
 Case "sBranch_uncond". simpl_nd_sbds. 
   eapply instantiate_locals__switchToNewBasicBlock in H; eauto.
   destruct H as [lc2' [J1 J2]]. 
-  exists (NDSB.mkState S' TD' Ps' 
+  exists (NDSB.mkState
     ((NDSB.mkEC f1' (block_intro l' ps' cs' tmn') cs' tmn' lc2' rm' als1')
-      ::ECs') gl' fs' M' MM').
+      ::ECs') M' MM').
   instantiate_dsInsn_tac.
 Case "sBop". simpl_nd_sbds. 
-  eapply instantiate_locals__BOP in H19; eauto.
-  destruct H19 as [gvs3' [J1 J2]].
-  exists (NDSB.mkState S' TD' Ps' 
+  eapply instantiate_locals__BOP in H15; eauto.
+  destruct H15 as [gvs3' [J1 J2]].
+  exists (NDSB.mkState
     ((NDSB.mkEC f1' b1' cs tmn1' (updateAddAL _ lc1' id0 gvs3') rm1' als1')
-      ::ECs') gl' fs' M' MM').
+      ::ECs') M' MM').
   instantiate_dsInsn_tac.
 Case "sFBop". simpl_nd_sbds. 
-  eapply instantiate_locals__FBOP in H19; eauto.
-  destruct H19 as [gvs3' [J1 J2]]. 
-  exists (NDSB.mkState S' TD' Ps' 
+  eapply instantiate_locals__FBOP in H15; eauto.
+  destruct H15 as [gvs3' [J1 J2]]. 
+  exists (NDSB.mkState 
     ((NDSB.mkEC f1' b1' cs tmn1' (updateAddAL _ lc1' id0 gvs3') rm1' als1')
-      ::ECs') gl' fs' M' MM').
+      ::ECs') M' MM').
   instantiate_dsInsn_tac.
 Case "sExtractValue". simpl_nd_sbds. 
-  eapply instantiate_locals__getOperandValue in H18; eauto.
-  destruct H18 as [gvs2 [J1 J2]].
-  eapply instantiate_locals__extractGenericValue in H19; eauto.
-  destruct H19 as [gvs2' [J3 J4]].
-  exists (NDSB.mkState S' TD' Ps' 
+  eapply instantiate_locals__getOperandValue in H14; eauto.
+  destruct H14 as [gvs2 [J1 J2]].
+  eapply instantiate_locals__extractGenericValue in H15; eauto.
+  destruct H15 as [gvs2' [J3 J4]].
+  exists (NDSB.mkState
     ((NDSB.mkEC f1' b1' cs tmn1' (updateAddAL _ lc1' id0 gvs2') rm1' als1')
-      ::ECs') gl' fs' M' MM').
+      ::ECs') M' MM').
   instantiate_dsInsn_tac.
 Case "sInsertValue". simpl_nd_sbds. 
-  eapply instantiate_locals__getOperandValue in H20; eauto.
-  destruct H20 as [gvs2 [J1 J2]].
-  eapply instantiate_locals__getOperandValue in H21; eauto.
-  destruct H21 as [gvs2' [J1' J2']].
-  eapply instantiate_locals__insertGenericValue in H22; eauto.
-  destruct H22 as [gvs2'' [J3 J4]].
-  exists (NDSB.mkState S' TD' Ps' 
+  eapply instantiate_locals__getOperandValue in H16; eauto.
+  destruct H16 as [gvs2 [J1 J2]].
+  eapply instantiate_locals__getOperandValue in H17; eauto.
+  destruct H17 as [gvs2' [J1' J2']].
+  eapply instantiate_locals__insertGenericValue in H18; eauto.
+  destruct H18 as [gvs2'' [J3 J4]].
+  exists (NDSB.mkState
     ((NDSB.mkEC f1' b1' cs tmn1' (updateAddAL _ lc1' id0 gvs2'') rm1' als1')
-      ::ECs') gl' fs' M' MM').
+      ::ECs') M' MM').
   instantiate_dsInsn_tac.
 Case "sMalloc". simpl_nd_sbds. 
   ctx_simpl.
   eapply instantiate_locals__getOperandValue in H0; eauto.
   destruct H0 as [gns [J1 J2]]. inv H4.
-  exists (NDSB.mkState S' TD' Ps' 
+  exists (NDSB.mkState 
     ((NDSB.mkEC f1' b1' cs tmn1' 
-      (updateAddAL _ lc1' id0 ($ (blk2GV TD' mb) # typ_pointer t $)) 
+      (updateAddAL _ lc1' id0 ($ (blk2GV TD mb) # typ_pointer t $)) 
       (updateAddAL _ rm1' id0 (bound2MD mb tsz0 n)) als1')::ECs') 
-      gl' fs' Mem' MM').
+      Mem' MM').
   instantiate_dsInsn_tac.
 Case "sFree". simpl_nd_sbds. 
-  eapply instantiate_locals__getOperandValue in H17; eauto.
-  destruct H17 as [gvs [J1 J2]].
-  exists (NDSB.mkState S' TD' Ps' 
+  eapply instantiate_locals__getOperandValue in H13; eauto.
+  destruct H13 as [gvs [J1 J2]].
+  exists (NDSB.mkState
     ((NDSB.mkEC f1' b1' cs tmn1' lc1' rm1'
-    als1')::ECs') gl' fs' Mem' MM').
+    als1')::ECs') Mem' MM').
   instantiate_dsInsn_tac.
 Case "sAlloca". simpl_nd_sbds. 
   ctx_simpl.
   eapply instantiate_locals__getOperandValue in H0; eauto.
   destruct H0 as [gns [J1 J2]]. inv H4.
-  exists (NDSB.mkState S' TD' Ps' 
+  exists (NDSB.mkState
     ((NDSB.mkEC f1' b1' cs tmn1' 
-      (updateAddAL _ lc1' id0 ($ (blk2GV TD' mb) # typ_pointer t $))
+      (updateAddAL _ lc1' id0 ($ (blk2GV TD mb) # typ_pointer t $))
       (updateAddAL _ rm1' id0 (bound2MD mb tsz0 n))
-      (mb::als1'))::ECs') gl' fs' Mem' MM').
+      (mb::als1'))::ECs') Mem' MM').
   instantiate_dsInsn_tac.
 Case "sLoad_nptr". simpl_nd_sbds.
   ctx_simpl. 
   eapply instantiate_locals__getOperandValue in H0; eauto.
   destruct H0 as [gvs2 [J1 J2]].
-  exists (NDSB.mkState S' TD' Ps' 
+  exists (NDSB.mkState
     ((NDSB.mkEC f1' b1' cs tmn1' (updateAddAL _ lc1' id0 ($ gv # t $))
-    rm1' als1')::ECs') gl' fs' M' MM').
+    rm1' als1')::ECs') M' MM').
   instantiate_dsInsn_tac.
 Case "sLoad_ptr". simpl_nd_sbds.
   ctx_simpl. inv H6.
   eapply instantiate_locals__getOperandValue in H0; eauto.
   destruct H0 as [gvs2 [J1 J2]].
-  exists (NDSB.mkState S' TD' Ps' 
+  exists (NDSB.mkState 
     ((NDSB.mkEC f1' b1' cs tmn1' (updateAddAL _ lc1' id0 ($ gv # t $))
-    (updateAddAL _ rm1' id0 (get_mem_metadata TD' MM' gvp)) als1')::ECs') 
-    gl' fs' M' MM').
+    (updateAddAL _ rm1' id0 (get_mem_metadata TD MM' gvp)) als1')::ECs') 
+    M' MM').
   instantiate_dsInsn_tac.
 Case "sStore_nptr". simpl_nd_sbds.
   ctx_simpl. 
@@ -723,8 +721,8 @@ Case "sStore_nptr". simpl_nd_sbds.
   destruct H1 as [gvs2 [J1 J2]].
   eapply instantiate_locals__getOperandValue in H0; eauto.
   destruct H0 as [mps2' [J3 J4]].
-  exists (NDSB.mkState S' TD' Ps' 
-    ((NDSB.mkEC f1' b1' cs tmn1' lc1' rm1' als1')::ECs') gl' fs' Mem' MM').
+  exists (NDSB.mkState
+    ((NDSB.mkEC f1' b1' cs tmn1' lc1' rm1' als1')::ECs') Mem' MM').
   instantiate_dsInsn_tac.
 Case "sStore_ptr". simpl_nd_sbds.
   repeat ctx_simpl. 
@@ -732,9 +730,9 @@ Case "sStore_ptr". simpl_nd_sbds.
   destruct H1 as [gvs2 [J1 J2]].
   eapply instantiate_locals__getOperandValue in H0; eauto.
   destruct H0 as [mps2' [J3 J4]].
-  exists (NDSB.mkState S' TD' Ps' 
-    ((NDSB.mkEC f1' b1' cs tmn1' lc1' rm1' als1')::ECs') gl' fs' Mem' 
-      (set_mem_metadata TD' MM' gvp md')).
+  exists (NDSB.mkState
+    ((NDSB.mkEC f1' b1' cs tmn1' lc1' rm1' als1')::ECs') Mem' 
+      (set_mem_metadata TD MM' gvp md')).
   instantiate_dsInsn_tac.
 Case "sGEP". simpl_nd_sbds. 
   eapply instantiate_locals__getOperandValue in H21; eauto.
@@ -743,81 +741,81 @@ Case "sGEP". simpl_nd_sbds.
   destruct H22 as [vidxss' [J3 J4]].
   eapply instantiate_locals__GEP in H24; eauto.
   destruct H24 as [vidxs2 [mps2' [J5 [J6 J7]]]].
-  exists (NDSB.mkState S' TD' Ps' 
+  exists (NDSB.mkState
     ((NDSB.mkEC f1' b1' cs tmn1' (updateAddAL _ lc1' id0 mps2') 
-      (updateAddAL _ rm1' id0 md) als1') ::ECs') gl' fs' M' MM').
+      (updateAddAL _ rm1' id0 md) als1') ::ECs') M' MM').
   instantiate_dsInsn_tac.
 Case "sTrunc". simpl_nd_sbds.
-  eapply instantiate_locals__TRUNC in H19; eauto.
-  destruct H19 as [gvs2' [J1 J2]].
-  exists (NDSB.mkState S' TD' Ps' 
+  eapply instantiate_locals__TRUNC in H15; eauto.
+  destruct H15 as [gvs2' [J1 J2]].
+  exists (NDSB.mkState
     ((NDSB.mkEC f1' b1' cs tmn1' (updateAddAL _ lc1' id0 gvs2') rm1' als1')
-      ::ECs') gl' fs' M' MM').
+      ::ECs') M' MM').
   instantiate_dsInsn_tac.
 Case "sExt". simpl_nd_sbds. 
-  eapply instantiate_locals__EXT in H19; eauto.
-  destruct H19 as [gvs2' [J1 J2]].
-  exists (NDSB.mkState S' TD' Ps' 
+  eapply instantiate_locals__EXT in H15; eauto.
+  destruct H15 as [gvs2' [J1 J2]].
+  exists (NDSB.mkState
     ((NDSB.mkEC f1' b1' cs tmn1' (updateAddAL _ lc1' id0 gvs2') rm1' als1')
-      ::ECs') gl' fs' M' MM').
+      ::ECs') M' MM').
   instantiate_dsInsn_tac.
 Case "sBitcast_nptr". simpl_nd_sbds. 
-  eapply instantiate_locals__CAST in H20; eauto.
-  destruct H20 as [gvs2' [J1 J2]].
-  exists (NDSB.mkState S' TD' Ps' 
+  eapply instantiate_locals__CAST in H16; eauto.
+  destruct H16 as [gvs2' [J1 J2]].
+  exists (NDSB.mkState
     ((NDSB.mkEC f1' b1' cs tmn1' (updateAddAL _ lc1' id0 gvs2') rm1' als1')
-      ::ECs') gl' fs' M' MM').
+      ::ECs') M' MM').
   instantiate_dsInsn_tac.
 Case "sBitcast_ptr". simpl_nd_sbds. 
   eapply instantiate_locals__CAST in H22; eauto.
   destruct H22 as [gvs2' [J1 J2]].
-  exists (NDSB.mkState S' TD' Ps' 
+  exists (NDSB.mkState
     ((NDSB.mkEC f1' b1' cs tmn1' (updateAddAL _ lc1' id0 gvs2')
-      (updateAddAL _ rm1' id0 md) als1') ::ECs') gl' fs' M' MM').
+      (updateAddAL _ rm1' id0 md) als1') ::ECs') M' MM').
   instantiate_dsInsn_tac.
 Case "sInttoptr". simpl_nd_sbds. 
-  eapply instantiate_locals__CAST in H20; eauto.
-  destruct H20 as [gvs2' [J1 J2]].
-  exists (NDSB.mkState S' TD' Ps' 
+  eapply instantiate_locals__CAST in H16; eauto.
+  destruct H16 as [gvs2' [J1 J2]].
+  exists (NDSB.mkState
     ((NDSB.mkEC f1' b1' cs tmn1' (updateAddAL _ lc1' id0 gvs2') 
       (updateAddAL _ rm1' id0 null_md) als1') 
-      ::ECs') gl' fs' M' MM').
+      ::ECs') M' MM').
   instantiate_dsInsn_tac.
 Case "sOthercast". simpl_nd_sbds. 
-  eapply instantiate_locals__CAST in H20; eauto.
-  destruct H20 as [gvs2' [J1 J2]].
-  exists (NDSB.mkState S' TD' Ps' 
+  eapply instantiate_locals__CAST in H16; eauto.
+  destruct H16 as [gvs2' [J1 J2]].
+  exists (NDSB.mkState
     ((NDSB.mkEC f1' b1' cs tmn1' (updateAddAL _ lc1' id0 gvs2') rm1' als1')
-      ::ECs') gl' fs' M' MM').
+      ::ECs') M' MM').
   instantiate_dsInsn_tac.
 Case "sIcmp". simpl_nd_sbds. 
-  eapply instantiate_locals__ICMP in H19; eauto.
-  destruct H19 as [gvs3' [J1 J2]].
-  exists (NDSB.mkState S' TD' Ps' 
+  eapply instantiate_locals__ICMP in H15; eauto.
+  destruct H15 as [gvs3' [J1 J2]].
+  exists (NDSB.mkState
     ((NDSB.mkEC f1' b1' cs tmn1' (updateAddAL _ lc1' id0 gvs3') rm1' als1')
-      ::ECs') gl' fs' M' MM').
+      ::ECs') M' MM').
   instantiate_dsInsn_tac.
 Case "sFcmp". simpl_nd_sbds. 
-  eapply instantiate_locals__FCMP in H19; eauto.
-  destruct H19 as [gvs3' [J1 J2]]. 
-  exists (NDSB.mkState S' TD' Ps' 
+  eapply instantiate_locals__FCMP in H15; eauto.
+  destruct H15 as [gvs3' [J1 J2]]. 
+  exists (NDSB.mkState
     ((NDSB.mkEC f1' b1' cs tmn1' (updateAddAL _ lc1' id0 gvs3') rm1' als1')
-      ::ECs') gl' fs' M' MM').
+      ::ECs') M' MM').
   instantiate_dsInsn_tac.
 Case "sSelect_nptr". simpl_nd_sbds. 
-  eapply instantiate_locals__getOperandValue in H20; eauto.
-  destruct H20 as [gvs0' [J1 J2]].
-  eapply instantiate_locals__getOperandValue in H21; eauto.
-  destruct H21 as [gvs1' [J3 J4]].
-  eapply instantiate_locals__getOperandValue in H22; eauto.
-  destruct H22 as [gvs2' [J5 J6]].
-  exists (NDSB.mkState S' TD' Ps' 
-    ((NDSB.mkEC f1' b1' cs tmn1' (if isGVZero TD' c 
+  eapply instantiate_locals__getOperandValue in H16; eauto.
+  destruct H16 as [gvs0' [J1 J2]].
+  eapply instantiate_locals__getOperandValue in H17; eauto.
+  destruct H17 as [gvs1' [J3 J4]].
+  eapply instantiate_locals__getOperandValue in H18; eauto.
+  destruct H18 as [gvs2' [J5 J6]].
+  exists (NDSB.mkState
+    ((NDSB.mkEC f1' b1' cs tmn1' (if isGVZero TD c 
                                    then updateAddAL _ lc1' id0 gvs2' 
                                    else updateAddAL _ lc1' id0 gvs1') rm1' als1')
-      ::ECs') gl' fs' M' MM').
+      ::ECs') M' MM').
   instantiate_dsInsn_tac.
-    destruct (isGVZero TD' c); auto using instantiate_locals__updateAddAL.
+    destruct (isGVZero TD c); auto using instantiate_locals__updateAddAL.
 Case "sSelect_ptr". simpl_nd_sbds. 
   ctx_simpl. 
   eapply instantiate_locals__getOperandValue in H; eauto.
@@ -826,16 +824,16 @@ Case "sSelect_ptr". simpl_nd_sbds.
   destruct H0 as [gvs1' [J3 J4]].
   eapply instantiate_locals__getOperandValue in H1; eauto.
   destruct H1 as [gvs2' [J5 J6]].
-  exists (NDSB.mkState S' TD' Ps' 
-    ((NDSB.mkEC f1' b1' cs tmn1' (if isGVZero TD' c 
+  exists (NDSB.mkState
+    ((NDSB.mkEC f1' b1' cs tmn1' (if isGVZero TD c 
                                    then updateAddAL _ lc1' id0 gvs2' 
                                    else updateAddAL _ lc1' id0 gvs1')
-                                   (if isGVZero TD' c 
+                                   (if isGVZero TD c 
                                    then updateAddAL _ rm1' id0 md2 
                                    else updateAddAL _ rm1' id0 md1) als1')
-      ::ECs') gl' fs' M' MM').
+      ::ECs') M' MM').
   instantiate_dsInsn_tac. rewrite H25.
-    destruct (isGVZero TD' c); auto using instantiate_locals__updateAddAL.
+    destruct (isGVZero TD c); auto using instantiate_locals__updateAddAL.
 Case "sCall". simpl_nd_sbds. simpl_names.
   apply lookupFdefViaPtr_inversion in H36.
   destruct H36 as [fn [J1 J2]].
@@ -845,13 +843,13 @@ Case "sCall". simpl_nd_sbds. simpl_names.
   destruct H as [gvss2 [H11 H12]].
   eapply instantiate_locals__initLocals in H0; eauto.
   destruct H0 as [lc2' [H21 H22]].
-  exists (NDSB.mkState S' TD' Ps' 
+  exists (NDSB.mkState
     ((NDSB.mkEC (fdef_intro (fheader_intro fa rt fid la va) lb) 
                        (block_intro l' ps' cs' tmn') cs' tmn' 
                        lc2' rm'
                        nil)::
      (NDSB.mkEC f1' b1' (insn_call rid noret0 ca ft fv lp :: cs) tmn1' 
-      lc1' rm1' als1') ::ECs') gl' fs' M' MM').
+      lc1' rm1' als1') ::ECs') M' MM').
   instantiate_dsInsn_tac.
     simpl.
     eapply initLocals_params2GVs_sim in H11; eauto.
@@ -874,8 +872,8 @@ Case "sExCall".
   destruct H2 as [gvss2 [H11 H12]].
   eapply instantiate_locals__exCallUpdateLocals in H5; eauto.
   destruct H5 as [lc2' [H21 H22]].
-  exists (NDSB.mkState S' TD' Ps' 
-    ((NDSB.mkEC f1' b1' cs tmn1' lc2' rm' als1') ::ECs') gl' fs' Mem' MM').
+  exists (NDSB.mkState
+    ((NDSB.mkEC f1' b1' cs tmn1' lc2' rm' als1') ::ECs') Mem' MM').
   instantiate_dsInsn_tac.
     eapply sExCall; eauto.
       eapply instantiate_list_gvs__incl; eauto.

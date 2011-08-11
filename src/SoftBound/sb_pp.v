@@ -90,8 +90,9 @@ match ecs with
     wf_ExecutionContext TD M ps ec /\ wf_ECStack TD M ps ecs' /\ wf_call ec ecs'
 end.
 
-Definition wf_State (S:State) : Prop :=
-let '(mkState s (los, nts) ps ecs gl _ M MM) := S in
+Definition wf_State (cfg:Config) (S:State) : Prop :=
+let '(mkCfg s (los, nts) ps gl _) := cfg in
+let '(mkState ecs M MM) := S in
 wf_mmetadata (los, nts) M MM /\
 wf_global (los, nts) s gl /\
 wf_global_ptr s (los, nts) M gl /\
@@ -101,8 +102,8 @@ wf_ECStack (los, nts) M ps ecs.
 
 Lemma wf_State__inv : forall S los nts Ps F B c cs tmn lc rm als EC gl fs Mem0 
     MM0,
-  wf_State (mkState S (los,nts) Ps
-              ((mkEC F B (c::cs) tmn lc rm als)::EC) gl fs Mem0 MM0) ->
+  wf_State (mkCfg S (los,nts) Ps gl fs) 
+    (mkState ((mkEC F B (c::cs) tmn lc rm als)::EC) Mem0 MM0) ->
   wf_global (los, nts) S gl /\
   wf_lc (los,nts) F lc /\ 
   wf_insn nil S (module_intro los nts Ps) F B (insn_cmd c).
@@ -122,8 +123,8 @@ Qed.
 (*********************************************)
 (** * wf_state *)
 
-Lemma wf_State__cmd__lookupTypViaIDFromFdef : forall S,
-  wf_State S ->
+Lemma wf_State__cmd__lookupTypViaIDFromFdef : forall cfg S,
+  wf_State cfg S ->
   match S with 
   | {| ECS := {|CurFunction := F; CurCmds := c :: cs |} :: EC |} =>
       forall id0, getCmdID c = Some id0 ->
@@ -131,8 +132,8 @@ Lemma wf_State__cmd__lookupTypViaIDFromFdef : forall S,
   | _ => True
   end.
 Proof.
-  intros S HwfS.
-  destruct S.
+  intros cfg S HwfS.
+  destruct cfg. destruct S.
   destruct CurTargetData0.
   destruct ECS0; auto.
   destruct e; auto.
@@ -149,19 +150,19 @@ Proof.
     apply in_or_app; simpl; auto.
 Qed.
 
-Lemma wf_State__wf_cmd : forall St,
-  wf_State St ->
-  match St with 
+Lemma wf_State__wf_cmd : forall cfg St,
+  wf_State cfg St ->
+  match cfg, St with 
   | {| CurSystem := sys;
        CurTargetData := (los, nts);
-       CurProducts := Ps;
-       ECS := {|CurFunction := F; CurBB := B; CurCmds := c :: cs |} :: EC 
+       CurProducts := Ps |},
+    {| ECS := {|CurFunction := F; CurBB := B; CurCmds := c :: cs |} :: EC 
      |} => wf_insn nil sys (module_intro los nts Ps) F B (insn_cmd c)
-  | _ => True
+  | _, _ => True
   end.
 Proof.
-  intros S HwfS.
-  destruct S.
+  intros cfg S HwfS.
+  destruct cfg. destruct S.
   destruct CurTargetData0.
   destruct ECS0; auto.
   destruct e; auto.
@@ -644,11 +645,12 @@ Axiom extractValue_preserves_wf_rmap : forall los nts Mem0 v lc gl
   t gv idxs gv' rm fs EC B S Ps F MM id0 als tmn cs
   (H : getOperandValue (los, nts) v lc gl = ret gv)
   (H0 : extractGenericValue (los, nts) t gv idxs = ret gv')
-  (HwfS1 : wf_State
-            {|
+  (HwfS1 : wf_State {|
             CurSystem := S;
             CurTargetData := (los, nts);
             CurProducts := Ps;
+            Globals := gl;
+            FunTable := fs |} {|
             ECS := {|
                    CurFunction := F;
                    CurBB := B;
@@ -657,8 +659,6 @@ Axiom extractValue_preserves_wf_rmap : forall los nts Mem0 v lc gl
                    Locals := lc;
                    Rmap := rm;
                    Allocas := als |} :: EC;
-            Globals := gl;
-            FunTable := fs;
             Mem := Mem0;
             Mmap := MM |}),
    wf_rmap F lc rm -> 
@@ -669,11 +669,12 @@ Axiom insertValue_preserves_wf_rmap : forall los nts Mem0 v lc gl
   (H : getOperandValue (los, nts) v lc gl = ret gv)
   (H0 : getOperandValue (los, nts) v' lc gl = ret gv')
   (H1 : insertGenericValue (los, nts) t gv idxs t' gv' = ret gv'')
-  (HwfS1 : wf_State
-            {|
+  (HwfS1 : wf_State {|
             CurSystem := S;
             CurTargetData := (los, nts);
             CurProducts := Ps;
+            Globals := gl;
+            FunTable := fs |} {|
             ECS := {|
                    CurFunction := F;
                    CurBB := B;
@@ -682,8 +683,6 @@ Axiom insertValue_preserves_wf_rmap : forall los nts Mem0 v lc gl
                    Locals := lc;
                    Rmap := rm;
                    Allocas := als |} :: EC;
-            Globals := gl;
-            FunTable := fs;
             Mem := Mem0;
             Mmap := MM |}),
    wf_rmap F lc rm -> 
@@ -739,22 +738,23 @@ Proof.
                                wf_sbcall__wf_call).
 Qed.  
 
-Lemma wf_sbState__wf_State : forall sbSt, 
-  wf_State sbSt -> Sem.wf_State (sbState__State sbSt).
+Lemma wf_sbState__wf_State : forall cfg sbSt, 
+  wf_State cfg sbSt -> Sem.wf_State cfg (sbState__State sbSt).
 Proof.
   intros.
-  destruct sbSt. destruct CurTargetData0.
+  destruct sbSt. destruct cfg. destruct CurTargetData0.
   destruct H as [HwfMM [Hwfg [Hwfg' [HwfSystem [HmInS HwfEC]]]]].
   repeat (split; eauto using wf_sbECs__wf_ECs). 
 Qed.
 
 Ltac preservation_simpl :=
   match goal with
-  | [HwfS1 : wf_State
-           {|
+  | [HwfS1 : wf_State {|
            CurSystem := _;
            CurTargetData := _;
            CurProducts := _;
+           Globals := _;
+           FunTable := _ |} {|
            ECS := {| CurFunction := _;
                      CurBB := _;
                      CurCmds := _;
@@ -763,16 +763,15 @@ Ltac preservation_simpl :=
                      Rmap := _;
                      Allocas := _ 
                    |} :: _;
-           Globals := _;
-           FunTable := _;
            Mem := _;
            Mmap := _ |} ,
-      HwfLLVM2 : Sem.wf_State
-               (sbState__State
-                  {|
+      HwfLLVM2 : Sem.wf_State {|
                   CurSystem := _;
                   CurTargetData := _;
                   CurProducts := _;
+                  Globals := _;
+                  FunTable := _ |} 
+               (sbState__State {|
                   ECS := {|
                          CurFunction := _;
                          CurBB := _;
@@ -781,8 +780,6 @@ Ltac preservation_simpl :=
                          Locals := _;
                          Rmap := ?rm;
                          Allocas := _ |} :: _;
-                  Globals := _;
-                  FunTable := _;
                   Mem := _;
                   Mmap := _ |})
      |- _ ] => 
@@ -802,11 +799,12 @@ Ltac preservation_simpl :=
 
 Ltac preservation_tac :=
   match goal with
-  | [HwfS1 : wf_State
-           {|
+  | [HwfS1 : wf_State {|
            CurSystem := ?S;
            CurTargetData := (?los, ?nts);
            CurProducts := ?Ps;
+           Globals := ?gl;
+           FunTable := ?fs |} {|
            ECS := {| CurFunction := ?F;
                      CurBB := ?B;
                      CurCmds := _ :: ?cs;
@@ -815,16 +813,16 @@ Ltac preservation_tac :=
                      Rmap := ?rm;
                      Allocas := ?als 
                    |} :: ?EC;
-           Globals := ?gl;
-           FunTable := ?fs;
            Mem := ?Mem0;
            Mmap := ?MM |} ,
-      HwfLLVM2 : Sem.wf_State
-               (sbState__State
-                  {|
+      HwfLLVM2 : Sem.wf_State {|
                   CurSystem := ?S;
                   CurTargetData := (?los, ?nts);
                   CurProducts := ?Ps;
+                  Globals := ?gl;
+                  FunTable := ?fs |} 
+               (sbState__State
+                  {|
                   ECS := {|
                          CurFunction := ?F;
                          CurBB := ?B;
@@ -833,15 +831,14 @@ Ltac preservation_tac :=
                          Locals := updateAddAL _ ?lc _ _;
                          Rmap := ?rm;
                          Allocas := ?als |} :: ?EC;
-                  Globals := ?gl;
-                  FunTable := ?fs;
                   Mem := ?Mem0;
                   Mmap := ?MM |})
-     |- wf_State
-           {|
+     |- wf_State {|
            CurSystem := ?S;
            CurTargetData := (?los, ?nts);
            CurProducts := ?Ps;
+           Globals := ?gl;
+           FunTable := ?fs |} {|
            ECS := {| CurFunction := ?F;
                      CurBB := ?B;
                      CurCmds := ?cs;
@@ -850,8 +847,6 @@ Ltac preservation_tac :=
                      Rmap := ?rm;
                      Allocas := ?als 
                    |} :: ?EC;
-           Globals := ?gl;
-           FunTable := ?fs;
            Mem := ?Mem0;
            Mmap := ?MM |} ] => 
     preservation_simpl;
@@ -894,19 +889,20 @@ Proof.
   induction ECs; intros; inversion H; eauto.
 Qed.
 
-Lemma preservation : forall S1 S2 tr,
-  sInsn S1 S2 tr -> wf_State S1 -> wf_State S2.
+Lemma preservation : forall cfg S1 S2 tr,
+  sInsn cfg S1 S2 tr -> wf_State cfg S1 -> wf_State cfg S2.
 Proof.
 Opaque wf_mmetadata wf_rmetadata.
 
-  intros S1 S2 tr HnsInsn HwfS1.
+  intros cfg S1 S2 tr HnsInsn HwfS1.
   inv HnsInsn.
   rename H into HnsInsn_delta.
   rename H0 into HnsInsn_llvm.
   assert (HwfLLVM2 := HnsInsn_llvm).
   apply Sem.preservation in HwfLLVM2; auto using wf_sbState__wf_State.
-  (sb_sInsn_cases (induction HnsInsn_delta) Case); destruct TD as [los nts];
-    subst; simpl in HnsInsn_llvm; inv HnsInsn_llvm; try invert_prop_reg_metadata.
+  (sb_sInsn_cases (destruct HnsInsn_delta) Case); 
+    subst; simpl in HnsInsn_llvm; inv HnsInsn_llvm; try invert_prop_reg_metadata;
+    try destruct TD as [los nts].
 
 Focus.
 Case "sReturn".
@@ -1799,14 +1795,14 @@ Qed.
 (*********************************************)
 (** * Progress *)
 
-Definition spatial_memory_violation S : Prop :=
+Definition spatial_memory_violation (cfg: Config) (S : State): Prop :=
+match cfg with
+| {| CurTargetData := TD; Globals := gl |} =>
   match S with
-  | {| CurTargetData := TD;
-       ECS := {| CurCmds := insn_load _ t vp _ :: cs;
+  | {| ECS := {| CurCmds := insn_load _ t vp _ :: cs;
                            Locals := lc;
                            Rmap := rm
                          |} :: _;
-        Globals := gl;
         Mem := Mem0 |} => 
       match get_reg_metadata TD gl rm vp, 
             getOperandValue TD vp lc gl with
@@ -1814,12 +1810,10 @@ Definition spatial_memory_violation S : Prop :=
           exists gvp, gvp @ gvps /\ ~ assert_mptr TD t gvp md
       | _, _ => False
       end
-  | {| CurTargetData := TD;
-       ECS := {| CurCmds := insn_store _ t v vp _ :: cs;
+  | {| ECS := {| CurCmds := insn_store _ t v vp _ :: cs;
                            Locals := lc;
                            Rmap := rm
                          |} :: _;
-        Globals := gl;
         Mem := Mem0 |} => 
       match get_reg_metadata TD gl rm vp, 
             getOperandValue TD vp lc gl with
@@ -1828,7 +1822,8 @@ Definition spatial_memory_violation S : Prop :=
       | _, _ => False
       end
   | _ => False
-  end.
+  end
+end.
 
 Definition other_store_violation TD M gvp gv : Prop :=
   match (GV2ptr TD (getPointerSize TD) gvp) with
@@ -1844,10 +1839,11 @@ Definition other_load_violation TD M gvp t : Prop :=
   | _ => False
   end.
 
-Definition undefined_state S : Prop :=
+Definition undefined_state (cfg: Config) (S : State): Prop :=
+match cfg with
+| {| CurTargetData := td; CurProducts := ps; Globals := gl; FunTable := fs |} =>
   match S with
-  | {| CurTargetData := td;
-       ECS := {|
+  | {| ECS := {|
                 CurCmds := nil;
                 Terminator := insn_return _ _ _;
                 Allocas := als |} :: 
@@ -1856,8 +1852,7 @@ Definition undefined_state S : Prop :=
   | _ => False
   end \/
   match S with
-  | {| CurTargetData := td;
-       ECS := {|
+  | {| ECS := {|
                 CurBB := _;
                 CurCmds := nil;
                 Terminator := insn_return_void _;
@@ -1881,17 +1876,13 @@ Definition undefined_state S : Prop :=
   | _ => False
   end \/
   match S with
-  | {| CurTargetData := td;
-       ECS := 
+  | {| ECS := 
          {| CurCmds := insn_malloc _ t v a::_ ; 
             Locals := lc|} :: _;
-       Globals := gl;
-      Mem := M |}
-  | {| CurTargetData := td;
-       ECS := 
+       Mem := M |}
+  | {| ECS := 
          {| CurCmds := insn_alloca _ t v a::_ ; 
             Locals := lc|} :: _;
-       Globals := gl;
        Mem := M |} =>
        match getOperandValue td v lc gl with
        | Some gns =>
@@ -1908,11 +1899,9 @@ Definition undefined_state S : Prop :=
   | _ => False
   end \/
   match S with
-  | {| CurTargetData := td;
-       ECS := 
+  | {| ECS := 
          {| CurCmds := insn_free _ _ v::_ ; Locals := lc|} 
          :: _;
-       Globals := gl;
        Mem := M |} =>
        match getOperandValue td v lc gl with
        | Some gvs => exists gv, gv @ gvs /\
@@ -1925,11 +1914,9 @@ Definition undefined_state S : Prop :=
   | _ => False
   end \/
   match S with
-  | {| CurTargetData := td;
-       ECS := 
+  | {| ECS := 
          {| CurCmds := insn_load _ t v a::_ ; 
             Locals := lc|} :: _;
-       Globals := gl;
        Mem := M |} =>
        match getOperandValue td v lc gl with
        | Some gvs => exists gv, gv @ gvs /\ other_load_violation td M gv t
@@ -1938,11 +1925,9 @@ Definition undefined_state S : Prop :=
   | _ => False
   end \/
   match S with
-  | {| CurTargetData := td;
-       ECS := 
+  | {| ECS := 
          {| CurCmds := insn_store _ t v v0 a::_ ; 
             Locals := lc|} :: _;
-       Globals := gl;
        Mem := M |} =>
        match getOperandValue td v lc gl, 
              getOperandValue td v0 lc gl with
@@ -1954,13 +1939,9 @@ Definition undefined_state S : Prop :=
   | _ => False
   end \/
   match S with
-  | {| CurTargetData := td;
-       CurProducts := ps;
-       ECS := 
+  | {| ECS := 
          {| CurCmds := insn_call i0 n _ ft v p::_ ; 
             Locals := lc; Rmap := rm |} :: _;
-       Globals := gl;
-       FunTable := fs;
        Mem := M |} =>
        match getOperandValue td v lc gl with
        | Some fptrs =>
@@ -1988,7 +1969,8 @@ Definition undefined_state S : Prop :=
        end
   | _ => False
   end \/
-  spatial_memory_violation S.
+  spatial_memory_violation cfg S
+end.
 
 Hint Unfold undefined_state spatial_memory_violation other_load_violation
             other_store_violation.
@@ -2040,11 +2022,12 @@ Qed.
        
 Lemma load_progress : forall s los nts ps f b i0 t v a cs tmn lc rm als ecs gl
   fs M Mmap0 gvs gv
-  (HwfS1 : wf_State
-            {|
+  (HwfS1 : wf_State {|
             CurSystem := s;
             CurTargetData := (los, nts);
             CurProducts := ps;
+            Globals := gl;
+            FunTable := fs |} {|
             ECS := {|
                    CurFunction := f;
                    CurBB := b;
@@ -2053,8 +2036,6 @@ Lemma load_progress : forall s los nts ps f b i0 t v a cs tmn lc rm als ecs gl
                    Locals := lc;
                    Rmap := rm;
                    Allocas := als |} :: ecs;
-            Globals := gl;
-            FunTable := fs;
             Mem := M;
             Mmap := Mmap0 |})
   (HeqR : getOperandValue (los, nts) v lc gl = Some gvs) 
@@ -2066,6 +2047,8 @@ Lemma load_progress : forall s los nts ps f b i0 t v a cs tmn lc rm als ecs gl
           CurSystem := s;
           CurTargetData := (los, nts);
           CurProducts := ps;
+          Globals := gl;
+          FunTable := fs |} {|
           ECS := {|
                  CurFunction := f;
                  CurBB := b;
@@ -2074,8 +2057,6 @@ Lemma load_progress : forall s los nts ps f b i0 t v a cs tmn lc rm als ecs gl
                  Locals := lc;
                  Rmap := rm;
                  Allocas := als |} :: ecs;
-          Globals := gl;
-          FunTable := fs;
           Mem := M;
           Mmap := Mmap0 |} S2 tr) \/
    undefined_state
@@ -2083,6 +2064,8 @@ Lemma load_progress : forall s los nts ps f b i0 t v a cs tmn lc rm als ecs gl
      CurSystem := s;
      CurTargetData := (los, nts);
      CurProducts := ps;
+     Globals := gl;
+     FunTable := fs |} {|
      ECS := {|
             CurFunction := f;
             CurBB := b;
@@ -2091,8 +2074,6 @@ Lemma load_progress : forall s los nts ps f b i0 t v a cs tmn lc rm als ecs gl
             Locals := lc;
             Rmap := rm;
             Allocas := als |} :: ecs;
-     Globals := gl;
-     FunTable := fs;
      Mem := M;
      Mmap := Mmap0 |}.
 Proof.
@@ -2144,9 +2125,6 @@ Proof.
           left.
           exists 
            {|
-             CurSystem := s;
-             CurTargetData := (los, nts);
-             CurProducts := ps;
              ECS := {|
                 CurFunction := f;
                 CurBB := block_intro l1 ps1
@@ -2157,8 +2135,6 @@ Proof.
                 Rmap := updateAddAL _ rm i0 
                   (get_mem_metadata (los, nts) Mmap0 gv);
                 Allocas := als |} :: ecs;
-             Globals := gl;
-             FunTable := fs;
              Mem := M;
              Mmap := Mmap0 |}.
           exists trace_nil. 
@@ -2168,9 +2144,6 @@ Proof.
           left.
           exists 
            {|
-             CurSystem := s;
-             CurTargetData := (los, nts);
-             CurProducts := ps;
              ECS := {|
                 CurFunction := f;
                 CurBB := block_intro l1 ps1
@@ -2180,8 +2153,6 @@ Proof.
                 Locals := updateAddAL _ lc i0 ($ gv' # t $);
                 Rmap := rm;
                 Allocas := als |} :: ecs;
-             Globals := gl;
-             FunTable := fs;
              Mem := M;
              Mmap := Mmap0 |}.
           exists trace_nil.
@@ -2208,11 +2179,12 @@ Qed.
 
 Lemma store_progress : forall s los nts ps f b i0 t v v0 a cs tmn lc rm als ecs
   gl fs M Mmap0 gvs1 gvs2 gv mgv
-  (HwfS1 : wf_State
-            {|
+  (HwfS1 : wf_State {|
             CurSystem := s;
             CurTargetData := (los, nts);
             CurProducts := ps;
+            Globals := gl;
+            FunTable := fs |} {|
             ECS := {|
                    CurFunction := f;
                    CurBB := b;
@@ -2221,8 +2193,6 @@ Lemma store_progress : forall s los nts ps f b i0 t v v0 a cs tmn lc rm als ecs
                    Locals := lc;
                    Rmap := rm;
                    Allocas := als |} :: ecs;
-            Globals := gl;
-            FunTable := fs;
             Mem := M;
             Mmap := Mmap0 |})
   (J : Sem.getOperandValue (los, nts) v lc gl = Some gvs1)
@@ -2236,6 +2206,8 @@ Lemma store_progress : forall s los nts ps f b i0 t v v0 a cs tmn lc rm als ecs
           CurSystem := s;
           CurTargetData := (los, nts);
           CurProducts := ps;
+          Globals := gl;
+          FunTable := fs |} {|
           ECS := {|
                  CurFunction := f;
                  CurBB := b;
@@ -2244,8 +2216,6 @@ Lemma store_progress : forall s los nts ps f b i0 t v v0 a cs tmn lc rm als ecs
                  Locals := lc;
                  Rmap := rm;
                  Allocas := als |} :: ecs;
-          Globals := gl;
-          FunTable := fs;
           Mem := M;
           Mmap := Mmap0 |} S2 tr) \/
    undefined_state
@@ -2253,6 +2223,8 @@ Lemma store_progress : forall s los nts ps f b i0 t v v0 a cs tmn lc rm als ecs
      CurSystem := s;
      CurTargetData := (los, nts);
      CurProducts := ps;
+     Globals := gl;
+     FunTable := fs |} {|
      ECS := {|
             CurFunction := f;
             CurBB := b;
@@ -2261,8 +2233,6 @@ Lemma store_progress : forall s los nts ps f b i0 t v v0 a cs tmn lc rm als ecs
             Locals := lc;
             Rmap := rm;
             Allocas := als |} :: ecs;
-     Globals := gl;
-     FunTable := fs;
      Mem := M;
      Mmap := Mmap0 |}.
 Proof.
@@ -2319,9 +2289,6 @@ Proof.
             remember (set_mem_metadata (los, nts) Mmap0 mgv md') as Mmap0'.
             exists 
                {|
-               CurSystem := s;
-               CurTargetData := (los, nts);
-               CurProducts := ps;
                ECS := {|
                     CurFunction := f;
                     CurBB := block_intro l1 ps1
@@ -2331,8 +2298,6 @@ Proof.
                     Locals := lc;
                     Rmap := rm;
                     Allocas := als |} :: ecs;
-               Globals := gl;
-               FunTable := fs;
                Mem := M';
                Mmap := Mmap0'|}.
             exists trace_nil.
@@ -2342,9 +2307,6 @@ Proof.
             left.
             exists 
                {|
-               CurSystem := s;
-               CurTargetData := (los, nts);
-               CurProducts := ps;
                ECS := {|
                     CurFunction := f;
                     CurBB := block_intro l1 ps1
@@ -2354,8 +2316,6 @@ Proof.
                     Locals := lc;
                     Rmap := rm;
                     Allocas := als |} :: ecs;
-               Globals := gl;
-               FunTable := fs;
                Mem := M';
                Mmap := Mmap0|}.
             exists trace_nil.
@@ -2383,15 +2343,16 @@ Qed.
 Ltac elim_undef_false Hundef :=
   repeat (destruct Hundef as [Hundef | Hundef]; try solve [inversion Hundef]).
 
-Lemma llvm_undef__sb_progress : forall (S1 : State)
-  (HwfS1 : wf_State S1)
-  (Hundef : Sem.undefined_state (sbState__State S1)),
-  (exists S2 : State, exists tr : trace, sInsn S1 S2 tr) \/
-  undefined_state S1.
+Lemma llvm_undef__sb_progress : forall cfg (S1 : State)
+  (HwfS1 : wf_State cfg S1)
+  (Hundef : Sem.undefined_state cfg (sbState__State S1)),
+  (exists S2 : State, exists tr : trace, sInsn cfg S1 S2 tr) \/
+  undefined_state cfg S1.
 Proof.
   intros.
   unfold Sem.undefined_state in Hundef.
-  destruct S1 as [s [los nts] ps ecs gl fs M]; simpl in Hundef.
+  destruct cfg as [s [los nts] ps gl fs]. 
+  destruct S1 as [ecs M]; simpl in Hundef.
   destruct ecs; simpl in Hundef.
     elim_undef_false Hundef.
   destruct e as  [f b cs tmn lc rm als]; simpl in Hundef.
@@ -2493,12 +2454,14 @@ Qed.
 
 Ltac progress_tac_aux rm' :=
   match goal with
-  | [ Hstep' : Sem.sInsn
-             (sbState__State
-                {|
+  | [ Hstep' : Sem.sInsn {|
                 CurSystem := ?s;
                 CurTargetData := (?los, ?nts);
                 CurProducts := ?ps;
+                Globals := ?gl;
+                FunTable := ?fs |}
+             (sbState__State
+                {|
                 ECS := {|
                        CurFunction := ?f;
                        CurBB := ?b;
@@ -2507,30 +2470,19 @@ Ltac progress_tac_aux rm' :=
                        Locals := _ ;
                        Rmap := ?rm;
                        Allocas := _ |} :: ?ecs;
-                Globals := ?gl;
-                FunTable := ?fs;
                 Mem := _;
                 Mmap := ?Mmap0 |})
              {|
-             Sem.CurSystem := ?s;
-             Sem.CurTargetData := (?los, ?nts);
-             Sem.CurProducts := ?ps;
-             Sem.ECS := {|
-                              Sem.CurFunction := ?f;
+             Sem.ECS := {|   Sem.CurFunction := ?f;
                               Sem.CurBB := ?b;
                               Sem.CurCmds := ?cs;
                               Sem.Terminator := ?tmn;
                               Sem.Locals := ?lc';
                               Sem.Allocas := ?als |} :: 
                               sbECs__ECs ?ecs;
-             Sem.Globals := ?gl;
-             Sem.FunTable := ?fs;
              Sem.Mem := ?M |} ?tr |- _ ] =>
     try solve [exists 
          {|
-         CurSystem := s;
-         CurTargetData := (los, nts);
-         CurProducts := ps;
          ECS := {|
                 CurFunction := f;
                 CurBB := b;
@@ -2539,16 +2491,11 @@ Ltac progress_tac_aux rm' :=
                 Locals := lc';
                 Rmap := rm';
                 Allocas := als |} :: ecs;
-         Globals := gl;
-         FunTable := fs;
          Mem := M;
          Mmap := Mmap0 |};
     exists tr; eauto];
     exists 
          {|
-         CurSystem := s;
-         CurTargetData := (los, nts);
-         CurProducts := ps;
          ECS := {|
                 CurFunction := f;
                 CurBB := b;
@@ -2557,8 +2504,6 @@ Ltac progress_tac_aux rm' :=
                 Locals := lc';
                 Rmap := rm;
                 Allocas := als |} :: ecs;
-         Globals := gl;
-         FunTable := fs;
          Mem := M;
          Mmap := Mmap0 |};
     exists tr; eauto
@@ -2566,13 +2511,13 @@ Ltac progress_tac_aux rm' :=
 
 Ltac progress_tac := progress_tac_aux nil.
 
-Lemma progress : forall S1,
-  wf_State S1 -> 
+Lemma progress : forall cfg S1,
+  wf_State cfg S1 -> 
   s_isFinialState S1 = true \/ 
-  (exists S2, exists tr, sInsn S1 S2 tr) \/
-  undefined_state S1.
+  (exists S2, exists tr, sInsn cfg S1 S2 tr) \/
+  undefined_state cfg S1.
 Proof.
-  intros S1 HwfS1.
+  intros cfg S1 HwfS1.
   assert (Hllvm_progress := HwfS1).
   apply wf_sbState__wf_State in Hllvm_progress.
   apply Sem.progress in Hllvm_progress.
@@ -2580,7 +2525,7 @@ Proof.
     try solve [auto using llvm_isFinialState__sb_isFinialState |
                right; apply llvm_undef__sb_progress; auto].
 
-  destruct S1 as [s [los nts] ps ecs gl fs M].
+  destruct cfg as [s [los nts] ps gl fs]. destruct S1 as [ecs M].
   destruct HwfS1 as [HwfMM1 [Hwfg1 [Hwfg1' [HwfSys1 [HmInS1 HwfECs]]]]].
   destruct ecs; try solve [inversion HwfECs].
   destruct e as [f b cs tmn lc rm als].
@@ -2592,8 +2537,8 @@ Proof.
   Case "cs=nil".
     destruct tmn; inv Hstep.
     SCase "tmn=ret".
-      apply sbECs__ECs_cons_inv0 in H10.
-      destruct H10 as [rm' [ecs0 [Heq1 Heq2]]]; subst.
+      apply sbECs__ECs_cons_inv0 in H12.
+      destruct H12 as [rm' [ecs0 [Heq1 Heq2]]]; subst.
       assert (exists rm'', returnUpdateLocals (los,nts) 
         c' t v lc lc' rm rm' gl = Some (lc'', rm'')) as Hretup.
         unfold returnUpdateLocals, returnResult.
@@ -2634,17 +2579,17 @@ Proof.
          
       destruct Hretup as [rm'' Hretup].
       right. left.
-      exists (mkState s (los, nts) ps 
-        ((mkEC F' B' cs' tmn' lc'' rm'' als')::ecs0) gl fs Mem' Mmap0).
+      exists (mkState 
+        ((mkEC F' B' cs' tmn' lc'' rm'' als')::ecs0) Mem' Mmap0).
       exists trace_nil.
       eauto.
 
     SCase "tmn=ret void".
-      apply sbECs__ECs_cons_inv0 in H8.
-      destruct H8 as [rm' [ecs0 [Heq1 Heq2]]]; subst.
+      apply sbECs__ECs_cons_inv0 in H10.
+      destruct H10 as [rm' [ecs0 [Heq1 Heq2]]]; subst.
       right. left.
-      exists (mkState s (los, nts) ps 
-        ((mkEC F' B' cs' tmn' lc' rm' als')::ecs0) gl fs Mem' Mmap0).
+      exists (mkState
+        ((mkEC F' B' cs' tmn' lc' rm' als')::ecs0) Mem' Mmap0).
       exists trace_nil.
       eauto.  
 
@@ -2695,9 +2640,9 @@ Proof.
          rewrite J. inv H19. apply llvm_sb_updateValuesForNewBlock; auto.
 
       destruct Hswitch as [rm' Hswitch].
-      exists (mkState s (los, nts) ps 
+      exists (mkState
               ((mkEC f (block_intro l' ps' cs' tmn') cs' tmn' lc' rm' als)
-              ::ecs) gl fs M Mmap0).
+              ::ecs) M Mmap0).
       exists trace_nil. eauto.
 
     SCase "tmn=br_uncond".
@@ -2731,9 +2676,9 @@ Proof.
          rewrite J. inv H15. apply llvm_sb_updateValuesForNewBlock; auto.
 
       destruct Hswitch as [rm' Hswitch].
-      exists (mkState s (los, nts) ps 
+      exists (mkState
               ((mkEC f (block_intro l' ps' cs' tmn') cs' tmn' lc' rm' als)
-              ::ecs) gl fs M Mmap0).
+              ::ecs) M Mmap0).
       exists trace_nil. eauto.
 
   Case "cs<>nil".
@@ -2849,9 +2794,6 @@ Proof.
     left.
     exists 
          {|
-         CurSystem := s;
-         CurTargetData := (los, nts);
-         CurProducts := ps;
          ECS :=(mkEC (fdef_intro (fheader_intro fa rt fid la va) lb) 
                        (block_intro l' ps' cs' tmn') cs' tmn' lc' rm'
                        nil)::
@@ -2864,8 +2806,6 @@ Proof.
                 Locals := lc;
                 Rmap := rm;
                 Allocas := als |} :: ecs;
-         Globals := gl;
-         FunTable := fs;
          Mem := M;
          Mmap := Mmap0 |}.
     exists trace_nil.
