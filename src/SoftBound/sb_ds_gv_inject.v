@@ -8,6 +8,7 @@ Require Import ssa_def.
 Require Import ssa_lib.
 Require Import trace.
 Require Import Memory.
+Require Import targetdata.
 Require Import genericvalues.
 Require Import alist.
 Require Import Integers.
@@ -19,6 +20,10 @@ Require Import Znumtheory.
 Require Import ssa_static.
 Require Import ssa_props.
 Require Import sb_msim.
+
+Import LLVMlib.
+Import LLVMgv.
+Import LLVMtd.
 
 Inductive gv_inject (mi: meminj) : GenericValue -> GenericValue -> Prop :=
 | gv_inject_nil : gv_inject mi nil nil

@@ -4,6 +4,7 @@
 embed
 {{coq
 
+Require Import Metatheory.
 Require Import ssa_def.
 Require Import ssa_lib.
 Require Import ListSet.
@@ -11,8 +12,8 @@ Require Import ssa_analysis.
 Require Import targetdata.
 
 Module LLVMwf.
-Export LLVMsyntax.
-Export LLVMlib.
+Import LLVMsyntax.
+Import LLVMlib.
 
 }}
 
@@ -79,7 +80,7 @@ Jfeasible_typ :: '' ::=
       defn
       targetdata |- typ :: :: feasible_typ :: '' {{ com [[typ]] is well-formed }} by  
 
-      {{ Constant.feasible_typ [[targetdata]] [[:user_syntax__typ:typ]] }}
+      {{ LLVMtd.feasible_typ [[targetdata]] [[:user_syntax__typ:typ]] }}
       -------------------------------------------------------------------------------- :: feasible_typ_intro
       targetdata |- typ
 
@@ -1002,6 +1003,23 @@ Jwf_system :: '' ::=
      
 embed
 {{coq
+
+Tactic Notation "wfconst_cases" tactic(first) tactic(c) :=
+  first;
+  [ c "wfconst_zero" | c "wfconst_int" | c "wfconst_floatingpoint" |
+    c "wfconst_undef" | c "wfconst_null" | c "wfconst_array" |
+    c "wfconst_struct" | c "wfconst_gid" | c "wfconst_trunc_int" |
+    c "wfconst_trunc_fp" | c "wfconst_zext" | c "wfconst_sext" |
+    c "wfconst_fpext" | c "wfconst_ptrtoint" | c "wfconst_inttoptr" |
+    c "wfconst_bitcast" | c "wfconst_gep" | c "wfconst_select" |
+    c "wfconst_icmp" | c "wfconst_fcmp" | c "wfconst_extractvalue" | 
+    c "wfconst_insertvalue" | c "wfconst_bop" | c "wfconst_fbop" | 
+    c "wfconst_nil" | c "wfconst_cons" ].
+
+Scheme wf_const_ind2 := Induction for wf_const Sort Prop
+  with wf_const_list_ind2 := Induction for wf_const_list Sort Prop.
+
+Combined Scheme wf_const_mutind from wf_const_ind2, wf_const_list_ind2.
 
 End LLVMwf.
 

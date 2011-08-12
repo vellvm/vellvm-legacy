@@ -4,6 +4,7 @@ Add LoadPath "../ssa".
 Add LoadPath "../ssa/compcert".
 Add LoadPath "../../../theory/metatheory_8.3".
 Require Import ssa_def.
+Require Import targetdata.
 Require Import List.
 Require Import Arith.
 Require Import ZArith.
@@ -15,6 +16,7 @@ Require Import monad.
 Require Import opsem.
 
 Export SBSE.
+Import LLVMtd.
 
 (* Syntactical equivalence *)
 Definition eq_value (v v':value) := sumbool2bool _ _ (value_dec v v').

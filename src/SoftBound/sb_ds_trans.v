@@ -20,8 +20,9 @@ Require Import sb_def.
 
 Module SB_ds_pass.
 
-Export LLVMsyntax.
-Export LLVMgv.
+Import LLVMsyntax.
+Import LLVMlib.
+Import LLVMgv.
 Export SBspecAux.
 
 (********************************************)

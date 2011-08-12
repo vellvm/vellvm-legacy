@@ -6,6 +6,7 @@ Add LoadPath "../../../theory/metatheory_8.3".
 Add LoadPath "../TV".
 Require Import ssa_def.
 Require Import ssa_lib.
+Require Import ssa_static.
 Require Import trace.
 Require Import Memory.
 Require Import genericvalues.
@@ -16,6 +17,7 @@ Require Import Coqlib.
 Require Import monad.
 Require Import Metatheory.
 Require Import Znumtheory.
+Require Import targetdata.
 Require Import opsem.
 Require Import dopsem.
 Require Import sb_def.
@@ -32,6 +34,11 @@ Ltac zauto := auto with zarith.
 Ltac zeauto := eauto with zarith.
 
 
+Import LLVMsyntax.
+Import LLVMlib.
+Import LLVMgv.
+Import LLVMtd.
+Import LLVMwf.
 Import SB_ds_pass.
 
 (* Freshness *)

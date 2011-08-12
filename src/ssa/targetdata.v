@@ -5,6 +5,7 @@ Add LoadPath "../../../theory/metatheory_8.3".
 Require Import Zpower.
 Require Import Zdiv.
 Require Import List.
+Require Import Metatheory.
 Require Import ssa_def.
 Require Import Coqlib.
 Require Import alist.
@@ -628,6 +629,209 @@ match t with
 | typ_struct lt => _getStructElementContainingOffset TD lt offset 0 0
 | _ => None
 end.
+
+Definition feasible_typ_aux TD t : Prop :=
+ match LLVMtd.getTypeSizeInBits_and_Alignment TD true t with
+ | None => False
+ | Some (sz, al) => (al > 0)%nat
+ end.
+
+Fixpoint feasible_typ TD t : Prop :=
+match t with
+| typ_int _ | typ_pointer _ | typ_floatpoint fp_float 
+| typ_floatpoint fp_double => feasible_typ_aux TD t
+| typ_array _ t' => feasible_typ TD t'
+| typ_struct ts => feasible_typs TD ts
+| _ => False
+end
+with feasible_typs (TD:LLVMtd.TargetData) (lt:list_typ) : Prop :=
+match lt with
+| Nil_list_typ => True
+| Cons_list_typ t lt' => feasible_typ TD t /\ feasible_typs TD lt'
+end.
+
+Lemma RoundUpAlignment_spec : 
+  forall a b, (b > 0)%nat -> (RoundUpAlignment a b >= a)%nat.
+Proof.
+  intros. unfold RoundUpAlignment.
+  assert ((Z_of_nat a + Z_of_nat b) / Z_of_nat b * Z_of_nat b >= Z_of_nat a)%Z
+    as J.
+    apply Coqlib.roundup_is_correct.
+      destruct b; try solve [contradict H; omega | apply Coqlib.Z_of_S_gt_O].
+  apply nat_of_Z_inj_ge in J.  
+  rewrite Coqlib.Z_of_nat_eq in J. auto.
+Qed.
+
+Lemma getTypeAllocSize_inv : forall TD typ5 sz,
+  getTypeAllocSize TD typ5 = Some sz ->
+  exists sz0, exists al0, getABITypeAlignment TD typ5 = Some al0 /\
+    getTypeSizeInBits_and_Alignment TD true typ5 = Some (sz0, al0) /\
+    sz = RoundUpAlignment (Coqlib.nat_of_Z (Coqlib.ZRdiv (Z_of_nat sz0) 8)) al0.
+Proof.
+  intros.
+  unfold getTypeAllocSize in H.
+  unfold getTypeStoreSize in H.
+  unfold getTypeSizeInBits in H.
+  unfold getABITypeAlignment in *.
+  unfold getAlignment in *.
+  remember (getTypeSizeInBits_and_Alignment TD true typ5) as R.
+  destruct R as [[sz1 al1]|]; inv H.
+  eauto.
+Qed.
+
+Lemma getTypeAllocSize_inv' : forall los nts typ5 sz sz2 al2,
+  getTypeAllocSize (los,nts) typ5 = Some sz ->
+  _getTypeSizeInBits_and_Alignment los
+         (_getTypeSizeInBits_and_Alignment_for_namedts los (rev nts) true)
+         true typ5 = Some (sz2, al2) ->
+  sz = RoundUpAlignment (Coqlib.nat_of_Z (Coqlib.ZRdiv (Z_of_nat sz2) 8)) al2.
+Proof.
+  intros.
+  apply getTypeAllocSize_inv in H.
+  destruct H as [sz1 [al1 [J1 [J2 J3]]]].
+  unfold getTypeSizeInBits_and_Alignment in J2.
+  unfold getTypeSizeInBits_and_Alignment_for_namedts in J2.
+  rewrite J2 in H0. inv H0. auto.
+Qed.
+
+Lemma feasible_array_typ_inv : forall TD s t,
+  feasible_typ TD (typ_array s t) -> feasible_typ TD t.
+Proof.
+  intros.
+  simpl in *.
+  unfold getTypeSizeInBits_and_Alignment in *.
+  destruct TD.
+  destruct (_getTypeSizeInBits_and_Alignment l0
+           (_getTypeSizeInBits_and_Alignment_for_namedts l0 (rev n) true)
+           true t) as [[]|]; eauto.
+Qed.
+
+Lemma feasible_struct_typ_inv : forall TD ts,
+  feasible_typ TD (typ_struct ts) -> feasible_typs TD ts.
+Proof.
+  intros.
+  unfold feasible_typ in H.
+  unfold feasible_typs. 
+  unfold getTypeSizeInBits_and_Alignment in *.
+  destruct TD.
+  simpl in *.
+  destruct (_getListTypeSizeInBits_and_Alignment l0
+           (_getTypeSizeInBits_and_Alignment_for_namedts l0 (rev n) true)
+           ts) as [[]|]; eauto.
+Qed.
+
+Definition feasible_typ_inv_prop' (t:typ) := forall TD,
+  feasible_typ TD t -> 
+  exists sz, exists al,
+    getTypeSizeInBits_and_Alignment TD true t = Some (sz, al) /\ (al > 0)%nat.
+
+Definition feasible_typs_inv_prop' (lt:list_typ) := forall TD,
+  feasible_typs TD lt -> 
+  (forall t, In t (unmake_list_typ lt) -> feasible_typ TD t) /\
+  exists sz, exists al,
+    getListTypeSizeInBits_and_Alignment TD true lt = Some (sz,al) /\
+    ((sz > 0)%nat -> (al > 0)%nat).
+
+Lemma feasible_typ_inv_mutrec' :
+  (forall t, feasible_typ_inv_prop' t) *
+  (forall lt, feasible_typs_inv_prop' lt).
+Proof.
+  (typ_cases (apply typ_mutrec; 
+    unfold feasible_typ_inv_prop', feasible_typs_inv_prop') Case);
+    intros;
+    unfold getTypeSizeInBits_and_Alignment in *; 
+    simpl in *; try (destruct TD); 
+    try solve [eauto | inversion H | inversion H1].
+Case "typ_floatingpoint".
+  destruct f; try solve [inv H].
+    exists 32%nat. exists (getFloatAlignmentInfo l0 32 true).
+    split; auto. 
+
+    exists 64%nat. exists (getFloatAlignmentInfo l0 64 true).
+    split; auto.
+Case "typ_array".
+  eapply H in H0; eauto.
+  destruct H0 as [sz [al [J1 J2]]].
+  rewrite J1. 
+  destruct s.
+    exists 8%nat. exists 1%nat. split; auto.
+
+    exists (RoundUpAlignment
+               (Coqlib.nat_of_Z (Coqlib.ZRdiv (Z_of_nat sz) 8)) al * 8 *
+             Size.to_nat (S s))%nat.
+    exists al. split; auto.
+Case "typ_struct".
+  eapply H in H0; eauto.
+  destruct H0 as [J0 [sz [al [J1 J2]]]].
+  unfold getListTypeSizeInBits_and_Alignment in J1.
+  rewrite J1. 
+  destruct sz.
+    exists 8%nat. exists 1%nat. split; auto.
+    exists (S sz0). exists al. split; auto. apply J2. omega.
+
+Case "typ_nil".
+  split.
+    intros. inversion H0.
+    simpl. exists 0%nat. exists 0%nat. split; auto.
+
+Case "typ_cons".
+  destruct H1 as [J1 J2]. 
+  eapply H0 in J2; eauto.
+  destruct J2 as [J21 [sz2 [al2 [J22 J23]]]].
+  split.
+    intros. 
+    destruct H1 as [H1 | H1]; subst; auto.
+      
+    simpl.
+    unfold getListTypeSizeInBits_and_Alignment in J22.
+    unfold getTypeSizeInBits_and_Alignment_for_namedts in J22.
+    rewrite J22.
+    eapply H in J1; eauto.
+    destruct J1 as [sz1 [al1 [J11 J12]]].
+    unfold getTypeSizeInBits_and_Alignment_for_namedts in J11.
+    rewrite J11.
+    destruct (le_lt_dec al1 al2); eauto.
+      exists (sz2 +
+             RoundUpAlignment
+               (Coqlib.nat_of_Z (Coqlib.ZRdiv (Z_of_nat sz1) 8)) al1 * 8)%nat.
+      exists al2.
+      split; auto.
+        intros. clear - J12 l2. omega.
+Qed.
+
+Lemma feasible_typ_inv' : forall t TD,
+  feasible_typ TD t -> 
+  exists sz, exists al,
+    getTypeSizeInBits_and_Alignment TD true t = Some (sz, al) /\ (al > 0)%nat.
+Proof.
+  destruct feasible_typ_inv_mutrec'; auto.
+Qed.
+
+Lemma getTypeAllocSize_roundup : forall los nts sz2 al2 t
+  (H31 : feasible_typ (los, nts) t)
+  (J6 : _getTypeSizeInBits_and_Alignment los
+         (_getTypeSizeInBits_and_Alignment_for_namedts los (rev nts) true)
+         true t = Some (sz2, al2))
+  (s0 : sz) (HeqR3 : Some s0 = getTypeAllocSize (los, nts) t),
+  ((Coqlib.nat_of_Z (Coqlib.ZRdiv (Z_of_nat sz2) 8)) +
+    (s0 - (Coqlib.nat_of_Z (Coqlib.ZRdiv (Z_of_nat sz2) 8))))%nat = s0.
+Proof.
+  intros.
+  unfold getTypeAllocSize, getABITypeAlignment, getAlignment, getTypeStoreSize,
+    getTypeSizeInBits, getTypeSizeInBits_and_Alignment,
+    getTypeSizeInBits_and_Alignment_for_namedts in HeqR3.
+  rewrite J6 in HeqR3.
+  inv HeqR3.
+  assert (RoundUpAlignment (Coqlib.nat_of_Z (Coqlib.ZRdiv (Z_of_nat sz2) 8)) 
+      al2 >= (Coqlib.nat_of_Z (Coqlib.ZRdiv (Z_of_nat sz2) 8)))%nat as J8.
+    apply RoundUpAlignment_spec.
+      eapply feasible_typ_inv' in H31; eauto.
+      destruct H31 as [sz0 [al0 [J13 J14]]].
+      unfold getTypeSizeInBits_and_Alignment,
+             getTypeSizeInBits_and_Alignment_for_namedts in J13.
+      rewrite J6 in J13. inv J13. auto.
+  rewrite <- le_plus_minus; auto.
+Qed.
 
 End LLVMtd.
 

@@ -8,14 +8,12 @@ Require Import Coq.Program.Equality.
 Require Import CoqListFacts.
 Require Import Metatheory.
 Require Import alist.
-Require Import genericvalues.
 Require Import Coqlib.
 Require Import Kildall.
 Require Import Maps.
 
-Export LLVMsyntax.
-Export LLVMlib.
-Export LLVMgv.
+Import LLVMsyntax.
+Import LLVMlib.
 
 (* eq is refl *)
 
@@ -409,26 +407,6 @@ Proof.
       destruct (In_dec eq_atom_dec l0 (getBlocksLabels lb)) as [J | J].
         contradict H; auto.
         apply IHlb in J; auto.
-Qed.
-
-Lemma inc__getLabel2Block_blocks : forall a bs 
-  (Hinc : incl [a] (bound_blocks bs)),
-  exists b : block, lookupAL block (genLabel2Block_blocks bs) a = Some b.
-Proof. 
-  intros.
-  induction bs; simpl in *; auto.
-    assert (J:=@Hinc a). simpl in J. destruct J; auto.
-    destruct a0; simpl in *.
-    destruct (a==l0); subst.
-      exists (block_intro l0 p c t). auto.
-
-      apply IHbs. intros x J.
-      assert (x=a) as EQ.
-        simpl in J. destruct J; auto. inversion H.
-      subst.      
-      apply Hinc in J. simpl in J.
-      destruct J as [J | J]; subst; auto.
-      contradict n; auto.
 Qed.
 
 Lemma getBlockLabel_in_genLabel2Block_block : forall B,
@@ -1562,65 +1540,6 @@ Proof.
   auto.
 Qed.  
 
-Lemma initLocals_spec : forall TD la gvs id1 lc,
-  In id1 (getArgsIDs la) ->
-  initLocals TD la gvs = Some lc ->
-  exists gv, lookupAL _ lc id1 = Some gv.
-Proof.
-  unfold initLocals.
-  induction la; intros; simpl in *.
-    inversion H.
-
-    destruct a as [[t c] id0].  
-    simpl in H.
-    destruct H as [H | H]; subst; simpl.
-      destruct gvs. 
-        remember (_initializeFrameValues TD la nil nil) as R1.
-        destruct R1; tinv H0.
-        remember (gundef TD t) as R2.
-        destruct R2; inv H0.
-        exists (? g0 # t ?). apply lookupAL_updateAddAL_eq; auto.      
-
-        remember (_initializeFrameValues TD la gvs nil) as R1.
-        destruct R1; tinv H0.
-        remember (fit_gv TD t g) as R2.
-        destruct R2; inv H0.
-        exists (? g1 # t ?). apply lookupAL_updateAddAL_eq; auto.      
-
-      destruct (eq_atom_dec id0 id1); subst.
-        destruct gvs.
-          remember (_initializeFrameValues TD la nil nil) as R1.
-          destruct R1; tinv H0.
-          remember (gundef TD t) as R2.
-          destruct R2; inv H0.
-          exists (? g0 # t ?). apply lookupAL_updateAddAL_eq; auto.      
-
-          remember (_initializeFrameValues TD la gvs nil) as R1.
-          destruct R1; tinv H0.
-          remember (fit_gv TD t g) as R2.
-          destruct R2; inv H0.
-          exists (? g1 # t ?). apply lookupAL_updateAddAL_eq; auto.      
-
-        destruct gvs.
-          remember (_initializeFrameValues TD la nil nil) as R1.
-          destruct R1; tinv H0.
-          remember (gundef TD t) as R2.
-          destruct R2; inv H0.
-          symmetry in HeqR1.
-          eapply IHla in HeqR1; eauto.
-          destruct HeqR1 as [gv HeqR1]. 
-          exists gv. rewrite <- lookupAL_updateAddAL_neq; auto.
-
-          remember (_initializeFrameValues TD la gvs nil) as R1.
-          destruct R1; tinv H0.
-          symmetry in HeqR1.
-          eapply IHla in HeqR1; eauto.
-          destruct HeqR1 as [gv HeqR1]. 
-          remember (fit_gv TD t g) as R2.
-          destruct R2; inv H0.
-          exists gv. rewrite <- lookupAL_updateAddAL_neq; auto.
-Qed.
-
 Lemma InBlocksB__lookupAL_genLabel2Block_blocks : forall lb1 l' ps' cs' tmn',
   uniqBlocks lb1 ->
   InBlocksB (block_intro l' ps' cs' tmn') lb1 ->
@@ -1732,133 +1651,6 @@ Proof.
     
       eapply IHvls in H; eauto.
 Qed.      
-
-Lemma successors_terminator__successors_blocks : forall
-  (bs : blocks)
-  (l0 : l)
-  (cs : phinodes)
-  (ps : cmds)
-  (tmn : terminator)
-  (l1 : l)
-  (HuniqF : uniqBlocks bs)
-  (HbInF : InBlocksB (block_intro l0 cs ps tmn) bs)
-  (Hin : In l1 (successors_terminator tmn)),
-  successors_terminator tmn = (successors_blocks bs) !!! l0.
-Proof.
-  intros.
-  induction bs.
-    inversion HbInF.
-  
-    assert (J:=HuniqF).
-    simpl_env in J.
-    apply uniqBlocks_inv in J.
-    destruct J as [J1 J2]. 
-    simpl in *.
-    apply orb_prop in HbInF.
-    destruct a.
-    destruct HbInF as [HbInF | HbInF].
-      unfold blockEqB in HbInF.
-      apply sumbool2bool_true in HbInF. inv HbInF.
-      unfold successors_list.
-      rewrite ATree.gss. auto.
-  
-      apply IHbs in J2; auto.
-      unfold successors_list in *.
-      destruct HuniqF as [J _].
-      inv J.
-      rewrite ATree.gso; auto.
-        clear - HbInF H1. 
-        eapply InBlocksB__NotIn; eauto.
-Qed.
-
-Lemma successors_predOfBlock : forall f l1 ps1 cs1 tmn1 l0 ps0 cs0 tmn0,
-  uniqFdef f ->
-  blockInFdefB (block_intro l1 ps1 cs1 tmn1) f = true ->
-  In l0 (successors_terminator tmn1) ->
-  In l1 (predOfBlock (block_intro l0 ps0 cs0 tmn0) (genBlockUseDef_fdef f)).
-Proof.
-  unfold predOfBlock.
-  destruct f. destruct f. intros.
-  destruct H as [H _].
-  generalize dependent l1.
-  generalize dependent ps1.
-  generalize dependent cs1.
-  generalize dependent tmn1.
-  generalize dependent l0.
-  generalize dependent ps0.
-  generalize dependent cs0.
-  generalize dependent tmn0.
-  induction b; intros; simpl in *.
-    inversion H0.
-
-    assert (G:=H). simpl_env in G.
-    apply uniqBlocks_inv in G.
-    destruct G as [G1 G2].
-    destruct a0. simpl.
-    apply orb_prop in H0.
-    destruct H0 as [H0 | H0].
-      apply blockEqB_inv in H0.
-      inv H0.
-      destruct t0; auto.
-        apply IHb with (ps1:=p)(cs1:=c)(tmn1:=insn_return i0 t0 v0); auto.
-        apply IHb with (ps1:=p)(cs1:=c)(tmn1:=insn_return_void i0); auto.
-
-        simpl in H1.
-        destruct H1 as [H1 | [H1 | H1]]; subst.
-          assert (J:=@lookupAL_update_udb_eq (update_udb nil l2 l3) l2 l0).
-          destruct J as [ls0 [J1 J2]].
-          apply lookupAL_genBlockUseDef_blocks_spec with (bs:=b) in J1; auto.
-          destruct J1 as [ls1 [J1 J3]].
-          rewrite J1. apply J3; auto.
-
-          assert (J:=@lookupAL_update_udb_eq nil l2 l0).
-          destruct J as [ls0 [J J0]].
-          apply lookupAL_update_udb_spec with (l1:=l2)(l2:=l1) in J; auto.
-          destruct J as [ls1 [J J1]].
-          apply lookupAL_genBlockUseDef_blocks_spec with (bs:=b) in J; auto.
-          destruct J as [ls2 [J J2]].
-          rewrite J. apply J2. apply J1. auto.
-
-          inversion H1.
-        simpl in H1.
-        destruct H1 as [H1 | H1]; subst.
-          assert (J:=@lookupAL_update_udb_eq nil l2 l0).
-          destruct J as [ls0 [J J0]].
-          apply lookupAL_genBlockUseDef_blocks_spec with (bs:=b) in J; auto.
-          destruct J as [ls2 [J J2]].
-          rewrite J. apply J2. auto.
-
-          inversion H1.
-
-        apply IHb with (ps1:=p)(cs1:=c)(tmn1:=insn_unreachable i0); auto.
-
-      eapply IHb in H1; eauto.
-        remember (lookupAL (list l) (genBlockUseDef_blocks b nil) l0) as R.
-        destruct R; try solve [inversion H1].
-        destruct H as [J1 J2].
-        simpl in J1.
-        inv J1.
-        apply InBlocksB_In in H0.
-        destruct (eq_atom_dec l1 l2); subst.
-          contradict H0; auto.
-
-          clear - HeqR H1.
-          simpl.
-          assert (usedef_block_inc nil 
-            (match t0 with
-             | insn_return _ _ _ => nil
-             | insn_return_void _ => nil
-             | insn_br _ _ l4 l5 => update_udb (update_udb nil l2 l5) l2 l4
-             | insn_br_uncond _ l4 => update_udb nil l2 l4
-             | insn_unreachable _ => nil
-             end)) as J.
-            intros x A J. inversion J.
-          apply genBlockUseDef_blocks_inc with (bs:=b) in J.
-          symmetry in HeqR.
-          apply J in HeqR.
-          destruct HeqR as [l4 [J1 J2]].
-          rewrite J1. apply J2 in H1; auto.
-Qed.
 
 Lemma in_app_list_value_right : forall l1 v l2,
   In v (unmake_list_value l2) ->
@@ -2399,6 +2191,93 @@ Proof.
   apply NoDup_inv in J.
   destruct J as [J _]. auto.
 Qed.
+
+Lemma NoDup_lookupTypViaIDFromPhiNodes : forall ps1 i0 t0 l0 ps2,
+  NoDup (getPhiNodesIDs (ps1 ++ insn_phi i0 t0 l0 :: ps2)) ->
+  lookupTypViaIDFromPhiNodes (ps1 ++ insn_phi i0 t0 l0 :: ps2) i0 = Some t0.
+Proof.
+  induction ps1; simpl; unfold lookupTypViaIDFromPhiNode; simpl; intros.
+    destruct (i0 == i0); auto.
+      contradict n; auto.
+
+    destruct a.
+    inv H. simpl.
+    destruct (i0 == i1); subst; auto.
+      rewrite getPhiNodesIDs_app in H2. simpl in H2.
+      contradict H2.
+      apply in_or_app. simpl. auto.
+Qed.
+
+Lemma in_middle : forall A (c:A) cs1 cs2, In c (cs1 ++ c :: cs2).
+Proof.
+  intros.
+  apply in_app_iff; simpl; auto.
+Qed.
+
+Lemma uniqBlocksLocs__uniqBlockLocs : forall bs b,
+  NoDup (getBlocksLocs bs) ->
+  InBlocksB b bs = true ->
+  NoDup (getBlockLocs b).
+Proof.
+  induction bs; intros.
+     inv H0.
+
+     simpl in *.
+     apply orb_prop in H0.
+     apply NoDup_inv in H.
+     destruct H.
+     destruct H0 as [H0 | H0]; subst; auto.
+       apply blockEqB_inv in H0; subst; auto.
+Qed.
+
+Require Import targetdata.
+Ltac tinv H := try solve [inv H].
+
+Lemma mgetoffset_aux__getSubTypFromConstIdxs : forall TD const_list idxs o t' 
+    t1 o0
+  (HeqR1 : Some idxs = intConsts2Nats TD const_list)
+  (HeqR2 : Some (o, t') = mgetoffset_aux TD t1 idxs o0),
+  getSubTypFromConstIdxs const_list t1 = Some t'.
+Proof.
+  induction const_list; simpl; intros.
+    inv HeqR1. simpl in HeqR2. inv HeqR2. auto.
+
+    destruct c; tinv HeqR1.
+    destruct (Size.dec s Size.ThirtyTwo); tinv HeqR1.
+    remember (intConsts2Nats TD const_list) as R3.
+    destruct R3; inv HeqR1.
+    destruct t1; tinv HeqR2.
+      simpl in HeqR2.
+      destruct (LLVMtd.getTypeAllocSize TD t1); inv HeqR2; eauto.
+      simpl in HeqR2.
+      destruct (LLVMtd._getStructElementOffset TD l1 (Coqlib.nat_of_Z 
+        (INTEGER.to_Z i0)) 0); inv HeqR2; eauto.
+      unfold INTEGER.to_Z in H0. unfold INTEGER.to_nat.
+      destruct (nth_list_typ (Coqlib.nat_of_Z i0) l1); tinv H0.
+      simpl in H0. eauto.
+Qed.
+
+Lemma mgetoffset__getSubTypFromConstIdxs : forall TD const_list idxs o t' t1
+  (HeqR1 : Some idxs = intConsts2Nats TD const_list)
+  (HeqR2 : Some (o, t') = mgetoffset TD t1 idxs),
+  getSubTypFromConstIdxs const_list t1 = Some t'.
+Proof.
+  unfold mgetoffset. intros.
+  eapply mgetoffset_aux__getSubTypFromConstIdxs; eauto.
+Qed.
+
+Lemma lookupBlockViaLabelFromFdef_prop : forall l1 p c t f l3 
+  (Huniq: uniqFdef f),
+  Some (block_intro l1 p c t) = lookupBlockViaLabelFromFdef f l3 ->
+  Some (block_intro l1 p c t) = lookupBlockViaLabelFromFdef f l1.
+Proof.
+  intros.
+  assert (J:=H).
+  symmetry in H.
+  eapply lookupBlockViaLabelFromFdef_inv in H; eauto.
+  destruct H; subst. auto.
+Qed.
+
 
 (*****************************)
 (*

@@ -58,13 +58,15 @@ Ltac bsplit :=
   eapply andb_true_iff; split.
 
 Ltac repeat_bsplit :=
-  repeat (bsplit; auto using eq_sumbool2bool_true).
+  repeat (bsplit; auto using LLVMlib.eq_sumbool2bool_true).
 
 Ltac zeauto := eauto with zarith.
 
 Module SBspecMetadata (GVsSig : GenericValuesSig).
 
 Module Export SBSEM := SBspec GVsSig.
+Import LLVMlib.
+Import LLVMwf.
 
 (*****************************************)
 (* misc *)

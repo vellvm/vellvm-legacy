@@ -36,6 +36,7 @@ Module Sem := Opsem GVsSig.
 Module SemP := OpsemProps GVsSig.
 Export Sem.
 Export SemP.
+Import LLVMwf.
 Import AtomSet.
 
 Inductive wf_GVs : TargetData -> GVs -> typ -> Prop :=
@@ -148,7 +149,7 @@ Qed.
 Lemma const2GV__getTypeSizeInBits : forall S TD c t gl gvs gv,
   wf_typ S t ->
   wf_const S TD c t ->
-  Constant.feasible_typ TD t ->
+  feasible_typ TD t ->
   const2GV TD gl c = Some gvs ->
   gv @ gvs ->
   wf_global TD S gl ->
@@ -195,10 +196,9 @@ Proof.
   assert (J:=Hget).
   eapply getOperandValue__inhabited in J; eauto.
   inv Hwfv;  simpl in Hget.
-    inv H7.
-    assert (H' := H).
-    eapply feasible_typ_inv in H; eauto.
-    destruct H as [sz [al [J1 J2]]].
+    assert (H7':=H7).
+    eapply feasible_typ_inv in H7; eauto.
+    destruct H7 as [sz [al [J1 J2]]].
     eapply wf_GVs_intro with (sz:=sz); 
       eauto using GVsSig.cgv2gvs__getTypeSizeInBits.
       unfold getTypeSizeInBits, getTypeSizeInBits_and_Alignment, 
@@ -755,7 +755,7 @@ Qed.
 
 Lemma gundef_cgv2gvs__wf_gvs : forall los nts gv s t
   (Hwft : wf_typ s t)
-  (H0 : Constant.feasible_typ (los, nts) t)
+  (H0 : feasible_typ (los, nts) t)
   (HeqR : ret gv = gundef (los, nts) t),
   wf_GVs (los, nts) ($ gv # t $) t.
 Proof.
@@ -772,7 +772,7 @@ Qed.
 
 Lemma fit_gv_gv2gvs__wf_gvs_aux : forall los nts gv s t gv0
   (Hwft : wf_typ s t)
-  (H0 : Constant.feasible_typ (los, nts) t)
+  (H0 : feasible_typ (los, nts) t)
   (HeqR : ret gv = fit_gv (los, nts) t gv0),
   wf_GVs (los, nts) ($ gv # t $) t.
 Proof.
@@ -793,7 +793,7 @@ Qed.
 
 Lemma lift_fit_gv__wf_gvs : forall los nts g s t t0 gv
   (Hwft : wf_typ s t) (Hwfg : wf_GVs (los, nts) g t0)
-  (H0 : Constant.feasible_typ (los, nts) t)
+  (H0 : feasible_typ (los, nts) t)
   (HeqR : GVsSig.lift_op1 (fit_gv (los, nts) t) g t = Some gv),
   wf_GVs (los, nts) gv t.
 Proof.
@@ -1080,9 +1080,8 @@ Proof.
   destruct R2; inv Hfbop.
   assert (J:=Hwfv1). apply wf_value__wf_typ in J. destruct J as [Hwft Hft].
   assert (Hft':=Hft).
-  inv Hft'.
-  eapply feasible_typ_inv in H; eauto.
-  destruct H as [sz [al [H1 H2]]].
+  eapply feasible_typ_inv in Hft; eauto.
+  destruct Hft as [sz [al [H1 H2]]].
   eapply wf_GVs_intro with (sz:=sz); eauto.
     unfold getTypeSizeInBits. rewrite H1. auto.
 
@@ -1341,6 +1340,7 @@ Proof.
       eapply mtrunc_typsize in J2'; eauto.
       destruct J2' as [sz' [al' [J2' J4']]].
       unfold getTypeSizeInBits_and_Alignment in J2.
+      unfold layouts, namedts in J2.
       rewrite J2 in J2'. inv J2'. auto.
 
     eapply GVsSig.lift_op1__inhabited in H0; eauto.
@@ -1379,6 +1379,7 @@ Proof.
       eapply mext_typsize in J2'; eauto.
       destruct J2' as [sz' [al' [J2' J4']]].
       unfold getTypeSizeInBits_and_Alignment in J2.
+      unfold layouts, namedts in J2.
       rewrite J2 in J2'. inv J2'. auto.
 
     eapply GVsSig.lift_op1__inhabited in H0; eauto.
@@ -1445,6 +1446,7 @@ Proof.
         symmetry in H2.
         eapply gundef__getTypeSizeInBits in H2; eauto.
         destruct H2 as [sz2 [al2 [J7' J8']]].
+        unfold layouts, namedts in J2.
         rewrite J2 in J7'. inv J7'. auto.
 
     eapply GVsSig.lift_op2__inhabited in H6; eauto.
@@ -1485,6 +1487,7 @@ Proof.
       destruct R4 as [gv'|]; inv J5.
         eapply mget_typsize in HeqR4; eauto.
           destruct HeqR4 as [sz1 [al1 [J7 J8]]].
+          unfold layouts, namedts in J2.
           rewrite J2 in J7. inv J7. auto.
 
         symmetry in H4.

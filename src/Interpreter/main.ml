@@ -1,7 +1,6 @@
 open Opsem
 open Dopsem
 open Ssa_interpreter
-open Ssa_dynamic
 open Printf
 open Llvm
 open Llvm_executionengine

@@ -18,14 +18,17 @@ Require Import Integers.
 Require Import Coqlib.
 Require Import targetdata.
 Require Import ssa_props.
+Require Import ssa_static.
 Require Import ssa_static_lib.
 
 (************** GVs Interface ******************)
 
 Module Type GenericValuesSig.
 
-Export LLVMsyntax.
-Export LLVMgv.
+Import LLVMsyntax.
+Import LLVMgv.
+Import LLVMtd.
+Import LLVMwf.
 
 Parameter t : Type.
 Definition Map := list (id * t).
@@ -123,10 +126,10 @@ End GenericValuesSig.
 
 Module OpsemAux.
 
-Export LLVMsyntax.
-Export LLVMlib.
-Export LLVMgv.
-Export LLVMtd.
+Import LLVMsyntax.
+Import LLVMlib.
+Import LLVMgv.
+Import LLVMtd.
 
 (**************************************)
 (* To realize it in LLVM, we can try to dynamically cast fptr to Function*, 
@@ -205,22 +208,6 @@ match Ps with
   end
 end.
 
-Definition gep (TD:TargetData) (ty:typ) (vidxs:list GenericValue) (inbounds:bool)
-  (ma:GenericValue) : option GenericValue :=
-LLVMgv.GEP TD ty ma vidxs inbounds.
-
-Definition mget' TD o t' gv: option GenericValue :=
-match mget TD gv o t' with 
-| Some gv' => Some gv'
-| None => gundef TD t'
-end.
-
-Definition mset' TD o t t0 gv gv0 : option GenericValue :=
-match (mset TD gv o t0 gv0) with
-| Some gv' => Some gv'
-| None => gundef TD t
-end.
-
 Lemma lookupFdefViaPtr_inversion : forall Ps fs fptr f,
   lookupFdefViaPtr Ps fs fptr = Some f ->
   exists fn,
@@ -246,35 +233,6 @@ Proof.
   simpl in H. exists i0. 
   destruct (lookupFdefViaIDFromProducts Ps i0); inv H; auto.
 Qed.  
-
-Lemma mset'_is_total : forall S (TD : TargetData) ofs (t1 t2 : typ) 
-  (H0 : feasible_typ TD t1)
-  (w1 : wf_typ S t1),
-  forall x y, exists z : GenericValue, mset' TD ofs t1 t2 x y = ret z.
-Proof.
-  intros.
-  unfold mset'. unfold mset.
-  destruct (getTypeStoreSize TD t2); simpl; eauto using gundef__total'.
-  destruct (n =n= length y); eauto using gundef__total'.
-  destruct (splitGenericValue x ofs); eauto using gundef__total'.
-  destruct p.  
-  destruct (splitGenericValue g0 (Z_of_nat n)); eauto using gundef__total'.
-  destruct p. eauto.
-Qed.
-
-Lemma mget'_is_total : forall S TD ofs t' 
-  (H0 : feasible_typ TD t')
-  (w1 : wf_typ S t'),
-  forall x, exists z, mget' TD ofs t' x = Some z.
-Proof.
-  intros.
-  unfold mget'. unfold mget.
-  destruct (getTypeStoreSize TD t'); simpl; eauto using gundef__total'.
-  destruct (splitGenericValue x ofs); eauto using gundef__total'.
-  destruct p.  
-  destruct (splitGenericValue g0 (Z_of_nat n)); eauto using gundef__total'.
-  destruct p. eauto.
-Qed.
 
 Lemma lookupFdefViaPtr_inv : forall Ps fs fv F,
   lookupFdefViaPtr Ps fs fv = Some F ->

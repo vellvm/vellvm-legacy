@@ -23,6 +23,7 @@ Require Import Maps.
 Require Import Lattice.
 Require Import Iteration.
 Require Import Kildall.
+Require Import ssa_analysis.
 Require Import ssa_static.
 Require Import ssa_static_lib.
 Require Import ssa_props.
@@ -34,6 +35,7 @@ Require Import Znumtheory.
 Module SBspecPP (GVsSig : GenericValuesSig).
 
 Module Export SBSEM := SBspecMetadata GVsSig.
+Import LLVMwf.
 
 (*****************************************)
 (* Definitions *)
@@ -1542,57 +1544,6 @@ Proof.
   destruct t; tinv H1.
   destruct (fit_gv TD t g); inv H1; eauto.
   destruct (isPointerTypB t); eauto.
-Qed.
-
-Definition flatten_typ_total_prop (t:typ) := forall TD,
-  Constant.wf_zeroconst_typ t -> Constant.feasible_typ TD t ->
-  exists gv, flatten_typ TD t = Some gv.
-
-Definition flatten_typs_total_prop (lt:list_typ) := forall TD,
-  Constant.wf_zeroconsts_typ lt -> Constant.feasible_typs TD lt ->
-  exists gvs, flatten_typs TD lt = Some gvs.
-
-Lemma flatten_typ_total_mutrec :
-  (forall t, flatten_typ_total_prop t) *
-  (forall lt,flatten_typs_total_prop lt).
-Proof.
-  apply typ_mutrec; 
-    unfold flatten_typ_total_prop, flatten_typs_total_prop;
-    intros; simpl in *; try solve [eauto | inversion H | inversion H1 ].
-Case "float".
-  destruct f; try solve [eauto | inversion H].
-Case "array".
-  destruct H with (TD:=TD) as [gv Hz2c]; auto.
-  rewrite Hz2c.
-  destruct s; eauto.
-  apply feasible_typ_inv'' in H1. 
-  destruct H1 as [ssz [asz [J1 J2]]].
-  rewrite J2.
-  eauto.
-
-Case "struct".
-  destruct (@H TD) as [gv Hz2c]; auto.
-  rewrite Hz2c. destruct gv; eauto.
-
-Case "cons".
-  destruct H1 as [J1 J2].
-  destruct H2 as [J3 J4].
-  destruct (@H TD) as [gv Hz2c]; auto.
-  destruct (@H0 TD) as [gvs Hz2cs]; auto.
-  rewrite Hz2cs. rewrite Hz2c.
-  apply feasible_typ_inv'' in J3.  
-  destruct J3 as [ssz [asz [J6 J5]]].
-  rewrite J5. eauto.
-Qed.
-
-Lemma flatten_typ_total : forall TD t,
-  Constant.wf_zeroconst_typ t ->
-  Constant.feasible_typ TD t ->
-  exists gv, flatten_typ TD t = Some gv.
-Proof.
-  intros.
-  destruct flatten_typ_total_mutrec as [J _].
-  apply J; auto.
 Qed.
 
 Fixpoint proper_aligned (mcs:list AST.memory_chunk) (ofs:Z) : Prop :=

@@ -4,14 +4,12 @@ Add LoadPath "../ssa".
 Add LoadPath "../ssa/compcert".
 Add LoadPath "../../../theory/metatheory_8.3".
 Add LoadPath "../TV".
-Require Import ssa_def.
-Require Import ssa_lib.
+Require Import Values.
+Require Import vellvm.
 Require Import trace.
 Require Import Memory.
-Require Import genericvalues.
 Require Import alist.
 Require Import Integers.
-Require Import Values.
 Require Import Coqlib.
 Require Import monad.
 Require Import Metatheory.
@@ -21,7 +19,6 @@ Require Import dopsem.
 Require Import sb_def.
 Require Import sb_ds_trans.
 Require Import sb_metadata.
-Require Import ssa_static.
 Require Import ssa_props.
 Import SB_ds_pass.
 Require Import sb_msim.

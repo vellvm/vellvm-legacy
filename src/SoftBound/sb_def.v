@@ -8,6 +8,7 @@ Require Import ssa_def.
 Require Import ssa_lib.
 Require Import trace.
 Require Import Memory.
+Require Import targetdata.
 Require Import genericvalues.
 Require Import alist.
 Require Import Integers.
@@ -21,8 +22,9 @@ Require Import opsem_wf.
 
 Module SBspecAux.
 
-Export LLVMsyntax.
-Export LLVMgv.
+Import LLVMsyntax.
+Import LLVMgv.
+Import LLVMtd.
 
 Record metadata : Type := mkMD {
   md_blk : Values.block; md_bofs : int32; md_eofs : int32

@@ -636,6 +636,42 @@ Proof.
   repeat rewrite nat_of_Z_eq; auto. omega.
 Qed.
 
+Lemma nat_of_Z_inj_ge : forall a b, (a >= b)%Z -> 
+  (nat_of_Z a >= nat_of_Z b)%nat.
+Proof.
+  induction a; destruct b; intros; simpl; 
+    try solve [auto | contradict H; auto | omega].
+  apply nat_compare_le.
+  rewrite <- nat_of_P_compare_morphism.
+
+  assert (p >= p0)%positive as J. auto with zarith.
+  unfold Pge in J.
+  remember ((p ?= p0)%positive Eq) as R.
+  destruct R; try solve [congruence].
+    symmetry in HeqR. apply ZC3 in HeqR. rewrite HeqR. congruence.
+    symmetry in HeqR. apply ZC1 in HeqR. rewrite HeqR. congruence.
+Qed.    
+
+Lemma nat_of_Z_inj_gt : forall a b, (a > b)%Z -> (b >= 0)%Z ->
+  (nat_of_Z a > nat_of_Z b)%nat.
+Proof.
+  induction a; destruct b; intros; simpl; 
+    try solve [auto | contradict H; auto | omega].
+
+  assert (J:=@ZL4 p).
+  destruct J as [h J]. rewrite J. omega.
+
+  apply nat_compare_lt.
+  rewrite <- nat_of_P_compare_morphism.
+  assert (p > p0)%positive as J. auto with zarith.
+  unfold Pgt in J.
+  remember ((p ?= p0)%positive Eq) as R.
+  destruct R; try solve [congruence].
+    symmetry in HeqR. apply ZC1 in HeqR. rewrite HeqR. congruence.
+
+  apply Zgt_compare in H. inversion H.
+Qed.    
+
 Lemma S_eq_nat_of_P_o_P_of_succ_nat :
   forall n, S n = nat_of_P (P_of_succ_nat n).
 Proof.
@@ -876,6 +912,42 @@ Proof.
         contradict A.
         rewrite Z1. rewrite Z2.
         clear Z1 Z2 e. auto with zarith.
+Qed.
+
+Lemma ZRdiv_prop8 : forall (a c:nat), 
+  nat_of_Z (ZRdiv (Z_of_nat (a * 8 * c)) 8) = (a * c)%nat.
+Proof.
+  intros.
+  assert (a * 8 * c = a * c * 8)%nat as J5. 
+    rewrite mult_assoc_reverse.
+    assert (8*c = c*8)%nat as EQ. apply mult_comm; auto.
+    rewrite EQ. rewrite mult_assoc. auto.
+  rewrite J5. clear J5.
+  unfold ZRdiv. rewrite inj_mult. rewrite Z_mod_mult. simpl.
+  rewrite Z_div_mult_full; try solve [auto with zarith].
+  rewrite Z_of_nat_eq; auto.
+Qed.
+
+Lemma ZRdiv_prop9 : forall sz1 R4,
+  nat_of_Z (ZRdiv (Z_of_nat (sz1 + R4 * 8)) 8) =
+    (nat_of_Z (ZRdiv (Z_of_nat sz1) 8) + R4)%nat.
+Proof.
+  intros.
+  unfold ZRdiv. rewrite inj_plus. rewrite inj_mult. simpl.
+  rewrite Z_mod_plus; try solve [omega].
+  rewrite Z_div_plus; try solve [omega].
+  assert (Z_of_nat sz1 / 8 >= 0) as G1. 
+    apply Z_div_ge0; auto using Z_of_nat_ge_0 with zarith.
+  assert (Z_of_nat R4 >= 0) as G2. 
+    apply Z_of_nat_ge_0.
+  destruct (zeq (Z_of_nat sz1 mod 8) 0).
+    rewrite nat_of_Z_plus; auto.
+      rewrite Z_of_nat_eq; auto.
+  
+    rewrite nat_of_Z_plus; try solve [omega].
+    rewrite nat_of_Z_plus; try solve [omega].
+    rewrite nat_of_Z_plus; try solve [omega].
+    rewrite Z_of_nat_eq; try solve [omega].
 Qed.
 
 Lemma zrdiv_zmod_prop1 : forall a1 a2 b,
@@ -1528,3 +1600,11 @@ Qed.
 
 End DECIDABLE_PREDICATE.
 
+
+(*****************************)
+(*
+*** Local Variables: ***
+*** coq-prog-name: "coqtop" ***
+*** coq-prog-args: ("-emacs-U" "-I" "~/SVN/sol/theory/metatheory_8.3") ***
+*** End: ***
+ *)

@@ -10,12 +10,12 @@ all:
 	+make ott 
 #	+make -C ./llvm_op
 
-ott: main.pdf ssa_static.vo ssa_interpreter.vo opsem_inst.vo
+ott: main.pdf ssa_static.vo ssa_interpreter.vo opsem_inst.vo vellvm.vo
 
 alist.vo : alist.v
 	$(COQC) $(COQARG) alist.v
 
-ssa_coq_lib.vo : ssa_coq_lib.v ssa_def.vo alist.vo ssa_analysis.vo targetdata.vo
+ssa_coq_lib.vo : ssa_coq_lib.v ssa_def.vo alist.vo targetdata.vo
 	$(COQC) $(COQARG) ssa_coq_lib.v
 
 ssa_def.vo : ./monads/monad.vo ./compcert/Floats.vo alist.vo \
@@ -34,7 +34,7 @@ m_ssa_static.ott : ssa_static.ott spanlines.py
 	./spanlines.py ssa_static.ott
 
 ssa_lib.v ssa_static.v: ssa_def.ott ssa_coq_lib.vo ssa_coq.ott ssa_lib.ott \
-	m_ssa_static.ott ./monads/monad.vo ssa_analysis.vo targetdata.vo
+	m_ssa_static.ott ./monads/monad.vo targetdata.vo
 	$(OTT) -merge false -coq_expand_list_types true \
             -i ssa_def.ott -o _tmp_ssa_def.v \
 	    -i ssa_coq.ott -i ssa_lib.ott -o ssa_lib.v \
@@ -46,7 +46,7 @@ ssa_lib.v ssa_static.v: ssa_def.ott ssa_coq_lib.vo ssa_coq.ott ssa_lib.ott \
 ssa_lib.vo: ssa_lib.v
 	$(COQC) $(COQARG) ssa_lib.v
 
-ssa_static.vo: ssa_static.v ssa_lib.vo
+ssa_static.vo: ssa_static.v ssa_lib.vo ssa_analysis.vo
 	$(COQC) $(COQARG) ssa_static.v
 
 ssa_wf.vo: ssa_static.vo ssa_props.vo ssa_wf.v
@@ -61,7 +61,8 @@ targetdata.vo: targetdata.v ssa_def.vo
 trace.vo: trace.v
 	$(COQC) $(COQARG) trace.v
 
-ssa_analysis.vo: compcert/Kildall.vo ssa_analysis.v alist.vo compcert/Memory.vo
+ssa_analysis.vo: compcert/Kildall.vo ssa_analysis.v alist.vo compcert/Memory.vo\
+	ssa_lib.vo ssa_props.vo
 	$(COQC) $(COQARG) ssa_analysis.v
 
 genericvalues.vo: ssa_def.vo ssa_lib.vo tactics.vo trace.vo genericvalues.v \
@@ -72,7 +73,7 @@ ssa_interpreter.vo: ssa_interpreter.v ssa_def.vo ssa_lib.vo \
 	tactics.vo trace.vo genericvalues.vo alist.vo ssa_props.vo dopsem.vo
 	$(COQC) $(COQARG) ssa_interpreter.v
 
-ssa_props.vo: ssa_props.v ssa_def.vo ssa_lib.vo genericvalues.vo alist.vo
+ssa_props.vo: ssa_props.v ssa_def.vo ssa_lib.vo alist.vo
 	$(COQC) $(COQARG) ssa_props.v
 
 ssa_static_lib.vo: ssa_static_lib.v ssa_def.vo ssa_lib.vo genericvalues.vo \
@@ -102,6 +103,10 @@ ssa.tex: ssa_def.ott ssa_coq.ott ssa_lib.ott m_ssa_static.ott main.tex
           -tex_show_meta false \
           -tex_wrap false \
             ssa_def.ott ssa_coq.ott ssa_lib.ott m_ssa_static.ott
+
+vellvm.vo : vellvm.v ssa_def.vo ssa_lib.vo ssa_static.vo genericvalues.vo \
+	targetdata.vo
+	$(COQC) $(COQARG) vellvm.v
 
 main.pdf: ssa.tex main.tex macros.sty 
 	pdflatex main.tex

@@ -5,20 +5,25 @@ Add LoadPath "../../../theory/metatheory_8.3".
 Require Import Metatheory.
 Require Import alist.
 Require Import monad.
+Require Import targetdata.
 Require Import genericvalues.
 Require Import Values.
 Require Import Memory.
 Require Import Integers.
 Require Import Coqlib.
 Require Import ssa_def.
+Require Import ssa_static.
+Require Import ssa_static_lib.
 Require Import opsem.
 Require Import opsem_props.
 Require Import opsem_wf.
 
 Module DGVs <: GenericValuesSig.
 
-Export LLVMsyntax.
-Export LLVMgv.
+Import LLVMsyntax.
+Import LLVMgv.
+Import LLVMtd.
+Import LLVMwf.
 
 Definition t := GenericValue.
 Definition Map := list (id * t).
@@ -47,7 +52,7 @@ Lemma cundef_gvs__getTypeSizeInBits : forall S los nts gv ty sz al gv',
 Proof.
   unfold instantiate_gvs. 
   intros. inv H2.
-  eapply LLVMgv.cundef_gv__getTypeSizeInBits; eauto.
+  eapply cundef_gv__getTypeSizeInBits; eauto.
 Qed.
 
 Lemma cundef_gvs__inhabited : forall gv ty, inhabited (cundef_gvs gv ty).
@@ -82,7 +87,7 @@ Lemma cgv2gvs__getTypeSizeInBits : forall S los nts gv t sz al gv',
 Proof.
   unfold instantiate_gvs. 
   intros. inv H2.
-  eapply LLVMgv.cgv2gv__getTypeSizeInBits; eauto.
+  eapply cgv2gv__getTypeSizeInBits; eauto.
 Qed.
 
 Lemma cgv2gvs__inhabited : forall gv t, inhabited (cgv2gvs gv t).

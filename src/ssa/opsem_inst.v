@@ -33,8 +33,10 @@ Require Import dopsem.
 
 Module NDGVs <: GenericValuesSig.
 
-Export LLVMsyntax.
-Export LLVMgv.
+Import LLVMsyntax.
+Import LLVMgv.
+Import LLVMtd.
+Import LLVMwf.
 
 Lemma singleton_inhabited : forall U (x:U), Inhabited U (Singleton U x).
 Proof.
@@ -356,6 +358,7 @@ Module OpsemInstantiation (DGVs NDGVs : GenericValuesSig).
 
 Module Export DOS := OpsemPP DGVs.
 Module Export NDOS := Opsem NDGVs.
+Import LLVMgv.
 
 Section Sec.
 
@@ -1153,9 +1156,9 @@ Lemma instantiate_gvs__lift_op1 : forall f xs1 xs2 t ys1,
 Proof.
   unfold DGVs.lift_op1, NDGVs.lift_op1.
   intros.
-  exists (fun gv2 : GenericValue =>
-          exists gv1 : GenericValue,
-            exists gv2' : GenericValue,
+  exists (fun gv2 : LLVMgv.GenericValue =>
+          exists gv1 : LLVMgv.GenericValue,
+            exists gv2' : LLVMgv.GenericValue,
               NDGVs.instantiate_gvs gv1 xs2 /\
               f gv1 = ret gv2' /\
               NDGVs.instantiate_gvs gv2 (NDGVs.gv2gvs gv2' t)).
@@ -1173,10 +1176,10 @@ Lemma instantiate_gvs__lift_op2 : forall f xs1 ys1 xs2 ys2 t zxs1,
 Proof.
   unfold DGVs.lift_op2, NDGVs.lift_op2.
   intros.
-  exists (fun gv3 : GenericValue =>
-          exists gv1 : GenericValue,
-            exists gv2 : GenericValue,
-              exists gv3' : GenericValue,
+  exists (fun gv3 : LLVMgv.GenericValue =>
+          exists gv1 : LLVMgv.GenericValue,
+            exists gv2 : LLVMgv.GenericValue,
+              exists gv3' : LLVMgv.GenericValue,
                 NDGVs.instantiate_gvs gv1 xs2 /\
                 NDGVs.instantiate_gvs gv2 ys2 /\
                 f gv1 gv2 = ret gv3' /\
