@@ -4,8 +4,8 @@ Add LoadPath "../ssa".
 Add LoadPath "../ssa/compcert".
 Add LoadPath "../../../theory/metatheory_8.3".
 Add LoadPath "../TV".
-Require Import ssa_def.
-Require Import ssa_lib.
+Require Import syntax.
+Require Import infrastructure.
 Require Import trace.
 Require Import Memory.
 Require Import targetdata.
@@ -17,11 +17,11 @@ Require Import Coqlib.
 Require Import monad.
 Require Import Metatheory.
 Require Import Znumtheory.
-Require Import ssa_static.
-Require Import ssa_props.
+Require Import typings.
+Require Import infrastructure_props.
 Require Import sb_msim.
 
-Import LLVMlib.
+Import LLVMinfra.
 Import LLVMgv.
 Import LLVMtd.
 

@@ -1,6 +1,6 @@
 open Printf
-open Ssa_def
-open Ssa_lib
+open Syntax
+open Infrastructure
 open Llvm
 
 (** Coq Pretty Printer *)
@@ -134,22 +134,22 @@ let rec string_of_constant c =
   | LLVMsyntax.Coq_const_zeroinitializer _ -> "zeroinitializer"
   | LLVMsyntax.Coq_const_floatpoint (_, f) -> APFloat.to_string f
   | LLVMsyntax.Coq_const_truncop (op, c, t) -> 
-      (match (Ssa_lib.LLVMlib.Constant.getTyp c) with
+      (match (LLVMinfra.Constant.getTyp c) with
         | Some t' -> string_of_truncop op^" ("^string_of_typ t'^" "^
             string_of_constant c^" to "^string_of_typ t^")" 
         | None -> failwith "const gep must be of a typ.")
   | LLVMsyntax.Coq_const_extop (op, c, t) -> 
-      (match (Ssa_lib.LLVMlib.Constant.getTyp c) with
+      (match (LLVMinfra.Constant.getTyp c) with
         | Some t' -> string_of_extop op^" ("^string_of_typ t'^" "^
             string_of_constant c^" to "^string_of_typ t^")" 
         | None -> failwith "const gep must be of a typ.")
   | LLVMsyntax.Coq_const_castop (op, c, t) -> 
-      (match (Ssa_lib.LLVMlib.Constant.getTyp c) with
+      (match (LLVMinfra.Constant.getTyp c) with
         | Some t' -> string_of_castop op^" ("^string_of_typ t'^" "^
             string_of_constant c^" to "^string_of_typ t^")" 
         | None -> failwith "const gep must be of a typ.")
   | LLVMsyntax.Coq_const_gep (ib, c, cs) -> 
-      (match (Ssa_lib.LLVMlib.Constant.getTyp c) with
+      (match (LLVMinfra.Constant.getTyp c) with
         | Some t -> "getelementptr "^
             (match ib with
               | true -> "inbounds"
@@ -180,7 +180,7 @@ let rec string_of_constant c =
 and string_of_list_constant cs =
   String.concat "," (List.map 
     (fun c -> 
-      match (Ssa_lib.LLVMlib.Constant.getTyp c) with
+      match (LLVMinfra.Constant.getTyp c) with
       | Some t -> string_of_typ t ^ " " ^ string_of_constant c
       | None -> failwith "const must be of type.") 
     (LLVMsyntax.unmake_list_const cs))

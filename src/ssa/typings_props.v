@@ -2,8 +2,8 @@ Add LoadPath "./ott".
 Add LoadPath "./monads".
 Add LoadPath "./compcert".
 Add LoadPath "../../../theory/metatheory_8.3".
-Require Import ssa_def.
-Require Import ssa_lib.
+Require Import syntax.
+Require Import infrastructure.
 Require Import List.
 Require Import Arith.
 Require Import tactics.
@@ -21,13 +21,13 @@ Require Import Maps.
 Require Import Lattice.
 Require Import Iteration.
 Require Import Kildall.
-Require Import ssa_static.
-Require Import ssa_props.
-Require Import ssa_analysis.
+Require Import typings.
+Require Import infrastructure_props.
+Require Import analysis.
 
-Import LLVMlib.
+Import LLVMinfra.
 Import LLVMtd.
-Import LLVMwf.
+Import LLVMtypings.
 Import LLVMgv.
 Import AtomSet.
 
@@ -484,6 +484,87 @@ Proof.
     unfold isPhiNode in Hnonphi. simpl in Hnonphi. contradict Hnonphi; auto.
 Qed.
 
+Lemma wf_value_list__getValueViaBlockFromValuels__wf_value : forall
+  (s : system)  (m : module)  (f : fdef)  (lc : GVMap) b (t0 : typ) v l2
+  (H2 : wf_value_list
+         (make_list_system_module_fdef_value_typ
+            (map_list_value_l
+               (fun (value_ : value) (_ : l) => (s, m, f, value_, t0)) l2)))
+  (J : getValueViaBlockFromValuels l2 b = ret v),
+  wf_value s m f v t0.
+Proof.
+  intros. destruct b. simpl in J.
+  eapply wf_value_list__getValueViaLabelFromValuels__wf_value in H2; eauto.
+Qed.        
+   
+Lemma wf_fdef__wf_phinodes : forall ifs s m f l3 cs tmn ps,
+  wf_fdef ifs s m f ->
+  blockInFdefB (block_intro l3 ps cs tmn) f ->
+  wf_phinodes ifs s m f (block_intro l3 ps cs tmn) ps.
+Proof.
+  intros.
+  inv H.
+  eapply wf_blocks__wf_block in H9; eauto.
+  inv H9; auto.
+Qed.
+
+Lemma wf_typ_list__in_args__wf_typ : forall s typ_attributes_id_list
+  (H18: wf_typ_list
+          (make_list_system_typ
+             (map_list_typ_attributes_id
+                (fun (typ_ : typ) (_ : attributes) (_ : id) => (s, typ_))
+                typ_attributes_id_list)))
+  t a i0,
+    In (t, a, i0)
+       (map_list_typ_attributes_id
+         (fun (typ_ : typ) (attributes_ : attributes) (id_ : id) =>
+          (typ_, attributes_, id_)) typ_attributes_id_list) ->
+    wf_typ s t.
+Proof.
+  induction typ_attributes_id_list; simpl; intros.
+    inv H.
+ 
+    inv H18. 
+    destruct H as [H | H]; eauto.
+      inv H; auto.
+Qed.
+
+Lemma wf_trunc__wf_typ : forall ifs s los nts ps f b i0 t t0 v t1,
+  wf_trunc ifs s (module_intro los nts ps) f b 
+    (insn_cmd (insn_trunc i0 t t0 v t1)) ->
+  wf_typ s t1 /\ feasible_typ (los, nts) t1.
+Proof.
+  intros.
+  inv H; auto.
+Qed.
+
+Lemma wf_trunc__wf_value : forall ifs s los nts ps f b i0 t t0 v t1,
+  wf_trunc ifs s (module_intro los nts ps) f b 
+    (insn_cmd (insn_trunc i0 t t0 v t1)) ->
+  wf_value s (module_intro los nts ps) f v t0.
+Proof.
+  intros.
+  inv H; auto.
+Qed.
+
+Lemma wf_ext__wf_typ : forall ifs s los nts ps f b i0 e t0 v t1,
+  wf_ext ifs s (module_intro los nts ps) f b 
+    (insn_cmd (insn_ext i0 e t0 v t1)) ->
+  wf_typ s t1 /\ feasible_typ (los, nts) t1.
+Proof.
+  intros.
+  inv H; auto.
+Qed.
+
+Lemma wf_ext__wf_value : forall ifs s los nts ps f b i0 e t0 v t1,
+  wf_ext ifs s (module_intro los nts ps) f b 
+    (insn_cmd (insn_ext i0 e t0 v t1)) ->
+  wf_value s (module_intro los nts ps) f v t0.
+Proof.
+  intros.
+  inv H; auto.
+Qed.
+
 (********************************************)
 (** * Correctness of analysis *)
 
@@ -585,50 +666,8 @@ Proof.
     subst. inversion HBinF.
 Qed.
 
-Lemma wf_value_list__getValueViaBlockFromValuels__wf_value : forall
-  (s : system)  (m : module)  (f : fdef)  (lc : GVMap) b (t0 : typ) v l2
-  (H2 : wf_value_list
-         (make_list_system_module_fdef_value_typ
-            (map_list_value_l
-               (fun (value_ : value) (_ : l) => (s, m, f, value_, t0)) l2)))
-  (J : getValueViaBlockFromValuels l2 b = ret v),
-  wf_value s m f v t0.
-Proof.
-  intros. destruct b. simpl in J.
-  eapply wf_value_list__getValueViaLabelFromValuels__wf_value in H2; eauto.
-Qed.        
-   
-Lemma wf_fdef__wf_phinodes : forall ifs s m f l3 cs tmn ps,
-  wf_fdef ifs s m f ->
-  blockInFdefB (block_intro l3 ps cs tmn) f ->
-  wf_phinodes ifs s m f (block_intro l3 ps cs tmn) ps.
-Proof.
-  intros.
-  inv H.
-  eapply wf_blocks__wf_block in H9; eauto.
-  inv H9; auto.
-Qed.
-
-Lemma wf_typ_list__in_args__wf_typ : forall s typ_attributes_id_list
-  (H18: wf_typ_list
-          (make_list_system_typ
-             (map_list_typ_attributes_id
-                (fun (typ_ : typ) (_ : attributes) (_ : id) => (s, typ_))
-                typ_attributes_id_list)))
-  t a i0,
-    In (t, a, i0)
-       (map_list_typ_attributes_id
-         (fun (typ_ : typ) (attributes_ : attributes) (id_ : id) =>
-          (typ_, attributes_, id_)) typ_attributes_id_list) ->
-    wf_typ s t.
-Proof.
-  induction typ_attributes_id_list; simpl; intros.
-    inv H.
- 
-    inv H18. 
-    destruct H as [H | H]; eauto.
-      inv H; auto.
-Qed.
+(********************************************)
+(** * feasible typs *)
 
 Lemma feasible_typ_list__in_args__feasible_typ : forall los nts 
   typ_attributes_id_list
@@ -650,42 +689,6 @@ Proof.
     inv H18. 
     destruct H as [H | H]; eauto.
       inv H; auto.
-Qed.
-
-Lemma wf_trunc__wf_typ : forall ifs s los nts ps f b i0 t t0 v t1,
-  wf_trunc ifs s (module_intro los nts ps) f b 
-    (insn_cmd (insn_trunc i0 t t0 v t1)) ->
-  wf_typ s t1 /\ feasible_typ (los, nts) t1.
-Proof.
-  intros.
-  inv H; auto.
-Qed.
-
-Lemma wf_trunc__wf_value : forall ifs s los nts ps f b i0 t t0 v t1,
-  wf_trunc ifs s (module_intro los nts ps) f b 
-    (insn_cmd (insn_trunc i0 t t0 v t1)) ->
-  wf_value s (module_intro los nts ps) f v t0.
-Proof.
-  intros.
-  inv H; auto.
-Qed.
-
-Lemma wf_ext__wf_typ : forall ifs s los nts ps f b i0 e t0 v t1,
-  wf_ext ifs s (module_intro los nts ps) f b 
-    (insn_cmd (insn_ext i0 e t0 v t1)) ->
-  wf_typ s t1 /\ feasible_typ (los, nts) t1.
-Proof.
-  intros.
-  inv H; auto.
-Qed.
-
-Lemma wf_ext__wf_value : forall ifs s los nts ps f b i0 e t0 v t1,
-  wf_ext ifs s (module_intro los nts ps) f b 
-    (insn_cmd (insn_ext i0 e t0 v t1)) ->
-  wf_value s (module_intro los nts ps) f v t0.
-Proof.
-  intros.
-  inv H; auto.
 Qed.
 
 Lemma make_list_const_spec1 : forall
@@ -721,109 +724,6 @@ Proof.
                        const_list)))) as R2.
      destruct R2. inv HeqR. simpl.
      split; eauto.
-Qed.
-
-Lemma const2GV_typsize_mutind_array : forall const_list system5 typ5 
-  (los : list layout) (nts : list namedt) gl 
-  (lsdc : list (system * targetdata * const)) lt
-  (HeqR0 : (lsdc, lt) =
-          split
-            (unmake_list_system_targetdata_const_typ
-               (make_list_system_targetdata_const_typ
-                  (map_list_const
-                     (fun const_ : const =>
-                      (system5, (los, nts), const_, typ5)) const_list))))
-  (lsd : list (system * targetdata)) lc
-  (HeqR' : (lsd, lc) = split lsdc)
-  ls (ld : list targetdata)
-  (HeqR'' : (ls, ld) = split lsd)
-  (H3 : wf_global (los, nts) system5 gl),
-  wf_list_targetdata_typ system5 (los, nts) gl lsd.
-Proof.
-  intros.
-  unfold wf_list_targetdata_typ.
-  generalize dependent lsdc.
-  generalize dependent lt.
-  generalize dependent lc.
-  generalize dependent ld.
-  generalize dependent ls0.
-  generalize dependent lsd.
-  induction const_list; intros; simpl in *.
-    inv HeqR0. inv HeqR'. inv H.
-    
-    remember (@split (prod (prod system targetdata) const) typ
-                (unmake_list_system_targetdata_const_typ
-                   (make_list_system_targetdata_const_typ
-                      (@map_list_const
-                         (prod
-                            (prod
-                               (prod system
-                                  (prod (list layout) (list namedt))) const)
-                            typ)
-                         (fun const_ : const =>
-                          @pair
-                            (prod
-                               (prod system
-                                  (prod (list layout) (list namedt))) const)
-                            typ
-                            (@pair
-                               (prod system
-                                  (prod (list layout) (list namedt))) const
-                               (@pair system
-                                  (prod (list layout) (list namedt)) system5
-                                  (@pair (list layout) (list namedt) los nts))
-                               const_) typ5) const_list)))) as R.
-    destruct R.
-    inv HeqR0. simpl in HeqR'.
-    remember (split l0) as R1.
-    destruct R1.
-    inv HeqR'. simpl in HeqR''.
-    remember (split l2) as R2.
-    destruct R2.
-    inv HeqR''. simpl in H.
-    destruct H as [H | H]; subst; eauto.
-      inv H. split; auto.
-Qed.
-
-Lemma const2GV_typsize_mutind_struct : forall const_typ_list system5 los nts gl
-  lsdc lt
-  (HeqR : (lsdc, lt) =
-         split
-           (unmake_list_system_targetdata_const_typ
-              (make_list_system_targetdata_const_typ
-                 (map_list_const_typ
-                    (fun (const_ : const) (typ_ : typ) =>
-                     (system5, (los, nts), const_, typ_)) const_typ_list))))
-  lsd lc
-  (HeqR' : (lsd, lc) = split lsdc)
-  (H3 : wf_global (los, nts) system5 gl),
-  wf_list_targetdata_typ system5 (los, nts) gl lsd.
-Proof.
-  intros.
-  generalize dependent lsdc.
-  generalize dependent lt.
-  generalize dependent lc.
-  generalize dependent lsd.
-  induction const_typ_list; simpl; intros.
-    inv HeqR. simpl in HeqR'. inv HeqR'.
-    unfold wf_list_targetdata_typ.
-    intros S TD Hin. inversion Hin.
-    
-    remember (split
-              (unmake_list_system_targetdata_const_typ
-                 (make_list_system_targetdata_const_typ
-                    (map_list_const_typ
-                       (fun (const_ : const) (typ_ : typ) =>
-                        (system5, (los, nts), const_, typ_))
-                       const_typ_list)))) as R1. 
-    destruct R1. inv HeqR. simpl in HeqR'.
-    remember (split l0) as R2.
-    destruct R2. inv HeqR'.
-    unfold wf_list_targetdata_typ in *.
-    intros S TD Hin. 
-    simpl in Hin.
-    destruct Hin as [Hin | Hin]; eauto.
-      inv Hin. split; auto.
 Qed.
 
 Lemma make_list_const_spec2 : forall
@@ -1004,6 +904,301 @@ Proof.
   intros. inv H0.
   destruct wf_zeroconst2GV_total_mutrec as [J _].
   apply J; auto.
+Qed.
+
+Lemma list_system_typ_spec : forall (s : system) (l0 : list_typ),
+  exists ls0 : list system,
+    split
+       (unmake_list_system_typ
+          (make_list_system_typ
+             (map_list_typ (fun typ_ : typ => (s, typ_)) l0))) =
+    (ls0, unmake_list_typ l0).
+Proof.
+  induction l0; simpl; eauto.
+    destruct IHl0 as [ls J].
+    rewrite J. eauto.
+Qed.
+
+Lemma unmake_list_system_typ_inv : forall lst ls t l0,
+  split (unmake_list_system_typ lst) = (ls, t :: unmake_list_typ l0) ->
+  exists s, exists ls', exists lst',
+    lst = Cons_list_system_typ s t lst' /\ ls = s::ls' /\ 
+    split (unmake_list_system_typ lst') = (ls', unmake_list_typ l0).
+Proof.
+  induction lst; intros; simpl in *.
+    inv H.
+  
+    remember (split (unmake_list_system_typ lst)) as R.
+    destruct R as [g d].
+    inv H.
+    exists s. exists g. exists lst. auto.
+Qed.
+
+Lemma int_typsize : forall s0 s
+  (H0 : wf_typ s0 (typ_int s)),
+  Coqlib.nat_of_Z (Coqlib.ZRdiv (Z_of_nat s) 8) =
+    (size_chunk_nat (AST.Mint (s - 1)) + 0)%nat.
+Proof.
+  intros.
+  unfold size_chunk_nat, size_chunk, bytesize_chunk.
+  assert (s > 0)%nat as WF.
+    inv H0. auto.
+  assert (S (s - 1) = s) as EQ. omega.
+  rewrite EQ. auto.
+Qed.
+
+Definition feasible_typ_inv_prop (t:typ) := forall TD s,
+  wf_typ s t -> LLVMtd.feasible_typ TD t -> 
+  exists sz, exists al,
+    getTypeSizeInBits_and_Alignment TD true t = Some (sz, al) /\ 
+    (sz > 0)%nat /\ (al > 0)%nat.
+
+Definition feasible_typs_inv_prop (lt:list_typ) := forall TD lst,
+  wf_typ_list lst -> LLVMtd.feasible_typs TD lt -> 
+  (exists ls, 
+    split (unmake_list_system_typ lst) = (ls, unmake_list_typ lt)) ->
+  (forall t, In t (unmake_list_typ lt) -> LLVMtd.feasible_typ TD t) /\
+  exists sz, exists al,
+    getListTypeSizeInBits_and_Alignment TD true lt = Some (sz,al) /\
+    ((sz > 0)%nat -> (al > 0)%nat).
+
+Lemma feasible_typ_inv_mutrec :
+  (forall t, feasible_typ_inv_prop t) *
+  (forall lt, feasible_typs_inv_prop lt).
+Proof.
+  (typ_cases (apply typ_mutrec; 
+    unfold feasible_typ_inv_prop, feasible_typs_inv_prop) Case);
+    intros;
+    unfold getTypeSizeInBits_and_Alignment in *; 
+    simpl in *; try (destruct TD); 
+    try solve [eauto | inversion H0 | inversion H2].
+Case "typ_int".
+  inv H. eauto.
+Case "typ_floatingpoint".
+  destruct f; inv H; try solve [inversion H0 | eauto].
+    unfold LLVMtd.feasible_typ_aux in H0. simpl in H0.
+    exists 32%nat. exists (getFloatAlignmentInfo l0 32 true).
+    split; auto. omega.
+
+    unfold LLVMtd.feasible_typ_aux in H0. simpl in H0.
+    exists 64%nat. exists (getFloatAlignmentInfo l0 64 true).
+    split; auto. omega.
+Case "typ_array".
+  inv H0.
+  eapply H in H1; eauto.
+  destruct H1 as [sz [al [J1 [J2 J3]]]].
+  rewrite J1. 
+  destruct s.
+    exists 8%nat. exists 1%nat. split; auto. omega.
+
+    exists (RoundUpAlignment
+               (Coqlib.nat_of_Z (Coqlib.ZRdiv (Z_of_nat sz) 8)) al * 8 *
+             Size.to_nat (S s))%nat.
+    exists al. split; auto. split; auto.
+    assert (RoundUpAlignment (Coqlib.nat_of_Z (Coqlib.ZRdiv (Z_of_nat sz) 8)) al
+      >= (Coqlib.nat_of_Z (Coqlib.ZRdiv (Z_of_nat sz) 8)))%nat as J4.
+      apply RoundUpAlignment_spec; auto.
+    assert (Coqlib.ZRdiv (Z_of_nat sz) 8 > 0) as J5.
+      apply Coqlib.ZRdiv_prop3; try omega.
+    apply nat_of_Z_inj_gt in J5; try omega.
+    simpl in J5.
+    assert (RoundUpAlignment (Coqlib.nat_of_Z (Coqlib.ZRdiv (Z_of_nat sz) 8)) al
+      * 8 > 0)%nat as J6. omega. clear J4 J5.
+    assert (Size.to_nat (S s) > 0)%nat as J7. unfold Size.to_nat. omega.
+    remember (RoundUpAlignment (Coqlib.nat_of_Z (Coqlib.ZRdiv (Z_of_nat sz) 8)) 
+      al * 8)%nat as R1. 
+    remember (Size.to_nat (S s)) as R2. 
+    clear - J6 J7.
+    assert (0 * R2 < R1 * R2)%nat as J.
+      apply mult_lt_compat_r; auto.
+    simpl in J. auto.
+
+Case "typ_struct".
+  inv H0.
+  eapply H in H1; eauto using list_system_typ_spec.
+  destruct H1 as [J0 [sz [al [J1 J2]]]].
+  unfold getListTypeSizeInBits_and_Alignment in J1.
+  rewrite J1. 
+  destruct sz.
+    exists 8%nat. exists 1%nat. split; auto. omega.
+    exists (S sz0). exists al. split; auto. split. omega. apply J2. omega.
+
+Case "typ_pointer".
+  unfold LLVMtd.feasible_typ_aux in H1. simpl in H1.
+  unfold getPointerSizeInBits, Size.to_nat.
+  simpl.
+  exists 32%nat. exists (getPointerAlignmentInfo l0 true).
+  split; auto. omega.
+
+Case "typ_nil".
+  split.
+    intros. inversion H2.
+    simpl. exists 0%nat. exists 0%nat. split; auto.
+
+Case "typ_cons".
+  destruct H2 as [J1 J2]. destruct H3 as [l3 H3].
+  apply unmake_list_system_typ_inv in H3.
+  destruct H3 as [s [ls' [lst' [J1' [J2' J3']]]]]; subst.
+  inv H1.
+  eapply H0 in J2; eauto.
+  destruct J2 as [J21 [sz2 [al2 [J22 J23]]]].
+  split.
+    intros. 
+    destruct H1 as [H1 | H1]; subst; auto.
+      
+    simpl.
+    unfold getListTypeSizeInBits_and_Alignment in J22.
+    unfold getTypeSizeInBits_and_Alignment_for_namedts in J22.
+    rewrite J22.
+    eapply H in J1; eauto.
+    destruct J1 as [sz1 [al1 [J11 [J12 J13]]]].
+    unfold getTypeSizeInBits_and_Alignment_for_namedts in J11.
+    rewrite J11.
+    destruct (le_lt_dec al1 al2); eauto.
+      exists (sz2 +
+             RoundUpAlignment
+               (Coqlib.nat_of_Z (Coqlib.ZRdiv (Z_of_nat sz1) 8)) al1 * 8)%nat.
+      exists al2.
+      split; auto.
+        intros. clear - J13 l2. omega.
+Qed.
+
+Lemma feasible_typ_inv : forall t TD s,
+  wf_typ s t -> feasible_typ TD t -> 
+  exists sz, exists al,
+    getTypeSizeInBits_and_Alignment TD true t = Some (sz, al) /\ 
+    (sz > 0)%nat /\ (al > 0)%nat.
+Proof.
+  intros. inv H0.
+  destruct feasible_typ_inv_mutrec.
+  unfold feasible_typ_inv_prop in f. eapply f; eauto.
+Qed.
+
+Lemma getTypeStoreSize_le_getTypeAllocSize : forall TD t sz1 sz2,
+  LLVMtypings.feasible_typ TD t ->
+  getTypeStoreSize TD t = Some sz1 ->
+  getTypeAllocSize TD t = Some sz2 ->
+  (sz2 >= sz1)%nat.
+Proof.
+  intros TD t sz1 sz2 J H H0.
+  unfold getTypeAllocSize in H0.
+  unfold getTypeStoreSize in *.
+  unfold getTypeSizeInBits in *.
+  unfold getABITypeAlignment in *.
+  unfold getAlignment in *.
+  remember (getTypeSizeInBits_and_Alignment TD true t) as R.
+  destruct R as [[]|]; inv H. inv H0.
+  inv J.
+  apply feasible_typ_inv' in H; auto.
+  destruct H as [sz [al [J1 J2]]].
+  rewrite J1 in HeqR. inv HeqR.
+  apply RoundUpAlignment_spec; auto.
+Qed.  
+
+(********************************************)
+(** * generic values *)
+
+Lemma const2GV_typsize_mutind_array : forall const_list system5 typ5 
+  (los : list layout) (nts : list namedt) gl 
+  (lsdc : list (system * targetdata * const)) lt
+  (HeqR0 : (lsdc, lt) =
+          split
+            (unmake_list_system_targetdata_const_typ
+               (make_list_system_targetdata_const_typ
+                  (map_list_const
+                     (fun const_ : const =>
+                      (system5, (los, nts), const_, typ5)) const_list))))
+  (lsd : list (system * targetdata)) lc
+  (HeqR' : (lsd, lc) = split lsdc)
+  ls (ld : list targetdata)
+  (HeqR'' : (ls, ld) = split lsd)
+  (H3 : wf_global (los, nts) system5 gl),
+  wf_list_targetdata_typ system5 (los, nts) gl lsd.
+Proof.
+  intros.
+  unfold wf_list_targetdata_typ.
+  generalize dependent lsdc.
+  generalize dependent lt.
+  generalize dependent lc.
+  generalize dependent ld.
+  generalize dependent ls0.
+  generalize dependent lsd.
+  induction const_list; intros; simpl in *.
+    inv HeqR0. inv HeqR'. inv H.
+    
+    remember (@split (prod (prod system targetdata) const) typ
+                (unmake_list_system_targetdata_const_typ
+                   (make_list_system_targetdata_const_typ
+                      (@map_list_const
+                         (prod
+                            (prod
+                               (prod system
+                                  (prod (list layout) (list namedt))) const)
+                            typ)
+                         (fun const_ : const =>
+                          @pair
+                            (prod
+                               (prod system
+                                  (prod (list layout) (list namedt))) const)
+                            typ
+                            (@pair
+                               (prod system
+                                  (prod (list layout) (list namedt))) const
+                               (@pair system
+                                  (prod (list layout) (list namedt)) system5
+                                  (@pair (list layout) (list namedt) los nts))
+                               const_) typ5) const_list)))) as R.
+    destruct R.
+    inv HeqR0. simpl in HeqR'.
+    remember (split l0) as R1.
+    destruct R1.
+    inv HeqR'. simpl in HeqR''.
+    remember (split l2) as R2.
+    destruct R2.
+    inv HeqR''. simpl in H.
+    destruct H as [H | H]; subst; eauto.
+      inv H. split; auto.
+Qed.
+
+Lemma const2GV_typsize_mutind_struct : forall const_typ_list system5 los nts gl
+  lsdc lt
+  (HeqR : (lsdc, lt) =
+         split
+           (unmake_list_system_targetdata_const_typ
+              (make_list_system_targetdata_const_typ
+                 (map_list_const_typ
+                    (fun (const_ : const) (typ_ : typ) =>
+                     (system5, (los, nts), const_, typ_)) const_typ_list))))
+  lsd lc
+  (HeqR' : (lsd, lc) = split lsdc)
+  (H3 : wf_global (los, nts) system5 gl),
+  wf_list_targetdata_typ system5 (los, nts) gl lsd.
+Proof.
+  intros.
+  generalize dependent lsdc.
+  generalize dependent lt.
+  generalize dependent lc.
+  generalize dependent lsd.
+  induction const_typ_list; simpl; intros.
+    inv HeqR. simpl in HeqR'. inv HeqR'.
+    unfold wf_list_targetdata_typ.
+    intros S TD Hin. inversion Hin.
+    
+    remember (split
+              (unmake_list_system_targetdata_const_typ
+                 (make_list_system_targetdata_const_typ
+                    (map_list_const_typ
+                       (fun (const_ : const) (typ_ : typ) =>
+                        (system5, (los, nts), const_, typ_))
+                       const_typ_list)))) as R1. 
+    destruct R1. inv HeqR. simpl in HeqR'.
+    remember (split l0) as R2.
+    destruct R2. inv HeqR'.
+    unfold wf_list_targetdata_typ in *.
+    intros S TD Hin. 
+    simpl in Hin.
+    destruct Hin as [Hin | Hin]; eauto.
+      inv Hin. split; auto.
 Qed.
 
 Definition const2GV_isnt_stuck_Prop S TD c t (H:wf_const S TD c t) := 
@@ -1522,177 +1717,9 @@ Proof.
     destruct floating_point2; try solve [inversion H13 | eauto].
 Qed.
 
-Lemma list_system_typ_spec : forall (s : system) (l0 : list_typ),
-  exists ls0 : list system,
-    split
-       (LLVMwf.unmake_list_system_typ
-          (LLVMwf.make_list_system_typ
-             (map_list_typ (fun typ_ : typ => (s, typ_)) l0))) =
-    (ls0, unmake_list_typ l0).
-Proof.
-  induction l0; simpl; eauto.
-    destruct IHl0 as [ls J].
-    rewrite J. eauto.
-Qed.
-
-Lemma unmake_list_system_typ_inv : forall lst ls t l0,
-  split (LLVMwf.unmake_list_system_typ lst) = (ls, t :: unmake_list_typ l0) ->
-  exists s, exists ls', exists lst',
-    lst = LLVMwf.Cons_list_system_typ s t lst' /\ ls = s::ls' /\ 
-    split (LLVMwf.unmake_list_system_typ lst') = (ls', unmake_list_typ l0).
-Proof.
-  induction lst; intros; simpl in *.
-    inv H.
-  
-    remember (split (LLVMwf.unmake_list_system_typ lst)) as R.
-    destruct R as [g d].
-    inv H.
-    exists s. exists g. exists lst. auto.
-Qed.
-
-Definition feasible_typ_inv_prop (t:typ) := forall TD s,
-  LLVMwf.wf_typ s t -> LLVMtd.feasible_typ TD t -> 
-  exists sz, exists al,
-    getTypeSizeInBits_and_Alignment TD true t = Some (sz, al) /\ 
-    (sz > 0)%nat /\ (al > 0)%nat.
-
-Definition feasible_typs_inv_prop (lt:list_typ) := forall TD lst,
-  LLVMwf.wf_typ_list lst -> LLVMtd.feasible_typs TD lt -> 
-  (exists ls, 
-    split (LLVMwf.unmake_list_system_typ lst) = (ls, unmake_list_typ lt)) ->
-  (forall t, In t (unmake_list_typ lt) -> LLVMtd.feasible_typ TD t) /\
-  exists sz, exists al,
-    getListTypeSizeInBits_and_Alignment TD true lt = Some (sz,al) /\
-    ((sz > 0)%nat -> (al > 0)%nat).
-
-Lemma feasible_typ_inv_mutrec :
-  (forall t, feasible_typ_inv_prop t) *
-  (forall lt, feasible_typs_inv_prop lt).
-Proof.
-  (typ_cases (apply typ_mutrec; 
-    unfold feasible_typ_inv_prop, feasible_typs_inv_prop) Case);
-    intros;
-    unfold getTypeSizeInBits_and_Alignment in *; 
-    simpl in *; try (destruct TD); 
-    try solve [eauto | inversion H0 | inversion H2].
-Case "typ_int".
-  inv H. eauto.
-Case "typ_floatingpoint".
-  destruct f; inv H; try solve [inversion H0 | eauto].
-    unfold LLVMtd.feasible_typ_aux in H0. simpl in H0.
-    exists 32%nat. exists (getFloatAlignmentInfo l0 32 true).
-    split; auto. omega.
-
-    unfold LLVMtd.feasible_typ_aux in H0. simpl in H0.
-    exists 64%nat. exists (getFloatAlignmentInfo l0 64 true).
-    split; auto. omega.
-Case "typ_array".
-  inv H0.
-  eapply H in H1; eauto.
-  destruct H1 as [sz [al [J1 [J2 J3]]]].
-  rewrite J1. 
-  destruct s.
-    exists 8%nat. exists 1%nat. split; auto. omega.
-
-    exists (RoundUpAlignment
-               (Coqlib.nat_of_Z (Coqlib.ZRdiv (Z_of_nat sz) 8)) al * 8 *
-             Size.to_nat (S s))%nat.
-    exists al. split; auto. split; auto.
-    assert (RoundUpAlignment (Coqlib.nat_of_Z (Coqlib.ZRdiv (Z_of_nat sz) 8)) al
-      >= (Coqlib.nat_of_Z (Coqlib.ZRdiv (Z_of_nat sz) 8)))%nat as J4.
-      apply RoundUpAlignment_spec; auto.
-    assert (Coqlib.ZRdiv (Z_of_nat sz) 8 > 0) as J5.
-      apply Coqlib.ZRdiv_prop3; try omega.
-    apply nat_of_Z_inj_gt in J5; try omega.
-    simpl in J5.
-    assert (RoundUpAlignment (Coqlib.nat_of_Z (Coqlib.ZRdiv (Z_of_nat sz) 8)) al
-      * 8 > 0)%nat as J6. omega. clear J4 J5.
-    assert (Size.to_nat (S s) > 0)%nat as J7. unfold Size.to_nat. omega.
-    remember (RoundUpAlignment (Coqlib.nat_of_Z (Coqlib.ZRdiv (Z_of_nat sz) 8)) 
-      al * 8)%nat as R1. 
-    remember (Size.to_nat (S s)) as R2. 
-    clear - J6 J7.
-    assert (0 * R2 < R1 * R2)%nat as J.
-      apply mult_lt_compat_r; auto.
-    simpl in J. auto.
-
-Case "typ_struct".
-  inv H0.
-  eapply H in H1; eauto using list_system_typ_spec.
-  destruct H1 as [J0 [sz [al [J1 J2]]]].
-  unfold getListTypeSizeInBits_and_Alignment in J1.
-  rewrite J1. 
-  destruct sz.
-    exists 8%nat. exists 1%nat. split; auto. omega.
-    exists (S sz0). exists al. split; auto. split. omega. apply J2. omega.
-
-Case "typ_pointer".
-  unfold LLVMtd.feasible_typ_aux in H1. simpl in H1.
-  unfold getPointerSizeInBits, Size.to_nat.
-  simpl.
-  exists 32%nat. exists (getPointerAlignmentInfo l0 true).
-  split; auto. omega.
-
-Case "typ_nil".
-  split.
-    intros. inversion H2.
-    simpl. exists 0%nat. exists 0%nat. split; auto.
-
-Case "typ_cons".
-  destruct H2 as [J1 J2]. destruct H3 as [l3 H3].
-  apply unmake_list_system_typ_inv in H3.
-  destruct H3 as [s [ls' [lst' [J1' [J2' J3']]]]]; subst.
-  inv H1.
-  eapply H0 in J2; eauto.
-  destruct J2 as [J21 [sz2 [al2 [J22 J23]]]].
-  split.
-    intros. 
-    destruct H1 as [H1 | H1]; subst; auto.
-      
-    simpl.
-    unfold getListTypeSizeInBits_and_Alignment in J22.
-    unfold getTypeSizeInBits_and_Alignment_for_namedts in J22.
-    rewrite J22.
-    eapply H in J1; eauto.
-    destruct J1 as [sz1 [al1 [J11 [J12 J13]]]].
-    unfold getTypeSizeInBits_and_Alignment_for_namedts in J11.
-    rewrite J11.
-    destruct (le_lt_dec al1 al2); eauto.
-      exists (sz2 +
-             RoundUpAlignment
-               (Coqlib.nat_of_Z (Coqlib.ZRdiv (Z_of_nat sz1) 8)) al1 * 8)%nat.
-      exists al2.
-      split; auto.
-        intros. clear - J13 l2. omega.
-Qed.
-
-Lemma feasible_typ_inv : forall t TD s,
-  LLVMwf.wf_typ s t -> feasible_typ TD t -> 
-  exists sz, exists al,
-    getTypeSizeInBits_and_Alignment TD true t = Some (sz, al) /\ 
-    (sz > 0)%nat /\ (al > 0)%nat.
-Proof.
-  intros. inv H0.
-  destruct feasible_typ_inv_mutrec.
-  unfold feasible_typ_inv_prop in f. eapply f; eauto.
-Qed.
-
-Lemma int_typsize : forall s0 s
-  (H0 : LLVMwf.wf_typ s0 (typ_int s)),
-  Coqlib.nat_of_Z (Coqlib.ZRdiv (Z_of_nat s) 8) =
-    (size_chunk_nat (AST.Mint (s - 1)) + 0)%nat.
-Proof.
-  intros.
-  unfold size_chunk_nat, size_chunk, bytesize_chunk.
-  assert (s > 0)%nat as WF.
-    inv H0. auto.
-  assert (S (s - 1) = s) as EQ. omega.
-  rewrite EQ. auto.
-Qed.
-
 Definition zeroconst2GV__getTypeSizeInBits_prop (t:typ) := forall s los nts gv,
   zeroconst2GV (los,nts) t = Some gv ->
-  LLVMwf.wf_typ s t -> LLVMtd.feasible_typ (los,nts) t ->
+  wf_typ s t -> LLVMtd.feasible_typ (los,nts) t ->
   exists sz, exists al,
     _getTypeSizeInBits_and_Alignment los 
      (getTypeSizeInBits_and_Alignment_for_namedts (los,nts) true) true t
@@ -1702,9 +1729,9 @@ Definition zeroconst2GV__getTypeSizeInBits_prop (t:typ) := forall s los nts gv,
 Definition zeroconsts2GV__getListTypeSizeInBits_prop (lt:list_typ) := 
   forall los nts gv lst,
   zeroconsts2GV (los,nts) lt = Some gv ->
-  LLVMwf.wf_typ_list lst -> LLVMtd.feasible_typs (los,nts) lt ->
+  wf_typ_list lst -> LLVMtd.feasible_typs (los,nts) lt ->
   (exists ls, 
-    split (LLVMwf.unmake_list_system_typ lst) = (ls, unmake_list_typ lt)) ->
+    split (unmake_list_system_typ lst) = (ls, unmake_list_typ lt)) ->
   exists sz, exists al,
     _getListTypeSizeInBits_and_Alignment los 
      (getTypeSizeInBits_and_Alignment_for_namedts (los, nts) true) lt = 
@@ -1848,7 +1875,7 @@ Qed.
 
 Lemma zeroconst2GV__getTypeSizeInBits : forall t s los nts gv,
   zeroconst2GV (los,nts) t = Some gv ->
-  LLVMwf.wf_typ s t -> feasible_typ (los,nts) t ->
+  wf_typ s t -> feasible_typ (los,nts) t ->
   exists sz, exists al,
     _getTypeSizeInBits_and_Alignment los 
       (getTypeSizeInBits_and_Alignment_for_namedts (los,nts) true) true t = 
@@ -2738,7 +2765,7 @@ Qed.
 
 Definition flatten_typ__getTypeSizeInBits_prop (t:typ) := forall s los nts mc,
   flatten_typ (los,nts) t = Some mc ->
-  LLVMwf.wf_typ s t -> LLVMtd.feasible_typ (los,nts) t ->
+  wf_typ s t -> LLVMtd.feasible_typ (los,nts) t ->
   exists sz, exists al,
     _getTypeSizeInBits_and_Alignment los 
       (getTypeSizeInBits_and_Alignment_for_namedts (los,nts) true) true t = 
@@ -2748,9 +2775,9 @@ Definition flatten_typ__getTypeSizeInBits_prop (t:typ) := forall s los nts mc,
 Definition flatten_typs__getListTypeSizeInBits_prop (lt:list_typ) := 
   forall los nts mc lst,
   flatten_typs (los,nts) lt = Some mc ->
-  LLVMwf.wf_typ_list lst -> LLVMtd.feasible_typs (los,nts) lt ->
+  wf_typ_list lst -> LLVMtd.feasible_typs (los,nts) lt ->
   (exists ls, 
-    split (LLVMwf.unmake_list_system_typ lst) = (ls, unmake_list_typ lt)) ->
+    split (unmake_list_system_typ lst) = (ls, unmake_list_typ lt)) ->
   exists sz, exists al,
     _getListTypeSizeInBits_and_Alignment los 
       (getTypeSizeInBits_and_Alignment_for_namedts (los,nts) true) lt = 
@@ -2892,7 +2919,7 @@ Qed.
 
 Lemma flatten_typ__getTypeSizeInBits : forall t s los nts mc,
   flatten_typ (los,nts) t = Some mc ->
-  LLVMwf.wf_typ s t -> feasible_typ (los,nts) t ->
+  wf_typ s t -> feasible_typ (los,nts) t ->
   exists sz, exists al,
     _getTypeSizeInBits_and_Alignment los 
       (getTypeSizeInBits_and_Alignment_for_namedts (los,nts) true) true t = 
@@ -2904,7 +2931,7 @@ Qed.
 
 Lemma mload__getTypeSizeInBits : forall t s TD gv a ptr M,
   mload TD M ptr t a = Some gv ->
-  LLVMwf.wf_typ s t -> feasible_typ TD t ->
+  wf_typ s t -> feasible_typ TD t ->
   exists sz, 
     getTypeSizeInBits TD t = Some sz /\
     Coqlib.nat_of_Z (Coqlib.ZRdiv (Z_of_nat sz) 8) = sizeGenericValue gv.

@@ -3,7 +3,7 @@ Add LoadPath "../ssa/monads".
 Add LoadPath "../ssa".
 Add LoadPath "../ssa/compcert".
 Add LoadPath "../../../theory/metatheory_8.3".
-Require Import ssa_def.
+Require Import syntax.
 Require Import targetdata.
 Require Import List.
 Require Import Arith.

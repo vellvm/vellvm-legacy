@@ -3,7 +3,7 @@ Require Import Arith.
 Require Import Bool.
 Require Import Coq.Bool.Sumbool.
 Require Import List.
-Require Import ssa_lib.
+Require Import infrastructure.
 Require Import symexe_def.
 
 Export SimpleSE.

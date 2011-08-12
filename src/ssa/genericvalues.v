@@ -8,8 +8,8 @@ Require Import monad.
 Require Import trace.
 Require Import Metatheory.
 Require Import alist.
-Require Import ssa_def.
-Require Import ssa_lib.
+Require Import syntax.
+Require Import infrastructure.
 Require Import Memory.
 Require Import Values.
 Require Import Integers.
@@ -17,11 +17,12 @@ Require Import AST.
 Require Import targetdata.
 Require Import ZArith.
 Require Import Floats.
+Require Import typings.
 
 Module LLVMgv.
 
 Import LLVMsyntax.
-Import LLVMlib.
+Import LLVMinfra.
 Import LLVMtd.
 
 Definition moffset := Int.int 31.

@@ -4,17 +4,32 @@ Add LoadPath "../ssa".
 Add LoadPath "../ssa/compcert".
 Add LoadPath "../../../theory/metatheory_8.3".
 Add LoadPath "../TV".
-Require Import ssa_def.
-Require Import ssa_lib.
-Require Import ssa_static.
+Require Export alist.
+Require Export Integers.
+Require Export Values.
+Require Export Coqlib.
+Require Export monad.
+Require Export trace.
+Require Export Memory.
+Require Export Metatheory.
+Require Export Znumtheory.
+Require Import syntax.
+Require Import infrastructure.
+Require Export analysis.
+Require Import typings.
 Require Import genericvalues.
 Require Import targetdata.
+Require Export infrastructure_props.
+Require Export typings_props.
+Require Export opsem.
+Require Export opsem_wf.
+Require Export dopsem.
 
 Export LLVMsyntax.
-Export LLVMlib.
+Export LLVMinfra.
 Export LLVMgv.
 Export LLVMtd.
-Export LLVMwf.
+Export LLVMtypings.
 
 (*****************************)
 (*

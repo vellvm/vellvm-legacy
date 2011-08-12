@@ -6,7 +6,7 @@ Require Import Zpower.
 Require Import Zdiv.
 Require Import List.
 Require Import Metatheory.
-Require Import ssa_def.
+Require Import syntax.
 Require Import Coqlib.
 Require Import alist.
 

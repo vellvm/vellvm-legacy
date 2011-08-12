@@ -840,19 +840,11 @@ End Dataflow_Solver_Var_Top.
 (**********************************)
 (* Dom and Reaching analysis *)
 
-Require Import ssa_def.
-Require Import ssa_lib.
+Require Import syntax.
+Require Import infrastructure.
+Require Import infrastructure_props.
 Import LLVMsyntax.
-Import LLVMlib.
-
-Definition successors_terminator (tmn: terminator) : ls :=
-match tmn with
-| insn_return _ _ _ => nil
-| insn_return_void _ => nil
-| insn_br _ _ l1 l2 => l1::l2::nil
-| insn_br_uncond _ l1 => l1::nil
-| insn_unreachable _ => nil
-end.
+Import LLVMinfra.
 
 Fixpoint successors_blocks (bs: blocks) : ATree.t ls :=
 match bs with
@@ -861,7 +853,7 @@ match bs with
     ATree.set l0 (successors_terminator tmn) (successors_blocks bs')
 end.
 
-Fixpoint successors (f: fdef) : ATree.t ls :=
+Definition successors (f: fdef) : ATree.t ls :=
 let '(fdef_intro _ bs) := f in
 successors_blocks bs.
 
@@ -1031,7 +1023,7 @@ Qed.
 
 Lemma reachable_entrypoint:
   forall (f:fdef) l0 ps cs tmn, 
-    LLVMlib.getEntryBlock f = Some (block_intro l0 ps cs tmn) ->
+    getEntryBlock f = Some (block_intro l0 ps cs tmn) ->
     (reachable f)!!l0 = true.
 Proof.
   intros f l0 ps cs tmn Hentry. unfold reachable.
@@ -1044,8 +1036,6 @@ Proof.
 
     intros. apply AMap.gi.
 Qed.
-
-Require Import ssa_props.
 
 Lemma successors_terminator__successors_blocks : forall
   (bs : blocks)
@@ -1186,7 +1176,7 @@ Proof.
   unfold reachable.
   caseEq (reachable_aux f).
     unfold reachable_aux. intro reach; intros.
-    remember (LLVMlib.getEntryBlock f) as R.
+    remember (getEntryBlock f) as R.
     destruct R; inv H.
     destruct b as [le ? ? ?].
     assert (LBoolean.ge reach!!l1 reach!!l0) as J.
@@ -1207,7 +1197,7 @@ Ltac tinv H := try solve [inv H].
 Import AtomSet.
 
 Lemma dom_entrypoint : forall f l0 ps cs tmn
-  (Hentry : LLVMlib.getEntryBlock f = Some (block_intro l0 ps cs tmn)),
+  (Hentry : getEntryBlock f = Some (block_intro l0 ps cs tmn)),
   incl (Dominators.bs_contents (bound_fdef f) ((dom_analyze f) !! l0)) [l0].
 Proof.
   intros.
@@ -1337,7 +1327,7 @@ match i with
 end.
 
 Lemma getCmdsIDs__cmds_dominates_cmd : forall cs2' c',
-  ~ In (getCmdLoc c') (LLVMlib.getCmdsLocs cs2') ->
+  ~ In (getCmdLoc c') (getCmdsLocs cs2') ->
   set_eq _ (getCmdsIDs (cs2' ++ [c']))
   (cmds_dominates_cmd (cs2' ++ [c']) (getCmdLoc c') ++ 
     match getCmdID c' with

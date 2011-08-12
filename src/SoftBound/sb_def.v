@@ -4,27 +4,9 @@ Add LoadPath "../ssa".
 Add LoadPath "../ssa/compcert".
 Add LoadPath "../../../theory/metatheory_8.3".
 Add LoadPath "../TV".
-Require Import ssa_def.
-Require Import ssa_lib.
-Require Import trace.
-Require Import Memory.
-Require Import targetdata.
-Require Import genericvalues.
-Require Import alist.
-Require Import Integers.
-Require Import Values.
-Require Import Coqlib.
-Require Import monad.
-Require Import Metatheory.
-Require Import Znumtheory.
-Require Import opsem.
-Require Import opsem_wf.
+Require Import vellvm.
 
 Module SBspecAux.
-
-Import LLVMsyntax.
-Import LLVMgv.
-Import LLVMtd.
 
 Record metadata : Type := mkMD {
   md_blk : Values.block; md_bofs : int32; md_eofs : int32

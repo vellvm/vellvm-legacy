@@ -3,12 +3,12 @@ Add LoadPath "./monads".
 Add LoadPath "./compcert".
 Add LoadPath "../../../theory/metatheory_8.3".
 Require Import Ensembles.
-Require Import ssa_def.
-Require Import ssa_lib.
-Require Import ssa_props.
-Require Import ssa_analysis.
-Require Import ssa_static.
-Require Import ssa_static_lib.
+Require Import syntax.
+Require Import infrastructure.
+Require Import infrastructure_props.
+Require Import analysis.
+Require Import typings.
+Require Import typings_props.
 Require Import List.
 Require Import Arith.
 Require Import tactics.
@@ -36,7 +36,7 @@ Module Sem := Opsem GVsSig.
 Module SemP := OpsemProps GVsSig.
 Export Sem.
 Export SemP.
-Import LLVMwf.
+Import LLVMtypings.
 Import AtomSet.
 
 Inductive wf_GVs : TargetData -> GVs -> typ -> Prop :=

@@ -19,7 +19,6 @@ Require Import dopsem.
 Require Import sb_def.
 Require Import sb_ds_trans.
 Require Import sb_metadata.
-Require Import ssa_props.
 Import SB_ds_pass.
 Require Import sb_msim.
 Require Import sb_ds_sim.
@@ -755,8 +754,6 @@ Qed.
 
 Lemma incl_nil : forall A (d:list A), incl nil d.
 Proof. intros. intros x J. inv J. Qed.
-
-Require Import ssa_analysis.
 
 Lemma ids2atoms__inc : forall d1 d2,
   incl d1 d2 <-> ids2atoms d1 [<=] ids2atoms d2.

@@ -3,8 +3,8 @@ Add LoadPath "../ssa/monads".
 Add LoadPath "../ssa/compcert".
 Add LoadPath "../ssa".
 Add LoadPath "../../../theory/metatheory_8.3".
-Require Import ssa_def.
-Require Import ssa_lib.
+Require Import syntax.
+Require Import infrastructure.
 Require Import List.
 Require Import targetdata.
 Require Import monad.
@@ -13,7 +13,7 @@ Require Import Metatheory.
 Require Import genericvalues.
 Require Import trace.
 Require Import alist.
-Require Import ssa_props.
+Require Import infrastructure_props.
 Require Import CoqListFacts.
 Require Import symexe_def.
 

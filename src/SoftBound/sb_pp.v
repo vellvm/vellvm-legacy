@@ -4,38 +4,14 @@ Add LoadPath "../ssa".
 Add LoadPath "../ssa/compcert".
 Add LoadPath "../../../theory/metatheory_8.3".
 Add LoadPath "../TV".
-Require Import ssa_def.
-Require Import ssa_lib.
-Require Import List.
-Require Import Arith.
-Require Import tactics.
-Require Import monad.
-Require Import trace.
-Require Import Metatheory.
+Require Import vellvm.
 Require Import genericvalues.
-Require Import alist.
-Require Import Values.
-Require Import Memory.
-Require Import Integers.
-Require Import Coqlib.
-Require Import targetdata.
-Require Import Maps.
-Require Import Lattice.
-Require Import Iteration.
-Require Import Kildall.
-Require Import ssa_analysis.
-Require Import ssa_static.
-Require Import ssa_static_lib.
-Require Import ssa_props.
-Require Import opsem.
 Require Import sb_def.
 Require Import sb_metadata.
-Require Import Znumtheory.
 
 Module SBspecPP (GVsSig : GenericValuesSig).
 
 Module Export SBSEM := SBspecMetadata GVsSig.
-Import LLVMwf.
 
 (*****************************************)
 (* Definitions *)
@@ -1563,7 +1539,7 @@ Proof.
 Qed.
 
 Lemma mload_aux_isnt_stuck_helper: forall TD M blk bofs eofs gv t b ofs mcs2 mcs1
-  (Hft : feasible_typ TD t)
+  (Hft : typings.LLVMtypings.feasible_typ TD t)
   (Hwfd : wf_data TD M blk bofs eofs)
   (Hassert : assert_mptr TD t gv (mkMD blk bofs eofs))
   (Hptr : GV2ptr TD (getPointerSize TD) gv = ret Vptr b ofs)
@@ -1621,7 +1597,7 @@ Qed.
 
 Lemma mload_aux_isnt_stuck : forall S TD M blk bofs eofs gv t b ofs mcs
   (Hwft : wf_typ S t)
-  (Hft : feasible_typ TD t)
+  (Hft : typings.LLVMtypings.feasible_typ TD t)
   (Hwfd : wf_data TD M blk bofs eofs)
   (Hassert : assert_mptr TD t gv (mkMD blk bofs eofs))
   (Hptr : GV2ptr TD (getPointerSize TD) gv = ret Vptr b ofs)
@@ -1655,7 +1631,7 @@ Proof.
 Qed.
 
 Lemma mstore_aux_isnt_stuck_helper: forall TD blk bofs eofs gvp t b ofs gv2 gv1 M
-  (Hft : feasible_typ TD t)
+  (Hft : typings.LLVMtypings.feasible_typ TD t)
   (Hwfd : wf_data TD M blk bofs eofs)
   (Hassert : assert_mptr TD t gvp (mkMD blk bofs eofs))
   (Hptr : GV2ptr TD (getPointerSize TD) gvp = ret Vptr b ofs)
@@ -1723,7 +1699,7 @@ Proof.
 Qed.
 
 Lemma mstore_aux_isnt_stuck : forall TD M blk bofs eofs gvp t b ofs gvs gv
-  (Hft : feasible_typ TD t)
+  (Hft : typings.LLVMtypings.feasible_typ TD t)
   (Hwfg : wf_GVs TD gvs t)
   (Hin :  gv @ gvs) 
   (Hwfd : wf_data TD M blk bofs eofs)

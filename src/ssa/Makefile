@@ -10,101 +10,102 @@ all:
 	+make ott 
 #	+make -C ./llvm_op
 
-ott: main.pdf ssa_static.vo ssa_interpreter.vo opsem_inst.vo vellvm.vo
+ott: main.pdf typings.vo interpreter.vo opsem_inst.vo vellvm.vo
 
 alist.vo : alist.v
 	$(COQC) $(COQARG) alist.v
 
-ssa_coq_lib.vo : ssa_coq_lib.v ssa_def.vo alist.vo targetdata.vo
-	$(COQC) $(COQARG) ssa_coq_lib.v
+infrastructure_aux.vo : infrastructure_aux.v syntax.vo alist.vo targetdata.vo
+	$(COQC) $(COQARG) infrastructure_aux.v
 
-ssa_def.vo : ./monads/monad.vo ./compcert/Floats.vo alist.vo \
-	./compcert/Memory.vo ssa_def.v
-	$(COQC) $(COQARG) ssa_def.v
+syntax.vo : ./monads/monad.vo ./compcert/Floats.vo alist.vo \
+	./compcert/Memory.vo syntax.v
+	$(COQC) $(COQARG) syntax.v
 
-ssa_def.v : ssa_def.ott 
-	$(OTT) -coq_expand_list_types true -i ssa_def.ott -o ssa_def.v
-	./fixott.py ssa_def.v
+syntax.v : syntax.ott 
+	$(OTT) -coq_expand_list_types true -i syntax.ott -o syntax.v
+	./fixott.py syntax.v
 
-ssa_coq.ott : ssa_coq_lib.vo ssa_def.ott coq2ott.py 
+infrastructure.ott : infrastructure_aux.vo syntax.ott coq2ott.py 
 	./coq2ott.py
-	cp merge.ott ssa_coq.ott       
+	cp merge.ott infrastructure.ott       
 
-m_ssa_static.ott : ssa_static.ott spanlines.py
-	./spanlines.py ssa_static.ott
+m_typings.ott : typings.ott spanlines.py
+	./spanlines.py typings.ott
 
-ssa_lib.v ssa_static.v: ssa_def.ott ssa_coq_lib.vo ssa_coq.ott ssa_lib.ott \
-	m_ssa_static.ott ./monads/monad.vo targetdata.vo
+infrastructure.v typings.v: syntax.ott infrastructure_aux.vo \
+	infrastructure.ott m_typings.ott ./monads/monad.vo targetdata.vo
 	$(OTT) -merge false -coq_expand_list_types true \
-            -i ssa_def.ott -o _tmp_ssa_def.v \
-	    -i ssa_coq.ott -i ssa_lib.ott -o ssa_lib.v \
-	    -i m_ssa_static.ott -o ssa_static.v
-	rm _tmp_ssa_def.v
-	./fixott.py ssa_lib.v
-	./fixott.py ssa_static.v
+            -i syntax.ott -o _tmp_syntax.v \
+	    -i infrastructure.ott -o infrastructure.v \
+	    -i m_typings.ott -o typings.v
+	rm _tmp_syntax.v
+	./fixott.py infrastructure.v
+	./fixott.py typings.v
 
-ssa_lib.vo: ssa_lib.v
-	$(COQC) $(COQARG) ssa_lib.v
+infrastructure.vo: infrastructure.v
+	$(COQC) $(COQARG) infrastructure.v
 
-ssa_static.vo: ssa_static.v ssa_lib.vo ssa_analysis.vo
-	$(COQC) $(COQARG) ssa_static.v
+typings.vo: typings.v infrastructure.vo analysis.vo
+	$(COQC) $(COQARG) typings.v
 
-ssa_wf.vo: ssa_static.vo ssa_props.vo ssa_wf.v
+ssa_wf.vo: typings.vo infrastructure_props.vo ssa_wf.v
 	$(COQC) $(COQARG) ssa_wf.v
 
 tactics.vo: tactics.v
 	$(COQC) $(COQARG) tactics.v
 
-targetdata.vo: targetdata.v ssa_def.vo
+targetdata.vo: targetdata.v syntax.vo
 	$(COQC) $(COQARG) targetdata.v
 
 trace.vo: trace.v
 	$(COQC) $(COQARG) trace.v
 
-ssa_analysis.vo: compcert/Kildall.vo ssa_analysis.v alist.vo compcert/Memory.vo\
-	ssa_lib.vo ssa_props.vo
-	$(COQC) $(COQARG) ssa_analysis.v
+analysis.vo: compcert/Kildall.vo analysis.v alist.vo compcert/Memory.vo \
+	infrastructure.vo infrastructure_props.vo
+	$(COQC) $(COQARG) analysis.v
 
-genericvalues.vo: ssa_def.vo ssa_lib.vo tactics.vo trace.vo genericvalues.v \
-	alist.vo targetdata.vo compcert/Memory.vo
+genericvalues.vo: syntax.vo infrastructure.vo tactics.vo trace.vo \
+	genericvalues.v alist.vo targetdata.vo compcert/Memory.vo
 	$(COQC) $(COQARG) genericvalues.v
 
-ssa_interpreter.vo: ssa_interpreter.v ssa_def.vo ssa_lib.vo \
-	tactics.vo trace.vo genericvalues.vo alist.vo ssa_props.vo dopsem.vo
-	$(COQC) $(COQARG) ssa_interpreter.v
+interpreter.vo: interpreter.v syntax.vo infrastructure.vo tactics.vo \
+	trace.vo genericvalues.vo alist.vo infrastructure_props.vo dopsem.vo
+	$(COQC) $(COQARG) interpreter.v
 
-ssa_props.vo: ssa_props.v ssa_def.vo ssa_lib.vo alist.vo
-	$(COQC) $(COQARG) ssa_props.v
+infrastructure_props.vo: infrastructure_props.v syntax.vo infrastructure.vo \
+	alist.vo
+	$(COQC) $(COQARG) infrastructure_props.v
 
-ssa_static_lib.vo: ssa_static_lib.v ssa_def.vo ssa_lib.vo genericvalues.vo \
-	alist.vo ssa_props.vo ssa_analysis.vo
-	$(COQC) $(COQARG) ssa_static_lib.v
+typings_props.vo: typings_props.v syntax.vo infrastructure.vo genericvalues.vo \
+	alist.vo infrastructure_props.vo analysis.vo
+	$(COQC) $(COQARG) typings_props.v
 
-opsem.vo: opsem.v ssa_static_lib.vo ssa_def.vo ssa_lib.vo genericvalues.vo \
-	alist.vo ssa_props.vo
+opsem.vo: opsem.v typings_props.vo syntax.vo infrastructure.vo \
+	genericvalues.vo alist.vo infrastructure_props.vo
 	$(COQC) $(COQARG) opsem.v
 
-opsem_props.vo: opsem_props.v opsem.vo ssa_def.vo ssa_lib.vo genericvalues.vo \
-	alist.vo ssa_props.vo
+opsem_props.vo: opsem_props.v opsem.vo syntax.vo infrastructure.vo \
+	genericvalues.vo alist.vo infrastructure_props.vo
 	$(COQC) $(COQARG) opsem_props.v
 
-opsem_wf.vo: opsem_wf.v opsem_props.vo opsem.vo ssa_def.vo ssa_lib.vo\
-       genericvalues.vo alist.vo ssa_props.vo
+opsem_wf.vo: opsem_wf.v opsem_props.vo opsem.vo syntax.vo infrastructure.vo\
+       genericvalues.vo alist.vo infrastructure_props.vo
 	$(COQC) $(COQARG) opsem_wf.v
 
 dopsem.vo: dopsem.v opsem_wf.vo
 	$(COQC) $(COQARG) dopsem.v
 
-opsem_inst.vo: opsem_inst.v dopsem.vo ssa_def.vo ssa_lib.vo trace.vo
+opsem_inst.vo: opsem_inst.v dopsem.vo syntax.vo infrastructure.vo trace.vo
 	$(COQC) $(COQARG) opsem_inst.v
 
-ssa.tex: ssa_def.ott ssa_coq.ott ssa_lib.ott m_ssa_static.ott main.tex 
+ssa.tex: syntax.ott infrastructure.ott m_typings.ott main.tex 
 	$(OTT) -merge false -o ssa.tex \
           -tex_show_meta false \
           -tex_wrap false \
-            ssa_def.ott ssa_coq.ott ssa_lib.ott m_ssa_static.ott
+            syntax.ott infrastructure.ott m_typings.ott
 
-vellvm.vo : vellvm.v ssa_def.vo ssa_lib.vo ssa_static.vo genericvalues.vo \
+vellvm.vo : vellvm.v syntax.vo infrastructure.vo typings.vo genericvalues.vo \
 	targetdata.vo
 	$(COQC) $(COQARG) vellvm.v
 
@@ -117,6 +118,6 @@ clean:
 	+make -C ./compcert clean
 	+make -C ./monads clean	
 	+make -C ./llvm_op clean
-	rm -rf main.pdf main.log main.aux main.log ssa_def.v ssa_lib.v \
-		ssa_static.vo *.vo *.glob merge.ott m_*.ott
+	rm -rf main.pdf main.log main.aux main.log syntax.v infrastructure.v \
+		typings.vo *.vo *.glob merge.ott m_*.ott
 

@@ -11,9 +11,9 @@ Require Import Values.
 Require Import Memory.
 Require Import Integers.
 Require Import Coqlib.
-Require Import ssa_def.
-Require Import ssa_static.
-Require Import ssa_static_lib.
+Require Import syntax.
+Require Import typings.
+Require Import typings_props.
 Require Import opsem.
 Require Import opsem_props.
 Require Import opsem_wf.
@@ -23,7 +23,7 @@ Module DGVs <: GenericValuesSig.
 Import LLVMsyntax.
 Import LLVMgv.
 Import LLVMtd.
-Import LLVMwf.
+Import LLVMtypings.
 
 Definition t := GenericValue.
 Definition Map := list (id * t).

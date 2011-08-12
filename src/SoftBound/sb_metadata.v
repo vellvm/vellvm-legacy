@@ -4,31 +4,9 @@ Add LoadPath "../ssa".
 Add LoadPath "../ssa/compcert".
 Add LoadPath "../../../theory/metatheory_8.3".
 Add LoadPath "../TV".
-Require Import ssa_def.
-Require Import ssa_lib.
-Require Import List.
-Require Import Arith.
-Require Import tactics.
-Require Import monad.
-Require Import trace.
-Require Import Metatheory.
+Require Import vellvm.
 Require Import genericvalues.
-Require Import alist.
-Require Import Values.
-Require Import Memory.
-Require Import Integers.
-Require Import Coqlib.
-Require Import targetdata.
-Require Import Maps.
-Require Import Lattice.
-Require Import Iteration.
-Require Import Kildall.
-Require Import ssa_static.
-Require Import ssa_static_lib.
-Require Import ssa_props.
-Require Import opsem.
 Require Import sb_def.
-Require Import Znumtheory.
 
 Ltac zauto := auto with zarith.
 
@@ -58,15 +36,13 @@ Ltac bsplit :=
   eapply andb_true_iff; split.
 
 Ltac repeat_bsplit :=
-  repeat (bsplit; auto using LLVMlib.eq_sumbool2bool_true).
+  repeat (bsplit; auto using eq_sumbool2bool_true).
 
 Ltac zeauto := eauto with zarith.
 
 Module SBspecMetadata (GVsSig : GenericValuesSig).
 
 Module Export SBSEM := SBspec GVsSig.
-Import LLVMlib.
-Import LLVMwf.
 
 (*****************************************)
 (* misc *)
@@ -1887,27 +1863,6 @@ Proof.
     clear J2 J3.
     zeauto.
 Qed.
-
-Lemma getTypeStoreSize_le_getTypeAllocSize : forall TD t sz1 sz2,
-  feasible_typ TD t ->
-  getTypeStoreSize TD t = Some sz1 ->
-  getTypeAllocSize TD t = Some sz2 ->
-  (sz2 >= sz1)%nat.
-Proof.
-  intros TD t sz1 sz2 J H H0.
-  unfold getTypeAllocSize in H0.
-  unfold getTypeStoreSize in *.
-  unfold getTypeSizeInBits in *.
-  unfold getABITypeAlignment in *.
-  unfold getAlignment in *.
-  remember (getTypeSizeInBits_and_Alignment TD true t) as R.
-  destruct R as [[]|]; inv H. inv H0.
-  inv J.
-  apply feasible_typ_inv' in H; auto.
-  destruct H as [sz [al [J1 J2]]].
-  rewrite J1 in HeqR. inv HeqR.
-  apply RoundUpAlignment_spec; auto.
-Qed.  
 
 End SBspecMetadata. 
 

@@ -15,8 +15,6 @@ Require Import Coqlib.
 Require Import monad.
 Require Import Metatheory.
 Require Import Znumtheory.
-Require Import ssa_props.
-Require Import ssa_static_lib.
 Require Import opsem.
 Require Import dopsem.
 Require Import sb_def.

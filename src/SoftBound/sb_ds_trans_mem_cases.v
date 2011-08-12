@@ -15,8 +15,6 @@ Require Import monad.
 Require Import Metatheory.
 Require Import Znumtheory.
 Require Import genericvalues.
-Require Import ssa_props.
-Require Import ssa_static_lib.
 Require Import dopsem.
 Require Import sb_def.
 Require Import sb_ds_trans.

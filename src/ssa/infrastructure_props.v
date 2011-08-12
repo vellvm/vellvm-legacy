@@ -2,8 +2,8 @@ Add LoadPath "./ott".
 Add LoadPath "./monads".
 Add LoadPath "./compcert".
 Add LoadPath "../../../theory/metatheory_8.3".
-Require Import ssa_def.
-Require Import ssa_lib.
+Require Import syntax.
+Require Import infrastructure.
 Require Import Coq.Program.Equality.
 Require Import CoqListFacts.
 Require Import Metatheory.
@@ -11,9 +11,12 @@ Require Import alist.
 Require Import Coqlib.
 Require Import Kildall.
 Require Import Maps.
+Require Import targetdata.
 
 Import LLVMsyntax.
-Import LLVMlib.
+Import LLVMinfra.
+
+Ltac tinv H := try solve [inv H].
 
 (* eq is refl *)
 
@@ -343,6 +346,36 @@ Proof.
       apply H1; simpl; auto.
 Qed.
 
+Lemma NoDup_disjoint : forall l1 l2 (i0:atom),
+  NoDup (l1++l2) ->
+  In i0 l2 -> 
+  ~ In i0 l1.    
+Proof.
+  induction l1; intros.
+    intro J. inversion J.  
+
+    simpl. simpl_env in H.
+    inv H.
+    eapply IHl1 in H4; eauto.
+    destruct (eq_atom_dec i0 a); subst.
+      intro J. apply H3. apply in_or_app; auto.
+      intro J. destruct J; auto.
+Qed.    
+
+Lemma NoDup_disjoint' : forall l1 l2 (i0:atom),
+  NoDup (l1++l2) ->
+  In i0 l1 -> 
+  ~ In i0 l2.    
+Proof.
+  induction l1; intros.
+    inversion H0.
+
+    simpl. simpl_env in H.
+    inv H. simpl in H0.
+    destruct H0 as [H0 | H0]; subst; eauto.
+      intro J. apply H3. apply in_or_app; auto.
+Qed.    
+
 (* gets *)
 
 Lemma getCmdsLocs_app : forall cs1 cs2,
@@ -383,6 +416,13 @@ Proof.
     simpl. rewrite IHlb1. destruct a. simpl_env. auto.
 Qed.
 
+Lemma getArgsIDs_app : forall l1 l2,
+  getArgsIDs (l1++l2) = getArgsIDs l1 ++ getArgsIDs l2.
+Proof.
+  induction l1; simpl; intros; auto.
+    destruct a. simpl. rewrite IHl1; auto.
+Qed.
+
 Lemma genLabel2Block_block_inv : forall b l0 b',
   lookupAL _ (genLabel2Block_block b) l0 = Some b' ->
   b = b'.
@@ -390,7 +430,8 @@ Proof.
   intros. unfold genLabel2Block_block in H.
   destruct b.
   simpl in H.
-  destruct (@eq_dec atom (EqDec_eq_of_EqDec atom EqDec_atom) l0 l1); subst; inversion H; auto.
+  destruct (@eq_dec atom (EqDec_eq_of_EqDec atom EqDec_atom) l0 l1); subst; 
+    inversion H; auto.
 Qed.        
 
 Lemma NotInGetBlocksLabels__NotInGenLabel2Block_blocks : forall lb l0,
@@ -1777,36 +1818,6 @@ Proof.
       contradict H; eauto.
 Qed.
     
-Lemma NoDup_disjoint : forall l1 l2 (i0:atom),
-  NoDup (l1++l2) ->
-  In i0 l2 -> 
-  ~ In i0 l1.    
-Proof.
-  induction l1; intros.
-    intro J. inversion J.  
-
-    simpl. simpl_env in H.
-    inv H.
-    eapply IHl1 in H4; eauto.
-    destruct (eq_atom_dec i0 a); subst.
-      intro J. apply H3. apply in_or_app; auto.
-      intro J. destruct J; auto.
-Qed.    
-
-Lemma NoDup_disjoint' : forall l1 l2 (i0:atom),
-  NoDup (l1++l2) ->
-  In i0 l1 -> 
-  ~ In i0 l2.    
-Proof.
-  induction l1; intros.
-    inversion H0.
-
-    simpl. simpl_env in H.
-    inv H. simpl in H0.
-    destruct H0 as [H0 | H0]; subst; eauto.
-      intro J. apply H3. apply in_or_app; auto.
-Qed.    
-
 Lemma NotInPhiNodesIDs__lookupTypViaIDFromPhiNodes : forall la id1,
   ~ In id1 (getPhiNodesIDs la) ->
   lookupTypViaIDFromPhiNodes la id1 = None.
@@ -2142,13 +2153,6 @@ Proof.
       simpl. apply in_or_app. auto.
 Qed.
 
-Lemma getArgsIDs_app : forall l1 l2,
-  getArgsIDs (l1++l2) = getArgsIDs l1 ++ getArgsIDs l2.
-Proof.
-  induction l1; simpl; intros; auto.
-    destruct a. simpl. rewrite IHl1; auto.
-Qed.
-
 Lemma NoDup_lookupTypViaIDFromArgs : forall la1 t a i0 la2,
   NoDup (getArgsIDs (la1 ++ (t, a, i0) :: la2)) ->
   lookupTypViaIDFromArgs (la1 ++ (t, a, i0) :: la2) i0 = Some t.
@@ -2230,9 +2234,6 @@ Proof.
        apply blockEqB_inv in H0; subst; auto.
 Qed.
 
-Require Import targetdata.
-Ltac tinv H := try solve [inv H].
-
 Lemma mgetoffset_aux__getSubTypFromConstIdxs : forall TD const_list idxs o t' 
     t1 o0
   (HeqR1 : Some idxs = intConsts2Nats TD const_list)
@@ -2277,7 +2278,6 @@ Proof.
   eapply lookupBlockViaLabelFromFdef_inv in H; eauto.
   destruct H; subst. auto.
 Qed.
-
 
 (*****************************)
 (*

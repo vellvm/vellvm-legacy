@@ -11,8 +11,8 @@ Require Import Values.
 Require Import Memory.
 Require Import Integers.
 Require Import Coqlib.
-Require Import ssa_def.
-Require Import ssa_props.
+Require Import syntax.
+Require Import infrastructure_props.
 Require Import opsem.
 Require Import dopsem.
 

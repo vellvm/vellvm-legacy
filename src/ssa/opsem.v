@@ -3,8 +3,8 @@ Add LoadPath "./monads".
 Add LoadPath "./compcert".
 Add LoadPath "../../../theory/metatheory_8.3".
 Require Import Ensembles.
-Require Import ssa_def.
-Require Import ssa_lib.
+Require Import syntax.
+Require Import infrastructure.
 Require Import List.
 Require Import Arith.
 Require Import monad.
@@ -17,9 +17,9 @@ Require Import Memory.
 Require Import Integers.
 Require Import Coqlib.
 Require Import targetdata.
-Require Import ssa_props.
-Require Import ssa_static.
-Require Import ssa_static_lib.
+Require Import infrastructure_props.
+Require Import typings.
+Require Import typings_props.
 
 (************** GVs Interface ******************)
 
@@ -28,7 +28,7 @@ Module Type GenericValuesSig.
 Import LLVMsyntax.
 Import LLVMgv.
 Import LLVMtd.
-Import LLVMwf.
+Import LLVMtypings.
 
 Parameter t : Type.
 Definition Map := list (id * t).
@@ -127,7 +127,7 @@ End GenericValuesSig.
 Module OpsemAux.
 
 Import LLVMsyntax.
-Import LLVMlib.
+Import LLVMinfra.
 Import LLVMgv.
 Import LLVMtd.
 
@@ -150,9 +150,9 @@ Definition lookupFdefViaPtr Ps fs fptr : option fdef :=
 
 Definition lookupExFdecViaPtr (Ps:products) (fs:GVMap) fptr : option fdec :=
 do fn <- lookupFdefViaGVFromFunTable fs fptr;
-    match LLVMlib.lookupFdefViaIDFromProducts Ps fn with 
+    match lookupFdefViaIDFromProducts Ps fn with 
     | Some _ => None
-    | None => LLVMlib.lookupFdecViaIDFromProducts Ps fn
+    | None => lookupFdecViaIDFromProducts Ps fn
     end
 .
 
@@ -266,7 +266,7 @@ End OpsemAux.
 Module Opsem (GVsSig : GenericValuesSig).
 
 Export LLVMsyntax.
-Export LLVMlib.
+Export LLVMinfra.
 Export LLVMgv.
 Export LLVMtd.
 Export OpsemAux.
