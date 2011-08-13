@@ -105,8 +105,8 @@ ssa.tex: syntax.ott infrastructure.ott m_typings.ott main.tex
           -tex_wrap false \
             syntax.ott infrastructure.ott m_typings.ott
 
-vellvm.vo : vellvm.v syntax.vo infrastructure.vo typings.vo genericvalues.vo \
-	targetdata.vo
+vellvm.vo : vellvm.v syntax.vo infrastructure_props.vo typings_props.vo \
+	targetdata.vo dopsem.vo
 	$(COQC) $(COQARG) vellvm.v
 
 main.pdf: ssa.tex main.tex macros.sty 

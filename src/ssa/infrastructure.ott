@@ -566,53 +566,6 @@ match b with
 (* | block_without_label li => li *)
 end.
 
-(*
-Definition getBindingFdec (ib:id_binding) : option fdec :=
-match ib with
-| id_binding_fdec fdec => Some fdec
-| _ => None
-end.
-
-Definition getBindingArg (ib:id_binding) : option arg :=
-match ib with
-| id_binding_arg arg => Some arg
-| _ => None
-end.
-
-Definition getBindingGvar (ib:id_binding) : option gvar :=
-match ib with
-| id_binding_gvar g => Some g
-| _ => None
-end.
-
-Definition getBindingCmd (ib:id_binding) : option cmd :=
-match ib with
-| id_binding_cmd i => Some i
-| _ => None
-end.
-
-Definition getBindingInsn (ib:id_binding) : option insn :=
-match ib with
-| id_binding_cmd c => Some (insn_cmd c)
-| id_binding_phinode p => Some (insn_phinode p)
-| id_binding_terminator tmn => Some (insn_terminator tmn)
-| _ => None
-end.
-
-
-Definition getBindingPhiNode (ib:id_binding) : option phinode :=
-match ib with
-| id_binding_phinode i => Some i
-| _ => None
-end.
-
-Definition getBindingTerminator (ib:id_binding) : option terminator :=
-match ib with
-| id_binding_terminator i => Some i
-| _ => None
-end.
-*)
-
 Definition getFheaderID (fh:fheader) : id :=
 match fh with
 | fheader_intro _ _ id _ _ => id
@@ -627,20 +580,6 @@ Definition getFdefID (fd:fdef) : id :=
 match fd with
 | fdef_intro fh _ => getFheaderID fh
 end.
-
-(*
-Definition getNormalDestFromInvokeInsnC (i:insn) : option l :=
-match i with
-| insn_invoke _ _ _ _ l1 _ => Some l1
-| _ => None
-end.
-
-Definition getUnwindDestFromInvokeInsnC (i:insn) : option l :=
-match i with
-| insn_invoke _ _ _ _ _ l2 => Some l2
-| _ => None
-end.
-*)
 
 Fixpoint getLabelViaIDFromList (ls:list_value_l) (branch:id) : option l :=
 match ls with
@@ -840,67 +779,6 @@ match la with
     if (eq_dec id' id0) then Some (t, attrs, id') 
     else lookupArgViaIDFromArgs la' id0
 end.
-
-(*
-Definition lookupBindingViaIDFromFdec (fd:fdec) (id:id) : id_binding :=
-match fd with
-| fdec_intro (fheader_intro t id' la _) =>
-    match (eq_dec id id') with
-    | left _ => id_binding_fdec fd
-    | right _ => lookupBindingViaIDFromArgs la id
-    end
-end.
-
-Definition lookupBindingViaIDFromFdef (fd:fdef) (id:id) : id_binding :=
-let '(fdef_intro fh lb) := fd in
-match lookupBindingViaIDFromFdec (fdec_intro fh) id with
-| id_binding_none => lookupBindingViaIDFromBlocks lb id
-| re => re
-end.
-
-Definition lookupBindingViaIDFromProduct (p:product) (id:id) : id_binding :=
-match p with
-| product_gvar (gvar_intro id' spec t c a) =>
-  match (eq_dec id id') with
-  | left _ => id_binding_gvar (gvar_intro id' spec t c a)
-  | right _ => id_binding_none
-  end
-| product_gvar (gvar_external id' spec t) =>
-  match (eq_dec id id') with
-  | left _ => id_binding_gvar (gvar_external id' spec t)
-  | right _ => id_binding_none
-  end
-| product_fdec fdec => lookupBindingViaIDFromFdec fdec id
-| product_fdef fdef => lookupBindingViaIDFromFdef fdef id
-end.  
-
-Fixpoint lookupBindingViaIDFromProducts (lp:products) (id:id) : id_binding :=
-match lp with
-| nil => id_binding_none
-| p::lp' => 
-  match (lookupBindingViaIDFromProduct p id) with
-  | id_binding_none => lookupBindingViaIDFromProducts lp' id
-  | re => re
-  end
-end.
-  
-Definition lookupBindingViaIDFromModule (m:module) (id:id) : id_binding :=
-  let (os, dts, ps) := m in 
-  lookupBindingViaIDFromProducts ps id.
-
-Fixpoint lookupBindingViaIDFromModules (lm:modules) (id:id) : id_binding :=
-match lm with
-| nil => id_binding_none
-| m::lm' =>
-  match (lookupBindingViaIDFromModule m id) with
-  | id_binding_none => lookupBindingViaIDFromModules lm' id
-  | re => re
-  end
-end.
-
-Definition lookupBindingViaIDFromSystem (s:system) (id:id) : id_binding :=
-lookupBindingViaIDFromModules s id.
-*)
 
 (* Block lookup from ID *)
 
@@ -1144,7 +1022,7 @@ Definition lookupTypViaTIDFromSystem (s:system) (id0:id) : option typ :=
 lookupTypViaTIDFromModules s id0.
 
 (**********************************)
-(* SSA. *)
+(* labels <-> blocks. *)
 
   Definition l2block := list (l*block).
 
@@ -1302,23 +1180,13 @@ lookupTypViaTIDFromModules s id0.
   | _ => false
   end.
 
-(**********************************)
-(* Dominator. *)
-
-  Fixpoint genLabelsFromBlocks (bs:blocks) : ls :=
-  match bs with
-  | nil => lempty_set
-  | (block_intro l0 _ _ _)::bs' => lset_union [l0] (genLabelsFromBlocks bs')
-  end.
-
-  Definition genLabelsFromFdef (f:fdef) : ls :=
-  match f with
-  | fdef_intro _ bs => genLabelsFromBlocks bs
-  end.
-
-  Definition outputFromInput (b:block) (input:ls) : ls :=
-  match b with
-  | block_intro l0 _ _ _=> lset_add l0 input
+  Definition successors_terminator (tmn: terminator) : ls :=
+  match tmn with
+  | insn_return _ _ _ => nil
+  | insn_return_void _ => nil
+  | insn_br _ _ l1 l2 => l1::l2::nil
+  | insn_br_uncond _ l1 => l1::nil
+  | insn_unreachable _ => nil
   end.
 
 (**********************************)

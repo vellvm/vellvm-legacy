@@ -17,7 +17,6 @@ Require Import AST.
 Require Import targetdata.
 Require Import ZArith.
 Require Import Floats.
-Require Import typings.
 
 Module LLVMgv.
 
