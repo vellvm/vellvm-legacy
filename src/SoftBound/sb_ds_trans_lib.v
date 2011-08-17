@@ -6,6 +6,7 @@ Add LoadPath "../../../theory/metatheory_8.3".
 Add LoadPath "../TV".
 Require Import Values.
 Require Import vellvm.
+Require Import genericvalues.
 Require Import trace.
 Require Import Memory.
 Require Import alist.
@@ -1534,6 +1535,20 @@ Proof.
   intros.
   destruct H as [l1 [ps1 [cs11 H]]]; subst.
   exists l1. exists ps1. exists (cs11 ++ [c]). simpl_env. auto.
+Qed.
+
+Lemma cmds_at_block_tails_next : forall B cs1 cs2 cs3 tmn,
+  (exists l0 : l,
+    exists ps0 : phinodes,
+      exists cs0 : list cmd, B = 
+        block_intro l0 ps0 (cs0 ++ (cs1 ++ cs2) ++ cs3) tmn) ->
+  exists l0 : l,
+    exists ps0 : phinodes,
+      exists cs0 : list cmd, B = block_intro l0 ps0 (cs0 ++ cs2 ++ cs3) tmn.
+Proof.
+  intros.
+  destruct H as [l2 [ps2 [cs21 Heqb2]]]; subst;
+  exists l2; exists ps2; exists (cs21 ++ cs1); simpl_env; auto.
 Qed.
 
 Lemma reg_simulation__updateAddAL_prop : forall mi los nts gl f1 rm1 rm2 lc1 lc2 

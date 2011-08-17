@@ -23,6 +23,7 @@ Require Import sb_msim.
 Require Import sb_ds_gv_inject.
 Require Import sb_ds_sim.
 Require Import sb_ds_trans_lib.
+Require Import sb_ds_trans_tactics.
 
 Import SB_ds_pass.
 Export DSB.SBSEM.
@@ -74,36 +75,7 @@ Lemma SBpass_is_correct__dsBop : forall (mi : MoreMem.meminj)(mgb : Values.block
          DSB.SBSEM.Mem := Mem;
          DSB.SBSEM.Mmap := MM |} Cfg St' /\ inject_incr mi mi'.
 Proof.
-  intros.
-  destruct_ctx_other.
-  simpl in Htcmds.
-  remember (trans_cmds ex_ids3 rm2 cs) as R.
-  destruct R as [[ex_ids2 cs2]|]; inv Htcmds.
-  eapply simulation__BOP in H; eauto.
-  destruct H as [gv3' [Hbop Hinj]].
-  exists (DOS.Sem.mkState
-          ((DOS.Sem.mkEC (fdef_intro fh2 bs2) B2
-            (cs2 ++ cs23) tmn2 (updateAddAL GenericValue lc2 id0 gv3') als2):: 
-            ECs2) M2).
-  exists mi.
-  split.
-    rewrite <- (@trace_app_nil__eq__trace trace_nil).
-    eapply DOS.Sem.sop_star_cons; eauto.
-      apply DOS.Sem.sBop; auto.
-
-    split; auto using inject_incr_refl.
-    repeat (split; auto).
-      eapply cmds_at_block_tail_next; eauto.
-      eapply cmds_at_block_tail_next; eauto.
-
-      exists ex_ids. exists rm2.
-      exists ex_ids3. exists ex_ids4. exists cs2. exists cs23.
-      split; auto.
-      split.
-        clear - Hgenmeta Hrsim Hinj HBinF Heqb1.
-        apply reg_simulation__updateAddAL_lc with (ex_ids3:=ex_ids); auto.
-          eapply getCmdID_in_getFdefLocs; eauto.
-      repeat (split; auto).
+  intros. SBpass_is_correct__dsOp.
 Qed.
 
 Lemma SBpass_is_correct__dsFBop : forall (mi : MoreMem.meminj) (mgb : Values.block)
@@ -153,36 +125,401 @@ Lemma SBpass_is_correct__dsFBop : forall (mi : MoreMem.meminj) (mgb : Values.blo
          DSB.SBSEM.Mem := Mem;
          DSB.SBSEM.Mmap := MM |} Cfg St' /\ inject_incr mi mi'.
 Proof.
-  intros.
-  destruct_ctx_other.
-  simpl in Htcmds.
-  remember (trans_cmds ex_ids3 rm2 cs) as R.
-  destruct R as [[ex_ids2 cs2]|]; inv Htcmds.
-  eapply simulation__FBOP in H; eauto.
-  destruct H as [gv3' [Hfbop Hinj]].
-  exists (DOS.Sem.mkState
-          ((DOS.Sem.mkEC (fdef_intro fh2 bs2) B2
-            (cs2 ++ cs23) tmn2 (updateAddAL GenericValue lc2 id0 gv3') als2):: 
-            ECs2) M2).
-  exists mi.
-  split.
-    rewrite <- (@trace_app_nil__eq__trace trace_nil).
-    eapply DOS.Sem.sop_star_cons; eauto.
-      apply DOS.Sem.sFBop; auto.
+  intros. SBpass_is_correct__dsOp.
+Qed.
 
-    split; auto using inject_incr_refl.
-    repeat (split; auto).
-      eapply cmds_at_block_tail_next; eauto.
-      eapply cmds_at_block_tail_next; eauto.
+Lemma SBpass_is_correct__dsTrunc : forall
+  (mi : MoreMem.meminj) (mgb : Values.block) (St : DOS.Sem.State) (S : system)
+  (TD : TargetData) (Ps : list product) (F : fdef) (B : block) (lc : GVMap)
+  (rm : rmetadata) (gl : GVMap) (fs : GVMap) (id0 : id) (truncop0 : truncop)
+  (t1 : typ) (v1 : value) (t2 : typ) (EC : list ExecutionContext)
+  (cs : list cmd) (tmn : terminator) (Mem0 : mem) (MM : mmetadata)
+  (als : list mblock) Cfg
+  (Hsim : sbState_simulates_State mi mgb {|
+           CurSystem := S;
+           CurTargetData := TD;
+           CurProducts := Ps;
+           Globals := gl;
+           FunTable := fs |} {|
+           ECS := {|
+                  CurFunction := F;
+                  CurBB := B;
+                  CurCmds := insn_trunc id0 truncop0 t1 v1 t2 :: cs;
+                  Terminator := tmn;
+                  Locals := lc;
+                  Rmap := rm;
+                  Allocas := als |} :: EC;
+           Mem := Mem0;
+           Mmap := MM |} Cfg St)
+  (gv2 : GenericValue)
+  (H : TRUNC TD lc gl truncop0 t1 v1 t2 = ret gv2),
+   exists St' : DOS.Sem.State,
+     exists mi' : MoreMem.meminj,
+       DOS.Sem.sop_star Cfg St St' trace_nil /\
+       sbState_simulates_State mi' mgb {|
+           CurSystem := S;
+           CurTargetData := TD;
+           CurProducts := Ps;
+           Globals := gl;
+           FunTable := fs |} {|
+         ECS := {|
+                CurFunction := F;
+                CurBB := B;
+                CurCmds := cs;
+                Terminator := tmn;
+                Locals := updateAddAL GenericValue lc id0 gv2;
+                Rmap := rm;
+                Allocas := als |} :: EC;
+         Mem := Mem0;
+         Mmap := MM |} Cfg St' /\ inject_incr mi mi'.
+Proof.
+  intros. SBpass_is_correct__dsOp.
+Qed.
 
-      exists ex_ids. exists rm2.
-      exists ex_ids3. exists ex_ids4. exists cs2. exists cs23.
-      split; auto.
-      split.
-        clear - Hgenmeta Hrsim Hinj HBinF Heqb1.
-        apply reg_simulation__updateAddAL_lc with (ex_ids3:=ex_ids); auto.
-          eapply getCmdID_in_getFdefLocs; eauto.
-      repeat (split; auto).
+Lemma SBpass_is_correct__dsExt : forall
+  (mi : MoreMem.meminj) (mgb : Values.block) (St : DOS.Sem.State) (S : system)
+  (TD : TargetData) (Ps : list product) (F : fdef) (B : block) (lc : GVMap)
+  (rm : rmetadata) (gl : GVMap) (fs : GVMap) (id0 : id) extop0
+  (t1 : typ) (v1 : value) (t2 : typ) (EC : list ExecutionContext)
+  (cs : list cmd) (tmn : terminator) (Mem0 : mem) (MM : mmetadata)
+  (als : list mblock) Cfg
+  (Hsim : sbState_simulates_State mi mgb {|
+           CurSystem := S;
+           CurTargetData := TD;
+           CurProducts := Ps;
+           Globals := gl;
+           FunTable := fs |} {| 
+           ECS := {|
+                  CurFunction := F;
+                  CurBB := B;
+                  CurCmds := insn_ext id0 extop0 t1 v1 t2 :: cs;
+                  Terminator := tmn;
+                  Locals := lc;
+                  Rmap := rm;
+                  Allocas := als |} :: EC;
+           Mem := Mem0;
+           Mmap := MM |} Cfg St)
+  (gv2 : GenericValue)
+  (H : EXT TD lc gl extop0 t1 v1 t2 = ret gv2),
+   exists St' : DOS.Sem.State,
+     exists mi' : MoreMem.meminj,
+       DOS.Sem.sop_star Cfg St St' trace_nil /\
+       sbState_simulates_State mi' mgb  {|
+         CurSystem := S;
+         CurTargetData := TD;
+         CurProducts := Ps;
+         Globals := gl;
+         FunTable := fs |} {|
+         ECS := {|
+                CurFunction := F;
+                CurBB := B;
+                CurCmds := cs;
+                Terminator := tmn;
+                Locals := updateAddAL GenericValue lc id0 gv2;
+                Rmap := rm;
+                Allocas := als |} :: EC;
+         Mem := Mem0;
+         Mmap := MM |} Cfg St' /\ inject_incr mi mi'.
+Proof.
+  intros. SBpass_is_correct__dsOp.
+Qed.
+
+Lemma SBpass_is_correct__dsBitcase_nptr : forall 
+  (mi : MoreMem.meminj) (mgb : Values.block) (St : DOS.Sem.State) (S : system)
+  (TD : TargetData) (Ps : list product) (F : fdef) (B : block) (lc : GVMap)
+  (rm : rmetadata) (gl : GVMap) (fs : GVMap) (id0 : id)
+  (t1 : typ) (v1 : value) (t2 : typ) (EC : list ExecutionContext)
+  (cs : list cmd) (tmn : terminator) (Mem0 : mem) (MM : mmetadata)
+  (als : list mblock) Cfg
+  (Hsim : sbState_simulates_State mi mgb {|
+           CurSystem := S;
+           CurTargetData := TD;
+           CurProducts := Ps;
+           Globals := gl;
+           FunTable := fs |} {|
+           ECS := {|
+                  CurFunction := F;
+                  CurBB := B;
+                  CurCmds := insn_cast id0 castop_bitcast t1 v1 t2 :: cs;
+                  Terminator := tmn;
+                  Locals := lc;
+                  Rmap := rm;
+                  Allocas := als |} :: EC;
+           Mem := Mem0;
+           Mmap := MM |} Cfg St)
+  (gv2 : GenericValue)
+  (H : CAST TD lc gl castop_bitcast t1 v1 t2 = ret gv2)
+  (H0 : isPointerTypB t1 = false),
+   exists St' : DOS.Sem.State,
+     exists mi' : MoreMem.meminj,
+       DOS.Sem.sop_star Cfg St St' trace_nil /\
+       sbState_simulates_State mi' mgb {|
+         CurSystem := S;
+         CurTargetData := TD;
+         CurProducts := Ps;
+         Globals := gl;
+         FunTable := fs |} {|
+         ECS := {|
+                CurFunction := F;
+                CurBB := B;
+                CurCmds := cs;
+                Terminator := tmn;
+                Locals := updateAddAL GenericValue lc id0 gv2;
+                Rmap := rm;
+                Allocas := als |} :: EC;
+         Mem := Mem0;
+         Mmap := MM |} Cfg St' /\ inject_incr mi mi'.
+Proof.
+  intros. SBpass_is_correct__dsOp.
+Qed.
+
+Lemma SBpass_is_correct__dsOthercast : forall
+  (mi : MoreMem.meminj) (mgb : Values.block) (St : DOS.Sem.State) (S : system)
+  (TD : TargetData) (Ps : list product) (F : fdef) (B : block) (lc : GVMap)
+  (rm : rmetadata) (gl : GVMap) (fs : GVMap) (id0 : id)
+  (t1 : typ) (v1 : value) (t2 : typ) (EC : list ExecutionContext)
+  (cs : list cmd) (tmn : terminator) (Mem0 : mem) (MM : mmetadata)
+  (als : list mblock)
+  (castop0 : castop) Cfg
+  (Hsim : sbState_simulates_State mi mgb {|
+           CurSystem := S;
+           CurTargetData := TD;
+           CurProducts := Ps;
+           Globals := gl;
+           FunTable := fs |} {|
+           ECS := {|
+                  CurFunction := F;
+                  CurBB := B;
+                  CurCmds := insn_cast id0 castop0 t1 v1 t2 :: cs;
+                  Terminator := tmn;
+                  Locals := lc;
+                  Rmap := rm;
+                  Allocas := als |} :: EC;
+           Mem := Mem0;
+           Mmap := MM |} Cfg St)
+  (gv2 : GenericValue)
+  (H : CAST TD lc gl castop0 t1 v1 t2 = ret gv2)
+  (H0 : castop0 <> castop_bitcast /\ castop0 <> castop_inttoptr),
+   exists St' : DOS.Sem.State,
+     exists mi' : MoreMem.meminj,
+       DOS.Sem.sop_star Cfg St St' trace_nil /\
+       sbState_simulates_State mi' mgb {|
+         CurSystem := S;
+         CurTargetData := TD;
+         CurProducts := Ps;
+         Globals := gl;
+         FunTable := fs |} {|
+         ECS := {|
+                CurFunction := F;
+                CurBB := B;
+                CurCmds := cs;
+                Terminator := tmn;
+                Locals := updateAddAL GenericValue lc id0 gv2;
+                Rmap := rm;
+                Allocas := als |} :: EC;
+         Mem := Mem0;
+         Mmap := MM |} Cfg St' /\ inject_incr mi mi'.
+Proof.
+  intros. SBpass_is_correct__dsOp.
+Qed.
+
+Lemma SBpass_is_correct__dsIcmp : forall
+  (mi : MoreMem.meminj) (mgb : Values.block) (St : DOS.Sem.State) (S : system)
+  (TD : TargetData) (Ps : list product) (F : fdef) (B : block) (lc : GVMap)
+  (rm : rmetadata) (gl : GVMap) (fs : GVMap) (id0 : id) cond0 
+  (t : typ) (v1 : value) v2 (EC : list ExecutionContext)
+  (cs : list cmd) (tmn : terminator) (Mem0 : mem) (MM : mmetadata)
+  (als : list mblock) Cfg
+  (Hsim : sbState_simulates_State mi mgb {|
+           CurSystem := S;
+           CurTargetData := TD;
+           CurProducts := Ps;
+           Globals := gl;
+           FunTable := fs |} {|
+           ECS := {|
+                  CurFunction := F;
+                  CurBB := B;
+                  CurCmds := insn_icmp id0 cond0 t v1 v2 :: cs;
+                  Terminator := tmn;
+                  Locals := lc;
+                  Rmap := rm;
+                  Allocas := als |} :: EC;
+           Mem := Mem0;
+           Mmap := MM |} Cfg St)
+  (gv2 : GenericValue)
+  (H : ICMP TD lc gl cond0 t v1 v2 = ret gv2),
+   exists St' : DOS.Sem.State,
+     exists mi' : MoreMem.meminj,
+       DOS.Sem.sop_star Cfg St St' trace_nil /\
+       sbState_simulates_State mi' mgb {|
+         CurSystem := S;
+         CurTargetData := TD;
+         CurProducts := Ps;
+         Globals := gl;
+         FunTable := fs |} {|
+         ECS := {|
+                CurFunction := F;
+                CurBB := B;
+                CurCmds := cs;
+                Terminator := tmn;
+                Locals := updateAddAL GenericValue lc id0 gv2;
+                Rmap := rm;
+                Allocas := als |} :: EC;
+         Mem := Mem0;
+         Mmap := MM |} Cfg St' /\ inject_incr mi mi'.
+Proof.
+  intros. SBpass_is_correct__dsOp.
+Qed.
+
+Lemma SBpass_is_correct__dsFcmp : forall
+  (mi : MoreMem.meminj) (mgb : Values.block) (St : DOS.Sem.State) (S : system)
+  (TD : TargetData) (Ps : list product) (F : fdef) (B : block) (lc : GVMap)
+  (rm : rmetadata) (gl : GVMap) (fs : GVMap) (id0 : id) fcond0 
+  fp (v1 : value) v2 (EC : list ExecutionContext)
+  (cs : list cmd) (tmn : terminator) (Mem0 : mem) (MM : mmetadata)
+  (als : list mblock) Cfg
+  (Hsim : sbState_simulates_State mi mgb {|
+           CurSystem := S;
+           CurTargetData := TD;
+           CurProducts := Ps;
+           Globals := gl;
+           FunTable := fs |} {|
+           ECS := {|
+                  CurFunction := F;
+                  CurBB := B;
+                  CurCmds := insn_fcmp id0 fcond0 fp v1 v2 :: cs;
+                  Terminator := tmn;
+                  Locals := lc;
+                  Rmap := rm;
+                  Allocas := als |} :: EC;
+           Mem := Mem0;
+           Mmap := MM |} Cfg St)
+  (gv2 : GenericValue)
+  (H : FCMP TD lc gl fcond0 fp v1 v2 = ret gv2),
+   exists St' : DOS.Sem.State,
+     exists mi' : MoreMem.meminj,
+       DOS.Sem.sop_star Cfg St St' trace_nil /\
+       sbState_simulates_State mi' mgb {|
+         CurSystem := S;
+         CurTargetData := TD;
+         CurProducts := Ps;
+         Globals := gl;
+         FunTable := fs |} {|
+         ECS := {|
+                CurFunction := F;
+                CurBB := B;
+                CurCmds := cs;
+                Terminator := tmn;
+                Locals := updateAddAL GenericValue lc id0 gv2;
+                Rmap := rm;
+                Allocas := als |} :: EC;
+         Mem := Mem0;
+         Mmap := MM |} Cfg St' /\ inject_incr mi mi'.
+Proof.
+  intros. SBpass_is_correct__dsOp.
+Qed.
+
+Lemma SBpass_is_correct__dsExtractValue : forall (mi : MoreMem.meminj) 
+  (mgb : Values.block)
+  (St : DOS.Sem.State) (S : system) (TD : TargetData) (Ps : list product)
+  (F : fdef) (B : block) (lc : GVMap) (rm : SBspecAux.rmetadata) (gl : GVMap)
+  (fs : GVMap) (id0 : id) t (v : value) idxs
+  (EC : list DSB.SBSEM.ExecutionContext) (cs : list cmd) (tmn : terminator)
+  (Mem : mem) (MM : SBspecAux.mmetadata) (als : list mblock) Cfg
+  (Hsim : sbState_simulates_State mi mgb {|
+           CurSystem := S;
+           CurTargetData := TD;
+           CurProducts := Ps;
+           Globals := gl;
+           FunTable := fs |} {|
+           DSB.SBSEM.ECS := {|
+                          DSB.SBSEM.CurFunction := F;
+                          DSB.SBSEM.CurBB := B;
+                          DSB.SBSEM.CurCmds := insn_extractvalue id0 t v idxs
+                                             :: cs;
+                          DSB.SBSEM.Terminator := tmn;
+                          DSB.SBSEM.Locals := lc;
+                          DSB.SBSEM.Rmap := rm;
+                          DSB.SBSEM.Allocas := als |} :: EC;
+           DSB.SBSEM.Mem := Mem;
+           DSB.SBSEM.Mmap := MM |} Cfg St)
+  (gv : GenericValue)
+  (gv' : GenericValue)
+  (H : getOperandValue TD v lc gl = ret gv)
+  (H0 : extractGenericValue TD t gv idxs = ret gv'),
+  exists St' : DOS.Sem.State,
+     exists mi' : MoreMem.meminj,
+       DOS.Sem.sop_star Cfg St St' trace_nil /\
+       sbState_simulates_State mi' mgb {|
+         CurSystem := S;
+         CurTargetData := TD;
+         CurProducts := Ps;
+         Globals := gl;
+         FunTable := fs |} {|
+         DSB.SBSEM.ECS := {|
+                        DSB.SBSEM.CurFunction := F;
+                        DSB.SBSEM.CurBB := B;
+                        DSB.SBSEM.CurCmds := cs;
+                        DSB.SBSEM.Terminator := tmn;
+                        DSB.SBSEM.Locals := updateAddAL GenericValue lc id0 gv';
+                        DSB.SBSEM.Rmap := rm;
+                        DSB.SBSEM.Allocas := als |} :: EC;
+         DSB.SBSEM.Mem := Mem;
+         DSB.SBSEM.Mmap := MM |} Cfg St' /\ inject_incr mi mi'.
+Proof.
+  intros. SBpass_is_correct__dsOp.
+Qed.
+
+Lemma SBpass_is_correct__dsInsertValue : forall (mi : MoreMem.meminj) 
+  (mgb : Values.block)
+  (St : DOS.Sem.State) (S : system) (TD : TargetData) (Ps : list product)
+  (F : fdef) (B : block) (lc : GVMap) (rm : SBspecAux.rmetadata) (gl : GVMap)
+  (fs : GVMap) (id0 : id) t (v : value) t' v' idxs
+  (EC : list DSB.SBSEM.ExecutionContext) (cs : list cmd) (tmn : terminator)
+  (Mem : mem) (MM : SBspecAux.mmetadata) (als : list mblock) Cfg
+  (Hsim : sbState_simulates_State mi mgb {|
+           CurSystem := S;
+           CurTargetData := TD;
+           CurProducts := Ps;
+           Globals := gl;
+           FunTable := fs |} {|
+           DSB.SBSEM.ECS := {|
+                          DSB.SBSEM.CurFunction := F;
+                          DSB.SBSEM.CurBB := B;
+                          DSB.SBSEM.CurCmds := insn_insertvalue id0 t v t' v' idxs
+                                             :: cs;
+                          DSB.SBSEM.Terminator := tmn;
+                          DSB.SBSEM.Locals := lc;
+                          DSB.SBSEM.Rmap := rm;
+                          DSB.SBSEM.Allocas := als |} :: EC;
+           DSB.SBSEM.Mem := Mem;
+           DSB.SBSEM.Mmap := MM |} Cfg St)
+  (gv : GenericValue)
+  (gv' gv'': GenericValue)
+  (H : getOperandValue TD v lc gl = ret gv)
+  (H0 : getOperandValue TD v' lc gl = ret gv')
+  (H1 : insertGenericValue TD t gv idxs t' gv' = ret gv''),
+  exists St' : DOS.Sem.State,
+     exists mi' : MoreMem.meminj,
+       DOS.Sem.sop_star Cfg St St' trace_nil /\
+       sbState_simulates_State mi' mgb {|
+         CurSystem := S;
+         CurTargetData := TD;
+         CurProducts := Ps;
+         Globals := gl;
+         FunTable := fs |} {|
+         DSB.SBSEM.ECS := {|
+                        DSB.SBSEM.CurFunction := F;
+                        DSB.SBSEM.CurBB := B;
+                        DSB.SBSEM.CurCmds := cs;
+                        DSB.SBSEM.Terminator := tmn;
+                        DSB.SBSEM.Locals := updateAddAL GenericValue lc id0 gv'';
+                        DSB.SBSEM.Rmap := rm;
+                        DSB.SBSEM.Allocas := als |} :: EC;
+         DSB.SBSEM.Mem := Mem;
+         DSB.SBSEM.Mmap := MM |} Cfg St' /\ inject_incr mi mi'.
+Proof.
+  intros. SBpass_is_correct__dsOp.
 Qed.
 
 Lemma SBpass_is_correct__dsGEP : forall
@@ -261,11 +598,7 @@ Proof.
   exists (DOS.Sem.mkState 
           ((DOS.Sem.mkEC (fdef_intro fh2 bs2) B2
             (cs2' ++ cs23) tmn2 
-                  (updateAddAL _ 
-                    (updateAddAL _ 
-                      (updateAddAL GenericValue lc2 id0 gvp2)
-                    bid0 bgv2)
-                  eid0 egv2)
+              (updateAddALs _ lc2 ((id0,gvp2)::(bid0,bgv2)::(eid0,egv2)::nil))
              als2):: 
             ECs2) M2).
   exists mi.
@@ -280,294 +613,32 @@ Proof.
 
   split.
   SCase "opsem".
-    simpl.
-    rewrite <- (@trace_app_nil__eq__trace trace_nil).
-    apply DOS.Sem.sop_star_cons with (state2:=
-        DOS.Sem.mkState 
-          ((DOS.Sem.mkEC (fdef_intro fh2 bs2) B2
-             (insn_cast bid0 castop_bitcast p8 bv2 p8 :: 
-              insn_cast eid0 castop_bitcast p8 ev2 p8 :: 
-              cs2' ++ cs23)
-             tmn2 
-             (updateAddAL GenericValue lc2 id0 gvp2)
-             als2):: 
-            ECs2) M2).
-      eapply DOS.Sem.sGEP; eauto.
+    Opaque updateAddALs. simpl.
+    next_insn.
 
-    rewrite <- (@trace_app_nil__eq__trace trace_nil).
-    apply DOS.Sem.sop_star_cons with (state2:=
-        DOS.Sem.mkState 
-          ((DOS.Sem.mkEC (fdef_intro fh2 bs2) B2
-             (insn_cast eid0 castop_bitcast p8 ev2 p8 :: 
-              cs2' ++ cs23)
-             tmn2 
-                    (updateAddAL _ 
-                      (updateAddAL GenericValue lc2 id0 gvp2)
-                    bid0 bgv2)
-             als2):: 
-            ECs2) M2).
+    next_insn.
       eapply DOS.Sem.sCast; eauto.
         unfold DOS.Sem.CAST, mcast, mbitcast, p8. simpl.
         rewrite <- getOperandValue_eq_fresh_id; auto.
           rewrite Hget1. auto.
 
-    rewrite <- (@trace_app_nil__eq__trace trace_nil).
-    eapply DOS.Sem.sop_star_cons; eauto.
+    next_insn.
       eapply DOS.Sem.sCast; eauto.
         unfold DOS.Sem.CAST, mcast, mbitcast, p8. simpl.
         rewrite <- getOperandValue_eq_fresh_id; auto.
         rewrite <- getOperandValue_eq_fresh_id; auto.
         rewrite Hget2. auto.
 
-    repeat (split; auto).
-    eapply cmds_at_block_tail_next; eauto.
-
-    destruct Heqb2 as [l2 [ps2 [cs21 Heqb2]]]; subst.
-    exists l2. exists ps2. exists (cs21 ++
-                  (insn_gep id0 inbounds0 t vp idxs
-          :: insn_cast bid0 castop_bitcast p8 bv2 p8
-             :: insn_cast eid0 castop_bitcast p8 ev2 p8 :: nil)).
-    simpl_env. auto.
+    repeat (split; eauto 2 using cmds_at_block_tail_next, 
+                                 cmds_at_block_tails_next).
   exists ex_ids. exists rm2.
   exists ex_ids3. exists ex_ids4. exists cs2'. exists cs23.
   split; auto.
   split.
   SCase "rsim".
+    Transparent updateAddALs. simpl.
     eapply reg_simulation__updateAddAL_prop; eauto.
   split; auto.
-Qed.
-
-Lemma SBpass_is_correct__dsTrunc : forall
-  (mi : MoreMem.meminj) (mgb : Values.block) (St : DOS.Sem.State) (S : system)
-  (TD : TargetData) (Ps : list product) (F : fdef) (B : block) (lc : GVMap)
-  (rm : rmetadata) (gl : GVMap) (fs : GVMap) (id0 : id) (truncop0 : truncop)
-  (t1 : typ) (v1 : value) (t2 : typ) (EC : list ExecutionContext)
-  (cs : list cmd) (tmn : terminator) (Mem0 : mem) (MM : mmetadata)
-  (als : list mblock) Cfg
-  (Hsim : sbState_simulates_State mi mgb {|
-           CurSystem := S;
-           CurTargetData := TD;
-           CurProducts := Ps;
-           Globals := gl;
-           FunTable := fs |} {|
-           ECS := {|
-                  CurFunction := F;
-                  CurBB := B;
-                  CurCmds := insn_trunc id0 truncop0 t1 v1 t2 :: cs;
-                  Terminator := tmn;
-                  Locals := lc;
-                  Rmap := rm;
-                  Allocas := als |} :: EC;
-           Mem := Mem0;
-           Mmap := MM |} Cfg St)
-  (gv2 : GenericValue)
-  (H : TRUNC TD lc gl truncop0 t1 v1 t2 = ret gv2),
-   exists St' : DOS.Sem.State,
-     exists mi' : MoreMem.meminj,
-       DOS.Sem.sop_star Cfg St St' trace_nil /\
-       sbState_simulates_State mi' mgb {|
-           CurSystem := S;
-           CurTargetData := TD;
-           CurProducts := Ps;
-           Globals := gl;
-           FunTable := fs |} {|
-         ECS := {|
-                CurFunction := F;
-                CurBB := B;
-                CurCmds := cs;
-                Terminator := tmn;
-                Locals := updateAddAL GenericValue lc id0 gv2;
-                Rmap := rm;
-                Allocas := als |} :: EC;
-         Mem := Mem0;
-         Mmap := MM |} Cfg St' /\ inject_incr mi mi'.
-Proof.
-  intros.
-  destruct_ctx_other.
-  simpl in Htcmds.
-  remember (trans_cmds ex_ids3 rm2 cs) as R.
-  destruct R as [[ex_ids2 cs2]|]; inv Htcmds.
-  eapply simulation__TRUNC in H; eauto.
-  destruct H as [gv3' [Htrunc Hinj]].
-  exists (DOS.Sem.mkState
-          ((DOS.Sem.mkEC (fdef_intro fh2 bs2) B2
-            (cs2 ++ cs23) tmn2 (updateAddAL GenericValue lc2 id0 gv3') als2):: 
-            ECs2) M2).
-  exists mi.
-  split.
-    rewrite <- (@trace_app_nil__eq__trace trace_nil).
-    eapply DOS.Sem.sop_star_cons; eauto.
-      apply DOS.Sem.sTrunc; auto.
-
-    split; auto using inject_incr_refl.
-    repeat (split; auto).
-      eapply cmds_at_block_tail_next; eauto.
-      eapply cmds_at_block_tail_next; eauto.
-
-      exists ex_ids. exists rm2.
-      exists ex_ids3. exists ex_ids4. exists cs2. exists cs23.
-      split; auto.
-      split.
-        clear - Hgenmeta Hrsim Hinj HBinF Heqb1.
-        apply reg_simulation__updateAddAL_lc with (ex_ids3:=ex_ids); auto.
-          eapply getCmdID_in_getFdefLocs; eauto.
-      repeat (split; auto).
-Qed.
-
-Lemma SBpass_is_correct__dsExt : forall
-  (mi : MoreMem.meminj) (mgb : Values.block) (St : DOS.Sem.State) (S : system)
-  (TD : TargetData) (Ps : list product) (F : fdef) (B : block) (lc : GVMap)
-  (rm : rmetadata) (gl : GVMap) (fs : GVMap) (id0 : id) extop0
-  (t1 : typ) (v1 : value) (t2 : typ) (EC : list ExecutionContext)
-  (cs : list cmd) (tmn : terminator) (Mem0 : mem) (MM : mmetadata)
-  (als : list mblock) Cfg
-  (Hsim : sbState_simulates_State mi mgb {|
-           CurSystem := S;
-           CurTargetData := TD;
-           CurProducts := Ps;
-           Globals := gl;
-           FunTable := fs |} {| 
-           ECS := {|
-                  CurFunction := F;
-                  CurBB := B;
-                  CurCmds := insn_ext id0 extop0 t1 v1 t2 :: cs;
-                  Terminator := tmn;
-                  Locals := lc;
-                  Rmap := rm;
-                  Allocas := als |} :: EC;
-           Mem := Mem0;
-           Mmap := MM |} Cfg St)
-  (gv2 : GenericValue)
-  (H : EXT TD lc gl extop0 t1 v1 t2 = ret gv2),
-   exists St' : DOS.Sem.State,
-     exists mi' : MoreMem.meminj,
-       DOS.Sem.sop_star Cfg St St' trace_nil /\
-       sbState_simulates_State mi' mgb  {|
-         CurSystem := S;
-         CurTargetData := TD;
-         CurProducts := Ps;
-         Globals := gl;
-         FunTable := fs |} {|
-         ECS := {|
-                CurFunction := F;
-                CurBB := B;
-                CurCmds := cs;
-                Terminator := tmn;
-                Locals := updateAddAL GenericValue lc id0 gv2;
-                Rmap := rm;
-                Allocas := als |} :: EC;
-         Mem := Mem0;
-         Mmap := MM |} Cfg St' /\ inject_incr mi mi'.
-Proof.
-  intros.
-  destruct_ctx_other.
-  simpl in Htcmds.
-  remember (trans_cmds ex_ids3 rm2 cs) as R.
-  destruct R as [[ex_ids2 cs2]|]; inv Htcmds.
-  eapply simulation__EXT in H; eauto.
-  destruct H as [gv3' [Htrunc Hinj]].
-  exists (DOS.Sem.mkState 
-          ((DOS.Sem.mkEC (fdef_intro fh2 bs2) B2
-            (cs2 ++ cs23) tmn2 (updateAddAL GenericValue lc2 id0 gv3') als2):: 
-            ECs2) M2).
-  exists mi.
-  split.
-    rewrite <- (@trace_app_nil__eq__trace trace_nil).
-    eapply DOS.Sem.sop_star_cons; eauto.
-      apply DOS.Sem.sExt; auto.
-
-    split; auto using inject_incr_refl.
-    repeat (split; auto).
-      eapply cmds_at_block_tail_next; eauto.
-      eapply cmds_at_block_tail_next; eauto.
-
-      exists ex_ids. exists rm2.
-      exists ex_ids3. exists ex_ids4. exists cs2. exists cs23.
-      split; auto.
-      split.
-        clear - Hgenmeta Hrsim Hinj Heqb1 HBinF.
-        apply reg_simulation__updateAddAL_lc with (ex_ids3:=ex_ids); auto.
-          eapply getCmdID_in_getFdefLocs; eauto.
-      repeat (split; auto).
-Qed.
-
-Lemma SBpass_is_correct__dsBitcase_nptr : forall 
-  (mi : MoreMem.meminj) (mgb : Values.block) (St : DOS.Sem.State) (S : system)
-  (TD : TargetData) (Ps : list product) (F : fdef) (B : block) (lc : GVMap)
-  (rm : rmetadata) (gl : GVMap) (fs : GVMap) (id0 : id)
-  (t1 : typ) (v1 : value) (t2 : typ) (EC : list ExecutionContext)
-  (cs : list cmd) (tmn : terminator) (Mem0 : mem) (MM : mmetadata)
-  (als : list mblock) Cfg
-  (Hsim : sbState_simulates_State mi mgb {|
-           CurSystem := S;
-           CurTargetData := TD;
-           CurProducts := Ps;
-           Globals := gl;
-           FunTable := fs |} {|
-           ECS := {|
-                  CurFunction := F;
-                  CurBB := B;
-                  CurCmds := insn_cast id0 castop_bitcast t1 v1 t2 :: cs;
-                  Terminator := tmn;
-                  Locals := lc;
-                  Rmap := rm;
-                  Allocas := als |} :: EC;
-           Mem := Mem0;
-           Mmap := MM |} Cfg St)
-  (gv2 : GenericValue)
-  (H : CAST TD lc gl castop_bitcast t1 v1 t2 = ret gv2)
-  (H0 : isPointerTypB t1 = false),
-   exists St' : DOS.Sem.State,
-     exists mi' : MoreMem.meminj,
-       DOS.Sem.sop_star Cfg St St' trace_nil /\
-       sbState_simulates_State mi' mgb {|
-         CurSystem := S;
-         CurTargetData := TD;
-         CurProducts := Ps;
-         Globals := gl;
-         FunTable := fs |} {|
-         ECS := {|
-                CurFunction := F;
-                CurBB := B;
-                CurCmds := cs;
-                Terminator := tmn;
-                Locals := updateAddAL GenericValue lc id0 gv2;
-                Rmap := rm;
-                Allocas := als |} :: EC;
-         Mem := Mem0;
-         Mmap := MM |} Cfg St' /\ inject_incr mi mi'.
-Proof.
-  intros.
-  destruct_ctx_other.
-  simpl in Htcmds.
-  rewrite H0 in Htcmds.
-  remember (trans_cmds ex_ids3 rm2 cs) as R.
-  destruct R as [[ex_ids2 cs2]|]; inv Htcmds.
-  eapply simulation__CAST in H; eauto.
-  destruct H as [gv3' [Htrunc Hinj]].
-  exists (DOS.Sem.mkState 
-          ((DOS.Sem.mkEC (fdef_intro fh2 bs2) B2
-            (cs2 ++ cs23) tmn2 (updateAddAL GenericValue lc2 id0 gv3') als2):: 
-            ECs2) M2).
-  exists mi.
-  split.
-    rewrite <- (@trace_app_nil__eq__trace trace_nil).
-    eapply DOS.Sem.sop_star_cons; eauto.
-      apply DOS.Sem.sCast; auto.
-
-    split; auto using inject_incr_refl.
-    repeat (split; auto).
-      eapply cmds_at_block_tail_next; eauto.
-      eapply cmds_at_block_tail_next; eauto.
-
-      exists ex_ids. exists rm2.
-      exists ex_ids3. exists ex_ids4. exists cs2. exists cs23.
-      split; auto.
-      split.
-        clear - Hgenmeta Hrsim Hinj HBinF Heqb1.
-        apply reg_simulation__updateAddAL_lc with (ex_ids3:=ex_ids); auto.
-          eapply getCmdID_in_getFdefLocs; eauto.
-      repeat (split; auto).
 Qed.
 
 Lemma SBpass_is_correct__dsBitcase_ptr : forall 
@@ -643,12 +714,8 @@ Proof.
   exists (DOS.Sem.mkState 
           ((DOS.Sem.mkEC (fdef_intro fh2 bs2) B2
             (cs3 ++ cs23) tmn2 
-                  (updateAddAL _ 
-                    (updateAddAL _ 
-                      (updateAddAL GenericValue lc2 id0 gv3')
-                    bid0 bgv2)
-                  eid0 egv2) als2):: 
-            ECs2) M2).
+              (updateAddALs _ lc2 ((id0,gv3')::(bid0,bgv2)::(eid0,egv2)::nil)) 
+            als2)::ECs2) M2).
   exists mi.
 
   assert (Hfr1 := Hgetrm).
@@ -661,59 +728,30 @@ Proof.
 
   split.
   SCase "opsem".
-    simpl.
-    rewrite <- (@trace_app_nil__eq__trace trace_nil).
-    apply DOS.Sem.sop_star_cons with (state2:=
-        DOS.Sem.mkState
-          ((DOS.Sem.mkEC (fdef_intro fh2 bs2) B2
-             (insn_cast bid0 castop_bitcast p8 bv2 p8 :: 
-              insn_cast eid0 castop_bitcast p8 ev2 p8 :: 
-              cs3 ++ cs23)
-             tmn2 
-             (updateAddAL GenericValue lc2 id0 gv3')
-             als2):: 
-            ECs2) M2).
-      eapply DOS.Sem.sCast; eauto.
+    Opaque updateAddALs. simpl.
+    next_insn.
 
-    rewrite <- (@trace_app_nil__eq__trace trace_nil).
-    apply DOS.Sem.sop_star_cons with (state2:=
-        DOS.Sem.mkState
-          ((DOS.Sem.mkEC (fdef_intro fh2 bs2) B2
-             (insn_cast eid0 castop_bitcast p8 ev2 p8 :: 
-              cs3 ++ cs23)
-             tmn2 
-                    (updateAddAL _ 
-                      (updateAddAL GenericValue lc2 id0 gv3')
-                    bid0 bgv2)
-             als2):: 
-            ECs2) M2).
+    next_insn.
       eapply DOS.Sem.sCast; eauto.
         unfold DOS.Sem.CAST, mcast, mbitcast, p8. simpl.
         rewrite <- getOperandValue_eq_fresh_id; auto.
         rewrite Hget1. auto.
 
-    rewrite <- (@trace_app_nil__eq__trace trace_nil).
-    eapply DOS.Sem.sop_star_cons; eauto.
+    next_insn.
       eapply DOS.Sem.sCast; eauto.
         unfold DOS.Sem.CAST, mcast, mbitcast, p8. simpl.
         rewrite <- getOperandValue_eq_fresh_id; auto.
         rewrite <- getOperandValue_eq_fresh_id; auto.
         rewrite Hget2. auto. 
 
-    repeat (split; auto).
-    eapply cmds_at_block_tail_next; eauto.
-
-    destruct Heqb2 as [l2 [ps2 [cs21 Heqb2]]]; subst.
-    exists l2. exists ps2. exists (cs21 ++
-                  (insn_cast id0 castop_bitcast t1 v1 t2
-          :: insn_cast bid0 castop_bitcast p8 bv2 p8
-             :: insn_cast eid0 castop_bitcast p8 ev2 p8 :: nil)).
-    simpl_env. auto.
+    repeat (split; eauto 2 using cmds_at_block_tail_next, 
+                                 cmds_at_block_tails_next).
   exists ex_ids. exists rm2.
   exists ex_ids3. exists ex_ids4. exists cs3. exists cs23.
   split; auto.
   split.
   SCase "rsim".
+    Transparent updateAddALs. simpl.
     eapply reg_simulation__updateAddAL_prop; eauto.
   split; auto.
 Qed.
@@ -778,478 +816,33 @@ Proof.
   exists (DOS.Sem.mkState 
           ((DOS.Sem.mkEC (fdef_intro fh2 bs2) B2
             (cs3 ++ cs23) tmn2 
-                  (updateAddAL _ 
-                    (updateAddAL _ 
-                      (updateAddAL GenericValue lc2 id0 gv3')
-                    bid0 null)
-                  eid0 null) als2):: 
-            ECs2) M2).
+               (updateAddALs _ lc2 ((id0,gv3')::(bid0,null)::(eid0,null)::nil)) 
+               als2)::ECs2) M2).
   exists mi.
   split.
   SCase "opsem".
-    simpl.
-    rewrite <- (@trace_app_nil__eq__trace trace_nil).
-    apply DOS.Sem.sop_star_cons with (state2:=
-        DOS.Sem.mkState 
-          ((DOS.Sem.mkEC (fdef_intro fh2 bs2) B2
-             (insn_cast bid0 castop_bitcast p8 vnullp8 p8 :: 
-              insn_cast eid0 castop_bitcast p8 vnullp8 p8 :: 
-              cs3 ++ cs23)
-             tmn2 
-             (updateAddAL GenericValue lc2 id0 gv3')
-             als2):: 
-            ECs2) M2).
-      eapply DOS.Sem.sCast; eauto.
+    Opaque updateAddALs. simpl.
+    next_insn.
+    next_insn.
+    next_insn.
 
-    rewrite <- (@trace_app_nil__eq__trace trace_nil).
-    apply DOS.Sem.sop_star_cons with (state2:=
-        DOS.Sem.mkState
-          ((DOS.Sem.mkEC (fdef_intro fh2 bs2) B2
-             (insn_cast eid0 castop_bitcast p8 vnullp8 p8 :: 
-              cs3 ++ cs23)
-             tmn2 
-                    (updateAddAL _ 
-                      (updateAddAL GenericValue lc2 id0 gv3')
-                    bid0 null)
-             als2):: 
-            ECs2) M2).
-      eapply DOS.Sem.sCast; eauto.
-
-    rewrite <- (@trace_app_nil__eq__trace trace_nil).
-    eapply DOS.Sem.sop_star_cons; eauto.
-      eapply DOS.Sem.sCast; eauto.
-
-    repeat (split; auto).
-    eapply cmds_at_block_tail_next; eauto.
-
+    repeat (split; eauto 2 using cmds_at_block_tail_next).
     destruct Heqb2 as [l2 [ps2 [cs21 Heqb2]]]; subst.
     exists l2. exists ps2. exists (cs21 ++
                   (insn_cast id0 castop_inttoptr t1 v1 t2
           :: insn_cast bid0 castop_bitcast p8 vnullp8 p8
              :: insn_cast eid0 castop_bitcast p8 vnullp8 p8 :: nil)).
     simpl_env. auto.
+
   exists ex_ids. exists rm2.
   exists ex_ids3. exists ex_ids4. exists cs3. exists cs23.
   split; auto.
   split.
   SCase "rsim".
+    Transparent updateAddALs. simpl.
     eapply reg_simulation__updateAddAL_prop; eauto using gv_inject_null_refl.
       eapply getCmdID_in_getFdefLocs; eauto.
   split; auto.
-Qed.
-
-Lemma SBpass_is_correct__dsOthercast : forall
-  (mi : MoreMem.meminj) (mgb : Values.block) (St : DOS.Sem.State) (S : system)
-  (TD : TargetData) (Ps : list product) (F : fdef) (B : block) (lc : GVMap)
-  (rm : rmetadata) (gl : GVMap) (fs : GVMap) (id0 : id)
-  (t1 : typ) (v1 : value) (t2 : typ) (EC : list ExecutionContext)
-  (cs : list cmd) (tmn : terminator) (Mem0 : mem) (MM : mmetadata)
-  (als : list mblock)
-  (castop0 : castop) Cfg
-  (Hsim : sbState_simulates_State mi mgb {|
-           CurSystem := S;
-           CurTargetData := TD;
-           CurProducts := Ps;
-           Globals := gl;
-           FunTable := fs |} {|
-           ECS := {|
-                  CurFunction := F;
-                  CurBB := B;
-                  CurCmds := insn_cast id0 castop0 t1 v1 t2 :: cs;
-                  Terminator := tmn;
-                  Locals := lc;
-                  Rmap := rm;
-                  Allocas := als |} :: EC;
-           Mem := Mem0;
-           Mmap := MM |} Cfg St)
-  (gv2 : GenericValue)
-  (H : CAST TD lc gl castop0 t1 v1 t2 = ret gv2)
-  (H0 : castop0 <> castop_bitcast /\ castop0 <> castop_inttoptr),
-   exists St' : DOS.Sem.State,
-     exists mi' : MoreMem.meminj,
-       DOS.Sem.sop_star Cfg St St' trace_nil /\
-       sbState_simulates_State mi' mgb {|
-         CurSystem := S;
-         CurTargetData := TD;
-         CurProducts := Ps;
-         Globals := gl;
-         FunTable := fs |} {|
-         ECS := {|
-                CurFunction := F;
-                CurBB := B;
-                CurCmds := cs;
-                Terminator := tmn;
-                Locals := updateAddAL GenericValue lc id0 gv2;
-                Rmap := rm;
-                Allocas := als |} :: EC;
-         Mem := Mem0;
-         Mmap := MM |} Cfg St' /\ inject_incr mi mi'.
-Proof.
-  intros.
-  destruct_ctx_other.
-  apply trans_cmds_inv in Htcmds.
-  destruct Htcmds as [ex_ids5 [cs1' [cs2' [Htcmd [Htcmds Heq]]]]]; subst.
-  simpl in Htcmd.
-  eapply simulation__CAST in H; eauto.
-  destruct H as [gv3' [Hcast Hinj]].
-  assert (ex_ids5 = ex_ids3 /\ cs1' = [insn_cast id0 castop0 t1 v1 t2]) as EQ.
-    destruct H0 as [J1 J2].
-    destruct castop0; inv Htcmd; 
-      try solve [contradict J1; auto | contradict J2; auto | auto].
-  clear Htcmd. destruct EQ; subst.
-
-  simpl.
-  exists (DOS.Sem.mkState
-          ((DOS.Sem.mkEC (fdef_intro fh2 bs2) B2
-            (cs2' ++ cs23) tmn2 (updateAddAL GenericValue lc2 id0 gv3') als2):: 
-            ECs2) M2).
-  exists mi.
-  split.
-    rewrite <- (@trace_app_nil__eq__trace trace_nil).
-    eapply DOS.Sem.sop_star_cons; eauto.
-      apply DOS.Sem.sCast; auto.
-
-    split; auto using inject_incr_refl.
-    repeat (split; auto).
-      eapply cmds_at_block_tail_next; eauto.
-      simpl in Heqb2.
-      eapply cmds_at_block_tail_next; eauto.
-
-      exists ex_ids. exists rm2.
-      exists ex_ids3. exists ex_ids4. exists cs2'. exists cs23.
-      split; auto.
-      split.
-        clear - Hgenmeta Hrsim Hinj HBinF Heqb1.
-        apply reg_simulation__updateAddAL_lc with (ex_ids3:=ex_ids); auto.
-          eapply getCmdID_in_getFdefLocs; eauto.
-      repeat (split; auto).
-Qed.
-
-Lemma SBpass_is_correct__dsIcmp : forall
-  (mi : MoreMem.meminj) (mgb : Values.block) (St : DOS.Sem.State) (S : system)
-  (TD : TargetData) (Ps : list product) (F : fdef) (B : block) (lc : GVMap)
-  (rm : rmetadata) (gl : GVMap) (fs : GVMap) (id0 : id) cond0 
-  (t : typ) (v1 : value) v2 (EC : list ExecutionContext)
-  (cs : list cmd) (tmn : terminator) (Mem0 : mem) (MM : mmetadata)
-  (als : list mblock) Cfg
-  (Hsim : sbState_simulates_State mi mgb {|
-           CurSystem := S;
-           CurTargetData := TD;
-           CurProducts := Ps;
-           Globals := gl;
-           FunTable := fs |} {|
-           ECS := {|
-                  CurFunction := F;
-                  CurBB := B;
-                  CurCmds := insn_icmp id0 cond0 t v1 v2 :: cs;
-                  Terminator := tmn;
-                  Locals := lc;
-                  Rmap := rm;
-                  Allocas := als |} :: EC;
-           Mem := Mem0;
-           Mmap := MM |} Cfg St)
-  (gv2 : GenericValue)
-  (H : ICMP TD lc gl cond0 t v1 v2 = ret gv2),
-   exists St' : DOS.Sem.State,
-     exists mi' : MoreMem.meminj,
-       DOS.Sem.sop_star Cfg St St' trace_nil /\
-       sbState_simulates_State mi' mgb {|
-         CurSystem := S;
-         CurTargetData := TD;
-         CurProducts := Ps;
-         Globals := gl;
-         FunTable := fs |} {|
-         ECS := {|
-                CurFunction := F;
-                CurBB := B;
-                CurCmds := cs;
-                Terminator := tmn;
-                Locals := updateAddAL GenericValue lc id0 gv2;
-                Rmap := rm;
-                Allocas := als |} :: EC;
-         Mem := Mem0;
-         Mmap := MM |} Cfg St' /\ inject_incr mi mi'.
-Proof.
-  intros.
-  destruct_ctx_other.
-  simpl in Htcmds.
-  remember (trans_cmds ex_ids3 rm2 cs) as R.
-  destruct R as [[ex_ids2 cs2]|]; inv Htcmds.
-  eapply simulation__ICMP in H; eauto.
-  destruct H as [gv3' [Htrunc Hinj]].
-  exists (DOS.Sem.mkState 
-          ((DOS.Sem.mkEC (fdef_intro fh2 bs2) B2
-            (cs2 ++ cs23) tmn2 (updateAddAL GenericValue lc2 id0 gv3') als2):: 
-            ECs2) M2).
-  exists mi.
-  split.
-    rewrite <- (@trace_app_nil__eq__trace trace_nil).
-    eapply DOS.Sem.sop_star_cons; eauto.
-      apply DOS.Sem.sIcmp; auto.
-
-    split; auto using inject_incr_refl.
-    repeat (split; auto).
-      eapply cmds_at_block_tail_next; eauto.
-      eapply cmds_at_block_tail_next; eauto.
-
-      exists ex_ids. exists rm2.
-      exists ex_ids3. exists ex_ids4. exists cs2. exists cs23.
-      split; auto.
-      split.
-        clear - Hgenmeta Hrsim Hinj HBinF Heqb1.
-        apply reg_simulation__updateAddAL_lc with (ex_ids3:=ex_ids); auto.
-          eapply getCmdID_in_getFdefLocs; eauto.
-      repeat (split; auto).
-Qed.
-
-Lemma SBpass_is_correct__dsFcmp : forall
-  (mi : MoreMem.meminj) (mgb : Values.block) (St : DOS.Sem.State) (S : system)
-  (TD : TargetData) (Ps : list product) (F : fdef) (B : block) (lc : GVMap)
-  (rm : rmetadata) (gl : GVMap) (fs : GVMap) (id0 : id) fcond0 
-  fp (v1 : value) v2 (EC : list ExecutionContext)
-  (cs : list cmd) (tmn : terminator) (Mem0 : mem) (MM : mmetadata)
-  (als : list mblock) Cfg
-  (Hsim : sbState_simulates_State mi mgb {|
-           CurSystem := S;
-           CurTargetData := TD;
-           CurProducts := Ps;
-           Globals := gl;
-           FunTable := fs |} {|
-           ECS := {|
-                  CurFunction := F;
-                  CurBB := B;
-                  CurCmds := insn_fcmp id0 fcond0 fp v1 v2 :: cs;
-                  Terminator := tmn;
-                  Locals := lc;
-                  Rmap := rm;
-                  Allocas := als |} :: EC;
-           Mem := Mem0;
-           Mmap := MM |} Cfg St)
-  (gv2 : GenericValue)
-  (H : FCMP TD lc gl fcond0 fp v1 v2 = ret gv2),
-   exists St' : DOS.Sem.State,
-     exists mi' : MoreMem.meminj,
-       DOS.Sem.sop_star Cfg St St' trace_nil /\
-       sbState_simulates_State mi' mgb {|
-         CurSystem := S;
-         CurTargetData := TD;
-         CurProducts := Ps;
-         Globals := gl;
-         FunTable := fs |} {|
-         ECS := {|
-                CurFunction := F;
-                CurBB := B;
-                CurCmds := cs;
-                Terminator := tmn;
-                Locals := updateAddAL GenericValue lc id0 gv2;
-                Rmap := rm;
-                Allocas := als |} :: EC;
-         Mem := Mem0;
-         Mmap := MM |} Cfg St' /\ inject_incr mi mi'.
-Proof.
-  intros.
-  destruct_ctx_other.
-  simpl in Htcmds.
-  remember (trans_cmds ex_ids3 rm2 cs) as R.
-  destruct R as [[ex_ids2 cs2]|]; inv Htcmds.
-  eapply simulation__FCMP in H; eauto.
-  destruct H as [gv3' [Htrunc Hinj]].
-  exists (DOS.Sem.mkState 
-          ((DOS.Sem.mkEC (fdef_intro fh2 bs2) B2
-            (cs2 ++ cs23) tmn2 (updateAddAL GenericValue lc2 id0 gv3') als2):: 
-            ECs2) M2).
-  exists mi.
-  split.
-    rewrite <- (@trace_app_nil__eq__trace trace_nil).
-    eapply DOS.Sem.sop_star_cons; eauto.
-      apply DOS.Sem.sFcmp; auto.
-
-    split; auto using inject_incr_refl.
-    repeat (split; auto).
-      eapply cmds_at_block_tail_next; eauto.
-      eapply cmds_at_block_tail_next; eauto.
-
-      exists ex_ids. exists rm2.
-      exists ex_ids3. exists ex_ids4. exists cs2. exists cs23.
-      split; auto.
-      split.
-        clear - Hgenmeta Hrsim Hinj HBinF Heqb1.
-        apply reg_simulation__updateAddAL_lc with (ex_ids3:=ex_ids); auto.
-          eapply getCmdID_in_getFdefLocs; eauto.
-      repeat (split; auto).
-Qed.
-
-Lemma SBpass_is_correct__dsExtractValue : forall (mi : MoreMem.meminj) 
-  (mgb : Values.block)
-  (St : DOS.Sem.State) (S : system) (TD : TargetData) (Ps : list product)
-  (F : fdef) (B : block) (lc : GVMap) (rm : SBspecAux.rmetadata) (gl : GVMap)
-  (fs : GVMap) (id0 : id) t (v : value) idxs
-  (EC : list DSB.SBSEM.ExecutionContext) (cs : list cmd) (tmn : terminator)
-  (Mem : mem) (MM : SBspecAux.mmetadata) (als : list mblock) Cfg
-  (Hsim : sbState_simulates_State mi mgb {|
-           CurSystem := S;
-           CurTargetData := TD;
-           CurProducts := Ps;
-           Globals := gl;
-           FunTable := fs |} {|
-           DSB.SBSEM.ECS := {|
-                          DSB.SBSEM.CurFunction := F;
-                          DSB.SBSEM.CurBB := B;
-                          DSB.SBSEM.CurCmds := insn_extractvalue id0 t v idxs
-                                             :: cs;
-                          DSB.SBSEM.Terminator := tmn;
-                          DSB.SBSEM.Locals := lc;
-                          DSB.SBSEM.Rmap := rm;
-                          DSB.SBSEM.Allocas := als |} :: EC;
-           DSB.SBSEM.Mem := Mem;
-           DSB.SBSEM.Mmap := MM |} Cfg St)
-  (gv : GenericValue)
-  (gv' : GenericValue)
-  (H : getOperandValue TD v lc gl = ret gv)
-  (H0 : extractGenericValue TD t gv idxs = ret gv'),
-  exists St' : DOS.Sem.State,
-     exists mi' : MoreMem.meminj,
-       DOS.Sem.sop_star Cfg St St' trace_nil /\
-       sbState_simulates_State mi' mgb {|
-         CurSystem := S;
-         CurTargetData := TD;
-         CurProducts := Ps;
-         Globals := gl;
-         FunTable := fs |} {|
-         DSB.SBSEM.ECS := {|
-                        DSB.SBSEM.CurFunction := F;
-                        DSB.SBSEM.CurBB := B;
-                        DSB.SBSEM.CurCmds := cs;
-                        DSB.SBSEM.Terminator := tmn;
-                        DSB.SBSEM.Locals := updateAddAL GenericValue lc id0 gv';
-                        DSB.SBSEM.Rmap := rm;
-                        DSB.SBSEM.Allocas := als |} :: EC;
-         DSB.SBSEM.Mem := Mem;
-         DSB.SBSEM.Mmap := MM |} Cfg St' /\ inject_incr mi mi'.
-Proof.
-  intros.
-  destruct_ctx_other.
-  simpl in Htcmds.
-  remember (trans_cmds ex_ids3 rm2 cs) as R.
-  destruct R as [[ex_ids2 cs2]|]; inv Htcmds.
-  assert (Hgetv':=H).
-  eapply simulation__getOperandValue with (mi:=mi)(Mem2:=M2) in Hgetv'; eauto.
-  destruct Hgetv' as [gv2 [Hgetv' Hinj]].
-
-  eapply simulation__extractGenericValue in H0; eauto.
-  destruct H0 as [gv2' [H0 Hinj']].
-  exists (DOS.Sem.mkState 
-          ((DOS.Sem.mkEC (fdef_intro fh2 bs2) B2
-            (cs2 ++ cs23) tmn2 (updateAddAL GenericValue lc2 id0 gv2')
-            als2):: 
-            ECs2) M2).
-  exists mi.
-  split.
-    rewrite <- (@trace_app_nil__eq__trace trace_nil).
-    eapply DOS.Sem.sop_star_cons; eauto.
-      eapply DOS.Sem.sExtractValue; eauto.
-
-    split; auto using inject_incr_refl.
-    repeat (split; auto).
-      eapply cmds_at_block_tail_next; eauto.
-      eapply cmds_at_block_tail_next; eauto.
-
-      exists ex_ids. exists rm2.
-      exists ex_ids3. exists ex_ids4. exists cs2. exists cs23.
-      split; auto.
-      split.
-        clear - Hgenmeta Hrsim Hinj Hinj' HBinF Heqb1.
-        apply reg_simulation__updateAddAL_lc with (ex_ids3:=ex_ids); auto.
-          eapply getCmdID_in_getFdefLocs; eauto.
-      repeat (split; auto).
-Qed.
-
-Lemma SBpass_is_correct__dsInsertValue : forall (mi : MoreMem.meminj) 
-  (mgb : Values.block)
-  (St : DOS.Sem.State) (S : system) (TD : TargetData) (Ps : list product)
-  (F : fdef) (B : block) (lc : GVMap) (rm : SBspecAux.rmetadata) (gl : GVMap)
-  (fs : GVMap) (id0 : id) t (v : value) t' v' idxs
-  (EC : list DSB.SBSEM.ExecutionContext) (cs : list cmd) (tmn : terminator)
-  (Mem : mem) (MM : SBspecAux.mmetadata) (als : list mblock) Cfg
-  (Hsim : sbState_simulates_State mi mgb {|
-           CurSystem := S;
-           CurTargetData := TD;
-           CurProducts := Ps;
-           Globals := gl;
-           FunTable := fs |} {|
-           DSB.SBSEM.ECS := {|
-                          DSB.SBSEM.CurFunction := F;
-                          DSB.SBSEM.CurBB := B;
-                          DSB.SBSEM.CurCmds := insn_insertvalue id0 t v t' v' idxs
-                                             :: cs;
-                          DSB.SBSEM.Terminator := tmn;
-                          DSB.SBSEM.Locals := lc;
-                          DSB.SBSEM.Rmap := rm;
-                          DSB.SBSEM.Allocas := als |} :: EC;
-           DSB.SBSEM.Mem := Mem;
-           DSB.SBSEM.Mmap := MM |} Cfg St)
-  (gv : GenericValue)
-  (gv' gv'': GenericValue)
-  (H : getOperandValue TD v lc gl = ret gv)
-  (H0 : getOperandValue TD v' lc gl = ret gv')
-  (H1 : insertGenericValue TD t gv idxs t' gv' = ret gv''),
-  exists St' : DOS.Sem.State,
-     exists mi' : MoreMem.meminj,
-       DOS.Sem.sop_star Cfg St St' trace_nil /\
-       sbState_simulates_State mi' mgb {|
-         CurSystem := S;
-         CurTargetData := TD;
-         CurProducts := Ps;
-         Globals := gl;
-         FunTable := fs |} {|
-         DSB.SBSEM.ECS := {|
-                        DSB.SBSEM.CurFunction := F;
-                        DSB.SBSEM.CurBB := B;
-                        DSB.SBSEM.CurCmds := cs;
-                        DSB.SBSEM.Terminator := tmn;
-                        DSB.SBSEM.Locals := updateAddAL GenericValue lc id0 gv'';
-                        DSB.SBSEM.Rmap := rm;
-                        DSB.SBSEM.Allocas := als |} :: EC;
-         DSB.SBSEM.Mem := Mem;
-         DSB.SBSEM.Mmap := MM |} Cfg St' /\ inject_incr mi mi'.
-Proof.
-  intros.
-  destruct_ctx_other.
-  simpl in Htcmds.
-  remember (trans_cmds ex_ids3 rm2 cs) as R.
-  destruct R as [[ex_ids2 cs2]|]; inv Htcmds.
-  assert (Hgetv2:=H).
-  eapply simulation__getOperandValue with (mi:=mi)(Mem2:=M2) in Hgetv2; eauto.
-  destruct Hgetv2 as [gv2 [Hgetv2 Hinj2]].
-  assert (Hgetv2':=H0).
-  eapply simulation__getOperandValue with (mi:=mi)(Mem2:=M2) in Hgetv2'; eauto.
-  destruct Hgetv2' as [gv2' [Hgetv2' Hinj2']].
-  eapply simulation__insertGenericValue in H1; eauto.
-  destruct H1 as [gv2'' [H1 Hinj']].
-  exists (DOS.Sem.mkState
-          ((DOS.Sem.mkEC (fdef_intro fh2 bs2) B2
-            (cs2 ++ cs23) tmn2 (updateAddAL GenericValue lc2 id0 gv2'')
-            als2):: 
-            ECs2) M2).
-  exists mi.
-  split.
-    rewrite <- (@trace_app_nil__eq__trace trace_nil).
-    eapply DOS.Sem.sop_star_cons; eauto.
-      eapply DOS.Sem.sInsertValue; eauto.
-
-    split; auto using inject_incr_refl.
-    repeat (split; auto).
-      eapply cmds_at_block_tail_next; eauto.
-      eapply cmds_at_block_tail_next; eauto.
-
-      exists ex_ids. exists rm2.
-      exists ex_ids3. exists ex_ids4. exists cs2. exists cs23.
-      split; auto.
-      split.
-        clear - Hgenmeta Hrsim Hinj' Hinj2' HBinF Heqb1.
-        apply reg_simulation__updateAddAL_lc with (ex_ids3:=ex_ids); auto.
-          eapply getCmdID_in_getFdefLocs; eauto.
-      repeat (split; auto).
 Qed.
 
 Lemma SBpass_is_correct__dsSelect_nptr : forall (mi : MoreMem.meminj) 
@@ -1302,49 +895,31 @@ Lemma SBpass_is_correct__dsSelect_nptr : forall (mi : MoreMem.meminj)
          Mem := Mem0;
          Mmap := MM |} Cfg St' /\ inject_incr mi mi'.
 Proof.
-  intros.
-  destruct_ctx_other.
-  simpl in Htcmds.
-  rewrite H2 in Htcmds.
-  remember (trans_cmds ex_ids3 rm2 cs) as R.
-  destruct R as [[ex_ids2 cs2]|]; inv Htcmds.
-  assert (Hc := H).
-  eapply simulation__getOperandValue with (mi:=mi)(Mem2:=M2) in Hc; eauto.
-  destruct Hc as [c' [Hc Hinjc]].
-  eapply simulation__getOperandValue with (mi:=mi)(Mem2:=M2) in H0; eauto.
-  destruct H0 as [gv1' [H0 Hinj1]].
-  eapply simulation__getOperandValue with (mi:=mi)(Mem2:=M2) in H1; eauto.
-  destruct H1 as [gv2' [H1 Hinj2]].
-
-  assert (isGVZero (los, nts) c = isGVZero (los, nts) c') as Heqc.
-    eapply simulation__isGVZero; eauto.
+  intros. SBpass_is_correct__dsOp.
 
   exists (DOS.Sem.mkState
           ((DOS.Sem.mkEC (fdef_intro fh2 bs2) B2
-            (cs2 ++ cs23) tmn2 
-            (if isGVZero (los, nts) c'
-             then updateAddAL GenericValue lc2 id0 gv2'
-             else updateAddAL GenericValue lc2 id0 gv1')
+            (cs2' ++ cs23) tmn2 
+            (if isGVZero (los, nts) gv3'1
+             then updateAddAL GenericValue lc2 id0 gv3'
+             else updateAddAL GenericValue lc2 id0 gv3'0)
             als2):: 
             ECs2) M2).
   exists mi.
-  split.
-    rewrite <- (@trace_app_nil__eq__trace trace_nil).
-    eapply DOS.Sem.sop_star_cons; eauto.
-      eapply DOS.Sem.sSelect; eauto.
-
-    split; auto using inject_incr_refl.
-    repeat (split; auto).
-      eapply cmds_at_block_tail_next; eauto.
-      eapply cmds_at_block_tail_next; eauto.
-
-      exists ex_ids. exists rm2.
-      exists ex_ids3. exists ex_ids4. exists cs2. exists cs23.
+  repeat (split; try solve [auto using inject_incr_refl | 
+                            eapply cmds_at_block_tail_next; eauto]).
+      simpl_env; simpl;
+      rewrite <- (@trace_app_nil__eq__trace trace_nil);
+      eapply DOS.Sem.sop_star_cons; eauto; eauto.
+    
+      exists ex_ids; exists rm2;
+      exists ex_ids5; exists ex_ids4; exists cs2'; exists cs23;
       split; auto.
       split.
+        assert (isGVZero (los, nts) c = isGVZero (los, nts) gv3'1) as Heqc.
+          eapply simulation__isGVZero; eauto.
         rewrite Heqc.
-        clear - Hgenmeta Hrsim Hinj1 Hinj2 Hinjc HBinF Heqb1.
-        destruct (isGVZero (los,nts) c');
+        destruct (isGVZero (los,nts) gv3'1);
           apply reg_simulation__updateAddAL_lc with (ex_ids3:=ex_ids); eauto
             using getCmdID_in_getFdefLocs.
       repeat (split; auto).

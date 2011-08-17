@@ -24,6 +24,7 @@ Require Import sb_ds_gv_inject.
 Require Import sb_ds_sim.
 Require Import sb_ds_trans_axioms.
 Require Import sb_ds_trans_lib.
+Require Import sb_ds_trans_tactics.
 
 Import SB_ds_pass.
 Export DSB.SBSEM.
@@ -578,6 +579,55 @@ Proof.
     repeat (split; auto).
 Qed.
 
+Ltac next_insn' M2' :=
+  unfold DGVs.t;
+  rewrite <- (@trace_app_nil__eq__trace trace_nil);
+  match goal with
+  | |- context [ DOS.Sem.sop_star _ 
+       (DOS.Sem.mkState 
+           ((DOS.Sem.mkEC ?F2 ?B2 (_ :: ?cs2) ?tmn2 ?lc2 ?als2)::?ECs2) _) 
+       (DOS.Sem.mkState ((DOS.Sem.mkEC _ _ _ _ _ _)::_) _) _ ] => 
+    apply DOS.Sem.sop_star_cons with (state2:=
+      DOS.Sem.mkState 
+        ((DOS.Sem.mkEC F2 B2 cs2 tmn2 lc2 als2):: 
+          ECs2) M2'); eauto 
+  end.
+
+Ltac ret_insn :=
+  unfold DGVs.t;
+  rewrite <- (@trace_app_nil__eq__trace trace_nil);
+  match goal with
+  | |- context [ DOS.Sem.sop_star _ 
+       (DOS.Sem.mkState 
+         (_::
+         (DOS.Sem.mkEC ?F ?B (insn_call _ false _ _ _ _::?cs) ?tmn ?lc ?als)::
+         ?ECs2) _) 
+       (DOS.Sem.mkState 
+           ((DOS.Sem.mkEC _ _ _ _ (updateAddALs _ ?lc ((?k,?v)::_)) _)::_) 
+       ?M) _ ] => 
+    apply DOS.Sem.sop_star_cons with 
+      (state2:=DOS.Sem.mkState 
+        ((DOS.Sem.mkEC F B cs tmn (updateAddAL _ lc k v) als)::ECs2) M);
+    try rewrite simpl_cons_updateAddALs
+
+  | |- context [ DOS.Sem.sop_star _ 
+       (DOS.Sem.mkState (_::(DOS.Sem.mkEC ?F ?B (_::?cs) ?tmn ?lc ?als)::?ECs2) _) 
+       (DOS.Sem.mkState _ ?M) _ ] => 
+    apply DOS.Sem.sop_star_cons with 
+      (state2:=DOS.Sem.mkState ((DOS.Sem.mkEC F B cs tmn lc als)::ECs2) M)
+  end.
+
+Lemma cmds_at_block_tails_next' : forall B2' cs23' cs24' tmn2' cs22,
+  (exists l2 : l, exists ps2 : phinodes, exists cs21 : list cmd,
+    B2' = block_intro l2 ps2 (cs21 ++ cs22 ++ cs23' ++ cs24') tmn2') ->
+  exists l2 : l, exists ps2 : phinodes, exists cs21 : list cmd,
+    B2' = block_intro l2 ps2 (cs21 ++ cs23' ++ cs24') tmn2'.
+Proof.
+  intros.
+  destruct H as [l2' [ps2' [cs21' Heqb2']]]; subst.
+  exists l2'. exists ps2'. exists (cs21' ++ cs22). simpl_env. auto.
+Qed.
+
 Lemma SBpass_is_correct__dsReturn : forall 
   (mi : MoreMem.meminj) (mgb : Values.block) (St : DOS.Sem.State) (S : system)
   (TD : TargetData) (Ps : list product) (F : fdef) (B : block) (rid : id)
@@ -680,50 +730,22 @@ Proof.
       exists mi.
       split.
       SSSCase "sop_star".
-        rewrite <- (@trace_app_nil__eq__trace trace_nil).
-        apply DOS.Sem.sop_star_cons with (state2:=
-          (DOS.Sem.mkState
-            ((DOS.Sem.mkEC (fdef_intro fh2 bs2) B2
-              ((insn_call fake_id true attrs sse_typ sse_fn 
-                  ((p8, ev2)::(i32, vint0) :: nil))::nil)
-              (insn_return rid RetTy Result) lc2 als2)::
-             (DOS.Sem.mkEC (fdef_intro fh2' bs2') B2'
-              ((insn_call i0 true c t (wrap_call v) p)::
-               (insn_call fake_id true attrs dstk_typ dstk_fn nil)::
-              (cs23' ++ cs24'))
-              tmn2' lc2' als2'):: ECs2)
-            M2')).
+        simpl. 
+        next_insn' M2'.
           destruct (@ssb_is_found (los, nts) Ps2 lc2 gl2 fs2) as [fptr2 [J1 J2]].
           eapply DOS.Sem.sExCall with (fid:=ssb_fid)
             (gvs:=(bgv2 :: int2GV 0 :: nil))(oresult:=None); eauto.
             simpl. replace DOS.Sem.getOperandValue with getOperandValue; auto.   
             rewrite Hgetbgv2. auto.
 
-        rewrite <- (@trace_app_nil__eq__trace trace_nil).
-        apply DOS.Sem.sop_star_cons with (state2:=
-          (DOS.Sem.mkState
-            ((DOS.Sem.mkEC (fdef_intro fh2 bs2) B2 nil
-              (insn_return rid RetTy Result) lc2 als2)::
-             (DOS.Sem.mkEC (fdef_intro fh2' bs2') B2'
-              ((insn_call i0 true c t (wrap_call v) p)::
-               (insn_call fake_id true attrs dstk_typ dstk_fn nil)::
-              (cs23' ++ cs24'))
-              tmn2' lc2' als2'):: ECs2)
-            M2'')).
+        next_insn' M2''.
           destruct (@sse_is_found (los, nts) Ps2 lc2 gl2 fs2) as [fptr2 [J1 J2]].
           eapply DOS.Sem.sExCall with (fid:=sse_fid)
             (gvs:=(egv2 :: int2GV 0 :: nil))(oresult:=None); eauto.
             simpl. replace DOS.Sem.getOperandValue with getOperandValue; auto.   
             rewrite Hgetegv2. auto.
 
-        rewrite <- (@trace_app_nil__eq__trace trace_nil).
-        apply DOS.Sem.sop_star_cons with (state2:=
-          (DOS.Sem.mkState
-            ((DOS.Sem.mkEC (fdef_intro fh2' bs2') B2'
-              ((insn_call fake_id true attrs dstk_typ dstk_fn nil)::
-              (cs23' ++ cs24'))
-              tmn2' lc2' als2'):: ECs2)
-            M2''')).
+        ret_insn.
           eapply DOS.Sem.sReturn; eauto.
             unfold DOS.Sem.returnUpdateLocals. simpl.
             clear - Hrsim Heqogr Hwfg Hwfmi.
@@ -733,28 +755,15 @@ Proof.
             replace DOS.Sem.getOperandValue with LLVMgv.getOperandValue; auto.   
             rewrite J1. auto.
 
-        rewrite <- (@trace_app_nil__eq__trace trace_nil).
-        apply DOS.Sem.sop_star_cons with (state2:=
-          (DOS.Sem.mkState
-            ((DOS.Sem.mkEC (fdef_intro fh2' bs2') B2'
-              (cs23' ++ cs24')
-              tmn2' lc2' als2'):: ECs2)
-            M2''')); auto.
+        next_insn' M2'''.
           destruct (@dstk_is_found(los, nts) Ps2 lc2 gl2 fs2) as [fptr2 [J1 J2]].
           eapply DOS.Sem.sExCall; simpl; eauto.
             eapply dstk_spec; eauto.
 
       split; auto using inject_incr_refl.
       SSSCase "sim".
-      repeat (split; auto).
-          eapply cmds_at_block_tail_next; eauto.
-
-          destruct Heqb2' as [l2' [ps2' [cs21' Heqb2']]]; subst.
-          exists l2'. exists ps2'. exists (cs21' ++
-              [insn_call i0 true c t (wrap_call v) p] ++
-              [insn_call fake_id true attrs dstk_typ dstk_fn nil]). 
-          simpl_env. auto.
- 
+      repeat (split; eauto 2 using cmds_at_block_tail_next, 
+                                   cmds_at_block_tails_next').
           exists ex_ids'. exists rm2'.
           exists ex_ids3'. exists ex_ids4'. exists cs23'. exists cs24'.
           repeat (split; auto).
@@ -773,46 +782,19 @@ Proof.
       exists mi.
       split.
       SSSCase "sop_star".
-        rewrite <- (@trace_app_nil__eq__trace trace_nil).
-        apply DOS.Sem.sop_star_cons with (state2:=
-          (DOS.Sem.mkState
-            ((DOS.Sem.mkEC (fdef_intro fh2 bs2) B2
-              ((insn_call fake_id true attrs sse_typ sse_fn 
-                  ((p8, vnullp8)::(i32, vint0) :: nil))::nil)
-              (insn_return rid RetTy Result) lc2 als2)::
-             (DOS.Sem.mkEC (fdef_intro fh2' bs2') B2'
-              ((insn_call i0 true c t (wrap_call v) p)::
-               (insn_call fake_id true attrs dstk_typ dstk_fn nil)::
-              (cs23' ++ cs24'))
-              tmn2' lc2' als2'):: ECs2)
-            M2')).
+        simpl. next_insn' M2'.
           destruct (@ssb_is_found (los, nts) Ps2 lc2 gl2 fs2) as [fptr2 [J1 J2]].
           eapply DOS.Sem.sExCall with (fid:=ssb_fid)
             (gvs:=(null :: int2GV 0 :: nil))(oresult:=None); eauto.
             simpl. eauto.
-        rewrite <- (@trace_app_nil__eq__trace trace_nil).
-        apply DOS.Sem.sop_star_cons with (state2:=
-          (DOS.Sem.mkState
-            ((DOS.Sem.mkEC (fdef_intro fh2 bs2) B2 nil
-              (insn_return rid RetTy Result) lc2 als2)::
-             (DOS.Sem.mkEC (fdef_intro fh2' bs2') B2'
-              ((insn_call i0 true c t (wrap_call v) p)::
-               (insn_call fake_id true attrs dstk_typ dstk_fn nil)::
-              (cs23' ++ cs24'))
-              tmn2' lc2' als2'):: ECs2)
-            M2'')).
+
+        next_insn' M2''.
           destruct (@sse_is_found (los, nts) Ps2 lc2 gl2 fs2) as [fptr2 [J1 J2]].
           eapply DOS.Sem.sExCall with (fid:=sse_fid)
             (gvs:=(null :: int2GV 0 :: nil))(oresult:=None); eauto.
             simpl. eauto.
-        rewrite <- (@trace_app_nil__eq__trace trace_nil).
-        apply DOS.Sem.sop_star_cons with (state2:=
-          (DOS.Sem.mkState
-            ((DOS.Sem.mkEC (fdef_intro fh2' bs2') B2'
-              ((insn_call fake_id true attrs dstk_typ dstk_fn nil)::
-              (cs23' ++ cs24'))
-              tmn2' lc2' als2'):: ECs2)
-            M2''')).
+
+        ret_insn.
           eapply DOS.Sem.sReturn; eauto.
             unfold DOS.Sem.returnUpdateLocals. simpl.
             clear - Hrsim Heqogr Hwfg Hwfmi.
@@ -822,28 +804,15 @@ Proof.
             replace DOS.Sem.getOperandValue with LLVMgv.getOperandValue; auto.
             rewrite J1. auto.
 
-        rewrite <- (@trace_app_nil__eq__trace trace_nil).
-        apply DOS.Sem.sop_star_cons with (state2:=
-          (DOS.Sem.mkState
-            ((DOS.Sem.mkEC (fdef_intro fh2' bs2') B2'
-              (cs23' ++ cs24')
-              tmn2' lc2' als2'):: ECs2)
-            M2''')); auto.
+        next_insn' M2'''.
           destruct (@dstk_is_found (los, nts) Ps2 lc2 gl2 fs2)as [fptr2 [J1 J2]].
           eapply DOS.Sem.sExCall; simpl; eauto.
             eapply dstk_spec; eauto.
 
       split; auto using inject_incr_refl.
       SSSCase "sim".
-      repeat (split; auto).
-          eapply cmds_at_block_tail_next; eauto.
-
-          destruct Heqb2' as [l2' [ps2' [cs21' Heqb2']]]; subst.
-          exists l2'. exists ps2'. exists (cs21' ++
-              [insn_call i0 true c t (wrap_call v) p] ++
-              [insn_call fake_id true attrs dstk_typ dstk_fn nil]). 
-          simpl_env. auto.
- 
+      repeat (split; eauto 2 using cmds_at_block_tail_next, 
+                                   cmds_at_block_tails_next').
           exists ex_ids'. exists rm2'.
           exists ex_ids3'. exists ex_ids4'. exists cs23'. exists cs24'.
           repeat (split; auto).
@@ -889,80 +858,34 @@ Proof.
       exists (DOS.Sem.mkState 
         ((DOS.Sem.mkEC (fdef_intro fh2' bs2') B2'
             (cs23' ++ cs24') tmn2' 
-            (updateAddAL _ 
-              (updateAddAL _ (updateAddAL _ lc2' i0 gr2') bid0 bgv2) 
-              eid0 egv2)
+            (updateAddALs _ lc2' ((i0,gr2')::(bid0,bgv2)::(eid0,egv2)::nil))
             als2'):: ECs2)
         M2''').
       exists mi.
       split.
       SSSSCase "sop_star".
-        rewrite <- (@trace_app_nil__eq__trace trace_nil).
-        apply DOS.Sem.sop_star_cons with (state2:=
-          (DOS.Sem.mkState
-            ((DOS.Sem.mkEC (fdef_intro fh2 bs2) B2
-              ((insn_call fake_id true attrs sse_typ sse_fn 
-                  ((p8, ev2)::(i32, vint0) :: nil))::nil)
-              (insn_return rid RetTy Result) lc2 als2)::
-             (DOS.Sem.mkEC (fdef_intro fh2' bs2') B2'
-              ((insn_call i0 false c (typ_function t l0 v0) (wrap_call v) p)::
-               insn_call bid0 false attrs gsb_typ gsb_fn((i32, vint0) :: nil):: 
-               insn_call eid0 false attrs gse_typ gse_fn((i32, vint0) :: nil)::
-               (insn_call fake_id true attrs dstk_typ dstk_fn nil)::
-               cs23' ++ cs24')
-              tmn2' lc2' als2'):: ECs2)
-            M2')). 
+        Opaque updateAddALs. simpl. 
+        next_insn' M2'.
           destruct (@ssb_is_found (los, nts) Ps2 lc2 gl2 fs2) as [fptr2 [Z1 Z2]].
           eapply DOS.Sem.sExCall with (fid:=ssb_fid)
             (gvs:=(bgv2 :: int2GV 0 :: nil))(oresult:=None); eauto.
             simpl. replace DOS.Sem.getOperandValue with getOperandValue; auto.   
             rewrite Hgetbgv2. auto.
 
-        rewrite <- (@trace_app_nil__eq__trace trace_nil).
-        apply DOS.Sem.sop_star_cons with (state2:=
-          (DOS.Sem.mkState
-            ((DOS.Sem.mkEC (fdef_intro fh2 bs2) B2 nil
-              (insn_return rid RetTy Result) lc2 als2)::
-             (DOS.Sem.mkEC (fdef_intro fh2' bs2') B2'
-              ((insn_call i0 false c (typ_function t l0 v0) (wrap_call v) p)::
-               insn_call bid0 false attrs gsb_typ gsb_fn((i32, vint0) :: nil):: 
-               insn_call eid0 false attrs gse_typ gse_fn((i32, vint0) :: nil)::
-               (insn_call fake_id true attrs dstk_typ dstk_fn nil)::
-              (cs23' ++ cs24'))
-              tmn2' lc2' als2'):: ECs2)
-            M2'')).
+        next_insn' M2''.
           destruct (@sse_is_found (los, nts) Ps2 lc2 gl2 fs2) as [fptr2 [Z1 Z2]].
           eapply DOS.Sem.sExCall with (fid:=sse_fid)
             (gvs:=(egv2 :: int2GV 0 :: nil))(oresult:=None); eauto.
             simpl. replace DOS.Sem.getOperandValue with getOperandValue; auto.   
             simpl. rewrite Hgetegv2. auto.
 
-        rewrite <- (@trace_app_nil__eq__trace trace_nil).
-        apply DOS.Sem.sop_star_cons with (state2:=
-          (DOS.Sem.mkState
-            ((DOS.Sem.mkEC (fdef_intro fh2' bs2') B2'
-              (insn_call bid0 false attrs gsb_typ gsb_fn((i32, vint0) :: nil):: 
-               insn_call eid0 false attrs gse_typ gse_fn((i32, vint0) :: nil)::
-               insn_call fake_id true attrs dstk_typ dstk_fn nil::
-               (cs23' ++ cs24'))
-              tmn2' (updateAddAL _ lc2' i0 gr2') als2'):: ECs2)
-            M2''')).
+        ret_insn.
           eapply DOS.Sem.sReturn; eauto.
             unfold DOS.Sem.returnUpdateLocals.
             replace DOS.Sem.getOperandValue with LLVMgv.getOperandValue; auto.   
             rewrite J1. unfold DGVs.lift_op1. rewrite HeqFit. auto.
 
-        rewrite <- (@trace_app_nil__eq__trace trace_nil).
-        apply DOS.Sem.sop_star_cons with (state2:=
-          (DOS.Sem.mkState
-            ((DOS.Sem.mkEC (fdef_intro fh2' bs2') B2'
-              (insn_call eid0 false attrs gse_typ gse_fn((i32, vint0) :: nil)::
-               insn_call fake_id true attrs dstk_typ dstk_fn nil::
-               (cs23' ++ cs24'))
-              tmn2' 
-              (updateAddAL _ (updateAddAL _ lc2' i0  gr2') bid0 bgv2) 
-              als2'):: ECs2)
-            M2''')).
+        next_insn.
           destruct (@gsb_is_found (los, nts) Ps2 lc2 gl2 fs2) as [fptr2 [Z1 Z2]].
           eapply DOS.Sem.sExCall with (fid:=gsb_fid)
             (gvs:=(int2GV 0 :: nil))(oresult:=Some bgv2); eauto.
@@ -972,16 +895,7 @@ Proof.
             unfold gsb_typ, p8. simpl.
             inv Hinj1. inv H6. inv H5. auto.
 
-        rewrite <- (@trace_app_nil__eq__trace trace_nil).
-        apply DOS.Sem.sop_star_cons with (state2:=
-          (DOS.Sem.mkState
-            ((DOS.Sem.mkEC (fdef_intro fh2' bs2') B2'
-              (insn_call fake_id true attrs dstk_typ dstk_fn nil:: 
-               cs23' ++ cs24')
-              tmn2' (updateAddAL _ (updateAddAL _ 
-                (updateAddAL _ lc2' i0 gr2') 
-                bid0 bgv2) eid0 egv2) als2'):: ECs2)
-            M2''')); auto.
+        next_insn.
           destruct (@gse_is_found (los, nts) Ps2 lc2 gl2 fs2) as [fptr2 [Z1 Z2]].
           eapply DOS.Sem.sExCall with (fid:=gse_fid)
             (gvs:=(int2GV 0 :: nil))(oresult:=Some egv2); eauto.
@@ -991,36 +905,20 @@ Proof.
             unfold gsb_typ, p8. simpl.
             inv Hinj2. inv H6. inv H5. auto.
 
-        rewrite <- (@trace_app_nil__eq__trace trace_nil).
-        apply DOS.Sem.sop_star_cons with (state2:=
-          (DOS.Sem.mkState
-            ((DOS.Sem.mkEC (fdef_intro fh2' bs2') B2'
-              (cs23' ++ cs24')
-              tmn2' (updateAddAL _ (updateAddAL _ 
-                (updateAddAL _ lc2' i0 gr2') 
-                bid0 bgv2) eid0 egv2) als2'):: ECs2)
-            M2''')); auto.
+        next_insn.
           destruct (@dstk_is_found (los, nts) Ps2 lc2 gl2 fs2)as [fptr2 [Z1 Z2]].
           eapply DOS.Sem.sExCall; simpl; eauto.
             eapply dstk_spec; eauto.
 
       split; auto using inject_incr_refl.
       SSSSCase "sim".
-      repeat (split; auto).
-          eapply cmds_at_block_tail_next; eauto.
-
-          destruct Heqb2' as [l2' [ps2' [cs21' Heqb2']]]; subst.
-          exists l2'. exists ps2'. exists (cs21' ++
-              [insn_call i0 false c (typ_function t l0 v0) (wrap_call v) p] ++
-              [insn_call bid0 false attrs gsb_typ gsb_fn [(i32, vint0)]] ++
-              [insn_call eid0 false attrs gse_typ gse_fn [(i32, vint0)]] ++
-              [insn_call fake_id true attrs dstk_typ dstk_fn nil]). 
-          simpl_env. auto.
- 
+      repeat (split; eauto 2 using cmds_at_block_tail_next, 
+                                   cmds_at_block_tails_next').
           exists ex_ids'. exists rm2'.
           exists ex_ids3'. exists ex_ids4'. exists cs23'. exists cs24'.
           split; auto.              
           split.
+            Transparent updateAddALs. simpl.
             eapply reg_simulation__updateAddAL_prop with (ex_ids3:=ex_ids'); 
               eauto using simulation___cgv2gv.
             repeat (split; auto).
@@ -1041,130 +939,59 @@ Proof.
       exists (DOS.Sem.mkState 
         ((DOS.Sem.mkEC (fdef_intro fh2' bs2') B2'
             (cs23' ++ cs24') tmn2' 
-            (updateAddAL _ (updateAddAL _ 
-              (updateAddAL _ lc2' i0 gr2') bid0 null) 
-              eid0 null)
+              (updateAddALs _ lc2' ((i0,gr2')::(bid0,null)::(eid0,null)::nil))
             als2'):: ECs2)
         M2''').
       exists mi.
       split.
       SSSSCase "sop_star".
-        rewrite <- (@trace_app_nil__eq__trace trace_nil).
-        apply DOS.Sem.sop_star_cons with (state2:=
-          (DOS.Sem.mkState
-            ((DOS.Sem.mkEC (fdef_intro fh2 bs2) B2
-              ((insn_call fake_id true attrs sse_typ sse_fn 
-                  ((p8, vnullp8)::(i32, vint0) :: nil))::nil)
-              (insn_return rid RetTy Result) lc2 als2)::
-             (DOS.Sem.mkEC (fdef_intro fh2' bs2') B2'
-              ((insn_call i0 false c (typ_function t l0 v0) (wrap_call v) p)::
-               insn_call bid0 false attrs gsb_typ gsb_fn((i32, vint0) :: nil):: 
-               insn_call eid0 false attrs gse_typ gse_fn((i32, vint0) :: nil)::
-               (insn_call fake_id true attrs dstk_typ dstk_fn nil)::
-               cs23' ++ cs24')
-              tmn2' lc2' als2'):: ECs2)
-            M2')). 
+        Opaque updateAddALs. simpl. 
+        next_insn' M2'.
           destruct (@ssb_is_found (los, nts) Ps2 lc2 gl2 fs2) as [fptr2 [Z1 Z2]].
           eapply DOS.Sem.sExCall with (fid:=ssb_fid)
             (gvs:=(null :: int2GV 0 :: nil))(oresult:=None); eauto.
             simpl. eauto.
 
-        rewrite <- (@trace_app_nil__eq__trace trace_nil).
-        apply DOS.Sem.sop_star_cons with (state2:=
-          (DOS.Sem.mkState
-            ((DOS.Sem.mkEC (fdef_intro fh2 bs2) B2 nil
-              (insn_return rid RetTy Result) lc2 als2)::
-             (DOS.Sem.mkEC (fdef_intro fh2' bs2') B2'
-              ((insn_call i0 false c (typ_function t l0 v0) (wrap_call v) p)::
-               insn_call bid0 false attrs gsb_typ gsb_fn((i32, vint0) :: nil):: 
-               insn_call eid0 false attrs gse_typ gse_fn((i32, vint0) :: nil)::
-               (insn_call fake_id true attrs dstk_typ dstk_fn nil)::
-              (cs23' ++ cs24'))
-              tmn2' lc2' als2'):: ECs2)
-            M2'')).
+        next_insn' M2''.
           destruct (@sse_is_found (los, nts) Ps2 lc2 gl2 fs2) as [fptr2 [Z1 Z2]].
           eapply DOS.Sem.sExCall with (fid:=sse_fid)
             (gvs:=(null :: int2GV 0 :: nil))(oresult:=None); eauto.
             simpl. eauto.
 
-        rewrite <- (@trace_app_nil__eq__trace trace_nil).
-        apply DOS.Sem.sop_star_cons with (state2:=
-          (DOS.Sem.mkState
-            ((DOS.Sem.mkEC (fdef_intro fh2' bs2') B2'
-              (insn_call bid0 false attrs gsb_typ gsb_fn((i32, vint0) :: nil):: 
-               insn_call eid0 false attrs gse_typ gse_fn((i32, vint0) :: nil)::
-               insn_call fake_id true attrs dstk_typ dstk_fn nil::
-               (cs23' ++ cs24'))
-              tmn2' (updateAddAL _ lc2' i0 gr2') als2'):: ECs2)
-            M2''')).
+        ret_insn.
           eapply DOS.Sem.sReturn; eauto.
             unfold DOS.Sem.returnUpdateLocals. simpl.
             replace DOS.Sem.getOperandValue with LLVMgv.getOperandValue; auto.
             rewrite J1. unfold DGVs.lift_op1. rewrite HeqFit. auto.
 
-        rewrite <- (@trace_app_nil__eq__trace trace_nil).
-        apply DOS.Sem.sop_star_cons with (state2:=
-          (DOS.Sem.mkState
-            ((DOS.Sem.mkEC (fdef_intro fh2' bs2') B2'
-              (insn_call eid0 false attrs gse_typ gse_fn((i32, vint0) :: nil)::
-               insn_call fake_id true attrs dstk_typ dstk_fn nil::
-               (cs23' ++ cs24'))
-              tmn2' 
-              (updateAddAL _ (updateAddAL _ lc2' i0 gr2') bid0 null) 
-              als2'):: ECs2)
-            M2''')).
+        next_insn.
           destruct (@gsb_is_found (los, nts) Ps2 lc2 gl2 fs2) as [fptr2 [Z1 Z2]].
           eapply DOS.Sem.sExCall with (fid:=gsb_fid)
             (gvs:=(int2GV 0 :: nil))(oresult:=Some null); eauto.
             simpl. eauto. 
             eapply free_allocas_preserves_gsb; eauto.
 
-        rewrite <- (@trace_app_nil__eq__trace trace_nil).
-        apply DOS.Sem.sop_star_cons with (state2:=
-          (DOS.Sem.mkState
-            ((DOS.Sem.mkEC (fdef_intro fh2' bs2') B2'
-              (insn_call fake_id true attrs dstk_typ dstk_fn nil:: 
-               cs23' ++ cs24')
-              tmn2' (updateAddAL _ (updateAddAL _ 
-                (updateAddAL _ lc2' i0 gr2') 
-                bid0 null) eid0 null) als2'):: ECs2)
-            M2''')); auto.
+        next_insn.
           destruct (@gse_is_found (los, nts) Ps2 lc2 gl2 fs2) as [fptr2 [Z1 Z2]].
           eapply DOS.Sem.sExCall with (fid:=gse_fid)
             (gvs:=(int2GV 0 :: nil))(oresult:=Some null); eauto.
             simpl. eauto.
             eapply free_allocas_preserves_gse; eauto.
 
-        rewrite <- (@trace_app_nil__eq__trace trace_nil).
-        apply DOS.Sem.sop_star_cons with (state2:=
-          (DOS.Sem.mkState
-            ((DOS.Sem.mkEC (fdef_intro fh2' bs2') B2'
-              (cs23' ++ cs24')
-              tmn2' (updateAddAL _ (updateAddAL _ 
-                (updateAddAL _ lc2' i0 gr2') 
-                bid0 null) eid0 null) als2'):: ECs2)
-            M2''')); auto.
+        next_insn.
           destruct (@dstk_is_found (los, nts) Ps2 lc2 gl2 fs2)as [fptr2 [Z1 Z2]].
           eapply DOS.Sem.sExCall; simpl; eauto.
             eapply dstk_spec; eauto.
 
       split; auto using inject_incr_refl.
       SSSSCase "sim".
-      repeat (split; auto).
-          eapply cmds_at_block_tail_next; eauto.
-
-          destruct Heqb2' as [l2' [ps2' [cs21' Heqb2']]]; subst.
-          exists l2'. exists ps2'. exists (cs21' ++
-              [insn_call i0 false c (typ_function t l0 v0) (wrap_call v) p] ++
-              [insn_call bid0 false attrs gsb_typ gsb_fn [(i32, vint0)]] ++
-              [insn_call eid0 false attrs gse_typ gse_fn [(i32, vint0)]] ++
-              [insn_call fake_id true attrs dstk_typ dstk_fn nil]). 
-          simpl_env. auto.
- 
+      repeat (split; eauto 2 using cmds_at_block_tail_next, 
+                                   cmds_at_block_tails_next').
           exists ex_ids'. exists rm2'.
           exists ex_ids3'. exists ex_ids4'. exists cs23'. exists cs24'.
           split; auto.              
           split.
+            Transparent updateAddALs. simpl.
             eapply reg_simulation__updateAddAL_prop with (ex_ids3:=ex_ids'); 
               eauto using simulation___cgv2gv, gv_inject_null_refl.
             repeat (split; auto).
@@ -1200,88 +1027,48 @@ Proof.
       destruct HeqFit as [gr2' [HeqFit HinjFit]].
       exists (DOS.Sem.mkState
         ((DOS.Sem.mkEC (fdef_intro fh2' bs2') B2'
-            (cs23' ++ cs24') tmn2' (updateAddAL _ lc2' i0 gr2')
+            (cs23' ++ cs24') tmn2' (updateAddALs _ lc2' ((i0,gr2')::nil))
             als2'):: ECs2)
         M2''').
       exists mi.
       split.
       SSSSCase "sop_star".
-        rewrite <- (@trace_app_nil__eq__trace trace_nil).
-        apply DOS.Sem.sop_star_cons with (state2:=
-          (DOS.Sem.mkState
-            ((DOS.Sem.mkEC (fdef_intro fh2 bs2) B2
-              ((insn_call fake_id true attrs sse_typ sse_fn 
-                  ((p8, ev2)::(i32, vint0) :: nil))::nil)
-              (insn_return rid RetTy Result) lc2 als2)::
-             (DOS.Sem.mkEC (fdef_intro fh2' bs2') B2'
-              ((insn_call i0 false c (typ_function t l0 v0) (wrap_call v) p)::
-               (insn_call fake_id true attrs dstk_typ dstk_fn nil)::
-               cs23' ++ cs24')
-              tmn2' lc2' als2'):: ECs2)
-            M2')). 
+        Opaque updateAddALs. simpl. 
+        next_insn' M2'.
           destruct (@ssb_is_found (los, nts) Ps2 lc2 gl2 fs2) as [fptr2 [Z1 Z2]].
           eapply DOS.Sem.sExCall with (fid:=ssb_fid)
             (gvs:=(bgv2 :: int2GV 0 :: nil))(oresult:=None); eauto.
             simpl. replace DOS.Sem.getOperandValue with getOperandValue; auto.
             rewrite Hgetbgv2. auto.
 
-        rewrite <- (@trace_app_nil__eq__trace trace_nil).
-        apply DOS.Sem.sop_star_cons with (state2:=
-          (DOS.Sem.mkState
-            ((DOS.Sem.mkEC (fdef_intro fh2 bs2) B2 nil
-              (insn_return rid RetTy Result) lc2 als2)::
-             (DOS.Sem.mkEC (fdef_intro fh2' bs2') B2'
-              ((insn_call i0 false c (typ_function t l0 v0) (wrap_call v) p)::
-               (insn_call fake_id true attrs dstk_typ dstk_fn nil)::
-              (cs23' ++ cs24'))
-              tmn2' lc2' als2'):: ECs2)
-            M2'')).
+        next_insn' M2''.
           destruct (@sse_is_found (los, nts) Ps2 lc2 gl2 fs2) as [fptr2 [Z1 Z2]].
           eapply DOS.Sem.sExCall with (fid:=sse_fid)
             (gvs:=(egv2 :: int2GV 0 :: nil))(oresult:=None); eauto.
             simpl. replace DOS.Sem.getOperandValue with getOperandValue; auto.
             rewrite Hgetegv2. auto.
 
-        rewrite <- (@trace_app_nil__eq__trace trace_nil).
-        apply DOS.Sem.sop_star_cons with (state2:=
-          (DOS.Sem.mkState
-            ((DOS.Sem.mkEC (fdef_intro fh2' bs2') B2'
-               (insn_call fake_id true attrs dstk_typ dstk_fn nil::
-                (cs23' ++ cs24'))
-              tmn2' (updateAddAL _ lc2' i0 gr2') als2'):: ECs2)
-            M2''')).
+        ret_insn.
           eapply DOS.Sem.sReturn; eauto.
             unfold DOS.Sem.returnUpdateLocals. simpl.
             replace DOS.Sem.getOperandValue with LLVMgv.getOperandValue; auto.
             rewrite J1. unfold DGVs.lift_op1. rewrite HeqFit. auto.
 
-        rewrite <- (@trace_app_nil__eq__trace trace_nil).
-        apply DOS.Sem.sop_star_cons with (state2:=
-          (DOS.Sem.mkState
-            ((DOS.Sem.mkEC (fdef_intro fh2' bs2') B2'
-              (cs23' ++ cs24')
-              tmn2' (updateAddAL _ lc2' i0 gr2') als2'):: ECs2)
-            M2''')); auto.
+        next_insn' M2'''.
           destruct (@dstk_is_found (los, nts) Ps2 lc2 gl2 fs2)as [fptr2 [Z1 Z2]].
           eapply DOS.Sem.sExCall; simpl; eauto.
             eapply dstk_spec; eauto.
 
       split; auto using inject_incr_refl.
       SSSSCase "sim".
-      repeat (split; auto).
-          eapply cmds_at_block_tail_next; eauto.
-
-          destruct Heqb2' as [l2' [ps2' [cs21' Heqb2']]]; subst.
-          exists l2'. exists ps2'. exists (cs21' ++
-              [insn_call i0 false c (typ_function t l0 v0) (wrap_call v) p] ++
-              [insn_call fake_id true attrs dstk_typ dstk_fn nil]). 
-          simpl_env. auto.
- 
+      repeat (split; eauto 2 using cmds_at_block_tail_next, 
+                                   cmds_at_block_tails_next').
           exists ex_ids'. exists rm2'.
           exists ex_ids3'. exists ex_ids4'. exists cs23'. exists cs24'.
           apply reg_simulation__updateAddAL_lc with (i0:=i0)(gv:= t0)
             (gv':= gr2') (ex_ids3:=ex_ids') in Hrsim'; 
             eauto using simulation___cgv2gv.
+          Transparent updateAddALs. simpl.
           repeat (split; auto).
 
     SSSCase "rt isnt ptr". 
@@ -1299,86 +1086,46 @@ Proof.
       destruct HeqFit as [gr2' [HeqFit HinjFit]].
       exists (DOS.Sem.mkState 
         ((DOS.Sem.mkEC (fdef_intro fh2' bs2') B2'
-            (cs23' ++ cs24') tmn2' (updateAddAL _ lc2' i0 gr2')
+            (cs23' ++ cs24') tmn2' (updateAddALs _ lc2' ((i0,gr2')::nil))
             als2'):: ECs2)
         M2''').
       exists mi.
       split.
       SSSSCase "sop_star".
-        rewrite <- (@trace_app_nil__eq__trace trace_nil).
-        apply DOS.Sem.sop_star_cons with (state2:=
-          (DOS.Sem.mkState
-            ((DOS.Sem.mkEC (fdef_intro fh2 bs2) B2
-              ((insn_call fake_id true attrs sse_typ sse_fn 
-                  ((p8, vnullp8)::(i32, vint0) :: nil))::nil)
-              (insn_return rid RetTy Result) lc2 als2)::
-             (DOS.Sem.mkEC (fdef_intro fh2' bs2') B2'
-              ((insn_call i0 false c (typ_function t l0 v0) (wrap_call v) p)::
-               (insn_call fake_id true attrs dstk_typ dstk_fn nil)::
-               cs23' ++ cs24')
-              tmn2' lc2' als2'):: ECs2)
-            M2')). 
+        Opaque updateAddALs. simpl. 
+        next_insn' M2'.
           destruct (@ssb_is_found (los, nts) Ps2 lc2 gl2 fs2) as [fptr2 [Z1 Z2]].
           eapply DOS.Sem.sExCall with (fid:=ssb_fid)
             (gvs:=(null :: int2GV 0 :: nil))(oresult:=None); eauto.
             simpl. eauto.
 
-        rewrite <- (@trace_app_nil__eq__trace trace_nil).
-        apply DOS.Sem.sop_star_cons with (state2:=
-          (DOS.Sem.mkState
-            ((DOS.Sem.mkEC (fdef_intro fh2 bs2) B2 nil
-              (insn_return rid RetTy Result) lc2 als2)::
-             (DOS.Sem.mkEC (fdef_intro fh2' bs2') B2'
-              ((insn_call i0 false c (typ_function t l0 v0) (wrap_call v) p)::
-               (insn_call fake_id true attrs dstk_typ dstk_fn nil)::
-              (cs23' ++ cs24'))
-              tmn2' lc2' als2'):: ECs2)
-            M2'')).
+        next_insn' M2''.
           destruct (@sse_is_found (los, nts) Ps2 lc2 gl2 fs2) as [fptr2 [Z1 Z2]].
           eapply DOS.Sem.sExCall with (fid:=sse_fid)
             (gvs:=(null :: int2GV 0 :: nil))(oresult:=None); eauto.
             simpl. eauto.
 
-        rewrite <- (@trace_app_nil__eq__trace trace_nil).
-        apply DOS.Sem.sop_star_cons with (state2:=
-          (DOS.Sem.mkState
-            ((DOS.Sem.mkEC (fdef_intro fh2' bs2') B2'
-              (insn_call fake_id true attrs dstk_typ dstk_fn nil::
-               (cs23' ++ cs24'))
-              tmn2' (updateAddAL _ lc2' i0 gr2') als2'):: ECs2)
-            M2''')).
+        ret_insn.
           eapply DOS.Sem.sReturn; eauto.
             unfold DOS.Sem.returnUpdateLocals. simpl.
             replace DOS.Sem.getOperandValue with LLVMgv.getOperandValue; auto.
             rewrite J1. unfold DGVs.lift_op1. rewrite HeqFit. auto.
 
-        rewrite <- (@trace_app_nil__eq__trace trace_nil).
-        apply DOS.Sem.sop_star_cons with (state2:=
-          (DOS.Sem.mkState
-            ((DOS.Sem.mkEC (fdef_intro fh2' bs2') B2'
-              (cs23' ++ cs24')
-              tmn2' (updateAddAL _ lc2' i0 gr2') als2'):: ECs2)
-            M2''')); auto.
+        next_insn' M2'''.
           destruct (@dstk_is_found (los, nts) Ps2 lc2 gl2 fs2)as [fptr2 [Z1 Z2]].
           eapply DOS.Sem.sExCall; simpl; eauto.
             eapply dstk_spec; eauto.
 
       split; auto using inject_incr_refl.
       SSSSCase "sim".
-      repeat (split; auto).
-          eapply cmds_at_block_tail_next; eauto.
-
-          destruct Heqb2' as [l2' [ps2' [cs21' Heqb2']]]; subst.
-          exists l2'. exists ps2'. exists (cs21' ++
-              [insn_call i0 false c (typ_function t l0 v0) (wrap_call v) p] ++
-              [insn_call fake_id true attrs dstk_typ dstk_fn nil]). 
-          simpl_env. auto.
- 
+      repeat (split; eauto 2 using cmds_at_block_tail_next, 
+                                   cmds_at_block_tails_next').
           exists ex_ids'. exists rm2'.
           exists ex_ids3'. exists ex_ids4'. exists cs23'. exists cs24'.
           apply reg_simulation__updateAddAL_lc with (i0:=i0)(gv:= t0)
             (gv':= gr2') (ex_ids3:=ex_ids') in Hrsim'; 
             eauto using simulation___cgv2gv.
+          Transparent updateAddALs. simpl.
           repeat (split; auto).
 Qed.
 
@@ -1454,38 +1201,18 @@ Proof.
   exists mi.
   split.
     SCase "sop_star".
-      rewrite <- (@trace_app_nil__eq__trace trace_nil).
-      apply DOS.Sem.sop_star_cons with (state2:=
-        (DOS.Sem.mkState
-          ((DOS.Sem.mkEC (fdef_intro fh2' bs2') B2'
-            ((insn_call fake_id true attrs dstk_typ dstk_fn nil)::
-            (cs23' ++ cs24'))
-            tmn2' lc2' als2'):: ECs2)
-          M2')).
+      simpl. ret_insn.
         eapply DOS.Sem.sReturnVoid; eauto.
     
-      rewrite <- (@trace_app_nil__eq__trace trace_nil).
-      apply DOS.Sem.sop_star_cons with (state2:=
-        (DOS.Sem.mkState 
-          ((DOS.Sem.mkEC (fdef_intro fh2' bs2') B2'
-            (cs23' ++ cs24')
-            tmn2' lc2' als2'):: ECs2)
-          M2')); auto.
+      next_insn.
         destruct (@dstk_is_found (los, nts) Ps2 lc2 gl2 fs2)as [fptr2 [Z1 Z2]].
         eapply DOS.Sem.sExCall; simpl; eauto.
           eapply dstk_spec; eauto.
     
     split; auto using inject_incr_refl.
     SSSCase "sim".
-    repeat (split; auto).
-        eapply cmds_at_block_tail_next; eauto.
-     
-        destruct Heqb2' as [l2' [ps2' [cs21' Heqb2']]]; subst.
-        exists l2'. exists ps2'. exists (cs21' ++
-            [insn_call i0 true c t (wrap_call v) p] ++
-            [insn_call fake_id true attrs dstk_typ dstk_fn nil]). 
-        simpl_env. auto.
-    
+    repeat (split; eauto 2 using cmds_at_block_tail_next, 
+                                 cmds_at_block_tails_next').
         exists ex_ids'. exists rm2'.
         exists ex_ids3'. exists ex_ids4'. exists cs23'. exists cs24'.
         repeat (split; auto).

@@ -23,6 +23,7 @@ Require Import sb_ds_gv_inject.
 Require Import sb_ds_sim.
 Require Import sb_ds_trans_axioms.
 Require Import sb_ds_trans_lib.
+Require Import sb_ds_trans_tactics.
 
 Import SB_ds_pass.
 Export DSB.SBSEM.
@@ -58,8 +59,8 @@ Lemma SBpass_is_correct__dsMalloc : forall (mi : meminj) (mgb : Values.block)
   (H0 : getOperandValue TD v lc gl = ret gn) 
   (H1 : malloc TD Mem tsz gn align0 = ret (Mem', mb))
   (H2 : GV2int TD Size.ThirtyTwo gn = ret n)
-  (H3 : DSB.SBSEM.prop_reg_metadata lc rm id0 (blk2GV TD mb) (bound2MD mb tsz n) = 
-       (lc', rm')),
+  (H3 : DSB.SBSEM.prop_reg_metadata lc rm id0 (blk2GV TD mb) (bound2MD mb tsz n) 
+          = (lc', rm')),
   exists St' : DOS.Sem.State,
      exists mi' : MoreMem.meminj,
        DOS.Sem.sop_star Cfg St St' trace_nil /\
@@ -104,20 +105,32 @@ Proof.
     GV2int (los, nts) Size.ThirtyTwo gn') as Heqgn.
     eapply simulation__eq__GV2int; eauto.
 
+  match goal with
+  | |- context [insn_malloc] =>
   exists (DOS.Sem.mkState 
           ((DOS.Sem.mkEC (fdef_intro fh2 bs2) B2
             (cs2' ++ cs23) tmn2 
-                (updateAddAL _ 
-                  (updateAddAL _ 
-                    (updateAddAL _ 
-                      (updateAddAL _ 
-                        (updateAddAL _ lc2 ntmp gn') 
-                        id0 (blk2GV (los, nts) mb'))
-                      tmp (bound2GV (los, nts) mb' tsz n))
-                    bid (base2GV (los, nts) mb'))
-                  eid (bound2GV (los, nts) mb' tsz n))
+               (updateAddALs _ lc2
+                       ((ntmp, gn')::
+                        (id0, (blk2GV (los, nts) mb'))::
+                        (tmp, (bound2GV (los, nts) mb' tsz n))::
+                        (bid, (base2GV (los, nts) mb'))::
+                        (eid, (bound2GV (los, nts) mb' tsz n))::nil))
              als2):: 
-            ECs2) Mem2').
+            ECs2) Mem2')
+  | |- context [insn_alloca] =>
+  exists (DOS.Sem.mkState 
+          ((DOS.Sem.mkEC (fdef_intro fh2 bs2) B2
+            (cs2' ++ cs23) tmn2 
+               (updateAddALs _ lc2
+                       ((ntmp, gn')::
+                        (id0, (blk2GV (los, nts) mb'))::
+                        (tmp, (bound2GV (los, nts) mb' tsz n))::
+                        (bid, (base2GV (los, nts) mb'))::
+                        (eid, (bound2GV (los, nts) mb' tsz n))::nil))
+             (mb'::als2)):: 
+            ECs2) Mem2')
+  end.
   exists mi'.
 
   assert (In id0 (getFdefLocs (fdef_intro fh1 bs1))) as Hin. 
@@ -129,11 +142,10 @@ Proof.
   assert (id_fresh_in_value v ntmp) as Hfresh_ctmp.
     assert (Hwfc := HBinF).
     destruct Heqb1 as [l1 [ps1 [cs11 Heqb1]]]; subst.
-    eapply wf_system__wf_cmd with (c:=insn_malloc id0 t v align0) in Hwfc; eauto.
+    eapply wf_system__wf_cmd in Hwfc; eauto using in_middle.
       inv Hwfc. 
       eapply wf_value_id__in_getFdefLocs in H19; auto.
         eapply get_reg_metadata_fresh' with (rm2:=rm2); eauto; try fsetdec.
-      apply in_or_app. right. simpl. auto. 
 
   assert (ntmp <> id0) as Hntmp_neq_id0.
     apply tmp_is_fresh2 with (i0:=id0)(d:=getFdefLocs (fdef_intro fh1 bs1)) 
@@ -156,68 +168,33 @@ Proof.
     eapply mk_tmp_inc in HeqR9; eauto.
     eapply mk_tmp_inc in HeqR2; eauto.
  
-  simpl.
   split.
   SCase "opsem".
-    rewrite <- (@trace_app_nil__eq__trace trace_nil).
-    apply DOS.Sem.sop_star_cons with (state2:=
-        DOS.Sem.mkState 
-          ((DOS.Sem.mkEC (fdef_intro fh2 bs2) B2
-             (insn_malloc id0 t v align0 ::
-              insn_gep tmp false t (value_id id0) 
-                (Cons_list_value (value_id ntmp) Nil_list_value):: 
-              insn_cast bid castop_bitcast (typ_pointer t)(value_id id0) p8 :: 
-              insn_cast eid castop_bitcast (typ_pointer t)(value_id tmp) p8 :: 
-              cs2' ++ cs23)
-             tmn2 
-             (updateAddAL GenericValue lc2 ntmp gn')
-             als2):: 
-            ECs2) M2); auto.
+    Opaque updateAddALs. simpl.
+    next_insn.
       eapply DOS.Sem.sCast; eauto.        
         unfold DOS.Sem.CAST. simpl. 
         replace DOS.Sem.getOperandValue with LLVMgv.getOperandValue; auto.
         rewrite H00. unfold i32, mbitcast. auto.
 
-    rewrite <- (@trace_app_nil__eq__trace trace_nil).
-    apply DOS.Sem.sop_star_cons with (state2:=
-        DOS.Sem.mkState
-          ((DOS.Sem.mkEC (fdef_intro fh2 bs2) B2
-             (insn_gep tmp false t (value_id id0) 
-                (Cons_list_value (value_id ntmp) Nil_list_value):: 
-              insn_cast bid castop_bitcast (typ_pointer t)(value_id id0) p8 :: 
-              insn_cast eid castop_bitcast (typ_pointer t)(value_id tmp) p8 :: 
-              cs2' ++ cs23)
-             tmn2 
-             (updateAddAL _
-                (updateAddAL _ lc2 ntmp gn') 
-                id0 (blk2GV (los, nts) mb'))
-             als2):: 
-            ECs2) Mem2'); auto.
+    next_insn.
       unfold malloc in H11.
       rewrite Heqgn in H11; eauto.
-      eapply DOS.Sem.sMalloc; eauto.
+      match goal with
+      | |- context [insn_malloc] =>
+        eapply DOS.Sem.sMalloc; eauto
+      | |- context [insn_alloca] =>
+        eapply DOS.Sem.sAlloca; eauto
+      end.
         rewrite <- getOperandValue_eq_fresh_id; auto.
 
-    rewrite <- (@trace_app_nil__eq__trace trace_nil).
-    apply DOS.Sem.sop_star_cons with (state2:=
-        DOS.Sem.mkState
-          ((DOS.Sem.mkEC (fdef_intro fh2 bs2) B2
-             (insn_cast bid castop_bitcast (typ_pointer t)(value_id id0) p8 :: 
-              insn_cast eid castop_bitcast (typ_pointer t)(value_id tmp) p8 :: 
-              cs2' ++ cs23)
-             tmn2 
-             (updateAddAL _
-               (updateAddAL _ 
-                 (updateAddAL _ lc2 ntmp gn') id0 (blk2GV (los,nts) mb'))
-               tmp (bound2GV (los,nts) mb' tsz n))
-             als2):: 
-            ECs2) Mem2'); auto.
+    next_insn.
       eapply DOS.Sem.sGEP with (mp:=blk2GV (los,nts) mb')(vidxs:=[gn']); eauto.
         simpl.
         rewrite lookupAL_updateAddAL_eq; auto.
 
         assert(getOperandValue (los,nts) (value_id ntmp)
-          (updateAddAL _ (updateAddAL _ lc2 ntmp gn') 
+          (updateAddAL GenericValue (updateAddAL GenericValue lc2 ntmp gn') 
              id0 (blk2GV (los,nts) mb')) gl2 = Some gn') as EQ'.
           rewrite <- getOperandValue_eq_fresh_id; auto.
           simpl. apply lookupAL_updateAddAL_eq; auto.
@@ -226,8 +203,8 @@ Proof.
         rewrite EQ'. clear EQ'.
         auto.
 
-        unfold bound2GV, DOS.Sem.GEP, blk2GV, GV2ptr, ptr2GV, val2GV,DGVs.lift_op1,
-          gep, LLVMgv.GEP.
+        unfold bound2GV, DOS.Sem.GEP, blk2GV, GV2ptr, ptr2GV, 
+          val2GV,DGVs.lift_op1, gep, LLVMgv.GEP.
         simpl.
         rewrite <- Heqgn. rewrite H2.
         unfold Constant.typ2utyp.
@@ -236,37 +213,18 @@ Proof.
             (typ_array 0%nat t) = Some (typ_array 0%nat ut) /\
           getTypeAllocSize (los, nts) ut = getTypeAllocSize (los, nts) t) as EQ1.
           destruct Heqb1 as [l1 [ps1 [cs11 Heqb1]]]; subst.
-          eapply wf_system__wf_cmd with (c:=insn_malloc id0 t v align0) in HBinF;
-            eauto.
+          eapply wf_system__wf_cmd in HBinF; eauto using in_middle.
             inv HBinF. inv H23.
             simpl. destruct H0 as [J3 J4].
             unfold Constant.typ2utyp in J3.
             rewrite J3. simpl. eauto.
 
-            apply in_or_app. simpl. auto.
         destruct EQ1 as [ut [EQ1 EQ2]].
-(*
-        rewrite EQ1. simpl.
-        rewrite EQ2. rewrite H. *)
         unfold mgetoffset. simpl. rewrite H.
         rewrite Int.add_commut.
         rewrite Int.add_zero. auto.
 
-    rewrite <- (@trace_app_nil__eq__trace trace_nil).
-    apply DOS.Sem.sop_star_cons with (state2:=
-        DOS.Sem.mkState
-          ((DOS.Sem.mkEC (fdef_intro fh2 bs2) B2
-             (insn_cast eid castop_bitcast (typ_pointer t)(value_id tmp) p8 :: 
-              cs2' ++ cs23)
-             tmn2 
-             (updateAddAL _
-               (updateAddAL _
-                 (updateAddAL _ 
-                   (updateAddAL _ lc2 ntmp gn') id0 (blk2GV (los,nts) mb'))
-                 tmp (bound2GV (los,nts) mb' tsz n))
-               bid (base2GV (los,nts) mb'))               
-             als2):: 
-            ECs2) Mem2'); auto.
+    next_insn.
       apply DOS.Sem.sCast; auto.
         unfold DOS.Sem.CAST. simpl.
         rewrite <- lookupAL_updateAddAL_neq.
@@ -275,21 +233,7 @@ Proof.
           clear - HeqR2 Hinc1 Hinc' Hin.
           eapply tmp_is_fresh2 with (d:=getFdefLocs (fdef_intro fh1 bs1)); eauto.
  
-    rewrite <- (@trace_app_nil__eq__trace trace_nil).
-    apply DOS.Sem.sop_star_cons with (state2:=
-       (DOS.Sem.mkState
-          ((DOS.Sem.mkEC (fdef_intro fh2 bs2) B2
-            (cs2' ++ cs23) tmn2 
-                (updateAddAL _ 
-                  (updateAddAL _ 
-                    (updateAddAL _ 
-                      (updateAddAL _
-                        (updateAddAL _ lc2 ntmp gn') id0 (blk2GV (los, nts) mb'))
-                      tmp (bound2GV (los, nts) mb' tsz n))
-                    bid (base2GV (los, nts) mb'))                    
-                  eid (bound2GV (los, nts) mb' tsz n))
-             als2):: 
-            ECs2) Mem2')); auto.
+    next_insn.
       apply DOS.Sem.sCast; auto.
         unfold DOS.Sem.CAST. simpl.
         rewrite <- lookupAL_updateAddAL_neq.
@@ -299,41 +243,19 @@ Proof.
           eapply tmp_is_fresh3 with (tmp:=tmp) in HeqR1; eauto.
           destruct HeqR1; auto.
 
-  split; auto.
-  split; auto.
-  split; auto.
-  split; auto.
-  split.
-  split.
-  split; auto.          
-  split; auto.          
-  split; auto.          
-  split; auto.          
-  split; auto.          
-  split; auto.          
-  split; auto.          
-  split; auto.          
-  split; eauto using inject_incr__preserves__als_simulation.
-  split; auto.
-  split.
-    eapply cmds_at_block_tail_next; eauto.
-  split.
-    destruct Heqb2 as [l2 [ps2 [cs21 Heqb2]]]; subst.
-    exists l2. exists ps2. exists (cs21 ++
-                  (insn_cast ntmp castop_bitcast i32 v i32 ::
-                    insn_malloc id0 t v align0
-                    :: insn_gep tmp false t (value_id id0)
-                         (Cons_list_value (value_id ntmp) Nil_list_value)
-                       :: insn_cast bid castop_bitcast 
-                            (typ_pointer t) (value_id id0) p8
-                          :: insn_cast eid castop_bitcast 
-                               (typ_pointer t) (value_id tmp) p8 :: nil)).
-    simpl_env. auto.
-  exists ex_ids. exists rm2.
-  exists ex_ids5. exists ex_ids4. exists cs2'. exists cs23.
-  split; auto.
-  split.
-  SCase "rsim".
+  repeat (split; eauto 2 using inject_incr__preserves__als_simulation,
+                              cmds_at_block_tail_next, cmds_at_block_tails_next,
+                              inject_incr__preserves__sbECs_simulate_ECs_tail,
+                              inject_incr__preserves__fable_simulation).
+    exists ex_ids. exists rm2.
+    exists ex_ids5. exists ex_ids4. exists cs2'. exists cs23.
+    repeat (
+      match goal with
+      | |- _ /\ _ => split; auto
+      | |- context [reg_simulation] => idtac 
+      end).
+    unfold base2GV, bound2GV, blk2GV, ptr2GV, val2GV.
+    Transparent updateAddALs. simpl.
     eapply reg_simulation__updateAddAL_md; eauto.
       eapply reg_simulation__updateAddAL_tmp with (ex_ids5:=ex_ids5)
         (ex_ids3':=ex_ids6'); eauto.
@@ -342,22 +264,12 @@ Proof.
         (ex_ids3':=ex_ids3); eauto.
         eapply inject_incr__preserves__reg_simulation; eauto.
 
-      unfold blk2GV, ptr2GV, val2GV.
-      simpl. eauto.
-
-      unfold base2GV, blk2GV, ptr2GV, val2GV.
-      simpl. clear - H14. eauto.
-
-      unfold bound2GV, blk2GV, ptr2GV, val2GV.
-      simpl. clear - H14.
+        match goal with
+        | H : mi' mb = Some (_, _) |- _ => clear - H
+        end.
         apply gv_inject_cons; eauto.
           eapply MoreMem.val_inject_ptr; eauto.
             rewrite Int.add_zero. auto.
-
-    split; auto.
-      clear - HsimECs H13. 
-      eapply inject_incr__preserves__sbECs_simulate_ECs_tail; eauto.
-    repeat(split; eauto using inject_incr__preserves__fable_simulation).
 Qed.
 
 Lemma SBpass_is_correct__dsAlloca : forall 
@@ -433,20 +345,32 @@ Proof.
     GV2int (los, nts) Size.ThirtyTwo gn') as Heqgn.
     eapply simulation__eq__GV2int; eauto.
 
+  match goal with
+  | |- context [insn_malloc] =>
   exists (DOS.Sem.mkState 
           ((DOS.Sem.mkEC (fdef_intro fh2 bs2) B2
             (cs2' ++ cs23) tmn2 
-                (updateAddAL _ 
-                  (updateAddAL _ 
-                    (updateAddAL _ 
-                      (updateAddAL _ 
-                        (updateAddAL _ lc2 ntmp gn') 
-                        id0 (blk2GV (los, nts) mb'))
-                      tmp (bound2GV (los, nts) mb' tsz n))
-                    bid (base2GV (los, nts) mb'))
-                  eid (bound2GV (los, nts) mb' tsz n))
+               (updateAddALs _ lc2
+                       ((ntmp, gn')::
+                        (id0, (blk2GV (los, nts) mb'))::
+                        (tmp, (bound2GV (los, nts) mb' tsz n))::
+                        (bid, (base2GV (los, nts) mb'))::
+                        (eid, (bound2GV (los, nts) mb' tsz n))::nil))
+             als2):: 
+            ECs2) Mem2')
+  | |- context [insn_alloca] =>
+  exists (DOS.Sem.mkState 
+          ((DOS.Sem.mkEC (fdef_intro fh2 bs2) B2
+            (cs2' ++ cs23) tmn2 
+               (updateAddALs _ lc2
+                       ((ntmp, gn')::
+                        (id0, (blk2GV (los, nts) mb'))::
+                        (tmp, (bound2GV (los, nts) mb' tsz n))::
+                        (bid, (base2GV (los, nts) mb'))::
+                        (eid, (bound2GV (los, nts) mb' tsz n))::nil))
              (mb'::als2)):: 
-            ECs2) Mem2').
+            ECs2) Mem2')
+  end.
   exists mi'.
 
   assert (In id0 (getFdefLocs (fdef_intro fh1 bs1))) as Hin. 
@@ -458,11 +382,10 @@ Proof.
   assert (id_fresh_in_value v ntmp) as Hfresh_ctmp.
     assert (Hwfc := HBinF).
     destruct Heqb1 as [l1 [ps1 [cs11 Heqb1]]]; subst.
-    eapply wf_system__wf_cmd with (c:=insn_alloca id0 t v align0) in Hwfc; eauto.
+    eapply wf_system__wf_cmd in Hwfc; eauto using in_middle.
       inv Hwfc. 
       eapply wf_value_id__in_getFdefLocs in H19; auto.
         eapply get_reg_metadata_fresh' with (rm2:=rm2); eauto; try fsetdec.
-      apply in_or_app. right. simpl. auto. 
 
   assert (ntmp <> id0) as Hntmp_neq_id0.
     apply tmp_is_fresh2 with (i0:=id0)(d:=getFdefLocs (fdef_intro fh1 bs1)) 
@@ -484,69 +407,34 @@ Proof.
   assert (incl ex_ids ex_ids5) as Hinc''.
     eapply mk_tmp_inc in HeqR9; eauto.
     eapply mk_tmp_inc in HeqR2; eauto.
-
+ 
   split.
   SCase "opsem".
-    simpl.
-    rewrite <- (@trace_app_nil__eq__trace trace_nil).
-    apply DOS.Sem.sop_star_cons with (state2:=
-        DOS.Sem.mkState 
-          ((DOS.Sem.mkEC (fdef_intro fh2 bs2) B2
-             (insn_alloca id0 t v align0 ::
-              insn_gep tmp false t (value_id id0) 
-                (Cons_list_value (value_id ntmp) Nil_list_value):: 
-              insn_cast bid castop_bitcast (typ_pointer t)(value_id id0) p8 :: 
-              insn_cast eid castop_bitcast (typ_pointer t)(value_id tmp) p8 :: 
-              cs2' ++ cs23)
-             tmn2 
-             (updateAddAL GenericValue lc2 ntmp gn')
-             als2):: 
-            ECs2) M2); auto.
+    Opaque updateAddALs. simpl.
+    next_insn.
       eapply DOS.Sem.sCast; eauto.        
         unfold DOS.Sem.CAST. simpl. 
         replace DOS.Sem.getOperandValue with LLVMgv.getOperandValue; auto.
         rewrite H00. unfold i32, mbitcast. auto.
 
-    rewrite <- (@trace_app_nil__eq__trace trace_nil).
-    apply DOS.Sem.sop_star_cons with (state2:=
-        DOS.Sem.mkState 
-          ((DOS.Sem.mkEC (fdef_intro fh2 bs2) B2
-             (insn_gep tmp false t (value_id id0) 
-                (Cons_list_value (value_id ntmp) Nil_list_value):: 
-              insn_cast bid castop_bitcast (typ_pointer t)(value_id id0) p8 :: 
-              insn_cast eid castop_bitcast (typ_pointer t)(value_id tmp) p8 :: 
-              cs2' ++ cs23)
-             tmn2 
-             (updateAddAL _
-                (updateAddAL _ lc2 ntmp gn') 
-                id0 (blk2GV (los, nts) mb'))
-             (mb'::als2)):: 
-            ECs2) Mem2'); auto.
+    next_insn.
       unfold malloc in H11.
       rewrite Heqgn in H11; eauto.
-      eapply DOS.Sem.sAlloca; eauto.
+      match goal with
+      | |- context [insn_malloc] =>
+        eapply DOS.Sem.sMalloc; eauto
+      | |- context [insn_alloca] =>
+        eapply DOS.Sem.sAlloca; eauto
+      end.
         rewrite <- getOperandValue_eq_fresh_id; auto.
 
-    rewrite <- (@trace_app_nil__eq__trace trace_nil).
-    apply DOS.Sem.sop_star_cons with (state2:=
-        DOS.Sem.mkState
-          ((DOS.Sem.mkEC (fdef_intro fh2 bs2) B2
-             (insn_cast bid castop_bitcast (typ_pointer t)(value_id id0) p8 :: 
-              insn_cast eid castop_bitcast (typ_pointer t)(value_id tmp) p8 :: 
-              cs2' ++ cs23)
-             tmn2 
-             (updateAddAL _
-               (updateAddAL _ 
-                 (updateAddAL _ lc2 ntmp gn') id0 (blk2GV (los,nts) mb'))
-               tmp (bound2GV (los,nts) mb' tsz n))
-             (mb'::als2)):: 
-            ECs2) Mem2'); auto.
+    next_insn.
       eapply DOS.Sem.sGEP with (mp:=blk2GV (los,nts) mb')(vidxs:=[gn']); eauto.
         simpl.
         rewrite lookupAL_updateAddAL_eq; auto.
 
         assert(getOperandValue (los,nts) (value_id ntmp)
-          (updateAddAL _ (updateAddAL _ lc2 ntmp gn') 
+          (updateAddAL GenericValue (updateAddAL GenericValue lc2 ntmp gn') 
              id0 (blk2GV (los,nts) mb')) gl2 = Some gn') as EQ'.
           rewrite <- getOperandValue_eq_fresh_id; auto.
           simpl. apply lookupAL_updateAddAL_eq; auto.
@@ -555,8 +443,8 @@ Proof.
         rewrite EQ'. clear EQ'.
         auto.
 
-        unfold bound2GV, DOS.Sem.GEP, blk2GV, GV2ptr, ptr2GV, val2GV,DGVs.lift_op1,
-          gep, LLVMgv.GEP.
+        unfold bound2GV, DOS.Sem.GEP, blk2GV, GV2ptr, ptr2GV, 
+          val2GV,DGVs.lift_op1, gep, LLVMgv.GEP.
         simpl.
         rewrite <- Heqgn. rewrite H2.
         unfold Constant.typ2utyp.
@@ -565,36 +453,18 @@ Proof.
             (typ_array 0%nat t) = Some (typ_array 0%nat ut) /\
           getTypeAllocSize (los, nts) ut = getTypeAllocSize (los, nts) t) as EQ1.
           destruct Heqb1 as [l1 [ps1 [cs11 Heqb1]]]; subst.
-          eapply wf_system__wf_cmd with (c:=insn_alloca id0 t v align0) in HBinF;
-            eauto.
+          eapply wf_system__wf_cmd in HBinF; eauto using in_middle.
             inv HBinF. inv H23.
             simpl. destruct H0 as [J3 J4].
             unfold Constant.typ2utyp in J3.
             rewrite J3. simpl. eauto.
 
-            apply in_or_app. simpl. auto.
         destruct EQ1 as [ut [EQ1 EQ2]].
-        (* rewrite EQ1. simpl.
-        rewrite EQ2. *) 
         unfold mgetoffset. simpl. rewrite H.
         rewrite Int.add_commut.
         rewrite Int.add_zero. auto.
 
-    rewrite <- (@trace_app_nil__eq__trace trace_nil).
-    apply DOS.Sem.sop_star_cons with (state2:=
-        DOS.Sem.mkState
-          ((DOS.Sem.mkEC (fdef_intro fh2 bs2) B2
-             (insn_cast eid castop_bitcast (typ_pointer t)(value_id tmp) p8 :: 
-              cs2' ++ cs23)
-             tmn2 
-             (updateAddAL _
-               (updateAddAL _
-                 (updateAddAL _ 
-                   (updateAddAL _ lc2 ntmp gn') id0 (blk2GV (los,nts) mb'))
-                 tmp (bound2GV (los,nts) mb' tsz n))
-               bid (base2GV (los,nts) mb'))               
-             (mb'::als2)):: 
-            ECs2) Mem2'); auto.
+    next_insn.
       apply DOS.Sem.sCast; auto.
         unfold DOS.Sem.CAST. simpl.
         rewrite <- lookupAL_updateAddAL_neq.
@@ -603,21 +473,7 @@ Proof.
           clear - HeqR2 Hinc1 Hinc' Hin.
           eapply tmp_is_fresh2 with (d:=getFdefLocs (fdef_intro fh1 bs1)); eauto.
  
-    rewrite <- (@trace_app_nil__eq__trace trace_nil).
-    apply DOS.Sem.sop_star_cons with (state2:=
-       (DOS.Sem.mkState 
-          ((DOS.Sem.mkEC (fdef_intro fh2 bs2) B2
-            (cs2' ++ cs23) tmn2 
-                (updateAddAL _ 
-                  (updateAddAL _ 
-                    (updateAddAL _ 
-                      (updateAddAL _
-                        (updateAddAL _ lc2 ntmp gn') id0 (blk2GV (los, nts) mb'))
-                      tmp (bound2GV (los, nts) mb' tsz n))
-                    bid (base2GV (los, nts) mb'))                    
-                  eid (bound2GV (los, nts) mb' tsz n))
-             (mb'::als2)):: 
-            ECs2) Mem2')); auto.
+    next_insn.
       apply DOS.Sem.sCast; auto.
         unfold DOS.Sem.CAST. simpl.
         rewrite <- lookupAL_updateAddAL_neq.
@@ -627,42 +483,19 @@ Proof.
           eapply tmp_is_fresh3 with (tmp:=tmp) in HeqR1; eauto.
           destruct HeqR1; auto.
 
-  split; auto.
-  split; auto.
-  split; auto.
-  split; auto.
-  split.
-  split.
-  split; auto.          
-  split; auto.          
-  split; auto.          
-  split; auto.          
-  split; auto.          
-  split; auto.          
-  split; auto.          
-  split; auto.
-  split. 
-    split; eauto using inject_incr__preserves__als_simulation; eauto.
-  split; auto.
-  split.
-    eapply cmds_at_block_tail_next; eauto.
-  split.
-    destruct Heqb2 as [l2 [ps2 [cs21 Heqb2]]]; subst.
-    exists l2. exists ps2. exists (cs21 ++
-                  (insn_cast ntmp castop_bitcast i32 v i32 ::
-                    insn_alloca id0 t v align0
-                    :: insn_gep tmp false t (value_id id0)
-                         (Cons_list_value (value_id ntmp) Nil_list_value)
-                       :: insn_cast bid castop_bitcast 
-                            (typ_pointer t) (value_id id0) p8
-                          :: insn_cast eid castop_bitcast 
-                               (typ_pointer t) (value_id tmp) p8 :: nil)).
-    simpl_env. auto.
-  exists ex_ids. exists rm2.
-  exists ex_ids5. exists ex_ids4. exists cs2'. exists cs23.
-  split; auto.
-  split.
-  SCase "rsim".
+  repeat (split; eauto 2 using inject_incr__preserves__als_simulation,
+                              cmds_at_block_tail_next, cmds_at_block_tails_next,
+                              inject_incr__preserves__sbECs_simulate_ECs_tail,
+                              inject_incr__preserves__fable_simulation).
+    exists ex_ids. exists rm2.
+    exists ex_ids5. exists ex_ids4. exists cs2'. exists cs23.
+    repeat (
+      match goal with
+      | |- _ /\ _ => split; auto
+      | |- context [reg_simulation] => idtac 
+      end).
+    unfold base2GV, bound2GV, blk2GV, ptr2GV, val2GV.
+    Transparent updateAddALs. simpl.
     eapply reg_simulation__updateAddAL_md; eauto.
       eapply reg_simulation__updateAddAL_tmp with (ex_ids5:=ex_ids5)
         (ex_ids3':=ex_ids6'); eauto.
@@ -671,22 +504,12 @@ Proof.
         (ex_ids3':=ex_ids3); eauto.
         eapply inject_incr__preserves__reg_simulation; eauto.
 
-      unfold blk2GV, ptr2GV, val2GV.
-      simpl. eauto.
-
-      unfold base2GV, blk2GV, ptr2GV, val2GV.
-      simpl. clear - H14. eauto.
-
-      unfold bound2GV, blk2GV, ptr2GV, val2GV.
-      simpl. clear - H14.
+        match goal with
+        | H : mi' mb = Some (_, _) |- _ => clear - H
+        end.
         apply gv_inject_cons; eauto.
           eapply MoreMem.val_inject_ptr; eauto.
             rewrite Int.add_zero. auto.
-
-    split; auto.
-      clear - HsimECs H13. 
-      eapply inject_incr__preserves__sbECs_simulate_ECs_tail; eauto.
-    repeat(split; eauto using inject_incr__preserves__fable_simulation).
 Qed.
 
 Lemma SBpass_is_correct__dsFree : forall (mi : MoreMem.meminj)
@@ -877,50 +700,24 @@ Proof.
   exists (DOS.Sem.mkState
           ((DOS.Sem.mkEC (fdef_intro fh2 bs2) B2
             (cs2' ++ cs23) tmn2 
-                  (updateAddAL _ 
-                    (updateAddAL GenericValue lc2 ptmp gvp2)
-                   id0 gv2)
+                  (updateAddALs GenericValue lc2 ((ptmp,gvp2)::(id0,gv2)::nil))
              als2):: 
             ECs2) M2).
   exists mi.
   split.
   SSCase "opsem".
-    simpl.
-    rewrite <- (@trace_app_nil__eq__trace trace_nil).
-    apply DOS.Sem.sop_star_cons with (state2:=
-       (DOS.Sem.mkState 
-          ((DOS.Sem.mkEC (fdef_intro fh2 bs2) B2
-            (insn_call fake_id true attrs assert_typ assert_fn
-              ((p8, bv2)::(p8, ev2)::(p8, value_id ptmp)::(i32, type_size t):: 
-                 (i32, vint1) :: nil):: 
-             insn_load id0 t vp align0 :: cs2' ++ cs23) tmn2 
-            (updateAddAL GenericValue lc2 ptmp gvp2)
-             als2):: 
-            ECs2) M2)).
+    Opaque updateAddALs. simpl.
+    next_insn.
       apply DOS.Sem.sCast; auto.
         unfold DOS.Sem.CAST. simpl. simpl in H00.
         replace DOS.Sem.getOperandValue with LLVMgv.getOperandValue; auto.
         rewrite H00. auto.
 
-    rewrite <- (@trace_app_nil__eq__trace trace_nil).
-    apply DOS.Sem.sop_star_cons with (state2:=
-       (DOS.Sem.mkState
-          ((DOS.Sem.mkEC (fdef_intro fh2 bs2) B2
-            (insn_load id0 t vp align0 :: cs2' ++ cs23) tmn2 
-            (updateAddAL GenericValue lc2 ptmp gvp2)
-             als2):: 
-            ECs2) M2)).
+    next_insn.
        clear - H00 J2 J3 J4 J5 J H00 H01 HeqR0 HeqR3.
        eapply assert_mptr_fn__ok with (b:=b); eauto.
 
-    rewrite <- (@trace_app_nil__eq__trace trace_nil).
-    apply DOS.Sem.sop_star_cons with (state2:=
-       (DOS.Sem.mkState
-          ((DOS.Sem.mkEC (fdef_intro fh2 bs2) B2
-            (cs2' ++ cs23) tmn2 
-            (updateAddAL _ (updateAddAL GenericValue lc2 ptmp gvp2) id0 gv2)
-             als2):: 
-            ECs2) M2)); auto.
+    next_insn.
       eapply DOS.Sem.sLoad with (mp:=gvp2); eauto.
         rewrite <- getOperandValue_eq_fresh_id; auto.
           assert (sb_ds_sim.getValueID vp[<=]
@@ -934,24 +731,14 @@ Proof.
               apply in_or_app. right. simpl. auto.
           eapply get_reg_metadata_fresh' with (rm2:=rm2); eauto; try fsetdec.
 
-  repeat (split; auto).
-    eapply cmds_at_block_tail_next; eauto.
-
-    destruct Heqb2 as [l2 [ps2 [cs21 Heqb2]]]; subst.
-    exists l2. exists ps2. exists (cs21 ++
-                  (insn_cast ptmp castop_bitcast (typ_pointer t) vp p8
-                    :: insn_call fake_id true attrs assert_typ assert_fn
-                         ((p8, bv2)
-                          :: (p8, ev2)
-                             :: (p8, value_id ptmp)
-                                :: (i32, type_size t) :: (i32, vint1) :: nil)
-                       :: insn_load id0 t vp align0 :: nil)).
-    simpl_env. auto.
+  repeat (split; eauto 2 using cmds_at_block_tail_next, 
+                               cmds_at_block_tails_next).
 
   exists ex_ids. exists rm2.
   exists ex_ids5. exists ex_ids4. exists cs2'. exists cs23.
   split; auto.
   split.
+    Transparent updateAddALs. simpl.
     eapply reg_simulation__updateAddAL_lc; eauto.
       eapply reg_simulation__updateAddAL_tmp; eauto.
         eauto using getCmdID_in_getFdefLocs.
@@ -1075,124 +862,47 @@ Proof.
   exists (DOS.Sem.mkState
           ((DOS.Sem.mkEC (fdef_intro fh2 bs2) B2
             (cs2' ++ cs23) tmn2 
-               (updateAddAL _ 
-                 (updateAddAL _ 
-                   (updateAddAL _ 
-                    (updateAddAL GenericValue lc2 ptmp gvp2)
-                   id0 gv2)
-                  bid0 bgv')
-                 eid0 egv')
+               (updateAddALs _ lc2 
+                 ((ptmp,gvp2)::(id0,gv2)::(bid0,bgv')::(eid0,egv')::nil))
              als2):: 
             ECs2) M2).
   exists mi.
   split.
   SSCase "opsem".
-    simpl.
-    rewrite <- (@trace_app_nil__eq__trace trace_nil).
-    apply DOS.Sem.sop_star_cons with (state2:=
-       (DOS.Sem.mkState 
-          ((DOS.Sem.mkEC (fdef_intro fh2 bs2) B2
-            (insn_call fake_id true attrs assert_typ assert_fn
-              ((p8, bv2)::(p8, ev2)::(p8, value_id ptmp)::(i32, type_size t):: 
-                 (i32, vint1) :: nil):: 
-             insn_load id0 t vp align0 :: 
-             insn_call bid0 false attrs gmb_typ gmb_fn
-               ((p8, value_id ptmp)::(p8, vnullp8)::(i32, vint1):: 
-                  (p32, vnullp32) :: nil) :: 
-             insn_call eid0 false attrs gme_typ gme_fn
-               ((p8, value_id ptmp)::(p8, vnullp8)::(i32, vint1):: 
-                  (p32, vnullp32) :: nil) :: 
-             cs2' ++ cs23) tmn2 
-            (updateAddAL GenericValue lc2 ptmp gvp2)
-             als2):: 
-            ECs2) M2)).
+    Opaque updateAddALs. simpl.
+    next_insn.
       apply DOS.Sem.sCast; auto.
         unfold DOS.Sem.CAST. simpl. simpl in H00.
         replace DOS.Sem.getOperandValue with LLVMgv.getOperandValue; auto.
         rewrite H00. auto.
 
-    rewrite <- (@trace_app_nil__eq__trace trace_nil).
-    apply DOS.Sem.sop_star_cons with (state2:=
-       (DOS.Sem.mkState
-          ((DOS.Sem.mkEC (fdef_intro fh2 bs2) B2
-            (insn_load id0 t vp align0 :: 
-             insn_call bid0 false attrs gmb_typ gmb_fn
-               ((p8, value_id ptmp)::(p8, vnullp8)::(i32, vint1):: 
-                  (p32, vnullp32) :: nil) :: 
-             insn_call eid0 false attrs gme_typ gme_fn
-               ((p8, value_id ptmp)::(p8, vnullp8)::(i32, vint1):: 
-                  (p32, vnullp32) :: nil) :: 
-             cs2' ++ cs23) tmn2 
-            (updateAddAL GenericValue lc2 ptmp gvp2)
-             als2):: 
-            ECs2) M2)).
+    next_insn.
        clear - H00 J2 J3 J4 J5 J H00 H01 HeqR0 HeqR3 HeqR5.
        eapply assert_mptr_fn__ok with (b:=b); eauto.
 
-    rewrite <- (@trace_app_nil__eq__trace trace_nil).
-    apply DOS.Sem.sop_star_cons with (state2:=
-       (DOS.Sem.mkState
-          ((DOS.Sem.mkEC (fdef_intro fh2 bs2) B2
-            (insn_call bid0 false attrs gmb_typ gmb_fn
-               ((p8, value_id ptmp)::(p8, vnullp8)::(i32, vint1):: 
-                  (p32, vnullp32) :: nil) :: 
-             insn_call eid0 false attrs gme_typ gme_fn
-               ((p8, value_id ptmp)::(p8, vnullp8)::(i32, vint1):: 
-                  (p32, vnullp32) :: nil) :: 
-             cs2' ++ cs23) tmn2 
-                 (updateAddAL _ (updateAddAL _ lc2 ptmp gvp2) id0 gv2)
-             als2):: 
-            ECs2) M2)); eauto.
+    next_insn.
       eapply DOS.Sem.sLoad with (mp:=gvp2); eauto.
         rewrite <- getOperandValue_eq_fresh_id; auto.
         assert (sb_ds_sim.getValueID vp[<=]
             ids2atoms (getFdefLocs (fdef_intro fh1 bs1))) as Hindom.
             assert (Hwfc := HBinF).
             destruct Heqb1 as [l1 [ps1 [cs11 Heqb1]]]; subst.
-            eapply wf_system__wf_cmd with (c:=insn_load id0 t vp align0)  
-              in Hwfc; eauto.
+            eapply wf_system__wf_cmd in Hwfc; eauto using in_middle.
               inv Hwfc. 
               eapply wf_value_id__in_getFdefLocs in H13; auto.
-              apply in_or_app. right. simpl. auto.
         eapply get_reg_metadata_fresh' with (rm2:=rm2); eauto; try fsetdec.
 
-  split; auto.
-  split; auto.
-  split; auto.
-  split; auto.
-  split; auto.
-  split; auto.
-  split; auto.
-  split; auto.
-  split; auto.
-  split; auto.
-  split; auto.
-  split; auto.
-  split; auto.
-  split; auto.
-  split; auto.
-  split.
-    eapply cmds_at_block_tail_next; eauto.
-  split.
-    destruct Heqb2 as [l2 [ps2 [cs21 Heqb2]]]; subst.
-    exists l2. exists ps2. exists (cs21 ++
-           (insn_cast ptmp castop_bitcast (typ_pointer t) vp p8 ::
-            insn_call fake_id true attrs assert_typ assert_fn
-              ((p8, bv2)::(p8, ev2)::(p8, value_id ptmp)::(i32, type_size t):: 
-                 (i32, vint1) :: nil):: 
-            insn_load id0 t vp align0 :: 
-            insn_call bid0 false attrs gmb_typ gmb_fn
-               ((p8, value_id ptmp)::(p8, vnullp8)::(i32, vint1):: 
-                  (p32, vnullp32) :: nil) :: 
-            insn_call eid0 false attrs gme_typ gme_fn
-               ((p8, value_id ptmp)::(p8, vnullp8)::(i32, vint1):: 
-                  (p32, vnullp32)::nil) :: nil)).
-    simpl_env. auto.
+  repeat (split; eauto 2 using inject_incr__preserves__als_simulation,
+                              cmds_at_block_tail_next, cmds_at_block_tails_next,
+                              inject_incr__preserves__sbECs_simulate_ECs_tail,
+                              inject_incr__preserves__fable_simulation).
+
   exists ex_ids. exists rm2.
   exists ex_ids5. exists ex_ids4. exists cs2'. exists cs23.
   split; auto.
   split.
     inv H5. rewrite JJ.
+    Transparent updateAddALs. simpl.
     eapply reg_simulation__updateAddAL_prop; eauto.
       eapply reg_simulation__updateAddAL_tmp; eauto.
     split; auto.
@@ -1286,50 +996,24 @@ Proof.
   exists (DOS.Sem.mkState
           ((DOS.Sem.mkEC (fdef_intro fh2 bs2) B2
             (cs2' ++ cs23) tmn2 
-              (updateAddAL GenericValue lc2 ptmp gvp2)
+              (updateAddALs GenericValue lc2 ((ptmp, gvp2)::nil))
              als2):: 
             ECs2) Mem2').
   exists mi.
   split.
   SSCase "opsem".
-    simpl.
-    rewrite <- (@trace_app_nil__eq__trace trace_nil).
-    apply DOS.Sem.sop_star_cons with (state2:=
-      (DOS.Sem.mkState 
-          ((DOS.Sem.mkEC (fdef_intro fh2 bs2) B2
-              (insn_call fake_id true attrs assert_typ assert_fn
-                ((p8, bv2)::(p8, ev2)::(p8, value_id ptmp)::(i32, type_size t):: 
-                   (i32, vint1) :: nil):: 
-               insn_store sid t v vp align0 :: 
-               cs2' ++ cs23) tmn2 
-              (updateAddAL GenericValue lc2 ptmp gvp2)
-             als2):: 
-            ECs2) M2)).
+    Opaque updateAddALs. simpl.
+    next_insn.
       apply DOS.Sem.sCast; auto.
         unfold DOS.Sem.CAST. simpl. simpl in H10.
         replace DOS.Sem.getOperandValue with LLVMgv.getOperandValue; auto.
         rewrite H10. auto.
 
-    rewrite <- (@trace_app_nil__eq__trace trace_nil).
-    apply DOS.Sem.sop_star_cons with (state2:=
-      (DOS.Sem.mkState 
-          ((DOS.Sem.mkEC (fdef_intro fh2 bs2) B2
-              (insn_store sid t v vp align0 :: 
-               cs2' ++ cs23) tmn2 
-              (updateAddAL GenericValue lc2 ptmp gvp2)
-             als2):: 
-            ECs2) M2)).
+    next_insn.
        clear - H00 J2 J3 J4 J5 J H10 H11 HeqR0 HeqR3.
        eapply assert_mptr_fn__ok with (b:=b); eauto.
 
-    rewrite <- (@trace_app_nil__eq__trace trace_nil).
-    apply DOS.Sem.sop_star_cons with (state2:=
-      (DOS.Sem.mkState
-          ((DOS.Sem.mkEC (fdef_intro fh2 bs2) B2
-              (cs2' ++ cs23) tmn2 
-              (updateAddAL GenericValue lc2 ptmp gvp2)
-             als2):: 
-            ECs2) Mem2')); auto.
+    next_insn.
       assert (Hwfc := HBinF).
       destruct Heqb1 as [l1 [ps1 [cs11 Heqb1]]]; subst.
       assert (In (insn_store sid t v vp align0)
@@ -1351,38 +1035,15 @@ Proof.
             eapply wf_value_id__in_getFdefLocs in H17; auto.
           eapply get_reg_metadata_fresh' with (rm2:=rm2); eauto; try fsetdec.
 
-  split; auto.
-  split; auto.
-  split; auto.
-  split; auto.
-  split; auto.
-  split; auto.
-  split; auto.
-  split; auto.
-  split; auto.
-  split; auto.
-  split; auto.
-  split; auto.
-  split; auto.
-  split; auto.
-  split; auto.
-  split.
-    eapply cmds_at_block_tail_next; eauto.
-  split.
-    destruct Heqb2 as [l2 [ps2 [cs21 Heqb2]]]; subst.
-    exists l2. exists ps2. exists (cs21 ++
-                  (insn_cast ptmp castop_bitcast (typ_pointer t) vp p8
-                    :: insn_call fake_id true attrs assert_typ assert_fn
-                         ((p8, bv2)
-                          :: (p8, ev2)
-                             :: (p8, value_id ptmp)
-                                :: (i32, type_size t) :: (i32, vint1) :: nil)
-                       :: insn_store sid t v vp align0 :: nil)).
-    simpl_env. auto.
+  repeat (split; eauto 2 using inject_incr__preserves__als_simulation,
+                              cmds_at_block_tail_next, cmds_at_block_tails_next,
+                              inject_incr__preserves__sbECs_simulate_ECs_tail,
+                              inject_incr__preserves__fable_simulation).
   exists ex_ids. exists rm2.
   exists ex_ids5. exists ex_ids4. exists cs2'. exists cs23.
   split; auto.
   split.
+    Transparent updateAddALs. simpl.
     eapply reg_simulation__updateAddAL_tmp; eauto.
     split; auto.
       clear - Hinc HeqR1. eapply mk_tmp_inc; eauto.
@@ -1535,45 +1196,20 @@ Proof.
   exists (DOS.Sem.mkState 
           ((DOS.Sem.mkEC (fdef_intro fh2 bs2) B2
             (cs2' ++ cs23) tmn2 
-              (updateAddAL GenericValue lc2 ptmp gvp2)
+              (updateAddALs GenericValue lc2 ((ptmp, gvp2)::nil))
              als2):: 
             ECs2) Mem2'').
   exists mi.
   split.
   SSCase "opsem".
-    simpl.
-    rewrite <- (@trace_app_nil__eq__trace trace_nil).
-    apply DOS.Sem.sop_star_cons with (state2:=
-      (DOS.Sem.mkState
-          ((DOS.Sem.mkEC (fdef_intro fh2 bs2) B2
-              (insn_call fake_id true attrs assert_typ assert_fn
-                ((p8, bv2)::(p8, ev2)::(p8, value_id ptmp)::(i32, type_size t):: 
-                   (i32, vint1) :: nil):: 
-               insn_store sid t v vp align0 :: 
-               insn_call fake_id true attrs smmd_typ smmd_fn
-                ((p8, value_id ptmp) :: (p8, bv2') :: (p8, ev2') :: (p8, vnullp8)
-                    :: (i32, vint1) :: (i32, vint1) :: nil):: 
-              cs2' ++ cs23) tmn2 
-              (updateAddAL GenericValue lc2 ptmp gvp2)
-             als2):: 
-            ECs2) M2)).
+    Opaque updateAddALs. simpl.
+    next_insn.
       apply DOS.Sem.sCast; auto.
         unfold DOS.Sem.CAST. simpl. simpl in H10.
         replace DOS.Sem.getOperandValue with LLVMgv.getOperandValue; auto.
         rewrite H10. auto.
 
-    rewrite <- (@trace_app_nil__eq__trace trace_nil).
-    apply DOS.Sem.sop_star_cons with (state2:=
-      (DOS.Sem.mkState
-          ((DOS.Sem.mkEC (fdef_intro fh2 bs2) B2
-              (insn_store sid t v vp align0 :: 
-               insn_call fake_id true attrs smmd_typ smmd_fn
-                ((p8, value_id ptmp) :: (p8, bv2') :: (p8, ev2') :: (p8, vnullp8)
-                    :: (i32, vint1) :: (i32, vint1) :: nil):: 
-               cs2' ++ cs23) tmn2 
-              (updateAddAL GenericValue lc2 ptmp gvp2)
-             als2):: 
-            ECs2) M2)).
+    next_insn.
        clear - H00 J2 J3 J4 J5 J H10 H11 HeqR0 HeqR3.
        eapply assert_mptr_fn__ok with (b:=b); eauto.
 
@@ -1612,50 +1248,25 @@ Proof.
     rewrite <- (@trace_app_nil__eq__trace trace_nil).
     eapply DOS.Sem.sop_star_cons; eauto.
 
-  split; auto.
-  split; auto.
-  split; auto.
-  split; auto.
-  split; auto.
-  split; auto.
-  split; auto.
-  split; auto.
-  split; auto.
-  split; auto.
-  split; auto.
-  split; auto.
-  split; auto.
-  split; auto.
-  split; auto.
-  split.
-    eapply cmds_at_block_tail_next; eauto.
-  split.
-    destruct Heqb2 as [l2 [ps2 [cs21 Heqb2]]]; subst.
-    exists l2. exists ps2. exists (cs21 ++
-                  (insn_cast ptmp castop_bitcast (typ_pointer t) vp p8
-                    :: insn_call fake_id true attrs assert_typ assert_fn
-                         ((p8, bv2)
-                          :: (p8, ev2)
-                             :: (p8, value_id ptmp)
-                                :: (i32, type_size t) :: (i32, vint1) :: nil)
-                       :: insn_store sid t v vp align0 :: 
-                   insn_call fake_id true attrs smmd_typ smmd_fn
-                      ((p8, value_id ptmp) :: (p8, bv2') :: (p8, ev2') :: 
-                      (p8, vnullp8) :: (i32, vint1) :: (i32, vint1) :: nil)::   
-                   nil)).
-    simpl_env. auto.
+  repeat (
+    match goal with
+    | |- wf_sb_mi _ _ _ _ => idtac 
+    | |- _ => 
+         split; eauto 2 using inject_incr__preserves__als_simulation,
+                              cmds_at_block_tail_next, cmds_at_block_tails_next,
+                              inject_incr__preserves__sbECs_simulate_ECs_tail,
+                              inject_incr__preserves__fable_simulation
+    end).
+
   exists ex_ids. exists rm2.
   exists ex_ids5. exists ex_ids4. exists cs2'. exists cs23.
   split; auto.
   split.
+    Transparent updateAddALs. simpl.
     eapply reg_simulation__updateAddAL_tmp; eauto.
     split; auto.
       clear - Hinc HeqR1. eapply mk_tmp_inc; eauto.
-  split; auto.
-  split; auto.
-  split; auto.
-  split; auto.
-  SSCase "wfmi".
+
     clear - H33 H31 H3 Hwfmi W1.
     inversion H33.
     apply mstore_inversion in H3.
