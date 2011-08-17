@@ -35,45 +35,49 @@ vol/src/ssa/monads : Monads operations for 'imperative' programming
 
 vol/src/ssa        : The Formalisms of LLVM IR
 
-  ssa_def.ott       : The definitions of LLVM IR in Ott
+  syntax.ott       : The definitions of LLVM IR in Ott
 
-  ssa_coq_lib.v     : Operations over LLVM IR, such as, returning types and
+  infrastructure.v : Operations over LLVM IR, such as, returning types and
                       operands of an instruction, classifying instructions, 
                       traversing functions, checking if an instruction dominates
                       others, building explicit CFGs, ...
 
-  ssa_props.v       : Properties of LLVM IR, such as, decidability of equivalence
-                      over types, instructions, and other components, uniqueness 
-                      of IDs, inclusion between functions and modules, ...
+  infrastructure_props.v : Properties of LLVM IR, such as, decidability of 
+        	     equivalence over types, instructions, and other components,
+                     uniqueness of IDs, inclusion between functions and modules,
+                     ...
                       
-  assoclist.v       : A map from IDs to data, which is used to represent locals and
-                      globals.
+  assoclist.v       : A map from IDs to data, which is used to represent locals 
+                      and globals.
 
-  targetdata.v	    : Calculating bitsize, alignment, padding information in term 
-                      of user-defined data layout in IR.
+  targetdata.v	    : Calculating bitsize, alignment, padding information in 
+                      term of user-defined data layout in IR.
 
-  genericvalues.v   : Representations of run-time values used in the operational 
+  genericvalues.v   : Representations of run-time values used in the operational
                       semantics, and the LLVM memory model, which is actually a 
                       wrapper of the CompCert memory model, with conversion 
                       between LLVM datatypes and datatypes that CompCert memory 
                       model can handle.
 
-  ssa_analysis      : Domination/reachability analysis
+  analysis          : Domination/reachability analysis
 
-  ssa_static.ott    : LLVM IR typings
+  typings.ott       : LLVM IR typings
 
-  ndopsem*.v        : non-derministic small-step
+  opsem.v           : A generic semantics (small-step/big-step) that can be 
+                      instantiated as either a deterministic version or a non-
+                      deterministic version.
 
-  ssa_dynamic.v     : big-step/small-step deterministic
+  dopsem.v          : A deterministic instance of Opsem.
+
+  opsem_inst.v      : deterministic instances are included by non-deterministic 
+                      instances.
 
   tactics.v         : Tacticals 
 
-  opsem_conv.v      : Equivalence between big-step and small-step semantics
+  opsem_props/wf.v  : Progress and preservation of operational semantics
 
-  opsem_pp.v        : Operational semantics preserve uniqueness and inclusion properties
-
-  ssa_interpreter.v : An interpreter that is consistent with operational semantics 
-
+  interpreter.v     : An interpreter that is consistent with small-step 
+                      deterministic operational semantics.
 
 vol/src/Interpreter : Extracted interpreter
   main.ml           : The main entry that reads in an LLVM IR, converts it into 
@@ -84,12 +88,12 @@ vol/src/Interpreter/testcases: Simple test cases of this interpreter, run 'make'
   
 vol/src/SoftBound   : A verified Softbound pass.
 
-  sb_ns_def/pp*.v   : non-deterministic SBspec and its correctness
-  sbop_nsop.v       : nondet SBspec preserves LLVM nondet small-step opsem
-  sb_ds_def/pp*.v   : deterministic SBspec and its correctness
-  sbop_dsop.v       : det SBspec preserves LLVM det small-step opsem
+  sb_def/pp*.v      : SBspec and its correctness
   sb_ns_ds.v        : det SBspec is an instance of nondet SBspec
   sb_ds_trans.v     : a SoftBound instrumentation pass and its correctness
+  sb_ds_trans_correct.v 
+                    : Correctness of the SoftBound instrumentation pass w.r.t 
+                      a deterministic instance of SBspec.
 
 vol/src/TV/         : A simple trivial translation validator (eq_tv*), which only
                       checks equivalence between corresponding blocks of an input 
