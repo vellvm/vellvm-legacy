@@ -96,7 +96,11 @@ opsem_wf.vo: opsem_wf.v opsem_props.vo opsem.vo syntax.vo infrastructure.vo\
 dopsem.vo: dopsem.v opsem_wf.vo
 	$(COQC) $(COQARG) dopsem.v
 
-opsem_inst.vo: opsem_inst.v dopsem.vo syntax.vo infrastructure.vo trace.vo
+ndopsem.vo: ndopsem.v opsem_wf.vo
+	$(COQC) $(COQARG) ndopsem.v
+
+opsem_inst.vo: opsem_inst.v ndopsem.vo dopsem.vo syntax.vo infrastructure.vo \
+	trace.vo
 	$(COQC) $(COQARG) opsem_inst.v
 
 ssa.tex: syntax.ott infrastructure.ott m_typings.ott main.tex 
@@ -106,7 +110,7 @@ ssa.tex: syntax.ott infrastructure.ott m_typings.ott main.tex
             syntax.ott infrastructure.ott m_typings.ott
 
 vellvm.vo : vellvm.v syntax.vo infrastructure_props.vo typings_props.vo \
-	targetdata.vo dopsem.vo
+	targetdata.vo dopsem.vo ndopsem.vo
 	$(COQC) $(COQARG) vellvm.v
 
 main.pdf: ssa.tex main.tex macros.sty 

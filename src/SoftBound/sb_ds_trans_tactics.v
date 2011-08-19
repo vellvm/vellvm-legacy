@@ -228,8 +228,8 @@ Ltac next_insn :=
        (DOS.Sem.mkState 
            ((DOS.Sem.mkEC _ _ _ _ (updateAddALs _ ?lc2 ((?k,?v)::_)) ?als2')::_) 
        ?M2') _ ] => update_insn F2 B2 cs2 tmn2 lc2 k v als2 ECs2 M2 als2' M2'
-  | |- _ => 
-    try rewrite simpl_cons_updateAddALs;
+  | |- context [updateAddALs ?Typ _ _] => 
+    try rewrite (simpl_cons_updateAddALs Typ);
     match goal with
     | |- context [ DOS.Sem.sop_star _ 
        (DOS.Sem.mkState 

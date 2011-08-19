@@ -698,16 +698,25 @@ Proof.
   unfold DSB.SBSEM.returnResult in HeqRet.
   remember (getOperandValue (los, nts) Result lc gl2) as ogr.
   destruct ogr as [ogr|]; try solve [inv HeqRet].
-  destruct n.
-  SCase "nret = true".
-    inv Hcall'.
-    inv H1.
+
+  assert (exists bv2, exists ev2, exists bgv2, exists egv2,  
+    exists blk1, exists bofs1, exists eofs1,
+    cs23 =(insn_call fake_id true attrs ssb_typ ssb_fn
+             ((p8, bv2) :: (i32, vint0) :: nil)
+           :: insn_call fake_id true attrs sse_typ sse_fn
+                ((p8, ev2) :: (i32, vint0) :: nil) :: nil) /\
+    DOS.Sem.params2GVs (los, nts) ((p8, bv2) :: (i32, vint0) :: nil) lc2 gl2 =
+      munit (bgv2 :: int2GV 0 :: nil) /\
+    DOS.Sem.params2GVs (los, nts) ((p8, ev2) :: (i32, vint0) :: nil) lc2 gl2 =
+      munit (egv2 :: int2GV 0 :: nil) /\
+    gv_inject mi ((Vptr blk1 bofs1, AST.Mint 31)::nil) bgv2 /\
+    gv_inject mi ((Vptr blk1 eofs1, AST.Mint 31)::nil) egv2 /\
+    md = mkMD blk1 bofs1 eofs1 /\ ogr = gr) as Heq_cs23.
     simpl in Httmn.
     destruct (isPointerTypB RetTy).
-    SSCase "rt is ptr". 
       remember (SBspecAux.get_reg_metadata (los, nts) gl2 rm Result) as oRmd.
       destruct oRmd as [[blk1 bofs1 eofs1]|]; inv HeqRet.
-      assert (exists bv2, exists ev2, exists bgv2, exists egv2,
+      assert (exists bv2, exists ev2, exists bgv2, exists egv2, 
         SB_ds_pass.get_reg_metadata rm2 Result = Some (bv2, ev2) /\
         getOperandValue (los,nts) bv2 lc2 gl2 = Some bgv2 /\
         getOperandValue (los,nts) ev2 lc2 gl2 = Some egv2 /\
@@ -717,65 +726,30 @@ Proof.
         destruct Hrsim as [_ Hrsim].
         apply Hrsim; auto.
       destruct J as [bv2 [ev2 [bgv2 [egv2 [Hgetrmd [Hgetbgv2 [Hgetegv2 [Hinj1 
-        Hinj2]]]]]]]]. rewrite Hgetrmd in Httmn. inv Httmn.
-      destruct (@stk_ret_sim (los,nts) Mem0 M2 mi mgb MM bgv2 egv2) as 
-        [M2' [M2'' [Hsbase [Hsbound [Hmsim3 [Hwfmi3 [Hgbase Hgbound]]]]]]]; 
-        auto.
-      eapply free_allocas_sim in Hmsim3; eauto.
-      destruct Hmsim3 as [M2''' [Hfree2' [Hmsim2' Hwfmi2']]].
-      exists (DOS.Sem.mkState 
-        ((DOS.Sem.mkEC (fdef_intro fh2' bs2') B2'
-            (cs23' ++ cs24') tmn2' lc2' als2'):: ECs2)
-        M2''').
-      exists mi.
-      split.
-      SSSCase "sop_star".
-        simpl. 
-        next_insn' M2'.
-          destruct (@ssb_is_found (los, nts) Ps2 lc2 gl2 fs2) as [fptr2 [J1 J2]].
-          eapply DOS.Sem.sExCall with (fid:=ssb_fid)
-            (gvs:=(bgv2 :: int2GV 0 :: nil))(oresult:=None); eauto.
-            simpl. replace DOS.Sem.getOperandValue with getOperandValue; auto.   
-            rewrite Hgetbgv2. auto.
-
-        next_insn' M2''.
-          destruct (@sse_is_found (los, nts) Ps2 lc2 gl2 fs2) as [fptr2 [J1 J2]].
-          eapply DOS.Sem.sExCall with (fid:=sse_fid)
-            (gvs:=(egv2 :: int2GV 0 :: nil))(oresult:=None); eauto.
-            simpl. replace DOS.Sem.getOperandValue with getOperandValue; auto.   
-            rewrite Hgetegv2. auto.
-
-        ret_insn.
-          eapply DOS.Sem.sReturn; eauto.
-            unfold DOS.Sem.returnUpdateLocals. simpl.
-            clear - Hrsim Heqogr Hwfg Hwfmi.
-            symmetry in Heqogr.
-            eapply simulation__getOperandValue in Heqogr; eauto.
-            destruct Heqogr as [gv' [J1 J2]]. 
-            replace DOS.Sem.getOperandValue with LLVMgv.getOperandValue; auto.   
-            rewrite J1. auto.
-
-        next_insn' M2'''.
-          destruct (@dstk_is_found(los, nts) Ps2 lc2 gl2 fs2) as [fptr2 [J1 J2]].
-          eapply DOS.Sem.sExCall; simpl; eauto.
-            eapply dstk_spec; eauto.
-
-      split; auto using inject_incr_refl.
-      SSSCase "sim".
-      repeat (split; eauto 2 using cmds_at_block_tail_next, 
-                                   cmds_at_block_tails_next').
-          exists ex_ids'. exists rm2'.
-          exists ex_ids3'. exists ex_ids4'. exists cs23'. exists cs24'.
-          repeat (split; auto).
-
-    SSCase "rt isnt ptr".
+        Hinj2]]]]]]]]. rewrite Hgetrmd in Httmn. 
       inv Httmn.
-      destruct (@stk_ret_sim (los,nts) Mem0 M2 mi mgb MM null null) as 
-        [M2' [M2'' [Hsbase [Hsbound [Hmsim3 [Hwfmi3 [Hgbase Hgbound]]]]]]]; 
-        auto.
-      eapply free_allocas_sim in Hmsim3; eauto.
-      destruct Hmsim3 as [M2''' [Hfree2' [Hmsim2' Hwfmi2']]].
-      exists (DOS.Sem.mkState
+      exists bv2. exists ev2. exists bgv2. exists egv2. 
+      exists blk1. exists bofs1. exists eofs1. 
+      simpl. replace DOS.Sem.getOperandValue with getOperandValue; auto.
+      rewrite Hgetbgv2. rewrite Hgetegv2. repeat (split; eauto).
+    
+      inv Httmn.
+      exists vnullp8. exists vnullp8. exists null. exists null.
+      exists Mem.nullptr. exists (Int.repr 31 0). exists (Int.repr 31 0).
+      inv HeqRet.
+      repeat (split; eauto 2 using gv_inject_null_refl).
+
+  destruct Heq_cs23 as [bv2 [ev2 [bgv2 [egv2 [blk1 [bofs1 [eofs1 [Heq_cs23 
+    [Hp2bv2 [Hp2ev2 [Hinj1 [Hinj2 [Heqmd Heqgr]]]]]]]]]]]]]; subst.
+  destruct (@stk_ret_sim (los,nts) Mem0 M2 mi mgb MM bgv2 egv2) as 
+    [M2' [M2'' [Hsbase [Hsbound [Hmsim3 [Hwfmi3 [Hgbase Hgbound]]]]]]]; auto.
+  eapply free_allocas_sim in Hmsim3; eauto.
+  destruct Hmsim3 as [M2''' [Hfree2' [Hmsim2' Hwfmi2']]].
+  destruct n.
+  SCase "nret = true".
+    inv Hcall'.
+    inv H1.
+    exists (DOS.Sem.mkState
         ((DOS.Sem.mkEC (fdef_intro fh2' bs2') B2'
             (cs23' ++ cs24') tmn2' lc2' als2'):: ECs2)
         M2''').
@@ -785,14 +759,12 @@ Proof.
         simpl. next_insn' M2'.
           destruct (@ssb_is_found (los, nts) Ps2 lc2 gl2 fs2) as [fptr2 [J1 J2]].
           eapply DOS.Sem.sExCall with (fid:=ssb_fid)
-            (gvs:=(null :: int2GV 0 :: nil))(oresult:=None); eauto.
-            simpl. eauto.
+            (gvs:=(bgv2 :: int2GV 0 :: nil))(oresult:=None); eauto.
 
         next_insn' M2''.
           destruct (@sse_is_found (los, nts) Ps2 lc2 gl2 fs2) as [fptr2 [J1 J2]].
           eapply DOS.Sem.sExCall with (fid:=sse_fid)
-            (gvs:=(null :: int2GV 0 :: nil))(oresult:=None); eauto.
-            simpl. eauto.
+            (gvs:=(egv2 :: int2GV 0 :: nil))(oresult:=None); eauto.
 
         ret_insn.
           eapply DOS.Sem.sReturn; eauto.
@@ -823,42 +795,23 @@ Proof.
     destruct t; tinv H1.
     remember (DGVs.lift_op1 (fit_gv (los, nts) t) gr t) as Fit.
     destruct Fit; tinv H1. simpl in Hcall'.
-    destruct (isPointerTypB t).
+    symmetry in Heqogr.
+    eapply simulation__getOperandValue in Heqogr; eauto.
+    destruct Heqogr as [gr2 [J1 J2]]. 
+    symmetry in HeqFit. unfold DGVs.lift_op1 in HeqFit.
+    eapply simulation__fit_gv in HeqFit; eauto.
+    destruct HeqFit as [gr2' [HeqFit HinjFit]].
+
+    destruct (isPointerTypB t); inv H1.
     SSCase "ct is ptr".
       remember (lookupAL (id * id) rm2' i0) as R.
       destruct R as [[bid0 eid0]|]; inv Hcall'.
-      simpl in Httmn.
-      destruct (isPointerTypB RetTy).
-    SSSCase "rt is ptr". 
-      inv H1.
-      remember (SBspecAux.get_reg_metadata (los, nts) gl2 rm Result) as oRmd.
-      destruct oRmd as [[blk1 bofs1 eofs1]|]; inv HeqRet.
-      assert (exists bv2, exists ev2, exists bgv2, exists egv2,
-        SB_ds_pass.get_reg_metadata rm2 Result = Some (bv2, ev2) /\
-        getOperandValue (los,nts) bv2 lc2 gl2 = Some bgv2 /\
-        getOperandValue (los,nts) ev2 lc2 gl2 = Some egv2 /\
-        gv_inject mi ((Vptr blk1 bofs1, AST.Mint 31)::nil) bgv2 /\
-        gv_inject mi ((Vptr blk1 eofs1, AST.Mint 31)::nil) egv2) as J.
-        clear - HeqoRmd Hrsim. 
-        destruct Hrsim as [_ Hrsim].
-        apply Hrsim; auto.
-      destruct J as [bv2 [ev2 [bgv2 [egv2 [Hgetrmd [Hgetbgv2 [Hgetegv2 [Hinj1 
-        Hinj2]]]]]]]]. rewrite Hgetrmd in Httmn. inv Httmn.
-      destruct (@stk_ret_sim (los,nts) Mem0 M2 mi mgb MM bgv2 egv2) as 
-        [M2' [M2'' [Hsbase [Hsbound [Hmsim3 [Hwfmi3 [Hgbase Hgbound]]]]]]]; 
-        auto.
-      eapply free_allocas_sim in Hmsim3; eauto.
-      destruct Hmsim3 as [M2''' [Hfree2' [Hmsim2' Hwfmi2']]].
-      symmetry in Heqogr.
-      eapply simulation__getOperandValue in Heqogr; eauto.
-      destruct Heqogr as [gr2 [J1 J2]]. 
-      symmetry in HeqFit. unfold DGVs.lift_op1 in HeqFit.
-      eapply simulation__fit_gv in HeqFit; eauto.
-      destruct HeqFit as [gr2' [HeqFit HinjFit]].
+
       exists (DOS.Sem.mkState 
         ((DOS.Sem.mkEC (fdef_intro fh2' bs2') B2'
             (cs23' ++ cs24') tmn2' 
-            (updateAddALs _ lc2' ((i0,gr2')::(bid0,bgv2)::(eid0,egv2)::nil))
+            (updateAddALs GenericValue lc2' 
+              ((i0,gr2')::(bid0,bgv2)::(eid0,egv2)::nil))
             als2'):: ECs2)
         M2''').
       exists mi.
@@ -869,22 +822,18 @@ Proof.
           destruct (@ssb_is_found (los, nts) Ps2 lc2 gl2 fs2) as [fptr2 [Z1 Z2]].
           eapply DOS.Sem.sExCall with (fid:=ssb_fid)
             (gvs:=(bgv2 :: int2GV 0 :: nil))(oresult:=None); eauto.
-            simpl. replace DOS.Sem.getOperandValue with getOperandValue; auto.   
-            rewrite Hgetbgv2. auto.
-
+      
         next_insn' M2''.
           destruct (@sse_is_found (los, nts) Ps2 lc2 gl2 fs2) as [fptr2 [Z1 Z2]].
           eapply DOS.Sem.sExCall with (fid:=sse_fid)
             (gvs:=(egv2 :: int2GV 0 :: nil))(oresult:=None); eauto.
-            simpl. replace DOS.Sem.getOperandValue with getOperandValue; auto.   
-            simpl. rewrite Hgetegv2. auto.
-
+      
         ret_insn.
           eapply DOS.Sem.sReturn; eauto.
             unfold DOS.Sem.returnUpdateLocals.
             replace DOS.Sem.getOperandValue with LLVMgv.getOperandValue; auto.   
             rewrite J1. unfold DGVs.lift_op1. rewrite HeqFit. auto.
-
+      
         next_insn.
           destruct (@gsb_is_found (los, nts) Ps2 lc2 gl2 fs2) as [fptr2 [Z1 Z2]].
           eapply DOS.Sem.sExCall with (fid:=gsb_fid)
@@ -894,7 +843,7 @@ Proof.
             eapply free_doesnt_change_gsb; eauto.
             unfold gsb_typ, p8. simpl.
             inv Hinj1. inv H6. inv H5. auto.
-
+      
         next_insn.
           destruct (@gse_is_found (los, nts) Ps2 lc2 gl2 fs2) as [fptr2 [Z1 Z2]].
           eapply DOS.Sem.sExCall with (fid:=gse_fid)
@@ -904,12 +853,12 @@ Proof.
             eapply free_doesnt_change_gse; eauto.
             unfold gsb_typ, p8. simpl.
             inv Hinj2. inv H6. inv H5. auto.
-
+      
         next_insn.
           destruct (@dstk_is_found (los, nts) Ps2 lc2 gl2 fs2)as [fptr2 [Z1 Z2]].
           eapply DOS.Sem.sExCall; simpl; eauto.
             eapply dstk_spec; eauto.
-
+      
       split; auto using inject_incr_refl.
       SSSSCase "sim".
       repeat (split; eauto 2 using cmds_at_block_tail_next, 
@@ -923,108 +872,9 @@ Proof.
               eauto using simulation___cgv2gv.
             repeat (split; auto).
 
-    SSSCase "rt isnt ptr". 
-      inv H1. inv HeqRet. inv Httmn.
-      destruct (@stk_ret_sim (los,nts) Mem0 M2 mi mgb MM null null) as 
-        [M2' [M2'' [Hsbase [Hsbound [Hmsim3 [Hwfmi3 [Hgbase Hgbound]]]]]]]; 
-        auto.
-      eapply free_allocas_sim in Hmsim3; eauto.
-      destruct Hmsim3 as [M2''' [Hfree2' [Hmsim2' Hwfmi2']]].
-      symmetry in Heqogr.
-      eapply simulation__getOperandValue in Heqogr; eauto.
-      destruct Heqogr as [gr2 [J1 J2]]. 
-      symmetry in HeqFit.
-      eapply simulation__fit_gv in HeqFit; eauto.
-      destruct HeqFit as [gr2' [HeqFit HinjFit]].
-      exists (DOS.Sem.mkState 
-        ((DOS.Sem.mkEC (fdef_intro fh2' bs2') B2'
-            (cs23' ++ cs24') tmn2' 
-              (updateAddALs _ lc2' ((i0,gr2')::(bid0,null)::(eid0,null)::nil))
-            als2'):: ECs2)
-        M2''').
-      exists mi.
-      split.
-      SSSSCase "sop_star".
-        Opaque updateAddALs. simpl. 
-        next_insn' M2'.
-          destruct (@ssb_is_found (los, nts) Ps2 lc2 gl2 fs2) as [fptr2 [Z1 Z2]].
-          eapply DOS.Sem.sExCall with (fid:=ssb_fid)
-            (gvs:=(null :: int2GV 0 :: nil))(oresult:=None); eauto.
-            simpl. eauto.
-
-        next_insn' M2''.
-          destruct (@sse_is_found (los, nts) Ps2 lc2 gl2 fs2) as [fptr2 [Z1 Z2]].
-          eapply DOS.Sem.sExCall with (fid:=sse_fid)
-            (gvs:=(null :: int2GV 0 :: nil))(oresult:=None); eauto.
-            simpl. eauto.
-
-        ret_insn.
-          eapply DOS.Sem.sReturn; eauto.
-            unfold DOS.Sem.returnUpdateLocals. simpl.
-            replace DOS.Sem.getOperandValue with LLVMgv.getOperandValue; auto.
-            rewrite J1. unfold DGVs.lift_op1. rewrite HeqFit. auto.
-
-        next_insn.
-          destruct (@gsb_is_found (los, nts) Ps2 lc2 gl2 fs2) as [fptr2 [Z1 Z2]].
-          eapply DOS.Sem.sExCall with (fid:=gsb_fid)
-            (gvs:=(int2GV 0 :: nil))(oresult:=Some null); eauto.
-            simpl. eauto. 
-            eapply free_allocas_preserves_gsb; eauto.
-
-        next_insn.
-          destruct (@gse_is_found (los, nts) Ps2 lc2 gl2 fs2) as [fptr2 [Z1 Z2]].
-          eapply DOS.Sem.sExCall with (fid:=gse_fid)
-            (gvs:=(int2GV 0 :: nil))(oresult:=Some null); eauto.
-            simpl. eauto.
-            eapply free_allocas_preserves_gse; eauto.
-
-        next_insn.
-          destruct (@dstk_is_found (los, nts) Ps2 lc2 gl2 fs2)as [fptr2 [Z1 Z2]].
-          eapply DOS.Sem.sExCall; simpl; eauto.
-            eapply dstk_spec; eauto.
-
-      split; auto using inject_incr_refl.
-      SSSSCase "sim".
-      repeat (split; eauto 2 using cmds_at_block_tail_next, 
-                                   cmds_at_block_tails_next').
-          exists ex_ids'. exists rm2'.
-          exists ex_ids3'. exists ex_ids4'. exists cs23'. exists cs24'.
-          split; auto.              
-          split.
-            Transparent updateAddALs. simpl.
-            eapply reg_simulation__updateAddAL_prop with (ex_ids3:=ex_ids'); 
-              eauto using simulation___cgv2gv, gv_inject_null_refl.
-            repeat (split; auto).
-
     SSCase "ct isnt ptr".
       inv Hcall'.
-      simpl in Httmn.
-      destruct (isPointerTypB RetTy).
-    SSSCase "rt is ptr". 
-      inv H1.
-      remember (SBspecAux.get_reg_metadata (los, nts) gl2 rm Result) as oRmd.
-      destruct oRmd as [[blk1 bofs1 eofs1]|]; inv HeqRet.
-      assert (exists bv2, exists ev2, exists bgv2, exists egv2,
-        SB_ds_pass.get_reg_metadata rm2 Result = Some (bv2, ev2) /\
-        getOperandValue (los,nts) bv2 lc2 gl2 = Some bgv2 /\
-        getOperandValue (los,nts) ev2 lc2 gl2 = Some egv2 /\
-        gv_inject mi ((Vptr blk1 bofs1, AST.Mint 31)::nil) bgv2 /\
-        gv_inject mi ((Vptr blk1 eofs1, AST.Mint 31)::nil) egv2) as J.
-      destruct Hrsim as [_ Hrsim].
-      apply Hrsim; auto.
-      destruct J as [bv2 [ev2 [bgv2 [egv2 [Hgetrmd [Hgetbgv2 [Hgetegv2 [Hinj1 
-        Hinj2]]]]]]]]. rewrite Hgetrmd in Httmn. inv Httmn.
-      destruct (@stk_ret_sim (los,nts) Mem0 M2 mi mgb MM bgv2 egv2) as 
-        [M2' [M2'' [Hsbase [Hsbound [Hmsim3 [Hwfmi3 [Hgbase Hgbound]]]]]]]; 
-        auto.
-      eapply free_allocas_sim in Hmsim3; eauto.
-      destruct Hmsim3 as [M2''' [Hfree2' [Hmsim2' Hwfmi2']]].
-      symmetry in Heqogr.
-      eapply simulation__getOperandValue in Heqogr; eauto.
-      destruct Heqogr as [gr2 [J1 J2]]. 
-      symmetry in HeqFit.
-      eapply simulation__fit_gv in HeqFit; eauto.
-      destruct HeqFit as [gr2' [HeqFit HinjFit]].
+
       exists (DOS.Sem.mkState
         ((DOS.Sem.mkEC (fdef_intro fh2' bs2') B2'
             (cs23' ++ cs24') tmn2' (updateAddALs _ lc2' ((i0,gr2')::nil))
@@ -1038,72 +888,11 @@ Proof.
           destruct (@ssb_is_found (los, nts) Ps2 lc2 gl2 fs2) as [fptr2 [Z1 Z2]].
           eapply DOS.Sem.sExCall with (fid:=ssb_fid)
             (gvs:=(bgv2 :: int2GV 0 :: nil))(oresult:=None); eauto.
-            simpl. replace DOS.Sem.getOperandValue with getOperandValue; auto.
-            rewrite Hgetbgv2. auto.
 
         next_insn' M2''.
           destruct (@sse_is_found (los, nts) Ps2 lc2 gl2 fs2) as [fptr2 [Z1 Z2]].
           eapply DOS.Sem.sExCall with (fid:=sse_fid)
             (gvs:=(egv2 :: int2GV 0 :: nil))(oresult:=None); eauto.
-            simpl. replace DOS.Sem.getOperandValue with getOperandValue; auto.
-            rewrite Hgetegv2. auto.
-
-        ret_insn.
-          eapply DOS.Sem.sReturn; eauto.
-            unfold DOS.Sem.returnUpdateLocals. simpl.
-            replace DOS.Sem.getOperandValue with LLVMgv.getOperandValue; auto.
-            rewrite J1. unfold DGVs.lift_op1. rewrite HeqFit. auto.
-
-        next_insn' M2'''.
-          destruct (@dstk_is_found (los, nts) Ps2 lc2 gl2 fs2)as [fptr2 [Z1 Z2]].
-          eapply DOS.Sem.sExCall; simpl; eauto.
-            eapply dstk_spec; eauto.
-
-      split; auto using inject_incr_refl.
-      SSSSCase "sim".
-      repeat (split; eauto 2 using cmds_at_block_tail_next, 
-                                   cmds_at_block_tails_next').
-          exists ex_ids'. exists rm2'.
-          exists ex_ids3'. exists ex_ids4'. exists cs23'. exists cs24'.
-          apply reg_simulation__updateAddAL_lc with (i0:=i0)(gv:= t0)
-            (gv':= gr2') (ex_ids3:=ex_ids') in Hrsim'; 
-            eauto using simulation___cgv2gv.
-          Transparent updateAddALs. simpl.
-          repeat (split; auto).
-
-    SSSCase "rt isnt ptr". 
-      inv H1. inv HeqRet. inv Httmn.
-      destruct (@stk_ret_sim (los,nts) Mem0 M2 mi mgb MM null null) as 
-        [M2' [M2'' [Hsbase [Hsbound [Hmsim3 [Hwfmi3 [Hgbase Hgbound]]]]]]]; 
-        auto.
-      eapply free_allocas_sim in Hmsim3; eauto.
-      destruct Hmsim3 as [M2''' [Hfree2' [Hmsim2' Hwfmi2']]].
-      symmetry in Heqogr.
-      eapply simulation__getOperandValue in Heqogr; eauto.
-      destruct Heqogr as [gr2 [J1 J2]]. 
-      symmetry in HeqFit.
-      eapply simulation__fit_gv in HeqFit; eauto.
-      destruct HeqFit as [gr2' [HeqFit HinjFit]].
-      exists (DOS.Sem.mkState 
-        ((DOS.Sem.mkEC (fdef_intro fh2' bs2') B2'
-            (cs23' ++ cs24') tmn2' (updateAddALs _ lc2' ((i0,gr2')::nil))
-            als2'):: ECs2)
-        M2''').
-      exists mi.
-      split.
-      SSSSCase "sop_star".
-        Opaque updateAddALs. simpl. 
-        next_insn' M2'.
-          destruct (@ssb_is_found (los, nts) Ps2 lc2 gl2 fs2) as [fptr2 [Z1 Z2]].
-          eapply DOS.Sem.sExCall with (fid:=ssb_fid)
-            (gvs:=(null :: int2GV 0 :: nil))(oresult:=None); eauto.
-            simpl. eauto.
-
-        next_insn' M2''.
-          destruct (@sse_is_found (los, nts) Ps2 lc2 gl2 fs2) as [fptr2 [Z1 Z2]].
-          eapply DOS.Sem.sExCall with (fid:=sse_fid)
-            (gvs:=(null :: int2GV 0 :: nil))(oresult:=None); eauto.
-            simpl. eauto.
 
         ret_insn.
           eapply DOS.Sem.sReturn; eauto.
