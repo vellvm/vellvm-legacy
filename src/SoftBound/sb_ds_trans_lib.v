@@ -536,7 +536,7 @@ Proof.
       destruct (zeq b mb); subst; eauto.
         assert (J'':=J').
         apply mi_globals in J'.
-        destruct (DSB.valid_block_dec Mem mb).
+        destruct (SBspecMetadata.valid_block_dec Mem mb).
           apply Mem.fresh_block_alloc in HeqR1.
           contradict HeqR1; auto.
      
@@ -699,7 +699,7 @@ Qed.
 
 Ltac invert_prop_reg_metadata :=
   match goal with
-  | [H : DSB.SBSEM.prop_reg_metadata _ _ _ _ _ = (_, _) |- _ ] =>
+  | [H : SBspec.prop_reg_metadata _ _ _ _ _ = (_, _) |- _ ] =>
       inv H; subst; eauto
   end.
 
@@ -1191,7 +1191,7 @@ Proof.
             rewrite <- lookupAL_updateAddAL_neq; auto.
 
       SSSCase "vp = c".
-        apply DSB.get_reg_metadata_const_inv in J.
+        apply SBspecMetadata.get_reg_metadata_const_inv in J.
         destruct J as [[J1 J2] | [c1 [c2 [J1 [J2 J3]]]]].
           inv J2.
           exists vnullp8. exists vnullp8. exists null. exists null.
@@ -1346,7 +1346,7 @@ Proof.
           rewrite <- lookupAL_updateAddAL_neq; auto.
 
       SSSCase "vp = c".
-        apply DSB.get_reg_metadata_const_inv in J.
+        apply SBspecMetadata.get_reg_metadata_const_inv in J.
         destruct J as [[J1 J2] | [c1 [c2 [J1 [J2 J3]]]]].
           inv J2.
           exists vnullp8. exists vnullp8. exists null. exists null.
@@ -2191,7 +2191,7 @@ Qed.
   
 Lemma trans_params_simulation : forall mi TD gl F rm2 lp n rm1 lc1 lc2 ogvs cs,
   reg_simulation mi TD gl F rm1 rm2 lc1 lc2 ->
-  DSB.SBSEM.params2GVs TD lp lc1 gl rm1 = Some ogvs ->
+  SBspec.params2GVs TD lp lc1 gl rm1 = Some ogvs ->
   trans_params rm2 lp n = Some cs ->
   params_simulation TD gl mi lc2 ogvs n cs.
 Proof.
@@ -2199,9 +2199,9 @@ Proof.
     inv Hp2gv. inv Htpa. simpl. auto.
 
     destruct a.
-    remember (DSB.SBSEM.Sem.SemP.Sem.getOperandValue TD v lc1 gl) as R0.
+    remember (Opsem.getOperandValue TD v lc1 gl) as R0.
     destruct R0; try solve [inv Hp2gv].
-    remember (DSB.SBSEM.params2GVs TD lp lc1 gl rm1) as R.
+    remember (SBspec.params2GVs TD lp lc1 gl rm1) as R.
     destruct R; try solve [inv Hp2gv].
     remember (trans_params rm2 lp (n + 1)) as R1.
     destruct R1; try solve [inv Htpa].
@@ -2349,8 +2349,8 @@ Lemma get_metadata_from_list_value_l_spec : forall mi TD gl F rm1 rm2 lc1 lc2 B1
   exists bv2, exists ev2, exists bgv2, exists egv2,
     getValueViaBlockFromValuels bvls0 B2 = Some bv2 /\
     getValueViaBlockFromValuels evls0 B2 = Some ev2 /\
-    getOperandValue TD bv2 lc2 gl = Some bgv2 /\
-    getOperandValue TD ev2 lc2 gl = Some egv2 /\
+    Opsem.getOperandValue TD bv2 lc2 gl = Some bgv2 /\
+    Opsem.getOperandValue TD ev2 lc2 gl = Some egv2 /\
     gv_inject mi ((Vptr blk1 bofs1, AST.Mint 31)::nil) bgv2 /\
     gv_inject mi ((Vptr blk1 eofs1, AST.Mint 31)::nil) egv2.
 Proof.
@@ -2383,12 +2383,12 @@ Lemma getIncomingValuesForBlockFromPHINodes__reg_simulation : forall M1 M2 TD gl
   (Hwfg : wf_globals mgb gl)
   ps1 lc1 rm1 re1 lc2 ps2,
   reg_simulation mi TD gl F rm1 rm2 lc1 lc2 ->
-  DSB.SBSEM.getIncomingValuesForBlockFromPHINodes TD ps1 B1 gl lc1 rm1 
+  SBspec.getIncomingValuesForBlockFromPHINodes TD ps1 B1 gl lc1 rm1 
     = Some re1 ->
   label_of_block B1 = label_of_block B2 ->
   trans_phinodes rm2 ps1 = Some ps2 ->
   exists re2, 
-    DOS.Sem.getIncomingValuesForBlockFromPHINodes TD ps2 B2 gl lc2 = Some re2 
+    Opsem.getIncomingValuesForBlockFromPHINodes TD ps2 B2 gl lc2 = Some re2 
       /\ incomingValues_simulation mi re1 rm2 re2.
 Proof.
   induction ps1; simpl; intros lc1 rm1 re1 lc2 ps2 Hrsim Hget Heq Htrans; auto.
@@ -2399,9 +2399,9 @@ Proof.
     destruct R as [ps2'|]; try solve [inv Htrans].
     remember (getValueViaBlockFromValuels vls B1) as R1.
     destruct R1 as [v|]; try solve [inv Hget].
-    remember (DSB.SBSEM.Sem.SemP.Sem.getOperandValue TD v lc1 gl) as R2.
+    remember (Opsem.getOperandValue TD v lc1 gl) as R2.
     destruct R2 as [gv1|]; try solve [inv Hget].
-    remember (DSB.SBSEM.getIncomingValuesForBlockFromPHINodes TD ps1 B1 gl lc1 
+    remember (SBspec.getIncomingValuesForBlockFromPHINodes TD ps1 B1 gl lc1 
       rm1) as R3.
     destruct R3 as [idgvs|]; try solve [inv Hget].
     destruct (isPointerTypB t).
@@ -2416,13 +2416,13 @@ Proof.
       destruct HeqR5 as [bv2 [ev2 [bgv2 [egv2 [Hvb [Hve [Hgetb [Hgete
         [Hinjb Hinje]]]]]]]]].
       rewrite Hvb. rewrite Hve. 
-      replace DOS.Sem.getOperandValue with getOperandValue; auto.
       rewrite Hgetb. rewrite Hgete.
       erewrite <- getValueViaBlockFromValuels__eql; eauto.
       rewrite <- HeqR1.
       symmetry in HeqR2.
       eapply simulation__getOperandValue in HeqR2; eauto.
       destruct HeqR2 as [gv2 [HeqR2 Hinj2]].
+      replace (@Opsem.getOperandValue DGVs) with getOperandValue; auto.
       rewrite HeqR2.
       symmetry in HeqR3.
       eapply IHps1 in HeqR3; eauto.
@@ -2438,7 +2438,7 @@ Proof.
       symmetry in HeqR2.
       eapply simulation__getOperandValue in HeqR2; eauto.
       destruct HeqR2 as [gv2 [HeqR2 Hinj2]].
-      replace DOS.Sem.getOperandValue with getOperandValue; auto.
+      replace (@Opsem.getOperandValue DGVs) with getOperandValue; auto.
       rewrite HeqR2.
       symmetry in HeqR3.
       eapply IHps1 in HeqR3; eauto.
@@ -2463,8 +2463,8 @@ Lemma updateValuesForNewBlock__reg_simulation : forall mi los gl f1 rm2 re1
   gen_metadata_fdef nts (getFdefLocs f1) nil f1 = Some (ex_ids,rm2) ->
   reg_simulation mi (los,nts) gl f1 rm1 rm2 lc1 lc2 ->
   incomingValues_simulation mi re1 rm2 re2 ->
-  DSB.SBSEM.updateValuesForNewBlock re1 lc1 rm1 = (lc1', rm1') ->
-  DOS.Sem.updateValuesForNewBlock re2 lc2 = lc2' ->
+  @SBspec.updateValuesForNewBlock DGVs re1 lc1 rm1 = (lc1', rm1') ->
+  @Opsem.updateValuesForNewBlock DGVs re2 lc2 = lc2' ->
   reg_simulation mi (los,nts) gl f1 rm1' rm2 lc1' lc2'.
 Proof.
   induction re1; simpl; intros rm1 lc1 lc2 re2 lc1' rm1' lc2' M1 M2 mgb ex_ids
@@ -2480,7 +2480,7 @@ Proof.
       destruct re2; try solve [inv Hisim].
       destruct p as [i2 gv2].
       destruct Hisim as [Heq [Hginj [Hlk [Hbinj [Heinj Hisim]]]]]; subst.
-      remember (DSB.SBSEM.updateValuesForNewBlock re1 lc1 rm1) as R.      
+      remember (@SBspec.updateValuesForNewBlock DGVs re1 lc1 rm1) as R.      
       destruct R as [lc' rm']. inv Hupdate.
       simpl.
       destruct Hindom as [Hin Hindom].
@@ -2489,7 +2489,7 @@ Proof.
       destruct re2; try solve [inv Hisim].
       destruct p as [i2 gv2].
       destruct Hisim as [Heq [Hginj Hisim]]; subst.
-      remember (DSB.SBSEM.updateValuesForNewBlock re1 lc1 rm1) as R.      
+      remember (@SBspec.updateValuesForNewBlock DGVs re1 lc1 rm1) as R.      
       destruct R as [lc' rm']. inv Hupdate.
       simpl.
       destruct Hindom as [Hin Hindom].
@@ -2520,7 +2520,7 @@ Qed.
 Lemma getIncomingValues_in_dom_aux : forall l0 cs1 tmn f1 TD B1 gl ps2 ps1 lc1 
     rm1 re1,
   blockInFdefB (block_intro l0 (ps1++ps2) cs1 tmn) f1 = true ->
-  DSB.SBSEM.getIncomingValuesForBlockFromPHINodes TD ps2 B1 gl lc1 rm1 
+  @SBspec.getIncomingValuesForBlockFromPHINodes DGVs TD ps2 B1 gl lc1 rm1 
     = ret re1 ->
   incomingValues_in_dom re1 (getFdefLocs f1).
 Proof.
@@ -2529,8 +2529,8 @@ Proof.
 
     destruct a.
     destruct (getValueViaBlockFromValuels l1 B1); tinv Hget.
-    destruct (DSB.SBSEM.Sem.SemP.Sem.getOperandValue TD v lc1 gl); tinv Hget.
-    remember (DSB.SBSEM.getIncomingValuesForBlockFromPHINodes TD ps2 B1 gl lc1 rm1) as R.
+    destruct (Opsem.getOperandValue TD v lc1 gl); tinv Hget.
+    remember (SBspec.getIncomingValuesForBlockFromPHINodes TD ps2 B1 gl lc1 rm1) as R.
     destruct R; tinv Hget.
     destruct (isPointerTypB t).
       destruct (SBspecAux.get_reg_metadata TD gl rm1 v); inv Hget.
@@ -2552,7 +2552,7 @@ Qed.
 
 Lemma getIncomingValues_in_dom : forall l0 cs1 tmn f1 TD B1 gl ps1 lc1 rm1 re1,
   blockInFdefB (block_intro l0 ps1 cs1 tmn) f1 = true ->
-  DSB.SBSEM.getIncomingValuesForBlockFromPHINodes TD ps1 B1 gl lc1 rm1 
+  @SBspec.getIncomingValuesForBlockFromPHINodes DGVs TD ps1 B1 gl lc1 rm1 
     = ret re1 ->
   incomingValues_in_dom re1 (getFdefLocs f1).
 Proof.
@@ -2567,19 +2567,19 @@ Lemma switchToNewBasicBlock__reg_simulation : forall mi nts los gl f1 rm1 rm2 lc
   blockInFdefB (block_intro l0 ps1 cs1 tmn) f1 = true ->
   gen_metadata_fdef nts (getFdefLocs f1) nil f1 = Some (ex_ids,rm2) ->
   reg_simulation mi (los,nts) gl f1 rm1 rm2 lc1 lc2 ->
-  DSB.SBSEM.switchToNewBasicBlock (los,nts) (block_intro l0 ps1 cs1 tmn) B1 gl 
+  SBspec.switchToNewBasicBlock (los,nts) (block_intro l0 ps1 cs1 tmn) B1 gl 
     lc1 rm1 = ret (lc1', rm1') ->
   label_of_block B1 = label_of_block B2 ->
   trans_phinodes rm2 ps1 = Some ps2 ->
-  exists lc2', DOS.Sem.switchToNewBasicBlock (los,nts)
+  exists lc2', Opsem.switchToNewBasicBlock (los,nts)
     (block_intro l0 ps2 cs2 tmn) B2 gl lc2 = Some lc2' /\
     reg_simulation mi (los,nts) gl f1 rm1' rm2 lc1' lc2'.
 Proof.
   intros mi nts los gl f1 rm1 rm2 lc1 lc2 B1 B2 l0 ps1 cs1 tmn ps2 cs2 lc1' rm1' 
     M1 M2 mgb ex_ids Hwfmi Hwfg HBinF Hgenmd Hrsim Hswitch Hleq Htphis.
-  unfold DSB.SBSEM.switchToNewBasicBlock in Hswitch.
-  unfold DOS.Sem.switchToNewBasicBlock. simpl in *.
-  remember (DSB.SBSEM.getIncomingValuesForBlockFromPHINodes (los,nts) ps1 B1 gl 
+  unfold SBspec.switchToNewBasicBlock in Hswitch.
+  unfold Opsem.switchToNewBasicBlock. simpl in *.
+  remember (SBspec.getIncomingValuesForBlockFromPHINodes (los,nts) ps1 B1 gl 
     lc1 rm1) as R.
   destruct R; try solve [inv Hswitch].  
     symmetry in HeqR.

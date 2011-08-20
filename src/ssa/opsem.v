@@ -23,113 +23,109 @@ Require Import typings_props.
 
 (************** GVs Interface ******************)
 
-Module Type GenericValuesSig.
-
 Import LLVMsyntax.
-Import LLVMgv.
 Import LLVMtd.
+Import LLVMinfra.
+Import LLVMgv.
 Import LLVMtypings.
 
-Parameter t : Type.
-Definition Map := list (id * t).
-Parameter instantiate_gvs : GenericValue -> t -> Prop.
-Parameter inhabited : t -> Prop.
-Parameter cgv2gvs : GenericValue -> typ -> t.
-Parameter gv2gvs : GenericValue -> typ -> t.
+Structure GenericValues := mkGVs {
+GVsT : Type;
+instantiate_gvs : GenericValue -> GVsT -> Prop;
 
-Notation "gv @ gvs" := 
-  (instantiate_gvs gv gvs) (at level 43, right associativity).
-Notation "$ gv # t $" := (gv2gvs gv t) (at level 41).
+inhabited : GVsT -> Prop;
 
-Axiom cgv2gvs__getTypeSizeInBits : forall S los nts gv t sz al gv',
+cgv2gvs : GenericValue -> typ -> GVsT;
+
+gv2gvs : GenericValue -> typ -> GVsT;
+
+lift_op1 : (GenericValue -> option GenericValue) -> GVsT -> typ -> option GVsT;
+
+lift_op2 : (GenericValue -> GenericValue -> option GenericValue) -> 
+  GVsT -> GVsT -> typ -> option GVsT;
+
+cgv2gvs__getTypeSizeInBits : forall S los nts gv t sz al gv',
   wf_typ S t ->
   _getTypeSizeInBits_and_Alignment los 
     (getTypeSizeInBits_and_Alignment_for_namedts (los,nts) true) true t = 
       Some (sz, al) ->
   Coqlib.nat_of_Z (Coqlib.ZRdiv (Z_of_nat sz) 8) = sizeGenericValue gv ->
-  gv' @ (cgv2gvs gv t) ->
+  instantiate_gvs gv' (cgv2gvs gv t) ->
   Coqlib.nat_of_Z (Coqlib.ZRdiv (Z_of_nat sz) 8) = 
-    sizeGenericValue gv'.
+    sizeGenericValue gv';
 
-Axiom cgv2gvs__inhabited : forall gv t, inhabited (cgv2gvs gv t).
+cgv2gvs__inhabited : forall gv t, inhabited (cgv2gvs gv t);
 
-Axiom gv2gvs__getTypeSizeInBits : forall S los nts gv t sz al,
+gv2gvs__getTypeSizeInBits : forall S los nts gv t sz al,
   wf_typ S t ->
   _getTypeSizeInBits_and_Alignment los 
     (getTypeSizeInBits_and_Alignment_for_namedts (los,nts) true) true t = 
       Some (sz, al) ->
   Coqlib.nat_of_Z (Coqlib.ZRdiv (Z_of_nat sz) 8) = sizeGenericValue gv ->
-  forall gv', gv' @ (gv2gvs gv t) ->
-  sizeGenericValue gv' = Coqlib.nat_of_Z (Coqlib.ZRdiv (Z_of_nat sz) 8).
+  forall gv', instantiate_gvs gv' (gv2gvs gv t) ->
+  sizeGenericValue gv' = Coqlib.nat_of_Z (Coqlib.ZRdiv (Z_of_nat sz) 8);
 
-Axiom gv2gvs__inhabited : forall gv t, inhabited ($ gv # t $).
+gv2gvs__inhabited : forall gv t, inhabited (gv2gvs gv t);
 
-Parameter lift_op1 : (GenericValue -> option GenericValue) -> t -> typ -> 
-  option t.
-Parameter lift_op2 : (GenericValue -> GenericValue -> option GenericValue) -> 
-  t -> t -> typ -> option t. 
-
-Axiom lift_op1__inhabited : forall f gvs1 t gvs2
+lift_op1__inhabited : forall f gvs1 t gvs2
   (H:forall x, exists z, f x = Some z),
   inhabited gvs1 -> 
   lift_op1 f gvs1 t = Some gvs2 ->
-  inhabited gvs2.
+  inhabited gvs2;
 
-Axiom lift_op2__inhabited : forall f gvs1 gvs2 t gvs3
+lift_op2__inhabited : forall f gvs1 gvs2 t gvs3
   (H:forall x y, exists z, f x y = Some z),
   inhabited gvs1 -> inhabited gvs2 -> 
   lift_op2 f gvs1 gvs2 t = Some gvs3 ->
-  inhabited gvs3.
+  inhabited gvs3;
 
-Axiom lift_op1__isnt_stuck : forall f gvs1 t
+lift_op1__isnt_stuck : forall f gvs1 t
   (H:forall x, exists z, f x = Some z),
-  exists gvs2, lift_op1 f gvs1 t = Some gvs2.
+  exists gvs2, lift_op1 f gvs1 t = Some gvs2;
 
-Axiom lift_op2__isnt_stuck : forall f gvs1 gvs2 t
+lift_op2__isnt_stuck : forall f gvs1 gvs2 t
   (H:forall x y, exists z, f x y = Some z),
-  exists gvs3, lift_op2 f gvs1 gvs2 t = Some gvs3.
+  exists gvs3, lift_op2 f gvs1 gvs2 t = Some gvs3;
 
-Axiom lift_op1__getTypeSizeInBits : forall S los nts f g t sz al gvs,
+lift_op1__getTypeSizeInBits : forall S los nts f g t sz al gvs,
   wf_typ S t ->
   _getTypeSizeInBits_and_Alignment los 
     (getTypeSizeInBits_and_Alignment_for_namedts (los,nts) true) true t = 
       Some (sz, al) ->
-  (forall x y, x @ g -> f x = Some y -> 
+  (forall x y, instantiate_gvs x g -> f x = Some y -> 
    sizeGenericValue y = nat_of_Z (ZRdiv (Z_of_nat sz) 8)) ->
   lift_op1 f g t = Some gvs ->
   forall gv : GenericValue,
-  gv @ gvs ->
-  sizeGenericValue gv = nat_of_Z (ZRdiv (Z_of_nat sz) 8).
+  instantiate_gvs gv gvs ->
+  sizeGenericValue gv = nat_of_Z (ZRdiv (Z_of_nat sz) 8);
 
-Axiom lift_op2__getTypeSizeInBits : forall S los nts f g1 g2 t sz al gvs,
+lift_op2__getTypeSizeInBits : forall S los nts f g1 g2 t sz al gvs,
   wf_typ S t ->
   _getTypeSizeInBits_and_Alignment los 
     (getTypeSizeInBits_and_Alignment_for_namedts (los,nts) true) true t = 
       Some (sz, al) ->
-  (forall x y z, x @ g1 -> y @ g2 -> f x y = Some z -> 
+  (forall x y z, 
+   instantiate_gvs x g1 -> instantiate_gvs y g2 -> f x y = Some z -> 
    sizeGenericValue z = nat_of_Z (ZRdiv (Z_of_nat sz) 8)) ->
   lift_op2 f g1 g2 t = Some gvs ->
   forall gv : GenericValue,
-  gv @ gvs ->
-  sizeGenericValue gv = nat_of_Z (ZRdiv (Z_of_nat sz) 8).
+  instantiate_gvs gv gvs ->
+  sizeGenericValue gv = nat_of_Z (ZRdiv (Z_of_nat sz) 8);
 
-Axiom inhabited_inv : forall gvs, inhabited gvs -> exists gv, gv @ gvs.
+inhabited_inv : forall gvs, inhabited gvs -> exists gv, instantiate_gvs gv gvs;
 
-Axiom instantiate_gv__gv2gvs : forall gv t, gv @ ($ gv # t $).
+instantiate_gv__gv2gvs : forall gv t, instantiate_gvs gv (gv2gvs gv t);
 
-Axiom none_undef2gvs_inv : forall gv gv' t,
-  gv @ $ gv' # t $ -> (forall mc, (Vundef, mc)::nil <> gv') -> gv = gv'.
+none_undef2gvs_inv : forall gv gv' t,
+  instantiate_gvs gv (gv2gvs gv' t) -> (forall mc, (Vundef, mc)::nil <> gv') -> 
+  gv = gv'
+}.
 
-End GenericValuesSig.
+Global Opaque GVsT gv2gvs instantiate_gvs inhabited cgv2gvs gv2gvs lift_op1 lift_op2.
 
 (************** Opsem ***************************************************** ***)
 
 Module OpsemAux.
-
-Import LLVMsyntax.
-Import LLVMinfra.
-Import LLVMgv.
-Import LLVMtd.
 
 (**************************************)
 (* To realize it in LLVM, we can try to dynamically cast fptr to Function*, 
@@ -244,6 +240,46 @@ Proof.
   apply lookupFdefViaIDFromProducts_inv in H; auto.
 Qed.
 
+Lemma lookupFdefViaPtr_uniq : forall los nts Ps fs S fptr F,
+  uniqSystem S ->
+  moduleInSystem (module_intro los nts Ps) S ->
+  lookupFdefViaPtr Ps fs fptr = Some F ->
+  uniqFdef F.
+Proof.
+  intros.
+  apply lookupFdefViaPtr_inversion in H1.
+  destruct H1 as [fn [J1 J2]].
+  apply lookupFdefViaIDFromProducts_inv in J2; auto.
+  apply uniqSystem__uniqProducts in H0; auto.
+  eapply uniqProducts__uniqFdef; simpl; eauto.
+Qed.
+
+Lemma entryBlockInSystemBlockFdef'' : forall los nts Ps fs fv F S B,
+  moduleInSystem (module_intro los nts Ps) S ->
+  lookupFdefViaPtr Ps fs fv = Some F ->
+  getEntryBlock F = Some B ->
+  blockInSystemModuleFdef B S (module_intro los nts Ps) F.
+Proof.
+  intros.
+  apply lookupFdefViaPtr_inversion in H0.
+  destruct H0 as [fn [J1 J2]].
+  apply lookupFdefViaIDFromProducts_inv in J2.
+  apply entryBlockInFdef in H1.  
+  apply blockInSystemModuleFdef_intro; auto.
+Qed.
+
+Lemma lookupFdefViaPtrInSystem : forall los nts Ps fs S fv F,
+  moduleInSystem (module_intro los nts Ps) S ->
+  lookupFdefViaPtr Ps fs fv = Some F ->
+  productInSystemModuleB (product_fdef F) S (module_intro los nts Ps).
+Proof.
+  intros.
+  apply lookupFdefViaPtr_inversion in H0.
+  destruct H0 as [fn [J1 J2]].
+  apply lookupFdefViaIDFromProducts_inv in J2.
+  apply productInSystemModuleB_intro; auto.
+Qed.
+
 Record Config : Type := mkCfg {
 CurSystem          : system;
 CurTargetData      : TargetData;
@@ -263,24 +299,27 @@ bCurFunction        : fdef
 
 End OpsemAux.
 
-Module Opsem (GVsSig : GenericValuesSig).
+Module Opsem. 
 
 Export LLVMsyntax.
+Export LLVMtd.
 Export LLVMinfra.
 Export LLVMgv.
-Export LLVMtd.
+Export LLVMtypings.
 Export OpsemAux.
 
-Definition GVsMap := GVsSig.Map.
-Definition GVs := GVsSig.t.
+Section Opsem. 
+
+Context `{GVsSig : GenericValues}.
+
+Notation GVs := GVsSig.(GVsT).
+Definition GVsMap := list (id * GVs).
 Notation "gv @ gvs" := 
-  (GVsSig.instantiate_gvs gv gvs) (at level 43, right associativity).
-Notation "$ gv # t $" := (GVsSig.gv2gvs gv t) (at level 41).
+  (GVsSig.(instantiate_gvs) gv gvs) (at level 43, right associativity).
+Notation "$ gv # t $" := (GVsSig.(gv2gvs) gv t) (at level 41).
 
 Definition in_list_gvs (l1 : list GenericValue) (l2 : list GVs) : Prop :=
-List.Forall2 GVsSig.instantiate_gvs l1 l2.
-
-Hint Unfold in_list_gvs.
+List.Forall2 GVsSig.(instantiate_gvs) l1 l2.
 
 Notation "vidxs @@ vidxss" := (in_list_gvs vidxs vidxss) 
   (at level 43, right associativity).
@@ -288,7 +327,7 @@ Notation "vidxs @@ vidxss" := (in_list_gvs vidxs vidxss)
 Definition const2GV (TD:TargetData) (gl:GVMap) (c:const) : option GVs :=
 match (_const2GV TD gl c) with
 | None => None
-| Some (gv, ty) => Some (GVsSig.cgv2gvs gv ty)
+| Some (gv, ty) => Some (GVsSig.(cgv2gvs) gv ty)
 end.
 
 Definition getOperandValue (TD:TargetData) (v:value) (locals:GVsMap) 
@@ -412,7 +451,7 @@ Fixpoint _initializeFrameValues TD (la:args) (lg:list GVs) (locals:GVsMap)
 match (la, lg) with
 | (((t, _), id)::la', g::lg') => 
   match _initializeFrameValues TD la' lg' locals,
-        GVsSig.lift_op1 (fit_gv TD t) g t with
+        GVsSig.(lift_op1) (fit_gv TD t) g t with
   | Some lc', Some gv => Some (updateAddAL _ lc' id gv)
   | _, _ => None
   end
@@ -432,7 +471,7 @@ Definition BOP (TD:TargetData) (lc:GVsMap) (gl:GVMap) (op:bop) (bsz:sz)
   (v1 v2:value) : option GVs :=
 match (getOperandValue TD v1 lc gl, getOperandValue TD v2 lc gl) with
 | (Some gvs1, Some gvs2) => 
-    GVsSig.lift_op2 (mbop TD op bsz) gvs1 gvs2 (typ_int bsz)
+    GVsSig.(lift_op2) (mbop TD op bsz) gvs1 gvs2 (typ_int bsz)
 | _ => None
 end
 .
@@ -441,7 +480,7 @@ Definition FBOP (TD:TargetData) (lc:GVsMap) (gl:GVMap) (op:fbop) fp
   (v1 v2:value) : option GVs :=
 match (getOperandValue TD v1 lc gl, getOperandValue TD v2 lc gl) with
 | (Some gvs1, Some gvs2) => 
-    GVsSig.lift_op2 (mfbop TD op fp) gvs1 gvs2 (typ_floatpoint fp)
+    GVsSig.(lift_op2) (mfbop TD op fp) gvs1 gvs2 (typ_floatpoint fp)
 | _ => None
 end
 .
@@ -450,7 +489,7 @@ Definition ICMP (TD:TargetData) (lc:GVsMap) (gl:GVMap) c t (v1 v2:value)
   : option GVs :=
 match (getOperandValue TD v1 lc gl, getOperandValue TD v2 lc gl) with
 | (Some gvs1, Some gvs2) => 
-    GVsSig.lift_op2 (micmp TD c t) gvs1 gvs2 (typ_int Size.One)
+    GVsSig.(lift_op2) (micmp TD c t) gvs1 gvs2 (typ_int Size.One)
 | _ => None
 end
 .
@@ -459,7 +498,7 @@ Definition FCMP (TD:TargetData) (lc:GVsMap) (gl:GVMap) c fp (v1 v2:value)
   : option GVs :=
 match (getOperandValue TD v1 lc gl, getOperandValue TD v2 lc gl) with
 | (Some gvs1, Some gvs2) => 
-    GVsSig.lift_op2 (mfcmp TD c fp) gvs1 gvs2 (typ_int Size.One)
+    GVsSig.(lift_op2) (mfcmp TD c fp) gvs1 gvs2 (typ_int Size.One)
 | _ => None
 end
 .
@@ -467,7 +506,7 @@ end
 Definition CAST (TD:TargetData) (lc:GVsMap) (gl:GVMap) (op:castop) 
   (t1:typ) (v1:value) (t2:typ) : option GVs:=
 match (getOperandValue TD v1 lc gl) with
-| (Some gvs1) => GVsSig.lift_op1 (mcast TD op t1 t2) gvs1 t2
+| (Some gvs1) => GVsSig.(lift_op1) (mcast TD op t1 t2) gvs1 t2
 | _ => None
 end
 .
@@ -475,7 +514,7 @@ end
 Definition TRUNC (TD:TargetData) (lc:GVsMap) (gl:GVMap) (op:truncop) 
   (t1:typ) (v1:value) (t2:typ) : option GVs:=
 match (getOperandValue TD v1 lc gl) with
-| (Some gvs1) => GVsSig.lift_op1 (mtrunc TD op t1 t2) gvs1 t2
+| (Some gvs1) => GVsSig.(lift_op1) (mtrunc TD op t1 t2) gvs1 t2
 | _ => None
 end
 .
@@ -483,14 +522,14 @@ end
 Definition EXT (TD:TargetData) (lc:GVsMap) (gl:GVMap) (op:extop) 
   (t1:typ) (v1:value) (t2:typ) : option GVs:=
 match (getOperandValue TD v1 lc gl) with
-| (Some gvs1) => GVsSig.lift_op1 (mext TD op t1 t2) gvs1 t2
+| (Some gvs1) => GVsSig.(lift_op1) (mext TD op t1 t2) gvs1 t2
 | _ => None
 end
 .
 
 Definition GEP (TD:TargetData) (ty:typ) (mas:GVs) (vidxs:list GenericValue) 
   (inbounds:bool) : option GVs :=
-GVsSig.lift_op1 (gep TD ty vidxs inbounds) mas 
+GVsSig.(lift_op1) (gep TD ty vidxs inbounds) mas 
   (typ_pointer (typ_int Size.One)).
 
 Definition extractGenericValue (TD:TargetData) (t:typ) (gvs : GVs) 
@@ -499,7 +538,7 @@ match (intConsts2Nats TD cidxs) with
 | None => None
 | Some idxs =>
   match (mgetoffset TD t idxs) with
-  | Some (o, t') => GVsSig.lift_op1 (mget' TD o t') gvs t'
+  | Some (o, t') => GVsSig.(lift_op1) (mget' TD o t') gvs t'
   | None => None
   end
 end.
@@ -510,7 +549,7 @@ match (intConsts2Nats TD cidxs) with
 | None => None
 | Some idxs =>
   match (mgetoffset TD t idxs) with
-  | Some (o, _) => GVsSig.lift_op2 (mset' TD o t t0) gvs gvs0 t
+  | Some (o, _) => GVsSig.(lift_op2) (mset' TD o t t0) gvs gvs0 t
   | None => None
   end
 end.
@@ -526,7 +565,7 @@ Definition returnUpdateLocals (TD:TargetData) (c':cmd) (Result:value)
       | insn_call id0 false _ t _ _ => 
         match t with
         | typ_function ct _ _ =>
-           match (GVsSig.lift_op1 (fit_gv TD ct) gr ct) with
+           match (GVsSig.(lift_op1) (fit_gv TD ct) gr ct) with
            | Some gr' => Some (updateAddAL _ lc' id0 gr')
            | _ => None
            end
@@ -901,7 +940,7 @@ Definition callUpdateLocals (TD:TargetData) ft (noret:bool) (rid:id)
           | Some gr =>  
             match ft with
             | typ_function t _ _ => 
-              match (GVsSig.lift_op1 (fit_gv TD t) gr t) with
+              match (GVsSig.(lift_op1) (fit_gv TD t) gr t) with
               | Some gr' => Some (updateAddAL _ lc rid gr')
               | None => None
               end
@@ -1257,6 +1296,9 @@ Scheme bInsn_ind2 := Induction for bInsn Sort Prop
 
 Combined Scheme b_mutind from bInsn_ind2, bops_ind2, bFdef_ind2.
 
+End Opsem. 
+
+Hint Unfold in_list_gvs.
 Hint Constructors bInsn bops bFdef sInsn sop_star sop_diverges sop_plus.
 
 End Opsem.

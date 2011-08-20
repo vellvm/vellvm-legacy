@@ -11,19 +11,22 @@ Require Import alist.
 Require Import CoqListFacts.
 Require Import Coqlib.
 
-Export DOS.
-
 (***************************************************************)
 (* Syntax easy to be proved with symbolic execution. *)
 
 Module SimpleSE.
+
+Export Opsem.
+
+Definition DGVMap := @GVsMap DGVs.
+Hint Unfold DGVMap.
 
 (***************************************************************)
 (* deterministic big-step for this new syntax with subblocks. *)
 
 Record ExecutionContext : Type := mkEC {
 CurBB       : block;
-Locals      : GVMap;                 (* LLVM values used in this invocation *)
+Locals      : DGVMap;                (* LLVM values used in this invocation *)
 Allocas     : list mblock            (* Track memory allocated by alloca *)
 }.
 
@@ -39,9 +42,9 @@ match i with
 end.
 
 Inductive dbCmd : TargetData -> GVMap ->
-                  GVMap -> list mblock -> mem -> 
+                  DGVMap -> list mblock -> mem -> 
                   cmd -> 
-                  GVMap -> list mblock -> mem -> 
+                  DGVMap -> list mblock -> mem -> 
                   trace -> Prop :=
 | dbBop: forall TD lc gl id bop sz v1 v2 gv3 Mem als,
   BOP TD lc gl bop sz v1 v2 = Some gv3 ->
@@ -76,7 +79,7 @@ Inductive dbCmd : TargetData -> GVMap ->
     trace_nil 
 | dbMalloc : forall TD lc gl id t v gn align Mem als Mem' tsz mb,
   getTypeAllocSize TD t = Some tsz ->
-  getOperandValue TD v lc gl = Some gn ->
+  @getOperandValue DGVs TD v lc gl = Some gn ->
   malloc TD Mem tsz gn align = Some (Mem', mb) ->
   dbCmd TD gl
     lc als Mem
@@ -84,7 +87,7 @@ Inductive dbCmd : TargetData -> GVMap ->
     (updateAddAL _ lc id (blk2GV TD mb)) als Mem'
     trace_nil
 | dbFree : forall TD lc gl fid t v Mem als Mem' mptr,
-  getOperandValue TD v lc gl = Some mptr ->
+  @getOperandValue DGVs TD v lc gl = Some mptr ->
   free TD Mem mptr = Some Mem'->
   dbCmd TD gl
     lc als Mem
@@ -93,7 +96,7 @@ Inductive dbCmd : TargetData -> GVMap ->
     trace_nil
 | dbAlloca : forall TD lc gl id t v gn align Mem als Mem' tsz mb,
   getTypeAllocSize TD t = Some tsz ->
-  getOperandValue TD v lc gl = Some gn ->
+  @getOperandValue DGVs TD v lc gl = Some gn ->
   malloc TD Mem tsz gn align = Some (Mem', mb) ->
   dbCmd TD gl
     lc als Mem
@@ -101,7 +104,7 @@ Inductive dbCmd : TargetData -> GVMap ->
     (updateAddAL _ lc id (blk2GV TD mb)) (mb::als) Mem'
     trace_nil
 | dbLoad : forall TD lc gl id t v align Mem als mp gv,
-  getOperandValue TD v lc gl = Some mp ->
+  @getOperandValue DGVs TD v lc gl = Some mp ->
   mload TD Mem mp t align = Some gv ->
   dbCmd TD gl
     lc als Mem
@@ -109,7 +112,7 @@ Inductive dbCmd : TargetData -> GVMap ->
     (updateAddAL _ lc id gv) als Mem
     trace_nil
 | dbStore : forall TD lc gl sid t v1 v2 align Mem als mp2 gv1 Mem',
-  getOperandValue TD v1 lc gl = Some gv1 ->
+  @getOperandValue DGVs TD v1 lc gl = Some gv1 ->
   getOperandValue TD v2 lc gl = Some mp2 ->
   mstore TD Mem mp2 t gv1 align = Some Mem' ->
   dbCmd TD gl 
@@ -118,7 +121,7 @@ Inductive dbCmd : TargetData -> GVMap ->
     lc als Mem'
     trace_nil
 | dbGEP : forall TD lc gl id inbounds t v idxs vidxs mp mp' Mem als,
-  getOperandValue TD v lc gl = Some mp ->
+  @getOperandValue DGVs TD v lc gl = Some mp ->
   values2GVs TD idxs lc gl = Some vidxs ->
   GEP TD t mp vidxs inbounds = Some mp' ->
   dbCmd TD gl
@@ -175,13 +178,13 @@ Inductive dbCmd : TargetData -> GVMap ->
 
 Inductive dbTerminator : 
   TargetData -> mem -> fdef -> GVMap -> 
-  block -> GVMap -> 
+  block -> (@GVsMap DGVs) -> 
   terminator -> 
-  block -> GVMap -> 
+  block -> (@GVsMap DGVs) -> 
   trace -> Prop :=
 | dbBranch : forall TD Mem F B lc gl bid Cond l1 l2 c
                               l' ps' sbs' tmn' lc',   
-  getOperandValue TD Cond lc gl = Some c ->
+  @getOperandValue DGVs TD Cond lc gl = Some c ->
   Some (block_intro l' ps' sbs' tmn') = (if isGVZero TD c
                then lookupBlockViaLabelFromFdef F l2
                else lookupBlockViaLabelFromFdef F l1) ->
@@ -205,9 +208,9 @@ Inductive dbTerminator :
 .
 
 Inductive dbCmds : TargetData -> GVMap -> 
-                   GVMap -> list mblock -> mem -> 
+                   DGVMap -> list mblock -> mem -> 
                    cmds -> 
-                   GVMap -> list mblock -> mem -> 
+                   DGVMap -> list mblock -> mem -> 
                    trace -> Prop :=
 | dbCmds_nil : forall TD lc als gl Mem, 
     dbCmds TD gl lc als Mem nil lc als Mem trace_nil
@@ -218,9 +221,9 @@ Inductive dbCmds : TargetData -> GVMap ->
     dbCmds TD gl lc1 als1 Mem1 (c::cs) lc3 als3 Mem3 (trace_app t1 t2).
 
 Inductive dbCall : system -> TargetData -> list product -> GVMap -> 
-                   GVMap -> GVMap -> mem -> 
+                   GVMap -> DGVMap -> mem -> 
                    cmd -> 
-                   GVMap -> mem -> 
+                   DGVMap -> mem -> 
                    trace -> Prop :=
 | dbCall_internal : forall S TD Ps lc gl fs rid noret tailc rt fv lp
                        Rid oResult tr lc' Mem Mem' als' Mem'' B' lc'' ft,
@@ -236,7 +239,7 @@ Inductive dbCall : system -> TargetData -> list product -> GVMap ->
      do not support linkage. 
      FIXME: should add excall to trace
   *)
-  getOperandValue TD fv lc gl = Some fptr -> 
+  @getOperandValue DGVs TD fv lc gl = Some fptr -> 
   lookupExFdecViaPtr Ps fs fptr = 
     Some (fdec_intro (fheader_intro fa rt fid la va)) ->
   params2GVs TD lp lc gl = Some gvs ->
@@ -247,9 +250,9 @@ Inductive dbCall : system -> TargetData -> list product -> GVMap ->
     trace_nil
 
 with dbSubblock : system -> TargetData -> list product -> GVMap -> GVMap -> 
-                  GVMap -> list mblock -> mem -> 
+                  DGVMap -> list mblock -> mem -> 
                   cmds -> 
-                  GVMap -> list mblock -> mem -> 
+                  DGVMap -> list mblock -> mem -> 
                   trace -> Prop :=
 | dbSubblock_intro : forall S TD Ps lc1 als1 gl fs Mem1 cs call0 lc2 als2 Mem2 
                      tr1 lc3 Mem3 tr2,
@@ -261,9 +264,9 @@ with dbSubblock : system -> TargetData -> list product -> GVMap -> GVMap ->
              lc3 als2 Mem3
              (trace_app tr1 tr2)
 with dbSubblocks : system -> TargetData -> list product -> GVMap -> GVMap -> 
-                   GVMap -> list mblock -> mem -> 
+                   DGVMap -> list mblock -> mem -> 
                    cmds -> 
-                   GVMap -> list mblock -> mem -> 
+                   DGVMap -> list mblock -> mem -> 
                    trace -> Prop :=
 | dbSubblocks_nil : forall S TD Ps lc als gl fs Mem, 
     dbSubblocks S TD Ps fs gl lc als Mem nil lc als Mem trace_nil
@@ -301,12 +304,12 @@ with dbBlocks : system -> TargetData -> list product -> GVMap -> GVMap -> fdef -
     dbBlocks S TD Ps fs gl F S2 S3 t2 ->
     dbBlocks S TD Ps fs gl F S1 S3 (trace_app t1 t2)
 with dbFdef : value -> typ -> params -> system -> TargetData -> list product -> 
-              GVMap -> GVMap -> GVMap -> mem -> GVMap -> list mblock -> mem -> 
+              DGVMap -> GVMap -> GVMap -> mem -> DGVMap -> list mblock -> mem -> 
               block -> id -> option value -> trace -> Prop :=
 | dbFdef_func : forall S TD Ps gl fs fv fid lp lc rid fptr
                     l1 ps1 cs1 tmn1 fa rt la va lb Result lc1 tr1 Mem Mem1 als1
                     l2 ps2 cs21 cs22 lc2 als2 Mem2 tr2 lc3 als3 Mem3 tr3 gvs lc0,
-  getOperandValue TD fv lc gl = Some fptr -> 
+  @getOperandValue DGVs TD fv lc gl = Some fptr -> 
   lookupFdefViaPtr Ps fs fptr = 
     Some (fdef_intro (fheader_intro fa rt fid la va) lb) ->
   getEntryBlock (fdef_intro (fheader_intro fa rt fid la va) lb) = 
@@ -334,7 +337,7 @@ with dbFdef : value -> typ -> params -> system -> TargetData -> list product ->
 | dbFdef_proc : forall S TD Ps gl fs fv fid lp lc rid fptr
                     l1 ps1 cs1 tmn1 fa rt la va lb lc1 tr1 Mem Mem1 als1
                     l2 ps2 cs21 cs22 lc2 als2 Mem2 tr2 lc3 als3 Mem3 tr3 gvs lc0,
-  getOperandValue TD fv lc gl = Some fptr -> 
+  @getOperandValue DGVs TD fv lc gl = Some fptr -> 
   lookupFdefViaPtr Ps fs fptr = 
     Some (fdef_intro (fheader_intro fa rt fid la va) lb) ->
   getEntryBlock (fdef_intro (fheader_intro fa rt fid la va) lb) = 
@@ -370,29 +373,6 @@ Scheme dbCall_ind2 := Induction for dbCall Sort Prop
 
 Combined Scheme db_mutind from dbCall_ind2, dbSubblock_ind2, dbSubblocks_ind2,
                                dbBlock_ind2, dbBlocks_ind2, dbFdef_ind2.
-
-Tactic Notation "db_mutind_cases" tactic(first) tactic(c) :=
-  first;
-  [ c "dbCall_internal" | c "dbCall_external" | 
-    c "dbSubblock_intro" | c "dbSubblocks_nil" | c "dbSubblocks_cons" | 
-    c "dbBlock_intro" | c "dbBlocks_nil" | c "dbBlocks_cons" | 
-    c "dbFdef_func" | c "dbFdef_proc" ].
-
-Tactic Notation "dbCmd_cases" tactic(first) tactic(c) :=
-  first;
-  [ c "dbBop" | c "dbFBop" | c "dbExtractValue" | c "dbInsertValue" |
-    c "dbMalloc" | c "dbFree" |
-    c "dbAlloca" | c "dbLoad" | c "dbStore" | c "dbGEP" |
-    c "dbTrunc" | c "dbExt" | c "dbCast" | 
-    c "dbIcmp" | c "dbFcmp" | c "dbSelect" ].
-
-Tactic Notation "dbTerminator_cases" tactic(first) tactic(c) :=
-  first;
-  [ c "dbBranch" | c "dbBranch_uncond" ].
-
-Tactic Notation "dbCmds_cases" tactic(first) tactic(c) :=
-  first;
-  [ c "dbCmds_nil" | c "dbCmds_cons" ].
 
 Hint Constructors dbCmd dbCmds dbTerminator dbCall 
                   dbSubblock dbSubblocks dbBlock dbBlocks dbFdef.
@@ -581,37 +561,6 @@ Definition se_mutrec P1 P2 P3 P4 P5:=
                  (@list_sterm_l_rec2 P1 P2 P3 P4 P5 h1 h2 h3 h4 h5 h6 h7 h8 h9 h10 h11 h12 h13 h14 h15 h16 h17 h18 h19 h20 h21 h22 h23 h24 h25 h26 h27 h28))
             (@smem_rec2 P1 P2 P3 P4 P5 h1 h2 h3 h4 h5 h6 h7 h8 h9 h10 h11 h12 h13 h14 h15 h16 h17 h18 h19 h20 h21 h22 h23 h24 h25 h26 h27 h28))
       (@sframe_rec2 P1 P2 P3 P4 P5 h1 h2 h3 h4 h5 h6 h7 h8 h9 h10 h11 h12 h13 h14 h15 h16 h17 h18 h19 h20 h21 h22 h23 h24 h25 h26 h27 h28)).
-
-Tactic Notation "se_mut_cases" tactic(first) tactic(c) :=
-  first;
-  [ c "sterm_val" | 
-    c "sterm_bop" |
-    c "sterm_fbop" |
-    c "sterm_extractvalue" |
-    c "sterm_insertvalue" |
-    c "sterm_malloc" |
-    c "sterm_alloca" |
-    c "sterm_load" |
-    c "sterm_gep" |
-    c "sterm_trunc" |
-    c "sterm_ext" |
-    c "sterm_cast" |
-    c "sterm_icmp" |
-    c "sterm_fcmp" |
-    c "sterm_phi" |
-    c "sterm_select" |
-    c "list_sterm_nil" |
-    c "list_sterm_cons" |
-    c "list_sterm_l_nil" |
-    c "list_sterm_l_cons" |
-    c "smem_init" |
-    c "smem_malloc" |
-    c "smem_free" |
-    c "smem_alloca" |
-    c "smem_load" |
-    c "smem_store" |
-    c "sframe_init" |
-    c "sframe_alloca" ].
 
 Fixpoint map_list_sterm (A:Set) (f:sterm->A) (l0:list_sterm) {struct l0} 
   : list A :=
@@ -920,8 +869,8 @@ end.
 (* Denotational semantics of symbolic exe *)
 
 Inductive sterm_denotes_genericvalue : 
-   TargetData ->               (* CurTatgetData *)
-   GVMap ->                 (* local registers *)
+   TargetData ->            (* CurTatgetData *)
+   DGVMap ->                (* local registers *)
    GVMap ->                 (* global variables *)
    mem ->                   (* Memory *)
    sterm ->                 (* symbolic term *)
@@ -942,12 +891,12 @@ Inductive sterm_denotes_genericvalue :
   sterm_denotes_genericvalue TD lc gl Mem (sterm_fbop op0 fp0 st1 st2) gv3
 | sterm_extractvalue_denotes : forall TD lc gl Mem t1 st1 idxs0 gv1 gv2,
   sterm_denotes_genericvalue TD lc gl Mem st1 gv1 ->
-  extractGenericValue TD t1 gv1 idxs0 = Some gv2 ->
+  @extractGenericValue DGVs TD t1 gv1 idxs0 = Some gv2 ->
   sterm_denotes_genericvalue TD lc gl Mem (sterm_extractvalue t1 st1 idxs0) gv2
 | sterm_insertvalue_denotes: forall TD lc gl Mem t1 st1 t2 st2 idxs0 gv1 gv2 gv3,
   sterm_denotes_genericvalue TD lc gl Mem st1 gv1 ->
   sterm_denotes_genericvalue TD lc gl Mem st2 gv2 ->
-  insertGenericValue TD t1 gv1 idxs0 t2 gv2 = Some gv3 ->
+  @insertGenericValue DGVs TD t1 gv1 idxs0 t2 gv2 = Some gv3 ->
   sterm_denotes_genericvalue TD lc gl Mem (sterm_insertvalue t1 st1 t2 st2 idxs0) gv3
 | sterm_malloc_denotes : forall TD lc gl Mem0 Mem1 sm0 t0 st0 gv0 align0 tsz0 Mem2 mb,
   smem_denotes_mem TD lc gl Mem0 sm0 Mem1 ->
@@ -969,7 +918,7 @@ Inductive sterm_denotes_genericvalue :
 | sterm_gep_denotes : forall TD lc gl Mem ib0 t0 st0 sts0 gv0 gvs0 gv1,
   sterm_denotes_genericvalue TD lc gl Mem st0 gv0 ->
   sterms_denote_genericvalues TD lc gl Mem sts0 gvs0 ->
-  GEP TD t0 gv0 gvs0 ib0 = Some gv1 ->
+  @GEP DGVs TD t0 gv0 gvs0 ib0 = Some gv1 ->
   sterm_denotes_genericvalue TD lc gl Mem (sterm_gep ib0 t0 st0 sts0) gv1
 | sterm_trunc_denotes : forall TD lc gl Mem op0 t1 st1 t2 gv1 gv2,
   sterm_denotes_genericvalue TD lc gl Mem st1 gv1 ->
@@ -1052,11 +1001,11 @@ with smem_denotes_mem :
 .
 
 Inductive sframe_denotes_frame : 
-   TargetData ->               (* CurTatgetData *)
-   GVMap ->                 (* local registers *)
+   TargetData ->            (* CurTatgetData *)
+   DGVMap ->                (* local registers *)
    GVMap ->                 (* global variables *)
    list mblock ->           (* Track memory allocated by alloca *)
-   mem ->                  (* mem *)
+   mem ->                   (* mem *)
    sframe ->                (* symbolic frame *)
    list mblock ->           (* allocas that denotes sframe *)
    Prop :=
@@ -1089,32 +1038,6 @@ Scheme sterm_denotes_genericvalue_ind2 := Induction for sterm_denotes_genericval
 Combined Scheme sd_mutind from sterm_denotes_genericvalue_ind2, 
                                sterms_denote_genericvalues_ind2, 
                                smem_denotes_mem_ind2.
-
-Tactic Notation "sd_mutind_cases" tactic(first) tactic(c) :=
-  first;
-[ c "sterm_val_denotes"
-| c "sterm_bop_denotes"
-| c "sterm_fbop_denotes"
-| c "sterm_extractvalue_denotes"
-| c "sterm_insertvalue_denotes"
-| c "sterm_malloc_denotes"
-| c "sterm_alloca_denotes"
-| c "sterm_load_denotes"
-| c "sterm_gep_denotes"
-| c "sterm_trunc_denotes"
-| c "sterm_ext_denotes"
-| c "sterm_cast_denotes"
-| c "sterm_icmp_denotes" 
-| c "sterm_fcmp_denotes" 
-| c "sterm_select_denotes"
-| c "sterms_nil_denote"
-| c "sterms_cons_denote"
-| c "smem_init_denotes"
-| c "smem_malloc_denotes"
-| c "smem_free_denotes"
-| c "smem_alloca_denotes"
-| c "smem_load_denotes"
-| c "smem_store_denotes" ].
 
 Definition smap_denotes_gvmap TD lc gl Mem smap' lc' :=
 (forall id',  
@@ -1204,6 +1127,86 @@ match sm with
 end.
 
 End SimpleSE.
+
+Tactic Notation "se_db_mutind_cases" tactic(first) tactic(c) :=
+  first;
+  [ c "dbCall_internal" | c "dbCall_external" | 
+    c "dbSubblock_intro" | c "dbSubblocks_nil" | c "dbSubblocks_cons" | 
+    c "dbBlock_intro" | c "dbBlocks_nil" | c "dbBlocks_cons" | 
+    c "dbFdef_func" | c "dbFdef_proc" ].
+
+Tactic Notation "se_dbCmd_cases" tactic(first) tactic(c) :=
+  first;
+  [ c "dbBop" | c "dbFBop" | c "dbExtractValue" | c "dbInsertValue" |
+    c "dbMalloc" | c "dbFree" |
+    c "dbAlloca" | c "dbLoad" | c "dbStore" | c "dbGEP" |
+    c "dbTrunc" | c "dbExt" | c "dbCast" | 
+    c "dbIcmp" | c "dbFcmp" | c "dbSelect" ].
+
+Tactic Notation "se_dbTerminator_cases" tactic(first) tactic(c) :=
+  first;
+  [ c "dbBranch" | c "dbBranch_uncond" ].
+
+Tactic Notation "se_dbCmds_cases" tactic(first) tactic(c) :=
+  first;
+  [ c "dbCmds_nil" | c "dbCmds_cons" ].
+
+Tactic Notation "sd_mutind_cases" tactic(first) tactic(c) :=
+  first;
+[ c "sterm_val_denotes"
+| c "sterm_bop_denotes"
+| c "sterm_fbop_denotes"
+| c "sterm_extractvalue_denotes"
+| c "sterm_insertvalue_denotes"
+| c "sterm_malloc_denotes"
+| c "sterm_alloca_denotes"
+| c "sterm_load_denotes"
+| c "sterm_gep_denotes"
+| c "sterm_trunc_denotes"
+| c "sterm_ext_denotes"
+| c "sterm_cast_denotes"
+| c "sterm_icmp_denotes" 
+| c "sterm_fcmp_denotes" 
+| c "sterm_select_denotes"
+| c "sterms_nil_denote"
+| c "sterms_cons_denote"
+| c "smem_init_denotes"
+| c "smem_malloc_denotes"
+| c "smem_free_denotes"
+| c "smem_alloca_denotes"
+| c "smem_load_denotes"
+| c "smem_store_denotes" ].
+
+Tactic Notation "se_mut_cases" tactic(first) tactic(c) :=
+  first;
+  [ c "sterm_val" | 
+    c "sterm_bop" |
+    c "sterm_fbop" |
+    c "sterm_extractvalue" |
+    c "sterm_insertvalue" |
+    c "sterm_malloc" |
+    c "sterm_alloca" |
+    c "sterm_load" |
+    c "sterm_gep" |
+    c "sterm_trunc" |
+    c "sterm_ext" |
+    c "sterm_cast" |
+    c "sterm_icmp" |
+    c "sterm_fcmp" |
+    c "sterm_phi" |
+    c "sterm_select" |
+    c "list_sterm_nil" |
+    c "list_sterm_cons" |
+    c "list_sterm_l_nil" |
+    c "list_sterm_l_cons" |
+    c "smem_init" |
+    c "smem_malloc" |
+    c "smem_free" |
+    c "smem_alloca" |
+    c "smem_load" |
+    c "smem_store" |
+    c "sframe_init" |
+    c "sframe_alloca" ].
 
 (*****************************)
 (*

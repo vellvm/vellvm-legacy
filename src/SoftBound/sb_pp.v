@@ -9,12 +9,25 @@ Require Import genericvalues.
 Require Import sb_def.
 Require Import sb_metadata.
 
-Module SBspecPP (GVsSig : GenericValuesSig).
+Module SBspecPP.
 
-Module Export SBSEM := SBspecMetadata GVsSig.
+Export OpsemPP.
+Export SBspecMetadata.
+
+Section SBspecPP.
+
+Context {GVsSig : GenericValues}.
 
 (*****************************************)
 (* Definitions *)
+
+Notation GVs := GVsSig.(GVsT).
+Definition GVsMap := list (id * GVs).
+Notation "gv @ gvs" := 
+  (GVsSig.(instantiate_gvs) gv gvs) (at level 43, right associativity).
+Notation "$ gv # t $" := (GVsSig.(gv2gvs) gv t) (at level 41).
+Notation "vidxs @@ vidxss" := (in_list_gvs vidxs vidxss) 
+  (at level 43, right associativity).
 
 Definition wf_rmap (f:fdef) (lc:GVsMap) (rm:rmetadata) : Prop :=
 forall id1 gv1 t1,
@@ -46,7 +59,7 @@ wf_rmetadata TD M rm /\
 exists l1, exists ps, exists cs',
 b = block_intro l1 ps (cs'++cs) tmn.
 
-Definition wf_call (ec:ExecutionContext) (ecs:ECStack) : Prop :=
+Definition wf_call (ec:@ExecutionContext GVsSig) (ecs:@ECStack GVsSig) : Prop :=
 let '(mkEC f _ _ _ _ _ _) := ec in
 forall b, blockInFdefB b f ->
 let '(block_intro _ _ _ tmn) := b in
@@ -290,7 +303,7 @@ Proof.
     destruct c'; inv H1; auto.
     destruct n; inv H0; auto.
     destruct t; tinv H1.
-    destruct (GVsSig.lift_op1 (fit_gv (los, nts) t) g t); tinv H1.
+    destruct (lift_op1 GVsSig (fit_gv (los, nts) t) g t); tinv H1.
     inv Hwfc. inv H6. inv H15.
     clear H19 H17 H8 H18 H16 H20 H7.
     assert (lookupTypViaIDFromFdef F' i0 = Some typ1) as J.
@@ -327,7 +340,7 @@ Proof.
     destruct c'; try solve [inv H0; auto].
     destruct n; inv H0; auto.
     destruct t; tinv H1.
-    destruct (GVsSig.lift_op1 (fit_gv (los, nts) t) g t); tinv H1.
+    destruct (lift_op1 GVsSig (fit_gv (los, nts) t) g t); tinv H1.
     inv Hwfc. inv H6. inv H15.
     clear H19 H17 H8 H18 H16 H20 H7.
     assert (lookupTypViaIDFromFdef F' i0 = Some typ1) as J.
@@ -365,7 +378,7 @@ Qed.
 Lemma getIncomingValuesForBlockFromPHINodes__wf_rmap : forall PNs TD b gl lc rm
    re id1 gv1 opmd1 t1,
   NoDup (getPhiNodesIDs PNs) ->
-  getIncomingValuesForBlockFromPHINodes TD PNs b gl lc rm = Some re ->
+  @getIncomingValuesForBlockFromPHINodes GVsSig TD PNs b gl lc rm = Some re ->
   In (id1,gv1,opmd1) re ->
   lookupTypViaIDFromPhiNodes PNs id1 = Some (typ_pointer t1) ->
   opmd1 <> None.
@@ -582,7 +595,7 @@ Proof.
 
       remember (_initializeFrameValues TD la2 ogvs2' lc1 rm1) as R.      
       destruct R as [[lc2 rm2]|]; tinv Hinit2.
-      destruct (GVsSig.lift_op1 (fit_gv TD t) gv t); tinv Hinit2.
+      destruct (lift_op1 GVsSig (fit_gv TD t) gv t); tinv Hinit2.
       remember (isPointerTypB t) as R1.
       destruct R1; inv Hinit2; simpl.
         destruct opmd as [[md ?]|]; inv H0.
@@ -679,7 +692,7 @@ Ltac preservation_tac HwfS1 :=
 
 Lemma wf_sbExecutionContext__wf_ExecutionContext : forall TD M ps sbEC, 
   wf_ExecutionContext TD M ps sbEC -> 
-  Sem.wf_ExecutionContext TD ps (sbEC__EC sbEC).
+  OpsemPP.wf_ExecutionContext TD ps (sbEC__EC sbEC).
 Proof.
   intros.
   destruct sbEC.
@@ -690,7 +703,7 @@ Qed.
 
 Lemma wf_sbcall__wf_call : forall sbEC sbECs,
   wf_call sbEC sbECs -> 
-  Sem.wf_call (sbEC__EC sbEC) (sbECs__ECs sbECs).
+  OpsemPP.wf_call (sbEC__EC sbEC) (sbECs__ECs sbECs).
 Proof.
   intros.
   destruct sbEC.  
@@ -708,7 +721,7 @@ Qed.
 
 Lemma wf_sbECs__wf_ECs : forall TD M ps sbECs, 
   wf_ECStack TD M ps sbECs -> 
-  Sem.wf_ECStack TD ps (sbECs__ECs sbECs).
+  OpsemPP.wf_ECStack TD ps (sbECs__ECs sbECs).
 Proof.
   induction sbECs; simpl; intros; auto.
     destruct H as [J1 [J2 J3]].
@@ -717,7 +730,7 @@ Proof.
 Qed.  
 
 Lemma wf_sbState__wf_State : forall cfg sbSt, 
-  wf_State cfg sbSt -> Sem.wf_State cfg (sbState__State sbSt).
+  wf_State cfg sbSt -> OpsemPP.wf_State cfg (sbState__State sbSt).
 Proof.
   intros.
   destruct sbSt. destruct cfg. destruct CurTargetData0.
@@ -743,7 +756,7 @@ Ltac preservation_simpl :=
                    |} :: _;
            Mem := _;
            Mmap := _ |} ,
-      HwfLLVM2 : Sem.wf_State {|
+      HwfLLVM2 : OpsemPP.wf_State {|
                   CurSystem := _;
                   CurTargetData := _;
                   CurProducts := _;
@@ -793,7 +806,7 @@ Ltac preservation_tac :=
                    |} :: ?EC;
            Mem := ?Mem0;
            Mmap := ?MM |} ,
-      HwfLLVM2 : Sem.wf_State {|
+      HwfLLVM2 : OpsemPP.wf_State {|
                   CurSystem := ?S;
                   CurTargetData := (?los, ?nts);
                   CurProducts := ?Ps;
@@ -837,8 +850,8 @@ Ltac preservation_tac :=
 
 Ltac ctx_simpl' :=
   match goal with
-  | [H1 : Sem.getOperandValue (?los, ?nts) ?vp ?lc ?gl = _,
-     H2 : Sem.getOperandValue (?los, ?nts) ?vp ?lc ?gl = _ |- _ ] =>
+  | [H1 : Opsem.getOperandValue (?los, ?nts) ?vp ?lc ?gl = _,
+     H2 : Opsem.getOperandValue (?los, ?nts) ?vp ?lc ?gl = _ |- _ ] =>
     rewrite H1 in H2; inv H2
   | [H1 : getOperandValue (?los, ?nts) ?vp ?lc ?gl = _,
      H2 : getOperandValue (?los, ?nts) ?vp ?lc ?gl = _ |- _ ] =>
@@ -877,7 +890,7 @@ Opaque wf_mmetadata wf_rmetadata.
   rename H into HnsInsn_delta.
   rename H0 into HnsInsn_llvm.
   assert (HwfLLVM2 := HnsInsn_llvm).
-  apply Sem.preservation in HwfLLVM2; auto using wf_sbState__wf_State.
+  apply OpsemPP.preservation in HwfLLVM2; auto using wf_sbState__wf_State.
   (sb_sInsn_cases (destruct HnsInsn_delta) Case); 
     subst; simpl in HnsInsn_llvm; inv HnsInsn_llvm; try invert_prop_reg_metadata;
     try destruct TD as [los nts].
@@ -1278,7 +1291,7 @@ Qed.
 Lemma get_const_metadata_isnt_stuck : forall S TD Mem gl vc gv ct bc ec,
   wf_global_ptr S TD Mem gl ->
   wf_const S TD vc ct ->
-  const2GV TD gl vc = Some gv ->
+  @const2GV GVsSig TD gl vc = Some gv ->
   get_const_metadata vc = Some (bc, ec) ->
   exists blk, exists bofs, exists eofs,
     LLVMgv.const2GV TD gl bc = Some ((Vptr blk bofs, AST.Mint 31)::nil) /\ 
@@ -1350,7 +1363,7 @@ Proof.
   
     remember (get_const_metadata c) as R.
     destruct R as [[bc ec]|]; eauto.
-      remember (const2GV (los, nts) gl c) as R.
+      remember (@const2GV GVsSig (los, nts) gl c) as R.
       destruct R; try solve [inv Hget].
       inv Hwfv.
       symmetry in HeqR0.
@@ -1389,7 +1402,7 @@ Lemma wf_phinodes__getIncomingValuesForBlockFromPHINodes : forall
   (H8 : wf_phinodes nil s (module_intro los nts ps) f
          (block_intro l0 ps' cs' tmn') ps2)
   rm (Hwfm: wf_rmap f lc rm) re
-  (HgetIn : Sem.getIncomingValuesForBlockFromPHINodes (los, nts) ps2 
+  (HgetIn : Opsem.getIncomingValuesForBlockFromPHINodes (los, nts) ps2 
        b gl lc = ret re)
   (Hin: exists ps1, ps' = ps1 ++ ps2),
    exists RVs : list (id * GVs * option metadata),
@@ -1407,7 +1420,7 @@ Proof.
     destruct R0 as [v|]; tinv HgetIn.
     remember (getOperandValue (los, nts) v lc gl) as R1.
     destruct R1 as [gv1|]; tinv HgetIn.
-    remember (Sem.getIncomingValuesForBlockFromPHINodes 
+    remember (Opsem.getIncomingValuesForBlockFromPHINodes 
       (los, nts) ps2 b gl lc) as R2.
     destruct R2; inv HgetIn.
     inv H8. 
@@ -1434,7 +1447,7 @@ Lemma llvm_sb_updateValuesForNewBlock : forall lc rm re RVs,
   matched_incoming_values re RVs ->
   exists rm' : rmetadata,
     ret updateValuesForNewBlock RVs lc rm =
-    ret (Sem.updateValuesForNewBlock re lc, rm').
+    ret (Opsem.updateValuesForNewBlock re lc, rm').
 Proof.
   induction 1; simpl; eauto.
     destruct x. destruct y. destruct p.
@@ -1453,7 +1466,7 @@ List.Forall2 (fun gv1 e2 => let '(gv2, _) := e2 in gv1 = gv2) re1 re2.
 Hint Unfold matched_params.
 
 Lemma params2GVs_isnt_stuck : forall TD lc gl rm p re
-  (J : Sem.params2GVs TD p lc gl = ret re),
+  (J : Opsem.params2GVs TD p lc gl = ret re),
   exists gvs, params2GVs TD p lc gl rm = Some gvs /\ 
     matched_params re gvs.
 Proof.
@@ -1462,7 +1475,7 @@ Proof.
 
     destruct a.
     destruct (getOperandValue TD v lc gl) as [gv|]; tinv J.
-    remember (Sem.params2GVs TD p lc gl) as R.
+    remember (Opsem.params2GVs TD p lc gl) as R.
     destruct R as [gvs|]; inv J.
     destruct (@IHp gvs) as [gvs' [J1 J2]]; auto.
     rewrite J1.
@@ -1471,7 +1484,7 @@ Qed.
 
 Lemma initializeFrameValues__total_aux : forall TD la2 gvs1 gvs2 lc1 rm1 lc,
   matched_params gvs1 gvs2 ->
-  Sem._initializeFrameValues TD la2 gvs1 lc1 = Some lc ->
+  Opsem._initializeFrameValues TD la2 gvs1 lc1 = Some lc ->
   exists rm, _initializeFrameValues TD la2 gvs2 lc1 rm1 = Some (lc, rm).
 Proof.
   induction la2; simpl in *; intros.
@@ -1480,7 +1493,7 @@ Proof.
     destruct a. destruct p.
     unfold prop_reg_metadata.
     inv H.
-      remember (Sem._initializeFrameValues TD la2 nil lc1) as R.
+      remember (Opsem._initializeFrameValues TD la2 nil lc1) as R.
       destruct R; tinv H0.
       edestruct IHla2 with (rm1:=rm1); eauto. 
       rewrite H.
@@ -1488,9 +1501,9 @@ Proof.
       destruct (isPointerTypB t); eauto.
 
       destruct y. subst.
-      remember (Sem._initializeFrameValues TD la2 l0 lc1) as R.
+      remember (Opsem._initializeFrameValues TD la2 l0 lc1) as R.
       destruct R; tinv H0.
-      destruct (GVsSig.lift_op1 (fit_gv TD t) g t); inv H0.
+      destruct (lift_op1 GVsSig (fit_gv TD t) g t); inv H0.
       edestruct IHla2 with (rm1:=rm1); eauto. 
       rewrite H.
       destruct (isPointerTypB t); eauto.
@@ -1499,21 +1512,21 @@ Qed.
 
 Lemma initLocal__total : forall gvs1 gvs2 TD lc la, 
   matched_params gvs1 gvs2 ->
-  Sem.initLocals TD la gvs1 = ret lc ->
+  Opsem.initLocals TD la gvs1 = ret lc ->
   exists rm, initLocals TD la gvs2 = Some (lc, rm).
 Proof.
   intros.
   unfold initLocals.
-  unfold Sem.initLocals in H0.
+  unfold Opsem.initLocals in H0.
   eapply initializeFrameValues__total_aux; eauto.
 Qed.
 
 Lemma exCallUpdateLocals_isnt_stuck : forall TD t n i0 o lc rm lc',
-  Sem.exCallUpdateLocals TD t n i0 o lc = Some lc' ->
+  @Opsem.exCallUpdateLocals GVsSig TD t n i0 o lc = Some lc' ->
   exists rm', exCallUpdateLocals TD t n i0 o lc rm = Some (lc', rm').
 Proof.
   intros.
-  unfold Sem.exCallUpdateLocals in H.
+  unfold Opsem.exCallUpdateLocals in H.
   unfold exCallUpdateLocals.
   destruct n; inv H; eauto.
   destruct o; tinv H1.
@@ -1876,7 +1889,7 @@ match cfg with
             match lookupFdefViaPtr ps fs fptr, 
                   lookupExFdecViaPtr ps fs fptr with
             | None, Some (fdec_intro (fheader_intro fa rt fid la va)) =>
-                match Sem.params2GVs td p lc gl with
+                match Opsem.params2GVs td p lc gl with
                 | Some gvss =>
                   exists gvs, gvs @@ gvss /\
                   match callExternalFunction M fid gvs with
@@ -1921,7 +1934,7 @@ Ltac SSSSSSCase name := Case_aux subsubsubsubsubsubcase name.
 Ltac SSSSSSSCase name := Case_aux subsubsubsubsubsubsubcase name.
 
 Lemma llvm_isFinialState__sb_isFinialState : forall S,
-  Sem.s_isFinialState (sbState__State S) = true -> 
+  @Opsem.s_isFinialState GVsSig (sbState__State S) = true -> 
   s_isFinialState S = true.
 Proof.
   intros S Hfinal.
@@ -1935,11 +1948,11 @@ Proof.
 Qed.
 
 Lemma llvm_exCallUpdateLocals__sb_exCallUpdateLocals : forall TD t n i0 o lc rm,
-  Sem.exCallUpdateLocals TD t n i0 o lc = None ->
+  @Opsem.exCallUpdateLocals GVsSig TD t n i0 o lc = None ->
   exCallUpdateLocals TD t n i0 o lc rm = None.
 Proof.
   intros.
-  unfold Sem.exCallUpdateLocals in H.
+  unfold Opsem.exCallUpdateLocals in H.
   unfold exCallUpdateLocals.
   destruct n; tinv H.
   destruct o; tinv H; auto.
@@ -2122,9 +2135,9 @@ Lemma store_progress : forall s los nts ps f b i0 t v v0 a cs tmn lc rm als ecs
                    Allocas := als |} :: ecs;
             Mem := M;
             Mmap := Mmap0 |})
-  (J : Sem.getOperandValue (los, nts) v lc gl = Some gvs1)
+  (J : Opsem.getOperandValue (los, nts) v lc gl = Some gvs1)
   (Hin : gv @ gvs1)
-  (J0 : Sem.getOperandValue (los, nts) v0 lc gl = Some gvs2)
+  (J0 : Opsem.getOperandValue (los, nts) v0 lc gl = Some gvs2)
   (Hin0 : mgv @ gvs2),
   (exists S2 : State,
       exists tr : trace,
@@ -2272,12 +2285,12 @@ Ltac elim_undef_false Hundef :=
 
 Lemma llvm_undef__sb_progress : forall cfg (S1 : State)
   (HwfS1 : wf_State cfg S1)
-  (Hundef : Sem.undefined_state cfg (sbState__State S1)),
+  (Hundef : OpsemPP.undefined_state cfg (sbState__State S1)),
   (exists S2 : State, exists tr : trace, sInsn cfg S1 S2 tr) \/
   undefined_state cfg S1.
 Proof.
   intros.
-  unfold Sem.undefined_state in Hundef.
+  unfold OpsemPP.undefined_state in Hundef.
   destruct cfg as [s [los nts] ps gl fs]. 
   destruct S1 as [ecs M]; simpl in Hundef.
   destruct ecs; simpl in Hundef.
@@ -2349,18 +2362,18 @@ Proof.
           try solve [inversion Hundef | undefbehave].
         destruct f0.
         destruct f0.     
-        destruct (Sem.params2GVs (los, nts) p lc gl); tinv Hundef.
+        destruct (Opsem.params2GVs (los, nts) p lc gl); tinv Hundef.
         destruct Hundef as [gvs [Hin2 Hundef]].
         exists gvs. split; auto.
         destruct (callExternalFunction M i1 gvs) as [[]|];
           try solve [inversion Hundef | undefbehave].
-        remember (Sem.exCallUpdateLocals (los, nts) t n i0 o lc) as R.
+        remember (Opsem.exCallUpdateLocals (los, nts) t n i0 o lc) as R.
         destruct R; try solve [inversion Hundef | undefbehave].
         rewrite llvm_exCallUpdateLocals__sb_exCallUpdateLocals; auto.
 Qed.
 
 Lemma sbECs__ECs_cons_inv : forall ec11 ecs12 ecs2, 
-  ec11 :: ecs12 = sbECs__ECs ecs2 ->
+  ec11 :: ecs12 = @sbECs__ECs GVsSig ecs2 ->
   exists ec21, exists ecs22, ecs2 = ec21 :: ecs22 /\
     ec11 = sbEC__EC ec21 /\ ecs12 = sbECs__ECs ecs22.
 Proof.
@@ -2369,7 +2382,7 @@ Proof.
 Qed.
 
 Lemma sbECs__ECs_cons_inv0 : forall F' B' cs' tmn' lc' als' ecs12 ecs2, 
- (Sem.mkEC F' B' cs' tmn' lc' als') :: ecs12 = sbECs__ECs ecs2 ->
+ (Opsem.mkEC F' B' cs' tmn' lc' als') :: ecs12 = @sbECs__ECs GVsSig ecs2 ->
   exists rm', exists ecs22, 
     ecs2 = (mkEC F' B' cs' tmn' lc' rm' als') :: ecs22 /\
     ecs12 = sbECs__ECs ecs22.
@@ -2381,7 +2394,7 @@ Qed.
 
 Ltac progress_tac_aux rm' :=
   match goal with
-  | [ Hstep' : Sem.sInsn {|
+  | [ Hstep' : Opsem.sInsn {|
                 CurSystem := ?s;
                 CurTargetData := (?los, ?nts);
                 CurProducts := ?ps;
@@ -2400,14 +2413,14 @@ Ltac progress_tac_aux rm' :=
                 Mem := _;
                 Mmap := ?Mmap0 |})
              {|
-             Sem.ECS := {|   Sem.CurFunction := ?f;
-                              Sem.CurBB := ?b;
-                              Sem.CurCmds := ?cs;
-                              Sem.Terminator := ?tmn;
-                              Sem.Locals := ?lc';
-                              Sem.Allocas := ?als |} :: 
+             Opsem.ECS := {|  Opsem.CurFunction := ?f;
+                              Opsem.CurBB := ?b;
+                              Opsem.CurCmds := ?cs;
+                              Opsem.Terminator := ?tmn;
+                              Opsem.Locals := ?lc';
+                              Opsem.Allocas := ?als |} :: 
                               sbECs__ECs ?ecs;
-             Sem.Mem := ?M |} ?tr |- _ ] =>
+             Opsem.Mem := ?M |} ?tr |- _ ] =>
     try solve [exists 
          {|
          ECS := {|
@@ -2447,7 +2460,7 @@ Proof.
   intros cfg S1 HwfS1.
   assert (Hllvm_progress := HwfS1).
   apply wf_sbState__wf_State in Hllvm_progress.
-  apply Sem.progress in Hllvm_progress.
+  apply OpsemPP.progress in Hllvm_progress.
   destruct Hllvm_progress as [His_final | [[S2 [tr Hstep]] | Hundef]];
     try solve [auto using llvm_isFinialState__sb_isFinialState |
                right; apply llvm_undef__sb_progress; auto].
@@ -2469,7 +2482,7 @@ Proof.
       assert (exists rm'', returnUpdateLocals (los,nts) 
         c' t v lc lc' rm rm' gl = Some (lc'', rm'')) as Hretup.
         unfold returnUpdateLocals, returnResult.
-        unfold Sem.returnUpdateLocals in H17.
+        unfold Opsem.returnUpdateLocals in H17.
         remember (getOperandValue (los, nts) v lc gl) as R. 
         destruct R; tinv H17.
         destruct c'; tinv H17.
@@ -2495,13 +2508,13 @@ Proof.
               try solve [eauto | inv Hwfc; eauto].
           destruct J2 as [md J2]. rewrite J2. 
           destruct n; inv H17; eauto.
-          destruct (GVsSig.lift_op1 (fit_gv (layouts5, namedts5) typ1) g typ1); 
+          destruct (lift_op1 GVsSig (fit_gv (layouts5, namedts5) typ1) g typ1); 
             inv H0.
           destruct (isPointerTypB typ1); eauto.
           
           destruct n; inv H17; eauto.
           destruct t0; tinv H0; eauto.
-          destruct (GVsSig.lift_op1 (fit_gv (los, nts) t0) g t0); inv H0.
+          destruct (lift_op1 GVsSig (fit_gv (los, nts) t0) g t0); inv H0.
           destruct (isPointerTypB t0); eauto.
          
       destruct Hretup as [rm'' Hretup].
@@ -2528,8 +2541,8 @@ Proof.
         (block_intro l' ps' cs' tmn') 
         (block_intro l1 ps1 (cs1++nil) (insn_br i0 v l0 l2)) gl lc rm = 
           Some (lc', rm')) as Hswitch.
-        unfold Sem.switchToNewBasicBlock in H19.
-        remember (Sem.getIncomingValuesForBlockFromPHINodes 
+        unfold Opsem.switchToNewBasicBlock in H19.
+        remember (Opsem.getIncomingValuesForBlockFromPHINodes 
           (los, nts) (getPHINodesFromBlock (block_intro l' ps' cs' tmn'))
           (block_intro l1 ps1 (cs1 ++ nil) (insn_br i0 v l0 l2)) gl lc) as R.
         destruct R; tinv H19.
@@ -2580,8 +2593,8 @@ Proof.
         (block_intro l' ps' cs' tmn') 
         (block_intro l1 ps1 (cs1 ++ nil) (insn_br_uncond i0 l0)) gl lc rm = 
           Some (lc', rm')) as Hswitch.
-        unfold Sem.switchToNewBasicBlock in H15.
-        remember (Sem.getIncomingValuesForBlockFromPHINodes 
+        unfold Opsem.switchToNewBasicBlock in H15.
+        remember (Opsem.getIncomingValuesForBlockFromPHINodes 
           (los, nts) (getPHINodesFromBlock (block_intro l' ps' cs' tmn'))
           (block_intro l1 ps1 (cs1 ++ nil) (insn_br_uncond i0 l0)) gl lc) as R.
         destruct R; tinv H15.
@@ -2744,7 +2757,7 @@ Proof.
     left. progress_tac_aux rm'.
 Qed.
 
-End SBspecPP.
+End SBspecPP. End SBspecPP.
 
 (*****************************)
 (*

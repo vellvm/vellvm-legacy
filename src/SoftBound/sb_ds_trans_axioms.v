@@ -39,77 +39,77 @@ Hint Unfold gmmd_args.
 Axiom free_doesnt_change_gmmd : forall M2 b2 lo hi Mem2' lc2 gl als
    bid0 eid0 bgv' egv' fs F B cs tmn S Ps EC TD v,
   Mem.free M2 b2 lo hi = ret Mem2' ->
-  DOS.Sem.sop_star (OpsemAux.mkCfg S TD Ps gl fs)
-    (DOS.Sem.mkState 
-      ((DOS.Sem.mkEC F B 
+  @Opsem.sop_star DGVs (OpsemAux.mkCfg S TD Ps gl fs)
+    (Opsem.mkState 
+      ((Opsem.mkEC F B 
         (insn_call bid0 false attrs gmb_typ gmb_fn (gmmd_args v)::
          insn_call eid0 false attrs gme_typ gme_fn (gmmd_args v)::
          cs) 
         tmn lc2 als)
         ::EC) M2)
-    (DOS.Sem.mkState 
-       ((DOS.Sem.mkEC F B cs tmn 
+    (Opsem.mkState 
+       ((Opsem.mkEC F B cs tmn 
          (updateAddAL _ (updateAddAL _ lc2 bid0 bgv') eid0 egv') als)::EC) 
         M2)
     trace_nil ->
-  DOS.Sem.sop_star (OpsemAux.mkCfg S TD Ps gl fs)
-    (DOS.Sem.mkState
-      ((DOS.Sem.mkEC F B 
+  Opsem.sop_star (OpsemAux.mkCfg S TD Ps gl fs)
+    (Opsem.mkState
+      ((Opsem.mkEC F B 
         (insn_call bid0 false attrs gmb_typ gmb_fn (gmmd_args v)::
          insn_call eid0 false attrs gme_typ gme_fn (gmmd_args v)::
          cs) 
         tmn lc2 als)
         ::EC) Mem2')
-    (DOS.Sem.mkState
-       ((DOS.Sem.mkEC F B cs tmn 
+    (Opsem.mkState
+       ((Opsem.mkEC F B cs tmn 
          (updateAddAL _ (updateAddAL _ lc2 bid0 bgv') eid0 egv') als)::EC) 
         Mem2')
     trace_nil.
 
 Axiom get_mmetadata_fn__alloc__preserve : forall Mem2 lo hi Mem2' mb2
   (HeqR2 : (Mem2', mb2) = Mem.alloc Mem2 lo hi)
-  (lc2 : GVMap) (gl : GVMap) (als : list mblock) (fs : GVMap) (F : fdef)
+  (lc2 : DGVMap) (gl : GVMap) (als : list mblock) (fs : GVMap) (F : fdef)
   (B : block) (cs : list cmd) (tmn : terminator) (S : system) (Ps : list product)
-  (EC : list DOS.Sem.ExecutionContext) (bgv' : GenericValue) 
+  (EC : list Opsem.ExecutionContext) (bgv' : GenericValue) 
   (egv' : GenericValue) bid0 eid0 TD v als,
-  DOS.Sem.sop_star (OpsemAux.mkCfg S TD Ps gl fs)
-     (DOS.Sem.mkState ((DOS.Sem.mkEC F B
+  Opsem.sop_star (OpsemAux.mkCfg S TD Ps gl fs)
+     (Opsem.mkState ((Opsem.mkEC F B
         (insn_call bid0 false attrs gmb_typ gmb_fn (gmmd_args v) ::
          insn_call eid0 false attrs gme_typ gme_fn (gmmd_args v) ::
          cs) tmn lc2 als) :: EC) Mem2)
-     (DOS.Sem.mkState ((DOS.Sem.mkEC F B cs tmn
+     (Opsem.mkState ((Opsem.mkEC F B cs tmn
         (updateAddAL _ (updateAddAL _ lc2 bid0 bgv') eid0 egv') als) :: EC) 
         Mem2)
      trace_nil ->
-  DOS.Sem.sop_star (OpsemAux.mkCfg S TD Ps gl fs)
-     (DOS.Sem.mkState ((DOS.Sem.mkEC F B
+  Opsem.sop_star (OpsemAux.mkCfg S TD Ps gl fs)
+     (Opsem.mkState ((Opsem.mkEC F B
         (insn_call bid0 false attrs gmb_typ gmb_fn (gmmd_args v) ::
          insn_call eid0 false attrs gme_typ gme_fn (gmmd_args v) ::
          cs) tmn lc2 als) :: EC) Mem2')
-     (DOS.Sem.mkState ((DOS.Sem.mkEC F B cs tmn 
+     (Opsem.mkState ((Opsem.mkEC F B cs tmn 
         (updateAddAL _ (updateAddAL _ lc2 bid0 bgv') eid0 egv') als) :: EC) 
         Mem2')
      trace_nil.
 
 Axiom get_mmetadata_fn__alloc__zeroout : forall Mem2 lo hi Mem2' mb2 cm
   (HeqR2 : (Mem2', mb2) = Mem.alloc Mem2 lo hi)
-  (lc2 : GVMap) (gl : GVMap) (als : list mblock) (fs : GVMap) (F : fdef)
+  (lc2 : DGVMap) (gl : GVMap) (als : list mblock) (fs : GVMap) (F : fdef)
   (B : block) (cs : list cmd) (tmn : terminator) (S : system) (Ps : list product)
-  (EC : list DOS.Sem.ExecutionContext) bid0 eid0 TD v als ofs,
+  (EC : list Opsem.ExecutionContext) bid0 eid0 TD v als ofs,
   getOperandValue TD v lc2 gl = 
     Some ((Vptr mb2 (Int.add 31 ofs (Int.repr 31 0)), cm)::nil) ->
-  DOS.Sem.sop_star (OpsemAux.mkCfg S TD Ps gl fs)
-     (DOS.Sem.mkState ((DOS.Sem.mkEC F B
+  Opsem.sop_star (OpsemAux.mkCfg S TD Ps gl fs)
+     (Opsem.mkState ((Opsem.mkEC F B
         (insn_call bid0 false attrs gmb_typ gmb_fn (gmmd_args v) ::
          insn_call eid0 false attrs gme_typ gme_fn (gmmd_args v) ::
          cs) tmn lc2 als) :: EC) Mem2')
-     (DOS.Sem.mkState ((DOS.Sem.mkEC F B cs tmn 
+     (Opsem.mkState ((Opsem.mkEC F B cs tmn 
         (updateAddAL _ (updateAddAL _ lc2 bid0 null) eid0 null) als) :: EC) 
         Mem2')
      trace_nil.
 
 Axiom assert_mptr_fn__ok : forall 
-  (lc2 : GVMap)
+  (lc2 : DGVMap)
   (Mem2 : mem)
   (mi : MoreMem.meminj)
   (t : typ)
@@ -140,20 +140,20 @@ Axiom assert_mptr_fn__ok : forall
   (J4 : gv_inject mi ((Vptr blk bofs, AST.Mint 31) :: nil) bgv2)
   (J5 : gv_inject mi ((Vptr blk eofs, AST.Mint 31) :: nil) egv2)
   S2 Ps2 F2 B2 cs2' als2 fs2 M2 tmn2 ECs2,
-  DOS.Sem.sInsn (OpsemAux.mkCfg S2 TD Ps2 gl fs2)
-       (DOS.Sem.mkState
-          ((DOS.Sem.mkEC F2 B2
+  Opsem.sInsn (OpsemAux.mkCfg S2 TD Ps2 gl fs2)
+       (Opsem.mkState
+          ((Opsem.mkEC F2 B2
             (insn_call fake_id true attrs assert_typ assert_fn
               ((p8, bv2)::(p8, ev2)::(p8, value_id ptmp)::(i32, type_size t):: 
                  (i32, vint1) :: nil):: 
              cs2') tmn2 
-            (updateAddAL GenericValue lc2 ptmp gvp2)
+            (updateAddAL _ lc2 ptmp gvp2)
              als2):: 
             ECs2) M2)
-       (DOS.Sem.mkState 
-          ((DOS.Sem.mkEC F2 B2
+       (Opsem.mkState 
+          ((Opsem.mkEC F2 B2
             cs2' tmn2 
-            (updateAddAL GenericValue lc2 ptmp gvp2)
+            (updateAddAL _ lc2 ptmp gvp2)
              als2):: 
             ECs2) M2) trace_nil.
 
@@ -163,23 +163,23 @@ Axiom simulation__set_mmetadata_fn : forall lc2 gl b ofs blk bofs eofs als2 tmn2
   mem_simulation mi TD gmb MM1 Mem1 Mem2 ->
   SBspecAux.get_reg_metadata TD gl rm v = Some (SBspecAux.mkMD blk bofs eofs) -> 
   lookupAL _ lc2 ptmp = Some pgv' ->
-  getOperandValue TD bv0 lc2 gl = Some bgv' ->
+  @Opsem.getOperandValue DGVs TD bv0 lc2 gl = Some bgv' ->
   getOperandValue TD ev0 lc2 gl = Some egv' ->
   gv_inject mi ((Vptr b ofs,cm)::nil) pgv' ->
   gv_inject mi ((Vptr blk bofs, AST.Mint 31)::nil) bgv' ->
   gv_inject mi ((Vptr blk eofs, AST.Mint 31)::nil) egv' ->
   exists Mem2',
-    DOS.Sem.sInsn (OpsemAux.mkCfg S2 TD Ps2 gl2 fs2)
-      (DOS.Sem.mkState 
-          ((DOS.Sem.mkEC F2 B2
+    Opsem.sInsn (OpsemAux.mkCfg S2 TD Ps2 gl2 fs2)
+      (Opsem.mkState 
+          ((Opsem.mkEC F2 B2
               (insn_call fake_id true attrs smmd_typ smmd_fn
                 ((p8, value_id ptmp) :: (p8, bv0) :: (p8, ev0) :: (p8, vnullp8)
                     :: (i32, vint1) :: (i32, vint1) :: nil):: 
                cs) tmn2 lc2
              als2):: 
             ECs2) Mem2)
-      (DOS.Sem.mkState 
-          ((DOS.Sem.mkEC F2 B2
+      (Opsem.mkState 
+          ((Opsem.mkEC F2 B2
               cs tmn2 lc2 als2):: 
             ECs2) Mem2') trace_nil /\
       mem_simulation mi TD gmb
@@ -188,15 +188,15 @@ Axiom simulation__set_mmetadata_fn : forall lc2 gl b ofs blk bofs eofs als2 tmn2
 
 Axiom set_mmetadata_fn__prop : forall TD Mem1 lc2 als2 Mem2 S2 Ps2 F2
    B2 tmn2 cs fs2 gl2 ECs2 lp,
-  DOS.Sem.sInsn (OpsemAux.mkCfg S2 TD Ps2 gl2 fs2)
-      (DOS.Sem.mkState 
-          ((DOS.Sem.mkEC F2 B2
+  @Opsem.sInsn DGVs (OpsemAux.mkCfg S2 TD Ps2 gl2 fs2)
+      (Opsem.mkState 
+          ((Opsem.mkEC F2 B2
               (insn_call fake_id true attrs smmd_typ smmd_fn lp ::
                cs) tmn2 lc2
              als2):: 
             ECs2) Mem1)
-      (DOS.Sem.mkState
-          ((DOS.Sem.mkEC F2 B2 cs tmn2 lc2 als2):: 
+      (Opsem.mkState
+          ((Opsem.mkEC F2 B2 cs tmn2 lc2 als2):: 
             ECs2) Mem2) trace_nil ->
   Mem.nextblock Mem1 <= Mem.nextblock Mem2 /\
   (forall b2, Mem.valid_block Mem1 b2 -> Mem.valid_block Mem2 b2) /\
@@ -207,7 +207,7 @@ Axiom dstk_spec : forall M,
 
 Axiom dstk_is_found : forall TD Ps gl lc fs, 
   exists fv,
-  DOS.Sem.getOperandValue TD dstk_fn gl lc = Some fv /\
+  @Opsem.getOperandValue DGVs TD dstk_fn gl lc = Some fv /\
   OpsemAux.lookupExFdecViaPtr Ps fs fv = Some
     (fdec_intro (fheader_intro sb_fnattrs dstk_typ dstk_fid nil false)).
 
@@ -231,25 +231,25 @@ Axiom stk_ret_sim : forall TD M1 M2 mi mgb MM bgv egv,
 
 Axiom ssb_is_found : forall TD Ps gl lc fs, 
   exists fv,
-  DOS.Sem.getOperandValue TD ssb_fn gl lc = Some fv /\
+  @Opsem.getOperandValue DGVs TD ssb_fn gl lc = Some fv /\
   OpsemAux.lookupExFdecViaPtr Ps fs fv = Some
     (fdec_intro (fheader_intro sb_fnattrs ssb_typ ssb_fid nil false)).
 
 Axiom sse_is_found : forall TD Ps gl lc fs, 
   exists fv,
-  DOS.Sem.getOperandValue TD sse_fn gl lc = Some fv /\
+  @Opsem.getOperandValue DGVs TD sse_fn gl lc = Some fv /\
   OpsemAux.lookupExFdecViaPtr Ps fs fv = Some
     (fdec_intro (fheader_intro sb_fnattrs sse_typ sse_fid nil false)).
 
 Axiom gsb_is_found : forall TD Ps gl lc fs, 
   exists fv,
-  DOS.Sem.getOperandValue TD gsb_fn gl lc = Some fv /\
+  @Opsem.getOperandValue DGVs TD gsb_fn gl lc = Some fv /\
   OpsemAux.lookupExFdecViaPtr Ps fs fv = Some
     (fdec_intro (fheader_intro sb_fnattrs gsb_typ gsb_fid nil false)).
 
 Axiom gse_is_found : forall TD Ps gl lc fs, 
   exists fv,
-  DOS.Sem.getOperandValue TD gse_fn gl lc = Some fv /\
+  @Opsem.getOperandValue DGVs TD gse_fn gl lc = Some fv /\
   OpsemAux.lookupExFdecViaPtr Ps fs fv = Some
     (fdec_intro (fheader_intro sb_fnattrs gse_typ gse_fid nil false)).
 
@@ -276,7 +276,7 @@ Axiom shadow_stack_init : forall la ogvs lc' rm' gl mi lc2 lp cs1 rm2 nts los
     ps1 l1 fv ft noret0 ca rid cs22 cs23 bs2 fh2 ECs2 M2 rm3 ex_ids3 fptr,
   wf_sb_mi mgb mi Mem0 M2 ->
   mem_simulation mi (los, nts) mgb MM Mem0 M2 -> 
-  DSB.SBSEM.initLocals (los, nts) la ogvs = Some (lc', rm') ->
+  @SBspec.initLocals DGVs (los, nts) la ogvs = Some (lc', rm') ->
   params_simulation (los,nts) gl mi lc2 ogvs 1 cs1 -> 
   ret cs1 = trans_params rm2 lp 1 ->
   gen_metadata_fdef nts
@@ -284,27 +284,27 @@ Axiom shadow_stack_init : forall la ogvs lc' rm' gl mi lc2 lp cs1 rm2 nts los
          (fdef_intro (fheader_intro fa rt fid la va) lb) = 
        ret (ex_ids3, rm3) ->
   trans_args rm3 la 1 = ret cs3 -> 
-  DOS.Sem.getOperandValue (los, nts) (wrap_call fv) lc2 gl2 = Some fptr ->
+  Opsem.getOperandValue (los, nts) (wrap_call fv) lc2 gl2 = Some fptr ->
   OpsemAux.lookupFdefViaPtr Ps2 fs2 fptr =
           ret fdef_intro (fheader_intro fa rt (wrapper_fid fid) la va)
                 (block_intro l1 ps1 (cs3 ++ cs4) tmn1 :: bs3) ->
   exists M2', exists lc2',
-  DOS.Sem.sop_star (OpsemAux.mkCfg S2 (los, nts) Ps2 gl2 fs2)
-    (DOS.Sem.mkState 
-      ((DOS.Sem.mkEC (fdef_intro fh2 bs2) B2
+  Opsem.sop_star (OpsemAux.mkCfg S2 (los, nts) Ps2 gl2 fs2)
+    (Opsem.mkState 
+      ((Opsem.mkEC (fdef_intro fh2 bs2) B2
         (insn_call fake_id true attrs astk_typ astk_fn 
            [val32 (Z_of_nat (length lp + 1))]:: 
         cs1 ++ insn_call rid noret0 ca ft (wrap_call fv) lp :: cs22 ++
         cs2' ++ cs23)
       tmn2 lc2 als2):: ECs2) M2)
-    (DOS.Sem.mkState
-      ((DOS.Sem.mkEC 
+    (Opsem.mkState
+      ((Opsem.mkEC 
         (fdef_intro (fheader_intro fa rt (wrapper_fid fid) la va)
                 (block_intro l1 ps1 (cs3 ++ cs4) tmn1 :: bs3))
         (block_intro l1 ps1 (cs3 ++ cs4) tmn1)
         cs4
       tmn1 lc2' nil):: 
-      (DOS.Sem.mkEC (fdef_intro fh2 bs2) B2
+      (Opsem.mkEC (fdef_intro fh2 bs2) B2
         (insn_call rid noret0 ca ft (wrap_call fv) lp :: cs22 ++ cs2' ++ cs23)
       tmn2 lc2 als2):: ECs2) M2') trace_nil /\
   wf_sb_mi mgb mi Mem0 M2' /\
@@ -325,23 +325,23 @@ Axiom shadow_stack_exfdec : forall la lc' mi lc2 lp cs1 nts los fptr
   mem_simulation mi (los, nts) mgb MM Mem0 M2 /\
   reg_simulation mi (los, nts) gl2 (fdef_intro fh1 bs1) rm rm2 lc lc2 ->
   OpsemAux.callExternalFunction Mem0 fid gvs = ret (oresult, Mem') ->
-  DSB.SBSEM.exCallUpdateLocals (los, nts) ft noret0 rid oresult lc rm = 
+  SBspec.exCallUpdateLocals (los, nts) ft noret0 rid oresult lc rm = 
     ret (lc', rm') ->
   ret cs1 = trans_params rm2 lp 1 ->
-  DOS.Sem.getOperandValue (los, nts) (wrap_call fv) lc2 gl2 = Some fptr ->
+  Opsem.getOperandValue (los, nts) (wrap_call fv) lc2 gl2 = Some fptr ->
   OpsemAux.lookupExFdecViaPtr Ps2 fs2 fptr =
           ret fdec_intro (fheader_intro fa rt (wrapper_fid fid) la va) ->
   exists M2', exists lc2',
-  DOS.Sem.sop_star (OpsemAux.mkCfg S2 (los, nts) Ps2 gl2 fs2)
-    (DOS.Sem.mkState 
-      ((DOS.Sem.mkEC (fdef_intro fh2 bs2) B2
+  Opsem.sop_star (OpsemAux.mkCfg S2 (los, nts) Ps2 gl2 fs2)
+    (Opsem.mkState 
+      ((Opsem.mkEC (fdef_intro fh2 bs2) B2
         (insn_call fake_id true attrs astk_typ astk_fn 
            [val32 (Z_of_nat (length lp + 1))]:: 
         cs1 ++ insn_call rid noret0 ca ft (wrap_call fv) lp :: cs22 ++
         cs2' ++ cs23)
       tmn2 lc2 als2):: ECs2) M2)
-    (DOS.Sem.mkState 
-      ((DOS.Sem.mkEC (fdef_intro fh2 bs2) B2
+    (Opsem.mkState 
+      ((Opsem.mkEC (fdef_intro fh2 bs2) B2
         (cs2' ++ cs23)
       tmn2 lc2' als2):: ECs2) M2') trace_nil /\
   wf_sb_mi mgb mi Mem' M2' /\
@@ -361,29 +361,29 @@ Axiom free_allocas_preserves_gse : forall M2 TD als2 M2' lp re,
 Axiom store_doesnt_change_gmmd : forall M2 b2 ofs v0 Mem2' lc2 gl als
    bid0 eid0 bgv' egv' fs F B cs tmn S Ps EC TD v ck,
   Mem.store ck M2 b2 ofs v0 = ret Mem2' ->
-  DOS.Sem.sop_star (OpsemAux.mkCfg S TD Ps gl fs) 
-    (DOS.Sem.mkState
-      ((DOS.Sem.mkEC F B 
+  @Opsem.sop_star DGVs (OpsemAux.mkCfg S TD Ps gl fs) 
+    (Opsem.mkState
+      ((Opsem.mkEC F B 
         (insn_call bid0 false attrs gmb_typ gmb_fn (gmmd_args v) ::
          insn_call eid0 false attrs gme_typ gme_fn (gmmd_args v) ::
          cs) 
         tmn lc2 als)
         ::EC) M2)
-    (DOS.Sem.mkState 
-       ((DOS.Sem.mkEC F B cs tmn 
+    (Opsem.mkState 
+       ((Opsem.mkEC F B cs tmn 
          (updateAddAL _ (updateAddAL _ lc2 bid0 bgv') eid0 egv') als)::EC) 
         M2)
     trace_nil ->
-  DOS.Sem.sop_star (OpsemAux.mkCfg S TD Ps gl fs) 
-    (DOS.Sem.mkState
-      ((DOS.Sem.mkEC F B 
+  Opsem.sop_star (OpsemAux.mkCfg S TD Ps gl fs) 
+    (Opsem.mkState
+      ((Opsem.mkEC F B 
         (insn_call bid0 false attrs gmb_typ gmb_fn (gmmd_args v) ::
          insn_call eid0 false attrs gme_typ gme_fn (gmmd_args v) ::
          cs) 
         tmn lc2 als)
         ::EC) Mem2')
-    (DOS.Sem.mkState 
-       ((DOS.Sem.mkEC F B cs tmn 
+    (Opsem.mkState 
+       ((Opsem.mkEC F B cs tmn 
          (updateAddAL _ (updateAddAL _ lc2 bid0 bgv') eid0 egv') als)::EC) 
         Mem2')
     trace_nil.

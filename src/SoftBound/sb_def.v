@@ -96,19 +96,26 @@ Definition set_mem_metadata TD MM (gv:GenericValue) (md:metadata)
 
 End SBspecAux.
 
-Module SBspec (GVsSig : GenericValuesSig).
+Module SBspec. 
 
+Export Opsem.
 Export SBspecAux.
-Module Export Sem := OpsemPP GVsSig.
 
-Definition prop_reg_metadata lc rmd pid gvp (md:metadata) : GVsMap * rmetadata :=
+Section SBspec.
+
+Context {GVsSig : GenericValues}.
+
+Definition prop_reg_metadata lc rmd pid gvp (md:metadata) 
+  : (@GVsMap GVsSig) * rmetadata :=
   (updateAddAL _ lc pid gvp, updateAddAL _ rmd pid md).
 
-Ltac invert_prop_reg_metadata :=
-  match goal with
-  | [H : prop_reg_metadata _ _ _ _ _ = (_, _) |- _ ] =>
-      inversion H; subst; eauto
-  end.
+Notation GVs := GVsSig.(GVsT).
+Definition GVsMap := list (id * GVs).
+Notation "gv @ gvs" := 
+  (GVsSig.(instantiate_gvs) gv gvs) (at level 43, right associativity).
+Notation "$ gv # t $" := (GVsSig.(gv2gvs) gv t) (at level 41).
+Notation "vidxs @@ vidxss" := (in_list_gvs vidxs vidxss) 
+  (at level 43, right associativity).
 
 Record ExecutionContext : Type := mkEC {
 CurFunction : fdef;
@@ -215,7 +222,7 @@ Definition returnUpdateLocals (TD:TargetData) (c':cmd) (rt:typ) (Result:value)
       | insn_call id0 false _ t _ _ =>
         match t with
         | typ_function ct _ _ =>
-           match (GVsSig.lift_op1 (fit_gv TD ct) gr ct) with
+           match (GVsSig.(lift_op1) (fit_gv TD ct) gr ct) with
            | Some gr' => 
               if isPointerTypB ct then 
                 Some (prop_reg_metadata lc' rm' id0 gr' md)
@@ -274,7 +281,7 @@ Fixpoint _initializeFrameValues TD (la:args) (lg:list (GVs*option metadata))
 match (la, lg) with
 | ((t, _, id0)::la', (gv, opmd)::lg') => 
    match _initializeFrameValues TD la' lg' lc rm,
-         GVsSig.lift_op1 (fit_gv TD t) gv t with
+         GVsSig.(lift_op1) (fit_gv TD t) gv t with
    | Some (lc',rm'), Some gv' =>
      if isPointerTypB t then
        match opmd with
@@ -589,7 +596,7 @@ Inductive sInsn_delta : Config -> State -> State -> Prop :=
   fptr @ fptrs -> 
   lookupExFdecViaPtr Ps fs fptr = 
     Some (fdec_intro (fheader_intro fa rt fid la va)) ->
-  Sem.params2GVs TD lp lc gl = Some gvss ->
+  Opsem.params2GVs TD lp lc gl = Some gvss ->
   gvs @@ gvss ->
   callExternalFunction Mem fid gvs = Some (oresult, Mem') ->
   exCallUpdateLocals TD ft noret rid oresult lc rm = Some (lc',rm') ->
@@ -607,21 +614,21 @@ match state with
 | _ => false
 end.
 
-Definition sbEC__EC (ec : ExecutionContext) : Sem.ExecutionContext :=
+Definition sbEC__EC (ec : ExecutionContext) : Opsem.ExecutionContext :=
 let '(mkEC f b cs tmn lc _ als) := ec in
-Sem.mkEC f b cs tmn lc als.
+Opsem.mkEC f b cs tmn lc als.
 
-Definition sbECs__ECs (ecs : ECStack) : Sem.ECStack := 
+Definition sbECs__ECs (ecs : ECStack) : Opsem.ECStack := 
 List.map sbEC__EC ecs.
 
-Definition sbState__State (st : State) : Sem.State :=
+Definition sbState__State (st : State) : Opsem.State :=
 let '(mkState ecs M _) := st in
-Sem.mkState (sbECs__ECs ecs) M.
+Opsem.mkState (sbECs__ECs ecs) M.
 
 Inductive sInsn : Config -> State -> State -> trace -> Prop :=
 | sInsn_intro : forall cfg S1 S2 tr,
     sInsn_delta cfg S1 S2 ->
-    Sem.sInsn cfg (sbState__State S1) (sbState__State S2) tr ->
+    Opsem.sInsn cfg (sbState__State S1) (sbState__State S2) tr ->
     sInsn cfg S1 S2 tr.
 
 Inductive sop_star : Config -> State -> State -> trace -> Prop :=
@@ -645,6 +652,16 @@ CoInductive sop_diverges : Config -> State -> Trace -> Prop :=
     sop_diverges cfg state2 tr2 ->
     sop_diverges cfg state1 (Trace_app tr1 tr2)
 .
+
+End SBspec. 
+
+Ltac invert_prop_reg_metadata :=
+  match goal with
+  | [H : prop_reg_metadata _ _ _ _ _ = (_, _) |- _ ] =>
+      inversion H; subst; eauto
+  end.
+
+Hint Constructors sInsn_delta sInsn sop_star sop_plus.
 
 End SBspec.
 

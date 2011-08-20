@@ -26,80 +26,81 @@ Require Import Floats.
 Require Import AST.
 Require Import Maps.
 Require Import opsem.
+Require Import opsem_props.
 Require Import opsem_wf.
-Require Import dopsem.
-Require Import ndopsem.
 
-Module OpsemInstantiation (DGVs NDGVs : GenericValuesSig).
+Module OpsemInstantiation.
 
-Module Export DOS := OpsemPP DGVs.
-Module Export NDOS := Opsem NDGVs.
-Import LLVMgv.
+Import Opsem.
+Export OpsemProps.
 
 Section Sec.
 
-Definition instantiate_gvs (gvs1:DGVs.t) (gvs2: NDGVs.t) : Prop :=
+Context {DGVs : GenericValues} {NDGVs : GenericValues}.
+
+Definition element_of (gvs1:DGVs.(GVsT)) (gvs2: NDGVs.(GVsT)) : Prop :=
 forall gv1, 
-  DGVs.instantiate_gvs gv1 gvs1 -> NDGVs.instantiate_gvs gv1 gvs2.
+  DGVs.(instantiate_gvs) gv1 gvs1 -> NDGVs.(instantiate_gvs) gv1 gvs2.
 
-Hint Unfold instantiate_gvs.
+Hint Unfold element_of.
 
-Lemma instantiate_gvs__incl : forall x y x0,
-  instantiate_gvs x y ->
-  DGVs.instantiate_gvs x0 x ->
-  NDGVs.instantiate_gvs x0 y.
+Lemma element_of__incl : forall x y x0,
+  element_of x y ->
+  DGVs.(instantiate_gvs) x0 x ->
+  NDGVs.(instantiate_gvs) x0 y.
 Proof. auto. Qed.
 
-Hypothesis instantiate_gvs__gv2gvs : forall gv t, 
-  instantiate_gvs (DGVs.gv2gvs gv t) (NDGVs.gv2gvs gv t).
+Hypothesis element_of__gv2gvs : forall gv t, 
+  element_of (DGVs.(gv2gvs) gv t) (NDGVs.(gv2gvs) gv t).
 
-Hypothesis instantiate_gvs__cgv2gvs : forall gv t, 
-  instantiate_gvs (DGVs.cgv2gvs gv t) (NDGVs.cgv2gvs gv t).
+Hypothesis element_of__cgv2gvs : forall gv t, 
+  element_of (DGVs.(cgv2gvs) gv t) (NDGVs.(cgv2gvs) gv t).
 
-Hypothesis instantiate_gvs__lift_op1 : forall f xs1 xs2 t ys1,
-  instantiate_gvs xs1 xs2 ->
-  DGVs.lift_op1 f xs1 t = Some ys1 ->
-  exists ys2, NDGVs.lift_op1 f xs2 t = Some ys2 /\ instantiate_gvs ys1 ys2.
+Hypothesis element_of__lift_op1 : forall f xs1 xs2 t ys1,
+  element_of xs1 xs2 ->
+  DGVs.(lift_op1) f xs1 t = Some ys1 ->
+  exists ys2, NDGVs.(lift_op1) f xs2 t = Some ys2 /\ element_of ys1 ys2.
 
-Hypothesis instantiate_gvs__lift_op2 : forall f xs1 ys1 xs2 ys2 t zxs1,
-  instantiate_gvs xs1 xs2 ->
-  instantiate_gvs ys1 ys2 ->
-  DGVs.lift_op2 f xs1 ys1 t = Some zxs1 ->
-  exists zxs2, NDGVs.lift_op2 f xs2 ys2 t = Some zxs2 /\ 
-    instantiate_gvs zxs1 zxs2.
+Hypothesis element_of__lift_op2 : forall f xs1 ys1 xs2 ys2 t zxs1,
+  element_of xs1 xs2 ->
+  element_of ys1 ys2 ->
+  DGVs.(lift_op2) f xs1 ys1 t = Some zxs1 ->
+  exists zxs2, NDGVs.(lift_op2) f xs2 ys2 t = Some zxs2 /\ 
+    element_of zxs1 zxs2.
 
-Fixpoint instantiate_locals (lc1 : DOS.Sem.GVsMap) (lc2 : NDOS.GVsMap): Prop :=
+Fixpoint instantiate_locals (lc1 : list (id * DGVs.(GVsT))) 
+  (lc2 : list (id * NDGVs.(GVsT))): Prop :=
 match lc1, lc2 with
 | nil, nil => True
 | (id1,gvs1)::lc1', (id2,gvs2)::lc2' => 
-    id1=id2 /\ instantiate_gvs gvs1 gvs2 /\ instantiate_locals lc1' lc2'
+    id1=id2 /\ element_of gvs1 gvs2 /\ instantiate_locals lc1' lc2'
 | _, _ => False
 end.
 
-Definition instantiate_EC (ec1 : DOS.Sem.ExecutionContext) 
-  (ec2 : NDOS.ExecutionContext) : Prop :=
+Definition instantiate_EC (ec1 : @ExecutionContext DGVs) 
+  (ec2 : @ExecutionContext NDGVs) : Prop :=
 match ec1, ec2 with
-| DOS.Sem.mkEC f1 b1 cs1 tmn1 lc1 als1, NDOS.mkEC f2 b2 cs2 tmn2 lc2 als2 =>
+| mkEC f1 b1 cs1 tmn1 lc1 als1, mkEC f2 b2 cs2 tmn2 lc2 als2 =>
     f1 = f2 /\ b1 = b2 /\ cs1 = cs2 /\ tmn1 = tmn2 /\
     instantiate_locals lc1 lc2 /\ als1 = als2
 end.
 
-Fixpoint instantiate_ECs (ecs1 : DOS.Sem.ECStack) (ecs2 : NDOS.ECStack) : Prop :=
+Fixpoint instantiate_ECs (ecs1 : @ECStack DGVs) (ecs2 : @ECStack NDGVs) : Prop :=
 match ecs1, ecs2 with
 | nil, nil => True
 | ec1::ecs1', ec2::ecs2' => instantiate_EC ec1 ec2 /\ instantiate_ECs ecs1' ecs2'
 | _, _ => False
 end.
 
-Definition instantiate_State (st1 : DOS.Sem.State) (st2 : NDOS.State) : Prop :=
+Definition instantiate_State (st1 : @State DGVs) (st2 : @State NDGVs) : Prop :=
 match st1, st2 with
-| DOS.Sem.mkState ecs1 M1, NDOS.mkState ecs2 M2 => instantiate_ECs ecs1 ecs2 /\ M1 = M2
+| mkState ecs1 M1, mkState ecs2 M2 => instantiate_ECs ecs1 ecs2 /\ M1 = M2
 end.
 
 Lemma instantiate_locals__lookup : forall lc1 lc2 id1 gv1,
   instantiate_locals lc1 lc2 -> 
   lookupAL _ lc1 id1 = Some gv1 ->
-  exists gvs2, lookupAL _ lc2 id1 = Some gvs2 /\ instantiate_gvs gv1 gvs2.
+  exists gvs2, lookupAL _ lc2 id1 = Some gvs2 /\ element_of gv1 gvs2.
 Proof.
   induction lc1; destruct lc2; simpl; intros id1 gv1 Hinst Hlk.  
     inv Hlk.
@@ -120,21 +121,21 @@ Qed.
 
 Lemma instantiate_locals__getOperandValue : forall TD v lc1 lc2 gl gvs1,
   instantiate_locals lc1 lc2 -> 
-  DOS.Sem.getOperandValue TD v lc1 gl = Some gvs1 ->
-  exists gvs2, NDOS.getOperandValue TD v lc2 gl = Some gvs2 /\
-    instantiate_gvs gvs1 gvs2.
+  getOperandValue TD v lc1 gl = Some gvs1 ->
+  exists gvs2, getOperandValue TD v lc2 gl = Some gvs2 /\
+    element_of gvs1 gvs2.
 Proof.
   intros.
   destruct v; simpl in *.
     eapply instantiate_locals__lookup; eauto.
 
-    unfold DOS.Sem.const2GV in H0. unfold NDOS.const2GV.
+    unfold const2GV in H0. unfold const2GV.
     destruct (_const2GV TD gl c) as [[gv ?]|]; inv H0.
-    eauto using instantiate_gvs__cgv2gvs.
+    eauto using element_of__cgv2gvs.
 Qed.
 
 Lemma instantiate_locals__updateAddAL : forall gvs3 gvs3',
-  instantiate_gvs gvs3 gvs3' ->
+  element_of gvs3 gvs3' ->
   forall lc1 lc2 id0,
   instantiate_locals lc1 lc2 -> 
   instantiate_locals (updateAddAL _ lc1 id0 gvs3) (updateAddAL _ lc2 id0 gvs3').
@@ -152,36 +153,36 @@ Lemma instantiate_locals__returnUpdateLocals : forall TD lc1 lc2 lc1' lc2' Resul
     gl lc1'' c,
   instantiate_locals lc1 lc2 -> 
   instantiate_locals lc1' lc2' -> 
-  DOS.Sem.returnUpdateLocals TD c Result lc1 lc1' gl = ret lc1'' ->
+  returnUpdateLocals TD c Result lc1 lc1' gl = ret lc1'' ->
   exists lc2'', 
-    NDOS.returnUpdateLocals TD c Result lc2 lc2' gl = ret lc2'' /\
+    returnUpdateLocals TD c Result lc2 lc2' gl = ret lc2'' /\
     instantiate_locals lc1'' lc2''. 
 Proof.
   intros.
-  unfold DOS.Sem.returnUpdateLocals in H1.
-  remember (DOS.Sem.getOperandValue TD Result lc1 gl) as R.
+  unfold returnUpdateLocals in H1.
+  remember (getOperandValue TD Result lc1 gl) as R.
   destruct R; tinv H1.
   symmetry in HeqR.
   eapply instantiate_locals__getOperandValue in HeqR; eauto.
   destruct HeqR as [gvs2 [J1 J2]].
-  unfold NDOS.returnUpdateLocals.
+  unfold returnUpdateLocals.
   rewrite J1. 
   destruct c; tinv H1.
   destruct n; inv H1; eauto.
   destruct t; tinv H3.
-  remember (DGVs.lift_op1 (fit_gv TD t) g t) as R.
+  remember (lift_op1 _ (fit_gv TD t) g t) as R.
   destruct R as [gr'|]; inv H3.
   symmetry in HeqR.
-  eapply instantiate_gvs__lift_op1 in HeqR; eauto.
+  eapply element_of__lift_op1 in HeqR; eauto.
   destruct HeqR as [ys2 [J3 J4]]. rewrite J3.
   eauto using instantiate_locals__updateAddAL.
 Qed.
 
 Lemma instantiate_locals__getIncomingValuesForBlockFromPHINodes : forall TD b
     gl lc1 lc2 (Hlc : instantiate_locals lc1 lc2) ps re1,  
-  DOS.Sem.getIncomingValuesForBlockFromPHINodes TD ps b gl lc1 = Some re1 ->
+  getIncomingValuesForBlockFromPHINodes TD ps b gl lc1 = Some re1 ->
   exists re2,
-    NDOS.getIncomingValuesForBlockFromPHINodes TD ps b gl lc2 = Some re2 /\
+    getIncomingValuesForBlockFromPHINodes TD ps b gl lc2 = Some re2 /\
     instantiate_locals re1 re2.
 Proof.
   induction ps; simpl; intros.  
@@ -189,12 +190,12 @@ Proof.
 
     destruct a.
     destruct (getValueViaBlockFromValuels l0 b); tinv H.
-    remember (DOS.Sem.getOperandValue TD v lc1 gl) as R.
+    remember (getOperandValue TD v lc1 gl) as R.
     destruct R; tinv H.
     symmetry in HeqR.  
     eapply instantiate_locals__getOperandValue in HeqR; eauto.
     destruct HeqR as [gvs2 [J1 J2]].
-    remember (DOS.Sem.getIncomingValuesForBlockFromPHINodes TD ps b gl lc1) as R1.
+    remember (getIncomingValuesForBlockFromPHINodes TD ps b gl lc1) as R1.
     destruct R1; inv H.  
     rewrite J1.
     symmetry in HeqR1.
@@ -206,8 +207,8 @@ Qed.
 Lemma instantiate_locals__updateValuesForNewBlock : forall lc1 lc2 re1 re2,
   instantiate_locals lc1 lc2 ->
   instantiate_locals re1 re2 ->
-  instantiate_locals (DOS.Sem.updateValuesForNewBlock re1 lc1)
-     (NDOS.updateValuesForNewBlock re2 lc2).
+  instantiate_locals (updateValuesForNewBlock re1 lc1)
+     (updateValuesForNewBlock re2 lc2).
 Proof.
   induction re1; destruct re2; simpl; intros; auto.
     inv H0.
@@ -218,14 +219,14 @@ Qed.
 
 Lemma instantiate_locals__switchToNewBasicBlock : forall TD lc1 lc2 gl lc1' b b',
   instantiate_locals lc1 lc2 -> 
-  DOS.Sem.switchToNewBasicBlock TD b' b gl lc1 = Some lc1' ->
-  exists lc2', NDOS.switchToNewBasicBlock TD b' b gl lc2 = Some lc2' /\
+  switchToNewBasicBlock TD b' b gl lc1 = Some lc1' ->
+  exists lc2', switchToNewBasicBlock TD b' b gl lc2 = Some lc2' /\
     instantiate_locals lc1' lc2'. 
 Proof.
   intros.
-  unfold DOS.Sem.switchToNewBasicBlock in H0.
-  unfold NDOS.switchToNewBasicBlock.
-  remember (DOS.Sem.getIncomingValuesForBlockFromPHINodes TD 
+  unfold switchToNewBasicBlock in H0.
+  unfold switchToNewBasicBlock.
+  remember (getIncomingValuesForBlockFromPHINodes TD 
     (getPHINodesFromBlock b') b gl lc1) as R.
   destruct R; inv H0.
   symmetry in HeqR.
@@ -237,93 +238,93 @@ Qed.
 
 Lemma instantiate_locals__BOP : forall TD lc1 lc2 gl v1 v2 gvs3 bop sz,
   instantiate_locals lc1 lc2 -> 
-  DOS.Sem.BOP TD lc1 gl bop sz v1 v2 = Some gvs3 ->
-  exists gvs3', NDOS.BOP TD lc2 gl bop sz v1 v2 = Some gvs3' /\
-    instantiate_gvs gvs3 gvs3'.
+  BOP TD lc1 gl bop sz v1 v2 = Some gvs3 ->
+  exists gvs3', BOP TD lc2 gl bop sz v1 v2 = Some gvs3' /\
+    element_of gvs3 gvs3'.
 Proof.
   intros.
-  apply DOS.SemP.BOP_inversion in H0.
+  apply BOP_inversion in H0.
   destruct H0 as [gv1 [gv2 [J1 [J2 J3]]]]; subst.
   eapply instantiate_locals__getOperandValue in J1; eauto.
   destruct J1 as [gvs1 [H1 H2]].
   eapply instantiate_locals__getOperandValue in J2; eauto.
   destruct J2 as [gvs2 [H3 H4]].
-  unfold NDOS.BOP.
+  unfold BOP.
   rewrite H1. rewrite H3.
-  eauto using instantiate_gvs__lift_op2.
+  eauto using element_of__lift_op2.
 Qed.
   
 Lemma instantiate_locals__FBOP : forall TD lc1 lc2 gl v1 v2 gv3 fbop fp,
   instantiate_locals lc1 lc2 -> 
-  DOS.Sem.FBOP TD lc1 gl fbop fp v1 v2 = Some gv3 ->
-  exists gvs3', NDOS.FBOP TD lc2 gl fbop fp v1 v2 = Some gvs3' /\
-    instantiate_gvs gv3 gvs3'.
+  FBOP TD lc1 gl fbop fp v1 v2 = Some gv3 ->
+  exists gvs3', FBOP TD lc2 gl fbop fp v1 v2 = Some gvs3' /\
+    element_of gv3 gvs3'.
 Proof.
   intros.
-  apply DOS.SemP.FBOP_inversion in H0.
+  apply FBOP_inversion in H0.
   destruct H0 as [gv1 [gv2 [J1 [J2 J3]]]]; subst.
   eapply instantiate_locals__getOperandValue in J1; eauto.
   destruct J1 as [gvs1 [H1 H2]].
   eapply instantiate_locals__getOperandValue in J2; eauto.
   destruct J2 as [gvs2 [H3 H4]].
-  unfold NDOS.FBOP.
+  unfold FBOP.
   rewrite H1. rewrite H3.
-  eauto using instantiate_gvs__lift_op2.
+  eauto using element_of__lift_op2.
 Qed.
 
 Lemma instantiate_locals__ICMP : forall TD lc1 lc2 gl v1 v2 gv3 c t,
   instantiate_locals lc1 lc2 -> 
-  DOS.Sem.ICMP TD lc1 gl c t v1 v2 = Some gv3 ->
-  exists gvs3', NDOS.ICMP TD lc2 gl c t v1 v2 = Some gvs3' /\
-    instantiate_gvs gv3 gvs3'.
+  ICMP TD lc1 gl c t v1 v2 = Some gv3 ->
+  exists gvs3', ICMP TD lc2 gl c t v1 v2 = Some gvs3' /\
+    element_of gv3 gvs3'.
 Proof.
   intros.
-  apply DOS.SemP.ICMP_inversion in H0.
+  apply ICMP_inversion in H0.
   destruct H0 as [gv1 [gv2 [J1 [J2 J3]]]]; subst.
   eapply instantiate_locals__getOperandValue in J1; eauto.
   destruct J1 as [gvs1 [H1 H2]].
   eapply instantiate_locals__getOperandValue in J2; eauto.
   destruct J2 as [gvs2 [H3 H4]].
-  unfold NDOS.ICMP.
+  unfold ICMP.
   rewrite H1. rewrite H3.
-  eauto using instantiate_gvs__lift_op2.
+  eauto using element_of__lift_op2.
 Qed.
 
 Lemma instantiate_locals__FCMP : forall TD lc1 lc2 gl v1 v2 gv3 c t,
   instantiate_locals lc1 lc2 -> 
-  DOS.Sem.FCMP TD lc1 gl c t v1 v2 = Some gv3 ->
-  exists gvs3', NDOS.FCMP TD lc2 gl c t v1 v2 = Some gvs3' /\
-    instantiate_gvs gv3 gvs3'.
+  FCMP TD lc1 gl c t v1 v2 = Some gv3 ->
+  exists gvs3', FCMP TD lc2 gl c t v1 v2 = Some gvs3' /\
+    element_of gv3 gvs3'.
 Proof.
   intros.
-  apply DOS.SemP.FCMP_inversion in H0.
+  apply FCMP_inversion in H0.
   destruct H0 as [gv1 [gv2 [J1 [J2 J3]]]]; subst.
   eapply instantiate_locals__getOperandValue in J1; eauto.
   destruct J1 as [gvs1 [H1 H2]].
   eapply instantiate_locals__getOperandValue in J2; eauto.
   destruct J2 as [gvs2 [H3 H4]].
-  unfold NDOS.FCMP.
+  unfold FCMP.
   rewrite H1. rewrite H3.
-  eauto using instantiate_gvs__lift_op2.
+  eauto using element_of__lift_op2.
 Qed.
 
-Definition instantiate_list_gvs (l1 : list DGVs.t) (l2 : list NDGVs.t) :=
-List.Forall2 instantiate_gvs l1 l2.
+Definition instantiate_list_gvs(l1 : list DGVs.(GVsT))(l2 : list NDGVs.(GVsT)) :=
+List.Forall2 element_of l1 l2.
 
 Hint Unfold instantiate_list_gvs.
 
 Lemma instantiate_locals__values2GVs : forall TD lc1 lc2 gl idxs vidxs,
   instantiate_locals lc1 lc2 -> 
-  DOS.Sem.values2GVs TD idxs lc1 gl = Some vidxs ->
-  exists vidxss, NDOS.values2GVs TD idxs lc2 gl = Some vidxss /\
+  values2GVs TD idxs lc1 gl = Some vidxs ->
+  exists vidxss, values2GVs TD idxs lc2 gl = Some vidxss /\
     instantiate_list_gvs vidxs vidxss.
 Proof.
   induction idxs; simpl; intros.
     inv H0. exists nil. auto.
 
-    remember (DOS.Sem.getOperandValue TD v lc1 gl) as R.
+    remember (getOperandValue TD v lc1 gl) as R.
     destruct R; tinv H0.
-    remember (DOS.Sem.values2GVs TD idxs lc1 gl) as R1.
+    remember (values2GVs TD idxs lc1 gl) as R1.
     destruct R1; inv H0.
     symmetry in HeqR.
     eapply instantiate_locals__getOperandValue in HeqR; eauto.
@@ -334,32 +335,32 @@ Qed.
 
 Lemma in_instantiate_list_gvs : forall vidxss1 vidxss2 vidxs1
   (Hinst1 : instantiate_list_gvs vidxss1 vidxss2)
-  (Hin1 : DOS.Sem.in_list_gvs vidxs1 vidxss1),
-  NDOS.in_list_gvs vidxs1 vidxss2.
+  (Hin1 : in_list_gvs vidxs1 vidxss1),
+  in_list_gvs vidxs1 vidxss2.
 Proof.
   intros.
   generalize dependent vidxs1.
   induction Hinst1; intros; inv Hin1; auto.
-    eapply IHHinst1 in H4; eauto using instantiate_gvs__incl.
+    eapply IHHinst1 in H4; eauto using element_of__incl.
 Qed.
 
 Lemma instantiate_locals__GEP : forall TD t mp1 mp1' vidxs1 vidxss1 vidxss2 
     inbounds mps2,
   instantiate_list_gvs vidxss1 vidxss2 ->
-  instantiate_gvs mp1 mps2 ->
-  DOS.Sem.in_list_gvs vidxs1 vidxss1 ->
-  DOS.Sem.GEP TD t mp1 vidxs1 inbounds = Some mp1' ->
+  element_of mp1 mps2 ->
+  in_list_gvs vidxs1 vidxss1 ->
+  GEP TD t mp1 vidxs1 inbounds = Some mp1' ->
   exists vidxs2, exists mps2', 
-    NDOS.in_list_gvs vidxs2 vidxss2 /\
-    NDOS.GEP TD t mps2 vidxs2 inbounds = Some mps2' /\ 
-    instantiate_gvs mp1' mps2'.
+    in_list_gvs vidxs2 vidxss2 /\
+    GEP TD t mps2 vidxs2 inbounds = Some mps2' /\ 
+    element_of mp1' mps2'.
 Proof.
   intros TD t mp1 mp1' vidxs1 vidxss1 vidxss2 inbounds mps2 Hinst1 Hinst2 Hin1 
     Hgep.
   inv Hgep.
-  unfold NDOS.GEP.
-  unfold DOS.Sem.GEP in H0.
-  eapply instantiate_gvs__lift_op1 in H0; eauto.
+  unfold GEP.
+  unfold GEP in H0.
+  eapply element_of__lift_op1 in H0; eauto.
   destruct H0 as [ys2 [J1 J2]].
   exists vidxs1.  
   eauto using in_instantiate_list_gvs.
@@ -368,97 +369,97 @@ Qed.
 Lemma instantiate_locals__extractGenericValue : forall TD lc1 lc2 t gv2
     cidxs gv1 gvs1,
   instantiate_locals lc1 lc2 -> 
-  instantiate_gvs gv1 gvs1 ->
-  DOS.Sem.extractGenericValue TD t gv1 cidxs = Some gv2 ->
-  exists gvs2, NDOS.extractGenericValue TD t gvs1 cidxs = Some gvs2 
-    /\ instantiate_gvs gv2 gvs2.
+  element_of gv1 gvs1 ->
+  extractGenericValue TD t gv1 cidxs = Some gv2 ->
+  exists gvs2, extractGenericValue TD t gvs1 cidxs = Some gvs2 
+    /\ element_of gv2 gvs2.
 Proof.
   intros.
-  unfold DOS.Sem.extractGenericValue in H1.
-  unfold NDOS.extractGenericValue.
+  unfold extractGenericValue in H1.
+  unfold extractGenericValue.
   destruct (intConsts2Nats TD cidxs); inv H1.
   destruct (mgetoffset TD t l0) as [[]|]; inv H3.
-  eauto using instantiate_gvs__lift_op1.
+  eauto using element_of__lift_op1.
 Qed.
 
 Lemma instantiate_locals__insertGenericValue : forall TD lc1 lc2 t1 t2 gv2 
     cidxs gv1 gvs1 gvs2 gv3,
   instantiate_locals lc1 lc2 -> 
-  instantiate_gvs gv1 gvs1 ->
-  instantiate_gvs gv2 gvs2 ->
-  DOS.Sem.insertGenericValue TD t1 gv1 cidxs t2 gv2 = Some gv3 ->
-  exists gvs3, NDOS.insertGenericValue TD t1 gvs1 cidxs t2 gvs2 = Some gvs3
-    /\ instantiate_gvs gv3 gvs3.
+  element_of gv1 gvs1 ->
+  element_of gv2 gvs2 ->
+  insertGenericValue TD t1 gv1 cidxs t2 gv2 = Some gv3 ->
+  exists gvs3, insertGenericValue TD t1 gvs1 cidxs t2 gvs2 = Some gvs3
+    /\ element_of gv3 gvs3.
 Proof.
   intros.
-  unfold DOS.Sem.insertGenericValue in H2.
-  unfold NDOS.insertGenericValue.
+  unfold insertGenericValue in H2.
+  unfold insertGenericValue.
   destruct (intConsts2Nats TD cidxs); inv H2.
   destruct (mgetoffset TD t1 l0) as [[]|]; inv H4.
-  eauto using instantiate_gvs__lift_op2.
+  eauto using element_of__lift_op2.
 Qed.
 
 Lemma instantiate_locals__CAST : forall TD lc1 lc2 gl t1 v1 t2 gv2 castop0,
   instantiate_locals lc1 lc2 -> 
-  DOS.Sem.CAST TD lc1 gl castop0 t1 v1 t2 = Some gv2 ->
-  exists gvs2', NDOS.CAST TD lc2 gl castop0 t1 v1 t2 = Some gvs2' 
-    /\ instantiate_gvs gv2 gvs2'.
+  CAST TD lc1 gl castop0 t1 v1 t2 = Some gv2 ->
+  exists gvs2', CAST TD lc2 gl castop0 t1 v1 t2 = Some gvs2' 
+    /\ element_of gv2 gvs2'.
 Proof.
   intros.
-  apply DOS.SemP.CAST_inversion in H0.
+  apply CAST_inversion in H0.
   destruct H0 as [gv1 [J1 J2]]; subst.
   eapply instantiate_locals__getOperandValue in J1; eauto.
   destruct J1 as [gvs1 [H1 H2]].
-  unfold NDOS.CAST.
+  unfold CAST.
   rewrite H1.
-  eauto using instantiate_gvs__lift_op1.
+  eauto using element_of__lift_op1.
 Qed.
 
 Lemma instantiate_locals__TRUNC : forall TD lc1 lc2 gl t1 v1 t2 gv2 top0,
   instantiate_locals lc1 lc2 -> 
-  DOS.Sem.TRUNC TD lc1 gl top0 t1 v1 t2 = Some gv2 ->
-  exists gvs2', NDOS.TRUNC TD lc2 gl top0 t1 v1 t2 = Some gvs2' 
-    /\ instantiate_gvs gv2 gvs2'.
+  TRUNC TD lc1 gl top0 t1 v1 t2 = Some gv2 ->
+  exists gvs2', TRUNC TD lc2 gl top0 t1 v1 t2 = Some gvs2' 
+    /\ element_of gv2 gvs2'.
 Proof.
   intros.
-  apply DOS.SemP.TRUNC_inversion in H0.
+  apply TRUNC_inversion in H0.
   destruct H0 as [gv1 [J1 J2]]; subst.
   eapply instantiate_locals__getOperandValue in J1; eauto.
   destruct J1 as [gvs1 [H1 H2]].
-  unfold NDOS.TRUNC.
+  unfold TRUNC.
   rewrite H1.
-  eauto using instantiate_gvs__lift_op1.
+  eauto using element_of__lift_op1.
 Qed.
 
 Lemma instantiate_locals__EXT : forall TD lc1 lc2 gl t1 v1 t2 gv2 top0,
   instantiate_locals lc1 lc2 -> 
-  DOS.Sem.EXT TD lc1 gl top0 t1 v1 t2 = Some gv2 ->
-  exists gvs2', NDOS.EXT TD lc2 gl top0 t1 v1 t2 = Some gvs2' 
-    /\ instantiate_gvs gv2 gvs2'.
+  EXT TD lc1 gl top0 t1 v1 t2 = Some gv2 ->
+  exists gvs2', EXT TD lc2 gl top0 t1 v1 t2 = Some gvs2' 
+    /\ element_of gv2 gvs2'.
 Proof.
   intros.
-  apply DOS.SemP.EXT_inversion in H0.
+  apply EXT_inversion in H0.
   destruct H0 as [gv1 [J1 J2]]; subst.
   eapply instantiate_locals__getOperandValue in J1; eauto.
   destruct J1 as [gvs1 [H1 H2]].
-  unfold NDOS.EXT.
+  unfold EXT.
   rewrite H1.
-  eauto using instantiate_gvs__lift_op1.
+  eauto using element_of__lift_op1.
 Qed.
 
 Lemma instantiate_locals__params2GVs : forall TD lc1 lc2 gl 
   (Hlc:instantiate_locals lc1 lc2) lp gvs1,
-  DOS.Sem.params2GVs TD lp lc1 gl = Some gvs1 ->
-  exists gvss2, NDOS.params2GVs TD lp lc2 gl = Some gvss2 /\
+  params2GVs TD lp lc1 gl = Some gvs1 ->
+  exists gvss2, params2GVs TD lp lc2 gl = Some gvss2 /\
     instantiate_list_gvs gvs1 gvss2.
 Proof.
   induction lp; simpl; intros.
     inv H. eauto.
 
     destruct a.
-    remember (DOS.Sem.getOperandValue TD v lc1 gl) as R1.
+    remember (getOperandValue TD v lc1 gl) as R1.
     destruct R1; tinv H.
-    remember (DOS.Sem.params2GVs TD lp lc1 gl) as R2.
+    remember (params2GVs TD lp lc1 gl) as R2.
     destruct R2; inv H.
     symmetry in HeqR1.
     eapply instantiate_locals__getOperandValue in HeqR1; eauto.
@@ -470,9 +471,9 @@ Qed.
 Lemma instantiate_locals__initializeFrameValues : forall TD lc1 lc2
   (H2: instantiate_locals lc1 lc2) la gvs1 gvs2 lc1'
   (H1 : instantiate_list_gvs gvs1 gvs2),
-  DOS.Sem._initializeFrameValues TD la gvs1 lc1 = Some lc1' ->
+  _initializeFrameValues TD la gvs1 lc1 = Some lc1' ->
   exists lc2',
-    NDOS._initializeFrameValues TD la gvs2 lc2 = Some lc2' /\
+    _initializeFrameValues TD la gvs2 lc2 = Some lc2' /\
     instantiate_locals lc1' lc2'.
 Proof.
   induction la; simpl; intros.
@@ -481,28 +482,27 @@ Proof.
     destruct a. destruct p.
     destruct gvs1; simpl.
       destruct gvs2; inv H1.
-      remember (DOS.Sem._initializeFrameValues TD la nil lc1) as R1.
+      remember (_initializeFrameValues TD la nil lc1) as R1.
       destruct R1; tinv H.
       destruct (gundef TD t); inv H.
       symmetry in HeqR1.
       eapply IHla in HeqR1; eauto.
         destruct HeqR1 as [lc2' [J1 J2]].
-        unfold NDOS.GVs.
         rewrite J1.
-        eauto using instantiate_locals__updateAddAL, instantiate_gvs__gv2gvs.
+        eauto using instantiate_locals__updateAddAL, element_of__gv2gvs.
 
       simpl in H1.
       destruct gvs2; inv H1.
-      remember (DOS.Sem._initializeFrameValues TD la gvs1 lc1) as R1.
+      remember (_initializeFrameValues TD la gvs1 lc1) as R1.
       destruct R1; tinv H.
-      remember (DGVs.lift_op1 (fit_gv TD t) t0 t) as R2.
+      remember (lift_op1 _ (fit_gv TD t) g t) as R2.
       destruct R2; inv H.
       symmetry in HeqR1.
       eapply IHla in HeqR1; eauto.
       destruct HeqR1 as [lc2' [J1 J2]].
       rewrite J1.
       symmetry in HeqR2.
-      eapply instantiate_gvs__lift_op1 in HeqR2; eauto.
+      eapply element_of__lift_op1 in HeqR2; eauto.
       destruct HeqR2 as [ys2 [J3 J4]].
       rewrite J3.
       eauto using instantiate_locals__updateAddAL.
@@ -510,12 +510,12 @@ Qed.
 
 Lemma instantiate_locals__initLocals : forall TD gvs1 gvss2 
   (H : instantiate_list_gvs gvs1 gvss2) la lc1,
-  DOS.Sem.initLocals TD la gvs1 = Some lc1 ->
+  initLocals TD la gvs1 = Some lc1 ->
   exists lc2, 
-    NDOS.initLocals TD la gvss2 = Some lc2 /\
+    initLocals TD la gvss2 = Some lc2 /\
     instantiate_locals lc1 lc2.
 Proof.
-  unfold DOS.Sem.initLocals, NDOS.initLocals.
+  unfold initLocals, initLocals.
   intros.
   eapply instantiate_locals__initializeFrameValues; eauto.
     simpl. auto.
@@ -523,39 +523,39 @@ Qed.
 
 Lemma instantiate_list_gvs__incl : forall x y x0,
   instantiate_list_gvs x y ->
-  DOS.Sem.in_list_gvs x0 x ->
-  NDOS.in_list_gvs x0 y.
+  in_list_gvs x0 x ->
+  in_list_gvs x0 y.
 Proof.
   intros.  
   generalize dependent x0.
   induction H; simpl; intros.
     inv H0; auto.
     inv H1; auto.
-      apply IHForall2 in H6. eauto using instantiate_gvs__incl.
+      apply IHForall2 in H6. eauto using element_of__incl.
 Qed.
 
 Lemma instantiate_locals__exCallUpdateLocals : forall TD lc1 lc2 lc1' rid oResult
     nr ft,
   instantiate_locals lc1 lc2 -> 
-  DOS.Sem.exCallUpdateLocals TD ft nr rid oResult lc1 = ret lc1' ->
+  exCallUpdateLocals TD ft nr rid oResult lc1 = ret lc1' ->
   exists lc2', 
-    NDOS.exCallUpdateLocals TD ft nr rid oResult lc2 = ret lc2' /\
+    exCallUpdateLocals TD ft nr rid oResult lc2 = ret lc2' /\
     instantiate_locals lc1' lc2'. 
 Proof.
   intros.
-  unfold DOS.Sem.exCallUpdateLocals in H0.
-  unfold NDOS.exCallUpdateLocals.
+  unfold exCallUpdateLocals in H0.
+  unfold exCallUpdateLocals.
   destruct nr; inv H0; eauto.
   destruct oResult; inv H2; eauto.
   destruct ft; inv H1; eauto.
   remember (fit_gv TD ft g) as R.
   destruct R; inv H2.
-  eauto using instantiate_locals__updateAddAL, instantiate_gvs__gv2gvs.
+  eauto using instantiate_locals__updateAddAL, element_of__gv2gvs.
 Qed.
 
 Ltac simpl_nd_llvmds :=
   match goal with
-  | [Hsim : instantiate_State {| DOS.Sem.ECS := _::_::_ |} ?st2 |- _ ] =>
+  | [Hsim : instantiate_State {| ECS := _::_::_ |} ?st2 |- _ ] =>
      destruct st2 as [ECs' M'];
      destruct Hsim as [Hsim eq6]; subst;
      destruct ECs' as [|[f1' b1' cs1' tmn1' lc1' als1'] ECs']; 
@@ -566,7 +566,7 @@ Ltac simpl_nd_llvmds :=
      destruct Hsim2 as [Hsim2 Hsim3];
      destruct Hsim1 as [J1 [J2 [J3 [J4 [Hsim1 J6]]]]]; subst;
      destruct Hsim2 as [J1 [J2 [J3 [J4 [Hsim2 J6]]]]]; subst
-  | [Hsim : instantiate_State {| DOS.Sem.ECS := _::_|} ?st2 |- _ ] =>
+  | [Hsim : instantiate_State {| ECS := _::_|} ?st2 |- _ ] =>
      destruct st2 as [ECs' M'];
      destruct Hsim as [Hsim eq6]; subst;
      destruct ECs' as [|[f1' b1' cs1' tmn1' lc1' als1'] ECs']; 
@@ -577,19 +577,19 @@ Ltac simpl_nd_llvmds :=
 
 Lemma instantiate_dsInsn : forall cfg st1 st2 st1' tr,
   instantiate_State st1 st2 ->
-  DOS.Sem.sInsn cfg st1 st1' tr ->
-  (exists st2', NDOS.sInsn cfg st2 st2' tr /\ instantiate_State st1' st2').
+  sInsn cfg st1 st1' tr ->
+  (exists st2', sInsn cfg st2 st2' tr /\ instantiate_State st1' st2').
 Proof.
   intros cfg st1 st2 st1' tr Hsim Hop.  
   (sInsn_cases (induction Hop) Case).
 Case "sReturn". simpl_nd_llvmds. 
   eapply instantiate_locals__returnUpdateLocals in H1; eauto.
   destruct H1 as [lc2'' [H1 H2]].
-  exists (NDOS.mkState ((NDOS.mkEC f2' b2' cs' tmn2' lc2'' als2')::ECs') Mem').
+  exists (mkState ((mkEC f2' b2' cs' tmn2' lc2'' als2')::ECs') Mem').
   split; eauto.
     repeat (split; auto).
 Case "sReturnVoid". simpl_nd_llvmds. 
-  exists (NDOS.mkState ((NDOS.mkEC f2' b2' cs' tmn2' lc2' als2')::ECs') Mem').
+  exists (mkState ((mkEC f2' b2' cs' tmn2' lc2' als2')::ECs') Mem').
   split; eauto.
     repeat (split; auto).
 Case "sBranch". simpl_nd_llvmds. 
@@ -597,28 +597,28 @@ Case "sBranch". simpl_nd_llvmds.
   eapply instantiate_locals__getOperandValue in H; eauto.
   destruct H as [gvs2 [J1 J2]].
   destruct H2 as [lc2' [J3 J4]].
-  exists (NDOS.mkState ((NDOS.mkEC f1' (block_intro l' ps' cs' tmn') cs' tmn' lc2' als1')
+  exists (mkState ((mkEC f1' (block_intro l' ps' cs' tmn') cs' tmn' lc2' als1')
       ::ECs') M').
-  split; eauto using instantiate_gvs__incl.
+  split; eauto using element_of__incl.
     repeat (split; auto).
 Case "sBranch_uncond". simpl_nd_llvmds. 
   eapply instantiate_locals__switchToNewBasicBlock in H0; eauto.
   destruct H0 as [lc2' [J1 J2]]. 
-  exists (NDOS.mkState ((NDOS.mkEC f1' (block_intro l' ps' cs' tmn') cs' tmn' lc2' als1')
+  exists (mkState ((mkEC f1' (block_intro l' ps' cs' tmn') cs' tmn' lc2' als1')
       ::ECs') M').
   split; eauto.
     repeat (split; auto).
 Case "sBop". simpl_nd_llvmds. 
   eapply instantiate_locals__BOP in H; eauto.
   destruct H as [gvs3' [J1 J2]].
-  exists (NDOS.mkState ((NDOS.mkEC f1' b1' cs tmn1' (updateAddAL _ lc1' id0 gvs3') als1')
+  exists (mkState ((mkEC f1' b1' cs tmn1' (updateAddAL _ lc1' id0 gvs3') als1')
       ::ECs') M').
   split; eauto.
     repeat (split; auto using instantiate_locals__updateAddAL).
 Case "sFBop". simpl_nd_llvmds. 
   eapply instantiate_locals__FBOP in H; eauto.
   destruct H as [gvs3' [J1 J2]]. 
-  exists (NDOS.mkState ((NDOS.mkEC f1' b1' cs tmn1' (updateAddAL _ lc1' id0 gvs3') als1')
+  exists (mkState ((mkEC f1' b1' cs tmn1' (updateAddAL _ lc1' id0 gvs3') als1')
       ::ECs') M').
   split; eauto.
     repeat (split; auto using instantiate_locals__updateAddAL).
@@ -627,7 +627,7 @@ Case "sExtractValue". simpl_nd_llvmds.
   destruct H as [gvs2 [J1 J2]].
   eapply instantiate_locals__extractGenericValue in H0; eauto.
   destruct H0 as [gvs2' [J3 J4]].
-  exists (NDOS.mkState ((NDOS.mkEC f1' b1' cs tmn1' (updateAddAL _ lc1' id0 gvs2') als1')
+  exists (mkState ((mkEC f1' b1' cs tmn1' (updateAddAL _ lc1' id0 gvs2') als1')
       ::ECs') M').
   split; eauto.
     repeat (split; auto using instantiate_locals__updateAddAL).
@@ -638,52 +638,52 @@ Case "sInsertValue". simpl_nd_llvmds.
   destruct H0 as [gvs2' [J1' J2']].
   eapply instantiate_locals__insertGenericValue in H1; eauto.
   destruct H1 as [gvs2'' [J3 J4]].
-  exists (NDOS.mkState((NDOS.mkEC f1' b1' cs tmn1' (updateAddAL _ lc1' id0 gvs2'') als1')
+  exists (mkState((mkEC f1' b1' cs tmn1' (updateAddAL _ lc1' id0 gvs2'') als1')
       ::ECs') M').
   split; eauto.
     repeat (split; auto using instantiate_locals__updateAddAL).
 Case "sMalloc". simpl_nd_llvmds. 
   eapply instantiate_locals__getOperandValue in H0; eauto.
   destruct H0 as [gns2 [J1 J2]].
-  exists (NDOS.mkState
-    ((NDOS.mkEC f1' b1' cs tmn1' 
-      (updateAddAL _ lc1' id0 (NDGVs.gv2gvs (blk2GV TD mb) (typ_pointer t))) 
+  exists (mkState
+    ((mkEC f1' b1' cs tmn1' 
+      (updateAddAL _ lc1' id0 (NDGVs.(gv2gvs) (blk2GV TD mb) (typ_pointer t))) 
     als1')::ECs') Mem').
-  split; eauto using instantiate_gvs__incl.
+  split; eauto using element_of__incl.
     repeat (split; auto using instantiate_locals__updateAddAL, 
-                              instantiate_gvs__gv2gvs).
+                              element_of__gv2gvs).
 Case "sFree". simpl_nd_llvmds. 
   eapply instantiate_locals__getOperandValue in H; eauto.
   destruct H as [gvs [J1 J2]].
-  exists (NDOS.mkState ((NDOS.mkEC f1' b1' cs tmn1' lc1' als1')::ECs') Mem').
-  split; eauto using instantiate_gvs__incl.
+  exists (mkState ((mkEC f1' b1' cs tmn1' lc1' als1')::ECs') Mem').
+  split; eauto using element_of__incl.
     repeat (split; auto).
 Case "sAlloca". simpl_nd_llvmds. 
   eapply instantiate_locals__getOperandValue in H0; eauto.
   destruct H0 as [gns2 [J1 J2]].
-  exists (NDOS.mkState
-    ((NDOS.mkEC f1' b1' cs tmn1' 
-      (updateAddAL _ lc1' id0 (NDGVs.gv2gvs  (blk2GV TD mb) (typ_pointer t))) 
+  exists (mkState
+    ((mkEC f1' b1' cs tmn1' 
+      (updateAddAL _ lc1' id0 (NDGVs.(gv2gvs)  (blk2GV TD mb) (typ_pointer t))) 
     (mb::als1'))::ECs') Mem').
-  split; eauto using instantiate_gvs__incl.
+  split; eauto using element_of__incl.
     repeat (split; auto using instantiate_locals__updateAddAL, 
-                              instantiate_gvs__gv2gvs).
+                              element_of__gv2gvs).
 Case "sLoad". simpl_nd_llvmds.
   eapply instantiate_locals__getOperandValue in H; eauto.
   destruct H as [gvs2 [J1 J2]].
-  exists (NDOS.mkState
-    ((NDOS.mkEC f1' b1' cs tmn1' (updateAddAL _ lc1' id0 (NDGVs.gv2gvs gv t))
+  exists (mkState
+    ((mkEC f1' b1' cs tmn1' (updateAddAL _ lc1' id0 (NDGVs.(gv2gvs) gv t))
     als1')::ECs') M').
-  split; eauto using instantiate_gvs__incl.
+  split; eauto using element_of__incl.
     repeat (split; auto using instantiate_locals__updateAddAL, 
-                              instantiate_gvs__gv2gvs).
+                              element_of__gv2gvs).
 Case "sStore". simpl_nd_llvmds.
   eapply instantiate_locals__getOperandValue in H; eauto.
   destruct H as [gvs2 [J1 J2]].
   eapply instantiate_locals__getOperandValue in H0; eauto.
   destruct H0 as [mps2' [J3 J4]].
-  exists (NDOS.mkState ((NDOS.mkEC f1' b1' cs tmn1' lc1' als1')::ECs') Mem').
-  split; eauto using instantiate_gvs__incl.
+  exists (mkState ((mkEC f1' b1' cs tmn1' lc1' als1')::ECs') Mem').
+  split; eauto using element_of__incl.
     repeat (split; auto).
 Case "sGEP". simpl_nd_llvmds. 
   eapply instantiate_locals__getOperandValue in H; eauto.
@@ -692,50 +692,50 @@ Case "sGEP". simpl_nd_llvmds.
   destruct H0 as [vidxss2 [J3 J4]].
   eapply instantiate_locals__GEP in H1; eauto.
   destruct H1 as [vidxs2 [mps2' [J5 [J6 J7]]]].
-  exists (NDOS.mkState 
-    ((NDOS.mkEC f1' b1' cs tmn1' (updateAddAL _ lc1' id0 mps2') als1')
+  exists (mkState 
+    ((mkEC f1' b1' cs tmn1' (updateAddAL _ lc1' id0 mps2') als1')
       ::ECs') M').
-  split; eauto using instantiate_gvs__incl.
+  split; eauto using element_of__incl.
     repeat (split; auto using instantiate_locals__updateAddAL).
 Case "sTrunc". simpl_nd_llvmds.
   eapply instantiate_locals__TRUNC in H; eauto.
   destruct H as [gvs2' [J1 J2]].
-  exists (NDOS.mkState
-    ((NDOS.mkEC f1' b1' cs tmn1' (updateAddAL _ lc1' id0 gvs2') als1')
+  exists (mkState
+    ((mkEC f1' b1' cs tmn1' (updateAddAL _ lc1' id0 gvs2') als1')
       ::ECs') M').
-  split; eauto using instantiate_gvs__incl.
+  split; eauto using element_of__incl.
     repeat (split; auto using instantiate_locals__updateAddAL).
 Case "sExt". simpl_nd_llvmds. 
   eapply instantiate_locals__EXT in H; eauto.
   destruct H as [gvs2' [J1 J2]].
-  exists (NDOS.mkState  
-    ((NDOS.mkEC f1' b1' cs tmn1' (updateAddAL _ lc1' id0 gvs2') als1')
+  exists (mkState  
+    ((mkEC f1' b1' cs tmn1' (updateAddAL _ lc1' id0 gvs2') als1')
       ::ECs') M').
-  split; eauto using instantiate_gvs__incl.
+  split; eauto using element_of__incl.
     repeat (split; auto using instantiate_locals__updateAddAL).
 Case "sCast". simpl_nd_llvmds. 
   eapply instantiate_locals__CAST in H; eauto.
   destruct H as [gvs2' [J1 J2]].
-  exists (NDOS.mkState
-    ((NDOS.mkEC f1' b1' cs tmn1' (updateAddAL _ lc1' id0 gvs2') als1')
+  exists (mkState
+    ((mkEC f1' b1' cs tmn1' (updateAddAL _ lc1' id0 gvs2') als1')
       ::ECs') M').
-  split; eauto using instantiate_gvs__incl.
+  split; eauto using element_of__incl.
     repeat (split; auto using instantiate_locals__updateAddAL).
 Case "sIcmp". simpl_nd_llvmds. 
   eapply instantiate_locals__ICMP in H; eauto.
   destruct H as [gvs3' [J1 J2]].
-  exists (NDOS.mkState
-    ((NDOS.mkEC f1' b1' cs tmn1' (updateAddAL _ lc1' id0 gvs3') als1')
+  exists (mkState
+    ((mkEC f1' b1' cs tmn1' (updateAddAL _ lc1' id0 gvs3') als1')
       ::ECs') M').
-  split; eauto using instantiate_gvs__incl.
+  split; eauto using element_of__incl.
     repeat (split; auto using instantiate_locals__updateAddAL).
 Case "sFcmp". simpl_nd_llvmds. 
   eapply instantiate_locals__FCMP in H; eauto.
   destruct H as [gvs3' [J1 J2]]. 
-  exists (NDOS.mkState
-    ((NDOS.mkEC f1' b1' cs tmn1' (updateAddAL _ lc1' id0 gvs3') als1')
+  exists (mkState
+    ((mkEC f1' b1' cs tmn1' (updateAddAL _ lc1' id0 gvs3') als1')
       ::ECs') M').
-  split; eauto using instantiate_gvs__incl.
+  split; eauto using element_of__incl.
     repeat (split; auto using instantiate_locals__updateAddAL).
 Case "sSelect". simpl_nd_llvmds. 
   eapply instantiate_locals__getOperandValue in H; eauto.
@@ -744,12 +744,12 @@ Case "sSelect". simpl_nd_llvmds.
   destruct H0 as [gvs1' [J3 J4]].
   eapply instantiate_locals__getOperandValue in H1; eauto.
   destruct H1 as [gvs2' [J5 J6]].
-  exists (NDOS.mkState
-    ((NDOS.mkEC f1' b1' cs tmn1' (if isGVZero TD c 
+  exists (mkState
+    ((mkEC f1' b1' cs tmn1' (if isGVZero TD c 
                                      then updateAddAL _ lc1' id0 gvs2' 
                                      else updateAddAL _ lc1' id0 gvs1') als1')
       ::ECs') M').
-  split; eauto using instantiate_gvs__incl.
+  split; eauto using element_of__incl.
     repeat (split; auto).
       destruct (isGVZero TD c); auto using instantiate_locals__updateAddAL.
 Case "sCall". simpl_nd_llvmds. 
@@ -759,13 +759,13 @@ Case "sCall". simpl_nd_llvmds.
   destruct H3 as [gvss2 [H11 H12]].
   eapply instantiate_locals__initLocals in H4; eauto.
   destruct H4 as [lc2' [H21 H22]].
-  exists (NDOS.mkState
-    ((NDOS.mkEC (fdef_intro (fheader_intro fa rt fid la va) lb) 
+  exists (mkState
+    ((mkEC (fdef_intro (fheader_intro fa rt fid la va) lb) 
                        (block_intro l' ps' cs' tmn') cs' tmn' lc2'
                        nil)::
-     (NDOS.mkEC f1' b1' (insn_call rid noret0 ca ft fv lp :: cs) tmn1' 
+     (mkEC f1' b1' (insn_call rid noret0 ca ft fv lp :: cs) tmn1' 
       lc1' als1') ::ECs') M').
-  split; eauto using instantiate_gvs__incl.
+  split; eauto using element_of__incl.
     repeat (split; auto).
 Case "sExCall". simpl_nd_llvmds. 
   eapply instantiate_locals__getOperandValue in H; eauto.
@@ -774,24 +774,25 @@ Case "sExCall". simpl_nd_llvmds.
   destruct H2 as [gvss2 [H11 H12]].
   eapply instantiate_locals__exCallUpdateLocals in H5; eauto.
   destruct H5 as [lc2' [H21 H22]].
-  exists (NDOS.mkState ((NDOS.mkEC f1' b1' cs tmn1' lc2' als1') ::ECs') Mem').
+  exists (mkState ((mkEC f1' b1' cs tmn1' lc2' als1') ::ECs') Mem').
   split.
-    eapply NDOS.sExCall; eauto using instantiate_gvs__incl,
+    eapply sExCall; eauto using element_of__incl,
                                     instantiate_list_gvs__incl.
     repeat (split; auto).
 Qed.
 
 End Sec.
 
-End OpsemInstantiation.
+Require Import dopsem.
+Require Import ndopsem.
 
-Module OpsemInst := OpsemInstantiation DGVs NDGVs.
+Local Transparent gv2gvs cgv2gvs lift_op1 lift_op2.
 
-Lemma instantiate_gvs__gv2gvs : forall gv t, 
-  OpsemInst.instantiate_gvs (DGVs.gv2gvs gv t) (NDGVs.gv2gvs gv t).
+Lemma element_of__gv2gvs : forall gv t, 
+  element_of (DGVs.(gv2gvs) gv t) (NDGVs.(gv2gvs) gv t).
 Proof. 
   intros.
-  unfold DGVs.gv2gvs, NDGVs.gv2gvs.
+  unfold gv2gvs.
   destruct gv; try solve [intros gvs1 J; inv J; constructor].
   destruct p.
   destruct v; try solve [intros gvs1 J; inv J; constructor].
@@ -804,11 +805,11 @@ Proof.
                (constructor || apply Union_introl; constructor)].
 Qed.
 
-Lemma instantiate_gvs__cgv2gvs : forall gv t, 
-  OpsemInst.instantiate_gvs (DGVs.cgv2gvs gv t) (NDGVs.cgv2gvs gv t).
+Lemma element_of__cgv2gvs : forall gv t, 
+  element_of (DGVs.(cgv2gvs) gv t) (NDGVs.(cgv2gvs) gv t).
 Proof. 
   intros.
-  unfold DGVs.cgv2gvs, NDGVs.cgv2gvs.
+  unfold cgv2gvs.
   destruct gv; try solve [intros gvs1 J; inv J; constructor].
   destruct p.
   destruct v; try solve [intros gvs1 J; inv J; constructor].
@@ -824,58 +825,62 @@ Proof.
                exists Float.zero; auto]].
 Qed.
 
-Lemma instantiate_gvs__lift_op1 : forall f xs1 xs2 t ys1,
-  OpsemInst.instantiate_gvs xs1 xs2 ->
-  DGVs.lift_op1 f xs1 t = Some ys1 ->
-  exists ys2, NDGVs.lift_op1 f xs2 t = Some ys2 /\ 
-    OpsemInst.instantiate_gvs ys1 ys2.
+Lemma element_of__lift_op1 : forall f xs1 xs2 t ys1,
+  element_of xs1 xs2 ->
+  DGVs.(lift_op1) f xs1 t = Some ys1 ->
+  exists ys2, NDGVs.(lift_op1) f xs2 t = Some ys2 /\ 
+    element_of ys1 ys2.
 Proof.
-  unfold DGVs.lift_op1, NDGVs.lift_op1.
-  intros.
+  unfold lift_op1. simpl.
+  intros. unfold MNDGVs.lift_op1. 
   exists (fun gv2 : LLVMgv.GenericValue =>
           exists gv1 : LLVMgv.GenericValue,
             exists gv2' : LLVMgv.GenericValue,
-              NDGVs.instantiate_gvs gv1 xs2 /\
+              MNDGVs.instantiate_gvs gv1 xs2 /\
               f gv1 = ret gv2' /\
-              NDGVs.instantiate_gvs gv2 (NDGVs.gv2gvs gv2' t)).
+              MNDGVs.instantiate_gvs gv2 (MNDGVs.gv2gvs gv2' t)).
   split; auto.
   exists xs1. exists gv1. inv H1.
-  repeat (split; eauto using NDGVs.instantiate_gv__gv2gvs).
+  repeat (split; eauto using MNDGVs.instantiate_gv__gv2gvs).
+    apply H; auto.
 Qed.
 
-Lemma instantiate_gvs__lift_op2 : forall f xs1 ys1 xs2 ys2 t zxs1,
-  OpsemInst.instantiate_gvs xs1 xs2 ->
-  OpsemInst.instantiate_gvs ys1 ys2 ->
-  DGVs.lift_op2 f xs1 ys1 t = Some zxs1 ->
-  exists zxs2, NDGVs.lift_op2 f xs2 ys2 t = Some zxs2 /\ 
-    OpsemInst.instantiate_gvs zxs1 zxs2.
+Lemma element_of__lift_op2 : forall f xs1 ys1 xs2 ys2 t zxs1,
+  element_of xs1 xs2 ->
+  element_of ys1 ys2 ->
+  DGVs.(lift_op2) f xs1 ys1 t = Some zxs1 ->
+  exists zxs2, NDGVs.(lift_op2) f xs2 ys2 t = Some zxs2 /\ 
+    element_of zxs1 zxs2.
 Proof.
-  unfold DGVs.lift_op2, NDGVs.lift_op2.
-  intros.
+  unfold lift_op2. simpl.
+  intros. unfold MNDGVs.lift_op2. 
   exists (fun gv3 : LLVMgv.GenericValue =>
           exists gv1 : LLVMgv.GenericValue,
             exists gv2 : LLVMgv.GenericValue,
               exists gv3' : LLVMgv.GenericValue,
-                NDGVs.instantiate_gvs gv1 xs2 /\
-                NDGVs.instantiate_gvs gv2 ys2 /\
+                MNDGVs.instantiate_gvs gv1 xs2 /\
+                MNDGVs.instantiate_gvs gv2 ys2 /\
                 f gv1 gv2 = ret gv3' /\
-                NDGVs.instantiate_gvs gv3 (NDGVs.gv2gvs gv3' t)).
+                MNDGVs.instantiate_gvs gv3 (MNDGVs.gv2gvs gv3' t)).
   split; auto.
   exists xs1. exists ys1. exists zxs1. inv H2.
-  repeat (split; eauto using NDGVs.instantiate_gv__gv2gvs).
+  repeat (split; eauto using MNDGVs.instantiate_gv__gv2gvs).
+    apply H; auto. apply H0; auto.
 Qed.
 
 Lemma DOS_instantiate_NDOS : forall cfg st1 st2 st1' tr,
-  OpsemInst.instantiate_State st1 st2 ->
-  OpsemInst.DOS.Sem.sInsn cfg st1 st1' tr ->
-  (exists st2', OpsemInst.NDOS.sInsn cfg st2 st2' tr /\ 
-    OpsemInst.instantiate_State st1' st2').
+  @instantiate_State DGVs NDGVs st1 st2 ->
+  sInsn cfg st1 st1' tr ->
+  (exists st2', sInsn cfg st2 st2' tr /\ 
+    instantiate_State st1' st2').
 Proof.
   intros.
-  eapply OpsemInst.instantiate_dsInsn; eauto using
-    instantiate_gvs__gv2gvs, instantiate_gvs__cgv2gvs,
-    instantiate_gvs__lift_op1, instantiate_gvs__lift_op2.
+  eapply instantiate_dsInsn; eauto using
+    element_of__gv2gvs, element_of__cgv2gvs,
+    element_of__lift_op1, element_of__lift_op2.
 Qed.
+
+End OpsemInstantiation.
 
 (*****************************)
 (*

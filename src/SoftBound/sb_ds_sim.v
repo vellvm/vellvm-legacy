@@ -28,11 +28,8 @@ Require Import sb_ds_gv_inject.
 (*Require Import ssa_static.
 Require Import ssa_props.*)
 
-Module DSB := SBspecMetadata DGVs.
-
 Ltac zauto := auto with zarith.
 Ltac zeauto := eauto with zarith.
-
 
 Import LLVMsyntax.
 Import LLVMinfra.
@@ -50,7 +47,7 @@ match v with
 end.
 
 (*
-Fixpoint getParamsOperand (lp:params) : atoms :=
+Fixpoint getParamsOperandsOperand (lp:params) : atoms :=
 match lp with
 | nil => {}
   | (t, v)::lp' => getValueID v `union` (getParamsOperand lp')
@@ -348,8 +345,10 @@ Qed.
 
 (* Simulation *)
 
+Definition DGVMap := @Opsem.GVsMap DGVs.
+
 Definition reg_simulation (mi:MoreMem.meminj) TD gl (F:fdef) 
-  (rm1:SBspecAux.rmetadata) (rm2:rmap) (lc1 lc2:GVMap) : Prop :=
+  (rm1:SBspecAux.rmetadata) (rm2:rmap) (lc1 lc2:DGVMap) : Prop :=
 (forall i0 gv1, 
   lookupAL _ lc1 i0 = Some gv1 -> 
   exists gv2, 
@@ -378,11 +377,11 @@ MoreMem.mem_inj mi Mem1 Mem2 /\
   SBspecAux.get_mem_metadata TD MM1 ((Vptr b ofs,cm)::nil) = 
     SBspecAux.mkMD blk bofs eofs -> 
   gv_inject mi ((Vptr b ofs,cm)::nil) pgv' ->
-  getOperandValue TD v lc2 gl = Some pgv' ->
+  @Opsem.getOperandValue DGVs TD v lc2 gl = Some pgv' ->
   exists bgv', exists egv',
-  DOS.Sem.sop_star (OpsemAux.mkCfg S TD Ps gl fs)
-    (DOS.Sem.mkState 
-      ((DOS.Sem.mkEC F B 
+  Opsem.sop_star (OpsemAux.mkCfg S TD Ps gl fs)
+    (Opsem.mkState 
+      ((Opsem.mkEC F B 
         (insn_call bid0 false attrs gmb_typ gmb_fn 
                        ((p8,v)::
                         (p8,vnullp8)::
@@ -398,8 +397,8 @@ MoreMem.mem_inj mi Mem1 Mem2 /\
          cs) 
         tmn lc2 als)
         ::EC) Mem2)
-    (DOS.Sem.mkState
-       ((DOS.Sem.mkEC F B cs tmn 
+    (Opsem.mkState
+       ((Opsem.mkEC F B cs tmn 
          (updateAddAL _ (updateAddAL _ lc2 bid0 bgv') eid0 egv') als)::EC) 
          Mem2)
     trace_nil /\
@@ -426,10 +425,10 @@ match fh1 with
 end.
 
 Definition sbEC_simulates_EC_tail (TD:TargetData) Ps1 gl (mi:MoreMem.meminj) 
-  (sbEC:DSB.SBSEM.ExecutionContext) (EC:DOS.Sem.ExecutionContext) : Prop :=
+  (sbEC:SBspec.ExecutionContext) (EC:Opsem.ExecutionContext) : Prop :=
   match (sbEC, EC) with
-  | (DSB.SBSEM.mkEC f1 b1 ((insn_call i0 nr ca t0 v p)::cs13) tmn1 lc1 rm1 als1, 
-     DOS.Sem.mkEC f2 b2 cs2 tmn2 lc2 als2) =>
+  | (SBspec.mkEC f1 b1 ((insn_call i0 nr ca t0 v p)::cs13) tmn1 lc1 rm1 als1, 
+     Opsem.mkEC f2 b2 cs2 tmn2 lc2 als2) =>
        let '(fdef_intro fh1 bs1) := f1 in
        let '(fdef_intro fh2 bs2) := f2 in
        let '(los, nts) := TD in
@@ -458,10 +457,10 @@ Definition sbEC_simulates_EC_tail (TD:TargetData) Ps1 gl (mi:MoreMem.meminj)
   end.
 
 Definition sbEC_simulates_EC_head (TD:TargetData) Ps1 gl (mi:MoreMem.meminj) 
-  (sbEC:DSB.SBSEM.ExecutionContext) (EC:DOS.Sem.ExecutionContext) : Prop :=
+  (sbEC:SBspec.ExecutionContext) (EC:Opsem.ExecutionContext) : Prop :=
   match (sbEC, EC) with
-  | (DSB.SBSEM.mkEC f1 b1 cs12 tmn1 lc1 rm1 als1, 
-     DOS.Sem.mkEC f2 b2 cs2 tmn2 lc2 als2) =>
+  | (SBspec.mkEC f1 b1 cs12 tmn1 lc1 rm1 als1, 
+     Opsem.mkEC f2 b2 cs2 tmn2 lc2 als2) =>
        let '(fdef_intro fh1 bs1) := f1 in
        let '(fdef_intro fh2 bs2) := f2 in
        let '(los, nts) := TD in
@@ -487,7 +486,7 @@ Definition sbEC_simulates_EC_head (TD:TargetData) Ps1 gl (mi:MoreMem.meminj)
   end.
 
 Fixpoint sbECs_simulate_ECs_tail (TD:TargetData) Ps1 gl (mi:MoreMem.meminj) 
-  (sbECs:DSB.SBSEM.ECStack) (ECs:DOS.Sem.ECStack) : Prop :=
+  (sbECs:SBspec.ECStack) (ECs:Opsem.ECStack) : Prop :=
   match sbECs, ECs with
   | nil, nil => True
   | sbEC::sbECs', EC::ECs' => 
@@ -497,7 +496,7 @@ Fixpoint sbECs_simulate_ECs_tail (TD:TargetData) Ps1 gl (mi:MoreMem.meminj)
   end.
 
 Definition sbECs_simulate_ECs (TD:TargetData) Ps1 gl (mi:MoreMem.meminj) 
-  (sbECs:DSB.SBSEM.ECStack) (ECs:DOS.Sem.ECStack) : Prop :=
+  (sbECs:SBspec.ECStack) (ECs:Opsem.ECStack) : Prop :=
   match sbECs, ECs with
   | sbEC::sbECs', EC::ECs' => 
       sbEC_simulates_EC_head TD Ps1 gl mi sbEC EC /\ 
@@ -511,13 +510,13 @@ Definition ftable_simulation mi fs1 fs2 : Prop :=
     OpsemAux.lookupFdefViaGVFromFunTable fs2 fv2.
 
 Definition sbState_simulates_State (mi:MoreMem.meminj) (mgb:Values.block)
-  (sbCfg:OpsemAux.Config) (sbSt:DSB.SBSEM.State) 
-  (Cfg:OpsemAux.Config) (St:DOS.Sem.State) : Prop :=
+  (sbCfg:OpsemAux.Config) (sbSt:SBspec.State) 
+  (Cfg:OpsemAux.Config) (St:Opsem.State) : Prop :=
 let '(OpsemAux.mkCfg S1 TD1 Ps1 gl1 fs1) := sbCfg in
 let '(OpsemAux.mkCfg S2 TD2 Ps2 gl2 fs2) := Cfg in
   match (sbSt, St) with
-  | (DSB.SBSEM.mkState ECs1 M1 MM1,
-     DOS.Sem.mkState ECs2 M2) =>
+  | (SBspec.mkState ECs1 M1 MM1,
+     Opsem.mkState ECs2 M2) =>
       let '(los, nts) := TD1 in
       wf_system nil S1 /\
       moduleInSystemB (module_intro los nts Ps1) S1 = true /\
@@ -532,7 +531,7 @@ let '(OpsemAux.mkCfg S2 TD2 Ps2 gl2 fs2) := Cfg in
       mem_simulation mi TD1 mgb MM1 M1 M2
   end.
 
-Fixpoint params_simulation TD gl mi lc2 
+Fixpoint params_simulation TD gl mi (lc2 : DGVMap) 
   (ogvs:list (GenericValue * option metadata)) n (cs:cmds) : Prop :=
 match (ogvs, cs) with
 | (nil, nil) => True

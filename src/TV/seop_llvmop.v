@@ -13,36 +13,17 @@ Require Import Metatheory.
 Require Import genericvalues.
 Require Import infrastructure_props.
 Require Import opsem.
+Require Import opsem_props.
 Require Import dopsem.
 Require Import trace.
 Require Import symexe_def.
 Require Import alist.
 
-Tactic Notation "se_db_mutind_cases" tactic(first) tactic(c) :=
-  first;
-  [ c "dbCall_internal" | c "dbCall_external" | 
-    c "dbSubblock_intro" | c "dbSubblocks_nil" | c "dbSubblocks_cons" | 
-    c "dbBlock_intro" | c "dbBlocks_nil" | c "dbBlocks_cons" | 
-    c "dbFdef_func" | c "dbFdef_proc" ].
-
-Tactic Notation "se_dbCmd_cases" tactic(first) tactic(c) :=
-  first;
-  [ c "dbBop" | c "dbFBop" | c "dbExtractValue" | c "dbInsertValue" |
-    c "dbMalloc" | c "dbFree" |
-    c "dbAlloca" | c "dbLoad" | c "dbStore" | c "dbGEP" |
-    c "dbTrunc" | c "dbExt" | c "dbCast" | 
-    c "dbIcmp" | c "dbFcmp" | c "dbSelect" ].
-
-Tactic Notation "se_dbTerminator_cases" tactic(first) tactic(c) :=
-  first;
-  [ c "dbBranch" | c "dbBranch_uncond" ].
-
-Tactic Notation "se_dbCmds_cases" tactic(first) tactic(c) :=
-  first;
-  [ c "dbCmds_nil" | c "dbCmds_cons" ].
-
 (****************************************************)
 (* seop -> llvmop *)
+
+Import Opsem.
+Import OpsemProps.
 
 Ltac replace_gv2gvs :=
 match goal with
@@ -52,13 +33,6 @@ match goal with
     replace gv with ($ gv # t $); eauto
 end.
 
-Lemma dos_in_list_gvs_intro : forall gvs, Sem.in_list_gvs gvs gvs.
-Proof. 
-  induction gvs; simpl; auto. 
-Qed.
-
-Hint Resolve dos_in_list_gvs_intro.
-
 Lemma seop_dbCmd__llvmop_dbInsn : forall TD lc als gl fs Mem c lc' als' Mem' tr 
     S Ps F B tmn cs,
   SimpleSE.dbCmd TD gl lc als Mem c lc' als' Mem' tr ->
@@ -66,7 +40,8 @@ Lemma seop_dbCmd__llvmop_dbInsn : forall TD lc als gl fs Mem c lc' als' Mem' tr
     (mkbEC B (c::cs) tmn lc als Mem) (mkbEC B cs tmn lc' als' Mem') tr.
 Proof.
   intros TD lc als gl fs Mem0 c lc' als' Mem' tr S Ps F B tmn cs H.
-  (se_dbCmd_cases (destruct H) Case); eauto; try replace_gv2gvs.
+  (se_dbCmd_cases (destruct H) Case); try replace_gv2gvs; 
+    eauto using (@bSelect DGVs).
 Qed.
   
 Lemma seop_dbCmds__llvmop_dbop : forall TD lc als gl fs Mem cs cs' lc' als' Mem'
@@ -208,8 +183,7 @@ Case "dbBlocks_cons".
     eauto.
 
 Case "dbFdef_func".
-  eapply bFdef_func with (fid:=fid)(l':=l1)(ps':=ps1)(cs':=cs1)(tmn':=tmn1)
-    (fa:=fa)(la:=la)(va:=va)(lb:=lb)(gvs:=gvs)(lc0:=lc0); eauto.
+  eapply bFdef_func; eauto.
     rewrite <- trace_app_commute.
     apply seop_dbCmds__llvmop_dbop with (fs:=fs)(Ps:=Ps)(F:=fdef_intro 
       (fheader_intro fa rt fid la va) lb)(B:=block_intro l2 ps2 (cs21++cs22) 
@@ -225,8 +199,7 @@ Case "dbFdef_func".
         (insn_return rid rt Result) lc2 als2 Mem2); auto.
 
 Case "dbFdef_proc".
-  eapply bFdef_proc with (fid:=fid)(l':=l1)(ps':=ps1)(cs':=cs1)(tmn':=tmn1)
-    (fa:=fa)(la:=la)(va:=va)(lb:=lb)(gvs:=gvs)(lc0:=lc0); eauto.
+  eapply bFdef_proc; eauto.
     rewrite <- trace_app_commute.
     apply seop_dbCmds__llvmop_dbop with (fs:=fs)(Ps:=Ps)
       (F:=fdef_intro (fheader_intro fa rt fid la va) lb)
@@ -391,9 +364,9 @@ Lemma dbTerminator_eqlabel : forall TD M F gl l1 ps1 cs1 tmn1 lc1 B lc2 tr cs2,
 Proof.
   intros.
   inversion H; subst.
-    rewrite switchToNewBasicBlock_eq with (ps2:=ps1)(cs2:=cs2)
+    rewrite (@switchToNewBasicBlock_eq DGVs) with (ps2:=ps1)(cs2:=cs2)
       (tmn2:=insn_br bid Cond l0 l2) in H2; eauto.
-    rewrite switchToNewBasicBlock_eq with (ps2:=ps1)(cs2:=cs2)
+    rewrite (@switchToNewBasicBlock_eq DGVs) with (ps2:=ps1)(cs2:=cs2)
       (tmn2:=insn_br_uncond bid l0) in H1; eauto.
 Qed.
 
@@ -743,7 +716,6 @@ Case "bGEP".
   exists cs1. split; auto.
   right. left.
   exists (insn_gep id0 inbounds0 t v idxs).
-  apply dos_in_list_gvs_inv in i0. subst.
   split; eauto.
 
 Case "bTrunc".
@@ -810,7 +782,6 @@ Case "bExCall".
   exists cs1. split; auto.
   right. right.
   exists (insn_call rid noret0 ca ft fv lp).
-  apply dos_in_list_gvs_inv in i1. subst.
   split; eauto.
 
 Case "bops_nil".

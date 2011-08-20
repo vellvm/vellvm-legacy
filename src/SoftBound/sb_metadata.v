@@ -40,16 +40,20 @@ Ltac repeat_bsplit :=
 
 Ltac zeauto := eauto with zarith.
 
-Module SBspecMetadata (GVsSig : GenericValuesSig).
+Module SBspecMetadata. 
 
-Module Export SBSEM := SBspec GVsSig.
+Export SBspec.
+
+Section SBspecMetadata.
+
+Context {GVsSig : GenericValues}.
 
 (*****************************************)
 (* misc *)
 
 Lemma updateValuesForNewBlock_spec4 : forall rvs lc x rm lc' rm' md,
   lookupAL _ rm x = None ->
-  (lc', rm') = updateValuesForNewBlock rvs lc rm ->
+  (lc', rm') = @updateValuesForNewBlock GVsSig rvs lc rm ->
   lookupAL _ rm' x = Some md ->
   exists gv, In (x, gv, Some md) rvs.
 Proof.
@@ -75,7 +79,7 @@ Proof.
 Qed.
 
 Lemma updateValuesForNewBlock_spec6 : forall rvs lc x rm lc' rm' md,
-  (lc', rm') = updateValuesForNewBlock rvs lc rm ->
+  (lc', rm') = @updateValuesForNewBlock GVsSig rvs lc rm ->
   lookupAL _ rm' x = Some md ->
   lookupAL _ rm x = Some md \/
   exists id1, exists gv1, In (id1,gv1,Some md) rvs.
@@ -103,7 +107,7 @@ Qed.
 
 Lemma getIncomingValuesForBlockFromPHINodes_spec : forall ps TD b gl lc id1
     rm re gv1 opmd1,
-  Some re = getIncomingValuesForBlockFromPHINodes TD ps b gl lc rm ->
+  Some re = @getIncomingValuesForBlockFromPHINodes GVsSig TD ps b gl lc rm ->
   In (id1, gv1, opmd1) re ->
   In id1 (getPhiNodesIDs ps).
 Proof.    
@@ -129,7 +133,7 @@ Qed.
 
 Lemma updateValuesForNewBlock_spec1 : forall rvs lc x rm lc' rm' gv,
   lookupAL _ lc x = None ->
-  (lc', rm') = updateValuesForNewBlock rvs lc rm ->
+  (lc', rm') = @updateValuesForNewBlock GVsSig rvs lc rm ->
   lookupAL _ lc' x = Some gv ->
   exists omd, In (x, gv, omd) rvs.
 Proof.
@@ -159,7 +163,7 @@ Qed.
 
 Lemma updateValuesForNewBlock_spec5 : forall rvs lc x rm lc' rm' md,
   lookupAL _ rm x = Some md ->
-  (lc', rm') = updateValuesForNewBlock rvs lc rm ->
+  (lc', rm') = @updateValuesForNewBlock GVsSig rvs lc rm ->
   exists md, lookupAL _ rm' x = Some md.
 Proof.
   induction rvs; simpl; intros lc x rm lc' rm' md Hlk Hupdate.
@@ -181,7 +185,7 @@ Qed.
 
 Lemma updateValuesForNewBlock_spec3 : forall rvs lc x rm lc' rm' gvx md,
   In (x, gvx, Some md) rvs ->
-  (lc', rm') = updateValuesForNewBlock rvs lc rm ->
+  (lc', rm') = @updateValuesForNewBlock GVsSig rvs lc rm ->
   exists md, lookupAL _ rm' x = Some md.
 Proof.
   induction rvs; simpl; intros lc x rm lc' rm' gvx md Hin Hupdate.
@@ -206,7 +210,7 @@ Qed.
 
 Lemma initializeFrameValues_spec1 : forall TD la lc1 rm1 x md lc2 rm2,
   lookupAL _ rm1 x = Some md ->
-  Some (lc2, rm2) = _initializeFrameValues TD la nil lc1 rm1 ->
+  Some (lc2, rm2) = @_initializeFrameValues GVsSig TD la nil lc1 rm1 ->
   exists md, lookupAL _ rm2 x = Some md.
 Proof.
   induction la; simpl; intros lc1 rm1 x md lc2 rm2 Hlk Hinit.  
@@ -223,7 +227,7 @@ Proof.
 Qed.
 
 Lemma initializeFrameValues_spec3 : forall TD la lc x rm lc' rm' md,
-  Some (lc', rm') = _initializeFrameValues TD la nil lc rm ->
+  Some (lc', rm') = @_initializeFrameValues GVsSig TD la nil lc rm ->
   lookupAL _ rm' x = Some md ->
   lookupAL _ rm x = Some md \/
   md = null_md.
@@ -246,7 +250,7 @@ Proof.
 Qed.
 
 Lemma initializeFrameValues_spec2 : forall TD la ogvs lc x rm lc' rm' md,
-  Some (lc', rm') = _initializeFrameValues TD la ogvs lc rm ->
+  Some (lc', rm') = @_initializeFrameValues GVsSig TD la ogvs lc rm ->
   lookupAL _ rm' x = Some md ->
   lookupAL _ rm x = Some md \/
   md = null_md \/
@@ -274,7 +278,7 @@ Proof.
       destruct p.
       remember (_initializeFrameValues TD la ogvs lc rm) as R.
       destruct R as [[lc1 rm1]|]; tinv Hinit.
-      destruct (GVsSig.lift_op1 (fit_gv TD t) g t); tinv Hinit.
+      destruct (lift_op1 GVsSig (fit_gv TD t) g t); tinv Hinit.
       destruct (isPointerTypB t); inv Hinit.
         destruct o as [[md1 ?]|]; inv H0.
           destruct (eq_atom_dec i0 x); subst.
@@ -300,9 +304,11 @@ Proof.
           right. right. exists gv1. simpl. auto.
 Qed.
 
+Notation "$ gv # t $" := (GVsSig.(gv2gvs) gv t) (at level 41).
+
 Lemma initLocals_spec : forall TD la gvs id1 lc rm,
   In id1 (getArgsIDs la) ->
-  initLocals TD la gvs = Some (lc, rm) ->
+  @initLocals GVsSig TD la gvs = Some (lc, rm) ->
   exists gv, lookupAL _ lc id1 = Some gv.
 Proof.
   unfold initLocals.
@@ -313,7 +319,7 @@ Proof.
     simpl in H.
     destruct H as [H | H]; subst; simpl.
       destruct gvs. 
-        remember (_initializeFrameValues TD la nil nil nil) as R1.
+        remember (@_initializeFrameValues GVsSig TD la nil nil nil) as R1.
         destruct R1 as [[lc' rm']|]; tinv H0.
         remember (gundef TD t) as R2.
         destruct R2; inv H0.
@@ -323,7 +329,7 @@ Proof.
         destruct p.
         remember (_initializeFrameValues TD la gvs nil nil) as R1.
         destruct R1 as [[lc' rm']|]; tinv H0.
-        remember (GVsSig.lift_op1 (fit_gv TD t) g t) as R2.
+        remember (lift_op1 GVsSig (fit_gv TD t) g t) as R2.
         destruct R2 as [g0|]; inv H0.
         assert (lc = updateAddAL _ lc' id1 g0) as EQ.
           destruct (isPointerTypB t); inv H1; auto.
@@ -332,7 +338,7 @@ Proof.
 
       destruct (eq_atom_dec id0 id1); subst.
         destruct gvs.
-          remember (_initializeFrameValues TD la nil nil nil) as R1.
+          remember (@_initializeFrameValues GVsSig TD la nil nil nil) as R1.
           destruct R1 as [[lc' rm']|]; tinv H0.
           remember (gundef TD t) as R2.
           destruct R2; inv H0.
@@ -342,7 +348,7 @@ Proof.
           destruct p.
           remember (_initializeFrameValues TD la gvs nil nil) as R1.
           destruct R1 as [[lc' rm']|]; tinv H0.
-          remember (GVsSig.lift_op1 (fit_gv TD t) g t) as R2.
+          remember (lift_op1 GVsSig (fit_gv TD t) g t) as R2.
           destruct R2 as [g0|]; inv H0.
           assert (lc = updateAddAL _ lc' id1 g0) as EQ.
             destruct (isPointerTypB t); inv H2; auto.
@@ -350,7 +356,7 @@ Proof.
           subst. exists g0. apply lookupAL_updateAddAL_eq; auto. 
 
         destruct gvs.
-          remember (_initializeFrameValues TD la nil nil nil) as R1.
+          remember (@_initializeFrameValues GVsSig TD la nil nil nil) as R1.
           destruct R1 as [[lc' rm']|]; tinv H0.
           remember (gundef TD t) as R2.
           destruct R2; inv H0.
@@ -363,7 +369,7 @@ Proof.
           destruct p.
           remember (_initializeFrameValues TD la gvs nil nil) as R1.
           destruct R1 as [[lc' rm']|]; tinv H0.
-          remember (GVsSig.lift_op1 (fit_gv TD t) g t) as R2.
+          remember (lift_op1 GVsSig (fit_gv TD t) g t) as R2.
           destruct R2 as [g0|]; inv H0.
           assert (lc = updateAddAL _ lc' id0 g0) as EQ.
             destruct (isPointerTypB t); inv H2; auto.
@@ -1165,7 +1171,7 @@ Lemma returnUpdateLocals__wf_rmetadata : forall los nts Result lc rm gl c' lc'
   (Hwfg : wf_global_ptr S (los, nts) Mem0 gl)
   (Hwfv : wf_value S (module_intro los nts Ps) f Result rt)
   (H0 : free_allocas (los, nts) Mem0 als = ret Mem')
-  (H1 : returnUpdateLocals (los, nts) c' rt Result lc lc' rm rm' gl =
+  (H1 : @returnUpdateLocals GVsSig (los, nts) c' rt Result lc lc' rm rm' gl =
        ret (lc'', rm''))
   (Hwfm1' : wf_rmetadata (los, nts) Mem0 rm)
   (Hwfm2' : wf_rmetadata (los, nts) Mem0 rm'),
@@ -1184,7 +1190,7 @@ Proof.
     destruct n; try solve [inv H1; auto].
     unfold isPointerTypB in H1.
     destruct t; try solve [inv H1; auto].
-    destruct (GVsSig.lift_op1 (fit_gv (los, nts) t) g t); tinv H1.
+    destruct (lift_op1 GVsSig (fit_gv (los, nts) t) g t); tinv H1.
     destruct t; inv H1; auto.
       intros x blk bofs eofs Hlk.
       destruct (eq_atom_dec i0 x); subst.
@@ -1200,7 +1206,7 @@ Proof.
     destruct n; try solve [inv H1; auto].
     unfold isPointerTypB in H1.
     destruct t; try solve [inv H1; auto].
-    destruct (GVsSig.lift_op1 (fit_gv (los, nts) t) g t); tinv H1.
+    destruct (lift_op1 GVsSig (fit_gv (los, nts) t) g t); tinv H1.
     destruct t; inv H1; auto.
       intros x blk bofs eofs Hlk.
       destruct (eq_atom_dec i0 x); subst.
@@ -1216,7 +1222,8 @@ Lemma getIncomingValuesForBlockFromPHINodes__wf_rmetadata : forall los nts M f b
   (Hwfps : wf_phinodes ifs S (module_intro los nts ps) f b' PNs),
   NoDup (getPhiNodesIDs PNs) ->
   wf_rmetadata (los, nts) M rm ->
-  getIncomingValuesForBlockFromPHINodes (los, nts) PNs b gl lc rm = Some re ->
+  @getIncomingValuesForBlockFromPHINodes GVsSig (los, nts) PNs b gl lc rm 
+    = Some re ->
   In (id1,gv1,Some (mkMD blk1 bofs1 eofs1)) re ->
   wf_data (los, nts) M blk1 bofs1 eofs1.
 Proof.
@@ -1255,7 +1262,7 @@ Lemma updateValuesForNewBlock__wf_rmetadata_aux : forall TD M rvs rm lc,
     wf_data TD M blk1 bofs1 eofs1) ->
   forall rvs2 rvs1 lc1 rm1 lc2 rm2,
   rvs = rvs1 ++ rvs2 ->
-  updateValuesForNewBlock rvs1 lc rm = (lc1, rm1) ->
+  @updateValuesForNewBlock GVsSig rvs1 lc rm = (lc1, rm1) ->
   wf_rmetadata TD M rm1 ->
   updateValuesForNewBlock rvs2 lc1 rm1 = (lc2, rm2) ->
   wf_rmetadata TD M rm2.
@@ -1293,7 +1300,7 @@ Lemma updateValuesForNewBlock__wf_rmetadata : forall rvs TD M lc rm lc' rm',
     In (id1,gv1,Some (mkMD blk1 bofs1 eofs1)) rvs ->
     wf_data TD M blk1 bofs1 eofs1) ->
   wf_rmetadata TD M rm ->
-  updateValuesForNewBlock rvs lc rm = (lc', rm') ->
+  @updateValuesForNewBlock GVsSig rvs lc rm = (lc', rm') ->
   wf_rmetadata TD M rm'.
 Proof.
   intros.
@@ -1308,7 +1315,7 @@ Lemma switchToNewBasicBlock__wf_rmetadata : forall S M b1 b2 gl lc rm lc' rm'
   uniqFdef F ->
   blockInFdefB b1 F ->
   wf_rmetadata (los, nts) M rm ->
-  switchToNewBasicBlock (los, nts) b1 b2 gl lc rm = Some (lc', rm') ->
+  @switchToNewBasicBlock GVsSig (los, nts) b1 b2 gl lc rm = Some (lc', rm') ->
   wf_rmetadata (los, nts) M rm'.
 Proof.
   intros S M b1 b2 gl lc rm lc' rm' F ifs los nts m Hwfg HwfF Huniq HBinF Hwfr 
@@ -1418,7 +1425,7 @@ Lemma params2GVs__wf_rmetadata : forall S los nts Ps f M rm lc gl ps ogvs
     wf_value S (module_intro los nts Ps) f v1 t1)
   (Hwfg : wf_global_ptr S (los, nts) M gl),
   wf_rmetadata (los,nts) M rm ->
-  params2GVs (los,nts) ps lc gl rm = Some ogvs ->
+  @params2GVs GVsSig (los,nts) ps lc gl rm = Some ogvs ->
   forall gv1 blk1 bofs1 eofs1,
     In (gv1, Some (mkMD blk1 bofs1 eofs1)) ogvs ->
     wf_data (los,nts) M blk1 bofs1 eofs1.
@@ -1450,7 +1457,7 @@ Lemma initializeFrameValues__wf_rmetadata : forall TD M la ogvs lc rm
   forall la2 la1 ogvs1 ogvs2 lc1 rm1 lc2 rm2,
   la = la1 ++ la2 ->
   ogvs = ogvs1 ++ ogvs2 ->
-  _initializeFrameValues TD la1 ogvs1 lc rm = Some (lc1, rm1) ->
+  @_initializeFrameValues GVsSig TD la1 ogvs1 lc rm = Some (lc1, rm1) ->
   wf_rmetadata TD M rm1 ->
   _initializeFrameValues TD la2 ogvs2 lc1 rm1 = Some (lc2, rm2) ->
   wf_rmetadata TD M rm2.
@@ -1482,7 +1489,7 @@ Proof.
     destruct p.
     remember (_initializeFrameValues TD la2 ogvs2 lc1 rm1) as R.
     destruct R as [[lc' rm']|]; tinv Hinit2.
-    destruct (GVsSig.lift_op1 (fit_gv TD t) g t); tinv Hinit2.
+    destruct (lift_op1 GVsSig (fit_gv TD t) g t); tinv Hinit2.
     destruct (isPointerTypB t); inv Hinit2.
       destruct o as [[md1 ?]|]; inv H0.
         intros x blk bofs eofs Hlk.
@@ -1514,13 +1521,13 @@ Proof.
           apply in_or_app. simpl. eauto.
 Qed.
 
-Lemma initLocals__wf_rmetadata : forall ogvs (rm : rmetadata) (lc' : GVsMap) 
+Lemma initLocals__wf_rmetadata : forall ogvs (rm : rmetadata) lc'
   M rm' los nts ps la gl lc f Ps S
   (Hwfvs : forall t1 v1, In (t1,v1) ps -> 
     wf_value S (module_intro los nts Ps) f v1 t1)
   (Hwfg : wf_global_ptr S (los, nts) M gl),
   wf_rmetadata (los,nts) M rm ->
-  params2GVs (los,nts) ps lc gl rm = Some ogvs ->
+  @params2GVs GVsSig (los,nts) ps lc gl rm = Some ogvs ->
   initLocals (los,nts) la ogvs = Some (lc', rm') ->
   wf_rmetadata (los,nts) M rm'.
 Proof.
@@ -1864,7 +1871,7 @@ Proof.
     zeauto.
 Qed.
 
-End SBspecMetadata. 
+End SBspecMetadata. End SBspecMetadata. 
 
 (*****************************)
 (*

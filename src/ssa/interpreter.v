@@ -16,10 +16,9 @@ Require Import infrastructure_props.
 Require Import opsem.
 Require Import dopsem.
 
-Export DOS.
-Export DOS.Sem.
+Export Opsem.
 
-Definition interInsn (cfg:Config) (state:State) : option (State*trace) :=
+Definition interInsn (cfg:Config) (state:@State DGVs) : option (State*trace) :=
 let '(mkCfg Sys TD Ps gl fs) := cfg in
 (* Check if the stack is empty. *) 
 match state with
@@ -239,14 +238,12 @@ Ltac dos_rewrite :=
 Ltac dos_simpl := simpl; repeat dgvs_instantiate_inv; repeat dos_rewrite.
 
 Lemma dsInsn__implies__interInsn : forall cfg state state' tr,
-  DOS.Sem.sInsn cfg state state' tr ->
+  sInsn cfg state state' tr ->
   interInsn cfg state = Some (state', tr).
 Proof. 
   intros cfg state state' tr HdsInsn.
-  Opaque malloc. 
+  Opaque malloc GEP. 
   (sInsn_cases (destruct HdsInsn) Case); dos_simpl; auto.
-  Case "sGEP".
-    apply dos_in_list_gvs_inv in H1. subst. dos_simpl; auto.
   Case "sCall".
     apply lookupFdefViaPtr_inversion in H1.
     destruct H1 as [fn [J1 J2]].
@@ -263,15 +260,13 @@ Proof.
     rewrite J2. rewrite J3.
     apply lookupFdecViaIDFromProducts_ideq in J3; subst; auto.
     destruct (id_dec fid fid); try congruence.
-    apply dos_in_list_gvs_inv in H3. subst.
     rewrite H4. rewrite H5. simpl. auto.
 Qed.
 
 Lemma interInsn__implies__dsInsn : forall cfg state state' tr,
   interInsn cfg state = Some (state', tr) ->
-  DOS.Sem.sInsn cfg state state' tr.
+  sInsn cfg state state' tr.
 Proof.
-Local Transparent DGVs.instantiate_gvs.
   intros cfg state state' tr HinterInsn.
   destruct cfg. destruct state.
   destruct ECS0; simpl in HinterInsn;
@@ -324,7 +319,7 @@ Local Transparent DGVs.instantiate_gvs.
               remember (switchToNewBasicBlock CurTargetData0
                 (block_intro l2 p c t) B Globals0 lc) as R4.
               destruct R4; inv HinterInsn.              
-              eapply sBranch; eauto.
+              eapply sBranch; simpl; eauto.
                 rewrite <- HeqR3. auto.
         
             remember (lookupBlockViaLabelFromFdef F l0) as R2.
@@ -333,7 +328,7 @@ Local Transparent DGVs.instantiate_gvs.
               remember (switchToNewBasicBlock CurTargetData0
                 (block_intro l2 p c t) B Globals0 lc) as R4.
               destruct R4; inv HinterInsn.
-              eapply sBranch; eauto.    
+              eapply sBranch; simpl; eauto.    
                 rewrite <- HeqR3. auto.
 
       Case "insn_br_uncond".
@@ -388,7 +383,7 @@ Local Transparent DGVs.instantiate_gvs.
         remember (malloc CurTargetData0 Mem0 s g a) as R2.
         destruct R2; tinv HinterInsn.
         destruct p; inv HinterInsn; subst; eauto.
-          
+    
       Case "insn_free".
         remember (getOperandValue CurTargetData0 v lc Globals0) as R1.
         destruct R1; simpl in HinterInsn; 
@@ -499,7 +494,6 @@ Local Transparent DGVs.instantiate_gvs.
             eapply sExCall; eauto using dos_in_list_gvs_intro.
               unfold lookupExFdecViaPtr.
               rewrite <- HeqR4. simpl. rewrite <- HeqR1. eauto.
-Global Opaque DGVs.instantiate_gvs.
 Qed.
 
 (*****************************)

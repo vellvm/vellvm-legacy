@@ -25,7 +25,7 @@ Require Import sb_ds_sim.
 Require Import sb_ds_trans_lib.
 
 Import SB_ds_pass.
-Import DSB.SBSEM.
+Export SBspec.
 
 Ltac destruct_ctx_br :=
 match goal with
@@ -37,16 +37,16 @@ match goal with
            OpsemAux.Globals := _;
            OpsemAux.FunTable := _ |}
            {|
-           DSB.SBSEM.ECS := {|
-                          DSB.SBSEM.CurFunction := ?F;
-                          DSB.SBSEM.CurBB := _;
-                          DSB.SBSEM.CurCmds := nil;
-                          DSB.SBSEM.Terminator := _;
-                          DSB.SBSEM.Locals := _;
-                          DSB.SBSEM.Rmap := _;
-                          DSB.SBSEM.Allocas := _ |} :: _;
-           DSB.SBSEM.Mem := _;
-           DSB.SBSEM.Mmap := _ |} ?Cfg ?St |- _] =>
+           SBspec.ECS := {|
+                          SBspec.CurFunction := ?F;
+                          SBspec.CurBB := _;
+                          SBspec.CurCmds := nil;
+                          SBspec.Terminator := _;
+                          SBspec.Locals := _;
+                          SBspec.Rmap := _;
+                          SBspec.Allocas := _ |} :: _;
+           SBspec.Mem := _;
+           SBspec.Mmap := _ |} ?Cfg ?St |- _] =>
   destruct Cfg as [S2 TD2 Ps2 gl2 fs2];
   destruct St as [ECs2 M2];
   destruct TD as [los nts];
@@ -74,24 +74,24 @@ match goal with
            OpsemAux.Globals := _;
            OpsemAux.FunTable := _ |}
            {|
-           DSB.SBSEM.ECS := {|
-                          DSB.SBSEM.CurFunction := ?F;
-                          DSB.SBSEM.CurBB := _;
-                          DSB.SBSEM.CurCmds := nil;
-                          DSB.SBSEM.Terminator := _;
-                          DSB.SBSEM.Locals := _;
-                          DSB.SBSEM.Rmap := _;
-                          DSB.SBSEM.Allocas := _ |}
+           SBspec.ECS := {|
+                          SBspec.CurFunction := ?F;
+                          SBspec.CurBB := _;
+                          SBspec.CurCmds := nil;
+                          SBspec.Terminator := _;
+                          SBspec.Locals := _;
+                          SBspec.Rmap := _;
+                          SBspec.Allocas := _ |}
                           :: {|
-                             DSB.SBSEM.CurFunction := ?F';
-                             DSB.SBSEM.CurBB := _;
-                             DSB.SBSEM.CurCmds := ?c' :: _;
-                             DSB.SBSEM.Terminator := _;
-                             DSB.SBSEM.Locals := _;
-                             DSB.SBSEM.Rmap := _;
-                             DSB.SBSEM.Allocas := _ |} :: _;
-           DSB.SBSEM.Mem := _;
-           DSB.SBSEM.Mmap := _ |} ?Cfg ?St |- _] =>
+                             SBspec.CurFunction := ?F';
+                             SBspec.CurBB := _;
+                             SBspec.CurCmds := ?c' :: _;
+                             SBspec.Terminator := _;
+                             SBspec.Locals := _;
+                             SBspec.Rmap := _;
+                             SBspec.Allocas := _ |} :: _;
+           SBspec.Mem := _;
+           SBspec.Mmap := _ |} ?Cfg ?St |- _] =>
   destruct Cfg as [S2 TD2 Ps2 gl2 fs2];
   destruct St as [ECs2 M2];
   destruct TD as [los nts];
@@ -130,16 +130,16 @@ match goal with
            OpsemAux.Globals := _;
            OpsemAux.FunTable := _ |}
            {|
-           DSB.SBSEM.ECS := {|
-                          DSB.SBSEM.CurFunction := ?F;
-                          DSB.SBSEM.CurBB := _;
-                          DSB.SBSEM.CurCmds := ?c::_;
-                          DSB.SBSEM.Terminator := _;
-                          DSB.SBSEM.Locals := _;
-                          DSB.SBSEM.Rmap := _;
-                          DSB.SBSEM.Allocas := _ |} :: _;
-           DSB.SBSEM.Mem := _;
-           DSB.SBSEM.Mmap := _ |} ?Cfg ?St |- _] =>
+           SBspec.ECS := {|
+                          SBspec.CurFunction := ?F;
+                          SBspec.CurBB := _;
+                          SBspec.CurCmds := ?c::_;
+                          SBspec.Terminator := _;
+                          SBspec.Locals := _;
+                          SBspec.Rmap := _;
+                          SBspec.Allocas := _ |} :: _;
+           SBspec.Mem := _;
+           SBspec.Mmap := _ |} ?Cfg ?St |- _] =>
   destruct St as [ECs2 M2];
   destruct Cfg as [S2 TD2 Ps2 gl2 fs2];
   destruct TD as [los nts];
@@ -168,74 +168,73 @@ Proof. auto. Qed.
 Ltac next_insn :=
   let nonupdate_insn F2 B2 cs2 tmn2 lc2 als2 ECs2 M2 M2' :=
     match goal with
-    | |- context [ DOS.Sem.sop_star _ 
-       (DOS.Sem.mkState 
-         ((DOS.Sem.mkEC _ _ (insn_store _ _ _ _ _ :: _) _ _ _)::_) _
+    | |- context [ Opsem.sop_star _ 
+       (Opsem.mkState 
+         ((Opsem.mkEC _ _ (insn_store _ _ _ _ _ :: _) _ _ _)::_) _
        ) _ _ ] =>
-    apply DOS.Sem.sop_star_cons with (state2:=
-      DOS.Sem.mkState 
-        ((DOS.Sem.mkEC F2 B2 cs2 tmn2 lc2 als2):: 
+    apply Opsem.sop_star_cons with (state2:=
+      Opsem.mkState 
+        ((Opsem.mkEC F2 B2 cs2 tmn2 lc2 als2):: 
           ECs2) M2'); eauto 
 
-    | |- context [ DOS.Sem.sop_star _ 
-       (DOS.Sem.mkState 
-         ((DOS.Sem.mkEC _ _ (insn_call _ true _ _ _ _ :: _) _ _ _)::_) _
+    | |- context [ Opsem.sop_star _ 
+       (Opsem.mkState 
+         ((Opsem.mkEC _ _ (insn_call _ true _ _ _ _ :: _) _ _ _)::_) _
        ) _ _ ] =>
-    apply DOS.Sem.sop_star_cons with (state2:=
-      DOS.Sem.mkState 
-        ((DOS.Sem.mkEC F2 B2 cs2 tmn2 lc2 als2):: 
+    apply Opsem.sop_star_cons with (state2:=
+      Opsem.mkState 
+        ((Opsem.mkEC F2 B2 cs2 tmn2 lc2 als2):: 
           ECs2) M2); eauto 
     end in
 
   let update_insn F2 B2 cs2 tmn2 lc2 k v als2 ECs2 M2 als2' M2' :=
     match goal with
-    | |- context [ DOS.Sem.sop_star _ 
-       (DOS.Sem.mkState 
-         ((DOS.Sem.mkEC _ _ (insn_malloc _ _ _ _ :: _) _ _ _)::_) _
+    | |- context [ Opsem.sop_star _ 
+       (Opsem.mkState 
+         ((Opsem.mkEC _ _ (insn_malloc _ _ _ _ :: _) _ _ _)::_) _
        ) _ _ ] =>
-    apply DOS.Sem.sop_star_cons with (state2:=
-      DOS.Sem.mkState 
-        ((DOS.Sem.mkEC F2 B2 cs2 tmn2 (updateAddAL _ lc2 k v) als2):: 
+    apply Opsem.sop_star_cons with (state2:=
+      Opsem.mkState 
+        ((Opsem.mkEC F2 B2 cs2 tmn2 (updateAddAL _ lc2 k v) als2):: 
           ECs2) M2'); eauto 
 
-    | |- context [ DOS.Sem.sop_star _ 
-       (DOS.Sem.mkState 
-         ((DOS.Sem.mkEC _ _ (insn_alloca _ _ _ _ :: _) _ _ _)::_) _
+    | |- context [ Opsem.sop_star _ 
+       (Opsem.mkState 
+         ((Opsem.mkEC _ _ (insn_alloca _ _ _ _ :: _) _ _ _)::_) _
        ) _ _ ] =>
-    apply DOS.Sem.sop_star_cons with (state2:=
-      DOS.Sem.mkState 
-        ((DOS.Sem.mkEC F2 B2 cs2 tmn2 (updateAddAL _ lc2 k v) als2'):: 
+    apply Opsem.sop_star_cons with (state2:=
+      Opsem.mkState 
+        ((Opsem.mkEC F2 B2 cs2 tmn2 (updateAddAL _ lc2 k v) als2'):: 
           ECs2) M2'); eauto 
 
     | |- _ =>
-    apply DOS.Sem.sop_star_cons with (state2:=
-      DOS.Sem.mkState 
-        ((DOS.Sem.mkEC F2 B2 cs2 tmn2 (updateAddAL _ lc2 k v) als2):: 
+    apply Opsem.sop_star_cons with (state2:=
+      Opsem.mkState 
+        ((Opsem.mkEC F2 B2 cs2 tmn2 (updateAddAL _ lc2 k v) als2):: 
           ECs2) M2); eauto 
     end in
 
-  unfold GVs, DGVs.t;
   rewrite <- (@trace_app_nil__eq__trace trace_nil);
   match goal with
-  | |- context [ DOS.Sem.sop_star _ 
-       (DOS.Sem.mkState 
-           ((DOS.Sem.mkEC ?F2 ?B2 (_ :: ?cs2) ?tmn2 ?lc2 ?als2)::?ECs2) ?M2) 
-       (DOS.Sem.mkState ((DOS.Sem.mkEC _ _ _ _ _ _)::_) ?M2') _ ] => 
+  | |- context [ Opsem.sop_star _ 
+       (Opsem.mkState 
+           ((Opsem.mkEC ?F2 ?B2 (_ :: ?cs2) ?tmn2 ?lc2 ?als2)::?ECs2) ?M2) 
+       (Opsem.mkState ((Opsem.mkEC _ _ _ _ _ _)::_) ?M2') _ ] => 
        nonupdate_insn F2 B2 cs2 tmn2 lc2 als2 ECs2 M2 M2'
-  | |- context [ DOS.Sem.sop_star _ 
-       (DOS.Sem.mkState 
-           ((DOS.Sem.mkEC ?F2 ?B2 (_ :: ?cs2) ?tmn2 ?lc2 ?als2)::?ECs2) ?M2) 
-       (DOS.Sem.mkState 
-           ((DOS.Sem.mkEC _ _ _ _ (updateAddALs _ ?lc2 ((?k,?v)::_)) ?als2')::_) 
+  | |- context [ Opsem.sop_star _ 
+       (Opsem.mkState 
+           ((Opsem.mkEC ?F2 ?B2 (_ :: ?cs2) ?tmn2 ?lc2 ?als2)::?ECs2) ?M2) 
+       (Opsem.mkState 
+           ((Opsem.mkEC _ _ _ _ (updateAddALs _ ?lc2 ((?k,?v)::_)) ?als2')::_) 
        ?M2') _ ] => update_insn F2 B2 cs2 tmn2 lc2 k v als2 ECs2 M2 als2' M2'
   | |- context [updateAddALs ?Typ _ _] => 
     try rewrite (simpl_cons_updateAddALs Typ);
     match goal with
-    | |- context [ DOS.Sem.sop_star _ 
-       (DOS.Sem.mkState 
-           ((DOS.Sem.mkEC ?F2 ?B2 (_ :: ?cs2) ?tmn2 ?lc2 ?als2)::?ECs2) ?M2) 
-       (DOS.Sem.mkState 
-           ((DOS.Sem.mkEC _ _ _ _ (updateAddALs _ ?lc2 ((?k,?v)::_)) ?als2')::_) 
+    | |- context [ Opsem.sop_star _ 
+       (Opsem.mkState 
+           ((Opsem.mkEC ?F2 ?B2 (_ :: ?cs2) ?tmn2 ?lc2 ?als2)::?ECs2) ?M2) 
+       (Opsem.mkState 
+           ((Opsem.mkEC _ _ _ _ (updateAddALs _ ?lc2 ((?k,?v)::_)) ?als2')::_) 
        ?M2') _ ] => update_insn F2 B2 cs2 tmn2 lc2 k v als2 ECs2 M2 als2' M2'
     end
   end.
@@ -248,42 +247,47 @@ Ltac inv_mbind :=
                end = Some _ |- _ => remember e as R; destruct R as [[]|]; inv H
          end.
 
+Ltac tac0 := match goal with
+  | |- exists _, _ => idtac
+  | |- _ => solve [eauto]
+  end.
+
 Ltac simulation_ops :=
   let gv3' := fresh "gv3'" in
   let Hop := fresh "Hop" in
   let Hinj := fresh "Hinj" in
   match goal with
   | H : BOP _ _ _ _ _ _ _ = Some _ |- _ =>
-    eapply simulation__BOP in H; eauto;
+    eapply simulation__BOP in H; tac0;
     destruct H as [gv3' [Hop Hinj]]
   | H : FBOP _ _ _ _ _ _ _ = Some _ |- _ =>
-    eapply simulation__FBOP in H; eauto;
+    eapply simulation__FBOP in H; tac0;
     destruct H as [gv3' [Hop Hinj]]
   | H : EXT _ _ _ _ _ _ _ = Some _ |- _ =>
-    eapply simulation__EXT in H; eauto;
+    eapply simulation__EXT in H; tac0;
     destruct H as [gv3' [Hop Hinj]]
   | H : TRUNC _ _ _ _ _ _ _ = Some _ |- _ =>
-    eapply simulation__TRUNC in H; eauto;
+    eapply simulation__TRUNC in H; tac0;
     destruct H as [gv3' [Hop Hinj]]
   | H : ICMP _ _ _ _ _ _ _ = Some _ |- _ =>
-    eapply simulation__ICMP in H; eauto;
+    eapply simulation__ICMP in H; tac0;
     destruct H as [gv3' [Hop Hinj]]
   | H : FCMP _ _ _ _ _ _ _ = Some _ |- _ =>
-    eapply simulation__FCMP in H; eauto;
+    eapply simulation__FCMP in H; tac0;
     destruct H as [gv3' [Hop Hinj]]
   | H : CAST _ _ _ _ _ _ _ = Some _ |- _ =>
-    eapply simulation__CAST in H; eauto;
+    eapply simulation__CAST in H; tac0;
     destruct H as [gv3' [Hop Hinj]]
   | H : getOperandValue _ _ _ _ = Some _ |- _ =>
     (* It is important to place getOperandValue before extract/insert/select, 
        because their proofs need the simulation of getOperandValue. *)
-    eapply simulation__getOperandValue in H; eauto;
+    eapply simulation__getOperandValue in H; tac0;
     destruct H as [gv3' [Hop Hinj]]
   | H : extractGenericValue _ _ _ _ = Some _ |- _ =>
-    eapply simulation__extractGenericValue in H; eauto;
+    eapply simulation__extractGenericValue in H; tac0;
     destruct H as [gv3' [Hop Hinj]]
   | H : insertGenericValue _ _ _ _ _ _ = Some _ |- _ =>
-    eapply simulation__insertGenericValue in H; eauto;
+    eapply simulation__insertGenericValue in H; tac0;
     destruct H as [gv3' [Hop Hinj]]
   end.             
 
@@ -321,16 +325,16 @@ match goal with
            OpsemAux.Globals := _;
            OpsemAux.FunTable := _ |}
            {|
-           DSB.SBSEM.ECS := {|
-                          DSB.SBSEM.CurFunction := ?F;
-                          DSB.SBSEM.CurBB := _;
-                          DSB.SBSEM.CurCmds := ?c::_;
-                          DSB.SBSEM.Terminator := _;
-                          DSB.SBSEM.Locals := _;
-                          DSB.SBSEM.Rmap := _;
-                          DSB.SBSEM.Allocas := _ |} :: _;
-           DSB.SBSEM.Mem := _;
-           DSB.SBSEM.Mmap := _ |} ?Cfg ?St |- _] =>
+           SBspec.ECS := {|
+                          SBspec.CurFunction := ?F;
+                          SBspec.CurBB := _;
+                          SBspec.CurCmds := ?c::_;
+                          SBspec.Terminator := _;
+                          SBspec.Locals := _;
+                          SBspec.Rmap := _;
+                          SBspec.Allocas := _ |} :: _;
+           SBspec.Mem := _;
+           SBspec.Mmap := _ |} ?Cfg ?St |- _] =>
 
   (* destruct hyps *)
   destruct St as [ECs2 M2];
@@ -357,9 +361,9 @@ match goal with
 
   (* instantiate goals *)
   let solve_goal mi id0 ex_ids3 cs2' gv3' :=
-    exists (DOS.Sem.mkState
-            ((DOS.Sem.mkEC (fdef_intro fh2 bs2) B2
-              (cs2' ++ cs23) tmn2 (updateAddAL GenericValue lc2 id0 gv3') als2)::
+    exists (Opsem.mkState
+            ((Opsem.mkEC (fdef_intro fh2 bs2) B2
+              (cs2' ++ cs23) tmn2 (updateAddAL _ lc2 id0 gv3') als2)::
               ECs2) M2);
     exists mi;
     repeat (split; try solve [auto using inject_incr_refl | 
@@ -367,7 +371,7 @@ match goal with
     try solve [
       simpl_env; simpl;
       rewrite <- (@trace_app_nil__eq__trace trace_nil);
-      eapply DOS.Sem.sop_star_cons; eauto; eauto |
+      eapply Opsem.sop_star_cons; eauto; eauto |
     
       exists ex_ids; exists rm2;
       exists ex_ids3; exists ex_ids4; exists cs2'; exists cs23;

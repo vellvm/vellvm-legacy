@@ -21,14 +21,12 @@ Require Import opsem.
 Require Import opsem_props.
 Require Import opsem_wf.
 
-(************** Instantiate GVs ******************)
-
-Module NDGVs <: GenericValuesSig.
-
 Import LLVMsyntax.
 Import LLVMgv.
 Import LLVMtd.
 Import LLVMtypings.
+
+Module MNDGVs.
 
 Lemma singleton_inhabited : forall U (x:U), Inhabited U (Singleton U x).
 Proof.
@@ -43,7 +41,6 @@ Proof.
 Qed.
 
 Definition t := Ensemble GenericValue.
-Definition Map := list (id * t).
 Definition instantiate_gvs (gv : GenericValue) (gvs : t) : Prop :=
   Ensembles.In _ gvs gv.
 Definition inhabited (gvs : t) : Prop := Ensembles.Inhabited _ gvs.
@@ -344,9 +341,29 @@ Proof.
   assert (J:=@H0 m). congruence.
 Qed.
 
-End NDGVs.
+End MNDGVs.
 
-Module NDOS := OpsemPP NDGVs.
+Definition NDGVs : GenericValues := mkGVs
+MNDGVs.t
+MNDGVs.instantiate_gvs
+MNDGVs.inhabited
+MNDGVs.cgv2gvs
+MNDGVs.gv2gvs
+MNDGVs.lift_op1
+MNDGVs.lift_op2
+MNDGVs.cgv2gvs__getTypeSizeInBits
+MNDGVs.cgv2gvs__inhabited
+MNDGVs.gv2gvs__getTypeSizeInBits
+MNDGVs.gv2gvs__inhabited
+MNDGVs.lift_op1__inhabited
+MNDGVs.lift_op2__inhabited
+MNDGVs.lift_op1__isnt_stuck
+MNDGVs.lift_op2__isnt_stuck
+MNDGVs.lift_op1__getTypeSizeInBits
+MNDGVs.lift_op2__getTypeSizeInBits
+MNDGVs.inhabited_inv
+MNDGVs.instantiate_gv__gv2gvs
+MNDGVs.none_undef2gvs_inv.
 
 (*****************************)
 (*

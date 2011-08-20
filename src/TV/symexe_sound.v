@@ -12,6 +12,7 @@ Require Import Arith.
 Require Import Metatheory.
 Require Import genericvalues.
 Require Import trace.
+Require Import dopsem.
 Require Import symexe_def.
 Require Import symexe_lib.
 Require Import symexe_complete.
@@ -30,7 +31,7 @@ Lemma value2Sterm_denotes__implies__genericvalue : forall TD lc0 Mem0 smap1 lc
   uniq smap1 ->
   smap_denotes_gvmap TD lc0 gl Mem0 smap1 lc ->
   sterm_denotes_genericvalue TD lc0 gl Mem0 (value2Sterm smap1 v) gv ->
-  getOperandValue TD v lc gl = Some gv.
+  @getOperandValue DGVs TD v lc gl = Some gv.
 Proof.
   intros D lc0 Mem0 smap1 lc gl v gv Huniq Hdenotes J.
   unfold smap_denotes_gvmap in Hdenotes.
@@ -65,7 +66,7 @@ Lemma value2Sterm_denote__imply__genericvalues : forall l0 TD lc0 Mem0 smap1 lc
   smap_denotes_gvmap TD lc0 gl Mem0 smap1 lc ->
   sterms_denote_genericvalues TD lc0 gl Mem0 
     (make_list_sterm (map_list_value (value2Sterm smap1) l0)) gvs0 ->
-  values2GVs TD l0 lc gl = Some gvs0.
+  @values2GVs DGVs TD l0 lc gl = Some gvs0.
 Proof.
   induction l0; intros; simpl in *.
     inversion H1; subst; auto.
@@ -106,7 +107,7 @@ Proof.
     apply value2Sterm_denotes__implies__genericvalue with (lc:=lc)(gl:=gl) in H10; auto.
     apply value2Sterm_denotes__implies__genericvalue with (lc:=lc)(gl:=gl) in H11; auto.
     exists (updateAddAL _ lc i0 gv3). exists als. exists Mem1. exists trace_nil. 
-    assert (BOP TD lc gl b s v v0 = Some gv3) as J.
+    assert (@BOP DGVs TD lc gl b s v v0 = Some gv3) as J.
       unfold BOP. rewrite H10. rewrite H11. auto.
     split; eauto.
 
@@ -122,7 +123,7 @@ Proof.
     apply value2Sterm_denotes__implies__genericvalue with (lc:=lc)(gl:=gl) in H10; auto.
     apply value2Sterm_denotes__implies__genericvalue with (lc:=lc)(gl:=gl) in H11; auto.
     exists (updateAddAL _ lc i0 gv3). exists als. exists Mem1. exists trace_nil. 
-    assert (FBOP TD lc gl f f0 v v0 = Some gv3) as J.
+    assert (@FBOP DGVs TD lc gl f f0 v v0 = Some gv3) as J.
       unfold FBOP. rewrite H10. rewrite H11. auto.
     split; eauto.
 
@@ -233,7 +234,7 @@ Proof.
     inversion trunc_denotes_gv3; subst.
     apply value2Sterm_denotes__implies__genericvalue with (lc:=lc)(gl:=gl) in H10; auto.
     exists (updateAddAL _ lc i0 gv3). exists als. exists Mem1. exists trace_nil. 
-    assert (TRUNC TD lc gl t t0 v t1 = Some gv3) as J.
+    assert (@TRUNC DGVs TD lc gl t t0 v t1 = Some gv3) as J.
       unfold TRUNC. rewrite H10. auto.
     split; eauto.
 
@@ -247,7 +248,7 @@ Proof.
     inversion ext_denotes_gv3; subst.
     apply value2Sterm_denotes__implies__genericvalue with (lc:=lc)(gl:=gl) in H10; auto.
     exists (updateAddAL _ lc i0 gv3). exists als. exists Mem1. exists trace_nil. 
-    assert (EXT TD lc gl e t v t0 = Some gv3) as J.
+    assert (@EXT DGVs TD lc gl e t v t0 = Some gv3) as J.
       unfold EXT. rewrite H10. auto.
     split; eauto.
 
@@ -261,7 +262,7 @@ Proof.
     inversion cast_denotes_gv3; subst.
     apply value2Sterm_denotes__implies__genericvalue with (lc:=lc)(gl:=gl) in H10; auto.
     exists (updateAddAL _ lc i0 gv3). exists als. exists Mem1. exists trace_nil. 
-    assert (CAST TD lc gl c t v t0 = Some gv3) as J.
+    assert (@CAST DGVs TD lc gl c t v t0 = Some gv3) as J.
       unfold CAST. rewrite H10. auto.
     split; eauto.
 
@@ -276,7 +277,7 @@ Proof.
     apply value2Sterm_denotes__implies__genericvalue with (lc:=lc)(gl:=gl) in H10; auto.
     apply value2Sterm_denotes__implies__genericvalue with (lc:=lc)(gl:=gl) in H11; auto.
     exists (updateAddAL _ lc i0 gv3). exists als. exists Mem1. exists trace_nil. 
-    assert (ICMP TD lc gl c t v v0 = Some gv3) as J.
+    assert (@ICMP DGVs TD lc gl c t v v0 = Some gv3) as J.
       unfold ICMP. rewrite H10. rewrite H11. auto.
     split; eauto.
 
@@ -291,7 +292,7 @@ Proof.
     apply value2Sterm_denotes__implies__genericvalue with (lc:=lc)(gl:=gl) in H10; auto.
     apply value2Sterm_denotes__implies__genericvalue with (lc:=lc)(gl:=gl) in H11; auto.
     exists (updateAddAL _ lc i0 gv3). exists als. exists Mem1. exists trace_nil. 
-    assert (FCMP TD lc gl f f0 v v0 = Some gv3) as J.
+    assert (@FCMP DGVs TD lc gl f f0 v v0 = Some gv3) as J.
       unfold FCMP. rewrite H10. rewrite H11. auto.
     split; eauto.
 

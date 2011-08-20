@@ -13,6 +13,7 @@ Require Import Arith.
 Require Import Metatheory.
 Require Import genericvalues.
 Require Import trace.
+Require Import dopsem.
 Require Import symexe_def.
 Require Import symexe_lib.
 Require Import symexe_complete.
@@ -153,7 +154,7 @@ Qed.
 Lemma tv_getIncomingValuesForBlockFromPHINodes : forall ps1 TD B1 ps2 B2,
   tv_block B1 B2 ->
   tv_phinodes ps1 ps2 ->
-  getIncomingValuesForBlockFromPHINodes TD ps1 B1 =
+  @getIncomingValuesForBlockFromPHINodes DGVs TD ps1 B1 =
   getIncomingValuesForBlockFromPHINodes TD ps2 B2 .
 Proof.
   induction ps1; intros TD B1 ps2 B2 H H0.
@@ -179,7 +180,7 @@ Lemma tv_switchToNewBasicBlock : forall TD l1 ps1 sbs1 tmn1 B1 l2 ps2 sbs2 tmn2
     B2 lc gl,
   tv_block B1 B2 ->
   tv_block (block_intro l1 ps1 sbs1 tmn1) (block_intro l2 ps2 sbs2 tmn2) ->
-  switchToNewBasicBlock TD (block_intro l1 ps1 sbs1 tmn1) B1 gl lc =
+  @switchToNewBasicBlock DGVs TD (block_intro l1 ps1 sbs1 tmn1) B1 gl lc =
   switchToNewBasicBlock TD (block_intro l2 ps2 sbs2 tmn2) B2 gl lc.
 Proof.
   unfold switchToNewBasicBlock.
@@ -299,7 +300,7 @@ Qed.
 Lemma tv_products__lookupFdefViaPtr : forall Ps1 Ps2 fv fid rt la va lb1 TD gl 
   lc fs fa fptr,
   tv_products Ps1 Ps2 ->
-  getOperandValue TD fv lc gl = Some fptr -> 
+  @getOperandValue DGVs TD fv lc gl = Some fptr -> 
   lookupFdefViaPtr Ps1 fs fptr = 
     Some (fdef_intro (fheader_intro fa rt fid la va) lb1) ->
   exists lb2,
@@ -387,7 +388,7 @@ Qed.
 
 Lemma tv_products__lookupFdefViaPtr_None : forall Ps1 Ps2 fv TD gl lc fs fptr,
   tv_products Ps1 Ps2 ->
-  getOperandValue TD fv lc gl = Some fptr -> 
+  @getOperandValue DGVs TD fv lc gl = Some fptr -> 
   lookupFdefViaPtr Ps1 fs fptr = None ->
   lookupFdefViaPtr Ps2 fs fptr = None.
 Proof.
@@ -400,7 +401,7 @@ Qed.
 
 Lemma tv_products__lookupExFdecViaPtr : forall Ps1 Ps2 TD gl lc fs fv fptr,
   tv_products Ps1 Ps2 ->
-  getOperandValue TD fv lc gl = Some fptr -> 
+  @getOperandValue DGVs TD fv lc gl = Some fptr -> 
   lookupExFdecViaPtr Ps1 fs fptr = lookupExFdecViaPtr Ps2 fs fptr.
 Proof.
   intros.
@@ -533,7 +534,7 @@ Definition tv_blocks__is__correct_prop S1 TD Ps1 fs gl F1 state1 state2 tr
 Definition tv_fdef__is__correct_prop fv rt lp S1 TD Ps1 lc gl fs Mem lc' als' Mem' B1' Rid oResult tr
   (db:dbFdef fv rt lp S1 TD Ps1 lc gl fs Mem lc' als' Mem' B1' Rid oResult tr) :=
   forall fid Ps2 S2 la va lb1 los nts fa fptr,
-  Sem.getOperandValue TD fv lc gl = Some fptr -> 
+  @getOperandValue DGVs TD fv lc gl = Some fptr -> 
   lookupFdefViaPtr Ps1 fs fptr = 
     Some (fdef_intro (fheader_intro fa rt fid la va) lb1) ->
   uniq lc ->
@@ -569,7 +570,7 @@ Lemma tv__is__correct :
   (forall fv rt lp S1 TD Ps1 lc gl fs Mem lc' als' Mem' B' Rid oResult tr db,
      tv_fdef__is__correct_prop fv rt lp S1 TD Ps1 lc gl fs Mem lc' als' Mem' B' Rid oResult tr db).
 Proof.
-(db_mutind_cases
+(se_db_mutind_cases
   apply db_mutind with
     (P  := tv_dbCall__is__correct_prop)
     (P0 := tv_subblock__is__correct_prop)
@@ -589,7 +590,7 @@ Case "dbCall_internal".
     eapply H with (S2:=S2)(Ps2:=Ps2) in H7; eauto.
     clear H.
     destruct H7 as [lb2 [B2' [n [slc [J1 [J2 [J3 [J4 [J5 [J6 HeqEnv]]]]]]]]]].
-    destruct (@eqAL_callUpdateLocals' (los, nts) ft noret0 rid (Some Result)
+    destruct (@eqAL_callUpdateLocals' DGVs (los, nts) ft noret0 rid (Some Result)
       lc lc' gl lc slc lc'' (@eqAL_refl _ lc) (@eqAL_sym _ slc lc' HeqEnv) Hcall)
       as [lc2'' [J7 J8]].
     exists lc2''. split; eauto using eqAL_sym.
@@ -597,7 +598,7 @@ Case "dbCall_internal".
     eapply H with (S2:=S2)(Ps2:=Ps2) in H7; eauto.
     clear H.
     destruct H7 as [lb2 [B2' [n [slc [J1 [J2 [J3 [J4 [J5 [J6 HeqEnv]]]]]]]]]].
-    destruct (@eqAL_callUpdateLocals' (los, nts) ft noret0 rid None
+    destruct (@eqAL_callUpdateLocals' DGVs (los, nts) ft noret0 rid None
       lc lc' gl lc slc lc'' (@eqAL_refl _ lc) (@eqAL_sym _ slc lc' HeqEnv) Hcall)
       as [lc2'' [J7 J8]].
     exists lc2''. split; eauto using eqAL_sym.
@@ -607,7 +608,7 @@ Case "dbCall_external".
     Mem' lc' ft fa gvs Hget Hex Hpars HisCall Hexcall S2 Ps2 los nts H0 H1 H2 H3 
     H4 H5 H6 H7.
   exists lc'.
-  split; auto using eqAL_exCallUpdateLocals, eqAL_refl.
+  split; auto using (@eqAL_exCallUpdateLocals DGVs), eqAL_refl.
    eapply dbCall_external with (fid:=fid)(la:=la)(va:=va)(rt:=rt)(fa:=fa); eauto.
      erewrite <- tv_products__lookupExFdecViaPtr with (Ps1:=Ps); eauto.
 
@@ -876,7 +877,7 @@ Case "dbFdef_func".
       assert (wf_subblocks sbs2 /\ wf_nbranchs nbs2) as J.
         apply uniqCmds___wf_subblocks_wf_nbranchs with (cs:=cs41++cs42); auto.
           clear - J6 J1 H10 H6 H2 H1 H4 uniqInitLocals.
-          apply se_dbBlocks_preservation in J6; eauto using initLocals_uniq.
+          apply se_dbBlocks_preservation in J6; eauto using (@initLocals_uniq DGVs).
           destruct J6 as [uinqc1 Bin].
           apply blockInSystemModuleFdef_inv in Bin.
           destruct Bin as [J2 [J3 [J4 J5]]].
@@ -984,7 +985,7 @@ Case "dbFdef_proc".
       assert (wf_subblocks sbs2 /\ wf_nbranchs nbs2) as J.
         apply uniqCmds___wf_subblocks_wf_nbranchs with (cs:=cs41++cs42); auto.
           clear - J6 J1 H10 H6 H2 H1 H4 uniqInitLocals.
-          apply se_dbBlocks_preservation in J6; eauto using initLocals_uniq.
+          apply se_dbBlocks_preservation in J6; eauto using (@initLocals_uniq DGVs).
           destruct J6 as [uinqc1 Bin].
           apply blockInSystemModuleFdef_inv in Bin.
           destruct Bin as [J2 [J3 [J4 J5]]].
@@ -1160,7 +1161,7 @@ Lemma tv_fdef__is__correct_aux : forall fv rt lp S1 los nts Ps1 lc gl fs Mem lc'
     als' Mem' B1' Rid oResult tr fid Ps2 S2 fa la va lb1 fptr,
   dbFdef fv rt lp S1 (los, nts) Ps1 lc gl fs Mem lc' als' Mem' B1' Rid oResult 
     tr ->
-  Sem.getOperandValue (los, nts) fv lc gl = Some fptr -> 
+  @getOperandValue DGVs (los, nts) fv lc gl = Some fptr -> 
   lookupFdefViaPtr Ps1 fs fptr = 
     Some (fdef_intro (fheader_intro fa rt fid la va) lb1) ->
   uniq lc ->
@@ -1197,7 +1198,7 @@ Lemma tv_fdef__is__correct : forall fv rt lp S1 los nts Ps1 lc gl fs Mem lc'
   uniqSystem S2 ->
   moduleInSystem (module_intro los nts Ps1) S1 ->
   moduleInSystem (module_intro los nts Ps2) S2 ->
-  Sem.getOperandValue (los, nts) fv lc gl = Some fptr -> 
+  @getOperandValue DGVs (los, nts) fv lc gl = Some fptr -> 
   lookupFdefViaPtr Ps1 fs fptr = 
     Some (fdef_intro (fheader_intro fa rt fid la va) lb1) ->
   tv_system S1 S2 ->

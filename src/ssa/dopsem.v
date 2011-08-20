@@ -18,15 +18,14 @@ Require Import opsem.
 Require Import opsem_props.
 Require Import opsem_wf.
 
-Module DGVs <: GenericValuesSig.
-
 Import LLVMsyntax.
 Import LLVMgv.
 Import LLVMtd.
 Import LLVMtypings.
 
+Module MDGVs.
+
 Definition t := GenericValue.
-Definition Map := list (id * t).
 Definition instantiate_gvs (gv : GenericValue) (gvs : t) : Prop := gvs = gv.
 Definition inhabited (gvs : t) : Prop := True.
 Definition cundef_gvs := LLVMgv.cundef_gv.
@@ -34,11 +33,10 @@ Definition undef_gvs gv (ty:typ) : t := gv.
 Definition cgv2gvs := LLVMgv.cgv2gv.
 Definition gv2gvs (gv:GenericValue) (ty:typ) : t := gv.
 
-Hint Unfold instantiate_gvs inhabited.
-
-Notation "gv @ gvs" :=  
+Notation "gv @ gvs" := 
   (instantiate_gvs gv gvs) (at level 43, right associativity).
 Notation "$ gv # t $" := (gv2gvs gv t) (at level 41).
+Hint Unfold inhabited instantiate_gvs.
 
 Lemma cundef_gvs__getTypeSizeInBits : forall S los nts gv ty sz al gv',
   wf_typ S ty ->
@@ -181,29 +179,63 @@ Proof.
   destruct gv'; try solve [inv H; auto].
 Qed.
 
-End DGVs.
+End MDGVs.
+
+Definition DGVs : GenericValues := mkGVs
+MDGVs.t
+MDGVs.instantiate_gvs
+MDGVs.inhabited
+MDGVs.cgv2gvs
+MDGVs.gv2gvs
+MDGVs.lift_op1
+MDGVs.lift_op2
+MDGVs.cgv2gvs__getTypeSizeInBits
+MDGVs.cgv2gvs__inhabited
+MDGVs.gv2gvs__getTypeSizeInBits
+MDGVs.gv2gvs__inhabited
+MDGVs.lift_op1__inhabited
+MDGVs.lift_op2__inhabited
+MDGVs.lift_op1__isnt_stuck
+MDGVs.lift_op2__isnt_stuck
+MDGVs.lift_op1__getTypeSizeInBits
+MDGVs.lift_op2__getTypeSizeInBits
+MDGVs.inhabited_inv
+MDGVs.instantiate_gv__gv2gvs
+MDGVs.none_undef2gvs_inv.
+
+Notation "gv @ gvs" := 
+  (DGVs.(instantiate_gvs) gv gvs) (at level 43, right associativity).
+Notation "$ gv # t $" := (DGVs.(gv2gvs) gv t) (at level 41).
+Notation "vidxs @@ vidxss" := (@Opsem.in_list_gvs DGVs vidxs vidxss) 
+  (at level 43, right associativity).
+
+Lemma dos_in_list_gvs_inv : forall gvs gvss, gvs @@ gvss -> gvs = gvss.
+Proof.
+  induction 1; subst; auto. 
+    inv H; auto.
+Qed.
 
 Ltac dgvs_instantiate_inv :=
   match goal with
-  | [ H : DGVs.instantiate_gvs _ _ |- _ ] => inv H
+  | [ H : DGVs.(instantiate_gvs) _ _ |- _ ] => inv H
+  | [ H : _ @@ _ |- _ ] => apply dos_in_list_gvs_inv in H; subst
   end.
 
-Module DOS := OpsemPP DGVs.
+Lemma dos_instantiate_gvs_intro : forall gv, gv @ gv.
+Proof. 
+Local Transparent instantiate_gvs.
+  unfold instantiate_gvs. simpl. auto.
+Global Opaque instantiate_gvs.
+Qed.
 
-Lemma dos_in_list_gvs_intro : forall gvs, DOS.Sem.in_list_gvs gvs gvs.
+Hint Resolve dos_instantiate_gvs_intro.
+
+Lemma dos_in_list_gvs_intro : forall gvs, gvs @@ gvs.
 Proof. 
   induction gvs; simpl; auto. 
 Qed.
 
-Lemma dos_in_list_gvs_inv : forall gvs gvss, 
-  DOS.Sem.in_list_gvs gvs gvss -> gvs = gvss.
-Proof.
-  induction 1; subst; try dgvs_instantiate_inv; auto. 
-Qed.
-
 Hint Resolve dos_in_list_gvs_intro.
-
-
 
 (*****************************)
 (*

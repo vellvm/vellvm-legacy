@@ -6,13 +6,13 @@ open Llvm
 open Llvm_executionengine
 open Trace
 
-let interInsnLoop (cfg:OpsemAux.coq_Config) (s0:DOS.Sem.coq_State) (tr0:trace) 
-  : (DOS.Sem.coq_State*trace) option =
+let interInsnLoop (cfg:OpsemAux.coq_Config) (s0:Opsem.coq_State) (tr0:trace) 
+  : (Opsem.coq_State*trace) option =
   
   let s = ref s0 in
   let n = ref 0 in
   
-  while not (DOS.Sem.s_isFinialState !s) do
+  while not (Opsem.s_isFinialState coq_DGVs !s) do
     (if !Globalstates.debug then (eprintf "n=%d\n" !n;   flush_all()));    
     match interInsn cfg !s with
     | Some (s', _) ->
@@ -25,9 +25,9 @@ let interInsnLoop (cfg:OpsemAux.coq_Config) (s0:DOS.Sem.coq_State) (tr0:trace)
   
   Some (!s, Coq_trace_nil)
   
-let rec interInsnStar (cfg:OpsemAux.coq_Config) (s:DOS.Sem.coq_State) (tr:trace) 
-  (n:int) : (DOS.Sem.coq_State*trace) option =
-  if (DOS.Sem.s_isFinialState s) 
+let rec interInsnStar (cfg:OpsemAux.coq_Config) (s:Opsem.coq_State) (tr:trace) 
+  (n:int) : (Opsem.coq_State*trace) option =
+  if (Opsem.s_isFinialState coq_DGVs s) 
   then 
     begin
       (if !Globalstates.debug then (eprintf "Done!\n";flush_all()));
@@ -80,7 +80,8 @@ let main in_filename argv =
         (* llvm.global_ctors/llvm.global_dtors. Are they target-independent? *)
         ExecutionEngine.run_static_ctors li;
 
-        (match DOS.Sem.s_genInitState (coqim::[]) "@main" gargvs (li, im) with
+        (match Opsem.s_genInitState coq_DGVs (coqim::[]) "@main" 
+          (Obj.magic gargvs) (li, im) with
           | Some (cfg, s) -> 
             (match interInsnLoop cfg s Coq_trace_nil with
               | Some (s', tr) -> (); ExecutionEngine.run_static_dtors li

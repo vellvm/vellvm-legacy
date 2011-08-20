@@ -25,14 +25,20 @@ Require Import AST.
 Require Import Maps.
 Require Import opsem.
 
-Module OpsemProps (GVsSig : GenericValuesSig).
+Module OpsemProps. Section OpsemProps.
 
-Module Sem := Opsem GVsSig.
-Export Sem.
+Context `{GVsSig : GenericValues}.
+
+Export Opsem.
+
+Notation GVs := GVsSig.(GVsT).
+Notation "gv @ gvs" := 
+  (GVsSig.(instantiate_gvs) gv gvs) (at level 43, right associativity).
+Notation "$ gv # t $" := (GVsSig.(gv2gvs) gv t) (at level 41).
 
 Lemma func_callUpdateLocals_is_returnUpdateLocals : 
   forall TD rid noret0 tailc0 ft fid lp Result lc lc' gl,
-  returnUpdateLocals TD (insn_call rid noret0 tailc0 ft fid lp) Result 
+  @returnUpdateLocals GVsSig TD (insn_call rid noret0 tailc0 ft fid lp) Result 
     lc lc' gl =
   callUpdateLocals TD ft noret0 rid (Some Result) lc' lc gl.
 Proof.
@@ -43,7 +49,7 @@ Proof.
 Qed.
 
 Lemma proc_callUpdateLocals_is_id : forall TD ft rid noret0 lc lc' gl lc'',
-  callUpdateLocals TD ft noret0 rid None lc' lc gl = Some lc'' -> 
+  @callUpdateLocals GVsSig TD ft noret0 rid None lc' lc gl = Some lc'' -> 
   lc' = lc'' /\ noret0 = true.
 Proof.
   intros.
@@ -52,7 +58,7 @@ Proof.
 Qed.
 
 Lemma sInsn__implies__sop_star : forall cfg state state' tr,
-  sInsn cfg state state' tr ->
+  @sInsn GVsSig cfg state state' tr ->
   sop_star cfg state state' tr.
 Proof.
   intros cfg state state' tr HdsInsn.
@@ -61,7 +67,7 @@ Proof.
 Qed.
 
 Lemma sInsn__implies__sop_plus : forall cfg state state' tr,
-  sInsn cfg state state' tr ->
+  @sInsn GVsSig cfg state state' tr ->
   sop_plus cfg state state' tr.
 Proof.
   intros cfg state state' tr HdsInsn.
@@ -70,7 +76,7 @@ Proof.
 Qed.
 
 Lemma sop_plus__implies__sop_star : forall cfg state state' tr,
-  sop_plus cfg state state' tr ->
+  @sop_plus GVsSig cfg state state' tr ->
   sop_star cfg state state' tr.
 Proof.
   intros cfg state state' tr Hdsop_plus.
@@ -81,7 +87,7 @@ Hint Resolve sInsn__implies__sop_star sInsn__implies__sop_plus
   sop_plus__implies__sop_star. 
 
 Lemma sop_star_trans : forall cfg state1 state2 state3 tr12 tr23,
-  sop_star cfg state1 state2 tr12 ->
+  @sop_star GVsSig cfg state1 state2 tr12 ->
   sop_star cfg state2 state3 tr23 ->
   sop_star cfg state1 state3 (trace_app tr12 tr23).
 Proof.
@@ -93,7 +99,7 @@ Proof.
 Qed.
 
 Lemma sop_diverging_trans : forall cfg state tr1 state' tr2,
-  sop_star cfg state state' tr1 ->
+  @sop_star GVsSig cfg state state' tr1 ->
   sop_diverges cfg state' tr2 ->
   sop_diverges cfg state (Trace_app tr1 tr2).
 Proof. 
@@ -111,7 +117,7 @@ Qed.
     bFdef imply small-step semantics. *)
 
 Definition bInsn__implies__sop_plus_prop cfg state state' tr 
-  (db:bInsn cfg state state' tr) := 
+  (db:@bInsn GVsSig cfg state state' tr) := 
   forall S TD Ps gl fs F B cs tmn lc als Mem B' cs' tmn' lc' als' Mem' ECs,
   cfg = (mkbCfg S TD Ps gl fs F) ->
   state = (mkbEC B cs tmn lc als Mem) ->
@@ -120,7 +126,7 @@ Definition bInsn__implies__sop_plus_prop cfg state state' tr
            (mkState ((mkEC F B cs tmn lc als)::ECs) Mem)
            (mkState ((mkEC F B' cs' tmn' lc' als')::ECs) Mem') tr.
 Definition bops__implies__sop_star_prop cfg state state' tr 
-  (db:bops cfg state state' tr) := 
+  (db:@bops GVsSig cfg state state' tr) := 
   forall S TD Ps gl fs F B cs tmn lc als Mem B' cs' tmn' lc' als' Mem' ECs,
   cfg = (mkbCfg S TD Ps gl fs F) ->
   state = (mkbEC B cs tmn lc als Mem) ->
@@ -130,7 +136,7 @@ Definition bops__implies__sop_star_prop cfg state state' tr
            (mkState ((mkEC F B' cs' tmn' lc' als')::ECs) Mem') tr.
 Definition bFdef__implies__sop_star_prop fv rt lp S TD Ps lc gl fs Mem lc'
 als' Mem' B'' rid oResult tr 
-(db:bFdef fv rt lp S TD Ps lc gl fs Mem lc' als' Mem' B'' rid oResult tr) 
+(db:@bFdef GVsSig fv rt lp S TD Ps lc gl fs Mem lc' als' Mem' B'' rid oResult tr)
   := 
   match oResult with
   | Some Result => forall ECs fptrs,
@@ -267,7 +273,7 @@ Qed.
     
 Lemma bInsn__implies__sop_plus : forall tr S TD Ps gl fs F B cs tmn lc als Mem B'
     cs' tmn' lc' als' Mem' ECs,
-  bInsn (mkbCfg S TD Ps gl fs F) (mkbEC B cs tmn lc als Mem) 
+  @bInsn GVsSig (mkbCfg S TD Ps gl fs F) (mkbEC B cs tmn lc als Mem) 
     (mkbEC B' cs' tmn' lc' als' Mem') tr ->
   sop_plus (mkCfg S TD Ps gl fs) 
            (mkState ((mkEC F B cs tmn lc als)::ECs) Mem)
@@ -279,7 +285,7 @@ Qed.
 
 Lemma bInsn__implies__sop_star : forall tr S TD Ps gl fs F B cs tmn lc als Mem B'
     cs' tmn' lc' als' Mem' ECs,
-  bInsn (mkbCfg S TD Ps gl fs F) (mkbEC B cs tmn lc als Mem) 
+  @bInsn GVsSig (mkbCfg S TD Ps gl fs F) (mkbEC B cs tmn lc als Mem) 
     (mkbEC B' cs' tmn' lc' als' Mem') tr ->
   sop_star (mkCfg S TD Ps gl fs) 
            (mkState ((mkEC F B cs tmn lc als)::ECs) Mem)
@@ -290,7 +296,7 @@ Qed.
 
 Lemma bops__implies__sop_star : forall tr S TD Ps gl fs F B cs tmn lc als Mem B' 
     cs' tmn' lc' als' Mem' ECs,
-  bops (mkbCfg S TD Ps gl fs F) (mkbEC B cs tmn lc als Mem) 
+  @bops GVsSig (mkbCfg S TD Ps gl fs F) (mkbEC B cs tmn lc als Mem) 
     (mkbEC B' cs' tmn' lc' als' Mem') tr ->
   sop_star (mkCfg S TD Ps gl fs) 
            (mkState ((mkEC F B cs tmn lc als)::ECs) Mem)
@@ -302,7 +308,8 @@ Qed.
 
 Lemma bFdef_func__implies__sop_star : forall fv rt lp S TD Ps ECs lc gl fs
     Mem lc' als' Mem' B'' rid Result tr fptrs, 
-  bFdef fv rt lp S TD Ps lc gl fs Mem lc' als' Mem' B'' rid (Some Result) tr ->
+  @bFdef GVsSig fv rt lp S TD Ps lc gl fs Mem lc' als' Mem' B'' rid
+    (Some Result) tr ->
   getOperandValue TD fv lc gl = Some fptrs -> 
   exists fptr, exists fa, exists fid, exists la, exists va, exists lb, 
   exists l', exists ps', exists cs', exists tmn', exists gvs, exists lc0, 
@@ -331,7 +338,7 @@ Qed.
 
 Lemma bFdef_proc__implies__sop_star : forall fv rt lp S TD Ps ECs lc gl fs
     Mem lc' als' Mem' B'' rid tr fptrs,
-  bFdef fv rt lp S TD Ps lc gl fs  Mem lc' als' Mem' B'' rid None tr ->
+  @bFdef GVsSig fv rt lp S TD Ps lc gl fs  Mem lc' als' Mem' B'' rid None tr ->
   getOperandValue TD fv lc gl = Some fptrs -> 
   exists fptr, exists fa, exists fid, exists la, exists va, exists lb, 
   exists l', exists ps', exists cs', exists tmn', exists gvs, exists lc0, 
@@ -361,7 +368,7 @@ Qed.
 
 Lemma b_genInitState_inv : forall S main Args initmem S0 TD Ps gl fs F B cs tmn 
   lc als M, 
- b_genInitState S main Args initmem = 
+ @b_genInitState GVsSig S main Args initmem = 
    Some (mkbCfg S0 TD Ps gl fs F, mkbEC B cs tmn lc als M) ->
  s_genInitState S main Args initmem =
    Some (mkCfg S0 TD Ps gl fs, mkState ((mkEC F B cs tmn lc als)::nil) M).
@@ -375,7 +382,7 @@ Qed.
 
 Lemma b_converges__implies__s_converges : forall sys main VarArgs B cs tmn lc 
     als M,
-  b_converges sys main VarArgs (mkbEC B cs tmn lc als M) ->
+  @b_converges GVsSig sys main VarArgs (mkbEC B cs tmn lc als M) ->
   exists F,
   s_converges sys main VarArgs (mkState ((mkEC F B cs tmn lc als)::nil) M).
 Proof.
@@ -383,13 +390,13 @@ Proof.
   inversion Hdb_converges; subst. destruct cfg. destruct IS.
   apply b_genInitState_inv in H.
   exists bCurFunction0.
-  eapply s_converges_intro with (tr:=tr); eauto.
-  apply bops__implies__sop_star; auto.
+  eapply s_converges_intro; eauto.
+  apply bops__implies__sop_star; eauto.
 Qed.
 
 Lemma b_goeswrong__implies__s_goeswrong : forall sys main VarArgs B cs tmn lc 
     als M,
-  b_goeswrong sys main VarArgs (mkbEC B cs tmn lc als M) ->
+  @b_goeswrong GVsSig sys main VarArgs (mkbEC B cs tmn lc als M) ->
   exists F,
   s_goeswrong sys main VarArgs (mkState ((mkEC F B cs tmn lc als)::nil) M).
 Proof.
@@ -397,8 +404,8 @@ Proof.
   inversion Hdb_goeswrong; subst. destruct cfg. destruct IS.
   apply b_genInitState_inv in H.
   exists bCurFunction0.
-  eapply s_goeswrong_intro with (tr:=tr); eauto.
-  apply bops__implies__sop_star; auto.
+  eapply s_goeswrong_intro; eauto.
+  apply bops__implies__sop_star; eauto.
 Qed.
 
 (***********************************************************)
@@ -445,9 +452,9 @@ Proof.
   cofix CIH_bFdefInf.
 
   assert (forall S tr TD Ps gl fs F B cs tmn lc als Mem ECs,
-          bInsnInf (mkbCfg S TD Ps gl fs F) (mkbEC B cs tmn lc als Mem) tr ->
-          sop_diverges (mkCfg S TD Ps gl fs) 
-                       (mkState ((mkEC F B cs tmn lc als)::ECs) Mem) tr)
+    @bInsnInf GVsSig (mkbCfg S TD Ps gl fs F) (mkbEC B cs tmn lc als Mem) tr ->
+    sop_diverges (mkCfg S TD Ps gl fs) 
+                 (mkState ((mkEC F B cs tmn lc als)::ECs) Mem) tr)
     as bInsnInf__implies__sop_diverges.
     cofix CIH_bInsnInf.
     intros S tr TD Ps gl fs F B cs tmn lc als Mem ECs HbInsnInf.
@@ -469,9 +476,9 @@ Proof.
         (lp:=lp)(lc:=lc)(fptrs0:=fptrs) in H5; eauto.
 
   assert (forall S tr TD Ps gl fs F B cs tmn lc als Mem ECs,
-          bopInf (mkbCfg S TD Ps gl fs F) (mkbEC B cs tmn lc als Mem) tr ->
-          sop_diverges (mkCfg S TD Ps gl fs) 
-                       (mkState ((mkEC F B cs tmn lc als)::ECs) Mem) tr) 
+    @bopInf GVsSig (mkbCfg S TD Ps gl fs F) (mkbEC B cs tmn lc als Mem) tr ->
+    sop_diverges (mkCfg S TD Ps gl fs) 
+                 (mkState ((mkEC F B cs tmn lc als)::ECs) Mem) tr) 
     as bopInf__implies__sop_diverges.
     cofix CIH_bopInf.
     intros S tr TD Ps gl fs F B cs tmn lc als Mem ECs HbopInf.
@@ -520,7 +527,7 @@ Qed.
 
 Lemma bInsnInf__implies__sop_diverges : forall S tr TD Ps gl fs F B cs tmn lc als
   Mem ECs,
-  bInsnInf (mkbCfg S TD Ps gl fs F) (mkbEC B cs tmn lc als Mem) tr ->
+  @bInsnInf GVsSig (mkbCfg S TD Ps gl fs F) (mkbEC B cs tmn lc als Mem) tr ->
   sop_diverges (mkCfg S TD Ps gl fs) 
     (mkState ((mkEC F B cs tmn lc als)::ECs) Mem) tr.
 Proof.
@@ -545,7 +552,7 @@ Qed.
 
 Lemma bopInf__implies__sop_diverges : forall S tr TD Ps gl fs F B cs tmn lc als
   Mem ECs,
-  bopInf (mkbCfg S TD Ps gl fs F) (mkbEC B cs tmn lc als Mem) tr ->
+  @bopInf GVsSig (mkbCfg S TD Ps gl fs F) (mkbEC B cs tmn lc als Mem) tr ->
   sop_diverges (mkCfg S TD Ps gl fs) 
     (mkState ((mkEC F B cs tmn lc als)::ECs) Mem) tr.
 Proof.
@@ -566,15 +573,15 @@ Qed.
 (** Then we prove that the whole program holds the same property. *)
 
 Lemma b_diverges__implies__s_diverges : forall sys main VarArgs tr, 
-  b_diverges sys main VarArgs tr ->
+  @b_diverges GVsSig sys main VarArgs tr ->
   s_diverges sys main VarArgs tr.
 Proof.
   intros sys main VarArgs tr Hdb_diverges.
   inversion Hdb_diverges; subst.
   destruct cfg. destruct IS.
   apply b_genInitState_inv in H.
-  eapply s_diverges_intro with (tr:=tr); eauto.
-  apply bopInf__implies__sop_diverges; auto.
+  eapply s_diverges_intro; eauto.
+  apply bopInf__implies__sop_diverges; eauto.
 Qed.
 
 Lemma BOP_inversion : forall TD lc gl b s v1 v2 gv2,
@@ -582,7 +589,7 @@ Lemma BOP_inversion : forall TD lc gl b s v1 v2 gv2,
   exists gvs1, exists gvs2,
     getOperandValue TD v1 lc gl = Some gvs1 /\
     getOperandValue TD v2 lc gl = Some gvs2 /\
-    GVsSig.lift_op2 (mbop TD b s) gvs1 gvs2 (typ_int s) = Some gv2.
+    GVsSig.(lift_op2) (mbop TD b s) gvs1 gvs2 (typ_int s) = Some gv2.
 Proof.
   intros TD lc gl b s v1 v2 gv2 HBOP.
   unfold BOP in HBOP.
@@ -598,7 +605,7 @@ Lemma FBOP_inversion : forall TD lc gl b fp v1 v2 gv,
   exists gv1, exists gv2,
     getOperandValue TD v1 lc gl = Some gv1 /\
     getOperandValue TD v2 lc gl = Some gv2 /\
-    GVsSig.lift_op2 (mfbop TD b fp) gv1 gv2 (typ_floatpoint fp) = Some gv.
+    GVsSig.(lift_op2) (mfbop TD b fp) gv1 gv2 (typ_floatpoint fp) = Some gv.
 Proof.
   intros TD lc gl b fp v1 v2 gv HFBOP.
   unfold FBOP in HFBOP.
@@ -613,7 +620,7 @@ Lemma CAST_inversion : forall TD lc gl op t1 v1 t2 gv,
   CAST TD lc gl op t1 v1 t2 = Some gv ->
   exists gv1,
     getOperandValue TD v1 lc gl = Some gv1 /\
-    GVsSig.lift_op1 (mcast TD op t1 t2) gv1 t2 = Some gv.
+    GVsSig.(lift_op1) (mcast TD op t1 t2) gv1 t2 = Some gv.
 Proof.
   intros TD lc gl op t1 v1 t2 gv HCAST.
   unfold CAST in HCAST.
@@ -626,7 +633,7 @@ Lemma TRUNC_inversion : forall TD lc gl op t1 v1 t2 gv,
   TRUNC TD lc gl op t1 v1 t2 = Some gv ->
   exists gv1,
     getOperandValue TD v1 lc gl = Some gv1 /\
-    GVsSig.lift_op1 (mtrunc TD op t1 t2) gv1 t2 = Some gv.
+    GVsSig.(lift_op1) (mtrunc TD op t1 t2) gv1 t2 = Some gv.
 Proof.
   intros TD lc gl op t1 v1 t2 gv HTRUNC.
   unfold TRUNC in HTRUNC.
@@ -639,7 +646,7 @@ Lemma EXT_inversion : forall TD lc gl op t1 v1 t2 gv,
   EXT TD lc gl op t1 v1 t2 = Some gv ->
   exists gv1,
     getOperandValue TD v1 lc gl = Some gv1 /\
-    GVsSig.lift_op1 (mext TD op t1 t2) gv1 t2 = Some gv.
+    GVsSig.(lift_op1) (mext TD op t1 t2) gv1 t2 = Some gv.
 Proof.
   intros TD lc gl op t1 v1 t2 gv HEXT.
   unfold EXT in HEXT.
@@ -653,7 +660,7 @@ Lemma ICMP_inversion : forall TD lc gl cond t v1 v2 gv,
   exists gv1, exists gv2,
     getOperandValue TD v1 lc gl = Some gv1 /\
     getOperandValue TD v2 lc gl = Some gv2 /\
-    GVsSig.lift_op2 (micmp TD cond t) gv1 gv2 (typ_int 1%nat) = Some gv.
+    GVsSig.(lift_op2) (micmp TD cond t) gv1 gv2 (typ_int 1%nat) = Some gv.
 Proof.
   intros TD lc gl cond0 t v1 v2 gv HICMP.
   unfold ICMP in HICMP.
@@ -669,7 +676,7 @@ Lemma FCMP_inversion : forall TD lc gl cond fp v1 v2 gv,
   exists gv1, exists gv2,
     getOperandValue TD v1 lc gl = Some gv1 /\
     getOperandValue TD v2 lc gl = Some gv2 /\
-    GVsSig.lift_op2 (mfcmp TD cond fp) gv1 gv2 (typ_int 1%nat) = Some gv.
+    GVsSig.(lift_op2) (mfcmp TD cond fp) gv1 gv2 (typ_int 1%nat) = Some gv.
 Proof.
   intros TD lc gl cond0 fp v1 v2 gv HFCMP.
   unfold FCMP in HFCMP.
@@ -706,7 +713,7 @@ Qed.
 
 Lemma const2GV_eqAL : forall c gl1 gl2 TD, 
   eqAL _ gl1 gl2 -> 
-  const2GV TD gl1 c = const2GV TD gl2 c.
+  @const2GV GVsSig TD gl1 c = const2GV TD gl2 c.
 Proof.
   intros. unfold const2GV.
   destruct const2GV_eqAL_aux.
@@ -715,7 +722,7 @@ Qed.
 
 Lemma getOperandValue_eqAL : forall lc1 gl lc2 v TD,
   eqAL _ lc1 lc2 ->
-  getOperandValue TD v lc1 gl = getOperandValue TD v lc2 gl.
+  @getOperandValue GVsSig TD v lc1 gl = getOperandValue TD v lc2 gl.
 Proof.
   intros lc1 gl lc2 v TD HeqAL.
   unfold getOperandValue in *.
@@ -724,7 +731,7 @@ Qed.
 
 Lemma BOP_eqAL : forall lc1 gl lc2 bop0 sz0 v1 v2 TD,
   eqAL _ lc1 lc2 ->
-  BOP TD lc1 gl bop0 sz0 v1 v2 = BOP TD lc2 gl bop0 sz0 v1 v2.
+  @BOP GVsSig TD lc1 gl bop0 sz0 v1 v2 = BOP TD lc2 gl bop0 sz0 v1 v2.
 Proof.
   intros lc1 gl lc2 bop0 sz0 v1 v2 TD HeqEnv.
   unfold BOP in *.
@@ -734,7 +741,7 @@ Qed.
 
 Lemma FBOP_eqAL : forall lc1 gl lc2 fbop0 fp0 v1 v2 TD,
   eqAL _ lc1 lc2 ->
-  FBOP TD lc1 gl fbop0 fp0 v1 v2 = FBOP TD lc2 gl fbop0 fp0 v1 v2.
+  @FBOP GVsSig TD lc1 gl fbop0 fp0 v1 v2 = FBOP TD lc2 gl fbop0 fp0 v1 v2.
 Proof.
   intros lc1 gl lc2 fbop0 fp0 v1 v2 TD HeqEnv.
   unfold FBOP in *.
@@ -744,7 +751,7 @@ Qed.
 
 Lemma CAST_eqAL : forall lc1 gl lc2 op t1 v1 t2 TD,
   eqAL _ lc1 lc2 ->
-  CAST TD lc1 gl op t1 v1 t2 = CAST TD lc2 gl op t1 v1 t2.
+  @CAST GVsSig TD lc1 gl op t1 v1 t2 = CAST TD lc2 gl op t1 v1 t2.
 Proof.
   intros lc1 gl lc2 op t1 v1 t2 TD HeqAL.
   unfold CAST in *.
@@ -753,7 +760,7 @@ Qed.
 
 Lemma TRUNC_eqAL : forall lc1 gl lc2 op t1 v1 t2 TD,
   eqAL _ lc1 lc2 ->
-  TRUNC TD lc1 gl op t1 v1 t2 = TRUNC TD lc2 gl op t1 v1 t2.
+  @TRUNC GVsSig TD lc1 gl op t1 v1 t2 = TRUNC TD lc2 gl op t1 v1 t2.
 Proof.
   intros lc1 gl lc2 op t1 v1 t2 TD HeqAL.
   unfold TRUNC in *.
@@ -762,7 +769,7 @@ Qed.
 
 Lemma EXT_eqAL : forall lc1 gl lc2 op t1 v1 t2 TD,
   eqAL _ lc1 lc2 ->
-  EXT TD lc1 gl op t1 v1 t2 = EXT TD lc2 gl op t1 v1 t2.
+  @EXT GVsSig TD lc1 gl op t1 v1 t2 = EXT TD lc2 gl op t1 v1 t2.
 Proof.
   intros lc1 gl lc2 op t1 v1 t2 TD HeqAL.
   unfold EXT in *.
@@ -771,7 +778,7 @@ Qed.
 
 Lemma ICMP_eqAL : forall lc1 gl lc2 cond t v1 v2 TD,
   eqAL _ lc1 lc2 ->
-  ICMP TD lc1 gl cond t v1 v2 = ICMP TD lc2 gl cond t v1 v2.
+  @ICMP GVsSig TD lc1 gl cond t v1 v2 = ICMP TD lc2 gl cond t v1 v2.
 Proof.
   intros lc1 gl lc2 cond0 t v1 v2 TD HeqAL.
   unfold ICMP in *.
@@ -781,7 +788,7 @@ Qed.
 
 Lemma FCMP_eqAL : forall lc1 gl lc2 cond fp v1 v2 TD,
   eqAL _ lc1 lc2 ->
-  FCMP TD lc1 gl cond fp v1 v2 = FCMP TD lc2 gl cond fp v1 v2.
+  @FCMP GVsSig TD lc1 gl cond fp v1 v2 = FCMP TD lc2 gl cond fp v1 v2.
 Proof.
   intros lc1 gl lc2 cond0 fp v1 v2 TD HeqAL.
   unfold FCMP in *.
@@ -791,7 +798,7 @@ Qed.
 
 Lemma values2GVs_eqAL : forall l0 lc1 gl lc2 TD,
   eqAL _ lc1 lc2 ->
-  values2GVs TD l0 lc1 gl = values2GVs TD l0 lc2 gl.
+  @values2GVs GVsSig TD l0 lc1 gl = values2GVs TD l0 lc2 gl.
 Proof.
   induction l0; intros lc1 gl lc2 TD HeqAL; simpl; auto.
     rewrite getOperandValue_eqAL with (lc2:=lc2)(v:=v); auto.
@@ -818,7 +825,7 @@ Lemma eqAL_callUpdateLocals : forall TD noret0 rid oResult lc1 lc2 gl lc1'
   lc2' ft,
   eqAL _ lc1 lc1' ->
   eqAL _ lc2 lc2' ->
-  match (callUpdateLocals TD ft noret0 rid oResult lc1 lc2 gl,
+  match (@callUpdateLocals GVsSig  TD ft noret0 rid oResult lc1 lc2 gl,
          callUpdateLocals TD ft noret0 rid oResult lc1' lc2' gl) with
   | (Some lc, Some lc') => eqAL _ lc lc'
   | (None, None) => True
@@ -833,22 +840,24 @@ Proof.
           rewrite H2.
           destruct (lookupAL _ lc2' i0); auto using eqAL_updateAddAL.
 
-          destruct (const2GV TD gl c); auto using eqAL_updateAddAL.
+          destruct (@const2GV GVsSig TD gl c); auto using eqAL_updateAddAL.
       destruct oResult; simpl; auto.
         destruct v; simpl.
           rewrite H2.
           destruct (lookupAL _ lc2' i0); auto.
           destruct ft; auto.
-          destruct (GVsSig.lift_op1 (fit_gv TD ft) t ft); auto using eqAL_updateAddAL.
+          destruct (GVsSig.(lift_op1) (fit_gv TD ft) g ft); 
+            auto using eqAL_updateAddAL.
 
-          destruct (const2GV TD gl c); auto using eqAL_updateAddAL.
+          destruct (@const2GV GVsSig TD gl c); auto using eqAL_updateAddAL.
           destruct ft; auto.
-          destruct (GVsSig.lift_op1 (fit_gv TD ft) g ft); auto using eqAL_updateAddAL.
+          destruct (GVsSig.(lift_op1) (fit_gv TD ft) g ft); 
+            auto using eqAL_updateAddAL.
 Qed.
 
 Lemma eqAL_getIncomingValuesForBlockFromPHINodes : forall TD ps B gl lc lc',
   eqAL _ lc lc' ->
-  getIncomingValuesForBlockFromPHINodes TD ps B gl lc = 
+  @getIncomingValuesForBlockFromPHINodes GVsSig TD ps B gl lc = 
   getIncomingValuesForBlockFromPHINodes TD ps B gl lc'.
 Proof.
   induction ps; intros; simpl; auto.
@@ -860,7 +869,7 @@ Qed.
   
 Lemma eqAL_updateValuesForNewBlock : forall vs lc lc',
   eqAL _ lc lc' ->
-  eqAL _ (updateValuesForNewBlock vs lc) (updateValuesForNewBlock vs lc').
+  eqAL _ (@updateValuesForNewBlock GVsSig vs lc)(updateValuesForNewBlock vs lc').
 Proof.
   induction vs; intros; simpl; auto.
     destruct a; auto using eqAL_updateAddAL.
@@ -868,7 +877,7 @@ Qed.
 
 Lemma eqAL_switchToNewBasicBlock : forall TD B1 B2 gl lc lc',
   eqAL _ lc lc' ->
-  match (switchToNewBasicBlock TD B1 B2 gl lc,
+  match (@switchToNewBasicBlock GVsSig TD B1 B2 gl lc,
          switchToNewBasicBlock TD B1 B2 gl lc') with
   | (Some lc1, Some lc1') => eqAL _ lc1 lc1'
   | (None, None) => True
@@ -883,9 +892,22 @@ Proof.
     lc'); auto using eqAL_updateValuesForNewBlock.
 Qed.
 
+Lemma eqAL_switchToNewBasicBlock' : forall TD B1 B2 gl lc lc' lc1,
+  eqAL _ lc lc' ->
+  @switchToNewBasicBlock GVsSig TD B1 B2 gl lc = Some lc1 ->
+  exists lc1', switchToNewBasicBlock TD B1 B2 gl lc' = Some lc1' /\
+               eqAL _ lc1 lc1'.
+Proof.
+  intros.
+  assert (J:=@eqAL_switchToNewBasicBlock TD B1 B2 gl lc lc' H).
+  rewrite H0 in J.
+  destruct (switchToNewBasicBlock TD B1 B2 gl lc'); try solve [inversion J].
+  exists g. auto.
+Qed.
+
 Lemma eqAL_params2GVs : forall lp TD lc gl lc',
   eqAL _ lc lc' ->
-  params2GVs TD lp lc gl = params2GVs TD lp lc' gl.
+  @params2GVs GVsSig TD lp lc gl = params2GVs TD lp lc' gl.
 Proof.
   induction lp; intros; simpl; auto.
     destruct a. 
@@ -896,7 +918,7 @@ Qed.
 
 Lemma eqAL_exCallUpdateLocals : forall TD noret0 rid oResult lc lc' ft,
   eqAL _ lc lc' ->
-  match (exCallUpdateLocals TD ft noret0 rid oResult lc,
+  match (@exCallUpdateLocals GVsSig TD ft noret0 rid oResult lc,
          exCallUpdateLocals TD ft noret0 rid oResult lc') with
   | (Some lc1, Some lc1') => eqAL _ lc1 lc1'
   | (None, None) => True
@@ -911,17 +933,96 @@ Proof.
     destruct (fit_gv TD ft g); auto using eqAL_updateAddAL.
 Qed.
 
+Lemma eqAL_callUpdateLocals' : forall TD ft noret0 rid oResult lc1 lc2 gl lc1' 
+    lc2' lc,
+  eqAL _ lc1 lc1' ->
+  eqAL _ lc2 lc2' ->
+  @callUpdateLocals GVsSig TD ft noret0 rid oResult lc1 lc2 gl = Some lc ->
+  exists lc', 
+    callUpdateLocals TD ft noret0 rid oResult lc1' lc2' gl = Some lc' /\
+    eqAL _ lc lc'.
+Proof.
+  intros TD ft noret0 rid oResult lc1 lc2 gl lc1' lc2' lc H H0 H1.
+  assert (J:=@eqAL_callUpdateLocals TD noret0 rid oResult lc1 lc2 gl lc1' lc2'
+    ft H H0).
+  rewrite H1 in J.
+  destruct (callUpdateLocals TD ft noret0 rid oResult lc1' lc2' gl);
+    try solve [inversion J].
+  exists g. auto.
+Qed.
+
+Lemma eqAL_exCallUpdateLocals' : forall TD ft noret0 rid oResult lc lc' lc0,
+  eqAL _ lc lc' ->
+  @exCallUpdateLocals GVsSig TD ft noret0 rid oResult lc = Some lc0 ->
+  exists lc0', exCallUpdateLocals TD ft noret0 rid oResult lc' = Some lc0' /\
+               eqAL _ lc0 lc0'.
+Proof.
+  intros TD ft noret0 rid oResult lc lc' lc0 H H0.
+  assert (J:=@eqAL_exCallUpdateLocals TD noret0 rid oResult lc lc' ft H).
+  rewrite H0 in J.
+  destruct (exCallUpdateLocals TD ft noret0 rid oResult lc'); 
+    try solve [inversion J].
+  exists g. auto.
+Qed.
+
+Lemma exCallUpdateLocals_uniq : forall TD ft noret0 rid oresult lc lc',
+  uniq lc ->
+  @exCallUpdateLocals GVsSig TD ft noret0 rid oresult lc = Some lc' ->
+  uniq lc'.
+Proof.
+  intros.
+  unfold exCallUpdateLocals in H0.
+  destruct noret0; auto.
+    inversion H0; subst; auto.
+
+    destruct oresult; try solve [inversion H0].
+    destruct ft; try solve [inversion H0].
+    destruct (fit_gv TD ft g); inversion H0; subst.
+      apply updateAddAL_uniq; auto.
+Qed.
+
+Lemma callUpdateLocals_uniq : forall TD ft noret0 rid oresult lc lc' gl lc'',
+  uniq lc ->
+  @callUpdateLocals GVsSig TD ft noret0 rid oresult lc lc' gl = Some lc'' ->
+  uniq lc''.
+Proof.
+  intros.
+  unfold callUpdateLocals in H0.
+  destruct noret0; auto.
+    destruct oresult; try solve [inversion H0; subst; auto].
+    destruct (getOperandValue TD v lc' gl); inversion H0; subst; auto.
+
+    destruct oresult; try solve [inversion H0; subst; auto].
+    destruct (getOperandValue TD v lc' gl); tinv H0.
+    destruct ft; tinv H0.
+    destruct (lift_op1 _ (fit_gv TD ft) g ft); inv H0.
+      apply updateAddAL_uniq; auto.
+Qed.
+
 Lemma updateValuesForNewBlock_uniq : forall l0 lc,
   uniq lc ->
-  uniq (updateValuesForNewBlock l0 lc).
+  uniq (@updateValuesForNewBlock GVsSig l0 lc).
 Proof.
   induction l0; intros lc Uniqc; simpl; auto.
     destruct a; apply updateAddAL_uniq; auto.
 Qed.
 
+Lemma updateValuesForNewBlock_spec4 : forall rs lc id1 gv,
+  lookupAL _ rs id1 = Some gv ->
+  lookupAL _ (@updateValuesForNewBlock GVsSig rs lc) id1 = Some gv.
+Proof.  
+  induction rs; intros; simpl in *.   
+    inversion H.
+
+    destruct a.
+    destruct (id1==a); subst.
+      inversion H; subst. apply lookupAL_updateAddAL_eq; auto.
+      rewrite <- lookupAL_updateAddAL_neq; auto.
+Qed.
+
 Lemma switchToNewBasicBlock_uniq : forall TD B1 B2 gl lc lc',
   uniq lc ->
-  switchToNewBasicBlock TD B1 B2 gl lc = Some lc' ->
+  @switchToNewBasicBlock GVsSig TD B1 B2 gl lc = Some lc' ->
   uniq lc'.
 Proof.
   intros TD B1 B2 gl lc lc' Uniqc H.
@@ -932,7 +1033,7 @@ Proof.
 Qed.      
 
 Lemma initializeFrameValues_init : forall TD la l0 lc,
-  _initializeFrameValues TD la l0 nil = Some lc ->
+  @_initializeFrameValues GVsSig TD la l0 nil = Some lc ->
   uniq lc.
 Proof.
   induction la; intros; simpl in *; auto.
@@ -940,27 +1041,84 @@ Proof.
 
     destruct a as [[t ?] id0].
     destruct l0.
-      remember (_initializeFrameValues TD la nil nil) as R.
+      remember (@_initializeFrameValues GVsSig TD la nil nil) as R.
       destruct R; tinv H.
       destruct (gundef TD t); inv H; eauto using updateAddAL_uniq.
 
-      remember (_initializeFrameValues TD la l0 nil) as R.
+      remember (@_initializeFrameValues GVsSig TD la l0 nil) as R.
       destruct R; tinv H.
-      destruct (GVsSig.lift_op1 (fit_gv TD t) g t); inv H; 
+      destruct (GVsSig.(lift_op1) (fit_gv TD t) g t); inv H; 
         eauto using updateAddAL_uniq.
 Qed.
 
 Lemma initLocals_uniq : forall TD la ps lc,
-  initLocals TD la ps = Some lc -> uniq lc.
+  @initLocals GVsSig TD la ps = Some lc -> uniq lc.
 Proof.
   intros la ps.
   unfold initLocals.
   apply initializeFrameValues_init; auto.
 Qed.
 
+Lemma initLocals_spec : forall TD la gvs id1 lc,
+  In id1 (getArgsIDs la) ->
+  @initLocals GVsSig TD la gvs = Some lc ->
+  exists gv, lookupAL _ lc id1 = Some gv.
+Proof.
+  unfold initLocals.
+  induction la; intros; simpl in *.
+    inversion H.
+
+    destruct a as [[t c] id0].  
+    simpl in H.
+    destruct H as [H | H]; subst; simpl.
+      destruct gvs. 
+        remember (@_initializeFrameValues GVsSig TD la nil nil) as R1.
+        destruct R1; tinv H0.
+        remember (gundef TD t) as R2.
+        destruct R2; inv H0.
+        eauto using lookupAL_updateAddAL_eq.
+
+        remember (@_initializeFrameValues GVsSig TD la gvs nil) as R1.
+        destruct R1; tinv H0.
+        destruct (GVsSig.(lift_op1) (fit_gv TD t) g t); inv H0.
+        eauto using lookupAL_updateAddAL_eq.
+
+      destruct (eq_atom_dec id0 id1); subst.
+        destruct gvs.
+          remember (@_initializeFrameValues GVsSig TD la nil nil) as R1.
+          destruct R1; tinv H0.
+          remember (gundef TD t) as R2.
+          destruct R2; inv H0.
+          eauto using lookupAL_updateAddAL_eq.
+
+          remember (@_initializeFrameValues GVsSig TD la gvs nil) as R1.
+          destruct R1; tinv H0.
+          destruct (GVsSig.(lift_op1) (fit_gv TD t) g t); inv H0.
+          eauto using lookupAL_updateAddAL_eq.
+
+        destruct gvs.
+          remember (@_initializeFrameValues GVsSig TD la nil nil) as R1.
+          destruct R1; tinv H0.
+          remember (gundef TD t) as R2.
+          destruct R2; inv H0.
+          symmetry in HeqR1.
+          eapply IHla in HeqR1; eauto.
+          destruct HeqR1 as [gv HeqR1]. 
+          rewrite <- lookupAL_updateAddAL_neq; eauto.
+
+          remember (@_initializeFrameValues GVsSig TD la gvs nil) as R1.
+          destruct R1; tinv H0.
+          destruct (GVsSig.(lift_op1) (fit_gv TD t) g t); inv H0.
+          symmetry in HeqR1.
+          eapply IHla in HeqR1; eauto.
+          destruct HeqR1 as [gv HeqR1]. 
+          rewrite <- lookupAL_updateAddAL_neq; eauto.
+Qed.
+
 Lemma getIncomingValuesForBlockFromPHINodes_eq : 
   forall ps TD l1 ps1 cs1 tmn1 ps2 cs2 tmn2,
-  getIncomingValuesForBlockFromPHINodes TD ps (block_intro l1 ps1 cs1 tmn1) =
+  @getIncomingValuesForBlockFromPHINodes GVsSig TD ps 
+    (block_intro l1 ps1 cs1 tmn1) =
   getIncomingValuesForBlockFromPHINodes TD ps (block_intro l1 ps2 cs2 tmn2).
 Proof.
   induction ps; intros; auto.
@@ -970,7 +1128,7 @@ Qed.
 
 Lemma switchToNewBasicBlock_eq : 
   forall TD B l1 ps1 cs1 tmn1 ps2 cs2 tmn2 gl lc,
-  switchToNewBasicBlock TD B (block_intro l1 ps1 cs1 tmn1) gl lc =
+  @switchToNewBasicBlock GVsSig TD B (block_intro l1 ps1 cs1 tmn1) gl lc =
   switchToNewBasicBlock TD B (block_intro l1 ps2 cs2 tmn2) gl lc.
 Proof.
   intros.
@@ -979,7 +1137,7 @@ Proof.
 Qed.
 
 Lemma bops_trans : forall cfg state1 state2 state3 tr1 tr2,
-  bops cfg state1 state2 tr1 ->
+  @bops GVsSig cfg state1 state2 tr1 ->
   bops cfg state2 state3 tr2 ->
   bops cfg state1 state3 (trace_app tr1 tr2).
 Proof.
@@ -991,7 +1149,7 @@ Proof.
 Qed.
 
 Lemma bInsn__bops : forall cfg state1 state2 tr,
-  bInsn cfg state1 state2 tr ->
+  @bInsn GVsSig cfg state1 state2 tr ->
   bops cfg state1 state2 tr.
 Proof.
   intros.
@@ -1001,7 +1159,7 @@ Qed.
 
 Lemma bInsn__inv : forall cfg B1 c cs tmn3 lc1 als1 Mem1 B2 tmn4 lc2 als2 
   Mem2 tr,
-  bInsn cfg (mkbEC B1 (c::cs) tmn3 lc1 als1 Mem1) 
+  @bInsn GVsSig cfg (mkbEC B1 (c::cs) tmn3 lc1 als1 Mem1) 
     (mkbEC B2 cs tmn4 lc2 als2 Mem2) tr ->
   B1 = B2 /\ tmn3 = tmn4.
 Proof.
@@ -1011,7 +1169,7 @@ Qed.
 
 Lemma bInsn_Call__inv : forall cfg B1 c cs tmn3 lc1 als1 Mem1 B2 tmn4 lc2 als2 
   Mem2 tr,
-  bInsn cfg
+  @bInsn GVsSig cfg
     (mkbEC B1 (c::cs) tmn3 lc1 als1 Mem1) (mkbEC B2 cs tmn4 lc2 als2 Mem2) tr ->
   Instruction.isCallInst c = true ->
   B1 = B2 /\ tmn3 = tmn4 /\ als1 = als2.
@@ -1020,50 +1178,10 @@ Proof.
   inversion H; subst; try solve [inversion H0 | repeat (split; auto)].
 Qed.
 
-Lemma lookupFdefViaPtr_uniq : forall los nts Ps fs S fptr F,
-  uniqSystem S ->
-  moduleInSystem (module_intro los nts Ps) S ->
-  lookupFdefViaPtr Ps fs fptr = Some F ->
-  uniqFdef F.
-Proof.
-  intros.
-  apply lookupFdefViaPtr_inversion in H1.
-  destruct H1 as [fn [J1 J2]].
-  apply lookupFdefViaIDFromProducts_inv in J2; auto.
-  apply uniqSystem__uniqProducts in H0; auto.
-  eapply uniqProducts__uniqFdef; simpl; eauto.
-Qed.
-
-Lemma entryBlockInSystemBlockFdef'' : forall los nts Ps fs fv F S B,
-  moduleInSystem (module_intro los nts Ps) S ->
-  lookupFdefViaPtr Ps fs fv = Some F ->
-  getEntryBlock F = Some B ->
-  blockInSystemModuleFdef B S (module_intro los nts Ps) F.
-Proof.
-  intros.
-  apply lookupFdefViaPtr_inversion in H0.
-  destruct H0 as [fn [J1 J2]].
-  apply lookupFdefViaIDFromProducts_inv in J2.
-  apply entryBlockInFdef in H1.  
-  apply blockInSystemModuleFdef_intro; auto.
-Qed.
-
-Lemma lookupFdefViaPtrInSystem : forall los nts Ps fs S fv F,
-  moduleInSystem (module_intro los nts Ps) S ->
-  lookupFdefViaPtr Ps fs fv = Some F ->
-  productInSystemModuleB (product_fdef F) S (module_intro los nts Ps).
-Proof.
-  intros.
-  apply lookupFdefViaPtr_inversion in H0.
-  destruct H0 as [fn [J1 J2]].
-  apply lookupFdefViaIDFromProducts_inv in J2.
-  apply productInSystemModuleB_intro; auto.
-Qed.
-
 (* preservation of uniqueness and inclusion *)
 
 Definition bInsn_preservation_prop cfg state1 state2 tr
-  (db:bInsn cfg state1 state2 tr) :=
+  (db:@bInsn GVsSig cfg state1 state2 tr) :=
   forall S los nts Ps gl fs F B cs tmn lc als Mem cs' tmn' B' lc' als' Mem',
   cfg = (mkbCfg S (los, nts) Ps gl fs F) ->
   state1 = (mkbEC B cs tmn lc als Mem) ->
@@ -1072,7 +1190,7 @@ Definition bInsn_preservation_prop cfg state1 state2 tr
   state2 = (mkbEC B' cs' tmn' lc' als' Mem') ->
   blockInSystemModuleFdef B' S (module_intro los nts Ps) F.
 Definition bops_preservation_prop cfg state1 state2 tr
-  (db:bops cfg state1 state2 tr) :=
+  (db:@bops GVsSig cfg state1 state2 tr) :=
   forall S los nts Ps gl fs F B cs tmn lc als Mem B' cs' tmn' lc' als' Mem',
   cfg = (mkbCfg S (los, nts) Ps gl fs F) ->
   state1 = (mkbEC B cs tmn lc als Mem) ->
@@ -1081,8 +1199,8 @@ Definition bops_preservation_prop cfg state1 state2 tr
   blockInSystemModuleFdef B S (module_intro los nts Ps) F ->
   blockInSystemModuleFdef B' S (module_intro los nts Ps) F.
 Definition bFdef_preservation_prop fv rt lp S TD Ps lc gl fs Mem lc' als' 
-  Mem' B' Rid oResult tr
-  (db:bFdef fv rt lp S TD Ps lc gl fs Mem lc' als' Mem' B' Rid oResult tr) 
+ Mem' B' Rid oResult tr
+ (db:@bFdef GVsSig fv rt lp S TD Ps lc gl fs Mem lc' als' Mem' B' Rid oResult tr)
   :=
   forall los nts,
   TD = (los, nts) ->
@@ -1164,7 +1282,7 @@ Qed.
 
 Lemma bInsn_preservation : forall tr S los nts Ps F cs tmn lc als 
   gl fs Mem cs' tmn' lc' als' Mem' B B',
-  bInsn (mkbCfg S (los, nts) Ps gl fs F)
+  @bInsn GVsSig (mkbCfg S (los, nts) Ps gl fs F)
     (mkbEC B cs tmn lc als Mem) 
     (mkbEC B' cs' tmn' lc' als' Mem') tr ->
   uniqSystem S ->
@@ -1179,7 +1297,7 @@ Qed.
 
 Lemma bops_preservation : forall tr S los nts Ps F B cs tmn lc als gl
     fs Mem B' cs' tmn' lc' als' Mem',
-  bops (mkbCfg S (los, nts) Ps gl fs F)
+  @bops GVsSig (mkbCfg S (los, nts) Ps gl fs F)
     (mkbEC B cs tmn lc als Mem) (mkbEC B' cs' tmn' lc' als' Mem')
     tr ->
   uniqSystem S ->
@@ -1194,8 +1312,8 @@ Qed.
 
 Lemma bFdef_preservation : forall fv rt lp S los nts Ps lc gl fs Mem lc' 
     als' Mem' B' Rid oResult tr,
-  bFdef fv rt lp S (los, nts) Ps lc gl fs Mem lc' als' Mem' B' Rid oResult tr
-    ->
+  @bFdef GVsSig fv rt lp S (los, nts) Ps lc gl fs Mem lc' als' Mem' B' Rid 
+    oResult tr ->
   uniqSystem S ->
   moduleInSystem (module_intro los nts Ps) S ->
   exists fptrs, exists fptr, exists F, 
@@ -1211,7 +1329,7 @@ Proof.
   eapply J; eauto.
 Qed.
 
-End OpsemProps.
+End OpsemProps. End OpsemProps.
 
 (*****************************)
 (*
