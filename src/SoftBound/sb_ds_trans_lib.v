@@ -703,6 +703,157 @@ Ltac invert_prop_reg_metadata :=
       inv H; subst; eauto
   end.
 
+Lemma notin_codom__neq : forall rm d id0 id1 bid eid,
+  AtomSetImpl.inter d (codom rm) [<=] {} ->
+  id0 `in` d ->
+  Some (bid, eid) = lookupAL _ rm id1 ->
+  id0 <> bid /\ id0 <> eid.
+Proof.
+  induction rm; intros d id0 id1 bid eid J1 J2 J3.
+    inversion J3.
+
+    destruct a. destruct p. simpl in *.
+    destruct (id1 == i0); subst.
+      inv J3. clear IHrm. fsetdec.
+      eapply IHrm in J3; eauto.
+        clear - J1. fsetdec.
+Qed.
+
+Lemma ids2atoms_dom : forall x d,
+  In x d <-> x `in` ids2atoms d.
+Proof.
+  induction d.
+    split; intro J.
+      inversion J.
+      contradict J; fsetdec.
+    split; simpl; intro J.
+      destruct J as [J | J]; subst; auto.
+        apply IHd in J. auto.
+
+      assert (x `in` (singleton a) \/ x `in` (ids2atoms d)) as H.
+        fsetdec.
+      destruct H as [H | H]; try fsetdec.
+        apply IHd in H. auto.
+Qed.
+
+Lemma tmp_is_fresh : forall i0 d ex_ids tmp ex_ids',
+  i0 `in` d ->
+  d [<=] ids2atoms ex_ids ->
+  (tmp, ex_ids') = mk_tmp ex_ids ->
+  i0 <> tmp.
+Proof.
+  intros. unfold mk_tmp in H1.
+  destruct (atom_fresh_for_list ex_ids).
+  inv H1.
+  assert (x `notin` ids2atoms ex_ids) as J.
+    intro H1. apply n.
+    apply ids2atoms_dom; auto.              
+  fsetdec.
+Qed.
+
+Lemma rmap_lookupAL : forall rm bid eid id1,
+  ret (bid, eid) = lookupAL (id * id) rm id1 ->
+  bid `in` codom rm /\ eid `in` codom rm /\ id1 `in` dom rm.
+Proof.
+  induction rm; intros.
+    inversion H.
+    destruct a. destruct p. simpl in *.
+    destruct (id1 == a); subst.
+      inv H. fsetdec.
+      apply IHrm in H. fsetdec.
+Qed.
+
+Lemma rm_codom_disjoint_spec : forall rm pid bid eid,
+  rm_codom_disjoint rm ->
+  Some (bid, eid) = lookupAL _ rm pid ->
+  bid <> eid /\ bid <> pid /\ eid <> pid.
+Proof.
+  induction rm; intros. 
+    inversion H0.
+    destruct a. destruct p. simpl in *.
+    destruct (pid == i0); subst.
+      inv H0. destruct H as [J1 [J2 [J3 [J4 [J5 [J6 J7]]]]]].
+      repeat split; auto.
+
+      destruct H as [_ [_ [_ [_ [_ [_ H]]]]]].
+      eapply IHrm in H; eauto.
+Qed.
+
+Lemma rm_codom_disjoint_spec' : forall rm bid1 eid1 id1 bid2 eid2 id2,
+  rm_codom_disjoint rm ->
+  ret (bid1, eid1) = lookupAL (id * id) rm id1 ->
+  ret (bid2, eid2) = lookupAL (id * id) rm id2 ->
+  id1 <> id2 ->
+  bid1 <> bid2 /\ bid1 <> eid2 /\ bid1 <> id2 /\ bid1 <> id1 /\
+  eid1 <> bid2 /\ eid1 <> eid2 /\ eid1 <> id1 /\ eid1 <> id2 /\
+  bid2 <> id1 /\ eid2 <> id1.
+Proof.
+  induction rm; intros.
+    inversion H0.
+    destruct a. destruct p. simpl in *.
+    destruct H as [H8 [H9 [H3 [H4 [H5 [H6 H7]]]]]].
+    destruct (id1 == i0); subst.
+      destruct (id2 == i0); subst.
+        contradict H2; auto.
+
+        inv H0.
+        eapply rm_codom_disjoint_spec in H7; eauto.
+        apply rmap_lookupAL in H1.
+        destruct H1 as [H11 [H12 H13]].
+        destruct H7 as [H0 [H1 H10]].
+        repeat (split; auto). 
+          clear - H5 H11. fsetdec.
+          clear - H5 H12. fsetdec.
+          clear - H5 H13. fsetdec.
+          clear - H6 H11. fsetdec.
+          clear - H6 H12. fsetdec.
+          clear - H6 H13. fsetdec.
+          clear - H11 H4. fsetdec.
+          clear - H12 H4. fsetdec.
+      destruct (id2 == i0); subst; eauto.
+        inv H1.
+        eapply rm_codom_disjoint_spec in H7; eauto.
+        destruct H7 as [H1 [H7 H10]].
+        apply rmap_lookupAL in H0.
+        destruct H0 as [H11 [H12 H13]].
+        repeat (split; auto). 
+          clear - H5 H11. fsetdec.
+          clear - H6 H11. fsetdec.
+          clear - H4 H11. fsetdec.
+          clear - H5 H12. fsetdec.
+          clear - H6 H12. fsetdec.
+          clear - H4 H12. fsetdec.
+          clear - H5 H13. fsetdec.
+          clear - H6 H13. fsetdec.
+Qed.
+
+Lemma tmp_is_fresh' : forall id1 ex_ids tmp ex_ids' bid eid rm,
+  codom rm [<=] ids2atoms ex_ids ->
+  Some (bid, eid) = lookupAL _ rm id1 ->
+  (tmp, ex_ids') = mk_tmp ex_ids ->
+  bid <> tmp /\ eid <> tmp.
+Proof.
+  intros. unfold mk_tmp in H1.
+  destruct (atom_fresh_for_list ex_ids).
+  inv H1.
+  assert (x `notin` ids2atoms ex_ids) as J.
+    intro H1. apply n.
+    apply ids2atoms_dom; auto.              
+  apply rmap_lookupAL in H0.
+  fsetdec.
+Qed.
+
+Lemma mk_tmp_inc : forall ex_ids ex_ids3 ex_ids5 tmp,
+  incl ex_ids ex_ids3 ->
+  (tmp, ex_ids5) = mk_tmp ex_ids3 ->
+  incl ex_ids ex_ids5.
+Proof.
+  intros. intros x J. unfold mk_tmp in H0.
+  remember (atom_fresh_for_list ex_ids3) as R.
+  destruct R. inv H0.
+  simpl. auto.
+Qed.
+
 Lemma reg_simulation_spec : forall mi nts los gl f1 rm1 rm2 lc1 lc2 gv1 i0,
   reg_simulation mi (los,nts) gl f1 rm1 rm2 lc1 lc2 ->
   lookupAL GenericValue lc1 i0 = ret gv1 ->
@@ -2620,7 +2771,7 @@ Proof.
 Qed.
 
 Lemma wf_value_id__in_getFdefLocs : forall S m f v t,
-  wf_value S m f v t -> sb_ds_sim.getValueID v[<=]ids2atoms (getFdefLocs f).
+  wf_value S m f v t -> SB_ds_pass.getValueID v[<=]ids2atoms (getFdefLocs f).
 Proof.
   intros.
   inv H; simpl.

@@ -709,7 +709,7 @@ Proof.
     next_insn.
       eapply Opsem.sLoad with (mp:=gvp2); eauto.
         rewrite <- getOperandValue_eq_fresh_id; auto.
-          assert (sb_ds_sim.getValueID vp[<=]
+          assert (SB_ds_pass.getValueID vp[<=]
             ids2atoms (getFdefLocs (fdef_intro fh1 bs1))) as Hindom.
             assert (Hwfc := HBinF).
             destruct Heqb1 as [l1 [ps1 [cs11 Heqb1]]]; subst.
@@ -872,7 +872,7 @@ Proof.
     next_insn.
       eapply Opsem.sLoad with (mp:=gvp2); eauto.
         rewrite <- getOperandValue_eq_fresh_id; auto.
-        assert (sb_ds_sim.getValueID vp[<=]
+        assert (SB_ds_pass.getValueID vp[<=]
             ids2atoms (getFdefLocs (fdef_intro fh1 bs1))) as Hindom.
             assert (Hwfc := HBinF).
             destruct Heqb1 as [l1 [ps1 [cs11 Heqb1]]]; subst.
@@ -1013,13 +1013,13 @@ Proof.
       inv Hwfc. 
       eapply Opsem.sStore with (mp2:=gvp2)(gv1:=gv2); eauto.
         rewrite <- getOperandValue_eq_fresh_id; auto.
-          assert (sb_ds_sim.getValueID v[<=]
+          assert (SB_ds_pass.getValueID v[<=]
             ids2atoms (getFdefLocs (fdef_intro fh1 bs1))) as Hindom.
             eapply wf_value_id__in_getFdefLocs in H13; auto.
           eapply get_reg_metadata_fresh' with (rm2:=rm2); eauto; try fsetdec.
 
         rewrite <- getOperandValue_eq_fresh_id; auto.
-          assert (sb_ds_sim.getValueID vp[<=]
+          assert (SB_ds_pass.getValueID vp[<=]
             ids2atoms (getFdefLocs (fdef_intro fh1 bs1))) as Hindom.
             eapply wf_value_id__in_getFdefLocs in H17; auto.
           eapply get_reg_metadata_fresh' with (rm2:=rm2); eauto; try fsetdec.
@@ -1223,13 +1223,13 @@ Proof.
       inv Hwfc. 
       eapply Opsem.sStore with (mp2:=gvp2)(gv1:=gv2); eauto.
         rewrite <- getOperandValue_eq_fresh_id; auto.
-          assert (sb_ds_sim.getValueID v[<=]
+          assert (SB_ds_pass.getValueID v[<=]
             ids2atoms (getFdefLocs (fdef_intro fh1 bs1))) as Hindom.
             eapply wf_value_id__in_getFdefLocs in H15; auto.
           eapply get_reg_metadata_fresh' with (rm2:=rm2); eauto; try fsetdec.
 
         rewrite <- getOperandValue_eq_fresh_id; auto.
-          assert (sb_ds_sim.getValueID vp[<=]
+          assert (SB_ds_pass.getValueID vp[<=]
             ids2atoms (getFdefLocs (fdef_intro fh1 bs1))) as Hindom.
             eapply wf_value_id__in_getFdefLocs in H19; auto.
           eapply get_reg_metadata_fresh' with (rm2:=rm2); eauto; try fsetdec.

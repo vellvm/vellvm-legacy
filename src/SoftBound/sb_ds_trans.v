@@ -712,6 +712,43 @@ match ms with
     end
 end.
 
+(* Freshness *)
+
+Definition getValueID (v:value) : atoms :=
+match v with
+| value_id id => {{id}}
+| value_const _ => {}
+end.
+
+Definition id_fresh_in_value v1 i2 : Prop :=
+match v1 with
+| value_id i1 => i1 <> i2
+| _ => True
+end.
+
+Fixpoint ids2atoms (ids0:ids) : atoms :=
+match ids0 with
+| nil => {}
+| id0::ids0' => {{id0}} `union` ids2atoms ids0'
+end.
+
+Fixpoint codom (rm:rmap) : atoms :=
+match rm with
+| nil => empty
+| (_,(bid,eid))::rm' => singleton bid `union` singleton eid `union` codom rm'
+end.
+
+Fixpoint rm_codom_disjoint (rm:rmap) : Prop :=
+match rm with
+| nil => True
+| (id0,(bid,eid))::rm' => 
+    id0 <> bid /\ id0 <> eid /\ bid <> eid /\ 
+    id0 `notin` codom rm' /\
+    bid `notin` dom rm' `union` codom rm' /\
+    eid `notin` dom rm' `union` codom rm' /\
+    rm_codom_disjoint rm' 
+end.
+
 End SB_ds_pass.
 
 (*****************************)
