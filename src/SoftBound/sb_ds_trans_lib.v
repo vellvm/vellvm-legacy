@@ -12,6 +12,7 @@ Require Import Memory.
 Require Import alist.
 Require Import Integers.
 Require Import Coqlib.
+Require Import Lattice.
 Require Import monad.
 Require Import Metatheory.
 Require Import Znumtheory.

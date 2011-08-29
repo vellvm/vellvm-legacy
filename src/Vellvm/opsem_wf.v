@@ -22,6 +22,7 @@ Require Import Memory.
 Require Import Integers.
 Require Import Coqlib.
 Require Import targetdata.
+Require Import Lattice.
 Require Import Floats.
 Require Import AST.
 Require Import Maps.

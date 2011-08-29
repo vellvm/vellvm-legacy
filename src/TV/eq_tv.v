@@ -4,21 +4,11 @@ Add LoadPath "../Vellvm".
 Add LoadPath "../Vellvm/compcert".
 Add LoadPath "../../../theory/metatheory_8.3".
 Require Import syntax.
-Require Import infrastructure.
 Require Import List.
-Require Import targetdata.
-Require Import monad.
 Require Import Arith.
 Require Import Metatheory.
-Require Import genericvalues.
-Require Import trace.
 Require Import symexe_def.
-Require Import symexe_lib.
-Require Import symexe_complete.
-Require Import symexe_sound.
-Require Import seop_llvmop.
 Require Import alist.
-Require Import infrastructure_props.
 Require Import eq_tv_dec.
 Require Import Coq.Bool.Sumbool.
 
