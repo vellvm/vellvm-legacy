@@ -1,7 +1,7 @@
-Add LoadPath "../ssa/ott".
-Add LoadPath "../ssa/monads".
-Add LoadPath "../ssa/compcert".
-Add LoadPath "../ssa".
+Add LoadPath "../Vellvm/ott".
+Add LoadPath "../Vellvm/monads".
+Add LoadPath "../Vellvm/compcert".
+Add LoadPath "../Vellvm".
 Add LoadPath "../../../theory/metatheory_8.3".
 Require Import syntax.
 Require Import infrastructure.
@@ -245,6 +245,6 @@ Qed.
 (*
 *** Local Variables: ***
 *** coq-prog-name: "coqtop" ***
-*** coq-prog-args: ("-emacs-U" "-I" "~/SVN/sol/vol/src/ssa/monads" "-I" "~/SVN/sol/vol/src/ssa/ott" "-I" "~/SVN/sol/vol/src/ssa/compcert" "-I" "~/SVN/sol/theory/metatheory_8.3") ***
+*** coq-prog-args: ("-emacs-U" "-I" "~/SVN/sol/vol/src/Vellvm/monads" "-I" "~/SVN/sol/vol/src/Vellvm/ott" "-I" "~/SVN/sol/vol/src/Vellvm/compcert" "-I" "~/SVN/sol/theory/metatheory_8.3") ***
 *** End: ***
  *)

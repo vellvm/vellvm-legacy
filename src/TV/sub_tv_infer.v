@@ -1,7 +1,7 @@
-Add LoadPath "../ssa/ott".
-Add LoadPath "../ssa/monads".
-Add LoadPath "../ssa".
-Add LoadPath "../ssa/compcert".
+Add LoadPath "../Vellvm/ott".
+Add LoadPath "../Vellvm/monads".
+Add LoadPath "../Vellvm".
+Add LoadPath "../Vellvm/compcert".
 Add LoadPath "../../../theory/metatheory_8.3".
 Require Import syntax.
 Require Import infrastructure.
@@ -510,7 +510,7 @@ match b2 with
 end.
 *)
 
-(* Reimplement usedef, the one in ssa_lib is WRONG!!!!!!!!!! *)
+(* Reimplement usedef, the one in infrastructure is WRONG!!!!!!!!!! *)
 Definition usedef_block := list (l*list l).
 
 Definition update_udb (udb:usedef_block) (lu ld:l) : usedef_block :=
@@ -889,6 +889,6 @@ end.
 (*
 *** Local Variables: ***
 *** coq-prog-name: "coqtop" ***
-*** coq-prog-args: ("-emacs-U" "-I" "~/SVN/sol/vol/src/ssa/monads" "-I" "~/SVN/sol/vol/src/ssa/ott" "-I" "~/SVN/sol/vol/src/ssa/compcert" "-I" "~/SVN/sol/theory/metatheory_8.3") ***
+*** coq-prog-args: ("-emacs-U" "-I" "~/SVN/sol/vol/src/Vellvm/monads" "-I" "~/SVN/sol/vol/src/Vellvm/ott" "-I" "~/SVN/sol/vol/src/Vellvm/compcert" "-I" "~/SVN/sol/theory/metatheory_8.3") ***
 *** End: ***
  *)

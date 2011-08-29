@@ -1,4 +1,4 @@
-Add LoadPath "../ssa".
+Add LoadPath "../Vellvm".
 Require Import Arith.
 Require Import Bool.
 Require Import Coq.Bool.Sumbool.

@@ -49,9 +49,6 @@ infrastructure.vo: infrastructure.v
 typings.vo: typings.v infrastructure.vo analysis.vo
 	$(COQC) $(COQARG) typings.v
 
-ssa_wf.vo: typings.vo infrastructure_props.vo ssa_wf.v
-	$(COQC) $(COQARG) ssa_wf.v
-
 tactics.vo: tactics.v
 	$(COQC) $(COQARG) tactics.v
 
@@ -103,8 +100,8 @@ opsem_inst.vo: opsem_inst.v ndopsem.vo dopsem.vo syntax.vo infrastructure.vo \
 	trace.vo
 	$(COQC) $(COQARG) opsem_inst.v
 
-ssa.tex: syntax.ott infrastructure.ott m_typings.ott main.tex 
-	$(OTT) -merge false -o ssa.tex \
+def.tex: syntax.ott infrastructure.ott m_typings.ott main.tex 
+	$(OTT) -merge false -o def.tex \
           -tex_show_meta false \
           -tex_wrap false \
             syntax.ott infrastructure.ott m_typings.ott
@@ -113,7 +110,7 @@ vellvm.vo : vellvm.v syntax.vo infrastructure_props.vo typings_props.vo \
 	targetdata.vo dopsem.vo ndopsem.vo
 	$(COQC) $(COQARG) vellvm.v
 
-main.pdf: ssa.tex main.tex macros.sty 
+main.pdf: def.tex main.tex macros.sty 
 	pdflatex main.tex
 	pdflatex main.tex
 

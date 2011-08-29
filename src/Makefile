@@ -12,7 +12,7 @@ CMXAS:=$(CMAS:.cma=.cmxa)
 all: coq ocaml
 
 coq:
-	+make -C ./ssa
+	+make -C ./Vellvm
 	+make -C ./TV
 	+make -C ./SoftBound
 #	+make -C ./SoftBound/detbigstep
@@ -25,7 +25,7 @@ ocaml: coq $(CMAS) $(CMXAS)
 	ocamlbuild $(OCAMLBUILD_OPT) Parser/main.d.byte
 
 clean:
-	+make -C ./ssa clean
+	+make -C ./Vellvm clean
 	+make -C ./TV clean
 	+make -C ./Extraction clean
 	+make -C ./SoftBound clean

@@ -1,9 +1,3 @@
-(* These libs are only used when typechecking ssa_coq_lib.v alone.
-   They are not copied into the final ssa.v, otherwise the definitions in ssa_def,
-   and ssa are conflict, since they define same syntax. For example, we may have
-   ssa_def.insn and insn in ssa, but they are same. This is fixed if we dont copy
-   the libs below into ssa_coq.ott.
-*)
 Add LoadPath "./ott".
 Add LoadPath "./monads".
 Add LoadPath "./compcert".
@@ -3203,7 +3197,7 @@ End LLVMinfra.
 (*
 *** Local Variables: ***
 *** coq-prog-name: "coqtop" ***
-*** coq-prog-args: ("-emacs-U" "-I" "~/SVN/sol/vol/src/ssa/monads" "-I" "~/SVN/sol/vol/src/ssa/ott" "-I" "~/SVN/sol/vol/src/ssa/compcert" "-I" "~/SVN/sol/theory/metatheory_8.3" "-I" "~/SVN/sol/vol/src/TV") ***
+*** coq-prog-args: ("-emacs-U" "-I" "~/SVN/sol/vol/src/Vellvm/monads" "-I" "~/SVN/sol/vol/src/Vellvm/ott" "-I" "~/SVN/sol/vol/src/Vellvm/compcert" "-I" "~/SVN/sol/theory/metatheory_8.3" "-I" "~/SVN/sol/vol/src/TV") ***
 *** End: ***
  *)
 
