@@ -169,7 +169,7 @@ AMap.get l1 (reachable f).
 (********************************************)
 (** * Correctness of analysis *)
 
-Axiom atomset_eq__proof_irr2 : forall (* proof irrelevence *)
+Lemma atomset_eq__proof_irr2 : forall (* proof irrelevence *)
   max
   (contents' : ListSet.set atom)
   (inbound' : incl contents' max)
@@ -178,6 +178,7 @@ Axiom atomset_eq__proof_irr2 : forall (* proof irrelevence *)
              DomDS.L.bs_contents := contents';
              DomDS.L.bs_bound := inbound' |} = a),
   contents' = Dominators.bs_contents max a.
+Proof. intros. subst. simpl. auto. Qed.
 
 Lemma atomset_eq__proof_irr1 : forall
   (bs : blocks)
