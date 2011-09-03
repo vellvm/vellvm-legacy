@@ -12,7 +12,8 @@ all:
 
 ott: main.pdf typings.vo interpreter.vo opsem_inst.vo vellvm.vo
 
-infrastructure_aux.vo : infrastructure_aux.v syntax.vo targetdata.vo
+infrastructure_aux.vo : infrastructure_aux.v syntax.vo targetdata.vo \
+	compcert/Kildall.vo
 	$(COQC) $(COQARG) infrastructure_aux.v
 
 syntax.vo : ./monads/monad.vo ./compcert/Floats.vo ./compcert/alist.vo \
@@ -61,7 +62,8 @@ interpreter.vo: interpreter.v syntax.vo infrastructure.vo genericvalues.vo \
 	infrastructure_props.vo dopsem.vo
 	$(COQC) $(COQARG) interpreter.v
 
-infrastructure_props.vo: infrastructure_props.v syntax.vo infrastructure.vo
+infrastructure_props.vo: infrastructure_props.v syntax.vo infrastructure.vo \
+	compcert/Kildall.vo
 	$(COQC) $(COQARG) infrastructure_props.v
 
 typings_props.vo: typings_props.v syntax.vo infrastructure.vo genericvalues.vo \

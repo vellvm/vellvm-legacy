@@ -733,11 +733,8 @@ Fixpoint lookupCmdViaIDFromCmds (li:cmds) (id0:id) : option cmd :=
 match li with
 | nil => None
 | i::li' =>
-    match (getCmdID i) with
-    | Some id1 => 
-        if (eq_atom_dec id0 id1) then Some i else lookupCmdViaIDFromCmds li' id0
-    | Npne => None
-    end
+    if (eq_atom_dec id0 (getCmdLoc i)) 
+    then Some i else lookupCmdViaIDFromCmds li' id0
 end.
 
 Fixpoint lookupPhiNodeViaIDFromPhiNodes (li:phinodes) (id0:id) 
