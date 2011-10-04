@@ -2279,6 +2279,471 @@ Proof.
   destruct H; subst. auto.
 Qed.
 
+Lemma lookupPhiNodeViaIDFromPhiNodes_middle : forall ps1 i0 t0 l0 ps2,
+  NoDup (getPhiNodesIDs (ps1 ++ insn_phi i0 t0 l0 :: ps2)) ->
+  lookupPhiNodeViaIDFromPhiNodes (ps1 ++ insn_phi i0 t0 l0 :: ps2) i0 =
+    Some (insn_phi i0 t0 l0).
+Proof.
+  induction ps1; simpl; intros; auto.
+    destruct (i0==i0); try (auto || congruence).
+    
+    inv H. 
+    destruct (getPhiNodeID a==i0); subst; eauto.
+      rewrite getPhiNodesIDs_app in H2.
+      apply NotIn_inv in H2. destruct H2.
+      contradict H0; simpl; auto.
+Qed.
+
+Lemma notin__lookupPhiNodeViaIDFromPhiNodes_none : forall i0 ps,
+  ~ In i0 (getPhiNodesIDs ps) ->
+  lookupPhiNodeViaIDFromPhiNodes ps i0 = None.
+Proof.
+  induction ps; simpl; intros; auto.
+    destruct(@eq_dec id (EqDec_eq_of_EqDec id EqDec_atom) (getPhiNodeID a) i0); 
+      subst; auto.
+      contradict H; auto.
+Qed.
+
+Lemma In_weakening : forall A (l2 l3 l1:list A) a,
+  In a (l1 ++ l3) -> In a (l1 ++ l2 ++ l3).
+Proof.
+  induction l1; simpl; intros.
+    apply in_or_app; auto.
+    destruct H as [H | H]; auto.
+Qed.
+
+Lemma NoDup_strenthening : forall A (l2 l3 l1:list A),
+  NoDup (l1 ++ l2 ++ l3) -> NoDup (l1 ++ l3).
+Proof.
+  induction l1; simpl; intros.
+    apply NoDup_inv in H. destruct H; auto.
+
+    inv H. apply NoDup_cons; auto using In_weakening.
+Qed.
+
+Lemma lookupCmdViaIDFromCmds__lookupPhiNodeInsnViaIDFromPhiNodes : forall
+    id0 l' ps' tmn' cs' c,
+  NoDup (getBlockLocs (block_intro l' ps' cs' tmn')) ->
+  lookupCmdViaIDFromCmds cs' id0 = Some c ->
+  lookupPhiNodeViaIDFromPhiNodes ps' id0 = None.
+Proof.
+  induction cs'; simpl; intros.
+    congruence.
+
+    destruct (eq_atom_dec id0 (getCmdLoc a)); inv H0.
+      apply NoDup_disjoint with (i0:=getCmdLoc c) in H; simpl; 
+        eauto using notin__lookupPhiNodeViaIDFromPhiNodes_none.
+      eapply IHcs'; eauto.           
+        simpl. simpl_env in *. apply NoDup_strenthening in H; auto.
+Qed.
+
+Lemma lookupPhiNodeViaIDFromPhinodes__In : forall id0 ps p,
+  lookupPhiNodeViaIDFromPhiNodes ps id0 = Some p ->
+  In id0 (getPhiNodesIDs ps).
+Proof.
+  induction ps; simpl; intros.
+    congruence.
+    destruct (getPhiNodeID a == id0); inv H; eauto.
+Qed.
+
+Lemma lookupCmdViaIDFromCmds__In : forall id0 cs c,
+  lookupCmdViaIDFromCmds cs id0 = Some c ->
+  In id0 (getCmdsLocs cs).
+Proof.
+  induction cs; simpl; intros.
+    congruence.
+     destruct (eq_atom_dec id0 (getCmdLoc a)); inv H; eauto.
+Qed.
+
+Lemma lookupInsnViaIDFromBlock__In : forall b id0 instr,
+  lookupInsnViaIDFromBlock b id0 = Some instr ->
+  In id0 (getBlockLocs b).
+Proof.
+  destruct b; simpl; intros.
+  remember (lookupPhiNodeViaIDFromPhiNodes p id0) as R1.
+  destruct R1; inv H.
+    apply in_or_app; eauto using lookupPhiNodeViaIDFromPhinodes__In.
+    remember (lookupCmdViaIDFromCmds c id0) as R2.
+    destruct R2; inv H1.
+      apply in_or_app. right.
+      apply in_or_app; eauto using lookupCmdViaIDFromCmds__In.
+Qed.
+
+Lemma lookupCmdViaIDFromBlocks__lookupPhiNodeInsnViaIDFromPhiNodes : forall
+    id0 c l' ps' cs' tmn' bs,
+  NoDup (getBlocksLocs bs) ->
+  lookupInsnViaIDFromBlocks bs id0 = Some (insn_cmd c) ->
+  InBlocksB (block_intro l' ps' cs' tmn') bs ->
+  lookupPhiNodeViaIDFromPhiNodes ps' id0 = None.
+Proof.
+  induction bs; simpl; intros.
+    congruence.
+
+    apply orb_true_iff in H1. 
+    destruct H1 as [H1 | H1].
+      apply blockEqB_inv in H1. subst. simpl in H0.
+      destruct (lookupPhiNodeViaIDFromPhiNodes ps' id0); inv H0.
+      remember (lookupCmdViaIDFromCmds cs' id0) as R.
+      destruct R; inv H2; auto.
+
+      remember (lookupInsnViaIDFromBlock a id0) as R.
+      assert (H':=H).
+      apply NoDup_inv in H. destruct H.
+      destruct R; inv H0; eauto.
+      symmetry in HeqR.
+      apply lookupInsnViaIDFromBlock__In in HeqR.
+      eapply NoDup_disjoint' in H'; eauto.
+      assert (~ In id0 (getBlockLocs (block_intro l' ps' cs' tmn'))) as J.
+        eauto using in_getBlockLocs__in_getBlocksLocs.         
+      apply notin__lookupPhiNodeViaIDFromPhiNodes_none; auto.
+        intro J'. apply J. apply in_or_app; auto.
+ Qed.
+
+Lemma lookupTmnViaIDFromBlocks__lookupPhiNodeInsnViaIDFromPhiNodes : forall
+    bs id0 tmn l' ps' cs' tmn',
+  NoDup (getBlocksLocs bs) ->
+  lookupInsnViaIDFromBlocks bs id0 = Some (insn_terminator tmn) ->
+  InBlocksB (block_intro l' ps' cs' tmn') bs ->
+  lookupPhiNodeViaIDFromPhiNodes ps' id0 = None.
+Proof.
+  induction bs; simpl; intros.
+    congruence.
+
+    apply orb_true_iff in H1. 
+    destruct H1 as [H1 | H1].
+      apply blockEqB_inv in H1. subst. simpl in H0.
+      destruct (lookupPhiNodeViaIDFromPhiNodes ps' id0); inv H0.
+      destruct (lookupCmdViaIDFromCmds cs' id0); inv H2; auto.
+
+      remember (lookupInsnViaIDFromBlock a id0) as R.
+      assert (H':=H).
+      apply NoDup_inv in H. destruct H.
+      destruct R; inv H0; eauto.
+      symmetry in HeqR.
+      apply lookupInsnViaIDFromBlock__In in HeqR.
+      eapply NoDup_disjoint' in H'; eauto.
+      assert (~ In id0 (getBlockLocs (block_intro l' ps' cs' tmn'))) as J.
+        eauto using in_getBlockLocs__in_getBlocksLocs.         
+      apply notin__lookupPhiNodeViaIDFromPhiNodes_none; auto.
+        intro J'. apply J. apply in_or_app; auto.
+Qed.
+
+Lemma lookupNoneViaIDFromBlocks__lookupPhiNodeInsnViaIDFromPhiNodes : forall
+    bs id0 l' ps' cs' tmn',
+  NoDup (getBlocksLocs bs) ->
+  lookupInsnViaIDFromBlocks bs id0 = None ->
+  InBlocksB (block_intro l' ps' cs' tmn') bs ->
+  lookupPhiNodeViaIDFromPhiNodes ps' id0 = None.
+Proof.
+  induction bs; simpl; intros.
+    congruence.
+
+    apply orb_true_iff in H1. 
+    destruct H1 as [H1 | H1].
+      apply blockEqB_inv in H1. subst. simpl in H0.
+      destruct (lookupPhiNodeViaIDFromPhiNodes ps' id0).
+        congruence. auto.
+
+      apply NoDup_inv in H. destruct H.
+      destruct (lookupInsnViaIDFromBlock a id0); inv H0; eauto.
+Qed.
+
+Lemma lookupPhiViaIDFromBlocks__lookupPhiNodeInsnViaIDFromPhiNodes : forall
+    bs id0 p l' ps' cs' tmn' p',
+  NoDup (getBlocksLocs bs) ->
+  lookupInsnViaIDFromBlocks bs id0 = Some (insn_phinode p) ->
+  InBlocksB (block_intro l' ps' cs' tmn') bs ->
+  lookupPhiNodeViaIDFromPhiNodes ps' id0 = Some p' ->
+  p = p'.
+Proof.
+  induction bs; simpl; intros.
+    congruence.
+
+    apply orb_true_iff in H1. 
+    destruct H1 as [H1 | H1].
+      apply blockEqB_inv in H1. subst. simpl in H0.
+      destruct (lookupPhiNodeViaIDFromPhiNodes ps' id0); congruence.
+
+      remember (lookupInsnViaIDFromBlock a id0) as R.
+      assert (H':=H).
+      apply NoDup_inv in H. destruct H.
+      destruct R; inv H0; eauto.
+      symmetry in HeqR.
+      apply lookupInsnViaIDFromBlock__In in HeqR.
+      eapply NoDup_disjoint' in H'; eauto.
+      assert (~ In id0 (getBlockLocs (block_intro l' ps' cs' tmn'))) as J.
+        eauto using in_getBlockLocs__in_getBlocksLocs. 
+      assert (lookupPhiNodeViaIDFromPhiNodes ps' id0 = None) as J'.
+        apply notin__lookupPhiNodeViaIDFromPhiNodes_none; auto.
+        intro J'. apply J. apply in_or_app; auto.
+      rewrite H2 in J'. congruence.
+Qed.
+
+Lemma notin__lookupCmdViaIDFromCmds_none : forall id0 cs,
+  ~ In id0 (getCmdsLocs cs) ->
+  lookupCmdViaIDFromCmds cs id0 = None.
+Proof.
+  induction cs; simpl; intros; auto.
+    destruct (eq_atom_dec id0 (getCmdLoc a)); subst; auto.
+      contradict H; auto.
+Qed.
+
+Lemma notin__lookupPhiNodeViaIDFromPhinodes_none : forall id0 ps,
+  ~ In id0 (getPhiNodesIDs ps) ->
+  lookupPhiNodeViaIDFromPhiNodes ps id0 = None.
+Proof.
+  induction ps; simpl; intros; auto.
+    destruct (@eq_dec id (EqDec_eq_of_EqDec id EqDec_atom)(getPhiNodeID a) id0);
+      subst; eauto.
+      contradict H; auto.
+Qed.
+
+Lemma notin__lookupInsnViaIDFromBlock_none : forall b id0,
+  ~ In id0 (getBlockLocs b) ->
+  lookupInsnViaIDFromBlock b id0 = None.
+Proof.
+  destruct b; simpl; intros.
+  assert (lookupPhiNodeViaIDFromPhiNodes p id0 = None) as J.
+    apply notin__lookupPhiNodeViaIDFromPhinodes_none.
+    intro J. apply H. apply in_or_app; auto.
+  rewrite J.
+  assert (lookupCmdViaIDFromCmds c id0 = None) as J'.
+    apply notin__lookupCmdViaIDFromCmds_none.
+    intro J'. apply H. 
+    apply in_or_app. right.
+    apply in_or_app; auto.
+  rewrite J'; auto.
+Qed.
+
+Lemma in_middle__lookupCmdViaIDFromCmds : forall cs1 id1 c
+  (Hid : getCmdID c = Some id1) cs1',
+  NoDup (getCmdsLocs (cs1' ++ c :: cs1)) ->
+  lookupCmdViaIDFromCmds (cs1' ++ c :: cs1) id1 = Some c.
+Proof.
+  induction cs1'; simpl; intros; auto.
+    apply getCmdLoc_getCmdID in Hid.
+    rewrite Hid.
+    destruct (eq_atom_dec id1 id1); congruence; auto.
+
+    inv H.
+    destruct (eq_atom_dec id1 (getCmdLoc a)); subst; auto.
+      apply getCmdLoc_getCmdID in Hid.
+      contradict H2. rewrite getCmdsLocs_app. 
+      apply in_or_app. simpl. auto.
+Qed.
+
+Lemma cmdInBlock__lookupInsnViaIDFromBlock : forall id1 c
+  (Hid : getCmdID c = Some id1) l3 ps1 cs1' cs1 tmn1
+  (Huniq : NoDup (getBlockLocs ((block_intro l3 ps1 (cs1' ++ c :: cs1) tmn1)))),
+  lookupInsnViaIDFromBlock (block_intro l3 ps1 (cs1' ++ c :: cs1) tmn1) id1 = 
+    Some (insn_cmd c).
+Proof.
+  simpl. intros.
+  assert (lookupPhiNodeViaIDFromPhiNodes ps1 id1 = None) as J.
+    apply notin__lookupPhiNodeViaIDFromPhinodes_none.
+    eapply NoDup_disjoint; eauto.
+    rewrite getCmdsLocs_app.
+    apply in_or_app. left.
+    apply in_or_app. right. simpl.
+    apply getCmdLoc_getCmdID in Hid. auto.
+  rewrite J.
+  assert (lookupCmdViaIDFromCmds (cs1' ++ c :: cs1) id1 = Some c) as J'.
+    apply NoDup_inv in Huniq. inv Huniq.
+    apply NoDup_inv in H0. inv H0.
+    apply in_middle__lookupCmdViaIDFromCmds; auto.
+  rewrite J'. auto.
+Qed.  
+
+Lemma cmdInBlocks__InGetBlocksLocs : forall bs1 l3 ps1 cs1' c cs1 tmn1 id1, 
+  getCmdID c = Some id1 ->
+  InBlocksB (block_intro l3 ps1 (cs1' ++ c :: cs1) tmn1) bs1 = true ->
+  In id1 (getBlocksLocs bs1).
+Proof.
+  induction bs1; simpl; intros.
+    congruence.
+
+    apply orb_true_iff in H0.
+    destruct H0 as [H0 | H0].
+      apply blockEqB_inv in H0. subst.
+      apply in_or_app. left. simpl.
+      apply in_or_app. right. 
+      apply in_or_app. left. 
+      rewrite getCmdsLocs_app.
+      apply in_or_app. right. simpl.
+      apply getCmdLoc_getCmdID in H. auto.
+
+      apply in_or_app. right. eauto.
+Qed.
+
+Lemma InBlocksB__lookupInsnViaIDFromBlocks : forall bs1 id1 c
+  (Hid : getCmdID c = Some id1)
+  (Huniq : NoDup (getBlocksLocs bs1)) l3 ps1 cs1' cs1 tmn1
+  (Hin : InBlocksB (block_intro l3 ps1 (cs1' ++ c :: cs1) tmn1) bs1 = true),
+  lookupInsnViaIDFromBlocks bs1 id1 = Some (insn_cmd c).
+Proof.
+  induction bs1; simpl; intros.
+    congruence.
+
+    apply orb_true_iff in Hin.
+    assert (J:=Huniq).
+    apply NoDup_inv in J.    
+    destruct J.
+    destruct Hin as [Hin | Hin].
+      apply blockEqB_inv in Hin. subst.
+      eapply cmdInBlock__lookupInsnViaIDFromBlock in H; eauto.
+      rewrite H. auto.
+
+      assert (lookupInsnViaIDFromBlock a id1 = None) as J.
+        apply notin__lookupInsnViaIDFromBlock_none; auto.
+        eapply NoDup_disjoint in Huniq; eauto. 
+        eapply cmdInBlocks__InGetBlocksLocs; eauto.        
+      rewrite J; eauto.
+Qed.
+
+Lemma map_app_inv : forall A B l1 l2 l (f:A->B),
+  List.map f l = l1 ++ l2 ->
+  exists l1', exists l2', 
+    l = l1' ++ l2' /\ List.map f l1' = l1 /\ List.map f l2' = l2.
+Proof.
+  induction l1; simpl; intros.
+    exists nil. exists l0. auto.
+
+    destruct l0; inv H.
+    apply IHl1 in H2. destruct H2 as [l1' [l2' [J1 [J2 J3]]]]; subst.
+    exists (a0::l1'). exists l2'. auto.
+Qed.
+
+Lemma insnInFdefBlockB__insnInBlockB : forall instr f b,
+  insnInFdefBlockB instr f b = true ->
+  insnInBlockB instr b = true.
+Proof.
+  intros.
+  destruct instr; simpl in *; try (apply andb_true_iff in H; destruct H; auto).
+Qed.
+
+Lemma insnInFdefBlockB__blockInFdefB : forall instr f b,
+  insnInFdefBlockB instr f b = true ->
+  blockInFdefB b f = true.
+Proof.
+  intros.
+  destruct instr; simpl in *; try (apply andb_true_iff in H; destruct H; auto).
+Qed.
+
+Lemma In_InCmdLocs : forall c cs,
+  In c cs -> In (getCmdLoc c) (getCmdsLocs cs).
+Proof.
+  induction cs; intros; inv H; simpl; auto.
+Qed.
+
+Lemma NoDup_getCmdsLocs_prop : forall c1 c2 cs,
+  NoDup (getCmdsLocs cs) ->
+  In c1 cs ->
+  In c2 cs ->
+  getCmdLoc c1 = getCmdLoc c2 ->
+  c1 = c2. 
+Proof.
+  induction cs; simpl; intros.
+    inv H0.
+
+    inv H. 
+    destruct H0 as [H0 | H0]; subst.
+      destruct H1 as [H1 | H1]; subst; auto.
+        rewrite H2 in H5. apply In_InCmdLocs in H1. contradict H1; auto.
+      destruct H1 as [H1 | H1]; subst; auto.
+        rewrite <- H2 in H5. apply In_InCmdLocs in H0. contradict H0; auto.
+Qed.
+
+Lemma InCmdsB_in : forall c cs, InCmdsB c cs = true -> In c cs.
+Proof.
+  induction cs; simpl; intros.
+    congruence.
+    apply orb_true_iff in H.
+    destruct H as [H | H]; auto.
+    apply cmdEqB_inv in H; auto.
+Qed.
+
+Lemma In_InCmdsB : forall c cs, In c cs -> InCmdsB c cs = true.
+Proof.
+  induction cs; simpl; intros.
+    inv H.
+
+    apply orb_true_iff.
+    destruct H as [H | H]; subst; auto.
+      left. apply cmdEqB_refl.
+Qed.
+
+Lemma fold_left_eq : forall B f (J:forall a b, f a b = false -> a = false), 
+  forall (l1:list B) a, List.fold_left f l1 a = false -> a = false.
+Proof.
+  induction l1; simpl; intros; eauto.
+Qed.
+
+Lemma fold_left_congruence : forall B (f:Prop -> B -> Prop) 
+  (J:forall (a b:Prop) c, (a->b) -> (f a c -> f b c))
+  (l1:list B) (a b:Prop),
+  (a -> b) ->
+  (List.fold_left f l1 a -> List.fold_left f l1 b).
+Proof. induction l1; simpl; intros; eauto. Qed.
+
+Lemma fold_left_prop : forall B (f:Prop -> B -> Prop),
+  (forall (a:Prop) b, f a b -> a) ->
+  (forall (a b:Prop) c, (a->b) -> (f a c -> f b c)) ->
+  forall (l1:list B) (a:Prop),
+  (List.fold_left f l1 a -> a).
+Proof. 
+  induction l1; simpl; intros; auto. 
+    apply IHl1; auto.  
+    apply fold_left_congruence with (a:=f a0 a); auto.
+    apply H.
+Qed.
+
+Lemma not_id_dec__neq : forall id5 id0,
+  @eq _ (@proj_sumbool _ _ (id_dec id5 id0)) false ->
+  id5 <> id0.
+Proof.
+  intros.
+  destruct (id_dec id5 id0); subst; auto.
+    simpl in *. congruence.
+Qed.
+
+Inductive sublist A : list A -> list A -> Prop :=
+| sublist_nil : forall l, sublist A nil l
+| sublist_cons : forall a l1 l2, sublist A l1 l2 -> sublist A (a::l1) (a::l2)
+| sublist_sub : forall a l1 l2, sublist A l1 l2 -> sublist A l1 (a::l2)
+.
+
+Lemma in_sublist : forall A l1 l2 a,
+  sublist A l1 l2 -> In a l1 -> In a l2.
+Proof.
+  induction 1; intros; simpl; auto.
+    inv H. 
+    inv H0; auto.
+Qed.
+
+Hint Constructors NoDup sublist.
+
+Lemma sublist_NoDup : forall A l1 l2,
+  sublist A l1 l2 -> NoDup l2 -> NoDup l1.
+Proof.
+  induction 1; intros; auto.
+    inv H0. apply NoDup_cons; eauto using in_sublist.
+    inv H0. auto.
+Qed.
+
+Lemma sublist_refl : forall A l2, sublist A l2 l2.
+Proof. induction l2; simpl; auto. Qed.
+
+Lemma sublist_weaken : forall A l1 l2 l3,
+  sublist A l1 l2 ->
+  sublist A l1 (l3++l2).
+Proof. induction l3; simpl; auto. Qed.
+
+Lemma sublist_app : forall A l1 l2 l1' l2',
+  sublist A l1 l2 -> 
+  sublist A l1' l2' -> 
+  sublist A (l1++l1') (l2++l2').
+Proof. induction 1; intros; simpl; auto using sublist_refl, sublist_weaken. Qed.
+
 (*****************************)
 (*
 *** Local Variables: ***

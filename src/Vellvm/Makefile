@@ -1,12 +1,14 @@
 include ../Makefile.config
 
-COQARG=-I ./ott -I ./monads -I $(METALIB) -I ./compcert
+COQARG=-I ./ott -I ./monads -I $(METALIB) -I ./compcert -I ./GraphBasics \
+	-impredicative-set
 
 all:
 	+make -C $(METALIB)
 	+make -C ./monads
 	+make -C ./ott
 	+make -C ./compcert 
+	+make -C ./GraphBasics
 	+make ott 
 #	+make -C ./llvm_op
 
@@ -51,7 +53,7 @@ targetdata.vo: targetdata.v syntax.vo
 	$(COQC) $(COQARG) targetdata.v
 
 analysis.vo: compcert/Kildall.vo analysis.v infrastructure.vo \
-	infrastructure_props.vo compcert/Memory.vo 
+	infrastructure_props.vo compcert/Memory.vo GraphBasics/Dipaths.vo
 	$(COQC) $(COQARG) analysis.v
 
 genericvalues.vo: syntax.vo infrastructure.vo compcert/tactics.vo \

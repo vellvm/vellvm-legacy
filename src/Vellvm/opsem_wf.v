@@ -1438,11 +1438,9 @@ Qed.
 (*********************************************)
 (** * Preservation *)
 
-Lemma preservation_dbCall_case : forall fid l' fa rt la va lb bs_contents gvs los
+Lemma preservation_dbCall_case : forall fid l' fa rt la va lb gvs los
   nts ifs s lc Ps lp
   (Hinhs : forall gv, In gv gvs -> GVsSig.(inhabited) gv)
-  (bs_bound : incl bs_contents (bound_blocks lb))
-  (H0 : incl bs_contents [l'])
   (Huniq: uniqFdef (fdef_intro (fheader_intro fa rt fid la va) lb))
   (HwfF: wf_fdef ifs s (module_intro los nts Ps) 
     (fdef_intro (fheader_intro fa rt fid la va) lb))
@@ -1451,7 +1449,7 @@ Lemma preservation_dbCall_case : forall fid l' fa rt la va lb bs_contents gvs lo
    match
      fold_left
        (inscope_of_block (fdef_intro (fheader_intro fa rt fid la va) lb) l')
-       bs_contents (ret getArgsIDs la)
+       nil (ret getArgsIDs la)
    with
    | ret ids0 =>
        wf_defs (los,nts) (fdef_intro (fheader_intro fa rt fid la va) lb) lc ids0
@@ -1459,10 +1457,11 @@ Lemma preservation_dbCall_case : forall fid l' fa rt la va lb bs_contents gvs lo
    end.
 Proof.
   intros.
-  assert (J:=bs_bound).
+  assert (incl nil (bound_blocks lb)) as J.
+    intros x J. inv J.    
   apply fold_left__bound_blocks with (t:=rt)(i0:=fid)(la:=la)(va:=va)(fa:=fa)
     (l0:=l')(init:=getArgsIDs la) in J.
-  destruct J as [r J].
+  destruct J as [r J]. unfold l in *.
   rewrite J.       
   apply fold_left__spec in J.
   destruct J as [_ [_ J]].
@@ -1480,14 +1479,7 @@ Proof.
     exists gv. split; auto.
   
     destruct Hin as [b1 [l1 [Hin _]]].
-    simpl in H0. clear - H0 Hin.
-    assert (J:=Hin).
-    apply ListSet.set_diff_elim1 in Hin.
-    apply ListSet.set_diff_elim2 in J.
-    apply H0 in Hin.
-    simpl in Hin. 
-    destruct Hin as [Hin | Hin]; subst; try inversion Hin.
-    simpl in J. contradict J; auto.
+    apply ListSet.set_diff_elim1 in Hin. inv Hin.
 Qed.
 
 Definition wf_ExecutionContext TD (ps:list product) (ec:ExecutionContext) : Prop 
@@ -2017,7 +2009,7 @@ Case "sBranch".
     assert (HuniqF := HwfSystem).
     eapply wf_system__uniqFdef with (f:=F) in HuniqF; eauto.
     split.
-      clear - Hreach1 H1 HBinF1 HFinPs1 HmInS HwfSystem HuniqF.
+      clear - Hreach1 H1 HBinF1 HFinPs1 HmInS HwfSystem HuniqF HwfF.
       unfold isReachableFromEntry in *.
       destruct (isGVZero (los, nts) c).
         symmetry in H1.
@@ -2074,7 +2066,7 @@ Case "sBranch_uncond".
     assert (HuniqF := HwfSystem).
     eapply wf_system__uniqFdef with (f:=F) in HuniqF; eauto.
     split.
-      clear - Hreach1 H HBinF1 HFinPs1 HmInS HwfSystem HuniqF.
+      clear - Hreach1 H HBinF1 HFinPs1 HmInS HwfSystem HuniqF HwfF.
       unfold isReachableFromEntry in *.
       symmetry in H.
       apply lookupBlockViaLabelFromFdef_inv in H; auto.
@@ -2278,18 +2270,18 @@ Case "sCall".
      assert (ps'=nil) as EQ.
        eapply entryBlock_has_no_phinodes with (ifs:=nil)(s:=S); eauto.        
      subst.
-     apply dom_entrypoint in H2.
+     apply dom_entrypoint in H2. 
      destruct cs'.
        unfold inscope_of_tmn.
        remember ((dom_analyze (fdef_intro (fheader_intro fa rt fid la va) lb)) 
          !! l') as R.
-       destruct R.
+       destruct R. simpl in H2. subst.
        eapply preservation_dbCall_case; eauto using wf_params_spec.
 
        unfold inscope_of_cmd.
        remember ((dom_analyze (fdef_intro (fheader_intro fa rt fid la va) lb)) 
          !! l') as R.
-       destruct R. simpl.
+       destruct R. simpl. simpl in H2. subst.
        destruct (eq_atom_dec (getCmdLoc c) (getCmdLoc c)) as [|n]; 
          try solve [contradict n; auto]. 
        eapply preservation_dbCall_case; eauto using wf_params_spec.
@@ -2343,14 +2335,14 @@ Lemma state_tmn_typing : forall TD ifs s m f l1 ps1 cs1 tmn1 defs id1 lc,
   wf_insn ifs s m f (block_intro l1 ps1 cs1 tmn1) (insn_terminator tmn1) ->
   Some defs = inscope_of_tmn f (block_intro l1 ps1 cs1 tmn1) tmn1 ->
   wf_defs TD f lc defs ->
-  uniqFdef f ->
+  wf_fdef ifs s m f -> uniqFdef f ->
   In id1 (getInsnOperands (insn_terminator tmn1)) ->
   exists t, exists gv, 
     lookupTypViaIDFromFdef f id1 = munit t /\
     lookupAL _ lc id1 = Some gv /\ wf_GVs TD gv t.
 Proof.
   intros TD ifs s m f l1 ps1 cs1 tmn1 defs id1 lc Hreach HwfInstr Hinscope 
-    HwfDefs HuniqF HinOps.
+    HwfDefs HwfF HuniqF HinOps.
   apply wf_insn__wf_insn_base in HwfInstr; 
     try solve [unfold isPhiNode; simpl; auto].
   inv HwfInstr.  
@@ -2372,7 +2364,7 @@ Proof.
     (insn1:=insn_terminator tmn1)(id1:=id1) in H6; auto.
 
   inv H6.
-  clear - H11 HwfDefs Hinscope H0 Hreach H9 HuniqF.
+  clear - H11 HwfDefs Hinscope H0 Hreach H9 HuniqF H HwfF.
   eapply wf_defs_elim; eauto.
     unfold inscope_of_tmn in Hinscope.
     destruct f. destruct f.
@@ -2400,9 +2392,12 @@ Proof.
      rewrite <- HeqR in J'.
      destruct block'.
      assert (In l0 (ListSet.set_diff eq_atom_dec bs_contents [l1])) as J.       
-       destruct J' as [J1 J2].
-       apply ListSet.set_diff_intro; auto.
-         simpl. intro J. destruct J as [J | J]; auto.
+       simpl in Hreach.
+       apply insnInFdefBlockB__blockInFdefB in H.
+       eapply sdom_isnt_refl with (l':=l0) in Hreach; eauto.
+         apply ListSet.set_diff_intro; auto.
+           simpl. intro J. destruct J as [J | J]; auto.
+         rewrite <- HeqR. simpl. auto.
      destruct Hinscope as [_ [Hinscope _]].
      assert (
        lookupBlockViaLabelFromFdef (fdef_intro (fheader_intro f t i0 a v) b) l0 =
@@ -2420,14 +2415,14 @@ Lemma state_cmd_typing : forall TD ifs s m f b c defs id1 lc,
   wf_insn ifs s m f b (insn_cmd c) ->
   Some defs = inscope_of_cmd f b c ->
   wf_defs TD f lc defs ->
-  uniqFdef f ->
+  wf_fdef ifs s m f -> uniqFdef f ->
   In id1 (getInsnOperands (insn_cmd c)) ->
   exists t, exists gv, 
     lookupTypViaIDFromFdef f id1 = munit t /\
     lookupAL _ lc id1 = Some gv /\ wf_GVs TD gv t.
 Proof.
   intros TD ifs s m f b c defs id1 lc Hnodup Hreach HwfInstr Hinscope HwfDefs 
-    HuniqF HinOps.
+    HwfF HuniqF HinOps.
   apply wf_insn__wf_insn_base in HwfInstr;
     try solve [unfold isPhiNode; simpl; auto].
   inv HwfInstr.  
@@ -2481,14 +2476,18 @@ Proof.
             rewrite getCmdsIDs_app.
             apply in_or_app. right. simpl. rewrite J2. simpl. auto.
     
-     clear Hreach H0 HwfDefs.
+     clear H0 HwfDefs.
      unfold blockStrictDominates in J'.
      rewrite <- HeqR in J'.
      destruct block'.
      assert (In l1 (ListSet.set_diff eq_atom_dec bs_contents [l0])) as J.       
-       destruct J' as [J1 J2].
-       apply ListSet.set_diff_intro; auto.
-         simpl. intro J. destruct J as [J | J]; auto.
+       simpl in Hreach.
+       apply insnInFdefBlockB__blockInFdefB in H.
+       eapply sdom_isnt_refl with (l':=l1) in Hreach; eauto.
+         apply ListSet.set_diff_intro; auto.
+           simpl. intro J. destruct J as [J | J]; auto.
+         rewrite <- HeqR. simpl. auto.
+
      destruct Hinscope as [_ [Hinscope _]].
      assert (
        lookupBlockViaLabelFromFdef (fdef_intro (fheader_intro f t0 i0 a v) b) l1
@@ -2553,6 +2552,7 @@ Proof.
       eapply state_cmd_typing; eauto. 
       eapply wf_system__uniq_block; eauto.
       eapply wf_system__wf_cmd; eauto using In_middle.
+      eapply wf_system__wf_fdef; eauto.
       eapply wf_system__uniqFdef; eauto.
       apply valueInCmdOperands__InOps; auto.
     destruct Hlkup as [gt [gv [Hlktyp [Hlkup Hwfgv]]]].
@@ -2601,6 +2601,7 @@ Proof.
       lookupAL _ lc vid = Some gv /\ 
       wf_GVs (los,nts) gv t) as Hlkup.
       eapply state_tmn_typing; eauto. 
+      eapply wf_system__wf_fdef; eauto.
       eapply wf_system__uniqFdef; eauto.
       apply valueInTmnOperands__InOps; auto.
     destruct Hlkup as [gt [gv [Hlktyp [Hlkup Hwfgv]]]].
@@ -2733,7 +2734,7 @@ Proof.
         assert (HwfV:=J).
         eapply wf_value_list__getValueViaLabelFromValuels__wf_value in HwfV; eauto.
         eapply wf_phi_operands__elim in Hwfops; eauto.
-        destruct Hwfops as [Hneqid [vb [b1 [Hlkvb [Hlkb1 Hdom]]]]].
+        destruct Hwfops as [vb [b1 [Hlkvb [Hlkb1 Hdom]]]].
         assert (b1 = block_intro l1 ps1 cs1 tmn1) 
           as EQ.
           clear - Hlkb1 HbInF HuniqF.
@@ -2774,6 +2775,7 @@ Proof.
           exists gv1. auto.
 
         SCase "l3<>l1".
+          destruct J3 as [J3 | Heq]; subst; try congruence.
           assert (In l3 (ListSet.set_diff eq_atom_dec bs_contents [l1])) as G.
             apply ListSet.set_diff_intro; auto.
               simpl. intro JJ. destruct JJ as [JJ | JJ]; auto.
@@ -3202,6 +3204,8 @@ Proof.
 
     SCase "tmn=br". 
       right. left.
+      assert (wf_fdef nil s (module_intro los nts ps) f) as HwfF.
+        eapply wf_system__wf_fdef; eauto.
       assert (uniqFdef f) as HuniqF.
         eapply wf_system__uniqFdef; eauto.
       assert (exists cond, getOperandValue (los,nts) v lc gl = 
@@ -3252,8 +3256,8 @@ Proof.
              inv HlkB. clear H9 H10.
              eapply wf_phinodes__getIncomingValuesForBlockFromPHINodes 
                with (ps':=ps')(cs':=cs')(tmn':=tmn')(l0:=l'); eauto.
-               apply reachable_successors with (l0:=l1)(cs:=ps1)(ps:=cs1)
-                 (tmn:=insn_br i0 v l2 l'); simpl; auto.
+               eapply reachable_successors with (l0:=l1)(cs:=ps1)(ps:=cs1)
+                 (tmn:=insn_br i0 v l2 l'); simpl; eauto.
                simpl. auto.    
                exists nil. auto.
 
@@ -3265,8 +3269,8 @@ Proof.
              inv HlkB. clear H9 H10.
              eapply wf_phinodes__getIncomingValuesForBlockFromPHINodes 
                with (ps':=ps')(cs':=cs')(tmn':=tmn')(l0:=l'); eauto.
-               apply reachable_successors with (l0:=l1)(cs:=ps1)(ps:=cs1)
-                 (tmn:=insn_br i0 v l' l3); simpl; auto.
+               eapply reachable_successors with (l0:=l1)(cs:=ps1)(ps:=cs1)
+                 (tmn:=insn_br i0 v l' l3); simpl; eauto.
                simpl. auto.    
                exists nil. auto.
          
@@ -3282,6 +3286,8 @@ Proof.
 
     SCase "tmn=br_uncond". 
       right. left.
+      assert (wf_fdef nil s (module_intro los nts ps) f) as HwfF.
+        eapply wf_system__wf_fdef; eauto.
       assert (uniqFdef f) as HuniqF.
         eapply wf_system__uniqFdef; eauto.
       assert (exists ps', exists cs', exists tmn',
@@ -3310,8 +3316,8 @@ Proof.
            inv HlkB. clear H9 H10.
            eapply wf_phinodes__getIncomingValuesForBlockFromPHINodes 
              with (l0:=l2); eauto.      
-             apply reachable_successors with (l0:=l1)(cs:=ps1)(ps:=cs1++nil)
-               (tmn:=insn_br_uncond i0 l2); simpl; auto.
+             eapply reachable_successors with (l0:=l1)(cs:=ps1)(ps:=cs1++nil)
+               (tmn:=insn_br_uncond i0 l2); simpl; eauto.
              simpl. auto.
              exists nil. auto.
          
@@ -3965,6 +3971,6 @@ End OpsemPP. End OpsemPP.
 (*
 *** Local Variables: ***
 *** coq-prog-name: "coqtop" ***
-*** coq-prog-args: ("-emacs-U" "-I" "~/SVN/sol/vol/src/Vellvm/monads" "-I" "~/SVN/sol/vol/src/Vellvm/ott" "-I" "~/SVN/sol/vol/src/Vellvm/compcert" "-I" "~/SVN/sol/theory/metatheory_8.3") ***
+*** coq-prog-args: ("-emacs-U" "-I" "~/SVN/sol/vol/src/Vellvm/monads" "-I" "~/SVN/sol/vol/src/Vellvm/ott" "-I" "~/SVN/sol/vol/src/Vellvm/compcert" "-I" "~/SVN/sol/theory/metatheory_8.3" "-impredicative-set") ***
 *** End: ***
  *)

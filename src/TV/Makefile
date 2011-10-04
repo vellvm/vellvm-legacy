@@ -72,7 +72,8 @@ COQLIBS:=-I .\
   -I ../Vellvm/\
   -I ../Vellvm/ott/\
   -I ../Vellvm/monads/\
-  -I ../Vellvm/compcert/ 
+  -I ../Vellvm/compcert/\
+  -I ../Vellvm/GraphBasics/
 COQDOCLIBS:=
 
 ##########################
@@ -82,7 +83,7 @@ COQDOCLIBS:=
 ##########################
 
 ZFLAGS=$(OCAMLLIBS) $(COQSRCLIBS) -I $(CAMLP4LIB)
-OPT:=
+OPT:=-impredicative-set
 COQFLAGS:=-q $(OPT) $(COQLIBS) $(OTHERFLAGS) $(COQ_XML)
 ifdef CAMLBIN
   COQMKTOPFLAGS:=-camlbin $(CAMLBIN) -camlp4bin $(CAMLP4BIN)

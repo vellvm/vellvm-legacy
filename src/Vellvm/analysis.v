@@ -1,6 +1,7 @@
 Add LoadPath "./ott".
 Add LoadPath "./monads".
 Add LoadPath "./compcert".
+Add LoadPath "./GraphBasics".
 Add LoadPath "../../../theory/metatheory_8.3".
 Require Import List.
 Require Import Arith.
@@ -46,8 +47,6 @@ Definition transfer (bound: set atom) (lbl: l) (before: Dominators.t bound) :=
   to approximations.  It can fail to reach a fixpoint in a reasonable
   number of iterations, in which case [None] is returned. *)
 
-Module DomDS := Dataflow_Solver_Var_Top(AtomNodeSet).
-
 Fixpoint bound_blocks (bs: blocks) : set atom :=
 match bs with
 | nil => empty_set _
@@ -62,7 +61,7 @@ Lemma entry_dom : forall (bs:list block),
   {oresult : option (l * Dominators.BoundedSet (bound_blocks bs)) &
      match oresult with
      | None => bs = nil
-     | Some (le, Dominators.mkBoundedSet (l1::nil) _) => le = l1
+     | Some (le, Dominators.mkBoundedSet nil _) => True
      | _ => False
      end
   }.
@@ -72,12 +71,12 @@ Proof.
     exists None. auto.
 
     destruct b.
-    assert (incl [l0] (l0 :: bound_blocks bs)) as J.
-      simpl_env.
-      apply incl_appl; auto using incl_refl.
-    exists (Some (l0, Dominators.mkBoundedSet _ [l0] J)).  
-    simpl. auto.
+    assert (incl nil (l0 :: bound_blocks bs)) as J.
+      intros a J. inv J.
+    exists (Some (l0, Dominators.mkBoundedSet _ nil J)). auto.
 Defined.
+
+Module DomDS := Dataflow_Solver_Var_Top(AtomNodeSet).
 
 Definition dom_analyze (f: fdef) : AMap.t (Dominators.t (bound_fdef f)) :=
   let '(fdef_intro _ bs) := f in
@@ -93,40 +92,19 @@ Definition dom_analyze (f: fdef) : AMap.t (Dominators.t (bound_fdef f)) :=
   | (existT None _) => AMap.init top
   end.
 
-(*
-Program Definition dom_analyze (f: fdef): AMap.t (Dominators.t (bound_fdef f)) :=
-  let bound := bound_fdef f in
-  let top := Dominators.top bound in
-  match getEntryBlock f with
-  | Some (block_intro le _ _ _) =>
-      match DomDS.fixpoint bound (successors f) (transfer bound) 
-        ((le, Dominators.mkBoundedSet _ [le] _) :: nil) with
-      | None => AMap.init top
-      | Some res => res
-      end
-  | None => AMap.init top
-  end.
-Next Obligation.
-  destruct f. 
-  destruct b; simpl in *; inv Heq_anonymous. 
-    simpl_env.
-    apply incl_appl; auto using incl_refl.
-Qed.
-*)
-
 Definition blockDominates (f: fdef) (b1 b2: block) : Prop :=
 let '(block_intro l1 _ _ _) := b1 in
 let '(block_intro l2 _ _ _) := b2 in
 let 'dt := dom_analyze f in
 let '(Dominators.mkBoundedSet els _) := AMap.get l2 dt in
-set_In l1 els.
+set_In l1 els \/ l1 = l2.
 
 Definition blockStrictDominates (f: fdef) (b1 b2: block) : Prop :=
 let '(block_intro l1 _ _ _) := b1 in
 let '(block_intro l2 _ _ _) := b2 in
 let 'dt := dom_analyze f in
 let '(Dominators.mkBoundedSet els _) := AMap.get l2 dt in
-l1 <> l2 /\ set_In l1 els.
+set_In l1 els.
 
 Definition insnDominates (id1:id) (i2:insn) (b:block) : Prop :=
 match b with 
@@ -149,23 +127,281 @@ end.
 
 Module ReachDS := Dataflow_Solver(LBoolean)(AtomNodeSet).
 
-Definition reachable_aux (f: fdef) : option (AMap.t bool) :=
+Definition areachable_aux (f: fdef) : option (AMap.t bool) :=
   match getEntryBlock f with
   | Some (block_intro le _ _ _) =>
      ReachDS.fixpoint (successors f) (fun pc r => r) ((le, true) :: nil)
   | None => None
   end.
 
-Definition reachable (f: fdef) : AMap.t bool :=
-  match reachable_aux f with  
+Definition areachable (f: fdef) : AMap.t bool :=
+  match areachable_aux f with  
   | None => AMap.init true
   | Some rs => rs
   end.
 
+Require Import Dipaths.
+
+Definition vertexes_fdef (f:fdef) : V_set :=
+fun (v:Vertex) => let '(index a) := v in In a (bound_fdef f).
+
+Definition arcs_fdef (f:fdef) : A_set :=
+fun (arc:Arc) => 
+  let '(A_ends (index a2) (index a1)) := arc in 
+  In a2 ((successors f)!!!a1).
+
+Definition reachable (f:fdef) (l0:l) : Prop :=
+match getEntryBlock f with
+| Some (block_intro entry _ _ _) =>
+  let vertexes := vertexes_fdef f in
+  let arcs := arcs_fdef f in
+  exists vl: V_list, exists al: A_list, 
+    D_walk vertexes arcs (index l0) (index entry) vl al
+| _ => false
+end.
+
 Definition isReachableFromEntry (f:fdef) (b1:block) : Prop :=
 let '(block_intro l1 _ _ _) := b1 in
-AMap.get l1 (reachable f).
- 
+reachable f l1.
+
+Definition isAReachableFromEntry (f:fdef) (b1:block) : Prop :=
+let '(block_intro l1 _ _ _) := b1 in
+AMap.get l1 (areachable f).
+
+(********************************************)
+(** * Properties of domination analysis *)
+
+Import AtomSet.
+
+Definition eq_dts bound1 bound2 (dts1:DomDS.dt1 bound1) (dts2:DomDS.dt2 bound2) 
+  :=
+match dts1, dts2 with
+| {| DomDS.L.bs_contents := els1 |}, {| DomDS.L.bs_contents := els2 |} =>
+  set_eq _ els1 els2
+end.
+
+Lemma eq_dts_prop1 : forall bd, 
+  eq_dts bd bd (DomDS.L.bot bd) (DomDS.L.bot bd).
+Proof.
+  intros. simpl. auto using set_eq_refl.
+Qed.
+
+Lemma eq_dts_prop2 : forall bd x1 x2 y1 y2, 
+  eq_dts bd bd x1 x2 ->
+  eq_dts bd bd y1 y2 ->
+  eq_dts bd bd (DomDS.L.lub bd x1 y1) (DomDS.L.lub bd x2 y2).
+Proof.
+  intros.
+  destruct x1. destruct x2. destruct y1. destruct y2. simpl in *.
+  apply set_eq_inter; auto.
+Qed.
+
+Lemma eq_dts_prop3 : forall bd x1 x2 pc, 
+  eq_dts bd bd x1 x2 ->
+  eq_dts bd bd (transfer bd pc x1) (transfer bd pc x2).
+Proof.
+  intros.
+  unfold transfer. unfold Dominators.add.
+  destruct x1, x2. 
+  destruct (in_dec eq_atom_dec pc bd); simpl in *; auto.
+    simpl_env. apply set_eq_app; auto using set_eq_refl.
+Qed.
+  
+Lemma eq_dts_prop4 : forall bd x1 x2 y1 y2,
+  eq_dts bd bd x1 x2 ->
+  eq_dts bd bd y1 y2 ->
+  DomDS.L.beq bd y1 (DomDS.L.lub bd y1 x1) =  
+    DomDS.L.beq bd y2 (DomDS.L.lub bd y2 x2).
+Proof.
+  intros.
+  destruct x1. destruct x2. destruct y1. destruct y2. simpl in *.
+  assert (
+    set_eq atom (ListSet.set_inter eq_atom_dec bs_contents1 bs_contents)
+      (ListSet.set_inter eq_atom_dec bs_contents2 bs_contents0)
+  ) as EQ.
+    apply set_eq_inter; auto.
+  unfold DomDS.L.beq. 
+  destruct (
+    DomDS.L.eq_dec bd
+         {|
+         DomDS.L.bs_contents := bs_contents1;
+         DomDS.L.bs_bound := bs_bound1 |}
+         {|
+         DomDS.L.bs_contents := ListSet.set_inter eq_atom_dec bs_contents1
+                                  bs_contents;
+         DomDS.L.bs_bound := DomDS.L.lub_obligation_1 bd
+                              {|
+                              DomDS.L.bs_contents := bs_contents1;
+                              DomDS.L.bs_bound := bs_bound1 |}
+                              {|
+                              DomDS.L.bs_contents := bs_contents;
+                              DomDS.L.bs_bound := bs_bound |} bs_contents1
+                              bs_bound1 eq_refl bs_contents bs_bound eq_refl |});
+    simpl in *.
+    destruct (
+      DomDS.L.eq_dec bd
+         {|
+         DomDS.L.bs_contents := bs_contents2;
+         DomDS.L.bs_bound := bs_bound2 |}
+         {|
+         DomDS.L.bs_contents := ListSet.set_inter eq_atom_dec bs_contents2
+                                  bs_contents0;
+         DomDS.L.bs_bound := DomDS.L.lub_obligation_1 bd
+                               {|
+                               DomDS.L.bs_contents := bs_contents2;
+                               DomDS.L.bs_bound := bs_bound2 |}
+                               {|
+                               DomDS.L.bs_contents := bs_contents0;
+                               DomDS.L.bs_bound := bs_bound0 |} bs_contents2
+                               bs_bound2 eq_refl bs_contents0 bs_bound0
+                               eq_refl |});
+      simpl in *; auto.
+      contradict n; eauto using set_eq_trans, set_eq_sym.
+    destruct (
+      DomDS.L.eq_dec bd
+         {|
+         DomDS.L.bs_contents := bs_contents2;
+         DomDS.L.bs_bound := bs_bound2 |}
+         {|
+         DomDS.L.bs_contents := ListSet.set_inter eq_atom_dec bs_contents2
+                                  bs_contents0;
+         DomDS.L.bs_bound := DomDS.L.lub_obligation_1 bd
+                               {|
+                               DomDS.L.bs_contents := bs_contents2;
+                               DomDS.L.bs_bound := bs_bound2 |}
+                               {|
+                               DomDS.L.bs_contents := bs_contents0;
+                               DomDS.L.bs_bound := bs_bound0 |} bs_contents2
+                               bs_bound2 eq_refl bs_contents0 bs_bound0
+                               eq_refl |});
+      simpl in *; auto.
+    contradict n; eauto using set_eq_trans, set_eq_sym.
+Qed.
+
+Hint Resolve eq_dts_prop1 eq_dts_prop2 eq_dts_prop3 eq_dts_prop4: eq_dts_db.
+
+Lemma blockStrictDominates_iff : forall (l4 l1 l0 : l) (id' : id)
+  bd1 bd2 succ (Heq : bd1 = bd2) cts
+  (bs_bound1 : incl cts bd1)
+  (bs_bound2 : incl cts bd2) init1 init2
+  (Heq1 : init1 = {| DomDS.L.bs_contents := cts;
+                   DomDS.L.bs_bound := bs_bound1 |}) 
+  (Heq2 : init2 = {| DomDS.L.bs_contents := cts;
+                   DomDS.L.bs_bound := bs_bound2 |}), 
+   (let '{| DomDS.L.bs_contents := els |} :=
+         Maps.AMap.get l1
+           match
+             DomDS.fixpoint bd1 succ (transfer bd1) ((l4, init1) :: nil)
+           with
+           | ret res => res
+           | merror =>
+               Maps.AMap.set l4 init1 (Maps.AMap.init (Dominators.top bd1))
+           end in ListSet.set_In l0 els) <->
+   (let '{| DomDS.L.bs_contents := els |} :=
+         Maps.AMap.get l1
+           match
+             DomDS.fixpoint bd2 succ (transfer bd2) ((l4, init2):: nil)
+           with
+           | ret res => res
+           | merror =>
+               Maps.AMap.set l4 init2 (Maps.AMap.init (Dominators.top bd2))
+           end in ListSet.set_In l0 els).
+Proof.
+  intros.
+  unfold l in *.
+  case_eq (DomDS.fixpoint bd2 succ (transfer bd2) ((l4, init2) :: nil)).
+      intros dom2 Hfix2.
+      apply DomDS.fixpoint_some2_right with (pc:=l1) (P:=eq_dts bd1 bd2) 
+        (bound1:=bd1) (transf1:=transfer bd1)(entrypoints1:=((l4, init1):: nil))
+        in Hfix2; subst;
+        try solve [(auto with eq_dts_db) |
+                   apply Forall2_cons; simpl; auto using set_eq_refl].
+        destruct Hfix2 as [dom1 [Hfix1 Heq']].
+        rewrite Hfix1. 
+        unfold DomDS.dt in *.
+        destruct (Maps.AMap.get l1 dom1). destruct (Maps.AMap.get l1 dom2). 
+        simpl in *. 
+        destruct Heq' as [J1 J2].
+        unfold ListSet.set_In.
+        split; intro J; eauto.
+
+      intros Hfix2.
+      apply DomDS.fixpoint_none2_right with (bound1:=bd1) (P:=eq_dts bd1 bd2) 
+        (transf1:=transfer bd1) (entrypoints1:=((l4,init1) :: nil)) in Hfix2; 
+        subst; try solve [(auto with eq_dts_db) |
+                           apply Forall2_cons; simpl; auto using set_eq_refl].
+        rewrite Hfix2. clear Hfix2.
+        repeat rewrite Maps.AMap.gsspec.
+        destruct (eq_atom_dec l1 l4); subst.
+          split; intro; auto.
+
+          unfold Maps.AMap.init. 
+          unfold Maps.AMap.get. simpl.
+          repeat rewrite Maps.ATree.gempty. simpl. 
+          split; intro; auto.
+Qed.
+
+Lemma blockDominates_iff : forall (l4 l1 l0 : l) (id' : id)
+  bd1 bd2 succ (Heq : bd1 = bd2) cts
+  (bs_bound1 : incl cts bd1)
+  (bs_bound2 : incl cts bd2) init1 init2
+  (Heq1 : init1 = {| DomDS.L.bs_contents := cts;
+                   DomDS.L.bs_bound := bs_bound1 |}) 
+  (Heq2 : init2 = {| DomDS.L.bs_contents := cts;
+                   DomDS.L.bs_bound := bs_bound2 |}), 
+   (let '{| DomDS.L.bs_contents := els |} :=
+         Maps.AMap.get l1
+           match
+             DomDS.fixpoint bd1 succ (transfer bd1) ((l4, init1) :: nil)
+           with
+           | ret res => res
+           | merror =>
+               Maps.AMap.set l4 init1 (Maps.AMap.init (Dominators.top bd1))
+           end in ListSet.set_In l0 els \/ l0 = l1) <->
+   (let '{| DomDS.L.bs_contents := els |} :=
+         Maps.AMap.get l1
+           match
+             DomDS.fixpoint bd2 succ (transfer bd2) ((l4, init2):: nil)
+           with
+           | ret res => res
+           | merror =>
+               Maps.AMap.set l4 init2 (Maps.AMap.init (Dominators.top bd2))
+           end in ListSet.set_In l0 els \/ l0 = l1).
+Proof.
+  intros.
+  unfold l in *.
+  case_eq (DomDS.fixpoint bd2 succ (transfer bd2) ((l4, init2) :: nil)).
+      intros dom2 Hfix2.
+      apply DomDS.fixpoint_some2_right with (pc:=l1) (P:=eq_dts bd1 bd2) 
+        (bound1:=bd1) (transf1:=transfer bd1)(entrypoints1:=((l4, init1):: nil))
+        in Hfix2; subst;
+        try solve [(auto with eq_dts_db) |
+                   apply Forall2_cons; simpl; auto using set_eq_refl].
+        destruct Hfix2 as [dom1 [Hfix1 Heq']].
+        rewrite Hfix1. 
+        unfold DomDS.dt in *.
+        destruct (Maps.AMap.get l1 dom1). destruct (Maps.AMap.get l1 dom2). 
+        simpl in *. 
+        destruct Heq' as [J1 J2].
+        unfold ListSet.set_In.
+        split; intro J; destruct J; auto.
+
+      intros Hfix2.
+      apply DomDS.fixpoint_none2_right with (bound1:=bd1) (P:=eq_dts bd1 bd2) 
+        (transf1:=transfer bd1) (entrypoints1:=((l4,init1) :: nil)) in Hfix2; 
+        subst; try solve [(auto with eq_dts_db) |
+                           apply Forall2_cons; simpl; auto using set_eq_refl].
+        rewrite Hfix2. clear Hfix2.
+        repeat rewrite Maps.AMap.gsspec.
+        destruct (eq_atom_dec l1 l4); subst.
+          split; intro; auto.
+
+          unfold Maps.AMap.init. 
+          unfold Maps.AMap.get. simpl.
+          repeat rewrite Maps.ATree.gempty. simpl. 
+          split; intro; auto.
+Qed.
+
 (********************************************)
 (** * Correctness of analysis *)
 
@@ -202,20 +438,44 @@ Proof.
   auto.
 Qed.
 
-Lemma reachable_entrypoint:
+Lemma areachable_entrypoint:
   forall (f:fdef) l0 ps cs tmn, 
     getEntryBlock f = Some (block_intro l0 ps cs tmn) ->
-    (reachable f)!!l0 = true.
+    (areachable f)!!l0 = true.
 Proof.
-  intros f l0 ps cs tmn Hentry. unfold reachable.
-  caseEq (reachable_aux f).
-    unfold reachable_aux; intros reach A.
+  intros f l0 ps cs tmn Hentry. unfold areachable.
+  caseEq (areachable_aux f).
+    unfold areachable_aux; intros reach A.
     rewrite Hentry in A.
     assert (LBoolean.ge reach!!l0 true).
       eapply ReachDS.fixpoint_entry. eexact A. auto with coqlib.
     unfold LBoolean.ge in H. tauto.
 
     intros. apply AMap.gi.
+Qed.
+
+Lemma entry_in_vertexes : forall f l0 ps cs tmn
+  (Hentry : getEntryBlock f = ret block_intro l0 ps cs tmn),
+  vertexes_fdef f (index l0).
+Proof.
+  intros.
+  unfold vertexes_fdef. unfold bound_fdef. destruct f. 
+  destruct b; simpl in *.
+    congruence. 
+    inv Hentry. simpl. auto.
+Qed.
+
+Lemma reachable_dec: forall (f:fdef) (l1:l), reachable f l1 \/ ~ reachable f l1.
+Proof. intros. tauto. Qed. (* classic logic *)
+
+Lemma reachable_entrypoint:
+  forall (f:fdef) l0 ps cs tmn, 
+    getEntryBlock f = Some (block_intro l0 ps cs tmn) ->
+    reachable f l0.
+Proof.
+  intros f l0 ps cs tmn Hentry. unfold reachable.
+  rewrite Hentry. exists V_nil. exists A_nil. apply DW_null.
+  eapply entry_in_vertexes; eauto.
 Qed.
 
 Lemma successors_terminator__successors_blocks : forall
@@ -345,18 +605,18 @@ Proof.
           rewrite J1. apply J2 in H1; auto.
 Qed.
 
-Lemma reachable_successors:
+Lemma areachable_successors:
   forall f l0 cs ps tmn l1,
   uniqFdef f ->
   blockInFdefB (block_intro l0 cs ps tmn) f ->
   In l1 (successors_terminator tmn) ->
-  (reachable f)!!l0 = true ->
-  (reachable f)!!l1 = true.
+  (areachable f)!!l0 = true ->
+  (areachable f)!!l1 = true.
 Proof.
   intros f l0 cs ps tmn l1 HuniqF HbInF Hin.
-  unfold reachable.
-  caseEq (reachable_aux f).
-    unfold reachable_aux. intro reach; intros.
+  unfold areachable.
+  caseEq (areachable_aux f).
+    unfold areachable_aux. intro reach; intros.
     remember (getEntryBlock f) as R.
     destruct R; inv H.
     destruct b as [le ? ? ?].
@@ -374,12 +634,127 @@ Proof.
   intros. apply AMap.gi.
 Qed.
 
+Lemma successors__blockInFdefB : forall l0 a f,
+  In l0 (successors f) !!! a -> 
+  exists ps0, exists cs0, exists tmn0, 
+    blockInFdefB (block_intro a ps0 cs0 tmn0) f /\
+    In l0 (successors_terminator tmn0).
+Proof.
+  destruct f as [fh bs]. simpl.
+  unfold successors_list.
+  induction bs; simpl; intro.
+    rewrite ATree.gempty in H. inv H.
+
+    destruct a0.
+    destruct (id_dec l1 a); subst.
+      rewrite ATree.gss in H.
+      exists p. exists c. exists t. 
+      split; auto.
+        eapply orb_true_iff. left. apply blockEqB_refl.
+
+      rewrite ATree.gso in H; auto.
+      apply IHbs in H; auto.
+      destruct H as [ps0 [cs0 [tmn0 [J1 J2]]]].
+      exists ps0. exists cs0. exists tmn0.
+      split; auto.
+        eapply orb_true_iff; eauto.
+Qed.
+
+Lemma successors_blocks__blockInFdefB : forall l0 a fh bs,
+  In l0 (successors_blocks bs) !!! a -> 
+  exists ps0, exists cs0, exists tmn0, 
+    blockInFdefB (block_intro a ps0 cs0 tmn0) (fdef_intro fh bs) /\
+    In l0 (successors_terminator tmn0).
+Proof.
+  intros.
+  apply successors__blockInFdefB; auto.
+Qed.
+
+Lemma areachable_is_correct:
+  forall f l0,
+  uniqFdef f ->
+  reachable f l0 -> 
+  (areachable f)!!l0.
+Proof.
+  unfold reachable.
+  intros.
+  remember (getEntryBlock f) as R. 
+  destruct R; tinv H0.
+  destruct b. destruct H0 as [vl [al H0]].
+  remember (vertexes_fdef f) as Vs.
+  remember (arcs_fdef f) as As.
+  remember (index l0) as v0.
+  remember (index l1) as v1.
+  generalize dependent f.
+  generalize dependent l0.
+  generalize dependent l1.
+  generalize dependent p.
+  generalize dependent c.
+  generalize dependent t.
+  induction H0; intros; subst.
+    inv Heqv0.
+    symmetry in HeqR.    
+    apply areachable_entrypoint in HeqR; auto.
+
+    destruct y as [a0].
+    apply IHD_walk with (l0:=a0) in HeqR; auto.
+    assert (exists ps0, exists cs0, exists tmn0, 
+      blockInFdefB (block_intro a0 ps0 cs0 tmn0) f /\
+      In l0 (successors_terminator tmn0)) as J.
+      eapply successors__blockInFdefB; eauto.
+    destruct J as [ps0 [cs0 [tmn0 [HBinF' Hinsucc]]]].
+    eapply areachable_successors; eauto.
+Qed.
+
+Lemma arcs_fdef_inv : forall f a1 a2,
+  arcs_fdef f (A_ends (index a2) (index a1)) ->
+  In a2 ((successors f)!!!a1).
+Proof. auto. Qed.
+
+Lemma blockInFdefB_in_vertexes : forall l0 cs ps tmn f
+  (HbInF : blockInFdefB (block_intro l0 cs ps tmn) f),
+  vertexes_fdef f (index l0).
+Proof.
+  intros.
+  unfold vertexes_fdef, bound_fdef. 
+  destruct f.
+  generalize dependent cs.
+  generalize dependent ps.
+  generalize dependent tmn.
+  generalize dependent l0.
+  induction b; simpl in *; intros.
+    congruence.
+
+    destruct a.
+    apply orb_prop in HbInF.
+    destruct HbInF as [HbInF | HbInF].
+      unfold blockEqB in HbInF.
+      apply sumbool2bool_true in HbInF. inv HbInF.
+      simpl. auto.
+  
+      apply IHb in HbInF.
+      simpl. auto.
+Qed.
+
+Lemma successor_in_arcs : forall l0 cs ps tmn f l1
+  (HuniqF : uniqFdef f)
+  (HbInF : blockInFdefB (block_intro l0 cs ps tmn) f)
+  (Hin : In l1 (successors_terminator tmn)),
+  arcs_fdef f (A_ends (index l1) (index l0)).
+Proof.
+  intros.
+  unfold arcs_fdef.
+  destruct f as [fh bs]. apply uniqF__uniqBlocks in HuniqF.
+  simpl.
+  erewrite <- successors_terminator__successors_blocks; eauto.
+Qed.
+
 Ltac tinv H := try solve [inv H].
 Import AtomSet.
 
 Lemma dom_entrypoint : forall f l0 ps cs tmn
   (Hentry : getEntryBlock f = Some (block_intro l0 ps cs tmn)),
-  incl (Dominators.bs_contents (bound_fdef f) ((dom_analyze f) !! l0)) [l0].
+  Dominators.bs_contents (bound_fdef f) ((dom_analyze f) !! l0) = nil.
 Proof.
   intros.
   unfold dom_analyze.
@@ -392,17 +767,15 @@ Proof.
                 (transfer (bound_blocks b)) ((le, start) :: nil)) as R1.
     destruct start.
     destruct bs_contents; tinv Hp.
-    destruct bs_contents; tinv Hp.
-    subst le. 
     destruct b; try solve [inversion HeqR].
-    destruct b. simpl in HeqR. inversion HeqR. subst a.
+    destruct b. simpl in HeqR. inversion HeqR. subst le.
     simpl in Hentry. inversion Hentry. subst l0 p c t.
     clear HeqR Hentry.    
     destruct R1; subst.
     SCase "analysis is done".
       symmetry in HeqR1.
       apply DomDS.fixpoint_entry with (n:=l1)(v:={|
-                DomDS.L.bs_contents := l1 :: nil;
+                DomDS.L.bs_contents := nil;
                 DomDS.L.bs_bound := bs_bound |}) in HeqR1; simpl; eauto.
       unfold DomDS.L.ge in HeqR1.
       unfold DomDS.L.eq, DomDS.L.top, DomDS.L.bot, DomDS.L.sub in HeqR1.
@@ -410,22 +783,191 @@ Proof.
 
       remember (t !! l1) as R.
       destruct R.
-      erewrite <- atomset_eq__proof_irr2; eauto.
+      change (Dominators.t) with (DomDS.dt).
+      rewrite <- HeqR. simpl.
       destruct HeqR1 as [HeqR1 | [ HeqR1 | HeqR1 ]]; auto.
       SSCase "1".       
-        apply set_eq_empty_inv in HeqR1. subst.
-        intros x J. inversion J.
+        apply set_eq_empty_inv in HeqR1. subst. auto.
       SSCase "2".   
-        eapply incl_set_eq_right; eauto using set_eq_sym.
+        apply set_eq_sym in HeqR1.
+        apply set_eq_empty_inv in HeqR1. inv HeqR1.
+      SSCase "3".   
+        apply incl_empty_inv in HeqR1; auto.
     
     SCase "analysis fails".
       simpl.      
-      rewrite AMap.gss. simpl.
-      apply incl_refl.
+      rewrite AMap.gss. simpl. auto.
 
   Case "entry is wrong". 
     subst. inversion Hentry.
 Qed.
+
+Module EntryDomsOthers. 
+
+Section EntryDomsOthers.
+
+Variable bs : blocks.
+Definition bound := bound_blocks bs.
+Definition predecessors := make_predecessors (successors_blocks bs).
+Definition transf := transfer bound.
+Definition top := Dominators.top bound.
+Definition bot := Dominators.bot bound.
+Definition dt := DomDS.dt bound.
+Variable entry: l.
+Variable entrypoints: list (atom * dt).
+
+Hypothesis wf_entrypoints:
+  predecessors!!!entry = nil /\
+  match bs with
+  | block_intro l0 _ _ _ :: _ => l0 = entry
+  | _ => False 
+  end /\
+  exists v, [(entry, v)] = entrypoints /\ Dominators.eq _ v top.
+
+Lemma dom_entry_start_state_in:
+  forall n v,
+  In (n, v) entrypoints ->
+  Dominators.eq _ (DomDS.start_state_in _ entrypoints)!!n v.
+Proof.
+  destruct wf_entrypoints as [_ [_ J]]. clear wf_entrypoints.
+  destruct J as [v [Heq J]]; subst. simpl. 
+  intros.
+  destruct H as [H | H]; inv H.
+  rewrite AMap.gss. rewrite AMap.gi.
+  apply Dominators.eq_trans with (y:=DomDS.L.lub bound v0 bot).
+    apply Dominators.lub_commut.
+    apply Dominators.lub_preserves_ge.
+    apply Dominators.ge_compat with (x:=top)(y:=bot).
+      apply Dominators.eq_sym; auto.
+      apply Dominators.eq_refl.
+      apply Dominators.ge_bot.
+Qed.
+
+Lemma dom_nonentry_start_state_in:
+  forall n,
+  n <> entry ->
+  Dominators.eq _ (DomDS.start_state_in _ entrypoints)!!n bot.
+Proof.
+  destruct wf_entrypoints as [_ [_ J]]. clear wf_entrypoints.
+  destruct J as [v [Heq J]]; subst. simpl. 
+  intros.
+  rewrite AMap.gi. rewrite AMap.gso; auto. rewrite AMap.gi.
+  apply Dominators.eq_refl.
+Qed.
+
+Lemma transf_mono: forall p x y, 
+  Dominators.ge bound x y -> Dominators.ge _ (transf p x) (transf p y).
+Proof.
+  unfold transf, transfer. intros.
+  apply Dominators.add_mono; auto.
+Qed.
+
+Definition lub_of_preds (res: AMap.t dt) (n:atom) : dt :=
+  Dominators.lubs _ (List.map (fun p => transf p res!!p) 
+    (predecessors!!!n)).
+
+Definition entry_doms_others (res: AMap.t dt) : Prop :=
+  forall l0, l0 <> entry -> Dominators.member _ entry res!!l0.
+
+Lemma start_entry_doms_others: 
+  entry_doms_others 
+    (DomDS.st_in _ (DomDS.start_state _ (successors_blocks bs) entrypoints)).
+Proof.
+  intros l0 Hneq.
+  apply dom_nonentry_start_state_in in Hneq.
+  unfold DomDS.start_state. simpl.
+  apply Dominators.member_eq with (x2:=bot); auto.
+  destruct wf_entrypoints as [_ [J _]]. unfold bot. unfold bound.
+  destruct bs; tinv J.
+  destruct b; subst. simpl. auto.
+Qed.
+
+(** We show that the start state satisfies the invariant, and that
+  the [step] function preserves it. *)
+
+Lemma propagate_succ_entry_doms_others: forall st n out,
+  Dominators.member _ entry out ->
+  entry_doms_others st.(DomDS.st_in _) -> 
+  entry_doms_others (DomDS.propagate_succ _ st out n).(DomDS.st_in _).
+Proof.
+  unfold entry_doms_others.
+  intros. 
+  destruct (@DomDS.propagate_succ_spec _ st out n) as [J1 J2].
+  apply H0 in H1.
+  destruct (eq_atom_dec n l0); subst.
+    apply Dominators.member_eq with (a:=entry) in J1; auto.
+    apply Dominators.member_lub; auto.
+
+    rewrite J2; auto.
+Qed.
+
+Lemma propagate_succ_list_entry_doms_others:
+  forall scs st out,
+  Dominators.member _ entry out ->
+  entry_doms_others st.(DomDS.st_in _) ->   
+  entry_doms_others (DomDS.propagate_succ_list _ st out scs).(DomDS.st_in _).
+Proof.
+  induction scs; simpl; intros; auto.
+    apply IHscs; auto.
+    apply propagate_succ_entry_doms_others; auto.
+Qed.
+
+Lemma step_entry_doms_others:
+  forall st n rem,
+  AtomNodeSet.pick st.(DomDS.st_wrk _) = Some(n, rem) ->
+  entry_doms_others st.(DomDS.st_in _) ->
+  entry_doms_others (DomDS.propagate_succ_list _ 
+                                  (DomDS.mkstate _ st.(DomDS.st_in _) rem)
+                                  (transf n st.(DomDS.st_in _)!!n)
+                                  ((successors_blocks bs)!!!n)).(DomDS.st_in _).
+Proof.
+  intros st n rem WKL GOOD.
+  destruct st. simpl.
+  apply propagate_succ_list_entry_doms_others; auto.
+    simpl in *. 
+    unfold transf, transfer.
+    destruct (eq_atom_dec n entry); subst.
+      apply Dominators.add_member1.
+      destruct wf_entrypoints as [_ [J _]].
+      unfold bound.
+      destruct bs; tinv J.
+      destruct b; subst. simpl. auto.
+
+      apply GOOD in n0.
+      apply Dominators.add_member2; auto.
+Qed.
+
+Theorem dom_entry_doms_others: forall res, 
+  DomDS.fixpoint _ (successors_blocks bs) transf entrypoints = Some res -> 
+  entry_doms_others res.
+Proof.
+  unfold DomDS.fixpoint. intros res PI. pattern res. 
+  eapply (PrimIter.iterate_prop _ _ (DomDS.step _ _ _) 
+    (fun st => entry_doms_others st.(DomDS.st_in _))); eauto.
+  intros st GOOD. unfold DomDS.step. 
+  caseEq (AtomNodeSet.pick st.(DomDS.st_wrk _)); auto.
+  intros [n rem] PICK. 
+  apply step_entry_doms_others; auto. 
+    apply start_entry_doms_others.
+Qed.
+
+Lemma dom_solution_ge: forall res, 
+  DomDS.fixpoint _ (successors_blocks bs) transf entrypoints = Some res -> 
+  forall n, 
+  Dominators.ge _ res!!n (lub_of_preds res n).
+Proof.
+  intros.
+  apply Dominators.lubs_spec3.
+  intros.
+  apply in_map_iff in H0.
+  destruct H0 as [x [J1 J2]]; subst.
+  eapply DomDS.fixpoint_solution; eauto.
+  apply make_predecessors_correct'; auto.
+Qed.
+
+End EntryDomsOthers. 
+
+End EntryDomsOthers.
 
 (***************************)
 (* domination prop *)
@@ -877,7 +1419,6 @@ Inductive wf_phi_operands (f:fdef) (b:block) (id0:id) (t0:typ) :
     list_value_l -> Prop :=
 | wf_phi_operands_nil : wf_phi_operands f b id0 t0 Nil_list_value_l
 | wf_phi_operands_cons_vid : forall vid1 l1 vls b1 vb, 
-    vid1 <> id0 \/ (not (isReachableFromEntry f b)) ->
     lookupBlockViaIDFromFdef f vid1 = Some vb ->
     lookupBlockViaLabelFromFdef f l1 = Some b1 ->
     blockDominates f vb b1 \/ (not (isReachableFromEntry f b)) ->
@@ -904,6 +1445,6 @@ wf_phi_operands f b id0 t0 vls0 /\ check_list_value_l f b vls0.
 (*
 *** Local Variables: ***
 *** coq-prog-name: "coqtop" ***
-*** coq-prog-args: ("-emacs-U" "-I" "~/SVN/sol/vol/src/Vellvm/monads" "-I" "~/SVN/sol/vol/src/Vellvm/ott" "-I" "~/SVN/sol/vol/src/Vellvm/compcert" "-I" "~/SVN/sol/theory/metatheory_8.3" "-I" "~/SVN/sol/vol/src/TV") ***
+*** coq-prog-args: ("-emacs-U" "-I" "~/SVN/sol/vol/src/Vellvm/monads" "-I" "~/SVN/sol/vol/src/Vellvm/ott" "-I" "~/SVN/sol/vol/src/Vellvm/compcert" "-I" "~/SVN/sol/theory/metatheory_8.3" "-I" "~/SVN/sol/vol/src/TV" "-impredicative-set") ***
 *** End: ***
  *)

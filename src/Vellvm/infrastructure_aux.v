@@ -2300,6 +2300,13 @@ match i with
 | insn_terminator t => terminatorInSystemModuleFdefBlockB t s m f b
 end.
 
+Definition insnInBlockB (i : insn) (b : block) :=
+match i with
+| insn_phinode p => phinodeInBlockB p b
+| insn_cmd c => cmdInBlockB c b
+| insn_terminator t => terminatorInBlockB t b
+end.
+
 Definition insnInFdefBlockB 
   (i:insn) (f:fdef) (b:block) : bool :=
 match i with
