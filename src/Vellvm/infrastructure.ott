@@ -769,6 +769,9 @@ match lb with
   end
 end.
 
+Definition lookupInsnViaIDFromFdef (f:fdef) (id0:id) : option insn :=
+let '(fdef_intro _ bs) := f in lookupInsnViaIDFromBlocks bs id0.
+
 Fixpoint lookupArgViaIDFromArgs (la:args) (id0:id) : option arg :=
 match la with 
 | nil => None
@@ -2306,6 +2309,15 @@ match i with
 | insn_cmd c => cmdInBlockB c b
 | insn_terminator t => terminatorInBlockB t b
 end.
+
+Definition cmdInFdefBlockB (i:cmd) (f:fdef) (b:block) : bool :=
+cmdInBlockB i b && blockInFdefB b f.
+
+Definition phinodeInFdefBlockB (i:phinode) (f:fdef) (b:block) : bool :=
+phinodeInBlockB i b && blockInFdefB b f.
+
+Definition terminatorInFdefBlockB (i:terminator) (f:fdef) (b:block) : bool :=
+terminatorInBlockB i b && blockInFdefB b f.
 
 Definition insnInFdefBlockB 
   (i:insn) (f:fdef) (b:block) : bool :=

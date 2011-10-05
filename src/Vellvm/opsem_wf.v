@@ -1,6 +1,7 @@
 Add LoadPath "./ott".
 Add LoadPath "./monads".
 Add LoadPath "./compcert".
+Add LoadPath "./GraphBasics".
 Add LoadPath "../../../theory/metatheory_8.3".
 Require Import Ensembles.
 Require Import syntax.
@@ -509,7 +510,7 @@ Proof.
   apply lookupBlockViaLabelFromFdef_inv in J; auto.
   destruct J as [Heq J]; subst.
   unfold inscope_of_tmn in Hinscope.
-  unfold inscope_of_tmn. unfold inscope_of_cmd.
+  unfold inscope_of_tmn. unfold inscope_of_cmd, inscope_of_id.
   destruct F as [[? ? ? la va] bs].
   remember (dom_analyze (fdef_intro (fheader_intro f t i0 la va) bs)) as Doms.
   remember (Doms !! l3)as defs3.
@@ -526,8 +527,8 @@ Proof.
   Case "cs'=nil".
     assert (J1:=inbound').
     apply fold_left__bound_blocks with (init:=getPhiNodesIDs ps' ++ 
-      getCmdsIDs nil ++ getArgsIDs la)(t:=t)(i0:=i0)(la:=la)(va:=va)(bs:=bs)
-      (fa:=f)(l0:=l') in J1.
+      getCmdsIDs nil ++ getArgsIDs la)(fh:=fheader_intro f t i0 la va)(bs:=bs)
+      (l0:=l') in J1.
     destruct J1 as [r J1].
     exists r. split; auto.
 
@@ -587,9 +588,9 @@ Proof.
       try solve [contradict n; auto].
     simpl_env.
     apply fold_left__bound_blocks with (init:=getPhiNodesIDs ps' ++ 
-      getArgsIDs la)(t:=t)(i0:=i0)(la:=la)(va:=va)(bs:=bs)(l0:=l')(fa:=f) in J1.
+      getArgsIDs la)(fh:=fheader_intro f t i0 la va)(bs:=bs)(l0:=l') in J1.
     destruct J1 as [r J1].
-    exists r.  split; auto.
+    exists r. split; auto.
 
     assert (incl (ListSet.set_diff eq_atom_dec r (getPhiNodesIDs ps')) ids0)
       as Jinc.
@@ -1459,8 +1460,8 @@ Proof.
   intros.
   assert (incl nil (bound_blocks lb)) as J.
     intros x J. inv J.    
-  apply fold_left__bound_blocks with (t:=rt)(i0:=fid)(la:=la)(va:=va)(fa:=fa)
-    (l0:=l')(init:=getArgsIDs la) in J.
+  apply fold_left__bound_blocks with (fh:=fheader_intro fa rt fid la va)(l0:=l')
+    (init:=getArgsIDs la) in J.
   destruct J as [r J]. unfold l in *.
   rewrite J.       
   apply fold_left__spec in J.
@@ -2278,7 +2279,7 @@ Case "sCall".
        destruct R. simpl in H2. subst.
        eapply preservation_dbCall_case; eauto using wf_params_spec.
 
-       unfold inscope_of_cmd.
+       unfold inscope_of_cmd, inscope_of_id.
        remember ((dom_analyze (fdef_intro (fheader_intro fa rt fid la va) lb)) 
          !! l') as R.
        destruct R. simpl. simpl in H2. subst.
@@ -2445,7 +2446,7 @@ Proof.
 
   inv H6. 
   eapply wf_defs_elim; eauto.
-    unfold inscope_of_cmd in Hinscope.
+    unfold inscope_of_cmd, inscope_of_id in Hinscope.
     destruct b. destruct f. destruct f.
     remember ((dom_analyze (fdef_intro (fheader_intro f t0 i0 a v) b)) !! l0) 
       as R.

@@ -1,6 +1,7 @@
 Add LoadPath "./ott".
 Add LoadPath "./monads".
 Add LoadPath "./compcert".
+Add LoadPath "./GraphBasics".
 Add LoadPath "../../../theory/metatheory_8.3".
 Require Import Ensembles.
 Require Import syntax.
@@ -1136,6 +1137,140 @@ Proof.
   erewrite getIncomingValuesForBlockFromPHINodes_eq; eauto.
 Qed.
 
+Lemma updateValuesForNewBlock_spec6 : forall lc rs id1 gvs
+  (Hlk : lookupAL _ (@updateValuesForNewBlock GVsSig rs lc) id1 = ret gvs)
+  (Hin : id1 `in` (dom rs)),
+  lookupAL _ rs id1 = Some gvs.
+Proof.
+  induction rs; simpl; intros.
+    fsetdec.
+
+    destruct a.
+    assert (id1 = i0 \/ id1 `in` dom rs) as J. fsetdec.   
+    destruct J as [J | J]; subst.
+      rewrite lookupAL_updateAddAL_eq in Hlk; auto. inv Hlk.
+      destruct (@eq_dec atom (EqDec_eq_of_EqDec atom EqDec_atom) i0 i0); auto.
+        contradict n; auto.
+
+      destruct (@eq_dec atom (EqDec_eq_of_EqDec atom EqDec_atom) id1 i0); 
+        subst; eauto.
+        rewrite lookupAL_updateAddAL_eq in Hlk; auto. 
+        rewrite <- lookupAL_updateAddAL_neq in Hlk; eauto. 
+Qed.
+
+Lemma getIncomingValuesForBlockFromPHINodes_spec6 : forall TD b gl lc ps' rs id1
+  (HeqR1 : ret rs = @getIncomingValuesForBlockFromPHINodes GVsSig TD ps' b gl lc)
+  (Hin : In id1 (getPhiNodesIDs ps')),
+  id1 `in` dom rs.
+Proof.
+  induction ps'; simpl; intros.
+    inv Hin.
+
+    destruct a. destruct b. simpl in *.
+    inv_mbind. inv HeqR1.
+    destruct Hin as [Hin | Hin]; subst; simpl; auto.
+Qed.
+
+Lemma getIncomingValuesForBlockFromPHINodes_spec7 : forall TD b gl lc ps' rs id1
+  (HeqR1 : ret rs = @getIncomingValuesForBlockFromPHINodes GVsSig TD ps' b gl lc)
+  (Hin : id1 `in` dom rs),
+  In id1 (getPhiNodesIDs ps').
+Proof.
+  induction ps'; simpl; intros.
+    inv HeqR1. fsetdec.
+
+    destruct a. destruct b. simpl in *.
+    inv_mbind. inv HeqR1. simpl in *.
+    assert (id1 = i0 \/ id1 `in` dom l2) as J. fsetdec.
+    destruct J as [J | J]; subst; eauto.
+Qed.
+
+Lemma getIncomingValuesForBlockFromPHINodes_spec8 : forall TD b gl lc ps' rs id1
+  (HeqR1 : ret rs = @getIncomingValuesForBlockFromPHINodes GVsSig TD ps' b gl lc)
+  (Hnotin : ~ In id1 (getPhiNodesIDs ps')),
+  id1 `notin` dom rs.
+Proof.
+  intros.
+  intro J. apply Hnotin. 
+  eapply getIncomingValuesForBlockFromPHINodes_spec7 in HeqR1; eauto.
+Qed.
+
+Lemma updateValuesForNewBlock_spec7 : forall lc rs id1 gvs
+  (Hlk : lookupAL _ (@updateValuesForNewBlock GVsSig rs lc) id1 = ret gvs)
+  (Hnotin : id1 `notin` (dom rs)),
+  lookupAL _ lc id1 = ret gvs.
+Proof.
+  induction rs; simpl; intros; auto.
+    destruct a.
+
+    destruct_notin.
+    rewrite <- lookupAL_updateAddAL_neq in Hlk; eauto. 
+Qed.
+
+Lemma updateValuesForNewBlock_spec6' : forall lc rs id1 
+  (Hin : id1 `in` (dom rs)),
+  lookupAL _ (@updateValuesForNewBlock GVsSig rs lc) id1 = lookupAL _ rs id1.
+Proof.
+  induction rs; simpl; intros.
+    fsetdec.
+
+    destruct a.
+    assert (id1 = a \/ id1 `in` dom rs) as J. fsetdec.   
+    destruct J as [J | J]; subst.
+      rewrite lookupAL_updateAddAL_eq.
+      destruct (@eq_dec atom (EqDec_eq_of_EqDec atom EqDec_atom) a a); auto.
+        contradict n; auto.
+
+      destruct (@eq_dec atom (EqDec_eq_of_EqDec atom EqDec_atom) id1 a); 
+        subst; eauto.
+        rewrite lookupAL_updateAddAL_eq; auto. 
+        rewrite <- lookupAL_updateAddAL_neq; eauto. 
+Qed.
+
+Lemma updateValuesForNewBlock_spec7' : forall lc rs id1 
+  (Hin : id1 `notin` (dom rs)),
+  lookupAL _ (@updateValuesForNewBlock GVsSig rs lc) id1 = lookupAL _ lc id1.
+Proof.
+  induction rs; simpl; intros; auto.
+    destruct a. destruct_notin.
+    rewrite <- lookupAL_updateAddAL_neq; eauto. 
+Qed.
+
+Lemma updateValuesForNewBlock_sim : forall id0 lc lc'
+  (Heq : forall id' : id,
+        id' <> id0 ->
+        lookupAL _ lc id' = lookupAL GVs lc' id')
+  g0 g
+  (EQ : forall id' : id,
+       id' <> id0 ->
+       lookupAL _ g0 id' = lookupAL _ g id'),
+  forall id', id' <> id0 ->
+   lookupAL _ (updateValuesForNewBlock g0 lc) id' =
+   lookupAL _ (updateValuesForNewBlock g lc') id'.
+Proof.
+  intros.
+  destruct (AtomSetProperties.In_dec id' (dom g0)).
+    rewrite updateValuesForNewBlock_spec6'; auto.
+    destruct (AtomSetProperties.In_dec id' (dom g)).
+      rewrite updateValuesForNewBlock_spec6'; auto.
+      
+      apply notin_lookupAL_None in n.
+      erewrite <- EQ in n; eauto.
+      apply indom_lookupAL_Some in i0.
+      destruct i0 as [gv0 i0].
+      rewrite i0 in n. congruence.
+
+    rewrite updateValuesForNewBlock_spec7'; auto.
+    destruct (AtomSetProperties.In_dec id' (dom g)).
+      apply notin_lookupAL_None in n.
+      erewrite EQ in n; eauto.
+      apply indom_lookupAL_Some in i0.
+      destruct i0 as [gv0 i0].
+      rewrite i0 in n. congruence.
+
+      rewrite updateValuesForNewBlock_spec7'; auto.
+Qed.
+
 Lemma bops_trans : forall cfg state1 state2 state3 tr1 tr2,
   @bops GVsSig cfg state1 state2 tr1 ->
   bops cfg state2 state3 tr2 ->
@@ -1335,6 +1470,6 @@ End OpsemProps. End OpsemProps.
 (*
 *** Local Variables: ***
 *** coq-prog-name: "coqtop" ***
-*** coq-prog-args: ("-emacs-U" "-I" "~/SVN/sol/vol/src/Vellvm/monads" "-I" "~/SVN/sol/vol/src/Vellvm/ott" "-I" "~/SVN/sol/vol/src/Vellvm/compcert" "-I" "~/SVN/sol/theory/metatheory_8.3") ***
+*** coq-prog-args: ("-emacs-U" "-I" "~/SVN/sol/vol/src/Vellvm/monads" "-I" "~/SVN/sol/vol/src/Vellvm/ott" "-I" "~/SVN/sol/vol/src/Vellvm/compcert" "-I" "~/SVN/sol/theory/metatheory_8.3" "-impredicative-set") ***
 *** End: ***
  *)

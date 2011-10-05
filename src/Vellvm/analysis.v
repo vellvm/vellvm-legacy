@@ -1019,8 +1019,7 @@ Definition inscope_of_block (f:fdef) (l1:l) (opt_ctx:option (list atom)) (lbl:l)
   | None => None
   end.
 
-Definition inscope_of_cmd (f:fdef) (b1:block) (c:cmd) : option (list atom) :=
-let id0 := getCmdLoc c in
+Definition inscope_of_id (f:fdef) (b1:block) (id0:id) : option (list atom) :=
 let '(block_intro l1 ps cs _) := b1 in
 let '(fdef_intro (fheader_intro _ _ _ la _) _) := f in
 let 'dt := dom_analyze f in
@@ -1028,6 +1027,9 @@ let '(Dominators.mkBoundedSet els _) := AMap.get l1 dt in
 fold_left (inscope_of_block f l1) els
   (Some (getPhiNodesIDs ps ++ cmds_dominates_cmd cs id0 ++ getArgsIDs la))
 .
+
+Definition inscope_of_cmd (f:fdef) (b1:block) (c:cmd) : option (list atom) :=
+let id0 := getCmdLoc c in inscope_of_id f b1 id0.
 
 Definition inscope_of_tmn (f:fdef) (b1:block) (tmn:terminator) 
   : option (list atom) :=
@@ -1181,7 +1183,7 @@ exists ids2,
   end.
 Proof.
   intros f l2 ps2 cs2' c' tmn' ids1 Hnotin Hinscope.
-  unfold inscope_of_cmd in Hinscope.
+  unfold inscope_of_cmd, inscope_of_id in Hinscope.
   unfold inscope_of_tmn.
   destruct f as [[? ? ? la va] bs].
   remember ((dom_analyze (fdef_intro (fheader_intro f t i0 la va) bs)) !! l2) as R.
@@ -1274,8 +1276,8 @@ exists ids2,
   end.
 Proof.
   intros f l2 ps2 cs2' c' c cs' tmn' ids1 Hnodup Hinscope.
-  unfold inscope_of_cmd in Hinscope.
-  unfold inscope_of_cmd.
+  unfold inscope_of_cmd, inscope_of_id in Hinscope.
+  unfold inscope_of_cmd, inscope_of_id.
   destruct f as [[? ? ? la va] bs].
   remember ((dom_analyze (fdef_intro (fheader_intro f t i0 la va) bs)) !! l2) as R.
   destruct R as [R_contents R_bound].
@@ -1338,14 +1340,12 @@ Proof.
       contradict n; auto.
 Qed.
 
-Lemma fold_left__bound_blocks : forall ls0 fa t i0 la va bs l0 init,
+Lemma fold_left__bound_blocks : forall ls0 fh bs l0 init,
   incl ls0 (bound_blocks bs) ->
   exists r, 
-    fold_left (inscope_of_block 
-      (fdef_intro (fheader_intro fa t i0 la va) bs) l0) ls0 (Some init) = 
-       Some r.
+    fold_left (inscope_of_block (fdef_intro fh bs) l0) ls0 (Some init) = Some r.
 Proof.
-  induction ls0; intros fa t i0 la va bs l0 init Hinc; simpl in *.
+  induction ls0; intros fh bs l0 init Hinc; simpl in *.
     exists init. auto.
 
     assert (incl ls0 (bound_blocks bs)) as J.

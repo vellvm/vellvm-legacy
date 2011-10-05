@@ -18,6 +18,52 @@ Import LLVMinfra.
 
 Ltac tinv H := try solve [inv H].
 
+Ltac symmetry_ctx :=
+  repeat match goal with
+  | H : Some _ = _ |- _ => symmetry in H
+  end.
+
+Ltac inv_mbind' :=
+  repeat match goal with
+         | H : match ?e with
+               | Some _ => _
+               | None => None
+               end = Some _ |- _ => remember e as R; destruct R as [|]; tinv H
+         end.
+
+Ltac inv_mbind :=
+  repeat match goal with
+         | H : Some _ = match ?e with
+               | Some _ => _
+               | None => None
+               end |- _ => remember e as R; destruct R as [|]; tinv H
+         end.
+
+Ltac app_inv :=
+  repeat match goal with
+  | [ H: Some _ = Some _ |- _ ] => inv H
+  end.
+
+Ltac trans_eq :=
+  repeat match goal with 
+  | H1 : ?a = ?b, H2 : ?c = ?b |- _ => rewrite <- H1 in H2; inv H2
+  | H1 : ?a = ?b, H2 : ?b = ?c |- _ => rewrite <- H1 in H2; inv H2
+  end.
+
+Ltac inv_mfalse :=
+  repeat match goal with
+         | H : match ?e with
+               | Some _ => _
+               | None => False
+               end |- _ => remember e as R; destruct R as [|]; tinv H
+         end.
+
+Tactic Notation "binvt" ident(H) "as" ident(J1) ident(J2) :=
+apply orb_true_iff in H; destruct H as [J1 | J2].
+
+Tactic Notation "binvf" ident(H) "as" ident(J1) ident(J2) :=
+apply orb_false_iff in H; destruct H as [J1 J2].
+
 (* eq is refl *)
 
 Lemma neq_refl : forall n, n =n= n.
@@ -1788,6 +1834,17 @@ Proof.
     simpl in *. 
     destruct H0 as [H0 | H0]; subst; eauto.
       apply getCmdLoc_getCmdID in H; auto.   
+Qed.
+
+Lemma getCmdLoc_in_getCmdsLocs : forall cs c,
+  In c cs ->
+  In (getCmdLoc c) (getCmdsLocs cs).
+Proof.
+  induction cs; intros.
+    inversion H.
+
+    simpl in *. 
+    destruct H as [H | H]; subst; eauto.
 Qed.
 
 Lemma in_getBlockLocs__in_getBlocksLocs : forall bs b i0,
