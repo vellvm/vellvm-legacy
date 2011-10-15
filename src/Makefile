@@ -15,12 +15,13 @@ coq:
 	+make -C ./Vellvm
 	+make -C ./TV
 	+make -C ./SoftBound
-#	+make -C ./SoftBound/detbigstep
+	+make -C ./Transforms
 	+make -C ./Extraction
 
 ocaml: coq $(CMAS) $(CMXAS)
 	ocamlbuild -clean
 	ocamlbuild $(OCAMLBUILD_OPT) Interpreter/main.$(OUTPUT_TYPE)
+	ocamlbuild $(OCAMLBUILD_OPT) Transforms/main.d.byte
 	ocamlbuild $(OCAMLBUILD_OPT) SoftBound/main.d.byte
 	ocamlbuild $(OCAMLBUILD_OPT) Parser/main.d.byte
 
@@ -29,6 +30,7 @@ clean:
 	+make -C ./TV clean
 	+make -C ./Extraction clean
 	+make -C ./SoftBound clean
+	+make -C ./Transforms clean
 	ocamlbuild -clean
 
 ocamlclean:

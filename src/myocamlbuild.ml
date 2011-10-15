@@ -19,6 +19,7 @@ ocaml_lib ~extern:true "eq_tv";;
  * ocamlbuild links libs in term of the order in the file. *)
 ocaml_lib ~extern:true "sub_tv";;
 ocaml_lib ~extern:true "sb_db_trans";;
+ocaml_lib ~extern:true "gvn";;
 
 flag ["link"; "ocaml"; "g++"] (S[A"-cc"; A"g++"]);;
 dep ["link"; "ocaml"; "use_bindings"] ;;
