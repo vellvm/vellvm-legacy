@@ -4,7 +4,7 @@ open Printf
 open Llvm
 open Trace
 
-let nosbpass = ref false
+let nogvn = ref false
 
 let main in_filename =
   (* Read bitcode [in_filename] into LLVM module [im] *)
@@ -22,18 +22,17 @@ let main in_filename =
   (* Print [coqim] *)
   (if !Globalstates.debug then Coq_pretty_printer.travel_module coqim);
 
-  (if !nosbpass then 
+  (if !nogvn then 
     (* Translate [coqim] to a *.ll file *)
     Coq2ll.travel_module coqim
   else
     (* GVN [coqim], output [coqom]  *)
-    match Gvn.gvn coqim with
-    | Some coqom -> 
-       (* Print [coqom] *)
-       (if !Globalstates.debug then Coq_pretty_printer.travel_module coqom);
-       (* Translate [coqom] to a *.ll file *)
-       Coq2ll.travel_module coqom
-    | None -> failwith "failed");
+    let coqom = Gvn.opt coqim in
+    (* Print [coqom] *)
+    (if !Globalstates.debug then Coq_pretty_printer.travel_module coqom);
+    (* Translate [coqom] to a *.ll file *)
+    Coq2ll.travel_module coqom
+  );
 
   SlotTracker.dispose ist;
   dispose_module im
@@ -41,7 +40,7 @@ let main in_filename =
 let () = match Sys.argv with
   | [| _; "-d" ; in_filename |] -> 
        Globalstates.debug := true; main in_filename
-  | [| _; "-no-sbpass" ; in_filename |] -> 
-       nosbpass := true; main in_filename
+  | [| _; "-no-gvn" ; in_filename |] -> 
+       nogvn := true; main in_filename
   | [| _; in_filename |] -> main in_filename
   | _ -> main "input.bc"

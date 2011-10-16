@@ -80,7 +80,7 @@ match (ATree.get curr succs) with
            | Some acc'' => Some (acc' ++ acc'')
            end
          else 
-          Some acc'
+           Some acc'
        end)
       nexts (Some acc)
 end.
@@ -92,7 +92,8 @@ Definition reachablity_analysis (f : fdef) : option (list l) :=
 match getEntryBlock f with
 | Some (block_intro root _ _ _) =>
     let 'succs := successors f in
-    reachablity_analysis_aux nil succs root nil
+    reachablity_analysis_aux 
+      (List.remove eq_atom_dec root (bound_fdef f)) succs root [root]
 | None => None
 end.
 
@@ -138,58 +139,56 @@ with WF_dtrees (f:fdef) : l -> DTrees -> Prop :=
              WF_dtrees f l0 (DT_cons dt0 dts0)
 .
 
-Fixpoint find_idom_aux b (res: AMap.t (Dominators.t b)) (acc:l) 
-  (dts: set l) : option l :=
+Fixpoint find_idom_aux (res: AMap.t (set l)) (acc:l) (dts: set l): option l :=
 match dts with
 | nil => Some acc
 | l0::dts' =>
     match AMap.get l0 res, AMap.get acc res with
-    | (Dominators.mkBoundedSet dts1 _), 
-      (Dominators.mkBoundedSet dts2 _) =>
+    | dts1, dts2 =>
         if (in_dec l_dec l0 dts2)
         then (* acc << l0 *)
-          find_idom_aux b res acc dts' 
+          find_idom_aux res acc dts' 
         else
           if (in_dec l_dec acc dts1)
           then (* l0 << acc *)
-            find_idom_aux b res l0 dts' 
+            find_idom_aux res l0 dts' 
           else (* l0 and acc are incompariable *)
             None
     end
 end.
 
 (* We should prove that this function is not partial. *)
-Definition find_idom b (res: AMap.t (Dominators.t b)) (l0:l) : option l :=
+Definition find_idom (res: AMap.t (set l)) (l0:l) : option l :=
 match AMap.get l0 res with
-| (Dominators.mkBoundedSet (l1::dts0) _) => find_idom_aux b res l1 dts0
+| l1::dts0 => find_idom_aux res l1 dts0
 | _ => None
 end.
 
-Fixpoint find_children b (res: AMap.t (Dominators.t b)) (root:l) 
+Fixpoint find_children (res: AMap.t (set l)) (root:l) 
   (others:set l) (acc:list l): option (list l) :=
 match others with 
 | nil => Some acc
 | l0::others' =>
-    match find_idom b res l0 with
+    match find_idom res l0 with
     | None => None
     | Some l1 =>
         if (id_dec root l1) then
           if (in_dec l_dec l0 acc) 
-          then find_children b res root others' acc
-          else find_children b res root others' (l0::acc) 
-        else find_children b res root others' acc        
+          then find_children res root others' acc
+          else find_children res root others' (l0::acc) 
+        else find_children res root others' acc        
     end
 end.
 
-Lemma find_children_spec1_aux: forall b res root others l0 acc children, 
-  find_children b res root others acc = ret children ->
+Lemma find_children_spec1_aux: forall res root others l0 acc children, 
+  find_children res root others acc = ret children ->
   In l0 children ->
   In l0 others \/ In l0 acc.
 Proof.
   induction others; simpl; intros.
     inv H; auto.
 
-    destruct (find_idom b res a); tinv H.
+    destruct (find_idom res a); tinv H.
     destruct (id_dec root l1); subst.
       destruct (in_dec l_dec a acc).
         eapply IHothers in H; eauto.
@@ -201,8 +200,8 @@ Proof.
       destruct H; auto.
 Qed.
 
-Lemma find_children_spec1: forall b res root others children, 
-  find_children b res root others nil = ret children ->
+Lemma find_children_spec1: forall res root others children, 
+  find_children res root others nil = ret children ->
   incl children others.
 Proof.
   intros. intros x Jx.
@@ -210,21 +209,21 @@ Proof.
   destruct H; auto. inv H.
 Qed.
 
-Lemma find_children_spec2_aux: forall b res root others acc children, 
+Lemma find_children_spec2_aux: forall res root others acc children, 
   NoDup acc ->
-  find_children b res root others acc = ret children ->
+  find_children res root others acc = ret children ->
   NoDup children.
 Proof.
   induction others; simpl; intros.
     inv H0; auto.
 
-    destruct (find_idom b res a); tinv H0.
+    destruct (find_idom res a); tinv H0.
     destruct (id_dec root l0); subst; eauto.
     destruct (in_dec l_dec a acc); eauto.
 Qed.
 
-Lemma find_children_spec2: forall b res root others children, 
-  find_children b res root others nil = ret children ->
+Lemma find_children_spec2: forall res root others children, 
+  find_children res root others nil = ret children ->
   NoDup children.
 Proof.
   intros.
@@ -286,10 +285,10 @@ Proof.
     apply incl_refl.
 Qed.
 
-Program Fixpoint create_dtree_aux b (res: AMap.t (Dominators.t b)) 
+Program Fixpoint create_dtree_aux (res: AMap.t (set l)) 
   (root:l) (others:set l) {measure (List.length others)}
   : option DTree :=
-match find_children b res root others nil with
+match find_children res root others nil with
 | Some nil => Some (DT_node root DT_nil)
 | Some children =>
     let others' := 
@@ -297,7 +296,7 @@ match find_children b res root others nil with
     let op_dts0 :=
       (fold_left 
         (fun acc l1 => 
-         match acc, create_dtree_aux b res l1 others' with
+         match acc, create_dtree_aux res l1 others' with
          | Some dts0, Some dt0 => Some (DT_cons dt0 dts0) 
          | _, _ => None
          end)
@@ -317,13 +316,29 @@ Next Obligation.
 Qed.
 Next Obligation. split; intros; congruence. Qed.
 
+
+Fixpoint dep_doms__nondep_doms_aux bd0 (res: AMap.t (Dominators.t bd0)) 
+  bd (acc: AMap.t (set l)) : AMap.t (set l) :=
+match bd with
+| nil => acc
+| l0::bd' => 
+    match AMap.get l0 res with
+    | (Dominators.mkBoundedSet dts0 _) =>
+        AMap.set l0 dts0 (dep_doms__nondep_doms_aux bd0 res bd' acc)
+    end
+end.
+
+Definition dep_doms__nondep_doms bd (res: AMap.t (Dominators.t bd)) 
+  : AMap.t (set l) :=
+dep_doms__nondep_doms_aux bd res bd (AMap.init nil).
+
 Definition create_dtree (f: fdef) : option DTree :=
 match getEntryBlock f, reachablity_analysis f with
 | Some (block_intro root _ _ _), Some rd =>
     let 'dt := dom_analyze f in
     let 'b := bound_fdef f in
-    create_dtree_aux b dt root 
-      (List.remove eq_atom_dec root (ListSet.set_diff eq_atom_dec b rd))
+    create_dtree_aux (dep_doms__nondep_doms b dt) root 
+      (List.remove eq_atom_dec root (ListSet.set_inter eq_atom_dec b rd))
 | _, _ => None
 end.
 

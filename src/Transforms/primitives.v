@@ -149,15 +149,9 @@ match b with
   block_intro l0 (remove_phinodes id' ps0) (remove_cmds id' cs0) tmn0
 end.
 
-Definition remove_fheader (id':id) (fh:fheader) : fheader := 
-let '(fheader_intro fr t0 fid la va):=fh in
-fheader_intro fr t0 fid 
-  (List.filter (fun a => let '(_,id1):=a in negb (id_dec id1 id')) la) va.
-
 Definition remove_fdef (id':id) (f:fdef) : fdef := 
 match f with
-| fdef_intro fh bs => 
-    fdef_intro (remove_fheader id' fh) (List.map (remove_block id') bs) 
+| fdef_intro fh bs => fdef_intro fh (List.map (remove_block id') bs) 
 end.
 
 Definition used_in_value (id0:id) (v:value) : bool :=
