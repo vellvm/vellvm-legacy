@@ -5,6 +5,7 @@ Add LoadPath "../Vellvm/GraphBasics".
 Add LoadPath "../Vellvm".
 Add LoadPath "../../../theory/metatheory_8.3".
 Require Import vellvm.
+Require Import Kildall.
 Require Import ListSet.
 Require Import Maps.
 Require Import Lattice.
@@ -170,7 +171,6 @@ match c with
 | insn_fbop _ _ _ _ _ 
 | insn_extractvalue _ _ _ _
 | insn_insertvalue _ _ _ _ _ _
-| insn_load _ _ _ _
 | insn_gep _ _ _ _ _
 | insn_trunc _ _ _ _ _
 | insn_ext _ _ _ _ _
@@ -240,10 +240,12 @@ match p with
 | _ => None
 end.
 
-Fixpoint lookup_redundant_exp (inscope: cmds) (r:rhs) : option id :=
+Definition lcmds := list (l*cmd).
+
+Fixpoint lookup_redundant_exp (inscope: lcmds) (r:rhs) : option id :=
 match inscope with
 | nil => None
-| c::inscope' =>
+| (_,c)::inscope' =>
     match (getCmdID c) with
     | None => lookup_redundant_exp inscope' r
     | Some id0 => 
@@ -263,25 +265,117 @@ end.
 
 Definition is_aliasing (pv1:value) (t1:typ) (pv2:value) (t2:typ) : bool := true.
 
-Definition kill_loads (inscope: cmds) (pv1:value) (t1:typ) : cmds :=
-  List.filter (fun c0 => 
-               match c0 with
-               | insn_load _ t2 pv2 _ => negb (is_aliasing pv1 t1 pv2 t2)
-               | _ => true
-               end) inscope.
+Definition kill_aliased_loadstores (inscope: lcmds) (pv1:value) (t1:typ) 
+ : lcmds :=
+ List.filter (fun data => 
+              match data with
+              | (_, insn_load _ t2 pv2 _) => negb (is_aliasing pv1 t1 pv2 t2)
+              | (_, insn_store _ t2 _ pv2 _) => negb (is_aliasing pv1 t1 pv2 t2)
+              | (_, _) => true
+              end) inscope.
 
-Definition gvn_cmd (st:fdef*bool*cmds) (c:cmd) : fdef*bool*cmds :=
+Fixpoint lookup_redundant_load (inscope: lcmds) t1 pv1 al1 
+  : option (l * id * value) :=
+match inscope with
+| nil => None
+| (l0,c)::inscope' =>
+    if (rhs_dec (rhs_load t1 pv1 al1) (rhs_of_cmd c)) 
+    then Some (l0, getCmdLoc c, value_id (getCmdLoc c))
+    else 
+      match c with
+      | insn_store id0 t1' v0' pv1' _ => 
+          if (t1 =t= t1') && valueEqB pv1 pv1' then Some (l0, id0, v0')
+          else lookup_redundant_load inscope' t1 pv1 al1
+      | _ => lookup_redundant_load inscope' t1 pv1 al1
+      end
+end.
+
+Definition block_doesnt_kill (b: block) (pv1:value) (t1:typ) : bool :=
+let '(block_intro _ _ cs _) := b in
+List.fold_left 
+  (fun (acc:bool) c =>
+   if acc then
+     match (mem_effect c) with
+     | Some (pv2, t2) => negb (is_aliasing pv1 t1 pv2 t2)
+     | None => true
+     end
+   else acc) cs true.
+
+Fixpoint split_cmds (cs:cmds) (id1:id) : cmds :=
+match cs with
+| c::cs' => 
+    if (id_dec id1 (getCmdLoc c)) then cs'
+    else split_cmds cs' id1
+| _ => nil
+end.
+
+Definition cmds_doesnt_kill (b: block) (id1:id) (pv1:value) (t1:typ) : bool :=
+let '(block_intro _ _ cs _) := b in
+List.fold_left 
+  (fun (acc:bool) c =>
+   if acc then
+     match (mem_effect c) with
+     | Some (pv2, t2) => negb (is_aliasing pv1 t1 pv2 t2)
+     | None => true
+     end
+   else acc) (split_cmds cs id1) true.
+
+Program Fixpoint fdef_doesnt_kill_aux (f:fdef) (preds : ATree.t ls) 
+  (nvisited:list l) (src curr target:l) (id1:id) (pv1:value) (t1:typ)
+  {measure (List.length nvisited)} : bool :=
+let init :=
+  if l_dec curr src then true
+  else
+    if l_dec curr target then
+      match lookupBlockViaLabelFromFdef f curr with
+      | None => false
+      | Some b => cmds_doesnt_kill b id1 pv1 t1
+      end
+    else 
+      match lookupBlockViaLabelFromFdef f curr with
+      | None => false
+      | Some b => block_doesnt_kill b pv1 t1
+      end in
+match (ATree.get curr preds) with
+| None => init
+| Some nexts => 
+    fold_left 
+      (fun acc next =>
+       if acc then
+         if (in_dec eq_atom_dec next nvisited) then 
+           fdef_doesnt_kill_aux f preds 
+             (List.remove eq_atom_dec next nvisited) src next target id1 pv1 t1
+         else acc
+       else acc)
+      nexts init
+end.
+Next Obligation. 
+  apply remove_in_length; auto.
+Qed.
+
+Definition fdef_doesnt_kill (f:fdef) (src target:l) (id1:id) (pv1:value) 
+  (t1:typ) : bool :=
+fdef_doesnt_kill_aux f (make_predecessors (successors f)) (bound_fdef f)
+  src target target id1 pv1 t1.
+
+Definition kill_loadstores (inscope: lcmds) : lcmds :=
+ List.filter (fun data => 
+              match data with
+              | (_, insn_load _ _ _ _) => false
+              | (_, insn_store _ _ _ _ _) => false
+              | (_, _) => true
+              end) inscope.
+
+Definition gvn_cmd (st:fdef*bool*lcmds) (l1:l) (c:cmd) : fdef*bool*lcmds :=
 let '(f, changed, inscope) := st in
 if (pure_cmd c) then
   match (getCmdID c) with
-  | None => (f, false || changed, inscope)
+  | None => (f, changed, inscope)
   | Some id0 =>
       match const_cmd c with
       | None =>
           match lookup_redundant_exp inscope (rhs_of_cmd c) with
-          | None =>
-              if (used_in_fdef id0 f) then (f, false || changed, c::inscope)
-              else (remove_fdef id0 f, true, inscope)
+          | None => (f, changed, (l1,c)::inscope)
           | Some id1 => 
               (remove_fdef id0 (isubst_fdef id0 id1 f), true, inscope)
           end
@@ -290,16 +384,46 @@ if (pure_cmd c) then
       end
   end 
 else 
-  match (mem_effect c) with
-  | Some (pv, t) => (f, false || changed, kill_loads inscope pv t)
-  | _ => (f, false || changed, inscope)
+  match c with 
+  | insn_load id1 t1 pv1 al1 =>
+    match lookup_redundant_load inscope t1 pv1 al1 with
+    | None => (f, changed, (l1,c)::inscope)
+    | Some (l0, id0, v0) => 
+        if fdef_doesnt_kill f l0 l1 id1 pv1 t1 then
+          (remove_fdef id1 (subst_fdef id1 v0 f), true, inscope)
+        else (f, changed, (l1,c)::inscope)
+    end
+  | _ =>
+    match (mem_effect c) with
+    | Some (pv, t) => 
+        match c with 
+        | insn_store _ _ _ _ _ => 
+               (f, changed, (l1,c)::kill_aliased_loadstores inscope pv t)
+        | _ => (f, changed, kill_aliased_loadstores inscope pv t)
+        end
+    | _ => 
+       match c with
+       | insn_call _ _ _ _ _ _ => (f, changed, kill_loadstores inscope)
+       | _ => (f, changed, inscope)
+       end
+    end
   end
 .
 
-Fixpoint gvn_cmds (st:fdef*bool*cmds) (cs: cmds) : fdef * bool * cmds :=
-match cs with
-| nil => st
-| c::cs' => gvn_cmds (gvn_cmd st c) cs'
+Fixpoint gvn_cmds (st:fdef*bool*lcmds) (l1:l) (n: nat) : fdef * bool * lcmds :=
+let '(f, changed, inscope) := st in
+match lookupBlockViaLabelFromFdef f l1 with
+| None => st
+| Some (block_intro _ _ cs _) =>
+    match List.nth_error (List.rev cs) n with
+    | Some c => 
+        let st' := gvn_cmd st l1 c in
+        match n with
+        | S n' => gvn_cmds st' l1 n'
+        | _ => st'
+        end
+    | None => st
+    end
 end.
 
 Fixpoint gvn_phis (f:fdef) (changed : bool) (ps: phinodes): fdef * bool :=
@@ -309,14 +433,13 @@ match ps with
     let id0 := getPhiNodeID p in
     let '(f', changed') := 
       match const_phinode p with
-      | None => if (used_in_fdef id0 f) then (f, false) 
-                else (remove_fdef id0 f, true)
+      | None => (f, false) 
       | Some cst0 => (remove_fdef id0 (csubst_fdef id0 cst0 f), true)
       end in
     gvn_phis f' (changed || changed') ps' 
 end.
 
-Fixpoint gvn_fdef_dtree (f:fdef) (changed: bool) (inscope: cmds) (dt: DTree)
+Fixpoint gvn_fdef_dtree (f:fdef) (changed: bool) (inscope: lcmds) (dt: DTree)
   : fdef * bool :=
 match dt with
 | DT_node l0 dts => 
@@ -324,11 +447,11 @@ match dt with
     | None => (f, changed)
     | Some (block_intro _ ps cs _) =>
         let '(f2, changed2, inscope2) := 
-          gvn_cmds (gvn_phis f changed ps, inscope) cs in
+          gvn_cmds (gvn_phis f changed ps, inscope) l0 (List.length cs - 1) in
         gvn_fdef_dtrees f2 changed2 inscope2 dts 
     end
 end
-with gvn_fdef_dtrees (f:fdef) (changed: bool) (inscope: cmds) (dts: DTrees)
+with gvn_fdef_dtrees (f:fdef) (changed: bool) (inscope: lcmds) (dts: DTrees)
   : fdef * bool :=
 match dts with
 | DT_nil => (f, changed)
@@ -339,25 +462,40 @@ end.
 
 Variable TNAME: Type.
 Parameter init_expected_name : unit -> TNAME.
-Parameter check_name : id -> TNAME -> option (id * TNAME).
+Parameter check_bname : l -> TNAME -> option (l * TNAME).
+Parameter check_vname : id -> TNAME -> option (id * TNAME).
+
+Definition renamel_block (l1 l2:l) (b:block) : block := 
+match b with
+| block_intro l0 ps0 cs0 tmn0 =>
+  block_intro (rename_id l1 l2 l0) ps0 cs0 tmn0
+end.
+
+Definition renamel_fdef (l1 l2:l) (f:fdef) : fdef := 
+match f with
+| fdef_intro fh bs => 
+    fdef_intro fh (List.map (renamel_block l1 l2) bs) 
+end.
 
 Definition fix_temporary_block (f:fdef) (b:block) (eid:TNAME) 
   : option (fdef * TNAME) := 
-let '(block_intro _ ps cs _) := b in
-let st :=
+let '(block_intro l0 ps cs _) := b in
+match check_bname l0 eid with
+| Some (l0', eid5) =>
+  let st :=
   fold_left 
     (fun st p => 
      match st with
      | Some (f0, eid0) =>
          let 'pid := getPhiNodeID p in
-         match check_name pid eid0 with
+         match check_vname pid eid0 with
          | None => None
          | Some (pid', eid') =>
              if (id_dec pid pid') then Some (f0, eid')
              else Some (rename_fdef pid pid' f0, eid')
          end
      | _ => None
-     end) ps (Some (f, eid)) in
+     end) ps (Some ((renamel_fdef l0 l0' f), eid5)) in
   fold_left 
     (fun st c => 
      match st with
@@ -365,7 +503,7 @@ let st :=
          match getCmdID c with
          | None => Some (f0, eid0)
          | Some cid =>
-           match check_name cid eid0 with
+           match check_vname cid eid0 with
            | None => None
            | Some (cid', eid') =>
                if (id_dec cid cid') then Some (f0, eid')
@@ -373,7 +511,9 @@ let st :=
            end
          end
      | _ => None
-     end) cs st.
+     end) cs st
+| None => None
+end.
 
 Definition fix_temporary_fdef (f:fdef) : option fdef :=
 let eid := init_expected_name tt in
@@ -448,12 +588,14 @@ match rd with
                         | None =>
                           match getCmdID c with 
                           | Some id1 =>
-                              match 
-                                lookup_predundant_exp_for_id f ndom res l1  
-                                  (rhs_of_cmd c) with
-                              | Some (l0, c0) => Some (l1, id1, l0, c0)
-                              | None => None
-                              end
+                              if pure_cmd c then
+                                match 
+                                  lookup_predundant_exp_for_id f ndom res l1  
+                                    (rhs_of_cmd c) with
+                                | Some (l0, c0) => Some (l1, id1, l0, c0)
+                                | None => None
+                                end
+                              else None
                           | None => None
                           end
                         | _ => acc
@@ -503,6 +645,28 @@ Parameter print_reachablity : list l -> bool.
 Parameter print_dominators : list l -> AMap.t (set l) -> bool.
 Parameter print_dtree : DTree -> bool.
 
+Definition dce_block (f:fdef) (b:block) : fdef :=
+let '(block_intro _ ps cs _) := b in
+fold_left 
+  (fun f3 c => 
+     match getCmdID c with
+     | Some id0 => 
+         if pure_cmd c then
+           if (used_in_fdef id0 f3) then f3 
+           else remove_fdef id0 f3
+         else f3
+     | _ => f3
+     end) cs
+  (fold_left 
+    (fun f2 p => 
+     let id0 := getPhiNodeID p in
+     if (used_in_fdef id0 f2) then f2
+     else remove_fdef id0 f2) ps f).
+
+Definition dce_fdef (f:fdef) : fdef :=
+let '(fdef_intro fh bs) := f in
+fold_left (fun f1 b => dce_block f1 b) bs f.
+
 Definition opt_fdef (f:fdef) : fdef :=
 match getEntryBlock f, reachablity_analysis f with
 | Some (block_intro root _ _ _), Some rd =>
@@ -513,7 +677,7 @@ match getEntryBlock f, reachablity_analysis f with
     | Some dt => 
         if print_reachablity rd && print_dominators b dts && print_dtree dt then
           match fix_temporary_fdef 
-                  (SafePrimIter.iterate _ (opt_step dt dts rd) f) with
+                  (SafePrimIter.iterate _ (opt_step dt dts rd) (dce_fdef f)) with
           | Some f' => f'
           | _ => f
           end
