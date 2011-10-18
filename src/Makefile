@@ -21,7 +21,7 @@ coq:
 ocaml: coq $(CMAS) $(CMXAS)
 	ocamlbuild -clean
 	ocamlbuild $(OCAMLBUILD_OPT) Interpreter/main.$(OUTPUT_TYPE)
-	ocamlbuild $(OCAMLBUILD_OPT) Transforms/main.d.byte
+	ocamlbuild $(OCAMLBUILD_OPT) Transforms/main.native
 	ocamlbuild $(OCAMLBUILD_OPT) SoftBound/main.d.byte
 	ocamlbuild $(OCAMLBUILD_OPT) Parser/main.d.byte
 
