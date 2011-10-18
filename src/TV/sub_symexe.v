@@ -1,6 +1,7 @@
 Add LoadPath "../Vellvm/ott".
 Add LoadPath "../Vellvm/monads".
 Add LoadPath "../Vellvm/compcert".
+Add LoadPath "../Vellvm/GraphBasics".
 Add LoadPath "../Vellvm".
 Add LoadPath "../../../theory/metatheory_8.3".
 Require Import syntax.
@@ -293,7 +294,9 @@ Inductive sterminator : Set :=
 
 Inductive scall : Set :=
 (* FIXME: the value should be a sterm!!! *)
-| stmn_call : id -> noret -> clattrs -> typ -> value -> list (typ*sterm) -> scall
+| stmn_call : 
+    id -> noret -> clattrs -> typ -> value -> list (typ*attributes*sterm) ->
+      scall
 .
 
 Definition smap := list (atom*sterm).
@@ -321,10 +324,13 @@ match v with
 | value_id i0 => lookupSmap sm i0
 end.
 
-Fixpoint list_param__list_typ_subst_sterm (list_param1:params) (sm:smap) : list (typ*sterm) :=
+Fixpoint list_param__list_typ_subst_sterm (list_param1:params) (sm:smap) 
+  : list (typ*attributes*sterm) :=
 match list_param1 with
 | nil => nil
-| (t, v)::list_param1' => (t, (value2Sterm sm v))::(list_param__list_typ_subst_sterm list_param1' sm)
+| (t, attr, v)::list_param1' => 
+    (t, attr, (value2Sterm sm v))::
+      (list_param__list_typ_subst_sterm list_param1' sm)
 end.
 
 Definition se_lib : forall i id0 noret0 tailc0 ft fv lp (st:sstate),
@@ -813,18 +819,21 @@ Proof.
     destruct (@sterm_dec s s0); subst; try solve [auto | done_right].
 Qed.
 
-Lemma list_typ_sterm_dec : forall (l1 l2:list (typ*sterm)), {l1=l2}+{~l1=l2}.
+Lemma list_typ_attributes_sterm_dec : 
+  forall (l1 l2:list (typ*attributes*sterm)), {l1=l2}+{~l1=l2}.
 Proof.
   decide equality.
-    destruct a. destruct p.
+    destruct a as [ [t a] s]. destruct p as [ [t0 a0] s0].
     destruct (@typ_dec t t0); subst; try solve [done_right].
+    destruct (@attributes_dec a a0); subst; try solve [done_right].
     destruct (@sterm_dec s s0); subst; try solve [auto | done_right].
 Qed.
 
 Lemma scall_dec : forall (sc1 sc2:scall), {sc1=sc2} + {~sc1=sc2}.
 Proof.
   decide equality.
-    destruct (@list_typ_sterm_dec l0 l1); subst; try solve [auto | done_right].
+    destruct (@list_typ_attributes_sterm_dec l0 l1); 
+      subst; try solve [auto | done_right].
     destruct (@value_dec v v0); subst; try solve [auto | done_right].
     destruct (@typ_dec t t0); subst; try solve [auto | done_right].
 
@@ -866,6 +875,6 @@ End SBSE.
 (*
 *** Local Variables: ***
 *** coq-prog-name: "coqtop" ***
-*** coq-prog-args: ("-emacs-U" "-I" "~/SVN/sol/vol/src/Vellvm/monads" "-I" "~/SVN/sol/vol/src/Vellvm/ott" "-I" "~/SVN/sol/vol/src/Vellvm/compcert" "-I" "~/SVN/sol/theory/metatheory_8.3") ***
+*** coq-prog-args: ("-emacs-U" "-I" "~/SVN/sol/vol/src/Vellvm/monads" "-I" "~/SVN/sol/vol/src/Vellvm/ott" "-I" "~/SVN/sol/vol/src/Vellvm/compcert" "-I" "~/SVN/sol/theory/metatheory_8.3" "-impredicative-set") ***
 *** End: ***
  *)

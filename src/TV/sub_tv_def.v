@@ -2,6 +2,7 @@ Add LoadPath "../Vellvm/ott".
 Add LoadPath "../Vellvm/monads".
 Add LoadPath "../Vellvm".
 Add LoadPath "../Vellvm/compcert".
+Add LoadPath "../Vellvm/GraphBasics".
 Add LoadPath "../../../theory/metatheory_8.3".
 Require Import syntax.
 Require Import targetdata.
@@ -84,7 +85,7 @@ let tret := typ_pointer (typ_struct
   (Cons_list_typ (typ_pointer t) 
   (Cons_list_typ (typ_pointer p8)
   (Cons_list_typ (typ_pointer p8) Nil_list_typ)))) in
-(insn_call_nptr rid nr tc t v ((tret,vret)::p),
+(insn_call_nptr rid nr tc t v ((tret,nil,vret)::p),
  insn_gep id1 false tret vret (cpars c0 c0)::
  insn_load id2 pp32 (value_id id1) Align.One::
  insn_gep id3 false tret vret (cpars c0 c1)::
@@ -225,7 +226,7 @@ match c1 with
            match c6 with
            |LLVMsyntax.insn_load id61 t6 (value_id id62) _ =>
               match pa1 with
-              | (typ_pointer t0, value_id id0)::pa1' =>
+              | (typ_pointer t0, _, value_id id0)::pa1' =>
                 if (tv_typ t1 t3 && tv_typ t3 t5 && tv_typ t5 t0 &&
                     eq_id id0 id12 && eq_id id0 id32 && eq_id id0 id52 &&
                     eq_id id11 id22 && eq_id id31 id42 && eq_id id51 id62 &&
@@ -439,7 +440,7 @@ match c with
     (Cons_list_typ (typ_pointer t) 
     (Cons_list_typ (typ_pointer p8)
     (Cons_list_typ (typ_pointer p8) Nil_list_typ)))) in
-  (insn_call rid nr tc t v ((tret,vret)::p)::
+  (insn_call rid nr tc t v ((tret,nil,vret)::p)::
    insn_gep id1 false tret vret (cpars c0 c0)::
    insn_load id2 pp32 (value_id id1) Align.One::
    insn_gep id3 false tret vret (cpars c0 c1)::
@@ -1386,6 +1387,6 @@ End SBopsem.
 (*
 *** Local Variables: ***
 *** coq-prog-name: "coqtop" ***
-*** coq-prog-args: ("-emacs-U" "-I" "~/SVN/sol/vol/src/Vellvm/monads" "-I" "~/SVN/sol/vol/src/Vellvm/ott" "-I" "~/SVN/sol/vol/src/Vellvm/compcert" "-I" "~/SVN/sol/theory/metatheory_8.3") ***
+*** coq-prog-args: ("-emacs-U" "-I" "~/SVN/sol/vol/src/Vellvm/monads" "-I" "~/SVN/sol/vol/src/Vellvm/ott" "-I" "~/SVN/sol/vol/src/Vellvm/compcert" "-I" "~/SVN/sol/theory/metatheory_8.3" "-impredicative-set") ***
 *** End: ***
  *)

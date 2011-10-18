@@ -2,6 +2,7 @@ Add LoadPath "../Vellvm/ott".
 Add LoadPath "../Vellvm/monads".
 Add LoadPath "../Vellvm".
 Add LoadPath "../Vellvm/compcert".
+Add LoadPath "../Vellvm/GraphBasics".
 Add LoadPath "../../../theory/metatheory_8.3".
 Add LoadPath "../TV".
 Require Import syntax.
@@ -237,7 +238,7 @@ Proof.
   induction lp; simpl; intros.
     inv H. exists nil. simpl. auto.
 
-    destruct a. 
+    destruct a as [[t attr] v]. 
     remember (getOperandValue TD v lc1 gl) as R1.
     destruct R1; tinv H.
     remember (params2GVs TD lp lc1 gl rm) as R2.
@@ -467,7 +468,7 @@ Proof.
     inversion H; subst. 
     exists nil. exists nil. auto.
 
-    destruct a. 
+    destruct a as [[t attr] v]. 
     destruct (getOperandValue TD' v lc1' gl'); tinv H.
     remember (params2GVs TD' lp lc1' gl' rm) as R.
     destruct R; try solve [inversion H].
@@ -880,7 +881,7 @@ End SBspecInstantiation.
 (*
 *** Local Variables: ***
 *** coq-prog-name: "coqtop" ***
-*** coq-prog-args: ("-emacs-U" "-I" "~/SVN/sol/vol/src/Vellvm/monads" "-I" "~/SVN/sol/vol/src/Vellvm/ott" "-I" "~/SVN/sol/vol/src/Vellvm/compcert" "-I" "~/SVN/sol/theory/metatheory_8.3" "-I" "~/SVN/sol/vol/src/TV") ***
+*** coq-prog-args: ("-emacs-U" "-I" "~/SVN/sol/vol/src/Vellvm/monads" "-I" "~/SVN/sol/vol/src/Vellvm/ott" "-I" "~/SVN/sol/vol/src/Vellvm/compcert" "-I" "~/SVN/sol/theory/metatheory_8.3" "-I" "~/SVN/sol/vol/src/TV" "-impredicative-set") ***
 *** End: ***
  *)
 

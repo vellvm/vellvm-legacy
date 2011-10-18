@@ -2,6 +2,7 @@ Add LoadPath "../Vellvm/ott".
 Add LoadPath "../Vellvm/monads".
 Add LoadPath "../Vellvm".
 Add LoadPath "../Vellvm/compcert".
+Add LoadPath "../Vellvm/GraphBasics".
 Add LoadPath "../../../theory/metatheory_8.3".
 Add LoadPath "../TV".
 Require Import vellvm.
@@ -1421,7 +1422,7 @@ Proof.
 Qed.
 
 Lemma params2GVs__wf_rmetadata : forall S los nts Ps f M rm lc gl ps ogvs
-  (Hwfvs : forall t1 v1, In (t1,v1) ps -> 
+  (Hwfvs : forall t1 a1 v1, In (t1,a1,v1) ps -> 
     wf_value S (module_intro los nts Ps) f v1 t1)
   (Hwfg : wf_global_ptr S (los, nts) M gl),
   wf_rmetadata (los,nts) M rm ->
@@ -1434,7 +1435,7 @@ Proof.
     Hin.
     inv Hp2ogvs. inv Hin.
 
-    destruct a.
+    destruct a as [[t attr] v].
     destruct (getOperandValue (los,nts) v lc gl); 
       try solve [inv Hp2ogvs].
     remember (params2GVs (los,nts) ps lc gl rm) as R.
@@ -1523,7 +1524,7 @@ Qed.
 
 Lemma initLocals__wf_rmetadata : forall ogvs (rm : rmetadata) lc'
   M rm' los nts ps la gl lc f Ps S
-  (Hwfvs : forall t1 v1, In (t1,v1) ps -> 
+  (Hwfvs : forall t1 a1 v1, In (t1,a1,v1) ps -> 
     wf_value S (module_intro los nts Ps) f v1 t1)
   (Hwfg : wf_global_ptr S (los, nts) M gl),
   wf_rmetadata (los,nts) M rm ->
@@ -1877,6 +1878,6 @@ End SBspecMetadata. End SBspecMetadata.
 (*
 *** Local Variables: ***
 *** coq-prog-name: "coqtop" ***
-*** coq-prog-args: ("-emacs-U" "-I" "~/SVN/sol/vol/src/Vellvm/monads" "-I" "~/SVN/sol/vol/src/Vellvm/ott" "-I" "~/SVN/sol/vol/src/Vellvm/compcert" "-I" "~/SVN/sol/theory/metatheory_8.3" "-I" "~/SVN/sol/vol/src/TV") ***
+*** coq-prog-args: ("-emacs-U" "-I" "~/SVN/sol/vol/src/Vellvm/monads" "-I" "~/SVN/sol/vol/src/Vellvm/ott" "-I" "~/SVN/sol/vol/src/Vellvm/compcert" "-I" "~/SVN/sol/theory/metatheory_8.3" "-I" "~/SVN/sol/vol/src/TV" "-impredicative-set") ***
 *** End: ***
  *)

@@ -1,6 +1,7 @@
 Add LoadPath "../Vellvm/ott".
 Add LoadPath "../Vellvm/monads".
 Add LoadPath "../Vellvm/compcert".
+Add LoadPath "../Vellvm/GraphBasics".
 Add LoadPath "../Vellvm".
 Add LoadPath "../../../theory/metatheory_8.3".
 Require Import vellvm.
@@ -668,11 +669,12 @@ match v with
 end.
 
 Fixpoint list_param__list_typ_subst_sterm (list_param1:params) (sm:smap) 
-  : list (typ*sterm) :=
+  : list (typ*attributes*sterm) :=
 match list_param1 with
 | nil => nil
-| (t, v)::list_param1' => 
-    (t, (value2Sterm sm v))::(list_param__list_typ_subst_sterm list_param1' sm)
+| ((t, attr), v)::list_param1' => 
+    ((t, attr), (value2Sterm sm v))::
+      (list_param__list_typ_subst_sterm list_param1' sm)
 end.
 
 Definition se_call : forall i id0 noret0 tailc0 ft fv lp,
@@ -1212,6 +1214,6 @@ Tactic Notation "se_mut_cases" tactic(first) tactic(c) :=
 (*
 *** Local Variables: ***
 *** coq-prog-name: "coqtop" ***
-*** coq-prog-args: ("-emacs-U" "-I" "~/SVN/sol/vol/src/Vellvm/monads" "-I" "~/SVN/sol/vol/src/Vellvm/ott" "-I" "~/SVN/sol/vol/src/Vellvm/compcert" "-I" "~/SVN/sol/theory/metatheory_8.3") ***
+*** coq-prog-args: ("-emacs-U" "-I" "~/SVN/sol/vol/src/Vellvm/monads" "-I" "~/SVN/sol/vol/src/Vellvm/ott" "-I" "~/SVN/sol/vol/src/Vellvm/compcert" "-I" "~/SVN/sol/theory/metatheory_8.3" "-impredicative-set") ***
 *** End: ***
  *)

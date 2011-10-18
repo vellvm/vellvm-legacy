@@ -2,6 +2,7 @@ Add LoadPath "../Vellvm/ott".
 Add LoadPath "../Vellvm/monads".
 Add LoadPath "../Vellvm".
 Add LoadPath "../Vellvm/compcert".
+Add LoadPath "../Vellvm/GraphBasics".
 Add LoadPath "../../../theory/metatheory_8.3".
 Add LoadPath "../TV".
 Require Import Values.
@@ -33,7 +34,8 @@ Axiom inject_incr__preserves__fable_simulation : forall mi fs1 fs2 mi',
   ftable_simulation mi' fs1 fs2.
 
 Definition gmmd_args v := 
-  ((p8,v)::(p8,vnullp8):: (i32,vint1)::(p32,vnullp32):: nil).
+  ((p8,nil,v)::(p8,nil,vnullp8):: (i32,nil,vint1)::(p32,nil,vnullp32) 
+   :: @nil param).
 Hint Unfold gmmd_args.
 
 Axiom free_doesnt_change_gmmd : forall M2 b2 lo hi Mem2' lc2 gl als
@@ -144,8 +146,8 @@ Axiom assert_mptr_fn__ok : forall
        (Opsem.mkState
           ((Opsem.mkEC F2 B2
             (insn_call fake_id true attrs assert_typ assert_fn
-              ((p8, bv2)::(p8, ev2)::(p8, value_id ptmp)::(i32, type_size t):: 
-                 (i32, vint1) :: nil):: 
+              ((p8,nil,bv2)::(p8,nil,ev2)::(p8,nil,value_id ptmp)::
+                 (i32,nil,type_size t)::(i32,nil,vint1) :: nil):: 
              cs2') tmn2 
             (updateAddAL _ lc2 ptmp gvp2)
              als2):: 
@@ -173,8 +175,9 @@ Axiom simulation__set_mmetadata_fn : forall lc2 gl b ofs blk bofs eofs als2 tmn2
       (Opsem.mkState 
           ((Opsem.mkEC F2 B2
               (insn_call fake_id true attrs smmd_typ smmd_fn
-                ((p8, value_id ptmp) :: (p8, bv0) :: (p8, ev0) :: (p8, vnullp8)
-                    :: (i32, vint1) :: (i32, vint1) :: nil):: 
+                ((p8,nil,value_id ptmp) :: (p8,nil,bv0) :: (p8,nil,ev0) 
+                  :: (p8,nil,vnullp8) :: (i32,nil,vint1) :: (i32,nil,vint1) 
+                  :: nil):: 
                cs) tmn2 lc2
              als2):: 
             ECs2) Mem2)
@@ -392,7 +395,7 @@ Axiom store_doesnt_change_gmmd : forall M2 b2 ofs v0 Mem2' lc2 gl als
 (*
 *** Local Variables: ***
 *** coq-prog-name: "coqtop" ***
-*** coq-prog-args: ("-emacs-U" "-I" "~/SVN/sol/vol/src/Vellvm/monads" "-I" "~/SVN/sol/vol/src/Vellvm/ott" "-I" "~/SVN/sol/vol/src/Vellvm/compcert" "-I" "~/SVN/sol/theory/metatheory_8.3" "-I" "~/SVN/sol/vol/src/TV") ***
+*** coq-prog-args: ("-emacs-U" "-I" "~/SVN/sol/vol/src/Vellvm/monads" "-I" "~/SVN/sol/vol/src/Vellvm/ott" "-I" "~/SVN/sol/vol/src/Vellvm/compcert" "-I" "~/SVN/sol/theory/metatheory_8.3" "-I" "~/SVN/sol/vol/src/TV" "-impredicative-set") ***
 *** End: ***
  *)
 

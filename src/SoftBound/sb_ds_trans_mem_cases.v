@@ -2,6 +2,7 @@ Add LoadPath "../Vellvm/ott".
 Add LoadPath "../Vellvm/monads".
 Add LoadPath "../Vellvm".
 Add LoadPath "../Vellvm/compcert".
+Add LoadPath "../Vellvm/GraphBasics".
 Add LoadPath "../../../theory/metatheory_8.3".
 Add LoadPath "../TV".
 Require Import Values.
@@ -1140,8 +1141,9 @@ Proof.
       (Opsem.mkState
           ((Opsem.mkEC (fdef_intro fh2 bs2) B2
               (insn_call fake_id true attrs smmd_typ smmd_fn
-                ((p8, value_id ptmp) :: (p8, bv2') :: (p8, ev2') :: (p8, vnullp8)
-                    :: (i32, vint1) :: (i32, vint1) :: nil):: 
+                ((p8,nil,value_id ptmp) :: (p8,nil,bv2') :: (p8,nil,ev2') 
+                    :: (p8,nil,vnullp8) :: (i32,nil,vint1) :: (i32,nil,vint1) 
+                    :: nil):: 
                cs2' ++ cs23) tmn2 
               (updateAddAL _ lc2 ptmp gvp2)
              als2):: 
@@ -1207,8 +1209,9 @@ Proof.
       (Opsem.mkState
           ((Opsem.mkEC (fdef_intro fh2 bs2) B2
               (insn_call fake_id true attrs smmd_typ smmd_fn
-                ((p8, value_id ptmp) :: (p8, bv2') :: (p8, ev2') :: (p8, vnullp8)
-                    :: (i32, vint1) :: (i32, vint1) :: nil):: 
+                ((p8,nil,value_id ptmp) :: (p8,nil,bv2') :: (p8,nil,ev2') 
+                    :: (p8,nil,vnullp8) :: (i32,nil,vint1) :: (i32,nil,vint1) 
+                    :: nil):: 
                cs2' ++ cs23) tmn2 
               (updateAddAL _ lc2 ptmp gvp2)
              als2):: 
@@ -1282,6 +1285,6 @@ Qed.
 (*
 *** Local Variables: ***
 *** coq-prog-name: "coqtop" ***
-*** coq-prog-args: ("-emacs-U" "-I" "~/SVN/sol/vol/src/Vellvm/monads" "-I" "~/SVN/sol/vol/src/Vellvm/ott" "-I" "~/SVN/sol/vol/src/Vellvm/compcert" "-I" "~/SVN/sol/theory/metatheory_8.3" "-I" "~/SVN/sol/vol/src/TV") ***
+*** coq-prog-args: ("-emacs-U" "-I" "~/SVN/sol/vol/src/Vellvm/monads" "-I" "~/SVN/sol/vol/src/Vellvm/ott" "-I" "~/SVN/sol/vol/src/Vellvm/compcert" "-I" "~/SVN/sol/theory/metatheory_8.3" "-I" "~/SVN/sol/vol/src/TV" "-impredicative-set") ***
 *** End: ***
  *)

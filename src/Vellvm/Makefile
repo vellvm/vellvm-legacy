@@ -12,7 +12,7 @@ all:
 	+make ott 
 #	+make -C ./llvm_op
 
-ott: main.pdf typings.vo interpreter.vo opsem_inst.vo vellvm.vo
+ott: main.pdf typings.vo interpreter.vo opsem_inst.vo vellvm.vo opsem_dom.vo
 
 infrastructure_aux.vo : infrastructure_aux.v syntax.vo targetdata.vo \
 	compcert/Kildall.vo
@@ -83,6 +83,9 @@ opsem_props.vo: opsem_props.v opsem.vo syntax.vo infrastructure.vo \
 opsem_wf.vo: opsem_wf.v opsem_props.vo opsem.vo syntax.vo infrastructure.vo\
        genericvalues.vo infrastructure_props.vo
 	$(COQC) $(COQARG) opsem_wf.v
+
+opsem_dom.vo: opsem_dom.v opsem_wf.vo
+	$(COQC) $(COQARG) opsem_dom.v
 
 dopsem.vo: dopsem.v opsem_wf.vo
 	$(COQC) $(COQARG) dopsem.v

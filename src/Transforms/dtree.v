@@ -74,11 +74,14 @@ match (ATree.get curr succs) with
        | None => None
        | Some acc' =>
          if (in_dec eq_atom_dec next nvisited) then 
-           match reachablity_analysis_aux (List.remove eq_atom_dec next nvisited) 
-                   succs next (next::acc) with
-           | None => None
-           | Some acc'' => Some (acc' ++ acc'')
-           end
+           if (in_dec eq_atom_dec next acc) then
+             Some acc'
+           else
+             match reachablity_analysis_aux (List.remove eq_atom_dec next nvisited) 
+                     succs next (next::acc) with
+             | None => None
+             | Some acc'' => Some (ListSet.set_union eq_atom_dec acc' acc'')
+             end
          else 
            Some acc'
        end)
@@ -88,6 +91,27 @@ Next Obligation.
   apply remove_in_length; auto.
 Qed.
 
+Fixpoint get_reachable_labels (bd:list l) (rd:AMap.t bool) (acc:list l) 
+  : list l :=
+match bd with
+| nil => acc 
+| l0::bd' => if (AMap.get l0 rd) 
+             then get_reachable_labels bd' rd (l0::acc)
+             else get_reachable_labels bd' rd acc
+end.
+
+Definition reachablity_analysis (f: fdef) : option (list l) :=
+match getEntryBlock f with
+| Some (block_intro root _ _ _) =>
+    let 'bd := bound_fdef f in
+    match areachable_aux f with
+    | None => None
+    | Some rd => Some (get_reachable_labels bd rd nil)
+    end
+| None => None
+end.
+
+(*
 Definition reachablity_analysis (f : fdef) : option (list l) :=
 match getEntryBlock f with
 | Some (block_intro root _ _ _) =>
@@ -96,6 +120,7 @@ match getEntryBlock f with
       (List.remove eq_atom_dec root (bound_fdef f)) succs root [root]
 | None => None
 end.
+*)
 
 Inductive DTree : Set :=
 | DT_node : l -> DTrees -> DTree
@@ -338,7 +363,7 @@ match getEntryBlock f, reachablity_analysis f with
     let 'dt := dom_analyze f in
     let 'b := bound_fdef f in
     create_dtree_aux (dep_doms__nondep_doms b dt) root 
-      (List.remove eq_atom_dec root (ListSet.set_inter eq_atom_dec b rd))
+      (List.remove eq_atom_dec root rd)
 | _, _ => None
 end.
 

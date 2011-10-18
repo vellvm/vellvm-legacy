@@ -427,12 +427,13 @@ Qed.
 Lemma wf_value_list__valueInParams__wf_value : forall s m f v tv_list 
   (H4 : wf_value_list
          (make_list_system_module_fdef_value_typ
-            (map_list_typ_value
-               (fun (typ_' : typ) (value_'' : value) =>
+            (map_list_typ_attributes_value
+               (fun (typ_' : typ) attr (value_'' : value) =>
                 (s, m, f, value_'', typ_')) tv_list)))
   (HvInOps : valueInParams v
-              (map_list_typ_value
-                 (fun (typ_' : typ) (value_'' : value) => (typ_', value_''))
+              (map_list_typ_attributes_value
+                 (fun (typ_' : typ) attr (value_'' : value) => 
+                  (typ_', attr, value_''))
                  tv_list)),
   exists t : typ, wf_value s m f v t.
 Proof.
@@ -442,9 +443,9 @@ Proof.
     inversion HvInOps.
     
     inv H4.
-    remember (split (map_list_typ_value
-                          (fun (typ_' : typ) (value_'' : value) =>
-                           (typ_', value_'')) tv_list)) as R.
+    remember (split (map_list_typ_attributes_value
+                          (fun (typ_' : typ) attr (value_'' : value) =>
+                           (typ_', attr, value_'')) tv_list)) as R.
     destruct R.
     inv HvInOps; eauto.
 Qed.        
@@ -452,14 +453,14 @@ Qed.
 Lemma wf_value_list__in_params__wf_value : forall S m F tvs
   (H18: wf_value_list
           (make_list_system_module_fdef_value_typ
-             (map_list_typ_value
-                (fun (typ_' : typ) (value_'' : value) =>
+             (map_list_typ_attributes_value
+                (fun (typ_' : typ) attr (value_'' : value) =>
                  (S, m, F, value_'', typ_'))
                 tvs)))
-  (t1 : typ) (v1 : value),
-    In (t1, v1)
-     (map_list_typ_value
-        (fun (typ_' : typ) (value_'' : value) => (typ_', value_''))
+  (t1 : typ) a1 (v1 : value),
+    In (t1, a1, v1)
+     (map_list_typ_attributes_value
+        (fun (typ_' : typ) attr (value_'' : value) => (typ_', attr, value_''))
         tvs) ->
     wf_value S m F v1 t1.
 Proof.

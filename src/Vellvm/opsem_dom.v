@@ -2003,12 +2003,13 @@ Case "sReturn".
             (getCmdLoc (insn_call i0 false c
               (typ_function typ1
                  (make_list_typ
-                    (map_list_typ_value
-                       (fun (typ_' : typ) (_ : value) => typ_')
-                       typ'_value''_list)) varg5) v
-              (map_list_typ_value
-                 (fun (typ_' : typ) (value_'' : value) => (typ_', value_''))
-                 typ'_value''_list))); auto.
+                    (map_list_typ_attributes_value
+                       (fun (typ_' : typ) attr (_ : value) => typ_')
+                       typ'_attributes'_value''_list)) varg5) v
+              (map_list_typ_attributes_value
+                 (fun (typ_' : typ) attr (value_'' : value) => 
+                    (typ_', attr, value_''))
+                 typ'_attributes'_value''_list))); auto.
           eapply wf_defs_updateAddAL; eauto.
             simpl. apply In_InCmdsB. apply in_middle.
             apply wf_impure_id__wf_gvs; auto.
@@ -2018,12 +2019,13 @@ Case "sReturn".
                 (cs1:=cs2')(c1:=insn_call i0 false c
                      (typ_function typ1
                         (make_list_typ
-                           (map_list_typ_value
-                              (fun (typ_' : typ) (_ : value) => typ_')
-                              typ'_value''_list)) varg5) v
-                     (map_list_typ_value
-                        (fun (typ_' : typ) (value_'' : value) =>
-                         (typ_', value_'')) typ'_value''_list)) in Hreach2; 
+                           (map_list_typ_attributes_value
+                              (fun (typ_' : typ) attr (_ : value) => typ_')
+                              typ'_attributes'_value''_list)) varg5) v
+                     (map_list_typ_attributes_value
+                        (fun (typ_' : typ) attr (value_'' : value) =>
+                          (typ_', attr, value_'')) 
+                        typ'_attributes'_value''_list)) in Hreach2; 
                  eauto.
 
           destruct n; inv HeqR. inv H1.

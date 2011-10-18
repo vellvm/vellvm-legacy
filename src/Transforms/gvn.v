@@ -673,7 +673,7 @@ match getEntryBlock f, reachablity_analysis f with
     let b := bound_fdef f in
     let dts := dep_doms__nondep_doms b (dom_analyze f) in
     match create_dtree_aux dts root 
-      (List.remove eq_atom_dec root (ListSet.set_inter eq_atom_dec b rd)) with
+      (List.remove eq_atom_dec root rd) with
     | Some dt => 
         if print_reachablity rd && print_dominators b dts && print_dtree dt then
           match fix_temporary_fdef 

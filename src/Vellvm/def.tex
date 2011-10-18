@@ -56,7 +56,8 @@
 \ottprodline{|}{\ottkw{int} \, \ottmv{sz} \, \ottmv{align_{{\mathrm{0}}}} \, \ottmv{align_{{\mathrm{1}}}}}{}{}{}{\ottcom{int}}\\ 
 \ottprodline{|}{\ottkw{float} \, \ottmv{sz} \, \ottmv{align_{{\mathrm{0}}}} \, \ottmv{align_{{\mathrm{1}}}}}{}{}{}{\ottcom{float}}\\ 
 \ottprodline{|}{\ottkw{aggr} \, \ottmv{sz} \, \ottmv{align_{{\mathrm{0}}}} \, \ottmv{align_{{\mathrm{1}}}}}{}{}{}{\ottcom{aggregate}}\\ 
-\ottprodline{|}{\ottkw{stack} \, \ottmv{sz} \, \ottmv{align_{{\mathrm{0}}}} \, \ottmv{align_{{\mathrm{1}}}}}{}{}{}{\ottcom{stack}}}
+\ottprodline{|}{\ottkw{stack} \, \ottmv{sz} \, \ottmv{align_{{\mathrm{0}}}} \, \ottmv{align_{{\mathrm{1}}}}}{}{}{}{\ottcom{stack}}\\ 
+\ottprodline{|}{\ottkw{vector} \, \ottmv{sz} \, \ottmv{align_{{\mathrm{0}}}} \, \ottmv{align_{{\mathrm{1}}}}}{}{}{}{\ottcom{vector}}}
 
 \newcommand{\ottlayouts}{
 \ottrulehead{\mathit{\overline{layout} }}{::=}{\ottcom{layouts}}\\ 
@@ -268,7 +269,7 @@
 
 \newcommand{\ottparam}{
 \ottrulehead{\ottnt{param}}{::=}{\ottcom{argument}}\\ 
-\ottprodline{|}{\ottnt{typ} \, val}{}{}{}{}\\ 
+\ottprodline{|}{\ottnt{typ} \, \mathit{\overline{attribute} } \, val}{}{}{}{}\\ 
 \ottprodline{|}{\ottsym{(}  \ottnt{param}  \ottsym{)}} {\textsf{S}}{}{}{}}
 
 \newcommand{\ottparams}{
@@ -1449,7 +1450,7 @@
 \ottpremise{mod  =  \ottsym{(}  \mathit{\overline{layout} } \, \mathit{\overline{namedt} } \, \mathit{\overline{prod} }  \ottsym{)}}%
 \ottpremise{\ottnt{system}  \ottsym{,}  mod  \ottsym{,}  \ottnt{fdef}  \vdash  val_{{\mathrm{0}}}  \ottsym{:}  \ottnt{typ_{{\mathrm{0}}}}  \ottsym{*}}%
 \ottpremise{\texttt{FunctionType.getNumParams }\ottnt{typ_{{\mathrm{1}}}}\texttt{ = Some (length }\mathit{\overline{param} }\texttt{) }}%
-\ottpremise{\mathit{\overline{param} }  <-> \, \ottcomp{\ottsym{(}  \ottnt{typ'_{\ottmv{j}}} \, val''_{\ottmv{j}}  \ottsym{)}}{\ottmv{j}}}%
+\ottpremise{\mathit{\overline{param} }  <-> \, \ottcomp{\ottsym{(}  \ottnt{typ'_{\ottmv{j}}} \, \mathit{\overline{attribute} }'_{\ottmv{j}} \, val''_{\ottmv{j}}  \ottsym{)}}{\ottmv{j}}}%
 \ottpremise{\ottnt{typ_{{\mathrm{0}}}}  =   \ottnt{typ_{{\mathrm{1}}}} \, \overline{typ_j}^{j} }%
 \ottpremise{\ottnt{system}  \vdash  \ottnt{typ_{{\mathrm{1}}}}}%
 \ottpremise{\ottsym{(}  \mathit{\overline{layout} } \, \mathit{\overline{namedt} }  \ottsym{)}  \vdash  \ottnt{typ_{{\mathrm{1}}}}}%

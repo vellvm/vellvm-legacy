@@ -2,6 +2,7 @@ Add LoadPath "../Vellvm/ott".
 Add LoadPath "../Vellvm/monads".
 Add LoadPath "../Vellvm".
 Add LoadPath "../Vellvm/compcert".
+Add LoadPath "../Vellvm/GraphBasics".
 Add LoadPath "../../../theory/metatheory_8.3".
 Add LoadPath "../TV".
 Require Import syntax.
@@ -299,23 +300,24 @@ Definition prop_metadata (ex_ids : ids) rm c v1 id0 :=
   | _ => None
   end.
 
-Definition val32 z := (i32,(value_const (const_int Size.ThirtyTwo 
-                            (INTEGER.of_Z 32%Z z false)))).
+Definition val32 z := (i32,@nil attribute,
+                           (value_const (const_int Size.ThirtyTwo 
+                             (INTEGER.of_Z 32%Z z false)))).
 
 Definition call_set_shadowstack bv0 ev0 idx cs : cmds :=
   insn_call fake_id true attrs ssb_typ ssb_fn
-      ((p8,bv0)::
+      ((p8,nil,bv0)::
        (val32 idx)::
        nil)::
   insn_call fake_id true attrs sse_typ sse_fn
-      ((p8,ev0)::
+      ((p8,nil,ev0)::
        (val32 idx)::
        nil)::cs.
 
 Fixpoint trans_params (rm:rmap) (lp:params) (idx:Z) : option cmds :=
 match lp with
 | nil => Some nil
-| (t0,v0)::lp' =>
+| (t0,_,v0)::lp' =>
     match trans_params rm lp' (idx+1) with
     | Some cs =>
       if isPointerTypB t0 then
@@ -347,9 +349,9 @@ Definition call_suffix i0 nr ca t0 v p rm : option cmds :=
       | Some (bid0, eid0) =>
           Some (
             insn_call bid0 false attrs gsb_typ gsb_fn  
-              ((i32,vint0)::nil)::
+              ((i32,nil,vint0)::nil)::
             insn_call eid0 false attrs gse_typ gse_fn 
-              ((i32,vint0)::nil)::
+              ((i32,nil,vint0)::nil)::
             insn_call fake_id true attrs dstk_typ dstk_fn nil::
             nil)
       | None => None
@@ -391,16 +393,16 @@ match c with
           | Some (bid0, eid0) =>
                    (Some
                      (insn_call bid0 false attrs gmb_typ gmb_fn 
-                       ((p8,(value_id ptmp))::
-                        (p8,vnullp8)::
-                        (i32,vint1)::
-                        (p32,vnullp32)::
+                       ((p8,nil,(value_id ptmp))::
+                        (p8,nil,vnullp8)::
+                        (i32,nil,vint1)::
+                        (p32,nil,vnullp32)::
                         nil)::
                       insn_call eid0 false attrs gme_typ gme_fn 
-                       ((p8,(value_id ptmp))::
-                        (p8,vnullp8)::
-                        (i32,vint1)::
-                        (p32,vnullp32)::
+                       ((p8,nil,(value_id ptmp))::
+                        (p8,nil,vnullp8)::
+                        (i32,nil,vint1)::
+                        (p32,nil,vnullp32)::
                         nil)::
                       nil), ex_ids)
           | None => (None, ex_ids)
@@ -412,11 +414,11 @@ match c with
         Some (ex_ids,
          insn_cast ptmp castop_bitcast (typ_pointer t2) v2 p8:: 
          insn_call fake_id true attrs assert_typ assert_fn 
-           ((p8,bv)::
-            (p8,ev)::
-            (p8,(value_id ptmp))::
-            (i32,type_size t2)::
-            (i32,vint1)::nil)::
+           ((p8,nil,bv)::
+            (p8,nil,ev)::
+            (p8,nil,(value_id ptmp))::
+            (i32,nil,type_size t2)::
+            (i32,nil,vint1)::nil)::
             c :: cs)
       end
     | None => None
@@ -432,12 +434,12 @@ match c with
           | Some (bv0, ev0) =>
               Some
                 (insn_call fake_id true attrs smmd_typ smmd_fn 
-                  ((p8,(value_id ptmp))::
-                   (p8,bv0)::
-                   (p8,ev0)::
-                   (p8,vnullp8)::
-                   (i32,vint1)::
-                   (i32,vint1)::
+                  ((p8,nil,(value_id ptmp))::
+                   (p8,nil,bv0)::
+                   (p8,nil,ev0)::
+                   (p8,nil,vnullp8)::
+                   (i32,nil,vint1)::
+                   (i32,nil,vint1)::
                    nil)::
                  nil)
           | None => None
@@ -449,11 +451,11 @@ match c with
         Some (ex_ids,
          insn_cast ptmp castop_bitcast (typ_pointer t0) v2 p8:: 
          insn_call fake_id true attrs assert_typ assert_fn 
-           ((p8,bv)::
-            (p8,ev)::
-            (p8,(value_id ptmp))::
-            (i32,(type_size t0))::
-            (i32,vint1)::nil)::
+           ((p8,nil,bv)::
+            (p8,nil,ev)::
+            (p8,nil,(value_id ptmp))::
+            (i32,nil,(type_size t0))::
+            (i32,nil,vint1)::nil)::
          c::
          cs)
       end
@@ -567,18 +569,18 @@ Definition trans_terminator (rm:rmap) (tmn1:terminator) : option cmds :=
       | Some (bv, ev) =>
           Some (
            insn_call fake_id true attrs ssb_typ ssb_fn
-             ((p8,bv)::(i32,vint0)::nil)::
+             ((p8,nil,bv)::(i32,nil,vint0)::nil)::
            insn_call fake_id true attrs sse_typ sse_fn
-             ((p8,ev)::(i32,vint0)::nil)::
+             ((p8,nil,ev)::(i32,nil,vint0)::nil)::
            nil)
       | None => None
       end
     else 
       Some (
         insn_call fake_id true attrs ssb_typ ssb_fn
-          ((p8,vnullp8)::(i32,vint0)::nil)::
+          ((p8,nil,vnullp8)::(i32,nil,vint0)::nil)::
         insn_call fake_id true attrs sse_typ sse_fn
-          ((p8,vnullp8)::(i32,vint0)::nil)::
+          ((p8,nil,vnullp8)::(i32,nil,vint0)::nil)::
         nil)
   | _ => Some nil
   end.
@@ -619,11 +621,11 @@ end.
 Definition call_get_shadowstack bid0 eid0 idx cs : cmds :=
   insn_call bid0 false attrs
     gsb_typ gsb_fn  
-      ((i32,(value_const (const_int Size.ThirtyTwo 
+      ((i32,nil,(value_const (const_int Size.ThirtyTwo 
         (INTEGER.of_Z 32%Z idx false))))::nil)::
   insn_call eid0 false attrs
     gse_typ gse_fn 
-      ((i32,(value_const (const_int Size.ThirtyTwo 
+      ((i32,nil,(value_const (const_int Size.ThirtyTwo 
         (INTEGER.of_Z 32%Z idx false))))::nil)::
   cs.
 
@@ -755,6 +757,6 @@ End SB_ds_pass.
 (*
 *** Local Variables: ***
 *** coq-prog-name: "coqtop" ***
-*** coq-prog-args: ("-emacs-U" "-I" "~/SVN/sol/vol/src/Vellvm/monads" "-I" "~/SVN/sol/vol/src/Vellvm/ott" "-I" "~/SVN/sol/vol/src/Vellvm/compcert" "-I" "~/SVN/sol/theory/metatheory_8.3" "-I" "~/SVN/sol/vol/src/TV") ***
+*** coq-prog-args: ("-emacs-U" "-I" "~/SVN/sol/vol/src/Vellvm/monads" "-I" "~/SVN/sol/vol/src/Vellvm/ott" "-I" "~/SVN/sol/vol/src/Vellvm/compcert" "-I" "~/SVN/sol/theory/metatheory_8.3" "-I" "~/SVN/sol/vol/src/TV" "-impredicative-set") ***
 *** End: ***
  *)

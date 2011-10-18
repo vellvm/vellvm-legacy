@@ -2,6 +2,7 @@ Add LoadPath "../Vellvm/ott".
 Add LoadPath "../Vellvm/monads".
 Add LoadPath "../Vellvm".
 Add LoadPath "../Vellvm/compcert".
+Add LoadPath "../Vellvm/GraphBasics".
 Add LoadPath "../../../theory/metatheory_8.3".
 Add LoadPath "../TV".
 Require Import Values.
@@ -107,9 +108,9 @@ Proof.
               match lookupAL (id * id) rm2 rid with
               | ret (bid0, eid0) =>
                   ret (insn_call bid0 false attrs gsb_typ gsb_fn
-                         ((i32, vint0) :: nil)
+                         ((i32,nil,vint0) :: nil)
                        :: insn_call eid0 false attrs gse_typ gse_fn
-                            ((i32, vint0) :: nil)
+                            ((i32,nil,vint0) :: nil)
                           :: insn_call fake_id true attrs dstk_typ dstk_fn
                                nil :: nil)
               | merror => merror
@@ -253,9 +254,9 @@ Proof.
               match lookupAL (id * id) rm2 rid with
               | ret (bid0, eid0) =>
                   ret (insn_call bid0 false attrs gsb_typ gsb_fn
-                         ((i32, vint0) :: nil)
+                         ((i32,nil,vint0) :: nil)
                        :: insn_call eid0 false attrs gse_typ gse_fn
-                            ((i32, vint0) :: nil)
+                            ((i32,nil,vint0) :: nil)
                           :: insn_call fake_id true attrs dstk_typ dstk_fn
                                nil :: nil)
               | merror => merror
@@ -701,12 +702,12 @@ Proof.
   assert (exists bv2, exists ev2, exists bgv2, exists egv2,  
     exists blk1, exists bofs1, exists eofs1,
     cs23 =(insn_call fake_id true attrs ssb_typ ssb_fn
-             ((p8, bv2) :: (i32, vint0) :: nil)
+             ((p8,nil,bv2) :: (i32,nil,vint0) :: nil)
            :: insn_call fake_id true attrs sse_typ sse_fn
-                ((p8, ev2) :: (i32, vint0) :: nil) :: nil) /\
-    Opsem.params2GVs (los, nts) ((p8, bv2) :: (i32, vint0) :: nil) lc2 gl2 =
+                ((p8,nil,ev2) :: (i32,nil,vint0) :: nil) :: nil) /\
+    Opsem.params2GVs (los, nts) ((p8,nil,bv2) :: (i32,nil,vint0) :: nil) lc2 gl2 =
       munit (bgv2 :: int2GV 0 :: nil) /\
-    Opsem.params2GVs (los, nts) ((p8, ev2) :: (i32, vint0) :: nil) lc2 gl2 =
+    Opsem.params2GVs (los, nts) ((p8,nil,ev2) :: (i32,nil,vint0) :: nil) lc2 gl2 =
       munit (egv2 :: int2GV 0 :: nil) /\
     gv_inject mi ((Vptr blk1 bofs1, AST.Mint 31)::nil) bgv2 /\
     gv_inject mi ((Vptr blk1 eofs1, AST.Mint 31)::nil) egv2 /\
@@ -1107,7 +1108,7 @@ Qed.
 (*
 *** Local Variables: ***
 *** coq-prog-name: "coqtop" ***
-*** coq-prog-args: ("-emacs-U" "-I" "~/SVN/sol/vol/src/Vellvm/monads" "-I" "~/SVN/sol/vol/src/Vellvm/ott" "-I" "~/SVN/sol/vol/src/Vellvm/compcert" "-I" "~/SVN/sol/theory/metatheory_8.3" "-I" "~/SVN/sol/vol/src/TV") ***
+*** coq-prog-args: ("-emacs-U" "-I" "~/SVN/sol/vol/src/Vellvm/monads" "-I" "~/SVN/sol/vol/src/Vellvm/ott" "-I" "~/SVN/sol/vol/src/Vellvm/compcert" "-I" "~/SVN/sol/theory/metatheory_8.3" "-I" "~/SVN/sol/vol/src/TV" "-impredicative-set") ***
 *** End: ***
  *)
 

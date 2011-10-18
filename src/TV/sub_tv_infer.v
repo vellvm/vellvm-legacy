@@ -2,6 +2,7 @@ Add LoadPath "../Vellvm/ott".
 Add LoadPath "../Vellvm/monads".
 Add LoadPath "../Vellvm".
 Add LoadPath "../Vellvm/compcert".
+Add LoadPath "../Vellvm/GraphBasics".
 Add LoadPath "../../../theory/metatheory_8.3".
 Require Import syntax.
 Require Import infrastructure.
@@ -273,11 +274,11 @@ metadata_from_sterms st2.(STerms) accum'.
     call fid2 sars2
   }  
 *)
-Fixpoint lookupSarg (ars2:list (typ*attributes*id)) (sars2:list (typ*sterm)) 
-  (i:id) :option sterm :=
+Fixpoint lookupSarg (ars2:list (typ*attributes*id)) 
+  (sars2:list (typ*attributes*sterm)) (i:id) :option sterm :=
 match (ars2, sars2) with
 | (nil, nil) => None
-| ((_,_,i')::ars2', (_,s')::sars2') =>
+| ((_,_,i')::ars2', (_,_,s')::sars2') =>
     if (eq_id i i') then Some s' else lookupSarg ars2' sars2' i
 | _ => None
 end.
@@ -314,9 +315,10 @@ end.
 
 Inductive sicall : Set :=
 | stmn_icall_nptr : 
-    id -> noret -> clattrs -> typ -> sterm -> list (typ*sterm) -> sicall
+    id -> noret -> clattrs -> typ -> sterm -> 
+      list (typ*attributes*sterm) -> sicall
 | stmn_icall_ptr : 
-    id -> noret -> clattrs -> typ -> sterm -> list (typ*sterm) ->
+    id -> noret -> clattrs -> typ -> sterm -> list (typ*attributes*sterm) ->
     id -> id -> id -> id -> id -> id -> id -> const -> const -> const -> sicall
 .
 
@@ -889,6 +891,6 @@ end.
 (*
 *** Local Variables: ***
 *** coq-prog-name: "coqtop" ***
-*** coq-prog-args: ("-emacs-U" "-I" "~/SVN/sol/vol/src/Vellvm/monads" "-I" "~/SVN/sol/vol/src/Vellvm/ott" "-I" "~/SVN/sol/vol/src/Vellvm/compcert" "-I" "~/SVN/sol/theory/metatheory_8.3") ***
+*** coq-prog-args: ("-emacs-U" "-I" "~/SVN/sol/vol/src/Vellvm/monads" "-I" "~/SVN/sol/vol/src/Vellvm/ott" "-I" "~/SVN/sol/vol/src/Vellvm/compcert" "-I" "~/SVN/sol/theory/metatheory_8.3" "-impredicative-set") ***
 *** End: ***
  *)

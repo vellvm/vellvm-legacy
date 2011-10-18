@@ -2,8 +2,8 @@ Add LoadPath "../Vellvm/ott".
 Add LoadPath "../Vellvm/monads".
 Add LoadPath "../Vellvm".
 Add LoadPath "../Vellvm/compcert".
+Add LoadPath "../Vellvm/GraphBasics".
 Add LoadPath "../../../theory/metatheory_8.3".
-Add LoadPath "../TV".
 Require Import Values.
 Require Import vellvm.
 Require Import genericvalues.
@@ -2350,7 +2350,7 @@ Proof.
   induction lp; simpl; intros n rm1 lc1 lc2 ogvs cs Hrsim Hp2gv Htpa.
     inv Hp2gv. inv Htpa. simpl. auto.
 
-    destruct a.
+    destruct a as [[t attr] v].
     remember (Opsem.getOperandValue TD v lc1 gl) as R0.
     destruct R0; try solve [inv Hp2gv].
     remember (SBspec.params2GVs TD lp lc1 gl rm1) as R.
@@ -2799,7 +2799,7 @@ Qed.
 (*
 *** Local Variables: ***
 *** coq-prog-name: "coqtop" ***
-*** coq-prog-args: ("-emacs-U" "-I" "~/SVN/sol/vol/src/Vellvm/monads" "-I" "~/SVN/sol/vol/src/Vellvm/ott" "-I" "~/SVN/sol/vol/src/Vellvm/compcert" "-I" "~/SVN/sol/theory/metatheory_8.3" "-I" "~/SVN/sol/vol/src/TV") ***
+*** coq-prog-args: ("-emacs-U" "-I" "~/SVN/sol/vol/src/Vellvm/monads" "-I" "~/SVN/sol/vol/src/Vellvm/ott" "-I" "~/SVN/sol/vol/src/Vellvm/compcert" "-I" "~/SVN/sol/theory/metatheory_8.3" "-I" "~/SVN/sol/vol/src/TV" "-impredicative-set") ***
 *** End: ***
  *)
 

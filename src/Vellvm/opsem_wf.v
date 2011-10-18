@@ -700,7 +700,7 @@ Qed.
 Fixpoint wf_params TD (gvs:list GVs) (lp:params) : Prop :=
 match (gvs, lp) with
 | (nil, nil) => True
-| (gv::gvs', (t, _)::lp') => wf_GVs TD gv t /\ wf_params TD gvs' lp'
+| (gv::gvs', ((t, _), _)::lp') => wf_GVs TD gv t /\ wf_params TD gvs' lp'
 | _ => False
 end.
 
@@ -708,12 +708,12 @@ Lemma params2GVs_wf_gvs : forall los nts Ps F gl lc (Hwfc : wf_lc (los,nts) F lc
   S (Hwfg : wf_global (los, nts) S gl) tvs lp gvs,
   wf_value_list
           (make_list_system_module_fdef_value_typ
-             (map_list_typ_value
-                (fun (typ_' : typ) (value_'' : value) =>
+             (map_list_typ_attributes_value
+                (fun (typ_' : typ) attr (value_'' : value) =>
                  (S, (module_intro los nts Ps), F, value_'', typ_'))
                 tvs)) ->
-  lp = map_list_typ_value
-        (fun (typ_' : typ) (value_'' : value) => (typ_', value_''))
+  lp = map_list_typ_attributes_value
+        (fun (typ_' : typ) attr (value_'' : value) => (typ_', attr, value_''))
         tvs ->
   params2GVs (los,nts) lp lc gl = Some gvs -> wf_params (los,nts) gvs lp.
 Proof.
@@ -722,8 +722,9 @@ Proof.
 
     remember (getOperandValue (los,nts) v lc gl) as R0.
     destruct R0; try solve [inv Hp2gv].
-    remember (params2GVs (los,nts) (map_list_typ_value
-                (fun (typ_' : typ) (value_'' : value) => (typ_', value_''))
+    remember (params2GVs (los,nts) (map_list_typ_attributes_value
+                (fun (typ_' : typ) (attr : attributes) (value_'' : value) 
+                   => (typ_', attr, value_''))
                 tvs) lc gl) as R.
     destruct R; inv Hp2gv.
     inv Hwfvs.
@@ -862,7 +863,7 @@ Proof.
       destruct R1 as [lc'|]; tinv Hin.
       remember (GVsSig.(lift_op1) (fit_gv (los, nts) t) g t) as R2.
       destruct R2 as [gv|]; inv Hin.
-      destruct lp2 as [|[]]; tinv Hpar.
+      destruct lp2 as [|[[]]]; tinv Hpar.
       destruct Hpar as [Hwfg Hpar].
       apply wf_lc_updateAddAL with (t:=t); eauto.
         rewrite_env ((la1++[(t,a,i0)])++la2).
@@ -1099,7 +1100,7 @@ Proof.
   induction gvs; simpl; intros.
     inv H0.
 
-    destruct lp as [|[]]; tinv H.
+    destruct lp as [|[[]]]; tinv H.
     destruct H as [J1 J2].
     destruct H0 as [H0 | H0]; subst; eauto.
       inv J1; auto.
@@ -2859,14 +2860,15 @@ Lemma params2GVs_isnt_stuck : forall
 Proof.
   induction p22; intros; simpl; eauto.
 
-    destruct a.
+    destruct a as [[t0 attr0] v0].
     destruct Hex as [p21 Hex]; subst.
     assert (exists gv, getOperandValue (los, nts) v0 lc gl = Some gv)
       as J.
       eapply getOperandValue_inCmdOps_isnt_stuck; eauto.
         simpl. unfold valueInParams. right. 
-        assert (J:=@in_split_r _ _ (p21 ++ (t0, v0) :: p22) (t0, v0)).
-        remember (split (p21 ++ (t0, v0) :: p22)) as R.
+        assert (J:=@in_split_r _ _ (p21 ++ (t0, attr0, v0) :: p22) 
+          (t0, attr0, v0)).
+        remember (split (p21 ++ (t0, attr0, v0) :: p22)) as R.
         destruct R.
         simpl in J. apply J.
         apply In_middle.
@@ -2876,7 +2878,7 @@ Proof.
       destruct HbInF as [vidxs HbInF].
       rewrite HbInF. eauto.
 
-      exists (p21 ++ [(t0,v0)]). simpl_env. auto.
+      exists (p21 ++ [(t0, attr0,v0)]). simpl_env. auto.
 Qed.
 
 Lemma initializeFrameValues__total_aux : forall los nts Ps s ifs fattr ft fid va 
@@ -2943,7 +2945,7 @@ Proof.
   induction gvss; simpl; intros.
     exists nil. simpl. auto.
 
-    destruct lp as [|[]]; tinv H.
+    destruct lp as [|[[]]]; tinv H.
     destruct H as [J1 J2].
     inv J1. gvs_inhabited_inv H1.
     apply IHgvss in J2. destruct J2 as [gvs J2].
@@ -2955,12 +2957,12 @@ Lemma params2GVs_inhabited : forall los nts Ps F gl lc
   S (Hwfg : wf_global (los, nts) S gl) tvs lp gvss,
   wf_value_list
           (make_list_system_module_fdef_value_typ
-             (map_list_typ_value
-                (fun (typ_' : typ) (value_'' : value) =>
+             (map_list_typ_attributes_value
+                (fun (typ_' : typ) attr (value_'' : value) =>
                  (S, (module_intro los nts Ps), F, value_'', typ_'))
                 tvs)) ->
-  lp = map_list_typ_value
-        (fun (typ_' : typ) (value_'' : value) => (typ_', value_''))
+  lp = map_list_typ_attributes_value
+        (fun (typ_' : typ) attr (value_'' : value) => (typ_', attr, value_''))
         tvs ->
   params2GVs (los,nts) lp lc gl = Some gvss -> exists gvs, gvs @@ gvss.
 Proof.

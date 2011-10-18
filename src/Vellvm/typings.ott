@@ -1064,7 +1064,7 @@ Jwf_insn :: '' ::=
       % Correct number of arguments passed to called function! 
       {{ FunctionType.getNumParams [[:user_syntax__typ:typ1]] = Some (length [[params]]) }}
       % Verify that all arguments to the call match the function type... 
-      params <-> </ (typj' valuej'') // j />
+      params <-> </ (typj' attributesj' valuej'') // j />
       typ0 = typ1 ( </ typj' // j /> varg )
       system |- typ1 
       (layouts namedts) |- typ1

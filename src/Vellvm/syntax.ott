@@ -144,6 +144,7 @@ layout :: 'layout_'					::=  			{{ com data layout }}
   | float sz align0 align1				::   :: float		{{ com float }}
   | aggr sz align0 align1			     	::   :: aggr		{{ com aggregate }}
   | stack sz align0 align1				::   :: stack		{{ com stack }}
+  | vector sz align0 align1				::   :: vector		{{ com vector }}
 
 layouts {{ tex \mathit{\overline{layout} } }} :: 'layouts_'	::=  		{{ com layouts }}
      	    			     	   					{{ coq (list layout) }}
@@ -344,12 +345,12 @@ args {{ tex \mathit{\overline{arg} } }} :: 'args_'	::=  			{{ com arguments }}
   | ( args )						:: S :: paren           {{ coq [[ args ]] }}
 
 param :: 'param_'  					::=  			{{ com argument }}
-       										{{ coq (prod typ value) }}
-  | typ value						::   :: def		{{ coq ([[typ]],[[value]]) }}
+       										{{ coq (typ * attributes * value)%type }}
+  | typ attributes value                         	::   :: def		{{ coq (([[typ]], [[attributes]]), [[value]]) }}
   | ( param )						:: S :: paren		{{ coq [[ param ]] }} 			
 
 params {{ tex \mathit{\overline{param} } }} :: 'params_'::=			{{ com parameters }}
-       	      			       	       					{{ coq (list (typ*value)) }}
+       	      			       	       					{{ coq (list (typ * attributes * value)) }}
   | []  						::   :: nil		{{ coq nil }}
   | param , params           				::   :: cons		{{ coq (([[param]])::[[params]]) }}
   | params ; params'				     	::   :: append		{{ coq ([[params]]++[[params']]) }}

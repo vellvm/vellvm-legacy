@@ -2,6 +2,7 @@ Add LoadPath "../Vellvm/ott".
 Add LoadPath "../Vellvm/monads".
 Add LoadPath "../Vellvm".
 Add LoadPath "../Vellvm/compcert".
+Add LoadPath "../Vellvm/GraphBasics".
 Add LoadPath "../../../theory/metatheory_8.3".
 Add LoadPath "../TV".
 Require Import vellvm.
@@ -311,13 +312,13 @@ Proof.
         (c:=insn_call i0 false c
                  (typ_function typ1
                     (make_list_typ
-                       (map_list_typ_value
-                          (fun (typ_' : typ) (_ : value) => typ_')
-                          typ'_value''_list)) varg5) v
-                 (map_list_typ_value
-                    (fun (typ_' : typ) (value_'' : value) =>
-                     (typ_', value_'')) typ'_value''_list))(i0:=i0)(t0:=typ1)
-        in HBinF2; eauto.
+                       (map_list_typ_attributes_value
+                          (fun (typ_' : typ) attr (_ : value) => typ_')
+                          typ'_attributes'_value''_list)) varg5) v
+                 (map_list_typ_attributes_value
+                    (fun (typ_' : typ) attr (value_'' : value) =>
+                     (typ_', attr, value_'')) typ'_attributes'_value''_list))
+        (i0:=i0)(t0:=typ1)in HBinF2; eauto.
         apply in_or_app. right. simpl. auto.
     clear HBinF2.
     simpl in H1.
@@ -348,13 +349,13 @@ Proof.
         (c:=insn_call i0 false c
                  (typ_function typ1
                     (make_list_typ
-                       (map_list_typ_value
-                          (fun (typ_' : typ) (_ : value) => typ_')
-                          typ'_value''_list)) varg5) v
-                 (map_list_typ_value
-                    (fun (typ_' : typ) (value_'' : value) =>
-                     (typ_', value_'')) typ'_value''_list))(i0:=i0)(t0:=typ1)
-        in HBinF2; eauto.
+                       (map_list_typ_attributes_value
+                          (fun (typ_' : typ) attr (_ : value) => typ_')
+                          typ'_attributes'_value''_list)) varg5) v
+                 (map_list_typ_attributes_value
+                    (fun (typ_' : typ) attr (value_'' : value) =>
+                     (typ_', attr, value_'')) typ'_attributes'_value''_list))
+        (i0:=i0)(t0:=typ1) in HBinF2; eauto.
         apply in_or_app. right. simpl. auto.
     clear HBinF2.
     simpl in H1.
@@ -1473,7 +1474,7 @@ Proof.
   induction p; simpl; intros.
     inv J. eauto.
 
-    destruct a.
+    destruct a as [[t attr] v].
     destruct (getOperandValue TD v lc gl) as [gv|]; tinv J.
     remember (Opsem.params2GVs TD p lc gl) as R.
     destruct R as [gvs|]; inv J.
@@ -2763,6 +2764,6 @@ End SBspecPP. End SBspecPP.
 (*
 *** Local Variables: ***
 *** coq-prog-name: "coqtop" ***
-*** coq-prog-args: ("-emacs-U" "-I" "~/SVN/sol/vol/src/Vellvm/monads" "-I" "~/SVN/sol/vol/src/Vellvm/ott" "-I" "~/SVN/sol/vol/src/Vellvm/compcert" "-I" "~/SVN/sol/theory/metatheory_8.3" "-I" "~/SVN/sol/vol/src/TV") ***
+*** coq-prog-args: ("-emacs-U" "-I" "~/SVN/sol/vol/src/Vellvm/monads" "-I" "~/SVN/sol/vol/src/Vellvm/ott" "-I" "~/SVN/sol/vol/src/Vellvm/compcert" "-I" "~/SVN/sol/theory/metatheory_8.3" "-I" "~/SVN/sol/vol/src/TV" "-impredicative-set") ***
 *** End: ***
  *)
