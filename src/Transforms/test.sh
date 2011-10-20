@@ -65,15 +65,16 @@ NOGVN_OPT_FLAG="-disable-opt -raiseallocs -simplifycfg -domtree -domfrontier
   -adce -simplifycfg -strip-dead-prototypes -print-used-types -deadtypeelim 
   -constmerge -preverify -domtree -verify"
 
-LD_FLAG="-disable-opt -internalize -ipsccp -globalopt -constmerge 
-  -deadargelim -instcombine -basiccg -inline -prune-eh -globalopt -globaldce 
-  -basiccg -argpromotion -instcombine -jump-threading -domtree -domfrontier 
-  -scalarrepl -basiccg -functionattrs -globalsmodref-aa -domtree -loops 
-  -loopsimplify -domfrontier -licm -memdep
-  -gvn
-  -memdep -memcpyopt -dse -instcombine -jump-threading 
-  -domtree -domfrontier -mem2reg -simplifycfg -globaldce -instcombine -simplifycfg 
-  -adce -globaldce -preverify -domtree -verify"
+#LD_FLAG="-disable-opt -internalize -ipsccp -globalopt -constmerge 
+#  -deadargelim -instcombine -basiccg -inline -prune-eh -globalopt -globaldce 
+#  -basiccg -argpromotion -instcombine -jump-threading -domtree -domfrontier 
+#  -scalarrepl -basiccg -functionattrs -globalsmodref-aa -domtree -loops 
+#  -loopsimplify -domfrontier -licm -memdep
+#  -gvn
+#  -memdep -memcpyopt -dse -instcombine -jump-threading 
+#  -domtree -domfrontier -mem2reg -simplifycfg -globaldce -instcombine -simplifycfg 
+#  -adce -globaldce -preverify -domtree -verify"
+LD_FLAG="-disable-opt"
 
 for name in ./testcases/*.ll; do 
   echo -e $name": \c"  
@@ -100,16 +101,16 @@ for name in $OC_CASES; do
   echo -e $name": \c" ; 
 
   echo -e "LLVM a0"; time opt $PRE_OPT_FLAG $OC_DIR$name"/test.bc" -f -o opt.bc
-  echo -e "Coq GVN"; time $GVN opt.bc >& $name"o.ll"
+  echo -e "Coq GVN"; time $GVN opt.bc |& sed '2itarget triple = "i386-unknown-linux-gnu"' >& $name"o.ll"
   llvm-as -f $name"o.ll" -o $name"o.bc"
   echo -e "LLVM a1"; time opt $SUF_OPT_FLAG $name"o.bc" -f -o opt.bc
-  echo -e "LLVM a2"; time llvm-ld -native -lm $LD_FLAG opt.bc -o $name"a.exe"
+  echo -e "LLVM a2"; time llvm-ld -Xlinker=-m32 -native -lm $LD_FLAG opt.bc -o $name"a.exe"
 
   echo -e "LLVM b1"; time opt $OPT_FLAG $OC_DIR$name"/test.bc" -f -o opt.bc
-  echo -e "LLVM b2"; time llvm-ld -native -lm $LD_FLAG opt.bc -o $name"b.exe"
+  echo -e "LLVM b2"; time llvm-ld -Xlinker=-m32 -native -lm $LD_FLAG opt.bc -o $name"b.exe"
 
   echo -e "LLVM c1"; time opt $NOGVN_OPT_FLAG $OC_DIR$name"/test.bc" -f -o opt.bc
-  echo -e "LLVM c2"; time llvm-ld -native -lm $LD_FLAG opt.bc -o $name"c.exe"
+  echo -e "LLVM c2"; time llvm-ld -Xlinker=-m32 -native -lm $LD_FLAG opt.bc -o $name"c.exe"
 done;
 echo -e "bh b: \c"; time ./bhb.exe < ./testcases/olden-ccured/bh/slow_input >& /dev/null;
 echo -e "bh a: \c"; time ./bha.exe < ./testcases/olden-ccured/bh/slow_input >& /dev/null;
@@ -142,16 +143,16 @@ for name in $S95_CASES; do
   echo -e $name": \c" ; 
 
   echo -e "LLVM a0"; time opt $PRE_OPT_FLAG $S95_DIR$name"/src/test.bc" -f -o opt.bc
-  echo -e "Coq GVN"; time $GVN opt.bc >& $name"o.ll"
+  echo -e "Coq GVN"; time $GVN opt.bc |& sed '2itarget triple = "i386-unknown-linux-gnu"' >& $name"o.ll"
   llvm-as -f $name"o.ll" -o $name"o.bc"
   echo -e "LLVM a1"; time opt $SUF_OPT_FLAG $name"o.bc" -f -o opt.bc
-  echo -e "LLVM a2"; time llvm-ld -native -lm $LD_FLAG opt.bc -o $name"a.exe"
+  echo -e "LLVM a2"; time llvm-ld -native -Xlinker=-m32 -lm $LD_FLAG opt.bc -o $name"a.exe"
 
   echo -e "LLVM b1"; time opt $OPT_FLAG $S95_DIR$name"/src/test.bc" -f -o opt.bc
-  echo -e "LLVM b2"; time llvm-ld -native -lm $LD_FLAG opt.bc -o $name"b.exe"
+  echo -e "LLVM b2"; time llvm-ld -native -Xlinker=-m32 -lm $LD_FLAG opt.bc -o $name"b.exe"
 
   echo -e "LLVM c1"; time opt $NOGVN_OPT_FLAG $S95_DIR$name"/src/test.bc" -f -o opt.bc
-  echo -e "LLVM c2"; time llvm-ld -native -lm $LD_FLAG opt.bc -o $name"c.exe"
+  echo -e "LLVM c2"; time llvm-ld -native -Xlinker=-m32 -lm $LD_FLAG opt.bc -o $name"c.exe"
 done;
 #echo -e "099.go: \c"; time ./099.go.exe 100 15;
 #echo -e "130.li: \c"; time ./130.li.exe ./testcases/spec95-ccured/130.li/src/ref.lsp;
