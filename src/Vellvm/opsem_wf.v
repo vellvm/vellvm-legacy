@@ -1523,7 +1523,7 @@ end.
 
 Fixpoint wf_ECStack TD (ps:list product) (ecs:ECStack) : Prop :=
 match ecs with
-| nil => False
+| nil => True
 | ec::ecs' => 
     wf_ExecutionContext TD ps ec /\ wf_ECStack TD ps ecs' /\ wf_call ec ecs'
 end.
@@ -1534,6 +1534,7 @@ let '(mkState ecs _) := S in
 wf_global (los,nts) s gl /\
 wf_system nil s /\
 moduleInSystemB (module_intro los nts ps) s = true /\
+ecs <> nil /\
 wf_ECStack (los,nts) ps ecs.
 
 Lemma wf_State__inv : forall S los nts Ps F B c cs tmn lc als EC gl fs Mem0,
@@ -1545,9 +1546,9 @@ Lemma wf_State__inv : forall S los nts Ps F B c cs tmn lc als EC gl fs Mem0,
 Proof.
   intros.
   destruct H as 
-    [Hwfg [HwfSystem [HmInS [
+    [Hwfg [HwfSystem [HmInS [Hnonempty [
      [Hreach1 [HBinF1 [HFinPs1 [Hwflc1 [Hinscope1 [l3 [ps3 [cs3' Heq1]]]]]]]] 
-     [HwfEC HwfCall]]]]
+     [HwfEC HwfCall]]]]]
     ]; subst.
   split; auto. 
   split; auto. 
@@ -1608,9 +1609,9 @@ Lemma preservation_cmd_updated_case : forall
 Proof.
   intros.
   destruct HwfS1 as 
-    [Hwfg [HwfSystem [HmInS [
+    [Hwfg [HwfSystem [HmInS [Hnonempty [
      [Hreach1 [HBinF1 [HFinPs1 [Hwflc1 [Hinscope1 [l3 [ps3 [cs3' Heq1]]]]]]]]
-     [HwfEC HwfCall]]]]
+     [HwfEC HwfCall]]]]]
     ]; subst.
   remember (inscope_of_cmd F (block_intro l3 ps3 (cs3' ++ c0 :: cs) tmn) c0) 
     as R1. 
@@ -1618,6 +1619,7 @@ Proof.
     eapply wf_system__uniqFdef; eauto.
   destruct R1; try solve [inversion Hinscope1].
   repeat (split; try solve [auto]).
+      intros; congruence.
       Case "wflc".
       eapply wf_lc_updateAddAL; eauto.
         eapply uniqF__lookupTypViaIDFromFdef; eauto using in_middle.
@@ -1724,16 +1726,19 @@ Lemma preservation_cmd_non_updated_case : forall
 Proof.
   intros.
   destruct HwfS1 as 
-    [Hwfg [HwfSystem [HmInS [
+    [Hwfg [HwfSystem [HmInS [Hnonempty [
      [Hreach1 [HBinF1 [HFinPs1 [Hwflc1 [Hinscope1 [l3 [ps3 [cs3' Heq1]]]]]]]]
-     [HwfEC HwfCall]]]]
+     [HwfEC HwfCall]]]]]
     ]; subst.
   remember (inscope_of_cmd F (block_intro l3 ps3 (cs3' ++ c0 :: cs) tmn) c0) 
     as R1. 
   destruct R1; try solve [inversion Hinscope1].
   repeat (split; try solve [auto]).
+      Case "0".
+      intros. congruence.
+      Case "1".
       destruct cs; simpl_env in *.
-      Case "1.1.1".
+      SCase "1.1.1".
         assert (~ In (getCmdLoc c0) (getCmdsLocs cs3')) as Hnotin.
           eapply wf_system__uniq_block with (f:=F) in HwfSystem; eauto.        
           simpl in HwfSystem.
@@ -1756,7 +1761,7 @@ Proof.
         rewrite Hid in J2.
         eapply wf_defs_eq; eauto.
         
-      Case "1.1.2".
+      SCase "1.1.2".
         assert (NoDup (getCmdsLocs (cs3' ++ [c0] ++ [c] ++ cs))) as Hnodup.
           eapply wf_system__uniq_block with (f:=F) in HwfSystem; eauto.        
           simpl in HwfSystem.
@@ -1797,7 +1802,7 @@ Proof.
 Focus.
 Case "sReturn".
   destruct HwfS1 as 
-    [Hwfg [HwfSystem [HmInS [
+    [Hwfg [HwfSystem [HmInS [Hnonempty [
      [Hreach1 [HBinF1 [HFinPs1 [Hwflc1 [Hinscope1 [l1 [ps1 [cs1' Heq1]]]]]]]] 
      [
        [
@@ -1806,7 +1811,7 @@ Case "sReturn".
        ]
        HwfCall'
      ]
-    ]]]]; subst.
+    ]]]]]; subst.
   remember (inscope_of_cmd F' (block_intro l2 ps2 (cs2' ++ c' :: cs') tmn') c')
     as R2.
   destruct R2; try solve [inversion Hinscope2].
@@ -1818,10 +1823,11 @@ Case "sReturn".
   split; auto.
   SCase "1".
     split; auto.
-    split; auto.  
+    split. intros; congruence.
     split; auto. 
     split; auto.
     split; auto.
+    split; auto. 
 
     remember (getCmdID c') as R.
     destruct c'; try solve [inversion H].
@@ -1916,7 +1922,7 @@ Unfocus.
 Focus.
 Case "sReturnVoid".
   destruct HwfS1 as 
-    [Hwfg [HwfSystem [HmInS [
+    [Hwfg [HwfSystem [HmInS [Hnonempty [
      [Hreach1 [HBinF1 [HFinPs1 [Hwflc1 [Hinscope1 [l1 [ps1 [cs1' Heq1]]]]]]]] 
      [
        [
@@ -1925,7 +1931,7 @@ Case "sReturnVoid".
        ]
        HwfCall'
      ]
-    ]]]]; subst.
+    ]]]]]; subst.
   remember (inscope_of_cmd F' (block_intro l2 ps2 (cs2' ++ c' :: cs') tmn') c')
     as R2.
   destruct R2; try solve [inversion Hinscope2].
@@ -1937,6 +1943,7 @@ Case "sReturnVoid".
   split; auto.
   SCase "1".
     split; auto.
+    split. intros; congruence.
     split; auto.
     split; auto.
     split; auto.
@@ -1993,9 +2000,9 @@ Unfocus.
 Focus.
 Case "sBranch".
   destruct HwfS1 as 
-    [Hwfg [HwfSystem [HmInS [
+    [Hwfg [HwfSystem [HmInS [Hnonempty [
      [Hreach1 [HBinF1 [HFinPs1 [Hwflc1 [Hinscope1 [l3 [ps3 [cs3' Heq1]]]]]]]]
-     [HwfEC HwfCall]]]]
+     [HwfEC HwfCall]]]]]
     ]; subst.
   remember (inscope_of_tmn F
              (block_intro l3 ps3 (cs3' ++ nil)(insn_br bid Cond l1 l2))
@@ -2004,7 +2011,8 @@ Case "sBranch".
   split; auto.
   split; auto.
   split; auto.
-  split; auto.
+  split. intros; congruence.
+  split; auto.         
   SCase "1".
     assert (HwfF := HwfSystem).
     eapply wf_system__wf_fdef with (f:=F) in HwfF; eauto.
@@ -2050,9 +2058,9 @@ Unfocus.
 Focus.
 Case "sBranch_uncond".
   destruct HwfS1 as 
-    [Hwfg [HwfSystem [HmInS [
+    [Hwfg [HwfSystem [HmInS [Hnonempty [
      [Hreach1 [HBinF1 [HFinPs1 [Hwflc1 [Hinscope1 [l3 [ps3 [cs3' Heq1]]]]]]]] 
-     [HwfEC HwfCall]]]]
+     [HwfEC HwfCall]]]]]
     ]; subst.
   remember (inscope_of_tmn F
              (block_intro l3 ps3 (cs3' ++ nil)(insn_br_uncond bid l0))
@@ -2061,6 +2069,7 @@ Case "sBranch_uncond".
   split; auto.
   split; auto.
   split; auto.
+  split. intros; congruence.
   SCase "1".
     split; auto.
     assert (HwfF := HwfSystem).
@@ -2108,9 +2117,9 @@ Case "sFBop". eapply preservation_cmd_updated_case in HwfS1; simpl; eauto.
 Case "sExtractValue".
   assert (J':=HwfS1).
   destruct J' as 
-      [Hwfg [HwfSystem [HmInS [
+      [Hwfg [HwfSystem [HmInS [Hnonempty [
         [Hreach1 [HBinF1 [HFinPs1 [Hwflc1 [Hinscope1 [l3 [ps3 [cs3' Heq1]]]]]]]] 
-        [HwfEC HwfCall]]]]
+        [HwfEC HwfCall]]]]]
       ]; subst.
   eapply wf_system__wf_cmd with (c:=insn_extractvalue id0 t v idxs) in HBinF1; 
     eauto using in_middle.
@@ -2153,6 +2162,13 @@ Case "sMalloc". eapply preservation_cmd_updated_case in HwfS1; simpl; eauto.
 
 Case "sFree". eapply preservation_cmd_non_updated_case in HwfS1; eauto.
 Case "sAlloca". eapply preservation_cmd_updated_case in HwfS1; simpl; eauto.
+  destruct HwfS1 as 
+      [Hwfg [HwfSystem [HmInS [Hnonempty [
+        [Hreach1 [HBinF1 [HFinPs1 [Hwflc1 [Hinscope1 [l3 [ps3 [cs3' Heq1]]]]]]]] 
+        [HwfEC HwfCall]]]]]
+      ]; subst.
+  repeat (split; try solve [intros; congruence | eauto]). 
+
   unfold blk2GV, ptr2GV, val2GV. simpl.
   eapply wf_GVs_intro; eauto.  
     unfold getTypeSizeInBits. simpl. eauto.
@@ -2182,9 +2198,9 @@ Case "sStore". eapply preservation_cmd_non_updated_case in HwfS1; eauto.
 Case "sGEP". 
   assert (J:=HwfS1).
   destruct J as 
-    [Hwfg [HwfSystem [HmInS [
+    [Hwfg [HwfSystem [HmInS [Hnonempty [
          [Hreach1 [HBinF1 [HFinPs1 [Hwflc1 [Hinscope1 [l3 [ps3 [cs3' Heq1]]]]]]]]
-         [HwfEC HwfCall]]]]
+         [HwfEC HwfCall]]]]]
     ]; subst.
   eapply wf_system__wf_cmd with (c:=insn_gep id0 inbounds0 t v idxs) in HBinF1;
     eauto using in_middle.
@@ -2238,9 +2254,9 @@ Case "sSelect".
 
 Focus.
 Case "sCall".
-  destruct HwfS1 as [Hwfg [HwfSys [HmInS [
+  destruct HwfS1 as [Hwfg [HwfSys [HmInS [Hnonempty [
     [Hreach [HBinF [HFinPs [Hwflc [Hinscope [l1 [ps [cs'' Heq]]]]]]]]
-    [HwfECs HwfCall]]]]]; subst.
+    [HwfECs HwfCall]]]]]]; subst.
   assert (InProductsB (product_fdef (fdef_intro 
     (fheader_intro fa rt fid la va) lb)) Ps = true) as HFinPs'.
     apply lookupFdefViaPtr_inversion in H1.
@@ -2249,7 +2265,8 @@ Case "sCall".
   split; auto.
   split; auto.
   split; auto.
-  split.
+  split. intros; congruence.
+  split; auto.
   SCase "1".     
     assert (uniqFdef (fdef_intro (fheader_intro fa rt fid la va) lb)) as Huniq.
       eapply wf_system__uniqFdef; eauto.
@@ -2307,9 +2324,9 @@ Case "sExCall".
     assert (exists t0, getCmdTyp (insn_call rid false ca ft fv lp) = Some t0)
       as J.
       destruct HwfS1 as 
-       [Hwfg [HwfSystem [HmInS [
+       [Hwfg [HwfSystem [HmInS [Hnonempty [
          [Hreach1 [HBinF1 [HFinPs1 [Hwflc1 [Hinscope1 [l3 [ps3 [cs3' Heq1]]]]]]]]
-         [HwfEC HwfCall]]]]
+         [HwfEC HwfCall]]]]]
        ]; subst.
       eapply wf_system__wf_cmd with (c:=insn_call rid false ca ft fv lp) 
         in HBinF1; eauto.
@@ -3126,8 +3143,8 @@ Proof.
   intros cfg S1 HwfS1.
   destruct cfg as [s [los nts] ps gl fs].
   destruct S1 as [ecs M].
-  destruct HwfS1 as [Hwfg1 [HwfSys1 [HmInS1 HwfECs]]].
-  destruct ecs; try solve [inversion HwfECs].
+  destruct HwfS1 as [Hwfg1 [HwfSys1 [HmInS1 [Hnonempty HwfECs]]]].
+  destruct ecs; try congruence.
   destruct e as [f b cs tmn lc als].
   destruct HwfECs as [[Hreach 
                         [HbInF [HfInPs [Hwflc [Hinscope [l1 [ps1 [cs1 Heq]]]]]]]]

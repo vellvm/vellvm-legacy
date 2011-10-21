@@ -77,7 +77,7 @@ end.
 
 Fixpoint wf_ECStack TD M (ps:list product) (ecs:ECStack) : Prop :=
 match ecs with
-| nil => False
+| nil => True
 | ec::ecs' => 
     wf_ExecutionContext TD M ps ec /\ wf_ECStack TD M ps ecs' /\ wf_call ec ecs'
 end.
@@ -90,6 +90,7 @@ wf_global (los, nts) s gl /\
 wf_global_ptr s (los, nts) M gl /\
 wf_system nil s /\
 moduleInSystemB (module_intro los nts ps) s = true /\
+ecs <> nil /\
 wf_ECStack (los, nts) M ps ecs.
 
 Lemma wf_State__inv : forall S los nts Ps F B c cs tmn lc rm als EC gl fs Mem0 
@@ -102,10 +103,10 @@ Lemma wf_State__inv : forall S los nts Ps F B c cs tmn lc rm als EC gl fs Mem0
 Proof.
   intros.
   destruct H as 
-      [HwfMM [Hwfg [Hwfg' [HwfSystem [HmInS [
+      [HwfMM [Hwfg [Hwfg' [HwfSystem [HmInS [Hnnil [
          [Hreach1 [HBinF1 [HFinPs1 [Hwflc1 [Hinscope1 [Hwfm1 [Hwfm1' 
            [l3 [ps3 [cs3' Heq1]]]]]]]]]]
-         [HwfEC HwfCall]]]]
+         [HwfEC HwfCall]]]]]
       ]]]; subst.
   split; auto. 
   split; auto. 
@@ -131,10 +132,10 @@ Proof.
   destruct e; auto.
   destruct CurCmds0; auto.
   destruct HwfS as 
-      [HwfMM [Hwfg [Hwfg' [HwfSystem [HmInS [
+      [HwfMM [Hwfg [Hwfg' [HwfSystem [HmInS [Hnnil [
          [Hreach1 [HBinF1 [HFinPs1 [Hwflc1 [Hinscope1 [Hwfm1 [Hwfm1' 
            [l3 [ps3 [cs3' Heq1]]]]]]]]]]
-         [HwfEC HwfCall]]]]
+         [HwfEC HwfCall]]]]]
       ]]]; subst.
   intros id0 HgetID.
   eapply uniqF__lookupTypViaIDFromFdef'; eauto.
@@ -160,10 +161,10 @@ Proof.
   destruct e; auto.
   destruct CurCmds0; auto.
   destruct HwfS as 
-      [HwfMM [Hwfg [Hwfg' [HwfSystem [HmInS [
+      [HwfMM [Hwfg [Hwfg' [HwfSystem [HmInS [Hnnil [
          [Hreach1 [HBinF1 [HFinPs1 [Hwflc1 [Hinscope1 [Hwfm1 [Hwfm1' 
            [l3 [ps3 [cs3' Heq1]]]]]]]]]]
-         [HwfEC HwfCall]]]]
+         [HwfEC HwfCall]]]]]
       ]]]; subst.
   eapply wf_system__wf_cmd with(c:=c) in HBinF1; 
     try solve [eauto | apply in_or_app; simpl; auto].
@@ -730,13 +731,20 @@ Proof.
                                wf_sbcall__wf_call).
 Qed.  
 
+Lemma nnil_sbECs__nnil_ECs: forall GVs ECS0, 
+  ECS0 <> nil -> @sbECs__ECs GVs ECS0 <> nil.
+Proof.
+  induction ECS0; simpl; intros; auto. 
+    intro J. congruence.
+Qed.
+
 Lemma wf_sbState__wf_State : forall cfg sbSt, 
   wf_State cfg sbSt -> OpsemPP.wf_State cfg (sbState__State sbSt).
 Proof.
   intros.
   destruct sbSt. destruct cfg. destruct CurTargetData0.
-  destruct H as [HwfMM [Hwfg [Hwfg' [HwfSystem [HmInS HwfEC]]]]].
-  repeat (split; eauto using wf_sbECs__wf_ECs). 
+  destruct H as [HwfMM [Hwfg [Hwfg' [HwfSystem [HmInS [Hnnil HwfEC]]]]]].
+  repeat (split; eauto using wf_sbECs__wf_ECs, nnil_sbECs__nnil_ECs). 
 Qed.
 
 Ltac preservation_simpl :=
@@ -777,16 +785,16 @@ Ltac preservation_simpl :=
      |- _ ] => 
     assert (J:=HwfS1);
     destruct J as 
-      [HwfMM [Hwfg [Hwfg' [HwfSystem [HmInS [
+      [HwfMM [Hwfg [Hwfg' [HwfSystem [HmInS [Hnnil [
        [Hreach1 [HBinF1 [HFinPs1 [Hwflc1 [Hinscope1 [Hwfm1 [Hwfm' 
          [l3 [ps3 [cs3' Heq1]]]]]]]]]]
-       [HwfEC HwfCall]]]]
+       [HwfEC HwfCall]]]]]
       ]]]; subst;
     destruct HwfLLVM2 as 
-      [Hwfg0 [HwfSystem0 [HmInS0 [
+      [Hwfg0 [HwfSystem0 [HmInS0 [Hnnil0 [
        [Hreach0 [HBinF0 [HFinPs0 [Hwflc0 [Hinscope0 [l0' [ps0 [cs0 Heq0]]]]]]]]
        [HwfECs0 HwfCall0]
-      ]]]]; subst
+      ]]]]]; subst
   end.
 
 Ltac preservation_tac :=
@@ -843,6 +851,7 @@ Ltac preservation_tac :=
            Mmap := ?MM |} ] => 
     preservation_simpl;
     repeat (split; auto); try solve [
+      intros; congruence |
       apply updateAddAL_nptr__wf_rmap; try solve [auto |
           apply wf_State__cmd__lookupTypViaIDFromFdef in HwfS1;
           rewrite HwfS1; simpl; try solve [auto | congruence]] |
@@ -899,7 +908,7 @@ Opaque wf_mmetadata wf_rmetadata.
 Focus.
 Case "sReturn".
   destruct HwfS1 as 
-    [HwfMM [Hwfg [Hwfg' [HwfSystem [HmInS [
+    [HwfMM [Hwfg [Hwfg' [HwfSystem [HmInS [Hnnil [
      [Hreach1 [HBinF1 [HFinPs1 [Hwflc1 [Hinscope1 [Hwfm1 [Hwfm1' 
        [l1 [ps1 [cs1' Heq1]]]]]]]]]]
      [
@@ -910,18 +919,19 @@ Case "sReturn".
        ]
        HwfCall'
      ]
-    ]]]]]]; subst.
+    ]]]]]]]; subst.
 
   destruct HwfLLVM2 as 
-    [Hwfg0 [HwfSystem0 [HmInS0 [
+    [Hwfg0 [HwfSystem0 [HmInS0 [Hnnil0 [
      [Hreach0 [HBinF0 [HFinPs0 [Hwflc0 [Hinscope0 [l0 [ps0 [cs0 Heq0]]]]]]]]
      [HwfECs0 HwfCall0]
-    ]]]]; subst.
+    ]]]]]; subst.
   assert (Hwfc := HBinF2).
   eapply wf_system__wf_cmd with (c:=c') in Hwfc; eauto using in_middle.
   repeat (split; auto).
     eapply free_allocas_preserves_wf_mmetadata; eauto.
     eapply free_allocas_preserves_wf_global_ptr; eauto.
+    intros; congruence.
     eapply returnUpdateLocals__wf_rmap; eauto.
 
     assert (Hwfc' := HBinF1).
@@ -937,7 +947,7 @@ Unfocus.
 Focus.
 Case "sReturnVoid".
   destruct HwfS1 as 
-    [HwfMM [Hwfg [Hwfg' [HwfSystem [HmInS [
+    [HwfMM [Hwfg [Hwfg' [HwfSystem [HmInS [Hnnil [
      [Hreach1 [HBinF1 [HFinPs1 [Hwflc1 [Hinscope1 [Hwfm1 [Hwfm1' 
        [l1 [ps1 [cs1' Heq1]]]]]]]]]]
      [
@@ -948,18 +958,19 @@ Case "sReturnVoid".
        ]
        HwfCall'
      ]
-    ]]]]]]; subst.
+    ]]]]]]]; subst.
 
   destruct HwfLLVM2 as 
-    [Hwfg0 [HwfSystem0 [HmInS0 [
+    [Hwfg0 [HwfSystem0 [HmInS0 [Hnnil0 [
      [Hreach0 [HBinF0 [HFinPs0 [Hwflc0 [Hinscope0 [l0 [ps0 [cs0 Heq0]]]]]]]]
      [HwfECs0 HwfCall0]
-    ]]]]; subst.
+    ]]]]]; subst.
   assert (Hwfc := HBinF2).
   eapply wf_system__wf_cmd with (c:=c') in Hwfc; eauto using in_middle.
   repeat (split; auto).
     eapply free_allocas_preserves_wf_mmetadata; eauto.
     eapply free_allocas_preserves_wf_global_ptr; eauto.
+    intros; congruence.
     eapply free_allocas_preserves_wf_rmetadata; eauto.
     exists l2. exists ps2. exists (cs2'++[c']). simpl_env. auto.
     eapply free_allocas_preserves_wf_ECStack; eauto.
@@ -973,6 +984,7 @@ Case "sBranch".
   assert (HwfF := HwfSystem).
     eapply wf_system__wf_fdef with (f:=F) in HwfF; eauto.
   repeat (split; auto).
+    intros; congruence.
     eapply switchToNewBasicBlock__wf_rmap with 
       (b1:=block_intro l' ps' cs' tmn')
       (b2:=block_intro l3 ps3 (cs3' ++ nil) (insn_br bid Cond l1 l2)); eauto.
@@ -988,6 +1000,7 @@ Case "sBranch_uncond".
   assert (HwfF := HwfSystem).
     eapply wf_system__wf_fdef with (f:=F) in HwfF; eauto.
   repeat (split; auto).
+    intros; congruence.
     eapply switchToNewBasicBlock__wf_rmap in H; eauto.
     eapply switchToNewBasicBlock__wf_rmetadata in H; eauto.
     exists l'. exists ps'. exists nil. simpl_env. auto.
@@ -1007,6 +1020,7 @@ Case "sMalloc".
   repeat (split; auto). 
     eapply malloc_extends_wf_mmetadata; eauto.
     eapply malloc_preserves_wf_global_ptr; eauto.
+    intro. congruence.
     apply updateAddAL_ptr__wf_rmap; auto. 
     eapply malloc_extends_wf_rmetadata; eauto.
     eauto.
@@ -1017,6 +1031,7 @@ Case "sFree".
   repeat (split; auto). 
     eapply free_preserves_wf_mmetadata; eauto.
     eapply free_preserves_wf_global_ptr; eauto.
+    intro. congruence.
     eapply free_preserves_wf_rmetadata; eauto.
     eauto.
     eapply free_preserves_wf_ECStack; eauto.
@@ -1027,6 +1042,7 @@ Case "sAlloca".
   repeat (split; auto). 
     eapply malloc_extends_wf_mmetadata; eauto.
     eapply malloc_preserves_wf_global_ptr; eauto.
+    intro. congruence.
     apply updateAddAL_ptr__wf_rmap; auto. 
     eapply malloc_extends_wf_rmetadata; eauto.
     eauto.
@@ -1036,6 +1052,7 @@ Case "sLoad_nptr".
   repeat ctx_simpl'.
   preservation_simpl.
   repeat (split; auto). 
+    intro. congruence.
     apply updateAddAL_nptr__wf_rmap; auto.
       apply wf_State__cmd__lookupTypViaIDFromFdef in HwfS1.
       rewrite HwfS1; simpl; auto. 
@@ -1046,6 +1063,7 @@ Case "sLoad_ptr".
   repeat ctx_simpl'.
   preservation_simpl.
   repeat (split; auto). 
+    intro. congruence.
     apply updateAddAL_ptr__wf_rmap; auto. 
     apply get_mem_metadata__wf_rmetadata; auto.
     eauto.
@@ -1056,6 +1074,7 @@ Case "sStore_nptr".
   repeat (split; auto). 
     eapply store_nptr_preserves_wf_mmetadata; eauto.
     eapply store_preserves_wf_global_ptr; eauto.
+    intro. congruence.
     eapply store_preserves_wf_rmetadata; eauto.
     eauto.
     eapply store_preserves_wf_ECStack; eauto.
@@ -1070,6 +1089,7 @@ Case "sStore_ptr".
         inv HBinF1; eauto.
         apply in_or_app; simpl; auto.
     eapply store_preserves_wf_global_ptr; eauto.
+    intro. congruence.
     eapply store_preserves_wf_rmetadata; eauto.
     eauto.
     eapply store_preserves_wf_ECStack; eauto.
@@ -1077,6 +1097,7 @@ Case "sStore_ptr".
 Case "sGEP". 
   preservation_simpl.
   repeat (split; auto). 
+    intro. congruence.
     apply updateAddAL_ptr__wf_rmap; auto.
 
     assert (Hwfc:=HwfS1). apply wf_State__wf_cmd in Hwfc.
@@ -1116,6 +1137,7 @@ Case "sBitcast_nptr".
 Case "sBitcast_ptr". 
   preservation_simpl.
   repeat (split; auto). 
+    intro. congruence.
     apply updateAddAL_ptr__wf_rmap; auto.
 
     assert (Hwfc:=HwfS1). apply wf_State__wf_cmd in Hwfc.
@@ -1128,6 +1150,7 @@ Case "sBitcast_ptr".
 Case "sInttoptr". 
   preservation_simpl.
   repeat (split; auto). 
+    intro. congruence.
     apply updateAddAL_ptr__wf_rmap; auto.
     apply adding_null_preserves_wf_rmetadata; auto.
     eauto.
@@ -1148,6 +1171,7 @@ Case "sFcmp". preservation_tac.
 Case "sSelect_nptr".
   preservation_simpl.
   repeat (split; auto). 
+    intro. congruence.
     destruct (isGVZero (los, nts) c); 
     apply updateAddAL_nptr__wf_rmap; try solve [
         auto |
@@ -1163,6 +1187,7 @@ Case "sSelect_ptr".
   inv Hwfc.
   rewrite <- H25 in *.
   repeat (split; auto). 
+    intro. congruence.
     rewrite H25.
     destruct (isGVZero (los, nts) c); 
       try solve [apply updateAddAL_ptr__wf_rmap; auto].
@@ -1181,6 +1206,7 @@ Case "sCall".
     (fdef_intro (fheader_intro fa rt fid la va) lb)) as HwfF.
     eapply wf_system__wf_fdef; eauto.
   repeat (split; auto). 
+    intro. congruence.
     eapply initLocals__wf_rmap; eauto.
 
     inv Hwfc. inv H7.
@@ -1202,6 +1228,7 @@ Case "sExCall".
   repeat (split; auto). 
     eapply callExternalFunction_preserves_wf_mmetadata; eauto.
     eapply callExternalFunction_preserves_wf_global_ptr; eauto.
+    intro. congruence.
    
     unfold exCallUpdateLocals in H5.
     destruct noret0.
@@ -2019,7 +2046,7 @@ Lemma load_progress : forall s los nts ps f b i0 t v a cs tmn lc rm als ecs gl
      Mmap := Mmap0 |}.
 Proof.
   intros.
-  destruct HwfS1 as [HwfMM1 [Hwfg1 [Hwfg1' [HwfSys1 [HmInS1 HwfECs]]]]].
+  destruct HwfS1 as [HwfMM1 [Hwfg1 [Hwfg1' [HwfSys1 [HmInS1 [Hnnil HwfECs]]]]]].
   destruct HwfECs as [[Hreach [HbInF [HfInPs [Hwflc [Hinscope [Hwfm [Hwfm'
                         [l1 [ps1 [cs1 Heq]]]]]]]]]]
                       [HwfECs HwfCall]].
@@ -2178,7 +2205,7 @@ Lemma store_progress : forall s los nts ps f b i0 t v v0 a cs tmn lc rm als ecs
      Mmap := Mmap0 |}.
 Proof.
   intros.
-  destruct HwfS1 as [HwfMM1 [Hwfg1 [Hwfg1' [HwfSys1 [HmInS1 HwfECs]]]]].
+  destruct HwfS1 as [HwfMM1 [Hwfg1 [Hwfg1' [HwfSys1 [HmInS1 [Hnnil HwfECs]]]]]].
   destruct HwfECs as [[Hreach [HbInF [HfInPs [Hwflc [Hinscope [Hwfm [Hwfm'
                         [l1 [ps1 [cs1 Heq]]]]]]]]]]
                       [HwfECs HwfCall]].
@@ -2467,8 +2494,8 @@ Proof.
                right; apply llvm_undef__sb_progress; auto].
 
   destruct cfg as [s [los nts] ps gl fs]. destruct S1 as [ecs M].
-  destruct HwfS1 as [HwfMM1 [Hwfg1 [Hwfg1' [HwfSys1 [HmInS1 HwfECs]]]]].
-  destruct ecs; try solve [inversion HwfECs].
+  destruct HwfS1 as [HwfMM1 [Hwfg1 [Hwfg1' [HwfSys1 [HmInS1 [Hnnil HwfECs]]]]]].
+  destruct ecs; try congruence.
   destruct e as [f b cs tmn lc rm als].
   destruct HwfECs as [[Hreach [HbInF [HfInPs [Hwflc [Hinscope [Hwfm [Hwfm'
                         [l1 [ps1 [cs1 Heq]]]]]]]]]]
