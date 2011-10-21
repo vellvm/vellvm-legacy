@@ -256,9 +256,9 @@ end.
 
 Definition mem_effect (c:cmd) : option (value * typ) :=
 match c with
-| insn_malloc pid t _ _ => Some (value_id pid, t)
+(*| insn_malloc pid t _ _ => Some (value_id pid, t)*)
 | insn_free _ t pv => Some (pv, t)
-| insn_alloca pid t _ _ => Some (value_id pid, t)
+(*| insn_alloca pid t _ _ => Some (value_id pid, t)*)
 | insn_store _ t _ pv _ => Some (pv, t)
 | _ => None
 end.
@@ -297,7 +297,11 @@ List.fold_left
    if acc then
      match (mem_effect c) with
      | Some (pv2, t2) => negb (is_aliasing pv1 t1 pv2 t2)
-     | None => true
+     | None => 
+         match c with
+         | insn_call _ _ _ _ _ _ => false
+         | _ => true
+         end
      end
    else acc) cs true.
 
@@ -366,6 +370,8 @@ Definition kill_loadstores (inscope: lcmds) : lcmds :=
               | (_, _) => true
               end) inscope.
 
+Parameter does_load_elim : unit -> bool.
+
 Definition gvn_cmd (st:fdef*bool*lcmds) (l1:l) (c:cmd) : fdef*bool*lcmds :=
 let '(f, changed, inscope) := st in
 if (pure_cmd c) then
@@ -386,13 +392,15 @@ if (pure_cmd c) then
 else 
   match c with 
   | insn_load id1 t1 pv1 al1 =>
-    match lookup_redundant_load inscope t1 pv1 al1 with
-    | None => (f, changed, (l1,c)::inscope)
-    | Some (l0, id0, v0) => 
-        if fdef_doesnt_kill f l0 l1 id1 pv1 t1 then
-          (remove_fdef id1 (subst_fdef id1 v0 f), true, inscope)
-        else (f, changed, (l1,c)::inscope)
-    end
+    if does_load_elim tt then
+      match lookup_redundant_load inscope t1 pv1 al1 with
+      | None => (f, changed, (l1,c)::inscope)
+      | Some (l0, id0, v0) => 
+          if fdef_doesnt_kill f l0 l1 id1 pv1 t1 then
+            (remove_fdef id1 (subst_fdef id1 v0 f), true, inscope)
+          else (f, changed, (l1,c)::inscope)
+      end
+    else (f, changed, (l1,c)::inscope)
   | _ =>
     match (mem_effect c) with
     | Some (pv, t) => 
@@ -633,13 +641,17 @@ match lookup_predundant_exp f res rd rd with
 | None => (f, false)
 end.
 
+Parameter does_pre : unit -> bool.
+
 Definition opt_step (dt:DTree) (res: AMap.t (set l)) (rd:list l) (f: fdef)
   : fdef + fdef :=
 let '(f1, changed1) := gvn_fdef_dtree f false nil dt in
 if changed1 then inr _ f1 
 else 
-  let '(f2, changed2) := pre_fdef f1 res rd in
-  if changed2 then inr _ f2 else inl _ f2.
+  if does_pre tt then
+    let '(f2, changed2) := pre_fdef f1 res rd in
+    if changed2 then inr _ f2 else inl _ f2
+  else inl _ f1.
 
 Parameter print_reachablity : list l -> bool.
 Parameter print_dominators : list l -> AMap.t (set l) -> bool.
@@ -672,20 +684,63 @@ match getEntryBlock f, reachablity_analysis f with
 | Some (block_intro root _ _ _), Some rd =>
     let b := bound_fdef f in
     let dts := dep_doms__nondep_doms b (dom_analyze f) in
-    match create_dtree_aux dts root 
-      (List.remove eq_atom_dec root rd) with
-    | Some dt => 
-        if print_reachablity rd && print_dominators b dts && print_dtree dt then
+    let idoms := compute_idoms dts rd nil in
+    match create_dtree_aux (List.remove eq_atom_dec root rd) dts root with
+    | None => f
+    | Some dt =>
+       if print_reachablity rd && print_dominators b dts && 
+          print_dtree dt then
           match fix_temporary_fdef 
-                  (SafePrimIter.iterate _ (opt_step dt dts rd) (dce_fdef f)) with
+                  (SafePrimIter.iterate _ (opt_step dt dts rd) 
+                     (dce_fdef f)) with
           | Some f' => f'
           | _ => f
           end
-        else f
-    | None => f
+       else f
     end
 | _, _ => f
 end.
+
+(*
+Program Definition opt_fdef (f:fdef) : fdef :=
+match getEntryBlock f, reachablity_analysis f with
+| Some (block_intro root _ _ _), Some rd =>
+    let b := bound_fdef f in
+    let dts := dep_doms__nondep_doms b (dom_analyze f) in
+    let idoms := compute_idoms dts rd nil in
+    match init_pre_dtree idoms root (List.remove eq_atom_dec root rd) with
+    | None => f
+    | Some (pdt0, others) =>
+        match (create_pre_dtree_aux others idoms pdt0) with
+        | None => f
+        | Some pdt => 
+            match 
+              tree2dtree 
+                (vertexes_of_pre_dtree pdt) (arcs_of_pre_dtree pdt)
+                (WF_pre_dtree_isa_tree f pdt _) with
+            | Some dt =>
+                if print_reachablity rd && print_dominators b dts && 
+                   print_dtree dt then
+                   match fix_temporary_fdef 
+                            (SafePrimIter.iterate _ (opt_step dt dts rd) 
+                               (dce_fdef f)) with
+                   | Some f' => f'
+                   | _ => f
+                   end
+                else f
+            | None => f
+            end
+        end
+    end
+| _, _ => f
+end.
+Next Obligation. 
+  eapply init_create_pre_dtree_aux__WF_pre_dtree; eauto.
+    clear - Heq_anonymous.
+    destruct f; simpl in *.
+    destruct b; simpl in *; inv Heq_anonymous. auto.
+Qed.
+*)
 
 Definition opt (m:module) : module :=
 let '(module_intro los nts ps) := m in
