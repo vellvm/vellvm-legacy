@@ -684,20 +684,22 @@ match getEntryBlock f, reachablity_analysis f with
 | Some (block_intro root _ _ _), Some rd =>
     let b := bound_fdef f in
     let dts := dep_doms__nondep_doms b (dom_analyze f) in
-    let idoms := compute_idoms dts rd nil in
-    match create_dtree_aux (List.remove eq_atom_dec root rd) dts root with
-    | None => f
-    | Some dt =>
-       if print_reachablity rd && print_dominators b dts && 
-          print_dtree dt then
-          match fix_temporary_fdef 
-                  (SafePrimIter.iterate _ (opt_step dt dts rd) 
-                     (dce_fdef f)) with
-          | Some f' => f'
-          | _ => f
-          end
-       else f
-    end
+    let chains := compute_sdom_chains dts rd in
+    let dt :=
+      fold_left 
+      (fun acc elt => 
+        let '(_, chain):=elt in 
+        create_dtree_from_chain acc chain) 
+      chains (DT_node root DT_nil) in
+    if print_reachablity rd && print_dominators b dts && 
+       print_dtree dt then
+       match fix_temporary_fdef 
+               (SafePrimIter.iterate _ (opt_step dt dts rd) 
+                 (dce_fdef f)) with
+       | Some f' => f'
+       | _ => f
+       end
+    else f
 | _, _ => f
 end.
 

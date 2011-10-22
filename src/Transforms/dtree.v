@@ -50,14 +50,20 @@ Proof.
 Qed.
 
 Lemma remove_neq_in': forall (a b:A) (l1: list A),
-  a <> b ->
   In a (List.remove Hdec b l1) ->
-  In a l1.
+  In a l1 /\ a <> b.
 Proof.
   induction l1; simpl; intros; auto.
-    destruct (Hdec b a0); subst; simpl; auto.
-      simpl in H0.
-      destruct H0 as [H0 | H0]; subst; auto.
+    destruct (Hdec b a0); subst; simpl.
+      apply IHl1 in H.
+      destruct H as [H1 H2].
+      split; auto.
+
+      simpl in H.
+      destruct H as [H | H]; subst; auto.
+      apply IHl1 in H.
+      destruct H as [H1 H2].
+      split; auto.
 Qed.
 
 End MoreMove.
@@ -164,6 +170,346 @@ with WF_dtrees (f:fdef) : l -> DTrees -> Prop :=
              WF_dtrees f l0 (DT_cons dt0 dts0)
 .
 
+(* l1 >> l2, l1 strict dominates l2 *)
+Definition gt_sdom (res: AMap.t (set l)) (l1 l2:l) : bool :=
+match AMap.get l2 res with
+| dts2 => in_dec l_dec l1 dts2
+end.
+
+Fixpoint find_min (res: AMap.t (set l)) (acc:l) (dts: set l): l :=
+match dts with
+| nil => acc
+| l0::dts' =>
+    if (gt_sdom res acc l0) then
+      find_min res l0 dts' 
+    else
+      find_min res acc dts' 
+end.
+
+Fixpoint insert_sdom_iter (res: AMap.t (set l)) (l0:l) (prefix suffix:list l) 
+  : list l :=
+match suffix with
+| nil => List.rev (l0 :: prefix)
+| l1::suffix' => 
+    if gt_sdom res l0 l1 then (List.rev (l0 :: prefix)) ++ suffix
+    else insert_sdom_iter res l0 (l1::prefix) suffix'
+end.
+
+Fixpoint insert_sort_sdom (res: AMap.t (set l)) (data:list l) (acc:list l) 
+  : list l :=
+match data with
+| nil => acc 
+| l1 :: data' => insert_sort_sdom res data' (insert_sdom_iter res l1 nil acc)
+end.
+
+Definition sort_sdom (res: AMap.t (set l)) (data:list l) : list l :=
+insert_sort_sdom res data nil.
+
+Require Import Sorted.
+
+Definition gt_sdom_prop (res: AMap.t (set l)) (l1 l2:l) : Prop :=
+gt_sdom res l1 l2 = true.
+
+Lemma insert_sdom_iter_sorted: forall res input,
+  Sorted (gt_sdom_prop res) (sort_sdom res input).
+Admitted.
+
+Lemma insert_sdom_iter_safe: forall res input l0,
+  In l0 input <-> In l0 (sort_sdom res input).
+Admitted.
+
+Fixpoint remove_redundant (input: list l) : list l :=
+match input with
+| a :: ((b :: _) as input') =>
+    if (l_dec a b) then remove_redundant input'
+    else a :: remove_redundant input'
+| _ => input
+end.
+
+Lemma remove_redundant_safe: forall input l0,
+  In l0 input <-> In l0 (remove_redundant input).
+Admitted.
+
+Lemma remove_redundant_sorted: forall R input,
+  Sorted R input ->
+  Sorted R (remove_redundant input) /\ NoDup (remove_redundant input).
+Admitted.
+
+Fixpoint compute_sdom_chains_aux (res: AMap.t (set l)) (bd: list l) 
+  (acc: list (l * list l)) : list (l * list l) :=
+match bd with
+| nil => acc
+| l0 :: bd' => 
+    compute_sdom_chains_aux res bd' 
+      ((l0, remove_redundant (sort_sdom res (l0 :: AMap.get l0 res)))::acc)
+end.
+
+Definition compute_sdom_chains (res: AMap.t (set l)) (bd: list l) 
+  : list (l * list l) :=
+compute_sdom_chains_aux res bd nil.
+
+Lemma compute_sdom_chains_sorted: forall res bd l0 chain,
+  In (l0, chain) (compute_sdom_chains res bd) ->
+  Sorted (gt_sdom_prop res) chain /\ NoDup chain.
+Admitted.
+
+Lemma compute_sdom_chains_safe: forall res bd l0 chain l1,
+  In (l0, chain) (compute_sdom_chains res bd) ->
+  (In l1 chain <-> In l1 (l0 :: AMap.get l0 res)).
+Admitted.
+
+Fixpoint dep_doms__nondep_doms_aux bd0 (res: AMap.t (Dominators.t bd0)) 
+  bd (acc: AMap.t (set l)) : AMap.t (set l) :=
+match bd with
+| nil => acc
+| l0::bd' => 
+    match AMap.get l0 res with
+    | (Dominators.mkBoundedSet dts0 _) =>
+        AMap.set l0 dts0 (dep_doms__nondep_doms_aux bd0 res bd' acc)
+    end
+end.
+
+Definition dep_doms__nondep_doms bd (res: AMap.t (Dominators.t bd)) 
+  : AMap.t (set l) :=
+dep_doms__nondep_doms_aux bd res bd (AMap.init nil).
+
+Definition wf_chain f dt (chain:list l) : Prop :=
+match chain with
+| entry :: _ => 
+   let b := bound_fdef f in
+   let res := dep_doms__nondep_doms b (dom_analyze f) in
+   entry `in` dtree_dom dt /\
+   NoDup chain /\ Sorted (gt_sdom_prop res) chain
+| _ => True
+end.
+
+Definition getEntryLabel (f:fdef) : option l :=
+match f with
+| fdef_intro _ ((block_intro l0 _ _ _)::_) => Some l0
+| _ => None
+end.
+
+Lemma compute_sdom_chains__wf_chain: forall f l0 chain0 entry rd,
+  getEntryLabel f = Some entry ->
+  reachablity_analysis f =  Some rd ->
+  In (l0, chain0)
+    (compute_sdom_chains
+       (dep_doms__nondep_doms (bound_fdef f) (dom_analyze f)) rd) ->
+  wf_chain f (DT_node entry DT_nil) chain0.
+Admitted.
+
+Fixpoint in_children_roots child dts : bool :=
+match dts with
+| DT_nil => false
+| DT_cons (DT_node l0 _) dts' =>
+    if (l_dec l0 child) then true else in_children_roots child dts'
+end.
+
+Fixpoint dtree_insert dt parent child : DTree :=
+match dt with
+| DT_node l0 dts0 => 
+    if (id_dec parent l0) then 
+      if in_children_roots child dts0 then dt
+      else DT_node l0 (DT_cons (DT_node child DT_nil) dts0)
+    else DT_node l0 (dtrees_insert dts0 parent child)
+end
+with dtrees_insert (dts: DTrees) parent child : DTrees :=
+match dts with
+| DT_nil => DT_nil
+| DT_cons dt0 dts0 => 
+    DT_cons (dtree_insert dt0 parent child) (dtrees_insert dts0 parent child)
+end.
+
+Fixpoint is_dtree_edge dt parent child : bool :=
+match dt with
+| DT_node l0 dts0 => 
+    if (id_dec parent l0) then 
+      if in_children_roots child dts0 then true
+      else is_dtrees_edge dts0 parent child
+    else is_dtrees_edge dts0 parent child
+end
+with is_dtrees_edge (dts: DTrees) parent child : bool :=
+match dts with
+| DT_nil => false
+| DT_cons dt0 dts0 => 
+    is_dtree_edge dt0 parent child || is_dtrees_edge dts0 parent child
+end.
+
+Scheme dtree_rec2 := Induction for DTree Sort Set
+  with dtrees_rec2 := Induction for DTrees Sort Set.
+
+Definition dtree_mutrec P P' :=
+  fun h1 h2 h3 => 
+    (pair (@dtree_rec2 P P' h1 h2 h3) (@dtrees_rec2 P P' h1 h2 h3)).
+
+Definition dtree_insert__wf_dtree_prop (dt1:DTree) := 
+forall f p ch dt2,
+  WF_dtree f dt1 ->
+  p `in` dtree_dom dt1 ->
+  imm_domination f p ch ->
+  dtree_insert dt1 p ch = dt2 ->
+  WF_dtree f dt2 /\ is_dtree_edge dt2 p ch /\
+  (is_dtree_edge dt1 p ch -> dt1 = dt2).
+
+Definition dtrees_insert__wf_dtrees_prop (dts1:DTrees) := 
+forall f p ch dts2 root,
+  WF_dtrees f root dts1 ->
+  p `in` dtrees_dom dts1 ->
+  imm_domination f p ch ->
+  dtrees_insert dts1 p ch = dts2 ->
+  WF_dtrees f root dts2 /\ is_dtrees_edge dts2 p ch /\
+  (is_dtrees_edge dts1 p ch -> dts1 = dts2).
+
+Lemma dtree_insert__wf_dtree_mutrec :
+  (forall dt1, dtree_insert__wf_dtree_prop dt1) *
+  (forall dts1, dtrees_insert__wf_dtrees_prop dts1).
+Proof.
+  apply dtree_mutrec; 
+    unfold dtree_insert__wf_dtree_prop, dtrees_insert__wf_dtrees_prop;
+    simpl; intros.
+Admitted.
+
+Lemma dtree_insert__wf_dtree : forall f p ch dt1 dt2,
+  WF_dtree f dt1 ->
+  p `in` dtree_dom dt1 ->
+  imm_domination f p ch ->
+  dtree_insert dt1 p ch = dt2 ->
+  WF_dtree f dt2 /\ is_dtree_edge dt2 p ch /\
+  (is_dtree_edge dt1 p ch -> dt1 = dt2).
+Admitted.
+
+Fixpoint create_dtree_from_chain dt chain : DTree :=
+match chain with
+| p::((ch::_) as chain') => 
+    create_dtree_from_chain (dtree_insert dt p ch) chain'
+| _ => dt
+end.
+
+Fixpoint chain_in_dtree chain dt : Prop :=
+match chain with
+| p::((ch::_) as chain') => 
+   is_dtree_edge dt p ch /\ chain_in_dtree chain' dt
+| _ => True
+end.
+
+Lemma create_dtree_from_chain__wf_dtree: forall f dt chain,
+  wf_chain f dt chain ->
+  WF_dtree f dt ->
+  WF_dtree f (create_dtree_from_chain dt chain).
+Admitted.
+
+Lemma create_dtree_from_chain__in_dtree: forall f dt chain,
+  wf_chain f dt chain ->
+  chain_in_dtree chain (create_dtree_from_chain dt chain).
+Admitted.
+
+Lemma create_dtree_from_chain__in_dtree': forall dt chain chain0,
+  chain_in_dtree chain0 dt ->
+  chain_in_dtree chain0 (create_dtree_from_chain dt chain).
+Admitted.
+
+Lemma create_dtree_from_chain__wf_chain: forall f chain0 chain dt,
+  wf_chain f dt chain0 ->
+  wf_chain f (create_dtree_from_chain dt chain) chain0.
+Proof.
+  induction chain; simpl; intros; auto.
+    destruct chain; auto.
+    apply IHchain.    
+
+Admitted.
+
+Definition create_dtree (f: fdef) : option DTree :=
+match getEntryLabel f, reachablity_analysis f with
+| Some root, Some rd =>
+    let dt := dom_analyze f in
+    let b := bound_fdef f in
+    let chains := compute_sdom_chains (dep_doms__nondep_doms b dt) rd in
+    Some (fold_left 
+      (fun acc elt => let '(_, chain):=elt in create_dtree_from_chain acc chain) 
+      chains (DT_node root DT_nil))
+| _, _ => None
+end.
+
+Lemma fold_left_create_dtree_from_chain__wf_dtree: forall f chains dt,
+  (forall l0 chain0, In (l0, chain0) chains -> wf_chain f dt chain0) ->
+  WF_dtree f dt ->
+  WF_dtree f
+    (fold_left
+       (fun (acc : DTree) (elt : l * list id) =>
+        let '(_, chain) := elt in create_dtree_from_chain acc chain) chains 
+       dt).
+Proof.
+  induction chains; simpl; intros; auto.
+    destruct a.
+    apply create_dtree_from_chain__wf_dtree with (chain:=l1) in H0; eauto.
+      apply IHchains; auto.
+        intros.
+        apply create_dtree_from_chain__wf_chain; eauto.
+Qed.
+
+Lemma fold_left_create_dtree_from_chain_init_in_dtree: forall chain0 chains dt,
+  chain_in_dtree chain0 dt ->
+  chain_in_dtree chain0
+    (fold_left
+      (fun (acc : DTree) (elt : l * list id) =>
+       let '(_, chain) := elt in create_dtree_from_chain acc chain)
+     chains dt).
+Proof.
+  induction chains; intros; auto.
+    apply IHchains. destruct a.
+    apply create_dtree_from_chain__in_dtree'; auto.
+Qed.
+
+Lemma fold_left_create_dtree_from_chain__in_dtree: forall f l0 chain0 chains dt,
+  In (l0, chain0) chains -> wf_chain f dt chain0 ->
+  chain_in_dtree chain0
+    (fold_left
+      (fun (acc : DTree) (elt : l * list id) =>
+       let '(_, chain) := elt in create_dtree_from_chain acc chain)
+     chains dt).
+Proof.
+  induction chains; simpl; intros.
+    inv H.
+
+    destruct H as [H | H]; subst.
+      apply fold_left_create_dtree_from_chain_init_in_dtree.
+      eapply create_dtree_from_chain__in_dtree; eauto.
+
+      apply IHchains; auto.
+      destruct a.
+      apply create_dtree_from_chain__wf_chain; eauto.
+Qed.
+
+Lemma create_dtree__wf_dtree: forall f dt,
+  create_dtree f = Some dt ->
+  WF_dtree f dt /\ 
+  match getEntryLabel f, reachablity_analysis f with
+  | Some root, Some rd =>
+      let dt' := dom_analyze f in
+      let b := bound_fdef f in
+      let chains := compute_sdom_chains (dep_doms__nondep_doms b dt') rd in
+      forall l0 chain0, 
+        In (l0, chain0) chains -> chain_in_dtree chain0 dt
+  | _, _ => True
+  end.
+Proof.
+  unfold create_dtree.
+  intros.
+  remember (getEntryLabel f) as R.
+  destruct R; tinv H.
+  remember (reachablity_analysis f) as R.
+  destruct R; inv H.
+  split. 
+    apply fold_left_create_dtree_from_chain__wf_dtree.
+      intros. eapply compute_sdom_chains__wf_chain; eauto.
+      apply WDT_node; auto.
+        admit. (*reach*)
+        constructor.
+    intros.
+    eapply fold_left_create_dtree_from_chain__in_dtree; eauto.
+      eapply compute_sdom_chains__wf_chain; eauto.    
+Qed.
+
 Fixpoint find_idom_aux (res: AMap.t (set l)) (acc:l) (dts: set l): option l :=
 match dts with
 | nil => Some acc
@@ -189,29 +535,94 @@ match AMap.get l0 res with
 | _ => None
 end.
 
-Require Import Trees.
-
-Fixpoint dtree_insert dt parent child : option DTree :=
-match dt with
-| DT_node l0 dts0 => 
-    if (id_dec parent l0) then 
-      Some (DT_node l0 (DT_cons (DT_node child DT_nil) dts0))
-    else 
-      match dtrees_insert dts0 parent child with
-      | Some dts1 => Some (DT_node l0 dts1)
-      | None => None
-      end
-end
-with dtrees_insert (dts: DTrees) parent child : option DTrees :=
-match dts with
-| DT_nil => Some DT_nil
-| DT_cons dt0 dts0 => 
-    match dtree_insert dt0 parent child, dtrees_insert dts0 parent child with
-    | Some dt1, Some dts1 => Some (DT_cons dt1 dts1)
-    | _, _ => None
+Fixpoint compute_idoms (res: AMap.t (set l)) (bd: list l) (acc: list (l * l)) :
+  list (l * l) :=
+match bd with
+| nil => acc
+| l0 :: bd' =>
+    match find_idom res l0 with
+    | None => compute_idoms res bd' acc
+    | Some l1 => compute_idoms res bd' ((l1,l0)::acc)
     end
 end.
 
+(*
+Require Import Orders.
+
+Module NatOrder <: TotalLeBool.
+
+Section A.
+ 
+  Variable f: fdef.
+  Variable l0: l.
+  Hypothesis Hreach: reachable f l0.
+
+  Definition t := {l0: l & }.
+  Fixpoint leb x y :=
+    match x, y with
+    | O, _ => true
+    | _, O => false
+    | S x', S y' => leb x' y'
+    end.
+  Infix "<=?" := leb (at level 35).
+  Theorem leb_total : forall a1 a2, a1 <=? a2 \/ a2 <=? a1. admit. Qed.
+
+End A.
+
+End NatOrder.
+
+Lemma sdom_ordered : forall f l1 l2 l3
+  (Hneq: l1 <> l2) (Hreach: reachable f l3)
+  (Hsdom: strict_domination f l1 l3)
+  (Hsdom': strict_domination f l2 l3),
+  strict_domination f l1 l2 \/ strict_domination f l2 l1.
+Proof.
+  intros.
+  apply sdom_sdom' in Hsdom; auto.
+  apply sdom_sdom' in Hsdom'; auto.
+  assert (J:=Hsdom').
+  eapply sdom_ordered' in J; eauto.
+  destruct J as [[J1 J2] | [J1 J2]].
+    left. apply dom_sdom; auto.
+    right. apply dom_sdom; auto.
+Qed.
+
+Require Import Sorting.
+
+Module Import NatSort := Sort NatOrder.
+
+Check sort.
+
+Eval compute in sort (5::3::6::1::8::6::0::nil)%nat.
+*)
+
+(*
+Fixpoint find_idom_aux (res: AMap.t (set l)) (acc:l) (dts: set l): option l :=
+match dts with
+| nil => Some acc
+| l0::dts' =>
+    match AMap.get l0 res, AMap.get acc res with
+    | dts1, dts2 =>
+        if (in_dec l_dec l0 dts2)
+        then (* acc << l0 *)
+          find_idom_aux res acc dts' 
+        else
+          if (in_dec l_dec acc dts1)
+          then (* l0 << acc *)
+            find_idom_aux res l0 dts' 
+          else (* l0 and acc are incompariable *)
+            None
+    end
+end.
+
+(* We should prove that this function is not partial. *)
+Definition find_idom (res: AMap.t (set l)) (l0:l) : option l :=
+match AMap.get l0 res with
+| l1::dts0 => find_idom_aux res l1 dts0
+| _ => None
+end.
+
+(*
 Fixpoint tree2dtree vs es (tree: Tree vs es) : option DTree :=
 match tree with
 | T_root (index le) => Some (DT_node le DT_nil)
@@ -222,8 +633,9 @@ match tree with
     end
 | T_eq vs1 vs2 es1 es2 _ _ t1 => tree2dtree vs1 es1 t1
 end.
+*)
 
-Definition PreDTree := list (l * l).
+Definition PreDTree := list (l * list l).
 
 Definition getEntryLabel (f:fdef) : option l :=
 match f with
@@ -234,206 +646,166 @@ end.
 Fixpoint cdom (pdt: PreDTree) : atoms :=
 match pdt with
 | nil => empty
-| (_,l2)::pdt' => add l2 (cdom pdt')
+| (_, children)::pdt' => 
+    fold_left (fun acc child => add child acc) children (cdom pdt') 
 end.
 
-Inductive WF_pre_dtree (f:fdef) : PreDTree -> Type :=
-| WPDT_entry : forall entry child,
+Inductive WF_idoms f : list (l*l) -> Prop :=
+| WF_idoms_nil : WF_idoms f nil 
+| WF_idoms_cons : forall l1 l2 idoms, 
+    imm_domination f l1 l2 -> WF_idoms f idoms ->
+    WF_idoms f ((l1,l2)::idoms)
+.
+
+Inductive WF_predtree (f:fdef) : PreDTree -> Prop :=
+| WPDT_entry : forall entry children,
     getEntryLabel f = Some entry ->
-    imm_domination f entry child -> 
-    WF_pre_dtree f ((entry, child)::nil)
-| WPDT_cons : forall parent child pdt,
-    WF_pre_dtree f pdt ->
+    (forall child, In child children -> imm_domination f entry child) ->
+    NoDup children ->
+    WF_predtree f ((entry, children)::nil)
+| WPDT_cons : forall parent children pdt,
+    WF_predtree f pdt ->
     reachable f parent ->
-    imm_domination f parent child -> 
-    child `notin` dom pdt `union` cdom pdt ->
-    (parent `in` dom pdt \/ exists ancestor, In (ancestor, parent) pdt) -> 
-    WF_pre_dtree f ((parent, child) :: pdt).
+    (forall child, In child children -> 
+       imm_domination f parent child /\ child `notin` dom pdt `union` cdom pdt) ->
+    NoDup children ->
+    parent `notin` dom pdt ->
+    (exists ancestor, exists parents,
+      In (ancestor, parents) pdt /\ In parent parents) -> 
+    WF_predtree f ((parent, children) :: pdt).
 
-Definition arcs_of_pre_dtree (pdt: PreDTree) : A_set :=
-fun arc =>
-  match arc with
-  | A_ends (index parent) (index child) => 
-      In (parent, child) pdt \/ In (child, parent) pdt
-  end.
+Fixpoint dtree_insert dt parent children : option DTree :=
+match dt with
+| DT_node l0 dts0 => 
+    if (id_dec parent l0) then 
+      Some (DT_node l0 
+        (fold_left (fun acc child => DT_cons (DT_node child DT_nil) acc) 
+          children dts0))
+    else 
+      match dtrees_insert dts0 parent children with
+      | Some dts1 => Some (DT_node l0 dts1)
+      | None => None
+      end
+end
+with dtrees_insert (dts: DTrees) parent children : option DTrees :=
+match dts with
+| DT_nil => Some DT_nil
+| DT_cons dt0 dts0 => 
+    match dtree_insert dt0 parent children, 
+          dtrees_insert dts0 parent children with
+    | Some dt1, Some dts1 => Some (DT_cons dt1 dts1)
+    | _, _ => None
+    end
+end.
 
-Definition vertexes_of_pre_dtree (pdt: PreDTree) : V_set :=
-fun v =>
-  match v with
-  | index n => exists n', In (n, n') pdt \/ In (n', n) pdt
-  end.
+Fixpoint predtree2dtree (pdt: PreDTree) : option DTree :=
+match pdt with
+| nil => None
+| (p, chs) :: nil =>
+    Some (DT_node p
+      (fold_left (fun acc child => DT_cons (DT_node child DT_nil) acc) 
+         chs DT_nil))
+| (p, chs) :: pdt' =>
+    match predtree2dtree pdt' with
+    | Some dt' => dtree_insert dt' p chs
+    | _ => None
+    end
+end.
 
-Lemma In_vertexes_of_pre_dtree: forall l1 l2 pdt,
-  In (l1, l2) pdt -> vertexes_of_pre_dtree pdt (index l2).
+Lemma wf_predtree__wf_dtree__helper: forall f p chs dts0
+  (H0 : reachable f p)
+  (H1 : forall child : l, In child chs -> 
+        imm_domination f p child /\ child `notin` dtrees_dom dts0)
+  (h2 : NoDup chs),
+  WF_dtrees f p dts0 ->
+  WF_dtrees f p
+       (fold_left
+          (fun (acc : DTrees) (child : l) =>
+           DT_cons (DT_node child DT_nil) acc) chs dts0).
 Proof.
-  induction pdt; simpl; intros.
-    inv H.
-    exists l1.
-    destruct H as [H | H]; subst; auto.
-Qed.
+  induction chs; simpl; intros; auto.
+    inv h2.
+    apply IHchs; auto.
+      intros.
+      assert (a = child \/ In child chs) as Hin. auto.
+      apply H1 in Hin.
+      destruct Hin as [J1 J2].
+      simpl. split; auto.
+      assert (child <> a) as Hneq.
+        destruct (l_dec child a); subst; auto.
+          fsetdec.
 
-Lemma In_vertexes_of_pre_dtree': forall l1 l2 pdt,
-  In (l1, l2) pdt -> vertexes_of_pre_dtree pdt (index l1).
-Proof.
-  induction pdt; simpl; intros.
-    inv H.
-    exists l2.
-    destruct H as [H | H]; subst; auto.
-Qed.
-
-Lemma InDom_vertexes_of_pre_dtree: forall l1 pdt,
-  l1 `in` dom pdt -> vertexes_of_pre_dtree pdt (index l1).
-Proof.
-  induction pdt; simpl; intros.
-    fsetdec.
-
-    destruct a.
-    assert (l1 = a \/ l1 `in` dom pdt) as Hin.
-      fsetdec.
-    destruct Hin as [Hin | Hin]; subst.
-      exists l0. auto.
-      apply IHpdt in Hin. simpl in Hin.
-      destruct Hin as [n' [Hin | Hin]]; exists n'; auto.
-Qed.
-
-Lemma Notin_vertexes_of_pre_dtree: forall child pdt
-  (n : child `notin` dom pdt `union` cdom pdt),
-  ~ vertexes_of_pre_dtree pdt (index child).
-Proof.
-  induction pdt; simpl; intros.
-    intro J. destruct J as [_ [J | J]]; inv J.
-
-    intro J. 
-    destruct J as [n' [J | J]].
-      destruct J as [J | J]; subst.
+      assert (a = a \/ In a chs) as Hin. auto.
+      apply H1 in Hin.
+      destruct Hin as [J1 J2].
+      apply WDT_cons; simpl; auto.
         fsetdec.
-        
-        destruct a.    
-        apply In_vertexes_of_pre_dtree' in J.
-        revert J. 
-        apply IHpdt; auto.
-      destruct J as [J | J]; subst.
-        fsetdec.
-
-        destruct a.    
-        apply In_vertexes_of_pre_dtree in J.
-        revert J. 
-        apply IHpdt; auto.
+        apply WDT_node; auto.
+          admit.
+          apply WDT_nil.
 Qed.
 
-Lemma In_arcs_of_pre_dtree: forall a a0 pdt,
-  In (a, a0) pdt ->
-  Ensembles.In Arc (arcs_of_pre_dtree pdt) (A_ends (index a) (index a0)).
-Proof.
-  induction pdt; simpl; intros.
-    inv H.
+Scheme dtree_rec2 := Induction for DTree Sort Set
+  with dtrees_rec2 := Induction for DTrees Sort Set.
 
-    unfold Ensembles.In. simpl.
-    destruct H as [H | H]; subst; auto.
+Definition dtree_mutrec P P' :=
+  fun h1 h2 h3 => 
+    (pair (@dtree_rec2 P P' h1 h2 h3) (@dtrees_rec2 P P' h1 h2 h3)).
+
+Definition dtree_insert__wf_dtree_prop (dt1:DTree) := 
+forall f a1 a0,
+  WF_dtree f dt1 ->
+  exists dt2, dtree_insert dt1 a1 a0 = ret dt2 /\ WF_dtree f dt2.
+
+Definition dtrees_insert__wf_dtrees_prop (dts1:DTrees) := 
+forall f root a1 a0,
+  WF_dtrees f root dts1 ->
+  exists dts2, dtrees_insert dts1 a1 a0 = ret dts2 /\ WF_dtrees f root dts2.
+
+Lemma dtree_insert__wf_dtree_mutrec :
+  (forall dt1, dtree_insert__wf_dtree_prop dt1) *
+  (forall dts1, dtrees_insert__wf_dtrees_prop dts1).
+Proof.
+  apply dtree_mutrec; 
+    unfold dtree_insert__wf_dtree_prop, dtrees_insert__wf_dtrees_prop;
+    simpl; intros.
+Admitted.
+
+Lemma dtree_insert__wf_dtree: forall f dt1 a1 a0,
+  WF_dtree f dt1 ->
+  exists dt2, dtree_insert dt1 a1 a0 = ret dt2 /\ WF_dtree f dt2.
+Proof.
+  destruct dtree_insert__wf_dtree_mutrec as [J1 _].
+  unfold dtree_insert__wf_dtree_prop in J1. auto.
 Qed.
 
-Lemma In_arcs_of_pre_dtree': forall a a0 pdt,
-  In (a0, a) pdt ->
-  Ensembles.In Arc (arcs_of_pre_dtree pdt) (A_ends (index a) (index a0)).
+Lemma WF_idoms_elim: forall f p ch idoms,
+  WF_idoms f idoms -> In (p, ch) idoms -> imm_domination f p ch.
+Admitted.
+
+Lemma wf_predtree__wf_dtree : forall f pdts,
+  WF_predtree f pdts ->
+  exists dt, predtree2dtree pdts = Some dt /\ WF_dtree f dt.
 Proof.
-  induction pdt; simpl; intros.
-    inv H.
+  intros.
+  induction H; simpl.
+    exists 
+      (DT_node entry
+         (fold_left
+            (fun (acc : DTrees) (child : l) =>
+             DT_cons (DT_node child DT_nil) acc) children DT_nil)).
+    split; auto.
+      apply WDT_node.
+        admit.
+        admit.
+        apply wf_predtree__wf_dtree__helper; auto.
+          admit. 
+          apply WDT_nil.
 
-    unfold Ensembles.In. simpl.
-    destruct H as [H | H]; subst; auto.
-Qed.
-
-Lemma WF_pre_dtree_isa_tree: forall f pdt, 
-  WF_pre_dtree f pdt -> 
-  Tree (vertexes_of_pre_dtree pdt) (arcs_of_pre_dtree pdt).
-Proof.
-  intros f pdt Hwf.
-  induction Hwf.
-    apply T_eq with 
-      (v:=V_union (V_single (index child)) (V_single (index entry)))
-      (a:=A_union (E_set (index entry) (index child)) A_empty).
-      apply U_set_eq.
-        intros x.
-        split; intro J.
-          inv J; inv H; simpl.
-            exists entry. auto.
-            exists child. auto.
-          destruct x; simpl in J.
-          destruct J as [n' [J | J]].
-            destruct J as [J | J]; inv J. 
-            apply In_right. apply In_single; auto.
-
-            destruct J as [J | J]; inv J. 
-            apply In_left. apply In_single; auto.
-      apply A_set_eq.
-        intros x.
-        split; intro J.
-          inv J; inv H; simpl; auto.
-
-          destruct x as [[] []]; simpl in J.
-          destruct J as [J | J].
-            destruct J as [J | J]; inv J. 
-            apply In_left. apply E_right.
-
-            destruct J as [J | J]; inv J. 
-            apply In_left. apply E_left.
-      apply T_leaf.
-        apply T_root.
-        apply In_single; auto.
-
-        intro J. inv J. 
-        unfold imm_domination, strict_domination in i0.
-        destruct i0 as [[_ J] _]; auto.
-
-    apply T_eq with 
-      (v:=V_union (V_single (index child)) (vertexes_of_pre_dtree pdt))
-      (a:=A_union (E_set (index parent) (index child)) (arcs_of_pre_dtree pdt)).
-      apply U_set_eq.
-        intros [v].
-        split; intro J.
-          inv J; inv H.
-            exists parent. simpl. auto.
-
-            destruct H0 as [H0 | H0].
-              eapply In_vertexes_of_pre_dtree'; simpl; eauto.
-              eapply In_vertexes_of_pre_dtree; simpl; eauto.
-
-          destruct J as [n' [J | J]]; simpl in J.
-            apply In_right. 
-            destruct J as [J | J].
-              inv J. 
-              clear - o. destruct o as [o | [anc e]].
-                eapply InDom_vertexes_of_pre_dtree; eauto.
-                apply In_vertexes_of_pre_dtree in e; auto.
-
-              apply In_vertexes_of_pre_dtree' in J; auto.
-            destruct J as [J | J].
-              inv J. 
-              apply In_left. apply In_single.
-
-              apply In_right. 
-              apply In_vertexes_of_pre_dtree in J; auto.
-      apply A_set_eq.
-        intros [v1 v2]. destruct v1, v2.
-        split; intro J.
-          inv J; inv H; simpl; auto.
-
-          inv J.
-            simpl in H. 
-            destruct H as [H | H].
-              inv H.
-              apply In_left. apply E_right.
-              apply In_right. apply In_arcs_of_pre_dtree; auto.
-            simpl in H. 
-            destruct H as [H | H].
-              inv H.
-              apply In_left. apply E_left.
-              apply In_right. apply In_arcs_of_pre_dtree'; auto.
-      apply T_leaf; auto.
-        clear - o. destruct o as [o | [anc e]].
-          eapply InDom_vertexes_of_pre_dtree; eauto.
-          apply In_vertexes_of_pre_dtree in e; auto.
-        apply Notin_vertexes_of_pre_dtree; auto.
+    destruct pdt; tinv H.
+    destruct IHWF_predtree as [dt [J1 J2]].
+    rewrite J1.
+    apply dtree_insert__wf_dtree; auto.
 Qed.
 
 Fixpoint find_children (res: AMap.t (set l)) (root:l) 
@@ -536,9 +908,7 @@ Proof.
         intros x Jx. 
         apply H1.
         apply remove_neq_in' in Jx; auto.
-        destruct (id_dec x a); subst; auto.
-        contradict Jx. apply remove_In.
-
+        destruct Jx as [Jx1 Jx2]; auto.
         omega.
 
         intro J0. inv J0.
@@ -557,110 +927,497 @@ Proof.
     apply incl_refl.
 Qed.
 
-Fixpoint compute_idoms (res: AMap.t (set l)) (bd: list l) (acc: list (l * l)) :
-  list (l * l) :=
-match bd with
-| nil => acc
-| l0 :: bd' =>
-    match find_idom res l0 with
-    | None => compute_idoms res bd' acc
-    | Some l1 => compute_idoms res bd' ((l1,l0)::acc)
+Fixpoint find_next_children (idoms: list (l * l)) (parent: l) (acc : list l)
+  (others: set l) : list l * set l :=
+match idoms with
+| nil => (acc, others)
+| (l1, l2)::idoms' =>
+    if (l_dec l1 parent) then 
+      if (in_dec l_dec l2 others) then
+        find_next_children idoms' parent (l2::acc) (List.remove l_dec l2 others)
+      else find_next_children idoms' parent acc others
+    else find_next_children idoms' parent acc others
+end.
+
+Fixpoint find_next_children_from_children (idoms: list (l * l)) (children:list l)
+  (others: set l) : option (l * list l * set l) :=
+match children with
+| nil => None
+| ch::children' =>
+    match find_next_children idoms ch nil others with
+    | (nil, _) => find_next_children_from_children idoms children' others
+    | (children0, others') => Some (ch, children0, others')
     end
 end.
 
-Fixpoint find_next_child (idoms: list (l * l)) (parent: l) (others:set l) 
-  : option l :=
-match idoms with
-| nil => None
-| (l1, l2)::idoms' =>
-    if (l_dec l1 parent) then 
-      if (in_dec l_dec l2 others) then Some l2
-      else find_next_child idoms' parent others
-    else find_next_child idoms' parent others
-end.
-
-Fixpoint find_next_sub_pre_dtree_aux (idoms: list (l * l)) (pdt0 pdt:PreDTree) 
+Fixpoint find_next_sub_predtree_aux (idoms: list (l * l)) (pdt0 pdt:PreDTree) 
   (others:set l) : option (PreDTree * set l) :=
 match pdt with
 | nil => None
-| (p, ch)::pdt' => 
-    match find_next_child idoms ch others with
-    | None => 
-        match find_next_child idoms p others with
-        | None => 
-            find_next_sub_pre_dtree_aux idoms pdt0 pdt' others
-        | Some ch' =>
-            Some ((p, ch')::pdt0, List.remove l_dec ch' others)
-        end
-    | Some ch' => Some ((ch, ch')::pdt0, List.remove l_dec ch' others)
+| (p, chs)::pdt' => 
+    match find_next_children_from_children idoms chs others with
+    | None => find_next_sub_predtree_aux idoms pdt0 pdt' others
+    | Some (ch, chs', others') => Some ((ch, chs')::pdt0, others')
     end
 end.
 
-Definition find_next_sub_pre_dtree (idoms: list (l * l)) (pdt:PreDTree) 
+Definition find_next_sub_predtree (idoms: list (l * l)) (pdt:PreDTree) 
   (others:set l) : option (PreDTree * set l) :=
-find_next_sub_pre_dtree_aux idoms pdt pdt others.
+find_next_sub_predtree_aux idoms pdt pdt others.
 
-Lemma find_next_child_inv : forall idoms l1 others l2,
-  find_next_child idoms l1 others = ret l2 ->
-  In l2 others /\ In (l1, l2) idoms.
+Lemma in_singleton_inv: forall A (a b:A), In a [b] -> a = b.
+Proof.
+  intros.
+  simpl in H. destruct H; auto. inv H.
+Qed.
+
+Lemma find_next_children_inv : forall p idoms chs others chs' others',
+  find_next_children idoms p chs others = (chs', others') ->
+  exists chs'', chs' = chs'' ++ chs /\
+    others' = fold_right (fun ch acc => List.remove l_dec ch acc) others chs'' /\
+    (forall ch, In ch chs'' -> In ch others /\ In (p, ch) idoms).
 Proof.
   induction idoms; simpl; intros.
     inv H.
+    exists nil. simpl.
+    split; auto.
+    split; auto. 
+      intros. inversion H.
 
     destruct a.
-    destruct (l_dec l0 l1); subst.
-      destruct (in_dec l_dec l3 others).
-        inv H. auto.
-        apply IHidoms in H. destruct H. split; auto.
-      apply IHidoms in H. destruct H. split; auto.
+    destruct (l_dec l0 p); subst.
+      destruct (in_dec l_dec l1 others).
+        apply IHidoms in H.
+        destruct H as [chs'' [J1 [J2 J3]]]; subst.
+        exists (chs''++[l1]).
+        simpl_env.
+        split; auto.
+        split.
+          rewrite fold_right_app. simpl. auto.
+
+          intros ch Hin.
+          apply in_app_or in Hin.
+          destruct Hin as [Hin | Hin].
+            apply J3 in Hin.
+            destruct Hin as [J2 J4].
+            split; auto.
+              apply remove_neq_in' in J2.
+              destruct J2; auto.
+
+            apply in_singleton_inv in Hin; subst.
+            split; auto.
+    
+        apply IHidoms in H.
+        destruct H as [chs'' [J1 [J2 J3]]]; subst.
+        exists chs''.
+        split; auto.
+        split; auto.
+          intros ch Hin.
+          apply J3 in Hin.
+          destruct Hin as [J2 J4].
+          split; auto.
+      apply IHidoms in H.
+      destruct H as [chs'' [J1 [J2 J3]]]; subst.
+      exists chs''.
+      split; auto.
+      split; auto.
+        intros ch Hin.
+        apply J3 in Hin.
+        destruct Hin as [J2 J4].
+        split; auto.
 Qed.       
 
-Lemma find_next_sub_pre_dtree_aux_length: forall idoms pdt0 acc others acc' others',
-  find_next_sub_pre_dtree_aux idoms pdt0 acc others = ret (acc', others') ->
+Lemma find_next_children_from_children_inv: forall idoms chs others ch chs' others',
+  find_next_children_from_children idoms chs others = ret (ch, chs', others') ->
+  others' = fold_right (fun ch0 acc => List.remove l_dec ch0 acc) others chs' /\
+  In ch chs /\ (forall ch', In ch' chs' -> In ch' others /\ In (ch, ch') idoms)
+  /\ chs' <> nil.
+Proof.
+  induction chs; simpl; intros.
+    inv H.
+
+    remember (find_next_children idoms a nil others) as R.
+    destruct R.
+    destruct l0; auto.
+      apply IHchs in H.
+      destruct H as [J1 [J2 J3]].
+      split; auto.
+
+      inv H.
+      symmetry in HeqR.
+      apply find_next_children_inv in HeqR; auto.
+      destruct HeqR as [chs'' [J1 [J2 J3]]]; subst.
+      simpl_env in J1. subst.
+      split; auto.
+      split; auto.
+      split; auto.
+        intro J. inv J.
+Qed.
+
+Lemma find_next_sub_predtree_aux_inv: forall idoms pdt0 pdt others pdt' 
+  others',
+  find_next_sub_predtree_aux idoms pdt0 pdt others = Some (pdt', others') ->
+  exists p, exists chs, 
+    pdt' = (p,chs)::pdt0 /\ 
+    others' = fold_right (fun ch0 acc => List.remove l_dec ch0 acc) others chs /\
+    (forall ch, In ch chs -> In ch others /\ In (p, ch) idoms) /\ chs <> nil /\
+    exists p', exists chs', In (p', chs') pdt /\ In p chs'.
+Proof.
+  induction pdt; simpl; intros.
+    inv H.
+
+    destruct a.
+    remember (find_next_children_from_children idoms l1 others) as R.
+    destruct R as [[[ch ch'] others'']|].
+      inv H.
+      exists ch. exists ch'. 
+      symmetry in HeqR.
+      apply find_next_children_from_children_inv in HeqR.
+      destruct HeqR as [J1 [J2 [J3 J4]]]; subst.
+      split; auto.
+      split; auto.
+      split; auto.
+      split; auto.
+        exists l0. exists l1. split; auto.
+
+      apply IHpdt in H; auto.
+      destruct H as [p [chs [Heq1 [Heq2 [J1 [J0 [p' [chs' [J2 J3]]]]]]]]]; 
+        subst.
+      exists p. exists chs. 
+      split; auto.
+      split; auto.
+      split; auto.
+      split; auto.
+        exists p'. exists chs'. split; auto.
+Qed.
+
+Lemma find_next_sub_predtree_inv: forall idoms pdt others pdt' 
+  others',
+  find_next_sub_predtree idoms pdt others = Some (pdt', others') ->
+  exists p, exists chs, 
+    pdt' = (p,chs)::pdt /\ 
+    others' = fold_right (fun ch0 acc => List.remove l_dec ch0 acc) others chs /\
+    (forall ch, In ch chs -> In ch others /\ In (p, ch) idoms) /\ chs <> nil /\
+    exists p', exists chs', In (p', chs') pdt /\ In p chs'.
+Proof.
+  intros. unfold find_next_sub_predtree in H.
+  apply find_next_sub_predtree_aux_inv in H; auto.
+Qed.
+
+Lemma fold_right_remove_length: forall chs others
+  (J1 : forall ch : l, In ch chs -> In ch others)
+  (J0 : chs <> nil),
+  (length
+     (fold_right
+        (fun (ch0 : l) (acc0 : list l) => List.remove l_dec ch0 acc0) others
+        chs) < length others)%nat.
+Proof.
+  induction chs; simpl; intros.
+    congruence.
+
+    destruct chs.
+      simpl.
+      apply remove_in_length; auto.
+
+      assert (length
+               (fold_right
+                  (fun (ch0 : l) (acc0 : list l) => List.remove l_dec ch0 acc0)
+                  others (l0::chs)) < length others)%nat as J.
+        apply IHchs; auto.
+          intro J. inv J.
+      assert (G:=@remove_length _ l_dec a (fold_right
+                  (fun (ch0 : l) (acc0 : list l) => List.remove l_dec ch0 acc0)
+                  others (l0::chs))).
+      omega.
+Qed.
+
+Lemma find_next_sub_predtree_length: forall idoms acc others acc' others',
+  find_next_sub_predtree idoms acc others = ret (acc', others') ->
   (length others' < length others)%nat.
 Proof.
+  intros.
+  apply find_next_sub_predtree_inv in H.
+  destruct H as [p [chs [Heq1 [Heq2 [J1 [J0 [p' [chs' [J2 J3]]]]]]]]]; subst.
+  apply fold_right_remove_length; auto.
+  intros ch Hin. apply J1 in Hin. destruct Hin; auto.
+Qed.
+
+Program Fixpoint create_predtree_aux (others:set l) (idoms: list (l * l)) 
+  (acc:PreDTree) {measure (List.length others)} : option PreDTree :=
+match others with
+| nil => Some acc
+| _ =>
+   match find_next_sub_predtree idoms acc others with
+   | None => None
+   | Some (acc', others') => create_predtree_aux others' idoms acc'
+   end
+end.
+Next Obligation. 
+  eapply find_next_sub_predtree_length; eauto.
+Qed.
+
+Fixpoint init_predtree (idoms: list (l * l)) (root:l) (others:set l)
+  : option (PreDTree * list l) :=
+match find_next_children idoms root nil others with
+| (nil, _) => None
+| (children, others') => Some ([(root, children)], others')
+end.
+
+Definition create_dtree (f: fdef) : option DTree :=
+match getEntryBlock f, reachablity_analysis f with
+| Some (block_intro root _ _ _), Some rd =>
+    let dt := dom_analyze f in
+    let b := bound_fdef f in
+    let idoms := compute_idoms (dep_doms__nondep_doms b dt) rd nil in
+    match init_predtree idoms root (List.remove eq_atom_dec root rd) with
+    | None => None
+    | Some (pdt0, others) =>
+        match (create_predtree_aux others idoms pdt0) with
+        | None => None
+        | Some pdt => predtree2dtree pdt
+        end
+    end
+| _, _ => None
+end.
+
+Lemma in_predtree_dom: forall p chs (pdt0:PreDTree),
+  In (p, chs) pdt0 -> p `in` dom pdt0.
+Proof.
+  induction pdt0; simpl; intros.
+    inv H.
+    destruct H as [H | H]; subst.
+      fsetdec.
+
+      destruct a.
+      apply IHpdt0 in H.
+      fsetdec.
+Qed.
+
+Lemma in_fold_left_atoms: forall ch chs init
+  (H0 : In ch chs \/ ch `in` init),
+  ch `in` fold_left (fun (acc : atoms) (child : atom) => add child acc) chs init.
+Proof.
+  induction chs; simpl; intros.
+    destruct H0; auto.
+      inv H.
+    destruct H0 as [[H0 | H0] | H0]; subst; eauto.
+Qed.
+
+Lemma in_predtree_cdom: forall p chs ch pdt0,
+  In (p, chs) pdt0 -> In ch chs -> ch `in` cdom pdt0.
+Proof.
+  induction pdt0; simpl; intros.
+    inv H.
+    destruct H as [H | H]; subst.
+      apply in_fold_left_atoms; auto.
+    destruct a.
+    apply in_fold_left_atoms; auto.
+Qed.
+
+Definition P_create_predtree_aux__WF_predtree (n:nat) :=
+  forall f idoms (Hwfi: WF_idoms f idoms) pdt0 others pdt
+  (Hdis: forall l0, 
+    In l0 others -> 
+    l0 `notin` dom pdt0 `union` cdom pdt0),
+  List.length others = n ->
+  WF_predtree f pdt0 ->
+  create_predtree_aux others idoms pdt0 = Some pdt ->
+  WF_predtree f pdt.
+
+Require Import Program.
+
+Ltac simple_create_predtree_aux :=
+  unfold create_predtree_aux, create_predtree_aux_func;
+  rewrite WfExtensionality.fix_sub_eq_ext;
+  repeat fold_sub create_predtree_aux_func ; simpl proj1_sig;
+  simpl. 
+
+Lemma in_fold_right_remove: forall p chs others
+  (Hin : In p
+          (fold_right
+             (fun (ch0 : l) (acc : list l) => List.remove l_dec ch0 acc)
+             others chs)),
+  In p others /\ ~ In p chs.
+Proof.
+  induction chs; simpl; intros.
+    split; auto.
+
+    apply remove_neq_in' in Hin; auto.
+    destruct Hin as [J1 J2].
+    apply IHchs in J1.
+    destruct J1 as [J1 J3].
+    split; auto.
+      intro J. destruct J as [J | J]; auto.
+Qed.
+
+Lemma notin_fold_left_atoms: forall ch chs init,
+  ~ In ch chs -> ch `notin` init -> 
+  ch `notin` 
+    fold_left (fun (acc : atoms) (child : atom) => add child acc) chs init.
+Proof.
+  induction chs; simpl; intros; auto.
+Qed.
+
+Lemma find_next_sub_predtree_fresh: forall (pdt0 : list (atom * list l)) idoms
+  (others : list atom) (pdt : PreDTree)
+  (Hdis : forall l0 : atom,
+          In l0 others -> l0 `notin` union (dom pdt0) (cdom pdt0))
+  (acc' : PreDTree) (others' : set l)
+  (HeqR : ret (acc', others') =
+          find_next_sub_predtree idoms pdt0 others),
+  forall l0 : atom, In l0 others' -> l0 `notin` union (dom acc') (cdom acc').
+Proof.
+  intros.
+  symmetry in HeqR.
+  apply find_next_sub_predtree_inv in HeqR.
+  destruct HeqR as [p [chs [Heq [J1 [J2 [J3 [p' [chs' [J4 J5]]]]]]]]]; subst.
+  simpl.
+  apply in_fold_right_remove in H.
+  destruct H as [J6 J7].
+  apply Hdis in J6.
+  assert (l0 `notin` 
+       (fold_left (fun (acc : atoms) (child : atom) => add child acc)
+          chs (cdom pdt0))) as J8.
+    apply notin_fold_left_atoms; auto.
+  assert (l0 <> p) as Hneq.
+    destruct (l_dec l0 p); subst; auto.
+    eapply in_predtree_cdom in J4; eauto.
+  fsetdec.
+Qed.
+
+Lemma WF_predtree__reachable: forall f pdt p chs ch,
+  WF_predtree f pdt ->
+  In (p, chs) pdt ->
+  In ch chs ->
+  reachable f ch.
+Admitted.
+
+Lemma find_next_sub_predtree_wf_predtree: 
+  forall f idoms (Hwfi: WF_idoms f idoms) pdt (Hwf:WF_predtree f pdt) 
+    others pdt' others'
+  (Hdis: forall l0, 
+    In l0 others -> 
+    l0 `notin` dom pdt `union` cdom pdt),
+  find_next_sub_predtree idoms pdt others = ret (pdt', others') ->
+  WF_predtree f pdt'.
+Proof.
+  intros.
+  apply find_next_sub_predtree_inv in H.
+  destruct H as [p [chs [Heq [J1 [J2 [J3 [p' [chs' [J4 J5]]]]]]]]]; subst.
+  apply WPDT_cons; auto.
+    eapply WF_predtree__reachable in J4; eauto.
+
+    intros child Hin.
+    apply J2 in Hin.
+    destruct Hin as [Hin1 Hin2].
+    split; auto.
+      eapply WF_idoms_elim; eauto.
+
+    admit.
+
+    
+
+Lemma find_next_sub_predtree_aux_wf_predtree: 
+  forall f idoms (Hwfi: WF_idoms f idoms) acc prefix 
+    (Hwf:WF_predtree f (prefix++acc)) others acc' others'
+  (Hdis: forall l0, 
+    In l0 others -> 
+    l0 `notin` dom (prefix++acc) `union` cdom (prefix++acc)),
+  find_next_sub_predtree_aux idoms (prefix++acc) acc others = 
+    ret (acc', others') ->
+  WF_predtree f acc'.
+Proof.
+  intros.
+  applu 
+
+
   induction acc; simpl; intros.
-    inv H. 
+    congruence.
 
     destruct a.
     remember (find_next_child idoms l1 others) as R.
     destruct R.
       inv H.
-      symmetry in HeqR.
-      apply find_next_child_inv in HeqR.
-      destruct HeqR.
-      apply remove_in_length; auto.
+      apply WPDT_cons; auto.
+        apply WF_predtree__reachable with (l1:=l0)(l2:=l1) in Hwf.
+          destruct Hwf; auto.
+          apply in_middle.
+        eapply find_next_child__imm_domination; eauto.
+
+        symmetry in HeqR.
+        apply find_next_child_inv in HeqR.
+        destruct HeqR as [J1 J2]. auto.
+
+        right.
+        exists l0. apply in_middle.
 
       remember (find_next_child idoms l0 others) as R.
-      destruct R; eauto.
+      destruct R.
         inv H.
-        symmetry in HeqR0.
-        apply find_next_child_inv in HeqR0.
-        destruct HeqR0.
-        apply remove_in_length; auto.
+        apply WPDT_cons; auto.
+          apply WF_predtree__reachable with (l1:=l0)(l2:=l1) in Hwf.
+            destruct Hwf; auto.
+            apply in_middle.
+          eapply find_next_child__imm_domination; eauto.
+
+          symmetry in HeqR0.
+          apply find_next_child_inv in HeqR0.
+          destruct HeqR0 as [J1 J2]. auto.
+          left. simpl_env. fsetdec.
+      rewrite_env ((prefix ++ [(l0, l1)]) ++ acc) in H.
+      apply IHacc in H; simpl_env; simpl; auto.
 Qed.
 
-Lemma find_next_sub_pre_dtree_length: forall idoms acc others acc' others',
-  find_next_sub_pre_dtree idoms acc others = ret (acc', others') ->
-  (length others' < length others)%nat.
+Lemma find_next_sub_predtree_wf_predtree: 
+  forall f idoms (Hwfi: WF_idoms f idoms) pdt (Hwf:WF_predtree f pdt) 
+    others pdt' others'
+  (Hdis: forall l0, 
+    In l0 others -> 
+    l0 `notin` dom pdt `union` cdom pdt),
+  find_next_sub_predtree idoms pdt others = ret (pdt', others') ->
+  WF_predtree f pdt'.
 Proof.
   intros.
-  unfold find_next_sub_pre_dtree in H.
-  apply find_next_sub_pre_dtree_aux_length in H; auto.
+  unfold find_next_sub_predtree in H.
+  change pdt with (nil++pdt) in H, Hdis at 1.
+  eapply find_next_sub_predtree_aux_wf_predtree in H; eauto.
 Qed.
 
-Program Fixpoint create_pre_dtree_aux (others:set l) (idoms: list (l * l)) 
-  (acc:PreDTree) {measure (List.length others)} : option PreDTree :=
-match others with
-| nil => Some acc
-| _ =>
-   match find_next_sub_pre_dtree idoms acc others with
-   | None => None
-   | Some (acc', others') => create_pre_dtree_aux others' idoms acc'
-   end
-end.
-Next Obligation. 
-  eapply find_next_sub_pre_dtree_length; eauto.
+Lemma create_predtree_aux__WF_predtree_aux: forall n, 
+  P_create_predtree_aux__WF_predtree n.
+Proof.
+  intro n.
+  apply lt_wf_rec. clear n.
+  intros n IH.
+  unfold P_create_predtree_aux__WF_predtree in *.
+  intros f idoms Hwfi pdt0 others pdt Hdis Hlen Hwf.
+  destruct others as [|l1 others]; simple_create_predtree_aux.
+    intro J. inv J; auto.
+
+    remember (find_next_sub_predtree idoms pdt0 (l1 :: others)) as R.
+    destruct R as [[acc' others']|].
+      repeat fold_sub create_predtree_aux_func ; simpl proj1_sig.
+      fold (create_predtree_aux others' idoms acc').
+      intro J. subst.
+      apply IH with (m:=length others') (f:=f) in J; auto.
+        eapply find_next_sub_predtree_length; eauto.
+        eapply find_next_sub_predtree_fresh; eauto.
+        eapply find_next_sub_predtree_wf_predtree; eauto.
+      intro J. inv J.
+Qed.
+
+Lemma create_predtree_aux__WF_predtree : forall f idoms 
+  (Hwfi: WF_idoms f idoms) pdt0 others pdt
+  (Hdis: forall l0, 
+    In l0 others -> 
+    l0 `notin` dom pdt0 `union` cdom pdt0),
+  WF_predtree f pdt0 ->
+  create_predtree_aux others idoms pdt0 = Some pdt ->
+  WF_predtree f pdt.
+Proof.
+  intros.
+  assert (J:=@create_predtree_aux__WF_predtree_aux (List.length others)).
+  unfold P_create_predtree_aux__WF_predtree in J. eauto.
 Qed.
 
 Program Fixpoint create_dtree_aux (others:set l) (res: AMap.t (set l)) 
@@ -694,46 +1451,6 @@ Next Obligation.
 Qed.
 Next Obligation. split; intros; congruence. Qed.
 
-Fixpoint dep_doms__nondep_doms_aux bd0 (res: AMap.t (Dominators.t bd0)) 
-  bd (acc: AMap.t (set l)) : AMap.t (set l) :=
-match bd with
-| nil => acc
-| l0::bd' => 
-    match AMap.get l0 res with
-    | (Dominators.mkBoundedSet dts0 _) =>
-        AMap.set l0 dts0 (dep_doms__nondep_doms_aux bd0 res bd' acc)
-    end
-end.
-
-Definition dep_doms__nondep_doms bd (res: AMap.t (Dominators.t bd)) 
-  : AMap.t (set l) :=
-dep_doms__nondep_doms_aux bd res bd (AMap.init nil).
-
-Fixpoint init_pre_dtree (idoms: list (l * l)) (root:l) (others:set l)
-  : option (PreDTree * list l) :=
-match idoms with 
-| nil => None
-| (p, ch)::idoms' => 
-    if (l_dec p root) then 
-      if (in_dec l_dec ch others) then 
-        Some ([(p, ch)], List.remove l_dec ch others)
-      else None
-    else init_pre_dtree idoms' root others
-end.
-
-Inductive WF_idoms f : list (l*l) -> Type :=
-| WF_idoms_nil : WF_idoms f nil 
-| WF_idoms_cons : forall l1 l2 idoms, 
-    imm_domination f l1 l2 -> WF_idoms f idoms ->
-    WF_idoms f ((l1,l2)::idoms)
-.
-
-Lemma WF_pre_dtree__reachable: forall f acc l1 l2,
-  WF_pre_dtree f acc ->
-  In (l1, l2) acc ->
-  reachable f l1 /\ reachable f l2.
-Admitted.
-
 Lemma find_next_child__imm_domination: forall f idoms (Hwfi: WF_idoms f idoms) 
   l1 others l2,
   find_next_child idoms l1 others = ret l2 ->
@@ -749,218 +1466,11 @@ Proof.
         inv H. auto.
 Qed.
 
-Lemma find_next_sub_pre_dtree_aux_wf_pre_dtree: 
-  forall f idoms (Hwfi: WF_idoms f idoms) acc prefix 
-    (Hwf:WF_pre_dtree f (prefix++acc)) others acc' others'
-  (Hdis: forall l0, 
-    In l0 others -> 
-    l0 `notin` dom (prefix++acc) `union` cdom (prefix++acc)),
-  find_next_sub_pre_dtree_aux idoms (prefix++acc) acc others = 
-    ret (acc', others') ->
-  WF_pre_dtree f acc'.
-Proof.
-  induction acc; simpl; intros.
-    congruence.
-
-    destruct a.
-    remember (find_next_child idoms l1 others) as R.
-    destruct R.
-      inv H.
-      apply WPDT_cons; auto.
-        apply WF_pre_dtree__reachable with (l1:=l0)(l2:=l1) in Hwf.
-          destruct Hwf; auto.
-          apply in_middle.
-        eapply find_next_child__imm_domination; eauto.
-
-        symmetry in HeqR.
-        apply find_next_child_inv in HeqR.
-        destruct HeqR as [J1 J2]. auto.
-
-        right.
-        exists l0. apply in_middle.
-
-      remember (find_next_child idoms l0 others) as R.
-      destruct R.
-        inv H.
-        apply WPDT_cons; auto.
-          apply WF_pre_dtree__reachable with (l1:=l0)(l2:=l1) in Hwf.
-            destruct Hwf; auto.
-            apply in_middle.
-          eapply find_next_child__imm_domination; eauto.
-
-          symmetry in HeqR0.
-          apply find_next_child_inv in HeqR0.
-          destruct HeqR0 as [J1 J2]. auto.
-          left. simpl_env. fsetdec.
-      rewrite_env ((prefix ++ [(l0, l1)]) ++ acc) in H.
-      apply IHacc in H; simpl_env; simpl; auto.
-Qed.
-
-Lemma find_next_sub_pre_dtree_wf_pre_dtree: 
-  forall f idoms (Hwfi: WF_idoms f idoms) pdt (Hwf:WF_pre_dtree f pdt) 
-    others pdt' others'
-  (Hdis: forall l0, 
-    In l0 others -> 
-    l0 `notin` dom pdt `union` cdom pdt),
-  find_next_sub_pre_dtree idoms pdt others = ret (pdt', others') ->
-  WF_pre_dtree f pdt'.
-Proof.
-  intros.
-  unfold find_next_sub_pre_dtree in H.
-  change pdt with (nil++pdt) in H, Hdis at 1.
-  eapply find_next_sub_pre_dtree_aux_wf_pre_dtree in H; eauto.
-Qed.
-
-Definition P_create_pre_dtree_aux__WF_pre_dtree (n:nat) :=
-  forall f idoms (Hwfi: WF_idoms f idoms) pdt0 others pdt
-  (Hdis: forall l0, 
-    In l0 others -> 
-    l0 `notin` dom pdt0 `union` cdom pdt0),
-  List.length others = n ->
-  WF_pre_dtree f pdt0 ->
-  create_pre_dtree_aux others idoms pdt0 = Some pdt ->
-  WF_pre_dtree f pdt.
-
-Require Import Program.
-
-Ltac simple_create_pre_dtree_aux :=
-  unfold create_pre_dtree_aux, create_pre_dtree_aux_func;
-  rewrite WfExtensionality.fix_sub_eq_ext;
-  repeat fold_sub create_pre_dtree_aux_func ; simpl proj1_sig;
-  simpl. 
-
-Lemma find_next_sub_pre_dtree_aux_inv: forall idoms pdt0 pdt others pdt' 
-  others',
-  find_next_sub_pre_dtree_aux idoms pdt0 pdt others = Some (pdt', others') ->
-  exists p, exists ch, 
-    pdt' = (p,ch)::pdt0 /\ others' = List.remove l_dec ch others /\
-    ((exists p', In (p', p) pdt) \/ (exists ch', In (p, ch') pdt)).
-Proof.
-  induction pdt; simpl; intros.
-    inv H.
-
-    destruct a.
-    remember (find_next_child idoms l1 others) as R.
-    destruct R.
-      inv H.
-      exists l1. exists l2. 
-      repeat split; auto.
-      left. exists l0. auto.
-
-      remember (find_next_child idoms l0 others) as R. 
-      destruct R.
-        inv H.
-        exists l0. exists l2. 
-        repeat split; auto.
-        right. exists l1. auto.
-       
-        apply IHpdt in H; auto.
-        destruct H as [p [ch [Heq1 [Heq2 [[p' J] | [ch' J]]]]]]; subst.
-          exists p. exists ch. 
-          repeat split; auto.
-          left. exists p'. auto.
-
-          exists p. exists ch. 
-          repeat split; auto.
-          right. exists ch'. auto.
-Qed.
-
-Lemma find_next_sub_pre_dtree_inv: forall idoms pdt others pdt' 
-  others',
-  find_next_sub_pre_dtree idoms pdt others = Some (pdt', others') ->
-  exists p, exists ch, 
-    pdt' = (p,ch)::pdt /\ others' = List.remove l_dec ch others /\
-    ((exists p', In (p', p) pdt) \/ (exists ch', In (p, ch') pdt)).
-Proof.
-  intros. unfold find_next_sub_pre_dtree in H.
-  apply find_next_sub_pre_dtree_aux_inv in H; auto.
-Qed.
-
-Lemma in_dom_cdom: forall p1 p2 pdt0,
-  In (p1, p2) pdt0 -> p2 `in` cdom pdt0 /\ p1 `in` dom pdt0.
-Proof.
-  induction pdt0; simpl; intros.
-    inv H.
-    destruct H as [H | H]; subst.
-      fsetdec.
-
-      destruct a.
-      apply IHpdt0 in H.
-      fsetdec.
-Qed.
-
-Lemma create_pre_dtree_aux__WF_pre_dtree_aux: forall n, 
-  P_create_pre_dtree_aux__WF_pre_dtree n.
-Proof.
-  intro n.
-  apply lt_wf_rec. clear n.
-  intros n IH.
-  unfold P_create_pre_dtree_aux__WF_pre_dtree in *.
-  intros f idoms Hwfi pdt0 others pdt Hdis Hlen Hwf.
-  destruct others as [|l1 others]; simple_create_pre_dtree_aux.
-    intro J. inv J; auto.
-
-    remember (find_next_sub_pre_dtree idoms pdt0 (l1 :: others)) as R.
-    destruct R as [[acc' others']|].
-      repeat fold_sub create_pre_dtree_aux_func ; simpl proj1_sig.
-      fold (create_pre_dtree_aux others' idoms acc').
-      intro J. subst.
-      apply IH with (m:=length others') (f:=f) in J; auto.
-        eapply find_next_sub_pre_dtree_length; eauto.
-
-        symmetry in HeqR.
-        apply find_next_sub_pre_dtree_inv in HeqR.
-        destruct HeqR as [p [ch [Heq [J1 [[p' J2] | [ch' J2]]]]]]; subst.
-          intros l0 Hin.
-          simpl.
-          assert (l0 <> ch) as Hneq.
-            assert (J':=@remove_In _ l_dec (l1 :: others) ch).
-            destruct (l_dec l0 ch); subst; auto.
-          assert (In l0 (l1::others)) as Hin'.
-            apply remove_neq_in' in Hin; auto.
-          apply Hdis in Hin'.
-          apply in_dom_cdom in J2.
-          destruct J2 as [J1 J2].
-          assert (l0 <> p) as Hneq'.
-            destruct (l_dec l0 p); subst; auto.
-          fsetdec.
- 
-          intros l0 Hin.
-          simpl.
-          assert (l0 <> ch) as Hneq.
-            assert (J':=@remove_In _ l_dec (l1 :: others) ch).
-            destruct (l_dec l0 ch); subst; auto.
-          assert (In l0 (l1::others)) as Hin'.
-            apply remove_neq_in' in Hin; auto.
-          apply Hdis in Hin'.
-          apply in_dom_cdom in J2.
-          destruct J2 as [J1 J2].
-          assert (l0 <> p) as Hneq'.
-            destruct (l_dec l0 p); subst; auto.
-          fsetdec.
-        eapply find_next_sub_pre_dtree_wf_pre_dtree; eauto.
-      intro J. inv J.
-Qed.
-
-Lemma create_pre_dtree_aux__WF_pre_dtree : forall f idoms 
-  (Hwfi: WF_idoms f idoms) pdt0 others pdt
-  (Hdis: forall l0, 
-    In l0 others -> 
-    l0 `notin` dom pdt0 `union` cdom pdt0),
-  WF_pre_dtree f pdt0 ->
-  create_pre_dtree_aux others idoms pdt0 = Some pdt ->
-  WF_pre_dtree f pdt.
-Proof.
-  intros.
-  assert (J:=@create_pre_dtree_aux__WF_pre_dtree_aux (List.length others)).
-  unfold P_create_pre_dtree_aux__WF_pre_dtree in J. eauto.
-Qed.
-
-Lemma init_pre_dtree__WF_pre_dtree : forall f root 
+Lemma init_predtree__WF_predtree : forall f root 
   (Hentry:getEntryLabel f = Some root) idoms 
   (Hwfi: WF_idoms f idoms) others pdt0 others0,
-  init_pre_dtree idoms root others = Some (pdt0, others0) ->
-  WF_pre_dtree f pdt0.
+  init_predtree idoms root others = Some (pdt0, others0) ->
+  WF_predtree f pdt0.
 Proof.
   induction idoms; simpl; intros.
     inv H.
@@ -972,8 +1482,8 @@ Proof.
       apply WPDT_entry; auto.
 Qed.
 
-Lemma init_pre_dtree__disjoint: forall root idoms others pdt0 others0,
-  init_pre_dtree idoms root others = ret (pdt0, others0) ->
+Lemma init_predtree__disjoint: forall root idoms others pdt0 others0,
+  init_predtree idoms root others = ret (pdt0, others0) ->
   ~ In root others ->
   forall l0 : atom, In l0 others0 -> l0 `notin` union (dom pdt0) (cdom pdt0).
 Proof.
@@ -1026,49 +1536,23 @@ Proof.
     apply WF_idoms_nil.
 Qed.
 
-Lemma init_create_pre_dtree_aux__WF_pre_dtree : forall f idoms pdt0 others 
+Lemma init_create_predtree_aux__WF_predtree : forall f idoms pdt0 others 
   pdt root rd,
   getEntryLabel f = Some root ->
   reachablity_analysis f = Some rd ->
   compute_idoms (dep_doms__nondep_doms (bound_fdef f) (dom_analyze f)) rd nil 
     = idoms ->
-  init_pre_dtree idoms root (List.remove eq_atom_dec root rd) 
+  init_predtree idoms root (List.remove eq_atom_dec root rd) 
     = Some (pdt0, others) ->
-  create_pre_dtree_aux others idoms pdt0 = Some pdt ->
-  WF_pre_dtree f pdt.
+  create_predtree_aux others idoms pdt0 = Some pdt ->
+  WF_predtree f pdt.
 Proof.
   intros.
   eapply compute_idoms__WF_idoms in H1; eauto.
-  eapply create_pre_dtree_aux__WF_pre_dtree in H3; eauto.
-    eapply init_pre_dtree__disjoint; eauto.
+  eapply create_predtree_aux__WF_predtree in H3; eauto.
+    eapply init_predtree__disjoint; eauto.
       apply remove_In.
-    eapply init_pre_dtree__WF_pre_dtree; eauto.
-Qed.
-
-Program Definition create_dtree (f: fdef) : option DTree :=
-match getEntryBlock f, reachablity_analysis f with
-| Some (block_intro root _ _ _), Some rd =>
-    let dt := dom_analyze f in
-    let b := bound_fdef f in
-    let idoms := compute_idoms (dep_doms__nondep_doms b dt) rd nil in
-    match init_pre_dtree idoms root (List.remove eq_atom_dec root rd) with
-    | None => None
-    | Some (pdt0, others) =>
-        match (create_pre_dtree_aux others idoms pdt0) with
-        | None => None
-        | Some pdt => 
-            tree2dtree 
-              (vertexes_of_pre_dtree pdt) (arcs_of_pre_dtree pdt)
-              (WF_pre_dtree_isa_tree f pdt _)
-        end
-    end
-| _, _ => None
-end.
-Next Obligation. 
-  eapply init_create_pre_dtree_aux__WF_pre_dtree; eauto.
-    clear - Heq_anonymous.
-    destruct f; simpl in *.
-    destruct b; simpl in *; inv Heq_anonymous. auto.
+    eapply init_predtree__WF_predtree; eauto.
 Qed.
 
 Scheme dtree_rec2 := Induction for DTree Sort Set
@@ -1170,6 +1654,7 @@ Proof.
 
     apply IHtree in H; auto.
 Qed.
+*)
 
 (*
 Definition create_dtree (f: fdef) : option DTree :=
