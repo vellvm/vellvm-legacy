@@ -263,31 +263,50 @@ match c with
 | _ => None
 end.
 
-Definition is_aliasing (pv1:value) (t1:typ) (pv2:value) (t2:typ) : bool := true.
+Parameter is_no_alias_id: id -> id -> bool.
+
+Definition is_no_alias (pv1:value) (t1:typ) (pv2:value) (t2:typ) : bool := 
+match pv1, pv2 with
+| value_id id1, value_id id2 => is_no_alias_id id1 id2
+| value_const (const_gid _ id1), value_const (const_gid _ id2) => 
+    negb (id_dec id1 id2)
+| _, _ => false
+end.
 
 Definition kill_aliased_loadstores (inscope: lcmds) (pv1:value) (t1:typ) 
  : lcmds :=
  List.filter (fun data => 
               match data with
-              | (_, insn_load _ t2 pv2 _) => negb (is_aliasing pv1 t1 pv2 t2)
-              | (_, insn_store _ t2 _ pv2 _) => negb (is_aliasing pv1 t1 pv2 t2)
+              | (_, insn_load _ t2 pv2 _) => is_no_alias pv1 t1 pv2 t2
+              | (_, insn_store _ t2 _ pv2 _) => is_no_alias pv1 t1 pv2 t2
               | (_, _) => true
               end) inscope.
 
-Fixpoint lookup_redundant_load (inscope: lcmds) t1 pv1 al1 
+Parameter is_must_alias_id: id -> id -> bool.
+
+Definition is_must_alias (pv1:value) (t1:typ) (pv2:value) (t2:typ) : bool :=
+match pv1, pv2 with
+| value_id id1, value_id id2 => 
+    if id_dec id1 id2 then true else is_must_alias_id id1 id2
+| value_const (const_gid _ id1), value_const (const_gid _ id2) => id_dec id1 id2
+| _, _ => false
+end. 
+
+Fixpoint lookup_redundant_load (inscope: lcmds) t1 pv1
   : option (l * id * value) :=
 match inscope with
 | nil => None
 | (l0,c)::inscope' =>
-    if (rhs_dec (rhs_load t1 pv1 al1) (rhs_of_cmd c)) 
-    then Some (l0, getCmdLoc c, value_id (getCmdLoc c))
-    else 
-      match c with
-      | insn_store id0 t1' v0' pv1' _ => 
-          if (t1 =t= t1') && valueEqB pv1 pv1' then Some (l0, id0, v0')
-          else lookup_redundant_load inscope' t1 pv1 al1
-      | _ => lookup_redundant_load inscope' t1 pv1 al1
-      end
+    match c with
+    | insn_load _ t1' pv1' _ =>
+       if (is_must_alias pv1' t1' pv1 t1 && (t1 =t= t1')) then
+         Some (l0, getCmdLoc c, value_id (getCmdLoc c))
+       else lookup_redundant_load inscope' t1 pv1
+    | insn_store id0 t1' v0' pv1' _ => 
+       if (is_must_alias pv1' t1' pv1 t1 && (t1 =t= t1')) then Some (l0, id0, v0')
+       else lookup_redundant_load inscope' t1 pv1
+    | _ => lookup_redundant_load inscope' t1 pv1
+    end
 end.
 
 Definition block_doesnt_kill (b: block) (pv1:value) (t1:typ) : bool :=
@@ -296,7 +315,7 @@ List.fold_left
   (fun (acc:bool) c =>
    if acc then
      match (mem_effect c) with
-     | Some (pv2, t2) => negb (is_aliasing pv1 t1 pv2 t2)
+     | Some (pv2, t2) => is_no_alias pv1 t1 pv2 t2
      | None => 
          match c with
          | insn_call _ _ _ _ _ _ => false
@@ -319,10 +338,101 @@ List.fold_left
   (fun (acc:bool) c =>
    if acc then
      match (mem_effect c) with
-     | Some (pv2, t2) => negb (is_aliasing pv1 t1 pv2 t2)
+     | Some (pv2, t2) => is_no_alias pv1 t1 pv2 t2
      | None => true
      end
    else acc) (split_cmds cs id1) true.
+
+Module LBooleanInv <: SEMILATTICE_WITH_TOP.
+
+Definition t := bool.
+
+Definition eq (x y: t) := (x = y).
+Definition eq_refl: forall x, eq x x := (@refl_equal t).
+Definition eq_sym: forall x y, eq x y -> eq y x := (@sym_equal t).
+Definition eq_trans: forall x y z, eq x y -> eq y z -> eq x z := (@trans_equal t).
+
+Definition beq : t -> t -> bool := eqb.
+
+Lemma beq_correct: forall x y, beq x y = true -> eq x y.
+Proof eqb_prop.
+
+Definition ge (x y: t) : Prop := x = false \/ y = true \/ x = y.
+
+Lemma ge_refl: forall x y, eq x y -> ge x y.
+Proof. unfold ge; tauto. Qed.
+
+Lemma ge_trans: forall x y z, ge x y -> ge y z -> ge x z.
+Proof. unfold ge; intuition congruence. Qed.
+
+Lemma ge_compat: forall x x' y y', eq x x' -> eq y y' -> ge x y -> ge x' y'.
+Proof.
+  unfold eq; intros; congruence.
+Qed.
+
+Definition bot := true.
+
+Lemma ge_bot: forall x, ge x bot.
+Proof. destruct x; compute; tauto. Qed.
+
+Definition top := false.
+
+Lemma ge_top: forall x, ge top x.
+Proof. unfold ge, top; tauto. Qed.
+
+Definition lub (x y: t) := x && y.
+
+Lemma lub_commut: forall x y, eq (lub x y) (lub y x).
+Proof. intros; unfold eq, lub. apply andb_comm. Qed.
+
+Lemma ge_lub_left: forall x y, ge (lub x y) x.
+Proof. destruct x; destruct y; compute; tauto. Qed.
+
+End LBooleanInv.
+
+Module AvailableDS := Dataflow_Solver(LBooleanInv)(AtomNodeSet).
+
+Definition available_transf (f:fdef) (src tgt:l) (id1:id) (pv1:value) (t1:typ) 
+  (curr:l) (input:bool) : bool :=
+if l_dec curr src then true
+else
+  if l_dec curr tgt then
+    match lookupBlockViaLabelFromFdef f curr with
+    | None => false
+    | Some b => cmds_doesnt_kill b id1 pv1 t1 && input
+    end
+  else 
+    match lookupBlockViaLabelFromFdef f curr with
+    | None => false
+    | Some b => block_doesnt_kill b pv1 t1 && input
+    end
+.
+
+Fixpoint available_init_aux (bs : blocks) (src:l) 
+  (acc: list (l * bool)) : list (l * bool) :=
+match bs with
+| nil => acc
+| block_intro l0 _ _ _ :: bs' => 
+    available_init_aux bs' src
+      ((l0, if (l_dec l0 src) then true else false) :: acc)
+end.
+
+Definition available_init (f:fdef) src : list (l * bool) :=
+match f with
+| fdef_intro _ bs => available_init_aux bs src nil
+end.
+
+Definition available_aux (f:fdef) (src tgt:l) (id1:id) (pv1:value) (t1:typ) 
+  : option (AMap.t bool) :=
+AvailableDS.fixpoint (successors f) (available_transf f src tgt id1 pv1 t1) 
+  ((src, LBooleanInv.bot) :: nil).
+
+Definition fdef_doesnt_kill (f:fdef) (src tgt:l) (id1:id) (pv1:value) 
+  (t1:typ) : bool :=
+match available_aux f src tgt id1 pv1 t1 with  
+| None => false
+| Some rs => AMap.get tgt rs
+end.
 
 Program Fixpoint fdef_doesnt_kill_aux (f:fdef) (preds : ATree.t ls) 
   (nvisited:list l) (src curr target:l) (id1:id) (pv1:value) (t1:typ)
@@ -356,12 +466,12 @@ end.
 Next Obligation. 
   apply remove_in_length; auto.
 Qed.
-
+(*
 Definition fdef_doesnt_kill (f:fdef) (src target:l) (id1:id) (pv1:value) 
   (t1:typ) : bool :=
 fdef_doesnt_kill_aux f (make_predecessors (successors f)) (bound_fdef f)
   src target target id1 pv1 t1.
-
+*)
 Definition kill_loadstores (inscope: lcmds) : lcmds :=
  List.filter (fun data => 
               match data with
@@ -393,7 +503,7 @@ else
   match c with 
   | insn_load id1 t1 pv1 al1 =>
     if does_load_elim tt then
-      match lookup_redundant_load inscope t1 pv1 al1 with
+      match lookup_redundant_load inscope t1 pv1 with
       | None => (f, changed, (l1,c)::inscope)
       | Some (l0, id0, v0) => 
           if fdef_doesnt_kill f l0 l1 id1 pv1 t1 then
@@ -679,6 +789,8 @@ Definition dce_fdef (f:fdef) : fdef :=
 let '(fdef_intro fh bs) := f in
 fold_left (fun f1 b => dce_block f1 b) bs f.
 
+Parameter read_aa_from_fun: id -> bool.
+
 Definition opt_fdef (f:fdef) : fdef :=
 match getEntryBlock f, reachablity_analysis f with
 | Some (block_intro root _ _ _), Some rd =>
@@ -692,7 +804,7 @@ match getEntryBlock f, reachablity_analysis f with
         create_dtree_from_chain acc chain) 
       chains (DT_node root DT_nil) in
     if print_reachablity rd && print_dominators b dts && 
-       print_dtree dt then
+       print_dtree dt && read_aa_from_fun (getFdefID f) then
        match fix_temporary_fdef 
                (SafePrimIter.iterate _ (opt_step dt dts rd) 
                  (dce_fdef f)) with
@@ -744,14 +856,18 @@ Next Obligation.
 Qed.
 *)
 
+Parameter open_aa_db : unit -> bool.
+
 Definition opt (m:module) : module :=
 let '(module_intro los nts ps) := m in
-module_intro los nts 
-  (List.rev (fold_left (fun acc p =>
-                        match p with
-                        | product_fdef f => product_fdef (opt_fdef f)
-                        | _ => p
-                        end::acc) ps nil)).
+if open_aa_db tt then
+  module_intro los nts 
+    (List.rev (fold_left (fun acc p =>
+                          match p with
+                          | product_fdef f => product_fdef (opt_fdef f)
+                          | _ => p
+                          end::acc) ps nil))
+else m.
 
 (*****************************)
 (*

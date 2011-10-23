@@ -7,12 +7,7 @@ BC_DIR=./testcases/
 OC_DIR=./testcases/olden-ccured/
 OC_CASES="bh bisort em3d health mst perimeter power treeadd tsp"
 S95_DIR=./testcases/spec95-ccured/
-# 129.compress has floats and functions named like "\01__soc95" and "@^0"
-# In 099.go 130.li 132.ijpeg there are 'switch'
-# ijpeg: undefined reference to `softbound__01___isoc99_sscanf'
-# 132.ijpeg is slow for SBpass
-#S95_CASES="129.compress 099.go 130.li 132.ijpeg"
-S95_CASES="129.compress 130.li 132.ijpeg"
+S95_CASES="129.compress 099.go 130.li 132.ijpeg"
 PRE_OPT_FLAG="-disable-opt -raiseallocs -simplifycfg -domtree -domfrontier 
   -mem2reg 
   -globalopt -globaldce -ipconstprop -deadargelim -instcombine -simplifycfg 
@@ -76,9 +71,12 @@ NOGVN_OPT_FLAG="-disable-opt -raiseallocs -simplifycfg -domtree -domfrontier
 #  -adce -globaldce -preverify -domtree -verify"
 LD_FLAG="-disable-opt"
 
+AA_FLAG="-q -analyze -aa-meval -mprint-no-aliases -mprint-must-aliases -disable-output"
+
 for name in ./testcases/*.ll; do 
   echo -e $name": \c"  
   llvm-as -f $name -o input.bc
+  opt $AA_FLAG input.bc >& aa.db
   $GVN input.bc
   $GVN input.bc >& output.ll
   llvm-as -f output.ll
@@ -89,18 +87,20 @@ for dir in $DIRS; do
   for name in $dir/*.ll; do 
     echo -e $name": \c"  
     llvm-as -f $name -o input.bc
+    opt $AA_FLAG input.bc >& aa.db
     $GVN input.bc >& output.ll
     llvm-as -f output.ll
     llvm-ld -disable-opt output.bc -o test.exe
     time ./test.exe
   done;
 done;
-rm -f input.* output.* test.exe test.exe.bc
 
 for name in $OC_CASES; do 
   echo -e $name": \c" ; 
 
   echo -e "LLVM a0"; time opt $PRE_OPT_FLAG $OC_DIR$name"/test.bc" -f -o opt.bc
+  echo -e "AA"; time opt $AA_FLAG opt.bc >& aa.db
+  du -h aa.db
   echo -e "Coq GVN"; time $GVN opt.bc |& sed '2itarget triple = "i386-unknown-linux-gnu"' >& $name"o.ll"
   llvm-as -f $name"o.ll" -o $name"o.bc"
   echo -e "LLVM a1"; time opt $SUF_OPT_FLAG $name"o.bc" -f -o opt.bc
@@ -143,6 +143,8 @@ for name in $S95_CASES; do
   echo -e $name": \c" ; 
 
   echo -e "LLVM a0"; time opt $PRE_OPT_FLAG $S95_DIR$name"/src/test.bc" -f -o opt.bc
+  echo -e "AA"; time opt $AA_FLAG opt.bc >& aa.db
+  du -h aa.db
   echo -e "Coq GVN"; time $GVN opt.bc |& sed '2itarget triple = "i386-unknown-linux-gnu"' >& $name"o.ll"
   llvm-as -f $name"o.ll" -o $name"o.bc"
   echo -e "LLVM a1"; time opt $SUF_OPT_FLAG $name"o.bc" -f -o opt.bc
@@ -154,7 +156,9 @@ for name in $S95_CASES; do
   echo -e "LLVM c1"; time opt $NOGVN_OPT_FLAG $S95_DIR$name"/src/test.bc" -f -o opt.bc
   echo -e "LLVM c2"; time llvm-ld -native -Xlinker=-m32 -lm $LD_FLAG opt.bc -o $name"c.exe"
 done;
-#echo -e "099.go: \c"; time ./099.go.exe 100 15;
+echo -e "099.go b: \c"; time ./099.gob.exe 100 15 >& /dev/null
+echo -e "099.go a: \c"; time ./099.goa.exe 100 15 >& /dev/null
+echo -e "099.go c: \c"; time ./099.goc.exe 100 15 >& /dev/null
 #echo -e "130.li: \c"; time ./130.li.exe ./testcases/spec95-ccured/130.li/src/ref.lsp;
 echo -e "129.compress b: \c"; time ./129.compressb.exe < ./testcases/spec95-ccured/129.compress/src/slow_input.data >& /dev/null
 echo -e "129.compress a: \c"; time ./129.compressa.exe < ./testcases/spec95-ccured/129.compress/src/slow_input.data >& /dev/null
@@ -163,6 +167,7 @@ echo -e "132.ijpeg b: \c"; time ./132.ijpegb.exe -image_file testcases/spec95-cc
 echo -e "132.ijpeg a: \c"; time ./132.ijpega.exe -image_file testcases/spec95-ccured/132.ijpeg/data/ref/input/vigo.ppm -compression.quality 90 -compression.optimize_coding 0 -compression.smoothing_factor 90 -difference.image 1 -difference.x_stride 10 -difference.y_stride 10 -verbose 1 -GO.findoptcomp >& /dev/null
 echo -e "132.ijpeg c: \c"; time ./132.ijpegc.exe -image_file testcases/spec95-ccured/132.ijpeg/data/ref/input/vigo.ppm -compression.quality 90 -compression.optimize_coding 0 -compression.smoothing_factor 90 -difference.image 1 -difference.x_stride 10 -difference.y_stride 10 -verbose 1 -GO.findoptcomp >& /dev/null
 rm -f bisort* em3d* health* mst* treeadd* 129.compress* test-softbound.bc \
-  130.li* 099.go* tsp* bh* power* perimeter* 132.ijpeg* opt.bc
+  130.li* 099.go* tsp* bh* power* perimeter* 132.ijpeg* opt.bc input.* output.* \
+  test.exe test.exe.bc aa.db
 
 
