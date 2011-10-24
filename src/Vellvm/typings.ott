@@ -260,8 +260,8 @@ formula :: 'formula_' ::=
                                 {{ coq getSubTypFromConstIdxs [[ </ constj // j /> ]] [[typ]] = [[opt_typ]] }}
   | getConstGEPTyp </ constj // j /> typ = opt_typ :: :: getConstGEPTyp
                                 {{ coq getConstGEPTyp [[ </ constj // j /> ]] [[typ]] = [[opt_typ]] }}
-  | getGEPTyp </ valuej // j /> typ = opt_typ :: :: getGEPTyp
-                                {{ coq getGEPTyp [[ </ valuej // j /> ]] [[typ]] = [[opt_typ]] }}
+  | getGEPTyp </ szj , valuej // j /> typ = opt_typ :: :: getGEPTyp
+                                {{ coq getGEPTyp [[ </ szj , valuej // j /> ]] [[typ]] = [[opt_typ]] }}
   | Typ.isSized typ :: :: TypIsSized
                                 {{ coq Typ.isSized [[typ]] = true }}
   | lookupBlockViaLabelFromFdef fdef l = opt_block :: :: lookupBlockViaLabelFromFdef
@@ -987,13 +987,13 @@ Jwf_insn :: '' ::=
       </ system , module , fdef |- valuej : typ'' // j />
       typ'' = i32
       % Check indexs
-      getGEPTyp </ valuej // j /> typ = typ'
+      getGEPTyp </ szj , valuej // j /> typ = typ'
       system |- typ'
       (layouts namedts) |- typ'
       % Check invariance for instructions
-      fdef , block |-i id = getelementptr inbounds (typ*) value </ valuej // j />
+      fdef , block |-i id = getelementptr inbounds (typ*) value </ szj , valuej // j />
       ---------------------------------------------------------------------------------------- :: wf_insn_gep
-      intrinsic_funs , system , (layouts namedts products) , fdef , block |- id = getelementptr inbounds (typ*) value </ valuej // j />
+      intrinsic_funs , system , (layouts namedts products) , fdef , block |- id = getelementptr inbounds (typ*) value </ szj , valuej // j />
 
 
       intrinsic_funs , system , module , fdef , block |-trunc id = truncop typ1 value1 to typ2

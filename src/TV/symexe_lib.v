@@ -2,6 +2,7 @@ Add LoadPath "../Vellvm/ott".
 Add LoadPath "../Vellvm/monads".
 Add LoadPath "../Vellvm/compcert".
 Add LoadPath "../Vellvm".
+Add LoadPath "../Vellvm/GraphBasics".
 Add LoadPath "../../../theory/metatheory_8.3".
 Require Import syntax.
 Require Import infrastructure.
@@ -1019,8 +1020,8 @@ Case "sterms_nil_denote".
   inversion H; auto.
 Case "sterms_cons_denote".
   inversion H1; subst.
-  apply H in H8; subst.
-  apply H0 in H10; subst; auto.
+  apply H in H10; subst.
+  apply H0 in H11; subst; auto.
 Case "smem_init_denotes".
   inversion H; auto.
 Case "smem_malloc_denotes".
@@ -1947,7 +1948,7 @@ Qed.
 (*
 *** Local Variables: ***
 *** coq-prog-name: "coqtop" ***
-*** coq-prog-args: ("-emacs-U" "-I" "~/SVN/sol/vol/src/Vellvm/monads" "-I" "~/SVN/sol/vol/src/Vellvm/ott" "-I" "~/SVN/sol/vol/src/Vellvm/compcert" "-I" "~/SVN/sol/theory/metatheory_8.3") ***
+*** coq-prog-args: ("-emacs-U" "-I" "~/SVN/sol/vol/src/Vellvm/monads" "-I" "~/SVN/sol/vol/src/Vellvm/ott" "-I" "~/SVN/sol/vol/src/Vellvm/compcert" "-I" "~/SVN/sol/theory/metatheory_8.3" "-impredicative-set") ***
 *** End: ***
  *)
 

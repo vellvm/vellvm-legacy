@@ -410,8 +410,8 @@ Lemma wf_value_list__valueInListValue__wf_value : forall s m f v value_list
   (J : valueInListValue v value_list)
   (H1 : wf_value_list
          (make_list_system_module_fdef_value_typ
-            (map_list_value
-               (fun value_ : value =>
+            (map_list_sz_value
+               (fun (sz_:sz) (value_ : value) =>
                 (s, m, f, value_, typ_int Size.ThirtyTwo)) value_list))),
   exists t : typ, wf_value s m f v t.
 Proof.
@@ -4773,6 +4773,6 @@ Qed.
 (*
 *** Local Variables: ***
 *** coq-prog-name: "coqtop" ***
-*** coq-prog-args: ("-emacs-U" "-I" "~/SVN/sol/vol/src/Vellvm/monads" "-I" "~/SVN/sol/vol/src/Vellvm/ott" "-I" "~/SVN/sol/vol/src/Vellvm/compcert" "-I" "~/SVN/sol/theory/metatheory_8.3" "-I" "~/SVN/sol/vol/src/TV" "-impredicative-set") ***
+*** coq-prog-args: ("-emacs-U" "-I" "~/SVN/sol/vol/src/Vellvm/monads" "-I" "~/SVN/sol/vol/src/Vellvm/ott" "-I" "~/SVN/sol/vol/src/Vellvm/compcert" "-I" "~/SVN/sol/theory/metatheory_8.3" "-impredicative-set") ***
 *** End: ***
  *)

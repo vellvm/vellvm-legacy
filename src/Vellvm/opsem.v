@@ -1,6 +1,7 @@
 Add LoadPath "./ott".
 Add LoadPath "./monads".
 Add LoadPath "./compcert".
+Add LoadPath "./GraphBasics".
 Add LoadPath "../../../theory/metatheory_8.3".
 Require Import Ensembles.
 Require Import syntax.
@@ -431,11 +432,11 @@ Definition exCallUpdateLocals TD (ft:typ) (noret:bool) (rid:id)
   | true => Some lc
   end.
 
-Fixpoint values2GVs (TD:TargetData) (lv:list_value) (locals:GVsMap) 
+Fixpoint values2GVs (TD:TargetData) (lv:list_sz_value) (locals:GVsMap) 
   (globals:GVMap) : option (list GVs):=
 match lv with
-| Nil_list_value => Some nil
-| Cons_list_value v lv' => 
+| Nil_list_sz_value => Some nil
+| Cons_list_sz_value _ v lv' => 
   match (getOperandValue TD v locals globals) with
   | Some GV => 
     match (values2GVs TD lv' locals globals) with
@@ -1333,6 +1334,6 @@ Tactic Notation "sop_star_cases" tactic(first) tactic(c) :=
 (*
 *** Local Variables: ***
 *** coq-prog-name: "coqtop" ***
-*** coq-prog-args: ("-emacs-U" "-I" "~/SVN/sol/vol/src/Vellvm/monads" "-I" "~/SVN/sol/vol/src/Vellvm/ott" "-I" "~/SVN/sol/vol/src/Vellvm/compcert" "-I" "~/SVN/sol/theory/metatheory_8.3") ***
+*** coq-prog-args: ("-emacs-U" "-I" "~/SVN/sol/vol/src/Vellvm/monads" "-I" "~/SVN/sol/vol/src/Vellvm/ott" "-I" "~/SVN/sol/vol/src/Vellvm/compcert" "-I" "~/SVN/sol/theory/metatheory_8.3" "-impredicative-set") ***
 *** End: ***
  *)

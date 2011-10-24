@@ -1740,22 +1740,23 @@ Proof.
 Qed.      
 
 Lemma in_app_list_value_right : forall l1 v l2,
-  In v (unmake_list_value l2) ->
-  In v (unmake_list_value (app_list_value l1 l2)).
+  In v (map_list_sz_value (fun sz1 v1 => v1) l2) ->
+  In v (map_list_sz_value (fun sz1 v1 => v1) (app_list_sz_value l1 l2)).
 Proof.
   induction l1; simpl; intros; auto.
-Qed.    
+Qed. 
 
 Lemma app_list_value_assoc : forall l1 l2 l3,
-  app_list_value l1 (app_list_value l2 l3) =
-    app_list_value (app_list_value l1 l2) l3.
+  app_list_sz_value l1 (app_list_sz_value l2 l3) =
+    app_list_sz_value (app_list_sz_value l1 l2) l3.
 Proof.
   induction l1; intros; simpl; auto.
     rewrite IHl1; auto.
 Qed.
 
-Lemma cons_eq_app_list_value : forall a1 l1,
-  Cons_list_value a1 l1 = app_list_value (Cons_list_value a1 Nil_list_value) l1.
+Lemma cons_eq_app_list_value : forall sz1 a1 l1,
+  Cons_list_sz_value sz1 a1 l1 = 
+    app_list_sz_value (Cons_list_sz_value sz1 a1 Nil_list_sz_value) l1.
 Proof.
   intros. simpl. auto.
 Qed.
@@ -1775,8 +1776,8 @@ Proof.
 Qed.
 
 Lemma valueInValues__InOps : forall vid l0,
-  In (value_id vid) (unmake_list_value l0) ->
-  In vid (values2ids (unmake_list_value l0)).
+  In (value_id vid) (map_list_sz_value (fun _ v => v) l0) ->
+  In vid (values2ids (map_list_sz_value (fun _ v => v) l0)).
 Proof.
   induction l0; intros; simpl in *; auto.
     destruct H as [H | H]; subst; simpl; auto.
@@ -2805,6 +2806,6 @@ Proof. induction 1; intros; simpl; auto using sublist_refl, sublist_weaken. Qed.
 (*
 *** Local Variables: ***
 *** coq-prog-name: "coqtop" ***
-*** coq-prog-args: ("-emacs-U" "-I" "~/SVN/sol/vol/src/Vellvm/monads" "-I" "~/SVN/sol/vol/src/Vellvm/ott" "-I" "~/SVN/sol/vol/src/Vellvm/compcert" "-I" "~/SVN/sol/theory/metatheory_8.3") ***
+*** coq-prog-args: ("-emacs-U" "-I" "~/SVN/sol/vol/src/Vellvm/monads" "-I" "~/SVN/sol/vol/src/Vellvm/ott" "-I" "~/SVN/sol/vol/src/Vellvm/compcert" "-I" "~/SVN/sol/theory/metatheory_8.3" "-impredicative-set") ***
 *** End: ***
  *)

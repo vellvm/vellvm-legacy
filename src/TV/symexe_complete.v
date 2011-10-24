@@ -2,6 +2,7 @@ Add LoadPath "../Vellvm/ott".
 Add LoadPath "../Vellvm/monads".
 Add LoadPath "../Vellvm/compcert".
 Add LoadPath "../Vellvm".
+Add LoadPath "../Vellvm/GraphBasics".
 Add LoadPath "../../../theory/metatheory_8.3".
 Require Import syntax.
 Require Import infrastructure.
@@ -45,7 +46,9 @@ Lemma genericvalues__imply__value2Sterm_denote : forall l0 TD lc0 Mem0 smap1 lc
   smap_denotes_gvmap TD lc0 gl Mem0 smap1 lc ->
   values2GVs TD l0 lc gl = Some gvs0 ->
   sterms_denote_genericvalues TD lc0 gl Mem0 
-    (make_list_sterm (map_list_value (value2Sterm smap1) l0)) gvs0.
+    (make_list_sterm 
+      (map_list_sz_value (fun sz' v' => (sz', value2Sterm smap1 v')) l0)) 
+    gvs0.
 Proof.
   induction l0; intros; simpl in *.
     inversion H1; subst; auto.
@@ -563,7 +566,7 @@ Qed.
 (*
 *** Local Variables: ***
 *** coq-prog-name: "coqtop" ***
-*** coq-prog-args: ("-emacs-U" "-I" "~/SVN/sol/vol/src/Vellvm/monads" "-I" "~/SVN/sol/vol/src/Vellvm/ott" "-I" "~/SVN/sol/vol/src/Vellvm/compcert" "-I" "~/SVN/sol/theory/metatheory_8.3") ***
+*** coq-prog-args: ("-emacs-U" "-I" "~/SVN/sol/vol/src/Vellvm/monads" "-I" "~/SVN/sol/vol/src/Vellvm/ott" "-I" "~/SVN/sol/vol/src/Vellvm/compcert" "-I" "~/SVN/sol/theory/metatheory_8.3" "-impredicative-set") ***
 *** End: ***
  *)
 

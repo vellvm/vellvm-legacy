@@ -2,6 +2,7 @@ Add LoadPath "../Vellvm/ott".
 Add LoadPath "../Vellvm/monads".
 Add LoadPath "../Vellvm".
 Add LoadPath "../Vellvm/compcert".
+Add LoadPath "../Vellvm/GraphBasics".
 Add LoadPath "../../../theory/metatheory_8.3".
 Add LoadPath "../TV".
 Require Import Values.
@@ -524,7 +525,7 @@ Lemma SBpass_is_correct__dsGEP : forall
   (mi : MoreMem.meminj) (mgb : Values.block) (St : Opsem.State) (S : system)
   (TD : TargetData) (Ps : list product) (F : fdef) (B : block) (lc : DGVMap)
   (rm : rmetadata) (gl : GVMap) (fs : GVMap) (id0 : atom) (inbounds0 : bool)
-  (t : typ) (vp : value) (idxs : list_value) (EC : list ExecutionContext)
+  (t : typ) (vp : value) (idxs : list_sz_value) (EC : list ExecutionContext)
   (cs : list cmd) (tmn : terminator) (Mem0 : mem) (MM : mmetadata)
   (als : list mblock) Cfg
   (Hsim : sbState_simulates_State mi mgb {|
@@ -1216,7 +1217,7 @@ Qed.
 (*
 *** Local Variables: ***
 *** coq-prog-name: "coqtop" ***
-*** coq-prog-args: ("-emacs-U" "-I" "~/SVN/sol/vol/src/Vellvm/monads" "-I" "~/SVN/sol/vol/src/Vellvm/ott" "-I" "~/SVN/sol/vol/src/Vellvm/compcert" "-I" "~/SVN/sol/theory/metatheory_8.3" "-I" "~/SVN/sol/vol/src/TV") ***
+*** coq-prog-args: ("-emacs-U" "-I" "~/SVN/sol/vol/src/Vellvm/monads" "-I" "~/SVN/sol/vol/src/Vellvm/ott" "-I" "~/SVN/sol/vol/src/Vellvm/compcert" "-I" "~/SVN/sol/theory/metatheory_8.3" "-I" "~/SVN/sol/vol/src/TV" "-impredicative-set") ***
 *** End: ***
  *)
 

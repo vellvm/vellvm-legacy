@@ -34,7 +34,7 @@ Definition pp8 := typ_pointer p8.
 Definition p32 := typ_pointer i32.
 Definition int1 := const_int Size.ThirtyTwo (INTEGER.of_Z 32%Z 1%Z false).
 Definition vint1 := value_const int1.
-Definition c1 := Cons_list_value vint1 Nil_list_value.
+Definition c1 := Cons_list_sz_value Size.ThirtyTwo vint1 Nil_list_sz_value.
 Definition vnullp8 := value_const (const_null p8).
 Definition vnullp32 := value_const (const_null p32).
 Definition int0 := const_int Size.ThirtyTwo (INTEGER.of_Z 32%Z 0%Z false).
@@ -140,10 +140,10 @@ Definition attrs := clattrs_intro false callconv_ccc nil nil.
 (*******************************)
 (* Generate metadata *)
 
-Definition getGEPTyp (nts:namedts) (idxs : list_value) (t : typ) : option typ :=
+Definition getGEPTyp (nts:namedts) (idxs : list_sz_value) (t : typ) : option typ :=
 match idxs with
-| Nil_list_value => None
-| Cons_list_value idx idxs' =>
+| Nil_list_sz_value => None
+| Cons_list_sz_value _ idx idxs' =>
     do t <- Constant.typ2utyp nts t;
     (* The input t is already an element of a pointer typ *)
     do t' <- getSubTypFromValueIdxs idxs' t;
@@ -376,7 +376,7 @@ match c with
        insn_cast ntmp castop_bitcast i32 v1 i32:: 
        c::
        insn_gep etmp false t1 (value_id id0) 
-         (Cons_list_value (value_id ntmp) Nil_list_value) :: 
+         (Cons_list_sz_value Size.ThirtyTwo (value_id ntmp) Nil_list_sz_value) :: 
        insn_cast bid castop_bitcast (typ_pointer t1) (value_id id0) p8:: 
        insn_cast eid castop_bitcast (typ_pointer t1) (value_id etmp) p8:: 
        nil)

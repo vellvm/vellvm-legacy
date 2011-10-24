@@ -530,7 +530,7 @@ Inductive sterm : Set :=
 | sterm_select : sterm -> typ -> sterm -> sterm -> sterm
 with list_sterm : Set :=
 | Nil_list_sterm : list_sterm
-| Cons_list_sterm : sterm -> list_sterm -> list_sterm
+| Cons_list_sterm : sz -> sterm -> list_sterm -> list_sterm
 with list_sterm_l : Set :=
 | Nil_list_sterm_l : list_sterm_l
 | Cons_list_sterm_l : sterm -> l -> list_sterm_l -> list_sterm_l
@@ -563,39 +563,39 @@ Definition se_mutrec P1 P2 P3 P4 P5:=
             (@smem_rec2 P1 P2 P3 P4 P5 h1 h2 h3 h4 h5 h6 h7 h8 h9 h10 h11 h12 h13 h14 h15 h16 h17 h18 h19 h20 h21 h22 h23 h24 h25 h26 h27 h28))
       (@sframe_rec2 P1 P2 P3 P4 P5 h1 h2 h3 h4 h5 h6 h7 h8 h9 h10 h11 h12 h13 h14 h15 h16 h17 h18 h19 h20 h21 h22 h23 h24 h25 h26 h27 h28)).
 
-Fixpoint map_list_sterm (A:Set) (f:sterm->A) (l0:list_sterm) {struct l0} 
+Fixpoint map_list_sterm (A:Set) (f:sz->sterm->A) (l0:list_sterm) {struct l0} 
   : list A :=
   match l0 with
   | Nil_list_sterm => nil
-  | Cons_list_sterm h tl_ => cons (f h) (map_list_sterm A f tl_)
+  | Cons_list_sterm s h tl_ => cons (f s h) (map_list_sterm A f tl_)
   end.
 Implicit Arguments map_list_sterm.
 
-Fixpoint make_list_sterm (l0:list sterm) : list_sterm :=
+Fixpoint make_list_sterm (l0:list (sz * sterm)) : list_sterm :=
   match l0 with
   | nil  => Nil_list_sterm
-  | cons h tl_ => Cons_list_sterm h (make_list_sterm tl_)
+  | cons (s, h) tl_ => Cons_list_sterm s h (make_list_sterm tl_)
   end.
 
-Fixpoint unmake_list_sterm (l0:list_sterm) :  list sterm :=
+Fixpoint unmake_list_sterm (l0:list_sterm) :  list (sz * sterm) :=
   match l0 with
   | Nil_list_sterm => nil
-  | Cons_list_sterm h tl_ =>  cons h (unmake_list_sterm tl_)
+  | Cons_list_sterm s h tl_ =>  cons (s, h) (unmake_list_sterm tl_)
   end.
 
-Fixpoint nth_list_sterm (n:nat) (l0:list_sterm) {struct n} : option sterm :=
+Fixpoint nth_list_sterm (n:nat) (l0:list_sterm) {struct n} : option (sz * sterm) :=
   match n,l0 with
-  | O, Cons_list_sterm h tl_ => Some h
+  | O, Cons_list_sterm s h tl_ => Some (s, h)
   | O, other => None
   | S m, Nil_list_sterm => None
-  | S m, Cons_list_sterm h tl_ => nth_list_sterm m tl_
+  | S m, Cons_list_sterm _ _ tl_ => nth_list_sterm m tl_
   end.
 Implicit Arguments nth_list_sterm.
 
 Fixpoint app_list_sterm (l0 m:list_sterm) {struct l0} : list_sterm :=
   match l0 with
   | Nil_list_sterm => m
-  | Cons_list_sterm h tl_ => Cons_list_sterm h (app_list_sterm tl_ m)
+  | Cons_list_sterm s h tl_ => Cons_list_sterm s h (app_list_sterm tl_ m)
   end.
 
 Fixpoint map_list_sterm_l (A:Set) (f:sterm->l->A) (l0:list_sterm_l) {struct l0} 
@@ -764,8 +764,8 @@ match c with
        (mkSstate (updateAddAL _ st.(STerms) id0 
                    (sterm_gep inbounds0 t1 
                      (value2Sterm st.(STerms) v1)
-                     (make_list_sterm (map_list_value (value2Sterm st.(STerms)) 
-                       lv2))))
+                     (make_list_sterm (map_list_sz_value 
+                       (fun sz' v' => (sz', value2Sterm st.(STerms) v')) lv2))))
                  st.(SMem)
                  st.(SFrame)
                  st.(SEffects))
@@ -960,10 +960,10 @@ with sterms_denote_genericvalues :
    Prop :=
 | sterms_nil_denote : forall TD lc gl Mem,
   sterms_denote_genericvalues TD lc gl Mem Nil_list_sterm nil
-| sterms_cons_denote : forall TD lc gl Mem sts st gvs gv,
+| sterms_cons_denote : forall TD lc gl Mem sts sz0 st gvs gv,
   sterms_denote_genericvalues TD lc gl Mem sts gvs ->
   sterm_denotes_genericvalue TD lc gl Mem st gv ->
-  sterms_denote_genericvalues TD lc gl Mem (Cons_list_sterm st sts) (gv::gvs)
+  sterms_denote_genericvalues TD lc gl Mem (Cons_list_sterm sz0 st sts)(gv::gvs)
 with smem_denotes_mem : 
    TargetData ->               (* CurTatgetData *)
    GVMap ->                 (* local registers *)
@@ -1098,12 +1098,14 @@ end
 with subst_tlt (id0:id) (s0:sterm) (ls:list_sterm) : list_sterm :=
 match ls with
 | Nil_list_sterm => Nil_list_sterm
-| Cons_list_sterm s ls' => Cons_list_sterm (subst_tt id0 s0 s) (subst_tlt id0 s0 ls')
+| Cons_list_sterm sz0 s ls' => 
+    Cons_list_sterm sz0 (subst_tt id0 s0 s) (subst_tlt id0 s0 ls')
 end
 with subst_tltl (id0:id) (s0:sterm) (ls:list_sterm_l) : list_sterm_l :=
 match ls with
 | Nil_list_sterm_l => Nil_list_sterm_l
-| Cons_list_sterm_l s l0 ls' => Cons_list_sterm_l (subst_tt id0 s0 s) l0 (subst_tltl id0 s0 ls')
+| Cons_list_sterm_l s l0 ls' =>
+     Cons_list_sterm_l (subst_tt id0 s0 s) l0 (subst_tltl id0 s0 ls')
 end
 with subst_tm (id0:id) (s0:sterm) (m:smem) : smem :=
 match m with 
@@ -1112,7 +1114,8 @@ match m with
 | smem_free m1 t1 s1 => smem_free (subst_tm id0 s0 m1) t1 (subst_tt id0 s0 s1)
 | smem_alloca m1 t1 sz align => smem_alloca (subst_tm id0 s0 m1) t1 sz align
 | smem_load m1 t1 s1 align => smem_load (subst_tm id0 s0 m1) t1 (subst_tt id0 s0 s1) align 
-| smem_store m1 t1 s1 s2 align => smem_store (subst_tm id0 s0 m1) t1 (subst_tt id0 s0 s1) (subst_tt id0 s0 s2) align
+| smem_store m1 t1 s1 s2 align => 
+    smem_store (subst_tm id0 s0 m1) t1 (subst_tt id0 s0 s1) (subst_tt id0 s0 s2) align
 end
 .
 

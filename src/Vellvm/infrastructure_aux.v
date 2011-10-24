@@ -269,10 +269,10 @@ match (idxs, t) with
 | _ => None
 end.
 
-Fixpoint getSubTypFromValueIdxs (idxs : list_value) (t : typ) : option typ :=
+Fixpoint getSubTypFromValueIdxs (idxs : list_sz_value) (t : typ) : option typ :=
 match idxs with
-| Nil_list_value => Some t 
-| Cons_list_value idx idxs' => 
+| Nil_list_sz_value => Some t 
+| Cons_list_sz_value _ idx idxs' => 
   match t with
   | typ_array sz t' => getSubTypFromValueIdxs idxs' t'
   | typ_struct lt => 
@@ -288,10 +288,10 @@ match idxs with
   end
 end.
 
-Definition getGEPTyp (idxs : list_value) (t : typ) : option typ :=
+Definition getGEPTyp (idxs : list_sz_value) (t : typ) : option typ :=
 match idxs with
-| Nil_list_value => None
-| Cons_list_value idx idxs' =>
+| Nil_list_sz_value => None
+| Cons_list_sz_value _ idx idxs' =>
      (* The input t is already an element of a pointer typ *)
      match (getSubTypFromValueIdxs idxs' t) with
      | Some t' => Some (typ_pointer t')
@@ -399,7 +399,8 @@ match i with
 | insn_alloca _ _ v _ => getValueIDs v
 | insn_load _ _ v _ => getValueIDs v
 | insn_store _ _ v1 v2 _ => getValueIDs v1 ++ getValueIDs v2
-| insn_gep _ _ _ v vs => getValueIDs v ++ values2ids (unmake_list_value vs)
+| insn_gep _ _ _ v vs => 
+    getValueIDs v ++ values2ids (map_list_sz_value (fun _ v => v) vs)
 | insn_trunc _ _ _ v _ => getValueIDs v
 | insn_ext _ _ _ v1 typ2 => getValueIDs v1
 | insn_cast _ _ _ v _ => getValueIDs v
@@ -409,8 +410,8 @@ match i with
 | insn_call _ _ _ _ v0 lp => getValueIDs v0 ++ getParamsOperand lp
 end.
 
-Definition valueInListValue (v0:value) (vs:list_value) : Prop :=
-In v0 (unmake_list_value vs).
+Definition valueInListValue (v0:value) (vs:list_sz_value) : Prop :=
+In v0 (map_list_sz_value (fun _ v => v) vs).
 
 Definition valueInParams (v0:value) (lp:params) : Prop :=
 let '(_, vs) := split lp in In v0 vs.
@@ -1749,10 +1750,11 @@ Proof.
     destruct (@IHl1 l3); subst; try solve [auto | done_right].
 Qed.
 
-Lemma list_value_dec : forall (lv1 lv2:list_value), {lv1=lv2}+{~lv1=lv2}.
+Lemma list_value_dec : forall (lv1 lv2:list_sz_value), {lv1=lv2}+{~lv1=lv2}.
 Proof.
   decide equality.
     destruct (@value_dec v v0); subst; try solve [auto | done_right].
+    destruct (@Size.dec s s0); subst; try solve [auto | done_right].
 Qed.
 
 Lemma callconv_dec : forall (cc1 cc2:callconv), {cc1=cc2}+{~cc1=cc2}.

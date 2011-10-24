@@ -819,11 +819,11 @@ match lp with
     end
 end.
 
-Fixpoint values2GVs (TD:TargetData) (lv:list_value) (locals:GVMap) 
+Fixpoint values2GVs (TD:TargetData) (lv:list_sz_value) (locals:GVMap) 
   (globals:GVMap) : option (list GenericValue):=
 match lv with
-| Nil_list_value => Some nil
-| Cons_list_value v lv' => 
+| Nil_list_sz_value => Some nil
+| Cons_list_sz_value _ v lv' => 
   match (getOperandValue TD v locals globals) with
   | Some GV => 
     match (values2GVs TD lv' locals globals) with
@@ -834,11 +834,11 @@ match lv with
   end
 end.
 
-Fixpoint intValues2Nats (TD:TargetData) (lv:list_value) (locals:GVMap)
+Fixpoint intValues2Nats (TD:TargetData) (lv:list_sz_value) (locals:GVMap)
   (globals:GVMap) : option (list Z):=
 match lv with
-| Nil_list_value => Some nil
-| Cons_list_value v lv' => 
+| Nil_list_sz_value => Some nil
+| Cons_list_sz_value _ v lv' => 
   match (getOperandValue TD v locals globals) with
   | Some GV => 
     match (GV2int TD Size.ThirtyTwo GV) with
@@ -2039,6 +2039,6 @@ End LLVMgv.
 (*
 *** Local Variables: ***
 *** coq-prog-name: "coqtop" ***
-*** coq-prog-args: ("-emacs-U" "-I" "~/SVN/sol/vol/src/Vellvm/monads" "-I" "~/SVN/sol/vol/src/Vellvm/ott" "-I" "~/SVN/sol/vol/src/Vellvm/compcert" "-I" "~/SVN/sol/theory/metatheory_8.3") ***
+*** coq-prog-args: ("-emacs-U" "-I" "~/SVN/sol/vol/src/Vellvm/monads" "-I" "~/SVN/sol/vol/src/Vellvm/ott" "-I" "~/SVN/sol/vol/src/Vellvm/compcert" "-I" "~/SVN/sol/theory/metatheory_8.3" "-impredicative-set") ***
 *** End: ***
  *)

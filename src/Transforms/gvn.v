@@ -34,7 +34,7 @@ Inductive rhs : Set :=
   | rhs_alloca : typ -> value -> align -> rhs
   | rhs_load : typ -> value -> align -> rhs
   | rhs_store : typ -> value -> value -> align -> rhs
-  | rhs_gep : inbounds -> typ -> value -> list_value -> rhs
+  | rhs_gep : inbounds -> typ -> value -> list_sz_value -> rhs
   | rhs_trunc : truncop -> typ -> value -> typ -> rhs
   | rhs_ext : extop -> typ -> value -> typ -> rhs
   | rhs_cast : castop -> typ -> value -> typ -> rhs
@@ -181,10 +181,10 @@ match c with
 | _ => false
 end.
 
-Fixpoint const_list_value (vs: list_value) : option list_const :=
+Fixpoint const_list_value (vs: list_sz_value) : option list_const :=
 match vs with
-| Nil_list_value => Some Nil_list_const
-| Cons_list_value (value_const c) vs' => 
+| Nil_list_sz_value => Some Nil_list_const
+| Cons_list_sz_value _ (value_const c) vs' => 
     match const_list_value vs' with
     | Some cs' => Some (Cons_list_const c cs')
     | None => None

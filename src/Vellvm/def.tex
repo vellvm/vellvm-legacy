@@ -1365,7 +1365,7 @@
 \ottpremise{mod  =  \ottsym{(}  \mathit{\overline{layout} } \, \mathit{\overline{namedt} } \, \mathit{\overline{prod} }  \ottsym{)}}%
 \ottpremise{\ottcomp{\ottnt{system}  \ottsym{,}  mod  \ottsym{,}  \ottnt{fdef}  \vdash  val_{\ottmv{j}}  \ottsym{:}  \ottnt{typ''}}{\ottmv{j}}}%
 \ottpremise{\ottnt{typ''}  =  \ottsym{i32}}%
-\ottpremise{\ottkw{getGEPTyp} \, \ottcomp{val_{\ottmv{j}}}{\ottmv{j}} \, \ottnt{typ}  =  \ottnt{typ'}}%
+\ottpremise{\ottkw{getGEPTyp} \, \ottcomp{\ottmv{sz_{\ottmv{j}}}  \ottsym{,}  val_{\ottmv{j}}}{\ottmv{j}} \, \ottnt{typ}  =  \ottnt{typ'}}%
 \ottpremise{\ottnt{system}  \vdash  \ottnt{typ'}}%
 \ottpremise{\ottsym{(}  \mathit{\overline{layout} } \, \mathit{\overline{namedt} }  \ottsym{)}  \vdash  \ottnt{typ'}}%
 \ottpremise{\ottnt{fdef}  \ottsym{,}  b  \vdash_{i}   \ottmv{id} \,  = \, \ottkw{getelementptr}\, \ottsym{(}\,  \ottnt{typ} \, \ottsym{*}\, \ottsym{)}\,  val \, \overline{val_j}^{j} }%

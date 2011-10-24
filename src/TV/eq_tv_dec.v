@@ -2,6 +2,7 @@ Add LoadPath "../Vellvm/ott".
 Add LoadPath "../Vellvm/monads".
 Add LoadPath "../Vellvm/compcert".
 Add LoadPath "../Vellvm".
+Add LoadPath "../Vellvm/GraphBasics".
 Add LoadPath "../../../theory/metatheory_8.3".
 Require Import syntax.
 Require Import infrastructure.
@@ -130,7 +131,8 @@ Proof.
     destruct sts2; subst; try solve [auto | done_right].
   Case "list_sterm_cons".
     destruct sts2; subst; try solve [auto | done_right].
-    destruct (@H s0); subst; try solve [done_right].
+    destruct (@Size.dec s s1); subst; try solve [done_right].
+    destruct (@H s2); subst; try solve [done_right].
     destruct (@H0 sts2); subst; try solve [auto | done_right].
   Case "list_sterm_l_nil".
     destruct stls2; subst; try solve [auto | done_right].
@@ -245,6 +247,6 @@ Qed.
 (*
 *** Local Variables: ***
 *** coq-prog-name: "coqtop" ***
-*** coq-prog-args: ("-emacs-U" "-I" "~/SVN/sol/vol/src/Vellvm/monads" "-I" "~/SVN/sol/vol/src/Vellvm/ott" "-I" "~/SVN/sol/vol/src/Vellvm/compcert" "-I" "~/SVN/sol/theory/metatheory_8.3") ***
+*** coq-prog-args: ("-emacs-U" "-I" "~/SVN/sol/vol/src/Vellvm/monads" "-I" "~/SVN/sol/vol/src/Vellvm/ott" "-I" "~/SVN/sol/vol/src/Vellvm/compcert" "-I" "~/SVN/sol/theory/metatheory_8.3" "-impredicative-set") ***
 *** End: ***
  *)

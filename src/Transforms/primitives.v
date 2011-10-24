@@ -15,11 +15,12 @@ end.
 Notation "v {[ v' // id' ]}" := 
   ( subst_value id' v' v ) (at level 42, no associativity).
 
-Fixpoint subst_list_value (id':id) (v':value) (vl:list_value) : list_value :=
+Fixpoint subst_list_value (id':id) (v':value) (vl:list_sz_value) 
+  : list_sz_value :=
 match vl with
-| Nil_list_value => Nil_list_value
-| Cons_list_value v0 tl => 
-   Cons_list_value (v0{[v'//id']}) (subst_list_value id' v' tl)
+| Nil_list_sz_value => Nil_list_sz_value
+| Cons_list_sz_value sz0 v0 tl => 
+   Cons_list_sz_value sz0 (v0{[v'//id']}) (subst_list_value id' v' tl)
 end.
 
 Definition subst_cmd (id':id) (v':value) (c:cmd) : cmd :=
@@ -160,10 +161,11 @@ match v with
 | _ => false
 end.
 
-Fixpoint used_in_list_value (id0:id) (vl:list_value) : bool :=
+Fixpoint used_in_list_value (id0:id) (vl:list_sz_value) : bool :=
 match vl with
-| Nil_list_value => false
-| Cons_list_value v0 tl => used_in_value id0 v0 || used_in_list_value id0 tl
+| Nil_list_sz_value => false
+| Cons_list_sz_value _ v0 tl => 
+    used_in_value id0 v0 || used_in_list_value id0 tl
 end.
 
 Definition used_in_cmd (id':id) (c:cmd) : bool :=
@@ -258,11 +260,12 @@ match v with
 | _ => v
 end.
 
-Fixpoint rename_list_value (id1 id2:id) (vl:list_value) : list_value :=
+Fixpoint rename_list_value (id1 id2:id) (vl:list_sz_value) : list_sz_value :=
 match vl with
-| Nil_list_value => Nil_list_value
-| Cons_list_value v0 tl => 
-   Cons_list_value (rename_value id1 id2 v0) (rename_list_value id1 id2 tl)
+| Nil_list_sz_value => Nil_list_sz_value
+| Cons_list_sz_value sz0 v0 tl => 
+    Cons_list_sz_value sz0 (rename_value id1 id2 v0) 
+      (rename_list_value id1 id2 tl)
 end.
 
 Definition rename_cmd (id1:id) (id2:id) (c:cmd) : cmd :=

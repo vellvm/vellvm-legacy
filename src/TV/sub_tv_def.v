@@ -76,8 +76,8 @@ Definition p8 := typ_pointer i8.
 Definition pp32 := typ_pointer p32.
 Definition pp8 := typ_pointer p8.
 Definition cpars c1 c2 := 
-  Cons_list_value (value_const c1) 
-  (Cons_list_value (value_const c2) Nil_list_value).
+  Cons_list_sz_value sz32 (value_const c1) 
+  (Cons_list_sz_value sz32 (value_const c2) Nil_list_sz_value).
 
 Definition call_ptr rid nr tc t v p sid id1 id2 id3 id4 id5 id6 c0 c1 c2:=
 let vret := value_id sid in
@@ -206,23 +206,23 @@ Definition gen_icall nts pa1 (c1 c2 c3 c4 c5 c6:cmd) :
   option (params*id*id*id*id*id*id*id*const*const*const*typ) :=
 match c1 with
 |LLVMsyntax.insn_gep id11 _ t1 (value_id id12)
-   (Cons_list_value (value_const (const_int _ i11 as c11)) 
-     (Cons_list_value (value_const (const_int _ i12 as c12)) 
-      Nil_list_value)) =>
+   (Cons_list_sz_value _ (value_const (const_int _ i11 as c11)) 
+     (Cons_list_sz_value _ (value_const (const_int _ i12 as c12)) 
+      Nil_list_sz_value)) =>
   match c2 with
   |LLVMsyntax.insn_load id21 t2 (value_id id22) _ =>
     match c3 with 
     |LLVMsyntax.insn_gep id31 _ t3 (value_id id32) 
-       (Cons_list_value (value_const (const_int _ i31 as c31)) 
-         (Cons_list_value (value_const (const_int _ i32 as c32)) 
-         Nil_list_value)) =>
+       (Cons_list_sz_value _ (value_const (const_int _ i31 as c31)) 
+         (Cons_list_sz_value _ (value_const (const_int _ i32 as c32)) 
+         Nil_list_sz_value)) =>
       match c4 with
       |LLVMsyntax.insn_load id41 t4 (value_id id42) _ =>
         match c5 with
         |LLVMsyntax.insn_gep id51 _ t5 (value_id id52)
-           (Cons_list_value (value_const (const_int _ i51 as c51)) 
-           (Cons_list_value (value_const (const_int _ i52 as c52)) 
-              Nil_list_value)) =>
+           (Cons_list_sz_value _ (value_const (const_int _ i51 as c51)) 
+           (Cons_list_sz_value _ (value_const (const_int _ i52 as c52)) 
+              Nil_list_sz_value)) =>
            match c6 with
            |LLVMsyntax.insn_load id61 t6 (value_id id62) _ =>
               match pa1 with
@@ -318,21 +318,21 @@ end.
 Definition gen_iret nts t0 id0 (c1 c2 c3 c4 c5 c6:cmd) (id7:id) :=
 match c1 with
 |LLVMsyntax.insn_gep id11 _ t1 (value_id id12)
-   (Cons_list_value (value_const (const_int _ i11 as c11)) 
-     (Cons_list_value (value_const (const_int _ i12 as c12)) 
-      Nil_list_value)) =>
+   (Cons_list_sz_value _ (value_const (const_int _ i11 as c11)) 
+     (Cons_list_sz_value _ (value_const (const_int _ i12 as c12)) 
+      Nil_list_sz_value)) =>
   match c2 with 
   |LLVMsyntax.insn_gep id21 _ t2 (value_id id22) 
-     (Cons_list_value (value_const (const_int _ i21 as c21)) 
-       (Cons_list_value (value_const (const_int _ i22 as c22)) 
-       Nil_list_value)) =>
+     (Cons_list_sz_value _ (value_const (const_int _ i21 as c21)) 
+       (Cons_list_sz_value _ (value_const (const_int _ i22 as c22)) 
+       Nil_list_sz_value)) =>
     match c3 with
     |LLVMsyntax.insn_store id31 t3 v3 (value_id id32) _ =>
       match c4 with
       |LLVMsyntax.insn_gep id41 _ t4 (value_id id42)
-         (Cons_list_value (value_const (const_int _ i41 as c41)) 
-         (Cons_list_value (value_const (const_int _ i42 as c42)) 
-            Nil_list_value)) =>
+         (Cons_list_sz_value _ (value_const (const_int _ i41 as c41)) 
+         (Cons_list_sz_value _ (value_const (const_int _ i42 as c42)) 
+            Nil_list_sz_value)) =>
         match c5 with
         |LLVMsyntax.insn_store id51 t5 v5 (value_id id52) _ =>
            match c6 with

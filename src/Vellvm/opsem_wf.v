@@ -1110,8 +1110,8 @@ Lemma values2GVs__inhabited : forall S los nts f lc (Hwflc: wf_lc (los,nts) f lc
   gl Ps idxs vidxs,
   wf_value_list
           (make_list_system_module_fdef_value_typ
-             (map_list_value
-                (fun value_ : value =>
+             (map_list_sz_value
+                (fun (sz_:sz) (value_ : value) =>
                  (S, module_intro los nts Ps, f, value_,
                  typ_int Size.ThirtyTwo)) idxs)) ->
   values2GVs (los,nts) idxs lc gl = Some vidxs ->
@@ -2644,7 +2644,7 @@ Lemma values2GVs_isnt_stuck : forall
   (i1 : inbounds)
   (t : typ)
   (v : value)
-  (l2 : list_value)
+  (l2 : list_sz_value)
   (cs : list cmd)
   (tmn : terminator)
   (lc : GVsMap)
@@ -2667,7 +2667,7 @@ Lemma values2GVs_isnt_stuck : forall
            (block_intro l1 ps1 (cs1 ++ insn_gep i0 i1 t v l2 :: cs) tmn)
            (insn_gep i0 i1 t v l2))
   (Hinscope : wf_defs (los,nts) f lc l0)
-  (Hex : exists l21, l2 = app_list_value l21 l22),
+  (Hex : exists l21, l2 = app_list_sz_value l21 l22),
   exists vidxs, values2GVs (los, nts) l22 lc gl = Some vidxs.
 Proof.
   induction l22; intros; simpl; eauto.
@@ -2684,7 +2684,7 @@ Proof.
       destruct HbInF as [vidxs HbInF].
       rewrite HbInF. eauto.
 
-      exists (app_list_value l21 (Cons_list_value v Nil_list_value)).
+      exists (app_list_sz_value l21 (Cons_list_sz_value s v Nil_list_sz_value)).
         rewrite cons_eq_app_list_value.
         rewrite cons_eq_app_list_value.
         apply app_list_value_assoc.
@@ -3678,7 +3678,7 @@ Proof.
     assert (exists vidxs, values2GVs (los, nts) l2 lc gl = Some vidxs) 
       as J2.
       eapply values2GVs_isnt_stuck; eauto.
-        exists Nil_list_value. auto.
+        exists Nil_list_sz_value. auto.
     destruct J2 as [vidxss J2].
     inv Hwfc.
     assert (Hins:=H13).

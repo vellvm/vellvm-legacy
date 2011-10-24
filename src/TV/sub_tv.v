@@ -195,9 +195,9 @@ if (function_returns_pointer Ps1 fid2) then
    | Some (SBsyntax.fdef_intro (fheader_intro _ _  _ ((_,re)::_) _) _) =>
        match remove_cast ptr with
        | sterm_gep _ _ (sterm_val (value_id id0)) 
-          (Cons_list_sterm (sterm_val (value_const (const_int _ i0)))
-          (Cons_list_sterm (sterm_val (value_const (const_int _ i1)))
-            Nil_list_sterm)) =>
+          (Cons_list_sz_sterm _ (sterm_val (value_const (const_int _ i0)))
+          (Cons_list_sz_sterm _ (sterm_val (value_const (const_int _ i1)))
+            Nil_list_sz_sterm)) =>
             eq_id id0 re && eq_INT_Z i0 0%Z &&
             (eq_INT_Z i1 0%Z || eq_INT_Z i1 1%Z || eq_INT_Z i1 2%Z) 
        | _ => false
@@ -235,7 +235,7 @@ match (st, st') with
     tv_sterm Ps1 Ps2 fid st1 st1' && tv_align a a'
 | (sterm_gep i t st1 sts2, sterm_gep i' t' st1' sts2') =>
     sumbool2bool _ _ (bool_dec i i') && tv_typ t t' &&
-    tv_sterm Ps1 Ps2 fid st1 st1' && tv_list_sterm Ps1 Ps2 fid sts2 sts2'
+    tv_sterm Ps1 Ps2 fid st1 st1' && tv_list_sz_sterm Ps1 Ps2 fid sts2 sts2'
 | (sterm_trunc top t1 st1 t2, sterm_trunc top' t1' st1' t2') =>
     sumbool2bool _ _ (truncop_dec top top') && tv_typ t1 t1' &&
     tv_sterm Ps1 Ps2 fid st1 st1' && tv_typ t2 t2'
@@ -260,6 +260,14 @@ match (st, st') with
 | (sterm_lib sm i sts, sterm_lib sm' i' sts') =>
     tv_smem Ps1 Ps2 fid sm sm' && eq_id i i' && 
     tv_list_sterm Ps1 Ps2 fid sts sts'
+| _ => false
+end
+with tv_list_sz_sterm Ps1 Ps2 fid (sts sts':list_sz_sterm) : bool :=
+match (sts, sts') with
+| (Nil_list_sz_sterm, Nil_list_sz_sterm) => true
+| (Cons_list_sz_sterm sz0 st sts0, Cons_list_sz_sterm sz0' st' sts0') =>
+    sumbool2bool _ _ (Size.dec sz0 sz0') &&
+    tv_sterm Ps1 Ps2 fid st st' && tv_list_sz_sterm Ps1 Ps2 fid sts0 sts0'
 | _ => false
 end
 with tv_list_sterm Ps1 Ps2 fid (sts sts':list_sterm) : bool :=
@@ -700,7 +708,7 @@ match (st, st') with
 | (sterm_gep i t st1 sts2, sterm_gep i' t' st1' sts2') =>
     if sumbool2bool _ _ (bool_dec i i') && tv_typ t t' then
       rtv_sterm Ps1 Ps2 fid r st1 st1' >>=
-      (fun r => rtv_list_sterm Ps1 Ps2 fid r sts2 sts2')
+      (fun r => rtv_list_sz_sterm Ps1 Ps2 fid r sts2 sts2')
     else None
 | (sterm_trunc top t1 st1 t2, sterm_trunc top' t1' st1' t2') =>
     if sumbool2bool _ _ (truncop_dec top top') && tv_typ t1 t1' && tv_typ t2 t2'
@@ -737,6 +745,17 @@ match (st, st') with
     if eq_id i i' then
       rtv_smem Ps1 Ps2 fid r sm sm' >>=
       (fun r => rtv_list_sterm Ps1 Ps2 fid r sts sts')
+    else None
+| _ => None
+end
+with rtv_list_sz_sterm Ps1 Ps2 fid r (sts sts':list_sz_sterm) 
+  : option renaming :=
+match (sts, sts') with
+| (Nil_list_sz_sterm, Nil_list_sz_sterm) => Some r
+| (Cons_list_sz_sterm sz0 st sts0, Cons_list_sz_sterm sz0' st' sts0') =>
+    if sumbool2bool _ _ (Size.dec sz0 sz0') then
+      rtv_sterm Ps1 Ps2 fid r st st' >>=
+      fun r => rtv_list_sz_sterm Ps1 Ps2 fid r sts0 sts0'
     else None
 | _ => None
 end
@@ -1141,13 +1160,13 @@ match (base, bound, ptr) with
    sterm_val (value_id idp)) => 
     is_metadata fid l1 i idb ide idp true
 | (sterm_malloc _ _ st10 _ as st1, 
-   sterm_gep _ _ st2 (Cons_list_sterm st20 Nil_list_sterm),  
+   sterm_gep _ _ st2 (Cons_list_sz_sterm _ st20 Nil_list_sz_sterm),  
    sterm_malloc _ _ _ _ as st3) =>
      eq_sterm_upto_cast st1 st2 && 
      eq_sterm_upto_cast st1 st3 && 
      eq_sterm st10 st20
 | (sterm_alloca _ _ st10 _ as st1, 
-   sterm_gep _ _ st2 (Cons_list_sterm st20 Nil_list_sterm),  
+   sterm_gep _ _ st2 (Cons_list_sz_sterm _ st20 Nil_list_sz_sterm),  
    sterm_alloca _ _ _ _ as st3) =>
      eq_sterm_upto_cast st1 st2 && 
      eq_sterm_upto_cast st1 st3 && 
@@ -1385,7 +1404,7 @@ match st with
    safe_mem_access fid sm t st1
 | sterm_gep _ _ st1 sts2 => 
    sterm_is_memsafe Ps1 Ps2 fid l i st1 && 
-   list_sterm_is_memsafe Ps1 Ps2 fid l i sts2
+   list_sz_sterm_is_memsafe Ps1 Ps2 fid l i sts2
 | sterm_phi _ stls => list_sterm_l_is_memsafe Ps1 Ps2 fid l i stls
 | sterm_select st1 _ st2 st3 => 
     sterm_is_memsafe Ps1 Ps2 fid l i st1 && 
@@ -1395,6 +1414,14 @@ match st with
     smem_is_memsafe Ps1 Ps2 fid l i sm && 
     list_sterm_is_memsafe Ps1 Ps2 fid l i sts && 
     store_to_metadata Ps2 fid l i sm lid sts
+end
+with list_sz_sterm_is_memsafe Ps1 (Ps2:SBsyntax.products) fid l i 
+  (sts:list_sz_sterm) : bool :=
+match sts with
+| Nil_list_sz_sterm => true
+| Cons_list_sz_sterm _ st sts0 => 
+    sterm_is_memsafe Ps1 Ps2 fid l i st && 
+    list_sz_sterm_is_memsafe Ps1 Ps2 fid l i sts0
 end
 with list_sterm_is_memsafe Ps1 (Ps2:SBsyntax.products) fid l i (sts:list_sterm) 
   : bool :=
