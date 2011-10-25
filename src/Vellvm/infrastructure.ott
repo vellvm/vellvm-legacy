@@ -2788,7 +2788,7 @@ Fixpoint getTyp (c:const) : option typ :=
    | Some t => getSubTypFromConstIdxs idxs t
    | _ => None
    end
- | const_insertvalue c c' lc => getTyp c'
+ | const_insertvalue c c' lc => getTyp c
  | const_bop _ c1 c2 => getTyp c1
  | const_fbop _ c1 c2 => getTyp c1
  end
