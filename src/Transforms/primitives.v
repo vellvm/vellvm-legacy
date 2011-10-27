@@ -5,6 +5,9 @@ Add LoadPath "../Vellvm/GraphBasics".
 Add LoadPath "../Vellvm".
 Add LoadPath "../../../theory/metatheory_8.3".
 Require Import vellvm.
+Require Import Lattice.
+Require Import Maps.
+Require Import dtree.
 
 Definition subst_value (id':id) (v':value) (v:value) : value :=
 match v with
@@ -401,6 +404,82 @@ let f1 := insert_fdef l1 n (gen_fresh_cmd newid c) f in
 let f2 := isubst_fdef (getCmdLoc c) newid f1 in
 let f3 := remove_fdef (getCmdLoc c) f2 in
 rename_fdef newid (getCmdLoc c) f3.
+
+Parameter print_reachablity : list l -> bool.
+Parameter print_dominators : forall bd, AMap.t (Dominators.t bd) -> bool.
+Parameter print_dtree : DTree -> bool.
+
+Variable TNAME: Type.
+Parameter init_expected_name : unit -> TNAME.
+Parameter check_bname : l -> TNAME -> option (l * TNAME).
+Parameter check_vname : id -> TNAME -> option (id * TNAME).
+
+Definition renamel_block (l1 l2:l) (b:block) : block := 
+match b with
+| block_intro l0 ps0 cs0 tmn0 =>
+  block_intro (rename_id l1 l2 l0) ps0 cs0 tmn0
+end.
+
+Definition renamel_fdef (l1 l2:l) (f:fdef) : fdef := 
+match f with
+| fdef_intro fh bs => 
+    fdef_intro fh (List.map (renamel_block l1 l2) bs) 
+end.
+
+Definition fix_temporary_block (f:fdef) (b:block) (eid:TNAME) 
+  : option (fdef * TNAME) := 
+let '(block_intro l0 ps cs _) := b in
+match check_bname l0 eid with
+| Some (l0', eid5) =>
+  let st :=
+  fold_left 
+    (fun st p => 
+     match st with
+     | Some (f0, eid0) =>
+         let 'pid := getPhiNodeID p in
+         match check_vname pid eid0 with
+         | None => None
+         | Some (pid', eid') =>
+             if (id_dec pid pid') then Some (f0, eid')
+             else Some (rename_fdef pid pid' f0, eid')
+         end
+     | _ => None
+     end) ps (Some ((renamel_fdef l0 l0' f), eid5)) in
+  fold_left 
+    (fun st c => 
+     match st with
+     | Some (f0, eid0) =>
+         match getCmdID c with
+         | None => Some (f0, eid0)
+         | Some cid =>
+           match check_vname cid eid0 with
+           | None => None
+           | Some (cid', eid') =>
+               if (id_dec cid cid') then Some (f0, eid')
+               else Some (rename_fdef cid cid' f0, eid')
+           end
+         end
+     | _ => None
+     end) cs st
+| None => None
+end.
+
+Definition fix_temporary_fdef (f:fdef) : option fdef :=
+let eid := init_expected_name tt in
+let '(fdef_intro fh bs) := f in
+match fold_left 
+  (fun st b => 
+   match st with
+   | Some (f0, eid0) =>
+       match fix_temporary_block f0 b eid0 with
+       | Some (f1, eid1) => Some (f1, eid1)
+       | None => None
+       end
+   | _ => None
+   end) bs (Some (f, eid)) with
+| Some (f', _) => Some f'
+| None => None
+end.
 
 (*****************************)
 (*

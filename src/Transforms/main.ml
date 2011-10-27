@@ -1,10 +1,9 @@
 open Interpreter
-open Gvn
 open Printf
 open Llvm
 open Trace
 
-let nogvn = ref false
+let nogvn = ref true
 
 let main in_filename =
   (* Read bitcode [in_filename] into LLVM module [im] *)
@@ -23,8 +22,12 @@ let main in_filename =
   (if !Globalstates.debug then Coq_pretty_printer.travel_module coqim);
 
   (if !nogvn then 
-    (* Translate [coqim] to a *.ll file *)
-    Coq2ll.travel_module coqim
+    (* GVN [coqim], output [coqom]  *)
+    let coqom = Mem2reg.run coqim in
+    (* Print [coqom] *)
+    (if !Globalstates.debug then Coq_pretty_printer.travel_module coqom);
+    (* Translate [coqom] to a *.ll file *)
+    Coq2ll.travel_module coqom
   else
     (* GVN [coqim], output [coqom]  *)
     let coqom = Gvn.opt coqim in
