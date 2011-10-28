@@ -3,7 +3,8 @@ open Printf
 open Llvm
 open Trace
 
-let nogvn = ref true
+let nullpass = ref false
+let mem2reg = ref false
 
 let main in_filename =
   (* Read bitcode [in_filename] into LLVM module [im] *)
@@ -21,37 +22,50 @@ let main in_filename =
   (* Print [coqim] *)
   (if !Globalstates.debug then Coq_pretty_printer.travel_module coqim);
 
-  (if !nogvn then 
-    (* GVN [coqim], output [coqom]  *)
-    let coqom = Mem2reg.run coqim in
-    (* Print [coqom] *)
-    (if !Globalstates.debug then Coq_pretty_printer.travel_module coqom);
-    (* Translate [coqom] to a *.ll file *)
-    Coq2ll.travel_module coqom
+  (if !nullpass then 
+    (* Translate [coqim] to a *.ll file *)
+    Coq2ll.travel_module coqim
   else
-    (* GVN [coqim], output [coqom]  *)
-    let coqom = Gvn.opt coqim in
-    (* Print [coqom] *)
-    (if !Globalstates.debug then Coq_pretty_printer.travel_module coqom);
-    (* Translate [coqom] to a *.ll file *)
-    Coq2ll.travel_module coqom
+    (if !mem2reg then 
+      (* GVN [coqim], output [coqom]  *)
+      let coqom = Mem2reg.run coqim in
+      (* Print [coqom] *)
+      (if !Globalstates.debug then Coq_pretty_printer.travel_module coqom);
+      (* Translate [coqom] to a *.ll file *)
+      Coq2ll.travel_module coqom
+
+    else
+      (* GVN [coqim], output [coqom]  *)
+      let coqom = Gvn.opt coqim in
+      (* Print [coqom] *)
+      (if !Globalstates.debug then Coq_pretty_printer.travel_module coqom);
+      (* Translate [coqom] to a *.ll file *)
+      Coq2ll.travel_module coqom);
   );
 
   SlotTracker.dispose ist;
   dispose_module im
 
 let () = match Sys.argv with
-  | [| _; "-d" ; in_filename |] -> 
-       Globalstates.debug := true; main in_filename
-  | [| _; "-no-gvn" ; in_filename |] -> 
-       nogvn := true; main in_filename
+  | [| _; "-null" ; in_filename |] -> 
+       nullpass := true; main in_filename
+  | [| _; "-mem2reg" ; in_filename |] -> 
+       mem2reg := true; main in_filename
+  | [| _; "-mem2reg-no-phi-elim" ; in_filename |] -> 
+       Globalstates.does_phi_elim := false; mem2reg := true; main in_filename
+  | [| _; "-dmem2reg" ; in_filename |] -> 
+       mem2reg := true; Globalstates.debug := true; main in_filename
+  | [| _; "-gvn" ; in_filename |] -> 
+       main in_filename
   | [| _; "-disable-pre" ; in_filename |] -> 
-      Globalstates.does_pre := false; main in_filename
+       Globalstates.does_pre := false; main in_filename
   | [| _; "-disable-load-elim" ; in_filename |] -> 
-      Globalstates.does_load_elim := false; main in_filename
+       Globalstates.does_load_elim := false; main in_filename
   | [| _; "-disable-both" ; in_filename |] -> 
-      Globalstates.does_load_elim := false; 
-      Globalstates.does_pre := false; 
-      main in_filename
+       Globalstates.does_load_elim := false; 
+       Globalstates.does_pre := false; 
+       main in_filename
+  | [| _; "-dgvn" ; in_filename |] -> 
+       Globalstates.debug := true; main in_filename
   | [| _; in_filename |] -> main in_filename
   | _ -> main "input.bc"

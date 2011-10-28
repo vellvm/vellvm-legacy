@@ -414,10 +414,23 @@ Parameter init_expected_name : unit -> TNAME.
 Parameter check_bname : l -> TNAME -> option (l * TNAME).
 Parameter check_vname : id -> TNAME -> option (id * TNAME).
 
+Fixpoint renamel_list_value_l (l1 l2:l) (l0:list_value_l) : list_value_l :=
+match l0 with
+| Nil_list_value_l => Nil_list_value_l
+| Cons_list_value_l v0 l0 tl => 
+   Cons_list_value_l v0 (rename_id l1 l2 l0) (renamel_list_value_l l1 l2 tl)
+end.
+
+Definition renamel_phi (l1 l2:l) (pn:phinode) : phinode :=
+match pn with
+| insn_phi id0 t0 vls => 
+    insn_phi id0 t0 (renamel_list_value_l l1 l2 vls) 
+end.
+
 Definition renamel_block (l1 l2:l) (b:block) : block := 
 match b with
 | block_intro l0 ps0 cs0 tmn0 =>
-  block_intro (rename_id l1 l2 l0) ps0 cs0 tmn0
+  block_intro (rename_id l1 l2 l0) (List.map (renamel_phi l1 l2) ps0)  cs0 tmn0
 end.
 
 Definition renamel_fdef (l1 l2:l) (f:fdef) : fdef := 
@@ -479,6 +492,11 @@ match fold_left
    end) bs (Some (f, eid)) with
 | Some (f', _) => Some f'
 | None => None
+end.
+
+Definition getFdefLocs fdef : ids :=
+match fdef with
+| fdef_intro (fheader_intro _ _ _ la _) bs => getArgsIDs la ++ getBlocksLocs bs 
 end.
 
 (*****************************)

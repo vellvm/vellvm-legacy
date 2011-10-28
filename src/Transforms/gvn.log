@@ -1,0 +1,1450 @@
+./testcases/t10.ll: target datalayout = "E-p:64:64:64-i1:8:8-i8:8:8-i16:16:16-i32:32:32-i64:32:64-f32:32:32-f64:64:64-v64:64:64-v128:128:128-a0:0:64"
+define     void @foo () nounwind{
+entry:
+  ret void
+}
+define     i32 @main () nounwind{
+entry:
+  %p = alloca i32, i32 1
+  store i32 0, i32* %p
+  call   void ()* @foo () 
+  br label %bb 
+bb:
+  %0 = load i32* %p
+  br label %end 
+end:
+  ret i32 %0
+}
+
+real	0m0.021s
+user	0m0.009s
+sys	0m0.010s
+./testcases/t11.ll: target datalayout = "E-p:64:64:64-i1:8:8-i8:8:8-i16:16:16-i32:32:32-i64:32:64-f32:32:32-f64:64:64-v64:64:64-v128:128:128-a0:0:64"
+define     void @foo () nounwind{
+entry:
+  ret void
+}
+define     i32 @main () nounwind{
+entry:
+  %p = alloca i32, i32 1
+  %0 = load i32* %p
+  call   void ()* @foo () 
+  br label %bb 
+bb:
+  %1 = load i32* %p
+  br label %end 
+end:
+  ret i32 %1
+}
+
+real	0m0.014s
+user	0m0.006s
+sys	0m0.005s
+./testcases/t12.ll: target datalayout = "E-p:64:64:64-i1:8:8-i8:8:8-i16:16:16-i32:32:32-i64:32:64-f32:32:32-f64:64:64-v64:64:64-v128:128:128-a0:0:64"
+define     i32 @main () nounwind{
+entry:
+  %p = alloca i32, i32 1
+  store i32 0, i32* %p
+  br label %bb 
+bb:
+  %0 = load i32* %p
+  store i32 1, i32* %p
+  br i1 -1, label %end, label %bb
+end:
+  ret i32 %0
+}
+
+real	0m0.014s
+user	0m0.003s
+sys	0m0.000s
+./testcases/t13.ll: target datalayout = "E-p:64:64:64-i1:8:8-i8:8:8-i16:16:16-i32:32:32-i64:32:64-f32:32:32-f64:64:64-v64:64:64-v128:128:128-a0:0:64"
+define     i32 @main () nounwind{
+entry:
+  %p = alloca i32, i32 1
+  store i32 0, i32* %p
+  br label %bb1 
+bb:
+  store i32 1, i32* %p
+  br label %bb1 
+bb1:
+  %0 = load i32* %p
+  br i1 -1, label %end, label %bb
+end:
+  ret i32 %0
+}
+
+real	0m0.014s
+user	0m0.007s
+sys	0m0.004s
+./testcases/t14.ll: target datalayout = "E-p:64:64:64-i1:8:8-i8:8:8-i16:16:16-i32:32:32-i64:32:64-f32:32:32-f64:64:64-v64:64:64-v128:128:128-a0:0:64"
+define     i32 @main () nounwind{
+entry:
+  %p = alloca i32, i32 1
+  %q = alloca i32, i32 1
+  %0 = load i32* %p
+  %1 = load i32* %q
+  %c = trunc i32 %0 to i1
+  %a1 = add i32 %0, %1
+  %a3 = add i32 %1, %0
+  br label %loop 
+loop:
+  %2 = add i32 %a1, %a3
+  br i1 %c, label %bb1, label %bb2
+bb1:
+  br label %end 
+bb2:
+  br i1 -1, label %end, label %loop
+end:
+  %3 = phi i32 [%2, %bb1],[%2, %bb2]
+  %4 = phi i32 [%2, %bb1],[%2, %bb2]
+  %5 = add i32 %3, %4
+  ret i32 %5
+}
+
+real	0m0.014s
+user	0m0.002s
+sys	0m0.001s
+./testcases/t15.ll: target datalayout = "E-p:64:64:64-i1:8:8-i8:8:8-i16:16:16-i32:32:32-i64:32:64-f32:32:32-f64:64:64-v64:64:64-v128:128:128-a0:0:64"
+define     i32 @main () nounwind{
+entry:
+  %p = alloca i32, i32 1
+  %0 = load i32* %p
+  %q = alloca i32, i32 1
+  br label %bb 
+bb:
+  %1 = add i32 %0, %0
+  br label %end 
+end:
+  ret i32 %1
+}
+
+real	0m0.014s
+user	0m0.001s
+sys	0m0.001s
+./testcases/t16.ll: target datalayout = "E-p:64:64:64-i1:8:8-i8:8:8-i16:16:16-i32:32:32-i64:32:64-f32:32:32-f64:64:64-v64:64:64-v128:128:128-a0:0:64"
+define     void @foo () nounwind{
+entry:
+  ret void
+}
+define     i32 @main () nounwind{
+entry:
+  %p = alloca i32, i32 1
+  store i32 0, i32* %p
+  br i1 -1, label %bb1, label %bb2
+bb1:
+  call   void ()* @foo () 
+  br label %end 
+bb2:
+  br label %end 
+end:
+  %0 = load i32* %p
+  ret i32 %0
+}
+
+real	0m0.014s
+user	0m0.008s
+sys	0m0.003s
+./testcases/t17.ll: target datalayout = "E-p:64:64:64-i1:8:8-i8:8:8-i16:16:16-i32:32:32-i64:32:64-f32:32:32-f64:64:64-v64:64:64-v128:128:128-a0:0:64"
+define     i32 @main () nounwind{
+entry:
+  %p = alloca i32, i32 1
+  %q = alloca i32, i32 1
+  %0 = load i32* %p
+  %1 = load i32* %q
+  %2 = add i32 %0, %1
+  br i1 -1, label %bb1, label %bb2
+bb1:
+  br label %merge1 
+bb2:
+  br label %merge1 
+merge1:
+  br i1 -1, label %bb3, label %bb4
+bb3:
+  br label %merge2 
+bb4:
+  br label %merge2 
+merge2:
+  br i1 -1, label %bb5, label %bb6
+bb5:
+  br label %end 
+bb6:
+  br label %end 
+end:
+  %3 = phi i32 [%2, %bb5],[%2, %bb6]
+  ret i32 %3
+}
+
+real	0m0.015s
+user	0m0.001s
+sys	0m0.002s
+./testcases/t18.ll: target datalayout = "E-p:64:64:64-i1:8:8-i8:8:8-i16:16:16-i32:32:32-i64:32:64-f32:32:32-f64:64:64-v64:64:64-v128:128:128-a0:0:64"
+define     i32 @main () nounwind{
+entry:
+  %0 = load i32* @g
+  br i1 -1, label %bb1, label %bb2
+bb1:
+  store i32 0, i32* @g
+  br label %bb2 
+bb2:
+  br i1 -1, label %bb3, label %end
+bb3:
+  %1 = load i32* @g
+  br label %end 
+end:
+  %2 = phi i32 [%1, %bb3],[undef, %bb2]
+  ret i32 %2
+}
+@g =  global i32 16
+
+real	0m0.061s
+user	0m0.007s
+sys	0m0.006s
+./testcases/t1.ll: target datalayout = "E-p:64:64:64-i1:8:8-i8:8:8-i16:16:16-i32:32:32-i64:32:64-f32:32:32-f64:64:64-v64:64:64-v128:128:128-a0:0:64"
+define     i32 @main () nounwind{
+entry:
+  br label %bb 
+bb:
+  br label %end 
+end:
+  ret i32 add (i32 4, i32 5)
+}
+
+real	0m0.015s
+user	0m0.002s
+sys	0m0.001s
+./testcases/t2.ll: target datalayout = "E-p:64:64:64-i1:8:8-i8:8:8-i16:16:16-i32:32:32-i64:32:64-f32:32:32-f64:64:64-v64:64:64-v128:128:128-a0:0:64"
+define     i32 @main () nounwind{
+entry:
+  %p = alloca i32, i32 1
+  %q = alloca i32, i32 1
+  %0 = load i32* %p
+  %1 = load i32* %q
+  %2 = add i32 %0, %1
+  br label %bb 
+bb:
+  %3 = add i32 %2, %2
+  br label %end 
+end:
+  ret i32 %3
+}
+
+real	0m0.018s
+user	0m0.002s
+sys	0m0.002s
+./testcases/t3.ll: target datalayout = "E-p:64:64:64-i1:8:8-i8:8:8-i16:16:16-i32:32:32-i64:32:64-f32:32:32-f64:64:64-v64:64:64-v128:128:128-a0:0:64"
+define     i32 @main () nounwind{
+entry:
+  %p = alloca i32, i32 1
+  %0 = load i32* %p
+  br label %bb 
+bb:
+  %1 = add i32 %0, %0
+  br label %end 
+end:
+  ret i32 %1
+}
+
+real	0m0.017s
+user	0m0.002s
+sys	0m0.001s
+./testcases/t4.ll: target datalayout = "E-p:64:64:64-i1:8:8-i8:8:8-i16:16:16-i32:32:32-i64:32:64-f32:32:32-f64:64:64-v64:64:64-v128:128:128-a0:0:64"
+define     i32 @main () nounwind{
+entry:
+  %p = alloca i32, i32 1
+  %q = alloca i32, i32 1
+  %0 = load i32* %p
+  %1 = load i32* %q
+  %c = trunc i32 %0 to i1
+  %a1 = add i32 %0, %1
+  %a3 = add i32 %1, %0
+  %2 = add i32 %a1, %a3
+  br i1 %c, label %bb1, label %bb2
+bb1:
+  br label %end 
+bb2:
+  br label %end 
+end:
+  %3 = phi i32 [%2, %bb1],[%2, %bb2]
+  %4 = phi i32 [%2, %bb1],[%2, %bb2]
+  %5 = add i32 %3, %4
+  ret i32 %5
+}
+
+real	0m0.015s
+user	0m0.009s
+sys	0m0.005s
+./testcases/t5.ll: target datalayout = "E-p:64:64:64-i1:8:8-i8:8:8-i16:16:16-i32:32:32-i64:32:64-f32:32:32-f64:64:64-v64:64:64-v128:128:128-a0:0:64"
+define     i32 @main () nounwind{
+entry:
+  %p = alloca i32, i32 1
+  %q = alloca i32, i32 1
+  %0 = load i32* %p
+  store i32 0, i32* %q
+  br label %bb 
+bb:
+  %1 = add i32 %0, %0
+  br label %end 
+end:
+  ret i32 %1
+}
+
+real	0m0.015s
+user	0m0.001s
+sys	0m0.002s
+./testcases/t6.ll: target datalayout = "E-p:64:64:64-i1:8:8-i8:8:8-i16:16:16-i32:32:32-i64:32:64-f32:32:32-f64:64:64-v64:64:64-v128:128:128-a0:0:64"
+define     i32 @main () nounwind{
+entry:
+  %p = alloca i32, i32 1
+  %0 = load i32* %p
+  %1 = add i32 %0, %0
+  br i1 -1, label %bb1, label %bb2
+bb1:
+  br label %end 
+bb2:
+  br label %end 
+end:
+  %2 = phi i32 [%1, %bb1],[%1, %bb2]
+  ret i32 %2
+}
+
+real	0m0.015s
+user	0m0.001s
+sys	0m0.002s
+./testcases/t7.ll: target datalayout = "E-p:64:64:64-i1:8:8-i8:8:8-i16:16:16-i32:32:32-i64:32:64-f32:32:32-f64:64:64-v64:64:64-v128:128:128-a0:0:64"
+define     i32 @main () nounwind{
+entry:
+  %p = alloca i32, i32 1
+  br i1 -1, label %bb1, label %bb2
+bb1:
+  %0 = load i32* %p
+  br label %end 
+bb2:
+  br label %end 
+end:
+  %1 = phi i32 [%0, %bb1],[1, %bb2]
+  %2 = load i32* %p
+  %3 = add i32 %2, %1
+  ret i32 %3
+}
+
+real	0m0.016s
+user	0m0.009s
+sys	0m0.006s
+./testcases/t8.ll: target datalayout = "E-p:64:64:64-i1:8:8-i8:8:8-i16:16:16-i32:32:32-i64:32:64-f32:32:32-f64:64:64-v64:64:64-v128:128:128-a0:0:64"
+define     i32 @main () nounwind{
+entry:
+  %p = alloca i32, i32 1
+  store i32 0, i32* %p
+  br label %bb 
+bb:
+  br label %end 
+end:
+  ret i32 0
+}
+
+real	0m0.018s
+user	0m0.001s
+sys	0m0.002s
+./testcases/t9.ll: target datalayout = "E-p:64:64:64-i1:8:8-i8:8:8-i16:16:16-i32:32:32-i64:32:64-f32:32:32-f64:64:64-v64:64:64-v128:128:128-a0:0:64"
+define     i32 @main () nounwind{
+entry:
+  %p = alloca i32, i32 1
+  %q = alloca i32, i32 1
+  store i32 0, i32* %p
+  store i32 0, i32* %q
+  br label %bb 
+bb:
+  br label %end 
+end:
+  ret i32 0
+}
+
+real	0m0.015s
+user	0m0.006s
+sys	0m0.010s
+../Interpreter/testcases//2003-10-12-GlobalVarInitializers.ll: 475368975085586025561263702016.000000 nan
+
+real	0m0.020s
+user	0m0.011s
+sys	0m0.007s
+../Interpreter/testcases//2006-01-29-SimpleIndirectCall.ll: Hello, world!
+Goodbye, world!
+
+real	0m0.023s
+user	0m0.015s
+sys	0m0.008s
+../Interpreter/testcases//arith.ll: temp = -1
+temp = 1
+temp = -1
+temp = 120
+temp = -21120
+temp = 0
+temp = 4480
+i_temp = 200000
+i_temp = 2ffffe
+i_temp = 100000
+
+real	0m0.040s
+user	0m0.003s
+sys	0m0.002s
+../Interpreter/testcases//BuiltinTypeInfo.ll: llvm-as: output.ll:4:12: error: expected '=' after name
+%struct.std::type_info = type { i32 (... )**,i8* }
+           ^
+temp = -1
+temp = 1
+temp = -1
+temp = 120
+temp = -21120
+temp = 0
+temp = 4480
+i_temp = 200000
+i_temp = 2ffffe
+i_temp = 100000
+
+real	0m0.037s
+user	0m0.024s
+sys	0m0.014s
+../Interpreter/testcases//input-args.ll: argc=1
+argv[0]=test.exe
+
+real	0m0.023s
+user	0m0.015s
+sys	0m0.005s
+../Interpreter/testcases//pointer_member.ll: 4 7
+
+real	0m0.020s
+user	0m0.002s
+sys	0m0.003s
+../Interpreter/testcases//t10.ll: a
+real	0m0.018s
+user	0m0.010s
+sys	0m0.007s
+../Interpreter/testcases//t11.ll: a
+real	0m0.021s
+user	0m0.011s
+sys	0m0.008s
+../Interpreter/testcases//t12.ll: a
+real	0m0.022s
+user	0m0.013s
+sys	0m0.008s
+../Interpreter/testcases//t13.ll: a
+real	0m0.020s
+user	0m0.007s
+sys	0m0.008s
+../Interpreter/testcases//t14.ll: 
+real	0m0.016s
+user	0m0.008s
+sys	0m0.006s
+../Interpreter/testcases//t15.ll: a
+real	0m0.019s
+user	0m0.012s
+sys	0m0.006s
+../Interpreter/testcases//t16.ll: aa
+real	0m0.020s
+user	0m0.008s
+sys	0m0.008s
+../Interpreter/testcases//t17.ll: f
+real	0m0.018s
+user	0m0.011s
+sys	0m0.005s
+../Interpreter/testcases//t18.ll: a
+real	0m0.020s
+user	0m0.011s
+sys	0m0.007s
+../Interpreter/testcases//t1.ll: a
+real	0m0.016s
+user	0m0.009s
+sys	0m0.006s
+../Interpreter/testcases//t2.ll: testcast2=1,0,0
+
+real	0m0.018s
+user	0m0.002s
+sys	0m0.001s
+../Interpreter/testcases//t3.ll: a
+real	0m0.021s
+user	0m0.013s
+sys	0m0.007s
+../Interpreter/testcases//t4.ll: a
+real	0m0.018s
+user	0m0.013s
+sys	0m0.003s
+../Interpreter/testcases//t5.ll: a
+real	0m0.016s
+user	0m0.006s
+sys	0m0.010s
+../Interpreter/testcases//t6.ll: a
+real	0m0.017s
+user	0m0.001s
+sys	0m0.002s
+../Interpreter/testcases//t7.ll: a
+real	0m0.017s
+user	0m0.010s
+sys	0m0.006s
+../Interpreter/testcases//t8.ll: a
+real	0m0.016s
+user	0m0.010s
+sys	0m0.005s
+../Interpreter/testcases//t9.ll: a
+real	0m0.017s
+user	0m0.007s
+sys	0m0.008s
+../Interpreter/testcases/llvm/call-cexp.ll: 
+real	0m0.014s
+user	0m0.000s
+sys	0m0.002s
+../Interpreter/testcases/llvm/rec-type.ll: 
+real	0m0.039s
+user	0m0.002s
+sys	0m0.002s
+../Interpreter/testcases/llvm/zext.ll: 
+real	0m0.016s
+user	0m0.007s
+sys	0m0.006s
+../Interpreter/testcases/softbound//addrof.ll: 
+SoftBound: Bounds violation detected
+
+Backtrace:
+[0xb73834f2]
+lli(_ZN4llvm3JIT11runFunctionEPNS_8FunctionERKSt6vectorINS_12GenericValueESaIS4_EE+0x479)[0x87fb449]
+lli(_ZN4llvm15ExecutionEngine17runFunctionAsMainEPNS_8FunctionERKSt6vectorISsSaISsEEPKPKc+0x401)[0x881c017]
+lli(main+0x81c)[0x8446d14]
+/lib/libc.so.6(__libc_start_main+0xfe)[0xb742bace]
+
+
+0   lli       0x08b41d91
+1   lli       0x08b4235d
+2             0xffffe400  + 0
+3   lli       0x087fb449 llvm::JIT::runFunction(llvm::Function*, std::vector<llvm::GenericValue, std::allocator<llvm::GenericValue> > const&) + 1145
+4   lli       0x0881c017 llvm::ExecutionEngine::runFunctionAsMain(llvm::Function*, std::vector<std::string, std::allocator<std::string> > const&, char const* const*) + 1025
+5   lli       0x08446d14 main + 2076
+6   libc.so.6 0xb742bace __libc_start_main + 254
+Stack dump:
+0.	Program arguments: lli test.exe.bc 
+test.sh: line 87: 19397 Aborted                 ./test.exe
+
+real	0m0.114s
+user	0m0.103s
+sys	0m0.011s
+../Interpreter/testcases/softbound//all.ll: 
+SoftBound: Bounds violation detected
+
+Backtrace:
+[0xb73a34f2]
+lli(_ZN4llvm3JIT11runFunctionEPNS_8FunctionERKSt6vectorINS_12GenericValueESaIS4_EE+0x479)[0x87fb449]
+lli(_ZN4llvm15ExecutionEngine17runFunctionAsMainEPNS_8FunctionERKSt6vectorISsSaISsEEPKPKc+0x401)[0x881c017]
+lli(main+0x81c)[0x8446d14]
+/lib/libc.so.6(__libc_start_main+0xfe)[0xb744bace]
+
+
+0   lli       0x08b41d91
+1   lli       0x08b4235d
+2             0xffffe400  + 0
+3   lli       0x087fb449 llvm::JIT::runFunction(llvm::Function*, std::vector<llvm::GenericValue, std::allocator<llvm::GenericValue> > const&) + 1145
+4   lli       0x0881c017 llvm::ExecutionEngine::runFunctionAsMain(llvm::Function*, std::vector<std::string, std::allocator<std::string> > const&, char const* const*) + 1025
+5   lli       0x08446d14 main + 2076
+6   libc.so.6 0xb744bace __libc_start_main + 254
+Stack dump:
+0.	Program arguments: lli test.exe.bc 
+test.sh: line 87: 19403 Aborted                 ./test.exe
+
+real	0m0.127s
+user	0m0.006s
+sys	0m0.004s
+../Interpreter/testcases/softbound//free.ll: 
+SoftBound: Bounds violation detected
+
+Backtrace:
+[0xb754f4f2]
+lli(_ZN4llvm3JIT11runFunctionEPNS_8FunctionERKSt6vectorINS_12GenericValueESaIS4_EE+0x479)[0x87fb449]
+lli(_ZN4llvm15ExecutionEngine17runFunctionAsMainEPNS_8FunctionERKSt6vectorISsSaISsEEPKPKc+0x401)[0x881c017]
+lli(main+0x81c)[0x8446d14]
+/lib/libc.so.6(__libc_start_main+0xfe)[0xb75f7ace]
+
+
+0   lli       0x08b41d91
+1   lli       0x08b4235d
+2             0xffffe400  + 0
+3   lli       0x087fb449 llvm::JIT::runFunction(llvm::Function*, std::vector<llvm::GenericValue, std::allocator<llvm::GenericValue> > const&) + 1145
+4   lli       0x0881c017 llvm::ExecutionEngine::runFunctionAsMain(llvm::Function*, std::vector<std::string, std::allocator<std::string> > const&, char const* const*) + 1025
+5   lli       0x08446d14 main + 2076
+6   libc.so.6 0xb75f7ace __libc_start_main + 254
+Stack dump:
+0.	Program arguments: lli test.exe.bc 
+test.sh: line 87: 19409 Aborted                 ./test.exe
+
+real	0m0.114s
+user	0m0.104s
+sys	0m0.004s
+../Interpreter/testcases/softbound//loadm.ll: 
+SoftBound: Bounds violation detected
+
+Backtrace:
+[0xb755a4f2]
+lli(_ZN4llvm3JIT11runFunctionEPNS_8FunctionERKSt6vectorINS_12GenericValueESaIS4_EE+0x479)[0x87fb449]
+lli(_ZN4llvm15ExecutionEngine17runFunctionAsMainEPNS_8FunctionERKSt6vectorISsSaISsEEPKPKc+0x401)[0x881c017]
+lli(main+0x81c)[0x8446d14]
+/lib/libc.so.6(__libc_start_main+0xfe)[0xb7602ace]
+
+
+0   lli       0x08b41d91
+1   lli       0x08b4235d
+2             0xffffe400  + 0
+3   lli       0x087fb449 llvm::JIT::runFunction(llvm::Function*, std::vector<llvm::GenericValue, std::allocator<llvm::GenericValue> > const&) + 1145
+4   lli       0x0881c017 llvm::ExecutionEngine::runFunctionAsMain(llvm::Function*, std::vector<std::string, std::allocator<std::string> > const&, char const* const*) + 1025
+5   lli       0x08446d14 main + 2076
+6   libc.so.6 0xb7602ace __libc_start_main + 254
+Stack dump:
+0.	Program arguments: lli test.exe.bc 
+test.sh: line 87: 19415 Aborted                 ./test.exe
+
+real	0m0.107s
+user	0m0.101s
+sys	0m0.005s
+../Interpreter/testcases/softbound//loadr.ll: 
+SoftBound: Bounds violation detected
+
+Backtrace:
+[0xb73fa4f2]
+lli(_ZN4llvm3JIT11runFunctionEPNS_8FunctionERKSt6vectorINS_12GenericValueESaIS4_EE+0x479)[0x87fb449]
+lli(_ZN4llvm15ExecutionEngine17runFunctionAsMainEPNS_8FunctionERKSt6vectorISsSaISsEEPKPKc+0x401)[0x881c017]
+lli(main+0x81c)[0x8446d14]
+/lib/libc.so.6(__libc_start_main+0xfe)[0xb74a2ace]
+
+
+0   lli       0x08b41d91
+1   lli       0x08b4235d
+2             0xffffe400  + 0
+3   lli       0x087fb449 llvm::JIT::runFunction(llvm::Function*, std::vector<llvm::GenericValue, std::allocator<llvm::GenericValue> > const&) + 1145
+4   lli       0x0881c017 llvm::ExecutionEngine::runFunctionAsMain(llvm::Function*, std::vector<std::string, std::allocator<std::string> > const&, char const* const*) + 1025
+5   lli       0x08446d14 main + 2076
+6   libc.so.6 0xb74a2ace __libc_start_main + 254
+Stack dump:
+0.	Program arguments: lli test.exe.bc 
+test.sh: line 87: 19421 Aborted                 ./test.exe
+
+real	0m0.102s
+user	0m0.092s
+sys	0m0.007s
+../Interpreter/testcases/softbound//multimalloc.ll: 
+SoftBound: Bounds violation detected
+
+Backtrace:
+[0xb753a4f2]
+lli(_ZN4llvm3JIT11runFunctionEPNS_8FunctionERKSt6vectorINS_12GenericValueESaIS4_EE+0x479)[0x87fb449]
+lli(_ZN4llvm15ExecutionEngine17runFunctionAsMainEPNS_8FunctionERKSt6vectorISsSaISsEEPKPKc+0x401)[0x881c017]
+lli(main+0x81c)[0x8446d14]
+/lib/libc.so.6(__libc_start_main+0xfe)[0xb75e2ace]
+
+
+0   lli       0x08b41d91
+1   lli       0x08b4235d
+2             0xffffe400  + 0
+3   lli       0x087fb449 llvm::JIT::runFunction(llvm::Function*, std::vector<llvm::GenericValue, std::allocator<llvm::GenericValue> > const&) + 1145
+4   lli       0x0881c017 llvm::ExecutionEngine::runFunctionAsMain(llvm::Function*, std::vector<std::string, std::allocator<std::string> > const&, char const* const*) + 1025
+5   lli       0x08446d14 main + 2076
+6   libc.so.6 0xb75e2ace __libc_start_main + 254
+Stack dump:
+0.	Program arguments: lli test.exe.bc 
+test.sh: line 87: 19427 Aborted                 ./test.exe
+
+real	0m0.106s
+user	0m0.095s
+sys	0m0.009s
+../Interpreter/testcases/softbound//storem.ll: 
+SoftBound: Bounds violation detected
+
+Backtrace:
+[0xb74284f2]
+lli(_ZN4llvm3JIT11runFunctionEPNS_8FunctionERKSt6vectorINS_12GenericValueESaIS4_EE+0x479)[0x87fb449]
+lli(_ZN4llvm15ExecutionEngine17runFunctionAsMainEPNS_8FunctionERKSt6vectorISsSaISsEEPKPKc+0x401)[0x881c017]
+lli(main+0x81c)[0x8446d14]
+/lib/libc.so.6(__libc_start_main+0xfe)[0xb74d0ace]
+
+
+0   lli       0x08b41d91
+1   lli       0x08b4235d
+2             0xffffe400  + 0
+3   lli       0x087fb449 llvm::JIT::runFunction(llvm::Function*, std::vector<llvm::GenericValue, std::allocator<llvm::GenericValue> > const&) + 1145
+4   lli       0x0881c017 llvm::ExecutionEngine::runFunctionAsMain(llvm::Function*, std::vector<std::string, std::allocator<std::string> > const&, char const* const*) + 1025
+5   lli       0x08446d14 main + 2076
+6   libc.so.6 0xb74d0ace __libc_start_main + 254
+Stack dump:
+0.	Program arguments: lli test.exe.bc 
+test.sh: line 87: 19433 Aborted                 ./test.exe
+
+real	0m0.111s
+user	0m0.004s
+sys	0m0.005s
+../Interpreter/testcases/softbound//storer.ll: 
+SoftBound: Bounds violation detected
+
+Backtrace:
+[0xb746a4f2]
+lli(_ZN4llvm3JIT11runFunctionEPNS_8FunctionERKSt6vectorINS_12GenericValueESaIS4_EE+0x479)[0x87fb449]
+lli(_ZN4llvm15ExecutionEngine17runFunctionAsMainEPNS_8FunctionERKSt6vectorISsSaISsEEPKPKc+0x401)[0x881c017]
+lli(main+0x81c)[0x8446d14]
+/lib/libc.so.6(__libc_start_main+0xfe)[0xb7512ace]
+
+
+0   lli       0x08b41d91
+1   lli       0x08b4235d
+2             0xffffe400  + 0
+3   lli       0x087fb449 llvm::JIT::runFunction(llvm::Function*, std::vector<llvm::GenericValue, std::allocator<llvm::GenericValue> > const&) + 1145
+4   lli       0x0881c017 llvm::ExecutionEngine::runFunctionAsMain(llvm::Function*, std::vector<std::string, std::allocator<std::string> > const&, char const* const*) + 1025
+5   lli       0x08446d14 main + 2076
+6   libc.so.6 0xb7512ace __libc_start_main + 254
+Stack dump:
+0.	Program arguments: lli test.exe.bc 
+test.sh: line 87: 19439 Aborted                 ./test.exe
+
+real	0m0.104s
+user	0m0.091s
+sys	0m0.010s
+bh: LLVM a0
+
+real	0m1.235s
+user	0m1.223s
+sys	0m0.008s
+AA
+
+real	0m1.623s
+user	0m0.071s
+sys	0m0.009s
+352K	aa.db
+Coq GVN
+
+real	0m37.820s
+user	0m37.109s
+sys	0m0.015s
+LLVM a1
+
+real	0m0.190s
+user	0m0.186s
+sys	0m0.004s
+LLVM a2
+/tmp/ccMDJzmA.o: In function `getparam':
+bha.exe.bc:(.text+0x3347): warning: the `gets' function is dangerous and should not be used.
+
+real	0m0.784s
+user	0m0.747s
+sys	0m0.032s
+LLVM b1
+
+real	0m1.672s
+user	0m1.609s
+sys	0m0.007s
+LLVM b2
+/tmp/cch9Glgb.o: In function `getparam':
+bhb.exe.bc:(.text+0x3527): warning: the `gets' function is dangerous and should not be used.
+
+real	0m0.807s
+user	0m0.122s
+sys	0m0.024s
+LLVM c1
+
+real	0m1.420s
+user	0m0.068s
+sys	0m0.001s
+LLVM c2
+/tmp/ccJM4xNf.o: In function `getparam':
+bhc.exe.bc:(.text+0x33d3): warning: the `gets' function is dangerous and should not be used.
+
+real	0m0.817s
+user	0m0.108s
+sys	0m0.012s
+bisort: LLVM a0
+
+real	0m0.089s
+user	0m0.082s
+sys	0m0.003s
+AA
+
+real	0m0.083s
+user	0m0.073s
+sys	0m0.010s
+4.0K	aa.db
+Coq GVN
+
+real	0m0.053s
+user	0m0.047s
+sys	0m0.005s
+LLVM a1
+
+real	0m0.038s
+user	0m0.032s
+sys	0m0.006s
+LLVM a2
+
+real	0m0.205s
+user	0m0.163s
+sys	0m0.021s
+LLVM b1
+
+real	0m0.111s
+user	0m0.007s
+sys	0m0.001s
+LLVM b2
+
+real	0m0.224s
+user	0m0.047s
+sys	0m0.015s
+LLVM c1
+
+real	0m0.106s
+user	0m0.100s
+sys	0m0.005s
+LLVM c2
+
+real	0m0.210s
+user	0m0.174s
+sys	0m0.029s
+em3d: LLVM a0
+
+real	0m0.172s
+user	0m0.167s
+sys	0m0.003s
+AA
+
+real	0m0.188s
+user	0m0.175s
+sys	0m0.013s
+8.0K	aa.db
+Coq GVN
+
+real	0m0.419s
+user	0m0.190s
+sys	0m0.006s
+LLVM a1
+
+real	0m0.053s
+user	0m0.003s
+sys	0m0.000s
+LLVM a2
+
+real	0m0.277s
+user	0m0.051s
+sys	0m0.019s
+LLVM b1
+
+real	0m0.212s
+user	0m0.205s
+sys	0m0.005s
+LLVM b2
+
+real	0m0.266s
+user	0m0.221s
+sys	0m0.024s
+LLVM c1
+
+real	0m0.218s
+user	0m0.010s
+sys	0m0.000s
+LLVM c2
+
+real	0m0.282s
+user	0m0.225s
+sys	0m0.032s
+health: LLVM a0
+
+real	0m0.206s
+user	0m0.199s
+sys	0m0.005s
+AA
+
+real	0m0.644s
+user	0m0.029s
+sys	0m0.003s
+28K	aa.db
+Coq GVN
+
+real	0m0.390s
+user	0m0.377s
+sys	0m0.009s
+LLVM a1
+
+real	0m0.069s
+user	0m0.003s
+sys	0m0.001s
+LLVM a2
+
+real	0m0.317s
+user	0m0.260s
+sys	0m0.026s
+LLVM b1
+
+real	0m0.271s
+user	0m0.261s
+sys	0m0.005s
+LLVM b2
+
+real	0m0.311s
+user	0m0.280s
+sys	0m0.025s
+LLVM c1
+
+real	0m0.273s
+user	0m0.268s
+sys	0m0.006s
+LLVM c2
+
+real	0m0.336s
+user	0m0.061s
+sys	0m0.023s
+mst: LLVM a0
+
+real	0m0.163s
+user	0m0.157s
+sys	0m0.006s
+AA
+
+real	0m0.092s
+user	0m0.085s
+sys	0m0.007s
+4.0K	aa.db
+Coq GVN
+
+real	0m0.077s
+user	0m0.070s
+sys	0m0.008s
+LLVM a1
+
+real	0m0.036s
+user	0m0.033s
+sys	0m0.003s
+LLVM a2
+
+real	0m0.203s
+user	0m0.180s
+sys	0m0.022s
+LLVM b1
+
+real	0m0.217s
+user	0m0.211s
+sys	0m0.005s
+LLVM b2
+
+real	0m0.206s
+user	0m0.173s
+sys	0m0.029s
+LLVM c1
+
+real	0m0.200s
+user	0m0.197s
+sys	0m0.003s
+LLVM c2
+
+real	0m0.196s
+user	0m0.043s
+sys	0m0.021s
+perimeter: LLVM a0
+
+real	0m0.187s
+user	0m0.180s
+sys	0m0.007s
+AA
+
+real	0m0.437s
+user	0m0.019s
+sys	0m0.002s
+8.0K	aa.db
+Coq GVN
+
+real	0m4.728s
+user	0m0.236s
+sys	0m0.000s
+LLVM a1
+
+real	0m0.070s
+user	0m0.066s
+sys	0m0.003s
+LLVM a2
+
+real	0m0.353s
+user	0m0.323s
+sys	0m0.023s
+LLVM b1
+
+real	0m0.218s
+user	0m0.012s
+sys	0m0.000s
+LLVM b2
+
+real	0m0.327s
+user	0m0.057s
+sys	0m0.016s
+LLVM c1
+
+real	0m0.241s
+user	0m0.231s
+sys	0m0.005s
+LLVM c2
+
+real	0m0.348s
+user	0m0.318s
+sys	0m0.029s
+power: LLVM a0
+
+real	0m0.348s
+user	0m0.341s
+sys	0m0.007s
+AA
+
+real	0m2.771s
+user	0m2.481s
+sys	0m0.191s
+108K	aa.db
+Coq GVN
+
+real	0m0.252s
+user	0m0.239s
+sys	0m0.011s
+LLVM a1
+
+real	0m0.134s
+user	0m0.125s
+sys	0m0.004s
+LLVM a2
+
+real	0m0.471s
+user	0m0.439s
+sys	0m0.028s
+LLVM b1
+
+real	0m0.452s
+user	0m0.445s
+sys	0m0.007s
+LLVM b2
+
+real	0m0.467s
+user	0m0.431s
+sys	0m0.032s
+LLVM c1
+
+real	0m0.419s
+user	0m0.411s
+sys	0m0.005s
+LLVM c2
+
+real	0m0.485s
+user	0m0.102s
+sys	0m0.021s
+treeadd: LLVM a0
+
+real	0m0.043s
+user	0m0.039s
+sys	0m0.002s
+AA
+
+real	0m0.042s
+user	0m0.002s
+sys	0m0.001s
+4.0K	aa.db
+Coq GVN
+
+real	0m0.017s
+user	0m0.014s
+sys	0m0.004s
+LLVM a1
+
+real	0m0.022s
+user	0m0.018s
+sys	0m0.004s
+LLVM a2
+
+real	0m0.140s
+user	0m0.113s
+sys	0m0.025s
+LLVM b1
+
+real	0m0.055s
+user	0m0.048s
+sys	0m0.007s
+LLVM b2
+
+real	0m0.132s
+user	0m0.102s
+sys	0m0.027s
+LLVM c1
+
+real	0m0.049s
+user	0m0.044s
+sys	0m0.004s
+LLVM c2
+
+real	0m0.136s
+user	0m0.112s
+sys	0m0.021s
+tsp: LLVM a0
+
+real	0m0.193s
+user	0m0.162s
+sys	0m0.004s
+AA
+
+real	0m0.775s
+user	0m0.749s
+sys	0m0.024s
+12K	aa.db
+Coq GVN
+
+real	0m0.381s
+user	0m0.323s
+sys	0m0.005s
+LLVM a1
+
+real	0m0.060s
+user	0m0.050s
+sys	0m0.008s
+LLVM a2
+
+real	0m0.258s
+user	0m0.228s
+sys	0m0.029s
+LLVM b1
+
+real	0m0.258s
+user	0m0.217s
+sys	0m0.006s
+LLVM b2
+
+real	0m0.255s
+user	0m0.214s
+sys	0m0.025s
+LLVM c1
+
+real	0m0.228s
+user	0m0.013s
+sys	0m0.001s
+LLVM c2
+
+real	0m0.286s
+user	0m0.053s
+sys	0m0.019s
+bh b: 
+real	0m3.453s
+user	0m3.407s
+sys	0m0.002s
+bh a: 
+real	0m3.659s
+user	0m3.570s
+sys	0m0.003s
+bh c: 
+real	0m3.676s
+user	0m3.568s
+sys	0m0.001s
+bisort b: 
+real	0m8.804s
+user	0m8.403s
+sys	0m0.294s
+bisort a: 
+real	0m8.798s
+user	0m8.532s
+sys	0m0.049s
+bisort c: 
+real	0m7.709s
+user	0m7.541s
+sys	0m0.043s
+em3d b: 
+real	0m9.861s
+user	0m8.814s
+sys	0m0.846s
+em3d a: 
+real	0m10.569s
+user	0m10.121s
+sys	0m0.251s
+em3d c: 
+real	0m11.145s
+user	0m10.648s
+sys	0m0.263s
+health b: 
+real	0m10.667s
+user	0m10.352s
+sys	0m0.132s
+health a: 
+real	0m10.648s
+user	0m0.524s
+sys	0m0.009s
+health c: 
+real	0m11.010s
+user	0m10.630s
+sys	0m0.168s
+mst b: 
+real	0m2.310s
+user	0m2.039s
+sys	0m0.254s
+mst a: 
+real	0m2.228s
+user	0m2.009s
+sys	0m0.211s
+mst c: 
+real	0m2.267s
+user	0m1.960s
+sys	0m0.210s
+perimeter b: 
+real	0m10.852s
+user	0m0.535s
+sys	0m0.002s
+perimeter a: 
+real	0m11.182s
+user	0m1.170s
+sys	0m0.004s
+perimeter c: 
+real	0m11.106s
+user	0m10.914s
+sys	0m0.007s
+power b: 
+real	0m0.364s
+user	0m0.018s
+sys	0m0.000s
+power a: 
+real	0m0.483s
+user	0m0.424s
+sys	0m0.002s
+power c: 
+real	0m0.337s
+user	0m0.017s
+sys	0m0.000s
+treeadd b: 
+real	0m2.452s
+user	0m0.457s
+sys	0m0.119s
+treeadd a: 
+real	0m2.196s
+user	0m1.993s
+sys	0m0.195s
+treeadd c: 
+real	0m2.238s
+user	0m0.102s
+sys	0m0.011s
+tsp b: 
+real	0m2.939s
+user	0m2.859s
+sys	0m0.067s
+tsp a: 
+real	0m2.974s
+user	0m2.800s
+sys	0m0.069s
+tsp c: 
+real	0m3.017s
+user	0m0.148s
+sys	0m0.001s
+129.compress: LLVM a0
+
+real	0m0.291s
+user	0m0.013s
+sys	0m0.001s
+AA
+
+real	0m0.086s
+user	0m0.076s
+sys	0m0.006s
+4.0K	aa.db
+Coq GVN
+
+real	0m0.302s
+user	0m0.265s
+sys	0m0.009s
+LLVM a1
+
+real	0m0.132s
+user	0m0.105s
+sys	0m0.006s
+LLVM a2
+
+real	0m0.600s
+user	0m0.547s
+sys	0m0.033s
+LLVM b1
+
+real	0m0.337s
+user	0m0.326s
+sys	0m0.010s
+LLVM b2
+
+real	0m0.543s
+user	0m0.183s
+sys	0m0.021s
+LLVM c1
+
+real	0m0.340s
+user	0m0.307s
+sys	0m0.007s
+LLVM c2
+
+real	0m0.475s
+user	0m0.388s
+sys	0m0.028s
+099.go: LLVM a0
+
+real	0m9.860s
+user	0m0.489s
+sys	0m0.002s
+AA
+
+real	3m2.152s
+user	2m44.467s
+sys	0m6.693s
+3.2M	aa.db
+Coq GVN
+
+real	1m35.712s
+user	1m33.678s
+sys	0m0.155s
+LLVM a1
+
+real	0m2.874s
+user	0m0.144s
+sys	0m0.000s
+LLVM a2
+
+real	0m13.442s
+user	0m1.655s
+sys	0m0.049s
+LLVM b1
+
+real	0m16.433s
+user	0m16.111s
+sys	0m0.018s
+LLVM b2
+
+real	0m15.677s
+user	0m15.097s
+sys	0m0.075s
+LLVM c1
+
+real	0m11.917s
+user	0m11.692s
+sys	0m0.016s
+LLVM c2
+
+real	0m14.375s
+user	0m13.994s
+sys	0m0.081s
+130.li: LLVM a0
+
+real	0m3.590s
+user	0m3.464s
+sys	0m0.013s
+AA
+
+real	0m5.061s
+user	0m4.666s
+sys	0m0.290s
+172K	aa.db
+Coq GVN
+
+real	0m11.843s
+user	0m11.467s
+sys	0m0.053s
+LLVM a1
+
+real	0m1.247s
+user	0m1.223s
+sys	0m0.008s
+LLVM a2
+
+real	0m5.811s
+user	0m4.903s
+sys	0m0.028s
+LLVM b1
+
+real	0m5.159s
+user	0m5.043s
+sys	0m0.012s
+LLVM b2
+
+real	0m6.048s
+user	0m3.995s
+sys	0m0.034s
+LLVM c1
+
+real	0m4.415s
+user	0m4.387s
+sys	0m0.012s
+LLVM c2
+
+real	0m5.706s
+user	0m0.723s
+sys	0m0.021s
+132.ijpeg: LLVM a0
+
+real	0m6.540s
+user	0m6.400s
+sys	0m0.013s
+AA
+
+real	1m22.894s
+user	1m18.684s
+sys	0m2.644s
+1.3M	aa.db
+Coq GVN
+
+real	0m34.221s
+user	0m1.706s
+sys	0m0.006s
+LLVM a1
+
+real	0m1.715s
+user	0m1.630s
+sys	0m0.013s
+LLVM a2
+
+real	0m7.768s
+user	0m7.077s
+sys	0m0.042s
+LLVM b1
+
+real	0m8.867s
+user	0m8.743s
+sys	0m0.008s
+LLVM b2
+
+real	0m7.718s
+user	0m6.967s
+sys	0m0.036s
+LLVM c1
+
+real	0m8.212s
+user	0m8.080s
+sys	0m0.015s
+LLVM c2
+
+real	0m7.906s
+user	0m7.090s
+sys	0m0.031s
+099.go b: 
+real	0m3.815s
+user	0m3.714s
+sys	0m0.004s
+099.go a: 
+real	0m3.920s
+user	0m0.197s
+sys	0m0.000s
+099.go c: 
+real	0m4.095s
+user	0m4.077s
+sys	0m0.001s
+129.compress b: 
+real	0m17.268s
+user	0m16.842s
+sys	0m0.103s
+129.compress a: 
+real	0m16.999s
+user	0m0.850s
+sys	0m0.001s
+129.compress c: 
+real	0m17.001s
+user	0m16.626s
+sys	0m0.034s
+132.ijpeg b: 
+real	0m8.338s
+user	0m0.409s
+sys	0m0.010s
+132.ijpeg a: 
+real	0m8.620s
+user	0m8.301s
+sys	0m0.139s
+132.ijpeg c: 
+real	0m8.351s
+user	0m0.407s
+sys	0m0.010s
