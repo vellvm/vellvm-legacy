@@ -4,7 +4,7 @@ open Llvm
 open Trace
 
 let nullpass = ref false
-let mem2reg = ref false
+let mem2reg = ref true
 
 let main in_filename =
   (* Read bitcode [in_filename] into LLVM module [im] *)
@@ -48,24 +48,48 @@ let main in_filename =
 
 let () = match Sys.argv with
   | [| _; "-null" ; in_filename |] -> 
-       nullpass := true; main in_filename
+       nullpass := true; 
+       main in_filename
   | [| _; "-mem2reg" ; in_filename |] -> 
-       mem2reg := true; main in_filename
+       mem2reg := true; 
+       main in_filename
+  | [| _; "-mem2reg-no-stld-elim" ; in_filename |] -> 
+       mem2reg := true; 
+       Globalstates.does_stld_elim := false; 
+       Globalstates.does_phi_elim := false; 
+       main in_filename
   | [| _; "-mem2reg-no-phi-elim" ; in_filename |] -> 
-       Globalstates.does_phi_elim := false; mem2reg := true; main in_filename
+       Globalstates.does_phi_elim := false; 
+       mem2reg := true; 
+       main in_filename
   | [| _; "-dmem2reg" ; in_filename |] -> 
-       mem2reg := true; Globalstates.debug := true; main in_filename
+       mem2reg := true; 
+       Globalstates.debug := true; 
+       main in_filename
+  | [| _; "-Mem2reg" ; in_filename |] -> 
+       Globalstates.does_macro_m2r := false ; 
+       mem2reg := true; 
+       main in_filename
+  | [| _; "-Mem2reg-no-phi-elim" ; in_filename |] -> 
+       Globalstates.does_macro_m2r := false ; 
+       Globalstates.does_phi_elim := false; 
+       mem2reg := true; 
+       main in_filename
   | [| _; "-gvn" ; in_filename |] -> 
        main in_filename
   | [| _; "-disable-pre" ; in_filename |] -> 
-       Globalstates.does_pre := false; main in_filename
+       Globalstates.does_pre := false; 
+       main in_filename
   | [| _; "-disable-load-elim" ; in_filename |] -> 
-       Globalstates.does_load_elim := false; main in_filename
+       Globalstates.does_load_elim := false; 
+       main in_filename
   | [| _; "-disable-both" ; in_filename |] -> 
        Globalstates.does_load_elim := false; 
        Globalstates.does_pre := false; 
        main in_filename
   | [| _; "-dgvn" ; in_filename |] -> 
-       Globalstates.debug := true; main in_filename
-  | [| _; in_filename |] -> main in_filename
+       Globalstates.debug := true; 
+       main in_filename
+  | [| _; in_filename |] -> 
+       main in_filename
   | _ -> main "input.bc"

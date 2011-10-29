@@ -154,7 +154,7 @@ Definition vm_init (ty:typ) :=
 Definition ssa_renaming (f:fdef) (dt:DTree) (pid:id) (ty:typ) 
   (newpids:list id) : fdef:= 
 let f1 := ssa_renaming_dtree f dt pid newpids (vm_init ty) in
-if used_in_fdef pid f then f1 else remove_fdef pid f1.
+if used_in_fdef pid f1 then f1 else remove_fdef pid f1.
 
 Definition insert_phis (f:fdef) (rd:list l) (pid:id) (ty:typ): fdef * list id :=
 let preds := make_predecessors (successors f) in
@@ -198,12 +198,12 @@ fold_left
   ) bs true. 
 
 Fixpoint find_promotable_alloca (f:fdef) (cs:cmds) (dones:list id) 
-  : option (id * typ) :=
+  : option (id * typ * align) :=
 match cs with
 | nil => None
-| insn_alloca pid ty _ _ :: cs' =>
+| insn_alloca pid ty _ al :: cs' =>
     if is_promotable f pid && negb (In_dec id_dec pid dones) 
-    then Some (pid, ty)
+    then Some (pid, ty, al)
     else find_promotable_alloca f cs' dones
 | _ :: cs' => find_promotable_alloca f cs' dones
 end.
@@ -214,12 +214,209 @@ match getEntryBlock f with
 | Some (block_intro _ _ cs _) =>
     match find_promotable_alloca f cs dones with
     | None => (f, false, dones)
-    | Some (pid, ty) => 
+    | Some (pid, ty, al) => 
         let '(f', newpids) := insert_phis f rd pid ty in
         (ssa_renaming f' dt pid ty newpids, true, pid::dones)
     end
 | _ => (f, false, dones)
 end.
+
+Definition gen_load_ids (rd:list id) (succs:ATree.t (list l)) (ex_ids:list atom) 
+  : (ATree.t id * list atom) :=
+  List.fold_left 
+    (fun acc l0 => 
+     match ATree.get l0 succs with
+     | Some (_::_) => 
+         let '(lids', ex_ids') := acc in
+         let '(exist lid' _) := AtomImpl.atom_fresh_for_list ex_ids' in
+         (ATree.set l0 lid' lids', lid'::ex_ids')
+     | _ => acc
+     end
+    ) rd (ATree.empty id, ex_ids).
+
+Definition gen_phinode (pid':id) (ty:typ) (lids:ATree.t id) (pds:list l) 
+  : phinode :=
+  insn_phi pid' ty 
+    (fold_left 
+       (fun acc p => 
+          Cons_list_value_l 
+            (match ATree.get p lids with
+             | Some lid0 => value_id lid0
+             | None => value_const (const_undef ty)
+             end) 
+             p acc) 
+        pds Nil_list_value_l).
+
+Definition insert_connections_blocks (bs:blocks) (pid:id) (ty:typ) (al:align) 
+  (lids:ATree.t id) (ex_ids1:list atom) (preds:ATree.t (list l)) (rd:list l) 
+  : blocks :=
+let '(bs1, _) :=
+  List.fold_left
+    (fun acc b => 
+     let '(bs', ex_ids') := acc in
+     let '(block_intro l0 ps cs tmn) := b in 
+     if (in_dec l_dec l0 rd) then
+       let cs' :=
+         match ATree.get l0 lids with
+         | Some lid => [insn_load lid ty (value_id pid) al]
+         | None => nil
+         end in
+       match ATree.get l0 preds with
+       | Some ((_ :: _) as pds) => 
+          let '(exist pid' _) := AtomImpl.atom_fresh_for_list ex_ids' in
+          let '(exist sid _) := AtomImpl.atom_fresh_for_list (pid::ex_ids') in
+          (block_intro l0
+             ((gen_phinode pid' ty lids pds)::ps)
+             (insn_store sid ty (value_id pid') (value_id pid) al::
+              cs ++ cs') tmn::bs',
+           sid::pid'::ex_ids')
+       | _ => 
+          (block_intro l0 ps (cs ++ cs') tmn::bs', ex_ids')
+       end
+    else (b::bs', ex_ids'))
+    (List.rev bs) (nil, ex_ids1) in
+bs1.
+
+Definition insert_connections (f:fdef) (rd:list l) (pid:id) (ty:typ) (al:align) 
+  : fdef :=
+let '(fdef_intro fh bs) := f in
+let '(lids, ex_ids1) := gen_load_ids rd (successors f) (getFdefLocs f) in
+let bs1 := insert_connections_blocks bs pid ty al lids ex_ids1 
+             (make_predecessors (successors f)) rd in
+fdef_intro fh bs1.
+
+Fixpoint find_init_stld (cs:cmds) (pid:id) (dones:list id) 
+  : option (id * value * cmds + value * cmds) :=
+match cs with
+| nil => None
+| insn_store sid _ v0 (value_id qid) _ :: cs' =>
+    if (in_dec id_dec sid dones) then find_init_stld cs' pid dones
+    else
+      if (id_dec pid qid) then Some (inl (sid, v0, cs'))
+      else find_init_stld cs' pid dones
+| insn_alloca qid ty _ _ :: cs' =>
+    if (in_dec id_dec qid dones) then find_init_stld cs' pid dones
+    else
+      if (id_dec pid qid) then 
+        Some (inr (value_const (const_undef ty), cs'))
+      else find_init_stld cs' pid dones
+| _ :: cs' => find_init_stld cs' pid dones
+end.
+
+Fixpoint find_next_stld (cs:cmds) (pid:id) : option (id + id * value) :=
+match cs with
+| nil => None
+| insn_store sid _ v0 (value_id qid) _ :: cs' =>
+    if (id_dec pid qid) then Some (inr (sid, v0))
+    else find_next_stld cs' pid
+| insn_load lid _ (value_id qid) _ :: cs' =>
+    if (id_dec pid qid) then Some (inl lid)
+    else find_next_stld cs' pid
+| _ :: cs' => find_next_stld cs' pid
+end.
+
+Definition elim_stld_cmds (f:fdef) (cs:cmds) (pid:id) (dones:list id) 
+  : fdef * bool * list id :=
+match find_init_stld cs pid dones with
+| None => (f, false, dones)
+| Some (inl (sid1, v1, cs')) =>
+    match find_next_stld cs' pid with
+    | None => (f, true, sid1::dones)
+    | Some (inl lid) => (remove_fdef lid (subst_fdef lid v1 f), true, dones)
+    | Some (inr (sid2, v2)) => (remove_fdef sid1 f, true, dones)
+    end
+| Some (inr (v1, cs')) =>
+    match find_next_stld cs' pid with
+    | None => (f, true, pid::dones)
+    | Some (inl lid) => (remove_fdef lid (subst_fdef lid v1 f), true, dones)
+    | Some (inr (sid2, v2)) => (f, true, pid::dones)
+    end
+end.
+
+Fixpoint elim_stld_blocks (f:fdef) (bs: blocks) (pid:id) (dones:list id) 
+  : fdef * bool * list id :=
+match bs with
+| nil => (f, false, dones)
+| block_intro _ _ cs _::bs' =>
+    let '(f', changed, dones') := elim_stld_cmds f cs pid dones in
+    if changed then (f', true, dones') else elim_stld_blocks f' bs' pid dones
+end.
+
+Definition elim_stld_fdef (f:fdef) (pid:id) (dones:list id) 
+  : fdef * bool * list id :=
+let '(fdef_intro fh bs) := f in elim_stld_blocks f bs pid dones.
+
+Definition elim_stld_step (pid:id) (st: fdef * list id) 
+  : fdef * list id + fdef * list id :=
+let '(f, dones) := st in
+let '(f1, changed1, dones1) := elim_stld_fdef f pid dones in
+if changed1 then inr _ (f1, dones1) else inl _ (f1, dones1).
+
+Parameter does_stld_elim : unit -> bool.
+
+Definition load_in_cmd (id':id) (c:cmd) : bool :=
+match c with
+| insn_load _ _ v _ => used_in_value id' v
+| _ => false
+end.
+
+Definition load_in_block (id':id) (b:block) : bool := 
+match b with
+| block_intro _ _ cs0 _ =>
+  (List.fold_left (fun re c => re || load_in_cmd id' c) cs0 false)
+end.
+
+Definition load_in_fdef (id':id) (f:fdef) : bool := 
+match f with
+| fdef_intro _ bs => 
+  List.fold_left (fun re b => re || load_in_block id' b) bs false
+end.
+
+Fixpoint elim_dead_st_cmds (cs:cmds) (pid:id) : cmds :=
+match cs with
+| nil => nil
+| insn_store sid _ _ (value_id qid) _ as c :: cs' =>
+    if (id_dec pid qid) then elim_dead_st_cmds cs' pid
+    else c :: elim_dead_st_cmds cs' pid
+| c::cs' => c :: elim_dead_st_cmds cs' pid
+end.
+
+Definition elim_dead_st_block (pid:id) (b: block) : block :=
+match b with
+| block_intro l0 ps cs tmn => block_intro l0 ps (elim_dead_st_cmds cs pid) tmn
+end.
+
+Definition elim_dead_st_fdef (f:fdef) (pid:id) : fdef :=
+let '(fdef_intro fh bs) := f in
+fdef_intro fh (List.map (elim_dead_st_block pid) bs).
+
+Definition macro_mem2reg_fdef_iter (f:fdef) (dt:DTree) (rd:list l) 
+  (dones:list id) : fdef * bool * list id := 
+match getEntryBlock f with
+| Some (block_intro _ _ cs _) =>
+    match find_promotable_alloca f cs dones with
+    | None => (f, false, dones)
+    | Some (pid, ty, al) => 
+        let f1 := insert_connections f rd pid ty al in
+        let '(f2, _) := 
+          if does_stld_elim tt then
+            SafePrimIter.iterate _ (elim_stld_step pid) (f1, nil) 
+          else (f1, nil)
+        in
+        let f3 :=
+          if load_in_fdef pid f2 then f2 else elim_dead_st_fdef f2 pid
+        in
+        (if used_in_fdef pid f3 then f3 else remove_fdef pid f3,
+         true, pid::dones)
+    end
+| _ => (f, false, dones)
+end.
+
+Definition macro_mem2reg_fdef_step (dt:DTree) (rd:list l) (st:fdef * list id) 
+  : (fdef * list id) + (fdef * list id) :=
+let '(f, dones) := st in
+let '(f1, changed1, dones1) := macro_mem2reg_fdef_iter f dt rd dones in
+if changed1 then inr _ (f1, dones1) else inl _ (f1, dones1).
 
 Definition mem2reg_fdef_step (dt:DTree) (rd:list l) (st:fdef * list id) 
   : (fdef * list id) + (fdef * list id) :=
@@ -279,6 +476,7 @@ let '(f1, changed1) := eliminate_fdef f  in
 if changed1 then inr _ f1 else inl _ f1.
 
 Parameter does_phi_elim : unit -> bool.
+Parameter does_macro_m2r : unit -> bool.
 
 Definition mem2reg_fdef (f:fdef) : fdef :=
 match getEntryBlock f, reachablity_analysis f with
@@ -295,7 +493,10 @@ match getEntryBlock f, reachablity_analysis f with
     if print_reachablity rd && print_dominators b dts && 
        print_dtree dt then
        let '(f1, _) := 
-         SafePrimIter.iterate _ (mem2reg_fdef_step dt rd) (f, nil) in
+         if (does_macro_m2r tt) 
+         then SafePrimIter.iterate _ (macro_mem2reg_fdef_step dt rd) (f, nil) 
+         else SafePrimIter.iterate _ (mem2reg_fdef_step dt rd) (f, nil) 
+       in
        let f2 :=
          if does_phi_elim tt then SafePrimIter.iterate _ eliminate_step f1
          else f1 in
