@@ -2,7 +2,7 @@
 
 DIRS="../Interpreter/testcases/ ../Interpreter/testcases/llvm \
 	../Interpreter/testcases/softbound/"
-GVN=../_build/Transforms/main.native
+GVN="../_build/Transforms/main.native -gvn"
 BC_DIR=./testcases/
 OC_DIR=./testcases/olden-ccured/
 OC_CASES="bh bisort em3d health mst perimeter power treeadd tsp"

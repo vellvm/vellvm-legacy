@@ -76,18 +76,22 @@ let () = match Sys.argv with
        mem2reg := true; 
        main in_filename
   | [| _; "-gvn" ; in_filename |] -> 
+       mem2reg := false; 
        main in_filename
   | [| _; "-disable-pre" ; in_filename |] -> 
        Globalstates.does_pre := false; 
        main in_filename
   | [| _; "-disable-load-elim" ; in_filename |] -> 
+       mem2reg := false; 
        Globalstates.does_load_elim := false; 
        main in_filename
   | [| _; "-disable-both" ; in_filename |] -> 
+       mem2reg := false; 
        Globalstates.does_load_elim := false; 
        Globalstates.does_pre := false; 
        main in_filename
   | [| _; "-dgvn" ; in_filename |] -> 
+       mem2reg := false; 
        Globalstates.debug := true; 
        main in_filename
   | [| _; in_filename |] -> 
