@@ -20,6 +20,8 @@ Require Import promotable_props.
 Ltac zauto := auto with zarith.
 Ltac zeauto := eauto with zarith.
 
+Import Promotability.
+
 (* Simulation *)
 
 Definition DGVMap := @Opsem.GVsMap DGVs.
@@ -38,13 +40,13 @@ end.
 
 Definition fdef_simulation (pinfo: PhiInfo) f1 f2: Prop :=
   let '(mkPhiInfo f rd succs preds pid ty al _) := pinfo in
-  if (id_dec (getFdefID f1) (getFdefID f)) then 
+  if (fdef_dec f1 f) then 
     phinodes_placement f1 rd pid ty al succs preds = f2
   else f1 = f2.
 
 Definition cmds_simulation (pinfo: PhiInfo) (f1:fdef) (l1:l) cs1 cs2: Prop :=
   let '(mkPhiInfo f rd succs preds pid ty al newids) := pinfo in
-  if (id_dec (getFdefID f1) (getFdefID f)) then
+  if (fdef_dec f1 f) then
      match ATree.get l1 (successors f1) with
      | Some (_::_) => 
         match ATree.get l1 newids with
@@ -57,7 +59,7 @@ Definition cmds_simulation (pinfo: PhiInfo) (f1:fdef) (l1:l) cs1 cs2: Prop :=
 
 Definition block_simulation (pinfo: PhiInfo) f1 b1 b2: Prop :=
   let '(mkPhiInfo f _ succs preds pid ty al newids) := pinfo in
-  if (id_dec (getFdefID f1) (getFdefID f)) then
+  if (fdef_dec f1 f) then
      phinodes_placement_block b1 pid ty al newids succs preds = b2
   else b1 = b2.
 
@@ -171,7 +173,7 @@ Lemma cmds_simulation_nil_br_inv: forall B F tmn pinfo cs2
           B = block_intro l1 ps1 (cs11 ++ nil) tmn)
   (Hsucc: successors_terminator tmn <> nil)
   (Htcmds: cmds_simulation pinfo F (label_of_block B) nil cs2),
-  if (id_dec (getFdefID F) (getFdefID pinfo.(PI_f))) then   
+  if fdef_dec F pinfo.(PI_f) then   
     match ATree.get (label_of_block B) pinfo.(PI_newids) with
     | None => cs2 = nil
     | Some (lid', _, _) =>
@@ -330,28 +332,37 @@ end.
 
 Notation "$ gv # t $" := (DGVs.(gv2gvs) gv t) (at level 41).
 
+Definition noalias_EC (maxb:Values.block) (pinfo:PhiInfo) TD M 
+  (ec:Opsem.ExecutionContext) : Prop :=
+let '(Opsem.mkEC f b cs tmn lc als) := ec in
+if (fdef_dec (PI_f pinfo) f) then 
+  match inscope_of_pc f b cs tmn with
+  | Some ids => wf_defs maxb pinfo TD M lc ids als
+  | None => False
+  end
+else True.
+
 Lemma phinodes_placement_is_correct__sBranch: forall 
   (pinfo : PhiInfo) (Cfg2 : OpsemAux.Config) (St2 : Opsem.State)
   (S : system) (TD : TargetData) (Ps : list product) (F : fdef) (B : block)
   (lc : Opsem.GVsMap) (gl : GVMap) (fs : GVMap) (bid : id) (Cond : value)
-  (l1 : l) (l2 : l) (EC : list Opsem.ExecutionContext) (Mem : mem) 
-  (als : list mblock)
-  (Hsim : State_simulation pinfo
-           {|
-           OpsemAux.CurSystem := S;
-           OpsemAux.CurTargetData := TD;
-           OpsemAux.CurProducts := Ps;
-           OpsemAux.Globals := gl;
-           OpsemAux.FunTable := fs |}
-           {|
-           Opsem.ECS := {|
-                        Opsem.CurFunction := F;
-                        Opsem.CurBB := B;
-                        Opsem.CurCmds := nil;
-                        Opsem.Terminator := insn_br bid Cond l1 l2;
-                        Opsem.Locals := lc;
-                        Opsem.Allocas := als |} :: EC;
-           Opsem.Mem := Mem |} Cfg2 St2)
+  (l1 : l) (l2 : l) (ECs : list Opsem.ExecutionContext) (Mem : mem) 
+  (als : list mblock) maxb EC1 Cfg1 (Hwfpi: WF_PhiInfo pinfo)
+  (Heq1: Cfg1 = {| OpsemAux.CurSystem := S;
+                   OpsemAux.CurTargetData := TD;
+                   OpsemAux.CurProducts := Ps;
+                   OpsemAux.Globals := gl;
+                   OpsemAux.FunTable := fs |})
+  (Hnoalias: noalias_EC maxb pinfo TD Mem EC1)
+  (Heq2: EC1 = {| Opsem.CurFunction := F;
+                  Opsem.CurBB := B;
+                  Opsem.CurCmds := nil;
+                  Opsem.Terminator := insn_br bid Cond l1 l2;
+                  Opsem.Locals := lc;
+                  Opsem.Allocas := als |})
+  (Hsim : State_simulation pinfo Cfg1
+            {| Opsem.ECS := EC1 :: ECs;
+               Opsem.Mem := Mem |} Cfg2 St2)
   (conds : GVsT DGVs) (c : GenericValue) (l' : l) (ps' : phinodes)
   (cs' : cmds) (tmn' : terminator) (lc' : Opsem.GVsMap)
   (H : Opsem.getOperandValue TD Cond lc gl = ret conds)
@@ -364,24 +375,16 @@ Lemma phinodes_placement_is_correct__sBranch: forall
        ret lc'),
   exists St2' : Opsem.State,
      Opsem.sop_plus Cfg2 St2 St2' trace_nil /\
-     State_simulation pinfo
-       {|
-       OpsemAux.CurSystem := S;
-       OpsemAux.CurTargetData := TD;
-       OpsemAux.CurProducts := Ps;
-       OpsemAux.Globals := gl;
-       OpsemAux.FunTable := fs |}
-       {|
-       Opsem.ECS := {|
-                    Opsem.CurFunction := F;
-                    Opsem.CurBB := block_intro l' ps' cs' tmn';
-                    Opsem.CurCmds := cs';
-                    Opsem.Terminator := tmn';
-                    Opsem.Locals := lc';
-                    Opsem.Allocas := als |} :: EC;
+     State_simulation pinfo Cfg1
+     {|Opsem.ECS := {| Opsem.CurFunction := F;
+                       Opsem.CurBB := (block_intro l' ps' cs' tmn');
+                       Opsem.CurCmds := cs';
+                       Opsem.Terminator := tmn';
+                       Opsem.Locals := lc';
+                       Opsem.Allocas := als |} :: ECs;
        Opsem.Mem := Mem |} Cfg2 St2'.
 Proof.
-  intros.
+  intros. subst.
   destruct_ctx_br.
   assert (exists b2,
     (if isGVZero (los, nts) c
@@ -394,13 +397,13 @@ Proof.
   destruct Hfind as [b2 [Hfind Htblock]].
   eapply cmds_simulation_nil_br_inv in Htcmds; 
     try solve [eauto | simpl; congruence].
-  destruct (id_dec (getFdefID F) (getFdefID (PI_f pinfo))) as [e | n]; subst.
+  destruct (fdef_dec F (PI_f pinfo)) as [ e | n]; subst.
   SCase "F is tranformed".
     assert (phinodes_placement_block (block_intro l' ps' cs' tmn') (PI_id pinfo)
       (PI_typ pinfo) (PI_align pinfo) (PI_newids pinfo) (PI_succs pinfo) 
       (PI_preds pinfo) = b2) as EQ.
-      clear - Htblock e. destruct pinfo. simpl in *.
-      destruct (id_dec (getFdefID F) (getFdefID PI_f)); auto.
+      clear - Htblock. destruct pinfo. simpl in *.
+      destruct (fdef_dec PI_f0 PI_f0); auto.
         congruence.
     subst. clear Htblock. simpl in Hfind.
     assert ((PI_newids pinfo) ! l' <> None) as Hreach'.
@@ -419,10 +422,29 @@ Proof.
     assert (exists mp, exists gv,
       getOperandValue (los, nts) (value_id (PI_id pinfo)) lc gl2 = Some mp /\
       mload (los, nts) M2 mp (PI_typ pinfo) (PI_align pinfo) = Some gv) as Halc.
-      admit. (* By promotablity *)
+      clear - Hnoalias.
+      (* By promotablity *)
+      unfold noalias_EC in Hnoalias.
+      destruct (fdef_dec (PI_f pinfo) (PI_f pinfo)); try congruence.
+      remember (inscope_of_pc (PI_f pinfo) B nil (insn_br bid Cond l1 l2))as R0.
+      destruct R0; tinv Hnoalias.
+      assert (In (PI_id pinfo) l0) as Hpindom.
+        (* pinfo.(PI_id) is defined at the entry that must strictly dominate all
+           reachable block's ends *)
+        admit.
+      assert (exists gvsa, lookupAL _ lc (PI_id pinfo) = Some gvsa) 
+        as Hlkup.
+        (* WF ssa isnt stuck by accessing undefined variables *)
+        admit.
+      destruct Hlkup as [gvsa Hlkup]. simpl. 
+      change (GVsT DGVs) with GenericValue in Hlkup.
+      rewrite Hlkup.
+      apply Hnoalias in Hlkup; auto.
+      destruct Hlkup as [[J1 [J2 [gv J3]]] _].
+      exists gvsa. exists gv. auto.
     destruct Halc as [mp [gv [Hget Hld]]].
-    assert (reg_simulation F lc (updateAddAL _ lc2 lid ($ gv # PI_typ pinfo $))) 
-      as Hrsim'.
+    assert (reg_simulation (PI_f pinfo) lc 
+             (updateAddAL _ lc2 lid ($ gv # PI_typ pinfo $))) as Hrsim'.
       admit. (* Hrsim HeqR *)
     remember (cs' ++ 
               match (PI_succs pinfo) ! l' with
@@ -441,13 +463,13 @@ Proof.
     assert (exists lc2', 
       Opsem.switchToNewBasicBlock (los, nts) b2 B2 gl2 
         (updateAddAL _ lc2 lid ($ gv # PI_typ pinfo $)) = ret lc2' /\
-      reg_simulation F lc' lc2' /\ 
+      reg_simulation (PI_f pinfo) lc' lc2' /\ 
       lookupAL _ lc2' pid' = Some gv) as Hswitch.
       admit. (* switch *)
     destruct Hswitch as [lc2' [Hswitch [Hrsim'' Hlk]]].
     assert (mstore (los,nts) M2 mp (PI_typ pinfo) gv (PI_align pinfo) 
       = Some M2) as Hst.
-      admit. (* By promotablity and MemModel *)
+      clear - Hld. admit. (* By MemModel *)
     exists (Opsem.mkState ((Opsem.mkEC F2 b2 cs2' tmn' lc2' als2)::ECs2) M2).
     split.
     SSCase "opsem".
@@ -474,12 +496,13 @@ Proof.
       clear c H0 H1 Hfind.
       econstructor; eauto.
         eapply simulation__getOperandValue with (lc:=lc'); eauto.
-          admit. (* By promotablity *)
+          clear - Hget H2.
+          admit. (* By WF promotablity *)
     SSCase "sim".
-      assert (blockInFdefB (block_intro l' ps' cs' tmn') F) as HBinF'.
+      assert (blockInFdefB (block_intro l' ps' cs' tmn') (PI_f pinfo))as HBinF'.
         assert (HuniqF:=HFinPs).
         eapply wf_system__uniqFdef in HuniqF; eauto.
-        destruct F as [[] bs].
+        destruct (PI_f pinfo) as [[] bs].
         destruct HuniqF as [HuniqBlocks HuniqArgs].
         symmetry in H1.
         destruct (isGVZero (los,nts) c);
@@ -496,16 +519,31 @@ Proof.
                  (value_id (PI_id pinfo)) (PI_align pinfo)].
         simpl_env. auto.
 
-        clear - e.
         destruct pinfo. simpl in *.
-        destruct (id_dec (getFdefID F) (getFdefID PI_f)); try congruence.
+        destruct (fdef_dec PI_f0 PI_f0); try congruence.
           admit. (* WF_PhiInfo *)
 
   SCase "F isnt tranformed".
     admit. (* simpl case *)
 Qed.
 
-Lemma phinodes_placement_is_correct : forall pinfo Cfg1 St1 Cfg2 St2 St1' tr
+Lemma noalias_State__noalias_EC: forall maxb pinfo Cfg EC ECs Mem,
+  Promotability.wf_State maxb pinfo Cfg 
+    {| Opsem.ECS := EC :: ECs; Opsem.Mem := Mem |} ->
+  noalias_EC maxb pinfo (OpsemAux.CurTargetData Cfg) Mem EC.
+Proof.
+  intros. destruct Cfg.
+  destruct H as [[J1 _] _].
+  destruct EC. destruct J1 as [J1 _].
+  simpl.
+  destruct (fdef_dec (PI_f pinfo) CurFunction); auto.
+  unfold inscope_of_pc.
+  destruct CurCmds; auto.
+Qed.
+
+Lemma phinodes_placement_is_correct : forall maxb pinfo Cfg1 St1 Cfg2 St2 St1' tr
+  (Hwfpi: WF_PhiInfo pinfo) 
+  (Hnoalias: Promotability.wf_State maxb pinfo Cfg1 St1) 
   (Hsim: State_simulation pinfo Cfg1 St1 Cfg2 St2)
   (Hop: Opsem.sInsn Cfg1 St1 St1' tr), 
   exists St2',
@@ -513,7 +551,8 @@ Lemma phinodes_placement_is_correct : forall pinfo Cfg1 St1 Cfg2 St2 St1' tr
     State_simulation pinfo Cfg1 St1' Cfg2 St2'.
 Proof.
   intros.
-  (sInsn_cases (induction Hop) Case).
+  (sInsn_cases (induction Hop) Case); 
+    try apply noalias_State__noalias_EC in Hnoalias.
 
 Case "sReturn".  
   destruct_ctx_return.

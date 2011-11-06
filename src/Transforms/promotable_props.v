@@ -16,6 +16,8 @@ Require Import Maps.
 Require Import mem2reg.
 Require Import opsem_props.
 
+Module Promotability.
+
 Definition DGVMap := @Opsem.GVsMap DGVs.
 
 Record PhiInfo := mkPhiInfo {
@@ -727,7 +729,7 @@ Lemma updateAddAL__wf_lc: forall gv3 Mem0 lc id0
 Proof.
   intros. unfold wf_lc in *. intros.
   destruct (id_dec id0 id1); subst.
-    rewrite lookupAL_updateAddAL_eq in H; auto. inv H. eauto.
+    rewrite lookupAL_updateAddAL_eq in H. inv H. eauto.
 
     rewrite <- lookupAL_updateAddAL_neq in H; auto.
     eapply Hwflc; eauto.
@@ -738,7 +740,21 @@ Lemma updateAddAL__wf_ECStack_head_tail: forall maxb pinfo td M lc ECs
   (Hwfgv: forall blk ofs, gv3 = mk_gptr blk ofs -> blk < Mem.nextblock M),
   wf_ECStack_head_tail maxb pinfo td M lc ECs ->
   wf_ECStack_head_tail maxb pinfo td M (updateAddAL (GVsT DGVs) lc id0 gv3) ECs.
-Admitted.
+Proof.
+  unfold wf_ECStack_head_tail, wf_ECStack_head_in_tail in *.
+  intros.
+  apply H in H2; auto.
+  destruct H2 as [J1 [J2 J3]].
+  split; auto.
+  split; auto.
+    intros. 
+    destruct (id_dec id0 id1); subst.
+      rewrite lookupAL_updateAddAL_eq in H2.
+      inv H2. 
+      admit.
+
+      rewrite <- lookupAL_updateAddAL_neq in H2; eauto.
+Qed.
 
 Definition wf_GVs_in_EC (maxb:Values.block) (pinfo:PhiInfo) TD M 
   (ec:Opsem.ExecutionContext)(id1:id)(gv1:GVsT DGVs) : Prop :=
@@ -1633,9 +1649,61 @@ Proof.
       eapply undef_disjoint_with_runtime_alloca; eauto.
 Qed.
 
+Lemma malloc_preserves_wf_defs_in_tail : forall maxb pinfo TD M  
+  M' als lc mb align0 gn tsz (Hal: malloc TD M tsz gn align0 = ret (M', mb))
+  ids0 (Hwf: wf_defs maxb pinfo TD M lc ids0 als),
+  wf_defs maxb pinfo TD M lc ids0 als ->
+  wf_defs maxb pinfo TD M' lc ids0 als.
+Proof.
+  intros. unfold wf_defs. 
+  intros gvsa Hpindom Hlkp.
+  assert (Hlkp':=Hlkp).
+  apply Hwf in Hlkp'; auto.
+  destruct Hlkp' as [J1 J2].
+  split; auto.
+    clear J2.
+    destruct J1 as [[mb' [J11 J12]] [J4 [gv J3]]]; subst.
+    split; eauto.
+    split.
+      intros.
+      eapply malloc_preserves_mload_inv in H0; eauto.
+      destruct H0 as [G | G]; subst; eauto.
+        eapply undef_disjoint_with_runtime_alloca; eauto.
+
+      exists gv. admit. (* Mem Prop *)
+Qed.
+
+Lemma malloc_preserves_wf_lc_in_tail: forall TD M M' tsz gn align0 mb lc
+  (Hmalloc: malloc TD M tsz gn align0 = ret (M', mb)) 
+  (Hwf: wf_lc M lc), wf_lc M' lc.
+Proof.
+  unfold wf_lc.
+  intros.
+  admit. (* Mem Props *)
+Qed.
+
+Lemma malloc_preserves_wf_ECStack_head_tail' : forall maxb pinfo ECs TD M tsz gn 
+  align0 M' lc mb 
+  (Hmlc: malloc TD M tsz gn align0 = ret (M', mb))
+  (Hwf: wf_ECStack_head_tail maxb pinfo TD M lc ECs),
+  wf_ECStack_head_tail maxb pinfo TD M' lc ECs.
+Proof.
+  intros.
+  unfold wf_ECStack_head_tail, wf_ECStack_head_in_tail.
+  intros.
+  eapply Hwf in H1; eauto.
+  destruct H1 as [[mb' [J11 J12]] [J2 J3]]; subst.
+  split. exists mb'. split; auto. admit. (* MemProp *)
+  split; eauto.
+    intros.
+    eapply malloc_preserves_mload_inv in Hmlc; eauto.
+    destruct Hmlc as [G | G]; subst; eauto.
+      eapply undef_disjoint_with_runtime_alloca; eauto.
+Qed.
+
 Lemma malloc_preserves_wf_ECStack_in_tail : forall maxb pinfo TD M tsz gn align0 
   (Hwfpi: WF_PhiInfo pinfo) M' mb 
-  (Hmlc: malloc TD M tsz gn align0 = ret (M', mb)) ECs 
+  (Hmlc: malloc TD M tsz gn align0 = ret (M', mb)) ECs
   (Hwf: wf_ECStack maxb pinfo TD M ECs),
   wf_ECStack maxb pinfo TD M' ECs.
 Proof.
@@ -1644,17 +1712,12 @@ Proof.
     split.
       eapply impure_cmd_preserves_wf_EC_tail with (M:=M); eauto.
         destruct a. intros. subst.
-(*
-        eapply mstore_preserves_wf_defs_in_tail with (mps2:=mps2)(gvs1:=gvs1)
-          (v:=v1)(lc1:=lc)(vp:=vp) in Hst; eauto.
-        eapply mstore_preserves_wf_lc; eauto. 
+        eapply malloc_preserves_wf_defs_in_tail in Hmlc; eauto.
+        eapply malloc_preserves_wf_lc_in_tail; eauto. 
     split; auto.
       destruct a. simpl in *.
-      eapply malloc_preserves_wf_ECStack_head_tail; eauto.
-        intros.
-        apply wf_ECStack_head_tail_cons__intro; auto.
-*)
-Admitted.
+      eapply malloc_preserves_wf_ECStack_head_tail'; eauto.
+Qed.
 
 Lemma malloc_preserves_wf_Mem : forall maxb TD M tsz gn align0 M' mb
   (Hmlc: malloc TD M tsz gn align0 = ret (M', mb))
@@ -1676,29 +1739,6 @@ Proof.
  
     omega.
 Qed.
-
-Lemma alloca_preserves_wf_EC : forall maxb pinfo TD M tsz gn align0 M' mb 
-  als t id0 F B cs tmn lc v gns gl
-  (H : getTypeAllocSize TD t = ret tsz)
-  (H0 : Opsem.getOperandValue TD v lc gl = ret gns)
-  (H1 : gn @ gns)
-  (H2 : malloc TD M tsz gn align0 = ret (M', mb))
-  (HwfEC: wf_ExecutionContext maxb pinfo TD M 
-            {| Opsem.CurFunction := F;
-               Opsem.CurBB := B;
-               Opsem.CurCmds := insn_malloc id0 t v align0 :: cs;
-               Opsem.Terminator := tmn;
-               Opsem.Locals := lc;
-               Opsem.Allocas := als |}),
-  wf_ExecutionContext maxb pinfo TD M'
-   {| Opsem.CurFunction := F;
-      Opsem.CurBB := B;
-      Opsem.CurCmds := cs;
-      Opsem.Terminator := tmn;
-      Opsem.Locals := updateAddAL (GVsT DGVs) lc id0
-                        ($ blk2GV TD mb # typ_pointer t $);
-      Opsem.Allocas := mb :: als |}.
-Admitted.
 
 Lemma malloc_preserves_wf_als : forall maxb TD M M' tsz gn align0 mb als
   (Hmalloc: malloc TD M tsz gn align0 = ret (M', mb)) 
@@ -2182,6 +2222,8 @@ Case "sExCall".
       eapply callExternalFunction_preserves_wf_als; eauto.
       eapply callExternalFunction_preserves_wf_Mem; eauto.
 Qed.
+
+End Promotability.
 
 (*****************************)
 (*
