@@ -182,7 +182,7 @@ vol/src/Extraction  :
   recompile the LLVM. 
  
 * The modified LLVM 2.6 
-    * Download the http://www.cis.upenn.edu/~jianzhou/vol/llvm-2.6z.tgz
+    * Download the http://www.cis.upenn.edu/~jianzhou/Vellvm/llvm-2.6z.tgz
     * tar zfxv llvm-2.6z.tgz
     * mkdir llvm-2.6z-obj
     * mkdir $WHERE_TO_INSTALL
@@ -235,7 +235,7 @@ To evaluate the extracted interpreter,
   http://www.llvm.org/releases/2.6/llvm-gcc-4.2-2.6.source.tar.gz
 
 * Download the llvm testsuite (which should already included in
-    http://www.cis.upenn.edu/~jianzhou/vol/llvm-2.6z.tgz)
+    http://www.cis.upenn.edu/~jianzhou/Vellvm/llvm-2.6z.tgz)
   cd $(WHERE_LLVM_SRC_IS)/projects
   Download http://www.llvm.org/releases/2.6/llvm-test-2.6.tar.gz
   tar xfzv llvm-test-2.6.tar.gz
