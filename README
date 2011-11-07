@@ -33,6 +33,9 @@ vol/src/Vellvm/ott : The modified coq libraries from Ott installation,
 
 vol/src/Vellvm/monads : Monads operations for 'imperative' programming
 
+vol/src/Vellvm/GraphBasics : Graph theory libraries from
+  http://coq.inria.fr/pylons/contribs/view/GraphBasics/v8.3
+
 vol/src/Vellvm        : The Formalisms of LLVM IR
 
   syntax.ott       : The definitions of LLVM IR in Ott
@@ -114,10 +117,33 @@ vol/src/TV/         : A simple trivial translation validator (eq_tv*), which onl
 
   eq_tv_correct.v  : If the TV returns true, the two programs are indeed equivalent.
 
+vol/src/Vminus      : A subset of Vellvm for studying SSA-based optimizations.
+  subst.v            : Constant substitution
+  vsubst.v           : Variable substitution
+  renaming.v         : Renaming variables
+  insert.v           : Inserting fresh instructions
+  removal.v          : Deleting instructions
+  motion.v           : Code motion
+  vminus.v           : Including all the above libraries
+
+  The following are simplified code from vol/src/Vellvm for the subset of Vellvm.
+  analysis.v  opsem.v  infrastructure_props.v  interpreter.v opsem_props.v 
+  opsem_wf.v typings.v genericvalues.v infrastructure_aux.v  infrastructure.v  
+  typings_props.v 
+
+vol/src/Transforms   : Optimizations for Vellvm
+  dtree.v                 : Dominator trees crearion
+  primitives.v            : The primitives same to vol/src/Vminus
+  gvn.v                   : Global value numbering
+  mem2reg.v               : Mem2reg
+  promotable_props.v      : Promotatable allocation is not aliasing
+  phiplacement_correct.v  : phinode-placement is correct
+
 vol/src/Extraction  :
-  extraction_interpreter.v           : Extracting an OCaml interpreter
+  extraction_core.v           : Extracting an OCaml interpreter
   extraction_sb.v                    : Extracting an OCaml SoftBound
-  llvm_aux.ml/llvm_pretty_printer.ml : printing llvm AST
+  extraction_trans.v                 : Extracting an OCaml Vellvm Optimizor
+  llvm_aux.ml/llvm_pretty_printer.ml : printing LLVM AST
   coq_pretty_printer.ml              : printing Coq AST
   coq2llvm.ml                        : Translating Coq AST to LLVM AST
   llvm2coq.ml                        : Translating LLVM AST to Coq AST
