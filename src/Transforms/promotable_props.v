@@ -149,6 +149,9 @@ Definition wf_ECStack_head_tail (maxb:Values.block) (pinfo:PhiInfo) TD M
   (lc:DGVMap) (ecs':list (fdef * DGVMap)) : Prop :=
   forall ec0, In ec0 ecs' -> wf_ECStack_head_in_tail maxb pinfo TD M lc ec0.
 
+Definition ECs2flc (ECs:list Opsem.ExecutionContext) : list (fdef * DGVMap) :=
+  List.map (fun ec => let '(Opsem.mkEC f _ _ _ lc _) := ec in (f, lc)) ECs.
+
 Fixpoint wf_ECStack (maxb:Values.block) (pinfo:PhiInfo) TD M (ecs:Opsem.ECStack)
   : Prop :=
 match ecs with
@@ -156,8 +159,7 @@ match ecs with
 | ec::ecs' => 
     wf_ExecutionContext maxb pinfo TD M ec /\
     wf_ECStack maxb pinfo TD M ecs' /\
-    wf_ECStack_head_tail maxb pinfo TD M (Opsem.Locals ec) 
-      (List.map (fun ec => let '(Opsem.mkEC f _ _ _ lc _) := ec in (f, lc)) ecs')
+    wf_ECStack_head_tail maxb pinfo TD M (Opsem.Locals ec) (ECs2flc ecs')
 end.
 
 Definition wf_Mem maxb (td:targetdata) (M:mem) : Prop :=
@@ -432,19 +434,285 @@ Qed.
 Ltac SSSSSCase name := Case_aux subsubsubsubsubcase name.
 Ltac SSSSSSCase name := Case_aux subsubsubsubsubsubcase name.
 
-Lemma free_allocas_preserves_mload_inv: forall TD Mem' gptr ty al gvsa Mem als
+Lemma free_preserves_mload_inv: forall TD Mem' gptr ty al gvsa Mem mptr0
+  (H1 : mload TD Mem' gptr ty al = ret gvsa)
+  (H2 : free TD Mem mptr0 = ret Mem'),
+  mload TD Mem gptr ty al = ret gvsa.
+Proof.
+  intros.
+  apply mload_inv in H1.
+  destruct H1 as [b [ofs [m [mc [J1 [J2 J3]]]]]]; subst.
+  unfold mload. simpl. rewrite J2.
+  apply free_inv in H2.
+  destruct H2 as [blk' [ofs' [hi [lo [J4 [J5 [J6 J7]]]]]]].
+  admit. (* Mem Props *)
+Qed.
+
+Lemma free_preserves_wf_ECStack_head_tail : forall maxb pinfo TD M M' lc mptr0
+  (Hfree: free TD M mptr0 = ret M') ECs 
+  (Hwf: wf_ECStack_head_tail maxb pinfo TD M lc ECs),
+  wf_ECStack_head_tail maxb pinfo TD M' lc ECs.
+Proof.
+  unfold wf_ECStack_head_tail, wf_ECStack_head_in_tail.
+  intros.
+  eapply Hwf in H0; eauto.
+  destruct H0 as [[mb [J11 J12]] [J2 J3]]; subst.
+  split.
+    exists mb. split; auto. admit. (* Mem Prop *)
+  split; auto.
+    intros.
+    eapply free_preserves_mload_inv in H0; eauto.
+Qed.
+
+Lemma free_preserves_wf_lc: forall TD Mem' Mem mptr0
+  (H2 : free TD Mem mptr0 = ret Mem') lc
+  (Hwf: wf_lc Mem lc),
+  wf_lc Mem' lc.
+Proof.
+  unfold wf_lc.
+  intros.
+  apply Hwf in H.
+  apply free_inv in H2.
+  destruct H2 as [blk' [ofs' [hi [lo [J4 [J5 [J6 J7]]]]]]].
+  admit. (* Mem Props *)
+Qed.
+
+Lemma free_preserves_mload: forall TD Mem Mem' t al gv gptr gvsa
+  (H0 : no_alias gptr gvsa)
+  (H1 : free TD Mem gptr = ret Mem')
+  (H2 : mload TD Mem gvsa t al = ret gv),
+  mload TD Mem' gvsa t al = ret gv.
+Proof.
+  intros.
+  apply free_inv in H1.
+  destruct H1 as [blk [ofs [hi [lo [J4 [J5 [J6 J7]]]]]]].
+  admit. (* Mem Props *)
+Qed.
+
+Lemma operand__no_alias_with__tail: forall maxb pinfo TD M lc1 lc2 mptr0 gl
+  (Hwfgl : wf_globals maxb gl) v mptrs
+  (Hht : wf_ECStack_head_in_tail maxb pinfo TD M lc1 (PI_f pinfo, lc2))
+  (gvsa : GVsT DGVs) (Hin: mptr0 @ mptrs) 
+  (Hlkp : lookupAL (GVsT DGVs) lc2 (PI_id pinfo) = ret gvsa)
+  (Hgetop : Opsem.getOperandValue TD v lc1 gl = ret mptrs),
+  no_alias mptr0 gvsa.
+Proof.
+  intros.
+  inv Hin.
+  apply Hht in Hlkp; auto.
+  destruct Hlkp as [[mb [J11 J12]] [Hlkp _]]; subst.
+  destruct v; simpl in Hgetop.
+    apply Hlkp in Hgetop; auto.
+    eapply wf_globals_disjoint_with_runtime_alloca; eauto.
+      omega.
+Qed.
+
+Definition wf_use_at_head (pinfo:PhiInfo) (ids0:list id) (v:value) :=
+used_in_value (PI_id pinfo) v = false /\
+match v with
+| value_const _ => True
+| value_id vid => In vid ids0
+end.
+
+Lemma free_preserves_wf_defs_in_tail : forall maxb pinfo TD M  
+  M' lc1 mptr0 mptrs gl v als lc2 
+  (Hgetop: Opsem.getOperandValue TD v lc1 gl = ret mptrs)
+  (Hin: mptr0 @ mptrs) (Hwfgl: wf_globals maxb gl)
+  (Hfree: free TD M mptr0 = ret M')
+  (Hht: wf_ECStack_head_in_tail maxb pinfo TD M lc1 (PI_f pinfo, lc2))
+  ids0 (Hwf: wf_defs maxb pinfo TD M lc2 ids0 als),
+  wf_defs maxb pinfo TD M' lc2 ids0 als.
+Proof.
+  intros. unfold wf_defs. 
+  intros gvsa Hpindom Hlkp.
+  assert (Hlkp':=Hlkp).
+  apply Hwf in Hlkp'; auto.
+  destruct Hlkp' as [J1 J2].
+  split; auto.
+    clear J2.
+    destruct J1 as [J1 [J4 [gv J3]]].
+    split; auto.
+      split.
+        intros. eapply free_preserves_mload_inv in H; eauto.
+        clear J4. 
+        assert (no_alias mptr0 gvsa) as J.
+          eapply operand__no_alias_with__tail; eauto.
+        exists gv. eapply free_preserves_mload; eauto.
+Qed.
+
+Lemma operand__no_alias_with__head: forall maxb pinfo TD lc mptr0 mptrs gl v als
+  (Hgetop : Opsem.getOperandValue TD v lc gl = ret mptrs)
+  (Hin : mptr0 @ mptrs) (Hwfgl : wf_globals maxb gl) ids0 M
+  (Hwfu: wf_use_at_head pinfo ids0 v) (Hwf: wf_defs maxb pinfo TD M lc ids0 als)
+  (gvsa : GVsT DGVs) (Hpindom : In (PI_id pinfo) ids0)
+  (Hlkp : lookupAL (GVsT DGVs) lc (PI_id pinfo) = ret gvsa),
+  no_alias mptr0 gvsa.
+Proof.
+  intros.
+  apply Hwf in Hlkp; auto.
+  destruct Hlkp as [[J1 [J4 [gv J3]]] J2].
+  inv Hin.
+  destruct v; simpl in Hgetop.
+    destruct Hwfu as [Hwfu1 Hwfu2].        
+    apply J2 in Hgetop; auto.
+    unfold wf_non_alloca_GVs in Hgetop.
+    destruct (id_dec i0 (PI_id pinfo)); subst; auto.
+      inv Hwfu1. 
+      destruct (id_dec (PI_id pinfo) (PI_id pinfo)); try congruence.
+        inv H0.
+  
+    destruct J1 as [mb [J11 [J12 J13]]]; subst.
+    eapply wf_globals_disjoint_with_runtime_alloca; eauto.
+Qed.
+
+Lemma free_preserves_wf_defs_at_head : forall maxb pinfo TD M  
+  M' lc mptr0 mptrs gl v als
+  (Hgetop: Opsem.getOperandValue TD v lc gl = ret mptrs)
+  (Hin: mptr0 @ mptrs) (Hwfgl: wf_globals maxb gl)
+  (Hfree: free TD M mptr0 = ret M')
+  ids0 (Hwfu: wf_use_at_head pinfo ids0 v) 
+  (Hwf: wf_defs maxb pinfo TD M lc ids0 als),
+  wf_defs maxb pinfo TD M' lc ids0 als.
+Proof.
+  intros. unfold wf_defs. 
+  intros gvsa Hpindom Hlkp.
+  assert (no_alias mptr0 gvsa) as J.
+    eapply operand__no_alias_with__head; eauto.
+  assert (Hlkp':=Hlkp).
+  apply Hwf in Hlkp'; auto.
+  destruct Hlkp' as [J1 J2].
+  split; auto.
+    destruct J1 as [J1 [J4 [gv J3]]].
+    split; auto.
+      split.
+        intros. eapply free_preserves_mload_inv in H; eauto.
+        exists gv. eapply free_preserves_mload; eauto.
+Qed.
+
+Lemma wf_ECStack_head_tail_cons__inv: forall maxb pinfo TD M lc ec1 ecs2,
+  wf_ECStack_head_tail maxb pinfo TD M lc (ec1::ecs2) ->
+  wf_ECStack_head_in_tail maxb pinfo TD M lc ec1 /\
+  wf_ECStack_head_tail maxb pinfo TD M lc ecs2.
+Proof.
+  intros.
+  split.
+    apply H; simpl; auto.
+    unfold wf_ECStack_head_tail in *. intros. apply H; simpl; auto.
+Qed.
+
+Lemma impure_cmd_preserves_wf_EC_tail : forall maxb pinfo TD M  
+  M' EC (Hwfpi: WF_PhiInfo pinfo) 
+  (Hwfdefs: forall ids0,
+     let '(Opsem.mkEC F B cs tmn lc als) := EC in
+     F = (PI_f pinfo) ->
+     inscope_of_pc F B cs tmn = Some ids0 ->
+     wf_defs maxb pinfo TD M lc ids0 als ->
+     wf_defs maxb pinfo TD M' lc ids0 als)
+  (Hwflc: wf_lc M (@Opsem.Locals DGVs EC) -> wf_lc M' (Opsem.Locals EC))
+  (Hwf: wf_ExecutionContext maxb pinfo TD M EC),
+  wf_ExecutionContext maxb pinfo TD M' EC.
+Proof.
+  destruct EC. simpl. intros.
+  destruct Hwf as [J1 J2].
+  split; auto.
+    destruct (fdef_dec (PI_f pinfo) CurFunction); subst; auto.
+    destruct CurCmds.    
+      remember (inscope_of_tmn (PI_f pinfo) CurBB Terminator) as R.
+      destruct R; auto.
+
+      remember (inscope_of_cmd (PI_f pinfo) CurBB c) as R.
+      destruct R; auto.
+Qed.
+
+Lemma free_preserves_wf_ECStack_in_tail : forall maxb pinfo TD M  
+  M' mptr0 mptrs gl v (Hwfpi: WF_PhiInfo pinfo) lc
+  (Hgetop: Opsem.getOperandValue TD v lc gl = ret mptrs)
+  (Hin: mptr0 @ mptrs) (Hwfgl: wf_globals maxb gl)
+  (Hfree: free TD M mptr0 = ret M') ECs
+  (Hht: wf_ECStack_head_tail maxb pinfo TD M lc (ECs2flc ECs))
+  (Hwf: wf_ECStack maxb pinfo TD M ECs),
+  wf_ECStack maxb pinfo TD M' ECs.
+Proof.
+  induction ECs; simpl; intros; auto.
+    destruct Hwf as [J1 [J2 J3]].
+    apply wf_ECStack_head_tail_cons__inv in Hht.
+    destruct Hht as [Hht1 Hht2].
+    split.
+      eapply impure_cmd_preserves_wf_EC_tail with (M:=M); eauto.
+        destruct a. intros. subst.
+        eapply free_preserves_wf_defs_in_tail; eauto.
+        eapply free_preserves_wf_lc; eauto.
+    split; auto.
+      eapply free_preserves_wf_ECStack_head_tail; eauto.
+(* Can this lemma be more generic by making free_preserves_mload_inv generic? *)
+Qed.
+
+Lemma free_preserves_wf_Mem : forall maxb TD M M' mptr0
+  (Hfree: free TD M mptr0 = ret M') 
+  (Hwf: wf_Mem maxb TD M),
+  wf_Mem maxb TD M'.
+Proof.
+  intros. destruct Hwf as [J1 J2].
+  split.
+    intros. 
+    eapply free_preserves_mload_inv in H; eauto.
+    apply J1 in H; auto.
+    admit. (* Mem Props *)
+  
+    admit. (* Mem Props *)
+Qed.
+
+Lemma free_preserves_wf_als : forall maxb TD M M' mptr0 als
+  (Hfree: free TD M mptr0 = ret M') 
+  (Hwf: wf_als maxb M als),
+  wf_als maxb M' als.
+Proof.
+  intros. destruct Hwf as [J1 J2].
+  split; auto.
+    intros. 
+    apply J2 in H; auto.
+    admit. (* Mem Props *)
+Qed.
+
+Ltac inv_mbind :=
+  repeat match goal with
+         | H : match ?e with
+               | Some _ => _
+               | None => None
+               end = Some _ |- _ => remember e as R; destruct R as [|]; inv H
+         end.
+
+Lemma free_allocas_preserves_mload_inv: forall TD gptr ty al gvsa als Mem' Mem
   (H1 : mload TD Mem' gptr ty al = ret gvsa)
   (H2 : free_allocas TD Mem als = ret Mem'),
   mload TD Mem gptr ty al = ret gvsa.
 Proof.
-Admitted.
+  induction als; simpl; intros.
+    inv H2. auto.
 
-Lemma free_allocas_preserves_mload: forall TD Mem als Mem' t al gv mb
+    inv_mbind.
+    eapply free_preserves_mload_inv with (Mem':=m); eauto.
+Qed.
+
+Ltac unfold_blk2GV := unfold blk2GV, ptr2GV, val2GV.
+
+Lemma free_allocas_preserves_mload: forall TD al t mb gv als Mem' Mem 
   (H0 : ~ In mb als)
   (H1 : free_allocas TD Mem als = ret Mem')
   (H2 : mload TD Mem ($ blk2GV TD mb # typ_pointer t $) t al = ret gv),
   mload TD Mem' ($ blk2GV TD mb # typ_pointer t $) t al = ret gv.
-Admitted.
+Proof.
+  induction als; simpl; intros.
+    inv H1. auto.
+
+    inv_mbind.
+    apply IHals in H3; auto.
+    eapply free_preserves_mload; eauto.
+    unfold_blk2GV. 
+Local Transparent gv2gvs.
+  unfold gv2gvs. simpl. split; auto.
+Opaque gv2gvs. 
+Qed.
 
 Lemma free_allocas_preserves_wf_alloca: forall maxb pinfo TD Mem gvsa als0 als Mem',
   wf_alloca_GVs maxb pinfo TD Mem gvsa als0 ->
@@ -480,9 +748,50 @@ Proof.
   split; eauto using free_allocas_preserves_wf_alloca.
 Qed.
 
-Lemma free_allocas_preserves_wf_lc: forall td Mem als Mem' lc,
-  wf_lc Mem lc -> free_allocas td Mem als = ret Mem' -> wf_lc Mem' lc.
+Lemma free_allocas_preserves_wf_lc: forall td lc als Mem Mem',
+  free_allocas td Mem als = ret Mem' -> wf_lc Mem lc -> wf_lc Mem' lc.
+Proof.
+  induction als; simpl; intros.
+    inv H. auto.
+
+    inv_mbind. symmetry in HeqR.
+    eapply free_preserves_wf_lc in HeqR; eauto.
+Qed.
+
+Lemma updateAddAL__wf_lc: forall gv3 Mem0 lc id0
+  (Hwfgv: forall blk ofs, gv3 = mk_gptr blk ofs -> blk < Mem.nextblock Mem0)
+  (Hwflc: wf_lc Mem0 lc),
+  wf_lc Mem0 (updateAddAL (GVsT DGVs) lc id0 gv3).
+Proof.
+  intros. unfold wf_lc in *. intros.
+  destruct (id_dec id0 id1); subst.
+    rewrite lookupAL_updateAddAL_eq in H. inv H. eauto.
+
+    rewrite <- lookupAL_updateAddAL_neq in H; auto.
+    eapply Hwflc; eauto.
+Qed.
+
+Lemma wf_globals__le_maxb: forall maxb gl td c0 
+  (Hwfg: wf_globals maxb gl) blk ofs
+  (Hc2g : ret mk_gptr blk ofs = @Opsem.const2GV DGVs td gl c0),
+  blk <= maxb.
 Admitted.
+
+Lemma operand__lt_nextblock: forall maxb TD M (lc:DGVMap) blk ofs gl
+  (Hwfgl : wf_globals maxb gl) v mptrs (Hlt: maxb < Mem.nextblock M)
+  (Hwflc: wf_lc M lc) 
+  (Hin: mk_gptr blk ofs @ mptrs) 
+  (Hgetop : Opsem.getOperandValue TD v lc gl = ret mptrs),
+  blk < Mem.nextblock M.
+Proof.
+  intros.
+  inv Hin.
+  destruct v; simpl in Hgetop.
+    apply Hwflc in Hgetop; auto.
+
+    eapply wf_globals__le_maxb in Hwfgl; eauto.
+    omega.
+Qed.     
 
 Lemma returnUpdateLocals__wf_lc: forall maxb td Result (lc:DGVMap) gl c' 
   lc' Mem lc''
@@ -490,37 +799,200 @@ Lemma returnUpdateLocals__wf_lc: forall maxb td Result (lc:DGVMap) gl c'
   (Hwflc1 : wf_lc Mem lc) (Hwflc2 : wf_lc Mem lc')
   (Hwfg : wf_globals maxb gl) (Hgbound : maxb < Mem.nextblock Mem),
   wf_lc Mem lc''.
-Admitted.
+Proof.
+  intros.
+  unfold Opsem.returnUpdateLocals in H1.
+  inv_mbind. 
+  destruct c'; tinv H0.
+  destruct n.
+    inv H0; auto.
 
-Lemma free_allocas_preserves_wf_ECStack: forall maxb pinfo td Mem als Mem' ECs,
-  wf_ECStack maxb pinfo td Mem ECs ->
-  free_allocas td Mem als = ret Mem' ->
-  NoDup (als ++ (flat_map
+    destruct t; tinv H0.
+    inv_mbind. 
+    apply updateAddAL__wf_lc; auto.
+    intros. subst. symmetry in HeqR.
+    unfold MDGVs.lift_op1, fit_gv in HeqR0. symmetry in HeqR0.
+    inv_mbind. 
+    destruct (sizeGenericValue g =n= nat_of_Z (ZRdiv (Z_of_nat n) 8)).
+      inv H0. 
+      eapply operand__lt_nextblock in HeqR; eauto.
+
+      unfold gundef in H0. inv_mbind.
+Qed.
+
+Lemma free_allocas_preserves_wf_ECStack_head_tail' : forall maxb pinfo td 
+  lc ECs als M M',
+  free_allocas td M als = ret M' ->
+  wf_ECStack_head_tail maxb pinfo td M lc ECs ->
+  wf_ECStack_head_tail maxb pinfo td M' lc ECs.
+Proof.
+  induction als; simpl; intros.
+    inv H. auto.
+
+    inv_mbind.
+    symmetry in HeqR.
+    eapply free_preserves_wf_ECStack_head_tail in HeqR; eauto.
+Qed.
+
+Lemma free_allocas_preserves_wf_defs_in_tail : forall maxb pinfo TD
+  lc2 ids0 als' als M M' (Hfree: free_allocas TD M als = ret M')
+  (Hndp: NoDup (als++als')) (Hwf: wf_defs maxb pinfo TD M lc2 ids0 als'),
+  wf_defs maxb pinfo TD M' lc2 ids0 als'.
+Proof.
+  induction als; simpl; intros.
+    inv Hfree. auto.
+
+    inv_mbind. inv Hndp.
+    apply IHals in H0; auto.
+
+  unfold wf_defs. 
+  intros gvsa Hpindom Hlkp.
+  assert (Hlkp':=Hlkp).
+  apply Hwf in Hlkp'; auto.
+  destruct Hlkp' as [J1 J2].
+  split; auto.
+    clear J2.
+    destruct J1 as [[mb [J11 [J12 J13]]] [J4 [gv J3]]]; subst.
+    split; eauto.
+    split.
+        intros. eapply free_preserves_mload_inv in H; eauto.
+        exists gv. 
+        assert (no_alias (blk2GV TD a) 
+                         ($ blk2GV TD mb # typ_pointer (PI_typ pinfo) $)) 
+          as Hnoalias.
+          apply Hwf in Hlkp; auto.
+          destruct Hlkp as [[[mb' [J5 [J6 J7]]] _] _].
+Local Transparent gv2gvs.
+          unfold gv2gvs in J5. simpl in J5. unfold MDGVs.gv2gvs in J5.
+          unfold blk2GV, ptr2GV, val2GV in J5. inv J5.
+          unfold_blk2GV. unfold gv2gvs. simpl.
+Opaque gv2gvs. 
+          repeat split; auto.
+          intro EQ. subst. apply H2. apply in_or_app; auto.
+
+        eapply free_preserves_mload; eauto.
+Qed.
+
+Lemma free_allocas_preserves_wf_ECStack: forall maxb pinfo td als ECs Mem Mem'
+  (Hwfpi: WF_PhiInfo pinfo)
+  (Hndup: NoDup (als ++ (flat_map
                   (fun ec : Opsem.ExecutionContext =>
                    let '{| Opsem.Allocas := als |} := ec in als)
-                   ECs)) ->
+                   ECs)))
+  (Hwf: wf_ECStack maxb pinfo td Mem ECs)
+  (Hfrees: free_allocas td Mem als = ret Mem'),
   wf_ECStack maxb pinfo td Mem' ECs.
-Admitted.
+Proof.
+  induction ECs; simpl; intros; auto.
+    destruct Hwf as [J1 [J2 J3]].
+    destruct a. 
+    assert (Hndup' := Hndup).
+    apply NoDup_strenthening in Hndup.
+    split.
+      eapply impure_cmd_preserves_wf_EC_tail with (M:=Mem); eauto.
+        intros. subst.
+        rewrite_env ((als ++ Allocas) ++
+          flat_map
+            (fun ec : Opsem.ExecutionContext =>
+             let '{| Opsem.Allocas := als |} := ec in als) ECs) in Hndup'.
+        apply NoDup_split in Hndup'. destruct Hndup'.
+        eapply free_allocas_preserves_wf_defs_in_tail; eauto.
+        eapply free_allocas_preserves_wf_lc; eauto.
+    split; eauto.
+      eapply free_allocas_preserves_wf_ECStack_head_tail'; eauto.
+(* Can this lemma be more generic by making free_preserves_mload_inv generic? *)
+Qed.
+
+Lemma updateAddAL__wf_ECStack_head_tail: forall maxb pinfo td M lc ECs
+  id0 gv3 
+  (Hwfgv: forall ec0 (Hin : In ec0 ECs) (gvsa : GVsT DGVs) 
+    (Heq : fst ec0 = PI_f pinfo)
+    (Hlkup : lookupAL (GVsT DGVs) (snd ec0) (PI_id pinfo) = ret gvsa),
+    no_alias gv3 gvsa),
+  wf_ECStack_head_tail maxb pinfo td M lc ECs ->
+  wf_ECStack_head_tail maxb pinfo td M (updateAddAL (GVsT DGVs) lc id0 gv3) ECs.
+Proof.
+  unfold wf_ECStack_head_tail, wf_ECStack_head_in_tail in *.
+  intros.
+  assert (H2':=H2). apply Hwfgv in H2'; auto.
+  apply H in H2; auto.
+  destruct H2 as [J1 [J2 J3]].
+  split; auto.
+  split; auto.
+    intros. 
+    destruct (id_dec id0 id1); subst.
+      rewrite lookupAL_updateAddAL_eq in H2.
+      inv H2. auto.
+
+      rewrite <- lookupAL_updateAddAL_neq in H2; eauto.
+Qed.
 
 Lemma free_allocas_preserves_wf_ECStack_head_tail : forall maxb pinfo td M M' 
-  lc als lc' F' lc'' ECs gl Result c',
+  lc als lc' F' lc'' ECs gl Result c'  
+  (Hwfg : wf_globals maxb gl),
   free_allocas td M als = ret M' ->
   Opsem.returnUpdateLocals td c' Result lc lc' gl = ret lc'' ->
   wf_ECStack_head_tail maxb pinfo td M lc ((F', lc')::ECs) ->
   wf_ECStack_head_tail maxb pinfo td M lc' ECs ->
   wf_ECStack_head_tail maxb pinfo td M' lc'' ECs.
-Admitted.
+Proof.
+  intros.
+  apply wf_ECStack_head_tail_cons__inv in H1.
+  destruct H1 as [H11 H12].
+  eapply free_allocas_preserves_wf_ECStack_head_tail' in H2; eauto.
 
-Lemma free_allocas_preserves_wf_Mem: forall maxb td Mem als Mem',
+  unfold Opsem.returnUpdateLocals in H0.
+  inv_mbind. 
+  destruct c'; tinv H3.
+  destruct n.
+    inv H3; auto.
+
+    destruct t; tinv H3.
+    inv_mbind. 
+    apply updateAddAL__wf_ECStack_head_tail; auto.
+    intros. subst. symmetry in HeqR.
+    unfold MDGVs.lift_op1, fit_gv in HeqR0. symmetry in HeqR0.
+    inv_mbind. 
+    apply H12 in Hin; auto.
+    apply Hin in Hlkup; auto.
+    destruct Hlkup as [[mb [J1 J2]] [Hlkup _]]; subst.
+    destruct (sizeGenericValue g =n= nat_of_Z (ZRdiv (Z_of_nat n) 8)).
+      inv H1.
+      destruct Result; simpl in HeqR; eauto.
+      eapply wf_globals_disjoint_with_runtime_alloca; eauto.
+        omega.
+
+      unfold gundef in H1. inv_mbind. inv HeqR1.
+      unfold_blk2GV.        
+Local Transparent gv2gvs.
+      unfold gv2gvs. simpl. auto.
+Opaque gv2gvs. 
+Qed.
+
+Lemma free_allocas_preserves_wf_Mem: forall maxb td als Mem Mem',
   wf_Mem maxb td Mem -> free_allocas td Mem als = ret Mem' -> 
   wf_Mem maxb td Mem'.
-Admitted.
+Proof.
+  induction als; simpl; intros.
+    inv H0. auto.
 
-Lemma free_allocas_preserves_wf_als : forall maxb TD M M' als als0
+    inv_mbind.
+    symmetry in HeqR.
+    eapply free_preserves_wf_Mem in HeqR; eauto.
+Qed.
+
+Lemma free_allocas_preserves_wf_als : forall maxb TD als als0 M M'
   (Hfree: free_allocas TD M als0 = ret M') 
   (Hwf: wf_als maxb M als),
   wf_als maxb M' als.
-Admitted.
+Proof.
+  induction als0; simpl; intros.
+    inv Hfree. auto.
+
+    inv_mbind.
+    symmetry in HeqR.
+    eapply free_preserves_wf_als in HeqR; eauto.
+Qed.
 
 Lemma preservation_return : forall maxb pinfo (HwfPI : WF_PhiInfo pinfo)  
   F B rid RetTy Result lc F' B' c' cs' tmn' lc' EC Mem als als' cfg
@@ -706,8 +1178,6 @@ Local Opaque inscope_of_tmn inscope_of_cmd.
 Transparent inscope_of_tmn inscope_of_cmd.
 Qed.
 
-Ltac unfold_blk2GV := unfold blk2GV, ptr2GV, val2GV.
-
 Lemma gptr_spec: forall pinfo gv3 mb td
   (Hwfgv : ~
           (exists blk : Values.block,
@@ -722,49 +1192,19 @@ Local Transparent gv2gvs.
 Opaque gv2gvs. 
 Qed.
 
-Lemma updateAddAL__wf_lc: forall gv3 Mem0 lc id0
-  (Hwfgv: forall blk ofs, gv3 = mk_gptr blk ofs -> blk < Mem.nextblock Mem0)
-  (Hwflc: wf_lc Mem0 lc),
-  wf_lc Mem0 (updateAddAL (GVsT DGVs) lc id0 gv3).
-Proof.
-  intros. unfold wf_lc in *. intros.
-  destruct (id_dec id0 id1); subst.
-    rewrite lookupAL_updateAddAL_eq in H. inv H. eauto.
-
-    rewrite <- lookupAL_updateAddAL_neq in H; auto.
-    eapply Hwflc; eauto.
-Qed.
-
-Lemma updateAddAL__wf_ECStack_head_tail: forall maxb pinfo td M lc ECs
-  id0 gv3 
-  (Hwfgv: forall blk ofs, gv3 = mk_gptr blk ofs -> blk < Mem.nextblock M),
-  wf_ECStack_head_tail maxb pinfo td M lc ECs ->
-  wf_ECStack_head_tail maxb pinfo td M (updateAddAL (GVsT DGVs) lc id0 gv3) ECs.
-Proof.
-  unfold wf_ECStack_head_tail, wf_ECStack_head_in_tail in *.
-  intros.
-  apply H in H2; auto.
-  destruct H2 as [J1 [J2 J3]].
-  split; auto.
-  split; auto.
-    intros. 
-    destruct (id_dec id0 id1); subst.
-      rewrite lookupAL_updateAddAL_eq in H2.
-      inv H2. 
-      admit.
-
-      rewrite <- lookupAL_updateAddAL_neq in H2; eauto.
-Qed.
-
-Definition wf_GVs_in_EC (maxb:Values.block) (pinfo:PhiInfo) TD M 
-  (ec:Opsem.ExecutionContext)(id1:id)(gv1:GVsT DGVs) : Prop :=
-let '(Opsem.mkEC f b cs tmn lc als) := ec in
+Definition wf_GVs_in_ECs (maxb:Values.block) (pinfo:PhiInfo) TD M 
+  (head:Opsem.ExecutionContext) tail (id1:id)(gv1:GVsT DGVs) : Prop :=
+let '(Opsem.mkEC f b cs tmn lc als) := head in
 (if (fdef_dec (PI_f pinfo) f) then 
   forall ids0, 
     inscope_of_pc f b cs tmn = Some ids0 ->
     wf_defs maxb pinfo TD M lc ids0 als ->
     wf_GVs maxb pinfo TD M lc ids0 als id1 gv1
 else True) /\
+(forall ec0 (Hin : In ec0 tail) (gvsa : GVsT DGVs) 
+    (Heq : fst ec0 = PI_f pinfo)
+    (Hlkup : lookupAL (GVsT DGVs) (snd ec0) (PI_id pinfo) = ret gvsa),
+    no_alias gv1 gvsa) /\
 (forall blk ofs, gv1 = mk_gptr blk ofs -> blk < Mem.nextblock M).
 
 Lemma preservation_pure_cmd_updated_case : forall (F : fdef)(B : block)
@@ -778,7 +1218,10 @@ Lemma preservation_pure_cmd_updated_case : forall (F : fdef)(B : block)
                 Opsem.Terminator := tmn;
                 Opsem.Locals := lc;
                 Opsem.Allocas := als |})
-  (Hwfgv : wf_GVs_in_EC maxb pinfo (OpsemAux.CurTargetData cfg) Mem0 EC id0 gv3)
+  (Hwfgv : 
+    wf_GVs_in_ECs maxb pinfo (OpsemAux.CurTargetData cfg) Mem0 EC
+      (List.map (fun ec => let '(Opsem.mkEC f _ _ _ lc _) := ec in (f, lc)) ECs)
+      id0 gv3)
   (Hinv : OpsemPP.wf_State cfg
            {| Opsem.ECS := EC :: ECs;
               Opsem.Mem := Mem0 |})
@@ -798,7 +1241,7 @@ Lemma preservation_pure_cmd_updated_case : forall (F : fdef)(B : block)
 Proof.
 Local Opaque inscope_of_cmd inscope_of_tmn.
 
-  intros. subst. destruct Hwfgv as [Hwfgv1 Hwfgv2].
+  intros. subst. destruct Hwfgv as [Hwfgv1 [Hwfgv2 Hwfgv3]].
   destruct cfg as [S [los nts] Ps gl fs].
   destruct Hinv as 
     [_ [HwfSystem [HmInS [Hnonempty [
@@ -879,78 +1322,40 @@ Transparent inscope_of_cmd inscope_of_tmn.
 
 Qed.
 
-Lemma BOP__wf_GVs_in_EC : forall (v : value) (v0 : value) (id1 : id) (bop0 : bop)
-  gvs3 TD bop0 sz0 lc gl EC Mem0 td pinfo maxb (Hneq: id1 <> PI_id pinfo)
+Lemma BOP__wf_GVs_in_ECs : forall (v : value) (v0 : value) (id1 : id) (bop0 : bop)
+  gvs3 TD bop0 sz0 lc gl hd tl Mem0 td pinfo maxb (Hneq: id1 <> PI_id pinfo)
   (H11 : BOP TD lc gl bop0 sz0 v v0 = ret gvs3),
-  wf_GVs_in_EC maxb pinfo td Mem0 EC id1 gvs3.
+  wf_GVs_in_ECs maxb pinfo td Mem0 hd tl id1 gvs3.
 Proof.
   intros. 
-  unfold wf_GVs_in_EC. destruct EC.
+  unfold wf_GVs_in_ECs. destruct hd.
   split.
     destruct (fdef_dec (PI_f pinfo) CurFunction); subst; auto.
     intros.
     split; intros; subst; try congruence.
       admit. (* BOP isnt ptr *)
-
+  split.
+    intros. admit. (* BOP isnt ptr *)
     intros. subst.
     admit. (* BOP isnt ptr *)
 Qed.
 
-Definition wf_use_at_head (pinfo:PhiInfo) (ids0:list id) (v:value) :=
-used_in_value (PI_id pinfo) v = false /\
-match v with
-| value_const _ => True
-| value_id vid => In vid ids0
-end.
-
-Lemma operand__no_alias_with__head: forall maxb pinfo TD lc mptr0 mptrs gl v als
-  (Hgetop : Opsem.getOperandValue TD v lc gl = ret mptrs)
-  (Hin : mptr0 @ mptrs) (Hwfgl : wf_globals maxb gl) ids0 M
-  (Hwfu: wf_use_at_head pinfo ids0 v) (Hwf: wf_defs maxb pinfo TD M lc ids0 als)
-  (gvsa : GVsT DGVs) (Hpindom : In (PI_id pinfo) ids0)
-  (Hlkp : lookupAL (GVsT DGVs) lc (PI_id pinfo) = ret gvsa),
-  no_alias mptr0 gvsa.
+Lemma operand__no_alias_with__tail': forall maxb gl (Hwfgl : wf_globals maxb gl)
+  lc (gv1 : GVsT DGVs) v TD (Hget: Opsem.getOperandValue TD v lc gl = ret gv1)
+  (tl : list (fdef * DGVMap)) pinfo Mem
+  (Hwfstk : wf_ECStack_head_tail maxb pinfo TD Mem lc tl)
+  (ec0 : fdef * AssocList (GVsT DGVs)) (Hin: In ec0 tl) (gvsa : GVsT DGVs)
+  (Heq: fst ec0 = PI_f pinfo) 
+  (Hlkup: lookupAL (GVsT DGVs) (snd ec0) (PI_id pinfo) = ret gvsa),
+  no_alias gv1 gvsa.
 Proof.
-  intros.
-  apply Hwf in Hlkp; auto.
-  destruct Hlkp as [[J1 [J4 [gv J3]]] J2].
-  inv Hin.
-  destruct v; simpl in Hgetop.
-    destruct Hwfu as [Hwfu1 Hwfu2].        
-    apply J2 in Hgetop; auto.
-    unfold wf_non_alloca_GVs in Hgetop.
-    destruct (id_dec i0 (PI_id pinfo)); subst; auto.
-      inv Hwfu1. 
-      destruct (id_dec (PI_id pinfo) (PI_id pinfo)); try congruence.
-        inv H0.
-  
-    destruct J1 as [mb [J11 [J12 J13]]]; subst.
-    eapply wf_globals_disjoint_with_runtime_alloca; eauto.
+  intros. 
+  eapply operand__no_alias_with__tail in Hlkup; eauto.
+  apply Hwfstk; auto.
+  rewrite <- Heq. destruct ec0; auto.
 Qed.
 
-Lemma wf_globals__le_maxb: forall maxb gl td c0 
-  (Hwfg: wf_globals maxb gl) blk ofs
-  (Hc2g : ret mk_gptr blk ofs = @Opsem.const2GV DGVs td gl c0),
-  blk <= maxb.
-Admitted.
-
-Lemma operand__lt_nextblock: forall maxb TD M (lc:DGVMap) blk ofs gl
-  (Hwfgl : wf_globals maxb gl) v mptrs (Hlt: maxb < Mem.nextblock M)
-  (Hwflc: wf_lc M lc) 
-  (Hin: mk_gptr blk ofs @ mptrs) 
-  (Hgetop : Opsem.getOperandValue TD v lc gl = ret mptrs),
-  blk < Mem.nextblock M.
-Proof.
-  intros.
-  inv Hin.
-  destruct v; simpl in Hgetop.
-    apply Hwflc in Hgetop; auto.
-
-    eapply wf_globals__le_maxb in Hwfgl; eauto.
-    omega.
-Qed.     
-
-Lemma CAST__wf_GVs_in_EC : forall (v : value) (id1 : id)
+Lemma CAST__wf_GVs_in_ECs : forall (v : value) (id1 : id)
   gvs2 TD gl EC Mem pinfo maxb castop0 t1 t2 
   (Hwflc: wf_lc Mem (@Opsem.Locals DGVs EC)) 
   (Hwfgl: wf_globals maxb gl) (HwfM: maxb < Mem.nextblock Mem)
@@ -961,11 +1366,13 @@ Lemma CAST__wf_GVs_in_EC : forall (v : value) (id1 : id)
          wf_use_at_head pinfo ids0 v)
   (Hneq: id1 <> PI_id pinfo)
   (H11 : Opsem.CAST TD (@Opsem.Locals DGVs EC) gl castop0 t1 v t2 
-           = ret gvs2),
-  wf_GVs_in_EC maxb pinfo TD Mem EC id1 gvs2.
+           = ret gvs2) tl
+  (Hwfstk: 
+    wf_ECStack_head_tail maxb pinfo TD Mem (Opsem.Locals EC) tl),
+  wf_GVs_in_ECs maxb pinfo TD Mem EC tl id1 gvs2.
 Proof.
   intros. 
-  unfold wf_GVs_in_EC. destruct EC.
+  unfold wf_GVs_in_ECs. destruct EC.
   apply OpsemProps.CAST_inversion in H11.
   destruct H11 as [gv1 [J1 J2]].
   split.
@@ -978,6 +1385,10 @@ Proof.
       eapply operand__no_alias_with__head with (als:=Allocas) (mptr0:=gv1)
         (M:=Mem) in J1; eauto.
         clear - J1 J2. admit. (* CAST is aliasing *)
+  split.
+    intros.
+    eapply operand__no_alias_with__tail' in J1; eauto.
+     admit. (* CAST is aliasing *)
 
     intros. subst.
     assert (exists ofs', gv1 = mk_gptr blk ofs') as EQ. admit. (* CAST inv *)
@@ -990,27 +1401,32 @@ Lemma wf_EC__wf_lc : forall maxb pinfo TD M EC,
   wf_lc M (Opsem.Locals EC).
 Admitted.
 
-Lemma mload__wf_GVs_in_EC : forall (v : value) (v0 : value) (id1 : id) 
+Lemma mload__wf_GVs_in_ECs : forall (v : value) (v0 : value) (id1 : id) 
   gvs3 t align0 EC Mem td pinfo maxb mp
   (Hneq: id1 <> PI_id pinfo) (HwfM: wf_Mem maxb td Mem)
-  (H1 : mload td Mem mp t align0 = ret gvs3),
-  wf_GVs_in_EC maxb pinfo td Mem EC id1 gvs3.
+  (H1 : mload td Mem mp t align0 = ret gvs3) tl
+  (Hwfstk: wf_ECStack_head_tail maxb pinfo td Mem (Opsem.Locals EC) tl),
+  wf_GVs_in_ECs maxb pinfo td Mem EC tl id1 gvs3.
 Proof.
   intros. 
-  unfold wf_GVs_in_EC. destruct EC.
+  unfold wf_GVs_in_ECs. destruct EC.
   split.
     destruct (fdef_dec (PI_f pinfo) CurFunction); subst; auto.
     intros.
     split; intros; subst; try congruence.
       apply H0 in H3; auto.
       destruct H3 as [[J1 [J2 J3]] _]; eauto.
+  split.
+    intros.
+    apply Hwfstk in Hlkup; auto.
+    destruct Hlkup as [_ [_ Hld]]; eauto.
 
     intros. subst.
     destruct HwfM as [J1 J2]; eauto.
 Qed.
 
-Lemma GEP__wf_GVs_in_EC : forall (v : value) (v0 : value) (id1 : id) 
-  mp' TD t gl EC Mem td pinfo maxb (mp:GVsT DGVs) mps 
+Lemma GEP__wf_GVs_in_ECs : forall (v : value) (v0 : value) (id1 : id) 
+  mp' TD t gl EC Mem pinfo maxb (mp:GVsT DGVs) mps 
   inbounds0 vidxs (Hwflc: wf_lc Mem (@Opsem.Locals DGVs EC)) 
   (Hwfgl: wf_globals maxb gl) (HwfM: maxb < Mem.nextblock Mem)
   (Hwfv: forall ids0,
@@ -1018,13 +1434,14 @@ Lemma GEP__wf_GVs_in_EC : forall (v : value) (v0 : value) (id1 : id)
          F = (PI_f pinfo) ->
          inscope_of_pc F B cs tmn = Some ids0 ->
          wf_use_at_head pinfo ids0 v)
-  (H : Opsem.getOperandValue td v (Opsem.Locals EC) gl = ret mps)
+  (H : Opsem.getOperandValue TD v (Opsem.Locals EC) gl = ret mps)
   (H0 : mp @ mps) (Hneq: id1 <> PI_id pinfo)
-  (H1 : Opsem.GEP TD t mp vidxs inbounds0 = ret mp'),
-  wf_GVs_in_EC maxb pinfo td Mem EC id1 mp'.
+  (H1 : Opsem.GEP TD t mp vidxs inbounds0 = ret mp') tl
+  (Hwfstk: wf_ECStack_head_tail maxb pinfo TD Mem (Opsem.Locals EC) tl),
+  wf_GVs_in_ECs maxb pinfo TD Mem EC tl id1 mp'.
 Proof.
   intros. 
-  unfold wf_GVs_in_EC. destruct EC.
+  unfold wf_GVs_in_ECs. destruct EC.
   split.
     destruct (fdef_dec (PI_f pinfo) CurFunction); subst; auto.
     intros.
@@ -1035,6 +1452,10 @@ Proof.
       eapply operand__no_alias_with__head with (als:=Allocas) (mptr0:=mp)
         (M:=Mem) in H; eauto.
         clear - H1 H. admit. (* GEP is aliasing *)
+  split. 
+    intros.
+    eapply operand__no_alias_with__tail' in H; eauto.
+    admit. (* GEP is aliasing *)
 
     intros. subst.
     assert (exists ofs', mp = mk_gptr blk ofs') as EQ. admit. (* GEP inv *)
@@ -1042,61 +1463,181 @@ Proof.
     eapply operand__lt_nextblock in H; eauto.
 Qed.
 
+Lemma params2GVs_preserves_no_alias: forall maxb gl
+  (Hwfg : wf_globals maxb gl) TD lc mb t (Hinbound: maxb < mb)
+  (Hwf : forall (id1 : atom) (gvs1 : GVsT DGVs),
+         lookupAL (GVsT DGVs) lc id1 = ret gvs1 -> 
+         no_alias gvs1 ($ blk2GV TD mb # typ_pointer t $))
+  lp gvs
+  (Hps2GVs : Opsem.params2GVs TD lp lc gl = ret gvs),
+  forall gv, In gv gvs -> no_alias gv ($ blk2GV TD mb # typ_pointer t $).
+Proof.
+  induction lp; simpl; intros.
+    inv Hps2GVs. inv H.
+
+    destruct a.
+    inv_mbind.
+    simpl in H.
+    destruct H as [H | H]; subst; eauto.
+    destruct v; simpl in HeqR; eauto.
+      eapply wf_globals_disjoint_with_runtime_alloca; eauto.
+Qed.
+
+Lemma initializeFrameValues_preserves_no_alias: forall TD mb t la 
+  (gvs:list (GVsT DGVs))
+  (Hwf: forall gv, In gv gvs -> no_alias gv ($ blk2GV TD mb # typ_pointer t $)) 
+  lc (Hinit : Opsem.initLocals TD la gvs = ret lc)
+  (id1 : atom) (gvs1 : GVsT DGVs)
+  (Hlkup : lookupAL (GVsT DGVs) lc id1 = ret gvs1),
+  no_alias gvs1 ($ blk2GV TD mb # typ_pointer t $).
+Proof.
+  unfold Opsem.initLocals.
+  induction la; simpl; intros.
+    inv Hinit. inv Hlkup.
+
+    destruct a as [[]].
+    destruct gvs.
+      inv_mbind. symmetry in HeqR.
+      destruct (id_dec i0 id1); subst.
+        rewrite lookupAL_updateAddAL_eq in Hlkup. inv Hlkup.
+        eapply undef_disjoint_with_runtime_alloca; eauto.
+
+        rewrite <- lookupAL_updateAddAL_neq in Hlkup; auto. 
+        eapply IHla in HeqR; eauto.
+
+      inv_mbind. symmetry in HeqR.
+      destruct (id_dec i0 id1); subst.
+        rewrite lookupAL_updateAddAL_eq in Hlkup. inv Hlkup.
+        unfold MDGVs.lift_op1, fit_gv in HeqR0.
+        symmetry in HeqR0.
+        inv_mbind.
+        destruct (sizeGenericValue g =n= nat_of_Z (ZRdiv (Z_of_nat n) 8)).
+          apply Hwf. 
+          inv H0. simpl. auto.
+
+          eapply undef_disjoint_with_runtime_alloca; eauto.
+
+        rewrite <- lookupAL_updateAddAL_neq in Hlkup; auto. 
+        eapply IHla in HeqR; eauto.
+        intros. apply Hwf. simpl. auto.
+Qed.
+
 Lemma initLocals_preserves_wf_ECStack_head_tail: forall Mem (lc:DGVMap) maxb TD 
   F ECs lc' gl (Hwflc1 : wf_lc Mem lc) pinfo gvs la lp
   (Hwfg : wf_globals maxb gl)
   (H3 : Opsem.params2GVs TD lp lc gl = ret gvs)
   (H4 : Opsem.initLocals TD la gvs = ret lc')
-  (Hfr2 : wf_ECStack_head_tail maxb pinfo TD Mem lc
-            (List.map
-               (fun ec : Opsem.ExecutionContext =>
-                let '{| Opsem.CurFunction := f; Opsem.Locals := lc |} := ec in
-                  (f, lc)) ECs)),
-  wf_ECStack_head_tail maxb pinfo TD Mem lc'
-    ((F, lc)
-      :: List.map
-           (fun ec : Opsem.ExecutionContext =>
-            let '{| Opsem.CurFunction := f; Opsem.Locals := lc0 |} := ec in
-              (f, lc0)) ECs).
-Admitted.
+  (Hfr2 : wf_ECStack_head_tail maxb pinfo TD Mem lc (ECs2flc ECs)),
+  wf_ECStack_head_tail maxb pinfo TD Mem lc' ((F, lc) :: (ECs2flc ECs)).
+Proof.
+  intros. unfold wf_ECStack_head_tail. intros ec0 Hin.
+  simpl in Hin.
+  destruct Hin as [Hin | Hin]; subst.
+    unfold wf_ECStack_head_in_tail.
+    intros.
+    admit. 
+    (* wf_ECStack_head_tail should only consider promotable allocas in scope. *)
+    
+    intros gvsa Heq Hlkup.
+    apply Hfr2 in Hlkup; auto.
+    destruct Hlkup as [[mb [J11 J12]] [J2 J3]]; subst.
+    split; eauto.
+    split; auto.
+      intros.
+      eapply initializeFrameValues_preserves_no_alias in H4; eauto.
+      eapply params2GVs_preserves_no_alias; eauto. omega.
+Qed.
 
-Lemma preservation_dbCall_case : forall fid fa rt la va lb gvs los
-  nts ifs s lc Ps Mem TD pinfo maxb
+Lemma initLocals_preserves_wf_defs : forall fid fa rt la va lb gvs 
+  lc Mem TD pinfo maxb (Hwfpi: WF_PhiInfo pinfo)
   (Huniq: uniqFdef (fdef_intro (fheader_intro fa rt fid la va) lb))
-  (HwfF: wf_fdef ifs s (module_intro los nts Ps) 
-    (fdef_intro (fheader_intro fa rt fid la va) lb))
-  (HwfM : wf_Mem maxb TD Mem)
-  (Hinit : Opsem.initLocals TD la gvs = Some lc),
+  (Hinit : Opsem.initLocals TD la gvs = Some lc) 
+  (Heq: fdef_intro (fheader_intro fa rt fid la va) lb = PI_f pinfo),
   wf_defs maxb pinfo TD Mem lc (getArgsIDs la) nil.
 Proof.
-Admitted.
+  intros. intros gvsa Hin Hlkup.
+  admit. (* promotable allocas cannot be arguments *)
+Qed.
+
+Lemma params2GVs_preserves_wf_lc: forall maxb gl M
+  (Hwfg : wf_globals maxb gl) TD lc (Hinbound: maxb < Mem.nextblock M) 
+  (Hwf : wf_lc M lc) lp gvs
+  (Hps2GVs : @Opsem.params2GVs DGVs TD lp lc gl = ret gvs),
+  forall blk ofs, In (mk_gptr blk ofs) gvs -> blk < Mem.nextblock M.
+Proof.
+  induction lp; simpl; intros.
+    inv Hps2GVs. inv H.
+
+    destruct a.
+    inv_mbind.
+    simpl in H.
+    destruct H as [H | H]; subst; eauto.
+    destruct v; simpl in HeqR; eauto.
+      eapply wf_globals__le_maxb in HeqR; eauto. omega.
+Qed.
+
+Lemma initializeFrameValues_preserves_wf_lc: forall TD la (gvs:list (GVsT DGVs))
+  M (Hwf: forall blk ofs, In (mk_gptr blk ofs) gvs -> blk < Mem.nextblock M) 
+  lc (Hinit : Opsem.initLocals TD la gvs = ret lc), wf_lc M lc.
+Proof.
+  unfold Opsem.initLocals. unfold wf_lc.
+  induction la; simpl; intros.
+    inv Hinit. inv H.
+
+    destruct a as [[]].
+    destruct gvs.
+      inv_mbind. symmetry in HeqR.
+      destruct (id_dec i0 id0); subst.
+        rewrite lookupAL_updateAddAL_eq in H. inv H.
+        admit. (* undef cannot be ptr *)
+
+        rewrite <- lookupAL_updateAddAL_neq in H; auto. 
+        eapply IHla in HeqR; eauto.
+
+      inv_mbind. symmetry in HeqR.
+      destruct (id_dec i0 id0); subst.
+        rewrite lookupAL_updateAddAL_eq in H. inv H.
+        unfold MDGVs.lift_op1, fit_gv in HeqR0.
+        symmetry in HeqR0.
+        inv_mbind.
+        destruct (sizeGenericValue g =n= nat_of_Z (ZRdiv (Z_of_nat n) 8)).
+          inv H0. eapply Hwf; simpl; eauto.
+
+          admit. (* undef cannot be ptr *)
+
+        rewrite <- lookupAL_updateAddAL_neq in H; auto. 
+        eapply IHla in HeqR; eauto.
+        intros. eapply Hwf; simpl; eauto.
+Qed.
 
 Lemma initLocals_preserves_wf_lc: forall Mem (lc:DGVMap) maxb TD 
   lc' gl (Hwflc1 : wf_lc Mem lc) gvs la lp
-  (Hwfg : wf_globals maxb gl)
+  (Hwfg : wf_globals maxb gl) (Hinbd: maxb < Mem.nextblock Mem)
   (H3 : Opsem.params2GVs TD lp lc gl = ret gvs)
   (H4 : Opsem.initLocals TD la gvs = ret lc')
   (Hfr2 : wf_lc Mem lc),
   wf_lc Mem lc'.
-Admitted.
+Proof.
+  intros.
+  eapply initializeFrameValues_preserves_wf_lc in H4; eauto.
+  eapply params2GVs_preserves_wf_lc; eauto. 
+Qed.
 
-Lemma callExternalProc_preserves_wf_ECStack_head_tail : forall maxb pinfo   
+Axiom callExternalProc_preserves_wf_ECStack_head_tail : forall maxb pinfo   
   ECs TD M M' (lc:DGVMap) gvs gvss fid oresult gl lp
   (Hwflc: wf_lc M lc) (Hwfgl: wf_globals maxb gl) (H3 : gvs @@ gvss),
   Opsem.params2GVs TD lp lc gl = ret gvss ->
   OpsemAux.callExternalFunction M fid gvs = ret (oresult, M') ->
   wf_ECStack_head_tail maxb pinfo TD M lc ECs ->
   wf_ECStack_head_tail maxb pinfo TD M' lc ECs.
-Admitted.
 
-Lemma callExternalFunction_preserves_wf_ECStack : forall maxb pinfo ECs TD M  
+Axiom callExternalFunction_preserves_wf_ECStack : forall maxb pinfo ECs TD M  
   M' gvs fid oresult, 
   OpsemAux.callExternalFunction M fid gvs = ret (oresult, M') ->
   wf_ECStack maxb pinfo TD M ECs ->
   wf_ECStack maxb pinfo TD M' ECs.
-Admitted.
 
-Lemma callExternalProc_preserves_wf_EC : forall maxb pinfo TD M M' rid
+Axiom callExternalProc_preserves_wf_EC : forall maxb pinfo TD M M' rid
   als F B cs tmn gl gvss gvs fid oresult lp (lc:DGVMap) fv ft ca
   (Hwflc: wf_lc M lc) (Hwfgl: wf_globals maxb gl) (H3 : gvs @@ gvss)
   (J1: Opsem.params2GVs TD lp lc gl = ret gvss)
@@ -1115,23 +1656,20 @@ Lemma callExternalProc_preserves_wf_EC : forall maxb pinfo TD M M' rid
       Opsem.Terminator := tmn;
       Opsem.Locals := lc;
       Opsem.Allocas := als |}.
-Admitted.
 
-Lemma callExternalFunction_preserves_wf_Mem : forall maxb TD M fid gvs M' 
+Axiom callExternalFunction_preserves_wf_Mem : forall maxb TD M fid gvs M' 
   oresult,
   OpsemAux.callExternalFunction M fid gvs = ret (oresult, M') ->
   wf_Mem maxb TD M ->
   wf_Mem maxb TD M'.
-Admitted.
 
-Lemma callExternalFunction_preserves_wf_als : forall M gvs M' maxb als fid 
+Axiom callExternalFunction_preserves_wf_als : forall M gvs M' maxb als fid 
   oresult
   (Hexcall: OpsemAux.callExternalFunction M fid gvs = ret (oresult, M')) 
   (Hwf: wf_als maxb M als),
   wf_als maxb M' als.
-Admitted.
 
-Lemma callExternalFun_preserves_wf_ECStack_head_tail : forall maxb pinfo   
+Axiom callExternalFun_preserves_wf_ECStack_head_tail : forall maxb pinfo   
   ECs TD M M' (lc:DGVMap) gvs gvss fid result gl lp g0 rid ft
   (Hwflc: wf_lc M lc) (Hwfgl: wf_globals maxb gl) (H3 : gvs @@ gvss)
   (HeqR : ret g0 = fit_gv TD ft result),
@@ -1140,9 +1678,8 @@ Lemma callExternalFun_preserves_wf_ECStack_head_tail : forall maxb pinfo
   wf_ECStack_head_tail maxb pinfo TD M lc ECs ->
   wf_ECStack_head_tail maxb pinfo TD M' 
     (updateAddAL (GVsT DGVs) lc rid ($ g0 # ft $)) ECs.
-Admitted.
 
-Lemma callExternalFun_preserves_wf_EC : forall maxb pinfo TD M M' rid
+Axiom callExternalFun_preserves_wf_EC : forall maxb pinfo TD M M' rid
   als F B cs tmn gl gvss gvs fid result lp (lc:DGVMap) fv ft ca g0
   (Hwflc: wf_lc M lc) (Hwfgl: wf_globals maxb gl) (H3 : gvs @@ gvss)
   (J1: Opsem.params2GVs TD lp lc gl = ret gvss)
@@ -1162,220 +1699,9 @@ Lemma callExternalFun_preserves_wf_EC : forall maxb pinfo TD M M' rid
       Opsem.Terminator := tmn;
       Opsem.Locals := (updateAddAL (GVsT DGVs) lc rid ($ g0 # ft $));
       Opsem.Allocas := als |}.
-Admitted.
-
-Lemma free_preserves_mload_inv: forall TD Mem' gptr ty al gvsa Mem mptr0
-  (H1 : mload TD Mem' gptr ty al = ret gvsa)
-  (H2 : free TD Mem mptr0 = ret Mem'),
-  mload TD Mem gptr ty al = ret gvsa.
-Proof.
-  intros.
-  apply mload_inv in H1.
-  destruct H1 as [b [ofs [m [mc [J1 [J2 J3]]]]]]; subst.
-  unfold mload. simpl. rewrite J2.
-  apply free_inv in H2.
-  destruct H2 as [blk' [ofs' [hi [lo [J4 [J5 [J6 J7]]]]]]].
-  admit. (* Mem Props *)
-Qed.
-
-Lemma free_preserves_wf_ECStack_head_tail : forall maxb pinfo TD M M' lc mptr0
-  (Hfree: free TD M mptr0 = ret M') ECs 
-  (Hwf: wf_ECStack_head_tail maxb pinfo TD M lc ECs),
-  wf_ECStack_head_tail maxb pinfo TD M' lc ECs.
-Proof.
-  unfold wf_ECStack_head_tail, wf_ECStack_head_in_tail.
-  intros.
-  eapply Hwf in H0; eauto.
-  destruct H0 as [[mb [J11 J12]] [J2 J3]]; subst.
-  split.
-    exists mb. split; auto. admit. (* Mem Prop *)
-  split; auto.
-    intros.
-    eapply free_preserves_mload_inv in H0; eauto.
-Qed.
-
-Lemma free_preserves_wf_lc: forall TD Mem' Mem mptr0
-  (H2 : free TD Mem mptr0 = ret Mem') lc
-  (Hwf: wf_lc Mem lc),
-  wf_lc Mem' lc.
-Proof.
-  unfold wf_lc.
-  intros.
-  apply Hwf in H.
-  apply free_inv in H2.
-  destruct H2 as [blk' [ofs' [hi [lo [J4 [J5 [J6 J7]]]]]]].
-  admit. (* Mem Props *)
-Qed.
 
 Definition wf_use_in_tail (pinfo:PhiInfo) (v:value) :=
 used_in_value (PI_id pinfo) v = false.
-
-Lemma free_preserves_mload: forall TD Mem Mem' t al gv gptr gvsa
-  (H0 : no_alias gptr gvsa)
-  (H1 : free TD Mem gptr = ret Mem')
-  (H2 : mload TD Mem gvsa t al = ret gv),
-  mload TD Mem' gvsa t al = ret gv.
-Proof.
-  intros.
-  apply free_inv in H1.
-  destruct H1 as [blk [ofs [hi [lo [J4 [J5 [J6 J7]]]]]]].
-  admit. (* Mem Props *)
-Admitted.
-
-Lemma operand__no_alias_with__tail: forall maxb pinfo TD M lc1 lc2 mptr0 gl
-  (Hwfgl : wf_globals maxb gl) v mptrs
-  (Hht : wf_ECStack_head_in_tail maxb pinfo TD M lc1 (PI_f pinfo, lc2))
-  (gvsa : GVsT DGVs) (Hin: mptr0 @ mptrs) 
-  (Hlkp : lookupAL (GVsT DGVs) lc2 (PI_id pinfo) = ret gvsa)
-  (Hgetop : Opsem.getOperandValue TD v lc1 gl = ret mptrs),
-  no_alias mptr0 gvsa.
-Proof.
-  intros.
-  inv Hin.
-  apply Hht in Hlkp; auto.
-  destruct Hlkp as [[mb [J11 J12]] [Hlkp _]]; subst.
-  destruct v; simpl in Hgetop.
-    apply Hlkp in Hgetop; auto.
-    eapply wf_globals_disjoint_with_runtime_alloca; eauto.
-      omega.
-Qed.
-
-Lemma free_preserves_wf_defs_in_tail : forall maxb pinfo TD M  
-  M' lc1 mptr0 mptrs gl v als lc2 
-  (Hgetop: Opsem.getOperandValue TD v lc1 gl = ret mptrs)
-  (Hin: mptr0 @ mptrs) (Hwfgl: wf_globals maxb gl)
-  (Hfree: free TD M mptr0 = ret M')
-  (Hht: wf_ECStack_head_in_tail maxb pinfo TD M lc1 (PI_f pinfo, lc2))
-  ids0 (Hwf: wf_defs maxb pinfo TD M lc2 ids0 als),
-  wf_defs maxb pinfo TD M' lc2 ids0 als.
-Proof.
-  intros. unfold wf_defs. 
-  intros gvsa Hpindom Hlkp.
-  assert (Hlkp':=Hlkp).
-  apply Hwf in Hlkp'; auto.
-  destruct Hlkp' as [J1 J2].
-  split; auto.
-    clear J2.
-    destruct J1 as [J1 [J4 [gv J3]]].
-    split; auto.
-      split.
-        intros. eapply free_preserves_mload_inv in H; eauto.
-        clear J4. 
-        assert (no_alias mptr0 gvsa) as J.
-          eapply operand__no_alias_with__tail; eauto.
-        exists gv. eapply free_preserves_mload; eauto.
-Qed.
-
-Lemma free_preserves_wf_defs_at_head : forall maxb pinfo TD M  
-  M' lc mptr0 mptrs gl v als
-  (Hgetop: Opsem.getOperandValue TD v lc gl = ret mptrs)
-  (Hin: mptr0 @ mptrs) (Hwfgl: wf_globals maxb gl)
-  (Hfree: free TD M mptr0 = ret M')
-  ids0 (Hwfu: wf_use_at_head pinfo ids0 v) 
-  (Hwf: wf_defs maxb pinfo TD M lc ids0 als),
-  wf_defs maxb pinfo TD M' lc ids0 als.
-Proof.
-  intros. unfold wf_defs. 
-  intros gvsa Hpindom Hlkp.
-  assert (no_alias mptr0 gvsa) as J.
-    eapply operand__no_alias_with__head; eauto.
-  assert (Hlkp':=Hlkp).
-  apply Hwf in Hlkp'; auto.
-  destruct Hlkp' as [J1 J2].
-  split; auto.
-    destruct J1 as [J1 [J4 [gv J3]]].
-    split; auto.
-      split.
-        intros. eapply free_preserves_mload_inv in H; eauto.
-        exists gv. eapply free_preserves_mload; eauto.
-Qed.
-
-Lemma impure_cmd_preserves_wf_EC_tail : forall maxb pinfo TD M  
-  M' EC (Hwfpi: WF_PhiInfo pinfo) 
-  (Hwfdefs: forall ids0,
-     let '(Opsem.mkEC F B cs tmn lc als) := EC in
-     F = (PI_f pinfo) ->
-     inscope_of_pc F B cs tmn = Some ids0 ->
-     wf_defs maxb pinfo TD M lc ids0 als ->
-     wf_defs maxb pinfo TD M' lc ids0 als)
-  (Hwflc: wf_lc M (@Opsem.Locals DGVs EC) -> wf_lc M' (Opsem.Locals EC))
-  (Hwf: wf_ExecutionContext maxb pinfo TD M EC),
-  wf_ExecutionContext maxb pinfo TD M' EC.
-Proof.
-  destruct EC. simpl. intros.
-  destruct Hwf as [J1 J2].
-  split; auto.
-    destruct (fdef_dec (PI_f pinfo) CurFunction); subst; auto.
-    destruct CurCmds.    
-      remember (inscope_of_tmn (PI_f pinfo) CurBB Terminator) as R.
-      destruct R; auto.
-
-      remember (inscope_of_cmd (PI_f pinfo) CurBB c) as R.
-      destruct R; auto.
-Qed.
-
-Lemma wf_ECStack_head_tail_cons__inv: forall maxb pinfo TD M lc ec1 ecs2,
-  wf_ECStack_head_tail maxb pinfo TD M lc (ec1::ecs2) ->
-  wf_ECStack_head_in_tail maxb pinfo TD M lc ec1 /\
-  wf_ECStack_head_tail maxb pinfo TD M lc ecs2.
-Proof.
-  intros.
-  split.
-    apply H; simpl; auto.
-    unfold wf_ECStack_head_tail in *. intros. apply H; simpl; auto.
-Qed.
-
-Lemma free_preserves_wf_ECStack_in_tail : forall maxb pinfo TD M  
-  M' mptr0 mptrs gl v (Hwfpi: WF_PhiInfo pinfo) lc
-  (Hgetop: Opsem.getOperandValue TD v lc gl = ret mptrs)
-  (Hin: mptr0 @ mptrs) (Hwfgl: wf_globals maxb gl)
-  (Hfree: free TD M mptr0 = ret M') ECs
-  (Hht: wf_ECStack_head_tail maxb pinfo TD M lc 
-          (List.map 
-             (fun ec => let '(Opsem.mkEC f _ _ _ lc _) := ec in (f, lc)) ECs))
-  (Hwf: wf_ECStack maxb pinfo TD M ECs),
-  wf_ECStack maxb pinfo TD M' ECs.
-Proof.
-  induction ECs; simpl; intros; auto.
-    destruct Hwf as [J1 [J2 J3]].
-    apply wf_ECStack_head_tail_cons__inv in Hht.
-    destruct Hht as [Hht1 Hht2].
-    split.
-      eapply impure_cmd_preserves_wf_EC_tail with (M:=M); eauto.
-        destruct a. intros. subst.
-        eapply free_preserves_wf_defs_in_tail; eauto.
-        eapply free_preserves_wf_lc; eauto.
-    split; auto.
-      eapply free_preserves_wf_ECStack_head_tail; eauto.
-(* Can this lemma be more generic by making free_preserves_mload_inv generic? *)
-Qed.
-
-Lemma free_preserves_wf_Mem : forall maxb TD M M' mptr0
-  (Hfree: free TD M mptr0 = ret M') 
-  (Hwf: wf_Mem maxb TD M),
-  wf_Mem maxb TD M'.
-Proof.
-  intros. destruct Hwf as [J1 J2].
-  split.
-    intros. 
-    eapply free_preserves_mload_inv in H; eauto.
-    apply J1 in H; auto.
-    admit. (* Mem Props *)
-  
-    admit. (* Mem Props *)
-Qed.
-
-Lemma free_preserves_wf_als : forall maxb TD M M' mptr0 als
-  (Hfree: free TD M mptr0 = ret M') 
-  (Hwf: wf_als maxb M als),
-  wf_als maxb M' als.
-Proof.
-  intros. destruct Hwf as [J1 J2].
-  split; auto.
-    intros. 
-    apply J2 in H; auto.
-    admit. (* Mem Props *)
-Qed.
 
 Lemma mstore_preserves_mload_inv: forall TD Mem' gptr ty al gvs0 Mem gv1 t
   mp2 (H1 : mload TD Mem' gptr ty al = ret gvs0) align
@@ -1388,7 +1714,7 @@ Proof.
   apply store_inv in H2.
   destruct H2 as [b [ofs [J5 J4]]].
   admit. (* mem prop *)
-Admitted.
+Qed.
 
 Lemma mstore_preserves_mload: forall TD Mem' gptr ty al gvs0 Mem gv1 t
   mp2 (H1 : mload TD Mem gptr ty al = ret gvs0) align
@@ -1397,7 +1723,7 @@ Lemma mstore_preserves_mload: forall TD Mem' gptr ty al gvs0 Mem gv1 t
   mload TD Mem' gptr ty al = ret gvs0.
 Proof.
   admit. (* mem prop *)
-Admitted.
+Qed.
 
 Lemma mstore_preserves_mload': forall TD Mem' gptr ty al gvs0 Mem gv1 t
   mp2 (H1 : mload TD Mem gptr ty al = ret gvs0) align
@@ -1405,7 +1731,7 @@ Lemma mstore_preserves_mload': forall TD Mem' gptr ty al gvs0 Mem gv1 t
   exists gvs1, mload TD Mem' gptr ty al = ret gvs1.
 Proof.
   admit. (* mem prop *)
-Admitted.
+Qed.
 
 Lemma mstore_preserves_wf_defs_at_head : forall maxb pinfo TD M  
   M' gl v als lc gvs1 gv1 t mp2 align mps2 vp
@@ -1619,7 +1945,7 @@ Lemma malloc_preserves_mload_inv: forall TD M M' mb align0 gn tsz
   gptr gvs1 ty al 
   (H : mload TD M' gptr ty al = ret gvs1),
   mload TD M gptr ty al = ret gvs1 \/ ret gvs1 = gundef TD ty.
-Admitted.
+Admitted. (* MemProp *)
 
 Lemma malloc_preserves_wf_ECStack_head_tail : forall maxb pinfo ECs TD M tsz gn 
   align0 M' lc mb t id0
@@ -2030,7 +2356,7 @@ Case "sBranch_uncond". admit.
 Case "sBop".
   eapply preservation_pure_cmd_updated_case in HwfS1; try solve [simpl; eauto]; 
     eauto.
-    eapply BOP__wf_GVs_in_EC; eauto.
+    eapply BOP__wf_GVs_in_ECs; eauto.
       admit. (* WF *)
 Case "sFBop". admit.
 Case "sExtractValue". admit. 
@@ -2092,8 +2418,8 @@ Case "sAlloca".
 Case "sLoad". 
   eapply preservation_pure_cmd_updated_case in HwfS1; try solve [simpl; eauto]; 
     eauto.
-    destruct HwfS1 as [[[_ Hwflc] _] [_ HwfM]]. 
-    eapply mload__wf_GVs_in_EC; eauto using wf_EC__wf_lc.
+    destruct HwfS1 as [[[_ Hwflc] [_ Hwfstk]] [_ HwfM]]. 
+    eapply mload__wf_GVs_in_ECs; eauto using wf_EC__wf_lc.
       admit. (* WF *)
 Case "sStore". 
   simpl_ctx Hinv HwfS1.
@@ -2117,8 +2443,8 @@ Case "sStore".
 Case "sGEP". 
   eapply preservation_pure_cmd_updated_case in HwfS1; try solve [simpl; eauto]; 
     eauto.
-    destruct HwfS1 as [[[_ Hwflc] _] [_ [_ HwfM]]]. 
-    eapply GEP__wf_GVs_in_EC; eauto using wf_EC__wf_lc.
+    destruct HwfS1 as [[[_ Hwflc] [_ Hwfstk]] [_ [_ HwfM]]]. 
+    eapply GEP__wf_GVs_in_ECs; eauto using wf_EC__wf_lc.
       admit. (* WF PI *)
       admit. (* WF *)
 
@@ -2127,8 +2453,8 @@ Case "sExt". admit.
 Case "sCast". 
   eapply preservation_pure_cmd_updated_case in HwfS1; try solve [simpl; eauto]; 
     eauto.
-    destruct HwfS1 as [[[_ Hwflc] _] [_ [_ HwfM]]]. 
-    eapply CAST__wf_GVs_in_EC; eauto.
+    destruct HwfS1 as [[[_ Hwflc] [_ Hwfstk]] [_ [_ HwfM]]]. 
+    eapply CAST__wf_GVs_in_ECs; eauto.
       admit. (* WF PI *)
       admit. (* WF *)
 
@@ -2173,7 +2499,7 @@ Focus.
           !! l') as R.
         destruct R. simpl in H2. subst. simpl.
 
-        eapply preservation_dbCall_case; eauto.
+        eapply initLocals_preserves_wf_defs; eauto.
 
         unfold inscope_of_cmd, inscope_of_id.
         remember ((dom_analyze (fdef_intro (fheader_intro fa rt fid la va) lb)) 
@@ -2181,8 +2507,9 @@ Focus.
         destruct R. simpl. simpl in H2. subst. simpl.
         destruct (eq_atom_dec (getCmdLoc c) (getCmdLoc c)) as [|n]; 
           try solve [contradict n; auto]. 
-        eapply preservation_dbCall_case; eauto.
+        eapply initLocals_preserves_wf_defs; eauto.
 
+      destruct HwfM.
       eapply initLocals_preserves_wf_lc; eauto.
 
   split.
