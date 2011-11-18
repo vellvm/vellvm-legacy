@@ -74,14 +74,6 @@ Proof.
   induction H0; eauto using val_list_inject_incr.
 Qed.
 
-Lemma val_list_inject_app : forall mi vs1 vs1' vs2 vs2',
-  val_list_inject mi vs1 vs2 ->
-  val_list_inject mi vs1' vs2' ->
-  val_list_inject mi (vs1++vs1') (vs2++vs2').
-Proof.
-  induction vs1; destruct vs2; simpl; intros; inv H; auto.
-Qed.
-
 Lemma gv_inject_app : forall mi gv1 gv1' gv2 gv2',
   gv_inject mi gv1 gv2 ->
   gv_inject mi gv1' gv2' ->
@@ -410,146 +402,6 @@ Proof.
     exists gv2. split; auto.
 Qed.
 
-Lemma add_isnt_ptr : forall wz i0 wz0 i1 b ofs,
-  Val.add (Vint wz i0) (Vint wz0 i1) <> Vptr b ofs.
-Proof.
-  intros.
-  Val.simpl_add; try congruence.
-    unfold Val.add_obligation_1. 
-    unfold DepElim.solution_left.
-    unfold eq_rect_r. simpl. congruence.
-Qed.
-
-Lemma sub_isnt_ptr : forall wz i0 wz0 i1 b ofs,
-  Val.sub (Vint wz i0) (Vint wz0 i1) <> Vptr b ofs.
-Proof.
-  intros.
-  Val.simpl_sub; try congruence.
-    unfold Val.sub_obligation_1. 
-    unfold DepElim.solution_left.
-    unfold eq_rect_r. simpl. congruence.
-Qed.
-
-Lemma mul_isnt_ptr : forall wz i0 wz0 i1 b ofs,
-  Val.mul (Vint wz i0) (Vint wz0 i1) <> Vptr b ofs.
-Proof.
-  intros.
-  Val.simpl_mul; try congruence.
-    unfold Val.mul_obligation_1. 
-    unfold DepElim.solution_left.
-    unfold eq_rect_r. simpl. congruence.
-Qed.
-
-Lemma divu_isnt_ptr : forall wz i0 wz0 i1 b ofs,
-  Val.divu (Vint wz i0) (Vint wz0 i1) <> Vptr b ofs.
-Proof.
-  intros.
-  Val.simpl_divu; try congruence.
-    unfold Val.divu_obligation_1. 
-    unfold DepElim.solution_left.
-    unfold eq_rect_r. simpl. 
-    destruct (Int.eq wz0 i1 (Int.zero wz0)); congruence.
-Qed.
-
-Lemma divs_isnt_ptr : forall wz i0 wz0 i1 b ofs,
-  Val.divs (Vint wz i0) (Vint wz0 i1) <> Vptr b ofs.
-Proof.
-  intros.
-  Val.simpl_divs; try congruence.
-    unfold Val.divs_obligation_1. 
-    unfold DepElim.solution_left.
-    unfold eq_rect_r. simpl. 
-    destruct (Int.eq wz0 i1 (Int.zero wz0)); congruence.
-Qed.
-
-Lemma modu_isnt_ptr : forall wz i0 wz0 i1 b ofs,
-  Val.modu (Vint wz i0) (Vint wz0 i1) <> Vptr b ofs.
-Proof.
-  intros.
-  Val.simpl_modu; try congruence.
-    unfold Val.modu_obligation_1. 
-    unfold DepElim.solution_left.
-    unfold eq_rect_r. simpl. 
-    destruct (Int.eq wz0 i1 (Int.zero wz0)); congruence.
-Qed.
-
-Lemma mods_isnt_ptr : forall wz i0 wz0 i1 b ofs,
-  Val.mods (Vint wz i0) (Vint wz0 i1) <> Vptr b ofs.
-Proof.
-  intros.
-  Val.simpl_mods; try congruence.
-    unfold Val.mods_obligation_1. 
-    unfold DepElim.solution_left.
-    unfold eq_rect_r. simpl. 
-    destruct (Int.eq wz0 i1 (Int.zero wz0)); congruence.
-Qed.
-
-Lemma shl_isnt_ptr : forall wz i0 wz0 i1 b ofs,
-  Val.shl (Vint wz i0) (Vint wz0 i1) <> Vptr b ofs.
-Proof.
-  intros.
-  Val.simpl_shl; try congruence.
-    unfold Val.shl_obligation_1. 
-    unfold DepElim.solution_left.
-    unfold eq_rect_r. simpl. 
-    destruct (Int.ltu wz0 i1 (Int.iwordsize wz0)); congruence.
-Qed.
-
-Lemma shrx_isnt_ptr : forall wz i0 wz0 i1 b ofs,
-  Val.shrx (Vint wz i0) (Vint wz0 i1) <> Vptr b ofs.
-Proof.
-  intros.
-  Val.simpl_shrx; try congruence.
-    unfold Val.shrx_obligation_1. 
-    unfold DepElim.solution_left.
-    unfold eq_rect_r. simpl. 
-    destruct (Int.ltu wz0 i1 (Int.iwordsize wz0)); congruence.
-Qed.
-
-Lemma shr_isnt_ptr : forall wz i0 wz0 i1 b ofs,
-  Val.shr (Vint wz i0) (Vint wz0 i1) <> Vptr b ofs.
-Proof.
-  intros.
-  Val.simpl_shr; try congruence.
-    unfold Val.shr_obligation_1. 
-    unfold DepElim.solution_left.
-    unfold eq_rect_r. simpl. 
-    destruct (Int.ltu wz0 i1 (Int.iwordsize wz0)); congruence.
-Qed.
-
-Lemma and_isnt_ptr : forall wz i0 wz0 i1 b ofs,
-  Val.and (Vint wz i0) (Vint wz0 i1) <> Vptr b ofs.
-Proof.
-  intros.
-  Val.simpl_and; try congruence.
-    unfold Val.and_obligation_1. 
-    unfold DepElim.solution_left.
-    unfold eq_rect_r. simpl. 
-    congruence.
-Qed.
-
-Lemma or_isnt_ptr : forall wz i0 wz0 i1 b ofs,
-  Val.or (Vint wz i0) (Vint wz0 i1) <> Vptr b ofs.
-Proof.
-  intros.
-  Val.simpl_or; try congruence.
-    unfold Val.or_obligation_1. 
-    unfold DepElim.solution_left.
-    unfold eq_rect_r. simpl. 
-    congruence.
-Qed.
-
-Lemma xor_isnt_ptr : forall wz i0 wz0 i1 b ofs,
-  Val.xor (Vint wz i0) (Vint wz0 i1) <> Vptr b ofs.
-Proof.
-  intros.
-  Val.simpl_xor; try congruence.
-    unfold Val.xor_obligation_1. 
-    unfold DepElim.solution_left.
-    unfold eq_rect_r. simpl. 
-    congruence.
-Qed.
-
 Lemma simulation__mbop_aux : forall mi TD op bsz gv1 gv1' gv2 gv2' gv3,
   gv_inject mi gv1 gv1' ->
   gv_inject mi gv2 gv2' ->
@@ -707,34 +559,6 @@ Proof.
     exists gv2. split; auto.
 Qed.
 
-Lemma cmp_isnt_ptr : forall c wz i0 wz0 i1 b ofs,
-  Val.cmp c (Vint wz i0) (Vint wz0 i1) <> Vptr b ofs.
-Proof.
-  intros.
-  Val.simpl_cmp; try congruence.
-    unfold Val.cmp_obligation_1. 
-    unfold DepElim.solution_left.
-    unfold eq_rect_r. simpl. 
-    unfold Val.of_bool.
-    destruct (Int.cmp wz0 c i0 i1).
-      unfold Vtrue. unfold Vone. congruence.
-      unfold Vfalse. unfold Vzero. congruence.
-Qed.
-
-Lemma cmpu_isnt_ptr : forall c wz i0 wz0 i1 b ofs,
-  Val.cmpu c (Vint wz i0) (Vint wz0 i1) <> Vptr b ofs.
-Proof.
-  intros.
-  Val.simpl_cmpu; try congruence.
-    unfold Val.cmpu_obligation_1. 
-    unfold DepElim.solution_left.
-    unfold eq_rect_r. simpl. 
-    unfold Val.of_bool.
-    destruct (Int.cmpu wz0 c i0 i1).
-      unfold Vtrue. unfold Vone. congruence.
-      unfold Vfalse. unfold Vzero. congruence.
-Qed.
-
 Lemma simulation__micmp_aux : forall mi TD c t gv1 gv1' gv2 gv2' gv3,
   gv_inject mi gv1 gv1' ->
   gv_inject mi gv2 gv2' ->
@@ -780,26 +604,6 @@ Proof.
   destruct H1 as [[H1 H2] | H1]; eauto.
     rewrite <- H1.
     exists gv3. split; auto.
-Qed.
-
-Lemma val_of_bool_isnt_ptr : forall v b ofs,
-  Val.of_bool v <> Vptr b ofs.
-Proof.
-  intros. unfold Val.of_bool. destruct v. 
-    unfold Vtrue. unfold Vone. congruence.
-    unfold Vfalse. unfold Vzero. congruence.
-Qed.
-
-Lemma Vfalse_isnt_ptr : forall b ofs,
-  Vfalse <> Vptr b ofs.
-Proof.
-  intros. unfold Vfalse. unfold Vzero. congruence.
-Qed.
-
-Lemma Vtrue_isnt_ptr : forall b ofs,
-  Vtrue <> Vptr b ofs.
-Proof.
-  intros. unfold Vtrue. unfold Vone. congruence.
 Qed.
 
 Lemma simulation__mfcmp_aux : forall mi TD c t gv1 gv1' gv2 gv2' gv3,

@@ -535,10 +535,7 @@ Proof.
   intros. destruct Cfg.
   destruct H as [[J1 _] _].
   destruct EC. destruct J1 as [J1 _].
-  simpl.
-  destruct (fdef_dec (PI_f pinfo) CurFunction); auto.
-  unfold inscope_of_pc.
-  destruct CurCmds; auto.
+  simpl. auto.
 Qed.
 
 Lemma phinodes_placement_is_correct : forall maxb pinfo Cfg1 St1 Cfg2 St2 St1' tr
