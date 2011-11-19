@@ -104,12 +104,16 @@ forall gvsa
    (Hlk0: lookupAL _ lc id0 = Some gvs0),
    wf_non_alloca_GVs pinfo id0 gvs0 gvsa).
 
-Definition mk_gptr (blk:Values.block) (ofs:int32) : GenericValue :=
-((Vptr blk ofs, AST.Mint 31)::nil).
+Fixpoint valid_ptrs (bound:Values.block) (gvs:GenericValue): Prop :=
+match gvs with
+| nil => True
+| (Vptr blk _,_)::gvs' => blk < bound /\ valid_ptrs bound gvs'
+| _::gvs' => valid_ptrs bound gvs'
+end.
 
 Definition wf_lc M lc : Prop :=
-(forall id0 blk ofs, 
-  lookupAL _ lc id0 = Some (mk_gptr blk ofs) -> blk < Mem.nextblock M).
+forall id0 gvs, 
+  lookupAL _ lc id0 = Some gvs -> valid_ptrs (Mem.nextblock M) gvs.
 
 Definition inscope_of_pc f b cs tmn : option (list id) :=
 match cs with
@@ -164,8 +168,8 @@ match ecs with
 end.
 
 Definition wf_Mem maxb (td:targetdata) (M:mem) : Prop :=
-(forall gptr ty al blk ofs, 
-  mload td M gptr ty al = Some (mk_gptr blk ofs) -> blk < Mem.nextblock M) /\
+(forall gptr ty al gvs, 
+  mload td M gptr ty al = Some gvs -> valid_ptrs (Mem.nextblock M) gvs) /\
 maxb < Mem.nextblock M.
 
 Definition wf_als maxb M (als: list Values.block) : Prop :=
@@ -401,12 +405,33 @@ Proof.
   repeat split; auto. intro. subst. omega.
 Qed.
 
+Lemma null_valid_ptrs: forall mb, mb > 0 -> valid_ptrs mb null.
+Proof.
+  intros. unfold null, Mem.nullptr. simpl. 
+  split; auto. omega.
+Qed.
+
+Lemma uninits_valid_ptrs: forall bd n, valid_ptrs bd (uninits n).
+Proof.
+  intros.
+  induction n; simpl; auto.
+Qed.
+
 Lemma uninits_disjoint_with_ptr: forall n td mb t,
   no_alias (uninits n) ($ blk2GV td mb # typ_pointer t $).
 Proof.
   intros.
   rewrite simpl_blk2GV.
   induction n; simpl; auto.
+Qed.
+
+Lemma uninits_valid_ptrs__disjoint_with_ptr: forall n td mb t bd,
+  no_alias (uninits n) ($ blk2GV td mb # typ_pointer t $) /\
+  valid_ptrs bd (uninits n).
+Proof.
+  intros.
+  split. apply uninits_disjoint_with_ptr.
+         apply uninits_valid_ptrs.
 Qed.
 
 Fixpoint no_embedded_ptrs (gvs:GenericValue): Prop :=
@@ -438,7 +463,7 @@ Proof.
     split; auto using no_embedded_ptrs__no_alias_with_blk.
 Qed.
 
-Lemma undef_disjoint_with_runtime_alloca: forall g td t1 g'
+Lemma undef_disjoint_with_ptr: forall g td t1 g'
   (Hc2g : ret g = gundef td t1), no_alias g g'.
 Proof.
   intros. apply undef__no_embedded_ptrs in Hc2g.
@@ -480,19 +505,35 @@ Proof.
     apply no_alias_app; auto.
 Qed.
 
+Lemma valid_ptrs_app: forall bd g2 g1,
+  valid_ptrs bd g1 -> valid_ptrs bd g2 -> valid_ptrs bd (g1++g2).
+Proof.
+  induction g1 as [|[]]; simpl; intros; auto.
+    destruct v; auto.
+    destruct H. 
+    split; auto.
+Qed.
+
+Lemma valid_ptrs_repeatGV: forall n bd g,
+  valid_ptrs bd g -> valid_ptrs bd (repeatGV g n).
+Proof.
+  induction n; simpl; intros; auto.
+    apply valid_ptrs_app; auto.
+Qed.
+
 Definition zeroconst2GV_disjoint_with_runtime_alloca_prop (t:typ) := 
   forall maxb gl g td mb t0
   (Hwfg: wf_globals maxb gl)
   (Hc2g : ret g = zeroconst2GV td t)
   (Hle: maxb < mb),
-  no_alias g ($ blk2GV td mb # typ_pointer t0 $).
+  no_alias g ($ blk2GV td mb # typ_pointer t0 $) /\ valid_ptrs (maxb + 1) g.
 
 Definition zeroconsts2GV_disjoint_with_runtime_alloca_prop (lt:list_typ) := 
   forall maxb gl g td mb t0
   (Hwfg: wf_globals maxb gl)
   (Hc2g : ret g = zeroconsts2GV td lt)
   (Hle: maxb < mb),
-  no_alias g ($ blk2GV td mb # typ_pointer t0 $).
+  no_alias g ($ blk2GV td mb # typ_pointer t0 $) /\ valid_ptrs (maxb + 1) g.
 
 Lemma zeroconst2GV_disjoint_with_runtime_alloca_mutrec :
   (forall t, zeroconst2GV_disjoint_with_runtime_alloca_prop t) *
@@ -506,70 +547,107 @@ Proof.
 
   destruct f; inv Hc2g; rewrite simpl_blk2GV; simpl; auto.
 
-  destruct s; try solve [inv Hc2g; auto using uninits_disjoint_with_ptr].
+  destruct s; 
+    try solve [inv Hc2g; auto using uninits_valid_ptrs__disjoint_with_ptr].
     inv_mbind'.
     eapply H with (t0:=t0) in HeqR; eauto.
     assert (no_alias 
       (g0 ++ uninits (Size.to_nat s0 - sizeGenericValue g0))
-      ($ blk2GV td mb # typ_pointer t0 $)) as J.
+      ($ blk2GV td mb # typ_pointer t0 $) /\
+      valid_ptrs (maxb + 1) 
+        (g0 ++ uninits (Size.to_nat s0 - sizeGenericValue g0))) as J.
+      destruct HeqR.
+      split.
+        apply no_alias_app; auto.
+          apply uninits_disjoint_with_ptr.
+        apply valid_ptrs_app; auto.
+          apply uninits_valid_ptrs.
+    destruct J as [J1 J2].
+    split.
       apply no_alias_app; auto.
-        apply uninits_disjoint_with_ptr.
-    apply no_alias_app; auto.
-    apply no_alias_repeatGV; auto.
+      apply no_alias_repeatGV; auto.
+
+      apply valid_ptrs_app; auto.
+      apply valid_ptrs_repeatGV; auto.
 
   inv_mbind'.
   eapply H with (t0:=t0) in HeqR; eauto.
   destruct g0; inv H1; auto.
 
-  inv Hc2g. apply null_disjoint_with_ptr. destruct Hwfg. omega.
+  inv Hc2g. 
+  split.
+    apply null_disjoint_with_ptr. destruct Hwfg. omega.
+    apply null_valid_ptrs. destruct Hwfg. omega.
 
   inv_mbind'.
   eapply H with (t0:=t0) in HeqR0; eauto.
   eapply H0 with (t0:=t0) in HeqR; eauto.
-  apply no_alias_app; auto.
-  apply no_alias_app; auto.
-  apply uninits_disjoint_with_ptr.
+  destruct HeqR0. destruct HeqR.
+  split.
+    apply no_alias_app; auto.
+    apply no_alias_app; auto.
+    apply uninits_disjoint_with_ptr.
+
+    apply valid_ptrs_app; auto.
+    apply valid_ptrs_app; auto.
+    apply uninits_valid_ptrs.
 Qed.
 
 Lemma zeroconst2GV_disjoint_with_runtime_alloca: forall t maxb gl g td mb t0
   (Hwfg: wf_globals maxb gl)
   (Hc2g : ret g = zeroconst2GV td t)
   (Hle: maxb < mb),
-  no_alias g ($ blk2GV td mb # typ_pointer t0 $).
+  no_alias g ($ blk2GV td mb # typ_pointer t0 $) /\ valid_ptrs (maxb + 1) g.
 Proof.
   destruct zeroconst2GV_disjoint_with_runtime_alloca_mutrec as [J _]; auto.
 Qed.
 
+Tactic Notation "eapply_clear" hyp(H1) "in" hyp(H2) :=
+  eapply H1 in H2; eauto; clear H1.
+
+Tactic Notation "apply_clear" hyp(H1) "in" hyp(H2) :=
+  apply H1 in H2; auto; clear H1.
+
 Lemma wf_global_disjoint_with_runtime_alloca: forall maxb td t0
   mb (Hle : maxb < mb) g0 (Hwfg : wf_global maxb g0),
-  no_alias g0 ($ blk2GV td mb # typ_pointer t0 $).
+  no_alias g0 ($ blk2GV td mb # typ_pointer t0 $) /\ valid_ptrs (maxb + 1) g0.
 Proof.
   induction g0 as [|[]]; simpl; intros.
-    apply no_alias_nil.
+    split; auto using no_alias_nil.
+
     destruct v; auto.
       destruct Hwfg as [J1 J2].
-      rewrite simpl_blk2GV in *. simpl.
-      split; auto.    
-      apply IHg0 in J2. simpl in J2.
-      destruct J2.
-      split; auto. 
-        intro. subst. contradict J1. omega.
+      apply_clear IHg0 in J2. rewrite simpl_blk2GV in *. 
+      simpl in *. destruct J2. destruct H.
+      split.
+        split; auto.    
+        split; auto. 
+          intro. subst. contradict J1. omega.
+
+        split; auto. omega.
 Qed.
 
 Lemma wf_globals_disjoint_with_runtime_alloca: forall maxb td t0
   (g0 : GenericValue) i0  mb (Hle : maxb < mb) gl (Hwfg : wf_globals maxb gl) 
   (HeqR : ret g0 = lookupAL GenericValue gl i0),
-  no_alias g0 ($ blk2GV td mb # typ_pointer t0 $).
+  no_alias g0 ($ blk2GV td mb # typ_pointer t0 $) /\ valid_ptrs (maxb + 1) g0.
 Proof.
-  induction gl; simpl; intros.
+  induction gl as [|[]]; simpl; intros.
     congruence.
 
     destruct Hwfg. simpl in H0.
-    destruct a.
     destruct H0 as [J1 J2].
     destruct (i0 == i1); subst.
       inv HeqR. eapply wf_global_disjoint_with_runtime_alloca; eauto.
       apply IHgl; auto. split; auto.
+Qed.
+
+Lemma no_embedded_ptrs__valid_ptrs: forall bd gvs,
+  no_embedded_ptrs gvs -> valid_ptrs bd gvs.
+Proof.
+  induction gvs as [|[]]; simpl; intros; auto.
+    destruct v; auto.
+      inversion H.
 Qed.
 
 Lemma mtrunc_preserves_no_embedded_ptrs: forall td top t1 t2 gv gv',
@@ -595,6 +673,14 @@ Lemma mtrunc_preserves_no_alias: forall td top t1 t2 gv gv' gv0,
 Proof.
   intros.
   apply no_embedded_ptrs__no_alias.
+  apply mtrunc_preserves_no_embedded_ptrs in H; auto.
+Qed.
+
+Lemma mtrunc_preserves_valid_ptrs: forall td top t1 t2 gv gv' bd,
+  mtrunc td top t1 t2 gv = Some gv' -> valid_ptrs bd gv'.
+Proof.
+  intros.
+  apply no_embedded_ptrs__valid_ptrs.
   apply mtrunc_preserves_no_embedded_ptrs in H; auto.
 Qed.
 
@@ -626,9 +712,16 @@ Proof.
   apply mext_preserves_no_embedded_ptrs in H; auto.
 Qed.
 
-Lemma mbitcast_preserves_no_alias: forall t1 t2 gv gv' gv0,
-  mbitcast t1 gv t2 = Some gv' ->
-  no_alias gv gv0 -> no_alias gv' gv0.
+Lemma mext_preserves_valid_ptrs: forall td eop t1 t2 gv gv' bd,
+  mext td eop t1 t2 gv = Some gv' -> valid_ptrs bd gv'.
+Proof.
+  intros.
+  apply no_embedded_ptrs__valid_ptrs.
+  apply mext_preserves_no_embedded_ptrs in H; auto.
+Qed.
+
+Lemma mbitcast_inv: forall t1 t2 gv1 gv2,
+  mbitcast t1 gv1 t2 = ret gv2 -> gv1 = gv2.
 Proof.
   intros.
   unfold mbitcast in H.
@@ -637,14 +730,48 @@ Proof.
     destruct t2; inv H; auto.
 Qed.
 
+Lemma mcast_inv: forall td cop t1 t2 gv1 gv2,
+  mcast td cop t1 t2 gv1 = ret gv2 -> gv2 = gv1 \/ gundef td t2 = ret gv2.
+Proof.
+  intros.
+  unfold mcast in H.
+  destruct cop; auto;
+    try 
+    match goal with
+    | H : mbitcast _ _ _ = ret _ |- _ => apply mbitcast_inv in H; subst; auto
+    end.
+Qed.
+
+Lemma mbitcast_preserves_no_alias: forall t1 t2 gv gv' gv0,
+  mbitcast t1 gv t2 = Some gv' ->
+  no_alias gv gv0 -> no_alias gv' gv0.
+Proof.
+  intros.
+  apply mbitcast_inv in H. subst. auto.
+Qed.
+
 Lemma mcast_preserves_no_alias: forall td cop t1 t2 gv gv' gv0,
   mcast td cop t1 t2 gv = Some gv' ->
   no_alias gv gv0 -> no_alias gv' gv0.
 Proof.
   intros.
-  unfold mcast in H.
-  destruct cop; eauto using undef_disjoint_with_runtime_alloca,
-                            mbitcast_preserves_no_alias.
+  apply mcast_inv in H. 
+  destruct H as [H | H]; subst; eauto using undef_disjoint_with_ptr.
+Qed.
+
+Lemma undef_valid_ptrs: forall g td t1 blk
+  (Hc2g : ret g = gundef td t1), valid_ptrs blk g.
+Proof.
+  unfold gundef. intros.
+  inv_mbind'. simpl. auto.
+Qed.
+
+Lemma mcast_preserves_valid_ptrs: forall td cop t1 t2 gv gv' bd,
+  mcast td cop t1 t2 gv = Some gv' -> valid_ptrs bd gv -> valid_ptrs bd gv'.
+Proof.
+  intros.
+  apply mcast_inv in H. 
+  destruct H as [H | H]; subst; eauto using undef_valid_ptrs.
 Qed.
 
 Lemma no_alias_prop1: forall b i1 m1 i2 m2 g,
@@ -655,18 +782,47 @@ Proof.
     destruct H. simpl; auto.
 Qed.
 
+Lemma GV2ptr_inv: forall g1 td v,
+  ret v = GV2ptr td (getPointerSize td) g1 -> 
+  exists b, exists ofs, exists m, g1 = (Vptr b ofs, m)::nil /\ v = Vptr b ofs.
+Proof.
+  intros.
+  unfold GV2ptr in H.
+  destruct g1 as [|[]]; tinv H.
+  destruct v0; tinv H.
+  destruct g1 as [|[]]; inv H. 
+  unfold ptr2GV. unfold val2GV. eauto.
+Qed.
+
 Lemma GV2ptr_preserves_no_alias: forall g1 td g2 v,
   no_alias g1 g2 ->
   ret v = GV2ptr td (getPointerSize td) g1 ->
   no_alias (ptr2GV td v) g2.
 Proof.
-  intros.
-  unfold GV2ptr in H0.
-  destruct g1 as [|[]]; tinv H0.
-  destruct v0; tinv H0.
-  destruct g1 as [|[]]; inv H0. 
+  intros. apply GV2ptr_inv in H0. destruct H0 as [b [ofs [m [J1 J2]]]]; subst.
   unfold ptr2GV. unfold val2GV. eapply no_alias_prop1; eauto.
 Qed.
+
+Lemma GV2ptr_preserves_valid_ptrs: forall bd g1 td v,
+  valid_ptrs bd g1 ->
+  ret v = GV2ptr td (getPointerSize td) g1 ->
+  valid_ptrs bd (ptr2GV td v).
+Proof.
+  intros. apply GV2ptr_inv in H0. destruct H0 as [b [ofs [m [J1 J2]]]]; subst.
+  unfold ptr2GV. unfold val2GV. simpl in *. auto.
+Qed.
+
+Lemma mgep_inv: forall td v1 t1 l1 v2,
+  ret v2 = mgep td t1 v1 l1 ->
+  exists b, exists ofs1, exists ofs2, v1 = Vptr b ofs1 /\ v2 = Vptr b ofs2.
+Proof.
+  intros.
+  unfold mgep in *.
+  destruct v1; tinv H.
+  destruct l1; tinv H.
+  destruct (mgetoffset td (typ_array 0%nat t1) (z :: l1)) as [[]|]; inv H.
+  eauto.
+Qed.  
 
 Lemma mgep_preserves_no_alias: forall td v t1 l1 v0 gv,
   no_alias (ptr2GV td v) gv ->
@@ -674,12 +830,19 @@ Lemma mgep_preserves_no_alias: forall td v t1 l1 v0 gv,
   no_alias (ptr2GV td v0) gv.
 Proof.
   intros.
-  unfold mgep in *.
-  destruct v; tinv H0.
-  destruct l1; tinv H0.
-  destruct (mgetoffset td (typ_array 0%nat t1) (z :: l1)) as [[]|]; inv H0.
+  apply mgep_inv in H0. destruct H0 as [b [ofs1 [ofs2 [J1 J2]]]]; subst. 
   unfold ptr2GV in *. unfold val2GV in *. eapply no_alias_prop1; eauto.
-Qed.  
+Qed.
+
+Lemma mgep_preserves_valid_ptrs: forall td v t1 l1 v0 bd,
+  valid_ptrs bd (ptr2GV td v) ->
+  ret v0 = mgep td t1 v l1 ->
+  valid_ptrs bd (ptr2GV td v0).
+Proof.
+  intros.
+  apply mgep_inv in H0. destruct H0 as [b [ofs1 [ofs2 [J1 J2]]]]; subst. 
+  simpl in *. auto.
+Qed.
 
 Lemma nonptr_no_alias: forall v t td mb t0,
   (forall b ofs, v <> Vptr b ofs) ->
@@ -723,13 +886,30 @@ Proof.
   apply micmp_int_preserves_no_embedded_ptrs in H; auto.
 Qed.
 
+Lemma micmp_int_preserves_valid_ptrs: forall td cop gv1 gv2 bd gv',
+  micmp_int td cop gv1 gv2 = Some gv' -> valid_ptrs bd gv'.
+Proof.
+  intros.
+  apply no_embedded_ptrs__valid_ptrs.
+  apply micmp_int_preserves_no_embedded_ptrs in H; auto.
+Qed.
+
 Lemma micmp_preserves_no_alias: forall td cop t1 gv1 gv2 gv' gv0,
   micmp td cop t1 gv1 gv2 = Some gv' -> no_alias gv' gv0.
 Proof.
   intros.
   unfold micmp in H.
-  destruct t1; tinv H; eauto using undef_disjoint_with_runtime_alloca.
+  destruct t1; tinv H; eauto using undef_disjoint_with_ptr.
     eapply micmp_int_preserves_no_alias; eauto.
+Qed.
+
+Lemma micmp_preserves_valid_ptrs: forall td cop t1 gv1 gv2 gv' bd,
+  micmp td cop t1 gv1 gv2 = Some gv' -> valid_ptrs bd gv'.
+Proof.
+  intros.
+  unfold micmp in H.
+  destruct t1; tinv H; eauto using undef_valid_ptrs.
+    eapply micmp_int_preserves_valid_ptrs; eauto.
 Qed.
 
 Lemma mfcmp_preserves_no_alias: forall td fop fp gv1 gv2 gv' gv0,
@@ -737,11 +917,27 @@ Lemma mfcmp_preserves_no_alias: forall td fop fp gv1 gv2 gv' gv0,
 Proof.
   intros.
   unfold mfcmp in H.
-  destruct (GV2val td gv1); eauto using undef_disjoint_with_runtime_alloca.
-  destruct v; eauto using undef_disjoint_with_runtime_alloca.
-  destruct (GV2val td gv2); eauto using undef_disjoint_with_runtime_alloca.
-  destruct v; eauto using undef_disjoint_with_runtime_alloca.
+  destruct (GV2val td gv1); eauto using undef_disjoint_with_ptr.
+  destruct v; eauto using undef_disjoint_with_ptr.
+  destruct (GV2val td gv2); eauto using undef_disjoint_with_ptr.
+  destruct v; eauto using undef_disjoint_with_ptr.
   apply no_embedded_ptrs__no_alias.
+  destruct fp; tinv H;
+    destruct fop; inv H; apply nonptr_no_embedded_ptrs; 
+      try solve [auto | apply Vfalse_isnt_ptr | apply Vtrue_isnt_ptr | 
+                 apply val_of_bool_isnt_ptr].
+Qed.
+
+Lemma mfcmp_preserves_valid_ptrs: forall td fop fp gv1 gv2 gv' bd,
+  mfcmp td fop fp gv1 gv2 = Some gv' -> valid_ptrs bd gv'.
+Proof.
+  intros.
+  unfold mfcmp in H.
+  destruct (GV2val td gv1); eauto using undef_valid_ptrs.
+  destruct v; eauto using undef_valid_ptrs.
+  destruct (GV2val td gv2); eauto using undef_valid_ptrs.
+  destruct v; eauto using undef_valid_ptrs.
+  apply no_embedded_ptrs__valid_ptrs.
   destruct fp; tinv H;
     destruct fop; inv H; apply nonptr_no_embedded_ptrs; 
       try solve [auto | apply Vfalse_isnt_ptr | apply Vtrue_isnt_ptr | 
@@ -768,6 +964,15 @@ Proof.
     repeat split; auto.
 Qed.
 
+Lemma valid_ptrs_split: forall bd g2 g1,
+  valid_ptrs bd (g1++g2) -> valid_ptrs bd g1 /\ valid_ptrs bd g2.
+Proof.
+  induction g1 as [|[]]; simpl; intros; auto.
+    destruct v; auto.
+    destruct H. apply IHg1 in H0. destruct H0.
+    repeat split; auto.
+Qed.
+
 Lemma splitGenericValue_preserves_no_alias: forall gv g0 z0 g1 g2,
   no_alias g0 gv ->
   ret (g1, g2) = splitGenericValue g0 z0 ->
@@ -791,6 +996,34 @@ Proof.
       simpl_env. apply no_alias_app; auto.
 Qed.
 
+Lemma splitGenericValue_preserves_valid_ptrs: forall bd g0 z0 g1 g2,
+  valid_ptrs bd g0 ->
+  ret (g1, g2) = splitGenericValue g0 z0 ->
+  valid_ptrs bd g1 /\ valid_ptrs bd g2.
+Proof.
+  induction g0 as [|[]]; simpl; intros.
+    destruct (zeq z0 0).
+      inv H0. auto.
+      destruct (zlt z0 0); tinv H0.
+
+    destruct (zeq z0 0).
+      inv H0. simpl. auto.
+
+      destruct (zlt z0 0); tinv H0.
+      inv_mbind'. inv H2.
+      simpl_env in H.
+      assert (valid_ptrs bd [(v,m)] /\ valid_ptrs bd g0) as J.
+        simpl. 
+        destruct v; auto.
+          destruct H; auto.
+      destruct J as [J1 J2].
+      apply IHg0 in HeqR; auto.
+      destruct HeqR. 
+      split; auto.
+        simpl_env.
+        apply valid_ptrs_app; auto.
+Qed.
+
 Lemma extractGenericValue_preserves_no_alias: forall td gv t1 g0 g1 l0,
   no_alias g0 gv -> ret g1 = extractGenericValue td t1 g0 l0 -> no_alias g1 gv.
 Proof.
@@ -798,7 +1031,7 @@ Proof.
   unfold extractGenericValue in *.
   inv_mbind'.
   remember (mget td g0 z t) as R.
-  destruct R; eauto using undef_disjoint_with_runtime_alloca.
+  destruct R; eauto using undef_disjoint_with_ptr.
   inv H1.
   unfold mget in HeqR1.
   destruct (getTypeStoreSize td t); tinv HeqR1.
@@ -810,6 +1043,26 @@ Proof.
   destruct HeqR1; auto.
 Qed.
 
+Lemma extractGenericValue_preserves_valid_ptrs: forall td g1 t1 g0 bd l0,
+  valid_ptrs bd g0 -> ret g1 = extractGenericValue td t1 g0 l0 -> 
+  valid_ptrs bd g1.
+Proof.
+  intros.
+  unfold extractGenericValue in *.
+  inv_mbind'.
+  remember (mget td g0 z t) as R.
+  destruct R; eauto using undef_valid_ptrs.
+  inv H1.
+  unfold mget in HeqR1.
+  destruct (getTypeStoreSize td t); tinv HeqR1.
+  simpl in HeqR1.
+  inv_mbind'. inv H2.
+  eapply splitGenericValue_preserves_valid_ptrs in HeqR2; eauto.
+  destruct HeqR2.
+  eapply splitGenericValue_preserves_valid_ptrs in HeqR1; eauto.
+  destruct HeqR1; auto.
+Qed.
+
 Lemma insertGenericValue_preserves_no_alias: forall td gv t1 t2 g0 g1 g2 l0,
   no_alias g0 gv -> no_alias g1 gv ->
   ret g2 = insertGenericValue td t1 g0 l0 t2 g1 -> no_alias g2 gv.
@@ -818,7 +1071,7 @@ Proof.
   unfold insertGenericValue in *.
   inv_mbind'.
   remember (mset td g0 z t2 g1) as R.
-  destruct R; eauto using undef_disjoint_with_runtime_alloca.
+  destruct R; eauto using undef_disjoint_with_ptr.
   inv H2.
   unfold mset in HeqR1.
   destruct (getTypeStoreSize td t2); tinv HeqR1.
@@ -830,6 +1083,28 @@ Proof.
   eapply splitGenericValue_preserves_no_alias in HeqR1; eauto.
   destruct HeqR1.
   repeat apply no_alias_app; auto.
+Qed.
+
+Lemma insertGenericValue_preserves_valid_ptrs: forall td t1 t2 g0 g1 g2 l0 bd,
+  valid_ptrs bd g0 -> valid_ptrs bd g1 ->
+  ret g2 = insertGenericValue td t1 g0 l0 t2 g1 -> valid_ptrs bd g2.
+Proof.
+  intros.
+  unfold insertGenericValue in *.
+  inv_mbind'.
+  remember (mset td g0 z t2 g1) as R.
+  destruct R; eauto using undef_valid_ptrs.
+  inv H2.
+  unfold mset in HeqR1.
+  destruct (getTypeStoreSize td t2); tinv HeqR1.
+  simpl in HeqR1.
+  destruct (n =n= length g1); tinv HeqR1.
+  inv_mbind'. inv H3.
+  eapply splitGenericValue_preserves_valid_ptrs in HeqR2; eauto.
+  destruct HeqR2.
+  eapply splitGenericValue_preserves_valid_ptrs in HeqR1; eauto.
+  destruct HeqR1.
+  repeat apply valid_ptrs_app; auto.
 Qed.
 
 Lemma mbop_preserves_no_embedded_ptrs: forall td bop0 sz0 gv1 gv2 gv3,
@@ -861,6 +1136,15 @@ Proof.
   apply mbop_preserves_no_embedded_ptrs in H; auto.
 Qed.
 
+Lemma mbop_preserves_valid_ptrs: forall td bop0 sz0 gv1 gv2 gv3 bd,
+  mbop td bop0 sz0 gv1 gv2 = Some gv3 ->
+  valid_ptrs bd gv3.
+Proof.
+  intros.
+  apply no_embedded_ptrs__valid_ptrs.
+  apply mbop_preserves_no_embedded_ptrs in H; auto.
+Qed.
+
 Lemma mfbop_preserves_no_embedded_ptrs: forall td fbop0 fp0 gv1 gv2 gv3,
   mfbop td fbop0 fp0 gv1 gv2 = Some gv3 -> no_embedded_ptrs gv3.
 Proof.
@@ -881,12 +1165,29 @@ Proof.
   apply mfbop_preserves_no_embedded_ptrs in H; auto.
 Qed.
 
+Lemma mfbop_preserves_valid_ptrs: forall td fbop0 fp0 gv1 gv2 gv3 bd,
+  mfbop td fbop0 fp0 gv1 gv2 = Some gv3 -> valid_ptrs bd gv3.
+Proof.
+  intros.
+  apply no_embedded_ptrs__valid_ptrs.
+  apply mfbop_preserves_no_embedded_ptrs in H; auto.
+Qed.
+
+Lemma undef_valid_ptrs__disjoint_with_ptr: forall g td t1 blk g'
+  (Hc2g : ret g = gundef td t1), no_alias g g' /\ valid_ptrs blk g.
+Proof.
+  intros.
+  split.
+    eapply undef_disjoint_with_ptr; eauto.
+    eapply undef_valid_ptrs; eauto.
+Qed.
+
 Definition const2GV_disjoint_with_runtime_alloca_prop (c:const) := 
   forall maxb gl g td mb t t0
   (Hwfg: wf_globals maxb gl)
   (Hc2g : ret (g, t0) = _const2GV td gl c)
   (Hle: maxb < mb),
-  no_alias g ($ blk2GV td mb # typ_pointer t $).
+  no_alias g ($ blk2GV td mb # typ_pointer t $) /\ valid_ptrs (maxb+1) g.
 
 Definition list_const2GV_disjoint_with_runtime_alloca_prop (lc:list_const) :=
   forall maxb gl td mb t
@@ -894,11 +1195,11 @@ Definition list_const2GV_disjoint_with_runtime_alloca_prop (lc:list_const) :=
   (Hle: maxb < mb),
   (forall gv, 
     _list_const_arr2GV td gl t lc = Some gv ->
-    no_alias gv ($ blk2GV td mb # typ_pointer t $)
+    no_alias gv ($ blk2GV td mb # typ_pointer t $) /\ valid_ptrs (maxb+1) gv
   ) /\
   (forall gv t0, 
     _list_const_struct2GV td gl lc = Some (gv,t0) ->
-    no_alias gv ($ blk2GV td mb # typ_pointer t $)
+    no_alias gv ($ blk2GV td mb # typ_pointer t $) /\ valid_ptrs (maxb+1) gv
   ).
 
 Lemma const2GV_disjoint_with_runtime_alloca_mutrec :
@@ -916,26 +1217,38 @@ Case "int".
 Case "float".
   rewrite simpl_blk2GV. destruct f; inv Hc2g; simpl; auto.
 Case "undef".
-  eapply undef_disjoint_with_runtime_alloca; eauto.
+  eapply undef_valid_ptrs__disjoint_with_ptr with (t1:=t)(td:=td); auto.
 Case "null".
-  inv Hc2g. simpl. apply null_disjoint_with_ptr. 
-  destruct Hwfg. omega.
+  inv Hc2g. simpl. 
+  destruct Hwfg. 
+  split.
+    apply null_disjoint_with_ptr. omega.
+    apply null_valid_ptrs. omega.
 Case "arr". 
   eapply H with (td:=td)(gl:=gl)(t:=t) in Hle; eauto.
   destruct Hle.
   destruct (length (unmake_list_const l0)); inv H1; 
-    eauto using uninits_disjoint_with_ptr.
+    eauto using uninits_valid_ptrs__disjoint_with_ptr.
 Case "struct". 
   eapply H with (td:=td)(gl:=gl)(t:=t) in Hle; eauto.
   destruct Hle. 
-  destruct g0; inv H1; eauto using uninits_disjoint_with_ptr.
+  destruct g0; inv H1; 
+    eauto using uninits_valid_ptrs__disjoint_with_ptr.
 Case "gid".
   eapply wf_globals_disjoint_with_runtime_alloca; eauto.
-Case "trunc". eapply mtrunc_preserves_no_alias; eauto.
-Case "ext". eapply mext_preserves_no_alias; eauto.
+Case "trunc". 
+  split. 
+    eapply mtrunc_preserves_no_alias; eauto.
+    eapply mtrunc_preserves_valid_ptrs; eauto.
+Case "ext". 
+  split. 
+    eapply mext_preserves_no_alias; eauto.
+    eapply mext_preserves_valid_ptrs; eauto.
 Case "cast". 
-  eapply H in HeqR; eauto.
-  eapply mcast_preserves_no_alias; eauto.
+  eapply H in HeqR; eauto. destruct HeqR.
+  split.
+    eapply mcast_preserves_no_alias; eauto.
+    eapply mcast_preserves_valid_ptrs; eauto.
 Case "gep". 
   destruct t1; tinv H2. 
   inv_mbind'.
@@ -947,34 +1260,55 @@ Case "gep".
       destruct R2.
         inv H3. 
         eapply H with (t:=t) in HeqR; eauto.
-        eapply GV2ptr_preserves_no_alias in HeqR1; eauto.
-        eapply mgep_preserves_no_alias; eauto.
+        destruct HeqR as [J1 J2].
+        split.
+          eapply GV2ptr_preserves_no_alias in HeqR1; eauto.
+          eapply mgep_preserves_no_alias; eauto.
 
-        destruct R3; inv H3; eauto using undef_disjoint_with_runtime_alloca.
-      destruct R3; inv H3; eauto using undef_disjoint_with_runtime_alloca.
-    destruct R3; inv H3; eauto using undef_disjoint_with_runtime_alloca.
+          eapply GV2ptr_preserves_valid_ptrs in HeqR1; eauto.
+          eapply mgep_preserves_valid_ptrs; eauto.
+
+        destruct R3; inv H3; eauto using undef_valid_ptrs__disjoint_with_ptr.
+      destruct R3; inv H3; eauto using undef_valid_ptrs__disjoint_with_ptr.
+    destruct R3; inv H3; eauto using undef_valid_ptrs__disjoint_with_ptr.
 
 Case "select". destruct (isGVZero td g0); inv H3; eauto.
-Case "icmp". eapply micmp_preserves_no_alias; eauto.
+Case "icmp". 
+  split.
+    eapply micmp_preserves_no_alias; eauto.
+    eapply micmp_preserves_valid_ptrs; eauto.
 Case "fcmp". 
   destruct t1; tinv H2. inv_mbind'.
-  eapply mfcmp_preserves_no_alias; eauto.
+  split.
+    eapply mfcmp_preserves_no_alias; eauto.
+    eapply mfcmp_preserves_valid_ptrs; eauto.
 Case "extractValue". 
-  eapply extractGenericValue_preserves_no_alias in HeqR1; eauto.
+  eapply H in HeqR; eauto.
+  destruct HeqR.
+  split.
+    eapply extractGenericValue_preserves_no_alias in HeqR1; eauto.
+    eapply extractGenericValue_preserves_valid_ptrs in HeqR1; eauto.
 Case "insertValue". 
   eapply H with (t:=t) in HeqR; eauto. clear H.
   eapply H0 with (t:=t) in HeqR0; eauto. clear H0 H1.
-  eapply insertGenericValue_preserves_no_alias in HeqR1; eauto.
+  destruct HeqR. destruct HeqR0.
+  split.
+    eapply insertGenericValue_preserves_no_alias in HeqR1; eauto.
+    eapply insertGenericValue_preserves_valid_ptrs in HeqR1; eauto.
 Case "bop". 
   destruct t1; tinv H2. inv_mbind'.
-  eapply mbop_preserves_no_alias; eauto.
+  split.
+    eapply mbop_preserves_no_alias; eauto.
+    eapply mbop_preserves_valid_ptrs; eauto.
 Case "fbop". 
   destruct t1; tinv H2. inv_mbind'.
-  eapply mfbop_preserves_no_alias; eauto.
+  split.
+    eapply mfbop_preserves_no_alias; eauto.
+    eapply mfbop_preserves_valid_ptrs; eauto.
 Case "nil".
   split.
-    intros gv J. inv J. apply no_alias_nil.
-    intros gv t0 J. inv J. apply no_alias_nil.
+    intros gv J. inv J. simpl. auto using no_alias_nil.
+    intros gv t0 J. inv J. simpl. auto using no_alias_nil.
 Case "cons".
   split; intros; inv_mbind'. 
     destruct p. 
@@ -983,18 +1317,29 @@ Case "cons".
     eapply H with (t:=t0) in HeqR0; eauto.
     eapply H0 with (t:=t0)(td:=td) in Hwfg; eauto.
     destruct Hwfg. symmetry in HeqR. apply H1 in HeqR.
-    apply no_alias_app.
-      apply no_alias_app; auto.
-      apply uninits_disjoint_with_ptr.
+    destruct HeqR0. destruct HeqR.
+    split.
+      apply no_alias_app.
+        apply no_alias_app; auto.
+        apply uninits_disjoint_with_ptr.
+      apply valid_ptrs_app.
+        apply valid_ptrs_app; auto.
+        apply uninits_valid_ptrs.
 
     destruct p. inv_mbind'. 
     destruct p. inv_mbind'. 
     eapply H with (t:=t) in HeqR0; eauto.
     eapply H0 with (t:=t)(td:=td) in Hwfg; eauto.
     destruct Hwfg. symmetry in HeqR. apply H2 in HeqR.
-    apply no_alias_app; auto.
-    apply no_alias_app; auto.
-    apply uninits_disjoint_with_ptr.
+    destruct HeqR0. destruct HeqR.
+    split.
+      apply no_alias_app; auto.
+      apply no_alias_app; auto.
+      apply uninits_disjoint_with_ptr.
+
+      apply valid_ptrs_app; auto.
+      apply valid_ptrs_app; auto.
+      apply uninits_valid_ptrs.
 Qed.
 
 Lemma cgv2gvs_preserves_no_alias: forall g0 td mb t t0 maxb,
@@ -1030,8 +1375,41 @@ Proof.
   destruct const2GV_disjoint_with_runtime_alloca_mutrec as [J1 J2].
   unfold const2GV_disjoint_with_runtime_alloca_prop in J1. 
   eapply J1 with (t:=t) in HeqR; eauto.
+  destruct HeqR. 
   destruct Hwfg.
   eapply cgv2gvs_preserves_no_alias; eauto.
+Qed.
+
+Lemma cgv2gvs_preserves_valid_ptrs: forall g0 t0 bd,
+  bd > 0 -> valid_ptrs bd g0 -> valid_ptrs bd (cgv2gvs DGVs g0 t0).
+Proof.
+  intros.
+Local Transparent cgv2gvs.
+  unfold cgv2gvs. simpl. unfold MDGVs.cgv2gvs. unfold cgv2gv.
+  destruct g0 as [|[]]; auto.
+  destruct v; auto.
+  destruct g0 as [|]; auto.
+  unfold cundef_gv.
+  destruct t0; auto.
+    destruct f; auto.
+
+    apply null_valid_ptrs; auto.
+Qed.
+
+Lemma const2GV_valid_ptrs: forall c0 maxb gl g td 
+  (Hwfg: wf_globals maxb gl)
+  (Hc2g : ret g = @Opsem.const2GV DGVs td gl c0),
+  valid_ptrs (maxb + 1) g.
+Proof.
+  unfold Opsem.const2GV.
+  intros.
+  inv_mbind'. inv H0.
+  destruct const2GV_disjoint_with_runtime_alloca_mutrec as [J1 J2].
+  unfold const2GV_disjoint_with_runtime_alloca_prop in J1. 
+  eapply J1 with (t:=t)(mb:=maxb+1) in HeqR; eauto; try omega.
+  destruct HeqR. 
+  destruct Hwfg.
+  eapply cgv2gvs_preserves_valid_ptrs; eauto; try omega.
 Qed.
 
 Definition inscope_of_EC (ec:@Opsem.ExecutionContext DGVs) : option (list id) :=
@@ -1072,7 +1450,7 @@ Proof.
     eapply const2GV_disjoint_with_runtime_alloca; eauto.
       omega.
   
-    eapply undef_disjoint_with_runtime_alloca; eauto.
+    eapply undef_disjoint_with_ptr; eauto.
 Qed.
 
 Lemma wf_als_split: forall maxb M als als',
@@ -1092,6 +1470,39 @@ Qed.
 Ltac SSSSSCase name := Case_aux subsubsubsubsubcase name.
 Ltac SSSSSSCase name := Case_aux subsubsubsubsubsubcase name.
 
+Lemma load_free': forall (blk : Values.block) (lo : Z) (hi : Z) 
+  (b : Values.block) (Mem : Memory.mem) (Mem' : Memory.mem)
+  (Hfree : Mem.free Mem blk lo hi = ret Mem')
+  (a : AST.memory_chunk) (ofs : Z) (v : val)
+  (HeqR : ret v = Mem.load a Mem' b ofs),
+  b <> blk \/ lo >= hi \/ ofs + size_chunk a <= lo \/ hi <= ofs.
+Proof.
+  intros.
+  symmetry in HeqR.
+  apply Mem.load_valid_access in HeqR.
+  destruct (zeq b blk); subst; auto.
+  right.
+  destruct (zlt lo hi); try omega.
+  destruct (zle (ofs + size_chunk a) lo); auto.
+  destruct (zle hi ofs); auto.
+  contradict HeqR.
+  eapply Mem.valid_access_free_2 in Hfree; eauto; try omega.
+Qed.      
+
+Lemma free_preserves_mload_aux_inv: forall blk lo hi b Mem Mem' 
+  (Hfree:Mem.free Mem blk lo hi = ret Mem') mc ofs gvsa,
+  mload_aux Mem' mc b ofs = ret gvsa ->
+  mload_aux Mem mc b ofs = ret gvsa.
+Proof.
+  induction mc; simpl; intros; auto.
+    inv_mbind'. symmetry in HeqR0.
+    apply IHmc in HeqR0.
+    rewrite HeqR0.
+    erewrite <- Mem.load_free; eauto.
+      rewrite <- HeqR. auto.
+      eapply load_free'; eauto.
+Qed.
+
 Lemma free_preserves_mload_inv: forall TD Mem' gptr ty al gvsa Mem mptr0
   (H1 : mload TD Mem' gptr ty al = ret gvsa)
   (H2 : free TD Mem mptr0 = ret Mem'),
@@ -1103,7 +1514,16 @@ Proof.
   unfold mload. simpl. rewrite J2.
   apply free_inv in H2.
   destruct H2 as [blk' [ofs' [hi [lo [J4 [J5 [J6 J7]]]]]]].
-  admit. (* Mem Props *)
+  eapply free_preserves_mload_aux_inv; eauto.
+Qed.
+
+Lemma nextblock_free: forall TD M gv M', 
+  free TD M gv = ret M' -> Mem.nextblock M = Mem.nextblock M'.
+Proof.  
+  intros.
+  apply free_inv in H.
+  destruct H as [blk' [ofs' [hi [lo [J4 [J5 [J6 J7]]]]]]].
+  apply Mem.nextblock_free in J7. auto.
 Qed.
 
 Lemma free_preserves_wf_ECStack_head_tail : forall maxb pinfo TD M M' lc mptr0
@@ -1117,7 +1537,8 @@ Proof.
   eapply H in H2; eauto. clear H.
   destruct H2 as [[mb [J11 J12]] [J2 J3]]; subst.
   split.
-    exists mb. split; auto. admit. (* Mem Prop *)
+    exists mb. split; auto. 
+    erewrite <- nextblock_free; eauto.
   split; auto.
     intros.
     eapply free_preserves_mload_inv in H; eauto.
@@ -1133,7 +1554,20 @@ Proof.
   apply Hwf in H.
   apply free_inv in H2.
   destruct H2 as [blk' [ofs' [hi [lo [J4 [J5 [J6 J7]]]]]]].
-  admit. (* Mem Props *)
+  erewrite Mem.nextblock_free; eauto.
+Qed.
+
+Lemma free_preserves_mload_aux: forall Mem blk lo hi Mem' b
+  (Hfree: Mem.free Mem blk lo hi = ret Mem') (Hneq: blk <> b) mc ofs gv,
+  mload_aux Mem mc b ofs = ret gv ->
+  mload_aux Mem' mc b ofs = ret gv.
+Proof.
+  induction mc; simpl; intros; auto.
+    inv_mbind'. symmetry in HeqR0.
+    apply IHmc in HeqR0.
+    rewrite HeqR0.
+    erewrite Mem.load_free; eauto.
+      rewrite <- HeqR. auto.
 Qed.
 
 Lemma free_preserves_mload: forall TD Mem Mem' t al gv gptr gvsa
@@ -1145,7 +1579,15 @@ Proof.
   intros.
   apply free_inv in H1.
   destruct H1 as [blk [ofs [hi [lo [J4 [J5 [J6 J7]]]]]]].
-  admit. (* Mem Props *)
+  apply mload_inv in H2.
+  destruct H2 as [b [ofs' [m [mc [J1 [J2 J3]]]]]]; subst.
+  unfold mload. simpl. rewrite J2.
+  symmetry in J4.
+  apply GV2ptr_inv in J4.
+  destruct J4 as [b1 [ofs1 [m1 [J8 J9]]]]; subst.
+  inv J9.
+  simpl in H0. destruct H0. destruct H. clear H1 H0.
+  eapply free_preserves_mload_aux in J3; eauto.
 Qed.
 
 Lemma operand__no_alias_with__tail: forall maxb pinfo TD M lc1 lc2 mptr0 gl
@@ -1198,7 +1640,7 @@ Proof.
     clear J2.
     destruct J1 as [[mb [J11 [J12 J13]]] [J4 [gv J3]]]; subst.
     split.
-      exists mb. split; auto. split; auto. admit. (* MemProp *)
+      erewrite <- nextblock_free; eauto.
     split.
         intros. eapply free_preserves_mload_inv in H; eauto.
         clear J4. 
@@ -1253,7 +1695,7 @@ Proof.
   split; auto.
     destruct J1 as [[mb [J11 [J12 J13]]] [J4 [gv J3]]]; subst.
     split.
-        exists mb. split; auto. split; auto. admit. (* MemProp *)
+        erewrite <- nextblock_free; eauto.
     split.
         intros. eapply free_preserves_mload_inv in H; eauto.
         exists gv. eapply free_preserves_mload; eauto.
@@ -1324,13 +1766,11 @@ Lemma free_preserves_wf_Mem : forall maxb TD M M' mptr0
   wf_Mem maxb TD M'.
 Proof.
   intros. destruct Hwf as [J1 J2].
-  split.
+  unfold wf_Mem.
+  erewrite <- nextblock_free; eauto.
+  split; auto.
     intros. 
     eapply free_preserves_mload_inv in H; eauto.
-    apply J1 in H; auto.
-    admit. (* Mem Props *)
-  
-    admit. (* Mem Props *)
 Qed.
 
 Lemma free_preserves_wf_als : forall maxb TD M M' mptr0 als
@@ -1341,8 +1781,8 @@ Proof.
   intros. destruct Hwf as [J1 J2].
   split; auto.
     intros. 
-    apply J2 in H; auto.
-    admit. (* Mem Props *)
+    apply J2 in H.
+    erewrite <- nextblock_free; eauto.
 Qed.
 
 Lemma free_allocas_preserves_mload_inv: forall TD gptr ty al gvsa als Mem' Mem
@@ -1375,6 +1815,17 @@ Local Transparent gv2gvs.
 Opaque gv2gvs. 
 Qed.
 
+Lemma nextblock_free_allocas: forall TD als M M', 
+  free_allocas TD M als = ret M' -> Mem.nextblock M = Mem.nextblock M'.
+Proof.  
+  induction als; simpl; intros.  
+    inv H. auto.
+
+    inv_mbind'. symmetry in HeqR.
+    apply nextblock_free in HeqR; auto.
+    rewrite HeqR. auto.
+Qed.
+
 Lemma free_allocas_preserves_wf_alloca: forall maxb pinfo TD Mem gvsa als0 als Mem',
   wf_alloca_GVs maxb pinfo TD Mem gvsa als0 ->
   NoDup (als ++ als0) ->
@@ -1385,7 +1836,7 @@ Proof.
   unfold wf_alloca_GVs in *.
   destruct H as [[mb [J11 [J12 J13]]] [J2 J3]]; subst.
   split.
-    exists mb. split; auto. split; auto. admit. (* MemProp *)
+    erewrite <- nextblock_free_allocas; eauto.
   split.
     intros gptr gvs1 ty al J.  
     eapply free_allocas_preserves_mload_inv in J; eauto.
@@ -1420,8 +1871,7 @@ Proof.
 Qed.
 
 Lemma updateAddAL__wf_lc: forall gv3 Mem0 lc id0
-  (Hwfgv: forall blk ofs, gv3 = mk_gptr blk ofs -> blk < Mem.nextblock Mem0)
-  (Hwflc: wf_lc Mem0 lc),
+  (Hwfgv: valid_ptrs (Mem.nextblock Mem0) gv3) (Hwflc: wf_lc Mem0 lc),
   wf_lc Mem0 (updateAddAL (GVsT DGVs) lc id0 gv3).
 Proof.
   intros. unfold wf_lc in *. intros.
@@ -1432,26 +1882,29 @@ Proof.
     eapply Hwflc; eauto.
 Qed.
 
-Lemma wf_globals__le_maxb: forall maxb gl td c0 
-  (Hwfg: wf_globals maxb gl) blk ofs
-  (Hc2g : ret mk_gptr blk ofs = @Opsem.const2GV DGVs td gl c0),
-  blk <= maxb.
-Admitted.
+Lemma valid_ptrs__trans: forall bound1 bound2 gv,
+  valid_ptrs bound1 gv -> bound1 <= bound2 -> valid_ptrs bound2 gv.
+Proof.
+  induction gv as [|[]]; simpl; intros; auto.
+    destruct v; auto.
+      destruct H. split; auto. omega.
+Qed.
 
-Lemma operand__lt_nextblock: forall maxb TD M (lc:DGVMap) blk ofs gl
+Lemma operand__lt_nextblock: forall maxb TD M (lc:DGVMap) mptr gl
   (Hwfgl : wf_globals maxb gl) v mptrs (Hlt: maxb < Mem.nextblock M)
   (Hwflc: wf_lc M lc) 
-  (Hin: mk_gptr blk ofs @ mptrs) 
+  (Hin: mptr @ mptrs) 
   (Hgetop : Opsem.getOperandValue TD v lc gl = ret mptrs),
-  blk < Mem.nextblock M.
+  valid_ptrs (Mem.nextblock M) mptr.
 Proof.
   intros.
   inv Hin.
   destruct v; simpl in Hgetop.
     apply Hwflc in Hgetop; auto.
 
-    eapply wf_globals__le_maxb in Hwfgl; eauto.
-    omega.
+    eapply const2GV_valid_ptrs in Hwfgl; eauto.
+    eapply valid_ptrs__trans; eauto.
+      omega.
 Qed.     
 
 Lemma returnUpdateLocals__wf_lc: forall maxb td Result (lc:DGVMap) gl c' 
@@ -1478,7 +1931,7 @@ Proof.
       inv H0. 
       eapply operand__lt_nextblock in HeqR; eauto.
 
-      unfold gundef in H0. inv_mbind.
+      unfold gundef in H0. inv_mbind. simpl. auto.
 Qed.
 
 Lemma free_allocas_preserves_wf_ECStack_head_tail' : forall maxb pinfo td 
@@ -1515,7 +1968,7 @@ Proof.
     clear J2.
     destruct J1 as [[mb [J11 [J12 J13]]] [J4 [gv J3]]]; subst.
     split.
-        exists mb. repeat split; auto. omega. admit. (* MemProp *)
+        erewrite <- nextblock_free; eauto.
     split.
         intros. eapply free_preserves_mload_inv in H; eauto.
         exists gv. 
@@ -1846,20 +2299,6 @@ Local Opaque inscope_of_tmn inscope_of_cmd.
 Transparent inscope_of_tmn inscope_of_cmd.
 Qed.
 
-Lemma gptr_spec: forall pinfo gv3 mb td
-  (Hwfgv : ~
-          (exists blk : Values.block,
-             exists ofs : int32, gv3 = mk_gptr blk ofs)),
-  gv3 <> $ blk2GV td mb # typ_pointer (PI_typ pinfo) $.
-Proof.
-  intros. destruct td.
-  intro J. subst. apply Hwfgv.
-  unfold_blk2GV. unfold mk_gptr.
-Local Transparent gv2gvs.
-  unfold gv2gvs. simpl. unfold MDGVs.gv2gvs. eauto.
-Opaque gv2gvs. 
-Qed.
-
 Definition wf_GVs_in_ECs (maxb:Values.block) (pinfo:PhiInfo) TD M 
   (head:Opsem.ExecutionContext) tail (id1:id)(gv1:GVsT DGVs) : Prop :=
 let '(Opsem.mkEC f b cs tmn lc als) := head in
@@ -1874,13 +2313,7 @@ else True) /\
     (Hscp: inscope_of_EC ec0 = Some ids0) (Hin1: In (PI_id pinfo) ids0)
     (Hlkup : lookupAL (GVsT DGVs) (Opsem.Locals ec0) (PI_id pinfo) = ret gvsa),
     no_alias gv1 gvsa) /\
-(forall blk ofs, gv1 = mk_gptr blk ofs -> blk < Mem.nextblock M).
-
-Tactic Notation "eapply_clear" hyp(H1) "in" hyp(H2) :=
-  eapply H1 in H2; eauto; clear H1.
-
-Tactic Notation "apply_clear" hyp(H1) "in" hyp(H2) :=
-  apply H1 in H2; auto; clear H1.
+(valid_ptrs (Mem.nextblock M) gv1).
 
 Lemma preservation_pure_cmd_updated_case : forall (F : fdef)(B : block)
   (lc : DGVMap)(gv3 : GVsT DGVs) (cs : list cmd) (tmn : terminator) id0 c0 Mem0 
@@ -2026,7 +2459,7 @@ Proof.
   split.
     intros. eapply BOP_preserves_no_alias; eauto.
     intros. subst. apply BOP_preserves_no_embedded_ptrs in H11; auto.
-      simpl in H11. inv H11.
+      apply no_embedded_ptrs__valid_ptrs; auto.
 Qed.
 
 Lemma operand__no_alias_with__tail': forall maxb gl (Hwfgl : wf_globals maxb gl)
@@ -2041,28 +2474,6 @@ Lemma operand__no_alias_with__tail': forall maxb gl (Hwfgl : wf_globals maxb gl)
 Proof.
   intros. 
   eapply operand__no_alias_with__tail in Hlkup; eauto.
-Qed.
-
-Lemma mbitcast_ptr_inv: forall t1 t2 gv blk ofs,
-  mbitcast t1 gv t2 = ret mk_gptr blk ofs ->
-  gv = mk_gptr blk ofs.
-Proof.
-  intros.
-  unfold mbitcast in H.
-  destruct t1; tinv H.
-    destruct t2; inv H; auto.
-    destruct t2; inv H; auto.
-Qed.
-
-Lemma mcast_ptr_inv: forall td cop t1 t2 gv blk ofs,
-  mcast td cop t1 t2 gv = ret mk_gptr blk ofs ->
-  gv = mk_gptr blk ofs.
-Proof.
-  intros.
-  unfold mcast in H.
-  destruct cop; eauto using mbitcast_ptr_inv.
-    unfold gundef in *. inv_mbind'.
-    unfold gundef in *. inv_mbind'.
 Qed.
 
 Lemma CAST__wf_GVs_in_ECs : forall (v : value) (id1 : id)
@@ -2103,8 +2514,10 @@ Proof.
     eapply mcast_preserves_no_alias in J2; eauto.
 
     intros. subst.
-    apply mcast_ptr_inv in J2. subst.
-    eapply operand__lt_nextblock in J1; eauto.
+    apply mcast_inv in J2.
+    destruct J2 as [J2 | J2]; subst.
+      eapply operand__lt_nextblock in J1; eauto.
+      eapply undef_valid_ptrs; eauto.      
 Qed.
 
 Lemma wf_EC__wf_lc : forall maxb pinfo TD M EC,
@@ -2144,43 +2557,44 @@ Proof.
   unfold Opsem.GEP. unfold lift_op1. simpl. unfold MDGVs.lift_op1. unfold gep.
   unfold GEP. intros. 
   remember (GV2ptr TD (getPointerSize TD) mp) as R1.
-  destruct R1; eauto using undef_disjoint_with_runtime_alloca.
-  destruct (GVs2Nats TD vidxs); eauto using undef_disjoint_with_runtime_alloca.
+  destruct R1; eauto using undef_disjoint_with_ptr.
+  destruct (GVs2Nats TD vidxs); eauto using undef_disjoint_with_ptr.
   remember (mgep TD t v l0) as R2.
-  destruct R2; eauto using undef_disjoint_with_runtime_alloca.
+  destruct R2; eauto using undef_disjoint_with_ptr.
   inv H. 
   eapply GV2ptr_preserves_no_alias in HeqR1; eauto.
   eapply mgep_preserves_no_alias; eauto.
 Qed.
 
-Lemma GEP_ptr_inv: forall TD t (mp : GVsT DGVs) inbounds0 vidxs
-  blk ofs (H1 : Opsem.GEP TD t mp vidxs inbounds0 = ret mk_gptr blk ofs),
-  exists ofs' : int32, exists m' : AST.memory_chunk, 
-    mp = (Vptr blk ofs', m') :: nil.
+Lemma GEP_inv: forall TD t (mp1 : GVsT DGVs) inbounds0 vidxs mp2
+  (H1 : Opsem.GEP TD t mp1 vidxs inbounds0 = ret mp2),
+  gundef TD (typ_pointer (typ_int 1%nat)) = ret mp2 \/
+  exists blk, exists ofs1, exists ofs2 : int32, exists m1, exists m2,
+    mp1 = (Vptr blk ofs1, m1) :: nil /\ mp2 = (Vptr blk ofs2, m2) :: nil.
 Proof.
   intros.
   unfold Opsem.GEP in H1. unfold lift_op1 in H1. simpl in H1.
   unfold MDGVs.lift_op1 in H1.
   unfold gep in H1. unfold GEP in H1.
-  remember (GV2ptr TD (getPointerSize TD) mp) as R1.
-  destruct R1.
-    destruct (GVs2Nats TD vidxs).
-      remember (mgep TD t v l0) as R2.
-      destruct R2.
-        inv H1.
-        unfold mgep in HeqR2.
-        destruct v; tinv HeqR2.
-        destruct l0; tinv HeqR2.
-        destruct (mgetoffset TD (typ_array 0%nat t) (z :: l0)) as [[]|]; 
-          inv HeqR2.
-        unfold GV2ptr in HeqR1.
-        destruct mp as [|[]]; tinv HeqR1.
-        destruct v; tinv HeqR1.
-        destruct mp; inv HeqR1. eauto.
-
-        unfold gundef in H1. inv_mbind'. 
-      unfold gundef in H1. inv_mbind'. 
-    unfold gundef in H1. inv_mbind'. 
+  remember (GV2ptr TD (getPointerSize TD) mp1) as R1.
+  destruct R1; auto.
+  destruct (GVs2Nats TD vidxs); auto.
+  remember (mgep TD t v l0) as R2.
+  destruct R2; auto.
+  inv H1.
+  unfold mgep in HeqR2.
+  destruct v; tinv HeqR2.
+  destruct l0; tinv HeqR2.
+  destruct (mgetoffset TD (typ_array 0%nat t) (z :: l0)) as [[]|]; 
+    inv HeqR2.
+  unfold GV2ptr in HeqR1.
+  destruct mp1 as [|[]]; tinv HeqR1.
+  destruct v; tinv HeqR1.
+  destruct mp1; inv HeqR1.
+  unfold ptr2GV. unfold val2GV. right. exists b0. exists i1. 
+  exists (Int.add 31 i1 (Int.repr 31 z0)). exists m.
+  exists (AST.Mint (Size.mul Size.Eight (getPointerSize TD) - 1)).
+  eauto.
 Qed.
 
 Lemma GEP__wf_GVs_in_ECs : forall (v : value) (v0 : value) (id1 : id) 
@@ -2217,10 +2631,11 @@ Proof.
     inv H0.
     eapply GEP_preserves_no_alias in H1; eauto.
 
-    intros. subst. apply GEP_ptr_inv in H1; auto.
-    destruct H1 as [ofs' [m' EQ]]; subst.
-    admit. (* wf_lc and wf_Mem should consider all embedded ptrs *)
-    (* eapply operand__lt_nextblock in H; eauto. *)
+    intros. subst. apply GEP_inv in H1; auto.
+    destruct H1 as [H1 | [blk [ofs1 [ofs2 [m1 [m2 [J1 J2]]]]]]]; subst.
+      eapply undef_valid_ptrs; eauto.
+
+      eapply operand__lt_nextblock in H0; eauto.
 Qed.
 
 Lemma params2GVs_preserves_no_alias: forall maxb gl
@@ -2260,7 +2675,7 @@ Proof.
       inv_mbind. symmetry in HeqR.
       destruct (id_dec i0 id1); subst.
         rewrite lookupAL_updateAddAL_eq in Hlkup. inv Hlkup.
-        eapply undef_disjoint_with_runtime_alloca; eauto.
+        eapply undef_disjoint_with_ptr; eauto.
 
         rewrite <- lookupAL_updateAddAL_neq in Hlkup; auto. 
         eapply IHla in HeqR; eauto.
@@ -2275,7 +2690,7 @@ Proof.
           apply Hwf. 
           inv H0. simpl. auto.
 
-          eapply undef_disjoint_with_runtime_alloca; eauto.
+          eapply undef_disjoint_with_ptr; eauto.
 
         rewrite <- lookupAL_updateAddAL_neq in Hlkup; auto. 
         eapply IHla in HeqR; eauto.
@@ -2356,7 +2771,7 @@ Lemma params2GVs_preserves_wf_lc: forall maxb gl M
   (Hwfg : wf_globals maxb gl) TD lc (Hinbound: maxb < Mem.nextblock M) 
   (Hwf : wf_lc M lc) lp gvs
   (Hps2GVs : @Opsem.params2GVs DGVs TD lp lc gl = ret gvs),
-  forall blk ofs, In (mk_gptr blk ofs) gvs -> blk < Mem.nextblock M.
+  forall gv, In gv gvs -> valid_ptrs (Mem.nextblock M) gv.
 Proof.
   induction lp; simpl; intros.
     inv Hps2GVs. inv H.
@@ -2366,23 +2781,22 @@ Proof.
     simpl in H.
     destruct H as [H | H]; subst; eauto.
     destruct v; simpl in HeqR; eauto.
-      eapply wf_globals__le_maxb in HeqR; eauto. omega.
+      eapply const2GV_valid_ptrs in HeqR; eauto. 
+      eapply valid_ptrs__trans; eauto. omega.
 Qed.
 
-Lemma gundef_mk_gptr_false: forall g0 TD t blk ofs
-  (HeqR0 : ret g0 = gundef TD t)
-  (H1 : $ g0 # t $ = mk_gptr blk ofs), False.
+Lemma undef__valid_lift_ptrs: forall g td t1 blk
+  (Hc2g : ret g = gundef td t1), valid_ptrs blk ($ g # t1 $).
 Proof.
-  intros.
-  unfold gundef in HeqR0.
-  inv_mbind'. 
+  unfold gundef. intros.
+  inv_mbind'.
 Local Transparent gv2gvs.
-  unfold gv2gvs in H1. simpl in H1. inv H1.
+  unfold gv2gvs. simpl. auto.
 Opaque gv2gvs.
 Qed.
 
 Lemma initializeFrameValues_preserves_wf_lc: forall TD la (gvs:list (GVsT DGVs))
-  M (Hwf: forall blk ofs, In (mk_gptr blk ofs) gvs -> blk < Mem.nextblock M) 
+  M (Hwf: forall gv, In gv gvs -> valid_ptrs (Mem.nextblock M) gv) 
   lc (Hinit : Opsem.initLocals TD la gvs = ret lc), wf_lc M lc.
 Proof.
   unfold Opsem.initLocals. unfold wf_lc.
@@ -2394,8 +2808,7 @@ Proof.
       inv_mbind. symmetry in HeqR.
       destruct (id_dec i0 id0); subst.
         rewrite lookupAL_updateAddAL_eq in H. inv H.
-        apply gundef_mk_gptr_false with (TD:=TD) in H1; auto.
-        inv H1.
+        eapply undef__valid_lift_ptrs; eauto.
 
         rewrite <- lookupAL_updateAddAL_neq in H; auto. 
         eapply IHla in HeqR; eauto.
@@ -2409,9 +2822,7 @@ Proof.
         destruct (sizeGenericValue g =n= nat_of_Z (ZRdiv (Z_of_nat n) 8)).
           inv H0. eapply Hwf; simpl; eauto.
           
-          symmetry in H0.
-          apply undef__no_embedded_ptrs in H0; auto.
-          inv H0.
+          eapply undef_valid_ptrs; eauto.
 
         rewrite <- lookupAL_updateAddAL_neq in H; auto. 
         eapply IHla in HeqR; eauto.
@@ -2511,6 +2922,69 @@ Axiom callExternalFun_preserves_wf_EC : forall maxb pinfo TD M M' rid
 Definition wf_use_in_tail (pinfo:PhiInfo) (v:value) :=
 used_in_value (PI_id pinfo) v = false.
 
+Lemma store_preserves_mload_aux_inv: forall b1 b2 v2 m2 Mem' Mem ofs2 
+  (Hst: Mem.store m2 Mem b2 ofs2 v2 = ret Mem') mc ofs1 gvs0,
+  mload_aux Mem' mc b1 ofs1 = ret gvs0 ->
+  exists gvs2 : GenericValue,
+     mload_aux Mem mc b1 ofs1 = ret gvs2 /\
+     (forall v m,
+      In (v, m) gvs0 -> (v2, m2) = (v, m) \/ v = Vundef \/ In (v, m) gvs2).
+Proof.
+  induction mc; simpl; intros.
+    inv H. eauto.
+
+    inv_mbind'. symmetry in HeqR0.
+    apply IHmc in HeqR0.
+    destruct HeqR0 as [gvs2 [J1 J2]].
+    rewrite J1.
+   
+Admitted.
+
+Lemma mstore_aux_preserves_mload_aux_inv: forall mc b1 ofs1 gvs0 b2 gvs1 Mem' Mem ofs2,
+  mload_aux Mem' mc b1 ofs1 = ret gvs0 ->
+  mstore_aux Mem gvs1 b2 ofs2 = ret Mem' ->
+  exists gvs2 : GenericValue,
+     mload_aux Mem mc b1 ofs1 = ret gvs2 /\
+     (forall v m,
+      In (v, m) gvs0 -> In (v, m) gvs1 \/ v = Vundef \/ In (v, m) gvs2).
+Proof.
+  induction gvs1 as [|[]]; simpl; intros.
+    inv H0. exists gvs0. split; auto.
+  
+    inv_mbind'.
+    apply IHgvs1 in H2; auto.
+    destruct H2 as [gvs2 [J1 J2]].
+    symmetry in HeqR.
+    eapply store_preserves_mload_aux_inv in HeqR; eauto.
+    destruct HeqR as [gvs3 [J3 J4]].
+    exists gvs3.
+    split; auto.
+    intros.
+    apply J2 in H0.
+    destruct H0 as [H0 | [H0 | H0]]; subst; auto.
+    apply J4 in H0. 
+    destruct H0 as [H0 | [H0 | H0]]; subst; auto.
+Qed.
+
+Lemma mstore_preserves_mload_inv: forall TD Mem' gptr ty al gvs0 Mem gvs1 t
+  mp2 (H1 : mload TD Mem' gptr ty al = ret gvs0) align
+  (H2 : mstore TD Mem mp2 t gvs1 align = Some Mem'),
+  exists gvs2, mload TD Mem gptr ty al = ret gvs2 /\
+     (forall v m,
+      In (v, m) gvs0 -> In (v, m) gvs1 \/ v = Vundef \/ In (v, m) gvs2).
+Proof.
+  intros.
+  apply store_inv in H2.
+  destruct H2 as [b [ofs [J5 J4]]].
+  apply mload_inv in H1.
+  destruct H1 as [b1 [ofs1 [m1 [mc [J1 [J2 J3]]]]]]; subst.
+  unfold mload. simpl. rewrite J2.
+  symmetry in J5. apply GV2ptr_inv in J5. 
+  destruct J5 as [b2 [ofs2 [m2 [J6 J7]]]]; subst. inv J7.
+  eapply mstore_aux_preserves_mload_aux_inv; eauto.
+Qed.
+
+(*
 Lemma mstore_preserves_mload_inv: forall TD Mem' gptr ty al gvs0 Mem gv1 t
   mp2 (H1 : mload TD Mem' gptr ty al = ret gvs0) align
   (H2 : mstore TD Mem mp2 t gv1 align = Some Mem'),
@@ -2523,6 +2997,7 @@ Proof.
   destruct H2 as [b [ofs [J5 J4]]].
   admit. (* mem prop *)
 Qed.
+*)
 
 Lemma mstore_preserves_mload: forall TD Mem' gptr ty al gvs0 Mem gv1 t
   mp2 (H1 : mload TD Mem gptr ty al = ret gvs0) align
@@ -2540,6 +3015,14 @@ Lemma mstore_preserves_mload': forall TD Mem' gptr ty al gvs0 Mem gv1 t
 Proof.
   admit. (* mem prop *)
 Qed.
+
+Lemma no_alias_overlap: forall gvs1 gvs2 gvs0 gvsa,
+  no_alias gvs1 gvsa ->
+  no_alias gvs2 gvsa ->
+  (forall (v : val) (m : AST.memory_chunk),
+     In (v, m) gvs0 -> In (v, m) gvs1 \/ v = Vundef \/ In (v, m) gvs2) ->
+  no_alias gvs0 gvsa.
+Admitted.
 
 Lemma mstore_preserves_wf_defs_at_head : forall maxb pinfo TD M  
   M' gl v als lc gvs1 gv1 t mp2 align mps2 vp
@@ -2564,8 +3047,9 @@ Proof.
     split.
       intros. 
       eapply mstore_preserves_mload_inv in H; eauto.
-      destruct H as [H | [H | H]]; subst; eauto.
-        eapply undef_disjoint_with_runtime_alloca; eauto.
+      destruct H as [gvs2 [H1 H2]].
+      apply J4 in H1.
+      eapply no_alias_overlap with (gvs1:=gv1); eauto.
 
       eapply mstore_preserves_mload'; eauto.
 Qed.
@@ -2595,9 +3079,10 @@ Proof.
     split.
       intros.
       eapply mstore_preserves_mload_inv in Hst; eauto.
-      destruct Hst as [G | [G | G]]; subst; eauto.
-        eapply undef_disjoint_with_runtime_alloca; eauto.
-        eapply operand__no_alias_with__tail; eauto.
+      destruct Hst as [gvs2 [H1 H2]].
+      apply J4 in H1.
+      eapply no_alias_overlap with (gvs1:=gv1); eauto.
+      eapply operand__no_alias_with__tail; eauto.
 
       exists gv. 
       eapply mstore_preserves_mload; eauto.
@@ -2641,8 +3126,9 @@ Proof.
   split; auto.
     intros.
     eapply mstore_preserves_mload_inv in Hst; eauto.
-    destruct Hst as [G | [G | G]]; subst; eauto.
-      eapply undef_disjoint_with_runtime_alloca; eauto.
+    destruct Hst as [gvs2 [J1 J4]].
+    apply J3 in J1.
+    eapply no_alias_overlap with (gvs1:=gv1); eauto.
 Qed.
 
 Lemma wf_ECStack_head_tail_cons__intro: forall maxb pinfo TD M lc ec1 ecs2,
@@ -2685,6 +3171,14 @@ Proof.
         apply wf_ECStack_head_tail_cons__intro; auto.
 Qed.
 
+Lemma valid_ptrs_overlap: forall gvs1 gvs2 gvs0 bd,
+  valid_ptrs bd gvs1 ->
+  valid_ptrs bd gvs2 ->
+  (forall (v : val) (m : AST.memory_chunk),
+     In (v, m) gvs0 -> In (v, m) gvs1 \/ v = Vundef \/ In (v, m) gvs2) ->
+  valid_ptrs bd gvs0.
+Admitted.
+
 Lemma mstore_preserves_wf_Mem : forall maxb TD M mp2 t gv1 align M' gvs1 gl
   (Hwfgl: wf_globals maxb gl) (lc:DGVMap) v1 (Hwflc: wf_lc M lc) 
   (H0 : Opsem.getOperandValue TD v1 lc gl = Some gvs1)
@@ -2700,10 +3194,9 @@ Proof.
   split; eauto.
     intros.
     eapply mstore_preserves_mload_inv in H; eauto.
-    destruct H as [G | [G | G]]; subst; eauto.
-      unfold gundef in G.
-      destruct (getTypeSizeInBits TD ty); tinv G.
- 
+    destruct H as [gvs2 [J3 J4]].
+    apply J1 in J3.
+    eapply valid_ptrs_overlap with (gvs1:=gv1); eauto.
       eapply operand__lt_nextblock with (M:=M) in H0; eauto.
         rewrite EQ in H0; auto.
         rewrite EQ; auto.
@@ -2740,8 +3233,9 @@ Proof.
   split; auto.
     intros.
     eapply mstore_preserves_mload_inv in Hst; eauto.
-    destruct Hst as [G | [G | G]]; subst; eauto.
-      eapply undef_disjoint_with_runtime_alloca; eauto.
+    destruct Hst as [gvs2 [H3 H2]].
+    apply J3 in H3.
+    eapply no_alias_overlap with (gvs1:=gv1); eauto.
 Qed.
 
 Lemma malloc_preserves_mload_inv: forall TD M M' mb align0 gn tsz 
@@ -2776,7 +3270,7 @@ Proof.
     intros.
     eapply malloc_preserves_mload_inv in Hmlc; eauto.
     destruct Hmlc as [G | G]; subst; eauto.
-      eapply undef_disjoint_with_runtime_alloca; eauto.
+      eapply undef_disjoint_with_ptr; eauto.
 Qed.
 
 Lemma malloc_preserves_wf_defs_in_tail : forall maxb pinfo TD M  
@@ -2798,7 +3292,7 @@ Proof.
       intros.
       eapply malloc_preserves_mload_inv in H0; eauto.
       destruct H0 as [G | G]; subst; eauto.
-        eapply undef_disjoint_with_runtime_alloca; eauto.
+        eapply undef_disjoint_with_ptr; eauto.
 
       exists gv. admit. (* Mem Prop *)
 Qed.
@@ -2828,7 +3322,7 @@ Proof.
     intros.
     eapply malloc_preserves_mload_inv in Hmlc; eauto.
     destruct Hmlc as [G | G]; subst; eauto.
-      eapply undef_disjoint_with_runtime_alloca; eauto.
+      eapply undef_disjoint_with_ptr; eauto.
 Qed.
 
 Lemma malloc_preserves_wf_ECStack_in_tail : forall maxb pinfo TD M tsz gn align0 
@@ -2862,10 +3356,8 @@ Proof.
     intros.
     eapply malloc_preserves_mload_inv in H; eauto.
     destruct H as [G | G]; subst; eauto.
-      apply J1 in G. omega.
-
-      unfold gundef in G.
-      destruct (getTypeSizeInBits TD ty); tinv G.
+      apply J1 in G. eapply valid_ptrs__trans; eauto. omega.
+      eapply undef_valid_ptrs; eauto.
  
     omega.
 Qed.
@@ -2968,6 +3460,41 @@ Proof.
         eapply wf_defs_eq; eauto.
 Qed.
 
+Lemma valid_ptrs__no_alias__fresh_ptr: forall bound TD mb t (Hbd: bound < mb) 
+  gvs, valid_ptrs bound gvs -> 
+  no_alias gvs ($ blk2GV TD mb # typ_pointer t $).
+Proof.
+  induction gvs as [|[]]; simpl; intros.
+    apply no_alias_nil.
+
+    destruct v; auto.
+    destruct H.
+    apply IHgvs in H0. rewrite simpl_blk2GV in *. simpl in *.
+    destruct H0. 
+    repeat split; auto.
+      intro J. subst. contradict H; omega.
+Qed.
+
+Lemma ptr_no_alias__no_alias_with_blk : forall b i0 m gvs2,
+  no_alias [(Vptr b i0, m)] gvs2 -> no_alias_with_blk gvs2 b.
+Proof. 
+  induction gvs2 as [|[]]; simpl; intros; auto.
+    destruct v; auto.
+    destruct H. destruct H.
+    split; auto.
+Qed.
+
+Lemma no_alias_sym: forall gvs2 gvs1, no_alias gvs1 gvs2 -> no_alias gvs2 gvs1.
+Proof.
+  induction gvs1 as [|[]]; simpl; intros; auto.
+    simpl_env in H.
+    apply no_alias_split in H.
+    destruct H as [H1 H2].
+    destruct v; auto.
+    split; auto.
+      apply ptr_no_alias__no_alias_with_blk in H1; auto.
+Qed.
+
 Lemma alloca_preserves_wf_defs_at_head : forall maxb pinfo TD M  
   M' gl als lc t v
   (Hwfgl: wf_globals maxb gl) mb id0 tmn align0 cs cs1' l1 ps1 F gn tsz
@@ -2999,9 +3526,11 @@ Proof.
           eapply malloc_preserves_mload_inv; eauto.
         destruct J as [J | J].
           destruct HwfM as [HwfM _].
-          admit. (* if gvs1 isnt ptr, done; else by HwfM *)
+          apply HwfM in J.
+          eapply valid_ptrs__no_alias__fresh_ptr; eauto.
+          admit. (* MemProp *)
 
-          eapply undef_disjoint_with_runtime_alloca; eauto.
+          eapply undef_disjoint_with_ptr; eauto.
 
         admit. (* MemProp by Hal. *)
 
@@ -3009,7 +3538,9 @@ Proof.
       unfold wf_non_alloca_GVs.
       destruct (id_dec id0 (PI_id pinfo)); auto.
       rewrite <- lookupAL_updateAddAL_neq in Hlk0; auto.
-      admit. (* if gvs1 isnt ptr, done; else by Hwflc *)
+      apply Hwflc in Hlk0.
+      eapply valid_ptrs__no_alias__fresh_ptr; eauto.
+      admit. (* MemProp *)
 
     rewrite <- lookupAL_updateAddAL_neq in Hlkp; auto.
     simpl in Hpindom.
@@ -3027,7 +3558,7 @@ Proof.
                 Some gvs1 = gundef TD ty) as J.
           eapply malloc_preserves_mload_inv; eauto.
         destruct J as [J | J]; eauto.
-          eapply undef_disjoint_with_runtime_alloca; eauto.
+          eapply undef_disjoint_with_ptr; eauto.
 
         exists gv. admit. (* MemProp by Hal. *)
 
@@ -3037,11 +3568,15 @@ Proof.
       destruct (id_dec id0 id1); subst.
         rewrite lookupAL_updateAddAL_eq in Hlk0.
         inv Hlk0.
-        admit. (* if gvsa isnt ptr, done; else by Hwflc *)
+        apply Hwflc in Hlkp'.
+        apply no_alias_sym.
+        eapply valid_ptrs__no_alias__fresh_ptr; eauto.
+        admit. (* MemProp *)
 
         rewrite <- lookupAL_updateAddAL_neq in Hlk0; auto.
-        clear - Hpindom H0.
-        admit. (* sdom is acyclic *)
+        apply J2 in Hlk0.
+        unfold wf_non_alloca_GVs in Hlk0.
+        destruct (id_dec id1 (PI_id pinfo)); subst; try congruence.
 Qed.
 
 Lemma malloc_preserves_wf_defs_at_head : forall maxb pinfo TD M  
@@ -3075,9 +3610,11 @@ Proof.
           eapply malloc_preserves_mload_inv; eauto.
         destruct J as [J | J].
           destruct HwfM as [HwfM _].
-          admit. (* if gvs1 isnt ptr, done; else by HwfM *)
+          apply HwfM in J.
+          eapply valid_ptrs__no_alias__fresh_ptr; eauto.
+          admit. (* MemProp *)
 
-          eapply undef_disjoint_with_runtime_alloca; eauto.
+          eapply undef_disjoint_with_ptr; eauto.
 
         admit. (* MemProp by Hal. *)
 
@@ -3085,7 +3622,9 @@ Proof.
       unfold wf_non_alloca_GVs.
       destruct (id_dec id0 (PI_id pinfo)); auto.
       rewrite <- lookupAL_updateAddAL_neq in Hlk0; auto.
-      admit. (* if gvs1 isnt ptr, done; else by Hwflc *)
+      apply Hwflc in Hlk0.
+      eapply valid_ptrs__no_alias__fresh_ptr; eauto.
+      admit. (* MemProp *)
 
     rewrite <- lookupAL_updateAddAL_neq in Hlkp; auto.
     simpl in Hpindom.
@@ -3103,7 +3642,7 @@ Proof.
                 Some gvs1 = gundef TD ty) as J.
           eapply malloc_preserves_mload_inv; eauto.
         destruct J as [J | J]; eauto.
-          eapply undef_disjoint_with_runtime_alloca; eauto.
+          eapply undef_disjoint_with_ptr; eauto.
 
         exists gv. admit. (* MemProp by Hal. *)
 
@@ -3113,11 +3652,15 @@ Proof.
       destruct (id_dec id0 id1); subst.
         rewrite lookupAL_updateAddAL_eq in Hlk0.
         inv Hlk0.
-        admit. (* if gvsa isnt ptr, done; else by Hwflc *)
+        apply Hwflc in Hlkp'.
+        apply no_alias_sym.
+        eapply valid_ptrs__no_alias__fresh_ptr; eauto.
+        admit. (* MemProp *)
 
         rewrite <- lookupAL_updateAddAL_neq in Hlk0; auto.
-        clear - Hpindom H0.
-        admit. (* sdom is acyclic *)
+        apply J2 in Hlk0.
+        unfold wf_non_alloca_GVs in Hlk0.
+        destruct (id_dec id1 (PI_id pinfo)); subst; try congruence.
 Qed.
 
 Lemma malloc_preserves_wf_lc: forall TD M M' tsz gn align0 mb t id0 lc
