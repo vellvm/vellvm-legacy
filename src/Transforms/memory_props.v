@@ -941,6 +941,23 @@ Proof.
   inv_mbind'. eapply mbop_preserves_no_embedded_ptrs in H0; eauto.
 Qed.
 
+Lemma FBOP_preserves_no_alias: forall TD lc gl fbop0 fp v1 v2 gvs3 gvsa, 
+  FBOP TD lc gl fbop0 fp v1 v2 = ret gvs3 ->
+  no_alias gvs3 gvsa.
+Proof.
+  intros.
+  unfold FBOP in H.
+  inv_mbind'. eapply mfbop_preserves_no_alias in H0; eauto.
+Qed.
+
+Lemma FBOP_preserves_no_embedded_ptrs: forall TD lc gl fbop0 fp v1 v2 gvs3, 
+  FBOP TD lc gl fbop0 fp v1 v2 = ret gvs3 -> no_embedded_ptrs gvs3.
+Proof.
+  intros.
+  unfold FBOP in H.
+  inv_mbind'. eapply mfbop_preserves_no_embedded_ptrs in H0; eauto.
+Qed.
+
 Lemma undef__valid_lift_ptrs: forall g td t1 blk
   (Hc2g : ret g = gundef td t1), valid_ptrs blk ($ g # t1 $).
 Proof.

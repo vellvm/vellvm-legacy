@@ -335,12 +335,7 @@ Notation "$ gv # t $" := (DGVs.(gv2gvs) gv t) (at level 41).
 Definition noalias_EC (maxb:Values.block) (pinfo:PhiInfo) TD M 
   (ec:Opsem.ExecutionContext) : Prop :=
 let '(Opsem.mkEC f b cs tmn lc als) := ec in
-if (fdef_dec (PI_f pinfo) f) then 
-  match inscope_of_pc f b cs tmn with
-  | Some ids => wf_defs maxb pinfo TD M lc ids als
-  | None => False
-  end
-else True.
+if (fdef_dec (PI_f pinfo) f) then wf_defs maxb pinfo TD M lc als else True.
 
 Lemma phinodes_placement_is_correct__sBranch: forall 
   (pinfo : PhiInfo) (Cfg2 : OpsemAux.Config) (St2 : Opsem.State)
@@ -426,12 +421,6 @@ Proof.
       (* By promotablity *)
       unfold noalias_EC in Hnoalias.
       destruct (fdef_dec (PI_f pinfo) (PI_f pinfo)); try congruence.
-      remember (inscope_of_pc (PI_f pinfo) B nil (insn_br bid Cond l1 l2))as R0.
-      destruct R0; tinv Hnoalias.
-      assert (In (PI_id pinfo) l0) as Hpindom.
-        (* pinfo.(PI_id) is defined at the entry that must strictly dominate all
-           reachable block's ends *)
-        admit.
       assert (exists gvsa, lookupAL _ lc (PI_id pinfo) = Some gvsa) 
         as Hlkup.
         (* WF ssa isnt stuck by accessing undefined variables *)
