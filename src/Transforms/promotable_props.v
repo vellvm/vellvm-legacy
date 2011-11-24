@@ -899,6 +899,23 @@ Proof.
     eauto.
 Qed.
 
+Ltac simpl_WF_PhiInfo :=
+match goal with
+| H : WF_PhiInfo ?pinfo |- _ =>
+  destruct pinfo; simpl in *;
+  destruct H as [H _];
+  unfold promotable_alloca in H;
+  match goal with
+  | H : match getEntryBlock ?PI_f0 with
+        | Some _ => _
+        | None => _
+        end |- _ =>
+    remember (getEntryBlock PI_f0) as R;
+    destruct R as [[]|]; tinv H;
+    apply find_promotable_alloca_spec in H
+  end
+end.
+
 Lemma WF_PhiInfo_spec1: forall pinfo, 
   WF_PhiInfo pinfo -> 
   uniqFdef (PI_f pinfo) ->
@@ -907,14 +924,8 @@ Lemma WF_PhiInfo_spec1: forall pinfo,
       Some (insn_cmd 
              (insn_alloca (PI_id pinfo) (PI_typ pinfo) v (PI_align pinfo))).
 Proof.
-  destruct pinfo. simpl.
-  intros.
-  destruct H as [H _].
-  unfold promotable_alloca in H.
-  remember (getEntryBlock PI_f0) as R.
-  destruct R; tinv H.
-  destruct b.
-  apply find_promotable_alloca_spec in H.
+  intros. 
+  simpl_WF_PhiInfo.
   destruct H as [v [H _]].
   exists v. 
   symmetry in HeqR.
@@ -940,6 +951,26 @@ Definition is_promotable_fun pid :=
           else acc0) cs acc
   ). 
 
+Lemma fold_left_or_false : forall B (f:bool -> B -> bool)
+  (J:forall a b, f a b = false -> a = false), 
+  forall (l1:list B) init, 
+    List.fold_left f l1 init = false ->
+    List.fold_left f l1 false = false /\ init = false.
+Proof.
+  induction l1; simpl; intros; eauto.
+    assert (H':=H).
+    apply IHl1 in H.
+    destruct H as [H1 H2].
+    apply J in H2. subst.
+    split; auto.
+Qed.
+
+Lemma used_in_phi_fun_spec: forall pid (a0 : bool) (b : phinode),
+  a0 || used_in_phi pid b = false -> a0 = false.
+Proof.
+  intros. apply orb_false_iff in H. destruct H; auto.
+Qed.
+
 Lemma unused_in_phis__unused_in_phi: forall (pid id0 : id) (ps : phinodes)
   (p0 : phinode) (J1 : ret p0 = lookupPhiNodeViaIDFromPhiNodes ps id0)
   (J2 : fold_left (fun (re : bool) (p : phinode) => re || used_in_phi pid p) 
@@ -951,10 +982,61 @@ Proof.
 
     assert (fold_left (fun (re : bool) (p : phinode) => re || used_in_phi pid p)
               ps false = false /\ used_in_phi pid a = false) as J3.
-      admit.
+      apply fold_left_or_false; auto.
+        apply used_in_phi_fun_spec.
+
     destruct J3 as [J3 J4].
     destruct (getPhiNodeID a == id0); subst; eauto.
       inv J1. auto.
+Qed.
+
+Lemma unused_in_value__neg_valueEqB: forall pid v,
+  used_in_value pid v = false ->
+  negb (valueEqB v (value_id pid)).
+Proof.
+  intros.
+  unfold valueEqB. 
+  destruct v; inv H; simpl.
+    destruct (value_dec (value_id i0) (value_id pid)); simpl.
+      inversion e. subst.
+      destruct (id_dec pid pid); subst; inv H1; try congruence.
+         
+      reflexivity.
+
+    destruct (value_dec (value_const c) (value_id pid)); simpl.
+      congruence.
+      reflexivity.
+Qed.
+
+Lemma fold_left_and_true : forall B (f:bool -> B -> bool)
+  (J:forall a b, f a b = true -> a = true), 
+  forall (l1:list B) init, 
+    List.fold_left f l1 init = true ->
+    List.fold_left f l1 true = true /\ init = true.
+Proof.
+  induction l1; simpl; intros; eauto.
+    assert (H':=H).
+    apply IHl1 in H.
+    destruct H as [H1 H2].
+    apply J in H2. subst.
+    split; auto.
+Qed.
+
+Lemma used_in_cmd_fun_spec:
+  forall pid acc0 c,
+  (if used_in_cmd pid c then
+    match c with
+    | insn_load _ _ _ _ => acc0
+    | insn_store _ _ v _ _ => negb (valueEqB v (value_id pid)) && acc0
+    | _ => false
+    end
+  else acc0) = true -> acc0 = true.
+Proof.
+  intros. clear - H.
+  destruct acc0; auto.
+  destruct (used_in_cmd pid c); auto.
+  destruct c; auto.
+  apply andb_true_iff in H. destruct H; auto.
 Qed.
 
 Lemma unused_in_cmds__unused_in_cmd: forall (pid id0 : id) (cs : cmds)
@@ -994,7 +1076,9 @@ Proof.
          | _ => false
          end
        else true) = true) as J3.
-      admit.
+      apply fold_left_and_true; auto.
+        apply used_in_cmd_fun_spec.
+
     destruct J3 as [J3 J4]. clear J2.
     destruct (eq_atom_dec id0 (getCmdLoc a)); subst.
       inv J1. clear IHcs J3.
@@ -1008,16 +1092,25 @@ Proof.
           symmetry in HeqR.
           apply orb_false_iff in HeqR. 
            destruct HeqR. 
-           unfold valueEqB. 
-           destruct v; inv H; simpl.
-             destruct (value_dec (value_id i1) (value_id pid)); auto.
-             inversion e. subst.
-             destruct (id_dec pid pid); subst; inv H2; try congruence.
-         
-             destruct (value_dec (value_const c) (value_id pid)); auto.
-               congruence.
+           apply unused_in_value__neg_valueEqB; auto.
+
       clear J4.
       eapply IHcs in J3; eauto.
+Qed.
+
+Lemma is_promotable_fun_spec: forall pid (a0: bool) (b: block)
+  (H1: is_promotable_fun pid a0 b = true), a0 = true.
+Proof.
+  intros. clear - H1.
+  destruct a0; auto.
+  unfold is_promotable_fun in H1.
+  destruct b.
+  destruct (fold_left
+    (fun (re : bool) (p : phinode) => re || used_in_phi pid p) p
+    (used_in_tmn pid t)); auto.
+  apply fold_left_and_true in H1.
+  destruct H1 as [_ H1]; auto.
+  apply used_in_cmd_fun_spec.
 Qed.
 
 Lemma is_promotable_spec: forall pid id0 instr bs,
@@ -1038,7 +1131,9 @@ Proof.
 
     assert (fold_left (is_promotable_fun pid) bs true = true /\ 
             is_promotable_fun pid true a = true) as J.
-      admit.
+      apply fold_left_and_true; auto.
+        apply is_promotable_fun_spec.
+
     destruct J as [J1 J2].
     remember (lookupInsnViaIDFromBlock a id0) as R.
     destruct R.
@@ -1053,7 +1148,9 @@ Proof.
                (fun (re : bool) (p : phinode) => re || used_in_phi pid p) 
                  p false = false /\
               used_in_tmn pid t = false) as J.
-        admit.
+        apply fold_left_or_false; auto.
+          apply used_in_phi_fun_spec.        
+
       destruct J as [J3 J4]. clear HeqR0.
       remember (lookupPhiNodeViaIDFromPhiNodes p id0) as R1.
       remember (lookupCmdViaIDFromCmds c id0) as R2.
@@ -1083,14 +1180,8 @@ Lemma WF_PhiInfo_spec3: forall pinfo,
     | _ => used_in_insn (PI_id pinfo) instr = false
     end.
 Proof.
-  destruct pinfo. simpl.
   intros.
-  destruct H as [H _].
-  unfold promotable_alloca in H.
-  remember (getEntryBlock PI_f0) as R.
-  destruct R; tinv H.
-  destruct b.
-  apply find_promotable_alloca_spec in H.
+  simpl_WF_PhiInfo.
   destruct H as [v [_ H]].
   destruct PI_f0. simpl in *.
   eapply is_promotable_spec in H0; eauto.
@@ -1118,6 +1209,60 @@ Proof.
     destruct H0 as [J1 J2].
     destruct H1 as [H1 | H1]; subst; auto.
 Qed.
+
+Lemma neg_valueEqB__unused_in_value: forall pid v,
+  negb (valueEqB v (value_id pid)) ->
+  used_in_value pid v = false.
+Proof.
+  intros.
+  unfold valueEqB in H.  
+  destruct v; auto.
+  destruct (value_dec (value_id i0) (value_id pid)); simpl in *.
+    congruence.
+
+    destruct (id_dec i0 pid); subst; auto.
+      congruence.
+Qed.
+
+Lemma unused_in_list_value__unused_in_value: forall pid v0 l0,
+  used_in_list_value pid l0 = false ->
+  valueInListValue v0 l0 ->
+  used_in_value pid v0 = false.
+Proof.
+  induction l0; simpl; intros.
+    inv H0.
+     
+    apply orb_false_iff in H.
+    destruct H as [J1 J2].
+    inv H0; auto.
+Qed.
+
+Lemma unused_in_params__used_in_value: forall pid v0 ps
+  (H1: fold_left
+         (fun (acc : bool) (p : typ * attributes * value) =>
+          let '(_, v) := p in used_in_value pid v || acc) ps false = false)
+  (H2 : valueInParams v0 ps),
+  used_in_value pid v0 = false.
+Proof.
+  induction ps as [|[]]; simpl; intros.
+    inv H2.
+
+    assert (forall (a : bool) (b : typ * attributes * value),
+      (let '(_, v1) := b in used_in_value pid v1 || a) = false -> a = false).
+      intros. destruct b.
+      apply orb_false_iff in H.
+      destruct H; auto.
+    apply fold_left_or_false in H1; auto.
+    destruct H1 as [J1 J2]. clear H.
+    apply orb_false_iff in J2.
+    destruct J2.
+    unfold valueInParams in *.
+    simpl in H2.
+    remember (split ps) as R.
+    destruct R.
+    simpl in H2.
+    destruct H2 as [H2 | H2]; subst; auto.
+Qed.   
 
 Lemma WF_PhiInfo_spec4: forall pinfo, 
   WF_PhiInfo pinfo -> 
@@ -1154,17 +1299,23 @@ Proof.
       ].
 
       subst. 
-      destruct v0; auto.
-      unfold valueEqB in H0.  
-      destruct (value_dec (value_id i1) (value_id (PI_id pinfo))); simpl in *.
-        congruence.
+      apply neg_valueEqB__unused_in_value; auto.
 
-        destruct (id_dec i1 (PI_id pinfo)); subst; auto.
-          congruence.
+      apply orb_false_iff in H0.
+      destruct H0 as [J1 J2].
+      destruct H1 as [H1 | H1]; subst; auto.
+      eapply unused_in_list_value__unused_in_value in J2; eauto.
 
-      admit. 
-      admit.
-      admit. 
+      apply orb_false_iff in H0.
+      destruct H0 as [J1 J2].
+      apply orb_false_iff in J1.
+      destruct J1 as [J1 J3].
+      destruct H1 as [H1 | [H1 | H1]]; subst; auto.
+
+      apply orb_false_iff in H0.
+      destruct H0 as [J1 J2].
+      destruct H1 as [H1 | H1]; subst;   
+        eauto using unused_in_params__used_in_value.
 
     unfold wf_use_at_head.
     destruct t; simpl in *; subst; 
@@ -1173,19 +1324,243 @@ Proof.
                         end].
 Qed.
 
+Lemma unused_in_phis__unused_in_phi': forall (pid: id) (ps: phinodes) 
+  (p0 : phinode) (J1 : InPhiNodesB p0 ps)
+  (J2 : fold_left (fun (re : bool) (p : phinode) => re || used_in_phi pid p) 
+          ps false = false),
+  used_in_phi pid p0 = false.
+Proof.
+  induction ps; simpl; intros.
+    congruence.
+
+    assert (fold_left (fun (re : bool) (p : phinode) => re || used_in_phi pid p)
+              ps false = false /\ used_in_phi pid a = false) as J3.
+      apply fold_left_or_false; auto.
+        apply used_in_phi_fun_spec.        
+
+    destruct J3 as [J3 J4].
+    apply orb_true_iff in J1.
+    destruct J1 as [J1 | J1]; auto.
+      apply phinodeEqB_inv in J1. subst. auto.
+Qed.
+
+Lemma unused_in_cmds__unused_in_cmd': forall (pid id0 : id) (cs : cmds)
+  (c0 : cmd) (J1 : InCmdsB c0 cs)
+  (J2 : fold_left 
+          (fun acc0 c =>
+           if used_in_cmd pid c then
+             match c with
+             | insn_load _ _ _ _ => acc0
+             | insn_store _ _ v _ _ => negb (valueEqB v (value_id pid)) && acc0
+             | _ => false
+             end
+           else acc0) cs true = true),
+  match c0 with
+  | insn_load _ _ _ _ => True
+  | insn_store _ _ v _ _ => negb (valueEqB v (value_id pid)) 
+  | _ => used_in_cmd pid c0 = false
+  end.
+Proof.
+  induction cs; simpl; intros.
+    congruence.
+
+    assert (
+      fold_left 
+        (fun acc0 c =>
+         if used_in_cmd pid c then
+           match c with
+           | insn_load _ _ _ _ => acc0
+           | insn_store _ _ v _ _ => negb (valueEqB v (value_id pid)) && acc0
+           | _ => false
+           end
+         else acc0) cs true = true /\
+      (if used_in_cmd pid a then
+         match a with
+         | insn_load _ _ _ _ => true
+         | insn_store _ _ v _ _ => negb (valueEqB v (value_id pid)) && true
+         | _ => false
+         end
+       else true) = true) as J3.
+      apply fold_left_and_true; auto.
+        apply used_in_cmd_fun_spec.
+
+    destruct J3 as [J3 J4]. clear J2.
+    apply orb_true_iff in J1.
+    destruct J1 as [J1 | J1].
+      clear IHcs J3.
+      apply cmdEqB_inv in J1. subst.
+      remember (used_in_cmd pid a) as R.
+      destruct R.    
+        destruct a; auto.
+          apply andb_true_iff in J4. 
+          destruct J4; auto.
+
+        destruct a; auto.
+          simpl in *.
+          symmetry in HeqR.
+          apply orb_false_iff in HeqR. 
+          destruct HeqR. 
+          apply unused_in_value__neg_valueEqB; auto.
+
+      clear J4.
+      eapply IHcs in J3; eauto.
+Qed.
+
+Lemma is_promotable_spec': forall pid b instr bs,
+  fold_left (is_promotable_fun pid) bs true = true ->
+  insnInBlockB instr b ->
+  InBlocksB b bs -> 
+  match instr with
+  | insn_cmd c0 =>
+    match c0 with
+    | insn_load _ _ _ _ => True
+    | insn_store _ _ v _ _ => negb (valueEqB v (value_id pid)) 
+    | _ => used_in_cmd pid c0 = false
+    end
+  | _ => used_in_insn pid instr = false
+  end.
+Proof.
+  induction bs; simpl; intros; try congruence.
+
+    assert (fold_left (is_promotable_fun pid) bs true = true /\ 
+            is_promotable_fun pid true a = true) as J.
+      apply fold_left_and_true; auto.
+        apply is_promotable_fun_spec.
+
+    destruct J as [J1 J2]. clear H.
+    apply orb_true_iff in H1.
+    destruct H1 as [H1 | H1].
+      apply blockEqB_inv in H1. subst.
+      clear - J2 H0.
+      destruct a; simpl in *.
+      remember (fold_left
+                 (fun (re : bool) (p : phinode) => re || used_in_phi pid p) p
+                 (used_in_tmn pid t)) as R.
+      destruct R; tinv J2.
+      assert (fold_left 
+               (fun (re : bool) (p : phinode) => re || used_in_phi pid p) 
+                 p false = false /\
+              used_in_tmn pid t = false) as J.
+        apply fold_left_or_false; auto.
+          apply used_in_phi_fun_spec.  
+
+      destruct J as [J3 J4]. clear HeqR.
+      destruct instr; simpl in *.
+        eapply unused_in_phis__unused_in_phi' in J3; eauto.
+        eapply unused_in_cmds__unused_in_cmd' in J2; eauto.
+        apply terminatorEqB_inv in H0. subst. auto.
+
+      apply IHbs in J1; auto.
+Qed.
+
 Lemma WF_PhiInfo_spec5: forall pinfo pn b, 
   WF_PhiInfo pinfo -> 
   phinodeInFdefBlockB pn (PI_f pinfo) b = true -> 
   used_in_phi (PI_id pinfo) pn = false.
 Proof.
   intros.
-Admitted.
+  simpl_WF_PhiInfo.
+  destruct H as [v [_ H]].
+  destruct PI_f0. simpl in *.
+  unfold phinodeInFdefBlockB in H0.
+  apply andb_true_iff in H0.
+  destruct H0.
+  eapply is_promotable_spec' with (instr:=insn_phinode pn) in H1; eauto.
+Qed.
+
+Lemma IngetPhiNodesIDs__lookupPhiNodeViaIDFromPhiNodes: forall id2 ps1
+  (H0 : In id2 (getPhiNodesIDs ps1)),
+  exists p2, lookupPhiNodeViaIDFromPhiNodes ps1 id2 = Some p2 /\
+             getPhiNodeID p2 = id2.
+Proof.
+  induction ps1; simpl; intros.
+    inv H0.
+
+    destruct H0 as [H0 | H0]; subst.
+      destruct (getPhiNodeID a == getPhiNodeID a); eauto.
+        congruence.
+
+      destruct (@eq_dec id (EqDec_eq_of_EqDec id EqDec_atom) (getPhiNodeID a) 
+                 id2); subst; eauto.
+Qed.
+
+Lemma lookupInsnViaIDFromBlocks__In : forall id0 instr bs,
+  lookupInsnViaIDFromBlocks bs id0 = Some instr ->
+  In id0 (getBlocksLocs bs).
+Proof.
+  induction bs; simpl; intros.
+    inv H.
+
+    apply in_or_app.
+    remember (lookupInsnViaIDFromBlock a id0) as R.
+    destruct R; eauto.
+      inv H.
+      symmetry in HeqR.
+      apply lookupInsnViaIDFromBlock__In in HeqR; auto.
+Qed.
+
+Lemma IngetPhiNodesIDs__lookupPhinodeViaIDFromFdef: forall id2 l1 ps1 cs1 tmn1 f
+  (Huniq: uniqFdef f)
+  (H : blockInFdefB (block_intro l1 ps1 cs1 tmn1) f = true)
+  (H0 : In id2 (getPhiNodesIDs ps1)),
+  exists p2, lookupInsnViaIDFromFdef f id2 = Some (insn_phinode p2) /\
+             getPhiNodeID p2 = id2.
+Proof.
+  destruct f as [[] bs]. simpl. intros.
+  destruct Huniq as [_ Huniq].
+  apply NoDup_split in Huniq.
+  destruct Huniq as [_ Huniq].
+  generalize dependent l1.
+  generalize dependent ps1.
+  generalize dependent cs1.
+  generalize dependent tmn1.
+  generalize dependent id2.
+  induction bs; simpl; intros.
+    congruence.
+
+    apply orb_true_iff in H.
+    destruct H as [H | H].
+      apply blockEqB_inv in H.
+      subst. simpl.
+      apply IngetPhiNodesIDs__lookupPhiNodeViaIDFromPhiNodes in H0.
+      destruct H0 as [ps [H0 Heq]]; subst.
+      rewrite H0. eauto.
+
+      simpl_env in Huniq. rewrite getBlocksLocs_app in Huniq.
+      assert (Huniq':=Huniq).
+      apply NoDup_inv in Huniq'. destruct Huniq'.
+      eapply IHbs in H; eauto.
+      destruct H as [p2 [H Heq]]; subst.
+      rewrite H. 
+      apply lookupInsnViaIDFromBlocks__In in H.
+      eapply infrastructure_props.NoDup_disjoint in Huniq; eauto.
+      simpl in Huniq. simpl_env in Huniq.
+      apply notin__lookupInsnViaIDFromBlock_none in Huniq.
+      rewrite Huniq. eauto.
+Qed.
 
 Lemma WF_PhiInfo_spec6: forall pinfo l' ps' cs' tmn', 
   WF_PhiInfo pinfo -> 
+  uniqFdef (PI_f pinfo) ->
   ret block_intro l' ps' cs' tmn' = lookupBlockViaLabelFromFdef (PI_f pinfo) l' ->
   ~ In (PI_id pinfo) (getPhiNodesIDs ps').
-Admitted.
+Proof.
+  intros.
+  simpl_WF_PhiInfo.
+  destruct H as [pv [H _]].
+  symmetry in HeqR.
+  apply entryBlockInFdef in HeqR.
+  eapply IngetCmdsIDs__lookupCmdViaIDFromFdef in H; eauto.
+  simpl in H.
+
+  symmetry in H1.
+  apply lookupBlockViaLabelFromFdef_inv in H1; auto.
+  destruct H1 as [_ H1].
+  intro J. 
+  eapply IngetPhiNodesIDs__lookupPhinodeViaIDFromFdef in J; eauto.  
+  destruct J as [p2 [J1 J2]].
+  rewrite H in J1. congruence.
+Qed.
 
 Lemma PhiInfo_must_be_promotable_alloca: forall pinfo l0 ps0 cs1 c cs2 tmn0,
   WF_PhiInfo pinfo ->
@@ -1528,7 +1903,9 @@ Qed.
 Lemma wf_EC__wf_lc : forall maxb pinfo TD M EC,
   wf_ExecutionContext maxb pinfo TD M EC ->
   wf_lc M (Opsem.Locals EC).
-Admitted.
+Proof.
+  intros. destruct EC. simpl. destruct H; auto.
+Qed.  
 
 Lemma mload__wf_GVs_in_ECs : forall (v : value) (v0 : value) (id1 : id) 
   gvs3 t align0 EC Mem td pinfo maxb mp
@@ -1783,7 +2160,15 @@ Lemma IngetArgsIDs__lookupCmdViaIDFromFdef: forall fa rt fid la va lb id0
   (H0 : In id0 (getArgsIDs la)),
   lookupInsnViaIDFromFdef (fdef_intro (fheader_intro fa rt fid la va) lb) id0 
     = None.
-Admitted.
+Proof.
+  simpl. intros.
+  destruct Huniq as [_ Huniq].
+  remember (lookupInsnViaIDFromBlocks lb id0) as R.
+  destruct R; auto.
+  eapply NoDup_disjoint' in Huniq; eauto.
+  contradict Huniq.
+  eapply lookupInsnViaIDFromBlocks__In; eauto.
+Qed.
 
 Lemma In_initializeFrameValues__In_getArgsIDs: forall (GVsSig : GenericValues) 
   (TD : TargetData) (la : args) (gvs : list (GVsT GVsSig)) (id1 : atom) 
@@ -2355,6 +2740,15 @@ Lemma WF_PhiInfo_spec2: forall pinfo ifs S los nts Ps,
   WF_PhiInfo pinfo ->
   wf_fdef ifs S (module_intro los nts Ps) (PI_f pinfo) ->
   exists mc, flatten_typ (los, nts) (PI_typ pinfo) = Some mc.
+Proof.
+  intros.
+  simpl_WF_PhiInfo.
+  destruct H as [pv [J1 J2]].
+  symmetry in HeqR.
+  apply entryBlockInFdef in HeqR.
+  eapply wf_fdef__wf_cmd in HeqR; eauto.
+  inv HeqR.
+  apply flatten_typ_total; auto.
 Admitted.
 
 Lemma alloca_preserves_wf_defs_at_head : forall maxb pinfo los nts M  
@@ -2785,83 +3179,23 @@ Proof.
       split; auto.
 Qed.
 
-Lemma IngetPhiNodesIDs__lookupPhiNodeViaIDFromPhiNodes: forall id2 ps1
-  (H0 : In id2 (getPhiNodesIDs ps1)),
-  exists p2, lookupPhiNodeViaIDFromPhiNodes ps1 id2 = Some p2 /\
-             getPhiNodeID p2 = id2.
-Proof.
-  induction ps1; simpl; intros.
-    inv H0.
-
-    destruct H0 as [H0 | H0]; subst.
-      destruct (getPhiNodeID a == getPhiNodeID a); eauto.
-        congruence.
-
-      destruct (@eq_dec id (EqDec_eq_of_EqDec id EqDec_atom) (getPhiNodeID a) 
-                 id2); subst; eauto.
-Qed.
-
-Lemma lookupInsnViaIDFromBlocks__In : forall id0 instr bs,
-  lookupInsnViaIDFromBlocks bs id0 = Some instr ->
-  In id0 (getBlocksLocs bs).
-Proof.
-  induction bs; simpl; intros.
-    inv H.
-
-    apply in_or_app.
-    remember (lookupInsnViaIDFromBlock a id0) as R.
-    destruct R; eauto.
-      inv H.
-      symmetry in HeqR.
-      apply lookupInsnViaIDFromBlock__In in HeqR; auto.
-Qed.
-
-Lemma IngetPhiNodesIDs__lookupPhinodeViaIDFromFdef: forall id2 l1 ps1 cs1 tmn1 f
-  (Huniq: uniqFdef f)
-  (H : blockInFdefB (block_intro l1 ps1 cs1 tmn1) f = true)
-  (H0 : In id2 (getPhiNodesIDs ps1)),
-  exists p2, lookupInsnViaIDFromFdef f id2 = Some (insn_phinode p2) /\
-             getPhiNodeID p2 = id2.
-Proof.
-  destruct f as [[] bs]. simpl. intros.
-  destruct Huniq as [_ Huniq].
-  apply NoDup_split in Huniq.
-  destruct Huniq as [_ Huniq].
-  generalize dependent l1.
-  generalize dependent ps1.
-  generalize dependent cs1.
-  generalize dependent tmn1.
-  generalize dependent id2.
-  induction bs; simpl; intros.
-    congruence.
-
-    apply orb_true_iff in H.
-    destruct H as [H | H].
-      apply blockEqB_inv in H.
-      subst. simpl.
-      apply IngetPhiNodesIDs__lookupPhiNodeViaIDFromPhiNodes in H0.
-      destruct H0 as [ps [H0 Heq]]; subst.
-      rewrite H0. eauto.
-
-      simpl_env in Huniq. rewrite getBlocksLocs_app in Huniq.
-      assert (Huniq':=Huniq).
-      apply NoDup_inv in Huniq'. destruct Huniq'.
-      eapply IHbs in H; eauto.
-      destruct H as [p2 [H Heq]]; subst.
-      rewrite H. 
-      apply lookupInsnViaIDFromBlocks__In in H.
-      eapply infrastructure_props.NoDup_disjoint in Huniq; eauto.
-      simpl in Huniq. simpl_env in Huniq.
-      apply notin__lookupInsnViaIDFromBlock_none in Huniq.
-      rewrite Huniq. eauto.
-Qed.
-
-Lemma unused_in_phi__wf_use_at_head: forall pinfo id1 t1 vls1 ps' v1 l1 n,
+Lemma unused_in_phi__wf_use_at_head: forall pinfo id1 t1 v1 l1 n vls1,
   used_in_phi (PI_id pinfo) (insn_phi id1 t1 vls1) = false ->
-  In (insn_phi id1 t1 vls1) ps' ->
   nth_list_value_l n vls1 = ret (v1, l1) ->
-  wf_use_at_head pinfo v1.      
-Admitted.
+  wf_use_at_head pinfo v1.
+Proof.
+  unfold wf_use_at_head.
+  induction n; simpl; intros.
+    destruct vls1; inv H0.
+    simpl in H.
+    apply orb_false_iff in H.
+    destruct H; auto.
+
+    destruct vls1; inv H0.
+    simpl in H.
+    apply orb_false_iff in H.
+    destruct H; eauto.
+Qed.
 
 Lemma In_InPhiNodesB: forall p ps, In p ps -> InPhiNodesB p ps.
 Proof.
