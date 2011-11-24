@@ -2755,6 +2755,42 @@ Proof.
     apply H.
 Qed.
 
+Lemma fold_left_or_false : forall B (f:bool -> B -> bool)
+  (J:forall a b, f a b = false -> a = false), 
+  forall (l1:list B) init, 
+    List.fold_left f l1 init = false ->
+    List.fold_left f l1 false = false /\ init = false.
+Proof.
+  induction l1; simpl; intros; eauto.
+    assert (H':=H).
+    apply IHl1 in H.
+    destruct H as [H1 H2].
+    apply J in H2. subst.
+    split; auto.
+Qed.
+
+Lemma fold_left_and_true : forall B (f:bool -> B -> bool)
+  (J:forall a b, f a b = true -> a = true), 
+  forall (l1:list B) init, 
+    List.fold_left f l1 init = true ->
+    List.fold_left f l1 true = true /\ init = true.
+Proof.
+  induction l1; simpl; intros; eauto.
+    assert (H':=H).
+    apply IHl1 in H.
+    destruct H as [H1 H2].
+    apply J in H2. subst.
+    split; auto.
+Qed.
+
+Lemma fold_left_or_spec : forall B (f:bool -> B -> bool)
+  (J:forall a b, a = true -> f a b = true), 
+  forall (l1:list B), List.fold_left f l1 true = true.
+Proof.
+  induction l1; simpl; intros; eauto.
+    rewrite J; auto.
+Qed.
+
 Lemma not_id_dec__neq : forall id5 id0,
   @eq _ (@proj_sumbool _ _ (id_dec id5 id0)) false ->
   id5 <> id0.
@@ -2801,6 +2837,177 @@ Lemma sublist_app : forall A l1 l2 l1' l2',
   sublist A l1' l2' -> 
   sublist A (l1++l1') (l2++l2').
 Proof. induction 1; intros; simpl; auto using sublist_refl, sublist_weaken. Qed.
+
+Lemma NoDup_split': forall A (l1 l2:list A),
+  NoDup (l1++l2) ->
+  NoDup l1 /\ NoDup l2 /\ (forall (a:A), In a l1 -> ~ In a l2).
+Proof.
+  induction l1; simpl; intros; auto.
+    inv H.
+    apply IHl1 in H3. destruct H3 as [J1 [J2 J3]].
+    split.
+      constructor; auto.
+        intro J. apply H2. apply in_or_app; auto.
+    split; auto.
+      intros. 
+      destruct H as [H | H]; subst; auto.
+        intro J. apply H2. apply in_or_app; auto.
+Qed.
+
+Lemma IngetCmdsLocs__lookupCmdViaIDFromCmds: forall c1 cs1
+  (Huniq: NoDup (getCmdsLocs cs1)) (H0 : In c1 cs1),
+  lookupCmdViaIDFromCmds cs1 (getCmdLoc c1) = Some c1.
+Proof.
+  induction cs1; simpl; intros.
+    inv H0.
+
+    destruct H0 as [H0 | H0]; subst.
+      destruct (eq_atom_dec (getCmdLoc c1) (getCmdLoc c1)); auto.
+        congruence.
+      inv Huniq.
+      destruct (eq_atom_dec (getCmdLoc c1) (getCmdLoc a)); auto.
+        contradict H2. rewrite <- e. apply In_InCmdLocs; auto. 
+Qed.
+
+Lemma IngetCmdsIDs__lookupCmdViaIDFromFdef: forall c1 l1 ps1 cs1 tmn1 f
+  (Huniq: uniqFdef f)
+  (H : blockInFdefB (block_intro l1 ps1 cs1 tmn1) f = true)
+  (H0 : In c1 cs1),
+  lookupInsnViaIDFromFdef f (getCmdLoc c1) = Some (insn_cmd c1).
+Proof.
+  destruct f as [[] bs]. simpl. intros.
+  destruct Huniq as [_ Huniq].
+  apply NoDup_split in Huniq.
+  destruct Huniq as [_ Huniq].
+  generalize dependent l1.
+  generalize dependent ps1.
+  generalize dependent cs1.
+  generalize dependent tmn1.
+  induction bs; simpl; intros.
+    inv H.
+
+    simpl in Huniq.
+    apply NoDup_split' in Huniq.
+    destruct Huniq as [J1 [J2 J3]].
+    apply orb_true_iff in H.
+    destruct H as [H | H].
+      apply blockEqB_inv in H.
+      subst. simpl.
+      assert (~ In (getCmdLoc c1) (getPhiNodesIDs ps1)) as Hnotin.
+        simpl in J1. 
+        apply infrastructure_props.NoDup_disjoint with (i0:=getCmdLoc c1) 
+          in J1; auto.
+        apply in_or_app. left. apply In_InCmdLocs; auto.
+      rewrite notin__lookupPhiNodeViaIDFromPhiNodes_none; auto.
+      simpl in J1. apply NoDup_inv in J1. destruct J1 as [_ J1].
+      apply NoDup_inv in J1. destruct J1 as [Huniq _].
+      rewrite IngetCmdsLocs__lookupCmdViaIDFromCmds; auto.
+
+      assert (~ In (getCmdLoc c1) (getBlockLocs a0)) as Hnotin.     
+        intro J. apply J3 in J. apply J.
+        eapply in_getBlockLocs__in_getBlocksLocs in H; eauto.
+        simpl. apply in_or_app. right. 
+        apply in_or_app. left. apply In_InCmdLocs; auto.
+      rewrite notin__lookupInsnViaIDFromBlock_none; auto.
+      eapply IHbs; eauto.
+Qed.
+
+Lemma IngetPhiNodesIDs__lookupPhiNodeViaIDFromPhiNodes: forall id2 ps1
+  (H0 : In id2 (getPhiNodesIDs ps1)),
+  exists p2, lookupPhiNodeViaIDFromPhiNodes ps1 id2 = Some p2 /\
+             getPhiNodeID p2 = id2.
+Proof.
+  induction ps1; simpl; intros.
+    inv H0.
+
+    destruct H0 as [H0 | H0]; subst.
+      destruct (getPhiNodeID a == getPhiNodeID a); eauto.
+        congruence.
+
+      destruct (@eq_dec id (EqDec_eq_of_EqDec id EqDec_atom) (getPhiNodeID a) 
+                 id2); subst; eauto.
+Qed.
+
+Lemma lookupInsnViaIDFromBlocks__In : forall id0 instr bs,
+  lookupInsnViaIDFromBlocks bs id0 = Some instr ->
+  In id0 (getBlocksLocs bs).
+Proof.
+  induction bs; simpl; intros.
+    inv H.
+
+    apply in_or_app.
+    remember (lookupInsnViaIDFromBlock a id0) as R.
+    destruct R; eauto.
+      inv H.
+      symmetry in HeqR.
+      apply lookupInsnViaIDFromBlock__In in HeqR; auto.
+Qed.
+
+Lemma IngetPhiNodesIDs__lookupPhinodeViaIDFromFdef: forall id2 l1 ps1 cs1 tmn1 f
+  (Huniq: uniqFdef f)
+  (H : blockInFdefB (block_intro l1 ps1 cs1 tmn1) f = true)
+  (H0 : In id2 (getPhiNodesIDs ps1)),
+  exists p2, lookupInsnViaIDFromFdef f id2 = Some (insn_phinode p2) /\
+             getPhiNodeID p2 = id2.
+Proof.
+  destruct f as [[] bs]. simpl. intros.
+  destruct Huniq as [_ Huniq].
+  apply NoDup_split in Huniq.
+  destruct Huniq as [_ Huniq].
+  generalize dependent l1.
+  generalize dependent ps1.
+  generalize dependent cs1.
+  generalize dependent tmn1.
+  generalize dependent id2.
+  induction bs; simpl; intros.
+    congruence.
+
+    apply orb_true_iff in H.
+    destruct H as [H | H].
+      apply blockEqB_inv in H.
+      subst. simpl.
+      apply IngetPhiNodesIDs__lookupPhiNodeViaIDFromPhiNodes in H0.
+      destruct H0 as [ps [H0 Heq]]; subst.
+      rewrite H0. eauto.
+
+      simpl_env in Huniq. rewrite getBlocksLocs_app in Huniq.
+      assert (Huniq':=Huniq).
+      apply NoDup_inv in Huniq'. destruct Huniq'.
+      eapply IHbs in H; eauto.
+      destruct H as [p2 [H Heq]]; subst.
+      rewrite H. 
+      apply lookupInsnViaIDFromBlocks__In in H.
+      eapply infrastructure_props.NoDup_disjoint in Huniq; eauto.
+      simpl in Huniq. simpl_env in Huniq.
+      apply notin__lookupInsnViaIDFromBlock_none in Huniq.
+      rewrite Huniq. eauto.
+Qed.
+
+Lemma IngetArgsIDs__lookupCmdViaIDFromFdef: forall fa rt fid la va lb id0
+  (Huniq: uniqFdef (fdef_intro (fheader_intro fa rt fid la va) lb))
+  (H0 : In id0 (getArgsIDs la)),
+  lookupInsnViaIDFromFdef (fdef_intro (fheader_intro fa rt fid la va) lb) id0 
+    = None.
+Proof.
+  simpl. intros.
+  destruct Huniq as [_ Huniq].
+  remember (lookupInsnViaIDFromBlocks lb id0) as R.
+  destruct R; auto.
+  eapply NoDup_disjoint' in Huniq; eauto.
+  contradict Huniq.
+  eapply lookupInsnViaIDFromBlocks__In; eauto.
+Qed.
+
+Lemma In_InPhiNodesB: forall p ps, In p ps -> InPhiNodesB p ps.
+Proof.
+  induction ps; simpl; intros.
+    inv H.
+    apply orb_true_iff.
+    destruct H as [H | H]; subst.
+      left. apply phinodeEqB_refl.
+      right. apply IHps; auto.
+Qed.
+
 
 (*****************************)
 (*

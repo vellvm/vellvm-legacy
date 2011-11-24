@@ -446,6 +446,14 @@ match i with
 | insn_unreachable _ => False
 end.
 
+Definition valueInInsnOperands (v0:value) (instr:insn) : Prop :=
+match instr with
+| insn_phinode (insn_phi _ _ ls) => 
+    In v0 (list_prj1 _ _ (unmake_list_value_l ls))
+| insn_cmd c => valueInCmdOperands v0 c
+| insn_terminator tmn => valueInTmnOperands v0 tmn
+end.
+
 Definition getTerminatorOperands (i:terminator) : ids :=
 match i with
 | insn_return _ _ v => getValueIDs v

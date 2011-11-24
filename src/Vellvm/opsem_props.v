@@ -1464,6 +1464,75 @@ Proof.
   eapply J; eauto.
 Qed.
 
+Lemma In_initializeFrameValues__In_getArgsIDs: forall
+  (TD : TargetData) (la : args) (gvs : list (GVsT GVsSig)) (id1 : atom) 
+  (lc : Opsem.GVsMap) (gv : GVsT GVsSig) acc,
+  Opsem._initializeFrameValues TD la gvs acc = ret lc ->
+  lookupAL (GVsT GVsSig) lc id1 = ret gv -> 
+  In id1 (getArgsIDs la) \/ id1 `in` dom acc.
+Proof.
+  induction la as [|[]]; simpl; intros.
+    inv H.
+    right. apply lookupAL_Some_indom in H0; auto.
+
+    destruct p.
+    destruct gvs.
+      inv_mbind'. inv H.
+      destruct (id_dec i0 id1); subst; auto.
+      rewrite <- lookupAL_updateAddAL_neq in H0; auto.
+      eapply IHla in H0; eauto.
+      destruct H0 as [H0 | H0]; auto.
+
+      inv_mbind'. inv H.
+      destruct (id_dec i0 id1); subst; auto.
+      rewrite <- lookupAL_updateAddAL_neq in H0; auto.
+      eapply IHla in H0; eauto.
+      destruct H0 as [H0 | H0]; auto.
+Qed.
+
+Lemma In_initLocals__In_getArgsIDs : forall TD la gvs id1 lc gv,
+  @Opsem.initLocals GVsSig TD la gvs = Some lc ->
+  lookupAL _ lc id1 = Some gv ->
+  In id1 (getArgsIDs la).
+Proof.
+  unfold Opsem.initLocals.
+  intros.
+  eapply In_initializeFrameValues__In_getArgsIDs in H; eauto.
+  destruct H as [H | H]; auto.
+    fsetdec.
+Qed.
+
+Lemma getIncomingValuesForBlockFromPHINodes_spec9: forall TD gl lc b id0 gvs0
+  ps' l0,
+  ret l0 = Opsem.getIncomingValuesForBlockFromPHINodes TD ps' b gl lc ->
+  id0 `in` dom l0 ->
+  lookupAL (GVsT GVsSig) l0 id0 = ret gvs0 ->
+  exists id1, exists t1, exists vls1, exists v, exists n,
+    In (insn_phi id1 t1 vls1) ps' /\
+    nth_list_value_l n vls1 = Some (v, getBlockLabel b) /\
+    Opsem.getOperandValue TD v lc gl= Some gvs0.
+Proof.
+  induction ps' as [|[]]; simpl; intros.
+    inv H. fsetdec.
+    
+    inv_mbind. inv H. simpl in *. 
+    destruct (id0 == i0); subst.
+      destruct b. simpl in *.
+      symmetry in HeqR.
+      apply getValueViaLabelFromValuels__nth_list_value_l in HeqR; auto.
+      destruct HeqR as [n HeqR].
+      destruct (@eq_dec atom (EqDec_eq_of_EqDec atom EqDec_atom) i0 i0); 
+        try congruence.
+      inv H1.
+      exists i0. exists t. exists l0. exists v. exists n.
+      split; auto. 
+
+      apply IHps' in H1; auto; try fsetdec.
+      destruct H1 as [id1 [t1 [vls1 [v' [n' [J1 [J2 J3]]]]]]].
+      exists id1. exists t1. exists vls1. exists v'. exists n'.
+      split; auto.
+Qed.
+
 End OpsemProps. End OpsemProps.
 
 (*****************************)

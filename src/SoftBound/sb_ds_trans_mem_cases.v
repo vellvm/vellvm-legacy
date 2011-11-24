@@ -373,7 +373,7 @@ Proof.
     destruct Heqb1 as [l1 [ps1 [cs11 Heqb1]]]; subst.
     eapply wf_system__wf_cmd in Hwfc; eauto using in_middle.
       inv Hwfc. 
-      eapply wf_value_id__in_getFdefLocs in H19; auto.
+      eapply wf_value_id__in_getFdefLocs in H17; auto.
         eapply get_reg_metadata_fresh' with (rm2:=rm2); eauto; try fsetdec.
 
   assert (tmp <> id0) as Hntmp_neq_id0.

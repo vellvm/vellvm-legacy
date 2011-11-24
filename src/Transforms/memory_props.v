@@ -1864,6 +1864,17 @@ Local Transparent cgv2gvs.
 Global Opaque cgv2gvs.
 Qed.
 
+Lemma malloc_preserves_wf_lc_in_tail: forall TD M M' tsz gn align0 mb lc
+  (Hmalloc: malloc TD M tsz gn align0 = ret (M', mb)) 
+  (Hwf: wf_lc M lc), wf_lc M' lc.
+Proof.
+  unfold wf_lc.
+  intros. apply Hwf in H.
+  eapply valid_ptrs__trans; eauto.
+  erewrite <- nextblock_malloc with (M':=M'); eauto. 
+  omega.
+Qed.
+
 End MemProps.
 
 (*****************************)

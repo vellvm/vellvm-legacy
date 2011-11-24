@@ -809,80 +809,6 @@ Local Transparent gv2gvs.
 Opaque gv2gvs. 
 Qed.
 
-Lemma NoDup_split': forall A (l1 l2:list A),
-  NoDup (l1++l2) ->
-  NoDup l1 /\ NoDup l2 /\ (forall (a:A), In a l1 -> ~ In a l2).
-Proof.
-  induction l1; simpl; intros; auto.
-    inv H.
-    apply IHl1 in H3. destruct H3 as [J1 [J2 J3]].
-    split.
-      constructor; auto.
-        intro J. apply H2. apply in_or_app; auto.
-    split; auto.
-      intros. 
-      destruct H as [H | H]; subst; auto.
-        intro J. apply H2. apply in_or_app; auto.
-Qed.
-
-Lemma IngetCmdsLocs__lookupCmdViaIDFromCmds: forall c1 cs1
-  (Huniq: NoDup (getCmdsLocs cs1)) (H0 : In c1 cs1),
-  lookupCmdViaIDFromCmds cs1 (getCmdLoc c1) = Some c1.
-Proof.
-  induction cs1; simpl; intros.
-    inv H0.
-
-    destruct H0 as [H0 | H0]; subst.
-      destruct (eq_atom_dec (getCmdLoc c1) (getCmdLoc c1)); auto.
-        congruence.
-      inv Huniq.
-      destruct (eq_atom_dec (getCmdLoc c1) (getCmdLoc a)); auto.
-        contradict H2. rewrite <- e. apply In_InCmdLocs; auto. 
-Qed.
-
-Lemma IngetCmdsIDs__lookupCmdViaIDFromFdef: forall c1 l1 ps1 cs1 tmn1 f
-  (Huniq: uniqFdef f)
-  (H : blockInFdefB (block_intro l1 ps1 cs1 tmn1) f = true)
-  (H0 : In c1 cs1),
-  lookupInsnViaIDFromFdef f (getCmdLoc c1) = Some (insn_cmd c1).
-Proof.
-  destruct f as [[] bs]. simpl. intros.
-  destruct Huniq as [_ Huniq].
-  apply NoDup_split in Huniq.
-  destruct Huniq as [_ Huniq].
-  generalize dependent l1.
-  generalize dependent ps1.
-  generalize dependent cs1.
-  generalize dependent tmn1.
-  induction bs; simpl; intros.
-    inv H.
-
-    simpl in Huniq.
-    apply NoDup_split' in Huniq.
-    destruct Huniq as [J1 [J2 J3]].
-    apply orb_true_iff in H.
-    destruct H as [H | H].
-      apply blockEqB_inv in H.
-      subst. simpl.
-      assert (~ In (getCmdLoc c1) (getPhiNodesIDs ps1)) as Hnotin.
-        simpl in J1. 
-        apply infrastructure_props.NoDup_disjoint with (i0:=getCmdLoc c1) 
-          in J1; auto.
-        apply in_or_app. left. apply In_InCmdLocs; auto.
-      rewrite notin__lookupPhiNodeViaIDFromPhiNodes_none; auto.
-      simpl in J1. apply NoDup_inv in J1. destruct J1 as [_ J1].
-      apply NoDup_inv in J1. destruct J1 as [Huniq _].
-      rewrite IngetCmdsLocs__lookupCmdViaIDFromCmds; auto.
-
-      assert (~ In (getCmdLoc c1) (getBlockLocs a0)) as Hnotin.     
-        intro J. apply J3 in J. apply J.
-        eapply in_getBlockLocs__in_getBlocksLocs in H; eauto.
-        simpl. apply in_or_app. right. 
-        apply in_or_app. left. apply In_InCmdLocs; auto.
-      rewrite notin__lookupInsnViaIDFromBlock_none; auto.
-      eapply IHbs; eauto.
-Qed.
-
 Lemma find_promotable_alloca_spec: forall f cs nids pid ptyp pal,
   find_promotable_alloca f cs nids = Some (pid, ptyp, pal) ->
   exists pv, In (insn_alloca pid ptyp pv pal) cs /\
@@ -951,20 +877,6 @@ Definition is_promotable_fun pid :=
           else acc0) cs acc
   ). 
 
-Lemma fold_left_or_false : forall B (f:bool -> B -> bool)
-  (J:forall a b, f a b = false -> a = false), 
-  forall (l1:list B) init, 
-    List.fold_left f l1 init = false ->
-    List.fold_left f l1 false = false /\ init = false.
-Proof.
-  induction l1; simpl; intros; eauto.
-    assert (H':=H).
-    apply IHl1 in H.
-    destruct H as [H1 H2].
-    apply J in H2. subst.
-    split; auto.
-Qed.
-
 Lemma used_in_phi_fun_spec: forall pid (a0 : bool) (b : phinode),
   a0 || used_in_phi pid b = false -> a0 = false.
 Proof.
@@ -1006,20 +918,6 @@ Proof.
     destruct (value_dec (value_const c) (value_id pid)); simpl.
       congruence.
       reflexivity.
-Qed.
-
-Lemma fold_left_and_true : forall B (f:bool -> B -> bool)
-  (J:forall a b, f a b = true -> a = true), 
-  forall (l1:list B) init, 
-    List.fold_left f l1 init = true ->
-    List.fold_left f l1 true = true /\ init = true.
-Proof.
-  induction l1; simpl; intros; eauto.
-    assert (H':=H).
-    apply IHl1 in H.
-    destruct H as [H1 H2].
-    apply J in H2. subst.
-    split; auto.
 Qed.
 
 Lemma used_in_cmd_fun_spec:
@@ -1186,14 +1084,6 @@ Proof.
   destruct PI_f0. simpl in *.
   eapply is_promotable_spec in H0; eauto.
 Qed.
-
-Definition valueInInsnOperands (v0:value) (instr:insn) : Prop :=
-match instr with
-| insn_phinode (insn_phi _ _ ls) => 
-    In v0 (list_prj1 _ _ (unmake_list_value_l ls))
-| insn_cmd c => valueInCmdOperands v0 c
-| insn_terminator tmn => valueInTmnOperands v0 tmn
-end.
 
 Lemma used_in_phi__wf_use_at_head: forall pinfo v0 (p : phinode)
   (H0 : used_in_phi (PI_id pinfo) p = false)
@@ -1466,77 +1356,6 @@ Proof.
   apply andb_true_iff in H0.
   destruct H0.
   eapply is_promotable_spec' with (instr:=insn_phinode pn) in H1; eauto.
-Qed.
-
-Lemma IngetPhiNodesIDs__lookupPhiNodeViaIDFromPhiNodes: forall id2 ps1
-  (H0 : In id2 (getPhiNodesIDs ps1)),
-  exists p2, lookupPhiNodeViaIDFromPhiNodes ps1 id2 = Some p2 /\
-             getPhiNodeID p2 = id2.
-Proof.
-  induction ps1; simpl; intros.
-    inv H0.
-
-    destruct H0 as [H0 | H0]; subst.
-      destruct (getPhiNodeID a == getPhiNodeID a); eauto.
-        congruence.
-
-      destruct (@eq_dec id (EqDec_eq_of_EqDec id EqDec_atom) (getPhiNodeID a) 
-                 id2); subst; eauto.
-Qed.
-
-Lemma lookupInsnViaIDFromBlocks__In : forall id0 instr bs,
-  lookupInsnViaIDFromBlocks bs id0 = Some instr ->
-  In id0 (getBlocksLocs bs).
-Proof.
-  induction bs; simpl; intros.
-    inv H.
-
-    apply in_or_app.
-    remember (lookupInsnViaIDFromBlock a id0) as R.
-    destruct R; eauto.
-      inv H.
-      symmetry in HeqR.
-      apply lookupInsnViaIDFromBlock__In in HeqR; auto.
-Qed.
-
-Lemma IngetPhiNodesIDs__lookupPhinodeViaIDFromFdef: forall id2 l1 ps1 cs1 tmn1 f
-  (Huniq: uniqFdef f)
-  (H : blockInFdefB (block_intro l1 ps1 cs1 tmn1) f = true)
-  (H0 : In id2 (getPhiNodesIDs ps1)),
-  exists p2, lookupInsnViaIDFromFdef f id2 = Some (insn_phinode p2) /\
-             getPhiNodeID p2 = id2.
-Proof.
-  destruct f as [[] bs]. simpl. intros.
-  destruct Huniq as [_ Huniq].
-  apply NoDup_split in Huniq.
-  destruct Huniq as [_ Huniq].
-  generalize dependent l1.
-  generalize dependent ps1.
-  generalize dependent cs1.
-  generalize dependent tmn1.
-  generalize dependent id2.
-  induction bs; simpl; intros.
-    congruence.
-
-    apply orb_true_iff in H.
-    destruct H as [H | H].
-      apply blockEqB_inv in H.
-      subst. simpl.
-      apply IngetPhiNodesIDs__lookupPhiNodeViaIDFromPhiNodes in H0.
-      destruct H0 as [ps [H0 Heq]]; subst.
-      rewrite H0. eauto.
-
-      simpl_env in Huniq. rewrite getBlocksLocs_app in Huniq.
-      assert (Huniq':=Huniq).
-      apply NoDup_inv in Huniq'. destruct Huniq'.
-      eapply IHbs in H; eauto.
-      destruct H as [p2 [H Heq]]; subst.
-      rewrite H. 
-      apply lookupInsnViaIDFromBlocks__In in H.
-      eapply infrastructure_props.NoDup_disjoint in Huniq; eauto.
-      simpl in Huniq. simpl_env in Huniq.
-      apply notin__lookupInsnViaIDFromBlock_none in Huniq.
-      rewrite Huniq. eauto.
 Qed.
 
 Lemma WF_PhiInfo_spec6: forall pinfo l' ps' cs' tmn', 
@@ -2081,14 +1900,6 @@ Proof.
         intros. apply Hwf. simpl. auto.
 Qed.
 
-Lemma fold_left_or_spec : forall B (f:bool -> B -> bool)
-  (J:forall a b, a = true -> f a b = true), 
-  forall (l1:list B), List.fold_left f l1 true = true.
-Proof.
-  induction l1; simpl; intros; eauto.
-    rewrite J; auto.
-Qed.
-
 Lemma in_params__used: forall id1 A (t1 : A) (lp : list (A * value)) init,
   fold_left
     (fun (acc : bool) (p : A * value) =>
@@ -2155,59 +1966,6 @@ Proof.
       eapply params2GVs_preserves_no_alias; eauto. omega.
 Qed.
 
-Lemma IngetArgsIDs__lookupCmdViaIDFromFdef: forall fa rt fid la va lb id0
-  (Huniq: uniqFdef (fdef_intro (fheader_intro fa rt fid la va) lb))
-  (H0 : In id0 (getArgsIDs la)),
-  lookupInsnViaIDFromFdef (fdef_intro (fheader_intro fa rt fid la va) lb) id0 
-    = None.
-Proof.
-  simpl. intros.
-  destruct Huniq as [_ Huniq].
-  remember (lookupInsnViaIDFromBlocks lb id0) as R.
-  destruct R; auto.
-  eapply NoDup_disjoint' in Huniq; eauto.
-  contradict Huniq.
-  eapply lookupInsnViaIDFromBlocks__In; eauto.
-Qed.
-
-Lemma In_initializeFrameValues__In_getArgsIDs: forall (GVsSig : GenericValues) 
-  (TD : TargetData) (la : args) (gvs : list (GVsT GVsSig)) (id1 : atom) 
-  (lc : Opsem.GVsMap) (gv : GVsT GVsSig) acc,
-  Opsem._initializeFrameValues TD la gvs acc = ret lc ->
-  lookupAL (GVsT GVsSig) lc id1 = ret gv -> 
-  In id1 (getArgsIDs la) \/ id1 `in` dom acc.
-Proof.
-  induction la as [|[]]; simpl; intros.
-    inv H.
-    right. apply lookupAL_Some_indom in H0; auto.
-
-    destruct p.
-    destruct gvs.
-      inv_mbind'.
-      destruct (id_dec i0 id1); subst; auto.
-      rewrite <- lookupAL_updateAddAL_neq in H0; auto.
-      eapply IHla in H0; eauto.
-      destruct H0 as [H0 | H0]; auto.
-
-      inv_mbind'.
-      destruct (id_dec i0 id1); subst; auto.
-      rewrite <- lookupAL_updateAddAL_neq in H0; auto.
-      eapply IHla in H0; eauto.
-      destruct H0 as [H0 | H0]; auto.
-Qed.
-
-Lemma In_initLocals__In_getArgsIDs : forall GVsSig TD la gvs id1 lc gv,
-  @Opsem.initLocals GVsSig TD la gvs = Some lc ->
-  lookupAL _ lc id1 = Some gv ->
-  In id1 (getArgsIDs la).
-Proof.
-  unfold Opsem.initLocals.
-  intros.
-  eapply In_initializeFrameValues__In_getArgsIDs in H; eauto.
-  destruct H as [H | H]; auto.
-    fsetdec.
-Qed.
-
 Lemma initLocals_preserves_wf_defs : forall fid fa rt la va lb gvs 
   lc Mem TD pinfo maxb (Hwfpi: WF_PhiInfo pinfo)
   (Huniq: uniqFdef (fdef_intro (fheader_intro fa rt fid la va) lb))
@@ -2216,7 +1974,7 @@ Lemma initLocals_preserves_wf_defs : forall fid fa rt la va lb gvs
   wf_defs maxb pinfo TD Mem lc nil.
 Proof.
   intros. intros gvsa Hlkup.
-  eapply In_initLocals__In_getArgsIDs in Hinit; eauto.
+  eapply OpsemProps.In_initLocals__In_getArgsIDs in Hinit; eauto.
   eapply IngetArgsIDs__lookupCmdViaIDFromFdef in Hinit; eauto.
   rewrite Heq in *.
   apply WF_PhiInfo_spec1 in Huniq; auto.
@@ -2234,7 +1992,7 @@ Proof.
     inv Hps2GVs. inv H.
 
     destruct a.
-    inv_mbind.
+    inv_mbind'.
     simpl in H.
     destruct H as [H | H]; subst; eauto.
     destruct v; simpl in HeqR; eauto.
@@ -2252,7 +2010,7 @@ Proof.
 
     destruct a as [[]].
     destruct gvs.
-      inv_mbind. symmetry in HeqR.
+      inv_mbind'. symmetry in HeqR.
       destruct (id_dec i0 id0); subst.
         rewrite lookupAL_updateAddAL_eq in H. inv H.
         eapply undef__valid_lift_ptrs; eauto.
@@ -2260,7 +2018,7 @@ Proof.
         rewrite <- lookupAL_updateAddAL_neq in H; auto. 
         eapply IHla in HeqR; eauto.
 
-      inv_mbind. symmetry in HeqR.
+      inv_mbind'. symmetry in HeqR.
       destruct (id_dec i0 id0); subst.
         rewrite lookupAL_updateAddAL_eq in H. inv H.
         unfold MDGVs.lift_op1, fit_gv in HeqR0.
@@ -2613,17 +2371,6 @@ Proof.
       exists gv. eapply malloc_preserves_mload; eauto.
 Qed.
 
-Lemma malloc_preserves_wf_lc_in_tail: forall TD M M' tsz gn align0 mb lc
-  (Hmalloc: malloc TD M tsz gn align0 = ret (M', mb)) 
-  (Hwf: wf_lc M lc), wf_lc M' lc.
-Proof.
-  unfold wf_lc.
-  intros. apply Hwf in H.
-  eapply valid_ptrs__trans; eauto.
-  erewrite <- nextblock_malloc with (M':=M'); eauto. 
-  omega.
-Qed.
-
 Lemma malloc_preserves_wf_ECStack_head_tail' : forall maxb pinfo ECs TD M tsz gn 
   align0 M' lc mb 
   (Hmlc: malloc TD M tsz gn align0 = ret (M', mb))
@@ -2712,17 +2459,6 @@ Proof.
       intro J. subst. contradict H; omega.
 Qed.
 
-Lemma mload_aux_alloc_same': forall M M' lo hi b 
-  (Hal : Mem.alloc M lo hi = (M', b)) mc ofs,
-  exists gvs1, mload_aux M' mc b ofs = ret gvs1 /\ 
-    forall v m, In (v, m) gvs1 -> v = Vundef.
-Proof.
-  induction mc; simpl; intros.
-    exists nil. 
-    split; auto.
-      intros. inv H.
-Admitted.
-
 (* The current design of malloc is incorrect! It must ensure that mload is
    successful at the allocated address. To do so, malloc must ensure all 
    subcomponents in an aggregated object are well-aligned! *)
@@ -2749,7 +2485,7 @@ Proof.
   eapply wf_fdef__wf_cmd in HeqR; eauto.
   inv HeqR.
   apply flatten_typ_total; auto.
-Admitted.
+Qed.
 
 Lemma alloca_preserves_wf_defs_at_head : forall maxb pinfo los nts M  
   M' gl als lc t 
@@ -3149,36 +2885,6 @@ Local Opaque inscope_of_tmn inscope_of_cmd.
 Transparent inscope_of_tmn inscope_of_cmd.
 Qed.
 
-
-Lemma getIncomingValuesForBlockFromPHINodes_spec9: forall TD gl lc b id0 gvs0
-  ps' l0,
-  ret l0 = Opsem.getIncomingValuesForBlockFromPHINodes TD ps' b gl lc ->
-  id0 `in` dom l0 ->
-  lookupAL (GVsT DGVs) l0 id0 = ret gvs0 ->
-  exists id1, exists t1, exists vls1, exists v, exists n,
-    In (insn_phi id1 t1 vls1) ps' /\
-    nth_list_value_l n vls1 = Some (v, getBlockLabel b) /\
-    Opsem.getOperandValue TD v lc gl= Some gvs0.
-Proof.
-  induction ps' as [|[]]; simpl; intros.
-    inv H. fsetdec.
-    
-    inv_mbind'. simpl in *.
-    destruct (id0 == i0); subst.
-      inv H1.
-      destruct b. simpl in *.
-      symmetry in HeqR.
-      apply getValueViaLabelFromValuels__nth_list_value_l in HeqR; auto.
-      destruct HeqR as [n HeqR].
-      exists i0. exists t. exists l0. exists v. exists n.
-      split; auto.
-
-      apply IHps' in H1; auto; try fsetdec.
-      destruct H1 as [id1 [t1 [vls1 [v' [n' [J1 [J2 J3]]]]]]].
-      exists id1. exists t1. exists vls1. exists v'. exists n'.
-      split; auto.
-Qed.
-
 Lemma unused_in_phi__wf_use_at_head: forall pinfo id1 t1 v1 l1 n vls1,
   used_in_phi (PI_id pinfo) (insn_phi id1 t1 vls1) = false ->
   nth_list_value_l n vls1 = ret (v1, l1) ->
@@ -3195,16 +2901,6 @@ Proof.
     simpl in H.
     apply orb_false_iff in H.
     destruct H; eauto.
-Qed.
-
-Lemma In_InPhiNodesB: forall p ps, In p ps -> InPhiNodesB p ps.
-Proof.
-  induction ps; simpl; intros.
-    inv H.
-    apply orb_true_iff.
-    destruct H as [H | H]; subst.
-      left. apply phinodeEqB_refl.
-      right. apply IHps; auto.
 Qed.
 
 Lemma wf_defs_br : forall lc l' ps' cs' lc' tmn' gl los nts Ps ifs s
@@ -3241,7 +2937,8 @@ Proof.
     intros.
     destruct (@AtomSetProperties.In_dec id0 (dom l0)) as [Hin | Hnotin].
       rewrite OpsemProps.updateValuesForNewBlock_spec6' in Hlk0; auto.
-      eapply getIncomingValuesForBlockFromPHINodes_spec9 in HeqR; eauto.
+      eapply OpsemProps.getIncomingValuesForBlockFromPHINodes_spec9 in HeqR; 
+        eauto.
       destruct HeqR as [id1 [t1 [vls1 [v [n [J4 [J5 J6]]]]]]].
       unfold wf_non_alloca_GVs.
       destruct (id_dec id0 (PI_id pinfo)); auto.
@@ -3259,32 +2956,6 @@ Proof.
         eapply unused_in_phi__wf_use_at_head in Hin'; eauto.
 
       apply OpsemProps.updateValuesForNewBlock_spec7 in Hlk0; auto.
-Qed.
-
-Lemma wf_lc_br : forall (lc:DGVMap) l' ps' cs' lc' tmn' gl td 
-  (l3 : l) (ps : phinodes) (cs : list cmd) tmn F
-  (Hlkup : Some (block_intro l' ps' cs' tmn') = 
-             lookupBlockViaLabelFromFdef F l')
-  (Hswitch : Opsem.switchToNewBasicBlock td (block_intro l' ps' cs' tmn')
-         (block_intro l3 ps cs tmn) gl lc = ret lc')
-  Mem maxb (Hwflc : wf_lc Mem lc) (HwfM : wf_Mem maxb td Mem)
-  (Hwfg : wf_globals maxb gl)
-  (Huniq : uniqFdef F),
-  wf_lc Mem lc'.
-Proof.
-  intros.
-  unfold Opsem.switchToNewBasicBlock in Hswitch. simpl in Hswitch.
-  inv_mbind'.
-  intros id0 gvs0 Hlkup'.
-  destruct (@AtomSetProperties.In_dec id0 (dom l0)) as [Hin | Hnotin].
-      rewrite (@OpsemProps.updateValuesForNewBlock_spec6' DGVs) in Hlkup'; auto.
-      eapply getIncomingValuesForBlockFromPHINodes_spec9 in HeqR; eauto.
-      destruct HeqR as [id1 [t1 [vls1 [v [n [J4 [J5 J6]]]]]]].
-      destruct HwfM.
-      eapply operand__lt_nextblock; eauto.
-
-      apply (@OpsemProps.updateValuesForNewBlock_spec7 DGVs) in Hlkup'; auto.
-      apply Hwflc in Hlkup'; auto.
 Qed.
 
 Lemma wf_ECStack_head_tail_br : forall (lc:DGVMap) l' ps' cs' lc' tmn' gl los 
@@ -3315,7 +2986,8 @@ Proof.
     intros.
     destruct (@AtomSetProperties.In_dec id1 (dom l0)) as [Hin | Hnotin].
       rewrite (@OpsemProps.updateValuesForNewBlock_spec6' DGVs) in H; auto.
-      eapply getIncomingValuesForBlockFromPHINodes_spec9 in HeqR; eauto.
+      eapply OpsemProps.getIncomingValuesForBlockFromPHINodes_spec9 in HeqR; 
+        eauto.
       destruct HeqR as [id2 [t1 [vls1 [v [n [J4 [J5 J6]]]]]]].
       eapply operand__no_alias_with__tail with
         (EC:={|
@@ -3327,6 +2999,33 @@ Proof.
             Opsem.Allocas := Allocas |}); eauto; simpl; auto.
 
       apply (@OpsemProps.updateValuesForNewBlock_spec7 DGVs) in H; eauto.
+Qed.
+
+Lemma wf_lc_br : forall (lc:DGVMap) l' ps' cs' lc' tmn' gl td 
+  (l3 : l) (ps : phinodes) (cs : list cmd) tmn F
+  (Hlkup : Some (block_intro l' ps' cs' tmn') = 
+             lookupBlockViaLabelFromFdef F l')
+  (Hswitch : Opsem.switchToNewBasicBlock td (block_intro l' ps' cs' tmn')
+         (block_intro l3 ps cs tmn) gl lc = ret lc')
+  Mem maxb (Hwflc : wf_lc Mem lc) (HwfM : wf_Mem maxb td Mem)
+  (Hwfg : wf_globals maxb gl)
+  (Huniq : uniqFdef F),
+  wf_lc Mem lc'.
+Proof.
+  intros.
+  unfold Opsem.switchToNewBasicBlock in Hswitch. simpl in Hswitch.
+  inv_mbind'.
+  intros id0 gvs0 Hlkup'.
+  destruct (@AtomSetProperties.In_dec id0 (dom l0)) as [Hin | Hnotin].
+      rewrite (@OpsemProps.updateValuesForNewBlock_spec6' DGVs) in Hlkup'; auto.
+      eapply OpsemProps.getIncomingValuesForBlockFromPHINodes_spec9 in HeqR; 
+        eauto.
+      destruct HeqR as [id1 [t1 [vls1 [v [n [J4 [J5 J6]]]]]]].
+      destruct HwfM.
+      eapply operand__lt_nextblock; eauto.
+
+      apply (@OpsemProps.updateValuesForNewBlock_spec7 DGVs) in Hlkup'; auto.
+      apply Hwflc in Hlkup'; auto.
 Qed.
 
 Lemma preservation_branch: forall (maxb : Z) (pinfo : PhiInfo) (S : system)
