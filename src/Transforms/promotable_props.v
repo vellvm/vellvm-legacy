@@ -42,12 +42,11 @@ match getEntryBlock f with
 end.
 
 Definition WF_PhiInfo (pinfo: PhiInfo) : Prop :=
-let '(mkPhiInfo f rd succs preds pid ty al newids) := pinfo in
-promotable_alloca f pid ty al /\
-reachablity_analysis f = Some rd /\
-succs = successors f /\
-preds = make_predecessors succs /\
-newids = fst (gen_fresh_ids rd (getFdefLocs f)).
+promotable_alloca (PI_f pinfo) (PI_id pinfo) (PI_typ pinfo) (PI_align pinfo) /\
+reachablity_analysis (PI_f pinfo) = Some (PI_rd pinfo) /\
+(PI_succs pinfo) = successors (PI_f pinfo) /\
+(PI_preds pinfo) = make_predecessors (PI_succs pinfo) /\
+(PI_newids pinfo) = fst (gen_fresh_ids (PI_rd pinfo) (getFdefLocs (PI_f pinfo))).
 
 Definition wf_non_alloca_GVs (pinfo:PhiInfo) (id1:id) (gvs1 gvsa:GenericValue) 
   : Prop :=
@@ -828,7 +827,6 @@ Qed.
 Ltac simpl_WF_PhiInfo :=
 match goal with
 | H : WF_PhiInfo ?pinfo |- _ =>
-  destruct pinfo; simpl in *;
   destruct H as [H _];
   unfold promotable_alloca in H;
   match goal with
@@ -1081,7 +1079,7 @@ Proof.
   intros.
   simpl_WF_PhiInfo.
   destruct H as [v [_ H]].
-  destruct PI_f0. simpl in *.
+  destruct (PI_f pinfo). simpl in *.
   eapply is_promotable_spec in H0; eauto.
 Qed.
 
@@ -1351,7 +1349,7 @@ Proof.
   intros.
   simpl_WF_PhiInfo.
   destruct H as [v [_ H]].
-  destruct PI_f0. simpl in *.
+  destruct (PI_f pinfo). simpl in *.
   unfold phinodeInFdefBlockB in H0.
   apply andb_true_iff in H0.
   destruct H0.
@@ -1361,7 +1359,8 @@ Qed.
 Lemma WF_PhiInfo_spec6: forall pinfo l' ps' cs' tmn', 
   WF_PhiInfo pinfo -> 
   uniqFdef (PI_f pinfo) ->
-  ret block_intro l' ps' cs' tmn' = lookupBlockViaLabelFromFdef (PI_f pinfo) l' ->
+  ret block_intro l' ps' cs' tmn' = lookupBlockViaLabelFromFdef (PI_f pinfo) l' 
+    ->
   ~ In (PI_id pinfo) (getPhiNodesIDs ps').
 Proof.
   intros.
