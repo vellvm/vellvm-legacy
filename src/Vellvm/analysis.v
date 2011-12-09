@@ -634,6 +634,34 @@ Proof.
   intros. apply AMap.gi.
 Qed.
 
+Lemma blockInFdefB__successors : forall a ps0 cs0 tmn0 f (Huniq: uniqFdef f),
+  blockInFdefB (block_intro a ps0 cs0 tmn0) f ->
+  (successors f) ! a = Some (successors_terminator tmn0).
+Proof.
+  destruct f as [[] bs]. simpl.
+  intros [J _].
+  unfold uniqBlocks in J.
+  destruct J as [J _].
+  induction bs; simpl; intros.
+    congruence.
+
+    destruct a1.
+    apply orb_true_iff in H.
+    destruct H as [H | H].
+      apply blockEqB_inv in H. inv H.
+      rewrite ATree.gss. auto.
+
+      assert (J':=J). inv J'.
+      simpl in J. simpl_env in J.   
+      apply IHbs in H3; auto.
+      apply InBlocksB_In in H.
+      apply infrastructure_props.NoDup_disjoint with (i0:=a) in J; auto.
+      destruct (id_dec l0 a); subst.
+        contradict J. simpl. auto.
+
+        rewrite ATree.gso; auto.
+Qed.
+
 Lemma successors__blockInFdefB : forall l0 a f,
   In l0 (successors f) !!! a -> 
   exists ps0, exists cs0, exists tmn0, 

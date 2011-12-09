@@ -2895,7 +2895,7 @@ Proof.
       subst. simpl.
       assert (~ In (getCmdLoc c1) (getPhiNodesIDs ps1)) as Hnotin.
         simpl in J1. 
-        apply infrastructure_props.NoDup_disjoint with (i0:=getCmdLoc c1) 
+        apply NoDup_disjoint with (i0:=getCmdLoc c1) 
           in J1; auto.
         apply in_or_app. left. apply In_InCmdLocs; auto.
       rewrite notin__lookupPhiNodeViaIDFromPhiNodes_none; auto.
@@ -2977,7 +2977,7 @@ Proof.
       destruct H as [p2 [H Heq]]; subst.
       rewrite H. 
       apply lookupInsnViaIDFromBlocks__In in H.
-      eapply infrastructure_props.NoDup_disjoint in Huniq; eauto.
+      eapply NoDup_disjoint in Huniq; eauto.
       simpl in Huniq. simpl_env in Huniq.
       apply notin__lookupInsnViaIDFromBlock_none in Huniq.
       rewrite Huniq. eauto.
@@ -3008,6 +3008,200 @@ Proof.
       right. apply IHps; auto.
 Qed.
 
+Lemma app_cons_is_larger: forall A cs3 cs2 (c:A),
+  cs2 = cs3 ++ c :: cs2 -> False.
+Proof.
+  intros.
+  assert (J:=app_length cs3 (c::cs2)).
+  rewrite <- H in J.
+  simpl in J. omega.
+Qed.
+
+Lemma app_inv_tail_nil : forall A (l1 l2:list A),
+  l1 ++ l2 = l2 -> l1 = nil.
+Proof.
+  intros.
+  change l2 with (nil ++ l2) in H at 2.
+  apply app_inv_tail in H; auto.
+Qed.
+
+Lemma InPhiNodesB_In: forall p ps, InPhiNodesB p ps -> In p ps.
+Proof.
+  induction ps; simpl; intros.
+    inv H.
+    apply orb_true_iff in H.
+    destruct H as [H | H]; subst.
+      apply phinodeEqB_inv in H. subst. auto.
+      right. apply IHps; auto.
+Qed.
+
+Lemma nth_list_sz_value__valueInListValue: forall nth idxs sz0 v0,
+  nth_list_sz_value nth idxs = Some (sz0, v0) ->
+  valueInListValue v0 idxs.
+Proof.  
+  induction nth; simpl; intros.
+    destruct idxs; inv H.
+    unfold valueInListValue. simpl. auto.
+
+    destruct idxs; inv H. 
+    apply IHnth in H1.
+    unfold valueInListValue in *. simpl. auto.
+Qed.
+
+Lemma NoDup_app: forall A (l1 l2:list A),
+  NoDup l1 -> NoDup l2 -> 
+  (forall (a:A), In a l1 -> ~ In a l2) ->
+  NoDup (l1++l2).
+Proof.
+  induction l1; simpl; intros; auto.
+    inv H.
+    constructor; auto.
+      intro J. apply in_app_or in J.
+      destruct J as [J | J]; auto.
+      assert (a = a \/ In a l1) as Hin. auto.
+      apply H1 in Hin. auto.
+Qed.
+
+Lemma NoDup_insert: forall A (l1 l2:list A) a,
+  NoDup (l1++l2) -> 
+  ~ In a (l1 ++ l2) ->
+  NoDup (l1++a::l2).
+Proof.
+  induction l1; simpl; intros.
+    constructor; auto.
+
+    inv H.
+    apply IHl1 with (a:=a0) in H4; auto.
+    constructor; auto.
+      intro J. apply H3.
+      apply in_app_or in J.
+      apply in_or_app.
+      destruct J as [J | J]; auto.
+      simpl in J.
+      destruct J as [J | J]; auto.
+      subst. contradict H0; auto.
+Qed.
+
+Lemma NoDup_commut: forall A (l1 l2:list A),
+  NoDup (l1++l2) -> NoDup (l2++l1).
+Proof.
+  induction l1; simpl; intros.
+    simpl_env. auto.
+
+    inv H.
+    apply NoDup_insert; auto.
+    intro J. apply in_app_or in J.
+    apply H2. apply in_or_app.
+    destruct J as [J | J]; auto.
+Qed.
+
+Lemma notin_getBlocksLocs__notin_getBlockLocs : forall bs b i0,
+  ~ In i0 (getBlocksLocs bs) ->
+  InBlocksB b bs ->
+  ~ In i0 (getBlockLocs b).
+Proof.
+  intros. intro J. apply H.
+  eapply in_getBlockLocs__in_getBlocksLocs; eauto.
+Qed.
+
+Lemma lookupCmdViaIDFromCmds__InCmds : forall cs c i0,
+  lookupCmdViaIDFromCmds cs i0 = Some c ->
+  In c cs.
+Proof.  
+  induction cs; simpl; intros.
+    inv H.
+    destruct (eq_atom_dec i0 (getCmdLoc a)); eauto.
+      inv H; auto.
+Qed.     
+    
+Lemma lookupInsnViaIDFromFdef__insnInFdefBlockB : forall F id1 c1,
+  lookupInsnViaIDFromFdef F id1 = Some (insn_cmd c1) ->
+  exists b1, insnInFdefBlockB (insn_cmd c1) F b1.
+Proof.
+  destruct F as [fh bs]. simpl.
+  induction bs; simpl; intros.
+    inv H.
+
+    remember (lookupInsnViaIDFromBlock a id1) as R.
+    destruct R.
+      inv H.
+      exists a.
+      destruct a. simpl in *.
+      destruct (lookupPhiNodeViaIDFromPhiNodes p id1); tinv HeqR.
+      remember (lookupCmdViaIDFromCmds c id1) as R.
+      destruct R; inv HeqR.
+      symmetry in HeqR0.
+      apply lookupCmdViaIDFromCmds__InCmds in HeqR0.
+      apply In_InCmdsB in HeqR0.
+      apply andb_true_iff. split; auto.
+      apply orb_true_iff. left. apply blockEqB_refl.
+
+      apply IHbs in H.
+      destruct H as [b H].
+      apply andb_true_iff in H. destruct H as [J1 J2].
+      exists b. apply andb_true_iff. split; auto.
+      apply orb_true_iff; auto.
+Qed.
+
+Lemma in_getPhiNodeID__in_getPhiNodesIDs : forall p ps,
+  In p ps -> In (getPhiNodeID p) (getPhiNodesIDs ps).
+Proof.
+  induction ps; simpl; intros; auto.
+    destruct H as [H | H]; subst; auto.
+Qed.
+
+Lemma getValueViaLabelFromValuels__in_unmake_list_value_l: forall l1 v0 vls 
+  l2 l3,
+  getValueViaLabelFromValuels vls l1 = Some v0 ->
+  (l2, l3) = split (unmake_list_value_l vls) ->
+  In l1 l3.
+Proof.
+  induction vls; simpl; intros.
+    congruence.
+
+    destruct (split (unmake_list_value_l vls)).
+    inv H0.
+    simpl.
+    destruct (l0 == l1); eauto.
+Qed.
+
+Lemma In_list_prj1__getValueViaLabelFromValuels: forall vls v,
+  (let '(_, ls1) := split (unmake_list_value_l vls) in NoDup ls1) ->
+  In v (list_prj1 value l (unmake_list_value_l vls)) ->
+  exists l1, getValueViaLabelFromValuels vls l1 = Some v.
+Proof.
+  induction vls; intros; simpl in *.
+    inv H0.
+
+    destruct H0 as [H0 | H0]; subst.
+      exists l0.
+      destruct (l0 == l0); subst; try congruence; auto.
+
+      apply IHvls in H0.
+        destruct H0 as [l1 H0]. 
+        exists l1. rewrite H0.
+        remember (split (unmake_list_value_l vls)) as R.
+        destruct R.
+        eapply getValueViaLabelFromValuels__in_unmake_list_value_l in H0; eauto.
+        inv H.
+        destruct (l0 == l1); auto.
+          subst. contradict H0; auto.
+
+        destruct (split (unmake_list_value_l vls)).
+        inv H; auto.
+Qed.
+
+Lemma getValueViaLabelFromValuels__In_list_prj1 : 
+  forall vls v l1,
+  getValueViaLabelFromValuels vls l1 = Some v ->
+  In v (list_prj1 value l (unmake_list_value_l vls)).
+Proof.
+  induction vls; intros; simpl in *.
+    congruence.
+
+    destruct (l0 == l1); subst; eauto.
+      inv H. auto.
+Qed.
 
 (*****************************)
 (*

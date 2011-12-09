@@ -1504,9 +1504,9 @@ Qed.
 
 Lemma getIncomingValuesForBlockFromPHINodes_spec9: forall TD gl lc b id0 gvs0
   ps' l0,
-  ret l0 = Opsem.getIncomingValuesForBlockFromPHINodes TD ps' b gl lc ->
+  ret l0 = @Opsem.getIncomingValuesForBlockFromPHINodes GVsSig TD ps' b gl lc ->
   id0 `in` dom l0 ->
-  lookupAL (GVsT GVsSig) l0 id0 = ret gvs0 ->
+  lookupAL _ l0 id0 = ret gvs0 ->
   exists id1, exists t1, exists vls1, exists v, exists n,
     In (insn_phi id1 t1 vls1) ps' /\
     nth_list_value_l n vls1 = Some (v, getBlockLabel b) /\
@@ -1532,6 +1532,18 @@ Proof.
       exists id1. exists t1. exists vls1. exists v'. exists n'.
       split; auto.
 Qed.
+
+Lemma updateValuesForNewBlock_spec5: forall lc1' lc2' i0
+  (Hlk: lookupAL _ lc1' i0 = lookupAL _ lc2' i0) lc2
+  (Hlk: merror = lookupAL _ lc2 i0),
+  lookupAL _ lc1' i0 =
+    lookupAL _ (@Opsem.updateValuesForNewBlock GVsSig lc2 lc2') i0.
+Proof.
+  induction lc2 as [|[]]; simpl; intros; auto.
+    destruct (i0 == a); try congruence.
+    rewrite <- lookupAL_updateAddAL_neq; auto.
+Qed.
+
 
 End OpsemProps. End OpsemProps.
 

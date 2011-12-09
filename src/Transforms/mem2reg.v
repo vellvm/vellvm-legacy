@@ -249,8 +249,8 @@ Definition gen_phinode (pid':id) (ty:typ) (nids:ATree.t (id*id*id)) (pds:list l)
              p acc) 
         pds Nil_list_value_l).
 
-Definition phinodes_placement_block (b:block) (pid:id) (ty:typ) (al:align) 
-  (nids:ATree.t (id*id*id)) (succs preds:ATree.t (list l)) : block :=
+Definition phinodes_placement_block (pid:id) (ty:typ) (al:align) 
+  (nids:ATree.t (id*id*id)) (succs preds:ATree.t (list l)) (b:block) : block :=
    let '(block_intro l0 ps cs tmn) := b in 
    match ATree.get l0 nids with
    | Some (lid, pid', sid) =>
@@ -272,9 +272,12 @@ Definition phinodes_placement_block (b:block) (pid:id) (ty:typ) (al:align)
 
 Definition phinodes_placement_blocks (bs:blocks) (pid:id) (ty:typ) (al:align) 
   (nids:ATree.t (id*id*id)) (succs preds:ATree.t (list l)) : blocks :=
+List.map (phinodes_placement_block pid ty al nids succs preds) bs.
+(*
 List.fold_left
   (fun bs' b => phinodes_placement_block b pid ty al nids succs preds :: bs') 
   (List.rev bs) nil.
+*)
 
 Definition phinodes_placement (f:fdef) (rd:list l) (pid:id) (ty:typ) (al:align) 
   (succs preds:ATree.t (list l)) : fdef :=

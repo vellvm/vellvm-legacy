@@ -382,14 +382,7 @@ Proof.
 Qed.
 
 Lemma wf_value_list__getValueViaLabelFromValuels__wf_value : forall
-  (s : system)
-  (m : module)
-  (f : fdef)
-  (lc : GVMap)
-  (l1 : l)
-  (t0 : typ)
-  v
-  l2
+  (s : system) (m : module) (f : fdef) (l1 : l) (t0 : typ) v l2
   (H2 : wf_value_list
          (make_list_system_module_fdef_value_typ
             (map_list_value_l
@@ -518,7 +511,7 @@ Proof.
 Qed.
 
 Lemma wf_value_list__getValueViaBlockFromValuels__wf_value : forall
-  (s : system)  (m : module)  (f : fdef)  (lc : GVMap) b (t0 : typ) v l2
+  (s : system)  (m : module)  (f : fdef) b (t0 : typ) v l2
   (H2 : wf_value_list
          (make_list_system_module_fdef_value_typ
             (map_list_value_l
@@ -4768,6 +4761,65 @@ Proof.
   apply J; auto.
 Qed.
 
+Lemma wf_insn__wf_value: forall ifs S m F B instr v
+  (Hwfi: wf_insn ifs S m F B instr) 
+  (HvInOps : valueInInsnOperands v instr),
+  exists t, wf_value S m F v t.
+Proof.
+  intros.
+  destruct instr.
+    inv Hwfi. simpl in *.
+    apply In_list_prj1__getValueViaLabelFromValuels in HvInOps.
+      destruct HvInOps as [l1 HvInOps].
+      eapply wf_value_list__getValueViaLabelFromValuels__wf_value in H0; eauto.
+
+      destruct H10.
+      unfold check_list_value_l in H5.
+      remember (split (unmake_list_value_l value_l_list)) as R.
+      destruct R. 
+      destruct H5 as [_ [_ H5]]; auto.
+
+    eapply wf_cmd__wf_value; eauto.
+
+    eapply wf_tmn__wf_value; eauto.
+Qed.
+
+Lemma wf_phinodes__wf_phinode : forall ifs s m f b ps p,
+  wf_phinodes ifs s m f b ps ->
+  In p ps ->
+  wf_insn ifs s m f b (insn_phinode p).
+Proof.
+  induction ps; intros.
+    inversion H0.
+    
+    simpl in H0.
+    inv H.
+    destruct H0 as [H0 | H0]; subst; eauto.
+Qed.
+
+Lemma wf_fdef__wf_insn: forall ifs S m instr F B
+  (HwfF: wf_fdef ifs S m F)
+  (HBinF : insnInFdefBlockB instr F B = true),
+  wf_insn ifs S m F B instr.
+Proof.
+  intros.
+  destruct B.
+  destruct instr; apply andb_true_iff in HBinF; destruct HBinF as [J1 J2].
+    eapply wf_fdef__blockInFdefB__wf_block in J2; eauto.
+    simpl in J1.
+    apply InPhiNodesB_In in J1.
+    inv J2. 
+    eapply wf_phinodes__wf_phinode; eauto.
+
+    simpl in J1.
+    apply InCmdsB_in in J1.
+    apply wf_fdef__wf_cmd; auto.
+
+    simpl in J1.
+    apply terminatorEqB_inv in J1. 
+    subst.
+    apply wf_fdef__wf_tmn; auto.
+Qed.
 
 (*****************************)
 (*

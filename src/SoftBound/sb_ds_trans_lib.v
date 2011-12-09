@@ -2648,13 +2648,6 @@ Proof.
       eapply reg_simulation__updateAddAL_lc; eauto.
 Qed.
 
-Lemma in_getPhiNodeID__in_getPhiNodesIDs : forall p ps,
-  In p ps -> In (getPhiNodeID p) (getPhiNodesIDs ps).
-Proof.
-  induction ps; simpl; intros; auto.
-    destruct H as [H | H]; subst; auto.
-Qed.
-
 Lemma getPhiNodeID_in_getFdefLocs : forall f1 l0 ps p cs tmn,
   blockInFdefB (block_intro l0 ps cs tmn) f1 = true ->
   In p ps ->

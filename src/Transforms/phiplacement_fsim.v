@@ -60,7 +60,7 @@ Definition cmds_simulation (pinfo: PhiInfo) (f1:fdef) (l1:l) cs1 cs2: Prop :=
 Definition block_simulation (pinfo: PhiInfo) f1 b1 b2: Prop :=
   let '(mkPhiInfo f _ succs preds pid ty al newids) := pinfo in
   if (fdef_dec f1 f) then
-     phinodes_placement_block b1 pid ty al newids succs preds = b2
+     phinodes_placement_block pid ty al newids succs preds b1 = b2
   else b1 = b2.
 
 Definition products_simulation (pinfo: PhiInfo) Ps1 Ps2: Prop :=
@@ -394,9 +394,9 @@ Proof.
     try solve [eauto | simpl; congruence].
   destruct (fdef_dec F (PI_f pinfo)) as [ e | n]; subst.
   SCase "F is tranformed".
-    assert (phinodes_placement_block (block_intro l' ps' cs' tmn') (PI_id pinfo)
+    assert (phinodes_placement_block (PI_id pinfo)
       (PI_typ pinfo) (PI_align pinfo) (PI_newids pinfo) (PI_succs pinfo) 
-      (PI_preds pinfo) = b2) as EQ.
+      (PI_preds pinfo) (block_intro l' ps' cs' tmn') = b2) as EQ.
       clear - Htblock. destruct pinfo. simpl in *.
       destruct (fdef_dec PI_f0 PI_f0); auto.
         congruence.
