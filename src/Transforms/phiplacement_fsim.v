@@ -16,6 +16,7 @@ Require Import Maps.
 Require Import mem2reg.
 Require Import opsem_props.
 Require Import promotable_props.
+Require Import palloca_props.
 
 Ltac zauto := auto with zarith.
 Ltac zeauto := eauto with zarith.
@@ -398,7 +399,7 @@ Proof.
       (PI_typ pinfo) (PI_align pinfo) (PI_newids pinfo) (PI_succs pinfo) 
       (PI_preds pinfo) (block_intro l' ps' cs' tmn') = b2) as EQ.
       clear - Htblock. destruct pinfo. simpl in *.
-      destruct (fdef_dec PI_f0 PI_f0); auto.
+      destruct (fdef_dec PI_f PI_f); auto.
         congruence.
     subst. clear Htblock. simpl in Hfind.
     assert ((PI_newids pinfo) ! l' <> None) as Hreach'.
@@ -509,7 +510,7 @@ Proof.
         simpl_env. auto.
 
         destruct pinfo. simpl in *.
-        destruct (fdef_dec PI_f0 PI_f0); try congruence.
+        destruct (fdef_dec PI_f PI_f); try congruence.
           admit. (* WF_PhiInfo *)
 
   SCase "F isnt tranformed".
