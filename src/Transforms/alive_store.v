@@ -18,31 +18,6 @@ Require Import palloca_props.
 
 Import Promotability.
 
-(* We define a special las used by mem2reg that only considers local commands.
-   In general, it should be extended to the las defined w.r.t domination and
-   memory dependency (which we are aiming in the future work)
-
-   The current mem2reg also does SAS eliminations before all loads are removed.
-   For example,
-     st v1 p; ...; st v2 p; ...
-   if there are no other lds in the first ..., the first ``st v1 p'' can be 
-   removed.
-
-   In practice, such a code after phiplacement may exist if the original code 
-   also does store to the promotable alloca. 
-
-   An alternative approach is that we only consider such elimination after all
-   possible removed loads are removed, as what the paper presents. mem2reg does
-   not check if there are any unremoved loads in unreachable blocks. If so,
-   some stores cannot be removed. We need to let mem2reg ignore the loads of
-   unreachable blocks to remove what SAS can eliminate.
-
-   For this reason, here, we give the abstract properties that las needs to hold.
-   The properties do not depend on the concrete design in mem2reg, such as
-   find_init_stld, find_next_stld, ... So the proofs can still work if we change
-   mem2reg. We should prove that the design in mem2reg satisfy the properties.
- *)
-
 Definition store_in_cmd (id':id) (c:cmd) : bool :=
 match c with
 | insn_store _ _ _ ptr _ => used_in_value id' ptr
@@ -111,9 +86,57 @@ forall cs1 cs3,
 
 Lemma head_tail_commut: forall A (a:A) cs, 
   exists cs', exists a', [a] ++ cs = cs' ++ [a'].
-Admitted.
+Proof.
+  induction cs.
+    exists nil. exists a. auto.
 
-Lemma follow_alive_store_cons: forall pinfo stinfo c cs l0 ps0 cs0 tmn0,
+    destruct IHcs as [cs' [a' IHcs]].
+    destruct cs'.
+      inv IHcs.
+      exists [a']. exists a0. auto.
+
+      inv IHcs.
+      exists ([a1]++a0::cs'). exists a'. auto.
+Qed.
+
+Lemma uniqFdef__blockInFdefB__nodup_cmds: forall l0 ps0 cs0 tmn0 f,
+  uniqFdef f ->
+  blockInFdefB (block_intro l0 ps0 cs0 tmn0) f ->
+  NoDup (getCmdsLocs cs0).
+Proof.
+  intros.
+  destruct f as [fh bs].
+  apply blockInFdefB__exists_nth_error in H0.
+  destruct H0 as [n H0].
+  eapply uniqFdef__uniqBlock in H0; eauto.
+Qed.
+
+Lemma NoDup_cmds_split_middle: forall cs2 cs2' c cs1 cs1',
+  NoDup (getCmdsLocs (cs1 ++ c :: cs2)) ->
+  cs1 ++ c :: cs2 = cs1' ++ c :: cs2' ->
+  cs1 = cs1' /\ cs2 = cs2'.
+Proof.
+  induction cs1; destruct cs1'; simpl; intros.
+    inv H0. auto.
+
+    inv H0.
+    inv H. 
+    contradict H2.
+    rewrite getCmdsLocs_app. simpl. apply in_middle.
+
+    inv H0.
+    inv H. 
+    contradict H2.
+    rewrite getCmdsLocs_app. simpl. apply in_middle.
+
+    inv H0.
+    inv H. 
+    eapply IHcs1 in H4; eauto.
+    destruct H4 as [J1 J2]; subst; auto.
+Qed.
+
+Lemma follow_alive_store_cons: forall pinfo stinfo c cs l0 ps0 cs0 tmn0 
+  (Huniq:uniqFdef (PI_f pinfo)),
   block_intro l0 ps0 (cs0++c::cs) tmn0 = SI_block pinfo stinfo ->
   store_in_cmd (PI_id pinfo) c = false ->
   follow_alive_store pinfo stinfo cs ->
@@ -127,7 +150,12 @@ Proof.
   destruct SI_alive0 as [J1 [J2 [cs1 [cs3 J3]]]]; subst.
   intros.
   assert (cs1 = cs2 /\ cs3 = cs4) as J. 
-    admit.
+    apply uniqFdef__blockInFdefB__nodup_cmds in J1; auto.
+    apply NoDup_cmds_split_middle in H2; auto.
+    destruct H2 as [G1 G2].
+    split; auto.
+      apply app_inv_head in G2; auto.
+
   destruct J as [EQ1 EQ2]; subst. clear H2.
   edestruct H1 as [csa [csb [EQ1 EQ2]]]; eauto. clear H1.
   subst. inv H.
@@ -479,6 +507,7 @@ Proof.
     destruct c'; try solve [inversion H].
     unfold wf_ExecutionContext in *. simpl in Hinscope1, Hinscope2.
     assert (J2':=J2).
+    assert (uniqFdef (PI_f pinfo)) as Huniq. eauto using wf_system__uniqFdef.
     apply follow_alive_store_cons in J2; auto.
     assert (J2'':=J2).
     apply Hinscope2 in J2; auto.
@@ -502,7 +531,6 @@ Proof.
 
         remember (lift_op1 DGVs (fit_gv (los, nts) t) g t) as R2.
         destruct R2; inv H1.
-        assert (uniqFdef (PI_f pinfo)) as Huniq. eauto using wf_system__uniqFdef.
         apply wf_defs_updateAddAL; auto.
           eapply WF_PhiInfo_spec10 in HBinF1; eauto.
           eapply alive_store_doesnt_use_its_followers; 
@@ -555,10 +583,10 @@ Lemma preservation_return_void : forall maxb pinfo stinfo
 Proof.
   intros. subst. destruct cfg as [S [los nts] Ps gl fs].
   destruct Hwfpp as 
-    [_ [_ [_ [_ [_ 
+    [_ [HwfSystem [HmInS [_ [_ 
      [
        [
-         [_ [_ [_ [_ [_ [l2 [ps2 [cs2' Heq2]]]]]]]]
+         [_ [HBinF1 [HFinPs1 [_ [_ [l2 [ps2 [cs2' Heq2]]]]]]]]
          _
        ]
        _
@@ -583,7 +611,7 @@ Proof.
     destruct c'; try solve [inversion H].
     unfold wf_ExecutionContext in *. simpl in Hinscope1, Hinscope2.
     assert (J2':=J2).
-    apply follow_alive_store_cons in J2; auto.
+    apply follow_alive_store_cons in J2; eauto using wf_system__uniqFdef.
     apply Hinscope2 in J2; auto.
     assert (NoDup (als ++ als')) as Hnodup.
       rewrite_env 
@@ -742,23 +770,6 @@ match goal with
   fold Promotability.wf_ECStack in HwfECs'
 end.
 
-Ltac free_preserves_wf_EC_at_head :=
-match goal with
-| Hinscope: wf_ExecutionContext ?pinfo _ _ _ _ _ |- _ =>
-  intros J1 J2 J3; simpl in J1, J2, J3; simpl; subst;
-  assert (J2':=J2);
-  apply follow_alive_store_cons in J2; auto;
-  apply Hinscope in J2; auto; simpl in J2;
-  destruct (fdef_dec (PI_f pinfo) (PI_f pinfo)); try congruence;
-  intros gvsa gvsv Hlkpa Hlkpv;
-  eapply J2 in Hlkpv; eauto;
-  eapply free_preserves_mload; try solve [
-    eauto | 
-    eapply operand__no_alias_with__head; try solve [
-      eauto | preservation_tac2]
-    ]
-end.
-
 Lemma free_preserves_wf_EC_in_tail : forall pinfo td M  EC M' mptr0 
   maxb gl (Hwfg: wf_globals maxb gl)
   (Hfree: free td M mptr0 = ret M') stinfo mptrs v lc
@@ -853,12 +864,13 @@ Proof.
   split; auto.
     intros J1 J2 J3. simpl in J1, J2, J3. simpl. subst.
     unfold wf_ExecutionContext in *. simpl in Hinscope.
+    assert (uniqFdef (PI_f pinfo)) as Huniq. eauto using wf_system__uniqFdef.
     assert (J2':=J2).
     apply follow_alive_store_cons in J2; auto.
     assert (J2'':=J2).
     apply Hinscope in J2; auto.
     destruct Hneq as [G1 G2]; auto.
-    eapply wf_defs_updateAddAL; eauto using wf_system__uniqFdef.
+    eapply wf_defs_updateAddAL; eauto.
 Qed.
 
 Lemma mstore_mload_same: forall td Mem mp2 typ1 gv1 align1 Mem',
@@ -894,7 +906,7 @@ Lemma mstore_preserves_wf_EC_at_head: forall (maxb : Z) (pinfo : PhiInfo)
   (v1 : value) (v2 : value) (cs : list cmd) (tmn : terminator) (Mem : mem)
   (als : list mblock) (l1 : l) (ps1 : phinodes) (cs1' : list cmd)
   (mp2 : GenericValue) (gv1 : GenericValue) (Mem' : mem) (gvs1 : GVsT DGVs)
-  (mps2 : GVsT DGVs)
+  (mps2 : GVsT DGVs) (Huniq: uniqFdef F)
   (H : Opsem.getOperandValue td v1 lc gl = ret gvs1)
   (H0 : Opsem.getOperandValue td v2 lc gl = ret mps2)
   (H1 : gv1 @ gvs1) (H2 : mp2 @ mps2)
@@ -1105,30 +1117,30 @@ Lemma callExternalFunction_preserves_wf_ECStack_at_head: forall Mem fid gvs
      Opsem.Allocas := als |}.
 Proof.
   intros.
-    intros J1 J2 J3. simpl in J1, J2, J3. simpl.
-    assert (J2':=J2).
-    apply follow_alive_store_cons in J2; auto.
-    apply Hinscope in J2; auto. 
-    simpl in J2.
-    intros gvsa gvsv Hlka Hlkv.
-    unfold Opsem.exCallUpdateLocals in H5.
-    destruct noret0.
-      inv H5. 
-      eapply J2 in Hlkv; eauto.
-      eapply callExternalFunction_preserves_mload; eauto.
- 
-      destruct oresult; inv H5.
-      destruct ft; tinv H0.
-      remember (fit_gv (los,nts) ft g) as R.
-      destruct R; inv H0.
-      assert (rid <> PI_id pinfo) as Hneq. 
-        eapply WF_PhiInfo_spec10 in HBinF; eauto.
-      rewrite <- lookupAL_updateAddAL_neq in Hlka; auto.
-      assert (used_in_value rid (SI_value pinfo stinfo) = false) as Hnouse.
-        eapply alive_store_doesnt_use_its_followers; eauto 
-          using wf_system__wf_fdef, follow_alive_store_cons.
-      apply getOperandValue_updateAddAL_nouse in Hlkv; auto.
-      eapply callExternalFunction_preserves_mload; eauto.
+  intros J1 J2 J3. simpl in J1, J2, J3. simpl. subst.
+  assert (J2':=J2).
+  apply follow_alive_store_cons in J2; auto.
+  apply Hinscope in J2; auto. 
+  simpl in J2.
+  intros gvsa gvsv Hlka Hlkv.
+  unfold Opsem.exCallUpdateLocals in H5.
+  destruct noret0.
+    inv H5. 
+    eapply J2 in Hlkv; eauto.
+    eapply callExternalFunction_preserves_mload; eauto.
+  
+    destruct oresult; inv H5.
+    destruct ft; tinv H0.
+    remember (fit_gv (los,nts) ft g) as R.
+    destruct R; inv H0.
+    assert (rid <> PI_id pinfo) as Hneq. 
+      eapply WF_PhiInfo_spec10 in HBinF; eauto.
+    rewrite <- lookupAL_updateAddAL_neq in Hlka; auto.
+    assert (used_in_value rid (SI_value pinfo stinfo) = false) as Hnouse.
+      eapply alive_store_doesnt_use_its_followers; eauto 
+        using wf_system__wf_fdef, follow_alive_store_cons.
+    apply getOperandValue_updateAddAL_nouse in Hlkv; auto.
+    eapply callExternalFunction_preserves_mload; eauto.
 Qed.
 
 Ltac preservation_pure_cmd_updated_case_helper:=
@@ -1145,6 +1157,23 @@ Ltac preservation_pure_cmd_updated_case_helper:=
 Ltac preservation_pure_cmd_updated_case:=
   abstract (eapply preservation_pure_cmd_updated_case; eauto; try solve
     [simpl; auto | preservation_pure_cmd_updated_case_helper]).
+
+Ltac free_preserves_wf_EC_at_head :=
+match goal with
+| Hinscope: wf_ExecutionContext ?pinfo _ _ _ _ _ |- _ =>
+  intros J1 J2 J3; simpl in J1, J2, J3; simpl; subst;
+  assert (J2':=J2);
+  apply follow_alive_store_cons in J2; eauto using wf_system__uniqFdef;
+  apply Hinscope in J2; auto; simpl in J2;
+  destruct (fdef_dec (PI_f pinfo) (PI_f pinfo)); try congruence;
+  intros gvsa gvsv Hlkpa Hlkpv;
+  eapply J2 in Hlkpv; eauto;
+  eapply free_preserves_mload; try solve [
+    eauto | 
+    eapply operand__no_alias_with__head; try solve [
+      eauto | preservation_tac2]
+    ]
+end.
 
 Lemma preservation : forall maxb pinfo stinfo cfg S1 S2 tr
   (Hwfg: wf_globals maxb (OpsemAux.Globals cfg))
@@ -1183,7 +1212,7 @@ Case "sStore".
    abstract
    (destruct_ctx_other;
     split; simpl; try solve [
-     eapply mstore_preserves_wf_EC_at_head; eauto |
+     eapply mstore_preserves_wf_EC_at_head; eauto using wf_system__uniqFdef |
      match goal with
      | _ : ?gv1 @ ?gvs1', _ : ?mp2 @ ?mps2', 
        _ : mstore _ _ ?mp2 _ ?gv1 _ = _ |- _ =>
