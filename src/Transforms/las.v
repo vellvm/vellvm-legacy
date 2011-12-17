@@ -65,6 +65,12 @@ Record LASInfo (pinfo: PhiInfo) := mkLASInfo {
   LAS_prop : las LAS_lid LAS_sid LAS_value LAS_tail LAS_block pinfo
 }.
 
+Lemma LAS_substable_values : forall td gl pinfo lasinfo 
+  (Huniq: uniqFdef (PI_f pinfo)),
+  substable_values td gl (PI_f pinfo) (value_id (LAS_lid pinfo lasinfo))  
+    (LAS_value pinfo lasinfo).
+Admitted.
+
 Lemma store_in_cmds_merge: forall i0 cs1 cs2,
   store_in_cmds i0 cs1 = false /\ store_in_cmds i0 cs2 = false ->
   store_in_cmds i0 (cs1++cs2) = false.
@@ -536,21 +542,6 @@ Lemma fdef_sim__block_sim : forall pinfo lasinfo f1 f2 b1 b2 l0,
   block_simulation pinfo lasinfo f1 b1 b2.
 Admitted.
 
-Ltac uniq_result :=
-repeat dgvs_instantiate_inv;
-repeat match goal with
-| H1 : ?f ?a ?b ?c ?d = _,
-  H2 : ?f ?a ?b ?c ?d = _ |- _ =>
-  rewrite H1 in H2; inv H2
-| H1 : ?f ?a ?b ?c = _,
-  H2 : ?f ?a ?b ?c = _ |- _ =>
-  rewrite H1 in H2; inv H2
-| H1 : ?f ?a ?b = _,
-  H2 : ?f ?a ?b = _ |- _ =>
-  rewrite H1 in H2; inv H2
-| H1 : _ @ _ |- _ => inv H1
-end.
-
 Lemma block_simulation_inv : forall pinfo lasinfo F l1 ps1 cs1 tmn1 l2 ps2 cs2
   tmn2,
   block_simulation pinfo lasinfo F (block_intro l1 ps1 cs1 tmn1)
@@ -608,7 +599,6 @@ Qed.
 
 Lemma getOperandValue_inCmdOperands_sim : forall los nts ifs s gl pinfo lasinfo
   ps (f : fdef) (Hwfg : wf_global (los,nts) s gl)
-  (HwfSys1 : wf_system ifs s)
   (HwfF : wf_fdef ifs s (module_intro los nts ps) f)
   (tmn : terminator)
   (lc : GVMap)
@@ -997,6 +987,42 @@ Lemma fdef_simulation_inv: forall pinfo lasinfo fh1 fh2 bs1 bs2,
     bs1 bs2.
 Admitted.
 
+Lemma pars_simulation_nil_inv: forall pinfo lasinfo f1 ps,
+  pars_simulation pinfo lasinfo f1 nil ps -> ps = nil.
+Proof.
+  unfold pars_simulation. simpl.
+  intros. destruct (fdef_dec (PI_f pinfo) f1); auto.
+Qed.
+
+Definition par_simulation (pinfo: PhiInfo) (lasinfo: LASInfo pinfo) (f1:fdef)
+  (p p':typ * attributes * value) : Prop :=
+if (fdef_dec (PI_f pinfo) f1) then 
+  let '(t, v) := p in
+  (t, v {[LAS_value pinfo lasinfo // LAS_lid pinfo lasinfo]}) = p'
+else p = p'.
+
+Lemma pars_simulation_cons_inv: forall pinfo lasinfo F p1 ps2 ps',
+  pars_simulation pinfo lasinfo F (p1 :: ps2) ps' ->
+  exists p1', exists ps2', 
+    ps' = p1' :: ps2' /\
+    par_simulation pinfo lasinfo F p1 p1' /\
+    pars_simulation pinfo lasinfo F ps2 ps2'.
+Proof.  
+  intros.
+  unfold pars_simulation, par_simulation in *.
+  destruct p1.
+  destruct (fdef_dec (PI_f pinfo) F); subst; simpl; eauto.
+Qed.
+
+Lemma par_simulation__value_simulation: forall pinfo lasinfo F t1 v1 t2 v2,
+  par_simulation pinfo lasinfo F (t1,v1) (t2,v2) ->
+  value_simulation pinfo lasinfo F v1 v2.
+Proof.
+  unfold par_simulation, value_simulation.
+  intros.
+  destruct (fdef_dec (PI_f pinfo) F); inv H; auto.
+Qed.
+
 Lemma params2GVs_sim_aux : forall
   (s : system) pinfo lasinfo 
   los nts
@@ -1031,14 +1057,20 @@ Lemma params2GVs_sim_aux : forall
   (Hpasim : pars_simulation pinfo lasinfo f p22 p22'),
   gvs = gvs'.
 Proof.
-(*
-  induction p22; intros; simpl; eauto.
+  induction p22; simpl; intros; eauto.
+    apply pars_simulation_nil_inv in Hpasim. subst.
+    simpl in *. congruence.
 
     destruct a as [[t0 attr0] v0].
-    destruct Hex as [p21 Hex]; subst.
-    assert (exists gv, getOperandValue (los, nts) v0 lc gl = Some gv)
-      as J.
-      eapply getOperandValue_inCmdOps_isnt_stuck; eauto.
+    destruct Hex as [p21 Hex]; subst. 
+    apply pars_simulation_cons_inv in Hpasim. 
+    destruct Hpasim as [p1' [ps2' [EQ [Hpsim' Hpasim']]]]; subst.
+    simpl in *. destruct p1'.
+    inv_mbind'.
+    
+    assert (g0 = g) as Heq.
+      apply par_simulation__value_simulation in Hpsim'.
+      eapply getOperandValue_inCmdOperands_sim in Hpsim'; eauto.
         simpl. unfold valueInParams. right. 
         assert (J:=@in_split_r _ _ (p21 ++ (t0, attr0, v0) :: p22) 
           (t0, attr0, v0)).
@@ -1046,16 +1078,10 @@ Proof.
         destruct R.
         simpl in J. apply J.
         apply In_middle.
-    destruct J as [gv J]. 
-    rewrite J.         
-    eapply IHp22 in HbInF; eauto.  
-      destruct HbInF as [vidxs HbInF].
-      rewrite HbInF. eauto.
-
+    subst.
+    erewrite <- IHp22 with (gvs':=l2); eauto.
       exists (p21 ++ [(t0, attr0,v0)]). simpl_env. auto.
 Qed.
-*)
-Admitted.
 
 Lemma params2GVs_sim : forall
   (s : system) pinfo lasinfo 
