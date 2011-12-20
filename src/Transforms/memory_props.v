@@ -1875,6 +1875,44 @@ Proof.
   omega.
 Qed.
 
+Lemma store_preserves_mload_inv': forall b1 b2 v2 m2 Mem' Mem ofs2 
+  (Hneq: b1 <> b2) (Hst: Mem.store m2 Mem b2 ofs2 v2 = ret Mem') mc ofs1 gvs0,
+  mload_aux Mem' mc b1 ofs1 = ret gvs0 ->
+  mload_aux Mem mc b1 ofs1 = ret gvs0.
+Proof.
+  induction mc; simpl; intros; auto.
+    inv_mbind'. symmetry in HeqR0.
+    apply IHmc in HeqR0.
+    rewrite HeqR0.
+    erewrite <- Mem.load_store_other; eauto.
+    rewrite <- HeqR. auto. 
+Qed.
+
+Lemma mstore_aux_preserves_mload_inv_aux': forall mc b1 ofs1 gvs0 b2
+  (Hneq: b1 <> b2) gvs1 Mem' Mem ofs2,
+  mload_aux Mem' mc b1 ofs1 = ret gvs0 ->
+  mstore_aux Mem gvs1 b2 ofs2 = ret Mem' ->
+  mload_aux Mem mc b1 ofs1 = ret gvs0.
+Proof.
+  induction gvs1 as [|[]]; simpl; intros.
+    inv H0. auto.
+  
+    inv_mbind'.
+    apply IHgvs1 in H2; auto.
+    eapply store_preserves_mload_inv'; eauto.
+Qed.
+
+Lemma mstore_preserves_mload_inv': forall TD Mem' gptr ty al gvs0 Mem gv1 t
+  mp2 (H1 : mload TD Mem' gptr ty al = ret gvs0) align
+  (H2 : mstore TD Mem mp2 t gv1 align = Some Mem')
+  (Hna: no_alias mp2 gptr),
+  mload TD Mem gptr ty al = ret gvs0.
+Proof.
+  intros. destruct_ldst.
+  simpl in Hna. destruct Hna as [[Hna _] _ ].
+  eapply mstore_aux_preserves_mload_inv_aux'; eauto.
+Qed.
+
 End MemProps.
 
 (*****************************)

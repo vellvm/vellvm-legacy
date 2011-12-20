@@ -133,8 +133,16 @@ vol/src/Transforms   : Optimizations for Vellvm
   primitives.v            : The primitives same to vol/src/Vminus
   gvn.v                   : Global value numbering
   mem2reg.v               : Mem2reg
+  memory_props.v          : Lifting properties in Vellvm/compcert/Memory.v to
+                            high-level values.
+  palloca_props.v         : Properties for promotable allocas
   promotable_props.v      : Promotatable allocation is not aliasing
-  phiplacement_correct.v  : phinode-placement is correct
+  phiplacement_bsim/fsim.v: phinode-placement is correct
+  alive_store.v           : Properties about the life of a store
+  id_rhs_val.v            : Proving the equivalence between an id an a value
+  las.v                   : The correctness of LAS (load after store)
+  dse.v                   : The correctness of DSE (dead store elimination)
+
 
 vol/src/Extraction  :
   extraction_core.v           : Extracting an OCaml interpreter
