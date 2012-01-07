@@ -2,6 +2,7 @@ Add LoadPath "../Vellvm/ott".
 Add LoadPath "../Vellvm/monads".
 Add LoadPath "../Vellvm".
 Add LoadPath "../Vellvm/compcert".
+Add LoadPath "../Vellvm/GraphBasics".
 Add LoadPath "../../../theory/metatheory_8.3".
 Add LoadPath "../TV".
 Require Import syntax.
@@ -701,6 +702,7 @@ Proof.
       rewrite EQ.
       rewrite Int.add_assoc. auto.
 Qed.
+
 (*
 Definition defined_gv (gv:GenericValue) : Prop :=
 match gv with
@@ -1554,6 +1556,48 @@ Proof.
     split; eauto.
 Qed.
 
+Lemma simulation__GEP : forall maxb mi TD Mem Mem2 inbounds0 vidxs vidxs' gvp1 
+    gvp gvp' t,
+  wf_sb_mi maxb mi Mem Mem2 ->
+  gv_inject mi gvp gvp' ->
+  gvs_inject mi vidxs vidxs' ->
+  GEP TD t gvp vidxs inbounds0 = ret gvp1 ->
+  exists gvp2,
+    GEP TD t gvp' vidxs' inbounds0 = ret gvp2 /\
+    gv_inject mi gvp1 gvp2.
+Proof.
+  intros maxb mi TD Mem Mem2 inbounds0 vidxs vidxs' gvp1 gvp gvp' t H H0 H1 H2.
+  unfold GEP in *.
+  remember (GV2ptr TD (getPointerSize TD) gvp) as R.
+  destruct R; inv H2.
+    symmetry in HeqR.
+    eapply simulation__GV2ptr in HeqR; eauto.
+    destruct HeqR as [v' [J1 J2]].
+    rewrite J1. 
+    assert (GVs2Nats TD vidxs = GVs2Nats TD vidxs') as EQ.
+      eapply simulation__GVs2Nats; eauto.
+    rewrite <- EQ.
+    destruct (GVs2Nats TD vidxs).
+      remember (mgep TD t v l0) as R1.
+      destruct R1; inv H4.
+        symmetry in HeqR1.
+        eapply simulation__mgep in HeqR1; eauto.
+        destruct HeqR1 as [v0' [J11 J12]].
+        rewrite J11. exists (ptr2GV TD v0').
+        unfold ptr2GV, val2GV.
+        simpl. eauto.
+
+        symmetry in HeqR1.
+        eapply simulation__mgep' in HeqR1; eauto.
+        rewrite HeqR1. rewrite H3.
+        eauto using gv_inject_gundef.
+
+      rewrite H4. eauto using gv_inject_gundef.
+
+    erewrite simulation__GV2ptr'; eauto.
+    rewrite H4. eauto using gv_inject_gundef.
+Qed.
+
 (*
 Lemma defined_gv_dec : forall gv, defined_gv gv \/ ~ defined_gv gv.
 Proof.
@@ -1620,6 +1664,7 @@ Qed.
 (*
 *** Local Variables: ***
 *** coq-prog-name: "coqtop" ***
-*** coq-prog-args: ("-emacs-U" "-I" "~/SVN/sol/vol/src/Vellvm/monads" "-I" "~/SVN/sol/vol/src/Vellvm/ott" "-I" "~/SVN/sol/vol/src/Vellvm/compcert" "-I" "~/SVN/sol/theory/metatheory_8.3" "-I" "~/SVN/sol/vol/src/TV") ***
+*** coq-prog-args: ("-emacs-U" "-I" "~/SVN/sol/vol/src/Vellvm/monads" "-I" "~/SVN/sol/vol/src/Vellvm/ott" "-I" "~/SVN/sol/vol/src/Vellvm/compcert" "-I" "~/SVN/sol/theory/metatheory_8.3" "-impredicative-set") ***
 *** End: ***
  *)
+
