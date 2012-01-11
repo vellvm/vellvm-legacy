@@ -40,13 +40,13 @@ match b with
 end.
 
 Definition fdef_simulation (pinfo: PhiInfo) f1 f2: Prop :=
-  let '(mkPhiInfo f rd succs preds pid ty al _) := pinfo in
+  let '(mkPhiInfo f rd succs preds pid ty _ al _) := pinfo in
   if (fdef_dec f1 f) then 
     phinodes_placement f1 rd pid ty al succs preds = f2
   else f1 = f2.
 
 Definition cmds_simulation (pinfo: PhiInfo) (f1:fdef) (l1:l) cs1 cs2: Prop :=
-  let '(mkPhiInfo f rd succs preds pid ty al newids) := pinfo in
+  let '(mkPhiInfo f rd succs preds pid ty _ al newids) := pinfo in
   if (fdef_dec f1 f) then
      match ATree.get l1 (successors f1) with
      | Some (_::_) => 
@@ -59,7 +59,7 @@ Definition cmds_simulation (pinfo: PhiInfo) (f1:fdef) (l1:l) cs1 cs2: Prop :=
   else cs1 = cs2.
 
 Definition block_simulation (pinfo: PhiInfo) f1 b1 b2: Prop :=
-  let '(mkPhiInfo f _ succs preds pid ty al newids) := pinfo in
+  let '(mkPhiInfo f _ succs preds pid ty _ al newids) := pinfo in
   if (fdef_dec f1 f) then
      phinodes_placement_block pid ty al newids succs preds b1 = b2
   else b1 = b2.

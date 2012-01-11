@@ -18,15 +18,6 @@ Require Import palloca_props.
 
 Import Promotability.
 
-Definition store_in_cmd (id':id) (c:cmd) : bool :=
-match c with
-| insn_store _ _ _ ptr _ => used_in_value id' ptr
-| _ => false
-end.
-
-Definition store_in_cmds (id':id) (cs:cmds) : bool := 
-(List.fold_left (fun re c => re || store_in_cmd id' c) cs false).
-
 Definition alive_store (sid: id) (v:value) (cs2:cmds) (b:block) (pinfo:PhiInfo)
   : Prop :=
 blockInFdefB b (PI_f pinfo) = true /\

@@ -238,6 +238,15 @@ match f with
   List.fold_left (fun re b => re || used_in_block id' b) bs false
 end.
 
+Definition store_in_cmd (id':id) (c:cmd) : bool :=
+match c with
+| insn_store _ _ _ ptr _ => used_in_value id' ptr
+| _ => false
+end.
+
+Definition store_in_cmds (id':id) (cs:cmds) : bool := 
+(List.fold_left (fun re c => re || store_in_cmd id' c) cs false).
+
 Definition insert_cmds (n:nat) (c:cmd) (cs : cmds) : cmds :=
 firstn n cs ++ c :: skipn n cs.
 

@@ -23,6 +23,7 @@ Record PhiInfo := mkPhiInfo {
   PI_preds: ATree.t (list l);
   PI_id: id;
   PI_typ: typ;
+  PI_num: value;
   PI_align: align;
   PI_newids: ATree.t (id*id*id)  
 }.
