@@ -17,15 +17,7 @@ Require Import primitives.
 Require Import id_rhs_val.
 Require Import palloca_props.
 Require Import memory_props.
-
-Definition load_in_cmd (id':id) (c:cmd) : bool :=
-match c with
-| insn_load _ _ ptr _ => used_in_value id' ptr
-| _ => false
-end.
-
-Definition load_in_cmds (id':id) (cs:cmds) : bool := 
-(List.fold_left (fun re c => re || load_in_cmd id' c) cs false).
+Require Import mem2reg.
 
 Definition sas (sid1 sid2: id) (v1 v2:value) (cs2:cmds) (b:block) 
   (pinfo:PhiInfo) : Prop :=         

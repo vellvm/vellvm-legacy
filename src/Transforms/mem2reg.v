@@ -361,10 +361,12 @@ match c with
 | _ => false
 end.
 
+Definition load_in_cmds (id':id) (cs:cmds) : bool := 
+(List.fold_left (fun re c => re || load_in_cmd id' c) cs false).
+
 Definition load_in_block (id':id) (b:block) : bool := 
 match b with
-| block_intro _ _ cs0 _ =>
-  (List.fold_left (fun re c => re || load_in_cmd id' c) cs0 false)
+| block_intro _ _ cs0 _ => load_in_cmds id' cs0
 end.
 
 Definition load_in_fdef (id':id) (f:fdef) : bool := 
