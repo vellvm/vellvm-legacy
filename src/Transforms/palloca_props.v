@@ -19,40 +19,44 @@ Require Import opsem_props.
 Record PhiInfo := mkPhiInfo {
   PI_f: fdef;
   PI_rd: list l;
-  PI_succs: ATree.t (list l);
-  PI_preds: ATree.t (list l);
   PI_id: id;
   PI_typ: typ;
   PI_num: value;
-  PI_align: align;
-  PI_newids: ATree.t (id*id*id)  
+  PI_align: align
 }.
 
-Definition promotable_alloca (f:fdef) (pid:id) (ty:typ) (al:align) : Prop :=
+Definition PI_newids (pinfo: PhiInfo): ATree.t (id * id * id) :=
+  (fst (gen_fresh_ids (PI_rd pinfo) (getFdefLocs (PI_f pinfo)))).
+
+Definition PI_succs (pinfo: PhiInfo): ATree.t (list l):= 
+  successors (PI_f pinfo).
+
+Definition PI_preds (pinfo: PhiInfo): ATree.t (list l):= 
+  make_predecessors (PI_succs pinfo).
+
+Definition promotable_alloca (f:fdef) (pid:id) (ty:typ) (num:value) (al:align)  
+  : Prop :=
 match getEntryBlock f with
 | Some (block_intro _ _ cs _) =>
-    find_promotable_alloca f cs nil = Some (pid, ty, al)
+    find_promotable_alloca f cs nil = Some (pid, ty, num, al)
 | _ => False
 end.
 
 Definition WF_PhiInfo (pinfo: PhiInfo) : Prop :=
-promotable_alloca (PI_f pinfo) (PI_id pinfo) (PI_typ pinfo) (PI_align pinfo) /\
-reachablity_analysis (PI_f pinfo) = Some (PI_rd pinfo) /\
-(PI_succs pinfo) = successors (PI_f pinfo) /\
-(PI_preds pinfo) = make_predecessors (PI_succs pinfo) /\
-(PI_newids pinfo) = fst (gen_fresh_ids (PI_rd pinfo) (getFdefLocs (PI_f pinfo))).
+promotable_alloca (PI_f pinfo) (PI_id pinfo) (PI_typ pinfo) (PI_num pinfo)
+  (PI_align pinfo) /\
+reachablity_analysis (PI_f pinfo) = Some (PI_rd pinfo).
 
-Lemma find_promotable_alloca_spec: forall f cs nids pid ptyp pal,
-  find_promotable_alloca f cs nids = Some (pid, ptyp, pal) ->
-  exists pv, In (insn_alloca pid ptyp pv pal) cs /\
-             is_promotable f pid.
+Lemma find_promotable_alloca_spec: forall f cs nids pid ptyp num pal,
+  find_promotable_alloca f cs nids = Some (pid, ptyp, num, pal) ->
+  In (insn_alloca pid ptyp num pal) cs /\ is_promotable f pid.
 Proof.
   induction cs; simpl; intros.
     congruence.
 
-    destruct a; try solve [apply IHcs in H; destruct H as [pv [H1 H2]]; eauto].
+    destruct a; try solve [apply IHcs in H; destruct H as [H1 H2]; eauto].
     remember (is_promotable f i0 && negb (in_dec id_dec i0 nids)) as R.
-    destruct R; try solve [apply IHcs in H; destruct H as [pv [H1 H2]]; eauto].
+    destruct R; try solve [apply IHcs in H; destruct H as [H1 H2]; eauto].
     inv H. 
     symmetry in HeqR. apply andb_true_iff in HeqR. destruct HeqR.
     eauto.
@@ -77,15 +81,15 @@ end.
 Lemma WF_PhiInfo_spec1: forall pinfo, 
   WF_PhiInfo pinfo -> 
   uniqFdef (PI_f pinfo) ->
-  exists v, 
-    lookupInsnViaIDFromFdef (PI_f pinfo) (PI_id pinfo) = 
-      Some (insn_cmd 
-             (insn_alloca (PI_id pinfo) (PI_typ pinfo) v (PI_align pinfo))).
+  lookupInsnViaIDFromFdef (PI_f pinfo) (PI_id pinfo) = 
+    Some 
+     (insn_cmd 
+       (insn_alloca (PI_id pinfo) (PI_typ pinfo) (PI_num pinfo) 
+         (PI_align pinfo))).
 Proof.
   intros. 
   simpl_WF_PhiInfo.
-  destruct H as [v [H _]].
-  exists v. 
+  destruct H as [H _].
   symmetry in HeqR.
   apply entryBlockInFdef in HeqR.
   eapply IngetCmdsIDs__lookupCmdViaIDFromFdef in HeqR; eauto.
@@ -312,7 +316,7 @@ Lemma WF_PhiInfo_spec3: forall pinfo,
 Proof.
   intros.
   simpl_WF_PhiInfo.
-  destruct H as [v [_ H]].
+  destruct H as [_ H].
   destruct (PI_f pinfo). simpl in *.
   eapply is_promotable_spec in H0; eauto.
 Qed.
@@ -585,7 +589,7 @@ Lemma WF_PhiInfo_spec5: forall pinfo pn b,
 Proof.
   intros.
   simpl_WF_PhiInfo.
-  destruct H as [v [_ H]].
+  destruct H as [_ H].
   destruct (PI_f pinfo). simpl in *.
   unfold phinodeInFdefBlockB in H0.
   apply andb_true_iff in H0.
@@ -602,7 +606,7 @@ Lemma WF_PhiInfo_spec6: forall pinfo l' ps' cs' tmn',
 Proof.
   intros.
   simpl_WF_PhiInfo.
-  destruct H as [pv [H _]].
+  destruct H as [H _].
   symmetry in HeqR.
   apply entryBlockInFdef in HeqR.
   eapply IngetCmdsIDs__lookupCmdViaIDFromFdef in H; eauto.
@@ -628,9 +632,8 @@ Proof.
   intros.
   eapply IngetCmdsIDs__lookupCmdViaIDFromFdef in H3; eauto using in_middle.
   apply WF_PhiInfo_spec1 in H; auto.
-  destruct H as [v' H].
   simpl in H3. rewrite H1 in H3. rewrite H3 in H. inv H.
-  assert (W:=@H2 (PI_id pinfo) (PI_typ pinfo) v' (PI_align pinfo)).
+  assert (W:=@H2 (PI_id pinfo) (PI_typ pinfo) (PI_num pinfo) (PI_align pinfo)).
   auto.
 Qed.
 
@@ -641,7 +644,7 @@ Lemma WF_PhiInfo_spec2: forall pinfo ifs S los nts Ps,
 Proof.
   intros.
   simpl_WF_PhiInfo.
-  destruct H as [pv [J1 J2]].
+  destruct H as [J1 J2].
   symmetry in HeqR.
   apply entryBlockInFdef in HeqR.
   eapply wf_fdef__wf_cmd in HeqR; eauto.
@@ -651,39 +654,31 @@ Qed.
 
 Lemma WF_PhiInfo__succs : forall pinfo l1 ps1 cs1 tmn1 
   (Huniq: uniqFdef (PI_f pinfo)),
-  WF_PhiInfo pinfo ->
   blockInFdefB (block_intro l1 ps1 cs1 tmn1) (PI_f pinfo) = true ->
   successors_terminator tmn1 <> nil ->
   exists sc, exists scs, (PI_succs pinfo) ! l1 = Some (sc::scs).
 Proof.
   intros.
-  destruct H as [J1 [J2 [J3 [J4 J5]]]].
-  rewrite J3.
-  eapply blockInFdefB__successors in H0; eauto.
-  unfold ls in *.
-  rewrite H0. 
+  eapply blockInFdefB__successors in H; eauto.
+  unfold ls in *. unfold PI_succs.
   destruct (successors_terminator tmn1); try congruence. eauto.
 Qed.
 
 Lemma WF_PhiInfo__preds : forall pinfo l1 ps1 cs1 tmn1 l0 
   (Huniq: uniqFdef (PI_f pinfo)),
-  WF_PhiInfo pinfo ->
   blockInFdefB (block_intro l1 ps1 cs1 tmn1) (PI_f pinfo) = true ->
   In l0 (successors_terminator tmn1) ->
   exists prd, exists prds, (PI_preds pinfo) ! l0 = Some (prd::prds).
 Proof.
   intros.
-  destruct H as [J1 [J2 [J3 [J4 J5]]]].
-  rewrite J4.
-  eapply blockInFdefB__successors in H0; eauto.
-  rewrite J3.
+  eapply blockInFdefB__successors in H; eauto.
   assert (In l0 (successors (PI_f pinfo))!!!l1) as Hin.
     unfold successors_list.
     unfold ls, l in *.
-    rewrite H0. auto.
+    rewrite H. auto.
   apply make_predecessors_correct in Hin.
   unfold successors_list in Hin.
-  unfold ls, l in *.
+  unfold ls, l in *. unfold PI_preds, PI_succs.
   destruct ((make_predecessors (successors (PI_f pinfo))) ! l0); tinv Hin. 
   destruct l2; tinv Hin.
   eauto.
@@ -780,8 +775,7 @@ Qed.
 Lemma temporary_must_be_fresh: forall l0 ps0 cs0 c cs2 tmn0 pinfo i0
   (Hin : blockInFdefB (block_intro l0 ps0 (cs0 ++ c :: cs2) tmn0) 
            (PI_f pinfo) = true)
-  (Hld : is_temporary i0 
-           (fst (gen_fresh_ids (PI_rd pinfo) (getFdefLocs (PI_f pinfo)))))
+  (Hld : is_temporary i0 (PI_newids pinfo))
   (Heq : getCmdLoc c = i0),
   False.
 Proof.
@@ -797,7 +791,6 @@ Lemma WF_PhiInfo_fresh: forall pinfo lid pid sid l0 (Huniq: uniqFdef (PI_f pinfo
 Proof.
   intros.
   apply WF_PhiInfo_spec1 in Huniq; auto.
-  destruct Huniq as [v Huniq].
   apply lookupInsnViaIDFromFdef__insnInFdefBlockB in Huniq.
   destruct Huniq as [b1 HbInF].
   simpl in HbInF.  
@@ -807,48 +800,44 @@ Proof.
   apply InCmdsB_in in J1.
   apply in_split in J1.
   destruct J1 as [cs1 [cs2 J1]]; subst.
-  destruct H as [J1 [J6 [J3 [J4 J5]]]].
+  destruct H as [J1 J6].
   destruct (PI_id pinfo == lid); subst.
     eapply temporary_must_be_fresh in J2; eauto.
-    simpl. rewrite <- J5. exists l0. rewrite <- H0. 
+    simpl. exists l0. rewrite <- H0. 
     destruct (PI_id pinfo == PI_id pinfo); try congruence.
       simpl. left. reflexivity.
   destruct (PI_id pinfo == pid); subst.
     eapply temporary_must_be_fresh in J2; eauto.
-    simpl. rewrite <- J5. exists l0. rewrite <- H0. 
+    simpl. exists l0. rewrite <- H0. 
     destruct (PI_id pinfo == PI_id pinfo); try congruence.
       simpl. right. left. reflexivity.
   destruct (PI_id pinfo == sid); subst; auto.
     eapply temporary_must_be_fresh in J2; eauto.
-    simpl. rewrite <- J5. exists l0. rewrite <- H0. 
+    simpl. exists l0. rewrite <- H0. 
     destruct (PI_id pinfo == PI_id pinfo); try congruence.
       simpl. right. right. reflexivity.
 Qed.
 
 Lemma WF_PhiInfo_spec9: forall pinfo l0 l3 ps3 cs3 l1 ps1 cs1 tmn1 bid
   (Huniq: uniqFdef (PI_f pinfo)),
-  WF_PhiInfo pinfo ->
   lookupBlockViaLabelFromFdef (PI_f pinfo) l0 =
     ret block_intro l1 ps1 cs1 tmn1 ->
   blockInFdefB (block_intro l3 ps3 cs3 (insn_br_uncond bid l0)) (PI_f pinfo) ->
   exists succs, (PI_succs pinfo) ! l3 = Some succs /\ In l1 succs.
 Proof.
   intros.
-  apply blockInFdefB__successors in H1; auto.
-  simpl in H1.
-  destruct H as [J1 [J2 [J3 [J4 J5]]]].
-  rewrite J3. 
-  unfold ls, l in *.
-  rewrite H1.
+  apply blockInFdefB__successors in H0; auto.
+  simpl in H0.
+  unfold ls, l in *. unfold PI_succs.
+  rewrite H0.
   exists (l0::nil).
   split; auto.
-  apply lookupBlockViaLabelFromFdef_inv in H0; auto.
-  destruct H0 as [EQ _]; subst; simpl; auto.
+  apply lookupBlockViaLabelFromFdef_inv in H; auto.
+  destruct H as [EQ _]; subst; simpl; auto.
 Qed.
 
 Lemma WF_PhiInfo_spec8: forall pinfo td c l1 l2 l3 ps3 cs3 l0 ps0 cs0 tmn0 bid 
   Cond (Huniq: uniqFdef (PI_f pinfo)),
-  WF_PhiInfo pinfo ->
   (if isGVZero td c
    then lookupBlockViaLabelFromFdef (PI_f pinfo) l2
    else lookupBlockViaLabelFromFdef (PI_f pinfo) l1) =
@@ -857,20 +846,15 @@ Lemma WF_PhiInfo_spec8: forall pinfo td c l1 l2 l3 ps3 cs3 l0 ps0 cs0 tmn0 bid
   exists succs, (PI_succs pinfo) ! l3 = Some succs /\ In l0 succs.
 Proof.
   intros.
-  apply blockInFdefB__successors in H1; auto.
-  simpl in H1.
-  destruct H as [J1 [J2 [J3 [J4 J5]]]].
-  rewrite J3. 
-  unfold ls, l in *.
-  rewrite H1.
+  apply blockInFdefB__successors in H0; auto.
+  simpl in H0.
+  unfold ls, l in *. unfold PI_succs.
+  rewrite H0.
   exists (l1::l2::nil).
   split; auto.
-  destruct (isGVZero td c).
-    apply lookupBlockViaLabelFromFdef_inv in H0; auto.
-    destruct H0 as [EQ _]; subst; simpl; auto.
-
-    apply lookupBlockViaLabelFromFdef_inv in H0; auto.
-    destruct H0 as [EQ _]; subst; simpl; auto.
+  destruct (isGVZero td c);
+    apply lookupBlockViaLabelFromFdef_inv in H; auto;
+    destruct H as [EQ _]; subst; simpl; auto.
 Qed.
 
 Lemma gen_fresh_ids__spec3_aux: forall rds nids ex_ids i0 a b c,
@@ -1114,9 +1098,9 @@ Lemma reachable_blk_has_newids : forall pinfo l1,
   (PI_newids pinfo) ! l1 <> merror.
 Proof.
   intros.
-  destruct H as [H1 [H2 [H3 [H4 H5]]]].
+  destruct H as [H1 H2].
   eapply reachable__reachablity_analysis in H2; eauto.
-  clear - H5 H2.
+  clear - H2. unfold PI_newids.
   eapply gen_fresh_ids__spec2; eauto.
 Qed.
 
@@ -1161,10 +1145,9 @@ Lemma WF_PhiInfo_br_succs_preds: forall pinfo l0 l3 (Hwfpi : WF_PhiInfo pinfo)
   prds (Heq' : (PI_preds pinfo) ! l0 = ret prds),
   In l3 prds.
 Proof.
+  unfold PI_preds. unfold PI_succs.
   intros.
-  destruct Hwfpi as [J1 [J2 [J3 [J4 J5]]]].
-  rewrite J3 in Hsucc.
-  rewrite J4 in Heq'.
+  destruct Hwfpi as [J1 J2].
   assert (In l0 (successors (PI_f pinfo))!!!l3) as Hin'.
     unfold successors_list.
     unfold ls, l in *.
@@ -1172,7 +1155,6 @@ Proof.
   apply make_predecessors_correct in Hin'.
   unfold successors_list in Hin'.
   unfold ls, l in *.
-  rewrite J3 in Heq'.
   rewrite Heq' in Hin'. auto.
 Qed.
 
@@ -1244,8 +1226,7 @@ Lemma WF_PhiInfo__switchToNewBasicBlock: forall (pinfo : PhiInfo)
   (ps3' : phinodes) (cs3' : list cmd)
   (H2 : Opsem.switchToNewBasicBlock (los, nts)
          (block_intro l0
-            (gen_phinode pid' (PI_typ pinfo) (PI_newids pinfo) prds
-             :: ps0)
+            (gen_phinode pid' (PI_typ pinfo) (PI_newids pinfo) prds :: ps0)
             (insn_store sid' (PI_typ pinfo) (value_id pid')
                (value_id (PI_id pinfo)) (PI_align pinfo)
              :: cs0 ++
@@ -1502,38 +1483,29 @@ Proof.
   intros.
   destruct (fdef_dec (PI_f pinfo) F); subst; auto.
   destruct v; simpl; auto.
-  destruct Hwfpi as [_ [_ [_ [_ Hfresh]]]].
   intros l0.
-  rewrite Hfresh.
-  remember ((fst (gen_fresh_ids (PI_rd pinfo) (getFdefLocs (PI_f pinfo)))) ! l0)
-    as R.
+  remember ((PI_newids pinfo) ! l0) as R.
   destruct R as [[[]]|]; auto.
   eapply wf_fdef__wf_insn in HBinF; eauto.
   eapply wf_insn__wf_value in HvInOps; eauto.
   destruct HvInOps as [t HvInOps].
   apply wf_value_id__in_getFdefLocs' in HvInOps.
   destruct (i0 == i1); subst.
-    assert (is_temporary i1 
-             (fst (gen_fresh_ids 
-                  (PI_rd pinfo) (getFdefLocs (PI_f pinfo))))) as Histmp.
+    assert (is_temporary i1 (PI_newids pinfo)) as Histmp.
       exists l0. rewrite <- HeqR. auto.
       destruct (i1 == i1); simpl; try congruence.
       left. reflexivity.
    apply gen_fresh_ids__spec in Histmp; auto.
   split; auto.
   destruct (i0 == i2); subst.
-    assert (is_temporary i2 
-             (fst (gen_fresh_ids 
-                  (PI_rd pinfo) (getFdefLocs (PI_f pinfo))))) as Histmp.
+    assert (is_temporary i2 (PI_newids pinfo)) as Histmp.
       exists l0. rewrite <- HeqR. auto.
       destruct (i2 == i2); simpl; try congruence.
       right. left. reflexivity.
    apply gen_fresh_ids__spec in Histmp; auto.
   split; auto.
   destruct (i0 == i3); subst; auto.
-    assert (is_temporary i3 
-             (fst (gen_fresh_ids 
-                  (PI_rd pinfo) (getFdefLocs (PI_f pinfo))))) as Histmp.
+    assert (is_temporary i3 (PI_newids pinfo)) as Histmp.
       exists l0. rewrite <- HeqR. auto.
       destruct (i3 == i3); simpl; try congruence.
       right. right. reflexivity.
@@ -1776,7 +1748,6 @@ Lemma WF_PhiInfo_spec10: forall pinfo l1 ps1 cs1 c cs2 tmn
 Proof.
   intros.
   apply WF_PhiInfo_spec1 in H; auto.
-  destruct H as [v H].
   eapply IngetCmdsIDs__lookupCmdViaIDFromFdef in H0; eauto using in_middle.
   destruct (PI_id pinfo == getCmdLoc c); subst; auto.
   rewrite e in H.
@@ -1797,11 +1768,18 @@ Proof.
   intros.
   eapply getCmdLoc_in_getFdefLocs in H0; eauto.
   destruct (is_temporary_dec (getCmdLoc c) (PI_newids pinfo)); auto.
-  destruct H as [J1 [J2 [J3 [J4 J5]]]].
-  rewrite J5 in H2.
+  destruct H as [J1 J2].
   apply gen_fresh_ids__spec in H2; auto.
   contradict H0; auto.
 Qed.
+
+Lemma find_promotable_alloca__WF_PhiInfo: forall rd f l0 ps0 cs0 tmn0
+  (Hreach : ret rd = dtree.reachablity_analysis f)
+  (Hentry : ret block_intro l0 ps0 cs0 tmn0 = getEntryBlock f)
+  (pid : id) (ty : typ) num (al : align) dones
+  (Hfind : find_promotable_alloca f cs0 dones = ret (pid, ty, num, al)),
+  WF_PhiInfo (mkPhiInfo f rd pid ty num al).
+Admitted.
 
 (*****************************)
 (*

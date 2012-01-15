@@ -47,7 +47,7 @@ end.
 
 Fixpoint wf_ECStack v1 v2 F TD gl (ps:list product) (ecs:Opsem.ECStack) : Prop :=
 match ecs with
-| nil => False
+| nil => True
 | ec::ecs' => 
     wf_ExecutionContext v1 v2 F TD gl ps ec /\ wf_ECStack v1 v2 F TD gl ps ecs'
 end.
@@ -1187,6 +1187,75 @@ Case "sExCall".
     eapply preservation_cmd_updated_case with (Mem1:=Mem') in HwfS1; 
       simpl; eauto; simpl; auto]
   ).
+Qed.
+
+Require Import palloca_props.
+Require Import program_sim.
+
+Lemma initLocals__id_rhs_val_wf_defs : forall pinfo fid l' fa rt la va 
+  lb gvs lc CurLayouts CurNamedts initGlobal v1 v2 (Hwfpi: WF_PhiInfo pinfo) 
+  (Huniq: uniqFdef (fdef_intro (fheader_intro fa rt fid la va) lb))
+  (Hinit : Opsem.initLocals 
+     (OpsemAux.initTargetData CurLayouts CurNamedts Mem.empty) 
+     la gvs = Some lc),
+   match
+     fold_left
+       (inscope_of_block (fdef_intro (fheader_intro fa rt fid la va) lb) l')
+       nil (ret getArgsIDs la)
+   with
+   | ret ids0 =>
+       wf_defs v1 v2 (PI_f pinfo)
+         (OpsemAux.initTargetData CurLayouts CurNamedts Mem.empty) initGlobal
+         (fdef_intro (fheader_intro fa rt fid la va) lb) lc ids0
+   | merror => False
+   end.
+Proof.
+  intros.
+  assert (incl nil (bound_blocks lb)) as J.
+    intros x J. inv J.    
+  apply fold_left__bound_blocks with (fh:=fheader_intro fa rt fid la va)(l0:=l')
+    (init:=getArgsIDs la) in J.
+  destruct J as [r J]. unfold l in *.
+  rewrite J.       
+  intros EQ gvs1 gvs2 Hinscope1 Hinscope2 Hget1 Hget2.
+  clear - Huniq EQ Hget1 Hinit.
+  admit. (* lid cannot be in lc *)
+Qed.
+
+Lemma s_genInitState__id_rhs_val: forall S main VarArgs cfg IS pinfo v1 v2
+  (HwfS : wf_system nil S) (Hwfpi: WF_PhiInfo pinfo) 
+  (Hinit : @Opsem.s_genInitState DGVs S main VarArgs Mem.empty = ret (cfg, IS)),
+  wf_State v1 v2 (PI_f pinfo) cfg IS.
+Proof.
+  intros.
+  simpl_s_genInitState.
+Local Opaque inscope_of_tmn inscope_of_cmd.
+  simpl.
+  split; auto.
+    apply getParentOfFdefFromSystem__productInModuleInSystemB in HeqR0.
+    destruct HeqR0 as [HMinS HinPs].
+    assert (uniqFdef (fdef_intro (fheader_intro f t i0 a v) b)) as Huniq.
+      eapply wf_system__uniqFdef; eauto.
+    unfold wf_ExecutionContext. simpl.
+    assert (ps0=nil) as EQ.
+      eapply entryBlock_has_no_phinodes with (ifs:=nil)(s:=S); eauto.        
+    subst.
+Transparent inscope_of_tmn inscope_of_cmd.
+    apply dom_entrypoint in HeqR2. 
+    destruct cs0.
+      unfold inscope_of_tmn.
+      remember ((dom_analyze (fdef_intro (fheader_intro f t i0 a v) b)) 
+        !! l0) as R.
+      destruct R. simpl in HeqR2. subst.
+      eapply initLocals__id_rhs_val_wf_defs; eauto.
+
+      unfold inscope_of_cmd, inscope_of_id.
+      remember ((dom_analyze (fdef_intro (fheader_intro f t i0 a v) b)) 
+        !! l0) as R.
+      destruct R. simpl. simpl in HeqR2. subst.
+      destruct (eq_atom_dec (getCmdLoc c) (getCmdLoc c)) as [|n]; 
+        try solve [contradict n; auto]. 
+      eapply initLocals__id_rhs_val_wf_defs; eauto.
 Qed.
 
 (*****************************)

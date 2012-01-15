@@ -201,12 +201,12 @@ fold_left
   ) bs true. 
 
 Fixpoint find_promotable_alloca (f:fdef) (cs:cmds) (dones:list id) 
-  : option (id * typ * align) :=
+  : option (id * typ * value * align) :=
 match cs with
 | nil => None
-| insn_alloca pid ty _ al :: cs' =>
+| insn_alloca pid ty num al :: cs' =>
     if is_promotable f pid && negb (In_dec id_dec pid dones) 
-    then Some (pid, ty, al)
+    then Some (pid, ty, num, al)
     else find_promotable_alloca f cs' dones
 | _ :: cs' => find_promotable_alloca f cs' dones
 end.
@@ -217,7 +217,7 @@ match getEntryBlock f with
 | Some (block_intro _ _ cs _) =>
     match find_promotable_alloca f cs dones with
     | None => (f, false, dones)
-    | Some (pid, ty, al) => 
+    | Some (pid, ty, num, al) => 
         let '(f', newpids) := insert_phis f rd pid ty in
         (ssa_renaming f' dt pid ty newpids, true, pid::dones)
     end
@@ -389,7 +389,7 @@ match b with
 | block_intro l0 ps cs tmn => block_intro l0 ps (elim_dead_st_cmds cs pid) tmn
 end.
 
-Definition elim_dead_st_fdef (f:fdef) (pid:id) : fdef :=
+Definition elim_dead_st_fdef (pid:id) (f:fdef) : fdef :=
 let '(fdef_intro fh bs) := f in
 fdef_intro fh (List.map (elim_dead_st_block pid) bs).
 
@@ -399,7 +399,7 @@ match getEntryBlock f with
 | Some (block_intro _ _ cs _) =>
     match find_promotable_alloca f cs dones with
     | None => (f, false, dones)
-    | Some (pid, ty, al) => 
+    | Some (pid, ty, num, al) => 
         let f1 := phinodes_placement f rd pid ty al succs preds in
         let '(f2, _) := 
           if does_stld_elim tt then
@@ -407,7 +407,7 @@ match getEntryBlock f with
           else (f1, nil)
         in
         let f3 :=
-          if load_in_fdef pid f2 then f2 else elim_dead_st_fdef f2 pid
+          if load_in_fdef pid f2 then f2 else elim_dead_st_fdef pid f2
         in
         (if used_in_fdef pid f3 then f3 else remove_fdef pid f3,
          true, pid::dones)

@@ -17,6 +17,8 @@ Require Import mem2reg.
 Require Import opsem_props.
 Require Import promotable_props.
 Require Import palloca_props.
+Require Import program_sim.
+Require Import memory_props.
 
 Ltac zauto := auto with zarith.
 Ltac zeauto := eauto with zarith.
@@ -117,7 +119,7 @@ List.Forall2
    match M1, M2 with
    | module_intro los1 nts1 Ps1, module_intro los2 nts2 Ps2 =>
        los1 = los2 /\ nts1 = nts2 /\ 
-       products_simulation pinfo Ps1 Ps1
+       products_simulation pinfo Ps1 Ps2
    end) S1 S2.
 
 Definition EC_simulation_head (TD:TargetData) Ps1 (pinfo: PhiInfo) 
@@ -557,7 +559,6 @@ Proof.
   destruct Heq as [l0 [ps0 [cs0 [tmn0 Heq]]]]; subst.
   autounfold with ppbsim in *. unfold wf_tmp_value in *. 
   destruct (fdef_dec (PI_f pinfo) (PI_f pinfo)); try congruence.
-  destruct Hwfpi as [_ [_ [_ [_ Hwfpi]]]].
   remember ((PI_newids pinfo) ! l0) as R.
 
   destruct R as [[[]]|]; subst; try solve [solve_is_temporary].
@@ -630,7 +631,6 @@ Proof.
   destruct Heq as [l0 [ps0 [cs0 [tmn0 Heq]]]]; subst.
   autounfold with ppbsim in *. unfold wf_tmp_value in *. simpl.
   destruct (fdef_dec (PI_f pinfo) (PI_f pinfo)); try congruence.
-  destruct Hwfpi as [_ [_ [_ [_ Hwfpi]]]].
   remember ((PI_newids pinfo) ! l0) as R.
   destruct R as [[[]]|]; subst; try solve [solve_is_temporary].
   destruct Htcmds as [J1 [J2 J3]].
@@ -1010,13 +1010,12 @@ Proof.
     intros; subst.
     destruct ((PI_succs pinfo) ! l1) as [succs|]; try congruence.
     destruct succs; try congruence.
-    destruct Hwfpi as [Hwfpi1 [Hwfpi2 [Hwfpi3 [Hwfpi4 Hwfpi5]]]]; subst.
+    destruct Hwfpi as [Hwfpi1 Hwfpi2]; subst.
     assert (Hit: is_temporary
       (getCmdLoc (insn_load i0 (PI_typ pinfo) (value_id (PI_id pinfo)) 
-        (PI_align pinfo)))
-      (fst (gen_fresh_ids (PI_rd pinfo) (getFdefLocs (PI_f pinfo))))).
+        (PI_align pinfo))) (PI_newids pinfo)).
       simpl.
-      exists l1. rewrite <- Hwfpi5. rewrite <- HeqR.
+      exists l1. rewrite <- HeqR.
       left.
       destruct (i0 == i0); simpl; auto; try congruence.
 
@@ -1165,9 +1164,8 @@ Proof.
     remember (gen_fresh_ids (PI_rd pinfo) (getArgsIDs a ++ getBlocksLocs b)) 
       as R.
     destruct R. inv H.
-    destruct Hwfpi as [J1 [J2 [J3 [J4 J5]]]].
-    rewrite e in J5. simpl in J5.
-    rewrite <- HeqR in J5. simpl in J5. subst.
+    destruct Hwfpi as [J1 J2].
+    unfold PI_newids. rewrite e. simpl. rewrite <- HeqR. simpl.
     clear e HeqR.
     unfold phinodes_placement_blocks in H0.
     clear f t i0 a v l0.
@@ -1182,7 +1180,7 @@ Proof.
           apply orb_true_iff. left. apply blockEqB_refl.
       
         apply IHb in H0.
-        destruct H0 as [b1 [J5 J6]].
+        destruct H0 as [b1 [J7 J6]].
         subst.
         exists b1.
         split; auto.
@@ -1390,7 +1388,7 @@ Lemma uniqFdef__block_simulation__uniqBlockLocs: forall pinfo F b1 b2,
 Proof.
   intros.
   assert (H1':=H1).
-  destruct H as [J1 [J2 [J3 [J4 J5]]]].
+  destruct H as [J1 J2].
   apply uniqFdef__uniqBlockLocs in H1; auto.
   unfold block_simulation in H2.
   destruct (fdef_dec (PI_f pinfo) F); subst; auto.
@@ -1398,14 +1396,10 @@ Proof.
     forall (i0 : id),
       is_temporary i0 (PI_newids pinfo) -> ~ In i0 (getFdefLocs (PI_f pinfo))
     ) as J.
-    replace (PI_newids pinfo) with
-        (fst (gen_fresh_ids (PI_rd pinfo) (getFdefLocs (PI_f pinfo)))).
     intros. apply gen_fresh_ids__spec in H; auto.
   assert (forall l0 lib pid sid, 
           (PI_newids pinfo) ! l0 = Some (lib, pid, sid) -> 
           lib <> pid /\ lib <> sid /\ pid <> sid) as Hprop1.
-    replace (PI_newids pinfo) with
-        (fst (gen_fresh_ids (PI_rd pinfo) (getFdefLocs (PI_f pinfo)))).
     intros. eapply gen_fresh_ids__spec3; eauto.
   destruct (PI_f pinfo) as [[] bs]. simpl in *.
   assert (forall i0,
@@ -1610,16 +1604,14 @@ Proof.
     remember (gen_fresh_ids (PI_rd pinfo) 
       (getArgsIDs la1 ++ getBlocksLocs bs1)) as R.
     destruct R. inv H0.
-    destruct Hwfpi as [J1 [J2 [J3 [J4 J5]]]].
-    rewrite e in J5. simpl in J5.
-    rewrite <- HeqR in J5. simpl in J5. subst.
+    destruct Hwfpi as [J1 J2].  
     unfold uniqBlocks in *.
     destruct H as [[H1 H2] H3].
     rewrite <- phinodes_placement_blocks__getBlocksLabels; auto.
+    assert (PI_newids pinfo = t) as EQ.
+      unfold PI_newids. rewrite e. simpl. rewrite <- HeqR. auto.
     assert (forall l0 lib pid sid, 
-              (fst (gen_fresh_ids (PI_rd pinfo) 
-                 (getArgsIDs la2 ++ getBlocksLocs bs1))) ! l0 = 
-                    Some (lib, pid, sid) -> 
+              (PI_newids pinfo) ! l0 = Some (lib, pid, sid) -> 
               lib <> pid /\ lib <> sid /\ pid <> sid) as Hprop1.
       intros. eapply gen_fresh_ids__spec3; eauto.
     assert (forall i0, 
@@ -1627,15 +1619,12 @@ Proof.
                  (getArgsIDs la2 ++ getBlocksLocs bs1))) -> 
               ~ In i0 (getArgsIDs la2 ++ getBlocksLocs bs1)) as Hprop2.
       intros. eapply gen_fresh_ids__spec; eauto.
-    eapply phinodes_placement_blocks__getBlocksLocs in H3; eauto.
-    replace (PI_newids pinfo) with
-      (fst (gen_fresh_ids (PI_rd pinfo) 
-        (getArgsIDs la2 ++ getBlocksLocs bs1))).
-      split; eauto.
-      apply NoDup_inv in H3. destruct H3.
-      split; auto.
-
-      rewrite <- HeqR. auto.
+    rewrite EQ in Hprop1.
+    rewrite <- HeqR in Hprop2.
+    eapply phinodes_placement_blocks__getBlocksLocs in H3; simpl; eauto.
+    split; eauto.
+    apply NoDup_inv in H3. destruct H3.
+    split; auto.
 
     inv H0. auto.
 Qed.
@@ -3217,7 +3206,7 @@ Proof.
   destruct (fdef_dec (PI_f pinfo) f1); inv H; auto.
     destruct (PI_f pinfo) as [[]]; simpl.
     destruct (gen_fresh_ids (PI_rd pinfo) (getArgsIDs a ++ getBlocksLocs b)).
-    auto. 
+    auto.
 Qed.
 
 Lemma products_simulation__fdef_simulation : forall pinfo fid f2 Ps1 Ps2,
@@ -3290,12 +3279,15 @@ Proof.
   unfold block_simulation.
   intros.
   destruct (fdef_dec (PI_f pinfo) f1); inv H; eauto.
-    destruct Hwfpi as [J1 [J2 [J3 [J4 J5]]]].
-    destruct (PI_f pinfo) as [[]]; simpl in *.
-    destruct (gen_fresh_ids (PI_rd pinfo) (getArgsIDs a ++ getBlocksLocs b)).
-    rewrite J5.
+    destruct Hwfpi as [J1 J2].
+    remember (PI_f pinfo) as R1.
+    destruct R1 as [[]]; simpl in *.
+    unfold PI_newids.
+    remember (gen_fresh_ids (PI_rd pinfo) (getArgsIDs a ++ getBlocksLocs b)) 
+      as R2.
+    destruct R2.
     destruct b; simpl in *; inv H2.
-    exists b.
+    exists b. rewrite <- HeqR1. simpl. rewrite <- HeqR2.
     split; auto.
 Qed.
 
@@ -3352,24 +3344,25 @@ Proof.
   intros.
   repeat autounfold with ppbsim in *.
   destruct (fdef_dec (PI_f pinfo) f); subst; inv Hbsim1; auto.
-  destruct Hwfpi as [J1 [J2 [J3 [J4 J5]]]].
+  destruct Hwfpi as [J1 J2].
   assert (exists lid1, exists pid1, exists sid1, 
     (PI_newids pinfo) ! l' = Some (lid1, pid1, sid1)) as HeqR.
-    symmetry in J5.
-    apply gen_fresh_ids__spec2 with (l1:=l') in J5; auto.
+    assert ((PI_newids pinfo) ! l' <> merror) as Hneq.
+      unfold PI_newids.
+      eapply gen_fresh_ids__spec2 with (l1:=l'); eauto.
+      apply reachable_entrypoint in Hgetentry1.
+      eapply reachable__reachablity_analysis in Hgetentry1; eauto.
     destruct (PI_newids pinfo) ! l' as [[[]]|]; eauto; try congruence.
-    apply reachable_entrypoint in Hgetentry1.
-    eapply reachable__reachablity_analysis in Hgetentry1; eauto.
 
   destruct HeqR as [lid1 [pid1 [sid1 HeqR]]].
   rewrite HeqR in *.
   assert (forall pd pds, (PI_preds pinfo) ! l' <> Some (pd::pds)) as Hprds.
-    rewrite J4.
+    unfold PI_preds.
     intros. intro J.
     assert (In pd (make_predecessors (PI_succs pinfo))!!!l') as G.
       unfold successors_list. unfold l in J. rewrite J. simpl. auto.
     apply make_predecessors_correct' in G.
-    rewrite J3 in G.
+    unfold PI_succs in G.
     apply successors__blockInFdefB in G.
     destruct G as [ps1 [cs1 [tmn1 [G1 G2]]]].
     destruct (PI_f pinfo) as [fh bs]. 
@@ -3898,6 +3891,154 @@ Case "sFcmp". abstract phinodes_placement_is_correct__common.
 Case "sSelect". abstract phinodes_placement_is_correct__common.
 Case "sCall". eapply phinodes_placement_is_correct__dsCall; eauto.
 Case "sExCall". eapply phinodes_placement_is_correct__dsExCall; eauto.
+Qed.
+
+Lemma s_genInitState__phiplacement_State_simulation: 
+  forall pinfo S1 S2 main VarArgs cfg2 IS2,
+  system_simulation pinfo S1 S2 ->
+  Opsem.s_genInitState S2 main VarArgs Mem.empty = ret (cfg2, IS2) ->
+  exists cfg1, exists IS1,
+    Opsem.s_genInitState S1 main VarArgs Mem.empty = ret (cfg1, IS1) /\
+    State_simulation pinfo cfg1 IS1 cfg2 IS2.
+Admitted.
+
+Lemma s_isFinialState__phiplacement_State_simulation: 
+  forall pinfo cfg1 FS1 cfg2 FS2 r 
+  (Hstsim : State_simulation pinfo cfg1 FS1 cfg2 FS2)
+  (Hfinal: s_isFinialState cfg2 FS2 = ret r),
+  s_isFinialState cfg1 FS1 = ret r.
+Admitted.
+
+Lemma sop_star__phiplacement_State_simulation: 
+  forall pinfo cfg1 IS1 cfg2 IS2 tr FS2 maxb
+  (Hwfpi: WF_PhiInfo pinfo) (Hwfpp: OpsemPP.wf_State cfg1 IS1) 
+  (Hnoalias: Promotability.wf_State maxb pinfo cfg1 IS1)
+  (Hwfg: MemProps.wf_globals maxb (OpsemAux.Globals cfg1)) (Hinbd: 0 <= maxb)
+  (Hstsim : State_simulation pinfo cfg1 IS1 cfg2 IS2)
+  (Hopstar : Opsem.sop_star cfg2 IS2 FS2 tr),
+  exists FS1, Opsem.sop_star cfg1 IS1 FS1 tr /\ 
+    State_simulation pinfo cfg1 FS1 cfg2 FS2.
+Proof.
+  intros.
+  generalize dependent IS1.
+  induction Hopstar; intros.
+    exists IS1. split; auto.
+
+    eapply phinodes_placement_is_bsim with (St2':=state2) in Hstsim; eauto.
+    destruct Hstsim as [IS1' [Hopstar' Hstsim]].
+    assert (OpsemPP.wf_State cfg1 IS1') as Hwfpp'.
+      admit. (* wf pp *)
+    assert (Promotability.wf_State maxb pinfo cfg1 IS1') as Hnoalias'.
+      admit. (* wf pp *)
+    eapply IHHopstar in Hstsim; eauto.
+    destruct Hstsim as [FS1 [Hopstar1 Hstsim]].
+    exists FS1.
+    split; eauto.
+      eapply OpsemProps.sop_star_trans; eauto.
+Qed.
+
+Lemma sop_div__phiplacement_State_simulation: forall pinfo cfg1 IS1 cfg2 IS2 tr 
+  maxb (Hwfpi: WF_PhiInfo pinfo) (Hwfpp: OpsemPP.wf_State cfg1 IS1) 
+  (Hnoalias: Promotability.wf_State maxb pinfo cfg1 IS1)
+  (Hwfg: MemProps.wf_globals maxb (OpsemAux.Globals cfg1)) (Hinbd: 0 <= maxb)
+  (Hstsim : State_simulation pinfo cfg1 IS1 cfg2 IS2)
+  (Hopstar : Opsem.sop_diverges cfg2 IS2 tr),
+  Opsem.sop_diverges cfg1 IS1 tr.
+Admitted.    
+
+Lemma uniq_products_phiplacement_simulation: forall Ps1 f Ps2 pinfo rd pid ty 
+  al,
+  NoDup (getProductsIDs (Ps1 ++ product_fdef f :: Ps2)) ->
+  PI_f pinfo = f ->
+  Forall2
+     (fun P1 P2 : product =>
+      match P1 with
+      | product_gvar _ => P1 = P2
+      | product_fdec _ => P1 = P2
+      | product_fdef f1 =>
+          match P2 with
+          | product_gvar _ => P1 = P2
+          | product_fdec _ => P1 = P2
+          | product_fdef f2 =>
+              if fdef_dec (PI_f pinfo) f1
+              then
+               phinodes_placement f1 (PI_rd pinfo) 
+                 (PI_id pinfo) (PI_typ pinfo) (PI_align pinfo)
+                 (PI_succs pinfo) (PI_preds pinfo) = f2
+              else f1 = f2
+          end
+      end)
+     (Ps1 ++ product_fdef f :: Ps2)
+     (Ps1 ++
+      product_fdef
+        (phinodes_placement f rd pid ty al (successors f)
+           (make_predecessors (successors f))) :: Ps2).
+Admitted.
+
+Lemma phinodes_placement_sim: forall rd f Ps1 Ps2 los nts main VarArgs pid ty al
+  num l0 ps0 cs0 tmn0 dones (Hreach: ret rd = dtree.reachablity_analysis f)
+  (Hentry: getEntryBlock f = Some (block_intro l0 ps0 cs0 tmn0))
+  (Hfind: find_promotable_alloca f cs0 dones = Some (pid, ty, num, al))
+  (HwfS : 
+     wf_system nil
+       [module_intro los nts (Ps1 ++ product_fdef f :: Ps2)]),
+  program_sim
+    [module_intro los nts 
+      (Ps1 ++ 
+       product_fdef (phinodes_placement f rd pid ty al (successors f)
+                    (make_predecessors (successors f))) :: Ps2)]
+    [module_intro los nts (Ps1 ++ product_fdef f :: Ps2)]
+    main VarArgs.
+Proof.
+  intros. 
+  eapply find_promotable_alloca__WF_PhiInfo in Hfind; eauto.
+  set (pinfo:={|PI_f := f; PI_rd := rd; PI_id := pid;
+                PI_typ := ty; PI_num := num; PI_align := al |}).
+  assert (Huniq:=HwfS). apply wf_system__uniqSystem in Huniq; auto.
+  assert (system_simulation pinfo
+     [module_intro los nts (Ps1 ++ product_fdef f :: Ps2)]
+     [module_intro los nts
+        (Ps1 ++
+         product_fdef (phinodes_placement f rd pid ty al (successors f)
+                      (make_predecessors (successors f))) :: Ps2)]) as Hssim.
+    unfold system_simulation.
+    constructor; auto.
+    repeat split; auto.
+    unfold products_simulation.
+    simpl in Huniq. destruct Huniq as [[_ [_ Huniq]] _].
+    unfold fdef_simulation.
+    apply uniq_products_phiplacement_simulation; auto.
+  constructor.
+    intros tr t Hconv.
+    inv Hconv.
+    eapply s_genInitState__phiplacement_State_simulation in H; eauto.
+    destruct H as [cfg1 [IS1 [Hinit1 Hstsim]]].    
+    assert (OpsemPP.wf_State cfg1 IS1) as Hwfst. 
+      eapply s_genInitState__opsem_wf; eauto.
+    assert (exists maxb, 
+              MemProps.wf_globals maxb (OpsemAux.Globals cfg1) /\ 0 <= maxb /\
+              Promotability.wf_State maxb pinfo cfg1 IS1) as Hprom.
+      eapply s_genInitState__wf_globals_promotable; eauto.
+    destruct Hprom as [maxb [Hwfg [Hless Hprom]]].
+    eapply sop_star__phiplacement_State_simulation in Hstsim; eauto.
+    destruct Hstsim as [FS1 [Hopstar1 Hstsim']].
+    eapply s_isFinialState__phiplacement_State_simulation in Hstsim'; eauto.
+    econstructor; eauto.
+
+    intros tr Hdiv.
+    inv Hdiv.
+    eapply s_genInitState__phiplacement_State_simulation in H; eauto.
+    destruct H as [cfg1 [IS1 [Hinit Hstsim]]].  
+    assert (OpsemPP.wf_State cfg1 IS1) as Hwfst. 
+      eapply s_genInitState__opsem_wf; eauto.
+    assert (exists maxb, 
+              MemProps.wf_globals maxb (OpsemAux.Globals cfg1) /\ 0 <= maxb /\
+              Promotability.wf_State maxb pinfo cfg1 IS1).
+      eapply s_genInitState__wf_globals_promotable; eauto.
+    destruct H as [maxb [Hwfg [Hless Hprom]]].
+    eapply sop_div__phiplacement_State_simulation in Hstsim; eauto.
+    destruct Hstsim as [FS1 Hopdiv1].
+    econstructor; eauto.
 Qed.
 
 (*****************************)

@@ -17,6 +17,7 @@ Require Import mem2reg.
 Require Import opsem_props.
 Require Import memory_props.
 Require Import palloca_props.
+Require Import program_sim.
 
 Module Promotability.
 
@@ -1361,7 +1362,6 @@ Proof.
   eapply IngetArgsIDs__lookupCmdViaIDFromFdef in Hinit; eauto.
   rewrite Heq in *.
   apply WF_PhiInfo_spec1 in Huniq; auto.
-  destruct Huniq as [v Huniq].
   rewrite Huniq in Hinit. congruence.
 Qed.
 
@@ -3094,6 +3094,35 @@ Case "sExCall".
 Qed.
 
 Opaque lift_op1. 
+
+Lemma s_genInitState__wf_globals_promotable: forall S main VarArgs cfg IS pinfo
+  (Hinit : @Opsem.s_genInitState DGVs S main VarArgs Mem.empty = ret (cfg, IS)),
+  exists maxb, 
+    MemProps.wf_globals maxb (OpsemAux.Globals cfg) /\ 0 <= maxb /\
+    Promotability.wf_State maxb pinfo cfg IS.
+Proof.
+  intros.
+  simpl_s_genInitState.
+  simpl.
+  assert (HeqR1':=HeqR1).
+  eapply genGlobalAndInitMem__wf_globals_Mem in HeqR1'; eauto.
+  destruct HeqR1' as [Hwflc [maxb [Hwfg [Hless HwfM]]]].
+  exists maxb.
+  split; auto.
+  split; auto.
+  split.
+    split.
+      split; auto.
+        destruct (fdef_dec (PI_f pinfo) 
+                   (fdef_intro (fheader_intro f t i0 a v) b)); auto.
+        intros gvs Hlkup.
+        clear - HeqR3 Hlkup. admit. (* pid cannot be args *)
+    split; auto. 
+      intros EC Hin. inv Hin.
+  split; auto.
+    split; auto.
+    intros. inv H.
+Qed.
 
 End Promotability.
 

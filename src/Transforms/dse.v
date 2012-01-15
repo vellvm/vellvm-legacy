@@ -17,10 +17,11 @@ Require Import primitives.
 Require Import palloca_props.
 Require Import mem2reg.
 Require Import memory_props.
+Require Import program_sim.
 
 Definition fdef_simulation (pinfo: PhiInfo) f1 f2 : Prop :=
   if (fdef_dec (PI_f pinfo) f1) then 
-    elim_dead_st_fdef f1 (PI_id pinfo) = f2
+    elim_dead_st_fdef (PI_id pinfo) f1 = f2
   else f1 = f2.
 
 Definition cmds_simulation (pinfo: PhiInfo) (f1:fdef) cs1 cs2 : Prop :=
@@ -47,7 +48,7 @@ List.Forall2
    match M1, M2 with
    | module_intro los1 nts1 Ps1, module_intro los2 nts2 Ps2 =>
        los1 = los2 /\ nts1 = nts2 /\ 
-       products_simulation pinfo Ps1 Ps1
+       products_simulation pinfo Ps1 Ps2
    end) S1 S2.
 
 Definition EC_simulation (pinfo: PhiInfo) (EC1 EC2:@Opsem.ExecutionContext DGVs)
@@ -1041,6 +1042,141 @@ SCase "sExCall".
     
 Transparent inscope_of_tmn inscope_of_cmd.
 
+Qed.
+
+Lemma s_genInitState__dse_State_simulation: forall pinfo S1 S2 main VarArgs cfg2 
+  IS2,
+  system_simulation pinfo S1 S2 ->
+  Opsem.s_genInitState S2 main VarArgs Mem.empty = ret (cfg2, IS2) ->
+  exists cfg1, exists IS1,
+    Opsem.s_genInitState S1 main VarArgs Mem.empty = ret (cfg1, IS1) /\
+    State_simulation pinfo cfg1 IS1 cfg2 IS2.
+Admitted.
+
+Lemma s_isFinialState__dse_State_simulation: forall pinfo cfg1 FS1 cfg2 
+  FS2 r (Hstsim : State_simulation pinfo cfg1 FS1 cfg2 FS2)
+  (Hfinal: s_isFinialState cfg2 FS2 = ret r),
+  s_isFinialState cfg1 FS1 = ret r.
+Admitted.
+
+Lemma opsem_s_isFinialState__dse_State_simulation: forall pinfo cfg1 FS1 cfg2 FS2
+  (Hstsim : State_simulation pinfo cfg1 FS1 cfg2 FS2),
+  Opsem.s_isFinialState FS1 = Opsem.s_isFinialState FS2.
+Admitted.
+
+Lemma undefined_state__dse_State_simulation: forall pinfo cfg1 St1 cfg2 
+  St2 (Hstsim : State_simulation pinfo cfg1 St1 cfg2 St2),
+  OpsemPP.undefined_state cfg1 St1 -> OpsemPP.undefined_state cfg2 St2.
+Admitted.
+
+Lemma sop_star__dse_State_simulation: forall pinfo  cfg1 IS1 cfg2 IS2 tr
+  FS2 (Hwfpi: WF_PhiInfo pinfo) (Hwfpp: OpsemPP.wf_State cfg1 IS1)
+  (Hnld: load_in_fdef (PI_id pinfo) (PI_f pinfo) = false) maxb
+  (Hnoalias: Promotability.wf_State maxb pinfo cfg1 IS1)
+  (Hstsim : State_simulation pinfo cfg1 IS1 cfg2 IS2)
+  (Hopstar : Opsem.sop_star cfg2 IS2 FS2 tr),
+  exists FS1, Opsem.sop_star cfg1 IS1 FS1 tr /\ 
+    State_simulation pinfo cfg1 FS1 cfg2 FS2.
+Proof.
+  intros.
+  generalize dependent cfg1.
+  generalize dependent IS1.
+  induction Hopstar; intros.
+    exists IS1. split; auto.
+
+    assert (J:=Hwfpp).
+    apply OpsemPP.progress in J; auto.
+    destruct J as [Hfinal1 | [[IS1' [tr0 Hop1]] | Hundef1]].
+      apply opsem_s_isFinialState__dse_State_simulation in Hstsim.
+      rewrite Hstsim in Hfinal1.
+      contradict H; eauto using s_isFinialState__stuck.
+
+      assert (OpsemPP.wf_State cfg1 IS1') as Hwfpp'.
+        admit. (* wf pp *)
+      assert (Promotability.wf_State maxb pinfo cfg1 IS1') as Hnoalias'.
+        admit. (* wf pp *)
+      eapply dse_is_sim in Hstsim; eauto.
+      destruct Hstsim as [Hstsim1 Hstsim2].
+      destruct (@removable_State_dec pinfo IS1) as [Hrm | Hnrm].
+        eapply Hstsim1 in Hrm; eauto.
+        destruct Hrm as [Hstsim EQ]; subst.
+        admit. (* we should do induction on the measure of State_simulation *)
+
+        eapply Hstsim2 in Hnrm; eauto.
+        destruct Hnrm as [Hstsim EQ]; subst.
+        eapply IHHopstar in Hstsim; eauto.
+        destruct Hstsim as [FS1 [Hopstar1 Hstsim]].
+        exists FS1. split; eauto.
+
+      eapply undefined_state__dse_State_simulation in Hstsim; eauto.
+      contradict H; eauto using undefined_state__stuck.
+Qed.
+
+Lemma sop_div__dse_State_simulation: forall pinfo cfg1 IS1 cfg2 IS2 tr
+  (Hwfpi: WF_PhiInfo pinfo) (Hwfpp: OpsemPP.wf_State cfg1 IS1)
+  (Hnld: load_in_fdef (PI_id pinfo) (PI_f pinfo) = false) maxb
+  (Hnoalias: Promotability.wf_State maxb pinfo cfg1 IS1)
+  (Hstsim : State_simulation pinfo cfg1 IS1 cfg2 IS2)
+  (Hopstar : Opsem.sop_diverges cfg2 IS2 tr),
+  Opsem.sop_diverges cfg1 IS1 tr.
+Admitted.
+     
+Lemma dse_sim: forall (pinfo:PhiInfo) f pid Ps1 Ps2 los nts main 
+  VarArgs (Heq1: PI_id pinfo = pid) (Heq2: PI_f pinfo = f) 
+  (Hwfpi: WF_PhiInfo pinfo)
+  (HwfS: wf_system nil [module_intro los nts (Ps1 ++ product_fdef f :: Ps2)])
+  (Hnld: load_in_fdef pid f = false),
+  program_sim
+    [module_intro los nts 
+      (Ps1 ++  product_fdef (elim_dead_st_fdef pid f) :: Ps2)]
+    [module_intro los nts (Ps1 ++ product_fdef f :: Ps2)]
+    main VarArgs.
+Proof.
+  intros. subst.
+  assert (Huniq:=HwfS). apply wf_system__uniqSystem in Huniq; auto.
+  assert (system_simulation pinfo
+    [module_intro los nts (Ps1 ++ product_fdef (PI_f pinfo) :: Ps2)]
+    [module_intro los nts
+      (Ps1 ++ product_fdef (elim_dead_st_fdef (PI_id pinfo) (PI_f pinfo)) 
+       :: Ps2)]) as Hssim.
+    unfold system_simulation.
+    constructor; auto.
+    repeat split; auto.
+    unfold products_simulation.
+    simpl in Huniq. destruct Huniq as [[_ [_ Huniq]] _].
+    apply uniq_products_simulation; auto.
+
+  constructor.
+    intros tr t Hconv.
+    inv Hconv.
+    eapply s_genInitState__dse_State_simulation in H; eauto.
+    destruct H as [cfg1 [IS1 [Hinit1 Hstsim]]]. 
+    assert (OpsemPP.wf_State cfg1 IS1) as Hwfst. 
+      eapply s_genInitState__opsem_wf; eauto.
+    assert (exists maxb, 
+              MemProps.wf_globals maxb (OpsemAux.Globals cfg1) /\ 0 <= maxb /\
+              Promotability.wf_State maxb pinfo cfg1 IS1) as Hprom.
+      eapply Promotability.s_genInitState__wf_globals_promotable; eauto.
+    destruct Hprom as [maxb [Hwfg [Hless Hprom]]]. 
+    eapply sop_star__dse_State_simulation in Hstsim; eauto.
+    destruct Hstsim as [FS1 [Hopstar1 Hstsim']].
+    eapply s_isFinialState__dse_State_simulation in Hstsim'; eauto.
+    econstructor; eauto.
+
+    intros tr Hdiv.
+    inv Hdiv.
+    eapply s_genInitState__dse_State_simulation in H; eauto.
+    destruct H as [cfg1 [IS1 [Hinit1 Hstsim]]]. 
+    assert (OpsemPP.wf_State cfg1 IS1) as Hwfst. 
+      eapply s_genInitState__opsem_wf; eauto.
+    assert (exists maxb, 
+              MemProps.wf_globals maxb (OpsemAux.Globals cfg1) /\ 0 <= maxb /\
+              Promotability.wf_State maxb pinfo cfg1 IS1) as Hprom.
+      eapply Promotability.s_genInitState__wf_globals_promotable; eauto.
+    destruct Hprom as [maxb [Hwfg [Hless Hprom]]]. 
+    eapply sop_div__dse_State_simulation in Hstsim; eauto.
+    destruct Hstsim as [FS1 Hopdiv1].
+    econstructor; eauto.
 Qed.
 
 (*****************************)

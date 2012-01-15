@@ -40,17 +40,17 @@ match b with
 end.
 
 Definition fdef_simulation (pinfo: PhiInfo) f1 f2: Prop :=
-  let '(mkPhiInfo f rd succs preds pid ty _ al _) := pinfo in
+  let '(mkPhiInfo f rd pid ty _ al) := pinfo in
   if (fdef_dec f1 f) then 
-    phinodes_placement f1 rd pid ty al succs preds = f2
+    phinodes_placement f1 rd pid ty al (PI_succs pinfo) (PI_preds pinfo) = f2
   else f1 = f2.
 
 Definition cmds_simulation (pinfo: PhiInfo) (f1:fdef) (l1:l) cs1 cs2: Prop :=
-  let '(mkPhiInfo f rd succs preds pid ty _ al newids) := pinfo in
+  let '(mkPhiInfo f rd pid ty _ al) := pinfo in
   if (fdef_dec f1 f) then
      match ATree.get l1 (successors f1) with
      | Some (_::_) => 
-        match ATree.get l1 newids with
+        match ATree.get l1 (PI_newids pinfo) with
         | Some (lid, _, _) => cs1 ++ [insn_load lid ty (value_id pid) al] = cs2
         | None => cs1 = cs2
         end
@@ -59,9 +59,10 @@ Definition cmds_simulation (pinfo: PhiInfo) (f1:fdef) (l1:l) cs1 cs2: Prop :=
   else cs1 = cs2.
 
 Definition block_simulation (pinfo: PhiInfo) f1 b1 b2: Prop :=
-  let '(mkPhiInfo f _ succs preds pid ty _ al newids) := pinfo in
+  let '(mkPhiInfo f _ pid ty _ al) := pinfo in
   if (fdef_dec f1 f) then
-     phinodes_placement_block pid ty al newids succs preds b1 = b2
+     phinodes_placement_block pid ty al (PI_newids pinfo) (PI_succs pinfo) 
+       (PI_preds pinfo) b1 = b2
   else b1 = b2.
 
 Definition products_simulation (pinfo: PhiInfo) Ps1 Ps2: Prop :=
@@ -78,7 +79,7 @@ List.Forall2
    match M1, M2 with
    | module_intro los1 nts1 Ps1, module_intro los2 nts2 Ps2 =>
        los1 = los2 /\ nts1 = nts2 /\ 
-       products_simulation pinfo Ps1 Ps1
+       products_simulation pinfo Ps1 Ps2
    end) S1 S2.
 
 Definition EC_simulation_head (TD:TargetData) Ps1 (pinfo: PhiInfo) 
@@ -175,7 +176,7 @@ Lemma cmds_simulation_nil_br_inv: forall B F tmn pinfo cs2
   (Hsucc: successors_terminator tmn <> nil)
   (Htcmds: cmds_simulation pinfo F (label_of_block B) nil cs2),
   if fdef_dec F pinfo.(PI_f) then   
-    match ATree.get (label_of_block B) pinfo.(PI_newids) with
+    match ATree.get (label_of_block B) (PI_newids pinfo) with
     | None => cs2 = nil
     | Some (lid', _, _) =>
         cs2 = [insn_load lid' pinfo.(PI_typ) (value_id pinfo.(PI_id)) 

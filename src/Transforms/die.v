@@ -14,6 +14,7 @@ Require Import Iteration.
 Require Import Maps.
 Require Import opsem_props.
 Require Import primitives.
+Require Import program_sim.
 
 Definition pure_cmd (c:cmd) : Prop :=
 match c with
@@ -59,7 +60,7 @@ List.Forall2
    match M1, M2 with
    | module_intro los1 nts1 Ps1, module_intro los2 nts2 Ps2 =>
        los1 = los2 /\ nts1 = nts2 /\ 
-       products_simulation diinfo Ps1 Ps1
+       products_simulation diinfo Ps1 Ps2
    end) S1 S2.
 
 Definition reg_simulation (diinfo: DIInfo) (F1:fdef) 
@@ -140,6 +141,129 @@ Lemma die_is_sim : forall diinfo Cfg1 St1 Cfg2 St2
      (Hop2: Opsem.sInsn Cfg2 St2 St2' tr2) 
      (Hop1: Opsem.sInsn Cfg1 St1 St1' tr1), 
      State_simulation diinfo Cfg1 St1' Cfg2 St2' /\ tr1 = tr2).
+Admitted.
+
+Lemma s_genInitState__die_State_simulation: 
+  forall diinfo S1 S2 main VarArgs cfg2 IS2,
+  die.system_simulation diinfo S1 S2 ->
+  Opsem.s_genInitState S2 main VarArgs Mem.empty = ret (cfg2, IS2) ->
+  exists cfg1, exists IS1,
+    Opsem.s_genInitState S1 main VarArgs Mem.empty = ret (cfg1, IS1) /\
+    die.State_simulation diinfo cfg1 IS1 cfg2 IS2.
+Admitted.
+
+Lemma s_isFinialState__die_State_simulation: 
+  forall diinfo cfg1 FS1 cfg2 FS2 r 
+  (Hstsim : die.State_simulation diinfo cfg1 FS1 cfg2 FS2)
+  (Hfinal: s_isFinialState cfg2 FS2 = ret r),
+  s_isFinialState cfg1 FS1 = ret r.
+Admitted.
+
+Lemma opsem_s_isFinialState__die_State_simulation: forall 
+  diinfo cfg1 FS1 cfg2 FS2  
+  (Hstsim : die.State_simulation diinfo cfg1 FS1 cfg2 FS2),
+  Opsem.s_isFinialState FS1 = Opsem.s_isFinialState FS2.
+Admitted.
+
+Lemma undefined_state__die_State_simulation: forall diinfo cfg1 St1 cfg2 
+  St2 (Hstsim : die.State_simulation diinfo cfg1 St1 cfg2 St2),
+  OpsemPP.undefined_state cfg1 St1 -> OpsemPP.undefined_state cfg2 St2.
+Admitted.
+
+Lemma sop_star__die_State_simulation: forall diinfo cfg1 IS1 cfg2 IS2 tr FS2 
+  (Hwfpp: OpsemPP.wf_State cfg1 IS1) 
+  (Hstsim : die.State_simulation diinfo cfg1 IS1 cfg2 IS2)
+  (Hopstar : Opsem.sop_star cfg2 IS2 FS2 tr),
+  exists FS1, Opsem.sop_star cfg1 IS1 FS1 tr /\ 
+    die.State_simulation diinfo cfg1 FS1 cfg2 FS2.
+Proof.
+  intros.
+  generalize dependent IS1.
+  induction Hopstar; intros.
+    exists IS1. split; auto.
+
+    assert (J:=Hwfpp).
+    apply OpsemPP.progress in J; auto.
+    destruct J as [Hfinal1 | [[IS1' [tr0 Hop1]] | Hundef1]].
+      apply opsem_s_isFinialState__die_State_simulation in Hstsim.
+      rewrite Hstsim in Hfinal1.
+      contradict H; eauto using s_isFinialState__stuck.
+
+      assert (OpsemPP.wf_State cfg1 IS1') as Hwfpp'.
+        admit. (* wf pp *)
+      eapply die_is_sim in Hstsim; eauto.
+      destruct Hstsim as [Hstsim1 Hstsim2].
+      destruct (@die.removable_State_dec diinfo IS1) as [Hrm | Hnrm].
+        eapply Hstsim1 in Hrm; eauto.
+        destruct Hrm as [Hstsim EQ]; subst.
+        admit. (* we should do induction on the measure of State_simulation *)
+
+        eapply Hstsim2 in Hnrm; eauto.
+        destruct Hnrm as [Hstsim EQ]; subst.
+        eapply IHHopstar in Hstsim; eauto.
+        destruct Hstsim as [FS1 [Hopstar1 Hstsim]].
+        exists FS1.
+        split; eauto.
+
+      eapply undefined_state__die_State_simulation in Hstsim; eauto.
+      contradict H; eauto using undefined_state__stuck.
+Qed.
+
+Lemma sop_div__die_State_simulation: forall diinfo cfg1 IS1 cfg2 IS2 tr 
+  (Hwfpp: OpsemPP.wf_State cfg1 IS1) 
+  (Hstsim : die.State_simulation diinfo cfg1 IS1 cfg2 IS2)
+  (Hopstar : Opsem.sop_diverges cfg2 IS2 tr),
+  Opsem.sop_diverges cfg1 IS1 tr.
+Admitted.    
+
+Lemma die_sim: forall id0 f diinfo los nts Ps1 Ps2 main VarArgs
+  (HwfS: wf_system nil [module_intro los nts (Ps1 ++ product_fdef f :: Ps2)])
+  (Heq1: f = DI_f diinfo) (Heq2: id0 = DI_id diinfo),
+  program_sim
+    [module_intro los nts 
+      (Ps1 ++  product_fdef (remove_fdef id0 f) :: Ps2)]
+    [module_intro los nts (Ps1 ++ product_fdef f :: Ps2)]
+    main VarArgs.
+Proof.
+  intros. subst.
+  assert (Huniq:=HwfS). apply wf_system__uniqSystem in Huniq; auto.
+  assert (die.system_simulation diinfo
+    [module_intro los nts (Ps1 ++ product_fdef (DI_f diinfo) :: Ps2)]
+    [module_intro los nts
+      (Ps1 ++ product_fdef (remove_fdef (DI_id diinfo) (DI_f diinfo)) :: Ps2)])
+    as Hssim.
+    unfold die.system_simulation.
+    constructor; auto.
+    repeat split; auto.
+    unfold die.products_simulation.
+    simpl in Huniq. destruct Huniq as [[_ [_ Huniq]] _].
+    apply uniq_products_simulation; auto.
+
+  constructor.
+    intros tr t Hconv.
+    inv Hconv.
+    eapply s_genInitState__die_State_simulation in H; eauto.
+    destruct H as [cfg1 [IS1 [Hinit1 Hstsim]]].    
+    assert (OpsemPP.wf_State cfg1 IS1) as Hwfst. 
+      eapply s_genInitState__opsem_wf; eauto.
+    eapply sop_star__die_State_simulation in Hstsim; eauto.
+    destruct Hstsim as [FS1 [Hopstar1 Hstsim']].
+    eapply s_isFinialState__die_State_simulation in Hstsim'; eauto.
+    econstructor; eauto.
+
+    intros tr Hdiv.
+    inv Hdiv.
+    eapply s_genInitState__die_State_simulation in H; eauto.
+    destruct H as [cfg1 [IS1 [Hinit Hstsim]]].  
+    assert (OpsemPP.wf_State cfg1 IS1) as Hwfst. 
+      eapply s_genInitState__opsem_wf; eauto.
+    eapply sop_div__die_State_simulation in Hstsim; eauto.
+    destruct Hstsim as [FS1 Hopdiv1].
+    econstructor; eauto.
+Qed.
+
+Lemma subst_fdef__diinfo: forall f id0 v0,
+  exists diinfo:DIInfo, DI_f diinfo = subst_fdef id0 v0 f /\ DI_id diinfo = id0.
 Admitted.
 
 (*****************************)
