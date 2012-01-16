@@ -1582,10 +1582,17 @@ Lemma find_st_ld__lasinfo: forall l0 ps0 cs0 tmn0 i0 v cs (pinfo:PhiInfo) dones
     LAS_block pinfo lasinfo = (block_intro l0 ps0 cs0 tmn0).
 Admitted.
 
+Lemma lasinfo__substable_values: forall td gl pinfo lasinfo, 
+  substable_values td gl (PI_f pinfo) (value_id (LAS_lid pinfo lasinfo))
+    (LAS_value pinfo lasinfo).
+Admitted.
+
 Lemma sop_star__las_State_simulation: forall pinfo lasinfo cfg1 IS1 cfg2 IS2 tr
   FS2 (Hwfpi: WF_PhiInfo pinfo) (Hwfpp: OpsemPP.wf_State cfg1 IS1) 
   (HwfS1: id_rhs_val.wf_State (value_id (LAS_lid pinfo lasinfo)) 
            (LAS_value pinfo lasinfo) (PI_f pinfo) cfg1 IS1)
+  (Hvev: vev_State (value_id (LAS_lid pinfo lasinfo)) (LAS_value pinfo lasinfo) 
+           (PI_f pinfo) cfg1 IS1)
   (Hstsim : State_simulation pinfo lasinfo cfg1 IS1 cfg2 IS2)
   (Hopstar : Opsem.sop_star cfg2 IS2 FS2 tr),
   exists FS1, Opsem.sop_star cfg1 IS1 FS1 tr /\ 
@@ -1607,10 +1614,15 @@ Proof.
       eapply las_is_sim in Hstsim; eauto.
       destruct Hstsim as [Hstsim EQ]; subst.
       assert (OpsemPP.wf_State cfg1 IS1') as Hwfpp'.
-        admit. (* wf pp *)
+        apply OpsemPP.preservation in Hop1; auto.
       assert (id_rhs_val.wf_State (value_id (LAS_lid pinfo lasinfo))
                (LAS_value pinfo lasinfo) (PI_f pinfo) cfg1 IS1') as HwfS1'.
-        admit. (* wf pp *)
+        eapply id_rhs_val.preservation in Hop1; eauto.
+          apply lasinfo__substable_values.
+      assert (vev_State (value_id (LAS_lid pinfo lasinfo)) 
+        (LAS_value pinfo lasinfo) (PI_f pinfo) cfg1 IS1') as Hvev'.
+        eapply vev_State__preservation in Hop1;
+          eauto using lasinfo__substable_values.
       eapply IHHopstar in Hstsim; eauto.
       destruct Hstsim as [FS1 [Hopstar1 Hstsim]].
       exists FS1.
@@ -1624,6 +1636,8 @@ Lemma sop_div__las_State_simulation: forall pinfo lasinfo cfg1 IS1 cfg2 IS2 tr
   (Hwfpi: WF_PhiInfo pinfo) (Hwfpp: OpsemPP.wf_State cfg1 IS1) 
   (HwfS1: id_rhs_val.wf_State (value_id (LAS_lid pinfo lasinfo)) 
            (LAS_value pinfo lasinfo) (PI_f pinfo) cfg1 IS1)
+  (Hvev: vev_State (value_id (LAS_lid pinfo lasinfo)) (LAS_value pinfo lasinfo) 
+           (PI_f pinfo) cfg1 IS1)
   (Hstsim : State_simulation pinfo lasinfo cfg1 IS1 cfg2 IS2)
   (Hopstar : Opsem.sop_diverges cfg2 IS2 tr),
   Opsem.sop_diverges cfg1 IS1 tr.
@@ -1690,6 +1704,9 @@ Proof.
     assert (id_rhs_val.wf_State (value_id (LAS_lid pinfo lasinfo))
               (LAS_value pinfo lasinfo) (PI_f pinfo) cfg1 IS1) as Hisrhsval.
       eapply s_genInitState__id_rhs_val; eauto.
+    assert (vev_State (value_id (LAS_lid pinfo lasinfo)) 
+      (LAS_value pinfo lasinfo) (PI_f pinfo) cfg1 IS1) as Hvev.
+      eapply s_genInitState__vev_State; eauto.
     eapply sop_star__las_State_simulation in Hstsim; eauto.
     destruct Hstsim as [FS1 [Hopstar1 Hstsim']].
     eapply s_isFinialState__las_State_simulation in Hstsim'; eauto.
@@ -1704,10 +1721,59 @@ Proof.
     assert (id_rhs_val.wf_State (value_id (LAS_lid pinfo lasinfo))
               (LAS_value pinfo lasinfo) (PI_f pinfo) cfg1 IS1) as Hisrhsval.
       eapply s_genInitState__id_rhs_val; eauto.
+    assert (vev_State (value_id (LAS_lid pinfo lasinfo)) 
+      (LAS_value pinfo lasinfo) (PI_f pinfo) cfg1 IS1) as Hvev.
+      eapply s_genInitState__vev_State; eauto.
     eapply sop_div__las_State_simulation in Hstsim; eauto.
     destruct Hstsim as [FS1 Hopdiv1].
     econstructor; eauto.
 Qed.
+
+Lemma las_wfS: forall (los : layouts) (nts : namedts) (fh : fheader) 
+  (dones : list id) (pinfo: PhiInfo)
+  (bs1 : list block) (l0 : l) (ps0 : phinodes) (cs0 : cmds) (tmn0 : terminator)
+  (bs2 : list block) (Ps1 : list product) (Ps2 : list product) (i0 : id)
+  (v : value) (cs : cmds) (Hwfpi: WF_PhiInfo pinfo) 
+  (Hst : ret inl (i0, v, cs) = find_init_stld cs0 (PI_id pinfo) dones)
+  (i1 : id) (Hld : ret inl i1 = find_next_stld cs (PI_id pinfo))
+  (HwfS : 
+     wf_system nil
+       [module_intro los nts 
+         (Ps1 ++ 
+          product_fdef 
+            (fdef_intro fh (bs1 ++ block_intro l0 ps0 cs0 tmn0 :: bs2))
+          :: Ps2)])
+  (Heq: PI_f pinfo = fdef_intro fh (bs1 ++ block_intro l0 ps0 cs0 tmn0 :: bs2)),
+  wf_system nil
+    [module_intro los nts 
+      (Ps1 ++ 
+       product_fdef 
+         (subst_fdef i1 v 
+           (fdef_intro fh (bs1 ++ block_intro l0 ps0 cs0 tmn0 :: bs2))) :: Ps2)].
+Proof.
+Admitted.
+
+Lemma las_wfPI: forall (los : layouts) (nts : namedts) (fh : fheader) 
+  (dones : list id) (pinfo: PhiInfo)
+  (bs1 : list block) (l0 : l) (ps0 : phinodes) (cs0 : cmds) (tmn0 : terminator)
+  (bs2 : list block) (Ps1 : list product) (Ps2 : list product) (i0 : id)
+  (v : value) (cs : cmds) (Hwfpi: WF_PhiInfo pinfo) 
+  (Hst : ret inl (i0, v, cs) = find_init_stld cs0 (PI_id pinfo) dones)
+  (i1 : id) (Hld : ret inl i1 = find_next_stld cs (PI_id pinfo))
+  (HwfS : 
+     wf_system nil
+       [module_intro los nts 
+         (Ps1 ++ 
+          product_fdef 
+            (fdef_intro fh (bs1 ++ block_intro l0 ps0 cs0 tmn0 :: bs2))
+          :: Ps2)])
+  (Heq: PI_f pinfo = fdef_intro fh (bs1 ++ block_intro l0 ps0 cs0 tmn0 :: bs2)),
+  WF_PhiInfo 
+    (update_pinfo pinfo
+      (subst_fdef i1 v 
+        (fdef_intro fh (bs1 ++ block_intro l0 ps0 cs0 tmn0 :: bs2)))).
+Proof.
+Admitted.
 
 
 (*****************************)

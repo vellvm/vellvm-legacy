@@ -1781,6 +1781,15 @@ Lemma find_promotable_alloca__WF_PhiInfo: forall rd f l0 ps0 cs0 tmn0
   WF_PhiInfo (mkPhiInfo f rd pid ty num al).
 Admitted.
 
+Definition update_pinfo (pinfo:PhiInfo) (f:fdef) : PhiInfo :=
+(mkPhiInfo f   
+  (PI_rd pinfo) (PI_id pinfo) (PI_typ pinfo) (PI_num pinfo) (PI_align pinfo)).
+
+Lemma update_pinfo_eq: forall pinfo, update_pinfo pinfo (PI_f pinfo) = pinfo.
+Proof.
+  intros. unfold update_pinfo. destruct pinfo. simpl in *. auto.
+Qed.
+
 (*****************************)
 (*
 *** Local Variables: ***

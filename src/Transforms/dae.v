@@ -3440,6 +3440,7 @@ Lemma s_genInitState__dae_State_simulation: forall pinfo S1 S2 main VarArgs cfg2
     Opsem.s_genInitState S1 main VarArgs Mem.empty = ret (cfg1, IS1) /\
     State_simulation pinfo maxb mi cfg1 IS1 cfg2 IS2 /\
     sb_ds_gv_inject.wf_globals maxb (OpsemAux.Globals cfg1) /\
+    MemProps.wf_globals maxb (OpsemAux.Globals cfg1) /\
     0 <= maxb /\
     Promotability.wf_State maxb pinfo cfg1 IS1.
 Admitted.
@@ -3465,6 +3466,7 @@ Lemma sop_star__dae_State_simulation: forall pinfo mi cfg1 IS1 cfg2 IS2 tr
   FS2 (Hwfpi: WF_PhiInfo pinfo) (Hwfpp: OpsemPP.wf_State cfg1 IS1) maxb
   (Hwfg: sb_ds_gv_inject.wf_globals maxb (OpsemAux.Globals cfg1))
   (Hless: 0 <= maxb) (Hnuse: used_in_fdef (PI_id pinfo) (PI_f pinfo) = false)
+  (Hwfgs: MemProps.wf_globals maxb (OpsemAux.Globals cfg1)) 
   (Hnoalias: Promotability.wf_State maxb pinfo cfg1 IS1)
   (Hstsim : State_simulation pinfo maxb mi cfg1 IS1 cfg2 IS2)
   (Hopstar : Opsem.sop_star cfg2 IS2 FS2 tr),
@@ -3487,9 +3489,9 @@ Proof.
       contradict H; eauto using s_isFinialState__stuck.
 
       assert (OpsemPP.wf_State cfg1 IS1') as Hwfpp'.
-        admit. (* wf pp *)
+        apply OpsemPP.preservation in Hop1; auto.
       assert (Promotability.wf_State maxb pinfo cfg1 IS1') as Hnoalias'.
-        admit. (* wf pp *)
+        eapply Promotability.preservation in Hop1; eauto.
       eapply dae_is_sim in Hstsim; eauto.
       destruct Hstsim as [Hstsim1 Hstsim2].
       destruct (@removable_State_dec pinfo IS1) as [Hrm | Hnrm].
@@ -3514,6 +3516,7 @@ Lemma sop_div__dae_State_simulation: forall pinfo cfg1 IS1 cfg2 IS2 tr
   (Hwfpi: WF_PhiInfo pinfo) (Hwfpp: OpsemPP.wf_State cfg1 IS1) maxb mi
   (Hwfg: sb_ds_gv_inject.wf_globals maxb (OpsemAux.Globals cfg1))
   (Hless: 0 <= maxb) (Hnuse: used_in_fdef (PI_id pinfo) (PI_f pinfo) = false)
+  (Hwfgs: MemProps.wf_globals maxb (OpsemAux.Globals cfg1)) 
   (Hnoalias: Promotability.wf_State maxb pinfo cfg1 IS1)
   (Hstsim : State_simulation pinfo maxb mi cfg1 IS1 cfg2 IS2)
   (Hopstar : Opsem.sop_diverges cfg2 IS2 tr),
@@ -3550,7 +3553,7 @@ Proof.
     inv Hconv.
     eapply s_genInitState__dae_State_simulation in H; eauto.
     destruct H as 
-      [maxb [mi [cfg1 [IS1 [Hinit1 [Hstsim [Hwfg [Hless Hprom]]]]]]]]. 
+      [maxb [mi [cfg1 [IS1 [Hinit1 [Hstsim [Hwfg [Hwfgs [Hless Hprom]]]]]]]]]. 
     assert (OpsemPP.wf_State cfg1 IS1) as Hwfst. 
       eapply s_genInitState__opsem_wf; eauto.
     eapply sop_star__dae_State_simulation in Hstsim; eauto.
@@ -3562,13 +3565,22 @@ Proof.
     inv Hdiv.
     eapply s_genInitState__dae_State_simulation in H; eauto.
     destruct H as 
-      [maxb [mi [cfg1 [IS1 [Hinit1 [Hstsim [Hwfg [Hless Hprom]]]]]]]]. 
+      [maxb [mi [cfg1 [IS1 [Hinit1 [Hstsim [Hwfg [Hwfgs [Hless Hprom]]]]]]]]]. 
     assert (OpsemPP.wf_State cfg1 IS1) as Hwfst. 
       eapply s_genInitState__opsem_wf; eauto.
     eapply sop_div__dae_State_simulation in Hstsim; eauto.
     destruct Hstsim as [FS1 Hopdiv1].
     econstructor; eauto.
 Qed.
+
+Lemma dae_wfS: forall id0 f pinfo los nts Ps1 Ps2
+  (Hwfpi: WF_PhiInfo pinfo)  
+  (HwfS: wf_system nil [module_intro los nts (Ps1 ++ product_fdef f :: Ps2)])
+  (Hnuse: used_in_fdef (PI_id pinfo) (PI_f pinfo) = false)
+  (Heq1: f = PI_f pinfo) (Heq2: id0 = PI_id pinfo),
+  wf_system nil
+    [module_intro los nts (Ps1 ++  product_fdef (remove_fdef id0 f) :: Ps2)].
+Admitted.
 
 (*****************************)
 (*

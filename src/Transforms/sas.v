@@ -228,6 +228,7 @@ Admitted.
 
 Lemma sop_star__sas_State_simulation: forall pinfo sasinfo cfg1 IS1 cfg2 IS2 tr
   FS2 (Hwfpi: WF_PhiInfo pinfo) (Hwfpp: OpsemPP.wf_State cfg1 IS1) maxb
+  (Hwfg: MemProps.wf_globals maxb (OpsemAux.Globals cfg1)) (Hless: 0 <= maxb)
   (Hnoalias: Promotability.wf_State maxb pinfo cfg1 IS1)
   (Hstsim : State_simulation pinfo sasinfo cfg1 IS1 cfg2 IS2)
   (Hopstar : Opsem.sop_star cfg2 IS2 FS2 tr),
@@ -248,9 +249,9 @@ Proof.
       contradict H; eauto using s_isFinialState__stuck.
 
       assert (OpsemPP.wf_State cfg1 IS1') as Hwfpp'.
-        admit. (* wf pp *)
+        apply OpsemPP.preservation in Hop1; auto.
       assert (Promotability.wf_State maxb pinfo cfg1 IS1') as Hnoalias'.
-        admit. (* wf pp *)
+        eapply Promotability.preservation in Hop1; eauto.
       eapply sas_is_sim in Hstsim; eauto.
       destruct Hstsim as [Hstsim1 Hstsim2].
       destruct (@removable_State_dec pinfo sasinfo IS1) as [Hrm | Hnrm].
@@ -271,6 +272,7 @@ Qed.
 
 Lemma sop_div__sas_State_simulation: forall pinfo laainfo cfg1 IS1 cfg2 IS2 tr
   (Hwfpi: WF_PhiInfo pinfo) (Hwfpp: OpsemPP.wf_State cfg1 IS1) maxb
+  (Hwfg: MemProps.wf_globals maxb (OpsemAux.Globals cfg1)) (Hless: 0 <= maxb)
   (Hnoalias: Promotability.wf_State maxb pinfo cfg1 IS1)
   (Hstsim : State_simulation pinfo laainfo cfg1 IS1 cfg2 IS2)
   (Hopstar : Opsem.sop_diverges cfg2 IS2 tr),
@@ -375,6 +377,56 @@ Proof.
     destruct Hstsim as [FS1 Hopdiv1].
     econstructor; eauto.
 Qed.
+
+Lemma sas_wfS: forall (los : layouts) (nts : namedts) (fh : fheader) 
+  (dones : list id) (pinfo : PhiInfo) 
+  (bs1 : list block) (l0 : l) (ps0 : phinodes) (cs0 : cmds) (tmn0 : terminator)
+  (bs2 : list block) (Ps1 : list product) (Ps2 : list product) (i0 : id)
+  (v : value) (cs : cmds) 
+  (Hst1 : ret inl (i0, v, cs) = find_init_stld cs0 (PI_id pinfo) dones)
+  (i1 : id) (v0 : value)
+  (Hst2 : ret inr (i1, v0) = find_next_stld cs (PI_id pinfo))
+  (Heq: PI_f pinfo = fdef_intro fh (bs1 ++ block_intro l0 ps0 cs0 tmn0 :: bs2))
+  (Hwfpi: WF_PhiInfo pinfo) 
+  (HwfS : 
+     wf_system nil
+       [module_intro los nts 
+         (Ps1 ++ 
+          product_fdef 
+            (fdef_intro fh (bs1 ++ block_intro l0 ps0 cs0 tmn0 :: bs2))
+          :: Ps2)]),
+  wf_system nil
+    [module_intro los nts
+      (Ps1 ++
+       product_fdef
+         (fdef_intro fh
+           (List.map (remove_block i0)
+             (bs1 ++ block_intro l0 ps0 cs0 tmn0 :: bs2))) :: Ps2)].
+Admitted.
+
+Lemma sas_wfPI: forall (los : layouts) (nts : namedts) (fh : fheader) 
+  (dones : list id) (pinfo : PhiInfo) 
+  (bs1 : list block) (l0 : l) (ps0 : phinodes) (cs0 : cmds) (tmn0 : terminator)
+  (bs2 : list block) (Ps1 : list product) (Ps2 : list product) (i0 : id)
+  (v : value) (cs : cmds) 
+  (Hst1 : ret inl (i0, v, cs) = find_init_stld cs0 (PI_id pinfo) dones)
+  (i1 : id) (v0 : value)
+  (Hst2 : ret inr (i1, v0) = find_next_stld cs (PI_id pinfo))
+  (Heq: PI_f pinfo = fdef_intro fh (bs1 ++ block_intro l0 ps0 cs0 tmn0 :: bs2))
+  (Hwfpi: WF_PhiInfo pinfo) 
+  (HwfS : 
+     wf_system nil
+       [module_intro los nts 
+         (Ps1 ++ 
+          product_fdef 
+            (fdef_intro fh (bs1 ++ block_intro l0 ps0 cs0 tmn0 :: bs2))
+          :: Ps2)]),
+  WF_PhiInfo 
+    (update_pinfo pinfo
+      (fdef_intro fh
+        (List.map (remove_block i0)
+           (bs1 ++ block_intro l0 ps0 cs0 tmn0 :: bs2)))).
+Admitted.
 
 (*****************************)
 (*

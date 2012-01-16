@@ -1072,6 +1072,7 @@ Admitted.
 Lemma sop_star__dse_State_simulation: forall pinfo  cfg1 IS1 cfg2 IS2 tr
   FS2 (Hwfpi: WF_PhiInfo pinfo) (Hwfpp: OpsemPP.wf_State cfg1 IS1)
   (Hnld: load_in_fdef (PI_id pinfo) (PI_f pinfo) = false) maxb
+  (Hwfg: MemProps.wf_globals maxb (OpsemAux.Globals cfg1)) (Hless: 0 <= maxb)
   (Hnoalias: Promotability.wf_State maxb pinfo cfg1 IS1)
   (Hstsim : State_simulation pinfo cfg1 IS1 cfg2 IS2)
   (Hopstar : Opsem.sop_star cfg2 IS2 FS2 tr),
@@ -1092,9 +1093,9 @@ Proof.
       contradict H; eauto using s_isFinialState__stuck.
 
       assert (OpsemPP.wf_State cfg1 IS1') as Hwfpp'.
-        admit. (* wf pp *)
+        apply OpsemPP.preservation in Hop1; auto.
       assert (Promotability.wf_State maxb pinfo cfg1 IS1') as Hnoalias'.
-        admit. (* wf pp *)
+        eapply Promotability.preservation in Hop1; eauto.
       eapply dse_is_sim in Hstsim; eauto.
       destruct Hstsim as [Hstsim1 Hstsim2].
       destruct (@removable_State_dec pinfo IS1) as [Hrm | Hnrm].
@@ -1115,6 +1116,7 @@ Qed.
 Lemma sop_div__dse_State_simulation: forall pinfo cfg1 IS1 cfg2 IS2 tr
   (Hwfpi: WF_PhiInfo pinfo) (Hwfpp: OpsemPP.wf_State cfg1 IS1)
   (Hnld: load_in_fdef (PI_id pinfo) (PI_f pinfo) = false) maxb
+  (Hwfg: MemProps.wf_globals maxb (OpsemAux.Globals cfg1)) (Hless: 0 <= maxb)
   (Hnoalias: Promotability.wf_State maxb pinfo cfg1 IS1)
   (Hstsim : State_simulation pinfo cfg1 IS1 cfg2 IS2)
   (Hopstar : Opsem.sop_diverges cfg2 IS2 tr),
@@ -1178,6 +1180,35 @@ Proof.
     destruct Hstsim as [FS1 Hopdiv1].
     econstructor; eauto.
 Qed.
+
+Lemma dse_wfS: forall (pinfo:PhiInfo) f pid Ps1 Ps2 los nts
+  (Heq1: PI_id pinfo = pid) (Heq2: PI_f pinfo = f) 
+  (Hwfpi: WF_PhiInfo pinfo)
+  (HwfS: wf_system nil [module_intro los nts (Ps1 ++ product_fdef f :: Ps2)])
+  (Hnld: load_in_fdef pid f = false),
+  wf_system nil
+    [module_intro los nts 
+      (Ps1 ++  product_fdef (elim_dead_st_fdef pid f) :: Ps2)].
+Proof.
+Admitted.
+
+Lemma dse_wfPI: forall (pinfo:PhiInfo) f pid Ps1 Ps2 los nts
+  (Heq1: PI_id pinfo = pid) (Heq2: PI_f pinfo = f) 
+  (Hwfpi: WF_PhiInfo pinfo)
+  (HwfS: wf_system nil [module_intro los nts (Ps1 ++ product_fdef f :: Ps2)])
+  (Hnld: load_in_fdef pid f = false),
+  WF_PhiInfo (update_pinfo pinfo (elim_dead_st_fdef pid f)).
+Proof.
+Admitted.
+
+Lemma elim_dead_st_fdef_successors : forall f id',
+  successors f = successors (elim_dead_st_fdef id' f).
+Admitted.
+
+Lemma elim_dead_st_fdef_reachablity_analysis : forall f id',
+  dtree.reachablity_analysis f = 
+    dtree.reachablity_analysis (elim_dead_st_fdef id' f).
+Admitted.
 
 (*****************************)
 (*

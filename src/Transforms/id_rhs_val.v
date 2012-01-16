@@ -1258,6 +1258,19 @@ Transparent inscope_of_tmn inscope_of_cmd.
       eapply initLocals__id_rhs_val_wf_defs; eauto.
 Qed.
 
+Lemma s_genInitState__vev_State: forall S main VarArgs cfg IS pinfo 
+  (HwfS : wf_system nil S) (Hwfpi: WF_PhiInfo pinfo) id0 v0
+  (Hinit : @Opsem.s_genInitState DGVs S main VarArgs Mem.empty = ret (cfg, IS)),
+  vev_State (value_id id0) v0 (PI_f pinfo) cfg IS.
+Admitted.
+
+Lemma vev_State__preservation : forall v1 v2 F cfg S1 S2 tr
+  (Hvals : substable_values (OpsemAux.CurTargetData cfg) (OpsemAux.Globals cfg) 
+             F v1 v2) (Hvev: vev_State v1 v2 F cfg S1)
+  (Hwfpp: OpsemPP.wf_State cfg S1) (HsInsn: Opsem.sInsn cfg S1 S2 tr)
+  (HwfS1: wf_State v1 v2 F cfg S1), vev_State v1 v2 F cfg S2.
+Admitted.
+
 (*****************************)
 (*
 *** Local Variables: ***

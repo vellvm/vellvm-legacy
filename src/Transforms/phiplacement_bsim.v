@@ -3927,9 +3927,35 @@ Proof.
     eapply phinodes_placement_is_bsim with (St2':=state2) in Hstsim; eauto.
     destruct Hstsim as [IS1' [Hopstar' Hstsim]].
     assert (OpsemPP.wf_State cfg1 IS1') as Hwfpp'.
-      admit. (* wf pp *)
+
+Lemma preservation_star: forall cfg IS IS' tr,
+  @OpsemPP.wf_State DGVs cfg IS ->
+  Opsem.sop_star cfg IS IS' tr ->
+  OpsemPP.wf_State cfg IS'.
+Proof.
+  intros.
+  induction H0; auto.
+    apply OpsemPP.preservation in H0; auto.
+Qed.  
+
+      apply preservation_star in Hopstar'; auto.
     assert (Promotability.wf_State maxb pinfo cfg1 IS1') as Hnoalias'.
-      admit. (* wf pp *)
+
+Lemma promotability_preservation_star: forall cfg IS IS' tr pinfo maxb
+  (Hwfpi: WF_PhiInfo pinfo) (Hwfpp: OpsemPP.wf_State cfg IS) 
+  (Hwfg: MemProps.wf_globals maxb (OpsemAux.Globals cfg)) (Hinbd: 0 <= maxb),
+  Promotability.wf_State maxb pinfo cfg IS ->
+  Opsem.sop_star cfg IS IS' tr ->
+  Promotability.wf_State maxb pinfo cfg IS'.
+Proof.
+  intros.
+  induction H0; auto.
+    apply IHsop_star.
+      apply OpsemPP.preservation in H0; auto.
+      eapply Promotability.preservation in H0; eauto.
+Qed.  
+
+      eapply promotability_preservation_star in Hopstar'; eauto.
     eapply IHHopstar in Hstsim; eauto.
     destruct Hstsim as [FS1 [Hopstar1 Hstsim]].
     exists FS1.
@@ -4040,6 +4066,52 @@ Proof.
     destruct Hstsim as [FS1 Hopdiv1].
     econstructor; eauto.
 Qed.
+
+Lemma phinodes_placement_wfS: forall rd f Ps1 Ps2 los nts pid ty al
+  num l0 ps0 cs0 tmn0 dones (Hreach: ret rd = dtree.reachablity_analysis f)
+  (Hentry: getEntryBlock f = Some (block_intro l0 ps0 cs0 tmn0))
+  (Hfind: find_promotable_alloca f cs0 dones = Some (pid, ty, num, al))
+  (HwfS : 
+     wf_system nil
+       [module_intro los nts (Ps1 ++ product_fdef f :: Ps2)]),
+  wf_system nil
+    [module_intro los nts 
+      (Ps1 ++ 
+       product_fdef (phinodes_placement f rd pid ty al (successors f)
+                    (make_predecessors (successors f))) :: Ps2)].
+Admitted.
+
+Lemma phinodes_placement_wfPI: forall rd f Ps1 Ps2 los nts pid ty al
+  num l0 ps0 cs0 tmn0 dones (Hreach: ret rd = dtree.reachablity_analysis f)
+  (Hentry: getEntryBlock f = Some (block_intro l0 ps0 cs0 tmn0))
+  (Hfind: find_promotable_alloca f cs0 dones = Some (pid, ty, num, al))
+  (HwfS : 
+     wf_system nil
+       [module_intro los nts (Ps1 ++ product_fdef f :: Ps2)]),
+  WF_PhiInfo {|
+    PI_f := phinodes_placement f rd pid ty al (successors f)
+              (make_predecessors (successors f));
+    PI_rd := rd;
+    PI_id := pid;
+    PI_typ := ty;
+    PI_num := num;
+    PI_align := al |}.
+Admitted.
+
+Lemma phinodes_placement_reachablity_analysis: forall f rd pid ty al,
+  dtree.reachablity_analysis f =
+  dtree.reachablity_analysis
+     (phinodes_placement f rd pid ty al (successors f)
+        (make_predecessors (successors f))).
+Admitted.
+
+Lemma phinodes_placement_reachablity_successors: forall f rd pid ty al,
+  successors f =
+  successors
+    (phinodes_placement f rd pid ty al (successors f)
+       (make_predecessors (successors f))).
+Admitted.
+
 
 (*****************************)
 (*
