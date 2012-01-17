@@ -22,6 +22,7 @@ Require Import sb_ds_trans_lib.
 Require Import sb_ds_gv_inject.
 Require Import sb_metadata.
 Require Import program_sim.
+Require Import trans_tactic.
 
 Definition fdef_simulation (pinfo: PhiInfo) f1 f2 : Prop :=
   if (fdef_dec (PI_f pinfo) f1) then 
@@ -198,27 +199,6 @@ Proof.
   destruct (id_dec (getCmdLoc c) (getCmdLoc c)); simpl in *; try congruence.
 Qed.
 
-(* copied from id_rhs_val.v *)
-Ltac uniq_result :=
-repeat dgvs_instantiate_inv;
-repeat match goal with
-| H1 : ?f ?a ?b ?c ?d = _,
-  H2 : ?f ?a ?b ?c ?d = _ |- _ =>
-  rewrite H1 in H2; inv H2
-| H1 : ?f ?a ?b ?c = _,
-  H2 : ?f ?a ?b ?c = _ |- _ =>
-  rewrite H1 in H2; inv H2
-| H1 : ?f ?a ?b = _,
-  H2 : ?f ?a ?b = _ |- _ =>
-  rewrite H1 in H2; inv H2
-| H1 : ?f ?a = _,
-  H2 : ?f ?a = _ |- _ =>
-  rewrite H1 in H2; inv H2
-| H1 : _ @ _ |- _ => inv H1
-| H : ?f _ = ?f _ |- _ => inv H
-| H : False |- _ => inv H
-end.
-
 Lemma cmds_simulation_nil_inv: forall pinfo f1 cs,
   cmds_simulation pinfo f1 nil cs -> cs = nil.
 Proof.
@@ -239,36 +219,6 @@ Proof.
   rewrite e in H0.
   destruct H0; congruence.
 Qed.
-
-(* copied from las.v *)
-Ltac wfCall_inv :=
-match goal with
-| Heq3 : exists _,
-           exists _,
-             exists _,
-               ?B = block_intro _ _ _ _,
-  HBinF1 : blockInFdefB ?B ?F = true,
-  HwfCall : OpsemPP.wf_call 
-              {| 
-              Opsem.CurFunction := ?F;
-              Opsem.CurBB := ?B;
-              Opsem.CurCmds := nil;
-              Opsem.Terminator := _;
-              Opsem.Locals := _;
-              Opsem.Allocas := _ |} 
-              ({|
-               Opsem.CurFunction := _;
-               Opsem.CurBB := _;
-               Opsem.CurCmds := ?c' :: _;
-               Opsem.Terminator := _;
-               Opsem.Locals := _;
-               Opsem.Allocas := _ |}  :: _) |- _ =>
-  let cs3 := fresh "cs3" in
-  destruct Heq3 as [l3 [ps3 [cs3 Heq3]]]; subst;
-  assert (HBinF1':=HBinF1);
-  apply HwfCall in HBinF1';
-  destruct c'; tinv HBinF1'; clear HBinF1'
-end.
 
 (* This is a common property for remove *)
 Lemma fdef_sim__lookupAL_genLabel2Block_block : forall id0 l0 bs b b',
@@ -400,8 +350,6 @@ Ltac repeat_solve :=
           | |- mem_simulation _ _ _ _ _ _ => idtac 
           | |- _ => split; eauto 2 using cmds_at_block_tail_next
           end).
-
-Ltac zeauto := eauto with zarith.
 
 Lemma mem_simulation__palloca : forall mi TD Mem1 Mem2 tsz gn Mem1' mb 
   ECs1 pinfo maxb lc1
@@ -822,25 +770,6 @@ Proof.
   split; auto.
     eapply isnt_alloca_in_ECs_tail; eauto.
 Qed.
-
-Ltac inv_mbind'' :=
-  repeat match goal with
-         | H : match ?e with
-               | Some _ => _
-               | None => None
-               end = Some _ |- _ => remember e as R; destruct R as [|]; inv H
-         | H : Some _ = match ?e with
-               | Some _ => _
-               | None => None
-               end |- _ => remember e as R; destruct R as [|]; inv H
-         | H :  ret _ = match ?p with
-                        | (_, _) => _
-                        end |- _ => destruct p
-         | H : if ?e then _ else False |- _ => 
-             remember e as R; destruct R; tinv H
-         | H : if ?e then False else _ |- _ => 
-             remember e as R; destruct R; tinv H
-         end.
 
 (* should move to MoreMem. *)
 Lemma free_left_nonmap_inj:

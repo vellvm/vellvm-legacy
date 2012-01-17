@@ -18,6 +18,7 @@ Require Import palloca_props.
 Require Import mem2reg.
 Require Import memory_props.
 Require Import program_sim.
+Require Import trans_tactic.
 
 Definition fdef_simulation (pinfo: PhiInfo) f1 f2 : Prop :=
   if (fdef_dec (PI_f pinfo) f1) then 
@@ -148,22 +149,6 @@ Proof.
   destruct (id_dec (PI_id pinfo) (PI_id pinfo)); congruence.
 Qed.
 
-(* copied from id_rhs_val.v *)
-Ltac uniq_result :=
-repeat dgvs_instantiate_inv;
-repeat match goal with
-| H1 : ?f ?a ?b ?c ?d = _,
-  H2 : ?f ?a ?b ?c ?d = _ |- _ =>
-  rewrite H1 in H2; inv H2
-| H1 : ?f ?a ?b ?c = _,
-  H2 : ?f ?a ?b ?c = _ |- _ =>
-  rewrite H1 in H2; inv H2
-| H1 : ?f ?a ?b = _,
-  H2 : ?f ?a ?b = _ |- _ =>
-  rewrite H1 in H2; inv H2
-| H1 : _ @ _ |- _ => inv H1
-end.
-
 Lemma no_alias_head_tail_irrel : 
   forall pinfo ptr F B1 cs1 tmn1 lc als1 ECs B2 cs2 tmn2 als2,
   no_alias_head_tail pinfo ptr
@@ -204,13 +189,6 @@ Proof.
   intros. destruct (fdef_dec (PI_f pinfo) f1); auto.
 Qed.
 
-(* copied from alive_store *)
-Definition store_in_cmd (id':id) (c:cmd) : bool :=
-match c with
-| insn_store _ _ _ ptr _ => used_in_value id' ptr
-| _ => false
-end.
-
 Lemma cmds_simulation_nelim_cons_inv: forall pinfo F c cs2 cs',
   cmds_simulation pinfo F (c :: cs2) cs' ->
   (PI_f pinfo = F -> store_in_cmd (PI_id pinfo) c = false) ->
@@ -227,36 +205,6 @@ Proof.
   apply H0 in EQ.
   destruct (id_dec (PI_id pinfo) (PI_id pinfo)); simpl in *; congruence.
 Qed.
-
-(* copied from las.v *)
-Ltac wfCall_inv :=
-match goal with
-| Heq3 : exists _,
-           exists _,
-             exists _,
-               ?B = block_intro _ _ _ _,
-  HBinF1 : blockInFdefB ?B ?F = true,
-  HwfCall : OpsemPP.wf_call 
-              {| 
-              Opsem.CurFunction := ?F;
-              Opsem.CurBB := ?B;
-              Opsem.CurCmds := nil;
-              Opsem.Terminator := _;
-              Opsem.Locals := _;
-              Opsem.Allocas := _ |} 
-              ({|
-               Opsem.CurFunction := _;
-               Opsem.CurBB := _;
-               Opsem.CurCmds := ?c' :: _;
-               Opsem.Terminator := _;
-               Opsem.Locals := _;
-               Opsem.Allocas := _ |}  :: _) |- _ =>
-  let cs3 := fresh "cs3" in
-  destruct Heq3 as [l3 [ps3 [cs3 Heq3]]]; subst;
-  assert (HBinF1':=HBinF1);
-  apply HwfCall in HBinF1';
-  destruct c'; tinv HBinF1'; clear HBinF1'
-end.
 
 Lemma no_alias_head_tail_and_app: forall pinfo ptr ECs1 ECs2,
   no_alias_head_tail pinfo ptr ECs1 ->

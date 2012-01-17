@@ -19,9 +19,7 @@ Require Import promotable_props.
 Require Import palloca_props.
 Require Import program_sim.
 Require Import memory_props.
-
-Ltac zauto := auto with zarith.
-Ltac zeauto := eauto with zarith.
+Require Import trans_tactic.
 
 Import Promotability.
 

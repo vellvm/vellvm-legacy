@@ -18,6 +18,7 @@ Require Import opsem_props.
 Require Import memory_props.
 Require Import palloca_props.
 Require Import program_sim.
+Require Import trans_tactic.
 
 Module Promotability.
 
@@ -223,31 +224,6 @@ Proof.
       eapply IHl1 in H4; eauto.
 Qed.
 
-Ltac inv_mbind :=
-  repeat match goal with
-         | H : match ?e with
-               | Some _ => _
-               | None => None
-               end = Some _ |- _ => remember e as R; destruct R as [|]; inv H
-         end.
-
-Ltac inv_mbind' :=
-  repeat match goal with
-         | H : match ?e with
-               | Some _ => _
-               | None => None
-               end = Some _ |- _ => remember e as R; destruct R as [|]; inv H
-         | H : Some _ = match ?e with
-               | Some _ => _
-               | None => None
-               end |- _ => remember e as R; destruct R as [|]; inv H
-         | H :  ret _ = match ?p with
-                        | (_, _) => _
-                        end |- _ => destruct p
-         end.
-
-Ltac unfold_blk2GV := unfold blk2GV, ptr2GV, val2GV.
-
 Lemma simpl_blk2GV: forall td mb t,
   $ blk2GV td mb # typ_pointer t $ =
   ((Vptr mb (Int.repr 31 0),
@@ -357,9 +333,6 @@ Proof.
     eapply undef_disjoint_with_ptr; eauto.
   Opaque lift_op1.
 Qed.
-
-Ltac SSSSSCase name := Case_aux subsubsubsubsubcase name.
-Ltac SSSSSSCase name := Case_aux subsubsubsubsubsubcase name.
 
 Lemma free_preserves_wf_ECStack_head_tail : forall maxb pinfo TD M M' lc mptr0
   (Hfree: free TD M mptr0 = ret M') ECs 

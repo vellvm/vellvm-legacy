@@ -1913,6 +1913,12 @@ Proof.
   eapply mstore_aux_preserves_mload_inv_aux'; eauto.
 Qed.
 
+Axiom callExternalFunction_preserves_mload: forall Mem fid gvsa gvs gvsv
+  Mem' TD oresult ty al,
+  OpsemAux.callExternalFunction Mem fid gvs = ret (oresult, Mem') ->
+  mload TD Mem gvsa ty al = ret gvsv ->
+  mload TD Mem' gvsa ty al = ret gvsv.
+
 End MemProps.
 
 (*****************************)

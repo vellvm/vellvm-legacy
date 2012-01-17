@@ -3203,6 +3203,113 @@ Proof.
       inv H. auto.
 Qed.
 
+Lemma head_tail_commut: forall A (a:A) cs, 
+  exists cs', exists a', [a] ++ cs = cs' ++ [a'].
+Proof.
+  induction cs.
+    exists nil. exists a. auto.
+
+    destruct IHcs as [cs' [a' IHcs]].
+    destruct cs'.
+      inv IHcs.
+      exists [a']. exists a0. auto.
+
+      inv IHcs.
+      exists ([a1]++a0::cs'). exists a'. auto.
+Qed.
+
+Lemma uniqFdef__blockInFdefB__nodup_cmds: forall l0 ps0 cs0 tmn0 f,
+  uniqFdef f ->
+  blockInFdefB (block_intro l0 ps0 cs0 tmn0) f ->
+  NoDup (getCmdsLocs cs0).
+Proof.
+  intros.
+  destruct f as [fh bs].
+  apply blockInFdefB__exists_nth_error in H0.
+  destruct H0 as [n H0].
+  eapply uniqFdef__uniqBlock in H0; eauto.
+Qed.
+
+Lemma NoDup_cmds_split_middle: forall cs2 cs2' c cs1 cs1',
+  NoDup (getCmdsLocs (cs1 ++ c :: cs2)) ->
+  cs1 ++ c :: cs2 = cs1' ++ c :: cs2' ->
+  cs1 = cs1' /\ cs2 = cs2'.
+Proof.
+  induction cs1; destruct cs1'; simpl; intros.
+    inv H0. auto.
+
+    inv H0.
+    inv H. 
+    contradict H2.
+    rewrite getCmdsLocs_app. simpl. apply in_middle.
+
+    inv H0.
+    inv H. 
+    contradict H2.
+    rewrite getCmdsLocs_app. simpl. apply in_middle.
+
+    inv H0.
+    inv H. 
+    eapply IHcs1 in H4; eauto.
+    destruct H4 as [J1 J2]; subst; auto.
+Qed.
+
+Lemma in_getCmdsIDs__in_getCmdsLocs: forall id1 cs,
+  In id1 (getCmdsIDs cs) -> In id1 (getCmdsLocs cs).
+Proof.
+  induction cs; simpl; intros; auto.
+    remember (getCmdID a) as R.
+    destruct R; auto.
+    symmetry in HeqR.
+    apply getCmdLoc_getCmdID in HeqR. subst.
+    simpl in H. destruct H; auto.
+Qed.
+
+Lemma in_getBlockIDs__in_getBlockLocs: forall id1 b,
+  In id1 (getBlockIDs b) -> In id1 (getBlockLocs b).
+Proof.
+  destruct b. simpl. intros.
+  apply in_app_or in H.
+  apply in_or_app.
+  destruct H as [H | H]; auto.
+  right.
+  apply in_or_app.
+  left. apply in_getCmdsIDs__in_getCmdsLocs; auto.
+Qed.
+
+Lemma inGetBlockIDs__lookupBlockViaIDFromFdef: forall id1 b f,
+  uniqFdef f -> In id1 (getBlockIDs b) -> blockInFdefB b f = true ->
+  lookupBlockViaIDFromFdef f id1 = Some b.
+Proof.
+  destruct f as [[] bs]. simpl. 
+  intros [J _]. 
+  generalize dependent b.
+  generalize dependent id1.
+  induction bs; simpl; intros.
+    congruence.
+
+    apply orb_true_iff in H0.
+    destruct H0 as [H0 | H0].
+      apply blockEqB_inv in H0. subst.
+      destruct (@in_dec id (@eq_dec id (EqDec_eq_of_EqDec id EqDec_atom)) id1
+         (getBlockIDs a0)); auto.
+        contradict H; auto.
+
+      destruct (@in_dec id (@eq_dec id (EqDec_eq_of_EqDec id EqDec_atom)) id1
+         (getBlockIDs a0)).
+        destruct J as [_ J].
+        simpl in *.
+        apply in_getBlockIDs__in_getBlockLocs in i1.
+        apply NoDup_disjoint' with (i0:=id1) in J; auto.
+          apply in_getBlockIDs__in_getBlockLocs in H.
+          apply in_getBlockLocs__in_getBlocksLocs with (i0:=id1) in H0; auto.
+            contradict H0; auto.
+        
+        simpl_env in J.
+        apply uniqBlocks_inv in J. destruct J as [J1 J2].
+        apply IHbs; auto.
+Qed.
+
 (*****************************)
 (*
 *** Local Variables: ***

@@ -15,6 +15,7 @@ Require Import primitives.
 Require Import Maps.
 Require Import mem2reg.
 Require Import opsem_props.
+Require Import trans_tactic.
 
 Record PhiInfo := mkPhiInfo {
   PI_f: fdef;
@@ -1188,21 +1189,6 @@ Proof.
   rewrite OpsemProps.updateValuesForNewBlock_spec7'; auto.
 Qed.
 
-Ltac inv_mbind' :=
-  repeat match goal with
-         | H : match ?e with
-               | Some _ => _
-               | None => None
-               end = Some _ |- _ => remember e as R; destruct R as [|]; inv H
-         | H : Some _ = match ?e with
-               | Some _ => _
-               | None => None
-               end |- _ => remember e as R; destruct R as [|]; inv H
-         | H :  ret _ = match ?p with
-                        | (_, _) => _
-                        end |- _ => destruct p
-         end.
-
 Lemma WF_PhiInfo__switchToNewBasicBlock: forall (pinfo : PhiInfo) 
   (lc : Opsem.GVsMap) (gl : GVMap) (Huniq: uniqFdef (PI_f pinfo))
   (Hwfpi : WF_PhiInfo pinfo) (lc' : Opsem.GVsMap) los nts
@@ -1609,15 +1595,6 @@ Proof.
   exists l1. exists ps1. exists (cs11 ++ [c]). simpl_env. auto.
 Qed.
 
-Ltac solve_in_prefix :=
-repeat match goal with
-| G: In ?i (?prefix ++ _) |- In ?i (?prefix ++ _) =>
-  apply in_or_app;
-  apply in_app_or in G;
-  destruct G as [G | G]; auto;
-  right
-end.
-
 Lemma phinodes_placement_blocks__disjoint_tmps: forall l0 i1 i2 i3 i0
   pid t al nids succs preds 
   (Hdisj: forall l1 l2 a1 b1 c1 a2 b2 c2, 
@@ -1643,35 +1620,6 @@ Proof.
     destruct J as [J3 J4].
     apply in_app_or in H0.
     destruct H0 as [H0 | H0].
-
-Ltac solve_in_head := 
-match goal with
-| H0 : In _ ([_] ++ _),
-  J2 : _ \/ _ \/ _ |- _ =>
-    simpl in H0;
-    destruct H0 as [H0 | H0]; subst; try solve [
-      destruct J2 as [J2 | [J2 | J2]]; subst;
-        repeat match goal with
-        | H : _ /\ _ |- _ => destruct H
-        end; congruence]
-| H0 : In _ (_:: _),
-  J2 : _ \/ _ \/ _ |- _ =>
-    simpl in H0;
-    destruct H0 as [H0 | H0]; subst; try solve [
-      destruct J2 as [J2 | [J2 | J2]]; subst;
-        repeat match goal with
-        | H : _ /\ _ |- _ => destruct H
-        end; congruence]
-| H0 : _ = _ \/ In _ _,
-  J2 : _ \/ _ \/ _ |- _ =>
-    simpl in H0;
-    destruct H0 as [H0 | H0]; subst; try solve [
-      destruct J2 as [J2 | [J2 | J2]]; subst;
-        repeat match goal with
-        | H : _ /\ _ |- _ => destruct H
-        end; congruence]
-end.
-
     remember (nids ! l1) as R1.
     remember (preds ! l1) as R2.
     remember (succs ! l1) as R3.
@@ -1788,6 +1736,13 @@ Definition update_pinfo (pinfo:PhiInfo) (f:fdef) : PhiInfo :=
 Lemma update_pinfo_eq: forall pinfo, update_pinfo pinfo (PI_f pinfo) = pinfo.
 Proof.
   intros. unfold update_pinfo. destruct pinfo. simpl in *. auto.
+Qed.
+
+Lemma store_notin_cmd__wf_use_at_head: forall pinfo sid t v1 v2 align0,
+  false = store_in_cmd (PI_id pinfo) (insn_store sid t v1 v2 align0) ->
+  wf_use_at_head pinfo v2.
+Proof.
+  intros. simpl in H. unfold wf_use_at_head. auto.
 Qed.
 
 (*****************************)

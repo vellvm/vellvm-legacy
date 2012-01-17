@@ -7,6 +7,7 @@ Add LoadPath "../../../theory/metatheory_8.3".
 Require Import vellvm.
 Require Import opsem_props.
 Require Import memory_props.
+Require Import trans_tactic.
 
 (* opsem should use this definition *)
 Definition s_isFinialState (cfg:OpsemAux.Config) (state:@Opsem.State DGVs) 
@@ -134,33 +135,6 @@ Proof.
 *)
 Admitted.
 
-Ltac simpl_s_genInitState :=
-  match goal with
-  | Hinit: Opsem.s_genInitState _ _ _ _ = _ |- _ =>
-    unfold Opsem.s_genInitState in Hinit;
-    inv_mbind'
-  end;
-  match goal with
-  | H: ret ?m = getParentOfFdefFromSystem _ _ |- _ =>
-    destruct m as [CurLayouts CurNamedts CurProducts];
-    inv_mbind'
-  end;
-  match goal with 
-  | H: ret ?p = OpsemAux.genGlobalAndInitMem _ _ _ _ _ |- _ =>
-    destruct p as [[initGlobal initFunTable] initMem];
-    inv_mbind'
-  end;
-  match goal with
-  | H: ret ?b = getEntryBlock ?f |- _ =>
-    destruct b as [l0 ps0 cs0 tmn0];
-    destruct f as [[]];
-    inv_mbind'
-  end;
-  try repeat match goal with 
-  | H: ret _ = ret _ |- _ => inv H
-  end;
-  symmetry_ctx.
-
 (* OpsemPP.initLocals__wf_lc needs wf_params that is for params.
    At initialization, we only have args...
    Actually OpsemPP.initLocals__wf_lc only needs types in params.
@@ -242,27 +216,6 @@ Proof.
   intro J.
   destruct Terminator; tinv Hfinal; destruct ECS; tinv Hfinal; inv J.
 Qed.
-
-(* copied from id_rhs_val.v *)
-Ltac uniq_result :=
-repeat dgvs_instantiate_inv;
-repeat match goal with
-| H1 : ?f ?a ?b ?c ?d = _,
-  H2 : ?f ?a ?b ?c ?d = _ |- _ =>
-  rewrite H1 in H2; inv H2
-| H1 : ?f ?a ?b ?c = _,
-  H2 : ?f ?a ?b ?c = _ |- _ =>
-  rewrite H1 in H2; inv H2
-| H1 : ?f ?a ?b = _,
-  H2 : ?f ?a ?b = _ |- _ =>
-  rewrite H1 in H2; inv H2
-| H1 : ?f ?a = _,
-  H2 : ?f ?a = _ |- _ =>
-  rewrite H1 in H2; inv H2
-| H1 : _ @ _ |- _ => inv H1
-| H : ?f _ = ?f _ |- _ => inv H
-| H : False |- _ => inv H
-end.
 
 Lemma undefined_state__stuck: forall St1 St2 cfg tr
   (Hundef : @OpsemPP.undefined_state DGVs cfg St1),

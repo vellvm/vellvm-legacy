@@ -19,6 +19,8 @@ Require Import id_rhs_val.
 Require Import palloca_props.
 Require Import mem2reg.
 Require Import program_sim.
+Require Import memory_props.
+Require Import trans_tactic.
 
 (* We define a special las used by mem2reg that only considers local commands.
    In general, it should be extended to the las defined w.r.t domination and
@@ -71,11 +73,6 @@ Lemma LAS_substable_values : forall td gl pinfo lasinfo
   (Huniq: uniqFdef (PI_f pinfo)),
   substable_values td gl (PI_f pinfo) (value_id (LAS_lid pinfo lasinfo))  
     (LAS_value pinfo lasinfo).
-Admitted.
-
-Lemma store_in_cmds_merge: forall i0 cs1 cs2,
-  store_in_cmds i0 cs1 = false /\ store_in_cmds i0 cs2 = false ->
-  store_in_cmds i0 (cs1++cs2) = false.
 Admitted.
 
 Lemma las__alive_store: forall lid sid v cs2 b pinfo,
@@ -464,34 +461,6 @@ Proof.
   unfold cmds_simulation, cmd_simulation in *.
   destruct (fdef_dec (PI_f pinfo) F); subst; simpl; eauto.
 Qed.
-
-Ltac wfCall_inv :=
-match goal with
-| Heq3 : exists _,
-           exists _,
-             exists _,
-               ?B = block_intro _ _ _ _,
-  HBinF1 : blockInFdefB ?B ?F = true,
-  HwfCall : OpsemPP.wf_call 
-              {| 
-              Opsem.CurFunction := ?F;
-              Opsem.CurBB := ?B;
-              Opsem.CurCmds := nil;
-              Opsem.Terminator := _;
-              Opsem.Locals := _;
-              Opsem.Allocas := _ |} 
-              ({|
-               Opsem.CurFunction := _;
-               Opsem.CurBB := _;
-               Opsem.CurCmds := ?c' :: _;
-               Opsem.Terminator := _;
-               Opsem.Locals := _;
-               Opsem.Allocas := _ |}  :: _) |- _ =>
-  destruct Heq3 as [l3 [ps3 [cs3 Heq3]]]; subst;
-  assert (HBinF1':=HBinF1);
-  apply HwfCall in HBinF1';
-  destruct c'; tinv HBinF1'; clear HBinF1'
-end.
 
 Ltac destruct_ctx_return :=
 match goal with
@@ -1590,10 +1559,12 @@ Admitted.
 Lemma sop_star__las_State_simulation: forall pinfo lasinfo cfg1 IS1 cfg2 IS2 tr
   FS2 (Hwfpi: WF_PhiInfo pinfo) (Hwfpp: OpsemPP.wf_State cfg1 IS1) 
   (HwfS1: id_rhs_val.wf_State (value_id (LAS_lid pinfo lasinfo)) 
-           (LAS_value pinfo lasinfo) (PI_f pinfo) cfg1 IS1)
-  (Hvev: vev_State (value_id (LAS_lid pinfo lasinfo)) (LAS_value pinfo lasinfo) 
-           (PI_f pinfo) cfg1 IS1)
-  (Hstsim : State_simulation pinfo lasinfo cfg1 IS1 cfg2 IS2)
+           (LAS_value pinfo lasinfo) (PI_f pinfo) cfg1 IS1) stinfo Hp
+  (Hlas2st : exist _ stinfo Hp = lasinfo__stinfo pinfo lasinfo)
+  (Halst: alive_store.wf_State pinfo stinfo cfg1 IS1)
+  (Hstsim : State_simulation pinfo lasinfo cfg1 IS1 cfg2 IS2) maxb
+  (Hless: 0 <= maxb) (Hwfgs: MemProps.wf_globals maxb (OpsemAux.Globals cfg1)) 
+  (Hnoalias: Promotability.wf_State maxb pinfo cfg1 IS1)
   (Hopstar : Opsem.sop_star cfg2 IS2 FS2 tr),
   exists FS1, Opsem.sop_star cfg1 IS1 FS1 tr /\ 
     State_simulation pinfo lasinfo cfg1 FS1 cfg2 FS2.
@@ -1615,14 +1586,17 @@ Proof.
       destruct Hstsim as [Hstsim EQ]; subst.
       assert (OpsemPP.wf_State cfg1 IS1') as Hwfpp'.
         apply OpsemPP.preservation in Hop1; auto.
+      assert (vev_State (value_id (LAS_lid pinfo lasinfo)) 
+               (LAS_value pinfo lasinfo) (PI_f pinfo) cfg1 IS1) as Hvev.
+        eapply las__alive_store__vev; eauto.
       assert (id_rhs_val.wf_State (value_id (LAS_lid pinfo lasinfo))
                (LAS_value pinfo lasinfo) (PI_f pinfo) cfg1 IS1') as HwfS1'.
         eapply id_rhs_val.preservation in Hop1; eauto.
           apply lasinfo__substable_values.
-      assert (vev_State (value_id (LAS_lid pinfo lasinfo)) 
-        (LAS_value pinfo lasinfo) (PI_f pinfo) cfg1 IS1') as Hvev'.
-        eapply vev_State__preservation in Hop1;
-          eauto using lasinfo__substable_values.
+      assert (alive_store.wf_State pinfo stinfo cfg1 IS1') as Halst'.
+        eapply alive_store.preservation in Hop1; eauto.
+      assert (Promotability.wf_State maxb pinfo cfg1 IS1') as Hnoalias'.
+        eapply Promotability.preservation in Hop1; eauto.
       eapply IHHopstar in Hstsim; eauto.
       destruct Hstsim as [FS1 [Hopstar1 Hstsim]].
       exists FS1.
@@ -1635,9 +1609,12 @@ Qed.
 Lemma sop_div__las_State_simulation: forall pinfo lasinfo cfg1 IS1 cfg2 IS2 tr
   (Hwfpi: WF_PhiInfo pinfo) (Hwfpp: OpsemPP.wf_State cfg1 IS1) 
   (HwfS1: id_rhs_val.wf_State (value_id (LAS_lid pinfo lasinfo)) 
-           (LAS_value pinfo lasinfo) (PI_f pinfo) cfg1 IS1)
-  (Hvev: vev_State (value_id (LAS_lid pinfo lasinfo)) (LAS_value pinfo lasinfo) 
-           (PI_f pinfo) cfg1 IS1)
+           (LAS_value pinfo lasinfo) (PI_f pinfo) cfg1 IS1) stinfo Hp
+  (Hlas2st : exist _ stinfo Hp = lasinfo__stinfo pinfo lasinfo)
+  (Halst: alive_store.wf_State pinfo stinfo cfg1 IS1)
+  (Hstsim : State_simulation pinfo lasinfo cfg1 IS1 cfg2 IS2) maxb
+  (Hless: 0 <= maxb) (Hwfgs: MemProps.wf_globals maxb (OpsemAux.Globals cfg1)) 
+  (Hnoalias: Promotability.wf_State maxb pinfo cfg1 IS1)
   (Hstsim : State_simulation pinfo lasinfo cfg1 IS1 cfg2 IS2)
   (Hopstar : Opsem.sop_diverges cfg2 IS2 tr),
   Opsem.sop_diverges cfg1 IS1 tr.
@@ -1704,9 +1681,15 @@ Proof.
     assert (id_rhs_val.wf_State (value_id (LAS_lid pinfo lasinfo))
               (LAS_value pinfo lasinfo) (PI_f pinfo) cfg1 IS1) as Hisrhsval.
       eapply s_genInitState__id_rhs_val; eauto.
-    assert (vev_State (value_id (LAS_lid pinfo lasinfo)) 
-      (LAS_value pinfo lasinfo) (PI_f pinfo) cfg1 IS1) as Hvev.
-      eapply s_genInitState__vev_State; eauto.
+    assert (exists maxb, 
+              MemProps.wf_globals maxb (OpsemAux.Globals cfg1) /\ 0 <= maxb /\
+              Promotability.wf_State maxb pinfo cfg1 IS1) as Hprom.
+      eapply Promotability.s_genInitState__wf_globals_promotable; eauto.
+    destruct Hprom as [maxb [Hwfg [Hless Hprom]]].
+    remember (lasinfo__stinfo pinfo lasinfo) as R.
+    destruct R as [stinfo Hp].
+    assert (alive_store.wf_State pinfo stinfo cfg1 IS1) as Halst.
+      eapply s_genInitState__alive_store; eauto.
     eapply sop_star__las_State_simulation in Hstsim; eauto.
     destruct Hstsim as [FS1 [Hopstar1 Hstsim']].
     eapply s_isFinialState__las_State_simulation in Hstsim'; eauto.
@@ -1721,9 +1704,15 @@ Proof.
     assert (id_rhs_val.wf_State (value_id (LAS_lid pinfo lasinfo))
               (LAS_value pinfo lasinfo) (PI_f pinfo) cfg1 IS1) as Hisrhsval.
       eapply s_genInitState__id_rhs_val; eauto.
-    assert (vev_State (value_id (LAS_lid pinfo lasinfo)) 
-      (LAS_value pinfo lasinfo) (PI_f pinfo) cfg1 IS1) as Hvev.
-      eapply s_genInitState__vev_State; eauto.
+    assert (exists maxb, 
+              MemProps.wf_globals maxb (OpsemAux.Globals cfg1) /\ 0 <= maxb /\
+              Promotability.wf_State maxb pinfo cfg1 IS1) as Hprom.
+      eapply Promotability.s_genInitState__wf_globals_promotable; eauto.
+    destruct Hprom as [maxb [Hwfg [Hless Hprom]]].
+    remember (lasinfo__stinfo pinfo lasinfo) as R.
+    destruct R as [stinfo Hp].
+    assert (alive_store.wf_State pinfo stinfo cfg1 IS1) as Halst.
+      eapply s_genInitState__alive_store; eauto.
     eapply sop_div__las_State_simulation in Hstsim; eauto.
     destruct Hstsim as [FS1 Hopdiv1].
     econstructor; eauto.

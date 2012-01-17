@@ -12,6 +12,7 @@ Require Import Lattice.
 Require Import Iteration.
 Require Import Maps.
 Require Import opsem_props.
+Require Import trans_tactic.
 
 Definition DGVMap := @Opsem.GVsMap DGVs.
 
@@ -152,34 +153,6 @@ Definition vev_State v1 v2 F (cfg:OpsemAux.Config) (S:Opsem.State) : Prop :=
 let '(OpsemAux.mkCfg s td _ gl _ ) := cfg in
 let '(Opsem.mkState ecs M) := S in
 vev_ECStack v1 v2 F td M gl ecs.
-
-Ltac uniq_result :=
-repeat dgvs_instantiate_inv;
-repeat match goal with
-| H1 : ?f ?a ?b ?c ?d = _,
-  H2 : ?f ?a ?b ?c ?d = _ |- _ =>
-  rewrite H1 in H2; inv H2
-| H1 : ?f ?a ?b ?c = _,
-  H2 : ?f ?a ?b ?c = _ |- _ =>
-  rewrite H1 in H2; inv H2
-| H1 : ?f ?a ?b = _,
-  H2 : ?f ?a ?b = _ |- _ =>
-  rewrite H1 in H2; inv H2
-| H1 : _ @ _ |- _ => inv H1
-end.
-
-Ltac destruct_exists :=
-repeat match goal with
-| H : exists _, _ |- _ => 
-    let A := fresh "A" in
-    let J := fresh "J" in
-    destruct H as [A J]
-end.
-
-Ltac destruct_ands :=
-repeat match goal with
-| H : _ /\ _ |- _ => destruct H
-end.
 
 Definition sustable_cmd (c:cmd) : Prop :=
 match c with
@@ -1257,19 +1230,6 @@ Transparent inscope_of_tmn inscope_of_cmd.
         try solve [contradict n; auto]. 
       eapply initLocals__id_rhs_val_wf_defs; eauto.
 Qed.
-
-Lemma s_genInitState__vev_State: forall S main VarArgs cfg IS pinfo 
-  (HwfS : wf_system nil S) (Hwfpi: WF_PhiInfo pinfo) id0 v0
-  (Hinit : @Opsem.s_genInitState DGVs S main VarArgs Mem.empty = ret (cfg, IS)),
-  vev_State (value_id id0) v0 (PI_f pinfo) cfg IS.
-Admitted.
-
-Lemma vev_State__preservation : forall v1 v2 F cfg S1 S2 tr
-  (Hvals : substable_values (OpsemAux.CurTargetData cfg) (OpsemAux.Globals cfg) 
-             F v1 v2) (Hvev: vev_State v1 v2 F cfg S1)
-  (Hwfpp: OpsemPP.wf_State cfg S1) (HsInsn: Opsem.sInsn cfg S1 S2 tr)
-  (HwfS1: wf_State v1 v2 F cfg S1), vev_State v1 v2 F cfg S2.
-Admitted.
 
 (*****************************)
 (*

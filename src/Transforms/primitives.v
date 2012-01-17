@@ -508,6 +508,27 @@ match fdef with
 | fdef_intro (fheader_intro _ _ _ la _) bs => getArgsIDs la ++ getBlocksLocs bs 
 end.
 
+Lemma store_in_cmds_app: forall i0 cs2 cs1,
+  store_in_cmds i0 (cs1++cs2) = false ->
+  store_in_cmds i0 cs1 = false /\ store_in_cmds i0 cs2 = false.
+Proof.
+  unfold store_in_cmds. 
+  intros.
+  rewrite fold_left_app in H.
+  apply fold_left_or_false in H. 
+    tauto.
+    intros. apply orb_false_iff in H0. tauto.
+Qed.
+
+Lemma store_in_cmds_merge: forall i0 cs1 cs2,
+  store_in_cmds i0 cs1 = false /\ store_in_cmds i0 cs2 = false ->
+  store_in_cmds i0 (cs1++cs2) = false.
+Proof.
+  unfold store_in_cmds. 
+  intros.
+  rewrite fold_left_app.
+Admitted.
+
 (*****************************)
 (*
 *** Local Variables: ***
