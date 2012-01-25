@@ -1697,7 +1697,7 @@ Proof.
 
     intros.
     eapply malloc_preserves_mload_inv in Hmlc; eauto.
-    destruct Hmlc as [G | G]; subst; eauto.
+    destruct Hmlc as [[G _]| [G _]]; subst; eauto.
       eapply undefs_disjoint_with_ptr; eauto.
 Qed.
 
@@ -1721,7 +1721,7 @@ Proof.
     split.
       intros.
       eapply malloc_preserves_mload_inv in H0; eauto.
-      destruct H0 as [G | G]; subst; eauto.
+      destruct H0 as [[G _] | [G _]]; subst; eauto.
         eapply undefs_disjoint_with_ptr; eauto.
 
       exists gv. eapply malloc_preserves_mload; eauto.
@@ -1744,7 +1744,7 @@ Proof.
   split; eauto.
     intros.
     eapply malloc_preserves_mload_inv in Hmlc; eauto.
-    destruct Hmlc as [G | G]; subst; eauto.
+    destruct Hmlc as [[G _]| [G _]]; subst; eauto.
       eapply undefs_disjoint_with_ptr; eauto.
 Qed.
 
@@ -1857,10 +1857,9 @@ Proof.
           destruct HwfM. omega.
       split.
         intros.
-        assert (mload (los, nts) M gptr ty al = ret gvs1 \/
-                forall v m, In (v, m) gvs1 -> v = Vundef) as J.
-          eapply malloc_preserves_mload_inv; eauto.
-        destruct J as [J | J].
+        assert (J:=Hal).
+        eapply malloc_preserves_mload_inv in J; eauto.
+        destruct J as [[J _]| [J _]].
           destruct HwfM as [HwfM _].
           apply HwfM in J.
           eapply valid_ptrs__no_alias__fresh_ptr; eauto.
@@ -1899,10 +1898,9 @@ Proof.
           omega.
       split.
         intros.
-        assert (mload (los, nts) M gptr ty al = ret gvs1 \/
-                forall v m, In (v, m) gvs1 -> v = Vundef) as J.
-          eapply malloc_preserves_mload_inv; eauto.
-        destruct J as [J | J]; eauto.
+        assert (J:=Hal).
+        eapply malloc_preserves_mload_inv in J; eauto.
+        destruct J as [[J _]| [J _]]; eauto.
           eapply undefs_disjoint_with_ptr; eauto.
 
         eapply malloc_preserves_mload in Hal; eauto.
@@ -1950,10 +1948,9 @@ Proof.
 
       split.
         intros.
-        assert (mload TD M gptr ty al = ret gvs1 \/
-                forall v m, In (v, m) gvs1 -> v = Vundef) as J.
-          eapply malloc_preserves_mload_inv; eauto.
-        destruct J as [J | J]; eauto.
+        assert (J:=Hal).
+        eapply malloc_preserves_mload_inv in J; eauto.
+        destruct J as [[J _]|[J _]]; eauto.
           eapply undefs_disjoint_with_ptr; eauto.
 
         eapply malloc_preserves_mload in Hal; eauto.

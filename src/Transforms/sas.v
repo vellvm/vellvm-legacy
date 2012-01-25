@@ -436,7 +436,8 @@ Proof.
     inv J1. exists (csa++[c0]). exists csb. simpl_env. split; auto.
 Qed.
 
-Lemma EC_follow_dead_store_tail: forall pinfo sasinfo c cs B tmn3 lc1 als3 lc2 F,
+Lemma EC_follow_dead_store_tail: forall pinfo sasinfo c cs B tmn3 lc1 als3 als3'
+  lc2 F,
   getCmdLoc c <> SAS_sid2 pinfo sasinfo ->
   ~ EC_follow_dead_store pinfo sasinfo
       {| Opsem.CurFunction := F;
@@ -451,7 +452,7 @@ Lemma EC_follow_dead_store_tail: forall pinfo sasinfo c cs B tmn3 lc1 als3 lc2 F
          Opsem.CurCmds := c :: cs;
          Opsem.Terminator := tmn3;
          Opsem.Locals := lc2;
-         Opsem.Allocas := als3 |}.
+         Opsem.Allocas := als3' |}.
 Proof.
   intros.
   intro J. apply H0.
@@ -653,6 +654,173 @@ Proof.
       apply Hnalias; simpl; auto.
 Qed.
     
+
+Lemma unremovable_loc__neq__SAS_sid1: forall pinfo sasinfo F B c cs tmn2 lc2 
+  als2 EC Mem id0
+  (Hnrem : ~ removable_State pinfo sasinfo
+               {|Opsem.ECS := {| Opsem.CurFunction := F;
+                                 Opsem.CurBB := B;
+                                 Opsem.CurCmds := c :: cs;
+                                 Opsem.Terminator := tmn2;
+                                 Opsem.Locals := lc2;
+                                 Opsem.Allocas := als2 |} :: EC;
+                 Opsem.Mem := Mem |})
+  (EQ : id0 = getCmdLoc c),
+  PI_f pinfo = F -> id0 <> SAS_sid1 pinfo sasinfo.
+Admitted.
+
+Lemma mem_simulation_update_locals : 
+  forall pinfo sasinfo TD EC1 EC2 ECs M1 M2
+  (EQ: Opsem.CurFunction EC1 = Opsem.CurFunction EC2)
+  (Hp: forall gvsa
+   (Hlkup: lookupAL (GVsT DGVs) (Opsem.Locals EC1) (PI_id pinfo) = ret gvsa),
+   lookupAL (GVsT DGVs) (Opsem.Locals EC2) (PI_id pinfo) = ret gvsa)
+  (Hmsim: Mem_simulation pinfo sasinfo TD (EC1 :: ECs) M1 M2),
+  Mem_simulation pinfo sasinfo TD (EC2 :: ECs) M1 M2.
+Proof.
+  intros.
+  destruct Hmsim as [Hmsim1 Hmsim2].
+  split; auto.
+    intros.
+    eapply Hmsim2 with (ptr:=ptr)(ty:=ty)(al:=al); eauto.
+Admitted.    
+
+Ltac dse_is_sim_common_case :=
+match goal with
+| Hcssim2: cmds_simulation _ _ _ _ _,
+  Hop2: Opsem.sInsn _ _ _ _,
+  Hmsim: Mem_simulation _ _ _ _ _ _ |- _ =>
+  apply cmds_simulation_nelim_cons_inv in Hcssim2; simpl; 
+    try solve [eauto using unremovable_loc__neq__SAS_sid1];
+  destruct Hcssim2 as [cs3' [Heq Hcssim2]]; subst;
+  inv Hop2; uniq_result;
+  repeat_solve;
+    eapply mem_simulation_update_locals in Hmsim; simpl; try solve [
+      eauto |
+      simpl; intros;
+      match goal with
+      | Hlkup : lookupAL _ ?lc ?id1 = Some ?gvsa |-
+        lookupAL _ (updateAddAL _ ?lc _ _ ) ?id1 = Some ?gvsa => 
+        admit  (* id <> palloca *)
+      end]
+end.
+  
+Lemma undead_head_tail_update : 
+  forall pinfo sasinfo ptr F B c cs tmn3 lc1 als3 als3' lc2 ECs
+  (Hp: forall gvsa
+   (Hlkup: lookupAL (GVsT DGVs) lc2 (PI_id pinfo) = ret gvsa),
+   lookupAL (GVsT DGVs) lc1 (PI_id pinfo) = ret gvsa)
+  (Hneq: PI_f pinfo = F -> getCmdLoc c <> SAS_sid2 pinfo sasinfo),
+  undead_head_tail pinfo sasinfo ptr
+     ({| Opsem.CurFunction := F;
+         Opsem.CurBB := B;
+         Opsem.CurCmds := cs;
+         Opsem.Terminator := tmn3;
+         Opsem.Locals := lc1;
+         Opsem.Allocas := als3 |} :: ECs) ->
+   undead_head_tail pinfo sasinfo ptr
+     ({| Opsem.CurFunction := F;
+         Opsem.CurBB := B;
+         Opsem.CurCmds := c :: cs;
+         Opsem.Terminator := tmn3;
+         Opsem.Locals := lc2;
+         Opsem.Allocas := als3' |} :: ECs).
+Proof.
+  intros.
+  unfold undead_head_tail in *.
+  intros.
+  simpl in Hin.
+  destruct Hin as [Hin | Hin]; subst.
+    assert (undead_head_in_tail pinfo sasinfo ptr 
+       {| Opsem.CurFunction := F;
+          Opsem.CurBB := B;
+          Opsem.CurCmds := cs;
+          Opsem.Terminator := tmn3;
+          Opsem.Locals := lc1;
+          Opsem.Allocas := als3 |}) as J. 
+      apply H; simpl; auto.
+    clear H.
+    unfold undead_head_in_tail in *. simpl in *. intros. 
+    apply Hp in Hlkup.
+    apply J in Hlkup; auto.
+    destruct Hlkup as [Hlkup | Hlkup]; auto.
+    right.
+    eapply EC_follow_dead_store_tail; eauto.
+
+    apply H; simpl; auto.
+Qed.
+
+
+Lemma products_simulation__fdef_simulation : forall pinfo sasinfo Ps1 Ps2 fid f1
+  f2,
+  lookupFdefViaIDFromProducts Ps2 fid = Some f2 ->
+  lookupFdefViaIDFromProducts Ps1 fid = Some f1 ->
+  products_simulation pinfo sasinfo Ps1 Ps2 ->
+  fdef_simulation pinfo sasinfo f1 f2.
+Admitted.
+
+Lemma lookupFdefViaPtr__simulation : forall pinfo sasinfo Ps1 Ps2 fptr f1 f2 fs,
+  OpsemAux.lookupFdefViaPtr Ps2 fs fptr = Some f2 ->
+  products_simulation pinfo sasinfo Ps1 Ps2 ->
+  OpsemAux.lookupFdefViaPtr Ps1 fs fptr = Some f1 ->
+  fdef_simulation pinfo sasinfo f1 f2.
+Proof.
+  intros.
+  unfold OpsemAux.lookupFdefViaPtr in *.
+  remember (OpsemAux.lookupFdefViaGVFromFunTable fs fptr) as R2.
+  destruct R2 as [fid|]; inv H1. simpl in H.
+  eapply products_simulation__fdef_simulation in H0; eauto.
+Qed.
+
+Lemma fdef_simulation__entry_block_simulation: forall pinfo sasinfo F1 F2 B1 B2,
+  fdef_simulation pinfo sasinfo F1 F2 ->
+  getEntryBlock F1 = ret B1 ->
+  getEntryBlock F2 = ret B2 ->
+  block_simulation pinfo sasinfo F1 B1 B2.
+Admitted.
+
+Lemma fdef_simulation_inv: forall pinfo sasinfo fh1 fh2 bs1 bs2,
+  fdef_simulation pinfo sasinfo (fdef_intro fh1 bs1) (fdef_intro fh2 bs2) ->
+  fh1 = fh2 /\ 
+  List.Forall2 
+    (fun b1 b2 => 
+      block_simulation pinfo sasinfo (fdef_intro fh1 bs1) b1 b2) bs1 bs2.
+Admitted.
+
+Lemma lookupFdefViaPtr__simulation_l2r : forall pinfo sasinfo Ps1 Ps2 fptr f1 fs,
+  products_simulation pinfo sasinfo Ps1 Ps2 ->
+  OpsemAux.lookupFdefViaPtr Ps1 fs fptr = Some f1 ->
+  exists f2, 
+    OpsemAux.lookupFdefViaPtr Ps2 fs fptr = Some f2 /\
+    fdef_simulation pinfo sasinfo f1 f2.
+Admitted.
+
+Lemma lookupExFdecViaPtr__simulation_l2r : forall pinfo sasinfo Ps1 Ps2 fptr f fs,
+  products_simulation pinfo sasinfo Ps1 Ps2 ->
+  OpsemAux.lookupExFdecViaPtr Ps1 fs fptr = Some f ->
+  OpsemAux.lookupExFdecViaPtr Ps2 fs fptr = Some f.
+Admitted.
+
+Lemma undead_head_tail_cons_and: forall pinfo sasinfo ptr EC ECs,
+  undead_head_tail pinfo sasinfo ptr (EC :: ECs) ->
+  undead_head_in_tail pinfo sasinfo ptr EC /\ 
+    undead_head_tail pinfo sasinfo ptr ECs.
+Proof.
+  intros.
+  unfold undead_head_tail in *.  
+  split.
+    apply H; simpl; auto.
+    intros. apply H; simpl; auto.
+Qed.
+
+Lemma callExternalFunction__Mem_simulation: forall pinfo sasinfo TD St1 M1 M2 
+  fid0 gvss0 oresult1 M1' oresult2 M2',
+  Mem_simulation pinfo sasinfo TD St1 M1 M2 ->
+  OpsemAux.callExternalFunction M1 fid0 gvss0 = ret (oresult1, M1') ->
+  OpsemAux.callExternalFunction M2 fid0 gvss0 = ret (oresult2, M2') ->
+  oresult1 = oresult2 /\ Mem_simulation pinfo sasinfo TD St1 M1' M2'.
+Admitted.
+
 Lemma sas_is_sim : forall maxb pinfo (sasinfo: SASInfo pinfo) Cfg1 St1 Cfg2 St2
   (Hwfpi: WF_PhiInfo pinfo) 
   (Hwfpp: OpsemPP.wf_State Cfg1 St1) 
@@ -875,36 +1043,15 @@ Focus.
 
 Unfocus.
 
-Admitted.
-(*
-
-SCase "sBop". 
-(*
-Lemma mem_simulation_update_locals : 
-  forall pinfo sasinfo TD EC1 EC2 ECs M1 M2
-  (EQ: Opsem.CurFunction EC1 = Opsem.CurFunction EC2)
-  (Hp: forall gvsa
-   (Hlkup: lookupAL (GVsT DGVs) (Opsem.Locals EC1) (PI_id pinfo) = ret gvsa),
-   lookupAL (GVsT DGVs) (Opsem.Locals EC2) (PI_id pinfo) = ret gvsa)
-  (Hmsim: Mem_simulation pinfo sasinfo TD (EC1 :: ECs) M1 M2),
-  Mem_simulation pinfo sasinfo TD (EC2 :: ECs) M1 M2.
-Proof.
-  intros.
-  destruct Hmsim as [Hmsim1 Hmsim2].
-  split; auto.
-    intros.
-    eapply Hmsim2 with (ptr:=ptr)(ty:=ty)(al:=al); eauto.
-Admitted.    
-*)
-abstract (destruct_ctx_other; dse_is_sim_common_case).
+SCase "sBop". abstract (destruct_ctx_other; dse_is_sim_common_case).
 SCase "sFBop". abstract (destruct_ctx_other; dse_is_sim_common_case).
 SCase "sExtractValue". abstract (destruct_ctx_other; dse_is_sim_common_case).
 SCase "sInsertValue". abstract (destruct_ctx_other; dse_is_sim_common_case).
 SCase "sMalloc". 
- 
   destruct_ctx_other.
  
-  apply cmds_simulation_nelim_cons_inv in Hcssim2; simpl; auto;
+  apply cmds_simulation_nelim_cons_inv in Hcssim2; simpl;
+    try solve [eauto using unremovable_loc__neq__SAS_sid1].
   destruct Hcssim2 as [cs3' [Heq Hcssim2]]; subst;
   inv Hop2; uniq_result.
 
@@ -914,7 +1061,6 @@ SCase "sMalloc".
     apply MemProps.malloc_result in H2. subst. auto.
   subst.
   repeat_solve.
-
     destruct Hmsim as [Hmsim1 Hmsim2].
     split; auto.
       apply MemProps.nextblock_malloc in H2.
@@ -922,19 +1068,31 @@ SCase "sMalloc".
       rewrite <- H2. rewrite <- H25. rewrite Hmsim1. auto.
 
       intros.
-      eapply Hmsim2 with (ptr:=ptr)(ty:=ty)(al:=al); eauto.
-      eapply no_alias_head_tail_update in Hnalias; eauto; simpl; auto.
-        intros. admit. (* id <> palloca *)
+      assert (Hmc:=Hld1). 
+      apply MemProps.mload__flatten_typ in Hmc.
+      destruct Hmc as [mc Hmc].
+      eapply MemProps.malloc_preserves_mload_inv' in Hld1; eauto.
+      eapply MemProps.malloc_preserves_mload_inv' in Hld2; eauto.
+      destruct Hld1 as [[Hld1 Halias1] | [Hld1 Hnalias1]].
+        destruct Hld2 as [[Hld2 Halias2] | [Hld2 Hnalias2]].
+          eapply Hmsim2 with (ptr:=ptr)(ty:=ty)(al:=al); eauto.
+          eapply undead_head_tail_update in Hnalias; eauto.
+            intros. admit. (* id <> palloca *)
+            admit. (* uniqness *)
 
-        (* two cases, if ptr is mb or not, 
-           malloc_preserves_mload_inv needs to be extended. *)
-        admit. admit.
+          contradict Halias1; auto.    
+
+        destruct Hld2 as [[Hld2 Halias2] | [Hld2 Hnalias2]].
+          contradict Halias2; auto.
+
+          erewrite Hld1; eauto.
+          erewrite Hld2; eauto.
 
 SCase "sFree". 
-
   destruct_ctx_other.
  
-  apply cmds_simulation_nelim_cons_inv in Hcssim2; auto.
+  apply cmds_simulation_nelim_cons_inv in Hcssim2; simpl;
+    try solve [eauto using unremovable_loc__neq__SAS_sid1].
   destruct Hcssim2 as [cs3' [Heq Hcssim2]]; subst;
   inv Hop2; uniq_result.
 
@@ -948,13 +1106,15 @@ SCase "sFree".
       intros.
       eapply Hmsim2 with (ptr:=ptr)(ty:=ty)(al:=al); 
         eauto using MemProps.free_preserves_mload_inv.
-      eapply no_alias_head_tail_irrel in Hnalias; eauto; simpl; auto.
+      eapply undead_head_tail_update in Hnalias; eauto.
+        admit. (* uniqness *)
 
 SCase "sAlloca". 
 
   destruct_ctx_other.
  
-  apply cmds_simulation_nelim_cons_inv in Hcssim2; simpl; auto;
+  apply cmds_simulation_nelim_cons_inv in Hcssim2; simpl;
+    try solve [eauto using unremovable_loc__neq__SAS_sid1].
   destruct Hcssim2 as [cs3' [Heq Hcssim2]]; subst;
   inv Hop2; uniq_result.
 
@@ -964,7 +1124,6 @@ SCase "sAlloca".
     apply MemProps.malloc_result in H2. subst. auto.
   subst.
   repeat_solve.
-
     destruct Hmsim as [Hmsim1 Hmsim2].
     split; auto.
       apply MemProps.nextblock_malloc in H2.
@@ -972,27 +1131,38 @@ SCase "sAlloca".
       rewrite <- H2. rewrite <- H25. rewrite Hmsim1. auto.
 
       intros.
-      eapply Hmsim2 with (ptr:=ptr)(ty:=ty)(al:=al); eauto.
-      eapply no_alias_head_tail_update in Hnalias; eauto; simpl; auto.
-        intros.
-        admit. (* if id = palloca, then lc2 cannot contain pid *)
+      assert (Hmc:=Hld1). 
+      apply MemProps.mload__flatten_typ in Hmc.
+      destruct Hmc as [mc Hmc].
+      eapply MemProps.malloc_preserves_mload_inv' in Hld1; eauto.
+      eapply MemProps.malloc_preserves_mload_inv' in Hld2; eauto.
+      destruct Hld1 as [[Hld1 Halias1] | [Hld1 Hnalias1]].
+        destruct Hld2 as [[Hld2 Halias2] | [Hld2 Hnalias2]].
+          eapply Hmsim2 with (ptr:=ptr)(ty:=ty)(al:=al); eauto.
+          eapply undead_head_tail_update in Hnalias; eauto.
+            intros. admit. (* id <> palloca *)
+            admit. (* uniqness *)
 
-        (* two cases, if ptr is mb or not, 
-           malloc_preserves_mload_inv needs to be extended. *)
-        admit. admit. 
+          contradict Halias1; auto.    
+
+        destruct Hld2 as [[Hld2 Halias2] | [Hld2 Hnalias2]].
+          contradict Halias2; auto.
+
+          erewrite Hld1; eauto.
+          erewrite Hld2; eauto.
 
 SCase "sLoad". 
   destruct_ctx_other.
 
-  apply cmds_simulation_nelim_cons_inv in Hcssim2; simpl; auto;
+  apply cmds_simulation_nelim_cons_inv in Hcssim2; simpl;
+    try solve [eauto using unremovable_loc__neq__SAS_sid1].
   destruct Hcssim2 as [cs3' [Heq Hcssim2]]; subst;
   inv Hop2; uniq_result.
 
   assert (gv = gv0) as EQ.
-    admit. (* no load from pid *)
+    admit. (* no load can follow redundant store *)
   subst.
   repeat_solve.
-
     eapply mem_simulation_update_locals in Hmsim; simpl; eauto.
       simpl. intros.
       admit. (* lid <> pid *)
@@ -1001,18 +1171,8 @@ SCase "sStore".
 
   destruct_ctx_other.
  
-  assert (PI_f pinfo = F -> 
-          store_in_cmd (PI_id pinfo) (insn_store sid t v1 v2 align0) = false)
-         as J.
-    clear - Hnrem. simpl in Hnrem.
-    destruct v2; auto.
-    intros. subst.
-    destruct (fdef_dec (PI_f pinfo) (PI_f pinfo)); try congruence.
-    simpl.
-    destruct (id_dec i0 (PI_id pinfo)); subst; auto.
-    destruct (id_dec (PI_id pinfo) (PI_id pinfo)); try congruence.
-    contradict Hnrem; auto.
-  apply cmds_simulation_nelim_cons_inv in Hcssim2; auto.
+  apply cmds_simulation_nelim_cons_inv in Hcssim2; simpl;
+    try solve [eauto using unremovable_loc__neq__SAS_sid1].
   destruct Hcssim2 as [cs3' [Heq Hcssim2]]; subst;
   inv Hop2; uniq_result.
 
@@ -1024,11 +1184,18 @@ SCase "sStore".
       rewrite <- H3. rewrite <- H28. rewrite Hmsim1. auto.
 
       intros.
+      eapply MemProps.mstore_preserves_mload_inv in H28; eauto.
+      eapply MemProps.mstore_preserves_mload_inv in H3; eauto.
+      destruct H28 as [gvs3 [Hld2' H28]].
+      destruct H3 as [gvs4 [Hld1' H3]].
+      admit. (* we need lower simulation between memory states. *)
+(*
       eapply Hmsim2 with (ptr:=ptr)(ty:=ty)(al:=al); eauto.
+
       eapply no_alias_head_tail_irrel in Hnalias; eauto; simpl; auto.
         (* two cases, if ptr overlaps with stored ptr or not *)
         admit. admit.
-
+*)
 SCase "sGEP". abstract (destruct_ctx_other; dse_is_sim_common_case).
 SCase "sTrunc". abstract (destruct_ctx_other; dse_is_sim_common_case).
 SCase "sExt". abstract (destruct_ctx_other; dse_is_sim_common_case).
@@ -1038,7 +1205,8 @@ SCase "sFcmp". abstract (destruct_ctx_other; dse_is_sim_common_case).
 SCase "sSelect". 
   destruct_ctx_other.
 
-  apply cmds_simulation_nelim_cons_inv in Hcssim2; simpl; auto;
+  apply cmds_simulation_nelim_cons_inv in Hcssim2; simpl;
+    try solve [eauto using unremovable_loc__neq__SAS_sid1].
   destruct Hcssim2 as [cs3' [Heq Hcssim2]]; subst;
   inv Hop2; uniq_result.
 
@@ -1055,7 +1223,8 @@ SCase "sCall".
 
   destruct_ctx_other.
   assert (Hcssim2':=Hcssim2).
-  apply cmds_simulation_nelim_cons_inv in Hcssim2; auto.
+  apply cmds_simulation_nelim_cons_inv in Hcssim2; simpl;
+    try solve [eauto using unremovable_loc__neq__SAS_sid1].
   destruct Hcssim2 as [cs3' [Heq Hcssim2]]; subst.
 
   inv Hop2.
@@ -1068,8 +1237,17 @@ SCase "sCall".
 
   assert (Hbsim1:=Hfsim1).
   eapply fdef_simulation__entry_block_simulation in Hbsim1; eauto.
+
+  assert (InProductsB (product_fdef (fdef_intro 
+    (fheader_intro fa rt fid la va) lb)) Ps = true) as HFinPs'.
+    apply OpsemAux.lookupFdefViaPtr_inversion in H1.
+    destruct H1 as [fn [H11 H12]].
+    eapply lookupFdefViaIDFromProducts_inv; eauto.
+  assert (uniqFdef (fdef_intro (fheader_intro fa rt fid la va) lb)) 
+    as Huniq.
+    eapply wf_system__uniqFdef; eauto.
   assert (Hbsim1':=Hbsim1).
-  apply block_simulation_inv in Hbsim1'.
+  apply block_simulation_inv in Hbsim1'; auto using entryBlockInFdef.
   destruct Hbsim1' as [Heq' [Hpsim1' [Hcsim1' Htsim1']]]; subst.
   repeat_solve.
     exists l'0. exists ps'0. exists nil. auto.
@@ -1084,7 +1262,7 @@ SCase "sCall".
       intros.
       eapply Hmsim2 with (ptr:=ptr)(ty:=ty)(al:=al); eauto.
       clear Hmsim2.
-      apply no_alias_head_tail_cons_and in Hnalias.
+      apply undead_head_tail_cons_and in Hnalias.
       destruct Hnalias as [Hnalias1 Hnalias2]; auto.
 
   SSCase "sExCall".
@@ -1104,7 +1282,8 @@ SCase "sExCall".
 
   destruct_ctx_other.
   assert (Hcssim2':=Hcssim2).
-  apply cmds_simulation_nelim_cons_inv in Hcssim2; auto.
+  apply cmds_simulation_nelim_cons_inv in Hcssim2; simpl;
+    try solve [eauto using unremovable_loc__neq__SAS_sid1].
   destruct Hcssim2 as [cs3' [Heq Hcssim2]]; subst.
 
   inv Hop2.
@@ -1138,7 +1317,6 @@ SCase "sExCall".
 Transparent inscope_of_tmn inscope_of_cmd.
 
 Qed.
-*)
 
 Lemma s_genInitState__sas_State_simulation: forall pinfo sasinfo S1 S2 main 
   VarArgs cfg2 IS2,
