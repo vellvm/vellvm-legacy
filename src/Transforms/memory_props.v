@@ -998,21 +998,24 @@ Local Transparent gv2gvs.
 Opaque gv2gvs.
 Qed.
 
+Definition ld_st_ld_rel v1 v1' v2 b1 b2 ofs1 ofs2 m1 m2 M :=
+  ((v1 = v1' /\ 
+   (b1 <> b2 \/ ofs1 + size_chunk m1 <= ofs2 \/ ofs2 + size_chunk m2 <= ofs1))
+  \/ 
+   (v1 = decode_val m1 (Mem.getN (size_chunk_nat m1) ofs1
+           (Mem.setN (encode_val m2 v2) ofs2 (Mem.mem_contents M b2))) /\
+    v1' = decode_val m1 (Mem.getN (size_chunk_nat m1) ofs1 
+            (Mem.mem_contents M b2)) /\
+    (b1 = b2 /\ ofs1 + size_chunk m1 > ofs2 /\ ofs2 + size_chunk m2 > ofs1))).
+
 Lemma store_preserves_load_inv_aux': forall b1 b2 v2 m2 Mem' Mem ofs2 
   (Hst: Mem.store m2 Mem b2 ofs2 v2 = ret Mem') m1 ofs1 v1,
   Mem.load m1 Mem' b1 ofs1 = ret v1 ->
   exists v1',
     Mem.load m1 Mem b1 ofs1 = ret v1' /\
-    ((v1 = v1' /\ 
-     (b1 <> b2 \/ ofs1 + size_chunk m1 <= ofs2 \/ ofs2 + size_chunk m2 <= ofs1))
-    \/ 
-     (v1 = decode_val m1 (Mem.getN (size_chunk_nat m1) ofs1
-             (Mem.setN (encode_val m2 v2) ofs2 (Mem.mem_contents Mem b2))) /\
-      v1' = decode_val m1 (Mem.getN (size_chunk_nat m1) ofs1 
-              (Mem.mem_contents Mem b2)) /\
-      (b1 = b2 /\ ofs1 + size_chunk m1 > ofs2 /\ ofs2 + size_chunk m2 > ofs1))).
+    ld_st_ld_rel v1 v1' v2 b1 b2 ofs1 ofs2 m1 m2 Mem.
 Proof.
-  intros.
+  intros. unfold ld_st_ld_rel.
   destruct (zeq b1 b2); subst; 
     try solve [erewrite <- Mem.load_store_other; eauto; exists v1; eauto].
   destruct (zle (ofs1 + size_chunk m1) ofs2);
@@ -1036,6 +1039,79 @@ Local Transparent Mem.load Mem.store.
   destruct (zeq b2 b2); try congruence.
 Opaque Mem.load Mem.store.
 Qed.
+
+Fixpoint mld_st_mld_rel (gvs1 gvs1':GenericValue) v2 b1 b2 ofs1 ofs2 m2 M 
+  :=
+match gvs1, gvs1' with
+| nil, nil => True
+| (v1, m1)::gvs2, (v1', m1')::gvs2' =>
+    m1 = m1' /\ ld_st_ld_rel v1 v1' v2 b1 b2 ofs1 ofs2 m1 m2 M /\
+    mld_st_mld_rel gvs2 gvs2' v2 b1 b2 (ofs1+size_chunk m1) ofs2 m2 M
+| _, _ => False
+end.
+
+Lemma store_preserves_mload_aux_inv': forall b1 b2 v2 m2 Mem' Mem ofs2 
+  (Hst: Mem.store m2 Mem b2 ofs2 v2 = ret Mem') mc ofs1 gvs0,
+  mload_aux Mem' mc b1 ofs1 = ret gvs0 ->
+  exists gvs2 : GenericValue,
+     mload_aux Mem mc b1 ofs1 = ret gvs2 /\
+     mld_st_mld_rel gvs0 gvs2 v2 b1 b2 ofs1 ofs2 m2 Mem.
+Proof.
+  induction mc; simpl; intros.
+    inv H. 
+    exists nil. 
+    split; simpl; auto.
+
+    inv_mbind'. symmetry in HeqR0.
+    apply IHmc in HeqR0.
+    destruct HeqR0 as [gvs2 [J1 J2]].
+    rewrite J1.
+    eapply store_preserves_load_inv_aux' in Hst; eauto.
+    destruct Hst as [v1' [J3 J4]].
+    rewrite J3.
+    exists ((v1',a)::gvs2).
+    split; simpl; auto.
+Qed.
+
+Fixpoint mld_mst_mld_rel (gvs1 gvs1':GenericValue) gvs2 b1 b2 ofs1 ofs2 M 
+  :=
+match gvs2 with
+| nil => True
+| (v2, m2)::gvs2' =>
+    mld_st_mld_rel gvs1 gvs1' v2 b1 b2 ofs1 ofs2 m2 M /\
+    mld_mst_mld_rel gvs1 gvs1' gvs2' b1 b2 ofs1 (ofs2+size_chunk m2) M
+end.
+
+(*
+Lemma mstore_aux_preserves_mload_aux_inv': forall mc b1 ofs1 b2 gvs1 gvs0 Mem' Mem ofs2,
+  mload_aux Mem' mc b1 ofs1 = ret gvs0 ->
+  mstore_aux Mem gvs1 b2 ofs2 = ret Mem' ->
+  exists gvs2 : GenericValue,
+     mload_aux Mem mc b1 ofs1 = ret gvs2 /\
+     mld_mst_mld_rel gvs0 gvs2 gvs1 b1 b2 ofs1 ofs2 Mem.
+Proof.
+  induction gvs1 as [|[]]; simpl; intros.
+    inv H0. exists gvs0. split; auto.
+  
+    inv_mbind'.
+    eapply IHgvs1 in H2; eauto.
+    destruct H2 as [gvs2 [J1 J2]].
+    symmetry in HeqR.
+    eapply store_preserves_mload_aux_inv' in HeqR; eauto.
+    destruct HeqR as [gvs3 [J3 J4]].
+    exists gvs3.
+    split; auto.
+    split.
+
+    intros.
+    apply J2 in H0.
+    destruct H0 as [H0 | H0]; subst; 
+      try solve [right; intros; subst; right; eauto].
+    apply J4 in H0. 
+    destruct H0 as [H0 | H0]; subst; auto.
+      right. intros. apply H0 in H1. destruct H1; subst; auto.
+Qed.
+*)
 
 Lemma store_preserves_load_inv_aux: forall b1 b2 v2 m2 Mem' Mem ofs2 
   (Hst: Mem.store m2 Mem b2 ofs2 v2 = ret Mem') m1 ofs1 v1,
