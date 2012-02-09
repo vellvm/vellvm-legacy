@@ -1,0 +1,25 @@
+/*
+ * File: verifier.c
+ *
+ * Description:
+ *  This is a sample source file for a library.  It helps to demonstrate
+ *  how to setup a project that uses the LLVM build system, header files,
+ *  and libraries.
+ */
+
+#include <stdio.h>
+#include <stdlib.h>
+
+/* LLVM Header File
+#include "llvm/System/DataTypes.h"
+*/
+
+/* Header file global to this project */
+#include "verifier.h"
+
+int
+compute_verifier (int a)
+{
+  return a;
+}
+
