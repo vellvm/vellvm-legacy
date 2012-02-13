@@ -1,7 +1,7 @@
 include ./Makefile.config
 
 OUTPUT_TYPE=native
-OCAMLBUILD_OPT=-no-links -j 0 -build-dir _build \
+OCAMLBUILD_OPT=-no-hygiene -no-links -j 0 -build-dir _build \
   -cflags -g,-I,$(LLVM_OCAML_LIB),-I,$(EXTRACTION_LIB) \
   -lflags -g,-I,$(LLVM_OCAML_LIB),-I,$(EXTRACTION_LIB),-cclib,-lffi,-cclib,-L$(LLVM_LIB)
 CMAS:=Extraction/_build/coqllvm.cma \
@@ -34,6 +34,7 @@ clean:
 	ocamlbuild -clean
 
 ocamlclean:
+	+make -C ./Extraction -f Makefile.ocaml clean
 	ocamlbuild -clean
 
 .PHONY: all clean ocamlclean ocaml coq

@@ -1,0 +1,36 @@
+0) Opaque is removed; More attributes, Opcode and ValueKind.
+
+1) 2.6 allows any type to be recursive. 3.0 only allows named structure
+pointers to be recursive. Other types and non-named structure type cannot be
+recursive. Top-level named types can only be for structure types. We should
+change type systems.
+
+In Ocaml bindings, `name_of_type' does not work. 3.0 provides `struct_name'
+that only returns names for structure types. Parser/Printer should change on
+this. 
+
+In Module class, the TypeSymTab in 2.6 is removed. Module uses
+findUsedStructTypes to get top-level type definitions on-the-fly.
+
+2) Attributtes are changed... need to double-check
+
+3) In 3.0 CallInst stores the called-value at Op<-1>. 2.6's stores at Op[0]. So,
+in 3.0 we wrap the CallInst::getCalledValue to get the called value, and take
+1-(n-1) as argments. In 2.6, we can simply take the 0th operand as the called
+value, and take 0-(n-1) as arguments. 
+
+4) Opcode.t's 0th is Invalid, and the 1st is Ret. In 2.6 its 0th is Ret.
+
+5) clang can generate more intrinsic functions, say llvm.memcpy, ... , which the
+llvm-gcc does not do so. The current interpretation does not support intrinsic
+functions, For example,
+  2003-10-12-GlobalVarInitializers
+fails.
+
+We should refer to lib/CodeGen/IntrinsicLowering.cpp,
+Interpreter::visitCallSite/callFunction/callExternalFunction to support intrinsic!
+
+6) Interpreter/testcases/llvm/rec-type.ll
+  %rt2 = type { %rt2, i32, i32, i32, %rt2 } is not a good type in LLVM 3.0. But
+  it makes llvm-as crashed.
+  %rt2 = type { %rt2*, i32, i32, i32, %rt2* } is a good type.

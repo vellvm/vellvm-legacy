@@ -56,14 +56,13 @@ let main in_filename argv =
         let imbuf = MemoryBuffer.of_file in_filename in
         let im = Llvm_bitreader.parse_bitcode ic imbuf in
         let ist = SlotTracker.create_of_module im in
-        let imp = ModuleProvider.create im in
-
+      
         (if !Globalstates.debug then dump_module im);
         (if !Globalstates.debug then Llvm_pretty_printer.travel_module ist im);
         let coqim = Llvm2coq.translate_module !Globalstates.debug ist im in
         (if !Globalstates.debug then Coq_pretty_printer.travel_module coqim);
 
-        let li = ExecutionEngine.create_interpreter imp in
+        let li = ExecutionEngine.create_interpreter im in
 
         let print() = Array.iter print_endline argv in
         
