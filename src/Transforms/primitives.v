@@ -238,6 +238,22 @@ match f with
   List.fold_left (fun re b => re || used_in_block id' b) bs false
 end.
 
+Definition find_uses_in_block (id':id) (b:block) : list insn :=
+let '(block_intro _ ps cs tmn) := b in
+let is1 := 
+  List.fold_left 
+    (fun acc p => if used_in_phi id' p then insn_phinode p::acc else acc) 
+    ps nil in
+let is2 := 
+  List.fold_left 
+    (fun acc c => if used_in_cmd id' c then insn_cmd c::acc else acc) 
+    cs is1 in
+if used_in_tmn id' tmn then insn_terminator tmn::is2 else is2.
+
+Definition find_uses_in_fdef (id':id) (f:fdef) : list insn := 
+let '(fdef_intro _ bs) := f in
+List.fold_left (fun acc b => find_uses_in_block id' b++acc) bs nil.
+
 Definition store_in_cmd (id':id) (c:cmd) : bool :=
 match c with
 | insn_store _ _ _ ptr _ => used_in_value id' ptr

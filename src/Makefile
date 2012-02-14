@@ -34,6 +34,7 @@ clean:
 	ocamlbuild -clean
 
 ocamlclean:
+	+make -C ./Extraction -f Makefile.ocaml clean
 	ocamlbuild -clean
 
 .PHONY: all clean ocamlclean ocaml coq
