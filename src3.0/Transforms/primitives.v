@@ -238,6 +238,22 @@ match f with
   List.fold_left (fun re b => re || used_in_block id' b) bs false
 end.
 
+Definition find_uses_in_block (id':id) (b:block) : list insn :=
+let '(block_intro _ ps cs tmn) := b in
+let is1 := 
+  List.fold_left 
+    (fun acc p => if used_in_phi id' p then insn_phinode p::acc else acc) 
+    ps nil in
+let is2 := 
+  List.fold_left 
+    (fun acc c => if used_in_cmd id' c then insn_cmd c::acc else acc) 
+    cs is1 in
+if used_in_tmn id' tmn then insn_terminator tmn::is2 else is2.
+
+Definition find_uses_in_fdef (id':id) (f:fdef) : list insn := 
+let '(fdef_intro _ bs) := f in
+List.fold_left (fun acc b => find_uses_in_block id' b++acc) bs nil.
+
 Definition store_in_cmd (id':id) (c:cmd) : bool :=
 match c with
 | insn_store _ _ _ ptr _ => used_in_value id' ptr
@@ -436,10 +452,18 @@ match pn with
     insn_phi id0 t0 (renamel_list_value_l l1 l2 vls) 
 end.
 
+Definition renamel_tmn (l1 l2:l) (tmn:terminator) : terminator :=
+match tmn with
+| insn_br bid c lt lf => insn_br bid c (rename_id l1 l2 lt) (rename_id l1 l2 lf)
+| insn_br_uncond bid ln => insn_br_uncond bid (rename_id l1 l2 ln)
+| _ => tmn
+end.
+
 Definition renamel_block (l1 l2:l) (b:block) : block := 
 match b with
 | block_intro l0 ps0 cs0 tmn0 =>
-  block_intro (rename_id l1 l2 l0) (List.map (renamel_phi l1 l2) ps0)  cs0 tmn0
+  block_intro (rename_id l1 l2 l0) (List.map (renamel_phi l1 l2) ps0) cs0 
+    (renamel_tmn l1 l2 tmn0)
 end.
 
 Definition renamel_fdef (l1 l2:l) (f:fdef) : fdef := 
@@ -487,20 +511,35 @@ match check_bname l0 eid with
 end.
 
 Definition fix_temporary_fdef (f:fdef) : option fdef :=
-let eid := init_expected_name tt in
-let '(fdef_intro fh bs) := f in
-match fold_left 
-  (fun st b => 
+let '(fdef_intro (fheader_intro _ _ _ ars _) bs) := f in
+(* arguments can also contain temporaries, scan args first *)
+let st0 := fold_left 
+  (fun st ar =>
    match st with
-   | Some (f0, eid0) =>
-       match fix_temporary_block f0 b eid0 with
-       | Some (f1, eid1) => Some (f1, eid1)
-       | None => None
-       end
-   | _ => None
-   end) bs (Some (f, eid)) with
-| Some (f', _) => Some f'
+   | None => None
+   | Some eid0 =>
+      let '(_, aid) := ar in
+      match check_vname aid eid0 with
+      | None => None
+      | Some (_, eid1) => Some eid1
+      end
+    end) ars (Some (init_expected_name tt)) in
+match st0 with
 | None => None
+| Some eid =>
+  match fold_left 
+    (fun st b => 
+     match st with
+     | Some (f0, eid0) =>
+         match fix_temporary_block f0 b eid0 with
+         | Some (f1, eid1) => Some (f1, eid1)
+         | None => None
+         end
+     | _ => None
+     end) bs (Some (f, eid)) with
+  | Some (f', _) => Some f'
+  | None => None
+  end
 end.
 
 Definition getFdefLocs fdef : ids :=

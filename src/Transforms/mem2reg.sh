@@ -74,9 +74,11 @@ S95_CASES="129.compress 099.go 130.li 132.ijpeg"
 #  -adce -globaldce -preverify -domtree -verify"
 LD_FLAG="-disable-opt -adce"
 
-PRE_OPT_FLAG="-disable-opt -raiseallocs -simplifycfg"
-M2R_OPT_FLAG="-disable-opt -raiseallocs -simplifycfg -domtree -domfrontier 
-              -mem2reg"
+# opt -mem2reg -debug-pass=Arguments -disable-output bho.bc
+# Pass Arguments: -domtree -domfrontier -mem2reg -preverify -verify
+
+PRE_OPT_FLAG="-disable-opt"
+M2R_OPT_FLAG="-disable-opt -domtree -domfrontier -mem2reg"
 
 Compiling ()
 {

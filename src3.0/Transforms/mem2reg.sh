@@ -10,7 +10,8 @@ S95_DIR=./testcases/spec95-ccured/
 S95_CASES="129.compress 099.go 130.li 132.ijpeg"
 
 # We need to rerun
-# llvm-as < /dev/null | opt -O1 -disable-output -debug-pass=Arguments
+# llvm-as < /dev/null | opt -O1 -disable-output -debug-pass=Arguments, or
+# opt -mem2reg -debug-pass=Arguments -disable-output test.bc
 
 #PRE_OPT_FLAG="-disable-opt -raiseallocs -simplifycfg -domtree -domfrontier 
 #  -mem2reg 
@@ -77,9 +78,12 @@ S95_CASES="129.compress 099.go 130.li 132.ijpeg"
 #  -adce -globaldce -preverify -domtree -verify"
 LD_FLAG="-disable-opt"
 
-PRE_OPT_FLAG="-disable-opt -no-aa -tbaa -targetlibinfo -basicaa -simplifycfg"
-M2R_OPT_FLAG="-disable-opt -no-aa -tbaa -targetlibinfo -basicaa -simplifycfg 
-              -domtree -mem2reg"
+#opt -mem2reg -debug-pass=Arguments -disable-output bho.bc
+#Pass Arguments: -targetlibinfo -targetdata -domtree -mem2reg -preverify -verify
+
+#-targetdata pass causes errors
+PRE_OPT_FLAG="-disable-opt -targetlibinfo"
+M2R_OPT_FLAG="-disable-opt -targetlibinfo -domtree -mem2reg"
 
 Compiling ()
 {
