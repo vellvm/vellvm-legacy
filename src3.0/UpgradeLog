@@ -34,3 +34,32 @@ Interpreter::visitCallSite/callFunction/callExternalFunction to support intrinsi
   %rt2 = type { %rt2, i32, i32, i32, %rt2 } is not a good type in LLVM 3.0. But
   it makes llvm-as crashed.
   %rt2 = type { %rt2*, i32, i32, i32, %rt2* } is a good type.
+
+7) TBAA
+  blog: http://blog.llvm.org/2010/04/extensible-metadata-in-llvm-ir.html
+  clang code generating tbaa: 
+    http://clang.llvm.org/doxygen/CodeGenTBAA_8cpp_source.html
+  questions about how to use:   
+    http://lists.cs.uiuc.edu/pipermail/llvmdev/2010-October/035813.html
+  IR: http://llvm.org/docs/LangRef.html#metadata
+  LLVM code: http://llvm.org/doxygen/TypeBasedAliasAnalysis_8cpp_source.html
+  Relevant standards text includes:
+    C99 6.5p7
+    C++ [basic.lval] (p10 in n3126, p15 in some earlier versions)
+
+8) @malloc vs malloc
+   malloc/free in 2.6 are changed to @malloc/@free in 3.0.
+
+   In the case users refine malloc, llvm-gcc-2.6 assumes that it is extractly 
+   the standard malloc, and compiles it to instruction malloc, at runtime does 
+   not call the refined malloc; clang 3.0 compiles to to @malloc, and analyzes 
+   it as the standard malloc, but calls the refined malloc at runtime.
+
+   If the refined malloc is correct, then both of them are correct. If the 
+   refined malloc is wrong, both llvm-gcc-2.6 and clang 3 are wrong for 
+   different behaviors. W/o assuming the correctness, llvm 2.6 still ensures 
+   its final output = the original IR; but llvm 3.0 does not ensure this before 
+   it uses different malloc's at static analysis and at runtime.
+
+9) LLVM does not allow refining any intrinsics.
+
