@@ -20,7 +20,7 @@ Export LLVMlib.
 defns
 Jwf_typ :: '' ::=
       defn
-      |- typ :: :: wf_typ :: '' {{ com [[typ]] is well-formed }} by  
+      |- typ :: :: wf_typ :: '' {{ com [[typ]] is well-formed }} by
 
       -------------------- :: wf_typ_int
       |- int sz
@@ -46,15 +46,15 @@ Jwf_typ :: '' ::=
       % -------------------- :: wf_typ_opaque
       % |- opaque
 
-      isValidReturnTyp typ     
+      isValidReturnTyp typ
       |- typ
       </ isValidArgumentTyp typj // j />
-      </ |- typj // j /> 
+      </ |- typj // j />
       -------------------------------------------------- :: wf_typ_function
-      |- typ ( </ typj // j /> ) 
-     
+      |- typ ( </ typj // j /> )
+
       </ isValidElementTyp typj // j />
-      </ |- typj // j /> 
+      </ |- typj // j />
       -------------------------------------------------- :: wf_typ_structure
       |- { </ typj // j /> }
 
@@ -66,7 +66,7 @@ Jwf_typ :: '' ::=
       |- typ
       isValidElementTyp typ
       ------------------- :: wf_typ_pointer
-      |- typ * 
+      |- typ *
 
       % |- typ
       % isValidElementTyp typ
@@ -84,7 +84,7 @@ Jwf_operand_insn :: '' ::=
       lookupBlockViaIDFromFdef fdef id' = block'
       (notT isPhiNode insn) implies (insnDominates insn' insn block \/ (not (isReachableFromEntry fdef block)))
       ------------------------------------------------------------------------------------------------------------- :: wf_operand_insn_intro
-      intrinsic_funs , system , module_info , fdef , block , insn |- insn' 
+      intrinsic_funs , system , module_info , fdef , block , insn |- insn'
 
 defns
 Jwf_operand :: '' ::=
@@ -98,7 +98,7 @@ Jwf_operand :: '' ::=
       id' in ids
       lookupBindingViaIDFromSystem system id' = id_binding'
       % Check to make sure that only first-class-values are operands to instructions.
-      getBindingTyp id_binding' = typ'     
+      getBindingTyp id_binding' = typ'
       isFirstClassTyp typ'
       % Valid use of metadata pointer.
       (getPointerEltTyp typ' = typ'') implies (not typ'' =t= metadata)
@@ -132,8 +132,8 @@ Jwf_label :: '' ::=
 defns
 JvisitInstruction :: '' ::=
       defn
-      intrinsic_funs , system , module_info , fdef , block |-i insn :: :: visitInstruction :: '' 
-      {{ com [[insn]] is well-formed w.r.t [[block]] in [[fdef]] in [[module_info]] [[system]] }} by  
+      intrinsic_funs , system , module_info , fdef , block |-i insn :: :: visitInstruction :: ''
+      {{ com [[insn]] is well-formed w.r.t [[block]] in [[fdef]] in [[module_info]] [[system]] }} by
       % Verifier::visitInstruction
 
       % commented because of bugs of ott
@@ -146,7 +146,7 @@ JvisitInstruction :: '' ::=
       % ids' <-> </ id'j // j />
       % (notT isPhiNode insn) implies </ (not id = id'j) \/ (isReachableFromEntry fdef block) // j />
       % %%%% Verify that if this is a terminator that it is at the end of the block
-      % % 
+      % %
       % %%%% Check that void typed values don't have names
       % %%%% We dont need to check this in Ott
       % %%%%
@@ -155,10 +155,10 @@ JvisitInstruction :: '' ::=
       % typ == void \/ isFirstClassTyp typ
       % %%%% Check that the instruction doesn't produce metadata or metadata*. Calls
       % %%%% all already checked against the callee type.
-      % % (not typ == metadata) \/ isInvokeInsn insn \/ isCallInsn insn 
-      % (not typ == metadata) \/ isCallInsn insn 
+      % % (not typ == metadata) \/ isInvokeInsn insn \/ isCallInsn insn
+      % (not typ == metadata) \/ isCallInsn insn
       % %%%% Instructions may not produce pointer to metadata.
-      % (isPointerTyp typ) implies (getPointerEltTyp typ = typ' /\ (not typ' == metadata)) 
+      % (isPointerTyp typ) implies (getPointerEltTyp typ = typ' /\ (not typ' == metadata))
       % %%%% Check that all uses of the instruction, if they are instructions
       % %%%% themselves, actually have parent basic blocks.  If the use is not an
       % %%%% instruction, it is an error!
@@ -179,8 +179,8 @@ JvisitInstruction :: '' ::=
 defns
 Jwf_insn :: '' ::=
       defn
-      intrinsic_funs , system , module_info , fdef , block |- insn :: :: wf_insn :: '' 
-      {{ com [[insn]] is well-formed w.r.t [[block]] in [[fdef]] in [[module_info]] [[system]] }} by  
+      intrinsic_funs , system , module_info , fdef , block |- insn :: :: wf_insn :: ''
+      {{ com [[insn]] is well-formed w.r.t [[block]] in [[fdef]] in [[module_info]] [[system]] }} by
 
       intrinsic_funs , system , module_info , fdef , block |-i id = ret typ value
       ------------------------------------------------------ :: wf_insn_return
@@ -192,11 +192,11 @@ Jwf_insn :: '' ::=
 
       intrinsic_funs , system , module_info , fdef , block |-i id = br value l1 l2
       -------------------------------------------------------------------------------------- :: wf_insn_br
-      intrinsic_funs , system , (module, usedef_id, usedef_block), fdef , block |- id = br value l1 l2	
+      intrinsic_funs , system , (module, usedef_id, usedef_block), fdef , block |- id = br value l1 l2
 
       intrinsic_funs , system , module_info , fdef , block |-i id = br l
       -------------------------------------------------------------------------------------- :: wf_insn_br_uncond
-      intrinsic_funs , system , (module, usedef_id, usedef_block), fdef , block |- id = br l		
+      intrinsic_funs , system , (module, usedef_id, usedef_block), fdef , block |- id = br l
 
       % intrinsic_funs , system , module_info , fdef , block |-i id = invoke typ0 id0 params to l1 unwind l2
       % -------------------------------------------------------------------------------------- :: wf_insn_invoke
@@ -217,7 +217,7 @@ Jwf_insn :: '' ::=
       intrinsic_funs , system , module_info , fdef , block |-i id = phi typ </ [ idj , lj ] // j />
       -------------------------------------------------------------------------------------- :: wf_insn_phi
       intrinsic_funs , system , (module, usedef_id, usedef_block), fdef , block |- id = phi typ </ [ idj , lj ] // j />
-			        
+
 defns
 Jwf_cmds :: '' ::=
       defn
@@ -231,7 +231,7 @@ Jwf_cmds :: '' ::=
       intrinsic_funs , system , module_info , fdef , block |- cmds
       ----------------------------------------------------------------------------- :: wf_cmds_cons
       intrinsic_funs , system , module_info , fdef , block |- cmds , cmd
- 
+
 defns
 Jwf_phinodes :: '' ::=
       defn
@@ -249,7 +249,7 @@ Jwf_phinodes :: '' ::=
 defns
 Jwf_block :: '' ::=
       defn
-      intrinsic_funs , system , module_info , fdef |- block :: :: wf_block :: '' 
+      intrinsic_funs , system , module_info , fdef |- block :: :: wf_block :: ''
       {{ com [[block]] is well-formed w.r.t. [[fdef]] in [[module_info]] [[system]] }} by
 
       (l phinodes cmds terminator) in system , module_info , fdef
@@ -272,7 +272,7 @@ Jwf_blocks :: '' ::=
       intrinsic_funs , system , module_info , fdef |- blocks
       --------------------------------------------------------------------- :: wf_blocks_cons
       intrinsic_funs , system , module_info , fdef |- blocks , block
- 
+
 
 defns
 Jwf_fdef :: '' ::=
@@ -289,7 +289,7 @@ defns
 Jwf_prod :: '' ::=
       defn
       intrinsic_funs , system , module_info |- product :: :: wf_prod :: ''
-      {{ com [[product]] is well-formed w.r.t. [[module_info]] [[system]]}} by 
+      {{ com [[product]] is well-formed w.r.t. [[module_info]] [[system]]}} by
 
       % ----------------------------- :: wf_prod_global_var
       % intrinsic_funs , system , module_info |- g
@@ -299,16 +299,16 @@ Jwf_prod :: '' ::=
 
       intrinsic_funs , system , module_info |-f fdef
       ----------------------------- :: wf_prod_function_def
-      intrinsic_funs , system , module_info |- fdef   
+      intrinsic_funs , system , module_info |- fdef
 
       % -------------------------------------- :: wf_prod_namedtype
-      % intrinsic_funs , system , module_info |- namedt     
+      % intrinsic_funs , system , module_info |- namedt
 
 defns
 Jwf_prods :: '' ::=
       defn
       intrinsic_funs , system , module_info |- products :: :: wf_prods :: ''
-      {{ com [[products]] is well-formed w.r.t. [[module_info]] [[system]]}} by 
+      {{ com [[products]] is well-formed w.r.t. [[module_info]] [[system]]}} by
 
       --------------------------- :: wf_prods_nil
       intrinsic_funs , system , module_info |- []
@@ -335,16 +335,16 @@ defns
 Jwf_modules :: '' ::=
       defn
       intrinsic_funs , system |- modules :: :: wf_modules :: ''
-      {{ com [[modules]] is well-formed w.r.t. [[system]] }} by  
+      {{ com [[modules]] is well-formed w.r.t. [[system]] }} by
 
       ------------------------ :: wf_modules_nil
       intrinsic_funs , system |- []
 
-      intrinsic_funs , system |- module 
+      intrinsic_funs , system |- module
       intrinsic_funs , system |- modules
       ----------------------------------------------- :: wf_modules_cons
       intrinsic_funs, system |- modules , module
- 
+
 defns
 Jwf_system :: '' ::=
       defn
@@ -355,21 +355,11 @@ Jwf_system :: '' ::=
       uniqSystem modules
       ------------------------------ :: wf_system_intro
       intrinsic_funs |- modules
-     
+
 embed
 {{coq
 
 End LLVMverifier.
 
-}}
-
-embed 
-{{ coq
-(*
-*** Local Variables: ***
-*** coq-prog-name: "coqtop" ***
-*** coq-prog-args: ("-emacs-U" "-I" "./monads" "-I" "./ott" "-I" "./compcert" "-I" "/home/jianzhou/SVN/provers/metalib/branches/metatheory_8.3/") ***
-*** End: ***
-*)
 }}
 

@@ -1,9 +1,3 @@
-Add LoadPath "../Vellvm/ott".
-Add LoadPath "../Vellvm/monads".
-Add LoadPath "../Vellvm/compcert".
-Add LoadPath "../Vellvm".
-Add LoadPath "../Vellvm/GraphBasics".
-Add LoadPath "../../../theory/metatheory_8.3".
 Require Import syntax.
 Require Import infrastructure.
 Require Import List.
@@ -40,14 +34,14 @@ Proof.
     rewrite const2Sterm; auto.
 Qed.
 
-Lemma genericvalues__imply__value2Sterm_denote : forall l0 TD lc0 Mem0 smap1 lc 
+Lemma genericvalues__imply__value2Sterm_denote : forall l0 TD lc0 Mem0 smap1 lc
     gl gvs0,
   uniq smap1 ->
   smap_denotes_gvmap TD lc0 gl Mem0 smap1 lc ->
   values2GVs TD l0 lc gl = Some gvs0 ->
-  sterms_denote_genericvalues TD lc0 gl Mem0 
-    (make_list_sterm 
-      (map_list_sz_value (fun sz' v' => (sz', value2Sterm smap1 v')) l0)) 
+  sterms_denote_genericvalues TD lc0 gl Mem0
+    (make_list_sterm
+      (map_list_sz_value (fun sz' v' => (sz', value2Sterm smap1 v')) l0))
     gvs0.
 Proof.
   induction l0; intros; simpl in *.
@@ -75,7 +69,7 @@ Proof.
       destruct H0 as [[J1 J2] | EQ]; subst; auto.
         contradict n; auto.
 Qed.
-     
+
 
 Lemma se_cmd__denotes__op_cmd__case1 : forall lc gl i0 gv3 id' smap1 TD lc0 Mem0 st0,
   i0 <> id' ->
@@ -89,7 +83,7 @@ Proof.
   rewrite <- lookupAL_updateAddAL_neq ; auto.
   rewrite <- lookupSmap_updateAddAL_neq ; auto.
   unfold smap_denotes_gvmap in Hsterm_denotes.
-  destruct Hsterm_denotes as [J1 J2].  
+  destruct Hsterm_denotes as [J1 J2].
   apply J1; auto.
 Qed.
 
@@ -107,7 +101,7 @@ Proof.
 Qed.
 
 Lemma op_cmd__satisfies__se_cmd : forall TD c nc lc als gl lc0 als0 Mem0 lc' als' Mem1 Mem2 sstate1 tr tr1,
-  dbCmd TD gl lc als Mem1 c lc' als' Mem2 tr -> 
+  dbCmd TD gl lc als Mem1 c lc' als' Mem2 tr ->
   uniq sstate1.(STerms) ->
   sstate_denotes_state TD lc0 gl als0 Mem0 sstate1 lc als Mem1 tr1 ->
   sstate_denotes_state TD lc0 gl als0 Mem0 (se_cmd sstate1 (mkNB c nc)) lc' als' Mem2 (trace_app tr1 tr).
@@ -122,7 +116,7 @@ Proof.
     split; auto.
       split.
         intros id' id'_indom.
-        simpl in id'_indom. simpl. 
+        simpl in id'_indom. simpl.
         apply se_cmd__denotes__op_cmd__case0 in id'_indom; auto.
         destruct id'_indom as [[nEQ id'_indom] | EQ1]; subst.
           eapply se_cmd__denotes__op_cmd__case1; eauto.
@@ -132,14 +126,14 @@ Proof.
           apply BOP_inversion in H13.
           destruct H13 as [gv1 [gv2 [J1 [J2 J3]]]].
           exists gv3. split; auto.
-          apply sterm_bop_denotes with (gv1:=gv1)(gv2:=gv2); eauto using 
+          apply sterm_bop_denotes with (gv1:=gv1)(gv2:=gv2); eauto using
             genericvalue__implies__value2Sterm_denotes.
 
         intros id' gv' HlookupAL.
-        simpl. 
+        simpl.
         destruct (id'==i0); subst.
           rewrite lookupAL_updateAddAL_eq in HlookupAL.
-          inversion HlookupAL; subst. 
+          inversion HlookupAL; subst.
           rewrite lookupSmap_updateAddAL_eq.
           apply BOP_inversion in H13.
           destruct H13 as [gv1 [gv2 [J1 [J2 J3]]]].
@@ -151,7 +145,7 @@ Proof.
     split; auto.
       split.
         intros id' id'_indom.
-        simpl in id'_indom. simpl. 
+        simpl in id'_indom. simpl.
         apply se_cmd__denotes__op_cmd__case0 in id'_indom; auto.
         destruct id'_indom as [[nEQ id'_indom] | EQ1]; subst.
           eapply se_cmd__denotes__op_cmd__case1; eauto.
@@ -164,10 +158,10 @@ Proof.
           apply sterm_fbop_denotes with (gv1:=gv1)(gv2:=gv2); eauto using genericvalue__implies__value2Sterm_denotes.
 
         intros id' gv' HlookupAL.
-        simpl. 
+        simpl.
         destruct (id'==i0); subst.
           rewrite lookupAL_updateAddAL_eq in HlookupAL.
-          inversion HlookupAL; subst. 
+          inversion HlookupAL; subst.
           rewrite lookupSmap_updateAddAL_eq.
           apply FBOP_inversion in H13.
           destruct H13 as [gv1 [gv2 [J1 [J2 J3]]]].
@@ -179,7 +173,7 @@ Proof.
     split; auto.
       split.
         intros id' id'_indom.
-        simpl in id'_indom. simpl. 
+        simpl in id'_indom. simpl.
         apply se_cmd__denotes__op_cmd__case0 in id'_indom; auto.
         destruct id'_indom as [[nEQ id'_indom] | EQ1]; subst.
           eapply se_cmd__denotes__op_cmd__case1; eauto.
@@ -190,7 +184,7 @@ Proof.
           apply sterm_extractvalue_denotes with (gv1:=gv); eauto using genericvalue__implies__value2Sterm_denotes.
 
         intros id' gv'0 HlookupAL.
-        simpl. 
+        simpl.
         destruct (id'==i0); subst.
           rewrite lookupAL_updateAddAL_eq in HlookupAL.
           inversion HlookupAL; subst.
@@ -203,7 +197,7 @@ Proof.
     split; auto.
       split.
         intros id' id'_indom.
-        simpl in id'_indom. simpl. 
+        simpl in id'_indom. simpl.
         apply se_cmd__denotes__op_cmd__case0 in id'_indom; auto.
         destruct id'_indom as [[nEQ id'_indom] | EQ1]; subst.
           eapply se_cmd__denotes__op_cmd__case1; eauto.
@@ -214,7 +208,7 @@ Proof.
            eapply sterm_insertvalue_denotes; eauto using genericvalue__implies__value2Sterm_denotes.
 
         intros id' gv'0 HlookupAL.
-        simpl. 
+        simpl.
         destruct (id'==i0); subst.
           rewrite lookupAL_updateAddAL_eq in HlookupAL.
           inversion HlookupAL; subst.
@@ -227,7 +221,7 @@ Proof.
     split; simpl; eauto using genericvalue__implies__value2Sterm_denotes.
       split.
         intros id' id'_indom.
-        simpl in id'_indom. simpl. 
+        simpl in id'_indom. simpl.
         apply se_cmd__denotes__op_cmd__case0 in id'_indom; auto.
         destruct id'_indom as [[nEQ id'_indom] | EQ1]; subst.
           eapply se_cmd__denotes__op_cmd__case1; eauto.
@@ -252,7 +246,7 @@ Proof.
     split; simpl.
       destruct Hsterm_denotes as [J1 J2].
       split; auto.
-    split; auto.     
+    split; auto.
       apply smem_free_denotes with (Mem1:=Mem1)(gv0:=mptr0); auto.
         eapply genericvalue__implies__value2Sterm_denotes; eauto.
 
@@ -260,7 +254,7 @@ Proof.
     split; simpl; eauto.
       split.
         intros id' id'_indom.
-        simpl in id'_indom. simpl. 
+        simpl in id'_indom. simpl.
         apply se_cmd__denotes__op_cmd__case0 in id'_indom; auto.
         destruct id'_indom as [[nEQ id'_indom] | EQ1]; subst.
           eapply se_cmd__denotes__op_cmd__case1; eauto.
@@ -286,7 +280,7 @@ Proof.
     split; simpl; eauto.
       split.
         intros id' id'_indom.
-        simpl in id'_indom. simpl. 
+        simpl in id'_indom. simpl.
         apply se_cmd__denotes__op_cmd__case0 in id'_indom; auto.
         destruct id'_indom as [[nEQ id'_indom] | EQ1]; subst.
           eapply se_cmd__denotes__op_cmd__case1; eauto.
@@ -297,7 +291,7 @@ Proof.
           split; auto.
           apply sterm_load_denotes with (Mem1:=Mem2)(gv0:=mp); eauto.
             eapply genericvalue__implies__value2Sterm_denotes; eauto.
-     
+
         intros id' gv'0 HlookupAL.
         simpl.
         destruct (id'==i0); subst.
@@ -314,14 +308,14 @@ Proof.
       destruct Hsterm_denotes as [J1 J2].
       split; auto.
     split; auto.
-      eapply smem_store_denotes; 
+      eapply smem_store_denotes;
         eauto using genericvalue__implies__value2Sterm_denotes.
 
-  Case "insn_gep". 
+  Case "insn_gep".
     split; auto.
       split.
         intros id' id'_indom.
-        simpl in id'_indom. simpl. 
+        simpl in id'_indom. simpl.
         apply se_cmd__denotes__op_cmd__case0 in id'_indom; auto.
         destruct id'_indom as [[nEQ id'_indom] | EQ1]; subst.
           eapply se_cmd__denotes__op_cmd__case1; eauto.
@@ -330,18 +324,18 @@ Proof.
           rewrite lookupSmap_updateAddAL_eq.
           exists mp'.
           split; auto.
-            eapply sterm_gep_denotes; eauto using 
-              genericvalue__implies__value2Sterm_denotes, 
+            eapply sterm_gep_denotes; eauto using
+              genericvalue__implies__value2Sterm_denotes,
               genericvalues__imply__value2Sterm_denote.
 
         intros id' gv' HlookupAL.
-        simpl. 
+        simpl.
         destruct (id'==i0); subst.
           rewrite lookupAL_updateAddAL_eq in HlookupAL.
           inversion HlookupAL; subst.
           rewrite lookupSmap_updateAddAL_eq.
-          eapply sterm_gep_denotes; eauto using 
-            genericvalue__implies__value2Sterm_denotes, 
+          eapply sterm_gep_denotes; eauto using
+            genericvalue__implies__value2Sterm_denotes,
             genericvalues__imply__value2Sterm_denote.
 
           eapply se_cmd__denotes__op_cmd__case2; eauto.
@@ -350,7 +344,7 @@ Proof.
     split; auto.
       split.
         intros id' id'_indom.
-        simpl in id'_indom. simpl. 
+        simpl in id'_indom. simpl.
         apply se_cmd__denotes__op_cmd__case0 in id'_indom; auto.
         destruct id'_indom as [[nEQ id'_indom] | EQ1]; subst.
           eapply se_cmd__denotes__op_cmd__case1; eauto.
@@ -360,18 +354,18 @@ Proof.
           apply TRUNC_inversion in H13.
           destruct H13 as [gv1 [J1 J2]].
           exists gv2. split; auto.
-            apply sterm_trunc_denotes with (gv1:=gv1); eauto using        
+            apply sterm_trunc_denotes with (gv1:=gv1); eauto using
               genericvalue__implies__value2Sterm_denotes.
 
         intros id' gv' HlookupAL.
-        simpl. 
+        simpl.
         destruct (id'==i0); subst.
           rewrite lookupAL_updateAddAL_eq in HlookupAL.
           inversion HlookupAL; subst.
           rewrite lookupSmap_updateAddAL_eq.
           apply TRUNC_inversion in H13.
           destruct H13 as [gv1 [J1 J2]].
-          apply sterm_trunc_denotes with (gv1:=gv1); eauto using 
+          apply sterm_trunc_denotes with (gv1:=gv1); eauto using
             genericvalue__implies__value2Sterm_denotes.
 
           eapply se_cmd__denotes__op_cmd__case2; eauto.
@@ -380,7 +374,7 @@ Proof.
     split; auto.
       split.
         intros id' id'_indom.
-        simpl in id'_indom. simpl. 
+        simpl in id'_indom. simpl.
         apply se_cmd__denotes__op_cmd__case0 in id'_indom; auto.
         destruct id'_indom as [[nEQ id'_indom] | EQ1]; subst.
           eapply se_cmd__denotes__op_cmd__case1; eauto.
@@ -390,18 +384,18 @@ Proof.
           apply EXT_inversion in H13.
           destruct H13 as [gv1 [J1 J2]].
           exists gv2. split; auto.
-            apply sterm_ext_denotes with (gv1:=gv1); eauto using 
+            apply sterm_ext_denotes with (gv1:=gv1); eauto using
               genericvalue__implies__value2Sterm_denotes.
 
         intros id' gv' HlookupAL.
-        simpl. 
+        simpl.
         destruct (id'==i0); subst.
           rewrite lookupAL_updateAddAL_eq in HlookupAL.
           inversion HlookupAL; subst.
           rewrite lookupSmap_updateAddAL_eq.
           apply EXT_inversion in H13.
           destruct H13 as [gv1 [J1 J2]].
-          apply sterm_ext_denotes with (gv1:=gv1); eauto using 
+          apply sterm_ext_denotes with (gv1:=gv1); eauto using
             genericvalue__implies__value2Sterm_denotes.
 
           eapply se_cmd__denotes__op_cmd__case2; eauto.
@@ -410,7 +404,7 @@ Proof.
     split; auto.
       split.
         intros id' id'_indom.
-        simpl in id'_indom. simpl. 
+        simpl in id'_indom. simpl.
         apply se_cmd__denotes__op_cmd__case0 in id'_indom; auto.
         destruct id'_indom as [[nEQ id'_indom] | EQ1]; subst.
           eapply se_cmd__denotes__op_cmd__case1; eauto.
@@ -420,18 +414,18 @@ Proof.
           apply CAST_inversion in H13.
           destruct H13 as [gv1 [J1 J2]].
           exists gv2. split; auto.
-            apply sterm_cast_denotes with (gv1:=gv1); eauto using 
+            apply sterm_cast_denotes with (gv1:=gv1); eauto using
               genericvalue__implies__value2Sterm_denotes.
 
         intros id' gv' HlookupAL.
-        simpl. 
+        simpl.
         destruct (id'==i0); subst.
           rewrite lookupAL_updateAddAL_eq in HlookupAL.
           inversion HlookupAL; subst.
           rewrite lookupSmap_updateAddAL_eq.
           apply CAST_inversion in H13.
           destruct H13 as [gv1 [J1 J2]].
-          apply sterm_cast_denotes with (gv1:=gv1); eauto using 
+          apply sterm_cast_denotes with (gv1:=gv1); eauto using
             genericvalue__implies__value2Sterm_denotes.
 
           eapply se_cmd__denotes__op_cmd__case2; eauto.
@@ -440,7 +434,7 @@ Proof.
     split; auto.
       split.
         intros id' id'_indom.
-        simpl in id'_indom. simpl. 
+        simpl in id'_indom. simpl.
         apply se_cmd__denotes__op_cmd__case0 in id'_indom; auto.
         destruct id'_indom as [[nEQ id'_indom] | EQ1]; subst.
           eapply se_cmd__denotes__op_cmd__case1; eauto.
@@ -450,18 +444,18 @@ Proof.
           apply ICMP_inversion in H13.
           destruct H13 as [gv1 [gv2 [J1 [J2 J3]]]].
           exists gv3. split; auto.
-            apply sterm_icmp_denotes with (gv1:=gv1)(gv2:=gv2); eauto using 
+            apply sterm_icmp_denotes with (gv1:=gv1)(gv2:=gv2); eauto using
               genericvalue__implies__value2Sterm_denotes.
 
         intros id' gv' HlookupAL.
-        simpl. 
+        simpl.
         destruct (id'==i0); subst.
           rewrite lookupAL_updateAddAL_eq in HlookupAL.
           inversion HlookupAL; subst.
           rewrite lookupSmap_updateAddAL_eq.
           apply ICMP_inversion in H13.
           destruct H13 as [gv1 [gv2 [J1 [J2 J3]]]].
-          apply sterm_icmp_denotes with (gv1:=gv1)(gv2:=gv2); eauto using 
+          apply sterm_icmp_denotes with (gv1:=gv1)(gv2:=gv2); eauto using
             genericvalue__implies__value2Sterm_denotes.
 
           eapply se_cmd__denotes__op_cmd__case2; eauto.
@@ -470,7 +464,7 @@ Proof.
     split; auto.
       split.
         intros id' id'_indom.
-        simpl in id'_indom. simpl. 
+        simpl in id'_indom. simpl.
         apply se_cmd__denotes__op_cmd__case0 in id'_indom; auto.
         destruct id'_indom as [[nEQ id'_indom] | EQ1]; subst.
           eapply se_cmd__denotes__op_cmd__case1; eauto.
@@ -480,18 +474,18 @@ Proof.
           apply FCMP_inversion in H13.
           destruct H13 as [gv1 [gv2 [J1 [J2 J3]]]].
           exists gv3. split; auto.
-            apply sterm_fcmp_denotes with (gv1:=gv1)(gv2:=gv2); eauto using 
+            apply sterm_fcmp_denotes with (gv1:=gv1)(gv2:=gv2); eauto using
               genericvalue__implies__value2Sterm_denotes.
 
         intros id' gv' HlookupAL.
-        simpl. 
+        simpl.
         destruct (id'==i0); subst.
           rewrite lookupAL_updateAddAL_eq in HlookupAL.
           inversion HlookupAL; subst.
           rewrite lookupSmap_updateAddAL_eq.
           apply FCMP_inversion in H13.
           destruct H13 as [gv1 [gv2 [J1 [J2 J3]]]].
-          apply sterm_fcmp_denotes with (gv1:=gv1)(gv2:=gv2); eauto using 
+          apply sterm_fcmp_denotes with (gv1:=gv1)(gv2:=gv2); eauto using
             genericvalue__implies__value2Sterm_denotes.
 
           eapply se_cmd__denotes__op_cmd__case2; eauto.
@@ -500,7 +494,7 @@ Proof.
     split; auto.
       split.
         intros id' id'_indom.
-        simpl in id'_indom. simpl. 
+        simpl in id'_indom. simpl.
         apply se_cmd__denotes__op_cmd__case0 in id'_indom; auto.
         destruct id'_indom as [[nEQ id'_indom] | EQ1]; subst.
           destruct (isGVZero TD cond0); eapply se_cmd__denotes__op_cmd__case1; eauto.
@@ -519,7 +513,7 @@ Proof.
                 rewrite <- HeqR. auto.
 
         intros id' gv' HlookupAL.
-        simpl. 
+        simpl.
         destruct (id'==i0); subst.
           rewrite lookupSmap_updateAddAL_eq.
           apply sterm_select_denotes with (gv0:=cond0)(gv1:=gv1)(gv2:=gv2); eauto using genericvalue__implies__value2Sterm_denotes.
@@ -536,8 +530,8 @@ Lemma aux__op_cmds__satisfy__se_cmds : forall nbs TD lc0 als als0 Mem0 lc als' g
   sstate_denotes_state TD lc0 gl als0 Mem0 sstate1 lc als Mem1 tr1 ->
   sstate_denotes_state TD lc0 gl als0 Mem0 (se_cmds sstate1 nbs) lc' als' Mem2 (trace_app tr1 tr).
 Proof.
-  induction nbs; 
-    intros TD lc0 als als0 Mem0 lc als' gl Mem1 sstate1 lc' Mem2 tr tr1 
+  induction nbs;
+    intros TD lc0 als als0 Mem0 lc als' gl Mem1 sstate1 lc' Mem2 tr tr1
     HdbCmds Huniq Hdenotes.
 
     simpl in HdbCmds.
@@ -560,13 +554,4 @@ Proof.
   intros TD nbs lc als gl Mem0 lc' als' Mem' tr Uniqc HdbCmds.
   apply aux__op_cmds__satisfy__se_cmds with (lc0:=lc)(als0:=als)(Mem0:=Mem0)(sstate1:=sstate_init) (tr1:=trace_nil)(nbs:=nbs) in HdbCmds; simpl; auto.
     apply init_denotes_id; auto.
-Qed.           
-
-(*****************************)
-(*
-*** Local Variables: ***
-*** coq-prog-name: "coqtop" ***
-*** coq-prog-args: ("-emacs-U" "-I" "~/SVN/sol/vol/src/Vellvm/monads" "-I" "~/SVN/sol/vol/src/Vellvm/ott" "-I" "~/SVN/sol/vol/src/Vellvm/compcert" "-I" "~/SVN/sol/theory/metatheory_8.3" "-impredicative-set") ***
-*** End: ***
- *)
-
+Qed.

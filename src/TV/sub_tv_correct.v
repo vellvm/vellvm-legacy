@@ -1,8 +1,3 @@
-Add LoadPath "../Vellvm/ott".
-Add LoadPath "../Vellvm/monads".
-Add LoadPath "../Vellvm".
-Add LoadPath "../Vellvm/compcert".
-Add LoadPath "../../../theory/metatheory_8.3".
 Require Import syntax.
 Require Import infrastructure.
 Require Import List.
@@ -25,8 +20,8 @@ Require Import symexe_tactic.
 
 (* subAL *)
 
-Definition subAL X fid lc1 lc2 := 
-  forall i, i `in` dom lc1 -> 
+Definition subAL X fid lc1 lc2 :=
+  forall i, i `in` dom lc1 ->
     lookupAL X lc1 i = lookupAL X lc2 (rename_id fid i).
 
 Lemma lookupAL_app1 : forall X (lc1:list (atom*X)) lc2 i,
@@ -38,7 +33,7 @@ Proof.
     destruct a as (id, elt); simpl in *.
     destruct (@eq_dec atom (EqDec_eq_of_EqDec atom EqDec_atom) i id); auto.
       apply IHlc1. fsetdec.
-Qed.    
+Qed.
 
 Lemma lookupAL_app2 : forall X lc1 (lc2:list (atom*X)) i,
   i `notin` dom lc1 ->
@@ -48,7 +43,7 @@ Proof.
     destruct a as (id, elt); simpl in *.
     destruct (@eq_dec atom (EqDec_eq_of_EqDec atom EqDec_atom) i id); subst; eauto.
       fsetdec.
-Qed.    
+Qed.
 
 Lemma subAL_app1 : forall X (lc1:list (atom*X)) lc2 lc fid,
   subAL _ fid lc1 lc ->
@@ -94,23 +89,23 @@ Proof.
     apply Hlc12_sub_lc in i_in_lc12.
     erewrite lookupALs_tail in i_in_lc12; eauto.
 Qed.
-    
-Definition smap_sub_prop Ps1 Ps2 fid sm1 sm2 := 
+
+Definition smap_sub_prop Ps1 Ps2 fid sm1 sm2 :=
   forall i st1,
     lookupAL _ sm1 i = Some st1 ->
-    exists st2, lookupAL _ sm2 (rename_id fid i) = Some st2 /\ 
+    exists st2, lookupAL _ sm2 (rename_id fid i) = Some st2 /\
       tv_sterm Ps1 Ps2 fid st1 st2 = true.
 
 Definition sub_state fid (lc1 lc1':GVMap) (als1 als1':list mblock) f1 Mem1 Mem1'
-  := 
-  subAL _ fid lc1 lc1' /\ List.incl als1 als1' /\ 
+  :=
+  subAL _ fid lc1 lc1' /\ List.incl als1 als1' /\
   Memory.Mem.mem_inj f1 Mem1 Mem1'.
- 
+
 Definition phinodes_sub_prop fid (ps1 ps2:phinodes) :=
   forall i p1,
     lookupPhinode ps1 i = Some p1 ->
-    exists p2, 
-      lookupPhinode ps2 (rename_id fid i) = Some p2 /\ 
+    exists p2,
+      lookupPhinode ps2 (rename_id fid i) = Some p2 /\
       tv_phinode fid p1 p2 = true.
 
 Lemma NoDup_inv : forall A (l1 l2:list A),
@@ -120,18 +115,9 @@ Proof.
     inversion Huniq; subst.
     apply IHl1 in H2.
     destruct H2 as [H21 H22].
-    split; auto.    
+    split; auto.
      apply NoDup_cons; auto.
        intro Ha_in_l1.
        apply H1.
          apply in_app_iff; auto.
 Qed.
-
-(*****************************)
-(*
-*** Local Variables: ***
-*** coq-prog-name: "coqtop" ***
-*** coq-prog-args: ("-emacs-U" "-I" "~/SVN/sol/vol/src/Vellvm/monads" "-I" "~/SVN/sol/vol/src/Vellvm/ott" "-I" "~/SVN/sol/vol/src/Vellvm/compcert" "-I" "~/SVN/sol/theory/metatheory_8.3") ***
-*** End: ***
- *)
-

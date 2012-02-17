@@ -1,10 +1,3 @@
-Add LoadPath "../Vellvm/ott".
-Add LoadPath "../Vellvm/monads".
-Add LoadPath "../Vellvm".
-Add LoadPath "../Vellvm/compcert".
-Add LoadPath "../Vellvm/GraphBasics".
-Add LoadPath "../../../theory/metatheory_8.3".
-Add LoadPath "../TV".
 Require Import Values.
 Require Import vellvm.
 Require Import genericvalues.
@@ -30,7 +23,7 @@ Require Import sb_ds_trans_tactics.
 Import SB_ds_pass.
 Export SBspec.
 
-Lemma SBpass_is_correct__dsCall : forall (mi : MoreMem.meminj) 
+Lemma SBpass_is_correct__dsCall : forall (mi : MoreMem.meminj)
   (mgb : Values.block)
   (St : Opsem.State) (S : system) (TD : TargetData) (Ps : list product)
   (F : fdef) (B : block) (lc : DGVMap) (rm : SBspecAux.rmetadata) (gl : GVMap)
@@ -53,11 +46,11 @@ Lemma SBpass_is_correct__dsCall : forall (mi : MoreMem.meminj)
                   Allocas := als |} :: EC;
            Mem := Mem0;
            Mmap := MM |} Cfg St)
-  (fid : id) (ogvs : list (DGVs.(GVsT) * monad metadata)) 
+  (fid : id) (ogvs : list (DGVs.(GVsT) * monad metadata))
   (l' : l) (ps' : phinodes) (cs' : cmds) (tmn' : terminator) (fa : fnattrs)
   (rt : typ) (la : args) (va : varg) (lb : blocks) (rm' : rmetadata)
   (lc' : DGVMap) fptr
-  (HJ : getOperandValue TD fv lc gl = Some fptr) 
+  (HJ : getOperandValue TD fv lc gl = Some fptr)
   (H : OpsemAux.lookupFdefViaPtr Ps fs fptr =
       ret fdef_intro (fheader_intro fa rt fid la va) lb)
   (H0 : getEntryBlock (fdef_intro (fheader_intro fa rt fid la va) lb) =
@@ -133,7 +126,7 @@ Proof.
   eapply trans_params_simulation in Hpsim; eauto.
      simpl_env. simpl.
      assert (Hop:=Hlkf').
-     replace LLVMgv.getOperandValue with (@Opsem.getOperandValue DGVs) in Hget2; 
+     replace LLVMgv.getOperandValue with (@Opsem.getOperandValue DGVs) in Hget2;
        auto.
      eapply shadow_stack_init with (S2:=S2)(B2:=B2)(ft:=ft)(cs2':=cs2')(lc':=lc')
        (rm':=rm')(gl:=gl2)(mi:=mi)(lp:=lp)(cs1:=cs1)(rm2:=rm2)(Mem0:=Mem0)
@@ -141,17 +134,17 @@ Proof.
        (lb:=lb)(als2:=als2)(tmn2:=tmn2)(ca:=ca)(rid:=rid)(cs22:=cs22)(cs23:=cs23)
        (bs2:=bs2)(fh2:=fh2)(ECs2:=ECs2)(rm3:=rm3)(fv:=fv) in Hop; eauto.
      destruct Hop as [M2' [lc2' [Hop [Hwfmi2 [Hrsim2 Hmsim2]]]]].
-     exists (Opsem.mkState 
-      ((Opsem.mkEC 
+     exists (Opsem.mkState
+      ((Opsem.mkEC
         (fdef_intro (fheader_intro fa rt (wrapper_fid fid) la va)
                 (block_intro l1 ps1 (cs3 ++ cs4) tmn1 :: bs3))
         (block_intro l1 ps1 (cs3 ++ cs4) tmn1)
         cs4
-      tmn1 lc2' nil):: 
+      tmn1 lc2' nil)::
       (Opsem.mkEC (fdef_intro fh2 bs2) B2
         (insn_call rid noret0 ca ft (wrap_call fv) lp :: cs22 ++ cs2' ++ cs23)
       tmn2 lc2 als2):: ECs2) M2').
-     exists mi. 
+     exists mi.
      split; auto.
      clear Hop.
      assert (Hentry:=H0).
@@ -163,15 +156,15 @@ Proof.
      inv J37.
      repeat (split; auto).
        eapply entryBlockInFdef; eauto.
-       eapply lookupFdefViaPtr_inv; eauto.        
+       eapply lookupFdefViaPtr_inv; eauto.
        exists l'. exists ps'. exists nil. auto.
        exists l'. exists p'. exists cs3. auto.
        exists ex_ids3. exists rm3. exists ex_ids3. exists ex_ids4'.
        exists c'. exists cs5.
        split; auto. split; auto. split; auto using incl_refl.
        clear - Heqb2. destruct Heqb2 as [l2 [ps2 [cs21 Heqb2]]]; subst.
-       exists l2. exists ps2. 
-       exists 
+       exists l2. exists ps2.
+       exists
            (cs21 ++
             ((insn_call fake_id true attrs astk_typ astk_fn
                 (val32 (Z_of_nat (length lp + 1)) :: nil)
@@ -184,9 +177,9 @@ Proof.
          unfold call_suffix.
          rewrite <- HeqR2. auto.
 Qed.
-       
 
-Lemma SBpass_is_correct__dsExCall : forall (mi : MoreMem.meminj) 
+
+Lemma SBpass_is_correct__dsExCall : forall (mi : MoreMem.meminj)
   (mgb : Values.block)
   (St : Opsem.State) (S : system) (TD : TargetData) (Ps : list product)
   (F : fdef) (B : block) (lc : DGVMap) (rm : SBspecAux.rmetadata) (gl : GVMap)
@@ -267,7 +260,7 @@ Proof.
   assert (Hlkf:=H).
   eapply lookupExFdecViaGV__simulation in H; eauto.
   destruct H as [fptr2 [f2 [Hget2 [Hlkf' [Hinj2 Htfdec2]]]]].
-  inv Htfdec2. 
+  inv Htfdec2.
 
      simpl_env. simpl.
      assert (Hop:=Hlkf').
@@ -278,19 +271,19 @@ Proof.
        (mgb:=mgb)(als2:=als2)(tmn2:=tmn2)(ca:=ca)(rid:=rid)(cs22:=cs22)
        (cs23:=cs23)(bs2:=bs2)(fh2:=fh2)(ECs2:=ECs2)(rm:=rm) in Hop; eauto.
      destruct Hop as [M2' [lc2' [Hop [Hwfmi2 [Hrsim2 Hmsim2]]]]].
-     exists (Opsem.mkState 
+     exists (Opsem.mkState
               ((Opsem.mkEC (fdef_intro fh2 bs2) B2 (cs2' ++ cs23)
                 tmn2 lc2' als2):: ECs2) M2').
-     exists mi. 
+     exists mi.
      split; auto.
      clear Hop.
      repeat (split; auto).
        clear - Heqb1. destruct Heqb1 as [l1 [ps1 [cs11 Heqb1]]]; subst.
        exists l1. exists ps1. exists (cs11++[insn_call rid noret0 ca ft fv lp]).
        simpl_env. auto.
-       
+
        clear - Heqb2. destruct Heqb2 as [l2 [ps2 [cs2 Heqb2]]]; subst.
-       exists l2. exists ps2. 
+       exists l2. exists ps2.
        exists (cs2 ++
            ((insn_call fake_id true attrs astk_typ astk_fn
             (val32 (Z_of_nat (length lp + 1)) :: nil)
@@ -323,7 +316,7 @@ Lemma SBpass_is_correct__dsBranch_uncond : forall
            Mem := Mem0;
            Mmap := MM |} Cfg St)
   (l' : l) (ps' : phinodes) (cs' : cmds) (tmn' : terminator) (lc' : DGVMap)
-  (rm' : rmetadata) 
+  (rm' : rmetadata)
   (H : ret block_intro l' ps' cs' tmn' = lookupBlockViaLabelFromFdef F l0)
   (H0 : switchToNewBasicBlock TD (block_intro l' ps' cs' tmn') B gl lc rm =
        ret (lc', rm')),
@@ -355,7 +348,7 @@ Proof.
   eapply wf_system__uniqFdef in HuniqF; eauto.
   destruct fh1. destruct HuniqF as [HuniqBlocks HuniqArgs].
   simpl in H. symmetry in H.
-  assert (Htfdef':=Htfdef). 
+  assert (Htfdef':=Htfdef).
   apply trans_fdef_inv in Htfdef'.
   rewrite Hclib in Htfdef'.
   destruct Htfdef' as [ex_ids1 [rm2' [cs1' [ex_ids' [bs' [l1 [ps1 [cs1 [tmn1 [J1
@@ -364,7 +357,7 @@ Proof.
   rewrite Hgenmeta in J1. inv J1.
 
   assert (Htblocks := J3).
-  eapply lookup_trans_blocks__trans_block with (ex_ids0:=ex_ids1) in J3; 
+  eapply lookup_trans_blocks__trans_block with (ex_ids0:=ex_ids1) in J3;
     eauto using incl_refl.
   destruct J3 as [ex_ids1' [ex_ids2 [b2' [Hlk' [Htblock Hinc']]]]].
   simpl in Htblock.
@@ -374,23 +367,23 @@ Proof.
 
   assert (HBinF':=H).
   apply genLabel2Block_blocks_inv with (f:=(fheader_intro f t i0 a v)) in HBinF';
-    auto. 
+    auto.
   destruct HBinF' as [EQ HBinF']; subst.
 
-  assert (exists lc2', Opsem.switchToNewBasicBlock (los,nts) 
+  assert (exists lc2', Opsem.switchToNewBasicBlock (los,nts)
     (block_intro l' ps2 (cs2 ++ cs) tmn') B2 gl2 lc2 = Some lc2' /\
     reg_simulation mi (los, nts) gl2
-            (fdef_intro (fheader_intro f t i0 a v) bs1) rm' rm2' lc' lc2') 
+            (fdef_intro (fheader_intro f t i0 a v) bs1) rm' rm2' lc' lc2')
     as Hswitch2.
     eapply switchToNewBasicBlock__reg_simulation; eauto.
 
   destruct Hswitch2 as [lc2' [Hswitch2 Hrsim']].
-  exists (Opsem.mkState 
-          ((Opsem.mkEC 
+  exists (Opsem.mkState
+          ((Opsem.mkEC
             (fdef_intro (fheader_intro f t (wrapper_fid i0) a v)
                (block_intro l1 ps1 (cs1'++ cs1) tmn1 :: bs'))
             (block_intro l' ps2 (cs2 ++ cs) tmn')
-            (cs2 ++ cs) tmn' lc2' als2):: 
+            (cs2 ++ cs) tmn' lc2' als2)::
             ECs2) M2).
   exists mi.
   split.
@@ -399,7 +392,7 @@ Proof.
       eapply Opsem.sBranch_uncond; eauto.
         simpl. unfold lookupBlockViaLabelFromBlocks in Hlk'.
         rewrite <- Hlk'. simpl.
-        destruct (@eq_dec atom (EqDec_eq_of_EqDec atom EqDec_atom) l' l1); 
+        destruct (@eq_dec atom (EqDec_eq_of_EqDec atom EqDec_atom) l' l1);
           subst; auto.
 
           simpl in Hlk'.
@@ -410,7 +403,7 @@ Proof.
            destruct b1.
            apply trans_block_inv in J1.
            destruct J1 as [p' [cs'' [cs0' [J9 [J10 [J11 J12]]]]]].
-           inv J12. 
+           inv J12.
            eapply wf_system__wf_fdef in HFinPs; eauto.
            clear - HBinF H Heqb1 HFinPs.
            destruct Heqb1 as [l1 [ps1 [cs1'' Heq1]]]; subst.
@@ -423,7 +416,7 @@ Proof.
     exists l'. exists ps'. exists nil. auto.
     exists l'. exists ps2. exists nil. auto.
     exists ex_ids1. exists rm2'. exists ex_ids1'. exists ex_ids2. exists cs2.
-    exists cs. 
+    exists cs.
     repeat (split; auto).
 Qed.
 
@@ -491,7 +484,7 @@ Proof.
   eapply wf_system__uniqFdef in HuniqF; eauto.
   destruct fh1. destruct HuniqF as [HuniqBlocks HuniqArgs].
   simpl in H. symmetry in H.
-  assert (Htfdef':=Htfdef). 
+  assert (Htfdef':=Htfdef).
   apply trans_fdef_inv in Htfdef'.
   rewrite Hclib in Htfdef'.
   destruct Htfdef' as [ex_ids1 [rm2' [cs1' [ex_ids' [bs' [l1' [ps1 [cs1 [tmn1 [J1
@@ -505,11 +498,11 @@ Proof.
 
   erewrite simulation__isGVZero in H0; eauto.
   assert (exists ex_ids1' : ids, exists ex_ids2 : ids, exists b2 : block,
-    (if isGVZero (los,nts) c' 
+    (if isGVZero (los,nts) c'
      then lookupBlockViaLabelFromBlocks (block_intro l1' ps1 cs1 tmn1 :: bs') l2
      else lookupBlockViaLabelFromBlocks (block_intro l1' ps1 cs1 tmn1 :: bs') l1)
       = ret b2 /\
-    trans_block ex_ids1' rm2' (block_intro l' ps' cs' tmn') = ret (ex_ids2, b2) 
+    trans_block ex_ids1' rm2' (block_intro l' ps' cs' tmn') = ret (ex_ids2, b2)
       /\
     incl ex_ids1 ex_ids1') as Hfind.
    destruct (isGVZero (los,nts) c');
@@ -521,7 +514,7 @@ Proof.
   apply trans_block_inv in Htblock.
   destruct Htblock as [ps2 [cs2 [cs [JJ1 [JJ2 [JJ3 eq]]]]]]; subst.
 
-  assert (blockInFdefB (block_intro l' ps' cs' tmn') 
+  assert (blockInFdefB (block_intro l' ps' cs' tmn')
     (fdef_intro (fheader_intro f t i0 a v) bs1)) as HBinF'.
     symmetry in H0.
     destruct (isGVZero (los,nts) c').
@@ -530,20 +523,20 @@ Proof.
       apply genLabel2Block_blocks_inv with (f:=(fheader_intro f t i0 a v)) in H0
         ; auto. destruct H0; eauto.
 
-  assert (exists lc2', Opsem.switchToNewBasicBlock (los,nts) 
+  assert (exists lc2', Opsem.switchToNewBasicBlock (los,nts)
     (block_intro l' ps2 (cs2 ++ cs) tmn') B2 gl2 lc2 = Some lc2' /\
     reg_simulation mi (los, nts) gl2
-            (fdef_intro (fheader_intro f t i0 a v) bs1) rm' rm2' lc' lc2') 
+            (fdef_intro (fheader_intro f t i0 a v) bs1) rm' rm2' lc' lc2')
     as Hswitch2.
     eapply switchToNewBasicBlock__reg_simulation; eauto.
 
   destruct Hswitch2 as [lc2' [Hswitch2 Hrsim']].
   exists (Opsem.mkState
-          ((Opsem.mkEC 
+          ((Opsem.mkEC
             (fdef_intro (fheader_intro f t (wrapper_fid i0) a v)
                (block_intro l1' ps1 (cs1'++ cs1) tmn1 :: bs'))
             (block_intro l' ps2 (cs2 ++ cs) tmn')
-            (cs2 ++ cs) tmn' lc2' als2):: 
+            (cs2 ++ cs) tmn' lc2' als2)::
             ECs2) M2).
   exists mi.
   split.
@@ -555,65 +548,65 @@ Proof.
         destruct b1.
         apply trans_block_inv in J1.
         destruct J1 as [p' [cs'' [cs0' [J9 [J10 [J11 J12]]]]]].
-        inv J12. 
+        inv J12.
         eapply wf_system__wf_fdef in HFinPs; eauto.
         destruct Heqb1 as [l3 [ps1 [cs1'' Heq1]]]; subst.
         assert (l1 <> l0 /\ l2 <> l0) as HA.
           clear - HBinF H HFinPs.
           split.
-            eapply getEntryBlock_inv with (l':=l1)(a:=l0) in HBinF; 
+            eapply getEntryBlock_inv with (l':=l1)(a:=l0) in HBinF;
               simpl; eauto.
-            eapply getEntryBlock_inv with (l':=l2)(a:=l0) in HBinF; 
+            eapply getEntryBlock_inv with (l':=l2)(a:=l0) in HBinF;
               simpl; eauto.
 
         rewrite <- Hlk'. unfold lookupBlockViaLabelFromBlocks. simpl.
         destruct HA as [HA1 HA2].
-        destruct (@eq_dec atom (EqDec_eq_of_EqDec atom EqDec_atom) l2 l0); 
+        destruct (@eq_dec atom (EqDec_eq_of_EqDec atom EqDec_atom) l2 l0);
           subst; try solve [auto | contradict HA2; auto].
-        destruct (@eq_dec atom (EqDec_eq_of_EqDec atom EqDec_atom) l1 l0); 
+        destruct (@eq_dec atom (EqDec_eq_of_EqDec atom EqDec_atom) l1 l0);
           subst; try solve [auto | contradict HA1; auto].
 
   repeat (split; auto).
     exists l'. exists ps'. exists nil. auto.
     exists l'. exists ps2. exists nil. auto.
     exists ex_ids1. exists rm2'. exists ex_ids1'. exists ex_ids2. exists cs2.
-    exists cs. 
+    exists cs.
     repeat (split; auto).
 Qed.
 
 Ltac next_insn' M2' :=
   rewrite <- (@trace_app_nil__eq__trace trace_nil);
   match goal with
-  | |- context [ Opsem.sop_star _ 
-       (Opsem.mkState 
-           ((Opsem.mkEC ?F2 ?B2 (_ :: ?cs2) ?tmn2 ?lc2 ?als2)::?ECs2) _) 
-       (Opsem.mkState ((Opsem.mkEC _ _ _ _ _ _)::_) _) _ ] => 
+  | |- context [ Opsem.sop_star _
+       (Opsem.mkState
+           ((Opsem.mkEC ?F2 ?B2 (_ :: ?cs2) ?tmn2 ?lc2 ?als2)::?ECs2) _)
+       (Opsem.mkState ((Opsem.mkEC _ _ _ _ _ _)::_) _) _ ] =>
     apply Opsem.sop_star_cons with (state2:=
-      Opsem.mkState 
-        ((Opsem.mkEC F2 B2 cs2 tmn2 lc2 als2):: 
-          ECs2) M2'); eauto 
+      Opsem.mkState
+        ((Opsem.mkEC F2 B2 cs2 tmn2 lc2 als2)::
+          ECs2) M2'); eauto
   end.
 
 Ltac ret_insn :=
   rewrite <- (@trace_app_nil__eq__trace trace_nil);
   match goal with
-  | |- context [ Opsem.sop_star _ 
-       (Opsem.mkState 
+  | |- context [ Opsem.sop_star _
+       (Opsem.mkState
          (_::
          (Opsem.mkEC ?F ?B (insn_call _ false _ _ _ _::?cs) ?tmn ?lc ?als)::
-         ?ECs2) _) 
-       (Opsem.mkState 
-           ((Opsem.mkEC _ _ _ _ (updateAddALs ?T ?lc ((?k,?v)::_)) _)::_) 
-       ?M) _ ] => 
-    apply Opsem.sop_star_cons with 
-      (state2:=Opsem.mkState 
+         ?ECs2) _)
+       (Opsem.mkState
+           ((Opsem.mkEC _ _ _ _ (updateAddALs ?T ?lc ((?k,?v)::_)) _)::_)
+       ?M) _ ] =>
+    apply Opsem.sop_star_cons with
+      (state2:=Opsem.mkState
         ((Opsem.mkEC F B cs tmn (updateAddAL _ lc k v) als)::ECs2) M);
     try rewrite (@simpl_cons_updateAddALs T)
 
-  | |- context [ Opsem.sop_star _ 
-       (Opsem.mkState (_::(Opsem.mkEC ?F ?B (_::?cs) ?tmn ?lc ?als)::?ECs2) _) 
-       (Opsem.mkState _ ?M) _ ] => 
-    apply Opsem.sop_star_cons with 
+  | |- context [ Opsem.sop_star _
+       (Opsem.mkState (_::(Opsem.mkEC ?F ?B (_::?cs) ?tmn ?lc ?als)::?ECs2) _)
+       (Opsem.mkState _ ?M) _ ] =>
+    apply Opsem.sop_star_cons with
       (state2:=Opsem.mkState ((Opsem.mkEC F B cs tmn lc als)::ECs2) M)
   end.
 
@@ -628,7 +621,7 @@ Proof.
   exists l2'. exists ps2'. exists (cs21' ++ cs22). simpl_env. auto.
 Qed.
 
-Lemma SBpass_is_correct__dsReturn : forall 
+Lemma SBpass_is_correct__dsReturn : forall
   (mi : MoreMem.meminj) (mgb : Values.block) (St : Opsem.State) (S : system)
   (TD : TargetData) (Ps : list product) (F : fdef) (B : block) (rid : id)
   (RetTy : typ) (Result : value) (lc : DGVMap) (rm : SBspecAux.rmetadata)
@@ -699,7 +692,7 @@ Proof.
   remember (getOperandValue (los, nts) Result lc gl2) as ogr.
   destruct ogr as [ogr|]; try solve [inv HeqRet].
 
-  assert (exists bv2, exists ev2, exists bgv2, exists egv2,  
+  assert (exists bv2, exists ev2, exists bgv2, exists egv2,
     exists blk1, exists bofs1, exists eofs1,
     cs23 =(insn_call fake_id true attrs ssb_typ ssb_fn
              ((p8,nil,bv2) :: (i32,nil,vint0) :: nil)
@@ -716,32 +709,32 @@ Proof.
     destruct (isPointerTypB RetTy).
       remember (SBspecAux.get_reg_metadata (los, nts) gl2 rm Result) as oRmd.
       destruct oRmd as [[blk1 bofs1 eofs1]|]; inv HeqRet.
-      assert (exists bv2, exists ev2, exists bgv2, exists egv2, 
+      assert (exists bv2, exists ev2, exists bgv2, exists egv2,
         SB_ds_pass.get_reg_metadata rm2 Result = Some (bv2, ev2) /\
         getOperandValue (los,nts) bv2 lc2 gl2 = Some bgv2 /\
         getOperandValue (los,nts) ev2 lc2 gl2 = Some egv2 /\
         gv_inject mi ((Vptr blk1 bofs1, AST.Mint 31)::nil) bgv2 /\
         gv_inject mi ((Vptr blk1 eofs1, AST.Mint 31)::nil) egv2) as J.
-        clear - HeqoRmd Hrsim. 
+        clear - HeqoRmd Hrsim.
         destruct Hrsim as [_ Hrsim].
         apply Hrsim; auto.
-      destruct J as [bv2 [ev2 [bgv2 [egv2 [Hgetrmd [Hgetbgv2 [Hgetegv2 [Hinj1 
-        Hinj2]]]]]]]]. rewrite Hgetrmd in Httmn. 
+      destruct J as [bv2 [ev2 [bgv2 [egv2 [Hgetrmd [Hgetbgv2 [Hgetegv2 [Hinj1
+        Hinj2]]]]]]]]. rewrite Hgetrmd in Httmn.
       inv Httmn.
-      exists bv2. exists ev2. exists bgv2. exists egv2. 
-      exists blk1. exists bofs1. exists eofs1. 
-      simpl. 
+      exists bv2. exists ev2. exists bgv2. exists egv2.
+      exists blk1. exists bofs1. exists eofs1.
+      simpl.
       rewrite Hgetbgv2. rewrite Hgetegv2. repeat (split; eauto).
-    
+
       inv Httmn.
       exists vnullp8. exists vnullp8. exists null. exists null.
       exists Mem.nullptr. exists (Int.repr 31 0). exists (Int.repr 31 0).
       inv HeqRet.
       repeat (split; eauto 2 using gv_inject_null_refl).
 
-  destruct Heq_cs23 as [bv2 [ev2 [bgv2 [egv2 [blk1 [bofs1 [eofs1 [Heq_cs23 
+  destruct Heq_cs23 as [bv2 [ev2 [bgv2 [egv2 [blk1 [bofs1 [eofs1 [Heq_cs23
     [Hp2bv2 [Hp2ev2 [Hinj1 [Hinj2 [Heqmd Heqgr]]]]]]]]]]]]]; subst.
-  destruct (@stk_ret_sim (los,nts) Mem0 M2 mi mgb MM bgv2 egv2) as 
+  destruct (@stk_ret_sim (los,nts) Mem0 M2 mi mgb MM bgv2 egv2) as
     [M2' [M2'' [Hsbase [Hsbound [Hmsim3 [Hwfmi3 [Hgbase Hgbound]]]]]]]; auto.
   eapply free_allocas_sim in Hmsim3; eauto.
   destruct Hmsim3 as [M2''' [Hfree2' [Hmsim2' Hwfmi2']]].
@@ -772,8 +765,8 @@ Proof.
             clear - Hrsim Heqogr Hwfg Hwfmi.
             symmetry in Heqogr.
             eapply simulation__getOperandValue in Heqogr; eauto.
-            destruct Heqogr as [gv' [J1 J2]]. 
-            replace (@Opsem.getOperandValue DGVs) with LLVMgv.getOperandValue; 
+            destruct Heqogr as [gv' [J1 J2]].
+            replace (@Opsem.getOperandValue DGVs) with LLVMgv.getOperandValue;
               auto.
             rewrite J1. auto.
 
@@ -784,7 +777,7 @@ Proof.
 
       split; auto using inject_incr_refl.
       SSSCase "sim".
-      repeat (split; eauto 2 using cmds_at_block_tail_next, 
+      repeat (split; eauto 2 using cmds_at_block_tail_next,
                                    cmds_at_block_tails_next').
           exists ex_ids'. exists rm2'.
           exists ex_ids3'. exists ex_ids4'. exists cs23'. exists cs24'.
@@ -798,8 +791,8 @@ Proof.
     destruct Fit; tinv H1. simpl in Hcall'.
     symmetry in Heqogr.
     eapply simulation__getOperandValue in Heqogr; eauto.
-    destruct Heqogr as [gr2 [J1 J2]]. 
-    symmetry in HeqFit. 
+    destruct Heqogr as [gr2 [J1 J2]].
+    symmetry in HeqFit.
     Local Transparent lift_op1. simpl in HeqFit.
     unfold MDGVs.lift_op1 in HeqFit.
     eapply simulation__fit_gv in HeqFit; eauto.
@@ -810,34 +803,34 @@ Proof.
       remember (lookupAL (id * id) rm2' i0) as R.
       destruct R as [[bid0 eid0]|]; inv Hcall'.
 
-      exists (Opsem.mkState 
+      exists (Opsem.mkState
         ((Opsem.mkEC (fdef_intro fh2' bs2') B2'
-            (cs23' ++ cs24') tmn2' 
-            (updateAddALs _ lc2' 
+            (cs23' ++ cs24') tmn2'
+            (updateAddALs _ lc2'
               ((i0,gr2')::(bid0,bgv2)::(eid0,egv2)::nil))
             als2'):: ECs2)
         M2''').
       exists mi.
       split.
       SSSSCase "sop_star".
-        Opaque updateAddALs. simpl. 
+        Opaque updateAddALs. simpl.
         next_insn' M2'.
           destruct (@ssb_is_found (los, nts) Ps2 lc2 gl2 fs2) as [fptr2 [Z1 Z2]].
           eapply Opsem.sExCall with (fid:=ssb_fid)
             (gvs:=(bgv2 :: int2GV 0 :: nil))(oresult:=None); eauto.
-      
+
         next_insn' M2''.
           destruct (@sse_is_found (los, nts) Ps2 lc2 gl2 fs2) as [fptr2 [Z1 Z2]].
           eapply Opsem.sExCall with (fid:=sse_fid)
             (gvs:=(egv2 :: int2GV 0 :: nil))(oresult:=None); eauto.
-      
+
         ret_insn.
           eapply Opsem.sReturn; eauto.
             unfold Opsem.returnUpdateLocals.
-            replace (@Opsem.getOperandValue DGVs) with LLVMgv.getOperandValue; 
-              auto.   
+            replace (@Opsem.getOperandValue DGVs) with LLVMgv.getOperandValue;
+              auto.
             rewrite J1. simpl. unfold MDGVs.lift_op1. rewrite HeqFit. auto.
-      
+
         next_insn.
           destruct (@gsb_is_found (los, nts) Ps2 lc2 gl2 fs2) as [fptr2 [Z1 Z2]].
           eapply Opsem.sExCall with (fid:=gsb_fid)
@@ -847,7 +840,7 @@ Proof.
             eapply free_doesnt_change_gsb; eauto.
             unfold gsb_typ, p8. simpl.
             inv Hinj1. inv H6. inv H5. auto.
-      
+
         next_insn.
           destruct (@gse_is_found (los, nts) Ps2 lc2 gl2 fs2) as [fptr2 [Z1 Z2]].
           eapply Opsem.sExCall with (fid:=gse_fid)
@@ -857,22 +850,22 @@ Proof.
             eapply free_doesnt_change_gse; eauto.
             unfold gsb_typ, p8. simpl.
             inv Hinj2. inv H6. inv H5. auto.
-      
+
         next_insn.
           destruct (@dstk_is_found (los, nts) Ps2 lc2 gl2 fs2)as [fptr2 [Z1 Z2]].
           eapply Opsem.sExCall; simpl; eauto.
             eapply dstk_spec; eauto.
-      
+
       split; auto using inject_incr_refl.
       SSSSCase "sim".
-      repeat (split; eauto 2 using cmds_at_block_tail_next, 
+      repeat (split; eauto 2 using cmds_at_block_tail_next,
                                    cmds_at_block_tails_next').
           exists ex_ids'. exists rm2'.
           exists ex_ids3'. exists ex_ids4'. exists cs23'. exists cs24'.
-          split; auto.              
+          split; auto.
           split.
             Transparent updateAddALs. simpl.
-            eapply reg_simulation__updateAddAL_prop with (ex_ids3:=ex_ids'); 
+            eapply reg_simulation__updateAddAL_prop with (ex_ids3:=ex_ids');
               eauto using simulation___cgv2gv.
             repeat (split; auto).
 
@@ -887,7 +880,7 @@ Proof.
       exists mi.
       split.
       SSSSCase "sop_star".
-        Opaque updateAddALs. simpl. 
+        Opaque updateAddALs. simpl.
         next_insn' M2'.
           destruct (@ssb_is_found (los, nts) Ps2 lc2 gl2 fs2) as [fptr2 [Z1 Z2]].
           eapply Opsem.sExCall with (fid:=ssb_fid)
@@ -901,7 +894,7 @@ Proof.
         ret_insn.
           eapply Opsem.sReturn; eauto.
             unfold Opsem.returnUpdateLocals. simpl.
-            replace (@Opsem.getOperandValue DGVs) with LLVMgv.getOperandValue; 
+            replace (@Opsem.getOperandValue DGVs) with LLVMgv.getOperandValue;
               auto.
             rewrite J1. simpl. unfold MDGVs.lift_op1. rewrite HeqFit. auto.
 
@@ -912,12 +905,12 @@ Proof.
 
       split; auto using inject_incr_refl.
       SSSSCase "sim".
-      repeat (split; eauto 2 using cmds_at_block_tail_next, 
+      repeat (split; eauto 2 using cmds_at_block_tail_next,
                                    cmds_at_block_tails_next').
           exists ex_ids'. exists rm2'.
           exists ex_ids3'. exists ex_ids4'. exists cs23'. exists cs24'.
           apply reg_simulation__updateAddAL_lc with (i0:=i0)(gv:=g)
-            (gv':= gr2') (ex_ids3:=ex_ids') in Hrsim'; 
+            (gv':= gr2') (ex_ids3:=ex_ids') in Hrsim';
             eauto using simulation___cgv2gv.
           Transparent updateAddALs. simpl.
           repeat (split; auto).
@@ -979,7 +972,7 @@ Lemma SBpass_is_correct__dsReturnVoid : forall
                         SBspec.Allocas := als' |} :: EC;
          SBspec.Mem := Mem';
          SBspec.Mmap := MM |} Cfg St' /\ inject_incr mi mi'.
-Proof. 
+Proof.
   intros.
   destruct_ctx_return.
   inv Htcmds.
@@ -998,15 +991,15 @@ Proof.
     SCase "sop_star".
       simpl. ret_insn.
         eapply Opsem.sReturnVoid; eauto.
-    
+
       next_insn.
         destruct (@dstk_is_found (los, nts) Ps2 lc2 gl2 fs2)as [fptr2 [Z1 Z2]].
         eapply Opsem.sExCall; simpl; eauto.
           eapply dstk_spec; eauto.
-    
+
     split; auto using inject_incr_refl.
     SSSCase "sim".
-    repeat (split; eauto 2 using cmds_at_block_tail_next, 
+    repeat (split; eauto 2 using cmds_at_block_tail_next,
                                  cmds_at_block_tails_next').
         exists ex_ids'. exists rm2'.
         exists ex_ids3'. exists ex_ids4'. exists cs23'. exists cs24'.
@@ -1024,7 +1017,7 @@ Qed.
 Ltac ctx_simpl_aux :=
   match goal with
   | [H1 : lookupExFdecViaPtr ?Ps ?fs ?gv = _,
-     H2 : lookupExFdecViaPtr ?Ps ?fs ?gv = _ |- _ ] => 
+     H2 : lookupExFdecViaPtr ?Ps ?fs ?gv = _ |- _ ] =>
     rewrite H1 in H2; inv H2
   | [H1 : getOperandValue ?TD ?vp ?lc ?gl = _,
      H2 : getOperandValue ?TD ?vp ?lc ?gl = _ |- _ ] =>
@@ -1052,13 +1045,13 @@ Ltac ctx_simpl_aux :=
     rewrite H1 in H2; inv H2
   end.
 
-Ltac ctx_simpl := repeat dgvs_instantiate_inv; repeat ctx_simpl_aux. 
+Ltac ctx_simpl := repeat dgvs_instantiate_inv; repeat ctx_simpl_aux.
 
 Lemma SBpass_is_correct : forall mi mgb sbCfg sbSt Cfg St sbSt' tr,
   sbState_simulates_State mi mgb sbCfg sbSt Cfg St ->
-  SBspec.sInsn sbCfg sbSt sbSt' tr -> 
+  SBspec.sInsn sbCfg sbSt sbSt' tr ->
   exists St', exists mi',
-    Opsem.sop_star Cfg St St' tr /\    
+    Opsem.sop_star Cfg St St' tr /\
     sbState_simulates_State mi' mgb sbCfg sbSt' Cfg St' /\
     Values.inject_incr mi mi'.
 Proof.
@@ -1066,7 +1059,7 @@ Proof.
   inv Hsbop.
   rename H into Hsbop.
   rename H0 into Hllvmop.
-  (sb_sInsn_cases (induction Hsbop) Case); inv Hllvmop; ctx_simpl. 
+  (sb_sInsn_cases (induction Hsbop) Case); inv Hllvmop; ctx_simpl.
 Case "sReturn". eapply SBpass_is_correct__dsReturn; eauto.
 Case "sReturnVoid". eapply SBpass_is_correct__dsReturnVoid; eauto.
 Case "sBranch". eapply SBpass_is_correct__dsBranch; eauto.
@@ -1092,24 +1085,14 @@ Case "sOthercast". eapply SBpass_is_correct__dsOthercast; eauto.
 Case "sIcmp". eapply SBpass_is_correct__dsIcmp; eauto.
 Case "sFcmp". eapply SBpass_is_correct__dsFcmp; eauto.
 Case "sSelect_nptr". eapply SBpass_is_correct__dsSelect_nptr; eauto.
-Case "sSelect_ptr". 
+Case "sSelect_ptr".
   eapply SBpass_is_correct__dsSelect_ptr; eauto.
   unfold prop_reg_metadata.
   destruct (isGVZero TD c); eauto.
-Case "sCall". 
+Case "sCall".
   eapply SBpass_is_correct__dsCall; eauto.
   apply mismatch_cons_false in H27. inv H27.
-Case "sExCall". 
+Case "sExCall".
   symmetry in H32. apply mismatch_cons_false in H32. inv H32.
   eapply SBpass_is_correct__dsExCall; eauto.
 Qed.
-
-(*****************************)
-(*
-*** Local Variables: ***
-*** coq-prog-name: "coqtop" ***
-*** coq-prog-args: ("-emacs-U" "-I" "~/SVN/sol/vol/src/Vellvm/monads" "-I" "~/SVN/sol/vol/src/Vellvm/ott" "-I" "~/SVN/sol/vol/src/Vellvm/compcert" "-I" "~/SVN/sol/theory/metatheory_8.3" "-I" "~/SVN/sol/vol/src/TV" "-impredicative-set") ***
-*** End: ***
- *)
-
-

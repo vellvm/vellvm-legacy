@@ -1,7 +1,7 @@
 
 % Syntax of Static Single Assignment(SSA)
 
-embed 
+embed
 {{ coq
 Require Import ListSet.
 Require Import Logic_Type.
@@ -18,10 +18,10 @@ Section Lists.
 
   Variable A : Type.
 
-  Fixpoint last_opt (l:list A) {struct l} : option A := 
-  match l with 
-    | nil => None 
-    | a :: nil => Some a 
+  Fixpoint last_opt (l:list A) {struct l} : option A :=
+  match l with
+    | nil => None
+    | a :: nil => Some a
     | a :: l' => last_opt l'
   end.
 
@@ -113,7 +113,7 @@ metavar align ::= {{ com align }}
   {{ coq Align.t }} {{ lex numeral }}
 indexvar i, j, n ::= {{ com index }}
   {{ coq nat }}
- 
+
 grammar
 
 opt_Int {{ tex \mathit{opt_{Int} } }} :: 'opt_Int_'	::=			{{ com option Int }} {{ coq option Int }}
@@ -156,7 +156,7 @@ layouts {{ tex \mathit{\overline{layout} } }} :: 'layouts_'	::=  		{{ com layout
 floating_point {{ tex \mathit{fp} }} :: 'fp_'			::=  			{{ com floating point types }}
   | float						::   :: float		{{ com float }}
   | double						::   :: double          {{ com double }}
-  | fp128						::   :: fp128           {{ com fp128 }} 
+  | fp128						::   :: fp128           {{ com fp128 }}
   | x86_fp80						::   :: x86_fp80	{{ com x86fp80 }}
   | ppc_fp128						::   :: ppc_fp128     	{{ com ppcfp128 }}
   | ( floating_point )					:: S :: paren           {{ coq [[ floating_point ]] }}
@@ -284,7 +284,7 @@ const {{ tex \mathit{cnst} }} :: 'const_'				::=  			{{ com constant }}
   | getelementptr inbounds const </ constj // j />	::   :: gep		{{ com gep }}
       {{ tex \ottkw{getelementptr}\, [[const]]\, \overline{cst_j}^{j} }}
   | select const0 const1 const2	    	      		::   :: select		{{ com select }}
-  | icmp cond const1 const2				::   :: icmp		{{ com icmp }}     
+  | icmp cond const1 const2				::   :: icmp		{{ com icmp }}
   | fcmp fcond const1 const2				::   :: fcmp		{{ com fcmp }}
   | extractvalue const </ constj // j />		::   :: extractvalue	{{ com extractvalue }}
   | insertvalue const const' </ constj // j />		::   :: insertvalue	{{ com extractvalue }}
@@ -293,7 +293,7 @@ const {{ tex \mathit{cnst} }} :: 'const_'				::=  			{{ com constant }}
   | ( const )						:: S :: paren           {{ coq [[ const ]] }}
 
 value {{ tex val }} :: 'value_'				::=  			{{ com values }}
-      	 									{{ coq-universe Type }} 
+      	 									{{ coq-universe Type }}
   | id	 						::   :: id		{{ com id }}
   | const						::   :: const   	{{ com constant }}
   | ( value )						:: S :: paren           {{ coq [[ value ]] }}
@@ -335,7 +335,7 @@ attributes {{ tex \mathit{\overline{attribute} } }} :: 'attributes_'	::=     {{ 
 arg :: 'arg_'  						::=  			{{ com argument }}
        										{{ coq (typ * attributes * id)%type }}
   | typ attributes id					::   :: def		{{ coq (([[typ]], [[attributes]]), [[id]]) }}
-  | ( arg )						:: S :: paren		{{ coq [[ arg ]] }} 			
+  | ( arg )						:: S :: paren		{{ coq [[ arg ]] }}
 
 args {{ tex \mathit{\overline{arg} } }} :: 'args_'	::=  			{{ com arguments }}
      	    			     	   					{{ coq (list (typ*attributes*id)) }}
@@ -347,7 +347,7 @@ args {{ tex \mathit{\overline{arg} } }} :: 'args_'	::=  			{{ com arguments }}
 param :: 'param_'  					::=  			{{ com argument }}
        										{{ coq (typ * attributes * value)%type }}
   | typ attributes value                         	::   :: def		{{ coq (([[typ]], [[attributes]]), [[value]]) }}
-  | ( param )						:: S :: paren		{{ coq [[ param ]] }} 			
+  | ( param )						:: S :: paren		{{ coq [[ param ]] }}
 
 params {{ tex \mathit{\overline{param} } }} :: 'params_'::=			{{ com parameters }}
        	      			       	       					{{ coq (list (typ * attributes * value)) }}
@@ -402,7 +402,7 @@ cmd {{ tex c }} :: 'insn_'					    	::=			{{ com commands }}
   | id = icmp cond typ value1 value2			::   :: icmp		{{ com icmp }}
   | id = fcmp fcond floating_point value1 value2	::   :: fcmp		{{ com fcmp }}
   | id = select value0 typ value1 value2                ::   :: select          {{ com select }}
-  | id = noret clattrs call typ0 value0 params    	::   :: call		{{ com call }} 
+  | id = noret clattrs call typ0 value0 params    	::   :: call		{{ com call }}
       {{ tex \ottnt{option}\,[[id]]\, [[=]]\, \ottkw{call}\, [[typ0]]\, [[value0]]\, [[params]] }}
   %| va_arg
   | ( insn )						:: S :: paren           {{ coq [[ insn ]] }}
@@ -412,13 +412,13 @@ terminator {{ tex tmn }} :: 'insn_'			::=  			{{ com termniators }}
       {{ tex \ottkw{ret}\, [[typ]]\, [[value]] }}
   | id = ret void   					::   :: return_void  	{{ com return void }}
       {{ tex \ottkw{ret}\, \ottkw{void} }}
-  | id = br value l1 l2		 			::   :: br              {{ com br }}        
+  | id = br value l1 l2		 			::   :: br              {{ com br }}
       {{ tex \ottkw{br}\, [[value]]\, [[l1]]\, [[l2]] }}
-  | id = br l        	    	  			::   :: br_uncond       {{ com unconditional br }}        
+  | id = br l        	    	  			::   :: br_uncond       {{ com unconditional br }}
       {{ tex \ottkw{br}\, [[l]] }}
   %| id = switch typ value , l </ [ constj , lj ] // j />	::   :: switch		{{ com switch }}
   %| indirectbr
-  %| id = invoke typ0 id0 list_param to l1 unwind l2 	::   :: invoke		{{ com invoke }} 
+  %| id = invoke typ0 id0 list_param to l1 unwind l2 	::   :: invoke		{{ com invoke }}
   %| unwind
   | id = unreachable   	   	     	 		::   :: unreachable	{{ com unreachable }}
       {{ tex \ottkw{unreachable} }}
@@ -461,7 +461,7 @@ block {{ tex b }} :: 'block_' 	::=	     			{{ com block }}
 opt_block {{ tex \mathit{opt_{b} } }} :: 'opt_block_' ::=			{{ com option block }} {{ coq option block }}
   |  none 						:: M :: none		{{ com none }} {{ coq None }}
   |  block						:: M :: some  		{{ com some }} {{ coq (Some [[block]]) }}
-		   
+
 blocks {{ tex \mathit{\overline{b} } }} :: 'blocks_'::=				{{ com blocks }}
       	     			       	     					{{ coq (list block) }}
   | []  						::   :: nil		{{ coq nil }}
@@ -470,7 +470,7 @@ blocks {{ tex \mathit{\overline{b} } }} :: 'blocks_'::=				{{ com blocks }}
   | ( blocks )						:: S :: paren           {{ coq [[ blocks ]] }}
 
 visibility :: 'visibility_'				::=  			{{ com visibility }}
-  | default   						::   :: default		
+  | default   						::   :: default
   | hidden						::   :: hidden
   | protected						::   :: protected
 
@@ -517,7 +517,7 @@ opt_fdef {{ tex \mathit{opt_{fdef} } }} :: 'opt_fdef_'	::=  			{{ com option fde
   | ( opt_fdef )					:: S :: paren		{{ coq [[ opt_fdef ]] }}
 
 namedt :: 'namedt_'         				::=			{{ com named type }}
-  | id = typ  						::   :: intro 
+  | id = typ  						::   :: intro
   | ( namedt )						:: S :: paren		{{ coq [[ namedt ]] }}
 
 namedts {{ tex \mathit{\overline{namedt} } }} :: 'namedts_'	::=		{{ com namedts }}
@@ -537,28 +537,28 @@ gvar :: 'gvar_'   	 				::=			{{ com global variables }}
   | id = gvar_spec typ	      				::   :: external	{{ com external }}
   | ( gvar )	    					:: S :: paren		{{ coq [[ gvar ]] }}
 
-id_binding :: 'id_binding_'  				::=			{{ com id binding }} 
-  |  none 						::  :: none		{{ com none }} 
-  |  cmd						::  :: cmd  		{{ com cmd }} 
+id_binding :: 'id_binding_'  				::=			{{ com id binding }}
+  |  none 						::  :: none		{{ com none }}
+  |  cmd						::  :: cmd  		{{ com cmd }}
   |  phinode						::  :: phinode		{{ com phinode }}
   |  terminator						::  :: terminator	{{ com terminator }}
-  |  gvar						::  :: gvar             {{ com gvar }} 
+  |  gvar						::  :: gvar             {{ com gvar }}
   |  fdec						::  :: fdec		{{ com fdec }}
   |  arg 						::  :: arg		{{ com arg }}
 
-% FIXME: Should we split products to be separate lists for vars, funs and named types?		   
+% FIXME: Should we split products to be separate lists for vars, funs and named types?
 product  {{ tex prod }} :: 'product_'			::=			{{ com prodoct }}
   | gvar						::   :: gvar     	{{ com global variable }}
   | fdec             					::   :: fdec   		{{ com function declaration }}
   | fdef             					::   :: fdef		{{ com function definition }}
 
 products {{ tex \mathit{\overline{prod} } }}            :: 'products_'::=	{{ com products }}
-	    				     	   				{{ coq (list product) }}	   
+	    				     	   				{{ coq (list product) }}
   | []   						::   :: nil        	{{ com nil }}
     							     			{{ coq nil }}
   | product , products					::   :: cons            {{ com cons }}
     	       						     			{{ coq ([[product]]::[[products]]) }}
-  | ( products )					:: S :: paren		{{ coq [[ products ]] }}			
+  | ( products )					:: S :: paren		{{ coq [[ products ]] }}
 
 targetdata :: 'targetdata_'  				::=  			{{ com targetdata }}
        										{{ coq (prod (list layout) (list namedt)) }}
@@ -582,8 +582,8 @@ system :: 'system_'					::=  			{{ com system }}
     							     			{{ coq [[modules]] }}
 
 usedef_block :: 'usedef_block_'				::=			{{ com label usedef }}
-                                                                                {{ coq-universe Type }} 
-       	  									{{ coq AssocList (list l) }} 
+                                                                                {{ coq-universe Type }}
+       	  									{{ coq AssocList (list l) }}
 
 intrinsic_funs :: 'intrinsic_funs_'			::=  			{{ com intrinsic functions }}
 	      	 								{{ coq ids }}
@@ -616,7 +616,7 @@ terminals :: 'terminals_' ::=
   | >>=                 ::   :: ggeq            {{ tex \gg= }}
   | >>                  ::   :: gg              {{ tex \gg }}
 
-embed 
+embed
 {{ coq
 
 Tactic Notation "cmd_cases" tactic(first) tactic(c) :=
@@ -625,7 +625,7 @@ Tactic Notation "cmd_cases" tactic(first) tactic(c) :=
     c "insn_extractvalue" | c "insn_insertvalue" |
     c "insn_malloc" | c "insn_free" |
     c "insn_alloca" | c "insn_load" | c "insn_store" | c "insn_gep" |
-    c "insn_trunc" | c "insn_ext" | c "insn_cast" | 
+    c "insn_trunc" | c "insn_ext" | c "insn_cast" |
     c "insn_icmp" | c "insn_fcmp" | c "insn_select" |
     c "insn_call" ].
 
@@ -670,15 +670,5 @@ Combined Scheme typ_mutind from typ_ind2, list_typ_ind2.
 
 End LLVMsyntax.
 
-}}
-
-embed 
-{{ coq
-(*
-*** Local Variables: ***
-*** coq-prog-name: "coqtop" ***
-*** coq-prog-args: ("-emacs-U" "-I" "~/SVN/sol/vol/src/Vellvm/monads" "-I" "~/SVN/sol/vol/src/Vellvm/ott" "-I" "~/SVN/sol/vol/src/Vellvm/compcert" "-I" "~/SVN/sol/theory/metatheory_8.3" "-I" "~/SVN/sol/vol/src/TV") ***
-*** End: ***
- *)
 }}
 

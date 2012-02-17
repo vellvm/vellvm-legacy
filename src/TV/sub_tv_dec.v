@@ -1,9 +1,4 @@
 (* Start CoqIDE at ./src/TV *)
-Add LoadPath "../Vellvm/ott".
-Add LoadPath "../Vellvm/monads".
-Add LoadPath "../Vellvm/compcert".
-Add LoadPath "../Vellvm".
-Add LoadPath "../../../theory/metatheory_8.3".
 Require Import syntax.
 Require Import infrastructure.
 Require Import List.
@@ -45,14 +40,6 @@ Proof.
           destruct J as [l EQ].
           inversion EQ; subst.
           exists l. auto.
-        right. intro J. destruct J as [l EQ].        
+        right. intro J. destruct J as [l EQ].
         inversion EQ; subst; auto.
 Qed.
-
-(*****************************)
-(*
-*** Local Variables: ***
-*** coq-prog-name: "coqtop" ***
-*** coq-prog-args: ("-emacs-U" "-I" "~/SVN/sol/vol/src/Vellvm/monads" "-I" "~/SVN/sol/vol/src/Vellvm/ott" "-I" "~/SVN/sol/vol/src/Vellvm/compcert" "-I" "~/SVN/sol/theory/metatheory_8.3" "-impredicative-set") ***
-*** End: ***
- *)

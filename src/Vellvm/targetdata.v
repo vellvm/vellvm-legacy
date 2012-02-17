@@ -1,7 +1,3 @@
-Add LoadPath "./ott".
-Add LoadPath "./monads".
-Add LoadPath "./compcert".
-Add LoadPath "../../../theory/metatheory_8.3". 
 Require Import Zpower.
 Require Import Zdiv.
 Require Import List.
@@ -27,8 +23,8 @@ Export LLVMsyntax.
 
  p:size:abi_align:pref_align: Pointer size, ABI and preferred alignment.
 
- Type:size:abi_align:pref_align: Numeric type alignment. Type is one of i|f|v|a, 
- corresponding to integer, floating point, or aggregate.  Size indicates the 
+ Type:size:abi_align:pref_align: Numeric type alignment. Type is one of i|f|v|a,
+ corresponding to integer, floating point, or aggregate.  Size indicates the
  size, e.g., 32 or 64 bits.
 
  Note that in the case of aggregates, 0 is the default ABI and preferred
@@ -51,16 +47,16 @@ Export LLVMsyntax.
   PTR,             8,         8,          32  // ptr
   BigEndian
 
- When LLVM is determining the alignment for a given type, it uses the following 
+ When LLVM is determining the alignment for a given type, it uses the following
  rules:
-   1. If the type sought is an exact match for one of the specifications, that 
+   1. If the type sought is an exact match for one of the specifications, that
       specification is used.
-   2. If no match is found, and the type sought is an integer type, then the 
-      smallest integer type that is larger than the bitwidth of the sought type 
-      is used. If none of the specifications are larger than the bitwidth then 
-      the the largest integer type is used. For example, given the default 
-      specifications above, the i7 type will use the alignment of i8 (next 
-      largest) while both i65 and i256 will use the alignment of i64 (largest 
+   2. If no match is found, and the type sought is an integer type, then the
+      smallest integer type that is larger than the bitwidth of the sought type
+      is used. If none of the specifications are larger than the bitwidth then
+      the the largest integer type is used. For example, given the default
+      specifications above, the i7 type will use the alignment of i8 (next
+      largest) while both i65 and i256 will use the alignment of i64 (largest
       specified).
 *)
 
@@ -90,43 +86,43 @@ Definition RoundUpAlignment (val alignment:nat) : nat :=
 (** getAlignmentInfo - Return the alignment (either ABI if ABIInfo = true or
     preferred if ABIInfo = false) the target wants for the specified datatype.
 *)
-Fixpoint _getIntAlignmentInfo (los:layouts) (BitWidth: nat) (ABIInfo: bool) 
-  (obest:option (nat*(nat*nat))) (olargest:option (nat*(nat*nat))) {struct los} 
+Fixpoint _getIntAlignmentInfo (los:layouts) (BitWidth: nat) (ABIInfo: bool)
+  (obest:option (nat*(nat*nat))) (olargest:option (nat*(nat*nat))) {struct los}
     : option nat :=
   match los with
-  | nil => 
+  | nil =>
     (* Okay, we didn't find an exact solution.  Fall back here depending on what
        is being looked for.
 
        If we didn't find an integer alignment, fall back on most conservative. *)
     match (obest, olargest) with
-    | (Some (_, (babi, bpre)), _) => 
+    | (Some (_, (babi, bpre)), _) =>
       (if ABIInfo then Some babi else Some bpre)
-    | (None, Some (_, (labi, lpre))) => 
+    | (None, Some (_, (labi, lpre))) =>
       (if ABIInfo then Some labi else Some lpre)
     | _ => None
     end
   | (layout_int isz abi pre)::los' =>
-    if beq_nat (Size.to_nat isz) BitWidth 
-    then 
-      (* Check to see if we have an exact match and remember the best match we 
+    if beq_nat (Size.to_nat isz) BitWidth
+    then
+      (* Check to see if we have an exact match and remember the best match we
          see. *)
       (if ABIInfo then Some (Align.to_nat abi) else Some (Align.to_nat pre))
-    else 
-      (* The obest match so far depends on what we're looking for. 
+    else
+      (* The obest match so far depends on what we're looking for.
          The "obest match" for integers is the smallest size that is larger than
-         the BitWidth requested. 
-         
+         the BitWidth requested.
+
          However, if there isn't one that's larger, then we must use the
-         largest one we have (see below) *) 
+         largest one we have (see below) *)
       match (obest, olargest, le_lt_dec BitWidth (Size.to_nat isz)) with
       | (Some (bestbt, _), Some (largestbt, _), left _ (* BitWidth <= isz *) ) =>
         match (le_lt_dec largestbt (Size.to_nat isz)) with
         | left _ (* isz <= largestbt *) =>
           _getIntAlignmentInfo los' BitWidth ABIInfo obest olargest
         | right _ (* largestbt < isz *) =>
-          _getIntAlignmentInfo los' BitWidth ABIInfo 
-            (Some (Size.to_nat isz, (Align.to_nat abi, Align.to_nat pre))) 
+          _getIntAlignmentInfo los' BitWidth ABIInfo
+            (Some (Size.to_nat isz, (Align.to_nat abi, Align.to_nat pre)))
             (Some (Size.to_nat isz, (Align.to_nat abi, Align.to_nat pre)))
         end
 
@@ -137,13 +133,13 @@ Fixpoint _getIntAlignmentInfo (los:layouts) (BitWidth: nat) (ABIInfo: bool)
           | left _ (* bestbt <= isz *) =>
             _getIntAlignmentInfo los' BitWidth ABIInfo obest olargest
           | right _ (* isz < bestbt *) =>
-            _getIntAlignmentInfo los' BitWidth ABIInfo 
-            (Some (Size.to_nat isz, (Align.to_nat abi, Align.to_nat pre))) 
+            _getIntAlignmentInfo los' BitWidth ABIInfo
+            (Some (Size.to_nat isz, (Align.to_nat abi, Align.to_nat pre)))
             (Some (Size.to_nat isz, (Align.to_nat abi, Align.to_nat pre)))
           end
         | right _ (* largestbt < isz *) =>
-          _getIntAlignmentInfo los' BitWidth ABIInfo 
-            (Some (Size.to_nat isz, (Align.to_nat abi, Align.to_nat pre))) 
+          _getIntAlignmentInfo los' BitWidth ABIInfo
+            (Some (Size.to_nat isz, (Align.to_nat abi, Align.to_nat pre)))
             (Some (Size.to_nat isz, (Align.to_nat abi, Align.to_nat pre)))
         end
 
@@ -152,43 +148,43 @@ Fixpoint _getIntAlignmentInfo (los:layouts) (BitWidth: nat) (ABIInfo: bool)
         | left _ (* isz <= largestbt *) =>
           _getIntAlignmentInfo los' BitWidth ABIInfo obest olargest
         | right _ (* largestbt < isz *) =>
-          _getIntAlignmentInfo los' BitWidth ABIInfo obest 
+          _getIntAlignmentInfo los' BitWidth ABIInfo obest
             (Some (Size.to_nat isz, (Align.to_nat abi, Align.to_nat pre)))
         end
 
       | (None, Some (largestbt, _), right _ (* isz < BitWidth *) ) =>
         match (le_lt_dec largestbt (Size.to_nat isz)) with
         | left _ (* isz <= largestbt *) =>
-          _getIntAlignmentInfo los' BitWidth ABIInfo 
+          _getIntAlignmentInfo los' BitWidth ABIInfo
             (Some (Size.to_nat isz, (Align.to_nat abi, Align.to_nat pre)))
             olargest
         | right _ (* largestbt < isz *) =>
-          _getIntAlignmentInfo los' BitWidth ABIInfo 
+          _getIntAlignmentInfo los' BitWidth ABIInfo
             (Some (Size.to_nat isz, (Align.to_nat abi, Align.to_nat pre)))
             (Some (Size.to_nat isz, (Align.to_nat abi, Align.to_nat pre)))
         end
 
       | (Some (bestbt, _), None, left _ (* BitWidth <= isz *) ) =>
-          _getIntAlignmentInfo los' BitWidth ABIInfo obest 
+          _getIntAlignmentInfo los' BitWidth ABIInfo obest
             (Some (Size.to_nat isz, (Align.to_nat abi, Align.to_nat pre)))
       | (Some (bestbt, _), None, right _ (* isz < BitWidth *) ) =>
           match (le_lt_dec (Size.to_nat isz) bestbt) with
           | left _ (* bestbt <= isz *) =>
-            _getIntAlignmentInfo los' BitWidth ABIInfo obest 
+            _getIntAlignmentInfo los' BitWidth ABIInfo obest
             (Some (Size.to_nat isz, (Align.to_nat abi, Align.to_nat pre)))
           | right _ (* isz < bestbt *) =>
-            _getIntAlignmentInfo los' BitWidth ABIInfo 
+            _getIntAlignmentInfo los' BitWidth ABIInfo
             (Some (Size.to_nat isz, (Align.to_nat abi, Align.to_nat pre)))
             (Some (Size.to_nat isz, (Align.to_nat abi, Align.to_nat pre)))
           end
       | (None, None, left _ (* BitWidth <= isz *) ) =>
-          _getIntAlignmentInfo los' BitWidth ABIInfo obest 
+          _getIntAlignmentInfo los' BitWidth ABIInfo obest
             (Some (Size.to_nat isz, (Align.to_nat abi, Align.to_nat pre)))
       | (None, None, right _ (* isz < BitWidth *) ) =>
-          _getIntAlignmentInfo los' BitWidth ABIInfo 
+          _getIntAlignmentInfo los' BitWidth ABIInfo
             (Some (Size.to_nat isz, (Align.to_nat abi, Align.to_nat pre)))
             (Some (Size.to_nat isz, (Align.to_nat abi, Align.to_nat pre)))
-      end 
+      end
   | _::los' =>
     _getIntAlignmentInfo los' BitWidth ABIInfo obest olargest
   end.
@@ -211,7 +207,7 @@ Definition getIntDefaultAlignmentInfo (BitWidth: nat) (ABIInfo: bool) : nat :=
     end
   end.
 
-Definition getIntAlignmentInfo (los:layouts) (BitWidth: nat) (ABIInfo: bool) 
+Definition getIntAlignmentInfo (los:layouts) (BitWidth: nat) (ABIInfo: bool)
   : nat :=
   match (_getIntAlignmentInfo los BitWidth ABIInfo None None) with
   | Some n => n
@@ -223,7 +219,7 @@ Definition getIntAlignmentInfo (los:layouts) (BitWidth: nat) (ABIInfo: bool)
 Fixpoint _getPointerAlignmentInfo (los:layouts) (ABIInfo: bool) : option nat :=
   match los with
   | nil => None
-  | (layout_ptr psz abi pre)::_ => 
+  | (layout_ptr psz abi pre)::_ =>
       if ABIInfo then Some (Align.to_nat abi) else Some (Align.to_nat pre)
   | _::los' => _getPointerAlignmentInfo los' ABIInfo
   end.
@@ -237,7 +233,7 @@ Definition getPointerAlignmentInfo (los:layouts) (ABIInfo: bool) : nat :=
 Fixpoint _getStructAlignmentInfo (los:layouts) (ABIInfo: bool) : option nat :=
   match los with
   | nil => None
-  | (layout_aggr sz abi pre)::_ =>  
+  | (layout_aggr sz abi pre)::_ =>
       if ABIInfo then Some (Align.to_nat abi) else Some (Align.to_nat pre)
   | _::los' => _getStructAlignmentInfo los' ABIInfo
   end.
@@ -252,7 +248,7 @@ Definition getStructAlignmentInfo (los:layouts) (ABIInfo: bool) : nat :=
 Fixpoint _getPointerSize (los:layouts) : option sz :=
   match los with
   | nil => None
-  | (layout_ptr psz abi pre)::_ => 
+  | (layout_ptr psz abi pre)::_ =>
       Some (nat_of_Z (ZRdiv (Z_of_nat psz) 8))
   | _::los' => _getPointerSize los'
   end.
@@ -273,37 +269,37 @@ Definition getPointerSize (TD:TargetData) : sz :=
 Definition getPointerSizeInBits (los:layouts) : sz :=
   Size.mul Size.Eight (getPointerSize0 los).
 
-Fixpoint getFloatAlignmentInfo (los:layouts)  (BitWidth: nat) (ABIInfo: bool) 
+Fixpoint getFloatAlignmentInfo (los:layouts)  (BitWidth: nat) (ABIInfo: bool)
     : nat :=
   match los with
   | nil =>
-    if beq_nat BitWidth 32 
+    if beq_nat BitWidth 32
     then 4%nat
     else
       if beq_nat BitWidth 64
       then 8%nat
-      else getIntAlignmentInfo los BitWidth ABIInfo  
+      else getIntAlignmentInfo los BitWidth ABIInfo
   | (layout_float isz abi pre)::los' =>
     if beq_nat (Size.to_nat isz) BitWidth
     then
       Align.to_nat (if ABIInfo then abi else pre)
     else
-      getFloatAlignmentInfo los' BitWidth ABIInfo    
-  | _::los' => getFloatAlignmentInfo los' BitWidth ABIInfo    
+      getFloatAlignmentInfo los' BitWidth ABIInfo
+  | _::los' => getFloatAlignmentInfo los' BitWidth ABIInfo
   end.
 
-(** Merged getTypeSizeInBits, getTypeStoreSize, getTypeAllocSize, 
-    getTypeAllocSizeInBits, getAlignment and getStructLayout 
+(** Merged getTypeSizeInBits, getTypeStoreSize, getTypeAllocSize,
+    getTypeAllocSizeInBits, getAlignment and getStructLayout
 
-    This internal version needs a mapping from named types to their 
-    TypeSizeInBits and Alignment. 
+    This internal version needs a mapping from named types to their
+    TypeSizeInBits and Alignment.
 
     getTypeSizeInBits_and_Alignment uses the result calculated by
       getTypeSizeInBits_and_Alignment_for_namedts
 *)
 Fixpoint _getTypeSizeInBits_and_Alignment (los:layouts) (nts:list (id*(nat*nat)))
   (abi_or_pref:bool) (t:typ) : option (nat*nat) :=
-  let getTypeStoreSize := 
+  let getTypeStoreSize :=
       fun typeSizeInBits => nat_of_Z (ZRdiv (Z_of_nat typeSizeInBits) 8) in
 
   let getTypeAllocSize :=
@@ -316,36 +312,36 @@ Fixpoint _getTypeSizeInBits_and_Alignment (los:layouts) (nts:list (id*(nat*nat))
       (getTypeAllocSize typeSizeInBits ABIalignment * 8)%nat in
 
   match t with
-  | typ_label => Some (Size.to_nat (getPointerSizeInBits los), 
-                       getPointerAlignmentInfo los abi_or_pref) 
+  | typ_label => Some (Size.to_nat (getPointerSizeInBits los),
+                       getPointerAlignmentInfo los abi_or_pref)
 
-  | typ_pointer _ => Some (Size.to_nat (getPointerSizeInBits los), 
-                           getPointerAlignmentInfo los abi_or_pref) 
+  | typ_pointer _ => Some (Size.to_nat (getPointerSizeInBits los),
+                           getPointerAlignmentInfo los abi_or_pref)
 
-  | typ_void => Some (8%nat, getIntAlignmentInfo los 8%nat abi_or_pref) 
+  | typ_void => Some (8%nat, getIntAlignmentInfo los 8%nat abi_or_pref)
 
   | typ_int sz => Some (Size.to_nat sz, getIntAlignmentInfo los (Size.to_nat sz)
-                        abi_or_pref) 
+                        abi_or_pref)
 
-  | typ_array n t' => 
+  | typ_array n t' =>
     match n with
-    | O => 
+    | O =>
       (* Empty arrays have alignment of 1 byte. *)
       Some (8%nat, 1%nat)
     | _ =>
       (* getting ABI alignment *)
-      match (_getTypeSizeInBits_and_Alignment los nts true t') with 
+      match (_getTypeSizeInBits_and_Alignment los nts true t') with
       | None => None
-      | Some (sz, al) => 
+      | Some (sz, al) =>
           Some (((getTypeAllocSizeInBits sz al)*Size.to_nat n)%nat, al)
       end
     end
 
-  | typ_struct lt => 
+  | typ_struct lt =>
     (* Loop over each of the elements, placing them in memory. *)
-    match (_getListTypeSizeInBits_and_Alignment los nts lt) with  
+    match (_getListTypeSizeInBits_and_Alignment los nts lt) with
     | None => None
-    | (Some (sz, al)) => 
+    | (Some (sz, al)) =>
       (* Empty structures have alignment of 1 byte. *)
       (* Add padding to the end of the struct so that it could be put in an array
          and all array elements would be aligned correctly. *)
@@ -353,18 +349,18 @@ Fixpoint _getTypeSizeInBits_and_Alignment (los:layouts) (nts:list (id*(nat*nat))
        | O => Some (8%nat, 1%nat)
        | _ => Some (sz, al)
        end
-    end  
+    end
 
-  | typ_floatpoint fp_float => 
-      Some (32%nat, getFloatAlignmentInfo los 32%nat abi_or_pref) 
-  | typ_floatpoint fp_double => 
-      Some (64%nat, getFloatAlignmentInfo los 64%nat abi_or_pref) 
-  | typ_floatpoint fp_x86_fp80 => 
-      Some (80%nat, getFloatAlignmentInfo los 64%nat abi_or_pref) 
-  | typ_floatpoint fp_fp128 => 
-      Some (128%nat, getFloatAlignmentInfo los 128%nat abi_or_pref) 
-  | typ_floatpoint fp_ppc_fp128 => 
-      Some (128%nat, getFloatAlignmentInfo los 128%nat abi_or_pref) 
+  | typ_floatpoint fp_float =>
+      Some (32%nat, getFloatAlignmentInfo los 32%nat abi_or_pref)
+  | typ_floatpoint fp_double =>
+      Some (64%nat, getFloatAlignmentInfo los 64%nat abi_or_pref)
+  | typ_floatpoint fp_x86_fp80 =>
+      Some (80%nat, getFloatAlignmentInfo los 64%nat abi_or_pref)
+  | typ_floatpoint fp_fp128 =>
+      Some (128%nat, getFloatAlignmentInfo los 128%nat abi_or_pref)
+  | typ_floatpoint fp_ppc_fp128 =>
+      Some (128%nat, getFloatAlignmentInfo los 128%nat abi_or_pref)
 
   | typ_metadata => None
   | typ_function _ _ _ => None
@@ -373,7 +369,7 @@ Fixpoint _getTypeSizeInBits_and_Alignment (los:layouts) (nts:list (id*(nat*nat))
   end
 with _getListTypeSizeInBits_and_Alignment (los:layouts) (nts:list (id*(nat*nat)))
   (lt:list_typ) : option (nat*nat) :=
-  let getTypeStoreSize := 
+  let getTypeStoreSize :=
       fun typeSizeInBits => nat_of_Z (ZRdiv (Z_of_nat typeSizeInBits) 8) in
 
   let getTypeAllocSize :=
@@ -388,8 +384,8 @@ with _getListTypeSizeInBits_and_Alignment (los:layouts) (nts:list (id*(nat*nat))
   match lt with
   | Nil_list_typ => Some (0%nat, 0%nat)
   | Cons_list_typ t lt' =>
-    (* getting ABI alignment *) 
-    match (_getListTypeSizeInBits_and_Alignment los nts lt', 
+    (* getting ABI alignment *)
+    match (_getListTypeSizeInBits_and_Alignment los nts lt',
            _getTypeSizeInBits_and_Alignment los nts true t) with
     | (Some (struct_sz, struct_al), Some (sub_sz, sub_al)) =>
           (* Add padding if necessary to align the data element properly. *)
@@ -404,7 +400,7 @@ with _getListTypeSizeInBits_and_Alignment (los:layouts) (nts:list (id*(nat*nat))
     end
   end.
 
-(* calculate the TypeSizeInBits and Alignment for namedts 
+(* calculate the TypeSizeInBits and Alignment for namedts
    Assumption: nts[i] should only use named types from nts[j] where j > i
    So, getTypeSizeInBits_and_Alignment_for_namedts rev-ed the orignal nts.
    The well-formedness should check such invariant for named types.
@@ -418,16 +414,16 @@ with _getListTypeSizeInBits_and_Alignment (los:layouts) (nts:list (id*(nat*nat))
    %5 = {%4*}
 
    But we cannot have
-   
+
    %1 = {%2}
    %2 = {%1}
 *)
-Fixpoint _getTypeSizeInBits_and_Alignment_for_namedts 
+Fixpoint _getTypeSizeInBits_and_Alignment_for_namedts
   (los:layouts) (nts:namedts) (abi_or_pref:bool)  : list (id*(nat*nat)) :=
 match nts with
-| nil => nil 
+| nil => nil
 | namedt_intro id0 t::nts' =>
-  let results := _getTypeSizeInBits_and_Alignment_for_namedts los nts' 
+  let results := _getTypeSizeInBits_and_Alignment_for_namedts los nts'
                 abi_or_pref in
   match _getTypeSizeInBits_and_Alignment los results abi_or_pref t with
   | None => results
@@ -435,13 +431,13 @@ match nts with
   end
 end.
 
-Definition getTypeSizeInBits_and_Alignment_for_namedts 
+Definition getTypeSizeInBits_and_Alignment_for_namedts
   (TD:TargetData) (abi_or_pref:bool)  : list (id*(nat*nat)) :=
 let (los, nts) := TD in
 _getTypeSizeInBits_and_Alignment_for_namedts los (rev nts) abi_or_pref.
 
 
-Definition getTypeSizeInBits_and_Alignment (TD:TargetData) (abi_or_pref:bool) 
+Definition getTypeSizeInBits_and_Alignment (TD:TargetData) (abi_or_pref:bool)
   (t:typ) : option (nat*nat) :=
   let '(los, nts) := TD in
   _getTypeSizeInBits_and_Alignment los
@@ -461,7 +457,7 @@ Definition getListTypeSizeInBits_and_Alignment (TD:TargetData) (abi_or_pref:bool
   Get the ABI (abi_or_pref == true) or preferred alignment (abi_or_pref
   == false) for the requested type t.
  *)
-Definition getAlignment (TD:TargetData) (t:typ) (abi_or_pref:bool) : option nat 
+Definition getAlignment (TD:TargetData) (t:typ) (abi_or_pref:bool) : option nat
   :=
   match (getTypeSizeInBits_and_Alignment TD abi_or_pref t) with
   | (Some (sz, al)) => Some al
@@ -480,7 +476,7 @@ Definition getPrefTypeAlignment (TD:TargetData) (t:typ) : option nat :=
 
 (*
  Size examples:
-  
+
    Type        SizeInBits  StoreSizeInBits  AllocSizeInBits[*]
    ----        ----------  ---------------  ---------------
     i1            1           8                8
@@ -492,7 +488,7 @@ Definition getPrefTypeAlignment (TD:TargetData) (t:typ) : option nat :=
     Float        32          32               32
     Double       64          64               64
     X86_FP80     80          80               96
-  
+
    [*] The alloc size depends on the alignment, and thus on the target.
        These values are for x86-32 linux.
 *)
@@ -529,7 +525,7 @@ Definition getTypeStoreSizeInBits (TD:TargetData) (t:typ) : option nat :=
     x86_fp80, depending on alignment. *)
 Definition getTypeAllocSize (TD:TargetData) (t:typ) : option sz :=
   match (getTypeStoreSize TD t, getABITypeAlignment TD t) with
-  | (Some ss, Some ta) => 
+  | (Some ss, Some ta) =>
     (* Round up to the next alignment boundary *)
     Some (RoundUpAlignment ss ta)
   | _ => None
@@ -547,7 +543,7 @@ Definition getTypeAllocSizeInBits (TD:TargetData) (t:typ) : option nat :=
 
 Definition getStructSizeInBytes (TD:TargetData) (t:typ) : option nat :=
 match t with
-| typ_struct lt => 
+| typ_struct lt =>
   match (getTypeSizeInBits TD t) with
   | Some sz => Some (nat_of_Z (ZRdiv (Z_of_nat sz) 8))
   | None => None
@@ -567,7 +563,7 @@ match t with
 | _ => None
 end.
 
-Fixpoint _getStructElementOffset (TD:TargetData) (ts:list_typ) (idx:nat) 
+Fixpoint _getStructElementOffset (TD:TargetData) (ts:list_typ) (idx:nat)
          (ofs : nat) : option nat :=
 match (ts, idx) with
 | (_, O) => Some ofs
@@ -587,7 +583,7 @@ match t with
 | _ => None
 end.
 
-Definition getStructElementOffsetInBits (TD:TargetData) (t:typ) (idx:nat) 
+Definition getStructElementOffsetInBits (TD:TargetData) (t:typ) (idx:nat)
   : option nat :=
 match t with
 | typ_struct lt => match (_getStructElementOffset TD lt idx 0) with
@@ -599,7 +595,7 @@ end.
 
 (** getElementContainingOffset - Given a valid offset into the structure,
     return the structure index that contains it. *)
-Fixpoint _getStructElementContainingOffset (TD:TargetData) (ts:list_typ) 
+Fixpoint _getStructElementContainingOffset (TD:TargetData) (ts:list_typ)
   (offset:nat) (idx:nat) (cur : nat) : option nat :=
 match ts with
 | Nil_list_typ => None
@@ -616,14 +612,14 @@ match ts with
     end
 end.
 
-(** 
+(**
    Multiple fields can have the same offset if any of them are zero sized.
    For example, in { i32, [0 x i32], i32 }, searching for offset 4 will stop
    at the i32 element, because it is the last element at that offset.  This is
    the right one to return, because anything after it will have a higher
    offset, implying that this element is non-empty.
 *)
-Definition getStructElementContainingOffset (TD:TargetData) (t:typ) (offset:nat) 
+Definition getStructElementContainingOffset (TD:TargetData) (t:typ) (offset:nat)
   : option nat :=
 match t with
 | typ_struct lt => _getStructElementContainingOffset TD lt offset 0 0
@@ -638,7 +634,7 @@ Definition feasible_typ_aux TD t : Prop :=
 
 Fixpoint feasible_typ TD t : Prop :=
 match t with
-| typ_int _ | typ_pointer _ | typ_floatpoint fp_float 
+| typ_int _ | typ_pointer _ | typ_floatpoint fp_float
 | typ_floatpoint fp_double => feasible_typ_aux TD t
 | typ_array _ t' => feasible_typ TD t'
 | typ_struct ts => feasible_typs TD ts
@@ -650,7 +646,7 @@ match lt with
 | Cons_list_typ t lt' => feasible_typ TD t /\ feasible_typs TD lt'
 end.
 
-Lemma RoundUpAlignment_spec : 
+Lemma RoundUpAlignment_spec :
   forall a b, (b > 0)%nat -> (RoundUpAlignment a b >= a)%nat.
 Proof.
   intros. unfold RoundUpAlignment.
@@ -658,7 +654,7 @@ Proof.
     as J.
     apply Coqlib.roundup_is_correct.
       destruct b; try solve [contradict H; omega | apply Coqlib.Z_of_S_gt_O].
-  apply nat_of_Z_inj_ge in J.  
+  apply nat_of_Z_inj_ge in J.
   rewrite Coqlib.Z_of_nat_eq in J. auto.
 Qed.
 
@@ -711,7 +707,7 @@ Lemma feasible_struct_typ_inv : forall TD ts,
 Proof.
   intros.
   unfold feasible_typ in H.
-  unfold feasible_typs. 
+  unfold feasible_typs.
   unfold getTypeSizeInBits_and_Alignment in *.
   destruct TD.
   simpl in *.
@@ -721,12 +717,12 @@ Proof.
 Qed.
 
 Definition feasible_typ_inv_prop' (t:typ) := forall TD,
-  feasible_typ TD t -> 
+  feasible_typ TD t ->
   exists sz, exists al,
     getTypeSizeInBits_and_Alignment TD true t = Some (sz, al) /\ (al > 0)%nat.
 
 Definition feasible_typs_inv_prop' (lt:list_typ) := forall TD,
-  feasible_typs TD lt -> 
+  feasible_typs TD lt ->
   (forall t, In t (unmake_list_typ lt) -> feasible_typ TD t) /\
   exists sz, exists al,
     getListTypeSizeInBits_and_Alignment TD true lt = Some (sz,al) /\
@@ -736,23 +732,23 @@ Lemma feasible_typ_inv_mutrec' :
   (forall t, feasible_typ_inv_prop' t) *
   (forall lt, feasible_typs_inv_prop' lt).
 Proof.
-  (typ_cases (apply typ_mutrec; 
+  (typ_cases (apply typ_mutrec;
     unfold feasible_typ_inv_prop', feasible_typs_inv_prop') Case);
     intros;
-    unfold getTypeSizeInBits_and_Alignment in *; 
-    simpl in *; try (destruct TD); 
+    unfold getTypeSizeInBits_and_Alignment in *;
+    simpl in *; try (destruct TD);
     try solve [eauto | inversion H | inversion H1].
 Case "typ_floatingpoint".
   destruct f; try solve [inv H].
     exists 32%nat. exists (getFloatAlignmentInfo l0 32 true).
-    split; auto. 
+    split; auto.
 
     exists 64%nat. exists (getFloatAlignmentInfo l0 64 true).
     split; auto.
 Case "typ_array".
   eapply H in H0; eauto.
   destruct H0 as [sz [al [J1 J2]]].
-  rewrite J1. 
+  rewrite J1.
   destruct s.
     exists 8%nat. exists 1%nat. split; auto.
 
@@ -764,7 +760,7 @@ Case "typ_struct".
   eapply H in H0; eauto.
   destruct H0 as [J0 [sz [al [J1 J2]]]].
   unfold getListTypeSizeInBits_and_Alignment in J1.
-  rewrite J1. 
+  rewrite J1.
   destruct sz.
     exists 8%nat. exists 1%nat. split; auto.
     exists (S sz0). exists al. split; auto. apply J2. omega.
@@ -775,13 +771,13 @@ Case "typ_nil".
     simpl. exists 0%nat. exists 0%nat. split; auto.
 
 Case "typ_cons".
-  destruct H1 as [J1 J2]. 
+  destruct H1 as [J1 J2].
   eapply H0 in J2; eauto.
   destruct J2 as [J21 [sz2 [al2 [J22 J23]]]].
   split.
-    intros. 
+    intros.
     destruct H1 as [H1 | H1]; subst; auto.
-      
+
     simpl.
     unfold getListTypeSizeInBits_and_Alignment in J22.
     unfold getTypeSizeInBits_and_Alignment_for_namedts in J22.
@@ -800,7 +796,7 @@ Case "typ_cons".
 Qed.
 
 Lemma feasible_typ_inv' : forall t TD,
-  feasible_typ TD t -> 
+  feasible_typ TD t ->
   exists sz, exists al,
     getTypeSizeInBits_and_Alignment TD true t = Some (sz, al) /\ (al > 0)%nat.
 Proof.
@@ -822,7 +818,7 @@ Proof.
     getTypeSizeInBits_and_Alignment_for_namedts in HeqR3.
   rewrite J6 in HeqR3.
   inv HeqR3.
-  assert (RoundUpAlignment (Coqlib.nat_of_Z (Coqlib.ZRdiv (Z_of_nat sz2) 8)) 
+  assert (RoundUpAlignment (Coqlib.nat_of_Z (Coqlib.ZRdiv (Z_of_nat sz2) 8))
       al2 >= (Coqlib.nat_of_Z (Coqlib.ZRdiv (Z_of_nat sz2) 8)))%nat as J8.
     apply RoundUpAlignment_spec.
       eapply feasible_typ_inv' in H31; eauto.
@@ -834,12 +830,3 @@ Proof.
 Qed.
 
 End LLVMtd.
-
-(*****************************)
-(*
-*** Local Variables: ***
-*** coq-prog-name: "coqtop" ***
-*** coq-prog-args: ("-emacs-U" "-I" "~/SVN/sol/vol/src/Vellvm/monads" "-I" "~/SVN/sol/vol/src/Vellvm/ott" "-I" "~/SVN/sol/vol/src/Vellvm/compcert" "-I" "~/SVN/sol/theory/metatheory_8.3" "-I" "~/SVN/sol/vol/src/TV") ***
-*** End: ***
- *)
-

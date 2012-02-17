@@ -1,4 +1,3 @@
-Add LoadPath "../Vellvm/compcert".
 Require Import Memory.
 Require Import Values.
 Require Import Coqlib.
@@ -33,15 +32,15 @@ Inductive val_inject (mi: meminj): val -> val -> Prop :=
       forall i, val_inject mi (Vinttoptr i) (Vinttoptr i)
   | val_inject_undef: val_inject mi Vundef Vundef.
 
-Hint Resolve val_inject_int val_inject_float val_inject_ptr val_inject_inttoptr 
+Hint Resolve val_inject_int val_inject_float val_inject_ptr val_inject_inttoptr
              val_inject_undef.
 
-Inductive val_list_inject (mi: meminj): list val -> list val-> Prop:= 
+Inductive val_list_inject (mi: meminj): list val -> list val-> Prop:=
   | val_nil_inject :
       val_list_inject mi nil nil
-  | val_cons_inject : forall v v' vl vl' , 
+  | val_cons_inject : forall v v' vl vl' ,
       val_inject mi v v' -> val_list_inject mi vl vl'->
-      val_list_inject mi (v :: vl) (v' :: vl').  
+      val_list_inject mi (v :: vl) (v' :: vl').
 
 Hint Resolve val_nil_inject val_cons_inject.
 
@@ -65,10 +64,10 @@ Lemma inject_incr_refl :
 Proof. unfold inject_incr. auto. Qed.
 
 Lemma inject_incr_trans :
-  forall f1 f2 f3, 
+  forall f1 f2 f3,
   inject_incr f1 f2 -> inject_incr f2 f3 -> inject_incr f1 f3 .
 Proof .
-  unfold inject_incr; intros. eauto. 
+  unfold inject_incr; intros. eauto.
 Qed.
 
 Lemma val_inject_incr:
@@ -103,7 +102,7 @@ Inductive memval_inject (f: meminj): memval -> memval -> Prop :=
       forall i n, memval_inject f (IPointer i n) (IPointer i n)
   | memval_inject_undef: memval_inject f Undef Undef.
 
-Lemma memval_inject_incr: forall f f' v1 v2, 
+Lemma memval_inject_incr: forall f f' v1 v2,
   memval_inject f v1 v2 -> inject_incr f f' -> memval_inject f' v1 v2.
 Proof.
   intros. inv H; econstructor. rewrite (H0 _ _ _ H1). reflexivity. auto.
@@ -124,7 +123,7 @@ Proof.
   remember (proj_bytes n0 al) as R.
   destruct R.
     inv H. rewrite (IHlist_forall2 n0 l); auto.
-    congruence.      
+    congruence.
 Qed.
 
 Lemma proj_bytes_inject_none:
@@ -191,7 +190,7 @@ Proof.
     apply andb_false_elim in H3.
     destruct H3 as [H3 | H3].
       apply andb_false_elim in H3.
-      destruct H3 as [H3 | H3].  
+      destruct H3 as [H3 | H3].
         apply andb_false_intro1.
         apply andb_false_intro1.
         apply andb_false_intro1.
@@ -216,9 +215,9 @@ Lemma check_ipointer_inject_true:
   list_forall2 (memval_inject f) vl vl' ->
   forall n i,
   check_ipointer n i vl = true ->
-  check_ipointer n i vl' = true. 
+  check_ipointer n i vl' = true.
 Proof.
-  induction 1; intros; destruct n; simpl in *; auto. 
+  induction 1; intros; destruct n; simpl in *; auto.
   inv H; auto.
 
   destruct (andb_prop _ _ H1). destruct (andb_prop _ _ H).
@@ -231,9 +230,9 @@ Lemma check_ipointer_inject_false:
   list_forall2 (memval_inject f) vl vl' ->
   forall n i,
   check_ipointer n i vl = false ->
-  check_ipointer n i vl' = false. 
+  check_ipointer n i vl' = false.
 Proof.
-  induction 1; intros; destruct n; simpl in *; auto. 
+  induction 1; intros; destruct n; simpl in *; auto.
   inv H; auto.
 
   apply andb_false_elim in H1.
@@ -249,13 +248,13 @@ Lemma proj_ipointer_inject:
 Proof.
   intros. unfold proj_ipointer.
   inversion H; subst. auto. inversion H0; subst; auto.
-  case_eq (check_ipointer (size_chunk_nat Mint32) i 
+  case_eq (check_ipointer (size_chunk_nat Mint32) i
              (IPointer i n :: al)); intros.
-  exploit check_ipointer_inject_true. eexact H. eauto. eauto. 
-  intro. rewrite H3. econstructor; eauto. 
+  exploit check_ipointer_inject_true. eexact H. eauto. eauto.
+  intro. rewrite H3. econstructor; eauto.
 
-  exploit check_ipointer_inject_false. eexact H. eauto. eauto. 
-  intro. rewrite H3. econstructor; eauto. 
+  exploit check_ipointer_inject_false. eexact H. eauto. eauto.
+  intro. rewrite H3. econstructor; eauto.
 Qed.
 
 Lemma proj_pointer_inject:
@@ -267,14 +266,14 @@ Lemma proj_pointer_inject:
 Proof.
   intros f v11 v12 J1 J2 H. unfold proj_pointer.
   inversion H; subst. auto. inversion H0; subst; auto.
-  case_eq (check_pointer (size_chunk_nat Mint32) b0 ofs1 
+  case_eq (check_pointer (size_chunk_nat Mint32) b0 ofs1
              (Pointer b0 ofs1 n :: al)); intros.
 
   exploit check_pointer_inject_true; eauto.
-  intro. rewrite H4. econstructor; eauto. 
+  intro. rewrite H4. econstructor; eauto.
 
-  exploit check_pointer_inject_false; eauto. 
-  intro. rewrite H4. econstructor; eauto. 
+  exploit check_pointer_inject_false; eauto.
+  intro. rewrite H4. econstructor; eauto.
 Qed.
 
 Lemma proj_bytes_not_inject:
@@ -292,7 +291,7 @@ Proof.
       destruct R; destruct R';
         try solve [inversion H1 | inversion H2 | contradict H2; auto].
         right. eapply IHlist_forall2; eauto.
-          rewrite <- HeqR'. intro. inversion H.          
+          rewrite <- HeqR'. intro. inversion H.
       contradict H2; auto.
 Qed.
 
@@ -300,7 +299,7 @@ Lemma proj_pointer_undef:
   forall vl, In Undef vl -> proj_pointer vl = Vundef.
 Proof.
   intros; unfold proj_pointer.
-  destruct vl; auto. destruct m; auto. 
+  destruct vl; auto. destruct m; auto.
   rewrite check_pointer_undef. auto. auto.
 Qed.
 
@@ -308,7 +307,7 @@ Lemma proj_ipointer_undef:
   forall vl, In Undef vl -> proj_ipointer vl = Vundef.
 Proof.
   intros; unfold proj_ipointer.
-  destruct vl; auto. destruct m; auto. 
+  destruct vl; auto. destruct m; auto.
   rewrite check_ipointer_undef. auto. auto.
 Qed.
 
@@ -323,7 +322,7 @@ Proof.
   case_eq (proj_bytes (wz_of_chunk chunk) vl1); intros.
     exploit proj_bytes_inject_some; eauto. intros. rewrite H1.
     destruct chunk; constructor.
- 
+
     exploit proj_bytes_inject_none; eauto. intros. rewrite H1.
     destruct chunk; auto.
     destruct (eq_nat_dec n 31); subst; auto.
@@ -359,12 +358,12 @@ Lemma perm_inj:
   f b1 = Some(b2, delta) ->
   perm m2 b2 (ofs + delta) p.
 Proof.
-  intros. 
+  intros.
   assert (valid_access m1 (Mint 7) b1 ofs p).
     split. red; intros. simpl in H2. rewrite bytesize_chunk_7_eq_1 in H2. replace ofs0 with ofs by omega. auto.
     simpl. apply Zone_divide.
   exploit mi_access; eauto. intros [A B].
-  apply A. simpl; rewrite bytesize_chunk_7_eq_1; omega. 
+  apply A. simpl; rewrite bytesize_chunk_7_eq_1; omega.
 Qed.
 
 (** Preservation of loads. *)
@@ -375,19 +374,19 @@ Lemma getN_inj:
   f b1 = Some(b2, delta) ->
   forall n ofs,
   range_perm m1 b1 ofs (ofs + Z_of_nat n) Readable ->
-  list_forall2 (memval_inject f) 
+  list_forall2 (memval_inject f)
                (getN n ofs (m1.(mem_contents) b1))
                (getN n (ofs + delta) (m2.(mem_contents) b2)).
 Proof.
   induction n; intros; simpl.
   constructor.
-  rewrite inj_S in H1. 
-  constructor. 
+  rewrite inj_S in H1.
+  constructor.
   eapply mi_memval; eauto.
   apply perm_implies with Readable.
-  apply H1. omega. constructor. 
+  apply H1. omega. constructor.
   replace (ofs + delta + 1) with ((ofs + 1) + delta) by omega.
-  apply IHn. red; intros; apply H1; omega. 
+  apply IHn. red; intros; apply H1; omega.
 Qed.
 
 Lemma load_inj:
@@ -401,11 +400,11 @@ Lemma load_inj:
 Proof.
   intros f m1 m2 chunk b1 ofs b2 delta v1 J1 J2 H H0 H1.
   exists (decode_val chunk (getN (size_chunk_nat chunk) (ofs + delta) (m2.(mem_contents) b2))).
-  split. unfold load. apply pred_dec_true.  
-  eapply mi_access; eauto with mem. 
-  exploit load_result; eauto. intro. rewrite H2. 
-  apply decode_val_inject; auto. apply getN_inj; auto. 
-  rewrite <- size_chunk_conv. exploit load_valid_access; eauto. 
+  split. unfold load. apply pred_dec_true.
+  eapply mi_access; eauto with mem.
+  exploit load_result; eauto. intro. rewrite H2.
+  apply decode_val_inject; auto. apply getN_inj; auto.
+  rewrite <- size_chunk_conv. exploit load_valid_access; eauto.
   intros [A B]. auto.
 Qed.
 
@@ -416,20 +415,20 @@ Lemma setN_inj:
   list_forall2 (memval_inject f) vl1 vl2 ->
   forall p c1 c2,
   (forall q, access q -> memval_inject f (c1 q) (c2 (q + delta))) ->
-  (forall q, access q -> memval_inject f ((setN vl1 p c1) q) 
+  (forall q, access q -> memval_inject f ((setN vl1 p c1) q)
                                          ((setN vl2 (p + delta) c2) (q + delta))).
 Proof.
-  induction 1; intros; simpl. 
+  induction 1; intros; simpl.
   auto.
   replace (p + delta + 1) with ((p + 1) + delta) by omega.
-  apply IHlist_forall2; auto. 
+  apply IHlist_forall2; auto.
   intros. unfold update at 1. destruct (zeq q0 p). subst q0.
   rewrite update_s. auto.
   rewrite update_o. auto. omega.
 Qed.
 
 Lemma inj_bytes_inject:
-  forall f wz bl, 
+  forall f wz bl,
     list_forall2 (memval_inject f) (inj_bytes wz bl) (inj_bytes wz bl).
 Proof.
   induction bl; constructor; auto. constructor.
@@ -440,7 +439,7 @@ Lemma repeat_Undef_inject_self:
   list_forall2 (memval_inject f) (list_repeat n Undef) (list_repeat n Undef).
 Proof.
   induction n; simpl; constructor; auto. constructor.
-Qed.  
+Qed.
 
 Theorem encode_val_inject:
   forall f v1 v2 chunk,
@@ -473,10 +472,10 @@ Lemma store_mapped_inj:
     store chunk m2 b2 (ofs + delta) v2 = Some n2
     /\ mem_inj f n1 n2.
 Proof.
-  intros. inversion H. 
+  intros. inversion H.
   assert (valid_access m2 chunk b2 (ofs + delta) Writable).
     eapply mi_access0; eauto with mem.
-  destruct (valid_access_store _ _ _ _ v2 H4) as [n2 STORE]. 
+  destruct (valid_access_store _ _ _ _ v2 H4) as [n2 STORE].
   exists n2; split. eauto.
   constructor.
 (* access *)
@@ -486,23 +485,23 @@ Proof.
   eapply store_valid_access_2; [apply H0 |]. auto.
 (* mem_contents *)
   intros.
-  assert (perm m1 b0 ofs0 Nonempty). eapply perm_store_2; eauto. 
+  assert (perm m1 b0 ofs0 Nonempty). eapply perm_store_2; eauto.
   rewrite (store_mem_contents _ _ _ _ _ _ H0).
   rewrite (store_mem_contents _ _ _ _ _ _ STORE).
-  unfold update. 
+  unfold update.
   destruct (zeq b0 b1). subst b0.
   (* block = b1, block = b2 *)
   assert (b3 = b2) by congruence. subst b3.
   assert (delta0 = delta) by congruence. subst delta0.
   rewrite zeq_true.
   apply setN_inj with (access := fun ofs => perm m1 b1 ofs Nonempty).
-  apply encode_val_inject; auto. auto. auto. 
+  apply encode_val_inject; auto. auto. auto.
   destruct (zeq b3 b2). subst b3.
   (* block <> b1, block = b2 *)
   rewrite setN_other. auto.
-  rewrite encode_val_length. rewrite <- size_chunk_conv. intros. 
+  rewrite encode_val_length. rewrite <- size_chunk_conv. intros.
   assert (b2 <> b2).
-    eapply H1; eauto. 
+    eapply H1; eauto.
   congruence.
   (* block <> b1, block <> b2 *)
   eauto.
@@ -520,9 +519,9 @@ Proof.
 (* access *)
   eauto with mem.
 (* mem_contents *)
-  intros. 
+  intros.
   rewrite (store_mem_contents _ _ _ _ _ _ H0).
-  rewrite update_o. eauto with mem. 
+  rewrite update_o. eauto with mem.
   congruence.
 Qed.
 
@@ -540,12 +539,12 @@ Proof.
 (* access *)
   eauto with mem.
 (* mem_contents *)
-  intros. 
+  intros.
   rewrite (store_mem_contents _ _ _ _ _ _ H1).
   unfold update. destruct (zeq b2 b). subst b2.
-  rewrite setN_outside. auto. 
-  rewrite encode_val_length. rewrite <- size_chunk_conv. 
-  eapply H0; eauto. 
+  rewrite setN_outside. auto.
+  rewrite encode_val_length. rewrite <- size_chunk_conv.
+  eapply H0; eauto.
   eauto with mem.
 Qed.
 
@@ -560,16 +559,16 @@ Proof.
   intros. injection H0. intros NEXT MEM.
   inversion H. constructor.
 (* access *)
-  intros. eauto with mem. 
+  intros. eauto with mem.
 (* mem_contents *)
   intros.
   assert (valid_access m2 (Mint 7) b0 (ofs + delta) Nonempty).
     eapply mi_access0; eauto.
     split. simpl. red; intros. rewrite bytesize_chunk_7_eq_1 in H3. assert (ofs0 = ofs) by omega. congruence.
-    simpl. apply Zone_divide. 
+    simpl. apply Zone_divide.
   assert (valid_block m2 b0) by eauto with mem.
   rewrite <- MEM; simpl. rewrite update_o. eauto with mem.
-  rewrite NEXT. apply sym_not_equal. eauto with mem. 
+  rewrite NEXT. apply sym_not_equal. eauto with mem.
 Qed.
 
 Definition inj_offset_aligned (delta: Z) (size: Z) : Prop :=
@@ -587,10 +586,10 @@ Proof.
   intros. exploit free_result; eauto. intro FREE. inversion H. constructor.
 (* access *)
   intros. exploit mi_access0; eauto. intros [RG AL]. split; auto.
-  red; intros. eapply perm_free_1; eauto. 
+  red; intros. eapply perm_free_1; eauto.
   destruct (zeq b2 b); auto. subst b. right.
   destruct (zlt ofs0 lo); auto. destruct (zle hi ofs0); auto.
-  elimtype False. eapply H1 with (ofs := ofs0 - delta). eauto. 
+  elimtype False. eapply H1 with (ofs := ofs0 - delta). eauto.
   apply H3. omega. omega.
 (* mem_contents *)
   intros. rewrite FREE; simpl.
@@ -625,15 +624,15 @@ Lemma free_inj:
   mem_inj f m1' m2'.
 Proof.
   intros f m1 m2 b1 b2 delta lo hi m1' m2' J J' H H0 H1 H2.
-  exploit free_result; eauto. 
+  exploit free_result; eauto.
   intro FREE. inversion H. constructor.
 (* access *)
-  intros. exploit mi_access0; eauto with mem. 
+  intros. exploit mi_access0; eauto with mem.
   intros [RG AL]. split; auto.
-  red; intros. eapply perm_free_1; eauto. 
-  destruct (zeq b3 b2); auto. 
+  red; intros. eapply perm_free_1; eauto.
+  destruct (zeq b3 b2); auto.
     subst b2. right.
-    destruct (zlt ofs0 (lo + delta)); auto. 
+    destruct (zlt ofs0 (lo + delta)); auto.
     destruct (zle (hi + delta) ofs0); auto.
     destruct (@meminj_no_overlap_spec f b0 b3 delta0 b1 delta J H3 H2)
       as [G1 G2]; subst.
@@ -648,11 +647,11 @@ Proof.
 (* mem_contents *)
   intros. rewrite FREE; simpl.
   assert (FREE':=H0). apply free_result in FREE'.
-  rewrite FREE'; simpl.   
+  rewrite FREE'; simpl.
   assert (b0=b1 /\ lo <= ofs < hi \/ (b1<>b0 \/ ofs<lo \/ hi <= ofs)) as J1
     by (unfold block; omega).
-  assert (b2=b3 /\ lo+delta <= ofs+delta < hi+delta \/ 
-    (b2<>b3 \/ ofs+delta<lo+delta \/ hi+delta <= ofs+delta)) 
+  assert (b2=b3 /\ lo+delta <= ofs+delta < hi+delta \/
+    (b2<>b3 \/ ofs+delta<lo+delta \/ hi+delta <= ofs+delta))
     as J2 by (unfold block; omega).
   destruct J1 as [J1 | J1].
     destruct J1 as [J11 J12]; subst.
@@ -679,11 +678,3 @@ Qed.
 Global Opaque load alloc.
 
 End MoreMem.
-
-(*****************************)
-(*
-*** Local Variables: ***
-*** coq-prog-name: "coqtop" ***
-*** coq-prog-args: ("-emacs-U" "-I" "~/SVN/sol/vol/src/Vellvm/monads" "-I" "~/SVN/sol/vol/src/Vellvm/ott" "-I" "~/SVN/sol/vol/src/Vellvm/compcert" "-I" "~/SVN/sol/theory/metatheory_8.3" "-I" "~/SVN/sol/vol/src/TV") ***
-*** End: ***
- *)

@@ -3,6 +3,7 @@
 -I ../Vellvm/ott/
 -I ../Vellvm/monads/
 -I ../Vellvm/compcert/
+-I ../SoftBound/
 -impredicative-set
 eq_tv_correct.v
 eq_tv_dec.v

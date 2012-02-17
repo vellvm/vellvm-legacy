@@ -3,6 +3,7 @@
 -I ../Vellvm/monads
 -I ../Vellvm/compcert/
 -I ../Vellvm/GraphBasics/
+-I ../SoftBound/
 -impredicative-set
 dtree.v
 primitives.v

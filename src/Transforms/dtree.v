@@ -1,9 +1,3 @@
-Add LoadPath "../Vellvm/ott".
-Add LoadPath "../Vellvm/monads".
-Add LoadPath "../Vellvm/compcert".
-Add LoadPath "../Vellvm/GraphBasics".
-Add LoadPath "../Vellvm".
-Add LoadPath "../../../theory/metatheory_8.3".
 Require Import vellvm.
 Require Import Lattice.
 Require Import Maps.
@@ -14,7 +8,7 @@ Section MoreMove.
 Variable A: Type.
 Hypothesis Hdec: forall x y : A, {x = y} + {x <> y}.
 
-Lemma remove_length: forall (a: A) (l1: list A), 
+Lemma remove_length: forall (a: A) (l1: list A),
   (length (List.remove Hdec a l1) <= length l1)%nat.
 Proof.
   induction l1; simpl; intros.
@@ -22,7 +16,7 @@ Proof.
     destruct (Hdec a a0); subst; simpl; omega.
 Qed.
 
-Lemma remove_in_length: forall (a: A) (l1: list A), 
+Lemma remove_in_length: forall (a: A) (l1: list A),
   In a l1 -> (length (List.remove Hdec a l1) < length l1)%nat.
 Proof.
   induction l1; simpl; intros.
@@ -30,10 +24,10 @@ Proof.
 
     destruct H as [H | H]; subst.
       destruct (Hdec a a); try congruence.
-      assert (J:=@remove_length a l1). omega.    
+      assert (J:=@remove_length a l1). omega.
 
       destruct (Hdec a a0); subst.
-        assert (J:=@remove_length a0 l1). omega.    
+        assert (J:=@remove_length a0 l1). omega.
         assert (J:=@IHl1 H). simpl. omega.
 Qed.
 
@@ -68,40 +62,40 @@ Qed.
 
 End MoreMove.
 
-Program Fixpoint reachablity_analysis_aux (nvisited: list l) (succs : ATree.t ls) 
+Program Fixpoint reachablity_analysis_aux (nvisited: list l) (succs : ATree.t ls)
   (curr: l) (acc: list l) {measure (List.length nvisited)%nat}
-  : option (list l) := 
+  : option (list l) :=
 match (ATree.get curr succs) with
 | None => None
-| Some nexts => 
-    fold_left 
+| Some nexts =>
+    fold_left
       (fun oacc' next =>
        match oacc' with
        | None => None
        | Some acc' =>
-         if (in_dec eq_atom_dec next nvisited) then 
+         if (in_dec eq_atom_dec next nvisited) then
            if (in_dec eq_atom_dec next acc) then
              Some acc'
            else
-             match reachablity_analysis_aux (List.remove eq_atom_dec next nvisited) 
+             match reachablity_analysis_aux (List.remove eq_atom_dec next nvisited)
                      succs next (next::acc) with
              | None => None
              | Some acc'' => Some (ListSet.set_union eq_atom_dec acc' acc'')
              end
-         else 
+         else
            Some acc'
        end)
       nexts (Some acc)
 end.
-Next Obligation. 
+Next Obligation.
   apply remove_in_length; auto.
 Qed.
 
-Fixpoint get_reachable_labels (bd:list l) (rd:AMap.t bool) (acc:list l) 
+Fixpoint get_reachable_labels (bd:list l) (rd:AMap.t bool) (acc:list l)
   : list l :=
 match bd with
-| nil => acc 
-| l0::bd' => if (AMap.get l0 rd) 
+| nil => acc
+| l0::bd' => if (AMap.get l0 rd)
              then get_reachable_labels bd' rd (l0::acc)
              else get_reachable_labels bd' rd acc
 end.
@@ -122,7 +116,7 @@ Definition reachablity_analysis (f : fdef) : option (list l) :=
 match getEntryBlock f with
 | Some (block_intro root _ _ _) =>
     let 'succs := successors f in
-    reachablity_analysis_aux 
+    reachablity_analysis_aux
       (List.remove eq_atom_dec root (bound_fdef f)) succs root [root]
 | None => None
 end.
@@ -165,25 +159,25 @@ match dts with
 | nil => acc
 | l0::dts' =>
     if (gt_sdom bd res acc l0) then
-      find_min bd res l0 dts' 
+      find_min bd res l0 dts'
     else
-      find_min bd res acc dts' 
+      find_min bd res acc dts'
 end.
 
-Fixpoint insert_sort_sdom_iter bd (res: AMap.t (Dominators.t bd)) (l0:l) 
+Fixpoint insert_sort_sdom_iter bd (res: AMap.t (Dominators.t bd)) (l0:l)
   (prefix suffix:list l) : list l :=
 match suffix with
 | nil => List.rev (l0 :: prefix)
-| l1::suffix' => 
+| l1::suffix' =>
     if gt_sdom bd res l0 l1 then (List.rev (l0 :: prefix)) ++ suffix
     else insert_sort_sdom_iter bd res l0 (l1::prefix) suffix'
 end.
 
-Fixpoint insert_sort_sdom bd (res: AMap.t (Dominators.t bd)) (data:list l) 
+Fixpoint insert_sort_sdom bd (res: AMap.t (Dominators.t bd)) (data:list l)
   (acc:list l) : list l :=
 match data with
-| nil => acc 
-| l1 :: data' => 
+| nil => acc
+| l1 :: data' =>
     insert_sort_sdom bd res data' (insert_sort_sdom_iter bd res l1 nil acc)
 end.
 
@@ -196,7 +190,7 @@ Definition gt_dom_prop bd (res: AMap.t (Dominators.t bd)) (l1 l2:l) : Prop :=
 gt_sdom bd res l1 l2 = true \/ l1 = l2.
 
 Lemma sorted_append: forall A (R:A -> A -> Prop) a (l1:list A),
-  (forall a1 l1', 
+  (forall a1 l1',
     l1 = l1'++a1::nil -> R a1 a) ->
   Sorted R l1 -> Sorted R (l1 ++ a :: nil).
 Proof.
@@ -204,7 +198,7 @@ Proof.
     inv H0.
     constructor; auto.
       apply IHl1; auto.
-        intros. subst. 
+        intros. subst.
         apply H with (l1'0:=a0 :: l1'); auto.
       inv H4; simpl; auto.
       constructor.
@@ -220,7 +214,7 @@ Proof.
     constructor.
       apply H with (l1':=nil); auto.
     inv H5. constructor; auto.
-Qed.  
+Qed.
 
 Lemma sorted_insert: forall A (R:A -> A -> Prop) (l2 l1:list A) a,
   (forall a1 l1', l1 = l1'++a1::nil -> R a1 a) ->
@@ -241,8 +235,8 @@ Proof.
 Qed.
 
 Lemma In_bound_fdef__blockInFdefB: forall f l3,
-  In l3 (bound_fdef f) -> 
-  exists ps, exists cs, exists tmn, 
+  In l3 (bound_fdef f) ->
+  exists ps, exists cs, exists tmn,
     blockInFdefB (block_intro l3 ps cs tmn) f = true.
 Admitted.
 
@@ -260,9 +254,9 @@ Proof.
   remember (Maps.AMap.get l2 (dom_analyze f)) as R2.
   remember (Maps.AMap.get l3 (dom_analyze f)) as R3.
   destruct R2. destruct R3.
-  apply In_bound_fdef__blockInFdefB in HBinF1. 
-  apply In_bound_fdef__blockInFdefB in HBinF2. 
-  apply In_bound_fdef__blockInFdefB in HBinF3. 
+  apply In_bound_fdef__blockInFdefB in HBinF1.
+  apply In_bound_fdef__blockInFdefB in HBinF2.
+  apply In_bound_fdef__blockInFdefB in HBinF3.
   destruct HBinF1 as [ps1 [cs1 [tmn1 HBinF1]]].
   destruct HBinF2 as [ps2 [cs2 [tmn2 HBinF2]]].
   destruct HBinF3 as [ps3 [cs3 [tmn3 HBinF3]]].
@@ -284,10 +278,10 @@ Proof.
         split; auto.
           eapply dom_tran; eauto.
       eapply sdom_is_complete in Hsdom13; eauto.
-        rewrite <- HeqR3 in Hsdom13. simpl in *. 
+        rewrite <- HeqR3 in Hsdom13. simpl in *.
         destruct (in_dec l_dec l1 bs_contents0); auto.
 
-        rewrite <- HeqR3. simpl. 
+        rewrite <- HeqR3. simpl.
         destruct bs_contents0; auto.
           intro J. inv J.
 
@@ -297,7 +291,7 @@ Proof.
       eapply sdom_is_complete in Hsdom23; eauto.
         destruct (in_dec l_dec l2 bs_contents0); auto.
 
-        rewrite <- HeqR3. simpl. 
+        rewrite <- HeqR3. simpl.
         destruct bs_contents0; auto.
           intro J. inv J.
 
@@ -315,15 +309,15 @@ Lemma gt_sdom_prop_trans : forall ifs S M f l1 l2 l3
   gt_sdom (bound_fdef f) (dom_analyze f)  l1 l3 = true.
 Proof.
   unfold gt_sdom.
-  intros. 
+  intros.
   remember (Maps.AMap.get l2 (dom_analyze f)) as R1.
   remember (Maps.AMap.get l3 (dom_analyze f)) as R2.
   destruct R1. destruct R2.
   destruct (in_dec l_dec l2 bs_contents0); inv H2.
   destruct (in_dec l_dec l1 bs_contents); inv H1.
-  apply In_bound_fdef__blockInFdefB in HBinF1. 
-  apply In_bound_fdef__blockInFdefB in HBinF2. 
-  apply In_bound_fdef__blockInFdefB in HBinF3. 
+  apply In_bound_fdef__blockInFdefB in HBinF1.
+  apply In_bound_fdef__blockInFdefB in HBinF2.
+  apply In_bound_fdef__blockInFdefB in HBinF3.
   destruct HBinF1 as [ps1 [cs1 [tmn1 HBinF1]]].
   destruct HBinF2 as [ps2 [cs2 [tmn2 HBinF2]]].
   destruct HBinF3 as [ps3 [cs3 [tmn3 HBinF3]]].
@@ -339,18 +333,18 @@ Proof.
     assert (strict_domination f l1 l3) as Hsdom13.
       eapply sdom_tran with (l2:=l2); eauto.
     eapply sdom_is_complete in Hsdom13; eauto.
-      rewrite <- HeqR2 in Hsdom13. simpl in *. 
+      rewrite <- HeqR2 in Hsdom13. simpl in *.
       destruct (in_dec l_dec l1 bs_contents0); auto.
 
-      rewrite <- HeqR2. simpl. 
+      rewrite <- HeqR2. simpl.
       destruct bs_contents0; auto.
         intro J. inv J.
-    
-    eapply dom_unreachable in H; eauto. 
+
+    eapply dom_unreachable in H; eauto.
       rewrite <- HeqR2 in H. simpl in H.
-      destruct H. 
+      destruct H.
       apply blockInFdefB_in_vertexes in HBinF1.
-      unfold vertexes_fdef in HBinF1. 
+      unfold vertexes_fdef in HBinF1.
       apply H0 in HBinF1.
       destruct (in_dec l_dec l1 bs_contents0); auto.
 
@@ -368,10 +362,10 @@ Lemma sdom_is_sound : forall
   ifs S M (f : fdef) (l3 : l) (l' : l) ps cs tmn
   (HwfF : wf_fdef ifs S M f) (HuniqF : uniqFdef f) (Hreach : reachable f l3)
   (HBinF : blockInFdefB (block_intro l3 ps cs tmn) f = true)
-  (Hin : 
+  (Hin :
     In l' (DomDS.L.bs_contents _ ((dom_analyze f) !! l3))),
   strict_domination f l' l3.
-Proof. 
+Proof.
 Lemma sdom_is_complete: forall
   ifs S M (f : fdef) (l3 : l) (l' : l) ps cs tmn ps' cs' tmn'
   (HwfF : wf_fdef ifs S M f) (HuniqF : uniqFdef f)
@@ -390,7 +384,7 @@ match f with
 | _ => None
 end.
 
-Lemma dom_analysis__entry_doms_others1: forall ifs S M f 
+Lemma dom_analysis__entry_doms_others1: forall ifs S M f
   (HwfF: wf_fdef ifs S M f) entry
   (H: getEntryLabel f = Some entry)
   (Hex: exists b,  match (AMap.get b (dom_analyze f)) with
@@ -408,13 +402,13 @@ Proof.
   unfold dom_analyze in H1, Hex.
   destruct f.
   remember (entry_dom b0) as R.
-  destruct R. 
+  destruct R.
   destruct x as [[]|]; subst.
     destruct b0; inv H.
     destruct b1; tinv y.
     destruct bs_contents0; tinv y.
     destruct b0. inv HeqR.
-    inv H2. 
+    inv H2.
     remember (
       DomDS.fixpoint (bound_blocks (block_intro entry p c t :: b2))
            (successors_blocks (block_intro entry p c t :: b2))
@@ -424,25 +418,25 @@ Proof.
             :: nil)) as R.
     destruct R.
       symmetry in HeqR.
-      eapply EntryDomsOthers.dom_entry_doms_others with (entry:=entry) in HeqR; 
+      eapply EntryDomsOthers.dom_entry_doms_others with (entry:=entry) in HeqR;
         eauto.
         unfold EntryDomsOthers.entry_doms_others in HeqR.
         apply HeqR in J1.
         unfold Dominators.member in J1.
-        unfold EntryDomsOthers.dt, EntryDomsOthers.bound, DomDS.dt, DomDS.L.t 
-          in J1. 
+        unfold EntryDomsOthers.dt, EntryDomsOthers.bound, DomDS.dt, DomDS.L.t
+          in J1.
         unfold Dominators.t in H1. simpl in J1, H1.
         rewrite H1 in J1; auto.
 
-        split. 
+        split.
            remember (Kildall.successors_list
-             (EntryDomsOthers.predecessors (block_intro entry p c t :: b2)) 
+             (EntryDomsOthers.predecessors (block_intro entry p c t :: b2))
                entry) as R.
            destruct R; auto.
            assert (
-             In a 
+             In a
                (Kildall.successors_list
-                 (EntryDomsOthers.predecessors (block_intro entry p c t :: b2)) 
+                 (EntryDomsOthers.predecessors (block_intro entry p c t :: b2))
                entry)) as Hin. rewrite <- HeqR0. simpl; auto.
            apply Kildall.make_predecessors_correct' in Hin.
            change (successors_blocks (block_intro entry p c t :: b2)) with
@@ -460,7 +454,7 @@ Proof.
 
       rewrite AMap.gso in H1; auto.
       rewrite AMap.gi in H1. inv H1.
-      destruct Hex as [b0 Hex]. 
+      destruct Hex as [b0 Hex].
       destruct (l_dec entry b0); subst.
         rewrite AMap.gss in Hex; auto. congruence.
 
@@ -470,7 +464,7 @@ Proof.
     inv H.
 Qed.
 
-Lemma gt_dom_dec_aux: forall ifs S M f (HwfF: wf_fdef ifs S M f) 
+Lemma gt_dom_dec_aux: forall ifs S M f (HwfF: wf_fdef ifs S M f)
   (Huniq: uniqFdef f) l1 l2 l3
   (Hreach: reachable f l3)
   (HBinF1: In l1 (bound_fdef f))
@@ -478,7 +472,7 @@ Lemma gt_dom_dec_aux: forall ifs S M f (HwfF: wf_fdef ifs S M f)
   (HBinF3: In l3 (bound_fdef f)),
   gt_sdom (bound_fdef f) (dom_analyze f) l1 l3 ->
   gt_sdom (bound_fdef f) (dom_analyze f) l2 l3 ->
-  gt_dom_prop (bound_fdef f) (dom_analyze f) l1 l2 \/ 
+  gt_dom_prop (bound_fdef f) (dom_analyze f) l1 l2 \/
   gt_dom_prop (bound_fdef f) (dom_analyze f) l2 l1.
 Proof.
   unfold gt_dom_prop, gt_sdom. intros.
@@ -489,9 +483,9 @@ Proof.
   destruct R1, R2, R3.
   destruct (in_dec l_dec l1 bs_contents1); inv H.
   destruct (in_dec l_dec l2 bs_contents1); inv H0.
-  apply In_bound_fdef__blockInFdefB in HBinF1. 
-  apply In_bound_fdef__blockInFdefB in HBinF2. 
-  apply In_bound_fdef__blockInFdefB in HBinF3. 
+  apply In_bound_fdef__blockInFdefB in HBinF1.
+  apply In_bound_fdef__blockInFdefB in HBinF2.
+  apply In_bound_fdef__blockInFdefB in HBinF3.
   destruct HBinF1 as [ps1 [cs1 [tmn1 HBinF1]]].
   destruct HBinF2 as [ps2 [cs2 [tmn2 HBinF2]]].
   destruct HBinF3 as [ps3 [cs3 [tmn3 HBinF3]]].
@@ -516,21 +510,21 @@ Proof.
     apply sdom_reachable in Hsdom13; auto.
   destruct (l_dec l1 entry); subst.
     left. left.
-    assert (    
+    assert (
       match (AMap.get l2 (dom_analyze f)) with
       | Dominators.mkBoundedSet dts _ => In entry dts
       end) as G.
       eapply dom_analysis__entry_doms_others1; eauto.
-        rewrite <- HeqR2 in G. 
+        rewrite <- HeqR2 in G.
         destruct (in_dec l_dec entry bs_contents0); auto.
   destruct (l_dec l2 entry); subst.
     right. left.
-    assert (    
+    assert (
       match (AMap.get l1 (dom_analyze f)) with
       | Dominators.mkBoundedSet dts _ => In entry dts
       end) as G.
       eapply dom_analysis__entry_doms_others1; eauto.
-        rewrite <- HeqR1 in G. 
+        rewrite <- HeqR1 in G.
         destruct (in_dec l_dec entry bs_contents); auto.
   eapply sdom_ordered with (l1:=l2) in Hsdom13; eauto.
   destruct Hsdom13 as [Hsdom21 | Hsdom12].
@@ -539,8 +533,8 @@ Proof.
       rewrite <- HeqR1 in Hsdom21. simpl in Hsdom21.
       destruct (in_dec l_dec l2 bs_contents); simpl; auto.
 
-      rewrite <- HeqR1. simpl. 
-      assert (    
+      rewrite <- HeqR1. simpl.
+      assert (
         match (AMap.get l1 (dom_analyze f)) with
         | Dominators.mkBoundedSet dts _ => In entry dts
         end) as G.
@@ -553,7 +547,7 @@ Proof.
       destruct (in_dec l_dec l1 bs_contents0); simpl; auto.
 
       rewrite <- HeqR2. simpl.
-      assert (    
+      assert (
         match (AMap.get l2 (dom_analyze f)) with
         | Dominators.mkBoundedSet dts _ => In entry dts
         end) as G.
@@ -561,7 +555,7 @@ Proof.
           rewrite <- HeqR2 in G. intro J. subst. inv G.
 Qed.
 
-Lemma gt_dom_dec: forall ifs S M f (HwfF: wf_fdef ifs S M f) 
+Lemma gt_dom_dec: forall ifs S M f (HwfF: wf_fdef ifs S M f)
   (Huniq: uniqFdef f) l1 l2 l3
   (Hreach: reachable f l3)
   (HBinF1: In l1 (bound_fdef f))
@@ -569,7 +563,7 @@ Lemma gt_dom_dec: forall ifs S M f (HwfF: wf_fdef ifs S M f)
   (HBinF3: In l3 (bound_fdef f)),
   gt_dom_prop (bound_fdef f) (dom_analyze f) l1 l3 ->
   gt_dom_prop (bound_fdef f) (dom_analyze f) l2 l3 ->
-  gt_dom_prop (bound_fdef f) (dom_analyze f) l1 l2 \/ 
+  gt_dom_prop (bound_fdef f) (dom_analyze f) l1 l2 \/
   gt_dom_prop (bound_fdef f) (dom_analyze f) l2 l1.
 Proof.
   intros.
@@ -579,7 +573,7 @@ Proof.
     left. left. auto.
 Qed.
 
-Lemma gt_sdom_dec: forall ifs S M f (HwfF: wf_fdef ifs S M f) 
+Lemma gt_sdom_dec: forall ifs S M f (HwfF: wf_fdef ifs S M f)
   (Huniq: uniqFdef f) l1 l2 l3
   (Hneq: l1 <> l2)
   (Hreach: reachable f l3)
@@ -588,7 +582,7 @@ Lemma gt_sdom_dec: forall ifs S M f (HwfF: wf_fdef ifs S M f)
   (HBinF3: In l3 (bound_fdef f)),
   gt_sdom (bound_fdef f) (dom_analyze f) l1 l3 ->
   gt_sdom (bound_fdef f) (dom_analyze f) l2 l3 ->
-  gt_sdom (bound_fdef f) (dom_analyze f) l1 l2 \/ 
+  gt_sdom (bound_fdef f) (dom_analyze f) l1 l2 \/
   gt_sdom (bound_fdef f) (dom_analyze f) l2 l1.
 Proof.
   intros.
@@ -626,7 +620,7 @@ Proof.
           apply in_or_app. simpl. auto.
         apply IHsuffix.
           destruct J as [J | J]; auto.
-          left. simpl.         
+          left. simpl.
           apply in_app_or in J. simpl in J.
           destruct J as [J | [J | J]]; subst; auto.
             right. apply in_or_app; auto.
@@ -678,17 +672,17 @@ Proof.
     apply J2 in H. destruct H as [H | H]; auto. inv H.
 Qed.
 
-Lemma insert_sort_sdom_iter_sorted: forall ifs S M f (HwfF: wf_fdef ifs S M f) 
+Lemma insert_sort_sdom_iter_sorted: forall ifs S M f (HwfF: wf_fdef ifs S M f)
   (Huniq: uniqFdef f) l3 (Hin3: In l3 (bound_fdef f)) (Hreach: reachable f l3)
-  l0 (Hin0: In l0 (bound_fdef f)) 
+  l0 (Hin0: In l0 (bound_fdef f))
   (Hsd03: gt_dom_prop (bound_fdef f) (dom_analyze f) l0 l3) suffix prefix
-  (G: forall l', In l' (prefix ++ suffix) -> 
+  (G: forall l', In l' (prefix ++ suffix) ->
       gt_dom_prop (bound_fdef f) (dom_analyze f) l' l3 /\ In l' (bound_fdef f)),
-  Sorted (gt_dom_prop (bound_fdef f) (dom_analyze f)) 
+  Sorted (gt_dom_prop (bound_fdef f) (dom_analyze f))
     (List.rev prefix ++ suffix) ->
-  (forall l1 prefix', prefix = l1 :: prefix' -> 
+  (forall l1 prefix', prefix = l1 :: prefix' ->
       gt_dom_prop (bound_fdef f) (dom_analyze f) l1 l0) ->
-  Sorted (gt_dom_prop (bound_fdef f) (dom_analyze f)) 
+  Sorted (gt_dom_prop (bound_fdef f) (dom_analyze f))
     (insert_sort_sdom_iter (bound_fdef f) (dom_analyze f) l0 prefix suffix).
 Proof.
   induction suffix; simpl; intros.
@@ -702,12 +696,12 @@ Proof.
     remember (gt_sdom (bound_fdef f) (dom_analyze f) l0 a) as R.
     destruct R.
       simpl_env. simpl.
-      apply sorted_insert; auto.   
+      apply sorted_insert; auto.
         intros.
         apply H0 with (prefix':=rev l1'); auto.
           rewrite <- rev_involutive at 1.
           rewrite H1. rewrite rev_unit. auto.
- 
+
         intros.
         inv H1.
         unfold gt_dom_prop. auto.
@@ -721,7 +715,7 @@ Proof.
         simpl. simpl_env. simpl. auto.
 
         intros. inv H1.
-        assert (gt_dom_prop (bound_fdef f) (dom_analyze f) l1 l0 \/ 
+        assert (gt_dom_prop (bound_fdef f) (dom_analyze f) l1 l0 \/
                 gt_dom_prop (bound_fdef f) (dom_analyze f) l0 l1) as J.
           assert (In l1 (prefix'++l1::suffix)) as Hin1. apply in_middle.
           apply G in Hin1. destruct Hin1 as [J1 J2].
@@ -733,13 +727,13 @@ Proof.
         rewrite <- HeqR in H1. congruence.
 Qed.
 
-Lemma insert_sort_sdom_sorted: forall ifs S M f (HwfF: wf_fdef ifs S M f) 
+Lemma insert_sort_sdom_sorted: forall ifs S M f (HwfF: wf_fdef ifs S M f)
   (Huniq: uniqFdef f) l3 (Hin3: In l3 (bound_fdef f)) (Hreach: reachable f l3)
   data acc
-  (G: forall l', In l' (data++acc) -> 
+  (G: forall l', In l' (data++acc) ->
       gt_dom_prop (bound_fdef f) (dom_analyze f) l' l3 /\ In l' (bound_fdef f)),
   Sorted (gt_dom_prop (bound_fdef f) (dom_analyze f)) acc ->
-  Sorted (gt_dom_prop (bound_fdef f) (dom_analyze f)) 
+  Sorted (gt_dom_prop (bound_fdef f) (dom_analyze f))
          (insert_sort_sdom (bound_fdef f) (dom_analyze f) data acc).
 Proof.
   induction data; simpl; intros; auto.
@@ -760,12 +754,12 @@ Proof.
         intros. inv H0.
 Qed.
 
-Lemma sort_sdom_sorted: forall ifs S M f (HwfF: wf_fdef ifs S M f) 
+Lemma sort_sdom_sorted: forall ifs S M f (HwfF: wf_fdef ifs S M f)
   (Huniq: uniqFdef f) l3 (Hin3: In l3 (bound_fdef f)) (Hreach: reachable f l3)
   input
-  (G: forall l', In l' input -> 
+  (G: forall l', In l' input ->
       gt_dom_prop (bound_fdef f) (dom_analyze f) l' l3 /\ In l' (bound_fdef f)),
-  Sorted (gt_dom_prop (bound_fdef f) (dom_analyze f)) 
+  Sorted (gt_dom_prop (bound_fdef f) (dom_analyze f))
          (sort_sdom (bound_fdef f) (dom_analyze f) input).
 Proof.
   intros. unfold sort_sdom.
@@ -787,21 +781,21 @@ Proof.
     split; auto.
 
     destruct input.
-      simpl. split; auto.  
+      simpl. split; auto.
 
       destruct IHinput as [J1 J2].
       destruct (l_dec a l1); subst.
         split; intros.
           apply J1 in H.
             simpl in H. simpl.
-            destruct H; auto.           
+            destruct H; auto.
 
           apply J2.
             simpl in H. simpl.
             destruct H as [H | [H | H]]; auto.
 
         split; intros.
-          Local Opaque remove_redundant. 
+          Local Opaque remove_redundant.
           simpl in H.
           destruct H as [H | H]; auto.
 
@@ -818,7 +812,7 @@ Proof.
     destruct input; auto.
       inv H.
       destruct (l_dec a0 l0); subst.
-        apply IHinput. apply HdRel_cons; auto. 
+        apply IHinput. apply HdRel_cons; auto.
         apply HdRel_cons; auto.
 Qed.
 
@@ -828,9 +822,9 @@ Proof.
   induction input; simpl; intros; auto.
     destruct input; auto.
       destruct (l_dec a0 l0); subst.
-        apply IHinput in H; auto. 
+        apply IHinput in H; auto.
 
-        Local Opaque remove_redundant. 
+        Local Opaque remove_redundant.
         simpl in H.
         destruct H as [H | H]; auto.
         Transparent remove_redundant.
@@ -841,31 +835,31 @@ Lemma remove_redundant_sorted: forall R input,
 Proof.
   induction input; intros; simpl; auto.
     destruct input; auto.
-      inv H. 
+      inv H.
       apply IHinput in H2.
       destruct (l_dec a l0); subst; auto.
         apply Sorted_cons; auto.
-          apply remove_redundant_HdRel; auto. 
+          apply remove_redundant_HdRel; auto.
 Qed.
 
 Lemma remove_redundant_NoDup: forall (R:l -> l -> Prop) input
-  (P0:forall a b c, 
-        In a input -> 
-        In b input -> 
+  (P0:forall a b c,
+        In a input ->
+        In b input ->
         In c input -> a <> b -> R a b -> R b c -> a <> c),
   StronglySorted R input ->
   NoDup (remove_redundant input).
 Proof.
   induction input; intros; simpl; auto.
-    destruct input; auto.  
-      inv H. 
+    destruct input; auto.
+      inv H.
       assert (H2':=H2).
       apply IHinput in H2.
         destruct (l_dec a l0); subst; auto.
           apply NoDup_cons; auto.
           intro J.
           apply remove_redundant_In in J.
-          simpl in J. 
+          simpl in J.
           destruct J as [J | J]; subst.
             congruence.
 
@@ -883,8 +877,8 @@ Lemma remove_redundant_NoDup': forall R input
   NoDup (remove_redundant input).
 Proof.
   induction input; intros; simpl; auto.
-    destruct input; auto.  
-      inv H. 
+    destruct input; auto.
+      inv H.
       apply IHinput in H2.
         destruct (l_dec a l0); subst; auto.
           apply NoDup_cons; auto.
@@ -900,10 +894,10 @@ Fixpoint compute_sdom_chains_aux bd0 (res: AMap.t (Dominators.t bd0))
   (bd: list l) (acc: list (l * list l)) : list (l * list l) :=
 match bd with
 | nil => acc
-| l0 :: bd' => 
+| l0 :: bd' =>
     match AMap.get l0 res with
     | Dominators.mkBoundedSet dts0 _ =>
-        compute_sdom_chains_aux bd0 res bd' 
+        compute_sdom_chains_aux bd0 res bd'
           ((l0, remove_redundant (sort_sdom bd0 res (l0 :: dts0)))::acc)
     end
 end.
@@ -930,9 +924,9 @@ Proof.
   eapply reachablity_analysis__reachable; eauto.
 Qed.
 
-Lemma gt_sdom_prop_irrefl: forall ifs S M f (HwfF : wf_fdef ifs S M f) 
+Lemma gt_sdom_prop_irrefl: forall ifs S M f (HwfF : wf_fdef ifs S M f)
   (HuniqF: uniqFdef f) a (Hreach : reachable f a),
-  gt_sdom (bound_fdef f) (dom_analyze f) a a = false. 
+  gt_sdom (bound_fdef f) (dom_analyze f) a a = false.
 Proof.
   unfold gt_sdom.
   intros.
@@ -960,7 +954,7 @@ Proof.
     intros. inv H2.
 
     apply Forall_forall.
-    intros. 
+    intros.
     simpl in H2.
     inv H1.
     destruct H2 as [H2 | H2]; subst; auto.
@@ -975,7 +969,7 @@ Qed.
 
 Lemma strict_Sorted_StronglySorted : forall A (R:A -> A -> Prop) data,
   (forall x y z,
-     In x data -> In y data -> In z data -> 
+     In x data -> In y data -> In z data ->
      R x y -> R y z -> R x z) ->
   Sorted R data -> StronglySorted R data.
 Proof.
@@ -986,8 +980,8 @@ Proof.
       apply Sorted_HdRel__Forall in H; auto.
 Qed.
 
-Lemma compute_sdom_chains_aux__dom : forall bd res l0 chain0 rd acc, 
-  In (l0, chain0) (compute_sdom_chains_aux bd res rd acc) -> 
+Lemma compute_sdom_chains_aux__dom : forall bd res l0 chain0 rd acc,
+  In (l0, chain0) (compute_sdom_chains_aux bd res rd acc) ->
   In l0 rd \/ In (l0, chain0) acc.
 Proof.
   induction rd; simpl; intros; auto.
@@ -997,9 +991,9 @@ Proof.
     simpl in H.
     destruct H as [H | H]; auto.
     inv H; auto.
-Qed. 
+Qed.
 
-Lemma compute_sdom_chains__dom : forall bd res rd l0 chain0, 
+Lemma compute_sdom_chains__dom : forall bd res rd l0 chain0,
   In (l0, chain0) (compute_sdom_chains bd res rd) -> In l0 rd.
 Proof.
   unfold compute_sdom_chains.
@@ -1013,10 +1007,10 @@ Lemma compute_sdom_chains_aux_sorted__helper: forall bd0 bd bs_contents res x
   (bs_bound : incl bs_contents bd0) (l1 : l) (Hinc : incl (l1 :: bd) bd0)
   (H1 : In x (sort_sdom bd0 res (l1 :: bs_contents))),
   In x bd0.
-Proof.  
+Proof.
   intros.
-  apply sort_sdom_safe in H1. 
-  simpl in H1. 
+  apply sort_sdom_safe in H1.
+  simpl in H1.
   destruct H1 as [H1 | H1]; subst.
     apply Hinc. simpl; auto.
     apply bs_bound. auto.
@@ -1032,20 +1026,20 @@ Lemma gt_sdom_prop_trans1 : forall ifs S M f l1 l2 l3
   gt_sdom (bound_fdef f) (dom_analyze f) l1 l3 = true.
 Proof.
   unfold gt_dom_prop, gt_sdom.
-  intros. 
+  intros.
   remember (Maps.AMap.get l2 (dom_analyze f)) as R2.
   remember (Maps.AMap.get l3 (dom_analyze f)) as R3.
   destruct R2. destruct R3.
   destruct (in_dec l_dec l1 bs_contents); inv H1.
-  apply In_bound_fdef__blockInFdefB in HBinF1. 
-  apply In_bound_fdef__blockInFdefB in HBinF2. 
-  apply In_bound_fdef__blockInFdefB in HBinF3. 
+  apply In_bound_fdef__blockInFdefB in HBinF1.
+  apply In_bound_fdef__blockInFdefB in HBinF2.
+  apply In_bound_fdef__blockInFdefB in HBinF3.
   destruct HBinF1 as [ps1 [cs1 [tmn1 HBinF1]]].
   destruct HBinF2 as [ps2 [cs2 [tmn2 HBinF2]]].
   destruct HBinF3 as [ps3 [cs3 [tmn3 HBinF3]]].
   assert (domination f l2 l3) as Hdom23.
     eapply dom_is_sound; eauto.
-      rewrite <- HeqR3. simpl. 
+      rewrite <- HeqR3. simpl.
       destruct H2 as  [H2 | H2]; auto.
         destruct (in_dec l_dec l2 bs_contents0); inv H2; auto.
   assert (reachable f l2) as Hreach2.
@@ -1058,7 +1052,7 @@ Proof.
     rewrite <- HeqR3 in Hsdom12. simpl in Hsdom12.
     destruct (in_dec l_dec l1 bs_contents0); auto.
 
-    rewrite <- HeqR3. simpl. 
+    rewrite <- HeqR3. simpl.
     destruct H2 as [H2 | H2]; subst.
       destruct bs_contents0.
         inv H2.
@@ -1070,14 +1064,14 @@ Proof.
         intro J. inv J.
 Qed.
 
-Lemma compute_sdom_chains_aux_sorted: forall ifs S M f 
+Lemma compute_sdom_chains_aux_sorted: forall ifs S M f
   (HwfF: wf_fdef ifs S M f) (Huniq: uniqFdef f)
-  l0 chain0 bd (Hinc: incl bd (bound_fdef f)) 
+  l0 chain0 bd (Hinc: incl bd (bound_fdef f))
   (Hreach: forall x, In x bd -> reachable f x) acc,
   (forall l0 chain0, In (l0, chain0) acc ->
-    Sorted (gt_dom_prop (bound_fdef f) (dom_analyze f)) chain0 /\ 
+    Sorted (gt_dom_prop (bound_fdef f) (dom_analyze f)) chain0 /\
     NoDup chain0) ->
-  In (l0, chain0) 
+  In (l0, chain0)
     (compute_sdom_chains_aux (bound_fdef f) (dom_analyze f) bd acc) ->
   Sorted (gt_dom_prop (bound_fdef f) (dom_analyze f)) chain0 /\ NoDup chain0.
 Proof.
@@ -1090,38 +1084,38 @@ Proof.
 
       intros.
       destruct H1 as [H1 | H1]; eauto.
-      inv H1. 
+      inv H1.
       assert (In l1 (bound_fdef f)) as G1.
         apply Hinc; simpl; auto.
       assert (forall l' : l,
         In l' (l1 :: bs_contents) ->
-        gt_dom_prop (bound_fdef f) (dom_analyze f) l' l1 /\ In l' (bound_fdef f)) 
+        gt_dom_prop (bound_fdef f) (dom_analyze f) l' l1 /\ In l' (bound_fdef f))
         as G2.
         intros l' Hin.
         simpl in Hin.
         destruct Hin as [EQ | Hin]; subst.
           unfold gt_dom_prop. split; auto.
-         
+
           split.
             unfold gt_dom_prop, gt_sdom.
-            rewrite <- HeqR. 
+            rewrite <- HeqR.
             destruct (in_dec l_dec l' bs_contents); simpl; auto.
-        
+
             apply bs_bound; auto.
       split.
         apply remove_redundant_sorted; auto.
           eapply sort_sdom_sorted; eauto.
 
-        apply remove_redundant_NoDup with 
+        apply remove_redundant_NoDup with
           (R:=gt_dom_prop (bound_fdef f) (dom_analyze f)); auto.
           intros.
           destruct H5; subst; try congruence.
-          assert (reachable f c) as Hreachc. 
+          assert (reachable f c) as Hreachc.
             apply sort_sdom_safe in H3.
               simpl in H3.
               destruct H3 as [H3 | H3]; subst.
                 apply Hreach; auto.
-           
+
                 assert (reachable f l1) as Hreach1. apply Hreach; auto.
                 eapply sdom_reachable; eauto.
                   assert (In l1 (bound_fdef f)) as Hin.
@@ -1138,7 +1132,7 @@ Proof.
 
           apply strict_Sorted_StronglySorted.
             intros.
-            eapply gt_dom_prop_trans with (l2:=y); 
+            eapply gt_dom_prop_trans with (l2:=y);
               eauto using compute_sdom_chains_aux_sorted__helper.
             eapply sort_sdom_sorted; eauto.
 Qed.
@@ -1154,16 +1148,16 @@ Proof.
   intros.
   induction Hsorted; simpl; intros; auto.
     inv Huniq.
-    constructor; auto.  
+    constructor; auto.
       inv H; auto.
       constructor.
         destruct H0; subst; auto.
           contradict H2; simpl; auto.
 Qed.
 
-Lemma compute_sdom_chains_sorted: forall ifs S M f 
+Lemma compute_sdom_chains_sorted: forall ifs S M f
   (HwfF: wf_fdef ifs S M f) (Huniq: uniqFdef f)
-  rd (Hinc: incl rd (bound_fdef f)) (Hreach: forall x, In x rd -> reachable f x) 
+  rd (Hinc: incl rd (bound_fdef f)) (Hreach: forall x, In x rd -> reachable f x)
   l0 chain,
   In (l0, chain) (compute_sdom_chains (bound_fdef f) (dom_analyze f) rd) ->
   Sorted (gt_sdom_prop (bound_fdef f) (dom_analyze f)) chain /\ NoDup chain.
@@ -1176,9 +1170,9 @@ Proof.
       apply NoDup_gt_dom_prop_sorted__gt_dsom_prop_sorted; auto.
 
     simpl. intros. tauto.
-Qed. 
+Qed.
 
-Lemma compute_sdom_chains_aux_safe: forall bd0 (res:AMap.t (Dominators.t bd0)) 
+Lemma compute_sdom_chains_aux_safe: forall bd0 (res:AMap.t (Dominators.t bd0))
   l0 l1 chain0 dts0 P0 bd acc,
   (forall l0 l1 chain0 dts0 P0,
     In (l0, chain0) acc ->
@@ -1189,7 +1183,7 @@ Lemma compute_sdom_chains_aux_safe: forall bd0 (res:AMap.t (Dominators.t bd0))
   (In l1 chain0 <-> In l1 (l0 :: dts0)).
 Proof.
   induction bd; intros; eauto.
-    simpl in H0. 
+    simpl in H0.
     remember (@AMap.get (Dominators.t bd0) a res) as R.
     destruct R.
     apply IHbd in H0; auto.
@@ -1211,11 +1205,11 @@ Proof.
   unfold compute_sdom_chains in H.
   eapply compute_sdom_chains_aux_safe in H; eauto.
   simpl. intros. tauto.
-Qed. 
+Qed.
 
 Definition wf_chain f dt (chain:list l) : Prop :=
 match chain with
-| entry :: _ :: _ => 
+| entry :: _ :: _ =>
    let b := bound_fdef f in
    let res := (dom_analyze f) in
    entry `in` dtree_dom dt /\
@@ -1248,9 +1242,9 @@ Proof.
   unfold gt_sdom_prop, gt_sdom in H4.
   remember ((dom_analyze f) !! entry) as R.
   destruct R.
-  assert (exists ps, exists cs, exists tmn, 
+  assert (exists ps, exists cs, exists tmn,
     getEntryBlock f = Some (block_intro entry ps cs tmn)) as Hentry.
-    destruct f as [fh bs]. destruct bs; tinv H. 
+    destruct f as [fh bs]. destruct bs; tinv H.
     destruct b; inv H; simpl; eauto.
   destruct Hentry as [ps [cs [tmn Hentry]]].
   apply dom_entrypoint in Hentry.
@@ -1259,7 +1253,7 @@ Proof.
 Qed.
 
 Lemma entry_in_compute_sdom_chains: forall entry l0 chain0 bd res rd
-  (H:forall b, b <> entry /\ In b rd -> 
+  (H:forall b, b <> entry /\ In b rd ->
      match (AMap.get b res) with
      | Dominators.mkBoundedSet dts _ => dts <> nil -> In entry dts
      end)
@@ -1281,10 +1275,10 @@ Proof.
     assert (l0 <> entry /\ In l0 rd) as J.
       auto.
     apply H in J. rewrite <- HeqR in J.
-    right. 
+    right.
     apply J.
     destruct bs_contents.
-      destruct chain0; tinv G.      
+      destruct chain0; tinv G.
       destruct chain0; try solve [contradict G; simpl; clear; omega].
       assert (H2':=H1').
       eapply compute_sdom_chains_safe with (l1:=l1) in H1'; eauto.
@@ -1301,11 +1295,11 @@ Proof.
       congruence.
 Qed.
 
-Lemma dom_analysis__entry_doms_others2: forall ifs S M f 
+Lemma dom_analysis__entry_doms_others2: forall ifs S M f
   (HwfF: wf_fdef ifs S M f) entry rd,
   getEntryLabel f = Some entry ->
   reachablity_analysis f = Some rd ->
-  (forall b, b <> entry /\ In b rd -> 
+  (forall b, b <> entry /\ In b rd ->
      match (AMap.get b (dom_analyze f)) with
      | Dominators.mkBoundedSet dts _ => dts <> nil -> In entry dts
      end).
@@ -1317,7 +1311,7 @@ Proof.
   unfold dom_analyze in H1.
   destruct f.
   remember (entry_dom b0) as R.
-  destruct R. 
+  destruct R.
   destruct x as [[]|]; subst.
     destruct b0; inv H.
     destruct b1; tinv y.
@@ -1333,25 +1327,25 @@ Proof.
             :: nil)) as R.
     destruct R.
       symmetry in HeqR.
-      eapply EntryDomsOthers.dom_entry_doms_others with (entry:=entry) in HeqR; 
+      eapply EntryDomsOthers.dom_entry_doms_others with (entry:=entry) in HeqR;
         eauto.
         unfold EntryDomsOthers.entry_doms_others in HeqR.
         apply HeqR in J1.
         unfold Dominators.member in J1.
-        unfold EntryDomsOthers.dt, EntryDomsOthers.bound, DomDS.dt, DomDS.L.t 
-          in J1. 
+        unfold EntryDomsOthers.dt, EntryDomsOthers.bound, DomDS.dt, DomDS.L.t
+          in J1.
         unfold Dominators.t in H1. simpl in J1, H1.
         rewrite H1 in J1; auto.
 
-        split. 
+        split.
            remember (Kildall.successors_list
-             (EntryDomsOthers.predecessors (block_intro entry p c t :: b2)) 
+             (EntryDomsOthers.predecessors (block_intro entry p c t :: b2))
                entry) as R.
            destruct R; auto.
            assert (
-             In a 
+             In a
                (Kildall.successors_list
-                 (EntryDomsOthers.predecessors (block_intro entry p c t :: b2)) 
+                 (EntryDomsOthers.predecessors (block_intro entry p c t :: b2))
                entry)) as Hin. rewrite <- HeqR0. simpl; auto.
            apply Kildall.make_predecessors_correct' in Hin.
            change (successors_blocks (block_intro entry p c t :: b2)) with
@@ -1374,7 +1368,7 @@ Proof.
     inv H.
 Qed.
 
-Lemma entry_is_head_of_compute_sdom_chains: forall ifs S M f 
+Lemma entry_is_head_of_compute_sdom_chains: forall ifs S M f
   (HwfF: wf_fdef ifs S M f) (Huniq: uniqFdef f) entry rd l0 chain0
   (H:getEntryLabel f = Some entry)
   (H0:reachablity_analysis f = Some rd)
@@ -1383,9 +1377,9 @@ Lemma entry_is_head_of_compute_sdom_chains: forall ifs S M f
   (G:(length chain0 > 1)%nat),
   exists chain0', chain0 = entry :: chain0'.
 Proof.
-  intros. 
-  assert (forall b, 
-    b <> entry /\ In b rd -> 
+  intros.
+  assert (forall b,
+    b <> entry /\ In b rd ->
     match (AMap.get b (dom_analyze f)) with
     | Dominators.mkBoundedSet dts _ => dts <> nil -> In entry dts
     end) as J.
@@ -1410,15 +1404,15 @@ Proof.
 
       apply strict_Sorted_StronglySorted in J1; auto.
         inv J1.
-        inv J2.    
+        inv J2.
         eapply Forall_forall in H5; eauto.
-        apply gt_sdom_prop_entry in H5; tauto. 
+        apply gt_sdom_prop_entry in H5; tauto.
 
         intros.
         eapply gt_sdom_prop_trans with (l2:=y); eauto.
 Qed.
 
-Lemma compute_sdom_chains__wf_chain: forall ifs S M f 
+Lemma compute_sdom_chains__wf_chain: forall ifs S M f
   (HwfF: wf_fdef ifs S M f) (Huniq: uniqFdef f) l0 chain0 entry rd,
   getEntryLabel f = Some entry ->
   reachablity_analysis f =  Some rd ->
@@ -1434,7 +1428,7 @@ Proof.
   destruct H1' as [chain0' H1']; subst; simpl.
   inv H1'.
   split; auto.
-    eapply compute_sdom_chains_sorted; 
+    eapply compute_sdom_chains_sorted;
       eauto using reachablity_analysis__in_bound.
       intros. eapply reachablity_analysis__reachable; eauto.
 Qed.
@@ -1448,8 +1442,8 @@ end.
 
 Fixpoint dtree_insert dt parent child : DTree :=
 match dt with
-| DT_node l0 dts0 => 
-    if (id_dec parent l0) then 
+| DT_node l0 dts0 =>
+    if (id_dec parent l0) then
       if in_children_roots child dts0 then dt
       else DT_node l0 (DT_cons (DT_node child DT_nil) dts0)
     else DT_node l0 (dtrees_insert dts0 parent child)
@@ -1457,14 +1451,14 @@ end
 with dtrees_insert (dts: DTrees) parent child : DTrees :=
 match dts with
 | DT_nil => DT_nil
-| DT_cons dt0 dts0 => 
+| DT_cons dt0 dts0 =>
     DT_cons (dtree_insert dt0 parent child) (dtrees_insert dts0 parent child)
 end.
 
 Fixpoint is_dtree_edge dt parent child : bool :=
 match dt with
-| DT_node l0 dts0 => 
-    if (id_dec parent l0) then 
+| DT_node l0 dts0 =>
+    if (id_dec parent l0) then
       if in_children_roots child dts0 then true
       else is_dtrees_edge dts0 parent child
     else is_dtrees_edge dts0 parent child
@@ -1472,7 +1466,7 @@ end
 with is_dtrees_edge (dts: DTrees) parent child : bool :=
 match dts with
 | DT_nil => false
-| DT_cons dt0 dts0 => 
+| DT_cons dt0 dts0 =>
     is_dtree_edge dt0 parent child || is_dtrees_edge dts0 parent child
 end.
 
@@ -1480,12 +1474,12 @@ Scheme dtree_rec2 := Induction for DTree Sort Set
   with dtrees_rec2 := Induction for DTrees Sort Set.
 
 Definition dtree_mutrec P P' :=
-  fun h1 h2 h3 => 
+  fun h1 h2 h3 =>
     (pair (@dtree_rec2 P P' h1 h2 h3) (@dtrees_rec2 P P' h1 h2 h3)).
 
 Fixpoint create_dtree_from_chain dt chain : DTree :=
 match chain with
-| p::((ch::_) as chain') => 
+| p::((ch::_) as chain') =>
     create_dtree_from_chain (dtree_insert dt p ch) chain'
 | _ => dt
 end.
@@ -1496,8 +1490,8 @@ match getEntryLabel f, reachablity_analysis f with
     let dt := dom_analyze f in
     let b := bound_fdef f in
     let chains := compute_sdom_chains b dt rd in
-    Some (fold_left 
-      (fun acc elt => let '(_, chain):=elt in create_dtree_from_chain acc chain) 
+    Some (fold_left
+      (fun acc elt => let '(_, chain):=elt in create_dtree_from_chain acc chain)
       chains (DT_node root DT_nil))
 | _, _ => None
 end.
@@ -1519,9 +1513,9 @@ Proof.
         destruct (l_dec l0 ch); auto; try congruence.
 Qed.
 
-Definition dtree_insert__is_dtree_edge_prop (dt:DTree) := 
+Definition dtree_insert__is_dtree_edge_prop (dt:DTree) :=
 forall p ch p0 ch0,
-  is_dtree_edge (dtree_insert dt p ch) p0 ch0 <-> 
+  is_dtree_edge (dtree_insert dt p ch) p0 ch0 <->
   is_dtree_edge dt p0 ch0 \/ (p `in` dtree_dom dt /\ p = p0 /\ ch = ch0).
 
 Fixpoint size_of_dtrees (dts:DTrees) : nat :=
@@ -1530,16 +1524,16 @@ match dts with
 | DT_cons _ dts' => S (size_of_dtrees dts')
 end.
 
-Definition dtrees_insert__is_dtrees_edge_prop (dts:DTrees) := 
+Definition dtrees_insert__is_dtrees_edge_prop (dts:DTrees) :=
 forall p ch p0 ch0,
-  is_dtrees_edge (dtrees_insert dts p ch) p0 ch0 <-> 
+  is_dtrees_edge (dtrees_insert dts p ch) p0 ch0 <->
   is_dtrees_edge dts p0 ch0 \/ (p `in` dtrees_dom dts /\ p = p0 /\ ch = ch0).
 
 Lemma dtree_insert__is_dtree_edge_mutrec :
   (forall dt, dtree_insert__is_dtree_edge_prop dt) *
   (forall dts, dtrees_insert__is_dtrees_edge_prop dts).
 Proof.
-  apply dtree_mutrec; 
+  apply dtree_mutrec;
     unfold dtree_insert__is_dtree_edge_prop, dtrees_insert__is_dtrees_edge_prop;
     simpl; intros.
 
@@ -1565,7 +1559,7 @@ Proof.
           SSSSCase "1.1.1.2.2".
             destruct (in_children_roots ch0 d).
               split; auto.
-                intros. 
+                intros.
                 destruct H0 as [H0 | [J1 J2]]; subst; auto; try congruence.
               destruct (id_dec l0 ch); subst.
                 split; intros.
@@ -1646,12 +1640,12 @@ Proof.
     split; intros J.
       apply orb_true_iff in J.
       destruct J as [J | J].
-        apply H in J. 
+        apply H in J.
         destruct J as [J | [J1 [J2 J3]]]; subst.
           left. apply orb_true_iff. auto.
           right. fsetdec.
 
-        apply H0 in J. 
+        apply H0 in J.
         destruct J as [J | [J1 [J2 J3]]]; subst.
           left. apply orb_true_iff. auto.
           right. fsetdec.
@@ -1669,9 +1663,9 @@ Proof.
           left. apply H; auto.
           right. apply H0; auto.
 Qed.
-        
+
 Lemma dtree_insert__is_dtree_edge : forall p ch p0 ch0 dt ,
-  is_dtree_edge (dtree_insert dt p ch) p0 ch0 <-> 
+  is_dtree_edge (dtree_insert dt p ch) p0 ch0 <->
   is_dtree_edge dt p0 ch0 \/ (p `in` dtree_dom dt /\ p = p0 /\ ch = ch0).
 Proof.
   destruct (dtree_insert__is_dtree_edge_mutrec).
@@ -1691,11 +1685,11 @@ match chain with
 | _ => False
 end.
 
-Definition dtree_insert__in_dtree_dom_prop (dt:DTree) := 
+Definition dtree_insert__in_dtree_dom_prop (dt:DTree) :=
 forall p ch,
   p `in` dtree_dom dt -> is_dtree_edge (dtree_insert dt p ch) p ch.
 
-Definition dtrees_insert__in_dtrees_dom_prop (dts:DTrees) := 
+Definition dtrees_insert__in_dtrees_dom_prop (dts:DTrees) :=
 forall p ch,
   p `in` dtrees_dom dts ->is_dtrees_edge (dtrees_insert dts p ch) p ch.
 
@@ -1703,8 +1697,8 @@ Lemma dtree_insert__in_dtree_dom_mutrec :
   (forall dt, dtree_insert__in_dtree_dom_prop dt) *
   (forall dts, dtrees_insert__in_dtrees_dom_prop dts).
 Proof.
-  apply dtree_mutrec; 
-    unfold dtree_insert__in_dtree_dom_prop, 
+  apply dtree_mutrec;
+    unfold dtree_insert__in_dtree_dom_prop,
            dtrees_insert__in_dtrees_dom_prop;
     simpl; intros.
 
@@ -1725,11 +1719,11 @@ Proof.
       destruct J as [J | J]; subst; auto; try congruence.
 
   contradict H. auto.
-       
+
   assert (p `in` (dtree_dom d) \/ p `in` (dtrees_dom d0)) as J.
     fsetdec.
   apply orb_true_iff.
-    destruct J as [J | J]. 
+    destruct J as [J | J].
       left. apply H; auto.
       right. apply H0; auto.
 Qed.
@@ -1741,12 +1735,12 @@ Proof.
   unfold dtree_insert__in_dtree_dom_prop in H. auto.
 Qed.
 
-Definition is_dtree_edge__in_dtree_dom_prop (dt:DTree) := 
-forall p ch, is_dtree_edge dt p ch -> 
+Definition is_dtree_edge__in_dtree_dom_prop (dt:DTree) :=
+forall p ch, is_dtree_edge dt p ch ->
   p `in` dtree_dom dt /\ ch `in` dtree_dom dt.
 
-Definition is_dtrees_edge__in_dtrees_dom_prop (dts:DTrees) := 
-forall p ch, is_dtrees_edge dts p ch -> 
+Definition is_dtrees_edge__in_dtrees_dom_prop (dts:DTrees) :=
+forall p ch, is_dtrees_edge dts p ch ->
   p `in` dtrees_dom dts /\ ch `in` dtrees_dom dts.
 
 Lemma in_children_roots__dtrees_dom: forall ch dts,
@@ -1763,8 +1757,8 @@ Lemma is_dtree_edge__in_dtree_dom_mutrec :
   (forall dt, is_dtree_edge__in_dtree_dom_prop dt) *
   (forall dts, is_dtrees_edge__in_dtrees_dom_prop dts).
 Proof.
-  apply dtree_mutrec; 
-    unfold is_dtree_edge__in_dtree_dom_prop, 
+  apply dtree_mutrec;
+    unfold is_dtree_edge__in_dtree_dom_prop,
            is_dtrees_edge__in_dtrees_dom_prop;
     simpl; intros.
 
@@ -1781,13 +1775,13 @@ Proof.
   congruence.
 
   apply orb_true_iff in H1.
-  destruct H1 as [J | J]. 
+  destruct H1 as [J | J].
     apply H in J. destruct J; auto.
     apply H0 in J. destruct J; auto.
 Qed.
 
-Lemma is_dtree_edge__in_dtree_dom: forall dt p ch, 
-  is_dtree_edge dt p ch -> 
+Lemma is_dtree_edge__in_dtree_dom: forall dt p ch,
+  is_dtree_edge dt p ch ->
   p `in` dtree_dom dt /\ ch `in` dtree_dom dt.
 Proof.
   destruct is_dtree_edge__in_dtree_dom_mutrec as [H1 _].
@@ -1803,17 +1797,17 @@ Proof.
   eapply dtree_insert__in_dtree_dom; eauto.
 Qed.
 
-Lemma create_dtree_from_chain__is_dtree_edge__is_chain_edge: 
+Lemma create_dtree_from_chain__is_dtree_edge__is_chain_edge:
   forall p0 ch0 chain dt,
-  (is_dtree_edge (create_dtree_from_chain dt chain) p0 ch0 -> 
+  (is_dtree_edge (create_dtree_from_chain dt chain) p0 ch0 ->
    is_dtree_edge dt p0 ch0 \/is_chain_edge chain p0 ch0) /\
-  (is_dtree_edge dt p0 ch0 \/ 
+  (is_dtree_edge dt p0 ch0 \/
    (chain_connects_dtree dt chain /\ is_chain_edge chain p0 ch0) ->
    is_dtree_edge (create_dtree_from_chain dt chain) p0 ch0).
 Proof.
   induction chain; simpl; intros.
     split; intros; tauto.
-     
+
     destruct chain.
       tauto.
 
@@ -1832,11 +1826,11 @@ Proof.
             apply dtree_insert__ch_in_dtree_dom; auto.
 Qed.
 
-Definition dtree_insert__in_dtree_dom_prop' (dt:DTree) := 
+Definition dtree_insert__in_dtree_dom_prop' (dt:DTree) :=
 forall i0 p ch,
   i0 `in` dtree_dom dt -> i0 `in` dtree_dom (dtree_insert dt p ch).
 
-Definition dtrees_insert__in_dtrees_dom_prop' (dts:DTrees) := 
+Definition dtrees_insert__in_dtrees_dom_prop' (dts:DTrees) :=
 forall i0 p ch,
   i0 `in` dtrees_dom dts -> i0 `in` dtrees_dom (dtrees_insert dts p ch).
 
@@ -1844,8 +1838,8 @@ Lemma dtree_insert__in_dtree_dom_mutrec' :
   (forall dt, dtree_insert__in_dtree_dom_prop' dt) *
   (forall dts, dtrees_insert__in_dtrees_dom_prop' dts).
 Proof.
-  apply dtree_mutrec; 
-    unfold dtree_insert__in_dtree_dom_prop', 
+  apply dtree_mutrec;
+    unfold dtree_insert__in_dtree_dom_prop',
            dtrees_insert__in_dtrees_dom_prop';
     simpl; intros.
 
@@ -1860,7 +1854,7 @@ Proof.
     destruct J as [J | J]; subst; auto; try congruence.
 
   contradict H. auto.
-       
+
   assert (i0 `in` (dtree_dom d) \/ i0 `in` (dtrees_dom d0)) as J.
     fsetdec.
   destruct J as [J | J]; eauto.
@@ -1879,24 +1873,24 @@ Lemma create_dtree_from_chain__chain_connects_dtree: forall chain0 chain dt,
 Proof.
   induction chain; simpl; intros; auto.
     destruct chain; auto.
-    apply IHchain.    
+    apply IHchain.
     destruct chain0; simpl in *; intros; auto.
     destruct chain0; auto.
     eapply dtree_insert__in_dtree_dom'; eauto.
 Qed.
 
-Lemma fold_left_create_dtree_from_chain__is_dtree_edge__is_chain_edge: 
+Lemma fold_left_create_dtree_from_chain__is_dtree_edge__is_chain_edge:
   forall p0 ch0 chains dt,
   (is_dtree_edge
     (fold_left
       (fun (acc : DTree) (elt : l * list id) =>
        let '(_, chain) := elt in create_dtree_from_chain acc chain)
-     chains dt) p0 ch0 -> 
+     chains dt) p0 ch0 ->
   (is_dtree_edge dt p0 ch0 \/
-   exists l0, exists chain0, 
+   exists l0, exists chain0,
      In (l0, chain0) chains /\ is_chain_edge chain0 p0 ch0)) /\
   ((is_dtree_edge dt p0 ch0 \/
-   exists l0, exists chain0, 
+   exists l0, exists chain0,
      In (l0, chain0) chains /\ chain_connects_dtree dt chain0 /\
      is_chain_edge chain0 p0 ch0) ->
    is_dtree_edge
@@ -1914,7 +1908,7 @@ Proof.
     destruct (IHchains (create_dtree_from_chain dt l1)) as [J1 J2].
     clear IHchains.
     split; intros J.
-      apply J1 in J.      
+      apply J1 in J.
       destruct J as [J | [l2 [chain2 [J3 J4]]]].
         apply create_dtree_from_chain__is_dtree_edge__is_chain_edge in J.
         destruct J as [J | J]; auto.
@@ -1942,11 +1936,11 @@ Lemma create_dtree__wf_dtree: forall f dt,
       let b := bound_fdef f in
       let chains := compute_sdom_chains b dt' rd in
       forall p0 ch0,
-        (is_dtree_edge dt p0 ch0 -> 
-         exists l0, exists chain0, 
+        (is_dtree_edge dt p0 ch0 ->
+         exists l0, exists chain0,
            In (l0, chain0) chains /\ is_chain_edge chain0 p0 ch0) /\
-        ((exists l0, exists chain0, 
-           In (l0, chain0) chains /\ 
+        ((exists l0, exists chain0,
+           In (l0, chain0) chains /\
            chain_connects_dtree (DT_node root DT_nil) chain0 /\
            is_chain_edge chain0 p0 ch0) -> is_dtree_edge dt p0 ch0)
   | _, _ => False
@@ -1977,11 +1971,11 @@ match dts with
     | Dominators.mkBoundedSet dts1 _ , Dominators.mkBoundedSet dts2 _ =>
         if (in_dec l_dec l0 dts2)
         then (* acc << l0 *)
-          find_idom_aux bd res acc dts' 
+          find_idom_aux bd res acc dts'
         else
           if (in_dec l_dec acc dts1)
           then (* l0 << acc *)
-            find_idom_aux bd res l0 dts' 
+            find_idom_aux bd res l0 dts'
           else (* l0 and acc are incompariable *)
             None
     end
@@ -1994,7 +1988,7 @@ match AMap.get l0 res with
 | _ => None
 end.
 
-Fixpoint compute_idoms bd (res: AMap.t (Dominators.t bd)) (rd: list l) 
+Fixpoint compute_idoms bd (res: AMap.t (Dominators.t bd)) (rd: list l)
   (acc: list (l * l)) : list (l * l) :=
 match rd with
 | nil => acc
@@ -2004,11 +1998,3 @@ match rd with
     | Some l1 => compute_idoms bd res rd' ((l1,l0)::acc)
     end
 end.
-
-(*****************************)
-(*
-*** Local Variables: ***
-*** coq-prog-name: "coqtop" ***
-*** coq-prog-args: ("-emacs-U" "-I" "~/SVN/sol/vol/src/Vellvm/monads" "-I" "~/SVN/sol/vol/src/Vellvm/ott" "-I" "~/SVN/sol/vol/src/Vellvm/compcert" "-I" "~/SVN/sol/theory/metatheory_8.3" "-impredicative-set") ***
-*** End: ***
- *)

@@ -1,7 +1,3 @@
-Add LoadPath "./ott".
-Add LoadPath "./monads".
-Add LoadPath "./compcert".
-Add LoadPath "../../../theory/metatheory_8.3".
 Require Import Ensembles.
 Require Import AST.
 Require Import Floats.
@@ -33,7 +29,7 @@ Proof.
   intros. apply Inhabited_intro with (x:=x); auto using In_singleton.
 Qed.
 
-Lemma full_set_inhabited : forall U, 
+Lemma full_set_inhabited : forall U,
   (exists x:U, True) -> Inhabited U (Full_set U).
 Proof.
   intros. inversion H.
@@ -50,7 +46,7 @@ match ty with
 | typ_int sz => fun gv => exists z, gv = (Vint sz z, Mint (sz - 1))::nil
 | typ_floatpoint fp_float => fun gv => exists f, gv = (Vfloat f, Mfloat32)::nil
 | typ_floatpoint fp_double => fun gv => exists f, gv = (Vfloat f, Mfloat64)::nil
-| typ_pointer _ => 
+| typ_pointer _ =>
     fun gv => exists b, exists ofs, gv = (Vptr b ofs, AST.Mint 31)::nil
 | _ => Singleton GenericValue gv
 end.
@@ -60,10 +56,10 @@ match ty with
 | typ_int sz =>
     Ensembles.Union _ (Singleton _ gv)
       (fun gv => exists z, gv = (Vint sz z, Mint (sz-1))::nil)
-| typ_floatpoint fp_float => 
+| typ_floatpoint fp_float =>
     Ensembles.Union _ (Singleton _ gv)
       (fun gv => exists f, gv = (Vfloat f, Mfloat32)::nil)
-| typ_floatpoint fp_double => 
+| typ_floatpoint fp_double =>
     Ensembles.Union _ (Singleton _ gv)
       (fun gv => exists f, gv = (Vfloat f, Mfloat64)::nil)
 | typ_pointer _ =>
@@ -84,18 +80,18 @@ match gv with
 | _ => Singleton GenericValue gv
 end.
 
-Notation "gv @ gvs" :=  
+Notation "gv @ gvs" :=
   (instantiate_gvs gv gvs) (at level 43, right associativity).
 Notation "$ gv # t $" := (gv2gvs gv t) (at level 41).
 
 Lemma cundef_gvs__getTypeSizeInBits : forall S los nts gv t sz al gv',
   wf_typ S t ->
-  _getTypeSizeInBits_and_Alignment los 
-    (getTypeSizeInBits_and_Alignment_for_namedts (los,nts) true) true t = 
+  _getTypeSizeInBits_and_Alignment los
+    (getTypeSizeInBits_and_Alignment_for_namedts (los,nts) true) true t =
       Some (sz, al) ->
   Coqlib.nat_of_Z (Coqlib.ZRdiv (Z_of_nat sz) 8) = sizeGenericValue gv ->
   gv' @ (cundef_gvs gv t) ->
-  Coqlib.nat_of_Z (Coqlib.ZRdiv (Z_of_nat sz) 8) = 
+  Coqlib.nat_of_Z (Coqlib.ZRdiv (Z_of_nat sz) 8) =
     sizeGenericValue gv'.
 Proof.
   intros S los nts gv t sz al gv' Hwft Heq1 Heq2 Hin.
@@ -108,7 +104,7 @@ Qed.
 
 Lemma cundef_gvs__inhabited : forall gv ty, inhabited (cundef_gvs gv ty).
 Proof.
-  destruct ty; simpl; 
+  destruct ty; simpl;
     try solve [eapply Ensembles.Inhabited_intro; constructor].
     eapply Ensembles.Inhabited_intro.
       exists (Int.zero s). auto.
@@ -123,12 +119,12 @@ Qed.
 
 Lemma undef_gvs__getTypeSizeInBits : forall S los nts gv t sz al gv',
   wf_typ S t ->
-  _getTypeSizeInBits_and_Alignment los 
-    (getTypeSizeInBits_and_Alignment_for_namedts (los,nts) true) true t = 
+  _getTypeSizeInBits_and_Alignment los
+    (getTypeSizeInBits_and_Alignment_for_namedts (los,nts) true) true t =
       Some (sz, al) ->
   Coqlib.nat_of_Z (Coqlib.ZRdiv (Z_of_nat sz) 8) = sizeGenericValue gv ->
   gv' @ (undef_gvs gv t) ->
-  Coqlib.nat_of_Z (Coqlib.ZRdiv (Z_of_nat sz) 8) = 
+  Coqlib.nat_of_Z (Coqlib.ZRdiv (Z_of_nat sz) 8) =
     sizeGenericValue gv'.
 Proof.
   intros S los nts gv t sz al gv' Hwft Heq1 Heq2 Hin.
@@ -136,7 +132,7 @@ Proof.
     try solve [inv Heq1; inv Hin; erewrite int_typsize; eauto |
                inv Heq1; inv Hin; eauto].
 
-    inv Heq1; inv Hin; inv H; unfold Size.to_nat; 
+    inv Heq1; inv Hin; inv H; unfold Size.to_nat;
       try solve [eauto | erewrite int_typsize; eauto].
 
     destruct f; try solve [inv Heq1; inv Hin; eauto |
@@ -159,12 +155,12 @@ Qed.
 
 Lemma cgv2gvs__getTypeSizeInBits : forall S los nts gv t sz al gv',
   wf_typ S t ->
-  _getTypeSizeInBits_and_Alignment los 
-    (getTypeSizeInBits_and_Alignment_for_namedts (los,nts) true) true t = 
+  _getTypeSizeInBits_and_Alignment los
+    (getTypeSizeInBits_and_Alignment_for_namedts (los,nts) true) true t =
       Some (sz, al) ->
   Coqlib.nat_of_Z (Coqlib.ZRdiv (Z_of_nat sz) 8) = sizeGenericValue gv ->
   gv' @ (cgv2gvs gv t) ->
-  Coqlib.nat_of_Z (Coqlib.ZRdiv (Z_of_nat sz) 8) = 
+  Coqlib.nat_of_Z (Coqlib.ZRdiv (Z_of_nat sz) 8) =
     sizeGenericValue gv'.
 Proof.
   intros S los nts gv t sz al gv' Hwft Heq1 Heq2 Hin.
@@ -191,8 +187,8 @@ Qed.
 
 Lemma gv2gvs__getTypeSizeInBits : forall S los nts gv t sz al,
   wf_typ S t ->
-  _getTypeSizeInBits_and_Alignment los 
-    (getTypeSizeInBits_and_Alignment_for_namedts (los,nts) true) true t = 
+  _getTypeSizeInBits_and_Alignment los
+    (getTypeSizeInBits_and_Alignment_for_namedts (los,nts) true) true t =
       Some (sz, al) ->
   Coqlib.nat_of_Z (Coqlib.ZRdiv (Z_of_nat sz) 8) = sizeGenericValue gv ->
   forall gv', gv' @ (gv2gvs gv t) ->
@@ -220,9 +216,9 @@ Proof.
     destruct gv; auto using singleton_inhabited, undef_gvs__inhabited.
 Qed.
 
-Definition lift_op1 (f: GenericValue -> option GenericValue) gvs1 ty : option t 
+Definition lift_op1 (f: GenericValue -> option GenericValue) gvs1 ty : option t
   :=
-  Some (fun gv2 => exists gv1, exists gv2', 
+  Some (fun gv2 => exists gv1, exists gv2',
     gv1 @ gvs1 /\ f gv1 = Some gv2' /\ (gv2 @ $ gv2' # ty $)).
 
 Definition lift_op2 (f: GenericValue -> GenericValue -> option GenericValue)
@@ -232,8 +228,8 @@ Definition lift_op2 (f: GenericValue -> GenericValue -> option GenericValue)
 
 Lemma lift_op1__inhabited : forall f gvs1 ty gvs2
   (H:forall x, exists z, f x = Some z),
-  inhabited gvs1 -> 
-  lift_op1 f gvs1 ty = Some gvs2 -> 
+  inhabited gvs1 ->
+  lift_op1 f gvs1 ty = Some gvs2 ->
   inhabited gvs2.
 Proof.
   intros. inv H1. inv H0.
@@ -274,10 +270,10 @@ Qed.
 
 Lemma lift_op1__getTypeSizeInBits : forall S los nts f g t sz al gvs,
   wf_typ S t ->
-  _getTypeSizeInBits_and_Alignment los 
-    (getTypeSizeInBits_and_Alignment_for_namedts (los,nts) true) true t = 
+  _getTypeSizeInBits_and_Alignment los
+    (getTypeSizeInBits_and_Alignment_for_namedts (los,nts) true) true t =
       Some (sz, al) ->
-  (forall x y, x @ g -> f x = Some y -> 
+  (forall x y, x @ g -> f x = Some y ->
    sizeGenericValue y = nat_of_Z (ZRdiv (Z_of_nat sz) 8)) ->
   lift_op1 f g t = Some gvs ->
   forall gv : GenericValue,
@@ -292,10 +288,10 @@ Qed.
 
 Lemma lift_op2__getTypeSizeInBits : forall S los nts f g1 g2 t sz al gvs,
   wf_typ S t ->
-  _getTypeSizeInBits_and_Alignment los 
-    (getTypeSizeInBits_and_Alignment_for_namedts (los,nts) true) true t = 
+  _getTypeSizeInBits_and_Alignment los
+    (getTypeSizeInBits_and_Alignment_for_namedts (los,nts) true) true t =
       Some (sz, al) ->
-  (forall x y z, x @ g1 -> y @ g2 -> f x y = Some z -> 
+  (forall x y z, x @ g1 -> y @ g2 -> f x y = Some z ->
    sizeGenericValue z = nat_of_Z (ZRdiv (Z_of_nat sz) 8)) ->
   lift_op2 f g1 g2 t = Some gvs ->
   forall gv : GenericValue,
@@ -326,8 +322,8 @@ Proof.
   destruct gv; simpl; try constructor.
   destruct p; simpl; try constructor.
   destruct v; simpl; try constructor.
-  destruct gv; simpl; 
-    try solve [constructor | auto using instantiate_undef__undef_gvs].  
+  destruct gv; simpl;
+    try solve [constructor | auto using instantiate_undef__undef_gvs].
 Qed.
 
 Lemma none_undef2gvs_inv : forall gv gv' t,
@@ -364,11 +360,3 @@ MNDGVs.lift_op2__getTypeSizeInBits
 MNDGVs.inhabited_inv
 MNDGVs.instantiate_gv__gv2gvs
 MNDGVs.none_undef2gvs_inv.
-
-(*****************************)
-(*
-*** Local Variables: ***
-*** coq-prog-name: "coqtop" ***
-*** coq-prog-args: ("-emacs-U" "-I" "~/SVN/sol/vol/src/Vellvm/monads" "-I" "~/SVN/sol/vol/src/Vellvm/ott" "-I" "~/SVN/sol/vol/src/Vellvm/compcert" "-I" "~/SVN/sol/theory/metatheory_8.3") ***
-*** End: ***
- *)

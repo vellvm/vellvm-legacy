@@ -1,26 +1,25 @@
 (** In compiler verification, we have different opinions to formalize the
     semantics of underlying languages. Small-step semantics can precisely
-    define convergence and divergence with a trace of effects during 
+    define convergence and divergence with a trace of effects during
     execution, while big-step semantics helps when proving the correctness of
-    translation between high-level source languages and lower-level target 
+    translation between high-level source languages and lower-level target
     languages. But big-step semantics usually fail to distinguish non-terminating
-    and stuck programs. 
+    and stuck programs.
 
-    Using a call-by-value functional language as an example, this script 
-    illustrates the use of coinductive definitions and proofs in big-step 
-    operational semantics, enabling it to describe diverging evaluations in 
-    addition to terminating evaluations. 
+    Using a call-by-value functional language as an example, this script
+    illustrates the use of coinductive definitions and proofs in big-step
+    operational semantics, enabling it to describe diverging evaluations in
+    addition to terminating evaluations.
 
-    We study the use of coinductive big-step semantics in proofs of type 
-    soundness, and then summarize the connections between the coinductive 
-    big-step semantics and the standard small-step semantics, proving that 
+    We study the use of coinductive big-step semantics in proofs of type
+    soundness, and then summarize the connections between the coinductive
+    big-step semantics and the standard small-step semantics, proving that
     both semantics are equivalent.
 
-    The results and proof infrastructures can also be applied to imperative 
+    The results and proof infrastructures can also be applied to imperative
     languages.
 *)
 
-Add LoadPath "../../../theory/metatheory".
 Require Export Coq.Program.Equality.
 Require Export lang_inf.
 Require Export lang_more.
@@ -42,7 +41,7 @@ Notation " e ===> e' " := (bigstep_converging e e') (at level 50, left associati
 (* *********************************************************************** *)
 (** * Conversion of forall, exists, and negation. *)
 
-Lemma forall_neq__neq_exists : forall (A:Type) (P:A -> Prop), 
+Lemma forall_neq__neq_exists : forall (A:Type) (P:A -> Prop),
   (forall x, ~ P x) <-> (~ exists x, P x).
 Proof.
   intros A P.
@@ -55,7 +54,7 @@ Proof.
 Qed.
 
 (** This lemma needs classical axioms. *)
-Lemma neq_forall__exists_neq : forall (A:Type) (P:A -> Prop), 
+Lemma neq_forall__exists_neq : forall (A:Type) (P:A -> Prop),
   (~ forall x, P x) <-> (exists x, ~ P x).
 Proof.
   intros A P.
@@ -67,7 +66,7 @@ Proof.
         revert x.
         apply (@forall_neq__neq_exists A (fun x => ~ P x)); auto.
       contradict nJ; auto.
-  
+
     intro J'. destruct J as [x J].
     apply J; auto.
 Qed.
@@ -147,7 +146,7 @@ Proof.
         SSCase "e2 is stucks".
           destruct e1; try solve [inversion e1_is_val].
           SSSCase "e1 is const".
-            right. intro J. destruct J as [e' J]. 
+            right. intro J. destruct J as [e' J].
             inversion J; subst.
               inversion H5.
               apply IHlc_exp2. exists e2'. auto.
@@ -162,7 +161,7 @@ Proof.
                 apply IHlc_exp2. exists e2'. auto.
                 apply e2_isnt_val; auto.
       SCase "e1 isnt val".
-        right. intro J. destruct J as [e' J]. 
+        right. intro J. destruct J as [e' J].
         inversion J; subst.
           apply IHlc_exp1. exists e1'. auto.
           apply e1_isnt_val; auto.
@@ -253,7 +252,7 @@ Lemma typesoundness1 : forall e T e',
   (exists e'', e' ---> e'') \/ is_value_of_exp e'.
 Proof.
   intros e T e' Typing e_reduces_e'.
-  (** By induction on [e --->* e'], the base case is by [smallstep_progress], 
+  (** By induction on [e --->* e'], the base case is by [smallstep_progress],
       and the inductive case is by [smallstep_preservation] and IH. *)
   generalize dependent T.
   (smallstep_converging_cases (dependent induction e_reduces_e') Case); intros.
@@ -267,7 +266,7 @@ Qed.
 (* *********************************************************************** *)
 (** * typesoundness2 (classic) *)
 
-(** Following [typesoundness1], informally, we can conclude that 
+(** Following [typesoundness1], informally, we can conclude that
 well-typed closed terms either reduce to a value or reduce infinitely.
 [typesoundness2] proves this formally.
 *)
@@ -275,7 +274,7 @@ well-typed closed terms either reduce to a value or reduce infinitely.
 (** We first define infinite reductions via coinduction. *)
 
 Reserved Notation " e --->o " (at level 50, left associativity).
-CoInductive smallstep_diverging : exp -> Prop :=    
+CoInductive smallstep_diverging : exp -> Prop :=
  | smallstep_d_intro : forall (e e':exp),
      e ---> e' ->
      e'--->o  ->
@@ -300,9 +299,9 @@ Lemma finitely_unstuck__diverging : forall e,
 Proof.
   cofix Hcoind.
   intros e Hlc H.
-  (** if e steps to e', the conclusion follows coinduction, 
+  (** if e steps to e', the conclusion follows coinduction,
         because we know e' is not stuck finitely either;
-      otherwise, it is false because we know e is never stuck finitely. 
+      otherwise, it is false because we know e is never stuck finitely.
   *)
   destruct (@smallstep_dec e Hlc) as [[e' e_steps] | e_is_stuck].
   Case "e_steps".
@@ -317,7 +316,7 @@ Proof.
     inversion FALSE.
 Qed.
 
-(** By [finitely_unstuck__diverging], we prove that a term is 
+(** By [finitely_unstuck__diverging], we prove that a term is
     either divergingbing or stuck after finitely steps. *)
 Lemma term_is_diverging_or_finitely_stuck : forall e,
   lc_exp e ->
@@ -329,9 +328,9 @@ Proof.
   Case "e isnt deverging".
     right.
     (** [finitely_unstuck__diverging] shows that
-        it cannnot be the case that e will not stop after finite steps:        
-          if ~ e --->o then ~ (forall e', e --->* e' -> ~ e' -\-> ). 
-        Classically, this concludes. 
+        it cannnot be the case that e will not stop after finite steps:
+          if ~ e --->o then ~ (forall e', e --->* e' -> ~ e' -\-> ).
+        Classically, this concludes.
     *)
     assert (J:=@finitely_unstuck__diverging e Hlc).
     apply imply_to_or in J.
@@ -349,8 +348,8 @@ Lemma typesoundness2 : forall e T,
   (exists v, e --->* v /\ is_value_of_exp v) \/ e --->o.
 Proof.
   intros e T Typing.
-  (** given a term, it is either diverging or stuck afer finite reductions. 
-      The former case proves the conclusion. In the latter case, by 
+  (** given a term, it is either diverging or stuck afer finite reductions.
+      The former case proves the conclusion. In the latter case, by
       [typesoundness1], we have that the stuck term must be a value.
   *)
   assert (lc_exp e) as Hlc. eauto.
@@ -363,7 +362,7 @@ Proof.
         unfold smallstep_stuck in e'_is_stuck.
         apply (@e'_is_stuck e''); auto.
       inversion FALSE.
-    SCase "e'_is_val".      
+    SCase "e'_is_val".
       left. exists e'. auto.
 Qed.
 
@@ -371,13 +370,13 @@ Qed.
 (* *********************************************************************** *)
 (** * typesoundness3 (classic) *)
 
-(** --->* --->o define terminating and non-terminating reductions separately. 
-    We can also merge them in one judgment that captures both finite and infinite 
+(** --->* --->o define terminating and non-terminating reductions separately.
+    We can also merge them in one judgment that captures both finite and infinite
     reductions, to reduce the size of definitions.
 *)
 
 Reserved Notation " e -o->* e' " (at level 50, left associativity).
-CoInductive smallstep_coreductions : exp -> exp -> Prop :=    
+CoInductive smallstep_coreductions : exp -> exp -> Prop :=
  | smallstep_co_refl : forall (e:exp),
      lc_exp e ->
      e -o->* e
@@ -403,13 +402,13 @@ Proof.
   induction e_is_converging; eauto.
 Qed.
 
-(** Second, if e is diverging, then e should coreduce to any term. 
+(** Second, if e is diverging, then e should coreduce to any term.
     It formalizes the intuition that non-terminating terms can prove
-    any result. 
+    any result.
 
-    This is stronger than stating that there exists [e'] that e coreduces to. 
-    Later, we will show that [=co=>], a big-step coevaluation that 
-    merges bigstep convergence and divergence, may only coevaluate to 
+    This is stronger than stating that there exists [e'] that e coreduces to.
+    Later, we will show that [=co=>], a big-step coevaluation that
+    merges bigstep convergence and divergence, may only coevaluate to
     a particular term at some cases. That shows that [=co=>] is smaller
     than [-o->*] by [coevaluation_implies_coreduction].
 *)
@@ -424,7 +423,7 @@ Proof.
 Qed.
 
 (** Finially, [-o->*] doesn't include more computation than [--->*] and
-    [--->o]. In other words, if [e -o->* e'], and it is not the case that 
+    [--->o]. In other words, if [e -o->* e'], and it is not the case that
     [e --->* e'], then e must diverge.
 *)
 Lemma nonterminating_smallstep_coreductions__diverging : forall e e',
@@ -442,7 +441,7 @@ Proof.
       apply e_isnt_converging_to_e'; auto.
     inversion FALSE.
   Case "e_coreduces_to_e' by trans".
-    (** If e steps to e'' that coreduces to e'. 
+    (** If e steps to e'' that coreduces to e'.
         We have that e'' cannot reduce to e' finitely either.
         Then we conclude by coinductive hypothesis. *)
     apply smallstep_d_intro with (e':=e'0); eauto.
@@ -455,7 +454,7 @@ Lemma smallstep_coreductions__iff__converging_and_diverging : forall e e',
 Proof.
   intros e e'. split.
   Case "e -o->* e' -> (e --->* e' \/ e --->o )".
-    (** Classically, either e converges to e' or not. In the latter case, 
+    (** Classically, either e converges to e' or not. In the latter case,
         [nonterminating_smallstep_coreductions__diverging] completes the proof.
     *)
     destruct (classic (e --->* e')) as [e_converges_to_e' | e_doesnt_converge_to_e']; auto.
@@ -465,9 +464,9 @@ Proof.
     (** The conclustion follows that [-o->*] includes [--->*] and [--->o]. *)
     intro J. destruct J as [e_converges_to_e' | e_diverges].
     SCase "e_converges_to_e'".
-      apply smallstep_converging__implies__coreductions; auto.  
+      apply smallstep_converging__implies__coreductions; auto.
     SCase "e_diverges".
-      apply smallstep_diverging__implies__coreductions; auto.  
+      apply smallstep_diverging__implies__coreductions; auto.
 Qed.
 
 (** By [typesoundness2] and the fact that [-o->*] is the union of [--->*] and
@@ -494,14 +493,14 @@ Qed.
 
     Consider another reductions. It considers all safe reductions: either
     stopping at values, or running infinitely, but never being stuck finitely.
-    It is equivalent to 
+    It is equivalent to
         --->o + --->* to value
-    or 
+    or
         -o->* - stuck --->*.
 *)
 
 Reserved Notation " e --->s " (at level 50, left associativity).
-CoInductive smallstep_safereductions : exp -> Prop :=    
+CoInductive smallstep_safereductions : exp -> Prop :=
  | smallstep_s_value : forall (v:exp),
      lc_exp v ->
      is_value_of_exp v ->
@@ -562,7 +561,7 @@ Hint Resolve value_is_bigstep_converging.
     because they do not stop at values. So we cannot prove that
       if 0 |- e : T, then ex v, s.t. e ===> v.
     We can only prove a variant of preservation:
-      if a well-typed term evaluates a value, the value preverses the type.    
+      if a well-typed term evaluates a value, the value preverses the type.
 *)
 Lemma bigstep_preservation : forall G e v T,
   typing G e T ->
@@ -592,15 +591,15 @@ Qed.
     We first define infinite evaluation via coinduction. *)
 
 Reserved Notation " e ===>o " (at level 50, left associativity).
-CoInductive bigstep_diverging : exp -> Prop :=    
+CoInductive bigstep_diverging : exp -> Prop :=
  | bigstep_d_app1 : forall (e1 e2:exp),
      e1 ===>o ->
-     (app e1 e2) ===>o 
+     (app e1 e2) ===>o
  | bigstep_d_app2 : forall (e1 e2 v1:exp),
      is_value_of_exp v1 ->
      e1 ===> v1  ->
      e2 ===>o ->
-     (app e1 e2) ===>o 
+     (app e1 e2) ===>o
  | bigstep_d_appf : forall (e1 e2 e1' v2:exp),
      is_value_of_exp v2 ->
      e1 ===> (abs e1') ->
@@ -627,7 +626,7 @@ Hint Constructors bigstep_diverging.
     well-typed closed terms can go into. In other words, if well-typed closed terms
     cannot evaluate to values, they must diverge w.r.t [===>o].
 
-    First, we define when a term is stuck for [===>]. 
+    First, we define when a term is stuck for [===>].
 *)
 
 Definition not_bigstep_converging (e:exp) := forall v, ~ e ===> v.
@@ -653,7 +652,7 @@ Lemma bigstep_progress : forall e T,
   e =\=> ->
   e ===>o.
 Proof.
-  (** The conclusion is coinductive. Case analyis over e gives different 
+  (** The conclusion is coinductive. Case analyis over e gives different
       constructors of ===>o. We conclude each case by cofix. *)
   cofix Hcoind.
   intros e T Typing e_diverges.
@@ -679,16 +678,16 @@ Proof.
       unfold not_bigstep_converging in e_diverges.
       apply forall_neq__neq_exists in e_diverges.
       apply e_diverges.
-      exists (abs e). 
+      exists (abs e).
       apply value_is_bigstep_converging; simpl; eauto.
     inversion FALSE.
   Case "app".
     inversion Typing; subst.
     rename H2 into Typing1. rename H4 into Typing2.
-    (** This is the interesting case. We consider the cases whether the function, 
-        its argument or the function body evaluates or not. 
+    (** This is the interesting case. We consider the cases whether the function,
+        its argument or the function body evaluates or not.
 
-        Because we know that this application does not evaluate, at least 
+        Because we know that this application does not evaluate, at least
         one of them does not evaluate, at that case we conclude by coinductive hyp.
     *)
 
@@ -744,7 +743,7 @@ Qed.
 
 Lemma typesoundness5 : forall e T,
   typing nil e T ->
-  (exists v, e ===> v) \/ e ===>o. 
+  (exists v, e ===> v) \/ e ===>o.
 Proof.
   intros e T Typing.
   (* We know that e is either converging or stuck. The first cast concludes, and the
@@ -752,7 +751,7 @@ Proof.
   destruct (@exp_evaluates_to_value_or_not e) as [e_is_converging | e_isnt_converging]; auto.
   Case "e_isnt_converging".
     right. apply bigstep_progress in Typing; auto.
-Qed.  
+Qed.
 
 (** The standard approach for proving type soudness using bigstep semantics
     is to provide inductive inference rules to define a predicate e ===>x
@@ -764,8 +763,8 @@ Notation " e ===>x " := (bigstep_goingwrong e) (at level 50, left associativity)
 
 Tactic Notation "bigstep_goingwrong_cases" tactic(first) tactic(c) :=
   first;
-  [ c "bigstep_w_app1_wrong" | 
-    c "bigstep_w_app1_const" | 
+  [ c "bigstep_w_app1_wrong" |
+    c "bigstep_w_app1_const" |
     c "bigstep_w_app2_wrong" |
     c "bigstep_w_appf" ].
 
@@ -796,43 +795,43 @@ Proof with eauto 10.
     assert (z `notin` L) as z_notin_L. auto.
     apply H6 in z_notin_L. simpl_env in z_notin_L.
     eapply typing_subst with (F := nil)(S:=T1); simpl_env; eauto.
-Qed.    
+Qed.
 
-(** [wellformed_term_never_goes_wrong] shows that wellformed terms 
-    wont go wrong if [===>x] includes all error cases. Therefore, 
+(** [wellformed_term_never_goes_wrong] shows that wellformed terms
+    wont go wrong if [===>x] includes all error cases. Therefore,
     wellformed terms can only be normalizing or diverge.
 
-    This approach is not fully satisfactory for two reasons: 
+    This approach is not fully satisfactory for two reasons:
 
-    1) extra rules must be provided to define ===>x, which increases the 
+    1) extra rules must be provided to define ===>x, which increases the
        size of the semanstics
 
     2) there is a risk that the rules for e ===>x are incomplete and miss
-       some cases of 'going wrong', in which cases the typing soundness 
+       some cases of 'going wrong', in which cases the typing soundness
        statement does not guarantee that well-typed terms either evaluate to
        a value or diverge.
 
-       In our case, [===>] at least missed one case that free and bound variables 
-       cannot evaluate. 
+       In our case, [===>] at least missed one case that free and bound variables
+       cannot evaluate.
 
-    [typesoundness5] is an alternative to this approach of showing 
+    [typesoundness5] is an alternative to this approach of showing
     ~ (e ===>x) for all well-typed terms e. From a methodological standpoint,
     [typesoundness5] addresses one of the above shortcominges, namely
     the risk of not putting in enough error rules. If [===>o] forgets some
     divergences rules, the proof of [bigstep_progress] will not go through.
     Therefore, this approach appears rather robust with respect to mistakes
     in the specficaion of the semantics.
-   
+
     The other shortcoming remains. Like [===>x], [===>o] requires more
     evaluation rules than those for normal evalutions, namely the rules for
-    divergence, This can easily double the size of the specification of a 
+    divergence, This can easily double the size of the specification of a
     dynamic semantics, which is a concern for realistic langauges where
     the normal evaluation rules number in dozens. For example:
        http://compcert.inria.fr/doc/html/Csem.html
 
     Let us consider [=o=>*], which has the same number of rules as normal
-    evaluation. It attempts to describe both kinds of evaluations at the 
-    same time, like [-o->*], in a more concise way, interpreting coinductively 
+    evaluation. It attempts to describe both kinds of evaluations at the
+    same time, like [-o->*], in a more concise way, interpreting coinductively
     the standard evaluation rules for terminating evaluations.
 *)
 
@@ -840,9 +839,9 @@ Qed.
 (** * typesoundness6 *)
 
 Reserved Notation " e =co=> e' " (at level 50, left associativity).
-CoInductive bigstep_coevaluations : exp -> exp -> Prop :=  
- | bigstep_co_const : 
-     const =co=> const 
+CoInductive bigstep_coevaluations : exp -> exp -> Prop :=
+ | bigstep_co_const :
+     const =co=> const
  | bigstep_co_abs : forall (e:exp),
      lc_exp (abs e) ->
      (abs e) =co=> (abs e)
@@ -857,7 +856,7 @@ where " e =co=> e' " := (bigstep_coevaluations e e').
 
 Hint Constructors bigstep_coevaluations.
 
-(** It is clear that [=co=>] includes [===>], trivially by induction 
+(** It is clear that [=co=>] includes [===>], trivially by induction
     on [e ===> v]. *)
 Lemma evaluations__implies__coevaluations : forall e v,
   e ===> v -> e =co=> v.
@@ -922,7 +921,7 @@ Proof.
       apply e_doesnt_evaluate.
       inversion e_coevaluates_to_v; subst; auto.
     inversion FALSE.
-  Case "abs". 
+  Case "abs".
     assert False as FALSE.
       apply e_doesnt_evaluate.
       inversion e_coevaluates_to_v; subst; auto.
@@ -969,11 +968,11 @@ Conjecture typesoundness6 : forall e T,
 (*
      We can prove [=co=>] equals the union of [===>] and [===>o] for STLC. But
      in the system with recursive types, let's consider:
-       let rec f x = 
-           let g = f x 
+       let rec f x =
+           let g = f x
            in fun y -> g y
        in f 0 --->
-     
+
        let g1 = f 0 in
        fun y -> g1 y --->
 
@@ -987,11 +986,11 @@ Conjecture typesoundness6 : forall e T,
        let gn-1 = fun y -> gn y in
        ...
        let g1 = fun y -> g2 y in
-       fun y -> g1 y 
+       fun y -> g1 y
 
-     This is an infinit term 
+     This is an infinit term
        \y. (\y. (\y. ... y) y) y
-     that we cannot write down. So we cannot prove a version of typesoundness 
+     that we cannot write down. So we cannot prove a version of typesoundness
      for [=co=>].
 *)
 
@@ -1171,7 +1170,7 @@ Proof.
             apply smallstep_c_trans with (e':=open_exp_wrt_exp e1' v2); eauto.
   Case "[--->*] --> [===>]".
     intro J. destruct J as [e_to_v v_is_val].
-    (** By induction on [--->*] and the facts that 
+    (** By induction on [--->*] and the facts that
         1) v ===> v                                [value_is_bigstep_converging]
         2) if e ---> e' /\ e' ===> v then e ===> v [bigstep_converging__smallstep__congruence]
     *)
@@ -1188,14 +1187,14 @@ Qed.
     is also big-step divering. *)
 Lemma bigstep_diverging_inversion : forall e,
   lc_exp e ->
-  e ===>o -> 
+  e ===>o ->
   exists e', e ---> e' /\ e' ===>o .
 Proof.
   intros e e_is_lc.
   (** By induction on e and case analysis on [e ===>o].
       The value and variable cases are trivial, because they cannot diverge.
       The only interesting case is application. *)
-  (lc_exp_cases (induction e_is_lc) Case); intros e_co; simpl; 
+  (lc_exp_cases (induction e_is_lc) Case); intros e_co; simpl;
     try solve [auto | inversion e_co].
   Case "lc_app".
     (** Consider cases from [e1 e2 ===>o].
@@ -1207,12 +1206,12 @@ Proof.
 
            Because [--->*] <-> [===>], we have e1 reduces to v1:
            if e1 = v1, we have v1 e2 --=> v1 e2' ===>o
-           else e1 ---> e' --->* v1, we have e1 e2 ---> e' e2 ====>o 
+           else e1 ---> e' --->* v1, we have e1 e2 ---> e' e2 ====>o
                 becasue e' ===> v1 by [--->*] <-> [===>] and e2 diverges.
 
         3) if e1 evaluates to \x.e1', e2 evaluates to v2, but {v2/x}e1' ===>o,
            similar to 2).
-    *)     
+    *)
     (bigstep_diverging_cases (inversion e_co) SCase); subst.
     SCase "bigstep_d_app1".
       apply IHe_is_lc1 in H0.
@@ -1231,7 +1230,7 @@ Proof.
         exists (app e' e2). split; eauto.
         apply bigstep_d_app2 with (v1:=v1); auto.
           eapply smallstep_converging__iff__bigstep_converging; auto.
-    SCase "bigstep_d_appf".          
+    SCase "bigstep_d_appf".
       apply smallstep_converging__iff__bigstep_converging in H2.
       destruct H2 as [e1_smallsteps_abs abs_is_val].
       (smallstep_converging_cases (inversion e1_smallsteps_abs) SSCase); subst.
@@ -1283,11 +1282,11 @@ Proof.
     (** By coinduction and case analysis over e. The interesting case (e1 e2) is application,
         because values and variables cannot diverge.
 
-        We case analysis on the function, its argument, and the body by the fact that 
+        We case analysis on the function, its argument, and the body by the fact that
          a term is either diverging or stuck finitely.
 
         1) if e1 diverges, we conclude by hyp.
-      
+
         2) if e1 --->* v1, but e2 diverges, then
 
            By [smallstep_diverging__im_step_diverging], we have v1 e2 must diverge.
@@ -1305,7 +1304,7 @@ Proof.
     generalize dependent e.
     cofix Hcoind.
     intros ? ? e_cor.
-    (exp_cases (destruct e) SCase); 
+    (exp_cases (destruct e) SCase);
       try solve [inversion e_cor; subst; inversion H].
     SCase "app".
       inversion e_is_lc; subst.
@@ -1323,7 +1322,7 @@ Proof.
                 apply v1_is_stuck.
                 exists e1'. auto.
               inversion FALSE.
-            apply smallstep_c_app_fun; auto.                  
+            apply smallstep_c_app_fun; auto.
         destruct (@term_is_diverging_or_finitely_stuck e2 H2) as [e2_diverges | [v2 [e2_converges_to_v2 v2_is_stuck]]].
         SSSCase "e2_diverges".
           apply bigstep_d_app2 with (v1:=v1); auto.
@@ -1347,7 +1346,7 @@ Proof.
                   exists e2'. auto.
                 inversion FALSE.
               apply smallstep_c__trans with (e':=app v1 e2).
-                apply smallstep_c_app_fun; auto.                  
+                apply smallstep_c_app_fun; auto.
                 apply smallstep_c_app_arg; eauto.
           assert (exists e1', v1 = abs e1') as v1_is_abs.
             apply smallstep_diverging__im_step_diverging with (e':=app v1 v2) in e_cor; auto.
@@ -1366,16 +1365,16 @@ Proof.
                   apply v2_is_stuck.
                   exists e2'. auto.
                 inversion FALSE.
-             
+
                 exists e0. auto.
               apply smallstep_c__trans with (e':=app v1 e2).
-                apply smallstep_c_app_fun; auto.                  
+                apply smallstep_c_app_fun; auto.
                 apply smallstep_c_app_arg; eauto.
           destruct v1_is_abs as [e1' EQ]; subst.
           assert (lc_exp (open_exp_wrt_exp e1' v2)) as Hlc_open.
             apply lc_body_exp_wrt_exp; eauto.
               assert (lc_exp (abs e1')) as Hlc_abs. eauto.
-              inversion Hlc_abs; subst. auto. 
+              inversion Hlc_abs; subst. auto.
           destruct (@term_is_diverging_or_finitely_stuck (open_exp_wrt_exp e1' v2) Hlc_open) as [e1'v2_diverges | [v [e1'v2_converges_to_v1 e1'v2_is_stuck]]].
           SSSSCase "{v2/x}e1'_diverges".
             apply bigstep_d_appf with (e1':=e1')(v2:=v2); auto.
@@ -1383,7 +1382,7 @@ Proof.
               eapply smallstep_converging__iff__bigstep_converging; auto.
           SSSSCase "{v2/x}e1'_is_stuck".
             apply smallstep_diverging__im_step_diverging with (e':=v) in e_cor.
-  
+
               assert False as FALSE.
                 unfold smallstep_stuck in e1'v2_is_stuck.
                 apply forall_neq__neq_exists in e1'v2_is_stuck; auto.
@@ -1393,9 +1392,9 @@ Proof.
               inversion FALSE.
 
               apply smallstep_c__trans with (e':=app (abs e1') e2).
-                apply smallstep_c_app_fun; auto.                  
+                apply smallstep_c_app_fun; auto.
                 apply smallstep_c__trans with (e':=app (abs e1') v2).
-                  apply smallstep_c_app_arg; eauto.          
+                  apply smallstep_c_app_arg; eauto.
                   apply smallstep_c_trans with (e':=open_exp_wrt_exp e1' v2); eauto.
 Qed.
 
@@ -1403,13 +1402,13 @@ Qed.
 
     [=co=>] is also smaller than [-o->*].
 
-    When e1 [=co=>] (\x.e1'), {v2/x}e1' [=co=>] v converge, but e2 diverges, 
-    such as (\x. 0) omega, e1 e2 =co=> v. This is not intuitive if we think 
+    When e1 [=co=>] (\x.e1'), {v2/x}e1' [=co=>] v converge, but e2 diverges,
+    such as (\x. 0) omega, e1 e2 =co=> v. This is not intuitive if we think
     that diverging can prove anything. Actually we can prove (\x. 0) omega
     must [-o->*] to any value.
 *)
 
-(** Given e coevaluates to v, then either e is value, or e steps to e' that 
+(** Given e coevaluates to v, then either e is value, or e steps to e' that
     also coevaluates to v. *)
 Lemma coevaluation_inversion : forall e v,
   lc_exp e ->
@@ -1420,7 +1419,7 @@ Proof.
   (** By induction on e and case analysis on [e =co=> v].
       The value and variable cases are trivial. *)
   generalize dependent v.
-  (lc_exp_cases (induction e_is_lc) Case); intros v e_co_v; simpl; 
+  (lc_exp_cases (induction e_is_lc) Case); intros v e_co_v; simpl;
     try solve [auto | inversion e_co_v].
   Case "lc_app".
     (** From [e1 e2 =co=> v], we have
@@ -1436,14 +1435,14 @@ Proof.
 
         if e1 is \x.e1', e2 is v2, and {v2/x}e1'=co=>v
              we have e1e2 -> {v2/x}e1'=co=>v
-    *)     
+    *)
 
     inversion e_co_v; subst.
     right.
     assert (e1_co_abs:=H3).
     assert (e2_co_v2:=H4).
     apply IHe_is_lc1 in H3.
-    apply IHe_is_lc2 in H4. 
+    apply IHe_is_lc2 in H4.
     rename e1' into e12.
     destruct H3 as [e1_is_val | [e1' [e1_to_e1' e1'_co_abs]]].
     SCase "e1_is_val".
@@ -1463,10 +1462,10 @@ Qed.
 
 Lemma coevaluation__implies__coreduction : forall e v,
   lc_exp e ->
-  e =co=> v -> 
+  e =co=> v ->
   e -o->* v.
 Proof.
-  (** By coinduction, then by [coevaluation_inversion], we know that 
+  (** By coinduction, then by [coevaluation_inversion], we know that
       either e is value, or e--->e'=co=>v. The earlier case is trivial,
       the latter case is by coind hyp.
   *)
@@ -1475,27 +1474,19 @@ Proof.
   apply coevaluation_inversion with (v:=v) in e_is_lc; auto.
   destruct e_is_lc as [e_is_value | [e' [e_to_e' e'_co_v]]]; auto.
   Case "e_is_value".
-    (exp_cases (destruct e) SCase); 
-      try solve [simpl in e_is_value; inversion e_is_value | 
+    (exp_cases (destruct e) SCase);
+      try solve [simpl in e_is_value; inversion e_is_value |
                  clear Hcoind; inversion e_co_v; auto].
   Case "e_steps".
     apply smallstep_co_trans with (e':=e'); eauto.
 Qed.
 
-(** * Notwithstanding the negative results of 
+(** * Notwithstanding the negative results of
       ~ ([===>o]  ->  [=co=>]) and ~ ([-o->*]  ->  [=co=>]),
       there exists a class of terms for which [=co=>] correctly
       captures both terminating and diverging evaluations: terms that
-      are in continuation-passing style (CPS). CPS terms are defined 
+      are in continuation-passing style (CPS). CPS terms are defined
       by the following grammar:
 
         a ::= x | c | \x.b
         b ::= a | b a
-
-      Less formally, CPS terms are built from atoms using multiple
-      applications in tail-call position. A distingushing feature of 
-      these terms is that function arguments are always values, such that 
-      the above counter-exampled don't work. We can prove that [=co=>]
-      equals to the union of [===>o] and [===>], and is also equivalent
-      to [-o->*]. But I did not prove this result in Coq.     
-*)

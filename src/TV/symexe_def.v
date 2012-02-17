@@ -1,9 +1,3 @@
-Add LoadPath "../Vellvm/ott".
-Add LoadPath "../Vellvm/monads".
-Add LoadPath "../Vellvm/compcert".
-Add LoadPath "../Vellvm/GraphBasics".
-Add LoadPath "../Vellvm".
-Add LoadPath "../../../theory/metatheory_8.3".
 Require Import vellvm.
 Require Import List.
 Require Import Arith.
@@ -43,9 +37,9 @@ match i with
 end.
 
 Inductive dbCmd : TargetData -> GVMap ->
-                  DGVMap -> list mblock -> mem -> 
-                  cmd -> 
-                  DGVMap -> list mblock -> mem -> 
+                  DGVMap -> list mblock -> mem ->
+                  cmd ->
+                  DGVMap -> list mblock -> mem ->
                   trace -> Prop :=
 | dbBop: forall TD lc gl id bop sz v1 v2 gv3 Mem als,
   BOP TD lc gl bop sz v1 v2 = Some gv3 ->
@@ -53,14 +47,14 @@ Inductive dbCmd : TargetData -> GVMap ->
     lc als Mem
     (insn_bop id bop sz v1 v2)
     (updateAddAL _ lc id gv3) als Mem
-    trace_nil 
+    trace_nil
 | dbFBop: forall TD lc gl id fbop fp v1 v2 gv3 Mem als,
   FBOP TD lc gl fbop fp v1 v2 = Some gv3 ->
   dbCmd TD gl
     lc als Mem
     (insn_fbop id fbop fp v1 v2)
     (updateAddAL _ lc id gv3) als Mem
-    trace_nil 
+    trace_nil
 | dbExtractValue : forall TD lc gl id t v gv gv' Mem als idxs,
   getOperandValue TD v lc gl = Some gv ->
   extractGenericValue TD t gv idxs = Some gv' ->
@@ -68,7 +62,7 @@ Inductive dbCmd : TargetData -> GVMap ->
     lc als Mem
     (insn_extractvalue id t v idxs)
     (updateAddAL _ lc id gv') als Mem
-    trace_nil 
+    trace_nil
 | dbInsertValue : forall TD lc gl id t v t' v' gv gv' gv'' idxs Mem als,
   getOperandValue TD v lc gl = Some gv ->
   getOperandValue TD v' lc gl = Some gv' ->
@@ -77,7 +71,7 @@ Inductive dbCmd : TargetData -> GVMap ->
     lc als Mem
     (insn_insertvalue id t v t' v' idxs)
     (updateAddAL _ lc id gv'') als Mem
-    trace_nil 
+    trace_nil
 | dbMalloc : forall TD lc gl id t v gn align Mem als Mem' tsz mb,
   getTypeAllocSize TD t = Some tsz ->
   @getOperandValue DGVs TD v lc gl = Some gn ->
@@ -116,7 +110,7 @@ Inductive dbCmd : TargetData -> GVMap ->
   @getOperandValue DGVs TD v1 lc gl = Some gv1 ->
   getOperandValue TD v2 lc gl = Some mp2 ->
   mstore TD Mem mp2 t gv1 align = Some Mem' ->
-  dbCmd TD gl 
+  dbCmd TD gl
     lc als Mem
     (insn_store sid t v1 v2 align)
     lc als Mem'
@@ -129,7 +123,7 @@ Inductive dbCmd : TargetData -> GVMap ->
     lc als Mem
     (insn_gep id inbounds t v idxs)
     (updateAddAL _ lc id mp') als Mem
-    trace_nil 
+    trace_nil
 | dbTrunc : forall TD lc gl id truncop t1 v1 t2 gv2 Mem als,
   TRUNC TD lc gl truncop t1 v1 t2 = Some gv2 ->
   dbCmd TD gl
@@ -172,19 +166,19 @@ Inductive dbCmd : TargetData -> GVMap ->
   dbCmd TD gl
     lc als Mem
     (insn_select id v0 t v1 v2)
-    (if isGVZero TD cond then updateAddAL _ lc id gv2 
+    (if isGVZero TD cond then updateAddAL _ lc id gv2
      else updateAddAL _ lc id gv1) als Mem
     trace_nil
 .
 
-Inductive dbTerminator : 
-  TargetData -> mem -> fdef -> GVMap -> 
-  block -> (@GVsMap DGVs) -> 
-  terminator -> 
-  block -> (@GVsMap DGVs) -> 
+Inductive dbTerminator :
+  TargetData -> mem -> fdef -> GVMap ->
+  block -> (@GVsMap DGVs) ->
+  terminator ->
+  block -> (@GVsMap DGVs) ->
   trace -> Prop :=
 | dbBranch : forall TD Mem F B lc gl bid Cond l1 l2 c
-                              l' ps' sbs' tmn' lc',   
+                              l' ps' sbs' tmn' lc',
   @getOperandValue DGVs TD Cond lc gl = Some c ->
   Some (block_intro l' ps' sbs' tmn') = (if isGVZero TD c
                then lookupBlockViaLabelFromFdef F l2
@@ -194,26 +188,26 @@ Inductive dbTerminator :
   dbTerminator TD Mem F gl
     B lc
     (insn_br bid Cond l1 l2)
-    (block_intro l' ps' sbs' tmn') lc' 
-    trace_nil 
+    (block_intro l' ps' sbs' tmn') lc'
+    trace_nil
 | dbBranch_uncond : forall TD Mem F B lc gl l bid
-                              l' ps' sbs' tmn' lc',   
+                              l' ps' sbs' tmn' lc',
   Some (block_intro l' ps' sbs' tmn') = lookupBlockViaLabelFromFdef F l ->
   Some lc' = switchToNewBasicBlock TD
     (block_intro l' ps' sbs' tmn') B gl lc ->
   dbTerminator TD Mem F gl
     B lc
-    (insn_br_uncond bid l) 
+    (insn_br_uncond bid l)
     (block_intro l' ps' sbs' tmn') lc'
-    trace_nil 
+    trace_nil
 .
 
-Inductive dbCmds : TargetData -> GVMap -> 
-                   DGVMap -> list mblock -> mem -> 
-                   cmds -> 
-                   DGVMap -> list mblock -> mem -> 
+Inductive dbCmds : TargetData -> GVMap ->
+                   DGVMap -> list mblock -> mem ->
+                   cmds ->
+                   DGVMap -> list mblock -> mem ->
                    trace -> Prop :=
-| dbCmds_nil : forall TD lc als gl Mem, 
+| dbCmds_nil : forall TD lc als gl Mem,
     dbCmds TD gl lc als Mem nil lc als Mem trace_nil
 | dbCmds_cons : forall TD c cs gl lc1 als1 Mem1 t1 t2 lc2 als2 Mem2
                        lc3 als3 Mem3,
@@ -221,10 +215,10 @@ Inductive dbCmds : TargetData -> GVMap ->
     dbCmds TD gl lc2 als2 Mem2 cs lc3 als3 Mem3 t2 ->
     dbCmds TD gl lc1 als1 Mem1 (c::cs) lc3 als3 Mem3 (trace_app t1 t2).
 
-Inductive dbCall : system -> TargetData -> list product -> GVMap -> 
-                   GVMap -> DGVMap -> mem -> 
-                   cmd -> 
-                   DGVMap -> mem -> 
+Inductive dbCall : system -> TargetData -> list product -> GVMap ->
+                   GVMap -> DGVMap -> mem ->
+                   cmd ->
+                   DGVMap -> mem ->
                    trace -> Prop :=
 | dbCall_internal : forall S TD Ps lc gl fs rid noret tailc rt fv lp
                        Rid oResult tr lc' Mem Mem' als' Mem'' B' lc'' ft,
@@ -236,46 +230,46 @@ Inductive dbCall : system -> TargetData -> list product -> GVMap ->
 
 | dbCall_external : forall S TD Ps lc gl fs rid noret ca fv fid fptr
                           lp rt la va Mem oresult Mem' lc' ft fa gvs,
-  (* only look up the current module for the time being, 
-     do not support linkage. 
+  (* only look up the current module for the time being,
+     do not support linkage.
      FIXME: should add excall to trace
   *)
-  @getOperandValue DGVs TD fv lc gl = Some fptr -> 
-  lookupExFdecViaPtr Ps fs fptr = 
+  @getOperandValue DGVs TD fv lc gl = Some fptr ->
+  lookupExFdecViaPtr Ps fs fptr =
     Some (fdec_intro (fheader_intro fa rt fid la va)) ->
   params2GVs TD lp lc gl = Some gvs ->
   callExternalFunction Mem fid gvs = Some (oresult, Mem') ->
   isCall (insn_call rid noret ca ft fv lp) = true ->
   exCallUpdateLocals TD ft noret rid oresult lc = Some lc' ->
-  dbCall S TD Ps fs gl lc Mem (insn_call rid noret ca ft fv lp) lc' Mem' 
+  dbCall S TD Ps fs gl lc Mem (insn_call rid noret ca ft fv lp) lc' Mem'
     trace_nil
 
-with dbSubblock : system -> TargetData -> list product -> GVMap -> GVMap -> 
-                  DGVMap -> list mblock -> mem -> 
-                  cmds -> 
-                  DGVMap -> list mblock -> mem -> 
+with dbSubblock : system -> TargetData -> list product -> GVMap -> GVMap ->
+                  DGVMap -> list mblock -> mem ->
+                  cmds ->
+                  DGVMap -> list mblock -> mem ->
                   trace -> Prop :=
-| dbSubblock_intro : forall S TD Ps lc1 als1 gl fs Mem1 cs call0 lc2 als2 Mem2 
+| dbSubblock_intro : forall S TD Ps lc1 als1 gl fs Mem1 cs call0 lc2 als2 Mem2
                      tr1 lc3 Mem3 tr2,
   dbCmds TD gl lc1 als1 Mem1 cs lc2 als2 Mem2 tr1 ->
   dbCall S TD Ps fs gl lc2 Mem2 call0 lc3 Mem3 tr2 ->
   dbSubblock S TD Ps fs gl
              lc1 als1 Mem1
-             (cs++call0::nil) 
+             (cs++call0::nil)
              lc3 als2 Mem3
              (trace_app tr1 tr2)
-with dbSubblocks : system -> TargetData -> list product -> GVMap -> GVMap -> 
-                   DGVMap -> list mblock -> mem -> 
-                   cmds -> 
-                   DGVMap -> list mblock -> mem -> 
+with dbSubblocks : system -> TargetData -> list product -> GVMap -> GVMap ->
+                   DGVMap -> list mblock -> mem ->
+                   cmds ->
+                   DGVMap -> list mblock -> mem ->
                    trace -> Prop :=
-| dbSubblocks_nil : forall S TD Ps lc als gl fs Mem, 
+| dbSubblocks_nil : forall S TD Ps lc als gl fs Mem,
     dbSubblocks S TD Ps fs gl lc als Mem nil lc als Mem trace_nil
-| dbSubblocks_cons : forall S TD Ps lc1 als1 gl fs Mem1 lc2 als2 Mem2 lc3 als3 
+| dbSubblocks_cons : forall S TD Ps lc1 als1 gl fs Mem1 lc2 als2 Mem2 lc3 als3
                      Mem3 cs cs' t1 t2,
     dbSubblock S TD Ps fs gl lc1 als1 Mem1 cs lc2 als2 Mem2 t1 ->
     dbSubblocks S TD Ps fs gl lc2 als2 Mem2 cs' lc3 als3 Mem3 t2 ->
-    dbSubblocks S TD Ps fs gl lc1 als1 Mem1 (cs++cs') lc3 als3 Mem3 
+    dbSubblocks S TD Ps fs gl lc1 als1 Mem1 (cs++cs') lc3 als3 Mem3
       (trace_app t1 t2)
 with dbBlock : system -> TargetData -> list product -> GVMap -> GVMap -> fdef ->
                State -> State -> trace -> Prop :=
@@ -298,26 +292,26 @@ with dbBlock : system -> TargetData -> list product -> GVMap -> GVMap -> fdef ->
     (trace_app (trace_app tr1 tr2) tr3)
 with dbBlocks : system -> TargetData -> list product -> GVMap -> GVMap -> fdef ->
                 State -> State -> trace -> Prop :=
-| dbBlocks_nil : forall S TD Ps gl fs F state, 
+| dbBlocks_nil : forall S TD Ps gl fs F state,
     dbBlocks S TD Ps fs gl F state state trace_nil
 | dbBlocks_cons : forall S TD Ps gl fs F S1 S2 S3 t1 t2,
     dbBlock S TD Ps fs gl F S1 S2 t1 ->
     dbBlocks S TD Ps fs gl F S2 S3 t2 ->
     dbBlocks S TD Ps fs gl F S1 S3 (trace_app t1 t2)
-with dbFdef : value -> typ -> params -> system -> TargetData -> list product -> 
-              DGVMap -> GVMap -> GVMap -> mem -> DGVMap -> list mblock -> mem -> 
+with dbFdef : value -> typ -> params -> system -> TargetData -> list product ->
+              DGVMap -> GVMap -> GVMap -> mem -> DGVMap -> list mblock -> mem ->
               block -> id -> option value -> trace -> Prop :=
 | dbFdef_func : forall S TD Ps gl fs fv fid lp lc rid fptr
                     l1 ps1 cs1 tmn1 fa rt la va lb Result lc1 tr1 Mem Mem1 als1
                     l2 ps2 cs21 cs22 lc2 als2 Mem2 tr2 lc3 als3 Mem3 tr3 gvs lc0,
-  @getOperandValue DGVs TD fv lc gl = Some fptr -> 
-  lookupFdefViaPtr Ps fs fptr = 
+  @getOperandValue DGVs TD fv lc gl = Some fptr ->
+  lookupFdefViaPtr Ps fs fptr =
     Some (fdef_intro (fheader_intro fa rt fid la va) lb) ->
-  getEntryBlock (fdef_intro (fheader_intro fa rt fid la va) lb) = 
+  getEntryBlock (fdef_intro (fheader_intro fa rt fid la va) lb) =
     Some (block_intro l1 ps1 cs1 tmn1) ->
   params2GVs TD lp lc gl = Some gvs ->
   initLocals TD la gvs = Some lc0 ->
-  dbBlocks S TD Ps fs gl (fdef_intro (fheader_intro fa rt fid la va) lb) 
+  dbBlocks S TD Ps fs gl (fdef_intro (fheader_intro fa rt fid la va) lb)
     (mkState (mkEC (block_intro l1 ps1 cs1 tmn1) lc0 nil) Mem)
     (mkState (mkEC (block_intro l2 ps2 (cs21++cs22) (insn_return rid rt Result))
       lc1 als1) Mem1)
@@ -332,22 +326,22 @@ with dbFdef : value -> typ -> params -> system -> TargetData -> list product ->
     cs22
     lc3 als3 Mem3
     tr3 ->
-  dbFdef fv rt lp S TD Ps lc gl fs Mem lc3 als3 Mem3 
-    (block_intro l2 ps2 (cs21++cs22) (insn_return rid rt Result)) rid 
+  dbFdef fv rt lp S TD Ps lc gl fs Mem lc3 als3 Mem3
+    (block_intro l2 ps2 (cs21++cs22) (insn_return rid rt Result)) rid
     (Some Result) (trace_app (trace_app tr1 tr2) tr3)
 | dbFdef_proc : forall S TD Ps gl fs fv fid lp lc rid fptr
                     l1 ps1 cs1 tmn1 fa rt la va lb lc1 tr1 Mem Mem1 als1
                     l2 ps2 cs21 cs22 lc2 als2 Mem2 tr2 lc3 als3 Mem3 tr3 gvs lc0,
-  @getOperandValue DGVs TD fv lc gl = Some fptr -> 
-  lookupFdefViaPtr Ps fs fptr = 
+  @getOperandValue DGVs TD fv lc gl = Some fptr ->
+  lookupFdefViaPtr Ps fs fptr =
     Some (fdef_intro (fheader_intro fa rt fid la va) lb) ->
-  getEntryBlock (fdef_intro (fheader_intro fa rt fid la va) lb) = 
+  getEntryBlock (fdef_intro (fheader_intro fa rt fid la va) lb) =
     Some (block_intro l1 ps1 cs1 tmn1) ->
   params2GVs TD lp lc gl = Some gvs ->
   initLocals TD la gvs = Some lc0 ->
-  dbBlocks S TD Ps fs gl (fdef_intro (fheader_intro fa rt fid la va) lb) 
+  dbBlocks S TD Ps fs gl (fdef_intro (fheader_intro fa rt fid la va) lb)
     (mkState (mkEC (block_intro l1 ps1 cs1 tmn1) lc0 nil) Mem)
-    (mkState (mkEC (block_intro l2 ps2 (cs21++cs22) (insn_return_void rid)) lc1 
+    (mkState (mkEC (block_intro l2 ps2 (cs21++cs22) (insn_return_void rid)) lc1
       als1) Mem1)
     tr1 ->
   dbSubblocks S TD Ps fs gl
@@ -360,8 +354,8 @@ with dbFdef : value -> typ -> params -> system -> TargetData -> list product ->
     cs22
     lc3 als3 Mem3
     tr3 ->
-  dbFdef fv rt lp S TD Ps lc gl fs Mem lc3 als3 Mem3 
-    (block_intro l2 ps2 (cs21++cs22) (insn_return_void rid)) rid None 
+  dbFdef fv rt lp S TD Ps lc gl fs Mem lc3 als3 Mem3
+    (block_intro l2 ps2 (cs21++cs22) (insn_return_void rid)) rid None
     (trace_app (trace_app tr1 tr2) tr3)
 .
 
@@ -375,7 +369,7 @@ Scheme dbCall_ind2 := Induction for dbCall Sort Prop
 Combined Scheme db_mutind from dbCall_ind2, dbSubblock_ind2, dbSubblocks_ind2,
                                dbBlock_ind2, dbBlocks_ind2, dbFdef_ind2.
 
-Hint Constructors dbCmd dbCmds dbTerminator dbCall 
+Hint Constructors dbCmd dbCmds dbTerminator dbCall
                   dbSubblock dbSubblocks dbBlock dbBlocks dbFdef.
 
 (***************************************************************)
@@ -393,7 +387,7 @@ Record subblock := mkSB
   call_cmd_isCall : isCall call_cmd = true
 }.
 
-Lemma isCall_dec : forall c, 
+Lemma isCall_dec : forall c,
   {isCall c = false} + {isCall c = true}.
 Proof.
   destruct c; simpl; auto.
@@ -404,15 +398,15 @@ match cs with
 | nil => (nil,nil)
 | c::cs' =>
   match (isCall_dec c) with
-  | left isnotcall => 
+  | left isnotcall =>
     match (cmds2sbs cs') with
-    | (nil, nbs0) => (nil, mkNB c isnotcall::nbs0) 
-    | (mkSB nbs call0 iscall0::sbs', nbs0) => 
-      (mkSB (mkNB c isnotcall::nbs) call0 iscall0::sbs', nbs0) 
+    | (nil, nbs0) => (nil, mkNB c isnotcall::nbs0)
+    | (mkSB nbs call0 iscall0::sbs', nbs0) =>
+      (mkSB (mkNB c isnotcall::nbs) call0 iscall0::sbs', nbs0)
     end
-  | right iscall => 
+  | right iscall =>
     match (cmds2sbs cs') with
-    | (sbs, nbs0) => (mkSB nil c iscall::sbs, nbs0) 
+    | (sbs, nbs0) => (mkSB nil c iscall::sbs, nbs0)
     end
   end
 end.
@@ -424,7 +418,7 @@ match nbs with
 end.
 
 Definition cmd2nbranch (c:cmd) : option nbranch :=
-match (isCall_dec c) with 
+match (isCall_dec c) with
 | left H => Some (mkNB c H)
 | right _ => None
 end.
@@ -437,7 +431,7 @@ Proof.
   induction HdbCmd; auto.
 Qed.
 
-Definition dbCmd2nbranch : forall TD lc als gl Mem1 c lc' als' Mem2 tr, 
+Definition dbCmd2nbranch : forall TD lc als gl Mem1 c lc' als' Mem2 tr,
   dbCmd TD gl lc als Mem1 c lc' als' Mem2 tr ->
   exists nb, cmd2nbranch c = Some nb.
 Proof.
@@ -462,7 +456,7 @@ match cs with
   end
 end.
 
-Definition dbCmds2nbranchs : forall cs TD lc als gl Mem1 lc' als' Mem2 tr, 
+Definition dbCmds2nbranchs : forall cs TD lc als gl Mem1 lc' als' Mem2 tr,
   dbCmds TD gl lc als Mem1 cs lc' als' Mem2 tr ->
   exists nbs, cmds2nbranchs cs = Some nbs.
 Proof.
@@ -475,20 +469,20 @@ Proof.
     destruct H7 as [nb J1].
     destruct H12 as [nbs J2].
     exists (nb::nbs).
-    simpl. 
+    simpl.
     rewrite J1.
     rewrite J2.
     auto.
 Qed.
 
 Inductive wf_nbranchs : list nbranch -> Prop :=
-| wf_nbranchs_intro : forall cs nbs, 
+| wf_nbranchs_intro : forall cs nbs,
   cmds2sbs cs = (nil, nbs) ->
   NoDup (getCmdsLocs cs) ->
   wf_nbranchs nbs.
 
 Inductive wf_subblock : subblock -> Prop :=
-| wf_subblock_intro : forall nbs call0 iscall0, 
+| wf_subblock_intro : forall nbs call0 iscall0,
   wf_nbranchs nbs ->
   wf_subblock (mkSB nbs call0 iscall0).
 
@@ -500,7 +494,7 @@ Inductive wf_subblocks : list subblock -> Prop :=
   wf_subblocks (sb::sbs).
 
 Inductive wf_block : block -> Prop :=
-| wf_block_intro : forall l ps cs sbs nbs tmn, 
+| wf_block_intro : forall l ps cs sbs nbs tmn,
   cmds2sbs cs = (sbs,nbs) ->
   wf_subblocks sbs ->
   wf_nbranchs nbs ->
@@ -511,7 +505,7 @@ Hint Constructors wf_subblocks.
 (***************************************************************)
 (** symbolic terms and memories. *)
 
-Inductive sterm : Set := 
+Inductive sterm : Set :=
 | sterm_val : value -> sterm
 | sterm_bop : bop -> sz -> sterm -> sterm -> sterm
 | sterm_fbop : fbop -> floating_point -> sterm -> sterm -> sterm
@@ -555,15 +549,15 @@ Scheme sterm_rec2 := Induction for sterm Sort Set
 Definition se_mutrec P1 P2 P3 P4 P5:=
   fun h1 h2 h3 h4 h5 h6 h7 h8 h9 h10 h11 h12 h13 h14 h15 h16 h17 h18 h19 h20 h21 h22 h23 h24 h25 h26 h27 h28 =>
    (pair
-      (pair 
-           (pair 
+      (pair
+           (pair
                  (pair (@sterm_rec2 P1 P2 P3 P4 P5 h1 h2 h3 h4 h5 h6 h7 h8 h9 h10 h11 h12 h13 h14 h15 h16 h17 h18 h19 h20 h21 h22 h23 h24 h25 h26 h27 h28)
                        (@list_sterm_rec2 P1 P2 P3 P4 P5 h1 h2 h3 h4 h5 h6 h7 h8 h9 h10 h11 h12 h13 h14 h15 h16 h17 h18 h19 h20 h21 h22 h23 h24 h25 h26 h27 h28))
                  (@list_sterm_l_rec2 P1 P2 P3 P4 P5 h1 h2 h3 h4 h5 h6 h7 h8 h9 h10 h11 h12 h13 h14 h15 h16 h17 h18 h19 h20 h21 h22 h23 h24 h25 h26 h27 h28))
             (@smem_rec2 P1 P2 P3 P4 P5 h1 h2 h3 h4 h5 h6 h7 h8 h9 h10 h11 h12 h13 h14 h15 h16 h17 h18 h19 h20 h21 h22 h23 h24 h25 h26 h27 h28))
       (@sframe_rec2 P1 P2 P3 P4 P5 h1 h2 h3 h4 h5 h6 h7 h8 h9 h10 h11 h12 h13 h14 h15 h16 h17 h18 h19 h20 h21 h22 h23 h24 h25 h26 h27 h28)).
 
-Fixpoint map_list_sterm (A:Set) (f:sz->sterm->A) (l0:list_sterm) {struct l0} 
+Fixpoint map_list_sterm (A:Set) (f:sz->sterm->A) (l0:list_sterm) {struct l0}
   : list A :=
   match l0 with
   | Nil_list_sterm => nil
@@ -598,7 +592,7 @@ Fixpoint app_list_sterm (l0 m:list_sterm) {struct l0} : list_sterm :=
   | Cons_list_sterm s h tl_ => Cons_list_sterm s h (app_list_sterm tl_ m)
   end.
 
-Fixpoint map_list_sterm_l (A:Set) (f:sterm->l->A) (l0:list_sterm_l) {struct l0} 
+Fixpoint map_list_sterm_l (A:Set) (f:sterm->l->A) (l0:list_sterm_l) {struct l0}
   : list A :=
   match l0 with
   | Nil_list_sterm_l => nil
@@ -631,7 +625,7 @@ Implicit Arguments nth_list_sterm_l.
 Fixpoint app_list_sterm_l (l0 m:list_sterm_l) {struct l0} : list_sterm_l :=
   match l0 with
   | Nil_list_sterm_l => m
-  | Cons_list_sterm_l h0 h1 tl_ => 
+  | Cons_list_sterm_l h0 h1 tl_ =>
       Cons_list_sterm_l h0 h1 (app_list_sterm_l tl_ m)
   end.
 
@@ -645,7 +639,7 @@ Inductive sterminator : Set :=
 
 Definition smap := list (atom*sterm).
 
-Record sstate : Set := mkSstate 
+Record sstate : Set := mkSstate
 {
   STerms : smap;
   SMem : smem;
@@ -658,7 +652,7 @@ Definition sstate_init := mkSstate nil smem_init sframe_init nil.
 Fixpoint lookupSmap (sm:smap) (i0:id) : sterm :=
 match sm with
 | nil => (sterm_val (value_id i0))
-| (id0, s0)::sm' => 
+| (id0, s0)::sm' =>
   if i0 == id0 then s0 else lookupSmap sm' i0
 end.
 
@@ -668,11 +662,11 @@ match v with
 | value_id i0 => lookupSmap sm i0
 end.
 
-Fixpoint list_param__list_typ_subst_sterm (list_param1:params) (sm:smap) 
+Fixpoint list_param__list_typ_subst_sterm (list_param1:params) (sm:smap)
   : list (typ*attributes*sterm) :=
 match list_param1 with
 | nil => nil
-| ((t, attr), v)::list_param1' => 
+| ((t, attr), v)::list_param1' =>
     ((t, attr), (value2Sterm sm v))::
       (list_param__list_typ_subst_sterm list_param1' sm)
 end.
@@ -687,133 +681,133 @@ Proof.
 Defined.
 
 Definition se_cmd (st : sstate) (c:nbranch) : sstate :=
-match c with 
+match c with
 | mkNB i notcall =>
-  (match i as r return (i = r -> _) with 
-  | insn_bop id0 op0 sz0 v1 v2 => fun _ => 
-       (mkSstate (updateAddAL _ st.(STerms) id0 
-                   (sterm_bop op0 sz0 
+  (match i as r return (i = r -> _) with
+  | insn_bop id0 op0 sz0 v1 v2 => fun _ =>
+       (mkSstate (updateAddAL _ st.(STerms) id0
+                   (sterm_bop op0 sz0
                      (value2Sterm st.(STerms) v1)
                      (value2Sterm st.(STerms) v2)))
                  st.(SMem)
                  st.(SFrame)
                  st.(SEffects))
-  | insn_fbop id0 op0 fp0 v1 v2 => fun _ => 
-       (mkSstate (updateAddAL _ st.(STerms) id0 
-                   (sterm_fbop op0 fp0 
+  | insn_fbop id0 op0 fp0 v1 v2 => fun _ =>
+       (mkSstate (updateAddAL _ st.(STerms) id0
+                   (sterm_fbop op0 fp0
                      (value2Sterm st.(STerms) v1)
                      (value2Sterm st.(STerms) v2)))
                  st.(SMem)
                  st.(SFrame)
                  st.(SEffects))
- | insn_extractvalue id0 t1 v1 cs3 => fun _ => 
-       (mkSstate (updateAddAL _ st.(STerms) id0 
-                   (sterm_extractvalue t1 
+ | insn_extractvalue id0 t1 v1 cs3 => fun _ =>
+       (mkSstate (updateAddAL _ st.(STerms) id0
+                   (sterm_extractvalue t1
                      (value2Sterm st.(STerms) v1)
                      cs3))
                  st.(SMem)
                  st.(SFrame)
                  st.(SEffects))
-  | insn_insertvalue id0 t1 v1 t2 v2 cs3 => fun _ => 
-       (mkSstate (updateAddAL _ st.(STerms) id0 
-                   (sterm_insertvalue 
-                     t1 
+  | insn_insertvalue id0 t1 v1 t2 v2 cs3 => fun _ =>
+       (mkSstate (updateAddAL _ st.(STerms) id0
+                   (sterm_insertvalue
+                     t1
                      (value2Sterm st.(STerms) v1)
-                     t2 
+                     t2
                      (value2Sterm st.(STerms) v2)
                      cs3))
                  st.(SMem)
                  st.(SFrame)
                  st.(SEffects))
-  | insn_malloc id0 t1 v1 al1 => fun _ => 
-       (mkSstate (updateAddAL _ st.(STerms) id0 
+  | insn_malloc id0 t1 v1 al1 => fun _ =>
+       (mkSstate (updateAddAL _ st.(STerms) id0
                    (sterm_malloc st.(SMem) t1 (value2Sterm st.(STerms) v1) al1))
                  (smem_malloc st.(SMem) t1 (value2Sterm st.(STerms) v1) al1)
                  st.(SFrame)
                  st.(SEffects))
-  | insn_free id0 t0 v0 => fun _ =>  
+  | insn_free id0 t0 v0 => fun _ =>
        (mkSstate st.(STerms)
-                 (smem_free st.(SMem) t0 
+                 (smem_free st.(SMem) t0
                    (value2Sterm st.(STerms) v0))
                  st.(SFrame)
                  st.(SEffects))
-  | insn_alloca id0 t1 v1 al1 => fun _ =>   
-       (mkSstate (updateAddAL _ st.(STerms) id0 
+  | insn_alloca id0 t1 v1 al1 => fun _ =>
+       (mkSstate (updateAddAL _ st.(STerms) id0
                    (sterm_alloca st.(SMem) t1 (value2Sterm st.(STerms) v1) al1))
                  (smem_alloca st.(SMem) t1 (value2Sterm st.(STerms) v1) al1)
-                 (sframe_alloca st.(SMem) st.(SFrame) t1 
+                 (sframe_alloca st.(SMem) st.(SFrame) t1
                  (value2Sterm st.(STerms) v1) al1)
                  st.(SEffects))
-  | insn_load id0 t2 v2 align => fun _ =>   
-       (mkSstate (updateAddAL _ st.(STerms) id0 
-                   (sterm_load st.(SMem) t2 
+  | insn_load id0 t2 v2 align => fun _ =>
+       (mkSstate (updateAddAL _ st.(STerms) id0
+                   (sterm_load st.(SMem) t2
                      (value2Sterm st.(STerms) v2) align))
-                 (smem_load st.(SMem) t2 
+                 (smem_load st.(SMem) t2
                    (value2Sterm st.(STerms) v2) align)
                  st.(SFrame)
                  st.(SEffects))
-  | insn_store id0 t0 v1 v2 align => fun _ =>  
+  | insn_store id0 t0 v1 v2 align => fun _ =>
        (mkSstate st.(STerms)
-                 (smem_store st.(SMem) t0 
+                 (smem_store st.(SMem) t0
                    (value2Sterm st.(STerms) v1)
                    (value2Sterm st.(STerms) v2)
                    align)
                  st.(SFrame)
                  st.(SEffects))
-  | insn_gep id0 inbounds0 t1 v1 lv2 => fun _ =>  
-       (mkSstate (updateAddAL _ st.(STerms) id0 
-                   (sterm_gep inbounds0 t1 
+  | insn_gep id0 inbounds0 t1 v1 lv2 => fun _ =>
+       (mkSstate (updateAddAL _ st.(STerms) id0
+                   (sterm_gep inbounds0 t1
                      (value2Sterm st.(STerms) v1)
-                     (make_list_sterm (map_list_sz_value 
+                     (make_list_sterm (map_list_sz_value
                        (fun sz' v' => (sz', value2Sterm st.(STerms) v')) lv2))))
                  st.(SMem)
                  st.(SFrame)
                  st.(SEffects))
-  | insn_trunc id0 op0 t1 v1 t2 => fun _ => 
-       (mkSstate (updateAddAL _ st.(STerms) id0 
-                   (sterm_trunc op0 t1 
+  | insn_trunc id0 op0 t1 v1 t2 => fun _ =>
+       (mkSstate (updateAddAL _ st.(STerms) id0
+                   (sterm_trunc op0 t1
                      (value2Sterm st.(STerms) v1)
                      t2))
                  st.(SMem)
                  st.(SFrame)
                  st.(SEffects))
-  | insn_ext id0 op0 t1 v1 t2 => fun _ => 
-       (mkSstate (updateAddAL _ st.(STerms) id0 
-                   (sterm_ext op0 t1 
+  | insn_ext id0 op0 t1 v1 t2 => fun _ =>
+       (mkSstate (updateAddAL _ st.(STerms) id0
+                   (sterm_ext op0 t1
                      (value2Sterm st.(STerms) v1)
                      t2))
                  st.(SMem)
                  st.(SFrame)
                  st.(SEffects))
-  | insn_cast id0 op0 t1 v1 t2 => fun _ => 
-       (mkSstate (updateAddAL _ st.(STerms) id0 
-                   (sterm_cast op0 t1 
+  | insn_cast id0 op0 t1 v1 t2 => fun _ =>
+       (mkSstate (updateAddAL _ st.(STerms) id0
+                   (sterm_cast op0 t1
                      (value2Sterm st.(STerms) v1)
                      t2))
                  st.(SMem)
                  st.(SFrame)
                  st.(SEffects))
-  | insn_icmp id0 c0 t0 v1 v2 => fun _ => 
-       (mkSstate (updateAddAL _ st.(STerms) id0 
-                   (sterm_icmp c0 t0 
+  | insn_icmp id0 c0 t0 v1 v2 => fun _ =>
+       (mkSstate (updateAddAL _ st.(STerms) id0
+                   (sterm_icmp c0 t0
                      (value2Sterm st.(STerms) v1)
                      (value2Sterm st.(STerms) v2)))
                  st.(SMem)
                  st.(SFrame)
                  st.(SEffects))
-  | insn_fcmp id0 c0 fp0 v1 v2 => fun _ => 
-       (mkSstate (updateAddAL _ st.(STerms) id0 
-                   (sterm_fcmp c0 fp0 
+  | insn_fcmp id0 c0 fp0 v1 v2 => fun _ =>
+       (mkSstate (updateAddAL _ st.(STerms) id0
+                   (sterm_fcmp c0 fp0
                      (value2Sterm st.(STerms) v1)
                      (value2Sterm st.(STerms) v2)))
                  st.(SMem)
                  st.(SFrame)
                  st.(SEffects))
-  | insn_select id0 v0 t0 v1 v2 => fun _ => 
-       (mkSstate (updateAddAL _ st.(STerms) id0 
-                   (sterm_select 
+  | insn_select id0 v0 t0 v1 v2 => fun _ =>
+       (mkSstate (updateAddAL _ st.(STerms) id0
+                   (sterm_select
                      (value2Sterm st.(STerms) v0)
-                     t0 
+                     t0
                      (value2Sterm st.(STerms) v1)
                      (value2Sterm st.(STerms) v2)))
                  st.(SMem)
@@ -828,11 +822,11 @@ end.
 Fixpoint _se_phinodes (st st0: sstate) (ps:list phinode) : sstate :=
 match ps with
 | nil => st
-| insn_phi id0 t0 idls0::ps' =>  
-    _se_phinodes 
-     (mkSstate (updateAL _ st.(STerms) id0 
-                 (sterm_phi 
-                   t0 
+| insn_phi id0 t0 idls0::ps' =>
+    _se_phinodes
+     (mkSstate (updateAL _ st.(STerms) id0
+                 (sterm_phi
+                   t0
                    (make_list_sterm_l
                      (map_list_value_l
                        (fun v5 l5 =>
@@ -859,18 +853,18 @@ match cs with
 end.
 
 Definition se_terminator (st : sstate) (i:terminator) : sterminator :=
-match i with 
+match i with
 | insn_return id0 t0 v0 => stmn_return id0 t0 (value2Sterm st.(STerms) v0)
-| insn_return_void id0 => stmn_return_void id0 
+| insn_return_void id0 => stmn_return_void id0
 | insn_br id0 v0 l1 l2 => stmn_br id0 (value2Sterm st.(STerms) v0) l1 l2
 | insn_br_uncond id0 l0 => stmn_br_uncond id0 l0
-| insn_unreachable id0 => stmn_unreachable id0 
+| insn_unreachable id0 => stmn_unreachable id0
 end.
 
 (***************************************************************)
 (* Denotational semantics of symbolic exe *)
 
-Inductive sterm_denotes_genericvalue : 
+Inductive sterm_denotes_genericvalue :
    TargetData ->            (* CurTatgetData *)
    DGVMap ->                (* local registers *)
    GVMap ->                 (* global variables *)
@@ -879,7 +873,7 @@ Inductive sterm_denotes_genericvalue :
    GenericValue ->          (* value that denotes sterm *)
    Prop :=
 | sterm_val_denotes : forall TD lc gl Mem v gv,
-  getOperandValue TD v lc gl = Some gv ->  
+  getOperandValue TD v lc gl = Some gv ->
   sterm_denotes_genericvalue TD lc gl Mem (sterm_val v) gv
 | sterm_bop_denotes : forall TD lc gl Mem op0 sz0 st1 st2 gv1 gv2 gv3,
   sterm_denotes_genericvalue TD lc gl Mem st1 gv1 ->
@@ -948,9 +942,9 @@ Inductive sterm_denotes_genericvalue :
   sterm_denotes_genericvalue TD lc gl Mem st0 gv0 ->
   sterm_denotes_genericvalue TD lc gl Mem st1 gv1 ->
   sterm_denotes_genericvalue TD lc gl Mem st2 gv2 ->
-  (if isGVZero TD gv0 then gv2 else gv1) = gv3 -> 
+  (if isGVZero TD gv0 then gv2 else gv1) = gv3 ->
   sterm_denotes_genericvalue TD lc gl Mem (sterm_select st0 t0 st1 st2) gv3
-with sterms_denote_genericvalues : 
+with sterms_denote_genericvalues :
    TargetData ->               (* CurTatgetData *)
    GVMap ->                 (* local registers *)
    GVMap ->                 (* global variables *)
@@ -964,7 +958,7 @@ with sterms_denote_genericvalues :
   sterms_denote_genericvalues TD lc gl Mem sts gvs ->
   sterm_denotes_genericvalue TD lc gl Mem st gv ->
   sterms_denote_genericvalues TD lc gl Mem (Cons_list_sterm sz0 st sts)(gv::gvs)
-with smem_denotes_mem : 
+with smem_denotes_mem :
    TargetData ->               (* CurTatgetData *)
    GVMap ->                 (* local registers *)
    GVMap ->                 (* global variables *)
@@ -1002,7 +996,7 @@ with smem_denotes_mem :
   smem_denotes_mem TD lc gl Mem0 (smem_store sm0 t0 st1 st2 align0) Mem2
 .
 
-Inductive sframe_denotes_frame : 
+Inductive sframe_denotes_frame :
    TargetData ->            (* CurTatgetData *)
    DGVMap ->                (* local registers *)
    GVMap ->                 (* global variables *)
@@ -1022,32 +1016,32 @@ Inductive sframe_denotes_frame :
   sframe_denotes_frame TD lc gl als0 Mem0 (sframe_alloca sm0 sf0 t0 st0 align0) (mb::als1)
 .
 
-Inductive seffects_denote_trace : 
+Inductive seffects_denote_trace :
    list sterm ->            (* symbolic effects *)
    trace ->                 (* trace that denotes seffects *)
    Prop :=
-| seffects_nil_denote : 
+| seffects_nil_denote :
   seffects_denote_trace nil trace_nil
 .
 
-Hint Constructors sterm_denotes_genericvalue sterms_denote_genericvalues 
+Hint Constructors sterm_denotes_genericvalue sterms_denote_genericvalues
                   smem_denotes_mem sframe_denotes_frame seffects_denote_trace.
 
 Scheme sterm_denotes_genericvalue_ind2 := Induction for sterm_denotes_genericvalue Sort Prop
   with sterms_denote_genericvalues_ind2 := Induction for sterms_denote_genericvalues Sort Prop
   with smem_denotes_mem_ind2 := Induction for smem_denotes_mem Sort Prop.
 
-Combined Scheme sd_mutind from sterm_denotes_genericvalue_ind2, 
-                               sterms_denote_genericvalues_ind2, 
+Combined Scheme sd_mutind from sterm_denotes_genericvalue_ind2,
+                               sterms_denote_genericvalues_ind2,
                                smem_denotes_mem_ind2.
 
 Definition smap_denotes_gvmap TD lc gl Mem smap' lc' :=
-(forall id',  
+(forall id',
   id' `in` dom smap' `union` dom lc ->
   exists gv',
     sterm_denotes_genericvalue TD lc gl Mem (lookupSmap smap' id') gv' /\
     lookupAL _ lc' id' = Some gv') /\
-(forall id' gv',  
+(forall id' gv',
   lookupAL _ lc' id' = Some gv' ->
   sterm_denotes_genericvalue TD lc gl Mem (lookupSmap smap' id') gv'
 ).
@@ -1064,41 +1058,41 @@ Fixpoint subst_tt (id0:id) (s0:sterm) (s:sterm) : sterm :=
 match s with
 | sterm_val (value_id id1) => if id0 == id1 then s0 else s
 | sterm_val (value_const c) => sterm_val (value_const c)
-| sterm_bop op sz s1 s2 => 
+| sterm_bop op sz s1 s2 =>
     sterm_bop op sz (subst_tt id0 s0 s1) (subst_tt id0 s0 s2)
-| sterm_fbop op fp s1 s2 => 
+| sterm_fbop op fp s1 s2 =>
     sterm_fbop op fp (subst_tt id0 s0 s1) (subst_tt id0 s0 s2)
-| sterm_extractvalue t1 s1 cs => 
+| sterm_extractvalue t1 s1 cs =>
     sterm_extractvalue t1 (subst_tt id0 s0 s1) cs
-| sterm_insertvalue t1 s1 t2 s2 cs => 
+| sterm_insertvalue t1 s1 t2 s2 cs =>
     sterm_insertvalue t1 (subst_tt id0 s0 s1) t2 (subst_tt id0 s0 s2) cs
-| sterm_malloc m1 t1 s1 align => 
+| sterm_malloc m1 t1 s1 align =>
     sterm_malloc (subst_tm id0 s0 m1) t1 (subst_tt id0 s0 s1) align
-| sterm_alloca m1 t1 s1 align => 
+| sterm_alloca m1 t1 s1 align =>
     sterm_alloca (subst_tm id0 s0 m1) t1 (subst_tt id0 s0 s1) align
-| sterm_load m1 t1 s1 align => 
+| sterm_load m1 t1 s1 align =>
     sterm_load (subst_tm id0 s0 m1) t1 (subst_tt id0 s0 s1) align
 | sterm_gep inbounds t1 s1 ls2 =>
     sterm_gep inbounds t1 (subst_tt id0 s0 s1) (subst_tlt id0 s0 ls2)
-| sterm_trunc truncop t1 s1 t2 => 
+| sterm_trunc truncop t1 s1 t2 =>
     sterm_trunc truncop t1 (subst_tt id0 s0 s1) t2
-| sterm_ext extop t1 s1 t2 => 
+| sterm_ext extop t1 s1 t2 =>
     sterm_ext extop t1 (subst_tt id0 s0 s1) t2
-| sterm_cast castop t1 s1 t2 => 
+| sterm_cast castop t1 s1 t2 =>
     sterm_cast castop t1 (subst_tt id0 s0 s1) t2
-| sterm_icmp cond t1 s1 s2 => 
+| sterm_icmp cond t1 s1 s2 =>
     sterm_icmp cond t1 (subst_tt id0 s0 s1) (subst_tt id0 s0 s2)
-| sterm_fcmp cond fp1 s1 s2 => 
+| sterm_fcmp cond fp1 s1 s2 =>
     sterm_fcmp cond fp1 (subst_tt id0 s0 s1) (subst_tt id0 s0 s2)
-| sterm_phi t1 lsl1 => 
+| sterm_phi t1 lsl1 =>
     sterm_phi t1 (subst_tltl id0 s0 lsl1)
-| sterm_select s1 t1 s2 s3 => 
+| sterm_select s1 t1 s2 s3 =>
     sterm_select (subst_tt id0 s0 s1) t1 (subst_tt id0 s0 s2) (subst_tt id0 s0 s3)
 end
 with subst_tlt (id0:id) (s0:sterm) (ls:list_sterm) : list_sterm :=
 match ls with
 | Nil_list_sterm => Nil_list_sterm
-| Cons_list_sterm sz0 s ls' => 
+| Cons_list_sterm sz0 s ls' =>
     Cons_list_sterm sz0 (subst_tt id0 s0 s) (subst_tlt id0 s0 ls')
 end
 with subst_tltl (id0:id) (s0:sterm) (ls:list_sterm_l) : list_sterm_l :=
@@ -1108,13 +1102,13 @@ match ls with
      Cons_list_sterm_l (subst_tt id0 s0 s) l0 (subst_tltl id0 s0 ls')
 end
 with subst_tm (id0:id) (s0:sterm) (m:smem) : smem :=
-match m with 
+match m with
 | smem_init => smem_init
 | smem_malloc m1 t1 sz align => smem_malloc (subst_tm id0 s0 m1) t1 sz align
 | smem_free m1 t1 s1 => smem_free (subst_tm id0 s0 m1) t1 (subst_tt id0 s0 s1)
 | smem_alloca m1 t1 sz align => smem_alloca (subst_tm id0 s0 m1) t1 sz align
-| smem_load m1 t1 s1 align => smem_load (subst_tm id0 s0 m1) t1 (subst_tt id0 s0 s1) align 
-| smem_store m1 t1 s1 s2 align => 
+| smem_load m1 t1 s1 align => smem_load (subst_tm id0 s0 m1) t1 (subst_tt id0 s0 s1) align
+| smem_store m1 t1 s1 s2 align =>
     smem_store (subst_tm id0 s0 m1) t1 (subst_tt id0 s0 s1) (subst_tt id0 s0 s2) align
 end
 .
@@ -1135,9 +1129,9 @@ End SimpleSE.
 
 Tactic Notation "se_db_mutind_cases" tactic(first) tactic(c) :=
   first;
-  [ c "dbCall_internal" | c "dbCall_external" | 
-    c "dbSubblock_intro" | c "dbSubblocks_nil" | c "dbSubblocks_cons" | 
-    c "dbBlock_intro" | c "dbBlocks_nil" | c "dbBlocks_cons" | 
+  [ c "dbCall_internal" | c "dbCall_external" |
+    c "dbSubblock_intro" | c "dbSubblocks_nil" | c "dbSubblocks_cons" |
+    c "dbBlock_intro" | c "dbBlocks_nil" | c "dbBlocks_cons" |
     c "dbFdef_func" | c "dbFdef_proc" ].
 
 Tactic Notation "se_dbCmd_cases" tactic(first) tactic(c) :=
@@ -1145,7 +1139,7 @@ Tactic Notation "se_dbCmd_cases" tactic(first) tactic(c) :=
   [ c "dbBop" | c "dbFBop" | c "dbExtractValue" | c "dbInsertValue" |
     c "dbMalloc" | c "dbFree" |
     c "dbAlloca" | c "dbLoad" | c "dbStore" | c "dbGEP" |
-    c "dbTrunc" | c "dbExt" | c "dbCast" | 
+    c "dbTrunc" | c "dbExt" | c "dbCast" |
     c "dbIcmp" | c "dbFcmp" | c "dbSelect" ].
 
 Tactic Notation "se_dbTerminator_cases" tactic(first) tactic(c) :=
@@ -1170,8 +1164,8 @@ Tactic Notation "sd_mutind_cases" tactic(first) tactic(c) :=
 | c "sterm_trunc_denotes"
 | c "sterm_ext_denotes"
 | c "sterm_cast_denotes"
-| c "sterm_icmp_denotes" 
-| c "sterm_fcmp_denotes" 
+| c "sterm_icmp_denotes"
+| c "sterm_fcmp_denotes"
 | c "sterm_select_denotes"
 | c "sterms_nil_denote"
 | c "sterms_cons_denote"
@@ -1184,7 +1178,7 @@ Tactic Notation "sd_mutind_cases" tactic(first) tactic(c) :=
 
 Tactic Notation "se_mut_cases" tactic(first) tactic(c) :=
   first;
-  [ c "sterm_val" | 
+  [ c "sterm_val" |
     c "sterm_bop" |
     c "sterm_fbop" |
     c "sterm_extractvalue" |
@@ -1212,11 +1206,3 @@ Tactic Notation "se_mut_cases" tactic(first) tactic(c) :=
     c "smem_store" |
     c "sframe_init" |
     c "sframe_alloca" ].
-
-(*****************************)
-(*
-*** Local Variables: ***
-*** coq-prog-name: "coqtop" ***
-*** coq-prog-args: ("-emacs-U" "-I" "~/SVN/sol/vol/src/Vellvm/monads" "-I" "~/SVN/sol/vol/src/Vellvm/ott" "-I" "~/SVN/sol/vol/src/Vellvm/compcert" "-I" "~/SVN/sol/theory/metatheory_8.3" "-impredicative-set") ***
-*** End: ***
- *)
