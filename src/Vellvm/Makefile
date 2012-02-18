@@ -114,7 +114,6 @@ clean:
 	+make -C ./ott clean
 	+make -C ./compcert clean
 	+make -C ./monads clean	
-	+make -C ./llvm_op clean
 	rm -rf main.pdf main.log main.aux main.log syntax.v infrastructure.v \
 		typings.vo *.vo *.glob merge.ott m_*.ott
 
