@@ -1,6 +1,7 @@
 Add LoadPath "./ott".
 Add LoadPath "./monads".
 Add LoadPath "./compcert".
+Add LoadPath "./GraphBasics".
 Add LoadPath "../../../theory/metatheory_8.3".
 Require Import Ensembles.
 Require Import syntax.
@@ -126,7 +127,7 @@ Lemma instantiate_locals__getOperandValue : forall TD v lc1 lc2 gl gvs1,
     element_of gvs1 gvs2.
 Proof.
   intros.
-  destruct v; simpl in *.
+  destruct v as [|c]; simpl in *.
     eapply instantiate_locals__lookup; eauto.
 
     unfold const2GV in H0. unfold const2GV.
@@ -168,9 +169,9 @@ Proof.
   unfold returnUpdateLocals.
   rewrite J1. 
   destruct c; tinv H1.
-  destruct n; inv H1; eauto.
-  destruct t; tinv H3.
-  remember (lift_op1 _ (fit_gv TD t) g t) as R.
+  destruct noret5; inv H1; eauto.
+  destruct typ0; tinv H3.
+  remember (lift_op1 _ (fit_gv TD typ0) g typ0) as R.
   destruct R as [gr'|]; inv H3.
   symmetry in HeqR.
   eapply element_of__lift_op1 in HeqR; eauto.
@@ -188,7 +189,7 @@ Proof.
   induction ps; simpl; intros.  
     inv H. exists nil. simpl. auto.
 
-    destruct a.
+    destruct a as [i0 ? ?].
     destruct (getValueViaBlockFromValuels l0 b); tinv H.
     remember (getOperandValue TD v lc1 gl) as R.
     destruct R; tinv H.
@@ -800,7 +801,7 @@ Proof.
   destruct t; simpl;
     try solve [intros gvs1 J; inv J; 
                (constructor || apply Union_introl; constructor)].
-  destruct f; simpl;
+  destruct floating_point5; simpl;
     try solve [intros gvs1 J; inv J; 
                (constructor || apply Union_introl; constructor)].
 Qed.
@@ -817,9 +818,9 @@ Proof.
   destruct t; simpl;
     try solve [intros gvs1 J; inv J;
                try solve [constructor |
-               exists (Int.zero s); auto |
+               exists (Int.zero sz5); auto |
                exists Mem.nullptr; exists (Int.repr 31 0); auto]].
-  destruct f; simpl;
+  destruct floating_point5; simpl;
     try solve [intros gvs1 J; inv J;
                try solve [constructor |
                exists Float.zero; auto]].
@@ -886,6 +887,6 @@ End OpsemInstantiation.
 (*
 *** Local Variables: ***
 *** coq-prog-name: "coqtop" ***
-*** coq-prog-args: ("-emacs-U" "-I" "~/SVN/sol/vol/src/Vellvm/monads" "-I" "~/SVN/sol/vol/src/Vellvm/ott" "-I" "~/SVN/sol/vol/src/Vellvm/compcert" "-I" "~/SVN/sol/theory/metatheory_8.3") ***
+*** coq-prog-args: ("-emacs-U" "-I" "~/SVN/sol/vol/src/Vellvm/monads" "-I" "~/SVN/sol/vol/src/Vellvm/ott" "-I" "~/SVN/sol/vol/src/Vellvm/compcert" "-I" "~/SVN/sol/theory/metatheory_8.3" "-impredicative-set") ***
 *** End: ***
  *)

@@ -156,7 +156,7 @@ Proof.
   Case "rhs_call".
     destruct (@value_dec v v0); subst; try solve [done_right]. 
     destruct (@noret_dec n n0); subst; try solve [done_right].
-    destruct c. destruct c0.
+    destruct c as [t1 c a a0 p]. destruct c0 as [t2 c0 a1 a2 p0].
     destruct (@tailc_dec t1 t2); subst; try solve [done_right].
     destruct (@typ_dec t t0); subst; try solve [done_right].
     destruct (@callconv_dec c c0); subst; try solve [done_right]. 

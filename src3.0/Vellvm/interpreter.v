@@ -274,7 +274,7 @@ Proof.
 
     destruct e as [F B cs tmn lc als].
     destruct cs.
-      destruct tmn.
+      destruct tmn as [? ? v|?|? v l0 l1|? l0|].
       Case "insn_return".
         destruct ECS0;
           try solve [inversion HinterInsn].
@@ -315,7 +315,7 @@ Proof.
           destruct R3.
             remember (lookupBlockViaLabelFromFdef F l1) as R2.
             destruct R2; tinv HinterInsn.
-              destruct b.
+              destruct b as [l2 p c t].
               remember (switchToNewBasicBlock CurTargetData0
                 (block_intro l2 p c t) B Globals0 lc) as R4.
               destruct R4; inv HinterInsn.              
@@ -324,7 +324,7 @@ Proof.
         
             remember (lookupBlockViaLabelFromFdef F l0) as R2.
             destruct R2; inversion HinterInsn; subst.
-              destruct b.
+              destruct b as [l2 p c t].
               remember (switchToNewBasicBlock CurTargetData0
                 (block_intro l2 p c t) B Globals0 lc) as R4.
               destruct R4; inv HinterInsn.
@@ -334,7 +334,7 @@ Proof.
       Case "insn_br_uncond".
         remember (lookupBlockViaLabelFromFdef F l0) as R2.
         destruct R2; inversion HinterInsn; subst.
-          destruct b.
+          destruct b as [l1 p c t].
           remember (switchToNewBasicBlock CurTargetData0
             (block_intro l1 p c t) B Globals0 lc) as R3.
           destruct R3; inversion HinterInsn; subst.
@@ -343,7 +343,11 @@ Proof.
       Case "insn_unreachable".
         inversion HinterInsn.
                     
-      destruct c.
+      destruct c as [i0 b s v v0|i0 f f0 v v0|i0 t v l0|i0 t v t0 v0 l0|
+                     i0 t v a|i0 t v|i0 t v a|i0 t v a|i0 t v v0 a|i0 i1 t v l0|
+                     i0 t t0 v t1|i0 e t v t0|i0 c t v t0|i0 c t v v0|
+                     i0 f f0 v v0|i0 v t v0 v1|i0 n c t v p].
+
       Case "insn_bop".
         remember (BOP CurTargetData0 lc Globals0 b s v v0) as R1.
         destruct R1; 
@@ -467,13 +471,14 @@ Proof.
         destruct R4; try solve [inversion HinterInsn]. simpl in HinterInsn.
         remember (lookupFdefViaIDFromProducts CurProducts0 i1) as R1.
         destruct R1; simpl in HinterInsn.
-          destruct f. destruct f.
-          destruct (id_dec i1 i2); try solve [inversion HinterInsn]; subst.
+          destruct f as [f b]. destruct f as [fnattrs5 typ5 id5 args5 varg5].
+          destruct (id_dec i1 id5); try solve [inversion HinterInsn]; subst.
           destruct b; try solve [inversion HinterInsn].
-          destruct b.
+          destruct b as [l0 ? ? ?].
           remember (params2GVs CurTargetData0 p lc Globals0) as R10.
-          destruct R10; try solve [inversion HinterInsn]. simpl in HinterInsn.
-          remember (initLocals CurTargetData0 a l1) as R11. 
+          destruct R10 as [l1|]; try solve [inversion HinterInsn]. 
+          simpl in HinterInsn.
+          remember (initLocals CurTargetData0 args5 l1) as R11. 
           destruct R11; inv HinterInsn.
           eapply sCall; eauto.
             unfold lookupFdefViaPtr.
@@ -482,12 +487,12 @@ Proof.
           remember (lookupFdecViaIDFromProducts CurProducts0 i1) as R2.
           destruct R2; simpl in HinterInsn;
             try solve [inversion HinterInsn].
-            destruct f. destruct f.
-            destruct (id_dec i1 i2); try solve [inversion HinterInsn]; subst.
+            destruct f as [f b]. destruct f as [fnattrs5 typ5 id5 args5 varg5].
+            destruct (id_dec i1 id5); try solve [inversion HinterInsn]; subst.
             remember (params2GVs CurTargetData0 p lc Globals0) as R5.
-            destruct R5; try solve [inversion HinterInsn]; subst.
+            destruct R5 as [l0|]; try solve [inversion HinterInsn]; subst.
             simpl in HinterInsn.
-            remember (callExternalFunction Mem0 i2 l0) as R3.
+            remember (callExternalFunction Mem0 id5 l0) as R3.
             destruct R3 as [[oresult Mem1]|]; tinv HinterInsn.
             remember (exCallUpdateLocals CurTargetData0 t n i0 oresult lc) as R4.
             destruct R4; inv HinterInsn.

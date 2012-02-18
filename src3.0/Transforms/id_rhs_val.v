@@ -576,7 +576,7 @@ Proof.
     unfold cmds_dominates_cmd. simpl.
     destruct (eq_atom_dec (getCmdLoc c) (getCmdLoc c)) as [_ | n]; 
       try solve [contradict n; auto].
-    simpl_env.  destruct fh.
+    simpl_env.  destruct fh as [f t i0 a v].
     apply fold_left__bound_blocks with (init:=getPhiNodesIDs ps' ++ 
       getCmdsIDs nil ++ getArgsIDs a)(bs:=bs)
       (fh:=fheader_intro f t i0 a v)(l0:=l') in J1.
@@ -908,7 +908,7 @@ Focus.
   split; auto.
     unfold wf_ExecutionContext. simpl.
     remember (getCmdID c') as R.
-    destruct c'; try solve [inversion H].
+    destruct_cmd c'; try solve [inversion H].
     assert (uniqFdef F') as HuniqF.
       eapply wf_system__uniqFdef; eauto.
 
@@ -938,7 +938,7 @@ Focus.
           remember (lift_op1 DGVs (fit_gv (los, nts) t) g t) as R2.
           destruct R2; inv H1.
           change i0 with 
-            (getCmdLoc (insn_call i0 false c (typ_function t l4 v0) v p)); auto.
+            (getCmdLoc (insn_call i0 false c (typ_function t l4 varg5) v p)); auto.
           eapply wf_defs_updateAddAL; eauto.
             simpl. apply in_middle.
 
@@ -968,7 +968,7 @@ Focus.
           remember (lift_op1 DGVs (fit_gv (los, nts) t) g t) as R2.
           destruct R2; inv H1.
           change i0 with 
-            (getCmdLoc (insn_call i0 false c (typ_function t l4 v0) v p)); auto.
+            (getCmdLoc (insn_call i0 false c (typ_function t l4 varg5) v p)); auto.
           eapply wf_defs_updateAddAL; eauto.
             simpl. apply in_middle.
 
@@ -1010,7 +1010,7 @@ Focus.
         destruct HeqR2 as [ids2 [J1 J2]].        
         rewrite <- J1.
         remember (getCmdID c') as R.
-        destruct c'; try solve [inversion H].
+        destruct_cmd c'; try solve [inversion H].
         destruct n; inversion H1.
         simpl in HeqR. subst R.
         eapply wf_defs_eq; eauto. 
@@ -1028,7 +1028,7 @@ Focus.
         destruct HeqR2 as [ids2 [J1 J2]].        
         rewrite <- J1.
         remember (getCmdID c') as R.
-        destruct c'; try solve [inversion H].
+        destruct_cmd c'; try solve [inversion H].
         destruct n; inversion H1.
         simpl in HeqR. subst R.
         eapply wf_defs_eq; eauto. 

@@ -368,7 +368,6 @@ Fixpoint _getTypeSizeInBits_and_Alignment (los:layouts) (nts:list (id*(nat*nat))
 
   | typ_metadata => None
   | typ_function _ _ _ => None
-  | typ_opaque => None
   | typ_namedt id0 => lookupAL _ nts id0
   end
 with _getListTypeSizeInBits_and_Alignment (los:layouts) (nts:list (id*(nat*nat)))
@@ -426,10 +425,11 @@ Fixpoint _getTypeSizeInBits_and_Alignment_for_namedts
   (los:layouts) (nts:namedts) (abi_or_pref:bool)  : list (id*(nat*nat)) :=
 match nts with
 | nil => nil 
-| namedt_intro id0 t::nts' =>
+| namedt_intro id0 ts0::nts' =>
   let results := _getTypeSizeInBits_and_Alignment_for_namedts los nts' 
                 abi_or_pref in
-  match _getTypeSizeInBits_and_Alignment los results abi_or_pref t with
+  match _getTypeSizeInBits_and_Alignment los results abi_or_pref 
+         (typ_struct ts0) with
   | None => results
   | Some r => (id0, r)::results
   end
@@ -743,7 +743,7 @@ Proof.
     simpl in *; try (destruct TD); 
     try solve [eauto | inversion H | inversion H1].
 Case "typ_floatingpoint".
-  destruct f; try solve [inv H].
+  destruct floating_point5; try solve [inv H].
     exists 32%nat. exists (getFloatAlignmentInfo l0 32 true).
     split; auto. 
 
@@ -753,12 +753,12 @@ Case "typ_array".
   eapply H in H0; eauto.
   destruct H0 as [sz [al [J1 J2]]].
   rewrite J1. 
-  destruct s.
+  destruct sz5.
     exists 8%nat. exists 1%nat. split; auto.
 
     exists (RoundUpAlignment
                (Coqlib.nat_of_Z (Coqlib.ZRdiv (Z_of_nat sz) 8)) al * 8 *
-             Size.to_nat (S s))%nat.
+             Size.to_nat (S sz5))%nat.
     exists al. split; auto.
 Case "typ_struct".
   eapply H in H0; eauto.
@@ -839,7 +839,7 @@ End LLVMtd.
 (*
 *** Local Variables: ***
 *** coq-prog-name: "coqtop" ***
-*** coq-prog-args: ("-emacs-U" "-I" "~/SVN/sol/vol/src/Vellvm/monads" "-I" "~/SVN/sol/vol/src/Vellvm/ott" "-I" "~/SVN/sol/vol/src/Vellvm/compcert" "-I" "~/SVN/sol/theory/metatheory_8.3" "-I" "~/SVN/sol/vol/src/TV") ***
+*** coq-prog-args: ("-emacs-U" "-I" "~/SVN/sol/vol/src/Vellvm/monads" "-I" "~/SVN/sol/vol/src/Vellvm/ott" "-I" "~/SVN/sol/vol/src/Vellvm/compcert" "-I" "~/SVN/sol/theory/metatheory_8.3" "-impredicative-set") ***
 *** End: ***
  *)
 

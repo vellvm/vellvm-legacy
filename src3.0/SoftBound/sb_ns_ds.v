@@ -5,19 +5,7 @@ Add LoadPath "../Vellvm/compcert".
 Add LoadPath "../Vellvm/GraphBasics".
 Add LoadPath "../../../theory/metatheory_8.3".
 Add LoadPath "../TV".
-Require Import syntax.
-Require Import infrastructure.
-Require Import trace.
-Require Import Memory.
-Require Import genericvalues.
-Require Import alist.
-Require Import Integers.
-Require Import Values.
-Require Import Coqlib.
-Require Import monad.
-Require Import Metatheory.
-Require Import Znumtheory.
-Require Import opsem.
+Require Import vellvm.
 Require Import opsem_inst.
 Require Import sb_def.
 
@@ -116,7 +104,7 @@ Proof.
   destruct HeqR as [gvs2 [J1 J2]].
   unfold returnUpdateLocals.
   rewrite J1. 
-  destruct c; tinv H1.
+  destruct_cmd c; tinv H1.
   destruct n; inv H1; eauto.
   destruct t; tinv H3.
   remember (lift_op1 _ (fit_gv TD t) gr t) as R.
@@ -149,7 +137,7 @@ Proof.
   induction ps; simpl; intros.  
     inv H. exists nil. simpl. auto.
 
-    destruct a.
+    destruct a as [i0 t l0].
     destruct (getValueViaBlockFromValuels l0 b); tinv H. 
     remember (getOperandValue TD v lc1 gl) as R.
     destruct R; tinv H.
@@ -349,14 +337,14 @@ Proof.
   destruct (getOperandValue TD' Result lc1' gl'); tinv H.
   destruct (isPointerTypB rt); tinv H.
     destruct (get_reg_metadata TD' gl' rm Result) as [[md ?]|]; tinv H.
-    destruct c'; tinv H.
+    destruct_cmd c'; tinv H.
     destruct n; try solve [inversion H; auto].
     unfold prop_reg_metadata in H.  
     destruct t; try solve [inversion H; auto].
     destruct (lift_op1 _ (fit_gv TD' t) g t); tinv H.
     destruct t; try solve [inversion H; auto].
 
-    destruct c'; try solve [inversion H; auto].
+    destruct_cmd c'; try solve [inversion H; auto].
     destruct n; try solve [inversion H; auto].
     unfold prop_reg_metadata in H.  
     destruct t; try solve [inversion H; auto].
@@ -390,7 +378,7 @@ Proof.
     inversion H; subst.
     exists nil. exists nil. eauto.
 
-    destruct a. 
+    destruct a as [i1 t l0].
     destruct (getValueViaBlockFromValuels l0 b1'); try solve [inversion H].
     remember (getOperandValue TD' v lc1' gl') as R0.
     destruct R0; try solve [inversion H].
@@ -402,9 +390,9 @@ Proof.
     destruct HeqR as [l3 [l4 [J1 J2]]].
     rewrite J1.
     destruct (isPointerTypB t); inv H; eauto.
-      destruct v.
+      destruct v as [i0|c].
         simpl in *.
-        destruct (lookupAL _ rm i1); inversion H1; subst.
+        destruct (lookupAL _ rm i0); inversion H1; subst.
           simpl. rewrite J2. eauto.
 
         destruct (get_reg_metadata TD' gl' rm (value_const c)) as [md|]; 

@@ -493,7 +493,7 @@ Proof.
       assert (blockInFdefB (block_intro l' ps' cs' tmn') (PI_f pinfo))as HBinF'.
         assert (HuniqF:=HFinPs).
         eapply wf_system__uniqFdef in HuniqF; eauto.
-        destruct (PI_f pinfo) as [[] bs].
+        destruct (PI_f pinfo) as [[f t i0 a v] bs].
         destruct HuniqF as [HuniqBlocks HuniqArgs].
         symmetry in H1.
         destruct (isGVZero (los,nts) c);

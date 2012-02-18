@@ -67,14 +67,14 @@ Proof.
      destruct HBinF as [HBinF | HBinF].
        apply blockEqB_inv in HBinF; subst.
        simpl in H12.
-       destruct tmn; try solve [inversion Hsucc].
+       destruct tmn as [| |? ? l1 l2| l1 |]; try solve [inversion Hsucc].
          unfold hasNonePredecessor in H12.
          unfold predOfBlock in H12. simpl in H12.  
          simpl in Hsucc. 
          destruct Hsucc as [Hsucc | [Hsucc | Hsucc]]; subst; 
            try inversion Hsucc.
   
-           destruct (@lookupAL_update_udb_eq (update_udb nil l3 l1) l3 a)
+           destruct (@lookupAL_update_udb_eq (update_udb nil l3 l2) l3 a)
              as [re [Hlk Hin]]. 
            apply lookupAL_genBlockUseDef_blocks_spec with (bs:=bs) in Hlk.
            destruct Hlk as [re' [Hlk Hinc]].
@@ -83,7 +83,7 @@ Proof.
            apply Hinc in Hin. inversion Hin.
   
            destruct (@lookupAL_update_udb_eq nil l3 a) as [re [Hlk Hin]].
-           apply lookupAL_update_udb_spec with (l1:=l3)(l2:=l0) in Hlk.
+           apply lookupAL_update_udb_spec with (l1:=l3)(l2:=l1) in Hlk.
            destruct Hlk as [re1 [Hlk Hinc1]].
            apply lookupAL_genBlockUseDef_blocks_spec with (bs:=bs) in Hlk.  
            destruct Hlk as [re2 [Hlk Hinc2]].
@@ -227,7 +227,7 @@ Lemma wf_system__uniq_block : forall b f ps los nts s ifs,
 Proof.
   intros.
   eapply wf_system__uniqFdef in H1; eauto.
-  destruct f. destruct f. simpl in *.
+  destruct f as [f bs]. destruct f. simpl in *.
   inv H1. inv H3.
   eapply uniqBlocksLocs__uniqBlockLocs; eauto.
 Qed.
@@ -671,7 +671,7 @@ Proof.
       unfold Dominators.top in Heqdefs3, Heqdefs'.
       simpl in Heqdefs3, Heqdefs'.
       destruct bs; tinv HeqR.
-      destruct b; inv HeqR.
+      destruct b as [l0 p c t]; inv HeqR.
       assert (exists ps, exists cs, exists tmn,
         getEntryBlock (fdef_intro fh ((block_intro l0 p c t) :: bs)) = 
           Some (block_intro l0 ps cs tmn)) as H.
@@ -1060,10 +1060,10 @@ Proof.
         destruct J as [ps0 [cs0 [tmn0 [J1 J2]]]].
         contradict Hunreach.
         unfold reachable. inv HwfF. rewrite H8. 
-        destruct block5.
+        destruct block5 as [l0 ? ? ?].
         destruct wf_entrypoints as [_ [J _]].
-        destruct bs; tinv J.
-        destruct b. subst entry.
+        destruct bs as [|b ?]; tinv J.
+        destruct b as [l5 ? ? ?]. subst entry.
         unfold successors_list in Hin. simpl in Hin. rewrite ATree.gss in Hin.
         clear H1 J. inv H8.
         exists (index l0::nil). exists (A_ends (index s) (index l0)::nil).
@@ -1109,7 +1109,7 @@ Lemma dom_unreachable: forall
 Proof.
   intros. 
   assert (HwfF':=HwfF). inv HwfF'.
-  destruct block5. 
+  destruct block5 as [l0 p c t]. 
   rename blocks5 into bs.
   assert (J:=H4). destruct bs; inv J. 
   apply dom_entrypoint in H4.
@@ -1189,8 +1189,8 @@ Proof.
   destruct R as [[le start] | ].
     destruct start; tinv Hp.
     destruct bs_contents; tinv Hp. 
-    destruct bs; tinv HeqR.
-    destruct b; inv HeqR.
+    destruct bs as [|b ?]; tinv HeqR.
+    destruct b as [l0 p c t]; inv HeqR.
     remember (DomDS.fixpoint (bound_blocks (block_intro l0 p c t :: bs))
                   (successors_blocks (block_intro l0 p c t :: bs))
                   (transfer (bound_blocks (block_intro l0 p c t :: bs)))
@@ -1330,7 +1330,7 @@ Proof.
   unfold reachable, domination in *.
   remember (getEntryBlock f) as R.
   destruct R; try congruence.
-  destruct b.
+  destruct b as [l0 ? ? ?].
   destruct Hreach as [vl [al Hreach]].
   apply DWalk_to_dpath in Hreach.
   destruct Hreach as [vl0 [al0 Hp]].
@@ -1386,7 +1386,7 @@ Lemma blockStrictDominates_isnt_refl : forall ifs S M F1 block'
   (HuniqF : uniqFdef F1) (Hreach : isReachableFromEntry F1 block'),
   ~ blockStrictDominates F1 block' block'.
 Proof.
-  intros. destruct block'.
+  intros. destruct block' as [l0 ? ? ?].
   unfold blockStrictDominates. intro J.
   remember ((dom_analyze F1) !! l0) as R.
   destruct R.
@@ -1432,7 +1432,7 @@ Proof.
   apply wf_fdef__non_entry in HwfF'.
   remember (getEntryBlock f) as R.
   destruct R; auto. clear HwfF'.
-  destruct b.
+  destruct b as [l0 ? ? ?].
   destruct H as [vl [al Hw]].
   apply DWalk_to_dpath in Hw.
   destruct Hw as [vl0 [al0 Hp]].
@@ -1564,7 +1564,7 @@ Proof.
   destruct Hsdom' as [Hdom' Hneq2].
   unfold domination, reachable in *.
   destruct (getEntryBlock f); auto.
-  destruct b. 
+  destruct b as [l0 ? ? ?]. 
   destruct Hreach as [vl [al Hreach]].
   assert (Hw:=Hreach).  
   apply Hdom in Hw.
@@ -1670,7 +1670,7 @@ Lemma blockStrictDominates_trans : forall ifs S M f b1 b2 b3
   blockStrictDominates f b1 b3.
 Proof.
   unfold blockStrictDominates.
-  intros. destruct b1, b2, b3.
+  intros. destruct b1 as [l0 ? ? ?], b2 as [l1 ? ? ?], b3 as [l2 ? ? ?].
   remember (Maps.AMap.get l1 (dom_analyze f)) as R1.
   remember (Maps.AMap.get l2 (dom_analyze f)) as R2.
   destruct R1. destruct R2.
@@ -1711,7 +1711,7 @@ Lemma blockDominates_trans : forall ifs S M f b1 b2 b3
   blockDominates f b1 b3.
 Proof.
   unfold blockDominates.
-  intros. destruct b1, b2, b3.
+  intros. destruct b1 as [l0 ? ? ?], b2 as [l1 ? ? ?], b3 as [l2 ? ? ?].
   remember (Maps.AMap.get l1 (dom_analyze f)) as R1.
   remember (Maps.AMap.get l2 (dom_analyze f)) as R2.
   destruct R1. destruct R2.
@@ -1788,8 +1788,8 @@ Proof.
   destruct R as [[le start] | ].
     destruct start; tinv Hp.
     destruct bs_contents; tinv Hp. 
-    destruct bs; tinv HeqR.
-    destruct b; inv HeqR.
+    destruct bs as [|b ?]; tinv HeqR.
+    destruct b as [l0 p c t]; inv HeqR.
     remember (DomDS.fixpoint (bound_blocks (block_intro l0 p c t :: bs))
                   (successors_blocks (block_intro l0 p c t :: bs))
                   (transfer (bound_blocks (block_intro l0 p c t :: bs)))
@@ -1926,7 +1926,7 @@ Proof.
   unfold strict_domination, domination in *.
   remember (getEntryBlock f) as R.
   destruct R; try congruence.
-  destruct b.
+  destruct b as [l0 ? ? ?].
   intros vl al Hreach.
   assert (Hw':=Hreach).
   apply DWalk_to_dpath in Hreach.
@@ -2010,7 +2010,7 @@ Proof.
   apply wf_fdef__non_entry in HwfF'.
   remember (getEntryBlock f) as R.
   destruct R; auto. clear HwfF'.
-  destruct b.
+  destruct b as [l0 ? ? ?].
   destruct H as [vl [al Hw]].
   apply DWalk_to_dpath in Hw.
   destruct Hw as [vl0 [al0 Hp]].
@@ -2199,7 +2199,7 @@ Proof.
   destruct Hsdom' as [Hdom' Hneq2].
   unfold domination, reachable in *.
   destruct (getEntryBlock f); auto.
-  destruct b. 
+  destruct b as [l0 ? ? ?]. 
   destruct Hreach as [vl [al Hreach]].
   assert (Hw:=Hreach).  
   apply Hdom in Hw.
@@ -2320,7 +2320,7 @@ Lemma blockStrictDominates_trans : forall ifs S M f b1 b2 b3
   blockStrictDominates f b1 b3.
 Proof.
   unfold blockStrictDominates.
-  intros. destruct b1, b2, b3.
+  intros. destruct b1 as [l0 ? ? ?], b2 as [l1 ? ? ?], b3 as [l2 ? ? ?].
   remember (Maps.AMap.get l1 (dom_analyze f)) as R1.
   remember (Maps.AMap.get l2 (dom_analyze f)) as R2.
   destruct R1. destruct R2.
@@ -2361,7 +2361,7 @@ Lemma blockDominates_trans : forall ifs S M f b1 b2 b3
   blockDominates f b1 b3.
 Proof.
   unfold blockDominates.
-  intros. destruct b1, b2, b3.
+  intros. destruct b1 as [l0 ? ? ?], b2 as [l1 ? ? ?], b3 as [l2 ? ? ?].
   remember (Maps.AMap.get l1 (dom_analyze f)) as R1.
   remember (Maps.AMap.get l2 (dom_analyze f)) as R2.
   destruct R1. destruct R2.
@@ -2709,7 +2709,7 @@ Proof.
 Case "typ_int".
   inv H. eauto.
 Case "typ_floatingpoint".
-  destruct f; inv H; try solve [inversion H0 | eauto].
+  destruct floating_point5; inv H; try solve [inversion H0 | eauto].
     unfold LLVMtd.feasible_typ_aux in H0. simpl in H0.
     exists 32%nat. exists (getFloatAlignmentInfo l0 32 true).
     split; auto. omega.
@@ -2722,12 +2722,12 @@ Case "typ_array".
   eapply H in H1; eauto.
   destruct H1 as [sz [al [J1 [J2 J3]]]].
   rewrite J1. 
-  destruct s.
+  destruct sz5.
     exists 8%nat. exists 1%nat. split; auto. omega.
 
     exists (RoundUpAlignment
                (Coqlib.nat_of_Z (Coqlib.ZRdiv (Z_of_nat sz) 8)) al * 8 *
-             Size.to_nat (S s))%nat.
+             Size.to_nat (S sz5))%nat.
     exists al. split; auto. split; auto.
     assert (RoundUpAlignment (Coqlib.nat_of_Z (Coqlib.ZRdiv (Z_of_nat sz) 8)) al
       >= (Coqlib.nat_of_Z (Coqlib.ZRdiv (Z_of_nat sz) 8)))%nat as J4.
@@ -2738,10 +2738,10 @@ Case "typ_array".
     simpl in J5.
     assert (RoundUpAlignment (Coqlib.nat_of_Z (Coqlib.ZRdiv (Z_of_nat sz) 8)) al
       * 8 > 0)%nat as J6. omega. clear J4 J5.
-    assert (Size.to_nat (S s) > 0)%nat as J7. unfold Size.to_nat. omega.
+    assert (Size.to_nat (S sz5) > 0)%nat as J7. unfold Size.to_nat. omega.
     remember (RoundUpAlignment (Coqlib.nat_of_Z (Coqlib.ZRdiv (Z_of_nat sz) 8)) 
       al * 8)%nat as R1. 
-    remember (Size.to_nat (S s)) as R2. 
+    remember (Size.to_nat (S sz5)) as R2. 
     clear - J6 J7.
     assert (0 * R2 < R1 * R2)%nat as J.
       apply mult_lt_compat_r; auto.
@@ -3020,6 +3020,8 @@ Case "wfconst_struct".
     erewrite <- map_list_const_typ_spec1; eauto.
     rewrite J2. 
     destruct gv2; eauto.
+      admit. (* The rule should check typ_5 = make_list_typ lt*)
+      admit. (* The rule should check typ_5 = make_list_typ lt*)
 
 Case "wfconst_gid".
   apply H0 in e.  
@@ -3483,11 +3485,12 @@ Proof.
 Case "typ_int".
   inv H.
   simpl.
-  exists (Size.to_nat s). exists (getIntAlignmentInfo los (Size.to_nat s) true).
+  exists (Size.to_nat sz5). exists (getIntAlignmentInfo los (Size.to_nat sz5) true).
   erewrite int_typsize; eauto.
 
 Case "typ_floatingpoint".
-  destruct f; inv H; simpl; unfold size_chunk_nat, size_chunk, bytesize_chunk.
+  destruct floating_point5; inv H; 
+    simpl; unfold size_chunk_nat, size_chunk, bytesize_chunk.
     exists 32%nat. exists (getFloatAlignmentInfo los 32 true).
     simpl. auto.
 
@@ -3495,23 +3498,23 @@ Case "typ_floatingpoint".
     simpl. auto.
 
 Case "typ_array".
-  destruct s;  try solve [inv H0; exists 8%nat; exists 1%nat; auto].
-  remember (zeroconst2GV (los, nts) t) as R1.
+  destruct sz5 as [|sz5]; try solve [inv H0; exists 8%nat; exists 1%nat; auto].
+  remember (zeroconst2GV (los, nts) typ5) as R1.
   destruct R1; try solve [inv H0].
-  remember (getTypeAllocSize (los, nts) t) as R2.
-  destruct R2; inv H0.
+  remember (getTypeAllocSize (los, nts) typ5) as R2.
+  destruct R2 as [s1|]; inv H0.
   assert (
     (g ++ uninits (Size.to_nat s1 - sizeGenericValue g)) ++
-          repeatGV (g ++ uninits (Size.to_nat s1 - sizeGenericValue g)) s = 
-    repeatGV (g ++ uninits (Size.to_nat s1 - sizeGenericValue g)) (S s)) as G.
+          repeatGV (g ++ uninits (Size.to_nat s1 - sizeGenericValue g)) sz5 = 
+    repeatGV (g ++ uninits (Size.to_nat s1 - sizeGenericValue g)) (S sz5)) as G.
     simpl. auto.
   rewrite G.
   symmetry in HeqR1.
   inv H1.
-  apply H with (s:=s0) in HeqR1; eauto using feasible_array_typ_inv.
+  apply H with (s:=s) in HeqR1; eauto using feasible_array_typ_inv.
   destruct HeqR1 as [sz [al [J1 J2]]].
   rewrite J1.  rewrite J2.
-  exists (RoundUpAlignment (sizeGenericValue g) al * 8 * Size.to_nat (S s))%nat.
+  exists (RoundUpAlignment (sizeGenericValue g) al * 8 * Size.to_nat (S sz5))%nat.
   exists al.
   split; auto.
   unfold getTypeAllocSize, getABITypeAlignment, getAlignment, getTypeStoreSize,
@@ -3682,14 +3685,14 @@ Proof.
     destruct t1; try solve [eapply gundef__getTypeSizeInBits; eauto].
     destruct t2; try solve [eapply gundef__getTypeSizeInBits; eauto].
       inv H1.
-      simpl. exists (Size.to_nat s0).
-      exists (getIntAlignmentInfo los (Size.to_nat s0) true).
+      simpl. exists (Size.to_nat sz0).
+      exists (getIntAlignmentInfo los (Size.to_nat sz0) true).
       erewrite int_typsize; eauto.
   
     destruct t1; try solve [eapply gundef__getTypeSizeInBits; eauto].
     destruct t2; try solve [eapply gundef__getTypeSizeInBits; eauto].
-    destruct (floating_point_order f1 f0); tinv H1.
-    destruct f1; inv H1.
+    destruct (floating_point_order floating_point0 floating_point5); tinv H1.
+    destruct floating_point0; inv H1.
       simpl. exists 32%nat. exists (getFloatAlignmentInfo los 32 true).
       auto.
   
@@ -3717,16 +3720,16 @@ Proof.
       try solve [inversion H1 | eapply gundef__getTypeSizeInBits; eauto].
     destruct v; try solve [eapply gundef__getTypeSizeInBits; eauto].
     destruct eop; inv H1.
-      simpl. exists (Size.to_nat s0).
-      exists (getIntAlignmentInfo los (Size.to_nat s0) true).
+      simpl. exists (Size.to_nat sz0).
+      exists (getIntAlignmentInfo los (Size.to_nat sz0) true).
       erewrite int_typsize; eauto.
 
-      simpl. exists (Size.to_nat s0).
-      exists (getIntAlignmentInfo los (Size.to_nat s0) true).
+      simpl. exists (Size.to_nat sz0).
+      exists (getIntAlignmentInfo los (Size.to_nat sz0) true).
       erewrite int_typsize; eauto.
 
     destruct t2; tinv H1.
-    destruct (floating_point_order f f0); tinv H1.
+    destruct (floating_point_order floating_point5 floating_point0); tinv H1.
     destruct gv1; 
       try solve [inversion H1 | eapply gundef__getTypeSizeInBits; eauto].
     destruct p.
@@ -3734,7 +3737,7 @@ Proof.
       try solve [inversion H1 | eapply gundef__getTypeSizeInBits; eauto].
     destruct v; try solve [eapply gundef__getTypeSizeInBits; eauto].
     destruct eop; inv H1.
-    destruct f0; inv H3; simpl.
+    destruct floating_point0; inv H3; simpl.
       exists 32%nat. exists (getFloatAlignmentInfo los 32 true). auto.
       exists 64%nat. exists (getFloatAlignmentInfo los 64 true). auto.
 Qed.
@@ -4038,6 +4041,8 @@ Case "wfconst_struct". Focus.
   destruct gv0; inv H4.
     erewrite <- map_list_const_typ_spec1; eauto.
     rewrite J6.
+    assert (typ_struct (make_list_typ lt) = t') as Heq.
+      admit. (* typing rule should check this. *)
     split; auto.
       destruct sz.
         exists 8%nat. exists 1%nat. auto.
@@ -4050,6 +4055,8 @@ Case "wfconst_struct". Focus.
     erewrite <- map_list_const_typ_spec1; eauto.
     rewrite J6.
     rewrite <- J7.
+    assert (typ_struct (make_list_typ lt) = t') as Heq.
+      admit. (* typing rule should check this. *)
     split; auto.
       destruct sz.
         clear - J7.
@@ -4218,7 +4225,7 @@ Case "wfconst_fcmp". Focus.
   destruct R1 as [[gv1 t1]|]; tinv H3.
   destruct t1; tinv H3.
   destruct R2 as [[gv2 t2]|]; tinv H3.
-  remember (mfcmp (los, nts) fcond5 f1 gv1 gv2) as R3.
+  remember (mfcmp (los, nts) fcond5 floating_point0 gv1 gv2) as R3.
   destruct R3; inv H3; eauto.
   split; auto.
     symmetry in HeqR3.
@@ -4273,7 +4280,7 @@ Case "wfconst_bop". Focus.
   destruct R1 as [[gv1 t1]|]; tinv H3.
   destruct t1; tinv H3.
   destruct R2 as [[gv2 t2]|]; tinv H3.
-  remember (mbop (los, nts) bop5 s gv1 gv2) as R3.
+  remember (mbop (los, nts) bop5 sz0 gv1 gv2) as R3.
   destruct R3; inv H3; eauto.
   symmetry in HeqR1.
   eapply H in HeqR1; eauto.
@@ -4290,7 +4297,7 @@ Case "wfconst_fbop". Focus.
   destruct R1 as [[gv1 t1]|]; tinv H3.
   destruct t1; tinv H3.
   destruct R2 as [[gv2 t2]|]; tinv H3.
-  remember (mfbop (los, nts) fbop5 f gv1 gv2) as R3.
+  remember (mfbop (los, nts) fbop5 floating_point0 gv1 gv2) as R3.
   destruct R3; inv H3; eauto.
   symmetry in HeqR1.
   eapply H in HeqR1; eauto.
@@ -4417,7 +4424,7 @@ Proof.
     inv H0.
     erewrite int_typsize; eauto.
 
-    destruct f; tinv H; inv H0; auto.
+    destruct floating_point5; tinv H; inv H0; auto.
 
     inv H0. auto.
 Qed.
@@ -4529,11 +4536,13 @@ Proof.
 Case "typ_int".
   inv H.
   simpl.
-  exists (Size.to_nat s). exists (getIntAlignmentInfo los (Size.to_nat s) true).
+  exists (Size.to_nat sz5). 
+  exists (getIntAlignmentInfo los (Size.to_nat sz5) true).
   erewrite int_typsize; eauto.
 
 Case "typ_floatingpoint".
-  destruct f; inv H; simpl; unfold size_chunk_nat, size_chunk, bytesize_chunk.
+  destruct floating_point5; 
+    inv H; simpl; unfold size_chunk_nat, size_chunk, bytesize_chunk.
     exists 32%nat. exists (getFloatAlignmentInfo los 32 true).
     simpl. auto.
 
@@ -4541,23 +4550,23 @@ Case "typ_floatingpoint".
     simpl. auto.
 
 Case "typ_array".
-  destruct s;  try solve [inv H0; exists 8%nat; exists 1%nat; auto].
-  remember (flatten_typ (los, nts) t) as R1.
+  destruct sz5;  try solve [inv H0; exists 8%nat; exists 1%nat; auto].
+  remember (flatten_typ (los, nts) typ5) as R1.
   destruct R1; try solve [inv H0].
-  remember (getTypeAllocSize (los, nts) t) as R2.
-  destruct R2; inv H0.
+  remember (getTypeAllocSize (los, nts) typ5) as R2.
+  destruct R2 as [s1|]; inv H0.
   assert (
     (l0 ++ uninitMCs (Size.to_nat s1 - sizeMC l0)) ++
-          repeatMC (l0 ++ uninitMCs (Size.to_nat s1 - sizeMC l0)) s = 
-    repeatMC (l0 ++ uninitMCs (Size.to_nat s1 - sizeMC l0)) (S s)) as G.
+          repeatMC (l0 ++ uninitMCs (Size.to_nat s1 - sizeMC l0)) sz5 = 
+    repeatMC (l0 ++ uninitMCs (Size.to_nat s1 - sizeMC l0)) (S sz5)) as G.
     simpl. auto.
   rewrite G.
   symmetry in HeqR1.
   inv H1.
-  apply H with (s:=s0) in HeqR1; eauto using feasible_array_typ_inv.
+  apply H with (s:=s) in HeqR1; eauto using feasible_array_typ_inv.
   destruct HeqR1 as [sz [al [J1 J2]]].
   rewrite J1.  rewrite J2.
-  exists (RoundUpAlignment (sizeMC l0) al * 8 * Size.to_nat (S s))%nat.
+  exists (RoundUpAlignment (sizeMC l0) al * 8 * Size.to_nat (S sz5))%nat.
   exists al.
   split; auto.
   unfold getTypeAllocSize, getABITypeAlignment, getAlignment, getTypeStoreSize,
@@ -4726,11 +4735,11 @@ Proof.
     unfold flatten_typ_total_prop, flatten_typs_total_prop;
     intros; simpl in *; try solve [eauto | inversion H | inversion H1 ].
 Case "float".
-  destruct f; try solve [eauto | inversion H].
+  destruct floating_point5; try solve [eauto | inversion H].
 Case "array".
   destruct H with (TD:=TD) as [gv Hz2c]; auto.
   rewrite Hz2c.
-  destruct s; eauto.
+  destruct sz5; eauto.
   apply feasible_typ_inv'' in H1. 
   destruct H1 as [ssz [asz [J1 J2]]].
   rewrite J2.

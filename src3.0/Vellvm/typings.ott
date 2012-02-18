@@ -383,9 +383,6 @@ Jwf_typ :: '' ::=
       -------------------- :: wf_typ_metadate
       system |- metadata
 
-      -------------------- :: wf_typ_opaque
-      system |- opaque
-
       isValidReturnTyp typ     
       system |- typ
       </ isValidArgumentTyp typj // j />
@@ -463,10 +460,11 @@ Jwf_const :: '' ::=
       ----------------------------------------------------------- :: wf_const_arr
       system , targetdata |-c typ [ </ constj // j /> ] : [sz * typ]
 
+      % FIXME: need to check if typ = </ typj // j />
       </ system , targetdata |-c constj : typj // j />
       </ targetdata |- typj // j />
       ------------------------------------------------------------------- :: wf_const_struct
-      system , targetdata |-c { </ constj // j /> } : { </ typj // j /> }
+      system , targetdata |-c typ { </ constj // j /> } : { </ typj // j /> }
 
 
       system |- typ*
@@ -672,13 +670,7 @@ Jwf_operand :: '' ::=
       id' in ids
       lookupBlockViaIDFromFdef fdef id' = block'
       notT isPhiNode insn
-<<
-        (
-         insnDominates id' insn block \/ 
-         blockStrictDominates fdef block' block \/ 
-         (not (isReachableFromEntry fdef block))
-        )
->>
+      (insnDominates id' insn block \/ blockStrictDominates fdef block' block \/ (not (isReachableFromEntry fdef block)))
       -------------------------------------------------------- :: wf_operand_intro
       fdef , block , insn |- id'
 
@@ -1370,6 +1362,7 @@ End LLVMtypings.
 
 embed 
 {{ coq
+(*****************************)
 (*
 *** Local Variables: ***
 *** coq-prog-name: "coqtop" ***

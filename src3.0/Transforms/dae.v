@@ -227,10 +227,10 @@ Lemma fdef_sim__lookupAL_genLabel2Block_block : forall id0 l0 bs b b',
     = Some b' ->
   remove_block id0 b = b'.
 Proof.
-  induction bs; simpl; intros.
+  induction bs as [|a ?]; simpl; intros.
     congruence.   
 
-    destruct a. simpl in *.
+    destruct a as [l1 ? ? ?]. simpl in *.
     destruct (l0 == l1); subst; eauto.
       inv H. inv H0. auto.
 Qed.
@@ -304,7 +304,8 @@ Proof.
   induction Hsim; simpl; intros.
     inv H.
 
-    destruct x; destruct y; inv H0; inv H1; eauto; try congruence.
+    destruct x as [?|?|f]; 
+    destruct y as [?|?|f0]; inv H0; inv H1; eauto; try congruence.
     destruct (getFdefID f0 == fid); subst.
       inv H3.
       destruct (getFdefID f == getFdefID f2).
@@ -338,7 +339,7 @@ Proof.
   unfold fdef_simulation in H.
   unfold block_simulation.
   destruct (fdef_dec (PI_f pinfo) F1); subst.
-    destruct (PI_f pinfo); simpl in *.
+    destruct (PI_f pinfo) as [? b]; simpl in *.
     destruct b; inv H0.
     simpl in H1. inv H1. auto.
 
@@ -1039,7 +1040,7 @@ Proof.
   unfold reg_simulation in H1.  
   destruct (fdef_dec (PI_f pinfo) F); subst.
     destruct Hprop as [Hprop | Hprop]; try congruence.
-    destruct v; simpl in Hprop.
+    destruct v as [i0|?]; simpl in Hprop.
       assert (J:=@H1 i0). clear H1.
       destruct (id_dec (PI_id pinfo) i0); subst; eauto.
         destruct (id_dec (PI_id pinfo) (PI_id pinfo)); 
@@ -1166,7 +1167,7 @@ Lemma getIncomingValuesForBlockFromPHINodes_rsim : forall TD B1 B2 gl F mi lc1'
   reg_simulation pinfo mi F (Opsem.updateValuesForNewBlock l3 lc1')
      (Opsem.updateValuesForNewBlock l0 lc2').
 Proof.
-  induction ps as [|[]]; simpl; intros.
+  induction ps as [|[i0 ? l0]]; simpl; intros.
     uniq_result. simpl. auto.
 
     inv_mbind'. symmetry_ctx. simpl.
@@ -1240,7 +1241,7 @@ Lemma getIncomingValuesForBlockFromPHINodes_asim:
   Opsem.getIncomingValuesForBlockFromPHINodes TD ps B gl lc = ret l1 ->
   als_simulation pinfo mi F (Opsem.updateValuesForNewBlock l1 lc) als1 als2.
 Proof.
-  induction ps as [|[]]; simpl; intros.
+  induction ps as [|[i0 ? ?]]; simpl; intros.
     uniq_result. simpl. auto.
 
     inv_mbind'. symmetry_ctx. simpl.
@@ -2565,7 +2566,8 @@ Proof.
   induction Hsim; simpl; intros.
     inv H.
 
-    destruct x; destruct y; inv H0; inv H1; eauto; try congruence.
+    destruct x as [?|f|?]; 
+    destruct y as [?|f0|?]; inv H0; inv H1; eauto; try congruence.
     destruct (getFdecID f0 == fid); subst.
       inv H3.
       destruct (getFdecID f == getFdecID f2).
@@ -2598,7 +2600,8 @@ Proof.
   induction Hsim; simpl; intros.
     inv H.
 
-    destruct x; destruct y; inv H0; eauto; try congruence.
+    destruct x as [?|?|f]; 
+    destruct y as [?|?|f0]; inv H0; eauto; try congruence.
     destruct (getFdefID f == fid); subst.
       inv H2. simpl.
       destruct (getFdefID f0 == getFdefID f1); eauto.
@@ -2626,7 +2629,8 @@ Proof.
   induction Hsim; simpl; intros.
     inv H.
 
-    destruct x; destruct y; inv H0; eauto; try congruence.
+    destruct x as [?|?|f]; 
+    destruct y as [?|?|f0]; inv H0; eauto; try congruence.
     destruct (getFdefID f0 == fid); subst.
       inv H2. simpl.
       destruct (getFdefID f == getFdefID f2); eauto.

@@ -181,7 +181,7 @@ Proof.
   destruct ECS as [|[]]; auto.
   destruct CurCmds; auto.
   simpl.
-  destruct c; auto.
+  destruct_cmd c; auto.
   destruct (fdef_dec (PI_f pinfo) CurFunction); auto.
   destruct (id_dec i0 (SAS_sid1 pinfo sasinfo)); auto.
 Qed.
@@ -846,7 +846,7 @@ Case "removable state".
   destruct ECs1 as [|[F1 B1 [|[] cs1] tmn1 lc1 als1] ECs1]; tinv Hrem.
   simpl in Hrem.
   destruct (fdef_dec (PI_f pinfo) F1); subst; tinv Hrem.
-  destruct (id_dec i0 (SAS_sid1 pinfo sasinfo)); subst; tinv Hrem.
+  destruct (id_dec id5 (SAS_sid1 pinfo sasinfo)); subst; tinv Hrem.
   
   destruct Hwfpp as 
     [Hwfg [HwfSystem [HmInS [_ [

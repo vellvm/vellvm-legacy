@@ -1,7 +1,7 @@
-
-embed 
-{{ coq
-
+Add LoadPath "./ott".
+Add LoadPath "./monads".
+Add LoadPath "./compcert".
+Add LoadPath "../../../theory/metatheory_8.3".
 Require Import syntax.
 Require Import Metatheory.
 
@@ -189,7 +189,7 @@ Lemma getCmdLoc_getCmdID : forall a i0,
 Proof.
   intros a i0 H.
   destruct a; inv H; auto.
-    simpl. destruct n; inv H1; auto.
+    simpl. destruct noret5; inv H1; auto.
 Qed.
 
 Fixpoint mgetoffset_aux (TD:LLVMtd.TargetData) (t:typ) (idxs:list Z) (accum:Z) 
@@ -1009,7 +1009,7 @@ match nts with
 | nil => None
 | namedt_intro id1 typ1::nts' =>
   if (eq_dec id0 id1) 
-  then Some typ1
+  then Some (typ_struct typ1)
   else lookupTypViaTIDFromNamedts nts' id0
 end.
 
@@ -1523,9 +1523,60 @@ Proof.
 Qed.
 
 Definition typ_dec_prop (t1:typ) := forall t2, {t1=t2} + {~t1=t2}.
-Definition list_typ_dec_prop (lt1:list_typ) := forall lt2, {lt1=lt2} + {~lt1=lt2}.
+Definition list_typ_dec_prop (lt1:list_typ) := 
+  forall lt2, {lt1=lt2} + {~lt1=lt2}.
 
 Ltac done_right := right; intro J; inversion J; subst; auto.
+
+Ltac destruct_top_tac :=
+  match goal with
+  | |- { _ = ?t2 } + { _ <> ?t2 } => destruct t2; try solve [auto | done_right]
+  end.
+
+Ltac destruct_wrt_type1 a1 a2:=
+  match type of a1 with
+  | sz => destruct (@Size.dec a1 a2)
+  | floating_point => destruct (@floating_point_dec a1 a2)
+  | varg => destruct (@varg_dec a1 a2)
+  | id => destruct (@id_dec a1 a2)
+  end.
+
+Ltac destruct_dec_tac f :=
+  match goal with
+  | |- { _ ?a1 = _ ?a2 } + { _ ?a1 <> _ ?a2 } => 
+      f a1 a2
+  | |- { _ ?a1 ?b1 = _ ?a2 ?b2 } + { _ ?a1 ?b1 <> _ ?a2 ?b2 } => 
+      f a1 a2; f b1 b2
+  | |- { _ ?a1 ?b1 ?c1 = _ ?a2 ?b2 ?c2 } + { _ ?a1 ?b1 ?c1 <> _ ?a2 ?b2 ?c2 } =>
+      f a1 a2; f b1 b2; f c1 c2
+  | |- { _ ?a1 ?b1 ?c1 ?d1 = _ ?a2 ?b2 ?c2 ?d2 }  + 
+       { _ ?a1 ?b1 ?c1 ?d1 <> _ ?a2 ?b2 ?c2 ?d2 } =>
+      f a1 a2; f b1 b2; f c1 c2; f d1 d2
+  | |- { _ ?a1 ?b1 ?c1 ?d1 ?e1 = _ ?a2 ?b2 ?c2 ?d2 ?e2 } + 
+       { _ ?a1 ?b1 ?c1 ?d1 ?e1 <> _ ?a2 ?b2 ?c2 ?d2 ?e2 } =>
+      f a1 a2; f b1 b2; f c1 c2; f d1 d2;f e1 e2
+  | |- { _ ?a1 ?b1 ?c1 ?d1 ?e1 ?f1 = _ ?a2 ?b2 ?c2 ?d2 ?e2 ?f2 } + 
+       { _ ?a1 ?b1 ?c1 ?d1 ?e1 ?f1 <> _ ?a2 ?b2 ?c2 ?d2 ?e2 ?f2 } =>
+      f a1 a2; f b1 b2; f c1 c2; f d1 d2; f e1 e2; f f1 f2
+  end; subst; try solve [auto | done_right].
+
+Ltac typ_mutrec_dec_subs_tac :=
+  let destruct_wrt_type a1 a2:=
+    match type of a1 with
+    | typ =>
+      match goal with
+      | H:forall t2 : typ, {a1 = t2} + {a1 <> t2} |- _ => destruct (@H a2)
+      end
+    | list_typ =>
+      match goal with
+      | H:forall t2 : list_typ, {a1 = t2} + {a1 <> t2} |- _ => 
+          destruct (@H a2); clear H
+      end
+    | _ => destruct_wrt_type1 a1 a2
+    end; subst; try solve [auto | done_right] in
+  destruct_dec_tac destruct_wrt_type.
+
+Ltac typ_mutrec_dec_tac := destruct_top_tac; typ_mutrec_dec_subs_tac.
 
 Lemma typ_mutrec_dec :
   (forall t1, typ_dec_prop t1) *
@@ -1533,40 +1584,7 @@ Lemma typ_mutrec_dec :
 Proof.
   apply typ_mutrec; 
     unfold typ_dec_prop, list_typ_dec_prop;
-    intros;
-    try solve [
-      destruct t2; try solve [done_right | auto]
-    ].
-
-  destruct t2; try solve [done_right].
-  destruct (@Size.dec s s0); try solve [subst; auto | done_right].
-
-  destruct t2; try solve [done_right].
-  destruct (@floating_point_dec f f0); try solve [subst; auto | done_right].
-
-  destruct t2; try solve [done_right].
-  destruct (@H t2); subst; try solve [done_right].
-  destruct (@Size.dec s s0); subst; try solve [subst; auto | done_right].
-
-  destruct t2; try solve [done_right].
-  destruct (@H t2); subst; try solve [done_right].
-  destruct (@varg_dec v v0); subst; try solve [done_right].
-  destruct (@H0 l1); subst; try solve [subst; auto | done_right].
-
-  destruct t2; try solve [done_right].
-  destruct (@H l1); subst; try solve [subst; auto | done_right].
-
-  destruct t2; try solve [done_right].
-  destruct (@H t2); subst; try solve [subst; auto | done_right].
-
-  destruct t2; try solve [done_right].
-  destruct (@id_dec i0 i1); try solve [subst; auto | done_right].
-
-  destruct lt2; try solve [auto | done_right].
-
-  destruct lt2; try solve [right; intro J; inversion J].
-  destruct (@H t0); subst; try solve [done_right].
-  destruct (@H0 lt2); subst; try solve [subst; auto | done_right].
+    intros; try solve [abstract typ_mutrec_dec_tac].
 Qed.
 
 Lemma typ_dec : forall (t1 t2:typ), {t1=t2} + {~t1=t2}.
@@ -1615,7 +1633,47 @@ Proof.
 Qed.
 
 Definition const_dec_prop (c1:const) := forall c2, {c1=c2} + {~c1=c2}.
-Definition list_const_dec_prop (lc1:list_const) := forall lc2, {lc1=lc2} + {~lc1=lc2}.
+Definition list_const_dec_prop (lc1:list_const) := 
+  forall lc2, {lc1=lc2} + {~lc1=lc2}.
+
+Ltac destruct_wrt_type2 a1 a2:=
+match type of a1 with
+| Int => destruct (@INTEGER.dec a1 a2)
+| Float => destruct (@FLOAT.dec a1 a2)
+| sz => destruct (@Size.dec a1 a2)
+| floating_point => destruct (@floating_point_dec a1 a2)
+| typ => destruct (@typ_dec a1 a2)
+| varg => destruct (@varg_dec a1 a2)
+| id => destruct (@id_dec a1 a2)
+| extop => destruct (@extop_dec a1 a2)
+| truncop => destruct (@truncop_dec a1 a2)
+| castop => destruct (@castop_dec a1 a2)
+| inbounds => destruct (@inbounds_dec a1 a2)
+| list_typ => destruct (@list_typ_dec a1 a2)
+| cond => destruct (@cond_dec a1 a2)
+| fcond => destruct (@fcond_dec a1 a2)
+| fbop => destruct (@fbop_dec a1 a2)
+| bop => destruct (@bop_dec a1 a2)
+| _ => destruct_wrt_type1 a1 a2
+end.
+
+Ltac const_mutrec_dec_subs_tac :=
+  let destruct_wrt_type a1 a2:=
+    match type of a1 with
+    | const =>
+      match goal with
+      | H:forall t2 : const, {a1 = t2} + {a1 <> t2} |- _ => destruct (@H a2)
+      end
+    | list_const =>
+      match goal with
+      | H:forall t2 : list_const, {a1 = t2} + {a1 <> t2} |- _ => 
+          destruct (@H a2); clear H
+      end
+    | _ => destruct_wrt_type2 a1 a2
+    end; subst; try solve [auto | done_right] in
+  destruct_dec_tac destruct_wrt_type.
+
+Ltac const_mutrec_dec_tac := destruct_top_tac; const_mutrec_dec_subs_tac.
 
 Lemma const_mutrec_dec :
   (forall c1, const_dec_prop c1) *
@@ -1623,90 +1681,7 @@ Lemma const_mutrec_dec :
 Proof.
   apply const_mutrec; 
     unfold const_dec_prop, list_const_dec_prop;
-    intros;
-    try solve [
-      destruct c2; try solve [right; intro J; inversion J | auto] |
-      destruct c2; try solve [done_right];
-        destruct (@typ_dec t t0); subst; try solve [subst; auto | done_right] |
-      destruct c2; try solve [done_right];
-        destruct (@H l1); subst; try solve [auto | done_right]
-    ].
-
-  destruct c2; try solve [done_right].
-  destruct (@INTEGER.dec i0 i1); try solve [done_right].
-  destruct (@Size.dec s s0); try solve [subst; auto | done_right].
-
-  destruct c2; try solve [done_right].
-  destruct (@FLOAT.dec f0 f2); try solve [done_right].
-  destruct (@floating_point_dec f f1); try solve [subst; auto | done_right].
-
-  destruct c2; try solve [done_right].
-  destruct (@typ_dec t t0); subst; try solve [done_right].
-  destruct (@H l1); subst; try solve [subst; auto | done_right].
-
-  destruct c2; try solve [done_right].
-  destruct (@typ_dec t t0); subst; try solve [done_right].
-  destruct (@id_dec i0 i1); try solve [subst; auto | done_right].
-
-  destruct c2; try solve [done_right].
-  destruct (@truncop_dec t t1); subst; try solve [done_right].
-  destruct (@typ_dec t0 t2); subst; try solve [done_right].
-  destruct (@H c2); subst; try solve [subst; auto | done_right].
-
-  destruct c2; try solve [done_right].
-  destruct (@extop_dec e e0); subst; try solve [done_right].
-  destruct (@typ_dec t t0); subst; try solve [done_right].
-  destruct (@H c2); subst; try solve [subst; auto | done_right].
-
-  destruct c2; try solve [done_right].
-  destruct (@castop_dec c c1); subst; try solve [done_right].
-  destruct (@typ_dec t t0); subst; try solve [done_right].
-  destruct (@H c2); subst; try solve [subst; auto | done_right].
-
-  destruct c2; try solve [done_right].
-  destruct (@inbounds_dec i0 i1); subst; try solve [done_right].
-  destruct (@H c2); subst; try solve [done_right].
-  destruct (@H0 l1); subst; try solve [subst; auto | done_right].
-
-  destruct c2; try solve [done_right].
-  destruct (@H c2_1); subst; try solve [done_right].
-  destruct (@H0 c2_2); subst; try solve [done_right].
-  destruct (@H1 c2_3); subst; try solve [subst; auto | done_right].
-
-  destruct c2; try solve [done_right].
-  destruct (@cond_dec c c2); subst; try solve [done_right].
-  destruct (@H c2_1); subst; try solve [done_right].
-  destruct (@H0 c2_2); subst; try solve [subst; auto | done_right].
-
-  destruct c2; try solve [done_right].
-  destruct (@fcond_dec f f0); subst; try solve [done_right].
-  destruct (@H c2_1); subst; try solve [done_right].
-  destruct (@H0 c2_2); subst; try solve [subst; auto | done_right].
-
-  destruct c2; try solve [done_right].
-  destruct (@H c2); subst; try solve [done_right].
-  destruct (@H0 l1); subst; try solve [subst; auto | done_right].
-
-  destruct c2; try solve [done_right].
-  destruct (@H c2_1); subst; try solve [done_right].
-  destruct (@H0 c2_2); subst; try solve [done_right].
-  destruct (@H1 l1); subst; try solve [subst; auto | done_right].
-
-  destruct c2; try solve [done_right].
-  destruct (@bop_dec b b0); subst; try solve [done_right].
-  destruct (@H c2_1); subst; try solve [done_right].
-  destruct (@H0 c2_2); subst; try solve [subst; auto | done_right].
-
-  destruct c2; try solve [done_right].
-  destruct (@fbop_dec f f0); subst; try solve [done_right].
-  destruct (@H c2_1); subst; try solve [done_right].
-  destruct (@H0 c2_2); subst; try solve [subst; auto | done_right].
-
-  destruct lc2; try solve [auto | done_right].
-
-  destruct lc2; try solve [done_right].
-  destruct (@H c0); subst; try solve [done_right].
-  destruct (@H0 lc2); subst; try solve [subst; auto | done_right].
+    intros; try solve [abstract const_mutrec_dec_tac].
 Qed.
 
 Lemma const_dec : forall (c1 c2:const), {c1=c2}+{~c1=c2}.
@@ -1722,7 +1697,7 @@ Qed.
 Lemma value_dec : forall (v1 v2:value), {v1=v2}+{~v1=v2}.
 Proof.
   decide equality.
-    destruct (@const_dec c c0); subst; auto.
+    destruct (@const_dec const5 const0); subst; auto.
 Qed.    
 
 Lemma attribute_dec : forall (attr1 attr2:attribute), 
@@ -1770,148 +1745,65 @@ Proof.
   decide equality.
 Qed.
 
+Ltac destruct_wrt_type3 a1 a2:=
+match type of a1 with
+| l => destruct (@id_dec a1 a2)
+| value => destruct (@value_dec a1 a2)
+| const => destruct (@const_dec a1 a2)
+| list_const => destruct (@list_const_dec a1 a2)
+| attribute => destruct (@attribute_dec a1 a2)
+| attributes => destruct (@attributes_dec a1 a2)
+| params => destruct (@params_dec a1 a2)
+| list_sz_value => destruct (@list_value_dec a1 a2)
+| list_value_l => destruct (@list_value_l_dec a1 a2)
+| callconv => destruct (@callconv_dec a1 a2)
+| align => destruct (Align.dec a1 a2)
+| noret => destruct (@noret_dec a1 a2)
+| tailc => destruct (@tailc_dec a1 a2)
+| _ => destruct_wrt_type2 a1 a2
+end.
+
+Ltac insn_dec_tac :=
+  destruct_top_tac; 
+  destruct_dec_tac destruct_wrt_type3.
+
 Lemma cmd_dec : forall (c1 c2:cmd), {c1=c2}+{~c1=c2}.
 Proof.
-  (cmd_cases (destruct c1) Case); destruct c2; try solve [done_right | auto].
-  Case "insn_bop".
-    destruct (@id_dec i0 i1); subst; try solve [done_right]. 
-    destruct (@bop_dec b b0); subst; try solve [done_right].
-    destruct (@Size.dec s s0); subst; try solve [done_right].
-    destruct (@value_dec v v1); subst; try solve [done_right].
-    destruct (@value_dec v0 v2); subst; try solve [auto | done_right].
-  Case "insn_fbop".
-    destruct (@id_dec i0 i1); subst; try solve [done_right]. 
-    destruct (@fbop_dec f f1); subst; try solve [done_right].
-    destruct (@floating_point_dec f0 f2); subst; try solve [done_right].
-    destruct (@value_dec v v1); subst; try solve [done_right].
-    destruct (@value_dec v0 v2); subst; try solve [auto | done_right].
-  Case "insn_extractvalue".
-    destruct (@id_dec i0 i1); subst; try solve [done_right]. 
-    destruct (@typ_dec t t0); subst; try solve [done_right].
-    destruct (@value_dec v v0); subst; try solve [done_right].
-    destruct (@list_const_dec l0 l1); subst; try solve [auto | done_right].
-  Case "insn_insertvalue".
-    destruct (@id_dec i0 i1); subst; try solve [done_right]. 
-    destruct (@typ_dec t t1); subst; try solve [done_right].
-    destruct (@value_dec v v1); subst; try solve [done_right].
-    destruct (@typ_dec t0 t2); subst; try solve [done_right].
-    destruct (@value_dec v0 v2); subst; try solve [done_right].
-    destruct (@list_const_dec l0 l1); subst; try solve [auto | done_right].
-  Case "insn_malloc".    
-    destruct (@id_dec i0 i1); subst; try solve [done_right]. 
-    destruct (@typ_dec t t0); subst; try solve [done_right].
-    destruct (@value_dec v v0); subst; try solve [done_right].
-    destruct (@Align.dec a a0); subst; try solve [auto | done_right].
-  Case "insn_free".    
-    destruct (@id_dec i0 i1); subst; try solve [done_right]. 
-    destruct (@typ_dec t t0); subst; try solve [done_right].
-    destruct (@value_dec v v0); subst; try solve [auto | done_right].
-  Case "insn_alloca".    
-    destruct (@id_dec i0 i1); subst; try solve [done_right]. 
-    destruct (@typ_dec t t0); subst; try solve [done_right].
-    destruct (@value_dec v v0); subst; try solve [done_right].
-    destruct (Align.dec a a0); subst; try solve [auto | done_right].
-  Case "insn_load".    
-    destruct (@id_dec i0 i1); subst; try solve [done_right]. 
-    destruct (@typ_dec t t0); subst; try solve [done_right].
-    destruct (@Align.dec a a0); subst; try solve [done_right].
-    destruct (@value_dec v v0); subst; try solve [auto | done_right].
-  Case "insn_store".    
-    destruct (@id_dec i0 i1); subst; try solve [done_right]. 
-    destruct (@typ_dec t t0); subst; try solve [done_right].
-    destruct (@value_dec v v1); try solve [auto | done_right].
-    destruct (@Align.dec a a0); subst; try solve [done_right].
-    destruct (@value_dec v0 v2); subst; try solve [auto | done_right].
-  Case "insn_gep".    
-    destruct (@id_dec i0 i2); subst; try solve [done_right]. 
-    destruct (@inbounds_dec i1 i3); subst; try solve [done_right].
-    destruct (@typ_dec t t0); subst; try solve [done_right].
-    destruct (@value_dec v v0); try solve [auto | done_right].
-    destruct (@list_value_dec l0 l1); subst; try solve [auto | done_right].
-  Case "insn_trunc".
-    destruct (@id_dec i0 i1); subst; try solve [done_right]. 
-    destruct (@truncop_dec t t2); subst; try solve [done_right].
-    destruct (@typ_dec t0 t3); subst; try solve [done_right].
-    destruct (@value_dec v v0); subst; try solve [done_right].
-    destruct (@typ_dec t1 t4); subst; try solve [auto | done_right].
-  Case "insn_ext".
-    destruct (@id_dec i0 i1); subst; try solve [done_right]. 
-    destruct (@extop_dec e e0); subst; try solve [done_right].
-    destruct (@typ_dec t t1); subst; try solve [done_right].
-    destruct (@value_dec v v0); subst; try solve [done_right].
-    destruct (@typ_dec t0 t2); subst; try solve [auto | done_right].
-  Case "insn_cast".
-    destruct (@id_dec i0 i1); subst; try solve [done_right]. 
-    destruct (@castop_dec c c0); subst; try solve [done_right].
-    destruct (@typ_dec t t1); subst; try solve [done_right].
-    destruct (@value_dec v v0); subst; try solve [done_right].
-    destruct (@typ_dec t0 t2); subst; try solve [auto | done_right].
-  Case "insn_icmp".
-    destruct (@id_dec i0 i1); subst; try solve [done_right]. 
-    destruct (@cond_dec c c0); subst; try solve [done_right].
-    destruct (@typ_dec t t0); subst; try solve [done_right].
-    destruct (@value_dec v v1); subst; try solve [done_right].
-    destruct (@value_dec v0 v2); subst; try solve [auto | done_right].
-  Case "insn_fcmp".
-    destruct (@id_dec i0 i1); subst; try solve [done_right]. 
-    destruct (@fcond_dec f f1); subst; try solve [done_right].
-    destruct (@floating_point_dec f0 f2); subst; try solve [done_right].
-    destruct (@value_dec v v1); subst; try solve [done_right].
-    destruct (@value_dec v0 v2); subst; try solve [auto | done_right].
-  Case "insn_select".
-    destruct (@id_dec i0 i1); subst; try solve [done_right]. 
-    destruct (@value_dec v v2); subst; try solve [done_right].
-    destruct (@typ_dec t t0); subst; try solve [done_right].
-    destruct (@value_dec v0 v3); subst; try solve [done_right].
-    destruct (@value_dec v1 v4); subst; try solve [auto | done_right].
+  (cmd_cases (destruct c1) Case); destruct c2; 
+    try solve [done_right | auto | abstract insn_dec_tac].
   Case "insn_call".
-    destruct (@id_dec i0 i1); subst; try solve [done_right]. 
-    destruct (@value_dec v v0); subst; try solve [done_right]. 
-    destruct (@noret_dec n n0); subst; try solve [done_right].
-    destruct c. destruct c0.
-    destruct (@tailc_dec t1 t2); subst; try solve [done_right].
-    destruct (@typ_dec t t0); subst; try solve [done_right].
-    destruct (@callconv_dec c c0); subst; try solve [done_right]. 
-    destruct (@attributes_dec a a1); subst; try solve [done_right]. 
-    destruct (@attributes_dec a0 a2); subst; try solve [done_right]. 
-    destruct (@params_dec p p0); subst; try solve [auto | done_right].
+    destruct_wrt_type3 id5 id0; subst; try solve [done_right]. 
+    destruct_wrt_type3 value0 value1; subst; try solve [done_right]. 
+    destruct_wrt_type3 noret5 noret0; subst; try solve [done_right].
+    destruct clattrs5.
+    destruct clattrs0.
+    destruct_wrt_type3 tailc5 tailc0; subst; try solve [done_right].
+    destruct_wrt_type3 typ0 typ1; subst; try solve [done_right].
+    destruct_wrt_type3 callconv5 callconv0; subst; try solve [done_right]. 
+    destruct_wrt_type3 attributes1 attributes0; subst; try solve [done_right]. 
+    destruct_wrt_type3 attributes2 attributes3; subst; try solve [done_right]. 
+    destruct_wrt_type3 params5 params0; subst; try solve [auto | done_right].
 Qed.
 
 Lemma terminator_dec : forall (tmn1 tmn2:terminator), {tmn1=tmn2}+{~tmn1=tmn2}.
 Proof.
-  destruct tmn1; destruct tmn2; try solve [done_right | auto].
-  Case "insn_return".
-    destruct (@id_dec i0 i1); subst; try solve [done_right]. 
-    destruct (@typ_dec t t0); subst; try solve [done_right].
-    destruct (@value_dec v v0); subst; try solve [auto | done_right].
-  Case "insn_return_void".
-    destruct (@id_dec i0 i1); subst; try solve [auto | done_right]. 
-  Case "insn_br".
-    destruct (@id_dec i0 i1); subst; try solve [done_right]. 
-    destruct (@l_dec l0 l2); subst; try solve [done_right]. 
-    destruct (@l_dec l1 l3); subst; try solve [done_right]. 
-    destruct (@value_dec v v0); subst; try solve [auto | done_right].
-  Case "insn_br_uncond".
-    destruct (@id_dec i0 i1); subst; try solve [done_right]. 
-    destruct (@l_dec l0 l1); subst; try solve [auto | done_right]. 
-  Case "insn_unreachable".
-    destruct (@id_dec i0 i1); subst; try solve [auto | done_right]. 
+  destruct tmn1; destruct tmn2; 
+    try solve [done_right | auto | abstract insn_dec_tac].
 Qed.
 
 Lemma phinode_dec : forall (p1 p2:phinode), {p1=p2}+{~p1=p2}.
 Proof.
-  destruct p1; destruct p2; try solve [done_right | auto].
-    destruct (@id_dec i0 i1); subst; try solve [done_right]. 
-    destruct (@typ_dec t t0); subst; try solve [done_right].
-    destruct (@list_value_l_dec l0 l1); subst; try solve [auto | done_right]. 
+  destruct p1; destruct p2; try solve [done_right | auto | insn_dec_tac].
 Qed.
 
 Lemma insn_dec : forall (i1 i2:insn), {i1=i2}+{~i1=i2}.
 Proof.
   destruct i1; destruct i2; try solve [done_right | auto].
-    destruct (@phinode_dec p p0); subst; try solve [auto | done_right]. 
-    destruct (@cmd_dec c c0); subst; try solve [auto | done_right]. 
-    destruct (@terminator_dec t t0); subst; try solve [auto | done_right]. 
+    destruct (@phinode_dec phinode5 phinode0); 
+      subst; try solve [auto | done_right]. 
+    destruct (@cmd_dec cmd5 cmd0); subst; try solve [auto | done_right]. 
+    destruct (@terminator_dec terminator5 terminator0); 
+      subst; try solve [auto | done_right]. 
 Qed.
 
 Lemma cmds_dec : forall (cs1 cs2:list cmd), {cs1=cs2}+{~cs1=cs2}.
@@ -1937,10 +1829,11 @@ Qed.
 Lemma block_dec : forall (b1 b2:block), {b1=b2}+{~b1=b2}.
 Proof.
   destruct b1; destruct b2; try solve [done_right | auto].
-    destruct (@id_dec l0 l1); subst; try solve [done_right]. 
-    destruct (@phinodes_dec p p0); subst; try solve [done_right]. 
-    destruct (@cmds_dec c c0); subst; try solve [done_right].
-    destruct (@terminator_dec t t0); subst; try solve [auto | done_right]. 
+    destruct (@id_dec l5 l0); subst; try solve [done_right]. 
+    destruct (@phinodes_dec phinodes5 phinodes0); subst; try solve [done_right]. 
+    destruct (@cmds_dec cmds5 cmds0); subst; try solve [done_right].
+    destruct (@terminator_dec terminator5 terminator0); 
+      subst; try solve [auto | done_right]. 
 Qed.
 
 Lemma arg_dec : forall (a1 a2:arg), {a1=a2}+{~a1=a2}.
@@ -1975,16 +1868,19 @@ Qed.
 Lemma fheader_dec : forall (f1 f2:fheader), {f1=f2}+{~f1=f2}.
 Proof.
   destruct f1; destruct f2; try solve [subst; auto | done_right].
-    destruct (@typ_dec t t0); subst; try solve [done_right].
-    destruct (@id_dec i0 i1); subst; try solve [done_right].
-    destruct f. destruct f0.
-    destruct (@visibility_dec v1 v2); subst; try solve [done_right].
-    destruct (@varg_dec v v0); subst; try solve [done_right].
-    destruct (@attributes_dec a1 a3); subst; try solve [done_right]. 
-    destruct (@attributes_dec a2 a4); subst; try solve [done_right]. 
-    destruct (@callconv_dec c c0); subst; try solve [done_right].
-    destruct (@linkage_dec l0 l1); subst; try solve [done_right].
-    destruct (@args_dec a a0); subst; try solve [auto | done_right].
+    destruct (@typ_dec typ5 typ0); subst; try solve [done_right].
+    destruct (@id_dec id5 id0); subst; try solve [done_right].
+    destruct fnattrs5. destruct fnattrs0.
+    destruct (@visibility_dec visibility5 visibility0); 
+      subst; try solve [done_right].
+    destruct (@varg_dec varg5 varg0); subst; try solve [done_right].
+    destruct (@attributes_dec attributes1 attributes0); 
+      subst; try solve [done_right]. 
+    destruct (@attributes_dec attributes2 attributes3);
+      subst; try solve [done_right]. 
+    destruct (@callconv_dec callconv5 callconv0); subst; try solve [done_right].
+    destruct (@linkage_dec linkage5 linkage0); subst; try solve [done_right].
+    destruct (@args_dec args5 args0); subst; try solve [auto | done_right].
 Qed.  
 
 Lemma blocks_dec : forall (lb lb':blocks), {lb=lb'}+{~lb=lb'}.
@@ -2000,14 +1896,15 @@ Qed.
 Lemma fdec_dec : forall (f1 f2:fdec), {f1=f2}+{~f1=f2}.
 Proof.
   destruct f1; destruct f2; try solve [subst; auto | done_right].
-    destruct (@fheader_dec f f0); subst; try solve [auto | done_right].
+    destruct (@fheader_dec fheader5 fheader0); 
+      subst; try solve [auto | done_right].
 Qed.  
 
 Lemma fdef_dec : forall (f1 f2:fdef), {f1=f2}+{~f1=f2}.
 Proof.
   destruct f1; destruct f2; try solve [subst; auto | done_right].
-    destruct (@fheader_dec f f0); subst; try solve [done_right].
-    destruct (@blocks_dec b b0); subst; try solve [auto | done_right].
+    destruct (@fheader_dec fheader5 fheader0); subst; try solve [done_right].
+    destruct (@blocks_dec blocks5 blocks0); subst; try solve [auto | done_right].
 Qed.  
 
 Lemma gvar_spec_dec : forall (g1 g2:gvar_spec), {g1=g2}+{~g1=g2}.
@@ -2017,7 +1914,10 @@ Qed.
 
 Lemma gvar_dec : forall (g1 g2:gvar), {g1=g2}+{~g1=g2}.
 Proof.
-  destruct g1; destruct g2; try solve [subst; auto | done_right].
+  destruct g1 as [i0 l0 g t c a|i0 g t]; 
+  destruct g2 as [i1 l1 g0 t0 c0 a0|i1 g0 t0]; 
+    try solve [subst; auto | done_right].
+
     destruct (@id_dec i0 i1); subst; try solve [done_right].
     destruct (@linkage_dec l0 l1); subst; try solve [done_right].
     destruct (@gvar_spec_dec g g0); subst; try solve [done_right].
@@ -2032,7 +1932,8 @@ Qed.
 
 Lemma product_dec : forall (p p':product), {p=p'}+{~p=p'}.
 Proof.
-  destruct p; destruct p'; try solve [done_right | auto].
+  destruct p as [g|f|f]; destruct p' as [g0|f0|f0]; 
+    try solve [done_right | auto].
     destruct (@gvar_dec g g0); subst; try solve [auto | done_right]. 
     destruct (@fdec_dec f f0); subst; try solve [auto | done_right]. 
     destruct (@fdef_dec f f0); subst; try solve [auto | done_right]. 
@@ -2051,8 +1952,8 @@ Qed.
 Lemma namedt_dec : forall (nt1 nt2:namedt), {nt1=nt2}+{~nt1=nt2}.
 Proof.
   destruct nt1; destruct nt2; try solve [subst; auto | done_right].
-    destruct (@id_dec i0 i1); subst; try solve [done_right].
-    destruct (@typ_dec t t0); subst; try solve [auto | done_right].
+    destruct (@id_dec id5 id0); subst; try solve [done_right].
+    destruct (@list_typ_dec l0 l1); subst; try solve [auto | done_right].
 Qed.
 
 Lemma namedts_dec : forall (nts nts':namedts), {nts=nts'}+{~nts=nts'}.
@@ -2067,30 +1968,8 @@ Qed.
 
 Lemma layout_dec : forall (l1 l2:layout), {l1=l2}+{~l1=l2}.
 Proof.
-  destruct l1; destruct l2; try solve [subst; auto | done_right].
-    destruct (@Size.dec s s0); subst; try solve [done_right].
-    destruct (@Align.dec a a1); subst; try solve [done_right].
-    destruct (@Align.dec a0 a2); subst; try solve [auto | done_right].
-
-    destruct (@Size.dec s s0); subst; try solve [done_right].
-    destruct (@Align.dec a a1); subst; try solve [done_right].
-    destruct (@Align.dec a0 a2); subst; try solve [auto | done_right].
-
-    destruct (@Size.dec s s0); subst; try solve [done_right].
-    destruct (@Align.dec a a1); subst; try solve [done_right].
-    destruct (@Align.dec a0 a2); subst; try solve [auto | done_right].
-
-    destruct (@Size.dec s s0); subst; try solve [done_right].
-    destruct (@Align.dec a a1); subst; try solve [done_right].
-    destruct (@Align.dec a0 a2); subst; try solve [auto | done_right].
-
-    destruct (@Size.dec s s0); subst; try solve [done_right].
-    destruct (@Align.dec a a1); subst; try solve [done_right].
-    destruct (@Align.dec a0 a2); subst; try solve [auto | done_right].
-
-    destruct (@Size.dec s s0); subst; try solve [done_right].
-    destruct (@Align.dec a a1); subst; try solve [done_right].
-    destruct (@Align.dec a0 a2); subst; try solve [auto | done_right].
+  destruct l1; destruct l2; 
+    try solve [subst; auto | done_right | insn_dec_tac].
 Qed.  
 
 Lemma layouts_dec : forall (l1 l2:layouts), {l1=l2}+{~l1=l2}.
@@ -2105,7 +1984,8 @@ Qed.
 
 Lemma module_dec : forall (m m':module), {m=m'}+{~m=m'}.
 Proof.
-  destruct m; destruct m'; try solve [done_right | auto].
+  destruct m as [l0 n p]; destruct m' as [l1 n0 p0]; 
+    try solve [done_right | auto].
     destruct (@layouts_dec l0 l1); subst; try solve [done_right]. 
     destruct (@namedts_dec n n0); subst; try solve [done_right]. 
     destruct (@products_dec p p0); subst; try solve [auto | done_right]. 
@@ -2144,9 +2024,11 @@ Definition paramsEqB (lp lp':params) := sumbool2bool _ _ (params_dec lp lp').
 
 Definition lEqB i i' := sumbool2bool _ _ (l_dec i i').
 
-Definition list_value_lEqB (idls idls':list_value_l) := sumbool2bool _ _ (list_value_l_dec idls idls').
+Definition list_value_lEqB (idls idls':list_value_l) := 
+  sumbool2bool _ _ (list_value_l_dec idls idls').
 
-Definition list_valueEqB idxs idxs' := sumbool2bool _ _ (list_value_dec idxs idxs').
+Definition list_valueEqB idxs idxs' := 
+  sumbool2bool _ _ (list_value_dec idxs idxs').
 
 Definition bopEqB (op op':bop) := sumbool2bool _ _ (bop_dec op op').
 Definition extopEqB (op op':extop) := sumbool2bool _ _ (extop_dec op op').
@@ -2157,11 +2039,13 @@ Definition cmdEqB (i i':cmd) := sumbool2bool _ _ (cmd_dec i i').
 
 Definition cmdsEqB (cs1 cs2:list cmd) := sumbool2bool _ _ (cmds_dec cs1 cs2).
   
-Definition terminatorEqB (i i':terminator) := sumbool2bool _ _ (terminator_dec i i').
+Definition terminatorEqB (i i':terminator) := 
+  sumbool2bool _ _ (terminator_dec i i').
 
 Definition phinodeEqB (i i':phinode) := sumbool2bool _ _ (phinode_dec i i').
 
-Definition phinodesEqB (ps1 ps2:list phinode) := sumbool2bool _ _ (phinodes_dec ps1 ps2).
+Definition phinodesEqB (ps1 ps2:list phinode) := 
+  sumbool2bool _ _ (phinodes_dec ps1 ps2).
 
 Definition blockEqB (b1 b2:block) := sumbool2bool _ _ (block_dec b1 b2).
 
@@ -2169,7 +2053,8 @@ Definition blocksEqB (lb lb':blocks) := sumbool2bool _ _ (blocks_dec lb lb').
 
 Definition argsEqB (la la':args) := sumbool2bool _ _ (args_dec la la').
 
-Definition fheaderEqB (fh fh' : fheader) := sumbool2bool _ _ (fheader_dec fh fh').
+Definition fheaderEqB (fh fh' : fheader) := 
+  sumbool2bool _ _ (fheader_dec fh fh').
 
 Definition fdecEqB (fd fd' : fdec) := sumbool2bool _ _ (fdec_dec fd fd').
 
@@ -2179,7 +2064,8 @@ Definition gvarEqB (gv gv' : gvar) := sumbool2bool _ _ (gvar_dec gv gv').
 
 Definition productEqB (p p' : product) := sumbool2bool _ _ (product_dec p p').
 
-Definition productsEqB (lp lp':products) := sumbool2bool _ _ (products_dec lp lp').
+Definition productsEqB (lp lp':products) := 
+  sumbool2bool _ _ (products_dec lp lp').
 
 Definition layoutEqB (o o' : layout) := sumbool2bool _ _ (layout_dec o o').
 
@@ -2749,7 +2635,6 @@ match t with
 | typ_struct ts => wf_zeroconsts_typ ts
 | typ_pointer t' => True
 | typ_function _ _ _ => False
-| typ_opaque => False
 | typ_namedt _ => False
 end             
 with wf_zeroconsts_typ (lt:list_typ) : Prop := 
@@ -2774,11 +2659,13 @@ Fixpoint getTyp (c:const) : option typ :=
    | Nil_list_const => typ_array Size.Zero t
    | Cons_list_const c' lc' => typ_array (Size.from_nat (length (unmake_list_const lc))) t
    end)
- | const_struct lc => 
+ | const_struct t lc => Some t
+(*
    match getList_typ lc with
    | Some lt => Some (typ_struct lt)
    | None => None
    end
+*)
  | const_gid t _ => Some (typ_pointer t)
  | const_truncop _ _ t => Some t
  | const_extop _ _ t => Some t
@@ -2834,7 +2721,7 @@ Fixpoint gen_utyp_maps_aux (cid:id) (m:list(id*typ)) (t:typ) : option typ :=
          | _ => None
          end
      end
- | typ_opaque => Some typ_opaque
+(* | typ_opaque => Some typ_opaque *)
  | typ_namedt i => lookupAL _ m i
  end
 with gen_utyps_maps_aux (cid:id) (m:list(id*typ)) (ts:list_typ) : option list_typ
@@ -2852,7 +2739,7 @@ match nts with
 | nil => nil 
 | namedt_intro id0 t::nts' =>
   let results := gen_utyp_maps nts' in
-  match gen_utyp_maps_aux id0 results t with
+  match gen_utyp_maps_aux id0 results (typ_struct t) with
   | None => results
   | Some r => (id0, r)::results
   end
@@ -2872,7 +2759,7 @@ Fixpoint typ2utyp_aux (m:list(id*typ)) (t:typ) : option typ :=
         ret (typ_function ut0 uts0 va)
  | typ_struct ts0 => do uts0 <- typs2utyps_aux m ts0; ret (typ_struct uts0)
  | typ_pointer t0 => do ut0 <- typ2utyp_aux m t0; ret (typ_pointer ut0)
- | typ_opaque => Some typ_opaque
+(* | typ_opaque => Some typ_opaque *)
  | typ_namedt i => lookupAL _ m i
  end
 with typs2utyps_aux (m:list(id*typ)) (ts:list_typ) : option list_typ := 
@@ -2890,8 +2777,7 @@ typ2utyp_aux m t.
 
 Fixpoint subst_typ (i':id) (t' t:typ) : typ :=
  match t with
- | typ_int _ | typ_floatpoint _ | typ_void | typ_label | typ_metadata 
- | typ_opaque => t
+ | typ_int _ | typ_floatpoint _ | typ_void | typ_label | typ_metadata => t
  | typ_array s t0 => typ_array s (subst_typ i' t' t0)
  | typ_function t0 ts0 va => 
      typ_function (subst_typ i' t' t0) (subst_typs i' t' ts0) va
@@ -2909,14 +2795,15 @@ with subst_typs (i':id) (t':typ) (ts:list_typ) : list_typ :=
 Fixpoint subst_typ_by_nts (nts:namedts) (t:typ) : typ :=
 match nts with
 | nil => t
-| (namedt_intro id' t')::nts' => subst_typ_by_nts nts' (subst_typ id' t' t)
+| (namedt_intro id' ts')::nts' => 
+    subst_typ_by_nts nts' (subst_typ id' (typ_struct ts') t)
 end.
 
 Fixpoint subst_nts_by_nts (nts0 nts:namedts) : list (id*typ) :=
 match nts with
 | nil => nil
 | (namedt_intro id' t')::nts' => 
-    (id',(subst_typ_by_nts nts0 t'))::subst_nts_by_nts nts0 nts'
+    (id',(subst_typ_by_nts nts0 (typ_struct t')))::subst_nts_by_nts nts0 nts'
 end.
 
 Definition typ2utyp (nts:namedts) (t:typ) : option typ :=
@@ -3224,4 +3111,11 @@ End LLVMinfra.
 
 (*ENDCOPY*)
 
-}}
+(*****************************)
+(*
+*** Local Variables: ***
+*** coq-prog-name: "coqtop" ***
+*** coq-prog-args: ("-emacs-U" "-I" "~/SVN/sol/vol/src/Vellvm/monads" "-I" "~/SVN/sol/vol/src/Vellvm/ott" "-I" "~/SVN/sol/vol/src/Vellvm/compcert" "-I" "~/SVN/sol/theory/metatheory_8.3" "-I" "~/SVN/sol/vol/src/TV" "-impredicative-set") ***
+*** End: ***
+ *)
+

@@ -413,7 +413,7 @@ Proof.
   apply Hwf in Hlkp; auto.
   destruct Hlkp as [[J1 [J4 [gv J3]]] J2].
   inv Hin.
-  destruct v; simpl in Hgetop.
+  destruct v as [i0|]; simpl in Hgetop.
     apply J2 in Hgetop; auto.
     unfold wf_non_alloca_GVs in Hgetop.
     destruct (id_dec i0 (PI_id pinfo)); subst; auto.
@@ -581,7 +581,7 @@ Proof.
   intros.
   unfold Opsem.returnUpdateLocals in H1.
   inv_mbind. 
-  destruct c'; tinv H0.
+  destruct_cmd c'; tinv H0.
   destruct n.
     inv H0; auto.
 
@@ -728,7 +728,7 @@ Proof.
 
   unfold Opsem.returnUpdateLocals in H0.
   inv_mbind. 
-  destruct c'; tinv H3.
+  destruct_cmd c'; tinv H3.
   destruct n.
     inv H3; auto.
 
@@ -824,7 +824,7 @@ Local Opaque inscope_of_tmn inscope_of_cmd.
     destruct (fdef_dec (PI_f pinfo) F'); subst; auto.
 
     remember (getCmdID c') as R.
-    destruct c'; try solve [inversion H].
+    destruct_cmd c'; try solve [inversion H].
     assert (In (insn_call i0 n c t v p) 
       (cs2'++[insn_call i0 n c t v p] ++ cs')) as HinCs.
       apply in_or_app. right. simpl. auto.
@@ -2176,7 +2176,7 @@ Local Opaque inscope_of_tmn inscope_of_cmd.
     SSSCase "sdom".
       destruct (fdef_dec (PI_f pinfo) F'); subst; auto.
       remember (getCmdID c') as R.
-      destruct c'; try solve [inversion H].
+      destruct_cmd c'; try solve [inversion H].
       assert (In (insn_call i0 n c t v p) 
         (cs2'++[insn_call i0 n c t v p] ++ cs')) as HinCs.
         apply in_or_app. right. simpl. auto.

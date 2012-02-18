@@ -406,14 +406,14 @@ Proof.
   case_eq ((dom_analyze f) !! b).
   intros bs_contents bs_bound H1.
   unfold dom_analyze in H1, Hex.
-  destruct f.
+  destruct f as [f b0].
   remember (entry_dom b0) as R.
   destruct R. 
   destruct x as [[]|]; subst.
-    destruct b0; inv H.
+    destruct b0 as [|b0 b2]; inv H.
     destruct b1; tinv y.
     destruct bs_contents0; tinv y.
-    destruct b0. inv HeqR.
+    destruct b0 as [l1 p c t]. inv HeqR.
     inv H2. 
     remember (
       DomDS.fixpoint (bound_blocks (block_intro entry p c t :: b2))
@@ -1315,14 +1315,14 @@ Proof.
   case_eq ((dom_analyze f) !! b).
   intros bs_contents bs_bound H1 Hnnil.
   unfold dom_analyze in H1.
-  destruct f.
+  destruct f as [f b0].
   remember (entry_dom b0) as R.
   destruct R. 
   destruct x as [[]|]; subst.
-    destruct b0; inv H.
+    destruct b0 as [|b0 b2]; inv H.
     destruct b1; tinv y.
     destruct bs_contents0; tinv y.
-    destruct b0. inv HeqR.
+    destruct b0 as [l2 p c t]. inv HeqR.
     inv H3.
     remember (
       DomDS.fixpoint (bound_blocks (block_intro entry p c t :: b2))

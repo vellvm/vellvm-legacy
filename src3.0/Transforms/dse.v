@@ -129,8 +129,8 @@ Proof.
   destruct St. 
   destruct ECS as [|[]]; auto.
   destruct CurCmds; auto.
-  destruct c; auto.
-  destruct v0; auto.
+  destruct_cmd c; auto.
+  destruct v0 as [i1|]; auto.
   simpl.
   destruct (fdef_dec (PI_f pinfo) CurFunction); auto.
   destruct (id_dec (PI_id pinfo) i1); auto.
@@ -198,8 +198,8 @@ Proof.
   intros.
   unfold cmds_simulation in *.
   destruct (fdef_dec (PI_f pinfo) F); subst; simpl; eauto.
-  destruct c; simpl in H0; eauto.
-  destruct v0; simpl in H0; eauto.
+  destruct_cmd c; simpl in H0; eauto.
+  destruct v0 as [i1|]; simpl in H0; eauto.
   destruct (id_dec (PI_id pinfo) i1); subst; simpl; eauto.
   assert (PI_f pinfo = PI_f pinfo) as EQ. auto.
   apply H0 in EQ.
@@ -595,7 +595,8 @@ Case "removable state".
   
   destruct Cfg1 as [S1 [los nts] Ps1 gl1 fs1].
   destruct St1 as [ECs1 M1].
-  destruct ECs1 as [|[F1 B1 [|[] cs1] tmn1 lc1 als1] ECs1]; tinv Hrem.
+  destruct ECs1 as [|[F1 B1 [|c1 cs1] tmn1 lc1 als1] ECs1]; tinv Hrem.
+  destruct_cmd c1; tinv Hrem.
   simpl in Hrem.
   destruct v0 as [qid | vc]; tinv Hrem.
   destruct (fdef_dec (PI_f pinfo) F1); subst; tinv Hrem.
@@ -858,7 +859,7 @@ SCase "sStore".
           store_in_cmd (PI_id pinfo) (insn_store sid t v1 v2 align0) = false)
          as J.
     clear - Hnrem. simpl in Hnrem.
-    destruct v2; auto.
+    destruct v2 as [i0|]; auto.
     intros. subst.
     destruct (fdef_dec (PI_f pinfo) (PI_f pinfo)); try congruence.
     simpl.

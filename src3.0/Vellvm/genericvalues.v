@@ -522,7 +522,6 @@ match t with
   end
 | typ_pointer t' => Some null
 | typ_function _ _ _ => None
-| typ_opaque => None
 | typ_namedt _ => None (*FIXME: Can zeroconstant be of named type? How about termination. *)
 end             
 with zeroconsts2GV (TD:TargetData) (lt:list_typ) : option GenericValue := 
@@ -577,11 +576,11 @@ match c with
              end
          | _ => None
          end
-| const_struct lc => 
+| const_struct t lc => 
          match (_list_const_struct2GV TD gl lc) with
          | None => None
-         | Some (nil, ts) => Some (uninits 1, typ_struct ts)
-         | Some (gv, ts) => Some (gv, typ_struct ts)
+         | Some (nil, ts) => Some (uninits 1, t)
+         | Some (gv, ts) => Some (gv, t)
          end
 | const_gid t id =>
          match (lookupAL _ gl id) with
@@ -1044,7 +1043,6 @@ match t with
   end
 | typ_pointer t' => Some (Mint 31::nil)
 | typ_function _ _ _ => None
-| typ_opaque => None
 | typ_namedt _ => None (*FIXME: Can zeroconstant be of named type? How about termination. *)
 end             
 with flatten_typs (TD:TargetData) (lt:list_typ) : option (list memory_chunk) := 
@@ -1170,7 +1168,7 @@ Proof.
     inv HeqR1. simpl in HeqR2. inv HeqR2. inv e0; auto.
 
     destruct c; tinv HeqR1.
-    destruct (Size.dec s Size.ThirtyTwo); tinv HeqR1.
+    destruct (Size.dec sz5 Size.ThirtyTwo); tinv HeqR1.
     remember (intConsts2Nats TD const_list) as R3.
     destruct R3; inv HeqR1.
     destruct t1; tinv e0.
@@ -1179,10 +1177,10 @@ Proof.
 
       simpl in HeqR2.
       destruct (_getStructElementOffset TD l1 (Coqlib.nat_of_Z 
-        (INTEGER.to_Z i0)) 0); inv HeqR2; eauto.
+        (INTEGER.to_Z Int5)) 0); inv HeqR2; eauto.
       unfold INTEGER.to_nat in e0.
       unfold INTEGER.to_Z in H0.
-      destruct (nth_list_typ (Coqlib.nat_of_Z i0) l1); inv e0.
+      destruct (nth_list_typ (Coqlib.nat_of_Z Int5) l1); inv e0.
       simpl in H0. eauto.
 Qed.
 
@@ -1941,11 +1939,11 @@ Proof.
     unfold wf_zeroconst2GV_total_prop, wf_zeroconsts2GV_total_prop;
     intros; simpl in *; try solve [eauto | inversion H | inversion H1 ].
 Case "float".
-  destruct f; try solve [eauto | inversion H].
+  destruct floating_point5; try solve [eauto | inversion H].
 Case "array".
   destruct H with (TD:=TD) as [gv Hz2c]; auto.
   rewrite Hz2c.
-  destruct s; eauto.
+  destruct sz5; eauto.
   apply feasible_typ_inv'' in H1. 
   destruct H1 as [ssz [asz [J1 J2]]].
   rewrite J2.

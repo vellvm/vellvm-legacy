@@ -67,10 +67,10 @@ Lemma entry_dom : forall (bs:list block),
   }.
 Proof.
   intros.
-  destruct bs; simpl in *.
+  destruct bs as [| b bs]; simpl in *.
     exists None. auto.
 
-    destruct b.
+    destruct b as [l0 ps0 cs0 tmn0].
     assert (incl nil (l0 :: bound_blocks bs)) as J.
       intros a J. inv J.
     exists (Some (l0, Dominators.mkBoundedSet _ nil J)). auto.
@@ -459,7 +459,7 @@ Lemma entry_in_vertexes : forall f l0 ps cs tmn
   vertexes_fdef f (index l0).
 Proof.
   intros.
-  unfold vertexes_fdef. unfold bound_fdef. destruct f. 
+  unfold vertexes_fdef. unfold bound_fdef. destruct f as [f b]. 
   destruct b; simpl in *.
     congruence. 
     inv Hentry. simpl. auto.
@@ -523,7 +523,9 @@ Lemma successors_predOfBlock : forall f l1 ps1 cs1 tmn1 l0 ps0 cs0 tmn0,
   In l1 (predOfBlock (block_intro l0 ps0 cs0 tmn0) (genBlockUseDef_fdef f)).
 Proof.
   unfold predOfBlock.
-  destruct f. destruct f. intros.
+  destruct f as [f b]. 
+  destruct f as [fnattrs5 typ5 id5 args5 varg5]. 
+  intros.
   destruct H as [H _].
   generalize dependent l1.
   generalize dependent ps1.
@@ -533,32 +535,32 @@ Proof.
   generalize dependent ps0.
   generalize dependent cs0.
   generalize dependent tmn0.
-  induction b; intros; simpl in *.
+  induction b as [|a0 b]; intros; simpl in *.
     inversion H0.
 
     assert (G:=H). simpl_env in G.
     apply uniqBlocks_inv in G.
     destruct G as [G1 G2].
-    destruct a0. simpl.
+    destruct a0 as [l5 p c t0]. simpl.
     apply orb_prop in H0.
     destruct H0 as [H0 | H0].
       apply blockEqB_inv in H0.
       inv H0.
-      destruct t0; auto.
+      destruct t0 as [i0 t0 v0|i0|i0 v0 l2 l3|i0 l2|i0]; auto.
         apply IHb with (ps1:=p)(cs1:=c)(tmn1:=insn_return i0 t0 v0); auto.
         apply IHb with (ps1:=p)(cs1:=c)(tmn1:=insn_return_void i0); auto.
 
         simpl in H1.
         destruct H1 as [H1 | [H1 | H1]]; subst.
-          assert (J:=@lookupAL_update_udb_eq (update_udb nil l2 l3) l2 l0).
+          assert (J:=@lookupAL_update_udb_eq (update_udb nil l5 l3) l5 l0).
           destruct J as [ls0 [J1 J2]].
           apply lookupAL_genBlockUseDef_blocks_spec with (bs:=b) in J1; auto.
           destruct J1 as [ls1 [J1 J3]].
           rewrite J1. apply J3; auto.
 
-          assert (J:=@lookupAL_update_udb_eq nil l2 l0).
+          assert (J:=@lookupAL_update_udb_eq nil l5 l0).
           destruct J as [ls0 [J J0]].
-          apply lookupAL_update_udb_spec with (l1:=l2)(l2:=l1) in J; auto.
+          apply lookupAL_update_udb_spec with (l1:=l5)(l2:=l2) in J; auto.
           destruct J as [ls1 [J J1]].
           apply lookupAL_genBlockUseDef_blocks_spec with (bs:=b) in J; auto.
           destruct J as [ls2 [J J2]].
@@ -567,7 +569,7 @@ Proof.
           inversion H1.
         simpl in H1.
         destruct H1 as [H1 | H1]; subst.
-          assert (J:=@lookupAL_update_udb_eq nil l2 l0).
+          assert (J:=@lookupAL_update_udb_eq nil l5 l0).
           destruct J as [ls0 [J J0]].
           apply lookupAL_genBlockUseDef_blocks_spec with (bs:=b) in J; auto.
           destruct J as [ls2 [J J2]].
@@ -579,12 +581,12 @@ Proof.
 
       eapply IHb in H1; eauto.
         remember (lookupAL (list l) (genBlockUseDef_blocks b nil) l0) as R.
-        destruct R; try solve [inversion H1].
+        destruct R as [l4|]; try solve [inversion H1].
         destruct H as [J1 J2].
         simpl in J1.
         inv J1.
         apply InBlocksB_In in H0.
-        destruct (eq_atom_dec l1 l2); subst.
+        destruct (eq_atom_dec l1 l5); subst.
           contradict H0; auto.
 
           clear - HeqR H1.
@@ -593,15 +595,15 @@ Proof.
             (match t0 with
              | insn_return _ _ _ => nil
              | insn_return_void _ => nil
-             | insn_br _ _ l4 l5 => update_udb (update_udb nil l2 l5) l2 l4
-             | insn_br_uncond _ l4 => update_udb nil l2 l4
+             | insn_br _ _ l2 l3 => update_udb (update_udb nil l5 l3) l5 l2
+             | insn_br_uncond _ l2 => update_udb nil l5 l2
              | insn_unreachable _ => nil
              end)) as J.
             intros x A J. inversion J.
           apply genBlockUseDef_blocks_inc with (bs:=b) in J.
           symmetry in HeqR.
           apply J in HeqR.
-          destruct HeqR as [l4 [J1 J2]].
+          destruct HeqR as [l2 [J1 J2]].
           rewrite J1. apply J2 in H1; auto.
 Qed.
 
@@ -642,10 +644,10 @@ Proof.
   intros [J _].
   unfold uniqBlocks in J.
   destruct J as [J _].
-  induction bs; simpl; intros.
+  induction bs as [|a1 bs]; simpl; intros.
     congruence.
 
-    destruct a1.
+    destruct a1 as [l0 ps1 cs1 tmn1].
     apply orb_true_iff in H.
     destruct H as [H | H].
       apply blockEqB_inv in H. inv H.
@@ -670,10 +672,10 @@ Lemma successors__blockInFdefB : forall l0 a f,
 Proof.
   destruct f as [fh bs]. simpl.
   unfold successors_list.
-  induction bs; simpl; intro.
+  induction bs as [|a0 bs]; simpl; intro.
     rewrite ATree.gempty in H. inv H.
 
-    destruct a0.
+    destruct a0 as [l1 p c t].
     destruct (id_dec l1 a); subst.
       rewrite ATree.gss in H.
       exists p. exists c. exists t. 
@@ -708,7 +710,7 @@ Proof.
   intros.
   remember (getEntryBlock f) as R. 
   destruct R; tinv H0.
-  destruct b. destruct H0 as [vl [al H0]].
+  destruct b as [l1 p c t]. destruct H0 as [vl [al H0]].
   remember (vertexes_fdef f) as Vs.
   remember (arcs_fdef f) as As.
   remember (index l0) as v0.
@@ -745,7 +747,7 @@ Lemma blockInFdefB_in_vertexes : forall l0 cs ps tmn f
 Proof.
   intros.
   unfold vertexes_fdef, bound_fdef. 
-  destruct f.
+  destruct f as [f b].
   generalize dependent cs.
   generalize dependent ps.
   generalize dependent tmn.
@@ -786,7 +788,7 @@ Lemma dom_entrypoint : forall f l0 ps cs tmn
 Proof.
   intros.
   unfold dom_analyze.
-  destruct f.
+  destruct f as [f b].
   remember (entry_dom b) as R.
   destruct R as [R Hp].
   destruct R as [[le start] | ].
@@ -796,7 +798,7 @@ Proof.
     destruct start.
     destruct bs_contents; tinv Hp.
     destruct b; try solve [inversion HeqR].
-    destruct b. simpl in HeqR. inversion HeqR. subst le.
+    destruct b as [l1 p c t]. simpl in HeqR. inversion HeqR. subst le.
     simpl in Hentry. inversion Hentry. subst l0 p c t.
     clear HeqR Hentry.    
     destruct R1; subst.
@@ -1213,7 +1215,7 @@ Proof.
   intros f l2 ps2 cs2' c' tmn' ids1 Hnotin Hinscope.
   unfold inscope_of_cmd, inscope_of_id in Hinscope.
   unfold inscope_of_tmn.
-  destruct f as [[? ? ? la va] bs].
+  destruct f as [[f t i0 la va] bs].
   remember ((dom_analyze (fdef_intro (fheader_intro f t i0 la va) bs)) !! l2) as R.
   destruct R as [R_contents R_bound]. simpl in *.
   apply getCmdsIDs__cmds_dominates_cmd in Hnotin.
@@ -1306,7 +1308,7 @@ Proof.
   intros f l2 ps2 cs2' c' c cs' tmn' ids1 Hnodup Hinscope.
   unfold inscope_of_cmd, inscope_of_id in Hinscope.
   unfold inscope_of_cmd, inscope_of_id.
-  destruct f as [[? ? ? la va] bs].
+  destruct f as [[f t i0 la va] bs].
   remember ((dom_analyze (fdef_intro (fheader_intro f t i0 la va) bs)) !! l2) as R.
   destruct R as [R_contents R_bound].
   apply cmds_dominates_cmd__cmds_dominates_cmd in Hnodup. simpl in *.
@@ -1353,9 +1355,9 @@ Lemma inc__getLabel2Block_blocks : forall a bs
   exists b : block, lookupAL block (genLabel2Block_blocks bs) a = Some b.
 Proof. 
   intros.
-  induction bs; simpl in *; auto.
+  induction bs as [|a0 bs]; simpl in *; auto.
     assert (J:=@Hinc a). simpl in J. destruct J; auto.
-    destruct a0; simpl in *.
+    destruct a0 as [l0 p c t]; simpl in *.
     destruct (a==l0); subst.
       exists (block_intro l0 p c t). auto.
 

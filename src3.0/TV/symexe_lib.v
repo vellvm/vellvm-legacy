@@ -24,6 +24,30 @@ Require Import symexe_def.
 Export SimpleSE.
 Export OpsemProps.
 
+Ltac destruct_cmd cmd :=
+let i0 := fresh "i0" in
+let i1 := fresh "i1" in
+let b := fresh "b" in
+let s0 := fresh "s0" in
+let v := fresh "v" in
+let v0 := fresh "v0" in
+let v1 := fresh "v1" in
+let f0 := fresh "f0" in
+let f1 := fresh "f1" in
+let t := fresh "t" in
+let t0 := fresh "t0" in
+let t1 := fresh "t1" in
+let l2 := fresh "l2" in
+let a := fresh "a" in
+let p := fresh "p" in
+let n := fresh "n" in
+let c := fresh "c" in
+let e := fresh "e" in
+destruct cmd as [i0 b s0 v v0|i0 f0 f1 v v0|i0 t v l2|i0 t v t0 v0 l2|
+                 i0 t v a|i0 t v|i0 t v a|i0 t v a|i0 t v v0 a|i0 i1 t v l2|
+                 i0 t t0 v t1|i0 e t v t0|i0 c t v t0|i0 c t v v0|
+                 i0 f0 f1 v v0|i0 v t v0 v1|i0 n c t v p].
+
 (* cmd2sbs *)
 
 Lemma cmds2sbs_nil_inv : forall cs,
@@ -583,7 +607,7 @@ Lemma uniqBlock__wf_block : forall B,
 Proof.
   intros B HuniqBlocks.
   unfold uniqBlocks in HuniqBlocks.
-  simpl in HuniqBlocks. destruct B.
+  simpl in HuniqBlocks. destruct B as [? ? c ?].
   destruct HuniqBlocks as [J1 J2].
   remember (cmds2sbs c) as R.
   destruct R as [sbs nbs].
@@ -642,7 +666,7 @@ Proof.
   intros smap0 sm0 sf0 se0 [c nocall].
   assert (forall sm id0 st0, dom sm [<=] dom (updateAddAL sterm sm id0 st0))as J.
     intros. assert (J:=@updateAddAL_dom_eq _ sm id0 st0). fsetdec. 
-  destruct c; simpl; try solve [eauto using J| fsetdec].
+  destruct_cmd c; simpl; try solve [eauto using J| fsetdec].
     destruct v; simpl; try solve [simpl in nocall; inversion nocall].
 Qed.
 
@@ -651,7 +675,7 @@ Lemma se_cmd_uniq_aux : forall c sstate0,
   uniq (STerms (se_cmd sstate0 c)).
 Proof.
   intros [c nocall] sstate0 Huniq.
-  destruct c; simpl; try solve [apply updateAddAL_uniq; auto | auto].
+  destruct_cmd c; simpl; try solve [apply updateAddAL_uniq; auto | auto].
     destruct v; simpl; try solve [simpl in nocall; inversion nocall].
 Qed.
 
@@ -699,7 +723,7 @@ Lemma se_cmd_dom_upper : forall sstate0 c nc,
     dom (STerms sstate0) `union` {{getCmdLoc c}}.
 Proof.
   intros [smap0 sm0 sf0 se0] c nc.
-  destruct c; simpl; try solve [rewrite updateAddAL_dom_eq; fsetdec | fsetdec].
+  destruct_cmd c; simpl; try solve [rewrite updateAddAL_dom_eq; fsetdec | fsetdec].
     destruct v; simpl; try solve [simpl in nc; inversion nc].
 Qed.
 
@@ -860,7 +884,7 @@ Lemma lookupSmap_se_cmd_neq : forall c id' smap1 smem1 sframe1 seffects1 nc,
     (mkNB c nc))) id' =
   lookupSmap smap1 id'.
 Proof.
-  destruct c; intros id' smap1 smem1 sframe1 seffects1 nc HnEQ; simpl;
+  destruct_cmd c; intros id' smap1 smem1 sframe1 seffects1 nc HnEQ; simpl;
     try solve [rewrite <- lookupSmap_updateAddAL_neq; auto | auto].
     destruct v; simpl; try solve [inversion nc].
 Qed.

@@ -2,6 +2,7 @@ Add LoadPath "../Vellvm/ott".
 Add LoadPath "../Vellvm/monads".
 Add LoadPath "../Vellvm".
 Add LoadPath "../Vellvm/compcert".
+Add LoadPath "../Vellvm/GraphBasics".
 Add LoadPath "../../../theory/metatheory_8.3".
 Require Import syntax.
 Require Import infrastructure.
@@ -78,8 +79,8 @@ Proof.
           apply mergeALs_app; auto.
             left.
             unfold genLabel2Block_block in *.
-            destruct B1.
-            destruct b. simpl in *.
+            destruct B1 as [l1 ? c ?].
+            destruct b as [l2 ? c0 ?]. simpl in *.
             unfold tv_block in J1.
             destruct (cmds2sbs c).
             destruct (cmds2sbs c0).
@@ -141,8 +142,8 @@ Lemma tv_block__inv : forall B1 B2,
   getTerminatorFromBlock B1 = getTerminatorFromBlock B2.
 Proof.
   intros B1 B2 H.
-  destruct B1.
-  destruct B2. simpl in *.
+  destruct B1 as [? ? c ?].
+  destruct B2 as [? ? c0 ?]. simpl in *.
   unfold tv_block in H.
   destruct (cmds2sbs c).
   destruct (cmds2sbs c0).
@@ -260,7 +261,7 @@ Proof.
     destruct Ps2; inversion H.
       inversion H0.
 
-    (product_cases (destruct a) Case); simpl in H.
+    (product_cases (destruct a as [?|f|f]) Case); simpl in H.
     Case "product_gvar".
       destruct Ps2; try solve [inversion H].
       simpl in H0.
@@ -280,11 +281,10 @@ Proof.
     Case "product_fdef".
       destruct Ps2; try solve [inversion H].
       simpl in *.
-      destruct p; try solve [inversion H].
+      destruct p as [?|f0|f0]; try solve [inversion H].
       bdestruct H as H1 H2.    
       simpl in *.
-      destruct f.
-      destruct f0.
+      destruct f as [f b]. destruct f0 as [f0 b0].
       unfold tv_fdef in H1.
       bdestruct H1 as EQ H1.
       sumbool_subst.
@@ -356,7 +356,7 @@ Proof.
   induction Ps1; intros.
     destruct Ps2; inversion H; auto.
 
-    (product_cases (destruct a) Case); simpl in H.
+    (product_cases (destruct a as [?|f|f]) Case); simpl in H.
     Case "product_gvar".
       destruct Ps2; try solve [inversion H].
       destruct p; try solve [inversion H].
@@ -373,16 +373,16 @@ Proof.
 
     Case "product_fdef".
       destruct Ps2; try solve [inversion H].
-      destruct p; try solve [inversion H].
+      destruct p as [?|f0|f0]; try solve [inversion H].
       bdestruct H as H1 H2.
-      destruct f. destruct f0.
+      destruct f as [f ?]. destruct f0 as [f0 ?].
       destruct f. destruct f0.
       unfold tv_fdef in H1.
       bdestruct H1 as H1 H3.
       sumbool_subst.
       inversion H1; subst.
       simpl in *.
-      destruct (@eq_dec id (EqDec_eq_of_EqDec id EqDec_atom) i1 fid); subst; auto.
+      destruct (@eq_dec id (EqDec_eq_of_EqDec id EqDec_atom) id0 fid); subst; auto.
         inversion H0.      
 Qed.
 
@@ -410,7 +410,7 @@ Proof.
   remember (lookupFdefViaIDFromProducts Ps1 i0) as R.
   symmetry in HeqR.
   destruct R.  
-    destruct f. destruct f.
+    destruct f as [f ?]. destruct f.
     assert (H1:=HeqR).
     apply lookupFdefViaIDFromProducts_ideq in H1; subst.
     apply tv_products__lookupFdefViaIDFromProducts with (Ps2:=Ps2) in HeqR; auto.
@@ -1229,6 +1229,6 @@ Qed.
 (*
 *** Local Variables: ***
 *** coq-prog-name: "coqtop" ***
-*** coq-prog-args: ("-emacs-U" "-I" "~/SVN/sol/vol/src/Vellvm/monads" "-I" "~/SVN/sol/vol/src/Vellvm/ott" "-I" "~/SVN/sol/vol/src/Vellvm/compcert" "-I" "~/SVN/sol/theory/metatheory_8.3") ***
+*** coq-prog-args: ("-emacs-U" "-I" "~/SVN/sol/vol/src/Vellvm/monads" "-I" "~/SVN/sol/vol/src/Vellvm/ott" "-I" "~/SVN/sol/vol/src/Vellvm/compcert" "-I" "~/SVN/sol/theory/metatheory_8.3" "-impredicative-set") ***
 *** End: ***
  *)

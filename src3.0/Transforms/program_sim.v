@@ -188,7 +188,7 @@ Local Opaque inscope_of_tmn inscope_of_cmd.
       eapply initLocals__wf_defs; eauto.
       exists l0. exists ps0. exists nil. auto.
     split; auto.
-      intros. destruct b0. destruct t0; auto.
+      intros. destruct b0 as [? ? ? t0]. destruct t0; auto.
 Transparent inscope_of_tmn inscope_of_cmd.
 Qed.
 
@@ -251,7 +251,7 @@ Proof.
         destruct R; tinv Hundef.
           congruence.
 
-      destruct CurBB; tinv Hundef.
+      destruct CurBB as [? ? ? t]; tinv Hundef.
       destruct t; tinv Hundef.
       destruct Terminator; tinv Hundef.
       inv Hop.
@@ -260,10 +260,9 @@ Proof.
       [Hundef | [Hundef | [Hundef | [Hundef | 
         [Hundef | [Hundef | [Hundef | Hundef]]]]]]]; 
       tinv Hundef.
-      destruct CurBB; tinv Hundef.
+      destruct CurBB as [? ? ? t]; tinv Hundef.
       destruct t; tinv Hundef.
-
-      destruct c; tinv Hundef.
+      destruct_cmd c; tinv Hundef.
         remember (Opsem.getOperandValue CurTargetData v Locals Globals) as R.
         destruct R; tinv Hundef.
         remember (getTypeAllocSize CurTargetData t) as R.
@@ -282,7 +281,7 @@ Proof.
         destruct R; tinv Hundef.
         inv Hop. symmetry_ctx. uniq_result. rewrite H21 in HeqR1. congruence.
         
-      destruct c; tinv Hundef.
+      destruct_cmd c; tinv Hundef.
         remember (Opsem.getOperandValue CurTargetData v Locals Globals) as R.
         destruct R; tinv Hundef.
         destruct Hundef as [gn [Hinst Hundef]].
@@ -290,7 +289,7 @@ Proof.
         destruct R; tinv Hundef.
         inv Hop. symmetry_ctx. uniq_result. rewrite H19 in HeqR0. congruence.
 
-      destruct c; tinv Hundef.
+      destruct_cmd c; tinv Hundef.
         remember (Opsem.getOperandValue CurTargetData v Locals Globals) as R.
         destruct R; tinv Hundef.
         destruct Hundef as [gn [Hinst Hundef]].
@@ -298,7 +297,7 @@ Proof.
         destruct R; tinv Hundef.
         inv Hop. symmetry_ctx. uniq_result. rewrite H20 in HeqR0. congruence.
 
-      destruct c; tinv Hundef.
+      destruct_cmd c; tinv Hundef.
         remember (Opsem.getOperandValue CurTargetData v Locals Globals) as R.
         destruct R; tinv Hundef.
         remember (Opsem.getOperandValue CurTargetData v0 Locals Globals) as R.
@@ -308,19 +307,19 @@ Proof.
         destruct R; tinv Hundef.
         inv Hop. symmetry_ctx. uniq_result. rewrite H23 in HeqR1. congruence.
 
-      destruct c; tinv Hundef.
+      destruct_cmd c; tinv Hundef.
         remember (Opsem.getOperandValue CurTargetData v Locals Globals) as R.
         destruct R; tinv Hundef.
         destruct Hundef as [fptr [Hinst Hundef]].
         remember (OpsemAux.lookupFdefViaPtr CurProducts FunTable fptr) as R.
         destruct R; tinv Hundef.
         remember (OpsemAux.lookupExFdecViaPtr CurProducts FunTable fptr) as R.
-        destruct R.
-          destruct f as [[]].
+        destruct R as [f|].
+          destruct f as [[fnattrs5 typ5 id5 args5 varg5] bs].
           remember (Opsem.params2GVs CurTargetData p Locals Globals) as R.
           destruct R; tinv Hundef.
           destruct Hundef as [gvs [Hinst' Hundef]].
-          remember (OpsemAux.callExternalFunction Mem i1 gvs) as R.
+          remember (OpsemAux.callExternalFunction Mem id5 gvs) as R.
           destruct R as [[]|].
             remember (Opsem.exCallUpdateLocals CurTargetData t n i0 o Locals) 
               as R.

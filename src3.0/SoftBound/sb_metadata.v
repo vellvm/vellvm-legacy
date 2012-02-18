@@ -115,7 +115,7 @@ Proof.
   induction ps; intros; simpl in *.
     inv H. inversion H0.
 
-    destruct a.
+    destruct a as [? t l0].
     destruct (getValueViaBlockFromValuels l0 b); try solve [inversion H].   
     destruct (getOperandValue TD v lc gl); try solve [inversion H].   
     remember (getIncomingValuesForBlockFromPHINodes TD ps b gl lc rm) as R.
@@ -806,23 +806,23 @@ Proof.
     try solve [inversion H1].
 
   inv Hwfc.
-  destruct t; inv H1; 
+  destruct typ5; inv H1; 
     try solve [ 
       eapply get_const_metadata_gid__wf_data; eauto using wf_const_gid
     ].
 
     unfold LLVMgv.const2GV in H2, H3.
     remember (_const2GV TD gl (const_castop castop_bitcast (const_gid 
-      (typ_function t l0 v) i0) p8)) as R.
+      (typ_function typ5 l0 varg5) id5) p8)) as R.
     destruct R; try solve [inversion H2 | inversion H3].
     destruct p. inv H2. inv H3.
     unfold GV2ptr.
     unfold _const2GV in HeqR.
-    remember (lookupAL GenericValue gl i0) as R1.
+    remember (lookupAL GenericValue gl id5) as R1.
     destruct R1; inv HeqR.
     assert (exists b, exists sz,
       g0 = (Values.Vptr b (Int.zero 31), AST.Mint 31)::nil /\
-      getTypeAllocSize TD (typ_function t l0 v) = Some sz /\
+      getTypeAllocSize TD (typ_function typ5 l0 varg5) = Some sz /\
       Mem.bounds Mem0 b = (0, Z_of_nat sz) /\
       b < Mem.nextblock Mem0 /\
       (blk_temporal_safe Mem0 b -> Mem.range_perm Mem0 b 0 (Z_of_nat sz) Writable))
@@ -834,8 +834,8 @@ Proof.
     eapply eq_gv_is_wf_data; eauto.
 
   simpl in H1.
-  destruct c; try solve [inversion H1].
-  destruct t; try solve [inversion H1].
+  destruct castop5; try solve [inversion H1].
+  destruct typ5; try solve [inversion H1].
   inv Hwfc.
   eapply IHc; eauto.
      
@@ -884,7 +884,7 @@ Lemma wf_rmetadata__get_reg_metadata : forall S los nts Ps Mem0 rm gl vp blk bof
   wf_data (los, nts) Mem0 blk bofs eofs.
 Proof.
   intros S los nts Ps Mem0 rm gl vp blk bofs eofs t tp Hwfg Hwfr Hwfv J.
-  destruct vp.
+  destruct vp as [i0|?].
     unfold get_reg_metadata in J.
     remember (lookupAL metadata rm i0) as R.
     destruct R; inv J.
@@ -1187,7 +1187,7 @@ Proof.
   destruct (isPointerTypB rt).
     remember (get_reg_metadata (los, nts) gl rm Result) as R3.
     destruct R3 as [[md ?]|]; try solve [inv H1; auto].
-    destruct c'; try solve [inv H1; auto].
+    destruct_cmd c'; try solve [inv H1; auto].
     destruct n; try solve [inv H1; auto].
     unfold isPointerTypB in H1.
     destruct t; try solve [inv H1; auto].
@@ -1203,7 +1203,7 @@ Proof.
  
         rewrite <- lookupAL_updateAddAL_neq in Hlk; eauto.
 
-    destruct c'; try solve [inv H1; auto].
+    destruct_cmd c'; try solve [inv H1; auto].
     destruct n; try solve [inv H1; auto].
     unfold isPointerTypB in H1.
     destruct t; try solve [inv H1; auto].
@@ -1233,7 +1233,7 @@ Proof.
     inv Hget. inversion Hin.
 
     inv Huniq. inv Hwfps.
-    destruct a.
+    destruct a as [? t l0].
     remember (getValueViaBlockFromValuels l0 b) as R0.
     destruct R0; try solve [inv Hget].
     destruct (getOperandValue (los,nts) v lc gl); try solve [inv Hget].
@@ -1717,7 +1717,7 @@ Proof.
          getTypeSizeInBits_and_Alignment in H2.
   assert (Z_of_nat 0 = 0) as EQ0. simpl. auto.
   destruct TD.
-  destruct t; inv H1; inv H2;
+  destruct_typ t; inv H1; inv H2;
     simpl; unfold bytesize_chunk, Size.to_nat, RoundUpAlignment, Size.to_Z.
     assert (ZRdiv (Z_of_nat s0) 8 >= 0) as J.
       apply ZRdiv_prop2; zauto.

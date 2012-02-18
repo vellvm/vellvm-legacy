@@ -178,9 +178,7 @@ match nts with
 | namedt_intro tid' t'::nts' =>
     if (eq_id tid tid') then
       match t' with
-      | typ_namedt t0 => get_named_ret_typs nts' tid
-      | typ_struct 
-         (Cons_list_typ (typ_pointer _ as t01) 
+      | (Cons_list_typ (typ_pointer _ as t01) 
          (Cons_list_typ (typ_pointer _ as t02)
          (Cons_list_typ (typ_pointer _ as t03) Nil_list_typ))) =>
          Some (t01,t02,t03)

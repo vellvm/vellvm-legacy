@@ -32,7 +32,7 @@ match goal with
   destruct Heq3 as [l3 [ps3 [cs3 Heq3]]]; subst;
   assert (HBinF1':=HBinF1);
   apply HwfCall in HBinF1';
-  destruct c'; tinv HBinF1'; clear HBinF1'
+  destruct_cmd c'; tinv HBinF1'; clear HBinF1'
 end.
 
 Ltac simpl_s_genInitState :=
@@ -54,7 +54,7 @@ Ltac simpl_s_genInitState :=
   match goal with
   | H: ret ?b = getEntryBlock ?f |- _ =>
     destruct b as [l0 ps0 cs0 tmn0];
-    destruct f as [[]];
+    destruct f as [[f t i0 a v] b];
     inv_mbind'
   end;
   try repeat match goal with 
@@ -182,6 +182,7 @@ Ltac unfold_blk2GV := unfold blk2GV, ptr2GV, val2GV.
 
 Ltac SSSSSCase name := Case_aux subsubsubsubsubcase name.
 Ltac SSSSSSCase name := Case_aux subsubsubsubsubsubcase name.
+
 
 (*****************************)
 (*

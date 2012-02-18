@@ -305,7 +305,7 @@ Proof.
     SSCase "wf_EC".
     intros J1 J2 J3. simpl in J1, J2, J3. simpl. subst.
     remember (getCmdID c') as R.
-    destruct c'; try solve [inversion H].
+    destruct_cmd c'; try solve [inversion H].
     unfold wf_ExecutionContext in *. simpl in Hinscope1, Hinscope2.
     assert (J2':=J2).
     assert (uniqFdef (PI_f pinfo)) as Huniq. eauto using wf_system__uniqFdef.
@@ -408,7 +408,7 @@ Proof.
     SSCase "wf_EC".
     intros J1 J2 J3. simpl in J1, J2, J3. simpl. subst.
     remember (getCmdID c') as R.
-    destruct c'; try solve [inversion H].
+    destruct_cmd c'; try solve [inversion H].
     unfold wf_ExecutionContext in *. simpl in Hinscope1, Hinscope2.
     assert (J2':=J2).
     assert (getCmdLoc (insn_call i0 n c t v p) <> PI_id pinfo) as Hneq.
@@ -472,7 +472,7 @@ Proof.
   assert (J2':=J2).
   destruct (id_dec id0 (PI_id pinfo)); subst.
   Case "id0 = PI_id pinfo".
-        destruct c; tinv Hsort.
+        destruct_cmd c; tinv Hsort.
         SCase "c = malloc".
           apply getCmdLoc_getCmdID in Hid; subst.
           eapply WF_PhiInfo_spec10 in HBinF; eauto.
@@ -818,7 +818,7 @@ Lemma getOperandValue_updateAddAL_nouse: forall TD v lc rid v0 gl gvsv,
   Opsem.getOperandValue TD v lc gl = ret gvsv.
 Proof.
   intros.
-  destruct v; simpl in *; auto.
+  destruct v as [i0|]; simpl in *; auto.
   rewrite <- lookupAL_updateAddAL_neq in H; auto.
   destruct (id_dec i0 rid); auto.
     simpl in H0. congruence.

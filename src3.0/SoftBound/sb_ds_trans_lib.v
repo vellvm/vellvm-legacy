@@ -98,7 +98,7 @@ Lemma simulation___cundef_gv : forall maxb mi t Mem Mem2 gv,
   gv_inject mi (cundef_gv gv t) (cundef_gv gv t).
 Proof.
   intros.
-  destruct t; simpl; eauto.
+  destruct_typ t; simpl; eauto.
     destruct f; simpl; eauto.
     inv H. unfold null. eauto.
 Qed.
@@ -998,7 +998,7 @@ Proof.
   induction ps; simpl; intros rm1 rm2 ex_ids1 ex_ids2 Hinc H1 H2 H3 H4 H6 H5.
     inv H5. split; auto. fsetdec.
 
-    destruct a. simpl in *.
+    destruct a as [i0 t ?]. simpl in *.
     assert (i0 `in` ids2atoms ex_ids0) as Hin.
       apply ids2atoms__inc in Hinc.
       simpl in Hinc. fsetdec.
@@ -1072,7 +1072,7 @@ Lemma gen_metadata_block_spec : forall nts ex_ids0 b rm1 rm2 ex_ids1 ex_ids2,
   dom rm2 [<=] ids2atoms ex_ids0.
 Proof.
   intros nts ex_ids0 b rm1 rm2 ex_ids1 ex_ids2 Hinc H1 H2 H3 H4 H6 H5.
-  destruct b.
+  destruct b as [? p ? ?].
   simpl in H5.
   case_eq (gen_metadata_phinodes ex_ids1 rm1 p).
   intros ex_ids5 rm5 Hgenps. rewrite Hgenps in H5.
@@ -1132,7 +1132,7 @@ Lemma gen_metadata_fdef_spec : forall nts f1 rm2 ex_ids2,
   rm_codom_disjoint rm2.
 Proof.
   intros nts f1 rm2 ex_ids2 Hgenf.
-  destruct f1. destruct f. simpl in *.
+  destruct f1 as [f b]. destruct f as [? ? ? a ?]. simpl in *.
   case_eq (gen_metadata_args (getArgsIDs a ++ getBlocksLocs b) nil a).
   intros ex_ids3 rm3 Hgenargs.
   rewrite Hgenargs in Hgenf.
@@ -1185,7 +1185,7 @@ Proof.
     destruct J as [bv2 [ev2 [bgv2 [egv2 [J11 [J12 [J13 [J14 J15]]]]]]]].
     exists bv2. exists ev2. exists bgv2. exists egv2.
     split; auto.
-    destruct vp as [pid |]; simpl in J11.
+    destruct vp as [pid |c]; simpl in J11.
       case_eq (lookupAL (id * id) rm2 pid).
         intros [bid eid] J.
         rewrite J in J11.    
@@ -1363,7 +1363,7 @@ Proof.
   apply gen_metadata_fdef_spec in Hgenmd; auto.
   destruct Hgenmd as [Hinc1 [Hdisj1 [Hinc3 Hdisj2]]].
   clear Hinc1 Hinc3 Hdisj2.
-  destruct vp0; simpl in J11.
+  destruct vp0 as [i0|c]; simpl in J11.
     remember (lookupAL (id * id) rm2 i0) as R.
     destruct R as [[bid eid]|]; inv J11.
     simpl.
@@ -1387,7 +1387,7 @@ Proof.
   apply gen_metadata_fdef_spec in Hgenmd; auto.
   destruct Hgenmd as [Hinc1 [Hdisj1 [Hinc3 Hdisj2]]].
   clear Hinc1 Hinc3 Hdisj1.
-  destruct vp; simpl in Hgetr.
+  destruct vp as [i0|c]; simpl in Hgetr.
     remember (lookupAL (id * id) rm2 i0) as R.
     destruct R as [[bid eid]|]; inv Hgetr.
     simpl. symmetry in Hlk. 
@@ -1614,7 +1614,7 @@ Proof.
   destruct TD as [los nts]. destruct f1. destruct f2.
   destruct b1; try solve [inv H0].
   destruct cs1; try solve [inv H0].
-  destruct c0; try solve [inv H0].
+  destruct_cmd c; try solve [inv H0].
   destruct H0 as [J0 [J1 [J2 [Htfdef [Heq0 [Hasim [Hnth [Heqb1 [Heqb2 [ex_ids 
     [rm2' [ex_ids3 [ex_ids4 [cs22 [cs23 [cs24 [Hgenmeta [Hrsim [Hinc [Hcall 
     [Htcmds [Httmn Heq2]]]]]]]]]]]]]]]]]]]]]]; subst.
@@ -1745,7 +1745,7 @@ Proof.
   apply gen_metadata_fdef_spec in Hgenmd; auto.
   destruct Hgenmd as [Hinc1 [Hdisj1 [Hinc3 Hdisj2]]].
   clear Hinc1 Hdisj2.
-  destruct vp; simpl in *.
+  destruct vp as [i0|c]; simpl in *.
   remember (lookupAL (id * id) rm2 i0) as R.
   destruct R; inv J1.
   destruct p; inv H0; simpl.
@@ -1768,7 +1768,7 @@ Proof.
   apply gen_metadata_fdef_spec in Hgenmd; auto.
   destruct Hgenmd as [Hinc1 [Hdisj1 [Hinc3 Hdisj2]]].
   clear Hdisj2.
-  destruct vp; simpl in *; auto.
+  destruct vp as [i0|]; simpl in *; auto.
     apply tmp_is_fresh with (i0:=i0)(d:=singleton i0) in HeqR1; auto.
       apply ids2atoms__inc in Hinc.
       fsetdec.
@@ -1993,9 +1993,8 @@ Lemma trans_cmd_fresh_mono : forall rm c ex_ids1 ex_ids2 cs2,
   incl ex_ids1 ex_ids2.
 Proof.
   intros.
-  destruct c; simpl in H; try solve [inv H; auto using incl_refl].
-  
-    destruct (lookupAL (id * id) rm i0) as [[bid eid]|]; inv H.
+  destruct_cmd c; simpl in H; try solve [inv H; auto using incl_refl].
+      destruct (lookupAL (id * id) rm i0) as [[bid eid]|]; inv H.
     remember (mk_tmp ex_ids1) as R.
     destruct R; tinv H1.
     remember (mk_tmp i3) as R.
@@ -2039,7 +2038,7 @@ Proof.
 
     eapply prop_metadata_mono; eauto.
     
-    destruct c; inv H; auto using incl_refl.
+    destruct c0; inv H; auto using incl_refl.
       destruct (lookupAL (id * id) rm i0) as [[? ?]|]; inv H1.
       auto using incl_refl.
 
@@ -2058,7 +2057,7 @@ Proof.
       inv H. auto using incl_refl.
 
     destruct (trans_params rm p 1) as [?|]; inv H.
-    destruct (call_suffix i0 n c t v p rm); inv H1.
+    destruct (call_suffix i0 n c0 t v p rm); inv H1.
     auto using incl_refl.
 Qed.
     
@@ -2158,7 +2157,7 @@ Proof.
     destruct (trans_blocks ex_ids rm bs); inv H0.
     destruct p.
     destruct b; inv H1.
-    destruct b; inv H0. 
+    destruct b as [l0 p c t0]; inv H0. 
     exists i2. exists b0. exists l0. exists p. exists c. exists t0.
     eauto.
 Qed.
@@ -2195,7 +2194,7 @@ Proof.
     apply trans_blocks_cons_inv in Htrans.
     destruct Htrans as [ex_ids3 [b2 [bs2' [J1 [J2 eq]]]]]; subst.
     
-    destruct a.
+    destruct a as [l1 ? ? t].
     apply trans_block_inv in J1.
     destruct J1 as [ps2 [cs2 [cs2' [J1 [J3 [J4 eq]]]]]]; subst.
     unfold lookupBlockViaLabelFromBlocks in *. simpl in *.
@@ -2212,7 +2211,7 @@ Qed.
 Lemma wrapper_is_identical : forall fv, wrap_call fv = fv.
 Proof. 
   unfold wrap_call. 
-  destruct fv; auto.
+  destruct fv as [|c]; auto.
   destruct c; auto. 
     rewrite wrapper_fid_is_identical. auto.
 Qed.
@@ -2231,14 +2230,14 @@ Proof.
     destruct R; try solve [inv J1].
     remember (trans_products nts Ps1) as R1.
     destruct R1; inv J1.
-    destruct a; simpl in *.
+    destruct a as [?|?|f]; simpl in *.
       inv HeqR. simpl. eauto.
       inv HeqR. simpl. eauto.
 
       remember (trans_fdef nts f) as R1.
       destruct R1; inv HeqR. 
       simpl.
-      destruct f. destruct f.
+      destruct f as [f b]. destruct f as [f t i0 a v].
       symmetry in HeqR0. assert (Hf:=HeqR0).
       apply trans_fdef_inv in HeqR0.
       remember (isCallLib i0) as R.
@@ -2350,10 +2349,10 @@ Proof.
     destruct R; try solve [inv J1].
     remember (trans_products nts Ps1) as R1.
     destruct R1; inv J1.
-    destruct a; simpl in *.
+    destruct a as [?|f|f]; simpl in *.
       inv HeqR. simpl. eauto.
 
-      destruct f. destruct f. simpl in HeqR.
+      destruct f as [f ?]. destruct f as [? ? i0 ? ?]. simpl in HeqR.
       inv HeqR. simpl. 
       simpl in J2.
       rewrite wrapper_fid_is_identical.
@@ -2379,14 +2378,14 @@ Proof.
     destruct R; try solve [inv J1].
     remember (trans_products nts Ps1) as R1.
     destruct R1; inv J1.
-    destruct a; simpl in *.
+    destruct a as [? | f | f]; simpl in *.
       inv HeqR. simpl. eauto.
       inv HeqR. simpl. eauto.
 
       remember (trans_fdef nts f) as R1.
       destruct R1; inv HeqR. 
       simpl.
-      destruct f. destruct f.
+      destruct f as [f ?]. destruct f as [? ? i0 ? ?].
       symmetry in HeqR0. assert (Hf:=HeqR0).
       apply trans_fdef_inv in HeqR0.
       remember (isCallLib i0) as R.
@@ -2465,7 +2464,7 @@ Lemma get_metadata_from_list_value_l_spec : forall mi TD gl F rm1 rm2 lc1 lc2 B1
     gv_inject mi ((Vptr blk1 eofs1, AST.Mint 31)::nil) egv2.
 Proof.
   intros mi TD gl F rm1 rm2 lc1 lc2.
-  destruct B1. destruct B2. simpl.
+  destruct B1 as [l0 ? ? ?]. destruct B2 as [l1 ? ? ?]. simpl.
   induction vls; simpl; intros; subst.
     inv HeqR1.
 
@@ -2612,7 +2611,7 @@ Lemma getPhiNodeID_in_getFdefLocs : forall f1 l0 ps p cs tmn,
   In (getPhiNodeID p) (getFdefLocs f1).
 Proof.
   intros.
-  destruct f1. destruct f. simpl.
+  destruct f1 as [f ?]. destruct f. simpl.
   apply in_or_app. right.
   eapply in_getBlockLocs__in_getBlocksLocs in H; eauto.
   simpl. 
@@ -2630,7 +2629,7 @@ Proof.
   induction ps2; simpl; intros ps1 lc1 rm1 re1 HBinF Hget. 
     inv Hget. simpl. auto.
 
-    destruct a.
+    destruct a as [i0 t l1].
     destruct (getValueViaBlockFromValuels l1 B1); tinv Hget.
     destruct (Opsem.getOperandValue TD v lc1 gl); tinv Hget.
     remember (SBspec.getIncomingValuesForBlockFromPHINodes TD ps2 B1 gl lc1 rm1) as R.
@@ -2703,7 +2702,7 @@ Lemma getCmdID_in_getFdefLocs : forall B f1 c cs tmn2 id0
 Proof.
   intros.
   destruct Heqb1 as [l1 [ps1 [cs11 Heqb1]]]; subst.
-  destruct f1. destruct f. simpl.
+  destruct f1 as [f ?]. destruct f as [? ? ? a ?]. simpl.
   destruct (split a).
   apply in_or_app. right.
   eapply in_getBlockLocs__in_getBlocksLocs in HBinF; eauto.
@@ -2729,7 +2728,7 @@ Proof.
   inv H; simpl.
     clear. fsetdec.
 
-    destruct f. destruct f. simpl in *.
+    destruct f as [f b]. destruct f as [? ? ? a ?]. simpl in *.
     remember (lookupTypViaIDFromArgs a id5) as R.
     apply ids2atoms__in.
     destruct R; inv H2.

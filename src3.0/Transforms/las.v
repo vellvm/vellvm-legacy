@@ -200,7 +200,7 @@ Proof.
       clear Hin.
 
       destruct stinfo. simpl in *. subst.
-      destruct (LAS_block pinfo lasinfo).
+      destruct (LAS_block pinfo lasinfo) as [l1 p ? t].
       assert (SI_alive':=SI_alive).
       destruct SI_alive' as [J1 [J2 [cs1 [cs3 J3]]]]; subst.
       assert (In (LAS_lid pinfo lasinfo)
@@ -308,7 +308,7 @@ Proof.
     remember (lookupAL (GVsT DGVs) Locals (LAS_lid pinfo lasinfo)) as R.
     destruct R; auto.
     remember (LAS_value pinfo lasinfo) as R.
-    destruct R; auto.
+    destruct R as [i0|]; auto.
     destruct (i0 == getCmdLoc c); subst; auto.
     admit. (* LAS_value >> LAS_lid, cyclic! *)   
 Qed.
@@ -559,7 +559,7 @@ Proof.
   unfold value_simulation in Hvsim.
   unfold wf_defs in Hinscope.
   destruct (fdef_dec (PI_f pinfo) f); subst; try solve [uniq_result; auto].
-  destruct v; subst; simpl in Hget', Hget, Hinscope;
+  destruct v as [i0|]; subst; simpl in Hget', Hget, Hinscope;
     try solve [uniq_result; auto].
   destruct (id_dec i0 (LAS_lid pinfo lasinfo)); simpl in Hget'; subst;
     try solve [uniq_result; auto].  
@@ -595,7 +595,7 @@ Proof.
   unfold value_simulation in Hvsim.
   unfold wf_defs in Hinscope.
   destruct (fdef_dec (PI_f pinfo) f); subst; try solve [uniq_result; auto].
-  destruct v; subst; simpl in Hget', Hget, Hinscope;
+  destruct v as [i0|]; subst; simpl in Hget', Hget, Hinscope;
     try solve [uniq_result; auto].
   destruct (id_dec i0 (LAS_lid pinfo lasinfo)); simpl in Hget'; subst;
     try solve [uniq_result; auto].  
@@ -714,7 +714,7 @@ Proof.
   destruct Hdom as [J3 | J3]; try solve [contradict Hreach; auto].
   clear Hreach.
   unfold blockDominates in J3.         
-  destruct vb. assert (HeqR':=HeqR).
+  destruct vb as [l3 p c t0]. assert (HeqR':=HeqR).
   unfold inscope_of_tmn in HeqR.
   destruct (PI_f pinfo) as [[f t2 i1 a v] bs].
   remember ((dom_analyze (fdef_intro (fheader_intro f t2 i1 a v) bs)) !! l1) 
@@ -795,13 +795,13 @@ Lemma getIncomingValuesForBlockFromPHINodes_sim : forall
              ps2' B1' gl lc = ret RVs'),
   RVs = RVs'.
 Proof.
-  induction ps2 as [|[]]; intros; simpl in Hget, Hget'.
+  induction ps2 as [|[i1 t1 l2]]; intros; simpl in Hget, Hget'.
     apply phis_simulation_nil_inv in Hpsim2.
     subst. simpl in Hget'. congruence.    
 
     apply phis_simulation_cons_inv in Hpsim2.
     destruct Hpsim2 as [p1' [ps2'0 [Heq [Hpsim1 Hpsim2]]]]; subst.
-    simpl in Hget'. destruct p1'. 
+    simpl in Hget'. destruct p1' as [i2 t2 l3]. 
     apply phi_simulation_inv in Hpsim1.
     destruct Hpsim1 as [Heq1 [Heq2 Hvlsim1]]; subst.
     inv_mbind'. 
@@ -820,7 +820,7 @@ Proof.
       congruence.
 
       destruct Hin as [ps3 Hin]. subst.
-      exists (ps3++[insn_phi i1 t1 l2]).
+      exists (ps3++[insn_phi i2 t2 l2]).
       simpl_env. auto.
 Qed.
 
@@ -1148,7 +1148,7 @@ Case "sReturn".
       HFinPs1 Hwfg.
     unfold Opsem.returnUpdateLocals in H1, H27.
     inv_mbind'.
-    destruct c1'; tinv H0.
+    destruct_cmd c1'; tinv H0.
     assert (i0 = i1 /\ n = n0 /\ t0 = t) as EQ.
       unfold cmd_simulation in Hcsim2';
       destruct (fdef_dec (PI_f pinfo) F'); inv Hcsim2'; auto.

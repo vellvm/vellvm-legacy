@@ -135,129 +135,122 @@ Proof.
   induction rs; simpl; intros.
     split; auto.
 
-    destruct a.
-    destruct c; simpl; auto.
+Ltac eru_tac1 :=
+let foo a i1 i2 rs H :=
+  destruct (id_dec a i1); subst; try solve [
+    assert (i1 `in` add i1 (dom rs)) as IN; auto;
+    apply H in IN; contradict IN; auto |
 
-      unfold BOP.
-      destruct v; destruct v0; simpl in *; auto.
-        destruct (id_dec a i1); subst.
-          assert (i1 `in` add i1 (dom rs)) as IN. auto.
-          apply H in IN. contradict IN; auto.
-          rewrite <- lookupAL_updateAddAL_neq; auto.
-          destruct (id_dec a i2); subst.
-            assert (i2 `in` add i2 (dom rs)) as IN. auto.
-            apply H in IN. contradict IN; auto.
-            rewrite <- lookupAL_updateAddAL_neq; auto.
-        destruct (id_dec a i1); subst.
-          assert (i1 `in` add i1 (dom rs)) as IN. auto.
-          apply H in IN. contradict IN; auto.
-          rewrite <- lookupAL_updateAddAL_neq; auto.
-        destruct (id_dec a i1); subst.
-          assert (i1 `in` add i1 (dom rs)) as IN. auto.
-          apply H in IN. contradict IN; auto.
-          rewrite <- lookupAL_updateAddAL_neq; auto.
+    rewrite <- lookupAL_updateAddAL_neq; auto;
+    destruct (id_dec a i2); subst; try solve [
+      assert (i2 `in` add i2 (dom rs)) as IN; auto;
+      apply H in IN; contradict IN; auto |
+  
+      rewrite <- lookupAL_updateAddAL_neq; auto
+    ]
+  ] in
+match goal with
+| rs : list (atom * GVs),
+  H : forall i : atom, i `in` add ?a (dom ?rs) -> ~ (?i1 = i \/ ?i2 = i \/ False)
+  |- _ =>
+  match goal with
+  | |- _ <-> match lookupAL _ _ ?i1 with
+             | ret _ =>
+               match lookupAL _ _ ?i2 with
+               | ret _ => _
+               | merror => _
+               end
+             | merror => _
+             end = _ => foo a i1 i2 rs H
+  | |- _ <-> (exists _ : _, exists _ : _,
+             lookupAL _ _ ?i1 = ret _ /\ lookupAL _ _ ?i2 = ret _ /\ _) =>
+      foo a i1 i2 rs H
+  end
+end.
 
-      unfold FBOP.
-      destruct v; destruct v0; simpl in *; auto.
-        destruct (id_dec a i1); subst.
-          assert (i1 `in` add i1 (dom rs)) as IN. auto.
-          apply H in IN. contradict IN; auto.
-          rewrite <- lookupAL_updateAddAL_neq; auto.
-          destruct (id_dec a i2); subst.
-            assert (i2 `in` add i2 (dom rs)) as IN. auto.
-            apply H in IN. contradict IN; auto.
-            rewrite <- lookupAL_updateAddAL_neq; auto.
-        destruct (id_dec a i1); subst.
-          assert (i1 `in` add i1 (dom rs)) as IN. auto.
-          apply H in IN. contradict IN; auto.
-          rewrite <- lookupAL_updateAddAL_neq; auto.
-        destruct (id_dec a i1); subst.
-          assert (i1 `in` add i1 (dom rs)) as IN. auto.
-          apply H in IN. contradict IN; auto.
-          rewrite <- lookupAL_updateAddAL_neq; auto.
+Ltac eru_tac2 :=
+let foo a i1 rs H :=
+  destruct (id_dec a i1); subst; try solve [
+    assert (i1 `in` add i1 (dom rs)) as IN; auto;
+    apply H in IN; contradict IN; auto |
+    rewrite <- lookupAL_updateAddAL_neq; auto
+  ] in
+match goal with
+| rs : list (atom * GVs),
+  H : forall i : atom, i `in` add ?a (dom ?rs) -> ~ (?i1 = i \/ False)
+  |- _ =>
+  match goal with
+  | |- _ <-> match lookupAL _ _ ?i1 with
+             | ret _ =>
+               match const2GV _ _ _ with
+               | ret _ => _
+               | merror => _
+               end
+             | merror => _
+             end = _ => foo a i1 rs H
+  | |- _ <-> (exists _ : _, exists _ : _,
+             lookupAL _ _ ?i1 = ret _ /\ const2GV _ _ _ = ret _ /\ _) =>
+      foo a i1 rs H
+  end
+end.
 
-      destruct v; simpl in *; auto.
-      destruct (id_dec a i1); subst.
-        assert (i1 `in` add i1 (dom rs)) as IN. auto.
-        apply H in IN. contradict IN; auto.
-        rewrite <- lookupAL_updateAddAL_neq; auto.
+Ltac eru_tac3 :=
+let foo a i1 rs H :=
+  destruct (id_dec a i1); subst; try solve [
+    assert (i1 `in` add i1 (dom rs)) as IN; auto;
+    apply H in IN; contradict IN; auto |
+    rewrite <- lookupAL_updateAddAL_neq; auto
+  ] in
+match goal with
+| rs : list (atom * GVs),
+  H : forall i : atom, i `in` add ?a (dom ?rs) -> ~ (?i1 = i \/ False)
+  |- _ =>
+  match goal with
+  | |- _ <-> match const2GV _ _ _ with
+             | ret _ =>
+               match lookupAL _ _ ?i1 with
+               | ret _ => _
+               | merror => _
+               end
+             | merror => _
+             end = _ => foo a i1 rs H
+  | |- _ <-> (exists _ : _, exists _ : _,
+             const2GV _ _ _ = ret _ /\ lookupAL _ _ ?i1 = ret _ /\ _) =>
+      foo a i1 rs H
+  end
+end.
 
-      destruct v; destruct v0; simpl in *; auto.
-        destruct (id_dec a i1); subst.
-          assert (i1 `in` add i1 (dom rs)) as IN. auto.
-          apply H in IN. contradict IN; auto.
-          rewrite <- lookupAL_updateAddAL_neq; auto.
-          destruct (id_dec a i2); subst.
-            assert (i2 `in` add i2 (dom rs)) as IN. auto.
-            apply H in IN. contradict IN; auto.
-            rewrite <- lookupAL_updateAddAL_neq; auto.
-        destruct (id_dec a i1); subst.
-          assert (i1 `in` add i1 (dom rs)) as IN. auto.
-          apply H in IN. contradict IN; auto.
-          rewrite <- lookupAL_updateAddAL_neq; auto.
-        destruct (id_dec a i1); subst.
-          assert (i1 `in` add i1 (dom rs)) as IN. auto.
-          apply H in IN. contradict IN; auto.
-          rewrite <- lookupAL_updateAddAL_neq; auto.
+Ltac eru_tac4 :=
+let foo a i1 rs H :=
+  destruct (id_dec a i1); subst; try solve [
+    assert (i1 `in` add i1 (dom rs)) as IN; auto;
+    apply H in IN; contradict IN; auto |
+    rewrite <- lookupAL_updateAddAL_neq; auto
+  ] in
+match goal with
+| rs : list (atom * GVs),
+  H : forall i : atom, i `in` add ?a (dom ?rs) -> ~ (?i1 = i \/ False)
+  |- _ =>
+  match goal with
+  | |- _ <-> match lookupAL _ _ ?i1 with
+             | ret _ => _
+             | merror => _
+             end = _ => foo a i1 rs H
+  | |- _ <-> (exists _ : _, lookupAL _ _ ?i1 = ret _ /\ _) => foo a i1 rs H
+  end
+end.
 
-      unfold TRUNC.
-      destruct v; simpl in *; auto.
-        destruct (id_dec a i1); subst.
-          assert (i1 `in` add i1 (dom rs)) as IN. auto.
-          apply H in IN. contradict IN; auto.
-          rewrite <- lookupAL_updateAddAL_neq; auto.
-
-      unfold EXT.
-      destruct v; simpl in *; auto.
-        destruct (id_dec a i1); subst.
-          assert (i1 `in` add i1 (dom rs)) as IN. auto.
-          apply H in IN. contradict IN; auto.
-          rewrite <- lookupAL_updateAddAL_neq; auto.
-
-      unfold CAST.
-      destruct v; simpl in *; auto.
-        destruct (id_dec a i1); subst.
-          assert (i1 `in` add i1 (dom rs)) as IN. auto.
-          apply H in IN. contradict IN; auto.
-          rewrite <- lookupAL_updateAddAL_neq; auto.
-
-      unfold ICMP.
-      destruct v; destruct v0; simpl in *; auto.
-        destruct (id_dec a i1); subst.
-          assert (i1 `in` add i1 (dom rs)) as IN. auto.
-          apply H in IN. contradict IN; auto.
-          rewrite <- lookupAL_updateAddAL_neq; auto.
-          destruct (id_dec a i2); subst.
-            assert (i2 `in` add i2 (dom rs)) as IN. auto.
-            apply H in IN. contradict IN; auto.
-            rewrite <- lookupAL_updateAddAL_neq; auto.
-        destruct (id_dec a i1); subst.
-          assert (i1 `in` add i1 (dom rs)) as IN. auto.
-          apply H in IN. contradict IN; auto.
-          rewrite <- lookupAL_updateAddAL_neq; auto.
-        destruct (id_dec a i1); subst.
-          assert (i1 `in` add i1 (dom rs)) as IN. auto.
-          apply H in IN. contradict IN; auto.
-          rewrite <- lookupAL_updateAddAL_neq; auto.
-
-      unfold FCMP.
-      destruct v; destruct v0; simpl in *; auto.
-        destruct (id_dec a i1); subst.
-          assert (i1 `in` add i1 (dom rs)) as IN. auto.
-          apply H in IN. contradict IN; auto.
-          rewrite <- lookupAL_updateAddAL_neq; auto.
-          destruct (id_dec a i2); subst.
-            assert (i2 `in` add i2 (dom rs)) as IN. auto.
-            apply H in IN. contradict IN; auto.
-            rewrite <- lookupAL_updateAddAL_neq; auto.
-        destruct (id_dec a i1); subst.
-          assert (i1 `in` add i1 (dom rs)) as IN. auto.
-          apply H in IN. contradict IN; auto.
-          rewrite <- lookupAL_updateAddAL_neq; auto.
-        destruct (id_dec a i1); subst.
-          assert (i1 `in` add i1 (dom rs)) as IN. auto.
-          apply H in IN. contradict IN; auto.
-          rewrite <- lookupAL_updateAddAL_neq; auto.
+    destruct a as [a g].
+    destruct c as [i0 b s0 v v0|i0 f0 f1 v v0|i0 t v l2|i0 t v t0 v0 l2|
+                   i0 t v ?|i0 t v|i0 t v ?|i0 t v ?|i0 t v v0 ?|i0 i1 t v l2|
+                   i0 t t0 v t1|i0 e t v t0|i0 c t v t0|i0 c t v v0|
+                   i0 f0 f1 v v0|i0 v t v0 v1|i0 n c t v p]; simpl;
+      unfold BOP, FBOP, TRUNC, EXT, ICMP, FCMP, CAST; try solve [ 
+        auto |
+        destruct v as [i1|c1]; destruct v0 as [i2|c2]; simpl in *;
+          try solve [auto | eru_tac1 | eru_tac2 | eru_tac3] |
+        destruct v as [i1|c1]; simpl in *; try solve [auto | eru_tac4]
+      ].
 Qed.
 
 Lemma getCmdOperands__nth_list_id : forall i0 c1 id_list
@@ -267,7 +260,6 @@ Lemma getCmdOperands__nth_list_id : forall i0 c1 id_list
 Proof.
   destruct c1; simpl; intros.
     unfold getValueIDs in H1.
-    destruct v; destruct v0; simpl in *.
 Admitted.
 
 Lemma wf_fdef__wf_insn_base : forall ifs S M F id1 c1,
@@ -387,7 +379,7 @@ Proof.
                intro J. apply in_app_or in J.
                destruct J; auto.
              destruct Hid1 as [Hid1 | [b1 [l1 [J1 [J2 J3]]]]]; try congruence.
-             destruct b1.
+             destruct b1 as [l2 ? ? ?].
              assert (l1 = l2) as EQ.
                apply lookupBlockViaLabelFromFdef_inv in J2; auto.
                destruct J2; auto.
@@ -483,7 +475,7 @@ Proof.
 
   destruct cs'.
   Case "cs'=nil".
-    assert (J1:=inbound'). destruct fh.
+    assert (J1:=inbound'). destruct fh as [f t i0 a v].
     apply fold_left__bound_blocks with (init:=getPhiNodesIDs ps' ++ 
       getCmdsIDs nil ++ getArgsIDs a)(bs:=bs)(l0:=l')
       (fh:=fheader_intro f t i0 a v) in J1; auto.
@@ -546,7 +538,7 @@ Proof.
     unfold cmds_dominates_cmd. simpl.
     destruct (eq_atom_dec (getCmdLoc c) (getCmdLoc c)) as [_ | n]; 
       try solve [contradict n; auto].
-    simpl_env.  destruct fh.
+    simpl_env.  destruct fh as [f t i0 a v].
     apply fold_left__bound_blocks with (init:=getPhiNodesIDs ps' ++ 
       getCmdsIDs nil ++ getArgsIDs a)(bs:=bs)
       (fh:=fheader_intro f t i0 a v)(l0:=l') in J1.
@@ -689,7 +681,7 @@ Proof.
     destruct f as [fh bs].
     remember ((dom_analyze (fdef_intro fh bs)) !! l1) as R.
     destruct R.  
-    symmetry in Hinscope. destruct fh.
+    symmetry in Hinscope. destruct fh as [f t i0 a v].
     apply fold_left__spec in Hinscope.
     destruct H11 as [J' | [J' | J']]; try solve [contradict J'; auto].
       destruct Hinscope as [Hinscope _].
@@ -708,7 +700,7 @@ Proof.
           
       unfold blockStrictDominates in J'. 
       rewrite <- HeqR in J'.
-      destruct block'. 
+      destruct block' as [l0 p c t0]. 
       assert (In l0 (ListSet.set_diff eq_atom_dec bs_contents [l1])) as J.       
         simpl in Hreach.
         apply insnInFdefBlockB__blockInFdefB in H.
@@ -764,10 +756,10 @@ Proof.
   assert (In id1 defs) as Hin.
     inv H6. 
     unfold inscope_of_cmd, inscope_of_id in Hinscope.
-    destruct b. destruct f as [fh bs].
+    destruct b as [l0 ? ? ?]. destruct f as [fh bs].
     remember ((dom_analyze (fdef_intro fh bs)) !! l0) as R.
     destruct R.  
-    symmetry in Hinscope. destruct fh.
+    symmetry in Hinscope. destruct fh as [f t0 i0 a v].
     apply fold_left__spec in Hinscope.
     destruct H11 as [J' | [J' | J']]; try solve [contradict J'; auto].
       destruct Hinscope as [Hinscope _].
@@ -796,7 +788,7 @@ Proof.
       clear H0 HwfDefs. 
       unfold blockStrictDominates in J'.
       rewrite <- HeqR in J'.
-      destruct block'.
+      destruct block' as [l1 p0 c1 t1].
       assert (In l1 (ListSet.set_diff eq_atom_dec bs_contents [l0])) as J.       
         simpl in Hreach.
         apply insnInFdefBlockB__blockInFdefB in H.
@@ -888,9 +880,13 @@ Lemma eval_rhs_updateAddAL : forall TD gl id1 gvs1 lc gv c,
   (eval_rhs TD gl (@updateAddAL GVs lc id1 gvs1) c gv <-> 
    eval_rhs TD gl lc c gv).
 Proof.
-  destruct c; simpl; intros; try solve [split; auto].
-    unfold BOP.    
-    destruct v; destruct v0; simpl in *; try solve [split; auto].
+  destruct c as [i0 b s0 v v0|i0 f0 f1 v v0|i0 t v l2|i0 t v t0 v0 l2|
+                 i0 t v ?|i0 t v|i0 t v ?|i0 t v ?|i0 t v v0 ?|i0 i1 t v l2|
+                 i0 t t0 v t1|i0 e t v t0|i0 c t v t0|i0 c t v v0|
+                 i0 f0 f1 v v0|i0 v t v0 v1|i0 n c t v p]; 
+    simpl; intros; try solve [split; auto].
+    unfold BOP.
+    destruct v as [i1|c1]; destruct v0 as [i2|c2]; simpl in *; try solve [split; auto].
       destruct (id_dec id1 i1); subst.
         contradict H; auto.
         rewrite <- lookupAL_updateAddAL_neq; auto.
@@ -900,12 +896,12 @@ Proof.
       destruct (id_dec id1 i1); subst.
         contradict H; auto.
         rewrite <- lookupAL_updateAddAL_neq; try solve [auto | split; auto].
-      destruct (id_dec id1 i1); subst.
+      destruct (id_dec id1 i2); subst.
         contradict H; auto.
         rewrite <- lookupAL_updateAddAL_neq; try solve [auto | split; auto].
 
     unfold FBOP.    
-    destruct v; destruct v0; simpl in *; try solve [split; auto].
+    destruct v as [i1|c1]; destruct v0 as [i2|c2]; simpl in *; try solve [split; auto].
       destruct (id_dec id1 i1); subst.
         contradict H; auto.
         rewrite <- lookupAL_updateAddAL_neq; auto.
@@ -915,17 +911,17 @@ Proof.
       destruct (id_dec id1 i1); subst.
         contradict H; auto.
         rewrite <- lookupAL_updateAddAL_neq; try solve [auto | split; auto].
-      destruct (id_dec id1 i1); subst.
+      destruct (id_dec id1 i2); subst.
         contradict H; auto.
         rewrite <- lookupAL_updateAddAL_neq; try solve [auto | split; auto].
 
-    destruct v; simpl in *; try solve [split; auto].
+    destruct v as [i1|c1]; simpl in *; try solve [split; auto].
       destruct (id_dec id1 i1); subst.
         contradict H; auto.
         rewrite <- lookupAL_updateAddAL_neq; auto.
         split; auto.
 
-    destruct v; destruct v0; simpl in *; try solve [split; auto].
+    destruct v as [i1|c1]; destruct v0 as [i2|c2]; simpl in *; try solve [split; auto].
       destruct (id_dec id1 i1); subst.
         contradict H; auto.
         rewrite <- lookupAL_updateAddAL_neq; auto.
@@ -935,33 +931,33 @@ Proof.
       destruct (id_dec id1 i1); subst.
         contradict H; auto.
         rewrite <- lookupAL_updateAddAL_neq; try solve [auto | split; auto].
-      destruct (id_dec id1 i1); subst.
+      destruct (id_dec id1 i2); subst.
         contradict H; auto.
         rewrite <- lookupAL_updateAddAL_neq; try solve [auto | split; auto].
 
     unfold TRUNC.    
-    destruct v; simpl in *; try solve [split; auto].
+    destruct v as [i1|c1]; simpl in *; try solve [split; auto].
       destruct (id_dec id1 i1); subst.
         contradict H; auto.
         rewrite <- lookupAL_updateAddAL_neq; auto.
         split; auto.
 
     unfold EXT.    
-    destruct v; simpl in *; try solve [split; auto].
+    destruct v as [i1|c1]; simpl in *; try solve [split; auto].
       destruct (id_dec id1 i1); subst.
         contradict H; auto.
         rewrite <- lookupAL_updateAddAL_neq; auto.
         split; auto.
 
     unfold CAST.    
-    destruct v; simpl in *; try solve [split; auto].
+    destruct v as [i1|c1]; simpl in *; try solve [split; auto].
       destruct (id_dec id1 i1); subst.
         contradict H; auto.
         rewrite <- lookupAL_updateAddAL_neq; auto.
         split; auto.
 
     unfold ICMP.    
-    destruct v; destruct v0; simpl in *; try solve [split; auto].
+    destruct v as [i1|c1]; destruct v0 as [i2|c2]; simpl in *; try solve [split; auto].
       destruct (id_dec id1 i1); subst.
         contradict H; auto.
         rewrite <- lookupAL_updateAddAL_neq; auto.
@@ -971,12 +967,12 @@ Proof.
       destruct (id_dec id1 i1); subst.
         contradict H; auto.
         rewrite <- lookupAL_updateAddAL_neq; try solve [auto | split; auto].
-      destruct (id_dec id1 i1); subst.
+      destruct (id_dec id1 i2); subst.
         contradict H; auto.
         rewrite <- lookupAL_updateAddAL_neq; try solve [auto | split; auto].
 
     unfold FCMP.    
-    destruct v; destruct v0; simpl in *; try solve [split; auto].
+    destruct v as [i1|c1]; destruct v0 as [i2|c2]; simpl in *; try solve [split; auto].
       destruct (id_dec id1 i1); subst.
         contradict H; auto.
         rewrite <- lookupAL_updateAddAL_neq; auto.
@@ -986,7 +982,7 @@ Proof.
       destruct (id_dec id1 i1); subst.
         contradict H; auto.
         rewrite <- lookupAL_updateAddAL_neq; try solve [auto | split; auto].
-      destruct (id_dec id1 i1); subst.
+      destruct (id_dec id1 i2); subst.
         contradict H; auto.
         rewrite <- lookupAL_updateAddAL_neq; try solve [auto | split; auto].
 Qed.
@@ -1163,7 +1159,7 @@ Proof.
             clear - Hin HuniqF. admit. (* c1 cannot be an arg *)
 
         SSCase "2".
-          destruct b1.
+          destruct b1 as [l2 ? ? ?].
           assert (l1 = l2) as EQ.
             apply lookupBlockViaLabelFromFdef_inv in J2; auto.
             destruct J2; auto.
@@ -1206,7 +1202,7 @@ Proof.
           eapply insn_cannot_be_in_different_blocks in H; eauto.
           inv H. congruence.
 
-          destruct b1.
+          destruct b1 as [l2 ? ? ?].
           assert (l1 = l2) as EQ.
             apply lookupBlockViaLabelFromFdef_inv in J2; auto.
             destruct J2; auto.
@@ -1927,7 +1923,8 @@ Case "sReturn".
     split; auto.
 
     remember (getCmdID c') as R.
-    destruct c'; try solve [inversion H].
+    destruct c' as [ | | | | | | | | | | | | | | | | i0 n c t v p]; 
+      try solve [inversion H].
     assert (In (insn_call i0 n c t v p) 
       (cs2'++[insn_call i0 n c t v p] ++ cs')) as HinCs.
       apply in_or_app. right. simpl. auto.
@@ -1965,7 +1962,8 @@ Case "sReturn".
           remember (GVsSig.(lift_op1) (fit_gv (los, nts) t) g t) as R2.
           destruct R2; inv H1.
           change i0 with 
-            (getCmdLoc (insn_call i0 false c (typ_function t l4 v0) v p)); auto.
+            (getCmdLoc (insn_call i0 false c (typ_function t l4 varg5) v p)); 
+            auto.
           eapply wf_defs_updateAddAL; eauto.
             simpl. apply In_InCmdsB. apply in_middle.
             apply wf_impure_id__wf_gvs; auto.
@@ -2005,7 +2003,7 @@ Case "sReturn".
                  (make_list_typ
                     (map_list_typ_attributes_value
                        (fun (typ_' : typ) attr (_ : value) => typ_')
-                       typ'_attributes'_value''_list)) varg5) v
+                       typ'_attributes'_value''_list)) varg0) v
               (map_list_typ_attributes_value
                  (fun (typ_' : typ) attr (value_'' : value) => 
                     (typ_', attr, value_''))
@@ -2021,7 +2019,7 @@ Case "sReturn".
                         (make_list_typ
                            (map_list_typ_attributes_value
                               (fun (typ_' : typ) attr (_ : value) => typ_')
-                              typ'_attributes'_value''_list)) varg5) v
+                              typ'_attributes'_value''_list)) varg0) v
                      (map_list_typ_attributes_value
                         (fun (typ_' : typ) attr (value_'' : value) =>
                           (typ_', attr, value_'')) 
@@ -2084,7 +2082,7 @@ Case "sReturnVoid".
         rewrite <- J1.
         remember (getCmdID c') as R.
         destruct c'; try solve [inversion H].
-        destruct n; inversion H1.
+        destruct noret5; inversion H1.
         simpl in HeqR. subst R.
         eapply wf_defs_eq; eauto. 
         
@@ -2102,7 +2100,7 @@ Case "sReturnVoid".
         rewrite <- J1.
         remember (getCmdID c') as R.
         destruct c'; try solve [inversion H].
-        destruct n; inversion H1.
+        destruct noret5; inversion H1.
         simpl in HeqR. subst R.
         eapply wf_defs_eq; eauto. 
 
@@ -2403,7 +2401,7 @@ Case "sCall".
     repeat (split; auto). eauto.
   SCase "3".
     simpl. intros b HbInBs. destruct b.
-    destruct t; auto.
+    destruct terminator5; auto.
 
 Unfocus.
 

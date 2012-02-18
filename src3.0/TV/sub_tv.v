@@ -114,7 +114,8 @@ match (c, c') with
 | (const_null _, const_null _) => eq_const c c'
 | (const_arr t0 cs0, const_arr t0' cs0') => 
     tv_typ t0 t0' && tv_list_const fid cs0 cs0'
-| (const_struct cs0, const_struct cs0') => tv_list_const fid cs0 cs0'
+| (const_struct t0 cs0, const_struct t0' cs0') => 
+    tv_typ t0 t0' && tv_list_const fid cs0 cs0'
 | (const_gid _ id0, const_gid _ id0') => 
     tv_fid id0 id0' || tv_id fid id0 id0'
 | (const_truncop to0 c0 t0, const_truncop to0' c0' t0') =>
@@ -375,8 +376,8 @@ Inductive scall : Set :=
 Definition se_call : forall (st : sstate)(i:cmd)(iscall:isCall i = true), scall.
 Proof.
   intros. unfold isCall in iscall.
-  destruct i0; try solve [inversion iscall].
-  apply (@stmn_call i0 n c t (value2Sterm st.(STerms) v) 
+  destruct_cmd i0; try solve [inversion iscall].
+  apply (@stmn_call i1 n c t (value2Sterm st.(STerms) v) 
                       (list_param__list_typ_subst_sterm p st.(STerms))).
 Defined.
 
@@ -588,7 +589,8 @@ match (c, c') with
 | (const_null _, const_null _) => eq_const c c'
 | (const_arr t0 cs0, const_arr t0' cs0') => 
     tv_typ t0 t0' && rtv_list_const cs0 cs0'
-| (const_struct cs0, const_struct cs0') => rtv_list_const cs0 cs0'
+| (const_struct t0 cs0, const_struct t0' cs0') => 
+    tv_typ t0 t0' && rtv_list_const cs0 cs0'
 | (const_gid _ id0, const_gid _ id0') => 
     tv_fid id0 id0' || 
     eq_id id0 id0' (* assuming global variables are not renamed *)

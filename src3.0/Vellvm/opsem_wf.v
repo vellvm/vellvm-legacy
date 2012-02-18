@@ -253,7 +253,7 @@ Proof.
 
     assert (J:=Hbinf).
     eapply lookupTypViaIDFromFdef__lookupTypViaIDFromPhiNodes in J; eauto.
-    destruct a.
+    destruct a as [i0 t0 l0].
     simpl in H0. simpl in J.
     inv Hwfps. inv H8.
     destruct H0 as [H0 | H0]; subst.
@@ -333,7 +333,7 @@ Proof.
     simpl in *.
     inv H. inv Hin.
 
-    destruct a.
+    destruct a as [i0 t l0].
     remember (getValueViaBlockFromValuels l0 b) as R1.
     destruct R1; try solve [inversion H].   
       remember (getOperandValue (los,nts) v lc gl) as R.
@@ -511,7 +511,7 @@ Proof.
   destruct J as [Heq J]; subst.
   unfold inscope_of_tmn in Hinscope.
   unfold inscope_of_tmn. unfold inscope_of_cmd, inscope_of_id.
-  destruct F as [[? ? ? la va] bs].
+  destruct F as [[f t i0 la va] bs].
   remember (dom_analyze (fdef_intro (fheader_intro f t i0 la va) bs)) as Doms.
   remember (Doms !! l3)as defs3.
   remember (Doms !! l')as defs'.
@@ -962,11 +962,11 @@ Proof.
   remember (getOperandValue (los,nts) Result lc gl) as R.
   destruct R; tinv H1.
   destruct c; inv H1; auto.
-  destruct n; inv H7; auto.
-  destruct t0; tinv H6.
-  remember (GVsSig.(lift_op1) (fit_gv (los, nts) t0) g t0) as R.
+  destruct noret5; inv H7; auto.
+  destruct typ0; tinv H6.
+  remember (GVsSig.(lift_op1) (fit_gv (los, nts) typ0) g typ0) as R.
   destruct R; inv H6.
-    eapply wf_lc_updateAddAL with (t:=t0); eauto.
+    eapply wf_lc_updateAddAL with (t:=typ0); eauto.
       eapply uniqF__lookupTypViaIDFromFdef; eauto.
 
       symmetry in HeqR.
@@ -1830,7 +1830,7 @@ Case "sReturn".
     split; auto. 
 
     remember (getCmdID c') as R.
-    destruct c'; try solve [inversion H].
+    destruct c' as [ | | | | | | | | | | | | | | | | i0 n c t v p]; try solve [inversion H].
     assert (In (insn_call i0 n c t v p) 
       (cs2'++[insn_call i0 n c t v p] ++ cs')) as HinCs.
       apply in_or_app. right. simpl. auto.
@@ -1970,7 +1970,7 @@ Case "sReturnVoid".
         rewrite <- J1.
         remember (getCmdID c') as R.
         destruct c'; try solve [inversion H].
-        destruct n; inversion H1.
+        destruct noret5; inversion H1.
         simpl in HeqR. subst R.
         eapply wf_defs_eq; eauto. 
         
@@ -1988,7 +1988,7 @@ Case "sReturnVoid".
         rewrite <- J1.
         remember (getCmdID c') as R.
         destruct c'; try solve [inversion H].
-        destruct n; inversion H1.
+        destruct noret5; inversion H1.
         simpl in HeqR. subst R.
         eapply wf_defs_eq; eauto. 
 
@@ -2310,7 +2310,7 @@ Case "sCall".
   SCase "2".
     repeat (split; auto). eauto.
   SCase "3".
-    simpl. intros b HbInBs. destruct b.
+    simpl. intros b HbInBs. destruct b as [? ? ? t].
     destruct t; auto.
 
 Unfocus.
@@ -2386,7 +2386,7 @@ Proof.
   clear - H11 HwfDefs Hinscope H0 Hreach H9 HuniqF H HwfF.
   eapply wf_defs_elim; eauto.
     unfold inscope_of_tmn in Hinscope.
-    destruct f. destruct f.
+    destruct f as [f b]. destruct f as [f t i0 a v].
     remember ((dom_analyze (fdef_intro (fheader_intro f t i0 a v) b)) !! l1) 
       as R.
     destruct R.  
@@ -2409,7 +2409,7 @@ Proof.
           
      unfold blockStrictDominates in J'.
      rewrite <- HeqR in J'.
-     destruct block'.
+     destruct block' as [l0 p c t0].
      assert (In l0 (ListSet.set_diff eq_atom_dec bs_contents [l1])) as J.       
        simpl in Hreach.
        apply insnInFdefBlockB__blockInFdefB in H.
@@ -2465,7 +2465,7 @@ Proof.
   inv H6. 
   eapply wf_defs_elim; eauto.
     unfold inscope_of_cmd, inscope_of_id in Hinscope.
-    destruct b. destruct f. destruct f.
+    destruct b as [l0 ? ? ?]. destruct f as [f b]. destruct f as [f t0 i0 a v].
     remember ((dom_analyze (fdef_intro (fheader_intro f t0 i0 a v) b)) !! l0) 
       as R.
     destruct R.  
@@ -2498,7 +2498,7 @@ Proof.
      clear H0 HwfDefs.
      unfold blockStrictDominates in J'.
      rewrite <- HeqR in J'.
-     destruct block'.
+     destruct block' as [l1 p0 c1 t1].
      assert (In l1 (ListSet.set_diff eq_atom_dec bs_contents [l0])) as J.       
        simpl in Hreach.
        apply insnInFdefBlockB__blockInFdefB in H.
@@ -2727,7 +2727,7 @@ Proof.
   induction ps2; simpl.
     exists nil. auto.
   
-    destruct a. inv H8. inv H6.
+    destruct a as [i0 t0 l2]. inv H8. inv H6.
     assert (exists v, getValueViaLabelFromValuels l2 l1 = Some v) as J.      
       clear - H14 HbInF HuniqF Hsucc.
       inv H14.
@@ -2765,9 +2765,9 @@ Proof.
         destruct Hdom as [J3 | J3]; try solve [contradict Hreach; auto].
         clear Hreach.        
         unfold blockDominates in J3.         
-        destruct vb.
+        destruct vb as [l3 p c t1].
         unfold inscope_of_tmn in HeqR.
-        destruct f. destruct f.
+        destruct f as [f b]. destruct f as [f t2 i0 a v].
         remember ((dom_analyze (fdef_intro (fheader_intro f t2 i0 a v) b)) !! l1)
           as R1.
         destruct R1.
@@ -3154,7 +3154,7 @@ Proof.
   Case "cs=nil".
     remember (inscope_of_tmn f (block_intro l1 ps1 (cs1 ++ nil) tmn) tmn) as R.
     destruct R; try solve [inversion Hinscope].
-    destruct tmn.
+    destruct tmn as [id5|id5 value5 typ5|id5 value5 l2 l3|i0 l2|].
     SCase "tmn=ret".
       simpl in HwfCall.
       destruct ecs.
@@ -3165,17 +3165,19 @@ Proof.
         assert (J:=HbInF).
         apply HwfCall in J. clear HwfCall.
         destruct cs'; try solve [inversion J].
-        destruct c; try solve [inversion J]. clear J.
+        destruct c as [ | | | | | | | | | | | | | | | | i1 n c t0 v0 p]; 
+          try solve [inversion J]. 
+        clear J.
         remember (free_allocas (los,nts) M als) as Rm.
         destruct Rm as [M' |]; try solve [undefbehave].
         left. symmetry in HeqRm.
         rename HeqRm into J.
         assert (exists lc'', 
-          returnUpdateLocals (los,nts) (insn_call i1 n c t0 v0 p) v 
+          returnUpdateLocals (los,nts) (insn_call i1 n c t0 v0 p) value5 
             lc lc' gl = Some lc'') as Hretup.
           unfold returnUpdateLocals. simpl.
           assert (exists gv : GVs, 
-            getOperandValue (los, nts) v lc gl = ret gv) as H.
+            getOperandValue (los, nts) value5 lc gl = ret gv) as H.
             eapply getOperandValue_inTmnOperans_isnt_stuck; eauto.
               simpl. auto.
           destruct H as [gv H]. rewrite H.
@@ -3216,7 +3218,7 @@ Proof.
         destruct Rm as [M' |]; try solve [undefbehave].
         symmetry in HeqRm.
         rename HeqRm into J.
-        destruct n; try solve [undefbehave].
+        destruct noret5; try solve [undefbehave].
         left.
         exists (mkState ((mkEC f' b' cs' tmn' lc' als')::ecs) M').
         exists trace_nil.
@@ -3228,7 +3230,7 @@ Proof.
         eapply wf_system__wf_fdef; eauto.
       assert (uniqFdef f) as HuniqF.
         eapply wf_system__uniqFdef; eauto.
-      assert (exists cond, getOperandValue (los,nts) v lc gl = 
+      assert (exists cond, getOperandValue (los,nts) value5 lc gl = 
         Some cond) as Hget.
         eapply getOperandValue_inTmnOperans_isnt_stuck; eauto.
           simpl. auto.
@@ -3258,11 +3260,11 @@ Proof.
       destruct HlkB as [l' [ps' [cs' [tmn' HlkB]]]].
       assert (exists lc', switchToNewBasicBlock (los, nts) 
         (block_intro l' ps' cs' tmn') 
-        (block_intro l1 ps1 (cs1++nil) (insn_br i0 v l2 l3)) gl lc = 
+        (block_intro l1 ps1 (cs1++nil) (insn_br id5 value5 l2 l3)) gl lc = 
           Some lc') as Hswitch.
          assert (exists RVs, 
            getIncomingValuesForBlockFromPHINodes (los, nts) ps'
-             (block_intro l1 ps1 (cs1++nil) (insn_br i0 v l2 l3)) gl lc =
+             (block_intro l1 ps1 (cs1++nil) (insn_br id5 value5 l2 l3)) gl lc =
            Some RVs) as J.
            assert (HwfB := HbInF).
            eapply wf_system__blockInFdefB__wf_block in HwfB; eauto.
@@ -3277,7 +3279,7 @@ Proof.
              eapply wf_phinodes__getIncomingValuesForBlockFromPHINodes 
                with (ps':=ps')(cs':=cs')(tmn':=tmn')(l0:=l'); eauto.
                eapply reachable_successors with (l0:=l1)(cs:=ps1)(ps:=cs1)
-                 (tmn:=insn_br i0 v l2 l'); simpl; eauto.
+                 (tmn:=insn_br id5 value5 l2 l'); simpl; eauto.
                simpl. auto.    
                exists nil. auto.
 
@@ -3290,7 +3292,7 @@ Proof.
              eapply wf_phinodes__getIncomingValuesForBlockFromPHINodes 
                with (ps':=ps')(cs':=cs')(tmn':=tmn')(l0:=l'); eauto.
                eapply reachable_successors with (l0:=l1)(cs:=ps1)(ps:=cs1)
-                 (tmn:=insn_br i0 v l' l3); simpl; eauto.
+                 (tmn:=insn_br id5 value5 l' l3); simpl; eauto.
                simpl. auto.    
                exists nil. auto.
          
@@ -3363,7 +3365,10 @@ Proof.
     remember (inscope_of_cmd f (block_intro l1 ps1 (cs1 ++ c :: cs) tmn) c) as R.
     destruct R; try solve [inversion Hinscope].
     right.
-    destruct c.
+    destruct c as [i0 b s0 v v0|i0 f0 f1 v v0|i0 t v l2|i0 t v t0 v0 l2|
+                   i0 t v a|i0 t v|i0 t v a|i0 t v a|i0 t v v0 a|i0 i1 t v l2|
+                   i0 t t0 v t1|i0 e t v t0|i0 c t v t0|i0 c t v v0|
+                   i0 f0 f1 v v0|i0 v t v0 v1|i0 n c t v p].
   SCase "c=bop".
     left.
     assert (exists gv3, BOP (los,nts) lc gl b s0 v v0 = Some gv3) 

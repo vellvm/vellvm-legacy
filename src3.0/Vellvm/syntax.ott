@@ -178,7 +178,7 @@ typ :: 'typ_'						::=			{{ com type }}
   | { </ typj // j /> }       				::   :: struct      	{{ com structure }}
   | typ *                     				::   :: pointer     	{{ com pointer }}
   %| < sz * typ >             				::   :: vector       	{{ com vector }}
-  | opaque  						::   :: opaque          {{ com opaque }}
+  %| opaque  						::   :: opaque          {{ com opaque }}
   | id							::   :: namedt		{{ com namedt }}
   % union
   | ( typ )						:: S :: paren           {{ coq [[ typ ]] }}
@@ -269,14 +269,14 @@ truncop {{ tex trop }} :: 'truncop_'			::=  			{{ com trunc operators }}
   | trunc_int						::   :: int		{{ com trunc }}  {{ tex \ottkw{trunc}_{\mathit{int} } }}
   | trunc_fp						::   :: fp		{{ com fptrunc }} {{ tex \ottkw{trunc}_{\mathit{fp} } }}
 
-const {{ tex \mathit{cnst} }} :: 'const_'				::=  			{{ com constant }}
+const {{ tex \mathit{cnst} }} :: 'const_'		::=  			{{ com constant }}
   | typ zeroinitializer					::   :: zeroinitializer {{ com zeroinitializer }}
   | ( int sz ) Int					::   :: int		{{ com int }}	{{ tex \ottkw{i}[[sz]]\,[[Int]] }}
   | floating_point Float				::   :: floatpoint	{{ com floatpoint }}
   | typ undef						::   :: undef		{{ com undef }}
   | ( typ * ) null					::   :: null		{{ com null }}
   | typ [ </ constj // j /> ]				::   :: arr             {{ com array }}
-  | { </ constj // j /> }				::   :: struct          {{ com struct }}
+  | typ { </ constj // j /> }				::   :: struct          {{ com struct }}
   | typ * id						::   :: gid		{{ com gid }}
   | truncop const to typ				::   :: truncop		{{ com truncop }}
   | extop const to typ 					::   :: extop		{{ com extop }}
@@ -517,7 +517,7 @@ opt_fdef {{ tex \mathit{opt_{fdef} } }} :: 'opt_fdef_'	::=  			{{ com option fde
   | ( opt_fdef )					:: S :: paren		{{ coq [[ opt_fdef ]] }}
 
 namedt :: 'namedt_'         				::=			{{ com named type }}
-  | id = typ  						::   :: intro 
+  | id = { </ typj // j /> }                            ::   :: intro 
   | ( namedt )						:: S :: paren		{{ coq [[ namedt ]] }}
 
 namedts {{ tex \mathit{\overline{namedt} } }} :: 'namedts_'	::=		{{ com namedts }}
@@ -638,7 +638,7 @@ Tactic Notation "typ_cases" tactic(first) tactic(c) :=
   [ c "typ_int" | c "typ_floatingpoint" |
     c "typ_void" | c "typ_label" |
     c "typ_metadata" | c "typ_array" |
-    c "typ_function" | c "typ_struct" | c "typ_pointer" | c "typ_opaque" |
+    c "typ_function" | c "typ_struct" | c "typ_pointer" |
     c "typ_namedt" | c "typ_nil" | c "typ_cons" ].
 
 Scheme const_rec2 := Induction for const Sort Set
@@ -653,9 +653,9 @@ Scheme typ_rec2 := Induction for typ Sort Set
   with list_typ_rec2 := Induction for list_typ Sort Set.
 
 Definition typ_mutrec P P' :=
-  fun h1 h2 h3 h4 h5 h6 h7 h8 h9 h10 h11 h12 h13 =>
-      (pair (@typ_rec2 P P' h1 h2 h3 h4 h5 h6 h7 h8 h9 h10 h11 h12 h13)
-            (@list_typ_rec2 P P' h1 h2 h3 h4 h5 h6 h7 h8 h9 h10 h11 h12 h13)).
+  fun h1 h2 h3 h4 h5 h6 h7 h8 h9 h10 h11 h12 =>
+      (pair (@typ_rec2 P P' h1 h2 h3 h4 h5 h6 h7 h8 h9 h10 h11 h12)
+            (@list_typ_rec2 P P' h1 h2 h3 h4 h5 h6 h7 h8 h9 h10 h11 h12)).
 
 Scheme const_ind2 := Induction for const Sort Prop
   with list_const_ind2 := Induction for list_const Sort Prop.

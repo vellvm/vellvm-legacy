@@ -23,6 +23,30 @@ Export LLVMinfra.
 Export LLVMtypings.
 Export LLVMgv.
 
+Ltac destruct_cmd cmd :=
+let i0 := fresh "i0" in
+let i1 := fresh "i1" in
+let b := fresh "b" in
+let s0 := fresh "s0" in
+let v := fresh "v" in
+let v0 := fresh "v0" in
+let v1 := fresh "v1" in
+let f0 := fresh "f0" in
+let f1 := fresh "f1" in
+let t := fresh "t" in
+let t0 := fresh "t0" in
+let t1 := fresh "t1" in
+let l2 := fresh "l2" in
+let a := fresh "a" in
+let p := fresh "p" in
+let n := fresh "n" in
+let c := fresh "c" in
+let e := fresh "e" in
+destruct cmd as [i0 b s0 v v0|i0 f0 f1 v v0|i0 t v l2|i0 t v t0 v0 l2|
+                 i0 t v a|i0 t v|i0 t v a|i0 t v a|i0 t v v0 a|i0 i1 t v l2|
+                 i0 t t0 v t1|i0 e t v t0|i0 c t v t0|i0 c t v v0|
+                 i0 f0 f1 v v0|i0 v t v0 v1|i0 n c t v p].
+
 (***************************************************************)
 (* Syntax easy to be proved with symbolic execution. *)
 
@@ -78,10 +102,10 @@ Record subblock := mkSB
 Lemma isCall_dec : forall c, 
   {isCall c = false} + {isCall c = true}.
 Proof.
-  destruct c; simpl; auto.
-    destruct v; simpl; auto.
-      destruct c0; simpl; auto.
-        destruct (isCallLib i1); simpl; auto.
+  destruct_cmd c; simpl; auto.
+    destruct v as [?|c]; simpl; auto.
+      destruct c; simpl; auto.
+        destruct (isCallLib id5); simpl; auto.
 Qed.
 
 Fixpoint cmds2sbs (cs:cmds) : (list subblock*list nbranch) :=
@@ -423,17 +447,17 @@ Definition se_lib : forall i id0 noret0 tailc0 ft fv lp (st:sstate),
   sstate.
 Proof.
   intros; subst. simpl in H0.
-  destruct fv; try solve [inversion H0].
+  destruct fv as [?|c]; try solve [inversion H0].
   destruct c; try solve [inversion H0].
   apply
     (mkSstate (updateAddAL _ st.(STerms) id0 
-                (sterm_lib st.(SMem) i0
+                (sterm_lib st.(SMem) id5
                   (make_list_sterm 
                     (map_list_value 
                       (value2Sterm st.(STerms))
                       (make_list_value (snd (List.split lp)))
                     ))))
-              (smem_lib st.(SMem) i0 
+              (smem_lib st.(SMem) id5 
                 (make_list_sterm 
                   (map_list_value 
                     (value2Sterm st.(STerms)) 
@@ -629,8 +653,8 @@ Definition se_call : forall (st : sstate) (i:cmd) (iscall:isCall i = true), scal
 Proof.
   intros. unfold isCall in iscall.
   destruct i0; try solve [inversion iscall].
-  apply (@stmn_call i0 n c t v 
-                      (list_param__list_typ_subst_sterm p st.(STerms))).
+  apply (@stmn_call id5 noret5 clattrs5 typ0 value0
+                      (list_param__list_typ_subst_sterm params5 st.(STerms))).
 Defined.
 
 (* Definions below have not been used yet. *)
@@ -946,10 +970,13 @@ Proof.
     destruct (@typ_dec t t0); subst; try solve [auto | done_right].
 
     destruct c. destruct c0.
-    destruct (@bool_dec t1 t2); subst; try solve [auto | done_right].
-    destruct (@callconv_dec c c0); subst; try solve [auto | done_right].
-    destruct (@attributes_dec a a1); subst; try solve [auto | done_right].
-    destruct (@attributes_dec a0 a2); subst; try solve [auto | done_right].
+    destruct (@bool_dec tailc5 tailc0); subst; try solve [auto | done_right].
+    destruct (@callconv_dec callconv5 callconv0); 
+      subst; try solve [auto | done_right].
+    destruct (@attributes_dec attributes1 attributes0); 
+      subst; try solve [auto | done_right].
+    destruct (@attributes_dec attributes2 attributes3); 
+      subst; try solve [auto | done_right].
 
     destruct (@bool_dec n n0); subst; try solve [auto | done_right].
 Qed.

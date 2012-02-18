@@ -474,7 +474,7 @@ Lemma genLabel2Block_block_inv : forall b l0 b',
   b = b'.
 Proof.
   intros. unfold genLabel2Block_block in H.
-  destruct b.
+  destruct b as [l1 ps1 cs1 tmn1].
   simpl in H.
   destruct (@eq_dec atom (EqDec_eq_of_EqDec atom EqDec_atom) l0 l1); subst; 
     inversion H; auto.
@@ -487,7 +487,7 @@ Proof.
   induction lb; intros.
     simpl. auto.
 
-    destruct a. simpl in *.
+    destruct a as [l1 ps1 cs1 tmn1]. simpl in *.
     destruct (l1==l0); subst.
       contradict H; auto.
 
@@ -583,7 +583,7 @@ Proof.
     apply mergeALs_inv in H0; auto.
     destruct H0 as [H0 | H0].
       unfold genLabel2Block_block in H0.
-      destruct a. simpl in H0.
+      destruct a as [l1 ps1 cs1 tmn1]. simpl in H0.
       destruct (@eq_dec atom (EqDec_eq_of_EqDec atom EqDec_atom) l0 l1); subst.
         inversion H0; subst. clear H0.
         split; auto.
@@ -610,7 +610,7 @@ Proof.
   intros.
   unfold lookupBlockViaLabelFromFdef in H.
   unfold genLabel2Block_fdef in H.
-  destruct F. destruct f. destruct H.
+  destruct F as [f bs]. destruct f. destruct H.
   apply genLabel2Block_blocks_inv; auto.
 Qed. 
 
@@ -624,7 +624,7 @@ Proof.
     simpl in *.
     unfold lookupFdefViaIDFromProduct in H.
     apply orb_true_intro.
-    destruct a; 
+    destruct a as [g|f|f]; 
       try solve [apply IHPs in H; auto].
       destruct (@eq_dec id (EqDec_eq_of_EqDec id EqDec_atom) (getFdefID f) fid); subst.
         inversion H; subst.
@@ -650,7 +650,7 @@ Lemma entryBlockInFdef : forall F B,
 Proof.
   intros.
   unfold getEntryBlock in H.
-  destruct F.
+  destruct F as [f b].
   destruct b; inversion H; subst.
     simpl. 
     apply orb_true_intro.
@@ -702,7 +702,7 @@ Proof.
   induction lb; intros; simpl in *.
     intro J. inversion J.
 
-    destruct a.
+    destruct a as [l1 p c t].
     simpl in *.
     remember (block_intro l0 ps cs tmn =b= block_intro l1 p c t) as J.
     destruct J.
@@ -775,7 +775,7 @@ Proof.
       simpl_env in Huniq'.
       apply uniqBlocks_inv in Huniq'.
       destruct Huniq'.
-      destruct a. destruct Huniq as [Huniq _]. simpl in *.
+      destruct a as [l0 ps0 cs0 tmn0]. destruct Huniq as [Huniq _]. simpl in *.
       inversion Huniq; subst.
       assert (J:=HBinF).
       apply InBlocksB_In in J.
@@ -865,7 +865,7 @@ Proof.
 
     inversion H; subst. clear H.
     simpl in *.
-    destruct a.
+    destruct a as [l0 p c t].
     inversion H2; subst. clear H2.
     assert (J:=H5).
     apply NotIn_NotInBlocksB with (ps:=p)(cs:=c)(tmn:=t) in H5.
@@ -902,7 +902,7 @@ Lemma blockInFdefB_uniq : forall l1 ps1 cs1 tmn1 ps2 cs2 tmn2 F,
 Proof.
   intros.
   unfold blockInFdefB in *.
-  destruct F. destruct f. destruct H.
+  destruct F as [f b]. destruct f. destruct H.
   eapply InBlocksB_uniq; eauto.
 Qed.
 
@@ -1067,7 +1067,7 @@ Proof.
   induction n; intros.
     simpl in H0. destruct lb1; inversion H0; subst.
     exists (getBlockLabel B1).
-    simpl. destruct B1. simpl.
+    simpl. destruct B1 as [l0 ps0 cs0 tmn0]. simpl.
     destruct (@eq_dec atom (@EqDec_eq_of_EqDec atom EqDec_atom) l0 l0); subst; auto.
       contradict n; auto.
 
@@ -1078,7 +1078,7 @@ Proof.
     apply uniqBlocks_inv in J. destruct J.
     apply IHn in H0; auto.
     destruct H0 as [l0 H0].
-    exists l0. simpl. destruct b.
+    exists l0. simpl. destruct b as [l1 ps c t].
     destruct H. simpl in *.
     inversion H; subst.
     destruct (@eq_dec atom (EqDec_eq_of_EqDec atom EqDec_atom) l0 l1); subst; auto.
@@ -1185,8 +1185,8 @@ Proof.
     inversion H.
 
     simpl in H.
-    destruct a; simpl in H; eauto.
-      destruct f. destruct f.
+    destruct a as [g|f|f]; simpl in H; eauto.
+      destruct f as [f b]. destruct f as [f0 t0 i0 a0 v0].
       simpl in H.
       destruct (@eq_dec id (EqDec_eq_of_EqDec id EqDec_atom) i0 fid); 
         simpl in H; subst; eauto.
@@ -1202,10 +1202,11 @@ Proof.
     inversion H.
 
     simpl in H.
-    destruct a; simpl in H; eauto.
-      destruct f. destruct f.
+    destruct a as [g|f|f]; simpl in H; eauto.
+      destruct f as [f b]. destruct f as [f0 t0 i0 a0 v0].
       simpl in H.
-      destruct (@eq_dec id (EqDec_eq_of_EqDec id EqDec_atom) i0 fid); simpl in H; subst; eauto.
+      destruct (@eq_dec id (EqDec_eq_of_EqDec id EqDec_atom) i0 fid); 
+        simpl in H; subst; eauto.
         inversion H; auto.
 Qed.     
 
@@ -1380,8 +1381,8 @@ Lemma genBlockUseDef_block_inc : forall b ud1 ud2,
   usedef_block_inc (genBlockUseDef_block b ud1) (genBlockUseDef_block b ud2).
 Proof.
   intros. 
-  destruct b. simpl. 
-  destruct t; auto.
+  destruct b as [l0 ps0 cs0 tmn0]. simpl. 
+  destruct tmn0; auto.
     apply update_udb_inc; auto.
     apply update_udb_inc; auto.
     apply update_udb_inc; auto.
@@ -1450,8 +1451,8 @@ Lemma genBlockUseDef_blocks__mono : forall bs ud l0,
   l0 `in` dom (genBlockUseDef_blocks bs ud).
 Proof.
   induction bs; intros ud l0 Hin; simpl in *; auto.  
-    destruct a; simpl.
-    destruct t; simpl; auto.
+    destruct a as [l5 ps5 cm5 tmn5]; simpl.
+    destruct tmn5; simpl; auto.
       apply IHbs. 
         apply update_udb__mono; auto.
         apply update_udb__mono; auto.
@@ -1467,8 +1468,8 @@ Proof.
   induction bs; intros ud l0 re Hin; simpl in *; auto.  
     exists re. split; auto using incl_refl.
 
-    destruct a.
-    destruct t; simpl; auto.
+    destruct a as [l1 ps1 cs1 tmn1].
+    destruct tmn1 as [id5 t5 v5|id5|id5 v5 l2 l3|id5 l5|id5]; simpl; auto.
       apply lookupAL_update_udb_spec with (l1:=l1)(l2:=l3) in Hin.
       destruct Hin as [re1 [Hin Hinc1]].
       apply lookupAL_update_udb_spec with (l1:=l1)(l2:=l2) in Hin.
@@ -1477,7 +1478,7 @@ Proof.
       destruct Hin as [re3 [Hin Hinc3]].
       exists re3. split; eauto using incl_tran.
 
-      apply lookupAL_update_udb_spec with (l1:=l1)(l2:=l2) in Hin.
+      apply lookupAL_update_udb_spec with (l1:=l1)(l2:=l5) in Hin.
       destruct Hin as [re1 [Hin Hinc1]].
       apply IHbs in Hin.
       destruct Hin as [re2 [Hin Hinc2]].
@@ -1547,7 +1548,8 @@ Proof.
     inversion H. 
 
     destruct H as [H | H]; subst.
-      destruct a. simpl. unfold lookupTypViaIDFromPhiNode. simpl.
+      destruct a as [i0 t]. 
+      simpl. unfold lookupTypViaIDFromPhiNode. simpl.
       destruct (i0==i0); subst.
         exists t. auto.
         contradict n; auto.
@@ -1566,15 +1568,15 @@ Lemma InPhiNodes_lookupTypViaIDFromFdef : forall f id1 l' ps cs tmn,
   exists t, lookupTypViaIDFromFdef f id1 = Some t.
 Proof.
   intros.
-  destruct f. destruct f.
+  destruct f as [f b]. destruct f as [fnattrs5 typ5 id5 args5 varg5].
   simpl in *.
-  destruct (lookupTypViaIDFromArgs a id1).
+  destruct (lookupTypViaIDFromArgs args5 id1) as [t0|].
     exists t0. auto.
 
-    induction b; simpl in *.
+    induction b as [|a0 b]; simpl in *.
       inversion H.
     
-      destruct a0. simpl in *.
+      destruct a0 as [l0 ps0 cs0 tmn0]; simpl in *.
       destruct (@eq_dec atom (@EqDec_eq_of_EqDec atom EqDec_atom) l' l0); subst.
         inversion H; subst.
         apply InPhiNodes_lookupTypViaIDFromPhiNodes in H0.
@@ -1584,11 +1586,11 @@ Proof.
         apply IHb in H.
         destruct H as [t1 H].
         rewrite H. 
-        destruct (lookupTypViaIDFromPhiNodes p id1).
+        destruct (lookupTypViaIDFromPhiNodes ps0 id1) as [t2|].
           exists t2. auto.
-          destruct (lookupTypViaIDFromCmds c id1).
+          destruct (lookupTypViaIDFromCmds cs0 id1) as [t2|].
             exists t2. auto.
-            destruct (lookupTypViaIDFromTerminator t0 id1).
+            destruct (lookupTypViaIDFromTerminator tmn0 id1) as [t2|].
               exists t2. auto.
               exists t1. auto.
 Qed.  
@@ -1635,7 +1637,7 @@ Proof.
   induction lb1; intros.
     inversion H0.
 
-    simpl in H0. destruct a. simpl.
+    simpl in H0. destruct a as [l0 ps0 cms0 tmn0]. simpl.
     apply orb_prop in H0.
     destruct H0 as [H0 | H0].
       apply blockEqB_inv in H0.
@@ -1663,7 +1665,8 @@ Lemma blockInFdefB_lookupBlockViaLabelFromFdef : forall F l' ps' cs' tmn',
   blockInFdefB (block_intro l' ps' cs' tmn') F ->
   lookupBlockViaLabelFromFdef F l' = Some (block_intro l' ps' cs' tmn').
 Proof.
-  intros. destruct F. destruct f. destruct H. simpl in *.
+  intros. destruct F as [f b]. 
+  destruct f as [fnattrs5 typ5 id5 args5 varg5]. destruct H. simpl in *.
   apply InBlocksB__lookupAL_genLabel2Block_blocks; auto.
 Qed.
 
@@ -1672,12 +1675,12 @@ Lemma lookupBlockViaIDFromFdef__blockInFdefB : forall F id1 B,
   blockInFdefB B F.
 Proof.         
   intros.
-  destruct F.
+  destruct F as [f b].
   simpl in *.
-  induction b; simpl in *.
+  induction b as [|a b]; simpl in *.
     inversion H.
 
-    destruct a. simpl in *.
+    destruct a as [l0 p c t]. simpl in *.
     destruct (in_dec eq_dec id1 (getPhiNodesIDs p ++ getCmdsIDs c)).
       inv H. apply orb_true_iff. left.
       apply blockEqB_refl.
@@ -1690,12 +1693,12 @@ Lemma lookupBlockViaIDFromFdef__InGetBlockIDs : forall F id1 B,
   In id1 (getBlockIDs B).
 Proof.         
   intros.
-  destruct F.
+  destruct F as [f b].
   simpl in *.
-  induction b; simpl in *.
+  induction b as [|a b]; simpl in *.
     inversion H.
 
-    destruct a. simpl in *.
+    destruct a as [l0 p c t]. simpl in *.
     remember (in_dec eq_dec id1 (getPhiNodesIDs p ++ getCmdsIDs c)) as R.
     destruct R; eauto.
       inv H. auto.
@@ -1881,7 +1884,7 @@ Lemma NotInPhiNodesIDs__lookupTypViaIDFromPhiNodes : forall la id1,
   lookupTypViaIDFromPhiNodes la id1 = None.
 Proof.
   induction la; intros; simpl in *; auto.
-    destruct a. unfold lookupTypViaIDFromPhiNode.
+    destruct a as [i0 ps0 cs0 t0]. unfold lookupTypViaIDFromPhiNode.
     simpl in H. simpl.
     destruct (@eq_dec id (@EqDec_eq_of_EqDec id EqDec_atom) id1 i0); subst; 
       eauto.
@@ -1925,7 +1928,7 @@ Lemma notInBlock__lookupTypViaIDFromBlock : forall b i0,
   lookupTypViaIDFromBlock b i0 = None.
 Proof.
   intros.
-  destruct b. simpl in *.
+  destruct b as [l0 p c t]. simpl in *.
   remember (lookupTypViaIDFromPhiNodes p i0) as R.
   destruct R.
     symmetry in HeqR.    
@@ -2026,7 +2029,8 @@ Lemma uniqF__lookupTypViaIDFromFdef : forall l1 ps1 cs1 tmn1 f c i0 t0,
   lookupTypViaIDFromFdef f i0 = Some t0.
 Proof.
   intros.
-  destruct f. destruct f. inversion H.
+  destruct f as [f b]. 
+  destruct f as [fnattrs5 typ5 id5 args5 varg5]. inversion H.
   apply NoDup_inv in H5.
   destruct H5.
   simpl in *.
@@ -2036,7 +2040,7 @@ Proof.
     eapply in_getBlockLocs__in_getBlocksLocs in H0; eauto.
     simpl. apply in_or_app. right. apply in_or_app; auto.
   destruct H as [J1 J2].
-  assert (~ In i0 (getArgsIDs a)) as Hnotin.
+  assert (~ In i0 (getArgsIDs args5)) as Hnotin.
     eapply NoDup_disjoint; eauto.
   apply NotInArgsIDs_lookupTypViaIDFromArgs in Hnotin.
   rewrite Hnotin.
@@ -2059,7 +2063,7 @@ Lemma uniqFdef__uniqBlockLocs : forall F b1,
   uniqFdef F -> blockInFdefB b1 F -> NoDup (getBlockLocs b1).
 Proof.
   intros.
-  destruct F. destruct f.
+  destruct F as [f b]. destruct f.
   destruct H as [H _]. simpl in H0. destruct H.
   apply NoDup__InBlocksB in H0; auto.
 Qed.
@@ -2135,7 +2139,7 @@ Lemma uniqF__lookupTypViaIDFromFdef' : forall l1 ps1 cs1 tmn1 f c i0,
   lookupTypViaIDFromFdef f i0 = getCmdTyp c.
 Proof.
   intros.
-  destruct f. destruct f. inversion H.
+  destruct f as [f b]. destruct f as [fnattrs5 typ5 id5 args5 varg5]. inversion H.
   apply NoDup_inv in H4.
   destruct H4.
   simpl in *.
@@ -2145,7 +2149,7 @@ Proof.
     eapply in_getBlockLocs__in_getBlocksLocs in H0; eauto.
     simpl. apply in_or_app. right. apply in_or_app; auto.
   destruct H as [J1 J2].
-  assert (~ In i0 (getArgsIDs a)) as Hnotin.
+  assert (~ In i0 (getArgsIDs args5)) as Hnotin.
     eapply NoDup_disjoint; eauto.
   apply NotInArgsIDs_lookupTypViaIDFromArgs in Hnotin.
   rewrite Hnotin.
@@ -2182,12 +2186,12 @@ Lemma lookupTypViaIDFromFdef__lookupTypViaIDFromPhiNodes : forall F id1 t b1,
   lookupTypViaIDFromPhiNodes (getPHINodesFromBlock b1) id1 = Some t. 
 Proof.
   intros F id1 t b1 Huniq Hlk HBinF Hin.
-  destruct F. destruct f. simpl in *.
+  destruct F as [f b]. destruct f as [fnattrs5 typ5 id5 args5 varg5]. simpl in *.
   destruct Huniq as [Huniq1 Huniq2].
   destruct Huniq1 as [_ Huniq1].
   assert (Huniq1':=Huniq1).
   eapply NoDup__InBlocksB with (b:=b1) in Huniq1; eauto.
-  destruct b1. simpl in *.
+  destruct b1 as [l0 p c t1]. simpl in *.
   eapply NoDup_disjoint with (i0:=id1) in Huniq2; eauto.
     rewrite NotInArgsIDs_lookupTypViaIDFromArgs in Hlk; auto.
     erewrite lookupTypViaIDFromBlocks__inBlocks in Hlk; eauto.
@@ -2262,7 +2266,7 @@ Proof.
     destruct (i0 == i0); auto.
       contradict n; auto.
 
-    destruct a.
+    destruct a as [i1 t1].
     inv H. simpl.
     destruct (i0 == i1); subst; auto.
       rewrite getPhiNodesIDs_app in H2. simpl in H2.
@@ -2302,7 +2306,7 @@ Proof.
     inv HeqR1. simpl in HeqR2. inv HeqR2. auto.
 
     destruct c; tinv HeqR1.
-    destruct (Size.dec s Size.ThirtyTwo); tinv HeqR1.
+    destruct (Size.dec sz5 Size.ThirtyTwo); tinv HeqR1.
     remember (intConsts2Nats TD const_list) as R3.
     destruct R3; inv HeqR1.
     destruct t1; tinv HeqR2.
@@ -2310,9 +2314,9 @@ Proof.
       destruct (LLVMtd.getTypeAllocSize TD t1); inv HeqR2; eauto.
       simpl in HeqR2.
       destruct (LLVMtd._getStructElementOffset TD l1 (Coqlib.nat_of_Z 
-        (INTEGER.to_Z i0)) 0); inv HeqR2; eauto.
+        (INTEGER.to_Z Int5)) 0); inv HeqR2; eauto.
       unfold INTEGER.to_Z in H0. unfold INTEGER.to_nat.
-      destruct (nth_list_typ (Coqlib.nat_of_Z i0) l1); tinv H0.
+      destruct (nth_list_typ (Coqlib.nat_of_Z Int5) l1); tinv H0.
       simpl in H0. eauto.
 Qed.
 
@@ -2417,7 +2421,7 @@ Lemma lookupInsnViaIDFromBlock__In : forall b id0 instr,
   lookupInsnViaIDFromBlock b id0 = Some instr ->
   In id0 (getBlockLocs b).
 Proof.
-  destruct b; simpl; intros.
+  destruct b as [l0 p c t]; simpl; intros.
   remember (lookupPhiNodeViaIDFromPhiNodes p id0) as R1.
   destruct R1; inv H.
     apply in_or_app; eauto using lookupPhiNodeViaIDFromPhinodes__In.
@@ -2560,7 +2564,7 @@ Lemma notin__lookupInsnViaIDFromBlock_none : forall b id0,
   ~ In id0 (getBlockLocs b) ->
   lookupInsnViaIDFromBlock b id0 = None.
 Proof.
-  destruct b; simpl; intros.
+  destruct b as [l0 p c t]; simpl; intros.
   assert (lookupPhiNodeViaIDFromPhiNodes p id0 = None) as J.
     apply notin__lookupPhiNodeViaIDFromPhinodes_none.
     intro J. apply H. apply in_or_app; auto.
@@ -2883,7 +2887,7 @@ Proof.
   generalize dependent ps1.
   generalize dependent cs1.
   generalize dependent tmn1.
-  induction bs; simpl; intros.
+  induction bs as [|a0 bs]; simpl; intros.
     inv H.
 
     simpl in Huniq.
@@ -3119,14 +3123,14 @@ Lemma lookupInsnViaIDFromFdef__insnInFdefBlockB : forall F id1 c1,
   exists b1, insnInFdefBlockB (insn_cmd c1) F b1.
 Proof.
   destruct F as [fh bs]. simpl.
-  induction bs; simpl; intros.
+  induction bs as [|a bs]; simpl; intros.
     inv H.
 
     remember (lookupInsnViaIDFromBlock a id1) as R.
     destruct R.
       inv H.
       exists a.
-      destruct a. simpl in *.
+      destruct a as [l0 p c t]. simpl in *.
       destruct (lookupPhiNodeViaIDFromPhiNodes p id1); tinv HeqR.
       remember (lookupCmdViaIDFromCmds c id1) as R.
       destruct R; inv HeqR.
@@ -3285,7 +3289,7 @@ Proof.
   intros [J _]. 
   generalize dependent b.
   generalize dependent id1.
-  induction bs; simpl; intros.
+  induction bs as [|a0 bs]; simpl; intros.
     congruence.
 
     apply orb_true_iff in H0.
@@ -3296,7 +3300,7 @@ Proof.
         contradict H; auto.
 
       destruct (@in_dec id (@eq_dec id (EqDec_eq_of_EqDec id EqDec_atom)) id1
-         (getBlockIDs a0)).
+         (getBlockIDs a0)) as [i1|].
         destruct J as [_ J].
         simpl in *.
         apply in_getBlockIDs__in_getBlockLocs in i1.

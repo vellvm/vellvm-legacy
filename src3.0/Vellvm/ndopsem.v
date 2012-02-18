@@ -1,6 +1,7 @@
 Add LoadPath "./ott".
 Add LoadPath "./monads".
 Add LoadPath "./compcert".
+Add LoadPath "./GraphBasics".
 Add LoadPath "../../../theory/metatheory_8.3".
 Require Import Ensembles.
 Require Import AST.
@@ -102,7 +103,7 @@ Proof.
   destruct t; simpl in *;
     try solve [inv Heq1; inv Hin; erewrite int_typsize; eauto |
                inv Heq1; inv Hin; eauto].
-    destruct f; try solve [inv Heq1; inv Hin; eauto].
+    destruct floating_point5; try solve [inv Heq1; inv Hin; eauto].
     inv Heq1. inv Hin. inv H. simpl. auto.
 Qed.
 
@@ -111,9 +112,9 @@ Proof.
   destruct ty; simpl; 
     try solve [eapply Ensembles.Inhabited_intro; constructor].
     eapply Ensembles.Inhabited_intro.
-      exists (Int.zero s). auto.
+      exists (Int.zero sz5). auto.
 
-    destruct f; try solve [
+    destruct floating_point5; try solve [
       eapply Ensembles.Inhabited_intro; exists Float.zero; auto |
       eapply Ensembles.Inhabited_intro; constructor].
 
@@ -139,8 +140,8 @@ Proof.
     inv Heq1; inv Hin; inv H; unfold Size.to_nat; 
       try solve [eauto | erewrite int_typsize; eauto].
 
-    destruct f; try solve [inv Heq1; inv Hin; eauto |
-                           inv Heq1; inv Hin; inv H; auto].
+    destruct floating_point5; try solve [inv Heq1; inv Hin; eauto |
+                                         inv Heq1; inv Hin; inv H; auto].
 
     inv Heq1; inv Hin; inv H; auto.
       inv H0. auto.
@@ -152,7 +153,7 @@ Proof.
     eapply Ensembles.Inhabited_intro; apply Union_introl; constructor |
     eapply Ensembles.Inhabited_intro; constructor].
 
-    destruct f; try solve [
+    destruct floating_point5; try solve [
       eapply Ensembles.Inhabited_intro; apply Union_introl; constructor |
       eapply Ensembles.Inhabited_intro; constructor].
 Qed.
@@ -317,7 +318,8 @@ Lemma instantiate_undef__undef_gvs : forall gv t, gv @ (undef_gvs gv t).
 Proof.
   intros. unfold undef_gvs.
   destruct t0; try solve [apply Union_introl; constructor | constructor].
-  destruct f; try solve [apply Union_introl; constructor | constructor].
+  destruct floating_point5; 
+    try solve [apply Union_introl; constructor | constructor].
 Qed.
 
 Lemma instantiate_gv__gv2gvs : forall gv t, gv @ ($ gv # t $).
@@ -369,6 +371,6 @@ MNDGVs.none_undef2gvs_inv.
 (*
 *** Local Variables: ***
 *** coq-prog-name: "coqtop" ***
-*** coq-prog-args: ("-emacs-U" "-I" "~/SVN/sol/vol/src/Vellvm/monads" "-I" "~/SVN/sol/vol/src/Vellvm/ott" "-I" "~/SVN/sol/vol/src/Vellvm/compcert" "-I" "~/SVN/sol/theory/metatheory_8.3") ***
+*** coq-prog-args: ("-emacs-U" "-I" "~/SVN/sol/vol/src/Vellvm/monads" "-I" "~/SVN/sol/vol/src/Vellvm/ott" "-I" "~/SVN/sol/vol/src/Vellvm/compcert" "-I" "~/SVN/sol/theory/metatheory_8.3" "-impredicative-set") ***
 *** End: ***
  *)

@@ -929,7 +929,7 @@ Proof.
 
     assert (J:=@IHPs2 (Ps1 ++ [a])). clear IHPs2.
     simpl_env in J. simpl in J. 
-    destruct a; auto.
+    destruct a as [?|f|f]; auto.
     apply program_sim_wfS_trans with (P2:=
       [module_intro los nts
         (Ps1 ++ product_fdef f :: 

@@ -55,7 +55,7 @@ Proof.
   induction cs; simpl; intros.
     congruence.
 
-    destruct a; try solve [apply IHcs in H; destruct H as [H1 H2]; eauto].
+    destruct_cmd a; try solve [apply IHcs in H; destruct H as [H1 H2]; eauto].
     remember (is_promotable f i0 && negb (in_dec id_dec i0 nids)) as R.
     destruct R; try solve [apply IHcs in H; destruct H as [H1 H2]; eauto].
     inv H. 
@@ -145,7 +145,7 @@ Lemma unused_in_value__neg_valueEqB: forall pid v,
 Proof.
   intros.
   unfold valueEqB. 
-  destruct v; inv H; simpl.
+  destruct v as [i0|c]; inv H; simpl.
     destruct (value_dec (value_id i0) (value_id pid)); simpl.
       inversion e. subst.
       destruct (id_dec pid pid); subst; inv H1; try congruence.
@@ -239,7 +239,7 @@ Proof.
   intros. clear - H1.
   destruct a0; auto.
   unfold is_promotable_fun in H1.
-  destruct b.
+  destruct b as [? p c t].
   destruct (fold_left
     (fun (re : bool) (p : phinode) => re || used_in_phi pid p) p
     (used_in_tmn pid t)); auto.
@@ -274,7 +274,7 @@ Proof.
     destruct R.
       inv H0.
       clear - J2 HeqR.
-      destruct a; simpl in *.
+      destruct a as [? p c t]; simpl in *.
       remember (fold_left
                  (fun (re : bool) (p : phinode) => re || used_in_phi pid p) p
                  (used_in_tmn pid t)) as R.
@@ -346,7 +346,7 @@ Lemma neg_valueEqB__unused_in_value: forall pid v,
 Proof.
   intros.
   unfold valueEqB in H.  
-  destruct v; auto.
+  destruct v as [i0|]; auto.
   destruct (value_dec (value_id i0) (value_id pid)); simpl in *.
     congruence.
 
@@ -411,7 +411,7 @@ Lemma WF_PhiInfo_spec4: forall pinfo,
 Proof.
   intros.
   apply WF_PhiInfo_spec3 in H0; auto.
-  destruct instr.
+  destruct instr as [p|c|t].
     simpl in H0. 
     eapply used_in_phi__wf_use_at_head in H1; eauto.
 
@@ -562,7 +562,7 @@ Proof.
     destruct H1 as [H1 | H1].
       apply blockEqB_inv in H1. subst.
       clear - J2 H0.
-      destruct a; simpl in *.
+      destruct a as [? p c t]; simpl in *.
       remember (fold_left
                  (fun (re : bool) (p : phinode) => re || used_in_phi pid p) p
                  (used_in_tmn pid t)) as R.
@@ -762,8 +762,8 @@ Lemma getCmdLoc_in_getFdefLocs : forall f1 c cs tmn2 id0 l1 ps1 cs11
   In id0 (getFdefLocs f1).
 Proof.
   intros. subst.
-  destruct f1. destruct f. simpl.
-  destruct (split a).
+  destruct f1 as [f bs]. destruct f as [fnattrs5 typ5 id5 args5 varg5]. simpl.
+  destruct (split args5).
   apply in_or_app. right.
   eapply in_getBlockLocs__in_getBlocksLocs in HBinF; eauto.
   simpl. 
@@ -1370,7 +1370,7 @@ Lemma getPhiNodeID_in_getFdefLocs : forall f1 l0 ps p cs tmn,
   In (getPhiNodeID p) (getFdefLocs f1).
 Proof.
   intros.
-  destruct f1. destruct f. simpl.
+  destruct f1 as [f ?]. destruct f. simpl.
   apply in_or_app. right.
   eapply in_getBlockLocs__in_getBlocksLocs in H; eauto.
   simpl. 
@@ -1428,7 +1428,7 @@ Proof.
   inv H; simpl.
     clear. fsetdec.
 
-    destruct f. destruct f. simpl in *.
+    destruct f as [f b]. destruct f as [? ? ? a ?]. simpl in *.
     remember (lookupTypViaIDFromArgs a id5) as R.
     apply ids2atoms__in.
     destruct R; inv H2.
@@ -1468,7 +1468,7 @@ Lemma original_values_arent_tmps: forall ifs S m pinfo F B v instr
 Proof.
   intros.
   destruct (fdef_dec (PI_f pinfo) F); subst; auto.
-  destruct v; simpl; auto.
+  destruct v as [i0|]; simpl; auto.
   intros l0.
   remember ((PI_newids pinfo) ! l0) as R.
   destruct R as [[[]]|]; auto.
@@ -1611,8 +1611,8 @@ Lemma phinodes_placement_blocks__disjoint_tmps: forall l0 i1 i2 i3 i0
            (phinodes_placement_blocks bs pid t al nids succs preds)) ->
   In i0 (getBlocksLocs bs).
 Proof.
-  induction bs; simpl; intros; auto.
-    destruct a. simpl in *.
+  induction bs as [|a bs]; simpl; intros; auto.
+    destruct a as [l1 ? ? ?]. simpl in *.
     assert (l1 <> l0 /\ ~ In l0 (getBlocksLabels bs)) as J.
       split.
         intro J. subst. auto.

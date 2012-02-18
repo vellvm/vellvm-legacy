@@ -207,7 +207,7 @@ Proof.
   intros.
   unfold cmds_simulation in Htcmds. unfold wf_tmp_value in Htcmds. 
   destruct (fdef_dec (PI_f pinfo) F1); subst; auto.
-  destruct B1.
+  destruct B1 as [l0 ? c ?].
   destruct ((PI_newids pinfo) ! l0) as [[[]]|]; auto.
   destruct Htcmds as [J1 [J2 _]].
   destruct (list_eq_dec cmd_dec c cs1).
@@ -380,7 +380,7 @@ Proof.
   intros.
   autounfold with ppbsim in *. unfold wf_tmp_value in *. 
   destruct (fdef_dec (PI_f pinfo) F1); subst F1; try congruence.
-  destruct B1.
+  destruct B1 as [l0 ? c0 ?].
   remember ((PI_newids pinfo) ! l0) as R.
   destruct R as [[[]]|]; eauto.
   destruct Htcmds as [J1 [J2 J3]].
@@ -553,7 +553,7 @@ Lemma cmds_simulation_same_head_inv: forall pinfo TD M2 lc2 F1 B1 cs1 c cs2
     wf_tmp_value pinfo TD M2 lc2 pid.
 Proof.
   intros. subst.
-  destruct c; tinv Hld.
+  destruct_cmd c; tinv Hld.
   destruct Heq as [l0 [ps0 [cs0 [tmn0 Heq]]]]; subst.
   autounfold with ppbsim in *. unfold wf_tmp_value in *. 
   destruct (fdef_dec (PI_f pinfo) (PI_f pinfo)); try congruence.
@@ -625,7 +625,7 @@ Lemma cmds_simulation_same_tail_inv: forall pinfo TD M2 lc2 F1 B1 cs1 c cs2
     ATree.get (getBlockLabel B1) (PI_succs pinfo) <> None.
 Proof.
   intros. subst.
-  destruct c; tinv Hld.
+  destruct_cmd c; tinv Hld.
   destruct Heq as [l0 [ps0 [cs0 [tmn0 Heq]]]]; subst.
   autounfold with ppbsim in *. unfold wf_tmp_value in *. simpl.
   destruct (fdef_dec (PI_f pinfo) (PI_f pinfo)); try congruence.
@@ -753,7 +753,7 @@ Proof.
   intros.
   autounfold with ppbsim in *. unfold wf_tmp_value in *.
   destruct (fdef_dec (PI_f pinfo) F1); subst; eauto.
-  destruct B1.
+  destruct B1 as [l0 ? c0 ?].
   remember ((PI_newids pinfo) ! l0) as R.
   destruct R as [[[]]|]; eauto.
   destruct Htcmds as [J1 [J2 J3]].
@@ -1155,10 +1155,10 @@ Lemma blockInFdefB_sim__block_sim : forall pinfo f1 f2 b2
     blockInFdefB b1 f1 /\ block_simulation pinfo f1 b1 b2.
 Proof.
   unfold fdef_simulation, block_simulation.
-  destruct f1, f2. simpl.
+  destruct f1 as [f b], f2. simpl.
   intros.
   destruct (fdef_dec (PI_f pinfo) (fdef_intro f b)).
-    destruct f. 
+    destruct f as [f t i0 a v]. 
     remember (gen_fresh_ids (PI_rd pinfo) (getArgsIDs a ++ getBlocksLocs b)) 
       as R.
     destruct R. inv H.
@@ -1208,7 +1208,7 @@ Lemma phinodes_placement_blocks__getBlocksLabels: forall pid t al nids succs
   getBlocksLabels bs = 
   getBlocksLabels (phinodes_placement_blocks bs pid t al nids succs preds).
 Proof.
-  induction bs as [|[]]; simpl; intros; auto.
+  induction bs as [|[l0 ? ? ?]]; simpl; intros; auto.
     rewrite <- IHbs.
     destruct (nids ! l0) as [[[]]|]; auto.
     destruct (preds ! l0) as [[]|]; auto.
@@ -1399,7 +1399,7 @@ Proof.
           (PI_newids pinfo) ! l0 = Some (lib, pid, sid) -> 
           lib <> pid /\ lib <> sid /\ pid <> sid) as Hprop1.
     intros. eapply gen_fresh_ids__spec3; eauto.
-  destruct (PI_f pinfo) as [[] bs]. simpl in *.
+  destruct (PI_f pinfo) as [[? ? ? a ?] bs]. simpl in *.
   assert (forall i0,
      ~ In i0 (getArgsIDs a ++ getBlocksLocs bs) ->  ~ In i0 (getBlockLocs b1)
     ) as J'.
@@ -1688,7 +1688,7 @@ Lemma reg_simulation__getIncomingValuesForBlockFromPHINodes_helper_aux: forall
      not_temporaries i3 (PI_newids pinfo) ->
      lookupAL (GVsT DGVs) lc1' i3 = lookupAL (GVsT DGVs) lc2' i3).
 Proof.
-    induction p0 as [|[]]; simpl; intros.
+    induction p0 as [|[i0 t l0]]; simpl; intros.
       inv H0.
       exists nil. split; auto.
 
@@ -1754,7 +1754,7 @@ Lemma reg_simulation__getIncomingValuesForBlockFromPHINodes: forall pinfo F1 lc1
     Opsem.getIncomingValuesForBlockFromPHINodes td (getPHINodesFromBlock b1) B1 
       gl lc1 = ret lc1' /\ reg_simulation pinfo F1 lc1' lc2'.
 Proof.
-  destruct b1, b2, B1, B2. simpl.  
+  destruct b1 as [l0 ? ? ?], b2 as [l1 ? ? ?], B1, B2. simpl.  
   intros.
   apply block_simulation__inv in H2.
   destruct H2; subst.
@@ -3202,7 +3202,7 @@ Proof.
   unfold fdef_simulation.
   intros.
   destruct (fdef_dec (PI_f pinfo) f1); inv H; auto.
-    destruct (PI_f pinfo) as [[]]; simpl.
+    destruct (PI_f pinfo) as [[? ? ? a ?] b]; simpl.
     destruct (gen_fresh_ids (PI_rd pinfo) (getArgsIDs a ++ getBlocksLocs b)).
     auto.
 Qed.
@@ -3220,27 +3220,27 @@ Proof.
     inv J1. simpl in J2.
     remember (lookupFdefViaIDFromProduct y fid) as R.     
     destruct R; inv J2.
-      destruct a; subst; tinv HeqR.
-      destruct y; subst; tinv HeqR.
+      destruct a as [?|f0|f0]; subst; tinv HeqR.
+      destruct y as [?|?|f5]; subst; tinv HeqR.
       simpl in HeqR. simpl.
-      destruct (getFdefID f0 == fid); inv HeqR.
-      exists f.
+      destruct (getFdefID f5 == fid); inv HeqR.
+      exists f0.
       split; auto.
         apply fdef_simulation__inv in H1.
-        destruct (getFdefID f == getFdefID f0); auto.
+        destruct (getFdefID f0 == getFdefID f5); auto.
         rewrite H1 in n. congruence.
 
-      destruct a; subst; simpl; try eapply IHPs1; eauto.  
-      destruct y; subst; tinv H1.
+      destruct a as [?|f0|f0]; subst; simpl; try eapply IHPs1; eauto.  
+      destruct y as [?|?|f5]; subst; tinv H1.
       simpl in *.
-      destruct (getFdefID f0 == fid); inv HeqR.
+      destruct (getFdefID f5 == fid); inv HeqR.
       eapply IHPs1 in H0; eauto.
       destruct H0 as [f1 [J1 J2]].
       exists f1. 
       split; auto.
         apply fdef_simulation__inv in H1.
         rewrite H1.
-        destruct (getFdefID f0 == fid); auto.
+        destruct (getFdefID f5 == fid); auto.
           subst. congruence.
 Qed.
 
@@ -3279,7 +3279,7 @@ Proof.
   destruct (fdef_dec (PI_f pinfo) f1); inv H; eauto.
     destruct Hwfpi as [J1 J2].
     remember (PI_f pinfo) as R1.
-    destruct R1 as [[]]; simpl in *.
+    destruct R1 as [[? ? ? a ?] b]; simpl in *.
     unfold PI_newids.
     remember (gen_fresh_ids (PI_rd pinfo) (getArgsIDs a ++ getBlocksLocs b)) 
       as R2.
@@ -3325,7 +3325,7 @@ Proof.
   unfold fdef_simulation.
   intros.
   destruct (fdef_dec (PI_f pinfo) f1); inv H; eauto.
-    destruct (PI_f pinfo) as [[]]; simpl in *.
+    destruct (PI_f pinfo) as [[? ? ? a ?] b]; simpl in *.
     destruct (gen_fresh_ids (PI_rd pinfo) (getArgsIDs a ++ getBlocksLocs b)).
     inv H1. eauto. 
 Qed.
@@ -3612,9 +3612,9 @@ Proof.
     rewrite H0.
     apply IHPs1 in H0; auto.
     rewrite H0.
-    destruct a; subst; simpl in *; auto.
+    destruct a as [?|?|f]; subst; simpl in *; auto.
     destruct (getFdefID f == fid); subst; auto.
-    destruct y; subst; tinv H1.
+    destruct y as [?|f0|f0]; subst; tinv H1.
     simpl in *.
     apply fdef_simulation__inv in H1.
     destruct (getFdefID f0 == getFdefID f); try congruence.
@@ -3639,7 +3639,7 @@ Proof.
       assert (H0':=H0).
       apply IHPs1 in H0; auto.
       rewrite H0.
-      destruct a; subst; simpl in *; auto.
+      destruct a as [?|f0|f0]; subst; simpl in *; auto.
       destruct (getFdecID f0 == fid); inv HeqR.
       auto.
 Qed.

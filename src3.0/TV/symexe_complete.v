@@ -114,7 +114,7 @@ Lemma op_cmd__satisfies__se_cmd : forall TD c nc lc als gl lc0 als0 Mem0 lc' als
 Proof.
   intros TD c nc lc als gl lc0 als0 Mem0 lc' als' Mem1 Mem2 sstate1 tr tr1
          HdsInsn Huniq Hdenotes.
-  (cmd_cases (destruct c) Case);
+  (cmd_cases (destruct_cmd c) Case);
               inversion HdsInsn; subst;
               destruct Hdenotes as [Hsterm_denotes [Hsmem_denotes [Hsframe_denotes Hseffects_denote]]];
               rewrite trace_app_nil__eq__trace.

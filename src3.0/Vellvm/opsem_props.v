@@ -837,13 +837,13 @@ Proof.
     unfold callUpdateLocals.
     destruct noret0; auto.
       destruct oResult; simpl; auto.
-        destruct v; simpl.
+        destruct v as [i0|c]; simpl.
           rewrite H2.
           destruct (lookupAL _ lc2' i0); auto using eqAL_updateAddAL.
 
           destruct (@const2GV GVsSig TD gl c); auto using eqAL_updateAddAL.
       destruct oResult; simpl; auto.
-        destruct v; simpl.
+        destruct v as [i0|c]; simpl.
           rewrite H2.
           destruct (lookupAL _ lc2' i0); auto.
           destruct ft; auto.
@@ -1179,9 +1179,9 @@ Proof.
   induction ps'; simpl; intros.
     inv HeqR1. fsetdec.
 
-    destruct a. destruct b. simpl in *.
+    destruct a as [i0 ?]. destruct b as [l2 ? ? ?]. simpl in *.
     inv_mbind. inv HeqR1. simpl in *.
-    assert (id1 = i0 \/ id1 `in` dom l2) as J. fsetdec.
+    assert (id1 = i0 \/ id1 `in` dom l1) as J. fsetdec.
     destruct J as [J | J]; subst; eauto.
 Qed.
 
@@ -1512,7 +1512,7 @@ Lemma getIncomingValuesForBlockFromPHINodes_spec9: forall TD gl lc b id0 gvs0
     nth_list_value_l n vls1 = Some (v, getBlockLabel b) /\
     Opsem.getOperandValue TD v lc gl= Some gvs0.
 Proof.
-  induction ps' as [|[]]; simpl; intros.
+  induction ps' as [|[i0 t l0]]; simpl; intros.
     inv H. fsetdec.
     
     inv_mbind. inv H. simpl in *. 
@@ -1543,7 +1543,6 @@ Proof.
     destruct (i0 == a); try congruence.
     rewrite <- lookupAL_updateAddAL_neq; auto.
 Qed.
-
 
 End OpsemProps. End OpsemProps.
 
