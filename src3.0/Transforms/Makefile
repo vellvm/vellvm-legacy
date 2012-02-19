@@ -74,7 +74,8 @@ COQLIBS:=-I ./\
   -I ../Vellvm/monads\
   -I ../../../theory/metatheory_8.3/\
   -I ../Vellvm/compcert/\
-  -I ../Vellvm/GraphBasics/ 
+  -I ../Vellvm/GraphBasics/\
+  -I ../SoftBound/ 
 COQDOCLIBS:=
 
 ##########################

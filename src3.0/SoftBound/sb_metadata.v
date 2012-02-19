@@ -1,10 +1,3 @@
-Add LoadPath "../Vellvm/ott".
-Add LoadPath "../Vellvm/monads".
-Add LoadPath "../Vellvm".
-Add LoadPath "../Vellvm/compcert".
-Add LoadPath "../Vellvm/GraphBasics".
-Add LoadPath "../../../theory/metatheory_8.3".
-Add LoadPath "../TV".
 Require Import vellvm.
 Require Import genericvalues.
 Require Import sb_def.
@@ -806,23 +799,23 @@ Proof.
     try solve [inversion H1].
 
   inv Hwfc.
-  destruct typ5; inv H1; 
+  destruct_typ t; inv H1; 
     try solve [ 
       eapply get_const_metadata_gid__wf_data; eauto using wf_const_gid
     ].
 
     unfold LLVMgv.const2GV in H2, H3.
     remember (_const2GV TD gl (const_castop castop_bitcast (const_gid 
-      (typ_function typ5 l0 varg5) id5) p8)) as R.
+      (typ_function t0 lt0 v) i0) p8)) as R.
     destruct R; try solve [inversion H2 | inversion H3].
     destruct p. inv H2. inv H3.
     unfold GV2ptr.
     unfold _const2GV in HeqR.
-    remember (lookupAL GenericValue gl id5) as R1.
+    remember (lookupAL GenericValue gl i0) as R1.
     destruct R1; inv HeqR.
     assert (exists b, exists sz,
       g0 = (Values.Vptr b (Int.zero 31), AST.Mint 31)::nil /\
-      getTypeAllocSize TD (typ_function typ5 l0 varg5) = Some sz /\
+      getTypeAllocSize TD (typ_function t0 lt0 v) = Some sz /\
       Mem.bounds Mem0 b = (0, Z_of_nat sz) /\
       b < Mem.nextblock Mem0 /\
       (blk_temporal_safe Mem0 b -> Mem.range_perm Mem0 b 0 (Z_of_nat sz) Writable))
@@ -834,8 +827,8 @@ Proof.
     eapply eq_gv_is_wf_data; eauto.
 
   simpl in H1.
-  destruct castop5; try solve [inversion H1].
-  destruct typ5; try solve [inversion H1].
+  destruct c; try solve [inversion H1].
+  destruct t; try solve [inversion H1].
   inv Hwfc.
   eapply IHc; eauto.
      
@@ -1874,10 +1867,3 @@ Qed.
 
 End SBspecMetadata. End SBspecMetadata. 
 
-(*****************************)
-(*
-*** Local Variables: ***
-*** coq-prog-name: "coqtop" ***
-*** coq-prog-args: ("-emacs-U" "-I" "~/SVN/sol/vol/src/Vellvm/monads" "-I" "~/SVN/sol/vol/src/Vellvm/ott" "-I" "~/SVN/sol/vol/src/Vellvm/compcert" "-I" "~/SVN/sol/theory/metatheory_8.3" "-I" "~/SVN/sol/vol/src/TV" "-impredicative-set") ***
-*** End: ***
- *)

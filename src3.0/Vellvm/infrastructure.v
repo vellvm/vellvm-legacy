@@ -1,11 +1,5 @@
-Add LoadPath "./ott".
-Add LoadPath "./monads".
-Add LoadPath "./compcert".
-Add LoadPath "../../../theory/metatheory_8.3".
 Require Import syntax.
 Require Import Metatheory.
-
-(*BEGINCOPY*)
 
 Require Import List.
 Require Import ListSet.
@@ -188,8 +182,12 @@ Lemma getCmdLoc_getCmdID : forall a i0,
   getCmdLoc a = i0.
 Proof.
   intros a i0 H.
-  destruct a; inv H; auto.
-    simpl. destruct noret5; inv H1; auto.
+  destruct_cmd a; inv H; auto.
+    simpl. 
+    match goal with
+    | H1: context [if ?n then _ else _] |- _ => 
+      destruct n; inv H1; auto
+    end.
 Qed.
 
 Fixpoint mgetoffset_aux (TD:LLVMtd.TargetData) (t:typ) (idxs:list Z) (accum:Z) 
@@ -1697,7 +1695,7 @@ Qed.
 Lemma value_dec : forall (v1 v2:value), {v1=v2}+{~v1=v2}.
 Proof.
   decide equality.
-    destruct (@const_dec const5 const0); subst; auto.
+    edestruct (@const_dec _ _); subst; eauto.
 Qed.    
 
 Lemma attribute_dec : forall (attr1 attr2:attribute), 
@@ -1772,17 +1770,22 @@ Proof.
   (cmd_cases (destruct c1) Case); destruct c2; 
     try solve [done_right | auto | abstract insn_dec_tac].
   Case "insn_call".
-    destruct_wrt_type3 id5 id0; subst; try solve [done_right]. 
-    destruct_wrt_type3 value0 value1; subst; try solve [done_right]. 
-    destruct_wrt_type3 noret5 noret0; subst; try solve [done_right].
-    destruct clattrs5.
-    destruct clattrs0.
-    destruct_wrt_type3 tailc5 tailc0; subst; try solve [done_right].
-    destruct_wrt_type3 typ0 typ1; subst; try solve [done_right].
-    destruct_wrt_type3 callconv5 callconv0; subst; try solve [done_right]. 
-    destruct_wrt_type3 attributes1 attributes0; subst; try solve [done_right]. 
-    destruct_wrt_type3 attributes2 attributes3; subst; try solve [done_right]. 
-    destruct_wrt_type3 params5 params0; subst; try solve [auto | done_right].
+    match goal with
+    | |- {insn_call ?i0 ?n ?c ?t ?v ?p = insn_call ?i1 ?n0 ?c0 ?t0 ?v0 ?p0} +
+         {insn_call ?i0 ?n ?c ?t ?v ?p <> insn_call ?i1 ?n0 ?c0 ?t0 ?v0 ?p0} =>
+      destruct_wrt_type3 i0 i1; subst; try solve [done_right];
+      destruct_wrt_type3 v v0; subst; try solve [done_right]; 
+      destruct_wrt_type3 n n0; subst; try solve [done_right];
+      destruct_wrt_type3 t t0; subst; try solve [done_right];
+      destruct_wrt_type3 p p0; subst; try solve [done_right];
+      destruct c as [tailc5 callconv5 attributes1 attributes2];
+      destruct c0 as [tailc0 callconv0 attributes0 attributes3];
+      destruct_wrt_type3 tailc5 tailc0; subst; try solve [done_right];
+      destruct_wrt_type3 callconv5 callconv0; subst; try solve [done_right]; 
+      destruct_wrt_type3 attributes1 attributes0; subst; try solve [done_right]; 
+      destruct_wrt_type3 attributes2 attributes3; 
+        subst; try solve [auto|done_right]
+    end.
 Qed.
 
 Lemma terminator_dec : forall (tmn1 tmn2:terminator), {tmn1=tmn2}+{~tmn1=tmn2}.
@@ -1798,7 +1801,8 @@ Qed.
 
 Lemma insn_dec : forall (i1 i2:insn), {i1=i2}+{~i1=i2}.
 Proof.
-  destruct i1; destruct i2; try solve [done_right | auto].
+  destruct i1 as [phinode5|cmd5|terminator5]; 
+  destruct i2 as [phinode0|cmd0|terminator0]; try solve [done_right | auto].
     destruct (@phinode_dec phinode5 phinode0); 
       subst; try solve [auto | done_right]. 
     destruct (@cmd_dec cmd5 cmd0); subst; try solve [auto | done_right]. 
@@ -1828,7 +1832,8 @@ Qed.
 
 Lemma block_dec : forall (b1 b2:block), {b1=b2}+{~b1=b2}.
 Proof.
-  destruct b1; destruct b2; try solve [done_right | auto].
+  destruct b1 as [l5 phinodes5 cmds5 terminator5]; 
+  destruct b2 as [l0 phinodes0 cmds0 terminator0]; try solve [done_right | auto].
     destruct (@id_dec l5 l0); subst; try solve [done_right]. 
     destruct (@phinodes_dec phinodes5 phinodes0); subst; try solve [done_right]. 
     destruct (@cmds_dec cmds5 cmds0); subst; try solve [done_right].
@@ -1867,10 +1872,15 @@ Qed.
 
 Lemma fheader_dec : forall (f1 f2:fheader), {f1=f2}+{~f1=f2}.
 Proof.
-  destruct f1; destruct f2; try solve [subst; auto | done_right].
+  destruct f1 as [fnattrs5 typ5 id5 args5 varg5]; 
+  destruct f2 as [fnattrs0 typ0 id0 args0 varg0]; 
+    try solve [subst; auto | done_right].
     destruct (@typ_dec typ5 typ0); subst; try solve [done_right].
     destruct (@id_dec id5 id0); subst; try solve [done_right].
-    destruct fnattrs5. destruct fnattrs0.
+    destruct fnattrs5 as [linkage5 visibility5 callconv5 attributes1 
+                          attributes2]. 
+    destruct fnattrs0 as [linkage0 visibility0 callconv0 attributes0 
+                          attributes3]. 
     destruct (@visibility_dec visibility5 visibility0); 
       subst; try solve [done_right].
     destruct (@varg_dec varg5 varg0); subst; try solve [done_right].
@@ -1895,14 +1905,16 @@ Qed.
 
 Lemma fdec_dec : forall (f1 f2:fdec), {f1=f2}+{~f1=f2}.
 Proof.
-  destruct f1; destruct f2; try solve [subst; auto | done_right].
+  destruct f1 as [fheader5 ?]; 
+  destruct f2 as [fheader0 ?]; try solve [subst; auto | done_right].
     destruct (@fheader_dec fheader5 fheader0); 
       subst; try solve [auto | done_right].
 Qed.  
 
 Lemma fdef_dec : forall (f1 f2:fdef), {f1=f2}+{~f1=f2}.
 Proof.
-  destruct f1; destruct f2; try solve [subst; auto | done_right].
+  destruct f1 as [fheader5 blocks5]; 
+  destruct f2 as [fheader0 blocks0]; try solve [subst; auto | done_right].
     destruct (@fheader_dec fheader5 fheader0); subst; try solve [done_right].
     destruct (@blocks_dec blocks5 blocks0); subst; try solve [auto | done_right].
 Qed.  
@@ -1951,7 +1963,8 @@ Qed.
 
 Lemma namedt_dec : forall (nt1 nt2:namedt), {nt1=nt2}+{~nt1=nt2}.
 Proof.
-  destruct nt1; destruct nt2; try solve [subst; auto | done_right].
+  destruct nt1 as [id5 l0]; 
+  destruct nt2 as [id0 l1]; try solve [subst; auto | done_right].
     destruct (@id_dec id5 id0); subst; try solve [done_right].
     destruct (@list_typ_dec l0 l1); subst; try solve [auto | done_right].
 Qed.
@@ -3109,13 +3122,4 @@ Inductive reflect (P:Prop) : bool -> Set :=
 End LLVMinfra.
 
 
-(*ENDCOPY*)
-
-(*****************************)
-(*
-*** Local Variables: ***
-*** coq-prog-name: "coqtop" ***
-*** coq-prog-args: ("-emacs-U" "-I" "~/SVN/sol/vol/src/Vellvm/monads" "-I" "~/SVN/sol/vol/src/Vellvm/ott" "-I" "~/SVN/sol/vol/src/Vellvm/compcert" "-I" "~/SVN/sol/theory/metatheory_8.3" "-I" "~/SVN/sol/vol/src/TV" "-impredicative-set") ***
-*** End: ***
- *)
 

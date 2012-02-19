@@ -8,6 +8,7 @@ Require Import Metatheory.
 Require Import syntax.
 Require Import infrastructure.
 Require Import ListSet.
+Require Import List.
 Require Import analysis.
 Require Import targetdata.
 
@@ -1347,8 +1348,8 @@ Tactic Notation "wfconst_cases" tactic(first) tactic(c) :=
     c "wfconst_trunc_fp" | c "wfconst_zext" | c "wfconst_sext" |
     c "wfconst_fpext" | c "wfconst_ptrtoint" | c "wfconst_inttoptr" |
     c "wfconst_bitcast" | c "wfconst_gep" | c "wfconst_select" |
-    c "wfconst_icmp" | c "wfconst_fcmp" | c "wfconst_extractvalue" | 
-    c "wfconst_insertvalue" | c "wfconst_bop" | c "wfconst_fbop" | 
+    c "wfconst_icmp" | c "wfconst_fcmp" | c "wfconst_extractvalue" |
+    c "wfconst_insertvalue" | c "wfconst_bop" | c "wfconst_fbop" |
     c "wfconst_nil" | c "wfconst_cons" ].
 
 Scheme wf_const_ind2 := Induction for wf_const Sort Prop
@@ -1358,16 +1359,5 @@ Combined Scheme wf_const_mutind from wf_const_ind2, wf_const_list_ind2.
 
 End LLVMtypings.
 
-}}
-
-embed 
-{{ coq
-(*****************************)
-(*
-*** Local Variables: ***
-*** coq-prog-name: "coqtop" ***
-*** coq-prog-args: ("-emacs-U" "-I" "./monads" "-I" "./ott" "-I" "./compcert" "-I" "/home/jianzhou/SVN/provers/metalib/branches/metatheory_8.3/") ***
-*** End: ***
-*)
 }}
 

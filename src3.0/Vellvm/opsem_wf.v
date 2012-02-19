@@ -1,8 +1,3 @@
-Add LoadPath "./ott".
-Add LoadPath "./monads".
-Add LoadPath "./compcert".
-Add LoadPath "./GraphBasics".
-Add LoadPath "../../../theory/metatheory_8.3".
 Require Import Ensembles.
 Require Import syntax.
 Require Import infrastructure.
@@ -961,12 +956,12 @@ Proof.
   unfold returnUpdateLocals in H1.
   remember (getOperandValue (los,nts) Result lc gl) as R.
   destruct R; tinv H1.
-  destruct c; inv H1; auto.
-  destruct noret5; inv H7; auto.
-  destruct typ0; tinv H6.
-  remember (GVsSig.(lift_op1) (fit_gv (los, nts) typ0) g typ0) as R.
+  destruct_cmd c; inv H1; auto.
+  destruct n; inv H7; auto.
+  destruct t0; tinv H6.
+  remember (GVsSig.(lift_op1) (fit_gv (los, nts) t0) g t0) as R.
   destruct R; inv H6.
-    eapply wf_lc_updateAddAL with (t:=typ0); eauto.
+    eapply wf_lc_updateAddAL with (t:=t0); eauto.
       eapply uniqF__lookupTypViaIDFromFdef; eauto.
 
       symmetry in HeqR.
@@ -1969,8 +1964,8 @@ Case "sReturnVoid".
         destruct HeqR2 as [ids2 [J1 J2]].        
         rewrite <- J1.
         remember (getCmdID c') as R.
-        destruct c'; try solve [inversion H].
-        destruct noret5; inversion H1.
+        destruct_cmd c'; try solve [inversion H].
+        destruct n; inversion H1.
         simpl in HeqR. subst R.
         eapply wf_defs_eq; eauto. 
         
@@ -1987,8 +1982,8 @@ Case "sReturnVoid".
         destruct HeqR2 as [ids2 [J1 J2]].        
         rewrite <- J1.
         remember (getCmdID c') as R.
-        destruct c'; try solve [inversion H].
-        destruct noret5; inversion H1.
+        destruct_cmd c'; try solve [inversion H].
+        destruct n; inversion H1.
         simpl in HeqR. subst R.
         eapply wf_defs_eq; eauto. 
 
@@ -3154,7 +3149,7 @@ Proof.
   Case "cs=nil".
     remember (inscope_of_tmn f (block_intro l1 ps1 (cs1 ++ nil) tmn) tmn) as R.
     destruct R; try solve [inversion Hinscope].
-    destruct tmn as [id5|id5 value5 typ5|id5 value5 l2 l3|i0 l2|].
+    destruct_tmn tmn.
     SCase "tmn=ret".
       simpl in HwfCall.
       destruct ecs.
@@ -3213,12 +3208,12 @@ Proof.
         assert (J:=HbInF).
         apply HwfCall in J. clear HwfCall.
         destruct cs'; try solve [inversion J].
-        destruct c; try solve [inversion J]. clear J.
+        destruct_cmd c; try solve [inversion J]. clear J.
         remember (free_allocas (los,nts) M als) as Rm.
         destruct Rm as [M' |]; try solve [undefbehave].
         symmetry in HeqRm.
         rename HeqRm into J.
-        destruct noret5; try solve [undefbehave].
+        destruct n; try solve [undefbehave].
         left.
         exists (mkState ((mkEC f' b' cs' tmn' lc' als')::ecs) M').
         exists trace_nil.
@@ -3992,10 +3987,3 @@ Qed.
 
 End OpsemPP. End OpsemPP.
 
-(*****************************)
-(*
-*** Local Variables: ***
-*** coq-prog-name: "coqtop" ***
-*** coq-prog-args: ("-emacs-U" "-I" "~/SVN/sol/vol/src/Vellvm/monads" "-I" "~/SVN/sol/vol/src/Vellvm/ott" "-I" "~/SVN/sol/vol/src/Vellvm/compcert" "-I" "~/SVN/sol/theory/metatheory_8.3" "-impredicative-set") ***
-*** End: ***
- *)

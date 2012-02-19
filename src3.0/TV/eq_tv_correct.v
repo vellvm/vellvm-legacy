@@ -1,9 +1,3 @@
-Add LoadPath "../Vellvm/ott".
-Add LoadPath "../Vellvm/monads".
-Add LoadPath "../Vellvm".
-Add LoadPath "../Vellvm/compcert".
-Add LoadPath "../Vellvm/GraphBasics".
-Add LoadPath "../../../theory/metatheory_8.3".
 Require Import syntax.
 Require Import infrastructure.
 Require Import infrastructure_props.
@@ -376,13 +370,13 @@ Proof.
       destruct p as [?|f0|f0]; try solve [inversion H].
       bdestruct H as H1 H2.
       destruct f as [f ?]. destruct f0 as [f0 ?].
-      destruct f. destruct f0.
+      destruct f as [? ? id0 ? ?]. destruct f0 as [? ? i0 ? ?].
       unfold tv_fdef in H1.
       bdestruct H1 as H1 H3.
       sumbool_subst.
       inversion H1; subst.
       simpl in *.
-      destruct (@eq_dec id (EqDec_eq_of_EqDec id EqDec_atom) id0 fid); subst; auto.
+      destruct (@eq_dec id (EqDec_eq_of_EqDec id EqDec_atom) i0 fid); subst; auto.
         inversion H0.      
 Qed.
 
@@ -1225,10 +1219,3 @@ Proof.
 Qed.
 
 
-(*****************************)
-(*
-*** Local Variables: ***
-*** coq-prog-name: "coqtop" ***
-*** coq-prog-args: ("-emacs-U" "-I" "~/SVN/sol/vol/src/Vellvm/monads" "-I" "~/SVN/sol/vol/src/Vellvm/ott" "-I" "~/SVN/sol/vol/src/Vellvm/compcert" "-I" "~/SVN/sol/theory/metatheory_8.3" "-impredicative-set") ***
-*** End: ***
- *)

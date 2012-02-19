@@ -1,10 +1,3 @@
-Add LoadPath "../Vellvm/ott".
-Add LoadPath "../Vellvm/monads".
-Add LoadPath "../Vellvm".
-Add LoadPath "../Vellvm/compcert".
-Add LoadPath "../Vellvm/GraphBasics".
-Add LoadPath "../../../theory/metatheory_8.3".
-Add LoadPath "../TV".
 Require Import syntax.
 Require Import infrastructure.
 Require Import trace.
@@ -123,12 +116,12 @@ Proof.
                inv H0; unfold val2GV; auto |
                inversion H0 | inversion H1 | inversion H2].
   
-  destruct floating_point5; try solve [inv H0 | inv H0; unfold val2GV; auto].
+  destruct f; try solve [inv H0 | inv H0; unfold val2GV; auto].
 
-  destruct sz5; try solve [inv H1; auto using gv_inject_uninits].
-  remember (zeroconst2GV TD typ5) as R.
+  destruct s; try solve [inv H1; auto using gv_inject_uninits].
+  remember (zeroconst2GV TD t) as R.
   destruct R; tinv H1.
-  destruct (getTypeAllocSize TD typ5); inv H1.
+  destruct (getTypeAllocSize TD t); inv H1.
   simpl. symmetry in HeqR.
   eapply H in HeqR; eauto.
   apply gv_inject_app; auto.
@@ -319,12 +312,12 @@ Proof.
   unfold mtrunc in *.
   rewrite J1. rewrite J2. rewrite J1 in H0.
   inv J3; auto.
-    destruct t1; destruct t2; inv H0; try solve [
+    destruct_typ t1; destruct_typ t2; inv H0; try solve [
       eauto using gv_inject_gundef |
-      unfold val2GV; simpl; destruct (le_lt_dec wz sz0); auto
+      unfold val2GV; simpl; destruct (le_lt_dec wz s1); auto
     ].
 
-    destruct t1; destruct t2; inv H0; eauto using gv_inject_gundef.
+    destruct_typ t1; destruct_typ t2; inv H0; eauto using gv_inject_gundef.
       match goal with
       | H: context [floating_point_order ?f1 ?f0] |- _ => 
         destruct (floating_point_order f1 f0); inv H; 
@@ -950,16 +943,16 @@ Proof.
   rewrite J1 in H0. 
   rewrite J1 in J2. inv J2.
   destruct v2; try (inv J3); try solve [inv H0; eauto using gv_inject_gundef].
-    destruct t1; try solve [
+    destruct_typ t1; try solve [
       inv H0; eauto using gv_inject_gundef |
-      destruct t2; try solve 
+      destruct_typ t2; try solve 
         [inv H0; eauto using gv_inject_gundef | 
-         inv H0; destruct (le_lt_dec wz sz0); unfold val2GV; simpl; auto]
+         inv H0; destruct (le_lt_dec wz s1); unfold val2GV; simpl; auto]
     ].
 
-    destruct t1; try solve [
+    destruct_typ t1; try solve [
       inv H0; eauto using gv_inject_gundef |
-      destruct t2; try solve [
+      destruct_typ t2; try solve [
         inv H0; eauto using gv_inject_gundef |
         match goal with
         | H: context [floating_point_order ?f1 ?f0] |- _ =>
@@ -995,7 +988,7 @@ Proof.
     end.
     destruct v2; inv H0; eauto using gv_inject_gundef.
     destruct eop; inv H1; eauto using gv_inject_gundef.
-    destruct floating_point0; inv H0; unfold val2GV; auto.
+    destruct f0; inv H0; unfold val2GV; auto.
 Qed.
 
 Lemma simulation__mbop_refl : forall mi TD op bsz gv1 gv2 gv3,
@@ -1283,16 +1276,16 @@ Proof.
     unfold sb_mem_inj__const2GV_prop, sb_mem_inj__list_const2GV_prop;
     intros; simpl in *; eauto.
 Case "zero".
-  remember (zeroconst2GV TD typ5) as R.
+  remember (zeroconst2GV TD t) as R.
   destruct R; inv H1.
   eauto using zeroconst2GV__gv_inject_refl.
 Case "int".
   inv H1.
   unfold val2GV; simpl; auto.
 Case "float".
-  destruct floating_point5; inv H1; unfold val2GV; simpl; auto.
+  destruct f; inv H1; unfold val2GV; simpl; auto.
 Case "undef".
-  remember (gundef TD typ5) as R.
+  remember (gundef TD t) as R.
   destruct R; inv H1. 
   eapply gv_inject_gundef; eauto.
 Case "null".
@@ -1303,7 +1296,7 @@ Case "null".
 Case "arr". 
   eapply H with (TD:=TD)(gl:=gl) in H1; eauto.
   destruct H1; eauto.
-  remember (_list_const_arr2GV TD gl typ5 l0) as R.
+  remember (_list_const_arr2GV TD gl t l0) as R.
   destruct R; inv H2. 
   destruct (length (unmake_list_const l0)); inv H5; 
     eauto using gv_inject_uninits.
@@ -1315,38 +1308,38 @@ Case "struct".
   destruct gv1; inv H3; eauto.
     apply gv_inject_uninits.
 Case "gid".
-  remember (lookupAL GenericValue gl id5) as R.
+  remember (lookupAL GenericValue gl i0) as R.
   destruct R; inv H1.
   eauto using global_gv_inject_refl.
 Case "trunc".
-  remember (_const2GV TD gl const5) as R.
+  remember (_const2GV TD gl c) as R.
   destruct R as [[gv1 t1']|]; try solve [inv H2].
   symmetry in HeqR.
   eapply H in HeqR; eauto.
-  remember (mtrunc TD truncop5 t1' typ5 gv1) as R1.
+  remember (mtrunc TD t t1' t0 gv1) as R1.
   destruct R1; inv H2.
   symmetry in HeqR1.
   eapply simulation__mtrunc_refl in HeqR1; eauto.
 Case "ext".
-  remember (_const2GV TD gl const5) as R.
+  remember (_const2GV TD gl c) as R.
   destruct R as [[gv1 t1']|]; tinv H2.
   symmetry in HeqR.
   eapply H in HeqR; eauto.
-  remember (mext TD extop5 t1' typ5 gv1) as R1.
+  remember (mext TD e t1' t gv1) as R1.
   destruct R1; inv H2.
   symmetry in HeqR1.
   eapply simulation__mext_refl in HeqR1; eauto.
 Case "cast".
-  remember (_const2GV TD gl const5) as R.
+  remember (_const2GV TD gl c0) as R.
   destruct R as [[gv1 t1']|]; tinv H2.
   symmetry in HeqR.
   eapply H in HeqR; eauto.
-  remember (mcast TD castop5 t1' typ5 gv1) as R1.
+  remember (mcast TD c t1' t gv1) as R1.
   destruct R1; inv H2.
   symmetry in HeqR1.
   eapply simulation__mcast_refl in HeqR1; eauto.
 Case "gep".
-  remember (_const2GV TD gl const_5) as R1.
+  remember (_const2GV TD gl c) as R1.
   destruct R1 as [[gv1 t1]|]; tinv H3.
   destruct t1; tinv H3.
   remember (getConstGEPTyp l0 (typ_pointer t1)) as R2.
@@ -1371,42 +1364,42 @@ Case "gep".
     remember (gundef TD t0) as R.
     destruct R; inv H3. eapply gv_inject_gundef; eauto.
 Case "select".
-  remember (_const2GV TD gl const0) as R3.
+  remember (_const2GV TD gl c) as R3.
   destruct R3 as [[gv3 t3]|]; tinv H4.
-  remember (_const2GV TD gl const1) as R4.
+  remember (_const2GV TD gl c0) as R4.
   destruct R4 as [[gv4 t4]|]; tinv H4.
-  remember (_const2GV TD gl const2) as R5.
+  remember (_const2GV TD gl c1) as R5.
   destruct R5; tinv H4.
   destruct (isGVZero TD gv3); inv H4; eauto.
 Case "icmp".
-  remember (_const2GV TD gl const1) as R3.
+  remember (_const2GV TD gl c0) as R3.
   destruct R3 as [[gv3 t3]|]; tinv H3.
-  remember (_const2GV TD gl const2) as R4.
+  remember (_const2GV TD gl c1) as R4.
   destruct R4 as [[gv4 t4]|]; tinv H3.
   symmetry in HeqR3. 
   eapply H in HeqR3; eauto.
   symmetry in HeqR4. 
   eapply H0 in HeqR4; eauto.
-  remember (micmp TD cond5 t3 gv3 gv4) as R1.
+  remember (micmp TD c t3 gv3 gv4) as R1.
   destruct R1; inv H3.
   symmetry in HeqR1.
   eapply simulation__micmp_refl in HeqR1; eauto.
 Case "fcmp".
-  remember (_const2GV TD gl const1) as R3.
+  remember (_const2GV TD gl c) as R3.
   destruct R3 as [[gv3 t3]|]; tinv H3.
   destruct t3; tinv H3.  
-  remember (_const2GV TD gl const2) as R4.
+  remember (_const2GV TD gl c0) as R4.
   destruct R4 as [[gv4 t4]|]; tinv H3.
   symmetry in HeqR3. 
   eapply H in HeqR3; eauto.
   symmetry in HeqR4. 
   eapply H0 in HeqR4; eauto.
-  remember (mfcmp TD fcond5 floating_point5 gv3 gv4) as R1.
+  remember (mfcmp TD f f0 gv3 gv4) as R1.
   destruct R1; inv H3.
   symmetry in HeqR1.
   eapply simulation__mfcmp_refl in HeqR1; eauto.
 Case "extractValue". 
-  remember (_const2GV TD gl const_5) as R.
+  remember (_const2GV TD gl c) as R.
   destruct R as [[gv1 t1]|]; tinv H3.
   remember (getSubTypFromConstIdxs l0 t1) as R2.
   destruct R2; tinv H3.   
@@ -1415,31 +1408,31 @@ Case "extractValue".
   symmetry in HeqR3.
   eapply simulation__extractGenericValue_refl in HeqR3; eauto.
 Case "insertValue". 
-  remember (_const2GV TD gl const_5) as R.
+  remember (_const2GV TD gl c) as R.
   destruct R as [[gv1 t1]|]; tinv H4.
-  remember (_const2GV TD gl const') as R2.
+  remember (_const2GV TD gl c0) as R2.
   destruct R2 as [[gv2 t2]|]; tinv H4.
   remember (insertGenericValue TD t1 gv1 l0 t2 gv2) as R3.
   destruct R3; inv H4.   
   symmetry in HeqR3.
   eapply simulation__insertGenericValue_refl in HeqR3; eauto.
 Case "bop".
-  remember (_const2GV TD gl const1) as R3.
+  remember (_const2GV TD gl c) as R3.
   destruct R3 as [[gv3 t3]|]; tinv H3.
   destruct t3; tinv H3.
-  remember (_const2GV TD gl const2) as R4.
+  remember (_const2GV TD gl c0) as R4.
   destruct R4 as [[gv4 t4]|]; tinv H3.
-  remember (mbop TD bop5 sz5 gv3 gv4) as R1.
+  remember (mbop TD b s gv3 gv4) as R1.
   destruct R1; inv H3.
   symmetry in HeqR1.
   eapply simulation__mbop_refl in HeqR1; eauto.
 Case "fbop".
-  remember (_const2GV TD gl const1) as R3.
+  remember (_const2GV TD gl c) as R3.
   destruct R3 as [[gv3 t3]|]; tinv H3.
   destruct t3; tinv H3.
-  remember (_const2GV TD gl const2) as R4.
+  remember (_const2GV TD gl c0) as R4.
   destruct R4 as [[gv4 t4]|]; tinv H3.
-  remember (mfbop TD fbop5 floating_point5 gv3 gv4) as R1.
+  remember (mfbop TD f f0 gv3 gv4) as R1.
   destruct R1; inv H3.
   symmetry in HeqR1.
   eapply simulation__mfbop_refl in HeqR1; eauto.
@@ -1489,8 +1482,8 @@ Proof.
   destruct v; auto.
   destruct g; auto.
   inv H. 
-  destruct t; simpl; unfold null; eauto.
-  destruct floating_point5; simpl; auto.
+  destruct_typ t; simpl; unfold null; eauto.
+  destruct f; simpl; auto.
 Qed.
 
 Lemma sb_mem_inj__const2GV : forall maxb mi Mem Mem' TD gl c gv,
@@ -1671,12 +1664,4 @@ Proof.
 Qed.
 
 
-
-(*****************************)
-(*
-*** Local Variables: ***
-*** coq-prog-name: "coqtop" ***
-*** coq-prog-args: ("-emacs-U" "-I" "~/SVN/sol/vol/src/Vellvm/monads" "-I" "~/SVN/sol/vol/src/Vellvm/ott" "-I" "~/SVN/sol/vol/src/Vellvm/compcert" "-I" "~/SVN/sol/theory/metatheory_8.3" "-impredicative-set") ***
-*** End: ***
- *)
 

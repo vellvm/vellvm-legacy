@@ -1,9 +1,3 @@
-Add LoadPath "../Vellvm/ott".
-Add LoadPath "../Vellvm/monads".
-Add LoadPath "../Vellvm".
-Add LoadPath "../Vellvm/compcert".
-Add LoadPath "../Vellvm/GraphBasics".
-Add LoadPath "../../../theory/metatheory_8.3".
 Require Import Values.
 Require Import vellvm.
 Require Import genericvalues.
@@ -1612,8 +1606,8 @@ Proof.
   destruct EC1 as [f1 b1 cs1 tmn1 lc1 rm1 als1].
   destruct EC2 as [f2 b2 cs2 tmn2 lc2 rm2 als2].
   destruct TD as [los nts]. destruct f1. destruct f2.
-  destruct b1; try solve [inv H0].
-  destruct cs1; try solve [inv H0].
+  destruct b1 as [? ? cs3 ?]; try solve [inv H0].
+  destruct cs1 as [|c ?]; try solve [inv H0].
   destruct_cmd c; try solve [inv H0].
   destruct H0 as [J0 [J1 [J2 [Htfdef [Heq0 [Hasim [Hnth [Heqb1 [Heqb2 [ex_ids 
     [rm2' [ex_ids3 [ex_ids4 [cs22 [cs23 [cs24 [Hgenmeta [Hrsim [Hinc [Hcall 
@@ -2745,11 +2739,4 @@ Proof.
         rewrite H3 in Hnotin. inv Hnotin.
 Qed.
 
-(*****************************)
-(*
-*** Local Variables: ***
-*** coq-prog-name: "coqtop" ***
-*** coq-prog-args: ("-emacs-U" "-I" "~/SVN/sol/vol/src/Vellvm/monads" "-I" "~/SVN/sol/vol/src/Vellvm/ott" "-I" "~/SVN/sol/vol/src/Vellvm/compcert" "-I" "~/SVN/sol/theory/metatheory_8.3" "-impredicative-set") ***
-*** End: ***
- *)
 

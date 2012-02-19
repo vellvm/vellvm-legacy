@@ -1,8 +1,3 @@
-Add LoadPath "./ott".
-Add LoadPath "./monads".
-Add LoadPath "./compcert".
-Add LoadPath "./GraphBasics".
-Add LoadPath "../../../theory/metatheory_8.3".
 Require Import Ensembles.
 Require Import syntax.
 Require Import infrastructure.
@@ -1958,11 +1953,11 @@ Case "sReturn".
         destruct R1; try solve [inv H1].
         destruct R.
           destruct n; inv HeqR.
-          destruct t; tinv H1.
-          remember (GVsSig.(lift_op1) (fit_gv (los, nts) t) g t) as R2.
+          destruct_typ t; tinv H1.
+          remember (GVsSig.(lift_op1) (fit_gv (los, nts) t0) g t0) as R2.
           destruct R2; inv H1.
           change i0 with 
-            (getCmdLoc (insn_call i0 false c (typ_function t l4 varg5) v p)); 
+            (getCmdLoc (insn_call i0 false c (typ_function t0 lt0 v0) v p)); 
             auto.
           eapply wf_defs_updateAddAL; eauto.
             simpl. apply In_InCmdsB. apply in_middle.
@@ -1993,8 +1988,8 @@ Case "sReturn".
         destruct R1; try solve [inv H1].
         destruct R.
           destruct n; inv HeqR.
-          destruct t; tinv H1.
-          remember (GVsSig.(lift_op1) (fit_gv (los, nts) t) g t) as R2.
+          destruct_typ t; tinv H1.
+          remember (GVsSig.(lift_op1) (fit_gv (los, nts) t0) g t0) as R2.
           destruct R2; inv H1.
           inv Hwfc. inv H16. inv H7. inv H18.
           change i0 with 
@@ -2003,7 +1998,7 @@ Case "sReturn".
                  (make_list_typ
                     (map_list_typ_attributes_value
                        (fun (typ_' : typ) attr (_ : value) => typ_')
-                       typ'_attributes'_value''_list)) varg0) v
+                       typ'_attributes'_value''_list)) varg5) v
               (map_list_typ_attributes_value
                  (fun (typ_' : typ) attr (value_'' : value) => 
                     (typ_', attr, value_''))
@@ -2019,7 +2014,7 @@ Case "sReturn".
                         (make_list_typ
                            (map_list_typ_attributes_value
                               (fun (typ_' : typ) attr (_ : value) => typ_')
-                              typ'_attributes'_value''_list)) varg0) v
+                              typ'_attributes'_value''_list)) varg5) v
                      (map_list_typ_attributes_value
                         (fun (typ_' : typ) attr (value_'' : value) =>
                           (typ_', attr, value_'')) 
@@ -2081,8 +2076,8 @@ Case "sReturnVoid".
         destruct HeqR2 as [ids2 [J1 J2]].        
         rewrite <- J1.
         remember (getCmdID c') as R.
-        destruct c'; try solve [inversion H].
-        destruct noret5; inversion H1.
+        destruct_cmd c'; try solve [inversion H].
+        destruct n; inversion H1.
         simpl in HeqR. subst R.
         eapply wf_defs_eq; eauto. 
         
@@ -2099,8 +2094,8 @@ Case "sReturnVoid".
         destruct HeqR2 as [ids2 [J1 J2]].        
         rewrite <- J1.
         remember (getCmdID c') as R.
-        destruct c'; try solve [inversion H].
-        destruct noret5; inversion H1.
+        destruct_cmd c'; try solve [inversion H].
+        destruct n; inversion H1.
         simpl in HeqR. subst R.
         eapply wf_defs_eq; eauto. 
 
@@ -2400,8 +2395,8 @@ Case "sCall".
   SCase "2".
     repeat (split; auto). eauto.
   SCase "3".
-    simpl. intros b HbInBs. destruct b.
-    destruct terminator5; auto.
+    simpl. intros b HbInBs. destruct b as [? ? ? t].
+    destruct t; auto.
 
 Unfocus.
 
@@ -2426,10 +2421,3 @@ Qed.
 
 End OpsemDom. End OpsemDom.
 
-(*****************************)
-(*
-*** Local Variables: ***
-*** coq-prog-name: "coqtop" ***
-*** coq-prog-args: ("-emacs-U" "-I" "~/SVN/sol/vol/src/Vellvm/monads" "-I" "~/SVN/sol/vol/src/Vellvm/ott" "-I" "~/SVN/sol/vol/src/Vellvm/compcert" "-I" "~/SVN/sol/vol/src/Vellvm/GraphBasics" "-I" "~/SVN/sol/theory/metatheory_8.3" "-impredicative-set") ***
-*** End: ***
- *)

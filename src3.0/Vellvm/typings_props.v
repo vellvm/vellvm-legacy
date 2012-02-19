@@ -1,8 +1,3 @@
-Add LoadPath "./ott".
-Add LoadPath "./monads".
-Add LoadPath "./compcert".
-Add LoadPath "./GraphBasics".
-Add LoadPath "../../../theory/metatheory_8.3".
 Require Import syntax.
 Require Import infrastructure.
 Require Import List.
@@ -2709,8 +2704,8 @@ Proof.
 Case "typ_int".
   inv H. eauto.
 Case "typ_floatingpoint".
-  destruct floating_point5; inv H; try solve [inversion H0 | eauto].
-    unfold LLVMtd.feasible_typ_aux in H0. simpl in H0.
+  destruct f; inv H; try solve [inversion H0 | eauto].
+    unfold LLVMtd.feasible_typ_aux in H0; simpl in H0;
     exists 32%nat. exists (getFloatAlignmentInfo l0 32 true).
     split; auto. omega.
 
@@ -2722,12 +2717,12 @@ Case "typ_array".
   eapply H in H1; eauto.
   destruct H1 as [sz [al [J1 [J2 J3]]]].
   rewrite J1. 
-  destruct sz5.
+  destruct s.
     exists 8%nat. exists 1%nat. split; auto. omega.
 
     exists (RoundUpAlignment
                (Coqlib.nat_of_Z (Coqlib.ZRdiv (Z_of_nat sz) 8)) al * 8 *
-             Size.to_nat (S sz5))%nat.
+             Size.to_nat (S s))%nat.
     exists al. split; auto. split; auto.
     assert (RoundUpAlignment (Coqlib.nat_of_Z (Coqlib.ZRdiv (Z_of_nat sz) 8)) al
       >= (Coqlib.nat_of_Z (Coqlib.ZRdiv (Z_of_nat sz) 8)))%nat as J4.
@@ -2738,10 +2733,10 @@ Case "typ_array".
     simpl in J5.
     assert (RoundUpAlignment (Coqlib.nat_of_Z (Coqlib.ZRdiv (Z_of_nat sz) 8)) al
       * 8 > 0)%nat as J6. omega. clear J4 J5.
-    assert (Size.to_nat (S sz5) > 0)%nat as J7. unfold Size.to_nat. omega.
+    assert (Size.to_nat (S s) > 0)%nat as J7. unfold Size.to_nat. omega.
     remember (RoundUpAlignment (Coqlib.nat_of_Z (Coqlib.ZRdiv (Z_of_nat sz) 8)) 
       al * 8)%nat as R1. 
-    remember (Size.to_nat (S sz5)) as R2. 
+    remember (Size.to_nat (S s)) as R2. 
     clear - J6 J7.
     assert (0 * R2 < R1 * R2)%nat as J.
       apply mult_lt_compat_r; auto.
@@ -3485,11 +3480,11 @@ Proof.
 Case "typ_int".
   inv H.
   simpl.
-  exists (Size.to_nat sz5). exists (getIntAlignmentInfo los (Size.to_nat sz5) true).
+  exists (Size.to_nat s). exists (getIntAlignmentInfo los (Size.to_nat s) true).
   erewrite int_typsize; eauto.
 
 Case "typ_floatingpoint".
-  destruct floating_point5; inv H; 
+  destruct f; inv H; 
     simpl; unfold size_chunk_nat, size_chunk, bytesize_chunk.
     exists 32%nat. exists (getFloatAlignmentInfo los 32 true).
     simpl. auto.
@@ -3498,23 +3493,23 @@ Case "typ_floatingpoint".
     simpl. auto.
 
 Case "typ_array".
-  destruct sz5 as [|sz5]; try solve [inv H0; exists 8%nat; exists 1%nat; auto].
-  remember (zeroconst2GV (los, nts) typ5) as R1.
+  destruct s as [|s]; try solve [inv H0; exists 8%nat; exists 1%nat; auto].
+  remember (zeroconst2GV (los, nts) t) as R1.
   destruct R1; try solve [inv H0].
-  remember (getTypeAllocSize (los, nts) typ5) as R2.
+  remember (getTypeAllocSize (los, nts) t) as R2.
   destruct R2 as [s1|]; inv H0.
   assert (
     (g ++ uninits (Size.to_nat s1 - sizeGenericValue g)) ++
-          repeatGV (g ++ uninits (Size.to_nat s1 - sizeGenericValue g)) sz5 = 
-    repeatGV (g ++ uninits (Size.to_nat s1 - sizeGenericValue g)) (S sz5)) as G.
+          repeatGV (g ++ uninits (Size.to_nat s1 - sizeGenericValue g)) s = 
+    repeatGV (g ++ uninits (Size.to_nat s1 - sizeGenericValue g)) (S s)) as G.
     simpl. auto.
   rewrite G.
   symmetry in HeqR1.
   inv H1.
-  apply H with (s:=s) in HeqR1; eauto using feasible_array_typ_inv.
+  apply H with (s:=s0) in HeqR1; eauto using feasible_array_typ_inv.
   destruct HeqR1 as [sz [al [J1 J2]]].
   rewrite J1.  rewrite J2.
-  exists (RoundUpAlignment (sizeGenericValue g) al * 8 * Size.to_nat (S sz5))%nat.
+  exists (RoundUpAlignment (sizeGenericValue g) al * 8 * Size.to_nat (S s))%nat.
   exists al.
   split; auto.
   unfold getTypeAllocSize, getABITypeAlignment, getAlignment, getTypeStoreSize,
@@ -3682,17 +3677,17 @@ Proof.
   destruct gv1; 
     try solve [inversion H1; eapply gundef__getTypeSizeInBits; eauto].
   destruct v; try solve [eapply gundef__getTypeSizeInBits; eauto].
-    destruct t1; try solve [eapply gundef__getTypeSizeInBits; eauto].
-    destruct t2; try solve [eapply gundef__getTypeSizeInBits; eauto].
+    destruct_typ t1; try solve [eapply gundef__getTypeSizeInBits; eauto].
+    destruct_typ t2; try solve [eapply gundef__getTypeSizeInBits; eauto].
       inv H1.
-      simpl. exists (Size.to_nat sz0).
-      exists (getIntAlignmentInfo los (Size.to_nat sz0) true).
+      simpl. exists (Size.to_nat s1).
+      exists (getIntAlignmentInfo los (Size.to_nat s1) true).
       erewrite int_typsize; eauto.
   
-    destruct t1; try solve [eapply gundef__getTypeSizeInBits; eauto].
-    destruct t2; try solve [eapply gundef__getTypeSizeInBits; eauto].
-    destruct (floating_point_order floating_point0 floating_point5); tinv H1.
-    destruct floating_point0; inv H1.
+    destruct_typ t1; try solve [eapply gundef__getTypeSizeInBits; eauto].
+    destruct_typ t2; try solve [eapply gundef__getTypeSizeInBits; eauto].
+    destruct (floating_point_order f1 f0); tinv H1.
+    destruct f1; inv H1.
       simpl. exists 32%nat. exists (getFloatAlignmentInfo los 32 true).
       auto.
   
@@ -3711,8 +3706,8 @@ Lemma mext_typsize : forall S los nts eop t1 t2 gv1 gv2,
     Coqlib.nat_of_Z (Coqlib.ZRdiv (Z_of_nat sz) 8) = sizeGenericValue gv2.
 Proof.  
   intros. unfold mext, GV2val in H1.
-  destruct t1; tinv H1.
-    destruct t2; tinv H1.
+  destruct_typ t1; tinv H1.
+    destruct_typ t2; tinv H1.
     destruct gv1; 
       try solve [inversion H1 | eapply gundef__getTypeSizeInBits; eauto].
     destruct p.
@@ -3720,16 +3715,16 @@ Proof.
       try solve [inversion H1 | eapply gundef__getTypeSizeInBits; eauto].
     destruct v; try solve [eapply gundef__getTypeSizeInBits; eauto].
     destruct eop; inv H1.
-      simpl. exists (Size.to_nat sz0).
-      exists (getIntAlignmentInfo los (Size.to_nat sz0) true).
+      simpl. exists (Size.to_nat s1).
+      exists (getIntAlignmentInfo los (Size.to_nat s1) true).
       erewrite int_typsize; eauto.
 
-      simpl. exists (Size.to_nat sz0).
-      exists (getIntAlignmentInfo los (Size.to_nat sz0) true).
+      simpl. exists (Size.to_nat s1).
+      exists (getIntAlignmentInfo los (Size.to_nat s1) true).
       erewrite int_typsize; eauto.
 
-    destruct t2; tinv H1.
-    destruct (floating_point_order floating_point5 floating_point0); tinv H1.
+    destruct_typ t2; tinv H1.
+    destruct (floating_point_order f f0); tinv H1.
     destruct gv1; 
       try solve [inversion H1 | eapply gundef__getTypeSizeInBits; eauto].
     destruct p.
@@ -3737,7 +3732,7 @@ Proof.
       try solve [inversion H1 | eapply gundef__getTypeSizeInBits; eauto].
     destruct v; try solve [eapply gundef__getTypeSizeInBits; eauto].
     destruct eop; inv H1.
-    destruct floating_point0; inv H3; simpl.
+    destruct f0; inv H3; simpl.
       exists 32%nat. exists (getFloatAlignmentInfo los 32 true). auto.
       exists 64%nat. exists (getFloatAlignmentInfo los 64 true). auto.
 Qed.
@@ -4223,9 +4218,9 @@ Case "wfconst_fcmp". Focus.
   remember (_const2GV (los, nts) gl const1) as R1.
   remember (_const2GV (los, nts) gl const2) as R2.
   destruct R1 as [[gv1 t1]|]; tinv H3.
-  destruct t1; tinv H3.
+  destruct_typ t1; tinv H3.
   destruct R2 as [[gv2 t2]|]; tinv H3.
-  remember (mfcmp (los, nts) fcond5 floating_point0 gv1 gv2) as R3.
+  remember (mfcmp (los, nts) fcond5 f1 gv1 gv2) as R3.
   destruct R3; inv H3; eauto.
   split; auto.
     symmetry in HeqR3.
@@ -4278,9 +4273,9 @@ Case "wfconst_bop". Focus.
   remember (_const2GV (los, nts) gl const1) as R1.
   remember (_const2GV (los, nts) gl const2) as R2.
   destruct R1 as [[gv1 t1]|]; tinv H3.
-  destruct t1; tinv H3.
+  destruct_typ t1; tinv H3.
   destruct R2 as [[gv2 t2]|]; tinv H3.
-  remember (mbop (los, nts) bop5 sz0 gv1 gv2) as R3.
+  remember (mbop (los, nts) bop5 s0 gv1 gv2) as R3.
   destruct R3; inv H3; eauto.
   symmetry in HeqR1.
   eapply H in HeqR1; eauto.
@@ -4295,9 +4290,9 @@ Case "wfconst_fbop". Focus.
   remember (_const2GV (los, nts) gl const1) as R1.
   remember (_const2GV (los, nts) gl const2) as R2.
   destruct R1 as [[gv1 t1]|]; tinv H3.
-  destruct t1; tinv H3.
+  destruct_typ t1; tinv H3.
   destruct R2 as [[gv2 t2]|]; tinv H3.
-  remember (mfbop (los, nts) fbop5 floating_point0 gv1 gv2) as R3.
+  remember (mfbop (los, nts) fbop5 f gv1 gv2) as R3.
   destruct R3; inv H3; eauto.
   symmetry in HeqR1.
   eapply H in HeqR1; eauto.
@@ -4420,11 +4415,11 @@ Lemma cundef_gv__getTypeSizeInBits : forall S los nts gv t sz al,
     sizeGenericValue (cundef_gv gv t).
 Proof.
   intros.
-  destruct t; simpl in *; auto.
+  destruct_typ t; simpl in *; auto.
     inv H0.
     erewrite int_typsize; eauto.
 
-    destruct floating_point5; tinv H; inv H0; auto.
+    destruct f; tinv H; inv H0; auto.
 
     inv H0. auto.
 Qed.
@@ -4536,12 +4531,12 @@ Proof.
 Case "typ_int".
   inv H.
   simpl.
-  exists (Size.to_nat sz5). 
-  exists (getIntAlignmentInfo los (Size.to_nat sz5) true).
+  exists (Size.to_nat s). 
+  exists (getIntAlignmentInfo los (Size.to_nat s) true).
   erewrite int_typsize; eauto.
 
 Case "typ_floatingpoint".
-  destruct floating_point5; 
+  destruct f; 
     inv H; simpl; unfold size_chunk_nat, size_chunk, bytesize_chunk.
     exists 32%nat. exists (getFloatAlignmentInfo los 32 true).
     simpl. auto.
@@ -4550,23 +4545,23 @@ Case "typ_floatingpoint".
     simpl. auto.
 
 Case "typ_array".
-  destruct sz5;  try solve [inv H0; exists 8%nat; exists 1%nat; auto].
-  remember (flatten_typ (los, nts) typ5) as R1.
+  destruct s;  try solve [inv H0; exists 8%nat; exists 1%nat; auto].
+  remember (flatten_typ (los, nts) t) as R1.
   destruct R1; try solve [inv H0].
-  remember (getTypeAllocSize (los, nts) typ5) as R2.
+  remember (getTypeAllocSize (los, nts) t) as R2.
   destruct R2 as [s1|]; inv H0.
   assert (
     (l0 ++ uninitMCs (Size.to_nat s1 - sizeMC l0)) ++
-          repeatMC (l0 ++ uninitMCs (Size.to_nat s1 - sizeMC l0)) sz5 = 
-    repeatMC (l0 ++ uninitMCs (Size.to_nat s1 - sizeMC l0)) (S sz5)) as G.
+          repeatMC (l0 ++ uninitMCs (Size.to_nat s1 - sizeMC l0)) s = 
+    repeatMC (l0 ++ uninitMCs (Size.to_nat s1 - sizeMC l0)) (S s)) as G.
     simpl. auto.
   rewrite G.
   symmetry in HeqR1.
   inv H1.
-  apply H with (s:=s) in HeqR1; eauto using feasible_array_typ_inv.
+  apply H with (s:=s0) in HeqR1; eauto using feasible_array_typ_inv.
   destruct HeqR1 as [sz [al [J1 J2]]].
   rewrite J1.  rewrite J2.
-  exists (RoundUpAlignment (sizeMC l0) al * 8 * Size.to_nat (S sz5))%nat.
+  exists (RoundUpAlignment (sizeMC l0) al * 8 * Size.to_nat (S s))%nat.
   exists al.
   split; auto.
   unfold getTypeAllocSize, getABITypeAlignment, getAlignment, getTypeStoreSize,
@@ -4735,11 +4730,11 @@ Proof.
     unfold flatten_typ_total_prop, flatten_typs_total_prop;
     intros; simpl in *; try solve [eauto | inversion H | inversion H1 ].
 Case "float".
-  destruct floating_point5; try solve [eauto | inversion H].
+  destruct f; try solve [eauto | inversion H].
 Case "array".
   destruct H with (TD:=TD) as [gv Hz2c]; auto.
   rewrite Hz2c.
-  destruct sz5; eauto.
+  destruct s; eauto.
   apply feasible_typ_inv'' in H1. 
   destruct H1 as [ssz [asz [J1 J2]]].
   rewrite J2.
@@ -4830,10 +4825,3 @@ Proof.
     apply wf_fdef__wf_tmn; auto.
 Qed.
 
-(*****************************)
-(*
-*** Local Variables: ***
-*** coq-prog-name: "coqtop" ***
-*** coq-prog-args: ("-emacs-U" "-I" "~/SVN/sol/vol/src/Vellvm/monads" "-I" "~/SVN/sol/vol/src/Vellvm/ott" "-I" "~/SVN/sol/vol/src/Vellvm/compcert" "-I" "~/SVN/sol/theory/metatheory_8.3" "-impredicative-set") ***
-*** End: ***
- *)

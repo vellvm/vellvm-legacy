@@ -1,8 +1,3 @@
-Add LoadPath "./ott".
-Add LoadPath "./monads".
-Add LoadPath "./compcert".
-Add LoadPath "./GraphBasics".
-Add LoadPath "../../../theory/metatheory_8.3".
 Require Import Ensembles.
 Require Import AST.
 Require Import Floats.
@@ -100,21 +95,21 @@ Lemma cundef_gvs__getTypeSizeInBits : forall S los nts gv t sz al gv',
     sizeGenericValue gv'.
 Proof.
   intros S los nts gv t sz al gv' Hwft Heq1 Heq2 Hin.
-  destruct t; simpl in *;
+  destruct_typ t; simpl in *;
     try solve [inv Heq1; inv Hin; erewrite int_typsize; eauto |
                inv Heq1; inv Hin; eauto].
-    destruct floating_point5; try solve [inv Heq1; inv Hin; eauto].
+    destruct f; try solve [inv Heq1; inv Hin; eauto].
     inv Heq1. inv Hin. inv H. simpl. auto.
 Qed.
 
 Lemma cundef_gvs__inhabited : forall gv ty, inhabited (cundef_gvs gv ty).
 Proof.
-  destruct ty; simpl; 
+  destruct_typ ty; simpl; 
     try solve [eapply Ensembles.Inhabited_intro; constructor].
     eapply Ensembles.Inhabited_intro.
-      exists (Int.zero sz5). auto.
+      exists (Int.zero s0). auto.
 
-    destruct floating_point5; try solve [
+    destruct f; try solve [
       eapply Ensembles.Inhabited_intro; exists Float.zero; auto |
       eapply Ensembles.Inhabited_intro; constructor].
 
@@ -133,15 +128,15 @@ Lemma undef_gvs__getTypeSizeInBits : forall S los nts gv t sz al gv',
     sizeGenericValue gv'.
 Proof.
   intros S los nts gv t sz al gv' Hwft Heq1 Heq2 Hin.
-  destruct t; simpl in *;
+  destruct_typ t; simpl in *;
     try solve [inv Heq1; inv Hin; erewrite int_typsize; eauto |
                inv Heq1; inv Hin; eauto].
 
     inv Heq1; inv Hin; inv H; unfold Size.to_nat; 
       try solve [eauto | erewrite int_typsize; eauto].
 
-    destruct floating_point5; try solve [inv Heq1; inv Hin; eauto |
-                                         inv Heq1; inv Hin; inv H; auto].
+    destruct f; try solve [inv Heq1; inv Hin; eauto |
+                           inv Heq1; inv Hin; inv H; auto].
 
     inv Heq1; inv Hin; inv H; auto.
       inv H0. auto.
@@ -149,11 +144,11 @@ Qed.
 
 Lemma undef_gvs__inhabited : forall gv ty, inhabited (undef_gvs gv ty).
 Proof.
-  destruct ty; simpl; try solve [
+  destruct_typ ty; simpl; try solve [
     eapply Ensembles.Inhabited_intro; apply Union_introl; constructor |
     eapply Ensembles.Inhabited_intro; constructor].
 
-    destruct floating_point5; try solve [
+    destruct f; try solve [
       eapply Ensembles.Inhabited_intro; apply Union_introl; constructor |
       eapply Ensembles.Inhabited_intro; constructor].
 Qed.
@@ -317,8 +312,8 @@ Qed.
 Lemma instantiate_undef__undef_gvs : forall gv t, gv @ (undef_gvs gv t).
 Proof.
   intros. unfold undef_gvs.
-  destruct t0; try solve [apply Union_introl; constructor | constructor].
-  destruct floating_point5; 
+  destruct_typ t0; try solve [apply Union_introl; constructor | constructor].
+  destruct f; 
     try solve [apply Union_introl; constructor | constructor].
 Qed.
 
@@ -366,11 +361,3 @@ MNDGVs.lift_op2__getTypeSizeInBits
 MNDGVs.inhabited_inv
 MNDGVs.instantiate_gv__gv2gvs
 MNDGVs.none_undef2gvs_inv.
-
-(*****************************)
-(*
-*** Local Variables: ***
-*** coq-prog-name: "coqtop" ***
-*** coq-prog-args: ("-emacs-U" "-I" "~/SVN/sol/vol/src/Vellvm/monads" "-I" "~/SVN/sol/vol/src/Vellvm/ott" "-I" "~/SVN/sol/vol/src/Vellvm/compcert" "-I" "~/SVN/sol/theory/metatheory_8.3" "-impredicative-set") ***
-*** End: ***
- *)

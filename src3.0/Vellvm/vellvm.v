@@ -1,8 +1,3 @@
-Add LoadPath "./ott".
-Add LoadPath "./monads".
-Add LoadPath "./".
-Add LoadPath "./compcert".
-Add LoadPath "../../../theory/metatheory_8.3".
 Require Export alist.
 Require Export Integers.
 Require Export Values.
@@ -63,10 +58,30 @@ let lt0 := fresh "lt0" in
 let i0 := fresh "i0" in
 destruct t as [s0 | f | | | | s0 t0 | t0 lt0 | lt0 | t0 | i0 ].
 
-(*****************************)
-(*
-*** Local Variables: ***
-*** coq-prog-name: "coqtop" ***
-*** coq-prog-args: ("-emacs-U" "-I" "~/SVN/sol/vol/src/Vellvm/monads" "-I" "~/SVN/sol/vol/src/Vellvm/ott" "-I" "~/SVN/sol/vol/src/Vellvm/compcert" "-I" "~/SVN/sol/theory/metatheory_8.3" "-I" "~/SVN/sol/vol/src/TV") ***
-*** End: ***
- *)
+Ltac destruct_const cst :=
+let Int5 := fresh "Int5" in
+let i0 := fresh "i0" in
+let b := fresh "b" in
+let sz5 := fresh "sz5" in
+let f0 := fresh "f0" in
+let f1 := fresh "f1" in
+let t := fresh "t" in
+let t0 := fresh "t0" in
+let l2 := fresh "l2" in
+let c0 := fresh "c0" in
+let c1 := fresh "c1" in
+let c2 := fresh "c2" in
+let e := fresh "e" in
+let cs0 := fresh "cs0" in
+destruct cst as [t|sz5 Int5|f0 f1|t|t|t cs0|t cs0|t i0|t c0 t0|e c0 t0|c0 c1 t0|
+                 i0 c0 cs0|c0 c1 c2|c0 c1 c2|f0 c1 c2|c0 cs0|c0 c1 cs0|
+                 b c0 c1|f0 c0 c1].
+
+Ltac destruct_tmn tmn :=
+let id5 := fresh "id5" in
+let t := fresh "t" in
+let value5 := fresh "value5" in
+let l2 := fresh "l2" in
+let l3 := fresh "l3" in
+let i0 := fresh "i0" in
+destruct tmn as [id5 t value5 | id5 | id5 value5 l2 l3 | i0 l2 | ].

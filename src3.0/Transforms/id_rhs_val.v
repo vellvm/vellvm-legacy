@@ -1,9 +1,3 @@
-Add LoadPath "../Vellvm/ott".
-Add LoadPath "../Vellvm/monads".
-Add LoadPath "../Vellvm/compcert".
-Add LoadPath "../Vellvm/GraphBasics".
-Add LoadPath "../Vellvm".
-Add LoadPath "../../../theory/metatheory_8.3".
 Require Import vellvm.
 Require Import Kildall.
 Require Import ListSet.
@@ -934,11 +928,11 @@ Focus.
         destruct R1; try solve [inv H1].
         destruct R.
           destruct n; inv HeqR.
-          destruct t; tinv H1.
-          remember (lift_op1 DGVs (fit_gv (los, nts) t) g t) as R2.
+          destruct_typ t; tinv H1.
+          remember (lift_op1 DGVs (fit_gv (los, nts) t0) g t0) as R2.
           destruct R2; inv H1.
           change i0 with 
-            (getCmdLoc (insn_call i0 false c (typ_function t l4 varg5) v p)); auto.
+            (getCmdLoc (insn_call i0 false c (typ_function t0 lt0 v0) v p)); auto.
           eapply wf_defs_updateAddAL; eauto.
             simpl. apply in_middle.
 
@@ -964,11 +958,11 @@ Focus.
         destruct R1; try solve [inv H1].
         destruct R.
           destruct n; inv HeqR.
-          destruct t; tinv H1.
-          remember (lift_op1 DGVs (fit_gv (los, nts) t) g t) as R2.
+          destruct_typ t; tinv H1.
+          remember (lift_op1 DGVs (fit_gv (los, nts) t0) g t0) as R2.
           destruct R2; inv H1.
           change i0 with 
-            (getCmdLoc (insn_call i0 false c (typ_function t l4 varg5) v p)); auto.
+            (getCmdLoc (insn_call i0 false c (typ_function t0 lt0 v0) v p)); auto.
           eapply wf_defs_updateAddAL; eauto.
             simpl. apply in_middle.
 
@@ -1231,10 +1225,3 @@ Transparent inscope_of_tmn inscope_of_cmd.
       eapply initLocals__id_rhs_val_wf_defs; eauto.
 Qed.
 
-(*****************************)
-(*
-*** Local Variables: ***
-*** coq-prog-name: "coqtop" ***
-*** coq-prog-args: ("-emacs-U" "-I" "~/SVN/sol/vol/src/Vellvm/monads" "-I" "~/SVN/sol/vol/src/Vellvm/ott" "-I" "~/SVN/sol/vol/src/Vellvm/compcert" "-I" "~/SVN/sol/theory/metatheory_8.3" "-impredicative-set") ***
-*** End: ***
- *)

@@ -1,9 +1,3 @@
-Add LoadPath "../Vellvm/ott".
-Add LoadPath "../Vellvm/monads".
-Add LoadPath "../Vellvm/compcert".
-Add LoadPath "../Vellvm/GraphBasics".
-Add LoadPath "../Vellvm".
-Add LoadPath "../../../theory/metatheory_8.3".
 Require Import vellvm.
 Require Import Kildall.
 Require Import ListSet.
@@ -843,10 +837,11 @@ Case "removable state".
   
   destruct Cfg1 as [S1 [los nts] Ps1 gl1 fs1].
   destruct St1 as [ECs1 M1].
-  destruct ECs1 as [|[F1 B1 [|[] cs1] tmn1 lc1 als1] ECs1]; tinv Hrem.
+  destruct ECs1 as [|[F1 B1 [|c1 cs1] tmn1 lc1 als1] ECs1]; tinv Hrem.
+  destruct_cmd c1; tinv Hrem.
   simpl in Hrem.
   destruct (fdef_dec (PI_f pinfo) F1); subst; tinv Hrem.
-  destruct (id_dec id5 (SAS_sid1 pinfo sasinfo)); subst; tinv Hrem.
+  destruct (id_dec i0 (SAS_sid1 pinfo sasinfo)); subst; tinv Hrem.
   
   destruct Hwfpp as 
     [Hwfg [HwfSystem [HmInS [_ [
@@ -1546,10 +1541,3 @@ Lemma sas_wfPI: forall (los : layouts) (nts : namedts) (fh : fheader)
            (bs1 ++ block_intro l0 ps0 cs0 tmn0 :: bs2)))).
 Admitted.
 
-(*****************************)
-(*
-*** Local Variables: ***
-*** coq-prog-name: "coqtop" ***
-*** coq-prog-args: ("-emacs-U" "-I" "~/SVN/sol/vol/src/Vellvm/monads" "-I" "~/SVN/sol/vol/src/Vellvm/ott" "-I" "~/SVN/sol/vol/src/Vellvm/compcert" "-I" "~/SVN/sol/theory/metatheory_8.3" "-impredicative-set") ***
-*** End: ***
- *)

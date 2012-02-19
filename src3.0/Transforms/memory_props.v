@@ -1,9 +1,3 @@
-Add LoadPath "../Vellvm/ott".
-Add LoadPath "../Vellvm/monads".
-Add LoadPath "../Vellvm/compcert".
-Add LoadPath "../Vellvm/GraphBasics".
-Add LoadPath "../Vellvm".
-Add LoadPath "../../../theory/metatheory_8.3".
 Require Import vellvm.
 
 Ltac inv_mbind' :=
@@ -221,14 +215,14 @@ Proof.
   remember (GV2val td gv) as R.
   destruct R; eauto using undef__no_embedded_ptrs.
   destruct v; eauto using undef__no_embedded_ptrs.
-    destruct t1; eauto using undef__no_embedded_ptrs.
-      destruct t2; eauto using undef__no_embedded_ptrs.
-        inv H. destruct (le_lt_dec wz sz0); simpl; auto.
+    destruct_typ t1; eauto using undef__no_embedded_ptrs.
+      destruct_typ t2; eauto using undef__no_embedded_ptrs.
+        inv H. destruct (le_lt_dec wz s1); simpl; auto.
 
-    destruct t1; eauto using undef__no_embedded_ptrs.
-      destruct t2; eauto using undef__no_embedded_ptrs.
-      destruct (floating_point_order floating_point0 floating_point5); tinv H.
-      destruct floating_point0; inv H; unfold val2GV; simpl; auto.
+    destruct_typ t1; eauto using undef__no_embedded_ptrs.
+      destruct_typ t2; eauto using undef__no_embedded_ptrs.
+      destruct (floating_point_order f1 f0); tinv H.
+      destruct f1; inv H; unfold val2GV; simpl; auto.
 Qed.
 
 Lemma mtrunc_preserves_no_alias: forall td top t1 t2 gv gv' gv0,
@@ -259,12 +253,12 @@ Proof.
     destruct v; eauto using undef__no_embedded_ptrs.
     destruct eop; inv H; simpl; auto.
 
-    destruct t2; tinv H.
-    destruct (floating_point_order floating_point5 floating_point0); tinv H.
+    destruct_typ t2; tinv H.
+    destruct (floating_point_order f f0); tinv H.
     destruct R; eauto using undef__no_embedded_ptrs.
     destruct v; eauto using undef__no_embedded_ptrs.
     destruct eop; tinv H; simpl; auto.
-    destruct floating_point0; inv H; unfold val2GV; simpl; auto.
+    destruct f0; inv H; unfold val2GV; simpl; auto.
 Qed.
 
 Lemma mext_preserves_no_alias: forall td eop t1 t2 gv gv' gv0,
@@ -1752,17 +1746,17 @@ Proof.
            zeroconsts2GV_disjoint_with_runtime_ptr_prop; 
     intros; simpl in Hc2g; try solve [inv Hc2g; simpl; auto].
 
-  destruct floating_point5; inv Hc2g; simpl; auto.
+  destruct f; inv Hc2g; simpl; auto.
 
-  destruct sz5; 
+  destruct s as [|s]; 
     try solve [inv Hc2g; auto using uninits_valid_ptrs__disjoint_with_ptr].
     inv_mbind'.
     eapply H with (ofs:=ofs)(m:=m) in HeqR; eauto.
     assert (no_alias 
-      (g0 ++ uninits (Size.to_nat s - sizeGenericValue g0))
+      (g0 ++ uninits (Size.to_nat s0 - sizeGenericValue g0))
       [(Vptr mb ofs, m)] /\
       valid_ptrs (maxb + 1) 
-        (g0 ++ uninits (Size.to_nat s - sizeGenericValue g0))) as J.
+        (g0 ++ uninits (Size.to_nat s0 - sizeGenericValue g0))) as J.
       destruct HeqR.
       split.
         apply no_alias_app; auto.
@@ -1892,9 +1886,9 @@ Case "zero".
 Case "int".
   inv Hc2g. simpl. auto.
 Case "float".
-  destruct floating_point5; inv Hc2g; simpl; auto.
+  destruct f; inv Hc2g; simpl; auto.
 Case "undef".
-  eapply undef_valid_ptrs__disjoint_with_ptr with (t1:=typ5)(td:=td); auto.
+  eapply undef_valid_ptrs__disjoint_with_ptr with (t1:=t)(td:=td); auto.
 Case "null".
   inv Hc2g.
   destruct Hwfg. 
@@ -1902,7 +1896,7 @@ Case "null".
     apply null_disjoint_with_ptr. omega.
     apply null_valid_ptrs. omega.
 Case "arr". 
-  eapply H with (td:=td)(gl:=gl)(t:=typ5) in Hle; eauto.
+  eapply H with (td:=td)(gl:=gl)(t:=t) in Hle; eauto.
   destruct Hle.
   destruct (length (unmake_list_const l0)); inv H1; 
     eauto using uninits_valid_ptrs__disjoint_with_ptr.
@@ -2034,8 +2028,8 @@ Local Transparent cgv2gvs.
   destruct g0 as [|]; auto.
 
   unfold cundef_gv.
-  destruct t0; auto.
-    destruct floating_point5; auto.
+  destruct_typ t0; auto.
+    destruct f; auto.
 
     simpl. split; auto. split; auto. unfold Mem.nullptr. intro J. subst. omega.
 Global Opaque cgv2gvs.
@@ -2051,8 +2045,8 @@ Local Transparent cgv2gvs.
   destruct v; auto.
   destruct g0 as [|]; auto.
   unfold cundef_gv.
-  destruct t0; auto.
-    destruct floating_point5; auto.
+  destruct_typ t0; auto.
+    destruct f; auto.
 
     apply null_valid_ptrs; auto.
 Global Opaque cgv2gvs.
@@ -2115,11 +2109,4 @@ Axiom callExternalFunction_preserves_mload: forall Mem fid gvsa gvs gvsv
 
 End MemProps.
 
-(*****************************)
-(*
-*** Local Variables: ***
-*** coq-prog-name: "coqtop" ***
-*** coq-prog-args: ("-emacs-U" "-I" "~/SVN/sol/vol/src/Vellvm/monads" "-I" "~/SVN/sol/vol/src/Vellvm/ott" "-I" "~/SVN/sol/vol/src/Vellvm/compcert" "-I" "~/SVN/sol/theory/metatheory_8.3" "-impredicative-set") ***
-*** End: ***
- *)
 

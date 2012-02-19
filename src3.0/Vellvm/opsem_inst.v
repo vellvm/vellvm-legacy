@@ -1,8 +1,3 @@
-Add LoadPath "./ott".
-Add LoadPath "./monads".
-Add LoadPath "./compcert".
-Add LoadPath "./GraphBasics".
-Add LoadPath "../../../theory/metatheory_8.3".
 Require Import Ensembles.
 Require Import syntax.
 Require Import infrastructure.
@@ -168,10 +163,10 @@ Proof.
   destruct HeqR as [gvs2 [J1 J2]].
   unfold returnUpdateLocals.
   rewrite J1. 
-  destruct c; tinv H1.
-  destruct noret5; inv H1; eauto.
-  destruct typ0; tinv H3.
-  remember (lift_op1 _ (fit_gv TD typ0) g typ0) as R.
+  destruct_cmd c; tinv H1.
+  destruct n; inv H1; eauto.
+  destruct t; tinv H3.
+  remember (lift_op1 _ (fit_gv TD t) g t) as R.
   destruct R as [gr'|]; inv H3.
   symmetry in HeqR.
   eapply element_of__lift_op1 in HeqR; eauto.
@@ -798,10 +793,10 @@ Proof.
   destruct p.
   destruct v; try solve [intros gvs1 J; inv J; constructor].
   destruct gv; try solve [intros gvs1 J; inv J; constructor].
-  destruct t; simpl;
+  destruct_typ t; simpl;
     try solve [intros gvs1 J; inv J; 
                (constructor || apply Union_introl; constructor)].
-  destruct floating_point5; simpl;
+  destruct f; simpl;
     try solve [intros gvs1 J; inv J; 
                (constructor || apply Union_introl; constructor)].
 Qed.
@@ -815,12 +810,12 @@ Proof.
   destruct p.
   destruct v; try solve [intros gvs1 J; inv J; constructor].
   destruct gv; try solve [intros gvs1 J; inv J; constructor].
-  destruct t; simpl;
+  destruct_typ t; simpl;
     try solve [intros gvs1 J; inv J;
                try solve [constructor |
-               exists (Int.zero sz5); auto |
+               exists (Int.zero s0); auto |
                exists Mem.nullptr; exists (Int.repr 31 0); auto]].
-  destruct floating_point5; simpl;
+  destruct f; simpl;
     try solve [intros gvs1 J; inv J;
                try solve [constructor |
                exists Float.zero; auto]].
@@ -883,10 +878,3 @@ Qed.
 
 End OpsemInstantiation.
 
-(*****************************)
-(*
-*** Local Variables: ***
-*** coq-prog-name: "coqtop" ***
-*** coq-prog-args: ("-emacs-U" "-I" "~/SVN/sol/vol/src/Vellvm/monads" "-I" "~/SVN/sol/vol/src/Vellvm/ott" "-I" "~/SVN/sol/vol/src/Vellvm/compcert" "-I" "~/SVN/sol/theory/metatheory_8.3" "-impredicative-set") ***
-*** End: ***
- *)

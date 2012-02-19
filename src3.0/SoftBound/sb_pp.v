@@ -1,10 +1,3 @@
-Add LoadPath "../Vellvm/ott".
-Add LoadPath "../Vellvm/monads".
-Add LoadPath "../Vellvm".
-Add LoadPath "../Vellvm/compcert".
-Add LoadPath "../Vellvm/GraphBasics".
-Add LoadPath "../../../theory/metatheory_8.3".
-Add LoadPath "../TV".
 Require Import vellvm.
 Require Import genericvalues.
 Require Import sb_def.
@@ -304,8 +297,8 @@ Proof.
     destruct R3 as [[md ?]|]; inv H0.
     destruct_cmd c'; inv H1; auto.
     destruct n; inv H0; auto.
-    destruct t; tinv H1.
-    destruct (lift_op1 GVsSig (fit_gv (los, nts) t) g t); tinv H1.
+    destruct_typ t; tinv H1.
+    destruct (lift_op1 GVsSig (fit_gv (los, nts) t0) g t0); tinv H1.
     inv Hwfc. inv H6. inv H15.
     clear H19 H17 H8 H18 H16 H20 H7.
     assert (lookupTypViaIDFromFdef F' i0 = Some typ1) as J.
@@ -315,7 +308,7 @@ Proof.
                     (make_list_typ
                        (map_list_typ_attributes_value
                           (fun (typ_' : typ) attr (_ : value) => typ_')
-                          typ'_attributes'_value''_list)) varg0) v
+                          typ'_attributes'_value''_list)) varg5) v
                  (map_list_typ_attributes_value
                     (fun (typ_' : typ) attr (value_'' : value) =>
                      (typ_', attr, value_'')) typ'_attributes'_value''_list))
@@ -341,8 +334,8 @@ Proof.
 
     destruct_cmd c'; try solve [inv H0; auto].
     destruct n; inv H0; auto.
-    destruct t; tinv H1.
-    destruct (lift_op1 GVsSig (fit_gv (los, nts) t) g t); tinv H1.
+    destruct_typ t; tinv H1.
+    destruct (lift_op1 GVsSig (fit_gv (los, nts) t0) g t0); tinv H1.
     inv Hwfc. inv H6. inv H15.
     clear H19 H17 H8 H18 H16 H20 H7.
     assert (lookupTypViaIDFromFdef F' i0 = Some typ1) as J.
@@ -352,7 +345,7 @@ Proof.
                     (make_list_typ
                        (map_list_typ_attributes_value
                           (fun (typ_' : typ) attr (_ : value) => typ_')
-                          typ'_attributes'_value''_list)) varg0) v
+                          typ'_attributes'_value''_list)) varg5) v
                  (map_list_typ_attributes_value
                     (fun (typ_' : typ) attr (value_'' : value) =>
                      (typ_', attr, value_'')) typ'_attributes'_value''_list))
@@ -1336,16 +1329,16 @@ Proof.
   generalize dependent ct.
   induction vc; intros; try solve [inversion J2].
     simpl in HeqJ3.
-    remember (lookupAL GenericValue gl id5) as R.
+    remember (lookupAL GenericValue gl i0) as R.
     destruct R; inv HeqJ3.
     symmetry in HeqR.
     assert (Hwfc':=Hwfc).
     inv Hwfc'.
     unfold wf_global_ptr in Hwfg.
     assert (Hlk:=HeqR).
-    apply Hwfg with (typ0:=typ5) in HeqR; simpl; auto.
+    apply Hwfg with (typ0:=t) in HeqR; simpl; auto.
     destruct HeqR as [b [sz [J1 [J5 [J3 J4]]]]]; subst.
-    destruct typ5; inv J2; 
+    destruct t; inv J2; 
       try solve [eapply get_const_metadata_isnt_stuck_helper; eauto].
  
       simpl. rewrite Hlk. simpl.
@@ -1353,20 +1346,20 @@ Proof.
       exists b. exists (Int.zero 31). exists (Int.zero 31). 
       split; auto.
 
-    destruct castop5; tinv J2.
-    destruct typ5; tinv J2.
+    destruct c; tinv J2.
+    destruct t; tinv J2.
     simpl in *. inv Hwfc.
     remember (_const2GV TD gl vc) as R.
     destruct R as [[]|]; tinv HeqJ3.
-    destruct t; inv HeqJ3.
+    destruct t0; inv HeqJ3.
     destruct TD. inv H4.
     eapply IHvc with (ct:=typ_pointer typ1); auto.
 
     simpl in *.
     remember (_const2GV TD gl vc) as R1.
     destruct R1 as [[]|]; tinv HeqJ3.
-    destruct t; tinv HeqJ3.
-    remember (getConstGEPTyp l0 (typ_pointer t)) as R2.
+    destruct_typ t; tinv HeqJ3.
+    remember (getConstGEPTyp l0 (typ_pointer t0)) as R2.
     destruct R2; tinv HeqJ3.
     inv Hwfc.
     eapply IHvc in J2; eauto.
@@ -2363,25 +2356,25 @@ Proof.
       destruct b as [? ? ? t].
       destruct t; inversion Hundef.
 
-      destruct c; try solve [inversion Hundef | undefbehave].
-      destruct c; try solve [inversion Hundef | undefbehave].   
-      destruct c; try solve [inversion Hundef | undefbehave].
-        remember (getOperandValue (los, nts) value1 lc gl) as R.
+      destruct_cmd c; try solve [inversion Hundef | undefbehave].
+      destruct_cmd c; try solve [inversion Hundef | undefbehave].   
+      destruct_cmd c; try solve [inversion Hundef | undefbehave].
+        remember (getOperandValue (los, nts) v lc gl) as R.
         destruct R as [gvs|]; tinv Hundef.
         destruct Hundef as [gv [Hin Hundef]].
         eapply load_progress; eauto.
 
-      destruct c; try solve [inversion Hundef | undefbehave].
-        remember (getOperandValue (los, nts) value1 lc gl) as R1.
-        remember (getOperandValue (los, nts) value2 lc gl) as R2.
+      destruct_cmd c; try solve [inversion Hundef | undefbehave].
+        remember (getOperandValue (los, nts) v lc gl) as R1.
+        remember (getOperandValue (los, nts) v0 lc gl) as R2.
         destruct R1 as [gvs1|]; tinv Hundef.
         destruct R2 as [gvss|]; tinv Hundef.
         destruct Hundef as [gv [mgv [Hin1 [Hin2 Hundef]]]].
         eapply store_progress; eauto.
 
-      destruct c; try solve [inversion Hundef | undefbehave].
+      destruct_cmd c; try solve [inversion Hundef | undefbehave].
         unfold undefined_state.
-        destruct (getOperandValue (los, nts) value0 lc gl); tinv Hundef.
+        destruct (getOperandValue (los, nts) v lc gl); tinv Hundef.
         destruct Hundef as [fptr [Hin Hundef]].
         right. right. right. right. right. right. right. right. left.
         exists fptr. split; auto. 
@@ -2389,13 +2382,13 @@ Proof.
         destruct (lookupExFdecViaPtr ps fs fptr); 
           try solve [inversion Hundef | undefbehave].
         destruct f0 as [f0 ?].
-        destruct f0 as [t n i0 ? ?].     
-        destruct (Opsem.params2GVs (los, nts) params5 lc gl); tinv Hundef.
+        destruct f0 as [t1 n1 i1 ? p1].     
+        destruct (Opsem.params2GVs (los, nts) p lc gl); tinv Hundef.
         destruct Hundef as [gvs [Hin2 Hundef]].
         exists gvs. split; auto.
-        destruct (callExternalFunction M i0 gvs) as [[]|];
+        destruct (callExternalFunction M i1 gvs) as [[]|];
           try solve [inversion Hundef | undefbehave].
-        remember (Opsem.exCallUpdateLocals (los, nts) typ0 noret5 id5 o lc) as R.
+        remember (Opsem.exCallUpdateLocals (los, nts) t n i0 o lc) as R.
         destruct R; try solve [inversion Hundef | undefbehave].
         rewrite llvm_exCallUpdateLocals__sb_exCallUpdateLocals; auto.
 Qed.
@@ -2503,19 +2496,19 @@ Proof.
   subst b. assert (Hstep':=Hstep).
   destruct cs.
   Case "cs=nil".
-    destruct tmn; inv Hstep.
+    destruct_tmn tmn; inv Hstep.
     SCase "tmn=ret".
       apply sbECs__ECs_cons_inv0 in H12.
       destruct H12 as [rm' [ecs0 [Heq1 Heq2]]]; subst.
       assert (exists rm'', returnUpdateLocals (los,nts) 
-        c' typ5 value5 lc lc' rm rm' gl = Some (lc'', rm'')) as Hretup.
+        c' t value5 lc lc' rm rm' gl = Some (lc'', rm'')) as Hretup.
         unfold returnUpdateLocals, returnResult.
         unfold Opsem.returnUpdateLocals in H17.
         remember (getOperandValue (los, nts) value5 lc gl) as R. 
         destruct R; tinv H17.
         destruct_cmd c'; tinv H17.
         unfold prop_reg_metadata.
-        remember (isPointerTypB typ5) as Hptr.
+        remember (isPointerTypB t) as Hptr.
         destruct Hptr.
           destruct HwfECs as [[Hreach' 
               [HbInF' [HfInPs' [Hwflc' [Hinscope' [Hwfm1 [Hwfm1'
@@ -2523,11 +2516,11 @@ Proof.
               [HwfECs HwfCall']]; subst.
           eapply wf_system__wf_cmd in HbInF'; eauto using in_middle.
           inv HbInF'. inv H5.
-          destruct typ5; inv HeqHptr.
+          destruct_typ t; inv HeqHptr.
           assert (wf_insn nil s (module_intro layouts5 namedts5 products5) f 
             (block_intro l1 ps1 (cs1 ++ nil) 
-               (insn_return id5 (typ_pointer typ5) value5)) 
-            (insn_terminator (insn_return id5 (typ_pointer typ5) value5))) as Hwfc.
+               (insn_return id5 (typ_pointer t0) value5)) 
+            (insn_terminator (insn_return id5 (typ_pointer t0) value5))) as Hwfc.
             eapply wf_system__wf_tmn in HbInF; eauto.
           assert (exists omd, 
             get_reg_metadata (layouts5, namedts5) gl rm value5 = 
@@ -2541,9 +2534,9 @@ Proof.
           destruct (isPointerTypB typ1); eauto.
           
           destruct n; inv H17; eauto.
-          destruct t; tinv H0; eauto.
-          destruct (lift_op1 GVsSig (fit_gv (los, nts) t) g t); inv H0.
-          destruct (isPointerTypB t); eauto.
+          destruct t0; tinv H0; eauto.
+          destruct (lift_op1 GVsSig (fit_gv (los, nts) t0) g t0); inv H0.
+          destruct (isPointerTypB t0); eauto.
          
       destruct Hretup as [rm'' Hretup].
       right. left.
@@ -2567,18 +2560,18 @@ Proof.
         eapply wf_system__uniqFdef; eauto.
       assert (exists rm', switchToNewBasicBlock (los, nts) 
         (block_intro l' ps' cs' tmn') 
-        (block_intro l1 ps1 (cs1++nil) (insn_br id5 value5 l0 l2)) gl lc rm = 
+        (block_intro l1 ps1 (cs1++nil) (insn_br id5 value5 l2 l3)) gl lc rm = 
           Some (lc', rm')) as Hswitch.
         unfold Opsem.switchToNewBasicBlock in H19.
         remember (Opsem.getIncomingValuesForBlockFromPHINodes 
           (los, nts) (getPHINodesFromBlock (block_intro l' ps' cs' tmn'))
-          (block_intro l1 ps1 (cs1 ++ nil) (insn_br id5 value5 l0 l2)) gl lc) as R.
+          (block_intro l1 ps1 (cs1 ++ nil) (insn_br id5 value5 l2 l3)) gl lc) as R.
         destruct R; tinv H19.
         assert (exists RVs, 
            getIncomingValuesForBlockFromPHINodes (los, nts) ps'
-             (block_intro l1 ps1 (cs1++nil) (insn_br id5 value5 l0 l2)) gl lc rm =
+             (block_intro l1 ps1 (cs1++nil) (insn_br id5 value5 l2 l3)) gl lc rm =
            Some RVs /\
-           matched_incoming_values l3 RVs) as J.
+           matched_incoming_values l0 RVs) as J.
            assert (HwfB := HbInF).
            eapply wf_system__blockInFdefB__wf_block in HwfB; eauto.
            simpl_env in *.
@@ -2619,16 +2612,16 @@ Proof.
         eapply wf_system__uniqFdef; eauto.
       assert (exists rm', switchToNewBasicBlock (los, nts) 
         (block_intro l' ps' cs' tmn') 
-        (block_intro l1 ps1 (cs1 ++ nil) (insn_br_uncond id5 l5)) gl lc rm = 
+        (block_intro l1 ps1 (cs1 ++ nil) (insn_br_uncond i0 l2)) gl lc rm = 
           Some (lc', rm')) as Hswitch.
         unfold Opsem.switchToNewBasicBlock in H15.
         remember (Opsem.getIncomingValuesForBlockFromPHINodes 
           (los, nts) (getPHINodesFromBlock (block_intro l' ps' cs' tmn'))
-          (block_intro l1 ps1 (cs1 ++ nil) (insn_br_uncond id5 l5)) gl lc) as R.
+          (block_intro l1 ps1 (cs1 ++ nil) (insn_br_uncond i0 l2)) gl lc) as R.
         destruct R; tinv H15.
         assert (exists RVs, 
            getIncomingValuesForBlockFromPHINodes (los, nts) ps'
-             (block_intro l1 ps1 (cs1 ++ nil) (insn_br_uncond id5 l5)) gl lc rm =
+             (block_intro l1 ps1 (cs1 ++ nil) (insn_br_uncond i0 l2)) gl lc rm =
            Some RVs /\
            matched_incoming_values l0 RVs) as J.
            assert (HwfB := HbInF).
@@ -2787,10 +2780,3 @@ Qed.
 
 End SBspecPP. End SBspecPP.
 
-(*****************************)
-(*
-*** Local Variables: ***
-*** coq-prog-name: "coqtop" ***
-*** coq-prog-args: ("-emacs-U" "-I" "~/SVN/sol/vol/src/Vellvm/monads" "-I" "~/SVN/sol/vol/src/Vellvm/ott" "-I" "~/SVN/sol/vol/src/Vellvm/compcert" "-I" "~/SVN/sol/theory/metatheory_8.3" "-I" "~/SVN/sol/vol/src/TV" "-impredicative-set") ***
-*** End: ***
- *)

@@ -1,10 +1,3 @@
-Add LoadPath "../Vellvm/ott".
-Add LoadPath "../Vellvm/monads".
-Add LoadPath "../Vellvm/compcert".
-Add LoadPath "../Vellvm/GraphBasics".
-Add LoadPath "../Vellvm".
-Add LoadPath "../../../theory/metatheory_8.3".
-Add LoadPath "../SoftBound".
 Require Import vellvm.
 Require Import Kildall.
 Require Import ListSet.
@@ -3515,10 +3508,3 @@ Lemma dae_wfS: forall id0 f pinfo los nts Ps1 Ps2
     [module_intro los nts (Ps1 ++  product_fdef (remove_fdef id0 f) :: Ps2)].
 Admitted.
 
-(*****************************)
-(*
-*** Local Variables: ***
-*** coq-prog-name: "coqtop" ***
-*** coq-prog-args: ("-emacs-U" "-I" "~/SVN/sol/vol/src/Vellvm/monads" "-I" "~/SVN/sol/vol/src/Vellvm/ott" "-I" "~/SVN/sol/vol/src/Vellvm/compcert" "-I" "~/SVN/sol/theory/metatheory_8.3" "-impredicative-set") ***
-*** End: ***
- *)

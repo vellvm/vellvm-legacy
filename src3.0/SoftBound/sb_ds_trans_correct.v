@@ -1,10 +1,3 @@
-Add LoadPath "../Vellvm/ott".
-Add LoadPath "../Vellvm/monads".
-Add LoadPath "../Vellvm".
-Add LoadPath "../Vellvm/compcert".
-Add LoadPath "../Vellvm/GraphBasics".
-Add LoadPath "../../../theory/metatheory_8.3".
-Add LoadPath "../TV".
 Require Import Values.
 Require Import vellvm.
 Require Import genericvalues.
@@ -746,7 +739,7 @@ Proof.
     [M2' [M2'' [Hsbase [Hsbound [Hmsim3 [Hwfmi3 [Hgbase Hgbound]]]]]]]; auto.
   eapply free_allocas_sim in Hmsim3; eauto.
   destruct Hmsim3 as [M2''' [Hfree2' [Hmsim2' Hwfmi2']]].
-  destruct noret5.
+  destruct n.
   SCase "nret = true".
     inv Hcall'.
     inv H1.
@@ -792,10 +785,10 @@ Proof.
           repeat (split; auto).
 
   SCase "nret = false".
-    assert (In id5 (getFdefLocs (fdef_intro fh1' bs1'))) as Hin.
+    assert (In i0 (getFdefLocs (fdef_intro fh1' bs1'))) as Hin.
       eauto using getCmdID_in_getFdefLocs.
-    destruct typ0; tinv H1.
-    remember (lift_op1 DGVs (fit_gv (los, nts) typ0) gr typ0) as Fit.
+    destruct t; tinv H1.
+    remember (lift_op1 DGVs (fit_gv (los, nts) t) gr t) as Fit.
     destruct Fit; tinv H1. simpl in Hcall'.
     symmetry in Heqogr.
     eapply simulation__getOperandValue in Heqogr; eauto.
@@ -806,16 +799,16 @@ Proof.
     eapply simulation__fit_gv in HeqFit; eauto.
     destruct HeqFit as [gr2' [HeqFit HinjFit]].
 
-    destruct (isPointerTypB typ0); inv H1.
+    destruct (isPointerTypB t); inv H1.
     SSCase "ct is ptr".
-      remember (lookupAL (id * id) rm2' id5) as R.
+      remember (lookupAL (id * id) rm2' i0) as R.
       destruct R as [[bid0 eid0]|]; inv Hcall'.
 
       exists (Opsem.mkState 
         ((Opsem.mkEC (fdef_intro fh2' bs2') B2'
             (cs23' ++ cs24') tmn2' 
             (updateAddALs _ lc2' 
-              ((id5,gr2')::(bid0,bgv2)::(eid0,egv2)::nil))
+              ((i0,gr2')::(bid0,bgv2)::(eid0,egv2)::nil))
             als2'):: ECs2)
         M2''').
       exists mi.
@@ -882,7 +875,7 @@ Proof.
 
       exists (Opsem.mkState
         ((Opsem.mkEC (fdef_intro fh2' bs2') B2'
-            (cs23' ++ cs24') tmn2' (updateAddALs _ lc2' ((id5,gr2')::nil))
+            (cs23' ++ cs24') tmn2' (updateAddALs _ lc2' ((i0,gr2')::nil))
             als2'):: ECs2)
         M2''').
       exists mi.
@@ -917,7 +910,7 @@ Proof.
                                    cmds_at_block_tails_next').
           exists ex_ids'. exists rm2'.
           exists ex_ids3'. exists ex_ids4'. exists cs23'. exists cs24'.
-          apply reg_simulation__updateAddAL_lc with (i0:=id5)(gv:=g)
+          apply reg_simulation__updateAddAL_lc with (i0:=i0)(gv:=g)
             (gv':= gr2') (ex_ids3:=ex_ids') in Hrsim'; 
             eauto using simulation___cgv2gv.
           Transparent updateAddALs. simpl.
@@ -985,7 +978,7 @@ Proof.
   destruct_ctx_return.
   inv Htcmds.
   simpl in H1.
-  destruct noret5; inv H1.
+  destruct n; inv H1.
   unfold call_suffix in Hcall'. inv Hcall'.
   inv Httmn.
   eapply free_allocas_sim in HsimM; eauto.
@@ -1105,12 +1098,5 @@ Case "sExCall".
   eapply SBpass_is_correct__dsExCall; eauto.
 Qed.
 
-(*****************************)
-(*
-*** Local Variables: ***
-*** coq-prog-name: "coqtop" ***
-*** coq-prog-args: ("-emacs-U" "-I" "~/SVN/sol/vol/src/Vellvm/monads" "-I" "~/SVN/sol/vol/src/Vellvm/ott" "-I" "~/SVN/sol/vol/src/Vellvm/compcert" "-I" "~/SVN/sol/theory/metatheory_8.3" "-I" "~/SVN/sol/vol/src/TV" "-impredicative-set") ***
-*** End: ***
- *)
 
 

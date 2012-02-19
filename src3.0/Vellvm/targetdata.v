@@ -1,7 +1,3 @@
-Add LoadPath "./ott".
-Add LoadPath "./monads".
-Add LoadPath "./compcert".
-Add LoadPath "../../../theory/metatheory_8.3". 
 Require Import Zpower.
 Require Import Zdiv.
 Require Import List.
@@ -743,7 +739,7 @@ Proof.
     simpl in *; try (destruct TD); 
     try solve [eauto | inversion H | inversion H1].
 Case "typ_floatingpoint".
-  destruct floating_point5; try solve [inv H].
+  destruct f; try solve [inv H].
     exists 32%nat. exists (getFloatAlignmentInfo l0 32 true).
     split; auto. 
 
@@ -753,12 +749,12 @@ Case "typ_array".
   eapply H in H0; eauto.
   destruct H0 as [sz [al [J1 J2]]].
   rewrite J1. 
-  destruct sz5.
+  destruct s.
     exists 8%nat. exists 1%nat. split; auto.
 
     exists (RoundUpAlignment
                (Coqlib.nat_of_Z (Coqlib.ZRdiv (Z_of_nat sz) 8)) al * 8 *
-             Size.to_nat (S sz5))%nat.
+             Size.to_nat (S s))%nat.
     exists al. split; auto.
 Case "typ_struct".
   eapply H in H0; eauto.
@@ -835,11 +831,4 @@ Qed.
 
 End LLVMtd.
 
-(*****************************)
-(*
-*** Local Variables: ***
-*** coq-prog-name: "coqtop" ***
-*** coq-prog-args: ("-emacs-U" "-I" "~/SVN/sol/vol/src/Vellvm/monads" "-I" "~/SVN/sol/vol/src/Vellvm/ott" "-I" "~/SVN/sol/vol/src/Vellvm/compcert" "-I" "~/SVN/sol/theory/metatheory_8.3" "-impredicative-set") ***
-*** End: ***
- *)
 
