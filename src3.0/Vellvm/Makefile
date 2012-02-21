@@ -11,7 +11,7 @@ all:
 	+make -C ./GraphBasics
 	+make ott 
 
-ott: main.pdf typings.vo interpreter.vo opsem_inst.vo vellvm.vo opsem_dom.vo
+ott: typings.vo interpreter.vo opsem_inst.vo vellvm.vo opsem_dom.vo
 
 syntax.vo : ./monads/monad.vo ./compcert/Floats.vo ./compcert/alist.vo \
 	./compcert/Memory.vo syntax.v
@@ -57,8 +57,20 @@ typings_props.vo: typings_props.v syntax.vo infrastructure.vo genericvalues.vo \
 	infrastructure_props.vo analysis.vo typings.vo
 	$(COQC) $(COQARG) typings_props.v
 
+targetdata_props.vo: targetdata_props.v syntax.vo infrastructure.vo \
+	genericvalues.vo infrastructure_props.vo analysis.vo typings.vo
+	$(COQC) $(COQARG) targetdata_props.v
+
+genericvalues_props.vo: genericvalues_props.v syntax.vo infrastructure.vo \
+	genericvalues.vo infrastructure_props.vo analysis.vo typings.vo \
+	targetdata_props.vo typings_props.vo
+	$(COQC) $(COQARG) genericvalues_props.v
+
+static.vo: static.v typings_props.vo targetdata_props.vo genericvalues_props.vo
+	$(COQC) $(COQARG) static.v
+
 opsem.vo: opsem.v typings_props.vo syntax.vo infrastructure.vo \
-	genericvalues.vo infrastructure_props.vo
+	genericvalues.vo static.vo
 	$(COQC) $(COQARG) opsem.v
 
 opsem_props.vo: opsem_props.v opsem.vo syntax.vo infrastructure.vo \
@@ -87,8 +99,7 @@ def.tex: syntax.ott typings.ott main.tex
           -tex_wrap false \
             syntax.ott typings.ott
 
-vellvm.vo : vellvm.v syntax.vo infrastructure_props.vo typings_props.vo \
-	targetdata.vo dopsem.vo ndopsem.vo
+vellvm.vo : vellvm.v dopsem.vo ndopsem.vo
 	$(COQC) $(COQARG) vellvm.v
 
 main.pdf: def.tex main.tex macros.sty 

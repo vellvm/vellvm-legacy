@@ -1,9 +1,3 @@
-Add LoadPath "../Vellvm/ott".
-Add LoadPath "../Vellvm/monads".
-Add LoadPath "../Vellvm/compcert".
-Add LoadPath "../Vellvm/GraphBasics".
-Add LoadPath "../Vellvm".
-Add LoadPath "../../../theory/metatheory_8.3".
 Require Import vellvm.
 Require Import Kildall.
 Require Import ListSet.
@@ -330,7 +324,7 @@ Proof.
 Qed.
 
 Lemma las__alive_store__vev: forall pinfo lasinfo cfg S 
-  (Hwfpp: OpsemPP.wf_State cfg S) stinfo Hp
+  (Hwfcfg: OpsemPP.wf_Config cfg) (Hwfpp: OpsemPP.wf_State cfg S) stinfo Hp
   (Hlas2st : exist _ stinfo Hp = lasinfo__stinfo pinfo lasinfo),
   alive_store.wf_State pinfo stinfo cfg S -> 
   vev_State (value_id (LAS_lid pinfo lasinfo)) (LAS_value pinfo lasinfo) 
@@ -339,7 +333,8 @@ Proof.
   intros.
   destruct cfg, S.
   destruct CurTargetData as [los nts].
-  destruct Hwfpp as [Hwfg [Hwfs [HmInS [Hnempty Hstks]]]].
+  destruct Hwfcfg as [_ [Hwfg [Hwfs HmInS]]].
+  destruct Hwfpp as [Hnempty Hstks].
   unfold alive_store.wf_State in H.
   simpl in H. simpl.
   eapply las__alive_store__vev_ECStack; eauto.
@@ -461,50 +456,6 @@ Proof.
   unfold cmds_simulation, cmd_simulation in *.
   destruct (fdef_dec (PI_f pinfo) F); subst; simpl; eauto.
 Qed.
-
-Ltac destruct_ctx_return :=
-match goal with
-| Hwfpp : OpsemPP.wf_State
-            {|
-            OpsemAux.CurSystem := _;
-            OpsemAux.CurTargetData := ?TD;
-            OpsemAux.CurProducts := _;
-            OpsemAux.Globals := _;
-            OpsemAux.FunTable := _
-             |} _,
-  HwfS1 : wf_State _ _ _ _ _,
-  Hsim : State_simulation _ _ _ _ ?Cfg2 ?St2 ,
-  Hop2 : Opsem.sInsn _ _ _ _ |- _ =>
-  destruct TD as [los nts];
-  destruct Hwfpp as 
-    [Hwfg [HwfSystem [HmInS [_ [
-     [Hreach1 [HBinF1 [HFinPs1 _]]] 
-     [ _ HwfCall'
-     ]]
-    ]]]]; subst;
-  destruct Cfg2 as [S2 TD2 Ps2 gl2 fs2];
-  destruct St2 as [ECs2 M2];
-  simpl in Hsim;
-  destruct Hsim as [EQ1 [Hpsim [Hstksim [EQ2 [EQ3 EQ4]]]]]; subst;
-  destruct ECs2 as [|[F2 B2 cs2 tmn2 lc2 als2] ECs2]; tinv Hstksim;
-  destruct Hstksim as [Hecsim Hstksim];
-  destruct ECs2 as [|[F3 B3 cs3 tmn3 lc3 als3] ECs2]; tinv Hstksim;
-  destruct Hstksim as [Hecsim' Hstksim];
-  unfold EC_simulation in Hecsim;
-  destruct Hecsim as 
-      [Hfsim2 [Htsim2 [Heq2 [Hbsim2 
-        [Heq3 [Heq4 [Hlcsim2 Hcssim2]]]]]]]; subst;
-  destruct Hecsim' as 
-      [Hfsim2' [Htsim2' [Heq2' [Hbsim2' 
-        [Heq3' [Heq4' [Hlcsim2' Hcssim2']]]]]]]; subst;
-  destruct HwfS1 as [Hinscope1' [Hinscope2' HwfECs']];
-  fold wf_ECStack in HwfECs';
-  unfold wf_ExecutionContext in Hinscope1', Hinscope2';
-  simpl in Hinscope1', Hinscope2';
-  apply cmds_simulation_nil_inv in Hcssim2; subst;
-  apply cmds_simulation_cons_inv in Hcssim2'; 
-  destruct Hcssim2' as [c1' [cs3' [Heq [Hcsim2' Hcssim2']]]]; subst
-end.
 
 Lemma fdef_sim__block_sim : forall pinfo lasinfo f1 f2 b1 b2 l0,
   fdef_simulation pinfo lasinfo f1 f2 ->
@@ -866,43 +817,6 @@ Proof.
   subst. auto.
 Qed.
 
-Ltac destruct_ctx_other :=
-match goal with
-| Hwfpp : OpsemPP.wf_State
-            {|
-            OpsemAux.CurSystem := _;
-            OpsemAux.CurTargetData := ?TD;
-            OpsemAux.CurProducts := _;
-            OpsemAux.Globals := _;
-            OpsemAux.FunTable := _
-             |} _,
-  HwfS1 : wf_State _ _ _ _ _,
-  Hsim : State_simulation _ _ _ _ ?Cfg2 ?St2 ,
-  Hop2 : Opsem.sInsn _ _ _ _ |- _ =>
-  destruct TD as [los nts];
-  destruct Hwfpp as 
-    [Hwfg [HwfSystem [HmInS [_ [
-     [Hreach1 [HBinF1 [HFinPs1 _]]] 
-     [HwfECs Hwfcall]]
-    ]]]]; subst;
-  fold (@OpsemPP.wf_ECStack DGVs) in HwfECs;
-  destruct Cfg2 as [S2 TD2 Ps2 gl2 fs2];
-  destruct St2 as [ECs2 M2];
-  simpl in Hsim;
-  destruct Hsim as [EQ1 [Hpsim [Hstksim [EQ2 [EQ3 EQ4]]]]]; subst;
-  destruct ECs2 as [|[F2 B2 cs2 tmn2 lc2 als2] ECs2]; tinv Hstksim;
-  destruct Hstksim as [Hecsim Hstksim];
-  unfold EC_simulation in Hecsim;
-  destruct Hecsim as 
-      [Hfsim2 [Htsim2 [Heq2 [Hbsim2 
-        [[l3 [ps3 [cs31 Heq3]]]
-        [[l4 [ps4 [cs41 Heq4]]] [Hlcsim2 Hcssim2]]]]]]]; subst;
-  destruct HwfS1 as [Hinscope1' HwfECs'];
-  fold wf_ECStack in HwfECs';
-  unfold wf_ExecutionContext in Hinscope1';
-  simpl in Hinscope1'
-end.
-
 Lemma cmds_at_block_tail_next': forall l3 ps3 cs31 c cs tmn,
   exists l1, exists ps1, exists cs11,
          block_intro l3 ps3 (cs31 ++ c :: cs) tmn =
@@ -1106,9 +1020,94 @@ Lemma lookupExFdecViaPtr__simulation_l2r : forall pinfo lasinfo Ps1 Ps2 fptr f f
   OpsemAux.lookupExFdecViaPtr Ps2 fs fptr = Some f.
 Admitted.
 
+Ltac destruct_ctx_other :=
+match goal with
+| Hwfcfg : OpsemPP.wf_Config _,
+  Hwfpp : OpsemPP.wf_State
+            {|
+            OpsemAux.CurSystem := _;
+            OpsemAux.CurTargetData := ?TD;
+            OpsemAux.CurProducts := _;
+            OpsemAux.Globals := _;
+            OpsemAux.FunTable := _
+             |} _,
+  HwfS1 : wf_State _ _ _ _ _,
+  Hsim : State_simulation _ _ _ _ ?Cfg2 ?St2 ,
+  Hop2 : Opsem.sInsn _ _ _ _ |- _ =>
+  destruct TD as [los nts];
+  destruct Hwfcfg as [_ [Hwfg [HwfSystem HmInS]]];
+  destruct Hwfpp as 
+    [_ [
+     [Hreach1 [HBinF1 [HFinPs1 _]]] 
+     [HwfECs Hwfcall]]
+    ]; subst;
+  fold (@OpsemPP.wf_ECStack DGVs) in HwfECs;
+  destruct Cfg2 as [S2 TD2 Ps2 gl2 fs2];
+  destruct St2 as [ECs2 M2];
+  simpl in Hsim;
+  destruct Hsim as [EQ1 [Hpsim [Hstksim [EQ2 [EQ3 EQ4]]]]]; subst;
+  destruct ECs2 as [|[F2 B2 cs2 tmn2 lc2 als2] ECs2]; tinv Hstksim;
+  destruct Hstksim as [Hecsim Hstksim];
+  unfold EC_simulation in Hecsim;
+  destruct Hecsim as 
+      [Hfsim2 [Htsim2 [Heq2 [Hbsim2 
+        [[l3 [ps3 [cs31 Heq3]]]
+        [[l4 [ps4 [cs41 Heq4]]] [Hlcsim2 Hcssim2]]]]]]]; subst;
+  destruct HwfS1 as [Hinscope1' HwfECs'];
+  fold wf_ECStack in HwfECs';
+  unfold wf_ExecutionContext in Hinscope1';
+  simpl in Hinscope1'
+end.
+
+Ltac destruct_ctx_return :=
+match goal with
+| Hwfcfg : OpsemPP.wf_Config _,
+  Hwfpp : OpsemPP.wf_State
+            {|
+            OpsemAux.CurSystem := _;
+            OpsemAux.CurTargetData := ?TD;
+            OpsemAux.CurProducts := _;
+            OpsemAux.Globals := _;
+            OpsemAux.FunTable := _
+             |} _,
+  HwfS1 : wf_State _ _ _ _ _,
+  Hsim : State_simulation _ _ _ _ ?Cfg2 ?St2 ,
+  Hop2 : Opsem.sInsn _ _ _ _ |- _ =>
+  destruct TD as [los nts];
+  destruct Hwfcfg as [_ [Hwfg [HwfSystem HmInS]]];
+  destruct Hwfpp as 
+    [_ [
+     [Hreach1 [HBinF1 [HFinPs1 _]]] 
+     [ _ HwfCall'
+     ]]
+    ]; subst;
+  destruct Cfg2 as [S2 TD2 Ps2 gl2 fs2];
+  destruct St2 as [ECs2 M2];
+  simpl in Hsim;
+  destruct Hsim as [EQ1 [Hpsim [Hstksim [EQ2 [EQ3 EQ4]]]]]; subst;
+  destruct ECs2 as [|[F2 B2 cs2 tmn2 lc2 als2] ECs2]; tinv Hstksim;
+  destruct Hstksim as [Hecsim Hstksim];
+  destruct ECs2 as [|[F3 B3 cs3 tmn3 lc3 als3] ECs2]; tinv Hstksim;
+  destruct Hstksim as [Hecsim' Hstksim];
+  unfold EC_simulation in Hecsim;
+  destruct Hecsim as 
+      [Hfsim2 [Htsim2 [Heq2 [Hbsim2 
+        [Heq3 [Heq4 [Hlcsim2 Hcssim2]]]]]]]; subst;
+  destruct Hecsim' as 
+      [Hfsim2' [Htsim2' [Heq2' [Hbsim2' 
+        [Heq3' [Heq4' [Hlcsim2' Hcssim2']]]]]]]; subst;
+  destruct HwfS1 as [Hinscope1' [Hinscope2' HwfECs']];
+  fold wf_ECStack in HwfECs';
+  unfold wf_ExecutionContext in Hinscope1', Hinscope2';
+  simpl in Hinscope1', Hinscope2';
+  apply cmds_simulation_nil_inv in Hcssim2; subst;
+  apply cmds_simulation_cons_inv in Hcssim2'; 
+  destruct Hcssim2' as [c1' [cs3' [Heq [Hcsim2' Hcssim2']]]]; subst
+end.
+
 Lemma las_is_sim : forall pinfo lasinfo Cfg1 St1 Cfg2 St2 St2' tr2 tr1 St1'
   (Hwfpi: WF_PhiInfo pinfo) 
-  (Hwfpp: OpsemPP.wf_State Cfg1 St1) 
+  (Hwfcfg: OpsemPP.wf_Config Cfg1) (Hwfpp: OpsemPP.wf_State Cfg1 St1) 
   (HwfS1: id_rhs_val.wf_State (value_id (LAS_lid pinfo lasinfo)) 
            (LAS_value pinfo lasinfo) (PI_f pinfo) Cfg1 St1)
   (Hsim: State_simulation pinfo lasinfo Cfg1 St1 Cfg2 St2)
@@ -1557,7 +1556,8 @@ Lemma lasinfo__substable_values: forall td gl pinfo lasinfo,
 Admitted.
 
 Lemma sop_star__las_State_simulation: forall pinfo lasinfo cfg1 IS1 cfg2 IS2 tr
-  FS2 (Hwfpi: WF_PhiInfo pinfo) (Hwfpp: OpsemPP.wf_State cfg1 IS1) 
+  FS2 (Hwfpi: WF_PhiInfo pinfo) (Hwfcfg: OpsemPP.wf_Config cfg1)  
+  (Hwfpp: OpsemPP.wf_State cfg1 IS1) 
   (HwfS1: id_rhs_val.wf_State (value_id (LAS_lid pinfo lasinfo)) 
            (LAS_value pinfo lasinfo) (PI_f pinfo) cfg1 IS1) stinfo Hp
   (Hlas2st : exist _ stinfo Hp = lasinfo__stinfo pinfo lasinfo)
@@ -1584,7 +1584,7 @@ Proof.
 
       eapply las_is_sim in Hstsim; eauto.
       destruct Hstsim as [Hstsim EQ]; subst.
-      assert (OpsemPP.wf_State cfg1 IS1') as Hwfpp'.
+      assert (OpsemPP.wf_Config cfg1 /\ OpsemPP.wf_State cfg1 IS1') as Hwfpp'.
         apply OpsemPP.preservation in Hop1; auto.
       assert (vev_State (value_id (LAS_lid pinfo lasinfo)) 
                (LAS_value pinfo lasinfo) (PI_f pinfo) cfg1 IS1) as Hvev.
@@ -1597,7 +1597,7 @@ Proof.
         eapply alive_store.preservation in Hop1; eauto.
       assert (Promotability.wf_State maxb pinfo cfg1 IS1') as Hnoalias'.
         eapply Promotability.preservation in Hop1; eauto.
-      eapply IHHopstar in Hstsim; eauto.
+      eapply IHHopstar in Hstsim; eauto; try tauto.
       destruct Hstsim as [FS1 [Hopstar1 Hstsim]].
       exists FS1.
       split; eauto.
@@ -1676,7 +1676,7 @@ Proof.
     inv Hconv.
     eapply s_genInitState__las_State_simulation in H; eauto.
     destruct H as [cfg1 [IS1 [Hinit Hstsim]]].    
-    assert (OpsemPP.wf_State cfg1 IS1) as Hwfst. 
+    assert (OpsemPP.wf_Config cfg1 /\ OpsemPP.wf_State cfg1 IS1) as Hwfst. 
       eapply s_genInitState__opsem_wf; eauto.
     assert (id_rhs_val.wf_State (value_id (LAS_lid pinfo lasinfo))
               (LAS_value pinfo lasinfo) (PI_f pinfo) cfg1 IS1) as Hisrhsval.
@@ -1690,7 +1690,7 @@ Proof.
     destruct R as [stinfo Hp].
     assert (alive_store.wf_State pinfo stinfo cfg1 IS1) as Halst.
       eapply s_genInitState__alive_store; eauto.
-    eapply sop_star__las_State_simulation in Hstsim; eauto.
+    eapply sop_star__las_State_simulation in Hstsim; eauto; try tauto.
     destruct Hstsim as [FS1 [Hopstar1 Hstsim']].
     eapply s_isFinialState__las_State_simulation in Hstsim'; eauto.
     econstructor; eauto.
@@ -1699,7 +1699,7 @@ Proof.
     inv Hdiv.
     eapply s_genInitState__las_State_simulation in H; eauto.
     destruct H as [cfg1 [IS1 [Hinit Hstsim]]].  
-    assert (OpsemPP.wf_State cfg1 IS1) as Hwfst. 
+    assert (OpsemPP.wf_Config cfg1 /\ OpsemPP.wf_State cfg1 IS1) as Hwfst. 
       eapply s_genInitState__opsem_wf; eauto.
     assert (id_rhs_val.wf_State (value_id (LAS_lid pinfo lasinfo))
               (LAS_value pinfo lasinfo) (PI_f pinfo) cfg1 IS1) as Hisrhsval.
@@ -1713,7 +1713,7 @@ Proof.
     destruct R as [stinfo Hp].
     assert (alive_store.wf_State pinfo stinfo cfg1 IS1) as Halst.
       eapply s_genInitState__alive_store; eauto.
-    eapply sop_div__las_State_simulation in Hstsim; eauto.
+    eapply sop_div__las_State_simulation in Hstsim; eauto; try tauto.
     destruct Hstsim as [FS1 Hopdiv1].
     econstructor; eauto.
 Qed.
@@ -1764,11 +1764,3 @@ Lemma las_wfPI: forall (los : layouts) (nts : namedts) (fh : fheader)
 Proof.
 Admitted.
 
-
-(*****************************)
-(*
-*** Local Variables: ***
-*** coq-prog-name: "coqtop" ***
-*** coq-prog-args: ("-emacs-U" "-I" "~/SVN/sol/vol/src/Vellvm/monads" "-I" "~/SVN/sol/vol/src/Vellvm/ott" "-I" "~/SVN/sol/vol/src/Vellvm/compcert" "-I" "~/SVN/sol/theory/metatheory_8.3" "-impredicative-set") ***
-*** End: ***
- *)

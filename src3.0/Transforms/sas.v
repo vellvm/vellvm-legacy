@@ -320,65 +320,6 @@ Proof.
   eauto.
 Qed.
 
-Ltac destruct_ctx_return :=
-match goal with
-| Hwfpp : OpsemPP.wf_State
-            {|
-            OpsemAux.CurSystem := _;
-            OpsemAux.CurTargetData := ?TD;
-            OpsemAux.CurProducts := _;
-            OpsemAux.Globals := _;
-            OpsemAux.FunTable := _
-             |} _,
-  Hnoalias : Promotability.wf_State _ _ _ _,
-  Hsim : State_simulation _ _ _ _ ?Cfg2 ?St2 ,
-  Hop2 : Opsem.sInsn _ _ _ _ |- _ =>
-  destruct TD as [los nts];
-  destruct Hwfpp as 
-    [Hwfg [HwfSystem [HmInS [_ [
-     [Hreach1 [HBinF1 [HFinPs1 _]]] 
-     [ 
-       [
-         [Hreach2 [HBinF2 [HFinPs2 _]]]
-         _
-       ]
-       HwfCall'
-     ]]
-    ]]]]; subst;
-  destruct Cfg2 as [S2 TD2 Ps2 gl2 fs2];
-  destruct St2 as [ECs2 M2];
-  simpl in Hsim;
-  destruct Hsim as [EQ1 [Hpsim [Hstksim [EQ2 [EQ3 Hmsim]]]]]; subst;
-  destruct ECs2 as [|[F2 B2 cs2 tmn2 lc2 als2] ECs2]; tinv Hstksim;
-  destruct Hstksim as [Hecsim Hstksim];
-  destruct ECs2 as [|[F3 B3 cs3 tmn3 lc3 als3] ECs2]; tinv Hstksim;
-  destruct Hstksim as [Hecsim' Hstksim];
-  unfold EC_simulation in Hecsim;
-  destruct Hecsim as 
-      [Hfsim2 [Heq1 [Heq2 [Hbsim2 
-        [Heq3 [Heq4 [Hlcsim2 Hcssim2]]]]]]]; subst;
-  destruct Hecsim' as 
-      [Hfsim2' [Htsim2' [Heq2' [Hbsim2' 
-        [Heq3' [Heq4' [Hlcsim2' Hcssim2']]]]]]]; subst;
-  destruct Hnoalias as 
-    [
-      [[Hinscope1' _] [[[Hinscope2' _] [HwfECs' _]] _]] 
-      [[Hdisjals _] HwfM]
-    ]; simpl in Hdisjals;
-  fold Promotability.wf_ECStack in HwfECs';
-  apply cmds_simulation_nil_inv in Hcssim2; subst;
-  wfCall_inv;
-  apply cmds_simulation_nelim_cons_inv in Hcssim2'; try solve [
-    auto |
-    try match goal with
-        | |- _ = _ -> _ <> _ => admit
-        end ];
-  destruct Hcssim2' as [cs3' [Heq Hcssim2']]; subst;
-  inv Hop2;
-  uniq_result
-end.
-
-
 Lemma cs_follow_dead_store_isnt_nil: forall pinfo sasinfo,
   cs_follow_dead_store pinfo sasinfo nil -> False.
 Proof.
@@ -529,44 +470,6 @@ Proof.
   destruct J as [J1 [J2 J3]]. simpl in *.
   eapply cs_follow_dead_store_at_end_false in J3; eauto.  
 Qed.
-
-Ltac destruct_ctx_other :=
-match goal with
-| Hwfpp : OpsemPP.wf_State
-            {|
-            OpsemAux.CurSystem := _;
-            OpsemAux.CurTargetData := ?TD;
-            OpsemAux.CurProducts := _;
-            OpsemAux.Globals := _;
-            OpsemAux.FunTable := _
-             |} _,
-  Hnoalias : Promotability.wf_State _ _ _ _,
-  Hsim : State_simulation _ _ _ _ ?Cfg2 ?St2 ,
-  Hop2 : Opsem.sInsn _ _ _ _ |- _ =>
-  destruct TD as [los nts];
-  destruct Hwfpp as 
-    [Hwfg [HwfSystem [HmInS [_ [
-     [Hreach1 [HBinF1 [HFinPs1 _]]] 
-     [ _ HwfCall'
-     ]]
-    ]]]]; subst;
-  destruct Cfg2 as [S2 TD2 Ps2 gl2 fs2];
-  destruct St2 as [ECs2 M2];
-  simpl in Hsim;
-  destruct Hsim as [EQ1 [Hpsim [Hstksim [EQ2 [EQ3 Hmsim]]]]]; subst;
-  destruct ECs2 as [|[F2 B2 cs2 tmn2 lc2 als2] ECs2]; tinv Hstksim;
-  destruct Hstksim as [Hecsim Hstksim];
-  unfold EC_simulation in Hecsim;
-  destruct Hecsim as 
-      [Hfsim2 [Heq1 [Heq2 [Hbsim2 
-        [Heq3 [Heq4 [Hlcsim2 Hcssim2]]]]]]]; subst;
-  destruct Hnoalias as 
-    [
-      [[Hinscope' _] [HwfECs' HwfHT]] 
-      [[Hdisjals _] HwfM]
-    ]; simpl in Hdisjals;
-  fold Promotability.wf_ECStack in HwfECs'
-end.
 
 Lemma fdef_sim__block_sim : forall pinfo sasinfo f1 f2 b1 b2 l0,
   fdef_simulation pinfo sasinfo f1 f2 ->
@@ -815,9 +718,109 @@ Lemma callExternalFunction__Mem_simulation: forall pinfo sasinfo TD St1 M1 M2
   oresult1 = oresult2 /\ Mem_simulation pinfo sasinfo TD St1 M1' M2'.
 Admitted.
 
+Ltac destruct_ctx_other :=
+match goal with
+| Hwfcfg: OpsemPP.wf_Config _,
+  Hwfpp : OpsemPP.wf_State
+            {|
+            OpsemAux.CurSystem := _;
+            OpsemAux.CurTargetData := ?TD;
+            OpsemAux.CurProducts := _;
+            OpsemAux.Globals := _;
+            OpsemAux.FunTable := _
+             |} _,
+  Hnoalias : Promotability.wf_State _ _ _ _,
+  Hsim : State_simulation _ _ _ _ ?Cfg2 ?St2 ,
+  Hop2 : Opsem.sInsn _ _ _ _ |- _ =>
+  destruct TD as [los nts];
+  destruct Hwfcfg as [_ [Hwfg [HwfSystem HmInS]]];
+  destruct Hwfpp as 
+    [_ [
+     [Hreach1 [HBinF1 [HFinPs1 _]]] 
+     [ _ HwfCall'
+     ]]
+    ]; subst;
+  destruct Cfg2 as [S2 TD2 Ps2 gl2 fs2];
+  destruct St2 as [ECs2 M2];
+  simpl in Hsim;
+  destruct Hsim as [EQ1 [Hpsim [Hstksim [EQ2 [EQ3 Hmsim]]]]]; subst;
+  destruct ECs2 as [|[F2 B2 cs2 tmn2 lc2 als2] ECs2]; tinv Hstksim;
+  destruct Hstksim as [Hecsim Hstksim];
+  unfold EC_simulation in Hecsim;
+  destruct Hecsim as 
+      [Hfsim2 [Heq1 [Heq2 [Hbsim2 
+        [Heq3 [Heq4 [Hlcsim2 Hcssim2]]]]]]]; subst;
+  destruct Hnoalias as 
+    [
+      [[Hinscope' _] [HwfECs' HwfHT]] 
+      [[Hdisjals _] HwfM]
+    ]; simpl in Hdisjals;
+  fold Promotability.wf_ECStack in HwfECs'
+end.
+
+Ltac destruct_ctx_return :=
+match goal with
+| Hwfcfg: OpsemPP.wf_Config _,
+  Hwfpp : OpsemPP.wf_State
+            {|
+            OpsemAux.CurSystem := _;
+            OpsemAux.CurTargetData := ?TD;
+            OpsemAux.CurProducts := _;
+            OpsemAux.Globals := _;
+            OpsemAux.FunTable := _
+             |} _,
+  Hnoalias : Promotability.wf_State _ _ _ _,
+  Hsim : State_simulation _ _ _ _ ?Cfg2 ?St2 ,
+  Hop2 : Opsem.sInsn _ _ _ _ |- _ =>
+  destruct TD as [los nts];
+  destruct Hwfcfg as [_ [Hwfg [HwfSystem HmInS]]];
+  destruct Hwfpp as 
+    [_ [
+     [Hreach1 [HBinF1 [HFinPs1 _]]] 
+     [ 
+       [
+         [Hreach2 [HBinF2 [HFinPs2 _]]]
+         _
+       ]
+       HwfCall'
+     ]]
+    ]; subst;
+  destruct Cfg2 as [S2 TD2 Ps2 gl2 fs2];
+  destruct St2 as [ECs2 M2];
+  simpl in Hsim;
+  destruct Hsim as [EQ1 [Hpsim [Hstksim [EQ2 [EQ3 Hmsim]]]]]; subst;
+  destruct ECs2 as [|[F2 B2 cs2 tmn2 lc2 als2] ECs2]; tinv Hstksim;
+  destruct Hstksim as [Hecsim Hstksim];
+  destruct ECs2 as [|[F3 B3 cs3 tmn3 lc3 als3] ECs2]; tinv Hstksim;
+  destruct Hstksim as [Hecsim' Hstksim];
+  unfold EC_simulation in Hecsim;
+  destruct Hecsim as 
+      [Hfsim2 [Heq1 [Heq2 [Hbsim2 
+        [Heq3 [Heq4 [Hlcsim2 Hcssim2]]]]]]]; subst;
+  destruct Hecsim' as 
+      [Hfsim2' [Htsim2' [Heq2' [Hbsim2' 
+        [Heq3' [Heq4' [Hlcsim2' Hcssim2']]]]]]]; subst;
+  destruct Hnoalias as 
+    [
+      [[Hinscope1' _] [[[Hinscope2' _] [HwfECs' _]] _]] 
+      [[Hdisjals _] HwfM]
+    ]; simpl in Hdisjals;
+  fold Promotability.wf_ECStack in HwfECs';
+  apply cmds_simulation_nil_inv in Hcssim2; subst;
+  wfCall_inv;
+  apply cmds_simulation_nelim_cons_inv in Hcssim2'; try solve [
+    auto |
+    try match goal with
+        | |- _ = _ -> _ <> _ => admit
+        end ];
+  destruct Hcssim2' as [cs3' [Heq Hcssim2']]; subst;
+  inv Hop2;
+  uniq_result
+end.
+
 Lemma sas_is_sim : forall maxb pinfo (sasinfo: SASInfo pinfo) Cfg1 St1 Cfg2 St2
   (Hwfpi: WF_PhiInfo pinfo) 
-  (Hwfpp: OpsemPP.wf_State Cfg1 St1) 
+  (Hwfcfg: OpsemPP.wf_Config Cfg1) (Hwfpp: OpsemPP.wf_State Cfg1 St1) 
   (Hnoalias: Promotability.wf_State maxb pinfo Cfg1 St1) 
   (Hsim: State_simulation pinfo sasinfo Cfg1 St1 Cfg2 St2),
   (forall (Hrem: removable_State pinfo sasinfo St1) St1' tr1 
@@ -843,11 +846,12 @@ Case "removable state".
   destruct (fdef_dec (PI_f pinfo) F1); subst; tinv Hrem.
   destruct (id_dec i0 (SAS_sid1 pinfo sasinfo)); subst; tinv Hrem.
   
+  destruct Hwfcfg as [_ [Hwfg [HwfSystem HmInS]]].
   destruct Hwfpp as 
-    [Hwfg [HwfSystem [HmInS [_ [
+    [_ [
      [Hreach1 [HBinF1 [HFinPs1 _]]] 
      [HwfECs Hwfcall]]
-    ]]]]; subst.
+    ]; subst.
   fold (@OpsemPP.wf_ECStack DGVs) in HwfECs.
 
   destruct Hnoalias as 
@@ -1340,7 +1344,8 @@ Lemma undefined_state__sas_State_simulation: forall pinfo sasinfo cfg1 St1 cfg2
 Admitted.
 
 Lemma sop_star__sas_State_simulation: forall pinfo sasinfo cfg1 IS1 cfg2 IS2 tr
-  FS2 (Hwfpi: WF_PhiInfo pinfo) (Hwfpp: OpsemPP.wf_State cfg1 IS1) maxb
+  FS2 (Hwfpi: WF_PhiInfo pinfo) (Hwfpp: OpsemPP.wf_State cfg1 IS1) 
+  (Hwfcfg: OpsemPP.wf_Config cfg1) maxb
   (Hwfg: MemProps.wf_globals maxb (OpsemAux.Globals cfg1)) (Hless: 0 <= maxb)
   (Hnoalias: Promotability.wf_State maxb pinfo cfg1 IS1)
   (Hstsim : State_simulation pinfo sasinfo cfg1 IS1 cfg2 IS2)
@@ -1361,10 +1366,10 @@ Proof.
       rewrite Hstsim in Hfinal1.
       contradict H; eauto using s_isFinialState__stuck.
 
-      assert (OpsemPP.wf_State cfg1 IS1') as Hwfpp'.
+      assert (OpsemPP.wf_State cfg1 IS1' /\ OpsemPP.wf_State cfg1 IS1') as Hwfpp'.
         apply OpsemPP.preservation in Hop1; auto.
       assert (Promotability.wf_State maxb pinfo cfg1 IS1') as Hnoalias'.
-        eapply Promotability.preservation in Hop1; eauto.
+        eapply Promotability.preservation in Hop1; eauto; try tauto.
       eapply sas_is_sim in Hstsim; eauto.
       destruct Hstsim as [Hstsim1 Hstsim2].
       destruct (@removable_State_dec pinfo sasinfo IS1) as [Hrm | Hnrm].
@@ -1374,7 +1379,7 @@ Proof.
 
         eapply Hstsim2 in Hnrm; eauto.
         destruct Hnrm as [Hstsim EQ]; subst.
-        eapply IHHopstar in Hstsim; eauto.
+        eapply IHHopstar in Hstsim; eauto; try tauto.
         destruct Hstsim as [FS1 [Hopstar1 Hstsim]].
         exists FS1.
         split; eauto.
@@ -1463,14 +1468,14 @@ Proof.
     inv Hconv.
     eapply s_genInitState__sas_State_simulation in H; eauto.
     destruct H as [cfg1 [IS1 [Hinit Hstsim]]].    
-    assert (OpsemPP.wf_State cfg1 IS1) as Hwfst. 
+    assert (OpsemPP.wf_Config cfg1 /\ OpsemPP.wf_State cfg1 IS1) as Hwfst. 
       eapply s_genInitState__opsem_wf; eauto.
     assert (exists maxb, 
               MemProps.wf_globals maxb (OpsemAux.Globals cfg1) /\ 0 <= maxb /\
               Promotability.wf_State maxb pinfo cfg1 IS1) as Hprom.
       eapply Promotability.s_genInitState__wf_globals_promotable; eauto.
     destruct Hprom as [maxb [Hwfg [Hless Hprom]]].
-    eapply sop_star__sas_State_simulation in Hstsim; eauto.
+    eapply sop_star__sas_State_simulation in Hstsim; eauto; try tauto.
     destruct Hstsim as [FS1 [Hopstar1 Hstsim']].
     eapply s_isFinialState__sas_State_simulation in Hstsim'; eauto.
     econstructor; eauto.
@@ -1479,14 +1484,14 @@ Proof.
     inv Hdiv.
     eapply s_genInitState__sas_State_simulation in H; eauto.
     destruct H as [cfg1 [IS1 [Hinit Hstsim]]].  
-    assert (OpsemPP.wf_State cfg1 IS1) as Hwfst. 
+    assert (OpsemPP.wf_Config cfg1 /\ OpsemPP.wf_State cfg1 IS1) as Hwfst. 
       eapply s_genInitState__opsem_wf; eauto.
     assert (exists maxb, 
               MemProps.wf_globals maxb (OpsemAux.Globals cfg1) /\ 0 <= maxb /\
               Promotability.wf_State maxb pinfo cfg1 IS1) as Hprom.
       eapply Promotability.s_genInitState__wf_globals_promotable; eauto.
     destruct Hprom as [maxb [Hwfg [Hless Hprom]]].
-    eapply sop_div__sas_State_simulation in Hstsim; eauto.
+    eapply sop_div__sas_State_simulation in Hstsim; eauto; try tauto.
     destruct Hstsim as [FS1 Hopdiv1].
     econstructor; eauto.
 Qed.

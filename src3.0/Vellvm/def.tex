@@ -754,6 +754,8 @@
 \newcommand{\ottdrulewfXXconstXXstruct}[1]{\ottdrule[#1]{%
 \ottpremise{\ottcomp{\ottnt{system}  \ottsym{,}  \ottnt{targetdata}  \ottsym{\mbox{$\mid$}-c}  \mathit{cnst}_{\ottmv{j}}  \ottsym{:}  \ottnt{typ_{\ottmv{j}}}}{\ottmv{j}}}%
 \ottpremise{\ottcomp{\ottnt{targetdata}  \vdash  \ottnt{typ_{\ottmv{j}}}}{\ottmv{j}}}%
+\ottpremise{\ottnt{targetdata}  <->  \ottsym{(}  \mathit{\overline{layout} } \, \mathit{\overline{namedt} }  \ottsym{)}}%
+\ottpremise{\ottsym{typ\_eq\_list\_typ}  \mathit{\overline{namedt} } \, \ottnt{typ} \, \ottcomp{\ottnt{typ_{\ottmv{j}}}}{\ottmv{j}}}%
 }{
 \ottnt{system}  \ottsym{,}  \ottnt{targetdata}  \ottsym{\mbox{$\mid$}-c}  \ottnt{typ}  \ottsym{\{} \, \ottcomp{\mathit{cnst}_{\ottmv{j}}}{\ottmv{j}} \, \ottsym{\}}  \ottsym{:}  \ottsym{\{} \, \ottcomp{\ottnt{typ_{\ottmv{j}}}}{\ottmv{j}} \, \ottsym{\}}}{%
 {\ottdrulename{wf\_const\_struct}}{}%

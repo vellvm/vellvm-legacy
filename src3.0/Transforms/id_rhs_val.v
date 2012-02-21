@@ -293,11 +293,13 @@ Qed.
 
 Ltac destruct_ctx_return :=
 match goal with
-| Hwfpp : OpsemPP.wf_State _ _,
+| Hwfcfg : OpsemPP.wf_Config ?cfg,
+  Hwfpp : OpsemPP.wf_State ?cfg _,
   HwfS1 : wf_State _ _ _ _ _,
   Hvev : vev_State _ _ _ _ _ |- _ =>
+  destruct Hwfcfg as [_ [_ [HwfSystem HmInS]]];
   destruct Hwfpp as 
-    [_ [HwfSystem [HmInS [Hnempty [
+    [Hnempty [
      [Hreach1 [HBinF1 [HFinPs1 [Hwflc1 [Hinscope1 [l1 [ps1 [cs1' Heq1]]]]]]]] 
      [
       [
@@ -306,7 +308,7 @@ match goal with
       ]
       HwfCall'
      ]]
-    ]]]]; subst;
+    ]; subst;
   fold (@OpsemPP.wf_ECStack DGVs) in HwfECs;
   destruct Hvev as [Hvinscope1 [Hvinscope2 Hvev]];
   fold vev_ECStack in Hvev;
@@ -639,14 +641,16 @@ Qed.
 
 Ltac destruct_ctx_other :=
 match goal with
-| Hwfpp : OpsemPP.wf_State _ _,
+| Hwfcfg : OpsemPP.wf_Config ?cfg,
+  Hwfpp : OpsemPP.wf_State ?cfg _,
   HwfS1 : wf_State _ _ _ _ _,
   Hvev : vev_State _ _ _ _ _ |- _ =>
+  destruct Hwfcfg as [_ [_ [HwfSystem HmInS]]];
   destruct Hwfpp as 
-    [Hwfg [HwfSystem [HmInS [Hnempty [
+    [Hnempty [
      [Hreach1 [HBinF1 [HFinPs1 [Hwflc1 [Hinscope1 [l1' [ps1' [cs1' Heq1]]]]]]]] 
      [HwfECs HwfCall]]
-    ]]]]; subst;
+    ]; subst;
   fold (@OpsemPP.wf_ECStack DGVs) in HwfECs;
   destruct Hvev as [Hvinscope1 Hvev];
   fold vev_ECStack in Hvev;
@@ -667,7 +671,7 @@ Lemma preservation_cmd_updated_case : forall
   (Hid : Some id0 = getCmdID c0) v1 v2 
   (Hvals : substable_values (los,nts) gl F v1 v2) Cfg St
   (Hvev : vev_State v1 v2 F Cfg St)
-  (Hwfpp : OpsemPP.wf_State Cfg St)
+  (Hwfcfg : OpsemPP.wf_Config Cfg) (Hwfpp : OpsemPP.wf_State Cfg St)
   (Heval: eval_rhs (los,nts) Mem0 gl lc c0 gv3)
   (EQ1 : Cfg = {| OpsemAux.CurSystem := S;
                   OpsemAux.CurTargetData := (los, nts);
@@ -776,7 +780,7 @@ Lemma preservation_cmd_non_updated_case : forall
   (Hid : getCmdID c0 = None) v1 v2
   (Hvals : substable_values (los,nts) gl F v1 v2) Cfg St
   (Hvev : vev_State v1 v2 F Cfg St)
-  (Hwfpp : OpsemPP.wf_State Cfg St)
+  (Hwfcfg : OpsemPP.wf_Config Cfg) (Hwfpp : OpsemPP.wf_State Cfg St)
   (EQ1 : Cfg = {| OpsemAux.CurSystem := S;
                   OpsemAux.CurTargetData := (los, nts);
                   OpsemAux.CurProducts := Ps;
@@ -878,7 +882,8 @@ Qed.
 Lemma preservation : forall v1 v2 F cfg S1 S2 tr
   (Hvals : substable_values (OpsemAux.CurTargetData cfg) (OpsemAux.Globals cfg) 
              F v1 v2) (Hvev: vev_State v1 v2 F cfg S1)
-  (Hwfpp: OpsemPP.wf_State cfg S1) (HsInsn: Opsem.sInsn cfg S1 S2 tr)
+  (Hwfcfg : OpsemPP.wf_Config cfg) (Hwfpp: OpsemPP.wf_State cfg S1) 
+  (HsInsn: Opsem.sInsn cfg S1 S2 tr)
   (HwfS1: wf_State v1 v2 F cfg S1), wf_State v1 v2 F cfg S2.
 Proof.
 

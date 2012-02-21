@@ -1005,7 +1005,7 @@ lookupTypViaGIDFromModules s id0.
 Fixpoint lookupTypViaTIDFromNamedts (nts:namedts) (id0:id) : option typ :=
 match nts with
 | nil => None
-| namedt_intro id1 typ1::nts' =>
+| (id1, typ1)::nts' =>
   if (eq_dec id0 id1) 
   then Some (typ_struct typ1)
   else lookupTypViaTIDFromNamedts nts' id0
@@ -1459,10 +1459,10 @@ match ps with
 | p::ps' => uniqProduct p /\ uniqProducts ps'
 end.
 
-Fixpoint getNamedtsIDs dts : ids :=
+Fixpoint getNamedtsIDs (dts:namedts) : ids :=
 match dts with
 | nil => nil
-| namedt_intro id0 _::dts' => id0::getNamedtsIDs dts'
+| (id0, _)::dts' => id0::getNamedtsIDs dts'
 end.
 
 Definition uniqModule m : Prop :=
@@ -2750,7 +2750,7 @@ with gen_utyps_maps_aux (cid:id) (m:list(id*typ)) (ts:list_typ) : option list_ty
 Fixpoint gen_utyp_maps (nts:namedts) : list (id*typ) :=
 match nts with
 | nil => nil 
-| namedt_intro id0 t::nts' =>
+| (id0, t)::nts' =>
   let results := gen_utyp_maps nts' in
   match gen_utyp_maps_aux id0 results (typ_struct t) with
   | None => results
@@ -2808,14 +2808,14 @@ with subst_typs (i':id) (t':typ) (ts:list_typ) : list_typ :=
 Fixpoint subst_typ_by_nts (nts:namedts) (t:typ) : typ :=
 match nts with
 | nil => t
-| (namedt_intro id' ts')::nts' => 
+| (id', ts')::nts' => 
     subst_typ_by_nts nts' (subst_typ id' (typ_struct ts') t)
 end.
 
 Fixpoint subst_nts_by_nts (nts0 nts:namedts) : list (id*typ) :=
 match nts with
 | nil => nil
-| (namedt_intro id' t')::nts' => 
+| (id', t')::nts' => 
     (id',(subst_typ_by_nts nts0 (typ_struct t')))::subst_nts_by_nts nts0 nts'
 end.
 
@@ -3108,6 +3108,17 @@ Definition wf_alignment (TD:LLVMtd.TargetData) (t:typ) : Prop :=
 forall s a (abi_or_pref:bool), 
   LLVMtd.getTypeSizeInBits_and_Alignment TD abi_or_pref t = Some (s,a) -> 
   (a > 0)%nat.
+
+Definition typ_eq_list_typ (nts:namedts) (t1:typ) (ts2:list_typ) : bool :=
+match t1 with
+| typ_struct ts1 => list_typ_dec ts1 ts2
+| typ_namedt nid1 =>
+    match lookupAL _ (rev nts) nid1 with
+    | Some ts1 => list_typ_dec ts1 ts2
+    | _ => false
+    end
+| _ => false
+end.
 
 (**********************************)
 (* reflect *)

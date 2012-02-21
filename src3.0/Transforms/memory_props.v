@@ -1901,8 +1901,9 @@ Case "arr".
   destruct (length (unmake_list_const l0)); inv H1; 
     eauto using uninits_valid_ptrs__disjoint_with_ptr.
 Case "struct". 
-  eapply H with (td:=td)(gl:=gl)(ofs:=ofs)(m:=m)(t:=t0) in Hle; eauto.
+  eapply H with (td:=(l2, n))(gl:=gl)(ofs:=ofs)(m:=m)(t:=t0) in Hle; eauto.
   destruct Hle. 
+  destruct (typ_eq_list_typ n t l1); tinv H1.
   destruct g0; inv H1; 
     eauto using uninits_valid_ptrs__disjoint_with_ptr.
 Case "gid".

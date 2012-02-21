@@ -575,8 +575,14 @@ match c with
 | const_struct t lc => 
          match (_list_const_struct2GV TD gl lc) with
          | None => None
-         | Some (nil, ts) => Some (uninits 1, t)
-         | Some (gv, ts) => Some (gv, t)
+         | Some (gv0, ts) =>
+             let '(_, nts) := TD in
+             if typ_eq_list_typ nts t ts then
+               match gv0 with
+               | nil => Some (uninits 1, t)
+               | gv => Some (gv, t)
+               end
+             else None
          end
 | const_gid t id =>
          match (lookupAL _ gl id) with
@@ -1944,6 +1950,7 @@ Case "array".
   match goal with
   | sz5 : sz |- _ =>
     destruct sz5; eauto;
+    apply feasible_array_typ_inv in H1;
     apply feasible_typ_inv'' in H1;
     destruct H1 as [ssz [asz [J1 J2]]];
     rewrite J2;
@@ -1956,6 +1963,7 @@ Case "struct".
 
 Case "cons".
   destruct H1 as [J1 J2].
+  apply feasible_cons_typs_inv in H2.
   destruct H2 as [J3 J4].
   destruct (@H TD) as [gv Hz2c]; auto.
   destruct (@H0 TD) as [gvs Hz2cs]; auto.

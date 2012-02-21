@@ -1,9 +1,3 @@
-Add LoadPath "../Vellvm/ott".
-Add LoadPath "../Vellvm/monads".
-Add LoadPath "../Vellvm/compcert".
-Add LoadPath "../Vellvm/GraphBasics".
-Add LoadPath "../Vellvm".
-Add LoadPath "../../../theory/metatheory_8.3".
 Require Import vellvm.
 Require Import Kildall.
 Require Import ListSet.
@@ -273,20 +267,28 @@ Qed.
 
 Ltac destruct_ctx_return :=
 match goal with
-| Hwfpp : OpsemPP.wf_State
+| Hwfcfg : OpsemPP.wf_Config
             {|
             OpsemAux.CurSystem := _;
             OpsemAux.CurTargetData := ?TD;
             OpsemAux.CurProducts := _;
             OpsemAux.Globals := _;
             OpsemAux.FunTable := _
-             |} _,
-  Hnoalias : Promotability.wf_State _ _ _ _,
+             |},
+  Hwfpp : OpsemPP.wf_State
+            {|
+            OpsemAux.CurSystem := _;
+            OpsemAux.CurTargetData := ?TD;
+            OpsemAux.CurProducts := _;
+            OpsemAux.Globals := _;
+            OpsemAux.FunTable := _
+             |} _,  Hnoalias : Promotability.wf_State _ _ _ _,
   Hsim : State_simulation _ _ _ ?Cfg2 ?St2 ,
   Hop2 : Opsem.sInsn _ _ _ _ |- _ =>
   destruct TD as [los nts];
+  destruct Hwfcfg as [_ [Hwfg [HwfSystem HmInS]]]; subst;
   destruct Hwfpp as 
-    [Hwfg [HwfSystem [HmInS [_ [
+    [_ [
      [Hreach1 [HBinF1 [HFinPs1 _]]] 
      [ 
        [
@@ -295,7 +297,7 @@ match goal with
        ]
        HwfCall'
      ]]
-    ]]]]; subst;
+    ]; subst;
   destruct Cfg2 as [S2 TD2 Ps2 gl2 fs2];
   destruct St2 as [ECs2 M2];
   simpl in Hsim;
@@ -398,7 +400,15 @@ Qed.
 
 Ltac destruct_ctx_other :=
 match goal with
-| Hwfpp : OpsemPP.wf_State
+| Hwfcfg : OpsemPP.wf_Config
+            {|
+            OpsemAux.CurSystem := _;
+            OpsemAux.CurTargetData := ?TD;
+            OpsemAux.CurProducts := _;
+            OpsemAux.Globals := _;
+            OpsemAux.FunTable := _
+             |},
+  Hwfpp : OpsemPP.wf_State
             {|
             OpsemAux.CurSystem := _;
             OpsemAux.CurTargetData := ?TD;
@@ -410,12 +420,13 @@ match goal with
   Hsim : State_simulation _ _ _ ?Cfg2 ?St2 ,
   Hop2 : Opsem.sInsn _ _ _ _ |- _ =>
   destruct TD as [los nts];
+  destruct Hwfcfg as [_ [Hwfg [HwfSystem HmInS]]]; subst;
   destruct Hwfpp as 
-    [Hwfg [HwfSystem [HmInS [_ [
+    [_ [
      [Hreach1 [HBinF1 [HFinPs1 _]]] 
      [ _ HwfCall'
      ]]
-    ]]]]; subst;
+    ]; subst;
   destruct Cfg2 as [S2 TD2 Ps2 gl2 fs2];
   destruct St2 as [ECs2 M2];
   simpl in Hsim;
@@ -575,7 +586,7 @@ end.
 Lemma dse_is_sim : forall maxb pinfo Cfg1 St1 Cfg2 St2
   (Hwfpi: WF_PhiInfo pinfo) 
   (Hnld: load_in_fdef (PI_id pinfo) (PI_f pinfo) = false)
-  (Hwfpp: OpsemPP.wf_State Cfg1 St1) 
+  (Hwfcfg: OpsemPP.wf_Config Cfg1) (Hwfpp: OpsemPP.wf_State Cfg1 St1) 
   (Hnoalias: Promotability.wf_State maxb pinfo Cfg1 St1) 
   (Hsim: State_simulation pinfo Cfg1 St1 Cfg2 St2),
   (forall (Hrem: removable_State pinfo St1) St1' tr1 
@@ -602,11 +613,12 @@ Case "removable state".
   destruct (fdef_dec (PI_f pinfo) F1); subst; tinv Hrem.
   destruct (id_dec (PI_id pinfo) qid); subst; tinv Hrem.
   
+  destruct Hwfcfg as [_ [Hwfg [HwfSystem HmInS]]].
   destruct Hwfpp as 
-    [Hwfg [HwfSystem [HmInS [_ [
+    [_ [
      [Hreach1 [HBinF1 [HFinPs1 _]]] 
      [HwfECs Hwfcall]]
-    ]]]]; subst.
+    ]; subst.
   fold (@OpsemPP.wf_ECStack DGVs) in HwfECs.
 
   destruct Hnoalias as 
@@ -1019,7 +1031,8 @@ Lemma undefined_state__dse_State_simulation: forall pinfo cfg1 St1 cfg2
 Admitted.
 
 Lemma sop_star__dse_State_simulation: forall pinfo  cfg1 IS1 cfg2 IS2 tr
-  FS2 (Hwfpi: WF_PhiInfo pinfo) (Hwfpp: OpsemPP.wf_State cfg1 IS1)
+  FS2 (Hwfpi: WF_PhiInfo pinfo) (Hwfcfg: OpsemPP.wf_Config cfg1) 
+  (Hwfpp: OpsemPP.wf_State cfg1 IS1)
   (Hnld: load_in_fdef (PI_id pinfo) (PI_f pinfo) = false) maxb
   (Hwfg: MemProps.wf_globals maxb (OpsemAux.Globals cfg1)) (Hless: 0 <= maxb)
   (Hnoalias: Promotability.wf_State maxb pinfo cfg1 IS1)
@@ -1102,14 +1115,14 @@ Proof.
     inv Hconv.
     eapply s_genInitState__dse_State_simulation in H; eauto.
     destruct H as [cfg1 [IS1 [Hinit1 Hstsim]]]. 
-    assert (OpsemPP.wf_State cfg1 IS1) as Hwfst. 
+    assert (OpsemPP.wf_Config cfg1/\ OpsemPP.wf_State cfg1 IS1) as Hwfst. 
       eapply s_genInitState__opsem_wf; eauto.
     assert (exists maxb, 
               MemProps.wf_globals maxb (OpsemAux.Globals cfg1) /\ 0 <= maxb /\
               Promotability.wf_State maxb pinfo cfg1 IS1) as Hprom.
       eapply Promotability.s_genInitState__wf_globals_promotable; eauto.
     destruct Hprom as [maxb [Hwfg [Hless Hprom]]]. 
-    eapply sop_star__dse_State_simulation in Hstsim; eauto.
+    eapply sop_star__dse_State_simulation in Hstsim; eauto; try tauto.
     destruct Hstsim as [FS1 [Hopstar1 Hstsim']].
     eapply s_isFinialState__dse_State_simulation in Hstsim'; eauto.
     econstructor; eauto.
@@ -1159,10 +1172,3 @@ Lemma elim_dead_st_fdef_reachablity_analysis : forall f id',
     dtree.reachablity_analysis (elim_dead_st_fdef id' f).
 Admitted.
 
-(*****************************)
-(*
-*** Local Variables: ***
-*** coq-prog-name: "coqtop" ***
-*** coq-prog-args: ("-emacs-U" "-I" "~/SVN/sol/vol/src/Vellvm/monads" "-I" "~/SVN/sol/vol/src/Vellvm/ott" "-I" "~/SVN/sol/vol/src/Vellvm/compcert" "-I" "~/SVN/sol/theory/metatheory_8.3" "-impredicative-set") ***
-*** End: ***
- *)

@@ -1,9 +1,3 @@
-Add LoadPath "../Vellvm/ott".
-Add LoadPath "../Vellvm/monads".
-Add LoadPath "../Vellvm/compcert".
-Add LoadPath "../Vellvm/GraphBasics".
-Add LoadPath "../Vellvm".
-Add LoadPath "../../../theory/metatheory_8.3".
 Require Import vellvm.
 Require Import Kildall.
 Require Import ListSet.
@@ -1894,7 +1888,7 @@ Lemma phinodes_placement_is_correct__dsBranch: forall
 Proof.
   intros. subst.
   destruct_ctx_br.
-  destruct Hwfpp as [_ [_ [_ [_ [[Hreachb _] _]]]]]; auto.
+  destruct Hwfpp as [_ [[Hreachb _] _]]; auto.
 
   assert (HuniqF:=HFinPs).
   eapply wf_system__uniqFdef in HuniqF; eauto.
@@ -2130,7 +2124,7 @@ Lemma phinodes_placement_is_correct__dsBranch_uncond: forall
 Proof.
   intros. subst.
   destruct_ctx_br.
-  destruct Hwfpp as [_ [_ [_ [_ [[Hreachb _] _]]]]]; auto.
+  destruct Hwfpp as [_ [[Hreachb _] _]]; auto.
 
   assert (HuniqF:=HFinPs).
   eapply wf_system__uniqFdef in HuniqF; eauto.
@@ -3907,9 +3901,35 @@ Lemma s_isFinialState__phiplacement_State_simulation:
   s_isFinialState cfg1 FS1 = ret r.
 Admitted.
 
+Lemma preservation_star: forall cfg IS IS' tr (Hwfcfg: OpsemPP.wf_Config cfg),
+  @OpsemPP.wf_State DGVs cfg IS ->
+  Opsem.sop_star cfg IS IS' tr ->
+  OpsemPP.wf_State cfg IS'.
+Proof.
+  intros.
+  induction H0; auto.
+    apply OpsemPP.preservation in H0; auto.
+Qed.  
+
+Lemma promotability_preservation_star: forall cfg IS IS' tr pinfo maxb
+  (Hwfpi: WF_PhiInfo pinfo) (Hwfcfg: OpsemPP.wf_Config cfg)  
+  (Hwfpp: OpsemPP.wf_State cfg IS) 
+  (Hwfg: MemProps.wf_globals maxb (OpsemAux.Globals cfg)) (Hinbd: 0 <= maxb),
+  Promotability.wf_State maxb pinfo cfg IS ->
+  Opsem.sop_star cfg IS IS' tr ->
+  Promotability.wf_State maxb pinfo cfg IS'.
+Proof.
+  intros.
+  induction H0; auto.
+    apply IHsop_star.
+      apply OpsemPP.preservation in H0; auto.
+      eapply Promotability.preservation in H0; eauto.
+Qed.  
+
 Lemma sop_star__phiplacement_State_simulation: 
   forall pinfo cfg1 IS1 cfg2 IS2 tr FS2 maxb
-  (Hwfpi: WF_PhiInfo pinfo) (Hwfpp: OpsemPP.wf_State cfg1 IS1) 
+  (Hwfpi: WF_PhiInfo pinfo) (Hwfcfg: OpsemPP.wf_Config cfg1) 
+  (Hwfpp: OpsemPP.wf_State cfg1 IS1) 
   (Hnoalias: Promotability.wf_State maxb pinfo cfg1 IS1)
   (Hwfg: MemProps.wf_globals maxb (OpsemAux.Globals cfg1)) (Hinbd: 0 <= maxb)
   (Hstsim : State_simulation pinfo cfg1 IS1 cfg2 IS2)
@@ -3924,37 +3944,11 @@ Proof.
 
     eapply phinodes_placement_is_bsim with (St2':=state2) in Hstsim; eauto.
     destruct Hstsim as [IS1' [Hopstar' Hstsim]].
-    assert (OpsemPP.wf_State cfg1 IS1') as Hwfpp'.
-
-Lemma preservation_star: forall cfg IS IS' tr,
-  @OpsemPP.wf_State DGVs cfg IS ->
-  Opsem.sop_star cfg IS IS' tr ->
-  OpsemPP.wf_State cfg IS'.
-Proof.
-  intros.
-  induction H0; auto.
-    apply OpsemPP.preservation in H0; auto.
-Qed.  
-
+    assert (OpsemPP.wf_Config cfg1 /\ OpsemPP.wf_State cfg1 IS1') as Hwfpp'.
       apply preservation_star in Hopstar'; auto.
     assert (Promotability.wf_State maxb pinfo cfg1 IS1') as Hnoalias'.
-
-Lemma promotability_preservation_star: forall cfg IS IS' tr pinfo maxb
-  (Hwfpi: WF_PhiInfo pinfo) (Hwfpp: OpsemPP.wf_State cfg IS) 
-  (Hwfg: MemProps.wf_globals maxb (OpsemAux.Globals cfg)) (Hinbd: 0 <= maxb),
-  Promotability.wf_State maxb pinfo cfg IS ->
-  Opsem.sop_star cfg IS IS' tr ->
-  Promotability.wf_State maxb pinfo cfg IS'.
-Proof.
-  intros.
-  induction H0; auto.
-    apply IHsop_star.
-      apply OpsemPP.preservation in H0; auto.
-      eapply Promotability.preservation in H0; eauto.
-Qed.  
-
-      eapply promotability_preservation_star in Hopstar'; eauto.
-    eapply IHHopstar in Hstsim; eauto.
+      eapply promotability_preservation_star in Hopstar'; eauto; try tauto.
+    eapply IHHopstar in Hstsim; eauto; try tauto.
     destruct Hstsim as [FS1 [Hopstar1 Hstsim]].
     exists FS1.
     split; eauto.
@@ -4037,14 +4031,14 @@ Proof.
     inv Hconv.
     eapply s_genInitState__phiplacement_State_simulation in H; eauto.
     destruct H as [cfg1 [IS1 [Hinit1 Hstsim]]].    
-    assert (OpsemPP.wf_State cfg1 IS1) as Hwfst. 
+    assert (OpsemPP.wf_Config cfg1 /\ OpsemPP.wf_State cfg1 IS1) as Hwfst. 
       eapply s_genInitState__opsem_wf; eauto.
     assert (exists maxb, 
               MemProps.wf_globals maxb (OpsemAux.Globals cfg1) /\ 0 <= maxb /\
               Promotability.wf_State maxb pinfo cfg1 IS1) as Hprom.
-      eapply s_genInitState__wf_globals_promotable; eauto.
+      eapply s_genInitState__wf_globals_promotable; eauto; try tauto.
     destruct Hprom as [maxb [Hwfg [Hless Hprom]]].
-    eapply sop_star__phiplacement_State_simulation in Hstsim; eauto.
+    eapply sop_star__phiplacement_State_simulation in Hstsim; eauto; try tauto.
     destruct Hstsim as [FS1 [Hopstar1 Hstsim']].
     eapply s_isFinialState__phiplacement_State_simulation in Hstsim'; eauto.
     econstructor; eauto.
@@ -4110,11 +4104,3 @@ Lemma phinodes_placement_reachablity_successors: forall f rd pid ty al,
        (make_predecessors (successors f))).
 Admitted.
 
-
-(*****************************)
-(*
-*** Local Variables: ***
-*** coq-prog-name: "coqtop" ***
-*** coq-prog-args: ("-emacs-U" "-I" "~/SVN/sol/vol/src/Vellvm/monads" "-I" "~/SVN/sol/vol/src/Vellvm/ott" "-I" "~/SVN/sol/vol/src/Vellvm/compcert" "-I" "~/SVN/sol/theory/metatheory_8.3" "-impredicative-set") ***
-*** End: ***
-*)

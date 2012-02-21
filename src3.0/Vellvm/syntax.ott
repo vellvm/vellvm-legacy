@@ -517,7 +517,8 @@ opt_fdef {{ tex \mathit{opt_{fdef} } }} :: 'opt_fdef_'	::=  			{{ com option fde
   | ( opt_fdef )					:: S :: paren		{{ coq [[ opt_fdef ]] }}
 
 namedt :: 'namedt_'         				::=			{{ com named type }}
-  | id = { </ typj // j /> }                            ::   :: intro 
+       										{{ coq (prod id list_typ) }}
+  | id = { </ typj // j /> }                            ::   :: intro           {{ coq ([[id]],[[ </ typj // j /> ]]) }}
   | ( namedt )						:: S :: paren		{{ coq [[ namedt ]] }}
 
 namedts {{ tex \mathit{\overline{namedt} } }} :: 'namedts_'	::=		{{ com namedts }}

@@ -15,7 +15,6 @@ Require Import Coqlib.
 Require Import targetdata.
 Require Import infrastructure_props.
 Require Import typings.
-Require Import typings_props.
 
 (************** GVs Interface ******************)
 

@@ -1304,8 +1304,10 @@ Case "struct".
   eapply H with (TD:=TD)(gl:=gl) in H1; eauto.
   destruct H1 as [H00 H01].
   remember (_list_const_struct2GV TD gl l0) as R.
-  destruct R as [[gv1 t1]|]; inv H2.
-  destruct gv1; inv H3; eauto.
+  destruct R as [[gv1 t1]|]; tinv H2.
+  destruct TD.
+  destruct (typ_eq_list_typ n t t1); tinv H2.
+  destruct gv1; inv H2; eauto.
     apply gv_inject_uninits.
 Case "gid".
   remember (lookupAL GenericValue gl i0) as R.

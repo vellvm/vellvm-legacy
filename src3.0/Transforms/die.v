@@ -1,10 +1,3 @@
-Add LoadPath "../Vellvm/ott".
-Add LoadPath "../Vellvm/monads".
-Add LoadPath "../Vellvm/compcert".
-Add LoadPath "../Vellvm/GraphBasics".
-Add LoadPath "../Vellvm".
-Add LoadPath "../../../theory/metatheory_8.3".
-Add LoadPath "../SoftBound".
 Require Import vellvm.
 Require Import Kildall.
 Require Import ListSet.
@@ -146,37 +139,37 @@ Admitted.
 
 Lemma s_genInitState__die_State_simulation: 
   forall diinfo S1 S2 main VarArgs cfg2 IS2,
-  die.system_simulation diinfo S1 S2 ->
+  system_simulation diinfo S1 S2 ->
   Opsem.s_genInitState S2 main VarArgs Mem.empty = ret (cfg2, IS2) ->
   exists cfg1, exists IS1,
     Opsem.s_genInitState S1 main VarArgs Mem.empty = ret (cfg1, IS1) /\
-    die.State_simulation diinfo cfg1 IS1 cfg2 IS2.
+    State_simulation diinfo cfg1 IS1 cfg2 IS2.
 Admitted.
 
 Lemma s_isFinialState__die_State_simulation: 
   forall diinfo cfg1 FS1 cfg2 FS2 r 
-  (Hstsim : die.State_simulation diinfo cfg1 FS1 cfg2 FS2)
+  (Hstsim : State_simulation diinfo cfg1 FS1 cfg2 FS2)
   (Hfinal: s_isFinialState cfg2 FS2 = ret r),
   s_isFinialState cfg1 FS1 = ret r.
 Admitted.
 
 Lemma opsem_s_isFinialState__die_State_simulation: forall 
   diinfo cfg1 FS1 cfg2 FS2  
-  (Hstsim : die.State_simulation diinfo cfg1 FS1 cfg2 FS2),
+  (Hstsim : State_simulation diinfo cfg1 FS1 cfg2 FS2),
   Opsem.s_isFinialState FS1 = Opsem.s_isFinialState FS2.
 Admitted.
 
 Lemma undefined_state__die_State_simulation: forall diinfo cfg1 St1 cfg2 
-  St2 (Hstsim : die.State_simulation diinfo cfg1 St1 cfg2 St2),
+  St2 (Hstsim : State_simulation diinfo cfg1 St1 cfg2 St2),
   OpsemPP.undefined_state cfg1 St1 -> OpsemPP.undefined_state cfg2 St2.
 Admitted.
 
 Lemma sop_star__die_State_simulation: forall diinfo cfg1 IS1 cfg2 IS2 tr FS2 
-  (Hwfpp: OpsemPP.wf_State cfg1 IS1) 
-  (Hstsim : die.State_simulation diinfo cfg1 IS1 cfg2 IS2)
+  (Hwfcfg: OpsemPP.wf_Config cfg1) (Hwfpp: OpsemPP.wf_State cfg1 IS1) 
+  (Hstsim : State_simulation diinfo cfg1 IS1 cfg2 IS2)
   (Hopstar : Opsem.sop_star cfg2 IS2 FS2 tr),
   exists FS1, Opsem.sop_star cfg1 IS1 FS1 tr /\ 
-    die.State_simulation diinfo cfg1 FS1 cfg2 FS2.
+    State_simulation diinfo cfg1 FS1 cfg2 FS2.
 Proof.
   intros.
   generalize dependent IS1.
@@ -194,7 +187,7 @@ Proof.
         apply OpsemPP.preservation in Hop1; auto.
       eapply die_is_sim in Hstsim; eauto.
       destruct Hstsim as [Hstsim1 Hstsim2].
-      destruct (@die.removable_State_dec diinfo IS1) as [Hrm | Hnrm].
+      destruct (@removable_State_dec diinfo IS1) as [Hrm | Hnrm].
         eapply Hstsim1 in Hrm; eauto.
         destruct Hrm as [Hstsim EQ]; subst.
         admit. (* we should do induction on the measure of State_simulation *)
@@ -212,7 +205,7 @@ Qed.
 
 Lemma sop_div__die_State_simulation: forall diinfo cfg1 IS1 cfg2 IS2 tr 
   (Hwfpp: OpsemPP.wf_State cfg1 IS1) 
-  (Hstsim : die.State_simulation diinfo cfg1 IS1 cfg2 IS2)
+  (Hstsim : State_simulation diinfo cfg1 IS1 cfg2 IS2)
   (Hopstar : Opsem.sop_diverges cfg2 IS2 tr),
   Opsem.sop_diverges cfg1 IS1 tr.
 Admitted.    
@@ -228,15 +221,15 @@ Lemma die_sim: forall id0 f diinfo los nts Ps1 Ps2 main VarArgs
 Proof.
   intros. subst.
   assert (Huniq:=HwfS). apply wf_system__uniqSystem in Huniq; auto.
-  assert (die.system_simulation diinfo
+  assert (system_simulation diinfo
     [module_intro los nts (Ps1 ++ product_fdef (DI_f diinfo) :: Ps2)]
     [module_intro los nts
       (Ps1 ++ product_fdef (remove_fdef (DI_id diinfo) (DI_f diinfo)) :: Ps2)])
     as Hssim.
-    unfold die.system_simulation.
+    unfold system_simulation.
     constructor; auto.
     repeat split; auto.
-    unfold die.products_simulation.
+    unfold products_simulation.
     simpl in Huniq. destruct Huniq as [[_ [_ Huniq]] _].
     apply uniq_products_simulation; auto.
 
@@ -245,9 +238,9 @@ Proof.
     inv Hconv.
     eapply s_genInitState__die_State_simulation in H; eauto.
     destruct H as [cfg1 [IS1 [Hinit1 Hstsim]]].    
-    assert (OpsemPP.wf_State cfg1 IS1) as Hwfst. 
+    assert (OpsemPP.wf_Config cfg1 /\ OpsemPP.wf_State cfg1 IS1) as Hwfst. 
       eapply s_genInitState__opsem_wf; eauto.
-    eapply sop_star__die_State_simulation in Hstsim; eauto.
+    eapply sop_star__die_State_simulation in Hstsim; eauto; try tauto.
     destruct Hstsim as [FS1 [Hopstar1 Hstsim']].
     eapply s_isFinialState__die_State_simulation in Hstsim'; eauto.
     econstructor; eauto.
@@ -289,10 +282,3 @@ Lemma remove_reachablity_analysis : forall f id',
   dtree.reachablity_analysis f = dtree.reachablity_analysis (remove_fdef id' f).
 Admitted.
 
-(*****************************)
-(*
-*** Local Variables: ***
-*** coq-prog-name: "coqtop" ***
-*** coq-prog-args: ("-emacs-U" "-I" "~/SVN/sol/vol/src/Vellvm/monads" "-I" "~/SVN/sol/vol/src/Vellvm/ott" "-I" "~/SVN/sol/vol/src/Vellvm/compcert" "-I" "~/SVN/sol/theory/metatheory_8.3" "-impredicative-set") ***
-*** End: ***
- *)

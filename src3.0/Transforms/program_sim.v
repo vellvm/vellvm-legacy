@@ -1,9 +1,3 @@
-Add LoadPath "../Vellvm/ott".
-Add LoadPath "../Vellvm/monads".
-Add LoadPath "../Vellvm/compcert".
-Add LoadPath "../Vellvm/GraphBasics".
-Add LoadPath "../Vellvm".
-Add LoadPath "../../../theory/metatheory_8.3".
 Require Import vellvm.
 Require Import opsem_props.
 Require Import memory_props.
@@ -155,7 +149,7 @@ Axiom main_wf_params: forall f t i0 a v b S CurLayouts CurNamedts CurProducts
 Lemma s_genInitState__opsem_wf: forall S main VarArgs cfg IS
   (HwfS : wf_system nil S)
   (Hinit : @Opsem.s_genInitState DGVs S main VarArgs Mem.empty = ret (cfg, IS)),
-  OpsemPP.wf_State cfg IS.
+  OpsemPP.wf_Config cfg /\ OpsemPP.wf_State cfg IS.
 Proof.
   intros.
   simpl_s_genInitState.
@@ -167,13 +161,18 @@ Proof.
   assert (wf_fdef nil S (module_intro CurLayouts CurNamedts CurProducts) 
       (fdef_intro (fheader_intro f t i0 a v) b)) as HwfF.
     eapply wf_system__wf_fdef; eauto.
+  assert (wf_namedts S (CurLayouts, CurNamedts)) as Hwfnts.
+    inv HwfS.
+    eapply wf_modules__wf_module in HMinS; eauto.
+    inv HMinS; auto.
 Local Opaque inscope_of_tmn inscope_of_cmd.
   simpl.
+  split.
+  split; auto.
   split.
     eapply genGlobalAndInitMem__wf_global in HeqR1; eauto.
   split; auto.
   split; auto.
-  split.
     intro J. congruence.
   split.
     split.
@@ -377,10 +376,3 @@ Proof.
     inv H; auto.
 Qed.
 
-(*****************************)
-(*
-*** Local Variables: ***
-*** coq-prog-name: "coqtop" ***
-*** coq-prog-args: ("-emacs-U" "-I" "~/SVN/sol/vol/src/Vellvm/monads" "-I" "~/SVN/sol/vol/src/Vellvm/ott" "-I" "~/SVN/sol/vol/src/Vellvm/compcert" "-I" "~/SVN/sol/theory/metatheory_8.3" "-impredicative-set") ***
-*** End: ***
- *)

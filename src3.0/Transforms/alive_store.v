@@ -1,9 +1,3 @@
-Add LoadPath "../Vellvm/ott".
-Add LoadPath "../Vellvm/monads".
-Add LoadPath "../Vellvm/compcert".
-Add LoadPath "../Vellvm/GraphBasics".
-Add LoadPath "../Vellvm".
-Add LoadPath "../../../theory/metatheory_8.3".
 Require Import vellvm.
 Require Import Kildall.
 Require Import ListSet.
@@ -338,6 +332,7 @@ Lemma preservation_return : forall maxb pinfo stinfo (HwfPI : WF_PhiInfo pinfo)
                 Opsem.Terminator := tmn';
                 Opsem.Locals := lc';
                 Opsem.Allocas := als' |})
+  (Hwfcfg : OpsemPP.wf_Config cfg)  
   (Hwfpp : OpsemPP.wf_State cfg
            {| Opsem.ECS := EC1 :: EC2 :: EC;
               Opsem.Mem := Mem |})
@@ -364,8 +359,9 @@ Lemma preservation_return : forall maxb pinfo stinfo (HwfPI : WF_PhiInfo pinfo)
 Proof.
   intros. subst. destruct cfg as [S [los nts] Ps gl fs].
 
+  destruct Hwfcfg as [_ [_ [HwfSystem HmInS]]].
   destruct Hwfpp as 
-    [_ [HwfSystem [HmInS [_ [_ 
+    [_ [_ 
      [
        [
          [_ [HBinF1 [HFinPs1 [_ [_ [l2 [ps2 [cs2' Heq2]]]]]]]]
@@ -373,7 +369,7 @@ Proof.
        ]
        _
      ]
-    ]]]]]; subst.
+    ]]; subst.
 
   destruct HwfS1 as [Hinscope1 [Hinscope2 HwfECs]]. simpl. 
   simpl in Hinscope1, Hinscope2, HwfECs.
@@ -446,6 +442,7 @@ Lemma preservation_return_void : forall maxb pinfo stinfo
                 Opsem.Terminator := tmn';
                 Opsem.Locals := lc';
                 Opsem.Allocas := als' |})
+  (Hwfcfg : OpsemPP.wf_Config cfg)
   (Hwfpp : OpsemPP.wf_State cfg
            {| Opsem.ECS := EC1 :: EC2 :: EC;
               Opsem.Mem := Mem |})
@@ -468,8 +465,9 @@ Lemma preservation_return_void : forall maxb pinfo stinfo
         Opsem.Mem := Mem' |}.
 Proof.
   intros. subst. destruct cfg as [S [los nts] Ps gl fs].
+  destruct Hwfcfg as [_ [_ [HwfSystem HmInS]]].
   destruct Hwfpp as 
-    [_ [HwfSystem [HmInS [_ [_ 
+    [_ [_ 
      [
        [
          [_ [HBinF1 [HFinPs1 [_ [_ [l2 [ps2 [cs2' Heq2]]]]]]]]
@@ -477,7 +475,7 @@ Proof.
        ]
        _
      ]
-    ]]]]]; subst.
+    ]]; subst.
 
   destruct HwfS1 as [Hinscope1 [Hinscope2 HwfECs]]. simpl. 
   simpl in Hinscope1, Hinscope2, HwfECs.
@@ -636,14 +634,16 @@ Qed.
 
 Ltac destruct_ctx_other :=
 match goal with
-| Hwfpp : OpsemPP.wf_State _ _,
+| Hwfcfg : OpsemPP.wf_Config ?cfg,
+  Hwfpp : OpsemPP.wf_State ?cfg _,
   HwfS1 : wf_State _ _ _ _,
   Hnoalias : Promotability.wf_State _ _ _ _ |- _ =>
+  destruct Hwfcfg as [_ [_ [HwfSystem HmInS]]];
   destruct Hwfpp as 
-    [_ [HwfSystem [HmInS [Hnonempty [
+    [Hnonempty [
      [Hreach1 [HBinF1 [HFinPs1 [_ [_ [l1 [ps1 [cs1' Heq1]]]]]]]] 
      [HwfEC0 HwfCall]
-    ]]]]]; subst;
+    ]]; subst;
   fold (@OpsemPP.wf_ECStack DGVs) in HwfEC0;
   destruct HwfS1 as [Hinscope HwfECs]; simpl;
   simpl in Hinscope, HwfECs;
@@ -701,6 +701,7 @@ Lemma preservation_pure_cmd_updated_case : forall (F : fdef)(B : block)
                 Opsem.Terminator := tmn;
                 Opsem.Locals := lc;
                 Opsem.Allocas := als |})
+  (Hwfcfg : OpsemPP.wf_Config cfg)
   (Hwfpp : OpsemPP.wf_State cfg
            {| Opsem.ECS := EC :: ECs;
               Opsem.Mem := Mem0 |})
@@ -729,11 +730,12 @@ Lemma preservation_pure_cmd_updated_case : forall (F : fdef)(B : block)
 Proof.
   intros. subst. 
   destruct cfg as [S [los nts] Ps gl fs].
+  destruct Hwfcfg as [_ [_ [HwfSystem HmInS]]].
   destruct Hwfpp as 
-    [_ [HwfSystem [HmInS [Hnonempty [
+    [Hnonempty [
      [Hreach1 [HBinF1 [HFinPs1 [_ [_ [l1 [ps1 [cs1' Heq1]]]]]]]] 
      [HwfEC0 HwfCall]
-    ]]]]]; subst.
+    ]]; subst.
   fold (@OpsemPP.wf_ECStack DGVs) in HwfEC0.
 
   destruct HwfS1 as [Hinscope HwfECs]. simpl. 
@@ -1045,7 +1047,7 @@ end.
 
 Lemma preservation : forall maxb pinfo stinfo cfg S1 S2 tr
   (Hwfg: wf_globals maxb (OpsemAux.Globals cfg))
-  (Hwfpp: OpsemPP.wf_State cfg S1) 
+  (Hwfcfg: OpsemPP.wf_Config cfg) (Hwfpp: OpsemPP.wf_State cfg S1) 
   (Hnoalias: Promotability.wf_State maxb pinfo cfg S1) 
   (HwfPI: WF_PhiInfo pinfo) (HsInsn: Opsem.sInsn cfg S1 S2 tr)
   (HwfS1: wf_State pinfo stinfo cfg S1), wf_State pinfo stinfo cfg S2.
@@ -1119,11 +1121,4 @@ Lemma s_genInitState__alive_store: forall S main VarArgs cfg IS pinfo stinfo
   wf_State pinfo stinfo cfg IS.
 Admitted.
  
-(*****************************)
-(*
-*** Local Variables: ***
-*** coq-prog-name: "coqtop" ***
-*** coq-prog-args: ("-emacs-U" "-I" "~/SVN/sol/vol/src/Vellvm/monads" "-I" "~/SVN/sol/vol/src/Vellvm/ott" "-I" "~/SVN/sol/vol/src/Vellvm/compcert" "-I" "~/SVN/sol/theory/metatheory_8.3" "-impredicative-set") ***
-*** End: ***
- *)
 

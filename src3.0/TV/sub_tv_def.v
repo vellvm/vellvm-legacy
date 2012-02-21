@@ -1,9 +1,3 @@
-Add LoadPath "../Vellvm/ott".
-Add LoadPath "../Vellvm/monads".
-Add LoadPath "../Vellvm".
-Add LoadPath "../Vellvm/compcert".
-Add LoadPath "../Vellvm/GraphBasics".
-Add LoadPath "../../../theory/metatheory_8.3".
 Require Import syntax.
 Require Import targetdata.
 Require Import List.
@@ -175,7 +169,7 @@ Defined.
 Fixpoint get_named_ret_typs nts tid {struct nts} : option (typ*typ*typ) :=
 match nts with
 | nil => None
-| namedt_intro tid' t'::nts' =>
+| (tid', t')::nts' =>
     if (eq_id tid tid') then
       match t' with
       | (Cons_list_typ (typ_pointer _ as t01) 
@@ -1381,10 +1375,3 @@ Hint Constructors dbCall dbSubblock dbSubblocks dbBlock dbBlocks dbFdef.
 
 End SBopsem.
 
-(*****************************)
-(*
-*** Local Variables: ***
-*** coq-prog-name: "coqtop" ***
-*** coq-prog-args: ("-emacs-U" "-I" "~/SVN/sol/vol/src/Vellvm/monads" "-I" "~/SVN/sol/vol/src/Vellvm/ott" "-I" "~/SVN/sol/vol/src/Vellvm/compcert" "-I" "~/SVN/sol/theory/metatheory_8.3" "-impredicative-set") ***
-*** End: ***
- *)

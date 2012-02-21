@@ -1,9 +1,3 @@
-Add LoadPath "../Vellvm/ott".
-Add LoadPath "../Vellvm/monads".
-Add LoadPath "../Vellvm/compcert".
-Add LoadPath "../Vellvm/GraphBasics".
-Add LoadPath "../Vellvm".
-Add LoadPath "../../../theory/metatheory_8.3".
 Require Import vellvm.
 Require Import Kildall.
 Require Import ListSet.
@@ -770,6 +764,7 @@ Lemma preservation_return : forall maxb pinfo (HwfPI : WF_PhiInfo pinfo)
                 Opsem.Terminator := tmn';
                 Opsem.Locals := lc';
                 Opsem.Allocas := als' |})
+  (Hwfcfg : OpsemPP.wf_Config cfg)
   (Hinv : OpsemPP.wf_State cfg
            {| Opsem.ECS := EC1 :: EC2 :: EC;
               Opsem.Mem := Mem |})
@@ -794,8 +789,9 @@ Proof.
 Local Opaque inscope_of_tmn inscope_of_cmd.
 
   intros. subst. destruct cfg as [S [los nts] Ps gl fs].
+  destruct Hwfcfg as [_ [_ [HwfSystem HmInS]]].
   destruct Hinv as 
-    [_ [HwfSystem [HmInS [Hnonempty [
+    [Hnonempty [
      [Hreach1 [HBinF1 [HFinPs1 [_ [_ [l1 [ps1 [cs1' Heq1]]]]]]]] 
      [
        [
@@ -804,7 +800,7 @@ Local Opaque inscope_of_tmn inscope_of_cmd.
        ]
        HwfCall'
      ]
-    ]]]]]; subst.
+    ]]; subst.
   fold (@OpsemPP.wf_ECStack DGVs) in HwfEC0.
   destruct HwfS1 as 
     [
@@ -940,6 +936,17 @@ else True) /\
     no_alias gv1 gvsa) /\
 (valid_ptrs (Mem.nextblock M) gv1).
 
+Ltac simpl_ctx0 Hwfcfg Hinv HwfS1 :=
+  destruct Hwfcfg as [_ [_ [HwfSystem HmInS]]];
+  destruct Hinv as 
+    [Hnonempty [
+     [Hreach1 [HBinF1 [HFinPs1 [_ [_ [l3 [ps3 [cs3' Heq1]]]]]]]] 
+     [HwfEC0 HwfCall]
+    ]]; subst;
+  fold (@OpsemPP.wf_ECStack DGVs) in HwfEC0;
+  destruct HwfS1 as 
+    [[[Hinscope1 Hwflc1] [HwfECs Hfr2]] [Hdisjals HwfM]].
+
 Lemma preservation_pure_cmd_updated_case : forall (F : fdef)(B : block)
   (lc : DGVMap)(gv3 : GVsT DGVs) (cs : list cmd) (tmn : terminator) id0 c0 Mem0 
   als ECs pinfo 
@@ -953,6 +960,7 @@ Lemma preservation_pure_cmd_updated_case : forall (F : fdef)(B : block)
                 Opsem.Allocas := als |})
   (Hwfgv : 
     wf_GVs_in_ECs maxb pinfo (OpsemAux.CurTargetData cfg) Mem0 EC ECs id0 gv3)
+  (Hwfcfg : OpsemPP.wf_Config cfg)
   (Hinv : OpsemPP.wf_State cfg
            {| Opsem.ECS := EC :: ECs;
               Opsem.Mem := Mem0 |})
@@ -974,14 +982,7 @@ Local Opaque inscope_of_cmd inscope_of_tmn.
 
   intros. subst. destruct Hwfgv as [Hwfgv1 [Hwfgv2 Hwfgv3]].
   destruct cfg as [S [los nts] Ps gl fs].
-  destruct Hinv as 
-    [_ [HwfSystem [HmInS [Hnonempty [
-     [Hreach1 [HBinF1 [HFinPs1 [_ [_ [l1 [ps1 [cs1' Heq1]]]]]]]] 
-     [HwfEC0 HwfCall]
-    ]]]]]; subst.
-  fold (@OpsemPP.wf_ECStack DGVs) in HwfEC0.
-  destruct HwfS1 as 
-    [[[Hinscope1 Hwflc1] [HwfECs Hfr2]] [Hdisjals HwfM]].
+  simpl_ctx0 Hwfcfg Hinv HwfS1.
   simpl. simpl in Hdisjals.
   fold wf_ECStack in HwfECs.
   simpl in Hwfgv1.
@@ -1994,14 +1995,25 @@ Proof.
     omega.
 Qed.
 
-Ltac simpl_ctx Hinv HwfS1 :=
+Ltac simpl_ctx Hwfcfg Hinv HwfS1 :=
+  destruct Hwfcfg as [_ [_ [HwfSystem HmInS]]];
   destruct Hinv as 
-    [_ [HwfSystem [HmInS [Hnonempty [
+    [Hnonempty [
      [Hreach1 [HBinF1 [HFinPs1 [_ [_ [l1 [ps1 [cs1' Heq1]]]]]]]] 
      [HwfEC0 HwfCall]
-    ]]]]]; subst;
+    ]]; subst;
   fold (@OpsemPP.wf_ECStack DGVs) in HwfEC0;
   destruct HwfS1 as [[HwfEC [HwfECs Hwfht]] [Hnonup1 HwfM1]].
+
+Ltac simpl_ctx' Hwfcfg Hinv HwfS1 :=
+  destruct Hwfcfg as [_ [_ [HwfSystem HmInS]]];
+  destruct Hinv as 
+    [Hnonempty [
+     [Hreach1 [HBinF1 [HFinPs1 [_ [_ [l1 [ps1 [cs1' Heq1]]]]]]]] 
+     [HwfEC0 HwfCall]
+    ]]; subst;
+  fold (@OpsemPP.wf_ECStack DGVs) in HwfEC0;
+  destruct HwfS1 as [[[_ Hwflc] [HwfECs Hwfht]] [Hnonup1 [_ HwfM]]].
 
 Ltac preservation_tac4 :=
   match goal with
@@ -2032,6 +2044,7 @@ Lemma preservation_Call: forall (maxb : Z) (pinfo : PhiInfo)
                  Opsem.Terminator := tmn;
                  Opsem.Locals := lc;
                  Opsem.Allocas := als |} :: EC)
+  (Hwfcfg : OpsemPP.wf_Config cfg)
   (Hinv : OpsemPP.wf_State cfg        
            {| Opsem.ECS := ECs;
               Opsem.Mem := Mem |})
@@ -2065,14 +2078,7 @@ Lemma preservation_Call: forall (maxb : Z) (pinfo : PhiInfo)
      Opsem.Mem := Mem |}.
 Proof.
   intros. subst.
-  destruct Hinv as 
-    [_ [HwfSystem [HmInS [Hnonempty [
-     [Hreach1 [HBinF1 [HFinPs1 [_ [_ [l1 [ps1 [cs1' Heq1]]]]]]]] 
-     [HwfEC0 HwfCall]
-    ]]]]]; subst.
-  fold (@OpsemPP.wf_ECStack DGVs) in HwfEC0.
-  destruct HwfS1 as 
-    [[[Hinscope1 Hwflc1] [HwfECs Hfr2]] [Hdisjals HwfM]].
+  simpl_ctx0 Hwfcfg Hinv HwfS1.
   simpl in Hdisjals.
   fold wf_ECStack in HwfECs.
   assert (InProductsB (product_fdef (fdef_intro 
@@ -2126,6 +2132,7 @@ Lemma preservation_return_void : forall maxb pinfo (HwfPI : WF_PhiInfo pinfo)
                 Opsem.Terminator := tmn';
                 Opsem.Locals := lc';
                 Opsem.Allocas := als' |})
+  (Hwfcfg : OpsemPP.wf_Config cfg)
   (Hinv : OpsemPP.wf_State cfg
            {| Opsem.ECS := EC1 :: EC2 :: EC;
               Opsem.Mem := Mem |})
@@ -2148,8 +2155,9 @@ Proof.
 Local Opaque inscope_of_tmn inscope_of_cmd.
 
   intros. subst. destruct cfg as [S [los nts] Ps gl fs]. 
+  destruct Hwfcfg as [_ [_ [HwfSystem HmInS]]].
   destruct Hinv as 
-    [_ [HwfSystem [HmInS [Hnonempty [
+    [Hnonempty [
      [Hreach1 [HBinF1 [HFinPs1 [_ [_ [l1 [ps1 [cs1' Heq1]]]]]]]] 
      [
        [
@@ -2158,7 +2166,7 @@ Local Opaque inscope_of_tmn inscope_of_cmd.
        ]
        HwfCall'
      ]
-    ]]]]]; subst.
+    ]]; subst.
   fold (@OpsemPP.wf_ECStack DGVs) in HwfEC0.
   destruct HwfS1 as 
     [
@@ -2377,6 +2385,7 @@ Lemma preservation_branch: forall (maxb : Z) (pinfo : PhiInfo) (S : system)
                  Opsem.Terminator := insn_br bid Cond l1 l2;
                  Opsem.Locals := lc;
                  Opsem.Allocas := als |} :: EC)
+  (Hwfcfg : OpsemPP.wf_Config cfg)
   (Hinv : OpsemPP.wf_State cfg
            {| Opsem.ECS := ECs; Opsem.Mem := Mem |})
   (Hwfg : wf_globals maxb
@@ -2412,14 +2421,7 @@ Lemma preservation_branch: forall (maxb : Z) (pinfo : PhiInfo) (S : system)
      Opsem.Mem := Mem |}.
 Proof.
   intros. subst.
-  destruct Hinv as 
-    [_ [HwfSystem [HmInS [Hnonempty [
-     [Hreach1 [HBinF1 [HFinPs1 [_ [_ [l3 [ps3 [cs3' Heq1]]]]]]]] 
-     [HwfEC HwfCall]
-     ]
-    ]]]]; subst.
-  fold (@OpsemPP.wf_ECStack DGVs) in HwfEC.
-  destruct HwfS1 as [[[Hinscope1 Hwflc1] [HwfECs Hfr1]] [Hdisjals HwfM]]. 
+  simpl_ctx0 Hwfcfg Hinv HwfS1.
   simpl. simpl in Hdisjals.
   fold wf_ECStack in HwfECs.
   assert (Hdisjals':=Hdisjals).
@@ -2462,6 +2464,7 @@ Lemma preservation_branch_uncond: forall (maxb : Z) (pinfo : PhiInfo)
                  Opsem.Terminator := insn_br_uncond bid l0;
                  Opsem.Locals := lc;
                  Opsem.Allocas := als |} :: EC)
+  (Hwfcfg : OpsemPP.wf_Config cfg)
   (Hinv : OpsemPP.wf_State cfg
            {| Opsem.ECS := ECs; Opsem.Mem := Mem |})
   (Hwfg : wf_globals maxb
@@ -2492,14 +2495,7 @@ Lemma preservation_branch_uncond: forall (maxb : Z) (pinfo : PhiInfo)
      Opsem.Mem := Mem |}.
 Proof.
   intros. subst.
-  destruct Hinv as 
-    [_ [HwfSystem [HmInS [Hnonempty [
-     [Hreach1 [HBinF1 [HFinPs1 [_ [_ [l3 [ps3 [cs3' Heq1]]]]]]]] 
-     [HwfEC HwfCall]
-     ]
-    ]]]]; subst.
-  fold (@OpsemPP.wf_ECStack DGVs) in HwfEC.
-  destruct HwfS1 as [[[Hinscope1 Hwflc1] [HwfECs Hfr1]] [Hdisjals HwfM]]. 
+  simpl_ctx0 Hwfcfg Hinv HwfS1.
   simpl. simpl in Hdisjals.
   fold wf_ECStack in HwfECs.
   assert (Hdisjals':=Hdisjals).
@@ -2726,7 +2722,6 @@ Proof.
     eapply micmp_preserves_valid_ptrs in J3; eauto.
 Qed.
 
-
 Lemma FCMP__wf_GVs_in_ECs : forall (id1 : id) gvs2 TD gl EC Mem pinfo maxb
   (Hwflc: wf_lc Mem (@Opsem.Locals DGVs EC)) v1 v2
   (Hwfgl: wf_globals maxb gl) (HwfM: maxb < Mem.nextblock Mem)
@@ -2810,10 +2805,11 @@ Ltac preservation_tac0:=
 
 Ltac preservation_tac1:=
 match goal with
-| Hinv : OpsemPP.wf_State _ _,
+| Hwfcfg : OpsemPP.wf_Config ?cfg,
+  Hinv : OpsemPP.wf_State ?cfg _,
   HwfS1 : wf_State _ _ _ _,
   HwfPI : WF_PhiInfo _ |- _ =>
-  simpl_ctx Hinv HwfS1;
+  simpl_ctx Hwfcfg Hinv HwfS1;
   preservation_tac0
 end.
 
@@ -2841,18 +2837,8 @@ Ltac preservation_tac3 :=
     preservation_tac2
   end.
 
-
-Ltac simpl_ctx' Hinv HwfS1 :=
-  destruct Hinv as 
-    [_ [HwfSystem [HmInS [Hnonempty [
-     [Hreach1 [HBinF1 [HFinPs1 [_ [_ [l1 [ps1 [cs1' Heq1]]]]]]]] 
-     [HwfEC0 HwfCall]
-    ]]]]]; subst;
-  fold (@OpsemPP.wf_ECStack DGVs) in HwfEC0;
-  destruct HwfS1 as [[[_ Hwflc] [HwfECs Hwfht]] [Hnonup1 [_ HwfM]]].
-
 Lemma preservation : forall maxb pinfo cfg S1 S2 tr
-  (Hinv: OpsemPP.wf_State cfg S1)
+  (Hwfcfg: OpsemPP.wf_Config cfg) (Hinv: OpsemPP.wf_State cfg S1)
   (Hwfg: wf_globals maxb (OpsemAux.Globals cfg)) (Hinbd: 0 <= maxb)
   (HwfPI: WF_PhiInfo pinfo) (HsInsn: Opsem.sInsn cfg S1 S2 tr)
   (HwfS1: wf_State maxb pinfo cfg S1), wf_State maxb pinfo cfg S2.
@@ -2880,21 +2866,21 @@ Case "sFBop".
 Case "sExtractValue".
   eapply preservation_pure_cmd_updated_case in HwfS1; try solve [simpl; eauto]; 
     eauto.
-    simpl_ctx' Hinv HwfS1.
+    simpl_ctx' Hwfcfg Hinv HwfS1.
     eapply extractGenericValue__wf_GVs_in_ECs; simpl;
       try solve [eauto | preservation_tac2 | preservation_tac0].
 
 Case "sInsertValue". 
   eapply preservation_pure_cmd_updated_case in HwfS1; try solve [simpl; eauto]; 
     eauto.
-    simpl_ctx' Hinv HwfS1.
+    simpl_ctx' Hwfcfg Hinv HwfS1.
     eapply insertGenericValue__wf_GVs_in_ECs with (v:=v) (gvs:=gvs) (v':=v')
       (gvs':=gvs'); try solve [eauto | preservation_tac2 | preservation_tac0].
 
 Case "sMalloc". 
   assert (PI_f pinfo = F -> id0 <> PI_id pinfo) as Hneq. 
     preservation_tac1.
-  simpl_ctx Hinv HwfS1.
+  simpl_ctx Hwfcfg Hinv HwfS1.
   split.
     split.
       eapply impure_cmd_updated_preserves_wf_EC; eauto.
@@ -2913,7 +2899,7 @@ Case "sMalloc".
     eapply malloc_preserves_wf_Mem in H2; eauto.
 
 Case "sFree". 
-  simpl_ctx Hinv HwfS1.
+  simpl_ctx Hwfcfg Hinv HwfS1.
   split.
     split.
       eapply impure_cmd_non_updated_preserves_wf_EC with (M:=Mem); eauto.
@@ -2929,7 +2915,7 @@ Case "sFree".
     eapply free_preserves_wf_Mem in H1; eauto.
 
 Case "sAlloca". 
-  simpl_ctx Hinv HwfS1.
+  simpl_ctx Hwfcfg Hinv HwfS1.
   split.
     split.
       eapply impure_cmd_updated_preserves_wf_EC; eauto.
@@ -2957,7 +2943,7 @@ Case "sLoad".
     eapply mload__wf_GVs_in_ECs; eauto using wf_EC__wf_lc.
 
 Case "sStore". 
-  simpl_ctx Hinv HwfS1.
+  simpl_ctx Hwfcfg Hinv HwfS1.
   assert (wf_lc Mem lc) as Hwflc.
     apply wf_EC__wf_lc in HwfEC; auto.
   split.
@@ -2978,42 +2964,42 @@ Case "sStore".
 Case "sGEP". 
   eapply preservation_pure_cmd_updated_case in HwfS1; try solve [simpl; eauto]; 
     eauto.
-    simpl_ctx' Hinv HwfS1.
+    simpl_ctx' Hwfcfg Hinv HwfS1.
     eapply GEP__wf_GVs_in_ECs; try solve 
       [eauto using wf_EC__wf_lc | preservation_tac2 | preservation_tac0].
 
 Case "sTrunc".
   eapply preservation_pure_cmd_updated_case in HwfS1; try solve [simpl; eauto]; 
     eauto.
-    simpl_ctx' Hinv HwfS1.
+    simpl_ctx' Hwfcfg Hinv HwfS1.
     eapply TRUNC__wf_GVs_in_ECs; 
       try solve [eauto | preservation_tac2 | preservation_tac0].
 
 Case "sExt".
   eapply preservation_pure_cmd_updated_case in HwfS1; try solve [simpl; eauto]; 
     eauto.
-    simpl_ctx' Hinv HwfS1.
+    simpl_ctx' Hwfcfg Hinv HwfS1.
     eapply EXT__wf_GVs_in_ECs;
       try solve [eauto | preservation_tac2 | preservation_tac0].
 
 Case "sCast". 
   eapply preservation_pure_cmd_updated_case in HwfS1; try solve [simpl; eauto]; 
     eauto.
-    simpl_ctx' Hinv HwfS1.
+    simpl_ctx' Hwfcfg Hinv HwfS1.
     eapply CAST__wf_GVs_in_ECs;
       try solve [eauto | preservation_tac2 | preservation_tac0].
 
 Case "sIcmp". 
   eapply preservation_pure_cmd_updated_case in HwfS1; try solve [simpl; eauto]; 
     eauto.
-    simpl_ctx' Hinv HwfS1.
+    simpl_ctx' Hwfcfg Hinv HwfS1.
     eapply ICMP__wf_GVs_in_ECs with (v1:=v1)(v2:=v2);
       try solve [eauto | preservation_tac2 | preservation_tac0].
 
 Case "sFcmp". 
   eapply preservation_pure_cmd_updated_case in HwfS1; try solve [simpl; eauto]; 
     eauto.
-    simpl_ctx' Hinv HwfS1.
+    simpl_ctx' Hwfcfg Hinv HwfS1.
     eapply FCMP__wf_GVs_in_ECs with (v1:=v1)(v2:=v2);
       try solve [eauto | preservation_tac2 | preservation_tac0].
 
@@ -3021,7 +3007,7 @@ Case "sSelect".
   destruct (isGVZero (los, nts) c);
     eapply preservation_pure_cmd_updated_case in HwfS1; try solve [simpl; eauto]; 
       try solve [eauto | 
-                 simpl_ctx' Hinv HwfS1;
+                 simpl_ctx' Hwfcfg Hinv HwfS1;
                  match goal with
                  | H1: Opsem.getOperandValue _ ?v1 _ _ = ret ?gvs1 |- 
                        wf_GVs_in_ECs _ _ _ _ _ _ _ ?gvs1 => 
@@ -3095,12 +3081,4 @@ Proof.
 Qed.
 
 End Promotability.
-
-(*****************************)
-(*
-*** Local Variables: ***
-*** coq-prog-name: "coqtop" ***
-*** coq-prog-args: ("-emacs-U" "-I" "~/SVN/sol/vol/src/Vellvm/monads" "-I" "~/SVN/sol/vol/src/Vellvm/ott" "-I" "~/SVN/sol/vol/src/Vellvm/compcert" "-I" "~/SVN/sol/theory/metatheory_8.3" "-impredicative-set") ***
-*** End: ***
- *)
 

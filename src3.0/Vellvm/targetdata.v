@@ -312,9 +312,9 @@ Fixpoint _getTypeSizeInBits_and_Alignment (los:layouts) (nts:list (id*(nat*nat))
       (getTypeAllocSize typeSizeInBits ABIalignment * 8)%nat in
 
   match t with
-  | typ_label => Some (Size.to_nat (getPointerSizeInBits los), 
-                       getPointerAlignmentInfo los abi_or_pref) 
-
+  | typ_label => None
+                 (* Some (Size.to_nat (getPointerSizeInBits los),  *)
+                 (*       getPointerAlignmentInfo los abi_or_pref)  *)
   | typ_pointer _ => Some (Size.to_nat (getPointerSizeInBits los), 
                            getPointerAlignmentInfo los abi_or_pref) 
 
@@ -355,13 +355,12 @@ Fixpoint _getTypeSizeInBits_and_Alignment (los:layouts) (nts:list (id*(nat*nat))
       Some (32%nat, getFloatAlignmentInfo los 32%nat abi_or_pref) 
   | typ_floatpoint fp_double => 
       Some (64%nat, getFloatAlignmentInfo los 64%nat abi_or_pref) 
-  | typ_floatpoint fp_x86_fp80 => 
-      Some (80%nat, getFloatAlignmentInfo los 64%nat abi_or_pref) 
-  | typ_floatpoint fp_fp128 => 
-      Some (128%nat, getFloatAlignmentInfo los 128%nat abi_or_pref) 
-  | typ_floatpoint fp_ppc_fp128 => 
-      Some (128%nat, getFloatAlignmentInfo los 128%nat abi_or_pref) 
-
+  | typ_floatpoint fp_x86_fp80 => None
+      (* Some (80%nat, getFloatAlignmentInfo los 64%nat abi_or_pref)  *)
+  | typ_floatpoint fp_fp128 => None
+      (* Some (128%nat, getFloatAlignmentInfo los 128%nat abi_or_pref)  *)
+  | typ_floatpoint fp_ppc_fp128 => None
+      (* Some (128%nat, getFloatAlignmentInfo los 128%nat abi_or_pref)  *)
   | typ_metadata => None
   | typ_function _ _ _ => None
   | typ_namedt id0 => lookupAL _ nts id0
@@ -421,7 +420,7 @@ Fixpoint _getTypeSizeInBits_and_Alignment_for_namedts
   (los:layouts) (nts:namedts) (abi_or_pref:bool)  : list (id*(nat*nat)) :=
 match nts with
 | nil => nil 
-| namedt_intro id0 ts0::nts' =>
+| (id0, ts0)::nts' =>
   let results := _getTypeSizeInBits_and_Alignment_for_namedts los nts' 
                 abi_or_pref in
   match _getTypeSizeInBits_and_Alignment los results abi_or_pref 
@@ -626,25 +625,47 @@ match t with
 | _ => None
 end.
 
-Definition feasible_typ_aux TD t : Prop :=
- match LLVMtd.getTypeSizeInBits_and_Alignment TD true t with
- | None => False
- | Some (sz, al) => (al > 0)%nat
- end.
-
-Fixpoint feasible_typ TD t : Prop :=
+(* FIXME: abi_or_pref cannot always be true,
+   We should use different flag when t types global or aggregate
+*)
+Fixpoint feasible_typ_aux los (nts:list (id*Prop)) t : Prop :=
 match t with
-| typ_int _ | typ_pointer _ | typ_floatpoint fp_float 
-| typ_floatpoint fp_double => feasible_typ_aux TD t
-| typ_array _ t' => feasible_typ TD t'
-| typ_struct ts => feasible_typs TD ts
+| typ_int sz => (getIntAlignmentInfo los (Size.to_nat sz) true > 0)%nat
+| typ_pointer _ => (getPointerAlignmentInfo los true > 0)%nat
+| typ_floatpoint fp_float => (getFloatAlignmentInfo los 32%nat true > 0)%nat
+| typ_floatpoint fp_double => (getFloatAlignmentInfo los 64%nat true > 0)%nat
+| typ_array _ t' => feasible_typ_aux los nts t'
+| typ_struct ts => feasible_typs_aux los nts ts
+| typ_namedt nid => 
+    match lookupAL _ nts nid with
+    | Some re => re
+    | None => False
+    end
 | _ => False
 end
-with feasible_typs (TD:LLVMtd.TargetData) (lt:list_typ) : Prop :=
+with feasible_typs_aux los nts (lt:list_typ) : Prop :=
 match lt with
 | Nil_list_typ => True
-| Cons_list_typ t lt' => feasible_typ TD t /\ feasible_typs TD lt'
+| Cons_list_typ t lt' => 
+    feasible_typ_aux los nts t /\ feasible_typs_aux los nts lt'
 end.
+
+Fixpoint feasible_typ_for_namedts (los:layouts) (nts:namedts) 
+  : list (id*Prop) :=
+match nts with
+| nil => nil 
+| (id0, ts0)::nts' =>
+  let results := feasible_typ_for_namedts los nts' in
+  (id0, feasible_typ_aux los results (typ_struct ts0))::results
+end.
+
+Definition feasible_typ (TD:TargetData) t : Prop :=
+let '(los, nts) := TD in
+feasible_typ_aux los (feasible_typ_for_namedts los (rev nts)) t.
+
+Definition feasible_typs (TD:TargetData) lt : Prop :=
+let '(los, nts) := TD in
+feasible_typs_aux los (feasible_typ_for_namedts los (rev nts)) lt.
 
 Lemma RoundUpAlignment_spec : 
   forall a b, (b > 0)%nat -> (RoundUpAlignment a b >= a)%nat.
@@ -716,34 +737,199 @@ Proof.
            ts) as [[]|]; eauto.
 Qed.
 
-Definition feasible_typ_inv_prop' (t:typ) := forall TD,
-  feasible_typ TD t -> 
-  exists sz, exists al,
-    getTypeSizeInBits_and_Alignment TD true t = Some (sz, al) /\ (al > 0)%nat.
+Lemma feasible_cons_typs_inv : forall TD t lt,
+  feasible_typs TD (Cons_list_typ t lt) -> 
+  feasible_typ TD t /\ feasible_typs TD lt.
+Proof.
+  intros. destruct TD as [los nts].
+  simpl in *. auto.
+Qed.
 
-Definition feasible_typs_inv_prop' (lt:list_typ) := forall TD,
-  feasible_typs TD lt -> 
-  (forall t, In t (unmake_list_typ lt) -> feasible_typ TD t) /\
-  exists sz, exists al,
-    getListTypeSizeInBits_and_Alignment TD true lt = Some (sz,al) /\
-    ((sz > 0)%nat -> (al > 0)%nat).
+Lemma feasible_nil_typs: forall TD, feasible_typs TD Nil_list_typ.
+Proof. destruct TD; simpl; auto. Qed.
 
-Lemma feasible_typ_inv_mutrec' :
-  (forall t, feasible_typ_inv_prop' t) *
-  (forall lt, feasible_typs_inv_prop' lt).
+Lemma feasible_cons_typs: forall TD t lt, 
+  feasible_typs TD (Cons_list_typ t lt) <-> 
+  feasible_typ TD t /\ feasible_typs TD lt.
+Proof. destruct TD; simpl. intros. split; auto. Qed.
+
+Definition feasible_typ_aux_weaken_prop (t:typ) := forall los nm1 nm2,
+  uniq (nm2++nm1) ->
+  feasible_typ_aux los nm1 t ->
+  feasible_typ_aux los (nm2++nm1) t.
+
+Definition feasible_typs_aux_weaken_prop (lt:list_typ) := 
+  forall los nm1 nm2,
+  uniq (nm2++nm1) ->
+  feasible_typs_aux los nm1 lt ->
+  feasible_typs_aux los (nm2++nm1) lt.
+
+Lemma feasible_typ_aux_weaken_mutrec :
+  (forall t, feasible_typ_aux_weaken_prop t) *
+  (forall lt, feasible_typs_aux_weaken_prop lt).
 Proof.
   (typ_cases (apply typ_mutrec; 
-    unfold feasible_typ_inv_prop', feasible_typs_inv_prop') Case);
+    unfold feasible_typ_aux_weaken_prop, 
+           feasible_typs_aux_weaken_prop) Case);
+    intros; simpl in *; try solve [eauto | inversion H | inversion H1 ].
+Case "typ_namedt".
+  match goal with
+  | H : match ?x with
+        | Some _ => _
+        | None => _
+        end |- _ => remember x as R; destruct R as [|]; try inversion H
+  end.
+  erewrite lookupAL_weaken; eauto.
+Case "typ_cons".
+  destruct H2.
+  split; eauto.
+Qed.
+
+Lemma feasible_typ_aux_weaken: forall t los nm1 nm2,
+  uniq (nm2++nm1) ->
+  feasible_typ_aux los nm1 t ->
+  feasible_typ_aux los (nm2++nm1) t.
+Proof.
+  destruct feasible_typ_aux_weaken_mutrec as [J _].
+  unfold feasible_typ_aux_weaken_prop in J. auto.
+Qed.
+
+Lemma feasible_typ_for_namedts_dom: forall los nm,
+  dom (feasible_typ_for_namedts los nm) [<=] dom nm.
+Proof.
+  induction nm as [|[]]; simpl; fsetdec.
+Qed.
+
+Lemma feasible_typ_for_namedts_uniq: forall los nm
+  (Huniq: uniq nm), uniq (feasible_typ_for_namedts los nm).
+Proof.
+  induction 1; simpl; auto.
+    simpl_env.
+    constructor; auto.
+      assert (J:=@feasible_typ_for_namedts_dom los E).
+      fsetdec.
+Qed.
+
+Lemma feasible_typ_for_namedts_cons : forall los nm1 nm2,
+  exists re,
+    feasible_typ_for_namedts los (nm2++nm1) =
+      re ++ feasible_typ_for_namedts los nm1.
+Proof.
+  induction nm2 as [|[]]; simpl.
+    exists nil. auto.
+
+    destruct IHnm2 as [re IHnm2].
+    rewrite IHnm2.
+    simpl_env. eauto.
+Qed.
+
+Lemma feasible_typ_aux_weakening: forall los t
+  (nm1 nm2:namedts) (Huniq: uniq (nm2++nm1)),
+  feasible_typ_aux los (feasible_typ_for_namedts los nm1) t ->
+  feasible_typ_aux los (feasible_typ_for_namedts los (nm2++nm1)) t.
+Proof.
+  intros.  
+  destruct (@feasible_typ_for_namedts_cons los nm1 nm2) as [re J].
+  rewrite J.
+  apply feasible_typ_aux_weaken; auto.
+    unfold id in *.
+    rewrite <- J.
+    eapply feasible_typ_for_namedts_uniq; eauto.
+Qed.
+
+Lemma feasible_typ_for_namedts_spec1: forall los nts2 lt2 i0 r nts1 nts
+  (Huniq: uniq nts),
+  lookupAL _ (feasible_typ_for_namedts los nts) i0 = Some r ->
+  nts = nts1 ++ (i0,lt2) :: nts2 ->  
+  feasible_typs_aux los (feasible_typ_for_namedts los nts2) lt2 = r.
+Proof.
+  induction nts1 as [|[]]; intros; subst; simpl in *.
+    destruct (i0 == i0); try congruence; auto.
+
+    inv Huniq.
+    simpl_env in H4.
+    destruct (i0 == a); subst.
+      contradict H4; fsetdec.
+      apply IHnts1 in H; auto.
+Qed.
+
+Lemma feasible_typ_for_namedts_spec2: forall los i0 r nts2 
+  lt2 nts1 nts (Huniq: uniq nts),
+  feasible_typs_aux los (feasible_typ_for_namedts los nts2) lt2 = r ->
+  nts = nts1 ++ (i0,lt2) :: nts2 ->  
+  lookupAL _ (feasible_typ_for_namedts los nts) i0 = Some r.
+Proof.
+  induction nts1 as [|[]]; intros; subst; simpl in *.
+    destruct (@eq_dec atom (EqDec_eq_of_EqDec atom EqDec_atom) i0 i0); 
+      try congruence; auto.
+     
+    inv Huniq.
+    simpl_env in H3.
+    destruct (@eq_dec atom (EqDec_eq_of_EqDec atom EqDec_atom) i0 i1); subst.
+      contradict H3; fsetdec.
+      eapply IHnts1 in H1; eauto.
+Qed.
+
+Lemma feasible_typ_spec1: forall (los : layouts) (i0 : id) 
+  (nts : namedts) (lt2 : list_typ) r
+  (HeqR : Some lt2 = lookupAL list_typ nts i0) (Huniq: uniq nts)
+  (H:lookupAL _ (feasible_typ_for_namedts los nts) i0 = Some r),
+  r -> feasible_typs_aux los (feasible_typ_for_namedts los nts) lt2.
+Proof.
+  intros. 
+  assert (exists nts1, exists nts2, nts = nts1 ++ (i0,lt2) :: nts2) as J.
+    apply lookupAL_middle_inv; auto.
+  destruct J as [nts1 [nts2 J]]; subst.
+  eapply feasible_typ_for_namedts_spec1 with (nts1:=nts1) (nts2:=nts2) in H; 
+    eauto.
+  rewrite_env ((nts1 ++ [(i0, lt2)]) ++ nts2).
+  change (feasible_typ_aux los
+    (feasible_typ_for_namedts los ((nts1 ++ [(i0, lt2)]) ++ nts2)) 
+    (typ_struct lt2)).
+  eapply feasible_typ_aux_weakening; simpl_env; eauto.
+  simpl. rewrite H. auto.
+Qed.
+
+Definition feasible_typ_aux__getTypeSizeInBits_and_Alignment_prop' (t:typ) := 
+  forall los nm1 nm2,
+  feasible_typ_aux los nm1 t -> 
+  (forall (i0 : id) (P : Prop) (HeqR : Some P = lookupAL Prop nm1 i0) (H : P),
+   exists sz0 : nat,
+     exists al : nat,
+       lookupAL (nat * nat) nm2 i0 = Some (sz0, al) /\ (al > 0)%nat) ->
+  exists sz, exists al,
+    _getTypeSizeInBits_and_Alignment los nm2 true t = Some (sz, al) /\ 
+    (al > 0)%nat.
+
+Definition feasible_typs_aux__getListTypeSizeInBits_and_Alignment_prop' 
+  (lt:list_typ) := forall los nm1 nm2,
+  feasible_typs_aux los nm1 lt -> 
+  (forall (i0 : id) (P : Prop) (HeqR : Some P = lookupAL Prop nm1 i0) (H : P),
+   exists sz0 : nat,
+     exists al : nat,
+       lookupAL (nat * nat) nm2 i0 = Some (sz0, al) /\ (al > 0)%nat) ->
+  (forall t, In t (unmake_list_typ lt) -> feasible_typ_aux los nm1 t) /\
+  exists sz, exists al,
+    _getListTypeSizeInBits_and_Alignment los nm2 lt = Some (sz,al) /\
+    ((sz > 0)%nat -> (al > 0)%nat).
+
+Lemma feasible_typ_aux__getTypeSizeInBits_and_Alignment_mutrec' :
+  (forall t, feasible_typ_aux__getTypeSizeInBits_and_Alignment_prop' t) *
+  (forall lt, feasible_typs_aux__getListTypeSizeInBits_and_Alignment_prop' lt).
+Proof.
+  (typ_cases (apply typ_mutrec; 
+    unfold feasible_typ_aux__getTypeSizeInBits_and_Alignment_prop', 
+           feasible_typs_aux__getListTypeSizeInBits_and_Alignment_prop') Case);
     intros;
     unfold getTypeSizeInBits_and_Alignment in *; 
     simpl in *; try (destruct TD); 
     try solve [eauto | inversion H | inversion H1].
 Case "typ_floatingpoint".
   destruct f; try solve [inv H].
-    exists 32%nat. exists (getFloatAlignmentInfo l0 32 true).
+    exists 32%nat. exists (getFloatAlignmentInfo los 32 true).
     split; auto. 
 
-    exists 64%nat. exists (getFloatAlignmentInfo l0 64 true).
+    exists 64%nat. exists (getFloatAlignmentInfo los 64 true).
     split; auto.
 Case "typ_array".
   eapply H in H0; eauto.
@@ -765,9 +951,18 @@ Case "typ_struct".
     exists 8%nat. exists 1%nat. split; auto.
     exists (S sz0). exists al. split; auto. apply J2. omega.
 
+Case "typ_namedt".
+  match goal with
+  | H: match ?x with
+       | Some _ => _
+       | None => _
+       end |- _ => 
+         remember x as R; destruct R as [|]; try solve [inversion H]; eauto
+  end.
+
 Case "typ_nil".
   split.
-    intros. inversion H0.
+    intros. inversion H1.
     simpl. exists 0%nat. exists 0%nat. split; auto.
 
 Case "typ_cons".
@@ -792,7 +987,83 @@ Case "typ_cons".
                (Coqlib.nat_of_Z (Coqlib.ZRdiv (Z_of_nat sz1) 8)) al1 * 8)%nat.
       exists al2.
       split; auto.
-        intros. clear - J12 l2. omega.
+        intros. clear - J12 l1. omega.
+Qed.
+
+Lemma feasible_typ_aux__getTypeSizeInBits_and_Alignment : forall t los nm1 nm2,
+  feasible_typ_aux los nm1 t -> 
+  (forall (i0 : id) (P : Prop) (HeqR : Some P = lookupAL Prop nm1 i0) (H : P),
+   exists sz0 : nat,
+     exists al : nat,
+       lookupAL (nat * nat) nm2 i0 = Some (sz0, al) /\ (al > 0)%nat) ->
+  exists sz, exists al,
+    _getTypeSizeInBits_and_Alignment los nm2 true t = Some (sz, al) /\ (al > 0)%nat.
+Proof.
+  destruct feasible_typ_aux__getTypeSizeInBits_and_Alignment_mutrec'; auto.
+Qed.
+
+Lemma feasible_typs_aux__getListTypeSizeInBits_and_Alignment : 
+  forall (lt:list_typ) los nm1 nm2,
+  feasible_typs_aux los nm1 lt -> 
+  (forall (i0 : id) (P : Prop) (HeqR : Some P = lookupAL Prop nm1 i0) (H : P),
+   exists sz0 : nat,
+     exists al : nat,
+       lookupAL (nat * nat) nm2 i0 = Some (sz0, al) /\ (al > 0)%nat) ->
+  (forall t, In t (unmake_list_typ lt) -> feasible_typ_aux los nm1 t) /\
+  exists sz, exists al,
+    _getListTypeSizeInBits_and_Alignment los nm2 lt = Some (sz,al) /\
+    ((sz > 0)%nat -> (al > 0)%nat).
+Proof.
+  destruct feasible_typ_aux__getTypeSizeInBits_and_Alignment_mutrec'; auto.
+Qed.
+
+Lemma feasible_typ_for_namedts__getTypeSizeInBits_and_Alignment_for_namedts: 
+  forall los nts (i0 : id) (P : Prop),
+  Some P = lookupAL Prop (feasible_typ_for_namedts los nts) i0 ->
+  P ->
+  exists sz0 : nat,
+    exists al : nat,
+      lookupAL (nat * nat)
+        (_getTypeSizeInBits_and_Alignment_for_namedts los nts true) i0 =
+      Some (sz0, al) /\ (al > 0)%nat.
+Proof.
+  induction nts as [|[i1 lt1]]; simpl; intros.
+    congruence.
+
+    destruct (@eq_dec atom (EqDec_eq_of_EqDec atom EqDec_atom) i0 i1); subst.
+      inv H.
+      eapply feasible_typs_aux__getListTypeSizeInBits_and_Alignment in H0; eauto.
+      destruct H0 as [_ [sz [al [J1 J2]]]].
+      rewrite J1. 
+      destruct sz as [|sz].
+        simpl. 
+        destruct (@eq_dec atom (EqDec_eq_of_EqDec atom EqDec_atom) i1 i1); 
+          subst; try congruence.
+        exists 8%nat. exists 1%nat. auto.
+
+        simpl. 
+        destruct (@eq_dec atom (EqDec_eq_of_EqDec atom EqDec_atom) i1 i1); 
+          subst; try congruence.
+        exists (S sz). exists al. 
+        split; auto. apply J2. omega.
+
+      apply IHnts with (P:=P) in H; auto.
+      destruct H as [sz [al [J1 J2]]].
+      match goal with
+      | |- exists _, exists _, 
+             lookupAL _ (match ?x with
+                        | Some _ => _
+                        | None => _
+                        end) _ = _ /\ _ => destruct x
+      end.
+        simpl.
+        destruct (@eq_dec atom (EqDec_eq_of_EqDec atom EqDec_atom) i0 i1); 
+          try congruence. 
+        rewrite J1.
+        exists sz. exists al. split; auto.
+
+        rewrite J1.
+        exists sz. exists al. split; auto.
 Qed.
 
 Lemma feasible_typ_inv' : forall t TD,
@@ -800,7 +1071,12 @@ Lemma feasible_typ_inv' : forall t TD,
   exists sz, exists al,
     getTypeSizeInBits_and_Alignment TD true t = Some (sz, al) /\ (al > 0)%nat.
 Proof.
-  destruct feasible_typ_inv_mutrec'; auto.
+  unfold feasible_typ, getTypeSizeInBits_and_Alignment.
+  destruct TD as [los nts].
+  intros.
+  eapply feasible_typ_aux__getTypeSizeInBits_and_Alignment; eauto.
+  unfold getTypeSizeInBits_and_Alignment_for_namedts.
+  apply feasible_typ_for_namedts__getTypeSizeInBits_and_Alignment_for_namedts.
 Qed.
 
 Lemma getTypeAllocSize_roundup : forall los nts sz2 al2 t
@@ -828,6 +1104,14 @@ Proof.
       rewrite J6 in J13. inv J13. auto.
   rewrite <- le_plus_minus; auto.
 Qed.
+
+Definition wf_targetdata (TD:TargetData) : Prop :=
+let (los, nts) := TD in
+uniq nts /\
+forall abi_or_pref,
+  let result := getTypeSizeInBits_and_Alignment_for_namedts TD abi_or_pref in
+  forall nid,
+    lookupAL _ (rev nts) nid <> None -> lookupAL _ result nid <> None.
 
 End LLVMtd.
 

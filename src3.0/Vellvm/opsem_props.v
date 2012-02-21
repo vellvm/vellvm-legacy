@@ -4,7 +4,7 @@ Require Import infrastructure.
 Require Import infrastructure_props.
 Require Import analysis.
 Require Import typings.
-Require Import typings_props.
+Require Import static.
 Require Import List.
 Require Import Arith.
 Require Import tactics.

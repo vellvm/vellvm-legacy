@@ -344,6 +344,9 @@ formula :: 'formula_' ::=
   | ( module , ft ) ( v ) = opt_fdef  ::   :: lookupfdef
   | ( gl , lc ) ( params ) = opt_svs  ::   :: params2svs
   | init_locals gl lc fdef = lc'      ::   :: initlocals
+  | typ_eq_list_typ namedts typ </ typj // j /> :: :: typ_eq_list_typ
+      {{ coq typ_eq_list_typ [[namedts]] [[typ]] [[ </ typj // j /> ]] = true }}
+
 
 parsing
 formula_true left formula_not
@@ -461,11 +464,12 @@ Jwf_const :: '' ::=
       ----------------------------------------------------------- :: wf_const_arr
       system , targetdata |-c typ [ </ constj // j /> ] : [sz * typ]
 
-      % FIXME: need to check if typ = </ typj // j />
       </ system , targetdata |-c constj : typj // j />
       </ targetdata |- typj // j />
-      ------------------------------------------------------------------- :: wf_const_struct
-      system , targetdata |-c typ { </ constj // j /> } : { </ typj // j /> }
+      {{ [[targetdata]] = [[ ( layouts namedts ) ]] }}
+      typ_eq_list_typ namedts typ </ typj // j />
+      -------------------------------------------------------------------------------------- :: wf_const_struct
+      system , targetdata |-c typ { </ constj // j /> } : typ
 
 
       system |- typ*
@@ -1289,14 +1293,29 @@ Jwf_prods :: '' ::=
       intrinsic_funs , system , module |- product , products
 
 defns
+Jty_namedts :: '' ::=
+      defn
+      system |- namedts :: :: ty_namedts :: '' {{ com }} by 
+
+      ------------- :: ty_namedts_nil
+      system |- []
+
+      system |- namedts
+      system |- { </ typj // j /> }
+      ------------------------------------------- :: ty_namedts_cons
+      system |- id = { </ typj // j /> }, namedts
+
+defns
 Jwf_namedts :: '' ::=
       defn
-      |- namedts :: :: wf_namedts :: ''
+      system |- targetdata :: :: wf_namedts :: ''
       {{ com [[namedts]] is well-formed }} by
 
-      %% FIXME: Check circularity
-      -------------------------------- :: wf_namedts_intro
-      |- namedts 
+      system |- namedts
+      %% Check circularity
+      {{ LLVMtd.wf_targetdata [[ (layouts namedts) ]] }}
+      --------------------------------------------- :: wf_namedts_intro
+      system |- layouts namedts
 
 defns
 Jwf_module :: '' ::=
@@ -1305,7 +1324,7 @@ Jwf_module :: '' ::=
       {{ com [[module]] is well-formed w.r.t. [[system]] }} by
 
       %%
-      |- namedts
+      system |- layouts namedts
       %%
       (layouts namedts products) in system
       intrinsic_funs , system , (layouts namedts products) |- products

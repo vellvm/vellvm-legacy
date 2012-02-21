@@ -1,9 +1,3 @@
-Add LoadPath "../Vellvm/ott".
-Add LoadPath "../Vellvm/monads".
-Add LoadPath "../Vellvm/compcert".
-Add LoadPath "../Vellvm".
-Add LoadPath "../Vellvm/GraphBasics".
-Add LoadPath "../../../theory/metatheory_8.3".
 Require Import syntax.
 Require Import infrastructure.
 Require Import List.
@@ -561,12 +555,4 @@ Proof.
   apply aux__op_cmds__satisfy__se_cmds with (lc0:=lc)(als0:=als)(Mem0:=Mem0)(sstate1:=sstate_init) (tr1:=trace_nil)(nbs:=nbs) in HdbCmds; simpl; auto.
     apply init_denotes_id; auto.
 Qed.           
-
-(*****************************)
-(*
-*** Local Variables: ***
-*** coq-prog-name: "coqtop" ***
-*** coq-prog-args: ("-emacs-U" "-I" "~/SVN/sol/vol/src/Vellvm/monads" "-I" "~/SVN/sol/vol/src/Vellvm/ott" "-I" "~/SVN/sol/vol/src/Vellvm/compcert" "-I" "~/SVN/sol/theory/metatheory_8.3" "-impredicative-set") ***
-*** End: ***
- *)
 

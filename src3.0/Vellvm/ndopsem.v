@@ -12,7 +12,7 @@ Require Import Integers.
 Require Import Coqlib.
 Require Import syntax.
 Require Import typings.
-Require Import typings_props.
+Require Import static.
 Require Import opsem.
 Require Import opsem_props.
 Require Import opsem_wf.

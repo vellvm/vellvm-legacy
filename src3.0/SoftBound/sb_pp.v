@@ -784,10 +784,10 @@ Ltac preservation_simpl :=
        [HwfEC HwfCall]]]]]
       ]]]; subst;
     destruct HwfLLVM2 as 
-      [Hwfg0 [HwfSystem0 [HmInS0 [Hnnil0 [
+      [Hnnil0 [
        [Hreach0 [HBinF0 [HFinPs0 [Hwflc0 [Hinscope0 [l0' [ps0 [cs0 Heq0]]]]]]]]
        [HwfECs0 HwfCall0]
-      ]]]]]; subst
+      ]]; subst
   end.
 
 Ltac preservation_tac :=
@@ -883,12 +883,12 @@ Proof.
   induction ECs; intros; inversion H; eauto.
 Qed.
 
-Lemma preservation : forall cfg S1 S2 tr,
+Lemma preservation : forall cfg S1 S2 tr (HwfCfg: wf_Config cfg),
   sInsn cfg S1 S2 tr -> wf_State cfg S1 -> wf_State cfg S2.
 Proof.
 Opaque wf_mmetadata wf_rmetadata.
 
-  intros cfg S1 S2 tr HnsInsn HwfS1.
+  intros cfg S1 S2 tr HwfCfg HnsInsn HwfS1.
   inv HnsInsn.
   rename H into HnsInsn_delta.
   rename H0 into HnsInsn_llvm.
@@ -897,7 +897,7 @@ Opaque wf_mmetadata wf_rmetadata.
   (sb_sInsn_cases (destruct HnsInsn_delta) Case); 
     subst; simpl in HnsInsn_llvm; inv HnsInsn_llvm; try invert_prop_reg_metadata;
     try destruct TD as [los nts].
-
+  
 Focus.
 Case "sReturn".
   destruct HwfS1 as 
@@ -915,10 +915,10 @@ Case "sReturn".
     ]]]]]]]; subst.
 
   destruct HwfLLVM2 as 
-    [Hwfg0 [HwfSystem0 [HmInS0 [Hnnil0 [
+    [Hnnil0 [
      [Hreach0 [HBinF0 [HFinPs0 [Hwflc0 [Hinscope0 [l0 [ps0 [cs0 Heq0]]]]]]]]
      [HwfECs0 HwfCall0]
-    ]]]]]; subst.
+    ]]; subst.
   assert (Hwfc := HBinF2).
   eapply wf_system__wf_cmd with (c:=c') in Hwfc; eauto using in_middle.
   repeat (split; auto).
@@ -954,10 +954,10 @@ Case "sReturnVoid".
     ]]]]]]]; subst.
 
   destruct HwfLLVM2 as 
-    [Hwfg0 [HwfSystem0 [HmInS0 [Hnnil0 [
+    [Hnnil0 [
      [Hreach0 [HBinF0 [HFinPs0 [Hwflc0 [Hinscope0 [l0 [ps0 [cs0 Heq0]]]]]]]]
      [HwfECs0 HwfCall0]
-    ]]]]]; subst.
+    ]]; subst.
   assert (Hwfc := HBinF2).
   eapply wf_system__wf_cmd with (c:=c') in Hwfc; eauto using in_middle.
   repeat (split; auto).
@@ -2139,7 +2139,7 @@ Proof.
 Qed.
 
 Lemma store_progress : forall s los nts ps f b i0 t v v0 a cs tmn lc rm als ecs
-  gl fs M Mmap0 gvs1 gvs2 gv mgv
+  gl fs M Mmap0 gvs1 gvs2 gv mgv (Hwftd: wf_namedts s (los, nts))
   (HwfS1 : wf_State {|
             CurSystem := s;
             CurTargetData := (los, nts);
@@ -2304,7 +2304,7 @@ Qed.
 Ltac elim_undef_false Hundef :=
   repeat (destruct Hundef as [Hundef | Hundef]; try solve [inversion Hundef]).
 
-Lemma llvm_undef__sb_progress : forall cfg (S1 : State)
+Lemma llvm_undef__sb_progress : forall cfg (HwfCfg: wf_Config cfg) (S1 : State)
   (HwfS1 : wf_State cfg S1)
   (Hundef : OpsemPP.undefined_state cfg (sbState__State S1)),
   (exists S2 : State, exists tr : trace, sInsn cfg S1 S2 tr) \/
@@ -2313,6 +2313,7 @@ Proof.
   intros.
   unfold OpsemPP.undefined_state in Hundef.
   destruct cfg as [s [los nts] ps gl fs]. 
+  destruct HwfCfg as [Hwftd _].
   destruct S1 as [ecs M]; simpl in Hundef.
   destruct ecs; simpl in Hundef.
     elim_undef_false Hundef.
@@ -2472,16 +2473,16 @@ Ltac progress_tac_aux rm' :=
 
 Ltac progress_tac := progress_tac_aux nil.
 
-Lemma progress : forall cfg S1,
+Lemma progress : forall cfg S1 (HwfCfg: wf_Config cfg),
   wf_State cfg S1 -> 
   s_isFinialState S1 = true \/ 
   (exists S2, exists tr, sInsn cfg S1 S2 tr) \/
   undefined_state cfg S1.
 Proof.
-  intros cfg S1 HwfS1.
+  intros cfg S1 HwfCfg HwfS1.
   assert (Hllvm_progress := HwfS1).
   apply wf_sbState__wf_State in Hllvm_progress.
-  apply OpsemPP.progress in Hllvm_progress.
+  apply OpsemPP.progress in Hllvm_progress; auto.
   destruct Hllvm_progress as [His_final | [[S2 [tr Hstep]] | Hundef]];
     try solve [auto using llvm_isFinialState__sb_isFinialState |
                right; apply llvm_undef__sb_progress; auto].
@@ -2679,6 +2680,7 @@ Proof.
     repeat (split; auto). eauto.
 
   SCase "store".
+    destruct HwfCfg as [Hwftd _].
     eapply store_progress; eauto.
     repeat (split; auto). eauto.
 

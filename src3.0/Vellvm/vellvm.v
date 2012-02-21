@@ -14,7 +14,7 @@ Require Import typings.
 Require Import genericvalues.
 Require Import targetdata.
 Require Export infrastructure_props.
-Require Export typings_props.
+Require Export static.
 Require Export opsem.
 Require Export opsem_wf.
 Require Export dopsem.

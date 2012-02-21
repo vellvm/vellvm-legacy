@@ -1,8 +1,3 @@
-Add LoadPath "../Vellvm/ott".
-Add LoadPath "../Vellvm/monads".
-Add LoadPath "../Vellvm".
-Add LoadPath "../Vellvm/compcert".
-Add LoadPath "../../../theory/metatheory_8.3".
 Require Import syntax.
 Require Import List.
 Require Import Arith.
@@ -117,11 +112,4 @@ Ltac sumbool_subst :=
 Tactic Notation "sumbool_subst" "in" hyp(H) :=
   apply sumbool2bool_true in H.
 
-(*****************************)
-(*
-*** Local Variables: ***
-*** coq-prog-name: "coqtop" ***
-*** coq-prog-args: ("-emacs-U" "-I" "~/SVN/sol/vol/src/Vellvm/monads" "-I" "~/SVN/sol/vol/src/Vellvm/ott" "-I" "~/SVN/sol/vol/src/Vellvm/compcert" "-I" "~/SVN/sol/theory/metatheory_8.3") ***
-*** End: ***
- *)
 

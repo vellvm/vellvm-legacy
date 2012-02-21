@@ -1,7 +1,3 @@
-Add LoadPath "./ott".
-Add LoadPath "./monads".
-Add LoadPath "./compcert".
-Add LoadPath "../../../theory/metatheory_8.3".
 Require Import trace.
 Require Import Metatheory.
 Require Import alist.
@@ -501,12 +497,5 @@ Proof.
               rewrite <- HeqR4. simpl. rewrite <- HeqR1. eauto.
 Qed.
 
-(*****************************)
-(*
-*** Local Variables: ***
-*** coq-prog-name: "coqtop" ***
-*** coq-prog-args: ("-emacs-U" "-I" "~/SVN/sol/vol/src/Vellvm/monads" "-I" "~/SVN/sol/vol/src/Vellvm/ott" "-I" "~/SVN/sol/vol/src/Vellvm/compcert" "-I" "~/SVN/sol/theory/metatheory_8.3") ***
-*** End: ***
- *)
 
 

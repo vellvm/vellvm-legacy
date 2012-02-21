@@ -1,7 +1,3 @@
-Add LoadPath "./ott".
-Add LoadPath "./monads".
-Add LoadPath "./compcert".
-Add LoadPath "../../../theory/metatheory_8.3".
 Require Import Metatheory.
 Require Import alist.
 Require Import monad.
@@ -13,7 +9,7 @@ Require Import Integers.
 Require Import Coqlib.
 Require Import syntax.
 Require Import typings.
-Require Import typings_props.
+Require Import static.
 Require Import opsem.
 Require Import opsem_props.
 Require Import opsem_wf.
@@ -237,11 +233,4 @@ Qed.
 
 Hint Resolve dos_in_list_gvs_intro.
 
-(*****************************)
-(*
-*** Local Variables: ***
-*** coq-prog-name: "coqtop" ***
-*** coq-prog-args: ("-emacs-U" "-I" "~/SVN/sol/vol/src/Vellvm/monads" "-I" "~/SVN/sol/vol/src/Vellvm/ott" "-I" "~/SVN/sol/vol/src/Vellvm/compcert" "-I" "~/SVN/sol/theory/metatheory_8.3") ***
-*** End: ***
- *)
 
