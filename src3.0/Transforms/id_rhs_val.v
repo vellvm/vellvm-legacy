@@ -320,10 +320,10 @@ match goal with
 end.
 
 (* From OpsemDom, should go to Vellvm *)
-Lemma isReachableFromEntry_successors : forall ifs S M f l3 ps cs tmn l' b'
+Lemma isReachableFromEntry_successors : forall S M f l3 ps cs tmn l' b'
   (Hreach : isReachableFromEntry f (block_intro l3 ps cs tmn))
   (HBinF : blockInFdefB (block_intro l3 ps cs tmn) f = true)
-  (HwfF : wf_fdef ifs S M f) (Huniq : uniqFdef f)
+  (HwfF : wf_fdef S M f) (Huniq : uniqFdef f)
   (Hsucc : In l' (successors_terminator tmn))
   (Hlkup : lookupBlockViaLabelFromFdef f l' = Some b'),
   isReachableFromEntry f b'.
@@ -440,7 +440,7 @@ Proof.
   rewrite J in Hvals. auto.
 Qed.
 
-Lemma wf_defs_br_aux : forall v1 v2 F0 TD gl ifs S M lc l' ps' cs' lc' F tmn' b
+Lemma wf_defs_br_aux : forall v1 v2 F0 TD gl S M lc l' ps' cs' lc' F tmn' b
   (Hreach : isReachableFromEntry F b) 
   (Hreach': isReachableFromEntry F (block_intro l' ps' cs' tmn'))
   (Hlkup : Some (block_intro l' ps' cs' tmn') = lookupBlockViaLabelFromFdef F l')
@@ -450,7 +450,7 @@ Lemma wf_defs_br_aux : forall v1 v2 F0 TD gl ifs S M lc l' ps' cs' lc' F tmn' b
   (Hvals : substable_values TD gl F0 v1 v2)
   (Hwfdfs : wf_defs v1 v2 F0 TD gl F lc t)
   (ids0' : list atom)
-  (HwfF : wf_fdef ifs S M F) (HuniqF: uniqFdef F)
+  (HwfF : wf_fdef S M F) (HuniqF: uniqFdef F)
   (contents' : ListSet.set atom)
   (inbound' : incl contents' (bound_fdef F))
   (Heqdefs' : {|
@@ -504,10 +504,10 @@ Proof.
       eapply OpsemProps.updateValuesForNewBlock_spec7 in Hget2; eauto.
 Qed.
 
-Lemma inscope_of_tmn_br_aux : forall ifs S M F l3 ps cs tmn ids0 l' ps' cs' tmn'
+Lemma inscope_of_tmn_br_aux : forall S M F l3 ps cs tmn ids0 l' ps' cs' tmn'
   l0 lc lc' gl TD (Hreach : isReachableFromEntry F (block_intro l3 ps cs tmn)) 
   v1 v2 F0 (Hvals : substable_values TD gl F0 v1 v2),
-wf_fdef ifs S M F -> 
+wf_fdef S M F -> 
 uniqFdef F ->
 blockInFdefB (block_intro l3 ps cs tmn) F = true ->
 In l0 (successors_terminator tmn) ->
@@ -524,7 +524,7 @@ exists ids0',
   incl (ListSet.set_diff eq_atom_dec ids0' (getPhiNodesIDs ps')) ids0 /\
   wf_defs v1 v2 F0 TD gl F lc' ids0'.
 Proof.
-  intros ifs S M F l3 ps cs tmn ids0 l' ps' cs' tmn' l0 lc lc' gl TD Hreach v1 v2
+  intros S M F l3 ps cs tmn ids0 l' ps' cs' tmn' l0 lc lc' gl TD Hreach v1 v2
     F0 Hvals HwfF HuniqF HBinF Hsucc Hinscope Hlkup Hswitch Hwfdfs.
   symmetry in Hlkup.
   assert (J:=Hlkup).
@@ -588,10 +588,10 @@ Proof.
       subst. eapply wf_defs_br_aux in Hswitch; eauto.
 Qed.
 
-Lemma inscope_of_tmn_br_uncond : forall v1 v2 F0 ifs S M F l3 ps cs ids0 l' ps' 
+Lemma inscope_of_tmn_br_uncond : forall v1 v2 F0 S M F l3 ps cs ids0 l' ps' 
   cs' tmn' l0 lc lc' bid TD gl (Hvals : substable_values TD gl F0 v1 v2),
 isReachableFromEntry F (block_intro l3 ps cs (insn_br_uncond bid l0)) ->
-wf_fdef ifs S M F -> uniqFdef F ->
+wf_fdef S M F -> uniqFdef F ->
 blockInFdefB (block_intro l3 ps cs (insn_br_uncond bid l0)) F = true ->
 Some ids0 = inscope_of_tmn F (block_intro l3 ps cs (insn_br_uncond bid l0)) 
   (insn_br_uncond bid l0) ->
@@ -612,10 +612,10 @@ Proof.
   simpl. auto.
 Qed.
 
-Lemma inscope_of_tmn_br : forall v1 v2 F0 ifs S M F l0 ps cs bid l1 l2 ids0 l' 
+Lemma inscope_of_tmn_br : forall v1 v2 F0 S M F l0 ps cs bid l1 l2 ids0 l' 
   ps' cs' tmn' Cond c lc lc' gl TD (Hvals : substable_values TD gl F0 v1 v2),
 isReachableFromEntry F (block_intro l0 ps cs (insn_br bid Cond l1 l2)) ->
-wf_fdef ifs S M F -> uniqFdef F ->
+wf_fdef S M F -> uniqFdef F ->
 blockInFdefB (block_intro l0 ps cs (insn_br bid Cond l1 l2)) F = true ->
 Some ids0 = inscope_of_tmn F (block_intro l0 ps cs (insn_br bid Cond l1 l2)) 
   (insn_br bid Cond l1 l2) ->
@@ -1120,12 +1120,12 @@ Focus.
   repeat (split; auto).
     assert (uniqFdef (fdef_intro (fheader_intro fa rt fid la va) lb)) as Huniq.
       eapply wf_system__uniqFdef; eauto.
-    assert (wf_fdef nil S (module_intro los nts Ps) 
+    assert (wf_fdef S (module_intro los nts Ps) 
       (fdef_intro (fheader_intro fa rt fid la va) lb)) as HwfF.
       eapply wf_system__wf_fdef; eauto.
     unfold wf_ExecutionContext. simpl.
     assert (ps'=nil) as EQ.
-      eapply entryBlock_has_no_phinodes with (ifs:=nil)(s:=S); eauto.
+      eapply entryBlock_has_no_phinodes with (s:=S); eauto.
     subst.
     apply dom_entrypoint in H2. 
 
@@ -1195,7 +1195,7 @@ Proof.
 Qed.
 
 Lemma s_genInitState__id_rhs_val: forall S main VarArgs cfg IS pinfo v1 v2
-  (HwfS : wf_system nil S) (Hwfpi: WF_PhiInfo pinfo) 
+  (HwfS : wf_system S) (Hwfpi: WF_PhiInfo pinfo) 
   (Hinit : @Opsem.s_genInitState DGVs S main VarArgs Mem.empty = ret (cfg, IS)),
   wf_State v1 v2 (PI_f pinfo) cfg IS.
 Proof.
@@ -1210,7 +1210,7 @@ Local Opaque inscope_of_tmn inscope_of_cmd.
       eapply wf_system__uniqFdef; eauto.
     unfold wf_ExecutionContext. simpl.
     assert (ps0=nil) as EQ.
-      eapply entryBlock_has_no_phinodes with (ifs:=nil)(s:=S); eauto.        
+      eapply entryBlock_has_no_phinodes with (s:=S); eauto.        
     subst.
 Transparent inscope_of_tmn inscope_of_cmd.
     apply dom_entrypoint in HeqR2. 

@@ -660,8 +660,8 @@ else
   end.
 
 Definition trans_fdec (f:fdec) : fdec :=
-let '(fdec_intro (fheader_intro fa t fid la va)) := f in
-fdec_intro (fheader_intro fa t (wrapper_fid fid) la va). 
+let '(fdec_intro (fheader_intro fa t fid la va) dck) := f in
+fdec_intro (fheader_intro fa t (wrapper_fid fid) la va) dck. 
 
 Definition trans_product nts (p:product) : option product :=
 match p with

@@ -431,9 +431,9 @@ Proof.
 Qed.
 
 Lemma malloc_preserves_wf_EC_at_head : forall pinfo los nts Ps M 
-  (Hwfpi:WF_PhiInfo pinfo) ifs s als'
+  (Hwfpi:WF_PhiInfo pinfo) s als'
   M' gl als lc t mb id0 align0 F gn tsz l1 ps1 cs1' cs tmn 
-  (HwfF: wf_fdef ifs s (module_intro los nts Ps) F) (HuniqF: uniqFdef F)
+  (HwfF: wf_fdef s (module_intro los nts Ps) F) (HuniqF: uniqFdef F)
   (Hal: malloc (los,nts) M tsz gn align0 = ret (M', mb)) alinfo c
   (HBinF: blockInFdefB
              (block_intro l1 ps1 (cs1' ++ c :: cs)
@@ -853,8 +853,8 @@ Qed.
 
 Lemma callExternalFunction_preserves_wf_ECStack_at_head: forall Mem fid gvs 
   oresult Mem' pinfo alinfo gl rid noret0 ca ft fv lp cs lc lc' als tmn
-  cs1' l1 ps1 F ifs s los nts Ps (Hwfpi : WF_PhiInfo pinfo)
-  (HwfF: wf_fdef ifs s (module_intro los nts Ps) F) (HuniqF: uniqFdef F)
+  cs1' l1 ps1 F s los nts Ps (Hwfpi : WF_PhiInfo pinfo)
+  (HwfF: wf_fdef s (module_intro los nts Ps) F) (HuniqF: uniqFdef F)
   (H4 : OpsemAux.callExternalFunction Mem fid gvs = ret (oresult, Mem'))
   (H5 : Opsem.exCallUpdateLocals (los,nts) ft noret0 rid oresult lc = ret lc')
   (HBinF : blockInFdefB (block_intro l1 ps1 (cs1' ++ insn_call rid noret0 ca ft fv lp :: cs) 
@@ -1006,7 +1006,7 @@ Case "sExCall".
 Qed.
 
 Lemma s_genInitState__alive_alloca: forall S main VarArgs cfg IS pinfo alinfo
-  (HwfS : wf_system nil S) (Hwfpi: WF_PhiInfo pinfo) 
+  (HwfS : wf_system S) (Hwfpi: WF_PhiInfo pinfo) 
   (Hinit : @Opsem.s_genInitState DGVs S main VarArgs Mem.empty = ret (cfg, IS)),
   wf_State pinfo alinfo cfg IS.
 Admitted.

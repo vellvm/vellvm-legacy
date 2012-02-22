@@ -107,8 +107,8 @@ Proof.
   auto.
 Defined.
 
-Lemma las__alive_store__vev_EC: forall pinfo lasinfo los nts M gl ps ec ifs s 
-  (Hwfs: wf_system ifs s) 
+Lemma las__alive_store__vev_EC: forall pinfo lasinfo los nts M gl ps ec s 
+  (Hwfs: wf_system s) 
   (HmInS: moduleInSystemB (module_intro los nts ps) s = true)
   (Hwfpp: OpsemPP.wf_ExecutionContext (los,nts) ps ec) stinfo Hp
   (Hlas2st : exist _ stinfo Hp = lasinfo__stinfo pinfo lasinfo),
@@ -307,8 +307,8 @@ Proof.
     admit. (* LAS_value >> LAS_lid, cyclic! *)   
 Qed.
 
-Lemma las__alive_store__vev_ECStack: forall pinfo lasinfo los nts M gl ifs ps s
-  (Hwfs: wf_system ifs s) stinfo Hp 
+Lemma las__alive_store__vev_ECStack: forall pinfo lasinfo los nts M gl ps s
+  (Hwfs: wf_system s) stinfo Hp 
   (HmInS: moduleInSystemB (module_intro los nts ps) s = true)
   (Hlas2st : exist _ stinfo Hp = lasinfo__stinfo pinfo lasinfo)
   ECs (Hwfpp: OpsemPP.wf_ECStack (los,nts) ps ECs),
@@ -484,9 +484,9 @@ if (fdef_dec (PI_f pinfo) f1) then
   subst_value (LAS_lid pinfo lasinfo) (LAS_value pinfo lasinfo) v = v'
 else v = v'.
 
-Lemma getOperandValue_inTmnOperands_sim : forall los nts ifs s ps gl pinfo 
+Lemma getOperandValue_inTmnOperands_sim : forall los nts s ps gl pinfo 
   lasinfo (f : fdef) (Hwfg : wf_global (los,nts) s gl) 
-  (HwfF: wf_fdef ifs s (module_intro los nts ps) f)
+  (HwfF: wf_fdef s (module_intro los nts ps) f)
   (tmn : terminator)
   (lc : GVMap)
   (l1 : l)
@@ -519,9 +519,9 @@ Proof.
     admit. (* wf + v >> lid *)
 Qed.
 
-Lemma getOperandValue_inCmdOperands_sim : forall los nts ifs s gl pinfo lasinfo
+Lemma getOperandValue_inCmdOperands_sim : forall los nts s gl pinfo lasinfo
   ps (f : fdef) (Hwfg : wf_global (los,nts) s gl)
-  (HwfF : wf_fdef ifs s (module_intro los nts ps) f)
+  (HwfF : wf_fdef s (module_intro los nts ps) f)
   (tmn : terminator)
   (lc : GVMap)
   (l1 : l)
@@ -613,9 +613,9 @@ Proof.
 Qed.
 
 Lemma getValueViaLabelFromValuels_getOperandValue_sim : forall
-  los nts ifs s gl pinfo lasinfo
+  los nts s gl pinfo lasinfo
   ps (f : fdef) (Hwfg : wf_global (los,nts) s gl)
-  (HwfF : wf_fdef ifs s (module_intro los nts ps) f) (HuniqF: uniqFdef f)
+  (HwfF : wf_fdef s (module_intro los nts ps) f) (HuniqF: uniqFdef f)
   (l0 : l) (lc : GVMap) (t : list atom) (l1 : l) (ps1 : phinodes)
   (cs1 : cmds) (tmn1 : terminator) 
   (HeqR : ret t = inscope_of_tmn f (block_intro l1 ps1 cs1 tmn1) tmn1)
@@ -712,9 +712,9 @@ Proof.
 Qed.
 
 Lemma getIncomingValuesForBlockFromPHINodes_sim : forall
-  los nts ifs s gl pinfo lasinfo
+  los nts s gl pinfo lasinfo
   ps (f : fdef) (Hwfg : wf_global (los,nts) s gl)
-  (HwfF : wf_fdef ifs s (module_intro los nts ps) f) (HuniqF: uniqFdef f)
+  (HwfF : wf_fdef s (module_intro los nts ps) f) (HuniqF: uniqFdef f)
   l0
   (lc : GVMap)
   (t : list atom)
@@ -731,12 +731,12 @@ Lemma getIncomingValuesForBlockFromPHINodes_sim : forall
   (Hreach' : isReachableFromEntry f (block_intro l1 ps1 cs1 tmn1))
   (HbInF : blockInFdefB
             (block_intro l1 ps1 cs1 tmn1) f = true)
-  (HwfB : wf_block ifs s (module_intro los nts ps) f 
+  (HwfB : wf_block s (module_intro los nts ps) f 
             (block_intro l1 ps1 cs1 tmn1))
   B1' 
   (Hbsim1: block_simulation pinfo lasinfo f (block_intro l1 ps1 cs1 tmn1) B1')  
   ps2
-  (H8 : wf_phinodes ifs s (module_intro los nts ps) f 
+  (H8 : wf_phinodes s (module_intro los nts ps) f 
           (block_intro l0 ps' cs' tmn') ps2)
   (Hin: exists ps1, ps' = ps1 ++ ps2) RVs RVs' ps2'
   (Hpsim2: phis_simulation pinfo lasinfo f ps2 ps2')
@@ -761,13 +761,16 @@ Proof.
     destruct Hbsim1 as [Heq [Hpsim1 [Hcssim1 Htsim1]]]; subst.
     simpl in HeqR3.
     eapply getValueViaLabelFromValuels_sim in Hvlsim1; eauto.
-    inv H8. 
+    match goal with | H8: wf_phinodes _ _ _ _ _ |- _ => inv H8 end.
     assert (g = g0) as Heq.
-      inv H6.
+      match goal with | H5 : wf_insn _ _ _ _ _ |- _ => inv H5 end.
       eapply getValueViaLabelFromValuels_getOperandValue_sim with (l0:=l0); 
         eauto.
     subst. 
-    eapply IHps2 with (RVs:=l4) in H7; eauto.
+    match goal with
+    | H6 : wf_phinodes _ _ _ _ _ |- _ =>
+      eapply IHps2 with (RVs:=l4) in H6; eauto
+    end.
       congruence.
 
       destruct Hin as [ps3 Hin]. subst.
@@ -776,9 +779,9 @@ Proof.
 Qed.
 
 Lemma switchToNewBasicBlock_sim : forall
-  los nts ifs s gl pinfo lasinfo
+  los nts s gl pinfo lasinfo
   ps (f : fdef) (Hwfg : wf_global (los,nts) s gl)
-  (HwfF : wf_fdef ifs s (module_intro los nts ps) f) (HuniqF: uniqFdef f)
+  (HwfF : wf_fdef s (module_intro los nts ps) f) (HuniqF: uniqFdef f)
   l2 (lc : GVMap) (t : list atom) l1 ps1 cs1 tmn1
   (HeqR : ret t = inscope_of_tmn f (block_intro l1 ps1 cs1 tmn1) tmn1)
   (Hinscope : id_rhs_val.wf_defs (value_id (LAS_lid pinfo lasinfo))
@@ -800,10 +803,10 @@ Lemma switchToNewBasicBlock_sim : forall
   lc0 = lc0'.
 Proof.
   intros.
-  assert (HwfB : wf_block ifs s (module_intro los nts ps) f 
+  assert (HwfB : wf_block s (module_intro los nts ps) f 
            (block_intro l1 ps1 cs1 tmn1)).
     apply wf_fdef__blockInFdefB__wf_block; auto.
-  assert (H8 : wf_phinodes ifs s (module_intro los nts ps) f 
+  assert (H8 : wf_phinodes s (module_intro los nts ps) f 
                  (block_intro l2 ps2 cs2 tmn2) ps2).
     apply wf_fdef__wf_phinodes; auto.
   unfold Opsem.switchToNewBasicBlock in *.
@@ -917,9 +920,9 @@ Lemma params2GVs_sim_aux : forall
   n c t v p2
   (cs : list cmd)
   (tmn : terminator)
-  lc (gl : GVMap) ifs
+  lc (gl : GVMap) 
   (Hwfg1 : wf_global (los,nts) s gl)
-  (HwfF : wf_fdef ifs s (module_intro los nts ps) f)
+  (HwfF : wf_fdef s (module_intro los nts ps) f)
   (l1 : l)
   (ps1 : phinodes)
   (cs1 : list cmd)
@@ -977,9 +980,9 @@ Lemma params2GVs_sim : forall
   n c t v p2
   (cs : list cmd)
   (tmn : terminator)
-  lc (gl : GVMap) ifs
+  lc (gl : GVMap) 
   (Hwfg1 : wf_global (los,nts) s gl)
-  (HwfF : wf_fdef ifs s (module_intro los nts ps) f)
+  (HwfF : wf_fdef s (module_intro los nts ps) f)
   (l1 : l)
   (ps1 : phinodes)
   (cs1 : list cmd)
@@ -1209,7 +1212,7 @@ Focus.
 
   assert (uniqFdef F) as HuniqF.
     eauto using wf_system__uniqFdef.
-  assert (wf_fdef nil S (module_intro los nts Ps) F) as HwfF.
+  assert (wf_fdef S (module_intro los nts Ps) F) as HwfF.
     eauto using wf_system__wf_fdef.
   assert (c = c0)as Heq.
     eapply getOperandValue_inTmnOperands_sim with (v:=Cond)(v':=Cond2); 
@@ -1265,7 +1268,7 @@ Focus.
 
   assert (uniqFdef F) as HuniqF.
     eauto using wf_system__uniqFdef.
-  assert (wf_fdef nil S (module_intro los nts Ps) F) as HwfF.
+  assert (wf_fdef S (module_intro los nts Ps) F) as HwfF.
     eauto using wf_system__wf_fdef.
 
   assert (block_simulation pinfo lasinfo F 
@@ -1313,7 +1316,7 @@ Case "sBop".
   destruct Hcmd as [v1' [v2' [Heq [Hvsim1 Hvsim2]]]]; subst.
   inv Hop2.
 
-  assert (wf_fdef nil S (module_intro los nts Ps) F) as HwfF.
+  assert (wf_fdef S (module_intro los nts Ps) F) as HwfF.
     eauto using wf_system__wf_fdef.
 
   assert (gvs0 = gvs3) as Heq.
@@ -1356,7 +1359,7 @@ Case "sMalloc".
   destruct Hcmd as [v' [Heq Hvsim]]; subst.
   inv Hop2.
 
-  assert (wf_fdef nil S (module_intro los nts Ps) F) as HwfF.
+  assert (wf_fdef S (module_intro los nts Ps) F) as HwfF.
     eauto using wf_system__wf_fdef.
 
   assert (gns = gns0) as Heq.
@@ -1394,7 +1397,7 @@ Case "sCall".
     destruct (fdef_dec (PI_f pinfo) F); inv Hcsim2; eauto.
   destruct Hcmd as [fv' [lp' [Heq [Hvsim Hpasim]]]]; subst.
 
-  assert (wf_fdef nil S (module_intro los nts Ps) F) as HwfF.
+  assert (wf_fdef S (module_intro los nts Ps) F) as HwfF.
     eauto using wf_system__wf_fdef.
 
   inv Hop2.
@@ -1465,7 +1468,7 @@ Case "sExCall".
     destruct (fdef_dec (PI_f pinfo) F); inv Hcsim2; eauto.
   destruct Hcmd as [fv' [lp' [Heq [Hvsim Hpasim]]]]; subst.
 
-  assert (wf_fdef nil S (module_intro los nts Ps) F) as HwfF.
+  assert (wf_fdef S (module_intro los nts Ps) F) as HwfF.
     eauto using wf_system__wf_fdef.
 
   inv Hop2.
@@ -1628,7 +1631,7 @@ Lemma las_sim: forall (los : layouts) (nts : namedts) (fh : fheader)
   (Hst : ret inl (i0, v, cs) = find_init_stld cs0 (PI_id pinfo) dones)
   (i1 : id) (Hld : ret inl i1 = find_next_stld cs (PI_id pinfo))
   (HwfS : 
-     wf_system nil
+     wf_system 
        [module_intro los nts 
          (Ps1 ++ 
           product_fdef 
@@ -1726,14 +1729,14 @@ Lemma las_wfS: forall (los : layouts) (nts : namedts) (fh : fheader)
   (Hst : ret inl (i0, v, cs) = find_init_stld cs0 (PI_id pinfo) dones)
   (i1 : id) (Hld : ret inl i1 = find_next_stld cs (PI_id pinfo))
   (HwfS : 
-     wf_system nil
+     wf_system 
        [module_intro los nts 
          (Ps1 ++ 
           product_fdef 
             (fdef_intro fh (bs1 ++ block_intro l0 ps0 cs0 tmn0 :: bs2))
           :: Ps2)])
   (Heq: PI_f pinfo = fdef_intro fh (bs1 ++ block_intro l0 ps0 cs0 tmn0 :: bs2)),
-  wf_system nil
+  wf_system 
     [module_intro los nts 
       (Ps1 ++ 
        product_fdef 
@@ -1750,7 +1753,7 @@ Lemma las_wfPI: forall (los : layouts) (nts : namedts) (fh : fheader)
   (Hst : ret inl (i0, v, cs) = find_init_stld cs0 (PI_id pinfo) dones)
   (i1 : id) (Hld : ret inl i1 = find_next_stld cs (PI_id pinfo))
   (HwfS : 
-     wf_system nil
+     wf_system 
        [module_intro los nts 
          (Ps1 ++ 
           product_fdef 

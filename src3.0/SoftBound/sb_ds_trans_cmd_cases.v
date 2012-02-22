@@ -1014,12 +1014,17 @@ Proof.
     destruct Heqb1 as [l1 [ps1 [cs11 Heqb1]]]; subst.
     eapply wf_system__wf_cmd with (c:=insn_select id0 v0 t v1 v2) in Hwfc; eauto.
       inv Hwfc. 
-      split. eapply wf_value_id__in_getFdefLocs in H14; auto.
-          eapply get_reg_metadata_fresh' with (rm2:=rm2); eauto; try fsetdec.
-      split. eapply wf_value_id__in_getFdefLocs in H16; auto.
-          eapply get_reg_metadata_fresh' with (rm2:=rm2); eauto; try fsetdec.
-             eapply wf_value_id__in_getFdefLocs in H17; auto.
-          eapply get_reg_metadata_fresh' with (rm2:=rm2); eauto; try fsetdec.
+
+Ltac SBpass_is_correct__dsSelect_ptr_tac :=
+match goal with
+| Httmn : trans_terminator ?rm3 _ = munit _,
+  H13: wf_value _ _ _ ?v0 _ |- id_fresh_in_value ?v0 _ => 
+   eapply wf_value_id__in_getFdefLocs in H13; auto;
+   eapply get_reg_metadata_fresh' with (rm2:=rm3); eauto; try fsetdec
+end.
+ 
+      split; try SBpass_is_correct__dsSelect_ptr_tac.
+      split; SBpass_is_correct__dsSelect_ptr_tac.
 
       apply in_or_app. right. simpl. auto. 
   destruct Hfresh_ctmp as [Hfresh_ctmp0 [Hfresh_ctmp1 Hfresh_ctmp2]].

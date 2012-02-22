@@ -211,7 +211,7 @@ Lemma sop_div__die_State_simulation: forall diinfo cfg1 IS1 cfg2 IS2 tr
 Admitted.    
 
 Lemma die_sim: forall id0 f diinfo los nts Ps1 Ps2 main VarArgs
-  (HwfS: wf_system nil [module_intro los nts (Ps1 ++ product_fdef f :: Ps2)])
+  (HwfS: wf_system [module_intro los nts (Ps1 ++ product_fdef f :: Ps2)])
   (Heq1: f = DI_f diinfo) (Heq2: id0 = DI_id diinfo),
   program_sim
     [module_intro los nts 
@@ -261,15 +261,15 @@ Lemma subst_fdef__diinfo: forall f id0 v0,
 Admitted.
 
 Lemma die_wfS: forall id0 f diinfo los nts Ps1 Ps2
-  (HwfS: wf_system nil [module_intro los nts (Ps1 ++ product_fdef f :: Ps2)])
+  (HwfS: wf_system [module_intro los nts (Ps1 ++ product_fdef f :: Ps2)])
   (Heq1: f = DI_f diinfo) (Heq2: id0 = DI_id diinfo),
-  wf_system nil
+  wf_system 
     [module_intro los nts (Ps1 ++  product_fdef (remove_fdef id0 f) :: Ps2)].
 Admitted.
 
 Lemma die_wfPI: forall id0 f diinfo los nts Ps1 Ps2 pinfo
   (Hwfpi: WF_PhiInfo pinfo)
-  (HwfS: wf_system nil [module_intro los nts (Ps1 ++ product_fdef f :: Ps2)])
+  (HwfS: wf_system [module_intro los nts (Ps1 ++ product_fdef f :: Ps2)])
   (Heq1: f = DI_f diinfo) (Heq2: id0 = DI_id diinfo) (Heq3: f = PI_f pinfo),
   WF_PhiInfo (update_pinfo pinfo (remove_fdef id0 f)).
 Admitted.

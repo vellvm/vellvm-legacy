@@ -142,8 +142,11 @@ Proof.
     destruct Heqb1 as [l1 [ps1 [cs11 Heqb1]]]; subst.
     eapply wf_system__wf_cmd in Hwfc; eauto using in_middle.
       inv Hwfc. 
-      eapply wf_value_id__in_getFdefLocs in H19; auto.
-        eapply get_reg_metadata_fresh' with (rm2:=rm2); eauto; try fsetdec.
+      match goal with 
+      | H19: wf_value _ _ _ _ _ |- _ => 
+        eapply wf_value_id__in_getFdefLocs in H19; auto;
+          eapply get_reg_metadata_fresh' with (rm2:=rm2); eauto; try fsetdec
+      end.
 
   assert (tmp <> id0) as Hntmp_neq_id0.
     apply tmp_is_fresh2 with (i0:=id0)(d:=getFdefLocs (fdef_intro fh1 bs1)) 
@@ -212,8 +215,13 @@ Proof.
           getTypeAllocSize (los, nts) ut = getTypeAllocSize (los, nts) t) as EQ1.
           destruct Heqb1 as [l1 [ps1 [cs11 Heqb1]]]; subst.
           eapply wf_system__wf_cmd in HBinF; eauto using in_middle.
-            inv HBinF. inv H23.
-            simpl. destruct H0 as [J3 J4].
+            inv HBinF. 
+            match goal with | H22: Constant.unifiable_typ _ _ |- _ => inv H22 
+            end.
+            simpl. 
+            match goal with 
+            | H0: Constant.typ2utyp _ _ = _ /\ _ |- _ => destruct H0 as [J3 J4] 
+            end.
             unfold Constant.typ2utyp in J3.
             rewrite J3. simpl. eauto.
 
@@ -366,8 +374,11 @@ Proof.
     destruct Heqb1 as [l1 [ps1 [cs11 Heqb1]]]; subst.
     eapply wf_system__wf_cmd in Hwfc; eauto using in_middle.
       inv Hwfc. 
-      eapply wf_value_id__in_getFdefLocs in H17; auto.
-        eapply get_reg_metadata_fresh' with (rm2:=rm2); eauto; try fsetdec.
+      match goal with 
+      | H10: wf_value _ _ _ _ _ |- _ => 
+        eapply wf_value_id__in_getFdefLocs in H10; auto;
+          eapply get_reg_metadata_fresh' with (rm2:=rm2); eauto; try fsetdec
+      end.
 
   assert (tmp <> id0) as Hntmp_neq_id0.
     apply tmp_is_fresh2 with (i0:=id0)(d:=getFdefLocs (fdef_intro fh1 bs1)) 
@@ -436,8 +447,13 @@ Proof.
           getTypeAllocSize (los, nts) ut = getTypeAllocSize (los, nts) t) as EQ1.
           destruct Heqb1 as [l1 [ps1 [cs11 Heqb1]]]; subst.
           eapply wf_system__wf_cmd in HBinF; eauto using in_middle.
-            inv HBinF. inv H23.
-            simpl. destruct H0 as [J3 J4].
+            inv HBinF. 
+            match goal with | H22: Constant.unifiable_typ _ _ |- _ => inv H22 
+            end.
+            simpl. 
+            match goal with 
+            | H0: Constant.typ2utyp _ _ = _ /\ _ |- _ => destruct H0 as [J3 J4] 
+            end.
             unfold Constant.typ2utyp in J3.
             rewrite J3. simpl. eauto.
 
@@ -710,7 +726,10 @@ Proof.
             eapply wf_system__wf_cmd with (c:=insn_load id0 t vp align0)  
               in Hwfc; eauto.
               inv Hwfc. 
-              eapply wf_value_id__in_getFdefLocs in H11; auto.
+              match goal with
+              | H10: wf_value _ _ _ _ _ |- _ =>
+                eapply wf_value_id__in_getFdefLocs in H10; auto
+              end.
               apply in_or_app. right. simpl. auto.
           eapply get_reg_metadata_fresh' with (rm2:=rm2); eauto; try fsetdec.
 
@@ -872,7 +891,10 @@ Proof.
             destruct Heqb1 as [l1 [ps1 [cs11 Heqb1]]]; subst.
             eapply wf_system__wf_cmd in Hwfc; eauto using in_middle.
               inv Hwfc. 
-              eapply wf_value_id__in_getFdefLocs in H13; auto.
+              match goal with
+              | H12: wf_value _ _ _ _ _ |- _ =>
+                eapply wf_value_id__in_getFdefLocs in H12; auto
+              end.
         eapply get_reg_metadata_fresh' with (rm2:=rm2); eauto; try fsetdec.
 
   repeat (split; eauto 2 using inject_incr__preserves__als_simulation,
@@ -1009,13 +1031,19 @@ Proof.
         rewrite <- getOperandValue_eq_fresh_id; auto.
           assert (SB_ds_pass.getValueID v[<=]
             ids2atoms (getFdefLocs (fdef_intro fh1 bs1))) as Hindom.
-            eapply wf_value_id__in_getFdefLocs in H13; auto.
+            match goal with
+            | H12: wf_value _ _ _ ?v _ |- SB_ds_pass.getValueID ?v [<=] _ =>
+              eapply wf_value_id__in_getFdefLocs in H12; auto
+            end.
           eapply get_reg_metadata_fresh' with (rm2:=rm2); eauto; try fsetdec.
 
         rewrite <- getOperandValue_eq_fresh_id; auto.
           assert (SB_ds_pass.getValueID vp[<=]
             ids2atoms (getFdefLocs (fdef_intro fh1 bs1))) as Hindom.
-            eapply wf_value_id__in_getFdefLocs in H17; auto.
+            match goal with
+            | H12: wf_value _ _ _ ?v _ |- SB_ds_pass.getValueID ?v [<=] _ =>
+              eapply wf_value_id__in_getFdefLocs in H12; auto
+            end.
           eapply get_reg_metadata_fresh' with (rm2:=rm2); eauto; try fsetdec.
 
   repeat (split; eauto 2 using inject_incr__preserves__als_simulation,
@@ -1221,13 +1249,19 @@ Proof.
         rewrite <- getOperandValue_eq_fresh_id; auto.
           assert (SB_ds_pass.getValueID v[<=]
             ids2atoms (getFdefLocs (fdef_intro fh1 bs1))) as Hindom.
-            eapply wf_value_id__in_getFdefLocs in H15; auto.
+            match goal with
+            | H12: wf_value _ _ _ ?v _ |- SB_ds_pass.getValueID ?v [<=] _ =>
+              eapply wf_value_id__in_getFdefLocs in H12; auto
+            end.
           eapply get_reg_metadata_fresh' with (rm2:=rm2); eauto; try fsetdec.
 
         rewrite <- getOperandValue_eq_fresh_id; auto.
           assert (SB_ds_pass.getValueID vp[<=]
             ids2atoms (getFdefLocs (fdef_intro fh1 bs1))) as Hindom.
-            eapply wf_value_id__in_getFdefLocs in H19; auto.
+            match goal with
+            | H12: wf_value _ _ _ ?v _ |- SB_ds_pass.getValueID ?v [<=] _ =>
+              eapply wf_value_id__in_getFdefLocs in H12; auto
+            end.
           eapply get_reg_metadata_fresh' with (rm2:=rm2); eauto; try fsetdec.
 
     rewrite <- (@trace_app_nil__eq__trace trace_nil).

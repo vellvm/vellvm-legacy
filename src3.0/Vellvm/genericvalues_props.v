@@ -607,8 +607,8 @@ Proof.
   destruct (sizeGenericValue gv1 =n= nat_of_Z (ZRdiv (Z_of_nat sz) 8)); eauto.
 Qed.
 
-Lemma mcast_is_total : forall ifs s f b los nts ps id5 cop0 t1 t2 v,
-  wf_cast ifs s (module_intro los nts ps) f b 
+Lemma mcast_is_total : forall s f b los nts ps id5 cop0 t1 t2 v,
+  wf_cast s (module_intro los nts ps) f b 
     (insn_cmd (insn_cast id5 cop0 t1 v t2)) ->
   forall x, exists z, mcast (los,nts) cop0 t1 t2 x = Some z.
 Proof.
@@ -617,8 +617,8 @@ Proof.
   inv H; eauto using gundef__total'.
 Qed.
 
-Lemma mtrunc_is_total : forall ifs s f b los nts ps id5 top0 t1 t2 v, 
-  wf_trunc ifs s (module_intro los nts ps) f b 
+Lemma mtrunc_is_total : forall s f b los nts ps id5 top0 t1 t2 v, 
+  wf_trunc s (module_intro los nts ps) f b 
     (insn_cmd (insn_trunc id5 top0 t1 v t2)) ->
   forall x, exists z, mtrunc (los,nts) top0 t1 t2 x = Some z.
 Proof.
@@ -629,13 +629,19 @@ Proof.
   unfold mtrunc.
   destruct (GV2val (los, nts) x); eauto using gundef__total.
   inv H; try solve [destruct v0; eauto using gundef__total].
-    rewrite H16.
+    match goal with
+    | H15: _ = _ |- _ => rewrite H15
+    end.
     destruct v0; eauto using gundef__total.
-      destruct floating_point2; try solve [eauto | inversion H14].
+      destruct floating_point2; try solve [
+        eauto | 
+        match goal with
+        | H13: wf_typ _ _ |- _ => inversion H13
+        end].
 Qed.
 
-Lemma mext_is_total : forall ifs s f b los nts ps id5 eop0 t1 t2 v, 
-  wf_ext ifs s (module_intro los nts ps) f b 
+Lemma mext_is_total : forall s f b los nts ps id5 eop0 t1 t2 v, 
+  wf_ext s (module_intro los nts ps) f b 
     (insn_cmd (insn_ext id5 eop0 t1 v t2)) ->
   forall x,  exists z, mext (los,nts) eop0 t1 t2 x = Some z.
 Proof.
@@ -644,10 +650,16 @@ Proof.
   inv H; try solve 
     [destruct (GV2val (los, nts) x); eauto using gundef__total'; 
      destruct v0; eauto using gundef__total'].
-    rewrite H15.
+    match goal with
+    | H14: _ = _ |- _ => rewrite H14
+    end.
     destruct (GV2val (los, nts) x); eauto using gundef__total'; 
     destruct v0; eauto using gundef__total'.
-    destruct floating_point2; try solve [inversion H13 | eauto].
+    destruct floating_point2; try solve [
+        eauto | 
+        match goal with
+        | H13: wf_typ _ _ |- _ => inversion H13
+        end].
 Qed.
 
 Definition zeroconst2GV__getTypeSizeInBits_prop (t:typ) := forall s los nts gv,

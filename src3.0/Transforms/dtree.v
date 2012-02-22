@@ -240,8 +240,8 @@ Lemma In_bound_fdef__blockInFdefB: forall f l3,
     blockInFdefB (block_intro l3 ps cs tmn) f = true.
 Admitted.
 
-Lemma gt_dom_prop_trans : forall ifs S M f l1 l2 l3
-  (HwfF: wf_fdef ifs S M f) (Huniq: uniqFdef f)
+Lemma gt_dom_prop_trans : forall S M f l1 l2 l3
+  (HwfF: wf_fdef S M f) (Huniq: uniqFdef f)
   (HBinF1: In l1 (bound_fdef f))
   (HBinF2: In l2 (bound_fdef f))
   (HBinF3: In l3 (bound_fdef f))
@@ -299,8 +299,8 @@ Proof.
     rewrite <- HeqR3 in HeqR2. inv HeqR2; auto.
 Qed.
 
-Lemma gt_sdom_prop_trans : forall ifs S M f l1 l2 l3
-  (HwfF: wf_fdef ifs S M f) (Huniq: uniqFdef f)
+Lemma gt_sdom_prop_trans : forall S M f l1 l2 l3
+  (HwfF: wf_fdef S M f) (Huniq: uniqFdef f)
   (HBinF1: In l1 (bound_fdef f))
   (HBinF2: In l2 (bound_fdef f))
   (HBinF3: In l3 (bound_fdef f))
@@ -384,8 +384,8 @@ match f with
 | _ => None
 end.
 
-Lemma dom_analysis__entry_doms_others1: forall ifs S M f 
-  (HwfF: wf_fdef ifs S M f) entry
+Lemma dom_analysis__entry_doms_others1: forall S M f 
+  (HwfF: wf_fdef S M f) entry
   (H: getEntryLabel f = Some entry)
   (Hex: exists b,  match (AMap.get b (dom_analyze f)) with
                    | Dominators.mkBoundedSet dts _ => dts <> nil
@@ -464,7 +464,7 @@ Proof.
     inv H.
 Qed.
 
-Lemma gt_dom_dec_aux: forall ifs S M f (HwfF: wf_fdef ifs S M f) 
+Lemma gt_dom_dec_aux: forall S M f (HwfF: wf_fdef S M f) 
   (Huniq: uniqFdef f) l1 l2 l3
   (Hreach: reachable f l3)
   (HBinF1: In l1 (bound_fdef f))
@@ -555,7 +555,7 @@ Proof.
           rewrite <- HeqR2 in G. intro J. subst. inv G.
 Qed.
 
-Lemma gt_dom_dec: forall ifs S M f (HwfF: wf_fdef ifs S M f) 
+Lemma gt_dom_dec: forall S M f (HwfF: wf_fdef S M f) 
   (Huniq: uniqFdef f) l1 l2 l3
   (Hreach: reachable f l3)
   (HBinF1: In l1 (bound_fdef f))
@@ -573,7 +573,7 @@ Proof.
     left. left. auto.
 Qed.
 
-Lemma gt_sdom_dec: forall ifs S M f (HwfF: wf_fdef ifs S M f) 
+Lemma gt_sdom_dec: forall S M f (HwfF: wf_fdef S M f) 
   (Huniq: uniqFdef f) l1 l2 l3
   (Hneq: l1 <> l2)
   (Hreach: reachable f l3)
@@ -672,7 +672,7 @@ Proof.
     apply J2 in H. destruct H as [H | H]; auto. inv H.
 Qed.
 
-Lemma insert_sort_sdom_iter_sorted: forall ifs S M f (HwfF: wf_fdef ifs S M f) 
+Lemma insert_sort_sdom_iter_sorted: forall S M f (HwfF: wf_fdef S M f) 
   (Huniq: uniqFdef f) l3 (Hin3: In l3 (bound_fdef f)) (Hreach: reachable f l3)
   l0 (Hin0: In l0 (bound_fdef f)) 
   (Hsd03: gt_dom_prop (bound_fdef f) (dom_analyze f) l0 l3) suffix prefix
@@ -727,7 +727,7 @@ Proof.
         rewrite <- HeqR in H1. congruence.
 Qed.
 
-Lemma insert_sort_sdom_sorted: forall ifs S M f (HwfF: wf_fdef ifs S M f) 
+Lemma insert_sort_sdom_sorted: forall S M f (HwfF: wf_fdef S M f) 
   (Huniq: uniqFdef f) l3 (Hin3: In l3 (bound_fdef f)) (Hreach: reachable f l3)
   data acc
   (G: forall l', In l' (data++acc) -> 
@@ -754,7 +754,7 @@ Proof.
         intros. inv H0.
 Qed.
 
-Lemma sort_sdom_sorted: forall ifs S M f (HwfF: wf_fdef ifs S M f) 
+Lemma sort_sdom_sorted: forall S M f (HwfF: wf_fdef S M f) 
   (Huniq: uniqFdef f) l3 (Hin3: In l3 (bound_fdef f)) (Hreach: reachable f l3)
   input
   (G: forall l', In l' input -> 
@@ -924,7 +924,7 @@ Proof.
   eapply reachablity_analysis__reachable; eauto.
 Qed.
 
-Lemma gt_sdom_prop_irrefl: forall ifs S M f (HwfF : wf_fdef ifs S M f) 
+Lemma gt_sdom_prop_irrefl: forall S M f (HwfF : wf_fdef S M f) 
   (HuniqF: uniqFdef f) a (Hreach : reachable f a),
   gt_sdom (bound_fdef f) (dom_analyze f) a a = false. 
 Proof.
@@ -1016,8 +1016,8 @@ Proof.
     apply bs_bound. auto.
 Qed.
 
-Lemma gt_sdom_prop_trans1 : forall ifs S M f l1 l2 l3
-  (HwfF: wf_fdef ifs S M f) (Huniq: uniqFdef f) (Hreach: reachable f l3)
+Lemma gt_sdom_prop_trans1 : forall S M f l1 l2 l3
+  (HwfF: wf_fdef S M f) (Huniq: uniqFdef f) (Hreach: reachable f l3)
   (HBinF1: In l1 (bound_fdef f))
   (HBinF2: In l2 (bound_fdef f))
   (HBinF3: In l3 (bound_fdef f))
@@ -1064,8 +1064,8 @@ Proof.
         intro J. inv J.
 Qed.
 
-Lemma compute_sdom_chains_aux_sorted: forall ifs S M f 
-  (HwfF: wf_fdef ifs S M f) (Huniq: uniqFdef f)
+Lemma compute_sdom_chains_aux_sorted: forall S M f 
+  (HwfF: wf_fdef S M f) (Huniq: uniqFdef f)
   l0 chain0 bd (Hinc: incl bd (bound_fdef f)) 
   (Hreach: forall x, In x bd -> reachable f x) acc,
   (forall l0 chain0, In (l0, chain0) acc ->
@@ -1155,8 +1155,8 @@ Proof.
           contradict H2; simpl; auto.
 Qed.
 
-Lemma compute_sdom_chains_sorted: forall ifs S M f 
-  (HwfF: wf_fdef ifs S M f) (Huniq: uniqFdef f)
+Lemma compute_sdom_chains_sorted: forall S M f 
+  (HwfF: wf_fdef S M f) (Huniq: uniqFdef f)
   rd (Hinc: incl rd (bound_fdef f)) (Hreach: forall x, In x rd -> reachable f x) 
   l0 chain,
   In (l0, chain) (compute_sdom_chains (bound_fdef f) (dom_analyze f) rd) ->
@@ -1295,8 +1295,8 @@ Proof.
       congruence.
 Qed.
 
-Lemma dom_analysis__entry_doms_others2: forall ifs S M f 
-  (HwfF: wf_fdef ifs S M f) entry rd,
+Lemma dom_analysis__entry_doms_others2: forall S M f 
+  (HwfF: wf_fdef S M f) entry rd,
   getEntryLabel f = Some entry ->
   reachablity_analysis f = Some rd ->
   (forall b, b <> entry /\ In b rd -> 
@@ -1368,8 +1368,8 @@ Proof.
     inv H.
 Qed.
 
-Lemma entry_is_head_of_compute_sdom_chains: forall ifs S M f 
-  (HwfF: wf_fdef ifs S M f) (Huniq: uniqFdef f) entry rd l0 chain0
+Lemma entry_is_head_of_compute_sdom_chains: forall S M f 
+  (HwfF: wf_fdef S M f) (Huniq: uniqFdef f) entry rd l0 chain0
   (H:getEntryLabel f = Some entry)
   (H0:reachablity_analysis f = Some rd)
   (H1:In (l0, chain0)
@@ -1412,8 +1412,8 @@ Proof.
         eapply gt_sdom_prop_trans with (l2:=y); eauto.
 Qed.
 
-Lemma compute_sdom_chains__wf_chain: forall ifs S M f 
-  (HwfF: wf_fdef ifs S M f) (Huniq: uniqFdef f) l0 chain0 entry rd,
+Lemma compute_sdom_chains__wf_chain: forall S M f 
+  (HwfF: wf_fdef S M f) (Huniq: uniqFdef f) l0 chain0 entry rd,
   getEntryLabel f = Some entry ->
   reachablity_analysis f =  Some rd ->
   In (l0, chain0) (compute_sdom_chains (bound_fdef f) (dom_analyze f) rd) ->

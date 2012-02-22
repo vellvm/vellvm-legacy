@@ -188,7 +188,7 @@ match state with
       | None => 
         match (lookupFdecViaIDFromProducts Ps fid) with
         | None => None
-        | Some (fdec_intro (fheader_intro fa rt' fid' la va)) =>
+        | Some (fdec_intro (fheader_intro fa rt' fid' la va) _) =>
           if id_dec fid fid' then
             do gvs <- params2GVs TD lp lc gl;
               match (OpsemAux.callExternalFunction Mem0 fid gvs)

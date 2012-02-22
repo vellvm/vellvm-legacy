@@ -113,12 +113,6 @@ formula :: 'formula_' ::=
   | id in ids			::   :: id_in_ids
       	    			{{ tex [[id]] \in [[ids]] }}
 				{{ coq ( set_In [[id]] [[ids]]) }}
-  | id in intrinsic_funs	::   :: id_in_intrinsic_funs
-      	    			{{ tex [[id]] \in [[intrinsic_funs]] }}
-				{{ coq ( set_In [[id]] [[intrinsic_funs]]) }}
-  | id notin intrinsic_funs	::   :: id_notin_intrinsic_funs
-      	    			{{ tex [[id]] \notin [[intrinsic_funs]] }}
-				{{ coq ( ~ set_In [[id]] [[intrinsic_funs]]) }}
   | module in system		::   :: module_in_system
     	       			{{ tex [[module]] \in [[system]] }}
 				{{ coq In [[module]] [[system]] }}
@@ -718,7 +712,7 @@ Jwf_insn_base :: '' ::=
 defns
 Jwf_cast :: '' ::=
       defn
-      intrinsic_funs , system , module , fdef , block |-cast insn :: :: wf_cast :: '' 
+      system , module , fdef , block |-cast insn :: :: wf_cast :: '' 
       {{ com cast [[insn]] is well-formed w.r.t [[block]] in [[fdef]] in [[module]] [[system]] }} by  
 
       % Check typs
@@ -728,7 +722,7 @@ Jwf_cast :: '' ::=
       % Check invariance for instructions 
       fdef , block |-i id = ptrtoint ( typ * ) value1 to ( int sz )
       ------------------------------------------------------------------------------------------------------- :: wf_cast_ptrtoint
-      intrinsic_funs , system , (layouts namedts products) , fdef , block |-cast id = ptrtoint ( typ * ) value1 to ( int sz )	
+      system , (layouts namedts products) , fdef , block |-cast id = ptrtoint ( typ * ) value1 to ( int sz )	
 
 
       % Check typs
@@ -738,7 +732,7 @@ Jwf_cast :: '' ::=
       % Check invariance for instructions 
       fdef , block |-i id = inttoptr ( int sz ) value1 to ( typ * )	
       ------------------------------------------------------------------------------------------------------------ :: wf_cast_inttoptr
-      intrinsic_funs , system , (layouts namedts products) , fdef , block |-cast id = inttoptr ( int sz ) value1 to ( typ * )
+      system , (layouts namedts products) , fdef , block |-cast id = inttoptr ( int sz ) value1 to ( typ * )
 
 
       % Check typs
@@ -756,12 +750,12 @@ Jwf_cast :: '' ::=
       fdef , block |-i id = bitcast typ1* value1 to typ2*
       system |- typ2*		
       --------------------------------------------------------------------------------------------- :: wf_cast_bitcast
-      intrinsic_funs , system , (layouts namedts products) , fdef , block |-cast id = bitcast typ1* value1 to typ2*		
+      system , (layouts namedts products) , fdef , block |-cast id = bitcast typ1* value1 to typ2*		
 
 defns
 Jwf_trunc :: '' ::=
       defn
-      intrinsic_funs , system , module , fdef , block |-trunc insn :: :: wf_trunc :: '' 
+      system , module , fdef , block |-trunc insn :: :: wf_trunc :: '' 
       {{ com trunc [[insn]] is well-formed w.r.t [[block]] in [[fdef]] in [[module]] [[system]] }} by  
 
       % Check typs
@@ -773,7 +767,7 @@ Jwf_trunc :: '' ::=
       % Check invariance for instructions 
       fdef , block |-i id = trunc_int ( int sz1 ) value1 to ( int sz2 )
       ----------------------------------------------------------------------------------------------- :: wf_trunc_int
-      intrinsic_funs , system , (layouts namedts products) , fdef , block |-trunc id = trunc_int ( int sz1 ) value1 to ( int sz2 )	
+      system , (layouts namedts products) , fdef , block |-trunc id = trunc_int ( int sz1 ) value1 to ( int sz2 )	
 
       % Check typs
       system , (layouts namedts products) , fdef |- value1 : floating_point1
@@ -785,12 +779,12 @@ Jwf_trunc :: '' ::=
       fdef , block |-i id = trunc_fp floating_point1 value1 to floating_point2
       system |- floating_point2
       ----------------------------------------------------------------------------------------------- :: wf_trunc_fp
-      intrinsic_funs , system , (layouts namedts products) , fdef , block |-trunc id = trunc_fp floating_point1 value1 to floating_point2	
+      system , (layouts namedts products) , fdef , block |-trunc id = trunc_fp floating_point1 value1 to floating_point2	
 
 defns
 Jwf_ext :: '' ::=
       defn
-      intrinsic_funs , system , module , fdef , block |-ext insn :: :: wf_ext :: '' 
+      system , module , fdef , block |-ext insn :: :: wf_ext :: '' 
       {{ com ext [[insn]] is well-formed w.r.t [[block]] in [[fdef]] in [[module]] [[system]] }} by  
 
       % Check typs
@@ -802,7 +796,7 @@ Jwf_ext :: '' ::=
       % Check invariance for instructions 
       fdef , block |-i id = zext ( int sz1 ) value1 to ( int sz2 )
       ------------------------------------------------------------------------------------------------------- :: wf_ext_z
-      intrinsic_funs , system , (layouts namedts products) , fdef , block |-ext id = zext ( int sz1 ) value1 to ( int sz2 )	
+      system , (layouts namedts products) , fdef , block |-ext id = zext ( int sz1 ) value1 to ( int sz2 )	
 
       % Check typs
       system , (layouts namedts products) , fdef |- value1 : int sz1 
@@ -813,7 +807,7 @@ Jwf_ext :: '' ::=
       % Check invariance for instructions 
       fdef , block |-i id = sext ( int sz1 ) value1 to ( int sz2 )
       ------------------------------------------------------------------------------------------------------- :: wf_ext_s
-      intrinsic_funs , system , (layouts namedts products) , fdef , block |-ext id = sext ( int sz1 ) value1 to ( int sz2 )	
+      system , (layouts namedts products) , fdef , block |-ext id = sext ( int sz1 ) value1 to ( int sz2 )	
 
       % Check typs
       system , (layouts namedts products) , fdef |- value1 : floating_point1 
@@ -824,12 +818,12 @@ Jwf_ext :: '' ::=
       % Check invariance for instructions 
       fdef , block |-i id = fpext floating_point1 value1 to floating_point2
       ------------------------------------------------------------------------------------------------------- :: wf_ext_fp
-      intrinsic_funs , system , (layouts namedts products) , fdef , block |-ext id = fpext floating_point1 value1 to floating_point2	
+      system , (layouts namedts products) , fdef , block |-ext id = fpext floating_point1 value1 to floating_point2	
 
 defns
 Jwf_insn :: '' ::=
       defn
-      intrinsic_funs , system , module , fdef , block |- insn :: :: wf_insn :: '' 
+      system , module , fdef , block |- insn :: :: wf_insn :: '' 
       {{ com [[insn]] is well-formed w.r.t [[block]] in [[fdef]] in [[module]] [[system]] }} by  
 
       % Check typs
@@ -839,14 +833,14 @@ Jwf_insn :: '' ::=
       % Check invariance for instructions
       fdef , block |-i id = ret typ value
       ------------------------------------------------------ :: wf_insn_return
-      intrinsic_funs , system , module , fdef , block |- id = ret typ value
+      system , module , fdef , block |- id = ret typ value
 
       % return instr that returns void in Function can be of void return type! 
       Function.getDefReturnType fdef = void
       % Check invariance for instructions
       fdef , block |-i id = ret void
       ------------------------------------------------------- :: wf_insn_return_void
-      intrinsic_funs , system , module , fdef , block |- id = ret void
+      system , module , fdef , block |- id = ret void
 
       % Check typs
       system , module , fdef |- value : int sz 
@@ -858,23 +852,23 @@ Jwf_insn :: '' ::=
       % Check invariance for instructions
       fdef , block |-i id = br value l1 l2
       -------------------------------------------------------------------------------------- :: wf_insn_br
-      intrinsic_funs , system , module , fdef , block |- id = br value l1 l2	
+      system , module , fdef , block |- id = br value l1 l2	
 
       % Check labels
       lookupBlockViaLabelFromFdef fdef l = block
       % Check invariance for instructions
       fdef , block |-i id = br l
       -------------------------------------------------------------------------------------- :: wf_insn_br_uncond
-      intrinsic_funs , system , module, fdef , block |- id = br l		
+      system , module, fdef , block |- id = br l		
 
       % fdef , block |-i id = invoke typ0 id0 params to l1 unwind l2
       % -------------------------------------------------------------------------------------- :: wf_insn_invoke
-      % intrinsic_funs , system , module, fdef , block |- id = invoke typ0 id0 params to l1 unwind l2
+      % system , module, fdef , block |- id = invoke typ0 id0 params to l1 unwind l2
 
       % Check invariance for instructions
       fdef , block |-i id = unreachable
       -------------------------------------------------------------------------------------- :: wf_insn_unreachable
-      intrinsic_funs , system , module, fdef , block |- id = unreachable
+      system , module, fdef , block |- id = unreachable
 
       % Check typs
       system , module , fdef |- value1 : int sz
@@ -885,7 +879,7 @@ Jwf_insn :: '' ::=
       % Check invariance for instructions
       fdef , block |-i id = bop (int sz) value1 value2
       -------------------------------------------------------------------------------------- :: wf_insn_bop
-      intrinsic_funs , system , module, fdef , block |- id = bop (int sz) value1 value2
+      system , module, fdef , block |- id = bop (int sz) value1 value2
 
       % Check typs
       system , module , fdef |- value1 : floating_point
@@ -896,7 +890,7 @@ Jwf_insn :: '' ::=
       % Check invariance for instructions
       fdef , block |-i id = fbop floating_point value1 value2
       ----------------------------------------------------------------------------------------------------- :: wf_insn_fbop
-      intrinsic_funs , system , module, fdef , block |- id = fbop floating_point value1 value2
+      system , module, fdef , block |- id = fbop floating_point value1 value2
 
       % Check typs
       system , (layouts namedts products) , fdef |- value : typ
@@ -909,7 +903,7 @@ Jwf_insn :: '' ::=
       % Check invariance for instructions
       fdef , block |-i id = extractvalue typ value </ constj // j />
       -------------------------------------------------------------------------------------- :: wf_insn_extractvalue
-      intrinsic_funs , system , (layouts namedts products) , fdef , block |- id = extractvalue typ value </ constj // j />
+      system , (layouts namedts products) , fdef , block |- id = extractvalue typ value </ constj // j />
 
       % Check typs
       system , (layouts namedts products) , fdef |- value : typ
@@ -921,7 +915,7 @@ Jwf_insn :: '' ::=
       % Check invariance for instructions
       fdef , block |-i id = insertvalue typ value typ' value' </ constj // j />
       -------------------------------------------------------------------------------------- :: wf_insn_insertvalue
-      intrinsic_funs , system , (layouts namedts products) , fdef , block |- id = insertvalue typ value typ' value' </ constj // j />
+      system , (layouts namedts products) , fdef , block |- id = insertvalue typ value typ' value' </ constj // j />
 
       % Allocation instruction pointer not in the generic address space!
       %
@@ -936,14 +930,14 @@ Jwf_insn :: '' ::=
       % Check invariance for instructions
       fdef , block |-i id = malloc typ value align 
       --------------------------------------------------------------------------------------------------- :: wf_insn_malloc
-      intrinsic_funs , system , (layouts namedts products) , fdef , block |- id = malloc typ value align 
+      system , (layouts namedts products) , fdef , block |- id = malloc typ value align 
 
       % Check typs
       system , module , fdef |- value : typ*
       % Check invariance for instructions
       fdef , block |-i id = free (typ*) value
       -------------------------------------------------------------------------------------- :: wf_insn_free
-      intrinsic_funs , system , module , fdef , block |- id = free (typ*) value
+      system , module , fdef , block |- id = free (typ*) value
 
       % Allocation instruction pointer not in the generic address space!
       %
@@ -959,7 +953,7 @@ Jwf_insn :: '' ::=
       % Check invariance for instructions
       fdef , block |-i id = alloca typ value align 
       -------------------------------------------------------------------------------------------------- :: wf_insn_alloca
-      intrinsic_funs , system , (layouts namedts products) , fdef , block |- id = alloca typ value align 
+      system , (layouts namedts products) , fdef , block |- id = alloca typ value align 
 
       % Load operand must be a pointer.
       system , (layouts namedts products) , fdef |- value1 : typ1*
@@ -968,7 +962,7 @@ Jwf_insn :: '' ::=
       % Check invariance for instructions
       fdef , block |-i id = load (typ1*) value1 align
       ------------------------------------------------------------------------------------------------------- :: wf_insn_load
-      intrinsic_funs , system , (layouts namedts products) , fdef , block |- id = load (typ1*) value1 align		
+      system , (layouts namedts products) , fdef , block |- id = load (typ1*) value1 align		
 
       % Store operand must be a pointer.
       system , (layouts namedts products) , fdef |- value1 : typ
@@ -977,7 +971,7 @@ Jwf_insn :: '' ::=
       % Check invariance for instructions
       fdef , block |-i id = store typ value1 value2 align
       --------------------------------------------------------------------------------------------------------- :: wf_insn_store
-      intrinsic_funs , system , (layouts namedts products) , fdef , block |- id = store typ value1 value2 align
+      system , (layouts namedts products) , fdef , block |- id = store typ value1 value2 align
 
       % Check typs
       system , (layouts namedts products) , fdef |- value : typ*
@@ -991,21 +985,21 @@ Jwf_insn :: '' ::=
       % Check invariance for instructions
       fdef , block |-i id = getelementptr inbounds (typ*) value </ szj , valuej // j />
       ---------------------------------------------------------------------------------------- :: wf_insn_gep
-      intrinsic_funs , system , (layouts namedts products) , fdef , block |- id = getelementptr inbounds (typ*) value </ szj , valuej // j />
+      system , (layouts namedts products) , fdef , block |- id = getelementptr inbounds (typ*) value </ szj , valuej // j />
 
 
-      intrinsic_funs , system , module , fdef , block |-trunc id = truncop typ1 value1 to typ2
+      system , module , fdef , block |-trunc id = truncop typ1 value1 to typ2
       ---------------------------------------------------------------------------------------------------- :: wf_insn_trunc
-      intrinsic_funs , system , module , fdef , block |- id = truncop typ1 value1 to typ2
+      system , module , fdef , block |- id = truncop typ1 value1 to typ2
 
-      intrinsic_funs , system , module , fdef , block |-ext id = extop typ1 value1 to typ2
+      system , module , fdef , block |-ext id = extop typ1 value1 to typ2
       ---------------------------------------------------------------------------------------------------- :: wf_insn_ext
-      intrinsic_funs , system , module , fdef , block |- id = extop typ1 value1 to typ2
+      system , module , fdef , block |- id = extop typ1 value1 to typ2
 
 
-      intrinsic_funs , system , module , fdef , block |-cast id = castop typ1 value1 to typ2
+      system , module , fdef , block |-cast id = castop typ1 value1 to typ2
       ---------------------------------------------------------------------------------------------------- :: wf_insn_cast
-      intrinsic_funs , system , module , fdef , block |- id = castop typ1 value1 to typ2
+      system , module , fdef , block |- id = castop typ1 value1 to typ2
 
 
       % Check typs
@@ -1016,7 +1010,7 @@ Jwf_insn :: '' ::=
       % Check invariance for instructions
       fdef , block |-i id = icmp cond typ value1 value2
       --------------------------------------------------------------------------------------------------- :: wf_insn_icmp
-      intrinsic_funs , system , (layouts namedts products) , fdef , block |- id = icmp cond typ value1 value2
+      system , (layouts namedts products) , fdef , block |- id = icmp cond typ value1 value2
 
 
       {{ wf_fcond [[fcond]] = true }}
@@ -1026,7 +1020,7 @@ Jwf_insn :: '' ::=
       % Check invariance for instructions
       fdef , block |-i id = fcmp fcond floating_point value1 value2
       ------------------------------------------------------------------------------------------------------- :: wf_insn_fcmp
-      intrinsic_funs , system , (layouts namedts products) , fdef , block |- id = fcmp fcond floating_point value1 value2
+      system , (layouts namedts products) , fdef , block |- id = fcmp fcond floating_point value1 value2
 
       % Check typs
       </ system , module , fdef |- valuej : typ // j />
@@ -1041,7 +1035,7 @@ Jwf_insn :: '' ::=
       %
       {{ wf_phinode [[:user_syntax__fdef:fdef]] [[:user_syntax__block:block]] [[:user_syntax__phinode:id = phi typ </ [ valuej , lj ] // j />]] }}
       --------------------------------------------------------------------------------------------------------------------------------------------- :: wf_insn_phi
-      intrinsic_funs , system , module , fdef , block |- id = phi typ </ [ valuej , lj ] // j />
+      system , module , fdef , block |- id = phi typ </ [ valuej , lj ] // j />
 			        
       % Check typs
       system , module , fdef |- value0 : int sz 
@@ -1051,7 +1045,7 @@ Jwf_insn :: '' ::=
       % Check invariance for instructions
       fdef , block |-i id = select value0 typ value1 value2
       ------------------------------------------------------------------------------------------------------- :: wf_insn_select
-      intrinsic_funs , system , module , fdef , block |- id = select value0 typ value1 value2
+      system , module , fdef , block |- id = select value0 typ value1 value2
 
       % LLVM checks that 
       %   "Called function must be a pointer!"
@@ -1077,40 +1071,40 @@ Jwf_insn :: '' ::=
       % Check invariance for instructions
       fdef , block |-i id = noret clattrs call typ0 value0 params
       ------------------------------------------------------------------------------------------------------------------- :: wf_insn_call
-      intrinsic_funs , system , module , fdef , block |- id = noret clattrs call typ0 value0 params
+      system , module , fdef , block |- id = noret clattrs call typ0 value0 params
 
 defns
 Jwf_cmds :: '' ::=
       defn
-      intrinsic_funs , system , module , fdef , block |- cmds :: :: wf_cmds :: ''
+      system , module , fdef , block |- cmds :: :: wf_cmds :: ''
       {{ com [[cmds]] is well-formed w.r.t. [[block]] [[fdef]] in [[module]] [[system]] }} by
 
       --------------------------------------- :: wf_cmds_nil
-      intrinsic_funs , system , module , fdef , block |- []
+      system , module , fdef , block |- []
 
-      intrinsic_funs , system , module , fdef , block |- cmd
-      intrinsic_funs , system , module , fdef , block |- cmds
+      system , module , fdef , block |- cmd
+      system , module , fdef , block |- cmds
       ------------------------------------------------------------------------------ :: wf_cmds_cons
-      intrinsic_funs , system , module , fdef , block |- cmd , cmds
+      system , module , fdef , block |- cmd , cmds
  
 defns
 Jwf_phinodes :: '' ::=
       defn
-      intrinsic_funs , system , module , fdef , block |- phinodes :: :: wf_phinodes :: ''
+      system , module , fdef , block |- phinodes :: :: wf_phinodes :: ''
       {{ com [[phinodes]] is well-formed w.r.t. [[block]] [[fdef]] in [[module]] [[system]] }} by
 
       --------------------------------------- :: wf_phinodes_nil
-      intrinsic_funs , system , module , fdef , block |- []
+      system , module , fdef , block |- []
 
-      intrinsic_funs , system , module , fdef , block |- phinode
-      intrinsic_funs , system , module , fdef , block |- phinodes
+      system , module , fdef , block |- phinode
+      system , module , fdef , block |- phinodes
       ------------------------------------------------------------------------------ :: wf_phinodes_cons
-      intrinsic_funs , system , module , fdef , block |- phinode , phinodes
+      system , module , fdef , block |- phinode , phinodes
 
 defns
 Jwf_block :: '' ::=
       defn
-      intrinsic_funs , system , module , fdef |- block :: :: wf_block :: '' 
+      system , module , fdef |- block :: :: wf_block :: '' 
       {{ com [[block]] is well-formed w.r.t. [[fdef]] in [[module]] [[system]] }} by
 
       % Inclusion
@@ -1127,35 +1121,35 @@ Jwf_block :: '' ::=
       % We moved some assertions to visitPhiNode 
       %
       % Check instruction
-      intrinsic_funs , system , module , fdef , (l phinodes cmds terminator) |- phinodes
-      intrinsic_funs , system , module , fdef , (l phinodes cmds terminator) |- cmds
-      intrinsic_funs , system , module , fdef , (l phinodes cmds terminator) |- terminator
-      ------------------------------------------------------------------------------------- :: wf_block_intro
-      intrinsic_funs , system , module , fdef |- l phinodes cmds terminator
+      system , module , fdef , (l phinodes cmds terminator) |- phinodes
+      system , module , fdef , (l phinodes cmds terminator) |- cmds
+      system , module , fdef , (l phinodes cmds terminator) |- terminator
+      ------------------------------------------------------------------------------------ :: wf_block_intro
+      system , module , fdef |- l phinodes cmds terminator
 
 defns
 Jwf_blocks :: '' ::=
       defn
-      intrinsic_funs , system , module , fdef |- blocks :: :: wf_blocks :: ''
+      system , module , fdef |- blocks :: :: wf_blocks :: ''
       {{ com [[blocks]] is well-formed w.r.t. [[fdef]] in [[module]] [[system]] }} by
 
       --------------------------------------- :: wf_blocks_nil
-      intrinsic_funs , system , module , fdef |- []
+      system , module , fdef |- []
 
-      intrinsic_funs , system , module , fdef |- block
-      intrinsic_funs , system , module , fdef |- blocks
+      system , module , fdef |- block
+      system , module , fdef |- blocks
       ------------------------------------------------------------------------ :: wf_blocks_cons
-      intrinsic_funs , system , module , fdef |- block , blocks
+      system , module , fdef |- block , blocks
  
 
 defns
 Jwf_fdec :: '' ::=
       defn
-      intrinsic_funs , system , module |-f fdec :: :: wf_fdec :: ''
+      system , module |-f fdec :: :: wf_fdec :: ''
       {{ com [[fdec]] is well-formed w.r.t. [[module]] [[system]] }} by
 
       % Inclusion
-      (declare ( fnattrs typ id ( args varg ) )) in system , (layouts namedts products)
+      (declare ( fnattrs typ id ( args varg ) ) deckind) in system , (layouts namedts products)
       % Check function arguments.
       args <-> </ (typj attributesj idj) // j />
       </ system |- typj // j />      
@@ -1185,13 +1179,13 @@ Jwf_fdec :: '' ::=
       % is not legal to define intrinsics. 
       %
       % Check invalid linkage type for function declaration 
-      -------------------------------------------------------------------------------------------------- :: wf_fdec_intro
-      intrinsic_funs , system , (layouts namedts products) |-f declare ( fnattrs typ id ( args varg ) )
+      --------------------------------------------------------------------------------------------------------- :: wf_fdec_intro
+      system , (layouts namedts products) |-f declare ( fnattrs typ id ( args varg ) ) deckind
 
 defns
 Jwf_fdef :: '' ::=
       defn
-      intrinsic_funs , system , module |-f fdef :: :: wf_fdef :: ''
+      system , module |-f fdef :: :: wf_fdef :: ''
       {{ com [[fdef]] is well-formed w.r.t. [[module]] [[system]] }} by
 
       % Inclusion
@@ -1231,66 +1225,66 @@ Jwf_fdef :: '' ::=
       {{ genBlockUseDef_fdef [[:user_syntax__fdef:define fheader { blocks }]] = [[usedef_block]] }}
       {{ hasNonePredecessor [[:user_syntax__block:block]] [[usedef_block]] = true }}
       % Checking function body
-      intrinsic_funs , system , (layouts namedts products) , define ( fnattrs typ id ( args varg ) ) { blocks } |- blocks
+      system , (layouts namedts products) , define ( fnattrs typ id ( args varg ) ) { blocks } |- blocks
       ------------------------------------------------------------------------------------------------------------------- :: wf_fdef_intro
-      intrinsic_funs , system , (layouts namedts products) |-f define ( fnattrs typ id ( args varg ) ) { blocks }
+      system , (layouts namedts products) |-f define ( fnattrs typ id ( args varg ) ) { blocks }
 
 defns
 Jwf_g :: '' ::=     % visitGlobalValue
       defn
-      intrinsic_funs , system , module |-g product :: :: wf_g :: ''
+      system , module |-g product :: :: wf_g :: ''
       {{ com common cases that [[product]] is well-formed w.r.t. [[module]] [[system]]}} by 
 
       -------------------------------------------------- :: wf_g_intro
-      intrinsic_funs , system , module |-g product
+      system , module |-g product
       
 defns
 Jwf_gvar :: '' ::=  % visitGlobalVariable
       defn
-      intrinsic_funs , system , module |-v gvar :: :: wf_gvar :: ''
+      system , module |-v gvar :: :: wf_gvar :: ''
       {{ com [[gvar]] is well-formed w.r.t. [[module]] [[system]]}} by 
 
       system , targetdata |-c const : typ
       ----------------------------------------------------------------------------- :: wf_gv_intro
-      intrinsic_funs , system , module |-v id = linkage gvar_spec typ const align
+      system , module |-v id = linkage gvar_spec typ const align
 
 defns
 Jwf_prod :: '' ::=
       defn
-      intrinsic_funs , system , module |- product :: :: wf_prod :: ''
+      system , module |- product :: :: wf_prod :: ''
       {{ com [[product]] is well-formed w.r.t. [[module]] [[system]]}} by 
 
-      intrinsic_funs , system , module |-g gvar
-      intrinsic_funs , system , module |-v gvar      
+      system , module |-g gvar
+      system , module |-v gvar      
       ------------------------------------------------ :: wf_prod_global_var
-      intrinsic_funs , system , module |- gvar
+      system , module |- gvar
 
-      intrinsic_funs , system , module |-g fdec
-      intrinsic_funs , system , module |-f fdec
+      system , module |-g fdec
+      system , module |-f fdec
       ---------------------------------------------- :: wf_prod_function_dec
-      intrinsic_funs , system , module |- fdec
+      system , module |- fdec
 
-      intrinsic_funs , system , module |-g fdef
-      intrinsic_funs , system , module |-f fdef
+      system , module |-g fdef
+      system , module |-f fdef
       ---------------------------------------------- :: wf_prod_function_def
-      intrinsic_funs , system , module |- fdef   
+      system , module |- fdef   
 
       % -------------------------------------- :: wf_prod_namedtype
-      % intrinsic_funs , system , module |- namedt     
+      % system , module |- namedt     
 
 defns
 Jwf_prods :: '' ::=
       defn
-      intrinsic_funs , system , module |- products :: :: wf_prods :: ''
+      system , module |- products :: :: wf_prods :: ''
       {{ com [[products]] is well-formed w.r.t. [[module]] [[system]]}} by 
 
       ------------------------------------------- :: wf_prods_nil
-      intrinsic_funs , system , module |- []
+      system , module |- []
 
-      intrinsic_funs , system , module |- products
-      intrinsic_funs , system , module |- product
+      system , module |- products
+      system , module |- product
       ---------------------------------------------------------------- :: wf_prods_cons
-      intrinsic_funs , system , module |- product , products
+      system , module |- product , products
 
 defns
 Jty_namedts :: '' ::=
@@ -1320,41 +1314,41 @@ Jwf_namedts :: '' ::=
 defns
 Jwf_module :: '' ::=
       defn
-      intrinsic_funs , system |- module :: :: wf_module :: ''
+      system |- module :: :: wf_module :: ''
       {{ com [[module]] is well-formed w.r.t. [[system]] }} by
 
       %%
       system |- layouts namedts
       %%
       (layouts namedts products) in system
-      intrinsic_funs , system , (layouts namedts products) |- products
+      system , (layouts namedts products) |- products
       ------------------------------------------------------------------------------------ :: wf_module_intro
-      intrinsic_funs , system |- (layouts namedts products)
+      system |- (layouts namedts products)
 
 defns
 Jwf_modules :: '' ::=
       defn
-      intrinsic_funs , system |- modules :: :: wf_modules :: ''
+      system |- modules :: :: wf_modules :: ''
       {{ com [[modules]] is well-formed w.r.t. [[system]] }} by  
 
       ----------------------------- :: wf_modules_nil
-      intrinsic_funs , system |- []
+      system |- []
 
-      intrinsic_funs , system |- module 
-      intrinsic_funs , system |- modules
+      system |- module 
+      system |- modules
       ----------------------------------------------- :: wf_modules_cons
-      intrinsic_funs, system |- module , modules
+      system |- module , modules
  
 defns
 Jwf_system :: '' ::=
       defn
-      intrinsic_funs |- system :: :: wf_system :: ''
+      |- system :: :: wf_system :: ''
       {{ com [[system]] is well-formed }} by
 
-      intrinsic_funs , modules |- modules
+      modules |- modules
       uniqSystem modules
       ------------------------------ :: wf_system_intro
-      intrinsic_funs |- modules
+      |- modules
      
 embed
 {{coq

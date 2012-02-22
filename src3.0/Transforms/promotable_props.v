@@ -137,8 +137,8 @@ Proof.
         rewrite <- lookupAL_updateAddAL_neq in Hlk0; auto.
 Qed.
 
-Lemma preservation_helper1: forall los nts Ps S F l1 ps1 cs1' c0 tmn ifs
-  (HwfS : wf_system ifs S)
+Lemma preservation_helper1: forall los nts Ps S F l1 ps1 cs1' c0 tmn 
+  (HwfS : wf_system S)
   (HMinS : moduleInSystemB (module_intro los nts Ps) S = true)
   (HFinPs : InProductsB (product_fdef F) Ps = true)
   (HBinF : blockInFdefB (block_intro l1 ps1 (cs1' ++ [c0]) tmn) F = true),
@@ -156,8 +156,8 @@ Proof.
   apply NoDup_last_inv in J. auto.
 Qed.
 
-Lemma preservation_helper2: forall los nts Ps S F l1 ps1 cs1' c0 tmn ifs c cs
-  (HwfS : wf_system ifs S)
+Lemma preservation_helper2: forall los nts Ps S F l1 ps1 cs1' c0 tmn c cs
+  (HwfS : wf_system S)
   (HMinS : moduleInSystemB (module_intro los nts Ps) S = true)
   (HFinPs : InProductsB (product_fdef F) Ps = true)
   (HBinF : blockInFdefB 
@@ -174,9 +174,9 @@ Proof.
 Qed.
 
 Lemma impure_cmd_non_updated_preserves_wf_EC : forall maxb pinfo TD M M' lc F B 
-  als tmn cs c0 l1 ps1 cs1' ifs S
+  als tmn cs c0 l1 ps1 cs1' S
   (Heq: B = block_intro l1 ps1 (cs1' ++ c0 :: cs) tmn)
-  (HwfS: wf_system ifs S) los nts (Heq': TD = (los, nts)) Ps
+  (HwfS: wf_system S) los nts (Heq': TD = (los, nts)) Ps
   (HMinS: moduleInSystemB (module_intro los nts Ps) S = true)
   (HFinPs: InProductsB (product_fdef F) Ps = true)
   (HBinF: blockInFdefB B F = true)
@@ -826,7 +826,7 @@ Local Opaque inscope_of_tmn inscope_of_cmd.
       apply in_or_app. right. simpl. auto.
     assert (Hwfc := HBinF2).
     eapply wf_system__wf_cmd with (c:=insn_call i0 n c t v p) in Hwfc; eauto.
-    assert (wf_fdef nil S (module_intro los nts Ps) (PI_f pinfo)) as HwfF.
+    assert (wf_fdef S (module_intro los nts Ps) (PI_f pinfo)) as HwfF.
       eapply wf_system__wf_fdef; eauto.
     assert (uniqFdef (PI_f pinfo)) as HuniqF.
       eapply wf_system__uniqFdef; eauto.
@@ -882,8 +882,12 @@ Local Opaque inscope_of_tmn inscope_of_cmd.
         destruct t; tinv H1.
         remember (MDGVs.lift_op1 (fit_gv (los, nts) t) g t) as R2.
         destruct R2; inv H1.
-        inv Hwfc. inv H16. inv H7. inv H18.
-
+        inv Hwfc. 
+        match goal with
+        | H15: typ_function _ _ _ = typ_function _ _ _,
+          H7: module_intro _ _ _ = module_intro _ _ _,
+          H20: wf_insn_base _ _ _ |- _ => inv H15; inv H7; inv H20
+        end.
         apply wf_defs_updateAddAL; auto.
           split.
             eapply preservation_return_helper; eauto; simpl; auto.
@@ -1768,9 +1772,9 @@ Proof.
 Qed.
 
 Lemma impure_cmd_updated_preserves_wf_EC : forall maxb pinfo TD M M' lc F B 
-  als als' tmn cs c0 l1 ps1 cs1' ifs S
+  als als' tmn cs c0 l1 ps1 cs1' S
   (Heq: B = block_intro l1 ps1 (cs1' ++ c0 :: cs) tmn)
-  (HwfS: wf_system ifs S) los nts (Heq': TD = (los, nts)) Ps
+  (HwfS: wf_system S) los nts (Heq': TD = (los, nts)) Ps
   (HMinS: moduleInSystemB (module_intro los nts Ps) S = true)
   (HFinPs: InProductsB (product_fdef F) Ps = true)
   (HBinF: blockInFdefB B F = true) id0
@@ -1830,8 +1834,8 @@ Admitted.
 
 Lemma alloca_preserves_wf_defs_at_head : forall maxb pinfo los nts M  
   M' gl als lc t 
-  (Hwfpi : WF_PhiInfo pinfo) ifs S Ps
-  (HwfF: wf_fdef ifs S (module_intro los nts Ps) (PI_f pinfo))
+  (Hwfpi : WF_PhiInfo pinfo) S Ps
+  (HwfF: wf_fdef S (module_intro los nts Ps) (PI_f pinfo))
   (Hwfgl: wf_globals maxb gl) mb id0 align0 F gn tsz
   (Hal: malloc (los, nts) M tsz gn align0 = ret (M', mb)) 
   (HwfM: wf_Mem maxb (los, nts) M)
@@ -2021,7 +2025,7 @@ Ltac preservation_tac4 :=
     HFinPs1: InProductsB _ _ = _,
     HBinF1: blockInFdefB _ _ = _,
     HmInS: moduleInSystemB _ _ = _,
-    HwfSystem: wf_system _ _ |- _ =>
+    HwfSystem: wf_system _ |- _ =>
     simpl; intros; subst;
     clear - HBinF1 HFinPs1 HmInS HwfPI HwfSystem;
     eapply wf_system__uniqFdef in HFinPs1; eauto;
@@ -2091,14 +2095,14 @@ Proof.
   SCase "1".     
     assert (uniqFdef (fdef_intro (fheader_intro fa rt fid la va) lb)) as Huniq.
       eapply wf_system__uniqFdef; eauto.
-    assert (wf_fdef nil S (module_intro los nts Ps) 
+    assert (wf_fdef S (module_intro los nts Ps) 
       (fdef_intro (fheader_intro fa rt fid la va) lb)) as HwfF.
       eapply wf_system__wf_fdef; eauto.
     split.
       destruct (fdef_dec (PI_f pinfo) 
                  (fdef_intro (fheader_intro fa rt fid la va) lb)); auto.
       assert (ps'=nil) as EQ.
-        eapply entryBlock_has_no_phinodes with (ifs:=nil)(s:=S); eauto.        
+        eapply entryBlock_has_no_phinodes with (s:=S); eauto.        
       subst.
       apply dom_entrypoint in H2. 
       eapply initLocals_preserves_wf_defs; eauto.
@@ -2190,7 +2194,7 @@ Local Opaque inscope_of_tmn inscope_of_cmd.
         apply in_or_app. right. simpl. auto.
       assert (Hwfc := HBinF2).
       eapply wf_system__wf_cmd with (c:=insn_call i0 n c t v p) in Hwfc; eauto.
-      assert (wf_fdef nil S (module_intro los nts Ps) (PI_f pinfo)) as HwfF.
+      assert (wf_fdef S (module_intro los nts Ps) (PI_f pinfo)) as HwfF.
         eapply wf_system__wf_fdef; eauto.
       assert (uniqFdef (PI_f pinfo)) as HuniqF.
         eapply wf_system__uniqFdef; eauto.
@@ -2248,7 +2252,7 @@ Proof.
     destruct H; eauto.
 Qed.
 
-Lemma wf_defs_br : forall lc l' ps' cs' lc' tmn' gl los nts Ps ifs s
+Lemma wf_defs_br : forall lc l' ps' cs' lc' tmn' gl los nts Ps s
   (l3 : l) (ps : phinodes) (cs : list cmd) tmn pinfo (Hwfpi: WF_PhiInfo pinfo)
   (Hlkup : Some (block_intro l' ps' cs' tmn') = 
              lookupBlockViaLabelFromFdef (PI_f pinfo) l')
@@ -2258,7 +2262,7 @@ Lemma wf_defs_br : forall lc l' ps' cs' lc' tmn' gl los nts Ps ifs s
   (Hwfdfs : wf_defs maxb pinfo (los,nts) Mem lc als)
   (Hwflc : wf_lc Mem lc)
   (Hwfg : wf_globals maxb gl)
-  (HwfF : wf_fdef ifs s (module_intro los nts Ps) (PI_f pinfo))
+  (HwfF : wf_fdef s (module_intro los nts Ps) (PI_f pinfo))
   (Huniq : uniqFdef (PI_f pinfo)),
   wf_defs maxb pinfo (los,nts) Mem lc' als.
 Proof.
@@ -2304,7 +2308,7 @@ Proof.
 Qed.
 
 Lemma wf_ECStack_head_tail_br : forall (lc:DGVMap) l' ps' cs' lc' tmn' gl los 
-  nts Ps ifs s (l3 : l) (ps : phinodes) (cs : list cmd) tmn F
+  nts Ps s (l3 : l) (ps : phinodes) (cs : list cmd) tmn F
   (Hlkup : Some (block_intro l' ps' cs' tmn') = 
              lookupBlockViaLabelFromFdef F l')
   (Hswitch : Opsem.switchToNewBasicBlock (los,nts) (block_intro l' ps' cs' tmn')
@@ -2312,7 +2316,7 @@ Lemma wf_ECStack_head_tail_br : forall (lc:DGVMap) l' ps' cs' lc' tmn' gl los
   Mem maxb (Hwflc : wf_ECStack_head_tail maxb pinfo (los, nts) Mem lc EC) 
   (HwfM : wf_Mem maxb (los, nts) Mem)
   (Hwfg : wf_globals maxb gl)
-  (HwfF : wf_fdef ifs s (module_intro los nts Ps) F)
+  (HwfF : wf_fdef s (module_intro los nts Ps) F)
   (Huniq : uniqFdef F),
   wf_ECStack_head_tail maxb pinfo (los, nts) Mem lc' EC.
 Proof.
@@ -2794,7 +2798,7 @@ Ltac preservation_tac0:=
     HFinPs1: InProductsB _ _ = _,
     HBinF1: blockInFdefB _ _ = _,
     HmInS: moduleInSystemB _ _ = _,
-    HwfSystem: wf_system _ _ |- _ =>
+    HwfSystem: wf_system _ |- _ =>
     clear - HBinF1 HFinPs1 HmInS HwfPI HwfSystem;
     simpl; intros; subst;
     eapply wf_system__uniqFdef in HFinPs1; eauto; 
@@ -2819,7 +2823,7 @@ Ltac preservation_tac2:=
     HFinPs1: InProductsB _ _ = _,
     HBinF1: blockInFdefB _ _ = _,
     HmInS: moduleInSystemB _ _ = _,
-    HwfSystem: wf_system _ _ |- _ =>
+    HwfSystem: wf_system _ |- _ =>
     clear - HBinF1 HFinPs1 HmInS HwfPI HwfSystem;
     simpl; intros; subst;
     eapply wf_system__uniqFdef in HFinPs1; eauto;

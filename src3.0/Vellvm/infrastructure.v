@@ -535,7 +535,7 @@ end.
 
 Definition getFdecTyp (fdec:fdec) : typ :=
 match fdec with
-| fdec_intro fheader => getFheaderTyp fheader
+| fdec_intro fheader _ => getFheaderTyp fheader
 end.
 
 Definition getFdefTyp (fdef:fdef) : typ :=
@@ -580,7 +580,7 @@ end.
 
 Definition getFdecID (fd:fdec) : id :=
 match fd with
-| fdec_intro fh => getFheaderID fh
+| fdec_intro fh _ => getFheaderID fh
 end.
 
 Definition getFdefID (fd:fdef) : id :=
@@ -1903,10 +1903,30 @@ Proof.
     destruct (@IHlb lb'); subst; try solve [auto | done_right].
 Qed.
 
+Lemma intrinsic_id_dec : forall (iid1 iid2:intrinsic_id), 
+  {iid1=iid2}+{~iid1=iid2}.
+Proof. decide equality. Qed.
+
+Lemma external_id_dec : forall (eid1 eid2:external_id), 
+  {eid1=eid2}+{~eid1=eid2}.
+Proof. decide equality. Qed.
+
+Lemma deckind_dec : forall (dck1 dck2: deckind), {dck1=dck2}+{~dck1=dck2}.
+Proof. 
+  destruct dck1 as [iid1|eid1]. 
+    destruct dck2 as [iid2|eid2]; try solve [done_right].
+      destruct (@intrinsic_id_dec iid1 iid2); 
+        subst; try solve [auto | done_right]. 
+    destruct dck2 as [iid2|eid2]; try solve [done_right].
+      destruct (@external_id_dec eid1 eid2); 
+        subst; try solve [auto | done_right]. 
+Qed.
+
 Lemma fdec_dec : forall (f1 f2:fdec), {f1=f2}+{~f1=f2}.
 Proof.
-  destruct f1 as [fheader5 ?]; 
-  destruct f2 as [fheader0 ?]; try solve [subst; auto | done_right].
+  destruct f1 as [fheader5 dck5]; 
+  destruct f2 as [fheader0 dck0]; try solve [subst; auto | done_right].
+    destruct (@deckind_dec dck5 dck0); subst; try solve [done_right]. 
     destruct (@fheader_dec fheader5 fheader0); 
       subst; try solve [auto | done_right].
 Qed.  
@@ -2152,7 +2172,7 @@ end.
 
 Definition argInFdecB (a:arg) (fd:fdec) : bool :=
 match fd with
-| (fdec_intro fh) => argInFheaderB a fh
+| (fdec_intro fh _) => argInFheaderB a fh
 end.
 
 Definition argInFdefB (a:arg) (fd:fdef) : bool :=
@@ -2852,14 +2872,14 @@ Module Function <: SigFunction.
 
  Definition getDecReturnType (fd:fdec) : typ :=
  match fd with
- | fdec_intro (fheader_intro _ t _ _ _ ) => t
+ | fdec_intro (fheader_intro _ t _ _ _ ) _ => t
  end.
 
  Definition getDecFunctionType (fd:fdec) : typ := getFdecTyp fd.
 
  Definition dec_arg_size (fd:fdec) : nat :=
  match fd with
- | (fdec_intro (fheader_intro _ _ _ la _)) => length la
+ | fdec_intro (fheader_intro _ _ _ la _) _ => length la
  end.
 
 End Function.

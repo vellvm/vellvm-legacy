@@ -1211,9 +1211,9 @@ Proof.
 Qed.
 
 Lemma getIncomingValuesForBlockFromPHINodes__wf_rmetadata : forall los nts M f b
-  ps gl lc rm S PNs re id1 gv1 blk1 bofs1 eofs1 b' ifs
+  ps gl lc rm S PNs re id1 gv1 blk1 bofs1 eofs1 b' 
   (Hwfg : wf_global_ptr S (los, nts) M gl)
-  (Hwfps : wf_phinodes ifs S (module_intro los nts ps) f b' PNs),
+  (Hwfps : wf_phinodes S (module_intro los nts ps) f b' PNs),
   NoDup (getPhiNodesIDs PNs) ->
   wf_rmetadata (los, nts) M rm ->
   @getIncomingValuesForBlockFromPHINodes GVsSig (los, nts) PNs b gl lc rm 
@@ -1221,7 +1221,7 @@ Lemma getIncomingValuesForBlockFromPHINodes__wf_rmetadata : forall los nts M f b
   In (id1,gv1,Some (mkMD blk1 bofs1 eofs1)) re ->
   wf_data (los, nts) M blk1 bofs1 eofs1.
 Proof.
-  induction PNs; simpl; intros re id1 gv1 blk1 bofs1 eofs1 b' ifs Hwfg Hwfps 
+  induction PNs; simpl; intros re id1 gv1 blk1 bofs1 eofs1 b' Hwfg Hwfps 
     Huniq Hwfr Hget Hin.
     inv Hget. inversion Hin.
 
@@ -1240,7 +1240,7 @@ Proof.
       destruct Hin as [Hin | Hin]; eauto.
         inv Hin. 
         symmetry in HeqR1.
-        inv H8.
+        inv H7.
         destruct b. simpl in HeqR0.
         eapply wf_value_list__getValueViaLabelFromValuels__wf_value in H4; eauto.
         eapply wf_rmetadata__get_reg_metadata in HeqR1; eauto.
@@ -1303,16 +1303,16 @@ Proof.
 Qed.
 
 Lemma switchToNewBasicBlock__wf_rmetadata : forall S M b1 b2 gl lc rm lc' rm' 
-    F ifs los nts Ps,
+    F los nts Ps,
   wf_global_ptr S (los, nts) M gl ->
-  wf_fdef ifs S (module_intro los nts Ps) F ->
+  wf_fdef S (module_intro los nts Ps) F ->
   uniqFdef F ->
   blockInFdefB b1 F ->
   wf_rmetadata (los, nts) M rm ->
   @switchToNewBasicBlock GVsSig (los, nts) b1 b2 gl lc rm = Some (lc', rm') ->
   wf_rmetadata (los, nts) M rm'.
 Proof.
-  intros S M b1 b2 gl lc rm lc' rm' F ifs los nts m Hwfg HwfF Huniq HBinF Hwfr 
+  intros S M b1 b2 gl lc rm lc' rm' F los nts m Hwfg HwfF Huniq HBinF Hwfr 
     Hswitch.
   unfold switchToNewBasicBlock in Hswitch.
   remember (getIncomingValuesForBlockFromPHINodes (los, nts)  
@@ -1321,8 +1321,8 @@ Proof.
   eapply updateValuesForNewBlock__wf_rmetadata; eauto.
   intros. 
   inv HwfF.
-  apply wf_blocks__wf_block with (b:=b1) in H15; auto.
-  destruct b1. inv H15.
+  apply wf_blocks__wf_block with (b:=b1) in H14; auto.
+  destruct b1. inv H14.
   eapply getIncomingValuesForBlockFromPHINodes__wf_rmetadata; eauto.
 
     apply uniqFdef__uniqBlockLocs in HBinF; auto.

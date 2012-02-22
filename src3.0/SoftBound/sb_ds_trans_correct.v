@@ -205,9 +205,9 @@ Lemma SBpass_is_correct__dsExCall : forall (mi : MoreMem.meminj)
   (fid : id) (rt : typ) (fa : fnattrs) (la : args) (va : varg)
   (oresult : monad GenericValue) (Mem' : mem) (lc' : DGVMap)
   (rm' : rmetadata) (gvs : list GenericValue) fptr
-  (HJ : getOperandValue TD fv lc gl = Some fptr)
+  (HJ : getOperandValue TD fv lc gl = Some fptr) dck
   (H : OpsemAux.lookupExFdecViaPtr Ps fs fptr =
-      ret fdec_intro (fheader_intro fa rt fid la va))
+      ret fdec_intro (fheader_intro fa rt fid la va) dck)
   (H0 : LLVMgv.params2GVs TD lp lc gl = ret gvs)
   (H1 : callExternalFunction Mem0 fid gvs = ret (oresult, Mem'))
   (H2 : exCallUpdateLocals TD ft noret0 rid oresult lc rm = ret (lc', rm')),

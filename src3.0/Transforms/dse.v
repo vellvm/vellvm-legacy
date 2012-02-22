@@ -1088,7 +1088,7 @@ Admitted.
 Lemma dse_sim: forall (pinfo:PhiInfo) f pid Ps1 Ps2 los nts main 
   VarArgs (Heq1: PI_id pinfo = pid) (Heq2: PI_f pinfo = f) 
   (Hwfpi: WF_PhiInfo pinfo)
-  (HwfS: wf_system nil [module_intro los nts (Ps1 ++ product_fdef f :: Ps2)])
+  (HwfS: wf_system [module_intro los nts (Ps1 ++ product_fdef f :: Ps2)])
   (Hnld: load_in_fdef pid f = false),
   program_sim
     [module_intro los nts 
@@ -1146,9 +1146,9 @@ Qed.
 Lemma dse_wfS: forall (pinfo:PhiInfo) f pid Ps1 Ps2 los nts
   (Heq1: PI_id pinfo = pid) (Heq2: PI_f pinfo = f) 
   (Hwfpi: WF_PhiInfo pinfo)
-  (HwfS: wf_system nil [module_intro los nts (Ps1 ++ product_fdef f :: Ps2)])
+  (HwfS: wf_system [module_intro los nts (Ps1 ++ product_fdef f :: Ps2)])
   (Hnld: load_in_fdef pid f = false),
-  wf_system nil
+  wf_system 
     [module_intro los nts 
       (Ps1 ++  product_fdef (elim_dead_st_fdef pid f) :: Ps2)].
 Proof.
@@ -1157,7 +1157,7 @@ Admitted.
 Lemma dse_wfPI: forall (pinfo:PhiInfo) f pid Ps1 Ps2 los nts
   (Heq1: PI_id pinfo = pid) (Heq2: PI_f pinfo = f) 
   (Hwfpi: WF_PhiInfo pinfo)
-  (HwfS: wf_system nil [module_intro los nts (Ps1 ++ product_fdef f :: Ps2)])
+  (HwfS: wf_system [module_intro los nts (Ps1 ++ product_fdef f :: Ps2)])
   (Hnld: load_in_fdef pid f = false),
   WF_PhiInfo (update_pinfo pinfo (elim_dead_st_fdef pid f)).
 Proof.

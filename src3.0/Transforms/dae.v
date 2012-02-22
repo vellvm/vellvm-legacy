@@ -3366,6 +3366,7 @@ SCase "sExCall".
     simulation__getOperandValue_tac2.
   uniq_result.
 
+  match goal with | H1 : fdec_intro _ _ = fdec_intro _ _ |- _ => inv H1 end.
   eapply callExternalFunction__mem_simulation in Hmsim; eauto.
   destruct Hmsim as [EQ [mi' [Hmsim [Hinc [J1 [J2 J3]]]]]]; subst.
   exists mi'.
@@ -3471,7 +3472,7 @@ Admitted.
      
 Lemma dae_sim: forall id0 f pinfo los nts Ps1 Ps2 main VarArgs
   (Hwfpi: WF_PhiInfo pinfo)  
-  (HwfS: wf_system nil [module_intro los nts (Ps1 ++ product_fdef f :: Ps2)])
+  (HwfS: wf_system [module_intro los nts (Ps1 ++ product_fdef f :: Ps2)])
   (Hnuse: used_in_fdef (PI_id pinfo) (PI_f pinfo) = false)
   (Heq1: f = PI_f pinfo) (Heq2: id0 = PI_id pinfo),
   program_sim
@@ -3521,10 +3522,10 @@ Qed.
 
 Lemma dae_wfS: forall id0 f pinfo los nts Ps1 Ps2
   (Hwfpi: WF_PhiInfo pinfo)  
-  (HwfS: wf_system nil [module_intro los nts (Ps1 ++ product_fdef f :: Ps2)])
+  (HwfS: wf_system [module_intro los nts (Ps1 ++ product_fdef f :: Ps2)])
   (Hnuse: used_in_fdef (PI_id pinfo) (PI_f pinfo) = false)
   (Heq1: f = PI_f pinfo) (Heq2: id0 = PI_id pinfo),
-  wf_system nil
+  wf_system 
     [module_intro los nts (Ps1 ++  product_fdef (remove_fdef id0 f) :: Ps2)].
 Admitted.
 

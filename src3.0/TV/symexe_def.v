@@ -228,7 +228,7 @@ Inductive dbCall : system -> TargetData -> list product -> GVMap ->
   callUpdateLocals TD ft noret rid oResult lc lc' gl = Some lc'' ->
   dbCall S TD Ps fs gl lc Mem (insn_call rid noret tailc ft fv lp) lc'' Mem'' tr
 
-| dbCall_external : forall S TD Ps lc gl fs rid noret ca fv fid fptr
+| dbCall_external : forall S TD Ps lc gl fs rid noret ca fv fid fptr dck
                           lp rt la va Mem oresult Mem' lc' ft fa gvs,
   (* only look up the current module for the time being, 
      do not support linkage. 
@@ -236,7 +236,7 @@ Inductive dbCall : system -> TargetData -> list product -> GVMap ->
   *)
   @getOperandValue DGVs TD fv lc gl = Some fptr -> 
   lookupExFdecViaPtr Ps fs fptr = 
-    Some (fdec_intro (fheader_intro fa rt fid la va)) ->
+    Some (fdec_intro (fheader_intro fa rt fid la va) dck) ->
   params2GVs TD lp lc gl = Some gvs ->
   callExternalFunction Mem fid gvs = Some (oresult, Mem') ->
   isCall (insn_call rid noret ca ft fv lp) = true ->

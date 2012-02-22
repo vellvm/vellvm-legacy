@@ -191,7 +191,7 @@ match Ps with
       (updateAddAL _ fs id0 gv) Mem
   | None => None
   end
-| (product_fdec (fdec_intro (fheader_intro _ _ id0 _ _)))::Ps' =>
+| (product_fdec (fdec_intro (fheader_intro _ _ id0 _ _) _))::Ps' =>
   match initFunTable Mem id0 with
   | Some gv => genGlobalAndInitMem TD Ps' (updateAddAL _ gl id0 gv) 
       (updateAddAL _ fs id0 gv) Mem
@@ -798,7 +798,7 @@ Inductive sInsn : Config -> State -> State -> trace -> Prop :=
                        lc als)::EC) Mem)
     trace_nil 
 
-| sExCall : forall S TD Ps F B lc gl fs rid noret ca fid fv lp cs tmn EC 
+| sExCall : forall S TD Ps F B lc gl fs rid noret ca fid fv lp cs tmn EC dck
                     rt la Mem als oresult Mem' lc' va ft fa gvs fptr fptrs gvss,
   (* only look up the current module for the time being, 
      do not support linkage. 
@@ -807,7 +807,7 @@ Inductive sInsn : Config -> State -> State -> trace -> Prop :=
   getOperandValue TD fv lc gl = Some fptrs -> 
   fptr @ fptrs -> 
   lookupExFdecViaPtr Ps fs fptr = 
-    Some (fdec_intro (fheader_intro fa rt fid la va)) ->
+    Some (fdec_intro (fheader_intro fa rt fid la va) dck) ->
   params2GVs TD lp lc gl = Some gvss ->
   gvs @@ gvss ->
   callExternalFunction Mem fid gvs = Some (oresult, Mem') ->
@@ -1144,7 +1144,7 @@ Inductive bInsn :
     (mkbEC B cs tmn lc'' als Mem'') 
     tr
 
-| bExCall : forall S TD Ps F B lc gl fs rid noret fv fid lp cs tmn
+| bExCall : forall S TD Ps F B lc gl fs rid noret fv fid lp cs tmn dck
                  rt la va Mem als oresult Mem' lc' ft fa ca gvs fptr fptrs gvss,
   (* only look up the current module for the time being, 
      do not support linkage. 
@@ -1153,7 +1153,7 @@ Inductive bInsn :
   getOperandValue TD fv lc gl = Some fptrs -> 
   fptr @ fptrs -> 
   lookupExFdecViaPtr Ps fs fptr = 
-    Some (fdec_intro (fheader_intro fa rt fid la va)) ->
+    Some (fdec_intro (fheader_intro fa rt fid la va) dck) ->
   params2GVs TD lp lc gl = Some gvss ->
   gvs @@ gvss ->
   callExternalFunction Mem fid gvs = Some (oresult, Mem') ->

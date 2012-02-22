@@ -81,7 +81,7 @@ let '(mkState ecs M MM) := S in
 wf_mmetadata (los, nts) M MM /\
 wf_global (los, nts) s gl /\
 wf_global_ptr s (los, nts) M gl /\
-wf_system nil s /\
+wf_system s /\
 moduleInSystemB (module_intro los nts ps) s = true /\
 ecs <> nil /\
 wf_ECStack (los, nts) M ps ecs.
@@ -92,7 +92,7 @@ Lemma wf_State__inv : forall S los nts Ps F B c cs tmn lc rm als EC gl fs Mem0
     (mkState ((mkEC F B (c::cs) tmn lc rm als)::EC) Mem0 MM0) ->
   wf_global (los, nts) S gl /\
   wf_lc (los,nts) F lc /\ 
-  wf_insn nil S (module_intro los nts Ps) F B (insn_cmd c).
+  wf_insn S (module_intro los nts Ps) F B (insn_cmd c).
 Proof.
   intros.
   destruct H as 
@@ -143,7 +143,7 @@ Lemma wf_State__wf_cmd : forall cfg St,
        CurTargetData := (los, nts);
        CurProducts := Ps |},
     {| ECS := {|CurFunction := F; CurBB := B; CurCmds := c :: cs |} :: EC 
-     |} => wf_insn nil sys (module_intro los nts Ps) F B (insn_cmd c)
+     |} => wf_insn sys (module_intro los nts Ps) F B (insn_cmd c)
   | _, _ => True
   end.
 Proof.
@@ -273,7 +273,7 @@ Lemma returnUpdateLocals__wf_rmap :
   forall los nts c' rt Result lc lc' rm rm' gl lc'' rm'' F' tmn' cs' Ps S
   (H1 : returnUpdateLocals (los, nts) c' rt Result lc lc' rm rm' gl =
        ret (lc'', rm''))
-  (HwfSystem : wf_system nil S)
+  (HwfSystem : wf_system S)
   (HmInS : moduleInSystemB (module_intro los nts Ps) S = true)
   (HFinPs2 : InProductsB (product_fdef F') Ps = true)
   (Hwfm2 : wf_rmap F' lc' rm')
@@ -282,7 +282,7 @@ Lemma returnUpdateLocals__wf_rmap :
   (cs2' : list cmd) 
   (HBinF2 : blockInFdefB (block_intro l2 ps2 (cs2' ++ c' :: cs') tmn') F' =
            true)
-  (Hwfc : wf_insn nil S (module_intro los nts Ps) F'
+  (Hwfc : wf_insn S (module_intro los nts Ps) F'
            (block_intro l2 ps2 (cs2' ++ c' :: cs') tmn') 
            (insn_cmd c')),
   wf_rmap F' lc'' rm''.
@@ -299,8 +299,8 @@ Proof.
     destruct n; inv H0; auto.
     destruct_typ t; tinv H1.
     destruct (lift_op1 GVsSig (fit_gv (los, nts) t0) g t0); tinv H1.
-    inv Hwfc. inv H6. inv H15.
-    clear H19 H17 H8 H18 H16 H20 H7.
+    inv Hwfc. inv H6. inv H14.
+    clear H19 H17 H8 H18 H7.
     assert (lookupTypViaIDFromFdef F' i0 = Some typ1) as J.
       eapply uniqF__lookupTypViaIDFromFdef with 
         (c:=insn_call i0 false c
@@ -336,8 +336,8 @@ Proof.
     destruct n; inv H0; auto.
     destruct_typ t; tinv H1.
     destruct (lift_op1 GVsSig (fit_gv (los, nts) t0) g t0); tinv H1.
-    inv Hwfc. inv H6. inv H15.
-    clear H19 H17 H8 H18 H16 H20 H7.
+    inv Hwfc. inv H6. inv H14.
+    clear H19 H17 H8 H18 H7.
     assert (lookupTypViaIDFromFdef F' i0 = Some typ1) as J.
       eapply uniqF__lookupTypViaIDFromFdef with 
         (c:=insn_call i0 false c
@@ -1106,7 +1106,7 @@ Case "sTrunc".
     apply wf_State__cmd__lookupTypViaIDFromFdef in Htyp.
     rewrite Htyp; simpl; auto. 
       apply wf_State__wf_cmd in HwfS1.
-      inv HwfS1. inv H5; congruence.
+      inv HwfS1. inv H4; congruence.
 
 Case "sExt". 
   preservation_tac.
@@ -1115,7 +1115,7 @@ Case "sExt".
     apply wf_State__cmd__lookupTypViaIDFromFdef in Htyp.
     rewrite Htyp; simpl; auto. 
       apply wf_State__wf_cmd in HwfS1.
-      inv HwfS1. inv H5; congruence.
+      inv HwfS1. inv H4; congruence.
 
 Case "sBitcast_nptr". 
   preservation_tac.
@@ -1124,7 +1124,7 @@ Case "sBitcast_nptr".
       apply wf_State__cmd__lookupTypViaIDFromFdef in Htyp.
       rewrite Htyp; simpl; auto. 
         apply wf_State__wf_cmd in HwfS1.
-        inv HwfS1. inv H6; try congruence.
+        inv HwfS1. inv H5; try congruence.
           inv H.
 
 Case "sBitcast_ptr". 
@@ -1136,7 +1136,7 @@ Case "sBitcast_ptr".
     assert (Hwfc:=HwfS1). apply wf_State__wf_cmd in Hwfc.
     inv Hwfc.
     eapply prop_metadata_preserves_wf_rmetadata with (t:=t1); eauto.
-      inv H7; eauto.
+      inv H6; eauto.
 
     eauto.
 
@@ -1157,7 +1157,7 @@ Case "sOthercast".
         apply wf_State__wf_cmd in HwfS1.
         inv HwfS1. 
         destruct H as [J1 J2]. 
-        inv H6; try (congruence).
+        inv H5; try (congruence).
 
 Case "sIcmp". preservation_tac.
 Case "sFcmp". preservation_tac.
@@ -1195,7 +1195,7 @@ Case "sCall".
   apply wf_State__wf_cmd in Hwfc.
   assert (uniqFdef (fdef_intro (fheader_intro fa rt fid la va) lb)) as Huniq.
     eapply wf_system__uniqFdef; eauto.
-  assert (wf_fdef nil S (module_intro los nts Ps) 
+  assert (wf_fdef S (module_intro los nts Ps) 
     (fdef_intro (fheader_intro fa rt fid la va) lb)) as HwfF.
     eapply wf_system__wf_fdef; eauto.
   repeat (split; auto). 
@@ -1234,7 +1234,12 @@ Case "sExCall".
       assert (HwfS1':=HwfS1).
       apply wf_State__inv in HwfS1'.
       destruct HwfS1' as [_ [_ Hwfc]].
-      inv Hwfc. inv H21. inv H12. inv H23.
+      inv Hwfc. 
+      match goal with
+      | H20: typ_function _ _ _ = typ_function _ _ _,
+        H12: module_intro _ _ _ = module_intro _ _ _,
+        H25: wf_insn_base _ _ _ |- _ => inv H20; inv H12; inv H25
+      end.
       remember (isPointerTypB typ1) as R.
       destruct R; inv H5; auto.
         apply updateAddAL_ptr__wf_rmap; auto.
@@ -1255,7 +1260,12 @@ Case "sExCall".
       assert (HwfS1':=HwfS1).
       apply wf_State__inv in HwfS1'.
       destruct HwfS1' as [_ [_ Hwfc]].
-      inv Hwfc. inv H21. inv H12. inv H23.
+      inv Hwfc. 
+      match goal with
+      | H20: typ_function _ _ _ = typ_function _ _ _,
+        H12: module_intro _ _ _ = module_intro _ _ _,
+        H25: wf_insn_base _ _ _ |- _ => inv H20; inv H12; inv H25
+      end.
       remember (isPointerTypB typ1) as R.
       destruct R; inv H5.
         apply adding_null_preserves_wf_rmetadata; auto.
@@ -1420,7 +1430,7 @@ Lemma wf_phinodes__getIncomingValuesForBlockFromPHINodes : forall
   (cs' : cmds)
   (tmn' : terminator)
   ps2
-  (H8 : wf_phinodes nil s (module_intro los nts ps) f
+  (H8 : wf_phinodes s (module_intro los nts ps) f
          (block_intro l0 ps' cs' tmn') ps2)
   rm (Hwfm: wf_rmap f lc rm) re
   (HgetIn : Opsem.getIncomingValuesForBlockFromPHINodes (los, nts) ps2 
@@ -1448,12 +1458,14 @@ Proof.
     destruct Hin as [ps1 Hin]; subst.
     assert (exists ps0, ps1 ++ insn_phi i0 t l1 :: ps2 = ps0 ++ ps2) as Heq.
       exists (ps1 ++ [insn_phi i0 t l1]). simpl_env. auto.
-    eapply IHps2 in H7; eauto.
-    destruct H7 as [RVs [J1 J2]].
+    match goal with
+    | H6: wf_phinodes _ _ _ _ _ |- _ => eapply IHps2 in H6; eauto;
+                                   destruct H6 as [RVs [J1 J2]]
+    end.
     rewrite J1.
     assert (HwfV:=HeqR0).
     symmetry in HwfV. destruct b.
-    inv H6.
+    match goal with | H5 : wf_insn _ _ _ _ _ |- _ => inv H5 end.
     eapply wf_value_list__getValueViaLabelFromValuels__wf_value in HwfV; eauto.
     remember (isPointerTypB t) as R.
     destruct R; eauto.
@@ -1909,7 +1921,7 @@ match cfg with
             exists fptr, fptr @ fptrs /\
             match lookupFdefViaPtr ps fs fptr, 
                   lookupExFdecViaPtr ps fs fptr with
-            | None, Some (fdec_intro (fheader_intro fa rt fid la va)) =>
+            | None, Some (fdec_intro (fheader_intro fa rt fid la va) _) =>
                 match Opsem.params2GVs td p lc gl with
                 | Some gvss =>
                   exists gvs, gvs @@ gvss /\
@@ -2044,7 +2056,7 @@ Proof.
                         [l1 [ps1 [cs1 Heq]]]]]]]]]]
                       [HwfECs HwfCall]].
   subst b.
-  assert (wf_insn nil s (module_intro los nts ps) f 
+  assert (wf_insn s (module_intro los nts ps) f 
            (block_intro l1 ps1 (cs1 ++ (insn_load i0 t v a) :: cs) tmn) 
            (insn_cmd (insn_load i0 t v a))) as Hwfc.
     eapply wf_system__wf_cmd in HbInF; eauto using in_middle.
@@ -2065,7 +2077,8 @@ Proof.
     destruct R3 as [b [ofs R3]].
     inv Hwfc. 
     assert (exists mcs, flatten_typ (los,nts) t = Some mcs) as Hflat.
-      inv H11. eapply flatten_typ_total; eauto.
+      match goal with | H12: wf_insn_base _ _ _ |- _ => inv H12 end. 
+      eapply flatten_typ_total; eauto.
     destruct Hflat as [mcs Hflat].
     destruct (proper_aligned_dec mcs (Int.signed 31 ofs)) as [R5 | R5].
     SSSCase "align ok".
@@ -2076,7 +2089,10 @@ Proof.
           rewrite R3. rewrite Hflat.
           destruct md as [gvb gve].
           eapply wf_rmetadata__get_reg_metadata in J2; eauto.
-          apply wf_value__wf_typ in H8. destruct H8. inv H.
+          match goal with
+          | H7: wf_value _ _ _ _ _ |- _ => 
+            apply wf_value__wf_typ in H7; destruct H7; inv H
+          end.
           eapply mload_aux_isnt_stuck; eauto.
   
         destruct R6 as [gv' R6].
@@ -2203,7 +2219,7 @@ Proof.
                         [l1 [ps1 [cs1 Heq]]]]]]]]]]
                       [HwfECs HwfCall]].
   subst b.
-  assert (wf_insn nil s (module_intro los nts ps) f 
+  assert (wf_insn s (module_intro los nts ps) f 
            (block_intro l1 ps1 (cs1 ++ (insn_store i0 t v v0 a) :: cs) tmn) 
            (insn_cmd (insn_store i0 t v v0 a))) as Hwfc.
     eapply wf_system__wf_cmd in HbInF; eauto using in_middle.
@@ -2518,7 +2534,7 @@ Proof.
           eapply wf_system__wf_cmd in HbInF'; eauto using in_middle.
           inv HbInF'. inv H5.
           destruct_typ t; inv HeqHptr.
-          assert (wf_insn nil s (module_intro layouts5 namedts5 products5) f 
+          assert (wf_insn s (module_intro layouts5 namedts5 products5) f 
             (block_intro l1 ps1 (cs1 ++ nil) 
                (insn_return id5 (typ_pointer t0) value5)) 
             (insn_terminator (insn_return id5 (typ_pointer t0) value5))) as Hwfc.
@@ -2582,7 +2598,7 @@ Proof.
              apply lookupBlockViaLabelFromFdef_inv in J; auto.
              destruct J as [Heq J]; subst.
              eapply wf_system__lookup__wf_block in H18; eauto.
-             inv H18. clear H9 H10.
+             inv H18. clear H9 H8.
              eapply wf_phinodes__getIncomingValuesForBlockFromPHINodes 
                with (ps':=ps')(cs':=cs')(tmn':=tmn')(l0:=l'); eauto.
                exists nil. auto.
@@ -2592,7 +2608,7 @@ Proof.
              apply lookupBlockViaLabelFromFdef_inv in J; auto.
              destruct J as [Heq J]; subst.
              eapply wf_system__lookup__wf_block in H18; eauto.
-             inv H18. clear H9 H10.
+             inv H18. clear H9 H8.
              eapply wf_phinodes__getIncomingValuesForBlockFromPHINodes 
                with (ps':=ps')(cs':=cs')(tmn':=tmn')(l0:=l'); eauto.
                exists nil. auto.
@@ -2628,7 +2644,7 @@ Proof.
            assert (HwfB := HbInF).
            eapply wf_system__blockInFdefB__wf_block in HwfB; eauto.
            eapply wf_system__lookup__wf_block in H14; eauto.
-           inv H14. clear H9 H10.
+           inv H14. clear H9 H8.
            eapply wf_phinodes__getIncomingValuesForBlockFromPHINodes 
              with (l0:=l'); eauto.      
              exists nil. auto.
@@ -2644,7 +2660,7 @@ Proof.
       exists trace_nil. eauto.
 
   Case "cs<>nil".
-    assert (wf_insn nil s (module_intro los nts ps) f 
+    assert (wf_insn s (module_intro los nts ps) f 
       (block_intro l1 ps1 (cs1 ++ c :: cs) tmn) (insn_cmd c)) as Hwfc.
       assert (In c (cs1++c::cs)) as H. 
         apply in_or_app. simpl. auto.
@@ -2719,7 +2735,10 @@ Proof.
         assert (exists omd, get_reg_metadata (los, nts) gl rm v = 
           Some omd) as J4.
           eapply get_reg_metadata_isnt_stuck; eauto.
-             inv Hwfc. inv H5; eauto.
+             inv Hwfc. 
+             match goal with
+             | H4: wf_cast _ _ _ _ _ |- _ => inv H4; eauto
+             end.
         destruct J4 as [md J4].
         subst. progress_tac_aux (updateAddAL _ rm i0 md).
 
@@ -2746,7 +2765,7 @@ Proof.
                         else updateAddAL _ rm i0 md0).
 
     SSCase "select_ptr". progress_tac.
-
+    
   SCase "internal call".
     assert (exists gvss, params2GVs (los, nts) p lc gl rm = Some gvss /\
       matched_params gvs gvss) as G.

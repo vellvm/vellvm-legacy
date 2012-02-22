@@ -498,8 +498,56 @@ fheader :: 'fheader_'    				::=			{{ com function header }}
   | fnattrs typ id ( args varg )      	      	  	::   :: intro           {{ tex [[typ]]\, [[id]]\, ( [[args]] ) }}
   | ( fheader )						:: S :: paren           {{ coq [[ fheader ]] }}
 
+intrinsic_id :: 'iid_'					::=			{{ com intrinsic id }}
+  | Expect						::   :: expect
+  | Setjmp						::   :: setjmp
+  | SigSetjmp						::   :: sigsetjmp
+  | Longjmp						::   :: longjmp
+  | SigLongjmp						::   :: siglongjmp
+  | Ctpop						::   :: ctpop
+  | Bswap						::   :: bswap
+  | Ctlz						::   :: ctlz
+  | Cttz						::   :: cttz
+  | StackSave						::   :: stacksave
+  | StackRestore					::   :: stackrestore
+  | ReturnAddress					::   :: returnaddress
+  | FrameAddress					::   :: frameaddress
+  | Prefetch						::   :: prefetch
+  | Pcmarker						::   :: pcmarker
+  | ReadCycleCounter					::   :: readcyclecounter
+  | DbgDeclare						::   :: dbg_declare
+  | EhException						::   :: eh_exception
+  | EhSelector						::   :: eh_selector
+  | EhTypeidFor						::   :: eh_typeidfor
+  | VarAnnotation					::   :: var_annotation
+  | Memcpy						::   :: memcpy
+  | Memmove						::   :: memmove
+  | Memset						::   :: memset
+  | Sqrt						::   :: sqrt
+  | Log							::   :: log
+  | Log2						::   :: log2
+  | Log10						::   :: log10
+  | Exp							::   :: exp
+  | Exp2						::   :: exp2
+  | Pow							::   :: pow
+  | FltRounds						::   :: flt_rounds
+  | InvariantStart					::   :: invariantstart
+  | LifetimeStart					::   :: lifetimestart
+  | InvariantEnd					::   :: invariantend
+  | LifetimeEnd						::   :: lifetimeend
+  | Unsupported                				::   :: unsupported
+
+external_id :: 'eid_'				        ::=	   	        {{ com external id }}
+  | malloc   						::   :: malloc
+  | free						::   :: free
+  | other                                               ::   :: other
+
+deckind :: 'deckind_'		         		::=	         	{{ com declaration kind }}
+  | intrinsic_id                                        ::   :: intrinsic
+  | external_id                                         ::   :: external
+
 fdec :: 'fdec_'       					::=			{{ com function declaration }}
-  | declare fheader     				::   :: intro
+  | declare fheader deckind		        	::   :: intro
   | ( fdec )						:: S :: paren           {{ coq [[ fdec ]] }}
 
 fdef :: 'fdef_'          				::=			{{ com function definition }}
@@ -585,9 +633,6 @@ system :: 'system_'					::=  			{{ com system }}
 usedef_block :: 'usedef_block_'				::=			{{ com label usedef }}
                                                                                 {{ coq-universe Type }} 
        	  									{{ coq AssocList (list l) }} 
-
-intrinsic_funs :: 'intrinsic_funs_'			::=  			{{ com intrinsic functions }}
-	      	 								{{ coq ids }}
 
 terminals :: 'terminals_' ::=
   | <-                  ::   :: larrow         {{ tex \leftarrow }}

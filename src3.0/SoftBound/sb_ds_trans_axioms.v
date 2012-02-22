@@ -205,7 +205,8 @@ Axiom dstk_is_found : forall TD Ps gl lc fs,
   exists fv,
   @Opsem.getOperandValue DGVs TD dstk_fn gl lc = Some fv /\
   OpsemAux.lookupExFdecViaPtr Ps fs fv = Some
-    (fdec_intro (fheader_intro sb_fnattrs dstk_typ dstk_fid nil false)).
+    (fdec_intro (fheader_intro sb_fnattrs dstk_typ dstk_fid nil false) 
+       (deckind_external eid_other)).
 
 Definition int2GV n :=
   (Vint 31 (Int.repr 31 (INTEGER.to_Z n)), AST.Mint 31)::nil.
@@ -229,25 +230,29 @@ Axiom ssb_is_found : forall TD Ps gl lc fs,
   exists fv,
   @Opsem.getOperandValue DGVs TD ssb_fn gl lc = Some fv /\
   OpsemAux.lookupExFdecViaPtr Ps fs fv = Some
-    (fdec_intro (fheader_intro sb_fnattrs ssb_typ ssb_fid nil false)).
+    (fdec_intro (fheader_intro sb_fnattrs ssb_typ ssb_fid nil false)
+      (deckind_external eid_other)).
 
 Axiom sse_is_found : forall TD Ps gl lc fs, 
   exists fv,
   @Opsem.getOperandValue DGVs TD sse_fn gl lc = Some fv /\
   OpsemAux.lookupExFdecViaPtr Ps fs fv = Some
-    (fdec_intro (fheader_intro sb_fnattrs sse_typ sse_fid nil false)).
+    (fdec_intro (fheader_intro sb_fnattrs sse_typ sse_fid nil false)
+      (deckind_external eid_other)).
 
 Axiom gsb_is_found : forall TD Ps gl lc fs, 
   exists fv,
   @Opsem.getOperandValue DGVs TD gsb_fn gl lc = Some fv /\
   OpsemAux.lookupExFdecViaPtr Ps fs fv = Some
-    (fdec_intro (fheader_intro sb_fnattrs gsb_typ gsb_fid nil false)).
+    (fdec_intro (fheader_intro sb_fnattrs gsb_typ gsb_fid nil false)
+       (deckind_external eid_other)).
 
 Axiom gse_is_found : forall TD Ps gl lc fs, 
   exists fv,
   @Opsem.getOperandValue DGVs TD gse_fn gl lc = Some fv /\
   OpsemAux.lookupExFdecViaPtr Ps fs fv = Some
-    (fdec_intro (fheader_intro sb_fnattrs gse_typ gse_fid nil false)).
+    (fdec_intro (fheader_intro sb_fnattrs gse_typ gse_fid nil false)
+      (deckind_external eid_other)).
 
 Axiom free_doesnt_change_gsb : forall TD M1 z gv M2 als,
   OpsemAux.callExternalFunction M1 gsb_fid [int2GV z] = ret (ret gv, M1) ->
@@ -308,13 +313,13 @@ Axiom shadow_stack_init : forall la ogvs lc' rm' gl mi lc2 lp cs1 rm2 nts los
   reg_simulation mi (los, nts) gl2 
     (fdef_intro (fheader_intro fa rt fid la va) lb) rm' rm3 lc' lc2'.
 
-Axiom lookupExFdecViaPtr_isnt_callLib : forall Ps1 fs1 fv fa rt fid la va,
+Axiom lookupExFdecViaPtr_isnt_callLib : forall Ps1 fs1 fv fa rt fid la va dck,
   OpsemAux.lookupExFdecViaPtr Ps1 fs1 fv = 
-    Some (fdec_intro (fheader_intro fa rt fid la va)) ->
+    Some (fdec_intro (fheader_intro fa rt fid la va) dck) ->
   isCallLib fid = false.
 
 Axiom shadow_stack_exfdec : forall la lc' mi lc2 lp cs1 nts los fptr
-    Mem0 MM mgb fa rt fid va fs2 gl2 als2 tmn2 S2 Ps2 B2 cs2' 
+    Mem0 MM mgb fa rt fid va fs2 gl2 als2 tmn2 S2 Ps2 B2 cs2' dck
     fv ft noret0 ca rid cs22 cs23 bs2 fh2 ECs2 M2 Mem' rm rm2
     bs1 fh1 lc oresult rm' gvs,
   wf_sb_mi mgb mi Mem0 M2 /\
@@ -326,7 +331,7 @@ Axiom shadow_stack_exfdec : forall la lc' mi lc2 lp cs1 nts los fptr
   ret cs1 = trans_params rm2 lp 1 ->
   Opsem.getOperandValue (los, nts) (wrap_call fv) lc2 gl2 = Some fptr ->
   OpsemAux.lookupExFdecViaPtr Ps2 fs2 fptr =
-          ret fdec_intro (fheader_intro fa rt (wrapper_fid fid) la va) ->
+          ret fdec_intro (fheader_intro fa rt (wrapper_fid fid) la va) dck ->
   exists M2', exists lc2',
   Opsem.sop_star (OpsemAux.mkCfg S2 (los, nts) Ps2 gl2 fs2)
     (Opsem.mkState 

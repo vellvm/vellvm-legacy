@@ -145,7 +145,7 @@ let '(OpsemAux.mkCfg S2 TD2 Ps2 gl2 fs2) := Cfg2 in
 match (St1, St2) with
 | (Opsem.mkState ECs1 M1, Opsem.mkState ECs2 M2) =>
     let '(los, nts) := TD1 in
-    wf_system nil S1 /\
+    wf_system S1 /\
     moduleInSystemB (module_intro los nts Ps1) S1 = true /\
     system_simulation pinfo S1 S2 /\ 
     TD1 = TD2 /\ 

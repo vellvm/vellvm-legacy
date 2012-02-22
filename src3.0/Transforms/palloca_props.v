@@ -632,9 +632,9 @@ Proof.
   auto.
 Qed.
 
-Lemma WF_PhiInfo_spec2: forall pinfo ifs S los nts Ps,
+Lemma WF_PhiInfo_spec2: forall pinfo S los nts Ps,
   WF_PhiInfo pinfo ->
-  wf_fdef ifs S (module_intro los nts Ps) (PI_f pinfo) ->
+  wf_fdef S (module_intro los nts Ps) (PI_f pinfo) ->
   exists mc, flatten_typ (los, nts) (PI_typ pinfo) = Some mc.
 Proof.
   intros.
@@ -1453,8 +1453,8 @@ Proof.
   apply ids2atoms__in in H; auto.
 Qed.
 
-Lemma original_values_arent_tmps: forall ifs S m pinfo F B v instr
-  (HwfF: wf_fdef ifs S m F)
+Lemma original_values_arent_tmps: forall S m pinfo F B v instr
+  (HwfF: wf_fdef S m F)
   (Hwfpi: WF_PhiInfo pinfo) 
   (HBinF : insnInFdefBlockB instr F B = true)
   (HvInOps : valueInInsnOperands v instr),
@@ -1494,8 +1494,8 @@ Qed.
 
 Lemma original_values_in_cmd_arent_tmps: forall (pinfo : PhiInfo) 
   (Hwfpi : WF_PhiInfo pinfo) (l1 : l) (ps1 : phinodes) (cs11 cs1' : list cmd)
-  v c (Hin : valueInCmdOperands v c) tmn ifs S m F1
-  (HwfF: wf_fdef ifs S m F1)
+  v c (Hin : valueInCmdOperands v c) tmn S m F1
+  (HwfF: wf_fdef S m F1)
   (HBinF : blockInFdefB
             (block_intro l1 ps1 (cs11 ++ c :: cs1')
                tmn) F1 = true),
@@ -1513,7 +1513,7 @@ Proof.
 Qed.
 
 Lemma original_ids_in_phi_arent_temporaries: forall pinfo l1 ps1 cs1 tmn l3 vid
-  vls pid typ ifs S m (HwfF: wf_fdef ifs S m (PI_f pinfo)),
+  vls pid typ S m (HwfF: wf_fdef S m (PI_f pinfo)),
   WF_PhiInfo pinfo ->
   blockInFdefB (block_intro l1 ps1 cs1 tmn) (PI_f pinfo) = true ->
   In (insn_phi pid typ vls) ps1 ->
@@ -1537,7 +1537,7 @@ Proof.
 Qed.
 
 Lemma original_indxs_arent_tmps: forall pinfo F1 l1 ps1 cs11 id0 inbounds0 t v
-  idxs cs1' tmn (Hwfpi: WF_PhiInfo pinfo) ifs S m (HwfF: wf_fdef ifs S m F1)
+  idxs cs1' tmn (Hwfpi: WF_PhiInfo pinfo) S m (HwfF: wf_fdef S m F1)
   (HBinF : blockInFdefB
             (block_intro l1 ps1
                (cs11 ++ insn_gep id0 inbounds0 t v idxs :: cs1') tmn) F1 =
@@ -1558,7 +1558,7 @@ Proof.
 Qed.
 
 Lemma WF_PhiInfo_spec12: forall pinfo l1 ps1 cs1 rid noret0 ca ft fv lp cs2 tmn
-  F1 ifs S m (HwfF: wf_fdef ifs S m F1),
+  F1 S m (HwfF: wf_fdef S m F1),
   WF_PhiInfo pinfo ->
   blockInFdefB 
     (block_intro l1 ps1 (cs1 ++ insn_call rid noret0 ca ft fv lp :: cs2) tmn) 

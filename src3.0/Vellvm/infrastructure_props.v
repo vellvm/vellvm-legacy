@@ -1189,9 +1189,9 @@ Proof.
         inversion H; auto.
 Qed.     
 
-Lemma lookupFdecViaIDFromProducts_ideq : forall Ps fid fa rt la va fid',
+Lemma lookupFdecViaIDFromProducts_ideq : forall Ps fid fa rt la va fid' dck,
   lookupFdecViaIDFromProducts Ps fid = 
-    Some (fdec_intro (fheader_intro fa rt fid' la va)) ->
+    Some (fdec_intro (fheader_intro fa rt fid' la va) dck) ->
   fid = fid'.
 Proof.
   induction Ps; intros.

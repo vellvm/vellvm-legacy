@@ -31,10 +31,10 @@ Parameter does_phi_elim_is_true: does_phi_elim tt = true.
 Parameter does_stld_elim_is_true: does_stld_elim tt = true.
 
 Lemma program_sim_wfS_trans: forall (P1 P2 P3 : system) (main : id) 
-  (VarArgs : list (GVsT DGVs)) (HwfS: wf_system nil P3),
-  (wf_system nil P2 -> program_sim P1 P2 main VarArgs /\ wf_system nil P1) ->
-  (wf_system nil P3 -> program_sim P2 P3 main VarArgs /\ wf_system nil P2) ->
-  program_sim P1 P3 main VarArgs /\ wf_system nil P1.
+  (VarArgs : list (GVsT DGVs)) (HwfS: wf_system P3),
+  (wf_system P2 -> program_sim P1 P2 main VarArgs /\ wf_system P1) ->
+  (wf_system P3 -> program_sim P2 P3 main VarArgs /\ wf_system P2) ->
+  program_sim P1 P3 main VarArgs /\ wf_system P1.
 Proof.
   intros.
   apply H0 in HwfS. destruct HwfS.
@@ -53,7 +53,7 @@ Lemma las_die_wfPI: forall (los : layouts) (nts : namedts) (fh : fheader)
   (Heq: PI_f pinfo = fdef_intro fh (bs1 ++ block_intro l0 ps0 cs0 tmn0 :: bs2))
   (Hwfpi: WF_PhiInfo pinfo) 
   (HwfS : 
-     wf_system nil
+     wf_system
        [module_intro los nts 
          (Ps1 ++ 
           product_fdef 
@@ -106,7 +106,7 @@ Lemma las_die_sim_wfS: forall (los : layouts) (nts : namedts) (fh : fheader)
   (Heq: PI_f pinfo = fdef_intro fh (bs1 ++ block_intro l0 ps0 cs0 tmn0 :: bs2))
   (Hwfpi: WF_PhiInfo pinfo) 
   (HwfS : 
-     wf_system nil
+     wf_system
        [module_intro los nts 
          (Ps1 ++ 
           product_fdef 
@@ -125,7 +125,7 @@ Lemma las_die_sim_wfS: forall (los : layouts) (nts : namedts) (fh : fheader)
        product_fdef (fdef_intro fh (bs1 ++ block_intro l0 ps0 cs0 tmn0 :: bs2))::
        Ps2)]
     main VarArgs /\
-  wf_system nil
+  wf_system
     [module_intro los nts
       (Ps1 ++
        product_fdef
@@ -173,7 +173,7 @@ Lemma laa_die_wfPI: forall (los : layouts) (nts : namedts) (fh : fheader)
   (Heq: PI_f pinfo = fdef_intro fh (bs1 ++ block_intro l0 ps0 cs0 tmn0 :: bs2))
   (Hwfpi: WF_PhiInfo pinfo) 
   (HwfS : 
-     wf_system nil
+     wf_system
        [module_intro los nts 
          (Ps1 ++ 
           product_fdef 
@@ -226,7 +226,7 @@ Lemma laa_die_sim_wfS: forall (los : layouts) (nts : namedts) (fh : fheader)
   (Heq: PI_f pinfo = fdef_intro fh (bs1 ++ block_intro l0 ps0 cs0 tmn0 :: bs2))
   (Hwfpi: WF_PhiInfo pinfo) 
   (HwfS : 
-     wf_system nil
+     wf_system
        [module_intro los nts 
          (Ps1 ++ 
           product_fdef 
@@ -245,7 +245,7 @@ Lemma laa_die_sim_wfS: forall (los : layouts) (nts : namedts) (fh : fheader)
        product_fdef
          (fdef_intro fh (bs1 ++ block_intro l0 ps0 cs0 tmn0 :: bs2)) :: Ps2)]
     main VarArgs /\
-  wf_system nil
+  wf_system
     [module_intro los nts
       (Ps1 ++
        product_fdef
@@ -331,7 +331,7 @@ Lemma elim_stld_cmds_wfPI: forall los nts fh dones (pinfo:PhiInfo) f0 dones0
   (Heq: PI_f pinfo = fdef_intro fh (bs1 ++ block_intro l0 ps0 cs0 tmn0 :: bs2))
   (Hwfpi: WF_PhiInfo pinfo) 
   (HwfS : 
-     wf_system nil
+     wf_system
        [module_intro los nts 
          (Ps1 ++ 
           product_fdef 
@@ -365,7 +365,7 @@ Lemma elim_stld_cmds_sim_wfS: forall los nts fh dones (pinfo:PhiInfo) f0 dones0
   (Heq: PI_f pinfo = fdef_intro fh (bs1 ++ block_intro l0 ps0 cs0 tmn0 :: bs2))
   (Hwfpi: WF_PhiInfo pinfo) 
   (HwfS : 
-     wf_system nil
+     wf_system
        [module_intro los nts 
          (Ps1 ++ 
           product_fdef 
@@ -378,7 +378,7 @@ Lemma elim_stld_cmds_sim_wfS: forall los nts fh dones (pinfo:PhiInfo) f0 dones0
        product_fdef
          (fdef_intro fh (bs1 ++ block_intro l0 ps0 cs0 tmn0 :: bs2)) :: Ps2)]
     main VarArgs /\
-  wf_system nil [module_intro los nts (Ps1 ++ product_fdef f0 :: Ps2)].
+  wf_system [module_intro los nts (Ps1 ++ product_fdef f0 :: Ps2)].
 Proof.
   intros.
   unfold elim_stld_cmds in Hpass.
@@ -430,7 +430,7 @@ Lemma elim_stld_blocks_wfPI_aux: forall los nts fh dones (pinfo:PhiInfo) f0
   (Heq: PI_f pinfo = fdef_intro fh (bs1 ++ bs2))
   (Hwfpi: WF_PhiInfo pinfo) 
   (HwfS : 
-     wf_system nil
+     wf_system
        [module_intro los nts 
          (Ps1 ++ 
           product_fdef 
@@ -461,7 +461,7 @@ Lemma elim_stld_blocks_sim_wfS_aux: forall los nts fh dones (pinfo:PhiInfo) f0
   (Heq: PI_f pinfo = fdef_intro fh (bs1 ++ bs2))
   (Hwfpi: WF_PhiInfo pinfo) 
   (HwfS : 
-     wf_system nil
+     wf_system
        [module_intro los nts 
          (Ps1 ++ 
           product_fdef 
@@ -473,7 +473,7 @@ Lemma elim_stld_blocks_sim_wfS_aux: forall los nts fh dones (pinfo:PhiInfo) f0
     [module_intro los nts 
       (Ps1 ++ product_fdef (fdef_intro fh (bs1++bs2)) :: Ps2)]
     main VarArgs /\
-   wf_system nil [module_intro los nts (Ps1 ++ product_fdef f0 :: Ps2)].
+   wf_system [module_intro los nts (Ps1 ++ product_fdef f0 :: Ps2)].
 Proof.
   induction bs2; simpl; intros.
     inv Hpass; split; auto using program_sim_refl.
@@ -511,7 +511,7 @@ Lemma elim_stld_blocks_wfPI: forall los nts fh dones (pinfo:PhiInfo) f0 dones0
   (Heq: PI_f pinfo = fdef_intro fh bs)
   (Hwfpi: WF_PhiInfo pinfo) 
   (HwfS : 
-     wf_system nil
+     wf_system
        [module_intro los nts 
          (Ps1 ++ product_fdef (fdef_intro fh bs) :: Ps2)]),
   WF_PhiInfo (update_pinfo pinfo f0).
@@ -528,7 +528,7 @@ Lemma elim_stld_blocks_sim_wfS: forall los nts fh dones (pinfo:PhiInfo) f0 dones
   (Heq: PI_f pinfo = fdef_intro fh bs)
   (Hwfpi: WF_PhiInfo pinfo) 
   (HwfS : 
-     wf_system nil
+     wf_system
        [module_intro los nts 
          (Ps1 ++ product_fdef (fdef_intro fh bs) :: Ps2)]),
   program_sim
@@ -537,7 +537,7 @@ Lemma elim_stld_blocks_sim_wfS: forall los nts fh dones (pinfo:PhiInfo) f0 dones
        product_fdef f0 :: Ps2)]
     [module_intro los nts (Ps1 ++ product_fdef (fdef_intro fh bs) :: Ps2)]
     main VarArgs /\
-  wf_system nil [module_intro los nts (Ps1 ++ product_fdef f0 :: Ps2)].
+  wf_system [module_intro los nts (Ps1 ++ product_fdef f0 :: Ps2)].
 Proof.
   intros.
   rewrite_env (nil ++ bs).
@@ -583,12 +583,12 @@ Lemma elim_stld_sim_wfS_wfPI: forall f1 dones1 f2 dones2 Ps1 Ps2 los nts main
     (f1, dones1) = (f2, dones2))
   (Heq1: PI_f pinfo = f1) (Heq2: PI_id pinfo = pid)
   (Hwfpi: WF_PhiInfo pinfo) 
-  (HwfS : wf_system nil [module_intro los nts (Ps1 ++ product_fdef f1 :: Ps2)]),
+  (HwfS : wf_system [module_intro los nts (Ps1 ++ product_fdef f1 :: Ps2)]),
   (program_sim
     [module_intro los nts (Ps1 ++ product_fdef f2 :: Ps2)]
     [module_intro los nts (Ps1 ++ product_fdef f1 :: Ps2)]
     main VarArgs /\
-   wf_system nil [module_intro los nts (Ps1 ++ product_fdef f2 :: Ps2)]) /\
+   wf_system [module_intro los nts (Ps1 ++ product_fdef f2 :: Ps2)]) /\
   WF_PhiInfo (update_pinfo pinfo f2).
 Proof.
   intros. subst.
@@ -597,7 +597,7 @@ Proof.
           (program_sim [module_intro los nts (Ps1 ++ product_fdef f :: Ps2)]
             [module_intro los nts (Ps1 ++ product_fdef (PI_f pinfo) :: Ps2)] 
             main VarArgs /\
-           wf_system nil
+           wf_system
             [module_intro los nts (Ps1 ++ product_fdef f :: Ps2)]) /\
           WF_PhiInfo (update_pinfo pinfo f)
        ).
@@ -631,7 +631,7 @@ Qed.
 
 Lemma macro_mem2reg_fdef_sim_wfS: forall rd f1 dones1 f2 dones2 Ps1 Ps2 los 
   nts main VarArgs (Hreach: ret rd = dtree.reachablity_analysis f1)
-  (HwfS : wf_system nil [module_intro los nts (Ps1 ++ product_fdef f1 :: Ps2)])
+  (HwfS : wf_system [module_intro los nts (Ps1 ++ product_fdef f1 :: Ps2)])
   (Hiter: SafePrimIter.iterate (fdef * list id)
             (macro_mem2reg_fdef_step rd (successors f1)
               (make_predecessors (successors f1))) 
@@ -640,7 +640,7 @@ Lemma macro_mem2reg_fdef_sim_wfS: forall rd f1 dones1 f2 dones2 Ps1 Ps2 los
     [module_intro los nts (Ps1 ++ product_fdef f2 :: Ps2)]
     [module_intro los nts (Ps1 ++ product_fdef f1 :: Ps2)]
     main VarArgs /\
-   wf_system nil [module_intro los nts (Ps1 ++ product_fdef f2 :: Ps2)]) /\
+   wf_system [module_intro los nts (Ps1 ++ product_fdef f2 :: Ps2)]) /\
   dtree.reachablity_analysis f1 = dtree.reachablity_analysis f2 /\
   successors f1 = successors f2.
 Proof.
@@ -650,7 +650,7 @@ Proof.
           (program_sim [module_intro los nts (Ps1 ++ product_fdef f :: Ps2)]
             [module_intro los nts (Ps1 ++ product_fdef f1 :: Ps2)] main VarArgs
           /\
-          wf_system nil
+          wf_system
             [module_intro los nts (Ps1 ++ product_fdef f :: Ps2)]) /\
           dtree.reachablity_analysis f1 = dtree.reachablity_analysis f /\
           successors f1 = successors f
@@ -810,37 +810,37 @@ Proof.
 Qed.
 
 Lemma eliminate_phis_sim_wfS: forall f Ps1 Ps2 los nts main VarArgs
-  (HwfS : wf_system nil [module_intro los nts (Ps1 ++ product_fdef f :: Ps2)]),
+  (HwfS : wf_system [module_intro los nts (Ps1 ++ product_fdef f :: Ps2)]),
   program_sim
     [module_intro los nts 
       (Ps1 ++ product_fdef (SafePrimIter.iterate fdef eliminate_step f) :: Ps2)]
     [module_intro los nts (Ps1 ++ product_fdef f :: Ps2)]
     main VarArgs /\
-  wf_system nil 
+  wf_system 
     [module_intro los nts 
       (Ps1 ++ product_fdef (SafePrimIter.iterate fdef eliminate_step f) :: Ps2)].
 Admitted. (* From previous work *)
 
 Axiom fix_temporary_fdef_sim_wfS: forall f1 f2 Ps1 Ps2 los nts main VarArgs
   (Hpass: ret f2 = fix_temporary_fdef f1)
-  (HwfS : wf_system nil [module_intro los nts (Ps1 ++ product_fdef f1 :: Ps2)]),
+  (HwfS : wf_system [module_intro los nts (Ps1 ++ product_fdef f1 :: Ps2)]),
   program_sim
     [module_intro los nts (Ps1 ++ product_fdef f2 :: Ps2)]
     [module_intro los nts (Ps1 ++ product_fdef f1 :: Ps2)]
     main VarArgs /\
-  wf_system nil [module_intro los nts (Ps1 ++ product_fdef f2 :: Ps2)].
+  wf_system [module_intro los nts (Ps1 ++ product_fdef f2 :: Ps2)].
 
 Lemma remove_dbg_declares_sim_wfS: forall cs Ps1 Ps2 los nts main
   VarArgs f,
   (program_sim [module_intro los nts (Ps1 ++ product_fdef f :: Ps2)]
                [module_intro los nts (Ps1 ++ product_fdef f :: Ps2)] main
                VarArgs /\
-   wf_system nil [module_intro los nts (Ps1 ++ product_fdef f :: Ps2)]) ->
+   wf_system [module_intro los nts (Ps1 ++ product_fdef f :: Ps2)]) ->
   program_sim [module_intro los nts 
                  (Ps1 ++ product_fdef (remove_dbg_declares f cs) :: Ps2)]
                [module_intro los nts (Ps1 ++ product_fdef f :: Ps2)] main
                VarArgs /\
-   wf_system nil 
+   wf_system 
      [module_intro los nts 
        (Ps1 ++ product_fdef (remove_dbg_declares f cs) :: Ps2)].
 Admitted.
@@ -853,12 +853,12 @@ Admitted.
 
 Lemma mem2reg_fdef_sim_wfS: forall (main : id) (VarArgs : list (GVsT DGVs))
   (los : layouts) (nts : namedts) (f : fdef) (Ps2 Ps1 : products)
-  (HwfS : wf_system nil [module_intro los nts (Ps1 ++ product_fdef f :: Ps2)]),
+  (HwfS : wf_system [module_intro los nts (Ps1 ++ product_fdef f :: Ps2)]),
   program_sim
     [module_intro los nts (Ps1 ++ product_fdef (mem2reg_fdef f) :: Ps2)]
     [module_intro los nts (Ps1 ++ product_fdef f :: Ps2)]
     main VarArgs /\
-  wf_system nil 
+  wf_system 
     [module_intro los nts (Ps1 ++ product_fdef (mem2reg_fdef f) :: Ps2)].
 Proof.
   intros.
@@ -899,7 +899,7 @@ Qed.
 
 Lemma mem2reg_run_sim_wfS_aux: forall (main : id) (VarArgs : list (GVsT DGVs))   
   (los : layouts) (nts : namedts) (Ps2 Ps1: products)
-  (HwfS : wf_system nil [module_intro los nts (Ps1 ++ Ps2)]),
+  (HwfS : wf_system [module_intro los nts (Ps1 ++ Ps2)]),
   program_sim
     [module_intro los nts
       (Ps1 ++ List.map
@@ -908,7 +908,7 @@ Lemma mem2reg_run_sim_wfS_aux: forall (main : id) (VarArgs : list (GVsT DGVs))
           | product_fdef f => product_fdef (mem2reg_fdef f)
           | _ => p
           end) Ps2)] [module_intro los nts (Ps1++Ps2)] main VarArgs /\
-  wf_system nil
+  wf_system
     [module_intro los nts
       (Ps1 ++ List.map
         (fun p : product =>
@@ -935,8 +935,8 @@ Proof.
 Qed.
 
 Lemma mem2reg_run_sim_wfS: forall (m:module) (main:id) (VarArgs:list (GVsT DGVs))
-  (HwfS : wf_system nil [m]),
-  program_sim [mem2reg.run m] [m] main VarArgs /\ wf_system nil [mem2reg.run m].
+  (HwfS : wf_system [m]),
+  program_sim [mem2reg.run m] [m] main VarArgs /\ wf_system [mem2reg.run m].
 Proof.
   destruct m as [los nts Ps].
   unfold mem2reg.run.

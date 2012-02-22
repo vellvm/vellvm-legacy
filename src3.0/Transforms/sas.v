@@ -1420,7 +1420,7 @@ Lemma sas_sim: forall (los : layouts) (nts : namedts) (fh : fheader)
   (Heq: PI_f pinfo = fdef_intro fh (bs1 ++ block_intro l0 ps0 cs0 tmn0 :: bs2))
   (Hwfpi: WF_PhiInfo pinfo) 
   (HwfS : 
-     wf_system nil
+     wf_system 
        [module_intro los nts 
          (Ps1 ++ 
           product_fdef 
@@ -1507,13 +1507,13 @@ Lemma sas_wfS: forall (los : layouts) (nts : namedts) (fh : fheader)
   (Heq: PI_f pinfo = fdef_intro fh (bs1 ++ block_intro l0 ps0 cs0 tmn0 :: bs2))
   (Hwfpi: WF_PhiInfo pinfo) 
   (HwfS : 
-     wf_system nil
+     wf_system 
        [module_intro los nts 
          (Ps1 ++ 
           product_fdef 
             (fdef_intro fh (bs1 ++ block_intro l0 ps0 cs0 tmn0 :: bs2))
           :: Ps2)]),
-  wf_system nil
+  wf_system 
     [module_intro los nts
       (Ps1 ++
        product_fdef
@@ -1533,7 +1533,7 @@ Lemma sas_wfPI: forall (los : layouts) (nts : namedts) (fh : fheader)
   (Heq: PI_f pinfo = fdef_intro fh (bs1 ++ block_intro l0 ps0 cs0 tmn0 :: bs2))
   (Hwfpi: WF_PhiInfo pinfo) 
   (HwfS : 
-     wf_system nil
+     wf_system 
        [module_intro los nts 
          (Ps1 ++ 
           product_fdef 

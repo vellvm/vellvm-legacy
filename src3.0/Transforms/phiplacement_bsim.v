@@ -183,7 +183,7 @@ let '(OpsemAux.mkCfg S2 TD2 Ps2 gl2 fs2) := Cfg2 in
 match (St1, St2) with
 | (Opsem.mkState ECs1 M1, Opsem.mkState ECs2 M2) =>
     let '(los, nts) := TD1 in
-    wf_system nil S1 /\
+    wf_system S1 /\
     moduleInSystemB (module_intro los nts Ps1) S1 = true /\
     system_simulation pinfo S1 S2 /\ 
     TD1 = TD2 /\ 
@@ -1667,7 +1667,7 @@ Lemma reg_simulation__getIncomingValuesForBlockFromPHINodes_helper_aux: forall
   (l1 : l) (t0 : terminator) (l3 : l) (p2 : phinodes) 
   (c2 : cmds) (t2 : terminator) (gl : GVMap) 
   (c : cmds) (p1 : phinodes) (c1 : cmds) (Hwfpi : WF_PhiInfo pinfo)
-  ifs S m (HwfF: wf_fdef ifs S m (PI_f pinfo))
+  S m (HwfF: wf_fdef S m (PI_f pinfo))
   (H : forall i0 : id,
        not_temporaries i0 (PI_newids pinfo) ->
        lookupAL (GVsT DGVs) lc1 i0 = lookupAL (GVsT DGVs) lc2 i0)
@@ -1717,7 +1717,7 @@ Lemma reg_simulation__getIncomingValuesForBlockFromPHINodes_helper: forall
   (l1 : l) (p0 : phinodes) (t0 : terminator) (l3 : l) (p2 : phinodes) 
   (c2 : cmds) (t2 : terminator) (gl : GVMap) (lc2' : list (id * GVsT DGVs))
   (c : cmds) (p1 : phinodes) (c1 : cmds) (Hwfpi : WF_PhiInfo pinfo)
-  ifs S m (HwfF: wf_fdef ifs S m (PI_f pinfo))
+  S m (HwfF: wf_fdef S m (PI_f pinfo))
   (H : forall i0 : id,
        not_temporaries i0 (PI_newids pinfo) ->
        lookupAL (GVsT DGVs) lc1 i0 = lookupAL (GVsT DGVs) lc2 i0)
@@ -1738,7 +1738,7 @@ Qed.
 
 Lemma reg_simulation__getIncomingValuesForBlockFromPHINodes: forall pinfo F1 lc1 
   lc2 td b2 B2 gl lc2' b1 B1 (HBinF: blockInFdefB b1 F1 = true) 
-  ifs S m (HwfF: wf_fdef ifs S m F1) (Hwfpi:WF_PhiInfo pinfo),
+  S m (HwfF: wf_fdef S m F1) (Hwfpi:WF_PhiInfo pinfo),
   reg_simulation pinfo F1 lc1 lc2 ->
   Opsem.getIncomingValuesForBlockFromPHINodes td (getPHINodesFromBlock b2) B2 gl 
     lc2 = ret lc2' ->
@@ -1824,7 +1824,7 @@ Qed.
 
 Lemma reg_simulation__switchToNewBasicBlock: forall pinfo F1 lc1 lc2 td b2 B2 gl
   lc2' b1 B1 (Hwfpi: WF_PhiInfo pinfo) (HBinF: blockInFdefB b1 F1 = true)
-  ifs S m (HwfF: wf_fdef ifs S m F1),
+  S m (HwfF: wf_fdef S m F1),
   reg_simulation pinfo F1 lc1 lc2 ->
   Opsem.switchToNewBasicBlock td b2 B2 gl lc2 = ret lc2' ->
   block_simulation pinfo F1 b1 b2 ->
@@ -1944,7 +1944,7 @@ Proof.
     apply original_values_arent_tmps with 
       (instr:=insn_terminator (insn_br bid Cond l1 l2))
       (B:=block_intro l3 ps3 (cs11 ++ nil) (insn_br bid Cond l1 l2))
-      (ifs:=nil) (S:=S1) (m:=module_intro los nts Ps1); simpl; auto.
+      (S:=S1) (m:=module_intro los nts Ps1); simpl; auto.
       apply andb_true_iff.
       split; auto.
         apply terminatorEqB_refl.
@@ -3089,7 +3089,7 @@ Ltac phinodes_placement_is_correct__common :=
                 ?B1 = block_intro _ _ (_ ++ ?cs1) ?tmn,
     HBinF : blockInFdefB ?B1 ?F1 = true,
     Hwfpi : WF_PhiInfo ?pinfo,
-    Hwfs : wf_system _ _ |- _ =>
+    Hwfs : wf_system _ |- _ =>
     assert (Heqb1':=Heqb1);
     destruct Heqb1' as [l1 [ps1 [cs11 Heqb1']]]; subst;
     assert (HwfF := Hwfs);
@@ -3324,9 +3324,9 @@ Proof.
     inv H1. eauto. 
 Qed.
 
-Lemma entry_cmds_simulation: forall f l' ps0 cs0 tmn' pinfo ps' cs' ifs S los
+Lemma entry_cmds_simulation: forall f l' ps0 cs0 tmn' pinfo ps' cs' S los
   nts lc' Mem Ps (Hwfpi: WF_PhiInfo pinfo)
-  (HwfF: wf_fdef ifs S (module_intro los nts Ps) f)
+  (HwfF: wf_fdef S (module_intro los nts Ps) f)
   (Hgetentry1 : getEntryBlock f = ret block_intro l' ps0 cs0 tmn')
   (Hbsim1 : block_simulation pinfo f
              (block_intro l' ps0 cs0 tmn') (block_intro l' ps' cs' tmn')),
@@ -3690,9 +3690,9 @@ Lemma phinodes_placement_is_correct__dsExCall: forall (maxb : Values.block)
   (fid : id) (rt : typ) (la : args) (oresult : monad GenericValue) (Mem' : mem)
   (lc' : Opsem.GVsMap) (va : varg) (fa : fnattrs) (gvs : list GenericValue)
   (fptr : GenericValue) (fptrs : GVsT DGVs) (gvss : list (GVsT DGVs))
-  (H : Opsem.getOperandValue TD fv lc gl = ret fptrs) (H0 : fptr @ fptrs)
+  (H : Opsem.getOperandValue TD fv lc gl = ret fptrs) (H0 : fptr @ fptrs) dck
   (H1 : OpsemAux.lookupExFdecViaPtr Ps fs fptr =
-        ret fdec_intro (fheader_intro fa rt fid la va))
+        ret fdec_intro (fheader_intro fa rt fid la va) dck)
   (H2 : Opsem.params2GVs TD lp lc gl = ret gvss)
   (H3 : gvs @@ gvss)
   (H4 : OpsemAux.callExternalFunction Mem fid gvs = ret (oresult, Mem'))
@@ -3820,7 +3820,7 @@ Focus.
           then value_has_no_tmps pinfo Result else True) as Hnontmp.
     apply original_values_arent_tmps with 
       (instr:=insn_terminator (insn_return rid RetTy Result))(B:=B1)
-      (ifs:=nil)(S:=S1)(m:=module_intro los nts Ps1); 
+      (S:=S1)(m:=module_intro los nts Ps1); 
       simpl; try solve [auto | solve_tmnInFdefBlockB].
   eapply returnUpdateLocals_rsim in H1; eauto.
   destruct H1 as [lc1'' [H1 Hrsim'']].
@@ -3998,7 +3998,7 @@ Lemma phinodes_placement_sim: forall rd f Ps1 Ps2 los nts main VarArgs pid ty al
   (Hentry: getEntryBlock f = Some (block_intro l0 ps0 cs0 tmn0))
   (Hfind: find_promotable_alloca f cs0 dones = Some (pid, ty, num, al))
   (HwfS : 
-     wf_system nil
+     wf_system 
        [module_intro los nts (Ps1 ++ product_fdef f :: Ps2)]),
   program_sim
     [module_intro los nts 
@@ -4064,9 +4064,9 @@ Lemma phinodes_placement_wfS: forall rd f Ps1 Ps2 los nts pid ty al
   (Hentry: getEntryBlock f = Some (block_intro l0 ps0 cs0 tmn0))
   (Hfind: find_promotable_alloca f cs0 dones = Some (pid, ty, num, al))
   (HwfS : 
-     wf_system nil
+     wf_system 
        [module_intro los nts (Ps1 ++ product_fdef f :: Ps2)]),
-  wf_system nil
+  wf_system 
     [module_intro los nts 
       (Ps1 ++ 
        product_fdef (phinodes_placement f rd pid ty al (successors f)
@@ -4078,7 +4078,7 @@ Lemma phinodes_placement_wfPI: forall rd f Ps1 Ps2 los nts pid ty al
   (Hentry: getEntryBlock f = Some (block_intro l0 ps0 cs0 tmn0))
   (Hfind: find_promotable_alloca f cs0 dones = Some (pid, ty, num, al))
   (HwfS : 
-     wf_system nil
+     wf_system 
        [module_intro los nts (Ps1 ++ product_fdef f :: Ps2)]),
   WF_PhiInfo {|
     PI_f := phinodes_placement f rd pid ty al (successors f)

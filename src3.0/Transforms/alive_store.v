@@ -263,8 +263,8 @@ match goal with
 end.
 
 Lemma alive_store_doesnt_use_its_followers: forall l1 ps1 cs1' c cs tmn id0
-  pinfo stinfo ifs s m (Huniq: uniqFdef (PI_f pinfo)),
-  wf_fdef ifs s m (PI_f pinfo) -> 
+  pinfo stinfo s m (Huniq: uniqFdef (PI_f pinfo)),
+  wf_fdef s m (PI_f pinfo) -> 
   block_intro l1 ps1 (cs1' ++ c :: cs) tmn = SI_block pinfo stinfo ->
   getCmdID c = Some id0 ->
   follow_alive_store pinfo stinfo (c::cs) ->
@@ -290,7 +290,7 @@ Proof.
   assert (J1':=J1).
   eapply wf_fdef__wf_cmd in J1; eauto using in_middle.
   inv J1.
-  inv H14. 
+  match goal with | H13: wf_insn_base _ _ _ |- _ => inv H13 end.
   destruct SI_value0 as [i0|]; auto.
   apply wf_operand_list__elim with (id1:=i0)(f1:=PI_f pinfo)
     (b1:=block_intro l1 ps1
@@ -515,9 +515,9 @@ Proof.
 Qed.
 
 Lemma malloc_preserves_wf_EC_at_head : forall pinfo los nts Ps M 
-  (Hwfpi:WF_PhiInfo pinfo) ifs s als'
+  (Hwfpi:WF_PhiInfo pinfo) s als'
   M' gl als lc t mb id0 align0 F gn tsz l1 ps1 cs1' cs tmn 
-  (HwfF: wf_fdef ifs s (module_intro los nts Ps) F) (HuniqF: uniqFdef F)
+  (HwfF: wf_fdef s (module_intro los nts Ps) F) (HuniqF: uniqFdef F)
   (Hal: malloc (los,nts) M tsz gn align0 = ret (M', mb)) stinfo c
   (HBinF: blockInFdefB
              (block_intro l1 ps1 (cs1' ++ c :: cs)
@@ -960,8 +960,8 @@ Qed.
 
 Lemma callExternalFunction_preserves_wf_ECStack_at_head: forall Mem fid gvs 
   oresult Mem' pinfo stinfo gl rid noret0 ca ft fv lp cs lc lc' als tmn
-  cs1' l1 ps1 F ifs s los nts Ps (Hwfpi : WF_PhiInfo pinfo)
-  (HwfF: wf_fdef ifs s (module_intro los nts Ps) F) (HuniqF: uniqFdef F)
+  cs1' l1 ps1 F s los nts Ps (Hwfpi : WF_PhiInfo pinfo)
+  (HwfF: wf_fdef s (module_intro los nts Ps) F) (HuniqF: uniqFdef F)
   (H4 : OpsemAux.callExternalFunction Mem fid gvs = ret (oresult, Mem'))
   (H5 : Opsem.exCallUpdateLocals (los,nts) ft noret0 rid oresult lc = ret lc')
   (HBinF : blockInFdefB (block_intro l1 ps1 (cs1' ++ insn_call rid noret0 ca ft fv lp :: cs) tmn)
@@ -1116,7 +1116,7 @@ Case "sExCall".
 Qed.
 
 Lemma s_genInitState__alive_store: forall S main VarArgs cfg IS pinfo stinfo
-  (HwfS : wf_system nil S) (Hwfpi: WF_PhiInfo pinfo) 
+  (HwfS : wf_system S) (Hwfpi: WF_PhiInfo pinfo) 
   (Hinit : @Opsem.s_genInitState DGVs S main VarArgs Mem.empty = ret (cfg, IS)),
   wf_State pinfo stinfo cfg IS.
 Admitted.

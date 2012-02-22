@@ -728,7 +728,7 @@ end.
 Fixpoint lookupFdecFromProducts (lp:SBsyntax.products) (id1:id) : option fdec :=
 match lp with
 | nil => None
-| SBsyntax.product_fdec (fdec_intro (fheader_intro _ _ fid _ _) as f)::lp' => 
+| SBsyntax.product_fdec (fdec_intro (fheader_intro _ _ fid _ _) _ as f)::lp' => 
     if eq_dec id1 fid then Some f
     else lookupFdecFromProducts lp' id1
 | _::lp' => lookupFdecFromProducts lp' id1
@@ -1006,14 +1006,14 @@ Inductive dbCall : system -> TargetData -> list product -> GVMap ->
     (insn_call_nptr rid noret tailc rt fv lp)
     lc'' als Mem'' tr r
 
-| dbCall_external : forall S TD Ps lc gl fs rid noret tailc fv fid 
+| dbCall_external : forall S TD Ps lc gl fs rid noret tailc fv fid dck
                           lp fa rt la va Mem oresult Mem' als lc' gvs,
   (* only look up the current module for the time being, 
      do not support linkage. 
      FIXME: should add excall to trace
   *)
   lookupExFdecViaGV TD Ps gl lc fs fv = 
-    Some (fdec_intro (fheader_intro fa rt fid la va)) ->
+    Some (fdec_intro (fheader_intro fa rt fid la va) dck) ->
   params2GVs TD lp lc gl = Some gvs ->
   OpsemAux.callExternalFunction Mem fid gvs = 
     Some (oresult, Mem') ->

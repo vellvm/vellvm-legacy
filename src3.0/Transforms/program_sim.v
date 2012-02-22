@@ -147,7 +147,7 @@ Axiom main_wf_params: forall f t i0 a v b S CurLayouts CurNamedts CurProducts
     VarArgs (args_to_params a).
 
 Lemma s_genInitState__opsem_wf: forall S main VarArgs cfg IS
-  (HwfS : wf_system nil S)
+  (HwfS : wf_system S)
   (Hinit : @Opsem.s_genInitState DGVs S main VarArgs Mem.empty = ret (cfg, IS)),
   OpsemPP.wf_Config cfg /\ OpsemPP.wf_State cfg IS.
 Proof.
@@ -158,7 +158,7 @@ Proof.
   destruct HeqR0' as [HMinS HinPs].
   assert (uniqFdef (fdef_intro (fheader_intro f t i0 a v) b)) as Huniq.
     eapply wf_system__uniqFdef; eauto.
-  assert (wf_fdef nil S (module_intro CurLayouts CurNamedts CurProducts) 
+  assert (wf_fdef S (module_intro CurLayouts CurNamedts CurProducts) 
       (fdef_intro (fheader_intro f t i0 a v) b)) as HwfF.
     eapply wf_system__wf_fdef; eauto.
   assert (wf_namedts S (CurLayouts, CurNamedts)) as Hwfnts.
@@ -336,7 +336,7 @@ Proof.
             symmetry_ctx. uniq_result. rewrite H22 in HeqR1. congruence.
 Qed.
 
-Lemma wf_system__uniqSystem: forall ifs S, wf_system ifs S -> uniqSystem S.
+Lemma wf_system__uniqSystem: forall S, wf_system S -> uniqSystem S.
 Proof.
   intros. 
   destruct H; auto.

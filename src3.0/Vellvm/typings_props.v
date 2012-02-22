@@ -38,10 +38,9 @@ Lemma getEntryBlock_inv : forall
   (cs : cmds)
   (tmn : terminator)
   (fh : fheader)
-  (ifs : intrinsic_funs)
   (s : system)
   (m : module)
-  (HwfF : wf_fdef ifs s m (fdef_intro fh bs))
+  (HwfF : wf_fdef s m (fdef_intro fh bs))
   (HBinF : InBlocksB (block_intro l3 ps cs tmn) bs = true)
   (a : atom)
   (Hsucc : In l' (successors_terminator tmn))
@@ -52,19 +51,24 @@ Proof.
   intros.  
    destruct (eq_atom_dec l' a); subst; auto.
    inv HwfF.
-   simpl in H12.
-   rewrite H in H7. inv H7.
-   clear - H12 Hsucc HBinF.
+   match goal with
+   | H11: hasNonePredecessor ?b _ = _,
+     H7: getEntryBlock _ = Some ?b,
+     H: getEntryBlock _ = _ |- _ => 
+       rename H11 into J1; rename H7 into J2; rename H into J3;
+       simpl in J1; rewrite J3 in J2; inv J2;
+       clear - J1 Hsucc HBinF
+   end.
    induction bs; simpl in *.
      inversion HBinF.
   
      apply orb_prop in HBinF.          
      destruct HBinF as [HBinF | HBinF].
        apply blockEqB_inv in HBinF; subst.
-       simpl in H12.
+       simpl in J1.
        destruct tmn as [| |? ? l1 l2| l1 |]; try solve [inversion Hsucc].
-         unfold hasNonePredecessor in H12.
-         unfold predOfBlock in H12. simpl in H12.  
+         unfold hasNonePredecessor in J1.
+         unfold predOfBlock in J1. simpl in J1.  
          simpl in Hsucc. 
          destruct Hsucc as [Hsucc | [Hsucc | Hsucc]]; subst; 
            try inversion Hsucc.
@@ -73,8 +77,8 @@ Proof.
              as [re [Hlk Hin]]. 
            apply lookupAL_genBlockUseDef_blocks_spec with (bs:=bs) in Hlk.
            destruct Hlk as [re' [Hlk Hinc]].
-           rewrite Hlk in H12.
-           destruct re'; inversion H12.
+           rewrite Hlk in J1.
+           destruct re'; inversion J1.
            apply Hinc in Hin. inversion Hin.
   
            destruct (@lookupAL_update_udb_eq nil l3 a) as [re [Hlk Hin]].
@@ -82,29 +86,29 @@ Proof.
            destruct Hlk as [re1 [Hlk Hinc1]].
            apply lookupAL_genBlockUseDef_blocks_spec with (bs:=bs) in Hlk.  
            destruct Hlk as [re2 [Hlk Hinc2]].
-           rewrite Hlk in H12.
-           destruct re2; inversion H12.
+           rewrite Hlk in J1.
+           destruct re2; inversion J1.
            apply Hinc1 in Hin. 
            apply Hinc2 in Hin. 
            inversion Hin.
   
-         unfold hasNonePredecessor in H12.
-         unfold predOfBlock in H12. simpl in H12.  
+         unfold hasNonePredecessor in J1.
+         unfold predOfBlock in J1. simpl in J1.  
          simpl in Hsucc. 
          destruct Hsucc as [Hsucc | Hsucc]; subst; try inversion Hsucc.
            destruct (@lookupAL_update_udb_eq nil l3 a) as [re [Hlk Hin]]. 
            apply lookupAL_genBlockUseDef_blocks_spec with (bs:=bs) in Hlk.
            destruct Hlk as [re' [Hlk Hinc]].
-           rewrite Hlk in H12.
-           destruct re'; inversion H12.
+           rewrite Hlk in J1.
+           destruct re'; inversion J1.
            apply Hinc in Hin. inversion Hin.
-     apply hasNonPredecessor__mono in H12; eauto.
+     apply hasNonPredecessor__mono in J1; eauto.
 Qed.
 
-Lemma wf_modules__wf_module : forall ifs S ms m,
-  wf_modules ifs S ms -> 
+Lemma wf_modules__wf_module : forall S ms m,
+  wf_modules S ms -> 
   moduleInSystemB m ms ->
-  wf_module ifs S m.
+  wf_module S m.
 Proof.
   induction ms; intros m HwfS HMinS; simpl in *.
     inv HMinS.
@@ -116,10 +120,10 @@ Proof.
       subst. auto.
 Qed.
 
-Lemma wf_prods__wf_prod : forall ifs S M Ps P,
-  wf_prods ifs S M Ps ->
+Lemma wf_prods__wf_prod : forall S M Ps P,
+  wf_prods S M Ps ->
   InProductsB P Ps = true ->
-  wf_prod ifs S M P.
+  wf_prod S M P.
 Proof.
   induction Ps; intros P HwfPs HPinPs.
     inv HPinPs.
@@ -132,22 +136,24 @@ Proof.
       subst. auto.
 Qed.
 
-Lemma wf_system__wf_fdef : forall ifs S los nts Ps f,
-  wf_system ifs S -> 
+Lemma wf_system__wf_fdef : forall S los nts Ps f,
+  wf_system S -> 
   moduleInSystemB (module_intro los nts Ps) S = true ->
   InProductsB (product_fdef f) Ps = true ->
-  wf_fdef ifs S (module_intro los nts Ps) f.
+  wf_fdef S (module_intro los nts Ps) f.
 Proof.
-  intros ifs S los nts Ps f HwfS HMinS HPinM.
+  intros S los nts Ps f HwfS HMinS HPinM.
   inv HwfS. 
   eapply wf_modules__wf_module in HMinS; eauto.
   inv HMinS.
-  eapply wf_prods__wf_prod in H8; eauto.
-  inv H8; auto.
+  match goal with
+  | H7: wf_prods _ _ _ |- _ => 
+    eapply wf_prods__wf_prod in H7; eauto; inv H7; auto
+  end.
 Qed.
 
-Lemma wf_system__uniqFdef : forall ifs S los nts Ps f,
-  wf_system ifs S -> 
+Lemma wf_system__uniqFdef : forall S los nts Ps f,
+  wf_system S -> 
   moduleInSystemB (module_intro los nts Ps) S = true ->
   InProductsB (product_fdef f) Ps = true ->
   uniqFdef f.
@@ -159,10 +165,10 @@ Proof.
   apply andb_true_iff; auto.
 Qed.
 
-Lemma wf_blocks__wf_block : forall ifs s m f bs b,
-  wf_blocks ifs s m f bs -> 
+Lemma wf_blocks__wf_block : forall s m f bs b,
+  wf_blocks s m f bs -> 
   InBlocksB b bs = true ->
-  wf_block ifs s m f b.
+  wf_block s m f b.
 Proof.
   induction bs; intros b Hwfbs Hbinbs.
     inv Hbinbs.
@@ -175,35 +181,35 @@ Proof.
       subst. auto.
 Qed.
 
-Lemma wf_fdef__blockInFdefB__wf_block : forall b ifs S M f,
+Lemma wf_fdef__blockInFdefB__wf_block : forall b S M f,
   blockInFdefB b f = true -> 
-  wf_fdef ifs S M f ->
-  wf_block ifs S M f b.
+  wf_fdef S M f ->
+  wf_block S M f b.
 Proof.
   intros.
   inv H0.  
   eapply wf_blocks__wf_block; eauto.
 Qed.
 
-Lemma wf_system__blockInFdefB__wf_block : forall b f ps los nts s ifs,
+Lemma wf_system__blockInFdefB__wf_block : forall b f ps los nts s,
   blockInFdefB b f = true -> 
   InProductsB (product_fdef f) ps = true ->
   moduleInSystemB (module_intro los nts ps) s = true ->
-  wf_system ifs s ->
-  wf_block ifs s (module_intro los nts ps) f b.
+  wf_system s ->
+  wf_block s (module_intro los nts ps) f b.
 Proof.
   intros.
   eapply wf_system__wf_fdef in H1; eauto.
   inv H1.  
-  eapply wf_blocks__wf_block in H17; eauto.
+  eapply wf_blocks__wf_block; eauto.
 Qed.
 
-Lemma wf_system__lookup__wf_block : forall b f l0 ps los nts s ifs,
+Lemma wf_system__lookup__wf_block : forall b f l0 ps los nts s,
   Some b = lookupBlockViaLabelFromFdef f l0 ->
   InProductsB (product_fdef f) ps = true ->
   moduleInSystemB (module_intro los nts ps) s = true ->
-  wf_system ifs s ->
-  wf_block ifs s (module_intro los nts ps) f b.
+  wf_system s ->
+  wf_block s (module_intro los nts ps) f b.
 Proof.
   intros.
   eapply wf_system__blockInFdefB__wf_block; eauto.
@@ -213,11 +219,11 @@ Proof.
     destruct H; auto.
 Qed.
 
-Lemma wf_system__uniq_block : forall b f ps los nts s ifs,
+Lemma wf_system__uniq_block : forall b f ps los nts s,
   blockInFdefB b f = true -> 
   InProductsB (product_fdef f) ps = true ->
   moduleInSystemB (module_intro los nts ps) s = true ->
-  wf_system ifs s ->
+  wf_system s ->
   NoDup (getBlockLocs b).
 Proof.
   intros.
@@ -227,10 +233,10 @@ Proof.
   eapply uniqBlocksLocs__uniqBlockLocs; eauto.
 Qed.
 
-Lemma wf_cmds__wf_cmd : forall ifs s m f b cs c,
-  wf_cmds ifs s m f b cs ->
+Lemma wf_cmds__wf_cmd : forall s m f b cs c,
+  wf_cmds s m f b cs ->
   In c cs ->
-  wf_insn ifs s m f b (insn_cmd c).
+  wf_insn s m f b (insn_cmd c).
 Proof.
   induction cs; intros.
     inversion H0.
@@ -240,13 +246,13 @@ Proof.
     destruct H0 as [H0 | H0]; subst; eauto.
 Qed.
 
-Lemma wf_system__wf_cmd : forall l1 ps1 cs1 tmn1 f ps los nts s ifs c,
+Lemma wf_system__wf_cmd : forall l1 ps1 cs1 tmn1 f ps los nts s c,
   blockInFdefB (block_intro l1 ps1 cs1 tmn1) f = true -> 
   InProductsB (product_fdef f) ps = true ->
   moduleInSystemB (module_intro los nts ps) s = true ->
-  wf_system ifs s ->
+  wf_system s ->
   In c cs1 ->
-  wf_insn ifs s (module_intro los nts ps) f (block_intro l1 ps1 cs1 tmn1) 
+  wf_insn s (module_intro los nts ps) f (block_intro l1 ps1 cs1 tmn1) 
     (insn_cmd c).
 Proof.
   intros.
@@ -255,12 +261,12 @@ Proof.
   eapply wf_cmds__wf_cmd; eauto.
 Qed.
 
-Lemma wf_system__wf_tmn : forall l1 ps1 cs1 tmn1 f ps los nts s ifs,
+Lemma wf_system__wf_tmn : forall l1 ps1 cs1 tmn1 f ps los nts s,
   blockInFdefB (block_intro l1 ps1 cs1 tmn1) f = true -> 
   InProductsB (product_fdef f) ps = true ->
   moduleInSystemB (module_intro los nts ps) s = true ->
-  wf_system ifs s ->
-  wf_insn ifs s (module_intro los nts ps) f (block_intro l1 ps1 cs1 tmn1) 
+  wf_system s ->
+  wf_insn s (module_intro los nts ps) f (block_intro l1 ps1 cs1 tmn1) 
     (insn_terminator tmn1).
 Proof.
   intros.
@@ -268,39 +274,39 @@ Proof.
   inv H1. auto.
 Qed.
 
-Lemma wf_fdef__wf_cmd : forall l1 ps1 cs1 tmn1 ifs s m f c,
+Lemma wf_fdef__wf_cmd : forall l1 ps1 cs1 tmn1 s m f c,
   blockInFdefB (block_intro l1 ps1 cs1 tmn1) f = true -> 
-  wf_fdef ifs s m f ->
+  wf_fdef s m f ->
   In c cs1 ->
-  wf_insn ifs s m f (block_intro l1 ps1 cs1 tmn1) (insn_cmd c).
+  wf_insn s m f (block_intro l1 ps1 cs1 tmn1) (insn_cmd c).
 Proof.
   intros.
   eapply wf_fdef__blockInFdefB__wf_block in H; eauto.
   inv H. eapply wf_cmds__wf_cmd; eauto.
 Qed.
 
-Lemma wf_fdef__wf_tmn : forall l1 ps1 cs1 tmn1 ifs s m f,
+Lemma wf_fdef__wf_tmn : forall l1 ps1 cs1 tmn1 s m f,
   blockInFdefB (block_intro l1 ps1 cs1 tmn1) f = true -> 
-  wf_fdef ifs s m f ->
-  wf_insn ifs s m f (block_intro l1 ps1 cs1 tmn1) (insn_terminator tmn1).
+  wf_fdef s m f ->
+  wf_insn s m f (block_intro l1 ps1 cs1 tmn1) (insn_terminator tmn1).
 Proof.
   intros.
   eapply wf_fdef__blockInFdefB__wf_block in H; eauto.
   inv H. auto.
 Qed.
 
-Lemma wf_fdef__non_entry: forall ifs s m f, 
-  wf_fdef ifs s m f -> getEntryBlock f <> None.
+Lemma wf_fdef__non_entry: forall s m f, 
+  wf_fdef s m f -> getEntryBlock f <> None.
 Proof.
   intros. inv H. rewrite H5. congruence.
 Qed.
 
-Lemma wf_tmn__wf_value : forall ifs s m f b tmn v,
-  wf_insn ifs s m f b (insn_terminator tmn) ->
+Lemma wf_tmn__wf_value : forall s m f b tmn v,
+  wf_insn s m f b (insn_terminator tmn) ->
   valueInTmnOperands v tmn ->
   exists t, wf_value s m f v t.
 Proof.
-  intros ifs s m f b tmn v Hwfinsn HvInOps.
+  intros s m f b tmn v Hwfinsn HvInOps.
   inv Hwfinsn; simpl in HvInOps; subst; try solve [
     eauto | inversion HvInOps
   ].
@@ -314,38 +320,58 @@ Proof.
   inv H; eauto.
 Qed.
 
-Lemma entryBlock_has_no_phinodes : forall ifs s f l1 ps1 cs1 tmn1 los nts ps,
+Lemma entryBlock_has_no_phinodes : forall s f l1 ps1 cs1 tmn1 los nts ps,
   InProductsB (product_fdef f) ps = true ->
   moduleInSystemB (module_intro los nts ps) s = true ->
-  wf_system ifs s ->
+  wf_system s ->
   getEntryBlock f = Some (block_intro l1 ps1 cs1 tmn1) ->
   ps1 = nil.  
 Proof.
-  intros ifs s f l1 ps1 cs1 tmn1 los nts ps HFinP HMinS Hwfs Hentry.
-  assert (wf_fdef ifs s (module_intro los nts ps) f) as Hwff.
+  intros s f l1 ps1 cs1 tmn1 los nts ps HFinP HMinS Hwfs Hentry.
+  assert (wf_fdef s (module_intro los nts ps) f) as Hwff.
     eapply wf_system__wf_fdef; eauto.
-  assert (wf_block ifs s (module_intro los nts ps) f 
+  assert (wf_block s (module_intro los nts ps) f 
     (block_intro l1 ps1 cs1 tmn1)) as Hwfb.
     apply entryBlockInFdef in Hentry.
     eapply wf_system__blockInFdefB__wf_block; eauto.
   inv Hwfb.
-  clear H9 H10.
+  match goal with
+  | H8: wf_cmds _ _ _ _ _, H9: wf_insn _ _ _ _ _ |- _ => clear H8 H9
+  end.
   destruct ps1; auto.
-  inv H8.
-  clear H9.
-  inv H6.
-  inv H12.
-  unfold check_list_value_l in H5.
-  remember (split (unmake_list_value_l value_l_list)) as R.
-  destruct R.
-  destruct H5 as [J1 [J2 J3]].
+  match goal with
+  | H7: wf_phinodes _ _ _ _ _ |- _ => inv H7
+  end.
+  match goal with
+  | H8: wf_phinodes _ _ _ _ _ |- _ => clear H8
+  end.
+  match goal with
+  | H5: wf_insn _ _ _ _ _ |- _ => inv H5
+  end.
+  match goal with
+  | H11: wf_phinode _ _ _ |- _ => inv H11
+  end.
+  match goal with
+  | H5: check_list_value_l _ _ _ |- _ =>
+    unfold check_list_value_l in H5;
+    remember (split (unmake_list_value_l value_l_list)) as R;
+    destruct R;
+    destruct H5 as [J1 [J2 J3]]
+  end.
   inv Hwff.
-  rewrite H14 in Hentry. inv Hentry.
-  unfold hasNonePredecessor in H19.
-  simpl in *.
-  destruct (predOfBlock
+  match goal with
+  | Hentry: getEntryBlock _ = Some (block_intro _ _ _ _),
+    H14: getEntryBlock _ = Some _ |- _ =>
+    rewrite H14 in Hentry; inv Hentry
+  end.
+  match goal with
+  | H18: hasNonePredecessor _ _ = _ |- _ =>
+    unfold hasNonePredecessor in H18;
+    simpl in *;
+    destruct (predOfBlock
             (block_intro l1 (insn_phi id5 typ5 value_l_list :: ps1) cs1 tmn1)
-            (genBlockUseDef_blocks blocks5 nil)); inversion H19.
+            (genBlockUseDef_blocks blocks5 nil)); inversion H18
+  end.
   simpl in J1. contradict J1. omega.
 Qed.
 
@@ -460,16 +486,18 @@ Proof.
       inv H; auto.
 Qed.
 
-Lemma wf_cmd__wf_value : forall ifs s m f b c v,
-  wf_insn ifs s m f b (insn_cmd c) ->
+Lemma wf_cmd__wf_value : forall s m f b c v,
+  wf_insn s m f b (insn_cmd c) ->
   valueInCmdOperands v c ->
   exists t, wf_value s m f v t.
 Proof.
-  intros ifs s m f b c v Hwfinsn HvInOps.
+  intros s m f b c v Hwfinsn HvInOps.
   inv Hwfinsn; simpl in HvInOps; subst; try solve [
     eauto |
     destruct HvInOps as [HvInOps | HvInOps]; subst; eauto |
-    inv H5; eauto
+    match goal with
+    | H4: ?f _ _ _ _ _ |- _ => inv H4; eauto
+    end
   ].
 
     destruct HvInOps as [HvInOps | HvInOps]; subst; eauto.
@@ -494,10 +522,10 @@ Proof.
       inv Hin; auto.
 Qed.     
 
-Lemma wf_insn__wf_insn_base : forall ifs s m f b insn,
-  ~ isPhiNode insn -> wf_insn ifs s m f b insn -> wf_insn_base f b insn.
+Lemma wf_insn__wf_insn_base : forall s m f b insn,
+  ~ isPhiNode insn -> wf_insn s m f b insn -> wf_insn_base f b insn.
 Proof.
-  intros ifs s m f b insn Hnonphi Hwf.
+  intros s m f b insn Hnonphi Hwf.
   inv Hwf; auto.
     inv H; auto.
     inv H; auto.
@@ -518,10 +546,10 @@ Proof.
   eapply wf_value_list__getValueViaLabelFromValuels__wf_value in H2; eauto.
 Qed.        
    
-Lemma wf_fdef__wf_phinodes : forall ifs s m f l3 cs tmn ps,
-  wf_fdef ifs s m f ->
+Lemma wf_fdef__wf_phinodes : forall s m f l3 cs tmn ps,
+  wf_fdef s m f ->
   blockInFdefB (block_intro l3 ps cs tmn) f ->
-  wf_phinodes ifs s m f (block_intro l3 ps cs tmn) ps.
+  wf_phinodes s m f (block_intro l3 ps cs tmn) ps.
 Proof.
   intros.
   inv H.
@@ -550,36 +578,36 @@ Proof.
       inv H; auto.
 Qed.
 
-Lemma wf_trunc__wf_typ : forall ifs s los nts ps f b i0 t t0 v t1,
-  wf_trunc ifs s (module_intro los nts ps) f b 
-    (insn_cmd (insn_trunc i0 t t0 v t1)) ->
+Lemma wf_trunc__wf_typ : forall s los nts ps f b i0 t t0 v t1
+  (H: wf_trunc s (module_intro los nts ps) f b 
+    (insn_cmd (insn_trunc i0 t t0 v t1))),
   wf_typ s t1 /\ feasible_typ (los, nts) t1.
 Proof.
   intros.
   inv H; auto.
 Qed.
 
-Lemma wf_trunc__wf_value : forall ifs s los nts ps f b i0 t t0 v t1,
-  wf_trunc ifs s (module_intro los nts ps) f b 
-    (insn_cmd (insn_trunc i0 t t0 v t1)) ->
+Lemma wf_trunc__wf_value : forall s los nts ps f b i0 t t0 v t1
+  (H: wf_trunc s (module_intro los nts ps) f b 
+    (insn_cmd (insn_trunc i0 t t0 v t1))),
   wf_value s (module_intro los nts ps) f v t0.
 Proof.
   intros.
   inv H; auto.
 Qed.
 
-Lemma wf_ext__wf_typ : forall ifs s los nts ps f b i0 e t0 v t1,
-  wf_ext ifs s (module_intro los nts ps) f b 
-    (insn_cmd (insn_ext i0 e t0 v t1)) ->
+Lemma wf_ext__wf_typ : forall s los nts ps f b i0 e t0 v t1
+  (H: wf_ext s (module_intro los nts ps) f b 
+    (insn_cmd (insn_ext i0 e t0 v t1))),
   wf_typ s t1 /\ feasible_typ (los, nts) t1.
 Proof.
   intros.
   inv H; auto.
 Qed.
 
-Lemma wf_ext__wf_value : forall ifs s los nts ps f b i0 e t0 v t1,
-  wf_ext ifs s (module_intro los nts ps) f b 
-    (insn_cmd (insn_ext i0 e t0 v t1)) ->
+Lemma wf_ext__wf_value : forall s los nts ps f b i0 e t0 v t1
+  (H: wf_ext s (module_intro los nts ps) f b 
+    (insn_cmd (insn_ext i0 e t0 v t1))),
   wf_value s (module_intro los nts ps) f v t0.
 Proof.
   intros.
@@ -593,8 +621,8 @@ Lemma dom_successors : forall
   (bs : blocks)
   (l3 : l)
   (l' : l)
-  ps cs tmn fh ifs s m
-  (HwfF : wf_fdef ifs s m (fdef_intro fh bs))
+  ps cs tmn fh s m
+  (HwfF : wf_fdef s m (fdef_intro fh bs))
   (Huniq : uniqBlocks bs)
   (HBinF : blockInFdefB (block_intro l3 ps cs tmn) (fdef_intro fh bs) = true)
   (Doms : AMap.t
@@ -686,9 +714,9 @@ Proof.
     subst. inversion HBinF.
 Qed.
 
-Lemma wf_tmn__in_successors: forall ifs s m f l0 cs ps tmn l1
+Lemma wf_tmn__in_successors: forall s m f l0 cs ps tmn l1
   (HuniqF : uniqFdef f)
-  (Hwftmn : wf_insn ifs s m f (block_intro l0 cs ps tmn) (insn_terminator tmn))
+  (Hwftmn : wf_insn s m f (block_intro l0 cs ps tmn) (insn_terminator tmn))
   (Hin : In l1 (successors_terminator tmn)),
   exists cs1, exists ps1, exists tmn1, 
     blockInFdefB (block_intro l1 cs1 ps1 tmn1) f.
@@ -713,7 +741,6 @@ Require Import Dipaths.
 
 Module DomComplete. Section DomComplete.
   
-Variable ifs : intrinsic_funs.
 Variable S : system.
 Variable M : module.
 Variable fh : fheader.
@@ -735,7 +762,7 @@ Hypothesis wf_entrypoints:
   end /\
   exists v, [(entry, v)] = entrypoints /\ Dominators.eq _ v top.
 
-Hypothesis HwfF: wf_fdef ifs S M (fdef_intro fh bs).
+Hypothesis HwfF: wf_fdef S M (fdef_intro fh bs).
 Hypothesis HuniqF: uniqFdef (fdef_intro fh bs).
 
 Definition non_sdomination (l1 l2:l) : Prop :=
@@ -839,8 +866,11 @@ Proof.
         constructor; auto.
           eapply wf_fdef__blockInFdefB__wf_block in J3; eauto.
           inv J3. inv HwfF.
-          eapply wf_tmn__in_successors in H12; eauto.
-          destruct H12 as [cs1 [ps1 [tmn1 H12]]].
+          match goal with
+          | H12: wf_insn _ _ _ _ _ |- _ =>
+            eapply wf_tmn__in_successors in H12; eauto;
+            destruct H12 as [cs1 [ps1 [tmn1 H12]]]
+          end.
           eapply blockInFdefB_in_vertexes; eauto.
 
           inv HwfF.
@@ -920,14 +950,14 @@ Qed.
 End DomComplete. End DomComplete.
 
 Lemma reachable_successors:
-  forall ifs S M f l0 cs ps tmn l1,
-  uniqFdef f -> wf_fdef ifs S M f ->
+  forall S M f l0 cs ps tmn l1,
+  uniqFdef f -> wf_fdef S M f ->
   blockInFdefB (block_intro l0 cs ps tmn) f ->
   In l1 (successors_terminator tmn) ->
   reachable f l0 ->
   reachable f l1.
 Proof.
-  intros ifs S M f l0 cs ps tmn l1 HuniqF HwfF HbInF Hin.
+  intros S M f l0 cs ps tmn l1 HuniqF HwfF HbInF Hin.
   unfold reachable. intro Hreach.
   remember (getEntryBlock f) as R.
   destruct R; auto.
@@ -945,7 +975,6 @@ Qed.
 
 Module UnreachableDoms. Section UnreachableDoms.
 
-Variable ifs : intrinsic_funs.
 Variable S : system.
 Variable M : module.
 Variable fh : fheader.
@@ -967,7 +996,7 @@ Hypothesis wf_entrypoints:
   end /\
   exists v, [(entry, v)] = entrypoints /\ Dominators.eq _ v top.
 
-Hypothesis HwfF: wf_fdef ifs S M (fdef_intro fh bs).
+Hypothesis HwfF: wf_fdef S M (fdef_intro fh bs).
 Hypothesis HuniqF: uniqFdef (fdef_intro fh bs).
 
 Definition unrechable_doms (res: AMap.t dt) : Prop :=
@@ -1065,7 +1094,12 @@ Proof.
         constructor.
           constructor.
             eapply entry_in_vertexes; simpl; eauto.          
-          inv H14. inv H11.
+          match goal with
+          | H14: wf_blocks _ _ _ _ |- _ => inv H14
+          end. 
+          match goal with
+          | H11: wf_block _ _ _ _ |- _ => inv H11
+          end.
           eapply wf_tmn__in_successors in Hin; eauto.
           destruct Hin as [cs1 [ps1 [tmn1 Hin]]].
           eapply blockInFdefB_in_vertexes; eauto.
@@ -1095,8 +1129,8 @@ End UnreachableDoms.
 End UnreachableDoms.
 
 Lemma dom_unreachable: forall
-  ifs S M (f : fdef) (l3 : l) (l' : l) ps cs tmn
-  (HwfF : wf_fdef ifs S M f) (HuniqF: uniqFdef f)
+  S M (f : fdef) (l3 : l) (l' : l) ps cs tmn
+  (HwfF : wf_fdef S M f) (HuniqF: uniqFdef f)
   (HBinF : blockInFdefB (block_intro l3 ps cs tmn) f = true)
   (Hunreach: ~ reachable f l3)
   (Hnempty: DomDS.L.bs_contents _ ((dom_analyze f) !! l3) <> nil),
@@ -1170,8 +1204,8 @@ Definition strict_domination (f:fdef) (l1 l2:l) : Prop :=
 domination f l1 l2 /\ l1 <> l2.
 
 Lemma sdom_is_complete: forall
-  ifs S M (f : fdef) (l3 : l) (l' : l) ps cs tmn ps' cs' tmn'
-  (HwfF : wf_fdef ifs S M f) (HuniqF : uniqFdef f)
+  S M (f : fdef) (l3 : l) (l' : l) ps cs tmn ps' cs' tmn'
+  (HwfF : wf_fdef S M f) (HuniqF : uniqFdef f)
   (HBinF' : blockInFdefB (block_intro l' ps' cs' tmn') f = true)
   (HBinF : blockInFdefB (block_intro l3 ps cs tmn) f = true)
   (Hsdom: strict_domination f l' l3)
@@ -1253,8 +1287,8 @@ Proof.
 Qed.
 
 Lemma dom_is_sound : forall
-  ifs S M (f : fdef) (l3 : l) (l' : l) ps cs tmn
-  (HwfF : wf_fdef ifs S M f) (HuniqF : uniqFdef f)
+  S M (f : fdef) (l3 : l) (l' : l) ps cs tmn
+  (HwfF : wf_fdef S M f) (HuniqF : uniqFdef f)
   (HBinF : blockInFdefB (block_intro l3 ps cs tmn) f = true)
   (Hin : 
     In l' (l3::(DomDS.L.bs_contents _ ((dom_analyze f) !! l3)))),
@@ -1311,8 +1345,8 @@ Proof.
 Qed.
 
 Lemma sdom_is_sound : forall
-  ifs S M (f : fdef) (l3 : l) (l' : l) ps cs tmn
-  (HwfF : wf_fdef ifs S M f) (HuniqF : uniqFdef f) (Hreach : reachable f l3)
+  S M (f : fdef) (l3 : l) (l' : l) ps cs tmn
+  (HwfF : wf_fdef S M f) (HuniqF : uniqFdef f) (Hreach : reachable f l3)
   (HBinF : blockInFdefB (block_intro l3 ps cs tmn) f = true)
   (Hin : 
     In l' (DomDS.L.bs_contents _ ((dom_analyze f) !! l3))),
@@ -1365,8 +1399,8 @@ Proof.
 Qed.
 
 Lemma sdom_isnt_refl : forall
-  ifs S M (f : fdef) (l3 : l) (l' : l) ps cs tmn
-  (HwfF : wf_fdef ifs S M f) (HuniqF : uniqFdef f) (Hreach : reachable f l3)
+  S M (f : fdef) (l3 : l) (l' : l) ps cs tmn
+  (HwfF : wf_fdef S M f) (HuniqF : uniqFdef f) (Hreach : reachable f l3)
   (HBinF : blockInFdefB (block_intro l3 ps cs tmn) f = true)
   (Hin : In l' (DomDS.L.bs_contents _ ((dom_analyze f) !! l3))),
   l' <> l3.
@@ -1376,8 +1410,8 @@ Proof.
   destruct Hin; auto.
 Qed.
 
-Lemma blockStrictDominates_isnt_refl : forall ifs S M F1 block'
-  (Hin : blockInFdefB block' F1) (HwfF : wf_fdef ifs S M F1) 
+Lemma blockStrictDominates_isnt_refl : forall S M F1 block'
+  (Hin : blockInFdefB block' F1) (HwfF : wf_fdef S M F1) 
   (HuniqF : uniqFdef F1) (Hreach : isReachableFromEntry F1 block'),
   ~ blockStrictDominates F1 block' block'.
 Proof.
@@ -1417,8 +1451,8 @@ Proof.
     destruct Hw'' as [Hw'' | Hw'']; subst; congruence.
 Qed.     
 
-Lemma dom_acyclic: forall ifs S M (f:fdef) (l1 l2:l) 
-  (HwfF:wf_fdef ifs S M f) (HuniqF : uniqFdef f),
+Lemma dom_acyclic: forall S M (f:fdef) (l1 l2:l) 
+  (HwfF:wf_fdef S M f) (HuniqF : uniqFdef f),
   reachable f l2 ->
   strict_domination f l1 l2 -> ~ domination f l2 l1.
 Proof.
@@ -1504,7 +1538,7 @@ Proof.
   contradict Hreach. eauto.
 Qed.  
 
-Lemma sdom_tran1: forall ifs S M (f:fdef) (l1 l2 l3:l) (HwfF:wf_fdef ifs S M f)
+Lemma sdom_tran1: forall S M (f:fdef) (l1 l2 l3:l) (HwfF:wf_fdef S M f)
   (HuniqF: uniqFdef f) (Hreach: reachable f l2),
   strict_domination f l1 l2 -> domination f l2 l3 -> strict_domination f l1 l3.
 Proof.
@@ -1517,7 +1551,7 @@ Proof.
     split; eauto using dom_tran.
 Qed.     
 
-Lemma sdom_tran2: forall ifs S M (f:fdef) (l1 l2 l3:l) (HwfF:wf_fdef ifs S M f)
+Lemma sdom_tran2: forall S M (f:fdef) (l1 l2 l3:l) (HwfF:wf_fdef S M f)
   (HuniqF: uniqFdef f) (Hreach: reachable f l3),
   domination f l1 l2 -> strict_domination f l2 l3 -> strict_domination f l1 l3.
 Proof.
@@ -1530,7 +1564,7 @@ Proof.
     split; eauto using dom_tran.
 Qed.     
 
-Lemma sdom_tran: forall ifs S M (f:fdef) (l1 l2 l3:l) (HwfF:wf_fdef ifs S M f)
+Lemma sdom_tran: forall S M (f:fdef) (l1 l2 l3:l) (HwfF:wf_fdef S M f)
   (HuniqF: uniqFdef f) (Hreach: reachable f l2),
   strict_domination f l1 l2 -> strict_domination f l2 l3 -> 
   strict_domination f l1 l3.
@@ -1635,8 +1669,8 @@ Proof.
   destruct J3 as [Hin'' | Heq]; try congruence.
 Qed.
 
-Lemma adom_acyclic: forall l1 l2 ps1 cs1 tmn1 ps2 cs2 tmn2 ifs S M F,
-  wf_fdef ifs S M F -> uniqFdef F ->
+Lemma adom_acyclic: forall l1 l2 ps1 cs1 tmn1 ps2 cs2 tmn2 S M F,
+  wf_fdef S M F -> uniqFdef F ->
   reachable F l2 ->
   blockInFdefB (block_intro l1 ps1 cs1 tmn1) F = true ->
   blockInFdefB (block_intro l2 ps2 cs2 tmn2) F = true ->
@@ -1655,8 +1689,8 @@ Proof.
   apply Hdom12. destruct Hdom21; auto.
 Qed.
 
-Lemma blockStrictDominates_trans : forall ifs S M f b1 b2 b3
-  (HwfF: wf_fdef ifs S M f) (HuniqF: uniqFdef f)
+Lemma blockStrictDominates_trans : forall S M f b1 b2 b3
+  (HwfF: wf_fdef S M f) (HuniqF: uniqFdef f)
   (HBinF1: blockInFdefB b1 f)
   (HBinF2: blockInFdefB b2 f)
   (HBinF3: blockInFdefB b3 f)
@@ -1696,8 +1730,8 @@ Proof.
       rewrite <- HeqR2. simpl. intro J. subst. inv H2.
 Qed.
 
-Lemma blockDominates_trans : forall ifs S M f b1 b2 b3
-  (HwfF: wf_fdef ifs S M f) (HuniqF: uniqFdef f)
+Lemma blockDominates_trans : forall S M f b1 b2 b3
+  (HwfF: wf_fdef S M f) (HuniqF: uniqFdef f)
   (HBinF1: blockInFdefB b1 f)
   (HBinF2: blockInFdefB b2 f)
   (HBinF3: blockInFdefB b3 f)
@@ -1769,8 +1803,8 @@ match getEntryBlock f with
 end.
 
 Lemma sdom_is_complete: forall
-  ifs S M (f : fdef) (l3 : l) (l' : l) ps cs tmn ps' cs' tmn'
-  (HwfF : wf_fdef ifs S M f) (HuniqF: uniqFdef f)
+  S M (f : fdef) (l3 : l) (l' : l) ps cs tmn ps' cs' tmn'
+  (HwfF : wf_fdef S M f) (HuniqF: uniqFdef f)
   (HBinF' : blockInFdefB (block_intro l' ps' cs' tmn') f = true)
   (HBinF : blockInFdefB (block_intro l3 ps cs tmn) f = true)
   (Hsdom: strict_domination f l' l3)
@@ -1851,8 +1885,8 @@ Proof.
 Qed.
 
 Lemma dom_is_sound : forall
-  ifs S M (f : fdef) (l3 : l) (l' : l) ps cs tmn
-  (HwfF : wf_fdef ifs S M f) (HuniqF : uniqFdef f)
+  S M (f : fdef) (l3 : l) (l' : l) ps cs tmn
+  (HwfF : wf_fdef S M f) (HuniqF : uniqFdef f)
   (HBinF : blockInFdefB (block_intro l3 ps cs tmn) f = true)
   (Hin : 
     In l' (l3::(DomDS.L.bs_contents _ ((dom_analyze f) !! l3)))),
@@ -1909,8 +1943,8 @@ Proof.
 Qed.
 
 Lemma sdom_is_sound : forall
-  ifs S M (f : fdef) (l3 : l) (l' : l) ps cs tmn
-  (HwfF : wf_fdef ifs S M f) (HuniqF : uniqFdef f)
+  S M (f : fdef) (l3 : l) (l' : l) ps cs tmn
+  (HwfF : wf_fdef S M f) (HuniqF : uniqFdef f)
   (HBinF : blockInFdefB (block_intro l3 ps cs tmn) f = true)
   (Hin : 
     In l' (DomDS.L.bs_contents _ ((dom_analyze f) !! l3))),
@@ -1995,7 +2029,7 @@ Proof.
     destruct Hw'' as [Hw'' | Hw'']; subst; congruence.
 Qed.     
 
-Lemma dom_acyclic: forall ifs S M (f:fdef) (l1 l2:l) (HwfF:wf_fdef ifs S M f)
+Lemma dom_acyclic: forall S M (f:fdef) (l1 l2:l) (HwfF:wf_fdef S M f)
   (HuniqF: uniqFdef f),
   reachable f l2 ->
   strict_domination f l1 l2 -> ~ domination f l2 l1.
@@ -2116,7 +2150,7 @@ Proof.
     congruence.
 Qed.  
 
-Lemma sdom_tran1: forall ifs S M (f:fdef) (l1 l2 l3:l) (HwfF:wf_fdef ifs S M f)
+Lemma sdom_tran1: forall S M (f:fdef) (l1 l2 l3:l) (HwfF:wf_fdef S M f)
   (HuniqF: uniqFdef f),
   strict_domination f l1 l2 -> domination f l2 l3 -> strict_domination f l1 l3.
 Proof.
@@ -2134,7 +2168,7 @@ Proof.
     apply dom_sdom; eauto using dom_tran.
 Qed.
 
-Lemma sdom_tran2: forall ifs S M (f:fdef) (l1 l2 l3:l) (HwfF:wf_fdef ifs S M f)
+Lemma sdom_tran2: forall S M (f:fdef) (l1 l2 l3:l) (HwfF:wf_fdef S M f)
   (HuniqF : uniqFdef f),
   domination f l1 l2 -> strict_domination f l2 l3 -> strict_domination f l1 l3.
 Proof.
@@ -2151,7 +2185,7 @@ Proof.
     apply dom_sdom; eauto using dom_tran.
 Qed.     
 
-Lemma sdom_tran: forall ifs S M (f:fdef) (l1 l2 l3:l) (HwfF:wf_fdef ifs S M f)
+Lemma sdom_tran: forall S M (f:fdef) (l1 l2 l3:l) (HwfF:wf_fdef S M f)
   (HuniqF: uniqFdef f),
   strict_domination f l1 l2 -> strict_domination f l2 l3 -> 
   strict_domination f l1 l3.
@@ -2286,8 +2320,8 @@ Proof.
     right. apply dom_sdom; auto.
 Qed.
 
-Lemma adom_acyclic: forall l1 l2 ps1 cs1 tmn1 ps2 cs2 tmn2 ifs S M F,
-  wf_fdef ifs S M F -> uniqFdef F ->
+Lemma adom_acyclic: forall l1 l2 ps1 cs1 tmn1 ps2 cs2 tmn2 S M F,
+  wf_fdef S M F -> uniqFdef F ->
   reachable F l2 ->
   blockInFdefB (block_intro l1 ps1 cs1 tmn1) F = true ->
   blockInFdefB (block_intro l2 ps2 cs2 tmn2) F = true ->
@@ -2305,8 +2339,8 @@ Proof.
   apply Hdom12. apply sdom_dom; auto.
 Qed.
 
-Lemma blockStrictDominates_trans : forall ifs S M f b1 b2 b3
-  (HwfF: wf_fdef ifs S M f) (HuniqF:uniqFdef f)
+Lemma blockStrictDominates_trans : forall S M f b1 b2 b3
+  (HwfF: wf_fdef S M f) (HuniqF:uniqFdef f)
   (HBinF1: blockInFdefB b1 f)
   (HBinF2: blockInFdefB b2 f)
   (HBinF3: blockInFdefB b3 f)
@@ -2346,8 +2380,8 @@ Proof.
       rewrite <- HeqR2. simpl. intro J. subst. inv H2.
 Qed.
 
-Lemma blockDominates_trans : forall ifs S M f b1 b2 b3
-  (HwfF: wf_fdef ifs S M f) (HuniqF:uniqFdef f)
+Lemma blockDominates_trans : forall S M f b1 b2 b3
+  (HwfF: wf_fdef S M f) (HuniqF:uniqFdef f)
   (HBinF1: blockInFdefB b1 f)
   (HBinF2: blockInFdefB b2 f)
   (HBinF3: blockInFdefB b3 f)
@@ -2395,8 +2429,8 @@ Proof.
 Qed.
 End AnotherDominators.
 
-Lemma wf_insn__wf_value: forall ifs S m F B instr v
-  (Hwfi: wf_insn ifs S m F B instr) 
+Lemma wf_insn__wf_value: forall S m F B instr v
+  (Hwfi: wf_insn S m F B instr) 
   (HvInOps : valueInInsnOperands v instr),
   exists t, wf_value S m F v t.
 Proof.
@@ -2407,21 +2441,24 @@ Proof.
       destruct HvInOps as [l1 HvInOps].
       eapply wf_value_list__getValueViaLabelFromValuels__wf_value in H0; eauto.
 
-      destruct H10.
-      unfold check_list_value_l in H5.
-      remember (split (unmake_list_value_l value_l_list)) as R.
-      destruct R. 
-      destruct H5 as [_ [_ H5]]; auto.
+      match goal with
+      | H9: _ /\ check_list_value_l _ _ _ |- _ =>
+        destruct H9 as [_ H5];
+        unfold check_list_value_l in H5;
+        remember (split (unmake_list_value_l value_l_list)) as R;
+        destruct R;
+        destruct H5 as [_ [_ H5]]; auto
+      end.
 
     eapply wf_cmd__wf_value; eauto.
 
     eapply wf_tmn__wf_value; eauto.
 Qed.
 
-Lemma wf_phinodes__wf_phinode : forall ifs s m f b ps p,
-  wf_phinodes ifs s m f b ps ->
+Lemma wf_phinodes__wf_phinode : forall s m f b ps p,
+  wf_phinodes s m f b ps ->
   In p ps ->
-  wf_insn ifs s m f b (insn_phinode p).
+  wf_insn s m f b (insn_phinode p).
 Proof.
   induction ps; intros.
     inversion H0.
@@ -2431,10 +2468,10 @@ Proof.
     destruct H0 as [H0 | H0]; subst; eauto.
 Qed.
 
-Lemma wf_fdef__wf_insn: forall ifs S m instr F B
-  (HwfF: wf_fdef ifs S m F)
+Lemma wf_fdef__wf_insn: forall S m instr F B
+  (HwfF: wf_fdef S m F)
   (HBinF : insnInFdefBlockB instr F B = true),
-  wf_insn ifs S m F B instr.
+  wf_insn S m F B instr.
 Proof.
   intros.
   destruct B.

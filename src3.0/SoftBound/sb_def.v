@@ -580,7 +580,7 @@ Inductive sInsn_delta : Config -> State -> State -> Prop :=
        (mkEC F B ((insn_call rid noret ca ft fv lp)::cs) tmn lc rm als)
          ::EC) Mem MM)
 
-| sExCall : forall S TD Ps F B lc rm gl fs rid noret ca fid fv lp cs tmn EC 
+| sExCall : forall S TD Ps F B lc rm gl fs rid noret ca fid fv lp cs tmn EC dck
            gvss fptr fptrs rt fa ft la va Mem als oresult Mem' lc' rm' MM gvs,
   (* only look up the current module for the time being, 
      do not support linkage. 
@@ -589,7 +589,7 @@ Inductive sInsn_delta : Config -> State -> State -> Prop :=
   getOperandValue TD fv lc gl = Some fptrs -> 
   fptr @ fptrs -> 
   lookupExFdecViaPtr Ps fs fptr = 
-    Some (fdec_intro (fheader_intro fa rt fid la va)) ->
+    Some (fdec_intro (fheader_intro fa rt fid la va) dck) ->
   Opsem.params2GVs TD lp lc gl = Some gvss ->
   gvs @@ gvss ->
   callExternalFunction Mem fid gvs = Some (oresult, Mem') ->

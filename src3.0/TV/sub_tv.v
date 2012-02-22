@@ -525,7 +525,7 @@ Definition tv_fheader nts1 (f1 f2:fheader) :=
 
 Definition tv_fdec nts1 (f1 f2:fdec) :=
 match (f1, f2) with
-| (fdec_intro fh1, fdec_intro fh2) => tv_fheader nts1 fh1 fh2
+| (fdec_intro fh1 _, fdec_intro fh2 _) => tv_fheader nts1 fh1 fh2
 end.
 
 Definition tv_fdef nts1 Ps1 Ps2 (f1:fdef) (f2:SBsyntax.fdef) :=
