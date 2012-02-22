@@ -16,6 +16,7 @@ Require Import subst.
 Require Import las.
 Require Import laa.
 Require Import dae.
+Require Import dae_wfS.
 Require Import dse.
 Require Import die.
 Require Import sas.
