@@ -37,7 +37,7 @@ typings.v: syntax.ott infrastructure_aux.vo \
 	rm _tmp_syntax.v
 	./fixott.py typings.v
 
-infrastructure.vo: infrastructure.v
+infrastructure.vo: infrastructure.v syntax.vo
 	$(COQC) $(COQARG) infrastructure.v
 
 typings.vo: typings.v infrastructure.vo analysis.vo

@@ -962,21 +962,17 @@ Proof.
   eapply nth_error__InBlocksB; eauto.
 Qed.
 
-(* uniqness *)
+(* uniqueness *)
 Lemma uniqProducts__uniqFdef : forall Ps F,
   uniqProducts Ps ->
   InProductsB (product_fdef F) Ps ->
   uniqFdef F.
 Proof.
-  induction Ps; intros.
-    inversion H0.
+  induction Ps as [|P Ps]; intros F Huniq Hin. inversion Hin.
 
-    simpl in *.
-    destruct H.
-    apply orb_prop in H0.
-    destruct H0; eauto.
-      apply productEqB_inv in H0. subst.
-      simpl in H. auto.
+  inversion Huniq as [|P' Ps' HuniqP HuniqPs]. clear Huniq. subst.
+  apply orb_prop in Hin. destruct Hin as [Hin | Hin]; eauto.
+  apply productEqB_inv in Hin. subst. auto.
 Qed.
 
 Lemma uniqSystem__uniqFdef : forall S F M,
@@ -3305,11 +3301,3 @@ Proof.
         apply uniqBlocks_inv in J. destruct J as [J1 J2].
         apply IHbs; auto.
 Qed.
-
-(*****************************)
-(*
-*** Local Variables: ***
-*** coq-prog-name: "coqtop" ***
-*** coq-prog-args: ("-emacs-U" "-I" "~/SVN/sol/vol/src/Vellvm/monads" "-I" "~/SVN/sol/vol/src/Vellvm/ott" "-I" "~/SVN/sol/vol/src/Vellvm/compcert" "-I" "~/SVN/sol/theory/metatheory_8.3" "-impredicative-set") ***
-*** End: ***
- *)

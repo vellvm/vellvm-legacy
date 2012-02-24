@@ -1445,11 +1445,8 @@ match product with
 | product_fdef f => uniqFdef f
 end.
 
-Fixpoint uniqProducts ps : Prop :=
-match ps with
-| nil => True
-| p::ps' => uniqProduct p /\ uniqProducts ps'
-end.
+Definition uniqProducts (ps : products) : Prop :=
+  Forall uniqProduct ps.
 
 Fixpoint getNamedtsIDs dts : ids :=
 match dts with
