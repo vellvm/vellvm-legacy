@@ -7,9 +7,9 @@ all:
 	+make -C $(METALIB)
 	+make -C ./monads
 	+make -C ./ott
-	+make -C ./compcert 
+	+make -C ./compcert
 	+make -C ./GraphBasics
-	+make ott 
+	+make ott
 #	+make -C ./llvm_op
 
 ott: main.pdf typings.vo interpreter.vo opsem_inst.vo vellvm.vo opsem_dom.vo
@@ -22,25 +22,19 @@ syntax.vo : ./monads/monad.vo ./compcert/Floats.vo ./compcert/alist.vo \
 	./compcert/Memory.vo syntax.v
 	$(COQC) $(COQARG) syntax.v
 
-syntax.v : syntax.ott 
+syntax.v : syntax.ott
 	$(OTT) -coq_expand_list_types true -i syntax.ott -o syntax.v
 	./fixott.py syntax.v
-
-infrastructure.ott : infrastructure_aux.vo syntax.ott coq2ott.py 
-	./coq2ott.py
-	cp merge.ott infrastructure.ott       
 
 m_typings.ott : typings.ott spanlines.py
 	./spanlines.py typings.ott
 
-infrastructure.v typings.v: syntax.ott infrastructure_aux.vo \
-	infrastructure.ott m_typings.ott ./monads/monad.vo targetdata.vo
+typings.v: syntax.ott infrastructure_aux.vo \
+	m_typings.ott ./monads/monad.vo targetdata.vo
 	$(OTT) -merge false -coq_expand_list_types true \
             -i syntax.ott -o _tmp_syntax.v \
-	    -i infrastructure.ott -o infrastructure.v \
 	    -i m_typings.ott -o typings.v
 	rm _tmp_syntax.v
-	./fixott.py infrastructure.v
 	./fixott.py typings.v
 
 infrastructure.vo: infrastructure.v
@@ -96,24 +90,24 @@ ndopsem.vo: ndopsem.v opsem_wf.vo
 opsem_inst.vo: opsem_inst.v ndopsem.vo dopsem.vo syntax.vo infrastructure.vo
 	$(COQC) $(COQARG) opsem_inst.v
 
-def.tex: syntax.ott infrastructure.ott m_typings.ott main.tex 
+def.tex: syntax.ott m_typings.ott main.tex
 	$(OTT) -merge false -o def.tex \
           -tex_show_meta false \
           -tex_wrap false \
-            syntax.ott infrastructure.ott m_typings.ott
+            syntax.ott m_typings.ott
 
 vellvm.vo : vellvm.v syntax.vo infrastructure_props.vo typings_props.vo \
 	targetdata.vo dopsem.vo ndopsem.vo
 	$(COQC) $(COQARG) vellvm.v
 
-main.pdf: def.tex main.tex macros.sty 
+main.pdf: def.tex main.tex macros.sty
 	pdflatex main.tex
 	pdflatex main.tex
 
-clean: 
+clean:
 	+make -C ./ott clean
 	+make -C ./compcert clean
-	+make -C ./monads clean	
+	+make -C ./monads clean
 	rm -rf main.pdf main.log main.aux main.log syntax.v infrastructure.v \
 		typings.vo *.vo *.glob merge.ott m_*.ott
 

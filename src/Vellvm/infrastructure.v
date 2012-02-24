@@ -1,7 +1,3 @@
-
-embed 
-{{ coq
-
 Require Import syntax.
 Require Import Metatheory.
 
@@ -1418,11 +1414,8 @@ match bs with
 | b::bs' => getBlockLocs b++getBlocksLocs bs'
 end.
 
-Fixpoint getBlocksLabels bs : ls :=
-match bs with
-| nil => nil
-| (block_intro l _ _ _)::bs' => l::getBlocksLabels bs'
-end.
+Definition getBlocksLabels (bs : blocks) : ls :=
+  map getBlockLabel bs.
 
 Definition uniqBlocks bs : Prop :=
 let ls := getBlocksLabels bs in
@@ -3222,6 +3215,3 @@ Inductive reflect (P:Prop) : bool -> Set :=
 End LLVMinfra.
 
 
-(*ENDCOPY*)
-
-}}
