@@ -156,11 +156,8 @@ match cs with
     end
 end.
 
-Fixpoint getPhiNodesIDs (ps:phinodes) : list atom :=
-match ps with
-| nil => nil
-| p::ps' =>getPhiNodeID p::getPhiNodesIDs ps'
-end.
+Definition getPhiNodesIDs (ps : phinodes) : list atom :=
+  map getPhiNodeID ps.
 
 Definition getBlockIDs (b:block) : list atom :=
 let '(block_intro _ ps cs _) := b in
