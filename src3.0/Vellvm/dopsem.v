@@ -211,6 +211,11 @@ Proof.
     inv H; auto.
 Qed.
 
+Lemma dos_in_gvs_inv : forall gvs gvss, gvs @ gvss -> gvs = gvss.
+Proof.
+  intros. inv H; auto.
+Qed.
+
 Ltac dgvs_instantiate_inv :=
   match goal with
   | [ H : DGVs.(instantiate_gvs) _ _ |- _ ] => inv H

@@ -15,6 +15,7 @@ Require Import Coqlib.
 Require Import targetdata.
 Require Import infrastructure_props.
 Require Import typings.
+Require Import external_intrinsics.
 
 (************** GVs Interface ******************)
 
@@ -146,9 +147,6 @@ do fn <- lookupFdefViaGVFromFunTable fs fptr;
     | None => lookupFdecViaIDFromProducts Ps fn
     end
 .
-
-Axiom callExternalFunction : mem -> id -> list GenericValue -> 
-  option ((option GenericValue)*mem).
 
 Definition initGlobal (TD:TargetData)(gl:GVMap)(Mem:mem)(id0:id)(t:typ)(c:const)
   (align0:align) : option (GenericValue*mem) :=
@@ -810,7 +808,7 @@ Inductive sInsn : Config -> State -> State -> trace -> Prop :=
     Some (fdec_intro (fheader_intro fa rt fid la va) dck) ->
   params2GVs TD lp lc gl = Some gvss ->
   gvs @@ gvss ->
-  callExternalFunction Mem fid gvs = Some (oresult, Mem') ->
+  callExternalOrIntrinsics TD Mem fid dck gvs = Some (oresult, Mem') ->
   exCallUpdateLocals TD ft noret rid oresult lc = Some lc' ->
   sInsn (mkCfg S TD Ps gl fs)  
     (mkState ((mkEC F B ((insn_call rid noret ca ft fv lp)::cs) tmn 
@@ -1156,7 +1154,7 @@ Inductive bInsn :
     Some (fdec_intro (fheader_intro fa rt fid la va) dck) ->
   params2GVs TD lp lc gl = Some gvss ->
   gvs @@ gvss ->
-  callExternalFunction Mem fid gvs = Some (oresult, Mem') ->
+  callExternalOrIntrinsics TD Mem fid dck gvs = Some (oresult, Mem') ->
   exCallUpdateLocals TD ft noret rid oresult lc = Some lc' ->
   bInsn (mkbCfg S TD Ps gl fs F)   
     (mkbEC B ((insn_call rid noret ca ft fv lp)::cs) tmn lc als Mem)

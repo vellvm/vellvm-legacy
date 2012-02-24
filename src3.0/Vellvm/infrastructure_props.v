@@ -629,6 +629,25 @@ Proof.
         apply IHPs in H. auto. 
 Qed.
 
+Lemma lookupFdecViaIDFromProducts_inv : forall Ps fid F,
+  lookupFdecViaIDFromProducts Ps fid = Some F ->
+  InProductsB (product_fdec F) Ps.
+Proof.
+  induction Ps; intros.
+    simpl in H. inversion H.
+
+    simpl in *.
+    unfold lookupFdecViaIDFromProduct in H.
+    apply orb_true_intro.
+    destruct a as [g|f|f]; 
+      try solve [apply IHPs in H; auto].
+      destruct (@eq_dec id (EqDec_eq_of_EqDec id EqDec_atom) (getFdecID f) fid); subst.
+        inversion H; subst.
+        left. apply productEqB_refl.
+
+        apply IHPs in H. auto. 
+Qed.
+
 (*Lemma lookupFdefViaGV_inv : forall TD Ps gl lc fs fv F,
   lookupFdefViaGV TD Ps gl lc fs fv = Some F ->
   InProductsB (product_fdef F) Ps.
@@ -963,6 +982,22 @@ Proof.
 Qed.
 
 (* uniqness *)
+Lemma uniqProducts__uniqFdec : forall Ps F,
+  uniqProducts Ps ->
+  InProductsB (product_fdec F) Ps ->
+  uniqFdec F.
+Proof.
+  induction Ps; intros.
+    inversion H0.
+    
+    simpl in *.
+    destruct H.
+    apply orb_prop in H0.
+    destruct H0; eauto.
+      apply productEqB_inv in H0. subst.
+      simpl in H. auto.
+Qed.
+
 Lemma uniqProducts__uniqFdef : forall Ps F,
   uniqProducts Ps ->
   InProductsB (product_fdef F) Ps ->
@@ -1010,6 +1045,37 @@ Proof.
         eapply andb_true_iff; auto.
 Qed.
 
+Lemma uniqSystem__uniqFdec : forall S F M,
+  uniqSystem S ->
+  productInSystemModuleB (product_fdec F) S M ->
+  uniqFdec F.
+Proof.
+  induction S; intros.
+    unfold productInSystemModuleB in H0.
+    apply andb_true_iff in H0.
+    destruct H0.
+    unfold moduleInSystemB in H0.
+    inversion H0.
+
+    unfold productInSystemModuleB in H0.
+    apply andb_true_iff in H0.
+    destruct H0.
+    unfold moduleInSystemB in H0.
+    inversion H0. clear H0.
+    apply orb_prop in H3.
+    simpl in H.
+    destruct H as [J1 J2].
+    destruct H3 as [H3 | H3].
+      apply moduleEqB_inv in H3. subst.
+      destruct a.
+      simpl in H1. simpl in J1. destruct J1.
+      eapply uniqProducts__uniqFdec; eauto.
+
+      apply IHS with (M:=M); auto.
+        unfold productInSystemModuleB.
+        eapply andb_true_iff; auto.
+Qed.
+
 Lemma uniqSystem__uniqProducts : forall S los nts Ps,
   uniqSystem S ->
   moduleInSystem (module_intro los nts Ps) S ->
@@ -1041,6 +1107,18 @@ Proof.
   apply lookupFdefViaIDFromProducts_inv in H1.
   apply uniqSystem__uniqProducts in H0; auto.
   eapply uniqProducts__uniqFdef; simpl; eauto.
+Qed.
+
+Lemma lookupFdecViaIDFromProducts_uniq : forall los nts Ps S fid F,
+  uniqSystem S ->
+  moduleInSystem (module_intro los nts Ps) S ->
+  lookupFdecViaIDFromProducts Ps fid = Some F ->
+  uniqFdec F.
+Proof.
+  intros.
+  apply lookupFdecViaIDFromProducts_inv in H1.
+  apply uniqSystem__uniqProducts in H0; auto.
+  eapply uniqProducts__uniqFdec; simpl; eauto.
 Qed.
 
 (*Lemma lookupFdefViaGV_uniq : forall los nts Ps gl lc fs S fv F,

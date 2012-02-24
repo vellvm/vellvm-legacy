@@ -557,10 +557,12 @@ Proof.
 Qed.
 
 Lemma callExternalFunction__Mem_simulation: forall pinfo TD St1 M1 M2 fid0 gvss0
-  oresult1 M1' oresult2 M2',
+  oresult1 M1' oresult2 M2' dck,
   Mem_simulation pinfo TD St1 M1 M2 ->
-  OpsemAux.callExternalFunction M1 fid0 gvss0 = ret (oresult1, M1') ->
-  OpsemAux.callExternalFunction M2 fid0 gvss0 = ret (oresult2, M2') ->
+  external_intrinsics.callExternalOrIntrinsics TD M1 fid0 dck gvss0 = 
+    ret (oresult1, M1') ->
+  external_intrinsics.callExternalOrIntrinsics TD M2 fid0 dck gvss0 = 
+    ret (oresult2, M2') ->
   oresult1 = oresult2 /\ Mem_simulation pinfo TD St1 M1' M2'.
 Admitted.
 
@@ -979,12 +981,18 @@ SCase "sExCall".
 
   uniq_result.
 
-  clear - H29 H1 Hpsim.
-  eapply lookupExFdecViaPtr__simulation_l2r in H1; eauto.
-  apply OpsemAux.lookupExFdecViaPtr_inversion in H1.
-  apply OpsemAux.lookupFdefViaPtr_inversion in H29.
-  destruct H1 as [fn [J1 [J2 J3]]].
-  destruct H29 as [fn' [J4 J5]].
+  match goal with
+  | Hpsim: products_simulation _ ?Ps ?Ps2,
+    H1: OpsemAux.lookupExFdecViaPtr ?Ps _ _ = _,
+    H30: OpsemAux.lookupFdefViaPtr ?Ps2 _ _ = _ |- _ =>
+    clear - H30 H1 Hpsim;
+    eapply lookupExFdecViaPtr__simulation_l2r in H1; eauto;
+    apply OpsemAux.lookupExFdecViaPtr_inversion in H1;
+    apply OpsemAux.lookupFdefViaPtr_inversion in H30;
+    destruct H1 as [fn [J1 [J2 J3]]];
+    destruct H30 as [fn' [J4 J5]]
+  end.
+
   uniq_result.   
 
   SSCase "sExCall".

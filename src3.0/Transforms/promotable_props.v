@@ -1408,83 +1408,6 @@ Proof.
   eapply params2GVs_preserves_wf_lc; eauto. 
 Qed.
 
-Axiom callExternalProc_preserves_wf_ECStack_head_tail : forall maxb pinfo   
-  ECs TD M M' (lc:DGVMap) gvs gvss fid oresult gl lp
-  (Hwflc: wf_lc M lc) (Hwfgl: wf_globals maxb gl) (H3 : gvs @@ gvss),
-  Opsem.params2GVs TD lp lc gl = ret gvss ->
-  OpsemAux.callExternalFunction M fid gvs = ret (oresult, M') ->
-  wf_ECStack_head_tail maxb pinfo TD M lc ECs ->
-  wf_ECStack_head_tail maxb pinfo TD M' lc ECs.
-
-Axiom callExternalFunction_preserves_wf_ECStack : forall maxb pinfo ECs TD M  
-  M' gvs fid oresult, 
-  OpsemAux.callExternalFunction M fid gvs = ret (oresult, M') ->
-  wf_ECStack maxb pinfo TD M ECs ->
-  wf_ECStack maxb pinfo TD M' ECs.
-
-Axiom callExternalProc_preserves_wf_EC : forall maxb pinfo TD M M' rid
-  als F B cs tmn gl gvss gvs fid oresult lp (lc:DGVMap) fv ft ca
-  (Hwflc: wf_lc M lc) (Hwfgl: wf_globals maxb gl) (H3 : gvs @@ gvss)
-  (J1: Opsem.params2GVs TD lp lc gl = ret gvss)
-  (J2: OpsemAux.callExternalFunction M fid gvs = ret (oresult, M'))
-  (HwfEC: wf_ExecutionContext maxb pinfo TD M 
-            {| Opsem.CurFunction := F;
-               Opsem.CurBB := B;
-               Opsem.CurCmds := insn_call rid true ca ft fv lp :: cs;
-               Opsem.Terminator := tmn;
-               Opsem.Locals := lc;
-               Opsem.Allocas := als |}),
-  wf_ExecutionContext maxb pinfo TD M'
-   {| Opsem.CurFunction := F;
-      Opsem.CurBB := B;
-      Opsem.CurCmds := cs;
-      Opsem.Terminator := tmn;
-      Opsem.Locals := lc;
-      Opsem.Allocas := als |}.
-
-Axiom callExternalFunction_preserves_wf_Mem : forall maxb TD M fid gvs M' 
-  oresult,
-  OpsemAux.callExternalFunction M fid gvs = ret (oresult, M') ->
-  wf_Mem maxb TD M ->
-  wf_Mem maxb TD M'.
-
-Axiom callExternalFunction_preserves_wf_als : forall M gvs M' maxb als fid 
-  oresult
-  (Hexcall: OpsemAux.callExternalFunction M fid gvs = ret (oresult, M')) 
-  (Hwf: wf_als maxb M als),
-  wf_als maxb M' als.
-
-Axiom callExternalFun_preserves_wf_ECStack_head_tail : forall maxb pinfo   
-  ECs TD M M' (lc:DGVMap) gvs gvss fid result gl lp g0 rid ft
-  (Hwflc: wf_lc M lc) (Hwfgl: wf_globals maxb gl) (H3 : gvs @@ gvss)
-  (HeqR : ret g0 = fit_gv TD ft result),
-  Opsem.params2GVs TD lp lc gl = ret gvss ->
-  OpsemAux.callExternalFunction M fid gvs = ret (Some result, M') ->
-  wf_ECStack_head_tail maxb pinfo TD M lc ECs ->
-  wf_ECStack_head_tail maxb pinfo TD M' 
-    (updateAddAL (GVsT DGVs) lc rid ($ g0 # ft $)) ECs.
-
-Axiom callExternalFun_preserves_wf_EC : forall maxb pinfo TD M M' rid
-  als F B cs tmn gl gvss gvs fid result lp (lc:DGVMap) fv ft ca g0
-  (Hwflc: wf_lc M lc) (Hwfgl: wf_globals maxb gl) (H3 : gvs @@ gvss)
-  (J1: Opsem.params2GVs TD lp lc gl = ret gvss)
-  (J2: OpsemAux.callExternalFunction M fid gvs = ret (Some result, M'))
-  (HeqR : ret g0 = fit_gv TD ft result)
-  (HwfEC: wf_ExecutionContext maxb pinfo TD M 
-            {| Opsem.CurFunction := F;
-               Opsem.CurBB := B;
-               Opsem.CurCmds := insn_call rid false ca ft fv lp :: cs;
-               Opsem.Terminator := tmn;
-               Opsem.Locals := lc;
-               Opsem.Allocas := als |}),
-  wf_ExecutionContext maxb pinfo TD M'
-   {| Opsem.CurFunction := F;
-      Opsem.CurBB := B;
-      Opsem.CurCmds := cs;
-      Opsem.Terminator := tmn;
-      Opsem.Locals := (updateAddAL (GVsT DGVs) lc rid ($ g0 # ft $));
-      Opsem.Allocas := als |}.
-
 Definition wf_use_in_tail (pinfo:PhiInfo) (v:value) :=
 used_in_value (PI_id pinfo) v = false.
 
@@ -2792,6 +2715,91 @@ Proof.
     eapply operand__lt_nextblock in H; eauto.
 Qed.
 
+Axiom callExternalProc_preserves_wf_ECStack_head_tail : forall maxb pinfo   
+  ECs TD M M' (lc:DGVMap) gvs gvss fid oresult gl lp dck
+  (Hwflc: wf_lc M lc) (Hwfgl: wf_globals maxb gl) 
+  (H3 : gvs @@ gvss),
+  Opsem.params2GVs TD lp lc gl = ret gvss ->
+  external_intrinsics.callExternalOrIntrinsics TD M fid dck gvs = 
+    ret (oresult, M') ->
+  wf_ECStack_head_tail maxb pinfo TD M lc ECs ->
+  wf_ECStack_head_tail maxb pinfo TD M' lc ECs.
+
+Axiom callExternalFunction_preserves_wf_ECStack : forall maxb pinfo ECs TD M  
+  M' gvs fid oresult dck, 
+  external_intrinsics.callExternalOrIntrinsics TD M fid dck gvs = 
+    ret (oresult, M') ->
+  wf_ECStack maxb pinfo TD M ECs ->
+  wf_ECStack maxb pinfo TD M' ECs.
+
+Axiom callExternalProc_preserves_wf_EC : forall maxb pinfo TD M M' rid
+  als F B cs tmn gl gvss gvs fid oresult lp (lc:DGVMap) fv ft ca dck
+  (Hwflc: wf_lc M lc) (Hwfgl: wf_globals maxb gl) (H3 : gvs @@ gvss)
+  (J1: Opsem.params2GVs TD lp lc gl = ret gvss)
+  (J3: external_intrinsics.callExternalOrIntrinsics TD M fid dck gvs = 
+    ret (oresult, M'))
+  (HwfEC: wf_ExecutionContext maxb pinfo TD M 
+            {| Opsem.CurFunction := F;
+               Opsem.CurBB := B;
+               Opsem.CurCmds := insn_call rid true ca ft fv lp :: cs;
+               Opsem.Terminator := tmn;
+               Opsem.Locals := lc;
+               Opsem.Allocas := als |}),
+  wf_ExecutionContext maxb pinfo TD M'
+   {| Opsem.CurFunction := F;
+      Opsem.CurBB := B;
+      Opsem.CurCmds := cs;
+      Opsem.Terminator := tmn;
+      Opsem.Locals := lc;
+      Opsem.Allocas := als |}.
+
+Axiom callExternalFunction_preserves_wf_Mem : forall maxb TD M fid gvs M' 
+  oresult dck,
+  external_intrinsics.callExternalOrIntrinsics TD M fid dck gvs = 
+    ret (oresult, M') ->
+  wf_Mem maxb TD M ->
+  wf_Mem maxb TD M'.
+
+Axiom callExternalFunction_preserves_wf_als : forall TD M gvs M' maxb als fid 
+  oresult dck
+  (Hexcall: external_intrinsics.callExternalOrIntrinsics TD M fid dck gvs = 
+    ret (oresult, M')) 
+  (Hwf: wf_als maxb M als),
+  wf_als maxb M' als.
+
+Axiom callExternalFun_preserves_wf_ECStack_head_tail : forall maxb pinfo   
+  ECs TD M M' (lc:DGVMap) gvs gvss fid result gl lp g0 rid ft dck 
+  (Hwflc: wf_lc M lc) (Hwfgl: wf_globals maxb gl) (H3 : gvs @@ gvss)
+  (HeqR : ret g0 = fit_gv TD ft result),
+  Opsem.params2GVs TD lp lc gl = ret gvss ->
+  external_intrinsics.callExternalOrIntrinsics TD M fid dck gvs = 
+    ret (Some result, M') ->
+  wf_ECStack_head_tail maxb pinfo TD M lc ECs ->
+  wf_ECStack_head_tail maxb pinfo TD M' 
+    (updateAddAL (GVsT DGVs) lc rid ($ g0 # ft $)) ECs.
+
+Axiom callExternalFun_preserves_wf_EC : forall maxb pinfo TD M M' rid
+  als F B cs tmn gl gvss gvs fid result lp (lc:DGVMap) fv ft ca g0 dck
+  (Hwflc: wf_lc M lc) (Hwfgl: wf_globals maxb gl) (H3 : gvs @@ gvss)
+  (J1: Opsem.params2GVs TD lp lc gl = ret gvss)
+  (J3: external_intrinsics.callExternalOrIntrinsics TD M fid dck gvs = 
+    ret (Some result, M'))
+  (HeqR : ret g0 = fit_gv TD ft result)
+  (HwfEC: wf_ExecutionContext maxb pinfo TD M 
+            {| Opsem.CurFunction := F;
+               Opsem.CurBB := B;
+               Opsem.CurCmds := insn_call rid false ca ft fv lp :: cs;
+               Opsem.Terminator := tmn;
+               Opsem.Locals := lc;
+               Opsem.Allocas := als |}),
+  wf_ExecutionContext maxb pinfo TD M'
+   {| Opsem.CurFunction := F;
+      Opsem.CurBB := B;
+      Opsem.CurCmds := cs;
+      Opsem.Terminator := tmn;
+      Opsem.Locals := (updateAddAL (GVsT DGVs) lc rid ($ g0 # ft $));
+      Opsem.Allocas := als |}.
+
 Ltac preservation_tac0:=
   match goal with
   | HwfPI : WF_PhiInfo _ ,
@@ -3025,9 +3033,11 @@ Case "sExCall".
   destruct HwfS1 as [[HwfEC [HwfECs Hwfht]] [Hnonup1 HwfM1]].
   assert (wf_lc Mem lc) as Hwflc.
     apply wf_EC__wf_lc in HwfEC; auto.
-  unfold Opsem.exCallUpdateLocals in H5.
+  match goal with | H6: Opsem.exCallUpdateLocals _ _ _ _ _ _ = _ |- _ => 
+    unfold Opsem.exCallUpdateLocals in H6
+  end.
   destruct noret0.
-    inv H5. 
+    match goal with | H6: Some _ = Some _ |- _ => inv H6 end.
     split.
       split.
         eapply callExternalProc_preserves_wf_EC; eauto.
@@ -3038,10 +3048,16 @@ Case "sExCall".
       eapply callExternalFunction_preserves_wf_als; eauto.
       eapply callExternalFunction_preserves_wf_Mem; eauto.
 
-    destruct oresult; inv H5.
-    destruct ft; tinv H7.
-    remember (fit_gv (los, nts) ft g) as R.
-    destruct R; inv H7.
+    match goal with
+    | H6: match ?oresult with 
+          | Some _ => _
+          | None => _
+          end = Some _ |- _ => 
+      destruct oresult; tinv H6;
+      destruct ft; tinv H6;
+      remember (fit_gv (los, nts) ft g) as R;
+      destruct R; inv H6
+    end.
     split.
       split.
         eapply callExternalFun_preserves_wf_EC with (ca:=ca)(fv:=fv); eauto. 

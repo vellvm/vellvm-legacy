@@ -216,6 +216,12 @@ Proof.
   destruct Terminator; tinv Hfinal; destruct ECS; tinv Hfinal; inv J.
 Qed.
 
+Ltac uniq_result':=
+match goal with
+| J1 : ?f = Some _, J2 : None = ?f |- _ => 
+    rewrite J1 in J2; congruence
+end.
+
 Lemma undefined_state__stuck: forall St1 St2 cfg tr
   (Hundef : @OpsemPP.undefined_state DGVs cfg St1),
   ~ Opsem.sInsn cfg St1 St2 tr.
@@ -318,22 +324,23 @@ Proof.
           remember (Opsem.params2GVs CurTargetData p Locals Globals) as R.
           destruct R; tinv Hundef.
           destruct Hundef as [gvs [Hinst' Hundef]].
-          remember (OpsemAux.callExternalFunction Mem id5 gvs) as R.
+          remember (external_intrinsics.callExternalOrIntrinsics 
+                     CurTargetData Mem id5 bs gvs) as R.
           destruct R as [[]|].
             remember (Opsem.exCallUpdateLocals CurTargetData t n i0 o Locals) 
               as R.
             destruct R; tinv Hundef.
             inv Hop. 
-              symmetry_ctx. uniq_result. rewrite H22 in HeqR0. congruence.
-              symmetry_ctx. uniq_result. rewrite H26 in HeqR4. congruence.
+              symmetry_ctx. uniq_result. uniq_result'.
+              symmetry_ctx. uniq_result. uniq_result'. 
 
             inv Hop. 
-              symmetry_ctx. uniq_result. rewrite H22 in HeqR0. congruence.
-              symmetry_ctx. uniq_result. rewrite H25 in HeqR3. congruence.
+              symmetry_ctx. uniq_result. uniq_result'.
+              symmetry_ctx. uniq_result. uniq_result'.
 
           inv Hop. 
-            symmetry_ctx. uniq_result. rewrite H22 in HeqR0. congruence.
-            symmetry_ctx. uniq_result. rewrite H22 in HeqR1. congruence.
+            symmetry_ctx. uniq_result. uniq_result'.
+            symmetry_ctx. uniq_result. uniq_result'.
 Qed.
 
 Lemma wf_system__uniqSystem: forall S, wf_system S -> uniqSystem S.

@@ -188,11 +188,11 @@ match state with
       | None => 
         match (lookupFdecViaIDFromProducts Ps fid) with
         | None => None
-        | Some (fdec_intro (fheader_intro fa rt' fid' la va) _) =>
+        | Some (fdec_intro (fheader_intro fa rt' fid' la va) dck) =>
           if id_dec fid fid' then
             do gvs <- params2GVs TD lp lc gl;
-              match (OpsemAux.callExternalFunction Mem0 fid gvs)
-              with
+              match (external_intrinsics.callExternalOrIntrinsics 
+                      TD Mem0 fid dck gvs) with
               | Some (oresult, Mem1) =>
                 do lc' <- exCallUpdateLocals TD ft noret0 rid oresult lc;
                 ret ((mkState ((mkEC F B cs tmn lc' als)::EC) Mem1),
@@ -256,7 +256,11 @@ Proof.
     rewrite J2. rewrite J3.
     apply lookupFdecViaIDFromProducts_ideq in J3; subst; auto.
     destruct (id_dec fid fid); try congruence.
-    rewrite H4. rewrite H5. simpl. auto.
+    match goal with
+    | H4: external_intrinsics.callExternalOrIntrinsics _ _ _ _ _ = _,
+      H5: exCallUpdateLocals _ _ _ _ _ _ = _ |- _ =>
+      rewrite H4; simpl; rewrite H5; simpl; auto
+    end.
 Qed.
 
 Lemma interInsn__implies__dsInsn : forall cfg state state' tr,
@@ -488,7 +492,9 @@ Proof.
             remember (params2GVs CurTargetData0 p lc Globals0) as R5.
             destruct R5 as [l0|]; try solve [inversion HinterInsn]; subst.
             simpl in HinterInsn.
-            remember (callExternalFunction Mem0 id5 l0) as R3.
+            change GenericValue with (GVsT DGVs) in HinterInsn.
+            remember (external_intrinsics.callExternalOrIntrinsics 
+                        CurTargetData0 Mem0 id5 b l0) as R3.
             destruct R3 as [[oresult Mem1]|]; tinv HinterInsn.
             remember (exCallUpdateLocals CurTargetData0 t n i0 oresult lc) as R4.
             destruct R4; inv HinterInsn.

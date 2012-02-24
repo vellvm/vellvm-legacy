@@ -509,6 +509,42 @@ Proof.
   split; eauto using initializeFrameValues_sim.
 Qed.
 
+Lemma instantiate_locals__split__element_of: forall lc1 lc2 g1 d1 g2 d2
+  (Hinst: @instantiate_locals DGVs NDGVs lc1 lc2) (Heq1 : (g1, d1) = split lc1)
+  (Heq2: (g2, d2) = split lc2),
+  Forall2 element_of d1 d2.
+Proof.
+  induction lc1 as [|[id1 gv1]]; destruct lc2 as [|[id2 gv2]]; simpl; intros.
+    inv Heq1. inv Heq2. constructor.
+    match goal with | H: False |- _ => inv H end.
+    match goal with | H: False |- _ => inv H end.
+
+    destruct Hinst as [H1 [H2 H3]]; subst.
+    remember (split lc1) as R1.
+    remember (split lc2) as R2.
+    destruct R1 as [g1' d1'].
+    destruct R2 as [g2' d2']. 
+    inv Heq1. inv Heq2. 
+    constructor; eauto.
+Qed.
+
+Lemma instantiate_locals__instantiate_list_gvs: forall lc1 lc2,
+  @instantiate_locals DGVs NDGVs lc1 lc2 ->
+  instantiate_list_gvs (snd (split lc1)) (snd (split lc2)).
+Proof.
+  induction lc1 as [|[id1 gv1]]; destruct lc2 as [|[id2 gv2]]; simpl; intros.
+    constructor.
+    match goal with | H: False |- _ => inv H end.
+    match goal with | H: False |- _ => inv H end.
+
+    destruct H as [H1 [H2 H3]]; subst.
+    remember (split lc1) as R1.
+    remember (split lc2) as R2.
+    destruct R1 as [g1 d1].
+    destruct R2 as [g2 d2]. simpl.
+    constructor; eauto using instantiate_locals__split__element_of.
+Qed.
+
 Ltac ctx_simpl_aux :=
   match goal with
   | [H1 : lookupExFdecViaPtr ?Ps ?fs ?gv = _,
@@ -526,8 +562,8 @@ Ltac ctx_simpl_aux :=
   | [H1 : Opsem.params2GVs ?TD ?lp ?lc ?gl = _,
      H2 : Opsem.params2GVs ?TD ?lp ?lc ?gl = _ |- _ ] =>
     rewrite H1 in H2; inv H2
-  | [H1 : callExternalFunction ?Mem0 ?fid ?gvs = _,
-     H2 : callExternalFunction ?Mem0 ?fid ?gvs = _ |- _ ] =>
+  | [H1 : ?f ?Mem0 ?fid ?gvs = _,
+     H2 : ?f ?Mem0 ?fid ?gvs = _ |- _ ] =>
     rewrite H1 in H2; inv H2
   | [H : updateAddAL _ ?lc ?id0 _ = updateAddAL _ ?lc ?id0 _ |- _ ] => rewrite H
   end.
@@ -832,22 +868,27 @@ Case "sCall". simpl_nd_sbds.
   apply mismatch_cons_false in H27. inv H27.
 
 Case "sExCall". 
-  symmetry in H32.
-  apply mismatch_cons_false in H32. inv H32.
+  match goal with
+  | H33: _::?tl = ?tl |- _ =>
+    symmetry in H33; apply mismatch_cons_false in H33; inv H33
+  end.
 
   simpl_nd_sbds. 
-  ctx_simpl. 
+  ctx_simpl.
   eapply instantiate_locals__getOperandValue in H; eauto.
   destruct H as [gvs2 [J11 J12]].
   eapply OpsemInstantiation.instantiate_locals__params2GVs in H2; eauto.
   destruct H2 as [gvss2 [H11 H12]].
-  eapply instantiate_locals__exCallUpdateLocals in H5; eauto.
-  destruct H5 as [lc2' [H21 H22]].
+  match goal with 
+  | H6: exCallUpdateLocals _ _ _ _ _ _ _ = _ |- _ =>
+    eapply instantiate_locals__exCallUpdateLocals in H6; eauto;
+    destruct H6 as [lc2' [H21 H22]]
+  end.
   exists (mkState
     ((mkEC f1' b1' cs tmn1' lc2' rm' als1') ::ECs') Mem' MM').
   instantiate_dsInsn_tac.
-    eapply sExCall; eauto.
-      eapply instantiate_list_gvs__incl; eauto.
+    eapply sExCall in H1; eauto.
+      eapply instantiate_list_gvs__incl; eauto. 
     eapply Opsem.sExCall; eauto.
       eapply instantiate_list_gvs__incl; eauto.
       eapply exCallUpdateLocals_sim; eauto.

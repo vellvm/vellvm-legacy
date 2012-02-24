@@ -827,11 +827,10 @@ Proof.
     intro x. apply fit_gv__total; auto.
 Qed.
 
-Lemma initializeFrameValues__wf_lc_aux : forall los nts Ps s fattr ft fid va 
+Lemma initializeFrameValues__wf_lc_aux : forall los nts s fattr ft fid va 
   bs2 (Htys: wf_namedts s (los, nts)) la2 la1 lc1
-  (Huniq: uniqFdef (fdef_intro (fheader_intro fattr ft fid (la1 ++ la2) va) bs2))
-  (HwfF: wf_fdef s (module_intro los nts Ps) 
-    (fdef_intro (fheader_intro fattr ft fid (la1 ++ la2) va) bs2))
+  (Huniq: NoDup (getArgsIDs (la1 ++ la2)))
+  (HwfF: wf_fheader s (los, nts) (fheader_intro fattr ft fid (la1 ++ la2) va))
   (Hwflc: wf_lc (los,nts) 
      (fdef_intro (fheader_intro fattr ft fid (la1 ++ la2) va) bs2) lc1) 
   lc2 gvs2 lp2,
@@ -853,14 +852,10 @@ Proof.
           rewrite_env ((la1++[(t,a,i0)])++la2).
           eapply IHla2; simpl_env; eauto.
 
-          inv HwfF.
           simpl. 
-          destruct Huniq as [Huniq1 Huniq2].
-          apply NoDup_split in Huniq2.
-          destruct Huniq2 as [Huniq2 _].
           rewrite NoDup_lookupTypViaIDFromArgs; auto.
 
-          inv HwfF.
+          inv HwfF. 
           assert (In (t, a, i0)
             (map_list_typ_attributes_id
               (fun (typ_ : typ) (attributes_ : attributes) (id_ : id) =>
@@ -872,7 +867,7 @@ Proof.
             end.
           match goal with
           | H11: wf_typ_list _, 
-            H12: feasible_typ_targetdata_paren_targetdata_def_list _ |- _ =>
+            H12: feasible_typ_list _ |- _ =>
             apply wf_typ_list__in_args__wf_typ with (t:=t)(a:=a)(i0:=i0) in H11;
               auto;
             apply feasible_typ_list__in_args__feasible_typ 
@@ -891,11 +886,7 @@ Proof.
         rewrite_env ((la1++[(t,a,i0)])++la2).
         eapply IHla2; simpl_env; eauto.
         
-        inv HwfF.
         simpl. 
-        destruct Huniq as [Huniq1 Huniq2].
-        apply NoDup_split in Huniq2.
-        destruct Huniq2 as [Huniq2 _].
         rewrite NoDup_lookupTypViaIDFromArgs; auto.
         
         inv HwfF.
@@ -910,7 +901,7 @@ Proof.
           end.
         match goal with
         | H11: wf_typ_list _, 
-          H12: feasible_typ_targetdata_paren_targetdata_def_list _ |- _ =>
+          H12: feasible_typ_list _ |- _ =>
             apply wf_typ_list__in_args__wf_typ with (t:=t)(a:=a)(i0:=i0) in H11;
               auto;
             apply feasible_typ_list__in_args__feasible_typ 
@@ -920,11 +911,11 @@ Proof.
         end.
 Qed.
 
-Lemma initializeFrameValues__wf_lc : forall s los nts Ps fattr ft fid la2 va 
+Lemma initializeFrameValues__wf_lc : forall s los nts fattr ft fid la2 va 
   bs2 lc1 (Htys: wf_namedts s (los, nts))
-  (Huniq: uniqFdef (fdef_intro (fheader_intro fattr ft fid la2 va) bs2))
-  (HwfF: wf_fdef s (module_intro los nts Ps) 
-    (fdef_intro (fheader_intro fattr ft fid la2 va) bs2))
+  (Huniq: NoDup (getArgsIDs la2))
+  (HwfF: wf_fheader s (los, nts) 
+           (fheader_intro fattr ft fid la2 va))
   (Hwflc:wf_lc (los,nts) (fdef_intro (fheader_intro fattr ft fid la2 va) bs2) 
     lc1) 
   lc2 gvs2 lp2,
@@ -950,6 +941,10 @@ Lemma initLocals__wf_lc : forall s los nts Ps fattr ft fid la2 va
   wf_lc (los,nts) (fdef_intro (fheader_intro fattr ft fid la2 va) bs2) lc.
 Proof.
   intros. unfold initLocals in H. 
+  inv HwfF.
+  destruct Huniq as [Huniq1 Huniq2].
+  apply NoDup_split in Huniq2.
+  destruct Huniq2 as [Huniq2 _].
   eapply initializeFrameValues__wf_lc; eauto.
     intros x gvx tx J1 J2. inv J2.
 Qed.
@@ -959,7 +954,7 @@ Lemma initLocals_spec' : forall fid fa rt la va lb gvs los nts s lc Ps id1 t
   (Huniq: uniqFdef (fdef_intro (fheader_intro fa rt fid la va) lb))
   (HwfF: wf_fdef s (module_intro los nts Ps) 
     (fdef_intro (fheader_intro fa rt fid la va) lb))
-  (Hlk: lookupTypViaIDFromFdef (fdef_intro (fheader_intro fa rt fid la va) lb)
+  (lk: lookupTypViaIDFromFdef (fdef_intro (fheader_intro fa rt fid la va) lb)
          id1 = ret t)
   (Hinit: initLocals (los,nts) la gvs = Some lc)
   (Hwfp : wf_params (los,nts) gvs lp)
@@ -2399,9 +2394,11 @@ Case "sCall".
 Unfocus.
 
 Case "sExCall". 
-  unfold exCallUpdateLocals in H2.
+  match goal with
+  | H6:exCallUpdateLocals _ _ _ _ _ _ = _ |- _ =>unfold exCallUpdateLocals in H6
+  end.
   destruct noret0.
-    inv H5.
+    match goal with | H6: munit _ = munit _ |- _ => inv H6 end.
     eapply preservation_cmd_non_updated_case in HwfS1; eauto.
 
     assert (exists t0, getCmdTyp (insn_call rid false ca ft fv lp) = Some t0)
@@ -2413,10 +2410,16 @@ Case "sExCall".
       inv HBinF1; eauto. 
       apply in_or_app; simpl; auto.
     destruct J as [t0 J].
-    destruct oresult; inv H5.
-    destruct ft; tinv H7.
-    remember (fit_gv (los, nts) ft g) as R.
-    destruct R; inv H7.
+    match goal with
+    | H6: match ?oresult with 
+          | Some _ => _
+          | None => _
+          end = Some _ |- _ => 
+      destruct oresult; tinv H6;
+      destruct ft; tinv H6;
+      remember (fit_gv (los, nts) ft g) as R;
+      destruct R; inv H6
+    end.
     eapply preservation_cmd_updated_case with (t0:=t0) in HwfS1; simpl; eauto.
       inv J.
       apply wf_State__inv in HwfS1; auto.
@@ -2987,10 +2990,9 @@ Proof.
       exists (p21 ++ [(t0, attr0,v0)]). simpl_env. auto.
 Qed.
 
-Lemma initializeFrameValues__total_aux : forall los nts Ps s fattr ft fid va 
-  bs2 la2 la1 lc1 
-  (HwfF: wf_fdef s (module_intro los nts Ps) 
-    (fdef_intro (fheader_intro fattr ft fid (la1 ++ la2) va) bs2))
+Lemma initializeFrameValues__total_aux : forall los nts s fattr ft fid va 
+  la2 la1 lc1 
+  (HwfF: wf_fheader s (los, nts) (fheader_intro fattr ft fid (la1 ++ la2) va))
   gvs2,
   exists lc2, @_initializeFrameValues GVsSig (los,nts) la2 gvs2 lc1 = Some lc2.
 Proof.
@@ -3006,26 +3008,30 @@ Proof.
             (map_list_typ_attributes_id
               (fun (typ_ : typ) (attributes_ : attributes) (id_ : id) =>
               (typ_, attributes_, id_)) typ_attributes_id_list)) as JJ.
-    rewrite <- H10.
+    match goal with | H5: _ ++ _ :: _ = _ |- _ => rewrite <- H5 end.
     apply in_or_app; simpl; auto.
-    apply wf_typ_list__in_args__wf_typ with (t:=t)(a:=a)(i0:=i0) in H11; 
-      auto.
-    apply feasible_typ_list__in_args__feasible_typ with (t:=t)(a:=a)(i0:=i0) 
-      in H12; auto.   
+    match goal with | H7: wf_typ_list _ |- _ =>
+      apply wf_typ_list__in_args__wf_typ with (t:=t)(a:=a)(i0:=i0) in H7; auto
+    end.
+    match goal with | H8: feasible_typ_list _ |- _ => 
+      apply feasible_typ_list__in_args__feasible_typ with (t:=t)(a:=a)(i0:=i0) 
+        in H8; auto
+    end.
     destruct gvs2.
       apply IHla2 with (gvs2:=nil)(lc1:=lc1) in HwfF'.
       destruct HwfF' as [lc2 J].
       rewrite J. 
-      apply gundef__total' in H12. 
-      destruct H12 as [gv H12]. rewrite H12.
-      eauto.
+      match goal with | H8: feasible_typ _ _ |- _ =>
+        apply gundef__total' in H8; 
+        destruct H8 as [gv H8]; rewrite H8; eauto
+      end.
 
       apply IHla2 with (gvs2:=gvs2)(lc1:=lc1) in HwfF'.
       destruct HwfF' as [lc2 J].
       rewrite J. 
       assert (exists gvs2, GVsSig.(lift_op1) (fit_gv (los, nts) t) g t
         = Some gvs2) as W.
-        inv H12.
+        match goal with | H8: feasible_typ _ _ |- _ => inv H8 end.
         apply GVsSig.(lift_op1__isnt_stuck); eauto using fit_gv__total.
       destruct W as [gvs2' W].
       rewrite W. eauto.
@@ -3038,7 +3044,7 @@ Lemma initLocal__total : forall los nts Ps s fattr ft fid va bs2 la2
   exists lc2, @initLocals GVsSig (los,nts) la2 gvs2 = Some lc2.
 Proof.
   intros.
-  unfold initLocals.
+  unfold initLocals. inv HwfF.
   eapply initializeFrameValues__total_aux with (la1:=nil); eauto.
 Qed.
 
@@ -3189,18 +3195,19 @@ match cfg with
             exists fptr, fptr @ fptrs /\
             match lookupFdefViaPtr ps fs fptr, 
                   lookupExFdecViaPtr ps fs fptr with
-            | None, Some (fdec_intro (fheader_intro fa rt fid la va) _) =>
+            | None, Some (fdec_intro (fheader_intro fa rt fid la va) dck) =>
                 match params2GVs td p lc gl with
                 | Some gvss =>
-                  exists gvs, gvs @@ gvss /\
-                  match callExternalFunction M fid gvs with
-                  | Some (oresult, _) =>
-                     match exCallUpdateLocals td ft n i0 oresult lc with
-                     | None => True
-                     | _ => False
-                     end
-                  | None => True
-                  end
+                    exists gvs, gvs @@ gvss /\
+                    match external_intrinsics.callExternalOrIntrinsics 
+                            td M fid dck gvs with
+                    | Some (oresult, _) =>
+                       match exCallUpdateLocals td ft n i0 oresult lc with
+                       | None => True
+                       | _ => False
+                       end
+                    | None => True
+                    end
                 | _ => False
                 end
             | None, None => True
@@ -4014,14 +4021,9 @@ Proof.
     left.
     exists 
          {|
-         ECS :=(mkEC 
-                       (fdef_intro (fheader_intro fa rt fid 
-                         (map_list_typ_attributes_id
-                         (fun (typ_ : typ) (attributes_ : attributes) (id_ : id) 
-                         => (typ_, attributes_, id_)) typ_attributes_id_list)
-                         va) lb) 
-                       (block_intro l5 ps5 cs5 tmn5) cs5 tmn5 lc2
-                       nil)::
+         ECS :=(mkEC (fdef_intro (fheader_intro fa rt fid la va) lb) 
+                     (block_intro l5 ps5 cs5 tmn5) cs5 tmn5 lc2
+                     nil)::
                {|
                 CurFunction := f;
                 CurBB := block_intro l1 ps1
@@ -4040,9 +4042,10 @@ Proof.
     assert (exists gvs, gvs @@ gvss) as G'.
       inv Hwfc.
       eapply params2GVs_inhabited in G; eauto.
-    destruct G' as [gvs G']. 
+    destruct G' as [gvs G'].
     destruct f' as [[fa rt fid la va]].
-    remember (callExternalFunction M fid gvs) as R.
+    remember (external_intrinsics.callExternalOrIntrinsics 
+               (los, nts) M fid d gvs) as R.
     destruct R as [[oresult Mem']|].
       remember (exCallUpdateLocals (los, nts) t n i0 oresult lc) as R'.
       destruct R' as [lc' |]; tinv J.
@@ -4065,13 +4068,12 @@ Proof.
         unfold undefined_state.
         right. right. right. right. right. right. right. 
         rewrite J'. rewrite G. exists fptr. rewrite <- HeqHlk. rewrite <- HeqHelk. 
-        split; auto. exists gvs. 
-        rewrite <- HeqR0. rewrite <- HeqR'. undefbehave.
+        split; auto. exists gvs. rewrite <- HeqR0. rewrite <- HeqR'. undefbehave.
 
       right.
       unfold undefined_state.
       right. rewrite J'. rewrite G. right. right. right. right. right. right.
-      exists fptr. rewrite <- HeqHlk. rewrite <- HeqHelk.
+      exists fptr. rewrite <- HeqHlk. rewrite <- HeqHelk. 
       split; auto. exists gvs.  rewrite <- HeqR0. undefbehave.
 
    SSCase "stuck".

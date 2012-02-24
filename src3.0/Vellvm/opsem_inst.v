@@ -549,6 +549,28 @@ Proof.
   eauto using instantiate_locals__updateAddAL, element_of__gv2gvs.
 Qed.
 
+Lemma instantiate_locals__in_list_gvs: forall lc1 lc2 gvs,
+  instantiate_locals lc1 lc2 ->
+  in_list_gvs gvs (snd (split lc1)) ->
+  in_list_gvs gvs (snd (split lc2)).
+Proof.
+  induction lc1 as [|[]]; destruct lc2 as [|[]]; simpl; intros. 
+    inv H0. auto.
+    inv H.
+    inv H.
+
+    destruct H as [J1 [J2 J3]]; subst.
+    remember (split lc1) as R1.
+    destruct R1 as [g1 d1].
+    simpl in *.
+    inv H0.
+    eapply IHlc1 in J3; eauto.
+    remember (split lc2) as R2.
+    destruct R2 as [g2 d2].
+    simpl in *.
+    constructor; auto.
+Qed.
+
 Ltac simpl_nd_llvmds :=
   match goal with
   | [Hsim : instantiate_State {| ECS := _::_::_ |} ?st2 |- _ ] =>
@@ -764,16 +786,22 @@ Case "sCall". simpl_nd_llvmds.
   split; eauto using element_of__incl.
     repeat (split; auto).
 Case "sExCall". simpl_nd_llvmds. 
-  eapply instantiate_locals__getOperandValue in H; eauto.
-  destruct H as [gvs2 [J11 J12]].
-  eapply instantiate_locals__params2GVs in H2; eauto.
-  destruct H2 as [gvss2 [H11 H12]].
-  eapply instantiate_locals__exCallUpdateLocals in H5; eauto.
-  destruct H5 as [lc2' [H21 H22]].
+  match goal with
+  | H5: exCallUpdateLocals _ _ _ _ _ _ = _,
+    H: getOperandValue _ _ _ _ = _,
+    H2: params2GVs _ _ _ _ = _ |- _ =>
+    eapply instantiate_locals__getOperandValue in H; eauto;
+    destruct H as [gvs2 [J11 J12]];
+    eapply instantiate_locals__params2GVs in H2; eauto;
+    destruct H2 as [gvss2 [H11 H12]];
+    eapply instantiate_locals__exCallUpdateLocals in H5; eauto;
+    destruct H5 as [lc2' [H21 H22]]
+  end.
   exists (mkState ((mkEC f1' b1' cs tmn1' lc2' als1') ::ECs') Mem').
   split.
     eapply sExCall; eauto using element_of__incl,
-                                    instantiate_list_gvs__incl.
+                                instantiate_list_gvs__incl,
+                                instantiate_locals__in_list_gvs.
     repeat (split; auto).
 Qed.
 

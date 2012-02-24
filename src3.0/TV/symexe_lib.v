@@ -1385,7 +1385,10 @@ Case "dbCall_internal".
   inversion d; subst; apply callUpdateLocals_uniq in e1; auto.      
 
 Case "dbCall_external".
-  apply exCallUpdateLocals_uniq in e4; auto.      
+  match goal with
+  | e5: exCallUpdateLocals _ _ _ _ _ _ = _ |- _ => 
+      apply exCallUpdateLocals_uniq in e5; auto
+  end.
 
 Case "dbSubblock_intro".
   apply se_dbCmds_preservation in d; eauto.
@@ -1783,8 +1786,11 @@ Case "dbCall_internal".
     split; eauto using dbCall_internal.
 
 Case "dbCall_external".
-  apply (@eqAL_exCallUpdateLocals' DGVs) with (lc':=lc1')in e4; auto.
-  destruct e4 as [lc2' [J1 J2]].
+  match goal with
+  | e5: exCallUpdateLocals _ _ _ _ _ _ = _ |- _ =>
+    apply (@eqAL_exCallUpdateLocals' DGVs) with (lc':=lc1')in e5; auto;
+    destruct e5 as [lc2' [J1 J2]]
+  end.
   exists lc2'.
   split; eauto using (@eqAL_exCallUpdateLocals DGVs).
     eapply dbCall_external; eauto.

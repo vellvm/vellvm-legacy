@@ -243,27 +243,29 @@ Proof.
   repeat (split; eauto using store_preserves_wf_EC).
 Qed.
 
-Lemma callExternalFunction_preserves_wf_EC : forall EC M fid gvs oresult M' TD 
-    Ps,
-  callExternalFunction M fid gvs = Some (oresult, M') ->
+Lemma callExternalOrIntrinsics_preserves_wf_EC : forall EC M fid gvs oresult M' 
+    TD Ps dck,
+  external_intrinsics.callExternalOrIntrinsics TD M fid dck gvs = 
+    Some (oresult, M') ->
   wf_ExecutionContext TD M Ps EC ->
   wf_ExecutionContext TD M' Ps EC.
 Proof.
-  destruct EC; simpl; intros M fid gvs oresult M' TD Ps Hcall HwfEC.
+  destruct EC; simpl; intros M fid gvs oresult M' TD Ps dck Hcall HwfEC.
   destruct HwfEC as [J1 [J2 [J3 [J4 [J5 [J6 [J7 J8]]]]]]].
-  repeat (split; eauto using callExternalFunction_preserves_wf_rmetadata).
+  repeat (split; eauto using callExternalOrIntrinsics_preserves_wf_rmetadata).
 Qed.
 
-Lemma callExternalFunction_preserves_wf_ECStack : forall ECs Mem0 fid gvs oresult
-    Mem' TD Ps,
-  callExternalFunction Mem0 fid gvs = Some (oresult, Mem') ->
+Lemma callExternalOrIntrinsics_preserves_wf_ECStack : forall ECs Mem0 fid gvs 
+    oresult Mem' TD Ps dck,
+  external_intrinsics.callExternalOrIntrinsics TD Mem0 fid dck gvs = 
+    Some (oresult, Mem') ->
   wf_ECStack TD Mem0 Ps ECs ->
   wf_ECStack TD Mem' Ps ECs.
 Proof.
-  induction ECs; simpl; intros Mem0 fid gvs oresult Mem' TD Ps Hcall HwfECs; 
+  induction ECs; simpl; intros Mem0 fid gvs oresult Mem' TD Ps dck Hcall HwfECs;
     auto.
   destruct HwfECs as [J1 [J2 J3]].
-  repeat (split; eauto using callExternalFunction_preserves_wf_EC).
+  repeat (split; eauto using callExternalOrIntrinsics_preserves_wf_EC).
 Qed.
 
 (*********************************************)
@@ -871,8 +873,8 @@ Ltac ctx_simpl' :=
   | [H1 : LLVMgv.params2GVs (?los, ?nts) ?lp ?lc ?gl = _,
      H2 : LLVMgv.params2GVs (?los, ?nts) ?lp ?lc ?gl = _ |- _ ] =>
     rewrite H1 in H2; inv H2
-  | [H1 : callExternalFunction ?Mem0 ?fid ?gvs = _,
-     H2 : callExternalFunction ?Mem0 ?fid ?gvs = _ |- _ ] =>
+  | [H1 : ?f (?los, ?nts) ?Mem0 ?fid ?dck ?gvs = _,
+     H2 : ?f (?los, ?nts) ?Mem0 ?fid ?dck ?gvs = _ |- _ ] =>
     rewrite H1 in H2; inv H2
   | [H : updateAddAL _ ?lc ?id0 _ = updateAddAL _ ?lc ?id0 _ |- _ ] =>
     rewrite H in *
@@ -1213,24 +1215,32 @@ Case "sCall".
 Unfocus.
 
 Case "sExCall". 
-  symmetry in H32.
-  apply mismatch_cons_false in H32. inv H32.
-
+  match goal with
+  | H33: _::?tl = ?tl |- _ => symmetry in H33;
+                              apply mismatch_cons_false in H33; inv H33
+  end.
   preservation_simpl.
   repeat ctx_simpl'.
   repeat (split; auto). 
-    eapply callExternalFunction_preserves_wf_mmetadata; eauto.
-    eapply callExternalFunction_preserves_wf_global_ptr; eauto.
+    eapply callExternalOrIntrinsics_preserves_wf_mmetadata; eauto.
+    eapply callExternalOrIntrinsics_preserves_wf_global_ptr; eauto.
     intro. congruence.
    
-    unfold exCallUpdateLocals in H5.
+    match goal with | H6: exCallUpdateLocals _ _ _ _ _ _ _ = _ |- _ =>
+      unfold exCallUpdateLocals in H6 end.
     destruct noret0.
-      inv H5; auto.
+      match goal with | H6 : Some _ = Some _ |- _ => inv H6; auto end.
 
-      destruct oresult; tinv H5.
-      destruct ft; tinv H5.
-      remember (fit_gv (los, nts) ft g) as R.
-      destruct R; tinv H5.
+      match goal with
+      | H6: match ?oresult with 
+            | Some _ => _
+            | None => _
+            end = Some _ |- _ => 
+        destruct oresult; tinv H6;
+        destruct ft; tinv H6;
+        remember (fit_gv (los, nts) ft g) as R;
+        destruct R; tinv H6
+      end.
       assert (HwfS1':=HwfS1).
       apply wf_State__inv in HwfS1'.
       destruct HwfS1' as [_ [_ Hwfc]].
@@ -1241,22 +1251,30 @@ Case "sExCall".
         H25: wf_insn_base _ _ _ |- _ => inv H20; inv H12; inv H25
       end.
       remember (isPointerTypB typ1) as R.
-      destruct R; inv H5; auto.
+      match goal with
+      | H6 : (if _ then _ else _) = _ |- _ => destruct R; inv H6; auto  end.
         apply updateAddAL_ptr__wf_rmap; auto.
         apply updateAddAL_nptr__wf_rmap; try solve [auto |
           apply wf_State__cmd__lookupTypViaIDFromFdef in HwfS1;
           rewrite HwfS1; simpl; 
           try solve [auto | intros t0 EQ; subst; inv EQ; inv HeqR0]].
 
-    unfold exCallUpdateLocals in H5.
+    match goal with | H6: exCallUpdateLocals _ _ _ _ _ _ _ = _ |- _ =>
+      unfold exCallUpdateLocals in H6 end.
     destruct noret0.
-      inv H5.
-      eapply callExternalFunction_preserves_wf_rmetadata; eauto.
+      match goal with | H6 : Some _ = Some _ |- _ => inv H6 end.
+      eapply callExternalOrIntrinsics_preserves_wf_rmetadata; eauto.
 
-      destruct oresult; tinv H5.
-      destruct ft; tinv H5.
-      remember (fit_gv (los, nts) ft g) as R.
-      destruct R; tinv H5.
+      match goal with
+      | H6: match ?oresult with 
+            | Some _ => _
+            | None => _
+            end = Some _ |- _ => 
+        destruct oresult; tinv H6;
+        destruct ft; tinv H6;
+        remember (fit_gv (los, nts) ft g) as R;
+        destruct R; tinv H6
+      end.
       assert (HwfS1':=HwfS1).
       apply wf_State__inv in HwfS1'.
       destruct HwfS1' as [_ [_ Hwfc]].
@@ -1267,14 +1285,15 @@ Case "sExCall".
         H25: wf_insn_base _ _ _ |- _ => inv H20; inv H12; inv H25
       end.
       remember (isPointerTypB typ1) as R.
-      destruct R; inv H5.
+      match goal with
+      | H6 : (if _ then _ else _) = _ |- _ => destruct R; inv H6; auto  end.
         apply adding_null_preserves_wf_rmetadata; auto.
-          eapply callExternalFunction_preserves_wf_rmetadata; eauto.
-        eapply callExternalFunction_preserves_wf_rmetadata; eauto.
+          eapply callExternalOrIntrinsics_preserves_wf_rmetadata; eauto.
+        eapply callExternalOrIntrinsics_preserves_wf_rmetadata; eauto.
 
     eauto.
 
-    eapply callExternalFunction_preserves_wf_ECStack; eauto.
+    eapply callExternalOrIntrinsics_preserves_wf_ECStack; eauto.
 
 Transparent wf_mmetadata wf_rmetadata.
 Qed.
@@ -1921,11 +1940,12 @@ match cfg with
             exists fptr, fptr @ fptrs /\
             match lookupFdefViaPtr ps fs fptr, 
                   lookupExFdecViaPtr ps fs fptr with
-            | None, Some (fdec_intro (fheader_intro fa rt fid la va) _) =>
+            | None, Some (fdec_intro (fheader_intro fa rt fid la va) dck) =>
                 match Opsem.params2GVs td p lc gl with
                 | Some gvss =>
                   exists gvs, gvs @@ gvss /\
-                  match callExternalFunction M fid gvs with
+                  match external_intrinsics.callExternalOrIntrinsics 
+                          td M fid dck gvs with
                   | Some (oresult, _) =>
                      match exCallUpdateLocals td ft n i0 oresult lc rm with
                      | None => True
@@ -2403,7 +2423,8 @@ Proof.
         destruct (Opsem.params2GVs (los, nts) p lc gl); tinv Hundef.
         destruct Hundef as [gvs [Hin2 Hundef]].
         exists gvs. split; auto.
-        destruct (callExternalFunction M i1 gvs) as [[]|];
+        destruct (external_intrinsics.callExternalOrIntrinsics 
+          (los, nts) M i1 d gvs) as [[]|];
           try solve [inversion Hundef | undefbehave].
         remember (Opsem.exCallUpdateLocals (los, nts) t n i0 o lc) as R.
         destruct R; try solve [inversion Hundef | undefbehave].
@@ -2794,8 +2815,11 @@ Proof.
     eauto.    
 
   SCase "external call".
-    eapply exCallUpdateLocals_isnt_stuck in H26; eauto.
-    destruct H26 as [rm' H26].
+    match goal with
+    | H27: Opsem.exCallUpdateLocals _ _ _ _ _ _ = _ |- _ =>
+      eapply exCallUpdateLocals_isnt_stuck in H27; eauto;
+      destruct H27 as [rm' H27]
+    end.
     left. progress_tac_aux rm'.
 Qed.
 

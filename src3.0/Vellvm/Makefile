@@ -69,8 +69,10 @@ genericvalues_props.vo: genericvalues_props.v syntax.vo infrastructure.vo \
 static.vo: static.v typings_props.vo targetdata_props.vo genericvalues_props.vo
 	$(COQC) $(COQARG) static.v
 
-opsem.vo: opsem.v typings_props.vo syntax.vo infrastructure.vo \
-	genericvalues.vo static.vo
+external_intrinsics.vo: external_intrinsics.v typings.vo
+	$(COQC) $(COQARG) external_intrinsics.v
+
+opsem.vo: opsem.v external_intrinsics.vo static.vo
 	$(COQC) $(COQARG) opsem.v
 
 opsem_props.vo: opsem_props.v opsem.vo syntax.vo infrastructure.vo \

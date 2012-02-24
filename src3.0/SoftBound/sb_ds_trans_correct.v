@@ -209,7 +209,8 @@ Lemma SBpass_is_correct__dsExCall : forall (mi : MoreMem.meminj)
   (H : OpsemAux.lookupExFdecViaPtr Ps fs fptr =
       ret fdec_intro (fheader_intro fa rt fid la va) dck)
   (H0 : LLVMgv.params2GVs TD lp lc gl = ret gvs)
-  (H1 : callExternalFunction Mem0 fid gvs = ret (oresult, Mem'))
+  (H1 : external_intrinsics.callExternalOrIntrinsics
+          TD Mem0 fid dck gvs = ret (oresult, Mem'))
   (H2 : exCallUpdateLocals TD ft noret0 rid oresult lc rm = ret (lc', rm')),
    exists St' : Opsem.State,
      exists mi' : MoreMem.meminj,
@@ -752,13 +753,11 @@ Proof.
       SSSCase "sop_star".
         simpl. next_insn' M2'.
           destruct (@ssb_is_found (los, nts) Ps2 lc2 gl2 fs2) as [fptr2 [J1 J2]].
-          eapply Opsem.sExCall with (fid:=ssb_fid)
-            (gvs:=(bgv2 :: int2GV 0 :: nil))(oresult:=None); eauto.
+          eapply Opsem.sExCall with (fid:=ssb_fid)(oresult:=None); eauto.
 
         next_insn' M2''.
           destruct (@sse_is_found (los, nts) Ps2 lc2 gl2 fs2) as [fptr2 [J1 J2]].
-          eapply Opsem.sExCall with (fid:=sse_fid)
-            (gvs:=(egv2 :: int2GV 0 :: nil))(oresult:=None); eauto.
+          eapply Opsem.sExCall with (fid:=sse_fid)(oresult:=None); eauto.
 
         ret_insn.
           eapply Opsem.sReturn; eauto.
@@ -1032,8 +1031,8 @@ Ltac ctx_simpl_aux :=
   | [H1 : Opsem.params2GVs ?TD ?lp ?lc ?gl = _,
      H2 : Opsem.params2GVs ?TD ?lp ?lc ?gl = _ |- _ ] =>
     rewrite H1 in H2; inv H2
-  | [H1 : callExternalFunction ?Mem0 ?fid ?gvs = _,
-     H2 : callExternalFunction ?Mem0 ?fid ?gvs = _ |- _ ] =>
+  | [H1 : ?f ?Mem0 ?fid ?gvs = _,
+     H2 : ?f ?Mem0 ?fid ?gvs = _ |- _ ] =>
     rewrite H1 in H2; inv H2
   | [H : updateAddAL _ ?lc ?id0 _ = updateAddAL _ ?lc ?id0 _ |- _ ] => rewrite H
   | [H1 : mload ?TD ?m ?gv ?t ?a = _,
@@ -1041,8 +1040,8 @@ Ltac ctx_simpl_aux :=
   | [H1 : Opsem.params2GVs ?TD ?lp ?lc ?gl = _,
      H2 : Opsem.params2GVs ?TD ?lp ?lc ?gl = _ |- _ ] =>
     rewrite H1 in H2; inv H2
-  | [H1 : callExternalFunction ?Mem0 ?fid ?gvs = _,
-     H2 : callExternalFunction ?Mem0 ?fid ?gvs = _ |- _ ] =>
+  | [H1 : ?f ?Mem0 ?fid ?gvs = _,
+     H2 : ?f ?Mem0 ?fid ?gvs = _ |- _ ] =>
     rewrite H1 in H2; inv H2
   end.
 
@@ -1092,9 +1091,14 @@ Case "sSelect_ptr".
   destruct (isGVZero TD c); eauto.
 Case "sCall". 
   eapply SBpass_is_correct__dsCall; eauto.
-  apply mismatch_cons_false in H27. inv H27.
+  match goal with
+  | H27: ?tl = _::?tl |- _ => apply mismatch_cons_false in H27; inv H27
+  end.
 Case "sExCall". 
-  symmetry in H32. apply mismatch_cons_false in H32. inv H32.
+  match goal with
+  | H33: _ :: ?tl = ?tl |- _ => 
+      symmetry in H33; apply mismatch_cons_false in H33; inv H33
+  end.
   eapply SBpass_is_correct__dsExCall; eauto.
 Qed.
 

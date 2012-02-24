@@ -2401,15 +2401,23 @@ Case "sCall".
 Unfocus.
 
 Case "sExCall". 
-  unfold exCallUpdateLocals in H5.
+  match goal with
+  | H6: exCallUpdateLocals _ _ _ _ _ _ = _ |- _ => 
+      unfold exCallUpdateLocals in H6 end.
   destruct noret0.
-    inv H5.
+    match goal with | H6: Some _ = Some _ |- _ => inv H6 end.
     eapply preservation_cmd_non_updated_case in HwfS1; eauto.
 
-    destruct oresult; inv H5.
-    destruct ft; tinv H7.
-    remember (fit_gv (los, nts) ft g) as R.
-    destruct R; inv H7.
+    match goal with
+    | H6: match _ with
+          | Some _ => _ 
+          | None => _
+          end = _ |- _ =>
+      destruct oresult; tinv H6;
+      destruct ft; tinv H6;
+      remember (fit_gv (los, nts) ft g) as R;
+      destruct R; inv H6
+    end.
     eapply preservation_impure_cmd_updated_case in HwfS1; simpl; eauto.
     intros x Hlkx b1 J. 
     destruct HwfS1 as [HwfSys [HmInS [

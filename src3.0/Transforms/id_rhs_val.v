@@ -1149,16 +1149,18 @@ Unfocus.
 
 Case "sExCall". 
   abstract (
-  unfold Opsem.exCallUpdateLocals in H5;
-  destruct noret0; try solve [
-    inv H5; eapply preservation_cmd_non_updated_case in HwfS1; eauto; auto |
-    destruct oresult; inv H5;
-    destruct ft; tinv H7;
-    remember (fit_gv (los, nts) ft g) as R;
-    destruct R; inv H7;
-    eapply preservation_cmd_updated_case with (Mem1:=Mem') in HwfS1; 
-      simpl; eauto; simpl; auto]
-  ).
+  match goal with
+  | H5: Opsem.exCallUpdateLocals _ _ _ _ _ _ = _ |- _ =>
+    unfold Opsem.exCallUpdateLocals in H5;
+    destruct noret0; try solve [
+      inv H5; eapply preservation_cmd_non_updated_case in HwfS1; eauto; auto |
+      destruct oresult; tinv H5;
+      destruct ft; tinv H5;
+      remember (fit_gv (los, nts) ft g) as R;
+      destruct R; inv H5;
+      eapply preservation_cmd_updated_case with (Mem1:=Mem') in HwfS1; 
+        simpl; eauto; simpl; auto]
+  end).
 Qed.
 
 Require Import palloca_props.

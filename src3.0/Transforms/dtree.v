@@ -496,8 +496,12 @@ Proof.
     eapply sdom_is_sound; eauto.
       rewrite <- HeqR3. simpl. auto.
   assert (exists entry, getEntryLabel f = Some entry) as Hentry.
-    inv HwfF. clear - H4. simpl in *.
-    destruct blocks5; inv H4. destruct block5. eauto.
+    inv HwfF.
+    match goal with
+    | H1: getEntryBlock _ = Some _ |- _ => 
+      clear - H1; simpl in *;
+      destruct blocks5; inv H1; destruct block5; eauto
+    end.
   destruct Hentry as [entry Hentry].
   assert (exists b : atom,
      match (dom_analyze f) !! b with

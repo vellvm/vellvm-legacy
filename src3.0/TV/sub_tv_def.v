@@ -1015,8 +1015,8 @@ Inductive dbCall : system -> TargetData -> list product -> GVMap ->
   lookupExFdecViaGV TD Ps gl lc fs fv = 
     Some (fdec_intro (fheader_intro fa rt fid la va) dck) ->
   params2GVs TD lp lc gl = Some gvs ->
-  OpsemAux.callExternalFunction Mem fid gvs = 
-    Some (oresult, Mem') ->
+  external_intrinsics.callExternalOrIntrinsics 
+    TD Mem fid dck gvs = Some (oresult, Mem') ->
   exCallUpdateLocals TD rt noret rid oresult lc = Some lc' ->
   dbCall S TD Ps fs gl lc als Mem
     (insn_call_nptr rid noret tailc rt fv lp)

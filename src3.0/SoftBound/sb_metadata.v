@@ -412,13 +412,16 @@ Definition wf_global_ptr S TD Mem0 gl : Prop :=
 (***********************************************)
 (* axiom *)
 
-Axiom callExternalFunction_mem_bounds : forall Mem0 fid gvs oresult Mem' b,
-  callExternalFunction Mem0 fid gvs = Some (oresult, Mem') ->
+Axiom callExternalOrIntrinsics_mem_bounds : forall TD Mem0 fid gvs dck oresult 
+  Mem' b,
+  external_intrinsics.callExternalOrIntrinsics 
+    TD Mem0 fid gvs dck = Some (oresult, Mem') ->
   Mem.bounds Mem0 b = Mem.bounds Mem' b.
 
-Axiom callExternalFunction_temporal_prop : forall Mem0 fid gvs oresult Mem' base
-    bound b,
-  callExternalFunction Mem0 fid gvs = Some (oresult, Mem') ->
+Axiom callExternalOrIntrinsics_temporal_prop : forall TD Mem0 fid gvs dck oresult
+    Mem' base bound b,
+  external_intrinsics.callExternalOrIntrinsics TD Mem0 fid gvs dck = 
+    Some (oresult, Mem') ->
   b < Mem.nextblock Mem0 /\
   (blk_temporal_safe Mem0 b -> Mem.range_perm Mem0 b base bound Writable) ->
   b < Mem.nextblock Mem' /\
@@ -1025,9 +1028,10 @@ Proof.
   eapply store_aux_preserves_wf_global_ptr in J2; eauto.
 Qed.
 
-Lemma callExternalFunction_preserves_wf_global_ptr : forall Mem0 fid gvs oresult
-    Mem' S TD gl,
-  callExternalFunction Mem0 fid gvs = Some (oresult, Mem') ->
+Lemma callExternalOrIntrinsics_preserves_wf_global_ptr : forall Mem0 fid gvs 
+    dck oresult Mem' S TD gl,
+  external_intrinsics.callExternalOrIntrinsics TD Mem0 fid gvs dck 
+    = Some (oresult, Mem') ->
   wf_global_ptr S TD Mem0 gl ->
   wf_global_ptr S TD Mem' gl.
 Proof.
@@ -1036,8 +1040,8 @@ Proof.
   eapply H0 in Hwfc; eauto.
   destruct Hwfc as [b [sz0 [J5 [J6 [J7 J8]]]]].
   exists b. exists sz0. 
-  repeat (split; eauto using callExternalFunction_temporal_prop).
-    erewrite <- callExternalFunction_mem_bounds; eauto.
+  repeat (split; eauto using callExternalOrIntrinsics_temporal_prop).
+    erewrite <- callExternalOrIntrinsics_mem_bounds; eauto.
 Qed.
 
 (********************************************)
@@ -1321,8 +1325,11 @@ Proof.
   eapply updateValuesForNewBlock__wf_rmetadata; eauto.
   intros. 
   inv HwfF.
-  apply wf_blocks__wf_block with (b:=b1) in H14; auto.
-  destruct b1. inv H14.
+  match goal with
+  | H11: wf_blocks _ _ _ _ |- _ => 
+    apply wf_blocks__wf_block with (b:=b1) in H11; auto;
+    destruct b1; inv H11
+  end.
   eapply getIncomingValuesForBlockFromPHINodes__wf_rmetadata; eauto.
 
     apply uniqFdef__uniqBlockLocs in HBinF; auto.
@@ -1535,17 +1542,18 @@ Proof.
     intros x blk bofs eofs J. inv J.
 Qed.
 
-Lemma callExternalFunction_preserves_wf_rmetadata : forall Mem0 fid gvs oresult
-    Mem' rm TD,
-  callExternalFunction Mem0 fid gvs = Some (oresult, Mem') ->
+Lemma callExternalOrIntrinsics_preserves_wf_rmetadata : forall Mem0 fid gvs dck 
+    oresult Mem' rm TD,
+  external_intrinsics.callExternalOrIntrinsics TD Mem0 fid gvs dck 
+    = Some (oresult, Mem') ->
   wf_rmetadata TD Mem0 rm ->
   wf_rmetadata TD Mem' rm.
 Proof.
-  intros Mem0 fid gvs oresult Mem' rm TD Hcall Hwfr.
+  intros Mem0 fid gvs dck oresult Mem' rm TD Hcall Hwfr.
   intros x blk bofs eofs Hlk.
   apply Hwfr in Hlk.
   unfold wf_data in *.
-  eauto using callExternalFunction_temporal_prop.
+  eauto using callExternalOrIntrinsics_temporal_prop.
 Qed.
 
 (********************************************)
@@ -1680,17 +1688,18 @@ Proof.
          eapply wf_data__store_aux__wf_data; eauto.
 Qed.
 
-Lemma callExternalFunction_preserves_wf_mmetadata : forall Mem0 fid gvs oresult
-    Mem' TD MM,
-  callExternalFunction Mem0 fid gvs = Some (oresult, Mem') ->
+Lemma callExternalOrIntrinsics_preserves_wf_mmetadata : forall Mem0 fid gvs dck 
+    oresult Mem' TD MM,
+  external_intrinsics.callExternalOrIntrinsics TD Mem0 fid gvs dck 
+    = Some (oresult, Mem') ->
   wf_mmetadata TD Mem0 MM ->
   wf_mmetadata TD Mem' MM.
 Proof.
-  intros Mem0 fid gvs oresult Mem' TD MM Hcall Hwfm.
+  intros Mem0 fid gvs dck oresult Mem' TD MM Hcall Hwfm.
   intros b ofs blk bofs eofs Hlk.
   apply Hwfm in Hlk.
   unfold wf_data in *.
-  eauto using callExternalFunction_temporal_prop.
+  eauto using callExternalOrIntrinsics_temporal_prop.
 Qed.
 
 (********************************************)

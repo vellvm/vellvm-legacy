@@ -1141,19 +1141,16 @@ Jwf_blocks :: '' ::=
       ------------------------------------------------------------------------ :: wf_blocks_cons
       system , module , fdef |- block , blocks
  
-
 defns
-Jwf_fdec :: '' ::=
+Jwf_fheader :: '' ::=
       defn
-      system , module |-f fdec :: :: wf_fdec :: ''
-      {{ com [[fdec]] is well-formed w.r.t. [[module]] [[system]] }} by
+      system , targetdata |- fheader :: :: wf_fheader :: ''
+      {{ com [[fdeader]] is well-formed w.r.t. [[system]] [[targetdata]] }} by
 
-      % Inclusion
-      (declare ( fnattrs typ id ( args varg ) ) deckind) in system , (layouts namedts products)
       % Check function arguments.
       args <-> </ (typj attributesj idj) // j />
       </ system |- typj // j />      
-      </ (layouts namedts) |- typj // j />      
+      </ targetdata |- typj // j />      
       % Functions may not have common linkage 
       %
       % Formal arguments must match # of arguments for function type! 
@@ -1177,9 +1174,24 @@ Jwf_fdec :: '' ::=
       %
       % Verify that this function (which has a body) is not named "llvm.*".  It
       % is not legal to define intrinsics. 
+      ------------------------------------------------------------------------------------------ :: wf_fheader_intro
+      system , targetdata |- fnattrs typ id ( args varg )
+
+
+defns
+Jwf_fdec :: '' ::=
+      defn
+      system , module |-f fdec :: :: wf_fdec :: ''
+      {{ com [[fdec]] is well-formed w.r.t. [[module]] [[system]] }} by
+
+      % inclusion
+      (declare ( fnattrs typ id ( args varg ) ) deckind) in system , (layouts namedts products)
+      % header
+      system , (layouts namedts) |- fnattrs typ id ( args varg )
+      {{ wf_deckind [[( fnattrs typ id ( args varg ) )]] [[deckind]] }}
       %
       % Check invalid linkage type for function declaration 
-      --------------------------------------------------------------------------------------------------------- :: wf_fdec_intro
+      ------------------------------------------------------------------------------------------ :: wf_fdec_intro
       system , (layouts namedts products) |-f declare ( fnattrs typ id ( args varg ) ) deckind
 
 defns
@@ -1188,37 +1200,10 @@ Jwf_fdef :: '' ::=
       system , module |-f fdef :: :: wf_fdef :: ''
       {{ com [[fdef]] is well-formed w.r.t. [[module]] [[system]] }} by
 
-      % Inclusion
+      % inclusion
       (define ( fnattrs typ id ( args varg ) ) { blocks } ) in system , (layouts namedts products)
-      % Check function arguments.
-      args <-> </ (typj attributesj idj) // j />
-      </ system |- typj // j />      
-      </ (layouts namedts) |- typj // j />      
-      % Functions may not have common linkage 
-      %
-      % Formal arguments must match # of arguments for function type! 
-      % 
-      % Functions cannot return aggregate values
-      isFirstClassTyp typ \/ typ =t= void
-      %
-      % "Invalid struct return type!" 
-      %
-      % Attributes after last parameter! 
-      %
-      % Check function attributes. 
-      %
-      % Check that this function meets the restrictions on this calling convention. 
-      %
-      % Function may not return metadata unless it's an intrinsic 
-      %
-      % Check that the argument values match the function type for this function... 
-        % Argument value does not match function argument type! 
-        % Function arguments must have first-class types! 
-        % Function takes metadata but isn't an intrinsic 
-      %
-      % Verify that this function (which has a body) is not named "llvm.*".  It
-      % is not legal to define intrinsics. 
-      % 
+      % header
+      system , (layouts namedts) |- fnattrs typ id ( args varg )
       % Check the entry node 
       % Entry block to function must not have predecessors! 
       getEntryBlock (define ( fnattrs typ id ( args varg ) ) { blocks }) = block

@@ -30,23 +30,23 @@ Import AtomSet.
 (********************************************)
 (** * feasible typs *)
 
-Lemma feasible_typ_list__in_args__feasible_typ : forall los nts 
+Lemma feasible_typ_list__in_args__feasible_typ : forall td 
   typ_attributes_id_list
-  (H18: feasible_typ_targetdata_paren_targetdata_def_list
-          (make_list_layouts_namedts_typ
+  (H18: feasible_typ_list
+          (make_list_targetdata_typ
              (map_list_typ_attributes_id
                 (fun (typ_ : typ) (_ : attributes) (_ : id) =>
-                 (los, nts, typ_)) typ_attributes_id_list)))
+                 (td, typ_)) typ_attributes_id_list)))
   t a i0,
     In (t, a, i0)
        (map_list_typ_attributes_id
          (fun (typ_ : typ) (attributes_ : attributes) (id_ : id) =>
           (typ_, attributes_, id_)) typ_attributes_id_list) ->
-    feasible_typ (los,nts) t.
+    feasible_typ td t.
 Proof.
   induction typ_attributes_id_list; simpl; intros.
     inv H.
- 
+   
     inv H18. 
     destruct H as [H | H]; eauto.
       inv H; auto.

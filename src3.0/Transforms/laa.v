@@ -1463,13 +1463,19 @@ Case "sExCall".
     eapply getOperandValue_inCmdOperands_sim with (v':=fv') in H; 
       try (eauto || simpl; auto).
   subst. clear H.
-  clear - H29 H1 Hpsim.
 
-  eapply lookupExFdecViaPtr__simulation_l2r in H1; eauto.
-  apply OpsemAux.lookupExFdecViaPtr_inversion in H1.
-  apply OpsemAux.lookupFdefViaPtr_inversion in H29.
-  destruct H1 as [fn [J1 [J2 J3]]].
-  destruct H29 as [fn' [J4 J5]].
+  match goal with
+  | Hpsim: products_simulation _ _ ?Ps ?Ps2,
+    H1: OpsemAux.lookupExFdecViaPtr ?Ps _ _ = _,
+    H30: OpsemAux.lookupFdefViaPtr ?Ps2 _ _ = _ |- _ =>
+    clear - H30 H1 Hpsim;
+    eapply lookupExFdecViaPtr__simulation_l2r in H1; eauto;
+    apply OpsemAux.lookupExFdecViaPtr_inversion in H1;
+    apply OpsemAux.lookupFdefViaPtr_inversion in H30;
+    destruct H1 as [fn [J1 [J2 J3]]];
+    destruct H30 as [fn' [J4 J5]]
+  end.
+
   uniq_result.   
 
   SCase "sExCall".

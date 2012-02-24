@@ -825,41 +825,48 @@ Proof.
     simpl in H0. congruence.
 Qed.
 
+(* same to alive_store *)
 Lemma callExternalFunction_preserves_wf_EC_in_tail : forall pinfo td M EC M' gl
-  alinfo gvs fid oresult
-  (Hcall: OpsemAux.callExternalFunction M fid gvs = ret (oresult, M'))
-  (Hinscope : wf_ExecutionContext pinfo alinfo td M gl EC),
-  wf_ExecutionContext pinfo alinfo td M' gl EC.
+  stinfo gvs fid oresult dck
+  (Hcall: external_intrinsics.callExternalOrIntrinsics td M fid dck gvs = 
+    ret (oresult, M'))
+  (Hinscope : wf_ExecutionContext pinfo stinfo td M gl EC),
+  wf_ExecutionContext pinfo stinfo td M' gl EC.
 Proof.
   intros.
   intros J1 J2 J3. 
   apply Hinscope in J3; auto.
   intros gvsa gvsv Hlkpa Hlkpv.
   eapply J3 in Hlkpv; eauto.
-  eapply MemProps.callExternalFunction_preserves_mload; eauto.
+  eapply MemProps.callExternalOrIntrinsics_preserves_mload; eauto.
 Qed.
 
+(* same to alive_store *)
 Lemma callExternalFunction_preserves_wf_ECStack_in_tail: forall Mem fid gvs 
-  oresult Mem' pinfo alinfo TD gl ECs,
-  OpsemAux.callExternalFunction Mem fid gvs = ret (oresult, Mem') ->
-  wf_ECStack pinfo alinfo TD Mem gl ECs ->
-  wf_ECStack pinfo alinfo TD Mem' gl ECs.
+  oresult Mem' pinfo stinfo TD gl ECs dck,
+  external_intrinsics.callExternalOrIntrinsics TD Mem fid dck gvs = 
+    ret (oresult, Mem') ->
+  wf_ECStack pinfo stinfo TD Mem gl ECs ->
+  wf_ECStack pinfo stinfo TD Mem' gl ECs.
 Proof.
   induction ECs; simpl; intros; auto.
     destruct H0.
-    split; auto.
+    split; eauto.
       eapply callExternalFunction_preserves_wf_EC_in_tail; eauto.
 Qed.
 
+(* almost same to alive_store *)
 Lemma callExternalFunction_preserves_wf_ECStack_at_head: forall Mem fid gvs 
-  oresult Mem' pinfo alinfo gl rid noret0 ca ft fv lp cs lc lc' als tmn
-  cs1' l1 ps1 F s los nts Ps (Hwfpi : WF_PhiInfo pinfo)
+  oresult Mem' pinfo stinfo gl rid noret0 ca ft fv lp cs lc lc' als tmn
+  cs1' l1 ps1 F s los nts dck Ps (Hwfpi : WF_PhiInfo pinfo)
   (HwfF: wf_fdef s (module_intro los nts Ps) F) (HuniqF: uniqFdef F)
-  (H4 : OpsemAux.callExternalFunction Mem fid gvs = ret (oresult, Mem'))
+  (H4 : external_intrinsics.callExternalOrIntrinsics (los,nts) Mem fid dck gvs 
+          = ret (oresult, Mem'))
   (H5 : Opsem.exCallUpdateLocals (los,nts) ft noret0 rid oresult lc = ret lc')
-  (HBinF : blockInFdefB (block_intro l1 ps1 (cs1' ++ insn_call rid noret0 ca ft fv lp :: cs) 
-             tmn) F = true)
-  (Hinscope : wf_ExecutionContext pinfo alinfo (los,nts) Mem gl
+  (HBinF : blockInFdefB 
+             (block_intro l1 ps1 (cs1' ++ insn_call rid noret0 ca ft fv lp :: cs) tmn)
+             F = true)
+  (Hinscope : wf_ExecutionContext pinfo stinfo (los,nts) Mem gl
                {|
                Opsem.CurFunction := F;
                Opsem.CurBB := block_intro l1 ps1
@@ -869,7 +876,7 @@ Lemma callExternalFunction_preserves_wf_ECStack_at_head: forall Mem fid gvs
                Opsem.Terminator := tmn;
                Opsem.Locals := lc;
                Opsem.Allocas := als |}),
-   wf_ExecutionContext pinfo alinfo (los,nts) Mem' gl
+   wf_ExecutionContext pinfo stinfo (los,nts) Mem' gl
      {|
      Opsem.CurFunction := F;
      Opsem.CurBB := block_intro l1 ps1
@@ -892,7 +899,7 @@ Proof.
   destruct noret0.
     inv H5. 
     eapply J2 in Hlkv; eauto.
-    eapply MemProps.callExternalFunction_preserves_mload; eauto.
+    eapply MemProps.callExternalOrIntrinsics_preserves_mload; eauto.
   
     destruct oresult; inv H5.
     destruct ft; tinv H0.
@@ -900,7 +907,7 @@ Proof.
     destruct R; inv H0.
     rewrite <- lookupAL_updateAddAL_neq in Hlka; auto.
     apply getOperandValue_updateAddAL_nouse in Hlkv; auto.
-    eapply MemProps.callExternalFunction_preserves_mload; eauto.
+    eapply MemProps.callExternalOrIntrinsics_preserves_mload; eauto.
 Qed.
 
 Ltac WF_PhiInfo_spec10_tac :=

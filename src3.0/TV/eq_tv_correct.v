@@ -599,8 +599,8 @@ Case "dbCall_internal".
 
 Case "dbCall_external".
   intros S TD Ps lc gl fs rid noret0 tailc0 fv fid fptr dck lp rt la va Mem0 
-    oresult Mem' lc' ft fa gvs Hget Hex Hpars HisCall Hexcall S2 Ps2 los nts H0 
-    H1 H2 H3 H4 H5 H6 H7.
+    oresult Mem' lc' ft fa gvs Hget Hex Hpars Hexcall HisCall S2 Ps2 los nts H0 
+    H1 H2 H3 H4 H5 H6 H7 H8.
   exists lc'.
   split; auto using (@eqAL_exCallUpdateLocals DGVs), eqAL_refl.
    eapply dbCall_external with (fid:=fid)(la:=la)(va:=va)(rt:=rt)(fa:=fa); eauto.

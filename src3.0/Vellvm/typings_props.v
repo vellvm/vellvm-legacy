@@ -152,6 +152,22 @@ Proof.
   end.
 Qed.
 
+Lemma wf_system__wf_fdec : forall S los nts Ps f,
+  wf_system S -> 
+  moduleInSystemB (module_intro los nts Ps) S = true ->
+  InProductsB (product_fdec f) Ps = true ->
+  wf_fdec S (module_intro los nts Ps) f.
+Proof.
+  intros S los nts Ps f HwfS HMinS HPinM.
+  inv HwfS. 
+  eapply wf_modules__wf_module in HMinS; eauto.
+  inv HMinS.
+  match goal with
+  | H7: wf_prods _ _ _ |- _ => 
+    eapply wf_prods__wf_prod in H7; eauto; inv H7; auto
+  end.
+Qed.
+
 Lemma wf_system__uniqFdef : forall S los nts Ps f,
   wf_system S -> 
   moduleInSystemB (module_intro los nts Ps) S = true ->
@@ -161,6 +177,19 @@ Proof.
   intros.
   inv H.
   apply uniqSystem__uniqFdef with (S:=S)(M:=module_intro los nts Ps); auto.
+  unfold productInSystemModuleB, productInModuleB, is_true.  
+  apply andb_true_iff; auto.
+Qed.
+
+Lemma wf_system__uniqFdec : forall S los nts Ps f,
+  wf_system S -> 
+  moduleInSystemB (module_intro los nts Ps) S = true ->
+  InProductsB (product_fdec f) Ps = true ->
+  uniqFdec f.
+Proof.
+  intros.
+  inv H.
+  apply uniqSystem__uniqFdec with (S:=S)(M:=module_intro los nts Ps); auto.
   unfold productInSystemModuleB, productInModuleB, is_true.  
   apply andb_true_iff; auto.
 Qed.
@@ -298,7 +327,11 @@ Qed.
 Lemma wf_fdef__non_entry: forall s m f, 
   wf_fdef s m f -> getEntryBlock f <> None.
 Proof.
-  intros. inv H. rewrite H5. congruence.
+  intros. inv H. 
+  match goal with
+  | H2: getEntryBlock ?f = Some _ |- getEntryBlock ?f <> None =>
+      rewrite H2; congruence
+  end.
 Qed.
 
 Lemma wf_tmn__wf_value : forall s m f b tmn v,
@@ -553,8 +586,11 @@ Lemma wf_fdef__wf_phinodes : forall s m f l3 cs tmn ps,
 Proof.
   intros.
   inv H.
-  eapply wf_blocks__wf_block in H9; eauto.
-  inv H9; auto.
+  match goal with 
+  | H6: wf_blocks _ _ _ _ |- _ => 
+    eapply wf_blocks__wf_block in H6; eauto;
+    inv H6; auto
+  end.
 Qed.
 
 Lemma wf_typ_list__in_args__wf_typ : forall s typ_attributes_id_list
@@ -1083,13 +1119,14 @@ Proof.
           apply successors__blockInFdefB; auto.
         destruct J as [ps0 [cs0 [tmn0 [J1 J2]]]].
         contradict Hunreach.
-        unfold reachable. inv HwfF. rewrite H8. 
+        unfold reachable. inv HwfF.
+        match goal with | H5: getEntryBlock _ = _ |- _ => rewrite H5 end. 
         destruct block5 as [l0 ? ? ?].
         destruct wf_entrypoints as [_ [J _]].
         destruct bs as [|b ?]; tinv J.
         destruct b as [l5 ? ? ?]. subst entry.
         unfold successors_list in Hin. simpl in Hin. rewrite ATree.gss in Hin.
-        clear H1 J. inv H8.
+        clear H1 J.
         exists (index l0::nil). exists (A_ends (index s) (index l0)::nil).
         constructor.
           constructor.
@@ -1104,6 +1141,7 @@ Proof.
           destruct Hin as [cs1 [ps1 [tmn1 Hin]]].
           eapply blockInFdefB_in_vertexes; eauto.
 
+          match goal with | H5: getEntryBlock _ = _ |- _ => inv H5 end. 
           eapply successor_in_arcs; eauto.
       apply Dominators.eq_trans with (y:=Dominators.add _ (Dominators.bot _) n).
         apply Dominators.add_eq; auto.
@@ -1140,10 +1178,15 @@ Proof.
   assert (HwfF':=HwfF). inv HwfF'.
   destruct block5 as [l0 p c t]. 
   rename blocks5 into bs.
-  assert (J:=H4). destruct bs; inv J. 
-  apply dom_entrypoint in H4.
+  match goal with | H1: getEntryBlock _ = _ |- _ => assert (J:=H1) end.
+  destruct bs; inv J. 
+  match goal with | H1: getEntryBlock _ = _ |- _ => 
+    apply dom_entrypoint in H1 end.
   destruct (id_dec l3 l0); subst.
-    rewrite H4 in Hnempty. congruence.
+    match goal with
+    | H1: Dominators.bs_contents _ _ = _ |- _ => 
+      rewrite H1 in Hnempty; congruence
+    end.
    
     clear H. 
     unfold dom_analyze in *. 
@@ -1264,10 +1307,7 @@ Proof.
            unfold DomComplete.predecessors in Hin.
            apply make_predecessors_correct' in Hin.
            apply successors_blocks__blockInFdefB with (fh:=
-             (fheader_intro fnattrs5 typ_5 id_5
-                (map_list_typ_attributes_id
-                   (fun (typ_ : typ) (attributes_ : attributes) (id_ : id) =>
-                    (typ_, attributes_, id_)) typ_attributes_id_list) varg5)) 
+             (fheader_intro fnattrs5 typ5 id5 args5 varg5)) 
              in Hin.
            destruct Hin as [ps0 [cs0 [tmn0 [J1 J2]]]].
            eapply getEntryBlock_inv with (l3:=a)(a:=l0) in J2; simpl; eauto.
@@ -1861,10 +1901,7 @@ Proof.
            unfold DomComplete.predecessors in Hin.
            apply make_predecessors_correct' in Hin.
            apply successors_blocks__blockInFdefB with (fh:=
-             (fheader_intro fnattrs5 typ_5 id_5
-                (map_list_typ_attributes_id
-                   (fun (typ_ : typ) (attributes_ : attributes) (id_ : id) =>
-                    (typ_, attributes_, id_)) typ_attributes_id_list) varg5)) 
+             (fheader_intro fnattrs5 typ5 id5 args5 varg5)) 
              in Hin.
            destruct Hin as [ps0 [cs0 [tmn0 [J1 J2]]]].
            eapply getEntryBlock_inv with (l3:=a)(a:=l0) in J2; simpl; eauto.

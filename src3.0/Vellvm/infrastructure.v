@@ -1433,6 +1433,12 @@ match fdef with
     uniqBlocks bs /\ NoDup (getArgsIDs la ++ getBlocksLocs bs)
 end.
 
+Definition uniqFdec fdec : Prop :=
+match fdec with
+| (fdec_intro (fheader_intro _ _ _ la _) _) => 
+    NoDup (getArgsIDs la)
+end.
+
 Definition getProductID product : id :=
 match product with
 | product_gvar g => getGvarID g
@@ -1449,7 +1455,7 @@ end.
 Definition uniqProduct product : Prop :=
 match product with
 | product_gvar g => True
-| product_fdec f => True
+| product_fdec f => uniqFdec f
 | product_fdef f => uniqFdef f
 end.
 
@@ -3138,6 +3144,38 @@ match t1 with
     | _ => false
     end
 | _ => false
+end.
+
+Definition wf_intrinsics_id (iid:intrinsic_id) (rt:typ) (pt:list_typ) (va:varg) 
+  : Prop :=
+True.
+
+Definition wf_external_id (eid:external_id) (rt:typ) (pt:list_typ) (va:varg) 
+  : Prop :=
+match eid with
+| eid_malloc =>
+    match rt, pt with
+    | typ_pointer (typ_int 8%nat), Cons_list_typ (typ_int sz) Nil_list_typ =>
+        match sz with
+        | 32%nat | 64%nat => True
+        | _ => False
+        end 
+    | _, _ => False
+    end
+| eid_free => 
+    match rt, pt with
+    | typ_void, Cons_list_typ (typ_pointer (typ_int 8%nat)) Nil_list_typ => True
+    | _, _ => False
+    end
+| eid_other => True
+end.
+
+Definition wf_deckind (fh:fheader) (dck:deckind) : Prop :=
+let '(fheader_intro _ rt _ la va) := fh in
+let pt := args2Typs la in
+match dck with
+| deckind_intrinsic iid => wf_intrinsics_id iid rt pt va
+| deckind_external eid => wf_external_id eid rt pt va
 end.
 
 (**********************************)
