@@ -1432,11 +1432,8 @@ match product with
 | product_fdef f => getFdefID f
 end.
 
-Fixpoint getProductsIDs ps : ids :=
-match ps with
-| nil => nil
-| p::ps' => getProductID p::getProductsIDs ps'
-end.
+Definition getProductsIDs (ps : products) : list id :=
+  map getProductID ps.
 
 Definition uniqProduct product : Prop :=
 match product with
