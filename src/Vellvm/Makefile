@@ -14,10 +14,6 @@ all:
 
 ott: main.pdf typings.vo interpreter.vo opsem_inst.vo vellvm.vo opsem_dom.vo
 
-infrastructure_aux.vo : infrastructure_aux.v syntax.vo targetdata.vo \
-	compcert/Kildall.vo
-	$(COQC) $(COQARG) infrastructure_aux.v
-
 syntax.vo : ./monads/monad.vo ./compcert/Floats.vo ./compcert/alist.vo \
 	./compcert/Memory.vo syntax.v
 	$(COQC) $(COQARG) syntax.v
@@ -29,8 +25,7 @@ syntax.v : syntax.ott
 m_typings.ott : typings.ott spanlines.py
 	./spanlines.py typings.ott
 
-typings.v: syntax.ott infrastructure_aux.vo \
-	m_typings.ott ./monads/monad.vo targetdata.vo
+typings.v: syntax.ott m_typings.ott ./monads/monad.vo targetdata.vo
 	$(OTT) -merge false -coq_expand_list_types true \
             -i syntax.ott -o _tmp_syntax.v \
 	    -i m_typings.ott -o typings.v
