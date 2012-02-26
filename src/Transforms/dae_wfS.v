@@ -167,8 +167,7 @@ Proof.
           rewrite InProductsB_In. rewrite in_app.
           destruct Hp; auto. repeat right. trivial.
 
-        clear HwfS Hp.
-        admit.
+        clear HwfS Hp. admit.
 
         subst p. apply wf_prod_function_def. apply wf_g_intro.
         match goal with
@@ -176,15 +175,14 @@ Proof.
             assert (Hf : wf_fdef nil [m] m f)
         end.
 
-        destruct f as [[attrs ftyp fid fargs fvargs] body]. simpl.
-        eapply wf_fdef_intro.
-
-          unfold productInSystemModuleB. apply andb_true_intro. split.
+          apply wf_system__wf_fdef. trivial.
 
             simpl. rewrite moduleEqB_refl. trivial.
 
-            simpl. rewrite InProductsB_In. rewrite in_app.
-            right. left. trivial.
+            simpl. rewrite InProductsB_In. rewrite in_app. right.
+            left. trivial.
+
+        admit.
 
     split; simpl; trivial.
     inversion HwfS as [ins sys _ H]. subst ins sys.
@@ -219,46 +217,3 @@ Proof.
       apply NoDup_app; trivial.
       apply NoDup_cons; trivial.
 Qed.
-
-(*
-
-
-
-        apply wf_prods_cons.
-
-          apply in_module_wf_prods. intros p Hin.
-          inversion HwfS as [a b HwfS' _]; subst a b. clear HwfS.
-          rename HwfS' into HwfS.
-          inversion HwfS as [|a b c d Hwfm _]; subst a b c d. clear HwfS.
-          inversion Hwfm as [a b c d e _ _ Hwfps]; subst a b c d e. clear Hwfm.
-          inversion Hwfps as [|a b c d e Hwfps' _]; subst a b c d e. clear Hwfps.
-          match goal with
-            | H : wf_prods nil [?m] _ _ |- _ =>
-              assert (Hwfp : wf_prod nil [m] m p)
-          end.
-
-            apply wf_prods__wf_prod with (P := p) in Hwfps'; trivial.
-
-          clear Hwfps' Hin.
-          inversion Hwfp as [ins sys m gv _ Hwfgv|ins sys m f' _ Hwff'|].
-
-            subst ins sys m p. clear Hwfp.
-            apply wf_prod_global_var. apply wf_g_intro.
-            inversion Hwfgv as [ins sys m gid lin gspec gtyp c a td Hwfc]; subst.
-            clear Hwfgv. apply wf_gv_intro with td.
-            admit.
-
-            subst ins sys m p. clear Hwfp.
-            apply wf_prod_function_dec. apply wf_g_intro.
-            inversion Hwff' as [attrs ins sys m]. subst ins sys m.
-
-          rename Hwfps' into Hwfps.
-          apply in_module_wf_prods.
-          intros p Hin.
-          apply wf_prods__wf_prod with (P := p) in Hwfps; trivial.
-          inversion Hwfps as [ins sys m gv _ Hgv| |]; subst; clear Hwfps.
-
-
-
-          inversion Hwfp as [| |a b c d _ Hwff]; subst a b c d. clear Hwfp.
-*)
