@@ -15,6 +15,8 @@ Require Import trans_tactic.
 Require Import dae.
 Require Import list_facts.
 
+Section uniqueness.
+
 (* Removing an id from an fdef preserves uniqueness *)
 
 Hint Resolve sl_nil sublist_refl.
@@ -54,13 +56,70 @@ Proof.
   simpl. split. apply remove_block__uniqBlocks. trivial.
   apply NoDup_split' in HNoDup. destruct HNoDup as [Hfas [Hbs Hin]].
   apply NoDup_app. trivial.
+    apply NoDup_sublist with (getBlocksLocs bs). trivial.
+    apply remove_block__blockLocs__sublist.
 
-  apply NoDup_sublist with (getBlocksLocs bs). trivial.
-  apply remove_block__blockLocs__sublist.
+    intros id' H1 H2. clear Hbsuniq. apply (Hin id' H1).
+    clear H1. generalize id' H2. clear id' H2.
+    apply sublist_In. apply remove_block__blockLocs__sublist.
+Qed.
 
-  intros id' H1 H2. clear Hbsuniq. apply (Hin id' H1).
-  clear H1. generalize id' H2. clear id' H2.
-  apply sublist_In. apply remove_block__blockLocs__sublist.
+End uniqueness.
+
+Section product_well_formedness.
+
+(* Products are well-formed independently of each other. Therefore,
+   changing just one product in a module shouldn't interfere with the
+   others. *)
+
+Lemma wf_prod_split :
+  forall (ins : intrinsic_funs) (sys : system)
+    (m : module) (ps1 ps2 : products),
+    wf_prods ins sys m (ps1 ++ ps2) ->
+    wf_prods ins sys m ps1 /\ wf_prods ins sys m ps2.
+Proof.
+  induction ps1 as [|p ps1]. split. constructor. trivial.
+  intros ps2 Hwf. inversion Hwf as [|? ? ? ? ? Hwfps Hwfp]. subst.
+  clear Hwf. apply IHps1 in Hwfps. destruct Hwfps as [Hps1 Hps2].
+  split; trivial.
+  apply wf_prods_cons; trivial.
+Qed.
+
+Lemma in_module_wf_prods :
+  forall (ins : intrinsic_funs) (sys : system) (m : module) (ps : products),
+    (forall p : product, InProductsB p ps -> wf_prod ins sys m p) ->
+    wf_prods ins sys m ps.
+Proof.
+  induction ps as [|p ps]. intros. constructor.
+  intros H. apply wf_prods_cons.
+
+    apply IHps. intros p' Hin. apply H. simpl.
+    apply orb_true_intro. right. trivial.
+
+    apply H. apply orb_true_intro. left. apply productEqB_refl.
+Qed.
+
+End product_well_formedness.
+
+Lemma InProductsB_In : forall (p : product) (ps : products),
+  InProductsB p ps = true <-> In p ps.
+Proof.
+  intros p ps. split; induction ps as [|p' ps]; try discriminate.
+
+    intros H. simpl in H. apply orb_true_elim in H.
+    destruct H as [H | H].
+
+      left. apply productEqB_inv in H. auto.
+
+      right. apply IHps. trivial.
+
+    intros H. inversion H.
+
+    intros H. apply orb_true_intro. destruct H as [H | H].
+
+      left. rewrite H. apply productEqB_refl.
+
+      right. apply IHps. trivial.
 Qed.
 
 Lemma dae_wfS: forall
@@ -71,7 +130,135 @@ Lemma dae_wfS: forall
   (Hnuse: used_in_fdef (PI_id pinfo) (PI_f pinfo) = false)
   (Heq1: f = PI_f pinfo) (Heq2: id0 = PI_id pinfo),
   wf_system nil
-    [module_intro los nts (Ps1 ++  product_fdef (remove_fdef id0 f) :: Ps2)].
+    [module_intro los nts (Ps1 ++ product_fdef (remove_fdef id0 f) :: Ps2)].
 Proof.
-  intros.
-  apply wf_system_intro.
+  intros. apply wf_system_intro.
+
+    apply wf_modules_cons; [|apply wf_modules_nil].
+    apply wf_module_intro.
+
+      inversion HwfS as [ins ms H _]. subst.
+      inversion H as [|ins sys m ms Hm Hms]. subst.
+      inversion Hm. trivial.
+
+      left. trivial.
+
+      apply in_module_wf_prods. intros p Hin.
+      unfold is_true in Hin. rewrite InProductsB_In in Hin.
+      apply in_app in Hin.
+      assert (Hin' : (In p Ps1 \/ In p Ps2) \/
+        (product_fdef (remove_fdef id0 f)) = p).
+
+        destruct Hin as [Hin | [Hin | Hin]]; auto.
+
+      clear Hin. destruct Hin' as [Hp | Hp].
+
+        match goal with
+          | H : wf_system nil [?m] |- _ =>
+            match m with
+              | module_intro _ _ ?ps =>
+                assert (wf_prod nil [m] m p);
+                [apply wf_prods__wf_prod with ps | idtac]
+            end
+        end.
+
+          inversion HwfS. inversion H. inversion H7. trivial.
+
+          rewrite InProductsB_In. rewrite in_app.
+          destruct Hp; auto. repeat right. trivial.
+
+        clear HwfS Hp.
+        admit.
+
+        subst p. apply wf_prod_function_def. apply wf_g_intro.
+        match goal with
+          | H : wf_system nil [?m] |- _ =>
+            assert (Hf : wf_fdef nil [m] m f)
+        end.
+
+        destruct f as [[attrs ftyp fid fargs fvargs] body]. simpl.
+        eapply wf_fdef_intro.
+
+          unfold productInSystemModuleB. apply andb_true_intro. split.
+
+            simpl. rewrite moduleEqB_refl. trivial.
+
+            simpl. rewrite InProductsB_In. rewrite in_app.
+            right. left. trivial.
+
+    split; simpl; trivial.
+    inversion HwfS as [ins sys _ H]. subst ins sys.
+    destruct H as [[Huniq [H1 H2]] _]. repeat split; trivial; clear H1.
+
+      clear H2. apply Forall_forall. intros p Hin.
+      unfold uniqProducts in Huniq. rewrite Forall_forall in Huniq.
+      rewrite in_app in Hin.
+      destruct Hin as [Hin | [Hin | Hin]].
+
+        apply Huniq; rewrite in_app; left; trivial.
+
+        rewrite <- Hin. apply remove_fdef__uniqFdef.
+        match goal with
+          | H : wf_system nil [?m] |- _ =>
+            apply (uniqSystem__uniqFdef [m] f m)
+        end. inversion HwfS. subst. trivial.
+        apply andb_true_intro. split.
+
+          compute. apply orb_true_intro. left. apply moduleEqB_refl.
+
+          simpl. rewrite InProductsB_In. rewrite in_app.
+          right. left. trivial.
+
+        apply Huniq. rewrite in_app. right. right. trivial.
+
+      clear Huniq. unfold getProductsIDs in *. rewrite List.map_app in *.
+      apply NoDup_split' in H2.
+      destruct H2 as [H1 [H Hdis]].
+      simpl in H. inversion H as [|i l Hnin]. subst i l. clear H.
+      destruct f as [[] ?]. simpl in *.
+      apply NoDup_app; trivial.
+      apply NoDup_cons; trivial.
+Qed.
+
+(*
+
+
+
+        apply wf_prods_cons.
+
+          apply in_module_wf_prods. intros p Hin.
+          inversion HwfS as [a b HwfS' _]; subst a b. clear HwfS.
+          rename HwfS' into HwfS.
+          inversion HwfS as [|a b c d Hwfm _]; subst a b c d. clear HwfS.
+          inversion Hwfm as [a b c d e _ _ Hwfps]; subst a b c d e. clear Hwfm.
+          inversion Hwfps as [|a b c d e Hwfps' _]; subst a b c d e. clear Hwfps.
+          match goal with
+            | H : wf_prods nil [?m] _ _ |- _ =>
+              assert (Hwfp : wf_prod nil [m] m p)
+          end.
+
+            apply wf_prods__wf_prod with (P := p) in Hwfps'; trivial.
+
+          clear Hwfps' Hin.
+          inversion Hwfp as [ins sys m gv _ Hwfgv|ins sys m f' _ Hwff'|].
+
+            subst ins sys m p. clear Hwfp.
+            apply wf_prod_global_var. apply wf_g_intro.
+            inversion Hwfgv as [ins sys m gid lin gspec gtyp c a td Hwfc]; subst.
+            clear Hwfgv. apply wf_gv_intro with td.
+            admit.
+
+            subst ins sys m p. clear Hwfp.
+            apply wf_prod_function_dec. apply wf_g_intro.
+            inversion Hwff' as [attrs ins sys m]. subst ins sys m.
+
+          rename Hwfps' into Hwfps.
+          apply in_module_wf_prods.
+          intros p Hin.
+          apply wf_prods__wf_prod with (P := p) in Hwfps; trivial.
+          inversion Hwfps as [ins sys m gv _ Hgv| |]; subst; clear Hwfps.
+
+
+
+          inversion Hwfp as [| |a b c d _ Hwff]; subst a b c d. clear Hwfp.
+*)
