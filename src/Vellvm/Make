@@ -1,0 +1,26 @@
+-I ./ott
+-I ./monads
+-I ./compcert
+-I ./GraphBasics
+-impredicative-set
+monads
+ott
+compcert
+GraphBasics
+analysis.v
+dopsem.v
+genericvalues.v
+infrastructure_props.v
+infrastructure.v
+interpreter.v
+ndopsem.v
+opsem_dom.v
+opsem_inst.v
+opsem_props.v
+opsem.v
+opsem_wf.v
+syntax.v
+targetdata.v
+typings_props.v
+typings.v
+vellvm.v
