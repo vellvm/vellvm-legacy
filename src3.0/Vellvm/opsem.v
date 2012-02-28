@@ -797,7 +797,7 @@ Inductive sInsn : Config -> State -> State -> trace -> Prop :=
     trace_nil 
 
 | sExCall : forall S TD Ps F B lc gl fs rid noret ca fid fv lp cs tmn EC dck
-                    rt la Mem als oresult Mem' lc' va ft fa gvs fptr fptrs gvss,
+                  rt la Mem als oresult Mem' lc' va ft fa gvs fptr fptrs gvss tr,
   (* only look up the current module for the time being, 
      do not support linkage. 
      FIXME: should add excall to trace
@@ -808,7 +808,8 @@ Inductive sInsn : Config -> State -> State -> trace -> Prop :=
     Some (fdec_intro (fheader_intro fa rt fid la va) dck) ->
   params2GVs TD lp lc gl = Some gvss ->
   gvs @@ gvss ->
-  callExternalOrIntrinsics TD Mem fid dck gvs = Some (oresult, Mem') ->
+  callExternalOrIntrinsics TD gl Mem fid rt (args2Typs la) dck gvs = 
+    Some (oresult, tr, Mem') ->
   exCallUpdateLocals TD ft noret rid oresult lc = Some lc' ->
   sInsn (mkCfg S TD Ps gl fs)  
     (mkState ((mkEC F B ((insn_call rid noret ca ft fv lp)::cs) tmn 
@@ -1143,7 +1144,7 @@ Inductive bInsn :
     tr
 
 | bExCall : forall S TD Ps F B lc gl fs rid noret fv fid lp cs tmn dck
-                 rt la va Mem als oresult Mem' lc' ft fa ca gvs fptr fptrs gvss,
+               rt la va Mem als oresult Mem' lc' ft fa ca gvs fptr fptrs gvss tr,
   (* only look up the current module for the time being, 
      do not support linkage. 
      FIXME: should add excall to trace
@@ -1154,7 +1155,8 @@ Inductive bInsn :
     Some (fdec_intro (fheader_intro fa rt fid la va) dck) ->
   params2GVs TD lp lc gl = Some gvss ->
   gvs @@ gvss ->
-  callExternalOrIntrinsics TD Mem fid dck gvs = Some (oresult, Mem') ->
+  callExternalOrIntrinsics TD gl Mem fid rt (args2Typs la) dck gvs = 
+    Some (oresult, tr, Mem') ->
   exCallUpdateLocals TD ft noret rid oresult lc = Some lc' ->
   bInsn (mkbCfg S TD Ps gl fs F)   
     (mkbEC B ((insn_call rid noret ca ft fv lp)::cs) tmn lc als Mem)

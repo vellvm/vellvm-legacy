@@ -581,7 +581,7 @@ Inductive sInsn_delta : Config -> State -> State -> Prop :=
          ::EC) Mem MM)
 
 | sExCall : forall S TD Ps F B lc rm gl fs rid noret ca fid fv lp cs tmn EC dck
-        gvss fptr fptrs rt fa ft la va Mem als oresult Mem' lc' rm' MM gvs,
+        gvss fptr fptrs rt fa ft la va Mem als oresult Mem' lc' rm' MM gvs tr,
   (* only look up the current module for the time being, 
      do not support linkage. 
      FIXME: should add excall to trace
@@ -593,7 +593,7 @@ Inductive sInsn_delta : Config -> State -> State -> Prop :=
   Opsem.params2GVs TD lp lc gl = Some gvss ->
   gvs @@ gvss ->
   external_intrinsics.callExternalOrIntrinsics 
-    TD Mem fid dck gvs = Some (oresult, Mem') ->
+    TD gl Mem fid rt (args2Typs la) dck gvs = Some (oresult, tr, Mem') ->
   exCallUpdateLocals TD ft noret rid oresult lc rm = Some (lc',rm') ->
   sInsn_delta (mkCfg S TD Ps gl fs)  
     (mkState  

@@ -208,9 +208,9 @@ Lemma SBpass_is_correct__dsExCall : forall (mi : MoreMem.meminj)
   (HJ : getOperandValue TD fv lc gl = Some fptr) dck
   (H : OpsemAux.lookupExFdecViaPtr Ps fs fptr =
       ret fdec_intro (fheader_intro fa rt fid la va) dck)
-  (H0 : LLVMgv.params2GVs TD lp lc gl = ret gvs)
-  (H1 : external_intrinsics.callExternalOrIntrinsics
-          TD Mem0 fid dck gvs = ret (oresult, Mem'))
+  (H0 : LLVMgv.params2GVs TD lp lc gl = ret gvs) tr
+  (H1 : callExternalOrIntrinsics
+          TD gl Mem0 fid rt (args2Typs la) dck gvs = ret (oresult, tr, Mem'))
   (H2 : exCallUpdateLocals TD ft noret0 rid oresult lc rm = ret (lc', rm')),
    exists St' : Opsem.State,
      exists mi' : MoreMem.meminj,
@@ -736,7 +736,7 @@ Proof.
 
   destruct Heq_cs23 as [bv2 [ev2 [bgv2 [egv2 [blk1 [bofs1 [eofs1 [Heq_cs23 
     [Hp2bv2 [Hp2ev2 [Hinj1 [Hinj2 [Heqmd Heqgr]]]]]]]]]]]]]; subst.
-  destruct (@stk_ret_sim (los,nts) Mem0 M2 mi mgb MM bgv2 egv2) as 
+  destruct (@stk_ret_sim (los,nts) gl2 Mem0 M2 mi mgb MM bgv2 egv2) as 
     [M2' [M2'' [Hsbase [Hsbound [Hmsim3 [Hwfmi3 [Hgbase Hgbound]]]]]]]; auto.
   eapply free_allocas_sim in Hmsim3; eauto.
   destruct Hmsim3 as [M2''' [Hfree2' [Hmsim2' Hwfmi2']]].

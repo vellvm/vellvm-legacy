@@ -412,16 +412,17 @@ Definition wf_global_ptr S TD Mem0 gl : Prop :=
 (***********************************************)
 (* axiom *)
 
-Axiom callExternalOrIntrinsics_mem_bounds : forall TD Mem0 fid gvs dck oresult 
-  Mem' b,
+(* FIXME: The two axioms should be admissible. *)
+Axiom callExternalOrIntrinsics_mem_bounds : forall TD gl Mem0 fid tret targs gvs
+  dck oresult Mem' b tr,
   external_intrinsics.callExternalOrIntrinsics 
-    TD Mem0 fid gvs dck = Some (oresult, Mem') ->
+    TD gl Mem0 fid tret targs gvs dck = Some (oresult, tr, Mem') ->
   Mem.bounds Mem0 b = Mem.bounds Mem' b.
 
-Axiom callExternalOrIntrinsics_temporal_prop : forall TD Mem0 fid gvs dck oresult
-    Mem' base bound b,
-  external_intrinsics.callExternalOrIntrinsics TD Mem0 fid gvs dck = 
-    Some (oresult, Mem') ->
+Axiom callExternalOrIntrinsics_temporal_prop : forall TD gl Mem0 fid tret targs 
+    gvs dck oresult Mem' base bound b tr,
+  external_intrinsics.callExternalOrIntrinsics 
+    TD gl Mem0 fid tret targs gvs dck = Some (oresult, tr, Mem') ->
   b < Mem.nextblock Mem0 /\
   (blk_temporal_safe Mem0 b -> Mem.range_perm Mem0 b base bound Writable) ->
   b < Mem.nextblock Mem' /\
@@ -1029,9 +1030,9 @@ Proof.
 Qed.
 
 Lemma callExternalOrIntrinsics_preserves_wf_global_ptr : forall Mem0 fid gvs 
-    dck oresult Mem' S TD gl,
-  external_intrinsics.callExternalOrIntrinsics TD Mem0 fid gvs dck 
-    = Some (oresult, Mem') ->
+    dck oresult Mem' S TD gl tret targs tr,
+  external_intrinsics.callExternalOrIntrinsics TD gl Mem0 fid tret targs gvs dck
+    = Some (oresult, tr, Mem') ->
   wf_global_ptr S TD Mem0 gl ->
   wf_global_ptr S TD Mem' gl.
 Proof.
@@ -1542,15 +1543,14 @@ Proof.
     intros x blk bofs eofs J. inv J.
 Qed.
 
-Lemma callExternalOrIntrinsics_preserves_wf_rmetadata : forall Mem0 fid gvs dck 
-    oresult Mem' rm TD,
-  external_intrinsics.callExternalOrIntrinsics TD Mem0 fid gvs dck 
-    = Some (oresult, Mem') ->
-  wf_rmetadata TD Mem0 rm ->
+Lemma callExternalOrIntrinsics_preserves_wf_rmetadata : forall Mem0 gl fid gvs 
+    dck oresult Mem' rm TD tret targs tr
+  (Hcall: external_intrinsics.callExternalOrIntrinsics 
+    TD gl Mem0 fid tret targs gvs dck = Some (oresult, tr, Mem'))
+  (Hwfr: wf_rmetadata TD Mem0 rm),
   wf_rmetadata TD Mem' rm.
 Proof.
-  intros Mem0 fid gvs dck oresult Mem' rm TD Hcall Hwfr.
-  intros x blk bofs eofs Hlk.
+  intros. intros x blk bofs eofs Hlk.
   apply Hwfr in Hlk.
   unfold wf_data in *.
   eauto using callExternalOrIntrinsics_temporal_prop.
@@ -1688,15 +1688,14 @@ Proof.
          eapply wf_data__store_aux__wf_data; eauto.
 Qed.
 
-Lemma callExternalOrIntrinsics_preserves_wf_mmetadata : forall Mem0 fid gvs dck 
-    oresult Mem' TD MM,
-  external_intrinsics.callExternalOrIntrinsics TD Mem0 fid gvs dck 
-    = Some (oresult, Mem') ->
-  wf_mmetadata TD Mem0 MM ->
+Lemma callExternalOrIntrinsics_preserves_wf_mmetadata : forall Mem0 gl fid tret 
+    targs gvs dck oresult Mem' TD MM tr
+  (Hcall: external_intrinsics.callExternalOrIntrinsics TD gl Mem0 fid tret targs gvs dck 
+    = Some (oresult, tr, Mem'))
+  (Hwfm: wf_mmetadata TD Mem0 MM),
   wf_mmetadata TD Mem' MM.
 Proof.
-  intros Mem0 fid gvs dck oresult Mem' TD MM Hcall Hwfm.
-  intros b ofs blk bofs eofs Hlk.
+  intros. intros b ofs blk bofs eofs Hlk.
   apply Hwfm in Hlk.
   unfold wf_data in *.
   eauto using callExternalOrIntrinsics_temporal_prop.

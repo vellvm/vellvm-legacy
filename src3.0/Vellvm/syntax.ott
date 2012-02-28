@@ -540,6 +540,7 @@ intrinsic_id :: 'iid_'					::=			{{ com intrinsic id }}
 external_id :: 'eid_'				        ::=	   	        {{ com external id }}
   | malloc   						::   :: malloc
   | free						::   :: free
+  | io							::   :: io
   | other                                               ::   :: other
 
 deckind :: 'deckind_'		         		::=	         	{{ com declaration kind }}

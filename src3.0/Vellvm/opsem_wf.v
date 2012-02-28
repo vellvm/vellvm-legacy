@@ -3200,8 +3200,8 @@ match cfg with
                 | Some gvss =>
                     exists gvs, gvs @@ gvss /\
                     match external_intrinsics.callExternalOrIntrinsics 
-                            td M fid dck gvs with
-                    | Some (oresult, _) =>
+                            td gl M fid rt (args2Typs la) dck gvs with
+                    | Some (oresult, _, _) =>
                        match exCallUpdateLocals td ft n i0 oresult lc with
                        | None => True
                        | _ => False
@@ -4045,8 +4045,8 @@ Proof.
     destruct G' as [gvs G'].
     destruct f' as [[fa rt fid la va]].
     remember (external_intrinsics.callExternalOrIntrinsics 
-               (los, nts) M fid d gvs) as R.
-    destruct R as [[oresult Mem']|].
+               (los, nts) gl M fid rt (args2Typs la) d gvs) as R.
+    destruct R as [[[oresult tr] Mem']|].
       remember (exCallUpdateLocals (los, nts) t n i0 oresult lc) as R'.
       destruct R' as [lc' |]; tinv J.
         left.

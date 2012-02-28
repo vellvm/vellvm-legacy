@@ -711,12 +711,12 @@ Proof.
 Qed.
 
 Lemma callExternalFunction__Mem_simulation: forall pinfo sasinfo TD St1 M1 M2 
-  fid0 gvss0 oresult1 M1' oresult2 M2' dck,
+  fid0 gvss0 oresult1 M1' oresult2 M2' dck tret targs gl tr1 tr2,
   Mem_simulation pinfo sasinfo TD St1 M1 M2 ->
-  external_intrinsics.callExternalOrIntrinsics TD M1 fid0 dck gvss0 = 
-    ret (oresult1, M1') ->
-  external_intrinsics.callExternalOrIntrinsics TD M2 fid0 dck gvss0 = 
-    ret (oresult2, M2') ->
+  callExternalOrIntrinsics TD gl M1 fid0 tret targs dck gvss0 = 
+    ret (oresult1, tr1, M1') ->
+  callExternalOrIntrinsics TD gl M2 fid0 tret targs dck gvss0 = 
+    ret (oresult2, tr2, M2') ->
   oresult1 = oresult2 /\ Mem_simulation pinfo sasinfo TD St1 M1' M2'.
 Admitted.
 

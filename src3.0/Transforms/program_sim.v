@@ -324,9 +324,13 @@ Proof.
           remember (Opsem.params2GVs CurTargetData p Locals Globals) as R.
           destruct R; tinv Hundef.
           destruct Hundef as [gvs [Hinst' Hundef]].
-          remember (external_intrinsics.callExternalOrIntrinsics 
-                     CurTargetData Mem id5 bs gvs) as R.
-          destruct R as [[]|].
+          match goal with
+          | _: match ?ef with
+               | Some _ => _
+               | None => _
+               end |- _ => remember ef as R
+          end.
+          destruct R as [[[o ?]]|].
             remember (Opsem.exCallUpdateLocals CurTargetData t n i0 o Locals) 
               as R.
             destruct R; tinv Hundef.

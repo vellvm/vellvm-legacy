@@ -2670,15 +2670,15 @@ Qed.
 
 Axiom callExternalFunction__mem_simulation: forall pinfo mi M1 M2 fid0 gvs1 
   gvs2 oresult1 M1' oresult2 M2' mgb gl lc1 lc2 TD F rid noret0 ft lp
-  EC lc1' lc2' als1 als2 dck,
+  EC lc1' lc2' als1 als2 dck tret targs tr1 tr2,
   mem_simulation pinfo mgb mi ((F,lc1) :: strip_ECs EC) M1 M2 ->
   reg_simulation pinfo mi F lc1 lc2 ->
   Opsem.params2GVs TD lp lc1 gl = ret gvs1 ->
   Opsem.params2GVs TD lp lc2 gl = ret gvs2 ->
-  external_intrinsics.callExternalOrIntrinsics TD M1 fid0 dck 
-    gvs1 = ret (oresult1, M1') ->
-  external_intrinsics.callExternalOrIntrinsics TD M2 fid0 dck 
-    gvs2 = ret (oresult2, M2') ->
+  callExternalOrIntrinsics TD gl M1 fid0 tret targs dck 
+    gvs1 = ret (oresult1, tr1, M1') ->
+  callExternalOrIntrinsics TD gl M2 fid0 tret targs dck 
+    gvs2 = ret (oresult2, tr2, M2') ->
   Opsem.exCallUpdateLocals TD ft noret0 rid oresult1 lc1 = ret lc1' ->
   Opsem.exCallUpdateLocals TD ft noret0 rid oresult2 lc2 = ret lc2' ->
   als_simulation pinfo mi F lc1 als1 als2 ->

@@ -2103,9 +2103,9 @@ Proof.
 Qed.
 
 Axiom callExternalOrIntrinsics_preserves_mload: forall Mem fid gvsa gvs gvsv
-  Mem' TD oresult ty al dck,
-  external_intrinsics.callExternalOrIntrinsics TD Mem fid dck gvs 
-    = ret (oresult, Mem') ->
+  Mem' TD oresult ty al dck gl tret targs tr,
+  callExternalOrIntrinsics TD gl Mem fid tret targs dck gvs 
+    = ret (oresult, tr, Mem') ->
   mload TD Mem gvsa ty al = ret gvsv ->
   mload TD Mem' gvsa ty al = ret gvsv.
 

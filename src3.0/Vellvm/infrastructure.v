@@ -3168,6 +3168,7 @@ match eid with
     | _, _ => False
     end
 | eid_other => True
+| eid_io => True
 end.
 
 Definition wf_deckind (fh:fheader) (dck:deckind) : Prop :=

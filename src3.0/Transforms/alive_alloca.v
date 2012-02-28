@@ -827,9 +827,9 @@ Qed.
 
 (* same to alive_store *)
 Lemma callExternalFunction_preserves_wf_EC_in_tail : forall pinfo td M EC M' gl
-  stinfo gvs fid oresult dck
-  (Hcall: external_intrinsics.callExternalOrIntrinsics td M fid dck gvs = 
-    ret (oresult, M'))
+  stinfo gvs fid oresult dck tr tret targs
+  (Hcall: callExternalOrIntrinsics td gl M fid tret targs dck gvs = 
+    ret (oresult, tr, M'))
   (Hinscope : wf_ExecutionContext pinfo stinfo td M gl EC),
   wf_ExecutionContext pinfo stinfo td M' gl EC.
 Proof.
@@ -843,9 +843,9 @@ Qed.
 
 (* same to alive_store *)
 Lemma callExternalFunction_preserves_wf_ECStack_in_tail: forall Mem fid gvs 
-  oresult Mem' pinfo stinfo TD gl ECs dck,
-  external_intrinsics.callExternalOrIntrinsics TD Mem fid dck gvs = 
-    ret (oresult, Mem') ->
+  oresult Mem' pinfo stinfo TD gl ECs dck tret targs tr,
+  callExternalOrIntrinsics TD gl Mem fid tret targs dck gvs
+    = ret (oresult, tr, Mem') ->
   wf_ECStack pinfo stinfo TD Mem gl ECs ->
   wf_ECStack pinfo stinfo TD Mem' gl ECs.
 Proof.
@@ -858,10 +858,10 @@ Qed.
 (* almost same to alive_store *)
 Lemma callExternalFunction_preserves_wf_ECStack_at_head: forall Mem fid gvs 
   oresult Mem' pinfo stinfo gl rid noret0 ca ft fv lp cs lc lc' als tmn
-  cs1' l1 ps1 F s los nts dck Ps (Hwfpi : WF_PhiInfo pinfo)
+  cs1' l1 ps1 F s los nts dck Ps (Hwfpi : WF_PhiInfo pinfo) tret targs tr
   (HwfF: wf_fdef s (module_intro los nts Ps) F) (HuniqF: uniqFdef F)
-  (H4 : external_intrinsics.callExternalOrIntrinsics (los,nts) Mem fid dck gvs 
-          = ret (oresult, Mem'))
+  (H4 : callExternalOrIntrinsics (los,nts) gl Mem fid tret targs dck gvs 
+          = ret (oresult, tr, Mem'))
   (H5 : Opsem.exCallUpdateLocals (los,nts) ft noret0 rid oresult lc = ret lc')
   (HBinF : blockInFdefB 
              (block_intro l1 ps1 (cs1' ++ insn_call rid noret0 ca ft fv lp :: cs) tmn)

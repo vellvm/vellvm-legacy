@@ -3694,9 +3694,9 @@ Lemma phinodes_placement_is_correct__dsExCall: forall (maxb : Values.block)
   (H1 : OpsemAux.lookupExFdecViaPtr Ps fs fptr =
         ret fdec_intro (fheader_intro fa rt fid la va) dck)
   (H2 : Opsem.params2GVs TD lp lc gl = ret gvss)
-  (H3 : gvs @@ gvss)
-  (H4 : external_intrinsics.callExternalOrIntrinsics TD Mem fid dck gvs = 
-          ret (oresult, Mem'))
+  (H3 : gvs @@ gvss) tr
+  (H4 : callExternalOrIntrinsics TD gl Mem fid rt (args2Typs la) dck gvs = 
+          ret (oresult, tr, Mem'))
   (H5 : Opsem.exCallUpdateLocals TD ft noret0 rid oresult lc = ret lc'),
   exists St1' : Opsem.State,
      Opsem.sop_star Cfg1 St1 St1' trace_nil /\

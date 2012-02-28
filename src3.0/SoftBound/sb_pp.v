@@ -244,26 +244,27 @@ Proof.
 Qed.
 
 Lemma callExternalOrIntrinsics_preserves_wf_EC : forall EC M fid gvs oresult M' 
-    TD Ps dck,
-  external_intrinsics.callExternalOrIntrinsics TD M fid dck gvs = 
-    Some (oresult, M') ->
+    TD Ps dck tret targs tr gl,
+  callExternalOrIntrinsics TD gl M fid tret targs dck gvs = 
+    Some (oresult, tr, M') ->
   wf_ExecutionContext TD M Ps EC ->
   wf_ExecutionContext TD M' Ps EC.
 Proof.
-  destruct EC; simpl; intros M fid gvs oresult M' TD Ps dck Hcall HwfEC.
+  destruct EC; simpl; 
+  intros M fid gvs oresult M' TD Ps dck tret targs tr gl Hcall HwfEC.
   destruct HwfEC as [J1 [J2 [J3 [J4 [J5 [J6 [J7 J8]]]]]]].
   repeat (split; eauto using callExternalOrIntrinsics_preserves_wf_rmetadata).
 Qed.
 
 Lemma callExternalOrIntrinsics_preserves_wf_ECStack : forall ECs Mem0 fid gvs 
-    oresult Mem' TD Ps dck,
-  external_intrinsics.callExternalOrIntrinsics TD Mem0 fid dck gvs = 
-    Some (oresult, Mem') ->
+    oresult Mem' TD Ps dck tret targs tr gl,
+  callExternalOrIntrinsics TD gl Mem0 fid tret targs dck gvs = 
+    Some (oresult, tr, Mem') ->
   wf_ECStack TD Mem0 Ps ECs ->
   wf_ECStack TD Mem' Ps ECs.
 Proof.
-  induction ECs; simpl; intros Mem0 fid gvs oresult Mem' TD Ps dck Hcall HwfECs;
-    auto.
+  induction ECs; simpl; 
+  intros Mem0 fid gvs oresult Mem' TD Ps dck tret targs tr gl Hcall HwfECs; auto.
   destruct HwfECs as [J1 [J2 J3]].
   repeat (split; eauto using callExternalOrIntrinsics_preserves_wf_EC).
 Qed.
@@ -1945,8 +1946,8 @@ match cfg with
                 | Some gvss =>
                   exists gvs, gvs @@ gvss /\
                   match external_intrinsics.callExternalOrIntrinsics 
-                          td M fid dck gvs with
-                  | Some (oresult, _) =>
+                          td gl M fid rt (args2Typs la) dck gvs with
+                  | Some (oresult, _, _) =>
                      match exCallUpdateLocals td ft n i0 oresult lc rm with
                      | None => True
                      | _ => False
@@ -2423,9 +2424,13 @@ Proof.
         destruct (Opsem.params2GVs (los, nts) p lc gl); tinv Hundef.
         destruct Hundef as [gvs [Hin2 Hundef]].
         exists gvs. split; auto.
-        destruct (external_intrinsics.callExternalOrIntrinsics 
-          (los, nts) M i1 d gvs) as [[]|];
-          try solve [inversion Hundef | undefbehave].
+        match goal with
+        | |- match ?ef with
+             | Some _ => _
+             | None => _
+             end =>
+          destruct ef as [[[o ?] ?]|]; try solve [inversion Hundef | undefbehave]
+        end.
         remember (Opsem.exCallUpdateLocals (los, nts) t n i0 o lc) as R.
         destruct R; try solve [inversion Hundef | undefbehave].
         rewrite llvm_exCallUpdateLocals__sb_exCallUpdateLocals; auto.

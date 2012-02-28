@@ -1007,7 +1007,7 @@ Inductive dbCall : system -> TargetData -> list product -> GVMap ->
     lc'' als Mem'' tr r
 
 | dbCall_external : forall S TD Ps lc gl fs rid noret tailc fv fid dck
-                          lp fa rt la va Mem oresult Mem' als lc' gvs,
+                          lp fa rt la va Mem oresult Mem' als lc' gvs tr,
   (* only look up the current module for the time being, 
      do not support linkage. 
      FIXME: should add excall to trace
@@ -1016,7 +1016,7 @@ Inductive dbCall : system -> TargetData -> list product -> GVMap ->
     Some (fdec_intro (fheader_intro fa rt fid la va) dck) ->
   params2GVs TD lp lc gl = Some gvs ->
   external_intrinsics.callExternalOrIntrinsics 
-    TD Mem fid dck gvs = Some (oresult, Mem') ->
+    TD gl Mem fid rt (args2Typs la) dck gvs = Some (oresult, tr, Mem') ->
   exCallUpdateLocals TD rt noret rid oresult lc = Some lc' ->
   dbCall S TD Ps fs gl lc als Mem
     (insn_call_nptr rid noret tailc rt fv lp)
@@ -1043,7 +1043,7 @@ Inductive dbCall : system -> TargetData -> list product -> GVMap ->
     lc2 als1 Mem2 tr1 Rabort
 
 with dbSubblock : system -> TargetData -> list product -> GVMap -> GVMap -> 
-                  GVMap -> list mblock -> mem -> 
+  GVMap -> list mblock -> mem -> 
                   subblock -> 
                   GVMap -> list mblock -> mem -> 
                   trace -> Result -> Prop :=

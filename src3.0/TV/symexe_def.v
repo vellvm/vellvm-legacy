@@ -229,7 +229,7 @@ Inductive dbCall : system -> TargetData -> list product -> GVMap ->
   dbCall S TD Ps fs gl lc Mem (insn_call rid noret tailc ft fv lp) lc'' Mem'' tr
 
 | dbCall_external : forall S TD Ps lc gl fs rid noret ca fv fid fptr dck
-                          lp rt la va Mem oresult Mem' lc' ft fa gvs,
+                          lp rt la va Mem oresult Mem' lc' ft fa gvs tr,
   (* only look up the current module for the time being, 
      do not support linkage. 
      FIXME: should add excall to trace
@@ -239,7 +239,7 @@ Inductive dbCall : system -> TargetData -> list product -> GVMap ->
     Some (fdec_intro (fheader_intro fa rt fid la va) dck) ->
   params2GVs TD lp lc gl = Some gvs ->
   external_intrinsics.callExternalOrIntrinsics 
-    TD Mem fid dck gvs = Some (oresult, Mem') ->
+    TD gl Mem fid rt (args2Typs la) dck gvs = Some (oresult, tr, Mem') ->
   isCall (insn_call rid noret ca ft fv lp) = true ->
   exCallUpdateLocals TD ft noret rid oresult lc = Some lc' ->
   dbCall S TD Ps fs gl lc Mem (insn_call rid noret ca ft fv lp) lc' Mem' 

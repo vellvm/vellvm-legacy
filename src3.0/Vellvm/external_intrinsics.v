@@ -102,8 +102,8 @@ Genv.mkgenv gl (find_symbol TD gl) (find_var_info TD gl) (vars_inj TD gl).
 *)
 
 Definition extcall_sem : Type :=
-  Genv.t GenericValue -> list GenericValue -> mem -> trace -> GenericValue -> 
-    mem -> Prop.
+  Genv.t GenericValue -> list GenericValue -> mem -> trace -> option GenericValue
+    -> mem -> Prop.
 
 (** We now specify the expected properties of this predicate. *)
 
@@ -141,6 +141,31 @@ Definition block_is_volatile (F V: Type) (ge: Genv.t F V) (b: block) : bool :=
   end.
 *)
 
+Set Implicit Arguments.
+
+Inductive option_f1t (A:Type) (f: A -> typ -> Prop)
+  : option A -> typ -> Prop :=
+| option_f1t_nonvoid: forall a b, 
+    f a b -> b <> typ_void -> option_f1t f (Some a) b
+| option_f1t_void: option_f1t f None typ_void.
+
+Inductive option_f2 (A B:Type) (f: A -> B -> Prop)
+  : option A -> option B -> Prop :=
+| option_f2_Some: forall a b, f a b -> option_f2 f (Some a) (Some b)
+| option_f2_None: option_f2 f None None.
+
+Inductive option_f3 (A B C:Type) (f: A -> B -> C -> Prop)
+  : option A -> option B -> option C -> Prop :=
+| option_f3_Some: forall a b c, 
+    f a b c -> option_f3 f (Some a) (Some b) (Some c)
+| option_f3_None: option_f3 f None None None.
+
+Inductive option_f2t (A C:Type) (f: A -> typ -> C -> Prop)
+  : option A -> typ -> option C -> Prop :=
+| option_f2t_nonvoid: forall a b c, 
+    f a b c -> b <> typ_void -> option_f2t f (Some a) b (Some c)
+| option_f2t_void: option_f2t f None typ_void None.
+
 Record extcall_properties (TD:TargetData) (sem: extcall_sem) (tret: typ) 
                           (targs: list typ) : Prop := mk_extcall_properties {
 
@@ -148,7 +173,7 @@ Record extcall_properties (TD:TargetData) (sem: extcall_sem) (tret: typ)
   ec_well_typed:
     forall ge vargs m1 t vres m2,
     sem ge vargs m1 t vres m2 ->
-    gv_has_type TD vres tret;
+    option_f1t (gv_has_type TD) vres tret;
 
 (** The number of arguments of an external call must agree with its signature. *)
   ec_arity:
@@ -186,7 +211,7 @@ Record extcall_properties (TD:TargetData) (sem: extcall_sem) (tret: typ)
     gv_lessdef_list vargs vargs' ->
     exists vres', exists m2',
        sem ge vargs' m1' t vres' m2'
-    /\ gv_lessdef vres vres'
+    /\ option_f2 gv_lessdef vres vres'
     /\ Mem.extends m2 m2'
     /\ mem_unchanged_on (loc_out_of_bounds m1) m1' m2';
 
@@ -200,7 +225,7 @@ Record extcall_properties (TD:TargetData) (sem: extcall_sem) (tret: typ)
     gv_list_inject f vargs vargs' ->
     exists f', exists vres', exists m2',
        sem ge vargs' m1' t vres' m2'
-    /\ gv_inject f' vres vres'
+    /\ option_f2 (gv_inject f') vres vres'
     /\ Mem.inject f' m2 m2'
     /\ mem_unchanged_on (loc_unmapped f) m1 m2
     /\ mem_unchanged_on (loc_out_of_reach f m1) m1' m2'
@@ -726,14 +751,14 @@ Qed.
 
 *)
 
-(** ** Semantics of system calls. *)
+(** ** Semantics of IO system calls. *)
 
-Inductive extcall_io_sem (TD:TargetData) (name: id) (tret: typ) 
+Inductive extcall_io_sem (TD:TargetData) name (tret: typ) 
     (targs: list typ) (ge: Genv.t GenericValue):
-      list GenericValue -> mem -> trace -> GenericValue -> mem -> Prop :=
+      list GenericValue -> mem -> trace -> option GenericValue -> mem -> Prop :=
   | extcall_io_sem_intro: forall vargs m args res vres,
       eventgv_list_match TD ge args targs vargs ->
-      eventgv_match TD ge res tret vres ->
+      option_f2t (eventgv_match TD ge) res tret vres ->
       extcall_io_sem TD name tret targs ge vargs m (Event_syscall name args res :: E0) vres m.
 
 Lemma extcall_io_ok:
@@ -742,13 +767,16 @@ Lemma extcall_io_ok:
 Proof.
   intros; constructor; intros.
 (* well typed *)
-  inv H. eapply eventgv_match_type; eauto.
+  inv H. 
+  inv H1; constructor; auto.
+    eapply eventgv_match_type; eauto.
 (* arity *)
   inv H. eapply eventgv_list_match_length; eauto.
 (* symbols preserved *)
   inv H0. econstructor; eauto. 
-  eapply eventgv_list_match_preserved; eauto.
-  eapply eventgv_match_preserved; eauto. 
+    eapply eventgv_list_match_preserved; eauto.
+    inv H2; constructor; auto.
+      eapply eventgv_match_preserved; eauto. 
 (* valid block *)
   inv H; auto.
 (* bounds *)
@@ -758,46 +786,54 @@ Proof.
   exists vres; exists m1'; intuition.
     econstructor; eauto.
       eapply eventgv_list_match_lessdef; eauto.
-
-Lemma gv_lessdef_ref: forall gv, gv_lessdef gv gv.
-Proof.
-  unfold gv_lessdef.
-  induction gv as [|[]]; auto.
-Qed.
-    
-    apply gv_lessdef_ref.
+    inv H3; constructor; auto.
+      apply gv_lessdef_ref.
     red; auto.
 (* mem injects *)
   inv H0.
   exists f; exists vres; exists m1'; intuition.
     econstructor; eauto.
       eapply eventgv_list_match_inject; eauto.
-    eapply eventgv_match_inject_2; eauto.
+    inv H4; constructor; auto.
+      eapply eventgv_match_inject_2; eauto.
     red; auto.
     red; auto.
     red; intros; congruence.
 (* trace length *)
   inv H; simpl; omega.
 (* receptive *)
-  inv H; inv H0.
   admit.
   (*
+  inv H; inv H0.
   exploit eventgv_match_valid; eauto. intros [A B]. 
   exploit eventval_valid_match. eexact H7. rewrite <- H8; eauto. 
   intros [v' EVM]. exists v'; exists m1. econstructor; eauto. 
   *)
 (* determ *)
+  admit.
+  (*
   inv H; inv H0.
   assert (args0 = args1). 
     eapply eventgv_list_match_determ_2; eauto. subst args1.
-  admit.
-  (*
   exploit eventval_match_valid. eexact H2. intros [V1 T1].
   exploit eventval_match_valid. eexact H3. intros [V2 T2].
   split. constructor; auto. congruence.
   intros EQ; inv EQ. split; auto. eapply eventval_match_determ_1; eauto.
   *)
 Qed.
+
+(** ** Semantics of other system calls. *)
+
+Inductive extcall_other_sem (TD:TargetData) (tret: typ) 
+    (targs: list typ) (ge: Genv.t GenericValue):
+      list GenericValue -> mem -> trace -> option GenericValue -> mem -> Prop :=
+  | extcall_other_sem_intro: forall vargs m args res vres,
+      ~ eventgv_list_match TD ge args targs vargs \/ 
+      ~ option_f2t (eventgv_match TD ge) res tret vres ->
+      extcall_other_sem TD tret targs ge vargs m E0 vres m.
+
+Axiom extcall_other_ok: forall TD tret targs,
+  extcall_properties TD (extcall_other_sem TD tret targs) tret targs.
 
 (*
 (** ** Semantics of annotation. *)
@@ -1027,11 +1063,32 @@ Qed.
    branch. Thoses rules should do what bop/fop/trunc do by lifting det-rules to 
    non-det rules!!! *)
 
-Axiom callExternalFunction : mem -> id -> list GenericValue -> 
+Parameter callIOFunction : TargetData -> list (atom*GenericValue) -> mem -> 
+  id -> typ -> list typ -> list GenericValue -> 
+  option ((option GenericValue)*trace*mem).
+
+Axiom callIOFunction__extcall_io_sem: forall TD gl m1 name tret targs args m2
+  oret tr,
+  callIOFunction TD gl m1 name tret targs args = Some (oret, tr, m2) ->
+  extcall_io_sem TD name tret targs (globals2Genv TD gl) args m1 tr oret m2.
+
+Parameter callExternalFunction : TargetData -> list (atom*GenericValue) -> 
+  mem -> id -> typ -> list typ -> list GenericValue -> 
   option ((option GenericValue)*mem).
 
-Axiom callIntrinsics : mem -> intrinsic_id -> list GenericValue -> 
+Axiom callExternalFunction__extcall_other_sem: forall TD gl m1 name tret targs 
+  args m2 oret,
+  callExternalFunction TD gl m1 name tret targs args = Some (oret, m2) ->
+  extcall_other_sem TD tret targs (globals2Genv TD gl) args m1 E0 oret m2.
+
+Parameter callIntrinsics : TargetData -> list (atom*GenericValue) -> mem -> 
+  intrinsic_id -> typ -> list typ -> list GenericValue -> 
   option ((option GenericValue)*mem).
+
+Axiom callIntrinsics__extcall_properties: forall TD gl m1 name tret targs 
+  args m2 oret,
+  callIntrinsics TD gl m1 name tret targs args = Some (oret, m2) ->
+  extcall_other_sem TD tret targs (globals2Genv TD gl) args m1 E0 oret m2.
 
 Definition callMalloc (TD:TargetData) (M:mem) (parameters: list GenericValue) 
   : option ((option GenericValue)*mem) :=
@@ -1047,6 +1104,12 @@ match parameters with
    None
 end.
 
+Axiom callMalloc__extcall_properties: forall TD ge m1 args m2 oret targs,
+  callMalloc TD m1 args = Some (oret, m2) ->
+  targs = [(typ_int Size.ThirtyTwo)] \/ targs = [(typ_int Size.SixtyFour)] ->
+  extcall_other_sem TD (typ_pointer (typ_int Size.Eight)) 
+    targs ge args m1 E0 oret m2.
+
 Definition callFree (TD:TargetData) (M:mem) (parameters: list GenericValue) 
   : option ((option GenericValue)*mem) :=
 match parameters with
@@ -1061,13 +1124,30 @@ match parameters with
    None
 end.
 
-Definition callExternalOrIntrinsics (TD:TargetData) (M:mem) (fid:id) 
-  (dck:deckind) (parameters: list GenericValue) 
-  : option ((option GenericValue)*mem) :=
+Axiom callFree__extcall_properties: forall TD ge m1 args m2 oret,
+  callMalloc TD m1 args = Some (oret, m2) ->
+  extcall_other_sem TD typ_void [(typ_pointer (typ_int Size.Eight))] 
+    ge args m1 E0 oret m2.
+
+Definition add_empty_trace (input: option ((option GenericValue)*mem)):
+  option ((option GenericValue)*trace*mem) :=
+match input with
+| None => None
+| Some (or, M') => Some (or, E0, M')
+end.
+
+Definition callExternalOrIntrinsics (TD:TargetData) 
+  (gl:list (atom*GenericValue)) (M:mem) (fid:id) 
+  (tret: typ) (targs: list_typ) (dck:deckind) 
+  (parameters: list GenericValue) : option ((option GenericValue)*trace*mem) :=
+let targs' := unmake_list_typ targs in
 match dck with
-| deckind_intrinsic iid => callIntrinsics M iid parameters
-| deckind_external eid_malloc => callMalloc TD M parameters   
-| deckind_external eid_free => callFree TD M parameters
-| deckind_external eid_other => callExternalFunction M fid parameters
+| deckind_intrinsic iid => 
+    add_empty_trace (callIntrinsics TD gl M iid tret targs' parameters)
+| deckind_external eid_malloc => add_empty_trace (callMalloc TD M parameters)
+| deckind_external eid_free => add_empty_trace (callFree TD M parameters)
+| deckind_external eid_io => callIOFunction TD gl M fid tret targs' parameters
+| deckind_external eid_other => 
+    add_empty_trace (callExternalFunction TD gl M fid tret targs' parameters)
 end.
 

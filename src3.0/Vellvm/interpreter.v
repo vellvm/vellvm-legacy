@@ -192,8 +192,8 @@ match state with
           if id_dec fid fid' then
             do gvs <- params2GVs TD lp lc gl;
               match (external_intrinsics.callExternalOrIntrinsics 
-                      TD Mem0 fid dck gvs) with
-              | Some (oresult, Mem1) =>
+                      TD gl Mem0 fid rt' (args2Typs la) dck gvs) with
+              | Some (oresult, _, Mem1) =>
                 do lc' <- exCallUpdateLocals TD ft noret0 rid oresult lc;
                 ret ((mkState ((mkEC F B cs tmn lc' als)::EC) Mem1),
                      trace_nil)
@@ -257,7 +257,7 @@ Proof.
     apply lookupFdecViaIDFromProducts_ideq in J3; subst; auto.
     destruct (id_dec fid fid); try congruence.
     match goal with
-    | H4: external_intrinsics.callExternalOrIntrinsics _ _ _ _ _ = _,
+    | H4: external_intrinsics.callExternalOrIntrinsics _ _ _ _ _ _ _ _ = _,
       H5: exCallUpdateLocals _ _ _ _ _ _ = _ |- _ =>
       rewrite H4; simpl; rewrite H5; simpl; auto
     end.
@@ -493,9 +493,14 @@ Proof.
             destruct R5 as [l0|]; try solve [inversion HinterInsn]; subst.
             simpl in HinterInsn.
             change GenericValue with (GVsT DGVs) in HinterInsn.
-            remember (external_intrinsics.callExternalOrIntrinsics 
-                        CurTargetData0 Mem0 id5 b l0) as R3.
-            destruct R3 as [[oresult Mem1]|]; tinv HinterInsn.
+            match goal with
+            | HinterInsn: match ?ef with
+                          | Some _ => _
+                          | None => _
+                          end = _ |- _ =>
+                remember ef as R3; 
+                destruct R3 as [[[oresult tr5] Mem1]|]; tinv HinterInsn
+            end.
             remember (exCallUpdateLocals CurTargetData0 t n i0 oresult lc) as R4.
             destruct R4; inv HinterInsn.
             eapply sExCall; eauto using dos_in_list_gvs_intro.

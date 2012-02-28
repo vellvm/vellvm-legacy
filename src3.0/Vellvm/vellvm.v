@@ -19,6 +19,7 @@ Require Export opsem.
 Require Export opsem_wf.
 Require Export dopsem.
 Require Export ndopsem.
+Require Export external_intrinsics.
 
 Export LLVMsyntax.
 Export LLVMinfra.
