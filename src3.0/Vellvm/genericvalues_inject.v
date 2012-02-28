@@ -13,7 +13,7 @@ Require Import Metatheory.
 Require Import Znumtheory.
 Require Import typings.
 Require Import infrastructure_props.
-Require Import sb_msim.
+Require Import memory_sim.
 
 Import LLVMinfra.
 Import LLVMgv.

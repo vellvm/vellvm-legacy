@@ -15,8 +15,7 @@ Definition meminj : Type := block -> option (block * Z).
 
 (** A memory injection defines a relation between values that is the
   identity relation, except for pointer values which are shifted
-  as prescribed by the memory injection.  Moreover, [Vundef] values
-  inject into any other value. *)
+  as prescribed by the memory injection. *)
 
 Inductive val_inject (mi: meminj): val -> val -> Prop :=
   | val_inject_int:

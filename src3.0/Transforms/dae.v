@@ -10,9 +10,9 @@ Require Import promotable_props.
 Require Import primitives.
 Require Import palloca_props.
 Require Import memory_props.
-Require Import sb_msim.
+Require Import memory_sim.
 Require Import sb_ds_trans_lib.
-Require Import sb_ds_gv_inject.
+Require Import genericvalues_inject.
 Require Import sb_metadata.
 Require Import program_sim.
 Require Import trans_tactic.
@@ -995,7 +995,7 @@ Proof.
       uniq_result. eapply sb_mem_inj__const2GV; eauto.
 Qed.
 
-(* from sb_ds_trans_lib, should go to sb_ds_gv_inject *)
+(* from sb_ds_trans_lib, should go to genericvalues_inject *)
 Lemma gv_inject__same_size : forall mi gv1 gv2,
   gv_inject mi gv1 gv2 ->
   sizeGenericValue gv1 = sizeGenericValue gv2.
@@ -1638,7 +1638,7 @@ Proof.
   intros.
   eapply simulation__getOperandValue with (lc2:=lc2) in H2; eauto.
   eapply simulation__values2GVs with (lc2:=lc2) in H4; eauto.
-  eapply sb_ds_gv_inject.simulation__GEP in H6; eauto.
+  eapply genericvalues_inject.simulation__GEP in H6; eauto.
   destruct H6 as [gv'' [J1 J2]].
   uniq_result. auto.
 Qed.
@@ -3044,7 +3044,7 @@ end.
 
 Lemma dae_is_sim : forall maxb pinfo mi Cfg1 St1 Cfg2 St2
   (Hwfpi: WF_PhiInfo pinfo) 
-  (Hwfgl: sb_ds_gv_inject.wf_globals maxb (OpsemAux.Globals Cfg1)) 
+  (Hwfgl: genericvalues_inject.wf_globals maxb (OpsemAux.Globals Cfg1)) 
   (Hinbd: 0 <= maxb) (Hnuse: used_in_fdef (PI_id pinfo) (PI_f pinfo) = false)
   (Hwfcfg: OpsemPP.wf_Config Cfg1) (Hwfpp: OpsemPP.wf_State Cfg1 St1) 
   (Hnoalias: Promotability.wf_State maxb pinfo Cfg1 St1) 
@@ -3387,7 +3387,7 @@ Lemma s_genInitState__dae_State_simulation: forall pinfo S1 S2 main VarArgs cfg2
   exists maxb, exists mi, exists cfg1, exists IS1,
     Opsem.s_genInitState S1 main VarArgs Mem.empty = ret (cfg1, IS1) /\
     State_simulation pinfo maxb mi cfg1 IS1 cfg2 IS2 /\
-    sb_ds_gv_inject.wf_globals maxb (OpsemAux.Globals cfg1) /\
+    genericvalues_inject.wf_globals maxb (OpsemAux.Globals cfg1) /\
     MemProps.wf_globals maxb (OpsemAux.Globals cfg1) /\
     0 <= maxb /\
     Promotability.wf_State maxb pinfo cfg1 IS1.
@@ -3413,7 +3413,7 @@ Admitted.
 Lemma sop_star__dae_State_simulation: forall pinfo mi cfg1 IS1 cfg2 IS2 tr
   FS2 (Hwfpi: WF_PhiInfo pinfo) (Hwfpp: OpsemPP.wf_State cfg1 IS1) maxb
   (Hwfcfg: OpsemPP.wf_Config cfg1)
-  (Hwfg: sb_ds_gv_inject.wf_globals maxb (OpsemAux.Globals cfg1))
+  (Hwfg: genericvalues_inject.wf_globals maxb (OpsemAux.Globals cfg1))
   (Hless: 0 <= maxb) (Hnuse: used_in_fdef (PI_id pinfo) (PI_f pinfo) = false)
   (Hwfgs: MemProps.wf_globals maxb (OpsemAux.Globals cfg1)) 
   (Hnoalias: Promotability.wf_State maxb pinfo cfg1 IS1)
@@ -3463,7 +3463,7 @@ Qed.
 
 Lemma sop_div__dae_State_simulation: forall pinfo cfg1 IS1 cfg2 IS2 tr
   (Hwfpi: WF_PhiInfo pinfo) (Hwfpp: OpsemPP.wf_State cfg1 IS1) maxb mi
-  (Hwfg: sb_ds_gv_inject.wf_globals maxb (OpsemAux.Globals cfg1))
+  (Hwfg: genericvalues_inject.wf_globals maxb (OpsemAux.Globals cfg1))
   (Hless: 0 <= maxb) (Hnuse: used_in_fdef (PI_id pinfo) (PI_f pinfo) = false)
   (Hwfgs: MemProps.wf_globals maxb (OpsemAux.Globals cfg1)) 
   (Hnoalias: Promotability.wf_State maxb pinfo cfg1 IS1)

@@ -11,8 +11,8 @@ Require Import Znumtheory.
 Require Import opsem.
 Require Import dopsem.
 Require Import sb_def.
-Require Import sb_msim.
-Require Import sb_ds_gv_inject.
+Require Import memory_sim.
+Require Import genericvalues_inject.
 Require Import sb_ds_sim.
 Require Import sb_ds_trans.
 
