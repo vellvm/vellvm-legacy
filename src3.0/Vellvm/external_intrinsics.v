@@ -17,6 +17,7 @@ Require Import targetdata.
 Require Import infrastructure_props.
 Require Import typings.
 Require Import genericvalues_inject.
+Require Import vellvm_tactics.
 
 Import LLVMsyntax.
 Import LLVMtd.
@@ -61,24 +62,6 @@ Proof.
   destruct gv as [|]; inv H.
   eauto.
 Qed.
-
-Ltac uniq_result :=
-repeat match goal with
-| H1 : ?f ?a ?b ?c ?d = _,
-  H2 : ?f ?a ?b ?c ?d = _ |- _ =>
-  rewrite H1 in H2; inv H2
-| H1 : ?f ?a ?b ?c = _,
-  H2 : ?f ?a ?b ?c = _ |- _ =>
-  rewrite H1 in H2; inv H2
-| H1 : ?f ?a ?b = _,
-  H2 : ?f ?a ?b = _ |- _ =>
-  rewrite H1 in H2; inv H2
-| H1 : ?f ?a = _,
-  H2 : ?f ?a = _ |- _ =>
-  rewrite H1 in H2; inv H2
-| H : ?f _ = ?f _ |- _ => inv H
-| H : False |- _ => inv H
-end.
 
 Axiom vars_inj: (* FIXME: This should be a property of genGlobalAndInitMem *)
   forall TD (ge:list (atom * GenericValue)) id1 id2 b, 

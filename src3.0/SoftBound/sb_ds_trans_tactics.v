@@ -1,7 +1,7 @@
 Require Import Values.
 Require Import vellvm.
 Require Import genericvalues.
-Require Import trace.
+Require Import events.
 Require Import Memory.
 Require Import alist.
 Require Import Integers.
@@ -208,7 +208,7 @@ Ltac next_insn :=
           ECs2) M2); eauto 
     end in
 
-  rewrite <- (@trace_app_nil__eq__trace trace_nil);
+  rewrite <- (@E0_right E0);
   match goal with
   | |- context [ Opsem.sop_star _ 
        (Opsem.mkState 
@@ -364,7 +364,7 @@ match goal with
                               eapply cmds_at_block_tail_next; eauto]);
     try solve [
       simpl_env; simpl;
-      rewrite <- (@trace_app_nil__eq__trace trace_nil);
+      rewrite <- (@E0_right E0);
       eapply Opsem.sop_star_cons; eauto; eauto |
     
       exists ex_ids; exists rm2;

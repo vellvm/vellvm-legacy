@@ -9,7 +9,7 @@ Require Import List.
 Require Import Arith.
 Require Import tactics.
 Require Import monad.
-Require Import trace.
+Require Import events.
 Require Import Metatheory.
 Require Import genericvalues.
 Require Import alist.
@@ -20,6 +20,7 @@ Require Import targetdata.
 Require Import AST.
 Require Import Maps.
 Require Import opsem.
+Require Import vellvm_tactics.
 
 Module OpsemProps. Section OpsemProps.
 
@@ -58,7 +59,7 @@ Lemma sInsn__implies__sop_star : forall cfg state state' tr,
   sop_star cfg state state' tr.
 Proof.
   intros cfg state state' tr HdsInsn.
-  rewrite <- trace_app_nil__eq__trace.
+  rewrite <- E0_right.
   eauto.
 Qed.
 
@@ -67,7 +68,7 @@ Lemma sInsn__implies__sop_plus : forall cfg state state' tr,
   sop_plus cfg state state' tr.
 Proof.
   intros cfg state state' tr HdsInsn.
-  rewrite <- trace_app_nil__eq__trace.
+  rewrite <- E0_right.
   eauto.
 Qed.
 
@@ -85,25 +86,25 @@ Hint Resolve sInsn__implies__sop_star sInsn__implies__sop_plus
 Lemma sop_star_trans : forall cfg state1 state2 state3 tr12 tr23,
   @sop_star GVsSig cfg state1 state2 tr12 ->
   sop_star cfg state2 state3 tr23 ->
-  sop_star cfg state1 state3 (trace_app tr12 tr23).
+  sop_star cfg state1 state3 (Eapp tr12 tr23).
 Proof.
   intros cfg state1 state2 state3 tr12 tr23 Hdsop12 Hdsop23.
   generalize dependent state3.
   generalize dependent tr23.
   induction Hdsop12; intros; auto.
-    rewrite <- trace_app_commute. eauto.
+    rewrite Eapp_assoc. eauto.
 Qed.
 
 Lemma sop_diverging_trans : forall cfg state tr1 state' tr2,
   @sop_star GVsSig cfg state state' tr1 ->
   sop_diverges cfg state' tr2 ->
-  sop_diverges cfg state (Trace_app tr1 tr2).
+  sop_diverges cfg state (Eappinf tr1 tr2).
 Proof. 
   intros cfg state tr1 state' tr2 state_dsop_state' state'_dsop_diverges.
   generalize dependent tr2.
   (sop_star_cases (induction state_dsop_state') Case); intros; auto.
   Case "sop_star_cons".
-    rewrite <- Trace_app_commute. eauto.
+    rewrite Eappinf_assoc. eauto.
 Qed.
 
 (***********************************************************)
@@ -210,13 +211,13 @@ Proof.
                          tmn0 lc0 als0)::ECs) in H0; auto. clear H.
     destruct H0 as [fptr' [fa0 [fid0 [la0 [va0 [lb0 [l0 [ps0 [cs0 [tmn0' [gvs0 
       [lc0' [J1 [J2 [J3 [J4 [J5 J6]]]]]]]]]]]]]]]]].
-    rewrite <- nil_app_trace__eq__trace.
+    rewrite <- E0_left.
     apply sop_plus_cons with 
      (state2:=mkState ((mkEC (fdef_intro (fheader_intro fa0 rt fid0 la0 va0) lb0)
                              (block_intro l0 ps0 cs0 tmn0') cs0 tmn0' lc0' nil)::
                         (mkEC F0 B0 ((insn_call rid noret0 ca ft fv lp)::cs') 
                          tmn0 lc0 als0)::ECs) Mem1); eauto.
-    rewrite <- trace_app_nil__eq__trace.
+    rewrite <- E0_right.
     apply sop_star_trans with 
      (state2:=mkState ((mkEC (fdef_intro (fheader_intro fa0 rt fid0 la0 va0) lb0)
                                (block_intro l'' ps'' cs'' 
@@ -235,13 +236,13 @@ Proof.
                          tmn0 lc0 als0)::ECs) in H0; auto. clear H.
     destruct H0 as [fptr' [fa0 [fid0 [la0 [va0 [lb0 [l0 [ps0 [cs0 [tmn0' [gvs0 
       [lc0'' [J1 [J2 [J3 [J4 [J5 J6]]]]]]]]]]]]]]]]].
-    rewrite <- nil_app_trace__eq__trace.
+    rewrite <- E0_left.
     apply sop_plus_cons with 
      (state2:=mkState ((mkEC (fdef_intro (fheader_intro fa0 rt fid0 la0 va0) lb0)
                             (block_intro l0 ps0 cs0 tmn0') cs0 tmn0' lc0'' nil)::
                         (mkEC F0 B0 ((insn_call rid noret0 ca ft fv lp)::cs') 
                          tmn0 lc0 als0)::ECs) Mem1); eauto.
-    rewrite <- trace_app_nil__eq__trace.
+    rewrite <- E0_right.
     apply proc_callUpdateLocals_is_id in e0.
     destruct e0; subst.
     apply sop_star_trans with 
@@ -376,33 +377,111 @@ Proof.
   destruct ECS0; tinv H. destruct e; tinv H. destruct ECS0; inv H; auto.
 Qed.
 
-Lemma b_converges__implies__s_converges : forall sys main VarArgs B cs tmn lc 
-    als M,
-  @b_converges GVsSig sys main VarArgs (mkbEC B cs tmn lc als M) ->
-  exists F,
-  s_converges sys main VarArgs (mkState ((mkEC F B cs tmn lc als)::nil) M).
+Lemma b_converges__implies__s_converges : forall sys main VarArgs tr rg,
+  @b_converges GVsSig sys main VarArgs tr rg ->
+  s_converges sys main VarArgs tr rg.
 Proof.
-  intros sys main VarArgs B cs tmn lc als M Hdb_converges.
-  inversion Hdb_converges; subst. destruct cfg. destruct IS.
-  apply b_genInitState_inv in H.
-  exists bCurFunction0.
+  intros sys main VarArgs tr rg Hdb_converges.
+  inversion Hdb_converges; subst. destruct cfg, IS, FS.
+  match goal with
+  | H: b_genInitState _ _ _ _ = _ |- _ =>
+    apply b_genInitState_inv in H; simpl in H
+  end.
   eapply s_converges_intro; eauto.
-  apply bops__implies__sop_star; eauto.
+    apply bops__implies__sop_star; eauto.
+    simpl. auto.
 Qed.
 
-Lemma b_goeswrong__implies__s_goeswrong : forall sys main VarArgs B cs tmn lc 
-    als M,
-  @b_goeswrong GVsSig sys main VarArgs (mkbEC B cs tmn lc als M) ->
-  exists F,
-  s_goeswrong sys main VarArgs (mkState ((mkEC F B cs tmn lc als)::nil) M).
+(*
+Lemma stuck_bstate__stuck_state: forall s td ps gl fs F B cs tmn lc als M
+  (Hnfinal: 
+     b_isFinialState (mkbCfg s td ps gl fs F) (mkbEC B cs tmn lc als M) <> None)
+  (Hstk: @stuck_bstate GVsSig (mkbCfg s td ps gl fs F) 
+           (mkbEC B cs tmn lc als M)),
+  stuck_state (mkCfg s td ps gl fs) (mkState ((mkEC F B cs tmn lc als)::nil) M).
 Proof.
-  intros sys main VarArgs B cs tmn lc als M Hdb_goeswrong.
+  unfold stuck_bstate, stuck_state.
+  intros. intro HsInsn. apply Hstk. clear Hstk.
+  destruct HsInsn as [st' [tr HsInsn]].
+  match goal with
+  | HsInsn: sInsn ?A ?B _ _ |- _ =>
+      remember A as Cfg; remember B as st
+  end.
+  generalize dependent ps. generalize dependent s. generalize dependent td.
+  generalize dependent fs. generalize dependent F. generalize dependent B.
+  generalize dependent cs. generalize dependent tmn. generalize dependent lc.
+  generalize dependent gl. generalize dependent als. generalize dependent M.
+  (sInsn_cases (destruct HsInsn) Case); intros; try congruence; uniq_result;
+    simpl in Hnfinal; try solve [
+  match goal with
+  | H2: switchToNewBasicBlock _ (block_intro ?l' ?ps' ?cs' ?tmn') _ _ _ =
+          ret ?lc' |-
+    exists _:_, exists _:_, bInsn _ (mkbEC _ _ _ _ ?als0 ?M) _ _ =>
+    exists (mkbEC (block_intro l' ps' cs' tmn') cs' tmn' lc' als0 M);
+    exists E0; eauto
+  end |
+  match goal with
+  | id0:id |- exists _:_, exists _:_, 
+         bInsn _ (mkbEC ?B0 (_::?cs) ?tmn0 ?lc0 ?als0 ?M) _ _  =>
+    let foo gvs3 :=
+       exists (mkbEC B0 cs tmn0 (updateAddAL _ lc0 id0 gvs3) als0 M) in
+    match goal with
+    | _: extractGenericValue _ _ _ _ = ret ?gvs3 |- _ => foo gvs3
+    | _: GEP _ _ _ _ _ = ret ?gvs3 |- _ => foo gvs3
+    | _: insertGenericValue _ _ _ _ _ _ = ret ?gvs3 |- _ => foo gvs3
+    | _: _ = ret ?gvs3 |- _ => foo gvs3
+    end;
+    exists E0; eauto
+  end
+  ].
+
+  Case "sMalloc".
+    exists (mkbEC B0 cs tmn0 
+             (updateAddAL _ lc0 id0 ($ (blk2GV td mb) # (typ_pointer t) $)) 
+             als0 Mem').
+    exists E0; eauto.
+  Case "sFree".
+    exists (mkbEC B0 cs tmn0 lc0 als0 Mem').
+    exists E0; eauto.
+  Case "sAlloca".
+    exists (mkbEC B0 cs tmn0 
+             (updateAddAL _ lc0 id0 ($ (blk2GV td mb) # (typ_pointer t) $)) 
+             (mb::als0) Mem').
+    exists E0; eauto.
+  Case "sLoad".
+    exists (mkbEC B0 cs tmn0 (updateAddAL _ lc0 id0 ($ gv # t $)) als0 M).
+    exists E0; eauto.
+  Case "sStore".
+    exists (mkbEC B0 cs tmn0 lc0 als0 Mem').
+    exists E0; eauto.
+  Case "sSelect".
+    exists (mkbEC B0 cs tmn0 
+              (if isGVZero td c 
+               then updateAddAL _ lc0 id0 gvs2 
+               else updateAddAL _ lc0 id0 gvs1) als0 M).
+    exists E0; eauto.
+  Case "sCall".
+    (* FAIL: !! We cannot prove. -> stepping in call does not mean the call will 
+             return. Need to refer to CompCert *)
+  Case "sExCall".
+    exists (mkbEC B0 cs tmn0 lc' als0 Mem').
+    exists E0; eauto.
+Qed.
+
+Lemma b_goeswrong__implies__s_goeswrong : forall sys main VarArgs B cs tmn lc
+    als M tr,
+  @b_goeswrong GVsSig sys main VarArgs tr (mkbEC B cs tmn lc als M) ->
+  exists F,
+  s_goeswrong sys main VarArgs tr (mkState ((mkEC F B cs tmn lc als)::nil) M).
+Proof.
+  intros sys main VarArgs B cs tmn lc als M tr Hdb_goeswrong.
   inversion Hdb_goeswrong; subst. destruct cfg. destruct IS.
   apply b_genInitState_inv in H.
   exists bCurFunction0.
-  eapply s_goeswrong_intro; eauto.
+  eapply s_goeswrong_intro; eauto using stuck_bstate__stuck_state.
   apply bops__implies__sop_star; eauto.
 Qed.
+*)
 
 (***********************************************************)
 (** big-step divergence -> small-step divergence *)
@@ -413,7 +492,7 @@ Qed.
 Lemma bFdefInf_bopInf__implies__sop_diverges : 
    forall (fv : value) (rt : typ) (lp : params) (S : system)
      (TD : TargetData) (Ps : products) (ECs : list ExecutionContext)
-     (lc : GVsMap) (gl fs : GVMap) (Mem0 : mem) (tr : Trace) 
+     (lc : GVsMap) (gl fs : GVMap) (Mem0 : mem) (tr : traceinf) 
      (fid : id) (fa : fnattrs) (lc1 : GVsMap) (l' : l) 
      (ps' : phinodes) (cs' : cmds) (tmn' : terminator) 
      (la : args) (va : varg) (lb : blocks) (gvs : list GVs) 
@@ -456,7 +535,7 @@ Proof.
     intros S tr TD Ps gl fs F B cs tmn lc als Mem ECs HbInsnInf.
     
     inversion HbInsnInf; subst.
-    rewrite <- nil_app_Trace__eq__Trace.
+    rewrite <- E0_left_inf.
     assert (HbFdefInf:=H12).
     inversion H12; subst.
     apply sop_diverges_intro with 
@@ -531,7 +610,7 @@ Proof.
   intros S tr TD Ps gl fs F B cs tmn lc als Mem ECs HbInsnInf.
   
   inversion HbInsnInf; subst.
-  rewrite <- nil_app_Trace__eq__Trace.
+  rewrite <- E0_left_inf.
   assert (HbFdefInf:=H12).
   inversion H12; subst.
   apply sop_diverges_intro with 
@@ -1269,13 +1348,13 @@ Qed.
 Lemma bops_trans : forall cfg state1 state2 state3 tr1 tr2,
   @bops GVsSig cfg state1 state2 tr1 ->
   bops cfg state2 state3 tr2 ->
-  bops cfg state1 state3 (trace_app tr1 tr2).
+  bops cfg state1 state3 (Eapp tr1 tr2).
 Proof.
   intros cfg state1 state2 state3 tr1 tr2 H.
   generalize dependent state3.
   generalize dependent tr2.
   induction H; intros; auto.
-    rewrite <- trace_app_commute. eauto.
+    rewrite Eapp_assoc. eauto.
 Qed.
 
 Lemma bInsn__bops : forall cfg state1 state2 tr,
@@ -1283,7 +1362,7 @@ Lemma bInsn__bops : forall cfg state1 state2 tr,
   bops cfg state1 state2 tr.
 Proof.
   intros.
-  rewrite <- trace_app_nil__eq__trace.
+  rewrite <- E0_right.
   eauto.
 Qed.
 

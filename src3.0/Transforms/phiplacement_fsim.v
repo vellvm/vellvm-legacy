@@ -365,7 +365,7 @@ Lemma phinodes_placement_is_correct__sBranch: forall
   (H2 : Opsem.switchToNewBasicBlock TD (block_intro l' ps' cs' tmn') B gl lc =
        ret lc'),
   exists St2' : Opsem.State,
-     Opsem.sop_plus Cfg2 St2 St2' trace_nil /\
+     Opsem.sop_plus Cfg2 St2 St2' E0 /\
      State_simulation pinfo Cfg1
      {|Opsem.ECS := {| Opsem.CurFunction := F;
                        Opsem.CurBB := (block_intro l' ps' cs' tmn');
@@ -458,7 +458,7 @@ Proof.
     exists (Opsem.mkState ((Opsem.mkEC F2 b2 cs2' tmn' lc2' als2)::ECs2) M2).
     split.
     SSCase "opsem".
-      rewrite <- (@trace_app_nil__eq__trace trace_nil).
+      rewrite <- (@E0_right E0).
       apply Opsem.sop_plus_cons with (state2:=
          Opsem.mkState 
            ((Opsem.mkEC F2 B2 nil (insn_br bid Cond l1 l2) 
@@ -466,7 +466,7 @@ Proof.
         eapply simulation__getOperandValue with (lc2:=lc2) in Hget; eauto.
         econstructor; eauto.
 
-      rewrite <- (@trace_app_nil__eq__trace trace_nil).
+      rewrite <- (@E0_right E0).
       apply Opsem.sop_star_cons with (state2:=
          Opsem.mkState 
            ((Opsem.mkEC F2 b2 
@@ -546,7 +546,7 @@ Case "sReturn".
   exists 
     (Opsem.mkState ((Opsem.mkEC F2' B2' cs2'0 tmn2' lc2'' als2')::ECs2) Mem').
   split.
-    rewrite <- (@trace_app_nil__eq__trace trace_nil).
+    rewrite <- (@E0_right E0).
     apply OpsemProps.sInsn__implies__sop_plus.
     constructor; auto.
   
@@ -560,7 +560,7 @@ Case "sReturnVoid".
   exists 
     (Opsem.mkState ((Opsem.mkEC F2' B2' cs2'0 tmn2' lc2' als2')::ECs2) Mem').
   split.
-    rewrite <- (@trace_app_nil__eq__trace trace_nil).
+    rewrite <- (@E0_right E0).
     apply OpsemProps.sInsn__implies__sop_plus.
     constructor; auto.
   

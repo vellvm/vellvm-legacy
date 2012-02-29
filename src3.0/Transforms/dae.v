@@ -1428,7 +1428,7 @@ Lemma dae_is_sim_removable_state: forall (maxb : Values.block) (pinfo : PhiInfo)
   (Hop1 : Opsem.sInsn Cfg1 St1 St1' tr1),
   exists mi' : MoreMem.meminj,
     State_simulation pinfo maxb mi' Cfg1 St1' Cfg2 St2 /\
-    tr1 = trace_nil /\ inject_incr mi mi'.
+    tr1 = E0 /\ inject_incr mi mi'.
 Proof.
   intros.
   destruct Cfg1 as [S1 [los nts] Ps1 gl1 fs1].
@@ -3052,7 +3052,7 @@ Lemma dae_is_sim : forall maxb pinfo mi Cfg1 St1 Cfg2 St2
   (forall (Hrem: removable_State pinfo St1) St1' tr1 
      (Hop1: Opsem.sInsn Cfg1 St1 St1' tr1), 
      exists mi',
-       State_simulation pinfo maxb mi' Cfg1 St1' Cfg2 St2 /\ tr1 = trace_nil /\
+       State_simulation pinfo maxb mi' Cfg1 St1' Cfg2 St2 /\ tr1 = E0 /\
        Values.inject_incr mi mi') /\
   (forall (Hnrem: ~removable_State pinfo St1) St1' St2' tr1 tr2
      (Hop2: Opsem.sInsn Cfg2 St2 St2' tr2) 
@@ -3395,14 +3395,14 @@ Admitted.
 
 Lemma s_isFinialState__dae_State_simulation: forall maxb mi pinfo cfg1 FS1 cfg2 
   FS2 r (Hstsim : State_simulation pinfo maxb mi cfg1 FS1 cfg2 FS2)
-  (Hfinal: s_isFinialState cfg2 FS2 = ret r),
-  s_isFinialState cfg1 FS1 = ret r.
+  (Hfinal: Opsem.s_isFinialState cfg2 FS2 = ret r),
+  Opsem.s_isFinialState cfg1 FS1 = ret r.
 Admitted.
 
 Lemma opsem_s_isFinialState__dae_State_simulation: forall 
   pinfo maxb mi cfg1 FS1 cfg2 FS2  
   (Hstsim : State_simulation pinfo maxb mi cfg1 FS1 cfg2 FS2),
-  Opsem.s_isFinialState FS1 = Opsem.s_isFinialState FS2.
+  Opsem.s_isFinialState cfg1 FS1 = Opsem.s_isFinialState cfg2 FS2.
 Admitted.
 
 Lemma undefined_state__dae_State_simulation: forall pinfo maxb mi cfg1 St1 cfg2 

@@ -4,7 +4,6 @@ Require Import List.
 Require Import Arith.
 Require Import tactics.
 Require Import monad.
-Require Import trace.
 Require Import Metatheory.
 Require Import genericvalues.
 Require Import alist.

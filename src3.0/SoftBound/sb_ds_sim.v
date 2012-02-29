@@ -1,7 +1,7 @@
 Require Import syntax.
 Require Import infrastructure.
 Require Import typings.
-Require Import trace.
+Require Import events.
 Require Import Memory.
 Require Import genericvalues.
 Require Import alist.
@@ -88,7 +88,7 @@ MoreMem.mem_inj mi Mem1 Mem2 /\
        ((Opsem.mkEC F B cs tmn 
          (updateAddAL _ (updateAddAL _ lc2 bid0 bgv') eid0 egv') als)::EC) 
          Mem2)
-    trace_nil /\
+    E0 /\
     gv_inject mi ((Vptr blk bofs, AST.Mint 31)::nil) bgv' /\
     gv_inject mi ((Vptr blk eofs, AST.Mint 31)::nil) egv'
 ).

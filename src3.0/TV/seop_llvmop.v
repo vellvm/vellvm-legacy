@@ -10,7 +10,7 @@ Require Import infrastructure_props.
 Require Import opsem.
 Require Import opsem_props.
 Require Import dopsem.
-Require Import trace.
+Require Import events.
 Require Import symexe_def.
 Require Import alist.
 
@@ -154,7 +154,7 @@ Case "dbSubblocks_cons".
 Case "dbBlock_intro".
   inversion H0; subst. clear H0.
   inversion H1; subst. clear H1.
-  rewrite <- trace_app_commute.
+  rewrite Eapp_assoc.
   apply bops_trans with (state2:=mkbEC (block_intro l1 ps0 
     (cs++cs') tmn0) cs' tmn0 lc2 als2 Mem2); eauto.
     apply seop_dbCmds__llvmop_dbop with (fs:=fs)(Ps:=Ps)(F:=F)
@@ -179,7 +179,7 @@ Case "dbBlocks_cons".
 
 Case "dbFdef_func".
   eapply bFdef_func; eauto.
-    rewrite <- trace_app_commute.
+    rewrite Eapp_assoc.
     apply seop_dbCmds__llvmop_dbop with (fs:=fs)(Ps:=Ps)(F:=fdef_intro 
       (fheader_intro fa rt fid la va) lb)(B:=block_intro l2 ps2 (cs21++cs22) 
         (insn_return rid rt Result))(S:=S)(cs':=nil)
@@ -195,7 +195,7 @@ Case "dbFdef_func".
 
 Case "dbFdef_proc".
   eapply bFdef_proc; eauto.
-    rewrite <- trace_app_commute.
+    rewrite Eapp_assoc.
     apply seop_dbCmds__llvmop_dbop with (fs:=fs)(Ps:=Ps)
       (F:=fdef_intro (fheader_intro fa rt fid la va) lb)
       (B:=block_intro l2 ps2 (cs21++cs22) (insn_return_void rid))
@@ -294,7 +294,7 @@ Lemma dbBlock__dbBlocks : forall S TD Ps fs gl F state state' tr,
   SimpleSE.dbBlocks S TD Ps fs gl F state state' tr.
 Proof.
   intros S TD Ps fs gl F state state' tr H.
-  rewrite <- trace_app_nil__eq__trace.
+  rewrite <- E0_right.
   eapply SimpleSE.dbBlocks_cons; eauto.
 Qed.
 
@@ -308,8 +308,8 @@ Lemma dbTerminator__dbBlock : forall TD F fs gl lc tmn l ps B' lc' tr als Ps S
     tr.
 Proof.
   intros TD F fs gl lc tmn l0 ps B' lc' tr als Ps S Mem0 H.
-  rewrite <- nil_app_trace__eq__trace.
-  rewrite <- nil_app_trace__eq__trace with (tr:=trace_nil).
+  rewrite <- E0_left.
+  rewrite <- E0_left with (t:=E0).
   assert (@nil cmd=nil++nil) as EQ. auto.
   rewrite EQ.
   apply SimpleSE.dbBlock_intro with (lc2:=lc)(als2:=als)(Mem2:=Mem0)(lc3:=lc); 
@@ -321,11 +321,11 @@ Lemma dbCmd_dbSubblock__dbSubblock : forall S TD Ps lc als gl fs Mem0 c lc1 als1
   SimpleSE.dbCmd TD gl lc als Mem0 c lc1 als1 Mem1 tr1 ->
   SimpleSE.dbSubblock S TD Ps fs gl lc1 als1 Mem1 cs lc2 als2 Mem2 tr2 ->
   SimpleSE.dbSubblock S TD Ps fs gl lc als Mem0 (c::cs) lc2 als2 Mem2 
-    (trace_app tr1 tr2).
+    (Eapp tr1 tr2).
 Proof.
  intros S TD Ps lc als gl fs Mem0 c lc1 als1 Mem1 tr1 cs lc2 als2 Mem2 tr2 H1 H2.
   inversion H2; subst.  
-  rewrite trace_app_commute.
+  rewrite <- Eapp_assoc.
   assert (c::cs0++call0::nil = (c::cs0)++call0::nil) as EQ. auto.
   rewrite EQ.
   eapply SimpleSE.dbSubblock_intro; eauto.
@@ -336,17 +336,17 @@ Lemma dbCmd_dbSubblocks__dbCmd_or_dbSubblocks : forall S TD Ps lc als gl fs Mem0
   SimpleSE.dbCmd TD gl lc als Mem0 c lc1 als1 Mem1 tr1 ->
   SimpleSE.dbSubblocks S TD Ps fs gl lc1 als1 Mem1 cs lc2 als2 Mem2 tr2 ->
   (SimpleSE.dbCmd TD gl lc als Mem0 c lc2 als2 Mem2 tr1 /\ 
-   cs = nil /\ tr2 = trace_nil /\ 
+   cs = nil /\ tr2 = E0 /\ 
    lc1 = lc2 /\ als1 = als2 /\ Mem1 = Mem2 
   ) \/
   (SimpleSE.dbSubblocks S TD Ps fs gl lc als Mem0 (c::cs) lc2 als2 Mem2 
-    (trace_app tr1 tr2)).
+    (Eapp tr1 tr2)).
 Proof.
  intros S TD Ps lc als gl fs Mem0 c lc1 als1 Mem1 tr1 cs lc2 als2 Mem2 tr2 H1 H2.
   inversion H2; subst.
     left. repeat (split; auto).
     right. 
-      rewrite trace_app_commute.
+      rewrite <- Eapp_assoc.
       assert (c::cs0++cs'=(c::cs0)++cs') as EQ. auto.
       rewrite EQ.
       eapply SimpleSE.dbSubblocks_cons; eauto using dbCmd_dbSubblock__dbSubblock.
@@ -377,21 +377,21 @@ Lemma dbCmd_dbBlock__dbBlock : forall S TD Ps fs lc als gl Mem0 c lc1 als1 Mem1
     (SimpleSE.mkState (SimpleSE.mkEC (block_intro l1 ps1 (c::cs1) tmn1) lc als) 
        Mem0)
     (SimpleSE.mkState (SimpleSE.mkEC B lc2 als2) Mem2)
-    (trace_app tr1 tr2).
+    (Eapp tr1 tr2).
 Proof.
   intros S TD Ps fs lc als gl Mem0 c lc1 als1 Mem1 tr1 lc2 als2 Mem2 tr2 
     l1 ps1 cs1 tmn1 B F H1 H2.
   inversion H2; subst.  
-  rewrite trace_app_commute.
-  rewrite trace_app_commute.
+  rewrite <- Eapp_assoc.
+  rewrite <- Eapp_assoc.
   apply dbCmd_dbSubblocks__dbCmd_or_dbSubblocks with (lc:=lc)(als:=als)(gl:=gl)
     (Mem0:=Mem0)(c:=c)(tr1:=tr1) in H19; auto.
   destruct H19 as [[J11 [EQ [EQ' [EQ1 [EQ2 EQ3]]]]] | J11]; subst.
     assert (c::nil++cs'=nil++c::cs') as EQ. auto.
     rewrite EQ. clear EQ.
-    rewrite trace_app_nil__eq__trace.
-    rewrite <- nil_app_trace__eq__trace.
-    rewrite trace_app_commute.
+    rewrite E0_right.
+    rewrite <- E0_left.
+    rewrite <- Eapp_assoc.
     eapply SimpleSE.dbBlock_intro; eauto using dbTerminator_eqlabel.
 
     assert (c::cs++cs'=(c::cs)++cs') as EQ. auto.
@@ -409,7 +409,7 @@ Lemma dbCmd_dbBlocks__dbCmd_or_dbBlocks : forall S TD Ps fs lc als gl Mem0 c lc1
       Mem2)
     tr2 ->
   (SimpleSE.dbCmd TD gl lc als Mem0 c lc2 als2 Mem2 tr1 /\ 
-   cs1 = cs2 /\ tr2 = trace_nil /\ 
+   cs1 = cs2 /\ tr2 = E0 /\ 
    lc1 = lc2 /\ als1 = als2 /\ Mem1 = Mem2 /\
    l1 = l2 /\ ps1 = ps2 /\ tmn1 = tmn2
   ) \/
@@ -418,14 +418,14 @@ Lemma dbCmd_dbBlocks__dbCmd_or_dbBlocks : forall S TD Ps fs lc als gl Mem0 c lc1
       Mem0)
     (SimpleSE.mkState (SimpleSE.mkEC (block_intro l2 ps2 cs2 tmn2) lc2 als2) 
       Mem2)
-    (trace_app tr1 tr2)).
+    (Eapp tr1 tr2)).
 Proof.
   intros S TD Ps fs lc als gl Mem0 c lc1 als1 Mem1 tr1 lc2 als2 Mem2 tr2 
     l1 ps1 cs1 tmn1 l2 ps2 cs2 tmn2 F H1 H2.
   inversion H2; subst.
     left. repeat (split; auto).
     right. 
-      rewrite trace_app_commute.
+      rewrite <- Eapp_assoc.
       inversion H; subst.
       eapply SimpleSE.dbBlocks_cons; eauto using dbCmd_dbBlock__dbBlock.
 Qed.
@@ -439,7 +439,7 @@ Lemma dbCall__dbSubblock : forall S TD Ps fs lc gl Mem c lc' Mem' tr als,
     tr.
 Proof.
   intros S TD Ps fs lc gl Mem0 c lc' Mem' tr als H.
-  rewrite <- nil_app_trace__eq__trace.
+  rewrite <- E0_left.
   assert (c::nil=nil++c::nil) as EQ. auto.
   rewrite EQ.
   apply SimpleSE.dbSubblock_intro with (lc2:=lc)(Mem2:=Mem0); auto.
@@ -465,13 +465,13 @@ Lemma dbSubblock_dbBlock__dbBlock : forall S TD Ps fs lc als gl Mem0 cs lc1 als1
     (SimpleSE.mkState (SimpleSE.mkEC (block_intro l1 ps1 (cs++cs1) tmn1) lc als) 
       Mem0)
     (SimpleSE.mkState (SimpleSE.mkEC B lc2 als2) Mem2)
-    (trace_app tr1 tr2).
+    (Eapp tr1 tr2).
 Proof.
   intros S TD Ps fs lc als gl Mem0 cs lc1 als1 Mem1 tr1 lc2 als2 Mem2 tr2 
     l1 ps1 cs1 tmn1 B F H1 H2.
   inversion H2; subst.  
-  rewrite trace_app_commute.
-  rewrite trace_app_commute.
+  rewrite <- Eapp_assoc.
+  rewrite <- Eapp_assoc.
   rewrite <- app_ass.
   eapply SimpleSE.dbBlock_intro; eauto using dbTerminator_eqlabel.
 Qed.
@@ -486,7 +486,7 @@ Lemma dbSubblock_dbBlocks__dbSubblock_or_dbBlocks : forall S TD Ps fs lc als gl
       Mem2)
     tr2 ->
   (  SimpleSE.dbSubblock S TD Ps fs gl lc als Mem0 cs lc1 als1 Mem1 tr1 /\ 
-   cs1 = cs2 /\ tr2 = trace_nil /\ 
+   cs1 = cs2 /\ tr2 = E0 /\ 
    lc1 = lc2 /\ als1 = als2 /\ Mem1 = Mem2 /\
    l1 = l2 /\ ps1 = ps2 /\ tmn1 = tmn2
   ) \/
@@ -494,14 +494,14 @@ Lemma dbSubblock_dbBlocks__dbSubblock_or_dbBlocks : forall S TD Ps fs lc als gl
     (SimpleSE.mkState (SimpleSE.mkEC (block_intro l1 ps1 (cs++cs1) tmn1) lc als)
       Mem0)
     (SimpleSE.mkState (SimpleSE.mkEC (block_intro l2 ps2 cs2 tmn2) lc2 als2) Mem2)
-    (trace_app tr1 tr2)).
+    (Eapp tr1 tr2)).
 Proof.
   intros S TD Ps fs lc als gl Mem0 cs lc1 als1 Mem1 tr1 lc2 als2 Mem2 tr2 
     l1 ps1 cs1 tmn1 l2 ps2 cs2 tmn2 F H1 H2.
   inversion H2; subst.
     left. repeat (split; auto).
     right. 
-      rewrite trace_app_commute.
+      rewrite <- Eapp_assoc.
       inversion H; subst.
       eapply SimpleSE.dbBlocks_cons; eauto using dbSubblock_dbBlock__dbBlock.
 Qed.
@@ -541,7 +541,7 @@ Definition llvmop_dbop__seop_prop cfg state1 state2 tr
   (exists cs1, exists cs2, 
   exists tr1, exists tr2,
   exists lc1, exists als1, exists Mem1,
-    trace_app tr1 tr2 = tr /\  
+    Eapp tr1 tr2 = tr /\  
     l = l' /\
     ps = ps' /\
     cs0 = cs0' /\
@@ -562,7 +562,7 @@ Definition llvmop_dbop__seop_prop cfg state1 state2 tr
   exists lc1, exists als1, exists Mem1,
   exists lc2, exists als2,  exists Mem2,
     cs1++cs2++cs'=cs0' /\
-    (trace_app (trace_app tr1 tr2) tr3) = tr /\
+    (Eapp (Eapp tr1 tr2) tr3) = tr /\
     SimpleSE.dbBlocks S (los, nts) Ps fs gl F  
       (SimpleSE.mkState (SimpleSE.mkEC (block_intro l ps cs tmn) lc als) Mem) 
       (SimpleSE.mkState (SimpleSE.mkEC (block_intro l' ps' cs0' tmn') lc1 als1) Mem1)
@@ -782,7 +782,7 @@ Case "bExCall".
 Case "bops_nil".
   left.
   exists nil. exists nil.
-  exists trace_nil. exists trace_nil.
+  exists E0. exists E0.
   exists lc'. exists als'. exists Mem'.
   repeat (split; auto).
   
@@ -813,18 +813,18 @@ Case "bops_cons".
       exists t1. exists tr1. exists tr2.
       exists lc1. exists als1. exists Mem1.
       exists lc2. exists als2. exists Mem2.
-      rewrite trace_app_commute.
+      rewrite <- Eapp_assoc.
       repeat (split; auto).
         apply dbBlock__dbBlocks; auto using dbTerminator__dbBlock.
 
     SSCase "multi block".
       right.
       exists cs3. exists cs4.
-      exists (trace_app t1 tr1). exists tr2. exists tr3.
+      exists (Eapp t1 tr1). exists tr2. exists tr3.
       exists lc2. exists als2. exists Mem2.
       exists lc3. exists als3. exists Mem3.
-      rewrite trace_app_commute.
-      rewrite trace_app_commute.
+      rewrite <- Eapp_assoc.
+      rewrite <- Eapp_assoc.
       repeat (split; auto).
         apply SimpleSE.dbBlocks_cons with (S2:=SimpleSE.mkState (SimpleSE.mkEC 
           (block_intro l1 ps1 cs2 tmn1) lc1 als1) Mem1); 
@@ -844,16 +844,16 @@ Case "bops_cons".
         (gl:=gl)(Mem0:=Mem0)(c:=c)(tr1:=t1) in J11; auto.
       destruct J11 as [[J11 [EQ [EQ' [EQ1 [EQ2 EQ3]]]]] | J11]; subst.
         exists nil. exists (c::cs4).
-        exists trace_nil. exists (trace_app t1 tr2).
+        exists E0. exists (Eapp t1 tr2).
         exists lc. exists als. exists Mem0.
-        rewrite nil_app_trace__eq__trace.
-        rewrite nil_app_trace__eq__trace.
+        rewrite E0_left.
+        rewrite E0_left.
         repeat (split; eauto). 
 
         exists (c::cs3). exists cs4.
-        exists (trace_app t1 tr1). exists tr2.
+        exists (Eapp t1 tr1). exists tr2.
         exists lc2. exists als2. exists Mem2.
-        rewrite trace_app_commute. simpl_env in *.
+        rewrite <- Eapp_assoc. simpl_env in *.
         repeat (split; auto).
     
     SSCase "multi block".
@@ -876,27 +876,27 @@ Case "bops_cons".
         destruct J22 as [[J22 [EQ [EQ' [EQ1 [EQ2 EQ3]]]]] | J22]; subst.
           left. 
           exists nil. exists (c::cs4).
-          exists trace_nil. exists (trace_app t1 tr3).
+          exists E0. exists (Eapp t1 tr3).
           exists lc. exists als. exists Mem0.
-          rewrite nil_app_trace__eq__trace.
-          rewrite nil_app_trace__eq__trace.
+          rewrite E0_left.
+          rewrite E0_left.
           repeat (split; eauto).
 
           left.
           exists (c::cs3). exists cs4.
-          exists (trace_app t1 tr2). exists tr3.
+          exists (Eapp t1 tr2). exists tr3.
           exists lc3. exists als3. exists Mem3.
-          rewrite nil_app_trace__eq__trace.
-          rewrite trace_app_commute.
+          rewrite E0_left.
+          rewrite <- Eapp_assoc.
           repeat (split; eauto).
         
         right.
         exists cs3. exists cs4.
-        exists (trace_app t1 tr1). exists tr2. exists tr3.
+        exists (Eapp t1 tr1). exists tr2. exists tr3.
         exists lc2. exists als2. exists Mem2.
         exists lc3. exists als3. exists Mem3.
-        rewrite trace_app_commute.
-        rewrite trace_app_commute.
+        rewrite <- Eapp_assoc.
+        rewrite <- Eapp_assoc.
         repeat (split; eauto).
 
   SCase "dbCall".
@@ -914,9 +914,9 @@ Case "bops_cons".
     SSCase "one block".
       left.
       exists (c::cs3). exists cs4.
-      exists (trace_app t1 tr1). exists tr2.
+      exists (Eapp t1 tr1). exists tr2.
       exists lc2. exists als2. exists Mem2.
-      rewrite trace_app_commute. simpl_env in *.
+      rewrite <- Eapp_assoc. simpl_env in *.
       repeat (split; eauto).
 
     SSCase "multi block".
@@ -926,9 +926,9 @@ Case "bops_cons".
         subst.
         left. 
         exists (c::cs3). exists cs4.
-        exists (trace_app t1 tr2). exists tr3.
+        exists (Eapp t1 tr2). exists tr3.
         exists lc3. exists als3. exists Mem3.
-        rewrite nil_app_trace__eq__trace.
+        rewrite E0_left.
         assert (cs2=cs3++cs4++cs') as EQcs.        
           apply bops_preservation in b0; auto.
           assert (uniqFdef F) as UniqF.
@@ -939,16 +939,16 @@ Case "bops_cons".
             (tmn1:=tmn') in b0; auto.
           destruct b0 as [EQ1 [EQ2 EQ3]]; subst; auto.
         subst.
-        rewrite trace_app_commute. simpl_env in *.
+        rewrite <- Eapp_assoc. simpl_env in *.
         repeat (split; eauto).
       
         right.
         exists cs3. exists cs4.
-        exists (trace_app t1 tr1). exists tr2. exists tr3.
+        exists (Eapp t1 tr1). exists tr2. exists tr3.
         exists lc2. exists als2. exists Mem2.
         exists lc3. exists als3. exists Mem3.
-        rewrite trace_app_commute.
-        rewrite trace_app_commute.
+        rewrite <- Eapp_assoc.
+        rewrite <- Eapp_assoc.
         repeat (split; eauto).     
 
 Case "bFdef_func".
@@ -967,7 +967,7 @@ Case "bFdef_func".
                 ]; subst.
   SCase "one block".
     simpl_env in EQ6. subst.
-    rewrite <- nil_app_trace__eq__trace with (tr:=tr1).
+    rewrite <- E0_left with (t:=tr1).
     eapply SimpleSE.dbFdef_func; eauto.
   
   SCase "multi block".
@@ -989,7 +989,7 @@ Case "bFdef_proc".
                 ]; subst.
   SCase "one block".
     simpl_env in EQ6. subst.
-    rewrite <- nil_app_trace__eq__trace with (tr:=tr1).
+    rewrite <- E0_left with (t:=tr1).
     eapply SimpleSE.dbFdef_proc; eauto.
   
   SCase "multi block".
@@ -1034,7 +1034,7 @@ Lemma llvmop_dbop__seop : forall tr S los nts Ps F l ps cs tmn lc als gl
   (exists cs1, exists cs2, 
   exists tr1, exists tr2,
   exists lc1, exists als1, exists Mem1,
-    trace_app tr1 tr2 = tr /\  
+    Eapp tr1 tr2 = tr /\  
     l = l' /\
     ps = ps' /\
     cs0 = cs0' /\
@@ -1055,7 +1055,7 @@ Lemma llvmop_dbop__seop : forall tr S los nts Ps F l ps cs tmn lc als gl
   exists lc1, exists als1, exists Mem1,
   exists lc2, exists als2, exists Mem2,
     cs1++cs2++cs'=cs0' /\
-    (trace_app (trace_app tr1 tr2) tr3) = tr /\
+    (Eapp (Eapp tr1 tr2) tr3) = tr /\
     SimpleSE.dbBlocks S (los, nts) Ps fs gl F
       (SimpleSE.mkState (SimpleSE.mkEC (block_intro l ps cs tmn) lc als) Mem) 
       (SimpleSE.mkState (SimpleSE.mkEC (block_intro l' ps' cs0' tmn') lc1 als1) 

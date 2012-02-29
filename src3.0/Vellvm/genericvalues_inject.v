@@ -1,6 +1,5 @@
 Require Import syntax.
 Require Import infrastructure.
-Require Import trace.
 Require Import Memory.
 Require Import targetdata.
 Require Import genericvalues.

@@ -9,7 +9,6 @@ Require Import List.
 Require Import Arith.
 Require Import tactics.
 Require Import monad.
-Require Import trace.
 Require Import Metatheory.
 Require Import genericvalues.
 Require Import alist.
@@ -3233,7 +3232,7 @@ Ltac undefbehave := unfold undefined_state; simpl;
    
 Lemma progress : forall cfg S1 (HwfCfg: wf_Config cfg),
   wf_State cfg S1 -> 
-  s_isFinialState S1 = true \/ 
+  s_isFinialState cfg S1 <> None \/ 
   (exists S2, exists tr, sInsn cfg S1 S2 tr) \/
   undefined_state cfg S1.
 Proof.
@@ -3255,8 +3254,13 @@ Proof.
     destruct_tmn tmn.
     SCase "tmn=ret".
       simpl in HwfCall.
+      assert (exists gv : GVs, 
+        getOperandValue (los, nts) value5 lc gl = ret gv) as H.
+        eapply getOperandValue_inTmnOperans_isnt_stuck; eauto.
+         simpl. auto.
+      destruct H as [gv H]. 
       destruct ecs.
-        simpl; auto.      
+        simpl. rewrite H. left. congruence.
 
         right.
         destruct e as [f' b' cs' tmn' lc' als'].
@@ -3274,11 +3278,7 @@ Proof.
           returnUpdateLocals (los,nts) (insn_call i1 n c t0 v0 p) value5 
             lc lc' gl = Some lc'') as Hretup.
           unfold returnUpdateLocals. simpl.
-          assert (exists gv : GVs, 
-            getOperandValue (los, nts) value5 lc gl = ret gv) as H.
-            eapply getOperandValue_inTmnOperans_isnt_stuck; eauto.
-              simpl. auto.
-          destruct H as [gv H]. rewrite H.
+          rewrite H.
           destruct n.
             exists lc'. auto.
 
@@ -3298,13 +3298,13 @@ Proof.
           
         destruct Hretup as [lc'' Hretup].
         exists (mkState ((mkEC f' b' cs' tmn' lc'' als')::ecs) M').
-        exists trace_nil.
+        exists events.E0.
         eauto.  
 
     SCase "tmn=ret void".
       simpl in HwfCall.
       destruct ecs.
-        simpl; auto.      
+        simpl. unfold const2GV. simpl. left. congruence.
 
         right.
         destruct e as [f' b' cs' tmn' lc' als'].
@@ -3319,7 +3319,7 @@ Proof.
         destruct n; try solve [undefbehave].
         left.
         exists (mkState ((mkEC f' b' cs' tmn' lc' als')::ecs) M').
-        exists trace_nil.
+        exists events.E0.
         eauto.  
 
     SCase "tmn=br". 
@@ -3402,7 +3402,7 @@ Proof.
       destruct Hswitch as [lc' Hswitch].
       exists (mkState ((mkEC f (block_intro l' ps' cs' tmn') cs' tmn' lc' 
               als)::ecs) M).
-      exists trace_nil. eauto.
+      exists events.E0. eauto.
 
     SCase "tmn=br_uncond". 
       right. left.
@@ -3449,7 +3449,7 @@ Proof.
       destruct Hswitch as [lc' Hswitch].
       exists (mkState ((mkEC f (block_intro l2 ps' cs' tmn') cs' tmn' lc' 
               als)::ecs) M).
-      exists trace_nil. eauto.
+      exists events.E0. eauto.
 
     SCase "tmn=unreachable".
       undefbehave.
@@ -3498,7 +3498,7 @@ Proof.
                 Locals := (updateAddAL _ lc i0 gv3);
                 Allocas := als |} :: ecs;
          Mem := M |}.
-     exists trace_nil. eauto.
+     exists events.E0. eauto.
 
   SCase "c=fbop".
     left.
@@ -3532,7 +3532,7 @@ Proof.
                 Locals := (updateAddAL _ lc i0 gv3);
                 Allocas := als |} :: ecs;
          Mem := M |}.
-     exists trace_nil. eauto.
+     exists events.E0. eauto.
 
   SCase "c=extractvalue".
     left.
@@ -3559,7 +3559,7 @@ Proof.
                 Locals := (updateAddAL _ lc i0 gv');
                 Allocas := als |} :: ecs;
          Mem := M |}.
-     exists trace_nil. eauto.
+     exists events.E0. eauto.
 
   SCase "c=insertvalue".
     left.
@@ -3592,7 +3592,7 @@ Proof.
                 Locals := (updateAddAL _ lc i0 gv'');
                 Allocas := als |} :: ecs;
          Mem := M |}.
-     exists trace_nil. eauto.
+     exists events.E0. eauto.
 
   SCase "c=malloc". 
     inv Hwfc. inv H11.
@@ -3622,7 +3622,7 @@ Proof.
                (updateAddAL _ lc i0 ($ (blk2GV (los, nts) mb) # typ_pointer t$));
                 Allocas := als |} :: ecs;
          Mem := M' |}.
-      exists trace_nil.
+      exists events.E0.
       eauto.
       
       unfold undefined_state.
@@ -3654,7 +3654,7 @@ Proof.
                 Locals := lc;
                 Allocas := als |} :: ecs;
          Mem := M' |}.
-      exists trace_nil.
+      exists events.E0.
       eauto.      
       
       unfold undefined_state.
@@ -3689,7 +3689,7 @@ Proof.
                (updateAddAL _ lc i0 ($ (blk2GV (los, nts) mb) # typ_pointer t$));
                 Allocas := (mb::als) |} :: ecs;
          Mem := M' |}.
-      exists trace_nil.
+      exists events.E0.
       eauto.      
       
       right.
@@ -3722,7 +3722,7 @@ Proof.
                 Locals := updateAddAL _ lc i0 ($ gv' # t$);
                 Allocas := als |} :: ecs;
          Mem := M |}.
-      exists trace_nil.
+      exists events.E0.
       eauto.      
 
       right.
@@ -3764,7 +3764,7 @@ Proof.
                 Locals := lc;
                 Allocas := als |} :: ecs;
          Mem := M' |}.
-      exists trace_nil.
+      exists events.E0.
       eauto.      
 
       right.
@@ -3803,7 +3803,7 @@ Proof.
                 Locals := (updateAddAL _ lc i0 mp');
                 Allocas := als |} :: ecs;
          Mem := M |}.
-     exists trace_nil. eauto.
+     exists events.E0. eauto.
 
   SCase "trunc". 
     left.
@@ -3830,7 +3830,7 @@ Proof.
                 Locals := (updateAddAL _ lc i0 gv2);
                 Allocas := als |} :: ecs;
          Mem := M |}.
-     exists trace_nil. eauto.
+     exists events.E0. eauto.
 
   SCase "ext".
     left.
@@ -3857,7 +3857,7 @@ Proof.
                 Locals := (updateAddAL _ lc i0 gv2);
                 Allocas := als |} :: ecs;
          Mem := M |}.
-     exists trace_nil. eauto.
+     exists events.E0. eauto.
 
   SCase "cast". 
     left.
@@ -3884,7 +3884,7 @@ Proof.
                 Locals := (updateAddAL _ lc i0 gv2);
                 Allocas := als |} :: ecs;
          Mem := M |}.
-     exists trace_nil. eauto.
+     exists events.E0. eauto.
 
   SCase "icmp". 
     left.
@@ -3917,7 +3917,7 @@ Proof.
                 Locals := (updateAddAL _ lc i0 gv2);
                 Allocas := als |} :: ecs;
          Mem := M |}.
-     exists trace_nil. eauto.
+     exists events.E0. eauto.
 
   SCase "fcmp". 
     left.
@@ -3950,7 +3950,7 @@ Proof.
                 Locals := (updateAddAL _ lc i0 gv2);
                 Allocas := als |} :: ecs;
          Mem := M |}.
-     exists trace_nil. eauto.
+     exists events.E0. eauto.
 
   SCase "select". 
     assert (exists gv, getOperandValue (los, nts) v lc gl = Some gv) 
@@ -3987,7 +3987,7 @@ Proof.
                            else updateAddAL _ lc i0 gv0);
                 Allocas := als |} :: ecs;
          Mem := M |}.
-     exists trace_nil. eauto.
+     exists events.E0. eauto.
 
   SCase "call". 
     assert (exists gvs, params2GVs (los, nts) p lc gl = Some gvs) as G.
@@ -4033,7 +4033,7 @@ Proof.
                 Locals := lc;
                 Allocas := als |} :: ecs;
          Mem := M |}.
-    exists trace_nil.
+    exists events.E0.
     eauto.     
 
     remember (lookupExFdecViaPtr ps fs fptr) as Helk. 
@@ -4061,7 +4061,7 @@ Proof.
                  Locals := lc';
                  Allocas := als |} :: ecs;
           Mem := Mem' |}.
-        exists trace_nil.
+        exists events.E0.
         eauto.     
 
         right.

@@ -1,6 +1,6 @@
 Require Import Values.
 Require Import vellvm.
-Require Import trace.
+Require Import events.
 Require Import Memory.
 Require Import alist.
 Require Import Integers.
@@ -77,7 +77,7 @@ Lemma SBpass_is_correct__dsMalloc : forall (mi : meminj) (mgb : Values.block)
           = (lc', rm')),
   exists St' : Opsem.State,
      exists mi' : MoreMem.meminj,
-       Opsem.sop_star Cfg St St' trace_nil /\
+       Opsem.sop_star Cfg St St' E0 /\
        sbState_simulates_State mi' mgb {|
          CurSystem := S;
          CurTargetData := TD;
@@ -309,7 +309,7 @@ Lemma SBpass_is_correct__dsAlloca : forall
        (lc', rm')),
   exists St' : Opsem.State,
      exists mi' : MoreMem.meminj,
-       Opsem.sop_star Cfg St St' trace_nil /\
+       Opsem.sop_star Cfg St St' E0 /\
        sbState_simulates_State mi' mgb {|
          CurSystem := S;
          CurTargetData := TD;
@@ -539,7 +539,7 @@ Lemma SBpass_is_correct__dsFree : forall (mi : MoreMem.meminj)
   (H0 : free TD Mem0 mptr0 = ret Mem'),
    exists St' : Opsem.State,
      exists mi' : MoreMem.meminj,
-       Opsem.sop_star Cfg St St' trace_nil /\
+       Opsem.sop_star Cfg St St' E0 /\
        sbState_simulates_State mi' mgb {|
          CurSystem := S;
          CurTargetData := TD;
@@ -581,7 +581,7 @@ Proof.
   split.
   SCase "opsem".
     simpl.
-    rewrite <- (@trace_app_nil__eq__trace trace_nil).
+    rewrite <- (@E0_right E0).
     eapply Opsem.sop_star_cons; eauto.
       eapply Opsem.sFree with (mptr:=mptr0'); eauto.
         unfold free.     
@@ -642,7 +642,7 @@ Lemma SBpass_is_correct__dsLoad_nptr : forall
   (H3 : isPointerTypB t = false),
    exists St' : Opsem.State,
      exists mi' : MoreMem.meminj,
-       Opsem.sop_star Cfg St St' trace_nil /\
+       Opsem.sop_star Cfg St St' E0 /\
        sbState_simulates_State mi' mgb {|
          CurSystem := S;
          CurTargetData := TD;
@@ -782,7 +782,7 @@ Lemma SBpass_is_correct__dsLoad_ptr : forall
   (H5 : prop_reg_metadata lc rm id0 gv md' = (lc', rm')),
    exists St' : Opsem.State,
      exists mi' : MoreMem.meminj,
-       Opsem.sop_star Cfg St St' trace_nil /\
+       Opsem.sop_star Cfg St St' E0 /\
        sbState_simulates_State mi' mgb {|
          CurSystem := S;
          CurTargetData := TD;
@@ -946,7 +946,7 @@ Lemma SBpass_is_correct__dsStore_nptr : forall
   (H4 : isPointerTypB t = false),
    exists St' : Opsem.State,
      exists mi' : MoreMem.meminj,
-       Opsem.sop_star Cfg St St' trace_nil /\
+       Opsem.sop_star Cfg St St' E0 /\
        sbState_simulates_State mi' mgb {|
          CurSystem := S;
          CurTargetData := TD;
@@ -1095,7 +1095,7 @@ Lemma SBpass_is_correct__dsStore_ptr : forall (mi : MoreMem.meminj)
   (H6 : set_mem_metadata TD MM gvp md' = MM'),
    exists St' : Opsem.State,
      exists mi' : MoreMem.meminj,
-       Opsem.sop_star Cfg St St' trace_nil /\
+       Opsem.sop_star Cfg St St' E0 /\
        sbState_simulates_State mi' mgb {|
          CurSystem := S;
          CurTargetData := TD;
@@ -1174,7 +1174,7 @@ Proof.
               (cs2' ++ cs23) tmn2 
               (updateAddAL _ lc2 ptmp gvp2)
              als2):: 
-            ECs2) Mem2'') trace_nil /\
+            ECs2) Mem2'') E0 /\
       mem_simulation mi (los,nts) mgb
         (SBspecAux.set_mem_metadata (los,nts) MM gvp 
           (SBspecAux.mkMD md_blk' md_bofs' md_eofs')) 
@@ -1225,7 +1225,7 @@ Proof.
        clear - H00 J2 J3 J4 J5 J H10 H11 HeqR0 HeqR3.
        eapply assert_mptr_fn__ok with (b:=b); eauto.
 
-    rewrite <- (@trace_app_nil__eq__trace trace_nil).
+    rewrite <- (@E0_right E0).
     apply Opsem.sop_star_cons with (state2:=
       (Opsem.mkState
           ((Opsem.mkEC (fdef_intro fh2 bs2) B2
@@ -1264,7 +1264,7 @@ Proof.
             end.
           eapply get_reg_metadata_fresh' with (rm2:=rm2); eauto; try fsetdec.
 
-    rewrite <- (@trace_app_nil__eq__trace trace_nil).
+    rewrite <- (@E0_right E0).
     eapply Opsem.sop_star_cons; eauto.
 
   repeat (

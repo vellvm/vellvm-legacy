@@ -1525,14 +1525,14 @@ Admitted.
 
 Lemma s_isFinialState__laa_State_simulation: forall pinfo laainfo cfg1 FS1 cfg2 
   FS2 r (Hstsim : State_simulation pinfo laainfo cfg1 FS1 cfg2 FS2)
-  (Hfinal: s_isFinialState cfg2 FS2 = ret r),
-  s_isFinialState cfg1 FS1 = ret r.
+  (Hfinal: Opsem.s_isFinialState cfg2 FS2 = ret r),
+  Opsem.s_isFinialState cfg1 FS1 = ret r.
 Admitted.
 
 Lemma opsem_s_isFinialState__laa_State_simulation: forall 
   pinfo laainfo cfg1 FS1 cfg2 FS2  
   (Hstsim : State_simulation pinfo laainfo cfg1 FS1 cfg2 FS2),
-  Opsem.s_isFinialState FS1 = Opsem.s_isFinialState FS2.
+  Opsem.s_isFinialState cfg1 FS1 = Opsem.s_isFinialState cfg2 FS2.
 Admitted.
 
 Lemma undefined_state__laa_State_simulation: forall pinfo laainfo cfg1 St1 cfg2 

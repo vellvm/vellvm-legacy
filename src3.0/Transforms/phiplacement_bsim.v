@@ -1876,7 +1876,7 @@ Lemma phinodes_placement_is_correct__dsBranch: forall
   (H2 : Opsem.switchToNewBasicBlock TD (block_intro l' ps' cs' tmn') B gl lc =
        ret lc'),
   exists St1' : Opsem.State,
-     Opsem.sop_star Cfg1 St1 St1' trace_nil /\
+     Opsem.sop_star Cfg1 St1 St1' E0 /\
      State_simulation pinfo Cfg1 St1' Cfg2
      {|Opsem.ECS := {| Opsem.CurFunction := F;
                        Opsem.CurBB := (block_intro l' ps' cs' tmn');
@@ -2112,7 +2112,7 @@ Lemma phinodes_placement_is_correct__dsBranch_uncond: forall
   (H2 : Opsem.switchToNewBasicBlock TD (block_intro l' ps' cs' tmn') B gl lc =
        ret lc'),
   exists St1' : Opsem.State,
-     Opsem.sop_star Cfg1 St1 St1' trace_nil /\
+     Opsem.sop_star Cfg1 St1 St1' E0 /\
      State_simulation pinfo Cfg1 St1' Cfg2
      {|Opsem.ECS := {| Opsem.CurFunction := F;
                        Opsem.CurBB := (block_intro l' ps' cs' tmn');
@@ -2477,7 +2477,7 @@ Lemma phinodes_placement_is_correct__dsLoad: forall (maxb : Values.block)
   (H : Opsem.getOperandValue TD v lc gl = ret mps)
   (H0 : mp @ mps) (H1 : mload TD Mem mp t align0 = ret gv),
   exists St1' : Opsem.State,
-     Opsem.sop_star Cfg1 St1 St1' trace_nil /\
+     Opsem.sop_star Cfg1 St1 St1' E0 /\
      State_simulation pinfo Cfg1 St1' Cfg2
        {|
        Opsem.ECS := {|
@@ -2706,7 +2706,7 @@ Lemma phinodes_placement_is_correct__dsStore: forall (maxb : Values.block)
   (H0 : Opsem.getOperandValue TD v2 lc gl = ret mps2) (H1 : gv1 @ gvs1)
   (H2 : mp2 @ mps2) (H3 : mstore TD Mem mp2 t gv1 align0 = ret Mem'),
   exists St1' : Opsem.State,
-     Opsem.sop_star Cfg1 St1 St1' trace_nil /\
+     Opsem.sop_star Cfg1 St1 St1' E0 /\
      State_simulation pinfo Cfg1 St1' Cfg2
        {|
        Opsem.ECS := {|
@@ -3128,7 +3128,7 @@ Lemma phinodes_placement_is_correct__dsAlloca: forall (maxb: Values.block)
   (H0 : Opsem.getOperandValue TD v lc gl = ret gns)
   (H1 : gn @ gns) (H2 : malloc TD Mem tsz gn align0 = ret (Mem', mb)),
   exists St1' : Opsem.State,
-     Opsem.sop_star Cfg1 St1 St1' trace_nil /\
+     Opsem.sop_star Cfg1 St1 St1' E0 /\
      State_simulation pinfo Cfg1 St1' Cfg2
        {|
        Opsem.ECS := {|
@@ -3173,7 +3173,7 @@ Lemma phinodes_placement_is_correct__dsMalloc: forall (maxb: Values.block)
   (H0 : Opsem.getOperandValue TD v lc gl = ret gns)
   (H1 : gn @ gns) (H2 : malloc TD Mem tsz gn align0 = ret (Mem', mb)),
   exists St1' : Opsem.State,
-     Opsem.sop_star Cfg1 St1 St1' trace_nil /\
+     Opsem.sop_star Cfg1 St1 St1' E0 /\
      State_simulation pinfo Cfg1 St1' Cfg2
        {|
        Opsem.ECS := {|
@@ -3425,7 +3425,7 @@ Lemma phinodes_placement_is_correct__dsCall: forall (maxb : Values.block)
   (H3 : Opsem.params2GVs TD lp lc gl = ret gvs)
   (H4 : Opsem.initLocals TD la gvs = ret lc'),
   exists St1' : Opsem.State,
-     Opsem.sop_star Cfg1 St1 St1' trace_nil /\
+     Opsem.sop_star Cfg1 St1 St1' E0 /\
      State_simulation pinfo Cfg1 St1' Cfg2
        {|
        Opsem.ECS := {|
@@ -3699,7 +3699,7 @@ Lemma phinodes_placement_is_correct__dsExCall: forall (maxb : Values.block)
           ret (oresult, tr, Mem'))
   (H5 : Opsem.exCallUpdateLocals TD ft noret0 rid oresult lc = ret lc'),
   exists St1' : Opsem.State,
-     Opsem.sop_star Cfg1 St1 St1' trace_nil /\
+     Opsem.sop_star Cfg1 St1 St1' E0 /\
      State_simulation pinfo Cfg1 St1' Cfg2       
        {|
        Opsem.ECS := {|
@@ -3828,7 +3828,7 @@ Focus.
   exists 
     (Opsem.mkState ((Opsem.mkEC F1' B1' cs1'0 tmn' lc1'' als')::ECs1) Mem').
   split.
-    rewrite <- (@trace_app_nil__eq__trace trace_nil).
+    rewrite <- (@E0_right E0).
     apply OpsemProps.sInsn__implies__sop_star.
     constructor; auto.
   
@@ -3852,7 +3852,7 @@ Focus.
   exists 
     (Opsem.mkState ((Opsem.mkEC F1' B1' cs1'0 tmn' lc1' als')::ECs1) Mem').
   split.
-    rewrite <- (@trace_app_nil__eq__trace trace_nil).
+    rewrite <- (@E0_right E0).
     apply OpsemProps.sInsn__implies__sop_star.
     constructor; auto.
   
@@ -3898,8 +3898,8 @@ Admitted.
 Lemma s_isFinialState__phiplacement_State_simulation: 
   forall pinfo cfg1 FS1 cfg2 FS2 r 
   (Hstsim : State_simulation pinfo cfg1 FS1 cfg2 FS2)
-  (Hfinal: s_isFinialState cfg2 FS2 = ret r),
-  s_isFinialState cfg1 FS1 = ret r.
+  (Hfinal: Opsem.s_isFinialState cfg2 FS2 = ret r),
+  Opsem.s_isFinialState cfg1 FS1 = ret r.
 Admitted.
 
 Lemma preservation_star: forall cfg IS IS' tr (Hwfcfg: OpsemPP.wf_Config cfg),

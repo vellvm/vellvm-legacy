@@ -1,7 +1,6 @@
 Require Import List.
 Require Import Arith.
 Require Import monad.
-Require Import trace.
 Require Import Metatheory.
 Require Import alist.
 Require Import syntax.

@@ -4,7 +4,7 @@ open Interpreter
 open Printf
 open Llvm
 open Llvm_executionengine
-open Trace
+open Events
 
 let interInsnLoop (cfg:OpsemAux.coq_Config) (s0:Opsem.coq_State) (tr0:trace) 
   : (Opsem.coq_State*trace) option =
@@ -12,7 +12,7 @@ let interInsnLoop (cfg:OpsemAux.coq_Config) (s0:Opsem.coq_State) (tr0:trace)
   let s = ref s0 in
   let n = ref 0 in
   
-  while not (Opsem.s_isFinialState coq_DGVs !s) do
+  while (Opsem.s_isFinialState coq_DGVs cfg !s = None) do
     (if !Globalstates.debug then (eprintf "n=%d\n" !n;   flush_all()));    
     match interInsn cfg !s with
     | Some (s', _) ->
@@ -23,11 +23,11 @@ let interInsnLoop (cfg:OpsemAux.coq_Config) (s0:Opsem.coq_State) (tr0:trace)
     | None -> failwith "Stuck!" 
   done;
   
-  Some (!s, Coq_trace_nil)
+  Some (!s, coq_E0)
   
 let rec interInsnStar (cfg:OpsemAux.coq_Config) (s:Opsem.coq_State) (tr:trace) 
   (n:int) : (Opsem.coq_State*trace) option =
-  if (Opsem.s_isFinialState coq_DGVs s) 
+  if (Opsem.s_isFinialState coq_DGVs cfg s = None) 
   then 
     begin
       (if !Globalstates.debug then (eprintf "Done!\n";flush_all()));
@@ -39,7 +39,7 @@ let rec interInsnStar (cfg:OpsemAux.coq_Config) (s:Opsem.coq_State) (tr:trace)
       begin
       (if !Globalstates.debug then (eprintf "n=%d\n" n;   flush_all()));    
       match interInsn cfg s with
-      | Some (s', tr') -> interInsnStar cfg s' (trace_app tr tr') (n-1)  
+      | Some (s', tr') -> interInsnStar cfg s' (coq_Eapp tr tr') (n-1)  
       | None ->
         eprintf "Stuck!\n";flush_all(); 
         None
@@ -82,7 +82,7 @@ let main in_filename argv =
         (match Opsem.s_genInitState coq_DGVs (coqim::[]) "@main" 
           (Obj.magic gargvs) (li, im) with
           | Some (cfg, s) -> 
-            (match interInsnLoop cfg s Coq_trace_nil with
+            (match interInsnLoop cfg s coq_E0 with
               | Some (s', tr) -> (); ExecutionEngine.run_static_dtors li
               | None -> () )
           | None -> () );

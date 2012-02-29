@@ -602,11 +602,15 @@ Inductive sInsn_delta : Config -> State -> State -> Prop :=
     (mkState ((mkEC F B cs tmn lc' rm' als)::EC) Mem' MM)
 .
 
-Definition s_isFinialState (state:State) : bool :=
+Definition s_isFinialState (cfg:Config) (state:State) : option GVs :=
 match state with
-| (mkState ((mkEC _ _ nil (insn_return_void _) _ _ _)::nil) _ _) => true
-| (mkState ((mkEC _ _ nil (insn_return _ _ _) _ _ _)::nil) _ _) => true 
-| _ => false
+| (mkState ((mkEC _ _ nil (insn_return_void _) _ _ _)::nil) _ _ ) => 
+    const2GV (OpsemAux.CurTargetData cfg) (OpsemAux.Globals cfg) 
+      (const_int Size.One (INTEGER.of_Z 1%Z 1%Z false))
+| (mkState ((mkEC _ _ nil (insn_return _ _ v) lc _ _)::nil) _ _) => 
+    getOperandValue (OpsemAux.CurTargetData cfg) v lc 
+      (OpsemAux.Globals cfg)
+| _ => None
 end.
 
 Definition sbEC__EC (ec : ExecutionContext) : Opsem.ExecutionContext :=
@@ -627,25 +631,25 @@ Inductive sInsn : Config -> State -> State -> trace -> Prop :=
     sInsn cfg S1 S2 tr.
 
 Inductive sop_star : Config -> State -> State -> trace -> Prop :=
-| sop_star_nil : forall cfg state, sop_star cfg state state trace_nil
+| sop_star_nil : forall cfg state, sop_star cfg state state E0
 | sop_star_cons : forall cfg state1 state2 state3 tr1 tr2,
     sInsn cfg state1 state2 tr1 ->
     sop_star cfg state2 state3 tr2 ->
-    sop_star cfg state1 state3 (trace_app tr1 tr2)
+    sop_star cfg state1 state3 (Eapp tr1 tr2)
 .
 
 Inductive sop_plus : Config -> State -> State -> trace -> Prop :=
 | sop_plus_cons : forall cfg state1 state2 state3 tr1 tr2,
     sInsn cfg state1 state2 tr1 ->
     sop_star cfg state2 state3 tr2 ->
-    sop_plus cfg state1 state3 (trace_app tr1 tr2)
+    sop_plus cfg state1 state3 (Eapp tr1 tr2)
 .
 
-CoInductive sop_diverges : Config -> State -> Trace -> Prop :=
+CoInductive sop_diverges : Config -> State -> traceinf -> Prop :=
 | sop_diverges_intro : forall cfg state1 state2 tr1 tr2,
     sop_plus cfg state1 state2 tr1 ->
     sop_diverges cfg state2 tr2 ->
-    sop_diverges cfg state1 (Trace_app tr1 tr2)
+    sop_diverges cfg state1 (Eappinf tr1 tr2)
 .
 
 End SBspec. 

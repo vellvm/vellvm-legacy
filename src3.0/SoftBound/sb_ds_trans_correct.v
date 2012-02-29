@@ -1,7 +1,7 @@
 Require Import Values.
 Require Import vellvm.
 Require Import genericvalues.
-Require Import trace.
+Require Import events.
 Require Import Memory.
 Require Import alist.
 Require Import Integers.
@@ -59,7 +59,7 @@ Lemma SBpass_is_correct__dsCall : forall (mi : MoreMem.meminj)
   (H2 : initLocals TD la ogvs = Some (lc', rm')),
    exists St' : Opsem.State,
      exists mi' : MoreMem.meminj,
-       Opsem.sop_star Cfg St St' trace_nil /\
+       Opsem.sop_star Cfg St St' E0 /\
        sbState_simulates_State mi' mgb {|
          CurSystem := S;
          CurTargetData := TD;
@@ -214,7 +214,7 @@ Lemma SBpass_is_correct__dsExCall : forall (mi : MoreMem.meminj)
   (H2 : exCallUpdateLocals TD ft noret0 rid oresult lc rm = ret (lc', rm')),
    exists St' : Opsem.State,
      exists mi' : MoreMem.meminj,
-       Opsem.sop_star Cfg St St' trace_nil /\
+       Opsem.sop_star Cfg St St' E0 /\
        sbState_simulates_State mi' mgb {|
          CurSystem := S;
          CurTargetData := TD;
@@ -323,7 +323,7 @@ Lemma SBpass_is_correct__dsBranch_uncond : forall
        ret (lc', rm')),
    exists St' : Opsem.State,
      exists mi' : MoreMem.meminj,
-       Opsem.sop_star Cfg St St' trace_nil /\
+       Opsem.sop_star Cfg St St' E0 /\
        sbState_simulates_State mi' mgb {|
          CurSystem := S;
          CurTargetData := TD;
@@ -389,7 +389,7 @@ Proof.
             ECs2) M2).
   exists mi.
   split.
-    rewrite <- (@trace_app_nil__eq__trace trace_nil).
+    rewrite <- (@E0_right E0).
     eapply Opsem.sop_star_cons; eauto.
       eapply Opsem.sBranch_uncond; eauto.
         simpl. unfold lookupBlockViaLabelFromBlocks in Hlk'.
@@ -460,7 +460,7 @@ Lemma SBpass_is_correct__dsBranch : forall
        ret (lc', rm')),
   exists St' : Opsem.State,
      exists mi' : MoreMem.meminj,
-       Opsem.sop_star Cfg St St' trace_nil /\
+       Opsem.sop_star Cfg St St' E0 /\
        sbState_simulates_State mi' mgb {|
          CurSystem := S;
          CurTargetData := TD;
@@ -542,7 +542,7 @@ Proof.
             ECs2) M2).
   exists mi.
   split.
-    rewrite <- (@trace_app_nil__eq__trace trace_nil).
+    rewrite <- (@E0_right E0).
     eapply Opsem.sop_star_cons; eauto.
       eapply Opsem.sBranch; eauto.
         apply trans_blocks_inv in J3.
@@ -577,7 +577,7 @@ Proof.
 Qed.
 
 Ltac next_insn' M2' :=
-  rewrite <- (@trace_app_nil__eq__trace trace_nil);
+  rewrite <- (@E0_right E0);
   match goal with
   | |- context [ Opsem.sop_star _ 
        (Opsem.mkState 
@@ -590,7 +590,7 @@ Ltac next_insn' M2' :=
   end.
 
 Ltac ret_insn :=
-  rewrite <- (@trace_app_nil__eq__trace trace_nil);
+  rewrite <- (@E0_right E0);
   match goal with
   | |- context [ Opsem.sop_star _ 
        (Opsem.mkState 
@@ -664,7 +664,7 @@ Lemma SBpass_is_correct__dsReturn : forall
        ret (lc'', rm'')),
   exists St' : Opsem.State,
      exists mi' : MoreMem.meminj,
-       Opsem.sop_star Cfg St St' trace_nil /\
+       Opsem.sop_star Cfg St St' E0 /\
        sbState_simulates_State mi' mgb {|
          CurSystem := S;
          CurTargetData := TD;
@@ -955,7 +955,7 @@ Lemma SBpass_is_correct__dsReturnVoid : forall
   (H1 : getCallerReturnID c' = merror),
   exists St' : Opsem.State,
      exists mi' : MoreMem.meminj,
-       Opsem.sop_star Cfg St St' trace_nil /\
+       Opsem.sop_star Cfg St St' E0 /\
        sbState_simulates_State mi' mgb {|
          CurSystem := S;
          CurTargetData := TD;

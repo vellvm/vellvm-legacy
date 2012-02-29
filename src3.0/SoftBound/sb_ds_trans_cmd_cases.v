@@ -1,7 +1,7 @@
 Require Import Values.
 Require Import vellvm.
 Require Import genericvalues.
-Require Import trace.
+Require Import events.
 Require Import Memory.
 Require Import alist.
 Require Import Integers.
@@ -50,7 +50,7 @@ Lemma SBpass_is_correct__dsBop : forall (mi : MoreMem.meminj)(mgb : Values.block
   (H : BOP TD lc gl bop0 sz0 v1 v2 = ret gv3),
   exists St' : Opsem.State,
      exists mi' : MoreMem.meminj,
-       Opsem.sop_star Cfg St St' trace_nil /\
+       Opsem.sop_star Cfg St St' E0 /\
        sbState_simulates_State mi' mgb {|
            OpsemAux.CurSystem := S;
            OpsemAux.CurTargetData := TD;
@@ -100,7 +100,7 @@ Lemma SBpass_is_correct__dsFBop : forall (mi : MoreMem.meminj) (mgb : Values.blo
   (H : FBOP TD lc gl fbop0 fp v1 v2 = ret gv3),
   exists St' : Opsem.State,
      exists mi' : MoreMem.meminj,
-       Opsem.sop_star Cfg St St' trace_nil /\
+       Opsem.sop_star Cfg St St' E0 /\
        sbState_simulates_State mi' mgb {|
            CurSystem := S;
            CurTargetData := TD;
@@ -149,7 +149,7 @@ Lemma SBpass_is_correct__dsTrunc : forall
   (H : TRUNC TD lc gl truncop0 t1 v1 t2 = ret gv2),
    exists St' : Opsem.State,
      exists mi' : MoreMem.meminj,
-       Opsem.sop_star Cfg St St' trace_nil /\
+       Opsem.sop_star Cfg St St' E0 /\
        sbState_simulates_State mi' mgb {|
            CurSystem := S;
            CurTargetData := TD;
@@ -197,7 +197,7 @@ Lemma SBpass_is_correct__dsExt : forall
   (H : EXT TD lc gl extop0 t1 v1 t2 = ret gv2),
    exists St' : Opsem.State,
      exists mi' : MoreMem.meminj,
-       Opsem.sop_star Cfg St St' trace_nil /\
+       Opsem.sop_star Cfg St St' E0 /\
        sbState_simulates_State mi' mgb  {|
          CurSystem := S;
          CurTargetData := TD;
@@ -246,7 +246,7 @@ Lemma SBpass_is_correct__dsBitcase_nptr : forall
   (H0 : isPointerTypB t1 = false),
    exists St' : Opsem.State,
      exists mi' : MoreMem.meminj,
-       Opsem.sop_star Cfg St St' trace_nil /\
+       Opsem.sop_star Cfg St St' E0 /\
        sbState_simulates_State mi' mgb {|
          CurSystem := S;
          CurTargetData := TD;
@@ -296,7 +296,7 @@ Lemma SBpass_is_correct__dsOthercast : forall
   (H0 : castop0 <> castop_bitcast /\ castop0 <> castop_inttoptr),
    exists St' : Opsem.State,
      exists mi' : MoreMem.meminj,
-       Opsem.sop_star Cfg St St' trace_nil /\
+       Opsem.sop_star Cfg St St' E0 /\
        sbState_simulates_State mi' mgb {|
          CurSystem := S;
          CurTargetData := TD;
@@ -344,7 +344,7 @@ Lemma SBpass_is_correct__dsIcmp : forall
   (H : ICMP TD lc gl cond0 t v1 v2 = ret gv2),
    exists St' : Opsem.State,
      exists mi' : MoreMem.meminj,
-       Opsem.sop_star Cfg St St' trace_nil /\
+       Opsem.sop_star Cfg St St' E0 /\
        sbState_simulates_State mi' mgb {|
          CurSystem := S;
          CurTargetData := TD;
@@ -392,7 +392,7 @@ Lemma SBpass_is_correct__dsFcmp : forall
   (H : FCMP TD lc gl fcond0 fp v1 v2 = ret gv2),
    exists St' : Opsem.State,
      exists mi' : MoreMem.meminj,
-       Opsem.sop_star Cfg St St' trace_nil /\
+       Opsem.sop_star Cfg St St' E0 /\
        sbState_simulates_State mi' mgb {|
          CurSystem := S;
          CurTargetData := TD;
@@ -442,7 +442,7 @@ Lemma SBpass_is_correct__dsExtractValue : forall (mi : MoreMem.meminj)
   (H0 : extractGenericValue TD t gv idxs = ret gv'),
   exists St' : Opsem.State,
      exists mi' : MoreMem.meminj,
-       Opsem.sop_star Cfg St St' trace_nil /\
+       Opsem.sop_star Cfg St St' E0 /\
        sbState_simulates_State mi' mgb {|
          CurSystem := S;
          CurTargetData := TD;
@@ -493,7 +493,7 @@ Lemma SBpass_is_correct__dsInsertValue : forall (mi : MoreMem.meminj)
   (H1 : insertGenericValue TD t gv idxs t' gv' = ret gv''),
   exists St' : Opsem.State,
      exists mi' : MoreMem.meminj,
-       Opsem.sop_star Cfg St St' trace_nil /\
+       Opsem.sop_star Cfg St St' E0 /\
        sbState_simulates_State mi' mgb {|
          CurSystem := S;
          CurTargetData := TD;
@@ -547,7 +547,7 @@ Lemma SBpass_is_correct__dsGEP : forall
   (H3 : prop_reg_metadata lc rm id0 gvp' md = (lc', rm')),
    exists St' : Opsem.State,
      exists mi' : MoreMem.meminj,
-       Opsem.sop_star Cfg St St' trace_nil /\
+       Opsem.sop_star Cfg St St' E0 /\
        sbState_simulates_State mi' mgb{|
            CurSystem := S;
            CurTargetData := TD;
@@ -663,7 +663,7 @@ Lemma SBpass_is_correct__dsBitcase_ptr : forall
   (H2 : prop_reg_metadata lc rm id0 gv2 md = (lc', rm')),
    exists St' : Opsem.State,
      exists mi' : MoreMem.meminj,
-       Opsem.sop_star Cfg St St' trace_nil /\
+       Opsem.sop_star Cfg St St' E0 /\
        sbState_simulates_State mi' mgb {|
          CurSystem := S;
          CurTargetData := TD;
@@ -776,7 +776,7 @@ Lemma SBpass_is_correct__dsInttoptr : forall
   (H0 : prop_reg_metadata lc rm id0 gv2 null_md = (lc', rm')),
    exists St' : Opsem.State,
      exists mi' : MoreMem.meminj,
-       Opsem.sop_star Cfg St St' trace_nil /\
+       Opsem.sop_star Cfg St St' E0 /\
        sbState_simulates_State mi' mgb {|
          CurSystem := S;
          CurTargetData := TD;
@@ -867,7 +867,7 @@ Lemma SBpass_is_correct__dsSelect_nptr : forall (mi : MoreMem.meminj)
   (H2 : isPointerTypB t = false),
   exists St' : Opsem.State,
      exists mi' : MoreMem.meminj,
-       Opsem.sop_star Cfg St St' trace_nil /\
+       Opsem.sop_star Cfg St St' E0 /\
        sbState_simulates_State mi' mgb {|
          CurSystem := S;
          CurTargetData := TD;
@@ -901,7 +901,7 @@ Proof.
   repeat (split; try solve [auto using inject_incr_refl | 
                             eapply cmds_at_block_tail_next; eauto]).
       simpl_env; simpl;
-      rewrite <- (@trace_app_nil__eq__trace trace_nil);
+      rewrite <- (@E0_right E0);
       eapply Opsem.sop_star_cons; eauto; eauto.
     
       exists ex_ids; exists rm2;
@@ -953,7 +953,7 @@ Lemma SBpass_is_correct__dsSelect_ptr : forall (mi : MoreMem.meminj)
        (lc', rm')),
    exists St' : Opsem.State,
      exists mi' : MoreMem.meminj,
-       Opsem.sop_star Cfg St St' trace_nil /\
+       Opsem.sop_star Cfg St St' E0 /\
        sbState_simulates_State mi' mgb {|
          CurSystem := S;
          CurTargetData := TD;
@@ -1099,7 +1099,7 @@ end.
  
   exists mi.
   split.
-    rewrite <- (@trace_app_nil__eq__trace trace_nil).
+    rewrite <- (@E0_right E0).
     apply Opsem.sop_star_cons with (state2 := 
         Opsem.mkState 
           ((Opsem.mkEC (fdef_intro fh2 bs2) B2
@@ -1115,7 +1115,7 @@ end.
         replace (@getOperandValue DGVs) with LLVMgv.getOperandValue; auto.
         rewrite Hc. simpl. unfold mbitcast, i1. auto.
 
-    rewrite <- (@trace_app_nil__eq__trace trace_nil).
+    rewrite <- (@E0_right E0).
     apply Opsem.sop_star_cons with (state2 := 
         Opsem.mkState 
           ((Opsem.mkEC (fdef_intro fh2 bs2) B2
@@ -1130,7 +1130,7 @@ end.
       eapply Opsem.sSelect; eauto;
         rewrite <- getOperandValue_eq_fresh_id; auto.
 
-    rewrite <- (@trace_app_nil__eq__trace trace_nil).
+    rewrite <- (@E0_right E0).
     apply Opsem.sop_star_cons with (state2 := 
         Opsem.mkState 
           ((Opsem.mkEC (fdef_intro fh2 bs2) B2
@@ -1161,7 +1161,7 @@ end.
           rewrite <- getOperandValue_eq_fresh_id; auto;
           rewrite <- getOperandValue_eq_fresh_id; auto.
 
-    rewrite <- (@trace_app_nil__eq__trace trace_nil).
+    rewrite <- (@E0_right E0).
     eapply Opsem.sop_star_cons; eauto.
       eapply Opsem.sSelect; eauto.
         destruct (isGVZero (los, nts) c');

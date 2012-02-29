@@ -1987,11 +1987,11 @@ Ltac SSSSSCase name := Case_aux subsubsubsubsubcase name.
 Ltac SSSSSSCase name := Case_aux subsubsubsubsubsubcase name.
 Ltac SSSSSSSCase name := Case_aux subsubsubsubsubsubsubcase name.
 
-Lemma llvm_isFinialState__sb_isFinialState : forall S,
-  @Opsem.s_isFinialState GVsSig (sbState__State S) = true -> 
-  s_isFinialState S = true.
+Lemma llvm_isFinialState__sb_isFinialState : forall cfg S,
+  @Opsem.s_isFinialState GVsSig cfg (sbState__State S) <> None -> 
+  s_isFinialState cfg S <> None.
 Proof.
-  intros S Hfinal.
+  intros cfg S Hfinal.
   destruct S. 
   destruct ECS0; simpl in *; auto.
   destruct e; simpl in *; auto.
@@ -2135,7 +2135,7 @@ Proof.
                 Allocas := als |} :: ecs;
              Mem := M;
              Mmap := Mmap0 |}.
-          exists trace_nil. 
+          exists E0. 
           apply sInsn_intro; try solve [eauto | simpl; eauto].
   
         SSSSSCase "load_nptr".
@@ -2153,7 +2153,7 @@ Proof.
                 Allocas := als |} :: ecs;
              Mem := M;
              Mmap := Mmap0 |}.
-          exists trace_nil.
+          exists E0.
           apply sInsn_intro; try solve [eauto | simpl; eauto].
   
       SSSSCase "~valid block".
@@ -2298,7 +2298,7 @@ Proof.
                     Allocas := als |} :: ecs;
                Mem := M';
                Mmap := Mmap0'|}.
-            exists trace_nil.
+            exists E0.
             apply sInsn_intro; try solve [eauto | simpl; eauto].
 
           SSSSSCase "store_nptr".
@@ -2316,7 +2316,7 @@ Proof.
                     Allocas := als |} :: ecs;
                Mem := M';
                Mmap := Mmap0|}.
-            exists trace_nil.
+            exists E0.
             apply sInsn_intro; try solve [eauto | simpl; eauto].
 
         SSSSCase "~valid block".
@@ -2517,7 +2517,7 @@ Ltac progress_tac := progress_tac_aux nil.
 
 Lemma progress : forall cfg S1 (HwfCfg: wf_Config cfg),
   wf_State cfg S1 -> 
-  s_isFinialState S1 = true \/ 
+  s_isFinialState cfg S1 <> None \/ 
   (exists S2, exists tr, sInsn cfg S1 S2 tr) \/
   undefined_state cfg S1.
 Proof.
@@ -2585,7 +2585,7 @@ Proof.
       right. left.
       exists (mkState 
         ((mkEC F' B' cs' tmn' lc'' rm'' als')::ecs0) Mem' Mmap0).
-      exists trace_nil.
+      exists E0.
       eauto.
 
     SCase "tmn=ret void".
@@ -2594,7 +2594,7 @@ Proof.
       right. left.
       exists (mkState
         ((mkEC F' B' cs' tmn' lc' rm' als')::ecs0) Mem' Mmap0).
-      exists trace_nil.
+      exists E0.
       eauto.  
 
     SCase "tmn=br".
@@ -2647,7 +2647,7 @@ Proof.
       exists (mkState
               ((mkEC f (block_intro l' ps' cs' tmn') cs' tmn' lc' rm' als)
               ::ecs) M Mmap0).
-      exists trace_nil. eauto.
+      exists E0. eauto.
 
     SCase "tmn=br_uncond".
       right. left.
@@ -2683,7 +2683,7 @@ Proof.
       exists (mkState
               ((mkEC f (block_intro l' ps' cs' tmn') cs' tmn' lc' rm' als)
               ::ecs) M Mmap0).
-      exists trace_nil. eauto.
+      exists E0. eauto.
 
   Case "cs<>nil".
     assert (wf_insn s (module_intro los nts ps) f 
@@ -2816,7 +2816,7 @@ Proof.
                 Allocas := als |} :: ecs;
          Mem := M;
          Mmap := Mmap0 |}.
-    exists trace_nil.
+    exists E0.
     eauto.    
 
   SCase "external call".

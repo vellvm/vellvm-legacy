@@ -6,7 +6,7 @@ Require Import monad.
 Require Import Arith.
 Require Import Metatheory.
 Require Import genericvalues.
-Require Import trace.
+Require Import events.
 Require Import dopsem.
 Require Import symexe_def.
 Require Import symexe_lib.
@@ -83,7 +83,7 @@ Lemma aux__se_cmd__denotes__exists_op_cmd : forall TD c nc lc als gl Mem1 lc'
     Mem2 tr2 ->
   exists lc',  exists als', exists Mem2, exists tr,
     dbCmd TD gl lc als Mem1 c lc' als' Mem2 tr /\
-    tr2 = trace_app tr1 tr.
+    tr2 = Eapp tr1 tr.
 Proof.
   intros TD c nc lc als gl Mem1 lc' als' Mem2 lc0 als0 Mem0 sstate1 tr1 tr2 
     Huniq Hdenotes1 Hdenotes2.
@@ -103,7 +103,7 @@ Proof.
     inversion bop_denotes_gv3; subst.
     apply value2Sterm_denotes__implies__genericvalue with (lc:=lc)(gl:=gl) in H10; auto.
     apply value2Sterm_denotes__implies__genericvalue with (lc:=lc)(gl:=gl) in H11; auto.
-    exists (updateAddAL _ lc i0 gv3). exists als. exists Mem1. exists trace_nil. 
+    exists (updateAddAL _ lc i0 gv3). exists als. exists Mem1. exists E0. 
     assert (@BOP DGVs TD lc gl b s0 v v0 = Some gv3) as J.
       unfold BOP. rewrite H10. rewrite H11. auto.
     split; eauto.
@@ -119,7 +119,7 @@ Proof.
     inversion fbop_denotes_gv3; subst.
     apply value2Sterm_denotes__implies__genericvalue with (lc:=lc)(gl:=gl) in H10; auto.
     apply value2Sterm_denotes__implies__genericvalue with (lc:=lc)(gl:=gl) in H11; auto.
-    exists (updateAddAL _ lc i0 gv3). exists als. exists Mem1. exists trace_nil. 
+    exists (updateAddAL _ lc i0 gv3). exists als. exists Mem1. exists E0. 
     assert (@FBOP DGVs TD lc gl f0 f1 v v0 = Some gv3) as J.
       unfold FBOP. rewrite H10. rewrite H11. auto.
     split; eauto.
@@ -133,7 +133,7 @@ Proof.
     destruct J as [gv' [extractvalue_denotes_gv' gv_in_env']].
     inversion extractvalue_denotes_gv'; subst.
     apply value2Sterm_denotes__implies__genericvalue with (lc:=lc)(gl:=gl) in H9; auto.
-    exists (updateAddAL _ lc i0 gv'). exists als. exists Mem1. exists trace_nil.
+    exists (updateAddAL _ lc i0 gv'). exists als. exists Mem1. exists E0.
     split; eauto.
 
   Case "insn_insertvalue".
@@ -146,7 +146,7 @@ Proof.
     inversion insertvalue_denotes_gv'; subst.
     apply value2Sterm_denotes__implies__genericvalue with (lc:=lc)(gl:=gl) in H11; auto.
     apply value2Sterm_denotes__implies__genericvalue with (lc:=lc)(gl:=gl) in H12; auto.
-    exists (updateAddAL _ lc i0 gv'). exists als. exists Mem1. exists trace_nil.
+    exists (updateAddAL _ lc i0 gv'). exists als. exists Mem1. exists E0.
     split; eauto.
 
   Case "insn_malloc".
@@ -160,7 +160,7 @@ Proof.
     apply value2Sterm_denotes__implies__genericvalue with (lc:=lc)(gl:=gl) in H12; auto.
     apply smem_denotes_mem_det with (Mem2:=Mem1) in H9; auto.
     subst.
-    exists (updateAddAL _ lc i0 (blk2GV TD mb)). exists als. exists Mem5. exists trace_nil.
+    exists (updateAddAL _ lc i0 (blk2GV TD mb)). exists als. exists Mem5. exists E0.
     split; eauto.
 
   Case "insn_free".
@@ -168,7 +168,7 @@ Proof.
     apply value2Sterm_denotes__implies__genericvalue with (lc:=lc)(gl:=gl) in H8; auto.
     apply smem_denotes_mem_det with (Mem2:=Mem1) in H10; auto.
     subst.
-    exists lc. exists als. exists Mem2. exists trace_nil.
+    exists lc. exists als. exists Mem2. exists E0.
     split; eauto.
 
   Case "insn_alloca".
@@ -182,7 +182,7 @@ Proof.
     apply value2Sterm_denotes__implies__genericvalue with (lc:=lc)(gl:=gl) in H12; auto.
     apply smem_denotes_mem_det with (Mem2:=Mem1) in H9; auto.
     subst.
-    exists (updateAddAL _ lc i0 (blk2GV TD mb)). exists (mb::als). exists Mem5. exists trace_nil.
+    exists (updateAddAL _ lc i0 (blk2GV TD mb)). exists (mb::als). exists Mem5. exists E0.
     split; eauto.
 
   Case "insn_load".
@@ -196,7 +196,7 @@ Proof.
     apply value2Sterm_denotes__implies__genericvalue with (lc:=lc)(gl:=gl) in H10; auto.
     apply smem_denotes_mem_det with (Mem2:=Mem1) in H11; auto.
     subst.
-    exists (updateAddAL _ lc i0 gv'). exists als. exists Mem1. exists trace_nil.
+    exists (updateAddAL _ lc i0 gv'). exists als. exists Mem1. exists E0.
     split; eauto.
 
   Case "insn_store".
@@ -205,7 +205,7 @@ Proof.
     apply value2Sterm_denotes__implies__genericvalue with (lc:=lc)(gl:=gl) in H12; auto.
     apply smem_denotes_mem_det with (Mem2:=Mem1) in H13; auto.
     subst.
-    exists lc. exists als. exists Mem2. exists trace_nil.
+    exists lc. exists als. exists Mem2. exists E0.
     split; eauto.
 
   Case "insn_gep".
@@ -218,7 +218,7 @@ Proof.
     inversion gep_denotes_gv'; subst.
     apply value2Sterm_denotes__implies__genericvalue with (lc:=lc)(gl:=gl) in H10; auto.
     apply value2Sterm_denote__imply__genericvalues with (lc:=lc)(gl:=gl) in H11; auto.
-    exists (updateAddAL _ lc i0 gv'). exists als. exists Mem1. exists trace_nil.
+    exists (updateAddAL _ lc i0 gv'). exists als. exists Mem1. exists E0.
     split; eauto.
 
   Case "insn_trunc".
@@ -230,7 +230,7 @@ Proof.
     destruct J as [gv3 [trunc_denotes_gv3 gv3_in_env']].
     inversion trunc_denotes_gv3; subst.
     apply value2Sterm_denotes__implies__genericvalue with (lc:=lc)(gl:=gl) in H10; auto.
-    exists (updateAddAL _ lc i0 gv3). exists als. exists Mem1. exists trace_nil. 
+    exists (updateAddAL _ lc i0 gv3). exists als. exists Mem1. exists E0. 
     assert (@TRUNC DGVs TD lc gl t t0 v t1 = Some gv3) as J.
       unfold TRUNC. rewrite H10. auto.
     split; eauto.
@@ -244,7 +244,7 @@ Proof.
     destruct J as [gv3 [ext_denotes_gv3 gv3_in_env']].
     inversion ext_denotes_gv3; subst.
     apply value2Sterm_denotes__implies__genericvalue with (lc:=lc)(gl:=gl) in H10; auto.
-    exists (updateAddAL _ lc i0 gv3). exists als. exists Mem1. exists trace_nil. 
+    exists (updateAddAL _ lc i0 gv3). exists als. exists Mem1. exists E0. 
     assert (@EXT DGVs TD lc gl e t v t0 = Some gv3) as J.
       unfold EXT. rewrite H10. auto.
     split; eauto.
@@ -258,7 +258,7 @@ Proof.
     destruct J as [gv3 [cast_denotes_gv3 gv3_in_env']].
     inversion cast_denotes_gv3; subst.
     apply value2Sterm_denotes__implies__genericvalue with (lc:=lc)(gl:=gl) in H10; auto.
-    exists (updateAddAL _ lc i0 gv3). exists als. exists Mem1. exists trace_nil. 
+    exists (updateAddAL _ lc i0 gv3). exists als. exists Mem1. exists E0. 
     assert (@CAST DGVs TD lc gl c0 t v t0 = Some gv3) as J.
       unfold CAST. rewrite H10. auto.
     split; eauto.
@@ -273,7 +273,7 @@ Proof.
     inversion icmp_denotes_gv3; subst.
     apply value2Sterm_denotes__implies__genericvalue with (lc:=lc)(gl:=gl) in H10; auto.
     apply value2Sterm_denotes__implies__genericvalue with (lc:=lc)(gl:=gl) in H11; auto.
-    exists (updateAddAL _ lc i0 gv3). exists als. exists Mem1. exists trace_nil. 
+    exists (updateAddAL _ lc i0 gv3). exists als. exists Mem1. exists E0. 
     assert (@ICMP DGVs TD lc gl c0 t v v0 = Some gv3) as J.
       unfold ICMP. rewrite H10. rewrite H11. auto.
     split; eauto.
@@ -288,7 +288,7 @@ Proof.
     inversion fcmp_denotes_gv3; subst.
     apply value2Sterm_denotes__implies__genericvalue with (lc:=lc)(gl:=gl) in H10; auto.
     apply value2Sterm_denotes__implies__genericvalue with (lc:=lc)(gl:=gl) in H11; auto.
-    exists (updateAddAL _ lc i0 gv3). exists als. exists Mem1. exists trace_nil. 
+    exists (updateAddAL _ lc i0 gv3). exists als. exists Mem1. exists E0. 
     assert (@FCMP DGVs TD lc gl f0 f1 v v0 = Some gv3) as J.
       unfold FCMP. rewrite H10. rewrite H11. auto.
     split; eauto.
@@ -304,7 +304,7 @@ Proof.
     apply value2Sterm_denotes__implies__genericvalue with (lc:=lc)(gl:=gl) in H9; auto.
     apply value2Sterm_denotes__implies__genericvalue with (lc:=lc)(gl:=gl) in H11; auto.
     apply value2Sterm_denotes__implies__genericvalue with (lc:=lc)(gl:=gl) in H12; auto.
-    exists (if isGVZero TD gv0 then updateAddAL _ lc i0 gv2 else updateAddAL _ lc i0 gv1). exists als. exists Mem1. exists trace_nil. 
+    exists (if isGVZero TD gv0 then updateAddAL _ lc i0 gv2 else updateAddAL _ lc i0 gv1). exists als. exists Mem1. exists E0. 
     split; eauto.
 
   Case "insn_call". inversion nc.
@@ -317,7 +317,7 @@ Lemma aux__se_cmd__denotes__op_cmd : forall TD c nc lc als gl Mem1 lc' als' Mem2
   sstate_denotes_state TD lc0 gl als0 Mem0 (se_cmd sstate1 (mkNB c nc)) lc' als' Mem2 tr2 ->
   exists tr, exists slc,
     dbCmd TD gl lc als Mem1 c slc als' Mem2 tr /\
-    tr2 = trace_app tr1 tr /\
+    tr2 = Eapp tr1 tr /\
     eqAL _ slc lc'.
 Proof.
   intros TD c nc lc als gl Mem1 lc' als' Mem2 lc0 als0 Mem0 sstate1 tr1 tr2 
@@ -328,7 +328,7 @@ Proof.
   destruct J as [lc'' [als'' [Mem2' [tr [HdbCmd EQ]]]]]; subst.
   assert (Hdenotes2':=HdbCmd).
   apply op_cmd__satisfies__se_cmd with (lc0:=lc0)(als0:=als0)(Mem0:=Mem0)(sstate1:=sstate1)(tr1:=tr1)(nc:=nc) in Hdenotes2'; auto.
-  apply sstate_denotes_state_det with (lc2:=lc')(als2:=als')(Mem2:=Mem2)(tr2:=trace_app tr1 tr) in Hdenotes2'; auto.
+  apply sstate_denotes_state_det with (lc2:=lc')(als2:=als')(Mem2:=Mem2)(tr2:=Eapp tr1 tr) in Hdenotes2'; auto.
   destruct Hdenotes2' as [EQ1 [EQ2 [EQ3 EQ4]]]; subst.
   exists tr. exists lc''. split; auto.
 Qed.
@@ -342,7 +342,7 @@ Proof.
   intros TD c nc lc als gl Mem1 lc' als' Mem2 tr Huniqc Hdenotes.
   assert (J:=Hdenotes).
   apply aux__se_cmd__denotes__op_cmd with
-    (lc:=lc)(gl:=gl)(Mem1:=Mem1)(tr1:=trace_nil)(als:=als)(c:=c) in J; auto.
+    (lc:=lc)(gl:=gl)(Mem1:=Mem1)(tr1:=E0)(als:=als)(c:=c) in J; auto.
     simpl in J. destruct J as [tr0 [slc [J1 [J2 J3]]]]; subst. 
     exists slc.  split; auto.
 
@@ -742,7 +742,7 @@ Lemma se_cmds_denotes__decomposes__prefix_last : forall nb TD lc0 gl als0 Mem0 n
   exists lc1, exists als1, exists Mem1, exists tr1, exists tr2,
     sstate_denotes_state TD lc0 gl als0 Mem0 (se_cmds sstate_init nbs) lc1 als1 Mem1 tr1 /\
     sstate_denotes_state TD lc1 gl als1 Mem1 (se_cmd sstate_init nb) lc2 als2 Mem2 tr2 /\
-    tr = trace_app tr1 tr2 /\ 
+    tr = Eapp tr1 tr2 /\ 
     uniq lc1.
 Proof.
   intros [c nc] TD lc0 gl als0 Mem0 nbs lc2 als2 Mem2 tr Huniqc0 Huniqc2 Wf Hdenotes.
@@ -770,7 +770,7 @@ Proof.
     simpl in J. rewrite lookupSmap_updateAddAL_eq in J.
     destruct J as [gv3 [bop_denotes_gv3 gv3_in_env2]].
     simpl in Hsmem_denotes, Hsframe_denotes, Hseffects_denote.
-    exists (rollbackAL _ lc2 i0 lc0). exists als2. exists Mem2. exists tr. exists trace_nil.
+    exists (rollbackAL _ lc2 i0 lc0). exists als2. exists Mem2. exists tr. exists E0.
     assert (uniq (rollbackAL _ lc2  i0 lc0)) as Huniqc1.
       apply rollbackAL_uniq; auto.
     assert (smap_denotes_gvmap TD lc0 gl Mem0
@@ -778,7 +778,7 @@ Proof.
               (rollbackAL _ lc2 i0 lc0)) as env0_denote_env1.
       apply smap_denotes_gvmap_rollbackEnv with (c:=insn_bop i0 b s0 v v0)(nc:=nc)(i0:=i0)(lc2:=lc2)(gv3:=gv3); 
         try solve [auto | split; auto].
-    rewrite trace_app_nil__eq__trace.
+    rewrite E0_right.
     split.
       split; auto.
     split; auto.
@@ -821,7 +821,7 @@ Proof.
     simpl in J. rewrite lookupSmap_updateAddAL_eq in J.
     destruct J as [gv3 [fbop_denotes_gv3 gv3_in_env2]].
     simpl in Hsmem_denotes, Hsframe_denotes, Hseffects_denote.
-    exists (rollbackAL _ lc2 i0 lc0). exists als2. exists Mem2. exists tr. exists trace_nil.
+    exists (rollbackAL _ lc2 i0 lc0). exists als2. exists Mem2. exists tr. exists E0.
     assert (uniq (rollbackAL _ lc2  i0 lc0)) as Huniqc1.
       apply rollbackAL_uniq; auto.
     assert (smap_denotes_gvmap TD lc0 gl Mem0
@@ -829,7 +829,7 @@ Proof.
               (rollbackAL _ lc2 i0 lc0)) as env0_denote_env1.
       apply smap_denotes_gvmap_rollbackEnv with (c:=insn_fbop i0 f0 f1 v v0)(nc:=nc)(i0:=i0)(lc2:=lc2)(gv3:=gv3); 
         try solve [auto | split; auto].
-    rewrite trace_app_nil__eq__trace.
+    rewrite E0_right.
     split.
       split; auto.
     split; auto.
@@ -872,7 +872,7 @@ Proof.
     simpl in J. rewrite lookupSmap_updateAddAL_eq in J.
     destruct J as [gv3 [extractvalue_denotes_gv3 gv3_in_env2]].
     simpl in Hsmem_denotes, Hsframe_denotes, Hseffects_denote.
-    exists (rollbackAL _ lc2 i0 lc0). exists als2. exists Mem2. exists tr. exists trace_nil.
+    exists (rollbackAL _ lc2 i0 lc0). exists als2. exists Mem2. exists tr. exists E0.
     assert (uniq (rollbackAL _ lc2 i0 lc0)) as Huniqc1.
       apply rollbackAL_uniq; auto.
     assert (smap_denotes_gvmap TD lc0 gl Mem0
@@ -880,7 +880,7 @@ Proof.
               (rollbackAL _ lc2 i0 lc0)) as env0_denote_env1.
       apply smap_denotes_gvmap_rollbackEnv with (c:=insn_extractvalue i0 t v l2)(nc:=nc)(i0:=i0)(lc2:=lc2)(gv3:=gv3); 
         try solve [auto | split; auto].
-    rewrite trace_app_nil__eq__trace.
+    rewrite E0_right.
     split.
       split; auto.
     split; auto.
@@ -923,7 +923,7 @@ Proof.
     simpl in J. rewrite lookupSmap_updateAddAL_eq in J.
     destruct J as [gv3 [insertvalue_denotes_gv3 gv3_in_env2]].
     simpl in Hsmem_denotes, Hsframe_denotes, Hseffects_denote.
-    exists (rollbackAL _ lc2 i0 lc0). exists als2. exists Mem2. exists tr. exists trace_nil.
+    exists (rollbackAL _ lc2 i0 lc0). exists als2. exists Mem2. exists tr. exists E0.
     assert (uniq (rollbackAL _ lc2 i0 lc0)) as Huniqc1.
       apply rollbackAL_uniq; auto.
     assert (smap_denotes_gvmap TD lc0 gl Mem0
@@ -931,7 +931,7 @@ Proof.
               (rollbackAL _ lc2 i0 lc0)) as env0_denote_env1.
       apply smap_denotes_gvmap_rollbackEnv with (c:=insn_insertvalue i0 t v t0 v0 l2)(nc:=nc)(i0:=i0)(lc2:=lc2)(gv3:=gv3); 
         try solve [auto | split; auto].
-    rewrite trace_app_nil__eq__trace.
+    rewrite E0_right.
     split.
       split; auto.
     split; auto.
@@ -975,7 +975,7 @@ Proof.
     destruct J as [gv3 [malloc_denotes_gv3 gv3_in_env2]].
     simpl in Hsmem_denotes, Hsframe_denotes, Hseffects_denote.
     inversion Hsmem_denotes; subst.
-    exists (rollbackAL _ lc2 i0 lc0). exists als2. exists Mem3. exists tr. exists trace_nil.
+    exists (rollbackAL _ lc2 i0 lc0). exists als2. exists Mem3. exists tr. exists E0.
     assert (uniq (rollbackAL _ lc2 i0 lc0)) as Huniqc1.
       apply rollbackAL_uniq; auto.
     assert (smap_denotes_gvmap TD lc0 gl Mem0
@@ -983,7 +983,7 @@ Proof.
               (rollbackAL _ lc2 i0 lc0)) as env0_denote_env1.
       apply smap_denotes_gvmap_rollbackEnv with (c:=insn_malloc i0 t v a)(nc:=nc)(i0:=i0)(lc2:=lc2)(gv3:=gv3); 
         try solve [auto | split; auto].
-    rewrite trace_app_nil__eq__trace.
+    rewrite E0_right.
     split.
       split; auto.
     split; auto.
@@ -1033,8 +1033,8 @@ Proof.
     
   Case "insn_free".
     inversion Hsmem_denotes; subst.
-    exists lc2. exists als2. exists Mem3. exists tr. exists trace_nil.
-    rewrite trace_app_nil__eq__trace.
+    exists lc2. exists als2. exists Mem3. exists tr. exists E0.
+    rewrite E0_right.
     split.
       split; auto.
         split; auto.
@@ -1065,7 +1065,7 @@ Proof.
     apply sterm_denotes_genericvalue_det with (gv2:=gv1) in H10; auto. subst.
     rewrite H9 in H16. inversion H16; subst. clear H16.
     rewrite H11 in H18. inversion H18; subst. clear H18.
-    exists (rollbackAL _ lc2 i0 lc0). exists als3. exists Mem3. exists tr. exists trace_nil.
+    exists (rollbackAL _ lc2 i0 lc0). exists als3. exists Mem3. exists tr. exists E0.
     assert (uniq (rollbackAL _ lc2 i0 lc0)) as Huniqc1.
       apply rollbackAL_uniq; auto.
     assert (smap_denotes_gvmap TD lc0 gl Mem0
@@ -1073,7 +1073,7 @@ Proof.
               (rollbackAL _ lc2 i0 lc0)) as env0_denote_env1.
       apply smap_denotes_gvmap_rollbackEnv with (c:=insn_alloca i0 t v a)(nc:=nc)(i0:=i0)(lc2:=lc2)(gv3:=gv3); 
         try solve [auto | split; auto].
-    rewrite trace_app_nil__eq__trace.
+    rewrite E0_right.
     split.
       split; auto.
     split; auto.
@@ -1135,7 +1135,7 @@ Proof.
     destruct J as [gv3 [load_denotes_gv3 gv3_in_env2]].
     simpl in Hsmem_denotes, Hsframe_denotes, Hseffects_denote.
     inversion Hsmem_denotes; subst.
-    exists (rollbackAL _ lc2 i0 lc0). exists als2. exists Mem2. exists tr. exists trace_nil.
+    exists (rollbackAL _ lc2 i0 lc0). exists als2. exists Mem2. exists tr. exists E0.
     assert (uniq (rollbackAL _ lc2 i0 lc0)) as Huniqc1.
       apply rollbackAL_uniq; auto.
     assert (smap_denotes_gvmap TD lc0 gl Mem0
@@ -1143,7 +1143,7 @@ Proof.
               (rollbackAL _ lc2 i0 lc0)) as env0_denote_env1.
       apply smap_denotes_gvmap_rollbackEnv with (c:=insn_load i0 t v a)(nc:=nc)(i0:=i0)(lc2:=lc2)(gv3:=gv3); 
         try solve [auto | split; auto].
-    rewrite trace_app_nil__eq__trace.
+    rewrite E0_right.
     split.
       split; auto.
     split; auto.
@@ -1185,8 +1185,8 @@ Proof.
   Case "insn_store".
     simpl in Hsmem_denotes, Hsframe_denotes, Hseffects_denote.
     inversion Hsmem_denotes; subst.
-    exists lc2. exists als2. exists Mem3. exists tr. exists trace_nil.
-    rewrite trace_app_nil__eq__trace.
+    exists lc2. exists als2. exists Mem3. exists tr. exists E0.
+    rewrite E0_right.
     split.
       split; auto.
         split; auto.
@@ -1212,7 +1212,7 @@ Proof.
     simpl in J. rewrite lookupSmap_updateAddAL_eq in J.
     destruct J as [gv3 [gep_denotes_gv3 gv3_in_env2]].
     simpl in Hsmem_denotes, Hsframe_denotes, Hseffects_denote.
-    exists (rollbackAL _ lc2 i0 lc0). exists als2. exists Mem2. exists tr. exists trace_nil.
+    exists (rollbackAL _ lc2 i0 lc0). exists als2. exists Mem2. exists tr. exists E0.
     assert (uniq (rollbackAL _ lc2 i0 lc0)) as Huniqc1.
       apply rollbackAL_uniq; auto.
     assert (smap_denotes_gvmap TD lc0 gl Mem0
@@ -1220,7 +1220,7 @@ Proof.
               (rollbackAL _ lc2 i0 lc0)) as env0_denote_env1.
       apply smap_denotes_gvmap_rollbackEnv with (c:=insn_gep i0 i1 t v l2)(nc:=nc)(i0:=i0)(lc2:=lc2)(gv3:=gv3); 
         try solve [auto | split; auto].
-    rewrite trace_app_nil__eq__trace.
+    rewrite E0_right.
     split.
       split; auto.
     split; auto.
@@ -1268,7 +1268,7 @@ Proof.
     simpl in J. rewrite lookupSmap_updateAddAL_eq in J.
     destruct J as [gv3 [trunc_denotes_gv3 gv3_in_env2]].
     simpl in Hsmem_denotes, Hsframe_denotes, Hseffects_denote.
-    exists (rollbackAL _ lc2 i0 lc0). exists als2. exists Mem2. exists tr. exists trace_nil.
+    exists (rollbackAL _ lc2 i0 lc0). exists als2. exists Mem2. exists tr. exists E0.
     assert (uniq (rollbackAL _ lc2 i0 lc0)) as Huniqc1.
       apply rollbackAL_uniq; auto.
     assert (smap_denotes_gvmap TD lc0 gl Mem0
@@ -1276,7 +1276,7 @@ Proof.
               (rollbackAL _ lc2 i0 lc0)) as env0_denote_env1.
       apply smap_denotes_gvmap_rollbackEnv with (c:=insn_trunc i0 t t0 v t1)(nc:=nc)(i0:=i0)(lc2:=lc2)(gv3:=gv3); 
         try solve [auto | split; auto].
-    rewrite trace_app_nil__eq__trace.
+    rewrite E0_right.
     split.
       split; auto.
     split; auto.
@@ -1319,7 +1319,7 @@ Proof.
     simpl in J. rewrite lookupSmap_updateAddAL_eq in J.
     destruct J as [gv3 [ext_denotes_gv3 gv3_in_env2]].
     simpl in Hsmem_denotes, Hsframe_denotes, Hseffects_denote.
-    exists (rollbackAL _ lc2 i0 lc0). exists als2. exists Mem2. exists tr. exists trace_nil.
+    exists (rollbackAL _ lc2 i0 lc0). exists als2. exists Mem2. exists tr. exists E0.
     assert (uniq (rollbackAL _ lc2 i0 lc0)) as Huniqc1.
       apply rollbackAL_uniq; auto.
     assert (smap_denotes_gvmap TD lc0 gl Mem0
@@ -1327,7 +1327,7 @@ Proof.
               (rollbackAL _ lc2 i0 lc0)) as env0_denote_env1.
       apply smap_denotes_gvmap_rollbackEnv with (c:=insn_ext i0 e t v t0)(nc:=nc)(i0:=i0)(lc2:=lc2)(gv3:=gv3); 
         try solve [auto | split; auto].
-    rewrite trace_app_nil__eq__trace.
+    rewrite E0_right.
     split.
       split; auto.
     split; auto.
@@ -1370,7 +1370,7 @@ Proof.
     simpl in J. rewrite lookupSmap_updateAddAL_eq in J.
     destruct J as [gv3 [cast_denotes_gv3 gv3_in_env2]].
     simpl in Hsmem_denotes, Hsframe_denotes, Hseffects_denote.
-    exists (rollbackAL _ lc2 i0 lc0). exists als2. exists Mem2. exists tr. exists trace_nil.
+    exists (rollbackAL _ lc2 i0 lc0). exists als2. exists Mem2. exists tr. exists E0.
     assert (uniq (rollbackAL _ lc2 i0 lc0)) as Huniqc1.
       apply rollbackAL_uniq; auto.
     assert (smap_denotes_gvmap TD lc0 gl Mem0
@@ -1378,7 +1378,7 @@ Proof.
               (rollbackAL _ lc2 i0 lc0)) as env0_denote_env1.
       apply smap_denotes_gvmap_rollbackEnv with (c:=insn_cast i0 c0 t v t0)(nc:=nc)(i0:=i0)(lc2:=lc2)(gv3:=gv3); 
         try solve [auto | split; auto].
-    rewrite trace_app_nil__eq__trace.
+    rewrite E0_right.
     split.
       split; auto.
     split; auto.
@@ -1421,7 +1421,7 @@ Proof.
     simpl in J. rewrite lookupSmap_updateAddAL_eq in J.
     destruct J as [gv3 [icmp_denotes_gv3 gv3_in_env2]].
     simpl in Hsmem_denotes, Hsframe_denotes, Hseffects_denote.
-    exists (rollbackAL _ lc2 i0 lc0). exists als2. exists Mem2. exists tr. exists trace_nil.
+    exists (rollbackAL _ lc2 i0 lc0). exists als2. exists Mem2. exists tr. exists E0.
     assert (uniq (rollbackAL _ lc2 i0 lc0)) as Huniqc1.
       apply rollbackAL_uniq; auto.
     assert (smap_denotes_gvmap TD lc0 gl Mem0
@@ -1429,7 +1429,7 @@ Proof.
               (rollbackAL _ lc2 i0 lc0)) as env0_denote_env1.
       apply smap_denotes_gvmap_rollbackEnv with (c:=insn_icmp i0 c0 t v v0)(nc:=nc)(i0:=i0)(lc2:=lc2)(gv3:=gv3); 
         try solve [auto | split; auto].
-    rewrite trace_app_nil__eq__trace.
+    rewrite E0_right.
     split.
       split; auto.
     split; auto.
@@ -1472,7 +1472,7 @@ Proof.
     simpl in J. rewrite lookupSmap_updateAddAL_eq in J.
     destruct J as [gv3 [fcmp_denotes_gv3 gv3_in_env2]].
     simpl in Hsmem_denotes, Hsframe_denotes, Hseffects_denote.
-    exists (rollbackAL _ lc2 i0 lc0). exists als2. exists Mem2. exists tr. exists trace_nil.
+    exists (rollbackAL _ lc2 i0 lc0). exists als2. exists Mem2. exists tr. exists E0.
     assert (uniq (rollbackAL _ lc2 i0 lc0)) as Huniqc1.
       apply rollbackAL_uniq; auto.
     assert (smap_denotes_gvmap TD lc0 gl Mem0
@@ -1480,7 +1480,7 @@ Proof.
               (rollbackAL _ lc2 i0 lc0)) as env0_denote_env1.
       apply smap_denotes_gvmap_rollbackEnv with (c:=insn_fcmp i0 f0 f1 v v0)(nc:=nc)(i0:=i0)(lc2:=lc2)(gv3:=gv3); 
         try solve [auto | split; auto].
-    rewrite trace_app_nil__eq__trace.
+    rewrite E0_right.
     split.
       split; auto.
     split; auto.
@@ -1523,7 +1523,7 @@ Proof.
     simpl in J. rewrite lookupSmap_updateAddAL_eq in J.
     destruct J as [gv3 [select_denotes_gv3 gv3_in_env2]].
     simpl in Hsmem_denotes, Hsframe_denotes, Hseffects_denote.
-    exists (rollbackAL _ lc2 i0 lc0). exists als2. exists Mem2. exists tr. exists trace_nil.
+    exists (rollbackAL _ lc2 i0 lc0). exists als2. exists Mem2. exists tr. exists E0.
     assert (uniq (rollbackAL _ lc2 i0 lc0)) as Huniqc1.
       apply rollbackAL_uniq; auto.
     assert (smap_denotes_gvmap TD lc0 gl Mem0
@@ -1531,7 +1531,7 @@ Proof.
               (rollbackAL _ lc2 i0 lc0)) as env0_denote_env1.
       apply smap_denotes_gvmap_rollbackEnv with (c:=insn_select i0 v t v0 v1)(nc:=nc)(i0:=i0)(lc2:=lc2)(gv3:=gv3); 
         try solve [auto | split; auto].
-    rewrite trace_app_nil__eq__trace.
+    rewrite E0_right.
     split.
       split; auto.
     split; auto.
@@ -1632,7 +1632,7 @@ Lemma se_cmds_denotes__composes__prefix_last : forall nb TD lc1 gl als1 Mem1
   wf_nbranchs (nbs++(nb::nil)) ->
   sstate_denotes_state TD lc0 gl als0 Mem0 (se_cmds sstate_init nbs) lc1 als1 Mem1 tr1 ->
   sstate_denotes_state TD lc1 gl als1 Mem1 (se_cmd sstate_init nb) lc2 als2 Mem2 tr2 ->
-  sstate_denotes_state TD lc0 gl als0 Mem0 (se_cmds sstate_init (nbs++nb::nil)) lc2 als2 Mem2 (trace_app tr1 tr2).
+  sstate_denotes_state TD lc0 gl als0 Mem0 (se_cmds sstate_init (nbs++nb::nil)) lc2 als2 Mem2 (Eapp tr1 tr2).
 Proof.
   intros [c nc] TD lc1 gl als1 Mem1 lc2 als2 Mem2 lc0 als0 Mem0 tr1 tr2 nbs 
     Huniqc1 Wf Hdenotes1 Hdenotes2.
@@ -2280,15 +2280,15 @@ forall TD lc0 gl als0 Mem0 nbs1 lc2 als2 Mem2 tr,
   exists lc1, exists als1, exists Mem1, exists tr1, exists tr2,
     sstate_denotes_state TD lc0 gl als0 Mem0 (se_cmds sstate_init nbs1) lc1 als1 Mem1 tr1 /\
     sstate_denotes_state TD lc1 gl als1 Mem1 (se_cmds sstate_init nbs2) lc2 als2 Mem2 tr2 /\
-    tr = trace_app tr1 tr2 /\ uniq lc1.
+    tr = Eapp tr1 tr2 /\ uniq lc1.
 
 Lemma se_cmds_denotes__decomposes__app : forall nbs2, 
   se_cmds_denotes__decomposes__app_prop nbs2.
 Proof.
   apply (@rev_ind nbranch); unfold se_cmds_denotes__decomposes__app_prop in *; intros; simpl.
   Case "nil".
-    exists lc2. exists als2. exists Mem2. exists tr. exists trace_nil.
-    rewrite trace_app_nil__eq__trace.
+    exists lc2. exists als2. exists Mem2. exists tr. exists E0.
+    rewrite E0_right.
     rewrite <- app_nil_end in H2.
     split; auto.
     split; auto.
@@ -2304,8 +2304,8 @@ Proof.
     destruct J as [H41 H42].
     apply H in env0_denotes_env1; auto.
     destruct env0_denotes_env1 as [lc3 [als3 [Mem3 [tr3 [tr4 [env0_denotes_env3 [env3_denotes_env1 [EQ Huniqc3]]]]]]]]; subst.
-    exists lc3. exists als3. exists Mem3. exists tr3. exists (trace_app tr4 tr2).
-    rewrite trace_app_commute.
+    exists lc3. exists als3. exists Mem3. exists tr3. exists (Eapp tr4 tr2).
+    rewrite <- Eapp_assoc.
     split; auto.
     split; auto.
       rewrite app_ass in H2.
@@ -2322,7 +2322,7 @@ Lemma se_cmds_denotes__decomposes__head_tail : forall nb TD lc0 gl als0 Mem0 nbs
   exists lc1, exists als1, exists Mem1, exists tr1, exists tr2,
     sstate_denotes_state TD lc0 gl als0 Mem0 (se_cmd sstate_init nb) lc1 als1 Mem1 tr1 /\
     sstate_denotes_state TD lc1 gl als1 Mem1 (se_cmds sstate_init nbs) lc2 als2 Mem2 tr2 /\
-    tr = trace_app tr1 tr2 /\ uniq lc1.
+    tr = Eapp tr1 tr2 /\ uniq lc1.
 Proof.
   intros nb TD lc0 gl als0 Mem0 cs lc2 als2 Mem2 tr Huniqc0 Huniqc2 Wf Hdenotes.
   rewrite <- se_cmds_cons in Hdenotes.
@@ -2342,7 +2342,7 @@ Proof.
     intros TD lc1 als1 gl Mem1 lc2 als2 Mem2 tr Uniqc1 Uniqc2 Wf Hdenotes.
 
     simpl in *. 
-    exists lc1. exists als1. exists Mem2. exists trace_nil. 
+    exists lc1. exists als1. exists Mem2. exists E0. 
     assert (J:=@init_denotes_id TD lc1 gl als1 Mem1).
     apply sstate_denotes_state_det with (lc2:=lc2)(als2:=als2)(Mem2:=Mem2)(tr2:=tr) in J; simpl; auto.
     destruct J as [EQ1 [EQ2 [EQ3 EQ4]]]; subst; auto.
@@ -2359,7 +2359,7 @@ Proof.
     destruct J2 as [lc4 [als4 [Mem4 [tr4 [HdbCmds HeqEnv']]]]].
     apply dbCmds_eqEnv with (lc1':=slc) in HdbCmds; auto using eqAL_sym.
     destruct HdbCmds as [lc4' [HdbCmds' HeqEnv'']].
-    exists lc4'. exists als4. exists Mem4. exists (trace_app tr3 tr4).
+    exists lc4'. exists als4. exists Mem4. exists (Eapp tr3 tr4).
     split; eauto using eqAL_trans, eqAL_sym.      
 Qed.
 

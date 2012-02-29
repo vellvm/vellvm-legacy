@@ -6,7 +6,7 @@ Require Import monad.
 Require Import Arith.
 Require Import Metatheory.
 Require Import genericvalues.
-Require Import trace.
+Require Import events.
 Require Import alist.
 Require Import infrastructure_props.
 Require Import CoqListFacts.
@@ -884,7 +884,7 @@ Proof.
 Qed.
 
 Lemma init_denotes_id : forall TD lc gl als Mem0,
-  sstate_denotes_state TD lc gl als Mem0 sstate_init lc als Mem0 trace_nil.
+  sstate_denotes_state TD lc gl als Mem0 sstate_init lc als Mem0 E0.
 Proof.
   intros TD lc gl als Mem0.
   split; auto.

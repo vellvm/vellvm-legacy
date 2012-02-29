@@ -6,7 +6,7 @@ Require Import monad.
 Require Import Arith.
 Require Import Metatheory.
 Require Import genericvalues.
-Require Import trace.
+Require Import events.
 Require Import symexe_def.
 Require Import symexe_lib.
 Require Import alist.
@@ -104,14 +104,14 @@ Lemma op_cmd__satisfies__se_cmd : forall TD c nc lc als gl lc0 als0 Mem0 lc' als
   dbCmd TD gl lc als Mem1 c lc' als' Mem2 tr -> 
   uniq sstate1.(STerms) ->
   sstate_denotes_state TD lc0 gl als0 Mem0 sstate1 lc als Mem1 tr1 ->
-  sstate_denotes_state TD lc0 gl als0 Mem0 (se_cmd sstate1 (mkNB c nc)) lc' als' Mem2 (trace_app tr1 tr).
+  sstate_denotes_state TD lc0 gl als0 Mem0 (se_cmd sstate1 (mkNB c nc)) lc' als' Mem2 (Eapp tr1 tr).
 Proof.
   intros TD c nc lc als gl lc0 als0 Mem0 lc' als' Mem1 Mem2 sstate1 tr tr1
          HdsInsn Huniq Hdenotes.
   (cmd_cases (destruct_cmd c) Case);
               inversion HdsInsn; subst;
               destruct Hdenotes as [Hsterm_denotes [Hsmem_denotes [Hsframe_denotes Hseffects_denote]]];
-              rewrite trace_app_nil__eq__trace.
+              rewrite E0_right.
   Case "insn_bop".
     split; auto.
       split.
@@ -528,21 +528,21 @@ Lemma aux__op_cmds__satisfy__se_cmds : forall nbs TD lc0 als als0 Mem0 lc als' g
   dbCmds TD gl lc als Mem1 (nbranchs2cmds nbs) lc' als' Mem2 tr ->
   uniq sstate1.(STerms) ->
   sstate_denotes_state TD lc0 gl als0 Mem0 sstate1 lc als Mem1 tr1 ->
-  sstate_denotes_state TD lc0 gl als0 Mem0 (se_cmds sstate1 nbs) lc' als' Mem2 (trace_app tr1 tr).
+  sstate_denotes_state TD lc0 gl als0 Mem0 (se_cmds sstate1 nbs) lc' als' Mem2 (Eapp tr1 tr).
 Proof.
   induction nbs; 
     intros TD lc0 als als0 Mem0 lc als' gl Mem1 sstate1 lc' Mem2 tr tr1 
     HdbCmds Huniq Hdenotes.
 
     simpl in HdbCmds.
-    inversion HdbCmds; subst; try solve [rewrite trace_app_nil__eq__trace; auto].
+    inversion HdbCmds; subst; try solve [rewrite E0_right; auto].
 
     destruct a as [c nc].
     simpl in HdbCmds.
     inversion HdbCmds; subst.
     apply op_cmd__satisfies__se_cmd with (lc0:=lc0)(sstate1:=sstate1)(als0:=als0)(Mem0:=Mem0)(tr1:=tr1)(nc:=nc) in H6; auto.
-    rewrite trace_app_commute.
-    apply IHnbs with (lc0:=lc0)(sstate1:=se_cmd sstate1 (mkNB c nc))(als0:=als0)(Mem0:=Mem0)(tr1:=trace_app tr1 t1) in H11; auto.
+    rewrite <- Eapp_assoc.
+    apply IHnbs with (lc0:=lc0)(sstate1:=se_cmd sstate1 (mkNB c nc))(als0:=als0)(Mem0:=Mem0)(tr1:=Eapp tr1 t1) in H11; auto.
       apply se_cmd_uniq_aux; auto.
 Qed.
 
@@ -552,7 +552,7 @@ Lemma op_cmds__satisfy__se_cmds : forall TD nbs lc als gl Mem lc' als' Mem' tr,
   sstate_denotes_state TD lc gl als Mem (se_cmds sstate_init nbs) lc' als' Mem' tr.
 Proof.
   intros TD nbs lc als gl Mem0 lc' als' Mem' tr Uniqc HdbCmds.
-  apply aux__op_cmds__satisfy__se_cmds with (lc0:=lc)(als0:=als)(Mem0:=Mem0)(sstate1:=sstate_init) (tr1:=trace_nil)(nbs:=nbs) in HdbCmds; simpl; auto.
+  apply aux__op_cmds__satisfy__se_cmds with (lc0:=lc)(als0:=als)(Mem0:=Mem0)(sstate1:=sstate_init) (tr1:=E0)(nbs:=nbs) in HdbCmds; simpl; auto.
     apply init_denotes_id; auto.
 Qed.           
 

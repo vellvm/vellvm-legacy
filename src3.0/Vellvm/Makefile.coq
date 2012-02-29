@@ -99,7 +99,8 @@ VFILES:=dopsem.v\
   static.v\
   targetdata_props.v\
   typings_props.v\
-  vellvm.v
+  vellvm.v\
+  vellvm_tactics.v
 
 -include $(addsuffix .d,$(VFILES))
 .SECONDARY: $(addsuffix .d,$(VFILES))

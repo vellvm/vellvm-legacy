@@ -593,7 +593,7 @@ Lemma dse_is_sim : forall maxb pinfo Cfg1 St1 Cfg2 St2
   (Hsim: State_simulation pinfo Cfg1 St1 Cfg2 St2),
   (forall (Hrem: removable_State pinfo St1) St1' tr1 
      (Hop1: Opsem.sInsn Cfg1 St1 St1' tr1), 
-     State_simulation pinfo Cfg1 St1' Cfg2 St2 /\ tr1 = trace_nil) /\
+     State_simulation pinfo Cfg1 St1' Cfg2 St2 /\ tr1 = E0) /\
   (forall (Hnrem: ~removable_State pinfo St1) St1' St2' tr1 tr2
      (Hop2: Opsem.sInsn Cfg2 St2 St2' tr2) 
      (Hop1: Opsem.sInsn Cfg1 St1 St1' tr1), 
@@ -1024,13 +1024,13 @@ Admitted.
 
 Lemma s_isFinialState__dse_State_simulation: forall pinfo cfg1 FS1 cfg2 
   FS2 r (Hstsim : State_simulation pinfo cfg1 FS1 cfg2 FS2)
-  (Hfinal: s_isFinialState cfg2 FS2 = ret r),
-  s_isFinialState cfg1 FS1 = ret r.
+  (Hfinal: Opsem.s_isFinialState cfg2 FS2 = ret r),
+  Opsem.s_isFinialState cfg1 FS1 = ret r.
 Admitted.
 
 Lemma opsem_s_isFinialState__dse_State_simulation: forall pinfo cfg1 FS1 cfg2 FS2
   (Hstsim : State_simulation pinfo cfg1 FS1 cfg2 FS2),
-  Opsem.s_isFinialState FS1 = Opsem.s_isFinialState FS2.
+  Opsem.s_isFinialState cfg1 FS1 = Opsem.s_isFinialState cfg2 FS2.
 Admitted.
 
 Lemma undefined_state__dse_State_simulation: forall pinfo cfg1 St1 cfg2 

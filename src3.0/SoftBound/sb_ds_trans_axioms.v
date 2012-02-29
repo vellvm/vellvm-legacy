@@ -1,6 +1,6 @@
 Require Import Values.
 Require Import vellvm.
-Require Import trace.
+Require Import events.
 Require Import Memory.
 Require Import alist.
 Require Import Integers.
@@ -46,7 +46,7 @@ Axiom free_doesnt_change_gmmd : forall M2 b2 lo hi Mem2' lc2 gl als
        ((Opsem.mkEC F B cs tmn 
          (updateAddAL _ (updateAddAL _ lc2 bid0 bgv') eid0 egv') als)::EC) 
         M2)
-    trace_nil ->
+    E0 ->
   Opsem.sop_star (OpsemAux.mkCfg S TD Ps gl fs)
     (Opsem.mkState
       ((Opsem.mkEC F B 
@@ -59,7 +59,7 @@ Axiom free_doesnt_change_gmmd : forall M2 b2 lo hi Mem2' lc2 gl als
        ((Opsem.mkEC F B cs tmn 
          (updateAddAL _ (updateAddAL _ lc2 bid0 bgv') eid0 egv') als)::EC) 
         Mem2')
-    trace_nil.
+    E0.
 
 Axiom get_mmetadata_fn__alloc__preserve : forall Mem2 lo hi Mem2' mb2
   (HeqR2 : (Mem2', mb2) = Mem.alloc Mem2 lo hi)
@@ -75,7 +75,7 @@ Axiom get_mmetadata_fn__alloc__preserve : forall Mem2 lo hi Mem2' mb2
      (Opsem.mkState ((Opsem.mkEC F B cs tmn
         (updateAddAL _ (updateAddAL _ lc2 bid0 bgv') eid0 egv') als) :: EC) 
         Mem2)
-     trace_nil ->
+     E0 ->
   Opsem.sop_star (OpsemAux.mkCfg S TD Ps gl fs)
      (Opsem.mkState ((Opsem.mkEC F B
         (insn_call bid0 false attrs gmb_typ gmb_fn (gmmd_args v) ::
@@ -84,7 +84,7 @@ Axiom get_mmetadata_fn__alloc__preserve : forall Mem2 lo hi Mem2' mb2
      (Opsem.mkState ((Opsem.mkEC F B cs tmn 
         (updateAddAL _ (updateAddAL _ lc2 bid0 bgv') eid0 egv') als) :: EC) 
         Mem2')
-     trace_nil.
+     E0.
 
 Axiom get_mmetadata_fn__alloc__zeroout : forall Mem2 lo hi Mem2' mb2 cm
   (HeqR2 : (Mem2', mb2) = Mem.alloc Mem2 lo hi)
@@ -101,7 +101,7 @@ Axiom get_mmetadata_fn__alloc__zeroout : forall Mem2 lo hi Mem2' mb2 cm
      (Opsem.mkState ((Opsem.mkEC F B cs tmn 
         (updateAddAL _ (updateAddAL _ lc2 bid0 null) eid0 null) als) :: EC) 
         Mem2')
-     trace_nil.
+     E0.
 
 Axiom assert_mptr_fn__ok : forall 
   (lc2 : DGVMap)
@@ -150,7 +150,7 @@ Axiom assert_mptr_fn__ok : forall
             cs2' tmn2 
             (updateAddAL _ lc2 ptmp gvp2)
              als2):: 
-            ECs2) M2) trace_nil.
+            ECs2) M2) E0.
 
 Axiom simulation__set_mmetadata_fn : forall lc2 gl b ofs blk bofs eofs als2 tmn2 ECs2 
   pgv' bgv' egv' mi ptmp bv0 ev0 MM1 Mem1 Mem2 rm v gmb fs2 gl2 cs F2 B2 TD
@@ -177,7 +177,7 @@ Axiom simulation__set_mmetadata_fn : forall lc2 gl b ofs blk bofs eofs als2 tmn2
       (Opsem.mkState 
           ((Opsem.mkEC F2 B2
               cs tmn2 lc2 als2):: 
-            ECs2) Mem2') trace_nil /\
+            ECs2) Mem2') E0 /\
       mem_simulation mi TD gmb
         (SBspecAux.set_mem_metadata TD MM1 ((Vptr b ofs,cm)::nil) 
         (SBspecAux.mkMD blk bofs eofs)) Mem1 Mem2'.
@@ -193,7 +193,7 @@ Axiom set_mmetadata_fn__prop : forall TD Mem1 lc2 als2 Mem2 S2 Ps2 F2
             ECs2) Mem1)
       (Opsem.mkState
           ((Opsem.mkEC F2 B2 cs tmn2 lc2 als2):: 
-            ECs2) Mem2) trace_nil ->
+            ECs2) Mem2) E0 ->
   Mem.nextblock Mem1 <= Mem.nextblock Mem2 /\
   (forall b2, Mem.valid_block Mem1 b2 -> Mem.valid_block Mem2 b2) /\
   (forall b0, Mem.bounds Mem1 b0 = Mem.bounds Mem2 b0).
@@ -316,7 +316,7 @@ Axiom shadow_stack_init : forall la ogvs lc' rm' gl mi lc2 lp cs1 rm2 nts los
       tmn1 lc2' nil):: 
       (Opsem.mkEC (fdef_intro fh2 bs2) B2
         (insn_call rid noret0 ca ft (wrap_call fv) lp :: cs22 ++ cs2' ++ cs23)
-      tmn2 lc2 als2):: ECs2) M2') trace_nil /\
+      tmn2 lc2 als2):: ECs2) M2') E0 /\
   wf_sb_mi mgb mi Mem0 M2' /\
   mem_simulation mi (los, nts) mgb MM Mem0 M2' /\
   reg_simulation mi (los, nts) gl2 
@@ -354,7 +354,7 @@ Axiom shadow_stack_exfdec : forall la lc' mi lc2 lp cs1 nts los fptr
     (Opsem.mkState 
       ((Opsem.mkEC (fdef_intro fh2 bs2) B2
         (cs2' ++ cs23)
-      tmn2 lc2' als2):: ECs2) M2') trace_nil /\
+      tmn2 lc2' als2):: ECs2) M2') E0 /\
   wf_sb_mi mgb mi Mem' M2' /\
   mem_simulation mi (los, nts) mgb MM Mem' M2' /\
   reg_simulation mi (los, nts) gl2 (fdef_intro fh1 bs1) rm' rm2 lc' lc2'.
@@ -388,7 +388,7 @@ Axiom store_doesnt_change_gmmd : forall M2 b2 ofs v0 Mem2' lc2 gl als
        ((Opsem.mkEC F B cs tmn 
          (updateAddAL _ (updateAddAL _ lc2 bid0 bgv') eid0 egv') als)::EC) 
         M2)
-    trace_nil ->
+    E0 ->
   Opsem.sop_star (OpsemAux.mkCfg S TD Ps gl fs) 
     (Opsem.mkState
       ((Opsem.mkEC F B 
@@ -401,7 +401,7 @@ Axiom store_doesnt_change_gmmd : forall M2 b2 ofs v0 Mem2' lc2 gl als
        ((Opsem.mkEC F B cs tmn 
          (updateAddAL _ (updateAddAL _ lc2 bid0 bgv') eid0 egv') als)::EC) 
         Mem2')
-    trace_nil.
+    E0.
 
 
 
