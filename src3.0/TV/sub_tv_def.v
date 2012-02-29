@@ -5,10 +5,11 @@ Require Import Arith.
 Require Import ZArith.
 Require Import Metatheory.
 Require Import sub_symexe.
-Require Import trace.
+Require Import events.
 Require Import alist.
 Require Import monad.
 Require Import opsem.
+Require Import external_intrinsics.
 
 Export SBSE.
 Import LLVMtd.
@@ -773,14 +774,14 @@ Inductive dbCmd : TargetData -> GVMap ->
     lc als Mem
     (insn_bop id bop sz v1 v2)
     (updateAddAL _ lc id gv3) als Mem
-    trace_nil SBSE.Rok
+    E0 SBSE.Rok
 | dbFBop: forall TD lc gl id fbop fp v1 v2 gv3 Mem als,
   FBOP TD lc gl fbop fp v1 v2 = Some gv3 ->
   dbCmd TD gl
     lc als Mem
     (insn_fbop id fbop fp v1 v2)
     (updateAddAL _ lc id gv3) als Mem
-    trace_nil SBSE.Rok 
+    E0 SBSE.Rok 
 | dbExtractValue : forall TD lc gl id t v gv gv' Mem als idxs,
   getOperandValue TD v lc gl = Some gv ->
   extractGenericValue TD t gv idxs = Some gv' ->
@@ -788,7 +789,7 @@ Inductive dbCmd : TargetData -> GVMap ->
     lc als Mem
     (insn_extractvalue id t v idxs)
     (updateAddAL _ lc id gv') als Mem
-    trace_nil SBSE.Rok 
+    E0 SBSE.Rok 
 | dbInsertValue : forall TD lc gl id t v t' v' gv gv' gv'' idxs Mem als,
   getOperandValue TD v lc gl = Some gv ->
   getOperandValue TD v' lc gl = Some gv' ->
@@ -797,7 +798,7 @@ Inductive dbCmd : TargetData -> GVMap ->
     lc als Mem
     (insn_insertvalue id t v t' v' idxs)
     (updateAddAL _ lc id gv'') als Mem
-    trace_nil SBSE.Rok 
+    E0 SBSE.Rok 
 | dbMalloc : forall TD lc gl id t v gn align Mem als Mem' tsz mb,
   getTypeAllocSize TD t = Some tsz ->
   getOperandValue TD v lc gl = Some gn ->
@@ -806,7 +807,7 @@ Inductive dbCmd : TargetData -> GVMap ->
     lc als Mem
     (insn_malloc id t v align)
     (updateAddAL _ lc id (blk2GV TD mb)) als Mem'
-    trace_nil SBSE.Rok
+    E0 SBSE.Rok
 | dbFree : forall TD lc gl fid t v Mem als Mem' mptr,
   getOperandValue TD v lc gl = Some mptr ->
   free TD Mem mptr = Some Mem'->
@@ -814,7 +815,7 @@ Inductive dbCmd : TargetData -> GVMap ->
     lc als Mem
     (insn_free fid t v)
     lc als Mem'
-    trace_nil SBSE.Rok
+    E0 SBSE.Rok
 | dbAlloca : forall TD lc gl id t v gn align Mem als Mem' tsz mb,
   getTypeAllocSize TD t = Some tsz ->
   getOperandValue TD v lc gl = Some gn ->
@@ -823,7 +824,7 @@ Inductive dbCmd : TargetData -> GVMap ->
     lc als Mem
     (insn_alloca id t v align)
     (updateAddAL _ lc id (blk2GV TD mb)) (mb::als) Mem'
-    trace_nil SBSE.Rok
+    E0 SBSE.Rok
 | dbLoad : forall TD lc gl id t v align Mem als mp gv,
   getOperandValue TD v lc gl = Some mp ->
   mload TD Mem mp t align = Some gv ->
@@ -831,7 +832,7 @@ Inductive dbCmd : TargetData -> GVMap ->
     lc als Mem
     (insn_load id t v align)
     (updateAddAL _ lc id gv) als Mem
-    trace_nil SBSE.Rok
+    E0 SBSE.Rok
 | dbStore : forall TD lc gl sid t v1 v2 align Mem als mp2 gv1 Mem',
   getOperandValue TD v1 lc gl = Some gv1 ->
   getOperandValue TD v2 lc gl = Some mp2 ->
@@ -840,7 +841,7 @@ Inductive dbCmd : TargetData -> GVMap ->
     lc als Mem
     (insn_store sid t v1 v2 align)
     lc als Mem'
-    trace_nil SBSE.Rok
+    E0 SBSE.Rok
 | dbGEP : forall TD lc gl id inbounds t v idxs vidxs mp mp' Mem als,
   getOperandValue TD v lc gl = Some mp ->
   values2GVs TD idxs lc gl = Some vidxs ->
@@ -849,42 +850,42 @@ Inductive dbCmd : TargetData -> GVMap ->
     lc als Mem
     (insn_gep id inbounds t v idxs)
     (updateAddAL _ lc id mp') als Mem
-    trace_nil SBSE.Rok 
+    E0 SBSE.Rok 
 | dbTrunc : forall TD lc gl id truncop t1 v1 t2 gv2 Mem als,
   TRUNC TD lc gl truncop t1 v1 t2 = Some gv2 ->
   dbCmd TD gl
     lc als Mem
     (insn_trunc id truncop t1 v1 t2)
     (updateAddAL _ lc id gv2) als Mem
-    trace_nil SBSE.Rok
+    E0 SBSE.Rok
 | dbExt : forall TD lc gl id extop t1 v1 t2 gv2 Mem als,
   EXT TD lc gl extop t1 v1 t2 = Some gv2 ->
   dbCmd TD gl
     lc als Mem
     (insn_ext id extop t1 v1 t2)
     (updateAddAL _ lc id gv2) als Mem
-    trace_nil SBSE.Rok
+    E0 SBSE.Rok
 | dbCast : forall TD lc gl id castop t1 v1 t2 gv2 Mem als,
   CAST TD lc gl castop t1 v1 t2 = Some gv2 ->
   dbCmd TD gl
     lc als Mem
     (insn_cast id castop t1 v1 t2)
     (updateAddAL _ lc id gv2) als Mem
-    trace_nil SBSE.Rok
+    E0 SBSE.Rok
 | dbIcmp : forall TD lc gl id cond t v1 v2 gv3 Mem als,
   ICMP TD lc gl cond t v1 v2 = Some gv3 ->
   dbCmd TD gl
     lc als Mem
     (insn_icmp id cond t v1 v2)
     (updateAddAL _ lc id gv3) als Mem
-    trace_nil SBSE.Rok
+    E0 SBSE.Rok
 | dbFcmp : forall TD lc gl id fcond fp v1 v2 gv3 Mem als,
   FCMP TD lc gl fcond fp v1 v2 = Some gv3 ->
   dbCmd TD gl
     lc als Mem
     (insn_fcmp id fcond fp v1 v2)
     (updateAddAL _ lc id gv3) als Mem
-    trace_nil SBSE.Rok
+    E0 SBSE.Rok
 | dbSelect : forall TD lc gl id v0 t v1 v2 cond Mem als gv1 gv2,
   getOperandValue TD v0 lc gl = Some cond ->
   getOperandValue TD v1 lc gl = Some gv1 ->
@@ -894,7 +895,7 @@ Inductive dbCmd : TargetData -> GVMap ->
     (insn_select id v0 t v1 v2)
     (if isGVZero TD cond then updateAddAL _ lc id gv2 
      else updateAddAL _ lc id gv1) als Mem
-    trace_nil SBSE.Rok
+    E0 SBSE.Rok
 | dbLib : forall TD lc gl rid noret tailc ft fid 
                           lp rt Mem oresult Mem' als r lc' gvs,
   (* Like isCall, we only consider direct call to libraries. Function pointers
@@ -908,7 +909,7 @@ Inductive dbCmd : TargetData -> GVMap ->
     lc als Mem
     (insn_call rid noret tailc rt (value_const (const_gid ft fid)) lp)
     lc' als Mem'
-    trace_nil r
+    E0 r
 .
 
 Inductive dbCmds : TargetData -> GVMap -> 
@@ -917,12 +918,12 @@ Inductive dbCmds : TargetData -> GVMap ->
                    GVMap -> list mblock -> mem -> 
                    trace -> Result -> Prop :=
 | dbCmds_nil : forall TD lc als gl Mem, 
-    dbCmds TD gl lc als Mem nil lc als Mem trace_nil Rok
+    dbCmds TD gl lc als Mem nil lc als Mem E0 Rok
 | dbCmds_cons : forall TD c cs gl lc1 als1 Mem1 t1 t2 lc2 als2 Mem2
                        lc3 als3 Mem3 r,
     dbCmd TD gl lc1 als1 Mem1 c lc2 als2 Mem2 t1 Rok ->
     dbCmds TD gl lc2 als2 Mem2 cs lc3 als3 Mem3 t2 r ->
-    dbCmds TD gl lc1 als1 Mem1 (c::cs) lc3 als3 Mem3 (trace_app t1 t2) r
+    dbCmds TD gl lc1 als1 Mem1 (c::cs) lc3 als3 Mem3 (Eapp t1 t2) r
 | dbCmds_cons_abort : forall TD c cs gl lc1 als1 Mem1 t1 lc2 als2 Mem2,
     dbCmd TD gl lc1 als1 Mem1 c lc2 als2 Mem2 t1 Rabort ->
     dbCmds TD gl lc1 als1 Mem1 (c::cs) lc2 als2 Mem2 t1 Rabort
@@ -949,11 +950,11 @@ Inductive dbTerminator :
     then (lookupBlockViaLabelFromFdef F l2)
     else (lookupBlockViaLabelFromFdef F l1)) ->
   Some lc' = switchToNewBasicBlock TD B' B gl lc ->
-  dbTerminator TD Mem F gl B lc (insn_br bid Cond l1 l2) B' lc' trace_nil 
+  dbTerminator TD Mem F gl B lc (insn_br bid Cond l1 l2) B' lc' E0 
 | dbBranch_uncond : forall TD Mem F B lc gl l bid B' lc',   
   Some B' = lookupBlockViaLabelFromFdef F l ->
   Some lc' = switchToNewBasicBlock TD B' B gl lc ->
-  dbTerminator TD Mem F gl B lc (insn_br_uncond bid l) B' lc' trace_nil 
+  dbTerminator TD Mem F gl B lc (insn_br_uncond bid l) B' lc' E0 
 .
 
 Record ExecutionContext : Type := mkEC
@@ -1015,12 +1016,12 @@ Inductive dbCall : system -> TargetData -> list product -> GVMap ->
   lookupExFdecViaGV TD Ps gl lc fs fv = 
     Some (fdec_intro (fheader_intro fa rt fid la va) dck) ->
   params2GVs TD lp lc gl = Some gvs ->
-  external_intrinsics.callExternalOrIntrinsics 
+  callExternalOrIntrinsics 
     TD gl Mem fid rt (args2Typs la) dck gvs = Some (oresult, tr, Mem') ->
   exCallUpdateLocals TD rt noret rid oresult lc = Some lc' ->
   dbCall S TD Ps fs gl lc als Mem
     (insn_call_nptr rid noret tailc rt fv lp)
-    lc' als Mem' trace_nil Rok
+    lc' als Mem' tr Rok
 
 | dbiCall : forall S TD Ps lc1 als1 gl fs Mem1 lc2 als2 Mem2 
     tr1 lc3 Mem3 tr2 rid nr tc t v p sid id1 id2 id3 id4 id5 id6 call0 
@@ -1031,7 +1032,7 @@ Inductive dbCall : system -> TargetData -> list product -> GVMap ->
   dbCmds TD gl lc2 als1 Mem2 cs lc3 als2 Mem3 tr2 Rok ->
   dbCall S TD Ps fs gl lc1 als1 Mem1
     (insn_call_ptr rid nr tc t v p sid id1 id2 id3 id4 id5 id6 cst0 cst1 cst2)
-    lc3 als2 Mem3 (trace_app tr1 tr2) Rok
+    lc3 als2 Mem3 (Eapp tr1 tr2) Rok
 
 | dbiCall_abort : forall S TD Ps lc1 als1 gl fs Mem1 lc2 Mem2 
     tr1 rid nr tc t v p sid id1 id2 id3 id4 id5 id6 cst0 cst1 cst2 call0 cs,
@@ -1052,7 +1053,7 @@ with dbSubblock : system -> TargetData -> list product -> GVMap -> GVMap ->
   dbNbranches TD gl lc1 als1 Mem1 cs lc2 als2 Mem2 tr1 Rok ->
   dbCall S TD Ps fs gl lc2 als2 Mem2 call0 lc3 als3 Mem3 tr2 r ->
   dbSubblock S TD Ps fs gl lc1 als1 Mem1 (mkSB cs call0) 
-             lc3 als3 Mem3 (trace_app tr1 tr2) r
+             lc3 als3 Mem3 (Eapp tr1 tr2) r
 | dbSubblock_abort : forall S TD Ps lc1 als1 gl fs Mem1 cs call0 lc2 als2 
     Mem2 tr1,
   dbNbranches TD gl lc1 als1 Mem1 cs lc2 als2 Mem2 tr1 Rabort ->
@@ -1065,13 +1066,13 @@ with dbSubblocks : system -> TargetData -> list product -> GVMap -> GVMap ->
                    GVMap -> list mblock -> mem -> 
                    trace -> Result -> Prop :=
 | dbSubblocks_nil : forall S TD Ps lc als gl fs Mem, 
-    dbSubblocks S TD Ps fs gl lc als Mem nil lc als Mem trace_nil Rok
+    dbSubblocks S TD Ps fs gl lc als Mem nil lc als Mem E0 Rok
 | dbSubblocks_cons : forall S TD Ps lc1 als1 gl fs Mem1 lc2 als2 Mem2 lc3 als3 
     Mem3 sb sbs' t1 t2 r,
     dbSubblock S TD Ps fs gl lc1 als1 Mem1 sb lc2 als2 Mem2 t1 Rok ->
     dbSubblocks S TD Ps fs gl lc2 als2 Mem2 sbs' lc3 als3 Mem3 t2 r ->
     dbSubblocks S TD Ps fs gl lc1 als1 Mem1 (sb::sbs') lc3 als3 Mem3 
-      (trace_app t1 t2) r
+      (Eapp t1 t2) r
 
 with dbBlock : system -> TargetData -> list product -> GVMap -> GVMap -> 
        fdef -> list GenericValue -> State -> State -> trace -> Result -> Prop :=
@@ -1091,7 +1092,7 @@ with dbBlock : system -> TargetData -> list product -> GVMap -> GVMap ->
   dbBlock S TD Ps fs gl F arg
     (mkState (mkEC (block_common l ps sbs cs tmn) lc1 als1) Mem1)
     (mkState (mkEC B' lc4 als3) Mem3)
-    (trace_app (trace_app tr1 tr2) tr3) Rok
+    (Eapp (Eapp tr1 tr2) tr3) Rok
 | dbBlock_abort1 : forall S TD Ps F tr1 tr2 l ps sbs cs tmn gl fs lc1 als1 Mem1
                          lc2 als2 Mem2 lc3 als3 Mem3 arg,
   dbSubblocks S TD Ps fs gl
@@ -1103,7 +1104,7 @@ with dbBlock : system -> TargetData -> list product -> GVMap -> GVMap ->
   dbBlock S TD Ps fs gl F arg
     (mkState (mkEC (block_common l ps sbs cs tmn) lc1 als1) Mem1)
     (mkState (mkEC (block_common l ps nil nil tmn) lc3 als3) Mem3)
-    (trace_app tr1 tr2) Rabort
+    (Eapp tr1 tr2) Rabort
 | dbBlock_abort2 : forall S TD Ps F tr1 l ps sbs cs tmn gl fs lc1 als1 Mem1
                          lc2 als2 Mem2 arg,
   dbSubblocks S TD Ps fs gl
@@ -1119,11 +1120,11 @@ with dbBlock : system -> TargetData -> list product -> GVMap -> GVMap ->
 with dbBlocks : system -> TargetData -> list product -> GVMap -> GVMap -> 
     fdef -> list GenericValue -> State -> State -> trace -> Result -> Prop :=
 | dbBlocks_nil : forall S TD Ps gl fs F arg state, 
-    dbBlocks S TD Ps fs gl F arg state state trace_nil Rok
+    dbBlocks S TD Ps fs gl F arg state state E0 Rok
 | dbBlocks_cons : forall S TD Ps gl fs F arg S1 S2 S3 t1 t2 r,
     dbBlock S TD Ps fs gl F arg S1 S2 t1 Rok ->
     dbBlocks S TD Ps fs gl F arg S2 S3 t2 r ->
-    dbBlocks S TD Ps fs gl F arg S1 S3 (trace_app t1 t2) r
+    dbBlocks S TD Ps fs gl F arg S1 S3 (Eapp t1 t2) r
 
 with dbFdef : value -> typ -> params -> system -> TargetData -> list product -> 
               GVMap -> GVMap -> GVMap -> mem -> GVMap -> list mblock -> mem -> 
@@ -1146,7 +1147,7 @@ with dbFdef : value -> typ -> params -> system -> TargetData -> list product ->
   dbNbranches TD gl lc2 als2 Mem2 cs2 lc3 als3 Mem3 tr3 r ->
   dbFdef fv rt lp S TD Ps lc gl fs Mem lc3 als3 Mem3 
     (block_common l2 ps2 sbs2 cs2 (insn_return rid rt Result)) rid 
-    (Some Result) (trace_app (trace_app tr1 tr2) tr3) r
+    (Some Result) (Eapp (Eapp tr1 tr2) tr3) r
 
 | dbFdef_func_abort1 : forall S TD Ps gl fs fv fid lp lc rid
                        B1 fa rt la va lb Result lc1 tr1 Mem Mem1 als1 lc0
@@ -1165,7 +1166,7 @@ with dbFdef : value -> typ -> params -> system -> TargetData -> list product ->
   dbSubblocks S TD Ps fs gl lc1 als1 Mem1 sbs2 lc2 als2 Mem2 tr2 Rabort ->
   dbFdef fv rt lp S TD Ps lc gl fs Mem lc2 als2 Mem2 
     (block_common l2 ps2 sbs2 cs2 (insn_return rid rt Result)) rid 
-    (Some Result) (trace_app tr1 tr2) Rabort
+    (Some Result) (Eapp tr1 tr2) Rabort
 
 | dbFdef_func_abort2 : forall S TD Ps gl fs fv fid lp lc rid lc0
                        B1 fa rt la va lb lc1 tr1 Mem Mem1 als1 B gvs,
@@ -1199,7 +1200,7 @@ with dbFdef : value -> typ -> params -> system -> TargetData -> list product ->
   dbNbranches TD gl lc2 als2 Mem2 cs2 lc3 als3 Mem3 tr3 r ->
   dbFdef fv rt lp S TD Ps lc gl fs Mem lc3 als3 Mem3 
     (block_common l2 ps2 sbs2 cs2 (insn_return_void rid)) rid None 
-    (trace_app (trace_app tr1 tr2) tr3) r
+    (Eapp (Eapp tr1 tr2) tr3) r
 
 | dbFdef_proc_abort1 : forall S TD Ps gl fs fv fid lp lc rid
                        B1 fa rt la va lb lc1 tr1 Mem Mem1 als1 lc0
@@ -1218,7 +1219,7 @@ with dbFdef : value -> typ -> params -> system -> TargetData -> list product ->
   dbSubblocks S TD Ps fs gl lc1 als1 Mem1 sbs2 lc2 als2 Mem2 tr2 Rabort ->
   dbFdef fv rt lp S TD Ps lc gl fs Mem lc2 als2 Mem2
     (block_common l2 ps2 sbs2 cs2 (insn_return_void rid)) rid None 
-    (trace_app tr1 tr2) Rabort
+    (Eapp tr1 tr2) Rabort
 
 | dbFdef_proc_abort2 : forall S TD Ps gl fs fv fid lp lc rid lc0
                        B1 fa rt la va lb lc1 tr1 Mem Mem1 als1 B gvs,
@@ -1278,7 +1279,7 @@ with dbFdef : value -> typ -> params -> system -> TargetData -> list product ->
       (insn_return_ptr sid t id1 id2 id30 id31 id4 id50 id51 id60 id61 id7
         cst0 cst1 cst2)
     ) rid None 
-    (trace_app (trace_app (trace_app tr1 tr2) tr3) tr4) Rok
+    (Eapp (Eapp (Eapp tr1 tr2) tr3) tr4) Rok
 
 | dbFdef_iproc_abort1 : forall S TD Ps gl fs fv fid lp lc rid lc0
                        B1 fa rt la va lb lc1 tr1 Mem Mem1 als1
@@ -1306,7 +1307,7 @@ with dbFdef : value -> typ -> params -> system -> TargetData -> list product ->
       (insn_return_ptr sid t id1 id2 id30 id31 id4 id50 id51 id60 id61 id7
         cst0 cst1 cst2)
     ) rid None 
-    (trace_app (trace_app tr1 tr2) tr3) Rabort
+    (Eapp (Eapp tr1 tr2) tr3) Rabort
 
 | dbFdef_iproc_abort2 : forall S TD Ps gl fs fv fid lp lc rid
                        B1 fa rt la va lb lc1 tr1 Mem Mem1 als1
@@ -1333,7 +1334,7 @@ with dbFdef : value -> typ -> params -> system -> TargetData -> list product ->
       (insn_return_ptr sid t id1 id2 id30 id31 id4 id50 id51 id60 id61 id7
         cst0 cst1 cst2)
     ) rid None 
-    (trace_app tr1 tr2) Rabort
+    (Eapp tr1 tr2) Rabort
 
 | dbFdef_iproc_abort3 : forall S TD Ps gl fs fv fid lp lc rid
                        B1 fa rt la va lb lc1 tr1 Mem Mem1 als1 B2 gvs lc0,

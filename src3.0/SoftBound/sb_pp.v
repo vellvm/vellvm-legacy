@@ -1109,7 +1109,10 @@ Case "sTrunc".
     apply wf_State__cmd__lookupTypViaIDFromFdef in Htyp.
     rewrite Htyp; simpl; auto. 
       apply wf_State__wf_cmd in HwfS1.
-      inv HwfS1. inv H4; congruence.
+      inv HwfS1. 
+      match goal with
+      | H5: wf_trunc _ _ _ _ _ |- _ => inv H5; congruence
+      end.
 
 Case "sExt". 
   preservation_tac.
@@ -1118,7 +1121,10 @@ Case "sExt".
     apply wf_State__cmd__lookupTypViaIDFromFdef in Htyp.
     rewrite Htyp; simpl; auto. 
       apply wf_State__wf_cmd in HwfS1.
-      inv HwfS1. inv H4; congruence.
+      inv HwfS1. 
+      match goal with
+      | H5: wf_ext _ _ _ _ _ |- _ => inv H5; congruence
+      end.
 
 Case "sBitcast_nptr". 
   preservation_tac.
@@ -1127,7 +1133,10 @@ Case "sBitcast_nptr".
       apply wf_State__cmd__lookupTypViaIDFromFdef in Htyp.
       rewrite Htyp; simpl; auto. 
         apply wf_State__wf_cmd in HwfS1.
-        inv HwfS1. inv H5; try congruence.
+        inv HwfS1. 
+        match goal with
+        | H5: wf_cast _ _ _ _ _ |- _ => inv H5; try congruence
+        end.
           inv H.
 
 Case "sBitcast_ptr". 
@@ -1139,7 +1148,9 @@ Case "sBitcast_ptr".
     assert (Hwfc:=HwfS1). apply wf_State__wf_cmd in Hwfc.
     inv Hwfc.
     eapply prop_metadata_preserves_wf_rmetadata with (t:=t1); eauto.
-      inv H6; eauto.
+      match goal with
+      | H5: wf_cast _ _ _ _ _ |- _ => inv H5; eauto
+      end.
 
     eauto.
 
@@ -1160,7 +1171,9 @@ Case "sOthercast".
         apply wf_State__wf_cmd in HwfS1.
         inv HwfS1. 
         destruct H as [J1 J2]. 
-        inv H5; try (congruence).
+        match goal with
+        | H5: wf_cast _ _ _ _ _ |- _ => inv H5; try (congruence)
+        end.        
 
 Case "sIcmp". preservation_tac.
 Case "sFcmp". preservation_tac.
@@ -1205,7 +1218,10 @@ Case "sCall".
     intro. congruence.
     eapply initLocals__wf_rmap; eauto.
 
-    inv Hwfc. inv H7.
+    inv Hwfc. 
+    match goal with
+    | H21: wf_insn_base _ _ _ |- _ => inv H21
+    end.        
     eapply initLocals__wf_rmetadata in H0; eauto.
       eapply wf_value_list__in_params__wf_value; eauto.
 

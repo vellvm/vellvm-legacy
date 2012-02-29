@@ -717,7 +717,8 @@ Lemma callExternalFunction__Mem_simulation: forall pinfo sasinfo TD St1 M1 M2
     ret (oresult1, tr1, M1') ->
   callExternalOrIntrinsics TD gl M2 fid0 tret targs dck gvss0 = 
     ret (oresult2, tr2, M2') ->
-  oresult1 = oresult2 /\ Mem_simulation pinfo sasinfo TD St1 M1' M2'.
+  oresult1 = oresult2 /\ Mem_simulation pinfo sasinfo TD St1 M1' M2' /\ 
+    tr1 = tr2.
 Admitted.
 
 Ltac destruct_ctx_other :=
@@ -1315,7 +1316,7 @@ SCase "sExCall".
   eapply lookupExFdecViaPtr__simulation_l2r in Hlkdec; eauto.
   uniq_result.
   eapply callExternalFunction__Mem_simulation in Hmsim; eauto.
-  destruct Hmsim as [EQ Hmsim]; subst.
+  destruct Hmsim as [EQ [Hmsim EQ']]; subst.
   uniq_result.
   repeat_solve.
     eapply mem_simulation_update_locals in Hmsim; simpl; eauto.

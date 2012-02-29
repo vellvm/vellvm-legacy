@@ -302,7 +302,7 @@ Definition initLocals TD (la:args) (lg:list (GVs*option metadata))
   : option (GVsMap * rmetadata) :=
 _initializeFrameValues TD la lg nil nil.
 
-Inductive sInsn_delta : Config -> State -> State -> Prop :=
+Inductive sInsn_delta : Config -> State -> State -> trace -> Prop :=
 | sReturn : forall S TD Ps F B rid RetTy Result lc rm gl fs F' B' c' cs' tmn' 
     lc' rm' EC Mem MM Mem' als als' lc'' rm'',   
   returnUpdateLocals TD c' RetTy Result lc lc' rm rm' gl = Some (lc'', rm'') ->
@@ -310,7 +310,7 @@ Inductive sInsn_delta : Config -> State -> State -> Prop :=
     (mkState 
       ((mkEC F B nil (insn_return rid RetTy Result) lc rm als)::
        (mkEC F' B' (c'::cs') tmn' lc' rm' als')::EC) Mem MM)
-    (mkState ((mkEC F' B' cs' tmn' lc'' rm'' als')::EC) Mem' MM)
+    (mkState ((mkEC F' B' cs' tmn' lc'' rm'' als')::EC) Mem' MM) E0
 
 | sReturnVoid : forall S TD Ps F B rid lc rm gl fs F' B' c' tmn' lc' rm' EC cs' 
     Mem MM Mem' als als',   
@@ -318,7 +318,7 @@ Inductive sInsn_delta : Config -> State -> State -> Prop :=
     (mkState 
       ((mkEC F B nil (insn_return_void rid) lc rm als)::
        (mkEC F' B' (c'::cs') tmn' lc' rm' als')::EC) Mem MM)
-    (mkState ((mkEC F' B' cs' tmn' lc' rm' als')::EC) Mem' MM)
+    (mkState ((mkEC F' B' cs' tmn' lc' rm' als')::EC) Mem' MM) E0
 
 | sBranch : forall S TD Ps F B lc rm gl fs bid Cond l1 l2 l' ps' cs' tmn' lc' 
     rm' EC Mem MM als,   
@@ -327,7 +327,7 @@ Inductive sInsn_delta : Config -> State -> State -> Prop :=
   sInsn_delta (mkCfg S TD Ps gl fs)  
     (mkState ((mkEC F B nil (insn_br bid Cond l1 l2) lc rm als)::EC) Mem MM)
     (mkState ((mkEC F (block_intro l' ps' cs' tmn') cs' tmn' lc' rm' als)::EC) 
-      Mem MM)
+      Mem MM) E0
 
 | sBranch_uncond : forall S TD Ps F B lc rm gl fs bid l l' ps' cs' tmn' lc' rm'
     EC Mem MM als,   
@@ -336,20 +336,20 @@ Inductive sInsn_delta : Config -> State -> State -> Prop :=
   sInsn_delta (mkCfg S TD Ps gl fs)  
     (mkState ((mkEC F B nil (insn_br_uncond bid l) lc rm als)::EC) Mem MM)
     (mkState ((mkEC F (block_intro l' ps' cs' tmn') cs' tmn' lc' rm' als)::EC) 
-      Mem MM)
+      Mem MM) E0
 
 | sBop: forall cfg F B lc rm id bop sz v1 v2 lc' EC cs tmn Mem MM als,
   sInsn_delta cfg
     (mkState ((mkEC F B ((insn_bop id bop sz v1 v2)::cs) tmn lc rm als)::EC) 
       Mem MM) 
-    (mkState ((mkEC F B cs tmn lc' rm als)::EC) Mem MM)
+    (mkState ((mkEC F B cs tmn lc' rm als)::EC) Mem MM) E0
 
 | sFBop: forall cfg F B lc rm id fbop fp v1 v2 lc' EC cs tmn Mem MM 
     als,
   sInsn_delta cfg
     (mkState ((mkEC F B ((insn_fbop id fbop fp v1 v2)::cs) tmn lc rm als)::EC) 
       Mem MM) 
-    (mkState ((mkEC F B cs tmn lc' rm als)::EC) Mem MM)
+    (mkState ((mkEC F B cs tmn lc' rm als)::EC) Mem MM) E0
 
 | sExtractValue : forall cfg F B lc rm id t v lc' idxs EC cs tmn 
     Mem MM als,
@@ -357,7 +357,7 @@ Inductive sInsn_delta : Config -> State -> State -> Prop :=
     (mkState 
       ((mkEC F B ((insn_extractvalue id t v idxs)::cs) tmn lc rm als)::EC) 
       Mem MM) 
-    (mkState ((mkEC F B cs tmn lc' rm als)::EC) Mem MM)
+    (mkState ((mkEC F B cs tmn lc' rm als)::EC) Mem MM) E0
 
 | sInsertValue : forall cfg F B lc rm id t v t' v' lc' idxs 
     EC cs tmn Mem MM als,
@@ -365,7 +365,7 @@ Inductive sInsn_delta : Config -> State -> State -> Prop :=
     (mkState
       ((mkEC F B ((insn_insertvalue id t v t' v' idxs)::cs) tmn lc rm als)
       ::EC) Mem MM) 
-    (mkState ((mkEC F B cs tmn lc' rm als)::EC) Mem MM)
+    (mkState ((mkEC F B cs tmn lc' rm als)::EC) Mem MM) E0
 
 | sMalloc : forall S TD Ps F B lc rm gl fs id t v gn align EC cs tmn Mem MM als 
     Mem' tsz mb lc' rm' n gns,
@@ -379,12 +379,12 @@ Inductive sInsn_delta : Config -> State -> State -> Prop :=
   sInsn_delta (mkCfg S TD Ps gl fs)  
     (mkState ((mkEC F B ((insn_malloc id t v align)::cs) tmn lc rm als)::EC) 
        Mem MM) 
-    (mkState ((mkEC F B cs tmn lc' rm' als)::EC) Mem' MM)
+    (mkState ((mkEC F B cs tmn lc' rm' als)::EC) Mem' MM) E0
 
 | sFree : forall cfg F B lc rm fid t v EC cs tmn Mem als Mem' MM,
   sInsn_delta cfg
     (mkState ((mkEC F B ((insn_free fid t v)::cs) tmn lc rm als)::EC) Mem MM) 
-    (mkState ((mkEC F B cs tmn lc rm als)::EC) Mem' MM)
+    (mkState ((mkEC F B cs tmn lc rm als)::EC) Mem' MM) E0
 
 | sAlloca : forall S TD Ps F B lc rm gl fs id t v gn align EC cs tmn Mem MM als 
     Mem' tsz mb lc' rm' n gns,
@@ -398,7 +398,7 @@ Inductive sInsn_delta : Config -> State -> State -> Prop :=
   sInsn_delta (mkCfg S TD Ps gl fs)  
     (mkState
       ((mkEC F B ((insn_alloca id t v align)::cs) tmn lc rm als)::EC) Mem MM) 
-    (mkState ((mkEC F B cs tmn lc' rm' (mb::als))::EC) Mem' MM)
+    (mkState ((mkEC F B cs tmn lc' rm' (mb::als))::EC) Mem' MM) E0
 
 | sLoad_nptr : forall S TD Ps F B lc rm gl fs id t align vp EC cs tmn Mem als 
     gvp gv MM md gvps,
@@ -412,7 +412,8 @@ Inductive sInsn_delta : Config -> State -> State -> Prop :=
     (mkState
       ((mkEC F B ((insn_load id t vp align)::cs) tmn lc rm als)::EC) Mem MM) 
     (mkState
-      ((mkEC F B cs tmn (updateAddAL _ lc id ($ gv # t $)) rm als)::EC) Mem MM)
+      ((mkEC F B cs tmn (updateAddAL _ lc id ($ gv # t $)) rm als)::EC) Mem MM) 
+    E0
 
 | sLoad_ptr : forall S TD Ps F B lc rm gl fs id t align vp EC cs tmn Mem MM als 
     gvp gv md md' lc' rm' gvps,
@@ -427,7 +428,7 @@ Inductive sInsn_delta : Config -> State -> State -> Prop :=
   sInsn_delta (mkCfg S TD Ps gl fs)  
     (mkState 
       ((mkEC F B ((insn_load id t vp align)::cs) tmn lc rm als)::EC) Mem MM) 
-    (mkState ((mkEC F B cs tmn lc' rm' als)::EC) Mem MM)
+    (mkState ((mkEC F B cs tmn lc' rm' als)::EC) Mem MM) E0
 
 | sStore_nptr : forall S TD Ps F B lc rm gl fs sid t align v vp EC cs tmn Mem MM
     als gv gvp md Mem' gvps gvs,
@@ -441,7 +442,7 @@ Inductive sInsn_delta : Config -> State -> State -> Prop :=
   sInsn_delta (mkCfg S TD Ps gl fs)  
     (mkState
       ((mkEC F B ((insn_store sid t v vp align)::cs) tmn lc rm als)::EC) Mem MM) 
-    (mkState ((mkEC F B cs tmn lc rm als)::EC) Mem' MM)
+    (mkState ((mkEC F B cs tmn lc rm als)::EC) Mem' MM) E0
 
 | sStore_ptr : forall S TD Ps F B lc rm gl fs sid t align v vp EC cs tmn Mem MM
     als gv gvp md md' Mem' MM' gvps gvs,
@@ -457,7 +458,7 @@ Inductive sInsn_delta : Config -> State -> State -> Prop :=
   sInsn_delta (mkCfg S TD Ps gl fs)  
     (mkState 
       ((mkEC F B ((insn_store sid t v vp align)::cs) tmn lc rm als)::EC) Mem MM)
-    (mkState ((mkEC F B cs tmn lc rm als)::EC) Mem' MM')
+    (mkState ((mkEC F B cs tmn lc rm als)::EC) Mem' MM') E0
 
 | sGEP : forall S TD Ps F B lc rm gl fs id inbounds t vp idxs EC  
                  cs tmn Mem MM als lc' rm' md,
@@ -467,20 +468,20 @@ Inductive sInsn_delta : Config -> State -> State -> Prop :=
     (mkState
       ((mkEC F B ((insn_gep id inbounds t vp idxs)::cs) tmn lc rm als)::EC) 
       Mem MM)
-    (mkState ((mkEC F B cs tmn lc' rm' als)::EC) Mem MM)
+    (mkState ((mkEC F B cs tmn lc' rm' als)::EC) Mem MM) E0
 
 | sTrunc : forall cfg F B lc rm id truncop t1 v1 t2 lc' EC cs tmn Mem MM als,
   sInsn_delta cfg
     (mkState
       ((mkEC F B ((insn_trunc id truncop t1 v1 t2)::cs) tmn lc rm als)::EC) 
        Mem MM) 
-    (mkState ((mkEC F B cs tmn lc' rm als)::EC) Mem MM)
+    (mkState ((mkEC F B cs tmn lc' rm als)::EC) Mem MM) E0
 
 | sExt : forall cfg F B lc rm id extop t1 v1 t2 lc' EC cs tmn Mem MM als,
   sInsn_delta cfg
     (mkState
       ((mkEC F B ((insn_ext id extop t1 v1 t2)::cs) tmn lc rm als)::EC) Mem MM) 
-    (mkState ((mkEC F B cs tmn lc' rm als)::EC) Mem MM)
+    (mkState ((mkEC F B cs tmn lc' rm als)::EC) Mem MM) E0
 
 | sBitcast_nptr : forall cfg F B lc rm id t1 v1 t2 lc' EC cs tmn Mem MM als,
   isPointerTypB t1 = false ->
@@ -488,7 +489,7 @@ Inductive sInsn_delta : Config -> State -> State -> Prop :=
     (mkState
       ((mkEC F B ((insn_cast id castop_bitcast t1 v1 t2)::cs) tmn lc rm als)
         ::EC) Mem MM) 
-    (mkState ((mkEC F B cs tmn lc' rm als)::EC) Mem MM)
+    (mkState ((mkEC F B cs tmn lc' rm als)::EC) Mem MM) E0
 
 | sBitcast_ptr : forall S TD Ps F B lc rm gl fs id t1 v1 t2 EC cs tmn Mem MM
     als md lc' rm',
@@ -499,7 +500,7 @@ Inductive sInsn_delta : Config -> State -> State -> Prop :=
     (mkState
       ((mkEC F B ((insn_cast id castop_bitcast t1 v1 t2)::cs) tmn lc rm als)
         ::EC) Mem MM) 
-    (mkState ((mkEC F B cs tmn lc' rm' als)::EC) Mem MM)
+    (mkState ((mkEC F B cs tmn lc' rm' als)::EC) Mem MM) E0
 
 | sInttoptr : forall cfg F B lc rm id t1 v1 t2 EC cs tmn Mem MM als lc' rm',
   updateAddAL _ rm id null_md = rm' ->
@@ -507,7 +508,7 @@ Inductive sInsn_delta : Config -> State -> State -> Prop :=
     (mkState  
       ((mkEC F B ((insn_cast id castop_inttoptr t1 v1 t2)::cs) tmn lc rm als)
         ::EC) Mem MM) 
-    (mkState ((mkEC F B cs tmn lc' rm' als)::EC) Mem MM)
+    (mkState ((mkEC F B cs tmn lc' rm' als)::EC) Mem MM) E0
 
 | sOtherCast : forall cfg F B lc rm id castop t1 v1 t2 lc' EC cs tmn Mem MM als,
   castop <> castop_bitcast /\ castop <> castop_inttoptr ->
@@ -515,21 +516,21 @@ Inductive sInsn_delta : Config -> State -> State -> Prop :=
     (mkState  
       ((mkEC F B ((insn_cast id castop t1 v1 t2)::cs) tmn lc rm als)::EC) 
        Mem MM) 
-    (mkState ((mkEC F B cs tmn lc' rm als)::EC) Mem MM)
+    (mkState ((mkEC F B cs tmn lc' rm als)::EC) Mem MM) E0
 
 | sIcmp : forall cfg F B lc rm id cond t v1 v2 lc' EC cs tmn Mem MM als,
   sInsn_delta cfg
     (mkState
       ((mkEC F B ((insn_icmp id cond t v1 v2)::cs) tmn lc rm als)::EC) 
        Mem MM) 
-    (mkState ((mkEC F B cs tmn lc' rm als)::EC) Mem MM)
+    (mkState ((mkEC F B cs tmn lc' rm als)::EC) Mem MM) E0
 
 | sFcmp : forall cfg F B lc rm id fcond fp v1 v2 lc' EC cs tmn Mem MM als,
   sInsn_delta cfg
     (mkState
       ((mkEC F B ((insn_fcmp id fcond fp v1 v2)::cs) tmn lc rm als)::EC) 
        Mem MM) 
-    (mkState ((mkEC F B cs tmn lc' rm als)::EC) Mem MM)
+    (mkState ((mkEC F B cs tmn lc' rm als)::EC) Mem MM) E0
 
 | sSelect_nptr : forall cfg F B lc rm id v0 t v1 v2 EC cs tmn Mem MM als lc',
   isPointerTypB t = false ->
@@ -537,7 +538,7 @@ Inductive sInsn_delta : Config -> State -> State -> Prop :=
     (mkState 
       ((mkEC F B ((insn_select id v0 t v1 v2)::cs) tmn lc rm als)::EC) 
        Mem MM) 
-    (mkState ((mkEC F B cs tmn lc' rm als)::EC) Mem MM)
+    (mkState ((mkEC F B cs tmn lc' rm als)::EC) Mem MM) E0
 
 | sSelect_ptr : forall S TD Ps F B lc rm gl fs id v0 t v1 v2 c EC cs tmn Mem MM
     als gv1 gv2 md1 md2 cond,
@@ -561,7 +562,7 @@ Inductive sInsn_delta : Config -> State -> State -> Prop :=
          then updateAddAL _ rm id md2
          else updateAddAL _ rm id md1)
         als)::EC) 
-      Mem MM)
+      Mem MM) E0
 
 | sCall : forall S TD Ps F B lc rm gl fs rid noret ca fid fv lp cs tmn ogvs
              ft l' ps' cs' tmn' EC fa rt la va lb Mem MM als rm' lc',
@@ -578,7 +579,7 @@ Inductive sInsn_delta : Config -> State -> State -> Prop :=
                 (block_intro l' ps' cs' tmn') cs' tmn' 
                 lc' rm' nil)::
        (mkEC F B ((insn_call rid noret ca ft fv lp)::cs) tmn lc rm als)
-         ::EC) Mem MM)
+         ::EC) Mem MM) E0
 
 | sExCall : forall S TD Ps F B lc rm gl fs rid noret ca fid fv lp cs tmn EC dck
         gvss fptr fptrs rt fa ft la va Mem als oresult Mem' lc' rm' MM gvs tr,
@@ -592,14 +593,14 @@ Inductive sInsn_delta : Config -> State -> State -> Prop :=
     Some (fdec_intro (fheader_intro fa rt fid la va) dck) ->
   Opsem.params2GVs TD lp lc gl = Some gvss ->
   gvs @@ gvss ->
-  external_intrinsics.callExternalOrIntrinsics 
+  callExternalOrIntrinsics 
     TD gl Mem fid rt (args2Typs la) dck gvs = Some (oresult, tr, Mem') ->
   exCallUpdateLocals TD ft noret rid oresult lc rm = Some (lc',rm') ->
   sInsn_delta (mkCfg S TD Ps gl fs)  
     (mkState  
       ((mkEC F B ((insn_call rid noret ca ft fv lp)::cs) tmn lc rm als)
        ::EC) Mem MM)
-    (mkState ((mkEC F B cs tmn lc' rm' als)::EC) Mem' MM)
+    (mkState ((mkEC F B cs tmn lc' rm' als)::EC) Mem' MM) tr
 .
 
 Definition s_isFinialState (cfg:Config) (state:State) : option GVs :=
@@ -626,7 +627,7 @@ Opsem.mkState (sbECs__ECs ecs) M.
 
 Inductive sInsn : Config -> State -> State -> trace -> Prop :=
 | sInsn_intro : forall cfg S1 S2 tr,
-    sInsn_delta cfg S1 S2 ->
+    sInsn_delta cfg S1 S2 tr ->
     Opsem.sInsn cfg (sbState__State S1) (sbState__State S2) tr ->
     sInsn cfg S1 S2 tr.
 

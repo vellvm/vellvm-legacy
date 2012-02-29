@@ -214,7 +214,7 @@ Lemma SBpass_is_correct__dsExCall : forall (mi : MoreMem.meminj)
   (H2 : exCallUpdateLocals TD ft noret0 rid oresult lc rm = ret (lc', rm')),
    exists St' : Opsem.State,
      exists mi' : MoreMem.meminj,
-       Opsem.sop_star Cfg St St' E0 /\
+       Opsem.sop_star Cfg St St' tr /\
        sbState_simulates_State mi' mgb {|
          CurSystem := S;
          CurTargetData := TD;

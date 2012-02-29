@@ -3699,7 +3699,7 @@ Lemma phinodes_placement_is_correct__dsExCall: forall (maxb : Values.block)
           ret (oresult, tr, Mem'))
   (H5 : Opsem.exCallUpdateLocals TD ft noret0 rid oresult lc = ret lc'),
   exists St1' : Opsem.State,
-     Opsem.sop_star Cfg1 St1 St1' E0 /\
+     Opsem.sop_star Cfg1 St1 St1' tr /\
      State_simulation pinfo Cfg1 St1' Cfg2       
        {|
        Opsem.ECS := {|

@@ -815,7 +815,7 @@ Inductive sInsn : Config -> State -> State -> trace -> Prop :=
     (mkState ((mkEC F B ((insn_call rid noret ca ft fv lp)::cs) tmn 
                        lc als)::EC) Mem)
     (mkState ((mkEC F B cs tmn lc' als)::EC) Mem')
-    E0 
+    tr
 .
 
 Definition s_genInitState (S:system) (main:id) (Args:list GVs) (initmem:mem) 
@@ -1173,7 +1173,7 @@ Inductive bInsn :
   bInsn (mkbCfg S TD Ps gl fs F)   
     (mkbEC B ((insn_call rid noret ca ft fv lp)::cs) tmn lc als Mem)
     (mkbEC B cs tmn lc' als Mem')
-    E0
+    tr
 
 with bops: bConfig -> bExecutionContext -> bExecutionContext -> trace -> Prop :=
 | bops_nil : forall cfg S, bops cfg S S E0

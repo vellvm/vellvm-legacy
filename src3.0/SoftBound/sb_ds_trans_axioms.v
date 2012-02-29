@@ -354,7 +354,7 @@ Axiom shadow_stack_exfdec : forall la lc' mi lc2 lp cs1 nts los fptr
     (Opsem.mkState 
       ((Opsem.mkEC (fdef_intro fh2 bs2) B2
         (cs2' ++ cs23)
-      tmn2 lc2' als2):: ECs2) M2') E0 /\
+      tmn2 lc2' als2):: ECs2) M2') tr /\
   wf_sb_mi mgb mi Mem' M2' /\
   mem_simulation mi (los, nts) mgb MM Mem' M2' /\
   reg_simulation mi (los, nts) gl2 (fdef_intro fh1 bs1) rm' rm2 lc' lc2'.

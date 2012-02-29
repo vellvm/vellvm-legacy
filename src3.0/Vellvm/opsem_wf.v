@@ -4061,7 +4061,7 @@ Proof.
                  Locals := lc';
                  Allocas := als |} :: ecs;
           Mem := Mem' |}.
-        exists events.E0.
+        exists tr.
         eauto.     
 
         right.

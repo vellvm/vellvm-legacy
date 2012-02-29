@@ -238,12 +238,12 @@ Inductive dbCall : system -> TargetData -> list product -> GVMap ->
   lookupExFdecViaPtr Ps fs fptr = 
     Some (fdec_intro (fheader_intro fa rt fid la va) dck) ->
   params2GVs TD lp lc gl = Some gvs ->
-  external_intrinsics.callExternalOrIntrinsics 
+  callExternalOrIntrinsics 
     TD gl Mem fid rt (args2Typs la) dck gvs = Some (oresult, tr, Mem') ->
   isCall (insn_call rid noret ca ft fv lp) = true ->
   exCallUpdateLocals TD ft noret rid oresult lc = Some lc' ->
   dbCall S TD Ps fs gl lc Mem (insn_call rid noret ca ft fv lp) lc' Mem' 
-    E0
+    tr
 
 with dbSubblock : system -> TargetData -> list product -> GVMap -> GVMap -> 
                   DGVMap -> list mblock -> mem -> 

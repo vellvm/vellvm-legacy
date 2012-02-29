@@ -2682,6 +2682,7 @@ Axiom callExternalFunction__mem_simulation: forall pinfo mi M1 M2 fid0 gvs1
   Opsem.exCallUpdateLocals TD ft noret0 rid oresult1 lc1 = ret lc1' ->
   Opsem.exCallUpdateLocals TD ft noret0 rid oresult2 lc2 = ret lc2' ->
   als_simulation pinfo mi F lc1 als1 als2 ->
+  tr1 = tr2 /\
   oresult1 = oresult2 /\ 
   exists mi', 
     mem_simulation pinfo mgb mi' 
@@ -3370,7 +3371,7 @@ SCase "sExCall".
 
   match goal with | H1 : fdec_intro _ _ = fdec_intro _ _ |- _ => inv H1 end.
   eapply callExternalFunction__mem_simulation in Hmsim; eauto.
-  destruct Hmsim as [EQ [mi' [Hmsim [Hinc [J1 [J2 J3]]]]]]; subst.
+  destruct Hmsim as [EQ' [EQ [mi' [Hmsim [Hinc [J1 [J2 J3]]]]]]]; subst.
   exists mi'.
   repeat_solve.
     eapply inject_incr__preserves__ECs_simulation; eauto.

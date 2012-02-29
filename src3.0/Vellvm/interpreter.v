@@ -193,10 +193,10 @@ match state with
             do gvs <- params2GVs TD lp lc gl;
               match (external_intrinsics.callExternalOrIntrinsics 
                       TD gl Mem0 fid rt' (args2Typs la) dck gvs) with
-              | Some (oresult, _, Mem1) =>
+              | Some (oresult, tr, Mem1) =>
                 do lc' <- exCallUpdateLocals TD ft noret0 rid oresult lc;
                 ret ((mkState ((mkEC F B cs tmn lc' als)::EC) Mem1),
-                     E0)
+                     tr)
               | None => None
               end
           else None
