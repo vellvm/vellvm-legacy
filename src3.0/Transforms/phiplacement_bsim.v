@@ -3886,21 +3886,446 @@ Case "sCall". eapply phinodes_placement_is_correct__dsCall; eauto.
 Case "sExCall". eapply phinodes_placement_is_correct__dsExCall; eauto.
 Qed.
 
+Ltac destruct_match :=
+match goal with
+| H: match ?lk with
+     | Some _ => Some _
+     | None => _
+     end = Some _ |- _ => 
+   let r := fresh "r" in
+   remember lk as R; destruct R as [r|]; inv H; symmetry_ctx
+end.
+
+Ltac fill_ctxhole :=
+match goal with
+| H : ?e = _ |- context [ ?e ] => rewrite H
+| H : _ = ?e |- context [ ?e ] => rewrite H
+end.
+
+Lemma system_simulation__fdef_simulation : forall pinfo fid f2 S1 S2
+  (Hssim: system_simulation pinfo S1 S2)
+  (Hlkup: lookupFdefViaIDFromSystem S2 fid = ret f2),
+  exists f1, 
+    lookupFdefViaIDFromSystem S1 fid = ret f1 /\
+    fdef_simulation pinfo f1 f2.
+Proof.
+  induction 1; simpl; intros.
+    inv Hlkup.
+
+    match goal with
+    | H: match ?x with
+         | module_intro _ _ _ => 
+             match ?y with | module_intro _ _ _ => _ end
+         end |- _ => 
+        destruct x as [los1 nts1 Ps1]; destruct y as [los2 nts2 Ps2];
+        destruct H as [J1 [J2 J3]]; subst
+    end.
+    simpl in *.
+
+   destruct_match.
+     eapply products_simulation__fdef_simulation in HeqR; eauto.
+     destruct HeqR as [f1 [J1 J2]].
+     fill_ctxhole. eauto.
+
+     symmetry in HeqR.
+     eapply products_simulation__fdef_None in HeqR; eauto.
+     fill_ctxhole. eauto.
+Qed.
+
+Definition module_simulation pinfo (M1 M2: module) : Prop :=
+match M1, M2 with
+| module_intro los1 nts1 Ps1, module_intro los2 nts2 Ps2 =>
+    los1 = los2 /\ nts1 = nts2 /\ 
+    products_simulation pinfo Ps1 Ps2
+end.
+
+Ltac destruct_if :=
+match goal with
+| H: context [(if ?lk then _ else _)] |- _ =>
+   remember lk as R; destruct R; try inv H
+| H: context [if ?lk then _ else _] |- _ =>
+   remember lk as R; destruct R; try inv H
+end.
+
+Lemma productNEqB_intro : forall p1 p2,
+  p1 <> p2 -> productEqB p1 p2 = false.
+Proof. 
+  intros. apply false_sumbool2bool; auto.
+Qed.
+
+Ltac destruct_let :=
+  match goal with
+  | _: context [match ?e with 
+                | (_,_) => _
+                end] |- _ => destruct e
+  | |- context [match ?e with 
+                | (_,_) => _
+                end] => destruct e
+  end.
+
+Definition fheaderOfFdef (fdef:fdef) : fheader :=
+match fdef with
+| fdef_intro fh _ => fh
+end.
+
+Lemma fdef_simulation__eq_fheader: forall pinfo f1 f2
+  (H: fdef_simulation pinfo f1 f2),
+  fheaderOfFdef f1 = fheaderOfFdef f2.
+Proof.
+  unfold fdef_simulation.
+  intros.
+  destruct (fdef_dec (PI_f pinfo) f1); inv H; auto.
+    destruct (PI_f pinfo) as [fh b]; simpl.
+    destruct_let; auto.
+Qed.
+
+Lemma lookupFdefViaIDFromProducts__InProductsB: forall i1 f1 Ps1,
+  lookupFdefViaIDFromProducts Ps1 i1 = ret f1 ->
+  InProductsB (product_fdef f1) Ps1 = true.
+Proof.
+  induction Ps1 as [|[]]; simpl; intros; try solve [
+    congruence |
+    rewrite productNEqB_intro; try congruence; rewrite IHPs1; auto
+    ].
+    
+    destruct_if.
+      rewrite productEqB_refl. auto.
+      rewrite IHPs1; auto. apply orb_true_r.
+Qed.
+
+Lemma lookupFdefViaIDFromSystem_ideq : forall S fid f,
+  lookupFdefViaIDFromSystem S fid = Some f -> fid = getFdefID f.
+Proof.
+  induction S as [|[]]; simpl; intros.
+    congruence.
+
+    destruct f as [[]].
+    destruct_match; eauto using lookupFdefViaIDFromProducts_ideq.
+Qed.
+
+Fixpoint getFdefsIDs ps : ids :=
+match ps with
+| nil => nil
+| product_fdef f::ps' => getFdefID f::getFdefsIDs ps'
+| _::ps' => getFdefsIDs ps'
+end.
+
+Lemma lookupFdefViaIDFromProducts__notin_getFdefsIDs: forall fid Ps,
+  lookupFdefViaIDFromProducts Ps fid = merror -> 
+  ~ In fid (getFdefsIDs Ps).
+Proof.
+  induction Ps as [|[]]; simpl; intros; auto.
+    destruct_if.
+      apply IHPs in H1. 
+      intro J.
+      destruct J; auto.
+Qed.
+
+Lemma lookupFdefViaIDFromProducts__in_getFdefsIDs: forall fid f Ps,
+  lookupFdefViaIDFromProducts Ps fid = Some f -> 
+  In fid (getFdefsIDs Ps).
+Proof.
+  induction Ps as [|[]]; simpl; intros; auto.
+    congruence.
+
+    destruct_if; auto.
+Qed.
+
+Lemma InProductsB__in_getFdefsIDs: forall f Ps,
+  InProductsB (product_fdef f) Ps = true -> 
+  In (getFdefID f) (getFdefsIDs Ps).
+Proof.
+  induction Ps as [|[]]; simpl; intros.
+    congruence.
+
+    rewrite productNEqB_intro in H; try congruence;
+    rewrite orb_false_l in H; auto.
+
+    rewrite productNEqB_intro in H; try congruence;
+    rewrite orb_false_l in H; auto.
+
+    apply orb_true_iff in H.
+    destruct H; auto.
+      apply productEqB_inv in H. inv H. auto.
+Qed.
+
+Lemma products_simulation__eq_getFdefsIDs: forall pinfo Ps1 Ps2
+  (Hpsim: products_simulation pinfo Ps1 Ps2),
+  getFdefsIDs Ps1 = getFdefsIDs Ps2.
+Proof.
+  intros.
+  induction Hpsim; intros; auto.
+    destruct x; subst; simpl; auto.
+    destruct y; tinv H.
+    destruct f as [[]]. destruct f0 as [[]]. 
+    apply fdef_simulation__inv in H. congruence.
+Qed.
+
+Lemma fdef_simulation__det_right: forall pinfo f f1 f2,
+  fdef_simulation pinfo f f1 ->
+  fdef_simulation pinfo f f2 ->
+  f1 = f2.
+Proof.
+  unfold fdef_simulation.
+  intros.
+  destruct_if; congruence.
+Qed.
+
+Lemma products_fdef_simulation__InProductsB_forward: forall pinfo f1 f2 Ps1 Ps2,
+  products_simulation pinfo Ps1 Ps2 ->
+  InProductsB (product_fdef f1) Ps1 = true ->
+  fdef_simulation pinfo f1 f2 ->
+  InProductsB (product_fdef f2) Ps2 = true.
+Proof.
+  induction 1; simpl; intros; auto.
+    destruct x; subst; simpl.
+      rewrite productNEqB_intro in H1; try congruence.
+      rewrite productNEqB_intro; try congruence.
+      rewrite orb_false_l in H1.
+      rewrite orb_false_l. auto.
+
+      rewrite productNEqB_intro in H1; try congruence.
+      rewrite productNEqB_intro; try congruence.
+      rewrite orb_false_l in H1.
+      rewrite orb_false_l. auto.
+
+      destruct y; tinv H.
+      apply orb_true_iff in H1.
+      destruct H1 as [H1 | H1].
+        apply productEqB_inv in H1. inv H1.
+        erewrite fdef_simulation__det_right with (f1:=f0)(f2:=f2)(f:=f); eauto.
+        rewrite productEqB_refl. auto.
+
+        rewrite IHForall2; auto.
+        apply orb_true_r.
+Qed.
+
+Lemma system_simulation__getParentOfFdefFromSystem: forall pinfo S1 S2 f1 f2 m2
+  fid (Hsim: system_simulation pinfo S1 S2)
+  (Hfsim: fdef_simulation pinfo f1 f2)
+  (Hparent: getParentOfFdefFromSystem f2 S2 = Some m2)
+  (Hlkup: lookupFdefViaIDFromSystem S1 fid = ret f1),
+  exists m1, getParentOfFdefFromSystem f1 S1 = Some m1 /\
+             module_simulation pinfo m1 m2.
+Proof.
+  intros.
+  assert (J:=Hlkup).
+  apply lookupFdefViaIDFromSystem_ideq in J. subst.
+  induction Hsim; simpl in *; intros.
+    congruence.
+
+    match goal with
+    | H: match ?x with
+         | module_intro _ _ _ => 
+             match ?y with | module_intro _ _ _ => _ end
+         end |- _ => 
+        destruct x as [los1 nts1 Ps1]; destruct y as [los2 nts2 Ps2];
+        destruct H as [J1 [J2 J3]]; subst
+    end.
+    simpl in *.
+    assert (J:=Hfsim).
+    apply fdef_simulation__inv in J.
+    destruct_if.
+      destruct_match; simpl in e.       
+        exists (module_intro los2 nts2 Ps1).
+        split; simpl; auto.
+          match goal with
+          | |- (if ?e then _ else _ ) = _ => destruct e; auto
+          end.
+          simpl in e0. 
+          apply lookupFdefViaIDFromProducts__InProductsB in HeqR0.
+          congruence.
+
+          match goal with
+          | e: InProductsB (product_fdef ?f2) ?Ps2 = true,
+            HeqR0: None = lookupFdefViaIDFromProducts ?Ps1 (getFdefID ?f1),
+            J3: products_simulation _ ?Ps1 ?Ps2,
+            J: getFdefID ?f1 = getFdefID ?f2 |- _ =>
+            symmetry in HeqR0;
+            apply lookupFdefViaIDFromProducts__notin_getFdefsIDs in HeqR0;
+            assert (Hin:=e);  
+            apply InProductsB__in_getFdefsIDs in Hin;
+            apply products_simulation__eq_getFdefsIDs in J3;
+            simpl in Hin; rewrite J in HeqR0; congruence
+          end.
+
+      simpl in e.       
+      destruct_match.
+        apply lookupFdefViaIDFromProducts__InProductsB in HeqR0.
+        eapply products_fdef_simulation__InProductsB_forward in HeqR0; eauto.
+        congruence.
+
+        apply IHHsim in H0; auto.
+        destruct H0 as [m1 [J1 J2]].
+        exists m1.
+          split; auto. 
+          match goal with
+          | |- (if ?e then _ else _ ) = _ => destruct e; auto
+          end.
+          simpl in e0. 
+          assert (Hin:=e0).  
+          apply InProductsB__in_getFdefsIDs in Hin.
+          symmetry in HeqR0.
+          apply lookupFdefViaIDFromProducts__notin_getFdefsIDs in HeqR0.
+          simpl in Hin. rewrite J in HeqR0. congruence.
+Qed.
+
+Lemma genGlobalAndInitMem_spec_aux: forall pinfo td ps1 ps2 ,
+  products_simulation pinfo ps1 ps2 ->
+  forall gl fs M gl2 fs2 M2,
+  OpsemAux.genGlobalAndInitMem td ps2 gl fs M =
+    ret (gl2, fs2, M2) ->
+  exists gl1, exists fs1, exists M1,
+    OpsemAux.genGlobalAndInitMem td ps1 gl fs M =
+      ret (gl1, fs1, M1) /\ gl1 = gl2 /\ fs1 = fs2 /\ M1 = M2.
+Proof.
+  induction 1; intros.
+    fill_ctxhole. eauto 7.
+
+    destruct x; subst; simpl in *.
+      match goal with
+      | g:gvar |- _ => destruct g
+      end; inv_mbind; try destruct_let; eauto.
+        destruct f as [[]].
+        inv_mbind. eauto.
+
+      destruct f as [[]].
+      destruct y; simpl in *; tinv H.
+      destruct f0 as [[]].
+      inv_mbind. 
+      apply fdef_simulation__eq_fheader in H.
+      inv H. symmetry_ctx. fill_ctxhole. eauto.
+Qed.
+
+Lemma genGlobalAndInitMem_spec: forall pinfo td ps1 ps2 gl2 fs2 M2,
+  OpsemAux.genGlobalAndInitMem td ps2 nil nil Mem.empty =
+    ret (gl2, fs2, M2) ->
+  products_simulation pinfo ps1 ps2 ->
+  exists gl1, exists fs1, exists M1,
+    OpsemAux.genGlobalAndInitMem td ps1 nil nil Mem.empty =
+      ret (gl1, fs1, M1) /\ gl1 = gl2 /\ fs1 = fs2 /\ M1 = M2.
+Proof.
+  intros.
+  eapply genGlobalAndInitMem_spec_aux; eauto.
+Qed.
+
+Lemma getParentOfFdefFromSystem__moduleInProductsInSystemB: 
+  forall f los1 nts1 Ps1 S1, 
+  getParentOfFdefFromSystem f S1 = ret (module_intro los1 nts1 Ps1) ->
+  moduleInSystemB (module_intro los1 nts1 Ps1) S1 = true /\
+  InProductsB (product_fdef f) Ps1 = true.
+Proof.
+  induction S1; simpl; intros.
+    congruence.
+
+    destruct_if; simpl in e. 
+      rewrite moduleEqB_refl. tauto.
+
+      apply IHS1 in H1. destruct H1 as [J1 J2].
+      rewrite J1. rewrite orb_true_r.
+      tauto.
+Qed.
+
 Lemma s_genInitState__phiplacement_State_simulation: 
-  forall pinfo S1 S2 main VarArgs cfg2 IS2,
-  system_simulation pinfo S1 S2 ->
-  Opsem.s_genInitState S2 main VarArgs Mem.empty = ret (cfg2, IS2) ->
+  forall pinfo S1 S2 main VarArgs cfg2 IS2
+  (Hwfs1: wf_system S1) (Hwfphi: WF_PhiInfo pinfo)
+  (Hssim: system_simulation pinfo S1 S2)
+  (Hinit: Opsem.s_genInitState S2 main VarArgs Mem.empty = ret (cfg2, IS2)),
   exists cfg1, exists IS1,
     Opsem.s_genInitState S1 main VarArgs Mem.empty = ret (cfg1, IS1) /\
     State_simulation pinfo cfg1 IS1 cfg2 IS2.
-Admitted.
+Proof.
+  unfold Opsem.s_genInitState.
+  intros.
+  inv_mbind'.
+  destruct m as [los nts ps].
+  inv_mbind'.
+  destruct p as [[gl fs] M].
+  inv_mbind'.
+  destruct b as [l0 ps0 cs0 tmn0].
+  destruct f as [[fa rt fid la va] bs].
+  inv_mbind'. symmetry_ctx.
+  assert (HlkF2FromS2:=HeqR).
+  eapply system_simulation__fdef_simulation in HeqR; eauto.
+  destruct HeqR as [f1 [HlkF1fromS1 Hfsim]]. fill_ctxhole.
+  eapply system_simulation__getParentOfFdefFromSystem in HeqR0; eauto.
+  destruct HeqR0 as [m1 [J1 J2]].
+  fill_ctxhole. destruct m1 as [los1 nts1 ps1].
+  destruct J2 as [J2 [J3 J4]]; subst.
+  eapply genGlobalAndInitMem_spec in HeqR1; eauto.
+  destruct HeqR1 as [gl1 [fs1 [M1 [HeqR1 [EQ1 [EQ2 EQ3]]]]]]; subst.
+  fill_ctxhole.
+  assert (J:=HeqR2).
+  eapply getEntryBlock__simulation in J; eauto.
+  destruct J as [b1 [J5 J6]].
+  fill_ctxhole.
+  destruct b1 as [l2 ps2 cs2 tmn2].
+  destruct f1 as [[fa1 rt1 fid1 la1 va1] bs1].
+  assert (J:=Hfsim).
+  apply fdef_simulation__eq_fheader in J.
+  inv J.
+  fill_ctxhole.
+  match goal with
+  | |- exists _:_, exists _:_, Some (?A, ?B) = _ /\ _ => exists A; exists B
+  end.
+  match goal with 
+  | H: getParentOfFdefFromSystem _ _ = _ |- _ =>
+    apply getParentOfFdefFromSystem__moduleInProductsInSystemB in H;
+    destruct H as [HMinS HinPs]
+  end.
+  assert (J:=J6).
+  apply block_simulation__inv in J.
+  destruct J; subst.
+  assert (blockInFdefB (block_intro l0 ps2 cs2 tmn0)
+           (fdef_intro (fheader_intro fa rt fid la va) bs1) = true) as HBinF.
+    apply entryBlockInFdef; auto.
+  repeat (split; auto).
+    exists l0. exists ps2. exists nil. auto.
+    exists l0. exists ps0. exists nil. auto.
+    apply reg_simulation_refl.
+    eapply entry_cmds_simulation; eauto using wf_system__wf_fdef.
+Qed.
 
 Lemma s_isFinialState__phiplacement_State_simulation: 
   forall pinfo cfg1 FS1 cfg2 FS2 r 
+  (Hwfpi: WF_PhiInfo pinfo) 
   (Hstsim : State_simulation pinfo cfg1 FS1 cfg2 FS2)
   (Hfinal: Opsem.s_isFinialState cfg2 FS2 = ret r),
   Opsem.s_isFinialState cfg1 FS1 = ret r.
-Admitted.
+Proof.
+  destruct cfg1, cfg2, FS1, FS2.
+  destruct CurTargetData as [los nts].
+  simpl. intros.
+  destruct ECS0 as [|[]]; tinv Hfinal.
+  destruct Hstsim as [J1 [J2 [J3 [J4 [J5 [J6 [J7 [J8 J9]]]]]]]]; subst.
+  destruct ECS as [|[]]; tinv J6.
+  destruct J6 as [J61 J62].
+  destruct CurCmds; tinv Hfinal. 
+  unfold EC_simulation_head in J61.
+  destruct J61 as [G1 [G2 [G3 [G4 [G5 [G6 [
+                    [? [? [? G7]]] [
+                    [? [? [? G8]]] [G9 G10]]]]]]]]]; subst.
+  apply cmds_simulation_nil_inv in G10. subst.
+  assert (HwfF := J1).
+  eapply wf_system__wf_fdef with (f:=CurFunction0) in HwfF; eauto.
+  destruct Terminator; tinv Hfinal; 
+    destruct ECS0; tinv Hfinal; destruct ECS; tinv J62.
+
+    erewrite simulation__getOperandValue with (lc2:=Locals); eauto;
+      match goal with
+      | _:blockInFdefB (block_intro ?l0 ?ps ?cs ?tmn) _ = _ |- _ =>
+        eapply original_values_arent_tmps with 
+          (instr:=insn_terminator tmn)
+          (B:=block_intro l0 ps cs tmn); eauto;
+          try solve [
+            simpl; apply andb_true_iff;
+            split; try solve [auto | apply terminatorEqB_refl] |
+            simpl; auto
+          ]
+      end.
+
+    assumption.
+Qed.
 
 Lemma preservation_star: forall cfg IS IS' tr (Hwfcfg: OpsemPP.wf_Config cfg),
   @OpsemPP.wf_State DGVs cfg IS ->
@@ -3956,43 +4381,102 @@ Proof.
       eapply OpsemProps.sop_star_trans; eauto.
 Qed.
 
+Lemma sop_plus__phiplacement_State_simulation: 
+  forall pinfo cfg1 IS1 cfg2 IS2 tr FS2 maxb
+  (Hwfpi: WF_PhiInfo pinfo) (Hwfcfg: OpsemPP.wf_Config cfg1) 
+  (Hwfpp: OpsemPP.wf_State cfg1 IS1) 
+  (Hnoalias: Promotability.wf_State maxb pinfo cfg1 IS1)
+  (Hwfg: MemProps.wf_globals maxb (OpsemAux.Globals cfg1)) (Hinbd: 0 <= maxb)
+  (Hstsim : State_simulation pinfo cfg1 IS1 cfg2 IS2)
+  (Hopplus : Opsem.sop_plus cfg2 IS2 FS2 tr),
+  exists FS1, Opsem.sop_star cfg1 IS1 FS1 tr /\ 
+    State_simulation pinfo cfg1 FS1 cfg2 FS2.
+Proof.
+  intros.
+  inv Hopplus.
+  eapply phinodes_placement_is_bsim with (St2':=state2) in Hstsim; eauto.
+  destruct Hstsim as [IS1' [Hopstar' Hstsim]].
+  assert (OpsemPP.wf_Config cfg1 /\ OpsemPP.wf_State cfg1 IS1') as Hwfpp'.
+    eapply preservation_star in Hopstar'; eauto.
+  assert (Promotability.wf_State maxb pinfo cfg1 IS1') as Hnoalias'.
+    eapply promotability_preservation_star in Hopstar'; eauto; try tauto.
+  eapply sop_star__phiplacement_State_simulation in Hstsim; eauto; try tauto.
+  destruct Hstsim as [FS1' [Hopstar'' Hstsim]].
+  exists FS1'.
+  split; auto.
+    eapply OpsemProps.sop_star_trans; eauto.
+Qed.
+
 Lemma sop_div__phiplacement_State_simulation: forall pinfo cfg1 IS1 cfg2 IS2 tr 
   maxb (Hwfpi: WF_PhiInfo pinfo) (Hwfpp: OpsemPP.wf_State cfg1 IS1) 
   (Hnoalias: Promotability.wf_State maxb pinfo cfg1 IS1)
   (Hwfg: MemProps.wf_globals maxb (OpsemAux.Globals cfg1)) (Hinbd: 0 <= maxb)
   (Hstsim : State_simulation pinfo cfg1 IS1 cfg2 IS2)
-  (Hopstar : Opsem.sop_diverges cfg2 IS2 tr),
+  (Hdiv : Opsem.sop_diverges cfg2 IS2 tr),
   Opsem.sop_diverges cfg1 IS1 tr.
-Admitted.    
+Proof.
+  cofix CIH.
+  intros.
+  inv Hdiv.
 
-Lemma uniq_products_phiplacement_simulation: forall Ps1 f Ps2 pinfo rd pid ty 
-  al,
+Admitted.
+
+Lemma getProductsIDs_app : forall ps1 ps2,
+  getProductsIDs (ps1++ps2) = getProductsIDs ps1++getProductsIDs ps2.
+Proof.
+  induction ps1; intros; auto.
+    simpl. 
+    rewrite IHps1. auto.
+Qed.
+
+Lemma uniq_products_phiplacement_simulation: forall f Ps2 rd pid ty 
+  al pinfo
+  (EQ1: PI_f pinfo = f) (EQ2: PI_rd pinfo = rd) (EQ3: PI_id pinfo = pid)
+  (EQ4: PI_typ pinfo = ty) (EQ5: PI_align pinfo = al) Ps1,
   NoDup (getProductsIDs (Ps1 ++ product_fdef f :: Ps2)) ->
-  PI_f pinfo = f ->
   Forall2
      (fun P1 P2 : product =>
-      match P1 with
-      | product_gvar _ => P1 = P2
-      | product_fdec _ => P1 = P2
-      | product_fdef f1 =>
-          match P2 with
-          | product_gvar _ => P1 = P2
-          | product_fdec _ => P1 = P2
-          | product_fdef f2 =>
-              if fdef_dec (PI_f pinfo) f1
-              then
-               phinodes_placement f1 (PI_rd pinfo) 
-                 (PI_id pinfo) (PI_typ pinfo) (PI_align pinfo)
-                 (PI_succs pinfo) (PI_preds pinfo) = f2
-              else f1 = f2
-          end
+      match P1, P2 with
+      | product_fdef f1, product_fdef f2 => fdef_simulation pinfo f1 f2
+      | _, _ => P1 = P2
       end)
      (Ps1 ++ product_fdef f :: Ps2)
      (Ps1 ++
       product_fdef
         (phinodes_placement f rd pid ty al (successors f)
            (make_predecessors (successors f))) :: Ps2).
-Admitted.
+Proof.
+  induction Ps1; simpl; intros; subst.
+    constructor.
+      unfold fdef_simulation. 
+      destruct pinfo. subst. simpl in *.
+      destruct (fdef_dec PI_f PI_f); try congruence.
+        unfold PI_preds. simpl.
+        unfold PI_succs. simpl. auto.
+
+      inv H.
+      induction Ps2; auto.
+        inv H3.
+        constructor.
+          destruct a; auto.      
+            unfold fdef_simulation. 
+            destruct (fdef_dec (PI_f pinfo) f); try congruence.
+              subst.
+              contradict H2.
+              simpl. auto.
+          apply IHPs2; auto.
+            intro J. apply H2. simpl. auto.
+
+    inv H.
+    constructor; auto.
+      destruct a; auto.      
+      unfold fdef_simulation. 
+      destruct (fdef_dec (PI_f pinfo) f); try congruence.
+        subst.
+        contradict H2.
+        rewrite getProductsIDs_app. simpl.
+        apply In_middle.
+Qed.
 
 Lemma phinodes_placement_sim: forall rd f Ps1 Ps2 los nts main VarArgs pid ty al
   num l0 ps0 cs0 tmn0 dones (Hreach: ret rd = dtree.reachablity_analysis f)
