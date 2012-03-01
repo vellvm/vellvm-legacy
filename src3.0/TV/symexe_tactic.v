@@ -1,4 +1,3 @@
-Add LoadPath "../Vellvm".
 Require Import Arith.
 Require Import Bool.
 Require Import Coq.Bool.Sumbool.
@@ -32,7 +31,3 @@ Ltac bdestructn H Js :=
 
 Ltac bsplit :=
   eapply andb_true_iff; split.
-
-Ltac repeat_bsplit :=
-  repeat (bsplit; auto using eq_sumbool2bool_true).
-

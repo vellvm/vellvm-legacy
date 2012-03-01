@@ -182,7 +182,7 @@ Lemma SBpass_is_correct__dsExt : forall
            CurTargetData := TD;
            CurProducts := Ps;
            Globals := gl;
-           FunTable := fs |} {| 
+           FunTable := fs |} {|
            ECS := {|
                   CurFunction := F;
                   CurBB := B;
@@ -218,7 +218,7 @@ Proof.
   intros. SBpass_is_correct__dsOp.
 Qed.
 
-Lemma SBpass_is_correct__dsBitcase_nptr : forall 
+Lemma SBpass_is_correct__dsBitcase_nptr : forall
   (mi : MoreMem.meminj) (mgb : Values.block) (St : Opsem.State) (S : system)
   (TD : TargetData) (Ps : list product) (F : fdef) (B : block) (lc : DGVMap)
   (rm : rmetadata) (gl : GVMap) (fs : GVMap) (id0 : id)
@@ -320,7 +320,7 @@ Qed.
 Lemma SBpass_is_correct__dsIcmp : forall
   (mi : MoreMem.meminj) (mgb : Values.block) (St : Opsem.State) (S : system)
   (TD : TargetData) (Ps : list product) (F : fdef) (B : block) (lc : DGVMap)
-  (rm : rmetadata) (gl : GVMap) (fs : GVMap) (id0 : id) cond0 
+  (rm : rmetadata) (gl : GVMap) (fs : GVMap) (id0 : id) cond0
   (t : typ) (v1 : value) v2 (EC : list ExecutionContext)
   (cs : list cmd) (tmn : terminator) (Mem0 : mem) (MM : mmetadata)
   (als : list mblock) Cfg
@@ -368,7 +368,7 @@ Qed.
 Lemma SBpass_is_correct__dsFcmp : forall
   (mi : MoreMem.meminj) (mgb : Values.block) (St : Opsem.State) (S : system)
   (TD : TargetData) (Ps : list product) (F : fdef) (B : block) (lc : DGVMap)
-  (rm : rmetadata) (gl : GVMap) (fs : GVMap) (id0 : id) fcond0 
+  (rm : rmetadata) (gl : GVMap) (fs : GVMap) (id0 : id) fcond0
   fp (v1 : value) v2 (EC : list ExecutionContext)
   (cs : list cmd) (tmn : terminator) (Mem0 : mem) (MM : mmetadata)
   (als : list mblock) Cfg
@@ -413,7 +413,7 @@ Proof.
   intros. SBpass_is_correct__dsOp.
 Qed.
 
-Lemma SBpass_is_correct__dsExtractValue : forall (mi : MoreMem.meminj) 
+Lemma SBpass_is_correct__dsExtractValue : forall (mi : MoreMem.meminj)
   (mgb : Values.block)
   (St : Opsem.State) (S : system) (TD : TargetData) (Ps : list product)
   (F : fdef) (B : block) (lc : DGVMap) (rm : SBspecAux.rmetadata) (gl : GVMap)
@@ -463,7 +463,7 @@ Proof.
   intros. SBpass_is_correct__dsOp.
 Qed.
 
-Lemma SBpass_is_correct__dsInsertValue : forall (mi : MoreMem.meminj) 
+Lemma SBpass_is_correct__dsInsertValue : forall (mi : MoreMem.meminj)
   (mgb : Values.block)
   (St : Opsem.State) (S : system) (TD : TargetData) (Ps : list product)
   (F : fdef) (B : block) (lc : DGVMap) (rm : SBspecAux.rmetadata) (gl : GVMap)
@@ -570,7 +570,7 @@ Proof.
   destruct_ctx_other.
   apply trans_cmds_inv in Htcmds.
   destruct Htcmds as [ex_ids5 [cs1' [cs2' [Htcmd [Htcmds Heq]]]]]; subst.
-  simpl in Htcmd. 
+  simpl in Htcmd.
   apply prop_metadata_inv in Htcmd.
   destruct Htcmd as [bv [ev [bid0 [eid0 [Hgetrm [Hlk [Heq1 Heq2]]]]]]]; subst.
   invert_prop_reg_metadata.
@@ -582,23 +582,23 @@ Proof.
   rewrite Hgetrm in Hgetr. inv Hgetr.
   eapply simulation__getOperandValue with (mi:=mi)(Mem2:=M2) in H0; eauto.
   destruct H0 as [gv' [H0 Hinj]].
-  
+
   eapply simulation__values2GVs with (mi:=mi)(Mem2:=M2) in H1; eauto.
   destruct H1 as [gvs' [H1 Hinj']].
   eapply simulation__GEP in H2; eauto.
   destruct H2 as [gvp2 [H2 Hinj'']].
-  exists (Opsem.mkState 
+  exists (Opsem.mkState
           ((Opsem.mkEC (fdef_intro fh2 bs2) B2
-            (cs2' ++ cs23) tmn2 
+            (cs2' ++ cs23) tmn2
               (updateAddALs _ lc2 ((id0,gvp2)::(bid0,bgv2)::(eid0,egv2)::nil))
-             als2):: 
+             als2)::
             ECs2) M2).
   exists mi.
 
   assert (Hfr1 := Hgetrm).
   eapply get_reg_metadata_fresh3 in Hfr1; eauto. destruct Hfr1 as [Hneq1 Hneq2].
   assert (Hfr2 := Hgetrm).
-  assert (In id0 (getFdefLocs (fdef_intro fh1 bs1))) as Hin. 
+  assert (In id0 (getFdefLocs (fdef_intro fh1 bs1))) as Hin.
     eapply getCmdID_in_getFdefLocs; eauto.
   eapply get_reg_metadata_fresh'' with (id0:=id0) in Hfr2; eauto.
   destruct Hfr2 as [Hneq3 Hneq4].
@@ -621,7 +621,7 @@ Proof.
         rewrite <- getOperandValue_eq_fresh_id; auto.
         rewrite Hget2. auto.
 
-    repeat (split; eauto 2 using cmds_at_block_tail_next, 
+    repeat (split; eauto 2 using cmds_at_block_tail_next,
                                  cmds_at_block_tails_next).
   exists ex_ids. exists rm2.
   exists ex_ids3. exists ex_ids4. exists cs2'. exists cs23.
@@ -633,7 +633,7 @@ Proof.
   split; auto.
 Qed.
 
-Lemma SBpass_is_correct__dsBitcase_ptr : forall 
+Lemma SBpass_is_correct__dsBitcase_ptr : forall
   (mi : MoreMem.meminj) (mgb : Values.block) (St : Opsem.State) (S : system)
   (TD : TargetData) (Ps : list product) (F : fdef) (B : block) (lc : DGVMap)
   (rm : rmetadata) (gl : GVMap) (fs : GVMap) (id0 : id)
@@ -685,7 +685,7 @@ Proof.
   destruct_ctx_other.
   simpl in Htcmds.
   rewrite H0 in Htcmds.
-  remember (prop_metadata ex_ids3 rm2 (insn_cast id0 castop_bitcast t1 v1 t2) 
+  remember (prop_metadata ex_ids3 rm2 (insn_cast id0 castop_bitcast t1 v1 t2)
     v1 id0) as R.
   destruct R as [[ex_ids2 cs2]|]; try solve [inv Htcmds].
   remember (trans_cmds ex_ids2 rm2 cs) as R1.
@@ -703,17 +703,17 @@ Proof.
   rewrite Hgetrm in Hgetr. inv Hgetr.
   eapply simulation__CAST in H; eauto.
   destruct H as [gv3' [Hcast Hinj]].
-  exists (Opsem.mkState 
+  exists (Opsem.mkState
           ((Opsem.mkEC (fdef_intro fh2 bs2) B2
-            (cs3 ++ cs23) tmn2 
-              (updateAddALs _ lc2 ((id0,gv3')::(bid0,bgv2)::(eid0,egv2)::nil)) 
+            (cs3 ++ cs23) tmn2
+              (updateAddALs _ lc2 ((id0,gv3')::(bid0,bgv2)::(eid0,egv2)::nil))
             als2)::ECs2) M2).
   exists mi.
 
   assert (Hfr1 := Hgetrm).
   eapply get_reg_metadata_fresh3 in Hfr1; eauto. destruct Hfr1 as [Hneq1 Hneq2].
   assert (Hfr2 := Hgetrm).
-  assert (In id0 (getFdefLocs (fdef_intro fh1 bs1))) as Hin. 
+  assert (In id0 (getFdefLocs (fdef_intro fh1 bs1))) as Hin.
     eapply getCmdID_in_getFdefLocs; eauto.
   eapply get_reg_metadata_fresh'' with (id0:=id0) in Hfr2; eauto.
   destruct Hfr2 as [Hneq3 Hneq4].
@@ -734,9 +734,9 @@ Proof.
         unfold Opsem.CAST, mcast, mbitcast, p8. simpl.
         rewrite <- getOperandValue_eq_fresh_id; auto.
         rewrite <- getOperandValue_eq_fresh_id; auto.
-        rewrite Hget2. auto. 
+        rewrite Hget2. auto.
 
-    repeat (split; eauto 2 using cmds_at_block_tail_next, 
+    repeat (split; eauto 2 using cmds_at_block_tail_next,
                                  cmds_at_block_tails_next).
   exists ex_ids. exists rm2.
   exists ex_ids3. exists ex_ids4. exists cs3. exists cs23.
@@ -805,10 +805,10 @@ Proof.
   invert_prop_reg_metadata.
   eapply simulation__CAST in H; eauto.
   destruct H as [gv3' [Hcast Hinj]].
-  exists (Opsem.mkState 
+  exists (Opsem.mkState
           ((Opsem.mkEC (fdef_intro fh2 bs2) B2
-            (cs3 ++ cs23) tmn2 
-               (updateAddALs _ lc2 ((id0,gv3')::(bid0,null)::(eid0,null)::nil)) 
+            (cs3 ++ cs23) tmn2
+               (updateAddALs _ lc2 ((id0,gv3')::(bid0,null)::(eid0,null)::nil))
                als2)::ECs2) M2).
   exists mi.
   split.
@@ -837,7 +837,7 @@ Proof.
   split; auto.
 Qed.
 
-Lemma SBpass_is_correct__dsSelect_nptr : forall (mi : MoreMem.meminj) 
+Lemma SBpass_is_correct__dsSelect_nptr : forall (mi : MoreMem.meminj)
   (mgb : Values.block)
   (St : Opsem.State) (S : system) (TD : TargetData) (Ps : list product)
   (F : fdef) (B : block) (lc : DGVMap) (rm : SBspecAux.rmetadata) (gl : GVMap)
@@ -891,19 +891,19 @@ Proof.
 
   exists (Opsem.mkState
           ((Opsem.mkEC (fdef_intro fh2 bs2) B2
-            (cs2' ++ cs23) tmn2 
+            (cs2' ++ cs23) tmn2
             (if isGVZero (los, nts) gv3'1
              then updateAddAL _ lc2 id0 gv3'
              else updateAddAL _ lc2 id0 gv3'0)
-            als2):: 
+            als2)::
             ECs2) M2).
   exists mi.
-  repeat (split; try solve [auto using inject_incr_refl | 
+  repeat (split; try solve [auto using inject_incr_refl |
                             eapply cmds_at_block_tail_next; eauto]).
       simpl_env; simpl;
       rewrite <- (@E0_right E0);
       eapply Opsem.sop_star_cons; eauto; eauto.
-    
+
       exists ex_ids; exists rm2;
       exists ex_ids5; exists ex_ids4; exists cs2'; exists cs23;
       split; auto.
@@ -917,7 +917,7 @@ Proof.
       repeat (split; auto).
 Qed.
 
-Lemma SBpass_is_correct__dsSelect_ptr : forall (mi : MoreMem.meminj) 
+Lemma SBpass_is_correct__dsSelect_ptr : forall (mi : MoreMem.meminj)
   (mgb : Values.block)
   (St : Opsem.State) (S : system) (TD : TargetData) (Ps : list product)
   (F : fdef) (B : block) (lc : DGVMap) (rm : SBspecAux.rmetadata) (gl : GVMap)
@@ -949,7 +949,7 @@ Lemma SBpass_is_correct__dsSelect_ptr : forall (mi : MoreMem.meminj)
   (H4 : SBspecAux.get_reg_metadata TD gl rm v2 = ret md2)
   (H5 : (if isGVZero TD c
         then prop_reg_metadata lc rm id0 gv2 md2
-        else prop_reg_metadata lc rm id0 gv1 md1) = 
+        else prop_reg_metadata lc rm id0 gv1 md1) =
        (lc', rm')),
    exists St' : Opsem.State,
      exists mi' : MoreMem.meminj,
@@ -1008,12 +1008,12 @@ Proof.
   rewrite <- HeqR1 in J1. inv J1.
   rewrite <- HeqR2 in J1'. inv J1'.
 
-  assert (id_fresh_in_value v0 ctmp /\ id_fresh_in_value v1 ctmp /\ 
+  assert (id_fresh_in_value v0 ctmp /\ id_fresh_in_value v1 ctmp /\
           id_fresh_in_value v2 ctmp) as Hfresh_ctmp.
     assert (Hwfc := HBinF).
     destruct Heqb1 as [l1 [ps1 [cs11 Heqb1]]]; subst.
     eapply wf_system__wf_cmd with (c:=insn_select id0 v0 t v1 v2) in Hwfc; eauto.
-      inv Hwfc. 
+      inv Hwfc.
 
 Ltac SBpass_is_correct__dsSelect_ptr_tac :=
 match goal with
@@ -1033,47 +1033,47 @@ end.
   apply gen_metadata_fdef_spec in Hspec; auto.
   destruct Hspec as [Hinc1 [Hdisj1 [Hinc3 Hdisj2]]].
 
-  exists (Opsem.mkState 
+  exists (Opsem.mkState
           ((Opsem.mkEC (fdef_intro fh2 bs2) B2
-            (cs2 ++ cs23) tmn2 
+            (cs2 ++ cs23) tmn2
             (if isGVZero (los, nts) c'
              then updateAddAL _
               (if isGVZero (los, nts) c' then
-                 updateAddAL _ 
+                 updateAddAL _
                    (if isGVZero (los, nts) c'
                     then updateAddAL _ (updateAddAL _ lc2 ctmp c') id0 gv2'
-                    else updateAddAL _ (updateAddAL _ lc2 ctmp c') id0 gv1') 
+                    else updateAddAL _ (updateAddAL _ lc2 ctmp c') id0 gv1')
                    bid0 bgv2'
               else
-                 updateAddAL _ 
+                 updateAddAL _
                    (if isGVZero (los, nts) c'
                     then updateAddAL _ (updateAddAL _ lc2 ctmp c') id0 gv2'
-                    else updateAddAL _ (updateAddAL _ lc2 ctmp c') id0 gv1') 
+                    else updateAddAL _ (updateAddAL _ lc2 ctmp c') id0 gv1')
                    bid0 bgv1') eid0 egv2'
              else updateAddAL _
               (if isGVZero (los, nts) c' then
-                 updateAddAL _ 
+                 updateAddAL _
                    (if isGVZero (los, nts) c'
                     then updateAddAL _ (updateAddAL _ lc2 ctmp c') id0 gv2'
-                    else updateAddAL _ (updateAddAL _ lc2 ctmp c') id0 gv1') 
+                    else updateAddAL _ (updateAddAL _ lc2 ctmp c') id0 gv1')
                    bid0 bgv2'
               else
-                 updateAddAL _ 
+                 updateAddAL _
                    (if isGVZero (los, nts) c'
                     then updateAddAL _ (updateAddAL _ lc2 ctmp c') id0 gv2'
-                    else updateAddAL _ (updateAddAL _ lc2 ctmp c') id0 gv1') 
+                    else updateAddAL _ (updateAddAL _ lc2 ctmp c') id0 gv1')
                    bid0 bgv1') eid0 egv1')
-            als2):: 
+            als2)::
             ECs2) M2).
 
   symmetry in HeqR1, HeqR2.
   assert (Hfr1 := HeqR1).
   eapply get_reg_metadata_fresh3 in Hfr1; eauto. destruct Hfr1 as [Hneq1 Hneq2].
-  assert (Hfr1' := HeqR2). 
-  eapply get_reg_metadata_fresh3 in Hfr1'; eauto. 
+  assert (Hfr1' := HeqR2).
+  eapply get_reg_metadata_fresh3 in Hfr1'; eauto.
   destruct Hfr1' as [Hneq1' Hneq2'].
 
-  assert (In id0 (getFdefLocs (fdef_intro fh1 bs1))) as Hin. 
+  assert (In id0 (getFdefLocs (fdef_intro fh1 bs1))) as Hin.
     eauto using getCmdID_in_getFdefLocs.
   assert (Hfr2 := HeqR1).
   eapply get_reg_metadata_fresh'' with (id0:=id0) in Hfr2; eauto.
@@ -1083,72 +1083,72 @@ end.
   destruct Hfr2' as [Hneq3' Hneq4'].
 
   assert (ctmp <> id0) as Hctmp_neq_id0.
-    apply tmp_is_fresh2 with (i0:=id0)(d:=getFdefLocs (fdef_intro fh1 bs1)) 
+    apply tmp_is_fresh2 with (i0:=id0)(d:=getFdefLocs (fdef_intro fh1 bs1))
       (ex_ids1:=ex_ids) in HeqR9; auto.
   assert (bid0 <> ctmp /\ eid0 <> ctmp) as Hctmp'.
-    eapply tmp_is_fresh3 with (bid:=bid0)(eid:=eid0)(ex_ids1:=ex_ids) in HeqR9; 
+    eapply tmp_is_fresh3 with (bid:=bid0)(eid:=eid0)(ex_ids1:=ex_ids) in HeqR9;
       eauto.
   destruct Hctmp' as [Hctmpb Hctmpe].
 
   assert (id_fresh_in_value bv1' ctmp /\ id_fresh_in_value ev1' ctmp) as Hfr3.
     eapply get_reg_metadata__fresh; eauto.
-  destruct Hfr3 as [Hfr3a Hfr3b]. 
+  destruct Hfr3 as [Hfr3a Hfr3b].
   assert (id_fresh_in_value bv2' ctmp /\ id_fresh_in_value ev2' ctmp) as Hfr4.
     eapply get_reg_metadata__fresh; eauto.
   destruct Hfr4 as [Hfr4a Hfr4b].
- 
+
   exists mi.
   split.
     rewrite <- (@E0_right E0).
-    apply Opsem.sop_star_cons with (state2 := 
-        Opsem.mkState 
+    apply Opsem.sop_star_cons with (state2 :=
+        Opsem.mkState
           ((Opsem.mkEC (fdef_intro fh2 bs2) B2
             (insn_select id0 v0 t v1 v2 ::
-             insn_select bid0 (value_id ctmp) p8 bv1' bv2' :: 
+             insn_select bid0 (value_id ctmp) p8 bv1' bv2' ::
              insn_select eid0 (value_id ctmp) p8 ev1' ev2' ::
-             cs2 ++ cs23) tmn2 
+             cs2 ++ cs23) tmn2
              (updateAddAL _ lc2 ctmp c')
-            als2):: 
+            als2)::
             ECs2) M2); auto.
       eapply Opsem.sCast; eauto.
-        unfold Opsem.CAST. 
+        unfold Opsem.CAST.
         replace (@getOperandValue DGVs) with LLVMgv.getOperandValue; auto.
         rewrite Hc. simpl. unfold mbitcast, i1. auto.
 
     rewrite <- (@E0_right E0).
-    apply Opsem.sop_star_cons with (state2 := 
-        Opsem.mkState 
+    apply Opsem.sop_star_cons with (state2 :=
+        Opsem.mkState
           ((Opsem.mkEC (fdef_intro fh2 bs2) B2
-            (insn_select bid0 (value_id ctmp) p8 bv1' bv2' :: 
+            (insn_select bid0 (value_id ctmp) p8 bv1' bv2' ::
              insn_select eid0 (value_id ctmp) p8 ev1' ev2' ::
-             cs2 ++ cs23) tmn2 
+             cs2 ++ cs23) tmn2
             (if isGVZero (los, nts) c'
              then updateAddAL _ (updateAddAL _ lc2 ctmp c') id0 gv2'
              else updateAddAL _ (updateAddAL _ lc2 ctmp c') id0 gv1')
-            als2):: 
+            als2)::
             ECs2) M2); auto.
       eapply Opsem.sSelect; eauto;
         rewrite <- getOperandValue_eq_fresh_id; auto.
 
     rewrite <- (@E0_right E0).
-    apply Opsem.sop_star_cons with (state2 := 
-        Opsem.mkState 
+    apply Opsem.sop_star_cons with (state2 :=
+        Opsem.mkState
           ((Opsem.mkEC (fdef_intro fh2 bs2) B2
             (insn_select eid0 (value_id ctmp) p8 ev1' ev2' ::
-             cs2 ++ cs23) tmn2 
+             cs2 ++ cs23) tmn2
             (if isGVZero (los, nts) c' then
-               updateAddAL _ 
+               updateAddAL _
                  (if isGVZero (los, nts) c'
                   then updateAddAL _ (updateAddAL _ lc2 ctmp c') id0 gv2'
-                  else updateAddAL _ (updateAddAL _ lc2 ctmp c') id0 gv1') 
+                  else updateAddAL _ (updateAddAL _ lc2 ctmp c') id0 gv1')
                  bid0 bgv2'
             else
-               updateAddAL _ 
+               updateAddAL _
                  (if isGVZero (los, nts) c'
                   then updateAddAL _ (updateAddAL _ lc2 ctmp c') id0 gv2'
-                  else updateAddAL _ (updateAddAL _ lc2 ctmp c') id0 gv1') 
+                  else updateAddAL _ (updateAddAL _ lc2 ctmp c') id0 gv1')
                 bid0 bgv1')
-            als2):: 
+            als2)::
             ECs2) M2); auto.
       eapply Opsem.sSelect; eauto.
         destruct (isGVZero (los, nts) c');
@@ -1188,7 +1188,7 @@ end.
     split; auto using inject_incr_refl.
     repeat (split; auto).
       eapply cmds_at_block_tail_next; eauto.
-      
+
       destruct Heqb2 as [l2 [ps2 [cs21 Heqb2]]]; subst.
       exists l2. exists ps2. exists (cs21 ++
                   (insn_cast ctmp castop_bitcast i1 v0 i1

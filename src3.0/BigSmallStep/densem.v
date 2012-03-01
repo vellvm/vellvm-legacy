@@ -1,10 +1,9 @@
-(** Denotational semantics is an alternative way to characterize divergent 
+(** Denotational semantics is an alternative way to characterize divergent
     and convergent terms. This file develops a simple denotational semantics
     for CBV lambda-calculus and proves that it captures the same notations of
     convergence and divergence as the big-step operational semantics.
 *)
 
-Add LoadPath "../../../theory/metatheory".
 Require Export Coq.Program.Equality.
 Require Export lang_inf.
 Require Export lang_more.
@@ -35,10 +34,10 @@ Qed.
       object_bot : the computation cannot complete within n recursive steps.
 
     Objects Order:
-      object_bot is lesseq than any object, and any object is lesseq than itself.    
+      object_bot is lesseq than any object, and any object is lesseq than itself.
 
     First, we define the computation C n e of a term e at maximal recursion
-    depth n by recursion over n, as follow: 
+    depth n by recursion over n, as follow:
 
     Notice that n is the recursive steps, but not the real computation steps.
 *)
@@ -50,7 +49,7 @@ match (n, e) with
 | (S n', abs e') => object_abs e' (* reach normal forms *)
 | (S n', app e1 e2) =>            (* application case is monadic *)
   match (C n' e1) with
-  | object_const => 
+  | object_const =>
      match (C n' e2) with
      | object_const => object_err                  (* const cannot apply to arguments *)
      | object_abs e2' => object_err                (* const cannot apply to arguments *)
@@ -59,9 +58,9 @@ match (n, e) with
      end
   | object_abs e1' =>
      match (C n' e2) with
-     | object_const => 
+     | object_const =>
          C n' (open_exp_wrt_exp e1' const)         (* compute fuction body *)
-     | object_abs e2' => 
+     | object_abs e2' =>
          C n' (open_exp_wrt_exp e1' (abs e2'))     (* compute fuction body *)
      | object_bot => object_bot                    (* propagate uncompleted computation *)
      | object_err => object_err                    (* propagate errors *)
@@ -74,13 +73,13 @@ end.
 
 (** We say that a term e executes with result o, or in other terms that o
     is the denotation of e, and we write D e o, if C n e = o for almost all n:
-*)  
+*)
 
 Definition D e o := exists p, forall n, n >= p -> C n e = o.
 
-(** Intuitively, if e is converging, then there must exists a p, s.t. C p e <> object_bot. 
-     If C is monotone, then with any n recursion depth that is not less than p, 
-     C n e should equal to the same object, namely D e (C p e); 
+(** Intuitively, if e is converging, then there must exists a p, s.t. C p e <> object_bot.
+     If C is monotone, then with any n recursion depth that is not less than p,
+     C n e should equal to the same object, namely D e (C p e);
 
     If e is diverging, with any n recursion depth, C n e should equal to object_bot.
     This is the case that D e object_bot holds.
@@ -165,8 +164,8 @@ Proof.
           apply lc_body_exp_wrt_exp; eauto.
           apply IHn in H1.
           rewrite <- HeqC1 in H1.
-          inversion H1; subst. auto. 
-        
+          inversion H1; subst. auto.
+
         apply IHn in H1.
         rewrite <- HeqC1 in H1.
         apply IHn in H2.
@@ -174,7 +173,7 @@ Proof.
         apply IHn; auto.
           apply lc_body_exp_wrt_exp; eauto.
           inversion H1; subst. auto.
-Qed.    
+Qed.
 
 Hint Resolve C_regular.
 
@@ -208,18 +207,18 @@ Lemma C_preserves_normalforms : forall m n e,
   (forall e', C n e = object_abs e' -> C m e = object_abs e') /\
   (C n e = object_err -> C m e = object_err).
 Proof.
-  (** By induction over m. 
+  (** By induction over m.
 
-      The base case is trivial, because n cannot be 0, 
-      otherwise C n e must be bottom. 
+      The base case is trivial, because n cannot be 0,
+      otherwise C n e must be bottom.
 
       At the inductive case, the proofs go by case analysis on e. The
       interesting case is application e1 e2, where we do case analysis
       over (C n e1) and (C n e2), and conclude by induction hyp. *)
   induction m; intros n e n_lesseq_m; simpl; auto.
   Case "m=0". (* Contradictory case *)
-    assert (n = 0) as n_is_0. omega. 
-    subst. 
+    assert (n = 0) as n_is_0. omega.
+    subst.
     split. intro Cn_const. simpl in Cn_const. inversion Cn_const.
     split. intros e' Cn_abs. simpl in Cn_abs. inversion Cn_abs.
            intro Cn_err. simpl in Cn_err. inversion Cn_err.
@@ -233,7 +232,7 @@ Proof.
       rename n_lesseq_m into Sn_lesseq_Sm.
       assert (n <= m) as n_lesseq_m. omega.
 
-      split. 
+      split.
       (** object_const preverses *)
       intro Cn_const. simpl in Cn_const.
       (exp_cases (destruct e) SSCase); auto.
@@ -267,7 +266,7 @@ Proof.
             rewrite HeqCn2.
             apply IHm in Cn_const; auto.
 
-      split. 
+      split.
       (** object_abs preverses *)
       intros e' Cn_abs. simpl in Cn_abs.
       (exp_cases (destruct e) SSCase); auto.
@@ -397,7 +396,7 @@ Proof.
   induction m; intros n e1 e2 Cne1_err n_less_m.
     contradict n_less_m; omega.
 
-    simpl. 
+    simpl.
     apply C_preserves_err with (m:=m) in Cne1_err; try solve [omega].
     rewrite Cne1_err. auto.
 Qed.
@@ -411,7 +410,7 @@ Proof.
   induction m; intros n e1 e2 Cne1_const Cne2_nbot n_less_m.
     contradict n_less_m; omega.
 
-    simpl. 
+    simpl.
     apply C_preserves_const with (m:=m) in Cne1_const; try solve [omega].
     rewrite Cne1_const.
     remember (C n e2) as Cn2.
@@ -441,7 +440,7 @@ Proof.
   induction m; intros n e1 e2 e1' Cne1_abs Cne2_err n_less_m.
     contradict n_less_m; omega.
 
-    simpl. 
+    simpl.
     apply C_preserves_abs with (m:=m) in Cne1_abs; try solve [omega].
     apply C_preserves_err with (m:=m) in Cne2_err; try solve [omega].
     rewrite Cne1_abs. rewrite Cne2_err. auto.
@@ -457,7 +456,7 @@ Proof.
     contradict n_less_m; omega.
 
     assert (S m - 1 = m) as EQ. omega.
-    rewrite EQ. simpl. 
+    rewrite EQ. simpl.
     apply C_preserves_abs with (m:=m) in Cne1_abs; try solve [omega].
     apply C_preserves_const with (m:=m) in Cne2_const; try solve [omega].
     rewrite Cne1_abs. rewrite Cne2_const. auto.
@@ -473,7 +472,7 @@ Proof.
     contradict n_less_m; omega.
 
     assert (S m - 1 = m) as EQ. omega.
-    rewrite EQ. simpl. 
+    rewrite EQ. simpl.
     apply C_preserves_abs with (m:=m) in Cne1_abs; try solve [omega].
     apply C_preserves_abs with (m:=m) in Cne2_abs; try solve [omega].
     rewrite Cne1_abs. rewrite Cne2_abs. auto.
@@ -532,7 +531,7 @@ Proof.
       assert (lc_exp (abs e)) as lc_abs1.
         apply lc_object_abs__lc_abs.
         rewrite <- HeqC1.
-        inversion e_is_lc; subst. auto.        
+        inversion e_is_lc; subst. auto.
       remember (C n e2) as C2.
       (object_cases (destruct C2) SSCase); subst; simpl; auto.
       SSCase "object_err".
@@ -542,7 +541,7 @@ Proof.
       SSCase "object_const".
         symmetry in HeqC2.
         apply abs_applies_const_is_reduction with (m:=m)(e2:=e2) in HeqC1; auto.
-        rewrite HeqC1. 
+        rewrite HeqC1.
         apply IHn; try solve [auto | omega].
           inversion lc_abs1; subst.
           apply lc_body_exp_wrt_exp; eauto.
@@ -551,9 +550,9 @@ Proof.
         assert (lc_exp (abs e0)) as lc_abs2.
           apply lc_object_abs__lc_abs.
           rewrite <- HeqC2.
-          inversion e_is_lc; subst. auto.        
+          inversion e_is_lc; subst. auto.
         apply abs_applies_abs_is_reduction with (m:=m)(e2:=e2)(e2':=e0) in HeqC1; auto.
-        rewrite HeqC1. 
+        rewrite HeqC1.
         apply IHn; try solve [auto | omega].
           inversion lc_abs1; subst.
           apply lc_body_exp_wrt_exp; eauto.
@@ -563,7 +562,7 @@ Qed.
 
 Lemma o_denotes_e__implies__e_computes_to_o_or_bot : forall e o n,
   lc_exp e ->
-  D e o -> 
+  D e o ->
   C n e = object_bot \/ C n e = o.
 Proof.
   intros e o n e_is_lc o_denotes_e.
@@ -573,7 +572,7 @@ Proof.
       otherwise by D, we have C p e = o
         then we do case analysis over C n e
         if it is bot, we are done;
-        otherwise, by [C_is_monotone], 
+        otherwise, by [C_is_monotone],
            C n e <<= C p e
          we know C n e must be o.
   *)
@@ -587,7 +586,7 @@ Proof.
     apply o_denotes_e in p_ge_p.
     inversion n_le_p; subst; auto.
 Qed.
-  
+
 Lemma e_computes_to_o_finitely__implies__o_denotes_e : forall e o p,
   lc_exp e ->
   o <> object_bot ->
@@ -596,7 +595,7 @@ Lemma e_computes_to_o_finitely__implies__o_denotes_e : forall e o p,
 Proof.
   (** By [C_is_monotone], with steps larger than p, e must compute to
       a result o' higher than o. If o is not bot, o' must be o. This
-      is exactly the definition of D.      
+      is exactly the definition of D.
   *)
   intros e o p e_is_lc o_isnt_bot e_computes_to_o.
   exists p.
@@ -604,7 +603,7 @@ Proof.
   apply C_is_monotone with (n:=p)(m:=n) in e_is_lc; auto.
   rewrite e_computes_to_o in e_is_lc.
   inversion e_is_lc; subst; auto.
-    rewrite H0 in o_isnt_bot. 
+    rewrite H0 in o_isnt_bot.
     contradict o_isnt_bot; auto.
 Qed.
 
@@ -628,7 +627,7 @@ Qed.
 Lemma denotation_exists : forall e, lc_exp e -> exists o, D e o.
 Proof.
   intros e e_is_lc.
-  (** By PEM, either forall n, C n e = bot or exists n, C n e <> bot. 
+  (** By PEM, either forall n, C n e = bot or exists n, C n e <> bot.
       The earlier case is by [bot_denotes_e__iff__e_diverges],
       the latter case is by [e_computes_to_o_finitely__implies__o_denotes_e].
   *)
@@ -643,14 +642,14 @@ Proof.
     apply e_computes_to_o_finitely__implies__o_denotes_e with (p:=n); auto.
 Qed.
 
-(** We now relate this denotational semantics with the big-step operational semantics *)  
+(** We now relate this denotational semantics with the big-step operational semantics *)
 
 Lemma bigstep_converging_regular_1 : forall e v,
   e ===> v -> lc_exp e.
 Proof.
   intros e v H.
   induction H; auto.
-Qed.  
+Qed.
 
 Lemma bigstep_converging_regular_2 : forall e v,
   e ===> v -> lc_exp v.
@@ -659,7 +658,7 @@ Proof.
   induction H; auto.
 Qed.
 
-Hint Resolve bigstep_converging_regular_1 bigstep_converging_regular_2.  
+Hint Resolve bigstep_converging_regular_1 bigstep_converging_regular_2.
 
 (** If there exists p s.t. C p e = v, then e ===> v. *)
 Lemma finite_compuations__implies__evaluations : forall p e v o,
@@ -672,7 +671,7 @@ Proof.
       the recursive computations. Values and variables are trivial.
 
       If e = e1 e2, hypothesis leads to C (p-1) e1 = \x. e1',
-      C (p-1) e2 = v2, and C (p-1) ({v2/x}e1') = v. The result 
+      C (p-1) e2 = v2, and C (p-1) ({v2/x}e1') = v. The result
       follows these hyps and constructors.
   *)
   induction p; intros e v o e_is_lc EQ J; simpl in J; subst.
@@ -728,7 +727,7 @@ Proof.
                 apply bigstep_converging_regular_2 in HeqCp1; auto.
                 inversion HeqCp1; auto.
 
-          apply bigstep_c_app with (e1':=e)(v2:=abs e0); simpl; eauto.       
+          apply bigstep_c_app with (e1':=e)(v2:=abs e0); simpl; eauto.
 Qed.
 
 (** [===>] and D are consistent at terminating cases. *)
@@ -743,7 +742,7 @@ Proof.
          The cases where e is a value are trival, since C 1 e = v in these cases.
          For the application case e = e1 e2, the induction hyp leads to
          C p1 e1 = \x. e1',  C p2 e2 = v2 and C p3 ({v2/x}e1') = v for some p1 p2 p3.
-         Taking p = 1 + max p1 (max p2 p3), we have C p e = v by definition and 
+         Taking p = 1 + max p1 (max p2 p3), we have C p e = v by definition and
          monotonicity of C, and the result follows.
     *)
     intro e_evaluates_to_v.
@@ -768,7 +767,7 @@ Proof.
         inversion EQ2; subst. clear EQ2.
         destruct v; try solve [simpl in H; inversion H]; simpl in *.
         SSSCase "v is const".
-          destruct (@IHe_evaluates_to_v3) as [o3 [EQ3 [p3 const_denotes_e3]]]; auto.    
+          destruct (@IHe_evaluates_to_v3) as [o3 [EQ3 [p3 const_denotes_e3]]]; auto.
           inversion EQ3; subst. clear EQ3.
           exists object_const. split; auto.
           exists (max p1 (max p2 p3) + 1).
@@ -778,16 +777,16 @@ Proof.
               apply abs1_denotes_e1; auto.
                 assert (J:=@le_max_l p1 (max p2 p3)). auto.
               apply const_denotes_e2; auto.
-                clear. 
+                clear.
                 assert (J:=@le_max_r p1 (max p2 p3)).
-                assert (J':=@le_max_l p2 p3). 
+                assert (J':=@le_max_l p2 p3).
                 omega.
               omega.
           rewrite EQ.
           apply const_denotes_e3; auto.
-            clear - n_ge_max. 
+            clear - n_ge_max.
             assert (J:=@le_max_r p1 (max p2 p3)).
-            assert (J':=@le_max_r p2 p3). 
+            assert (J':=@le_max_r p2 p3).
             omega.
         SSSCase "v is abs".
           destruct (@IHe_evaluates_to_v3) as [o3 [EQ3 [p3 abs_denotes_e3]]]; auto.
@@ -800,16 +799,16 @@ Proof.
               apply abs1_denotes_e1; auto.
                 assert (J:=@le_max_l p1 (max p2 p3)). auto.
               apply const_denotes_e2; auto.
-                clear. 
+                clear.
                 assert (J:=@le_max_r p1 (max p2 p3)).
-                assert (J':=@le_max_l p2 p3). 
+                assert (J':=@le_max_l p2 p3).
                 omega.
               omega.
           rewrite EQ.
           apply abs_denotes_e3; auto.
-            clear - n_ge_max. 
+            clear - n_ge_max.
             assert (J:=@le_max_r p1 (max p2 p3)).
-            assert (J':=@le_max_r p2 p3). 
+            assert (J':=@le_max_r p2 p3).
             omega.
       SSCase "v2 is abs".
         destruct (@IHe_evaluates_to_v2) as [o2 [EQ2 [p2 abs2_denotes_e2]]]; auto.
@@ -830,16 +829,16 @@ Proof.
               apply abs1_denotes_e1; auto.
                 assert (J:=@le_max_l p1 (max p2 p3)). auto.
               apply abs2_denotes_e2; auto.
-                clear. 
+                clear.
                 assert (J:=@le_max_r p1 (max p2 p3)).
-                assert (J':=@le_max_l p2 p3). 
+                assert (J':=@le_max_l p2 p3).
                 omega.
               omega.
           rewrite EQ.
           apply const_denotes_e3; auto.
-            clear - n_ge_max. 
+            clear - n_ge_max.
             assert (J:=@le_max_r p1 (max p2 p3)).
-            assert (J':=@le_max_r p2 p3). 
+            assert (J':=@le_max_r p2 p3).
             omega.
         SSSCase "v is abs".
           destruct (@IHe_evaluates_to_v3) as [o3 [EQ3 [p3 abs_denotes_e3]]]; auto.
@@ -852,22 +851,22 @@ Proof.
               apply abs1_denotes_e1; auto.
                 assert (J:=@le_max_l p1 (max p2 p3)). auto.
               apply abs2_denotes_e2; auto.
-                clear. 
+                clear.
                 assert (J:=@le_max_r p1 (max p2 p3)).
-                assert (J':=@le_max_l p2 p3). 
+                assert (J':=@le_max_l p2 p3).
                 omega.
               omega.
           rewrite EQ.
           apply abs_denotes_e3; auto.
-            clear - n_ge_max. 
+            clear - n_ge_max.
             assert (J:=@le_max_r p1 (max p2 p3)).
-            assert (J':=@le_max_r p2 p3). 
-            omega.      
+            assert (J':=@le_max_r p2 p3).
+            omega.
   Case "(exists o, exp_to_object v = Some o /\ D e o) -> e ===> v".
     intros J. destruct J as [o [EQ [p o_denotes_e]]].
     assert (p >= p) as pEQ. omega.
     assert (J:=@o_denotes_e p pEQ).
-    apply finite_compuations__implies__evaluations with (v:=v) in J; auto. 
+    apply finite_compuations__implies__evaluations with (v:=v) in J; auto.
 Qed.
 
 (** If e ===>o, then for any recursion depth n, C n e must be object_bot. *)
@@ -881,7 +880,7 @@ Proof.
       if e1 ===>o, C n e = C (n-1) e1 = bot by IH.
       if e1 ===> v1, and e2 ===>o, we have D e1 v1 by [evaluations__iff__value_denotations].
         By IH, C (n-1) e2 = bot.
-        By [o_denotes_e__implies__e_computes_to_o_or_bot], 
+        By [o_denotes_e__implies__e_computes_to_o_or_bot],
           C (n-1) e1 = bot \/ C (n-1) e1 = v1.
         In both cases, C n e = bot.
       The last case is similar.
@@ -903,7 +902,7 @@ Proof.
       destruct o1_denotes_e1 as [Cne1_is_bot | Cne1_is_o].
         rewrite Cne1_is_bot. auto.
 
-        rewrite <- Cne1_is_o in EQ1. 
+        rewrite <- Cne1_is_o in EQ1.
         destruct v1; simpl in EQ1; inversion EQ1; subst; auto.
     SCase "bigstep_d_appf".
       assert (lc_exp (open_exp_wrt_exp e1' v2)) as e1'v2_is_lc.
@@ -921,11 +920,11 @@ Proof.
         rewrite Cne1_is_bot. auto.
 
         rewrite <- Cne1_is_o in EQ1.
-        simpl in EQ1. inversion EQ1; subst.  
+        simpl in EQ1. inversion EQ1; subst.
         apply o_denotes_e__implies__e_computes_to_o_or_bot with (n:=n) in o2_denotes_e2; auto.
         destruct o2_denotes_e2 as [Cne2_is_bot | Cne2_is_o].
           rewrite Cne2_is_bot. auto.
-  
+
           rewrite <- Cne2_is_o in EQ2.
           destruct v2; simpl in EQ2; inversion EQ2; subst; auto.
 Qed.
@@ -951,11 +950,11 @@ Proof.
          We then argue by case over o1 and o2 with sufficiently large n =
             max (p, p1, p2) + 1
          where p, p1 and p2 are corresponding to the donotation of e, e1 and e2.
-         There are only three cases that dont contradict the hyp the D e bot: 
+         There are only three cases that dont contradict the hyp the D e bot:
            1) o1 = bot,
-           2) o1 is value, o2 is bot, 
-           3) o1 and o2 are values \x.e1' and v2, and D ({v2/x}e1') bot. 
-         We conclude by coind for [===>o] premises, and by 
+           2) o1 is value, o2 is bot,
+           3) o1 and o2 are values \x.e1' and v2, and D ({v2/x}e1') bot.
+         We conclude by coind for [===>o] premises, and by
          [finite_compuations__implies__evaluations] for [===>] premises.
     *)
     generalize dependent e.
@@ -964,14 +963,14 @@ Proof.
     (exp_cases (destruct e) SCase).
     SCase "const".
       apply bot_denotes_e__iff__e_diverges with (n:=1) in bot_denotes_e; auto.
-      simpl in bot_denotes_e. inversion bot_denotes_e. 
+      simpl in bot_denotes_e. inversion bot_denotes_e.
     SCase "var_b".
       rename n into i.
       apply bot_denotes_e__iff__e_diverges with (n:=1) in bot_denotes_e; auto.
-      simpl in bot_denotes_e. inversion bot_denotes_e. 
+      simpl in bot_denotes_e. inversion bot_denotes_e.
     SCase "var_f".
       apply bot_denotes_e__iff__e_diverges with (n:=1) in bot_denotes_e; auto.
-      simpl in bot_denotes_e. inversion bot_denotes_e. 
+      simpl in bot_denotes_e. inversion bot_denotes_e.
     SCase "abs".
       apply bot_denotes_e__iff__e_diverges with (n:=1) in bot_denotes_e; auto.
       simpl in bot_denotes_e. inversion bot_denotes_e.
@@ -984,9 +983,9 @@ Proof.
       apply o1_denotes_e1 in p1Eq.
       assert (p2>=p2) as p2Eq. omega.
       apply o2_denotes_e2 in p2Eq.
-      assert (max p (max p1 p2) + 1>=p) as pEq. 
+      assert (max p (max p1 p2) + 1>=p) as pEq.
         assert (J:=@le_max_l p (max p1 p2)). omega.
-      apply bot_denotes_e in pEq. 
+      apply bot_denotes_e in pEq.
       (object_cases (destruct o1) SSCase).
       SSCase "object_bot".
         apply Hcoind in H1; auto.
@@ -1068,7 +1067,7 @@ Proof.
                 assert (J:=@le_max_r p (max p1 p2)).
                 assert (J':=@le_max_l p1 p2). omega.
               apply C_preserves_abs with (m:=max p (max p1 p2)) in p1Eq; auto.
-              assert (p2 <= max p (max p1 p2)) as p2_le_max. 
+              assert (p2 <= max p (max p1 p2)) as p2_le_max.
                 assert (J:=@le_max_r p (max p1 p2)).
                 assert (J':=@le_max_r p1 p2). omega.
               apply C_preserves_const with (m:=max p (max p1 p2)) in p2Eq; auto.
@@ -1094,21 +1093,3 @@ Proof.
             apply Hcoind; auto.
               exists (max p (max p1 p2) + 1).
               intros n n_ge_max.
-
-              assert (p1 <= max p (max p1 p2)) as p1_le_max.
-                assert (J:=@le_max_r p (max p1 p2)).
-                assert (J':=@le_max_l p1 p2). omega.
-              apply C_preserves_abs with (m:=max p (max p1 p2)) in p1Eq; auto.
-              assert (p2 <= max p (max p1 p2)) as p2_le_max. 
-                assert (J:=@le_max_r p (max p1 p2)).
-                assert (J':=@le_max_r p1 p2). omega.
-              apply C_preserves_abs with (m:=max p (max p1 p2)) in p2Eq; auto.
-              apply abs_applies_abs_is_reduction with (m:=n+1)(e2:=e2)(e2':=e0) in p1Eq; try solve [auto|omega].
-              assert (n+1 >= p) as Sn_ge_p.
-                assert (J:=@le_max_l p (max p1 p2)).
-                omega.
-              apply bot_denotes_e in Sn_ge_p.
-              rewrite Sn_ge_p in p1Eq.
-              assert (n+1-1=n) as nEq. omega.
-              rewrite nEq in p1Eq. auto.
-Qed.

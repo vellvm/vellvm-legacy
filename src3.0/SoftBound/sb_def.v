@@ -16,14 +16,14 @@ Definition p8 := typ_pointer i8.
 
 Fixpoint get_const_metadata (c:const) : option (const*const) :=
 match c with
-| const_gid t gid => 
+| const_gid t gid =>
     match t with
     | typ_function _ _ _ => Some (const_castop castop_bitcast c p8,
                                   const_castop castop_bitcast c p8)
     | _ => Some (const_castop castop_bitcast c p8,
-                 const_castop castop_bitcast 
-                   (const_gep false c 
-                   (Cons_list_const (const_int Size.ThirtyTwo 
+                 const_castop castop_bitcast
+                   (const_gep false c
+                   (Cons_list_const (const_int Size.ThirtyTwo
                    (INTEGER.of_Z 32%Z 1%Z false)) Nil_list_const)) p8)
     end
 | const_gep _ pc _ => get_const_metadata pc
@@ -35,20 +35,20 @@ Definition null_md := mkMD Mem.nullptr (Int.zero 31) (Int.zero 31).
 
 Definition get_reg_metadata TD gl (rm:rmetadata) (v:value) : option metadata :=
   match v with
-  | value_id pid => 
+  | value_id pid =>
       match lookupAL _ rm pid with
       | Some md => Some md
       | _ => None
       end
-  | value_const c => 
+  | value_const c =>
       match get_const_metadata c with
-      | Some (bc, ec) => 
+      | Some (bc, ec) =>
           match const2GV TD gl bc, const2GV TD gl ec with
-          | Some ((Vptr bblk bofs, AST.Mint sz1)::nil), 
+          | Some ((Vptr bblk bofs, AST.Mint sz1)::nil),
             Some ((Vptr eblk eofs, AST.Mint sz2)::nil) =>
-             if zeq bblk eblk && eq_nat_dec sz1 31 && eq_nat_dec sz2 31 
+             if zeq bblk eblk && eq_nat_dec sz1 31 && eq_nat_dec sz2 31
              then ret (mkMD bblk bofs eofs) else None
-          | _, _ => None 
+          | _, _ => None
           end
       | None => Some null_md
       end
@@ -61,16 +61,16 @@ Definition assert_mptr (TD:TargetData) (t:typ) (ptr:GenericValue) (md:metadata)
   | (Some (Vptr pb pofs), Some tsz) =>
       zeq pb bb &&
       zle (Integers.Int.signed 31 bofs) (Integers.Int.signed 31 pofs) &&
-      zle (Integers.Int.signed 31 pofs + Size.to_Z tsz) 
+      zle (Integers.Int.signed 31 pofs + Size.to_Z tsz)
           (Integers.Int.signed 31 eofs)
   | _ => false
-  end.  
+  end.
 
 Definition mmetadata := Values.block -> int32 -> option metadata.
 
 Definition get_mem_metadata TD MM (gv:GenericValue) : metadata :=
   match (GV2ptr TD (getPointerSize TD) gv) with
-  | Some (Vptr b ofs) => 
+  | Some (Vptr b ofs) =>
       match MM b ofs with
       | Some md => md
       | _ => null_md
@@ -78,19 +78,19 @@ Definition get_mem_metadata TD MM (gv:GenericValue) : metadata :=
   | _ => null_md
   end.
 
-Definition set_mem_metadata TD MM (gv:GenericValue) (md:metadata) 
+Definition set_mem_metadata TD MM (gv:GenericValue) (md:metadata)
   : mmetadata :=
   match (GV2ptr TD (getPointerSize TD) gv) with
-  | Some (Vptr b ofs) => 
+  | Some (Vptr b ofs) =>
      fun b1 => fun ofs1 =>
-       if zeq b1 b && Integers.Int.eq_dec 31 ofs ofs1 then Some md 
+       if zeq b1 b && Integers.Int.eq_dec 31 ofs ofs1 then Some md
        else MM b1 ofs1
   | _ => MM
   end.
 
 End SBspecAux.
 
-Module SBspec. 
+Module SBspec.
 
 Export Opsem.
 Export SBspecAux.
@@ -99,16 +99,16 @@ Section SBspec.
 
 Context {GVsSig : GenericValues}.
 
-Definition prop_reg_metadata lc rmd pid gvp (md:metadata) 
+Definition prop_reg_metadata lc rmd pid gvp (md:metadata)
   : (@GVsMap GVsSig) * rmetadata :=
   (updateAddAL _ lc pid gvp, updateAddAL _ rmd pid md).
 
 Notation GVs := GVsSig.(GVsT).
 Definition GVsMap := list (id * GVs).
-Notation "gv @ gvs" := 
+Notation "gv @ gvs" :=
   (GVsSig.(instantiate_gvs) gv gvs) (at level 43, right associativity).
 Notation "$ gv # t $" := (GVsSig.(gv2gvs) gv t) (at level 41).
-Notation "vidxs @@ vidxss" := (in_list_gvs vidxs vidxss) 
+Notation "vidxs @@ vidxss" := (in_list_gvs vidxs vidxss)
   (at level 43, right associativity).
 
 Record ExecutionContext : Type := mkEC {
@@ -130,18 +130,18 @@ Mmap               : mmetadata
 }.
 
 Fixpoint getIncomingValuesForBlockFromPHINodes (TD:TargetData)
-  (PNs:list phinode) (b:block) (gl:GVMap) (lc:GVsMap) (rm:rmetadata) : 
+  (PNs:list phinode) (b:block) (gl:GVMap) (lc:GVsMap) (rm:rmetadata) :
   option (list (id * GVs * option metadata)) :=
 match PNs with
 | nil => Some nil
-| (insn_phi id0 t vls)::PNs => 
+| (insn_phi id0 t vls)::PNs =>
   match (getValueViaBlockFromPHINode (insn_phi id0 t vls) b) with
   | None => None
-  | Some v => 
-      match (getOperandValue TD v lc gl, 
+  | Some v =>
+      match (getOperandValue TD v lc gl,
              getIncomingValuesForBlockFromPHINodes TD PNs b gl lc rm)
       with
-      | (Some gv1, Some idgvs) => 
+      | (Some gv1, Some idgvs) =>
           if isPointerTypB t then
             match get_reg_metadata TD gl rm v with
             | Some md => Some ((id0,gv1,Some md)::idgvs)
@@ -149,15 +149,15 @@ match PNs with
             end
           else Some ((id0,gv1,None)::idgvs)
       | _ => None
-      end               
+      end
   end
 end.
 
-Fixpoint updateValuesForNewBlock (ResultValues:list (id*GVs*option metadata)) 
+Fixpoint updateValuesForNewBlock (ResultValues:list (id*GVs*option metadata))
   (lc:GVsMap) (rm:rmetadata) : GVsMap * rmetadata :=
 match ResultValues with
 | nil => (lc, rm)
-| (id0, v, opmd)::ResultValues' => 
+| (id0, v, opmd)::ResultValues' =>
     let '(lc', rm') := updateValuesForNewBlock ResultValues' lc rm in
     match opmd with
     | None => (updateAddAL _ lc' id0 v, rm')
@@ -165,7 +165,7 @@ match ResultValues with
     end
 end.
 
-Definition switchToNewBasicBlock (TD:TargetData) (Dest:block) (PrevBB:block) 
+Definition switchToNewBasicBlock (TD:TargetData) (Dest:block) (PrevBB:block)
   (gl:GVMap) (lc:GVsMap) (rm:rmetadata) : option (GVsMap * rmetadata) :=
   let PNs := getPHINodesFromBlock Dest in
   match getIncomingValuesForBlockFromPHINodes TD PNs PrevBB gl lc rm with
@@ -174,7 +174,7 @@ Definition switchToNewBasicBlock (TD:TargetData) (Dest:block) (PrevBB:block)
   end.
 
 (*
-  LLVM does not ensure that a function is called with its correct type. So 
+  LLVM does not ensure that a function is called with its correct type. So
   metadata may not be passed into or out from a function correctly. For example,
   if a function is of typ int* -> void, and used as typ void -> int*, then
   the callsite will not initialize metadata for its argument since the callsite
@@ -182,7 +182,7 @@ Definition switchToNewBasicBlock (TD:TargetData) (Dest:block) (PrevBB:block)
   metadata from the function's return.
 
   In the semantics, we do not want to take such cases as stuck states, because
-  1) the original LLVM semantics does not check the problem. 
+  1) the original LLVM semantics does not check the problem.
   2) our SBpass does not check this issue dynamically either
 
   So, we let the values be undefined at these cases. Then, we can still prove
@@ -194,7 +194,7 @@ Definition switchToNewBasicBlock (TD:TargetData) (Dest:block) (PrevBB:block)
   returning arbitrary values.
 *)
 
-Definition returnResult (TD:TargetData) (rt:typ) (Result:value) 
+Definition returnResult (TD:TargetData) (rt:typ) (Result:value)
   (lc:GVsMap) (rm:rmetadata) (gl:GVMap) : option (GVs * metadata)
   :=
   match getOperandValue TD Result lc gl with
@@ -208,7 +208,7 @@ Definition returnResult (TD:TargetData) (rt:typ) (Result:value)
   | _ => None
   end.
 
-Definition returnUpdateLocals (TD:TargetData) (c':cmd) (rt:typ) (Result:value) 
+Definition returnUpdateLocals (TD:TargetData) (c':cmd) (rt:typ) (Result:value)
   (lc lc':GVsMap) (rm rm':rmetadata) (gl:GVMap) : option (GVsMap * rmetadata) :=
   match returnResult TD rt Result lc rm gl with
   | Some (gr,md) =>
@@ -217,10 +217,10 @@ Definition returnUpdateLocals (TD:TargetData) (c':cmd) (rt:typ) (Result:value)
         match t with
         | typ_function ct _ _ =>
            match (GVsSig.(lift_op1) (fit_gv TD ct) gr ct) with
-           | Some gr' => 
-              if isPointerTypB ct then 
+           | Some gr' =>
+              if isPointerTypB ct then
                 Some (prop_reg_metadata lc' rm' id0 gr' md)
-              else 
+              else
                 Some (updateAddAL _ lc' id0 gr', rm')
            | _ => None
            end
@@ -232,20 +232,20 @@ Definition returnUpdateLocals (TD:TargetData) (c':cmd) (rt:typ) (Result:value)
   | _ => None
   end.
 
-Definition exCallUpdateLocals TD (ft:typ) (noret:bool) (rid:id) 
-  (oResult:option GenericValue) (lc :GVsMap) (rm:rmetadata) 
+Definition exCallUpdateLocals TD (ft:typ) (noret:bool) (rid:id)
+  (oResult:option GenericValue) (lc :GVsMap) (rm:rmetadata)
   : option (GVsMap*rmetadata) :=
   match noret with
   | false =>
       match oResult with
       | None => None
-      | Some Result => 
+      | Some Result =>
           match ft with
-          | typ_function t _ _ => 
+          | typ_function t _ _ =>
             match fit_gv TD t Result with
             | Some gr =>
                 if isPointerTypB t then
-                     Some (updateAddAL _ lc rid ($ gr # t $), 
+                     Some (updateAddAL _ lc rid ($ gr # t $),
                            updateAddAL _ rm rid null_md)
                 else Some (updateAddAL _ lc rid ($ gr # t $), rm)
             | _ => None
@@ -256,14 +256,14 @@ Definition exCallUpdateLocals TD (ft:typ) (noret:bool) (rid:id)
   | true => Some (lc, rm)
   end.
 
-Fixpoint params2GVs (TD:TargetData) (lp:params) (lc:GVsMap) (gl:GVMap) 
+Fixpoint params2GVs (TD:TargetData) (lp:params) (lc:GVsMap) (gl:GVMap)
   (rm:rmetadata) : option (list (GVs * option metadata)) :=
 match lp with
 | nil => Some nil
-| ((t,_), v)::lp' => 
+| ((t,_), v)::lp' =>
     match (getOperandValue TD v lc gl, params2GVs TD lp' lc gl rm) with
     | (Some gv, Some gvs) =>
-       if isPointerTypB t then 
+       if isPointerTypB t then
          Some ((gv, get_reg_metadata TD gl rm v)::gvs)
        else Some ((gv, None)::gvs)
     | _ => None
@@ -273,21 +273,21 @@ end.
 Fixpoint _initializeFrameValues TD (la:args) (lg:list (GVs*option metadata))
   (lc:GVsMap) (rm : rmetadata) : option (GVsMap * rmetadata) :=
 match (la, lg) with
-| ((t, _, id0)::la', (gv, opmd)::lg') => 
+| ((t, _, id0)::la', (gv, opmd)::lg') =>
    match _initializeFrameValues TD la' lg' lc rm,
          GVsSig.(lift_op1) (fit_gv TD t) gv t with
    | Some (lc',rm'), Some gv' =>
      if isPointerTypB t then
        match opmd with
-       | None => 
+       | None =>
            Some (prop_reg_metadata lc' rm' id0 gv' null_md)
-       | Some md => 
+       | Some md =>
            Some (prop_reg_metadata lc' rm' id0 gv' md)
        end
      else Some (updateAddAL _ lc' id0 gv', rm')
    | _, _ => None
    end
-| ((t, _, id0)::la', nil) => 
+| ((t, _, id0)::la', nil) =>
    match _initializeFrameValues TD la' nil lc rm, gundef TD t with
    | Some (lc',rm'), Some gv =>
      if isPointerTypB t then
@@ -298,109 +298,109 @@ match (la, lg) with
 | _ => Some (lc, rm)
 end.
 
-Definition initLocals TD (la:args) (lg:list (GVs*option metadata)) 
+Definition initLocals TD (la:args) (lg:list (GVs*option metadata))
   : option (GVsMap * rmetadata) :=
 _initializeFrameValues TD la lg nil nil.
 
 Inductive sInsn_delta : Config -> State -> State -> trace -> Prop :=
-| sReturn : forall S TD Ps F B rid RetTy Result lc rm gl fs F' B' c' cs' tmn' 
-    lc' rm' EC Mem MM Mem' als als' lc'' rm'',   
+| sReturn : forall S TD Ps F B rid RetTy Result lc rm gl fs F' B' c' cs' tmn'
+    lc' rm' EC Mem MM Mem' als als' lc'' rm'',
   returnUpdateLocals TD c' RetTy Result lc lc' rm rm' gl = Some (lc'', rm'') ->
   sInsn_delta (mkCfg S TD Ps gl fs)
-    (mkState 
+    (mkState
       ((mkEC F B nil (insn_return rid RetTy Result) lc rm als)::
        (mkEC F' B' (c'::cs') tmn' lc' rm' als')::EC) Mem MM)
     (mkState ((mkEC F' B' cs' tmn' lc'' rm'' als')::EC) Mem' MM) E0
 
-| sReturnVoid : forall S TD Ps F B rid lc rm gl fs F' B' c' tmn' lc' rm' EC cs' 
-    Mem MM Mem' als als',   
-  sInsn_delta (mkCfg S TD Ps gl fs) 
-    (mkState 
+| sReturnVoid : forall S TD Ps F B rid lc rm gl fs F' B' c' tmn' lc' rm' EC cs'
+    Mem MM Mem' als als',
+  sInsn_delta (mkCfg S TD Ps gl fs)
+    (mkState
       ((mkEC F B nil (insn_return_void rid) lc rm als)::
        (mkEC F' B' (c'::cs') tmn' lc' rm' als')::EC) Mem MM)
     (mkState ((mkEC F' B' cs' tmn' lc' rm' als')::EC) Mem' MM) E0
 
-| sBranch : forall S TD Ps F B lc rm gl fs bid Cond l1 l2 l' ps' cs' tmn' lc' 
-    rm' EC Mem MM als,   
-  switchToNewBasicBlock TD (block_intro l' ps' cs' tmn') B gl lc rm = 
+| sBranch : forall S TD Ps F B lc rm gl fs bid Cond l1 l2 l' ps' cs' tmn' lc'
+    rm' EC Mem MM als,
+  switchToNewBasicBlock TD (block_intro l' ps' cs' tmn') B gl lc rm =
     Some (lc', rm') ->
-  sInsn_delta (mkCfg S TD Ps gl fs)  
+  sInsn_delta (mkCfg S TD Ps gl fs)
     (mkState ((mkEC F B nil (insn_br bid Cond l1 l2) lc rm als)::EC) Mem MM)
-    (mkState ((mkEC F (block_intro l' ps' cs' tmn') cs' tmn' lc' rm' als)::EC) 
+    (mkState ((mkEC F (block_intro l' ps' cs' tmn') cs' tmn' lc' rm' als)::EC)
       Mem MM) E0
 
 | sBranch_uncond : forall S TD Ps F B lc rm gl fs bid l l' ps' cs' tmn' lc' rm'
-    EC Mem MM als,   
-  switchToNewBasicBlock TD (block_intro l' ps' cs' tmn') B gl lc rm = 
+    EC Mem MM als,
+  switchToNewBasicBlock TD (block_intro l' ps' cs' tmn') B gl lc rm =
     Some (lc', rm') ->
-  sInsn_delta (mkCfg S TD Ps gl fs)  
+  sInsn_delta (mkCfg S TD Ps gl fs)
     (mkState ((mkEC F B nil (insn_br_uncond bid l) lc rm als)::EC) Mem MM)
-    (mkState ((mkEC F (block_intro l' ps' cs' tmn') cs' tmn' lc' rm' als)::EC) 
+    (mkState ((mkEC F (block_intro l' ps' cs' tmn') cs' tmn' lc' rm' als)::EC)
       Mem MM) E0
 
 | sBop: forall cfg F B lc rm id bop sz v1 v2 lc' EC cs tmn Mem MM als,
   sInsn_delta cfg
-    (mkState ((mkEC F B ((insn_bop id bop sz v1 v2)::cs) tmn lc rm als)::EC) 
-      Mem MM) 
+    (mkState ((mkEC F B ((insn_bop id bop sz v1 v2)::cs) tmn lc rm als)::EC)
+      Mem MM)
     (mkState ((mkEC F B cs tmn lc' rm als)::EC) Mem MM) E0
 
-| sFBop: forall cfg F B lc rm id fbop fp v1 v2 lc' EC cs tmn Mem MM 
+| sFBop: forall cfg F B lc rm id fbop fp v1 v2 lc' EC cs tmn Mem MM
     als,
   sInsn_delta cfg
-    (mkState ((mkEC F B ((insn_fbop id fbop fp v1 v2)::cs) tmn lc rm als)::EC) 
-      Mem MM) 
+    (mkState ((mkEC F B ((insn_fbop id fbop fp v1 v2)::cs) tmn lc rm als)::EC)
+      Mem MM)
     (mkState ((mkEC F B cs tmn lc' rm als)::EC) Mem MM) E0
 
-| sExtractValue : forall cfg F B lc rm id t v lc' idxs EC cs tmn 
+| sExtractValue : forall cfg F B lc rm id t v lc' idxs EC cs tmn
     Mem MM als,
   sInsn_delta cfg
-    (mkState 
-      ((mkEC F B ((insn_extractvalue id t v idxs)::cs) tmn lc rm als)::EC) 
-      Mem MM) 
+    (mkState
+      ((mkEC F B ((insn_extractvalue id t v idxs)::cs) tmn lc rm als)::EC)
+      Mem MM)
     (mkState ((mkEC F B cs tmn lc' rm als)::EC) Mem MM) E0
 
-| sInsertValue : forall cfg F B lc rm id t v t' v' lc' idxs 
+| sInsertValue : forall cfg F B lc rm id t v t' v' lc' idxs
     EC cs tmn Mem MM als,
   sInsn_delta cfg
     (mkState
       ((mkEC F B ((insn_insertvalue id t v t' v' idxs)::cs) tmn lc rm als)
-      ::EC) Mem MM) 
+      ::EC) Mem MM)
     (mkState ((mkEC F B cs tmn lc' rm als)::EC) Mem MM) E0
 
-| sMalloc : forall S TD Ps F B lc rm gl fs id t v gn align EC cs tmn Mem MM als 
+| sMalloc : forall S TD Ps F B lc rm gl fs id t v gn align EC cs tmn Mem MM als
     Mem' tsz mb lc' rm' n gns,
   getTypeAllocSize TD t = Some tsz ->
   getOperandValue TD v lc gl = Some gns ->
   gn @ gns ->
   malloc TD Mem tsz gn align = Some (Mem', mb) ->
   GV2int TD Size.ThirtyTwo gn = Some n ->
-  prop_reg_metadata lc rm id ($ (blk2GV TD mb) # typ_pointer t $) 
+  prop_reg_metadata lc rm id ($ (blk2GV TD mb) # typ_pointer t $)
     (bound2MD mb tsz n) = (lc',rm') ->
-  sInsn_delta (mkCfg S TD Ps gl fs)  
-    (mkState ((mkEC F B ((insn_malloc id t v align)::cs) tmn lc rm als)::EC) 
-       Mem MM) 
+  sInsn_delta (mkCfg S TD Ps gl fs)
+    (mkState ((mkEC F B ((insn_malloc id t v align)::cs) tmn lc rm als)::EC)
+       Mem MM)
     (mkState ((mkEC F B cs tmn lc' rm' als)::EC) Mem' MM) E0
 
 | sFree : forall cfg F B lc rm fid t v EC cs tmn Mem als Mem' MM,
   sInsn_delta cfg
-    (mkState ((mkEC F B ((insn_free fid t v)::cs) tmn lc rm als)::EC) Mem MM) 
+    (mkState ((mkEC F B ((insn_free fid t v)::cs) tmn lc rm als)::EC) Mem MM)
     (mkState ((mkEC F B cs tmn lc rm als)::EC) Mem' MM) E0
 
-| sAlloca : forall S TD Ps F B lc rm gl fs id t v gn align EC cs tmn Mem MM als 
+| sAlloca : forall S TD Ps F B lc rm gl fs id t v gn align EC cs tmn Mem MM als
     Mem' tsz mb lc' rm' n gns,
   getTypeAllocSize TD t = Some tsz ->
   getOperandValue TD v lc gl = Some gns ->
   gn @ gns ->
   malloc TD Mem tsz gn align = Some (Mem', mb) ->
   GV2int TD Size.ThirtyTwo gn = Some n ->
-  prop_reg_metadata lc rm id ($(blk2GV TD mb) # typ_pointer t$) 
+  prop_reg_metadata lc rm id ($(blk2GV TD mb) # typ_pointer t$)
     (bound2MD mb tsz n) = (lc',rm') ->
-  sInsn_delta (mkCfg S TD Ps gl fs)  
+  sInsn_delta (mkCfg S TD Ps gl fs)
     (mkState
-      ((mkEC F B ((insn_alloca id t v align)::cs) tmn lc rm als)::EC) Mem MM) 
+      ((mkEC F B ((insn_alloca id t v align)::cs) tmn lc rm als)::EC) Mem MM)
     (mkState ((mkEC F B cs tmn lc' rm' (mb::als))::EC) Mem' MM) E0
 
-| sLoad_nptr : forall S TD Ps F B lc rm gl fs id t align vp EC cs tmn Mem als 
+| sLoad_nptr : forall S TD Ps F B lc rm gl fs id t align vp EC cs tmn Mem als
     gvp gv MM md gvps,
   get_reg_metadata TD gl rm vp = Some md ->
   getOperandValue TD vp lc gl = Some gvps ->
@@ -408,14 +408,14 @@ Inductive sInsn_delta : Config -> State -> State -> trace -> Prop :=
   assert_mptr TD t gvp md ->
   mload TD Mem gvp t align = Some gv ->
   isPointerTypB t = false ->
-  sInsn_delta (mkCfg S TD Ps gl fs)  
+  sInsn_delta (mkCfg S TD Ps gl fs)
     (mkState
-      ((mkEC F B ((insn_load id t vp align)::cs) tmn lc rm als)::EC) Mem MM) 
+      ((mkEC F B ((insn_load id t vp align)::cs) tmn lc rm als)::EC) Mem MM)
     (mkState
       ((mkEC F B cs tmn (updateAddAL _ lc id ($ gv # t $)) rm als)::EC) Mem MM) 
     E0
 
-| sLoad_ptr : forall S TD Ps F B lc rm gl fs id t align vp EC cs tmn Mem MM als 
+| sLoad_ptr : forall S TD Ps F B lc rm gl fs id t align vp EC cs tmn Mem MM als
     gvp gv md md' lc' rm' gvps,
   get_reg_metadata TD gl rm vp = Some md ->
   getOperandValue TD vp lc gl = Some gvps ->
@@ -423,11 +423,11 @@ Inductive sInsn_delta : Config -> State -> State -> trace -> Prop :=
   assert_mptr TD t gvp md ->
   mload TD Mem gvp t align = Some gv ->
   isPointerTypB t = true ->
-  get_mem_metadata TD MM gvp = md' -> 
+  get_mem_metadata TD MM gvp = md' ->
   prop_reg_metadata lc rm id ($ gv # t $) md' = (lc', rm') ->
-  sInsn_delta (mkCfg S TD Ps gl fs)  
-    (mkState 
-      ((mkEC F B ((insn_load id t vp align)::cs) tmn lc rm als)::EC) Mem MM) 
+  sInsn_delta (mkCfg S TD Ps gl fs)
+    (mkState
+      ((mkEC F B ((insn_load id t vp align)::cs) tmn lc rm als)::EC) Mem MM)
     (mkState ((mkEC F B cs tmn lc' rm' als)::EC) Mem MM) E0
 
 | sStore_nptr : forall S TD Ps F B lc rm gl fs sid t align v vp EC cs tmn Mem MM
@@ -439,9 +439,9 @@ Inductive sInsn_delta : Config -> State -> State -> trace -> Prop :=
   assert_mptr TD t gvp md ->
   mstore TD Mem gvp t gv align = Some Mem' ->
   isPointerTypB t = false ->
-  sInsn_delta (mkCfg S TD Ps gl fs)  
+  sInsn_delta (mkCfg S TD Ps gl fs)
     (mkState
-      ((mkEC F B ((insn_store sid t v vp align)::cs) tmn lc rm als)::EC) Mem MM) 
+      ((mkEC F B ((insn_store sid t v vp align)::cs) tmn lc rm als)::EC) Mem MM)
     (mkState ((mkEC F B cs tmn lc rm als)::EC) Mem' MM) E0
 
 | sStore_ptr : forall S TD Ps F B lc rm gl fs sid t align v vp EC cs tmn Mem MM
@@ -454,33 +454,33 @@ Inductive sInsn_delta : Config -> State -> State -> trace -> Prop :=
   mstore TD Mem gvp t gv align = Some Mem' ->
   isPointerTypB t = true ->
   get_reg_metadata TD gl rm v = Some md' ->
-  set_mem_metadata TD MM gvp md' = MM' -> 
-  sInsn_delta (mkCfg S TD Ps gl fs)  
-    (mkState 
+  set_mem_metadata TD MM gvp md' = MM' ->
+  sInsn_delta (mkCfg S TD Ps gl fs)
+    (mkState
       ((mkEC F B ((insn_store sid t v vp align)::cs) tmn lc rm als)::EC) Mem MM)
     (mkState ((mkEC F B cs tmn lc rm als)::EC) Mem' MM') E0
 
-| sGEP : forall S TD Ps F B lc rm gl fs id inbounds t vp idxs EC  
+| sGEP : forall S TD Ps F B lc rm gl fs id inbounds t vp idxs EC
                  cs tmn Mem MM als lc' rm' md,
   get_reg_metadata TD gl rm vp = Some md ->
   updateAddAL _ rm id md = rm' ->
-  sInsn_delta (mkCfg S TD Ps gl fs)  
+  sInsn_delta (mkCfg S TD Ps gl fs)
     (mkState
-      ((mkEC F B ((insn_gep id inbounds t vp idxs)::cs) tmn lc rm als)::EC) 
+      ((mkEC F B ((insn_gep id inbounds t vp idxs)::cs) tmn lc rm als)::EC)
       Mem MM)
     (mkState ((mkEC F B cs tmn lc' rm' als)::EC) Mem MM) E0
 
 | sTrunc : forall cfg F B lc rm id truncop t1 v1 t2 lc' EC cs tmn Mem MM als,
   sInsn_delta cfg
     (mkState
-      ((mkEC F B ((insn_trunc id truncop t1 v1 t2)::cs) tmn lc rm als)::EC) 
-       Mem MM) 
+      ((mkEC F B ((insn_trunc id truncop t1 v1 t2)::cs) tmn lc rm als)::EC)
+       Mem MM)
     (mkState ((mkEC F B cs tmn lc' rm als)::EC) Mem MM) E0
 
 | sExt : forall cfg F B lc rm id extop t1 v1 t2 lc' EC cs tmn Mem MM als,
   sInsn_delta cfg
     (mkState
-      ((mkEC F B ((insn_ext id extop t1 v1 t2)::cs) tmn lc rm als)::EC) Mem MM) 
+      ((mkEC F B ((insn_ext id extop t1 v1 t2)::cs) tmn lc rm als)::EC) Mem MM)
     (mkState ((mkEC F B cs tmn lc' rm als)::EC) Mem MM) E0
 
 | sBitcast_nptr : forall cfg F B lc rm id t1 v1 t2 lc' EC cs tmn Mem MM als,
@@ -488,7 +488,7 @@ Inductive sInsn_delta : Config -> State -> State -> trace -> Prop :=
   sInsn_delta cfg
     (mkState
       ((mkEC F B ((insn_cast id castop_bitcast t1 v1 t2)::cs) tmn lc rm als)
-        ::EC) Mem MM) 
+        ::EC) Mem MM)
     (mkState ((mkEC F B cs tmn lc' rm als)::EC) Mem MM) E0
 
 | sBitcast_ptr : forall S TD Ps F B lc rm gl fs id t1 v1 t2 EC cs tmn Mem MM
@@ -496,48 +496,48 @@ Inductive sInsn_delta : Config -> State -> State -> trace -> Prop :=
   isPointerTypB t1 = true ->
   get_reg_metadata TD gl rm v1 = Some md ->
   updateAddAL _ rm id md = rm' ->
-  sInsn_delta (mkCfg S TD Ps gl fs)  
+  sInsn_delta (mkCfg S TD Ps gl fs)
     (mkState
       ((mkEC F B ((insn_cast id castop_bitcast t1 v1 t2)::cs) tmn lc rm als)
-        ::EC) Mem MM) 
+        ::EC) Mem MM)
     (mkState ((mkEC F B cs tmn lc' rm' als)::EC) Mem MM) E0
 
 | sInttoptr : forall cfg F B lc rm id t1 v1 t2 EC cs tmn Mem MM als lc' rm',
   updateAddAL _ rm id null_md = rm' ->
   sInsn_delta cfg
-    (mkState  
+    (mkState
       ((mkEC F B ((insn_cast id castop_inttoptr t1 v1 t2)::cs) tmn lc rm als)
-        ::EC) Mem MM) 
+        ::EC) Mem MM)
     (mkState ((mkEC F B cs tmn lc' rm' als)::EC) Mem MM) E0
 
 | sOtherCast : forall cfg F B lc rm id castop t1 v1 t2 lc' EC cs tmn Mem MM als,
   castop <> castop_bitcast /\ castop <> castop_inttoptr ->
-  sInsn_delta cfg  
-    (mkState  
-      ((mkEC F B ((insn_cast id castop t1 v1 t2)::cs) tmn lc rm als)::EC) 
-       Mem MM) 
+  sInsn_delta cfg
+    (mkState
+      ((mkEC F B ((insn_cast id castop t1 v1 t2)::cs) tmn lc rm als)::EC)
+       Mem MM)
     (mkState ((mkEC F B cs tmn lc' rm als)::EC) Mem MM) E0
 
 | sIcmp : forall cfg F B lc rm id cond t v1 v2 lc' EC cs tmn Mem MM als,
   sInsn_delta cfg
     (mkState
-      ((mkEC F B ((insn_icmp id cond t v1 v2)::cs) tmn lc rm als)::EC) 
-       Mem MM) 
+      ((mkEC F B ((insn_icmp id cond t v1 v2)::cs) tmn lc rm als)::EC)
+       Mem MM)
     (mkState ((mkEC F B cs tmn lc' rm als)::EC) Mem MM) E0
 
 | sFcmp : forall cfg F B lc rm id fcond fp v1 v2 lc' EC cs tmn Mem MM als,
   sInsn_delta cfg
     (mkState
-      ((mkEC F B ((insn_fcmp id fcond fp v1 v2)::cs) tmn lc rm als)::EC) 
-       Mem MM) 
+      ((mkEC F B ((insn_fcmp id fcond fp v1 v2)::cs) tmn lc rm als)::EC)
+       Mem MM)
     (mkState ((mkEC F B cs tmn lc' rm als)::EC) Mem MM) E0
 
 | sSelect_nptr : forall cfg F B lc rm id v0 t v1 v2 EC cs tmn Mem MM als lc',
   isPointerTypB t = false ->
   sInsn_delta cfg
-    (mkState 
-      ((mkEC F B ((insn_select id v0 t v1 v2)::cs) tmn lc rm als)::EC) 
-       Mem MM) 
+    (mkState
+      ((mkEC F B ((insn_select id v0 t v1 v2)::cs) tmn lc rm als)::EC)
+       Mem MM)
     (mkState ((mkEC F B cs tmn lc' rm als)::EC) Mem MM) E0
 
 | sSelect_ptr : forall S TD Ps F B lc rm gl fs id v0 t v1 v2 c EC cs tmn Mem MM
@@ -549,55 +549,55 @@ Inductive sInsn_delta : Config -> State -> State -> trace -> Prop :=
   isPointerTypB t = true ->
   get_reg_metadata TD gl rm v1 = Some md1 ->
   get_reg_metadata TD gl rm v2 = Some md2 ->
-  sInsn_delta (mkCfg S TD Ps gl fs)  
+  sInsn_delta (mkCfg S TD Ps gl fs)
     (mkState
-      ((mkEC F B ((insn_select id v0 t v1 v2)::cs) tmn lc rm als)::EC) 
-      Mem MM) 
+      ((mkEC F B ((insn_select id v0 t v1 v2)::cs) tmn lc rm als)::EC)
+      Mem MM)
     (mkState
-      ((mkEC F B cs tmn 
-        (if isGVZero TD c 
+      ((mkEC F B cs tmn
+        (if isGVZero TD c
          then updateAddAL _ lc id gv2
          else updateAddAL _ lc id gv1)
-        (if isGVZero TD c 
+        (if isGVZero TD c
          then updateAddAL _ rm id md2
          else updateAddAL _ rm id md1)
-        als)::EC) 
+        als)::EC)
       Mem MM) E0
 
 | sCall : forall S TD Ps F B lc rm gl fs rid noret ca fid fv lp cs tmn ogvs
              ft l' ps' cs' tmn' EC fa rt la va lb Mem MM als rm' lc',
-  (* only look up the current module for the time being, 
+  (* only look up the current module for the time being,
      do not support linkage. *)
   params2GVs TD lp lc gl rm = Some ogvs ->
   initLocals TD la ogvs = Some (lc', rm') ->
-  sInsn_delta (mkCfg S TD Ps gl fs)  
-    (mkState 
+  sInsn_delta (mkCfg S TD Ps gl fs)
+    (mkState
       ((mkEC F B ((insn_call rid noret ca ft fv lp)::cs) tmn lc rm als)
         ::EC) Mem MM)
-    (mkState 
-      ((mkEC (fdef_intro (fheader_intro fa rt fid la va) lb) 
-                (block_intro l' ps' cs' tmn') cs' tmn' 
+    (mkState
+      ((mkEC (fdef_intro (fheader_intro fa rt fid la va) lb)
+                (block_intro l' ps' cs' tmn') cs' tmn'
                 lc' rm' nil)::
        (mkEC F B ((insn_call rid noret ca ft fv lp)::cs) tmn lc rm als)
          ::EC) Mem MM) E0
 
 | sExCall : forall S TD Ps F B lc rm gl fs rid noret ca fid fv lp cs tmn EC dck
         gvss fptr fptrs rt fa ft la va Mem als oresult Mem' lc' rm' MM gvs tr,
-  (* only look up the current module for the time being, 
-     do not support linkage. 
+  (* only look up the current module for the time being,
+     do not support linkage.
      FIXME: should add excall to trace
   *)
-  getOperandValue TD fv lc gl = Some fptrs -> 
-  fptr @ fptrs -> 
-  lookupExFdecViaPtr Ps fs fptr = 
+  getOperandValue TD fv lc gl = Some fptrs ->
+  fptr @ fptrs ->
+  lookupExFdecViaPtr Ps fs fptr =
     Some (fdec_intro (fheader_intro fa rt fid la va) dck) ->
   Opsem.params2GVs TD lp lc gl = Some gvss ->
   gvs @@ gvss ->
   callExternalOrIntrinsics 
     TD gl Mem fid rt (args2Typs la) dck gvs = Some (oresult, tr, Mem') ->
   exCallUpdateLocals TD ft noret rid oresult lc rm = Some (lc',rm') ->
-  sInsn_delta (mkCfg S TD Ps gl fs)  
-    (mkState  
+  sInsn_delta (mkCfg S TD Ps gl fs)
+    (mkState
       ((mkEC F B ((insn_call rid noret ca ft fv lp)::cs) tmn lc rm als)
        ::EC) Mem MM)
     (mkState ((mkEC F B cs tmn lc' rm' als)::EC) Mem' MM) tr
@@ -618,7 +618,7 @@ Definition sbEC__EC (ec : ExecutionContext) : Opsem.ExecutionContext :=
 let '(mkEC f b cs tmn lc _ als) := ec in
 Opsem.mkEC f b cs tmn lc als.
 
-Definition sbECs__ECs (ecs : ECStack) : Opsem.ECStack := 
+Definition sbECs__ECs (ecs : ECStack) : Opsem.ECStack :=
 List.map sbEC__EC ecs.
 
 Definition sbState__State (st : State) : Opsem.State :=
@@ -653,7 +653,7 @@ CoInductive sop_diverges : Config -> State -> traceinf -> Prop :=
     sop_diverges cfg state1 (Eappinf tr1 tr2)
 .
 
-End SBspec. 
+End SBspec.
 
 Ltac invert_prop_reg_metadata :=
   match goal with
@@ -669,13 +669,13 @@ Tactic Notation "sb_sInsn_cases" tactic(first) tactic(c) :=
   first;
   [ c "sReturn" | c "sReturnVoid" | c "sBranch" | c "sBranch_uncond" |
     c "sBop" | c "sFBop" | c "sExtractValue" | c "sInsertValue" |
-    c "sMalloc" | c "sFree" | c "sAlloca" | 
-    c "sLoad_nptr" | c "sLoad_ptr" | 
-    c "sStore_nptr" | c "sStore_ptr" | 
-    c "sGEP" | c "sTrunc" | c "sExt" | 
-    c "sBitcast_nptr" | c "sBitcast_ptr" | c "sInttoptr" | c "sOthercast" | 
-    c "sIcmp" | c "sFcmp" | 
-    c "sSelect_nptr" | c "sSelect_ptr" |  
+    c "sMalloc" | c "sFree" | c "sAlloca" |
+    c "sLoad_nptr" | c "sLoad_ptr" |
+    c "sStore_nptr" | c "sStore_ptr" |
+    c "sGEP" | c "sTrunc" | c "sExt" |
+    c "sBitcast_nptr" | c "sBitcast_ptr" | c "sInttoptr" | c "sOthercast" |
+    c "sIcmp" | c "sFcmp" |
+    c "sSelect_nptr" | c "sSelect_ptr" |
     c "sCall" | c "sExCall" ].
 
 

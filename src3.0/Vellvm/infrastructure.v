@@ -41,19 +41,19 @@ Definition noret_dec : forall x y : noret, {x=y} + {x<>y} := bool_dec.
   Definition lset_add (l1:l) (ls2:ls) := set_add eq_dec l1 ls2.
   Definition lset_union (ls1 ls2:ls) := set_union eq_dec ls1 ls2.
   Definition lset_inter (ls1 ls2:ls) := set_inter eq_dec ls1 ls2.
-  Definition lset_eqb (ls1 ls2:ls) := 
+  Definition lset_eqb (ls1 ls2:ls) :=
     match (lset_inter ls1 ls2) with
     | nil => true
     | _ => false
     end.
-  Definition lset_neqb (ls1 ls2:ls) := 
+  Definition lset_neqb (ls1 ls2:ls) :=
     match (lset_inter ls1 ls2) with
     | nil => false
     | _ => true
     end.
   Definition lset_eq (ls1 ls2:ls) := lset_eqb ls1 ls2 = true.
-  Definition lset_neq (ls1 ls2:ls) := lset_neqb ls1 ls2 = true. 
-  Definition lset_single (l0:l) := lset_add l0 (lempty_set). 
+  Definition lset_neq (ls1 ls2:ls) := lset_neqb ls1 ls2 = true.
+  Definition lset_single (l0:l) := lset_add l0 (lempty_set).
   Definition lset_mem (l0:l) (ls0:ls) := set_mem eq_dec l0 ls0.
 
 (**********************************)
@@ -66,22 +66,22 @@ Definition noret_dec : forall x y : noret, {x=y} + {x<>y} := bool_dec.
   (* | insn_extractelement id typ0 id0 c1 => id *)
   (* | insn_insertelement id typ0 id0 typ1 v1 c2 => id *)
   | insn_extractvalue id typs id0 c1 => id
-  | insn_insertvalue id typs id0 typ1 v1 c2 => id 
+  | insn_insertvalue id typs id0 typ1 v1 c2 => id
   | insn_malloc id _ _ _ => id
   | insn_free id _ _ => id
   | insn_alloca id _ _ _ => id
   | insn_load id typ1 v1 _ => id
   | insn_store id typ1 v1 v2 _ => id
   | insn_gep id _ _ _ _ => id
-  | insn_trunc id _ typ1 v1 typ2 => id 
+  | insn_trunc id _ typ1 v1 typ2 => id
   | insn_ext id _ sz1 v1 sz2 => id
   | insn_cast id _ typ1 v1 typ2 => id
   | insn_icmp id cond typ v1 v2 => id
-  | insn_fcmp id cond typ v1 v2 => id 
+  | insn_fcmp id cond typ v1 v2 => id
   | insn_select id v0 typ v1 v2 => id
   | insn_call id _ _ typ v0 paraml => id
   end.
- 
+
   Definition getTerminatorID (i:terminator) : id :=
   match i with
   | insn_return id t v => id
@@ -116,7 +116,7 @@ Definition noret_dec : forall x y : noret, {x=y} + {x<>y} := bool_dec.
   | insn_phinode p => true
   | insn_cmd c => false
   | insn_terminator t => false
-  end.  
+  end.
 
   Definition isPhiNode (i:insn) : Prop :=
   isPhiNodeB i = true.
@@ -124,22 +124,22 @@ Definition noret_dec : forall x y : noret, {x=y} + {x<>y} := bool_dec.
   Definition getCmdID (i:cmd) : option id :=
   match i with
   | insn_bop id _ sz v1 v2 => Some id
-  | insn_fbop id _ _ _ _ => Some id 
+  | insn_fbop id _ _ _ _ => Some id
   (* | insn_extractelement id typ0 id0 c1 => id *)
   (* | insn_insertelement id typ0 id0 typ1 v1 c2 => id *)
   | insn_extractvalue id typs id0 c1 => Some id
-  | insn_insertvalue id typs id0 typ1 v1 c2 => Some id 
+  | insn_insertvalue id typs id0 typ1 v1 c2 => Some id
   | insn_malloc id _ _ _ => Some id
   | insn_free id _ _ => None
   | insn_alloca id _ _ _ => Some id
   | insn_load id typ1 v1 _ => Some id
   | insn_store id typ1 v1 v2 _ => None
   | insn_gep id _ _ _ _ => Some id
-  | insn_trunc id _ typ1 v1 typ2 => Some id 
+  | insn_trunc id _ typ1 v1 typ2 => Some id
   | insn_ext id _ sz1 v1 sz2 => Some id
   | insn_cast id _ typ1 v1 typ2 => Some id
   | insn_icmp id cond typ v1 v2 => Some id
-  | insn_fcmp id cond typ v1 v2 => Some id 
+  | insn_fcmp id cond typ v1 v2 => Some id
   | insn_select id v0 typ v1 v2 => Some id
   | insn_call id nr _ typ v0 paraml => if nr then None else Some id
   end.
@@ -148,17 +148,14 @@ Fixpoint getCmdsIDs (cs:cmds) : list atom :=
 match cs with
 | nil => nil
 | c::cs' =>
-    match getCmdID c with 
+    match getCmdID c with
     | Some id1 => id1::getCmdsIDs cs'
     | None => getCmdsIDs cs'
     end
 end.
 
-Fixpoint getPhiNodesIDs (ps:phinodes) : list atom :=
-match ps with
-| nil => nil
-| p::ps' =>getPhiNodeID p::getPhiNodesIDs ps'
-end.
+Definition getPhiNodesIDs (ps:phinodes) : list atom :=
+  map getPhiNodeID ps.
 
 Definition getBlockIDs (b:block) : list atom :=
 let '(block_intro _ ps cs _) := b in
@@ -183,27 +180,27 @@ Lemma getCmdLoc_getCmdID : forall a i0,
 Proof.
   intros a i0 H.
   destruct_cmd a; inv H; auto.
-    simpl. 
+    simpl.
     match goal with
-    | H1: context [if ?n then _ else _] |- _ => 
+    | H1: context [if ?n then _ else _] |- _ =>
       destruct n; inv H1; auto
     end.
 Qed.
 
-Fixpoint mgetoffset_aux (TD:LLVMtd.TargetData) (t:typ) (idxs:list Z) (accum:Z) 
-  : option (Z * typ) := 
+Fixpoint mgetoffset_aux (TD:LLVMtd.TargetData) (t:typ) (idxs:list Z) (accum:Z)
+  : option (Z * typ) :=
   match idxs with
   | nil => Some (accum, t)
   | idx::idxs' =>
      match t with
      | typ_array _ t' =>
          match (LLVMtd.getTypeAllocSize TD t') with
-         | Some sz => 
+         | Some sz =>
              mgetoffset_aux TD t' idxs' (accum + (Z_of_nat sz) * idx)
          | _ => None
          end
-     | typ_struct lt => 
-         match (LLVMtd.getStructElementOffset TD t (Coqlib.nat_of_Z idx)) 
+     | typ_struct lt =>
+         match (LLVMtd.getStructElementOffset TD t (Coqlib.nat_of_Z idx))
          with
          | Some ofs =>
              do t' <- nth_list_typ (Coqlib.nat_of_Z idx) lt;
@@ -212,20 +209,20 @@ Fixpoint mgetoffset_aux (TD:LLVMtd.TargetData) (t:typ) (idxs:list Z) (accum:Z)
          end
      | _ => None
      end
-  end.  
+  end.
 
-Definition mgetoffset (TD:LLVMtd.TargetData) (t:typ) (idxs:list Z) 
-  : option (Z * typ) := 
+Definition mgetoffset (TD:LLVMtd.TargetData) (t:typ) (idxs:list Z)
+  : option (Z * typ) :=
 (*let (_, nts) := TD in
 do ut <- Constant.typ2utyp nts t;*)
 mgetoffset_aux TD t idxs 0.
 
-Fixpoint intConsts2Nats (TD:LLVMtd.TargetData) (lv:list_const) 
+Fixpoint intConsts2Nats (TD:LLVMtd.TargetData) (lv:list_const)
   : option (list Z):=
 match lv with
 | Nil_list_const => Some nil
-| Cons_list_const (const_int sz0 n) lv' => 
-  if Size.dec sz0 Size.ThirtyTwo 
+| Cons_list_const (const_int sz0 n) lv' =>
+  if Size.dec sz0 Size.ThirtyTwo
   then
     match (intConsts2Nats TD lv') with
     | Some ns => Some ((INTEGER.to_Z n)::ns)
@@ -239,11 +236,11 @@ end.
     anything without checking bounds. *)
 Fixpoint getSubTypFromConstIdxs (idxs : list_const) (t : typ) : option typ :=
 match idxs with
-| Nil_list_const => Some t 
-| Cons_list_const idx idxs' => 
+| Nil_list_const => Some t
+| Cons_list_const idx idxs' =>
   match t with
   | typ_array sz t' => getSubTypFromConstIdxs idxs' t'
-  | typ_struct lt => 
+  | typ_struct lt =>
     match idx with
     | (const_int sz i) =>
       match (nth_list_typ (INTEGER.to_nat i) lt) with
@@ -269,11 +266,11 @@ end.
 
 Fixpoint getSubTypFromValueIdxs (idxs : list_sz_value) (t : typ) : option typ :=
 match idxs with
-| Nil_list_sz_value => Some t 
-| Cons_list_sz_value _ idx idxs' => 
+| Nil_list_sz_value => Some t
+| Cons_list_sz_value _ idx idxs' =>
   match t with
   | typ_array sz t' => getSubTypFromValueIdxs idxs' t'
-  | typ_struct lt => 
+  | typ_struct lt =>
     match idx with
     | value_const (const_int sz i) =>
       match (nth_list_typ (INTEGER.to_nat i) lt) with
@@ -351,7 +348,7 @@ end.
 
 Definition getPointerEltTyp (t:typ) : option typ :=
 match t with
-| typ_pointer t' => Some t' 
+| typ_pointer t' => Some t'
 | _ => None
 end.
 
@@ -397,7 +394,7 @@ match i with
 | insn_alloca _ _ v _ => getValueIDs v
 | insn_load _ _ v _ => getValueIDs v
 | insn_store _ _ v1 v2 _ => getValueIDs v1 ++ getValueIDs v2
-| insn_gep _ _ _ v vs => 
+| insn_gep _ _ _ v vs =>
     getValueIDs v ++ values2ids (map_list_sz_value (fun _ v => v) vs)
 | insn_trunc _ _ _ v _ => getValueIDs v
 | insn_ext _ _ _ v1 typ2 => getValueIDs v1
@@ -446,7 +443,7 @@ end.
 
 Definition valueInInsnOperands (v0:value) (instr:insn) : Prop :=
 match instr with
-| insn_phinode (insn_phi _ _ ls) => 
+| insn_phinode (insn_phi _ _ ls) =>
     In v0 (list_prj1 _ _ (unmake_list_value_l ls))
 | insn_cmd c => valueInCmdOperands v0 c
 | insn_terminator tmn => valueInTmnOperands v0 tmn
@@ -490,11 +487,11 @@ match i with
 | insn_load _ _ _ _ => nil
 | insn_store _ _ _ _ _ => nil
 | insn_gep _ _ _ v  _ => nil
-| insn_trunc _ _ _ _ _ => nil 
+| insn_trunc _ _ _ _ _ => nil
 | insn_ext _ _ _ _ _ => nil
 | insn_cast _ _ _ _ _ => nil
 | insn_icmp _ _ _ _ _ => nil
-| insn_fcmp _ _ _ _ _ => nil 
+| insn_fcmp _ _ _ _ _ => nil
 | insn_select _ _ _ _ _ => nil
 | insn_call _ _ _ _ _ _ => nil
 end.
@@ -591,7 +588,7 @@ end.
 Fixpoint getLabelViaIDFromList (ls:list_value_l) (branch:id) : option l :=
 match ls with
 | Nil_list_value_l => None
-| Cons_list_value_l (value_id id) l ls' => 
+| Cons_list_value_l (value_id id) l ls' =>
   match (eq_dec id branch) with
   | left _ => Some l
   | right _ => getLabelViaIDFromList ls' branch
@@ -740,16 +737,16 @@ Fixpoint lookupCmdViaIDFromCmds (li:cmds) (id0:id) : option cmd :=
 match li with
 | nil => None
 | i::li' =>
-    if (eq_atom_dec id0 (getCmdLoc i)) 
+    if (eq_atom_dec id0 (getCmdLoc i))
     then Some i else lookupCmdViaIDFromCmds li' id0
 end.
 
-Fixpoint lookupPhiNodeViaIDFromPhiNodes (li:phinodes) (id0:id) 
+Fixpoint lookupPhiNodeViaIDFromPhiNodes (li:phinodes) (id0:id)
   : option phinode :=
 match li with
 | nil => None
 | i::li' =>
-    if (eq_dec (getPhiNodeID i) id0) then Some i 
+    if (eq_dec (getPhiNodeID i) id0) then Some i
     else lookupPhiNodeViaIDFromPhiNodes li' id0
 end.
 
@@ -757,19 +754,19 @@ Definition lookupInsnViaIDFromBlock (b:block) (id:id) : option insn :=
 match b with
 | block_intro l ps cs t =>
   match (lookupPhiNodeViaIDFromPhiNodes ps id) with
-  | None => 
+  | None =>
       match (lookupCmdViaIDFromCmds cs id) with
       | None => None
       | Some c => Some (insn_cmd c)
       end
-  | Some re => Some (insn_phinode re)    
+  | Some re => Some (insn_phinode re)
   end
 end.
 
 Fixpoint lookupInsnViaIDFromBlocks (lb:blocks) (id:id) : option insn :=
 match lb with
 | nil => None
-| b::lb' => 
+| b::lb' =>
   match (lookupInsnViaIDFromBlock b id) with
   | None => lookupInsnViaIDFromBlocks lb' id
   | re => re
@@ -780,10 +777,10 @@ Definition lookupInsnViaIDFromFdef (f:fdef) (id0:id) : option insn :=
 let '(fdef_intro _ bs) := f in lookupInsnViaIDFromBlocks bs id0.
 
 Fixpoint lookupArgViaIDFromArgs (la:args) (id0:id) : option arg :=
-match la with 
+match la with
 | nil => None
-| (t, attrs, id')::la' => 
-    if (eq_dec id' id0) then Some (t, attrs, id') 
+| (t, attrs, id')::la' =>
+    if (eq_dec id' id0) then Some (t, attrs, id')
     else lookupArgViaIDFromArgs la' id0
 end.
 
@@ -791,8 +788,8 @@ end.
 
 Fixpoint lookupBlockViaIDFromBlocks (lb:blocks) (id1:id) : option block :=
 match lb with
-| nil => None  
-| b::lb' => 
+| nil => None
+| b::lb' =>
   match (In_dec eq_dec id1 (getBlockIDs b)) with
   | left _ => Some b
   | right _ => lookupBlockViaIDFromBlocks lb' id1
@@ -815,7 +812,7 @@ end.
 Fixpoint lookupFdecViaIDFromProducts (lp:products) (i:id) : option fdec :=
 match lp with
 | nil => None
-| p::lp' => 
+| p::lp' =>
   match (lookupFdecViaIDFromProduct p i) with
   | Some fd => Some fd
   | None => lookupFdecViaIDFromProducts lp' i
@@ -823,13 +820,13 @@ match lp with
 end.
 
 Definition lookupFdecViaIDFromModule (m:module) (i:id) : option fdec :=
-  let (os, dts, ps) := m in 
+  let (os, dts, ps) := m in
   lookupFdecViaIDFromProducts ps i.
 
 Fixpoint lookupFdecViaIDFromModules (lm:modules) (i:id) : option fdec :=
 match lm with
 | nil => None
-| m::lm' => 
+| m::lm' =>
   match (lookupFdecViaIDFromModule m i) with
   | Some fd => Some fd
   | None => lookupFdecViaIDFromModules lm' i
@@ -848,7 +845,7 @@ end.
 Fixpoint lookupFdefViaIDFromProducts (lp:products) (i:id) : option fdef :=
 match lp with
 | nil => None
-| p::lp' => 
+| p::lp' =>
   match (lookupFdefViaIDFromProduct p i) with
   | Some fd => Some fd
   | None => lookupFdefViaIDFromProducts lp' i
@@ -856,13 +853,13 @@ match lp with
 end.
 
 Definition lookupFdefViaIDFromModule (m:module) (i:id) : option fdef :=
-  let (os, dts, ps) := m in 
+  let (os, dts, ps) := m in
   lookupFdefViaIDFromProducts ps i.
 
 Fixpoint lookupFdefViaIDFromModules (lm:modules) (i:id) : option fdef :=
 match lm with
 | nil => None
-| m::lm' => 
+| m::lm' =>
   match (lookupFdefViaIDFromModule m i) with
   | Some fd => Some fd
   | None => lookupFdefViaIDFromModules lm' i
@@ -877,10 +874,10 @@ lookupFdefViaIDFromModules s i.
 Definition lookupTypViaIDFromCmd (i:cmd) (id0:id) : option typ :=
 match (getCmdTyp i) with
 | None => None
-| Some t => 
+| Some t =>
   match (getCmdLoc i) with
-  | id0' => 
-    if (eq_dec id0 id0') 
+  | id0' =>
+    if (eq_dec id0 id0')
     then Some t
     else None
   end
@@ -895,13 +892,13 @@ match li with
   | None => lookupTypViaIDFromCmds li' id0
   end
 end.
-    
+
 Definition lookupTypViaIDFromPhiNode (i:phinode) (id0:id) : option typ :=
 match (getPhiNodeTyp i) with
-| t => 
+| t =>
   match (getPhiNodeID i) with
-  | id0' => 
-    if (eq_dec id0 id0') 
+  | id0' =>
+    if (eq_dec id0 id0')
     then Some t
     else None
   end
@@ -919,10 +916,10 @@ end.
 
 Definition lookupTypViaIDFromTerminator (i:terminator) (id0:id) : option typ :=
 match (getTerminatorTyp i) with
-| t => 
+| t =>
   match (getTerminatorID i) with
-  | id0' => 
-    if (eq_dec id0 id0') 
+  | id0' =>
+    if (eq_dec id0 id0')
     then Some t
     else None
   end
@@ -932,12 +929,12 @@ Definition lookupTypViaIDFromBlock (b:block) (id0:id) : option typ :=
 match b with
 | block_intro l ps cs t =>
   match (lookupTypViaIDFromPhiNodes ps id0) with
-  | None => 
+  | None =>
     match (lookupTypViaIDFromCmds cs id0) with
     | None => lookupTypViaIDFromTerminator t id0
     | re => re
     end
-  | re => re    
+  | re => re
   end
 end.
 
@@ -954,13 +951,13 @@ end.
 Fixpoint lookupTypViaIDFromArgs (la:args) (id0:id) : option typ :=
 match la with
 | nil => None
-| (t1,_,id1)::la' => 
+| (t1,_,id1)::la' =>
     if (id0==id1) then Some t1 else lookupTypViaIDFromArgs la' id0
 end.
 
 Definition lookupTypViaIDFromFdef (fd:fdef) (id0:id) : option typ :=
 match fd with
-| (fdef_intro (fheader_intro _ _ _ la _ ) lb) => 
+| (fdef_intro (fheader_intro _ _ _ la _ ) lb) =>
     match lookupTypViaIDFromArgs la id0 with
     | None => lookupTypViaIDFromBlocks lb id0
     | Some t => Some t
@@ -986,9 +983,9 @@ match lp with
 end.
 
 Definition lookupTypViaGIDFromModule (m:module) (id0:id) : option typ :=
-  let (os, dts, ps) := m in  
+  let (os, dts, ps) := m in
   lookupTypViaGIDFromProducts ps id0.
-     
+
 Fixpoint lookupTypViaGIDFromModules (lm:modules) (id0:id) : option typ :=
 match lm with
 | nil => None
@@ -1006,15 +1003,15 @@ Fixpoint lookupTypViaTIDFromNamedts (nts:namedts) (id0:id) : option typ :=
 match nts with
 | nil => None
 | (id1, typ1)::nts' =>
-  if (eq_dec id0 id1) 
+  if (eq_dec id0 id1)
   then Some (typ_struct typ1)
   else lookupTypViaTIDFromNamedts nts' id0
 end.
 
 Definition lookupTypViaTIDFromModule (m:module) (id0:id) : option typ :=
-  let (os, dts, ps) := m in  
+  let (os, dts, ps) := m in
   lookupTypViaTIDFromNamedts dts id0.
-     
+
 Fixpoint lookupTypViaTIDFromModules (lm:modules) (id0:id) : option typ :=
 match lm with
 | nil => None
@@ -1036,21 +1033,21 @@ lookupTypViaTIDFromModules s id0.
   Definition genLabel2Block_block (b:block) : l2block :=
   match b with
   | block_intro l _ _ _ => (l,b)::nil
-  end.  
+  end.
 
   Fixpoint genLabel2Block_blocks (bs:blocks) : l2block :=
-  match bs with 
+  match bs with
   | nil => nil
   | b::bs' => (genLabel2Block_block b)++(genLabel2Block_blocks bs')
   end.
 
-  Definition genLabel2Block_fdef (f:fdef) : l2block := 
+  Definition genLabel2Block_fdef (f:fdef) : l2block :=
   match f with
   | fdef_intro fheader blocks => genLabel2Block_blocks blocks
   end.
 
   Fixpoint genLabel2Block_product (p:product) : l2block :=
-  match p with 
+  match p with
   | product_gvar g => nil
   | product_fdef f => (genLabel2Block_fdef f)
   | product_fdec f => nil
@@ -1068,12 +1065,12 @@ lookupTypViaTIDFromModules s id0.
 
   Definition getNonEntryOfFdef (f:fdef) : blocks :=
   match f with
-  | fdef_intro fheader blocks => 
+  | fdef_intro fheader blocks =>
     match blocks with
     | nil => nil
     | b::blocks' => blocks'
-    end 
-  end.  
+    end
+  end.
 
   Definition lookupBlockViaLabelFromBlocks (bs:blocks) (l0:l) : option block :=
   lookupAL _ (genLabel2Block_blocks bs) l0.
@@ -1081,7 +1078,7 @@ lookupTypViaTIDFromModules s id0.
   Definition lookupBlockViaLabelFromFdef (f:fdef) (l0:l) : option block :=
   let '(fdef_intro _ bs) := f in
   lookupAL _ (genLabel2Block_fdef f) l0.
-  
+
   Fixpoint getLabelsFromBlocks (lb:blocks) : ls :=
   match lb with
   | nil => lempty_set
@@ -1099,7 +1096,7 @@ lookupTypViaTIDFromModules s id0.
     end in
   match (in_dec l_dec lu ls) with
   | left _ => udb
-  | right _ => updateAddAL _ udb ld (lu::ls) 
+  | right _ => updateAddAL _ udb ld (lu::ls)
   end.
 
   Definition genBlockUseDef_block b (udb:usedef_block) : usedef_block :=
@@ -1134,21 +1131,21 @@ lookupTypViaTIDFromModules s id0.
 (**********************************)
 (* CFG. *)
 
-  Definition getTerminator (b:block) : terminator := 
+  Definition getTerminator (b:block) : terminator :=
   match b with
   | block_intro l _ _ t => t
-  end. 
+  end.
 
   Fixpoint getLabelsFromSwitchCases (cs:list (const*l)) : ls :=
   match cs with
-  | nil => lempty_set 
+  | nil => lempty_set
   | (_, l0)::cs' => lset_add l0 (getLabelsFromSwitchCases cs')
   end.
 
-  Definition getLabelsFromTerminator (i:terminator) : ls := 
+  Definition getLabelsFromTerminator (i:terminator) : ls :=
   match i with
   | insn_br _ v l1 l2 => lset_add l1 (lset_add l2 lempty_set)
-  | insn_br_uncond _ l0 => lset_add l0 lempty_set 
+  | insn_br_uncond _ l0 => lset_add l0 lempty_set
   (* | insn_switch _ t v l0 cls => lset_add l0 (getLabelsFromSwitchCases cls) *)
   (* | insn_invoke id typ id0 ps l1 l2 => lset_add l1 (lset_add l2 lempty_set) *)
   | _ => empty_set l
@@ -1157,7 +1154,7 @@ lookupTypViaTIDFromModules s id0.
   Fixpoint getBlocksFromLabels (ls0:ls) (l2b:l2block): blocks :=
   match ls0 with
   | nil => nil
-  | l0::ls0' => 
+  | l0::ls0' =>
     match (lookupAL _ l2b l0) with
     | None => getBlocksFromLabels ls0' l2b
     | Some b => b::getBlocksFromLabels ls0' l2b
@@ -1168,7 +1165,7 @@ lookupTypViaTIDFromModules s id0.
   match (getTerminator b) with
   | i => getBlocksFromLabels (getLabelsFromTerminator i) (genLabel2Block m)
   end.
-  
+
   Definition predOfBlock (b:block) (udb:usedef_block) : list l :=
   match (lookupAL _ udb (getBlockLabel b)) with
   | None => nil
@@ -1331,7 +1328,7 @@ Definition isFunctionPointerTyp t := isFunctionPointerTypB t = true.
 Definition isReturnTerminator tmn := isReturnInsnB tmn = true.
 
 Definition isNotValidReturnTyp typ := isNotValidReturnTypB typ = true.
-      
+
 Definition isValidReturnTyp typ := isValidReturnTypB typ = true.
 
 Definition isNotFirstClassTyp typ := isNotFirstClassTypB typ = true.
@@ -1388,10 +1385,10 @@ match ib with
 | _ => None
 end.
 
-Definition isAggregateTyp t := 
+Definition isAggregateTyp t :=
 match t with
 | typ_struct _ => True
-| typ_array _ _ => True 
+| typ_array _ _ => True
 | _ => False
 end.
 
@@ -1429,13 +1426,13 @@ NoDup ls /\ NoDup ids.
 
 Definition uniqFdef fdef : Prop :=
 match fdef with
-| (fdef_intro (fheader_intro _ _ _ la _) bs) => 
+| (fdef_intro (fheader_intro _ _ _ la _) bs) =>
     uniqBlocks bs /\ NoDup (getArgsIDs la ++ getBlocksLocs bs)
 end.
 
 Definition uniqFdec fdec : Prop :=
 match fdec with
-| (fdec_intro (fheader_intro _ _ _ la _) _) => 
+| (fdec_intro (fheader_intro _ _ _ la _) _) =>
     NoDup (getArgsIDs la)
 end.
 
@@ -1451,7 +1448,7 @@ match ps with
 | nil => nil
 | p::ps' => getProductID p::getProductsIDs ps'
 end.
-   
+
 Definition uniqProduct product : Prop :=
 match product with
 | product_gvar g => True
@@ -1459,11 +1456,8 @@ match product with
 | product_fdef f => uniqFdef f
 end.
 
-Fixpoint uniqProducts ps : Prop :=
-match ps with
-| nil => True
-| p::ps' => uniqProduct p /\ uniqProducts ps'
-end.
+Definition uniqProducts ps : Prop :=
+  Forall uniqProduct ps.
 
 Fixpoint getNamedtsIDs (dts:namedts) : ids :=
 match dts with
@@ -1473,7 +1467,7 @@ end.
 
 Definition uniqModule m : Prop :=
 match m with
-| module_intro _ dts ps => uniqProducts ps /\ 
+| module_intro _ dts ps => uniqProducts ps /\
                            NoDup (getNamedtsIDs dts) /\
                            NoDup (getProductsIDs ps)
 end.
@@ -1527,7 +1521,7 @@ Proof.
 Qed.
 
 Definition typ_dec_prop (t1:typ) := forall t2, {t1=t2} + {~t1=t2}.
-Definition list_typ_dec_prop (lt1:list_typ) := 
+Definition list_typ_dec_prop (lt1:list_typ) :=
   forall lt2, {lt1=lt2} + {~lt1=lt2}.
 
 Ltac done_right := right; intro J; inversion J; subst; auto.
@@ -1547,19 +1541,19 @@ Ltac destruct_wrt_type1 a1 a2:=
 
 Ltac destruct_dec_tac f :=
   match goal with
-  | |- { _ ?a1 = _ ?a2 } + { _ ?a1 <> _ ?a2 } => 
+  | |- { _ ?a1 = _ ?a2 } + { _ ?a1 <> _ ?a2 } =>
       f a1 a2
-  | |- { _ ?a1 ?b1 = _ ?a2 ?b2 } + { _ ?a1 ?b1 <> _ ?a2 ?b2 } => 
+  | |- { _ ?a1 ?b1 = _ ?a2 ?b2 } + { _ ?a1 ?b1 <> _ ?a2 ?b2 } =>
       f a1 a2; f b1 b2
   | |- { _ ?a1 ?b1 ?c1 = _ ?a2 ?b2 ?c2 } + { _ ?a1 ?b1 ?c1 <> _ ?a2 ?b2 ?c2 } =>
       f a1 a2; f b1 b2; f c1 c2
-  | |- { _ ?a1 ?b1 ?c1 ?d1 = _ ?a2 ?b2 ?c2 ?d2 }  + 
+  | |- { _ ?a1 ?b1 ?c1 ?d1 = _ ?a2 ?b2 ?c2 ?d2 }  +
        { _ ?a1 ?b1 ?c1 ?d1 <> _ ?a2 ?b2 ?c2 ?d2 } =>
       f a1 a2; f b1 b2; f c1 c2; f d1 d2
-  | |- { _ ?a1 ?b1 ?c1 ?d1 ?e1 = _ ?a2 ?b2 ?c2 ?d2 ?e2 } + 
+  | |- { _ ?a1 ?b1 ?c1 ?d1 ?e1 = _ ?a2 ?b2 ?c2 ?d2 ?e2 } +
        { _ ?a1 ?b1 ?c1 ?d1 ?e1 <> _ ?a2 ?b2 ?c2 ?d2 ?e2 } =>
       f a1 a2; f b1 b2; f c1 c2; f d1 d2;f e1 e2
-  | |- { _ ?a1 ?b1 ?c1 ?d1 ?e1 ?f1 = _ ?a2 ?b2 ?c2 ?d2 ?e2 ?f2 } + 
+  | |- { _ ?a1 ?b1 ?c1 ?d1 ?e1 ?f1 = _ ?a2 ?b2 ?c2 ?d2 ?e2 ?f2 } +
        { _ ?a1 ?b1 ?c1 ?d1 ?e1 ?f1 <> _ ?a2 ?b2 ?c2 ?d2 ?e2 ?f2 } =>
       f a1 a2; f b1 b2; f c1 c2; f d1 d2; f e1 e2; f f1 f2
   end; subst; try solve [auto | done_right].
@@ -1573,7 +1567,7 @@ Ltac typ_mutrec_dec_subs_tac :=
       end
     | list_typ =>
       match goal with
-      | H:forall t2 : list_typ, {a1 = t2} + {a1 <> t2} |- _ => 
+      | H:forall t2 : list_typ, {a1 = t2} + {a1 <> t2} |- _ =>
           destruct (@H a2); clear H
       end
     | _ => destruct_wrt_type1 a1 a2
@@ -1586,7 +1580,7 @@ Lemma typ_mutrec_dec :
   (forall t1, typ_dec_prop t1) *
   (forall lt1, list_typ_dec_prop lt1).
 Proof.
-  apply typ_mutrec; 
+  apply typ_mutrec;
     unfold typ_dec_prop, list_typ_dec_prop;
     intros; try solve [abstract typ_mutrec_dec_tac].
 Qed.
@@ -1637,7 +1631,7 @@ Proof.
 Qed.
 
 Definition const_dec_prop (c1:const) := forall c2, {c1=c2} + {~c1=c2}.
-Definition list_const_dec_prop (lc1:list_const) := 
+Definition list_const_dec_prop (lc1:list_const) :=
   forall lc2, {lc1=lc2} + {~lc1=lc2}.
 
 Ltac destruct_wrt_type2 a1 a2:=
@@ -1670,7 +1664,7 @@ Ltac const_mutrec_dec_subs_tac :=
       end
     | list_const =>
       match goal with
-      | H:forall t2 : list_const, {a1 = t2} + {a1 <> t2} |- _ => 
+      | H:forall t2 : list_const, {a1 = t2} + {a1 <> t2} |- _ =>
           destruct (@H a2); clear H
       end
     | _ => destruct_wrt_type2 a1 a2
@@ -1683,7 +1677,7 @@ Lemma const_mutrec_dec :
   (forall c1, const_dec_prop c1) *
   (forall lc1, list_const_dec_prop lc1).
 Proof.
-  apply const_mutrec; 
+  apply const_mutrec;
     unfold const_dec_prop, list_const_dec_prop;
     intros; try solve [abstract const_mutrec_dec_tac].
 Qed.
@@ -1702,15 +1696,15 @@ Lemma value_dec : forall (v1 v2:value), {v1=v2}+{~v1=v2}.
 Proof.
   decide equality.
     edestruct (@const_dec _ _); subst; eauto.
-Qed.    
+Qed.
 
-Lemma attribute_dec : forall (attr1 attr2:attribute), 
+Lemma attribute_dec : forall (attr1 attr2:attribute),
   {attr1=attr2}+{~attr1=attr2}.
 Proof.
   decide equality.
 Qed.
 
-Lemma attributes_dec : forall (attrs1 attrs2:attributes), 
+Lemma attributes_dec : forall (attrs1 attrs2:attributes),
   {attrs1=attrs2}+{~attrs1=attrs2}.
 Proof.
   decide equality.
@@ -1768,35 +1762,35 @@ match type of a1 with
 end.
 
 Ltac insn_dec_tac :=
-  destruct_top_tac; 
+  destruct_top_tac;
   destruct_dec_tac destruct_wrt_type3.
 
 Lemma cmd_dec : forall (c1 c2:cmd), {c1=c2}+{~c1=c2}.
 Proof.
-  (cmd_cases (destruct c1) Case); destruct c2; 
+  (cmd_cases (destruct c1) Case); destruct c2;
     try solve [done_right | auto | abstract insn_dec_tac].
   Case "insn_call".
     match goal with
     | |- {insn_call ?i0 ?n ?c ?t ?v ?p = insn_call ?i1 ?n0 ?c0 ?t0 ?v0 ?p0} +
          {insn_call ?i0 ?n ?c ?t ?v ?p <> insn_call ?i1 ?n0 ?c0 ?t0 ?v0 ?p0} =>
       destruct_wrt_type3 i0 i1; subst; try solve [done_right];
-      destruct_wrt_type3 v v0; subst; try solve [done_right]; 
+      destruct_wrt_type3 v v0; subst; try solve [done_right];
       destruct_wrt_type3 n n0; subst; try solve [done_right];
       destruct_wrt_type3 t t0; subst; try solve [done_right];
       destruct_wrt_type3 p p0; subst; try solve [done_right];
       destruct c as [tailc5 callconv5 attributes1 attributes2];
       destruct c0 as [tailc0 callconv0 attributes0 attributes3];
       destruct_wrt_type3 tailc5 tailc0; subst; try solve [done_right];
-      destruct_wrt_type3 callconv5 callconv0; subst; try solve [done_right]; 
-      destruct_wrt_type3 attributes1 attributes0; subst; try solve [done_right]; 
-      destruct_wrt_type3 attributes2 attributes3; 
+      destruct_wrt_type3 callconv5 callconv0; subst; try solve [done_right];
+      destruct_wrt_type3 attributes1 attributes0; subst; try solve [done_right];
+      destruct_wrt_type3 attributes2 attributes3;
         subst; try solve [auto|done_right]
     end.
 Qed.
 
 Lemma terminator_dec : forall (tmn1 tmn2:terminator), {tmn1=tmn2}+{~tmn1=tmn2}.
 Proof.
-  destruct tmn1; destruct tmn2; 
+  destruct tmn1; destruct tmn2;
     try solve [done_right | auto | abstract insn_dec_tac].
 Qed.
 
@@ -1807,13 +1801,13 @@ Qed.
 
 Lemma insn_dec : forall (i1 i2:insn), {i1=i2}+{~i1=i2}.
 Proof.
-  destruct i1 as [phinode5|cmd5|terminator5]; 
+  destruct i1 as [phinode5|cmd5|terminator5];
   destruct i2 as [phinode0|cmd0|terminator0]; try solve [done_right | auto].
-    destruct (@phinode_dec phinode5 phinode0); 
-      subst; try solve [auto | done_right]. 
-    destruct (@cmd_dec cmd5 cmd0); subst; try solve [auto | done_right]. 
-    destruct (@terminator_dec terminator5 terminator0); 
-      subst; try solve [auto | done_right]. 
+    destruct (@phinode_dec phinode5 phinode0);
+      subst; try solve [auto | done_right].
+    destruct (@cmd_dec cmd5 cmd0); subst; try solve [auto | done_right].
+    destruct (@terminator_dec terminator5 terminator0);
+      subst; try solve [auto | done_right].
 Qed.
 
 Lemma cmds_dec : forall (cs1 cs2:list cmd), {cs1=cs2}+{~cs1=cs2}.
@@ -1838,13 +1832,13 @@ Qed.
 
 Lemma block_dec : forall (b1 b2:block), {b1=b2}+{~b1=b2}.
 Proof.
-  destruct b1 as [l5 phinodes5 cmds5 terminator5]; 
+  destruct b1 as [l5 phinodes5 cmds5 terminator5];
   destruct b2 as [l0 phinodes0 cmds0 terminator0]; try solve [done_right | auto].
-    destruct (@id_dec l5 l0); subst; try solve [done_right]. 
-    destruct (@phinodes_dec phinodes5 phinodes0); subst; try solve [done_right]. 
+    destruct (@id_dec l5 l0); subst; try solve [done_right].
+    destruct (@phinodes_dec phinodes5 phinodes0); subst; try solve [done_right].
     destruct (@cmds_dec cmds5 cmds0); subst; try solve [done_right].
-    destruct (@terminator_dec terminator5 terminator0); 
-      subst; try solve [auto | done_right]. 
+    destruct (@terminator_dec terminator5 terminator0);
+      subst; try solve [auto | done_right].
 Qed.
 
 Lemma arg_dec : forall (a1 a2:arg), {a1=a2}+{~a1=a2}.
@@ -1852,9 +1846,9 @@ Proof.
   destruct a1; destruct a2; try solve [subst; auto | done_right].
     destruct (@id_dec i0 i1); subst; try solve [done_right].
     destruct p. destruct p0.
-    destruct (@attributes_dec a a0); subst; try solve [done_right]. 
+    destruct (@attributes_dec a a0); subst; try solve [done_right].
     destruct (@typ_dec t t0); subst; try solve [auto | done_right].
-Qed.  
+Qed.
 
 Lemma args_dec : forall (l1 l2:args), {l1=l2}+{~l1=l2}.
 Proof.
@@ -1878,26 +1872,26 @@ Qed.
 
 Lemma fheader_dec : forall (f1 f2:fheader), {f1=f2}+{~f1=f2}.
 Proof.
-  destruct f1 as [fnattrs5 typ5 id5 args5 varg5]; 
-  destruct f2 as [fnattrs0 typ0 id0 args0 varg0]; 
+  destruct f1 as [fnattrs5 typ5 id5 args5 varg5];
+  destruct f2 as [fnattrs0 typ0 id0 args0 varg0];
     try solve [subst; auto | done_right].
     destruct (@typ_dec typ5 typ0); subst; try solve [done_right].
     destruct (@id_dec id5 id0); subst; try solve [done_right].
-    destruct fnattrs5 as [linkage5 visibility5 callconv5 attributes1 
-                          attributes2]. 
-    destruct fnattrs0 as [linkage0 visibility0 callconv0 attributes0 
-                          attributes3]. 
-    destruct (@visibility_dec visibility5 visibility0); 
+    destruct fnattrs5 as [linkage5 visibility5 callconv5 attributes1
+                          attributes2].
+    destruct fnattrs0 as [linkage0 visibility0 callconv0 attributes0
+                          attributes3].
+    destruct (@visibility_dec visibility5 visibility0);
       subst; try solve [done_right].
     destruct (@varg_dec varg5 varg0); subst; try solve [done_right].
-    destruct (@attributes_dec attributes1 attributes0); 
-      subst; try solve [done_right]. 
+    destruct (@attributes_dec attributes1 attributes0);
+      subst; try solve [done_right].
     destruct (@attributes_dec attributes2 attributes3);
-      subst; try solve [done_right]. 
+      subst; try solve [done_right].
     destruct (@callconv_dec callconv5 callconv0); subst; try solve [done_right].
     destruct (@linkage_dec linkage5 linkage0); subst; try solve [done_right].
     destruct (@args_dec args5 args0); subst; try solve [auto | done_right].
-Qed.  
+Qed.
 
 Lemma blocks_dec : forall (lb lb':blocks), {lb=lb'}+{~lb=lb'}.
 Proof.
@@ -1909,41 +1903,41 @@ Proof.
     destruct (@IHlb lb'); subst; try solve [auto | done_right].
 Qed.
 
-Lemma intrinsic_id_dec : forall (iid1 iid2:intrinsic_id), 
+Lemma intrinsic_id_dec : forall (iid1 iid2:intrinsic_id),
   {iid1=iid2}+{~iid1=iid2}.
 Proof. decide equality. Qed.
 
-Lemma external_id_dec : forall (eid1 eid2:external_id), 
+Lemma external_id_dec : forall (eid1 eid2:external_id),
   {eid1=eid2}+{~eid1=eid2}.
 Proof. decide equality. Qed.
 
 Lemma deckind_dec : forall (dck1 dck2: deckind), {dck1=dck2}+{~dck1=dck2}.
-Proof. 
-  destruct dck1 as [iid1|eid1]. 
+Proof.
+  destruct dck1 as [iid1|eid1].
     destruct dck2 as [iid2|eid2]; try solve [done_right].
-      destruct (@intrinsic_id_dec iid1 iid2); 
-        subst; try solve [auto | done_right]. 
+      destruct (@intrinsic_id_dec iid1 iid2);
+        subst; try solve [auto | done_right].
     destruct dck2 as [iid2|eid2]; try solve [done_right].
-      destruct (@external_id_dec eid1 eid2); 
-        subst; try solve [auto | done_right]. 
+      destruct (@external_id_dec eid1 eid2);
+        subst; try solve [auto | done_right].
 Qed.
 
 Lemma fdec_dec : forall (f1 f2:fdec), {f1=f2}+{~f1=f2}.
 Proof.
-  destruct f1 as [fheader5 dck5]; 
+  destruct f1 as [fheader5 dck5];
   destruct f2 as [fheader0 dck0]; try solve [subst; auto | done_right].
-    destruct (@deckind_dec dck5 dck0); subst; try solve [done_right]. 
-    destruct (@fheader_dec fheader5 fheader0); 
+    destruct (@deckind_dec dck5 dck0); subst; try solve [done_right].
+    destruct (@fheader_dec fheader5 fheader0);
       subst; try solve [auto | done_right].
-Qed.  
+Qed.
 
 Lemma fdef_dec : forall (f1 f2:fdef), {f1=f2}+{~f1=f2}.
 Proof.
-  destruct f1 as [fheader5 blocks5]; 
+  destruct f1 as [fheader5 blocks5];
   destruct f2 as [fheader0 blocks0]; try solve [subst; auto | done_right].
     destruct (@fheader_dec fheader5 fheader0); subst; try solve [done_right].
     destruct (@blocks_dec blocks5 blocks0); subst; try solve [auto | done_right].
-Qed.  
+Qed.
 
 Lemma gvar_spec_dec : forall (g1 g2:gvar_spec), {g1=g2}+{~g1=g2}.
 Proof.
@@ -1952,8 +1946,8 @@ Qed.
 
 Lemma gvar_dec : forall (g1 g2:gvar), {g1=g2}+{~g1=g2}.
 Proof.
-  destruct g1 as [i0 l0 g t c a|i0 g t]; 
-  destruct g2 as [i1 l1 g0 t0 c0 a0|i1 g0 t0]; 
+  destruct g1 as [i0 l0 g t c a|i0 g t];
+  destruct g2 as [i1 l1 g0 t0 c0 a0|i1 g0 t0];
     try solve [subst; auto | done_right].
 
     destruct (@id_dec i0 i1); subst; try solve [done_right].
@@ -1966,15 +1960,15 @@ Proof.
     destruct (@id_dec i0 i1); subst; try solve [done_right].
     destruct (@gvar_spec_dec g g0); subst; try solve [done_right].
     destruct (@typ_dec t t0); subst; try solve [auto | done_right].
-Qed.  
+Qed.
 
 Lemma product_dec : forall (p p':product), {p=p'}+{~p=p'}.
 Proof.
-  destruct p as [g|f|f]; destruct p' as [g0|f0|f0]; 
+  destruct p as [g|f|f]; destruct p' as [g0|f0|f0];
     try solve [done_right | auto].
-    destruct (@gvar_dec g g0); subst; try solve [auto | done_right]. 
-    destruct (@fdec_dec f f0); subst; try solve [auto | done_right]. 
-    destruct (@fdef_dec f f0); subst; try solve [auto | done_right]. 
+    destruct (@gvar_dec g g0); subst; try solve [auto | done_right].
+    destruct (@fdec_dec f f0); subst; try solve [auto | done_right].
+    destruct (@fdef_dec f f0); subst; try solve [auto | done_right].
 Qed.
 
 Lemma products_dec : forall (lp lp':products), {lp=lp'}+{~lp=lp'}.
@@ -1989,7 +1983,7 @@ Qed.
 
 Lemma namedt_dec : forall (nt1 nt2:namedt), {nt1=nt2}+{~nt1=nt2}.
 Proof.
-  destruct nt1 as [id5 l0]; 
+  destruct nt1 as [id5 l0];
   destruct nt2 as [id0 l1]; try solve [subst; auto | done_right].
     destruct (@id_dec id5 id0); subst; try solve [done_right].
     destruct (@list_typ_dec l0 l1); subst; try solve [auto | done_right].
@@ -2007,9 +2001,9 @@ Qed.
 
 Lemma layout_dec : forall (l1 l2:layout), {l1=l2}+{~l1=l2}.
 Proof.
-  destruct l1; destruct l2; 
+  destruct l1; destruct l2;
     try solve [subst; auto | done_right | insn_dec_tac].
-Qed.  
+Qed.
 
 Lemma layouts_dec : forall (l1 l2:layouts), {l1=l2}+{~l1=l2}.
 Proof.
@@ -2023,11 +2017,11 @@ Qed.
 
 Lemma module_dec : forall (m m':module), {m=m'}+{~m=m'}.
 Proof.
-  destruct m as [l0 n p]; destruct m' as [l1 n0 p0]; 
+  destruct m as [l0 n p]; destruct m' as [l1 n0 p0];
     try solve [done_right | auto].
-    destruct (@layouts_dec l0 l1); subst; try solve [done_right]. 
-    destruct (@namedts_dec n n0); subst; try solve [done_right]. 
-    destruct (@products_dec p p0); subst; try solve [auto | done_right]. 
+    destruct (@layouts_dec l0 l1); subst; try solve [done_right].
+    destruct (@namedts_dec n n0); subst; try solve [done_right].
+    destruct (@products_dec p p0); subst; try solve [auto | done_right].
 Qed.
 
 Lemma modules_dec : forall (lm lm':modules), {lm=lm'}+{~lm=lm'}.
@@ -2063,10 +2057,10 @@ Definition paramsEqB (lp lp':params) := sumbool2bool _ _ (params_dec lp lp').
 
 Definition lEqB i i' := sumbool2bool _ _ (l_dec i i').
 
-Definition list_value_lEqB (idls idls':list_value_l) := 
+Definition list_value_lEqB (idls idls':list_value_l) :=
   sumbool2bool _ _ (list_value_l_dec idls idls').
 
-Definition list_valueEqB idxs idxs' := 
+Definition list_valueEqB idxs idxs' :=
   sumbool2bool _ _ (list_value_dec idxs idxs').
 
 Definition bopEqB (op op':bop) := sumbool2bool _ _ (bop_dec op op').
@@ -2077,13 +2071,13 @@ Definition castopEqB (c c':castop) := sumbool2bool _ _ (castop_dec c c').
 Definition cmdEqB (i i':cmd) := sumbool2bool _ _ (cmd_dec i i').
 
 Definition cmdsEqB (cs1 cs2:list cmd) := sumbool2bool _ _ (cmds_dec cs1 cs2).
-  
-Definition terminatorEqB (i i':terminator) := 
+
+Definition terminatorEqB (i i':terminator) :=
   sumbool2bool _ _ (terminator_dec i i').
 
 Definition phinodeEqB (i i':phinode) := sumbool2bool _ _ (phinode_dec i i').
 
-Definition phinodesEqB (ps1 ps2:list phinode) := 
+Definition phinodesEqB (ps1 ps2:list phinode) :=
   sumbool2bool _ _ (phinodes_dec ps1 ps2).
 
 Definition blockEqB (b1 b2:block) := sumbool2bool _ _ (block_dec b1 b2).
@@ -2092,7 +2086,7 @@ Definition blocksEqB (lb lb':blocks) := sumbool2bool _ _ (blocks_dec lb lb').
 
 Definition argsEqB (la la':args) := sumbool2bool _ _ (args_dec la la').
 
-Definition fheaderEqB (fh fh' : fheader) := 
+Definition fheaderEqB (fh fh' : fheader) :=
   sumbool2bool _ _ (fheader_dec fh fh').
 
 Definition fdecEqB (fd fd' : fdec) := sumbool2bool _ _ (fdec_dec fd fd').
@@ -2103,7 +2097,7 @@ Definition gvarEqB (gv gv' : gvar) := sumbool2bool _ _ (gvar_dec gv gv').
 
 Definition productEqB (p p' : product) := sumbool2bool _ _ (product_dec p p').
 
-Definition productsEqB (lp lp':products) := 
+Definition productsEqB (lp lp':products) :=
   sumbool2bool _ _ (products_dec lp lp').
 
 Definition layoutEqB (o o' : layout) := sumbool2bool _ _ (layout_dec o o').
@@ -2116,18 +2110,18 @@ Definition modulesEqB (lm lm':modules) := sumbool2bool _ _ (modules_dec lm lm').
 
 Definition systemEqB (s s':system) := sumbool2bool _ _ (system_dec s s').
 
-Definition attributeEqB (attr attr':attribute) := 
+Definition attributeEqB (attr attr':attribute) :=
   sumbool2bool _ _ (attribute_dec attr attr').
 
-Definition attributesEqB (attrs attrs':attributes) := 
+Definition attributesEqB (attrs attrs':attributes) :=
   sumbool2bool _ _ (attributes_dec attrs attrs').
 
 Definition linkageEqB (lk lk':linkage) := sumbool2bool _ _ (linkage_dec lk lk').
 
-Definition visibilityEqB (v v':visibility) := 
+Definition visibilityEqB (v v':visibility) :=
   sumbool2bool _ _ (visibility_dec v v').
 
-Definition callconvEqB (cc cc':callconv) := 
+Definition callconvEqB (cc cc':callconv) :=
   sumbool2bool _ _ (callconv_dec cc cc').
 
 (**********************************)
@@ -2163,9 +2157,9 @@ end.
 Fixpoint InArgsB (a:arg) (la:args) {struct la} : bool :=
 match la with
 | nil => false
-| a' :: la' => 
+| a' :: la' =>
   match (a, a') with
-  | ((t, attrs, id), (t', attrs', id')) => 
+  | ((t, attrs, id), (t', attrs', id')) =>
        typEqB t t' && attributesEqB attrs attrs' && idEqB id id'
   end ||
   InArgsB a la'
@@ -2219,23 +2213,23 @@ InModulesB m s.
 Definition productInSystemModuleB (p:product) (s:system) (m:module) : bool :=
 moduleInSystemB m s && productInModuleB p m.
 
-Definition blockInSystemModuleFdefB (b:block) (s:system) (m:module) (f:fdef) 
+Definition blockInSystemModuleFdefB (b:block) (s:system) (m:module) (f:fdef)
   : bool :=
 blockInFdefB b f && productInSystemModuleB (product_fdef f) s m.
 
-Definition cmdInSystemModuleFdefBlockB   
+Definition cmdInSystemModuleFdefBlockB
   (i:cmd) (s:system) (m:module) (f:fdef) (b:block) : bool :=
 cmdInBlockB i b && blockInSystemModuleFdefB b s m f.
 
-Definition phinodeInSystemModuleFdefBlockB 
+Definition phinodeInSystemModuleFdefBlockB
   (i:phinode) (s:system) (m:module) (f:fdef) (b:block) : bool :=
 phinodeInBlockB i b && blockInSystemModuleFdefB b s m f.
 
-Definition terminatorInSystemModuleFdefBlockB 
+Definition terminatorInSystemModuleFdefBlockB
   (i:terminator) (s:system) (m:module) (f:fdef) (b:block) : bool :=
 terminatorInBlockB i b && blockInSystemModuleFdefB b s m f.
 
-Definition insnInSystemModuleFdefBlockB 
+Definition insnInSystemModuleFdefBlockB
   (i:insn) (s:system) (m:module) (f:fdef) (b:block) : bool :=
 match i with
 | insn_phinode p => phinodeInSystemModuleFdefBlockB p s m f b
@@ -2259,7 +2253,7 @@ phinodeInBlockB i b && blockInFdefB b f.
 Definition terminatorInFdefBlockB (i:terminator) (f:fdef) (b:block) : bool :=
 terminatorInBlockB i b && blockInFdefB b f.
 
-Definition insnInFdefBlockB 
+Definition insnInFdefBlockB
   (i:insn) (f:fdef) (b:block) : bool :=
 match i with
 | insn_phinode p => phinodeInBlockB p b && blockInFdefB b f
@@ -2267,7 +2261,7 @@ match i with
 | insn_terminator t => terminatorInBlockB t b && blockInFdefB b f
 end.
 
-Definition blockInSystemModuleFdef b S M F := 
+Definition blockInSystemModuleFdef b S M F :=
   blockInSystemModuleFdefB b S M F = true.
 
 Definition moduleInSystem M S := moduleInSystemB M S = true.
@@ -2298,7 +2292,7 @@ Qed.
 Fixpoint getParentOfCmdFromBlocks (i:cmd) (lb:blocks) {struct lb} : option block :=
 match lb with
 | nil => None
-| b::lb' => 
+| b::lb' =>
   match (cmdInBlockB_dec i b) with
   | left _ => Some b
   | right _ => getParentOfCmdFromBlocks i lb'
@@ -2326,7 +2320,7 @@ match lp with
   end
 end.
 
-Definition getParentOfCmdFromModule (i:cmd) (m:module) : option block := 
+Definition getParentOfCmdFromModule (i:cmd) (m:module) : option block :=
   let (os, nts, ps) := m in
   getParentOfCmdFromProducts i ps.
 
@@ -2340,7 +2334,7 @@ match lm with
   end
 end.
 
-Definition getParentOfCmdFromSystem (i:cmd) (s:system) : option block := 
+Definition getParentOfCmdFromSystem (i:cmd) (s:system) : option block :=
   getParentOfCmdFromModules i s.
 
 Definition cmdHasParent (i:cmd) (s:system) : bool :=
@@ -2352,7 +2346,7 @@ end.
 Fixpoint getParentOfPhiNodeFromBlocks (i:phinode) (lb:blocks) {struct lb} : option block :=
 match lb with
 | nil => None
-| b::lb' => 
+| b::lb' =>
   match (phinodeInBlockB_dec i b) with
   | left _ => Some b
   | right _ => getParentOfPhiNodeFromBlocks i lb'
@@ -2380,7 +2374,7 @@ match lp with
   end
 end.
 
-Definition getParentOfPhiNodeFromModule (i:phinode) (m:module) : option block := 
+Definition getParentOfPhiNodeFromModule (i:phinode) (m:module) : option block :=
   let (os, nts, ps) := m in
   getParentOfPhiNodeFromProducts i ps.
 
@@ -2394,7 +2388,7 @@ match lm with
   end
 end.
 
-Definition getParentOfPhiNodeFromSystem (i:phinode) (s:system) : option block := 
+Definition getParentOfPhiNodeFromSystem (i:phinode) (s:system) : option block :=
   getParentOfPhiNodeFromModules i s.
 
 Definition phinodeHasParent (i:phinode) (s:system) : bool :=
@@ -2406,7 +2400,7 @@ end.
 Fixpoint getParentOfTerminatorFromBlocks (i:terminator) (lb:blocks) {struct lb} : option block :=
 match lb with
 | nil => None
-| b::lb' => 
+| b::lb' =>
   match (terminatorInBlockB_dec i b) with
   | left _ => Some b
   | right _ => getParentOfTerminatorFromBlocks i lb'
@@ -2434,7 +2428,7 @@ match lp with
   end
 end.
 
-Definition getParentOfTerminatorFromModule (i:terminator) (m:module) : option block := 
+Definition getParentOfTerminatorFromModule (i:terminator) (m:module) : option block :=
   let (os, nts, ps) := m in
   getParentOfTerminatorFromProducts i ps.
 
@@ -2448,7 +2442,7 @@ match lm with
   end
 end.
 
-Definition getParentOfTerminatorFromSystem (i:terminator) (s:system) : option block := 
+Definition getParentOfTerminatorFromSystem (i:terminator) (s:system) : option block :=
   getParentOfTerminatorFromModules i s.
 
 Definition terminatoreHasParent (i:terminator) (s:system) : bool :=
@@ -2466,14 +2460,14 @@ Qed.
 Fixpoint getParentOfFdefFromModules (fd:fdef) (lm:modules) {struct lm} : option module :=
 match lm with
 | nil => None
-| m::lm' => 
+| m::lm' =>
   match (productInModuleB_dec (product_fdef fd) m) with
   | left _ => Some m
   | right _ => getParentOfFdefFromModules fd lm'
   end
 end.
 
-Definition getParentOfFdefFromSystem (fd:fdef) (s:system) : option module := 
+Definition getParentOfFdefFromSystem (fd:fdef) (s:system) : option module :=
   getParentOfFdefFromModules fd s.
 
 Notation "t =t= t' " := (typEqB t t') (at level 50).
@@ -2485,13 +2479,13 @@ Notation "i =tmn= i'" := (terminatorEqB i i') (at level 50).
 
 (**********************************)
 (* Check to make sure that if there is more than one entry for a
-   particular basic block in this PHI node, that the incoming values 
+   particular basic block in this PHI node, that the incoming values
    are all identical. *)
 Fixpoint lookupIdsViaLabelFromIdls (idls:list_value_l) (l0:l) : list id :=
 match idls with
 | Nil_list_value_l => nil
 | Cons_list_value_l (value_id id1) l1 idls' =>
-  if (eq_dec l0 l1) 
+  if (eq_dec l0 l1)
   then set_add eq_dec id1 (lookupIdsViaLabelFromIdls idls' l0)
   else (lookupIdsViaLabelFromIdls idls' l0)
 | Cons_list_value_l _ l1 idls' =>
@@ -2501,7 +2495,7 @@ end.
 Fixpoint _checkIdenticalIncomingValues (idls idls0:list_value_l) : Prop :=
 match idls with
 | Nil_list_value_l => True
-| Cons_list_value_l _ l idls' => 
+| Cons_list_value_l _ l idls' =>
   (length (lookupIdsViaLabelFromIdls idls0 l) <= 1)%nat /\
   (_checkIdenticalIncomingValues idls' idls0)
 end.
@@ -2520,7 +2514,7 @@ Module Type SigValue.
 
 End SigValue.
 
-Module Type SigUser. 
+Module Type SigUser.
  Include SigValue.
 
 End SigUser.
@@ -2543,7 +2537,7 @@ Module Type SigFunction.
  Parameter getDefReturnType : fdef -> typ.
  Parameter getDefFunctionType : fdef -> typ.
  Parameter def_arg_size : fdef -> nat.
- 
+
  Parameter getDecReturnType : fdec -> typ.
  Parameter getDecFunctionType : fdec -> typ.
  Parameter dec_arg_size : fdec -> nat.
@@ -2649,8 +2643,8 @@ End SigArrayType.
 
 Module Value <: SigValue.
 
- Definition getNumOperands (i:insn) : nat := 
-   length (getInsnOperands i).  
+ Definition getNumOperands (i:insn) : nat :=
+   length (getInsnOperands i).
 
 End Value.
 
@@ -2675,8 +2669,8 @@ match t with
 | typ_pointer t' => True
 | typ_function _ _ _ => False
 | typ_namedt _ => False
-end             
-with wf_zeroconsts_typ (lt:list_typ) : Prop := 
+end
+with wf_zeroconsts_typ (lt:list_typ) : Prop :=
 match lt with
 | Nil_list_typ => True
 | Cons_list_typ t lt' => wf_zeroconsts_typ lt' /\ wf_zeroconst_typ t
@@ -2692,7 +2686,7 @@ Fixpoint getTyp (c:const) : option typ :=
  | const_floatpoint fp _ => Some (typ_floatpoint fp)
  | const_undef t => Some t
  | const_null t => Some (typ_pointer t)
- | const_arr t lc => 
+ | const_arr t lc =>
    Some
    (match lc with
    | Nil_list_const => typ_array Size.Zero t
@@ -2709,7 +2703,7 @@ Fixpoint getTyp (c:const) : option typ :=
  | const_truncop _ _ t => Some t
  | const_extop _ _ t => Some t
  | const_castop _ _ t => Some t
- | const_gep _ c idxs => 
+ | const_gep _ c idxs =>
    match (getTyp c) with
    | Some t => getConstGEPTyp idxs t
    | _ => None
@@ -2729,7 +2723,7 @@ Fixpoint getTyp (c:const) : option typ :=
 with getList_typ (cs:list_const) : option list_typ :=
 match cs with
 | Nil_list_const => Some Nil_list_typ
-| Cons_list_const c cs' => 
+| Cons_list_const c cs' =>
   match (getTyp c, getList_typ cs') with
   | (Some t, Some ts') => Some (Cons_list_typ t ts')
   | (_, _) => None
@@ -2745,16 +2739,16 @@ Fixpoint gen_utyp_maps_aux (cid:id) (m:list(id*typ)) (t:typ) : option typ :=
  | typ_label => Some typ_label
  | typ_metadata => Some typ_metadata
  | typ_array s t0 => do ut0 <- gen_utyp_maps_aux cid m t0; ret (typ_array s ut0)
- | typ_function t0 ts0 va => 
+ | typ_function t0 ts0 va =>
      do ut0 <- gen_utyp_maps_aux cid m t0;
      do uts0 <- gen_utyps_maps_aux cid m ts0;
         ret (typ_function ut0 uts0 va)
- | typ_struct ts0 => 
+ | typ_struct ts0 =>
      do uts0 <- gen_utyps_maps_aux cid m ts0; ret (typ_struct uts0)
- | typ_pointer t0 => 
+ | typ_pointer t0 =>
      match gen_utyp_maps_aux cid m t0 with
      | Some ut0 => Some (typ_pointer ut0)
-     | None => 
+     | None =>
          match t0 with
          | typ_namedt i => if eq_atom_dec i cid then Some t else None
          | _ => None
@@ -2764,18 +2758,18 @@ Fixpoint gen_utyp_maps_aux (cid:id) (m:list(id*typ)) (t:typ) : option typ :=
  | typ_namedt i => lookupAL _ m i
  end
 with gen_utyps_maps_aux (cid:id) (m:list(id*typ)) (ts:list_typ) : option list_typ
-   := 
+   :=
  match ts with
  | Nil_list_typ => Some Nil_list_typ
  | Cons_list_typ t0 ts0 =>
-     do ut0 <- gen_utyp_maps_aux cid m t0; 
-     do uts0 <- gen_utyps_maps_aux cid m ts0; 
+     do ut0 <- gen_utyp_maps_aux cid m t0;
+     do uts0 <- gen_utyps_maps_aux cid m ts0;
      ret (Cons_list_typ ut0 uts0)
  end.
 
 Fixpoint gen_utyp_maps (nts:namedts) : list (id*typ) :=
 match nts with
-| nil => nil 
+| nil => nil
 | (id0, t)::nts' =>
   let results := gen_utyp_maps nts' in
   match gen_utyp_maps_aux id0 results (typ_struct t) with
@@ -2792,7 +2786,7 @@ Fixpoint typ2utyp_aux (m:list(id*typ)) (t:typ) : option typ :=
  | typ_label => Some typ_label
  | typ_metadata => Some typ_metadata
  | typ_array s t0 => do ut0 <- typ2utyp_aux m t0; ret (typ_array s ut0)
- | typ_function t0 ts0 va => 
+ | typ_function t0 ts0 va =>
      do ut0 <- typ2utyp_aux m t0;
      do uts0 <- typs2utyps_aux m ts0;
         ret (typ_function ut0 uts0 va)
@@ -2801,12 +2795,12 @@ Fixpoint typ2utyp_aux (m:list(id*typ)) (t:typ) : option typ :=
 (* | typ_opaque => Some typ_opaque *)
  | typ_namedt i => lookupAL _ m i
  end
-with typs2utyps_aux (m:list(id*typ)) (ts:list_typ) : option list_typ := 
+with typs2utyps_aux (m:list(id*typ)) (ts:list_typ) : option list_typ :=
  match ts with
  | Nil_list_typ => Some Nil_list_typ
  | Cons_list_typ t0 ts0 =>
-     do ut0 <- typ2utyp_aux m t0; 
-     do uts0 <- typs2utyps_aux m ts0; 
+     do ut0 <- typ2utyp_aux m t0;
+     do uts0 <- typs2utyps_aux m ts0;
      ret (Cons_list_typ ut0 uts0)
  end.
 
@@ -2818,13 +2812,13 @@ Fixpoint subst_typ (i':id) (t' t:typ) : typ :=
  match t with
  | typ_int _ | typ_floatpoint _ | typ_void | typ_label | typ_metadata => t
  | typ_array s t0 => typ_array s (subst_typ i' t' t0)
- | typ_function t0 ts0 va => 
+ | typ_function t0 ts0 va =>
      typ_function (subst_typ i' t' t0) (subst_typs i' t' ts0) va
  | typ_struct ts0 => typ_struct (subst_typs i' t' ts0)
  | typ_pointer t0 => typ_pointer (subst_typ i' t' t0)
  | typ_namedt i => if (eq_atom_dec i i') then t' else t
  end
-with subst_typs (i':id) (t':typ) (ts:list_typ) : list_typ := 
+with subst_typs (i':id) (t':typ) (ts:list_typ) : list_typ :=
  match ts with
  | Nil_list_typ => Nil_list_typ
  | Cons_list_typ t0 ts0 =>
@@ -2834,14 +2828,14 @@ with subst_typs (i':id) (t':typ) (ts:list_typ) : list_typ :=
 Fixpoint subst_typ_by_nts (nts:namedts) (t:typ) : typ :=
 match nts with
 | nil => t
-| (id', ts')::nts' => 
+| (id', ts')::nts' =>
     subst_typ_by_nts nts' (subst_typ id' (typ_struct ts') t)
 end.
 
 Fixpoint subst_nts_by_nts (nts0 nts:namedts) : list (id*typ) :=
 match nts with
 | nil => nil
-| (id', t')::nts' => 
+| (id', t')::nts' =>
     (id',(subst_typ_by_nts nts0 (typ_struct t')))::subst_nts_by_nts nts0 nts'
 end.
 
@@ -2851,7 +2845,7 @@ typ2utyp_aux m t.
 
 Definition unifiable_typ (TD:LLVMtd.TargetData) (t:typ) : Prop :=
   let '(los,nts) := TD in
-  exists ut, typ2utyp nts t = Some ut /\ 
+  exists ut, typ2utyp nts t = Some ut /\
     LLVMtd.getTypeAllocSize TD ut = LLVMtd.getTypeAllocSize TD t.
 
 End Constant.
@@ -2919,7 +2913,7 @@ Module CallSite <: SigCallSite.
 
 (*
 Definition getCalledFunction (i:cmd) (s:system) : option fdef :=
- match i with 
+ match i with
  (* | insn_invoke _ _ fid _ _ _ => lookupFdefViaIDFromSystemC s fid *)
  | insn_call _ _ _ _ fid _ => lookupFdefViaIDFromSystem s fid
  | _ => None
@@ -2940,7 +2934,7 @@ Definition getCalledFunction (i:cmd) (s:system) : option fdef :=
     | Some a => Some a
     | None => None
     end
- end. 
+ end.
 
  Definition getArgumentType (fd:fdef) (i:nat) : option typ :=
  match (getArgument fd i) with
@@ -2971,9 +2965,9 @@ End InvokeInst.
 Module BinaryOperator <: SigBinaryOperator.
  Include Instruction.
 
- Definition getFirstOperandType (f:fdef) (i:cmd) : option typ := 
+ Definition getFirstOperandType (f:fdef) (i:cmd) : option typ :=
  match i with
- | insn_bop _ _ _ v1 _ => 
+ | insn_bop _ _ _ v1 _ =>
    match v1 with
    | value_id id1 => lookupTypViaIDFromFdef f id1
    | value_const c => Constant.getTyp c
@@ -2981,9 +2975,9 @@ Module BinaryOperator <: SigBinaryOperator.
  | _ => None
  end.
 
- Definition getSecondOperandType (f:fdef) (i:cmd) : option typ := 
+ Definition getSecondOperandType (f:fdef) (i:cmd) : option typ :=
  match i with
- | insn_bop _ _ _ _ v2 => 
+ | insn_bop _ _ _ _ v2 =>
    match v2 with
    | value_id id2 => lookupTypViaIDFromFdef f id2
    | value_const c => Constant.getTyp c
@@ -3005,7 +2999,7 @@ Module PHINode <: SigPHINode.
 
  Definition getIncomingValueType (f:fdef) (i:phinode) (n:nat) : option typ :=
  match i with
- | (insn_phi _ _ ln) => 
+ | (insn_phi _ _ ln) =>
     match (nth_list_value_l n ln) with
     | Some (value_id id, _) => lookupTypViaIDFromFdef f id
     | Some (value_const c, _) => Constant.getTyp c
@@ -3032,7 +3026,7 @@ Module Typ <: SigType.
 
  (* isSizedDerivedType - Derived types like structures and arrays are sized
     iff all of the members of the type are sized as well.  Since asking for
-    their size is relatively uncommon, move this operation out of line. 
+    their size is relatively uncommon, move this operation out of line.
 
     isSized - Return true if it makes sense to take the size of this type.  To
     get the actual size for a particular target, it is reasonable to use the
@@ -3050,7 +3044,7 @@ Module Typ <: SigType.
  match lt with
  | Nil_list_typ => true
  | Cons_list_typ t lt' => isSized t && isSizedListTyp lt'
- end. 
+ end.
 
   Definition getPrimitiveSizeInBits (t:typ) : sz :=
   match t with
@@ -3069,7 +3063,7 @@ Module FunctionType <: SigFunctionType.
 
  Definition getNumParams (t:typ) : option nat :=
  match t with
- | (typ_function _ lt _) => 
+ | (typ_function _ lt _) =>
      Some (length (unmake_list_typ lt))
  | _ => None
  end.
@@ -3078,7 +3072,7 @@ Module FunctionType <: SigFunctionType.
 
  Definition getParamType (t:typ) (i:nat) : option typ :=
  match t with
- | (typ_function _ lt _) => 
+ | (typ_function _ lt _) =>
     match (nth_list_typ i lt) with
     | Some t => Some t
     | None => None
@@ -3130,9 +3124,9 @@ Definition typ2memory_chunk (t:typ) : option AST.memory_chunk :=
   | _ => None
   end.
 
-Definition wf_alignment (TD:LLVMtd.TargetData) (t:typ) : Prop := 
-forall s a (abi_or_pref:bool), 
-  LLVMtd.getTypeSizeInBits_and_Alignment TD abi_or_pref t = Some (s,a) -> 
+Definition wf_alignment (TD:LLVMtd.TargetData) (t:typ) : Prop :=
+forall s a (abi_or_pref:bool),
+  LLVMtd.getTypeSizeInBits_and_Alignment TD abi_or_pref t = Some (s,a) ->
   (a > 0)%nat.
 
 Definition typ_eq_list_typ (nts:namedts) (t1:typ) (ts2:list_typ) : bool :=
@@ -3146,11 +3140,11 @@ match t1 with
 | _ => false
 end.
 
-Definition wf_intrinsics_id (iid:intrinsic_id) (rt:typ) (pt:list_typ) (va:varg) 
+Definition wf_intrinsics_id (iid:intrinsic_id) (rt:typ) (pt:list_typ) (va:varg)
   : Prop :=
 True.
 
-Definition wf_external_id (eid:external_id) (rt:typ) (pt:list_typ) (va:varg) 
+Definition wf_external_id (eid:external_id) (rt:typ) (pt:list_typ) (va:varg)
   : Prop :=
 match eid with
 | eid_malloc =>
@@ -3159,10 +3153,10 @@ match eid with
         match sz with
         | 32%nat | 64%nat => True
         | _ => False
-        end 
+        end
     | _, _ => False
     end
-| eid_free => 
+| eid_free =>
     match rt, pt with
     | typ_void, Cons_list_typ (typ_pointer (typ_int 8%nat)) Nil_list_typ => True
     | _, _ => False

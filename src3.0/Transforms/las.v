@@ -23,11 +23,11 @@ Require Import trans_tactic.
    The current mem2reg also does SAS eliminations before all loads are removed.
    For example,
      st v1 p; ...; st v2 p; ...
-   if there are no other lds in the first ..., the first ``st v1 p'' can be 
+   if there are no other lds in the first ..., the first ``st v1 p'' can be
    removed.
 
-   In practice, such a code after phiplacement may exist if the original code 
-   also does store to the promotable alloca. 
+   In practice, such a code after phiplacement may exist if the original code
+   also does store to the promotable alloca.
 
    An alternative approach is that we only consider such elimination after all
    possible removed loads are removed, as what the paper presents. mem2reg does
@@ -47,11 +47,11 @@ blockInFdefB b (PI_f pinfo) = true /\
 store_in_cmds (PI_id pinfo) cs2 = false /\
 let '(block_intro _ _ cs _) := b in
 exists cs1, exists cs3,
-  cs = 
-  cs1 ++ 
-  insn_store sid (PI_typ pinfo) v (value_id (PI_id pinfo)) (PI_align pinfo) :: 
-  cs2 ++ 
-  insn_load lid (PI_typ pinfo) (value_id (PI_id pinfo)) (PI_align pinfo) :: 
+  cs =
+  cs1 ++
+  insn_store sid (PI_typ pinfo) v (value_id (PI_id pinfo)) (PI_align pinfo) ::
+  cs2 ++
+  insn_load lid (PI_typ pinfo) (value_id (PI_id pinfo)) (PI_align pinfo) ::
   cs3.
 
 Record LASInfo (pinfo: PhiInfo) := mkLASInfo {
@@ -63,16 +63,16 @@ Record LASInfo (pinfo: PhiInfo) := mkLASInfo {
   LAS_prop : las LAS_lid LAS_sid LAS_value LAS_tail LAS_block pinfo
 }.
 
-Lemma LAS_substable_values : forall td gl pinfo lasinfo 
+Lemma LAS_substable_values : forall td gl pinfo lasinfo
   (Huniq: uniqFdef (PI_f pinfo)),
-  substable_values td gl (PI_f pinfo) (value_id (LAS_lid pinfo lasinfo))  
+  substable_values td gl (PI_f pinfo) (value_id (LAS_lid pinfo lasinfo))
     (LAS_value pinfo lasinfo).
 Admitted.
 
 Lemma las__alive_store: forall lid sid v cs2 b pinfo,
   las lid sid v cs2 b pinfo ->
   alive_store sid v (cs2 ++
-    [insn_load lid (PI_typ pinfo) (value_id (PI_id pinfo)) (PI_align pinfo)]) 
+    [insn_load lid (PI_typ pinfo) (value_id (PI_id pinfo)) (PI_align pinfo)])
     b pinfo.
 Proof.
   unfold las. unfold alive_store.
@@ -82,7 +82,7 @@ Proof.
   split.
     apply store_in_cmds_merge.
     split; auto.
-     
+
     exists cs1. exists cs3. simpl_env. auto.
 Qed.
 
@@ -91,16 +91,16 @@ Lemma lasinfo__stinfo: forall pinfo (lasinfo: LASInfo pinfo),
     SI_id pinfo stinfo = LAS_sid pinfo lasinfo /\
     SI_value pinfo stinfo = LAS_value pinfo lasinfo /\
     SI_block pinfo stinfo = LAS_block pinfo lasinfo /\
-    SI_tail pinfo stinfo = 
-      LAS_tail pinfo lasinfo ++ 
-      [insn_load (LAS_lid pinfo lasinfo) (PI_typ pinfo) (value_id (PI_id pinfo)) 
+    SI_tail pinfo stinfo =
+      LAS_tail pinfo lasinfo ++
+      [insn_load (LAS_lid pinfo lasinfo) (PI_typ pinfo) (value_id (PI_id pinfo))
         (PI_align pinfo)] }.
 Proof.
   intros.
   destruct lasinfo. simpl.
   apply las__alive_store in LAS_prop0.
-  exists (mkStoreInfo 
-    pinfo LAS_sid0 LAS_value0 
+  exists (mkStoreInfo
+    pinfo LAS_sid0 LAS_value0
     (LAS_tail0 ++
      [insn_load LAS_lid0 (PI_typ pinfo) (value_id (PI_id pinfo))
         (PI_align pinfo)]) LAS_block0 LAS_prop0).
@@ -112,8 +112,8 @@ Lemma las__alive_store__vev_EC: forall pinfo lasinfo los nts M gl ps ec s
   (HmInS: moduleInSystemB (module_intro los nts ps) s = true)
   (Hwfpp: OpsemPP.wf_ExecutionContext (los,nts) ps ec) stinfo Hp
   (Hlas2st : exist _ stinfo Hp = lasinfo__stinfo pinfo lasinfo),
-  alive_store.wf_ExecutionContext pinfo stinfo (los,nts) M gl ec -> 
-  vev_ExecutionContext (value_id (LAS_lid pinfo lasinfo)) 
+  alive_store.wf_ExecutionContext pinfo stinfo (los,nts) M gl ec ->
+  vev_ExecutionContext (value_id (LAS_lid pinfo lasinfo))
     (LAS_value pinfo lasinfo) (PI_f pinfo) (los,nts) M gl ec.
 Proof.
   intros. clear Hlas2st.
@@ -122,7 +122,7 @@ Proof.
   destruct ec. simpl in *.
   destruct CurCmds; auto.
 
-  destruct Hwfpp as 
+  destruct Hwfpp as
     [Hreach [HbInF [HfInPs [_ [Hinscope [l' [ps' [cs' EQ]]]]]]]]; subst.
 
   remember (inscope_of_cmd CurFunction
@@ -139,7 +139,7 @@ Proof.
   split; intro G1.
   Case "LAS_value is in scope".
 
-  remember (Opsem.getOperandValue (los,nts) (LAS_value pinfo lasinfo) 
+  remember (Opsem.getOperandValue (los,nts) (LAS_value pinfo lasinfo)
       Locals gl) as R.
   destruct R; auto.
   destruct (LAS_lid pinfo lasinfo == getCmdLoc c); auto.
@@ -160,21 +160,21 @@ Proof.
          insn_load (LAS_lid pinfo lasinfo) (PI_typ pinfo)
            (value_id (PI_id pinfo)) (PI_align pinfo) :: cs3) in J1.
       eapply IngetCmdsIDs__lookupCmdViaIDFromFdef with (c1:=
-        insn_load (LAS_lid pinfo lasinfo) (PI_typ pinfo) 
-          (value_id (PI_id pinfo)) (PI_align pinfo)) in J1; 
+        insn_load (LAS_lid pinfo lasinfo) (PI_typ pinfo)
+          (value_id (PI_id pinfo)) (PI_align pinfo)) in J1;
         eauto using in_middle.
-      simpl in J1. rewrite <- e in HbInF. 
+      simpl in J1. rewrite <- e in HbInF.
       rewrite HbInF in J1. inv J1. auto.
 
   subst.
 
-  assert (block_intro l' ps' 
-              (cs' ++ insn_load (LAS_lid pinfo lasinfo) 
+  assert (block_intro l' ps'
+              (cs' ++ insn_load (LAS_lid pinfo lasinfo)
                             (PI_typ pinfo) (value_id (PI_id pinfo))
-                            (PI_align pinfo) :: CurCmds) Terminator = 
+                            (PI_align pinfo) :: CurCmds) Terminator =
               SI_block pinfo stinfo) as Heq.
       clear H Hinscope HeqR Hreach.
-      assert (In 
+      assert (In
         (LAS_lid pinfo lasinfo)
         (getBlockIDs
           (block_intro l' ps'
@@ -184,12 +184,12 @@ Proof.
             Terminator))) as Hin.
         simpl.
         rewrite getCmdsIDs_app.
-        simpl. 
-        rewrite_env ((getPhiNodesIDs ps' ++ getCmdsIDs cs') ++ 
+        simpl.
+        rewrite_env ((getPhiNodesIDs ps' ++ getCmdsIDs cs') ++
                       LAS_lid pinfo lasinfo :: getCmdsIDs CurCmds).
         apply in_middle.
 
-      apply inGetBlockIDs__lookupBlockViaIDFromFdef with 
+      apply inGetBlockIDs__lookupBlockViaIDFromFdef with
         (id1:=LAS_lid pinfo lasinfo) in HbInF; auto.
       clear Hin.
 
@@ -205,8 +205,8 @@ Proof.
                 (LAS_value pinfo lasinfo) (value_id (PI_id pinfo))
                 (PI_align pinfo)
               :: (LAS_tail pinfo lasinfo ++
-                  [insn_load (LAS_lid pinfo lasinfo) 
-                     (PI_typ pinfo) (value_id (PI_id pinfo)) 
+                  [insn_load (LAS_lid pinfo lasinfo)
+                     (PI_typ pinfo) (value_id (PI_id pinfo))
                      (PI_align pinfo)]) ++ cs3) t))) as Hin.
         simpl.
         apply in_or_app. right.
@@ -217,7 +217,7 @@ Proof.
         rewrite getCmdsIDs_app. simpl.
         apply in_middle.
 
-      apply inGetBlockIDs__lookupBlockViaIDFromFdef with 
+      apply inGetBlockIDs__lookupBlockViaIDFromFdef with
         (id1:=LAS_lid pinfo lasinfo) in J1; auto.
       clear Hin.
 
@@ -235,7 +235,7 @@ Proof.
       assert (
           cs' = cs1 ++
                 insn_store (LAS_sid pinfo lasinfo) (PI_typ pinfo)
-                  (LAS_value pinfo lasinfo) (value_id (PI_id pinfo)) 
+                  (LAS_value pinfo lasinfo) (value_id (PI_id pinfo))
                   (PI_align pinfo) :: (LAS_tail pinfo lasinfo) /\
           CurCmds = cs3
           ) as EQ.
@@ -243,7 +243,7 @@ Proof.
         rewrite_env (
           (cs1 ++
           insn_store (LAS_sid pinfo lasinfo) (PI_typ pinfo)
-            (LAS_value pinfo lasinfo) (value_id (PI_id pinfo)) 
+            (LAS_value pinfo lasinfo) (value_id (PI_id pinfo))
             (PI_align pinfo)
           :: LAS_tail pinfo lasinfo) ++
           insn_load (LAS_lid pinfo lasinfo) (PI_typ pinfo)
@@ -254,11 +254,11 @@ Proof.
       unfold follow_alive_store. simpl.
       intros.
       assert (cs1 = cs0 /\ cs3 = cs2) as EQ.
-        clear - H Hnodup.  
+        clear - H Hnodup.
         rewrite_env (
           (cs1 ++
           insn_store (LAS_sid pinfo lasinfo) (PI_typ pinfo)
-            (LAS_value pinfo lasinfo) (value_id (PI_id pinfo)) 
+            (LAS_value pinfo lasinfo) (value_id (PI_id pinfo))
             (PI_align pinfo)
           :: LAS_tail pinfo lasinfo) ++
           insn_load (LAS_lid pinfo lasinfo) (PI_typ pinfo)
@@ -266,7 +266,7 @@ Proof.
         rewrite_env (
           (cs0 ++
           insn_store (LAS_sid pinfo lasinfo) (PI_typ pinfo)
-            (LAS_value pinfo lasinfo) (value_id (PI_id pinfo)) 
+            (LAS_value pinfo lasinfo) (value_id (PI_id pinfo))
             (PI_align pinfo)
           :: LAS_tail pinfo lasinfo) ++
           insn_load (LAS_lid pinfo lasinfo) (PI_typ pinfo)
@@ -304,7 +304,7 @@ Proof.
     remember (LAS_value pinfo lasinfo) as R.
     destruct R as [i0|]; auto.
     destruct (i0 == getCmdLoc c); subst; auto.
-    admit. (* LAS_value >> LAS_lid, cyclic! *)   
+    admit. (* LAS_value >> LAS_lid, cyclic! *)
 Qed.
 
 Lemma las__alive_store__vev_ECStack: forall pinfo lasinfo los nts M gl ps s
@@ -312,8 +312,8 @@ Lemma las__alive_store__vev_ECStack: forall pinfo lasinfo los nts M gl ps s
   (HmInS: moduleInSystemB (module_intro los nts ps) s = true)
   (Hlas2st : exist _ stinfo Hp = lasinfo__stinfo pinfo lasinfo)
   ECs (Hwfpp: OpsemPP.wf_ECStack (los,nts) ps ECs),
-  alive_store.wf_ECStack pinfo stinfo (los,nts) M gl ECs -> 
-  vev_ECStack (value_id (LAS_lid pinfo lasinfo)) (LAS_value pinfo lasinfo) 
+  alive_store.wf_ECStack pinfo stinfo (los,nts) M gl ECs ->
+  vev_ECStack (value_id (LAS_lid pinfo lasinfo)) (LAS_value pinfo lasinfo)
     (PI_f pinfo) (los,nts) M gl ECs.
 Proof.
   induction ECs; simpl; intros; auto.
@@ -323,11 +323,11 @@ Proof.
       eapply las__alive_store__vev_EC; eauto.
 Qed.
 
-Lemma las__alive_store__vev: forall pinfo lasinfo cfg S 
+Lemma las__alive_store__vev: forall pinfo lasinfo cfg S
   (Hwfcfg: OpsemPP.wf_Config cfg) (Hwfpp: OpsemPP.wf_State cfg S) stinfo Hp
   (Hlas2st : exist _ stinfo Hp = lasinfo__stinfo pinfo lasinfo),
-  alive_store.wf_State pinfo stinfo cfg S -> 
-  vev_State (value_id (LAS_lid pinfo lasinfo)) (LAS_value pinfo lasinfo) 
+  alive_store.wf_State pinfo stinfo cfg S ->
+  vev_State (value_id (LAS_lid pinfo lasinfo)) (LAS_value pinfo lasinfo)
     (PI_f pinfo) cfg S.
 Proof.
   intros.
@@ -342,14 +342,14 @@ Qed.
 
 Definition fdef_simulation (pinfo: PhiInfo) (lasinfo: LASInfo pinfo) f1 f2
   : Prop :=
-  if (fdef_dec (PI_f pinfo) f1) then 
+  if (fdef_dec (PI_f pinfo) f1) then
     subst_fdef (LAS_lid pinfo lasinfo) (LAS_value pinfo lasinfo) f1 = f2
   else f1 = f2.
 
 Definition cmds_simulation (pinfo: PhiInfo) (lasinfo: LASInfo pinfo) (f1:fdef)
   cs1 cs2 : Prop :=
-  if (fdef_dec (PI_f pinfo) f1) then 
-    List.map (subst_cmd (LAS_lid pinfo lasinfo) (LAS_value pinfo lasinfo)) cs1 
+  if (fdef_dec (PI_f pinfo) f1) then
+    List.map (subst_cmd (LAS_lid pinfo lasinfo) (LAS_value pinfo lasinfo)) cs1
       = cs2
   else cs1 = cs2.
 
@@ -361,7 +361,7 @@ Definition block_simulation (pinfo: PhiInfo) (lasinfo: LASInfo pinfo) f1 b1 b2
 
 Definition products_simulation (pinfo: PhiInfo) (lasinfo: LASInfo pinfo) Ps1 Ps2
   : Prop :=
-List.Forall2 
+List.Forall2
   (fun P1 P2 =>
    match P1, P2 with
    | product_fdef f1, product_fdef f2 => fdef_simulation pinfo lasinfo f1 f2
@@ -370,37 +370,37 @@ List.Forall2
 
 Definition system_simulation (pinfo: PhiInfo) (lasinfo: LASInfo pinfo) S1 S2
   : Prop :=
-List.Forall2 
+List.Forall2
   (fun M1 M2 =>
    match M1, M2 with
    | module_intro los1 nts1 Ps1, module_intro los2 nts2 Ps2 =>
-       los1 = los2 /\ nts1 = nts2 /\ 
+       los1 = los2 /\ nts1 = nts2 /\
        products_simulation pinfo lasinfo Ps1 Ps2
    end) S1 S2.
 
 Definition phis_simulation (pinfo: PhiInfo) (lasinfo: LASInfo pinfo) (f1:fdef)
   ps1 ps2 : Prop :=
-  if (fdef_dec (PI_f pinfo) f1) then 
-    List.map (subst_phi (LAS_lid pinfo lasinfo) (LAS_value pinfo lasinfo)) ps1 
+  if (fdef_dec (PI_f pinfo) f1) then
+    List.map (subst_phi (LAS_lid pinfo lasinfo) (LAS_value pinfo lasinfo)) ps1
       = ps2
   else ps1 = ps2.
 
 Definition tmn_simulation (pinfo: PhiInfo) (lasinfo: LASInfo pinfo) (f1:fdef)
   t t': Prop :=
-if (fdef_dec (PI_f pinfo) f1) then 
+if (fdef_dec (PI_f pinfo) f1) then
   subst_tmn (LAS_lid pinfo lasinfo) (LAS_value pinfo lasinfo) t = t'
 else t = t'.
 
-Definition EC_simulation (pinfo: PhiInfo) (lasinfo: LASInfo pinfo) 
+Definition EC_simulation (pinfo: PhiInfo) (lasinfo: LASInfo pinfo)
   (EC1 EC2:@Opsem.ExecutionContext DGVs) : Prop :=
   match (EC1, EC2) with
-  | (Opsem.mkEC f1 b1 cs1 tmn1 lc1 als1, 
+  | (Opsem.mkEC f1 b1 cs1 tmn1 lc1 als1,
      Opsem.mkEC f2 b2 cs2 tmn2 lc2 als2) =>
        fdef_simulation pinfo lasinfo f1 f2 /\
        tmn_simulation pinfo lasinfo f1 tmn1 tmn2 /\
        als1 = als2 /\
        block_simulation pinfo lasinfo f1 b1 b2 /\
-       (exists l1, exists ps1, exists cs11, 
+       (exists l1, exists ps1, exists cs11,
          b1 = block_intro l1 ps1 (cs11++cs1) tmn1)
          /\
        (exists l2, exists ps2, exists cs21,
@@ -409,24 +409,24 @@ Definition EC_simulation (pinfo: PhiInfo) (lasinfo: LASInfo pinfo)
        cmds_simulation pinfo lasinfo f1 cs1 cs2
   end.
 
-Fixpoint ECs_simulation (pinfo: PhiInfo) (lasinfo: LASInfo pinfo) 
+Fixpoint ECs_simulation (pinfo: PhiInfo) (lasinfo: LASInfo pinfo)
   (ECs1 ECs2:@Opsem.ECStack DGVs) : Prop :=
 match ECs1, ECs2 with
 | nil, nil => True
-| EC1::ECs1', EC2::ECs2' => 
-    EC_simulation pinfo lasinfo EC1 EC2 /\ 
+| EC1::ECs1', EC2::ECs2' =>
+    EC_simulation pinfo lasinfo EC1 EC2 /\
     ECs_simulation pinfo lasinfo ECs1' ECs2'
 | _, _ => False
 end.
 
-Definition State_simulation (pinfo: PhiInfo) (lasinfo: LASInfo pinfo) 
-  (Cfg1:OpsemAux.Config) (St1:Opsem.State) 
+Definition State_simulation (pinfo: PhiInfo) (lasinfo: LASInfo pinfo)
+  (Cfg1:OpsemAux.Config) (St1:Opsem.State)
   (Cfg2:OpsemAux.Config) (St2:Opsem.State) : Prop :=
 let '(OpsemAux.mkCfg S1 TD1 Ps1 gl1 fs1) := Cfg1 in
 let '(OpsemAux.mkCfg S2 TD2 Ps2 gl2 fs2) := Cfg2 in
 match (St1, St2) with
 | (Opsem.mkState ECs1 M1, Opsem.mkState ECs2 M2) =>
-    TD1 = TD2 /\ 
+    TD1 = TD2 /\
     products_simulation pinfo lasinfo Ps1 Ps2 /\
     ECs_simulation pinfo lasinfo ECs1 ECs2 /\
     gl1 = gl2 /\ fs1 = fs2 /\ M1 = M2
@@ -441,17 +441,17 @@ Qed.
 
 Definition cmd_simulation (pinfo: PhiInfo) (lasinfo: LASInfo pinfo) (f1:fdef)
   c c': Prop :=
-if (fdef_dec (PI_f pinfo) f1) then 
+if (fdef_dec (PI_f pinfo) f1) then
   subst_cmd (LAS_lid pinfo lasinfo) (LAS_value pinfo lasinfo) c = c'
 else c = c'.
 
 Lemma cmds_simulation_cons_inv: forall pinfo lasinfo F c1 cs2 cs',
   cmds_simulation pinfo lasinfo F (c1 :: cs2) cs' ->
-  exists c1', exists cs2', 
+  exists c1', exists cs2',
     cs' = c1' :: cs2' /\
     cmd_simulation pinfo lasinfo F c1 c1' /\
     cmds_simulation pinfo lasinfo F cs2 cs2'.
-Proof.  
+Proof.
   intros.
   unfold cmds_simulation, cmd_simulation in *.
   destruct (fdef_dec (PI_f pinfo) F); subst; simpl; eauto.
@@ -468,9 +468,9 @@ Lemma block_simulation_inv : forall pinfo lasinfo F l1 ps1 cs1 tmn1 l2 ps2 cs2
   tmn2,
   block_simulation pinfo lasinfo F (block_intro l1 ps1 cs1 tmn1)
     (block_intro l2 ps2 cs2 tmn2) ->
-  l1 = l2 /\ 
-  phis_simulation pinfo lasinfo F ps1 ps2 /\ 
-  cmds_simulation pinfo lasinfo F cs1 cs2 /\ 
+  l1 = l2 /\
+  phis_simulation pinfo lasinfo F ps1 ps2 /\
+  cmds_simulation pinfo lasinfo F cs1 cs2 /\
   tmn_simulation pinfo lasinfo F tmn1 tmn2.
 Proof.
   intros.
@@ -480,7 +480,7 @@ Qed.
 
 Definition value_simulation (pinfo: PhiInfo) (lasinfo: LASInfo pinfo) (f1:fdef)
   v v': Prop :=
-if (fdef_dec (PI_f pinfo) f1) then 
+if (fdef_dec (PI_f pinfo) f1) then
   subst_value (LAS_lid pinfo lasinfo) (LAS_value pinfo lasinfo) v = v'
 else v = v'.
 
@@ -497,7 +497,7 @@ Lemma getOperandValue_inTmnOperands_sim : forall los nts s ps gl pinfo
   (l0 : list atom)
   (HeqR : ret l0 = inscope_of_tmn f (block_intro l1 ps1 cs1 tmn) tmn)
   (Hinscope : id_rhs_val.wf_defs (value_id (LAS_lid pinfo lasinfo))
-                     (LAS_value pinfo lasinfo) (PI_f pinfo) 
+                     (LAS_value pinfo lasinfo) (PI_f pinfo)
                      (los, nts) gl f lc l0)
   (v v' : value)
   (Hvincs : valueInTmnOperands v tmn) gv gv'
@@ -513,7 +513,7 @@ Proof.
   destruct v as [i0|]; subst; simpl in Hget', Hget, Hinscope;
     try solve [uniq_result; auto].
   destruct (id_dec i0 (LAS_lid pinfo lasinfo)); simpl in Hget'; subst;
-    try solve [uniq_result; auto].  
+    try solve [uniq_result; auto].
   eapply Hinscope in Hget; eauto.
     admit. (* wf *)
     admit. (* wf + v >> lid *)
@@ -533,7 +533,7 @@ Lemma getOperandValue_inCmdOperands_sim : forall los nts s gl pinfo lasinfo
   (l0 : list atom)
   (HeqR : ret l0 = inscope_of_cmd f (block_intro l1 ps1 (cs1 ++ c :: cs) tmn) c)
   (Hinscope : id_rhs_val.wf_defs (value_id (LAS_lid pinfo lasinfo))
-                     (LAS_value pinfo lasinfo) (PI_f pinfo) 
+                     (LAS_value pinfo lasinfo) (PI_f pinfo)
                      (los, nts) gl f lc l0)
   (v v' : value)
   (Hvincs : valueInCmdOperands v c) gv gv'
@@ -549,7 +549,7 @@ Proof.
   destruct v as [i0|]; subst; simpl in Hget', Hget, Hinscope;
     try solve [uniq_result; auto].
   destruct (id_dec i0 (LAS_lid pinfo lasinfo)); simpl in Hget'; subst;
-    try solve [uniq_result; auto].  
+    try solve [uniq_result; auto].
   eapply Hinscope in Hget; eauto.
     admit. (* wf *)
     admit. (* wf + v >> lid *)
@@ -564,25 +564,25 @@ Qed.
 
 Definition phi_simulation (pinfo: PhiInfo) (lasinfo: LASInfo pinfo) (f1:fdef)
   p1 p2 : Prop :=
-  if (fdef_dec (PI_f pinfo) f1) then 
+  if (fdef_dec (PI_f pinfo) f1) then
     subst_phi (LAS_lid pinfo lasinfo) (LAS_value pinfo lasinfo) p1 = p2
   else p1 = p2.
 
 Lemma phis_simulation_cons_inv: forall pinfo lasinfo F p1 ps2 ps',
   phis_simulation pinfo lasinfo F (p1 :: ps2) ps' ->
-  exists p1', exists ps2', 
+  exists p1', exists ps2',
     ps' = p1' :: ps2' /\
     phi_simulation pinfo lasinfo F p1 p1' /\
     phis_simulation pinfo lasinfo F ps2 ps2'.
-Proof.  
+Proof.
   intros.
   unfold phis_simulation, phi_simulation in *.
   destruct (fdef_dec (PI_f pinfo) F); subst; simpl; eauto.
 Qed.
 
-Definition list_value_l_simulation (pinfo: PhiInfo) (lasinfo: LASInfo pinfo) 
+Definition list_value_l_simulation (pinfo: PhiInfo) (lasinfo: LASInfo pinfo)
   (f1:fdef) vls vls': Prop :=
-if (fdef_dec (PI_f pinfo) f1) then 
+if (fdef_dec (PI_f pinfo) f1) then
   subst_list_value_l (LAS_lid pinfo lasinfo) (LAS_value pinfo lasinfo) vls = vls'
 else vls = vls'.
 
@@ -595,7 +595,7 @@ Proof.
   destruct (fdef_dec (PI_f pinfo) f1); inv H; auto.
 Qed.
 
-Lemma getValueViaLabelFromValuels_sim : forall l1 pinfo lasinfo f1 vls1 vls2 v 
+Lemma getValueViaLabelFromValuels_sim : forall l1 pinfo lasinfo f1 vls1 vls2 v
   v' (Hsim: list_value_l_simulation pinfo lasinfo f1 vls1 vls2)
   (HeqR0 : ret v = getValueViaLabelFromValuels vls1 l1)
   (HeqR' : ret v' = getValueViaLabelFromValuels vls2 l1),
@@ -617,10 +617,10 @@ Lemma getValueViaLabelFromValuels_getOperandValue_sim : forall
   ps (f : fdef) (Hwfg : wf_global (los,nts) s gl)
   (HwfF : wf_fdef s (module_intro los nts ps) f) (HuniqF: uniqFdef f)
   (l0 : l) (lc : GVMap) (t : list atom) (l1 : l) (ps1 : phinodes)
-  (cs1 : cmds) (tmn1 : terminator) 
+  (cs1 : cmds) (tmn1 : terminator)
   (HeqR : ret t = inscope_of_tmn f (block_intro l1 ps1 cs1 tmn1) tmn1)
   (Hinscope : id_rhs_val.wf_defs (value_id (LAS_lid pinfo lasinfo))
-                     (LAS_value pinfo lasinfo) (PI_f pinfo) 
+                     (LAS_value pinfo lasinfo) (PI_f pinfo)
                      (los, nts) gl f lc t)
   (ps' : phinodes) (cs' : cmds) (tmn' : terminator)
   (i0 : id) (l2 : list_value_l) (ps2 : list phinode)
@@ -629,7 +629,7 @@ Lemma getValueViaLabelFromValuels_getOperandValue_sim : forall
   (Hreach' : isReachableFromEntry f (block_intro l1 ps1 cs1 tmn1))
   (v0 v0': value)
   (HeqR3 : ret v0 = getValueViaLabelFromValuels l2 l1)
-  (g1 : GenericValue) 
+  (g1 : GenericValue)
   (HeqR4 : ret g1 = getOperandValue (los,nts) v0 lc gl)
   (g2 : GVMap) (g : GenericValue) (g0 : GVMap) t1
   (H1 : wf_value_list
@@ -646,7 +646,7 @@ Proof.
   unfold value_simulation in Hvsim.
   destruct (fdef_dec (PI_f pinfo) f); subst; try solve [uniq_result; auto].
   destruct v0 as [vid | vc]; simpl in HeqR1, HeqR4; try congruence.
-  destruct (id_dec vid (LAS_lid pinfo lasinfo)); subst; simpl in HeqR1; 
+  destruct (id_dec vid (LAS_lid pinfo lasinfo)); subst; simpl in HeqR1;
     try congruence.
   destruct H7 as [Hwfops Hwfvls].
   assert (Hnth:=HeqR3).
@@ -664,11 +664,11 @@ Proof.
   clear Hwfvls HwfV Hnth.
   destruct Hdom as [J3 | J3]; try solve [contradict Hreach; auto].
   clear Hreach.
-  unfold blockDominates in J3.         
+  unfold blockDominates in J3.
   destruct vb as [l3 p c t0]. assert (HeqR':=HeqR).
   unfold inscope_of_tmn in HeqR.
   destruct (PI_f pinfo) as [[f t2 i1 a v] bs].
-  remember ((dom_analyze (fdef_intro (fheader_intro f t2 i1 a v) bs)) !! l1) 
+  remember ((dom_analyze (fdef_intro (fheader_intro f t2 i1 a v) bs)) !! l1)
     as R1.
   destruct R1.
   apply fold_left__spec in HeqR.
@@ -679,7 +679,7 @@ Proof.
       clear - HeqR3 HeqR Hlkb1 J3 Hlkvb HbInF HwfF HuniqF.
       assert (J':=Hlkvb).
       apply lookupBlockViaIDFromFdef__blockInFdefB in Hlkvb.
-      apply lookupBlockViaLabelFromFdef_inv in Hlkb1; auto. 
+      apply lookupBlockViaLabelFromFdef_inv in Hlkb1; auto.
       destruct Hlkb1 as [J1 J2].
       eapply blockInFdefB_uniq in J2; eauto.
       destruct J2 as [J2 [J4 J5]]; subst.
@@ -689,14 +689,14 @@ Proof.
       admit. (* lid cannot be in args *)
     eapply Hinscope in HeqR1; eauto.
       admit. (* v >> lid *)
-  
+
   Case "l3<>l1".
     assert (In l3 (ListSet.set_diff eq_atom_dec bs_contents [l1])) as G.
       destruct J3 as [J3 | J3]; subst; try congruence.
       apply ListSet.set_diff_intro; auto.
         simpl. intro JJ. destruct JJ as [JJ | JJ]; auto.
     assert (
-      lookupBlockViaLabelFromFdef (fdef_intro (fheader_intro f t2 i1 a v) bs) l3 
+      lookupBlockViaLabelFromFdef (fdef_intro (fheader_intro f t2 i1 a v) bs) l3
         = ret block_intro l3 p c t0) as J1.
       clear - Hlkvb HwfF HuniqF.
       apply lookupBlockViaIDFromFdef__blockInFdefB in Hlkvb.
@@ -718,10 +718,10 @@ Lemma getIncomingValuesForBlockFromPHINodes_sim : forall
   l0
   (lc : GVMap)
   (t : list atom)
-  l1 ps1 cs1 tmn1 
+  l1 ps1 cs1 tmn1
   (HeqR : ret t = inscope_of_tmn f (block_intro l1 ps1 cs1 tmn1) tmn1)
   (Hinscope : id_rhs_val.wf_defs (value_id (LAS_lid pinfo lasinfo))
-                     (LAS_value pinfo lasinfo) (PI_f pinfo) 
+                     (LAS_value pinfo lasinfo) (PI_f pinfo)
                      (los, nts) gl f lc t)
   (ps' : phinodes)
   (cs' : cmds)
@@ -733,14 +733,14 @@ Lemma getIncomingValuesForBlockFromPHINodes_sim : forall
             (block_intro l1 ps1 cs1 tmn1) f = true)
   (HwfB : wf_block s (module_intro los nts ps) f 
             (block_intro l1 ps1 cs1 tmn1))
-  B1' 
-  (Hbsim1: block_simulation pinfo lasinfo f (block_intro l1 ps1 cs1 tmn1) B1')  
+  B1'
+  (Hbsim1: block_simulation pinfo lasinfo f (block_intro l1 ps1 cs1 tmn1) B1')
   ps2
   (H8 : wf_phinodes s (module_intro los nts ps) f 
           (block_intro l0 ps' cs' tmn') ps2)
   (Hin: exists ps1, ps' = ps1 ++ ps2) RVs RVs' ps2'
   (Hpsim2: phis_simulation pinfo lasinfo f ps2 ps2')
-  (Hget : @Opsem.getIncomingValuesForBlockFromPHINodes DGVs (los,nts) ps2 
+  (Hget : @Opsem.getIncomingValuesForBlockFromPHINodes DGVs (los,nts) ps2
            (block_intro l1 ps1 cs1 tmn1) gl lc = ret RVs)
   (Hget' : @Opsem.getIncomingValuesForBlockFromPHINodes DGVs (los,nts)
              ps2' B1' gl lc = ret RVs'),
@@ -748,14 +748,14 @@ Lemma getIncomingValuesForBlockFromPHINodes_sim : forall
 Proof.
   induction ps2 as [|[i1 t1 l2]]; intros; simpl in Hget, Hget'.
     apply phis_simulation_nil_inv in Hpsim2.
-    subst. simpl in Hget'. congruence.    
+    subst. simpl in Hget'. congruence.
 
     apply phis_simulation_cons_inv in Hpsim2.
     destruct Hpsim2 as [p1' [ps2'0 [Heq [Hpsim1 Hpsim2]]]]; subst.
     simpl in Hget'. destruct p1' as [i2 t2 l3]. 
     apply phi_simulation_inv in Hpsim1.
     destruct Hpsim1 as [Heq1 [Heq2 Hvlsim1]]; subst.
-    inv_mbind'. 
+    inv_mbind'.
     destruct B1'. simpl in HeqR0.
     apply block_simulation_inv in Hbsim1.
     destruct Hbsim1 as [Heq [Hpsim1 [Hcssim1 Htsim1]]]; subst.
@@ -764,9 +764,9 @@ Proof.
     match goal with | H8: wf_phinodes _ _ _ _ _ |- _ => inv H8 end.
     assert (g = g0) as Heq.
       match goal with | H5 : wf_insn _ _ _ _ _ |- _ => inv H5 end.
-      eapply getValueViaLabelFromValuels_getOperandValue_sim with (l0:=l0); 
+      eapply getValueViaLabelFromValuels_getOperandValue_sim with (l0:=l0);
         eauto.
-    subst. 
+    subst.
     match goal with
     | H6 : wf_phinodes _ _ _ _ _ |- _ =>
       eapply IHps2 with (RVs:=l4) in H6; eauto
@@ -785,7 +785,7 @@ Lemma switchToNewBasicBlock_sim : forall
   l2 (lc : GVMap) (t : list atom) l1 ps1 cs1 tmn1
   (HeqR : ret t = inscope_of_tmn f (block_intro l1 ps1 cs1 tmn1) tmn1)
   (Hinscope : id_rhs_val.wf_defs (value_id (LAS_lid pinfo lasinfo))
-                     (LAS_value pinfo lasinfo) (PI_f pinfo) 
+                     (LAS_value pinfo lasinfo) (PI_f pinfo)
                      (los, nts) gl f lc t)
   (ps2 : phinodes) (cs2 : cmds) (tmn2 : terminator)
   (Hsucc : In l2 (successors_terminator tmn1))
@@ -794,10 +794,10 @@ Lemma switchToNewBasicBlock_sim : forall
   (HbInF' : blockInFdefB (block_intro l2 ps2 cs2 tmn2) f = true)
   (HbInF : blockInFdefB (block_intro l1 ps1 cs1 tmn1) f = true)
   lc0 lc0'
-  (Hget : @Opsem.switchToNewBasicBlock DGVs (los,nts) 
-    (block_intro l2 ps2 cs2 tmn2) 
+  (Hget : @Opsem.switchToNewBasicBlock DGVs (los,nts)
+    (block_intro l2 ps2 cs2 tmn2)
     (block_intro l1 ps1 cs1 tmn1) gl lc = ret lc0) B1' B2'
-  (Hbsim1: block_simulation pinfo lasinfo f (block_intro l1 ps1 cs1 tmn1) B1')  
+  (Hbsim1: block_simulation pinfo lasinfo f (block_intro l1 ps1 cs1 tmn1) B1')
   (Hbsim2: block_simulation pinfo lasinfo f (block_intro l2 ps2 cs2 tmn2) B2')
   (Hget' : @Opsem.switchToNewBasicBlock DGVs (los,nts) B2' B1' gl lc = ret lc0'),
   lc0 = lc0'.
@@ -831,15 +831,15 @@ Qed.
 
 Definition pars_simulation (pinfo: PhiInfo) (lasinfo: LASInfo pinfo) (f1:fdef)
   (ps1 ps2:params) : Prop :=
-  if (fdef_dec (PI_f pinfo) f1) then 
-    (List.map 
-      (fun p => 
-       let '(t, v):=p in 
+  if (fdef_dec (PI_f pinfo) f1) then
+    (List.map
+      (fun p =>
+       let '(t, v):=p in
        (t, subst_value (LAS_lid pinfo lasinfo) (LAS_value pinfo lasinfo) v)) ps1)
     = ps2
   else ps1 = ps2.
 
-Lemma products_simulation__fdef_simulation : forall pinfo lasinfo Ps1 Ps2 fid f1 
+Lemma products_simulation__fdef_simulation : forall pinfo lasinfo Ps1 Ps2 fid f1
   f2,
   lookupFdefViaIDFromProducts Ps2 fid = Some f2 ->
   lookupFdefViaIDFromProducts Ps1 fid = Some f1 ->
@@ -869,9 +869,9 @@ Admitted.
 
 Lemma fdef_simulation_inv: forall pinfo lasinfo fh1 fh2 bs1 bs2,
   fdef_simulation pinfo lasinfo (fdef_intro fh1 bs1) (fdef_intro fh2 bs2) ->
-  fh1 = fh2 /\ 
-  List.Forall2 
-    (fun b1 b2 => block_simulation pinfo lasinfo (fdef_intro fh1 bs1) b1 b2) 
+  fh1 = fh2 /\
+  List.Forall2
+    (fun b1 b2 => block_simulation pinfo lasinfo (fdef_intro fh1 bs1) b1 b2)
     bs1 bs2.
 Admitted.
 
@@ -884,18 +884,18 @@ Qed.
 
 Definition par_simulation (pinfo: PhiInfo) (lasinfo: LASInfo pinfo) (f1:fdef)
   (p p':typ * attributes * value) : Prop :=
-if (fdef_dec (PI_f pinfo) f1) then 
+if (fdef_dec (PI_f pinfo) f1) then
   let '(t, v) := p in
   (t, v {[LAS_value pinfo lasinfo // LAS_lid pinfo lasinfo]}) = p'
 else p = p'.
 
 Lemma pars_simulation_cons_inv: forall pinfo lasinfo F p1 ps2 ps',
   pars_simulation pinfo lasinfo F (p1 :: ps2) ps' ->
-  exists p1', exists ps2', 
+  exists p1', exists ps2',
     ps' = p1' :: ps2' /\
     par_simulation pinfo lasinfo F p1 p1' /\
     pars_simulation pinfo lasinfo F ps2 ps2'.
-Proof.  
+Proof.
   intros.
   unfold pars_simulation, par_simulation in *.
   destruct p1.
@@ -912,7 +912,7 @@ Proof.
 Qed.
 
 Lemma params2GVs_sim_aux : forall
-  (s : system) pinfo lasinfo 
+  (s : system) pinfo lasinfo
   los nts
   (ps : list product)
   (f : fdef)
@@ -936,7 +936,7 @@ Lemma params2GVs_sim_aux : forall
          inscope_of_cmd f
            (block_intro l1 ps1 (cs1 ++ insn_call i0 n c t v p2 :: cs) tmn)
            (insn_call i0 n c t v p2))
-  (Hinscope : id_rhs_val.wf_defs (value_id (LAS_lid pinfo lasinfo)) 
+  (Hinscope : id_rhs_val.wf_defs (value_id (LAS_lid pinfo lasinfo))
            (LAS_value pinfo lasinfo) (PI_f pinfo) (los, nts) gl f lc l0)
   p22 p22' gvs gvs'
   (Hex : exists p21, p2 = p21 ++ p22)
@@ -950,17 +950,17 @@ Proof.
     simpl in *. congruence.
 
     destruct a as [[t0 attr0] v0].
-    destruct Hex as [p21 Hex]; subst. 
-    apply pars_simulation_cons_inv in Hpasim. 
+    destruct Hex as [p21 Hex]; subst.
+    apply pars_simulation_cons_inv in Hpasim.
     destruct Hpasim as [p1' [ps2' [EQ [Hpsim' Hpasim']]]]; subst.
     simpl in *. destruct p1'.
     inv_mbind'.
-    
+
     assert (g0 = g) as Heq.
       apply par_simulation__value_simulation in Hpsim'.
       eapply getOperandValue_inCmdOperands_sim in Hpsim'; eauto.
-        simpl. unfold valueInParams. right. 
-        assert (J:=@in_split_r _ _ (p21 ++ (t0, attr0, v0) :: p22) 
+        simpl. unfold valueInParams. right.
+        assert (J:=@in_split_r _ _ (p21 ++ (t0, attr0, v0) :: p22)
           (t0, attr0, v0)).
         remember (split (p21 ++ (t0, attr0, v0) :: p22)) as R.
         destruct R.
@@ -972,7 +972,7 @@ Proof.
 Qed.
 
 Lemma params2GVs_sim : forall
-  (s : system) pinfo lasinfo 
+  (s : system) pinfo lasinfo
   los nts
   (ps : list product)
   (f : fdef)
@@ -996,7 +996,7 @@ Lemma params2GVs_sim : forall
          inscope_of_cmd f
            (block_intro l1 ps1 (cs1 ++ insn_call i0 n c t v p2 :: cs) tmn)
            (insn_call i0 n c t v p2))
-  (Hinscope : id_rhs_val.wf_defs (value_id (LAS_lid pinfo lasinfo)) 
+  (Hinscope : id_rhs_val.wf_defs (value_id (LAS_lid pinfo lasinfo))
            (LAS_value pinfo lasinfo) (PI_f pinfo) (los, nts) gl f lc l0)
   p2' gvs gvs'
   (Hp2gv : Opsem.params2GVs (los, nts) p2 lc gl = Some gvs)
@@ -1012,7 +1012,7 @@ Qed.
 Lemma lookupFdefViaPtr__simulation_l2r : forall pinfo lasinfo Ps1 Ps2 fptr f1 fs,
   products_simulation pinfo lasinfo Ps1 Ps2 ->
   OpsemAux.lookupFdefViaPtr Ps1 fs fptr = Some f1 ->
-  exists f2, 
+  exists f2,
     OpsemAux.lookupFdefViaPtr Ps2 fs fptr = Some f2 /\
     fdef_simulation pinfo lasinfo f1 f2.
 Admitted.
@@ -1114,8 +1114,8 @@ Lemma las_is_sim : forall pinfo lasinfo Cfg1 St1 Cfg2 St2 St2' tr2 tr1 St1'
   (HwfS1: id_rhs_val.wf_State (value_id (LAS_lid pinfo lasinfo)) 
            (LAS_value pinfo lasinfo) (PI_f pinfo) Cfg1 St1)
   (Hsim: State_simulation pinfo lasinfo Cfg1 St1 Cfg2 St2)
-  (Hop2: Opsem.sInsn Cfg2 St2 St2' tr2) 
-  (Hop1: Opsem.sInsn Cfg1 St1 St1' tr1), 
+  (Hop2: Opsem.sInsn Cfg2 St2 St2' tr2)
+  (Hop1: Opsem.sInsn Cfg1 St1 St1' tr1),
   State_simulation pinfo lasinfo Cfg1 St1' Cfg2 St2' /\ tr1 = tr2.
 Proof.
 
@@ -1129,7 +1129,7 @@ Case "sReturn".
   destruct_ctx_return.
 
   assert (exists Result2,
-    tmn2 = insn_return rid RetTy Result2 /\ 
+    tmn2 = insn_return rid RetTy Result2 /\
     value_simulation pinfo lasinfo F Result Result2) as Hreturn.
     clear - Htsim2.
     unfold value_simulation, tmn_simulation in *.
@@ -1146,7 +1146,7 @@ Case "sReturn".
   wfCall_inv.
 
   assert (lc'' = lc''0) as EQ.
-    clear - H27 H1 Hcsim2' Hvsim2 Hinscope1' HwfSystem HmInS Hreach1 HBinF1 
+    clear - H27 H1 Hcsim2' Hvsim2 Hinscope1' HwfSystem HmInS Hreach1 HBinF1
       HFinPs1 Hwfg.
     unfold Opsem.returnUpdateLocals in H1, H27.
     inv_mbind'.
@@ -1167,7 +1167,7 @@ Case "sReturn".
     eapply getOperandValue_inTmnOperands_sim in HeqR0; eauto
       using wf_system__wf_fdef; simpl; auto.
     subst. uniq_result. auto.
-    
+
   subst.
   repeat (split; eauto 2 using cmds_at_block_tail_next).
 
@@ -1197,7 +1197,7 @@ Focus.
   apply cmds_simulation_nil_inv in Hcssim2; subst.
 
   assert (exists Cond2,
-    tmn2 = insn_br bid Cond2 l1 l2 /\ 
+    tmn2 = insn_br bid Cond2 l1 l2 /\
     value_simulation pinfo lasinfo F Cond Cond2) as Hbr.
     clear - Htsim2.
     unfold value_simulation, tmn_simulation in *.
@@ -1206,7 +1206,7 @@ Focus.
 
   inv Hop2.
   uniq_result.
-  remember (inscope_of_tmn F (block_intro l3 ps3 (cs31 ++ nil) 
+  remember (inscope_of_tmn F (block_intro l3 ps3 (cs31 ++ nil)
              (insn_br bid Cond l1 l2)) (insn_br bid Cond l1 l2)) as R.
   destruct R; tinv Hinscope1'.
 
@@ -1215,10 +1215,10 @@ Focus.
   assert (wf_fdef S (module_intro los nts Ps) F) as HwfF.
     eauto using wf_system__wf_fdef.
   assert (c = c0)as Heq.
-    eapply getOperandValue_inTmnOperands_sim with (v:=Cond)(v':=Cond2); 
+    eapply getOperandValue_inTmnOperands_sim with (v:=Cond)(v':=Cond2);
       try solve [eauto | simpl; auto].
   subst.
-  assert (block_simulation pinfo lasinfo F 
+  assert (block_simulation pinfo lasinfo F
            (block_intro l' ps' cs' tmn')
            (block_intro l'0 ps'0 cs'0 tmn'0)) as Hbsim.
     clear - H22 H1 Hfsim2.
@@ -1262,7 +1262,7 @@ Focus.
 
   inv Hop2.
   uniq_result.
-  remember (inscope_of_tmn F (block_intro l3 ps3 (cs31 ++ nil) 
+  remember (inscope_of_tmn F (block_intro l3 ps3 (cs31 ++ nil)
              (insn_br_uncond bid l0)) (insn_br_uncond bid l0)) as R.
   destruct R; tinv Hinscope1'.
 
@@ -1271,7 +1271,7 @@ Focus.
   assert (wf_fdef S (module_intro los nts Ps) F) as HwfF.
     eauto using wf_system__wf_fdef.
 
-  assert (block_simulation pinfo lasinfo F 
+  assert (block_simulation pinfo lasinfo F
            (block_intro l' ps' cs' tmn')
            (block_intro l'0 ps'0 cs'0 tmn'0)) as Hbsim.
     clear - H H16 Hfsim2.
@@ -1307,7 +1307,7 @@ Case "sBop".
   destruct Hcssim2 as [c1' [cs3' [Heq [Hcsim2 Hcssim2]]]]; subst.
 
   assert (exists v1', exists v2',
-    c1' = insn_bop id0 bop0 sz0 v1' v2' /\ 
+    c1' = insn_bop id0 bop0 sz0 v1' v2' /\
     value_simulation pinfo lasinfo F v1 v1' /\
     value_simulation pinfo lasinfo F v2 v2') as Hcmd.
     clear - Hcsim2.
@@ -1324,15 +1324,15 @@ Case "sBop".
     inv_mbind'; inv_mfalse; app_inv; symmetry_ctx.
 
     match goal with
-    | HeqR : Opsem.getOperandValue _ ?v1 _ _ = ret _, 
-      HeqR' : Opsem.getOperandValue _ ?v1' _ _ = ret _, 
+    | HeqR : Opsem.getOperandValue _ ?v1 _ _ = ret _,
+      HeqR' : Opsem.getOperandValue _ ?v1' _ _ = ret _,
       HeqR0 : Opsem.getOperandValue _ ?v2 _ _ = ret _,
       HeqR0' : Opsem.getOperandValue _ ?v2' _ _ = ret _,
       Hvsim1 : value_simulation _ _ _ ?v1 ?v1',
-      Hvsim2 : value_simulation _ _ _ ?v2 ?v2' |- _ => 
-      eapply getOperandValue_inCmdOperands_sim with (v':=v1') in HeqR; 
+      Hvsim2 : value_simulation _ _ _ ?v2 ?v2' |- _ =>
+      eapply getOperandValue_inCmdOperands_sim with (v':=v1') in HeqR;
         try (eauto || simpl; auto);
-      eapply getOperandValue_inCmdOperands_sim with (v':=v2') in HeqR0; 
+      eapply getOperandValue_inCmdOperands_sim with (v':=v2') in HeqR0;
         try (eauto || simpl; auto);
       subst; uniq_result; auto
     end.
@@ -1344,14 +1344,14 @@ Case "sBop".
 Case "sFBop". admit.
 Case "sExtractValue". admit.
 Case "sInsertValue". admit.
-Case "sMalloc". 
+Case "sMalloc".
 
   destruct_ctx_other.
   apply cmds_simulation_cons_inv in Hcssim2.
   destruct Hcssim2 as [c1' [cs3' [Heq [Hcsim2 Hcssim2]]]]; subst.
 
   assert (exists v',
-    c1' = insn_malloc id0 t v' align0 /\ 
+    c1' = insn_malloc id0 t v' align0 /\
     value_simulation pinfo lasinfo F v v') as Hcmd.
     clear - Hcsim2.
     unfold value_simulation, cmd_simulation in *.
@@ -1364,7 +1364,7 @@ Case "sMalloc".
 
   assert (gns = gns0) as Heq.
     inv_mfalse; symmetry_ctx.
-    eapply getOperandValue_inCmdOperands_sim with (v':=v') in H0; 
+    eapply getOperandValue_inCmdOperands_sim with (v':=v') in H0;
       try (eauto || simpl; auto).
   subst.
   uniq_result.
@@ -1389,7 +1389,7 @@ Case "sCall".
   destruct Hcssim2 as [c1' [cs3' [Heq [Hcsim2 Hcssim2]]]]; subst.
 
   assert (exists fv', exists lp',
-    c1' = insn_call rid noret0 ca ft fv' lp' /\ 
+    c1' = insn_call rid noret0 ca ft fv' lp' /\
     value_simulation pinfo lasinfo F fv fv' /\
     pars_simulation pinfo lasinfo F lp lp') as Hcmd.
     clear - Hcsim2.
@@ -1408,7 +1408,7 @@ Case "sCall".
 
   assert (fptr = fptr0) as Heq.
     inv_mfalse; symmetry_ctx.
-    eapply getOperandValue_inCmdOperands_sim with (v':=fv') in H; 
+    eapply getOperandValue_inCmdOperands_sim with (v':=fv') in H;
       try (eauto || simpl; auto).
   subst. clear H.
 
@@ -1439,7 +1439,7 @@ Case "sCall".
 
   assert (fptr = fptr0) as Heq.
     inv_mfalse; symmetry_ctx.
-    eapply getOperandValue_inCmdOperands_sim with (v':=fv') in H; 
+    eapply getOperandValue_inCmdOperands_sim with (v':=fv') in H;
       try (eauto || simpl; auto).
   subst. clear H.
   clear - H28 H1 Hpsim.
@@ -1450,9 +1450,9 @@ Case "sCall".
   apply OpsemAux.lookupFdefViaPtr_inversion in H1.
   destruct H28 as [fn [J1 [J2 J3]]].
   destruct H1 as [fn' [J4 J5]].
-  uniq_result.   
+  uniq_result.
 
-Case "sExCall". 
+Case "sExCall".
 
   destruct_ctx_other.
   assert (Hcssim2':=Hcssim2).
@@ -1460,7 +1460,7 @@ Case "sExCall".
   destruct Hcssim2 as [c1' [cs3' [Heq [Hcsim2 Hcssim2]]]]; subst.
 
   assert (exists fv', exists lp',
-    c1' = insn_call rid noret0 ca ft fv' lp' /\ 
+    c1' = insn_call rid noret0 ca ft fv' lp' /\
     value_simulation pinfo lasinfo F fv fv' /\
     pars_simulation pinfo lasinfo F lp lp') as Hcmd.
     clear - Hcsim2.
@@ -1479,7 +1479,7 @@ Case "sExCall".
 
   assert (fptr = fptr0) as Heq.
     inv_mfalse; symmetry_ctx.
-    eapply getOperandValue_inCmdOperands_sim with (v':=fv') in H; 
+    eapply getOperandValue_inCmdOperands_sim with (v':=fv') in H;
       try (eauto || simpl; auto).
   subst. clear H.
 
@@ -1495,7 +1495,7 @@ Case "sExCall".
     destruct H30 as [fn' [J4 J5]]
   end.
 
-  uniq_result.   
+  uniq_result.
 
   SCase "sExCall".
 
@@ -1503,7 +1503,7 @@ Case "sExCall".
 
   assert (fptr = fptr0) as Heq.
     inv_mfalse; symmetry_ctx.
-    eapply getOperandValue_inCmdOperands_sim with (v':=fv') in H; 
+    eapply getOperandValue_inCmdOperands_sim with (v':=fv') in H;
       try (eauto || simpl; auto).
   subst. clear H.
 
@@ -1522,7 +1522,7 @@ Transparent inscope_of_tmn inscope_of_cmd.
 
 Qed.
 
-Lemma s_genInitState__las_State_simulation: forall pinfo lasinfo S1 S2 main 
+Lemma s_genInitState__las_State_simulation: forall pinfo lasinfo S1 S2 main
   VarArgs cfg2 IS2,
   system_simulation pinfo lasinfo S1 S2 ->
   Opsem.s_genInitState S2 main VarArgs Mem.empty = ret (cfg2, IS2) ->
@@ -1531,19 +1531,19 @@ Lemma s_genInitState__las_State_simulation: forall pinfo lasinfo S1 S2 main
     State_simulation pinfo lasinfo cfg1 IS1 cfg2 IS2.
 Admitted.
 
-Lemma s_isFinialState__las_State_simulation: forall pinfo lasinfo cfg1 FS1 cfg2 
+Lemma s_isFinialState__las_State_simulation: forall pinfo lasinfo cfg1 FS1 cfg2
   FS2 r (Hstsim : State_simulation pinfo lasinfo cfg1 FS1 cfg2 FS2)
   (Hfinal: Opsem.s_isFinialState cfg2 FS2 = ret r),
   Opsem.s_isFinialState cfg1 FS1 = ret r.
 Admitted.
 
-Lemma opsem_s_isFinialState__las_State_simulation: forall 
-  pinfo lasinfo cfg1 FS1 cfg2 FS2  
+Lemma opsem_s_isFinialState__las_State_simulation: forall
+  pinfo lasinfo cfg1 FS1 cfg2 FS2
   (Hstsim : State_simulation pinfo lasinfo cfg1 FS1 cfg2 FS2),
   Opsem.s_isFinialState cfg1 FS1 = Opsem.s_isFinialState cfg2 FS2.
 Admitted.
 
-Lemma undefined_state__las_State_simulation: forall pinfo lasinfo cfg1 St1 cfg2 
+Lemma undefined_state__las_State_simulation: forall pinfo lasinfo cfg1 St1 cfg2
   St2 (Hstsim : State_simulation pinfo lasinfo cfg1 St1 cfg2 St2),
   OpsemPP.undefined_state cfg1 St1 -> OpsemPP.undefined_state cfg2 St2.
 Admitted.
@@ -1559,7 +1559,7 @@ Lemma find_st_ld__lasinfo: forall l0 ps0 cs0 tmn0 i0 v cs (pinfo:PhiInfo) dones
     LAS_block pinfo lasinfo = (block_intro l0 ps0 cs0 tmn0).
 Admitted.
 
-Lemma lasinfo__substable_values: forall td gl pinfo lasinfo, 
+Lemma lasinfo__substable_values: forall td gl pinfo lasinfo,
   substable_values td gl (PI_f pinfo) (value_id (LAS_lid pinfo lasinfo))
     (LAS_value pinfo lasinfo).
 Admitted.
@@ -1572,10 +1572,10 @@ Lemma sop_star__las_State_simulation: forall pinfo lasinfo cfg1 IS1 cfg2 IS2 tr
   (Hlas2st : exist _ stinfo Hp = lasinfo__stinfo pinfo lasinfo)
   (Halst: alive_store.wf_State pinfo stinfo cfg1 IS1)
   (Hstsim : State_simulation pinfo lasinfo cfg1 IS1 cfg2 IS2) maxb
-  (Hless: 0 <= maxb) (Hwfgs: MemProps.wf_globals maxb (OpsemAux.Globals cfg1)) 
+  (Hless: 0 <= maxb) (Hwfgs: MemProps.wf_globals maxb (OpsemAux.Globals cfg1))
   (Hnoalias: Promotability.wf_State maxb pinfo cfg1 IS1)
   (Hopstar : Opsem.sop_star cfg2 IS2 FS2 tr),
-  exists FS1, Opsem.sop_star cfg1 IS1 FS1 tr /\ 
+  exists FS1, Opsem.sop_star cfg1 IS1 FS1 tr /\
     State_simulation pinfo lasinfo cfg1 FS1 cfg2 FS2.
 Proof.
   intros.
@@ -1595,7 +1595,7 @@ Proof.
       destruct Hstsim as [Hstsim EQ]; subst.
       assert (OpsemPP.wf_Config cfg1 /\ OpsemPP.wf_State cfg1 IS1') as Hwfpp'.
         apply OpsemPP.preservation in Hop1; auto.
-      assert (vev_State (value_id (LAS_lid pinfo lasinfo)) 
+      assert (vev_State (value_id (LAS_lid pinfo lasinfo))
                (LAS_value pinfo lasinfo) (PI_f pinfo) cfg1 IS1) as Hvev.
         eapply las__alive_store__vev; eauto.
       assert (id_rhs_val.wf_State (value_id (LAS_lid pinfo lasinfo))
@@ -1616,43 +1616,43 @@ Proof.
 Qed.
 
 Lemma sop_div__las_State_simulation: forall pinfo lasinfo cfg1 IS1 cfg2 IS2 tr
-  (Hwfpi: WF_PhiInfo pinfo) (Hwfpp: OpsemPP.wf_State cfg1 IS1) 
-  (HwfS1: id_rhs_val.wf_State (value_id (LAS_lid pinfo lasinfo)) 
+  (Hwfpi: WF_PhiInfo pinfo) (Hwfpp: OpsemPP.wf_State cfg1 IS1)
+  (HwfS1: id_rhs_val.wf_State (value_id (LAS_lid pinfo lasinfo))
            (LAS_value pinfo lasinfo) (PI_f pinfo) cfg1 IS1) stinfo Hp
   (Hlas2st : exist _ stinfo Hp = lasinfo__stinfo pinfo lasinfo)
   (Halst: alive_store.wf_State pinfo stinfo cfg1 IS1)
   (Hstsim : State_simulation pinfo lasinfo cfg1 IS1 cfg2 IS2) maxb
-  (Hless: 0 <= maxb) (Hwfgs: MemProps.wf_globals maxb (OpsemAux.Globals cfg1)) 
+  (Hless: 0 <= maxb) (Hwfgs: MemProps.wf_globals maxb (OpsemAux.Globals cfg1))
   (Hnoalias: Promotability.wf_State maxb pinfo cfg1 IS1)
   (Hstsim : State_simulation pinfo lasinfo cfg1 IS1 cfg2 IS2)
   (Hopstar : Opsem.sop_diverges cfg2 IS2 tr),
   Opsem.sop_diverges cfg1 IS1 tr.
-Admitted.       
+Admitted.
 
-Lemma las_sim: forall (los : layouts) (nts : namedts) (fh : fheader) 
+Lemma las_sim: forall (los : layouts) (nts : namedts) (fh : fheader)
   (dones : list id) (pinfo: PhiInfo) (main : id) (VarArgs : list (GVsT DGVs))
   (bs1 : list block) (l0 : l) (ps0 : phinodes) (cs0 : cmds) (tmn0 : terminator)
   (bs2 : list block) (Ps1 : list product) (Ps2 : list product) (i0 : id)
-  (v : value) (cs : cmds) (Hwfpi: WF_PhiInfo pinfo) 
+  (v : value) (cs : cmds) (Hwfpi: WF_PhiInfo pinfo)
   (Hst : ret inl (i0, v, cs) = find_init_stld cs0 (PI_id pinfo) dones)
   (i1 : id) (Hld : ret inl i1 = find_next_stld cs (PI_id pinfo))
-  (HwfS : 
+  (HwfS :
      wf_system 
-       [module_intro los nts 
-         (Ps1 ++ 
-          product_fdef 
+       [module_intro los nts
+         (Ps1 ++
+          product_fdef
             (fdef_intro fh (bs1 ++ block_intro l0 ps0 cs0 tmn0 :: bs2))
           :: Ps2)])
   (Heq: PI_f pinfo = fdef_intro fh (bs1 ++ block_intro l0 ps0 cs0 tmn0 :: bs2)),
   program_sim
-    [module_intro los nts 
-      (Ps1 ++ 
-       product_fdef 
-         (subst_fdef i1 v 
+    [module_intro los nts
+      (Ps1 ++
+       product_fdef
+         (subst_fdef i1 v
             (fdef_intro fh (bs1 ++ block_intro l0 ps0 cs0 tmn0 :: bs2))) :: Ps2)]
-    [module_intro los nts 
-      (Ps1 ++ 
-       product_fdef (fdef_intro fh (bs1 ++ block_intro l0 ps0 cs0 tmn0 :: bs2)) 
+    [module_intro los nts
+      (Ps1 ++
+       product_fdef (fdef_intro fh (bs1 ++ block_intro l0 ps0 cs0 tmn0 :: bs2))
        :: Ps2)]
     main VarArgs.
 Proof.
@@ -1690,7 +1690,7 @@ Proof.
     assert (id_rhs_val.wf_State (value_id (LAS_lid pinfo lasinfo))
               (LAS_value pinfo lasinfo) (PI_f pinfo) cfg1 IS1) as Hisrhsval.
       eapply s_genInitState__id_rhs_val; eauto.
-    assert (exists maxb, 
+    assert (exists maxb,
               MemProps.wf_globals maxb (OpsemAux.Globals cfg1) /\ 0 <= maxb /\
               Promotability.wf_State maxb pinfo cfg1 IS1) as Hprom.
       eapply Promotability.s_genInitState__wf_globals_promotable; eauto.
@@ -1713,7 +1713,7 @@ Proof.
     assert (id_rhs_val.wf_State (value_id (LAS_lid pinfo lasinfo))
               (LAS_value pinfo lasinfo) (PI_f pinfo) cfg1 IS1) as Hisrhsval.
       eapply s_genInitState__id_rhs_val; eauto.
-    assert (exists maxb, 
+    assert (exists maxb,
               MemProps.wf_globals maxb (OpsemAux.Globals cfg1) /\ 0 <= maxb /\
               Promotability.wf_State maxb pinfo cfg1 IS1) as Hprom.
       eapply Promotability.s_genInitState__wf_globals_promotable; eauto.
@@ -1727,48 +1727,48 @@ Proof.
     econstructor; eauto.
 Qed.
 
-Lemma las_wfS: forall (los : layouts) (nts : namedts) (fh : fheader) 
+Lemma las_wfS: forall (los : layouts) (nts : namedts) (fh : fheader)
   (dones : list id) (pinfo: PhiInfo)
   (bs1 : list block) (l0 : l) (ps0 : phinodes) (cs0 : cmds) (tmn0 : terminator)
   (bs2 : list block) (Ps1 : list product) (Ps2 : list product) (i0 : id)
-  (v : value) (cs : cmds) (Hwfpi: WF_PhiInfo pinfo) 
+  (v : value) (cs : cmds) (Hwfpi: WF_PhiInfo pinfo)
   (Hst : ret inl (i0, v, cs) = find_init_stld cs0 (PI_id pinfo) dones)
   (i1 : id) (Hld : ret inl i1 = find_next_stld cs (PI_id pinfo))
-  (HwfS : 
+  (HwfS :
      wf_system 
-       [module_intro los nts 
-         (Ps1 ++ 
-          product_fdef 
+       [module_intro los nts
+         (Ps1 ++
+          product_fdef
             (fdef_intro fh (bs1 ++ block_intro l0 ps0 cs0 tmn0 :: bs2))
           :: Ps2)])
   (Heq: PI_f pinfo = fdef_intro fh (bs1 ++ block_intro l0 ps0 cs0 tmn0 :: bs2)),
   wf_system 
-    [module_intro los nts 
-      (Ps1 ++ 
-       product_fdef 
-         (subst_fdef i1 v 
+    [module_intro los nts
+      (Ps1 ++
+       product_fdef
+         (subst_fdef i1 v
            (fdef_intro fh (bs1 ++ block_intro l0 ps0 cs0 tmn0 :: bs2))) :: Ps2)].
 Proof.
 Admitted.
 
-Lemma las_wfPI: forall (los : layouts) (nts : namedts) (fh : fheader) 
+Lemma las_wfPI: forall (los : layouts) (nts : namedts) (fh : fheader)
   (dones : list id) (pinfo: PhiInfo)
   (bs1 : list block) (l0 : l) (ps0 : phinodes) (cs0 : cmds) (tmn0 : terminator)
   (bs2 : list block) (Ps1 : list product) (Ps2 : list product) (i0 : id)
-  (v : value) (cs : cmds) (Hwfpi: WF_PhiInfo pinfo) 
+  (v : value) (cs : cmds) (Hwfpi: WF_PhiInfo pinfo)
   (Hst : ret inl (i0, v, cs) = find_init_stld cs0 (PI_id pinfo) dones)
   (i1 : id) (Hld : ret inl i1 = find_next_stld cs (PI_id pinfo))
-  (HwfS : 
+  (HwfS :
      wf_system 
-       [module_intro los nts 
-         (Ps1 ++ 
-          product_fdef 
+       [module_intro los nts
+         (Ps1 ++
+          product_fdef
             (fdef_intro fh (bs1 ++ block_intro l0 ps0 cs0 tmn0 :: bs2))
           :: Ps2)])
   (Heq: PI_f pinfo = fdef_intro fh (bs1 ++ block_intro l0 ps0 cs0 tmn0 :: bs2)),
-  WF_PhiInfo 
+  WF_PhiInfo
     (update_pinfo pinfo
-      (subst_fdef i1 v 
+      (subst_fdef i1 v
         (fdef_intro fh (bs1 ++ block_intro l0 ps0 cs0 tmn0 :: bs2)))).
 Proof.
 Admitted.

@@ -39,7 +39,6 @@ Proof.
           destruct J as [l EQ].
           inversion EQ; subst.
           exists l. auto.
-        right. intro J. destruct J as [l EQ].        
+        right. intro J. destruct J as [l EQ].
         inversion EQ; subst; auto.
 Qed.
-

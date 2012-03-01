@@ -13,8 +13,8 @@ all: coq ocaml
 
 coq:
 	+make -C ./Vellvm
-	+make -C ./TV
 	+make -C ./SoftBound
+	+make -C ./TV
 	+make -C ./Transforms
 	+make -C ./Extraction
 
@@ -27,10 +27,10 @@ ocaml: coq $(CMAS) $(CMXAS)
 
 clean:
 	+make -C ./Vellvm clean
-	+make -C ./TV clean
-	+make -C ./Extraction clean
 	+make -C ./SoftBound clean
+	+make -C ./TV clean
 	+make -C ./Transforms clean
+	+make -C ./Extraction clean
 	ocamlbuild -clean
 
 ocamlclean:

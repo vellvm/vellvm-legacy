@@ -32,10 +32,10 @@ match cs with
 | c::_ => inscope_of_cmd f b c
 end.
 
-Definition wf_ExecutionContext v1 v2 F TD gl (ps:list product) 
+Definition wf_ExecutionContext v1 v2 F TD gl (ps:list product)
   (ec:Opsem.ExecutionContext) : Prop :=
 match inscope_of_ec ec with
-| Some ids0 => 
+| Some ids0 =>
     wf_defs v1 v2 F TD gl (Opsem.CurFunction ec) (Opsem.Locals ec) ids0
 | _ => False
 end.
@@ -43,7 +43,7 @@ end.
 Fixpoint wf_ECStack v1 v2 F TD gl (ps:list product) (ecs:Opsem.ECStack) : Prop :=
 match ecs with
 | nil => True
-| ec::ecs' => 
+| ec::ecs' =>
     wf_ExecutionContext v1 v2 F TD gl ps ec /\ wf_ECStack v1 v2 F TD gl ps ecs'
 end.
 
@@ -55,15 +55,15 @@ wf_ECStack v1 v2 F td gl ps ecs.
 Definition eval_rhs TD (M:mem) gl (lc:DGVMap) (c:cmd) gv : Prop :=
 match c with
 | insn_bop _ bop0 sz v1 v2 => BOP TD lc gl bop0 sz v1 v2 = Some gv
-| insn_fbop _ fbop fp v1 v2 => FBOP TD lc gl fbop fp v1 v2  = Some gv 
-| insn_extractvalue id t v idxs => 
+| insn_fbop _ fbop fp v1 v2 => FBOP TD lc gl fbop fp v1 v2  = Some gv
+| insn_extractvalue id t v idxs =>
     exists gv0, Opsem.getOperandValue TD v lc gl = Some gv0 /\
                 extractGenericValue TD t gv0 idxs = Some gv
 | insn_insertvalue _ t v t' v' idxs =>
-    exists gv1, exists gv2, 
+    exists gv1, exists gv2,
       Opsem.getOperandValue TD v lc gl = Some gv1 /\
       Opsem.getOperandValue TD v' lc gl = Some gv2 /\
-      insertGenericValue TD t gv1 idxs t' gv2 = Some gv 
+      insertGenericValue TD t gv1 idxs t' gv2 = Some gv
 | insn_malloc _ t v aln | insn_alloca _ t v aln =>
     exists tsz, exists gns, exists gn, exists M', exists mb,
       getTypeAllocSize TD t = Some tsz /\
@@ -101,34 +101,34 @@ end.
 Definition vev_defs (v1 v2:value) F TD M gl (f:fdef) (lc:DGVMap) c ids0: Prop :=
   F = f ->
   (value_in_scope v2 ids0 ->
-   match Opsem.getOperandValue TD v2 lc gl with 
-   | Some gv2 => 
+   match Opsem.getOperandValue TD v2 lc gl with
+   | Some gv2 =>
        match v1 with
        | value_const _ => True
-       | value_id id1 => 
+       | value_id id1 =>
            if (id1 == getCmdLoc c) then eval_rhs TD M gl lc c gv2
            else True
        end
    | _ => True
    end) /\
   (value_in_scope v1 ids0 ->
-   match Opsem.getOperandValue TD v1 lc gl with 
-   | Some gv1 => 
+   match Opsem.getOperandValue TD v1 lc gl with
+   | Some gv1 =>
        match v2 with
        | value_const _ => True
-       | value_id id2 => 
+       | value_id id2 =>
            if (id2 == getCmdLoc c) then eval_rhs TD M gl lc c gv1
            else True
        end
    | _ => True
   end).
 
-Definition vev_ExecutionContext v1 v2 F TD M gl (ec:Opsem.ExecutionContext) 
+Definition vev_ExecutionContext v1 v2 F TD M gl (ec:Opsem.ExecutionContext)
   : Prop :=
 let '(Opsem.mkEC f b cs _ lc _) := ec in
 match cs with
 | nil => True
-| c::_ => 
+| c::_ =>
     match inscope_of_cmd f b c with
     | None => True
     | Some ids0 => vev_defs v1 v2 F TD M gl f lc c ids0
@@ -138,8 +138,8 @@ end.
 Fixpoint vev_ECStack v1 v2 F TD M gl (ecs:Opsem.ECStack) : Prop :=
 match ecs with
 | nil => True
-| ec::ecs' => 
-    vev_ExecutionContext v1 v2 F TD M gl ec /\ 
+| ec::ecs' =>
+    vev_ExecutionContext v1 v2 F TD M gl ec /\
     vev_ECStack v1 v2 F TD M gl ecs'
 end.
 
@@ -169,7 +169,7 @@ end.
 Definition substable_values TD gl (f:fdef) (v1 v2:value) : Prop :=
 substable_value f v1 /\ substable_value f v2 /\
 match v1, v2 with
-| value_const vc1, value_const vc2 => 
+| value_const vc1, value_const vc2 =>
     @Opsem.const2GV DGVs TD gl vc1 = Opsem.const2GV TD gl vc2
 | _, _ => True
 end.
@@ -178,7 +178,7 @@ Lemma eval_rhs_det: forall td M gl lc c gv1 gv2,
   sustable_cmd c ->
   eval_rhs td M gl lc c gv1 -> eval_rhs td M gl lc c gv2 -> gv1 = gv2.
 Proof.
-  destruct c; simpl; intros; destruct_exists; destruct_ands; 
+  destruct c; simpl; intros; destruct_exists; destruct_ands;
     try solve [uniq_result; auto | tauto].
 Qed.
 
@@ -231,7 +231,7 @@ Proof.
         destruct (vid2 == getCmdLoc c); subst.
         SSSCase "vid2 == c".
           rewrite lookupAL_updateAddAL_eq in Hgetb.
-          inv Hgetb. 
+          inv Hgetb.
           erewrite IngetCmdsIDs__lookupCmdViaIDFromFdef in Hval2; eauto.
           eapply eval_rhs_det; eauto.
 
@@ -242,13 +242,13 @@ Proof.
             apply Hinc2 in Hinb. simpl in Hinb.
             destruct Hinb; subst; try congruence; auto.
           eauto.
-      
+
     SCase "v2 = vc2".
       rewrite Hgetb in J1.
       destruct (vid1 == getCmdLoc c); subst.
       SSCase "vid1 == c".
         rewrite lookupAL_updateAddAL_eq in Hgeta.
-        inv Hgeta. 
+        inv Hgeta.
         erewrite IngetCmdsIDs__lookupCmdViaIDFromFdef in Hval1; eauto.
         eapply eval_rhs_det; eauto.
 
@@ -300,7 +300,7 @@ match goal with
   destruct Hwfcfg as [_ [_ [HwfSystem HmInS]]];
   destruct Hwfpp as 
     [Hnempty [
-     [Hreach1 [HBinF1 [HFinPs1 [Hwflc1 [Hinscope1 [l1 [ps1 [cs1' Heq1]]]]]]]] 
+     [Hreach1 [HBinF1 [HFinPs1 [Hwflc1 [Hinscope1 [l1 [ps1 [cs1' Heq1]]]]]]]]
      [
       [
         [Hreach2 [HBinF2 [HFinPs2 [Hwflc2 [Hinscope2 [l2 [ps2 [cs2' Heq2]]]]]]]]
@@ -337,7 +337,7 @@ Qed.
 
 (* OpsemPP, and OpsemDom should also reuse the lemma. *)
 Lemma inscope_tmn_to_tmn : forall (f : fnattrs) (t : typ) (i0 : id) (a : args)
-  (v : varg) (bs : blocks) (l3 : l) (ps : phinodes) (cs : cmds) 
+  (v : varg) (bs : blocks) (l3 : l) (ps : phinodes) (cs : cmds)
   (tmn : terminator) (ids0 : list atom) (l' : l) (ps' : phinodes)
   (HuniqF : uniqFdef (fdef_intro (fheader_intro f t i0 a v) bs))
   (HBinF : blockInFdefB (block_intro l3 ps cs tmn)
@@ -354,7 +354,7 @@ Lemma inscope_tmn_to_tmn : forall (f : fnattrs) (t : typ) (i0 : id) (a : args)
   (J1 : fold_left
          (inscope_of_block (fdef_intro (fheader_intro f t i0 a v) bs) l')
          contents'
-         (ret (getPhiNodesIDs ps' ++ getCmdsIDs nil ++ getArgsIDs a)) = 
+         (ret (getPhiNodesIDs ps' ++ getCmdsIDs nil ++ getArgsIDs a)) =
        ret r),
   incl (set_diff eq_atom_dec r (getPhiNodesIDs ps')) ids0.
 Proof.
@@ -385,22 +385,22 @@ Proof.
           apply ListSet.set_diff_elim1 in J8. auto.
         apply Hsub in J8'.
           destruct (eq_atom_dec l1 l3); subst.
-            simpl in J9. 
+            simpl in J9.
             assert (b1=block_intro l3 ps cs tmn) as EQ.
               clear - J9 HBinF HuniqF. apply uniqF__uniqBlocks in HuniqF.
               eapply InBlocksB__lookupAL; eauto.
             subst.
             simpl in J10.
             apply J4.
-            rewrite_env 
+            rewrite_env
               ((getPhiNodesIDs ps ++ getCmdsIDs cs) ++ getArgsIDs a).
             apply in_or_app; auto.
-      
+
             apply J5 in J9; auto.
               simpl in J8'.
               destruct J8' as [J8' | J8']; try solve [contradict n; auto].
               apply ListSet.set_diff_intro; auto.
-                intro J. simpl in J. 
+                intro J. simpl in J.
                 destruct J as [J | J]; auto.
 Qed.
 
@@ -428,7 +428,7 @@ Qed.
 
 Lemma substable_value_isnt_arg: forall fa rt fid la va lb vid
   (HuniqF: uniqFdef (fdef_intro (fheader_intro fa rt fid la va) lb))
-  (Hvals : substable_value (fdef_intro (fheader_intro fa rt fid la va) lb) 
+  (Hvals : substable_value (fdef_intro (fheader_intro fa rt fid la va) lb)
              (value_id vid)),
   ~ In vid (getArgsIDs la).
 Proof.
@@ -441,7 +441,7 @@ Proof.
 Qed.
 
 Lemma wf_defs_br_aux : forall v1 v2 F0 TD gl S M lc l' ps' cs' lc' F tmn' b
-  (Hreach : isReachableFromEntry F b) 
+  (Hreach : isReachableFromEntry F b)
   (Hreach': isReachableFromEntry F (block_intro l' ps' cs' tmn'))
   (Hlkup : Some (block_intro l' ps' cs' tmn') = lookupBlockViaLabelFromFdef F l')
   (Hswitch : Opsem.switchToNewBasicBlock TD (block_intro l' ps' cs' tmn') b gl lc
@@ -456,7 +456,7 @@ Lemma wf_defs_br_aux : forall v1 v2 F0 TD gl S M lc l' ps' cs' lc' F tmn' b
   (Heqdefs' : {|
              DomDS.L.bs_contents := contents';
              DomDS.L.bs_bound := inbound' |} = (dom_analyze F) !! l')
-  (Hinscope : (fold_left (inscope_of_block F l') contents' 
+  (Hinscope : (fold_left (inscope_of_block F l') contents'
     (ret (getPhiNodesIDs ps' ++ getArgsIDsFromFdef F)) = ret ids0'))
   (Hinc : incl (ListSet.set_diff eq_atom_dec ids0' (getPhiNodesIDs ps')) t),
   wf_defs v1 v2 F0 TD gl F lc' ids0'.
@@ -466,15 +466,15 @@ Proof.
   intros EQ gvs1 gvs2 Hin1 Hin2 Hget1 Hget2; subst.
   remember (Opsem.getIncomingValuesForBlockFromPHINodes TD ps' b gl lc) as R1.
   destruct R1 as [rs|]; inv Hswitch.
-  destruct v1 as [vid1 | vc1]; simpl in *. 
+  destruct v1 as [vid1 | vc1]; simpl in *.
   Case "v1 = vid1".
     assert (~ In vid1 (getPhiNodesIDs ps')) as Hnotin1.
       eapply substable_value_isnt_phi; eauto.
     assert (Hnotin1' := Hnotin1).
-    apply ListSet.set_diff_intro with (x:=ids0')(Aeq_dec:=eq_atom_dec) 
+    apply ListSet.set_diff_intro with (x:=ids0')(Aeq_dec:=eq_atom_dec)
       in Hnotin1; auto.
     apply Hinc in Hnotin1. assert (HeqR1':=HeqR1).
-    eapply OpsemProps.getIncomingValuesForBlockFromPHINodes_spec8 in HeqR1; 
+    eapply OpsemProps.getIncomingValuesForBlockFromPHINodes_spec8 in HeqR1;
       eauto.
     eapply OpsemProps.updateValuesForNewBlock_spec7 in Hget1; eauto.
 
@@ -483,29 +483,29 @@ Proof.
       assert (~ In vid2 (getPhiNodesIDs ps')) as Hnotin2.
         eapply substable_value_isnt_phi; eauto.
       assert (Hnotin2' := Hnotin2).
-      apply ListSet.set_diff_intro with (x:=ids0')(Aeq_dec:=eq_atom_dec) 
+      apply ListSet.set_diff_intro with (x:=ids0')(Aeq_dec:=eq_atom_dec)
         in Hnotin2; auto.
       apply Hinc in Hnotin2. assert (HeqR1'':=HeqR1').
-      eapply OpsemProps.getIncomingValuesForBlockFromPHINodes_spec8 in HeqR1'; 
+      eapply OpsemProps.getIncomingValuesForBlockFromPHINodes_spec8 in HeqR1';
         eauto.
       eapply OpsemProps.updateValuesForNewBlock_spec7 in Hget2; eauto.
-  
+
   Case "v1 = vc1".
     destruct v2 as [vid2 | vc2]; simpl in *; eauto.
     SCase "v2 = vid2".
       assert (~ In vid2 (getPhiNodesIDs ps')) as Hnotin.
         eapply substable_value_isnt_phi; eauto.
       assert (Hnotin' := Hnotin).
-      apply ListSet.set_diff_intro with (x:=ids0')(Aeq_dec:=eq_atom_dec) 
+      apply ListSet.set_diff_intro with (x:=ids0')(Aeq_dec:=eq_atom_dec)
         in Hnotin; auto.
       apply Hinc in Hnotin. assert (HeqR1':=HeqR1).
-      eapply OpsemProps.getIncomingValuesForBlockFromPHINodes_spec8 in HeqR1; 
+      eapply OpsemProps.getIncomingValuesForBlockFromPHINodes_spec8 in HeqR1;
         eauto.
       eapply OpsemProps.updateValuesForNewBlock_spec7 in Hget2; eauto.
 Qed.
 
 Lemma inscope_of_tmn_br_aux : forall S M F l3 ps cs tmn ids0 l' ps' cs' tmn'
-  l0 lc lc' gl TD (Hreach : isReachableFromEntry F (block_intro l3 ps cs tmn)) 
+  l0 lc lc' gl TD (Hreach : isReachableFromEntry F (block_intro l3 ps cs tmn))
   v1 v2 F0 (Hvals : substable_values TD gl F0 v1 v2),
 wf_fdef S M F -> 
 uniqFdef F ->
@@ -536,8 +536,8 @@ Proof.
   remember (dom_analyze (fdef_intro fh bs)) as Doms.
   remember (Doms !! l3)as defs3.
   remember (Doms !! l')as defs'.
-  destruct defs3 as [contents3 inbound3]. 
-  destruct defs' as [contents' inbound']. 
+  destruct defs3 as [contents3 inbound3].
+  destruct defs' as [contents' inbound'].
 
   assert (incl contents' (l3::contents3)) as Hsub.
     clear - HBinF Hsucc Heqdefs3 Heqdefs' HeqDoms HuniqF HwfF.
@@ -545,14 +545,14 @@ Proof.
     simpl in HuniqF.
     eapply dom_successors; eauto.
 
-  assert (isReachableFromEntry (fdef_intro fh bs) (block_intro l' ps' nil tmn')) 
+  assert (isReachableFromEntry (fdef_intro fh bs) (block_intro l' ps' nil tmn'))
     as Hreach'.
     eapply isReachableFromEntry_successors in Hlkup; eauto.
 
   destruct cs'.
   Case "cs'=nil".
     assert (J1:=inbound'). destruct fh as [f t i0 a v].
-    apply fold_left__bound_blocks with (init:=getPhiNodesIDs ps' ++ 
+    apply fold_left__bound_blocks with (init:=getPhiNodesIDs ps' ++
       getCmdsIDs nil ++ getArgsIDs a)(bs:=bs)(l0:=l')
       (fh:=fheader_intro f t i0 a v) in J1; auto.
     destruct J1 as [r J1].
@@ -564,22 +564,22 @@ Proof.
       eapply inscope_tmn_to_tmn; eauto.
 
     split; auto.
-      subst. simpl in J1. simpl_env in J1.   
+      subst. simpl in J1. simpl_env in J1.
       eapply wf_defs_br_aux in Hswitch; eauto.
-        
+
   Case "cs'<>nil".
     assert (J1:=inbound').
     unfold cmds_dominates_cmd. simpl.
-    destruct (eq_atom_dec (getCmdLoc c) (getCmdLoc c)) as [_ | n]; 
+    destruct (eq_atom_dec (getCmdLoc c) (getCmdLoc c)) as [_ | n];
       try solve [contradict n; auto].
     simpl_env.  destruct fh as [f t i0 a v].
-    apply fold_left__bound_blocks with (init:=getPhiNodesIDs ps' ++ 
+    apply fold_left__bound_blocks with (init:=getPhiNodesIDs ps' ++
       getCmdsIDs nil ++ getArgsIDs a)(bs:=bs)
       (fh:=fheader_intro f t i0 a v)(l0:=l') in J1.
     destruct J1 as [r J1].
     exists r. split; auto.
 
-    assert (incl (ListSet.set_diff eq_atom_dec r (getPhiNodesIDs ps')) ids0) 
+    assert (incl (ListSet.set_diff eq_atom_dec r (getPhiNodesIDs ps')) ids0)
       as Jinc.
       clear - Hinscope J1 Hsub HBinF HuniqF.
       eapply inscope_tmn_to_tmn; eauto.
@@ -593,7 +593,7 @@ Lemma inscope_of_tmn_br_uncond : forall v1 v2 F0 S M F l3 ps cs ids0 l' ps'
 isReachableFromEntry F (block_intro l3 ps cs (insn_br_uncond bid l0)) ->
 wf_fdef S M F -> uniqFdef F ->
 blockInFdefB (block_intro l3 ps cs (insn_br_uncond bid l0)) F = true ->
-Some ids0 = inscope_of_tmn F (block_intro l3 ps cs (insn_br_uncond bid l0)) 
+Some ids0 = inscope_of_tmn F (block_intro l3 ps cs (insn_br_uncond bid l0))
   (insn_br_uncond bid l0) ->
 Some (block_intro l' ps' cs' tmn') = lookupBlockViaLabelFromFdef F l0 ->
 Opsem.switchToNewBasicBlock TD (block_intro l' ps' cs' tmn')
@@ -617,7 +617,7 @@ Lemma inscope_of_tmn_br : forall v1 v2 F0 S M F l0 ps cs bid l1 l2 ids0 l'
 isReachableFromEntry F (block_intro l0 ps cs (insn_br bid Cond l1 l2)) ->
 wf_fdef S M F -> uniqFdef F ->
 blockInFdefB (block_intro l0 ps cs (insn_br bid Cond l1 l2)) F = true ->
-Some ids0 = inscope_of_tmn F (block_intro l0 ps cs (insn_br bid Cond l1 l2)) 
+Some ids0 = inscope_of_tmn F (block_intro l0 ps cs (insn_br bid Cond l1 l2))
   (insn_br bid Cond l1 l2) ->
 Some (block_intro l' ps' cs' tmn') =
        (if isGVZero TD c
@@ -648,7 +648,7 @@ match goal with
   destruct Hwfcfg as [_ [_ [HwfSystem HmInS]]];
   destruct Hwfpp as 
     [Hnempty [
-     [Hreach1 [HBinF1 [HFinPs1 [Hwflc1 [Hinscope1 [l1' [ps1' [cs1' Heq1]]]]]]]] 
+     [Hreach1 [HBinF1 [HFinPs1 [Hwflc1 [Hinscope1 [l1' [ps1' [cs1' Heq1]]]]]]]]
      [HwfECs HwfCall]]
     ]; subst;
   fold (@OpsemPP.wf_ECStack DGVs) in HwfECs;
@@ -668,7 +668,7 @@ Lemma preservation_cmd_updated_case : forall
   (cs : list cmd)
   (tmn : terminator)
   id0 c0 los nts gl Mem0 Mem1 als EC fs Ps S
-  (Hid : Some id0 = getCmdID c0) v1 v2 
+  (Hid : Some id0 = getCmdID c0) v1 v2
   (Hvals : substable_values (los,nts) gl F v1 v2) Cfg St
   (Hvev : vev_State v1 v2 F Cfg St)
   (Hwfcfg : OpsemPP.wf_Config Cfg) (Hwfpp : OpsemPP.wf_State Cfg St)
@@ -678,7 +678,7 @@ Lemma preservation_cmd_updated_case : forall
                   OpsemAux.CurProducts := Ps;
                   OpsemAux.Globals := gl;
                   OpsemAux.FunTable := fs |}) F0
-  (EQ2 : St = {| Opsem.ECS := {| 
+  (EQ2 : St = {| Opsem.ECS := {|
                            Opsem.CurFunction := F0;
                            Opsem.CurBB := B;
                            Opsem.CurCmds := c0 :: cs;
@@ -704,7 +704,7 @@ Local Opaque inscope_of_cmd inscope_of_tmn.
   split; auto.
     unfold wf_ExecutionContext. simpl.
     remember (inscope_of_cmd F0 (block_intro l1' ps1' (cs1' ++ c0 :: cs) tmn) c0)
-      as R1. 
+      as R1.
     assert (HeqR1':=HeqR1).
     assert (uniqFdef F0) as HuniqF.
       eapply wf_system__uniqFdef; eauto.
@@ -713,13 +713,13 @@ Local Opaque inscope_of_cmd inscope_of_tmn.
       symmetry in Hid.
       apply getCmdLoc_getCmdID in Hid.
       subst.
-      assert (cmdInBlockB c0 (block_intro l1' ps1' (cs1' ++ c0 :: cs) tmn) 
+      assert (cmdInBlockB c0 (block_intro l1' ps1' (cs1' ++ c0 :: cs) tmn)
                = true) as Hin.
         simpl. apply In_InCmdsB. apply in_middle.
       destruct cs; simpl_env in *.
       Case "1.1.1".
         assert (~ In (getCmdLoc c0) (getCmdsLocs cs1')) as Hnotin.
-          eapply wf_system__uniq_block with (f:=F0) in HwfSystem; eauto.        
+          eapply wf_system__uniq_block with (f:=F0) in HwfSystem; eauto.
           simpl in HwfSystem.
           apply NoDup_inv in HwfSystem.
           destruct HwfSystem as [_ J].
@@ -730,12 +730,12 @@ Local Opaque inscope_of_cmd inscope_of_tmn.
           apply NoDup_last_inv in J. auto.
 
         apply inscope_of_cmd_tmn in HeqR1; auto.
-        destruct HeqR1 as [ids2 [J1 J2]].        
+        destruct HeqR1 as [ids2 [J1 J2]].
         rewrite <- J1.
         assert (In c0 (cs1' ++ [c0])) as HinCs.
           apply in_or_app. right. simpl. auto.
         assert (Hwfc := HBinF1).
-        eapply wf_system__wf_cmd with (c:=c0) in Hwfc; 
+        eapply wf_system__wf_cmd with (c:=c0) in Hwfc;
           eauto.
         rewrite <- Hid' in J2.
         assert (HwfF:=HFinPs1). eapply wf_system__wf_fdef in HwfF; eauto.
@@ -743,19 +743,19 @@ Local Opaque inscope_of_cmd inscope_of_tmn.
 
       Case "1.1.2".
         assert (NoDup (getCmdsLocs (cs1' ++ [c0] ++ [c] ++ cs))) as Hnodup.
-          eapply wf_system__uniq_block with (f:=F0) in HwfSystem; eauto.        
+          eapply wf_system__uniq_block with (f:=F0) in HwfSystem; eauto.
           simpl in HwfSystem.
           apply NoDup_inv in HwfSystem.
           destruct HwfSystem as [_ J].
           apply NoDup_inv in J.
           destruct J as [J _]. auto.
         apply inscope_of_cmd_cmd in HeqR1; auto.
-        destruct HeqR1 as [ids2 [J1 J2]].        
+        destruct HeqR1 as [ids2 [J1 J2]].
         rewrite <- J1.
         assert (In c0 (cs1' ++ [c0] ++ [c] ++ cs)) as HinCs.
           apply in_or_app. right. simpl. auto.
         assert (Hwfc := HBinF1).
-        eapply wf_system__wf_cmd with (c:=c0) in Hwfc; 
+        eapply wf_system__wf_cmd with (c:=c0) in Hwfc;
           eauto.
         rewrite <- Hid' in J2.
         assert (HwfF:=HFinPs1). eapply wf_system__wf_fdef in HwfF; eauto.
@@ -786,7 +786,7 @@ Lemma preservation_cmd_non_updated_case : forall
                   OpsemAux.CurProducts := Ps;
                   OpsemAux.Globals := gl;
                   OpsemAux.FunTable := fs |}) F0
-  (EQ2 : St = {| Opsem.ECS := {| 
+  (EQ2 : St = {| Opsem.ECS := {|
                            Opsem.CurFunction := F0;
                            Opsem.CurBB := B;
                            Opsem.CurCmds := c0 :: cs;
@@ -811,13 +811,13 @@ Local Opaque inscope_of_cmd inscope_of_tmn.
   destruct_ctx_other.
   split; auto.
     remember (inscope_of_cmd F0 (block_intro l1' ps1' (cs1' ++ c0 :: cs) tmn) c0)
-      as R1. 
+      as R1.
     destruct R1; try solve [inversion Hinscope1].
     unfold wf_ExecutionContext. simpl.
     destruct cs; simpl_env in *.
     Case "1.1.1".
         assert (~ In (getCmdLoc c0) (getCmdsLocs cs1')) as Hnotin.
-          eapply wf_system__uniq_block with (f:=F0) in HwfSystem; eauto.        
+          eapply wf_system__uniq_block with (f:=F0) in HwfSystem; eauto.
           simpl in HwfSystem.
           apply NoDup_inv in HwfSystem.
           destruct HwfSystem as [_ J].
@@ -828,31 +828,31 @@ Local Opaque inscope_of_cmd inscope_of_tmn.
           apply NoDup_last_inv in J. auto.
 
         apply inscope_of_cmd_tmn in HeqR1; auto.
-        destruct HeqR1 as [ids2 [J1 J2]].        
+        destruct HeqR1 as [ids2 [J1 J2]].
         rewrite <- J1.
         assert (In c0 (cs1' ++ [c0])) as HinCs.
           apply in_or_app. right. simpl. auto.
         assert (Hwfc := HBinF1).
-        eapply wf_system__wf_cmd with (c:=c0) in Hwfc; 
+        eapply wf_system__wf_cmd with (c:=c0) in Hwfc;
           eauto.
         rewrite Hid in J2.
         eapply wf_defs_eq; eauto.
-        
+
     Case "1.1.2".
         assert (NoDup (getCmdsLocs (cs1' ++ [c0] ++ [c] ++ cs))) as Hnodup.
-          eapply wf_system__uniq_block with (f:=F0) in HwfSystem; eauto.        
+          eapply wf_system__uniq_block with (f:=F0) in HwfSystem; eauto.
           simpl in HwfSystem.
           apply NoDup_inv in HwfSystem.
           destruct HwfSystem as [_ J].
           apply NoDup_inv in J.
           destruct J as [J _]. auto.
         apply inscope_of_cmd_cmd in HeqR1; auto.
-        destruct HeqR1 as [ids2 [J1 J2]].        
+        destruct HeqR1 as [ids2 [J1 J2]].
         rewrite <- J1.
         assert (In c0 (cs1' ++ [c0] ++ [c] ++ cs)) as HinCs.
           apply in_or_app. right. simpl. auto.
         assert (Hwfc := HBinF1).
-        eapply wf_system__wf_cmd with (c:=c0) in Hwfc; 
+        eapply wf_system__wf_cmd with (c:=c0) in Hwfc;
           eauto.
         rewrite Hid in J2.
         eapply wf_defs_eq ; eauto.
@@ -862,7 +862,7 @@ Qed.
 Lemma preservation_dbCall_case : forall fid fa rt la va lb td lc gl
   (Huniq: uniqFdef (fdef_intro (fheader_intro fa rt fid la va) lb))
   v1 v2 F (Hvals : substable_values td gl F v1 v2),
-  wf_defs v1 v2 F td gl 
+  wf_defs v1 v2 F td gl
     (fdef_intro (fheader_intro fa rt fid la va) lb) lc (getArgsIDs la).
 Proof.
   intros. destruct Hvals as [Hval1 [Hval2 Hcst]].
@@ -880,7 +880,7 @@ Proof.
 Qed.
 
 Lemma preservation : forall v1 v2 F cfg S1 S2 tr
-  (Hvals : substable_values (OpsemAux.CurTargetData cfg) (OpsemAux.Globals cfg) 
+  (Hvals : substable_values (OpsemAux.CurTargetData cfg) (OpsemAux.Globals cfg)
              F v1 v2) (Hvev: vev_State v1 v2 F cfg S1)
   (Hwfcfg : OpsemPP.wf_Config cfg) (Hwfpp: OpsemPP.wf_State cfg S1) 
   (HsInsn: Opsem.sInsn cfg S1 S2 tr)
@@ -892,7 +892,7 @@ Local Opaque inscope_of_tmn inscope_of_cmd.
   intros.
   (sInsn_cases (induction HsInsn) Case); destruct TD as [los nts]; simpl HwfS1.
 
-Case "sReturn". 
+Case "sReturn".
 Focus.
 
   destruct_ctx_return.
@@ -902,7 +902,7 @@ Focus.
   destruct R2; try solve [inversion Hinscope2].
   remember (inscope_of_tmn F0
              (block_intro l1 ps1 (cs1' ++ nil)(insn_return rid RetTy Result))
-             (insn_return rid RetTy Result)) as R1. 
+             (insn_return rid RetTy Result)) as R1.
   destruct R1; try solve [inversion Hinscope1].
   split; auto.
     unfold wf_ExecutionContext. simpl.
@@ -913,9 +913,9 @@ Focus.
 
     destruct cs'; simpl_env in *.
     SSSCase "1.1.1".
-        assert (~ In (getCmdLoc (insn_call i0 n c t v p)) (getCmdsLocs cs2')) 
+        assert (~ In (getCmdLoc (insn_call i0 n c t v p)) (getCmdsLocs cs2'))
           as Hnotin.
-          eapply wf_system__uniq_block with (f:=F') in HwfSystem; eauto.        
+          eapply wf_system__uniq_block with (f:=F') in HwfSystem; eauto.
           simpl in HwfSystem.
           apply NoDup_inv in HwfSystem.
           destruct HwfSystem as [_ J].
@@ -926,7 +926,7 @@ Focus.
           apply NoDup_last_inv in J. auto.
         assert (HeqR2':=HeqR2).
         apply inscope_of_cmd_tmn in HeqR2; auto.
-        destruct HeqR2 as [ids2 [J1 J2]].        
+        destruct HeqR2 as [ids2 [J1 J2]].
         rewrite <- J1.
         unfold Opsem.returnUpdateLocals in H1. simpl in H1.
         remember (Opsem.getOperandValue (los,nts) Result lc gl) as R1.
@@ -936,19 +936,19 @@ Focus.
           destruct_typ t; tinv H1.
           remember (lift_op1 DGVs (fit_gv (los, nts) t0) g t0) as R2.
           destruct R2; inv H1.
-          change i0 with 
+          change i0 with
             (getCmdLoc (insn_call i0 false c (typ_function t0 lt0 v0) v p)); auto.
           eapply wf_defs_updateAddAL; eauto.
             simpl. apply in_middle.
 
           destruct n; inv HeqR. inv H1.
           simpl in J2.
-          eapply wf_defs_eq; eauto. 
-        
+          eapply wf_defs_eq; eauto.
+
     SSSCase "1.1.2".
-        assert (NoDup (getCmdsLocs (cs2' ++ [insn_call i0 n c t v p] ++ [c0] ++ 
+        assert (NoDup (getCmdsLocs (cs2' ++ [insn_call i0 n c t v p] ++ [c0] ++
           cs'))) as Hnodup.
-          eapply wf_system__uniq_block with (f:=F') in HwfSystem; eauto.        
+          eapply wf_system__uniq_block with (f:=F') in HwfSystem; eauto.
           simpl in HwfSystem.
           apply NoDup_inv in HwfSystem.
           destruct HwfSystem as [_ J].
@@ -966,18 +966,18 @@ Focus.
           destruct_typ t; tinv H1.
           remember (lift_op1 DGVs (fit_gv (los, nts) t0) g t0) as R2.
           destruct R2; inv H1.
-          change i0 with 
+          change i0 with
             (getCmdLoc (insn_call i0 false c (typ_function t0 lt0 v0) v p)); auto.
           eapply wf_defs_updateAddAL; eauto.
             simpl. apply in_middle.
 
           destruct n; inv HeqR. inv H1.
           simpl in J2.
-          eapply wf_defs_eq; eauto. 
+          eapply wf_defs_eq; eauto.
 
 Unfocus.
 
-Case "sReturnVoid". 
+Case "sReturnVoid".
 Focus.
 
   destruct_ctx_return.
@@ -987,7 +987,7 @@ Focus.
   destruct R2; try solve [inversion Hinscope2].
   remember (inscope_of_tmn F0
              (block_intro l1 ps1 (cs1' ++ nil)(insn_return_void rid))
-             (insn_return_void rid)) as R1. 
+             (insn_return_void rid)) as R1.
   destruct R1; try solve [inversion Hinscope1].
   split; auto.
     unfold wf_ExecutionContext. simpl.
@@ -995,7 +995,7 @@ Focus.
     destruct cs'; simpl_env in *.
     SSSCase "1.1.1".
         assert (~ In (getCmdLoc c') (getCmdsLocs cs2')) as Hnotin.
-          eapply wf_system__uniq_block with (f:=F') in HwfSystem; eauto.        
+          eapply wf_system__uniq_block with (f:=F') in HwfSystem; eauto.
           simpl in HwfSystem.
           apply NoDup_inv in HwfSystem.
           destruct HwfSystem as [_ J].
@@ -1006,17 +1006,17 @@ Focus.
           apply NoDup_last_inv in J. auto.
         clear - HeqR2 Hinscope2 H HwfCall' HBinF1 Hnotin H1 Hinscope2'.
         apply inscope_of_cmd_tmn in HeqR2; auto.
-        destruct HeqR2 as [ids2 [J1 J2]].        
+        destruct HeqR2 as [ids2 [J1 J2]].
         rewrite <- J1.
         remember (getCmdID c') as R.
         destruct_cmd c'; try solve [inversion H].
         destruct n; inversion H1.
         simpl in HeqR. subst R.
-        eapply wf_defs_eq; eauto. 
-        
+        eapply wf_defs_eq; eauto.
+
     SSSCase "1.1.2".
         assert (NoDup (getCmdsLocs (cs2' ++ [c'] ++ [c] ++ cs'))) as Hnodup.
-          eapply wf_system__uniq_block with (f:=F') in HwfSystem; eauto.        
+          eapply wf_system__uniq_block with (f:=F') in HwfSystem; eauto.
           simpl in HwfSystem.
           apply NoDup_inv in HwfSystem.
           destruct HwfSystem as [_ J].
@@ -1024,13 +1024,13 @@ Focus.
           destruct J as [J _]. auto.
         clear - HeqR2 Hinscope2 H HwfCall' HBinF1 Hnodup H1 Hinscope2'.
         apply inscope_of_cmd_cmd in HeqR2; auto.
-        destruct HeqR2 as [ids2 [J1 J2]].        
+        destruct HeqR2 as [ids2 [J1 J2]].
         rewrite <- J1.
         remember (getCmdID c') as R.
         destruct_cmd c'; try solve [inversion H].
         destruct n; inversion H1.
         simpl in HeqR. subst R.
-        eapply wf_defs_eq; eauto. 
+        eapply wf_defs_eq; eauto.
 
 Unfocus.
 
@@ -1040,7 +1040,7 @@ Focus.
   destruct_ctx_other.
   remember (inscope_of_tmn F0
              (block_intro l1' ps1' (cs1' ++ nil)(insn_br bid Cond l1 l2))
-             (insn_br bid Cond l1 l2)) as R1. 
+             (insn_br bid Cond l1 l2)) as R1.
   destruct R1; try solve [inversion Hinscope1].
   split; auto.
     unfold wf_ExecutionContext. simpl.
@@ -1059,7 +1059,7 @@ Focus.
   destruct_ctx_other.
   remember (inscope_of_tmn F0
              (block_intro l1' ps1' (cs1' ++ nil)(insn_br_uncond bid l0))
-             (insn_br_uncond bid l0)) as R1. 
+             (insn_br_uncond bid l0)) as R1.
   destruct R1; try solve [inversion Hinscope1].
   split; auto.
     unfold wf_ExecutionContext. simpl.
@@ -1074,36 +1074,36 @@ Focus.
 Unfocus.
 
 Case "sBop". abstract (eapply preservation_cmd_updated_case; eauto; auto).
-Case "sFBop". 
+Case "sFBop".
   abstract (eapply preservation_cmd_updated_case; eauto; auto).
-Case "sExtractValue". 
+Case "sExtractValue".
   abstract (eapply preservation_cmd_updated_case; eauto; simpl; eauto).
-Case "sInsertValue". 
+Case "sInsertValue".
   abstract (eapply preservation_cmd_updated_case; eauto; simpl; eauto).
-Case "sMalloc". 
+Case "sMalloc".
   abstract (eapply preservation_cmd_updated_case; eauto; simpl; eauto 10).
-Case "sFree". 
+Case "sFree".
   abstract (eapply preservation_cmd_non_updated_case; eauto; simpl; auto).
-Case "sAlloca". 
+Case "sAlloca".
   abstract (eapply preservation_cmd_updated_case; eauto; simpl; eauto 10).
-Case "sLoad". 
+Case "sLoad".
   abstract (eapply preservation_cmd_updated_case; eauto; simpl; eauto 7).
-Case "sStore". 
+Case "sStore".
   abstract (eapply preservation_cmd_non_updated_case; eauto; simpl; auto).
-Case "sGEP". 
+Case "sGEP".
   abstract (eapply preservation_cmd_updated_case; eauto; simpl; eauto 7).
 Case "sTrunc". abstract (eapply preservation_cmd_updated_case; eauto; auto).
 Case "sExt". abstract (eapply preservation_cmd_updated_case; eauto; auto).
 Case "sCast". abstract (eapply preservation_cmd_updated_case; eauto; auto).
 Case "sIcmp". abstract (eapply preservation_cmd_updated_case; eauto; auto).
 Case "sFcmp". abstract (eapply preservation_cmd_updated_case; eauto; auto).
-Case "sSelect". 
+Case "sSelect".
   abstract (
-  assert (eval_rhs (los, nts) Mem gl lc (insn_select id0 v0 t v3 v4) 
-           (if isGVZero (los, nts) c then gvs2 else gvs1)) as J; 
+  assert (eval_rhs (los, nts) Mem gl lc (insn_select id0 v0 t v3 v4)
+           (if isGVZero (los, nts) c then gvs2 else gvs1)) as J;
     try solve [simpl; eauto 9];
   try solve [
-    destruct (isGVZero (los, nts) c); 
+    destruct (isGVZero (los, nts) c);
       eapply preservation_cmd_updated_case; eauto; auto
   ]).
 
@@ -1111,7 +1111,7 @@ Case "sCall".
 Focus.
   destruct_ctx_other.
 
-  assert (InProductsB (product_fdef (fdef_intro 
+  assert (InProductsB (product_fdef (fdef_intro
     (fheader_intro fa rt fid la va) lb)) Ps = true) as HFinPs'.
     apply OpsemAux.lookupFdefViaPtr_inversion in H1.
     destruct H1 as [fn [H11 H12]].
@@ -1127,27 +1127,27 @@ Focus.
     assert (ps'=nil) as EQ.
       eapply entryBlock_has_no_phinodes with (s:=S); eauto.
     subst.
-    apply dom_entrypoint in H2. 
+    apply dom_entrypoint in H2.
 
 Transparent inscope_of_tmn inscope_of_cmd.
 
     destruct cs'.
       unfold inscope_of_tmn.
-      remember ((dom_analyze (fdef_intro (fheader_intro fa rt fid la va) lb)) 
+      remember ((dom_analyze (fdef_intro (fheader_intro fa rt fid la va) lb))
         !! l') as R.
       destruct R. simpl in H2. subst. simpl.
       eapply preservation_dbCall_case; eauto.
 
       unfold inscope_of_cmd, inscope_of_id.
-      remember ((dom_analyze (fdef_intro (fheader_intro fa rt fid la va) lb)) 
+      remember ((dom_analyze (fdef_intro (fheader_intro fa rt fid la va) lb))
         !! l') as R.
       destruct R. simpl. simpl in H2. subst. simpl.
-      destruct (eq_atom_dec (getCmdLoc c) (getCmdLoc c)) as [|n]; 
-        try solve [contradict n; auto]. 
+      destruct (eq_atom_dec (getCmdLoc c) (getCmdLoc c)) as [|n];
+        try solve [contradict n; auto].
       eapply preservation_dbCall_case; eauto.
 Unfocus.
 
-Case "sExCall". 
+Case "sExCall".
   abstract (
   match goal with
   | H5: Opsem.exCallUpdateLocals _ _ _ _ _ _ = _ |- _ =>
@@ -1166,11 +1166,11 @@ Qed.
 Require Import palloca_props.
 Require Import program_sim.
 
-Lemma initLocals__id_rhs_val_wf_defs : forall pinfo fid l' fa rt la va 
-  lb gvs lc CurLayouts CurNamedts initGlobal v1 v2 (Hwfpi: WF_PhiInfo pinfo) 
+Lemma initLocals__id_rhs_val_wf_defs : forall pinfo fid l' fa rt la va
+  lb gvs lc CurLayouts CurNamedts initGlobal v1 v2 (Hwfpi: WF_PhiInfo pinfo)
   (Huniq: uniqFdef (fdef_intro (fheader_intro fa rt fid la va) lb))
-  (Hinit : Opsem.initLocals 
-     (OpsemAux.initTargetData CurLayouts CurNamedts Mem.empty) 
+  (Hinit : Opsem.initLocals
+     (OpsemAux.initTargetData CurLayouts CurNamedts Mem.empty)
      la gvs = Some lc),
    match
      fold_left
@@ -1186,11 +1186,11 @@ Lemma initLocals__id_rhs_val_wf_defs : forall pinfo fid l' fa rt la va
 Proof.
   intros.
   assert (incl nil (bound_blocks lb)) as J.
-    intros x J. inv J.    
+    intros x J. inv J.
   apply fold_left__bound_blocks with (fh:=fheader_intro fa rt fid la va)(l0:=l')
     (init:=getArgsIDs la) in J.
   destruct J as [r J]. unfold l in *.
-  rewrite J.       
+  rewrite J.
   intros EQ gvs1 gvs2 Hinscope1 Hinscope2 Hget1 Hget2.
   clear - Huniq EQ Hget1 Hinit.
   admit. (* lid cannot be in lc *)
@@ -1215,20 +1215,20 @@ Local Opaque inscope_of_tmn inscope_of_cmd.
       eapply entryBlock_has_no_phinodes with (s:=S); eauto.        
     subst.
 Transparent inscope_of_tmn inscope_of_cmd.
-    apply dom_entrypoint in HeqR2. 
+    apply dom_entrypoint in HeqR2.
     destruct cs0.
       unfold inscope_of_tmn.
-      remember ((dom_analyze (fdef_intro (fheader_intro f t i0 a v) b)) 
+      remember ((dom_analyze (fdef_intro (fheader_intro f t i0 a v) b))
         !! l0) as R.
       destruct R. simpl in HeqR2. subst.
       eapply initLocals__id_rhs_val_wf_defs; eauto.
 
       unfold inscope_of_cmd, inscope_of_id.
-      remember ((dom_analyze (fdef_intro (fheader_intro f t i0 a v) b)) 
+      remember ((dom_analyze (fdef_intro (fheader_intro f t i0 a v) b))
         !! l0) as R.
       destruct R. simpl. simpl in HeqR2. subst.
-      destruct (eq_atom_dec (getCmdLoc c) (getCmdLoc c)) as [|n]; 
-        try solve [contradict n; auto]. 
+      destruct (eq_atom_dec (getCmdLoc c) (getCmdLoc c)) as [|n];
+        try solve [contradict n; auto].
       eapply initLocals__id_rhs_val_wf_defs; eauto.
 Qed.
 

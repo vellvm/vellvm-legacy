@@ -7,14 +7,14 @@ match goal with
              exists _,
                ?B = block_intro _ _ _ _,
   HBinF1 : blockInFdefB ?B ?F = true,
-  HwfCall : OpsemPP.wf_call 
-              {| 
+  HwfCall : OpsemPP.wf_call
+              {|
               Opsem.CurFunction := ?F;
               Opsem.CurBB := ?B;
               Opsem.CurCmds := nil;
               Opsem.Terminator := _;
               Opsem.Locals := _;
-              Opsem.Allocas := _ |} 
+              Opsem.Allocas := _ |}
               ({|
                Opsem.CurFunction := _;
                Opsem.CurBB := _;
@@ -40,7 +40,7 @@ Ltac simpl_s_genInitState :=
     destruct m as [CurLayouts CurNamedts CurProducts];
     inv_mbind'
   end;
-  match goal with 
+  match goal with
   | H: ret ?p = OpsemAux.genGlobalAndInitMem _ _ _ _ _ |- _ =>
     destruct p as [[initGlobal initFunTable] initMem];
     inv_mbind'
@@ -51,7 +51,7 @@ Ltac simpl_s_genInitState :=
     destruct f as [[f t i0 a v] b];
     inv_mbind'
   end;
-  try repeat match goal with 
+  try repeat match goal with
   | H: ret _ = ret _ |- _ => inv H
   end;
   symmetry_ctx.
@@ -78,7 +78,7 @@ end.
 
 Ltac destruct_exists :=
 repeat match goal with
-| H : exists _, _ |- _ => 
+| H : exists _, _ |- _ =>
     let A := fresh "A" in
     let J := fresh "J" in
     destruct H as [A J]
@@ -104,9 +104,9 @@ Ltac inv_mbind'' :=
          | H :  ret _ = match ?p with
                         | (_, _) => _
                         end |- _ => destruct p
-         | H : if ?e then _ else False |- _ => 
+         | H : if ?e then _ else False |- _ =>
              remember e as R; destruct R; tinv H
-         | H : if ?e then False else _ |- _ => 
+         | H : if ?e then False else _ |- _ =>
              remember e as R; destruct R; tinv H
          end.
 
@@ -134,7 +134,7 @@ repeat match goal with
   right
 end.
 
-Ltac solve_in_head := 
+Ltac solve_in_head :=
 match goal with
 | H0 : In _ ([_] ++ _),
   J2 : _ \/ _ \/ _ |- _ =>
@@ -176,5 +176,3 @@ Ltac unfold_blk2GV := unfold blk2GV, ptr2GV, val2GV.
 
 Ltac SSSSSCase name := Case_aux subsubsubsubsubcase name.
 Ltac SSSSSSCase name := Case_aux subsubsubsubsubsubcase name.
-
-

@@ -16,6 +16,7 @@ Require Import subst.
 Require Import las.
 Require Import laa.
 Require Import dae.
+Require Import dae_wfS.
 Require Import dse.
 Require Import die.
 Require Import sas.
@@ -30,7 +31,7 @@ Parameter does_phi_elim_is_true: does_phi_elim tt = true.
 
 Parameter does_stld_elim_is_true: does_stld_elim tt = true.
 
-Lemma program_sim_wfS_trans: forall (P1 P2 P3 : system) (main : id) 
+Lemma program_sim_wfS_trans: forall (P1 P2 P3 : system) (main : id)
   (VarArgs : list (GVsT DGVs)) (HwfS: wf_system P3),
   (wf_system P2 -> program_sim P1 P2 main VarArgs /\ wf_system P1) ->
   (wf_system P3 -> program_sim P2 P3 main VarArgs /\ wf_system P2) ->
@@ -43,26 +44,26 @@ Proof.
   eapply program_sim_trans; eauto.
 Qed.
 
-Lemma las_die_wfPI: forall (los : layouts) (nts : namedts) (fh : fheader) 
+Lemma las_die_wfPI: forall (los : layouts) (nts : namedts) (fh : fheader)
   (dones : list id) (pinfo: PhiInfo)
   (bs1 : list block) (l0 : l) (ps0 : phinodes) (cs0 : cmds) (tmn0 : terminator)
   (bs2 : list block) (Ps1 : list product) (Ps2 : list product) (i0 : id)
-  (v : value) (cs : cmds) 
+  (v : value) (cs : cmds)
   (Hst : ret inl (i0, v, cs) = find_init_stld cs0 (PI_id pinfo) dones)
   (i1 : id) (Hld : ret inl i1 = find_next_stld cs (PI_id pinfo))
   (Heq: PI_f pinfo = fdef_intro fh (bs1 ++ block_intro l0 ps0 cs0 tmn0 :: bs2))
-  (Hwfpi: WF_PhiInfo pinfo) 
-  (HwfS : 
+  (Hwfpi: WF_PhiInfo pinfo)
+  (HwfS :
      wf_system
-       [module_intro los nts 
-         (Ps1 ++ 
-          product_fdef 
+       [module_intro los nts
+         (Ps1 ++
+          product_fdef
             (fdef_intro fh (bs1 ++ block_intro l0 ps0 cs0 tmn0 :: bs2))
           :: Ps2)]),
-  WF_PhiInfo (update_pinfo pinfo 
+  WF_PhiInfo (update_pinfo pinfo
          (fdef_intro fh
            (List.map (remove_block i1)
-             (List.map (subst_block i1 v) 
+             (List.map (subst_block i1 v)
                (bs1 ++ block_intro l0 ps0 cs0 tmn0 :: bs2))))).
 Proof.
   intros.
@@ -70,14 +71,14 @@ Proof.
            (List.map (remove_block i1)
              (List.map (subst_block i1 v)
                (bs1 ++ block_intro l0 ps0 cs0 tmn0 :: bs2)))) =
-          remove_fdef i1 
+          remove_fdef i1
             (subst_fdef i1 v
-              (fdef_intro fh (bs1 ++ block_intro l0 ps0 cs0 tmn0 :: bs2)))) 
+              (fdef_intro fh (bs1 ++ block_intro l0 ps0 cs0 tmn0 :: bs2))))
     as J.
     simpl. auto.
   rewrite J.
-  destruct (@subst_fdef__diinfo 
-    (fdef_intro fh (bs1 ++ block_intro l0 ps0 cs0 tmn0 :: bs2)) i1 v) as 
+  destruct (@subst_fdef__diinfo
+    (fdef_intro fh (bs1 ++ block_intro l0 ps0 cs0 tmn0 :: bs2)) i1 v) as
     [diinfo [J1 J2]].
   change
     (update_pinfo pinfo
@@ -96,20 +97,20 @@ Proof.
     eapply las_wfS; eauto.
 Qed.
 
-Lemma las_die_sim_wfS: forall (los : layouts) (nts : namedts) (fh : fheader) 
+Lemma las_die_sim_wfS: forall (los : layouts) (nts : namedts) (fh : fheader)
   (dones : list id) (pinfo: PhiInfo) (main : id) (VarArgs : list (GVsT DGVs))
   (bs1 : list block) (l0 : l) (ps0 : phinodes) (cs0 : cmds) (tmn0 : terminator)
   (bs2 : list block) (Ps1 : list product) (Ps2 : list product) (i0 : id)
-  (v : value) (cs : cmds) 
+  (v : value) (cs : cmds)
   (Hst : ret inl (i0, v, cs) = find_init_stld cs0 (PI_id pinfo) dones)
   (i1 : id) (Hld : ret inl i1 = find_next_stld cs (PI_id pinfo))
   (Heq: PI_f pinfo = fdef_intro fh (bs1 ++ block_intro l0 ps0 cs0 tmn0 :: bs2))
-  (Hwfpi: WF_PhiInfo pinfo) 
-  (HwfS : 
+  (Hwfpi: WF_PhiInfo pinfo)
+  (HwfS :
      wf_system
-       [module_intro los nts 
-         (Ps1 ++ 
-          product_fdef 
+       [module_intro los nts
+         (Ps1 ++
+          product_fdef
             (fdef_intro fh (bs1 ++ block_intro l0 ps0 cs0 tmn0 :: bs2))
           :: Ps2)]),
   program_sim
@@ -118,10 +119,10 @@ Lemma las_die_sim_wfS: forall (los : layouts) (nts : namedts) (fh : fheader)
        product_fdef
          (fdef_intro fh
            (List.map (remove_block i1)
-             (List.map (subst_block i1 v) 
+             (List.map (subst_block i1 v)
                (bs1 ++ block_intro l0 ps0 cs0 tmn0 :: bs2)))) :: Ps2)]
-    [module_intro los nts 
-      (Ps1 ++ 
+    [module_intro los nts
+      (Ps1 ++
        product_fdef (fdef_intro fh (bs1 ++ block_intro l0 ps0 cs0 tmn0 :: bs2))::
        Ps2)]
     main VarArgs /\
@@ -131,7 +132,7 @@ Lemma las_die_sim_wfS: forall (los : layouts) (nts : namedts) (fh : fheader)
        product_fdef
          (fdef_intro fh
            (List.map (remove_block i1)
-             (List.map (subst_block i1 v) 
+             (List.map (subst_block i1 v)
                (bs1 ++ block_intro l0 ps0 cs0 tmn0 :: bs2)))) :: Ps2)].
 Proof.
   intros.
@@ -139,21 +140,21 @@ Proof.
            (List.map (remove_block i1)
              (List.map (subst_block i1 v)
                (bs1 ++ block_intro l0 ps0 cs0 tmn0 :: bs2)))) =
-          remove_fdef i1 
+          remove_fdef i1
             (subst_fdef i1 v
-              (fdef_intro fh (bs1 ++ block_intro l0 ps0 cs0 tmn0 :: bs2)))) 
+              (fdef_intro fh (bs1 ++ block_intro l0 ps0 cs0 tmn0 :: bs2))))
     as J.
     simpl. auto.
   rewrite J.
-  destruct (@subst_fdef__diinfo 
-    (fdef_intro fh (bs1 ++ block_intro l0 ps0 cs0 tmn0 :: bs2)) i1 v) as 
+  destruct (@subst_fdef__diinfo
+    (fdef_intro fh (bs1 ++ block_intro l0 ps0 cs0 tmn0 :: bs2)) i1 v) as
     [diinfo [J1 J2]].
   apply program_sim_wfS_trans with (P2:=
       [module_intro los nts
           (Ps1 ++
            product_fdef
              (subst_fdef i1 v
-                (fdef_intro fh (bs1 ++ block_intro l0 ps0 cs0 tmn0 :: bs2))) :: 
+                (fdef_intro fh (bs1 ++ block_intro l0 ps0 cs0 tmn0 :: bs2))) ::
            Ps2)]); auto; intros.
     split.
       eapply die_sim; eauto.
@@ -163,20 +164,20 @@ Proof.
       eapply las_wfS; eauto.
 Qed.
 
-Lemma laa_die_wfPI: forall (los : layouts) (nts : namedts) (fh : fheader) 
+Lemma laa_die_wfPI: forall (los : layouts) (nts : namedts) (fh : fheader)
   (dones : list id) (pinfo : PhiInfo)
   (bs1 : list block) (l0 : l) (ps0 : phinodes) (cs0 : cmds) (tmn0 : terminator)
   (bs2 : list block) (Ps1 : list product) (Ps2 : list product) (v : value)
-  (cs : cmds) 
+  (cs : cmds)
   (Hst : ret inr (v, cs) = find_init_stld cs0 (PI_id pinfo) dones)
   (i1 : id) (Hld : ret inl i1 = find_next_stld cs (PI_id pinfo))
   (Heq: PI_f pinfo = fdef_intro fh (bs1 ++ block_intro l0 ps0 cs0 tmn0 :: bs2))
-  (Hwfpi: WF_PhiInfo pinfo) 
-  (HwfS : 
+  (Hwfpi: WF_PhiInfo pinfo)
+  (HwfS :
      wf_system
-       [module_intro los nts 
-         (Ps1 ++ 
-          product_fdef 
+       [module_intro los nts
+         (Ps1 ++
+          product_fdef
             (fdef_intro fh (bs1 ++ block_intro l0 ps0 cs0 tmn0 :: bs2))
           :: Ps2)]),
   WF_PhiInfo (update_pinfo pinfo
@@ -190,14 +191,14 @@ Proof.
            (List.map (remove_block i1)
              (List.map (subst_block i1 v)
                (bs1 ++ block_intro l0 ps0 cs0 tmn0 :: bs2)))) =
-          remove_fdef i1 
+          remove_fdef i1
             (subst_fdef i1 v
-              (fdef_intro fh (bs1 ++ block_intro l0 ps0 cs0 tmn0 :: bs2)))) 
+              (fdef_intro fh (bs1 ++ block_intro l0 ps0 cs0 tmn0 :: bs2))))
     as J.
     simpl. auto.
   rewrite J.
-  destruct (@subst_fdef__diinfo 
-    (fdef_intro fh (bs1 ++ block_intro l0 ps0 cs0 tmn0 :: bs2)) i1 v) as 
+  destruct (@subst_fdef__diinfo
+    (fdef_intro fh (bs1 ++ block_intro l0 ps0 cs0 tmn0 :: bs2)) i1 v) as
     [diinfo [J1 J2]].
   change
     (update_pinfo pinfo
@@ -216,20 +217,20 @@ Proof.
     eapply laa_wfS; eauto.
 Qed.
 
-Lemma laa_die_sim_wfS: forall (los : layouts) (nts : namedts) (fh : fheader) 
+Lemma laa_die_sim_wfS: forall (los : layouts) (nts : namedts) (fh : fheader)
   (dones : list id) (pinfo : PhiInfo) (main : id) (VarArgs : list (GVsT DGVs))
   (bs1 : list block) (l0 : l) (ps0 : phinodes) (cs0 : cmds) (tmn0 : terminator)
   (bs2 : list block) (Ps1 : list product) (Ps2 : list product) (v : value)
-  (cs : cmds) 
+  (cs : cmds)
   (Hst : ret inr (v, cs) = find_init_stld cs0 (PI_id pinfo) dones)
   (i1 : id) (Hld : ret inl i1 = find_next_stld cs (PI_id pinfo))
   (Heq: PI_f pinfo = fdef_intro fh (bs1 ++ block_intro l0 ps0 cs0 tmn0 :: bs2))
-  (Hwfpi: WF_PhiInfo pinfo) 
-  (HwfS : 
+  (Hwfpi: WF_PhiInfo pinfo)
+  (HwfS :
      wf_system
-       [module_intro los nts 
-         (Ps1 ++ 
-          product_fdef 
+       [module_intro los nts
+         (Ps1 ++
+          product_fdef
             (fdef_intro fh (bs1 ++ block_intro l0 ps0 cs0 tmn0 :: bs2))
           :: Ps2)]),
   program_sim
@@ -259,21 +260,21 @@ Proof.
            (List.map (remove_block i1)
              (List.map (subst_block i1 v)
                (bs1 ++ block_intro l0 ps0 cs0 tmn0 :: bs2)))) =
-          remove_fdef i1 
+          remove_fdef i1
             (subst_fdef i1 v
-              (fdef_intro fh (bs1 ++ block_intro l0 ps0 cs0 tmn0 :: bs2)))) 
+              (fdef_intro fh (bs1 ++ block_intro l0 ps0 cs0 tmn0 :: bs2))))
     as J.
     simpl. auto.
   rewrite J.
-  destruct (@subst_fdef__diinfo 
-    (fdef_intro fh (bs1 ++ block_intro l0 ps0 cs0 tmn0 :: bs2)) i1 v) as 
+  destruct (@subst_fdef__diinfo
+    (fdef_intro fh (bs1 ++ block_intro l0 ps0 cs0 tmn0 :: bs2)) i1 v) as
     [diinfo [J1 J2]].
   apply program_sim_wfS_trans with (P2:=
       [module_intro los nts
           (Ps1 ++
            product_fdef
              (subst_fdef i1 v
-                (fdef_intro fh (bs1 ++ block_intro l0 ps0 cs0 tmn0 :: bs2))) :: 
+                (fdef_intro fh (bs1 ++ block_intro l0 ps0 cs0 tmn0 :: bs2))) ::
            Ps2)]); auto; intros.
     split.
       eapply die_sim; eauto.
@@ -284,7 +285,7 @@ Proof.
 Qed.
 
 Lemma remove_subst_reachablity_successors : forall i2 i1 v1 f,
-  dtree.reachablity_analysis f = 
+  dtree.reachablity_analysis f =
     dtree.reachablity_analysis (remove_fdef i2 (subst_fdef i1 v1 f)) /\
   successors f = successors (remove_fdef i2 (subst_fdef i1 v1 f)).
 Proof.
@@ -298,7 +299,7 @@ Proof.
       apply remove_successors.
 Qed.
 
-Lemma elim_stld_cmds_reachablity_successors: forall f cs0 f0 
+Lemma elim_stld_cmds_reachablity_successors: forall f cs0 f0
   dones0 dones id0 (Hpass : (f0, true, dones0) = elim_stld_cmds f cs0 id0 dones),
   dtree.reachablity_analysis f = dtree.reachablity_analysis f0 /\
   successors f = successors f0.
@@ -322,19 +323,19 @@ Proof.
       split; auto.
 Qed.
 
-Lemma elim_stld_cmds_wfPI: forall los nts fh dones (pinfo:PhiInfo) f0 dones0 
+Lemma elim_stld_cmds_wfPI: forall los nts fh dones (pinfo:PhiInfo) f0 dones0
   bs1 l0 ps0 cs0 tmn0 bs2 Ps1 Ps2
   (Hpass : (f0, true, dones0) =
            elim_stld_cmds
              (fdef_intro fh (bs1 ++ block_intro l0 ps0 cs0 tmn0 :: bs2)) cs0
              (PI_id pinfo) dones)
   (Heq: PI_f pinfo = fdef_intro fh (bs1 ++ block_intro l0 ps0 cs0 tmn0 :: bs2))
-  (Hwfpi: WF_PhiInfo pinfo) 
-  (HwfS : 
+  (Hwfpi: WF_PhiInfo pinfo)
+  (HwfS :
      wf_system
-       [module_intro los nts 
-         (Ps1 ++ 
-          product_fdef 
+       [module_intro los nts
+         (Ps1 ++
+          product_fdef
             (fdef_intro fh (bs1 ++ block_intro l0 ps0 cs0 tmn0 :: bs2))
           :: Ps2)]),
   WF_PhiInfo (update_pinfo pinfo f0).
@@ -356,22 +357,22 @@ Proof.
       rewrite <- Heq. rewrite update_pinfo_eq; auto.
 Qed.
 
-Lemma elim_stld_cmds_sim_wfS: forall los nts fh dones (pinfo:PhiInfo) f0 dones0 
+Lemma elim_stld_cmds_sim_wfS: forall los nts fh dones (pinfo:PhiInfo) f0 dones0
   main VarArgs bs1 l0 ps0 cs0 tmn0 bs2 Ps1 Ps2
   (Hpass : (f0, true, dones0) =
            elim_stld_cmds
              (fdef_intro fh (bs1 ++ block_intro l0 ps0 cs0 tmn0 :: bs2)) cs0
              (PI_id pinfo) dones)
   (Heq: PI_f pinfo = fdef_intro fh (bs1 ++ block_intro l0 ps0 cs0 tmn0 :: bs2))
-  (Hwfpi: WF_PhiInfo pinfo) 
-  (HwfS : 
+  (Hwfpi: WF_PhiInfo pinfo)
+  (HwfS :
      wf_system
-       [module_intro los nts 
-         (Ps1 ++ 
-          product_fdef 
+       [module_intro los nts
+         (Ps1 ++
+          product_fdef
             (fdef_intro fh (bs1 ++ block_intro l0 ps0 cs0 tmn0 :: bs2))
           :: Ps2)]),
-  program_sim 
+  program_sim
     [module_intro los nts (Ps1 ++ product_fdef f0 :: Ps2)]
     [module_intro los nts
       (Ps1 ++
@@ -399,11 +400,11 @@ Proof.
       split; auto using program_sim_refl.
 Qed.
 
-Lemma elim_stld_blocks_reachablity_successors_aux: forall f0 dones0 dones id0 
+Lemma elim_stld_blocks_reachablity_successors_aux: forall f0 dones0 dones id0
   flag fh bs2 bs1
-  (Hpass:elim_stld_blocks (fdef_intro fh (bs1++bs2)) bs2 id0 dones = 
+  (Hpass:elim_stld_blocks (fdef_intro fh (bs1++bs2)) bs2 id0 dones =
     (f0, flag, dones0)),
-  dtree.reachablity_analysis (fdef_intro fh (bs1++bs2)) = 
+  dtree.reachablity_analysis (fdef_intro fh (bs1++bs2)) =
     dtree.reachablity_analysis f0 /\
   successors (fdef_intro fh (bs1++bs2)) = successors f0.
 Proof.
@@ -411,29 +412,29 @@ Proof.
     inv Hpass. auto.
 
     destruct a as [l0 ps0 cs0 tmn0].
-    remember 
-      (elim_stld_cmds 
-        (fdef_intro fh (bs1 ++ block_intro l0 ps0 cs0 tmn0 :: bs2)) 
+    remember
+      (elim_stld_cmds
+        (fdef_intro fh (bs1 ++ block_intro l0 ps0 cs0 tmn0 :: bs2))
           cs0 id0 dones) as R.
     destruct R as [[f' []] dones']; inv Hpass; auto.
       eapply elim_stld_cmds_reachablity_successors; eauto.
 
-      apply elim_stld_cmds_unchanged in HeqR. subst. 
+      apply elim_stld_cmds_unchanged in HeqR. subst.
       rewrite_env ((bs1 ++ [block_intro l0 ps0 cs0 tmn0]) ++ bs2) in H0.
       apply IHbs2 in H0; simpl_env in *; auto.
 Qed.
 
-Lemma elim_stld_blocks_wfPI_aux: forall los nts fh dones (pinfo:PhiInfo) f0 
-  dones0 Ps1 Ps2 flag bs2 bs1 
-  (Hpass:elim_stld_blocks (fdef_intro fh (bs1++bs2)) bs2 (PI_id pinfo) dones = 
+Lemma elim_stld_blocks_wfPI_aux: forall los nts fh dones (pinfo:PhiInfo) f0
+  dones0 Ps1 Ps2 flag bs2 bs1
+  (Hpass:elim_stld_blocks (fdef_intro fh (bs1++bs2)) bs2 (PI_id pinfo) dones =
     (f0, flag, dones0))
   (Heq: PI_f pinfo = fdef_intro fh (bs1 ++ bs2))
-  (Hwfpi: WF_PhiInfo pinfo) 
-  (HwfS : 
+  (Hwfpi: WF_PhiInfo pinfo)
+  (HwfS :
      wf_system
-       [module_intro los nts 
-         (Ps1 ++ 
-          product_fdef 
+       [module_intro los nts
+         (Ps1 ++
+          product_fdef
             (fdef_intro fh (bs1 ++ bs2)) :: Ps2)]),
   WF_PhiInfo (update_pinfo pinfo f0).
 Proof.
@@ -442,35 +443,35 @@ Proof.
     rewrite <- Heq. rewrite update_pinfo_eq; auto.
 
     destruct a as [l0 ps0 cs0 tmn0].
-    remember 
-      (elim_stld_cmds 
-        (fdef_intro fh (bs1 ++ block_intro l0 ps0 cs0 tmn0 :: bs2)) 
+    remember
+      (elim_stld_cmds
+        (fdef_intro fh (bs1 ++ block_intro l0 ps0 cs0 tmn0 :: bs2))
           cs0 (PI_id pinfo) dones) as R.
     destruct R as [[f' []] dones']; inv Hpass; auto.
       eapply elim_stld_cmds_wfPI; eauto.
 
-      apply elim_stld_cmds_unchanged in HeqR. subst. 
+      apply elim_stld_cmds_unchanged in HeqR. subst.
       rewrite_env ((bs1 ++ [block_intro l0 ps0 cs0 tmn0]) ++ bs2) in H0.
       apply IHbs2 in H0; simpl_env in *; auto.
 Qed.
 
-Lemma elim_stld_blocks_sim_wfS_aux: forall los nts fh dones (pinfo:PhiInfo) f0 
-  dones0 main VarArgs Ps1 Ps2 flag bs2 bs1 
-  (Hpass:elim_stld_blocks (fdef_intro fh (bs1++bs2)) bs2 (PI_id pinfo) dones = 
+Lemma elim_stld_blocks_sim_wfS_aux: forall los nts fh dones (pinfo:PhiInfo) f0
+  dones0 main VarArgs Ps1 Ps2 flag bs2 bs1
+  (Hpass:elim_stld_blocks (fdef_intro fh (bs1++bs2)) bs2 (PI_id pinfo) dones =
     (f0, flag, dones0))
   (Heq: PI_f pinfo = fdef_intro fh (bs1 ++ bs2))
-  (Hwfpi: WF_PhiInfo pinfo) 
-  (HwfS : 
+  (Hwfpi: WF_PhiInfo pinfo)
+  (HwfS :
      wf_system
-       [module_intro los nts 
-         (Ps1 ++ 
-          product_fdef 
+       [module_intro los nts
+         (Ps1 ++
+          product_fdef
             (fdef_intro fh (bs1 ++ bs2)) :: Ps2)]),
   program_sim
-    [module_intro los nts                                                      
-      (Ps1 ++ 
+    [module_intro los nts
+      (Ps1 ++
        product_fdef f0 :: Ps2)]
-    [module_intro los nts 
+    [module_intro los nts
       (Ps1 ++ product_fdef (fdef_intro fh (bs1++bs2)) :: Ps2)]
     main VarArgs /\
    wf_system [module_intro los nts (Ps1 ++ product_fdef f0 :: Ps2)].
@@ -479,23 +480,23 @@ Proof.
     inv Hpass; split; auto using program_sim_refl.
 
     destruct a as [l0 ps0 cs0 tmn0].
-    remember 
-      (elim_stld_cmds 
-        (fdef_intro fh (bs1 ++ block_intro l0 ps0 cs0 tmn0 :: bs2)) 
+    remember
+      (elim_stld_cmds
+        (fdef_intro fh (bs1 ++ block_intro l0 ps0 cs0 tmn0 :: bs2))
           cs0 (PI_id pinfo) dones) as R.
     destruct R as [[f' []] dones']; inv Hpass; auto.
       eapply elim_stld_cmds_sim_wfS; eauto.
 
-      apply elim_stld_cmds_unchanged in HeqR. subst. 
+      apply elim_stld_cmds_unchanged in HeqR. subst.
       rewrite_env ((bs1 ++ [block_intro l0 ps0 cs0 tmn0]) ++ bs2) in H0.
       apply IHbs2 in H0; simpl_env in *; auto.
 Qed.
 
-Lemma elim_stld_blocks_reachablity_successors: forall f0 dones0 dones id0 
+Lemma elim_stld_blocks_reachablity_successors: forall f0 dones0 dones id0
   flag fh bs
-  (Hpass:elim_stld_blocks (fdef_intro fh bs) bs id0 dones = 
+  (Hpass:elim_stld_blocks (fdef_intro fh bs) bs id0 dones =
     (f0, flag, dones0)),
-  dtree.reachablity_analysis (fdef_intro fh bs) = 
+  dtree.reachablity_analysis (fdef_intro fh bs) =
     dtree.reachablity_analysis f0 /\
   successors (fdef_intro fh bs) = successors f0.
 Proof.
@@ -505,14 +506,14 @@ Proof.
 Qed.
 
 Lemma elim_stld_blocks_wfPI: forall los nts fh dones (pinfo:PhiInfo) f0 dones0
-  Ps1 Ps2 flag bs 
-  (Hpass:elim_stld_blocks (fdef_intro fh bs) bs (PI_id pinfo) dones 
+  Ps1 Ps2 flag bs
+  (Hpass:elim_stld_blocks (fdef_intro fh bs) bs (PI_id pinfo) dones
            = (f0, flag, dones0))
   (Heq: PI_f pinfo = fdef_intro fh bs)
-  (Hwfpi: WF_PhiInfo pinfo) 
-  (HwfS : 
+  (Hwfpi: WF_PhiInfo pinfo)
+  (HwfS :
      wf_system
-       [module_intro los nts 
+       [module_intro los nts
          (Ps1 ++ product_fdef (fdef_intro fh bs) :: Ps2)]),
   WF_PhiInfo (update_pinfo pinfo f0).
 Proof.
@@ -522,18 +523,18 @@ Proof.
 Qed.
 
 Lemma elim_stld_blocks_sim_wfS: forall los nts fh dones (pinfo:PhiInfo) f0 dones0
-  main VarArgs Ps1 Ps2 flag bs 
-  (Hpass:elim_stld_blocks (fdef_intro fh bs) bs (PI_id pinfo) dones 
+  main VarArgs Ps1 Ps2 flag bs
+  (Hpass:elim_stld_blocks (fdef_intro fh bs) bs (PI_id pinfo) dones
            = (f0, flag, dones0))
   (Heq: PI_f pinfo = fdef_intro fh bs)
-  (Hwfpi: WF_PhiInfo pinfo) 
-  (HwfS : 
+  (Hwfpi: WF_PhiInfo pinfo)
+  (HwfS :
      wf_system
-       [module_intro los nts 
+       [module_intro los nts
          (Ps1 ++ product_fdef (fdef_intro fh bs) :: Ps2)]),
   program_sim
-    [module_intro los nts                                                      
-      (Ps1 ++ 
+    [module_intro los nts
+      (Ps1 ++
        product_fdef f0 :: Ps2)]
     [module_intro los nts (Ps1 ++ product_fdef (fdef_intro fh bs) :: Ps2)]
     main VarArgs /\
@@ -544,8 +545,8 @@ Proof.
   eapply elim_stld_blocks_sim_wfS_aux; eauto.
 Qed.
 
-Lemma elim_stld_sim_reachablity_successors: forall f1 dones1 f2 dones2 pid 
-  (Hpass: SafePrimIter.iterate _ (elim_stld_step pid) (f1, dones1) = 
+Lemma elim_stld_sim_reachablity_successors: forall f1 dones1 f2 dones2 pid
+  (Hpass: SafePrimIter.iterate _ (elim_stld_step pid) (f1, dones1) =
     (f2, dones2)),
   dtree.reachablity_analysis f2 = dtree.reachablity_analysis f1 /\
   successors f2 = successors f1.
@@ -577,12 +578,12 @@ Proof.
     destruct flag0; auto.
 Qed.
 
-Lemma elim_stld_sim_wfS_wfPI: forall f1 dones1 f2 dones2 Ps1 Ps2 los nts main 
-  VarArgs pid (pinfo:PhiInfo) 
-  (Hpass: SafePrimIter.iterate _ (elim_stld_step pid) 
+Lemma elim_stld_sim_wfS_wfPI: forall f1 dones1 f2 dones2 Ps1 Ps2 los nts main
+  VarArgs pid (pinfo:PhiInfo)
+  (Hpass: SafePrimIter.iterate _ (elim_stld_step pid)
     (f1, dones1) = (f2, dones2))
   (Heq1: PI_f pinfo = f1) (Heq2: PI_id pinfo = pid)
-  (Hwfpi: WF_PhiInfo pinfo) 
+  (Hwfpi: WF_PhiInfo pinfo)
   (HwfS : wf_system [module_intro los nts (Ps1 ++ product_fdef f1 :: Ps2)]),
   (program_sim
     [module_intro los nts (Ps1 ++ product_fdef f2 :: Ps2)]
@@ -595,14 +596,14 @@ Proof.
   set (P:=fun (re:(fdef * list id)) =>
           let '(f, _) := re in
           (program_sim [module_intro los nts (Ps1 ++ product_fdef f :: Ps2)]
-            [module_intro los nts (Ps1 ++ product_fdef (PI_f pinfo) :: Ps2)] 
+            [module_intro los nts (Ps1 ++ product_fdef (PI_f pinfo) :: Ps2)]
             main VarArgs /\
            wf_system
             [module_intro los nts (Ps1 ++ product_fdef f :: Ps2)]) /\
           WF_PhiInfo (update_pinfo pinfo f)
        ).
   assert (P (PI_f pinfo, dones1)) as HPf1.
-    unfold P. 
+    unfold P.
     split; auto using program_sim_refl.
   apply SafePrimIter.iterate_prop with (P:=P) in Hpass; auto.
     unfold elim_stld_step.
@@ -620,21 +621,21 @@ Proof.
         in HeqR.
       split.
         apply program_sim_wfS_trans with (P2:=
-                [module_intro los nts 
+                [module_intro los nts
                  (Ps1 ++ product_fdef (fdef_intro fh bs) :: Ps2)]); auto.
-          intros. 
+          intros.
           eapply elim_stld_blocks_sim_wfS in HeqR; eauto.
         eapply elim_stld_blocks_wfPI in HeqR; eauto.
 
     destruct flag0; auto.
 Qed.
 
-Lemma macro_mem2reg_fdef_sim_wfS: forall rd f1 dones1 f2 dones2 Ps1 Ps2 los 
+Lemma macro_mem2reg_fdef_sim_wfS: forall rd f1 dones1 f2 dones2 Ps1 Ps2 los
   nts main VarArgs (Hreach: ret rd = dtree.reachablity_analysis f1)
   (HwfS : wf_system [module_intro los nts (Ps1 ++ product_fdef f1 :: Ps2)])
   (Hiter: SafePrimIter.iterate (fdef * list id)
             (macro_mem2reg_fdef_step rd (successors f1)
-              (make_predecessors (successors f1))) 
+              (make_predecessors (successors f1)))
             (f1, dones1) = (f2, dones2)),
   (program_sim
     [module_intro los nts (Ps1 ++ product_fdef f2 :: Ps2)]
@@ -675,7 +676,7 @@ Proof.
       eapply find_promotable_alloca__WF_PhiInfo; eauto.
 
     rewrite does_stld_elim_is_true.
-    remember (SafePrimIter.iterate (fdef * list id) 
+    remember (SafePrimIter.iterate (fdef * list id)
                (elim_stld_step pid)
                (phinodes_placement f rd pid ty al (successors f1)
                (make_predecessors (successors f1)), nil)) as R.
@@ -687,24 +688,24 @@ Proof.
       split.
       Case "1".
         apply program_sim_wfS_trans with (P2:=
-            [module_intro los nts (Ps1 ++ 
-              product_fdef 
+            [module_intro los nts (Ps1 ++
+              product_fdef
                  (phinodes_placement f rd pid ty al (successors f1)
                    (make_predecessors (successors f1))) :: Ps2)]); auto; intros.
-          eapply elim_stld_sim_wfS_wfPI with 
-            (pinfo:=mkPhiInfo (phinodes_placement f rd pid ty al 
-              (successors f1) (make_predecessors (successors f1))) 
+          eapply elim_stld_sim_wfS_wfPI with
+            (pinfo:=mkPhiInfo (phinodes_placement f rd pid ty al
+              (successors f1) (make_predecessors (successors f1)))
                 rd pid ty num al); eauto.
             rewrite EQ1. destruct HPa.
             eapply phinodes_placement_wfPI; eauto.
-        
+
         apply program_sim_wfS_trans with (P2:=
           [module_intro los nts (Ps1 ++ product_fdef f :: Ps2)]); auto.
           intros. rewrite EQ1.
           split.
             eapply phinodes_placement_sim; eauto.
             eapply phinodes_placement_wfS; eauto.
-    
+
       Case "2".
         apply elim_stld_sim_reachablity_successors in HeqR1.
         destruct HeqR1.
@@ -723,22 +724,22 @@ Proof.
             apply phinodes_placement_reachablity_successors.
 
     assert (WF_PhiInfo (update_pinfo pinfo f0)) as HwfPIf0.
-      change (update_pinfo pinfo f0) with 
-             (update_pinfo 
-               (update_pinfo pinfo 
+      change (update_pinfo pinfo f0) with
+             (update_pinfo
+               (update_pinfo pinfo
                  (phinodes_placement f rd pid ty al (successors f)
                    (make_predecessors (successors f)))) f0).
      destruct HPa.
      eapply elim_stld_sim_wfS_wfPI; eauto.
        rewrite EQ1. simpl. auto.
        eapply phinodes_placement_wfPI; eauto.
-         rewrite EQ1. 
-         eapply phinodes_placement_wfS; eauto.       
+         rewrite EQ1.
+         eapply phinodes_placement_wfS; eauto.
 
     assert (P (if load_in_fdef pid f0 then f0 else elim_dead_st_fdef pid f0,
               nil) /\
-            WF_PhiInfo (update_pinfo pinfo 
-              (if load_in_fdef pid f0 then f0 else elim_dead_st_fdef pid f0))) 
+            WF_PhiInfo (update_pinfo pinfo
+              (if load_in_fdef pid f0 then f0 else elim_dead_st_fdef pid f0)))
       as HPf.
       remember (load_in_fdef pid f0) as R.
       destruct R; auto.
@@ -761,14 +762,14 @@ Proof.
             transitivity (successors f0); auto.
               apply elim_dead_st_fdef_successors.
 
-      Case "2".  
+      Case "2".
         destruct HPf0.
-        change (update_pinfo pinfo (elim_dead_st_fdef pid f0)) with 
-                 (update_pinfo 
-                   (update_pinfo 
+        change (update_pinfo pinfo (elim_dead_st_fdef pid f0)) with
+                 (update_pinfo
+                   (update_pinfo
                      (update_pinfo pinfo
                        (phinodes_placement f rd pid ty al (successors f)
-                         (make_predecessors (successors f)))) 
+                         (make_predecessors (successors f))))
                    f0)
                    (elim_dead_st_fdef pid f0)
                  ).
@@ -781,29 +782,29 @@ Proof.
     destruct HPf as [HPf HPf'].
     split.
       apply program_sim_wfS_trans with (P2:=
-                 [module_intro los nts 
-                   (Ps1 ++ product_fdef 
-                   (if load_in_fdef pid f0 then f0 
+                 [module_intro los nts
+                   (Ps1 ++ product_fdef
+                   (if load_in_fdef pid f0 then f0
                     else elim_dead_st_fdef pid f0) :: Ps2)]); auto.
-        intros. 
+        intros.
         split.
-          eapply dae_sim with 
-            (pinfo:=mkPhiInfo 
+          eapply dae_sim with
+            (pinfo:=mkPhiInfo
               (if load_in_fdef pid f0 then f0 else elim_dead_st_fdef pid f0)
               rd pid ty num al); eauto.
-          eapply dae_wfS with 
-            (pinfo:=mkPhiInfo 
+          eapply dae_wfS with
+            (pinfo:=mkPhiInfo
               (if load_in_fdef pid f0 then f0 else elim_dead_st_fdef pid f0)
               rd pid ty num al); eauto.
 
       destruct HPf' as [Hreach' Hsucc'].
       split.
-        transitivity 
+        transitivity
           (dtree.reachablity_analysis
             (if load_in_fdef pid f0 then f0 else elim_dead_st_fdef pid f0));auto.
         apply remove_reachablity_analysis; auto.
 
-        transitivity 
+        transitivity
           (successors
             (if load_in_fdef pid f0 then f0 else elim_dead_st_fdef pid f0));auto.
         apply remove_successors; auto.
@@ -812,7 +813,7 @@ Qed.
 Lemma eliminate_phis_sim_wfS: forall f Ps1 Ps2 los nts main VarArgs
   (HwfS : wf_system [module_intro los nts (Ps1 ++ product_fdef f :: Ps2)]),
   program_sim
-    [module_intro los nts 
+    [module_intro los nts
       (Ps1 ++ product_fdef (SafePrimIter.iterate fdef eliminate_step f) :: Ps2)]
     [module_intro los nts (Ps1 ++ product_fdef f :: Ps2)]
     main VarArgs /\
@@ -883,8 +884,8 @@ Proof.
   apply program_sim_wfS_trans with (P2:=
     [module_intro los nts (Ps1 ++ product_fdef f1 :: Ps2)]); auto; intros.
     apply program_sim_wfS_trans with (P2:=
-      [module_intro los nts 
-        (Ps1 ++ product_fdef (SafePrimIter.iterate fdef eliminate_step f1) 
+      [module_intro los nts
+        (Ps1 ++ product_fdef (SafePrimIter.iterate fdef eliminate_step f1)
           :: Ps2)]); auto; intros.
       eapply fix_temporary_fdef_sim_wfS; eauto.
       apply eliminate_phis_sim_wfS; auto.
@@ -897,7 +898,7 @@ Proof.
     apply remove_dbg_declares_sim_wfS; auto using program_sim_refl.
 Qed.
 
-Lemma mem2reg_run_sim_wfS_aux: forall (main : id) (VarArgs : list (GVsT DGVs))   
+Lemma mem2reg_run_sim_wfS_aux: forall (main : id) (VarArgs : list (GVsT DGVs))
   (los : layouts) (nts : namedts) (Ps2 Ps1: products)
   (HwfS : wf_system [module_intro los nts (Ps1 ++ Ps2)]),
   program_sim
@@ -921,11 +922,11 @@ Proof.
     split; auto using program_sim_refl.
 
     assert (J:=@IHPs2 (Ps1 ++ [a])). clear IHPs2.
-    simpl_env in J. simpl in J. 
+    simpl_env in J. simpl in J.
     destruct a as [?|f|f]; auto.
     apply program_sim_wfS_trans with (P2:=
       [module_intro los nts
-        (Ps1 ++ product_fdef f :: 
+        (Ps1 ++ product_fdef f ::
            List.map (fun p : product =>
                      match p with
                      | product_fdef f => product_fdef (mem2reg_fdef f)

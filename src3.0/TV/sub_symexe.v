@@ -23,9 +23,9 @@ Export LLVMgv.
 Module SBSE.
 
 (* Symbolic execution may take some functions as special cmds with a big-step.
-   For example, Sofbound's metadata functions. They may not be external 
+   For example, Sofbound's metadata functions. They may not be external
    functions.
-   But we do not want to analyze them... 
+   But we do not want to analyze them...
 
    Return None if the lib call is not a lib.
 *)
@@ -35,15 +35,15 @@ Inductive Result : Set :=
 | Rabort : Result
 .
 
-Axiom callLib : mem -> id -> list GenericValue -> 
+Axiom callLib : mem -> id -> list GenericValue ->
   option ((option GenericValue)*mem*Result).
 
-(* Must be realized when being extracted. E.g Softbound TV should say 
+(* Must be realized when being extracted. E.g Softbound TV should say
      isCallLib "__loadDereferenceCheck" = true *)
 Axiom isCallLib : id -> bool.
 
 (* Here, we check which function to call conservatively. In practice, a v1
- * is a function pointer, we should look up the function name from the 
+ * is a function pointer, we should look up the function name from the
  * FunTable. Since the LLVM IR takes function names as function pointers,
  * if a program does not assign them to be other variables, they should
  * be the same. *)
@@ -69,7 +69,7 @@ Record subblock := mkSB
   call_cmd_isCall : isCall call_cmd = true
 }.
 
-Lemma isCall_dec : forall c, 
+Lemma isCall_dec : forall c,
   {isCall c = false} + {isCall c = true}.
 Proof.
   destruct_cmd c; simpl; auto.
@@ -83,15 +83,15 @@ match cs with
 | nil => (nil,nil)
 | c::cs' =>
   match (isCall_dec c) with
-  | left isnotcall => 
+  | left isnotcall =>
     match (cmds2sbs cs') with
-    | (nil, nbs0) => (nil, mkNB c isnotcall::nbs0) 
-    | (mkSB nbs call0 iscall0::sbs', nbs0) => 
-      (mkSB (mkNB c isnotcall::nbs) call0 iscall0::sbs', nbs0) 
+    | (nil, nbs0) => (nil, mkNB c isnotcall::nbs0)
+    | (mkSB nbs call0 iscall0::sbs', nbs0) =>
+      (mkSB (mkNB c isnotcall::nbs) call0 iscall0::sbs', nbs0)
     end
-  | right iscall => 
+  | right iscall =>
     match (cmds2sbs cs') with
-    | (sbs, nbs0) => (mkSB nil c iscall::sbs, nbs0) 
+    | (sbs, nbs0) => (mkSB nil c iscall::sbs, nbs0)
     end
   end
 end.
@@ -103,7 +103,7 @@ match nbs with
 end.
 
 Definition cmd2nbranch (c:cmd) : option nbranch :=
-match (isCall_dec c) with 
+match (isCall_dec c) with
 | left H => Some (mkNB c H)
 | right _ => None
 end.
@@ -123,7 +123,7 @@ end.
 
 (***************************************************************)
 (** symbolic terms and memories. *)
-Inductive sterm : Set := 
+Inductive sterm : Set :=
 | sterm_val : value -> sterm
 | sterm_bop : bop -> sz -> sterm -> sterm -> sterm
 | sterm_fbop : fbop -> floating_point -> sterm -> sterm -> sterm
@@ -173,9 +173,9 @@ Scheme sterm_rec2 := Induction for sterm Sort Set
 Definition se_mutrec P1 P2 P3 P4 P5 P6 :=
   fun h1 h2 h3 h4 h5 h6 h7 h8 h9 h10 h11 h12 h13 h14 h15 h16 h17 h18 h19 h20 h21 h22 h23 h24 h25 h26 h27 h28 h29 h30 h31 h32 =>
    (pair
-      (pair 
-           (pair 
-                 (pair 
+      (pair
+           (pair
+                 (pair
                        (pair
                           (@sterm_rec2 P1 P2 P3 P4 P5 P6 h1 h2 h3 h4 h5 h6 h7 h8 h9 h10 h11 h12 h13 h14 h15 h16 h17 h18 h19 h20 h21 h22 h23 h24 h25 h26 h27 h28 h29 h30 h31 h32)
                           (@list_sz_sterm_rec2 P1 P2 P3 P4 P5 P6 h1 h2 h3 h4 h5 h6 h7 h8 h9 h10 h11 h12 h13 h14 h15 h16 h17 h18 h19 h20 h21 h22 h23 h24 h25 h26 h27 h28 h29 h30 h31 h32))
@@ -186,7 +186,7 @@ Definition se_mutrec P1 P2 P3 P4 P5 P6 :=
 
 Tactic Notation "se_mut_cases" tactic(first) tactic(c) :=
   first;
-  [ c "sterm_val" | 
+  [ c "sterm_val" |
     c "sterm_bop" |
     c "sterm_fbop" |
     c "sterm_extractvalue" |
@@ -287,7 +287,7 @@ Fixpoint app_list_sterm_l (l0 m:list_sterm_l) {struct l0} : list_sterm_l :=
   | Cons_list_sterm_l h0 h1 tl_ => Cons_list_sterm_l h0 h1 (app_list_sterm_l tl_ m)
   end.
 
-Fixpoint map_list_sz_sterm (A:Set) (f:sz->sterm->A) (l0:list_sz_sterm) 
+Fixpoint map_list_sz_sterm (A:Set) (f:sz->sterm->A) (l0:list_sz_sterm)
   {struct l0} : list A :=
   match l0 with
   | Nil_list_sz_sterm => nil
@@ -307,7 +307,7 @@ Fixpoint unmake_list_sz_sterm (l0:list_sz_sterm) :  list (sz * sterm) :=
   | Cons_list_sz_sterm s h tl_ =>  cons (s, h) (unmake_list_sz_sterm tl_)
   end.
 
-Fixpoint nth_list_sz_sterm (n:nat) (l0:list_sz_sterm) {struct n} 
+Fixpoint nth_list_sz_sterm (n:nat) (l0:list_sz_sterm) {struct n}
   : option (sz * sterm) :=
   match n,l0 with
   | O, Cons_list_sz_sterm s h tl_ => Some (s, h)
@@ -320,7 +320,7 @@ Implicit Arguments nth_list_sz_sterm.
 Fixpoint app_list_sz_sterm (l0 m:list_sz_sterm) {struct l0} : list_sz_sterm :=
   match l0 with
   | Nil_list_sz_sterm => m
-  | Cons_list_sz_sterm s h tl_ => 
+  | Cons_list_sz_sterm s h tl_ =>
       Cons_list_sz_sterm s h (app_list_sz_sterm tl_ m)
   end.
 
@@ -334,14 +334,14 @@ Inductive sterminator : Set :=
 
 Inductive scall : Set :=
 (* FIXME: the value should be a sterm!!! *)
-| stmn_call : 
+| stmn_call :
     id -> noret -> clattrs -> typ -> value -> list (typ*attributes*sterm) ->
       scall
 .
 
 Definition smap := list (atom*sterm).
 
-Record sstate : Set := mkSstate 
+Record sstate : Set := mkSstate
 {
   STerms : smap;
   SMem : smem;
@@ -354,7 +354,7 @@ Definition sstate_init := mkSstate nil smem_init sframe_init nil.
 Fixpoint lookupSmap (sm:smap) (i0:id) : sterm :=
 match sm with
 | nil => (sterm_val (value_id i0))
-| (id0, s0)::sm' => 
+| (id0, s0)::sm' =>
   if i0 == id0 then s0 else lookupSmap sm' i0
 end.
 
@@ -364,16 +364,16 @@ match v with
 | value_id i0 => lookupSmap sm i0
 end.
 
-Fixpoint list_param__list_typ_subst_sterm (list_param1:params) (sm:smap) 
+Fixpoint list_param__list_typ_subst_sterm (list_param1:params) (sm:smap)
   : list (typ*attributes*sterm) :=
 match list_param1 with
 | nil => nil
-| (t, attr, v)::list_param1' => 
+| (t, attr, v)::list_param1' =>
     (t, attr, (value2Sterm sm v))::
       (list_param__list_typ_subst_sterm list_param1' sm)
 end.
 
-Inductive list_value : Set := 
+Inductive list_value : Set :=
  | Nil_list_value : list_value
  | Cons_list_value : value -> list_value -> list_value.
 
@@ -398,7 +398,7 @@ Fixpoint unmake_list_value (l0:list_value) :  list value :=
 
 Fixpoint nth_list_value (n:nat) (l0:list_value) {struct n} : option value :=
   match n,l0 with
-  | O, Cons_list_value h tl_ => Some h 
+  | O, Cons_list_value h tl_ => Some h
   | O, other => None
   | S m, Nil_list_value => None
   | S m, Cons_list_value h tl_ => nth_list_value m tl_
@@ -420,17 +420,17 @@ Proof.
   destruct fv as [?|c]; try solve [inversion H0].
   destruct_const c; try solve [inversion H0].
   apply
-    (mkSstate (updateAddAL _ st.(STerms) id0 
+    (mkSstate (updateAddAL _ st.(STerms) id0
                 (sterm_lib st.(SMem) i0
-                  (make_list_sterm 
-                    (map_list_value 
+                  (make_list_sterm
+                    (map_list_value
                       (value2Sterm st.(STerms))
                       (make_list_value (snd (List.split lp)))
                     ))))
-              (smem_lib st.(SMem) i0 
-                (make_list_sterm 
-                  (map_list_value 
-                    (value2Sterm st.(STerms)) 
+              (smem_lib st.(SMem) i0
+                (make_list_sterm
+                  (map_list_value
+                    (value2Sterm st.(STerms))
                     (make_list_value (snd (List.split lp)))
                   )))
               st.(SFrame)
@@ -438,134 +438,134 @@ Proof.
 Defined.
 
 Definition se_cmd (st : sstate) (c:nbranch) : sstate :=
-match c with 
+match c with
 | mkNB i notcall =>
-  (match i as r return (i = r -> _) with 
-  | insn_bop id0 op0 sz0 v1 v2 => fun _ => 
-       (mkSstate (updateAddAL _ st.(STerms) id0 
-                   (sterm_bop op0 sz0 
+  (match i as r return (i = r -> _) with
+  | insn_bop id0 op0 sz0 v1 v2 => fun _ =>
+       (mkSstate (updateAddAL _ st.(STerms) id0
+                   (sterm_bop op0 sz0
                      (value2Sterm st.(STerms) v1)
                      (value2Sterm st.(STerms) v2)))
                  st.(SMem)
                  st.(SFrame)
                  st.(SEffects))
-  | insn_fbop id0 op0 fp0 v1 v2 => fun _ => 
-       (mkSstate (updateAddAL _ st.(STerms) id0 
-                   (sterm_fbop op0 fp0 
+  | insn_fbop id0 op0 fp0 v1 v2 => fun _ =>
+       (mkSstate (updateAddAL _ st.(STerms) id0
+                   (sterm_fbop op0 fp0
                      (value2Sterm st.(STerms) v1)
                      (value2Sterm st.(STerms) v2)))
                  st.(SMem)
                  st.(SFrame)
                  st.(SEffects))
- | insn_extractvalue id0 t1 v1 cs3 => fun _ => 
-       (mkSstate (updateAddAL _ st.(STerms) id0 
-                   (sterm_extractvalue t1 
+ | insn_extractvalue id0 t1 v1 cs3 => fun _ =>
+       (mkSstate (updateAddAL _ st.(STerms) id0
+                   (sterm_extractvalue t1
                      (value2Sterm st.(STerms) v1)
                      cs3))
                  st.(SMem)
                  st.(SFrame)
                  st.(SEffects))
-  | insn_insertvalue id0 t1 v1 t2 v2 cs3 => fun _ => 
-       (mkSstate (updateAddAL _ st.(STerms) id0 
-                   (sterm_insertvalue 
-                     t1 
+  | insn_insertvalue id0 t1 v1 t2 v2 cs3 => fun _ =>
+       (mkSstate (updateAddAL _ st.(STerms) id0
+                   (sterm_insertvalue
+                     t1
                      (value2Sterm st.(STerms) v1)
-                     t2 
+                     t2
                      (value2Sterm st.(STerms) v2)
                      cs3))
                  st.(SMem)
                  st.(SFrame)
                  st.(SEffects))
-  | insn_malloc id0 t1 v1 al1 => fun _ => 
-       (mkSstate (updateAddAL _ st.(STerms) id0 
+  | insn_malloc id0 t1 v1 al1 => fun _ =>
+       (mkSstate (updateAddAL _ st.(STerms) id0
                    (sterm_malloc st.(SMem) t1 (value2Sterm st.(STerms) v1) al1))
                  (smem_malloc st.(SMem) t1 (value2Sterm st.(STerms) v1) al1)
                  st.(SFrame)
                  st.(SEffects))
-  | insn_free id0 t0 v0 => fun _ =>  
+  | insn_free id0 t0 v0 => fun _ =>
        (mkSstate st.(STerms)
-                 (smem_free st.(SMem) t0 
+                 (smem_free st.(SMem) t0
                    (value2Sterm st.(STerms) v0))
                  st.(SFrame)
                  st.(SEffects))
-  | insn_alloca id0 t1 v1 al1 => fun _ =>   
-       (mkSstate (updateAddAL _ st.(STerms) id0 
+  | insn_alloca id0 t1 v1 al1 => fun _ =>
+       (mkSstate (updateAddAL _ st.(STerms) id0
                    (sterm_alloca st.(SMem) t1 (value2Sterm st.(STerms) v1) al1))
                  (smem_alloca st.(SMem) t1 (value2Sterm st.(STerms) v1) al1)
                  (sframe_alloca st.(SMem) st.(SFrame) t1 (value2Sterm st.(STerms) v1) al1)
                  st.(SEffects))
-  | insn_load id0 t2 v2 align => fun _ =>   
-       (mkSstate (updateAddAL _ st.(STerms) id0 
-                   (sterm_load st.(SMem) t2 
+  | insn_load id0 t2 v2 align => fun _ =>
+       (mkSstate (updateAddAL _ st.(STerms) id0
+                   (sterm_load st.(SMem) t2
                      (value2Sterm st.(STerms) v2) align))
-                 (smem_load st.(SMem) t2 
+                 (smem_load st.(SMem) t2
                    (value2Sterm st.(STerms) v2) align)
                  st.(SFrame)
                  st.(SEffects))
-  | insn_store id0 t0 v1 v2 align => fun _ =>  
+  | insn_store id0 t0 v1 v2 align => fun _ =>
        (mkSstate st.(STerms)
-                 (smem_store st.(SMem) t0 
+                 (smem_store st.(SMem) t0
                    (value2Sterm st.(STerms) v1)
                    (value2Sterm st.(STerms) v2)
                    align)
                  st.(SFrame)
                  st.(SEffects))
-  | insn_gep id0 inbounds0 t1 v1 lv2 => fun _ =>  
-       (mkSstate (updateAddAL _ st.(STerms) id0 
-                   (sterm_gep inbounds0 t1 
+  | insn_gep id0 inbounds0 t1 v1 lv2 => fun _ =>
+       (mkSstate (updateAddAL _ st.(STerms) id0
+                   (sterm_gep inbounds0 t1
                      (value2Sterm st.(STerms) v1)
-                     (make_list_sz_sterm 
-                       (map_list_sz_value 
+                     (make_list_sz_sterm
+                       (map_list_sz_value
                          (fun sz' v' => (sz', value2Sterm st.(STerms) v'))
                           lv2))))
                  st.(SMem)
                  st.(SFrame)
                  st.(SEffects))
-  | insn_trunc id0 op0 t1 v1 t2 => fun _ => 
-       (mkSstate (updateAddAL _ st.(STerms) id0 
-                   (sterm_trunc op0 t1 
+  | insn_trunc id0 op0 t1 v1 t2 => fun _ =>
+       (mkSstate (updateAddAL _ st.(STerms) id0
+                   (sterm_trunc op0 t1
                      (value2Sterm st.(STerms) v1)
                      t2))
                  st.(SMem)
                  st.(SFrame)
                  st.(SEffects))
-  | insn_ext id0 op0 t1 v1 t2 => fun _ => 
-       (mkSstate (updateAddAL _ st.(STerms) id0 
-                   (sterm_ext op0 t1 
+  | insn_ext id0 op0 t1 v1 t2 => fun _ =>
+       (mkSstate (updateAddAL _ st.(STerms) id0
+                   (sterm_ext op0 t1
                      (value2Sterm st.(STerms) v1)
                      t2))
                  st.(SMem)
                  st.(SFrame)
                  st.(SEffects))
-  | insn_cast id0 op0 t1 v1 t2 => fun _ => 
-       (mkSstate (updateAddAL _ st.(STerms) id0 
-                   (sterm_cast op0 t1 
+  | insn_cast id0 op0 t1 v1 t2 => fun _ =>
+       (mkSstate (updateAddAL _ st.(STerms) id0
+                   (sterm_cast op0 t1
                      (value2Sterm st.(STerms) v1)
                      t2))
                  st.(SMem)
                  st.(SFrame)
                  st.(SEffects))
-  | insn_icmp id0 c0 t0 v1 v2 => fun _ => 
-       (mkSstate (updateAddAL _ st.(STerms) id0 
-                   (sterm_icmp c0 t0 
+  | insn_icmp id0 c0 t0 v1 v2 => fun _ =>
+       (mkSstate (updateAddAL _ st.(STerms) id0
+                   (sterm_icmp c0 t0
                      (value2Sterm st.(STerms) v1)
                      (value2Sterm st.(STerms) v2)))
                  st.(SMem)
                  st.(SFrame)
                  st.(SEffects))
-  | insn_fcmp id0 c0 fp0 v1 v2 => fun _ => 
-       (mkSstate (updateAddAL _ st.(STerms) id0 
-                   (sterm_fcmp c0 fp0 
+  | insn_fcmp id0 c0 fp0 v1 v2 => fun _ =>
+       (mkSstate (updateAddAL _ st.(STerms) id0
+                   (sterm_fcmp c0 fp0
                      (value2Sterm st.(STerms) v1)
                      (value2Sterm st.(STerms) v2)))
                  st.(SMem)
                  st.(SFrame)
                  st.(SEffects))
-  | insn_select id0 v0 t0 v1 v2 => fun _ => 
-       (mkSstate (updateAddAL _ st.(STerms) id0 
-                   (sterm_select 
+  | insn_select id0 v0 t0 v1 v2 => fun _ =>
+       (mkSstate (updateAddAL _ st.(STerms) id0
+                   (sterm_select
                      (value2Sterm st.(STerms) v0)
-                     t0 
+                     t0
                      (value2Sterm st.(STerms) v1)
                      (value2Sterm st.(STerms) v2)))
                  st.(SMem)
@@ -580,11 +580,11 @@ end.
 Fixpoint _se_phinodes (st st0: sstate) (ps:list phinode) : sstate :=
 match ps with
 | nil => st
-| insn_phi id0 t0 idls0::ps' =>  
-    _se_phinodes 
-     (mkSstate (updateAL _ st.(STerms) id0 
-                 (sterm_phi 
-                   t0 
+| insn_phi id0 t0 idls0::ps' =>
+    _se_phinodes
+     (mkSstate (updateAL _ st.(STerms) id0
+                 (sterm_phi
+                   t0
                    (make_list_sterm_l
                      (map_list_value_l
                        (fun v5 l5 =>
@@ -611,12 +611,12 @@ match cs with
 end.
 
 Definition se_terminator (st : sstate) (i:terminator) : sterminator :=
-match i with 
+match i with
 | insn_return id0 t0 v0 => stmn_return id0 t0 (value2Sterm st.(STerms) v0)
-| insn_return_void id0 => stmn_return_void id0 
+| insn_return_void id0 => stmn_return_void id0
 | insn_br id0 v0 l1 l2 => stmn_br id0 (value2Sterm st.(STerms) v0) l1 l2
 | insn_br_uncond id0 l0 => stmn_br_uncond id0 l0
-| insn_unreachable id0 => stmn_unreachable id0 
+| insn_unreachable id0 => stmn_unreachable id0
 end.
 
 Definition se_call : forall (st : sstate) (i:cmd) (iscall:isCall i = true), scall.
@@ -632,42 +632,42 @@ Fixpoint subst_tt (id0:id) (s0:sterm) (s:sterm) : sterm :=
 match s with
 | sterm_val (value_id id1) => if id0 == id1 then s0 else s
 | sterm_val (value_const c) => sterm_val (value_const c)
-| sterm_bop op sz s1 s2 => 
+| sterm_bop op sz s1 s2 =>
     sterm_bop op sz (subst_tt id0 s0 s1) (subst_tt id0 s0 s2)
-| sterm_fbop op fp s1 s2 => 
+| sterm_fbop op fp s1 s2 =>
     sterm_fbop op fp (subst_tt id0 s0 s1) (subst_tt id0 s0 s2)
-| sterm_extractvalue t1 s1 cs => 
+| sterm_extractvalue t1 s1 cs =>
     sterm_extractvalue t1 (subst_tt id0 s0 s1) cs
-| sterm_insertvalue t1 s1 t2 s2 cs => 
+| sterm_insertvalue t1 s1 t2 s2 cs =>
     sterm_insertvalue t1 (subst_tt id0 s0 s1) t2 (subst_tt id0 s0 s2) cs
-| sterm_malloc m1 t1 s1 align => 
+| sterm_malloc m1 t1 s1 align =>
     sterm_malloc (subst_tm id0 s0 m1) t1 (subst_tt id0 s0 s1) align
-| sterm_alloca m1 t1 s1 align => 
+| sterm_alloca m1 t1 s1 align =>
     sterm_alloca (subst_tm id0 s0 m1) t1 (subst_tt id0 s0 s1) align
-| sterm_load m1 t1 s1 align => 
+| sterm_load m1 t1 s1 align =>
     sterm_load (subst_tm id0 s0 m1) t1 (subst_tt id0 s0 s1) align
 | sterm_gep inbounds t1 s1 ls2 =>
     sterm_gep inbounds t1 (subst_tt id0 s0 s1) (subst_tlzt id0 s0 ls2)
-| sterm_trunc truncop t1 s1 t2 => 
+| sterm_trunc truncop t1 s1 t2 =>
     sterm_trunc truncop t1 (subst_tt id0 s0 s1) t2
-| sterm_ext extop t1 s1 t2 => 
+| sterm_ext extop t1 s1 t2 =>
     sterm_ext extop t1 (subst_tt id0 s0 s1) t2
-| sterm_cast castop t1 s1 t2 => 
+| sterm_cast castop t1 s1 t2 =>
     sterm_cast castop t1 (subst_tt id0 s0 s1) t2
-| sterm_icmp cond t1 s1 s2 => 
+| sterm_icmp cond t1 s1 s2 =>
     sterm_icmp cond t1 (subst_tt id0 s0 s1) (subst_tt id0 s0 s2)
-| sterm_fcmp cond fp1 s1 s2 => 
+| sterm_fcmp cond fp1 s1 s2 =>
     sterm_fcmp cond fp1 (subst_tt id0 s0 s1) (subst_tt id0 s0 s2)
-| sterm_phi t1 lsl1 => 
+| sterm_phi t1 lsl1 =>
     sterm_phi t1 (subst_tltl id0 s0 lsl1)
-| sterm_select s1 t1 s2 s3 => 
+| sterm_select s1 t1 s2 s3 =>
     sterm_select (subst_tt id0 s0 s1) t1 (subst_tt id0 s0 s2) (subst_tt id0 s0 s3)
 | sterm_lib m id ls => sterm_lib (subst_tm id0 s0 m) id (subst_tlt id0 s0 ls)
 end
 with subst_tlzt (id0:id) (s0:sterm) (ls:list_sz_sterm) : list_sz_sterm :=
 match ls with
 | Nil_list_sz_sterm => Nil_list_sz_sterm
-| Cons_list_sz_sterm sz0 s ls' => 
+| Cons_list_sz_sterm sz0 s ls' =>
     Cons_list_sz_sterm sz0 (subst_tt id0 s0 s) (subst_tlzt id0 s0 ls')
 end
 with subst_tlt (id0:id) (s0:sterm) (ls:list_sterm) : list_sterm :=
@@ -681,12 +681,12 @@ match ls with
 | Cons_list_sterm_l s l0 ls' => Cons_list_sterm_l (subst_tt id0 s0 s) l0 (subst_tltl id0 s0 ls')
 end
 with subst_tm (id0:id) (s0:sterm) (m:smem) : smem :=
-match m with 
+match m with
 | smem_init => smem_init
 | smem_malloc m1 t1 sz align => smem_malloc (subst_tm id0 s0 m1) t1 sz align
 | smem_free m1 t1 s1 => smem_free (subst_tm id0 s0 m1) t1 (subst_tt id0 s0 s1)
 | smem_alloca m1 t1 sz align => smem_alloca (subst_tm id0 s0 m1) t1 sz align
-| smem_load m1 t1 s1 align => smem_load (subst_tm id0 s0 m1) t1 (subst_tt id0 s0 s1) align 
+| smem_load m1 t1 s1 align => smem_load (subst_tm id0 s0 m1) t1 (subst_tt id0 s0 s1) align
 | smem_store m1 t1 s1 s2 align => smem_store (subst_tm id0 s0 m1) t1 (subst_tt id0 s0 s1) (subst_tt id0 s0 s2) align
 | smem_lib m id ls => smem_lib (subst_tm id0 s0 m) id (subst_tlt id0 s0 ls)
 end
@@ -705,7 +705,7 @@ match sm with
 end.
 
 Definition sterm_dec_prop (st1:sterm) := forall st2, {st1=st2} + {~st1=st2}.
-Definition list_sz_sterm_dec_prop (stls1:list_sz_sterm) 
+Definition list_sz_sterm_dec_prop (stls1:list_sz_sterm)
   := forall stls2, {stls1=stls2} + {~stls1=stls2}.
 Definition list_sterm_dec_prop (sts1:list_sterm) := forall sts2, {sts1=sts2} + {~sts1=sts2}.
 Definition list_sterm_l_dec_prop (stls1:list_sterm_l) := forall stls2, {stls1=stls2} + {~stls1=stls2}.
@@ -720,8 +720,8 @@ Lemma se_dec :
   (forall sm1, smem_dec_prop sm1) *
   (forall sf1, sframe_dec_prop sf1).
 Proof.
-  (se_mut_cases (apply se_mutrec) Case); 
-    unfold sterm_dec_prop, list_sz_sterm_dec_prop, list_sterm_dec_prop, 
+  (se_mut_cases (apply se_mutrec) Case);
+    unfold sterm_dec_prop, list_sz_sterm_dec_prop, list_sterm_dec_prop,
            list_sterm_l_dec_prop, smem_dec_prop, sframe_dec_prop;
     intros.
   Case "sterm_val".
@@ -751,25 +751,25 @@ Proof.
     destruct (@typ_dec t0 t2); subst; try solve [done_right].
     destruct (@H0 st2_2); subst; try solve [done_right].
     destruct (@list_const_dec l0 l1); subst; try solve [auto | done_right].
-  Case "sterm_malloc".    
+  Case "sterm_malloc".
     destruct st2; try solve [done_right].
     destruct (@H s1); subst; try solve [done_right].
     destruct (@typ_dec t t0); subst; try solve [done_right].
     destruct (@H0 st2); subst; try solve [done_right].
     destruct (@Align.dec a a0); subst; try solve [auto | done_right].
-  Case "sterm_alloca".    
+  Case "sterm_alloca".
     destruct st2; try solve [done_right].
     destruct (@H s1); subst; try solve [done_right].
     destruct (@typ_dec t t0); subst; try solve [done_right].
     destruct (@H0 st2); subst; try solve [done_right].
     destruct (@Align.dec a a0); subst; try solve [auto | done_right].
-  Case "sterm_load".    
+  Case "sterm_load".
     destruct st2; try solve [done_right].
     destruct (@H s1); subst; try solve [done_right].
     destruct (@typ_dec t t0); subst; try solve [done_right].
     destruct (@Align.dec a a0); subst; try solve [done_right].
     destruct (@H0 st2); subst; try solve [auto | done_right].
-  Case "sterm_gep".    
+  Case "sterm_gep".
     destruct st2; try solve [done_right].
     destruct (@bool_dec i0 i1); subst; try solve [done_right].
     destruct (@typ_dec t t0); subst; try solve [done_right].
@@ -819,7 +819,7 @@ Proof.
     destruct st2; try solve [done_right].
     destruct (@id_dec i0 i1); subst; try solve [done_right].
     destruct (@H s0); subst; try solve [done_right].
-    destruct (@H0 l1); subst; try solve [auto | done_right].    
+    destruct (@H0 l1); subst; try solve [auto | done_right].
   Case "list_sz_sterm_nil".
     destruct stls2; subst; try solve [auto | done_right].
   Case "list_sz_sterm_cons".
@@ -876,7 +876,7 @@ Proof.
     destruct sm2; try solve [done_right].
     destruct (@id_dec i0 i1); subst; try solve [done_right].
     destruct (@H sm2); subst; try solve [done_right].
-    destruct (@H0 l1); subst; try solve [auto | done_right].    
+    destruct (@H0 l1); subst; try solve [auto | done_right].
   Case "sframe_init".
     destruct sf2; subst; try solve [auto | done_right].
   Case "sframe_alloca".
@@ -894,15 +894,15 @@ Qed.
 
 Lemma list_sz_sterm_dec :  forall (ts1 ts2:list_sz_sterm), {ts1=ts2}+{~ts1=ts2}.
 destruct se_dec as [[[[[_ H] _] _] _] _]. auto.
-Qed. 
+Qed.
 
 Lemma list_sterm_dec :  forall (ts1 ts2:list_sterm), {ts1=ts2}+{~ts1=ts2}.
 destruct se_dec as [[[[_ H] _] _] _]. auto.
-Qed. 
+Qed.
 
 Lemma list_sterm_l_dec :  forall (ts1 ts2:list_sterm_l), {ts1=ts2}+{~ts1=ts2}.
 destruct se_dec as [[[_ H] _] _]. auto.
-Qed. 
+Qed.
 
 Lemma smem_dec : forall (sm1 sm2:smem), {sm1=sm2} + {~sm1=sm2}.
 destruct se_dec as [[_ H] _]. auto.
@@ -920,7 +920,7 @@ Proof.
     destruct (@sterm_dec s s0); subst; try solve [auto | done_right].
 Qed.
 
-Lemma list_typ_attributes_sterm_dec : 
+Lemma list_typ_attributes_sterm_dec :
   forall (l1 l2:list (typ*attributes*sterm)), {l1=l2}+{~l1=l2}.
 Proof.
   decide equality.
@@ -933,19 +933,19 @@ Qed.
 Lemma scall_dec : forall (sc1 sc2:scall), {sc1=sc2} + {~sc1=sc2}.
 Proof.
   decide equality.
-    destruct (@list_typ_attributes_sterm_dec l0 l1); 
+    destruct (@list_typ_attributes_sterm_dec l0 l1);
       subst; try solve [auto | done_right].
     destruct (@value_dec v v0); subst; try solve [auto | done_right].
     destruct (@typ_dec t t0); subst; try solve [auto | done_right].
 
-    destruct c as [tailc5 callconv5 attributes1 attributes2]. 
-    destruct c0 as [tailc0 callconv0 attributes0 attributes3]. 
+    destruct c as [tailc5 callconv5 attributes1 attributes2].
+    destruct c0 as [tailc0 callconv0 attributes0 attributes3].
     destruct (@bool_dec tailc5 tailc0); subst; try solve [auto | done_right].
-    destruct (@callconv_dec callconv5 callconv0); 
+    destruct (@callconv_dec callconv5 callconv0);
       subst; try solve [auto | done_right].
-    destruct (@attributes_dec attributes1 attributes0); 
+    destruct (@attributes_dec attributes1 attributes0);
       subst; try solve [auto | done_right].
-    destruct (@attributes_dec attributes2 attributes3); 
+    destruct (@attributes_dec attributes2 attributes3);
       subst; try solve [auto | done_right].
 
     destruct (@bool_dec n n0); subst; try solve [auto | done_right].
@@ -955,7 +955,7 @@ Lemma smap_dec : forall (sm1 sm2:smap), {sm1=sm2}+{~sm1=sm2}.
 Proof.
   decide equality.
     destruct a. destruct p.
-    destruct (@id_dec a a0); subst; try solve [done_right]. 
+    destruct (@id_dec a a0); subst; try solve [done_right].
     destruct (@sterm_dec s s0); subst; try solve [auto | done_right].
 Qed.
 
@@ -975,4 +975,3 @@ Proof.
 Qed.
 
 End SBSE.
-

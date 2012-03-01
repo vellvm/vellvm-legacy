@@ -18,27 +18,27 @@ Inductive program_sim (P1 P2:system) (main:id) (VarArgs:list (GVsT DGVs)) :
 Lemma program_sim_refl: forall P main VarArgs, program_sim P P main VarArgs.
 Admitted.
 
-Lemma program_sim_trans: forall P1 P2 P3 main VarArgs, 
-  program_sim P1 P2 main VarArgs -> program_sim P2 P3 main VarArgs -> 
+Lemma program_sim_trans: forall P1 P2 P3 main VarArgs,
+  program_sim P1 P2 main VarArgs -> program_sim P2 P3 main VarArgs ->
   program_sim P1 P3 main VarArgs.
 Admitted.
 
-Lemma genGlobalAndInitMem__wf_global: forall initGlobal initFunTable initMem 
+Lemma genGlobalAndInitMem__wf_global: forall initGlobal initFunTable initMem
   CurLayouts CurNamedts CurProducts S,
   OpsemAux.genGlobalAndInitMem
-    (OpsemAux.initTargetData CurLayouts CurNamedts Mem.empty) CurProducts 
+    (OpsemAux.initTargetData CurLayouts CurNamedts Mem.empty) CurProducts
       nil nil Mem.empty = ret (initGlobal, initFunTable, initMem) ->
   wf_global (CurLayouts, CurNamedts) S initGlobal.
 Admitted.
 
-Lemma getParentOfFdefFromSystem__productInModuleInSystemB: 
+Lemma getParentOfFdefFromSystem__productInModuleInSystemB:
   forall CurLayouts CurNamedts CurProducts F S,
-  getParentOfFdefFromSystem F S = 
+  getParentOfFdefFromSystem F S =
     ret (module_intro CurLayouts CurNamedts CurProducts) ->
   moduleInSystemB (module_intro CurLayouts CurNamedts CurProducts) S = true /\
   InProductsB (product_fdef F) CurProducts = true.
-Admitted.  
-     
+Admitted.
+
 Lemma initLocals__wf_defs: forall CurLayouts CurNamedts VarArgs lc f t fid la v
   bs (Hinit : @Opsem.initLocals DGVs
                 (OpsemAux.initTargetData CurLayouts CurNamedts Mem.empty) la
@@ -70,22 +70,22 @@ Lemma initLocals__wf_defs: forall CurLayouts CurNamedts VarArgs lc f t fid la v
 Proof.
 (*
      assert (ps'=nil) as EQ.
-       eapply entryBlock_has_no_phinodes with (ifs:=nil)(s:=S); eauto.        
+       eapply entryBlock_has_no_phinodes with (ifs:=nil)(s:=S); eauto.
      subst.
-     apply dom_entrypoint in H2. 
+     apply dom_entrypoint in H2.
      destruct cs'.
        unfold inscope_of_tmn.
-       remember ((dom_analyze (fdef_intro (fheader_intro fa rt fid la va) lb)) 
+       remember ((dom_analyze (fdef_intro (fheader_intro fa rt fid la va) lb))
          !! l') as R.
        destruct R. simpl in H2. subst.
        eapply preservation_dbCall_case; eauto using wf_params_spec.
 
        unfold inscope_of_cmd, inscope_of_id.
-       remember ((dom_analyze (fdef_intro (fheader_intro fa rt fid la va) lb)) 
+       remember ((dom_analyze (fdef_intro (fheader_intro fa rt fid la va) lb))
          !! l') as R.
        destruct R. simpl. simpl in H2. subst.
-       destruct (eq_atom_dec (getCmdLoc c) (getCmdLoc c)) as [|n]; 
-         try solve [contradict n; auto]. 
+       destruct (eq_atom_dec (getCmdLoc c) (getCmdLoc c)) as [|n];
+         try solve [contradict n; auto].
        eapply preservation_dbCall_case; eauto using wf_params_spec.
 *)
 Admitted.
@@ -101,10 +101,10 @@ List.map (fun a0 => let '(t0,attr0,id0) := a0 in (t0,attr0,value_id id0)) la.
 
 Axiom main_wf_params: forall f t i0 a v b S CurLayouts CurNamedts CurProducts
   VarArgs,
-  getParentOfFdefFromSystem (fdef_intro (fheader_intro f t i0 a v) b) S = 
+  getParentOfFdefFromSystem (fdef_intro (fheader_intro f t i0 a v) b) S =
     ret module_intro CurLayouts CurNamedts CurProducts ->
-  @OpsemPP.wf_params DGVs 
-    (OpsemAux.initTargetData CurLayouts CurNamedts Mem.empty) 
+  @OpsemPP.wf_params DGVs
+    (OpsemAux.initTargetData CurLayouts CurNamedts Mem.empty)
     VarArgs (args_to_params a).
 
 Lemma s_genInitState__opsem_wf: forall S main VarArgs cfg IS
@@ -155,7 +155,7 @@ Qed.
 Axiom genGlobalAndInitMem__wf_globals_Mem: forall initGlobal initFunTable initMem
   CurLayouts CurNamedts CurProducts la lc (VarArgs : list (GVsT DGVs)),
   OpsemAux.genGlobalAndInitMem
-    (OpsemAux.initTargetData CurLayouts CurNamedts Mem.empty) CurProducts 
+    (OpsemAux.initTargetData CurLayouts CurNamedts Mem.empty) CurProducts
       nil nil Mem.empty = ret (initGlobal, initFunTable, initMem) ->
   Opsem.initLocals (OpsemAux.initTargetData CurLayouts CurNamedts Mem.empty) la
             VarArgs = ret lc ->
@@ -196,8 +196,8 @@ Proof.
   destruct e; tinv Hundef.
   intro Hop.
   destruct CurCmds.
-    destruct Hundef as 
-      [Hundef | [Hundef | [Hundef | [J | [J | [J | [J | J]]]]]]]; 
+    destruct Hundef as
+      [Hundef | [Hundef | [Hundef | [J | [J | [J | [J | J]]]]]]];
       try solve [inversion J].
       destruct Terminator; tinv Hundef.
       destruct ECS; tinv Hundef.
@@ -209,10 +209,10 @@ Proof.
       destruct ECS; tinv Hundef.
       destruct e; tinv Hundef.
       destruct CurCmds; tinv Hundef.
-      inv Hop. 
+      inv Hop.
       destruct Hundef as [Hundef | Hundef].
         uniq_result.
-        
+
         remember (getCallerReturnID c) as R.
         destruct R; tinv Hundef.
           congruence.
@@ -222,9 +222,9 @@ Proof.
       destruct Terminator; tinv Hundef.
       inv Hop.
 
-    destruct Hundef as 
-      [Hundef | [Hundef | [Hundef | [Hundef | 
-        [Hundef | [Hundef | [Hundef | Hundef]]]]]]]; 
+    destruct Hundef as
+      [Hundef | [Hundef | [Hundef | [Hundef |
+        [Hundef | [Hundef | [Hundef | Hundef]]]]]]];
       tinv Hundef.
       destruct CurBB as [? ? ? t]; tinv Hundef.
       destruct t; tinv Hundef.
@@ -246,7 +246,7 @@ Proof.
         remember (malloc CurTargetData Mem s gn a) as R.
         destruct R; tinv Hundef.
         inv Hop. symmetry_ctx. uniq_result. rewrite H21 in HeqR1. congruence.
-        
+
       destruct_cmd c; tinv Hundef.
         remember (Opsem.getOperandValue CurTargetData v Locals Globals) as R.
         destruct R; tinv Hundef.
@@ -292,25 +292,25 @@ Proof.
                end |- _ => remember ef as R
           end.
           destruct R as [[[o ?]]|].
-            remember (Opsem.exCallUpdateLocals CurTargetData t n i0 o Locals) 
+            remember (Opsem.exCallUpdateLocals CurTargetData t n i0 o Locals)
               as R.
             destruct R; tinv Hundef.
-            inv Hop. 
+            inv Hop.
               symmetry_ctx. uniq_result. uniq_result'.
               symmetry_ctx. uniq_result. uniq_result'. 
 
-            inv Hop. 
+            inv Hop.
               symmetry_ctx. uniq_result. uniq_result'.
               symmetry_ctx. uniq_result. uniq_result'.
 
-          inv Hop. 
+          inv Hop.
             symmetry_ctx. uniq_result. uniq_result'.
             symmetry_ctx. uniq_result. uniq_result'.
 Qed.
 
 Lemma wf_system__uniqSystem: forall S, wf_system S -> uniqSystem S.
 Proof.
-  intros. 
+  intros.
   destruct H; auto.
 Qed.
 
@@ -322,7 +322,7 @@ Lemma uniq_products_simulation: forall Ps1 f Ps2 f0 trans,
      match P1 with
      | product_fdef f1 =>
          match P2 with
-         | product_fdef f2 => 
+         | product_fdef f2 =>
              if fdef_dec f0 f1
              then trans f1 = f2
              else f1 = f2

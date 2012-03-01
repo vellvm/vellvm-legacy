@@ -24,7 +24,7 @@ end.
 Fixpoint tv_subblocks (sbs1 sbs2:list subblock) :=
 match (sbs1, sbs2) with
 | (nil, nil) => true
-| (sb1::sbs1', sb2::sbs2') => 
+| (sb1::sbs1', sb2::sbs2') =>
    (tv_subblock sb1 sb2) && (tv_subblocks sbs1' sbs2')
 | _ => false
 end.
@@ -32,7 +32,7 @@ end.
 Fixpoint tv_phinodes (ps1 ps2:phinodes) :=
 match (ps1, ps2) with
 | (nil, nil) => true
-| (p1::ps1', p2::ps2') => 
+| (p1::ps1', p2::ps2') =>
     sumbool2bool _ _ (phinode_dec p1 p2) && tv_phinodes ps1' ps2'
 | _ => false
 end.
@@ -67,12 +67,12 @@ end.
 Fixpoint tv_products (Ps1 Ps2:products):=
 match (Ps1, Ps2) with
 | (nil, nil) => true
-| (product_fdec f1::Ps1', product_fdec f2::Ps2') => 
+| (product_fdec f1::Ps1', product_fdec f2::Ps2') =>
   sumbool2bool _ _ (fdec_dec f1 f2) &&
   tv_products Ps1' Ps2'
-| (product_fdef f1::Ps1', product_fdef f2::Ps2') => 
+| (product_fdef f1::Ps1', product_fdef f2::Ps2') =>
   tv_fdef f1 f2 && tv_products Ps1' Ps2'
-| (product_gvar gvar1::Ps1', product_gvar gvar2::Ps2') => 
+| (product_gvar gvar1::Ps1', product_gvar gvar2::Ps2') =>
   sumbool2bool _ _ (gvar_dec gvar1 gvar2) &&
   tv_products Ps1' Ps2'
 | _ => false
@@ -111,5 +111,3 @@ Ltac sumbool_subst :=
 
 Tactic Notation "sumbool_subst" "in" hyp(H) :=
   apply sumbool2bool_true in H.
-
-

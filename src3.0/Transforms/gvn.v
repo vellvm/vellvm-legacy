@@ -10,8 +10,8 @@ Require Import primitives.
 Definition cmds_from_block (f:fdef) (lbl:l) : option cmds :=
   match lookupBlockViaLabelFromFdef f lbl with
   | None => None
-  | Some (block_intro _ _ cs _) => 
-      Some (List.filter (fun c => 
+  | Some (block_intro _ _ cs _) =>
+      Some (List.filter (fun c =>
                          match (getCmdID c) with
                          | Some _ => true
                          | None => false
@@ -44,7 +44,7 @@ Tactic Notation "rhs_cases" tactic(first) tactic(c) :=
     c "rhs_extractvalue" | c "rhs_insertvalue" |
     c "rhs_malloc" | c "rhs_free" |
     c "rhs_alloca" | c "rhs_load" | c "rhs_store" | c "rhs_gep" |
-    c "rhs_trunc" | c "rhs_ext" | c "rhs_cast" | 
+    c "rhs_trunc" | c "rhs_ext" | c "rhs_cast" |
     c "rhs_icmp" | c "rhs_fcmp" | c "rhs_select" |
     c "rhs_call" ].
 
@@ -92,27 +92,27 @@ Proof.
     destruct (@typ_dec t0 t2); subst; try solve [done_right].
     destruct (@value_dec v0 v2); subst; try solve [done_right].
     destruct (@list_const_dec l0 l1); subst; try solve [auto | done_right].
-  Case "rhs_malloc".    
+  Case "rhs_malloc".
     destruct (@typ_dec t t0); subst; try solve [done_right].
     destruct (@value_dec v v0); subst; try solve [done_right].
     destruct (@Align.dec a a0); subst; try solve [auto | done_right].
-  Case "rhs_free".    
+  Case "rhs_free".
     destruct (@typ_dec t t0); subst; try solve [done_right].
     destruct (@value_dec v v0); subst; try solve [auto | done_right].
-  Case "rhs_alloca".    
+  Case "rhs_alloca".
     destruct (@typ_dec t t0); subst; try solve [done_right].
     destruct (@value_dec v v0); subst; try solve [done_right].
     destruct (Align.dec a a0); subst; try solve [auto | done_right].
-  Case "rhs_load".    
+  Case "rhs_load".
     destruct (@typ_dec t t0); subst; try solve [done_right].
     destruct (@Align.dec a a0); subst; try solve [done_right].
     destruct (@value_dec v v0); subst; try solve [auto | done_right].
-  Case "rhs_store".    
+  Case "rhs_store".
     destruct (@typ_dec t t0); subst; try solve [done_right].
     destruct (@value_dec v v1); try solve [auto | done_right].
     destruct (@Align.dec a a0); subst; try solve [done_right].
     destruct (@value_dec v0 v2); subst; try solve [auto | done_right].
-  Case "rhs_gep".    
+  Case "rhs_gep".
     destruct (@inbounds_dec i0 i1); subst; try solve [done_right].
     destruct (@typ_dec t t0); subst; try solve [done_right].
     destruct (@value_dec v v0); try solve [auto | done_right].
@@ -148,28 +148,28 @@ Proof.
     destruct (@value_dec v0 v3); subst; try solve [done_right].
     destruct (@value_dec v1 v4); subst; try solve [auto | done_right].
   Case "rhs_call".
-    destruct (@value_dec v v0); subst; try solve [done_right]. 
+    destruct (@value_dec v v0); subst; try solve [done_right].
     destruct (@noret_dec n n0); subst; try solve [done_right].
     destruct c as [t1 c a a0 p]. destruct c0 as [t2 c0 a1 a2 p0].
     destruct (@tailc_dec t1 t2); subst; try solve [done_right].
     destruct (@typ_dec t t0); subst; try solve [done_right].
-    destruct (@callconv_dec c c0); subst; try solve [done_right]. 
-    destruct (@attributes_dec a a1); subst; try solve [done_right]. 
-    destruct (@attributes_dec a0 a2); subst; try solve [done_right]. 
+    destruct (@callconv_dec c c0); subst; try solve [done_right].
+    destruct (@attributes_dec a a1); subst; try solve [done_right].
+    destruct (@attributes_dec a0 a2); subst; try solve [done_right].
     destruct (@params_dec p p0); subst; try solve [auto | done_right].
 Qed.
 
 Definition pure_cmd (c:cmd) : bool :=
 match c with
-| insn_bop _ _ _ _ _ 
-| insn_fbop _ _ _ _ _ 
+| insn_bop _ _ _ _ _
+| insn_fbop _ _ _ _ _
 | insn_extractvalue _ _ _ _
 | insn_insertvalue _ _ _ _ _ _
 | insn_gep _ _ _ _ _
 | insn_trunc _ _ _ _ _
 | insn_ext _ _ _ _ _
 | insn_cast _ _ _ _ _
-| insn_icmp _ _ _ _ _ 
+| insn_icmp _ _ _ _ _
 | insn_fcmp _ _ _ _ _
 | insn_select _ _ _ _ _ => true
 | _ => false
@@ -178,7 +178,7 @@ end.
 Fixpoint const_list_value (vs: list_sz_value) : option list_const :=
 match vs with
 | Nil_list_sz_value => Some Nil_list_const
-| Cons_list_sz_value _ (value_const c) vs' => 
+| Cons_list_sz_value _ (value_const c) vs' =>
     match const_list_value vs' with
     | Some cs' => Some (Cons_list_const c cs')
     | None => None
@@ -188,7 +188,7 @@ end.
 
 Definition const_cmd (c:cmd) : option const :=
 match c with
-| insn_bop _ bop0 _ (value_const c1) (value_const c2) => 
+| insn_bop _ bop0 _ (value_const c1) (value_const c2) =>
     Some (const_bop bop0 c1 c2)
 | insn_fbop _ fbop0 _ (value_const c1) (value_const c2) =>
     Some (const_fbop fbop0 c1 c2)
@@ -201,17 +201,17 @@ match c with
 | insn_alloca _ _ _ _ => None
 | insn_load _ _ _ _ => None
 | insn_store _ _ _ _ _ => None
-| insn_gep _ ib0 _ (value_const c) vs => 
+| insn_gep _ ib0 _ (value_const c) vs =>
     match const_list_value vs with
     | None => None
     | Some cnts => Some (const_gep ib0 c cnts)
     end
-| insn_trunc _ top0 _ (value_const c1) t1 => Some (const_truncop top0 c1 t1)   
-| insn_ext _ eop0 _ (value_const c1) t1 => Some (const_extop eop0 c1 t1)   
-| insn_cast _ cop0 _ (value_const c1) t1 => Some (const_castop cop0 c1 t1)   
+| insn_trunc _ top0 _ (value_const c1) t1 => Some (const_truncop top0 c1 t1)
+| insn_ext _ eop0 _ (value_const c1) t1 => Some (const_extop eop0 c1 t1)
+| insn_cast _ cop0 _ (value_const c1) t1 => Some (const_castop cop0 c1 t1)
 | insn_icmp _ cond0 _ (value_const c1) (value_const c2) =>
-    Some (const_icmp cond0 c1 c2)   
-| insn_fcmp _ fcond0 _ (value_const c1) (value_const c2) => 
+    Some (const_icmp cond0 c1 c2)
+| insn_fcmp _ fcond0 _ (value_const c1) (value_const c2) =>
     Some (const_fcmp fcond0 c1 c2)
 | insn_select _ (value_const c0) _ (value_const c1) (value_const c2) =>
     Some (const_select c0 c1 c2)
@@ -222,7 +222,7 @@ end.
 Fixpoint const_in_list_value_l (cst0:const) (vls:list_value_l) : bool :=
 match vls with
 | Nil_list_value_l => true
-| Cons_list_value_l (value_const cst) _ vls' => 
+| Cons_list_value_l (value_const cst) _ vls' =>
     const_dec cst cst0 && const_in_list_value_l cst0 vls'
 | _ => false
 end.
@@ -242,7 +242,7 @@ match inscope with
 | (_,c)::inscope' =>
     match (getCmdID c) with
     | None => lookup_redundant_exp inscope' r
-    | Some id0 => 
+    | Some id0 =>
         if (rhs_dec r (rhs_of_cmd c)) then Some id0
         else lookup_redundant_exp inscope' r
     end
@@ -259,17 +259,17 @@ end.
 
 Parameter is_no_alias_id: id -> id -> bool.
 
-Definition is_no_alias (pv1:value) (t1:typ) (pv2:value) (t2:typ) : bool := 
+Definition is_no_alias (pv1:value) (t1:typ) (pv2:value) (t2:typ) : bool :=
 match pv1, pv2 with
 | value_id id1, value_id id2 => is_no_alias_id id1 id2
-| value_const (const_gid _ id1), value_const (const_gid _ id2) => 
+| value_const (const_gid _ id1), value_const (const_gid _ id2) =>
     negb (id_dec id1 id2)
 | _, _ => false
 end.
 
-Definition kill_aliased_loadstores (inscope: lcmds) (pv1:value) (t1:typ) 
+Definition kill_aliased_loadstores (inscope: lcmds) (pv1:value) (t1:typ)
  : lcmds :=
- List.filter (fun data => 
+ List.filter (fun data =>
               match data with
               | (_, insn_load _ t2 pv2 _) => is_no_alias pv1 t1 pv2 t2
               | (_, insn_store _ t2 _ pv2 _) => is_no_alias pv1 t1 pv2 t2
@@ -280,11 +280,11 @@ Parameter is_must_alias_id: id -> id -> bool.
 
 Definition is_must_alias (pv1:value) (t1:typ) (pv2:value) (t2:typ) : bool :=
 match pv1, pv2 with
-| value_id id1, value_id id2 => 
+| value_id id1, value_id id2 =>
     if id_dec id1 id2 then true else is_must_alias_id id1 id2
 | value_const (const_gid _ id1), value_const (const_gid _ id2) => id_dec id1 id2
 | _, _ => false
-end. 
+end.
 
 Fixpoint lookup_redundant_load (inscope: lcmds) t1 pv1
   : option (l * id * value) :=
@@ -296,7 +296,7 @@ match inscope with
        if (is_must_alias pv1' t1' pv1 t1 && (t1 =t= t1')) then
          Some (l0, getCmdLoc c, value_id (getCmdLoc c))
        else lookup_redundant_load inscope' t1 pv1
-    | insn_store id0 t1' v0' pv1' _ => 
+    | insn_store id0 t1' v0' pv1' _ =>
        if (is_must_alias pv1' t1' pv1 t1 && (t1 =t= t1')) then Some (l0, id0, v0')
        else lookup_redundant_load inscope' t1 pv1
     | _ => lookup_redundant_load inscope' t1 pv1
@@ -305,12 +305,12 @@ end.
 
 Definition block_doesnt_kill (b: block) (pv1:value) (t1:typ) : bool :=
 let '(block_intro _ _ cs _) := b in
-List.fold_left 
+List.fold_left
   (fun (acc:bool) c =>
    if acc then
      match (mem_effect c) with
      | Some (pv2, t2) => is_no_alias pv1 t1 pv2 t2
-     | None => 
+     | None =>
          match c with
          | insn_call _ _ _ _ _ _ => false
          | _ => true
@@ -320,7 +320,7 @@ List.fold_left
 
 Fixpoint split_cmds (cs:cmds) (id1:id) : cmds :=
 match cs with
-| c::cs' => 
+| c::cs' =>
     if (id_dec id1 (getCmdLoc c)) then cs'
     else split_cmds cs' id1
 | _ => nil
@@ -328,7 +328,7 @@ end.
 
 Definition cmds_doesnt_kill (b: block) (id1:id) (pv1:value) (t1:typ) : bool :=
 let '(block_intro _ _ cs _) := b in
-List.fold_left 
+List.fold_left
   (fun (acc:bool) c =>
    if acc then
      match (mem_effect c) with
@@ -386,7 +386,7 @@ End LBooleanInv.
 
 Module AvailableDS := Dataflow_Solver(LBooleanInv)(AtomNodeSet).
 
-Definition available_transf (f:fdef) (src tgt:l) (id1:id) (pv1:value) (t1:typ) 
+Definition available_transf (f:fdef) (src tgt:l) (id1:id) (pv1:value) (t1:typ)
   (curr:l) (input:bool) : bool :=
 if l_dec curr src then true
 else
@@ -395,18 +395,18 @@ else
     | None => false
     | Some b => cmds_doesnt_kill b id1 pv1 t1 && input
     end
-  else 
+  else
     match lookupBlockViaLabelFromFdef f curr with
     | None => false
     | Some b => block_doesnt_kill b pv1 t1 && input
     end
 .
 
-Fixpoint available_init_aux (bs : blocks) (src:l) 
+Fixpoint available_init_aux (bs : blocks) (src:l)
   (acc: list (l * bool)) : list (l * bool) :=
 match bs with
 | nil => acc
-| block_intro l0 _ _ _ :: bs' => 
+| block_intro l0 _ _ _ :: bs' =>
     available_init_aux bs' src
       ((l0, if (l_dec l0 src) then true else false) :: acc)
 end.
@@ -416,19 +416,19 @@ match f with
 | fdef_intro _ bs => available_init_aux bs src nil
 end.
 
-Definition available_aux (f:fdef) (src tgt:l) (id1:id) (pv1:value) (t1:typ) 
+Definition available_aux (f:fdef) (src tgt:l) (id1:id) (pv1:value) (t1:typ)
   : option (AMap.t bool) :=
-AvailableDS.fixpoint (successors f) (available_transf f src tgt id1 pv1 t1) 
+AvailableDS.fixpoint (successors f) (available_transf f src tgt id1 pv1 t1)
   ((src, LBooleanInv.bot) :: nil).
 
-Definition fdef_doesnt_kill (f:fdef) (src tgt:l) (id1:id) (pv1:value) 
+Definition fdef_doesnt_kill (f:fdef) (src tgt:l) (id1:id) (pv1:value)
   (t1:typ) : bool :=
-match available_aux f src tgt id1 pv1 t1 with  
+match available_aux f src tgt id1 pv1 t1 with
 | None => false
 | Some rs => AMap.get tgt rs
 end.
 
-Program Fixpoint fdef_doesnt_kill_aux (f:fdef) (preds : ATree.t ls) 
+Program Fixpoint fdef_doesnt_kill_aux (f:fdef) (preds : ATree.t ls)
   (nvisited:list l) (src curr target:l) (id1:id) (pv1:value) (t1:typ)
   {measure (List.length nvisited)} : bool :=
 let init :=
@@ -439,35 +439,35 @@ let init :=
       | None => false
       | Some b => cmds_doesnt_kill b id1 pv1 t1
       end
-    else 
+    else
       match lookupBlockViaLabelFromFdef f curr with
       | None => false
       | Some b => block_doesnt_kill b pv1 t1
       end in
 match (ATree.get curr preds) with
 | None => init
-| Some nexts => 
-    fold_left 
+| Some nexts =>
+    fold_left
       (fun acc next =>
        if acc then
-         if (in_dec eq_atom_dec next nvisited) then 
-           fdef_doesnt_kill_aux f preds 
+         if (in_dec eq_atom_dec next nvisited) then
+           fdef_doesnt_kill_aux f preds
              (List.remove eq_atom_dec next nvisited) src next target id1 pv1 t1
          else acc
        else acc)
       nexts init
 end.
-Next Obligation. 
+Next Obligation.
   apply remove_in_length; auto.
 Qed.
 (*
-Definition fdef_doesnt_kill (f:fdef) (src target:l) (id1:id) (pv1:value) 
+Definition fdef_doesnt_kill (f:fdef) (src target:l) (id1:id) (pv1:value)
   (t1:typ) : bool :=
 fdef_doesnt_kill_aux f (make_predecessors (successors f)) (bound_fdef f)
   src target target id1 pv1 t1.
 *)
 Definition kill_loadstores (inscope: lcmds) : lcmds :=
- List.filter (fun data => 
+ List.filter (fun data =>
               match data with
               | (_, insn_load _ _ _ _) => false
               | (_, insn_store _ _ _ _ _) => false
@@ -486,20 +486,20 @@ if (pure_cmd c) then
       | None =>
           match lookup_redundant_exp inscope (rhs_of_cmd c) with
           | None => (f, changed, (l1,c)::inscope)
-          | Some id1 => 
+          | Some id1 =>
               (remove_fdef id0 (isubst_fdef id0 id1 f), true, inscope)
           end
-      | Some cst0 => 
+      | Some cst0 =>
           (remove_fdef id0 (csubst_fdef id0 cst0 f), true, inscope)
       end
-  end 
-else 
-  match c with 
+  end
+else
+  match c with
   | insn_load id1 t1 pv1 al1 =>
     if does_load_elim tt then
       match lookup_redundant_load inscope t1 pv1 with
       | None => (f, changed, (l1,c)::inscope)
-      | Some (l0, id0, v0) => 
+      | Some (l0, id0, v0) =>
           if fdef_doesnt_kill f l0 l1 id1 pv1 t1 then
             (remove_fdef id1 (subst_fdef id1 v0 f), true, inscope)
           else (f, changed, (l1,c)::inscope)
@@ -507,13 +507,13 @@ else
     else (f, changed, (l1,c)::inscope)
   | _ =>
     match (mem_effect c) with
-    | Some (pv, t) => 
-        match c with 
-        | insn_store _ _ _ _ _ => 
+    | Some (pv, t) =>
+        match c with
+        | insn_store _ _ _ _ _ =>
                (f, changed, (l1,c)::kill_aliased_loadstores inscope pv t)
         | _ => (f, changed, kill_aliased_loadstores inscope pv t)
         end
-    | _ => 
+    | _ =>
        match c with
        | insn_call _ _ _ _ _ _ => (f, changed, kill_loadstores inscope)
        | _ => (f, changed, inscope)
@@ -528,7 +528,7 @@ match lookupBlockViaLabelFromFdef f l1 with
 | None => st
 | Some (block_intro _ _ cs _) =>
     match List.nth_error (List.rev cs) n with
-    | Some c => 
+    | Some c =>
         let st' := gvn_cmd st l1 c in
         match n with
         | S n' => gvn_cmds st' l1 n'
@@ -543,33 +543,33 @@ match ps with
 | nil => (f, changed)
 | p::ps' =>
     let id0 := getPhiNodeID p in
-    let '(f', changed') := 
+    let '(f', changed') :=
       match const_phinode p with
-      | None => (f, false) 
+      | None => (f, false)
       | Some cst0 => (remove_fdef id0 (csubst_fdef id0 cst0 f), true)
       end in
-    gvn_phis f' (changed || changed') ps' 
+    gvn_phis f' (changed || changed') ps'
 end.
 
 Fixpoint gvn_fdef_dtree (f:fdef) (changed: bool) (inscope: lcmds) (dt: DTree)
   : fdef * bool :=
 match dt with
-| DT_node l0 dts => 
+| DT_node l0 dts =>
     match lookupBlockViaLabelFromFdef f l0 with
     | None => (f, changed)
     | Some (block_intro _ ps cs _) =>
-        let '(f2, changed2, inscope2) := 
+        let '(f2, changed2, inscope2) :=
           gvn_cmds (gvn_phis f changed ps, inscope) l0 (List.length cs - 1) in
-        gvn_fdef_dtrees f2 changed2 inscope2 dts 
+        gvn_fdef_dtrees f2 changed2 inscope2 dts
     end
 end
 with gvn_fdef_dtrees (f:fdef) (changed: bool) (inscope: lcmds) (dts: DTrees)
   : fdef * bool :=
 match dts with
 | DT_nil => (f, changed)
-| DT_cons dt dts' => 
+| DT_cons dt dts' =>
     let '(f', changed') := gvn_fdef_dtree f changed inscope dt in
-    gvn_fdef_dtrees f' changed' inscope dts' 
+    gvn_fdef_dtrees f' changed' inscope dts'
 end.
 
 Fixpoint lookup_predundant_exp_from_cmds (cs: cmds) (r:rhs) : option cmd :=
@@ -578,17 +578,17 @@ match cs with
 | c::cs' =>
     match (getCmdID c) with
     | None => lookup_predundant_exp_from_cmds cs' r
-    | Some _ => 
+    | Some _ =>
         if (rhs_dec r (rhs_of_cmd c)) then Some c
         else lookup_predundant_exp_from_cmds cs' r
     end
 end.
 
-(* 
+(*
    ndom = bound_fdef f - res [l1] - l1
-   id1 = r in l1 
+   id1 = r in l1
 *)
-Fixpoint lookup_predundant_exp_for_id (f:fdef) (ndom: list l) 
+Fixpoint lookup_predundant_exp_for_id (f:fdef) (ndom: list l)
   bd (res: AMap.t (Dominators.t bd)) (l1:l) (r:rhs) : option (l * cmd) :=
 match ndom with
 | nil => None
@@ -609,7 +609,7 @@ match ndom with
     end
 end.
 
-Fixpoint lookup_predundant_exp (f:fdef) bd (res: AMap.t (Dominators.t bd)) 
+Fixpoint lookup_predundant_exp (f:fdef) bd (res: AMap.t (Dominators.t bd))
   (rd0 rd:list l) : option (l * id * l * cmd) :=
 match rd with
 | nil => None
@@ -619,17 +619,17 @@ match rd with
     | Some (block_intro _ _ cs _) =>
         match (AMap.get l1 res) with
         | Dominators.mkBoundedSet dts1 _ =>
-           let ndom := 
-             ListSet.set_diff id_dec 
+           let ndom :=
+             ListSet.set_diff id_dec
                (ListSet.set_inter id_dec rd0 (bound_fdef f)) (l1::dts1) in
-           match 
+           match
              fold_left (fun acc c =>
                         match acc with
                         | None =>
-                          match getCmdID c with 
+                          match getCmdID c with
                           | Some id1 =>
                               if pure_cmd c then
-                                match 
+                                match
                                   lookup_predundant_exp_for_id f ndom bd res l1
                                     (rhs_of_cmd c) with
                                 | Some (l0, c0) => Some (l1, id1, l0, c0)
@@ -656,7 +656,7 @@ match AMap.get l1 res, AMap.get l2 res with
   end
 end.
 
-Definition pre_fdef (f:fdef) bd (res: AMap.t (Dominators.t bd)) (rd:list l) 
+Definition pre_fdef (f:fdef) bd (res: AMap.t (Dominators.t bd)) (rd:list l)
   : fdef * bool :=
 match lookup_predundant_exp f bd res rd rd with
 | Some (l1, id1, l0, c0) =>
@@ -664,9 +664,9 @@ match lookup_predundant_exp f bd res rd rd with
     | Some l2 =>
         match lookupBlockViaLabelFromFdef f l2 with
         | None => (f, false)
-        | Some (block_intro _ _ cs _) => 
-            (remove_fdef id1 
-              (isubst_fdef id1 (getCmdLoc c0) 
+        | Some (block_intro _ _ cs _) =>
+            (remove_fdef id1
+              (isubst_fdef id1 (getCmdLoc c0)
                 (motion_fdef l2 (List.length cs+1) c0 f)), true)
         end
     | None => (f, false)
@@ -676,11 +676,11 @@ end.
 
 Parameter does_pre : unit -> bool.
 
-Definition opt_step (dt:DTree) bd (res: AMap.t (Dominators.t bd )) (rd:list l) 
+Definition opt_step (dt:DTree) bd (res: AMap.t (Dominators.t bd )) (rd:list l)
   (f: fdef) : fdef + fdef :=
 let '(f1, changed1) := gvn_fdef_dtree f false nil dt in
-if changed1 then inr _ f1 
-else 
+if changed1 then inr _ f1
+else
   if does_pre tt then
     let '(f2, changed2) := pre_fdef f1 bd res rd in
     if changed2 then inr _ f2 else inl _ f2
@@ -688,18 +688,18 @@ else
 
 Definition dce_block (f:fdef) (b:block) : fdef :=
 let '(block_intro _ ps cs _) := b in
-fold_left 
-  (fun f3 c => 
+fold_left
+  (fun f3 c =>
      match getCmdID c with
-     | Some id0 => 
+     | Some id0 =>
          if pure_cmd c then
-           if (used_in_fdef id0 f3) then f3 
+           if (used_in_fdef id0 f3) then f3
            else remove_fdef id0 f3
          else f3
      | _ => f3
      end) cs
-  (fold_left 
-    (fun f2 p => 
+  (fold_left
+    (fun f2 p =>
      let id0 := getPhiNodeID p in
      if (used_in_fdef id0 f2) then f2
      else remove_fdef id0 f2) ps f).
@@ -717,15 +717,15 @@ match getEntryBlock f, reachablity_analysis f with
     let dts := dom_analyze f in
     let chains := compute_sdom_chains b dts rd in
     let dt :=
-      fold_left 
-      (fun acc elt => 
-        let '(_, chain):=elt in 
-        create_dtree_from_chain acc chain) 
+      fold_left
+      (fun acc elt =>
+        let '(_, chain):=elt in
+        create_dtree_from_chain acc chain)
       chains (DT_node root DT_nil) in
-    if print_reachablity rd && print_dominators b dts && 
+    if print_reachablity rd && print_dominators b dts &&
        print_dtree dt && read_aa_from_fun (getFdefID f) then
-       match fix_temporary_fdef 
-               (SafePrimIter.iterate _ (opt_step dt b dts rd) 
+       match fix_temporary_fdef
+               (SafePrimIter.iterate _ (opt_step dt b dts rd)
                  (dce_fdef f)) with
        | Some f' => f'
        | _ => f
@@ -746,16 +746,16 @@ match getEntryBlock f, reachablity_analysis f with
     | Some (pdt0, others) =>
         match (create_pre_dtree_aux others idoms pdt0) with
         | None => f
-        | Some pdt => 
-            match 
-              tree2dtree 
+        | Some pdt =>
+            match
+              tree2dtree
                 (vertexes_of_pre_dtree pdt) (arcs_of_pre_dtree pdt)
                 (WF_pre_dtree_isa_tree f pdt _) with
             | Some dt =>
-                if print_reachablity rd && print_dominators b dts && 
+                if print_reachablity rd && print_dominators b dts &&
                    print_dtree dt then
-                   match fix_temporary_fdef 
-                            (SafePrimIter.iterate _ (opt_step dt dts rd) 
+                   match fix_temporary_fdef
+                            (SafePrimIter.iterate _ (opt_step dt dts rd)
                                (dce_fdef f)) with
                    | Some f' => f'
                    | _ => f
@@ -767,7 +767,7 @@ match getEntryBlock f, reachablity_analysis f with
     end
 | _, _ => f
 end.
-Next Obligation. 
+Next Obligation.
   eapply init_create_pre_dtree_aux__WF_pre_dtree; eauto.
     clear - Heq_anonymous.
     destruct f; simpl in *.
@@ -780,7 +780,7 @@ Parameter open_aa_db : unit -> bool.
 Definition opt (m:module) : module :=
 let '(module_intro los nts ps) := m in
 if open_aa_db tt then
-  module_intro los nts 
+  module_intro los nts
     (List.rev (fold_left (fun acc p =>
                           match p with
                           | product_fdef f => product_fdef (opt_fdef f)

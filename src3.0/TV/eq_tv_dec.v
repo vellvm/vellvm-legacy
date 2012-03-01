@@ -27,7 +27,7 @@ Lemma se_dec :
   (forall sm1, smem_dec_prop sm1) *
   (forall sf1, sframe_dec_prop sf1).
 Proof.
-  (se_mut_cases (apply se_mutrec) Case); 
+  (se_mut_cases (apply se_mutrec) Case);
     unfold sterm_dec_prop, list_sterm_dec_prop, list_sterm_l_dec_prop, smem_dec_prop, sframe_dec_prop;
     intros.
   Case "sterm_val".
@@ -57,25 +57,25 @@ Proof.
     destruct (@typ_dec t0 t2); subst; try solve [done_right].
     destruct (@H0 st2_2); subst; try solve [done_right].
     destruct (@list_const_dec l0 l1); subst; try solve [auto | done_right].
-  Case "sterm_malloc".    
+  Case "sterm_malloc".
     destruct st2; try solve [done_right].
     destruct (@H s1); subst; try solve [done_right].
     destruct (@typ_dec t t0); subst; try solve [done_right].
     destruct (@H0 st2); subst; try solve [done_right].
     destruct (@Align.dec a a0); subst; try solve [auto | done_right].
-  Case "sterm_alloca".    
+  Case "sterm_alloca".
     destruct st2; try solve [done_right].
     destruct (@H s1); subst; try solve [done_right].
     destruct (@typ_dec t t0); subst; try solve [done_right].
     destruct (@H0 st2); subst; try solve [done_right].
     destruct (@Align.dec a a0); subst; try solve [auto | done_right].
-  Case "sterm_load".    
+  Case "sterm_load".
     destruct st2; try solve [done_right].
     destruct (@H s1); subst; try solve [done_right].
     destruct (@typ_dec t t0); subst; try solve [done_right].
     destruct (@Align.dec a a0); subst; try solve [done_right].
     destruct (@H0 st2); subst; try solve [auto | done_right].
-  Case "sterm_gep".    
+  Case "sterm_gep".
     destruct st2; try solve [done_right].
     destruct (@bool_dec i0 i1); subst; try solve [done_right].
     destruct (@typ_dec t t0); subst; try solve [done_right].
@@ -184,11 +184,11 @@ Qed.
 
 Lemma list_sterm_dec :  forall (ts1 ts2:list_sterm), {ts1=ts2}+{~ts1=ts2}.
 destruct se_dec as [[[[_ H] _] _] _]. auto.
-Qed. 
+Qed.
 
 Lemma list_sterm_l_dec :  forall (ts1 ts2:list_sterm_l), {ts1=ts2}+{~ts1=ts2}.
 destruct se_dec as [[[_ H] _] _]. auto.
-Qed. 
+Qed.
 
 Lemma smem_dec : forall (sm1 sm2:smem), {sm1=sm2} + {~sm1=sm2}.
 destruct se_dec as [[_ H] _]. auto.
@@ -218,7 +218,7 @@ Lemma smap_dec : forall (sm1 sm2:smap), {sm1=sm2}+{~sm1=sm2}.
 Proof.
   decide equality.
     destruct a. destruct p.
-    destruct (@id_dec a a0); subst; try solve [done_right]. 
+    destruct (@id_dec a a0); subst; try solve [done_right].
     destruct (@sterm_dec s s0); subst; try solve [auto | done_right].
 Qed.
 
@@ -236,4 +236,3 @@ Proof.
     destruct (@smem_dec SMem0 SMem1); subst; try solve [auto | done_right].
     destruct (@smap_dec STerms0 STerms1); subst; try solve [auto | done_right].
 Qed.
-

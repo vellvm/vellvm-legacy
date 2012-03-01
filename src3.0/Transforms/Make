@@ -1,0 +1,31 @@
+-I ../Vellvm/
+-I ../Vellvm/ott/
+-I ../Vellvm/monads
+-I ../Vellvm/compcert/
+-I ../Vellvm/GraphBasics/
+-I ../SoftBound/
+-impredicative-set
+dtree.v
+primitives.v
+gvn.v
+mem2reg.v
+promotable_props.v
+phiplacement_bsim.v
+phiplacement_fsim.v
+memory_props.v
+palloca_props.v
+alive_store.v
+id_rhs_val.v
+las.v
+dse.v
+dae.v
+dae_wfS.v
+sas.v
+laa.v
+die.v
+mem2reg_correct.v
+program_sim.v
+subst.v
+alive_alloca.v
+trans_tactic.v
+list_facts.v

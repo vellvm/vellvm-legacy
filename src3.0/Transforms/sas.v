@@ -15,16 +15,16 @@ Require Import mem2reg.
 Require Import program_sim.
 Require Import trans_tactic.
 
-Definition sas (sid1 sid2: id) (v1 v2:value) (cs2:cmds) (b:block) 
-  (pinfo:PhiInfo) : Prop :=         
+Definition sas (sid1 sid2: id) (v1 v2:value) (cs2:cmds) (b:block)
+  (pinfo:PhiInfo) : Prop :=
 blockInFdefB b (PI_f pinfo) = true /\
 load_in_cmds (PI_id pinfo) cs2 = false /\
 let '(block_intro _ _ cs _) := b in
 exists cs1, exists cs3,
-  cs = 
-  cs1 ++ 
+  cs =
+  cs1 ++
   insn_store sid1 (PI_typ pinfo) v1 (value_id (PI_id pinfo)) (PI_align pinfo) ::
-  cs2 ++ 
+  cs2 ++
   insn_store sid2 (PI_typ pinfo) v2 (value_id (PI_id pinfo)) (PI_align pinfo) ::
   cs3.
 
@@ -38,53 +38,53 @@ Record SASInfo (pinfo: PhiInfo) := mkSASInfo {
   SAS_prop: sas SAS_sid1 SAS_sid2 SAS_value1 SAS_value2 SAS_tail SAS_block pinfo
 }.
 
-Definition fdef_simulation (pinfo: PhiInfo) (sasinfo: SASInfo pinfo) f1 f2 
+Definition fdef_simulation (pinfo: PhiInfo) (sasinfo: SASInfo pinfo) f1 f2
   : Prop :=
-  if (fdef_dec (PI_f pinfo) f1) then 
+  if (fdef_dec (PI_f pinfo) f1) then
     remove_fdef (SAS_sid1 pinfo sasinfo) f1 = f2
   else f1 = f2.
 
-Definition cmds_simulation (pinfo: PhiInfo) (sasinfo: SASInfo pinfo) (f1:fdef) 
+Definition cmds_simulation (pinfo: PhiInfo) (sasinfo: SASInfo pinfo) (f1:fdef)
   cs1 cs2 : Prop :=
-  if (fdef_dec (PI_f pinfo) f1) then 
+  if (fdef_dec (PI_f pinfo) f1) then
     remove_cmds (SAS_sid1 pinfo sasinfo) cs1 = cs2
   else cs1 = cs2.
 
-Definition block_simulation (pinfo: PhiInfo) (sasinfo: SASInfo pinfo) (f1:fdef) 
+Definition block_simulation (pinfo: PhiInfo) (sasinfo: SASInfo pinfo) (f1:fdef)
   b1 b2 : Prop :=
-  if (fdef_dec (PI_f pinfo) f1) then 
+  if (fdef_dec (PI_f pinfo) f1) then
     remove_block (SAS_sid1 pinfo sasinfo) b1 = b2
   else b1 = b2.
 
 Definition products_simulation (pinfo: PhiInfo) (sasinfo: SASInfo pinfo) Ps1 Ps2
   : Prop :=
-List.Forall2 
+List.Forall2
   (fun P1 P2 =>
    match P1, P2 with
    | product_fdef f1, product_fdef f2 => fdef_simulation pinfo sasinfo f1 f2
    | _, _ => P1 = P2
    end) Ps1 Ps2.
 
-Definition system_simulation (pinfo: PhiInfo) (sasinfo: SASInfo pinfo) S1 S2 
+Definition system_simulation (pinfo: PhiInfo) (sasinfo: SASInfo pinfo) S1 S2
   : Prop :=
-List.Forall2 
+List.Forall2
   (fun M1 M2 =>
    match M1, M2 with
    | module_intro los1 nts1 Ps1, module_intro los2 nts2 Ps2 =>
-       los1 = los2 /\ nts1 = nts2 /\ 
+       los1 = los2 /\ nts1 = nts2 /\
        products_simulation pinfo sasinfo Ps1 Ps2
    end) S1 S2.
 
-Definition EC_simulation (pinfo: PhiInfo) (sasinfo: SASInfo pinfo) 
+Definition EC_simulation (pinfo: PhiInfo) (sasinfo: SASInfo pinfo)
   (EC1 EC2:@Opsem.ExecutionContext DGVs) : Prop :=
   match (EC1, EC2) with
-  | (Opsem.mkEC f1 b1 cs1 tmn1 lc1 als1, 
+  | (Opsem.mkEC f1 b1 cs1 tmn1 lc1 als1,
      Opsem.mkEC f2 b2 cs2 tmn2 lc2 als2) =>
        fdef_simulation pinfo sasinfo f1 f2 /\
        tmn1 = tmn2 /\
        als1 = als2 /\
        block_simulation pinfo sasinfo f1 b1 b2 /\
-       (exists l1, exists ps1, exists cs11, 
+       (exists l1, exists ps1, exists cs11,
          b1 = block_intro l1 ps1 (cs11++cs1) tmn1)
          /\
        (exists l2, exists ps2, exists cs21,
@@ -93,12 +93,12 @@ Definition EC_simulation (pinfo: PhiInfo) (sasinfo: SASInfo pinfo)
        cmds_simulation pinfo sasinfo f1 cs1 cs2
   end.
 
-Fixpoint ECs_simulation (pinfo: PhiInfo) (sasinfo: SASInfo pinfo) 
+Fixpoint ECs_simulation (pinfo: PhiInfo) (sasinfo: SASInfo pinfo)
   (ECs1 ECs2:@Opsem.ECStack DGVs) : Prop :=
 match ECs1, ECs2 with
 | nil, nil => True
-| EC1::ECs1', EC2::ECs2' => 
-    EC_simulation pinfo sasinfo EC1 EC2 /\ 
+| EC1::ECs1', EC2::ECs2' =>
+    EC_simulation pinfo sasinfo EC1 EC2 /\
     ECs_simulation pinfo sasinfo ECs1' ECs2'
 | _, _ => False
 end.
@@ -106,14 +106,14 @@ end.
 Definition cs_follow_dead_store (pinfo:PhiInfo) (sasinfo: SASInfo pinfo)
   (cs:cmds) : Prop :=
 let '(block_intro _ _ cs0 _) := SAS_block pinfo sasinfo in
-forall cs1 cs3, 
-  cs0 = 
-    cs1 ++ 
-    insn_store (SAS_sid1 pinfo sasinfo) (PI_typ pinfo) 
+forall cs1 cs3,
+  cs0 =
+    cs1 ++
+    insn_store (SAS_sid1 pinfo sasinfo) (PI_typ pinfo)
       (SAS_value1 pinfo sasinfo) (value_id (PI_id pinfo)) (PI_align pinfo) ::
-    SAS_tail pinfo sasinfo ++ 
+    SAS_tail pinfo sasinfo ++
     cs3 ->
-  (exists csa, exists csb, 
+  (exists csa, exists csb,
     cs = csb ++ cs3 /\ SAS_tail pinfo sasinfo = csa ++ csb).
 
 Definition EC_follow_dead_store (pinfo:PhiInfo) (sasinfo: SASInfo pinfo)
@@ -128,41 +128,41 @@ forall gvsa (Heq: Opsem.CurFunction ec0 = PI_f pinfo)
   (Hlkup: lookupAL _ (Opsem.Locals ec0) (PI_id pinfo) = Some gvsa),
   MemProps.no_alias ptr gvsa \/ ~ EC_follow_dead_store pinfo sasinfo ec0.
 
-Definition undead_head_tail (pinfo:PhiInfo) (sasinfo: SASInfo pinfo) ptr 
+Definition undead_head_tail (pinfo:PhiInfo) (sasinfo: SASInfo pinfo) ptr
   (ecs':list Opsem.ExecutionContext) : Prop :=
   forall ec0 (Hin: In ec0 ecs'), undead_head_in_tail pinfo sasinfo ptr ec0.
 
-Definition Mem_simulation (pinfo:PhiInfo) (sasinfo: SASInfo pinfo) TD 
+Definition Mem_simulation (pinfo:PhiInfo) (sasinfo: SASInfo pinfo) TD
   (ecs1:list Opsem.ExecutionContext) Mem1 Mem2 : Prop :=
 Mem.nextblock Mem1 = Mem.nextblock Mem2 /\
-forall ptr ty al gvs1 gvs2 
+forall ptr ty al gvs1 gvs2
   (Hnalias: undead_head_tail pinfo sasinfo ptr ecs1)
   (Hld1: mload TD Mem1 ptr ty al = Some gvs1)
   (Hld2: mload TD Mem2 ptr ty al = Some gvs2),
   gvs1 = gvs2.
 
-Definition State_simulation (pinfo: PhiInfo) (sasinfo: SASInfo pinfo) 
-  (Cfg1:OpsemAux.Config) (St1:Opsem.State) 
+Definition State_simulation (pinfo: PhiInfo) (sasinfo: SASInfo pinfo)
+  (Cfg1:OpsemAux.Config) (St1:Opsem.State)
   (Cfg2:OpsemAux.Config) (St2:Opsem.State) : Prop :=
 let '(OpsemAux.mkCfg S1 TD1 Ps1 gl1 fs1) := Cfg1 in
 let '(OpsemAux.mkCfg S2 TD2 Ps2 gl2 fs2) := Cfg2 in
 match (St1, St2) with
 | (Opsem.mkState ECs1 M1, Opsem.mkState ECs2 M2) =>
-    TD1 = TD2 /\ 
+    TD1 = TD2 /\
     products_simulation pinfo sasinfo Ps1 Ps2 /\
     ECs_simulation pinfo sasinfo ECs1 ECs2 /\
     gl1 = gl2 /\ fs1 = fs2 /\ Mem_simulation pinfo sasinfo TD1 ECs1 M1 M2
 end.
 
-Definition removable_State (pinfo: PhiInfo) (sasinfo: SASInfo pinfo) 
+Definition removable_State (pinfo: PhiInfo) (sasinfo: SASInfo pinfo)
   (St:@Opsem.State DGVs) : Prop :=
 match St with
 | Opsem.mkState
-    (Opsem.mkEC f b 
-      (insn_store sid _ _ _ _ :: cs) 
-      tmn lc als::_) _ => 
-    if (fdef_dec (PI_f pinfo) f) then 
-      if (id_dec sid (SAS_sid1 pinfo sasinfo)) 
+    (Opsem.mkEC f b
+      (insn_store sid _ _ _ _ :: cs)
+      tmn lc als::_) _ =>
+    if (fdef_dec (PI_f pinfo) f) then
+      if (id_dec sid (SAS_sid1 pinfo sasinfo))
       then True else False
     else False
 | _ => False
@@ -171,7 +171,7 @@ end.
 Lemma removable_State_dec : forall pinfo sasinfo St,
   removable_State pinfo sasinfo St \/ ~ removable_State pinfo sasinfo St.
 Proof.
-  destruct St. 
+  destruct St.
   destruct ECS as [|[]]; auto.
   destruct CurCmds; auto.
   simpl.
@@ -182,7 +182,7 @@ Qed.
 
 Ltac repeat_solve :=
   repeat (match goal with
-          | |- Mem_simulation _ _ _ _ _ _ => idtac 
+          | |- Mem_simulation _ _ _ _ _ _ => idtac
           | |- _ => split; eauto 2 using cmds_at_block_tail_next
           end).
 
@@ -224,7 +224,7 @@ Proof.
     apply MemProps.nextblock_mstore in H23.
     rewrite <- H23. auto.
 
-    intros. 
+    intros.
     assert (In {|
                Opsem.CurFunction := PI_f pinfo;
                Opsem.CurBB := B1;
@@ -239,7 +239,7 @@ Proof.
                Opsem.Terminator := tmn2;
                Opsem.Locals := lc2;
                Opsem.Allocas := als2 |} :: ECs1)) as Hin. simpl. auto.
-    apply Hnalias in Hin. 
+    apply Hnalias in Hin.
     unfold undead_head_in_tail in Hin. simpl in Hin.
     assert (v0 = value_id (PI_id pinfo)) as EQ.
       admit. (* uniqness *)
@@ -264,7 +264,7 @@ Proof.
       split; auto. simpl.
       assert (block_intro l1 ps1
                (cs11 ++
-                insn_store (SAS_sid1 pinfo sasinfo) t v (value_id (PI_id pinfo)) 
+                insn_store (SAS_sid1 pinfo sasinfo) t v (value_id (PI_id pinfo))
                   a :: cs1) tmn2 = SAS_block pinfo sasinfo) as EQ.
         admit. (* uniqness *)
       split; auto.
@@ -282,7 +282,7 @@ Qed.
 
 Lemma cmds_simulation_elim_cons_inv: forall (pinfo : PhiInfo) sasinfo
   (t : typ) (v1 v2: value) (a : align) (cs1 : list cmd) (cs2 : cmds)
-  (Hcssim2 : 
+  (Hcssim2 :
    cmds_simulation pinfo sasinfo (PI_f pinfo)
      (insn_store (SAS_sid1 pinfo sasinfo) t v1 v2 a :: cs1)
      cs2),
@@ -292,7 +292,7 @@ Proof.
   unfold cmds_simulation in *.
   destruct (fdef_dec (PI_f pinfo) (PI_f pinfo)); try congruence.
   simpl in *.
-  destruct (id_dec (SAS_sid1 pinfo sasinfo) (SAS_sid1 pinfo sasinfo)); 
+  destruct (id_dec (SAS_sid1 pinfo sasinfo) (SAS_sid1 pinfo sasinfo));
     simpl in *; try congruence.
 Qed.
 
@@ -307,15 +307,15 @@ Qed.
 Lemma cmds_simulation_nelim_cons_inv: forall pinfo sasinfo F c cs2 cs',
   cmds_simulation pinfo sasinfo F (c :: cs2) cs' ->
   (PI_f pinfo = F -> getCmdLoc c <> SAS_sid1 pinfo sasinfo) ->
-  exists cs2', 
+  exists cs2',
     cs' = c :: cs2' /\ cmds_simulation pinfo sasinfo F cs2 cs2'.
-Proof.  
+Proof.
   intros.
   unfold cmds_simulation in *.
   destruct (fdef_dec (PI_f pinfo) F); subst; simpl; eauto.
   assert (PI_f pinfo = PI_f pinfo) as EQ. auto.
   apply H0 in EQ.
-  destruct (id_dec (getCmdLoc c) (SAS_sid1 pinfo sasinfo)); 
+  destruct (id_dec (getCmdLoc c) (SAS_sid1 pinfo sasinfo));
     simpl in *; try congruence.
   eauto.
 Qed.
@@ -357,12 +357,12 @@ Proof.
   unfold cs_follow_dead_store.
   destruct sasinfo. simpl. intros.
   destruct SAS_block0.
-  intros. 
+  intros.
   destruct SAS_prop0 as [EQ1 [EQ2 [cs4 [cs2 EQ3]]]]; subst.
-  assert (cs4 = cs1 /\ 
+  assert (cs4 = cs1 /\
           cs3 = insn_store SAS_sid4 (PI_typ pinfo) SAS_value4
                   (value_id (PI_id pinfo)) (PI_align pinfo) :: cs2) as EQ.
-    admit. 
+    admit.
   destruct EQ as [EQ3 EQ4]; subst.
   edestruct H0 as [csa [csb [J1 J2]]]; subst; eauto.
   destruct csb.
@@ -394,13 +394,13 @@ Proof.
   destruct J as [J1 [J2 J3]]. simpl in *.
   split; auto.
   split; auto.
-    simpl. 
+    simpl.
     eapply cs_follow_dead_store_tail; eauto.
 Qed.
 
-Lemma cs_follow_dead_store_at_beginning_false: forall (pinfo : PhiInfo) 
-  (sasinfo : SASInfo pinfo) (l' : l) (ps' : phinodes) (cs' : cmds) 
-  (tmn' : terminator) 
+Lemma cs_follow_dead_store_at_beginning_false: forall (pinfo : PhiInfo)
+  (sasinfo : SASInfo pinfo) (l' : l) (ps' : phinodes) (cs' : cmds)
+  (tmn' : terminator)
   (J2 : block_intro l' ps' cs' tmn' = SAS_block pinfo sasinfo)
   (J3 : cs_follow_dead_store pinfo sasinfo cs'),
   False.
@@ -416,28 +416,28 @@ Proof.
   destruct J as [csa [csb [EQ1 EQ2]]]; subst.
   rewrite_env (
     (cs1 ++
-     insn_store SAS_sid3 (PI_typ pinfo) SAS_value3 
-         (value_id (PI_id pinfo)) (PI_align pinfo) :: (csa ++ csb)) ++ 
+     insn_store SAS_sid3 (PI_typ pinfo) SAS_value3
+         (value_id (PI_id pinfo)) (PI_align pinfo) :: (csa ++ csb)) ++
      insn_store SAS_sid4 (PI_typ pinfo) SAS_value4
             (value_id (PI_id pinfo)) (PI_align pinfo) :: cs3
     ) in J'.
-  apply app_inv_tail in J'. 
+  apply app_inv_tail in J'.
   rewrite_env (nil ++ csb) in J'.
   rewrite_env (
     (cs1 ++
-       insn_store SAS_sid3 (PI_typ pinfo) SAS_value3 
-         (value_id (PI_id pinfo)) (PI_align pinfo) :: 
+       insn_store SAS_sid3 (PI_typ pinfo) SAS_value3
+         (value_id (PI_id pinfo)) (PI_align pinfo) ::
        csa) ++ csb
     ) in J'.
-  apply app_inv_tail in J'. 
+  apply app_inv_tail in J'.
   assert (
-    In (insn_store SAS_sid3 (PI_typ pinfo) SAS_value3 
+    In (insn_store SAS_sid3 (PI_typ pinfo) SAS_value3
          (value_id (PI_id pinfo)) (PI_align pinfo)) nil) as Hin.
     rewrite J'. apply in_middle.
   inv Hin.
 Qed.
 
-Lemma cs_follow_dead_store_at_end_false: forall (pinfo : PhiInfo) 
+Lemma cs_follow_dead_store_at_end_false: forall (pinfo : PhiInfo)
   (sasinfo : SASInfo pinfo) (J3 : cs_follow_dead_store pinfo sasinfo nil),
   False.
 Proof.
@@ -449,7 +449,7 @@ Proof.
   apply J3 in J.
   destruct J as [csa [csb [EQ1 EQ2]]]; subst.
   assert (
-    In (insn_store SAS_sid4 (PI_typ pinfo) SAS_value4 
+    In (insn_store SAS_sid4 (PI_typ pinfo) SAS_value4
          (value_id (PI_id pinfo)) (PI_align pinfo)) nil) as Hin.
     rewrite EQ1. apply in_middle.
   inv Hin.
@@ -468,7 +468,7 @@ Lemma EC_follow_dead_store_at_end_false: forall pinfo sasinfo F B tmn lc2 als2,
 Proof.
   intros. intro J.
   destruct J as [J1 [J2 J3]]. simpl in *.
-  eapply cs_follow_dead_store_at_end_false in J3; eauto.  
+  eapply cs_follow_dead_store_at_end_false in J3; eauto.
 Qed.
 
 Lemma fdef_sim__block_sim : forall pinfo sasinfo f1 f2 b1 b2 l0,
@@ -490,7 +490,7 @@ Lemma block_simulation_inv : forall pinfo sasinfo F l1 ps1 cs1 tmn1 l2 ps2 cs2
   blockInFdefB (block_intro l1 ps1 cs1 tmn1) F ->
   block_simulation pinfo sasinfo F (block_intro l1 ps1 cs1 tmn1)
     (block_intro l2 ps2 cs2 tmn2) ->
-  l1 = l2 /\ ps1 = ps2 /\ 
+  l1 = l2 /\ ps1 = ps2 /\
   cmds_simulation pinfo sasinfo F cs1 cs2 /\ tmn1 = tmn2.
 Proof.
   intros.
@@ -499,21 +499,21 @@ Proof.
   erewrite remove_phinodes_eq; eauto.
 Qed.
 
-Lemma switchToNewBasicBlock_sim : forall TD l1 l2 ps cs1 cs2 tmn1 tmn2 B1 B2 
-  gl lc lc1 lc2 F pinfo sasinfo 
+Lemma switchToNewBasicBlock_sim : forall TD l1 l2 ps cs1 cs2 tmn1 tmn2 B1 B2
+  gl lc lc1 lc2 F pinfo sasinfo
   (H23 : @Opsem.switchToNewBasicBlock DGVs TD
-          (block_intro l1 ps cs1 tmn1) B1 gl lc = 
+          (block_intro l1 ps cs1 tmn1) B1 gl lc =
          ret lc1)
   (Hbsim2 : block_simulation pinfo sasinfo F B1 B2)
   (H2 : Opsem.switchToNewBasicBlock TD
-         (block_intro l2 ps cs2 tmn2) B2 gl lc = 
+         (block_intro l2 ps cs2 tmn2) B2 gl lc =
         ret lc2), lc1 = lc2.
 Admitted.
 
-Lemma switchToNewBasicBlock_Mem_simulation: forall (pinfo : PhiInfo) 
-  (sasinfo : SASInfo pinfo) (gl2 : GVMap) (lc2 : Opsem.GVsMap) 
+Lemma switchToNewBasicBlock_Mem_simulation: forall (pinfo : PhiInfo)
+  (sasinfo : SASInfo pinfo) (gl2 : GVMap) (lc2 : Opsem.GVsMap)
   (als2 : list mblock) (M2 : mem) (los : layouts) (nts : namedts) (F : fdef)
-  (B : block) tmn 
+  (B : block) tmn
   (EC : list Opsem.ExecutionContext) (Mem : mem) (cs' : cmds)
   (Hmsim : Mem_simulation pinfo sasinfo (los, nts)
             ({|
@@ -525,7 +525,7 @@ Lemma switchToNewBasicBlock_Mem_simulation: forall (pinfo : PhiInfo)
              Opsem.Allocas := als2 |} :: EC) Mem M2)
   (l'0 : l) (ps'0 : phinodes) (tmn'0 : terminator) (lc'0 : Opsem.GVsMap)
   (H2 : Opsem.switchToNewBasicBlock (los, nts)
-         (block_intro l'0 ps'0 cs' tmn'0) B gl2 lc2 = 
+         (block_intro l'0 ps'0 cs' tmn'0) B gl2 lc2 =
         ret lc'0),
   Mem_simulation pinfo sasinfo (los, nts)
      ({|
@@ -545,14 +545,14 @@ Proof.
     intros.
     simpl in Hin.
     destruct Hin as [Hin | Hin]; subst.
-      unfold undead_head_in_tail in *. simpl in *. intros. 
+      unfold undead_head_in_tail in *. simpl in *. intros.
       right. apply EC_follow_dead_store_at_end_false.
- 
+
       apply Hnalias; simpl; auto.
 Qed.
-    
 
-Lemma unremovable_loc__neq__SAS_sid1: forall pinfo sasinfo F B c cs tmn2 lc2 
+
+Lemma unremovable_loc__neq__SAS_sid1: forall pinfo sasinfo F B c cs tmn2 lc2
   als2 EC Mem id0
   (Hnrem : ~ removable_State pinfo sasinfo
                {|Opsem.ECS := {| Opsem.CurFunction := F;
@@ -566,7 +566,7 @@ Lemma unremovable_loc__neq__SAS_sid1: forall pinfo sasinfo F B c cs tmn2 lc2
   PI_f pinfo = F -> id0 <> SAS_sid1 pinfo sasinfo.
 Admitted.
 
-Lemma mem_simulation_update_locals : 
+Lemma mem_simulation_update_locals :
   forall pinfo sasinfo TD EC1 EC2 ECs M1 M2
   (EQ: Opsem.CurFunction EC1 = Opsem.CurFunction EC2)
   (Hp: forall gvsa
@@ -580,14 +580,14 @@ Proof.
   split; auto.
     intros.
     eapply Hmsim2 with (ptr:=ptr)(ty:=ty)(al:=al); eauto.
-Admitted.    
+Admitted.
 
 Ltac dse_is_sim_common_case :=
 match goal with
 | Hcssim2: cmds_simulation _ _ _ _ _,
   Hop2: Opsem.sInsn _ _ _ _,
   Hmsim: Mem_simulation _ _ _ _ _ _ |- _ =>
-  apply cmds_simulation_nelim_cons_inv in Hcssim2; simpl; 
+  apply cmds_simulation_nelim_cons_inv in Hcssim2; simpl;
     try solve [eauto using unremovable_loc__neq__SAS_sid1];
   destruct Hcssim2 as [cs3' [Heq Hcssim2]]; subst;
   inv Hop2; uniq_result;
@@ -597,12 +597,12 @@ match goal with
       simpl; intros;
       match goal with
       | Hlkup : lookupAL _ ?lc ?id1 = Some ?gvsa |-
-        lookupAL _ (updateAddAL _ ?lc _ _ ) ?id1 = Some ?gvsa => 
+        lookupAL _ (updateAddAL _ ?lc _ _ ) ?id1 = Some ?gvsa =>
         admit  (* id <> palloca *)
       end]
 end.
-  
-Lemma undead_head_tail_update : 
+
+Lemma undead_head_tail_update :
   forall pinfo sasinfo ptr F B c cs tmn3 lc1 als3 als3' lc2 ECs
   (Hp: forall gvsa
    (Hlkup: lookupAL (GVsT DGVs) lc2 (PI_id pinfo) = ret gvsa),
@@ -628,16 +628,16 @@ Proof.
   intros.
   simpl in Hin.
   destruct Hin as [Hin | Hin]; subst.
-    assert (undead_head_in_tail pinfo sasinfo ptr 
+    assert (undead_head_in_tail pinfo sasinfo ptr
        {| Opsem.CurFunction := F;
           Opsem.CurBB := B;
           Opsem.CurCmds := cs;
           Opsem.Terminator := tmn3;
           Opsem.Locals := lc1;
-          Opsem.Allocas := als3 |}) as J. 
+          Opsem.Allocas := als3 |}) as J.
       apply H; simpl; auto.
     clear H.
-    unfold undead_head_in_tail in *. simpl in *. intros. 
+    unfold undead_head_in_tail in *. simpl in *. intros.
     apply Hp in Hlkup.
     apply J in Hlkup; auto.
     destruct Hlkup as [Hlkup | Hlkup]; auto.
@@ -678,16 +678,16 @@ Admitted.
 
 Lemma fdef_simulation_inv: forall pinfo sasinfo fh1 fh2 bs1 bs2,
   fdef_simulation pinfo sasinfo (fdef_intro fh1 bs1) (fdef_intro fh2 bs2) ->
-  fh1 = fh2 /\ 
-  List.Forall2 
-    (fun b1 b2 => 
+  fh1 = fh2 /\
+  List.Forall2
+    (fun b1 b2 =>
       block_simulation pinfo sasinfo (fdef_intro fh1 bs1) b1 b2) bs1 bs2.
 Admitted.
 
 Lemma lookupFdefViaPtr__simulation_l2r : forall pinfo sasinfo Ps1 Ps2 fptr f1 fs,
   products_simulation pinfo sasinfo Ps1 Ps2 ->
   OpsemAux.lookupFdefViaPtr Ps1 fs fptr = Some f1 ->
-  exists f2, 
+  exists f2,
     OpsemAux.lookupFdefViaPtr Ps2 fs fptr = Some f2 /\
     fdef_simulation pinfo sasinfo f1 f2.
 Admitted.
@@ -700,17 +700,17 @@ Admitted.
 
 Lemma undead_head_tail_cons_and: forall pinfo sasinfo ptr EC ECs,
   undead_head_tail pinfo sasinfo ptr (EC :: ECs) ->
-  undead_head_in_tail pinfo sasinfo ptr EC /\ 
+  undead_head_in_tail pinfo sasinfo ptr EC /\
     undead_head_tail pinfo sasinfo ptr ECs.
 Proof.
   intros.
-  unfold undead_head_tail in *.  
+  unfold undead_head_tail in *.
   split.
     apply H; simpl; auto.
     intros. apply H; simpl; auto.
 Qed.
 
-Lemma callExternalFunction__Mem_simulation: forall pinfo sasinfo TD St1 M1 M2 
+Lemma callExternalFunction__Mem_simulation: forall pinfo sasinfo TD St1 M1 M2
   fid0 gvss0 oresult1 M1' oresult2 M2' dck tret targs gl tr1 tr2,
   Mem_simulation pinfo sasinfo TD St1 M1 M2 ->
   callExternalOrIntrinsics TD gl M1 fid0 tret targs dck gvss0 = 
@@ -826,12 +826,12 @@ Lemma sas_is_sim : forall maxb pinfo (sasinfo: SASInfo pinfo) Cfg1 St1 Cfg2 St2
   (Hwfcfg: OpsemPP.wf_Config Cfg1) (Hwfpp: OpsemPP.wf_State Cfg1 St1) 
   (Hnoalias: Promotability.wf_State maxb pinfo Cfg1 St1) 
   (Hsim: State_simulation pinfo sasinfo Cfg1 St1 Cfg2 St2),
-  (forall (Hrem: removable_State pinfo sasinfo St1) St1' tr1 
-     (Hop1: Opsem.sInsn Cfg1 St1 St1' tr1), 
+  (forall (Hrem: removable_State pinfo sasinfo St1) St1' tr1
+     (Hop1: Opsem.sInsn Cfg1 St1 St1' tr1),
      State_simulation pinfo sasinfo Cfg1 St1' Cfg2 St2 /\ tr1 = E0) /\
   (forall (Hnrem: ~removable_State pinfo sasinfo St1) St1' St2' tr1 tr2
-     (Hop2: Opsem.sInsn Cfg2 St2 St2' tr2) 
-     (Hop1: Opsem.sInsn Cfg1 St1 St1' tr1), 
+     (Hop2: Opsem.sInsn Cfg2 St2 St2' tr2)
+     (Hop1: Opsem.sInsn Cfg1 St1 St1' tr1),
      State_simulation pinfo sasinfo Cfg1 St1' Cfg2 St2' /\ tr1 = tr2).
 Proof.
 
@@ -840,7 +840,7 @@ Local Opaque inscope_of_tmn inscope_of_cmd.
   intros.
   split; intros.
 Case "removable state".
-  
+
   destruct Cfg1 as [S1 [los nts] Ps1 gl1 fs1].
   destruct St1 as [ECs1 M1].
   destruct ECs1 as [|[F1 B1 [|c1 cs1] tmn1 lc1 als1] ECs1]; tinv Hrem.
@@ -852,14 +852,14 @@ Case "removable state".
   destruct Hwfcfg as [_ [Hwfg [HwfSystem HmInS]]].
   destruct Hwfpp as 
     [_ [
-     [Hreach1 [HBinF1 [HFinPs1 _]]] 
+     [Hreach1 [HBinF1 [HFinPs1 _]]]
      [HwfECs Hwfcall]]
     ]; subst.
   fold (@OpsemPP.wf_ECStack DGVs) in HwfECs.
 
-  destruct Hnoalias as 
+  destruct Hnoalias as
     [
-      [[Hinscope' _] [HwfECs' HwfHT]] 
+      [[Hinscope' _] [HwfECs' HwfHT]]
       [[Hdisjals _] HwfM]
     ]; simpl in Hdisjals.
   fold Promotability.wf_ECStack in HwfECs'.
@@ -874,14 +874,14 @@ Case "removable state".
   destruct ECs2 as [|[F2 B2 cs2 tmn2 lc2 als2] ECs2]; tinv Hstksim.
   destruct Hstksim as [Hecsim Hstksim].
   unfold EC_simulation in Hecsim.
-  destruct Hecsim as 
-      [Hfsim2 [Heq1 [Heq2 [Hbsim2 
+  destruct Hecsim as
+      [Hfsim2 [Heq1 [Heq2 [Hbsim2
         [Heq3 [Heq4 [Hlcsim2 Hcssim2]]]]]]]; subst.
 
   uniq_result.
   repeat_solve.
     eapply cmds_simulation_elim_cons_inv; eauto.
-    eapply mstore_removable_Mem_simulation in Hmsim; 
+    eapply mstore_removable_Mem_simulation in Hmsim;
       eauto using wf_system__uniqFdef.
 
 Case "unremovable state".
@@ -932,9 +932,9 @@ Focus.
         eapply EC_follow_dead_store_tail; eauto.
           admit. (* uniqness *)
 
-        apply Hnalias; simpl; auto.     
+        apply Hnalias; simpl; auto.
 Unfocus.
-      
+
 SCase "sReturnVoid".
 Focus.
   destruct_ctx_return.
@@ -978,7 +978,7 @@ Focus.
         eapply EC_follow_dead_store_tail; eauto.
           admit. (* uniqness *)
 
-        apply Hnalias; simpl; auto.     
+        apply Hnalias; simpl; auto.
 Unfocus.
 
 SCase "sBranch".
@@ -992,7 +992,7 @@ Focus.
   assert (block_simulation pinfo sasinfo F (block_intro l' ps' cs' tmn')
            (block_intro l'0 ps'0 cs'0 tmn'0)) as Hbsim.
     clear - H22 H1 Hfsim2.
-    destruct (isGVZero (los, nts) c); eauto using fdef_sim__block_sim.  
+    destruct (isGVZero (los, nts) c); eauto using fdef_sim__block_sim.
   assert (uniqFdef F) as Huniq. eauto using wf_system__uniqFdef.
   assert (blockInFdefB (block_intro l' ps' cs' tmn') F) as HBinF1'.
     admit.
@@ -1008,7 +1008,7 @@ Focus.
   repeat_solve.
     exists l'0. exists ps'0. exists nil. auto.
     exists l'0. exists ps'0. exists nil. auto.
-  
+
     clear - H2 Hmsim.
     eapply switchToNewBasicBlock_Mem_simulation; eauto.
 
@@ -1023,10 +1023,10 @@ Focus.
 
   assert (block_simulation pinfo sasinfo F (block_intro l' ps' cs' tmn')
            (block_intro l'0 ps'0 cs'0 tmn'0)) as Hbsim.
-    eauto using fdef_sim__block_sim.         
+    eauto using fdef_sim__block_sim.
   assert (uniqFdef F) as Huniq. eauto using wf_system__uniqFdef.
   assert (blockInFdefB (block_intro l' ps' cs' tmn') F) as HBinF1'.
-    admit.  
+    admit.
   assert (Hbsim':=Hbsim).
   apply block_simulation_inv in Hbsim'; auto.
   destruct Hbsim' as [Heq1 [Heq2 [Hcssim' Heq5]]]; subst.
@@ -1039,7 +1039,7 @@ Focus.
   repeat_solve.
     exists l'0. exists ps'0. exists nil. auto.
     exists l'0. exists ps'0. exists nil. auto.
-  
+
     clear - H0 Hmsim.
     eapply switchToNewBasicBlock_Mem_simulation; eauto.
 
@@ -1049,9 +1049,9 @@ SCase "sBop". abstract (destruct_ctx_other; dse_is_sim_common_case).
 SCase "sFBop". abstract (destruct_ctx_other; dse_is_sim_common_case).
 SCase "sExtractValue". abstract (destruct_ctx_other; dse_is_sim_common_case).
 SCase "sInsertValue". abstract (destruct_ctx_other; dse_is_sim_common_case).
-SCase "sMalloc". 
+SCase "sMalloc".
   destruct_ctx_other.
- 
+
   apply cmds_simulation_nelim_cons_inv in Hcssim2; simpl;
     try solve [eauto using unremovable_loc__neq__SAS_sid1].
   destruct Hcssim2 as [cs3' [Heq Hcssim2]]; subst;
@@ -1070,7 +1070,7 @@ SCase "sMalloc".
       rewrite <- H2. rewrite <- H25. rewrite Hmsim1. auto.
 
       intros.
-      assert (Hmc:=Hld1). 
+      assert (Hmc:=Hld1).
       apply MemProps.mload__flatten_typ in Hmc.
       destruct Hmc as [mc Hmc].
       eapply MemProps.malloc_preserves_mload_inv' in Hld1; eauto.
@@ -1082,7 +1082,7 @@ SCase "sMalloc".
             intros. admit. (* id <> palloca *)
             admit. (* uniqness *)
 
-          contradict Halias1; auto.    
+          contradict Halias1; auto.
 
         destruct Hld2 as [[Hld2 Halias2] | [Hld2 Hnalias2]].
           contradict Halias2; auto.
@@ -1090,9 +1090,9 @@ SCase "sMalloc".
           erewrite Hld1; eauto.
           erewrite Hld2; eauto.
 
-SCase "sFree". 
+SCase "sFree".
   destruct_ctx_other.
- 
+
   apply cmds_simulation_nelim_cons_inv in Hcssim2; simpl;
     try solve [eauto using unremovable_loc__neq__SAS_sid1].
   destruct Hcssim2 as [cs3' [Heq Hcssim2]]; subst;
@@ -1106,15 +1106,15 @@ SCase "sFree".
       rewrite <- H1. rewrite <- H22. rewrite Hmsim1. auto.
 
       intros.
-      eapply Hmsim2 with (ptr:=ptr)(ty:=ty)(al:=al); 
+      eapply Hmsim2 with (ptr:=ptr)(ty:=ty)(al:=al);
         eauto using MemProps.free_preserves_mload_inv.
       eapply undead_head_tail_update in Hnalias; eauto.
         admit. (* uniqness *)
 
-SCase "sAlloca". 
+SCase "sAlloca".
 
   destruct_ctx_other.
- 
+
   apply cmds_simulation_nelim_cons_inv in Hcssim2; simpl;
     try solve [eauto using unremovable_loc__neq__SAS_sid1].
   destruct Hcssim2 as [cs3' [Heq Hcssim2]]; subst;
@@ -1133,7 +1133,7 @@ SCase "sAlloca".
       rewrite <- H2. rewrite <- H25. rewrite Hmsim1. auto.
 
       intros.
-      assert (Hmc:=Hld1). 
+      assert (Hmc:=Hld1).
       apply MemProps.mload__flatten_typ in Hmc.
       destruct Hmc as [mc Hmc].
       eapply MemProps.malloc_preserves_mload_inv' in Hld1; eauto.
@@ -1145,7 +1145,7 @@ SCase "sAlloca".
             intros. admit. (* id <> palloca *)
             admit. (* uniqness *)
 
-          contradict Halias1; auto.    
+          contradict Halias1; auto.
 
         destruct Hld2 as [[Hld2 Halias2] | [Hld2 Hnalias2]].
           contradict Halias2; auto.
@@ -1153,7 +1153,7 @@ SCase "sAlloca".
           erewrite Hld1; eauto.
           erewrite Hld2; eauto.
 
-SCase "sLoad". 
+SCase "sLoad".
   destruct_ctx_other.
 
   apply cmds_simulation_nelim_cons_inv in Hcssim2; simpl;
@@ -1169,10 +1169,10 @@ SCase "sLoad".
       simpl. intros.
       admit. (* lid <> pid *)
 
-SCase "sStore". 
+SCase "sStore".
 
   destruct_ctx_other.
- 
+
   apply cmds_simulation_nelim_cons_inv in Hcssim2; simpl;
     try solve [eauto using unremovable_loc__neq__SAS_sid1].
   destruct Hcssim2 as [cs3' [Heq Hcssim2]]; subst;
@@ -1204,7 +1204,7 @@ SCase "sExt". abstract (destruct_ctx_other; dse_is_sim_common_case).
 SCase "sCast". abstract (destruct_ctx_other; dse_is_sim_common_case).
 SCase "sIcmp". abstract (destruct_ctx_other; dse_is_sim_common_case).
 SCase "sFcmp". abstract (destruct_ctx_other; dse_is_sim_common_case).
-SCase "sSelect". 
+SCase "sSelect".
   destruct_ctx_other.
 
   apply cmds_simulation_nelim_cons_inv in Hcssim2; simpl;
@@ -1240,12 +1240,12 @@ SCase "sCall".
   assert (Hbsim1:=Hfsim1).
   eapply fdef_simulation__entry_block_simulation in Hbsim1; eauto.
 
-  assert (InProductsB (product_fdef (fdef_intro 
+  assert (InProductsB (product_fdef (fdef_intro
     (fheader_intro fa rt fid la va) lb)) Ps = true) as HFinPs'.
     apply OpsemAux.lookupFdefViaPtr_inversion in H1.
     destruct H1 as [fn [H11 H12]].
     eapply lookupFdefViaIDFromProducts_inv; eauto.
-  assert (uniqFdef (fdef_intro (fheader_intro fa rt fid la va) lb)) 
+  assert (uniqFdef (fdef_intro (fheader_intro fa rt fid la va) lb))
     as Huniq.
     eapply wf_system__uniqFdef; eauto.
   assert (Hbsim1':=Hbsim1).
@@ -1278,9 +1278,9 @@ SCase "sCall".
   apply OpsemAux.lookupFdefViaPtr_inversion in H1.
   destruct H28 as [fn [J1 [J2 J3]]].
   destruct H1 as [fn' [J4 J5]].
-  uniq_result.   
+  uniq_result.
 
-SCase "sExCall". 
+SCase "sExCall".
 
   destruct_ctx_other.
   assert (Hcssim2':=Hcssim2).
@@ -1306,7 +1306,7 @@ SCase "sExCall".
     destruct H30 as [fn' [J4 J5]]
   end.
 
-  uniq_result.   
+  uniq_result.
 
   SSCase "sExCall".
 
@@ -1321,12 +1321,12 @@ SCase "sExCall".
   repeat_solve.
     eapply mem_simulation_update_locals in Hmsim; simpl; eauto.
       simpl. intros. admit. (* cid <> pid *)
-    
+
 Transparent inscope_of_tmn inscope_of_cmd.
 
 Qed.
 
-Lemma s_genInitState__sas_State_simulation: forall pinfo sasinfo S1 S2 main 
+Lemma s_genInitState__sas_State_simulation: forall pinfo sasinfo S1 S2 main
   VarArgs cfg2 IS2,
   system_simulation pinfo sasinfo S1 S2 ->
   Opsem.s_genInitState S2 main VarArgs Mem.empty = ret (cfg2, IS2) ->
@@ -1335,19 +1335,19 @@ Lemma s_genInitState__sas_State_simulation: forall pinfo sasinfo S1 S2 main
     State_simulation pinfo sasinfo cfg1 IS1 cfg2 IS2.
 Admitted.
 
-Lemma s_isFinialState__sas_State_simulation: forall pinfo sasinfo cfg1 FS1 cfg2 
+Lemma s_isFinialState__sas_State_simulation: forall pinfo sasinfo cfg1 FS1 cfg2
   FS2 r (Hstsim : State_simulation pinfo sasinfo cfg1 FS1 cfg2 FS2)
   (Hfinal: Opsem.s_isFinialState cfg2 FS2 = ret r),
   Opsem.s_isFinialState cfg1 FS1 = ret r.
 Admitted.
 
-Lemma opsem_s_isFinialState__sas_State_simulation: forall 
-  pinfo sasinfo cfg1 FS1 cfg2 FS2  
+Lemma opsem_s_isFinialState__sas_State_simulation: forall
+  pinfo sasinfo cfg1 FS1 cfg2 FS2
   (Hstsim : State_simulation pinfo sasinfo cfg1 FS1 cfg2 FS2),
   Opsem.s_isFinialState cfg1 FS1 = Opsem.s_isFinialState cfg2 FS2.
 Admitted.
 
-Lemma undefined_state__sas_State_simulation: forall pinfo sasinfo cfg1 St1 cfg2 
+Lemma undefined_state__sas_State_simulation: forall pinfo sasinfo cfg1 St1 cfg2
   St2 (Hstsim : State_simulation pinfo sasinfo cfg1 St1 cfg2 St2),
   OpsemPP.undefined_state cfg1 St1 -> OpsemPP.undefined_state cfg2 St2.
 Admitted.
@@ -1359,7 +1359,7 @@ Lemma sop_star__sas_State_simulation: forall pinfo sasinfo cfg1 IS1 cfg2 IS2 tr
   (Hnoalias: Promotability.wf_State maxb pinfo cfg1 IS1)
   (Hstsim : State_simulation pinfo sasinfo cfg1 IS1 cfg2 IS2)
   (Hopstar : Opsem.sop_star cfg2 IS2 FS2 tr),
-  exists FS1, Opsem.sop_star cfg1 IS1 FS1 tr /\ 
+  exists FS1, Opsem.sop_star cfg1 IS1 FS1 tr /\
     State_simulation pinfo sasinfo cfg1 FS1 cfg2 FS2.
 Proof.
   intros.
@@ -1418,21 +1418,21 @@ Lemma find_st_ld__sasinfo: forall l0 ps0 cs0 tmn0 i0 v cs (pinfo:PhiInfo) dones
     SAS_block pinfo sasinfo = (block_intro l0 ps0 cs0 tmn0).
 Admitted.
 
-Lemma sas_sim: forall (los : layouts) (nts : namedts) (fh : fheader) 
+Lemma sas_sim: forall (los : layouts) (nts : namedts) (fh : fheader)
   (dones : list id) (pinfo : PhiInfo) (main : id) (VarArgs : list (GVsT DGVs))
   (bs1 : list block) (l0 : l) (ps0 : phinodes) (cs0 : cmds) (tmn0 : terminator)
   (bs2 : list block) (Ps1 : list product) (Ps2 : list product) (i0 : id)
-  (v : value) (cs : cmds) 
+  (v : value) (cs : cmds)
   (Hst1 : ret inl (i0, v, cs) = find_init_stld cs0 (PI_id pinfo) dones)
   (i1 : id) (v0 : value)
   (Hst2 : ret inr (i1, v0) = find_next_stld cs (PI_id pinfo))
   (Heq: PI_f pinfo = fdef_intro fh (bs1 ++ block_intro l0 ps0 cs0 tmn0 :: bs2))
-  (Hwfpi: WF_PhiInfo pinfo) 
-  (HwfS : 
+  (Hwfpi: WF_PhiInfo pinfo)
+  (HwfS :
      wf_system 
-       [module_intro los nts 
-         (Ps1 ++ 
-          product_fdef 
+       [module_intro los nts
+         (Ps1 ++
+          product_fdef
             (fdef_intro fh (bs1 ++ block_intro l0 ps0 cs0 tmn0 :: bs2))
           :: Ps2)]),
   program_sim
@@ -1479,7 +1479,7 @@ Proof.
     destruct H as [cfg1 [IS1 [Hinit Hstsim]]].    
     assert (OpsemPP.wf_Config cfg1 /\ OpsemPP.wf_State cfg1 IS1) as Hwfst. 
       eapply s_genInitState__opsem_wf; eauto.
-    assert (exists maxb, 
+    assert (exists maxb,
               MemProps.wf_globals maxb (OpsemAux.Globals cfg1) /\ 0 <= maxb /\
               Promotability.wf_State maxb pinfo cfg1 IS1) as Hprom.
       eapply Promotability.s_genInitState__wf_globals_promotable; eauto.
@@ -1495,7 +1495,7 @@ Proof.
     destruct H as [cfg1 [IS1 [Hinit Hstsim]]].  
     assert (OpsemPP.wf_Config cfg1 /\ OpsemPP.wf_State cfg1 IS1) as Hwfst. 
       eapply s_genInitState__opsem_wf; eauto.
-    assert (exists maxb, 
+    assert (exists maxb,
               MemProps.wf_globals maxb (OpsemAux.Globals cfg1) /\ 0 <= maxb /\
               Promotability.wf_State maxb pinfo cfg1 IS1) as Hprom.
       eapply Promotability.s_genInitState__wf_globals_promotable; eauto.
@@ -1505,21 +1505,21 @@ Proof.
     econstructor; eauto.
 Qed.
 
-Lemma sas_wfS: forall (los : layouts) (nts : namedts) (fh : fheader) 
-  (dones : list id) (pinfo : PhiInfo) 
+Lemma sas_wfS: forall (los : layouts) (nts : namedts) (fh : fheader)
+  (dones : list id) (pinfo : PhiInfo)
   (bs1 : list block) (l0 : l) (ps0 : phinodes) (cs0 : cmds) (tmn0 : terminator)
   (bs2 : list block) (Ps1 : list product) (Ps2 : list product) (i0 : id)
-  (v : value) (cs : cmds) 
+  (v : value) (cs : cmds)
   (Hst1 : ret inl (i0, v, cs) = find_init_stld cs0 (PI_id pinfo) dones)
   (i1 : id) (v0 : value)
   (Hst2 : ret inr (i1, v0) = find_next_stld cs (PI_id pinfo))
   (Heq: PI_f pinfo = fdef_intro fh (bs1 ++ block_intro l0 ps0 cs0 tmn0 :: bs2))
-  (Hwfpi: WF_PhiInfo pinfo) 
-  (HwfS : 
+  (Hwfpi: WF_PhiInfo pinfo)
+  (HwfS :
      wf_system 
-       [module_intro los nts 
-         (Ps1 ++ 
-          product_fdef 
+       [module_intro los nts
+         (Ps1 ++
+          product_fdef
             (fdef_intro fh (bs1 ++ block_intro l0 ps0 cs0 tmn0 :: bs2))
           :: Ps2)]),
   wf_system 
@@ -1531,24 +1531,24 @@ Lemma sas_wfS: forall (los : layouts) (nts : namedts) (fh : fheader)
              (bs1 ++ block_intro l0 ps0 cs0 tmn0 :: bs2))) :: Ps2)].
 Admitted.
 
-Lemma sas_wfPI: forall (los : layouts) (nts : namedts) (fh : fheader) 
-  (dones : list id) (pinfo : PhiInfo) 
+Lemma sas_wfPI: forall (los : layouts) (nts : namedts) (fh : fheader)
+  (dones : list id) (pinfo : PhiInfo)
   (bs1 : list block) (l0 : l) (ps0 : phinodes) (cs0 : cmds) (tmn0 : terminator)
   (bs2 : list block) (Ps1 : list product) (Ps2 : list product) (i0 : id)
-  (v : value) (cs : cmds) 
+  (v : value) (cs : cmds)
   (Hst1 : ret inl (i0, v, cs) = find_init_stld cs0 (PI_id pinfo) dones)
   (i1 : id) (v0 : value)
   (Hst2 : ret inr (i1, v0) = find_next_stld cs (PI_id pinfo))
   (Heq: PI_f pinfo = fdef_intro fh (bs1 ++ block_intro l0 ps0 cs0 tmn0 :: bs2))
-  (Hwfpi: WF_PhiInfo pinfo) 
-  (HwfS : 
+  (Hwfpi: WF_PhiInfo pinfo)
+  (HwfS :
      wf_system 
-       [module_intro los nts 
-         (Ps1 ++ 
-          product_fdef 
+       [module_intro los nts
+         (Ps1 ++
+          product_fdef
             (fdef_intro fh (bs1 ++ block_intro l0 ps0 cs0 tmn0 :: bs2))
           :: Ps2)]),
-  WF_PhiInfo 
+  WF_PhiInfo
     (update_pinfo pinfo
       (fdef_intro fh
         (List.map (remove_block i0)

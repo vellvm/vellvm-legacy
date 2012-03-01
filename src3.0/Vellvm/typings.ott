@@ -36,15 +36,15 @@ formula :: 'formula_' ::=
       				{{ tex \neg [[formula]] }}
 				{{ coq (notT ([[formula]])) }}
   | ( formula )                 :: M :: brackets
-      	      			{{ tex ([[formula]]\!) }} 
+      	      			{{ tex ([[formula]]\!) }}
       				{{ coq ([[ formula ]]) }}
-  | exists u . formula          ::   :: exists 
+  | exists u . formula          ::   :: exists
       	       			{{ tex \exists [[u]]. [[formula]] }}
       				{{ coq ( exists [[ u ]] , [[ formula ]] ) }}
   | formula /\ formula'         :: M :: and
                			{{ tex [[formula]] \wedge [[formula']] }}
 	  			{{ coq [[formula]] /\ [[ formula' ]] }}
-  | foreach C . formula         :: M :: forall 
+  | foreach C . formula         :: M :: forall
               			{{ tex \forall [[C]]. [[ formula ]] }}
 	  			{{ coq ( forall [[C]], [[ formula ]] ) }}
   | formula implies formula'    :: M :: implies
@@ -55,7 +55,7 @@ formula :: 'formula_' ::=
 	  			{{ coq ([[formula]] <-> [[ formula' ]]) }}
   | formula \/ formula'         :: M :: or
                			{{ tex [[formula]] \vee [[formula']] }}
-	  			{{ coq [[formula]] \/ [[ formula' ]] }} 
+	  			{{ coq [[formula]] \/ [[ formula' ]] }}
   |  [multiline] formula        :: M :: multiline
                                 {{ com allow \LaTeX{} output in multiple lines }}
                                 {{ coq [[formula]] }}
@@ -77,9 +77,9 @@ formula :: 'formula_' ::=
 				{{ tex [[block1]] = [[block2]] }}
 				{{ coq [[block1]] = [[block2]] }}
   | int1			::   :: intone
-       	 			{{ coq [[typ_int Size.One]] }} 
+       	 			{{ coq [[typ_int Size.One]] }}
   | sz = 1			::   :: isOne
-       	 			{{ coq [[sz]] = Size.One }} 
+       	 			{{ coq [[sz]] = Size.One }}
   | typ = i32	        	::   :: thirtyTwoInt
        	 			{{ coq [[typ]] = typ_int Size.ThirtyTwo }}
   | sz = 32			::   :: isThirtyTwo
@@ -102,7 +102,7 @@ formula :: 'formula_' ::=
 				{{ tex [[id1]] = [[id2]] }}
 				{{ coq [[id1]] = [[id2]] }}
   | ls1 == ls2                  ::   :: eqLabels
-				{{ tex [[ls1]] = [[ls2]] }}       
+				{{ tex [[ls1]] = [[ls2]] }}
                                 {{ coq lset_eq [[ls1]] [[ls2]] }}
   | l notin ls			::   :: l_notin_ls
       	    			{{ tex [[l]] \not\in [[ls]] }}
@@ -129,22 +129,22 @@ formula :: 'formula_' ::=
     	       			{{ tex [[arg]] \in [[args]] }}
 				{{ coq In [[arg]] [[args]] }}
   | noret = yes  		:: M :: noret_alias
-    	     			{{ com noret alias }} 
+    	     			{{ com noret alias }}
 				{{ coq [[noret]] = true }}
   | typ = typ'  		:: M :: typ_alias
-    	     			{{ com typ alias }} 
+    	     			{{ com typ alias }}
 				{{ coq [[typ]] = [[typ']] }}
   | insn = insn'  		:: M :: insn_alias
-    	     			{{ com insn alias }} 
+    	     			{{ com insn alias }}
 				{{ coq [[insn]] = [[insn']] }}
   | module = module'          :: M :: module_alias
-    	     			{{ com module alias }} 
+    	     			{{ com module alias }}
 				{{ coq [[module]] = [[module']] }}
   | system = system'          :: M :: system_alias
-    	     			{{ com system alias }} 
+    	     			{{ com system alias }}
 				{{ coq [[system]] = [[system']] }}
   | opt_id <-> opt_id' 		:: M :: opt_id_alias
-    	     			{{ com opt_id alias }} 
+    	     			{{ com opt_id alias }}
 				{{ coq [[opt_id]] = [[opt_id']] }}
   | length </ constj // j /> = sz :: M :: length_of_consts_is_sz
                                 {{ coq length (unmake_list_const [[ </ constj // j /> ]]) = Size.to_nat[[sz]] }}
@@ -177,24 +177,24 @@ formula :: 'formula_' ::=
                                 {{ coq [[params]] = [[ </ paramj // j /> ]] }}
   | getNthTyp </ typj // j /> INT = opt_typ ::   :: getNthTyp
     	      	       	   	{{ com getNthTyp }}
-				{{ coq nth_error [[ </ typj // j /> ]] [[INT]] = [[opt_typ]] }}  
+				{{ coq nth_error [[ </ typj // j /> ]] [[INT]] = [[opt_typ]] }}
   | insn =id= insn'        :: M :: getInsnID_eq
     	      	      	      	{{ tex [[insn]] =id= [[insn']] }}
 				{{ coq getInsnID [[insn]] = getInsnID [[insn']] }}
   | insnsRemovesLast insns = insns'
     		     	        ::   :: insnsRemovesLast
-    		     		{{ coq 
+    		     		{{ coq
                                     removelast [[insns]] = [[insns']]
                                 }}
-  | blockDominates fdef block1 block2 
+  | blockDominates fdef block1 block2
     		       	        ::   :: blockDominates
-				{{ coq blockDominates [[fdef]] [[block1]] [[block2]] }} 			
-  | blockStrictDominates fdef block1 block2 
+				{{ coq blockDominates [[fdef]] [[block1]] [[block2]] }}
+  | blockStrictDominates fdef block1 block2
     		       	        ::   :: blockStrictDominates
-				{{ coq blockStrictDominates [[fdef]] [[block1]] [[block2]] }} 			
+				{{ coq blockStrictDominates [[fdef]] [[block1]] [[block2]] }}
   | insnDominates id1 insn2 block
     		       	        ::   :: insnDominates
-				{{ coq insnDominates [[id1]] [[insn2]] [[block]] }} 			
+				{{ coq insnDominates [[id1]] [[insn2]] [[block]] }}
   | genInsnUseDef module = usedef_insn		::   :: genInsnUseDef
     		  		{{ coq genInsnUseDef [[module]] = [[usedef_insn]] }}
   | genBlockUseDef_fdef fdef = usedef_block	::   :: genBlockUseDefFdef
@@ -274,7 +274,7 @@ formula :: 'formula_' ::=
   | getLabelViaIDFromPhiNode phinode id = opt_l :: :: getLabelViaIDFromPhiNode
                                 {{ coq getLabelViaIDFromPhiNode [[phinode]] [[id]] = [[opt_l]] }}
 %  | lookupBindingViaIDFromFdef fdef id = id_binding :: :: lookupBindingViaIDFromFdef
-%                                {{ coq lookupBindingViaIDFromFdef [[fdef]] [[id]] = [[id_binding]] }}  
+%                                {{ coq lookupBindingViaIDFromFdef [[fdef]] [[id]] = [[id_binding]] }}
 %  | lookupBindingViaIDFromSystem system id = id_binding :: :: lookupBindingViaIDFromSystem
 %                                {{ coq lookupBindingViaIDFromSystem [[system]] [[id]] = [[id_binding]] }}
   | getBindingTyp id_binding = opt_typ :: :: getBindingTyp
@@ -301,7 +301,7 @@ formula :: 'formula_' ::=
                                 {{ coq productInSystemModuleB [[product]] [[system]] [[module]] = true }}
   | uniqSystem system               :: :: uniqSystem
                                 {{ coq uniqSystem [[system]] }}
-  | typ =t= typ'                     :: :: typEq 
+  | typ =t= typ'                     :: :: typEq
                                 {{ coq typEqB [[typ]] [[typ']] = true }}
   | isCallInsn insn                 :: :: isCallInsn
                                 {{ coq isCallInsnB [[insn]] = true }}
@@ -360,7 +360,7 @@ formula_multiline <= formula_or
 defns
 Jwf_typ :: '' ::=
       defn
-      system |- typ :: :: wf_typ :: '' {{ com [[typ]] is well-formed }} by  
+      system |- typ :: :: wf_typ :: '' {{ com [[typ]] is well-formed }} by
 
       sz > 0
       -------------------- :: wf_typ_int
@@ -381,15 +381,15 @@ Jwf_typ :: '' ::=
       -------------------- :: wf_typ_metadate
       system |- metadata
 
-      isValidReturnTyp typ     
+      isValidReturnTyp typ
       system |- typ
       </ isValidArgumentTyp typj // j />
-      </ system |- typj // j /> 
+      </ system |- typj // j />
       -------------------------------------------------- :: wf_typ_function
-      system |- typ ( </ typj // j /> varg ) 
-     
+      system |- typ ( </ typj // j /> varg )
+
       </ isValidElementTyp typj // j />
-      </ system |- typj // j /> 
+      </ system |- typj // j />
       -------------------------------------------------- :: wf_typ_structure
       system |- { </ typj // j /> }
 
@@ -401,7 +401,7 @@ Jwf_typ :: '' ::=
       system |- typ
       isValidElementTyp typ
       ------------------- :: wf_typ_pointer
-      system |- typ * 
+      system |- typ *
 
       % |- typ
       % isValidElementTyp typ
@@ -415,7 +415,7 @@ Jwf_typ :: '' ::=
 defns
 Jfeasible_typ :: '' ::=
       defn
-      targetdata |- typ :: :: feasible_typ :: '' {{ com [[typ]] is well-formed }} by  
+      targetdata |- typ :: :: feasible_typ :: '' {{ com [[typ]] is well-formed }} by
 
       {{ LLVMtd.feasible_typ [[targetdata]] [[:user_syntax__typ:typ]] }}
       -------------------------------------------------------------------------------- :: feasible_typ_intro
@@ -423,7 +423,7 @@ Jfeasible_typ :: '' ::=
 
 defns
 Jwf_const :: '' ::=
-      defn 
+      defn
       system , targetdata |-c const : typ :: :: wf_const :: ''
       {{ com [[const]] has [[typ]] }} by
 
@@ -551,7 +551,7 @@ Jwf_const :: '' ::=
       % However, you can't cast pointers to anything but pointers.
       %typ1 = int sz1 /\ typ2 = int sz2 /\ sz1 = sz2
       % Bitcast requires types of same width.
-      %isPointerTyp typ1 iff isPointerTyp typ2 
+      %isPointerTyp typ1 iff isPointerTyp typ2
       % Disallow aggregates.
       %(not isAggregateTyp typ1) /\ (not isAggregateTyp typ2)
       ------------------------------------------------------- :: wf_const_bitcast
@@ -560,7 +560,7 @@ Jwf_const :: '' ::=
       % Check typs
       system , targetdata |-c const : typ*
       targetdata |- typ*
-      </ system , targetdata |-c constj : typ'' // j /> 
+      </ system , targetdata |-c constj : typ'' // j />
       typ'' = i32
       % Check indexs
       getConstGEPTyp </ constj // j /> (typ*) = typ'
@@ -569,7 +569,7 @@ Jwf_const :: '' ::=
       system , targetdata |-c getelementptr inbounds const </ constj // j /> : typ'
 
       % Check typs
-      system , targetdata |-c const0 : int sz 
+      system , targetdata |-c const0 : int sz
       sz = 1
       system , targetdata |-c const1 : typ
       system , targetdata |-c const2 : typ
@@ -583,18 +583,18 @@ Jwf_const :: '' ::=
       targetdata |- typ
       % types can only be int, vector or ptr
       Typ.isIntOrIntVector typ \/ isPointerTyp typ
-      targetdata |- int sz 
-      sz = 1     
+      targetdata |- int sz
+      sz = 1
       --------------------------------------------------------- :: wf_const_icmp
       system , targetdata |-c icmp cond const1 const2 : int sz
 
       {{ wf_fcond [[fcond]] = true }}
       % Check typs
       system , targetdata |-c const1 : floating_point
-      system , targetdata |-c const2 : floating_point 
+      system , targetdata |-c const2 : floating_point
       targetdata |- floating_point
-      targetdata |- int sz 
-      sz = 1     
+      targetdata |- int sz
+      sz = 1
       system |- floating_point
       ------------------------------------------------------------- :: wf_const_fcmp
       system , targetdata |-c fcmp fcond const1 const2 : int sz
@@ -676,8 +676,8 @@ Jwf_operand :: '' ::=
 defns
 Jwf_insn_base :: '' ::=
       defn
-      fdef , block |-i insn :: :: wf_insn_base :: '' 
-      {{ com [[insn]] is well-formed w.r.t [[block]] in [[fdef]] }} by  
+      fdef , block |-i insn :: :: wf_insn_base :: ''
+      {{ com [[insn]] is well-formed w.r.t [[block]] in [[fdef]] }} by
       % Verifier::visitInstruction
 
       % Instruction must be embedded in basic block!
@@ -694,9 +694,9 @@ Jwf_insn_base :: '' ::=
       typ =t= void \/ isFirstClassTyp typ
       % Check that the instruction doesn't produce metadata or metadata*. Calls
       % all already checked against the callee type.
-      (not typ =t= metadata) \/ isCallInsn insn 
+      (not typ =t= metadata) \/ isCallInsn insn
       % Instructions may not produce pointer to metadata.
-      (isPointerTyp typ) implies (getPointerEltTyp typ = typ' /\ (not typ' =t= metadata)) 
+      (isPointerTyp typ) implies (getPointerEltTyp typ = typ' /\ (not typ' =t= metadata))
       % Check that all uses of the instruction, if they are instructions
       % themselves, actually have parent basic blocks.  If the use is not an
       % instruction, it is an error!
@@ -719,7 +719,7 @@ Jwf_cast :: '' ::=
       system , (layouts namedts products) , fdef |- value1 : typ *
       system |- int sz
       (layouts namedts) |- int sz
-      % Check invariance for instructions 
+      % Check invariance for instructions
       fdef , block |-i id = ptrtoint ( typ * ) value1 to ( int sz )
       ------------------------------------------------------------------------------------------------------- :: wf_cast_ptrtoint
       system , (layouts namedts products) , fdef , block |-cast id = ptrtoint ( typ * ) value1 to ( int sz )	
@@ -729,8 +729,8 @@ Jwf_cast :: '' ::=
       system , (layouts namedts products) , fdef |- value1 : int sz
       system |- typ *
       (layouts namedts) |- typ *
-      % Check invariance for instructions 
-      fdef , block |-i id = inttoptr ( int sz ) value1 to ( typ * )	
+      % Check invariance for instructions
+      fdef , block |-i id = inttoptr ( int sz ) value1 to ( typ * )
       ------------------------------------------------------------------------------------------------------------ :: wf_cast_inttoptr
       system , (layouts namedts products) , fdef , block |-cast id = inttoptr ( int sz ) value1 to ( typ * )
 
@@ -743,12 +743,12 @@ Jwf_cast :: '' ::=
       % However, you can't cast pointers to anything but pointers.
       %Typ.getPrimitiveSizeInBits typ1 = sz1 /\ Typ.getPrimitiveSizeInBits typ2 = sz2 /\ sz1 = sz2
       % Bitcast requires types of same width.
-      %isPointerTyp typ1 iff isPointerTyp typ2 
+      %isPointerTyp typ1 iff isPointerTyp typ2
       % Disallow aggregates.
       %(not isAggregateTyp typ1) /\ (not isAggregateTyp typ2)
-      % Check invariance for instructions 
+      % Check invariance for instructions
       fdef , block |-i id = bitcast typ1* value1 to typ2*
-      system |- typ2*		
+      system |- typ2*
       --------------------------------------------------------------------------------------------- :: wf_cast_bitcast
       system , (layouts namedts products) , fdef , block |-cast id = bitcast typ1* value1 to typ2*		
 
@@ -759,12 +759,12 @@ Jwf_trunc :: '' ::=
       {{ com trunc [[insn]] is well-formed w.r.t [[block]] in [[fdef]] in [[module]] [[system]] }} by  
 
       % Check typs
-      system , (layouts namedts products) , fdef |- value1 : int sz1 
+      system , (layouts namedts products) , fdef |- value1 : int sz1
       system |- int sz2
       (layouts namedts) |- int sz2
       % bitwidth of dest typ is less then src typ
       sz2 < sz1
-      % Check invariance for instructions 
+      % Check invariance for instructions
       fdef , block |-i id = trunc_int ( int sz1 ) value1 to ( int sz2 )
       ----------------------------------------------------------------------------------------------- :: wf_trunc_int
       system , (layouts namedts products) , fdef , block |-trunc id = trunc_int ( int sz1 ) value1 to ( int sz2 )	
@@ -775,7 +775,7 @@ Jwf_trunc :: '' ::=
       (layouts namedts) |- floating_point2
       % bitwidth of dest typ is less then src typ
       floating_point2 < floating_point1
-      % Check invariance for instructions 
+      % Check invariance for instructions
       fdef , block |-i id = trunc_fp floating_point1 value1 to floating_point2
       system |- floating_point2
       ----------------------------------------------------------------------------------------------- :: wf_trunc_fp
@@ -788,34 +788,34 @@ Jwf_ext :: '' ::=
       {{ com ext [[insn]] is well-formed w.r.t [[block]] in [[fdef]] in [[module]] [[system]] }} by  
 
       % Check typs
-      system , (layouts namedts products) , fdef |- value1 : int sz1 
+      system , (layouts namedts products) , fdef |- value1 : int sz1
       system |- int sz2
       (layouts namedts) |- int sz2
       % bitwidth of src typ is less then dest typ
       sz1 < sz2
-      % Check invariance for instructions 
+      % Check invariance for instructions
       fdef , block |-i id = zext ( int sz1 ) value1 to ( int sz2 )
       ------------------------------------------------------------------------------------------------------- :: wf_ext_z
       system , (layouts namedts products) , fdef , block |-ext id = zext ( int sz1 ) value1 to ( int sz2 )	
 
       % Check typs
-      system , (layouts namedts products) , fdef |- value1 : int sz1 
+      system , (layouts namedts products) , fdef |- value1 : int sz1
       system |- int sz2
       (layouts namedts) |- int sz2
       % bitwidth of src typ is less then dest typ
       sz1 < sz2
-      % Check invariance for instructions 
+      % Check invariance for instructions
       fdef , block |-i id = sext ( int sz1 ) value1 to ( int sz2 )
       ------------------------------------------------------------------------------------------------------- :: wf_ext_s
       system , (layouts namedts products) , fdef , block |-ext id = sext ( int sz1 ) value1 to ( int sz2 )	
 
       % Check typs
-      system , (layouts namedts products) , fdef |- value1 : floating_point1 
+      system , (layouts namedts products) , fdef |- value1 : floating_point1
       system |- floating_point2
       (layouts namedts) |- floating_point2
       % bitwidth of src typ is less then dest typ
       floating_point1 < floating_point2
-      % Check invariance for instructions 
+      % Check invariance for instructions
       fdef , block |-i id = fpext floating_point1 value1 to floating_point2
       ------------------------------------------------------------------------------------------------------- :: wf_ext_fp
       system , (layouts namedts products) , fdef , block |-ext id = fpext floating_point1 value1 to floating_point2	
@@ -828,14 +828,14 @@ Jwf_insn :: '' ::=
 
       % Check typs
       system , module , fdef |- value : typ
-      % Exactly one return value and it matches the return type. Good. 
+      % Exactly one return value and it matches the return type. Good.
       Function.getDefReturnType fdef = typ
       % Check invariance for instructions
       fdef , block |-i id = ret typ value
       ------------------------------------------------------ :: wf_insn_return
       system , module , fdef , block |- id = ret typ value
 
-      % return instr that returns void in Function can be of void return type! 
+      % return instr that returns void in Function can be of void return type!
       Function.getDefReturnType fdef = void
       % Check invariance for instructions
       fdef , block |-i id = ret void
@@ -843,7 +843,7 @@ Jwf_insn :: '' ::=
       system , module , fdef , block |- id = ret void
 
       % Check typs
-      system , module , fdef |- value : int sz 
+      system , module , fdef |- value : int sz
       sz = 1
       % Check labels
       lookupBlockViaLabelFromFdef fdef l1 = block1
@@ -874,7 +874,7 @@ Jwf_insn :: '' ::=
       system , module , fdef |- value1 : int sz
       system , module , fdef |- value2 : int sz
       % Check that integer arithmetic operators are only used with integral operands.
-      % Integer arithmetic operators only work with integral types 
+      % Integer arithmetic operators only work with integral types
       % Typ.isIntOrIntVector typ
       % Check invariance for instructions
       fdef , block |-i id = bop (int sz) value1 value2
@@ -885,7 +885,7 @@ Jwf_insn :: '' ::=
       system , module , fdef |- value1 : floating_point
       system , module , fdef |- value2 : floating_point
       % Check that integer arithmetic operators are only used with integral operands.
-      % Integer arithmetic operators only work with integral types 
+      % Integer arithmetic operators only work with integral types
       % Typ.isIntOrIntVector typ
       % Check invariance for instructions
       fdef , block |-i id = fbop floating_point value1 value2
@@ -920,7 +920,7 @@ Jwf_insn :: '' ::=
       % Allocation instruction pointer not in the generic address space!
       %
       % Alloca array size must be i32
-      system , (layouts namedts products) , fdef |- value : int sz 
+      system , (layouts namedts products) , fdef |- value : int sz
       sz = 32
       %
       % Cannot allocate unsized type"
@@ -928,7 +928,7 @@ Jwf_insn :: '' ::=
       system |- typ
       {{ Constant.unifiable_typ [[(layouts namedts)]] [[:user_syntax__typ:typ]] }}
       % Check invariance for instructions
-      fdef , block |-i id = malloc typ value align 
+      fdef , block |-i id = malloc typ value align
       --------------------------------------------------------------------------------------------------- :: wf_insn_malloc
       system , (layouts namedts products) , fdef , block |- id = malloc typ value align 
 
@@ -942,7 +942,7 @@ Jwf_insn :: '' ::=
       % Allocation instruction pointer not in the generic address space!
       %
       % Alloca array size must be i32
-      system , (layouts namedts products) , fdef |- value : int sz 
+      system , (layouts namedts products) , fdef |- value : int sz
       sz = 32
       %
       % Cannot allocate unsized type"
@@ -951,7 +951,7 @@ Jwf_insn :: '' ::=
       {{ Constant.unifiable_typ [[(layouts namedts)]] [[:user_syntax__typ:typ]] }}
       {{ Constant.wf_zeroconst_typ [[:user_syntax__typ:typ]] }}
       % Check invariance for instructions
-      fdef , block |-i id = alloca typ value align 
+      fdef , block |-i id = alloca typ value align
       -------------------------------------------------------------------------------------------------- :: wf_insn_alloca
       system , (layouts namedts products) , fdef , block |- id = alloca typ value align 
 
@@ -1029,16 +1029,16 @@ Jwf_insn :: '' ::=
       % all already checked against the callee type.
       not typ =t= metadata
       % Instructions may not produce pointer to metadata.
-      (isPointerTyp typ) implies (getPointerEltTyp typ = typ' /\ (not typ' =t= metadata)) 
+      (isPointerTyp typ) implies (getPointerEltTyp typ = typ' /\ (not typ' =t= metadata))
       % Check invariance for instructions
       {{ insnInFdefBlockB [[:user_syntax__insn:id = phi typ </ [ valuej , lj ] // j />]] [[:user_syntax__fdef:fdef]] [[:user_syntax__block:block]] = true }}
       %
       {{ wf_phinode [[:user_syntax__fdef:fdef]] [[:user_syntax__block:block]] [[:user_syntax__phinode:id = phi typ </ [ valuej , lj ] // j />]] }}
       --------------------------------------------------------------------------------------------------------------------------------------------- :: wf_insn_phi
       system , module , fdef , block |- id = phi typ </ [ valuej , lj ] // j />
-			        
+
       % Check typs
-      system , module , fdef |- value0 : int sz 
+      system , module , fdef |- value0 : int sz
       sz = 1
       system , module , fdef |- value1 : typ
       system , module , fdef |- value2 : typ
@@ -1047,27 +1047,27 @@ Jwf_insn :: '' ::=
       ------------------------------------------------------------------------------------------------------- :: wf_insn_select
       system , module , fdef , block |- id = select value0 typ value1 value2
 
-      % LLVM checks that 
+      % LLVM checks that
       %   "Called function must be a pointer!"
       %   "Called function has to be a pointer to function type!"
       module = (layouts namedts products)
       system , module , fdef |- value0 : typ0*
-      % Verify that the correct number of arguments are being passed 
-      % Correct number of arguments passed to called function! 
+      % Verify that the correct number of arguments are being passed
+      % Correct number of arguments passed to called function!
       {{ FunctionType.getNumParams [[:user_syntax__typ:typ1]] = Some (length [[params]]) }}
-      % Verify that all arguments to the call match the function type... 
+      % Verify that all arguments to the call match the function type...
       params <-> </ (typj' attributesj' valuej'') // j />
       typ0 = typ1 ( </ typj' // j /> varg )
-      system |- typ1 
+      system |- typ1
       (layouts namedts) |- typ1
       </ system , module , fdef |- valuej'' : typj' // j />
       % instructions returning void cannot have a name
       typ1 =t= void implies noret = yes
-      % Will Verify call attributes later... 
+      % Will Verify call attributes later...
       %
-      % Verify that there's no metadata unless it's a direct call to an intrinsic. 
+      % Verify that there's no metadata unless it's a direct call to an intrinsic.
       %   Open soooon...
-      %  
+      %
       % Check invariance for instructions
       fdef , block |-i id = noret clattrs call typ0 value0 params
       ------------------------------------------------------------------------------------------------------------------- :: wf_insn_call
@@ -1086,7 +1086,7 @@ Jwf_cmds :: '' ::=
       system , module , fdef , block |- cmds
       ------------------------------------------------------------------------------ :: wf_cmds_cons
       system , module , fdef , block |- cmd , cmds
- 
+
 defns
 Jwf_phinodes :: '' ::=
       defn
@@ -1113,12 +1113,12 @@ Jwf_block :: '' ::=
       % This can be tested by checking whether the instruction before this is
       % either nonexistent (because this is begin()) or is a PHI node.  If not,
       % then there is some other instruction before a PHI.
-      % LLVM checks this only in visitPHINode, we pull it up to block checking. 
+      % LLVM checks this only in visitPHINode, we pull it up to block checking.
       % It is easier than the one in LLVM::visitPHINode.
       %
-      % Ensure that basic blocks have terminators! 
+      % Ensure that basic blocks have terminators!
       %
-      % We moved some assertions to visitPhiNode 
+      % We moved some assertions to visitPhiNode
       %
       % Check instruction
       system , module , fdef , (l phinodes cmds terminator) |- phinodes
@@ -1140,7 +1140,7 @@ Jwf_blocks :: '' ::=
       system , module , fdef |- blocks
       ------------------------------------------------------------------------ :: wf_blocks_cons
       system , module , fdef |- block , blocks
- 
+
 defns
 Jwf_fheader :: '' ::=
       defn
@@ -1153,27 +1153,27 @@ Jwf_fheader :: '' ::=
       </ targetdata |- typj // j />      
       % Functions may not have common linkage 
       %
-      % Formal arguments must match # of arguments for function type! 
+      % Formal arguments must match # of arguments for function type!
       %
       % Functions cannot return aggregate values
       isFirstClassTyp typ \/ typ =t= void
-      % "Invalid struct return type!" 
+      % "Invalid struct return type!"
       %
-      % Attributes after last parameter! 
+      % Attributes after last parameter!
       %
-      % Check function attributes. 
+      % Check function attributes.
       %
-      % Check that this function meets the restrictions on this calling convention. 
+      % Check that this function meets the restrictions on this calling convention.
       %
       % Function may not return metadata unless it's an intrinsic.
       %
-      % Check that the argument values match the function type for this function... 
-        % Argument value does not match function argument type! 
-        % Function arguments must have first-class types! 
-        % Function takes metadata but isn't an intrinsic 
+      % Check that the argument values match the function type for this function...
+        % Argument value does not match function argument type!
+        % Function arguments must have first-class types!
+        % Function takes metadata but isn't an intrinsic
       %
       % Verify that this function (which has a body) is not named "llvm.*".  It
-      % is not legal to define intrinsics. 
+      % is not legal to define intrinsics.
       ------------------------------------------------------------------------------------------ :: wf_fheader_intro
       system , targetdata |- fnattrs typ id ( args varg )
 
@@ -1190,7 +1190,7 @@ Jwf_fdec :: '' ::=
       system , (layouts namedts) |- fnattrs typ id ( args varg )
       {{ wf_deckind [[( fnattrs typ id ( args varg ) )]] [[deckind]] }}
       %
-      % Check invalid linkage type for function declaration 
+      % Check invalid linkage type for function declaration
       ------------------------------------------------------------------------------------------ :: wf_fdec_intro
       system , (layouts namedts products) |-f declare ( fnattrs typ id ( args varg ) ) deckind
 
@@ -1218,16 +1218,16 @@ defns
 Jwf_g :: '' ::=     % visitGlobalValue
       defn
       system , module |-g product :: :: wf_g :: ''
-      {{ com common cases that [[product]] is well-formed w.r.t. [[module]] [[system]]}} by 
+      {{ com common cases that [[product]] is well-formed w.r.t. [[module]] [[system]]}} by
 
       -------------------------------------------------- :: wf_g_intro
       system , module |-g product
-      
+
 defns
 Jwf_gvar :: '' ::=  % visitGlobalVariable
       defn
       system , module |-v gvar :: :: wf_gvar :: ''
-      {{ com [[gvar]] is well-formed w.r.t. [[module]] [[system]]}} by 
+      {{ com [[gvar]] is well-formed w.r.t. [[module]] [[system]]}} by
 
       system , targetdata |-c const : typ
       ----------------------------------------------------------------------------- :: wf_gv_intro
@@ -1237,7 +1237,7 @@ defns
 Jwf_prod :: '' ::=
       defn
       system , module |- product :: :: wf_prod :: ''
-      {{ com [[product]] is well-formed w.r.t. [[module]] [[system]]}} by 
+      {{ com [[product]] is well-formed w.r.t. [[module]] [[system]]}} by
 
       system , module |-g gvar
       system , module |-v gvar      
@@ -1261,7 +1261,7 @@ defns
 Jwf_prods :: '' ::=
       defn
       system , module |- products :: :: wf_prods :: ''
-      {{ com [[products]] is well-formed w.r.t. [[module]] [[system]]}} by 
+      {{ com [[products]] is well-formed w.r.t. [[module]] [[system]]}} by
 
       ------------------------------------------- :: wf_prods_nil
       system , module |- []
@@ -1314,7 +1314,7 @@ defns
 Jwf_modules :: '' ::=
       defn
       system |- modules :: :: wf_modules :: ''
-      {{ com [[modules]] is well-formed w.r.t. [[system]] }} by  
+      {{ com [[modules]] is well-formed w.r.t. [[system]] }} by
 
       ----------------------------- :: wf_modules_nil
       system |- []
@@ -1323,7 +1323,7 @@ Jwf_modules :: '' ::=
       system |- modules
       ----------------------------------------------- :: wf_modules_cons
       system |- module , modules
- 
+
 defns
 Jwf_system :: '' ::=
       defn
@@ -1334,7 +1334,7 @@ Jwf_system :: '' ::=
       uniqSystem modules
       ------------------------------ :: wf_system_intro
       |- modules
-     
+
 embed
 {{coq
 

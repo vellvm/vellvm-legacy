@@ -18,9 +18,9 @@ Ltac inv_mbind' :=
 
 Module MemProps.
 
-(* wf_global and wf_globals are copied from sb_ds_gv_inject.v 
+(* wf_global and wf_globals are copied from sb_ds_gv_inject.v
    We should move the invariant to memory model. *)
-Fixpoint wf_global (maxb:Values.block) (gv:GenericValue) 
+Fixpoint wf_global (maxb:Values.block) (gv:GenericValue)
   : Prop :=
 match gv with
 | nil => True
@@ -59,11 +59,11 @@ match gvs with
 end.
 
 Definition wf_lc M lc : Prop :=
-forall id0 gvs, 
+forall id0 gvs,
   lookupAL _ lc id0 = Some gvs -> valid_ptrs (Mem.nextblock M) gvs.
 
 Definition wf_Mem maxb (td:targetdata) (M:mem) : Prop :=
-(forall gptr ty al gvs, 
+(forall gptr ty al gvs,
   mload td M gptr ty al = Some gvs -> valid_ptrs (Mem.nextblock M) gvs) /\
 maxb < Mem.nextblock M.
 
@@ -83,7 +83,7 @@ Qed.
 
 Lemma null_valid_ptrs: forall mb, mb > 0 -> valid_ptrs mb null.
 Proof.
-  intros. unfold null, Mem.nullptr. simpl. 
+  intros. unfold null, Mem.nullptr. simpl.
   split; auto. omega.
 Qed.
 
@@ -130,7 +130,7 @@ Proof.
 Qed.
 
 Lemma no_alias_with_blk_app: forall g2 b g1,
-  no_alias_with_blk g1 b -> no_alias_with_blk g2 b -> 
+  no_alias_with_blk g1 b -> no_alias_with_blk g2 b ->
   no_alias_with_blk (g1++g2) b.
 Proof.
   induction g1; simpl; intros; auto.
@@ -161,7 +161,7 @@ Lemma no_alias_dec: forall gvs1 gvs2,
 Proof.
   induction gvs2 as [|[]]; destruct gvs1 as [|[]]; simpl; auto.
     destruct v; try solve [left; auto using no_alias_nil].
-    
+
     destruct v; simpl; auto.
     destruct v0; simpl; try
       destruct (@no_alias_with_blk_dec b gvs1); try solve [
@@ -173,8 +173,8 @@ Proof.
         tauto.
         destruct IHgvs2; tauto.
       tauto.
-Qed.      
-         
+Qed.
+
 Lemma no_alias_repeatGV: forall g1 g2 n,
   no_alias g1 g2 -> no_alias (repeatGV g1 n) g2.
 Proof.
@@ -188,7 +188,7 @@ Lemma valid_ptrs_app: forall bd g2 g1,
 Proof.
   induction g1 as [|[]]; simpl; intros; auto.
     destruct v; auto.
-    destruct H. 
+    destruct H.
     split; auto.
 Qed.
 
@@ -293,7 +293,7 @@ Proof.
   intros.
   unfold mcast in H.
   destruct cop; auto;
-    try 
+    try
     match goal with
     | H : mbitcast _ _ _ = ret _ |- _ => apply mbitcast_inv in H; subst; auto
     end.
@@ -312,7 +312,7 @@ Lemma mcast_preserves_no_alias: forall td cop t1 t2 gv gv' gv0,
   no_alias gv gv0 -> no_alias gv' gv0.
 Proof.
   intros.
-  apply mcast_inv in H. 
+  apply mcast_inv in H.
   destruct H as [H | H]; subst; eauto using undef_disjoint_with_ptr.
 Qed.
 
@@ -327,7 +327,7 @@ Lemma mcast_preserves_valid_ptrs: forall td cop t1 t2 gv gv' bd,
   mcast td cop t1 t2 gv = Some gv' -> valid_ptrs bd gv -> valid_ptrs bd gv'.
 Proof.
   intros.
-  apply mcast_inv in H. 
+  apply mcast_inv in H.
   destruct H as [H | H]; subst; eauto using undef_valid_ptrs.
 Qed.
 
@@ -340,14 +340,14 @@ Proof.
 Qed.
 
 Lemma GV2ptr_inv: forall g1 td v,
-  ret v = GV2ptr td (getPointerSize td) g1 -> 
+  ret v = GV2ptr td (getPointerSize td) g1 ->
   exists b, exists ofs, exists m, g1 = (Vptr b ofs, m)::nil /\ v = Vptr b ofs.
 Proof.
   intros.
   unfold GV2ptr in H.
   destruct g1 as [|[]]; tinv H.
   destruct v0; tinv H.
-  destruct g1 as [|[]]; inv H. 
+  destruct g1 as [|[]]; inv H.
   unfold ptr2GV. unfold val2GV. eauto.
 Qed.
 
@@ -379,7 +379,7 @@ Proof.
   destruct l1; tinv H.
   destruct (mgetoffset td (typ_array 0%nat t1) (z :: l1)) as [[]|]; inv H.
   eauto.
-Qed.  
+Qed.
 
 Lemma mgep_preserves_no_alias: forall td v t1 l1 v0 gv,
   no_alias (ptr2GV td v) gv ->
@@ -387,7 +387,7 @@ Lemma mgep_preserves_no_alias: forall td v t1 l1 v0 gv,
   no_alias (ptr2GV td v0) gv.
 Proof.
   intros.
-  apply mgep_inv in H0. destruct H0 as [b [ofs1 [ofs2 [J1 J2]]]]; subst. 
+  apply mgep_inv in H0. destruct H0 as [b [ofs1 [ofs2 [J1 J2]]]]; subst.
   unfold ptr2GV in *. unfold val2GV in *. eapply no_alias_prop1; eauto.
 Qed.
 
@@ -397,7 +397,7 @@ Lemma mgep_preserves_valid_ptrs: forall td v t1 l1 v0 bd,
   valid_ptrs bd (ptr2GV td v0).
 Proof.
   intros.
-  apply mgep_inv in H0. destruct H0 as [b [ofs1 [ofs2 [J1 J2]]]]; subst. 
+  apply mgep_inv in H0. destruct H0 as [b [ofs1 [ofs2 [J1 J2]]]]; subst.
   simpl in *. auto.
 Qed.
 
@@ -420,7 +420,7 @@ Proof.
   destruct v; eauto using undef__no_embedded_ptrs.
 Opaque Val.cmp Val.cmpu.
   destruct cop; inv H;
-    apply nonptr_no_embedded_ptrs; 
+    apply nonptr_no_embedded_ptrs;
       try solve [auto | apply cmp_isnt_ptr | apply cmpu_isnt_ptr].
 Transparent Val.cmp Val.cmpu.
 Qed.
@@ -470,8 +470,8 @@ Proof.
   destruct v; eauto using undef_disjoint_with_ptr.
   apply no_embedded_ptrs__no_alias.
   destruct fp; tinv H;
-    destruct fop; inv H; apply nonptr_no_embedded_ptrs; 
-      try solve [auto | apply Vfalse_isnt_ptr | apply Vtrue_isnt_ptr | 
+    destruct fop; inv H; apply nonptr_no_embedded_ptrs;
+      try solve [auto | apply Vfalse_isnt_ptr | apply Vtrue_isnt_ptr |
                  apply val_of_bool_isnt_ptr].
 Qed.
 
@@ -486,13 +486,13 @@ Proof.
   destruct v; eauto using undef_valid_ptrs.
   apply no_embedded_ptrs__valid_ptrs.
   destruct fp; tinv H;
-    destruct fop; inv H; apply nonptr_no_embedded_ptrs; 
-      try solve [auto | apply Vfalse_isnt_ptr | apply Vtrue_isnt_ptr | 
+    destruct fop; inv H; apply nonptr_no_embedded_ptrs;
+      try solve [auto | apply Vfalse_isnt_ptr | apply Vtrue_isnt_ptr |
                  apply val_of_bool_isnt_ptr].
 Qed.
 
 Lemma no_alias_with_blk_split: forall g2 b g1,
-  no_alias_with_blk (g1++g2) b -> 
+  no_alias_with_blk (g1++g2) b ->
   no_alias_with_blk g1 b /\ no_alias_with_blk g2 b.
 Proof.
   induction g1 as [|[]]; simpl; intros; auto.
@@ -560,12 +560,12 @@ Proof.
       inv_mbind'. inv H2.
       simpl_env in H.
       assert (valid_ptrs bd [(v,m)] /\ valid_ptrs bd g0) as J.
-        simpl. 
+        simpl.
         destruct v; auto.
           destruct H; auto.
       destruct J as [J1 J2].
       apply IHg0 in HeqR; auto.
-      destruct HeqR. 
+      destruct HeqR.
       split; auto.
         simpl_env.
         apply valid_ptrs_app; auto.
@@ -591,7 +591,7 @@ Proof.
 Qed.
 
 Lemma extractGenericValue_preserves_valid_ptrs: forall td g1 t1 g0 bd l0,
-  valid_ptrs bd g0 -> ret g1 = extractGenericValue td t1 g0 l0 -> 
+  valid_ptrs bd g0 -> ret g1 = extractGenericValue td t1 g0 l0 ->
   valid_ptrs bd g1.
 Proof.
   intros.
@@ -663,7 +663,7 @@ Proof.
   destruct v; eauto using undef__no_embedded_ptrs.
   destruct (GV2val td gv2); eauto using undef__no_embedded_ptrs.
   destruct v; eauto using undef__no_embedded_ptrs.
-  destruct (eq_nat_dec (wz + 1) (Size.to_nat sz0)); 
+  destruct (eq_nat_dec (wz + 1) (Size.to_nat sz0));
     eauto using undef__no_embedded_ptrs.
   destruct bop0; inv H;
     apply nonptr_no_embedded_ptrs;
@@ -743,7 +743,7 @@ Proof.
       intros. apply J2. apply in_or_app; auto.
 Qed.
 
-Lemma load_free': forall (blk : Values.block) (lo : Z) (hi : Z) 
+Lemma load_free': forall (blk : Values.block) (lo : Z) (hi : Z)
   (b : Values.block) (Mem : Memory.mem) (Mem' : Memory.mem)
   (Hfree : Mem.free Mem blk lo hi = ret Mem')
   (a : AST.memory_chunk) (ofs : Z) (v : val)
@@ -760,9 +760,9 @@ Proof.
   destruct (zle hi ofs); auto.
   contradict HeqR.
   eapply Mem.valid_access_free_2 in Hfree; eauto; try omega.
-Qed.      
+Qed.
 
-Lemma free_preserves_mload_aux_inv: forall blk lo hi b Mem Mem' 
+Lemma free_preserves_mload_aux_inv: forall blk lo hi b Mem Mem'
   (Hfree:Mem.free Mem blk lo hi = ret Mem') mc ofs gvsa,
   mload_aux Mem' mc b ofs = ret gvsa ->
   mload_aux Mem mc b ofs = ret gvsa.
@@ -790,9 +790,9 @@ Proof.
   eapply free_preserves_mload_aux_inv; eauto.
 Qed.
 
-Lemma nextblock_free: forall TD M gv M', 
+Lemma nextblock_free: forall TD M gv M',
   free TD M gv = ret M' -> Mem.nextblock M = Mem.nextblock M'.
-Proof.  
+Proof.
   intros.
   apply free_inv in H.
   destruct H as [blk' [ofs' [hi [lo [J4 [J5 [J6 J7]]]]]]].
@@ -846,7 +846,7 @@ Proof.
 Qed.
 
 Lemma free_preserves_wf_Mem : forall maxb TD M M' mptr0
-  (Hfree: free TD M mptr0 = ret M') 
+  (Hfree: free TD M mptr0 = ret M')
   (Hwf: wf_Mem maxb TD M),
   wf_Mem maxb TD M'.
 Proof.
@@ -854,18 +854,18 @@ Proof.
   unfold wf_Mem.
   erewrite <- nextblock_free; eauto.
   split; auto.
-    intros. 
+    intros.
     eapply free_preserves_mload_inv in H; eauto.
 Qed.
 
 Lemma free_preserves_wf_als : forall maxb TD M M' mptr0 als
-  (Hfree: free TD M mptr0 = ret M') 
+  (Hfree: free TD M mptr0 = ret M')
   (Hwf: wf_als maxb M als),
   wf_als maxb M' als.
 Proof.
   intros. destruct Hwf as [J1 J2].
   split; auto.
-    intros. 
+    intros.
     apply J2 in H.
     erewrite <- nextblock_free; eauto.
 Qed.
@@ -882,10 +882,10 @@ Proof.
     eapply free_preserves_mload_inv with (Mem':=m); eauto.
 Qed.
 
-Lemma nextblock_free_allocas: forall TD als M M', 
+Lemma nextblock_free_allocas: forall TD als M M',
   free_allocas TD M als = ret M' -> Mem.nextblock M = Mem.nextblock M'.
-Proof.  
-  induction als; simpl; intros.  
+Proof.
+  induction als; simpl; intros.
     inv H. auto.
 
     inv_mbind'. symmetry in HeqR.
@@ -924,7 +924,7 @@ Proof.
 Qed.
 
 Lemma free_allocas_preserves_wf_Mem: forall maxb td als Mem Mem',
-  wf_Mem maxb td Mem -> free_allocas td Mem als = ret Mem' -> 
+  wf_Mem maxb td Mem -> free_allocas td Mem als = ret Mem' ->
   wf_Mem maxb td Mem'.
 Proof.
   induction als; simpl; intros.
@@ -936,7 +936,7 @@ Proof.
 Qed.
 
 Lemma free_allocas_preserves_wf_als : forall maxb TD als als0 M M'
-  (Hfree: free_allocas TD M als0 = ret M') 
+  (Hfree: free_allocas TD M als0 = ret M')
   (Hwf: wf_als maxb M als),
   wf_als maxb M' als.
 Proof.
@@ -948,7 +948,7 @@ Proof.
     eapply free_preserves_wf_als in HeqR; eauto.
 Qed.
 
-Lemma BOP_preserves_no_alias: forall TD lc gl bop0 sz0 v1 v2 gvs3 gvsa, 
+Lemma BOP_preserves_no_alias: forall TD lc gl bop0 sz0 v1 v2 gvs3 gvsa,
   BOP TD lc gl bop0 sz0 v1 v2 = ret gvs3 ->
   no_alias gvs3 gvsa.
 Proof.
@@ -957,7 +957,7 @@ Proof.
   inv_mbind'. eapply mbop_preserves_no_alias in H0; eauto.
 Qed.
 
-Lemma BOP_preserves_no_embedded_ptrs: forall TD lc gl bop0 sz0 v1 v2 gvs3, 
+Lemma BOP_preserves_no_embedded_ptrs: forall TD lc gl bop0 sz0 v1 v2 gvs3,
   BOP TD lc gl bop0 sz0 v1 v2 = ret gvs3 -> no_embedded_ptrs gvs3.
 Proof.
   intros.
@@ -965,7 +965,7 @@ Proof.
   inv_mbind'. eapply mbop_preserves_no_embedded_ptrs in H0; eauto.
 Qed.
 
-Lemma FBOP_preserves_no_alias: forall TD lc gl fbop0 fp v1 v2 gvs3 gvsa, 
+Lemma FBOP_preserves_no_alias: forall TD lc gl fbop0 fp v1 v2 gvs3 gvsa,
   FBOP TD lc gl fbop0 fp v1 v2 = ret gvs3 ->
   no_alias gvs3 gvsa.
 Proof.
@@ -974,7 +974,7 @@ Proof.
   inv_mbind'. eapply mfbop_preserves_no_alias in H0; eauto.
 Qed.
 
-Lemma FBOP_preserves_no_embedded_ptrs: forall TD lc gl fbop0 fp v1 v2 gvs3, 
+Lemma FBOP_preserves_no_embedded_ptrs: forall TD lc gl fbop0 fp v1 v2 gvs3,
   FBOP TD lc gl fbop0 fp v1 v2 = ret gvs3 -> no_embedded_ptrs gvs3.
 Proof.
   intros.
@@ -1020,7 +1020,7 @@ Proof.
     apply Mem.load_valid_access in H.
     eapply Mem.store_valid_access_2 in Hst; eauto.
 Local Transparent Mem.load Mem.store.
-  unfold Mem.load in *. 
+  unfold Mem.load in *.
   destruct (Mem.valid_access_dec Mem m1 b2 ofs1 Readable); try congruence.
   exists (decode_val m1
            (Mem.getN (size_chunk_nat m1) ofs1 (Mem.mem_contents Mem b2))).
@@ -1029,7 +1029,7 @@ Local Transparent Mem.load Mem.store.
   split; auto.
   destruct (Mem.valid_access_dec Mem' m1 b2 ofs1 Readable); inv H.
   erewrite Mem.store_mem_contents; eauto.
-  unfold update. 
+  unfold update.
   destruct (zeq b2 b2); try congruence.
 Opaque Mem.load Mem.store.
 Qed.
@@ -1112,14 +1112,14 @@ Lemma store_preserves_load_inv_aux: forall b1 b2 v2 m2 Mem' Mem ofs2
   Mem.load m1 Mem' b1 ofs1 = ret v1 ->
   exists v1',
     Mem.load m1 Mem b1 ofs1 = ret v1' /\
-    ((v1 = v1' /\ 
+    ((v1 = v1' /\
      (b1 <> b2 \/ ofs1 + size_chunk m1 <= ofs2 \/ ofs2 + size_chunk m2 <= ofs1))
-    \/ 
+    \/
      ((forall b0 ofs0, v1 = Vptr b0 ofs0 -> v1 = v2 /\ m1 = m2) /\
       (b1 = b2 /\ ofs1 + size_chunk m1 > ofs2 /\ ofs2 + size_chunk m2 > ofs1))).
 Proof.
   intros.
-  destruct (zeq b1 b2); subst; 
+  destruct (zeq b1 b2); subst;
     try solve [erewrite <- Mem.load_store_other; eauto; exists v1; eauto].
   destruct (zle (ofs1 + size_chunk m1) ofs2);
     try solve [erewrite <- Mem.load_store_other; eauto; exists v1; split; auto].
@@ -1130,7 +1130,7 @@ Proof.
     apply Mem.valid_access_load.
     eapply Mem.store_valid_access_2 in Hst; eauto.
   destruct J as [v1' J].
-  exists v1'. 
+  exists v1'.
   split; auto.
     right.
     split; auto.
@@ -1141,7 +1141,7 @@ Proof.
         destruct H as [H | [H | H]]; try solve [congruence | omega].
 Qed.
 
-Lemma store_preserves_load_inv: forall b1 b2 v2 m2 Mem' Mem ofs2 
+Lemma store_preserves_load_inv: forall b1 b2 v2 m2 Mem' Mem ofs2
   (Hst: Mem.store m2 Mem b2 ofs2 v2 = ret Mem') m1 ofs1 v1,
   Mem.load m1 Mem' b1 ofs1 = ret v1 ->
   exists v1',
@@ -1153,18 +1153,18 @@ Proof.
   destruct Hst as [v1' [J1 [[J2 J3] | [J2 J3]]]]; subst; eauto.
 Qed.
 
-Lemma store_preserves_mload_aux_inv: forall b1 b2 v2 m2 Mem' Mem ofs2 
+Lemma store_preserves_mload_aux_inv: forall b1 b2 v2 m2 Mem' Mem ofs2
   (Hst: Mem.store m2 Mem b2 ofs2 v2 = ret Mem') mc ofs1 gvs0,
   mload_aux Mem' mc b1 ofs1 = ret gvs0 ->
   exists gvs2 : GenericValue,
      mload_aux Mem mc b1 ofs1 = ret gvs2 /\
      (forall v m,
-      In (v, m) gvs0 -> In (v, m) gvs2 \/ 
+      In (v, m) gvs0 -> In (v, m) gvs2 \/
       (forall b0 ofs0, v = Vptr b0 ofs0 -> v = v2 /\ m = m2)).
 Proof.
   induction mc; simpl; intros.
-    inv H. 
-    exists nil. 
+    inv H.
+    exists nil.
     split; auto.
       intros. inv H.
 
@@ -1179,9 +1179,9 @@ Proof.
     split; auto.
       intros. simpl.
       simpl in H. destruct H as [H | H]; subst.
-        inv H. 
+        inv H.
         destruct J4 as [J4 | J4]; subst; auto.
-       
+
         apply J2 in H.
         destruct H as [H | H]; auto.
 Qed.
@@ -1192,12 +1192,12 @@ Lemma mstore_aux_preserves_mload_aux_inv: forall mc b1 ofs1 gvs0 b2 gvs1 Mem' Me
   exists gvs2 : GenericValue,
      mload_aux Mem mc b1 ofs1 = ret gvs2 /\
      (forall v m,
-      In (v, m) gvs0 -> In (v, m) gvs2 \/ 
+      In (v, m) gvs0 -> In (v, m) gvs2 \/
       (forall b0 ofs0, v = Vptr b0 ofs0 -> In (v, m) gvs1)).
 Proof.
   induction gvs1 as [|[]]; simpl; intros.
     inv H0. exists gvs0. split; auto.
-  
+
     inv_mbind'.
     apply IHgvs1 in H2; auto.
     destruct H2 as [gvs2 [J1 J2]].
@@ -1208,9 +1208,9 @@ Proof.
     split; auto.
     intros.
     apply J2 in H0.
-    destruct H0 as [H0 | H0]; subst; 
+    destruct H0 as [H0 | H0]; subst;
       try solve [right; intros; subst; right; eauto].
-    apply J4 in H0. 
+    apply J4 in H0.
     destruct H0 as [H0 | H0]; subst; auto.
       right. intros. apply H0 in H1. destruct H1; subst; auto.
 Qed.
@@ -1218,13 +1218,13 @@ Qed.
 Ltac destruct_ldst :=
 match goal with
 | H1 : mload _ _ _ _ _ = ret _,
-  H2 : mstore _ _ _ _ _ _ = ret _ |- _ => 
+  H2 : mstore _ _ _ _ _ _ = ret _ |- _ =>
   apply store_inv in H2;
   destruct H2 as [b [ofs [J5 J4]]];
   apply mload_inv in H1;
   destruct H1 as [b1 [ofs1 [m1 [mc [J1 [J2 J3]]]]]]; subst;
   unfold mload; simpl; rewrite J2;
-  symmetry in J5; apply GV2ptr_inv in J5; 
+  symmetry in J5; apply GV2ptr_inv in J5;
   destruct J5 as [b2 [ofs2 [m2 [J6 J7]]]]; subst; inv J7
 end.
 
@@ -1233,14 +1233,14 @@ Lemma mstore_preserves_mload_inv: forall TD Mem' gptr ty al gvs0 Mem gvs1 t
   (H2 : mstore TD Mem mp2 t gvs1 align = Some Mem'),
   exists gvs2, mload TD Mem gptr ty al = ret gvs2 /\
      (forall v m,
-      In (v, m) gvs0 -> In (v, m) gvs2 \/ 
+      In (v, m) gvs0 -> In (v, m) gvs2 \/
       (forall b0 ofs0, v = Vptr b0 ofs0 -> In (v, m) gvs1)).
 Proof.
   intros. destruct_ldst.
   eapply mstore_aux_preserves_mload_aux_inv; eauto.
 Qed.
 
-Lemma store_preserves_mload: forall b1 b2 v2 m2 Mem' Mem ofs2 
+Lemma store_preserves_mload: forall b1 b2 v2 m2 Mem' Mem ofs2
   (Hneq: b1 <> b2) (Hst: Mem.store m2 Mem b2 ofs2 v2 = ret Mem') mc ofs1 gvs0,
   mload_aux Mem mc b1 ofs1 = ret gvs0 ->
   mload_aux Mem' mc b1 ofs1 = ret gvs0.
@@ -1250,7 +1250,7 @@ Proof.
     apply IHmc in HeqR0.
     rewrite HeqR0.
     erewrite Mem.load_store_other; eauto.
-    rewrite <- HeqR. auto. 
+    rewrite <- HeqR. auto.
 Qed.
 
 Lemma mstore_aux_preserves_mload_aux: forall mc b1 ofs1 gvs0 b2
@@ -1261,7 +1261,7 @@ Lemma mstore_aux_preserves_mload_aux: forall mc b1 ofs1 gvs0 b2
 Proof.
   induction gvs1 as [|[]]; simpl; intros.
     inv H0. auto.
-  
+
     inv_mbind'.
     apply IHgvs1 in H2; auto.
     eapply store_preserves_mload; eauto.
@@ -1278,7 +1278,7 @@ Proof.
   eapply mstore_aux_preserves_mload_aux; eauto.
 Qed.
 
-Lemma store_preserves_mload': forall b1 b2 v2 m2 Mem' Mem ofs2 
+Lemma store_preserves_mload': forall b1 b2 v2 m2 Mem' Mem ofs2
   (Hst: Mem.store m2 Mem b2 ofs2 v2 = ret Mem') mc ofs1 gvs0,
   mload_aux Mem mc b1 ofs1 = ret gvs0 ->
   exists gvs1, mload_aux Mem' mc b1 ofs1 = ret gvs1.
@@ -1308,7 +1308,7 @@ Lemma mstore_aux_preserves_mload_aux': forall mc b1 ofs1 b2
 Proof.
   induction gvs1 as [|[]]; simpl; intros.
     inv H0. eauto.
-  
+
     inv_mbind'.
     symmetry in HeqR.
     eapply store_preserves_mload' in HeqR; eauto.
@@ -1324,7 +1324,7 @@ Proof.
   intros. destruct_ldst.
   eapply mstore_aux_preserves_mload_aux'; eauto.
 Qed.
-   
+
 Lemma no_alias_with_blk__neq_blk: forall b1 b2 ofs2 m2 gvs,
   no_alias_with_blk gvs b1 -> In (Vptr b2 ofs2, m2) gvs -> b2 <> b1.
 Proof.
@@ -1372,10 +1372,10 @@ Proof.
       eapply no_alias_with_blk_overlap in H1; eauto.
 Qed.
 
-Lemma nextblock_mstore_aux: forall b gvs M ofs M', 
-  mstore_aux M gvs b ofs = ret M' -> 
+Lemma nextblock_mstore_aux: forall b gvs M ofs M',
+  mstore_aux M gvs b ofs = ret M' ->
   Mem.nextblock M = Mem.nextblock M'.
-Proof.  
+Proof.
   induction gvs as [|[]]; simpl; intros.
     inv H. auto.
 
@@ -1386,10 +1386,10 @@ Proof.
     rewrite <- HeqR. auto.
 Qed.
 
-Lemma nextblock_mstore: forall TD M gv1 M' mp2 t align0, 
-  mstore TD M mp2 t gv1 align0 = ret M' -> 
+Lemma nextblock_mstore: forall TD M gv1 M' mp2 t align0,
+  mstore TD M mp2 t gv1 align0 = ret M' ->
   Mem.nextblock M = Mem.nextblock M'.
-Proof.  
+Proof.
   intros.
   apply store_inv in H.
   destruct H as [blk' [ofs' [J1 J2]]].
@@ -1435,34 +1435,34 @@ Proof.
     destruct v; eauto.
     edestruct H1 as [J1 | J1]; eauto.
       split; eauto.
-      eapply in_valid_ptrs in J1; eauto.      
+      eapply in_valid_ptrs in J1; eauto.
 
       split; eauto.
       eapply in_valid_ptrs in H; eauto.
 Qed.
 
 Lemma mstore_preserves_wf_als : forall TD M mp2 t gv1 align M' maxb als
-  (Hst: mstore TD M mp2 t gv1 align = Some M') 
+  (Hst: mstore TD M mp2 t gv1 align = Some M')
   (Hwf: wf_als maxb M als),
   wf_als maxb M' als.
 Proof.
   intros. destruct Hwf as [J1 J2].
   split; auto.
-    intros. 
+    intros.
     apply J2 in H; auto.
     erewrite <- nextblock_mstore; eauto.
 Qed.
 
-Fixpoint mcs2uninits (mc:list AST.memory_chunk) : GenericValue := 
-match mc with 
-| nil => nil 
+Fixpoint mcs2uninits (mc:list AST.memory_chunk) : GenericValue :=
+match mc with
+| nil => nil
 | c::mc => (Vundef, c)::mcs2uninits mc
 end.
 
 Lemma alloc_preserves_mload_aux_inv': forall M M' mb lo hi b
-  (Hal : Mem.alloc M lo hi = (M', mb)) mc ofs gvs1 
+  (Hal : Mem.alloc M lo hi = (M', mb)) mc ofs gvs1
   (H : mload_aux M' mc b ofs = ret gvs1),
-  mload_aux M mc b ofs = ret gvs1 /\ b <> mb \/ 
+  mload_aux M mc b ofs = ret gvs1 /\ b <> mb \/
   gvs1 = mcs2uninits mc /\ b = mb.
 Proof.
   induction mc; simpl; intros.
@@ -1479,7 +1479,7 @@ Proof.
       destruct J as [J1 [J2 J3]].
       erewrite Mem.load_alloc_same' in HeqR; eauto.
       inv HeqR.
-      destruct HeqR0 as [[J4 J5] | [J4 J5]]; subst; 
+      destruct HeqR0 as [[J4 J5] | [J4 J5]]; subst;
         try solve [congruence | tauto].
 
       destruct HeqR0 as [[J4 J5] | [J4 J5]]; subst; try solve [congruence].
@@ -1496,15 +1496,15 @@ Lemma mcs2uninits_spec: forall v m mc, In (v, m) (mcs2uninits mc) -> v = Vundef.
 Proof.
   induction mc; simpl; intros.
     inv H.
-    
+
     destruct H as [H | H]; auto.
       inv H; auto.
 Qed.
 
 Lemma alloc_preserves_mload_aux_inv: forall M M' mb lo hi b
-  (Hal : Mem.alloc M lo hi = (M', mb)) mc ofs gvs1 
+  (Hal : Mem.alloc M lo hi = (M', mb)) mc ofs gvs1
   (H : mload_aux M' mc b ofs = ret gvs1),
-  mload_aux M mc b ofs = ret gvs1 /\ b <> mb \/ 
+  mload_aux M mc b ofs = ret gvs1 /\ b <> mb \/
   (forall v m, In (v, m) gvs1 -> v = Vundef) /\ b = mb.
 Proof.
   intros.
@@ -1517,7 +1517,7 @@ Proof.
     eapply mcs2uninits_spec; eauto.
 Qed.
 
-Ltac destruct_allocld := 
+Ltac destruct_allocld :=
 match goal with
 | Hal : malloc _ _ _ _ _ = ret _,
   H : mload _ _ _ _ _ = ret _ |- _ =>
@@ -1528,11 +1528,11 @@ match goal with
   unfold mload; simpl; rewrite J2
 end.
 
-Lemma malloc_preserves_mload_inv': forall TD M M' mb align0 gn tsz 
+Lemma malloc_preserves_mload_inv': forall TD M M' mb align0 gn tsz
   (Hal : malloc TD M tsz gn align0 = ret (M', mb))
-  gptr gvs1 ty al 
+  gptr gvs1 ty al
   (H : mload TD M' gptr ty al = ret gvs1),
-  mload TD M gptr ty al = ret gvs1 /\ no_alias_with_blk gptr mb \/ 
+  mload TD M gptr ty al = ret gvs1 /\ no_alias_with_blk gptr mb \/
   (forall mc, flatten_typ TD ty = ret mc ->
     gvs1 = mcs2uninits mc) /\ ~ no_alias_with_blk gptr mb.
 Proof.
@@ -1542,21 +1542,21 @@ Proof.
     right. split; try tauto. intros. inv H. auto.
 Qed.
 
-Lemma malloc_preserves_mload_inv: forall TD M M' mb align0 gn tsz 
+Lemma malloc_preserves_mload_inv: forall TD M M' mb align0 gn tsz
   (Hal : malloc TD M tsz gn align0 = ret (M', mb))
-  gptr gvs1 ty al 
+  gptr gvs1 ty al
   (H : mload TD M' gptr ty al = ret gvs1),
-  mload TD M gptr ty al = ret gvs1 /\ no_alias_with_blk gptr mb \/ 
+  mload TD M gptr ty al = ret gvs1 /\ no_alias_with_blk gptr mb \/
   (forall v m, In (v, m) gvs1 -> v = Vundef) /\ ~ no_alias_with_blk gptr mb.
 Proof.
-  intros. 
+  intros.
   destruct_allocld.
   eapply alloc_preserves_mload_aux_inv in J3; eauto.
   destruct J3 as [[J3 J7]|[J3 J7]]; subst; auto.
     right. split; auto. intros [J7 J8]; auto.
 Qed.
 
-Lemma mload__flatten_typ: forall TD M gptr ty al gvs,  
+Lemma mload__flatten_typ: forall TD M gptr ty al gvs,
   mload TD M gptr ty al = ret gvs -> exists mc, flatten_typ TD ty = ret mc.
 Proof.
   intros.
@@ -1571,7 +1571,7 @@ Proof.
 Qed.
 
 Lemma undefs_disjoint_with_ptr: forall gvs2 gvs1
-  (Hc2g : forall v m, In (v, m) gvs1 -> v = Vundef), 
+  (Hc2g : forall v m, In (v, m) gvs1 -> v = Vundef),
   no_alias gvs1 gvs2.
 Proof.
   induction gvs1; simpl; intros.
@@ -1585,21 +1585,21 @@ Proof.
     apply no_alias_undef.
 Qed.
 
-Lemma nextblock_malloc: forall TD M tsz gn M' align0 mb, 
-  malloc TD M tsz gn align0 = ret (M', mb) -> 
+Lemma nextblock_malloc: forall TD M tsz gn M' align0 mb,
+  malloc TD M tsz gn align0 = ret (M', mb) ->
   Mem.nextblock M + 1 = Mem.nextblock M'.
-Proof.  
+Proof.
   intros.
   apply malloc_inv in H.
   destruct H as [n [J1 [J2 J3]]].
-  apply Mem.nextblock_alloc in J3. 
+  apply Mem.nextblock_alloc in J3.
   rewrite J3. omega.
 Qed.
 
-Lemma malloc_result: forall TD M tsz gn M' align0 mb, 
-  malloc TD M tsz gn align0 = ret (M', mb) -> 
+Lemma malloc_result: forall TD M tsz gn M' align0 mb,
+  malloc TD M tsz gn align0 = ret (M', mb) ->
   mb = Mem.nextblock M.
-Proof.  
+Proof.
   intros.
   apply malloc_inv in H.
   destruct H as [n [J1 [J2 J3]]].
@@ -1607,7 +1607,7 @@ Proof.
 Qed.
 
 Lemma alloc_preserves_mload_aux: forall M M' mb lo hi b
-  (Hal : Mem.alloc M lo hi = (M', mb)) mc ofs gvs1 
+  (Hal : Mem.alloc M lo hi = (M', mb)) mc ofs gvs1
   (H : mload_aux M mc b ofs = ret gvs1),
   mload_aux M' mc b ofs = ret gvs1.
 Proof.
@@ -1620,9 +1620,9 @@ Proof.
     rewrite HeqR0. auto.
 Qed.
 
-Lemma malloc_preserves_mload: forall TD M M' mb align0 gn tsz 
+Lemma malloc_preserves_mload: forall TD M M' mb align0 gn tsz
   (Hal : malloc TD M tsz gn align0 = ret (M', mb))
-  gptr gvs1 ty al 
+  gptr gvs1 ty al
   (H : mload TD M gptr ty al = ret gvs1),
   mload TD M' gptr ty al = ret gvs1.
 Proof.
@@ -1631,12 +1631,12 @@ Proof.
 Qed.
 
 Lemma undefs_valid_ptrs: forall bd gvs1
-  (Hc2g : forall v m, In (v, m) gvs1 -> v = Vundef), 
+  (Hc2g : forall v m, In (v, m) gvs1 -> v = Vundef),
   valid_ptrs bd gvs1.
 Proof.
   induction gvs1 as [|[]]; simpl; intros; auto.
     destruct v; eauto.
-    assert ((Vptr b i0, m) = (Vptr b i0, m) \/ In (Vptr b i0, m) gvs1) as J. 
+    assert ((Vptr b i0, m) = (Vptr b i0, m) \/ In (Vptr b i0, m) gvs1) as J.
       auto.
     apply Hc2g in J. congruence.
 Qed.
@@ -1648,7 +1648,7 @@ Lemma malloc_preserves_wf_Mem : forall maxb TD M tsz gn align0 M' mb
 Proof.
   intros. destruct Hwf as [J1 J2].
   assert (Mem.nextblock M + 1 = Mem.nextblock M') as EQ.
-    eapply nextblock_malloc; eauto. 
+    eapply nextblock_malloc; eauto.
   split.
     rewrite <- EQ.
     intros.
@@ -1656,12 +1656,12 @@ Proof.
     destruct H as [[G _]| [G _]]; subst; eauto.
       apply J1 in G. eapply valid_ptrs__trans; eauto. omega.
       eapply undefs_valid_ptrs; eauto.
- 
+
     omega.
 Qed.
 
 Lemma malloc_preserves_wf_als : forall maxb TD M M' tsz gn align0 mb als
-  (Hmalloc: malloc TD M tsz gn align0 = ret (M', mb)) 
+  (Hmalloc: malloc TD M tsz gn align0 = ret (M', mb))
   (Hbd: maxb < Mem.nextblock M) (Hwf: wf_als maxb M als),
   wf_als maxb M' (mb::als).
 Proof.
@@ -1671,9 +1671,9 @@ Proof.
       intro J. apply J2 in J.
       apply malloc_result in Hmalloc. subst. omega.
 
-    intros. 
-    simpl in H. 
-    erewrite <- nextblock_malloc; eauto. 
+    intros.
+    simpl in H.
+    erewrite <- nextblock_malloc; eauto.
     apply malloc_result in Hmalloc. subst.
     destruct H as [H | H]; subst.
       omega.
@@ -1682,7 +1682,7 @@ Qed.
 
 Lemma ptr_no_alias__no_alias_with_blk : forall b i0 m gvs2,
   no_alias [(Vptr b i0, m)] gvs2 -> no_alias_with_blk gvs2 b.
-Proof. 
+Proof.
   induction gvs2 as [|[]]; simpl; intros; auto.
     destruct v; auto.
     destruct H. destruct H.
@@ -1723,15 +1723,15 @@ Proof.
          apply uninits_valid_ptrs.
 Qed.
 
-Definition zeroconst2GV_disjoint_with_runtime_ptr_prop (t:typ) := 
+Definition zeroconst2GV_disjoint_with_runtime_ptr_prop (t:typ) :=
   forall maxb gl g td mb ofs m
   (Hwfg: wf_globals maxb gl)
   (Hc2g : ret g = zeroconst2GV td t)
   (Hle: maxb < mb),
   no_alias g [(Vptr mb ofs, m)] /\ valid_ptrs (maxb + 1) g.
 
-Definition zeroconsts2GV_disjoint_with_runtime_ptr_prop (lt:list_typ) := 
-  forall maxb gl g td mb ofs m 
+Definition zeroconsts2GV_disjoint_with_runtime_ptr_prop (lt:list_typ) :=
+  forall maxb gl g td mb ofs m
   (Hwfg: wf_globals maxb gl)
   (Hc2g : ret g = zeroconsts2GV td lt)
   (Hle: maxb < mb),
@@ -1741,9 +1741,9 @@ Lemma zeroconst2GV_disjoint_with_runtime_ptr_mutrec :
   (forall t, zeroconst2GV_disjoint_with_runtime_ptr_prop t) *
   (forall lt, zeroconsts2GV_disjoint_with_runtime_ptr_prop lt).
 Proof.
-  apply typ_mutrec; 
-    unfold zeroconst2GV_disjoint_with_runtime_ptr_prop, 
-           zeroconsts2GV_disjoint_with_runtime_ptr_prop; 
+  apply typ_mutrec;
+    unfold zeroconst2GV_disjoint_with_runtime_ptr_prop,
+           zeroconsts2GV_disjoint_with_runtime_ptr_prop;
     intros; simpl in Hc2g; try solve [inv Hc2g; simpl; auto].
 
   destruct f; inv Hc2g; simpl; auto.
@@ -1752,10 +1752,10 @@ Proof.
     try solve [inv Hc2g; auto using uninits_valid_ptrs__disjoint_with_ptr].
     inv_mbind'.
     eapply H with (ofs:=ofs)(m:=m) in HeqR; eauto.
-    assert (no_alias 
+    assert (no_alias
       (g0 ++ uninits (Size.to_nat s0 - sizeGenericValue g0))
       [(Vptr mb ofs, m)] /\
-      valid_ptrs (maxb + 1) 
+      valid_ptrs (maxb + 1)
         (g0 ++ uninits (Size.to_nat s0 - sizeGenericValue g0))) as J.
       destruct HeqR.
       split.
@@ -1775,7 +1775,7 @@ Proof.
   eapply H with (ofs:=ofs)(m:=m) in HeqR; eauto.
   destruct g0; inv H1; auto.
 
-  inv Hc2g. 
+  inv Hc2g.
   split.
     apply null_disjoint_with_ptr. destruct Hwfg. omega.
     apply null_valid_ptrs. destruct Hwfg. omega.
@@ -1818,18 +1818,18 @@ Proof.
 
     destruct v; auto.
       destruct Hwfg as [J1 J2].
-      apply_clear IHg0 in J2. 
+      apply_clear IHg0 in J2.
       simpl in *. destruct J2. destruct H.
       split.
-        split; auto.    
-        split; auto. 
+        split; auto.
+        split; auto.
           intro. subst. contradict J1. omega.
 
         split; auto. omega.
 Qed.
 
 Lemma wf_globals_disjoint_with_runtime_ptr: forall maxb ofs m
-  (g0 : GenericValue) i0  mb (Hle : maxb < mb) gl (Hwfg : wf_globals maxb gl) 
+  (g0 : GenericValue) i0  mb (Hle : maxb < mb) gl (Hwfg : wf_globals maxb gl)
   (HeqR : ret g0 = lookupAL GenericValue gl i0),
   no_alias g0 [(Vptr mb ofs, m)] /\ valid_ptrs (maxb + 1) g0.
 Proof.
@@ -1853,7 +1853,7 @@ Proof.
     assert (H1:=@H b i0). congruence.
 Qed.
 
-Definition const2GV_disjoint_with_runtime_ptr_prop (c:const) := 
+Definition const2GV_disjoint_with_runtime_ptr_prop (c:const) :=
   forall maxb gl g td mb t0 ofs m
   (Hwfg: wf_globals maxb gl)
   (Hc2g : ret (g, t0) = _const2GV td gl c)
@@ -1864,11 +1864,11 @@ Definition list_const2GV_disjoint_with_runtime_ptr_prop (lc:list_const) :=
   forall maxb gl td mb t ofs m
   (Hwfg: wf_globals maxb gl)
   (Hle: maxb < mb),
-  (forall gv, 
+  (forall gv,
     _list_const_arr2GV td gl t lc = Some gv ->
     no_alias gv [(Vptr mb ofs, m)] /\ valid_ptrs (maxb+1) gv
   ) /\
-  (forall gv t0, 
+  (forall gv t0,
     _list_const_struct2GV td gl lc = Some (gv,t0) ->
     no_alias gv [(Vptr mb ofs, m)] /\ valid_ptrs (maxb+1) gv
   ).
@@ -1877,8 +1877,8 @@ Lemma const2GV_disjoint_with_runtime_ptr_mutrec :
   (forall c, const2GV_disjoint_with_runtime_ptr_prop c) *
   (forall lc, list_const2GV_disjoint_with_runtime_ptr_prop lc).
 Proof.
-  apply const_mutrec; 
-    unfold const2GV_disjoint_with_runtime_ptr_prop, 
+  apply const_mutrec;
+    unfold const2GV_disjoint_with_runtime_ptr_prop,
            list_const2GV_disjoint_with_runtime_ptr_prop;
     intros; try simpl in Hc2g; eauto; inv_mbind'.
 Case "zero".
@@ -1891,16 +1891,16 @@ Case "undef".
   eapply undef_valid_ptrs__disjoint_with_ptr with (t1:=t)(td:=td); auto.
 Case "null".
   inv Hc2g.
-  destruct Hwfg. 
+  destruct Hwfg.
   split.
     apply null_disjoint_with_ptr. omega.
     apply null_valid_ptrs. omega.
-Case "arr". 
+Case "arr".
   eapply H with (td:=td)(gl:=gl)(t:=t) in Hle; eauto.
   destruct Hle.
-  destruct (length (unmake_list_const l0)); inv H1; 
+  destruct (length (unmake_list_const l0)); inv H1;
     eauto using uninits_valid_ptrs__disjoint_with_ptr.
-Case "struct". 
+Case "struct".
   eapply H with (td:=(l2, n))(gl:=gl)(ofs:=ofs)(m:=m)(t:=t0) in Hle; eauto.
   destruct Hle. 
   destruct (typ_eq_list_typ n t l1); tinv H1.
@@ -1908,21 +1908,21 @@ Case "struct".
     eauto using uninits_valid_ptrs__disjoint_with_ptr.
 Case "gid".
   eapply wf_globals_disjoint_with_runtime_ptr; eauto.
-Case "trunc". 
-  split. 
+Case "trunc".
+  split.
     eapply mtrunc_preserves_no_alias; eauto.
     eapply mtrunc_preserves_valid_ptrs; eauto.
-Case "ext". 
-  split. 
+Case "ext".
+  split.
     eapply mext_preserves_no_alias; eauto.
     eapply mext_preserves_valid_ptrs; eauto.
-Case "cast". 
+Case "cast".
   eapply H in HeqR; eauto. destruct HeqR.
   split.
     eapply mcast_preserves_no_alias; eauto.
     eapply mcast_preserves_valid_ptrs; eauto.
-Case "gep". 
-  destruct t; tinv H2. 
+Case "gep".
+  destruct t; tinv H2.
   inv_mbind'.
   remember (GV2ptr td (getPointerSize td) g0) as R1.
   remember (gundef td t1) as R3.
@@ -1930,7 +1930,7 @@ Case "gep".
     destruct (intConsts2Nats td l0).
       remember (mgep td t v l1) as R2.
       destruct R2.
-        inv H3. 
+        inv H3.
         eapply H with (ofs:=ofs)(m:=m) in HeqR; eauto.
         destruct HeqR as [J1 J2].
         split.
@@ -1945,34 +1945,34 @@ Case "gep".
     destruct R3; inv H3; eauto using undef_valid_ptrs__disjoint_with_ptr.
 
 Case "select". destruct (isGVZero td g0); inv H3; eauto.
-Case "icmp". 
+Case "icmp".
   split.
     eapply micmp_preserves_no_alias; eauto.
     eapply micmp_preserves_valid_ptrs; eauto.
-Case "fcmp". 
+Case "fcmp".
   destruct t; tinv H2. inv_mbind'.
   split.
     eapply mfcmp_preserves_no_alias; eauto.
     eapply mfcmp_preserves_valid_ptrs; eauto.
-Case "extractValue". 
+Case "extractValue".
   eapply H in HeqR; eauto.
   destruct HeqR.
   split.
     eapply extractGenericValue_preserves_no_alias in HeqR1; eauto.
     eapply extractGenericValue_preserves_valid_ptrs in HeqR1; eauto.
-Case "insertValue". 
+Case "insertValue".
   eapply H with (ofs:=ofs)(m:=m) in HeqR; eauto. clear H.
   eapply H0 with (ofs:=ofs)(m:=m) in HeqR0; eauto. clear H0 H1.
   destruct HeqR. destruct HeqR0.
   split.
     eapply insertGenericValue_preserves_no_alias in HeqR1; eauto.
     eapply insertGenericValue_preserves_valid_ptrs in HeqR1; eauto.
-Case "bop". 
+Case "bop".
   destruct t; tinv H2. inv_mbind'.
   split.
     eapply mbop_preserves_no_alias; eauto.
     eapply mbop_preserves_valid_ptrs; eauto.
-Case "fbop". 
+Case "fbop".
   destruct t; tinv H2. inv_mbind'.
   split.
     eapply mfbop_preserves_no_alias; eauto.
@@ -1983,8 +1983,8 @@ Case "nil".
     intros gv t0 J. inv J. simpl. auto using no_alias_nil.
 Case "cons".
 Local Opaque no_alias.
-  split; intros; simpl in *; inv_mbind'. 
-    destruct p. 
+  split; intros; simpl in *; inv_mbind'.
+    destruct p.
     destruct (typ_dec t t0); tinv H2.
     inv_mbind'.
     eapply H with (ofs:=ofs)(m:=m) in HeqR0; eauto.
@@ -1999,8 +1999,8 @@ Local Opaque no_alias.
         apply valid_ptrs_app; auto.
         apply uninits_valid_ptrs.
 
-    destruct p. inv_mbind'. 
-    destruct p. inv_mbind'. 
+    destruct p. inv_mbind'.
+    destruct p. inv_mbind'.
     eapply H with (ofs:=ofs)(m:=m) in HeqR0; eauto.
     eapply H0 with (ofs:=ofs)(m:=m)(t:=t1) in Hwfg; eauto.
     destruct Hwfg. symmetry in HeqR. apply H2 in HeqR.
@@ -2054,17 +2054,17 @@ Global Opaque cgv2gvs.
 Qed.
 
 Lemma malloc_preserves_wf_lc_in_tail: forall TD M M' tsz gn align0 mb lc
-  (Hmalloc: malloc TD M tsz gn align0 = ret (M', mb)) 
+  (Hmalloc: malloc TD M tsz gn align0 = ret (M', mb))
   (Hwf: wf_lc M lc), wf_lc M' lc.
 Proof.
   unfold wf_lc.
   intros. apply Hwf in H.
   eapply valid_ptrs__trans; eauto.
-  erewrite <- nextblock_malloc with (M':=M'); eauto. 
+  erewrite <- nextblock_malloc with (M':=M'); eauto.
   omega.
 Qed.
 
-Lemma store_preserves_mload_inv': forall b1 b2 v2 m2 Mem' Mem ofs2 
+Lemma store_preserves_mload_inv': forall b1 b2 v2 m2 Mem' Mem ofs2
   (Hneq: b1 <> b2) (Hst: Mem.store m2 Mem b2 ofs2 v2 = ret Mem') mc ofs1 gvs0,
   mload_aux Mem' mc b1 ofs1 = ret gvs0 ->
   mload_aux Mem mc b1 ofs1 = ret gvs0.
@@ -2074,7 +2074,7 @@ Proof.
     apply IHmc in HeqR0.
     rewrite HeqR0.
     erewrite <- Mem.load_store_other; eauto.
-    rewrite <- HeqR. auto. 
+    rewrite <- HeqR. auto.
 Qed.
 
 Lemma mstore_aux_preserves_mload_inv_aux': forall mc b1 ofs1 gvs0 b2
@@ -2085,7 +2085,7 @@ Lemma mstore_aux_preserves_mload_inv_aux': forall mc b1 ofs1 gvs0 b2
 Proof.
   induction gvs1 as [|[]]; simpl; intros.
     inv H0. auto.
-  
+
     inv_mbind'.
     apply IHgvs1 in H2; auto.
     eapply store_preserves_mload_inv'; eauto.

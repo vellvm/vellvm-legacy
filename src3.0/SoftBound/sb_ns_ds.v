@@ -11,10 +11,10 @@ Section Sec.
 
 Context {DGVs NDGVs : GenericValues}.
 
-Hypothesis element_of__gv2gvs : forall gv t, 
+Hypothesis element_of__gv2gvs : forall gv t,
   element_of (DGVs.(gv2gvs) gv t) (NDGVs.(gv2gvs) gv t).
 
-Hypothesis element_of__cgv2gvs : forall gv t, 
+Hypothesis element_of__cgv2gvs : forall gv t,
   element_of (DGVs.(cgv2gvs) gv t) (NDGVs.(cgv2gvs) gv t).
 
 Hypothesis element_of__lift_op1 : forall f xs1 xs2 t ys1,
@@ -26,19 +26,19 @@ Hypothesis element_of__lift_op2 : forall f xs1 ys1 xs2 ys2 t zxs1,
   element_of xs1 xs2 ->
   element_of ys1 ys2 ->
   DGVs.(lift_op2) f xs1 ys1 t = Some zxs1 ->
-  exists zxs2, NDGVs.(lift_op2) f xs2 ys2 t = Some zxs2 /\ 
+  exists zxs2, NDGVs.(lift_op2) f xs2 ys2 t = Some zxs2 /\
     element_of zxs1 zxs2.
 
-Definition instantiate_EC (ec1 : @ExecutionContext DGVs) 
+Definition instantiate_EC (ec1 : @ExecutionContext DGVs)
   (ec2 : @ExecutionContext NDGVs) : Prop :=
 match ec1, ec2 with
-| mkEC f1 b1 cs1 tmn1 lc1 rm1 als1, 
+| mkEC f1 b1 cs1 tmn1 lc1 rm1 als1,
   mkEC f2 b2 cs2 tmn2 lc2 rm2 als2 =>
     f1 = f2 /\ b1 = b2 /\ cs1 = cs2 /\ tmn1 = tmn2 /\
     instantiate_locals lc1 lc2 /\ rm1 = rm2 /\ als1 = als2
 end.
 
-Fixpoint instantiate_ECs (ecs1 : @ECStack DGVs) (ecs2 : @ECStack NDGVs) 
+Fixpoint instantiate_ECs (ecs1 : @ECStack DGVs) (ecs2 : @ECStack NDGVs)
   : Prop :=
 match ecs1, ecs2 with
 | nil, nil => True
@@ -46,7 +46,7 @@ match ecs1, ecs2 with
 | _, _ => False
 end.
 
-Definition instantiate_State (st1 : @State DGVs) (st2 : @State NDGVs) 
+Definition instantiate_State (st1 : @State DGVs) (st2 : @State NDGVs)
   : Prop :=
 match st1, st2 with
 | mkState ecs1 M1 MM1, mkState ecs2 M2 MM2 =>
@@ -55,15 +55,15 @@ end.
 
 Ltac tinv H := try solve [inversion H].
 
-Lemma instantiate_locals__returnResult : forall TD rt Result lc1 lc2 gl gv1 rm 
+Lemma instantiate_locals__returnResult : forall TD rt Result lc1 lc2 gl gv1 rm
     md,
-  @instantiate_locals DGVs NDGVs lc1 lc2 -> 
+  @instantiate_locals DGVs NDGVs lc1 lc2 ->
   returnResult TD rt Result lc1 rm gl = Some (gv1, md) ->
-  exists gv2, 
+  exists gv2,
     returnResult TD rt Result lc2 rm gl = Some (gv2, md) /\
     element_of gv1 gv2.
 Proof.
-  intros.  
+  intros.
   unfold returnResult in H0.
   remember (getOperandValue TD Result lc1 gl) as R.
   destruct R; tinv H0.
@@ -71,7 +71,7 @@ Proof.
   eapply instantiate_locals__getOperandValue in HeqR; eauto.
   destruct HeqR as [gvs2 [J1 J2]].
   unfold returnResult.
-  rewrite J1. 
+  rewrite J1.
   destruct (isPointerTypB rt); inv H0; eauto.
   destruct (get_reg_metadata TD gl rm Result); inv H2.
   exists gvs2. split; auto using @instantiate_locals__updateAddAL.
@@ -79,14 +79,14 @@ Qed.
 
 Lemma instantiate_locals__returnUpdateLocals : forall TD lc1 lc2 lc1' lc2' Result
     gl lc1'' c rm rm' rt rm'',
-  instantiate_locals lc1 lc2 -> 
-  instantiate_locals lc1' lc2' -> 
-  @returnUpdateLocals DGVs TD c rt Result lc1 lc1' rm rm' gl = 
+  instantiate_locals lc1 lc2 ->
+  instantiate_locals lc1' lc2' ->
+  @returnUpdateLocals DGVs TD c rt Result lc1 lc1' rm rm' gl =
     ret (lc1'',rm'') ->
-  exists lc2'', 
-    @returnUpdateLocals NDGVs TD c rt Result lc2 lc2' rm rm' gl = 
+  exists lc2'',
+    @returnUpdateLocals NDGVs TD c rt Result lc2 lc2' rm rm' gl =
       ret (lc2'',rm'') /\
-    instantiate_locals lc1'' lc2''. 
+    instantiate_locals lc1'' lc2''.
 Proof.
   intros.
   unfold returnUpdateLocals in H1.
@@ -96,7 +96,7 @@ Proof.
   eapply instantiate_locals__returnResult in HeqR; eauto.
   destruct HeqR as [gvs2 [J1 J2]].
   unfold returnUpdateLocals.
-  rewrite J1. 
+  rewrite J1.
   destruct_cmd c; tinv H1.
   destruct n; inv H1; eauto.
   destruct t; tinv H3.
@@ -105,44 +105,44 @@ Proof.
   symmetry in HeqR.
   eapply element_of__lift_op1 in HeqR; eauto.
   destruct HeqR as [ys2 [J3 J4]]. rewrite J3.
-  exists (updateAddAL _ lc2' i0 ys2).   
-  destruct (isPointerTypB t); inv H2; 
+  exists (updateAddAL _ lc2' i0 ys2).
+  destruct (isPointerTypB t); inv H2;
     eauto using @instantiate_locals__updateAddAL.
 Qed.
 
-Fixpoint instantiate_localms (lcm1 : list (id*DGVs.(GVsT)*option metadata)) 
+Fixpoint instantiate_localms (lcm1 : list (id*DGVs.(GVsT)*option metadata))
   (lcm2 : list (id*NDGVs.(GVsT)*option metadata)) : Prop :=
 match lcm1, lcm2 with
 | nil, nil => True
-| (id1,gv1,omd1)::lcm1', (id2,gvs2,omd2)::lcm2' => 
-    id1=id2 /\ element_of gv1 gvs2 /\ instantiate_localms lcm1' lcm2' /\ 
+| (id1,gv1,omd1)::lcm1', (id2,gvs2,omd2)::lcm2' =>
+    id1=id2 /\ element_of gv1 gvs2 /\ instantiate_localms lcm1' lcm2' /\
     omd1 = omd2
 | _, _ => False
 end.
 
 Lemma instantiate_locals__getIncomingValuesForBlockFromPHINodes : forall TD b
-    gl lc1 lc2 (Hlc : instantiate_locals lc1 lc2) ps re1 rm,  
+    gl lc1 lc2 (Hlc : instantiate_locals lc1 lc2) ps re1 rm,
   getIncomingValuesForBlockFromPHINodes TD ps b gl lc1 rm = Some re1 ->
   exists re2,
     getIncomingValuesForBlockFromPHINodes TD ps b gl lc2 rm = Some re2 /\
     instantiate_localms re1 re2.
 Proof.
-  induction ps; simpl; intros.  
+  induction ps; simpl; intros.
     inv H. exists nil. simpl. auto.
 
     destruct a as [i0 t l0].
-    destruct (getValueViaBlockFromValuels l0 b); tinv H. 
+    destruct (getValueViaBlockFromValuels l0 b); tinv H.
     remember (getOperandValue TD v lc1 gl) as R.
     destruct R; tinv H.
-    symmetry in HeqR.  
+    symmetry in HeqR.
     eapply instantiate_locals__getOperandValue in HeqR; eauto.
     destruct HeqR as [gvs2 [J1 J2]].
     remember (getIncomingValuesForBlockFromPHINodes TD ps b gl lc1 rm) as R1.
-    destruct R1; inv H. 
+    destruct R1; inv H.
     rewrite J1.
     symmetry in HeqR1.
     destruct (@IHps l1 rm) as [re2 [J3 J4]]; auto.
-    rewrite J3. 
+    rewrite J3.
     destruct (isPointerTypB t); inv H1.
       destruct (get_reg_metadata TD gl rm v); inv H0.
       exists ((i0, gvs2, ret m) :: re2). simpl. auto.
@@ -150,12 +150,12 @@ Proof.
       exists ((i0, gvs2, merror) :: re2). simpl. auto.
 Qed.
 
-Lemma instantiate_locals__updateValuesForNewBlock : forall lc1 lc2 re1 re2 rm 
+Lemma instantiate_locals__updateValuesForNewBlock : forall lc1 lc2 re1 re2 rm
     lc1' rm',
   instantiate_locals lc1 lc2 ->
   instantiate_localms re1 re2 ->
   updateValuesForNewBlock re1 lc1 rm = (lc1', rm') ->
-  exists lc2', 
+  exists lc2',
     updateValuesForNewBlock re2 lc2 rm = (lc2', rm') /\
     instantiate_locals lc1' lc2'.
 Proof.
@@ -172,24 +172,24 @@ Proof.
     destruct HeqR as [lc2' [J3 J4]].
     rewrite J3.
     destruct o0; inv H1.
-      exists (updateAddAL _ lc2' i1 g0). 
+      exists (updateAddAL _ lc2' i1 g0).
       split; auto using @instantiate_locals__updateAddAL.
 
-      exists (updateAddAL _ lc2' i1 g0). 
+      exists (updateAddAL _ lc2' i1 g0).
       split; auto using @instantiate_locals__updateAddAL.
 Qed.
 
 Lemma instantiate_locals__switchToNewBasicBlock : forall TD lc1 lc2 gl lc1' b b'
     rm rm',
-  instantiate_locals lc1 lc2 -> 
+  instantiate_locals lc1 lc2 ->
   @switchToNewBasicBlock DGVs TD b' b gl lc1 rm = Some (lc1',rm') ->
-  exists lc2', @switchToNewBasicBlock NDGVs TD b' b gl lc2 rm = Some (lc2',rm') 
-    /\ instantiate_locals lc1' lc2'. 
+  exists lc2', @switchToNewBasicBlock NDGVs TD b' b gl lc2 rm = Some (lc2',rm')
+    /\ instantiate_locals lc1' lc2'.
 Proof.
   intros.
   unfold switchToNewBasicBlock in H0.
   unfold switchToNewBasicBlock.
-  remember (getIncomingValuesForBlockFromPHINodes TD 
+  remember (getIncomingValuesForBlockFromPHINodes TD
     (getPHINodesFromBlock b') b gl lc1 rm) as R.
   destruct R; inv H0.
   symmetry in HeqR.
@@ -201,11 +201,11 @@ Proof.
   rewrite J3. eauto.
 Qed.
 
-Fixpoint instantiate_gvms (l1 : list (DGVs.(GVsT) * option metadata)) 
+Fixpoint instantiate_gvms (l1 : list (DGVs.(GVsT) * option metadata))
   (l2 : list (NDGVs.(GVsT) * option metadata)) :=
 match l1, l2 with
 | nil, nil => True
-| (gv1,omd1)::l1', (gvs2,omd2)::l2' => 
+| (gv1,omd1)::l1', (gvs2,omd2)::l2' =>
     element_of gv1 gvs2 /\ omd1 = omd2 /\ instantiate_gvms l1' l2'
 | _, _ => False
 end.
@@ -219,7 +219,7 @@ Proof.
   induction lp; simpl; intros.
     inv H. exists nil. simpl. auto.
 
-    destruct a as [[t attr] v]. 
+    destruct a as [[t attr] v].
     remember (getOperandValue TD v lc1 gl) as R1.
     destruct R1; tinv H.
     remember (params2GVs TD lp lc1 gl rm) as R2.
@@ -229,7 +229,7 @@ Proof.
     eapply instantiate_locals__getOperandValue in HeqR1; eauto.
     destruct HeqR1 as [gvs2 [H3 H4]].
     destruct (@IHlp l0) as [gvsss2 [J1 J2]]; auto.
-    rewrite H3. rewrite J1. 
+    rewrite H3. rewrite J1.
     destruct (isPointerTypB t); inv H1.
       exists ((gvs2, get_reg_metadata TD gl rm v) :: gvsss2). simpl. split; auto.
       exists ((gvs2, merror) :: gvsss2). simpl. split; auto.
@@ -239,7 +239,7 @@ Lemma instantiate_locals__initializeFrameValues : forall TD lc1 lc2 rm
   (H2: instantiate_locals lc1 lc2) la gvs1 gvs2 lc1' rm'
   (H1 : instantiate_gvms gvs1 gvs2),
   _initializeFrameValues TD la gvs1 lc1 rm = Some (lc1', rm') ->
-  exists lc2', 
+  exists lc2',
     _initializeFrameValues TD la gvs2 lc2 rm = Some (lc2', rm') /\
     instantiate_locals lc1' lc2'.
 Proof.
@@ -264,7 +264,7 @@ Proof.
 
       destruct p.
       simpl in H1.
-      destruct gvs2; tinv H1. 
+      destruct gvs2; tinv H1.
       destruct p. destruct H1 as [J1 [J2 J3]]; subst.
       remember (_initializeFrameValues TD la gvs1 lc1 rm) as R.
       destruct R as [[lc1'' rm'']|]; tinv H.
@@ -283,12 +283,12 @@ Proof.
         eauto using @instantiate_locals__updateAddAL.
       exists (updateAddAL _ lc2' i0 ys2).
       destruct o0; inv H0; eauto using @instantiate_locals__updateAddAL.
-Qed.           
+Qed.
 
 Lemma instantiate_locals__initLocals : forall TD gvs1 gvss2 lc1 rm
   (H : instantiate_gvms gvs1 gvss2) la,
   initLocals TD la gvs1 = Some (lc1, rm) ->
-  exists lc2, 
+  exists lc2,
     initLocals TD la gvss2 = Some (lc2, rm) /\ instantiate_locals lc1 lc2.
 Proof.
   unfold initLocals.
@@ -299,11 +299,11 @@ Qed.
 
 Lemma instantiate_locals__exCallUpdateLocals : forall TD lc1 lc2 lc1' rid oResult
     nr ft rm rm',
-  instantiate_locals lc1 lc2 -> 
+  instantiate_locals lc1 lc2 ->
   @exCallUpdateLocals DGVs TD ft nr rid oResult lc1 rm = ret (lc1',rm') ->
-  exists lc2', 
+  exists lc2',
     @exCallUpdateLocals NDGVs TD ft nr rid oResult lc2 rm = ret (lc2',rm') /\
-    instantiate_locals lc1' lc2'. 
+    instantiate_locals lc1' lc2'.
 Proof.
   intros.
   unfold exCallUpdateLocals in H0.
@@ -314,17 +314,17 @@ Proof.
   remember (fit_gv TD ft g) as R.
   destruct R; tinv H2.
   exists (updateAddAL _ lc2 rid (gv2gvs _ g0 ft)).
-  destruct (isPointerTypB ft); inv H2; eauto using 
+  destruct (isPointerTypB ft); inv H2; eauto using
     @instantiate_locals__updateAddAL.
 Qed.
 
-Lemma returnUpdateLocals_sim : forall TD' c' rt Result lc1' lc2' rm rm' gl' 
-    lc'' rm'', 
-  @returnUpdateLocals NDGVs TD' c' rt Result lc1' lc2' rm rm' gl' = 
+Lemma returnUpdateLocals_sim : forall TD' c' rt Result lc1' lc2' rm rm' gl'
+    lc'' rm'',
+  @returnUpdateLocals NDGVs TD' c' rt Result lc1' lc2' rm rm' gl' =
     ret (lc'', rm'') ->
   Opsem.returnUpdateLocals TD' c' Result lc1' lc2' gl' = ret lc''.
 Proof.
-  intros.  
+  intros.
   unfold returnUpdateLocals, returnResult in H.
   unfold Opsem.returnUpdateLocals.
   destruct (getOperandValue TD' Result lc1' gl'); tinv H.
@@ -332,24 +332,24 @@ Proof.
     destruct (get_reg_metadata TD' gl' rm Result) as [[md ?]|]; tinv H.
     destruct_cmd c'; tinv H.
     destruct n; try solve [inversion H; auto].
-    unfold prop_reg_metadata in H.  
+    unfold prop_reg_metadata in H.
     destruct t; try solve [inversion H; auto].
     destruct (lift_op1 _ (fit_gv TD' t) g t); tinv H.
     destruct t; try solve [inversion H; auto].
 
     destruct_cmd c'; try solve [inversion H; auto].
     destruct n; try solve [inversion H; auto].
-    unfold prop_reg_metadata in H.  
+    unfold prop_reg_metadata in H.
     destruct t; try solve [inversion H; auto].
     destruct (lift_op1 _ (fit_gv TD' t) g t); tinv H.
     destruct t; try solve [inversion H; auto].
 Qed.
 
-Lemma exCallUpdateLocals_sim : forall TD ft noret rid oResult lc rm lc'' rm'', 
+Lemma exCallUpdateLocals_sim : forall TD ft noret rid oResult lc rm lc'' rm'',
   @exCallUpdateLocals NDGVs TD ft noret rid oResult lc rm = ret (lc'', rm'') ->
   Opsem.exCallUpdateLocals TD ft noret rid oResult lc = ret lc''.
 Proof.
-  intros.  
+  intros.
   unfold exCallUpdateLocals in H.
   unfold Opsem.exCallUpdateLocals.
   destruct noret0; try solve [inversion H; auto].
@@ -363,8 +363,8 @@ Lemma getIncomingValuesForBlockFromPHINodes_sim : forall ps TD' b1' gl' lc1'
     rm l1,
   @getIncomingValuesForBlockFromPHINodes NDGVs TD' ps b1' gl' lc1' rm =
     Some l1 ->
-  exists l2, exists l3, 
-    Opsem.getIncomingValuesForBlockFromPHINodes TD' ps b1' gl' lc1' = Some l2 
+  exists l2, exists l3,
+    Opsem.getIncomingValuesForBlockFromPHINodes TD' ps b1' gl' lc1' = Some l2
     /\ split l1 = (l2, l3).
 Proof.
   induction ps; simpl; intros.
@@ -388,7 +388,7 @@ Proof.
         destruct (lookupAL _ rm i0); inversion H1; subst.
           simpl. rewrite J2. eauto.
 
-        destruct (get_reg_metadata TD' gl' rm (value_const c)) as [md|]; 
+        destruct (get_reg_metadata TD' gl' rm (value_const c)) as [md|];
           inv H1; eauto.
         simpl.
         rewrite J2. eauto.
@@ -402,12 +402,12 @@ Lemma updateValuesForNewBlock_sim : forall l0 lc1' rm lc' rm' l2 l3,
   split l0 = (l2, l3) ->
   Opsem.updateValuesForNewBlock l2 lc1' = lc'.
 Proof.
-  induction l0; simpl; intros.   
+  induction l0; simpl; intros.
     inversion H0; subst.
     inversion H; subst.
     simpl; auto.
 
-    destruct a. destruct p. 
+    destruct a. destruct p.
     remember (updateValuesForNewBlock l0 lc1' rm) as R.
     destruct R.
     remember (split l0) as R1.
@@ -446,17 +446,17 @@ Lemma params2GVs_sim : forall lp gl' TD' lc1' rm ogvs,
     split ogvs = (gvs, l2).
 Proof.
   induction lp; simpl; intros.
-    inversion H; subst. 
+    inversion H; subst.
     exists nil. exists nil. auto.
 
-    destruct a as [[t attr] v]. 
+    destruct a as [[t attr] v].
     destruct (getOperandValue TD' v lc1' gl'); tinv H.
     remember (params2GVs TD' lp lc1' gl' rm) as R.
     destruct R; try solve [inversion H].
     symmetry in HeqR.
-    apply IHlp in HeqR; auto.      
+    apply IHlp in HeqR; auto.
     destruct HeqR as [gvs [l2 [J1 J2]]].
-    destruct (isPointerTypB t); inversion H; subst; 
+    destruct (isPointerTypB t); inversion H; subst;
       simpl; rewrite J2; rewrite J1; eauto.
 Qed.
 
@@ -476,7 +476,7 @@ Proof.
       destruct (gundef TD t); tinv H.
       unfold prop_reg_metadata in H.
       symmetry in HeqR.
-      eapply IHla in HeqR; eauto. 
+      eapply IHla in HeqR; eauto.
       rewrite HeqR.
       destruct (isPointerTypB t); inversion H; subst; auto.
 
@@ -548,7 +548,7 @@ Qed.
 Ltac ctx_simpl_aux :=
   match goal with
   | [H1 : lookupExFdecViaPtr ?Ps ?fs ?gv = _,
-     H2 : lookupExFdecViaPtr ?Ps ?fs ?gv = _ |- _ ] => 
+     H2 : lookupExFdecViaPtr ?Ps ?fs ?gv = _ |- _ ] =>
     rewrite H1 in H2; inv H2
   | [H1 : Opsem.getOperandValue ?TD ?vp ?lc ?gl = _,
      H2 : Opsem.getOperandValue ?TD ?vp ?lc ?gl = _ |- _ ] =>
@@ -568,13 +568,13 @@ Ltac ctx_simpl_aux :=
   | [H : updateAddAL _ ?lc ?id0 _ = updateAddAL _ ?lc ?id0 _ |- _ ] => rewrite H
   end.
 
-Ltac ctx_simpl := repeat ctx_simpl_aux. 
+Ltac ctx_simpl := repeat ctx_simpl_aux.
 
 Ltac instantiate_dsInsn_tac :=
-  split;  
+  split;
     (eauto ||
     (eapply sInsn_intro; try solve [
-       simpl; eauto using returnUpdateLocals_sim, 
+       simpl; eauto using returnUpdateLocals_sim,
                           switchToNewBasicBlock_sim,
                           exCallUpdateLocals_sim] ) ||
     (repeat (split; auto using @instantiate_locals__updateAddAL,
@@ -586,7 +586,7 @@ Ltac simpl_nd_sbds :=
   | [Hsim : instantiate_State {| ECS := _::_::_ |} ?st2 |- _ ] =>
      destruct st2 as [ECs' M' MM'];
      destruct Hsim as [Hsim [eq6 eq7]]; subst;
-     destruct ECs' as [|[f1' b1' cs1' tmn1' lc1' rm1' als1'] ECs']; 
+     destruct ECs' as [|[f1' b1' cs1' tmn1' lc1' rm1' als1'] ECs'];
        try solve [inversion Hsim];
      simpl in Hsim; destruct Hsim as [Hsim1 Hsim2];
      destruct ECs' as [|[f2' b2' cs2' tmn2' lc2' rm2' als2'] ECs'];
@@ -597,7 +597,7 @@ Ltac simpl_nd_sbds :=
   | [Hsim : instantiate_State {| ECS := _::_|} ?st2 |- _ ] =>
      destruct st2 as [ECs' M' MM'];
      destruct Hsim as [Hsim [eq6 eq7]]; subst;
-     destruct ECs' as [|[f1' b1' cs1' tmn1' lc1' rm1' als1'] ECs']; 
+     destruct ECs' as [|[f1' b1' cs1' tmn1' lc1' rm1' als1'] ECs'];
        try solve [inversion Hsim];
      simpl in Hsim; destruct Hsim as [Hsim1 Hsim2];
      destruct Hsim1 as [J1 [J2 [J3 [J4 [Hsim1 [J6 J7]]]]]]; subst
@@ -613,22 +613,22 @@ Lemma instantiate_dsInsn : forall cfg st1 st2 st1' tr,
   @sInsn DGVs cfg st1 st1' tr ->
   (exists st2', @sInsn NDGVs cfg st2 st2' tr /\ instantiate_State st1' st2').
 Proof.
-  intros cfg st1 st2 st1' tr Hsim Hop.  
+  intros cfg st1 st2 st1' tr Hsim Hop.
   inv Hop.
   rename H into Hop.
   rename H0 into Hllvmop.
   (sb_sInsn_cases (induction Hop) Case); inv Hllvmop.
-Case "sReturn". simpl_nd_sbds. 
+Case "sReturn". simpl_nd_sbds.
   eapply instantiate_locals__returnUpdateLocals in H; eauto.
   destruct H as [lc2'' [H1 H2]].
   exists (mkState
     ((mkEC f2' b2' cs' tmn2' lc2'' rm'' als2')::ECs') Mem' MM').
   instantiate_dsInsn_tac.
-Case "sReturnVoid". simpl_nd_sbds. 
-  exists (mkState 
+Case "sReturnVoid". simpl_nd_sbds.
+  exists (mkState
     ((mkEC f2' b2' cs' tmn2' lc2' rm2' als2')::ECs') Mem' MM').
   instantiate_dsInsn_tac.
-Case "sBranch". simpl_nd_sbds. 
+Case "sBranch". simpl_nd_sbds.
   eapply instantiate_locals__switchToNewBasicBlock in H; eauto.
   match goal with
   | H23: getOperandValue _ _ _ _ = _ |- _ =>
@@ -636,18 +636,18 @@ Case "sBranch". simpl_nd_sbds.
     destruct H23 as [gvs2 [J1 J2]]
   end.
   destruct H as [lc2' [J3 J4]].
-  exists (mkState 
-    ((mkEC f1' (block_intro l' ps' cs' tmn') cs' tmn' lc2' rm' als1')
-      ::ECs') M' MM').
-  instantiate_dsInsn_tac.
-Case "sBranch_uncond". simpl_nd_sbds. 
-  eapply instantiate_locals__switchToNewBasicBlock in H; eauto.
-  destruct H as [lc2' [J1 J2]]. 
   exists (mkState
     ((mkEC f1' (block_intro l' ps' cs' tmn') cs' tmn' lc2' rm' als1')
       ::ECs') M' MM').
   instantiate_dsInsn_tac.
-Case "sBop". simpl_nd_sbds. 
+Case "sBranch_uncond". simpl_nd_sbds.
+  eapply instantiate_locals__switchToNewBasicBlock in H; eauto.
+  destruct H as [lc2' [J1 J2]].
+  exists (mkState
+    ((mkEC f1' (block_intro l' ps' cs' tmn') cs' tmn' lc2' rm' als1')
+      ::ECs') M' MM').
+  instantiate_dsInsn_tac.
+Case "sBop". simpl_nd_sbds.
   match goal with
   | H15: BOP _ _ _ _ _ _ _ = _ |- _ =>
     eapply instantiate_locals__BOP in H15; eauto;
@@ -657,7 +657,7 @@ Case "sBop". simpl_nd_sbds.
     ((mkEC f1' b1' cs tmn1' (updateAddAL _ lc1' id0 gvs3') rm1' als1')
       ::ECs') M' MM').
   instantiate_dsInsn_tac.
-Case "sFBop". simpl_nd_sbds. 
+Case "sFBop". simpl_nd_sbds.
   match goal with
   | H15: FBOP _ _ _ _ _ _ _ = _ |- _ =>
     eapply instantiate_locals__FBOP in H15; eauto;
@@ -667,7 +667,7 @@ Case "sFBop". simpl_nd_sbds.
     ((mkEC f1' b1' cs tmn1' (updateAddAL _ lc1' id0 gvs3') rm1' als1')
       ::ECs') M' MM').
   instantiate_dsInsn_tac.
-Case "sExtractValue". simpl_nd_sbds. 
+Case "sExtractValue". simpl_nd_sbds.
   match goal with
   | H2: getOperandValue _ _ _ _ = _,
     H14: extractGenericValue _ _ _ _ = _ |- _ =>
@@ -680,7 +680,7 @@ Case "sExtractValue". simpl_nd_sbds.
     ((mkEC f1' b1' cs tmn1' (updateAddAL _ lc1' id0 gvs2') rm1' als1')
       ::ECs') M' MM').
   instantiate_dsInsn_tac.
-Case "sInsertValue". simpl_nd_sbds. 
+Case "sInsertValue". simpl_nd_sbds.
   match goal with
   | H3: getOperandValue _ _ _ _ = Some  ?gvs,
     H16: getOperandValue _ _ _ _ = Some ?gvs',
@@ -696,7 +696,7 @@ Case "sInsertValue". simpl_nd_sbds.
     ((mkEC f1' b1' cs tmn1' (updateAddAL _ lc1' id0 gvs2'') rm1' als1')
       ::ECs') M' MM').
   instantiate_dsInsn_tac.
-Case "sMalloc". simpl_nd_sbds. 
+Case "sMalloc". simpl_nd_sbds.
   ctx_simpl.
   match goal with
   | H0: getOperandValue _ _ _ _ = _,
@@ -705,13 +705,13 @@ Case "sMalloc". simpl_nd_sbds.
     destruct H0 as [gns [J1 J2]];
     inv H4
   end.
-  exists (mkState 
-    ((mkEC f1' b1' cs tmn1' 
-      (updateAddAL _ lc1' id0 (gv2gvs _ (blk2GV TD mb) (typ_pointer t))) 
-      (updateAddAL _ rm1' id0 (bound2MD mb tsz0 n)) als1')::ECs') 
+  exists (mkState
+    ((mkEC f1' b1' cs tmn1'
+      (updateAddAL _ lc1' id0 (gv2gvs _ (blk2GV TD mb) (typ_pointer t)))
+      (updateAddAL _ rm1' id0 (bound2MD mb tsz0 n)) als1')::ECs')
       Mem' MM').
   instantiate_dsInsn_tac.
-Case "sFree". simpl_nd_sbds. 
+Case "sFree". simpl_nd_sbds.
   match goal with
   | H3: getOperandValue _ _ _ _ = _ |- _ =>
     eapply instantiate_locals__getOperandValue in H3; eauto;
@@ -721,7 +721,7 @@ Case "sFree". simpl_nd_sbds.
     ((mkEC f1' b1' cs tmn1' lc1' rm1'
     als1')::ECs') Mem' MM').
   instantiate_dsInsn_tac.
-Case "sAlloca". simpl_nd_sbds. 
+Case "sAlloca". simpl_nd_sbds.
   ctx_simpl.
   match goal with
   | H0: getOperandValue _ _ _ _ = _,
@@ -730,13 +730,13 @@ Case "sAlloca". simpl_nd_sbds.
     destruct H0 as [gns [J1 J2]]; inv H4
   end.
   exists (mkState
-    ((mkEC f1' b1' cs tmn1' 
+    ((mkEC f1' b1' cs tmn1'
       (updateAddAL _ lc1' id0 (gv2gvs _ (blk2GV TD mb) (typ_pointer t)))
       (updateAddAL _ rm1' id0 (bound2MD mb tsz0 n))
       (mb::als1'))::ECs') Mem' MM').
   instantiate_dsInsn_tac.
 Case "sLoad_nptr". simpl_nd_sbds.
-  ctx_simpl. 
+  ctx_simpl.
   match goal with
   | H0: getOperandValue _ _ _ _ = _ |- _ =>
     eapply instantiate_locals__getOperandValue in H0; eauto;
@@ -755,13 +755,13 @@ Case "sLoad_ptr". simpl_nd_sbds.
     eapply instantiate_locals__getOperandValue in H0; eauto;
     destruct H0 as [gvs2 [J1 J2]]
   end.
-  exists (mkState 
+  exists (mkState
     ((mkEC f1' b1' cs tmn1' (updateAddAL _ lc1' id0 (gv2gvs _ gv t))
-    (updateAddAL _ rm1' id0 (get_mem_metadata TD MM' gvp)) als1')::ECs') 
+    (updateAddAL _ rm1' id0 (get_mem_metadata TD MM' gvp)) als1')::ECs')
     M' MM').
   instantiate_dsInsn_tac.
 Case "sStore_nptr". simpl_nd_sbds.
-  ctx_simpl. 
+  ctx_simpl.
   eapply instantiate_locals__getOperandValue in H1; eauto.
   destruct H1 as [gvs2 [J1 J2]].
   eapply instantiate_locals__getOperandValue in H0; eauto.
@@ -770,16 +770,16 @@ Case "sStore_nptr". simpl_nd_sbds.
     ((mkEC f1' b1' cs tmn1' lc1' rm1' als1')::ECs') Mem' MM').
   instantiate_dsInsn_tac.
 Case "sStore_ptr". simpl_nd_sbds.
-  repeat ctx_simpl. 
+  repeat ctx_simpl.
   eapply instantiate_locals__getOperandValue in H1; eauto.
   destruct H1 as [gvs2 [J1 J2]].
   eapply instantiate_locals__getOperandValue in H0; eauto.
   destruct H0 as [mps2' [J3 J4]].
   exists (mkState
-    ((mkEC f1' b1' cs tmn1' lc1' rm1' als1')::ECs') Mem' 
+    ((mkEC f1' b1' cs tmn1' lc1' rm1' als1')::ECs') Mem'
       (set_mem_metadata TD MM' gvp md')).
   instantiate_dsInsn_tac.
-Case "sGEP". simpl_nd_sbds. 
+Case "sGEP". simpl_nd_sbds.
   match goal with
   | H5: getOperandValue _ _ _ _ = _,
     H21: values2GVs _ _ _ _ = _,
@@ -792,7 +792,7 @@ Case "sGEP". simpl_nd_sbds.
     destruct H23 as [vidxs2 [mps2' [J5 [J6 J7]]]]
   end.
   exists (mkState
-    ((mkEC f1' b1' cs tmn1' (updateAddAL _ lc1' id0 mps2') 
+    ((mkEC f1' b1' cs tmn1' (updateAddAL _ lc1' id0 mps2')
       (updateAddAL _ rm1' id0 md) als1') ::ECs') M' MM').
   instantiate_dsInsn_tac.
 Case "sTrunc". simpl_nd_sbds.
@@ -805,7 +805,7 @@ Case "sTrunc". simpl_nd_sbds.
     ((mkEC f1' b1' cs tmn1' (updateAddAL _ lc1' id0 gvs2') rm1' als1')
       ::ECs') M' MM').
   instantiate_dsInsn_tac.
-Case "sExt". simpl_nd_sbds. 
+Case "sExt". simpl_nd_sbds.
   match goal with
   | H1: EXT _ _ _ _ _ _ _ = _ |- _ =>
     eapply instantiate_locals__EXT in H1; eauto;
@@ -815,7 +815,7 @@ Case "sExt". simpl_nd_sbds.
     ((mkEC f1' b1' cs tmn1' (updateAddAL _ lc1' id0 gvs2') rm1' als1')
       ::ECs') M' MM').
   instantiate_dsInsn_tac.
-Case "sBitcast_nptr". simpl_nd_sbds. 
+Case "sBitcast_nptr". simpl_nd_sbds.
   match goal with
   | H2: CAST _ _ _ _ _ _ _ = _ |- _ =>
     eapply instantiate_locals__CAST in H2; eauto;
@@ -825,7 +825,7 @@ Case "sBitcast_nptr". simpl_nd_sbds.
     ((mkEC f1' b1' cs tmn1' (updateAddAL _ lc1' id0 gvs2') rm1' als1')
       ::ECs') M' MM').
   instantiate_dsInsn_tac.
-Case "sBitcast_ptr". simpl_nd_sbds. 
+Case "sBitcast_ptr". simpl_nd_sbds.
   match goal with
   | H3: CAST _ _ _ _ _ _ _ = _ |- _ =>
     eapply instantiate_locals__CAST in H3; eauto;
@@ -835,18 +835,18 @@ Case "sBitcast_ptr". simpl_nd_sbds.
     ((mkEC f1' b1' cs tmn1' (updateAddAL _ lc1' id0 gvs2')
       (updateAddAL _ rm1' id0 md) als1') ::ECs') M' MM').
   instantiate_dsInsn_tac.
-Case "sInttoptr". simpl_nd_sbds. 
+Case "sInttoptr". simpl_nd_sbds.
   match goal with
   | H2: CAST _ _ _ _ _ _ _ = _ |- _ =>
     eapply instantiate_locals__CAST in H2; eauto;
     destruct H2 as [gvs2' [J1 J2]]
   end.
   exists (mkState
-    ((mkEC f1' b1' cs tmn1' (updateAddAL _ lc1' id0 gvs2') 
-      (updateAddAL _ rm1' id0 null_md) als1') 
+    ((mkEC f1' b1' cs tmn1' (updateAddAL _ lc1' id0 gvs2')
+      (updateAddAL _ rm1' id0 null_md) als1')
       ::ECs') M' MM').
   instantiate_dsInsn_tac.
-Case "sOthercast". simpl_nd_sbds. 
+Case "sOthercast". simpl_nd_sbds.
   match goal with
   | H2: CAST _ _ _ _ _ _ _ = _ |- _ =>
     eapply instantiate_locals__CAST in H2; eauto;
@@ -856,7 +856,7 @@ Case "sOthercast". simpl_nd_sbds.
     ((mkEC f1' b1' cs tmn1' (updateAddAL _ lc1' id0 gvs2') rm1' als1')
       ::ECs') M' MM').
   instantiate_dsInsn_tac.
-Case "sIcmp". simpl_nd_sbds. 
+Case "sIcmp". simpl_nd_sbds.
   match goal with
   | H1: ICMP _ _ _ _ _ _ _ = _ |- _ =>
     eapply instantiate_locals__ICMP in H1; eauto;
@@ -866,7 +866,7 @@ Case "sIcmp". simpl_nd_sbds.
     ((mkEC f1' b1' cs tmn1' (updateAddAL _ lc1' id0 gvs3') rm1' als1')
       ::ECs') M' MM').
   instantiate_dsInsn_tac.
-Case "sFcmp". simpl_nd_sbds. 
+Case "sFcmp". simpl_nd_sbds.
   match goal with
   | H1: FCMP _ _ _ _ _ _ _ = _ |- _ =>
     eapply instantiate_locals__FCMP in H1; eauto;
@@ -876,7 +876,7 @@ Case "sFcmp". simpl_nd_sbds.
     ((mkEC f1' b1' cs tmn1' (updateAddAL _ lc1' id0 gvs3') rm1' als1')
       ::ECs') M' MM').
   instantiate_dsInsn_tac.
-Case "sSelect_nptr". simpl_nd_sbds. 
+Case "sSelect_nptr". simpl_nd_sbds.
   eapply instantiate_locals__getOperandValue in H5; eauto.
   destruct H5 as [gvs0' [J1 J2]].
   eapply instantiate_locals__getOperandValue in H16; eauto.
@@ -884,14 +884,14 @@ Case "sSelect_nptr". simpl_nd_sbds.
   eapply instantiate_locals__getOperandValue in H17; eauto.
   destruct H17 as [gvs2' [J5 J6]].
   exists (mkState
-    ((mkEC f1' b1' cs tmn1' (if isGVZero TD c 
-                                   then updateAddAL _ lc1' id0 gvs2' 
+    ((mkEC f1' b1' cs tmn1' (if isGVZero TD c
+                                   then updateAddAL _ lc1' id0 gvs2'
                                    else updateAddAL _ lc1' id0 gvs1') rm1' als1')
       ::ECs') M' MM').
   instantiate_dsInsn_tac.
     destruct (isGVZero TD c); auto using @instantiate_locals__updateAddAL.
-Case "sSelect_ptr". simpl_nd_sbds. 
-  ctx_simpl. 
+Case "sSelect_ptr". simpl_nd_sbds.
+  ctx_simpl.
   eapply instantiate_locals__getOperandValue in H; eauto.
   destruct H as [gvs0' [J1 J2]].
   eapply instantiate_locals__getOperandValue in H0; eauto.
@@ -899,16 +899,16 @@ Case "sSelect_ptr". simpl_nd_sbds.
   eapply instantiate_locals__getOperandValue in H1; eauto.
   destruct H1 as [gvs2' [J5 J6]].
   exists (mkState
-    ((mkEC f1' b1' cs tmn1' (if isGVZero TD c 
-                                   then updateAddAL _ lc1' id0 gvs2' 
+    ((mkEC f1' b1' cs tmn1' (if isGVZero TD c
+                                   then updateAddAL _ lc1' id0 gvs2'
                                    else updateAddAL _ lc1' id0 gvs1')
-                                   (if isGVZero TD c 
-                                   then updateAddAL _ rm1' id0 md2 
+                                   (if isGVZero TD c
+                                   then updateAddAL _ rm1' id0 md2
                                    else updateAddAL _ rm1' id0 md1) als1')
       ::ECs') M' MM').
   instantiate_dsInsn_tac. rewrite H25.
     destruct (isGVZero TD c); auto using @instantiate_locals__updateAddAL.
-Case "sCall". simpl_nd_sbds. 
+Case "sCall". simpl_nd_sbds.
   apply lookupFdefViaPtr_inversion in H35.
   destruct H35 as [fn [J1 J2]].
   eapply instantiate_locals__getOperandValue in H8; eauto.
@@ -918,23 +918,23 @@ Case "sCall". simpl_nd_sbds.
   eapply instantiate_locals__initLocals in H0; eauto.
   destruct H0 as [lc2' [H21 H22]].
   exists (mkState
-    ((mkEC (fdef_intro (fheader_intro fa rt fid la va) lb) 
-                       (block_intro l' ps' cs' tmn') cs' tmn' 
+    ((mkEC (fdef_intro (fheader_intro fa rt fid la va) lb)
+                       (block_intro l' ps' cs' tmn') cs' tmn'
                        lc2' rm'
                        nil)::
-     (mkEC f1' b1' (insn_call rid noret0 ca ft fv lp :: cs) tmn1' 
+     (mkEC f1' b1' (insn_call rid noret0 ca ft fv lp :: cs) tmn1'
       lc1' rm1' als1') ::ECs') M' MM').
   instantiate_dsInsn_tac.
     simpl.
     eapply initLocals_params2GVs_sim in H11; eauto.
     destruct H11 as [gvs' [J33 J44]].
     eapply Opsem.sCall; eauto.
-      unfold lookupFdefViaPtr. 
+      unfold lookupFdefViaPtr.
       rewrite J1. simpl. rewrite J2. auto.
 
   apply mismatch_cons_false in H27. inv H27.
 
-Case "sExCall". 
+Case "sExCall".
   match goal with
   | H33: _::?tl = ?tl |- _ =>
     symmetry in H33; apply mismatch_cons_false in H33; inv H33
