@@ -3069,6 +3069,34 @@ Case "sExCall".
       eapply callExternalFunction_preserves_wf_Mem; eauto.
 Qed.
 
+Lemma preservation_star: forall cfg IS IS' tr pinfo maxb
+  (Hwfpi: WF_PhiInfo pinfo) (Hwfcfg: OpsemPP.wf_Config cfg)  
+  (Hwfpp: OpsemPP.wf_State cfg IS) 
+  (Hwfg: MemProps.wf_globals maxb (OpsemAux.Globals cfg)) (Hinbd: 0 <= maxb),
+  Promotability.wf_State maxb pinfo cfg IS ->
+  Opsem.sop_star cfg IS IS' tr ->
+  Promotability.wf_State maxb pinfo cfg IS'.
+Proof.
+  intros.
+  induction H0; auto.
+    apply IHsop_star.
+      apply OpsemPP.preservation in H0; auto.
+      eapply preservation in H0; eauto.
+Qed.  
+
+Lemma preservation_plus: forall cfg IS IS' tr pinfo maxb
+  (Hwfpi: WF_PhiInfo pinfo) (Hwfcfg: OpsemPP.wf_Config cfg)  
+  (Hwfpp: OpsemPP.wf_State cfg IS) 
+  (Hwfg: MemProps.wf_globals maxb (OpsemAux.Globals cfg)) (Hinbd: 0 <= maxb),
+  Promotability.wf_State maxb pinfo cfg IS ->
+  Opsem.sop_plus cfg IS IS' tr ->
+  Promotability.wf_State maxb pinfo cfg IS'.
+Proof.
+  intros.
+  apply OpsemProps.sop_plus__implies__sop_star in H0.
+  eapply preservation_star; eauto.
+Qed.  
+
 Opaque lift_op1. 
 
 Lemma s_genInitState__wf_globals_promotable: forall S main VarArgs cfg IS pinfo

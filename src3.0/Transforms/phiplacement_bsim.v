@@ -21,6 +21,165 @@ Import Promotability.
 
 Definition DGVMap := @Opsem.GVsMap DGVs.
 
+Lemma sop_plus_star__implies__sop_plus: forall cfg S1 S2 S3 tr1 tr2,
+  Opsem.sop_plus cfg S1 S2 tr1 ->
+  @Opsem.sop_star DGVs cfg S2 S3 tr2 ->
+  Opsem.sop_plus cfg S1 S3 (tr1 ** tr2).
+Proof.
+  induction 1; intros; auto.
+    rewrite Eapp_assoc; auto. 
+    econstructor; eauto.
+    eapply OpsemProps.sop_star_trans; eauto.
+Qed.
+
+Lemma sop_star_plus__implies__sop_plus: forall cfg S1 S2 S3 tr1 tr2,
+  @Opsem.sop_star DGVs cfg S1 S2 tr1 ->
+  Opsem.sop_plus cfg S2 S3 tr2 ->
+  Opsem.sop_plus cfg S1 S3 (tr1 ** tr2).
+Proof.
+  induction 1; intros; auto.
+    apply IHsop_star in H1.
+    rewrite Eapp_assoc; auto. 
+    econstructor; eauto.
+    eapply OpsemProps.sop_plus__implies__sop_star; eauto.
+Qed.
+
+Lemma sop_step_plus__implies__sop_plus: forall cfg S1 S2 S3 tr1 tr2,
+  Opsem.sInsn cfg S1 S2 tr1 ->
+  @Opsem.sop_plus DGVs cfg S2 S3 tr2 ->
+  Opsem.sop_plus cfg S1 S3 (tr1 ** tr2).
+Proof.
+  intros. inv H0.
+  econstructor; eauto.
+Qed.
+
+CoInductive sop_diverges' (cfg:OpsemAux.Config): 
+    @Opsem.State DGVs -> traceinf -> Prop :=
+| sop_diverges_intro' : forall state1 state2 tr1 tr2,
+    Opsem.sInsn cfg state1 state2 tr1 ->
+    sop_diverges' cfg state2 tr2 ->
+    sop_diverges' cfg state1 (Eappinf tr1 tr2).
+
+Lemma sop_star_diverges'__sop_diverges': forall cfg IS1 IS2 tr1 tr2,
+  Opsem.sop_star cfg IS1 IS2 tr1 ->
+  sop_diverges' cfg IS2 tr2 ->
+  sop_diverges' cfg IS1 (Eappinf tr1 tr2).
+Proof.
+  induction 1; intros; auto.
+    apply IHsop_star in H1.
+    rewrite Eappinf_assoc.
+    econstructor; eauto.
+Qed.
+
+Lemma sop_plus_diverges'__sop_diverges': forall cfg IS1 IS2 tr1 tr2,
+  Opsem.sop_plus cfg IS1 IS2 tr1 ->
+  sop_diverges' cfg IS2 tr2 ->
+  sop_diverges' cfg IS1 (Eappinf tr1 tr2).
+Proof.
+  intros. inv H.
+  eapply sop_star_diverges'__sop_diverges' in H2; eauto.
+  rewrite Eappinf_assoc.
+  econstructor; eauto.
+Qed.
+
+Lemma sop_star_diverges__sop_diverges: forall cfg IS1 IS2 tr1 tr2,
+  @Opsem.sop_star DGVs cfg IS1 IS2 tr1 ->
+  Opsem.sop_diverges cfg IS2 tr2 ->
+  Opsem.sop_diverges cfg IS1 (Eappinf tr1 tr2).
+Proof.
+  induction 1; intros; auto.
+    apply IHsop_star in H1.
+    rewrite Eappinf_assoc.
+    rewrite <- E0_right at 1.
+    econstructor; eauto.
+Qed.
+
+Lemma sop_diverges__sop_diverges': forall cfg IS tr,
+  @Opsem.sop_diverges DGVs cfg IS tr -> sop_diverges' cfg IS tr.
+Proof.
+  cofix CIH.
+  intros.
+  inv H.
+  inv H0.
+  assert (Opsem.sop_diverges cfg state0 (tr3***tr2)) as J.
+    clear CIH. 
+    eapply sop_star_diverges__sop_diverges; eauto.
+  apply CIH in J. clear CIH.
+  rewrite Eappinf_assoc.
+  econstructor; eauto.
+Qed.
+
+Lemma sop_diverges'__sop_diverges: forall cfg IS tr,
+  sop_diverges' cfg IS tr -> @Opsem.sop_diverges DGVs cfg IS tr.
+Proof.
+  cofix CIH.
+  intros.
+  inv H.
+  apply CIH in H1. clear CIH.
+  econstructor; eauto.
+    rewrite <- E0_right.
+    econstructor; eauto.
+Qed.
+
+Section SOP_WF_DIVERGES.
+
+Variable Measure: Type.
+Variable R:Measure -> Measure -> Prop.
+Hypothesis Hwf_founded_R: well_founded R.
+
+CoInductive sop_wf_diverges (cfg:OpsemAux.Config): 
+    Measure -> @Opsem.State DGVs -> traceinf -> Prop :=
+| sop_wf_diverges_plus : forall m1 m2 state1 state2 tr1 tr2,
+    Opsem.sop_plus cfg state1 state2 tr1 ->
+    sop_wf_diverges cfg m2 state2 tr2 ->
+    sop_wf_diverges cfg m1 state1 (Eappinf tr1 tr2)
+| sop_wf_diverges_star : forall m1 m2 state1 state2 tr1 tr2,
+    R m2 m1 ->
+    Opsem.sop_star cfg state1 state2 tr1 ->
+    sop_wf_diverges cfg m2 state2 tr2 ->
+    sop_wf_diverges cfg m1 state1 (Eappinf tr1 tr2)
+.
+
+Lemma sop_wf_diverges__inv: forall m1 cfg S1 Tr
+  (Hdiv: sop_wf_diverges cfg m1 S1 Tr),
+  exists S2, exists m2, exists tr, exists Tr',
+    Opsem.sop_plus cfg S1 S2 tr /\
+    sop_wf_diverges cfg m2 S2 Tr' /\
+    Tr = Eappinf tr Tr'.
+Proof.
+  intro m1. pattern m1.
+  apply (well_founded_ind Hwf_founded_R); intros.
+  inv Hdiv.
+    exists state2. exists m2. exists tr1. exists tr2. 
+    split; auto.
+
+    apply H in H2; auto.
+    destruct H2 as [S2 [m2' [tr [Tr' [J1 [J2 J3]]]]]]; subst.
+    exists S2. exists m2'. exists (Eapp tr1 tr). exists Tr'.
+    split.
+      eapply sop_star_plus__implies__sop_plus; eauto.
+    split; auto.
+      rewrite Eappinf_assoc; auto.
+Qed.
+
+Lemma sop_wf_diverges__sop_diverges: forall cfg m IS tr,
+  sop_wf_diverges cfg m IS tr -> Opsem.sop_diverges cfg IS tr.
+Proof.
+  cofix CIH.
+  intros.
+  inv H.
+    apply sop_wf_diverges__inv in H1; auto.
+    destruct H1 as [S2 [m2' [tr [Tr' [J1 [J2 J3]]]]]]; subst.
+    econstructor; eauto.
+
+    apply sop_wf_diverges__inv in H2; auto.
+    destruct H2 as [S2 [m2' [tr [Tr' [J1 [J2 J3]]]]]]; subst.
+    rewrite <- Eappinf_assoc.
+    econstructor; eauto using sop_star_plus__implies__sop_plus.
+Qed.
+
+End SOP_WF_DIVERGES.
+
 Definition reg_simulation (pinfo: PhiInfo) (f1:fdef) (lc1 lc2:DGVMap) : Prop :=  
   if (fdef_dec (PI_f pinfo) f1) then 
     (forall i0, 
@@ -1876,7 +2035,7 @@ Lemma phinodes_placement_is_correct__dsBranch: forall
   (H2 : Opsem.switchToNewBasicBlock TD (block_intro l' ps' cs' tmn') B gl lc =
        ret lc'),
   exists St1' : Opsem.State,
-     Opsem.sop_star Cfg1 St1 St1' E0 /\
+     Opsem.sop_plus Cfg1 St1 St1' E0 /\
      State_simulation pinfo Cfg1 St1' Cfg2
      {|Opsem.ECS := {| Opsem.CurFunction := F;
                        Opsem.CurBB := (block_intro l' ps' cs' tmn');
@@ -2028,7 +2187,7 @@ Proof.
                 lc1' als)::ECs1) Mem).
     split.
     SSCase "opsem".
-      apply OpsemProps.sInsn__implies__sop_star.
+      apply OpsemProps.sInsn__implies__sop_plus.
       econstructor; eauto.
 
     SSCase "sim".
@@ -2066,7 +2225,7 @@ Proof.
               ::ECs1) Mem).
     split.
     SSCase "opsem".
-      apply OpsemProps.sInsn__implies__sop_star.
+      apply OpsemProps.sInsn__implies__sop_plus.
       econstructor; eauto.
 
     SSCase "sim".
@@ -2112,7 +2271,7 @@ Lemma phinodes_placement_is_correct__dsBranch_uncond: forall
   (H2 : Opsem.switchToNewBasicBlock TD (block_intro l' ps' cs' tmn') B gl lc =
        ret lc'),
   exists St1' : Opsem.State,
-     Opsem.sop_star Cfg1 St1 St1' E0 /\
+     Opsem.sop_plus Cfg1 St1 St1' E0 /\
      State_simulation pinfo Cfg1 St1' Cfg2
      {|Opsem.ECS := {| Opsem.CurFunction := F;
                        Opsem.CurBB := (block_intro l' ps' cs' tmn');
@@ -2248,7 +2407,7 @@ Proof.
               lc1' als)::ECs1) Mem).
     split.
     SSCase "opsem".
-      apply OpsemProps.sInsn__implies__sop_star.
+      apply OpsemProps.sInsn__implies__sop_plus.
       econstructor; eauto.
 
     SSCase "sim".
@@ -2286,7 +2445,7 @@ Proof.
               ::ECs1) Mem).
     split.
     SSCase "opsem".
-      apply OpsemProps.sInsn__implies__sop_star.
+      apply OpsemProps.sInsn__implies__sop_plus.
       econstructor; eauto.
 
     SSCase "sim".
@@ -2450,6 +2609,12 @@ Proof.
       eapply wf_tmp_value__updateAddAL_neq; eauto.
 Qed.
 
+Definition measure (st:@Opsem.State DGVs) : nat :=
+match st with 
+| {| Opsem.ECS := {| Opsem.CurCmds := cs |} :: _ |} => List.length cs
+| _ => 0%nat
+end.
+
 Lemma phinodes_placement_is_correct__dsLoad: forall (maxb : Values.block) 
   (pinfo : PhiInfo)
   (Cfg1 : OpsemAux.Config) (St1 : Opsem.State) (Hwfpi : WF_PhiInfo pinfo)
@@ -2476,8 +2641,8 @@ Lemma phinodes_placement_is_correct__dsLoad: forall (maxb : Values.block)
   (mps : GVsT DGVs) (mp : GenericValue) (gv : GenericValue)
   (H : Opsem.getOperandValue TD v lc gl = ret mps)
   (H0 : mp @ mps) (H1 : mload TD Mem mp t align0 = ret gv),
-  exists St1' : Opsem.State,
-     Opsem.sop_star Cfg1 St1 St1' E0 /\
+  (exists St1' : Opsem.State,
+     Opsem.sop_plus Cfg1 St1 St1' E0 /\
      State_simulation pinfo Cfg1 St1' Cfg2
        {|
        Opsem.ECS := {|
@@ -2488,7 +2653,37 @@ Lemma phinodes_placement_is_correct__dsLoad: forall (maxb : Values.block)
                     Opsem.Locals := updateAddAL (GVsT DGVs) lc id0
                                       ($ gv # t $);
                     Opsem.Allocas := als |} :: EC;
-       Opsem.Mem := Mem |}.
+       Opsem.Mem := Mem |}) \/
+  (exists St1' : Opsem.State,
+     Opsem.sop_star Cfg1 St1 St1' E0 /\
+     lt (measure ({| Opsem.ECS := {|
+                          Opsem.CurFunction := F;
+                          Opsem.CurBB := B;
+                          Opsem.CurCmds := cs;
+                          Opsem.Terminator := tmn;
+                          Opsem.Locals := updateAddAL (GVsT DGVs) lc id0
+                                              ($ gv # t $);
+                          Opsem.Allocas := als |} :: EC;
+                     Opsem.Mem := Mem |}))
+        (measure ({| Opsem.ECS := {|
+                          Opsem.CurFunction := F;
+                          Opsem.CurBB := B;
+                          Opsem.CurCmds := insn_load id0 t v align0 :: cs;
+                          Opsem.Terminator := tmn;
+                          Opsem.Locals := lc;
+                          Opsem.Allocas := als |} :: EC;
+                     Opsem.Mem := Mem |})) /\
+     State_simulation pinfo Cfg1 St1' Cfg2
+       {|
+       Opsem.ECS := {|
+                    Opsem.CurFunction := F;
+                    Opsem.CurBB := B;
+                    Opsem.CurCmds := cs;
+                    Opsem.Terminator := tmn;
+                    Opsem.Locals := updateAddAL (GVsT DGVs) lc id0
+                                      ($ gv # t $);
+                    Opsem.Allocas := als |} :: EC;
+       Opsem.Mem := Mem |}).
 Proof.
   intros. subst.
   destruct_ctx_other.
@@ -2506,6 +2701,7 @@ Proof.
         subst.
       inv J2.
 
+      right.
       exists 
         {| Opsem.ECS := {|
                     Opsem.CurFunction := PI_f pinfo;
@@ -2514,10 +2710,11 @@ Proof.
                     Opsem.Terminator := tmn;
                     Opsem.Locals := lc1;
                     Opsem.Allocas := als |} :: ECs1;
-           Opsem.Mem := Mem |}.
+           Opsem.Mem := Mem |}. simpl.
       split.
       SSCase "opsem".
         constructor.
+      split; auto.
       SSCase "sim".
         repeat (split; eauto 2 using cmds_at_block_tail_next).
 
@@ -2571,6 +2768,7 @@ Proof.
     SCase "isnt_temporary".
       apply cmds_simulation_same_cons_inv in Htcmds; eauto.
       destruct Htcmds as [cs1' [Heq Htcmds]]; subst.
+      left.
       exists 
         (Opsem.mkState 
           ((Opsem.mkEC (PI_f pinfo) 
@@ -2579,7 +2777,7 @@ Proof.
          ::ECs1) Mem).
       split.
       SSCase "opsem".
-        apply OpsemProps.sInsn__implies__sop_star.
+        apply OpsemProps.sInsn__implies__sop_plus.
         econstructor; eauto.
           erewrite simulation__getOperandValue; eauto.
             eapply original_values_in_cmd_arent_tmps; eauto; simpl; auto.
@@ -2593,6 +2791,7 @@ Proof.
   Case "PI_f pinfo <> F1".
     apply cmds_simulation_other_cons_inv in Htcmds; auto.
     destruct Htcmds as [cs1' [Heq Htcmds]]; subst.
+    left.
     exists 
       (Opsem.mkState 
         ((Opsem.mkEC F1
@@ -2601,7 +2800,7 @@ Proof.
        ::ECs1) Mem).
     split.
     SSCase "opsem".
-      apply OpsemProps.sInsn__implies__sop_star.
+      apply OpsemProps.sInsn__implies__sop_plus.
       econstructor; eauto.
         erewrite simulation__getOperandValue; eauto.
           eapply original_values_in_cmd_arent_tmps; eauto; simpl; auto.
@@ -2705,8 +2904,8 @@ Lemma phinodes_placement_is_correct__dsStore: forall (maxb : Values.block)
   (mps2 : GVsT DGVs) (H : Opsem.getOperandValue TD v1 lc gl = ret gvs1)
   (H0 : Opsem.getOperandValue TD v2 lc gl = ret mps2) (H1 : gv1 @ gvs1)
   (H2 : mp2 @ mps2) (H3 : mstore TD Mem mp2 t gv1 align0 = ret Mem'),
-  exists St1' : Opsem.State,
-     Opsem.sop_star Cfg1 St1 St1' E0 /\
+  (exists St1' : Opsem.State,
+     Opsem.sop_plus Cfg1 St1 St1' E0 /\
      State_simulation pinfo Cfg1 St1' Cfg2
        {|
        Opsem.ECS := {|
@@ -2716,7 +2915,35 @@ Lemma phinodes_placement_is_correct__dsStore: forall (maxb : Values.block)
                     Opsem.Terminator := tmn;
                     Opsem.Locals := lc;
                     Opsem.Allocas := als |} :: EC;
-       Opsem.Mem := Mem' |}.
+       Opsem.Mem := Mem' |}) \/
+  (exists St1' : Opsem.State,
+     Opsem.sop_star Cfg1 St1 St1' E0 /\
+     lt (measure ({| Opsem.ECS := {|
+                          Opsem.CurFunction := F;
+                          Opsem.CurBB := B;
+                          Opsem.CurCmds := cs;
+                          Opsem.Terminator := tmn;
+                          Opsem.Locals := lc;
+                          Opsem.Allocas := als |} :: EC;
+                     Opsem.Mem := Mem' |}))
+        (measure ({| Opsem.ECS := {|
+                          Opsem.CurFunction := F;
+                          Opsem.CurBB := B;
+                          Opsem.CurCmds := insn_store sid t v1 v2 align0 :: cs;
+                          Opsem.Terminator := tmn;
+                          Opsem.Locals := lc;
+                          Opsem.Allocas := als |} :: EC;
+                     Opsem.Mem := Mem |})) /\
+     State_simulation pinfo Cfg1 St1' Cfg2
+       {|
+       Opsem.ECS := {|
+                    Opsem.CurFunction := F;
+                    Opsem.CurBB := B;
+                    Opsem.CurCmds := cs;
+                    Opsem.Terminator := tmn;
+                    Opsem.Locals := lc;
+                    Opsem.Allocas := als |} :: EC;
+       Opsem.Mem := Mem' |}).
 Proof.
   intros. subst.
   destruct_ctx_other.
@@ -2734,6 +2961,7 @@ Proof.
                            [J1 [J2 [J3 J4]]]]]]]]]]]; subst.
       inv J1. inversion Heq1; subst l1 ps1 tmn.
       apply app_inv_tail_nil in H8; subst. simpl.
+      right.
       exists 
         {| Opsem.ECS := {|
                     Opsem.CurFunction := PI_f pinfo;
@@ -2742,10 +2970,11 @@ Proof.
                     Opsem.Terminator := tmn1;
                     Opsem.Locals := lc1;
                     Opsem.Allocas := als |} :: ECs1;
-           Opsem.Mem := Mem |}.
+           Opsem.Mem := Mem |}. simpl.
       split.
       SSCase "opsem".
         constructor.
+      split; auto.
       SSCase "sim".
         repeat (split; eauto 2 using cmds_at_block_tail_next).
 
@@ -2810,6 +3039,7 @@ Proof.
     SCase "isnt_temporary".
       apply cmds_simulation_same_cons_inv in Htcmds; eauto.
       destruct Htcmds as [cs1' [Heq Htcmds]]; subst.
+      left.
       exists 
         (Opsem.mkState 
           ((Opsem.mkEC (PI_f pinfo) 
@@ -2819,7 +3049,7 @@ Proof.
          ::ECs1) Mem').
       split.
       SSCase "opsem".
-        apply OpsemProps.sInsn__implies__sop_star.
+        apply OpsemProps.sInsn__implies__sop_plus.
         erewrite <- simulation__getOperandValue in H; eauto.
         erewrite <- simulation__getOperandValue in H0; eauto.
         eapply original_values_in_cmd_arent_tmps; eauto; simpl; auto.
@@ -2836,6 +3066,7 @@ Proof.
   Case "PI_f pinfo <> F1".
       apply cmds_simulation_other_cons_inv in Htcmds; eauto.
       destruct Htcmds as [cs1' [Heq Htcmds]]; subst.
+      left.
       exists 
         (Opsem.mkState 
           ((Opsem.mkEC F1
@@ -2845,7 +3076,7 @@ Proof.
          ::ECs1) Mem').
       split.
       SSCase "opsem".
-        apply OpsemProps.sInsn__implies__sop_star.
+        apply OpsemProps.sInsn__implies__sop_plus.
         erewrite <- simulation__getOperandValue in H; eauto.
         erewrite <- simulation__getOperandValue in H0; eauto.
         eapply original_values_in_cmd_arent_tmps; eauto; simpl; auto.
@@ -2863,7 +3094,7 @@ Ltac next_state :=
 match goal with
 | Hrsim: reg_simulation ?pinfo ?F1 ?lc1 ?lc |-
      exists St1' : Opsem.State,
-     Opsem.sop_star _
+     Opsem.sop_plus _
        {|
        Opsem.ECS := {|
                     Opsem.CurFunction := ?F1;
@@ -2890,7 +3121,7 @@ match goal with
 
 | Hrsim: reg_simulation ?pinfo ?F1 ?lc1 ?lc |-
      exists St1' : Opsem.State,
-     Opsem.sop_star _
+     Opsem.sop_plus _
        {|
        Opsem.ECS := {|
                     Opsem.CurFunction := ?F1;
@@ -2918,7 +3149,7 @@ match goal with
 
 | Hrsim: reg_simulation ?pinfo ?F1 ?lc1 ?lc |-
      exists St1' : Opsem.State,
-     Opsem.sop_star _
+     Opsem.sop_plus _
        {|
        Opsem.ECS := {|
                     Opsem.CurFunction := ?F1;
@@ -3003,7 +3234,7 @@ match goal with
 end.
 
 Ltac solve_opsem :=
-  apply OpsemProps.sInsn__implies__sop_star; 
+  apply OpsemProps.sInsn__implies__sop_plus; 
   econstructor; try solve [
     eauto |
     match goal with
@@ -3128,7 +3359,7 @@ Lemma phinodes_placement_is_correct__dsAlloca: forall (maxb: Values.block)
   (H0 : Opsem.getOperandValue TD v lc gl = ret gns)
   (H1 : gn @ gns) (H2 : malloc TD Mem tsz gn align0 = ret (Mem', mb)),
   exists St1' : Opsem.State,
-     Opsem.sop_star Cfg1 St1 St1' E0 /\
+     Opsem.sop_plus Cfg1 St1 St1' E0 /\
      State_simulation pinfo Cfg1 St1' Cfg2
        {|
        Opsem.ECS := {|
@@ -3173,7 +3404,7 @@ Lemma phinodes_placement_is_correct__dsMalloc: forall (maxb: Values.block)
   (H0 : Opsem.getOperandValue TD v lc gl = ret gns)
   (H1 : gn @ gns) (H2 : malloc TD Mem tsz gn align0 = ret (Mem', mb)),
   exists St1' : Opsem.State,
-     Opsem.sop_star Cfg1 St1 St1' E0 /\
+     Opsem.sop_plus Cfg1 St1 St1' E0 /\
      State_simulation pinfo Cfg1 St1' Cfg2
        {|
        Opsem.ECS := {|
@@ -3425,7 +3656,7 @@ Lemma phinodes_placement_is_correct__dsCall: forall (maxb : Values.block)
   (H3 : Opsem.params2GVs TD lp lc gl = ret gvs)
   (H4 : Opsem.initLocals TD la gvs = ret lc'),
   exists St1' : Opsem.State,
-     Opsem.sop_star Cfg1 St1 St1' E0 /\
+     Opsem.sop_plus Cfg1 St1 St1' E0 /\
      State_simulation pinfo Cfg1 St1' Cfg2
        {|
        Opsem.ECS := {|
@@ -3496,7 +3727,7 @@ Proof.
          ::ECs1) Mem).
     split.
     SSCase "opsem".
-      apply OpsemProps.sInsn__implies__sop_star. 
+      apply OpsemProps.sInsn__implies__sop_plus. 
       econstructor; eauto.
 
     SSCase "sim".
@@ -3555,7 +3786,7 @@ Proof.
          ::ECs1) Mem).
     split.
     SSCase "opsem".
-      apply OpsemProps.sInsn__implies__sop_star. 
+      apply OpsemProps.sInsn__implies__sop_plus. 
       econstructor; eauto.
 
     SSCase "sim".
@@ -3699,7 +3930,7 @@ Lemma phinodes_placement_is_correct__dsExCall: forall (maxb : Values.block)
           ret (oresult, tr, Mem'))
   (H5 : Opsem.exCallUpdateLocals TD ft noret0 rid oresult lc = ret lc'),
   exists St1' : Opsem.State,
-     Opsem.sop_star Cfg1 St1 St1' tr /\
+     Opsem.sop_plus Cfg1 St1 St1' tr /\
      State_simulation pinfo Cfg1 St1' Cfg2       
        {|
        Opsem.ECS := {|
@@ -3740,7 +3971,7 @@ Proof.
       eapply lookupExFdecViaPtr__simulation with (TD:=(los,nts))(gl:=gl)
         (lc1:=lc1)(lc2:=lc) in H1; eauto.
       destruct H1 as [J3 J4].
-      apply OpsemProps.sInsn__implies__sop_star.
+      apply OpsemProps.sInsn__implies__sop_plus.
       econstructor; eauto.
         erewrite params2GVs__simulation with (lc2:=lc); eauto.
           eapply WF_PhiInfo_spec12; eauto.
@@ -3779,7 +4010,7 @@ Proof.
       eapply lookupExFdecViaPtr__simulation with (TD:=(los,nts))(gl:=gl)
         (lc1:=lc1)(lc2:=lc) in H1; eauto.
       destruct H1 as [J3 J4].
-      apply OpsemProps.sInsn__implies__sop_star.
+      apply OpsemProps.sInsn__implies__sop_plus.
       econstructor; eauto.
         erewrite params2GVs__simulation with (lc2:=lc); eauto.
           destruct (fdef_dec (PI_f pinfo) F1); subst; auto; try congruence.
@@ -3797,9 +4028,13 @@ Lemma phinodes_placement_is_bsim : forall maxb pinfo Cfg1 St1 Cfg2 St2 St2' tr
   (Hnoalias: Promotability.wf_State maxb pinfo Cfg1 St1) 
   (Hsim: State_simulation pinfo Cfg1 St1 Cfg2 St2)
   (Hop: Opsem.sInsn Cfg2 St2 St2' tr), 
-  exists St1',
+  (exists St1',
+    Opsem.sop_plus Cfg1 St1 St1' tr /\    
+    State_simulation pinfo Cfg1 St1' Cfg2 St2') \/
+  (exists St1',
     Opsem.sop_star Cfg1 St1 St1' tr /\    
-    State_simulation pinfo Cfg1 St1' Cfg2 St2'.
+    lt (measure St2') (measure St2) /\
+    State_simulation pinfo Cfg1 St1' Cfg2 St2').
 Proof.
   intros.
   (sInsn_cases (induction Hop) Case); 
@@ -3825,11 +4060,12 @@ Focus.
       simpl; try solve [auto | solve_tmnInFdefBlockB].
   eapply returnUpdateLocals_rsim in H1; eauto.
   destruct H1 as [lc1'' [H1 Hrsim'']].
+  left.
   exists 
     (Opsem.mkState ((Opsem.mkEC F1' B1' cs1'0 tmn' lc1'' als')::ECs1) Mem').
   split.
     rewrite <- (@E0_right E0).
-    apply OpsemProps.sInsn__implies__sop_star.
+    apply OpsemProps.sInsn__implies__sop_plus.
     constructor; auto.
   
     repeat (split; eauto 2 using cmds_at_block_tail_next).
@@ -3849,11 +4085,12 @@ Focus.
       simpl; auto
     ].
   destruct Htcmds' as [cs1'0 [EQ Htcmds']]; subst.
+  left.
   exists 
     (Opsem.mkState ((Opsem.mkEC F1' B1' cs1'0 tmn' lc1' als')::ECs1) Mem').
   split.
     rewrite <- (@E0_right E0).
-    apply OpsemProps.sInsn__implies__sop_star.
+    apply OpsemProps.sInsn__implies__sop_plus.
     constructor; auto.
   
     repeat (split; eauto 2 using cmds_at_block_tail_next).
@@ -3863,27 +4100,51 @@ Focus.
       eapply ECs_simulation_tail_stable; eauto.
 Unfocus.
 
-Case "sBranch". eapply phinodes_placement_is_correct__dsBranch; eauto.
+Case "sBranch". 
+  abstract (left; eapply phinodes_placement_is_correct__dsBranch; eauto).
 Case "sBranch_uncond". 
-  eapply phinodes_placement_is_correct__dsBranch_uncond; eauto. 
-Case "sBop". abstract phinodes_placement_is_correct__common.
-Case "sFBop". abstract phinodes_placement_is_correct__common.
-Case "sExtractValue". abstract phinodes_placement_is_correct__common.
-Case "sInsertValue". abstract phinodes_placement_is_correct__common.
-Case "sMalloc". abstract phinodes_placement_is_correct__common.
-Case "sFree". abstract phinodes_placement_is_correct__common.
-Case "sAlloca". abstract phinodes_placement_is_correct__common.
-Case "sLoad". eapply phinodes_placement_is_correct__dsLoad; eauto.
-Case "sStore". eapply phinodes_placement_is_correct__dsStore; eauto.
-Case "sGEP". abstract phinodes_placement_is_correct__common.
-Case "sTrunc". abstract phinodes_placement_is_correct__common.
-Case "sExt". abstract phinodes_placement_is_correct__common.
-Case "sCast". abstract phinodes_placement_is_correct__common.
-Case "sIcmp". abstract phinodes_placement_is_correct__common.
-Case "sFcmp". abstract phinodes_placement_is_correct__common.
-Case "sSelect". abstract phinodes_placement_is_correct__common.
-Case "sCall". eapply phinodes_placement_is_correct__dsCall; eauto.
-Case "sExCall". eapply phinodes_placement_is_correct__dsExCall; eauto.
+  abstract (left; eapply phinodes_placement_is_correct__dsBranch_uncond; eauto). 
+Case "sBop". abstract (left; phinodes_placement_is_correct__common).
+Case "sFBop". abstract (left; phinodes_placement_is_correct__common).
+Case "sExtractValue". abstract (left; phinodes_placement_is_correct__common).
+Case "sInsertValue". abstract (left; phinodes_placement_is_correct__common).
+Case "sMalloc". abstract (left; phinodes_placement_is_correct__common).
+Case "sFree". abstract (left; phinodes_placement_is_correct__common).
+Case "sAlloca". abstract (left; phinodes_placement_is_correct__common).
+Case "sLoad". abstract (eapply phinodes_placement_is_correct__dsLoad; eauto).
+Case "sStore". abstract (eapply phinodes_placement_is_correct__dsStore; eauto).
+Case "sGEP". abstract (left; phinodes_placement_is_correct__common).
+Case "sTrunc". abstract (left; phinodes_placement_is_correct__common).
+Case "sExt". abstract (left; phinodes_placement_is_correct__common).
+Case "sCast". abstract (left; phinodes_placement_is_correct__common).
+Case "sIcmp". abstract (left; phinodes_placement_is_correct__common).
+Case "sFcmp". abstract (left; phinodes_placement_is_correct__common).
+Case "sSelect". abstract (left; phinodes_placement_is_correct__common).
+Case "sCall". 
+  abstract (left; eapply phinodes_placement_is_correct__dsCall; eauto).
+Case "sExCall". 
+  abstract (left; eapply phinodes_placement_is_correct__dsExCall; eauto).
+Qed.
+
+Lemma phinodes_placement_is_bsim' : forall maxb pinfo Cfg1 St1 Cfg2 St2 St2' tr
+  (Hwfpi: WF_PhiInfo pinfo) 
+  (Hwfpp: OpsemPP.wf_State Cfg1 St1) 
+  (Hnoalias: Promotability.wf_State maxb pinfo Cfg1 St1) 
+  (Hsim: State_simulation pinfo Cfg1 St1 Cfg2 St2)
+  (Hop: Opsem.sInsn Cfg2 St2 St2' tr), 
+  exists St1',
+    Opsem.sop_star Cfg1 St1 St1' tr /\    
+    State_simulation pinfo Cfg1 St1' Cfg2 St2'.
+Proof.
+  intros.
+  eapply phinodes_placement_is_bsim in Hsim; eauto.
+  destruct Hsim as [[St1' [J1 J2]] | [St1' [J1 [J2 J3]]]].
+  exists St1'.
+    split; auto.
+      apply OpsemProps.sop_plus__implies__sop_star; auto.
+
+    exists St1'.
+    split; auto.
 Qed.
 
 Ltac destruct_match :=
@@ -4327,6 +4588,7 @@ Proof.
     assumption.
 Qed.
 
+(* Should go to opsem_wf *)
 Lemma preservation_star: forall cfg IS IS' tr (Hwfcfg: OpsemPP.wf_Config cfg),
   @OpsemPP.wf_State DGVs cfg IS ->
   Opsem.sop_star cfg IS IS' tr ->
@@ -4337,89 +4599,90 @@ Proof.
     apply OpsemPP.preservation in H0; auto.
 Qed.  
 
-Lemma promotability_preservation_star: forall cfg IS IS' tr pinfo maxb
-  (Hwfpi: WF_PhiInfo pinfo) (Hwfcfg: OpsemPP.wf_Config cfg)  
-  (Hwfpp: OpsemPP.wf_State cfg IS) 
-  (Hwfg: MemProps.wf_globals maxb (OpsemAux.Globals cfg)) (Hinbd: 0 <= maxb),
-  Promotability.wf_State maxb pinfo cfg IS ->
-  Opsem.sop_star cfg IS IS' tr ->
-  Promotability.wf_State maxb pinfo cfg IS'.
+(* Should go to opsem_wf *)
+Lemma preservation_plus: forall cfg IS IS' tr (Hwfcfg: OpsemPP.wf_Config cfg),
+  @OpsemPP.wf_State DGVs cfg IS ->
+  Opsem.sop_plus cfg IS IS' tr ->
+  OpsemPP.wf_State cfg IS'.
 Proof.
   intros.
-  induction H0; auto.
-    apply IHsop_star.
-      apply OpsemPP.preservation in H0; auto.
-      eapply Promotability.preservation in H0; eauto.
+  apply OpsemProps.sop_plus__implies__sop_star in H0.
+  eapply preservation_star; eauto.
 Qed.  
 
-Lemma sop_star__phiplacement_State_simulation: 
-  forall pinfo cfg1 IS1 cfg2 IS2 tr FS2 maxb
-  (Hwfpi: WF_PhiInfo pinfo) (Hwfcfg: OpsemPP.wf_Config cfg1) 
-  (Hwfpp: OpsemPP.wf_State cfg1 IS1) 
+Section TOPSIM.
+
+Variables (pinfo:PhiInfo) (cfg1:OpsemAux.Config) (IS1:@Opsem.State DGVs) 
+          (cfg2:OpsemAux.Config) (IS2:@Opsem.State DGVs) 
+          (maxb:Values.block).
+
+Hypothesis (Hwfpi: WF_PhiInfo pinfo) 
+  (Hwfcfg: OpsemPP.wf_Config cfg1) (Hwfpp: OpsemPP.wf_State cfg1 IS1) 
   (Hnoalias: Promotability.wf_State maxb pinfo cfg1 IS1)
   (Hwfg: MemProps.wf_globals maxb (OpsemAux.Globals cfg1)) (Hinbd: 0 <= maxb)
-  (Hstsim : State_simulation pinfo cfg1 IS1 cfg2 IS2)
-  (Hopstar : Opsem.sop_star cfg2 IS2 FS2 tr),
+  (Hstsim : State_simulation pinfo cfg1 IS1 cfg2 IS2).
+
+Lemma sop_star__phiplacement_State_simulation: 
+  forall FS2 tr (Hopstar : Opsem.sop_star cfg2 IS2 FS2 tr),
   exists FS1, Opsem.sop_star cfg1 IS1 FS1 tr /\ 
     State_simulation pinfo cfg1 FS1 cfg2 FS2.
 Proof.
   intros.
-  generalize dependent IS1.
+  generalize dependent IS1. clear dependent IS1.
   induction Hopstar; intros.
     exists IS1. split; auto.
 
-    eapply phinodes_placement_is_bsim with (St2':=state2) in Hstsim; eauto.
-    destruct Hstsim as [IS1' [Hopstar' Hstsim]].
-    assert (OpsemPP.wf_Config cfg1 /\ OpsemPP.wf_State cfg1 IS1') as Hwfpp'.
+    eapply phinodes_placement_is_bsim' with (St2':=state2) in Hstsim; eauto.
+    destruct Hstsim as [IS1' [Hopstar' Hstsim']].
+    assert (OpsemPP.wf_State cfg1 IS1') as Hwfpp'.
       apply preservation_star in Hopstar'; auto.
     assert (Promotability.wf_State maxb pinfo cfg1 IS1') as Hnoalias'.
-      eapply promotability_preservation_star in Hopstar'; eauto; try tauto.
-    eapply IHHopstar in Hstsim; eauto; try tauto.
-    destruct Hstsim as [FS1 [Hopstar1 Hstsim]].
+      eapply Promotability.preservation_star in Hopstar'; eauto; try tauto.
+    eapply IHHopstar in Hstsim'; eauto; try tauto.
+    destruct Hstsim' as [FS1 [Hopstar1 Hstsim']].
     exists FS1.
     split; eauto.
       eapply OpsemProps.sop_star_trans; eauto.
 Qed.
 
-Lemma sop_plus__phiplacement_State_simulation: 
-  forall pinfo cfg1 IS1 cfg2 IS2 tr FS2 maxb
-  (Hwfpi: WF_PhiInfo pinfo) (Hwfcfg: OpsemPP.wf_Config cfg1) 
-  (Hwfpp: OpsemPP.wf_State cfg1 IS1) 
-  (Hnoalias: Promotability.wf_State maxb pinfo cfg1 IS1)
-  (Hwfg: MemProps.wf_globals maxb (OpsemAux.Globals cfg1)) (Hinbd: 0 <= maxb)
-  (Hstsim : State_simulation pinfo cfg1 IS1 cfg2 IS2)
-  (Hopplus : Opsem.sop_plus cfg2 IS2 FS2 tr),
-  exists FS1, Opsem.sop_star cfg1 IS1 FS1 tr /\ 
-    State_simulation pinfo cfg1 FS1 cfg2 FS2.
+Lemma sop_div'__phiplacement_State_simulation__sop_wf_div: forall
+  tr (Hdiv : sop_diverges' cfg2 IS2 tr),
+  sop_wf_diverges nat lt cfg1 (measure IS2) IS1 tr.
 Proof.
-  intros.
-  inv Hopplus.
-  eapply phinodes_placement_is_bsim with (St2':=state2) in Hstsim; eauto.
-  destruct Hstsim as [IS1' [Hopstar' Hstsim]].
-  assert (OpsemPP.wf_Config cfg1 /\ OpsemPP.wf_State cfg1 IS1') as Hwfpp'.
-    eapply preservation_star in Hopstar'; eauto.
-  assert (Promotability.wf_State maxb pinfo cfg1 IS1') as Hnoalias'.
-    eapply promotability_preservation_star in Hopstar'; eauto; try tauto.
-  eapply sop_star__phiplacement_State_simulation in Hstsim; eauto; try tauto.
-  destruct Hstsim as [FS1' [Hopstar'' Hstsim]].
-  exists FS1'.
-  split; auto.
-    eapply OpsemProps.sop_star_trans; eauto.
-Qed.
-
-Lemma sop_div__phiplacement_State_simulation: forall pinfo cfg1 IS1 cfg2 IS2 tr 
-  maxb (Hwfpi: WF_PhiInfo pinfo) (Hwfpp: OpsemPP.wf_State cfg1 IS1) 
-  (Hnoalias: Promotability.wf_State maxb pinfo cfg1 IS1)
-  (Hwfg: MemProps.wf_globals maxb (OpsemAux.Globals cfg1)) (Hinbd: 0 <= maxb)
-  (Hstsim : State_simulation pinfo cfg1 IS1 cfg2 IS2)
-  (Hdiv : Opsem.sop_diverges cfg2 IS2 tr),
-  Opsem.sop_diverges cfg1 IS1 tr.
-Proof.
+  repeat match goal with
+  | H:_ |- _ => generalize dependent H; clear H
+  end. 
   cofix CIH.
   intros.
   inv Hdiv.
+  eapply phinodes_placement_is_bsim with (St2':=state2) in Hstsim; eauto.
+  destruct Hstsim as [[St1' [J1 J2]] | [St1' [J1 [J2 J3]]]].    
+    assert (OpsemPP.wf_State cfg1 St1') as Hwfpp'.
+      apply preservation_plus in J1; auto.
+    assert (Promotability.wf_State maxb pinfo cfg1 St1') as Hnoalias'.
+      eapply Promotability.preservation_plus in J1; eauto; try tauto.
+    eapply CIH in J2; eauto; try tauto.
+    eapply sop_wf_diverges_plus; eauto.
 
-Admitted.
+    assert (OpsemPP.wf_State cfg1 St1') as Hwfpp'.
+      apply preservation_star in J1; auto.
+    assert (Promotability.wf_State maxb pinfo cfg1 St1') as Hnoalias'.
+      eapply Promotability.preservation_star in J1; eauto; try tauto.
+    eapply CIH in J3; eauto; try tauto.
+    eapply sop_wf_diverges_star with (m2:=measure state2); eauto.
+Qed.
+
+Lemma sop_div__phiplacement_State_simulation: forall 
+  tr (Hdiv : Opsem.sop_diverges cfg2 IS2 tr),
+  Opsem.sop_diverges cfg1 IS1 tr.
+Proof.
+  intros.
+  apply sop_diverges__sop_diverges' in Hdiv.
+  eapply sop_div'__phiplacement_State_simulation__sop_wf_div in Hdiv; eauto.
+  eapply sop_wf_diverges__sop_diverges; eauto using lt_wf.
+Qed.
+
+End TOPSIM.
 
 Lemma getProductsIDs_app : forall ps1 ps2,
   getProductsIDs (ps1++ps2) = getProductsIDs ps1++getProductsIDs ps2.
@@ -4532,14 +4795,14 @@ Proof.
     inv Hdiv.
     eapply s_genInitState__phiplacement_State_simulation in H; eauto.
     destruct H as [cfg1 [IS1 [Hinit Hstsim]]].  
-    assert (OpsemPP.wf_State cfg1 IS1) as Hwfst. 
+    assert (OpsemPP.wf_Config cfg1 /\ OpsemPP.wf_State cfg1 IS1) as Hwfst. 
       eapply s_genInitState__opsem_wf; eauto.
     assert (exists maxb, 
               MemProps.wf_globals maxb (OpsemAux.Globals cfg1) /\ 0 <= maxb /\
               Promotability.wf_State maxb pinfo cfg1 IS1).
       eapply s_genInitState__wf_globals_promotable; eauto.
     destruct H as [maxb [Hwfg [Hless Hprom]]].
-    eapply sop_div__phiplacement_State_simulation in Hstsim; eauto.
+    eapply sop_div__phiplacement_State_simulation in Hstsim; eauto; try tauto.
     destruct Hstsim as [FS1 Hopdiv1].
     econstructor; eauto.
 Qed.
