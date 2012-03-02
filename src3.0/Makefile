@@ -8,17 +8,29 @@ CMAS:=Extraction/_build/coqllvm.cma \
   Extraction/_build/eq_tv.cma \
   Extraction/_build/sub_tv.cma
 CMXAS:=$(CMAS:.cma=.cmxa)
+COQLIBS=-I Vellvm/ -I Vellvm/ott -I Vellvm/monads -I Vellvm/compcert \
+	-I Vellvm/GraphBasics -I Transforms -I TV -I SoftBound \
+	-I $(METALIB)
 
-all: coq ocaml
+all: theories extraction ocaml
 
-coq:
+theories: Makefile.coq
 	+make -C ./Vellvm
-	+make -C ./SoftBound
-	+make -C ./TV
-	+make -C ./Transforms
-	+make -C ./Extraction
+	+make -f Makefile.coq COQLIBS="$(COQLIBS)"
 
-ocaml: coq $(CMAS) $(CMXAS)
+extraction: theories
+	+make -C Extraction
+
+# For some reason, the -slash option of coqdep is generating
+# ill-formed .v.d files. Removing it seems to fix the problem.
+Makefile.coq: Make
+	coq_makefile -f Make -o Makefile.coq
+	sed -e 's/-slash //' -i Makefile.coq
+
+%.vo: Makefile.coq
+	make -f Makefile.coq "$@"
+
+ocaml: theories $(CMAS) $(CMXAS)
 	ocamlbuild -clean
 	ocamlbuild $(OCAMLBUILD_OPT) Interpreter/main.$(OUTPUT_TYPE)
 	ocamlbuild $(OCAMLBUILD_OPT) Transforms/main.native
@@ -27,9 +39,7 @@ ocaml: coq $(CMAS) $(CMXAS)
 
 clean:
 	+make -C ./Vellvm clean
-	+make -C ./SoftBound clean
-	+make -C ./TV clean
-	+make -C ./Transforms clean
+	+make -f Makefile.coq clean
 	+make -C ./Extraction clean
 	ocamlbuild -clean
 
@@ -37,4 +47,4 @@ ocamlclean:
 	+make -C ./Extraction -f Makefile.ocaml clean
 	ocamlbuild -clean
 
-.PHONY: all clean ocamlclean ocaml coq
+.PHONY: all clean ocamlclean ocaml theories extraction

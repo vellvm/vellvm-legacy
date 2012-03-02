@@ -1,18 +1,6 @@
 include ../Makefile.config
 
-all: coq
-
-coq: Makefile.coq syntax.v typings.v
-	+make -C ott
-	+make -C monads
-	+make -C compcert
-	+make -C GraphBasics
-	+make -f Makefile.coq
-
-Makefile.coq: Make
-	coq_makefile -f Make -I $(METALIB) -o Makefile.coq -no-install
-
-ott: main.pdf typings.vo interpreter.vo opsem_inst.vo vellvm.vo opsem_dom.vo
+all: syntax.v typings.v
 
 syntax.v : syntax.ott
 	$(OTT) -i syntax.ott -o syntax.v
@@ -39,13 +27,6 @@ main.pdf: def.tex main.tex macros.sty
 	pdflatex main.tex
 
 clean:
-	+make -C ./ott clean
-	+make -C ./compcert clean
-	+make -C ./monads clean
 	rm -rf main.pdf main.log main.aux syntax.v typings.v m_*.ott
-	if [ -f Makefile.coq ]; then        \
-		make -f Makefile.coq clean; \
-		rm Makefile.coq;            \
-	fi
 
-.PHONY: all coq clean ott
+.PHONY: all clean
