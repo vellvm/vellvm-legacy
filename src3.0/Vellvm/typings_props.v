@@ -53,7 +53,7 @@ Proof.
    match goal with
    | H11: hasNonePredecessor ?b _ = _,
      H7: getEntryBlock _ = Some ?b,
-     H: getEntryBlock _ = _ |- _ => 
+     H: getEntryBlock _ = _ |- _ =>
        rename H11 into J1; rename H7 into J2; rename H into J3;
        simpl in J1; rewrite J3 in J2; inv J2;
        clear - J1 Hsucc HBinF
@@ -67,9 +67,9 @@ Proof.
        simpl in J1.
        destruct tmn as [| |? ? l1 l2| l1 |]; try solve [inversion Hsucc].
          unfold hasNonePredecessor in J1.
-         unfold predOfBlock in J1. simpl in J1.  
-         simpl in Hsucc. 
-         destruct Hsucc as [Hsucc | [Hsucc | Hsucc]]; subst; 
+         unfold predOfBlock in J1. simpl in J1.
+         simpl in Hsucc.
+         destruct Hsucc as [Hsucc | [Hsucc | Hsucc]]; subst;
            try inversion Hsucc.
 
            destruct (@lookupAL_update_udb_eq (update_udb nil l3 l2) l3 a)
@@ -92,8 +92,8 @@ Proof.
            inversion Hin.
 
          unfold hasNonePredecessor in J1.
-         unfold predOfBlock in J1. simpl in J1.  
-         simpl in Hsucc. 
+         unfold predOfBlock in J1. simpl in J1.
+         simpl in Hsucc.
          destruct Hsucc as [Hsucc | Hsucc]; subst; try inversion Hsucc.
            destruct (@lookupAL_update_udb_eq nil l3 a) as [re [Hlk Hin]].
            apply lookupAL_genBlockUseDef_blocks_spec with (bs:=bs) in Hlk.
@@ -105,7 +105,7 @@ Proof.
 Qed.
 
 Lemma wf_modules__wf_module : forall S ms m,
-  wf_modules S ms -> 
+  wf_modules S ms ->
   moduleInSystemB m ms ->
   wf_module S m.
 Proof.
@@ -136,7 +136,7 @@ Proof.
 Qed.
 
 Lemma wf_system__wf_fdef : forall S los nts Ps f,
-  wf_system S -> 
+  wf_system S ->
   moduleInSystemB (module_intro los nts Ps) S = true ->
   InProductsB (product_fdef f) Ps = true ->
   wf_fdef S (module_intro los nts Ps) f.
@@ -146,29 +146,29 @@ Proof.
   eapply wf_modules__wf_module in HMinS; eauto.
   inv HMinS.
   match goal with
-  | H7: wf_prods _ _ _ |- _ => 
+  | H7: wf_prods _ _ _ |- _ =>
     eapply wf_prods__wf_prod in H7; eauto; inv H7; auto
   end.
 Qed.
 
 Lemma wf_system__wf_fdec : forall S los nts Ps f,
-  wf_system S -> 
+  wf_system S ->
   moduleInSystemB (module_intro los nts Ps) S = true ->
   InProductsB (product_fdec f) Ps = true ->
   wf_fdec S (module_intro los nts Ps) f.
 Proof.
   intros S los nts Ps f HwfS HMinS HPinM.
-  inv HwfS. 
+  inv HwfS.
   eapply wf_modules__wf_module in HMinS; eauto.
   inv HMinS.
   match goal with
-  | H7: wf_prods _ _ _ |- _ => 
+  | H7: wf_prods _ _ _ |- _ =>
     eapply wf_prods__wf_prod in H7; eauto; inv H7; auto
   end.
 Qed.
 
 Lemma wf_system__uniqFdef : forall S los nts Ps f,
-  wf_system S -> 
+  wf_system S ->
   moduleInSystemB (module_intro los nts Ps) S = true ->
   InProductsB (product_fdef f) Ps = true ->
   uniqFdef f.
@@ -181,7 +181,7 @@ Proof.
 Qed.
 
 Lemma wf_system__uniqFdec : forall S los nts Ps f,
-  wf_system S -> 
+  wf_system S ->
   moduleInSystemB (module_intro los nts Ps) S = true ->
   InProductsB (product_fdec f) Ps = true ->
   uniqFdec f.
@@ -189,12 +189,12 @@ Proof.
   intros.
   inv H.
   apply uniqSystem__uniqFdec with (S:=S)(M:=module_intro los nts Ps); auto.
-  unfold productInSystemModuleB, productInModuleB, is_true.  
+  unfold productInSystemModuleB, productInModuleB, is_true.
   apply andb_true_iff; auto.
 Qed.
 
 Lemma wf_blocks__wf_block : forall s m f bs b,
-  wf_blocks s m f bs -> 
+  wf_blocks s m f bs ->
   InBlocksB b bs = true ->
   wf_block s m f b.
 Proof.
@@ -280,7 +280,7 @@ Lemma wf_system__wf_cmd : forall l1 ps1 cs1 tmn1 f ps los nts s c,
   moduleInSystemB (module_intro los nts ps) s = true ->
   wf_system s ->
   In c cs1 ->
-  wf_insn s (module_intro los nts ps) f (block_intro l1 ps1 cs1 tmn1) 
+  wf_insn s (module_intro los nts ps) f (block_intro l1 ps1 cs1 tmn1)
     (insn_cmd c).
 Proof.
   intros.
@@ -294,7 +294,7 @@ Lemma wf_system__wf_tmn : forall l1 ps1 cs1 tmn1 f ps los nts s,
   InProductsB (product_fdef f) ps = true ->
   moduleInSystemB (module_intro los nts ps) s = true ->
   wf_system s ->
-  wf_insn s (module_intro los nts ps) f (block_intro l1 ps1 cs1 tmn1) 
+  wf_insn s (module_intro los nts ps) f (block_intro l1 ps1 cs1 tmn1)
     (insn_terminator tmn1).
 Proof.
   intros.
@@ -323,10 +323,10 @@ Proof.
   inv H. auto.
 Qed.
 
-Lemma wf_fdef__non_entry: forall s m f, 
+Lemma wf_fdef__non_entry: forall s m f,
   wf_fdef s m f -> getEntryBlock f <> None.
 Proof.
-  intros. inv H. 
+  intros. inv H.
   match goal with
   | H2: getEntryBlock ?f = Some _ |- getEntryBlock ?f <> None =>
       rewrite H2; congruence
@@ -362,7 +362,7 @@ Proof.
   intros s f l1 ps1 cs1 tmn1 los nts ps HFinP HMinS Hwfs Hentry.
   assert (wf_fdef s (module_intro los nts ps) f) as Hwff.
     eapply wf_system__wf_fdef; eauto.
-  assert (wf_block s (module_intro los nts ps) f 
+  assert (wf_block s (module_intro los nts ps) f
     (block_intro l1 ps1 cs1 tmn1)) as Hwfb.
     apply entryBlockInFdef in Hentry.
     eapply wf_system__blockInFdefB__wf_block; eauto.
@@ -585,8 +585,8 @@ Lemma wf_fdef__wf_phinodes : forall s m f l3 cs tmn ps,
 Proof.
   intros.
   inv H.
-  match goal with 
-  | H6: wf_blocks _ _ _ _ |- _ => 
+  match goal with
+  | H6: wf_blocks _ _ _ _ |- _ =>
     eapply wf_blocks__wf_block in H6; eauto;
     inv H6; auto
   end.
@@ -614,7 +614,7 @@ Proof.
 Qed.
 
 Lemma wf_trunc__wf_typ : forall s los nts ps f b i0 t t0 v t1
-  (H: wf_trunc s (module_intro los nts ps) f b 
+  (H: wf_trunc s (module_intro los nts ps) f b
     (insn_cmd (insn_trunc i0 t t0 v t1))),
   wf_typ s t1 /\ feasible_typ (los, nts) t1.
 Proof.
@@ -623,7 +623,7 @@ Proof.
 Qed.
 
 Lemma wf_trunc__wf_value : forall s los nts ps f b i0 t t0 v t1
-  (H: wf_trunc s (module_intro los nts ps) f b 
+  (H: wf_trunc s (module_intro los nts ps) f b
     (insn_cmd (insn_trunc i0 t t0 v t1))),
   wf_value s (module_intro los nts ps) f v t0.
 Proof.
@@ -632,7 +632,7 @@ Proof.
 Qed.
 
 Lemma wf_ext__wf_typ : forall s los nts ps f b i0 e t0 v t1
-  (H: wf_ext s (module_intro los nts ps) f b 
+  (H: wf_ext s (module_intro los nts ps) f b
     (insn_cmd (insn_ext i0 e t0 v t1))),
   wf_typ s t1 /\ feasible_typ (los, nts) t1.
 Proof.
@@ -641,7 +641,7 @@ Proof.
 Qed.
 
 Lemma wf_ext__wf_value : forall s los nts ps f b i0 e t0 v t1
-  (H: wf_ext s (module_intro los nts ps) f b 
+  (H: wf_ext s (module_intro los nts ps) f b
     (insn_cmd (insn_ext i0 e t0 v t1))),
   wf_value s (module_intro los nts ps) f v t0.
 Proof.
@@ -1119,7 +1119,7 @@ Proof.
         destruct J as [ps0 [cs0 [tmn0 [J1 J2]]]].
         contradict Hunreach.
         unfold reachable. inv HwfF.
-        match goal with | H5: getEntryBlock _ = _ |- _ => rewrite H5 end. 
+        match goal with | H5: getEntryBlock _ = _ |- _ => rewrite H5 end.
         destruct block5 as [l0 ? ? ?].
         destruct wf_entrypoints as [_ [J _]].
         destruct bs as [|b ?]; tinv J.
@@ -1132,7 +1132,7 @@ Proof.
             eapply entry_in_vertexes; simpl; eauto.
           match goal with
           | H14: wf_blocks _ _ _ _ |- _ => inv H14
-          end. 
+          end.
           match goal with
           | H11: wf_block _ _ _ _ |- _ => inv H11
           end.
@@ -1140,7 +1140,7 @@ Proof.
           destruct Hin as [cs1 [ps1 [tmn1 Hin]]].
           eapply blockInFdefB_in_vertexes; eauto.
 
-          match goal with | H5: getEntryBlock _ = _ |- _ => inv H5 end. 
+          match goal with | H5: getEntryBlock _ = _ |- _ => inv H5 end.
           eapply successor_in_arcs; eauto.
       apply Dominators.eq_trans with (y:=Dominators.add _ (Dominators.bot _) n).
         apply Dominators.add_eq; auto.
@@ -1175,15 +1175,15 @@ Lemma dom_unreachable: forall
 Proof.
   intros.
   assert (HwfF':=HwfF). inv HwfF'.
-  destruct block5 as [l0 p c t]. 
+  destruct block5 as [l0 p c t].
   rename blocks5 into bs.
   match goal with | H1: getEntryBlock _ = _ |- _ => assert (J:=H1) end.
-  destruct bs; inv J. 
-  match goal with | H1: getEntryBlock _ = _ |- _ => 
+  destruct bs; inv J.
+  match goal with | H1: getEntryBlock _ = _ |- _ =>
     apply dom_entrypoint in H1 end.
   destruct (id_dec l3 l0); subst.
     match goal with
-    | H1: Dominators.bs_contents _ _ = _ |- _ => 
+    | H1: Dominators.bs_contents _ _ = _ |- _ =>
       rewrite H1 in Hnempty; congruence
     end.
 
@@ -1306,7 +1306,7 @@ Proof.
            unfold DomComplete.predecessors in Hin.
            apply make_predecessors_correct' in Hin.
            apply successors_blocks__blockInFdefB with (fh:=
-             (fheader_intro fnattrs5 typ5 id5 args5 varg5)) 
+             (fheader_intro fnattrs5 typ5 id5 args5 varg5))
              in Hin.
            destruct Hin as [ps0 [cs0 [tmn0 [J1 J2]]]].
            eapply getEntryBlock_inv with (l3:=a)(a:=l0) in J2; simpl; eauto.
@@ -1450,7 +1450,7 @@ Proof.
 Qed.
 
 Lemma blockStrictDominates_isnt_refl : forall S M F1 block'
-  (Hin : blockInFdefB block' F1) (HwfF : wf_fdef S M F1) 
+  (Hin : blockInFdefB block' F1) (HwfF : wf_fdef S M F1)
   (HuniqF : uniqFdef F1) (Hreach : isReachableFromEntry F1 block'),
   ~ blockStrictDominates F1 block' block'.
 Proof.
@@ -1490,7 +1490,7 @@ Proof.
     destruct Hw'' as [Hw'' | Hw'']; subst; congruence.
 Qed.
 
-Lemma dom_acyclic: forall S M (f:fdef) (l1 l2:l) 
+Lemma dom_acyclic: forall S M (f:fdef) (l1 l2:l)
   (HwfF:wf_fdef S M f) (HuniqF : uniqFdef f),
   reachable f l2 ->
   strict_domination f l1 l2 -> ~ domination f l2 l1.
@@ -1632,7 +1632,7 @@ Proof.
   destruct Hsdom' as [Hdom' Hneq2].
   unfold domination, reachable in *.
   destruct (getEntryBlock f); auto.
-  destruct b as [l0 ? ? ?]. 
+  destruct b as [l0 ? ? ?].
   destruct Hreach as [vl [al Hreach]].
   assert (Hw:=Hreach).
   apply Hdom in Hw.
@@ -1900,7 +1900,7 @@ Proof.
            unfold DomComplete.predecessors in Hin.
            apply make_predecessors_correct' in Hin.
            apply successors_blocks__blockInFdefB with (fh:=
-             (fheader_intro fnattrs5 typ5 id5 args5 varg5)) 
+             (fheader_intro fnattrs5 typ5 id5 args5 varg5))
              in Hin.
            destruct Hin as [ps0 [cs0 [tmn0 [J1 J2]]]].
            eapply getEntryBlock_inv with (l3:=a)(a:=l0) in J2; simpl; eauto.
@@ -2264,7 +2264,7 @@ Proof.
   destruct Hsdom' as [Hdom' Hneq2].
   unfold domination, reachable in *.
   destruct (getEntryBlock f); auto.
-  destruct b as [l0 ? ? ?]. 
+  destruct b as [l0 ? ? ?].
   destruct Hreach as [vl [al Hreach]].
   assert (Hw:=Hreach).
   apply Hdom in Hw.
@@ -2466,7 +2466,7 @@ Qed.
 End AnotherDominators.
 
 Lemma wf_insn__wf_value: forall S m F B instr v
-  (Hwfi: wf_insn S m F B instr) 
+  (Hwfi: wf_insn S m F B instr)
   (HvInOps : valueInInsnOperands v instr),
   exists t, wf_value S m F v t.
 Proof.
@@ -2526,5 +2526,24 @@ Proof.
     apply terminatorEqB_inv in J1.
     subst.
     apply wf_fdef__wf_tmn; auto.
+Qed.
+
+Lemma wf_typ_independent :
+  forall (sys1 sys2 : system) (t : typ),
+    wf_typ sys1 t -> wf_typ sys2 t.
+Proof.
+  intros sys1 sys2.
+  set (P  := fun t => wf_typ sys1 t -> wf_typ sys2 t).
+  set (Pl := fun (sys : system) ts =>
+    wf_typ_list (make_list_system_typ (map_list_typ (fun t => (sys, t)) ts))).
+  set (Pls := fun ts => Pl sys1 ts -> Pl sys2 ts).
+  apply (typ_ind2 P Pls); subst P Pl Pls; simpl;
+    [intros t H|intros t H|intros H|intros H|intros H|
+      intros sz t IH H|intros t IH l Hl v H|intros l Hl H|
+        intros t IH H|intros i H|intros H|intros t IH l IHl H];
+    try (inversion H; subst; constructor; auto);
+    try (apply IH; auto).
+
+  apply wf_typ_namedt with (lookupTypViaTIDFromSystem sys2 i); trivial.
 Qed.
 
