@@ -14,6 +14,164 @@ Require Import palloca_props.
 Require Import program_sim.
 Require Import trans_tactic.
 
+Lemma bytes_of_int_prop2: forall n z,
+  bytes_of_int (nat_of_Z (bytesize_chunk n)) z = 
+  bytes_of_int (nat_of_Z (bytesize_chunk n)) (z mod (Int.modulus n)).
+Proof.
+  unfold bytesize_chunk. unfold Int.modulus, two_power_nat.
+Admitted.
+
+Axiom bits_of_single_of_bits: forall i,
+  Floats.Float.bits_of_single (Floats.Float.single_of_bits i) = i.
+
+Axiom bits_of_double_of_bits: forall i,
+  Floats.Float.bits_of_double (Floats.Float.double_of_bits i) = i.
+
+Lemma foo: forall v c,
+  encode_val c (decode_val c (encode_val c v)) = encode_val c v.
+Proof.
+  destruct v; destruct c; simpl; auto.
+    unfold decode_val.
+    rewrite proj_bytes_undef'; auto using size_chunk_nat_pos'.
+    destruct (eq_nat_dec n 31); subst; auto.
+
+    unfold decode_val. 
+    rewrite proj_inj_bytes. simpl.
+    unfold encode_int. simpl.
+    rewrite rev_if_be_involutive.
+    f_equal. f_equal. 
+    rewrite int_of_bytes_of_int.    
+    rewrite nat_of_Z_max.
+    rewrite Zmax_spec.
+    assert (J:=@bytesize_chunk_pos n).
+    destruct (zlt 0 (bytesize_chunk n)); try solve [contradict z; omega].
+    rewrite <- bytes_of_int_prop2.
+    rewrite bytes_of_int_mod' with (y:=Int.unsigned wz i0); 
+      try omega; auto.
+    apply Int.eqmod_sym.
+    apply Int.eqmod_mod; try (apply two_p_gt_ZERO; try omega).
+
+    unfold decode_val. 
+    rewrite proj_inj_bytes. simpl.
+    unfold encode_float. unfold encode_int.
+    rewrite rev_if_be_involutive.
+    f_equal. f_equal. 
+    simpl.
+    repeat rewrite bits_of_single_of_bits. simpl.
+    repeat rewrite Zmod_0_l. auto.
+
+    unfold decode_val. 
+    rewrite proj_inj_bytes. simpl.
+    unfold encode_float. unfold encode_int.
+    rewrite rev_if_be_involutive.
+    f_equal. f_equal. 
+    simpl.
+    repeat rewrite bits_of_double_of_bits. simpl.
+    repeat rewrite Zmod_0_l. auto.
+
+    unfold decode_val. 
+    rewrite proj_inj_bytes. simpl.
+    unfold encode_float. unfold encode_int. unfold decode_int.
+    rewrite rev_if_be_involutive. simpl.
+    f_equal. f_equal. 
+    rewrite int_of_bytes_of_int.    
+    rewrite Zmod_0_l. auto.
+
+    unfold decode_val. 
+    rewrite proj_inj_bytes. simpl.
+    unfold encode_float.
+    rewrite rev_if_be_involutive. 
+    f_equal. f_equal. 
+    rewrite int_of_bytes_of_int.   
+    rewrite bits_of_single_of_bits. 
+    erewrite bytes_of_int_mod; eauto. 
+    apply Int.eqmod_trans with 
+      (y:=Int.unsigned 31 (Floats.Float.bits_of_single f) 
+            mod two_p (Z_of_nat 4 * 8)).
+      apply Int.eqm_unsigned_repr_l.
+      apply Int.eqmod_refl.
+
+      apply Int.eqmod_sym.
+      apply Int.eqmod_mod.
+        apply two_p_gt_ZERO; try omega.
+
+    unfold decode_val. 
+    rewrite proj_inj_bytes. simpl.
+    unfold encode_float.
+    rewrite rev_if_be_involutive. 
+    f_equal. f_equal. 
+    rewrite bits_of_double_of_bits. 
+    rewrite int_of_bytes_of_int.    
+    erewrite bytes_of_int_mod; eauto. 
+    apply Int.eqmod_trans with 
+      (y:=Int.unsigned 63 (Floats.Float.bits_of_double f) 
+            mod two_p (Z_of_nat 8 * 8)).
+      apply Int.eqm_unsigned_repr_l.
+      apply Int.eqmod_refl.
+
+      apply Int.eqmod_sym.
+      apply Int.eqmod_mod.
+        apply two_p_gt_ZERO; try omega.
+
+    unfold decode_val. 
+    destruct (eq_nat_dec n 31); subst.
+      simpl.
+      destruct (eq_block b b); simpl; try congruence.
+      destruct (Int.eq_dec 31 i0 i0); simpl; try congruence.
+      rewrite proj_bytes_undef'; auto using size_chunk_nat_pos'.
+
+    unfold decode_val. 
+    destruct (eq_nat_dec n 31); subst.
+      simpl.
+      destruct (Int.eq_dec 31 i0 i0); simpl; try congruence.
+      rewrite proj_bytes_undef'; auto using size_chunk_nat_pos'.
+Qed.
+
+Lemma update_stable:
+  forall (A: Type) (x: Z) (v: A) (f: Z -> A) (y: Z),
+  update x (f x) f y = f y.
+Proof.
+  intros; unfold update. destruct (zeq y x); subst; auto.
+Qed.
+
+Lemma load_store_same: forall a M b0 ofs0 v M'
+  (Hinv: forall bs, 
+     bs = Mem.getN (size_chunk_nat a) ofs0 (Mem.mem_contents M b0) ->
+     bs = encode_val a (decode_val a bs))
+  (Hld: ret v = Mem.load a M b0 ofs0)
+  (Hst: ret M' = Mem.store a M b0 ofs0 v),
+  M = M'.
+Proof.
+  intros.
+Local Transparent Mem.store Mem.load.
+  unfold Mem.store in Hst.
+  unfold Mem.load in Hld.
+  remember (Mem.valid_access_dec M a b0 ofs0 Readable) as R1.
+  destruct R1; inv Hld.
+  remember (Mem.valid_access_dec M a b0 ofs0 Writable) as R2.
+  destruct R2; inv Hst.
+  destruct M. simpl.
+  apply Mem.mkmem_ext; auto.
+  rewrite <- Hinv; auto.
+  apply Axioms.extensionality. intro b.
+  apply Axioms.extensionality. intro ofs.
+  unfold update.
+  destruct (zeq b b0); subst; auto.
+  clear.
+  generalize dependent ofs0.
+  generalize dependent ofs.
+  generalize (mem_contents b0).
+  generalize (size_chunk_nat a). clear.
+  induction n; simpl; intros; auto.
+    rewrite Mem.getN_exten with (c2:=update ofs0 (m ofs0) m).
+      rewrite <- IHn.
+      rewrite update_stable; auto.
+
+      intros.
+      rewrite update_o; auto.
+        omega.
+Qed.
+
 Module Promotability.
 
 Export MemProps.

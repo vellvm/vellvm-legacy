@@ -151,14 +151,6 @@ match goal with
     [Htcmds [Httmn Heq2]]]]]]]]]]]]]]]]]]]]; subst
 end.
 
-Definition updateAddALs (X:Type) (lc:AssocList X) (kvs:list (atom*X)) :
-  AssocList X :=
-fold_left  (fun lc0 kv => let '(k, v) := kv in updateAddAL _ lc0 k v) kvs lc.
-
-Lemma simpl_cons_updateAddALs : forall X lc v k vks,
-  updateAddALs X lc ((v,k)::vks) = updateAddALs _ (updateAddAL _ lc v k) vks.
-Proof. auto. Qed.
-
 Ltac next_insn :=
   let nonupdate_insn F2 B2 cs2 tmn2 lc2 als2 ECs2 M2 M2' :=
     match goal with
@@ -231,19 +223,6 @@ Ltac next_insn :=
            ((Opsem.mkEC _ _ _ _ (updateAddALs _ ?lc2 ((?k,?v)::_)) ?als2')::_)
        ?M2') _ ] => update_insn F2 B2 cs2 tmn2 lc2 k v als2 ECs2 M2 als2' M2'
     end
-  end.
-
-Ltac inv_mbind :=
-  repeat match goal with
-         | H : match ?e with
-               | Some _ => _
-               | None => None
-               end = Some _ |- _ => remember e as R; destruct R as [[]|]; inv H
-         end.
-
-Ltac tac0 := match goal with
-  | |- exists _, _ => idtac
-  | |- _ => solve [eauto]
   end.
 
 Ltac simulation_ops :=

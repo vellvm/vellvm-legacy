@@ -4080,4 +4080,25 @@ Proof.
      exists fptr. rewrite <- HeqHlk. rewrite <- HeqHelk. split; auto.
 Qed.
 
+Lemma preservation_star: forall cfg IS IS' tr (Hwfcfg: wf_Config cfg),
+  wf_State cfg IS ->
+  sop_star cfg IS IS' tr ->
+  wf_State cfg IS'.
+Proof.
+  intros.
+  induction H0; auto.
+    apply preservation in H0; auto.
+Qed.
+
+Lemma preservation_plus: forall cfg IS IS' tr (Hwfcfg: wf_Config cfg),
+  wf_State cfg IS ->
+  sop_plus cfg IS IS' tr ->
+  wf_State cfg IS'.
+Proof.
+  intros.
+  apply sop_plus__implies__sop_star in H0.
+  eapply preservation_star; eauto.
+Qed.
+
+
 End OpsemPP. End OpsemPP.

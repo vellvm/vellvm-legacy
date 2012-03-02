@@ -21,165 +21,6 @@ Import Promotability.
 
 Definition DGVMap := @Opsem.GVsMap DGVs.
 
-Lemma sop_plus_star__implies__sop_plus: forall cfg S1 S2 S3 tr1 tr2,
-  Opsem.sop_plus cfg S1 S2 tr1 ->
-  @Opsem.sop_star DGVs cfg S2 S3 tr2 ->
-  Opsem.sop_plus cfg S1 S3 (tr1 ** tr2).
-Proof.
-  induction 1; intros; auto.
-    rewrite Eapp_assoc; auto. 
-    econstructor; eauto.
-    eapply OpsemProps.sop_star_trans; eauto.
-Qed.
-
-Lemma sop_star_plus__implies__sop_plus: forall cfg S1 S2 S3 tr1 tr2,
-  @Opsem.sop_star DGVs cfg S1 S2 tr1 ->
-  Opsem.sop_plus cfg S2 S3 tr2 ->
-  Opsem.sop_plus cfg S1 S3 (tr1 ** tr2).
-Proof.
-  induction 1; intros; auto.
-    apply IHsop_star in H1.
-    rewrite Eapp_assoc; auto. 
-    econstructor; eauto.
-    eapply OpsemProps.sop_plus__implies__sop_star; eauto.
-Qed.
-
-Lemma sop_step_plus__implies__sop_plus: forall cfg S1 S2 S3 tr1 tr2,
-  Opsem.sInsn cfg S1 S2 tr1 ->
-  @Opsem.sop_plus DGVs cfg S2 S3 tr2 ->
-  Opsem.sop_plus cfg S1 S3 (tr1 ** tr2).
-Proof.
-  intros. inv H0.
-  econstructor; eauto.
-Qed.
-
-CoInductive sop_diverges' (cfg:OpsemAux.Config): 
-    @Opsem.State DGVs -> traceinf -> Prop :=
-| sop_diverges_intro' : forall state1 state2 tr1 tr2,
-    Opsem.sInsn cfg state1 state2 tr1 ->
-    sop_diverges' cfg state2 tr2 ->
-    sop_diverges' cfg state1 (Eappinf tr1 tr2).
-
-Lemma sop_star_diverges'__sop_diverges': forall cfg IS1 IS2 tr1 tr2,
-  Opsem.sop_star cfg IS1 IS2 tr1 ->
-  sop_diverges' cfg IS2 tr2 ->
-  sop_diverges' cfg IS1 (Eappinf tr1 tr2).
-Proof.
-  induction 1; intros; auto.
-    apply IHsop_star in H1.
-    rewrite Eappinf_assoc.
-    econstructor; eauto.
-Qed.
-
-Lemma sop_plus_diverges'__sop_diverges': forall cfg IS1 IS2 tr1 tr2,
-  Opsem.sop_plus cfg IS1 IS2 tr1 ->
-  sop_diverges' cfg IS2 tr2 ->
-  sop_diverges' cfg IS1 (Eappinf tr1 tr2).
-Proof.
-  intros. inv H.
-  eapply sop_star_diverges'__sop_diverges' in H2; eauto.
-  rewrite Eappinf_assoc.
-  econstructor; eauto.
-Qed.
-
-Lemma sop_star_diverges__sop_diverges: forall cfg IS1 IS2 tr1 tr2,
-  @Opsem.sop_star DGVs cfg IS1 IS2 tr1 ->
-  Opsem.sop_diverges cfg IS2 tr2 ->
-  Opsem.sop_diverges cfg IS1 (Eappinf tr1 tr2).
-Proof.
-  induction 1; intros; auto.
-    apply IHsop_star in H1.
-    rewrite Eappinf_assoc.
-    rewrite <- E0_right at 1.
-    econstructor; eauto.
-Qed.
-
-Lemma sop_diverges__sop_diverges': forall cfg IS tr,
-  @Opsem.sop_diverges DGVs cfg IS tr -> sop_diverges' cfg IS tr.
-Proof.
-  cofix CIH.
-  intros.
-  inv H.
-  inv H0.
-  assert (Opsem.sop_diverges cfg state0 (tr3***tr2)) as J.
-    clear CIH. 
-    eapply sop_star_diverges__sop_diverges; eauto.
-  apply CIH in J. clear CIH.
-  rewrite Eappinf_assoc.
-  econstructor; eauto.
-Qed.
-
-Lemma sop_diverges'__sop_diverges: forall cfg IS tr,
-  sop_diverges' cfg IS tr -> @Opsem.sop_diverges DGVs cfg IS tr.
-Proof.
-  cofix CIH.
-  intros.
-  inv H.
-  apply CIH in H1. clear CIH.
-  econstructor; eauto.
-    rewrite <- E0_right.
-    econstructor; eauto.
-Qed.
-
-Section SOP_WF_DIVERGES.
-
-Variable Measure: Type.
-Variable R:Measure -> Measure -> Prop.
-Hypothesis Hwf_founded_R: well_founded R.
-
-CoInductive sop_wf_diverges (cfg:OpsemAux.Config): 
-    Measure -> @Opsem.State DGVs -> traceinf -> Prop :=
-| sop_wf_diverges_plus : forall m1 m2 state1 state2 tr1 tr2,
-    Opsem.sop_plus cfg state1 state2 tr1 ->
-    sop_wf_diverges cfg m2 state2 tr2 ->
-    sop_wf_diverges cfg m1 state1 (Eappinf tr1 tr2)
-| sop_wf_diverges_star : forall m1 m2 state1 state2 tr1 tr2,
-    R m2 m1 ->
-    Opsem.sop_star cfg state1 state2 tr1 ->
-    sop_wf_diverges cfg m2 state2 tr2 ->
-    sop_wf_diverges cfg m1 state1 (Eappinf tr1 tr2)
-.
-
-Lemma sop_wf_diverges__inv: forall m1 cfg S1 Tr
-  (Hdiv: sop_wf_diverges cfg m1 S1 Tr),
-  exists S2, exists m2, exists tr, exists Tr',
-    Opsem.sop_plus cfg S1 S2 tr /\
-    sop_wf_diverges cfg m2 S2 Tr' /\
-    Tr = Eappinf tr Tr'.
-Proof.
-  intro m1. pattern m1.
-  apply (well_founded_ind Hwf_founded_R); intros.
-  inv Hdiv.
-    exists state2. exists m2. exists tr1. exists tr2. 
-    split; auto.
-
-    apply H in H2; auto.
-    destruct H2 as [S2 [m2' [tr [Tr' [J1 [J2 J3]]]]]]; subst.
-    exists S2. exists m2'. exists (Eapp tr1 tr). exists Tr'.
-    split.
-      eapply sop_star_plus__implies__sop_plus; eauto.
-    split; auto.
-      rewrite Eappinf_assoc; auto.
-Qed.
-
-Lemma sop_wf_diverges__sop_diverges: forall cfg m IS tr,
-  sop_wf_diverges cfg m IS tr -> Opsem.sop_diverges cfg IS tr.
-Proof.
-  cofix CIH.
-  intros.
-  inv H.
-    apply sop_wf_diverges__inv in H1; auto.
-    destruct H1 as [S2 [m2' [tr [Tr' [J1 [J2 J3]]]]]]; subst.
-    econstructor; eauto.
-
-    apply sop_wf_diverges__inv in H2; auto.
-    destruct H2 as [S2 [m2' [tr [Tr' [J1 [J2 J3]]]]]]; subst.
-    rewrite <- Eappinf_assoc.
-    econstructor; eauto using sop_star_plus__implies__sop_plus.
-Qed.
-
-End SOP_WF_DIVERGES.
-
 Definition reg_simulation (pinfo: PhiInfo) (f1:fdef) (lc1 lc2:DGVMap) : Prop :=  
   if (fdef_dec (PI_f pinfo) f1) then 
     (forall i0, 
@@ -4147,22 +3988,6 @@ Proof.
     split; auto.
 Qed.
 
-Ltac destruct_match :=
-match goal with
-| H: match ?lk with
-     | Some _ => Some _
-     | None => _
-     end = Some _ |- _ => 
-   let r := fresh "r" in
-   remember lk as R; destruct R as [r|]; inv H; symmetry_ctx
-end.
-
-Ltac fill_ctxhole :=
-match goal with
-| H : ?e = _ |- context [ ?e ] => rewrite H
-| H : _ = ?e |- context [ ?e ] => rewrite H
-end.
-
 Lemma system_simulation__fdef_simulation : forall pinfo fid f2 S1 S2
   (Hssim: system_simulation pinfo S1 S2)
   (Hlkup: lookupFdefViaIDFromSystem S2 fid = ret f2),
@@ -4200,35 +4025,6 @@ match M1, M2 with
     products_simulation pinfo Ps1 Ps2
 end.
 
-Ltac destruct_if :=
-match goal with
-| H: context [(if ?lk then _ else _)] |- _ =>
-   remember lk as R; destruct R; try inv H
-| H: context [if ?lk then _ else _] |- _ =>
-   remember lk as R; destruct R; try inv H
-end.
-
-Lemma productNEqB_intro : forall p1 p2,
-  p1 <> p2 -> productEqB p1 p2 = false.
-Proof. 
-  intros. apply false_sumbool2bool; auto.
-Qed.
-
-Ltac destruct_let :=
-  match goal with
-  | _: context [match ?e with 
-                | (_,_) => _
-                end] |- _ => destruct e
-  | |- context [match ?e with 
-                | (_,_) => _
-                end] => destruct e
-  end.
-
-Definition fheaderOfFdef (fdef:fdef) : fheader :=
-match fdef with
-| fdef_intro fh _ => fh
-end.
-
 Lemma fdef_simulation__eq_fheader: forall pinfo f1 f2
   (H: fdef_simulation pinfo f1 f2),
   fheaderOfFdef f1 = fheaderOfFdef f2.
@@ -4238,76 +4034,6 @@ Proof.
   destruct (fdef_dec (PI_f pinfo) f1); inv H; auto.
     destruct (PI_f pinfo) as [fh b]; simpl.
     destruct_let; auto.
-Qed.
-
-Lemma lookupFdefViaIDFromProducts__InProductsB: forall i1 f1 Ps1,
-  lookupFdefViaIDFromProducts Ps1 i1 = ret f1 ->
-  InProductsB (product_fdef f1) Ps1 = true.
-Proof.
-  induction Ps1 as [|[]]; simpl; intros; try solve [
-    congruence |
-    rewrite productNEqB_intro; try congruence; rewrite IHPs1; auto
-    ].
-    
-    destruct_if.
-      rewrite productEqB_refl. auto.
-      rewrite IHPs1; auto. apply orb_true_r.
-Qed.
-
-Lemma lookupFdefViaIDFromSystem_ideq : forall S fid f,
-  lookupFdefViaIDFromSystem S fid = Some f -> fid = getFdefID f.
-Proof.
-  induction S as [|[]]; simpl; intros.
-    congruence.
-
-    destruct f as [[]].
-    destruct_match; eauto using lookupFdefViaIDFromProducts_ideq.
-Qed.
-
-Fixpoint getFdefsIDs ps : ids :=
-match ps with
-| nil => nil
-| product_fdef f::ps' => getFdefID f::getFdefsIDs ps'
-| _::ps' => getFdefsIDs ps'
-end.
-
-Lemma lookupFdefViaIDFromProducts__notin_getFdefsIDs: forall fid Ps,
-  lookupFdefViaIDFromProducts Ps fid = merror -> 
-  ~ In fid (getFdefsIDs Ps).
-Proof.
-  induction Ps as [|[]]; simpl; intros; auto.
-    destruct_if.
-      apply IHPs in H1. 
-      intro J.
-      destruct J; auto.
-Qed.
-
-Lemma lookupFdefViaIDFromProducts__in_getFdefsIDs: forall fid f Ps,
-  lookupFdefViaIDFromProducts Ps fid = Some f -> 
-  In fid (getFdefsIDs Ps).
-Proof.
-  induction Ps as [|[]]; simpl; intros; auto.
-    congruence.
-
-    destruct_if; auto.
-Qed.
-
-Lemma InProductsB__in_getFdefsIDs: forall f Ps,
-  InProductsB (product_fdef f) Ps = true -> 
-  In (getFdefID f) (getFdefsIDs Ps).
-Proof.
-  induction Ps as [|[]]; simpl; intros.
-    congruence.
-
-    rewrite productNEqB_intro in H; try congruence;
-    rewrite orb_false_l in H; auto.
-
-    rewrite productNEqB_intro in H; try congruence;
-    rewrite orb_false_l in H; auto.
-
-    apply orb_true_iff in H.
-    destruct H; auto.
-      apply productEqB_inv in H. inv H. auto.
 Qed.
 
 Lemma products_simulation__eq_getFdefsIDs: forall pinfo Ps1 Ps2
@@ -4470,23 +4196,6 @@ Proof.
   eapply genGlobalAndInitMem_spec_aux; eauto.
 Qed.
 
-Lemma getParentOfFdefFromSystem__moduleInProductsInSystemB: 
-  forall f los1 nts1 Ps1 S1, 
-  getParentOfFdefFromSystem f S1 = ret (module_intro los1 nts1 Ps1) ->
-  moduleInSystemB (module_intro los1 nts1 Ps1) S1 = true /\
-  InProductsB (product_fdef f) Ps1 = true.
-Proof.
-  induction S1; simpl; intros.
-    congruence.
-
-    destruct_if; simpl in e. 
-      rewrite moduleEqB_refl. tauto.
-
-      apply IHS1 in H1. destruct H1 as [J1 J2].
-      rewrite J1. rewrite orb_true_r.
-      tauto.
-Qed.
-
 Lemma s_genInitState__phiplacement_State_simulation: 
   forall pinfo S1 S2 main VarArgs cfg2 IS2
   (Hwfs1: wf_system S1) (Hwfphi: WF_PhiInfo pinfo)
@@ -4588,28 +4297,6 @@ Proof.
     assumption.
 Qed.
 
-(* Should go to opsem_wf *)
-Lemma preservation_star: forall cfg IS IS' tr (Hwfcfg: OpsemPP.wf_Config cfg),
-  @OpsemPP.wf_State DGVs cfg IS ->
-  Opsem.sop_star cfg IS IS' tr ->
-  OpsemPP.wf_State cfg IS'.
-Proof.
-  intros.
-  induction H0; auto.
-    apply OpsemPP.preservation in H0; auto.
-Qed.
-
-(* Should go to opsem_wf *)
-Lemma preservation_plus: forall cfg IS IS' tr (Hwfcfg: OpsemPP.wf_Config cfg),
-  @OpsemPP.wf_State DGVs cfg IS ->
-  Opsem.sop_plus cfg IS IS' tr ->
-  OpsemPP.wf_State cfg IS'.
-Proof.
-  intros.
-  apply OpsemProps.sop_plus__implies__sop_star in H0.
-  eapply preservation_star; eauto.
-Qed.
-
 Section TOPSIM.
 
 Variables (pinfo:PhiInfo) (cfg1:OpsemAux.Config) (IS1:@Opsem.State DGVs) 
@@ -4635,7 +4322,7 @@ Proof.
     eapply phinodes_placement_is_bsim' with (St2':=state2) in Hstsim; eauto.
     destruct Hstsim as [IS1' [Hopstar' Hstsim']].
     assert (OpsemPP.wf_State cfg1 IS1') as Hwfpp'.
-      apply preservation_star in Hopstar'; auto.
+      apply OpsemPP.preservation_star in Hopstar'; auto.
     assert (Promotability.wf_State maxb pinfo cfg1 IS1') as Hnoalias'.
       eapply Promotability.preservation_star in Hopstar'; eauto; try tauto.
     eapply IHHopstar in Hstsim'; eauto; try tauto.
@@ -4646,8 +4333,8 @@ Proof.
 Qed.
 
 Lemma sop_div'__phiplacement_State_simulation__sop_wf_div: forall
-  tr (Hdiv : sop_diverges' cfg2 IS2 tr),
-  sop_wf_diverges nat lt cfg1 (measure IS2) IS1 tr.
+  tr (Hdiv : Opsem.sop_diverges' cfg2 IS2 tr),
+  Opsem.sop_wf_diverges nat lt cfg1 (measure IS2) IS1 tr.
 Proof.
   repeat match goal with
   | H:_ |- _ => generalize dependent H; clear H
@@ -4658,18 +4345,18 @@ Proof.
   eapply phinodes_placement_is_bsim with (St2':=state2) in Hstsim; eauto.
   destruct Hstsim as [[St1' [J1 J2]] | [St1' [J1 [J2 J3]]]].    
     assert (OpsemPP.wf_State cfg1 St1') as Hwfpp'.
-      apply preservation_plus in J1; auto.
+      apply OpsemPP.preservation_plus in J1; auto.
     assert (Promotability.wf_State maxb pinfo cfg1 St1') as Hnoalias'.
       eapply Promotability.preservation_plus in J1; eauto; try tauto.
     eapply CIH in J2; eauto; try tauto.
-    eapply sop_wf_diverges_plus; eauto.
+    eapply Opsem.sop_wf_diverges_plus; eauto.
 
     assert (OpsemPP.wf_State cfg1 St1') as Hwfpp'.
-      apply preservation_star in J1; auto.
+      apply OpsemPP.preservation_star in J1; auto.
     assert (Promotability.wf_State maxb pinfo cfg1 St1') as Hnoalias'.
       eapply Promotability.preservation_star in J1; eauto; try tauto.
     eapply CIH in J3; eauto; try tauto.
-    eapply sop_wf_diverges_star with (m2:=measure state2); eauto.
+    eapply Opsem.sop_wf_diverges_star with (m2:=measure state2); eauto.
 Qed.
 
 Lemma sop_div__phiplacement_State_simulation: forall 
@@ -4677,20 +4364,13 @@ Lemma sop_div__phiplacement_State_simulation: forall
   Opsem.sop_diverges cfg1 IS1 tr.
 Proof.
   intros.
-  apply sop_diverges__sop_diverges' in Hdiv.
+  apply OpsemProps.sop_diverges__sop_diverges' in Hdiv.
   eapply sop_div'__phiplacement_State_simulation__sop_wf_div in Hdiv; eauto.
-  eapply sop_wf_diverges__sop_diverges; eauto using lt_wf.
+  eapply (@OpsemProps.sop_wf_diverges__sop_diverges DGVs nat lt); 
+    eauto using lt_wf.
 Qed.
 
 End TOPSIM.
-
-Lemma getProductsIDs_app : forall ps1 ps2,
-  getProductsIDs (ps1++ps2) = getProductsIDs ps1++getProductsIDs ps2.
-Proof.
-  induction ps1; intros; auto.
-    simpl. 
-    rewrite IHps1. auto.
-Qed.
 
 Lemma uniq_products_phiplacement_simulation: forall f Ps2 rd pid ty 
   al pinfo

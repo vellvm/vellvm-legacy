@@ -540,6 +540,11 @@ match fdef with
 | fdef_intro fheader _ => getFheaderTyp fheader
 end.
 
+Definition fheaderOfFdef (fdef:fdef) : fheader :=
+match fdef with
+| fdef_intro fh _ => fh
+end.
+
 Definition getBindingTyp (ib:id_binding) : option typ :=
 match ib with
 | id_binding_cmd i => getCmdTyp i
@@ -1447,6 +1452,13 @@ Fixpoint getProductsIDs ps : ids :=
 match ps with
 | nil => nil
 | p::ps' => getProductID p::getProductsIDs ps'
+end.
+
+Fixpoint getFdefsIDs ps : ids :=
+match ps with
+| nil => nil
+| product_fdef f::ps' => getFdefID f::getFdefsIDs ps'
+| _::ps' => getFdefsIDs ps'
 end.
 
 Definition uniqProduct product : Prop :=

@@ -107,6 +107,142 @@ Proof.
     rewrite Eappinf_assoc. eauto.
 Qed.
 
+Lemma sop_plus_star__implies__sop_plus: forall cfg S1 S2 S3 tr1 tr2,
+  sop_plus cfg S1 S2 tr1 ->
+  @sop_star GVsSig cfg S2 S3 tr2 ->
+  sop_plus cfg S1 S3 (tr1 ** tr2).
+Proof.
+  induction 1; intros; auto.
+    rewrite Eapp_assoc; auto. 
+    econstructor; eauto.
+    eapply sop_star_trans; eauto.
+Qed.
+
+Lemma sop_star_plus__implies__sop_plus: forall cfg S1 S2 S3 tr1 tr2,
+  @sop_star GVsSig cfg S1 S2 tr1 ->
+  sop_plus cfg S2 S3 tr2 ->
+  sop_plus cfg S1 S3 (tr1 ** tr2).
+Proof.
+  induction 1; intros; auto.
+    apply IHsop_star in H1.
+    rewrite Eapp_assoc; auto. 
+    econstructor; eauto.
+Qed.
+
+Lemma sop_step_plus__implies__sop_plus: forall cfg S1 S2 S3 tr1 tr2,
+  sInsn cfg S1 S2 tr1 ->
+  @sop_plus GVsSig cfg S2 S3 tr2 ->
+  sop_plus cfg S1 S3 (tr1 ** tr2).
+Proof.
+  intros. inv H0.
+  econstructor; eauto.
+Qed.
+
+Lemma sop_star_diverges'__sop_diverges': forall cfg IS1 IS2 tr1 tr2,
+  @sop_star GVsSig cfg IS1 IS2 tr1 ->
+  sop_diverges' cfg IS2 tr2 ->
+  sop_diverges' cfg IS1 (Eappinf tr1 tr2).
+Proof.
+  induction 1; intros; auto.
+    apply IHsop_star in H1.
+    rewrite Eappinf_assoc.
+    econstructor; eauto.
+Qed.
+
+Lemma sop_plus_diverges'__sop_diverges': forall cfg IS1 IS2 tr1 tr2,
+  @sop_plus GVsSig cfg IS1 IS2 tr1 ->
+  sop_diverges' cfg IS2 tr2 ->
+  sop_diverges' cfg IS1 (Eappinf tr1 tr2).
+Proof.
+  intros. inv H.
+  eapply sop_star_diverges'__sop_diverges' in H2; eauto.
+  rewrite Eappinf_assoc.
+  econstructor; eauto.
+Qed.
+
+Lemma sop_star_diverges__sop_diverges: forall cfg IS1 IS2 tr1 tr2,
+  @sop_star GVsSig cfg IS1 IS2 tr1 ->
+  sop_diverges cfg IS2 tr2 ->
+  sop_diverges cfg IS1 (Eappinf tr1 tr2).
+Proof.
+  induction 1; intros; auto.
+    apply IHsop_star in H1.
+    rewrite Eappinf_assoc.
+    rewrite <- E0_right at 1.
+    econstructor; eauto.
+Qed.
+
+Lemma sop_diverges__sop_diverges': forall cfg IS tr,
+  @sop_diverges GVsSig cfg IS tr -> sop_diverges' cfg IS tr.
+Proof.
+  cofix CIH.
+  intros.
+  inv H.
+  inv H0.
+  assert (sop_diverges cfg state0 (tr3***tr2)) as J.
+    clear CIH. 
+    eapply sop_star_diverges__sop_diverges; eauto.
+  apply CIH in J. clear CIH.
+  rewrite Eappinf_assoc.
+  econstructor; eauto.
+Qed.
+
+Lemma sop_diverges'__sop_diverges: forall cfg IS tr,
+  sop_diverges' cfg IS tr -> @sop_diverges GVsSig cfg IS tr.
+Proof.
+  cofix CIH.
+  intros.
+  inv H.
+  apply CIH in H1. clear CIH.
+  econstructor; eauto.
+Qed.
+
+Section SOP_WF_DIVERGES.
+
+Context `{Measure: Type}.
+Context `{R:Measure -> Measure -> Prop}.
+Context `{Hwf_founded_R: well_founded R}.
+
+Lemma sop_wf_diverges__inv: forall m1 cfg S1 Tr
+  (Hdiv: sop_wf_diverges Measure R cfg m1 S1 Tr),
+  exists S2, exists m2, exists tr, exists Tr',
+    @sop_plus GVsSig cfg S1 S2 tr /\
+    sop_wf_diverges Measure R cfg m2 S2 Tr' /\
+    Tr = Eappinf tr Tr'.
+Proof.
+  intro m1. pattern m1.
+  apply (well_founded_ind Hwf_founded_R); intros.
+  inv Hdiv.
+    exists state2. exists m2. exists tr1. exists tr2. 
+    split; auto.
+
+    apply H in H2; auto.
+    destruct H2 as [S2 [m2' [tr [Tr' [J1 [J2 J3]]]]]]; subst.
+    exists S2. exists m2'. exists (Eapp tr1 tr). exists Tr'.
+    split.
+      eapply sop_star_plus__implies__sop_plus; eauto.
+    split; auto.
+      rewrite Eappinf_assoc; auto.
+Qed.
+
+Lemma sop_wf_diverges__sop_diverges: forall cfg m IS tr,
+  sop_wf_diverges Measure R cfg m IS tr ->@sop_diverges GVsSig cfg IS tr.
+Proof.
+  cofix CIH.
+  intros.
+  inv H.
+    apply sop_wf_diverges__inv in H1; auto.
+    destruct H1 as [S2 [m2' [tr [Tr' [J1 [J2 J3]]]]]]; subst.
+    econstructor; eauto.
+
+    apply sop_wf_diverges__inv in H2; auto.
+    destruct H2 as [S2 [m2' [tr [Tr' [J1 [J2 J3]]]]]]; subst.
+    rewrite <- Eappinf_assoc.
+    econstructor; eauto using sop_star_plus__implies__sop_plus.
+Qed.
+
+End SOP_WF_DIVERGES.
+
 (***********************************************************)
 (** big-step convergence -> small-step convergence *)
 
@@ -1551,13 +1687,13 @@ Proof.
 
     destruct p.
     destruct gvs.
-      inv_mbind'. inv H.
+      inv_mbind. 
       destruct (id_dec i0 id1); subst; auto.
       rewrite <- lookupAL_updateAddAL_neq in H0; auto.
       eapply IHla in H0; eauto.
       destruct H0 as [H0 | H0]; auto.
 
-      inv_mbind'. inv H.
+      inv_mbind.
       destruct (id_dec i0 id1); subst; auto.
       rewrite <- lookupAL_updateAddAL_neq in H0; auto.
       eapply IHla in H0; eauto.
@@ -1589,7 +1725,7 @@ Proof.
   induction ps' as [|[i0 t l0]]; simpl; intros.
     inv H. fsetdec.
 
-    inv_mbind. inv H. simpl in *.
+    inv_mbind. simpl in *.
     destruct (id0 == i0); subst.
       destruct b. simpl in *.
       symmetry in HeqR.

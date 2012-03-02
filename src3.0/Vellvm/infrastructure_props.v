@@ -8,57 +8,10 @@ Require Import Coqlib.
 Require Import Kildall.
 Require Import Maps.
 Require Import targetdata.
+Require Export vellvm_tactics.
 
 Import LLVMsyntax.
 Import LLVMinfra.
-
-Ltac tinv H := try solve [inv H].
-
-Ltac symmetry_ctx :=
-  repeat match goal with
-  | H : Some _ = _ |- _ => symmetry in H
-  end.
-
-Ltac inv_mbind' :=
-  repeat match goal with
-         | H : match ?e with
-               | Some _ => _
-               | None => None
-               end = Some _ |- _ => remember e as R; destruct R as [|]; tinv H
-         end.
-
-Ltac inv_mbind :=
-  repeat match goal with
-         | H : Some _ = match ?e with
-               | Some _ => _
-               | None => None
-               end |- _ => remember e as R; destruct R as [|]; tinv H
-         end.
-
-Ltac app_inv :=
-  repeat match goal with
-  | [ H: Some _ = Some _ |- _ ] => inv H
-  end.
-
-Ltac trans_eq :=
-  repeat match goal with
-  | H1 : ?a = ?b, H2 : ?c = ?b |- _ => rewrite <- H1 in H2; inv H2
-  | H1 : ?a = ?b, H2 : ?b = ?c |- _ => rewrite <- H1 in H2; inv H2
-  end.
-
-Ltac inv_mfalse :=
-  repeat match goal with
-         | H : match ?e with
-               | Some _ => _
-               | None => False
-               end |- _ => remember e as R; destruct R as [|]; tinv H
-         end.
-
-Tactic Notation "binvt" ident(H) "as" ident(J1) ident(J2) :=
-apply orb_true_iff in H; destruct H as [J1 | J2].
-
-Tactic Notation "binvf" ident(H) "as" ident(J1) ident(J2) :=
-apply orb_false_iff in H; destruct H as [J1 J2].
 
 (* eq is refl *)
 
@@ -312,6 +265,12 @@ Lemma systemEqB_inv : forall S S',
   S = S'.
 Proof. sumbool2bool_inv. Qed.
 
+Lemma productNEqB_intro : forall p1 p2,
+  p1 <> p2 -> productEqB p1 p2 = false.
+Proof. 
+  intros. apply false_sumbool2bool; auto.
+Qed.
+
 (* nth_err *)
 
 Lemma nil_nth_error_Some__False : forall X n (v:X),
@@ -419,6 +378,14 @@ Proof.
 Qed.
 
 (* gets *)
+
+Lemma getProductsIDs_app : forall ps1 ps2,
+  getProductsIDs (ps1++ps2) = getProductsIDs ps1++getProductsIDs ps2.
+Proof.
+  induction ps1; intros; auto.
+    simpl. 
+    rewrite IHps1. auto.
+Qed.
 
 Lemma getCmdsLocs_app : forall cs1 cs2,
   getCmdsLocs (cs1++cs2) = getCmdsLocs cs1++getCmdsLocs cs2.
@@ -3382,5 +3349,85 @@ Proof.
         simpl_env in J.
         apply uniqBlocks_inv in J. destruct J as [J1 J2].
         apply IHbs; auto.
+Qed.
+
+Lemma lookupFdefViaIDFromProducts__InProductsB: forall i1 f1 Ps1,
+  lookupFdefViaIDFromProducts Ps1 i1 = Some f1 ->
+  InProductsB (product_fdef f1) Ps1 = true.
+Proof.
+  induction Ps1 as [|[]]; simpl; intros; try solve [
+    congruence |
+    rewrite productNEqB_intro; try congruence; rewrite IHPs1; auto
+    ].
+    
+    destruct_if.
+      rewrite productEqB_refl. auto.
+      rewrite IHPs1; auto. apply orb_true_r.
+Qed.
+
+Lemma lookupFdefViaIDFromSystem_ideq : forall S fid f,
+  lookupFdefViaIDFromSystem S fid = Some f -> fid = getFdefID f.
+Proof.
+  induction S as [|[]]; simpl; intros.
+    congruence.
+
+    destruct f as [[]].
+    destruct_match; eauto using lookupFdefViaIDFromProducts_ideq.
+Qed.
+
+Lemma lookupFdefViaIDFromProducts__notin_getFdefsIDs: forall fid Ps,
+  lookupFdefViaIDFromProducts Ps fid = None -> 
+  ~ In fid (getFdefsIDs Ps).
+Proof.
+  induction Ps as [|[]]; simpl; intros; auto.
+    destruct_if.
+      apply IHPs in H1. 
+      intro J.
+      destruct J; auto.
+Qed.
+
+Lemma lookupFdefViaIDFromProducts__in_getFdefsIDs: forall fid f Ps,
+  lookupFdefViaIDFromProducts Ps fid = Some f -> 
+  In fid (getFdefsIDs Ps).
+Proof.
+  induction Ps as [|[]]; simpl; intros; auto.
+    congruence.
+
+    destruct_if; auto.
+Qed.
+
+Lemma InProductsB__in_getFdefsIDs: forall f Ps,
+  InProductsB (product_fdef f) Ps = true -> 
+  In (getFdefID f) (getFdefsIDs Ps).
+Proof.
+  induction Ps as [|[]]; simpl; intros.
+    congruence.
+
+    rewrite productNEqB_intro in H; try congruence;
+    rewrite orb_false_l in H; auto.
+
+    rewrite productNEqB_intro in H; try congruence;
+    rewrite orb_false_l in H; auto.
+
+    apply orb_true_iff in H.
+    destruct H; auto.
+      apply productEqB_inv in H. inv H. auto.
+Qed.
+
+Lemma getParentOfFdefFromSystem__moduleInProductsInSystemB: 
+  forall f los1 nts1 Ps1 S1, 
+  getParentOfFdefFromSystem f S1 = Some (module_intro los1 nts1 Ps1) ->
+  moduleInSystemB (module_intro los1 nts1 Ps1) S1 = true /\
+  InProductsB (product_fdef f) Ps1 = true.
+Proof.
+  induction S1; simpl; intros.
+    congruence.
+
+    destruct_if; simpl in e. 
+      rewrite moduleEqB_refl. tauto.
+
+      apply IHS1 in H1. destruct H1 as [J1 J2].
+      rewrite J1. rewrite orb_true_r.
+      tauto.
 Qed.
 

@@ -902,6 +902,32 @@ CoInductive sop_diverges (cfg:Config) : State -> traceinf -> Prop :=
     sop_diverges cfg state1 (Eappinf tr1 tr2)
 .
 
+CoInductive sop_diverges' (cfg:Config): State -> traceinf -> Prop :=
+| sop_diverges_intro' : forall state1 state2 tr1 tr2,
+    Opsem.sInsn cfg state1 state2 tr1 ->
+    sop_diverges' cfg state2 tr2 ->
+    sop_diverges' cfg state1 (Eappinf tr1 tr2).
+
+Section SOP_WF_DIVERGES.
+
+Variable Measure: Type.
+Variable R:Measure -> Measure -> Prop.
+Hypothesis Hwf_founded_R: well_founded R.
+
+CoInductive sop_wf_diverges (cfg:Config): Measure -> State -> traceinf -> Prop:=
+| sop_wf_diverges_plus : forall m1 m2 state1 state2 tr1 tr2,
+    Opsem.sop_plus cfg state1 state2 tr1 ->
+    sop_wf_diverges cfg m2 state2 tr2 ->
+    sop_wf_diverges cfg m1 state1 (Eappinf tr1 tr2)
+| sop_wf_diverges_star : forall m1 m2 state1 state2 tr1 tr2,
+    R m2 m1 ->
+    Opsem.sop_star cfg state1 state2 tr1 ->
+    sop_wf_diverges cfg m2 state2 tr2 ->
+    sop_wf_diverges cfg m1 state1 (Eappinf tr1 tr2)
+.
+
+End SOP_WF_DIVERGES.
+
 Inductive s_converges : system -> id -> list GVs -> trace -> GVs -> Prop :=
 | s_converges_intro : forall (s:system) (main:id) (VarArgs:list GVs)    
                               cfg (IS FS:Opsem.State) r tr,
