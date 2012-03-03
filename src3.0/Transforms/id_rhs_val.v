@@ -1206,7 +1206,7 @@ Proof.
 Local Opaque inscope_of_tmn inscope_of_cmd.
   simpl.
   split; auto.
-    apply getParentOfFdefFromSystem__productInModuleInSystemB in HeqR0.
+    apply getParentOfFdefFromSystem__moduleInProductsInSystemB in HeqR0.
     destruct HeqR0 as [HMinS HinPs].
     assert (uniqFdef (fdef_intro (fheader_intro f t i0 a v) b)) as Huniq.
       eapply wf_system__uniqFdef; eauto.

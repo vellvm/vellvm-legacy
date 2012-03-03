@@ -16,28 +16,24 @@ Inductive program_sim (P1 P2:system) (main:id) (VarArgs:list (GVsT DGVs)) :
 .
 
 Lemma program_sim_refl: forall P main VarArgs, program_sim P P main VarArgs.
-Admitted.
+Proof.
+  intros. apply program_sim_intro; intros; auto.
+Qed.
 
-Lemma program_sim_trans: forall P1 P2 P3 main VarArgs,
-  program_sim P1 P2 main VarArgs -> program_sim P2 P3 main VarArgs ->
+Lemma program_sim_trans: forall P1 P2 P3 main VarArgs
+  (Hsim1: program_sim P1 P2 main VarArgs) 
+  (Hsim2: program_sim P2 P3 main VarArgs),
   program_sim P1 P3 main VarArgs.
-Admitted.
+Proof.
+  intros. inv Hsim1. inv Hsim2. constructor; intros; eauto.
+Qed.
 
-Lemma genGlobalAndInitMem__wf_global: forall initGlobal initFunTable initMem
+Axiom genGlobalAndInitMem__wf_global: forall initGlobal initFunTable initMem
   CurLayouts CurNamedts CurProducts S,
   OpsemAux.genGlobalAndInitMem
     (OpsemAux.initTargetData CurLayouts CurNamedts Mem.empty) CurProducts
       nil nil Mem.empty = ret (initGlobal, initFunTable, initMem) ->
   wf_global (CurLayouts, CurNamedts) S initGlobal.
-Admitted.
-
-Lemma getParentOfFdefFromSystem__productInModuleInSystemB:
-  forall CurLayouts CurNamedts CurProducts F S,
-  getParentOfFdefFromSystem F S =
-    ret (module_intro CurLayouts CurNamedts CurProducts) ->
-  moduleInSystemB (module_intro CurLayouts CurNamedts CurProducts) S = true /\
-  InProductsB (product_fdef F) CurProducts = true.
-Admitted.
 
 Lemma initLocals__wf_defs: forall CurLayouts CurNamedts VarArgs lc f t fid la v
   bs (Hinit : @Opsem.initLocals DGVs
@@ -68,27 +64,28 @@ Lemma initLocals__wf_defs: forall CurLayouts CurNamedts VarArgs lc f t fid la v
       end
   end.
 Proof.
-(*
-     assert (ps'=nil) as EQ.
-       eapply entryBlock_has_no_phinodes with (ifs:=nil)(s:=S); eauto.
-     subst.
-     apply dom_entrypoint in H2.
-     destruct cs'.
-       unfold inscope_of_tmn.
-       remember ((dom_analyze (fdef_intro (fheader_intro fa rt fid la va) lb))
-         !! l') as R.
-       destruct R. simpl in H2. subst.
-       eapply preservation_dbCall_case; eauto using wf_params_spec.
+  intros.
+  assert (ps0=nil) as EQ.
+    admit.
+    (* eapply entryBlock_has_no_phinodes with (s:=S); eauto. *)
+  subst.
+  apply dom_entrypoint in Hentry.
+  destruct cs0.
+    unfold inscope_of_tmn.
+    remember (Maps.AMap.get l0 (dom_analyze 
+               (fdef_intro (fheader_intro f t fid la v) bs))) as R.
+    destruct R. simpl in Hentry. subst.
+    simpl. admit. (* See preservation_dbCall_case *)
 
-       unfold inscope_of_cmd, inscope_of_id.
-       remember ((dom_analyze (fdef_intro (fheader_intro fa rt fid la va) lb))
-         !! l') as R.
-       destruct R. simpl. simpl in H2. subst.
-       destruct (eq_atom_dec (getCmdLoc c) (getCmdLoc c)) as [|n];
+    unfold inscope_of_cmd, inscope_of_id.
+    remember (Maps.AMap.get l0 (dom_analyze 
+               (fdef_intro (fheader_intro f t fid la v) bs))) as R.
+    destruct R. simpl in Hentry. subst.
+    simpl. 
+    destruct (eq_atom_dec (getCmdLoc c) (getCmdLoc c)) as [|n];
          try solve [contradict n; auto].
-       eapply preservation_dbCall_case; eauto using wf_params_spec.
-*)
-Admitted.
+    simpl. admit. (* See preservation_dbCall_case *)
+Qed.
 
 (* OpsemPP.initLocals__wf_lc needs wf_params that is for params.
    At initialization, we only have args...
@@ -115,7 +112,7 @@ Proof.
   intros.
   simpl_s_genInitState.
   assert (HeqR0':=HeqR0).
-  apply getParentOfFdefFromSystem__productInModuleInSystemB in HeqR0'.
+  apply getParentOfFdefFromSystem__moduleInProductsInSystemB in HeqR0'.
   destruct HeqR0' as [HMinS HinPs].
   assert (uniqFdef (fdef_intro (fheader_intro f t i0 a v) b)) as Huniq.
     eapply wf_system__uniqFdef; eauto.
@@ -319,20 +316,39 @@ Lemma uniq_products_simulation: forall Ps1 f Ps2 f0 trans,
   f0 = f ->
   Forall2
     (fun P1 P2 : product =>
-     match P1 with
-     | product_fdef f1 =>
-         match P2 with
-         | product_fdef f2 =>
-             if fdef_dec f0 f1
-             then trans f1 = f2
-             else f1 = f2
-         | _ => P1 = P2
-         end
-     | _ => P1 = P2
-     end)
+     match P1, P2 with
+     | product_fdef f1, product_fdef f2 =>
+        if fdef_dec f0 f1 then trans f1 = f2 else f1 = f2
+     | _, _ => P1 = P2
+    end)
     (Ps1 ++ product_fdef f :: Ps2)
     (Ps1 ++ product_fdef (trans f) :: Ps2).
-Admitted.
+Proof.
+  intros. subst.
+  generalize dependent Ps1.
+  induction Ps1; simpl; intros.
+    constructor.
+      destruct (fdef_dec f f); try congruence; auto.
+
+      inv H.
+      induction Ps2; auto.
+        inv H3.
+        constructor.
+          destruct a; auto.      
+            destruct (fdef_dec f f0); subst; auto.
+             contradict H2.
+             simpl. auto.
+          apply IHPs2; auto.
+            intro J. apply H2. simpl. auto.
+
+    inv H.
+    constructor; auto.
+      destruct a; auto.      
+      destruct (fdef_dec f f0); subst; auto.
+        contradict H2.
+        rewrite getProductsIDs_app. simpl.
+        apply In_middle.
+Qed.
 
 Require Import mem2reg.
 
