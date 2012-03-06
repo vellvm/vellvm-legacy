@@ -254,7 +254,7 @@ Proof.
   destruct (fdef_dec (PI_f pinfo) (PI_f pinfo)); try congruence.
   destruct (no_alias_dec ptr gvsa) as [Hnalias' | Halias]; auto.
   apply Hinscope1' in Hlkup.
-  destruct Hlkup as [[[mb [EQ [Hin _]]] _] _]; subst.
+  destruct Hlkup as [[_ [[mb [EQ [Hin _]]] _]] _]; subst.
   assert (Hld1':=Hld1).
   apply mload_inv in Hld1.
   destruct Hld1 as [b [ofs [m [mc [EQ [J1 Hld1]]]]]]; subst.

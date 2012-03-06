@@ -2651,35 +2651,8 @@ Proof.
       eapply cmds_simulation_other_stable; eauto.
 Qed.
 
-Lemma load_store_same: forall a Mem b0 ofs0 v Mem',
-  ret v = Mem.load a Mem b0 ofs0 ->
-  ret Mem' = Mem.store a Mem b0 ofs0 v ->
-  Mem = Mem'.
-Proof.
-  intros.
-Local Transparent Mem.store Mem.load.
-  unfold Mem.store in H0.
-  unfold Mem.load in H.
-  remember (Mem.valid_access_dec Mem a b0 ofs0 Readable) as R1.
-  destruct R1; inv H.
-  remember (Mem.valid_access_dec Mem a b0 ofs0 Writable) as R2.
-  destruct R2; inv H0.
-
-  (*
-    This is not provable, given the current premises. We need to know
-    that if the data in memory was initialized, the type to load matches
-    the memdata in memory.
-
-    Otherwise, load will change the loaded data to be undef when types are
-    mismatched.
-
-    This should be a new invariant for promotable allocas.
-   *)
-
-Global Opaque Mem.store Mem.load.
-Admitted.
-
-Lemma mload_aux_mstore_aux_same: forall b0 mc Mem gv1 ofs0 Mem',
+Lemma mload_aux_mstore_aux_same: forall b0 mc Mem gv1 ofs0 Mem'
+  (Hid: encode_decode_ident_aux Mem mc b0 ofs0),
   mstore_aux Mem gv1 b0 ofs0 = ret Mem' ->
   mload_aux Mem mc b0 ofs0 = ret gv1 ->
   Mem = Mem'.
@@ -2689,12 +2662,14 @@ Proof.
 
     inv_mbind'.
     simpl in *.
-    inv_mbind'.
-    apply load_store_same in HeqR1; auto. subst.
+    inv_mbind'. destruct Hid as [Hid1 Hid2].
+    unfold encode_decode_ident_prop in Hid1.
+    eapply Mem.load_store_same' with (m2:=m) in Hid1; eauto. subst.
     apply IHmc in H1; auto.
 Qed.
 
-Lemma mload_mstore_same: forall pinfo td Mem lc pid Mem' gv1 gvs1 mp2 mps2 gl,
+Lemma mload_mstore_same: forall pid pinfo td Mem lc Mem' gv1 gvs1 mp2 mps2 gl
+  (Hid: encode_decode_ident td Mem mps2 (PI_typ pinfo) (PI_align pinfo)),
   wf_tmp_value pinfo td Mem lc pid ->
   Opsem.getOperandValue td (value_id (PI_id pinfo)) lc gl = ret mps2 ->
   Opsem.getOperandValue td (value_id pid) lc gl = ret gvs1 ->
@@ -2708,13 +2683,14 @@ Proof.
   destruct H as [gvsa [gv2 [J1 [J2 J3]]]].
   rewrite J1 in H0. inv H0.
   rewrite J3 in H1. inv H1.
-  clear - H4 J2.
+  clear - H4 J2 Hid.
   apply genericvalues.LLVMgv.mload_inv in J2.
   destruct J2 as [b [ofs [m [mc [J1 [J2 J3]]]]]]; subst.
   apply genericvalues.LLVMgv.store_inv in H4.
   destruct H4 as [b0 [ofs0 [J1 J4]]].
-  clear J2.
-  inv J1. clear m.
+  inv J1. 
+  unfold encode_decode_ident in Hid.
+  simpl in Hid. rewrite J2 in Hid.
   eapply mload_aux_mstore_aux_same in J3; eauto.
 Qed.
 
@@ -2875,7 +2851,22 @@ Proof.
         eapply ECs_simulation_tail_stable; eauto.
 
         SSSCase "Mem sim".
-        eapply mload_mstore_same; eauto.
+        destruct Hnoalias as [[[Hnoalias _] _] _].
+        destruct (fdef_dec (PI_f pinfo) (PI_f pinfo)); try congruence.
+        unfold wf_defs in Hnoalias.
+        match goal with
+        | Hrsim: reg_simulation _ _ ?lc1 ?lc2,
+          H: Opsem.getOperandValue _ (value_id (PI_id _)) ?lc2 _ = _ |- _ =>
+             assert (G:=H); 
+             erewrite <- simulation__getOperandValue with (lc:=lc1) in G; eauto
+        end.
+
+          simpl in G.
+          apply Hnoalias in G.
+          destruct G as [[G _] _].
+          eapply mload_mstore_same; eauto.
+
+          admit. (* WF_PhiInfo *)          
 
     SCase "isnt_temporary".
       apply cmds_simulation_same_cons_inv in Htcmds; eauto.

@@ -174,3 +174,9 @@ match goal with
 | H : _ = ?e |- context [ ?e ] => rewrite H
 end.
 
+Tactic Notation "eapply_clear" hyp(H1) "in" hyp(H2) :=
+  eapply H1 in H2; eauto; clear H1.
+
+Tactic Notation "apply_clear" hyp(H1) "in" hyp(H2) :=
+  apply H1 in H2; auto; clear H1.
+

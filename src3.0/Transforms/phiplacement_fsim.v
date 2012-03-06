@@ -425,7 +425,7 @@ Proof.
       change (GVsT DGVs) with GenericValue in Hlkup.
       rewrite Hlkup.
       apply Hnoalias in Hlkup; auto.
-      destruct Hlkup as [[J1 [J2 [gv J3]]] _].
+      destruct Hlkup as [[_ [J1 [J2 [gv J3]]]] _].
       exists gvsa. exists gv. auto.
     destruct Halc as [mp [gv [Hget Hld]]].
     assert (reg_simulation (PI_f pinfo) lc

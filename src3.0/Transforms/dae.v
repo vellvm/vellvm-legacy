@@ -1272,7 +1272,7 @@ Proof.
   symmetry in HeqR.
   apply H in HeqR.
   destruct HeqR as [HeqR _].
-  destruct HeqR as [HeqR _].
+  destruct HeqR as [_ [HeqR _]].
   destruct HeqR as [mb [J1 [J2 J3]]].
   rewrite Promotability.simpl_blk2GV in J1.
   inv J1.
