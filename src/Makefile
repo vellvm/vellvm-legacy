@@ -17,8 +17,10 @@ coq:
 	+make -C ./TV
 	+make -C ./Transforms
 	+make -C ./Extraction
+	+cd Extraction; ./fixextract.py; cd ..
 
 ocaml: coq $(CMAS) $(CMXAS)
+	+make -f Makefile.ocaml -C Extraction
 	ocamlbuild -clean
 	ocamlbuild $(OCAMLBUILD_OPT) Interpreter/main.$(OUTPUT_TYPE)
 	ocamlbuild $(OCAMLBUILD_OPT) Transforms/main.native
@@ -31,6 +33,7 @@ clean:
 	+make -C ./TV clean
 	+make -C ./Transforms clean
 	+make -C ./Extraction clean
+	+make -f Makefile.ocaml -C Extraction clean
 	ocamlbuild -clean
 
 ocamlclean:
