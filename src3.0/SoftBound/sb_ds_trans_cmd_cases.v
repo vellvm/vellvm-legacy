@@ -520,7 +520,7 @@ Lemma SBpass_is_correct__dsGEP : forall
   (rm : rmetadata) (gl : GVMap) (fs : GVMap) (id0 : atom) (inbounds0 : bool)
   (t : typ) (vp : value) (idxs : list_sz_value) (EC : list ExecutionContext)
   (cs : list cmd) (tmn : terminator) (Mem0 : mem) (MM : mmetadata)
-  (als : list mblock) Cfg
+  (als : list mblock) Cfg t'
   (Hsim : sbState_simulates_State mi mgb {|
            CurSystem := S;
            CurTargetData := TD;
@@ -531,7 +531,7 @@ Lemma SBpass_is_correct__dsGEP : forall
            ECS := {|
                   CurFunction := F;
                   CurBB := B;
-                  CurCmds := insn_gep id0 inbounds0 t vp idxs :: cs;
+                  CurCmds := insn_gep id0 inbounds0 t vp idxs t':: cs;
                   Terminator := tmn;
                   Locals := lc;
                   Rmap := rm;
@@ -543,7 +543,7 @@ Lemma SBpass_is_correct__dsGEP : forall
   (H : SBspecAux.get_reg_metadata TD gl rm vp = ret md)
   (H0 : getOperandValue TD vp lc gl = ret gvp)
   (H1 : values2GVs TD idxs lc gl = ret vidxs)
-  (H2 : GEP TD t gvp vidxs inbounds0 = ret gvp')
+  (H2 : GEP TD t gvp vidxs inbounds0 t' = ret gvp')
   (H3 : prop_reg_metadata lc rm id0 gvp' md = (lc', rm')),
    exists St' : Opsem.State,
      exists mi' : MoreMem.meminj,

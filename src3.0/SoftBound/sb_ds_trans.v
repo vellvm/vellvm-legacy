@@ -159,7 +159,7 @@ match i with
 | insn_alloca _ typ _ _ => Some (typ_pointer typ)
 | insn_load _ typ _ _ => Some typ
 | insn_store _ _ _ _ _ => Some typ_void
-| insn_gep _ _ typ _ idxs => getGEPTyp nts idxs typ
+| insn_gep _ _ typ _ idxs _ => getGEPTyp nts idxs typ
 | insn_trunc _ _ _ _ typ => Some typ
 | insn_ext _ _ _ _ typ2 => Some typ2
 | insn_cast _ _ _ _ typ => Some typ
@@ -369,7 +369,7 @@ match c with
        insn_cast ntmp castop_bitcast i32 v1 i32::
        c::
        insn_gep etmp false t1 (value_id id0)
-         (Cons_list_sz_value Size.ThirtyTwo (value_id ntmp) Nil_list_sz_value) ::
+         (Cons_list_sz_value Size.ThirtyTwo (value_id ntmp) Nil_list_sz_value) t1::
        insn_cast bid castop_bitcast (typ_pointer t1) (value_id id0) p8::
        insn_cast eid castop_bitcast (typ_pointer t1) (value_id etmp) p8::
        nil)
@@ -455,7 +455,7 @@ match c with
     | None => None
     end
 
-| insn_gep id0 inbounds0 t1 v1 lv2 =>
+| insn_gep id0 inbounds0 t1 v1 lv2 _ =>
     prop_metadata ex_ids rm c v1 id0
 
 | insn_cast id0 op0 t1 v1 t2 =>

@@ -783,7 +783,7 @@ Case "sGEP". simpl_nd_sbds.
   match goal with
   | H5: getOperandValue _ _ _ _ = _,
     H21: values2GVs _ _ _ _ = _,
-    H23: GEP _ _ _ _ _ = _ |- _ =>
+    H23: GEP _ _ _ _ _ _ = _ |- _ =>
     eapply instantiate_locals__getOperandValue in H5; eauto;
     destruct H5 as [mps [J1 J2]];
     eapply instantiate_locals__values2GVs in H21; eauto;

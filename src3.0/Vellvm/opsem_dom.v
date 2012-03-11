@@ -2247,7 +2247,7 @@ Case "sGEP".
          [Hreach1 [HBinF1 [HFinPs1 [Hinscope1 [l3 [ps3 [cs3' Heq1]]]]]]]
          [HwfEC HwfCall]]]]; subst.
   assert (J:=HBinF1).
-  eapply wf_system__wf_cmd with (c:=insn_gep id0 inbounds0 t v idxs) in HBinF1;
+  eapply wf_system__wf_cmd with (c:=insn_gep id0 inbounds0 t v idxs t') in HBinF1;
     eauto using in_middle.
   inv HBinF1; eauto.
   eapply preservation_impure_cmd_updated_case in HwfS1; simpl; eauto.
@@ -2255,14 +2255,14 @@ Case "sGEP".
   eapply wf_system__uniqFdef with (f:=F) in HuniqF; eauto.
   destruct F as [fh1 bs1].
   assert (lookupInsnViaIDFromBlocks bs1 id0 =
-    Some (insn_cmd (insn_gep id0 inbounds0 t v idxs))) as Hlk1.
+    Some (insn_cmd (insn_gep id0 inbounds0 t v idxs t'))) as Hlk1.
     apply uniqF__uniqBlocks in HuniqF. inv HuniqF.
     eapply InBlocksB__lookupInsnViaIDFromBlocks; eauto.
   intros c1 Hlkc1 b1 Hin.
-  assert (c1 = insn_gep id0 inbounds0 t v idxs) as EQ.
+  assert (c1 = insn_gep id0 inbounds0 t v idxs t') as EQ.
     eapply uniqFdef__lookupInsnViaIDFromBlocks in Hlk1; eauto.
   subst.
-  assert (block_intro l3 ps3 (cs3' ++ insn_gep id0 inbounds0 t v idxs :: cs)
+  assert (block_intro l3 ps3 (cs3' ++ insn_gep id0 inbounds0 t v idxs t':: cs)
     tmn = b1) as EQ.
     eapply blockInFdefB__cmdInFdefBlockB__eqBlock; eauto using in_middle.
   subst. auto.

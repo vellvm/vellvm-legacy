@@ -986,12 +986,12 @@ Jwf_insn :: '' ::=
       </ system , module , fdef |- valuej : typ'' // j />
       typ'' = i32
       % Check indexs
-      getGEPTyp </ szj , valuej // j /> typ = typ'
-      system , (layouts namedts) |- typ'
+      getGEPTyp </ szj , valuej // j /> typ = typ'*
+      system , (layouts namedts) |- typ'*
       % Check invariance for instructions
-      fdef , block |-i id = getelementptr inbounds (typ*) value </ szj , valuej // j />
+      fdef , block |-i id = getelementptr inbounds (typ*) value </ szj , valuej // j /> (typ'*)
       ---------------------------------------------------------------------------------------- :: wf_insn_gep
-      system , (layouts namedts products) , fdef , block |- id = getelementptr inbounds (typ*) value </ szj , valuej // j />
+      system , (layouts namedts products) , fdef , block |- id = getelementptr inbounds (typ*) value </ szj , valuej // j /> (typ'*)
 
 
       system , module , fdef , block |-trunc id = truncop typ1 value1 to typ2

@@ -1595,16 +1595,17 @@ Proof.
 Qed.
 
 Lemma simulation__GEP : forall maxb mi TD Mem Mem2 inbounds0 vidxs vidxs' gvp1 
-    gvp gvp' t,
+    gvp gvp' t t',
   wf_sb_mi maxb mi Mem Mem2 ->
   gv_inject mi gvp gvp' ->
   gvs_inject mi vidxs vidxs' ->
-  GEP TD t gvp vidxs inbounds0 = ret gvp1 ->
+  GEP TD t gvp vidxs inbounds0 t' = ret gvp1 ->
   exists gvp2,
-    GEP TD t gvp' vidxs' inbounds0 = ret gvp2 /\
+    GEP TD t gvp' vidxs' inbounds0 t' = ret gvp2 /\
     gv_inject mi gvp1 gvp2.
 Proof.
-  intros maxb mi TD Mem Mem2 inbounds0 vidxs vidxs' gvp1 gvp gvp' t H H0 H1 H2.
+  intros maxb mi TD Mem Mem2 inbounds0 vidxs vidxs' gvp1 gvp gvp' t t' H H0 H1 
+    H2.
   unfold GEP in *.
   remember (GV2ptr TD (getPointerSize TD) gvp) as R.
   destruct R; inv H2.

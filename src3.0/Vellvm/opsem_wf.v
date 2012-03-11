@@ -1201,10 +1201,10 @@ Qed.
 Lemma GEP__wf_gvs : forall S TD t mp vidxs inbounds0 mp' vidxs0 t' gl lc idxs,
   @values2GVs GVsSig TD idxs lc gl = Some vidxs ->
   wf_GVs TD mp (typ_pointer t) -> vidxs0 @@ vidxs ->
-  wf_typ S TD t' -> 
-  getGEPTyp idxs t = ret t' ->
-  GEP TD t mp vidxs0 inbounds0 = ret mp' ->
-  wf_GVs TD mp' t'.
+  wf_typ S TD (typ_pointer t') -> 
+  getGEPTyp idxs t = ret (typ_pointer t') ->
+  GEP TD t mp vidxs0 inbounds0 t' = ret mp' ->
+  wf_GVs TD mp' (typ_pointer t').
 Proof.
   intros S TD t mp vidxs inbounds0 mp' vidxs0 t' gl lc idxs Hvg2 Hwfgv Hin
     Hwft Hgt' Hget.
@@ -1217,43 +1217,29 @@ Proof.
   apply wf_GVs_intro with (sz:=32%nat); auto.
     intros gv Hin'.
     eapply GVsSig.(lift_op1__getTypeSizeInBits) with (los:=los)(nts:=nts)
-      (f:=gep (los, nts) t vidxs0 inbounds0) (g:=mp)
-      (t:=typ_pointer t0)(S:=S); eauto.
-      simpl. eauto.
+      (f:=gep (los, nts) t vidxs0 inbounds0 t') (g:=mp)
+      (S:=S)(t:=typ_pointer t'); eauto.
+      simpl. auto.
 
       intros x y ? J3.
       unfold gep, LLVMgv.GEP in J3.
-      assert(gundef (los, nts) (typ_pointer t0) = ret y ->
+      assert(gundef (los, nts) (typ_pointer t') = ret y ->
              sizeGenericValue y = nat_of_Z (ZRdiv (Z_of_nat 32) 8)) as G.
-        intro W .
-        eapply GVsSig.(gv2gvs__getTypeSizeInBits) with (los:=los)(nts:=nts)
-          (gv:=y); eauto.
-          simpl. eauto.
-
-          symmetry in W.
-          eapply gundef__getTypeSizeInBits in W; eauto.
-          destruct W as [sz1 [al1 [J1' J2']]].
-          simpl in J1'. inv J1'. simpl in J2'. auto.
-
-          apply GVsSig.(instantiate_gv__gv2gvs).
-
+        intro W. unfold gundef in W. simpl in W. inv W. simpl. auto.
       destruct (GV2ptr (los, nts) (getPointerSize (los, nts)) x); eauto.
       destruct (GVs2Nats (los, nts) vidxs0); eauto.
       destruct (mgep (los, nts) t v0 l0); eauto.
-        inv J3.
-        unfold ptr2GV, val2GV. simpl. auto.
-
-      admit.
+        inv J3. unfold ptr2GV, val2GV. simpl. auto.
 
     inv Hwfgv.
     eapply GVsSig.(lift_op1__inhabited) in H0; eauto.
-    unfold gep. intro. apply GEP_is_total; auto.
+    unfold gep. intro. eapply GEP_is_total; eauto.
 
     intros gv Hin'.
     eapply GVsSig.(lift_op1__matches_chunks) with (los:=los)(nts:=nts)
-      (f:=gep (los, nts) t vidxs0 inbounds0)(S:=S)
-      (t:=typ_pointer (typ_int Size.One)); eauto.
-      admit. admit.
+      (f:=gep (los, nts) t vidxs0 inbounds0 t')(S:=S)
+      (t:=typ_pointer t'); eauto.
+      unfold gep. intros. eapply GEP_matches_chunks; eauto.
 Qed.
 
 Lemma CAST__wf_gvs : forall s f b los nts ps lc gl cop0 t1 v1 t2 gvs2 id5
@@ -2381,9 +2367,9 @@ Case "sGEP".
     [Hnonempty [
          [Hreach1 [HBinF1 [HFinPs1 [Hwflc1 [Hinscope1 [l3 [ps3 [cs3' Heq1]]]]]]]]
          [HwfEC HwfCall]]]; subst.
-  eapply wf_system__wf_cmd with (c:=insn_gep id0 inbounds0 t v idxs) in HBinF1;
+  eapply wf_system__wf_cmd with (c:=insn_gep id0 inbounds0 t v idxs t') in HBinF1;
     eauto using in_middle.
-  inv HBinF1; eauto.
+  inv HBinF1; eauto. uniq_result.
   eapply preservation_cmd_updated_case in HwfS1; simpl; eauto.
     eapply getOperandValue__wf_gvs in H; eauto.
     assert (H0':=H0).
@@ -2827,17 +2813,17 @@ Lemma values2GVs_isnt_stuck : forall
   (HfInPs : InProductsB (product_fdef f) ps = true)
   (l1 : l)
   (ps1 : phinodes)
-  (cs1 : list cmd)
+  (cs1 : list cmd) t'
   (Hreach : isReachableFromEntry f
-             (block_intro l1 ps1 (cs1 ++ insn_gep i0 i1 t v l2 :: cs) tmn))
+             (block_intro l1 ps1 (cs1 ++ insn_gep i0 i1 t v l2 t':: cs) tmn))
   (HbInF : blockInFdefB
-            (block_intro l1 ps1 (cs1 ++ insn_gep i0 i1 t v l2 :: cs) tmn) f =
+            (block_intro l1 ps1 (cs1 ++ insn_gep i0 i1 t v l2 t':: cs) tmn) f =
           true)
   (l0 : list atom)
   (HeqR : ret l0 =
          inscope_of_cmd f
-           (block_intro l1 ps1 (cs1 ++ insn_gep i0 i1 t v l2 :: cs) tmn)
-           (insn_gep i0 i1 t v l2))
+           (block_intro l1 ps1 (cs1 ++ insn_gep i0 i1 t v l2 t':: cs) tmn)
+           (insn_gep i0 i1 t v l2 t'))
   (Hinscope : wf_defs (los,nts) f lc l0)
   (Hex : exists l21, l2 = app_list_sz_value l21 l22),
   exists vidxs, values2GVs (los, nts) l22 lc gl = Some vidxs.
@@ -3873,10 +3859,13 @@ Proof.
         exists Nil_list_sz_value. auto.
     destruct J2 as [vidxss J2].
     inv Hwfc.
-    assert (Hins:=H12).
-    eapply values2GVs__inhabited in Hins; eauto.
-    destruct Hins as [vidxs Hins].
-    assert (exists mp', GEP (los, nts) t mp vidxs i1 = Some mp') as J3.
+    match goal with
+    | H12: wf_value_list _ |- _ =>
+      assert (Hins:=H12);
+      eapply values2GVs__inhabited in Hins; eauto;
+      destruct Hins as [vidxs Hins]
+    end.
+    assert (exists mp', GEP (los, nts) t mp vidxs i1 t0 = Some mp') as J3.
       unfold GEP, gep.
       apply GVsSig.(lift_op1__isnt_stuck); eauto using GEP_is_total.
     destruct J3 as [mp' J3].
@@ -3886,7 +3875,7 @@ Proof.
          ECS := {|
                 CurFunction := f;
                 CurBB := block_intro l1 ps1
-                           (cs1 ++ insn_gep i0 i1 t v l2 :: cs) tmn;
+                           (cs1 ++ insn_gep i0 i1 t v l2 t0 :: cs) tmn;
                 CurCmds := cs;
                 Terminator := tmn;
                 Locals := (updateAddAL _ lc i0 mp');

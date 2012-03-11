@@ -3,7 +3,6 @@ open Interpreter
 open Sb_ds_trans
 open Printf
 open Llvm
-open Trace
 
 let nosbpass = ref false
 

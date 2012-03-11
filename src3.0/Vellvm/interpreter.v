@@ -144,10 +144,10 @@ match state with
       do mp2 <- getOperandValue TD v2 lc gl;
       do Mem' <- mstore TD Mem0 mp2 t gv1 align0;
          ret ((mkState ((mkEC F B cs tmn lc als)::EC) Mem'), E0)
-    | insn_gep id0 inbounds0 t v idxs =>
+    | insn_gep id0 inbounds0 t v idxs t' =>
       do mp <- getOperandValue TD v lc gl;
       do vidxs <- values2GVs TD idxs lc gl;
-      do mp' <- GEP TD t mp vidxs inbounds0;
+      do mp' <- GEP TD t mp vidxs inbounds0 t';
          ret ((mkState ((mkEC F B cs tmn (updateAddAL _ lc id0 mp')
                als)::EC) Mem0), E0)
     | insn_trunc id0 truncop0 t1 v1 t2 =>
@@ -430,7 +430,7 @@ Proof.
           try solve [inversion HinterInsn].
         remember (values2GVs CurTargetData0 l0 lc Globals0) as R3.
         destruct R3; simpl in HinterInsn; try solve [inversion HinterInsn].
-        remember (GEP CurTargetData0 t g l1 i1) as R2.
+        remember (GEP CurTargetData0 t g l1 i1 t0) as R2.
         destruct R2; simpl in HinterInsn; inv HinterInsn;
           eauto using dos_in_list_gvs_intro.
 

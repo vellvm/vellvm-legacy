@@ -36,8 +36,8 @@ match c with
 | insn_load id0 t v al => insn_load id0 t (v{[v'//id']}) al
 | insn_store id0 t1 v1 v2 al =>
     insn_store id0 t1 (v1{[v'//id']}) (v2{[v'//id']}) al
-| insn_gep id0 ib0 t v vs =>
-    insn_gep id0 ib0 t (v{[v'//id']}) (subst_list_value id' v' vs)
+| insn_gep id0 ib0 t v vs t' =>
+    insn_gep id0 ib0 t (v{[v'//id']}) (subst_list_value id' v' vs) t'
 | insn_trunc id0 top0 t1 v1 t2 => insn_trunc id0 top0 t1 (v1{[v'//id']}) t2
 | insn_ext id0 eop0 t1 v1 t2 => insn_ext id0 eop0 t1 (v1{[v'//id']}) t2
 | insn_cast id0 cop0 t1 v1 t2 => insn_cast id0 cop0 t1 (v1{[v'//id']}) t2
@@ -183,7 +183,7 @@ match c with
 | insn_ext _ _ _ v _
 | insn_cast _ _ _ v _ =>
     used_in_value id' v
-| insn_gep _ _ _ v vs =>
+| insn_gep _ _ _ v vs _ =>
     used_in_value id' v || used_in_list_value id' vs
 | insn_select _ v0 _ v1 v2 =>
     used_in_value id' v0 || used_in_value id' v1 || used_in_value id' v2
@@ -314,9 +314,9 @@ match c with
 | insn_store id0 t1 v1 v2 al =>
     insn_store (rename_id id1 id2 id0) t1
       (rename_value id1 id2 v1) (rename_value id1 id2 v2) al
-| insn_gep id0 ib0 t v vs =>
+| insn_gep id0 ib0 t v vs t' =>
     insn_gep (rename_id id1 id2 id0) ib0 t
-      (rename_value id1 id2 v) (rename_list_value id1 id2 vs)
+      (rename_value id1 id2 v) (rename_list_value id1 id2 vs) t'
 | insn_trunc id0 top0 t1 v1 t2 =>
     insn_trunc (rename_id id1 id2 id0) top0 t1 (rename_value id1 id2 v1) t2
 | insn_ext id0 eop0 t1 v1 t2 =>
@@ -399,7 +399,7 @@ match c with
 | insn_alloca _ t v al => insn_alloca id0 t v al
 | insn_load _ t v al => insn_load id0 t v al
 | insn_store _ t1 v1 v2 al => insn_store id0 t1 v1 v2 al
-| insn_gep _ ib0 t v vs => insn_gep id0 ib0 t v vs
+| insn_gep _ ib0 t v vs t' => insn_gep id0 ib0 t v vs t'
 | insn_trunc _ top0 t1 v1 t2 => insn_trunc id0 top0 t1 v1 t2
 | insn_ext _ eop0 t1 v1 t2 => insn_ext id0 eop0 t1 v1 t2
 | insn_cast _ cop0 t1 v1 t2 => insn_cast id0 cop0 t1 v1 t2

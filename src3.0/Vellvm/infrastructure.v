@@ -72,7 +72,7 @@ Definition noret_dec : forall x y : noret, {x=y} + {x<>y} := bool_dec.
   | insn_alloca id _ _ _ => id
   | insn_load id typ1 v1 _ => id
   | insn_store id typ1 v1 v2 _ => id
-  | insn_gep id _ _ _ _ => id
+  | insn_gep id _ _ _ _ _ => id
   | insn_trunc id _ typ1 v1 typ2 => id
   | insn_ext id _ sz1 v1 sz2 => id
   | insn_cast id _ typ1 v1 typ2 => id
@@ -134,7 +134,7 @@ Definition noret_dec : forall x y : noret, {x=y} + {x<>y} := bool_dec.
   | insn_alloca id _ _ _ => Some id
   | insn_load id typ1 v1 _ => Some id
   | insn_store id typ1 v1 v2 _ => None
-  | insn_gep id _ _ _ _ => Some id
+  | insn_gep id _ _ _ _ _ => Some id
   | insn_trunc id _ typ1 v1 typ2 => Some id
   | insn_ext id _ sz1 v1 sz2 => Some id
   | insn_cast id _ typ1 v1 typ2 => Some id
@@ -308,7 +308,7 @@ match i with
 | insn_alloca _ typ _ _ => Some (typ_pointer typ)
 | insn_load _ typ _ _ => Some typ
 | insn_store _ _ _ _ _ => Some typ_void
-| insn_gep _ _ typ _ idxs => getGEPTyp idxs typ
+| insn_gep _ _ typ _ idxs _ => getGEPTyp idxs typ
 | insn_trunc _ _ _ _ typ => Some typ
 | insn_ext _ _ _ _ typ2 => Some typ2
 | insn_cast _ _ _ _ typ => Some typ
@@ -394,7 +394,7 @@ match i with
 | insn_alloca _ _ v _ => getValueIDs v
 | insn_load _ _ v _ => getValueIDs v
 | insn_store _ _ v1 v2 _ => getValueIDs v1 ++ getValueIDs v2
-| insn_gep _ _ _ v vs =>
+| insn_gep _ _ _ v vs _ =>
     getValueIDs v ++ values2ids (map_list_sz_value (fun _ v => v) vs)
 | insn_trunc _ _ _ v _ => getValueIDs v
 | insn_ext _ _ _ v1 typ2 => getValueIDs v1
@@ -422,7 +422,7 @@ match i with
 | insn_alloca _ _ v _ => v0 = v
 | insn_load _ _ v _ => v0 = v
 | insn_store _ _ v1 v2 _ => v0 = v1 \/ v0 = v2
-| insn_gep _ _ _ v vs => v0 = v \/ valueInListValue v0 vs
+| insn_gep _ _ _ v vs _ => v0 = v \/ valueInListValue v0 vs
 | insn_trunc _ _ _ v _ => v0 = v
 | insn_ext _ _ _ v1 _ => v0 = v1
 | insn_cast _ _ _ v _ => v0 = v
@@ -486,7 +486,7 @@ match i with
 | insn_alloca _ _ _ _ => nil
 | insn_load _ _ _ _ => nil
 | insn_store _ _ _ _ _ => nil
-| insn_gep _ _ _ v  _ => nil
+| insn_gep _ _ _ v  _ _ => nil
 | insn_trunc _ _ _ _ _ => nil
 | insn_ext _ _ _ _ _ => nil
 | insn_cast _ _ _ _ _ => nil

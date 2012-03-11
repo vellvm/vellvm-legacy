@@ -1536,10 +1536,10 @@ Proof.
 Qed.
 
 Lemma original_indxs_arent_tmps: forall pinfo F1 l1 ps1 cs11 id0 inbounds0 t v
-  idxs cs1' tmn (Hwfpi: WF_PhiInfo pinfo) S m (HwfF: wf_fdef S m F1)
+  idxs cs1' tmn (Hwfpi: WF_PhiInfo pinfo) S m (HwfF: wf_fdef S m F1) t'
   (HBinF : blockInFdefB
             (block_intro l1 ps1
-               (cs11 ++ insn_gep id0 inbounds0 t v idxs :: cs1') tmn) F1 =
+               (cs11 ++ insn_gep id0 inbounds0 t v idxs t':: cs1') tmn) F1 =
             true),
   if fdef_dec (PI_f pinfo) F1 then
     forall nth sz0 v0,

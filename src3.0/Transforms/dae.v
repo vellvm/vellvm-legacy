@@ -1622,7 +1622,7 @@ Proof.
 Qed.
 
 Lemma simulation__GEP : forall maxb mi TD Mem Mem2 inbounds0 vidxs1 vidxs2 gv1
-    gv1' gv2 gv2' t gl2 lc lc2 idxs v F pinfo
+    gv1' gv2 gv2' t gl2 lc lc2 idxs v F pinfo t'
   (Hprop1: value_doesnt_use_pid pinfo F v)
   (Hprop2: list_value_doesnt_use_pid pinfo F idxs),
   wf_globals maxb gl2 ->
@@ -1632,8 +1632,8 @@ Lemma simulation__GEP : forall maxb mi TD Mem Mem2 inbounds0 vidxs1 vidxs2 gv1
   getOperandValue TD v lc2 gl2 = Some gv1' ->
   values2GVs TD idxs lc gl2 = Some vidxs1 ->
   values2GVs TD idxs lc2 gl2 = Some vidxs2 ->
-  GEP TD t gv1 vidxs1 inbounds0 = ret gv2 ->
-  GEP TD t gv1' vidxs2 inbounds0 = ret gv2' ->
+  GEP TD t gv1 vidxs1 inbounds0 t' = ret gv2 ->
+  GEP TD t gv1' vidxs2 inbounds0 t' = ret gv2' ->
   gv_inject mi gv2 gv2'.
 Proof.
   intros.
@@ -2723,10 +2723,10 @@ Qed.
 
 Lemma used_in_fdef__list_value_doesnt_use_pid: forall (l3 : l)
   (ps1 : phinodes) (cs : cmds) (v : value) (tmn1 : terminator) (F: fdef) pinfo
-  cs11 id0 inbounds0 t v idxs cs,
+  cs11 id0 inbounds0 t v idxs cs t',
   used_in_fdef (PI_id pinfo) (PI_f pinfo) = false ->
   blockInFdefB
-    (block_intro l3 ps1 (cs11 ++ insn_gep id0 inbounds0 t v idxs :: cs) tmn1) F
+    (block_intro l3 ps1 (cs11 ++ insn_gep id0 inbounds0 t v idxs t':: cs) tmn1) F
       = true ->
   list_value_doesnt_use_pid pinfo F idxs.
 Proof.
@@ -2758,7 +2758,7 @@ Ltac reg_simulation_update_non_palloca_tac :=
     gv_inject _ ?gv3 ?gv3' =>
       eapply simulation__InsertValue with (gv1:=gvs1) (gv2:=gvs2)
         (gv1':=gvs1') (gv2':=gvs2')
-  | H : Opsem.GEP _ _ _ _ _ = Some _ |- _ => eapply simulation__GEP
+  | H : Opsem.GEP _ _ _ _ _ _ = Some _ |- _ => eapply simulation__GEP
   end;
   eauto using mem_simulation__wf_sb_sim;
   try solve [

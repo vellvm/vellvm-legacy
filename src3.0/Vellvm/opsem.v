@@ -552,9 +552,8 @@ end
 .
 
 Definition GEP (TD:TargetData) (ty:typ) (mas:GVs) (vidxs:list GenericValue)
-  (inbounds:bool) : option GVs :=
-GVsSig.(lift_op1) (gep TD ty vidxs inbounds) mas
-  (typ_pointer (typ_int Size.One)).
+  (inbounds:bool) ty' : option GVs :=
+GVsSig.(lift_op1) (gep TD ty vidxs inbounds ty') mas (typ_pointer ty').
 
 Definition extractGenericValue (TD:TargetData) (t:typ) (gvs : GVs)
   (cidxs : list_const) : option GVs :=
@@ -741,14 +740,14 @@ Inductive sInsn : Config -> State -> State -> trace -> Prop :=
     E0
 
 | sGEP : forall S TD Ps F B lc gl fs id inbounds t v idxs vidxs vidxss EC mp mp'
-                 cs tmn Mem als,
+                 cs tmn Mem als t',
   getOperandValue TD v lc gl = Some mp ->
   values2GVs TD idxs lc gl = Some vidxss ->
   vidxs @@ vidxss ->
-  GEP TD t mp vidxs inbounds = Some mp' ->
+  GEP TD t mp vidxs inbounds t' = Some mp' ->
   sInsn (mkCfg S TD Ps gl fs)
-    (mkState ((mkEC F B ((insn_gep id inbounds t v idxs)::cs) tmn lc als)::EC)
-               Mem)
+    (mkState ((mkEC F B ((insn_gep id inbounds t v idxs t')::cs) 
+                 tmn lc als)::EC) Mem)
     (mkState ((mkEC F B cs tmn (updateAddAL _ lc id mp') als)::EC) Mem)
     E0 
 
@@ -1144,13 +1143,13 @@ Inductive bInsn :
     E0
 
 | bGEP : forall S TD Ps F B lc gl fs id inbounds t v idxs vidxs vidxss mp mp'
-                 cs tmn Mem als,
+                 cs tmn Mem als t',
   getOperandValue TD v lc gl = Some mp ->
   values2GVs TD idxs lc gl = Some vidxss ->
   vidxs @@ vidxss ->
-  GEP TD t mp vidxs inbounds = Some mp' ->
+  GEP TD t mp vidxs inbounds t' = Some mp' ->
   bInsn (mkbCfg S TD Ps gl fs F)
-    (mkbEC B ((insn_gep id inbounds t v idxs)::cs) tmn lc als Mem)
+    (mkbEC B ((insn_gep id inbounds t v idxs t')::cs) tmn lc als Mem)
     (mkbEC B cs tmn (updateAddAL _ lc id mp') als Mem)
     E0 
 

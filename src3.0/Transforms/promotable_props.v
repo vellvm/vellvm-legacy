@@ -1206,8 +1206,8 @@ Proof.
     destruct HwfM as [J1 J2]; eauto.
 Qed.
 
-Lemma GEP_preserves_no_alias: forall TD t mp vidxs inbounds0 mp' gvsa,
-  @Opsem.GEP DGVs TD t mp vidxs inbounds0 = ret mp' ->
+Lemma GEP_preserves_no_alias: forall TD t mp vidxs inbounds0 mp' gvsa t',
+  @Opsem.GEP DGVs TD t mp vidxs inbounds0 t' = ret mp' ->
   no_alias mp gvsa -> no_alias mp' gvsa.
 Proof.
   unfold Opsem.GEP. unfold lift_op1. simpl. unfold MDGVs.lift_op1. unfold gep.
@@ -1222,9 +1222,9 @@ Proof.
   eapply mgep_preserves_no_alias; eauto.
 Qed.
 
-Lemma GEP_inv: forall TD t (mp1 : GVsT DGVs) inbounds0 vidxs mp2
-  (H1 : Opsem.GEP TD t mp1 vidxs inbounds0 = ret mp2),
-  gundef TD (typ_pointer (typ_int 1%nat)) = ret mp2 \/
+Lemma GEP_inv: forall TD t (mp1 : GVsT DGVs) inbounds0 vidxs mp2 t'
+  (H1 : Opsem.GEP TD t mp1 vidxs inbounds0 t' = ret mp2),
+  gundef TD (typ_pointer t') = ret mp2 \/
   exists blk, exists ofs1, exists ofs2 : int32, exists m1, exists m2,
     mp1 = (Vptr blk ofs1, m1) :: nil /\ mp2 = (Vptr blk ofs2, m2) :: nil.
 Proof.
@@ -1254,14 +1254,14 @@ Proof.
 Qed.
 
 Lemma GEP__wf_GVs_in_ECs : forall (v : value) (v0 : value) (id1 : id)
-  mp' TD t gl EC Mem pinfo maxb (mp:GVsT DGVs) mps
+  mp' TD t gl EC Mem pinfo maxb (mp:GVsT DGVs) mps t'
   inbounds0 vidxs (Hwflc: wf_lc Mem (@Opsem.Locals DGVs EC))
   (Hwfgl: wf_globals maxb gl) (HwfM: maxb < Mem.nextblock Mem)
   (Hwfv: PI_f pinfo = Opsem.CurFunction EC ->
          wf_use_at_head pinfo v)
   (H : Opsem.getOperandValue TD v (Opsem.Locals EC) gl = ret mps)
   (H0 : mp @ mps)(Hneq: PI_f pinfo = Opsem.CurFunction EC -> id1 <> PI_id pinfo)
-  (H1 : Opsem.GEP TD t mp vidxs inbounds0 = ret mp') tl
+  (H1 : Opsem.GEP TD t mp vidxs inbounds0 t' = ret mp') tl
   (Hwfstk: wf_ECStack_head_tail maxb pinfo TD Mem (Opsem.Locals EC) tl),
   wf_GVs_in_ECs maxb pinfo TD Mem EC tl id1 mp'.
 Proof.

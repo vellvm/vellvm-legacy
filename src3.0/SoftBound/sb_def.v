@@ -461,12 +461,12 @@ Inductive sInsn_delta : Config -> State -> State -> trace -> Prop :=
     (mkState ((mkEC F B cs tmn lc rm als)::EC) Mem' MM') E0
 
 | sGEP : forall S TD Ps F B lc rm gl fs id inbounds t vp idxs EC
-                 cs tmn Mem MM als lc' rm' md,
+                 cs tmn Mem MM als lc' rm' md t',
   get_reg_metadata TD gl rm vp = Some md ->
   updateAddAL _ rm id md = rm' ->
   sInsn_delta (mkCfg S TD Ps gl fs)
     (mkState
-      ((mkEC F B ((insn_gep id inbounds t vp idxs)::cs) tmn lc rm als)::EC)
+      ((mkEC F B ((insn_gep id inbounds t vp idxs t')::cs) tmn lc rm als)::EC)
       Mem MM)
     (mkState ((mkEC F B cs tmn lc' rm' als)::EC) Mem MM) E0
 

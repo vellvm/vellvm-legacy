@@ -77,12 +77,12 @@ match c with
       mp @ mps /\
       mload TD M mp t aln = Some gv0 /\
       gv = ($ gv0 # t$)
-| insn_gep _ inbounds t v idxs =>
+| insn_gep _ inbounds t v idxs t' =>
     exists mp, exists vidxss, exists vidxs,
       Opsem.getOperandValue TD v lc gl = Some mp /\
       values2GVs TD idxs lc gl = Some vidxss /\
       vidxs @@ vidxss /\
-      GEP TD t mp vidxs inbounds = Some gv
+      GEP TD t mp vidxs inbounds t' = Some gv
 | insn_trunc _ truncop t1 v1 t2 => TRUNC TD lc gl truncop t1 v1 t2 = Some gv
 | insn_ext _ extop t1 v1 t2 => EXT TD lc gl extop t1 v1 t2 = Some gv
 | insn_cast _ castop t1 v1 t2 => CAST TD lc gl castop t1 v1 t2 = Some gv
@@ -1091,7 +1091,7 @@ Case "sLoad".
 Case "sStore".
   abstract (eapply preservation_cmd_non_updated_case; eauto; simpl; auto).
 Case "sGEP".
-  abstract (eapply preservation_cmd_updated_case; eauto; simpl; eauto 7).
+  abstract (eapply preservation_cmd_updated_case; eauto; simpl; eauto 9).
 Case "sTrunc". abstract (eapply preservation_cmd_updated_case; eauto; auto).
 Case "sExt". abstract (eapply preservation_cmd_updated_case; eauto; auto).
 Case "sCast". abstract (eapply preservation_cmd_updated_case; eauto; auto).

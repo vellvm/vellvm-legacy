@@ -812,13 +812,14 @@ Proof.
     destruct c; try solve [eauto | inversion Hc].
 Qed.
 
-Lemma GEP_is_total : forall TD t mp vidxs inbounds0,
-  exists mp', LLVMgv.GEP TD t mp vidxs inbounds0 = ret mp'.
+Lemma GEP_is_total : forall S TD t mp vidxs inbounds0 t',
+  wf_typ S TD (typ_pointer t') ->
+  exists mp', LLVMgv.GEP TD t mp vidxs inbounds0 t' = ret mp'.
 Proof.
   intros. unfold LLVMgv.GEP.
-  destruct (GV2ptr TD (getPointerSize TD) mp); eauto using gundef_p1__total.
-  destruct (GVs2Nats TD vidxs); eauto using gundef_p1__total.
-  destruct (mgep TD t v l0); eauto using gundef_p1__total.
+  destruct (GV2ptr TD (getPointerSize TD) mp); eauto using gundef__total.
+  destruct (GVs2Nats TD vidxs); eauto using gundef__total.
+  destruct (mgep TD t v l0); eauto using gundef__total.
 Qed.
 
 Lemma fit_gv__total : forall S TD t gv1 (H0 : wf_typ S TD t),
@@ -3698,3 +3699,15 @@ Proof.
     eauto using gundef__matches_chunks.
 Qed.
 
+Lemma GEP_matches_chunks : forall TD t mp vidxs inbounds0 t' mp',
+  LLVMgv.GEP TD t mp vidxs inbounds0 t' = ret mp' ->
+  gv_chunks_match_typ TD mp' (typ_pointer t').
+Proof.
+  unfold LLVMgv.GEP. intros.
+  destruct (GV2ptr TD (getPointerSize TD) mp);eauto using gundef__matches_chunks.
+  destruct (GVs2Nats TD vidxs); eauto using gundef__matches_chunks.
+  destruct (mgep TD t v l0); eauto using gundef__matches_chunks.
+  uniq_result.
+  unfold gv_chunks_match_typ, vm_matches_typ. destruct TD. simpl.
+  unfold ptr2GV, val2GV. simpl. auto.
+Qed.

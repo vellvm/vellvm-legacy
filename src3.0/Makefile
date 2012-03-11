@@ -19,7 +19,8 @@ theories: Makefile.coq
 	+make -f Makefile.coq COQLIBS="$(COQLIBS)"
 
 extraction: theories
-	+make -C Extraction
+	+make -C Extraction        
+	+cd Extraction; ./fixextract.py; cd ..
 
 # For some reason, the -slash option of coqdep is generating
 # ill-formed .v.d files. Removing it seems to fix the problem.
@@ -31,6 +32,7 @@ Makefile.coq: Make
 	make -f Makefile.coq "$@"
 
 ocaml: theories $(CMAS) $(CMXAS)
+	+make -f Makefile.ocaml -C Extraction
 	ocamlbuild -clean
 	ocamlbuild $(OCAMLBUILD_OPT) Interpreter/main.$(OUTPUT_TYPE)
 	ocamlbuild $(OCAMLBUILD_OPT) Transforms/main.native
@@ -41,6 +43,7 @@ clean:
 	+make -C ./Vellvm clean
 	+make -f Makefile.coq clean
 	+make -C ./Extraction clean
+	+make -f Makefile.ocaml -C Extraction clean
 	ocamlbuild -clean
 
 ocamlclean:

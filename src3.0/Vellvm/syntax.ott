@@ -392,7 +392,7 @@ cmd {{ tex c }} :: 'insn_'					    	::=			{{ com commands }}
   | id = load ( typ * ) value1 align			::   :: load		{{ com load }}
   | id = store typ value1 value2 align			::   :: store		{{ com store }}
       {{ tex \ottkw{store}\, [[typ]]\, [[value1]]\, [[value2]]\, [[align]] }}
-  | id = getelementptr inbounds ( typ * ) value </ szj , valuej // j />    	      ::  :: gep        {{ com getelementptr }}
+  | id = getelementptr inbounds ( typ * ) value </ szj , valuej // j /> ( typ' * )    	      ::  :: gep        {{ com getelementptr }}
       {{ tex [[id]]\, [[=]]\, \ottkw{getelementptr}\, \ottsym{(}\, [[typ]]\, \ottsym{*}\, \ottsym{)}\, [[value]]\, \overline{val_j}^{j} }}
 %% Conversion Operations
   | id = truncop typ1 value1 to typ2			::   :: trunc		{{ com trunc }}

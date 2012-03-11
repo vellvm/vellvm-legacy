@@ -1083,19 +1083,20 @@ match (getOperandValue TD v1 lc gl, getOperandValue TD v2 lc gl) with
 | _ => None
 end.
 
+(* t' is from getGEPtyp that always returns Some t'* or None *)
 Definition GEP (TD:TargetData) (t:typ) (ma:GenericValue)
-  (vidxs:list GenericValue) (inbounds:bool) : option GenericValue :=
+  (vidxs:list GenericValue) (inbounds:bool) (t':typ) : option GenericValue :=
 match GV2ptr TD (getPointerSize TD) ma with
 | Some ptr =>
   match GVs2Nats TD vidxs with
-  | None => gundef TD (typ_pointer (typ_int 1%nat))
+  | None => gundef TD (typ_pointer t')
   | Some idxs =>
     match (mgep TD t ptr idxs) with
     | Some ptr0 => Some (ptr2GV TD ptr0)
-    | None => gundef TD (typ_pointer (typ_int 1%nat))
+    | None => gundef TD (typ_pointer t')
     end
   end
-| None => gundef TD (typ_pointer (typ_int 1%nat))
+| None => gundef TD (typ_pointer t')
 end.
 
 Definition malloc (TD:TargetData) (M:mem) (bsz:sz) (gn:GenericValue) (al:align)
@@ -1193,8 +1194,8 @@ match GV2ptr TD (getPointerSize TD) ptr with
 end.
 
 Definition gep (TD:TargetData) (ty:typ) (vidxs:list GenericValue) (inbounds:bool)
-  (ma:GenericValue) : option GenericValue :=
-LLVMgv.GEP TD ty ma vidxs inbounds.
+  (ty':typ) (ma:GenericValue) : option GenericValue :=
+LLVMgv.GEP TD ty ma vidxs inbounds ty'.
 
 Definition mget' TD o t' gv: option GenericValue :=
 match mget TD gv o t' with

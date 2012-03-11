@@ -115,7 +115,7 @@ Proof.
 
   match goal with
   | |- context [insn_cast ?tmp _ _ _ _ :: insn_malloc ?id0 _ _ _ ::
-                insn_gep ?tmp0 _ _ _ _ ::
+                insn_gep ?tmp0 _ _ _ _ _ ::
                 insn_cast ?bid _ _ _ _ :: insn_cast ?eid _ _ _ _ :: _] =>
   exists (Opsem.mkState
           ((Opsem.mkEC (fdef_intro fh2 bs2) B2
@@ -347,7 +347,7 @@ Proof.
 
   match goal with
   | |- context [insn_cast ?tmp _ _ _ _ :: insn_alloca ?id0 _ _ _ ::
-                insn_gep ?tmp0 _ _ _ _ ::
+                insn_gep ?tmp0 _ _ _ _ _ ::
                 insn_cast ?bid _ _ _ _ :: insn_cast ?eid _ _ _ _ :: _] =>
   exists (Opsem.mkState
           ((Opsem.mkEC (fdef_intro fh2 bs2) B2

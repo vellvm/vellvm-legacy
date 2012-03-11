@@ -341,18 +341,18 @@ Proof.
 Qed.
 
 Lemma instantiate_locals__GEP : forall TD t mp1 mp1' vidxs1 vidxss1 vidxss2
-    inbounds mps2,
+    inbounds mps2 t',
   instantiate_list_gvs vidxss1 vidxss2 ->
   element_of mp1 mps2 ->
   in_list_gvs vidxs1 vidxss1 ->
-  GEP TD t mp1 vidxs1 inbounds = Some mp1' ->
+  GEP TD t mp1 vidxs1 inbounds t' = Some mp1' ->
   exists vidxs2, exists mps2',
     in_list_gvs vidxs2 vidxss2 /\
-    GEP TD t mps2 vidxs2 inbounds = Some mps2' /\
+    GEP TD t mps2 vidxs2 inbounds t' = Some mps2' /\
     element_of mp1' mps2'.
 Proof.
-  intros TD t mp1 mp1' vidxs1 vidxss1 vidxss2 inbounds mps2 Hinst1 Hinst2 Hin1
-    Hgep.
+  intros TD t mp1 mp1' vidxs1 vidxss1 vidxss2 inbounds mps2 t' Hinst1 Hinst2 
+    Hin1 Hgep.
   inv Hgep.
   unfold GEP.
   unfold GEP in H0.

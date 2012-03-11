@@ -1,7 +1,6 @@
 open Interpreter
 open Printf
 open Llvm
-open Trace
 
 let nullpass = ref false
 let mem2reg = ref true

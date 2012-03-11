@@ -28,7 +28,7 @@ Inductive rhs : Set :=
   | rhs_alloca : typ -> value -> align -> rhs
   | rhs_load : typ -> value -> align -> rhs
   | rhs_store : typ -> value -> value -> align -> rhs
-  | rhs_gep : inbounds -> typ -> value -> list_sz_value -> rhs
+  | rhs_gep : inbounds -> typ -> value -> list_sz_value -> typ -> rhs
   | rhs_trunc : truncop -> typ -> value -> typ -> rhs
   | rhs_ext : extop -> typ -> value -> typ -> rhs
   | rhs_cast : castop -> typ -> value -> typ -> rhs
@@ -59,7 +59,7 @@ match c with
 | insn_alloca _ t v al => rhs_alloca t v al
 | insn_load _ t v al => rhs_load t v al
 | insn_store _ t1 v1 v2 al => rhs_store t1 v1 v2 al
-| insn_gep _ ib0 t v vs => rhs_gep ib0 t v vs
+| insn_gep _ ib0 t v vs t' => rhs_gep ib0 t v vs t'
 | insn_trunc _ top0 t1 v1 t2 => rhs_trunc top0 t1 v1 t2
 | insn_ext _ eop0 t1 v1 t2 => rhs_ext eop0 t1 v1 t2
 | insn_cast _ cop0 t1 v1 t2 => rhs_cast cop0 t1 v1 t2
@@ -114,8 +114,9 @@ Proof.
     destruct (@value_dec v0 v2); subst; try solve [auto | done_right].
   Case "rhs_gep".
     destruct (@inbounds_dec i0 i1); subst; try solve [done_right].
-    destruct (@typ_dec t t0); subst; try solve [done_right].
+    destruct (@typ_dec t t1); subst; try solve [done_right].
     destruct (@value_dec v v0); try solve [auto | done_right].
+    destruct (@typ_dec t0 t2); subst; try solve [done_right].
     destruct (@list_value_dec l0 l1); subst; try solve [auto | done_right].
   Case "rhs_trunc".
     destruct (@truncop_dec t t2); subst; try solve [done_right].
@@ -165,7 +166,7 @@ match c with
 | insn_fbop _ _ _ _ _
 | insn_extractvalue _ _ _ _
 | insn_insertvalue _ _ _ _ _ _
-| insn_gep _ _ _ _ _
+| insn_gep _ _ _ _ _ _
 | insn_trunc _ _ _ _ _
 | insn_ext _ _ _ _ _
 | insn_cast _ _ _ _ _
@@ -201,7 +202,7 @@ match c with
 | insn_alloca _ _ _ _ => None
 | insn_load _ _ _ _ => None
 | insn_store _ _ _ _ _ => None
-| insn_gep _ ib0 _ (value_const c) vs =>
+| insn_gep _ ib0 _ (value_const c) vs _ =>
     match const_list_value vs with
     | None => None
     | Some cnts => Some (const_gep ib0 c cnts)
