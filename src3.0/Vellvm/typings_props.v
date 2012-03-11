@@ -12,6 +12,7 @@ Require Import Memory.
 Require Import Integers.
 Require Import Coqlib.
 Require Import targetdata.
+Require Import targetdata_props.
 Require Import Maps.
 Require Import Lattice.
 Require Import Iteration.
@@ -346,10 +347,10 @@ Qed.
 
 Lemma wf_value__wf_typ : forall s los nts ps f v t,
   wf_value s (module_intro los nts ps) f v t ->
-  wf_typ s t /\ feasible_typ (los, nts) t.
+  wf_typ s (los, nts) t /\ feasible_typ (los, nts) t.
 Proof.
   intros.
-  inv H; eauto.
+  inv H; eauto using wf_typ__feasible_typ. 
 Qed.
 
 Lemma entryBlock_has_no_phinodes : forall s f l1 ps1 cs1 tmn1 los nts ps,
@@ -592,18 +593,18 @@ Proof.
   end.
 Qed.
 
-Lemma wf_typ_list__in_args__wf_typ : forall s typ_attributes_id_list
+Lemma wf_typ_list__in_args__wf_typ : forall s td typ_attributes_id_list
   (H18: wf_typ_list
-          (make_list_system_typ
+          (make_list_system_targetdata_typ
              (map_list_typ_attributes_id
-                (fun (typ_ : typ) (_ : attributes) (_ : id) => (s, typ_))
+                (fun (typ_ : typ) (_ : attributes) (_ : id) => (s, td, typ_))
                 typ_attributes_id_list)))
   t a i0,
     In (t, a, i0)
        (map_list_typ_attributes_id
          (fun (typ_ : typ) (attributes_ : attributes) (id_ : id) =>
           (typ_, attributes_, id_)) typ_attributes_id_list) ->
-    wf_typ s t.
+    wf_typ s td t.
 Proof.
   induction typ_attributes_id_list; simpl; intros.
     inv H.
@@ -616,10 +617,10 @@ Qed.
 Lemma wf_trunc__wf_typ : forall s los nts ps f b i0 t t0 v t1
   (H: wf_trunc s (module_intro los nts ps) f b
     (insn_cmd (insn_trunc i0 t t0 v t1))),
-  wf_typ s t1 /\ feasible_typ (los, nts) t1.
+  wf_typ s (los, nts) t1 /\ feasible_typ (los, nts) t1.
 Proof.
   intros.
-  inv H; auto.
+  inv H; eauto using wf_typ__feasible_typ. 
 Qed.
 
 Lemma wf_trunc__wf_value : forall s los nts ps f b i0 t t0 v t1
@@ -634,10 +635,10 @@ Qed.
 Lemma wf_ext__wf_typ : forall s los nts ps f b i0 e t0 v t1
   (H: wf_ext s (module_intro los nts ps) f b
     (insn_cmd (insn_ext i0 e t0 v t1))),
-  wf_typ s t1 /\ feasible_typ (los, nts) t1.
+  wf_typ s (los, nts) t1 /\ feasible_typ (los, nts) t1.
 Proof.
   intros.
-  inv H; auto.
+  inv H; eauto using wf_typ__feasible_typ. 
 Qed.
 
 Lemma wf_ext__wf_value : forall s los nts ps f b i0 e t0 v t1
@@ -2528,14 +2529,17 @@ Proof.
     apply wf_fdef__wf_tmn; auto.
 Qed.
 
-Lemma wf_typ_independent :
-  forall (sys1 sys2 : system) (t : typ),
-    wf_typ sys1 t -> wf_typ sys2 t.
+(*
+Lemma wf_styp_independent :
+  forall (sys1 sys2 : system) td (t : typ),
+    wf_styp sys1 td t -> wf_styp sys2 td t.
 Proof.
-  intros sys1 sys2.
-  set (P  := fun t => wf_typ sys1 t -> wf_typ sys2 t).
+  intros sys1 sys2 td.
+  set (P  := fun t => wf_styp sys1 td t -> wf_styp sys2 td t).
   set (Pl := fun (sys : system) ts =>
-    wf_typ_list (make_list_system_typ (map_list_typ (fun t => (sys, t)) ts))).
+    wf_styp_list 
+      (make_list_system_targetdata_typ 
+        (map_list_typ (fun t => (sys, td, t)) ts))).
   set (Pls := fun ts => Pl sys1 ts -> Pl sys2 ts).
   apply (typ_ind2 P Pls); subst P Pl Pls; simpl;
     [intros t H|intros t H|intros H|intros H|intros H|
@@ -2544,6 +2548,6 @@ Proof.
     try (inversion H; subst; constructor; auto);
     try (apply IH; auto).
 
-  apply wf_typ_namedt with (lookupTypViaTIDFromSystem sys2 i); trivial.
+  apply wf_styp_namedt with (lookupTypViaTIDFromSystem sys2 i); trivial.
 Qed.
-
+*)

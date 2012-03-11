@@ -302,8 +302,7 @@ Proof.
     destruct n; inv H0; auto.
     destruct_typ t; tinv H1.
     destruct (lift_op1 GVsSig (fit_gv (los, nts) t0) g t0); tinv H1.
-    inv Hwfc. inv H6. inv H14.
-    clear H19 H17 H8 H18 H7.
+    inv Hwfc. uniq_result. 
     assert (lookupTypViaIDFromFdef F' i0 = Some typ1) as J.
       eapply uniqF__lookupTypViaIDFromFdef with
         (c:=insn_call i0 false c
@@ -339,8 +338,7 @@ Proof.
     destruct n; inv H0; auto.
     destruct_typ t; tinv H1.
     destruct (lift_op1 GVsSig (fit_gv (los, nts) t0) g t0); tinv H1.
-    inv Hwfc. inv H6. inv H14.
-    clear H19 H17 H8 H18 H7.
+    inv Hwfc. uniq_result.
     assert (lookupTypViaIDFromFdef F' i0 = Some typ1) as J.
       eapply uniqF__lookupTypViaIDFromFdef with
         (c:=insn_call i0 false c
@@ -1621,7 +1619,7 @@ Proof.
 Qed.
 
 Lemma mload_aux_isnt_stuck_helper: forall TD M blk bofs eofs gv t b ofs mcs2 mcs1
-  (Hft : typings.LLVMtypings.feasible_typ TD t)
+  (Hft : feasible_typ TD t)
   (Hwfd : wf_data TD M blk bofs eofs)
   (Hassert : assert_mptr TD t gv (mkMD blk bofs eofs))
   (Hptr : GV2ptr TD (getPointerSize TD) gv = ret Vptr b ofs)
@@ -1678,8 +1676,7 @@ Proof.
 Qed.
 
 Lemma mload_aux_isnt_stuck : forall S TD M blk bofs eofs gv t b ofs mcs
-  (Hwft : wf_typ S t)
-  (Hft : typings.LLVMtypings.feasible_typ TD t)
+  (Hwft : wf_typ S TD t)
   (Hwfd : wf_data TD M blk bofs eofs)
   (Hassert : assert_mptr TD t gv (mkMD blk bofs eofs))
   (Hptr : GV2ptr TD (getPointerSize TD) gv = ret Vptr b ofs)
@@ -1693,8 +1690,9 @@ Proof.
     simpl. ring.
   rewrite <- EQ. rewrite <- EQ in Halign.
   rewrite_env (mcs ++ nil).
-  eapply mload_aux_isnt_stuck_helper; simpl_env; eauto.
-    inv Hft. destruct TD.
+  eapply mload_aux_isnt_stuck_helper; simpl_env; 
+    eauto using wf_typ__feasible_typ.
+    destruct TD.
     eapply flatten_typ__getTypeSizeInBits in Hflat; eauto.
     unfold getTypeStoreSize, getTypeSizeInBits, getTypeSizeInBits_and_Alignment,
            getTypeSizeInBits_and_Alignment_for_namedts in *.
@@ -1713,7 +1711,7 @@ Proof.
 Qed.
 
 Lemma mstore_aux_isnt_stuck_helper: forall TD blk bofs eofs gvp t b ofs gv2 gv1 M
-  (Hft : typings.LLVMtypings.feasible_typ TD t)
+  (Hft : feasible_typ TD t)
   (Hwfd : wf_data TD M blk bofs eofs)
   (Hassert : assert_mptr TD t gvp (mkMD blk bofs eofs))
   (Hptr : GV2ptr TD (getPointerSize TD) gvp = ret Vptr b ofs)
@@ -1781,7 +1779,7 @@ Proof.
 Qed.
 
 Lemma mstore_aux_isnt_stuck : forall TD M blk bofs eofs gvp t b ofs gvs gv
-  (Hft : typings.LLVMtypings.feasible_typ TD t)
+  (Hft : feasible_typ TD t)
   (Hwfg : wf_GVs TD gvs t)
   (Hin :  gv @ gvs)
   (Hwfd : wf_data TD M blk bofs eofs)
@@ -2126,10 +2124,6 @@ Proof.
           rewrite R3. rewrite Hflat.
           destruct md as [gvb gve].
           eapply wf_rmetadata__get_reg_metadata in J2; eauto.
-          match goal with
-          | H7: wf_value _ _ _ _ _ |- _ =>
-            apply wf_value__wf_typ in H7; destruct H7; inv H
-          end.
           eapply mload_aux_isnt_stuck; eauto.
 
         destruct R6 as [gv' R6].
@@ -2287,7 +2281,7 @@ Proof.
             rewrite R3.
             destruct md as [gvb gve].
             eapply wf_rmetadata__get_reg_metadata in J2; eauto.
-            eapply mstore_aux_isnt_stuck; eauto.
+            eapply mstore_aux_isnt_stuck; eauto using wf_typ__feasible_typ.
               eapply getOperandValue__wf_gvs in J; eauto.
 
           destruct R6 as [M' R6].

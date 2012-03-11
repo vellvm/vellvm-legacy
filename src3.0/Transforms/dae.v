@@ -1018,8 +1018,9 @@ Transparent lift_op1.
   unfold fit_gv in *.
   inv_mbind'. symmetry_ctx.
   erewrite gv_inject__same_size in H0; eauto.
-  destruct (sizeGenericValue g2 =n= nat_of_Z (ZRdiv (Z_of_nat n) 8)).
-    inv HeqR2. inv H0. auto.
+  erewrite simulation__gv_chunks_match_typb in H0; eauto.
+  destruct_if.
+    inv HeqR2. auto.
 
     uniq_result.
     eapply gv_inject_gundef; eauto.

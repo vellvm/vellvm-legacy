@@ -2667,30 +2667,6 @@ End User.
 Module Constant <: SigConstant.
  Include Value.
 
-Fixpoint wf_zeroconst_typ (t:typ) : Prop :=
-match t with
-| typ_int sz => True
-| typ_floatpoint fp =>
-  match fp with
-  | fp_float | fp_double => True
-  | _ => False (* FIXME: not supported 80 and 128 yet. *)
-  end
-| typ_void | typ_label | typ_metadata => False
-| typ_array sz t => wf_zeroconst_typ t
-| typ_struct ts => wf_zeroconsts_typ ts
-| typ_pointer t' => True
-| typ_function _ _ _ => False
-| typ_namedt _ => False
-end
-with wf_zeroconsts_typ (lt:list_typ) : Prop :=
-match lt with
-| Nil_list_typ => True
-| Cons_list_typ t lt' => wf_zeroconsts_typ lt' /\ wf_zeroconst_typ t
-end
-.
-
-Definition wf_zeroconst TD t := wf_zeroconst_typ t /\ LLVMtd.feasible_typ TD t.
-
 Fixpoint getTyp (c:const) : option typ :=
  match c with
  | const_zeroinitializer t => Some t
@@ -3145,7 +3121,7 @@ Definition typ_eq_list_typ (nts:namedts) (t1:typ) (ts2:list_typ) : bool :=
 match t1 with
 | typ_struct ts1 => list_typ_dec ts1 ts2
 | typ_namedt nid1 =>
-    match lookupAL _ (rev nts) nid1 with
+    match lookupAL _ nts nid1 with
     | Some ts1 => list_typ_dec ts1 ts2
     | _ => false
     end

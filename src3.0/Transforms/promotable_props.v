@@ -327,8 +327,7 @@ Proof.
   Local Transparent lift_op1. simpl in HeqR2.
   unfold MDGVs.lift_op1, fit_gv in HeqR2.
   destruct (getTypeSizeInBits td t); tinv HeqR2.
-  destruct (sizeGenericValue g =n= nat_of_Z (ZRdiv (Z_of_nat n) 8)).
-    inv HeqR2.
+  destruct_if.
     destruct Result; simpl in HeqR1; eauto.
     eapply const2GV_disjoint_with_runtime_alloca; eauto.
       omega.
@@ -683,11 +682,10 @@ Proof.
 Local Transparent lift_op1. unfold lift_op1 in HeqR0. simpl in HeqR0.
     unfold MDGVs.lift_op1, fit_gv in HeqR0. symmetry in HeqR0.
     inv_mbind.
-    destruct (sizeGenericValue g =n= nat_of_Z (ZRdiv (Z_of_nat n) 8)).
-      inv H0.
+    destruct_if.
       eapply operand__lt_nextblock in HeqR; eauto.
 
-      unfold gundef in H0. inv_mbind. simpl. auto.
+      unfold gundef in *. inv_mbind. simpl. apply mc2undefs_valid_ptrs.
 Opaque lift_op1.
 Qed.
 
@@ -831,14 +829,14 @@ Proof.
     destruct ec0. simpl in *.
     eapply Hin in Hlkup; eauto. clear Hin.
     destruct Hlkup as [[mb [J1 J2]] [Hlkup _]]; subst.
-    destruct (sizeGenericValue g =n= nat_of_Z (ZRdiv (Z_of_nat n) 8)).
-      inv H1.
+    destruct_if.
       destruct Result; simpl in HeqR; eauto.
       eapply const2GV_disjoint_with_runtime_alloca; eauto.
         omega.
 
-      unfold gundef in H1. inv_mbind. inv HeqR1.
-      repeat rewrite simpl_blk2GV. simpl. tauto.
+      unfold gundef in *. inv_mbind. inv HeqR1.
+      repeat rewrite simpl_blk2GV. simpl. 
+      split; auto using no_alias_with_blk__mc2undefs.
 Qed.
 
 Lemma preservation_return : forall maxb pinfo (HwfPI : WF_PhiInfo pinfo)
@@ -1343,9 +1341,8 @@ Proof.
         unfold MDGVs.lift_op1, fit_gv in HeqR0.
         symmetry in HeqR0.
         inv_mbind.
-        destruct (sizeGenericValue g =n= nat_of_Z (ZRdiv (Z_of_nat n) 8)).
-          apply Hwf.
-          inv H0. simpl. auto.
+        destruct_if.
+          apply Hwf. simpl. auto.
 
           eapply undef_disjoint_with_ptr; eauto.
 
@@ -1477,9 +1474,8 @@ Proof.
         unfold MDGVs.lift_op1, fit_gv in HeqR0.
         symmetry in HeqR0.
         inv_mbind.
-        destruct (sizeGenericValue g =n= nat_of_Z (ZRdiv (Z_of_nat n) 8)).
-          inv H0. eapply Hwf; simpl; eauto.
-
+        destruct_if.
+          eapply Hwf; simpl; eauto.
           eapply undef_valid_ptrs; eauto.
 
         rewrite <- lookupAL_updateAddAL_neq in H; auto.
@@ -2107,11 +2103,11 @@ Proof.
     destruct G as [mc G].
     split.
       split. 
-        rewrite simpl_blk2GV. unfold encode_decode_ident. simpl.
+        rewrite simpl_blk2GV. unfold encode_decode_ident.
         rewrite G. 
         assert (Int.min_signed 31 <= 0 <= Int.max_signed 31) as Hinterval.
           apply min_le_zero_le_max.
-        rewrite Int.signed_repr; auto.
+        simpl. rewrite Int.signed_repr; auto.
         apply malloc_inv in Hal.
         destruct Hal as [n [J1 [J2 J3]]].
         assert (update (Mem.nextblock M) 
@@ -2143,8 +2139,7 @@ Proof.
           eapply undefs_disjoint_with_ptr; eauto.
 
         rewrite simpl_blk2GV.
-        unfold mload. simpl.
-        rewrite G.
+        unfold mload. rewrite G. simpl.
         eapply mload_aux_malloc_same'; eauto.
 
       intros.

@@ -2354,6 +2354,8 @@ Qed.
 Lemma mload_gv2gvs: forall TD Mem mp PI_typ0 PI_align0 gv,
   mload TD Mem mp PI_typ0 PI_align0 = ret gv ->
   ($ gv # PI_typ0 $) = gv.
+Proof.
+  intros. auto.
 (*
    This is not true.
    When loading an undefined value from memory, det-opsem converts the value
@@ -2362,7 +2364,7 @@ Lemma mload_gv2gvs: forall TD Mem mp PI_typ0 PI_align0 gv,
    a determinastic value is store. Either of the case will change the behavior
    of the program w.r.t our memory model.
  *)
-Admitted.
+Qed.
 
 Lemma reg_simulation__updateAddAL : forall pinfo F lc1 lc2 lid gv,
   reg_simulation pinfo F lc1 lc2 ->

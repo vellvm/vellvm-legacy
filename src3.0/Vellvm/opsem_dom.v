@@ -1990,7 +1990,7 @@ Case "sReturn".
           destruct_typ t; tinv H1.
           remember (GVsSig.(lift_op1) (fit_gv (los, nts) t0) g t0) as R2.
           destruct R2; inv H1.
-          inv Hwfc. inv H15. inv H7. inv H20.
+          inv Hwfc. uniq_result.
           change i0 with
             (getCmdLoc (insn_call i0 false c
               (typ_function typ1

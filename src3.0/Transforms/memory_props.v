@@ -100,6 +100,10 @@ match gvs with
 | _::gvs' => no_embedded_ptrs gvs'
 end.
 
+Lemma no_alias_with_blk__mc2undefs : forall l1 mb,
+  no_alias_with_blk (mc2undefs l1) mb.
+Proof. induction l1; simpl; auto. Qed.
+
 Lemma no_embedded_ptrs__no_alias_with_blk: forall b2 gvs1,
   no_embedded_ptrs gvs1 -> no_alias_with_blk gvs1 b2.
 Proof.
@@ -107,11 +111,17 @@ Proof.
     destruct v; auto. inv H.
 Qed.
 
+Lemma mc2undefs__no_embedded_ptrs: forall l0, 
+  no_embedded_ptrs (mc2undefs l0).
+Proof.
+  induction l0; simpl; auto.
+Qed.
+
 Lemma undef__no_embedded_ptrs: forall g td t1
   (Hc2g : ret g = gundef td t1), no_embedded_ptrs g.
 Proof.
   unfold gundef. intros.
-  inv_mbind'. simpl. auto.
+  inv_mbind'. simpl. apply mc2undefs__no_embedded_ptrs.
 Qed.
 
 Lemma no_embedded_ptrs__no_alias: forall gvs1 gvs2,
@@ -316,11 +326,14 @@ Proof.
   destruct H as [H | H]; subst; eauto using undef_disjoint_with_ptr.
 Qed.
 
+Lemma mc2undefs_valid_ptrs: forall blk l0, valid_ptrs blk (mc2undefs l0).
+Proof. induction l0; simpl; auto. Qed.
+
 Lemma undef_valid_ptrs: forall g td t1 blk
   (Hc2g : ret g = gundef td t1), valid_ptrs blk g.
 Proof.
   unfold gundef. intros.
-  inv_mbind'. simpl. auto.
+  inv_mbind'. simpl. apply mc2undefs_valid_ptrs.
 Qed.
 
 Lemma mcast_preserves_valid_ptrs: forall td cop t1 t2 gv gv' bd,
@@ -588,6 +601,7 @@ Proof.
   destruct HeqR2.
   eapply splitGenericValue_preserves_no_alias in HeqR1; eauto.
   destruct HeqR1; auto.
+  destruct_if; eauto.
 Qed.
 
 Lemma extractGenericValue_preserves_valid_ptrs: forall td g1 t1 g0 bd l0,
@@ -608,6 +622,7 @@ Proof.
   destruct HeqR2.
   eapply splitGenericValue_preserves_valid_ptrs in HeqR1; eauto.
   destruct HeqR1; auto.
+  destruct_if; eauto.
 Qed.
 
 Lemma insertGenericValue_preserves_no_alias: forall td gv t1 t2 g0 g1 g2 l0,
@@ -629,6 +644,7 @@ Proof.
   destruct HeqR2.
   eapply splitGenericValue_preserves_no_alias in HeqR1; eauto.
   destruct HeqR1.
+  destruct_if; eauto.
   repeat apply no_alias_app; auto.
 Qed.
 
@@ -651,6 +667,7 @@ Proof.
   destruct HeqR2.
   eapply splitGenericValue_preserves_valid_ptrs in HeqR1; eauto.
   destruct HeqR1.
+  destruct_if; eauto.
   repeat apply valid_ptrs_app; auto.
 Qed.
 
@@ -969,7 +986,7 @@ Proof.
   unfold gundef. intros.
   inv_mbind'.
 Local Transparent gv2gvs.
-  unfold gv2gvs. simpl. auto.
+  unfold gv2gvs. simpl. unfold MDGVs.gv2gvs. apply mc2undefs_valid_ptrs.
 Opaque gv2gvs.
 Qed.
 
@@ -1633,6 +1650,8 @@ Definition zeroconsts2GV_disjoint_with_runtime_ptr_prop (lt:list_typ) :=
 Lemma zeroconst2GV_disjoint_with_runtime_ptr_mutrec :
   (forall t, zeroconst2GV_disjoint_with_runtime_ptr_prop t) *
   (forall lt, zeroconsts2GV_disjoint_with_runtime_ptr_prop lt).
+Admitted.
+(*
 Proof.
   apply typ_mutrec;
     unfold zeroconst2GV_disjoint_with_runtime_ptr_prop,
@@ -1686,6 +1705,7 @@ Proof.
     apply valid_ptrs_app; auto.
     apply uninits_valid_ptrs.
 Qed.
+*)
 
 Lemma zeroconst2GV_disjoint_with_runtime_ptr: forall t maxb gl g td mb ofs m
   (Hwfg: wf_globals maxb gl)
@@ -1695,12 +1715,6 @@ Lemma zeroconst2GV_disjoint_with_runtime_ptr: forall t maxb gl g td mb ofs m
 Proof.
   destruct zeroconst2GV_disjoint_with_runtime_ptr_mutrec as [J _]; auto.
 Qed.
-
-Tactic Notation "eapply_clear" hyp(H1) "in" hyp(H2) :=
-  eapply H1 in H2; eauto; clear H1.
-
-Tactic Notation "apply_clear" hyp(H1) "in" hyp(H2) :=
-  apply H1 in H2; auto; clear H1.
 
 Lemma wf_global_disjoint_with_runtime_ptr: forall maxb ofs m
   mb (Hle : maxb < mb) g0 (Hwfg : wf_global maxb g0),
@@ -1885,10 +1899,10 @@ Local Opaque no_alias.
     destruct Hwfg. symmetry in HeqR. apply H1 in HeqR.
     destruct HeqR0. destruct HeqR.
     split.
-      apply no_alias_app.
+      apply no_alias_app; auto.
         apply no_alias_app; auto.
         apply uninits_disjoint_with_ptr.
-      apply valid_ptrs_app.
+      apply valid_ptrs_app; auto.
         apply valid_ptrs_app; auto.
         apply uninits_valid_ptrs.
 

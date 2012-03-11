@@ -644,7 +644,7 @@ Proof.
   apply entryBlockInFdef in HeqR.
   eapply wf_fdef__wf_cmd in HeqR; eauto.
   inv HeqR.
-  apply flatten_typ_total; auto.
+  eapply flatten_typ_total; eauto.
 Qed.
 
 Lemma WF_PhiInfo__succs : forall pinfo l1 ps1 cs1 tmn1
@@ -1423,20 +1423,19 @@ Proof.
     clear. fsetdec.
 
     destruct f as [f b]. destruct f as [? ? ? a ?]. simpl in *.
-    remember (lookupTypViaIDFromArgs a id5) as R.
     apply ids2atoms__in.
-    destruct R; inv H2.
+    destruct_match.
       symmetry in HeqR.
       destruct (In_dec eq_atom_dec id5 (getArgsIDs a)) as [Hin | Hnotin].
         apply in_or_app. auto.
 
         apply NotInArgsIDs_lookupTypViaIDFromArgs in Hnotin.
-        rewrite HeqR in Hnotin. inv Hnotin.
+        congruence.
       destruct (In_dec eq_atom_dec id5 (getBlocksLocs b)) as [Hin | Hnotin].
         apply in_or_app. auto.
 
         apply notInBlocks__lookupTypViaIDFromBlocks in Hnotin.
-        rewrite H3 in Hnotin. inv Hnotin.
+        congruence.
 Qed.
 
 Lemma wf_value_id__in_getFdefLocs' : forall S m f v t,

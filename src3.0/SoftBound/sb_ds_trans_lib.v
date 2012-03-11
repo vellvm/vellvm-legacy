@@ -82,8 +82,8 @@ Proof.
   unfold fit_gv in *.
   destruct (getTypeSizeInBits TD t); tinv Hfit.
   erewrite <- gv_inject__same_size; eauto.
-  destruct (sizeGenericValue gv1 =n= nat_of_Z (ZRdiv (Z_of_nat n) 8));
-    inv Hfit; eauto using gv_inject_gundef.
+  erewrite <- simulation__gv_chunks_match_typb; eauto.
+  destruct_if; eauto using gv_inject_gundef.
 Qed.
 
 Lemma simulation___cundef_gv : forall maxb mi t Mem Mem2 gv,
@@ -2723,20 +2723,18 @@ Proof.
     clear. fsetdec.
 
     destruct f as [f b]. destruct f as [? ? ? a ?]. simpl in *.
-    remember (lookupTypViaIDFromArgs a id5) as R.
     apply ids2atoms__in.
-    destruct R; inv H2.
-      symmetry in HeqR.
+    destruct_match.
       destruct (In_dec eq_atom_dec id5 (getArgsIDs a)) as [Hin | Hnotin].
         apply in_or_app. auto.
 
         apply NotInArgsIDs_lookupTypViaIDFromArgs in Hnotin.
-        rewrite HeqR in Hnotin. inv Hnotin.
+        congruence.
       destruct (In_dec eq_atom_dec id5 (getBlocksLocs b)) as [Hin | Hnotin].
         apply in_or_app. auto.
 
         apply notInBlocks__lookupTypViaIDFromBlocks in Hnotin.
-        rewrite H3 in Hnotin. inv Hnotin.
+        congruence.
 Qed.
 
 

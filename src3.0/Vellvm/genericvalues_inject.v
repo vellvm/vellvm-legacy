@@ -76,18 +76,6 @@ Proof.
   induction H; simpl; eauto.
 Qed.
 
-Definition zeroconst2GV__gv_inject_refl_prop (t:typ) := 
-  forall maxb mi Mem1 Mem2 gv TD, 
-  wf_sb_mi maxb mi Mem1 Mem2 ->
-  zeroconst2GV TD t = Some gv ->
-  gv_inject mi gv gv.
-  
-Definition zeroconsts2GV__gv_inject_refl_prop (lt:list_typ) := 
-  forall maxb mi Mem1 Mem2 gv TD, 
-  wf_sb_mi maxb mi Mem1 Mem2 ->
-  zeroconsts2GV TD lt = Some gv ->
-  gv_inject mi gv gv.
-
 Ltac tinv H := try solve [inv H].
   
 Lemma gv_inject__repeatGV : forall mi gv1 gv2 n,
@@ -103,6 +91,19 @@ Proof.
   induction n; intros; simpl; eauto using gv_inject_app.
 Qed.
 
+Definition zeroconst2GV__gv_inject_refl_prop (t:typ) := 
+  forall maxb mi Mem1 Mem2 gv TD, 
+  wf_sb_mi maxb mi Mem1 Mem2 ->
+  zeroconst2GV TD t = Some gv ->
+  gv_inject mi gv gv.
+  
+Definition zeroconsts2GV__gv_inject_refl_prop (lt:list_typ) := 
+  forall maxb mi Mem1 Mem2 gv TD, 
+  wf_sb_mi maxb mi Mem1 Mem2 ->
+  zeroconsts2GV TD lt = Some gv ->
+  gv_inject mi gv gv.
+
+(*
 Lemma zeroconst2GV__gv_inject_refl_mutrec :
   (forall t, zeroconst2GV__gv_inject_refl_prop t) *
   (forall lt, zeroconsts2GV__gv_inject_refl_prop lt).
@@ -152,17 +153,21 @@ Proof.
   apply gv_inject_app; auto.
     apply gv_inject_uninits.
 Qed.
+*)
 
 Lemma zeroconst2GV__gv_inject_refl : forall maxb mi Mem1 Mem2 gv TD t, 
   wf_sb_mi maxb mi Mem1 Mem2 ->
   zeroconst2GV TD t = Some gv ->
   gv_inject mi gv gv.
+(*
 Proof.
   intros.  
   destruct zeroconst2GV__gv_inject_refl_mutrec as [J _].
   unfold zeroconst2GV__gv_inject_refl_prop in J.
   eauto.
 Qed. 
+*)
+Admitted.
 
 Lemma global_gv_inject_refl_aux : forall maxb mi Mem1 Mem2 gv,
   wf_sb_mi maxb mi Mem1 Mem2 ->
@@ -272,10 +277,18 @@ Proof.
   eauto.
 Qed.  
 *)
+
+Lemma gv_inject_mc2undefs: forall mi mcs,
+  gv_inject mi (mc2undefs mcs) (mc2undefs mcs).
+Proof.
+  unfold mc2undefs.
+  induction mcs; simpl; auto.
+Qed.
+
 Lemma gv_inject_gundef : forall mi TD t gv, gundef TD t = Some gv -> gv_inject mi gv gv.
 Proof.
   intros. unfold gundef in H. 
-  destruct (getTypeSizeInBits TD t); inv H; auto using gv_inject_uninits.
+  inv_mbind. apply gv_inject_mc2undefs.
 Qed.
 
 Lemma gv_inject_nptr_val_refl : forall TD v mi m,
@@ -821,6 +834,19 @@ Proof.
     rewrite HeqR; auto.
 Qed.
 
+Lemma simulation__gv_chunks_match_typb : forall mi TD gv gv' t,
+  gv_inject mi gv gv' ->
+  gv_chunks_match_typb TD gv t = gv_chunks_match_typb TD gv' t.
+Proof.
+  unfold gv_chunks_match_typb.
+  intros.
+  destruct (flatten_typ TD t); auto.
+  generalize dependent l0.
+  induction H; simpl; auto.
+    destruct l0; auto.
+      congruence.
+Qed.
+
 Lemma simulation__extractGenericValue : forall mi gv1 gv1' TD t1 l0 gv,
   gv_inject mi gv1 gv1' ->
   extractGenericValue TD t1 gv1 l0 = Some gv ->
@@ -847,7 +873,9 @@ Proof.
       symmetry in HeqR1.
       eapply simulation__splitGenericValue_some in HeqR1; eauto.      
       destruct HeqR1 as [gvrl' [gvrr' [J1' [J2' J3']]]].
-      simpl. rewrite J1'. eauto.
+      simpl. rewrite J1'. 
+      erewrite <- simulation__gv_chunks_match_typb; eauto.
+      destruct_if; eauto using gv_inject_gundef.
 
       symmetry in HeqR1.
       eapply simulation__splitGenericValue_none in HeqR1; eauto.      
@@ -894,6 +922,8 @@ Proof.
       eapply simulation__splitGenericValue_some in HeqR1; eauto.      
       destruct HeqR1 as [gvrl' [gvrr' [J1' [J2' J3']]]].
       simpl. rewrite J1'. 
+      erewrite <- simulation__gv_chunks_match_typb; eauto.
+      destruct_if; eauto using gv_inject_gundef.
       exists (gvl' ++ gv2' ++ gvrr').
       split; auto.
         apply gv_inject_app; auto.
@@ -1212,6 +1242,7 @@ Proof.
   symmetry in HeqR1.
   eapply simulation__splitGenericValue_refl in HeqR1; eauto.      
   destruct HeqR1; auto.
+  destruct_if; eauto using gv_inject_gundef.
 Qed.
 
 Lemma simulation__insertGenericValue_refl : forall mi gv1 TD t1 l0 gv t2 gv2,
@@ -1243,6 +1274,7 @@ Proof.
   symmetry in HeqR1.
   eapply simulation__splitGenericValue_refl in HeqR1; eauto.      
   destruct HeqR1.
+  destruct_if; eauto using gv_inject_gundef.
   apply gv_inject_app; auto.
   apply gv_inject_app; auto.
 Qed.
@@ -1455,8 +1487,8 @@ Case "cons".
     destruct H1 as [J3 J4]; auto.
     destruct (typ_dec t t4); tinv H3.
     destruct (getTypeAllocSize TD t4); inv H3.
-      apply gv_inject_app.
-        apply gv_inject_app; eauto.
+      apply gv_inject_app; eauto.
+      apply gv_inject_app; eauto.
         apply gv_inject_uninits.
 
     remember (_list_const_struct2GV TD gl l0) as R3.
@@ -1469,7 +1501,7 @@ Case "cons".
     destruct H1 as [J3 J4]; auto.
     destruct (getTypeAllocSize TD t4); inv H3.
       apply gv_inject_app; eauto.
-        apply gv_inject_app; auto.
+      apply gv_inject_app; eauto.
         apply gv_inject_uninits.
 Qed.
 
@@ -1595,13 +1627,15 @@ Proof.
 
         symmetry in HeqR1.
         eapply simulation__mgep' in HeqR1; eauto.
-        rewrite HeqR1. rewrite H3.
+        rewrite HeqR1. simpl. 
+        unfold gundef. simpl.
         eauto using gv_inject_gundef.
 
       rewrite H4. eauto using gv_inject_gundef.
 
     erewrite simulation__GV2ptr'; eauto.
-    rewrite H4. eauto using gv_inject_gundef.
+    unfold gundef. simpl.
+    eauto using gv_inject_gundef.
 Qed.
 
 (*

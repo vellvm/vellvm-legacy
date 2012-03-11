@@ -1,5 +1,4 @@
 Require Import Ensembles.
-Require Import syntax.
 Require Import infrastructure.
 Require Import infrastructure_props.
 Require Import analysis.
@@ -23,6 +22,7 @@ Require Import AST.
 Require Import Maps.
 Require Import opsem.
 Require Import opsem_props.
+Require Import syntax.
 
 (************** Opsem PP *********************************************** ***)
 
@@ -47,6 +47,7 @@ Inductive wf_GVs : TargetData -> GVs -> typ -> Prop :=
     (forall gv, gv @ gvs ->
       sizeGenericValue gv = Coqlib.nat_of_Z (Coqlib.ZRdiv (Z_of_nat sz) 8)) ->
     GVsSig.(inhabited) gvs ->
+    (forall gv, gv @ gvs -> gv_chunks_match_typ TD gv t) ->
     wf_GVs TD gvs t.
 
 Hint Constructors wf_GVs.
@@ -149,11 +150,8 @@ Proof.
 Qed.
 
 Lemma const2GV__getTypeSizeInBits : forall S TD c t gl gvs gv
-  (HwfTD: wf_namedts S TD),
-  wf_typ S t ->
-  wf_const S TD c t ->
-  feasible_typ TD t ->
-  const2GV TD gl c = Some gvs ->
+  (hwfc: wf_const S TD c t)
+  (Hc2g: const2GV TD gl c = Some gvs),
   gv @ gvs ->
   wf_global TD S gl ->
   exists sz,
@@ -161,9 +159,9 @@ Lemma const2GV__getTypeSizeInBits : forall S TD c t gl gvs gv
     Coqlib.nat_of_Z (Coqlib.ZRdiv (Z_of_nat sz) 8) = sizeGenericValue gv.
 Proof.
   intros.
-  unfold const2GV in H2.
+  unfold const2GV in Hc2g.
   remember (_const2GV TD gl c) as R.
-  destruct R as [[]|]; inv H2.
+  destruct R as [[]|]; inv Hc2g.
   symmetry in HeqR.
   destruct TD.
   unfold getTypeSizeInBits, getTypeSizeInBits_and_Alignment.
@@ -172,7 +170,25 @@ Proof.
   exists sz.
   rewrite J1.
   split; auto.
-    eapply GVsSig.(cgv2gvs__getTypeSizeInBits); eauto.
+    eapply GVsSig.(cgv2gvs__getTypeSizeInBits); eauto using wf_const__wf_typ.
+Qed.
+
+Lemma const2GV__matches_chunks : forall S TD c t gl gvs gv
+  (hwfc: wf_const S TD c t)
+  (Hc2g: const2GV TD gl c = Some gvs),
+  gv @ gvs ->
+  wf_global TD S gl ->
+  gv_chunks_match_typ TD gv t.
+Proof.
+  intros.
+  unfold const2GV in Hc2g.
+  remember (_const2GV TD gl c) as R.
+  destruct R as [[]|]; inv Hc2g.
+  symmetry in HeqR.
+  destruct TD.
+  eapply const2GV__matches_chunks_aux in HeqR; eauto.
+  destruct HeqR as [J1 J2]; subst. 
+  eapply GVsSig.(cgv2gvs__matches_chunks); eauto using wf_const__wf_typ.
 Qed.
 
 Lemma getOperandValue__inhabited : forall los nts s ps f v t lc gl gvs,
@@ -184,25 +200,27 @@ Proof.
   intros los nts s ps f v t lc gl gvs Hwflc Hwfv Hget.
   inv Hwfv; simpl in Hget; eauto using const2GV__inhabited.
     unfold wf_lc in Hwflc.
-    eapply Hwflc in H8; eauto.
-    inv H8; auto.
+    match goal with
+    | H7: lookupTypViaIDFromFdef _ _ = _ |- _ =>
+      eapply Hwflc in H7; eauto;
+      inv H7; auto
+    end.
 Qed.
 
 Lemma getOperandValue__wf_gvs : forall (los:layouts) (nts:namedts) s ps f v t lc
-  gl gvs (HwfTD: wf_namedts s (los,nts)),
+  gl gvs,
   wf_global (los,nts) s gl ->
   wf_lc (los,nts) f lc ->
   wf_value s (module_intro los nts ps) f v t ->
   getOperandValue (los,nts) v lc gl = Some gvs ->
   wf_GVs (los,nts) gvs t.
 Proof.
-  intros los nts s ps f v t lc gl gvs HwfTD Hwfg Hwflc Hwfv Hget.
+  intros los nts s ps f v t lc gl gvs Hwfg Hwflc Hwfv Hget.
   assert (J:=Hget).
   eapply getOperandValue__inhabited in J; eauto.
   inv Hwfv;  simpl in Hget.
     assert (H7':=H7).
-    inversion HwfTD as [? ? ? J5 J6]; subst.
-    eapply feasible_typ_inv in H7; eauto.
+    eapply wf_typ__getTypeSizeInBits_and_Alignment in H7; eauto.
     destruct H7 as [sz [al [J1 J2]]].
     eapply wf_GVs_intro with (sz:=sz);
       eauto using GVsSig.(cgv2gvs__getTypeSizeInBits).
@@ -216,12 +234,18 @@ Proof.
       unfold getTypeSizeInBits in J3.
       rewrite J1 in J3. inv J3. auto.
 
+      intros. 
+      eapply const2GV__matches_chunks; eauto.
+
     unfold wf_lc in Hwflc.
-    eapply Hwflc in H8; eauto.
+    match goal with
+    | H7: lookupTypViaIDFromFdef _ _ = _ |- _ =>
+      eapply Hwflc in H7; eauto
+    end.
 Qed.
 
 Lemma getIncomingValuesForBlockFromPHINodes_spec1_aux : forall s Ps los nts f
-    b gl lc id1 t l3 cs tmn ps2 ps1 lc' (HwfTD: wf_namedts s (los,nts)),
+    b gl lc id1 t l3 cs tmn ps2 ps1 lc',
   wf_lc (los,nts) f lc ->
   Some lc' = getIncomingValuesForBlockFromPHINodes (los,nts) ps2 b gl lc ->
   List.In id1 (getPhiNodesIDs ps2) ->
@@ -233,7 +257,7 @@ Lemma getIncomingValuesForBlockFromPHINodes_spec1_aux : forall s Ps los nts f
   lookupTypViaIDFromFdef f id1 = ret t ->
   exists gvs, lookupAL _ lc' id1 = Some gvs /\ wf_GVs (los,nts) gvs t.
 Proof.
-  intros s Ps los nts f b gl lc id1 t l3 cs tmn ps2 ps1 lc' Hwftd Hwflc H H0
+  intros s Ps los nts f b gl lc id1 t l3 cs tmn ps2 ps1 lc' Hwflc H H0
     Huniq Hbinf Hwfg Hwfps Hlk.
   assert (Huniq':=Hbinf).
   apply uniqFdef__uniqBlockLocs in Huniq'; auto.
@@ -293,7 +317,7 @@ Proof.
 Qed.
 
 Lemma getIncomingValuesForBlockFromPHINodes_spec1 : forall s Ps los nts f b
-    gl lc id1 t l3 cs tmn ps lc' (HwfTD: wf_namedts s (los,nts)),
+    gl lc id1 t l3 cs tmn ps lc',
   wf_lc (los,nts) f lc ->
   Some lc' = getIncomingValuesForBlockFromPHINodes (los,nts) ps b gl lc ->
   In id1 (getPhiNodesIDs ps) ->
@@ -315,7 +339,6 @@ Qed.
 
 Lemma getIncomingValuesForBlockFromPHINodes_spec2_aux : forall s los nts Ps f
   b gl lc l3 cs tmn (Hwflc: wf_lc (los, nts) f lc)
-  (HwfTD: wf_namedts s (los,nts))
   (Hwfg: wf_global (los, nts) s gl) (Huniq: uniqFdef f) ps2 ps1 rs,
   blockInFdefB (block_intro l3 (ps1++ps2) cs tmn) f ->
   wf_phinodes s (module_intro los nts Ps) f
@@ -325,8 +348,7 @@ Lemma getIncomingValuesForBlockFromPHINodes_spec2_aux : forall s los nts Ps f
      lookupTypViaIDFromFdef f id0 = Some t0 ->
      wf_GVs (los, nts) gvs t0).
 Proof.
-  intros s los nts Ps f b gl lc l3 cs tmn HwfTD Hwflc Hwfg Huniq ps2 ps1 rs
-    Hbinf.
+  intros s los nts Ps f b gl lc l3 cs tmn Hwflc Hwfg Huniq ps2 ps1 rs Hbinf.
   assert (Huniq':=Hbinf).
   apply uniqFdef__uniqBlockLocs in Huniq'; auto.
   simpl in Huniq'.
@@ -373,7 +395,6 @@ Qed.
 
 Lemma getIncomingValuesForBlockFromPHINodes_spec2 : forall s los nts Ps f b
   gl lc l3 cs tmn (Hwflc: wf_lc (los, nts) f lc)
-  (HwfTD: wf_namedts s (los,nts))
   (Hwfg: wf_global (los, nts) s gl) (Huniq: uniqFdef f) ps rs,
   Some (block_intro l3 ps cs tmn) = lookupBlockViaLabelFromFdef f l3 ->
   wf_global (los, nts) s gl ->
@@ -433,7 +454,6 @@ Proof.
 Qed.
 
 Lemma wf_lc_br_aux : forall s los nts Ps f b1 b2 gl lc lc' l3
-  (HwfTD: wf_namedts s (los,nts))
   (Hwfg: wf_global (los, nts) s gl) (Huniq: uniqFdef f)
   (Hswitch : switchToNewBasicBlock (los, nts) b1 b2 gl lc = ret lc')
   (Hlkup : Some b1 = lookupBlockViaLabelFromFdef f l3)
@@ -454,7 +474,7 @@ Proof.
 Qed.
 
 Lemma wf_defs_br_aux : forall lc l' ps' cs' lc' F tmn' gl los nts Ps s
-  (l3 : l) (HwfTD: wf_namedts s (los,nts))
+  (l3 : l)
   (ps : phinodes)
   (cs : list cmd) tmn
   (Hlkup : Some (block_intro l' ps' cs' tmn') = lookupBlockViaLabelFromFdef F l')
@@ -495,7 +515,7 @@ Proof.
 Qed.
 
 Lemma inscope_of_tmn_br_aux : forall F l3 ps cs tmn ids0 l' ps' cs' tmn' l0
-  s los nts Ps lc lc' gl (HwfTD: wf_namedts s (los,nts)),
+  s los nts Ps lc lc' gl,
 wf_global (los, nts) s gl ->
 wf_lc (los,nts) F lc ->
 wf_fdef s (module_intro los nts Ps) F ->
@@ -515,7 +535,7 @@ exists ids0',
   incl (ListSet.set_diff eq_atom_dec ids0' (getPhiNodesIDs ps')) ids0 /\
   wf_defs (los,nts) F lc' ids0'.
 Proof.
-  intros F l3 ps cs tmn ids0 l' ps' cs' tmn' l0 s los nts Ps lc lc' gl Hwftd
+  intros F l3 ps cs tmn ids0 l' ps' cs' tmn' l0 s los nts Ps lc lc' gl
     Hwfg Hwflc HwfF Huniq HBinF Hsucc Hinscope Hlkup Hswitch Hwfdfs.
   symmetry in Hlkup.
   assert (J:=Hlkup).
@@ -655,7 +675,7 @@ Proof.
 Qed.
 
 Lemma inscope_of_tmn_br_uncond : forall F l3 ps cs ids0 l' ps' cs' tmn' l0
-  s los nts Ps lc lc' gl bid (HwfTD: wf_namedts s (los,nts)),
+  s los nts Ps lc lc' gl bid,
 wf_global (los, nts) s gl ->
 wf_lc (los,nts) F lc ->
 wf_fdef s (module_intro los nts Ps) F ->
@@ -681,7 +701,7 @@ Proof.
 Qed.
 
 Lemma inscope_of_tmn_br : forall F l0 ps cs bid l1 l2 ids0 l' ps' cs' tmn' Cond
-  c los nts Ps gl lc s lc' (HwfTD: wf_namedts s (los,nts)),
+  c los nts Ps gl lc s lc',
 wf_global (los, nts) s gl ->
 wf_lc (los,nts) F lc ->
 wf_fdef s (module_intro los nts Ps) F ->
@@ -716,7 +736,7 @@ match (gvs, lp) with
 | _ => False
 end.
 
-Lemma params2GVs_wf_gvs : forall los nts S (HwfTD: wf_namedts S (los,nts))
+Lemma params2GVs_wf_gvs : forall los nts S
   Ps F gl lc (Hwfc : wf_lc (los,nts) F lc)
   (Hwfg : wf_global (los, nts) S gl) tvs lp gvs,
   wf_value_list
@@ -761,12 +781,12 @@ Proof.
 Qed.
 
 Lemma gundef_cgv2gvs__wf_gvs : forall los nts gv s t
-  (Hwft : wf_typ s t) (Htys: ty_namedts s nts)
-  (H0 : feasible_typ (los, nts) t)
+  (Hwft : wf_typ s (los, nts) t)
   (HeqR : ret gv = gundef (los, nts) t),
   wf_GVs (los, nts) ($ gv # t $) t.
 Proof.
   intros.
+  assert (J:=HeqR).
   eapply gundef__getTypeSizeInBits in HeqR; eauto.
   destruct HeqR as [sz1 [al1 [J1 J2]]].
   apply wf_GVs_intro with (sz:=sz1); auto.
@@ -775,40 +795,43 @@ Proof.
     rewrite J1. auto.
     eapply GVsSig.(gv2gvs__getTypeSizeInBits); eauto.
     eapply GVsSig.(gv2gvs__inhabited); eauto.
+    eapply GVsSig.(gv2gvs__matches_chunks); eauto.
+      eapply gundef__matches_chunks in J; eauto.
 Qed.
 
 Lemma fit_gv_gv2gvs__wf_gvs_aux : forall los nts gv s t gv0
-  (Hwft : wf_typ s t) (Htys: wf_namedts s (los,nts))
-  (H0 : feasible_typ (los, nts) t)
+  (Hwft : wf_typ s (los,nts) t)
   (HeqR : ret gv = fit_gv (los, nts) t gv0),
   wf_GVs (los, nts) ($ gv # t $) t.
 Proof.
-  intros. inv Htys.
+  intros.
+  assert (J:=HeqR).
   eapply fit_gv__getTypeSizeInBits in HeqR; eauto.
   destruct HeqR as [sz [J1 J2]].
   apply wf_GVs_intro with (sz:=sz); auto.
     unfold getTypeSizeInBits, getTypeSizeInBits_and_Alignment,
            getTypeSizeInBits_and_Alignment_for_namedts in J1.
     remember (_getTypeSizeInBits_and_Alignment los
-           (_getTypeSizeInBits_and_Alignment_for_namedts los (rev nts) true)
+           (_getTypeSizeInBits_and_Alignment_for_namedts los nts true)
            true t) as R.
     destruct R as [[]|]; inv J1.
     eapply GVsSig.(gv2gvs__getTypeSizeInBits); eauto.
 
     eapply GVsSig.(gv2gvs__inhabited); eauto.
+
+    eapply GVsSig.(gv2gvs__matches_chunks); eauto.
+      eapply fit_gv__matches_chunks in J; eauto.
 Qed.
 
 Lemma lift_fit_gv__wf_gvs : forall los nts g s t t0 gv
-  (Htys: wf_namedts s (los, nts))
-  (Hwft : wf_typ s t) (Hwfg : wf_GVs (los, nts) g t0)
-  (H0 : feasible_typ (los, nts) t)
+  (Hwft : wf_typ s (los, nts) t) (Hwfg : wf_GVs (los, nts) g t0)
   (HeqR : GVsSig.(lift_op1) (fit_gv (los, nts) t) g t = Some gv),
   wf_GVs (los, nts) gv t.
 Proof.
   intros.
-  assert (J:=H0). inv Htys.
-  eapply feasible_typ_inv in H0; eauto.
-  destruct H0 as [sz [al [J1 [J2 J3]]]].
+  assert (J:=Hwft).
+  eapply wf_typ__getTypeSizeInBits_and_Alignment in J; eauto.
+  destruct J as [sz [al [J1 [J2 J3]]]].
   apply wf_GVs_intro with (sz:=sz); auto.
     unfold getTypeSizeInBits, getTypeSizeInBits_and_Alignment,
            getTypeSizeInBits_and_Alignment_for_namedts in *.
@@ -823,11 +846,16 @@ Proof.
 
     inv Hwfg.
     eapply GVsSig.(lift_op1__inhabited) in HeqR; eauto.
-    intro x. apply fit_gv__total; auto.
+    intro x. eapply fit_gv__total; eauto.
+
+    inv Hwfg.
+    eapply GVsSig.(lift_op1__matches_chunks); eauto.
+    intros.
+    eapply fit_gv__matches_chunks; eauto.
 Qed.
 
 Lemma initializeFrameValues__wf_lc_aux : forall los nts s fattr ft fid va
-  bs2 (Htys: wf_namedts s (los, nts)) la2 la1 lc1
+  bs2 la2 la1 lc1
   (Huniq: NoDup (getArgsIDs (la1 ++ la2)))
   (HwfF: wf_fheader s (los, nts) (fheader_intro fattr ft fid (la1 ++ la2) va))
   (Hwflc: wf_lc (los,nts)
@@ -864,14 +892,11 @@ Proof.
               rewrite <- H10;
               apply in_or_app; simpl; auto
             end.
+
           match goal with
-          | H11: wf_typ_list _,
-            H12: feasible_typ_list _ |- _ =>
+          | H11: wf_typ_list _|- _ =>
             apply wf_typ_list__in_args__wf_typ with (t:=t)(a:=a)(i0:=i0) in H11;
               auto;
-            apply feasible_typ_list__in_args__feasible_typ
-              with (t:=t)(a:=a)(i0:=i0) in H12; auto;
-            inv H12; inv Htys;
             eapply gundef_cgv2gvs__wf_gvs; eauto
           end.
 
@@ -899,19 +924,15 @@ Proof.
             apply in_or_app; simpl; auto
           end.
         match goal with
-        | H11: wf_typ_list _,
-          H12: feasible_typ_list _ |- _ =>
+        | H11: wf_typ_list _ |- _ =>
             apply wf_typ_list__in_args__wf_typ with (t:=t)(a:=a)(i0:=i0) in H11;
               auto;
-            apply feasible_typ_list__in_args__feasible_typ
-              with (t:=t)(a:=a)(i0:=i0) in H12; auto;
-            inv H12;
             eapply lift_fit_gv__wf_gvs; eauto
         end.
 Qed.
 
 Lemma initializeFrameValues__wf_lc : forall s los nts fattr ft fid la2 va
-  bs2 lc1 (Htys: wf_namedts s (los, nts))
+  bs2 lc1 
   (Huniq: NoDup (getArgsIDs la2))
   (HwfF: wf_fheader s (los, nts)
            (fheader_intro fattr ft fid la2 va))
@@ -929,8 +950,7 @@ Proof.
   eapply initializeFrameValues__wf_lc_aux; eauto.
 Qed.
 
-Lemma initLocals__wf_lc : forall s los nts Ps fattr ft fid la2 va
-  bs2 (Htys: wf_namedts s (los, nts))
+Lemma initLocals__wf_lc : forall s los nts Ps fattr ft fid la2 va bs2
   (Huniq: uniqFdef (fdef_intro (fheader_intro fattr ft fid la2 va) bs2))
   (HwfF: wf_fdef s (module_intro los nts Ps)
     (fdef_intro (fheader_intro fattr ft fid la2 va) bs2))
@@ -949,8 +969,7 @@ Proof.
 Qed.
 
 Lemma initLocals_spec' : forall fid fa rt la va lb gvs los nts s lc Ps id1 t
-  lp (Htys: wf_namedts s (los, nts))
-  (Huniq: uniqFdef (fdef_intro (fheader_intro fa rt fid la va) lb))
+  lp (Huniq: uniqFdef (fdef_intro (fheader_intro fa rt fid la va) lb))
   (HwfF: wf_fdef s (module_intro los nts Ps)
     (fdef_intro (fheader_intro fa rt fid la va) lb))
   (lk: lookupTypViaIDFromFdef (fdef_intro (fheader_intro fa rt fid la va) lb)
@@ -968,7 +987,7 @@ Proof.
 Qed.
 
 Lemma returnUpdateLocals__wf_lc : forall los nts S F F' c Result lc lc' gl
-  lc'' Ps l1 ps1 cs1 tmn1 t B' (HwfTD: wf_namedts S (los,nts))
+  lc'' Ps l1 ps1 cs1 tmn1 t B' 
   (Hwfg: wf_global (los,nts) S gl)
   (Hwfv: wf_value S (module_intro los nts Ps) F Result t),
   wf_lc (los,nts) F lc -> wf_lc (los,nts) F' lc' ->
@@ -1003,14 +1022,14 @@ Proof.
       eapply lift_fit_gv__wf_gvs; eauto.
 Qed.
 
-Lemma BOP__wf_gvs : forall S F los nts ps lc gl bop0 sz0 v1 v2 gvs3
-  (Hty: wf_namedts S (los,nts)), wf_lc (los,nts) F lc ->
+Lemma BOP__wf_gvs : forall S F los nts ps lc gl bop0 sz0 v1 v2 gvs3, 
+  wf_lc (los,nts) F lc ->
   wf_value S (module_intro los nts ps) F v1 (typ_int sz0) ->
   wf_value S (module_intro los nts ps) F v2 (typ_int sz0) ->
   BOP (los,nts) lc gl bop0 sz0 v1 v2 = ret gvs3 ->
   wf_GVs (los,nts) gvs3 (typ_int sz0).
 Proof.
-  intros S F los nts ps lc gl bop0 sz0 v1 v2 gvs3 Hty Hwflc Hwfv1 Hwfv2
+  intros S F los nts ps lc gl bop0 sz0 v1 v2 gvs3 Hwflc Hwfv1 Hwfv2
     Hbop.
   assert (J:=Hwfv1). apply wf_value__wf_typ in J. destruct J as [Hwft Hft].
   unfold BOP in Hbop.
@@ -1024,28 +1043,33 @@ Proof.
     intros gv Hin.
     eapply GVsSig.(lift_op2__getTypeSizeInBits) with (los:=los)(nts:=nts); eauto.
       simpl. eauto.
-      intros. inv Hty. erewrite mbop_typsize; eauto.
+      intros. erewrite mbop_typsize; eauto.
 
     eapply GVsSig.(lift_op2__inhabited) in H0;
       eauto using getOperandValue__inhabited.
     eapply mbop_is_total; eauto.
+
+    intros gv Hin.
+    eapply GVsSig.(lift_op2__matches_chunks) with (los:=los)(nts:=nts); eauto.
+      simpl. eauto.
+      intros. eapply mbop_matches_chunks; eauto.
 Qed.
 
 Lemma FBOP__wf_gvs : forall S F (los:layouts) (nts:namedts) ps lc gl fbop0 fp v1
-  v2 gvs3 (Hty: wf_namedts S (los,nts)), wf_lc (los,nts) F lc ->
+  v2 gvs3, wf_lc (los,nts) F lc ->
   wf_value S (module_intro los nts ps) F v1 (typ_floatpoint fp) ->
   wf_value S (module_intro los nts ps) F v2 (typ_floatpoint fp) ->
   FBOP (los,nts) lc gl fbop0 fp v1 v2 = ret gvs3 ->
   wf_GVs (los,nts) gvs3 (typ_floatpoint fp).
 Proof.
-  intros S F los nts ps lc gl fbop0 fp v1 v2 gvs3 Hty Hwflc Hwfv1 Hwfv2 Hfbop.
+  intros S F los nts ps lc gl fbop0 fp v1 v2 gvs3 Hwflc Hwfv1 Hwfv2 Hfbop.
   unfold FBOP in Hfbop.
   remember(getOperandValue (los,nts) v1 lc gl) as R1.
   destruct R1; tinv Hfbop.
   remember(getOperandValue (los,nts) v2 lc gl) as R2.
   destruct R2; inv Hfbop.
   assert (J:=Hwfv1). apply wf_value__wf_typ in J. destruct J as [Hwft Hft].
-  assert (Hft':=Hft). inv Hty.
+  assert (Hft':=Hft). 
   eapply feasible_typ_inv in Hft; eauto.
   destruct Hft as [sz [al [H1 H2]]].
   eapply wf_GVs_intro with (sz:=sz); eauto.
@@ -1065,17 +1089,22 @@ Proof.
     eapply GVsSig.(lift_op2__inhabited) in H0;
       eauto using getOperandValue__inhabited.
     eapply mfbop_is_total; eauto.
+
+    intros gv Hin.
+    eapply GVsSig.(lift_op2__matches_chunks) with (los:=los)(nts:=nts); eauto.
+      intros. eapply mfbop_matches_chunks; eauto.
 Qed.
 
 Lemma ICMP__wf_gvs : forall S los nts ps F lc gl c t v1 v2 gvs3
-  (Hty: wf_namedts S (los,nts)), wf_lc (los,nts) F lc ->
+  (Hwft1: wf_typ S (los, nts) (typ_int Size.One)),
+  wf_lc (los,nts) F lc ->
   Typ.isIntOrIntVector t \/ isPointerTyp t ->
   wf_value S (module_intro los nts ps) F v1 t ->
   wf_value S (module_intro los nts ps) F v2 t ->
   ICMP (los,nts) lc gl c t v1 v2 = ret gvs3 ->
   wf_GVs (los,nts) gvs3 (typ_int Size.One).
 Proof.
-  intros S los nts ps F lc gl c t v1 v2 gvs3 Hty Hwflc Hwft Hwfv1 Hwfv2 Hiop.
+  intros S los nts ps F lc gl c t v1 v2 gvs3 Hwft1 Hwflc Hwft Hwfv1 Hwfv2 Hiop.
   unfold ICMP in Hiop.
   remember(getOperandValue (los,nts) v1 lc gl) as R1.
   destruct R1; tinv Hiop.
@@ -1085,24 +1114,29 @@ Proof.
     intros gv Hin.
     eapply GVsSig.(lift_op2__getTypeSizeInBits) with (los:=los)(nts:=nts)(S:=S);
       eauto.
-      apply wf_typ_int. unfold Size.gt. auto.
       simpl. eauto.
       intros. unfold Size.to_nat. erewrite micmp_typsize; eauto.
 
     apply GVsSig.(lift_op2__inhabited) in H0;
       eauto using getOperandValue__inhabited.
+    apply wf_value__wf_typ in Hwfv1. destruct Hwfv1.
     eapply micmp_is_total; eauto.
+
+    intros gv Hin.
+    eapply GVsSig.(lift_op2__matches_chunks) with (los:=los)(nts:=nts); eauto.
+      intros. eapply micmp_matches_chunks; eauto.
 Qed.
 
 Lemma FCMP__wf_gvs : forall S los nts ps F lc gl c fp v1 v2 gvs3
-  (Hty: wf_namedts S (los,nts)), wf_lc (los,nts) F lc ->
+  (Hwft1: wf_typ S (los, nts) (typ_int Size.One)),
+  wf_lc (los,nts) F lc ->
   wf_fcond c = true  ->
   wf_value S (module_intro los nts ps) F v1 (typ_floatpoint fp) ->
   wf_value S (module_intro los nts ps) F v2 (typ_floatpoint fp) ->
   FCMP (los,nts) lc gl c fp v1 v2 = ret gvs3 ->
   wf_GVs (los,nts) gvs3 (typ_int Size.One).
 Proof.
-  intros S los nts ps F lc gl c fp v1 v2 gvs3 Hty Hwflc Hc Hwfv1 Hwfv2 Hiop.
+  intros S los nts ps F lc gl c fp v1 v2 gvs3 Hwft1 Hwflc Hc Hwfv1 Hwfv2 Hiop.
   unfold FCMP in Hiop.
   remember(getOperandValue (los,nts) v1 lc gl) as R1.
   destruct R1; tinv Hiop.
@@ -1112,7 +1146,6 @@ Proof.
     intros gv Hin.
     eapply GVsSig.(lift_op2__getTypeSizeInBits) with (los:=los)(nts:=nts)(S:=S);
       eauto.
-      apply wf_typ_int. unfold Size.gt. auto.
       simpl. eauto.
       intros. unfold Size.to_nat. erewrite mfcmp_typsize; eauto.
 
@@ -1120,6 +1153,10 @@ Proof.
       eauto using getOperandValue__inhabited.
     apply wf_value__wf_typ in Hwfv1. destruct Hwfv1.
     eapply mfcmp_is_total; eauto.
+
+    intros gv Hin.
+    eapply GVsSig.(lift_op2__matches_chunks) with (los:=los)(nts:=nts); eauto.
+      intros. eapply mfcmp_matches_chunks; eauto.
 Qed.
 
 Lemma wf_params_spec : forall TD gvs lp,
@@ -1161,17 +1198,16 @@ Proof.
     exists (gv::vidxs0). simpl. simpl; auto.
 Qed.
 
-Lemma GEP__wf_gvs : forall S TD t mp vidxs inbounds0 mp' vidxs0 t' gl lc idxs
-  (Hty: wf_namedts S TD),
+Lemma GEP__wf_gvs : forall S TD t mp vidxs inbounds0 mp' vidxs0 t' gl lc idxs,
   @values2GVs GVsSig TD idxs lc gl = Some vidxs ->
   wf_GVs TD mp (typ_pointer t) -> vidxs0 @@ vidxs ->
-  wf_typ S t' -> feasible_typ TD t' ->
+  wf_typ S TD t' -> 
   getGEPTyp idxs t = ret t' ->
   GEP TD t mp vidxs0 inbounds0 = ret mp' ->
   wf_GVs TD mp' t'.
 Proof.
-  intros S TD t mp vidxs inbounds0 mp' vidxs0 t' gl lc idxs Hty Hvg2 Hwfgv Hin
-    Hwft Hft Hgt' Hget.
+  intros S TD t mp vidxs inbounds0 mp' vidxs0 t' gl lc idxs Hvg2 Hwfgv Hin
+    Hwft Hgt' Hget.
   unfold GEP in Hget. inv Hget.
   unfold getGEPTyp in Hgt'.
   destruct idxs; tinv Hgt'.
@@ -1182,10 +1218,7 @@ Proof.
     intros gv Hin'.
     eapply GVsSig.(lift_op1__getTypeSizeInBits) with (los:=los)(nts:=nts)
       (f:=gep (los, nts) t vidxs0 inbounds0) (g:=mp)
-      (t:=typ_pointer (typ_int Size.One))(S:=S); eauto.
-      apply wf_typ_pointer; auto.
-        apply wf_typ_int. unfold Size.gt. auto.
-        unfold isValidElementTyp, isValidElementTypB. auto.
+      (t:=typ_pointer t0)(S:=S); eauto.
       simpl. eauto.
 
       intros x y ? J3.
@@ -1197,7 +1230,7 @@ Proof.
           (gv:=y); eauto.
           simpl. eauto.
 
-          symmetry in W. inv Hft. inv Hty.
+          symmetry in W.
           eapply gundef__getTypeSizeInBits in W; eauto.
           destruct W as [sz1 [al1 [J1' J2']]].
           simpl in J1'. inv J1'. simpl in J2'. auto.
@@ -1210,27 +1243,34 @@ Proof.
         inv J3.
         unfold ptr2GV, val2GV. simpl. auto.
 
+      admit.
+
     inv Hwfgv.
     eapply GVsSig.(lift_op1__inhabited) in H0; eauto.
     unfold gep. intro. apply GEP_is_total; auto.
+
+    intros gv Hin'.
+    eapply GVsSig.(lift_op1__matches_chunks) with (los:=los)(nts:=nts)
+      (f:=gep (los, nts) t vidxs0 inbounds0)(S:=S)
+      (t:=typ_pointer (typ_int Size.One)); eauto.
+      admit. admit.
 Qed.
 
 Lemma CAST__wf_gvs : forall s f b los nts ps lc gl cop0 t1 v1 t2 gvs2 id5
-  (HwfTD: wf_namedts s (los,nts)) (Hwfg : wf_global (los, nts) s gl),
+  (Hwfg : wf_global (los, nts) s gl),
   wf_lc (los,nts) f lc ->
   wf_cast s (module_intro los nts ps) f b
     (insn_cmd (insn_cast id5 cop0 t1 v1 t2)) ->
   CAST (los,nts) lc gl cop0 t1 v1 t2 = ret gvs2 ->
   wf_GVs (los,nts) gvs2 t2.
 Proof.
-  intros s f b los nts ps lc gl cop0 t1 v1 t2 gvs2 id5 Hwftd Hwfg Hwflc Hwfc
+  intros s f b los nts ps lc gl cop0 t1 v1 t2 gvs2 id5 Hwfg Hwflc Hwfc
     Hcast.
   unfold CAST in Hcast.
   remember(getOperandValue (los,nts) v1 lc gl) as R1.
   destruct R1; inv Hcast.
   symmetry in HeqR1.
   inv Hwfc.
-    match goal with | H13: feasible_typ _ _ |- _ => inv H13 end.
     eapply getOperandValue__wf_gvs in HeqR1; eauto.
     eapply wf_GVs_intro with (sz:=sz5); eauto.
       intros gv Hin.
@@ -1238,16 +1278,19 @@ Proof.
         simpl. eauto.
 
         intros x y ? J2.
-        symmetry in J2. inv Hwftd.
+        symmetry in J2.
         eapply gundef__getTypeSizeInBits in J2; eauto.
         destruct J2 as [sz1 [al1 [J4 J5]]].
         simpl in J4. inv J4. auto.
 
       inv HeqR1.
       eapply GVsSig.(lift_op1__inhabited) in H0; eauto.
-        intro. apply gundef__total; auto.
+        intro. eapply gundef__total; eauto.
 
-    match goal with | H13: feasible_typ _ _ |- _ => inv H13 end.
+      intros.
+      eapply GVsSig.(lift_op1__matches_chunks)with (los:=los)(nts:=nts); eauto.
+        intros. eapply gundef__matches_chunks; eauto.
+
     eapply getOperandValue__wf_gvs in HeqR1; eauto.
     eapply wf_GVs_intro with (sz:=32%nat); eauto.
       intros gv Hin.
@@ -1255,14 +1298,18 @@ Proof.
         simpl. eauto.
 
         intros x y ? J2.
-        symmetry in J2.  inv Hwftd.
+        symmetry in J2.
         eapply gundef__getTypeSizeInBits in J2; eauto.
         destruct J2 as [sz1 [al1 [J4 J5]]].
         simpl in J4. inv J4. auto.
 
       inv HeqR1.
       eapply GVsSig.(lift_op1__inhabited) in H0; eauto.
-        intro. apply gundef__total; auto.
+        intro. eapply gundef__total; eauto.
+
+      intros.
+      eapply GVsSig.(lift_op1__matches_chunks)with (los:=los)(nts:=nts); eauto.
+        intros. eapply gundef__matches_chunks; eauto.
 
     eapply getOperandValue__wf_gvs in HeqR1; eauto.
     eapply wf_GVs_intro with (sz:=32%nat); eauto.
@@ -1277,40 +1324,47 @@ Proof.
       inv HeqR1.
       eapply GVsSig.(lift_op1__inhabited) in H0; eauto.
         unfold mcast, mbitcast. eauto.
+
+      intros.
+      eapply GVsSig.(lift_op1__matches_chunks)with (los:=los)(nts:=nts); eauto.
+        unfold mcast, mbitcast. intros.
+        inv HeqR1.
+        apply H6 in H1. uniq_result.
+        unfold gv_chunks_match_typ. unfold gv_chunks_match_typ in H1.
+        simpl  in *. auto.
 Qed.
 
 Lemma TRUNC__wf_gvs : forall s f b (los:layouts) (nts:namedts) ps lc gl
-  top0 t1 v1 t2 gvs2 id5
-  (HwfTD: wf_namedts s (los,nts)) (Hwfg : wf_global (los, nts) s gl),
+  top0 t1 v1 t2 gvs2 id5 (Hwfg : wf_global (los, nts) s gl),
   wf_lc (los,nts) f lc ->
   wf_trunc s (module_intro los nts ps) f b
     (insn_cmd (insn_trunc id5 top0 t1 v1 t2)) ->
   TRUNC (los,nts) lc gl top0 t1 v1 t2 = ret gvs2 ->
   wf_GVs (los,nts) gvs2 t2.
 Proof.
-  intros s f b los nts ps lc gl top0 t1 v1 t2 gvs2 id5 Hwftd Hwfg Hwflc Hwfc
+  intros s f b los nts ps lc gl top0 t1 v1 t2 gvs2 id5 Hwfg Hwflc Hwfc
     Htrunc.
   unfold TRUNC in Htrunc.
   remember(getOperandValue (los,nts) v1 lc gl) as R1.
   destruct R1; inv Htrunc.
   assert (J:=Hwfc).
   apply wf_trunc__wf_typ in J.
-  destruct J as [J1 J2]. inv J2.
-  assert (H':=H).
-  apply feasible_typ_inv' in H.
-  destruct H as [sz [al [J2 J3]]].
+  destruct J as [J1 J2]. 
+  assert (H':=J2).
+  apply feasible_typ_inv' in H'.
+  destruct H' as [sz [al [J3 J4]]].
   eapply wf_GVs_intro with (sz:=sz); eauto.
     unfold getTypeSizeInBits.
-    rewrite J2. auto.
+    rewrite J3. auto.
 
     intros gv Hin.
     eapply GVsSig.(lift_op1__getTypeSizeInBits) with (los:=los)(nts:=nts); eauto.
-      intros x y Hin' J2'. inv Hwftd.
+      intros x y Hin' J2'. 
       eapply mtrunc_typsize in J2'; eauto.
       destruct J2' as [sz' [al' [J2' J4']]].
-      unfold getTypeSizeInBits_and_Alignment in J2.
+      unfold getTypeSizeInBits_and_Alignment in J3.
       unfold layouts, namedts in *.
-      rewrite J2 in J2'. inv J2'. auto.
+      rewrite J3 in J2'. inv J2'. auto.
 
     eapply GVsSig.(lift_op1__inhabited) in H0; eauto.
       eapply mtrunc_is_total; eauto.
@@ -1318,40 +1372,43 @@ Proof.
       symmetry in HeqR1.
       eapply getOperandValue__wf_gvs in HeqR1; eauto using wf_trunc__wf_value.
       inv HeqR1; auto.
+
+    intros gv Hin.
+    eapply GVsSig.(lift_op1__matches_chunks) with (los:=los)(nts:=nts); eauto.
+      intros x y Hin' J2'. 
+      eapply mtrunc_matches_chunks in J2'; eauto.
 Qed.
 
 Lemma EXT__wf_gvs : forall s f b (los:layouts) (nts:namedts) ps lc gl eop0
-  t1 v1 t2 gvs2 id5
-  (HwfTD: wf_namedts s (los,nts)) (Hwfg : wf_global (los, nts) s gl),
+  t1 v1 t2 gvs2 id5 (Hwfg : wf_global (los, nts) s gl),
   wf_lc (los,nts) f lc ->
   wf_ext s (module_intro los nts ps) f b
     (insn_cmd (insn_ext id5 eop0 t1 v1 t2)) ->
   EXT (los,nts) lc gl eop0 t1 v1 t2 = ret gvs2 ->
   wf_GVs (los,nts) gvs2 t2.
 Proof.
-  intros s f b los nts ps lc gl eop0 t1 v1 t2 gvs2 id5 HwfTD Hwfg Hwflc Hwfc
-    Hext.
+  intros s f b los nts ps lc gl eop0 t1 v1 t2 gvs2 id5 Hwfg Hwflc Hwfc Hext.
   unfold EXT in Hext.
   remember(getOperandValue (los,nts) v1 lc gl) as R1.
   destruct R1; inv Hext.
   assert (J:=Hwfc).
   apply wf_ext__wf_typ in J.
-  destruct J as [J1 J2]. inv J2.
-  assert (H':=H).
-  apply feasible_typ_inv' in H.
-  destruct H as [sz [al [J2 J3]]].
+  destruct J as [J1 J2]. 
+  assert (H':=J2).
+  apply feasible_typ_inv' in H'.
+  destruct H' as [sz [al [J4 J3]]].
   eapply wf_GVs_intro with (sz:=sz); eauto.
     unfold getTypeSizeInBits.
-    rewrite J2. auto.
+    rewrite J4. auto.
 
     intros gv Hin.
     eapply GVsSig.(lift_op1__getTypeSizeInBits) with (los:=los)(nts:=nts); eauto.
-      intros x y Hin' J2'. inv HwfTD.
+      intros x y Hin' J2'. 
       eapply mext_typsize in J2'; eauto.
       destruct J2' as [sz' [al' [J2' J4']]].
-      unfold getTypeSizeInBits_and_Alignment in J2.
+      unfold getTypeSizeInBits_and_Alignment in J4.
       unfold layouts, namedts in *.
-      rewrite J2 in J2'. inv J2'. auto.
+      rewrite J4 in J2'. inv J2'. auto.
 
     eapply GVsSig.(lift_op1__inhabited) in H0; eauto.
       eapply mext_is_total; eauto.
@@ -1359,34 +1416,33 @@ Proof.
       symmetry in HeqR1.
       eapply getOperandValue__wf_gvs in HeqR1; eauto using wf_ext__wf_value.
       inv HeqR1; auto.
+
+    intros gv Hin.
+    eapply GVsSig.(lift_op1__matches_chunks) with (los:=los)(nts:=nts); eauto.
+      intros x y Hin' J2'. 
+      eapply mext_matches_chunks in J2'; eauto.
 Qed.
 
-Lemma insertGenericValue__wf_gvs : forall S los nts t1 t2 gvs1 gvs2 cidxs gvs'
-  (Htys: wf_namedts S (los,nts)),
+Lemma insertGenericValue__wf_gvs : forall S los nts t1 t2 gvs1 gvs2 cidxs gvs',
   wf_GVs (los, nts) gvs1 t1 ->
   wf_GVs (los, nts) gvs2 t2 ->
   insertGenericValue (los, nts) t1 gvs1 cidxs t2 gvs2 = ret gvs' ->
   getSubTypFromConstIdxs cidxs t1 = ret t2 ->
-  feasible_typ (los, nts) t1 ->
-  wf_typ S t1 ->
-  feasible_typ (los, nts) t2 ->
-  wf_typ S t2 ->
+  wf_typ S (los, nts) t1 ->
+  wf_typ S (los, nts) t2 ->
   wf_GVs (los, nts) gvs' t1.
 Proof.
-  intros S los nts t1 t2 gvs1 gvs2 cidxs gvs' Htys Hwfgv1 Hwfgv2 Hinsert e0 Hft
-    Hwft Hft2 Hwft2.
-  inv Hwfgv1. inv Hwfgv2.
-  assert (H0':=Hft).
-  inv H0'.
-  assert (H5':=H5).
-  apply feasible_typ_inv' in H5.
-  destruct H5 as [sz [al [J2 J3]]].
-
-  assert (H2':=Hft2).
-  inv H2'.
-  assert (H6':=H5).
-  apply feasible_typ_inv' in H5.
-  destruct H5 as [sz' [al' [J2' J3']]].
+  intros S los nts t1 t2 gvs1 gvs2 cidxs gvs' Hwfgv1 Hwfgv2 Hinsert e0 Hwft 
+    Hwft2.
+  match goal with 
+  | H5: wf_typ _ _ _, H6: wf_typ _ _ _ |- _ => 
+    assert (H5':=H5);
+    apply wf_typ__getTypeSizeInBits_and_Alignment in H5;
+    destruct H5 as [sz [al [J2 J3]]];
+    assert (H6':=H6);
+    apply wf_typ__getTypeSizeInBits_and_Alignment in H6;
+    destruct H6 as [sz' [al' [J2' J3']]]
+  end.
   unfold insertGenericValue in Hinsert.
   remember (intConsts2Nats (los, nts) cidxs) as R1.
   destruct R1; tinv Hinsert.
@@ -1394,50 +1450,60 @@ Proof.
   destruct R2 as [[]|]; inv Hinsert.
   eapply getSubTypFromConstIdxs__mgetoffset in e0; eauto.
   subst.
+  inv Hwfgv1. inv Hwfgv2.
   eapply wf_GVs_intro with (sz:=sz); eauto.
     unfold getTypeSizeInBits.
     rewrite J2. auto.
 
-    unfold getTypeSizeInBits_and_Alignment,
-           getTypeSizeInBits_and_Alignment_for_namedts in J2, J2'.
     unfold getTypeSizeInBits, getTypeSizeInBits_and_Alignment,
-           getTypeSizeInBits_and_Alignment_for_namedts in H, H2.
-    rewrite J2 in H. inv H.
-    rewrite J2' in H2. inv H2.
+           getTypeSizeInBits_and_Alignment_for_namedts in *.
+    inv_mbind. destruct_let. inv_mbind. destruct_let. 
+    uniq_result. symmetry_ctx. uniq_result.
     intros gv0 Hin.
     eapply GVsSig.(lift_op2__getTypeSizeInBits)with (los:=los)(nts:=nts)(t:=t1);
       eauto.
       intros x y z0 J4 J5 J6.
-      apply H0 in J4. apply H3 in J5.
+      apply H1 in J4. apply H5 in J5.
       unfold mset' in J6.
       remember (mset (los, nts) x z t2 y) as R4.
       destruct R4 as [gv'|]; inv J6.
         eapply mset_typsize in HeqR4; eauto.
         rewrite <- HeqR4. auto.
 
-        symmetry in H2. inv Htys.
-        eapply gundef__getTypeSizeInBits in H2; eauto.
-        destruct H2 as [sz2 [al2 [J7' J8']]].
-        unfold layouts, namedts in J2.
-        rewrite J2 in J7'. inv J7'. auto.
+        match goal with
+        | H8: gundef _ _ = _ |- _ =>
+          symmetry in H8;
+          eapply gundef__getTypeSizeInBits in H8; eauto;
+          destruct H8 as [sz2 [al2 [J7' J8']]];
+          symmetry_ctx; uniq_result; auto
+        end.
 
-    eapply GVsSig.(lift_op2__inhabited) in H6; eauto.
-      eapply mset'_is_total; eauto.
+    match goal with
+    | H6: lift_op2 _ _ _ _ _ = _ |- _ =>
+      eapply GVsSig.(lift_op2__inhabited) in H6; try solve [
+        eauto | eapply mset'_is_total; eauto]
+    end.
+
+    intros gv0 Hin.
+    eapply GVsSig.(lift_op2__matches_chunks)with (los:=los)(nts:=nts)(t:=t1);
+      eauto.
+      intros. apply H3 in H8. apply H7 in H9.  eapply mset'_matches_chunks; eauto.
 Qed.
 
 Lemma extractGenericValue__wf_gvs : forall S los nts t1 gv1 const_list gv typ'
-  (Htys: wf_namedts S (los,nts)) (Hwfg : wf_GVs (los, nts) gv1 t1)
+  (Hwfg : wf_GVs (los, nts) gv1 t1)
   (HeqR3 : extractGenericValue (los, nts) t1 gv1 const_list = ret gv)
   (e0 : getSubTypFromConstIdxs const_list t1 = ret typ')
-  (H0 : feasible_typ (los, nts) typ')
-  (w1 : wf_typ S typ'),
+  (w1 : wf_typ S (los, nts) typ'),
   wf_GVs (los, nts) gv typ'.
 Proof.
   intros.
-  inv Hwfg. assert (H0':=H0).
-  inv H0. assert (H3':=H3).
-  apply feasible_typ_inv' in H3.
-  destruct H3 as [sz [al [J2 J3]]].
+  match goal with 
+  | H3: wf_typ _ _ _ |- _ => 
+    assert (H3':=H3);
+    apply wf_typ__getTypeSizeInBits_and_Alignment in H3;
+    destruct H3 as [sz [al [J2 J3]]]
+  end.
   unfold extractGenericValue in HeqR3.
   remember (intConsts2Nats (los, nts) const_list) as R1.
   destruct R1; tinv HeqR3.
@@ -1462,20 +1528,32 @@ Proof.
           unfold layouts, namedts in J2.
           rewrite J2 in J7. inv J7. auto.
 
-        symmetry in H4. inv Htys.
-        eapply gundef__getTypeSizeInBits in H4; eauto.
-        destruct H4 as [sz1 [al1 [J7 J8]]].
+        match goal with
+        | H4: gundef _ _ = _ |- _ =>
+          symmetry in H4;
+          eapply gundef__getTypeSizeInBits in H4; eauto;
+          destruct H4 as [sz1 [al1 [J7 J8]]]
+        end.
         rewrite J2 in J7. inv J7. auto.
 
-    eapply GVsSig.(lift_op1__inhabited) in H3; eauto.
-      eapply mget'_is_total; eauto.
+    match goal with
+    | H3: lift_op1 _ _ _ _ = _ |- _ =>
+      inv Hwfg;
+      eapply GVsSig.(lift_op1__inhabited) in H3; 
+        try solve [eauto | eapply mget'_is_total; eauto]
+    end.
+
+    intros gv0 Hin.
+    eapply GVsSig.(lift_op1__matches_chunks)with (los:=los)(nts:=nts);
+      eauto.
+      intros. inv Hwfg. apply H3 in H. eapply mget'_matches_chunks; eauto.
 Qed.
 
 (*********************************************)
 (** * Preservation *)
 
 Lemma preservation_dbCall_case : forall fid l' fa rt la va lb gvs los
-  nts s lc Ps lp (Htys: wf_namedts s (los, nts))
+  nts s lc Ps lp
   (Hinhs : forall gv, In gv gvs -> GVsSig.(inhabited) gv)
   (Huniq: uniqFdef (fdef_intro (fheader_intro fa rt fid la va) lb))
   (HwfF: wf_fdef s (module_intro los nts Ps)
@@ -2243,6 +2321,10 @@ Case "sMalloc". eapply preservation_cmd_updated_case in HwfS1; simpl; eauto.
     apply GVsSig.(none_undef2gvs_inv) in Hin; subst; auto.
       intros mc. congruence.
     apply GVsSig.(gv2gvs__inhabited).
+   
+    intros gv Hin. unfold gv_chunks_match_typ, vm_matches_typ.
+    apply GVsSig.(none_undef2gvs_inv) in Hin; subst; simpl; auto.
+      intros mc. congruence.
 
 Case "sFree". eapply preservation_cmd_non_updated_case in HwfS1; eauto.
 Case "sAlloca". eapply preservation_cmd_updated_case in HwfS1; simpl; eauto.
@@ -2261,6 +2343,10 @@ Case "sAlloca". eapply preservation_cmd_updated_case in HwfS1; simpl; eauto.
       intros mc. congruence.
     apply GVsSig.(gv2gvs__inhabited).
 
+    intros gv Hin. unfold gv_chunks_match_typ, vm_matches_typ.
+    apply GVsSig.(none_undef2gvs_inv) in Hin; subst; simpl; auto.
+      intros mc. congruence.
+
 Case "sLoad".  eapply preservation_cmd_updated_case in HwfS1; simpl; eauto.
   apply wf_State__inv in HwfS1; auto.
   destruct HwfS1 as [Hwftd [Hwfg [Hwflc Hwfc]]].
@@ -2269,19 +2355,23 @@ Case "sLoad".  eapply preservation_cmd_updated_case in HwfS1; simpl; eauto.
   | H10: wf_value _ _ _ _ _ |- _ => apply wf_value__wf_typ in H10; destruct H10
   end.
   match goal with
-  | H2: wf_typ _ _, H3: feasible_typ _ (typ_pointer _),
-    H15: wf_insn_base _ _ _ |- _ => inv H2; inv H3; inv H15
+  | H2: wf_typ _ _ _, H15: wf_insn_base _ _ _ |- _ => inv H15
   end.
+  assert (H1':=H1).
   eapply mload__getTypeSizeInBits in H1; eauto.
-    destruct H1 as [sz [J1 J2]].
-    eapply wf_GVs_intro; eauto.
-      unfold getTypeSizeInBits in J1.
-      remember (getTypeSizeInBits_and_Alignment (los, nts) true t) as R.
-      destruct R as [[]|]; inv J1.
-      unfold getTypeSizeInBits_and_Alignment in HeqR.
-      eapply GVsSig.(gv2gvs__getTypeSizeInBits); eauto.
+  destruct H1 as [sz [J1 J2]].
+  eapply wf_GVs_intro; eauto.
+    unfold getTypeSizeInBits in J1.
+    remember (getTypeSizeInBits_and_Alignment (los, nts) true t) as R.
+    destruct R as [[]|]; inv J1.
+    unfold getTypeSizeInBits_and_Alignment in HeqR.
+    eapply GVsSig.(gv2gvs__getTypeSizeInBits); eauto.
 
-      apply GVsSig.(gv2gvs__inhabited).
+    apply GVsSig.(gv2gvs__inhabited).
+
+    intros gv0 Hin.
+    eapply mload__matches_chunks in H1'; eauto.
+    eapply GVsSig.(gv2gvs__matches_chunks); eauto.
 
 Case "sStore". eapply preservation_cmd_non_updated_case in HwfS1; eauto.
 Case "sGEP".
@@ -2601,9 +2691,8 @@ Proof.
        eapply lookupBlockViaIDFromFdef__InGetBlockIDs; eauto.
 Qed.
 
-Lemma const2GV_isnt_stuck : forall TD S gl c t (Hwftd: wf_namedts S TD),
+Lemma const2GV_isnt_stuck : forall TD S gl c t,
   wf_const S TD c t ->
-  feasible_typ TD t ->
   wf_global TD S gl ->
   exists gv, @const2GV GVsSig TD gl c = Some gv.
 Proof.
@@ -2611,7 +2700,7 @@ Proof.
   destruct const2GV_isnt_stuck_mutind as [J _].
   unfold const2GV_isnt_stuck_Prop in J.
   unfold const2GV.
-  inv H0. inv Hwftd. inv H3.
+  assert (G:=H). apply wf_const__wf_typ in G. inv G.
   eapply J in H; eauto.
   destruct H as [gv H].
   rewrite H. eauto.
@@ -2620,7 +2709,7 @@ Qed.
 Lemma getOperandValue_inCmdOps_isnt_stuck : forall
   (s : system)
   (los : layouts)
-  (nts : namedts) (Hwftd: wf_namedts s (los, nts))
+  (nts : namedts)
   (ps : list product)
   (f : fdef)
   (cs : list cmd)
@@ -2672,7 +2761,7 @@ Qed.
 Lemma getOperandValue_inTmnOperans_isnt_stuck : forall
   (s : system)
   (los : layouts)
-  (nts : namedts) (Hwftd: wf_namedts s (los, nts))
+  (nts : namedts)
   (ps : list product)
   (f : fdef)
   (tmn : terminator)
@@ -2720,7 +2809,7 @@ Qed.
 Lemma values2GVs_isnt_stuck : forall
   l22
   (s : system)
-  los nts (Hwftd: wf_namedts s (los, nts))
+  los nts
   (ps : list product)
   (f : fdef)
   (i0 : id)
@@ -2776,7 +2865,7 @@ Qed.
 Lemma wf_phinodes__getIncomingValuesForBlockFromPHINodes : forall
   (s : system)
   (los : layouts)
-  (nts : namedts) (Hwftd: wf_namedts s (los, nts))
+  (nts : namedts) 
   (ps : list product)
   (f : fdef)
   l0
@@ -2933,7 +3022,7 @@ Qed.
 Lemma params2GVs_isnt_stuck : forall
   p22
   (s : system)
-  los nts (Hwftd: wf_namedts s (los, nts))
+  los nts
   (ps : list product)
   (f : fdef)
   (i0 : id)
@@ -3009,16 +3098,12 @@ Proof.
     match goal with | H7: wf_typ_list _ |- _ =>
       apply wf_typ_list__in_args__wf_typ with (t:=t)(a:=a)(i0:=i0) in H7; auto
     end.
-    match goal with | H8: feasible_typ_list _ |- _ =>
-      apply feasible_typ_list__in_args__feasible_typ with (t:=t)(a:=a)(i0:=i0)
-        in H8; auto
-    end.
     destruct gvs2.
       apply IHla2 with (gvs2:=nil)(lc1:=lc1) in HwfF'.
       destruct HwfF' as [lc2 J].
       rewrite J.
-      match goal with | H8: feasible_typ _ _ |- _ =>
-        apply gundef__total' in H8;
+      match goal with | H8: wf_typ _ _ _ |- _ =>
+        apply gundef__total in H8;
         destruct H8 as [gv H8]; rewrite H8; eauto
       end.
 
@@ -3027,7 +3112,6 @@ Proof.
       rewrite J.
       assert (exists gvs2, GVsSig.(lift_op1) (fit_gv (los, nts) t) g t
         = Some gvs2) as W.
-        match goal with | H8: feasible_typ _ _ |- _ => inv H8 end.
         apply GVsSig.(lift_op1__isnt_stuck); eauto using fit_gv__total.
       destruct W as [gvs2' W].
       rewrite W. eauto.
@@ -3061,8 +3145,8 @@ Proof.
 Qed.
 
 Lemma params2GVs_inhabited : forall los nts Ps F gl lc
-  (Hwfc : wf_lc (los,nts) F lc) S (Hwftd: wf_namedts S (los, nts))
-  (Hwftd: wf_namedts S (los, nts)) (Hwfg : wf_global (los, nts) S gl)
+  (Hwfc : wf_lc (los,nts) F lc) S
+  (Hwfg : wf_global (los, nts) S gl)
   tvs lp gvss,
   wf_value_list
           (make_list_system_module_fdef_value_typ
@@ -3592,9 +3676,13 @@ Proof.
      exists events.E0. eauto.
 
   SCase "c=malloc".
-    inv Hwfc. inv H11.
-    eapply feasible_typ_inv'' in H; eauto.
-    destruct H as [ssz [asz [J1 J2]]].
+    inv Hwfc.
+    match goal with
+    | H11: wf_typ _ _ _ |- _ =>
+      apply wf_typ__feasible_typ in H11;
+      eapply feasible_typ_inv'' in H11; eauto;
+      destruct H11 as [ssz [asz [J1 J2]]]
+    end.
     assert (exists gvs, getOperandValue (los, nts) v lc gl = Some gvs)
       as J.
       eapply getOperandValue_inCmdOps_isnt_stuck; eauto.
@@ -3659,9 +3747,13 @@ Proof.
       exists gv. rewrite <- HeqR0. undefbehave.
 
   SCase "alloca".
-    inv Hwfc. inv H11.
-    apply feasible_typ_inv'' in H.
-    destruct H as [ssz [asz [J1 J2]]].
+    inv Hwfc.
+    match goal with
+    | H11: wf_typ _ _ _ |- _ =>
+      apply wf_typ__feasible_typ in H11;
+      eapply feasible_typ_inv'' in H11; eauto;
+      destruct H11 as [ssz [asz [J1 J2]]]
+    end.
     assert (exists gvs, getOperandValue (los, nts) v lc gl = Some gvs)
       as J.
       eapply getOperandValue_inCmdOps_isnt_stuck; eauto.
@@ -3899,7 +3991,11 @@ Proof.
         eapply getOperandValue_inCmdOps_isnt_stuck; eauto.
           simpl; auto.
       destruct J0 as [gv0 J0].
-      rewrite J0. inv Hwfc.
+      rewrite J0. inv Hwfc. 
+      match goal with 
+      | H11: wf_value _ _ _ _ _ |- _ => 
+        apply wf_value__wf_typ in H11; destruct H11
+      end.
       apply GVsSig.(lift_op2__isnt_stuck); eauto using micmp_is_total.
 
     destruct Hinsn_icmp as [gv2 Hinsn_icmp].
@@ -3932,7 +4028,11 @@ Proof.
         eapply getOperandValue_inCmdOps_isnt_stuck; eauto.
           simpl; auto.
       destruct J0 as [gv0 J0].
-      rewrite J0. inv Hwfc. apply wf_value__wf_typ in H12. destruct H12.
+      rewrite J0. inv Hwfc.
+      match goal with 
+      | H11: wf_value _ _ _ _ _ |- _ => 
+        apply wf_value__wf_typ in H11; destruct H11
+      end.
       apply GVsSig.(lift_op2__isnt_stuck); eauto using mfcmp_is_total.
 
     destruct Hinsn_fcmp as [gv2 Hinsn_fcmp].

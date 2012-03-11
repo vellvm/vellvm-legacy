@@ -1705,7 +1705,7 @@ Qed.
 (* assert_mptr *)
 
 Lemma typ2memory_chunk__le__getTypeAllocSize : forall sys t c s TD,
-  wf_typ sys t ->
+  wf_typ sys TD t ->
   (forall a b o,
     getTypeSizeInBits_and_Alignment TD o t = Some (a,b) ->
     (b > 0)%nat) ->
@@ -1730,8 +1730,11 @@ Proof.
     assert (ZRdiv (Z_of_nat (S (s0 - 1))) 8 <= ZRdiv (Z_of_nat s0) 8) as J2.
       unfold ZRdiv.
       apply Coqlib.ZRdiv_prop7.
-        apply inj_le.
-          inv Hwft. unfold Size.gt in H1. omega.
+        apply inj_le. 
+          inv Hwft. 
+          match goal with | H3: wf_styp _ _ _ |- _ => inv H3 end.
+          match goal with | H6: Size.gt _ _ |- _ => unfold Size.gt in H6 end.
+          omega.
         apply Z_of_S_gt_O.
     assert (J':=@roundup_is_correct (ZRdiv (Z_of_nat s0) 8)
       (Z_of_nat (getIntAlignmentInfo l0 s0 true)) GT).
@@ -1780,7 +1783,7 @@ Lemma assert_mptr__valid_access' : forall S md los nts Ps Mem gl rm MM t g b ofs
   wf_global_ptr S (los, nts) Mem gl ->
   wf_value S (module_intro los nts Ps) f v tv ->
   Some md = get_reg_metadata (los, nts) gl rm v ->
-  wf_typ S t ->
+  wf_typ S (los, nts) t ->
   (forall a b o,
     getTypeSizeInBits_and_Alignment (los, nts) o t = Some (a,b) ->
     (b > 0)%nat) ->

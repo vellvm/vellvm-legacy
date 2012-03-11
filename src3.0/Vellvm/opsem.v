@@ -41,7 +41,7 @@ lift_op2 : (GenericValue -> GenericValue -> option GenericValue) ->
   GVsT -> GVsT -> typ -> option GVsT;
 
 cgv2gvs__getTypeSizeInBits : forall S los nts gv t sz al gv',
-  wf_typ S t ->
+  wf_typ S (los,nts) t ->
   _getTypeSizeInBits_and_Alignment los
     (getTypeSizeInBits_and_Alignment_for_namedts (los,nts) true) true t =
       Some (sz, al) ->
@@ -50,16 +50,28 @@ cgv2gvs__getTypeSizeInBits : forall S los nts gv t sz al gv',
   Coqlib.nat_of_Z (Coqlib.ZRdiv (Z_of_nat sz) 8) =
     sizeGenericValue gv';
 
+cgv2gvs__matches_chunks : forall S los nts gv t gv',
+  wf_typ S (los,nts) t ->
+  gv_chunks_match_typ (los, nts) gv t ->
+  instantiate_gvs gv' (cgv2gvs gv t) ->
+  gv_chunks_match_typ (los, nts) gv' t;
+
 cgv2gvs__inhabited : forall gv t, inhabited (cgv2gvs gv t);
 
 gv2gvs__getTypeSizeInBits : forall S los nts gv t sz al,
-  wf_typ S t ->
+  wf_typ S (los,nts) t ->
   _getTypeSizeInBits_and_Alignment los
     (getTypeSizeInBits_and_Alignment_for_namedts (los,nts) true) true t =
       Some (sz, al) ->
   Coqlib.nat_of_Z (Coqlib.ZRdiv (Z_of_nat sz) 8) = sizeGenericValue gv ->
   forall gv', instantiate_gvs gv' (gv2gvs gv t) ->
   sizeGenericValue gv' = Coqlib.nat_of_Z (Coqlib.ZRdiv (Z_of_nat sz) 8);
+
+gv2gvs__matches_chunks : forall S los nts gv t,
+  wf_typ S (los,nts) t ->
+  gv_chunks_match_typ (los, nts) gv t ->
+  forall gv', instantiate_gvs gv' (gv2gvs gv t) ->
+  gv_chunks_match_typ (los, nts) gv' t;
 
 gv2gvs__inhabited : forall gv t, inhabited (gv2gvs gv t);
 
@@ -84,7 +96,7 @@ lift_op2__isnt_stuck : forall f gvs1 gvs2 t
   exists gvs3, lift_op2 f gvs1 gvs2 t = Some gvs3;
 
 lift_op1__getTypeSizeInBits : forall S los nts f g t sz al gvs,
-  wf_typ S t ->
+  wf_typ S (los,nts) t ->
   _getTypeSizeInBits_and_Alignment los
     (getTypeSizeInBits_and_Alignment_for_namedts (los,nts) true) true t =
       Some (sz, al) ->
@@ -96,7 +108,7 @@ lift_op1__getTypeSizeInBits : forall S los nts f g t sz al gvs,
   sizeGenericValue gv = nat_of_Z (ZRdiv (Z_of_nat sz) 8);
 
 lift_op2__getTypeSizeInBits : forall S los nts f g1 g2 t sz al gvs,
-  wf_typ S t ->
+  wf_typ S (los,nts) t ->
   _getTypeSizeInBits_and_Alignment los
     (getTypeSizeInBits_and_Alignment_for_namedts (los,nts) true) true t =
       Some (sz, al) ->
@@ -107,6 +119,25 @@ lift_op2__getTypeSizeInBits : forall S los nts f g1 g2 t sz al gvs,
   forall gv : GenericValue,
   instantiate_gvs gv gvs ->
   sizeGenericValue gv = nat_of_Z (ZRdiv (Z_of_nat sz) 8);
+
+lift_op1__matches_chunks : forall S los nts f g t gvs,
+  wf_typ S (los,nts) t ->
+  (forall x y, instantiate_gvs x g -> f x = Some y ->
+   gv_chunks_match_typ (los, nts) y t) ->
+  lift_op1 f g t = Some gvs ->
+  forall gv : GenericValue,
+  instantiate_gvs gv gvs ->
+  gv_chunks_match_typ (los, nts) gv t;
+
+lift_op2__matches_chunks : forall S los nts f g1 g2 t gvs,
+  wf_typ S (los,nts) t ->
+  (forall x y z,
+   instantiate_gvs x g1 -> instantiate_gvs y g2 -> f x y = Some z ->
+   gv_chunks_match_typ (los, nts) z t) ->
+  lift_op2 f g1 g2 t = Some gvs ->
+  forall gv : GenericValue,
+  instantiate_gvs gv gvs ->
+  gv_chunks_match_typ (los, nts) gv t;
 
 inhabited_inv : forall gvs, inhabited gvs -> exists gv, instantiate_gvs gv gvs;
 

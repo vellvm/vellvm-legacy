@@ -13,6 +13,7 @@ Require Import static.
 Require Import opsem.
 Require Import opsem_props.
 Require Import opsem_wf.
+Require Import vellvm_tactics.
 
 Import LLVMsyntax.
 Import LLVMgv.
@@ -35,7 +36,7 @@ Notation "$ gv # t $" := (gv2gvs gv t) (at level 41).
 Hint Unfold inhabited instantiate_gvs.
 
 Lemma cundef_gvs__getTypeSizeInBits : forall S los nts gv ty sz al gv',
-  wf_typ S ty ->
+  wf_typ S (los,nts) ty ->
   _getTypeSizeInBits_and_Alignment los
     (getTypeSizeInBits_and_Alignment_for_namedts (los,nts) true) true ty =
       Some (sz, al) ->
@@ -49,11 +50,22 @@ Proof.
   eapply cundef_gv__getTypeSizeInBits; eauto.
 Qed.
 
+Lemma cundef_gvs__matches_chunks : forall S los nts gv ty gv',
+  wf_typ S (los,nts) ty ->
+  gv_chunks_match_typ (los, nts) gv ty ->
+  gv' @ (cundef_gvs gv ty) ->
+  gv_chunks_match_typ (los, nts) gv' ty.
+Proof.
+  unfold instantiate_gvs.
+  intros. subst.
+  eapply cundef_gv__matches_chunks; eauto.
+Qed.
+
 Lemma cundef_gvs__inhabited : forall gv ty, inhabited (cundef_gvs gv ty).
 Proof. auto. Qed.
 
 Lemma undef_gvs__getTypeSizeInBits : forall S los nts gv t sz al gv',
-  wf_typ S t ->
+  wf_typ S (los,nts) t ->
   _getTypeSizeInBits_and_Alignment los
     (getTypeSizeInBits_and_Alignment_for_namedts (los,nts) true) true t =
       Some (sz, al) ->
@@ -66,11 +78,21 @@ Proof.
   intros. inv H2. auto.
 Qed.
 
+Lemma undef_gvs__matches_chunks : forall S los nts gv ty gv',
+  wf_typ S (los,nts) ty ->
+  gv_chunks_match_typ (los, nts) gv ty ->
+  gv' @ (undef_gvs gv ty) ->
+  gv_chunks_match_typ (los, nts) gv' ty.
+Proof.
+  unfold instantiate_gvs.
+  intros. subst. auto.
+Qed.
+
 Lemma undef_gvs__inhabited : forall gv ty, inhabited (undef_gvs gv ty).
 Proof. auto. Qed.
 
 Lemma cgv2gvs__getTypeSizeInBits : forall S los nts gv t sz al gv',
-  wf_typ S t ->
+  wf_typ S (los,nts) t ->
   _getTypeSizeInBits_and_Alignment los
     (getTypeSizeInBits_and_Alignment_for_namedts (los,nts) true) true t =
       Some (sz, al) ->
@@ -84,11 +106,25 @@ Proof.
   eapply cgv2gv__getTypeSizeInBits; eauto.
 Qed.
 
+Lemma cgv2gvs__matches_chunks : forall S los nts gv t gv',
+  wf_typ S (los,nts) t ->
+  gv_chunks_match_typ (los, nts) gv t ->
+  gv' @ (cgv2gvs gv t) ->
+  gv_chunks_match_typ (los, nts) gv' t.
+Proof.
+  unfold instantiate_gvs.
+  intros. subst. unfold cgv2gvs.
+  destruct gv; auto.
+  destruct p as [[]]; auto. 
+  destruct gv; auto.
+  eapply cundef_gvs__matches_chunks; eauto.
+Qed.
+
 Lemma cgv2gvs__inhabited : forall gv t, inhabited (cgv2gvs gv t).
 Proof. auto. Qed.
 
 Lemma gv2gvs__getTypeSizeInBits : forall S los nts gv t sz al,
-  wf_typ S t ->
+  wf_typ S (los,nts) t ->
   _getTypeSizeInBits_and_Alignment los
     (getTypeSizeInBits_and_Alignment_for_namedts (los,nts) true) true t =
       Some (sz, al) ->
@@ -98,6 +134,16 @@ Lemma gv2gvs__getTypeSizeInBits : forall S los nts gv t sz al,
 Proof.
   unfold instantiate_gvs.
   intros. inv H2. auto.
+Qed.
+
+Lemma gv2gvs__matches_chunks : forall S los nts gv t,
+  wf_typ S (los,nts) t ->
+  gv_chunks_match_typ (los, nts) gv t ->
+  forall gv', gv' @ (gv2gvs gv t) ->
+  gv_chunks_match_typ (los, nts) gv' t.
+Proof.
+  unfold instantiate_gvs.
+  intros. subst. auto.
 Qed.
 
 Lemma gv2gvs__inhabited : forall gv t, inhabited ($ gv # t $).
@@ -134,7 +180,7 @@ Lemma lift_op2__isnt_stuck : forall f gvs1 gvs2 t
 Proof. unfold lift_op2. auto. Qed.
 
 Lemma lift_op1__getTypeSizeInBits : forall S los nts f g t sz al gvs,
-  wf_typ S t ->
+  wf_typ S (los,nts) t ->
   _getTypeSizeInBits_and_Alignment los
     (getTypeSizeInBits_and_Alignment_for_namedts (los,nts) true) true t =
       Some (sz, al) ->
@@ -146,8 +192,18 @@ Lemma lift_op1__getTypeSizeInBits : forall S los nts f g t sz al gvs,
   sizeGenericValue gv = nat_of_Z (ZRdiv (Z_of_nat sz) 8).
 Proof. intros. unfold lift_op1 in H2. inv H3. eauto. Qed.
 
+Lemma lift_op1__matches_chunks : forall S los nts f g t gvs,
+  wf_typ S (los,nts) t ->
+  (forall x y, instantiate_gvs x g -> f x = Some y ->
+    gv_chunks_match_typ (los, nts) y t) ->
+  lift_op1 f g t = Some gvs ->
+  forall gv : GenericValue,
+  instantiate_gvs gv gvs ->
+  gv_chunks_match_typ (los, nts) gv t.
+Proof. intros. unfold lift_op1 in H1. inv H2. eauto. Qed.
+
 Lemma lift_op2__getTypeSizeInBits : forall S los nts f g1 g2 t sz al gvs,
-  wf_typ S t ->
+  wf_typ S (los,nts) t ->
   _getTypeSizeInBits_and_Alignment los
     (getTypeSizeInBits_and_Alignment_for_namedts (los,nts) true) true t =
       Some (sz, al) ->
@@ -158,6 +214,17 @@ Lemma lift_op2__getTypeSizeInBits : forall S los nts f g1 g2 t sz al gvs,
   gv @ gvs ->
   sizeGenericValue gv = nat_of_Z (ZRdiv (Z_of_nat sz) 8).
 Proof. intros. unfold lift_op2 in H2. inv H3. eauto. Qed.
+
+Lemma lift_op2__matches_chunks : forall S los nts f g1 g2 t gvs,
+  wf_typ S (los,nts) t ->
+  (forall x y z,
+   instantiate_gvs x g1 -> instantiate_gvs y g2 -> f x y = Some z ->
+   gv_chunks_match_typ (los, nts) z t) ->
+  lift_op2 f g1 g2 t = Some gvs ->
+  forall gv : GenericValue,
+  instantiate_gvs gv gvs ->
+  gv_chunks_match_typ (los, nts) gv t.
+Proof. intros. unfold lift_op2 in H1. inv H2. eauto. Qed.
 
 Lemma inhabited_inv : forall gvs, inhabited gvs -> exists gv, gv @ gvs.
 Proof. eauto. Qed.
@@ -186,8 +253,10 @@ MDGVs.gv2gvs
 MDGVs.lift_op1
 MDGVs.lift_op2
 MDGVs.cgv2gvs__getTypeSizeInBits
+MDGVs.cgv2gvs__matches_chunks
 MDGVs.cgv2gvs__inhabited
 MDGVs.gv2gvs__getTypeSizeInBits
+MDGVs.gv2gvs__matches_chunks
 MDGVs.gv2gvs__inhabited
 MDGVs.lift_op1__inhabited
 MDGVs.lift_op2__inhabited
@@ -195,6 +264,8 @@ MDGVs.lift_op1__isnt_stuck
 MDGVs.lift_op2__isnt_stuck
 MDGVs.lift_op1__getTypeSizeInBits
 MDGVs.lift_op2__getTypeSizeInBits
+MDGVs.lift_op1__matches_chunks
+MDGVs.lift_op2__matches_chunks
 MDGVs.inhabited_inv
 MDGVs.instantiate_gv__gv2gvs
 MDGVs.none_undef2gvs_inv.

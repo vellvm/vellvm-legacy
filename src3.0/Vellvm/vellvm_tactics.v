@@ -58,24 +58,37 @@ end.
 
 Ltac zeauto := eauto with zarith.
 
+Ltac symmetry_ctx :=
+  repeat match goal with
+  | H : Some _ = _ |- _ => symmetry in H
+  end.
+
 Ltac inv_mbind :=
   repeat match goal with
-         | H : match ?e with
-               | Some _ => _
-               | None => None
-               end = Some _ |- _ => remember e as R; destruct R as [|]; inv H
-         | H : Some _ = match ?e with
-               | Some _ => _
-               | None => None
-               end |- _ => remember e as R; destruct R as [|]; inv H
-         | H :  Some _ = match ?p with
-                        | (_, _) => _
-                        end |- _ => destruct p
-         | H : if ?e then _ else False |- _ =>
-             remember e as R; destruct R; tinv H
-         | H : if ?e then False else _ |- _ =>
-             remember e as R; destruct R; tinv H
-         end.
+          | H : match ?e with
+                | Some _ => _
+                | None => None
+                end = Some _ |- _ => remember e as R; destruct R as [|]; inv H
+          | H : Some _ = match ?e with
+                | Some _ => _
+                | None => None
+                end |- _ => remember e as R; destruct R as [|]; inv H
+          | H :  Some _ = match ?p with
+                          | (_, _) => _
+                          end |- _ => destruct p
+          | H : if ?e then _ else False |- _ =>
+                remember e as R; destruct R; tinv H
+          | H : if ?e then False else _ |- _ =>
+                remember e as R; destruct R; tinv H
+          | H : match ?e with
+                | Some _ => _
+                | None => False
+                end |- _ => remember e as R; destruct R as [|]; tinv H
+          | H : match ?e with
+                | Some _ => _
+                | None => false
+                end = true |- _ => remember e as R; destruct R as [|]; tinv H
+          end.
 
 Ltac inv_mbind' := inv_mbind.
 Ltac inv_mbind'' := inv_mbind.
@@ -127,12 +140,6 @@ Ltac tac0 := match goal with
   | |- _ => solve [eauto]
   end.
 
-
-Ltac symmetry_ctx :=
-  repeat match goal with
-  | H : Some _ = _ |- _ => symmetry in H
-  end.
-
 Ltac app_inv :=
   repeat match goal with
   | [ H: Some _ = Some _ |- _ ] => inv H
@@ -171,7 +178,9 @@ end.
 Ltac fill_ctxhole :=
 match goal with
 | H : ?e = _ |- context [ ?e ] => rewrite H
-| H : _ = ?e |- context [ ?e ] => rewrite H
+| H : _ = ?e |- context [ ?e ] => rewrite <- H
+| H : exists _:_, ?e = _ |- context [ ?e ] => destruct H as [? H]; rewrite H
+| H : exists _:_, _ = ?e |- context [ ?e ] => destruct H as [? H]; rewrite <- H
 end.
 
 Tactic Notation "eapply_clear" hyp(H1) "in" hyp(H2) :=
