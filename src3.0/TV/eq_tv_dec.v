@@ -78,8 +78,9 @@ Proof.
   Case "sterm_gep".
     destruct st2; try solve [done_right].
     destruct (@bool_dec i0 i1); subst; try solve [done_right].
-    destruct (@typ_dec t t0); subst; try solve [done_right].
+    destruct (@typ_dec t t1); subst; try solve [done_right].
     destruct (@H st2); subst; try solve [done_right].
+    destruct (@typ_dec t0 t2); subst; try solve [done_right].
     destruct (@H0 l1); subst; try solve [auto | done_right].
   Case "sterm_trunc".
     destruct st2; try solve [done_right].

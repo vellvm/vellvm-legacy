@@ -132,7 +132,7 @@ Inductive sterm : Set :=
 | sterm_malloc : smem -> typ -> sterm -> align -> sterm
 | sterm_alloca : smem -> typ -> sterm -> align -> sterm
 | sterm_load : smem -> typ -> sterm -> align -> sterm
-| sterm_gep : inbounds -> typ -> sterm -> list_sz_sterm -> sterm
+| sterm_gep : inbounds -> typ -> sterm -> list_sz_sterm -> typ -> sterm
 | sterm_trunc : truncop -> typ -> sterm -> typ -> sterm
 | sterm_ext : extop -> typ -> sterm -> typ -> sterm
 | sterm_cast : castop -> typ -> sterm -> typ -> sterm
@@ -510,14 +510,14 @@ match c with
                    align)
                  st.(SFrame)
                  st.(SEffects))
-  | insn_gep id0 inbounds0 t1 v1 lv2 => fun _ =>
+  | insn_gep id0 inbounds0 t1 v1 lv2 t2 => fun _ =>
        (mkSstate (updateAddAL _ st.(STerms) id0
                    (sterm_gep inbounds0 t1
                      (value2Sterm st.(STerms) v1)
                      (make_list_sz_sterm
                        (map_list_sz_value
                          (fun sz' v' => (sz', value2Sterm st.(STerms) v'))
-                          lv2))))
+                          lv2)) t2))
                  st.(SMem)
                  st.(SFrame)
                  st.(SEffects))
@@ -646,8 +646,8 @@ match s with
     sterm_alloca (subst_tm id0 s0 m1) t1 (subst_tt id0 s0 s1) align
 | sterm_load m1 t1 s1 align =>
     sterm_load (subst_tm id0 s0 m1) t1 (subst_tt id0 s0 s1) align
-| sterm_gep inbounds t1 s1 ls2 =>
-    sterm_gep inbounds t1 (subst_tt id0 s0 s1) (subst_tlzt id0 s0 ls2)
+| sterm_gep inbounds t1 s1 ls2 t2 =>
+    sterm_gep inbounds t1 (subst_tt id0 s0 s1) (subst_tlzt id0 s0 ls2) t2
 | sterm_trunc truncop t1 s1 t2 =>
     sterm_trunc truncop t1 (subst_tt id0 s0 s1) t2
 | sterm_ext extop t1 s1 t2 =>
@@ -772,8 +772,9 @@ Proof.
   Case "sterm_gep".
     destruct st2; try solve [done_right].
     destruct (@bool_dec i0 i1); subst; try solve [done_right].
-    destruct (@typ_dec t t0); subst; try solve [done_right].
+    destruct (@typ_dec t t1); subst; try solve [done_right].
     destruct (@H st2); subst; try solve [done_right].
+    destruct (@typ_dec t0 t2); subst; try solve [done_right].
     destruct (@H0 l1); subst; try solve [auto | done_right].
   Case "sterm_trunc".
     destruct st2; try solve [done_right].

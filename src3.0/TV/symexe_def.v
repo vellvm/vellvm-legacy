@@ -115,13 +115,13 @@ Inductive dbCmd : TargetData -> GVMap ->
     (insn_store sid t v1 v2 align)
     lc als Mem'
     E0
-| dbGEP : forall TD lc gl id inbounds t v idxs vidxs mp mp' Mem als,
+| dbGEP : forall TD lc gl id inbounds t v idxs vidxs mp mp' Mem als t',
   @getOperandValue DGVs TD v lc gl = Some mp ->
   values2GVs TD idxs lc gl = Some vidxs ->
-  GEP TD t mp vidxs inbounds = Some mp' ->
+  GEP TD t mp vidxs inbounds t' = Some mp' ->
   dbCmd TD gl
     lc als Mem
-    (insn_gep id inbounds t v idxs)
+    (insn_gep id inbounds t v idxs t')
     (updateAddAL _ lc id mp') als Mem
     E0
 | dbTrunc : forall TD lc gl id truncop t1 v1 t2 gv2 Mem als,
@@ -515,7 +515,7 @@ Inductive sterm : Set :=
 | sterm_malloc : smem -> typ -> sterm -> align -> sterm
 | sterm_alloca : smem -> typ -> sterm -> align -> sterm
 | sterm_load : smem -> typ -> sterm -> align -> sterm
-| sterm_gep : inbounds -> typ -> sterm -> list_sterm -> sterm
+| sterm_gep : inbounds -> typ -> sterm -> list_sterm -> typ -> sterm
 | sterm_trunc : truncop -> typ -> sterm -> typ -> sterm
 | sterm_ext : extop -> typ -> sterm -> typ -> sterm
 | sterm_cast : castop -> typ -> sterm -> typ -> sterm
@@ -755,12 +755,12 @@ match c with
                    align)
                  st.(SFrame)
                  st.(SEffects))
-  | insn_gep id0 inbounds0 t1 v1 lv2 => fun _ =>
+  | insn_gep id0 inbounds0 t1 v1 lv2 t2 => fun _ =>
        (mkSstate (updateAddAL _ st.(STerms) id0
                    (sterm_gep inbounds0 t1
                      (value2Sterm st.(STerms) v1)
                      (make_list_sterm (map_list_sz_value
-                       (fun sz' v' => (sz', value2Sterm st.(STerms) v')) lv2))))
+                       (fun sz' v' => (sz', value2Sterm st.(STerms) v')) lv2)) t2))
                  st.(SMem)
                  st.(SFrame)
                  st.(SEffects))
@@ -912,11 +912,11 @@ Inductive sterm_denotes_genericvalue :
   smem_denotes_mem TD lc gl Mem0 sm0 Mem1 ->
   mload TD Mem1 gv0 t0 align0 = Some gv1 ->
   sterm_denotes_genericvalue TD lc gl Mem0 (sterm_load sm0 t0 st0 align0) gv1
-| sterm_gep_denotes : forall TD lc gl Mem ib0 t0 st0 sts0 gv0 gvs0 gv1,
+| sterm_gep_denotes : forall TD lc gl Mem ib0 t0 st0 sts0 gv0 gvs0 gv1 t1,
   sterm_denotes_genericvalue TD lc gl Mem st0 gv0 ->
   sterms_denote_genericvalues TD lc gl Mem sts0 gvs0 ->
-  @GEP DGVs TD t0 gv0 gvs0 ib0 = Some gv1 ->
-  sterm_denotes_genericvalue TD lc gl Mem (sterm_gep ib0 t0 st0 sts0) gv1
+  @GEP DGVs TD t0 gv0 gvs0 ib0 t1 = Some gv1 ->
+  sterm_denotes_genericvalue TD lc gl Mem (sterm_gep ib0 t0 st0 sts0 t1) gv1
 | sterm_trunc_denotes : forall TD lc gl Mem op0 t1 st1 t2 gv1 gv2,
   sterm_denotes_genericvalue TD lc gl Mem st1 gv1 ->
   mtrunc TD op0 t1 t2 gv1 = Some gv2 ->
@@ -1073,8 +1073,8 @@ match s with
     sterm_alloca (subst_tm id0 s0 m1) t1 (subst_tt id0 s0 s1) align
 | sterm_load m1 t1 s1 align =>
     sterm_load (subst_tm id0 s0 m1) t1 (subst_tt id0 s0 s1) align
-| sterm_gep inbounds t1 s1 ls2 =>
-    sterm_gep inbounds t1 (subst_tt id0 s0 s1) (subst_tlt id0 s0 ls2)
+| sterm_gep inbounds t1 s1 ls2 t2 =>
+    sterm_gep inbounds t1 (subst_tt id0 s0 s1) (subst_tlt id0 s0 ls2) t2
 | sterm_trunc truncop t1 s1 t2 =>
     sterm_trunc truncop t1 (subst_tt id0 s0 s1) t2
 | sterm_ext extop t1 s1 t2 =>

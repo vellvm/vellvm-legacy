@@ -710,7 +710,7 @@ Case "bGEP".
   exists (updateAddAL _ lc0 id0 mp'). exists als0. exists Mem1.
   exists cs1. split; auto.
   right. left.
-  exists (insn_gep id0 inbounds0 t v idxs).
+  exists (insn_gep id0 inbounds0 t v idxs t').
   split; eauto.
 
 Case "bTrunc".

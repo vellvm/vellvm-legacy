@@ -1001,9 +1001,9 @@ Case "sterm_load_denotes".
   rewrite e in H13. inversion H13; auto.
 Case "sterm_gep_denotes".
   inversion H1; subst.
-  apply H in H11; subst.
-  apply H0 in H12; subst.
-  rewrite H13 in e. inversion e; auto.
+  apply H in H12; subst.
+  apply H0 in H13; subst.
+  rewrite H14 in e. inversion e; auto.
 Case "sterm_trunc_denotes".
   inversion H0; subst.
   apply H in H10; subst.

@@ -73,7 +73,7 @@ end.
 Fixpoint get_ptr_object (st:sterm) : sterm :=
 match st with
 | sterm_cast castop_bitcast _ st1 _ => get_ptr_object st1
-| sterm_gep _ _ st1 _ => get_ptr_object st1
+| sterm_gep _ _ st1 _ _ => get_ptr_object st1
 | sterm_select st0 t st1 st2 =>
     sterm_select st0 t (get_ptr_object st1)(get_ptr_object st2)
 | sterm_val (value_const c) => sterm_val (value_const (get_ptr_object_const c))

@@ -192,7 +192,7 @@ if (function_returns_pointer Ps1 fid2) then
        | sterm_gep _ _ (sterm_val (value_id id0))
           (Cons_list_sz_sterm _ (sterm_val (value_const (const_int _ i0)))
           (Cons_list_sz_sterm _ (sterm_val (value_const (const_int _ i1)))
-            Nil_list_sz_sterm)) =>
+            Nil_list_sz_sterm)) _ =>
             eq_id id0 re && eq_INT_Z i0 0%Z &&
             (eq_INT_Z i1 0%Z || eq_INT_Z i1 1%Z || eq_INT_Z i1 2%Z)
        | _ => false
@@ -228,9 +228,10 @@ match (st, st') with
 | (sterm_load sm t st1 a, sterm_load sm' t' st1' a') =>
     tv_smem Ps1 Ps2 fid sm sm' && tv_typ t t' &&
     tv_sterm Ps1 Ps2 fid st1 st1' && tv_align a a'
-| (sterm_gep i t st1 sts2, sterm_gep i' t' st1' sts2') =>
+| (sterm_gep i t st1 sts2 t0, sterm_gep i' t' st1' sts2' t0') =>
     sumbool2bool _ _ (bool_dec i i') && tv_typ t t' &&
-    tv_sterm Ps1 Ps2 fid st1 st1' && tv_list_sz_sterm Ps1 Ps2 fid sts2 sts2'
+    tv_sterm Ps1 Ps2 fid st1 st1' && tv_list_sz_sterm Ps1 Ps2 fid sts2 sts2' &&
+    tv_typ t0 t0'
 | (sterm_trunc top t1 st1 t2, sterm_trunc top' t1' st1' t2') =>
     sumbool2bool _ _ (truncop_dec top top') && tv_typ t1 t1' &&
     tv_sterm Ps1 Ps2 fid st1 st1' && tv_typ t2 t2'
@@ -701,8 +702,8 @@ match (st, st') with
       rtv_smem Ps1 Ps2 fid r sm sm' >>=
       (fun r => rtv_sterm Ps1 Ps2 fid r st1 st1')
     else None
-| (sterm_gep i t st1 sts2, sterm_gep i' t' st1' sts2') =>
-    if sumbool2bool _ _ (bool_dec i i') && tv_typ t t' then
+| (sterm_gep i t st1 sts2 t2, sterm_gep i' t' st1' sts2' t2') =>
+    if sumbool2bool _ _ (bool_dec i i') && tv_typ t t' && tv_typ t2 t2' then
       rtv_sterm Ps1 Ps2 fid r st1 st1' >>=
       (fun r => rtv_list_sz_sterm Ps1 Ps2 fid r sts2 sts2')
     else None
@@ -1156,13 +1157,13 @@ match (base, bound, ptr) with
    sterm_val (value_id idp)) =>
     is_metadata fid l1 i idb ide idp true
 | (sterm_malloc _ _ st10 _ as st1,
-   sterm_gep _ _ st2 (Cons_list_sz_sterm _ st20 Nil_list_sz_sterm),
+   sterm_gep _ _ st2 (Cons_list_sz_sterm _ st20 Nil_list_sz_sterm) _,
    sterm_malloc _ _ _ _ as st3) =>
      eq_sterm_upto_cast st1 st2 &&
      eq_sterm_upto_cast st1 st3 &&
      eq_sterm st10 st20
 | (sterm_alloca _ _ st10 _ as st1,
-   sterm_gep _ _ st2 (Cons_list_sz_sterm _ st20 Nil_list_sz_sterm),
+   sterm_gep _ _ st2 (Cons_list_sz_sterm _ st20 Nil_list_sz_sterm) _,
    sterm_alloca _ _ _ _ as st3) =>
      eq_sterm_upto_cast st1 st2 &&
      eq_sterm_upto_cast st1 st3 &&
@@ -1398,7 +1399,7 @@ match st with
 | sterm_load sm t st1 _ =>
    smem_is_memsafe Ps1 Ps2 fid l i sm && sterm_is_memsafe Ps1 Ps2 fid l i st1 &&
    safe_mem_access fid sm t st1
-| sterm_gep _ _ st1 sts2 =>
+| sterm_gep _ _ st1 sts2 _ =>
    sterm_is_memsafe Ps1 Ps2 fid l i st1 &&
    list_sz_sterm_is_memsafe Ps1 Ps2 fid l i sts2
 | sterm_phi _ stls => list_sterm_l_is_memsafe Ps1 Ps2 fid l i stls
@@ -1476,7 +1477,7 @@ match ms with
                and p is falled-through or
           *)
           check_metadata Ps2 fid l1 i1 sb se (sterm_val (value_id p)) im
-      | (None, None, Some (sterm_gep _ _ _ _)) =>
+      | (None, None, Some (sterm_gep _ _ _ _ _)) =>
           (*
              l1:
                p = malloc; b = p; e = p + size;

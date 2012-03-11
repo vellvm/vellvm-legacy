@@ -81,11 +81,11 @@ let tret := typ_pointer (typ_struct
   (Cons_list_typ (typ_pointer p8)
   (Cons_list_typ (typ_pointer p8) Nil_list_typ)))) in
 (insn_call_nptr rid nr tc t v ((tret,nil,vret)::p),
- insn_gep id1 false tret vret (cpars c0 c0)::
+ insn_gep id1 false tret vret (cpars c0 c0) t::
  insn_load id2 pp32 (value_id id1) Align.One::
- insn_gep id3 false tret vret (cpars c0 c1)::
+ insn_gep id3 false tret vret (cpars c0 c1) p8::
  insn_load id4 pp32 (value_id id3) Align.One::
- insn_gep id5 false tret vret (cpars c0 c2)::
+ insn_gep id5 false tret vret (cpars c0 c2) p8::
  insn_load id6 pp32 (value_id id5) Align.One::nil).
 
 Record subblock := mkSB
@@ -118,10 +118,10 @@ let tret := typ_pointer (typ_struct
   (Cons_list_typ (typ_pointer t)
   (Cons_list_typ (typ_pointer p8)
   (Cons_list_typ (typ_pointer p8) Nil_list_typ)))) in
-(insn_gep id1 false tret vret (cpars c0 c0)::
- insn_gep id2 false tret vret (cpars c0 c1)::
+(insn_gep id1 false tret vret (cpars c0 c0) t::
+ insn_gep id2 false tret vret (cpars c0 c1) p8::
  insn_store id30 p8 v3 (value_id id2) Align.One::
- insn_gep id4 false tret vret (cpars c0 c2)::
+ insn_gep id4 false tret vret (cpars c0 c2) p8::
  insn_store id50 p8 v5 (value_id id4) Align.One::
  insn_store id60 (typ_pointer t) v6 (value_id id1) Align.One::nil,
  insn_return_void id7).
@@ -201,21 +201,21 @@ match c1 with
 |LLVMsyntax.insn_gep id11 _ t1 (value_id id12)
    (Cons_list_sz_value _ (value_const (const_int _ i11 as c11))
      (Cons_list_sz_value _ (value_const (const_int _ i12 as c12))
-      Nil_list_sz_value)) =>
+      Nil_list_sz_value)) _ =>
   match c2 with
   |LLVMsyntax.insn_load id21 t2 (value_id id22) _ =>
     match c3 with
     |LLVMsyntax.insn_gep id31 _ t3 (value_id id32)
        (Cons_list_sz_value _ (value_const (const_int _ i31 as c31))
          (Cons_list_sz_value _ (value_const (const_int _ i32 as c32))
-         Nil_list_sz_value)) =>
+         Nil_list_sz_value)) _ =>
       match c4 with
       |LLVMsyntax.insn_load id41 t4 (value_id id42) _ =>
         match c5 with
         |LLVMsyntax.insn_gep id51 _ t5 (value_id id52)
            (Cons_list_sz_value _ (value_const (const_int _ i51 as c51))
            (Cons_list_sz_value _ (value_const (const_int _ i52 as c52))
-              Nil_list_sz_value)) =>
+              Nil_list_sz_value)) _ =>
            match c6 with
            |LLVMsyntax.insn_load id61 t6 (value_id id62) _ =>
               match pa1 with
@@ -313,19 +313,19 @@ match c1 with
 |LLVMsyntax.insn_gep id11 _ t1 (value_id id12)
    (Cons_list_sz_value _ (value_const (const_int _ i11 as c11))
      (Cons_list_sz_value _ (value_const (const_int _ i12 as c12))
-      Nil_list_sz_value)) =>
+      Nil_list_sz_value)) _ =>
   match c2 with
   |LLVMsyntax.insn_gep id21 _ t2 (value_id id22)
      (Cons_list_sz_value _ (value_const (const_int _ i21 as c21))
        (Cons_list_sz_value _ (value_const (const_int _ i22 as c22))
-       Nil_list_sz_value)) =>
+       Nil_list_sz_value)) _ =>
     match c3 with
     |LLVMsyntax.insn_store id31 t3 v3 (value_id id32) _ =>
       match c4 with
       |LLVMsyntax.insn_gep id41 _ t4 (value_id id42)
          (Cons_list_sz_value _ (value_const (const_int _ i41 as c41))
          (Cons_list_sz_value _ (value_const (const_int _ i42 as c42))
-            Nil_list_sz_value)) =>
+            Nil_list_sz_value)) _ =>
         match c5 with
         |LLVMsyntax.insn_store id51 t5 v5 (value_id id52) _ =>
            match c6 with
@@ -434,11 +434,11 @@ match c with
     (Cons_list_typ (typ_pointer p8)
     (Cons_list_typ (typ_pointer p8) Nil_list_typ)))) in
   (insn_call rid nr tc t v ((tret,nil,vret)::p)::
-   insn_gep id1 false tret vret (cpars c0 c0)::
+   insn_gep id1 false tret vret (cpars c0 c0) t::
    insn_load id2 pp32 (value_id id1) Align.One::
-   insn_gep id3 false tret vret (cpars c0 c1)::
+   insn_gep id3 false tret vret (cpars c0 c1) p8::
    insn_load id4 pp32 (value_id id3) Align.One::
-   insn_gep id5 false tret vret (cpars c0 c2)::
+   insn_gep id5 false tret vret (cpars c0 c2) p8::
    insn_load id6 pp32 (value_id id5) Align.One::nil)
 end.
 
@@ -453,10 +453,10 @@ Definition ret_ptr_to_tmn sid t id1 id2 id30 v3 id4 id50 v5 id60 v6 id7 c0 c1 c2
     (Cons_list_typ (typ_pointer t)
     (Cons_list_typ (typ_pointer p8)
     (Cons_list_typ (typ_pointer p8) Nil_list_typ)))) in
-  (insn_gep id1 false tret vret (cpars c0 c0)::
-   insn_gep id2 false tret vret (cpars c0 c1)::
+  (insn_gep id1 false tret vret (cpars c0 c0) t::
+   insn_gep id2 false tret vret (cpars c0 c1) p8::
    insn_store id30 p8 v3 (value_id id2) Align.One::
-   insn_gep id4 false tret vret (cpars c0 c2)::
+   insn_gep id4 false tret vret (cpars c0 c2) p8::
    insn_store id50 p8 v5 (value_id id4) Align.One::
    insn_store id60 (typ_pointer t) v6 (value_id id1) Align.One::nil,
    insn_return_void id7).
@@ -842,13 +842,13 @@ Inductive dbCmd : TargetData -> GVMap ->
     (insn_store sid t v1 v2 align)
     lc als Mem'
     E0 SBSE.Rok
-| dbGEP : forall TD lc gl id inbounds t v idxs vidxs mp mp' Mem als,
+| dbGEP : forall TD lc gl id inbounds t v idxs vidxs mp mp' Mem als t',
   getOperandValue TD v lc gl = Some mp ->
   values2GVs TD idxs lc gl = Some vidxs ->
-  GEP TD t mp vidxs inbounds = Some mp' ->
+  GEP TD t mp vidxs inbounds t' = Some mp' ->
   dbCmd TD gl
     lc als Mem
-    (insn_gep id inbounds t v idxs)
+    (insn_gep id inbounds t v idxs t')
     (updateAddAL _ lc id mp') als Mem
     E0 SBSE.Rok
 | dbTrunc : forall TD lc gl id truncop t1 v1 t2 gv2 Mem als,
