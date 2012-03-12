@@ -259,23 +259,6 @@ Proof.
      destruct Hin; eauto.
 Qed.
 
-Definition eq_system_targetdata (S:system) (TD:targetdata) lsd :=
-  forall S1 TD1, In (S1,TD1) lsd -> S = S1 /\ TD = TD1.
-
-Lemma eq_system_targetdata_cons_inv : forall S TD S'  TD' lsd,
-  eq_system_targetdata S TD ((S', TD') :: lsd) ->
-  eq_system_targetdata S TD lsd /\ S' = S /\ TD' = TD.
-Proof.
-  intros. 
-  unfold eq_system_targetdata in *.
-  assert (In (S', TD') ((S', TD') :: lsd)) as J. simpl. auto.
-  apply H in J. 
-  destruct J as [J1 J2]; subst.
-  split; auto.
-    intros S1 TD1 Hin.    
-    apply H. simpl. auto.
-Qed.
-
 Lemma make_list_typ_spec2 : forall
   (typ_list : list_typ)
   (system5 : system)
@@ -309,6 +292,23 @@ Proof.
     destruct R2. uniq_result.
     simpl.
     erewrite IHtyp_list; eauto.
+Qed.
+
+Definition eq_system_targetdata (S:system) (TD:targetdata) lsd :=
+  forall S1 TD1, In (S1,TD1) lsd -> S = S1 /\ TD = TD1.
+
+Lemma eq_system_targetdata_cons_inv : forall S TD S'  TD' lsd,
+  eq_system_targetdata S TD ((S', TD') :: lsd) ->
+  eq_system_targetdata S TD lsd /\ S' = S /\ TD' = TD.
+Proof.
+  intros. 
+  unfold eq_system_targetdata in *.
+  assert (In (S', TD') ((S', TD') :: lsd)) as J. simpl. auto.
+  apply H in J. 
+  destruct J as [J1 J2]; subst.
+  split; auto.
+    intros S1 TD1 Hin.    
+    apply H. simpl. auto.
 Qed.
 
 Lemma wf_styp__feasible_typ_aux_mutrec_struct : 
@@ -1190,3 +1190,4 @@ Proof.
     destruct Hft as [sz [al [J1 ?]]].
     congruence.
 Qed.
+

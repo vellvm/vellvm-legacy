@@ -1754,5 +1754,72 @@ Proof.
     rewrite <- lookupAL_updateAddAL_neq; auto.
 Qed.
 
+Lemma dom_initializeFrameValues: forall
+  (TD : TargetData) (la : args) gvs lc acc,
+  @Opsem._initializeFrameValues GVsSig TD la gvs acc = ret lc ->
+  (forall i0, i0 `in` dom lc -> i0 `in` dom acc \/ In i0 (getArgsIDs la)).
+Proof.
+  induction la as [|[[]]]; simpl; intros.
+    inv H. auto.
+
+    destruct gvs.
+      inv_mbind'.
+      rewrite updateAddAL_dom_eq in H0.
+      assert (i1 `in` (dom g) \/ i1 = i0) as J.
+        fsetdec.
+      destruct J as [J | J]; subst; auto.
+        symmetry in HeqR.
+        apply IHla with (i0:=i1) in HeqR; auto.
+        destruct HeqR as [HeqR | HeqR]; auto.
+
+      inv_mbind'.
+      rewrite updateAddAL_dom_eq in H0.
+      assert (i1 `in` (dom g0) \/ i1 = i0) as J.
+        fsetdec.
+      destruct J as [J | J]; subst; auto.
+        symmetry in HeqR.
+        apply IHla with (i0:=i1) in HeqR; auto.
+        destruct HeqR as [HeqR | HeqR]; auto.
+Qed.
+
+Lemma NotIn_getArgsIDs__NotIn_initializeFrameValues: forall
+  (TD : TargetData) (la : args) gvs (id1 : atom) lc acc,
+  @Opsem._initializeFrameValues GVsSig TD la gvs acc = ret lc ->
+  ~ In id1 (getArgsIDs la) /\ id1 `notin` dom acc ->
+  lookupAL _ lc id1 = None.
+Proof.
+  induction la as [|[]]; simpl; intros.
+    inv H.
+    destruct H0.
+    apply notin_lookupAL_None; auto.
+
+    destruct H0 as [H1 H2].
+    assert (i0 <> id1 /\ ~ In id1 (getArgsIDs la)) as J.
+      split; intro; subst; contradict H1; auto.
+    destruct J as [J1 J2].
+    destruct p.
+    destruct gvs.
+      inv_mbind'.
+      rewrite <- lookupAL_updateAddAL_neq; auto.
+      apply notin_lookupAL_None; auto.
+      intro J. symmetry in HeqR.
+      apply dom_initializeFrameValues with (i0:=id1) in HeqR; auto.
+      destruct HeqR; auto.
+
+      inv_mbind'.
+      rewrite <- lookupAL_updateAddAL_neq; auto.
+      eapply IHla; eauto.
+Qed.
+
+Lemma NotIn_getArgsIDs__NotIn_initLocals : forall TD la gvs id1 lc,
+  @Opsem.initLocals GVsSig TD la gvs = Some lc ->
+  ~ In id1 (getArgsIDs la) ->
+  lookupAL _ lc id1 = None.
+Proof.
+  unfold Opsem.initLocals.
+  intros.
+  eapply NotIn_getArgsIDs__NotIn_initializeFrameValues in H; eauto.
+Qed.
+
 End OpsemProps. End OpsemProps.
 

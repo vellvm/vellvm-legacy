@@ -288,6 +288,25 @@ Ltac inv_trans_cmds :=
     end
   end.
 
+Ltac get_wf_value_for_simop :=
+  match goal with
+  | Heqb1: exists _:_, exists _:_, exists _:_,
+             ?B = block_intro _ _ (_++_::_) _,
+    HBinF: blockInFdefB ?B _ = _ |- _ =>
+    let Heqb1':=fresh "Heqb1'" in
+    let HBinF':=fresh "HBinF'" in
+    assert (Heqb1':=Heqb1); assert (HBinF':=HBinF);
+    destruct Heqb1' as [? [? [? ?]]]; subst;
+    eapply wf_system__wf_cmd in HBinF'; eauto using in_middle;
+    inv HBinF'; 
+    match goal with
+    | H: wf_trunc _ _ _ _ _ |- _ => inv H
+    | H: wf_cast _ _ _ _ _ |- _ => inv H 
+    | H: wf_ext _ _ _ _ _ |- _ => inv H 
+    | _ => idtac
+    end
+  end.
+
 Ltac SBpass_is_correct__dsOp :=
 match goal with
 | [Hsim : sbState_simulates_State _ _
@@ -328,6 +347,9 @@ match goal with
 
   (* inv trans_cmds *)
   inv_trans_cmds; simpl in Heqb2;
+
+  (* get wf_values from wf_system *)
+  get_wf_value_for_simop;
 
   (* applying simulation of different operations *)
   repeat simulation_ops;

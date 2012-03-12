@@ -112,6 +112,10 @@ Proof.
   destruct R2 as [cs22|]; inv HeqR1.
 
   assert (Hlkf:=H).
+  assert (exists ftyp, wf_value S (module_intro los nts Ps) (fdef_intro fh1 bs1)
+            fv ftyp) as Hwfv.
+    get_wf_value_for_simop. eauto.
+  destruct Hwfv as [ftyp Hwfv].
   eapply lookupFdefViaPtr__simulation in H; eauto.
   destruct H as [fptr2 [f2 [Hget2 [Hinj2 [Hlkf' Htfdef2]]]]].
   assert (Htfdef2':=Htfdef2).
@@ -259,6 +263,10 @@ Proof.
   destruct R2 as [cs22|]; inv HeqR1.
 
   assert (Hlkf:=H).
+  assert (exists ftyp, wf_value S (module_intro los nts Ps) (fdef_intro fh1 bs1)
+            fv ftyp) as Hwfv.
+    get_wf_value_for_simop. eauto.
+  destruct Hwfv as [ftyp Hwfv].
   eapply lookupExFdecViaGV__simulation in H; eauto.
   destruct H as [fptr2 [f2 [Hget2 [Hlkf' [Hinj2 Htfdec2]]]]].
   inv Htfdec2.
@@ -377,6 +385,9 @@ Proof.
     reg_simulation mi (los, nts) gl2
             (fdef_intro (fheader_intro f t i0 a v) bs1) rm' rm2' lc' lc2')
     as Hswitch2.
+    assert (HBinF'':=HBinF').
+    eapply wf_system__blockInFdefB__wf_block in HBinF''; eauto.     
+    inv HBinF''.
     eapply switchToNewBasicBlock__reg_simulation; eauto.
 
   destruct Hswitch2 as [lc2' [Hswitch2 Hrsim']].
@@ -421,6 +432,19 @@ Proof.
     exists cs.
     repeat (split; auto).
 Qed.
+
+Ltac get_wf_value_for_simop' :=
+  match goal with
+  | Heqb1: exists _:_, exists _:_, exists _:_,
+             ?B = block_intro _ _ (_++nil) _,
+    HBinF: blockInFdefB ?B _ = _ |- _ =>
+    let Heqb1':=fresh "Heqb1'" in
+    let HBinF':=fresh "HBinF'" in
+    assert (Heqb1':=Heqb1); assert (HBinF':=HBinF);
+    destruct Heqb1' as [? [? [? ?]]]; subst;
+    eapply wf_system__wf_tmn in HBinF'; eauto using in_middle;
+    inv HBinF'
+  end.
 
 Lemma SBpass_is_correct__dsBranch : forall
   (mi : MoreMem.meminj) (mgb : Values.block) (St : Opsem.State) (S : system)
@@ -495,7 +519,8 @@ Proof.
   rewrite Hgenmeta in J1. inv J1.
 
   symmetry in H.
-  eapply simulation__getOperandValue in H; eauto.
+  eapply simulation__getOperandValue in H;
+    try solve [eauto | get_wf_value_for_simop'; eauto].
   destruct H as [c' [H Hinj]].
 
   erewrite simulation__isGVZero in H0; eauto.
@@ -530,6 +555,9 @@ Proof.
     reg_simulation mi (los, nts) gl2
             (fdef_intro (fheader_intro f t i0 a v) bs1) rm' rm2' lc' lc2')
     as Hswitch2.
+    assert (HBinF'':=HBinF').
+    eapply wf_system__blockInFdefB__wf_block in HBinF''; eauto.     
+    inv HBinF''.
     eapply switchToNewBasicBlock__reg_simulation; eauto.
 
   destruct Hswitch2 as [lc2' [Hswitch2 Hrsim']].
@@ -762,9 +790,9 @@ Proof.
         ret_insn.
           eapply Opsem.sReturn; eauto.
             unfold Opsem.returnUpdateLocals. simpl.
-            clear - Hrsim Heqogr Hwfg Hwfmi.
             symmetry in Heqogr.
-            eapply simulation__getOperandValue in Heqogr; eauto.
+            eapply simulation__getOperandValue in Heqogr;
+              try solve [eauto | get_wf_value_for_simop'; eauto].
             destruct Heqogr as [gv' [J1 J2]].
             replace (@Opsem.getOperandValue DGVs) with LLVMgv.getOperandValue;
               auto.
@@ -790,7 +818,8 @@ Proof.
     remember (lift_op1 DGVs (fit_gv (los, nts) t) gr t) as Fit.
     destruct Fit; tinv H1. simpl in Hcall'.
     symmetry in Heqogr.
-    eapply simulation__getOperandValue in Heqogr; eauto.
+    eapply simulation__getOperandValue in Heqogr;
+      try solve [eauto | get_wf_value_for_simop'; eauto].
     destruct Heqogr as [gr2 [J1 J2]].
     symmetry in HeqFit.
     Local Transparent lift_op1. simpl in HeqFit.

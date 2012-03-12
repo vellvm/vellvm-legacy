@@ -63,14 +63,6 @@ Proof.
     repeat (split; eauto using gv_inject_incr).
 Qed.
 
-Lemma gv_inject__same_size : forall mi gv1 gv2,
-  gv_inject mi gv1 gv2 ->
-  sizeGenericValue gv1 = sizeGenericValue gv2.
-Proof.
-  intros mi gv1 gv2 Hinj.
-  induction Hinj; simpl; auto.
-Qed.
-
 Lemma simulation__fit_gv : forall maxb mi TD t Mem Mem2 gv1 gv1' gv2,
   wf_sb_mi maxb mi Mem Mem2 ->
   gv_inject mi gv1 gv2 ->
@@ -109,41 +101,44 @@ Proof.
       eapply simulation___cundef_gv; eauto.
 Qed.
 
-Lemma simulation__getOperandValue : forall maxb mi rm rm2 lc lc2 TD Mem Mem2
-    gl F v gv,
+Lemma simulation__getOperandValue : forall maxb mi rm rm2 lc lc2 los nts Mem Mem2
+    gl F v gv S t ps (Hv: wf_value S (module_intro los nts ps) F v t),
   wf_globals maxb gl ->
   wf_sb_mi maxb mi Mem Mem2 ->
-  reg_simulation mi TD gl F rm rm2 lc lc2 ->
-  getOperandValue TD v lc gl = ret gv ->
+  reg_simulation mi (los,nts) gl F rm rm2 lc lc2 ->
+  getOperandValue (los,nts) v lc gl = ret gv ->
   exists gv',
-    getOperandValue TD v lc2 gl = ret gv' /\
+    getOperandValue (los,nts) v lc2 gl = ret gv' /\
     gv_inject mi gv gv'.
 Proof.
-  intros maxb mi rm rm2 lc lc2 TD Mem Mem2 gl F v gv Hwfg H0 H1 H2.
+ intros maxb mi rm rm2 lc lc2 los nts Mem Mem2 gl F v gv S t ps Hv Hwfg H0 H1 H2.
   unfold getOperandValue in *.
   destruct H1 as [H1 _].
   destruct v.
     apply H1 in H2. auto.
 
-    exists gv. split; auto. eapply sb_mem_inj__const2GV; eauto.
+    exists gv. split; auto. inv Hv.
+    eapply sb_mem_inj__const2GV; eauto.
 Qed.
 
-Lemma simulation__BOP : forall maxb mi rm rm2 lc lc2 TD Mem Mem2 gl F bop0 sz0
-    v1 v2 gv3,
+Lemma simulation__BOP : forall maxb mi rm rm2 lc lc2 los nts Mem Mem2 gl F bop0 
+    sz0 v1 v2 gv3 S ps 
+    (Hv1: wf_value S (module_intro los nts ps) F v1 (typ_int sz0))
+    (Hv2: wf_value S (module_intro los nts ps) F v2 (typ_int sz0)),
   wf_globals maxb gl ->
   wf_sb_mi maxb mi Mem Mem2 ->
-  reg_simulation mi TD gl F rm rm2 lc lc2 ->
-  BOP TD lc gl bop0 sz0 v1 v2 = ret gv3 ->
+  reg_simulation mi (los,nts) gl F rm rm2 lc lc2 ->
+  BOP (los,nts) lc gl bop0 sz0 v1 v2 = ret gv3 ->
   exists gv3',
-    BOP TD lc2 gl bop0 sz0 v1 v2 = ret gv3' /\
+    BOP (los,nts) lc2 gl bop0 sz0 v1 v2 = ret gv3' /\
     gv_inject mi gv3 gv3'.
 Proof.
-  intros maxb mi rm rm2 lc lc2 TD Mem Mem2 gl F bop0 sz0 v1 v2 gv3 Hwfg H0
-    H1 H3.
+  intros maxb mi rm rm2 lc lc2 los nts Mem Mem2 gl F bop0 sz0 v1 v2 gv3 S 
+    ps Hv1 Hv2 Hwfg H0 H1 H3.
   unfold BOP in *.
-  remember (getOperandValue TD v1 lc gl) as R1.
+  remember (getOperandValue (los,nts) v1 lc gl) as R1.
   destruct R1; inv H3.
-  remember (getOperandValue TD v2 lc gl) as R2.
+  remember (getOperandValue (los,nts) v2 lc gl) as R2.
   destruct R2; inv H2.
   symmetry in HeqR1.
   eapply simulation__getOperandValue in HeqR1; eauto.
@@ -156,22 +151,24 @@ Proof.
   eapply simulation__mbop in H3; eauto.
 Qed.
 
-Lemma simulation__FBOP : forall maxb mi rm rm2 lc lc2 TD Mem Mem2 gl F fop0 fp
-    v1 v2 gv3,
+Lemma simulation__FBOP : forall maxb mi rm rm2 lc lc2 los nts Mem Mem2 gl F fop0 
+    fp v1 v2 gv3 S ps 
+    (Hv1: wf_value S (module_intro los nts ps) F v1 (typ_floatpoint fp))
+    (Hv2: wf_value S (module_intro los nts ps) F v2 (typ_floatpoint fp)),
   wf_globals maxb gl ->
   wf_sb_mi maxb mi Mem Mem2 ->
-  reg_simulation mi TD gl F rm rm2 lc lc2 ->
-  FBOP TD lc gl fop0 fp v1 v2 = ret gv3 ->
+  reg_simulation mi (los,nts) gl F rm rm2 lc lc2 ->
+  FBOP (los,nts) lc gl fop0 fp v1 v2 = ret gv3 ->
   exists gv3',
-    FBOP TD lc2 gl fop0 fp v1 v2 = ret gv3' /\
+    FBOP (los,nts) lc2 gl fop0 fp v1 v2 = ret gv3' /\
     gv_inject mi gv3 gv3'.
 Proof.
-  intros maxb mi rm rm2 lc lc2 TD Mem Mem2 gl F fop0 fp v1 v2 gv3 Hwfg H0
-    H1 H3.
+  intros maxb mi rm rm2 lc lc2 los nts Mem Mem2 gl F fop0 fp v1 v2 gv3 S
+    ps Hv1 Hv2 Hwfg H0 H1 H3.
   unfold FBOP in *.
-  remember (getOperandValue TD v1 lc gl) as R1.
+  remember (getOperandValue (los,nts) v1 lc gl) as R1.
   destruct R1; inv H3.
-  remember (getOperandValue TD v2 lc gl) as R2.
+  remember (getOperandValue (los,nts) v2 lc gl) as R2.
   destruct R2; inv H2.
   symmetry in HeqR1.
   eapply simulation__getOperandValue in HeqR1; eauto.
@@ -184,23 +181,29 @@ Proof.
   eapply simulation__mfbop in H3; eauto.
 Qed.
 
-Lemma simulation__values2GVs : forall maxb mi rm rm2 lc lc2 TD Mem Mem2
-    gl F idxs gvs,
+Lemma simulation__values2GVs : forall maxb mi rm rm2 lc lc2 los nts Mem Mem2
+    gl F S ps idxs gvs 
+  (Ht: wf_value_list 
+    (make_list_system_module_fdef_value_typ 
+      (map_list_sz_value 
+        (fun (sz_:sz) (value_:value) => 
+         (S,(module_intro los nts ps),F,value_,typ_int Size.ThirtyTwo)) idxs))),
   wf_globals maxb gl ->
   wf_sb_mi maxb mi Mem Mem2 ->
-  reg_simulation mi TD gl F rm rm2 lc lc2 ->
-  values2GVs TD idxs lc gl = ret gvs ->
+  reg_simulation mi (los,nts) gl F rm rm2 lc lc2 ->
+  values2GVs (los,nts) idxs lc gl = ret gvs ->
   exists gvs',
-    values2GVs TD idxs lc2 gl = ret gvs' /\
+    values2GVs (los,nts) idxs lc2 gl = ret gvs' /\
     gvs_inject mi gvs gvs'.
 Proof.
   induction idxs; simpl; intros.
     inv H2.
     exists nil. simpl. split; auto.
 
-    remember (getOperandValue TD v lc gl) as R.
+    inv Ht.
+    remember (getOperandValue (los,nts) v lc gl) as R.
     destruct R; tinv H2.
-    remember (values2GVs TD idxs lc gl) as R1.
+    remember (values2GVs (los,nts) idxs lc gl) as R1.
     destruct R1; inv H2.
     symmetry in HeqR, HeqR1.
     eapply simulation__getOperandValue in HeqR; eauto.
@@ -214,18 +217,18 @@ Proof.
       simpl. split; auto.
 Qed.
 
-Lemma simulation__TRUNC : forall maxb mi rm rm2 lc lc2 TD Mem Mem2 gl F t1
-    v1 gv3 op t2,
+Lemma simulation__TRUNC : forall maxb mi rm rm2 lc lc2 los nts Mem Mem2 gl F t1
+    v1 gv3 op t2 S ps (Hv1: wf_value S (module_intro los nts ps) F v1 t1),
   wf_globals maxb gl ->
   wf_sb_mi maxb mi Mem Mem2 ->
-  reg_simulation mi TD gl F rm rm2 lc lc2 ->
-  TRUNC TD lc gl op t1 v1 t2 = ret gv3 ->
+  reg_simulation mi (los,nts) gl F rm rm2 lc lc2 ->
+  TRUNC (los,nts) lc gl op t1 v1 t2 = ret gv3 ->
   exists gv3',
-    TRUNC TD lc2 gl op t1 v1 t2 = ret gv3' /\
+    TRUNC (los,nts) lc2 gl op t1 v1 t2 = ret gv3' /\
     gv_inject mi gv3 gv3'.
 Proof. intros.
   unfold TRUNC in *.
-  remember (getOperandValue TD v1 lc gl) as R1.
+  remember (getOperandValue (los,nts) v1 lc gl) as R1.
   destruct R1; inv H2.
   symmetry in HeqR1.
   eapply simulation__getOperandValue in HeqR1; eauto.
@@ -234,18 +237,18 @@ Proof. intros.
   eapply simulation__mtrunc in H4; eauto.
 Qed.
 
-Lemma simulation__EXT : forall maxb mi rm rm2 lc lc2 TD Mem Mem2 gl F t1
-    v1 gv3 op t2,
+Lemma simulation__EXT : forall maxb mi rm rm2 lc lc2 los nts Mem Mem2 gl F t1
+    v1 gv3 op t2 S ps (Hv1: wf_value S (module_intro los nts ps) F v1 t1),
   wf_globals maxb gl ->
   wf_sb_mi maxb mi Mem Mem2 ->
-  reg_simulation mi TD gl F rm rm2 lc lc2 ->
-  EXT TD lc gl op t1 v1 t2 = ret gv3 ->
+  reg_simulation mi (los,nts) gl F rm rm2 lc lc2 ->
+  EXT (los,nts) lc gl op t1 v1 t2 = ret gv3 ->
   exists gv3',
-    EXT TD lc2 gl op t1 v1 t2 = ret gv3' /\
+    EXT (los,nts) lc2 gl op t1 v1 t2 = ret gv3' /\
     gv_inject mi gv3 gv3'.
 Proof. intros.
   unfold EXT in *.
-  remember (getOperandValue TD v1 lc gl) as R1.
+  remember (getOperandValue (los,nts) v1 lc gl) as R1.
   destruct R1; inv H2.
   symmetry in HeqR1.
   eapply simulation__getOperandValue in HeqR1; eauto.
@@ -254,18 +257,18 @@ Proof. intros.
   eapply simulation__mext in H4; eauto.
 Qed.
 
-Lemma simulation__CAST : forall maxb mi rm rm2 lc lc2 TD Mem Mem2 gl F t1
-    v1 gv3 op t2,
+Lemma simulation__CAST : forall maxb mi rm rm2 lc lc2 los nts Mem Mem2 gl F t1
+    v1 gv3 op t2 S ps (Hv1: wf_value S (module_intro los nts ps) F v1 t1),
   wf_globals maxb gl ->
   wf_sb_mi maxb mi Mem Mem2 ->
-  reg_simulation mi TD gl F rm rm2 lc lc2 ->
-  CAST TD lc gl op t1 v1 t2 = ret gv3 ->
+  reg_simulation mi (los,nts) gl F rm rm2 lc lc2 ->
+  CAST (los,nts) lc gl op t1 v1 t2 = ret gv3 ->
   exists gv3',
-    CAST TD lc2 gl op t1 v1 t2 = ret gv3' /\
+    CAST (los,nts) lc2 gl op t1 v1 t2 = ret gv3' /\
     gv_inject mi gv3 gv3'.
 Proof. intros.
   unfold CAST in *.
-  remember (getOperandValue TD v1 lc gl) as R1.
+  remember (getOperandValue (los,nts) v1 lc gl) as R1.
   destruct R1; inv H2.
   symmetry in HeqR1.
   eapply simulation__getOperandValue in HeqR1; eauto.
@@ -274,20 +277,21 @@ Proof. intros.
   eapply simulation__mcast in H4; eauto.
 Qed.
 
-Lemma simulation__ICMP : forall maxb mi rm rm2 lc lc2 TD Mem Mem2 gl F t1
-    v1 gv3 cond0 v2,
+Lemma simulation__ICMP : forall maxb mi rm rm2 lc lc2 los nts Mem Mem2 gl F t1
+    v1 gv3 cond0 v2 S ps (Hv1: wf_value S (module_intro los nts ps) F v1 t1)
+    (Hv2: wf_value S (module_intro los nts ps) F v2 t1),
   wf_globals maxb gl ->
   wf_sb_mi maxb mi Mem Mem2 ->
-  reg_simulation mi TD gl F rm rm2 lc lc2 ->
-  ICMP TD lc gl cond0 t1 v1 v2 = ret gv3 ->
+  reg_simulation mi (los,nts) gl F rm rm2 lc lc2 ->
+  ICMP (los,nts) lc gl cond0 t1 v1 v2 = ret gv3 ->
   exists gv3',
-    ICMP TD lc2 gl cond0 t1 v1 v2 = ret gv3' /\
+    ICMP (los,nts) lc2 gl cond0 t1 v1 v2 = ret gv3' /\
     gv_inject mi gv3 gv3'.
 Proof. intros.
   unfold ICMP in *.
-  remember (getOperandValue TD v1 lc gl) as R1.
+  remember (getOperandValue (los,nts) v1 lc gl) as R1.
   destruct R1; inv H2.
-  remember (getOperandValue TD v2 lc gl) as R2.
+  remember (getOperandValue (los,nts) v2 lc gl) as R2.
   destruct R2; inv H4.
   symmetry in HeqR1.
   eapply simulation__getOperandValue in HeqR1; eauto.
@@ -300,20 +304,22 @@ Proof. intros.
   eapply simulation__micmp in H3; eauto.
 Qed.
 
-Lemma simulation__FCMP : forall maxb mi rm rm2 lc lc2 TD Mem Mem2 gl F fp
-    v1 gv3 fcond0 v2,
+Lemma simulation__FCMP : forall maxb mi rm rm2 lc lc2 los nts Mem Mem2 gl F fp
+    v1 gv3 fcond0 v2 S ps 
+    (Hv1: wf_value S (module_intro los nts ps) F v1 (typ_floatpoint fp))
+    (Hv2: wf_value S (module_intro los nts ps) F v2 (typ_floatpoint fp)),
   wf_globals maxb gl ->
   wf_sb_mi maxb mi Mem Mem2 ->
-  reg_simulation mi TD gl F rm rm2 lc lc2 ->
-  FCMP TD lc gl fcond0 fp v1 v2 = ret gv3 ->
+  reg_simulation mi (los,nts) gl F rm rm2 lc lc2 ->
+  FCMP (los,nts) lc gl fcond0 fp v1 v2 = ret gv3 ->
   exists gv3',
-    FCMP TD lc2 gl fcond0 fp v1 v2 = ret gv3' /\
+    FCMP (los,nts) lc2 gl fcond0 fp v1 v2 = ret gv3' /\
     gv_inject mi gv3 gv3'.
 Proof. intros.
   unfold FCMP in *.
-  remember (getOperandValue TD v1 lc gl) as R1.
+  remember (getOperandValue (los,nts) v1 lc gl) as R1.
   destruct R1; inv H2.
-  remember (getOperandValue TD v2 lc gl) as R2.
+  remember (getOperandValue (los,nts) v2 lc gl) as R2.
   destruct R2; inv H4.
   symmetry in HeqR1.
   eapply simulation__getOperandValue in HeqR1; eauto.
@@ -362,7 +368,6 @@ Proof.
   destruct R as [[ex_ids4 cs2]|]; inv H.
   exists ex_ids3. exists cs1. exists cs2. eauto.
 Qed.
-
 
 Lemma mem_simulation__malloc : forall mi TD MM Mem Mem2 tsz gn align0 Mem' mb
     mgb,
@@ -1214,6 +1219,11 @@ Proof.
       rewrite <- lookupAL_updateAddAL_neq in Hlk; eauto.
 Qed.
 
+(* FIXME: we might prove this. *)
+Axiom get_const_metadata__wf_const: forall S td c c1 c2
+  (Hc: get_const_metadata c = munit (c1, c2)),
+  wf_const S td c1 p8 /\ wf_const S td c2 p8.
+
 Lemma reg_simulation__updateAddAL_md : forall mi los nts gl f1 rm1 rm2 lc1 lc2
     id0 blk1 bofs1 eofs1 bgv2 egv2 bid eid mgb M1 M2 ex_ids
   (Hwfmi : wf_sb_mi mgb mi M1 M2)
@@ -1308,6 +1318,8 @@ Proof.
           rewrite J1.
           exists ((Vptr blk0 bofs0, AST.Mint 31) :: nil).
           exists ((Vptr blk0 eofs0, AST.Mint 31) :: nil).
+          apply get_const_metadata__wf_const with (S:=nil)(td:=(los,nts)) in J1.
+          destruct J1.
           repeat (split; eauto using sb_mem_inj__const2GV).
 
   SSCase "rsim3".
@@ -1463,6 +1475,8 @@ Proof.
           rewrite J1.
           exists ((Vptr blk1 bofs1, AST.Mint 31) :: nil).
           exists ((Vptr blk1 eofs1, AST.Mint 31) :: nil).
+          apply get_const_metadata__wf_const with (S:=nil)(td:=(los,nts)) in J1.
+          destruct J1.
           repeat (split; eauto using sb_mem_inj__const2GV).
 
     SSCase "rsim3". destruct Hrsim as [_ [_ Hrsim]]; auto.
@@ -2262,7 +2276,8 @@ Proof.
 Qed.
 
 Lemma lookupFdefViaPtr__simulation : forall mi los nts gl2 F rm rm2 lc lc2 f1
-    fv Ps1 Ps2 fs1 fs2 M1 M2 mgb fptr1,
+    fv Ps1 Ps2 fs1 fs2 M1 M2 mgb fptr1 S t 
+    (Hv: wf_value S (module_intro los nts Ps1) F fv t),
   wf_globals mgb  gl2 ->
   wf_sb_mi mgb mi M1 M2 ->
   reg_simulation mi (los,nts) gl2 F rm rm2 lc lc2 ->
@@ -2398,7 +2413,8 @@ Proof.
 Qed.
 
 Lemma lookupExFdecViaGV__simulation : forall mi los nts gl2 F rm rm2 lc lc2 f1
-    fv Ps1 Ps2 fs1 fs2 M1 M2 mgb fptr1,
+    fv Ps1 Ps2 fs1 fs2 M1 M2 mgb fptr1 S t 
+    (Hv: wf_value S (module_intro los nts Ps1) F fv t),
   wf_globals mgb gl2 ->
   wf_sb_mi mgb mi M1 M2 ->
   reg_simulation mi (los,nts) gl2 F rm rm2 lc lc2 ->
@@ -2480,35 +2496,47 @@ Proof.
       eauto.
 Qed.
 
-Lemma getIncomingValuesForBlockFromPHINodes__reg_simulation : forall M1 M2 TD gl
-  mi F B1 B2 rm2 mgb
-  (Hwfmi : wf_sb_mi mgb mi M1 M2)
-  (Hwfg : wf_globals mgb gl)
-  ps1 lc1 rm1 re1 lc2 ps2,
-  reg_simulation mi TD gl F rm1 rm2 lc1 lc2 ->
-  SBspec.getIncomingValuesForBlockFromPHINodes TD ps1 B1 gl lc1 rm1
+Lemma getIncomingValuesForBlockFromPHINodes__reg_simulation : forall M1 M2 los 
+  nts gl mi F B1 B2 rm2 mgb S1 Ps1
+    (Hwfmi : wf_sb_mi mgb mi M1 M2)
+  (Hwfg : wf_globals mgb gl) B1'
+  ps1 (Hwfps: wf_phinodes S1 (module_intro los nts Ps1) F B1' ps1) 
+  lc1 rm1 re1 lc2 ps2,
+  reg_simulation mi (los,nts) gl F rm1 rm2 lc1 lc2 ->
+  SBspec.getIncomingValuesForBlockFromPHINodes (los,nts) ps1 B1 gl lc1 rm1
     = Some re1 ->
   label_of_block B1 = label_of_block B2 ->
   trans_phinodes rm2 ps1 = Some ps2 ->
   exists re2,
-    Opsem.getIncomingValuesForBlockFromPHINodes TD ps2 B2 gl lc2 = Some re2
+    Opsem.getIncomingValuesForBlockFromPHINodes (los,nts) ps2 B2 gl lc2 = Some re2
       /\ incomingValues_simulation mi re1 rm2 re2.
 Proof.
-  induction ps1; simpl; intros lc1 rm1 re1 lc2 ps2 Hrsim Hget Heq Htrans; auto.
+  induction ps1; simpl; 
+    intros Hwfps lc1 rm1 re1 lc2 ps2 Hrsim Hget Heq Htrans; auto.
     inv Hget. inv Htrans. simpl. exists nil. auto.
 
+    inv Hwfps.
     destruct a as [id0 t vls].
     remember (trans_phinodes rm2 ps1) as R.
     destruct R as [ps2'|]; try solve [inv Htrans].
     remember (getValueViaBlockFromValuels vls B1) as R1.
     destruct R1 as [v|]; try solve [inv Hget].
-    remember (Opsem.getOperandValue TD v lc1 gl) as R2.
+    remember (Opsem.getOperandValue (los,nts) v lc1 gl) as R2.
     destruct R2 as [gv1|]; try solve [inv Hget].
-    remember (SBspec.getIncomingValuesForBlockFromPHINodes TD ps1 B1 gl lc1
-      rm1) as R3.
+    remember (SBspec.getIncomingValuesForBlockFromPHINodes (los,nts) ps1 B1 gl 
+      lc1 rm1) as R3.
     destruct R3 as [idgvs|]; try solve [inv Hget].
+    assert (wf_value S1 (module_intro los nts Ps1) F v t) as Hwft.
+      match goal with
+      | H5: wf_insn _ _ _ _ _ |- _ => inv H5;
+        match goal with
+        | H2: wf_value_list _ |- _ => 
+           eapply wf_value_list__getValueViaBlockFromValuels__wf_value in H2; 
+             eauto
+        end
+      end.
     destruct (isPointerTypB t).
-      remember (SBspecAux.get_reg_metadata TD gl rm1 v) as R4.
+      remember (SBspecAux.get_reg_metadata (los,nts) gl rm1 v) as R4.
       destruct R4 as [[bgv1 egv1]|]; inv Hget.
       remember (get_metadata_from_list_value_l rm2 vls) as R5.
       destruct R5 as [[bvls0 evls0]|]; try solve [inv Htrans].
@@ -2657,7 +2685,8 @@ Proof.
 Qed.
 
 Lemma switchToNewBasicBlock__reg_simulation : forall mi nts los gl f1 rm1 rm2 lc1
-  lc2 B1 B2 l0 ps1 cs1 tmn ps2 cs2 lc1' rm1' M1 M2 mgb ex_ids
+  lc2 B1 B2 l0 ps1 cs1 tmn ps2 cs2 lc1' rm1' M1 M2 mgb ex_ids S1 Ps1
+  B1' (Hwfps: wf_phinodes S1 (module_intro los nts Ps1) f1 B1' ps1) 
   (Hwfmi : wf_sb_mi mgb mi M1 M2)
   (Hwfg : wf_globals mgb gl),
   blockInFdefB (block_intro l0 ps1 cs1 tmn) f1 = true ->
@@ -2672,7 +2701,8 @@ Lemma switchToNewBasicBlock__reg_simulation : forall mi nts los gl f1 rm1 rm2 lc
     reg_simulation mi (los,nts) gl f1 rm1' rm2 lc1' lc2'.
 Proof.
   intros mi nts los gl f1 rm1 rm2 lc1 lc2 B1 B2 l0 ps1 cs1 tmn ps2 cs2 lc1' rm1'
-    M1 M2 mgb ex_ids Hwfmi Hwfg HBinF Hgenmd Hrsim Hswitch Hleq Htphis.
+    M1 M2 mgb ex_ids S1 Ps1 B1' Hwfps Hwfmi Hwfg HBinF Hgenmd Hrsim Hswitch Hleq 
+    Htphis.
   unfold SBspec.switchToNewBasicBlock in Hswitch.
   unfold Opsem.switchToNewBasicBlock. simpl in *.
   remember (SBspec.getIncomingValuesForBlockFromPHINodes (los,nts) ps1 B1 gl

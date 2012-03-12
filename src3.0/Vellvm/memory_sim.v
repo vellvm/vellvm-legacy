@@ -4,6 +4,7 @@ Require Import Coqlib.
 Require Import Integers.
 Require Import AST.
 Require Import Znumtheory.
+Require Import vellvm_tactics.
 
 Module MoreMem.
 
@@ -675,6 +676,27 @@ Proof.
 Qed.
 
 Global Opaque load alloc.
+
+Lemma free_left_nonmap_inj:
+  forall f m1 m2 b lo hi m1' (Hprop: f b = None),
+  mem_inj f m1 m2 ->
+  Mem.free m1 b lo hi = Some m1' ->
+  mem_inj f m1' m2.
+Proof.
+  intros. exploit Mem.free_result; eauto. intro FREE. inversion H. constructor.
+(* access *)
+  intros. eauto with mem.
+(* mem_contents *)
+  intros. rewrite FREE; simpl.
+  assert (b=b1 /\ lo <= ofs < hi \/ (b<>b1 \/ ofs<lo \/ hi <= ofs))
+    by (unfold Values.block; omega).
+  destruct H3.
+    destruct H3. subst b1. uniq_result.
+
+    rewrite (Mem.clearN_out _ _ _ _ _ _ H3).
+    apply mi_memval; auto.
+    eapply Mem.perm_free_3; eauto.
+Qed.
 
 End MoreMem.
 

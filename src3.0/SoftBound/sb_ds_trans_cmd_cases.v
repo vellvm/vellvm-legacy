@@ -580,10 +580,11 @@ Proof.
   apply Hrsim2 in H; auto.
   destruct H as [bv2 [ev2 [bgv2 [egv2 [Hgetr [Hget1 [Hget2 [Hinj1 Hinj2]]]]]]]].
   rewrite Hgetrm in Hgetr. inv Hgetr.
-  eapply simulation__getOperandValue with (mi:=mi)(Mem2:=M2) in H0; eauto.
+  eapply simulation__getOperandValue with (mi:=mi)(Mem2:=M2) in H0;
+    try solve [eauto | get_wf_value_for_simop; eauto].
   destruct H0 as [gv' [H0 Hinj]].
-
-  eapply simulation__values2GVs with (mi:=mi)(Mem2:=M2) in H1; eauto.
+  eapply simulation__values2GVs with (mi:=mi)(Mem2:=M2) in H1;
+    try solve [eauto | get_wf_value_for_simop; eauto].
   destruct H1 as [gvs' [H1 Hinj']].
   eapply simulation__GEP in H2; eauto.
   destruct H2 as [gvp2 [H2 Hinj'']].
@@ -701,7 +702,8 @@ Proof.
   apply Hrsim2 in H1; auto.
   destruct H1 as [bv2 [ev2 [bgv2 [egv2 [Hgetr [Hget1 [Hget2 [Hinj1 Hinj2]]]]]]]].
   rewrite Hgetrm in Hgetr. inv Hgetr.
-  eapply simulation__CAST in H; eauto.
+  eapply simulation__CAST in H; 
+    try solve [eauto | get_wf_value_for_simop; eauto].
   destruct H as [gv3' [Hcast Hinj]].
   exists (Opsem.mkState
           ((Opsem.mkEC (fdef_intro fh2 bs2) B2
@@ -803,7 +805,7 @@ Proof.
   destruct R1 as [[ex_ids3' cs3]|]; inv Htcmds.
 
   invert_prop_reg_metadata.
-  eapply simulation__CAST in H; eauto.
+  eapply simulation__CAST in H; try solve [eauto| get_wf_value_for_simop; eauto].
   destruct H as [gv3' [Hcast Hinj]].
   exists (Opsem.mkState
           ((Opsem.mkEC (fdef_intro fh2 bs2) B2
@@ -917,6 +919,14 @@ Proof.
       repeat (split; auto).
 Qed.
 
+Ltac SBpass_is_correct__dsSelect_ptr_tac :=
+match goal with
+| Httmn : trans_terminator ?rm3 _ = munit _,
+  H13: wf_value _ _ _ ?v0 _ |- id_fresh_in_value ?v0 _ => 
+   eapply wf_value_id__in_getFdefLocs in H13; auto;
+   eapply get_reg_metadata_fresh' with (rm2:=rm3); eauto; try fsetdec
+end.
+
 Lemma SBpass_is_correct__dsSelect_ptr : forall (mi : MoreMem.meminj)
   (mgb : Values.block)
   (St : Opsem.State) (S : system) (TD : TargetData) (Ps : list product)
@@ -976,11 +986,14 @@ Proof.
   simpl in Htcmds.
   rewrite H2 in Htcmds.
   assert (Hc := H).
-  eapply simulation__getOperandValue with (mi:=mi)(Mem2:=M2) in Hc; eauto.
+  eapply simulation__getOperandValue with (mi:=mi)(Mem2:=M2) in Hc;
+    try solve [eauto| get_wf_value_for_simop; eauto].
   destruct Hc as [c' [Hc Hinjc]].
-  eapply simulation__getOperandValue with (mi:=mi)(Mem2:=M2) in H0; eauto.
+  eapply simulation__getOperandValue with (mi:=mi)(Mem2:=M2) in H0; 
+    try solve [eauto| get_wf_value_for_simop; eauto].
   destruct H0 as [gv1' [H0 Hinj1]].
-  eapply simulation__getOperandValue with (mi:=mi)(Mem2:=M2) in H1; eauto.
+  eapply simulation__getOperandValue with (mi:=mi)(Mem2:=M2) in H1; 
+    try solve [eauto| get_wf_value_for_simop; eauto].
   destruct H1 as [gv2' [H1 Hinj2]].
 
   assert (isGVZero (los, nts) c = isGVZero (los, nts) c') as Heqc.
@@ -1014,15 +1027,6 @@ Proof.
     destruct Heqb1 as [l1 [ps1 [cs11 Heqb1]]]; subst.
     eapply wf_system__wf_cmd with (c:=insn_select id0 v0 t v1 v2) in Hwfc; eauto.
       inv Hwfc.
-
-Ltac SBpass_is_correct__dsSelect_ptr_tac :=
-match goal with
-| Httmn : trans_terminator ?rm3 _ = munit _,
-  H13: wf_value _ _ _ ?v0 _ |- id_fresh_in_value ?v0 _ => 
-   eapply wf_value_id__in_getFdefLocs in H13; auto;
-   eapply get_reg_metadata_fresh' with (rm2:=rm3); eauto; try fsetdec
-end.
- 
       split; try SBpass_is_correct__dsSelect_ptr_tac.
       split; SBpass_is_correct__dsSelect_ptr_tac.
 

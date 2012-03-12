@@ -906,11 +906,12 @@ Jwf_insn :: '' ::=
 
       % Check typs
       system , (layouts namedts products) , fdef |- value : typ
-      </ system , (layouts namedts) |-c constj : typ'' // j />
+      </ system , targetdata |-c constj : typ'' // j />
       typ'' = i32
       % Check indexs
-      checkIndexes (layouts namedts) typ </ constj // j /> = typ'
-      system , (layouts namedts) |- typ'
+      checkIndexes targetdata typ </ constj // j /> = typ'
+      system , targetdata |- typ'
+      targetdata = (layouts namedts)
       % Check invariance for instructions
       fdef , block |-i id = extractvalue typ value </ constj // j />
       -------------------------------------------------------------------------------------- :: wf_insn_extractvalue
@@ -919,10 +920,11 @@ Jwf_insn :: '' ::=
       % Check typs
       system , (layouts namedts products) , fdef |- value : typ
       system , (layouts namedts products) , fdef |- value' : typ'
-      </ system , (layouts namedts) |-c constj : typ'' // j />
+      </ system , targetdata |-c constj : typ'' // j />
       typ'' = i32
       % Check indexs
-      checkIndexes (layouts namedts) typ </ constj // j /> = typ'
+      checkIndexes targetdata typ </ constj // j /> = typ'
+      targetdata = (layouts namedts)
       % Check invariance for instructions
       fdef , block |-i id = insertvalue typ value typ' value' </ constj // j />
       -------------------------------------------------------------------------------------- :: wf_insn_insertvalue

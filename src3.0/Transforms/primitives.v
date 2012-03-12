@@ -562,3 +562,193 @@ Proof.
   rewrite fold_left_app.
 Admitted.
 
+Lemma used_in_blocks_cons_inv : forall bs5 id0 b5,
+  fold_left (fun (re : bool) b => re || used_in_block id0 b)
+    bs5 (used_in_block id0 b5) = false ->
+  used_in_block id0 b5 = false /\
+    fold_left (fun (re : bool) b => re || used_in_block id0 b) bs5 false
+      = false.
+Proof.
+  intros.
+  destruct (used_in_block id0 b5); auto.
+    apply fold_left_eq in H.
+      congruence.
+      intros. binvf H0 as J1 J2; auto.
+Qed.
+
+Lemma used_in_blocks__used_in_block : forall id0 b bs,
+  fold_left (fun (re : bool) (b0 : block) => re || used_in_block id0 b0) bs
+    false = false ->
+  InBlocksB b bs = true ->
+  used_in_block id0 b = false.
+Proof.
+  induction bs; simpl; intros.
+    congruence.
+
+    apply used_in_blocks_cons_inv in H. destruct H.
+    binvt H0 as J1 J2; auto.
+      apply blockEqB_inv in J1. subst. auto.
+Qed.
+
+Lemma used_in_cmds_cons_inv : forall cs5 id0 c5
+  (Hnouse : List.fold_left (fun re c => re || used_in_cmd id0 c) cs5
+    (used_in_cmd id0 c5) = false),
+  used_in_cmd id0 c5 = false /\
+    fold_left (fun (re : bool) c => re || used_in_cmd id0 c) cs5 false = false.
+Proof.
+  intros.
+  destruct (used_in_cmd id0 c5); auto.
+    apply fold_left_eq in Hnouse.
+      congruence.
+      intros. binvf H as J1 J2; auto.
+Qed.
+
+Lemma used_in_cmds__used_in_cmd : forall id0 c cs,
+  fold_left (fun (re : bool) c => re || used_in_cmd id0 c) cs
+    false = false ->
+  In c cs ->
+  used_in_cmd id0 c = false.
+Proof.
+  induction cs; simpl; intros.
+    inv H0.
+
+    apply used_in_cmds_cons_inv in H. destruct H.
+    destruct H0 as [H0 | H0]; subst; auto.
+Qed.
+
+Lemma used_in_list_value__used_in_value: forall id0 v vs,
+  used_in_list_value id0 vs = false ->
+  valueInListValue v vs ->
+  used_in_value id0 v = false.
+Proof.
+  induction vs; simpl; intros.
+    destruct v; auto.
+      unfold valueInListValue in H0. simpl in H0. inv H0.
+
+    unfold valueInListValue in H0.
+    simpl in H0.
+    binvf H as J3 J4; destruct H0 as [H0 | H0]; subst; auto.
+Qed.
+
+Lemma used_in_parameters_cons_inv : forall (ps:list (typ * attributes * value))
+  (id0:id) (a:typ * attributes * value)
+  (Hnouse : fold_left
+        (fun (acc : bool) (p : typ * attributes * value) =>
+         let '(_, v) := p in used_in_value id0 v || acc) ps
+        (let '(_, v) := a in used_in_value id0 v || false) = false),
+  (let '(_, v) := a in used_in_value id0 v = false) /\
+  fold_left
+        (fun (acc : bool) (p : typ * attributes * value) =>
+         let '(_, v) := p in used_in_value id0 v || acc) ps false = false.
+Proof.
+  intros.
+  destruct a.
+  destruct (used_in_value id0 v); auto.
+  apply fold_left_eq in Hnouse.
+    binvf Hnouse as J1 J2. congruence.
+
+    intros. destruct b.
+    binvf H as J1 J2; auto.
+Qed.
+
+Lemma valueInParams__used_in_value : forall id0 v p,
+  fold_left
+         (fun (acc : bool) (p : typ * attributes * value) =>
+          let '(_, v) := p in used_in_value id0 v || acc) p false = false ->
+  valueInParams v p ->
+  used_in_value id0 v = false.
+Proof.
+  induction p; simpl; intros.
+    destruct v; auto.
+      unfold valueInParams in H0. simpl in H0. inv H0.
+
+    apply used_in_parameters_cons_inv in H.
+    destruct H as [H1 H2].
+    unfold valueInParams in H0.
+    destruct a. simpl in H0.
+    remember (split p) as R.
+    destruct R.
+    simpl in H0.
+    destruct H0 as [H0 | H0]; subst; auto.
+    apply IHp; auto.
+    unfold valueInParams. rewrite <- HeqR. auto.
+Qed.
+
+Lemma used_in_cmd__used_in_value : forall id0 v c,
+  used_in_cmd id0 c = false ->
+  valueInCmdOperands v c ->
+  used_in_value id0 v = false.
+Proof.
+  induction c; simpl; intros;
+    try solve [
+      binvf H as J3 J4; destruct H0 as [H0 | H0]; subst; auto |
+      subst; auto
+    ].
+
+    binvf H as J3 J4; destruct H0 as [H0 | H0]; subst; auto.
+    eapply used_in_list_value__used_in_value; eauto.
+
+    binvf H as J1 J2. binvf J1 as J1 J3.
+    destruct H0 as [H0 | [H0 | H0]]; subst; auto.
+
+    binvf H as J1 J2.
+    destruct H0 as [H0 | H0]; subst; auto.
+    eapply valueInParams__used_in_value; eauto.
+Qed.
+
+Lemma used_in_fdef__used_in_cmd_value : forall id0 l3 ps1 cs c v tmn1 F1,
+  used_in_fdef id0 F1 = false ->
+  blockInFdefB (block_intro l3 ps1 cs tmn1) F1 = true ->
+  valueInCmdOperands v c -> In c cs ->
+  used_in_value id0 v = false.
+Proof.
+  destruct F1. simpl. intros.
+  eapply used_in_blocks__used_in_block in H0; eauto.
+  binvf H0 as J3 J4. binvf J3 as J1 J2.
+  eapply used_in_cmds__used_in_cmd in J2; eauto.
+  eapply used_in_cmd__used_in_value in H1; eauto.
+Qed.
+
+Lemma used_in_tmn__used_in_value : forall id0 v tmn,
+  used_in_tmn id0 tmn = false ->
+  valueInTmnOperands v tmn ->
+  used_in_value id0 v = false.
+Proof.
+  destruct tmn; simpl; intros; try solve [inv H0 | subst; auto].
+Qed.
+
+Lemma used_in_fdef__used_in_tmn_value : forall id0 l3 ps1 cs v tmn1 F1,
+  used_in_fdef id0 F1 = false ->
+  blockInFdefB (block_intro l3 ps1 cs tmn1) F1 = true ->
+  valueInTmnOperands v tmn1 ->
+  used_in_value id0 v = false.
+Proof.
+  destruct F1. simpl. intros.
+  eapply used_in_blocks__used_in_block in H0; eauto.
+  binvf H0 as J3 J4. binvf J3 as J1 J2.
+  eapply used_in_tmn__used_in_value in H1; eauto.
+Qed.
+
+Lemma used_in_fdef__used_in_block : forall id0 b F1,
+  used_in_fdef id0 F1 = false ->
+  blockInFdefB b F1 = true ->
+  used_in_block id0 b = false.
+Proof.
+  destruct F1. simpl. intros.
+  eapply used_in_blocks__used_in_block in H0; eauto.
+Qed.
+
+Lemma fdef_sim__lookupAL_genLabel2Block_block : forall id0 l0 bs b b',
+  lookupAL _ (genLabel2Block_blocks bs) l0 = Some b ->
+  lookupAL _ (genLabel2Block_blocks (List.map (remove_block id0) bs)) l0
+    = Some b' ->
+  remove_block id0 b = b'.
+Proof.
+  induction bs as [|a ?]; simpl; intros.
+    congruence.
+
+    destruct a as [l1 ? ? ?]. simpl in *.
+    destruct (l0 == l1); subst; eauto.
+      inv H. inv H0. auto.
+Qed.
+

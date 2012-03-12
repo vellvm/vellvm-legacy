@@ -107,7 +107,8 @@ Proof.
     auto.
   destruct H1 as [mi' [Mem2' [mb' [H11 [H16 [H12 [H13 [H14 H15]]]]]]]].
 
-  eapply simulation__getOperandValue with (mi:=mi)(Mem2:=M2) in H0; eauto.
+  eapply simulation__getOperandValue with (mi:=mi)(Mem2:=M2) in H0; 
+    try solve [eauto | get_wf_value_for_simop; eauto].
   destruct H0 as [gn' [H00 H01]].
   assert (GV2int (los, nts) Size.ThirtyTwo gn =
     GV2int (los, nts) Size.ThirtyTwo gn') as Heqgn.
@@ -339,7 +340,8 @@ Proof.
     auto.
   destruct H1 as [mi' [Mem2' [mb' [H11 [H16 [H12 [H13 [H14 H15]]]]]]]].
 
-  eapply simulation__getOperandValue with (mi:=mi)(Mem2:=M2) in H0; eauto.
+  eapply simulation__getOperandValue with (mi:=mi)(Mem2:=M2) in H0; 
+    try solve [eauto | get_wf_value_for_simop; eauto].
   destruct H0 as [gn' [H00 H01]].
   assert (GV2int (los, nts) Size.ThirtyTwo gn =
     GV2int (los, nts) Size.ThirtyTwo gn') as Heqgn.
@@ -565,7 +567,8 @@ Proof.
   inv Htcmd.
   apply free_inv in H0.
   destruct H0 as [blk [i0 [hi [lo [HeqR0 [J12 [HeqR2 H0]]]]]]].
-  eapply simulation__getOperandValue in H; eauto.
+  eapply simulation__getOperandValue in H; 
+    try solve [eauto | get_wf_value_for_simop; eauto].
   destruct H as [mptr0' [H1 H2]].
   eapply simulation__GV2ptr in HeqR0; eauto.
   destruct HeqR0 as [v' [J1 J2]].
@@ -685,7 +688,8 @@ Proof.
   destruct v; try solve [inversion J].
   remember (getTypeAllocSize (los,nts) t) as R3.
   destruct R3; try solve [inversion J].
-  eapply simulation__getOperandValue in H0; eauto.
+  eapply simulation__getOperandValue in H0; 
+    try solve [eauto | get_wf_value_for_simop; eauto].
   destruct H0 as [gvp2 [H00 H01]].
   eapply simulation__mload in H2; eauto.
   destruct H2 as [gv2 [H21 H22]].
@@ -821,7 +825,8 @@ Proof.
   destruct v; try solve [inversion J].
   remember (getTypeAllocSize (los,nts) t) as R3.
   destruct R3; try solve [inversion J].
-  eapply simulation__getOperandValue in H0; eauto.
+  eapply simulation__getOperandValue in H0; 
+    try solve [eauto | get_wf_value_for_simop; eauto].
   destruct H0 as [gvp2 [H00 H01]].
   unfold SBspecAux.get_reg_metadata in H.
   assert (H2':=H2).
@@ -984,9 +989,11 @@ Proof.
   destruct v0; try solve [inversion J].
   remember (getTypeAllocSize (los,nts) t) as R3.
   destruct R3; try solve [inversion J].
-  eapply simulation__getOperandValue in H0; eauto.
+  eapply simulation__getOperandValue in H0; 
+    try solve [eauto | get_wf_value_for_simop; eauto].
   destruct H0 as [gv2 [H00 H01]].
-  eapply simulation__getOperandValue in H1; eauto.
+  eapply simulation__getOperandValue in H1; 
+    try solve [eauto | get_wf_value_for_simop; eauto].
   destruct H1 as [gvp2 [H10 H11]].
   unfold SBspecAux.get_reg_metadata in H.
   assert (Hmstore:=H3).
@@ -1134,9 +1141,11 @@ Proof.
   destruct v0; try solve [inversion J].
   remember (getTypeAllocSize (los,nts) t) as R3.
   destruct R3; try solve [inversion J].
-  eapply simulation__getOperandValue in H0; eauto.
+  eapply simulation__getOperandValue in H0; 
+    try solve [eauto | get_wf_value_for_simop; eauto].
   destruct H0 as [gv2 [H00 H01]].
-  eapply simulation__getOperandValue in H1; eauto.
+  eapply simulation__getOperandValue in H1; 
+    try solve [eauto | get_wf_value_for_simop; eauto].
   destruct H1 as [gvp2 [H10 H11]].
   unfold SBspecAux.get_reg_metadata in H.
   assert (H3':=H3).

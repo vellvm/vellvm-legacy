@@ -3643,10 +3643,16 @@ Proof.
     assert (exists gv'', insertGenericValue (los, nts) t gv l2 t0 gv' =
       Some gv'') as J''.
       unfold insertGenericValue.
-      inv Hwfc. destruct H15 as [idxs [o [J1 J2]]].
-      rewrite J1. rewrite J2. apply wf_value__wf_typ in H9. destruct H9.
+      inv Hwfc. 
+      match goal with
+      | H15: exists _:_, exists _:_, _ |- _ => 
+         destruct H15 as [idxs [o [J1 J2]]]; rewrite J1; rewrite J2
+      end.
+      match goal with
+      | H9: wf_value _ _ _ _ ?t0 |- context [mset' _ _ ?t0 _] =>
+        apply wf_value__wf_typ in H9; destruct H9
+      end.
       apply GVsSig.(lift_op2__isnt_stuck); eauto using mset'_is_total.
-      eauto.
     destruct J'' as [gv'' J''].
     exists
          {|
