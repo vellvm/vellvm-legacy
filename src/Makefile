@@ -4,10 +4,10 @@ OUTPUT_TYPE=native
 OCAMLBUILD_OPT=-no-links -j 0 -build-dir _build \
   -cflags -g,-I,$(LLVM_OCAML_LIB),-I,$(EXTRACTION_LIB) \
   -lflags -g,-I,$(LLVM_OCAML_LIB),-I,$(EXTRACTION_LIB),-cclib,-lffi,-cclib,-L$(LLVM_LIB)
-CMAS:=Extraction/_build/coqllvm.cma \
-  Extraction/_build/eq_tv.cma \
-  Extraction/_build/sub_tv.cma
-CMXAS:=$(CMAS:.cma=.cmxa)
+#CMAS:=Extraction/_build/coqllvm.cma \
+#  Extraction/_build/eq_tv.cma \
+#  Extraction/_build/sub_tv.cma
+#CMXAS:=$(CMAS:.cma=.cmxa)
 
 all: coq ocaml
 
@@ -17,9 +17,10 @@ coq:
 	+make -C ./TV
 	+make -C ./Transforms
 	+make -C ./Extraction
-	+cd Extraction; ./fixextract.py; make -f Makefile.ocaml
+	+cd Extraction; ./fixextract.py; cd ..
 
-ocaml: coq $(CMAS) $(CMXAS)
+ocaml: coq
+	make -C Extraction -f Makefile.ocaml
 	ocamlbuild -clean
 	ocamlbuild $(OCAMLBUILD_OPT) Interpreter/main.$(OUTPUT_TYPE)
 	ocamlbuild $(OCAMLBUILD_OPT) Transforms/main.native

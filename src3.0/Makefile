@@ -4,10 +4,10 @@ OUTPUT_TYPE=native
 OCAMLBUILD_OPT=-no-hygiene -no-links -j 0 -build-dir _build \
   -cflags -g,-I,$(LLVM_OCAML_LIB),-I,$(EXTRACTION_LIB) \
   -lflags -g,-I,$(LLVM_OCAML_LIB),-I,$(EXTRACTION_LIB),-cclib,-lffi,-cclib,-L$(LLVM_LIB)
-CMAS:=Extraction/_build/coqllvm.cma \
-  Extraction/_build/eq_tv.cma \
-  Extraction/_build/sub_tv.cma
-CMXAS:=$(CMAS:.cma=.cmxa)
+#CMAS:=Extraction/_build/coqllvm.cma \
+#  Extraction/_build/eq_tv.cma \
+#  Extraction/_build/sub_tv.cma
+#CMXAS:=$(CMAS:.cma=.cmxa)
 COQLIBS=-I Vellvm/ -I Vellvm/ott -I Vellvm/monads -I Vellvm/compcert \
 	-I Vellvm/GraphBasics -I Transforms -I TV -I SoftBound \
 	-I $(METALIB)
@@ -31,7 +31,7 @@ Makefile.coq: Make
 %.vo: Makefile.coq
 	make -f Makefile.coq "$@"
 
-ocaml: theories $(CMAS) $(CMXAS)
+ocaml: theories extraction
 	+make -f Makefile.ocaml -C Extraction
 	ocamlbuild -clean
 	ocamlbuild $(OCAMLBUILD_OPT) Interpreter/main.$(OUTPUT_TYPE)
