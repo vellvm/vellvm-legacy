@@ -41,11 +41,6 @@ Ltac simpl_s_genInitState :=
     inv_mbind'
   end;
   match goal with
-  | H: ret ?p = OpsemAux.genGlobalAndInitMem _ _ _ _ _ |- _ =>
-    destruct p as [[initGlobal initFunTable] initMem];
-    inv_mbind'
-  end;
-  match goal with
   | H: ret ?b = getEntryBlock ?f |- _ =>
     destruct b as [l0 ps0 cs0 tmn0];
     destruct f as [[f t i0 a v] b];
@@ -77,4 +72,28 @@ repeat match goal with
 end.
 
 Ltac unfold_blk2GV := unfold blk2GV, ptr2GV, val2GV.
+
+Ltac get_wf_value_for_simop :=
+  match goal with
+  | HBinF: blockInFdefB (block_intro _ _ (_++_::_) _) _ = _ |- _ =>
+    let HBinF':=fresh "HBinF'" in
+    assert (HBinF':=HBinF);
+    eapply wf_system__wf_cmd in HBinF'; eauto using in_middle;
+    inv HBinF'; 
+    match goal with
+    | H: wf_trunc _ _ _ _ _ |- _ => inv H
+    | H: wf_cast _ _ _ _ _ |- _ => inv H 
+    | H: wf_ext _ _ _ _ _ |- _ => inv H 
+    | _ => idtac
+    end
+  end.
+
+Ltac get_wf_value_for_simop' :=
+  match goal with
+  | HBinF: blockInFdefB (block_intro _ _ (_++nil) _) _ = _ |- _ =>
+    let HBinF':=fresh "HBinF'" in
+    assert (HBinF':=HBinF);
+    eapply wf_system__wf_tmn in HBinF'; eauto using in_middle;
+    inv HBinF'
+  end.
 

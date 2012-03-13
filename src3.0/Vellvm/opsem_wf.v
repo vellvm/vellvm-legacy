@@ -1443,7 +1443,7 @@ Proof.
 
     unfold getTypeSizeInBits, getTypeSizeInBits_and_Alignment,
            getTypeSizeInBits_and_Alignment_for_namedts in *.
-    inv_mbind. destruct_let. inv_mbind. destruct_let. 
+    inv_mbind.  
     uniq_result. symmetry_ctx. uniq_result.
     intros gv0 Hin.
     eapply GVsSig.(lift_op2__getTypeSizeInBits)with (los:=los)(nts:=nts)(t:=t1);

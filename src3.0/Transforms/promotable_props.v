@@ -244,15 +244,13 @@ Opaque gv2gvs.
 Qed.
 
 Lemma zeroconst2GV_disjoint_with_runtime_alloca: forall t maxb gl g td mb t0
-  (Hwfg: wf_globals maxb gl)
+  (Hwfg: wf_globals maxb gl) S (Hwft: wf_typ S td t)
   (Hc2g : ret g = zeroconst2GV td t)
   (Hle: maxb < mb),
   no_alias g ($ blk2GV td mb # typ_pointer t0 $) /\ valid_ptrs (maxb + 1) g.
 Proof.
   intros. rewrite simpl_blk2GV.
-  destruct zeroconst2GV_disjoint_with_runtime_ptr_mutrec as [J _].
-  unfold zeroconst2GV_disjoint_with_runtime_ptr_prop in J.
-  eapply J; eauto.
+  eapply zeroconst2GV_disjoint_with_runtime_ptr; eauto.
 Qed.
 
 Lemma wf_globals_disjoint_with_runtime_alloca: forall maxb td t0
@@ -264,8 +262,8 @@ Proof.
   eapply wf_globals_disjoint_with_runtime_ptr; eauto.
 Qed.
 
-Lemma const2GV_disjoint_with_runtime_alloca: forall c0 maxb gl g td mb t
-  (Hwfg: wf_globals maxb gl)
+Lemma const2GV_disjoint_with_runtime_alloca: forall c0 maxb gl g td mb t t'
+  (Hwfg: wf_globals maxb gl) S (Hwfc: wf_const S td c0 t')
   (Hc2g : ret g = @Opsem.const2GV DGVs td gl c0)
   (Hle: maxb < mb),
   no_alias g ($ blk2GV td mb # typ_pointer t $).
@@ -275,15 +273,16 @@ Proof.
   inv_mbind'. inv H0.
   destruct const2GV_disjoint_with_runtime_ptr_mutrec as [J1 J2].
   unfold const2GV_disjoint_with_runtime_ptr_prop in J1.
-  rewrite simpl_blk2GV.
+  symmetry in HeqR.
   eapply J1 in HeqR; eauto.
-  destruct HeqR.
+  destruct HeqR as [J4 [J5 J3]]; subst.
+  rewrite simpl_blk2GV.
   destruct Hwfg.
   eapply cgv2gvs_preserves_no_alias; eauto.
 Qed.
 
-Lemma const2GV_valid_ptrs: forall c0 maxb gl g td
-  (Hwfg: wf_globals maxb gl)
+Lemma const2GV_valid_ptrs: forall c0 maxb gl g S td t
+  (Hwfg: wf_globals maxb gl) (Hwfc: wf_const S td c0 t)
   (Hc2g : ret g = @Opsem.const2GV DGVs td gl c0),
   valid_ptrs (maxb + 1) g.
 Proof.
@@ -292,24 +291,26 @@ Proof.
   inv_mbind'. inv H0.
   destruct const2GV_disjoint_with_runtime_ptr_mutrec as [J1 J2].
   unfold const2GV_disjoint_with_runtime_ptr_prop in J1.
+  symmetry in HeqR.
   eapply J1 with (mb:=maxb+1)(ofs:=Int.repr 31 0)
     (m:=AST.Mint (Size.mul Size.Eight (getPointerSize td) - 1)) in HeqR;
     eauto; try omega.
-  destruct HeqR.
+  destruct HeqR as [J4 [J5 J3]]; subst.
   destruct Hwfg.
   eapply cgv2gvs_preserves_valid_ptrs; eauto; try omega.
 Qed.
 
 Lemma preservation_return_helper: forall (g : GVsT DGVs) pinfo lc' Mem'
-  als' td maxb Mem ECs lc gl t Result
-  (HeqR1 : ret g = Opsem.getOperandValue td Result lc gl)
+  als' los nts maxb Mem ECs lc gl S Ps Result rt F t
+  (Hwfv: wf_value S (module_intro los nts Ps) F Result rt)
+  (HeqR1 : ret g = Opsem.getOperandValue (los,nts) Result lc gl)
   (g0 : GVsT DGVs)
-  (HeqR2 : ret g0 = lift_op1 DGVs (fit_gv td t) g t)
+  (HeqR2 : ret g0 = lift_op1 DGVs (fit_gv (los,nts) t) g t)
   (Hwfg : wf_globals maxb gl) EC
   (Heq1 : Opsem.CurFunction EC = PI_f pinfo)
   (Heq2 : Opsem.Locals EC = lc')
-  (Hfr1 : wf_ECStack_head_tail maxb pinfo td Mem lc (EC :: ECs))
-  (Hinscope2 : wf_defs maxb pinfo td Mem' lc' als')
+  (Hfr1 : wf_ECStack_head_tail maxb pinfo (los,nts) Mem lc (EC :: ECs))
+  (Hinscope2 : wf_defs maxb pinfo (los,nts) Mem' lc' als')
   (gvsa : GVsT DGVs)
   (Hlkp : lookupAL (GVsT DGVs) lc' (PI_id pinfo) = ret gvsa),
   no_alias g0 gvsa.
@@ -326,9 +327,10 @@ Proof.
   destruct Hlkp as [_ [G _]].
   Local Transparent lift_op1. simpl in HeqR2.
   unfold MDGVs.lift_op1, fit_gv in HeqR2.
-  destruct (getTypeSizeInBits td t); tinv HeqR2.
+  destruct (getTypeSizeInBits (los,nts) t); tinv HeqR2.
   destruct_if.
     destruct Result; simpl in HeqR1; eauto.
+    inv Hwfv.
     eapply const2GV_disjoint_with_runtime_alloca; eauto.
       omega.
 
@@ -354,14 +356,15 @@ Proof.
     eapply free_preserves_mload_inv in H; eauto.
 Qed.
 
-Lemma operand__no_alias_with__tail: forall maxb pinfo TD M lc1 lc2 mptr0 gl
-  (Hwfgl : wf_globals maxb gl) v mptrs EC
+Lemma operand__no_alias_with__tail: forall maxb pinfo los nts Ps M lc1 lc2 mptr0 
+  gl (Hwfgl : wf_globals maxb gl) v mptrs EC S t F
+  (Hwft: wf_value S (module_intro los nts Ps) F v t)
   (Heq1: Opsem.CurFunction EC = PI_f pinfo)
   (Heq2: Opsem.Locals EC = lc2)
-  (Hht : wf_ECStack_head_in_tail maxb pinfo TD M lc1 EC)
+  (Hht : wf_ECStack_head_in_tail maxb pinfo (los,nts) M lc1 EC)
   (gvsa : GVsT DGVs) (Hin: mptr0 @ mptrs)
   (Hlkp : lookupAL (GVsT DGVs) lc2 (PI_id pinfo) = ret gvsa)
-  (Hgetop : Opsem.getOperandValue TD v lc1 gl = ret mptrs),
+  (Hgetop : Opsem.getOperandValue (los,nts) v lc1 gl = ret mptrs),
   no_alias mptr0 gvsa.
 Proof.
   intros.
@@ -370,22 +373,9 @@ Proof.
   destruct Hlkp as [[mb [J11 J12]] [Hlkp _]]; subst.
   destruct v; simpl in Hgetop.
     apply Hlkp in Hgetop; auto.
+    inv Hwft.
     eapply const2GV_disjoint_with_runtime_alloca; eauto.
       omega.
-Qed.
-
-Lemma free_getN_out: forall M blk lo hi M' b ofs sz
-  (Hfree: Mem.free M blk lo hi = Some M') (Hneq: blk <> b),
-  Mem.getN sz ofs (Mem.mem_contents M b) = 
-    Mem.getN sz ofs (Mem.mem_contents M' b).
-Proof.
-  intros.
-  apply Mem.free_result in Hfree. subst.
-  unfold Mem.unchecked_free. simpl.
-  generalize ofs.
-  induction sz0; simpl; intros; auto.
-    rewrite IHsz0.
-    rewrite Mem.clearN_out; auto.
 Qed.
 
 Lemma free_preserves_encode_decode_ident_prop: forall M blk lo hi M' b 
@@ -396,7 +386,7 @@ Proof.
   unfold encode_decode_ident_prop in *.
   intros.
   apply Hid; auto.
-  erewrite free_getN_out; eauto.
+  erewrite Mem.free_getN_out; eauto.
 Qed.
 
 Lemma free_preserves_encode_decode_ident_aux: forall M blk lo hi M' b 
@@ -443,16 +433,17 @@ Proof.
     eauto using no_alias_GV2ptr__neq_blk.
 Qed.
 
-Lemma free_preserves_wf_defs_in_tail : forall maxb pinfo TD M
-  M' lc1 mptr0 mptrs gl v als lc2
-  (Hgetop: Opsem.getOperandValue TD v lc1 gl = ret mptrs)
+Lemma free_preserves_wf_defs_in_tail : forall maxb pinfo los nts M
+  M' lc1 mptr0 mptrs gl v als lc2 S Ps t F
+  (Hwft: wf_value S (module_intro los nts Ps) F v t)
+  (Hgetop: Opsem.getOperandValue (los,nts) v lc1 gl = ret mptrs)
   (Hin: mptr0 @ mptrs) (Hwfgl: wf_globals maxb gl)
-  (Hfree: free TD M mptr0 = ret M') EC
+  (Hfree: free (los,nts) M mptr0 = ret M') EC
   (Heq1: Opsem.CurFunction EC = PI_f pinfo)
   (Heq2: Opsem.Locals EC = lc2)
-  (Hht: wf_ECStack_head_in_tail maxb pinfo TD M lc1 EC)
-  (Hwf: wf_defs maxb pinfo TD M lc2 als),
-  wf_defs maxb pinfo TD M' lc2 als.
+  (Hht: wf_ECStack_head_in_tail maxb pinfo (los,nts) M lc1 EC)
+  (Hwf: wf_defs maxb pinfo (los,nts) M lc2 als),
+  wf_defs maxb pinfo (los,nts) M' lc2 als.
 Proof.
   intros. unfold wf_defs.
   intros gvsa Hlkp.
@@ -462,8 +453,8 @@ Proof.
   split; auto.
     clear J2.
     destruct J1 as [J5 [[mb [J11 [J12 J13]]] [J4 [gv J3]]]]; subst.
-    assert (no_alias mptr0 ($ blk2GV TD mb # typ_pointer (PI_typ pinfo) $))
-      as J.
+    assert (no_alias mptr0 
+             ($ blk2GV (los,nts) mb # typ_pointer (PI_typ pinfo) $)) as J.
       eapply operand__no_alias_with__tail; eauto.
     split.
       eapply free_preserves_encode_decode_ident; eauto.
@@ -475,10 +466,12 @@ Proof.
         exists gv. eapply free_preserves_mload; eauto.
 Qed.
 
-Lemma operand__no_alias_with__head: forall maxb pinfo TD lc mptr0 mptrs gl v als
-  (Hgetop : Opsem.getOperandValue TD v lc gl = ret mptrs)
+Lemma operand__no_alias_with__head: forall maxb pinfo los nts lc mptr0 mptrs gl v 
+  Ps S als t F
+  (Hwft: wf_value S (module_intro los nts Ps) F v t)
+  (Hgetop : Opsem.getOperandValue (los,nts) v lc gl = ret mptrs)
   (Hin : mptr0 @ mptrs) (Hwfgl : wf_globals maxb gl) M
-  (Hwfu: wf_use_at_head pinfo v) (Hwf: wf_defs maxb pinfo TD M lc als)
+  (Hwfu: wf_use_at_head pinfo v) (Hwf: wf_defs maxb pinfo (los,nts) M lc als)
   (gvsa : GVsT DGVs) (Hlkp : lookupAL (GVsT DGVs) lc (PI_id pinfo) = ret gvsa),
   no_alias mptr0 gvsa.
 Proof.
@@ -495,18 +488,20 @@ Proof.
         match goal with | H1 : _ = false |- _ => inv H1 end.
 
     destruct J1 as [mb [J11 [J12 J13]]]; subst.
+    inv Hwft.
     eapply const2GV_disjoint_with_runtime_alloca; eauto.
       omega.
 Qed.
 
-Lemma free_preserves_wf_defs_at_head : forall maxb pinfo TD M
-  M' lc mptr0 mptrs gl v als
-  (Hgetop: Opsem.getOperandValue TD v lc gl = ret mptrs)
+Lemma free_preserves_wf_defs_at_head : forall maxb pinfo los nts M
+  M' lc mptr0 mptrs gl v als S t Ps F
+  (Hwft: wf_value S (module_intro los nts Ps) F v t)
+  (Hgetop: Opsem.getOperandValue (los,nts) v lc gl = ret mptrs)
   (Hin: mptr0 @ mptrs) (Hwfgl: wf_globals maxb gl)
-  (Hfree: free TD M mptr0 = ret M')
+  (Hfree: free (los,nts) M mptr0 = ret M')
   (Hwfu: wf_use_at_head pinfo v)
-  (Hwf: wf_defs maxb pinfo TD M lc als),
-  wf_defs maxb pinfo TD M' lc als.
+  (Hwf: wf_defs maxb pinfo (los,nts) M lc als),
+  wf_defs maxb pinfo (los,nts) M' lc als.
 Proof.
   intros. unfold wf_defs.
   intros gvsa Hlkp.
@@ -554,14 +549,15 @@ Proof.
     destruct (fdef_dec (PI_f pinfo) CurFunction); subst; auto.
 Qed.
 
-Lemma free_preserves_wf_ECStack_in_tail : forall maxb pinfo TD M
-  M' mptr0 mptrs gl v (Hwfpi: WF_PhiInfo pinfo) lc
-  (Hgetop: Opsem.getOperandValue TD v lc gl = ret mptrs)
+Lemma free_preserves_wf_ECStack_in_tail : forall maxb pinfo los nts M
+  M' mptr0 mptrs gl v (Hwfpi: WF_PhiInfo pinfo) lc S Ps t F
+  (Hwft: wf_value S (module_intro los nts Ps) F v t)
+  (Hgetop: Opsem.getOperandValue (los,nts) v lc gl = ret mptrs)
   (Hin: mptr0 @ mptrs) (Hwfgl: wf_globals maxb gl)
-  (Hfree: free TD M mptr0 = ret M') ECs
-  (Hht: wf_ECStack_head_tail maxb pinfo TD M lc ECs)
-  (Hwf: wf_ECStack maxb pinfo TD M ECs),
-  wf_ECStack maxb pinfo TD M' ECs.
+  (Hfree: free (los,nts) M mptr0 = ret M') ECs
+  (Hht: wf_ECStack_head_tail maxb pinfo (los,nts) M lc ECs)
+  (Hwf: wf_ECStack maxb pinfo (los,nts) M ECs),
+  wf_ECStack maxb pinfo (los,nts) M' ECs.
 Proof.
   induction ECs; simpl; intros; auto.
     destruct Hwf as [J1 [J2 J3]].
@@ -644,11 +640,12 @@ Proof.
   split; eauto using free_allocas_preserves_wf_alloca.
 Qed.
 
-Lemma operand__lt_nextblock: forall maxb TD M (lc:DGVMap) mptr gl
+Lemma operand__lt_nextblock: forall maxb los nts M (lc:DGVMap) mptr gl
   (Hwfgl : wf_globals maxb gl) v mptrs (Hlt: maxb < Mem.nextblock M)
   (Hwflc: wf_lc M lc)
-  (Hin: mptr @ mptrs)
-  (Hgetop : Opsem.getOperandValue TD v lc gl = ret mptrs),
+  (Hin: mptr @ mptrs) S Ps t F
+  (Hwft: wf_value S (module_intro los nts Ps) F v t)
+  (Hgetop : Opsem.getOperandValue (los,nts) v lc gl = ret mptrs),
   valid_ptrs (Mem.nextblock M) mptr.
 Proof.
   intros.
@@ -656,14 +653,16 @@ Proof.
   destruct v; simpl in Hgetop.
     apply Hwflc in Hgetop; auto.
 
+    inv Hwft.
     eapply const2GV_valid_ptrs in Hwfgl; eauto.
     eapply valid_ptrs__trans; eauto.
       omega.
 Qed.
 
-Lemma returnUpdateLocals__wf_lc: forall maxb td Result (lc:DGVMap) gl c'
-  lc' Mem lc''
-  (H1 : Opsem.returnUpdateLocals td c' Result lc lc' gl = ret lc'')
+Lemma returnUpdateLocals__wf_lc: forall maxb los nts Result (lc:DGVMap) gl c'
+  lc' Mem lc'' S Ps F rt
+  (Hwft: wf_value S (module_intro los nts Ps) F Result rt)
+  (H1 : Opsem.returnUpdateLocals (los,nts) c' Result lc lc' gl = ret lc'')
   (Hwflc1 : wf_lc Mem lc) (Hwflc2 : wf_lc Mem lc')
   (Hwfg : wf_globals maxb gl) (Hgbound : maxb < Mem.nextblock Mem),
   wf_lc Mem lc''.
@@ -798,15 +797,16 @@ Qed.
 
 Local Transparent lift_op1.
 
-Lemma free_allocas_preserves_wf_ECStack_head_tail : forall maxb pinfo td M M'
-  lc als lc' F' lc'' ECs gl Result c' EC
+Lemma free_allocas_preserves_wf_ECStack_head_tail : forall maxb pinfo los nts M 
+  M' lc als lc' F' lc'' ECs gl Result c' EC F
   (Heq1: Opsem.CurFunction EC = F') (Heq2: Opsem.Locals EC = lc')
-  (Hwfg : wf_globals maxb gl),
-  free_allocas td M als = ret M' ->
-  Opsem.returnUpdateLocals td c' Result lc lc' gl = ret lc'' ->
-  wf_ECStack_head_tail maxb pinfo td M lc (EC::ECs) ->
-  wf_ECStack_head_tail maxb pinfo td M lc' ECs ->
-  wf_ECStack_head_tail maxb pinfo td M' lc'' ECs.
+  (Hwfg : wf_globals maxb gl) S Ps rt
+  (Hwft: wf_value S (module_intro los nts Ps) F Result rt),
+  free_allocas (los,nts) M als = ret M' ->
+  Opsem.returnUpdateLocals (los,nts) c' Result lc lc' gl = ret lc'' ->
+  wf_ECStack_head_tail maxb pinfo (los,nts) M lc (EC::ECs) ->
+  wf_ECStack_head_tail maxb pinfo (los,nts) M lc' ECs ->
+  wf_ECStack_head_tail maxb pinfo (los,nts) M' lc'' ECs.
 Proof.
   intros.
   apply wf_ECStack_head_tail_cons__inv in H1.
@@ -831,6 +831,7 @@ Proof.
     destruct Hlkup as [[mb [J1 J2]] [Hlkup _]]; subst.
     destruct_if.
       destruct Result; simpl in HeqR; eauto.
+      inv Hwft.
       eapply const2GV_disjoint_with_runtime_alloca; eauto.
         omega.
 
@@ -900,6 +901,10 @@ Local Opaque inscope_of_tmn inscope_of_cmd.
   fold wf_ECStack in HwfECs.
   assert (Hdisjals':=Hdisjals).
   destruct Hdisjals' as [Hdisjals' _].
+
+  assert (wf_value S (module_intro los nts Ps) F Result RetTy) as Hwfv.
+    get_wf_value_for_simop'; eauto.
+
   split.
   SCase "wf_ECStack".
     split.
@@ -980,8 +985,9 @@ Local Opaque inscope_of_tmn inscope_of_cmd.
         end.
         apply wf_defs_updateAddAL; auto.
           split.
-            eapply preservation_return_helper; eauto; simpl; auto.
-
+            eapply preservation_return_helper with (Result:=Result); eauto; 
+              simpl; auto.
+            
             intro; subst.
             clear - HwfPI HBinF2 HuniqF.
             apply PhiInfo_must_be_promotable_alloca in HBinF2;
@@ -991,7 +997,6 @@ Local Opaque inscope_of_tmn inscope_of_cmd.
         destruct n; inv HeqR. inv H1. auto.
 
       SSSCase "wflc".
-        clear - Hwflc1 Hwflc2 H1 Hwfg HwfM H0.
         eapply free_allocas_preserves_wf_lc in H0; eauto.
         destruct HwfM.
         eapply returnUpdateLocals__wf_lc in H1; eauto.
@@ -1119,11 +1124,13 @@ Proof.
 Qed.
 
 Lemma operand__no_alias_with__tail': forall maxb gl (Hwfgl : wf_globals maxb gl)
-  lc (gv1 : GVsT DGVs) v TD (Hget: Opsem.getOperandValue TD v lc gl = ret gv1)
+  lc (gv1 : GVsT DGVs) v los nts 
+  (Hget: Opsem.getOperandValue (los,nts) v lc gl = ret gv1)
   (tl : list Opsem.ExecutionContext) pinfo Mem
-  (Hwfstk : wf_ECStack_head_tail maxb pinfo TD Mem lc tl)
+  (Hwfstk : wf_ECStack_head_tail maxb pinfo (los,nts) Mem lc tl)
   (ec0 : Opsem.ExecutionContext) (Hin: In ec0 tl) (gvsa : GVsT DGVs)
-  (Heq: Opsem.CurFunction ec0 = PI_f pinfo)
+  (Heq: Opsem.CurFunction ec0 = PI_f pinfo) S Ps F t
+  (Hwft: wf_value S (module_intro los nts Ps) F v t)
   (Hlkup: lookupAL (GVsT DGVs) (Opsem.Locals ec0) (PI_id pinfo) = ret gvsa),
   no_alias gv1 gvsa.
 Proof.
@@ -1132,17 +1139,18 @@ Proof.
 Qed.
 
 Lemma CAST__wf_GVs_in_ECs : forall (v : value) (id1 : id)
-  gvs2 TD gl EC Mem pinfo maxb castop0 t1 t2
+  gvs2 los nts gl EC Mem pinfo maxb castop0 t1 t2
   (Hwflc: wf_lc Mem (@Opsem.Locals DGVs EC))
   (Hwfgl: wf_globals maxb gl) (HwfM: maxb < Mem.nextblock Mem)
   (Hwfv: Opsem.CurFunction EC = (PI_f pinfo) ->
          wf_use_at_head pinfo v)
   (Hneq: PI_f pinfo = Opsem.CurFunction EC -> id1 <> PI_id pinfo)
-  (H11 : Opsem.CAST TD (@Opsem.Locals DGVs EC) gl castop0 t1 v t2
-           = ret gvs2) tl
+  (H11 : Opsem.CAST (los,nts) (@Opsem.Locals DGVs EC) gl castop0 t1 v t2
+           = ret gvs2) tl S F Ps
+  (Hwft: wf_value S (module_intro los nts Ps) F v t1)
   (Hwfstk:
-    wf_ECStack_head_tail maxb pinfo TD Mem (Opsem.Locals EC) tl),
-  wf_GVs_in_ECs maxb pinfo TD Mem EC tl id1 gvs2.
+    wf_ECStack_head_tail maxb pinfo (los,nts) Mem (Opsem.Locals EC) tl),
+  wf_GVs_in_ECs maxb pinfo (los,nts) Mem EC tl id1 gvs2.
 Proof.
   intros.
   unfold wf_GVs_in_ECs. destruct EC.
@@ -1254,16 +1262,17 @@ Proof.
 Qed.
 
 Lemma GEP__wf_GVs_in_ECs : forall (v : value) (v0 : value) (id1 : id)
-  mp' TD t gl EC Mem pinfo maxb (mp:GVsT DGVs) mps t'
+  mp' los nts t gl EC Mem pinfo maxb (mp:GVsT DGVs) mps t'
   inbounds0 vidxs (Hwflc: wf_lc Mem (@Opsem.Locals DGVs EC))
   (Hwfgl: wf_globals maxb gl) (HwfM: maxb < Mem.nextblock Mem)
   (Hwfv: PI_f pinfo = Opsem.CurFunction EC ->
          wf_use_at_head pinfo v)
-  (H : Opsem.getOperandValue TD v (Opsem.Locals EC) gl = ret mps)
+  (H : Opsem.getOperandValue (los,nts) v (Opsem.Locals EC) gl = ret mps)
   (H0 : mp @ mps)(Hneq: PI_f pinfo = Opsem.CurFunction EC -> id1 <> PI_id pinfo)
-  (H1 : Opsem.GEP TD t mp vidxs inbounds0 t' = ret mp') tl
-  (Hwfstk: wf_ECStack_head_tail maxb pinfo TD Mem (Opsem.Locals EC) tl),
-  wf_GVs_in_ECs maxb pinfo TD Mem EC tl id1 mp'.
+  (H1 : Opsem.GEP (los,nts) t mp vidxs inbounds0 t' = ret mp') tl F S Ps
+  (Hwft: wf_value S (module_intro los nts Ps) F v (typ_pointer t))
+  (Hwfstk: wf_ECStack_head_tail maxb pinfo (los,nts) Mem (Opsem.Locals EC) tl),
+  wf_GVs_in_ECs maxb pinfo (los,nts) Mem EC tl id1 mp'.
 Proof.
   intros.
   unfold wf_GVs_in_ECs. destruct EC.
@@ -1294,23 +1303,38 @@ Proof.
 Qed.
 
 Lemma params2GVs_preserves_no_alias: forall maxb gl
-  (Hwfg : wf_globals maxb gl) TD lc mb t (Hinbound: maxb < mb) lp
-  (Hwf : forall (id1 : atom) (gvs1 : GVsT DGVs) t1,
+  (Hwfg : wf_globals maxb gl) los nts lc mb t (Hinbound: maxb < mb) S F Ps tavl 
+  lp (Hwf : forall (id1 : atom) (gvs1 : GVsT DGVs) t1,
          In (t1, value_id id1) lp ->
          lookupAL (GVsT DGVs) lc id1 = ret gvs1 ->
-         no_alias gvs1 ($ blk2GV TD mb # typ_pointer t $)) gvs
-  (Hps2GVs : Opsem.params2GVs TD lp lc gl = ret gvs),
-  forall gv, In gv gvs -> no_alias gv ($ blk2GV TD mb # typ_pointer t $).
+         no_alias gvs1 ($ blk2GV (los,nts) mb # typ_pointer t $)) gvs
+  (Heq: lp = (map_list_typ_attributes_value 
+    (fun (typ_':typ) (attributes_':attributes) (value_'':value) =>   
+     (( typ_' ,  attributes_' ),  value_'' )  ) tavl))
+  (Hv: wf_value_list 
+    (make_list_system_module_fdef_value_typ 
+      (map_list_typ_attributes_value 
+        (fun (typ_':typ) (attributes_':attributes) (value_'':value) => 
+         (S,(module_intro los nts Ps),F,value_'',typ_')) tavl)))
+  (Hps2GVs : Opsem.params2GVs (los,nts) lp lc gl = ret gvs),
+  forall gv, 
+    In gv gvs -> no_alias gv ($ blk2GV (los,nts) mb # typ_pointer t $).
 Proof.
-  induction lp; simpl; intros.
+  induction tavl; simpl; intros; subst.
     inv Hps2GVs. inv H.
 
-    destruct a.
-    inv_mbind.
+    simpl in Hps2GVs. 
+    inv_mbind. inv Hv.
     simpl in H.
-    destruct H as [H | H]; subst; eauto.
-    destruct v; simpl in HeqR; eauto.
-      eapply const2GV_disjoint_with_runtime_alloca; eauto.
+    destruct H as [H | H]; subst.
+      destruct v; simpl in HeqR; eauto.
+        eapply Hwf; simpl; eauto.
+
+        inv H2.
+        eapply const2GV_disjoint_with_runtime_alloca; eauto.
+      symmetry in HeqR0.
+      eapply IHtavl in HeqR0; eauto.
+        intros. eapply Hwf; simpl; eauto.
 Qed.
 
 Lemma initializeFrameValues_preserves_no_alias: forall TD mb t la
@@ -1351,41 +1375,30 @@ Proof.
         intros. apply Hwf. simpl. auto.
 Qed.
 
-Lemma in_params__used: forall id1 A (t1 : A) (lp : list (A * value)) init,
-  fold_left
-    (fun (acc : bool) (p : A * value) =>
-     let '(_, v) := p in used_in_value id1 v || acc) lp init = false ->
-  ~ In (t1, value_id id1) lp.
-Proof.
-  induction lp as [|[]]; simpl; intros; auto.
-    intro J.
-    destruct J as [J | J].
-      inv J.
-      simpl in H.
-      destruct (id_dec id1 id1); try congruence.
-      simpl in H.
-      rewrite fold_left_or_spec in H; try congruence.
-        intros. subst. destruct b. apply orb_true_iff; auto.
-
-      apply IHlp in H. congruence.
-Qed.
-
-Lemma initLocals_preserves_wf_ECStack_head_tail: forall Mem (lc:DGVMap) maxb TD
-  ECs lc' gl (Hwflc1 : wf_lc Mem lc) pinfo gvs la lp EC
+Lemma initLocals_preserves_wf_ECStack_head_tail: forall Mem (lc:DGVMap) maxb
+  los nts ECs lc' gl (Hwflc1 : wf_lc Mem lc) pinfo gvs la lp EC
   (Hnouse:
     PI_f pinfo = Opsem.CurFunction EC ->
     List.fold_left
       (fun acc p => let '(_, v):=p in used_in_value (PI_id pinfo) v || acc)
       lp false = false)
   (Hwfg : wf_globals maxb gl)
-  (H3 : Opsem.params2GVs TD lp lc gl = ret gvs)
-  (H4 : Opsem.initLocals TD la gvs = ret lc')
+  (H3 : Opsem.params2GVs (los,nts) lp lc gl = ret gvs)
+  (H4 : Opsem.initLocals (los,nts) la gvs = ret lc')
   (Heq2 : lc = Opsem.Locals EC)
-  (Hfr2 : wf_ECStack_head_tail maxb pinfo TD Mem lc ECs)
+  (Hfr2 : wf_ECStack_head_tail maxb pinfo (los,nts) Mem lc ECs) tavl Ps F S
+  (Heq: lp = (map_list_typ_attributes_value 
+    (fun (typ_':typ) (attributes_':attributes) (value_'':value) =>   
+     (( typ_' ,  attributes_' ),  value_'' )  ) tavl))
+  (Hv: wf_value_list 
+    (make_list_system_module_fdef_value_typ 
+      (map_list_typ_attributes_value 
+        (fun (typ_':typ) (attributes_':attributes) (value_'':value) => 
+         (S,(module_intro los nts Ps),F,value_'',typ_')) tavl)))
   (Hscp: if fdef_dec (PI_f pinfo) (Opsem.CurFunction EC) then
-           wf_defs maxb pinfo TD Mem (Opsem.Locals EC) (Opsem.Allocas EC)
+           wf_defs maxb pinfo (los,nts) Mem (Opsem.Locals EC) (Opsem.Allocas EC)
          else True),
-  wf_ECStack_head_tail maxb pinfo TD Mem lc' (EC :: ECs).
+  wf_ECStack_head_tail maxb pinfo (los,nts) Mem lc' (EC :: ECs).
 Proof.
   intros. unfold wf_ECStack_head_tail. intros ec0 Hin.
   simpl in Hin.
@@ -1404,7 +1417,9 @@ Proof.
         intros.
         apply J2 in H2. unfold wf_non_alloca_GVs in H2.
         destruct (id_dec id0 (PI_id pinfo)); subst; auto.
-          contradict H1. eapply in_params__used; eauto.
+          contradict H1. simpl_env. eapply in_params__used; eauto.
+
+        simpl_env. eauto.
 
     destruct ec0. simpl.
     intros gvsa Heq Hlkup.
@@ -1415,6 +1430,7 @@ Proof.
       intros.
       eapply initializeFrameValues_preserves_no_alias in H4; eauto.
       eapply params2GVs_preserves_no_alias; eauto. omega.
+        simpl_env. eauto.
 Qed.
 
 Lemma initLocals_preserves_wf_defs : forall fid fa rt la va lb gvs
@@ -1433,21 +1449,31 @@ Proof.
 Qed.
 
 Lemma params2GVs_preserves_wf_lc: forall maxb gl M
-  (Hwfg : wf_globals maxb gl) TD lc (Hinbound: maxb < Mem.nextblock M)
-  (Hwf : wf_lc M lc) lp gvs
-  (Hps2GVs : @Opsem.params2GVs DGVs TD lp lc gl = ret gvs),
+  (Hwfg : wf_globals maxb gl) los nts Ps lc (Hinbound: maxb < Mem.nextblock M)
+  (Hwf : wf_lc M lc) S F tavl lp gvs
+  (Heq: lp = (map_list_typ_attributes_value 
+    (fun (typ_':typ) (attributes_':attributes) (value_'':value) =>   
+     (( typ_' ,  attributes_' ),  value_'' )  ) tavl))
+  (Hv: wf_value_list 
+    (make_list_system_module_fdef_value_typ 
+      (map_list_typ_attributes_value 
+        (fun (typ_':typ) (attributes_':attributes) (value_'':value) => 
+         (S,(module_intro los nts Ps),F,value_'',typ_')) tavl)))
+  (Hps2GVs : @Opsem.params2GVs DGVs (los,nts) lp lc gl = ret gvs),
   forall gv, In gv gvs -> valid_ptrs (Mem.nextblock M) gv.
 Proof.
-  induction lp; simpl; intros.
+  induction tavl; simpl; intros; subst.
     inv Hps2GVs. inv H.
 
-    destruct a.
-    inv_mbind'.
-    simpl in H.
-    destruct H as [H | H]; subst; eauto.
-    destruct v; simpl in HeqR; eauto.
-      eapply const2GV_valid_ptrs in HeqR; eauto.
-      eapply valid_ptrs__trans; eauto. omega.
+    simpl in Hps2GVs. inv_mbind'.
+    simpl in H. inv Hv.
+    destruct H as [H | H]; subst.
+      destruct v; simpl in HeqR; eauto.
+        inv H2.
+        eapply const2GV_valid_ptrs in HeqR; eauto.
+        eapply valid_ptrs__trans; eauto. omega.
+
+      eapply IHtavl; eauto. simpl_env. auto.
 Qed.
 
 Lemma initializeFrameValues_preserves_wf_lc: forall TD la (gvs:list (GVsT DGVs))
@@ -1483,11 +1509,19 @@ Proof.
         intros. eapply Hwf; simpl; eauto.
 Qed.
 
-Lemma initLocals_preserves_wf_lc: forall Mem (lc:DGVMap) maxb TD
+Lemma initLocals_preserves_wf_lc: forall Mem (lc:DGVMap) maxb los nts
   lc' gl (Hwflc1 : wf_lc Mem lc) gvs la lp
   (Hwfg : wf_globals maxb gl) (Hinbd: maxb < Mem.nextblock Mem)
-  (H3 : Opsem.params2GVs TD lp lc gl = ret gvs)
-  (H4 : Opsem.initLocals TD la gvs = ret lc')
+  (H3 : Opsem.params2GVs (los,nts) lp lc gl = ret gvs)
+  (H4 : Opsem.initLocals (los,nts) la gvs = ret lc') S Ps F tavl
+  (Heq: lp = (map_list_typ_attributes_value 
+    (fun (typ_':typ) (attributes_':attributes) (value_'':value) =>   
+     (( typ_' ,  attributes_' ),  value_'' )  ) tavl))
+  (Hv: wf_value_list 
+    (make_list_system_module_fdef_value_typ 
+      (map_list_typ_attributes_value 
+        (fun (typ_':typ) (attributes_':attributes) (value_'':value) => 
+         (S,(module_intro los nts Ps),F,value_'',typ_')) tavl)))
   (Hfr2 : wf_lc Mem lc),
   wf_lc Mem lc'.
 Proof.
@@ -1554,17 +1588,19 @@ Proof.
     eauto using no_alias_GV2ptr__neq_blk.
 Qed.
 
-Lemma mstore_preserves_wf_defs_in_tail : forall maxb pinfo TD M
-  M' lc1 gl v als lc2 gvs1 gv1 t mp2 align mps2 vp
-  (Hgetop': Opsem.getOperandValue TD vp lc1 gl = ret mps2)
-  (Hgetop: Opsem.getOperandValue TD v lc1 gl = ret gvs1)
+Lemma mstore_preserves_wf_defs_in_tail : forall maxb pinfo los nts M
+  M' lc1 gl v als lc2 gvs1 gv1 t mp2 align mps2 vp S Ps F
+  (Hwfvp: wf_value S (module_intro los nts Ps) F vp (typ_pointer t))
+  (Hwfv: wf_value S (module_intro los nts Ps) F v t)
+  (Hgetop': Opsem.getOperandValue (los,nts) vp lc1 gl = ret mps2)
+  (Hgetop: Opsem.getOperandValue (los,nts) v lc1 gl = ret gvs1)
   (Hinp: mp2 @ mps2) (Hin: gv1 @ gvs1) (Hwfgl: wf_globals maxb gl)
-  (Hst: mstore TD M mp2 t gv1 align = Some M') EC
+  (Hst: mstore (los,nts) M mp2 t gv1 align = Some M') EC
   (Heq1: Opsem.CurFunction EC = PI_f pinfo)
   (Heq2: Opsem.Locals EC = lc2)
-  (Hht: wf_ECStack_head_in_tail maxb pinfo TD M lc1 EC)
-  (Hwf: wf_defs maxb pinfo TD M lc2 als),
-  wf_defs maxb pinfo TD M' lc2 als.
+  (Hht: wf_ECStack_head_in_tail maxb pinfo (los,nts) M lc1 EC)
+  (Hwf: wf_defs maxb pinfo (los,nts) M lc2 als),
+  wf_defs maxb pinfo (los,nts) M' lc2 als.
 Proof.
   intros. unfold wf_defs.
   intros gvsa Hlkp.
@@ -1576,7 +1612,7 @@ Proof.
     destruct J1 as [J5 [[mb [J11 [J12 J13]]] [J4 [gv J3]]]]; subst.
     split.
       eapply mstore_preserves_encode_decode_ident in Hst; eauto.
-      eapply operand__no_alias_with__tail; eauto.
+      eapply operand__no_alias_with__tail with (v:=vp); eauto.
     split.
       erewrite <- nextblock_mstore; eauto.
     split.
@@ -1589,28 +1625,7 @@ Proof.
 
       exists gv.
       eapply mstore_preserves_mload; eauto.
-      eapply operand__no_alias_with__tail; eauto.
-Qed.
-
-Lemma mstore_aux_mem_contents_outside: 
-  forall mb ofs2 gv1 ofs1 M M' (Hst: mstore_aux M gv1 mb ofs1 = ret M')
-  (Hlt: ofs1 >= ofs2),
-  forall i0 : Z, i0 < ofs2 ->
-    Mem.mem_contents M mb i0 = Mem.mem_contents M' mb i0.
-Proof.
-  induction gv1 as [|[]]; simpl; intros.
-    uniq_result. auto.
-
-    inv_mbind. 
-    erewrite <- IHgv1 with (M:=m0)(ofs1:=ofs1 + size_chunk m)(M':=M'); eauto.
-      symmetry in HeqR.
-      apply Mem.store_mem_contents in HeqR.
-      rewrite HeqR.
-      rewrite update_s.
-      rewrite Mem.setN_outside; auto.
-        omega.
-
-        assert (J:=@size_chunk_pos m). omega.
+      eapply operand__no_alias_with__tail with (v:=vp); eauto.
 Qed.
 
 Lemma promotable_mstore_aux_preserves_encode_decode_ident: 
@@ -1635,7 +1650,7 @@ Proof.
                 Mem.getN (size_chunk_nat m) ofs (Mem.mem_contents M' mb)) as EQ.
         apply Mem.getN_exten.
         intros.
-        eapply mstore_aux_mem_contents_outside with 
+        eapply MemProps.mstore_aux_mem_contents_outside with 
           (ofs2:=ofs + Z_of_nat (size_chunk_nat m)); eauto.
           unfold size_chunk_nat.
           rewrite nat_of_Z_max. 
@@ -1656,6 +1671,7 @@ Proof.
         rewrite encode_val_length; auto.
 Qed.
 
+(* should go to Integer *)
 Lemma min_le_zero_le_max: Int.min_signed 31 <= 0 <= Int.max_signed 31.
 Proof.
   unfold Int.max_signed, Int.min_signed, Int.half_modulus, 
@@ -1666,15 +1682,17 @@ Qed.
 Definition wf_use_in_tail (pinfo:PhiInfo) (v:value) :=
 used_in_value (PI_id pinfo) v = false.
 
-Lemma mstore_preserves_wf_defs_at_head : forall maxb pinfo TD M
-  M' gl v als lc gvs1 gv1 t mp2 align mps2 vp
-  (Hgetop': Opsem.getOperandValue TD vp lc gl = ret mps2)
-  (Hgetop: Opsem.getOperandValue TD v lc gl = ret gvs1)
+Lemma mstore_preserves_wf_defs_at_head : forall maxb pinfo los nts M
+  M' gl v als lc gvs1 gv1 t mp2 align mps2 vp S Ps F
+  (Hwfvp: wf_value S (module_intro los nts Ps) F vp (typ_pointer t))
+  (Hwfv: wf_value S (module_intro los nts Ps) F v t)
+  (Hgetop': Opsem.getOperandValue (los,nts) vp lc gl = ret mps2)
+  (Hgetop: Opsem.getOperandValue (los,nts) v lc gl = ret gvs1)
   (Hinp: mp2 @ mps2) (Hin: gv1 @ gvs1) (Hwfgl: wf_globals maxb gl)
-  (Hst: mstore TD M mp2 t gv1 align = Some M')
+  (Hst: mstore (los,nts) M mp2 t gv1 align = Some M')
   (Hwfu: wf_use_at_head pinfo v)
-  (Hwf: wf_defs maxb pinfo TD M lc als),
-  wf_defs maxb pinfo TD M' lc als.
+  (Hwf: wf_defs maxb pinfo (los,nts) M lc als),
+  wf_defs maxb pinfo (los,nts) M' lc als.
 Proof.
   intros. unfold wf_defs.
   intros gvsa Hlkp.
@@ -1701,7 +1719,7 @@ Proof.
         repeat rewrite simpl_blk2GV. simpl.
         apply mload_inv in J3.
         destruct J3 as [? [? [? [mc [J6 [J7 J8]]]]]].
-        rewrite J7.
+        simpl in J7. rewrite J7.
         assert (Int.min_signed 31 <= 0 <= Int.max_signed 31) as Hinterval.
           apply min_le_zero_le_max.
         rewrite Int.signed_repr; auto.
@@ -1710,7 +1728,7 @@ Proof.
           admit. (* Does Vellvm preserve this?!?!?!?! *)
 
         eapply mstore_preserves_encode_decode_ident in Hst; eauto.
-          eapply operand__no_alias_with__head with (mptrs:=mps2); eauto.
+          eapply operand__no_alias_with__head with (mptrs:=mps2)(v:=vp); eauto.
             unfold wf_use_at_head; auto.
     split.
       erewrite <- nextblock_mstore; eauto.
@@ -1724,19 +1742,21 @@ Proof.
       eapply mstore_preserves_mload'; eauto.
 Qed.
 
-Lemma mstore_preserves_wf_ECStack_head_tail: forall maxb pinfo ECs TD M
-  gv1 align M' lc mp2 t gvs1 gl v1 (Hwfgl: wf_globals maxb gl) EC
-  (H0 : Opsem.getOperandValue TD v1 lc gl = Some gvs1)
+Lemma mstore_preserves_wf_ECStack_head_tail: forall maxb pinfo ECs los nts M
+  gv1 align M' lc mp2 t gvs1 gl v1 (Hwfgl: wf_globals maxb gl) EC F S Ps
+  (Hwfv: wf_value S (module_intro los nts Ps) F v1 t)
+  (H0 : Opsem.getOperandValue (los,nts) v1 lc gl = Some gvs1)
   (H1 : gv1 @ gvs1)
-  (Hst: mstore TD M mp2 t gv1 align = Some M') lc1 (Heq: lc1 = Opsem.Locals EC)
-  (Hht: wf_ECStack_head_tail maxb pinfo TD M lc (EC::ECs))
-  (Hwf: wf_ECStack_head_tail maxb pinfo TD M lc1 ECs),
-  wf_ECStack_head_tail maxb pinfo TD M' lc1 ECs.
+  (Hst: mstore (los,nts) M mp2 t gv1 align = Some M') lc1 
+  (Heq: lc1 = Opsem.Locals EC)
+  (Hht: wf_ECStack_head_tail maxb pinfo (los,nts) M lc (EC::ECs))
+  (Hwf: wf_ECStack_head_tail maxb pinfo (los,nts) M lc1 ECs),
+  wf_ECStack_head_tail maxb pinfo (los,nts) M' lc1 ECs.
 Proof.
   intros.
   unfold wf_ECStack_head_tail, wf_ECStack_head_in_tail.
   intros.
-  assert (wf_ECStack_head_in_tail maxb pinfo TD M lc ec0) as Hintl.
+  assert (wf_ECStack_head_in_tail maxb pinfo (los,nts) M lc ec0) as Hintl.
     apply Hht. simpl; auto.
   destruct ec0. intros.
   assert (no_alias gv1 gvsa) as J.
@@ -1765,15 +1785,18 @@ Proof.
   destruct H1 as [EQ | H1]; subst; auto.
 Qed.
 
-Lemma mstore_preserves_wf_ECStack_in_tail : forall maxb pinfo TD M mp2 t align
-  M' gl vp (Hwfgl: wf_globals maxb gl) lc gvs1 gv1 v1 (Hwfpi: WF_PhiInfo pinfo)
-  mps2 (Hgetop': Opsem.getOperandValue TD vp lc gl = ret mps2)
-  (H0 : Opsem.getOperandValue TD v1 lc gl = Some gvs1)
+Lemma mstore_preserves_wf_ECStack_in_tail : forall maxb pinfo los nts M mp2 t 
+  align M' gl vp (Hwfgl: wf_globals maxb gl) lc gvs1 gv1 v1 
+  (Hwfpi: WF_PhiInfo pinfo)
+  mps2 (Hgetop': Opsem.getOperandValue (los,nts) vp lc gl = ret mps2)
+  (H0 : Opsem.getOperandValue (los,nts) v1 lc gl = Some gvs1) S Ps F
+  (Hwfvp: wf_value S (module_intro los nts Ps) F vp (typ_pointer t))
+  (Hwfv: wf_value S (module_intro los nts Ps) F v1 t)
   (Hinp: mp2 @ mps2) (H1 : gv1 @ gvs1)
-  (Hst: mstore TD M mp2 t gv1 align = Some M') ECs
-  (Hht: wf_ECStack_head_tail maxb pinfo TD M lc ECs)
-  (Hwf: wf_ECStack maxb pinfo TD M ECs),
-  wf_ECStack maxb pinfo TD M' ECs.
+  (Hst: mstore (los,nts) M mp2 t gv1 align = Some M') ECs
+  (Hht: wf_ECStack_head_tail maxb pinfo (los,nts) M lc ECs)
+  (Hwf: wf_ECStack maxb pinfo (los,nts) M ECs),
+  wf_ECStack maxb pinfo (los,nts) M' ECs.
 Proof.
   induction ECs; simpl; intros; auto.
     destruct Hwf as [J1 [J2 J3]].
@@ -1793,13 +1816,14 @@ Proof.
         apply wf_ECStack_head_tail_cons__intro; auto.
 Qed.
 
-Lemma mstore_preserves_wf_Mem : forall maxb TD M mp2 t gv1 align M' gvs1 gl
-  (Hwfgl: wf_globals maxb gl) (lc:DGVMap) v1 (Hwflc: wf_lc M lc)
-  (H0 : Opsem.getOperandValue TD v1 lc gl = Some gvs1)
+Lemma mstore_preserves_wf_Mem : forall maxb los nts M mp2 t gv1 align M' gvs1 gl
+  (Hwfgl: wf_globals maxb gl) (lc:DGVMap) v1 (Hwflc: wf_lc M lc) S F Ps
+  (Hwfv: wf_value S (module_intro los nts Ps) F v1 t)
+  (H0 : Opsem.getOperandValue (los,nts) v1 lc gl = Some gvs1)
   (H1 : gv1 @ gvs1)
-  (Hst: mstore TD M mp2 t gv1 align = Some M')
-  (Hwf: wf_Mem maxb TD M),
-  wf_Mem maxb TD M'.
+  (Hst: mstore (los,nts) M mp2 t gv1 align = Some M')
+  (Hwf: wf_Mem maxb (los,nts) M),
+  wf_Mem maxb (los,nts) M'.
 Proof.
   intros. destruct Hwf as [J1 J2].
   assert (Mem.nextblock M = Mem.nextblock M') as EQ.
@@ -1816,13 +1840,14 @@ Proof.
         rewrite EQ; auto.
 Qed.
 
-Lemma mstore_preserves_wf_ECStack_head_tail': forall maxb pinfo ECs TD M
+Lemma mstore_preserves_wf_ECStack_head_tail': forall maxb pinfo ECs los nts M
   gv1 align M' lc mp2 t gvs1 gl v1 (Hwfgl: wf_globals maxb gl)
-  (H0 : Opsem.getOperandValue TD v1 lc gl = Some gvs1)
+  (H0 : Opsem.getOperandValue (los,nts) v1 lc gl = Some gvs1) S F Ps
+  (Hwfv: wf_value S (module_intro los nts Ps) F v1 t)
   (H1 : gv1 @ gvs1)
-  (Hst: mstore TD M mp2 t gv1 align = Some M')
-  (Hwf: wf_ECStack_head_tail maxb pinfo TD M lc ECs),
-  wf_ECStack_head_tail maxb pinfo TD M' lc ECs.
+  (Hst: mstore (los,nts) M mp2 t gv1 align = Some M')
+  (Hwf: wf_ECStack_head_tail maxb pinfo (los,nts) M lc ECs),
+  wf_ECStack_head_tail maxb pinfo (los,nts) M' lc ECs.
 Proof.
   intros.
   unfold wf_ECStack_head_tail, wf_ECStack_head_in_tail.
@@ -2373,6 +2398,8 @@ Proof.
       eapply initLocals_preserves_wf_defs; eauto.
 
       destruct HwfM.
+      eapply wf_system__wf_cmd in HBinF1; eauto using in_middle.
+      inv HBinF1.
       eapply initLocals_preserves_wf_lc; eauto.
 
   split.
@@ -2383,6 +2410,8 @@ Proof.
               let '(_, v) := p in used_in_value (PI_id pinfo) v || acc) lp false
               = false) as J.
       preservation_tac4.
+    eapply wf_system__wf_cmd in HBinF1; eauto using in_middle.
+    inv HBinF1.
     eapply initLocals_preserves_wf_ECStack_head_tail; eauto.
 Qed.
 
@@ -2521,6 +2550,8 @@ Lemma wf_defs_br : forall lc l' ps' cs' lc' tmn' gl los nts Ps s
   (l3 : l) (ps : phinodes) (cs : list cmd) tmn pinfo (Hwfpi: WF_PhiInfo pinfo)
   (Hlkup : Some (block_intro l' ps' cs' tmn') =
              lookupBlockViaLabelFromFdef (PI_f pinfo) l')
+  (Hwfps: wf_phinodes s (module_intro los nts Ps) (PI_f pinfo) 
+            (block_intro l' ps' cs' tmn') ps')
   (Hswitch : Opsem.switchToNewBasicBlock (los,nts) (block_intro l' ps' cs' tmn')
          (block_intro l3 ps cs tmn) gl lc = ret lc')
   als Mem maxb
@@ -2556,6 +2587,7 @@ Proof.
       destruct HeqR as [id1 [t1 [vls1 [v [n [J4 [J5 J6]]]]]]].
       unfold wf_non_alloca_GVs.
       destruct (id_dec id0 (PI_id pinfo)); auto.
+      eapply wf_phinodes__nth_list_value_l__wf_value in Hwfps; eauto.
       eapply operand__no_alias_with__head; eauto.
         symmetry in Hlkup.
         apply lookupBlockViaLabelFromFdef_inv in Hlkup; auto.
@@ -2571,6 +2603,20 @@ Proof.
 
       apply OpsemProps.updateValuesForNewBlock_spec7 in Hlk0; auto.
 Qed.
+
+(* go to typings_props *)
+Lemma wf_fdef__wf_phinodes': forall s m F l' ps' cs' tmn' l2,
+  wf_fdef s m F ->
+  ret block_intro l' ps' cs' tmn' = lookupBlockViaLabelFromFdef F l2 ->
+  uniqFdef F ->
+  wf_phinodes s m F (block_intro l' ps' cs' tmn') ps'.
+Proof.
+  intros.
+  symmetry in H0.
+  apply lookupBlockViaLabelFromFdef_inv in H0; auto.
+  destruct H0 as [_ Hlkup].
+  eapply wf_fdef__wf_phinodes in Hlkup; eauto.
+ Qed.
 
 Lemma wf_ECStack_head_tail_br : forall (lc:DGVMap) l' ps' cs' lc' tmn' gl los
   nts Ps s (l3 : l) (ps : phinodes) (cs : list cmd) tmn F
@@ -2603,6 +2649,8 @@ Proof.
       eapply OpsemProps.getIncomingValuesForBlockFromPHINodes_spec9 in HeqR;
         eauto.
       destruct HeqR as [id2 [t1 [vls1 [v [n [J4 [J5 J6]]]]]]].
+      eapply wf_fdef__wf_phinodes' in Hlkup; eauto.
+      eapply wf_phinodes__nth_list_value_l__wf_value in Hlkup; eauto.
       eapply operand__no_alias_with__tail with
         (EC:={|
             Opsem.CurFunction := PI_f pinfo;
@@ -2616,10 +2664,13 @@ Proof.
 Qed.
 
 Lemma wf_lc_br : forall (lc:DGVMap) l' ps' cs' lc' tmn' gl td
-  (l3 : l) (ps : phinodes) (cs : list cmd) tmn F
+  (l3 : l) (ps : phinodes) (cs : list cmd) tmn s F los nts Ps
+  (Hwfps: wf_phinodes s (module_intro los nts Ps) F 
+            (block_intro l' ps' cs' tmn') ps')
   (Hlkup : Some (block_intro l' ps' cs' tmn') =
              lookupBlockViaLabelFromFdef F l')
-  (Hswitch : Opsem.switchToNewBasicBlock td (block_intro l' ps' cs' tmn')
+  (Hswitch : Opsem.switchToNewBasicBlock (los,nts) 
+         (block_intro l' ps' cs' tmn')
          (block_intro l3 ps cs tmn) gl lc = ret lc')
   Mem maxb (Hwflc : wf_lc Mem lc) (HwfM : wf_Mem maxb td Mem)
   (Hwfg : wf_globals maxb gl)
@@ -2636,6 +2687,7 @@ Proof.
         eauto.
       destruct HeqR as [id1 [t1 [vls1 [v [n [J4 [J5 J6]]]]]]].
       destruct HwfM.
+      eapply wf_phinodes__nth_list_value_l__wf_value in Hwfps; eauto.
       eapply operand__lt_nextblock; eauto.
 
       apply (@OpsemProps.updateValuesForNewBlock_spec7 DGVs) in Hlkup'; auto.
@@ -2713,9 +2765,9 @@ Proof.
     split.
       SSCase "sdom".
       destruct (fdef_dec (PI_f pinfo) F); subst; auto.
-        eapply wf_defs_br; eauto.
+        eapply wf_defs_br; eauto using wf_fdef__wf_phinodes'.
       SSCase "wf_lc".
-      eapply wf_lc_br; eauto.
+      eapply wf_lc_br; eauto using wf_fdef__wf_phinodes'.
   split; auto.
   SCase "wf_ECs_tail".
     eapply wf_ECStack_head_tail_br; eauto.
@@ -2786,9 +2838,9 @@ Proof.
     split.
       SSCase "sdom".
       destruct (fdef_dec (PI_f pinfo) F); subst; auto.
-        eapply wf_defs_br; eauto.
+        eapply wf_defs_br; eauto using wf_fdef__wf_phinodes'.
       SSCase "wf_lc".
-      eapply wf_lc_br; eauto.
+      eapply wf_lc_br; eauto using wf_fdef__wf_phinodes'.
   split; auto.
   SCase "wf_ECs_tail".
     eapply wf_ECStack_head_tail_br; eauto.
@@ -2816,19 +2868,21 @@ Proof.
 Qed.
 
 Lemma insertGenericValue__wf_GVs_in_ECs : forall (v v': value) (id1 : id)
-  gvs2 TD gl EC Mem pinfo maxb t t'
+  gvs2 los nts gl EC Mem pinfo maxb t t'
   (Hwflc: wf_lc Mem (@Opsem.Locals DGVs EC))
   (Hwfgl: wf_globals maxb gl) (HwfM: maxb < Mem.nextblock Mem)
   (Hwfv: Opsem.CurFunction EC = (PI_f pinfo) -> wf_use_at_head pinfo v)
   (Hwfv': Opsem.CurFunction EC = (PI_f pinfo) -> wf_use_at_head pinfo v')
-  gvs gvs'
+  gvs gvs' S Ps F
   (Hneq: PI_f pinfo = Opsem.CurFunction EC -> id1 <> PI_id pinfo)
-  (H : Opsem.getOperandValue TD v (Opsem.Locals EC) gl = ret gvs)
-  (H' : Opsem.getOperandValue TD v' (Opsem.Locals EC) gl = ret gvs') idxs
-  (H11 : ret gvs2 = Opsem.insertGenericValue TD t gvs idxs t' gvs') tl
+  (Hwft: wf_value S (module_intro los nts Ps) F v t)
+  (Hwft': wf_value S (module_intro los nts Ps) F v' t')
+  (H : Opsem.getOperandValue (los,nts) v (Opsem.Locals EC) gl = ret gvs)
+  (H' : Opsem.getOperandValue (los,nts) v' (Opsem.Locals EC) gl = ret gvs') idxs
+  (H11 : ret gvs2 = Opsem.insertGenericValue (los,nts) t gvs idxs t' gvs') tl
   (Hwfstk:
-    wf_ECStack_head_tail maxb pinfo TD Mem (Opsem.Locals EC) tl),
-  wf_GVs_in_ECs maxb pinfo TD Mem EC tl id1 gvs2.
+    wf_ECStack_head_tail maxb pinfo (los,nts) Mem (Opsem.Locals EC) tl),
+  wf_GVs_in_ECs maxb pinfo (los,nts) Mem EC tl id1 gvs2.
 Proof.
   intros.
   unfold wf_GVs_in_ECs. destruct EC.
@@ -2855,17 +2909,18 @@ Proof.
 Qed.
 
 Lemma extractGenericValue__wf_GVs_in_ECs : forall (v : value) (id1 : id)
-  gvs2 TD gl EC Mem pinfo maxb t
+  gvs2 los nts gl EC Mem pinfo maxb t S F Ps
   (Hwflc: wf_lc Mem (@Opsem.Locals DGVs EC))
   (Hwfgl: wf_globals maxb gl) (HwfM: maxb < Mem.nextblock Mem)
   (Hwfv: Opsem.CurFunction EC = (PI_f pinfo) ->
          wf_use_at_head pinfo v) gvs1
   (Hneq: PI_f pinfo = Opsem.CurFunction EC -> id1 <> PI_id pinfo)
-  (H : Opsem.getOperandValue TD v (Opsem.Locals EC) gl = ret gvs1) idxs
-  (H11 : ret gvs2 = Opsem.extractGenericValue TD t gvs1 idxs) tl
+  (Hwft: wf_value S (module_intro los nts Ps) F v t)
+  (H : Opsem.getOperandValue (los,nts) v (Opsem.Locals EC) gl = ret gvs1) idxs
+  (H11 : ret gvs2 = Opsem.extractGenericValue (los,nts) t gvs1 idxs) tl
   (Hwfstk:
-    wf_ECStack_head_tail maxb pinfo TD Mem (Opsem.Locals EC) tl),
-  wf_GVs_in_ECs maxb pinfo TD Mem EC tl id1 gvs2.
+    wf_ECStack_head_tail maxb pinfo (los,nts) Mem (Opsem.Locals EC) tl),
+  wf_GVs_in_ECs maxb pinfo (los,nts) Mem EC tl id1 gvs2.
 Proof.
   intros.
   unfold wf_GVs_in_ECs. destruct EC.
@@ -2887,16 +2942,17 @@ Proof.
     eapply operand__lt_nextblock in H; eauto.
 Qed.
 
-Lemma EXT__wf_GVs_in_ECs : forall (id1 : id) gvs2 TD gl EC Mem pinfo maxb
-  (Hwflc: wf_lc Mem (@Opsem.Locals DGVs EC)) v1
+Lemma EXT__wf_GVs_in_ECs : forall (id1 : id) gvs2 los nts gl EC Mem pinfo maxb
+  (Hwflc: wf_lc Mem (@Opsem.Locals DGVs EC)) v1 S F Ps
   (Hwfgl: wf_globals maxb gl) (HwfM: maxb < Mem.nextblock Mem)
   (Hwfv: Opsem.CurFunction EC = (PI_f pinfo) ->
          wf_use_at_head pinfo v1) eop0 t1 t2
   (Hneq: PI_f pinfo = Opsem.CurFunction EC -> id1 <> PI_id pinfo)
-  (H11 : Opsem.EXT TD (Opsem.Locals EC) gl eop0 t1 v1 t2 = ret gvs2) tl
+  (Hwft: wf_value S (module_intro los nts Ps) F v1 t1)
+  (H11 : Opsem.EXT (los,nts) (Opsem.Locals EC) gl eop0 t1 v1 t2 = ret gvs2) tl
   (Hwfstk:
-    wf_ECStack_head_tail maxb pinfo TD Mem (Opsem.Locals EC) tl),
-  wf_GVs_in_ECs maxb pinfo TD Mem EC tl id1 gvs2.
+    wf_ECStack_head_tail maxb pinfo (los,nts) Mem (Opsem.Locals EC) tl),
+  wf_GVs_in_ECs maxb pinfo (los,nts) Mem EC tl id1 gvs2.
 Proof.
   intros.
   unfold wf_GVs_in_ECs. destruct EC.
@@ -2920,16 +2976,17 @@ Proof.
     eapply mext_preserves_valid_ptrs in J2; eauto.
 Qed.
 
-Lemma TRUNC__wf_GVs_in_ECs : forall (id1 : id) gvs2 TD gl EC Mem pinfo maxb
-  (Hwflc: wf_lc Mem (@Opsem.Locals DGVs EC)) v1
+Lemma TRUNC__wf_GVs_in_ECs : forall (id1 : id) gvs2 los nts gl EC Mem pinfo maxb
+  (Hwflc: wf_lc Mem (@Opsem.Locals DGVs EC)) v1 S Ps F
   (Hwfgl: wf_globals maxb gl) (HwfM: maxb < Mem.nextblock Mem)
   (Hwfv: Opsem.CurFunction EC = (PI_f pinfo) ->
          wf_use_at_head pinfo v1) top0 t1 t2
   (Hneq: PI_f pinfo = Opsem.CurFunction EC -> id1 <> PI_id pinfo)
-  (H11 : Opsem.TRUNC TD (Opsem.Locals EC) gl top0 t1 v1 t2 = ret gvs2) tl
+  (Hwft: wf_value S (module_intro los nts Ps) F v1 t1)
+  (H11 : Opsem.TRUNC (los,nts) (Opsem.Locals EC) gl top0 t1 v1 t2 = ret gvs2) tl
   (Hwfstk:
-    wf_ECStack_head_tail maxb pinfo TD Mem (Opsem.Locals EC) tl),
-  wf_GVs_in_ECs maxb pinfo TD Mem EC tl id1 gvs2.
+    wf_ECStack_head_tail maxb pinfo (los,nts) Mem (Opsem.Locals EC) tl),
+  wf_GVs_in_ECs maxb pinfo (los,nts) Mem EC tl id1 gvs2.
 Proof.
   intros.
   unfold wf_GVs_in_ECs. destruct EC.
@@ -2953,17 +3010,19 @@ Proof.
     eapply mtrunc_preserves_valid_ptrs in J2; eauto.
 Qed.
 
-Lemma ICMP__wf_GVs_in_ECs : forall (id1 : id) gvs2 TD gl EC Mem pinfo maxb
-  (Hwflc: wf_lc Mem (@Opsem.Locals DGVs EC)) v1 v2
+Lemma ICMP__wf_GVs_in_ECs : forall (id1 : id) gvs2 los nts gl EC Mem pinfo maxb
+  (Hwflc: wf_lc Mem (@Opsem.Locals DGVs EC)) v1 v2 S F Ps
   (Hwfgl: wf_globals maxb gl) (HwfM: maxb < Mem.nextblock Mem)
   (Hwfv1: Opsem.CurFunction EC = (PI_f pinfo) -> wf_use_at_head pinfo v1)
   (Hwfv2: Opsem.CurFunction EC = (PI_f pinfo) -> wf_use_at_head pinfo v2)
   cond0 t
   (Hneq: PI_f pinfo = Opsem.CurFunction EC -> id1 <> PI_id pinfo)
-  (H11 : Opsem.ICMP TD (Opsem.Locals EC) gl cond0 t v1 v2 = ret gvs2) tl
+  (Hwft1: wf_value S (module_intro los nts Ps) F v1 t)
+  (Hwft2: wf_value S (module_intro los nts Ps) F v2 t)
+  (H11 : Opsem.ICMP (los,nts) (Opsem.Locals EC) gl cond0 t v1 v2 = ret gvs2) tl
   (Hwfstk:
-    wf_ECStack_head_tail maxb pinfo TD Mem (Opsem.Locals EC) tl),
-  wf_GVs_in_ECs maxb pinfo TD Mem EC tl id1 gvs2.
+    wf_ECStack_head_tail maxb pinfo (los,nts) Mem (Opsem.Locals EC) tl),
+  wf_GVs_in_ECs maxb pinfo (los,nts) Mem EC tl id1 gvs2.
 Proof.
   intros.
   unfold wf_GVs_in_ECs. destruct EC.
@@ -2991,17 +3050,19 @@ Proof.
     eapply micmp_preserves_valid_ptrs in J3; eauto.
 Qed.
 
-Lemma FCMP__wf_GVs_in_ECs : forall (id1 : id) gvs2 TD gl EC Mem pinfo maxb
-  (Hwflc: wf_lc Mem (@Opsem.Locals DGVs EC)) v1 v2
+Lemma FCMP__wf_GVs_in_ECs : forall (id1 : id) gvs2 los nts gl EC Mem pinfo maxb
+  (Hwflc: wf_lc Mem (@Opsem.Locals DGVs EC)) v1 v2 S Ps F
   (Hwfgl: wf_globals maxb gl) (HwfM: maxb < Mem.nextblock Mem)
   (Hwfv1: Opsem.CurFunction EC = (PI_f pinfo) -> wf_use_at_head pinfo v1)
   (Hwfv2: Opsem.CurFunction EC = (PI_f pinfo) -> wf_use_at_head pinfo v2)
   fcond0 fp
+  (Hwft1: wf_value S (module_intro los nts Ps) F v1 (typ_floatpoint fp))
+  (Hwft2: wf_value S (module_intro los nts Ps) F v2 (typ_floatpoint fp))
   (Hneq: PI_f pinfo = Opsem.CurFunction EC -> id1 <> PI_id pinfo)
-  (H11 : Opsem.FCMP TD (Opsem.Locals EC) gl fcond0 fp v1 v2 = ret gvs2) tl
+  (H11 : Opsem.FCMP (los,nts) (Opsem.Locals EC) gl fcond0 fp v1 v2 = ret gvs2) tl
   (Hwfstk:
-    wf_ECStack_head_tail maxb pinfo TD Mem (Opsem.Locals EC) tl),
-  wf_GVs_in_ECs maxb pinfo TD Mem EC tl id1 gvs2.
+    wf_ECStack_head_tail maxb pinfo (los,nts) Mem (Opsem.Locals EC) tl),
+  wf_GVs_in_ECs maxb pinfo (los,nts) Mem EC tl id1 gvs2.
 Proof.
   intros.
   unfold wf_GVs_in_ECs. destruct EC.
@@ -3030,16 +3091,17 @@ Proof.
 Qed.
 
 Lemma getOperandValue__wf_GVs_in_ECs : forall (v : value) (id1 : id)
-  TD gl EC Mem pinfo maxb
+  los nts gl EC Mem pinfo maxb S Ps F t
   (Hwflc: wf_lc Mem (@Opsem.Locals DGVs EC))
   (Hwfgl: wf_globals maxb gl) (HwfM: maxb < Mem.nextblock Mem)
   (Hwfv: Opsem.CurFunction EC = (PI_f pinfo) ->
          wf_use_at_head pinfo v) gvs
   (Hneq: PI_f pinfo = Opsem.CurFunction EC -> id1 <> PI_id pinfo)
-  (H : Opsem.getOperandValue TD v (Opsem.Locals EC) gl = ret gvs) tl
+  (Hwft1: wf_value S (module_intro los nts Ps) F v t)
+  (H : Opsem.getOperandValue (los,nts) v (Opsem.Locals EC) gl = ret gvs) tl
   (Hwfstk:
-    wf_ECStack_head_tail maxb pinfo TD Mem (Opsem.Locals EC) tl),
-  wf_GVs_in_ECs maxb pinfo TD Mem EC tl id1 gvs.
+    wf_ECStack_head_tail maxb pinfo (los,nts) Mem (Opsem.Locals EC) tl),
+  wf_GVs_in_ECs maxb pinfo (los,nts) Mem EC tl id1 gvs.
 Proof.
   intros.
   unfold wf_GVs_in_ECs. destruct EC.
@@ -3222,14 +3284,16 @@ Case "sExtractValue".
     eauto.
     simpl_ctx' Hwfcfg Hinv HwfS1.
     eapply extractGenericValue__wf_GVs_in_ECs; simpl;
-      try solve [eauto | preservation_tac2 | preservation_tac0].
+      try solve [eauto | preservation_tac2 | preservation_tac0 | 
+                 get_wf_value_for_simop; eauto].
 
 Case "sInsertValue".
   eapply preservation_pure_cmd_updated_case in HwfS1; try solve [simpl; eauto];
     eauto.
     simpl_ctx' Hwfcfg Hinv HwfS1.
     eapply insertGenericValue__wf_GVs_in_ECs with (v:=v) (gvs:=gvs) (v':=v')
-      (gvs':=gvs'); try solve [eauto | preservation_tac2 | preservation_tac0].
+      (gvs':=gvs'); try solve [eauto | preservation_tac2 | preservation_tac0 | 
+                               get_wf_value_for_simop; eauto].
 
 Case "sMalloc".
   assert (PI_f pinfo = F -> id0 <> PI_id pinfo) as Hneq.
@@ -3254,6 +3318,8 @@ Case "sMalloc".
 
 Case "sFree".
   simpl_ctx Hwfcfg Hinv HwfS1.
+  assert (wf_value S (module_intro los nts Ps) F v (typ_pointer t)) as Hwfv.
+    get_wf_value_for_simop; eauto.
   split.
     split.
       eapply impure_cmd_non_updated_preserves_wf_EC with (M:=Mem); eauto.
@@ -3300,6 +3366,10 @@ Case "sStore".
   simpl_ctx Hwfcfg Hinv HwfS1.
   assert (wf_lc Mem lc) as Hwflc.
     apply wf_EC__wf_lc in HwfEC; auto.
+  assert (wf_value S (module_intro los nts Ps) F v2 (typ_pointer t) /\
+          wf_value S (module_intro los nts Ps) F v1 t) as Hwfv.
+    get_wf_value_for_simop; eauto.
+  destruct Hwfv as [Hwfv1 Hwfv2].
   split.
     split.
       eapply impure_cmd_non_updated_preserves_wf_EC with (M:=Mem); eauto.
@@ -3320,7 +3390,8 @@ Case "sGEP".
     eauto.
     simpl_ctx' Hwfcfg Hinv HwfS1.
     eapply GEP__wf_GVs_in_ECs; try solve
-      [eauto using wf_EC__wf_lc | preservation_tac2 | preservation_tac0].
+      [eauto using wf_EC__wf_lc | preservation_tac2 | preservation_tac0 |
+       get_wf_value_for_simop; eauto].
 
 Case "sTrunc".
   eapply preservation_pure_cmd_updated_case in HwfS1; try solve [simpl; eauto];
@@ -3328,6 +3399,7 @@ Case "sTrunc".
     simpl_ctx' Hwfcfg Hinv HwfS1.
     eapply TRUNC__wf_GVs_in_ECs;
       try solve [eauto | preservation_tac2 | preservation_tac0].
+      get_wf_value_for_simop; eauto.
 
 Case "sExt".
   eapply preservation_pure_cmd_updated_case in HwfS1; try solve [simpl; eauto];
@@ -3335,27 +3407,31 @@ Case "sExt".
     simpl_ctx' Hwfcfg Hinv HwfS1.
     eapply EXT__wf_GVs_in_ECs;
       try solve [eauto | preservation_tac2 | preservation_tac0].
+      get_wf_value_for_simop; eauto.
 
 Case "sCast".
   eapply preservation_pure_cmd_updated_case in HwfS1; try solve [simpl; eauto];
     eauto.
     simpl_ctx' Hwfcfg Hinv HwfS1.
     eapply CAST__wf_GVs_in_ECs;
-      try solve [eauto | preservation_tac2 | preservation_tac0].
+      try solve [eauto | preservation_tac2 | preservation_tac0 |
+                 get_wf_value_for_simop; eauto].
 
 Case "sIcmp".
   eapply preservation_pure_cmd_updated_case in HwfS1; try solve [simpl; eauto];
     eauto.
     simpl_ctx' Hwfcfg Hinv HwfS1.
     eapply ICMP__wf_GVs_in_ECs with (v1:=v1)(v2:=v2);
-      try solve [eauto | preservation_tac2 | preservation_tac0].
+      try solve [eauto | preservation_tac2 | preservation_tac0 |
+                 get_wf_value_for_simop; eauto].
 
 Case "sFcmp".
   eapply preservation_pure_cmd_updated_case in HwfS1; try solve [simpl; eauto];
     eauto.
     simpl_ctx' Hwfcfg Hinv HwfS1.
     eapply FCMP__wf_GVs_in_ECs with (v1:=v1)(v2:=v2);
-      try solve [eauto | preservation_tac2 | preservation_tac0].
+      try solve [eauto | preservation_tac2 | preservation_tac0 |
+                 get_wf_value_for_simop; eauto].
 
 Case "sSelect".
   destruct (isGVZero (los, nts) c);
@@ -3366,7 +3442,8 @@ Case "sSelect".
                  | H1: Opsem.getOperandValue _ ?v1 _ _ = ret ?gvs1 |-
                        wf_GVs_in_ECs _ _ _ _ _ _ _ ?gvs1 =>
                    eapply getOperandValue__wf_GVs_in_ECs with (v:=v1);
-                     try solve [eauto | preservation_tac2 | preservation_tac0]
+                     try solve [eauto | preservation_tac2 | preservation_tac0 |
+                                get_wf_value_for_simop; eauto]
                  end].
 
 Case "sCall". eapply preservation_Call; eauto.

@@ -4203,8 +4203,6 @@ Proof.
   inv_mbind'.
   destruct m as [los nts ps].
   inv_mbind'.
-  destruct p as [[gl fs] M].
-  inv_mbind'.
   destruct b as [l0 ps0 cs0 tmn0].
   destruct f as [[fa rt fid la va] bs].
   inv_mbind'. symmetry_ctx.

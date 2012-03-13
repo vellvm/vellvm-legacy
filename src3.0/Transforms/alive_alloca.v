@@ -566,14 +566,15 @@ match goal with
 end.
 
 (* its proof is same to alive_store.v *)
-Lemma free_preserves_wf_EC_in_tail : forall pinfo td M  EC M' mptr0
-  maxb gl (Hwfg: wf_globals maxb gl)
-  (Hfree: free td M mptr0 = ret M') alinfo mptrs v lc
-  (H : Opsem.getOperandValue td v lc gl = ret mptrs)
+Lemma free_preserves_wf_EC_in_tail : forall pinfo los nts M EC M' mptr0
+  maxb gl (Hwfg: wf_globals maxb gl) Ps S F t
+  (Hfree: free (los,nts) M mptr0 = ret M') stinfo mptrs v lc
+  (Hwft: wf_value S (module_intro los nts Ps) F v t)
+  (H : Opsem.getOperandValue (los,nts) v lc gl = ret mptrs)
   (H0 : mptr0 @ mptrs)
-  (Hinscope : wf_ExecutionContext pinfo alinfo td M gl EC)
-  (Hht : wf_ECStack_head_in_tail maxb pinfo td M lc EC),
-  wf_ExecutionContext pinfo alinfo td M' gl EC.
+  (Hinscope : wf_ExecutionContext pinfo stinfo (los,nts) M gl EC)
+  (Hht : wf_ECStack_head_in_tail maxb pinfo (los,nts) M lc EC),
+  wf_ExecutionContext pinfo stinfo (los,nts) M' gl EC.
 Proof.
   intros.
   intros J1 J2 J3.
@@ -585,14 +586,15 @@ Proof.
 Qed.
 
 (* its proof is same to alive_store.v *)
-Lemma free_preserves_wf_ECStack_in_tail : forall maxb pinfo alinfo TD M
+Lemma free_preserves_wf_ECStack_in_tail : forall maxb pinfo stinfo los nts M
   (Hwfpi: WF_PhiInfo pinfo) M' gl mptr0 (Hwfg: wf_globals maxb gl)
-  (Hfree: free TD M mptr0 = ret M') lc mptrs v
-  (H : Opsem.getOperandValue TD v lc gl = ret mptrs)
+  (Hfree: free (los,nts) M mptr0 = ret M') lc mptrs v t S Ps F
+  (Hwft: wf_value S (module_intro los nts Ps) F v t)
+  (H : Opsem.getOperandValue (los,nts) v lc gl = ret mptrs)
   (H0 : mptr0 @ mptrs) ECs
-  (Hhts: wf_ECStack_head_tail maxb pinfo TD M lc ECs)
-  (Hwf: wf_ECStack pinfo alinfo TD M gl ECs),
-  wf_ECStack pinfo alinfo TD M' gl ECs.
+  (Hhts: wf_ECStack_head_tail maxb pinfo (los,nts) M lc ECs)
+  (Hwf: wf_ECStack pinfo stinfo (los,nts) M gl ECs),
+  wf_ECStack pinfo stinfo (los,nts) M' gl ECs.
 Proof.
   induction ECs; simpl; intros; auto.
     destruct Hwf as [J1 J2].
@@ -671,21 +673,22 @@ Proof.
 Qed.
 
 Lemma mstore_preserves_wf_EC_at_head: forall (maxb : Z) (pinfo : PhiInfo)
-  (alinfo : AllocaInfo pinfo) (S : system) td
+  (alinfo : AllocaInfo pinfo) (S : system) los nts
   (Ps : list product) (gl : GVMap) (fs : GVMap) (Hwfg : wf_globals maxb gl)
   (F : fdef) (lc : Opsem.GVsMap) (sid : id) (t : typ) (align0 : align)
   (v1 : value) (v2 : value) (cs : list cmd) (tmn : terminator) (Mem : mem)
   (als : list mblock) (l1 : l) (ps1 : phinodes) (cs1' : list cmd)
   (mp2 : GenericValue) (gv1 : GenericValue) (Mem' : mem) (gvs1 : GVsT DGVs)
   (mps2 : GVsT DGVs) (Huniq: uniqFdef F)
-  (H : Opsem.getOperandValue td v1 lc gl = ret gvs1)
-  (H0 : Opsem.getOperandValue td v2 lc gl = ret mps2)
+  (H : Opsem.getOperandValue (los,nts) v1 lc gl = ret gvs1)
+  (H0 : Opsem.getOperandValue (los,nts) v2 lc gl = ret mps2)
+  (Hwft: wf_value S (module_intro los nts Ps) F v2 (typ_pointer t))
   (H1 : gv1 @ gvs1) (H2 : mp2 @ mps2)
-  (H3 : mstore td Mem mp2 t gv1 align0 = ret Mem')
+  (H3 : mstore (los,nts) Mem mp2 t gv1 align0 = ret Mem')
   (Hinscope' : if fdef_dec (PI_f pinfo) F
-               then Promotability.wf_defs maxb pinfo td Mem lc als
+               then Promotability.wf_defs maxb pinfo (los,nts) Mem lc als
                else True)
-  (Hinscope : wf_ExecutionContext pinfo alinfo td Mem gl
+  (Hinscope : wf_ExecutionContext pinfo alinfo (los,nts) Mem gl
                {|
                Opsem.CurFunction := F;
                Opsem.CurBB := block_intro l1 ps1
@@ -695,7 +698,7 @@ Lemma mstore_preserves_wf_EC_at_head: forall (maxb : Z) (pinfo : PhiInfo)
                Opsem.Terminator := tmn;
                Opsem.Locals := lc;
                Opsem.Allocas := als |}),
-  wf_ExecutionContext pinfo alinfo td Mem' gl
+  wf_ExecutionContext pinfo alinfo (los,nts) Mem' gl
      {|
      Opsem.CurFunction := F;
      Opsem.CurBB := block_intro l1 ps1
@@ -765,15 +768,16 @@ Proof.
 Qed.
 
 (* its proof is same to alive_store.v *)
-Lemma mstore_preserves_wf_EC_in_tail : forall pinfo td M EC M'
+Lemma mstore_preserves_wf_EC_in_tail : forall pinfo los nts M EC M'
   maxb gl (Hwfg: wf_globals maxb gl) lc v1 v2 gvs1 gv1 mps2 mp2 align0 t
-  (H : Opsem.getOperandValue td v1 lc gl = ret gvs1)
-  (H0 : Opsem.getOperandValue td v2 lc gl = ret mps2)
-  (H1 : gv1 @ gvs1) (H2 : mp2 @ mps2)
-  (H3 : mstore td M mp2 t gv1 align0 = ret M') alinfo
-  (Hinscope : wf_ExecutionContext pinfo alinfo td M gl EC)
-  (Hht : wf_ECStack_head_in_tail maxb pinfo td M lc EC),
-  wf_ExecutionContext pinfo alinfo td M' gl EC.
+  (H : Opsem.getOperandValue (los,nts) v1 lc gl = ret gvs1)
+  (H0 : Opsem.getOperandValue (los,nts) v2 lc gl = ret mps2)
+  (H1 : gv1 @ gvs1) (H2 : mp2 @ mps2) F S Ps
+  (H3 : mstore (los,nts) M mp2 t gv1 align0 = ret M') alinfo
+  (Hinscope : wf_ExecutionContext pinfo alinfo (los,nts) M gl EC)
+  (Hwft: wf_value S (module_intro los nts Ps) F v2 (typ_pointer t))
+  (Hht : wf_ECStack_head_in_tail maxb pinfo (los,nts) M lc EC),
+  wf_ExecutionContext pinfo alinfo (los,nts) M' gl EC.
 Proof.
   intros.
   intros J1 J2 J3.
@@ -785,16 +789,18 @@ Proof.
 Qed.
 
 (* its proof is same to alive_store.v *)
-Lemma mstore_preserves_wf_ECStack_in_tail : forall maxb pinfo td M
+Lemma mstore_preserves_wf_ECStack_in_tail : forall maxb pinfo los nts M
   (Hwfpi: WF_PhiInfo pinfo) M' gl (Hwfg: wf_globals maxb gl)
   maxb gl (Hwfg: wf_globals maxb gl) lc v1 v2 gvs1 gv1 mps2 mp2 align0 t
-  (H : Opsem.getOperandValue td v1 lc gl = ret gvs1)
-  (H0 : Opsem.getOperandValue td v2 lc gl = ret mps2)
+  (H : Opsem.getOperandValue (los,nts) v1 lc gl = ret gvs1)
+  (H0 : Opsem.getOperandValue (los,nts) v2 lc gl = ret mps2)
   (H1 : gv1 @ gvs1) (H2 : mp2 @ mps2)
-  (H3 : mstore td M mp2 t gv1 align0 = ret M') alinfo ECs
-  (Hhts: wf_ECStack_head_tail maxb pinfo td M lc ECs)
-  (Hwf: wf_ECStack pinfo alinfo td M gl ECs),
-  wf_ECStack pinfo alinfo td M' gl ECs.
+  (H3 : mstore (los,nts) M mp2 t gv1 align0 = ret M') stinfo
+  F S Ps
+  (Hwft: wf_value S (module_intro los nts Ps) F v2 (typ_pointer t)) ECs
+  (Hhts: wf_ECStack_head_tail maxb pinfo (los,nts) M lc ECs) 
+  (Hwf: wf_ECStack pinfo stinfo (los,nts) M gl ECs),
+  wf_ECStack pinfo stinfo (los,nts) M' gl ECs.
 Proof.
   induction ECs; simpl; intros; auto.
     destruct Hwf as [J1 J2].
@@ -938,7 +944,7 @@ match goal with
   eapply free_preserves_mload; try solve [
     eauto |
     eapply operand__no_alias_with__head; try solve [
-      eauto | preservation_tac2]
+      eauto | preservation_tac2 | get_wf_value_for_simop; eauto]
     ]
 end.
 
@@ -969,7 +975,9 @@ Case "sFree".
   (destruct_ctx_other;
    split; simpl; try solve [
     free_preserves_wf_EC_at_head |
-    eapply free_preserves_wf_ECStack_in_tail; eauto]).
+    eapply free_preserves_wf_ECStack_in_tail; try solve [
+      eauto | get_wf_value_for_simop; eauto]
+   ]).
 
 Case "sAlloca". abstract preservation_malloc.
 
@@ -979,12 +987,16 @@ Case "sStore".
    abstract
    (destruct_ctx_other;
     split; simpl; try solve [
-     eapply mstore_preserves_wf_EC_at_head; eauto using wf_system__uniqFdef |
+     eapply mstore_preserves_wf_EC_at_head; try solve [
+       eauto using wf_system__uniqFdef |
+       get_wf_value_for_simop; eauto
+     ] |
      match goal with
      | _ : ?gv1 @ ?gvs1', _ : ?mp2 @ ?mps2',
        _ : mstore _ _ ?mp2 _ ?gv1 _ = _ |- _ =>
        eapply mstore_preserves_wf_ECStack_in_tail
-         with (gvs1:=gvs1')(mps2:=mps2'); eauto
+         with (gvs1:=gvs1')(mps2:=mps2'); 
+         try solve [eauto | get_wf_value_for_simop; eauto]
      end]).
 
 Case "sGEP". preservation_pure_cmd_updated_case.

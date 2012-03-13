@@ -76,6 +76,9 @@ Ltac inv_mbind :=
           | H :  Some _ = match ?p with
                           | (_, _) => _
                           end |- _ => destruct p
+          | H :  match ?p with
+                 | (_, _) => _
+                 end = Some _ |- _ => destruct p
           | H : if ?e then _ else False |- _ =>
                 remember e as R; destruct R; tinv H
           | H : if ?e then False else _ |- _ =>

@@ -1248,11 +1248,6 @@ Definition wf_global TD system5 gl := forall id5 typ5,
     Coqlib.nat_of_Z (Coqlib.ZRdiv (Z_of_nat sz) 8) = sizeGenericValue gv /\
     gv_chunks_match_typ TD gv typ5.
 
-Definition wf_list_targetdata_typ (S:system) (TD:targetdata) gl lsd :=
-  forall S1 TD1, In (S1,TD1) lsd -> wf_global TD S1 gl /\ S = S1 /\ TD = TD1.
-
-Ltac tinv H := try solve [inversion H].
-
 Lemma getSubTypFromConstIdxs__mgetoffset_aux : forall TD const_list idxs o t'
     t1 typ' o0
   (HeqR1 : ret idxs = intConsts2Nats TD const_list)
@@ -1467,7 +1462,7 @@ Proof.
     repeat (destruct_if; auto).
 
     repeat (destruct_if; auto).
-    inv_mbind. destruct_let. uniq_result. symmetry_ctx.
+    inv_mbind. uniq_result. symmetry_ctx.
     assert (J:=HeqR1). apply splitGenericValue_spec0 in J.
     apply IHgv in HeqR1. 
     destruct HeqR1 as [J1 J2]; subst.

@@ -78,13 +78,13 @@ Case "wf_styp_structure".
     eapply wf_styp__feasible_typ_aux_mutrec_struct; eauto.
   subst.
   destruct Hsize as [sz [al Hsize]].
-  inv_mbind. destruct_let.
+  inv_mbind. 
   eapply H with (nts':=nts') in Hnc; eauto.
   fill_ctxhole. destruct x; eauto.
 Case "wf_styp_array".
   destruct sz5; eauto.
   destruct Hsize as [sz [al Hsize]].
-  inv_mbind. destruct_let.
+  inv_mbind.
   unfold getTypeAllocSize, getTypeStoreSize, getABITypeAlignment,
          getTypeSizeInBits, getAlignment, getTypeSizeInBits_and_Alignment,
          getTypeSizeInBits_and_Alignment_for_namedts.
@@ -100,8 +100,7 @@ Case "wf_styp_cons".
   apply eq_system_targetdata_cons_inv in H2. 
   destruct H2 as [H2 [EQ1 EQ2]]; subst.
   destruct Hsize as [sz [al Hsize]].
-  inv_mbind. destruct_let.
-  inv_mbind. destruct_let.
+  inv_mbind.
   assert (J:=Hnc).
   eapply H with (nts':=nts') in J; eauto. clear H.
   eapply H0 with (nts':=nts') in Hnc; eauto. clear H0.
@@ -229,109 +228,6 @@ Proof.
   eapply flatten_typ_total in H0; eauto.
   destruct H0 as [? H0].
   fill_ctxhole. eauto.
-Qed.
-
-Lemma const2GV_typsize_mutind_array : forall const_list system5 typ5 
-  (los : list layout) (nts : list namedt) gl 
-  (lsdc : list (system * targetdata * const)) lt
-  (HeqR0 : (lsdc, lt) =
-          split
-            (unmake_list_system_targetdata_const_typ
-               (make_list_system_targetdata_const_typ
-                  (map_list_const
-                     (fun const_ : const =>
-                      (system5, (los, nts), const_, typ5)) const_list))))
-  (lsd : list (system * targetdata)) lc
-  (HeqR' : (lsd, lc) = split lsdc)
-  ls (ld : list targetdata)
-  (HeqR'' : (ls, ld) = split lsd)
-  (H3 : wf_global (los, nts) system5 gl),
-  wf_list_targetdata_typ system5 (los, nts) gl lsd.
-Proof.
-  intros.
-  unfold wf_list_targetdata_typ.
-  generalize dependent lsdc.
-  generalize dependent lt.
-  generalize dependent lc.
-  generalize dependent ld.
-  generalize dependent ls0.
-  generalize dependent lsd.
-  induction const_list; intros; simpl in *.
-    inv HeqR0. inv HeqR'. inv H.
-    
-    remember (@split (prod (prod system targetdata) const) typ
-                (unmake_list_system_targetdata_const_typ
-                   (make_list_system_targetdata_const_typ
-                      (@map_list_const
-                         (prod
-                            (prod
-                               (prod system
-                                  (prod (list layout) (list namedt))) const)
-                            typ)
-                         (fun const_ : const =>
-                          @pair
-                            (prod
-                               (prod system
-                                  (prod (list layout) (list namedt))) const)
-                            typ
-                            (@pair
-                               (prod system
-                                  (prod (list layout) (list namedt))) const
-                               (@pair system
-                                  (prod (list layout) (list namedt)) system5
-                                  (@pair (list layout) (list namedt) los nts))
-                               const_) typ5) const_list)))) as R.
-    destruct R.
-    inv HeqR0. simpl in HeqR'.
-    remember (split l0) as R1.
-    destruct R1.
-    inv HeqR'. simpl in HeqR''.
-    remember (split l2) as R2.
-    destruct R2.
-    inv HeqR''. simpl in H.
-    destruct H as [H | H]; subst; eauto.
-      inv H. split; auto.
-Qed.
-
-Lemma const2GV_typsize_mutind_struct : forall const_typ_list system5 los nts gl
-  lsdc lt
-  (HeqR : (lsdc, lt) =
-         split
-           (unmake_list_system_targetdata_const_typ
-              (make_list_system_targetdata_const_typ
-                 (map_list_const_typ
-                    (fun (const_ : const) (typ_ : typ) =>
-                     (system5, (los, nts), const_, typ_)) const_typ_list))))
-  lsd lc
-  (HeqR' : (lsd, lc) = split lsdc)
-  (H3 : wf_global (los, nts) system5 gl),
-  wf_list_targetdata_typ system5 (los, nts) gl lsd.
-Proof.
-  intros.
-  generalize dependent lsdc.
-  generalize dependent lt.
-  generalize dependent lc.
-  generalize dependent lsd.
-  induction const_typ_list; simpl; intros.
-    inv HeqR. simpl in HeqR'. inv HeqR'.
-    unfold wf_list_targetdata_typ.
-    intros S TD Hin. inversion Hin.
-    
-    remember (split
-              (unmake_list_system_targetdata_const_typ
-                 (make_list_system_targetdata_const_typ
-                    (map_list_const_typ
-                       (fun (const_ : const) (typ_ : typ) =>
-                        (system5, (los, nts), const_, typ_))
-                       const_typ_list)))) as R1. 
-    destruct R1. inv HeqR. simpl in HeqR'.
-    remember (split l0) as R2.
-    destruct R2. inv HeqR'.
-    unfold wf_list_targetdata_typ in *.
-    intros S TD Hin. 
-    simpl in Hin.
-    destruct Hin as [Hin | Hin]; eauto.
-      inv Hin. split; auto.
 Qed.
 
 (*
@@ -994,7 +890,7 @@ Case "wf_styp_structure".
   assert (eq_system_targetdata system5 (los, nts) lsd) as EQ2.
     eapply wf_styp__feasible_typ_aux_mutrec_struct; eauto.
   subst.
-  inv_mbind. destruct_let. symmetry_ctx.
+  inv_mbind. symmetry_ctx.
   eapply H in HeqR0; eauto using list_system_typ_spec, feasible_struct_typ_inv.
   destruct n; inv H1.
       destruct g as [|[]]; inv H2; auto.
@@ -1021,7 +917,7 @@ Case "wf_styp_array".
     simpl. auto.
   rewrite G. clear G.
   symmetry in HeqR1.
-  inv_mbind. destruct_let.
+  inv_mbind.
   unfold getTypeAllocSize, getTypeStoreSize, getTypeSizeInBits, 
     getABITypeAlignment, getAlignment, getTypeSizeInBits_and_Alignment,
     getTypeSizeInBits_and_Alignment_for_namedts in HeqR2.
@@ -1087,7 +983,7 @@ Case "wf_styp_cons".
   symmetry in HeqR1. symmetry in HeqR2.
   apply feasible_cons_typs_inv in Hty.
   destruct Hty as [Hty1 Hty2]. 
-  inv_mbind. destruct_let. inv_mbind. destruct_let. uniq_result.
+  inv_mbind. uniq_result.
   eapply_clear H in HeqR2; eauto. 
   eapply_clear H0 in HeqR1; eauto.
   rewrite sizeGenericValue__app.
@@ -1380,7 +1276,7 @@ Case "wf_styp_structure".
   assert (eq_system_targetdata system5 (los, nts) lsd) as EQ2.
     eapply wf_styp__feasible_typ_aux_mutrec_struct; eauto.
   subst.
-  inv_mbind. destruct_let. symmetry_ctx.
+  inv_mbind. symmetry_ctx.
   eapply_clear H in HeqR0; eauto using list_system_typ_spec, feasible_struct_typ_inv.
   destruct n as [|n]; inv H1.
     destruct l0; inv H2; auto.
@@ -1407,7 +1303,7 @@ Case "wf_styp_array".
     simpl. auto.
   rewrite G. clear G.
   symmetry in HeqR1.
-  inv_mbind. destruct_let.
+  inv_mbind.
   unfold getTypeAllocSize, getTypeStoreSize, getTypeSizeInBits, 
     getABITypeAlignment, getAlignment, getTypeSizeInBits_and_Alignment,
     getTypeSizeInBits_and_Alignment_for_namedts in HeqR2.
@@ -1473,7 +1369,7 @@ Case "wf_styp_cons".
   symmetry in HeqR1. symmetry in HeqR2.
   apply feasible_cons_typs_inv in Hft.
   destruct Hft as [Hft1 Hft2]. 
-  inv_mbind. destruct_let. inv_mbind. destruct_let. uniq_result.
+  inv_mbind. uniq_result.
   eapply_clear H in HeqR2; eauto. 
   eapply_clear H0 in HeqR1; eauto.
   rewrite sizeMC__app.
@@ -1719,21 +1615,6 @@ Proof.
   eapply flatten_typ__getTypeSizeInBits; eauto.
 Qed.
 
-Lemma wf_list_targetdata_typ_cons_inv : forall S TD gl S'  TD' lsd,
-  wf_list_targetdata_typ S TD gl ((S', TD') :: lsd) ->
-  wf_list_targetdata_typ S TD gl lsd /\ S' = S /\ TD' = TD /\ wf_global TD S gl.
-Proof.
-  intros. 
-  unfold wf_list_targetdata_typ in *.
-  assert (In (S', TD') ((S', TD') :: lsd)) as J. simpl. auto.
-  apply H in J. 
-  destruct J as [J1 [J2 J3]]; subst.
-  split.
-    intros S1 TD1 Hin.    
-    apply H. simpl. auto.
-  split; auto.
-Qed.
- 
 Lemma mtrunc_typsize : forall S los nts top t1 t2 gv1 gv2
   (H0: wf_typ S (los,nts) t2) (H1: mtrunc (los,nts) top t1 t2 gv1 = Some gv2),
   exists sz, exists al,
@@ -2159,42 +2040,42 @@ Case "wfconst_gid".
     rewrite <- J3. eauto.
 
 Case "wfconst_trunc_int". Focus.
-  inv_mbind. destruct_let. inv_mbind. 
+  inv_mbind. 
   split; auto.
     symmetry in HeqR0.
     eapply mtrunc_typsize in HeqR0; eauto.
 Unfocus.
 
 Case "wfconst_trunc_fp". Focus.
-  inv_mbind. destruct_let. inv_mbind. 
+  inv_mbind. 
   split; auto.
     symmetry in HeqR0.
     eapply mtrunc_typsize in HeqR0; eauto.
 Unfocus.
 
 Case "wfconst_zext". Focus.
-  inv_mbind. destruct_let. inv_mbind. 
+  inv_mbind. 
   split; auto.
     symmetry in HeqR0.
     eapply mext_typsize in HeqR0; eauto.
 Unfocus.
 
 Case "wfconst_sext".  Focus.
-  inv_mbind. destruct_let. inv_mbind. 
+  inv_mbind. 
   split; auto.
     symmetry in HeqR0.
     eapply mext_typsize in HeqR0; eauto.
 Unfocus.
 
 Case "wfconst_fpext".  Focus.
-  inv_mbind. destruct_let. inv_mbind. 
+  inv_mbind.  
   split; auto.
     symmetry in HeqR0.
     eapply mext_typsize in HeqR0; eauto.
 Unfocus.
 
 Case "wfconst_ptrtoint". Focus.
-  inv_mbind. destruct_let. uniq_result.
+  inv_mbind. uniq_result.
   split; auto.
     exists (Size.to_nat sz5).
     exists (getIntAlignmentInfo los (Size.to_nat sz5) true).
@@ -2202,7 +2083,7 @@ Case "wfconst_ptrtoint". Focus.
 Unfocus.
 
 Case "wfconst_inttoptr". Focus.
-  inv_mbind. destruct_let. uniq_result.
+  inv_mbind. uniq_result.
   split; auto.
     exists (Size.to_nat (getPointerSizeInBits los)).
     exists (getPointerAlignmentInfo los true).
@@ -2210,7 +2091,7 @@ Case "wfconst_inttoptr". Focus.
 Unfocus.
 
 Case "wfconst_bitcast". Focus.
-  inv_mbind. destruct_let. inv_mbind.
+  inv_mbind. 
   unfold mbitcast in HeqR0.
   destruct t; inv HeqR0.
   eapply H in Hwfg; eauto.

@@ -2551,3 +2551,269 @@ Proof.
   apply wf_styp_namedt with (lookupTypViaTIDFromSystem sys2 i); trivial.
 Qed.
 *)
+
+Definition wf_list_targetdata_typ (S:system) (TD:targetdata) gl lsd :=
+  forall S1 TD1, In (S1,TD1) lsd -> wf_global TD S1 gl /\ S = S1 /\ TD = TD1.
+
+Lemma const2GV_typsize_mutind_array : forall const_list system5 typ5 
+  (los : list layout) (nts : list namedt) gl 
+  (lsdc : list (system * targetdata * const)) lt
+  (HeqR0 : (lsdc, lt) =
+          split
+            (unmake_list_system_targetdata_const_typ
+               (make_list_system_targetdata_const_typ
+                  (map_list_const
+                     (fun const_ : const =>
+                      (system5, (los, nts), const_, typ5)) const_list))))
+  (lsd : list (system * targetdata)) lc
+  (HeqR' : (lsd, lc) = split lsdc)
+  ls (ld : list targetdata)
+  (HeqR'' : (ls, ld) = split lsd)
+  (H3 : wf_global (los, nts) system5 gl),
+  wf_list_targetdata_typ system5 (los, nts) gl lsd.
+Proof.
+  intros.
+  unfold wf_list_targetdata_typ.
+  generalize dependent lsdc.
+  generalize dependent lt.
+  generalize dependent lc.
+  generalize dependent ld.
+  generalize dependent ls0.
+  generalize dependent lsd.
+  induction const_list; intros; simpl in *.
+    inv HeqR0. inv HeqR'. inv H.
+    
+    remember (@split (prod (prod system targetdata) const) typ
+                (unmake_list_system_targetdata_const_typ
+                   (make_list_system_targetdata_const_typ
+                      (@map_list_const
+                         (prod
+                            (prod
+                               (prod system
+                                  (prod (list layout) (list namedt))) const)
+                            typ)
+                         (fun const_ : const =>
+                          @pair
+                            (prod
+                               (prod system
+                                  (prod (list layout) (list namedt))) const)
+                            typ
+                            (@pair
+                               (prod system
+                                  (prod (list layout) (list namedt))) const
+                               (@pair system
+                                  (prod (list layout) (list namedt)) system5
+                                  (@pair (list layout) (list namedt) los nts))
+                               const_) typ5) const_list)))) as R.
+    destruct R.
+    inv HeqR0. simpl in HeqR'.
+    remember (split l0) as R1.
+    destruct R1.
+    inv HeqR'. simpl in HeqR''.
+    remember (split l2) as R2.
+    destruct R2.
+    inv HeqR''. simpl in H.
+    destruct H as [H | H]; subst; eauto.
+      inv H. split; auto.
+Qed.
+
+Lemma const2GV_typsize_mutind_struct : forall const_typ_list system5 los nts gl
+  lsdc lt
+  (HeqR : (lsdc, lt) =
+         split
+           (unmake_list_system_targetdata_const_typ
+              (make_list_system_targetdata_const_typ
+                 (map_list_const_typ
+                    (fun (const_ : const) (typ_ : typ) =>
+                     (system5, (los, nts), const_, typ_)) const_typ_list))))
+  lsd lc
+  (HeqR' : (lsd, lc) = split lsdc)
+  (H3 : wf_global (los, nts) system5 gl),
+  wf_list_targetdata_typ system5 (los, nts) gl lsd.
+Proof.
+  intros.
+  generalize dependent lsdc.
+  generalize dependent lt.
+  generalize dependent lc.
+  generalize dependent lsd.
+  induction const_typ_list; simpl; intros.
+    inv HeqR. simpl in HeqR'. inv HeqR'.
+    unfold wf_list_targetdata_typ.
+    intros S TD Hin. inversion Hin.
+    
+    remember (split
+              (unmake_list_system_targetdata_const_typ
+                 (make_list_system_targetdata_const_typ
+                    (map_list_const_typ
+                       (fun (const_ : const) (typ_ : typ) =>
+                        (system5, (los, nts), const_, typ_))
+                       const_typ_list)))) as R1. 
+    destruct R1. inv HeqR. simpl in HeqR'.
+    remember (split l0) as R2.
+    destruct R2. inv HeqR'.
+    unfold wf_list_targetdata_typ in *.
+    intros S TD Hin. 
+    simpl in Hin.
+    destruct Hin as [Hin | Hin]; eauto.
+      inv Hin. split; auto.
+Qed.
+
+Lemma wf_list_targetdata_typ_cons_inv : forall S TD gl S'  TD' lsd,
+  wf_list_targetdata_typ S TD gl ((S', TD') :: lsd) ->
+  wf_list_targetdata_typ S TD gl lsd /\ S' = S /\ TD' = TD /\ wf_global TD S gl.
+Proof.
+  intros. 
+  unfold wf_list_targetdata_typ in *.
+  assert (In (S', TD') ((S', TD') :: lsd)) as J. simpl. auto.
+  apply H in J. 
+  destruct J as [J1 [J2 J3]]; subst.
+  split.
+    intros S1 TD1 Hin.    
+    apply H. simpl. auto.
+  split; auto.
+Qed.
+ 
+Definition wf_list_targetdata_typ' (S:system) (TD:targetdata) lsd :=
+  forall S1 TD1, In (S1,TD1) lsd -> S = S1 /\ TD = TD1.
+
+Lemma const2GV_typsize_mutind_array' : forall const_list system5 typ5 
+  (los : list layout) (nts : list namedt)  
+  (lsdc : list (system * targetdata * const)) lt
+  (HeqR0 : (lsdc, lt) =
+          split
+            (unmake_list_system_targetdata_const_typ
+               (make_list_system_targetdata_const_typ
+                  (map_list_const
+                     (fun const_ : const =>
+                      (system5, (los, nts), const_, typ5)) const_list))))
+  (lsd : list (system * targetdata)) lc
+  (HeqR' : (lsd, lc) = split lsdc)
+  ls (ld : list targetdata)
+  (HeqR'' : (ls, ld) = split lsd),
+  wf_list_targetdata_typ' system5 (los, nts) lsd.
+Proof.
+  intros.
+  unfold wf_list_targetdata_typ'.
+  generalize dependent lsdc.
+  generalize dependent lt.
+  generalize dependent lc.
+  generalize dependent ld.
+  generalize dependent ls0.
+  generalize dependent lsd.
+  induction const_list; intros; simpl in *.
+    inv HeqR0. inv HeqR'. inv H.
+    
+    remember (@split (prod (prod system targetdata) const) typ
+                (unmake_list_system_targetdata_const_typ
+                   (make_list_system_targetdata_const_typ
+                      (@map_list_const
+                         (prod
+                            (prod
+                               (prod system
+                                  (prod (list layout) (list namedt))) const)
+                            typ)
+                         (fun const_ : const =>
+                          @pair
+                            (prod
+                               (prod system
+                                  (prod (list layout) (list namedt))) const)
+                            typ
+                            (@pair
+                               (prod system
+                                  (prod (list layout) (list namedt))) const
+                               (@pair system
+                                  (prod (list layout) (list namedt)) system5
+                                  (@pair (list layout) (list namedt) los nts))
+                               const_) typ5) const_list)))) as R.
+    destruct R.
+    inv HeqR0. simpl in HeqR'.
+    remember (split l0) as R1.
+    destruct R1.
+    inv HeqR'. simpl in HeqR''.
+    remember (split l2) as R2.
+    destruct R2.
+    inv HeqR''. simpl in H.
+    destruct H as [H | H]; subst; eauto.
+      inv H. split; auto.
+Qed.
+
+Lemma const2GV_typsize_mutind_struct' : forall const_typ_list system5 los nts
+  lsdc lt
+  (HeqR : (lsdc, lt) =
+         split
+           (unmake_list_system_targetdata_const_typ
+              (make_list_system_targetdata_const_typ
+                 (map_list_const_typ
+                    (fun (const_ : const) (typ_ : typ) =>
+                     (system5, (los, nts), const_, typ_)) const_typ_list))))
+  lsd lc
+  (HeqR' : (lsd, lc) = split lsdc),
+  wf_list_targetdata_typ' system5 (los, nts) lsd.
+Proof.
+  intros.
+  generalize dependent lsdc.
+  generalize dependent lt.
+  generalize dependent lc.
+  generalize dependent lsd.
+  induction const_typ_list; simpl; intros.
+    inv HeqR. simpl in HeqR'. inv HeqR'.
+    unfold wf_list_targetdata_typ.
+    intros S TD Hin. inversion Hin.
+    
+    remember (split
+              (unmake_list_system_targetdata_const_typ
+                 (make_list_system_targetdata_const_typ
+                    (map_list_const_typ
+                       (fun (const_ : const) (typ_ : typ) =>
+                        (system5, (los, nts), const_, typ_))
+                       const_typ_list)))) as R1. 
+    destruct R1. inv HeqR. simpl in HeqR'.
+    remember (split l0) as R2.
+    destruct R2. inv HeqR'.
+    unfold wf_list_targetdata_typ' in *.
+    intros S TD Hin. 
+    simpl in Hin.
+    destruct Hin as [Hin | Hin]; eauto.
+      inv Hin. split; auto.
+Qed.
+
+Lemma wf_list_targetdata_typ_cons_inv' : forall S TD S'  TD' lsd,
+  wf_list_targetdata_typ' S TD ((S', TD') :: lsd) ->
+  wf_list_targetdata_typ' S TD lsd /\ S' = S /\ TD' = TD.
+Proof.
+  intros. 
+  unfold wf_list_targetdata_typ' in *.
+  assert (In (S', TD') ((S', TD') :: lsd)) as J. simpl. auto.
+  apply H in J. 
+  destruct J as [J1 J2]; subst.
+  split.
+    intros S1 TD1 Hin.    
+    apply H. simpl. auto.
+  split; auto.
+Qed.
+
+Lemma wf_value_list__nth_list_value_l__wf_value : forall
+  (s : system) (m : module) (f : fdef) (l1 : l) (t0 : typ) v n l2
+  (H2 : wf_value_list
+         (make_list_system_module_fdef_value_typ
+            (map_list_value_l
+               (fun (value_ : value) (_ : l) => (s, m, f, value_, t0)) l2)))
+  lv (J : nth_list_value_l n l2 = ret (v, lv)),
+  wf_value s m f v t0.
+Proof.
+  induction n; simpl; intros.
+    destruct l2; inv J. inv H2. auto.
+
+    destruct l2; tinv J. inv H2. eauto.
+Qed.
+
+Lemma wf_phinodes__nth_list_value_l__wf_value: forall s m f b ps id1 t1 vls1
+  n v lv (Hwfps: wf_phinodes s m f b ps) (Hin: In (insn_phi id1 t1 vls1) ps)
+  (Hnth: nth_list_value_l n vls1 = Some (v, lv)),
+  wf_value s m f v t1.
+Proof.
+  intros.
+  eapply wf_phinodes__wf_phinode in Hwfps; eauto. inv Hwfps.
+  eapply wf_value_list__nth_list_value_l__wf_value in Hnth; eauto.
+Qed.
+

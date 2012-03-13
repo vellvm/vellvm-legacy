@@ -1139,11 +1139,6 @@ Case "sReturn".
     destruct n0; try solve [inv H0; inv H2; auto].
     destruct t; tinv H0.
     inv_mbind'.
-    remember (inscope_of_tmn F
-                   (block_intro l3 ps3 (cs3 ++ nil)
-                      (insn_return rid RetTy Result))
-                   (insn_return rid RetTy Result)) as R.
-    destruct R; tinv Hinscope1'.
     symmetry_ctx.
     eapply getOperandValue_inTmnOperands_sim in HeqR0; eauto
       using wf_system__wf_fdef; simpl; auto.

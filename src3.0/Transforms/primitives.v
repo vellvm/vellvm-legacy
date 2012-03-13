@@ -752,3 +752,22 @@ Proof.
       inv H. inv H0. auto.
 Qed.
 
+
+Lemma in_params__used: forall id1 A (t1 : A) (lp : list (A * value)) init,
+  fold_left
+    (fun (acc : bool) (p : A * value) =>
+     let '(_, v) := p in used_in_value id1 v || acc) lp init = false ->
+  ~ In (t1, value_id id1) lp.
+Proof.
+  induction lp as [|[]]; simpl; intros; auto.
+    intro J.
+    destruct J as [J | J].
+      inv J.
+      simpl in H.
+      destruct (id_dec id1 id1); try congruence.
+      simpl in H.
+      rewrite fold_left_or_spec in H; try congruence.
+        intros. subst. destruct b. apply orb_true_iff; auto.
+
+      apply IHlp in H. congruence.
+Qed.

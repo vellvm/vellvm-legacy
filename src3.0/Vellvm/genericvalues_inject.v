@@ -13,6 +13,7 @@ Require Import Znumtheory.
 Require Import typings.
 Require Import infrastructure_props.
 Require Import targetdata_props.
+Require Import typings_props.
 Require Import genericvalues_props.
 Require Import memory_sim.
 
@@ -1345,125 +1346,6 @@ Proof.
   apply gv_inject_app; auto.
 Qed.
 
-Definition wf_list_targetdata_typ' (S:system) (TD:targetdata) lsd :=
-  forall S1 TD1, In (S1,TD1) lsd -> S = S1 /\ TD = TD1.
-
-Lemma const2GV_typsize_mutind_array' : forall const_list system5 typ5 
-  (los : list layout) (nts : list namedt)  
-  (lsdc : list (system * targetdata * const)) lt
-  (HeqR0 : (lsdc, lt) =
-          split
-            (unmake_list_system_targetdata_const_typ
-               (make_list_system_targetdata_const_typ
-                  (map_list_const
-                     (fun const_ : const =>
-                      (system5, (los, nts), const_, typ5)) const_list))))
-  (lsd : list (system * targetdata)) lc
-  (HeqR' : (lsd, lc) = split lsdc)
-  ls (ld : list targetdata)
-  (HeqR'' : (ls, ld) = split lsd),
-  wf_list_targetdata_typ' system5 (los, nts) lsd.
-Proof.
-  intros.
-  unfold wf_list_targetdata_typ'.
-  generalize dependent lsdc.
-  generalize dependent lt.
-  generalize dependent lc.
-  generalize dependent ld.
-  generalize dependent ls0.
-  generalize dependent lsd.
-  induction const_list; intros; simpl in *.
-    inv HeqR0. inv HeqR'. inv H.
-    
-    remember (@split (prod (prod system targetdata) const) typ
-                (unmake_list_system_targetdata_const_typ
-                   (make_list_system_targetdata_const_typ
-                      (@map_list_const
-                         (prod
-                            (prod
-                               (prod system
-                                  (prod (list layout) (list namedt))) const)
-                            typ)
-                         (fun const_ : const =>
-                          @pair
-                            (prod
-                               (prod system
-                                  (prod (list layout) (list namedt))) const)
-                            typ
-                            (@pair
-                               (prod system
-                                  (prod (list layout) (list namedt))) const
-                               (@pair system
-                                  (prod (list layout) (list namedt)) system5
-                                  (@pair (list layout) (list namedt) los nts))
-                               const_) typ5) const_list)))) as R.
-    destruct R.
-    inv HeqR0. simpl in HeqR'.
-    remember (split l0) as R1.
-    destruct R1.
-    inv HeqR'. simpl in HeqR''.
-    remember (split l2) as R2.
-    destruct R2.
-    inv HeqR''. simpl in H.
-    destruct H as [H | H]; subst; eauto.
-      inv H. split; auto.
-Qed.
-
-Lemma const2GV_typsize_mutind_struct' : forall const_typ_list system5 los nts
-  lsdc lt
-  (HeqR : (lsdc, lt) =
-         split
-           (unmake_list_system_targetdata_const_typ
-              (make_list_system_targetdata_const_typ
-                 (map_list_const_typ
-                    (fun (const_ : const) (typ_ : typ) =>
-                     (system5, (los, nts), const_, typ_)) const_typ_list))))
-  lsd lc
-  (HeqR' : (lsd, lc) = split lsdc),
-  wf_list_targetdata_typ' system5 (los, nts) lsd.
-Proof.
-  intros.
-  generalize dependent lsdc.
-  generalize dependent lt.
-  generalize dependent lc.
-  generalize dependent lsd.
-  induction const_typ_list; simpl; intros.
-    inv HeqR. simpl in HeqR'. inv HeqR'.
-    unfold wf_list_targetdata_typ.
-    intros S TD Hin. inversion Hin.
-    
-    remember (split
-              (unmake_list_system_targetdata_const_typ
-                 (make_list_system_targetdata_const_typ
-                    (map_list_const_typ
-                       (fun (const_ : const) (typ_ : typ) =>
-                        (system5, (los, nts), const_, typ_))
-                       const_typ_list)))) as R1. 
-    destruct R1. inv HeqR. simpl in HeqR'.
-    remember (split l0) as R2.
-    destruct R2. inv HeqR'.
-    unfold wf_list_targetdata_typ' in *.
-    intros S TD Hin. 
-    simpl in Hin.
-    destruct Hin as [Hin | Hin]; eauto.
-      inv Hin. split; auto.
-Qed.
-
-Lemma wf_list_targetdata_typ_cons_inv' : forall S TD S'  TD' lsd,
-  wf_list_targetdata_typ' S TD ((S', TD') :: lsd) ->
-  wf_list_targetdata_typ' S TD lsd /\ S' = S /\ TD' = TD.
-Proof.
-  intros. 
-  unfold wf_list_targetdata_typ' in *.
-  assert (In (S', TD') ((S', TD') :: lsd)) as J. simpl. auto.
-  apply H in J. 
-  destruct J as [J1 J2]; subst.
-  split.
-    intros S1 TD1 Hin.    
-    apply H. simpl. auto.
-  split; auto.
-Qed.
-
 Definition sb_mem_inj__const2GV_prop S TD c t (H:wf_const S TD c t) := 
   forall maxb mi Mem1 Mem2 gl gv t',
   wf_sb_mi maxb mi Mem1 Mem2 ->
@@ -1582,49 +1464,49 @@ Case "wfconst_gid".
   inv_mbind. eauto using global_gv_inject_refl.
 
 Case "wfconst_trunc_int".
-  inv_mbind. destruct_let. inv_mbind. symmetry_ctx.
+  inv_mbind. symmetry_ctx.
   eapply H in HeqR; eauto. destruct HeqR.
   split; auto.
     eapply simulation__mtrunc_refl in HeqR0; eauto.
 
 Case "wfconst_trunc_fp".
-  inv_mbind. destruct_let. inv_mbind. symmetry_ctx.
+  inv_mbind. symmetry_ctx.
   eapply H in HeqR; eauto. destruct HeqR.
   split; auto.
     eapply simulation__mtrunc_refl in HeqR0; eauto.
 
 Case "wfconst_zext".
-  inv_mbind. destruct_let. inv_mbind. symmetry_ctx.
+  inv_mbind. symmetry_ctx.
   eapply H in HeqR; eauto. destruct HeqR.
   split; auto.
     eapply simulation__mext_refl in HeqR0; eauto.
 
 Case "wfconst_sext".
-  inv_mbind. destruct_let. inv_mbind. symmetry_ctx.
+  inv_mbind. symmetry_ctx.
   eapply H in HeqR; eauto. destruct HeqR.
   split; auto.
     eapply simulation__mext_refl in HeqR0; eauto.
 
 Case "wfconst_fpext".
-  inv_mbind. destruct_let. inv_mbind. symmetry_ctx.
+  inv_mbind. symmetry_ctx.
   eapply H in HeqR; eauto. destruct HeqR.
   split; auto.
     eapply simulation__mext_refl in HeqR0; eauto.
 
 Case "wfconst_ptrtoint".
-  inv_mbind. destruct_let. inv_mbind. symmetry_ctx.
+  inv_mbind. symmetry_ctx.
   eapply H in HeqR; eauto. destruct HeqR.
   split; auto.
     eauto using gv_inject_gundef.
 
 Case "wfconst_inttoptr".
-  inv_mbind. destruct_let. inv_mbind. symmetry_ctx.
+  inv_mbind. symmetry_ctx.
   eapply H in HeqR; eauto. destruct HeqR.
   split; auto.
     eauto using gv_inject_gundef.
 
 Case "wfconst_bitcast".
-  inv_mbind. destruct_let. inv_mbind. symmetry_ctx.
+  inv_mbind. symmetry_ctx.
   eapply H in HeqR; eauto. destruct HeqR.
   split; auto.
     assert (mcast targetdata5 castop_bitcast t (typ_pointer typ2) g = ret gv) 
@@ -1660,11 +1542,11 @@ Case "wfconst_gep". Focus.
 Unfocus.
 
 Case "wfconst_select".
-  inv_mbind. destruct_let. inv_mbind.
+  inv_mbind. 
   destruct_if; eauto.
 
 Case "wfconst_icmp".
-  inv_mbind. destruct_let. inv_mbind. destruct_let. inv_mbind. 
+  inv_mbind. 
   symmetry_ctx.
   eapply H in HeqR; eauto. clear H.
   eapply H0 in HeqR0; eauto. clear H0.
@@ -1672,8 +1554,8 @@ Case "wfconst_icmp".
   split; eauto 2 using simulation__micmp_refl.
 
 Case "wfconst_fcmp".
-  inv_mbind. destruct_let. destruct t; tinv H5.
-  inv_mbind. destruct_let. inv_mbind. 
+  inv_mbind. destruct t; tinv H5.
+  inv_mbind. 
   symmetry_ctx.
   eapply H in HeqR; eauto. clear H.
   eapply H0 in HeqR0; eauto. clear H0.
