@@ -785,24 +785,40 @@ Proof.
 (* trace length *)
   inv H; simpl; omega.
 (* receptive *)
-  admit.
-  (*
-  inv H; inv H0.
-  exploit eventgv_match_valid; eauto. intros [A B]. 
-  exploit eventval_valid_match. eexact H7. rewrite <- H8; eauto. 
-  intros [v' EVM]. exists v'; exists m1. econstructor; eauto. 
-  *)
+  inv H; inv H0; inv H2.
+    apply eventgv_match_valid in H0; auto.
+    destruct H0 as [ms [G1 [G2 G3]]].
+    rewrite H8 in G3.
+    eapply eventgv_valid_match in H7; eauto.
+    destruct H7 as [vs H7].
+    exists (Some vs). exists m1.
+    apply extcall_io_sem_intro; auto.
+       constructor; auto.
+
+    exists None. exists m1.
+    apply extcall_io_sem_intro; auto.
+       constructor; auto.
 (* determ *)
-  admit.
-  (*
   inv H; inv H0.
   assert (args0 = args1). 
-    eapply eventgv_list_match_determ_2; eauto. subst args1.
-  exploit eventval_match_valid. eexact H2. intros [V1 T1].
-  exploit eventval_match_valid. eexact H3. intros [V2 T2].
-  split. constructor; auto. congruence.
-  intros EQ; inv EQ. split; auto. eapply eventval_match_determ_1; eauto.
-  *)
+    eapply eventgv_list_match_determ_2; eauto.
+  subst args1.
+  inv H2; inv H3; try congruence.
+    assert (W1:=H0). assert (W2:=H2).
+    apply eventgv_match_valid in H0; auto.
+    destruct H0 as [ms1 [G1 [G2 G3]]].
+    apply eventgv_match_valid in H2; auto.
+    destruct H2 as [ms2 [G4 [G5 G6]]].
+    split.
+      constructor; auto. congruence.
+
+      intros.
+      split; auto.
+        inv H0. f_equal.
+        eapply eventgv_match_determ_1; eauto.
+
+    split; auto.
+      constructor.
 Qed.
 
 (** ** Semantics of other system calls. *)

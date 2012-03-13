@@ -24,31 +24,6 @@ Definition wf_non_alloca_GVs (pinfo:PhiInfo) (id1:id) (gvs1 gvsa:GenericValue)
   : Prop :=
 (if (id_dec id1 (PI_id pinfo)) then True else no_alias gvs1 gvsa).
 
-Definition encode_decode_ident_prop
-  (M:mem) (b:Values.block) (ofs:Z) (chunk:AST.memory_chunk) : Prop :=
-forall bs, 
-  bs = Mem.getN (size_chunk_nat chunk) ofs (Mem.mem_contents M b) ->
-  bs = encode_val chunk (decode_val chunk bs).
-
-Fixpoint encode_decode_ident_aux (M:mem) (mc:list AST.memory_chunk) b ofs 
-  : Prop :=
-match mc with
-| nil => True
-| c::mc' => encode_decode_ident_prop M b ofs c /\
-            encode_decode_ident_aux M mc' b (ofs+size_chunk c)%Z
-end.
-
-Definition encode_decode_ident 
-  (TD:TargetData) (M:mem) (ptr:mptr) (t:typ) (a:align) : Prop :=
-match GV2ptr TD (getPointerSize TD) ptr with
-| Some (Vptr b ofs) =>
-  match flatten_typ TD t with
-  | Some mc => encode_decode_ident_aux M mc b (Int.signed 31 ofs)
-  | _ => False
-  end
-| _ => False
-end.
-
 Definition wf_alloca_GVs (maxb:Values.block) (pinfo:PhiInfo) TD Mem
   (gvsa:GenericValue) (als:list Values.block) : Prop :=
 encode_decode_ident TD Mem gvsa (PI_typ pinfo) (PI_align pinfo) /\
@@ -397,18 +372,6 @@ Proof.
   induction mc; simpl; intros; auto.
   destruct Hid; split; auto.
   eapply free_preserves_encode_decode_ident_prop; eauto.
-Qed.
-
-Lemma no_alias_GV2ptr__neq_blk: forall TD sz0 ptr1 ptr2 b1 i1 b2 i2
-  (H1: GV2ptr TD sz0 ptr1 = ret Vptr b1 i1)
-  (H2: GV2ptr TD sz0 ptr2 = ret Vptr b2 i2)
-  (Hnoalias: no_alias ptr1 ptr2),
-  b1 <> b2.
-Proof.
-  intros.
-  destruct ptr1 as [|[[]][]]; inv H1.
-  destruct ptr2 as [|[[]][]]; inv H2.
-  simpl in Hnoalias. tauto.
 Qed.
 
 Lemma free_preserves_encode_decode_ident: forall TD M ptr1 ty al M' ptr2
@@ -1530,64 +1493,6 @@ Proof.
   eapply params2GVs_preserves_wf_lc; eauto.
 Qed.
 
-Lemma store_preserves_encode_decode_ident_prop: forall M blk ofs v M' b chunk 
-  ofs1 chunk1 (Hst: Mem.store chunk1 M blk ofs1 v = Some M') (Hneq: blk <> b)
-  (Hid: encode_decode_ident_prop M b ofs chunk),
-  encode_decode_ident_prop M' b ofs chunk.
-Proof.
-  unfold encode_decode_ident_prop in *.
-  intros.
-  apply Hid; auto.
-  erewrite Mem.store_getN_out; eauto.
-Qed.
-
-Lemma store_preserves_encode_decode_ident_aux: forall M blk ofs' M' b chunk v
-  (Hneq: blk <> b) (Hst: Mem.store chunk M blk ofs' v = Some M') mc ofs
-  (Hid: encode_decode_ident_aux M mc b ofs),
-  encode_decode_ident_aux M' mc b ofs.
-Proof.
-  induction mc; simpl; intros; auto.
-    destruct Hid; split; auto.
-      eapply store_preserves_encode_decode_ident_prop; eauto.
-Qed.
-
-Lemma mstore_aux_preserves_encode_decode_ident_aux: forall blk b 
-  (Hneq: blk <> b) mc ofs gv ofs' M M'
-  (Hst: mstore_aux M gv blk ofs' = Some M') 
-  (Hid: encode_decode_ident_aux M mc b ofs),
-  encode_decode_ident_aux M' mc b ofs.
-Proof.
-  induction gv as [|[]]; simpl; intros.
-    uniq_result. auto.
-
-    inv_mbind.
-    eapply IHgv; eauto.
-      eapply store_preserves_encode_decode_ident_aux; eauto.
-Qed.
-
-Lemma mstore_preserves_encode_decode_ident: forall TD M ptr1 ty al M' ptr2
-  (Hnoalias: no_alias ptr2 ptr1) ty2 gv2 al2
-  (Hid: encode_decode_ident TD M ptr1 ty al) 
-  (Hst: mstore TD M ptr2 ty2 gv2 al2= Some M'),
-  encode_decode_ident TD M' ptr1 ty al.
-Proof.
-  unfold encode_decode_ident. intros.
-  match goal with
-  | Hid: context [GV2ptr ?td ?sz ?ptr] |- _ =>
-      remember (GV2ptr td sz ptr) as R;
-      destruct R as [[]|]; tinv Hid
-  end.
-  match goal with
-  | Hid: context [flatten_typ ?td ?ty] |- _ =>
-      remember (flatten_typ td ty) as R;
-      destruct R as [|]; tinv Hid
-  end.
-  apply store_inv in Hst.
-  destruct Hst as [blk' [ofs' [J4 J5]]].
-  eapply mstore_aux_preserves_encode_decode_ident_aux; 
-    eauto using no_alias_GV2ptr__neq_blk.
-Qed.
-
 Lemma mstore_preserves_wf_defs_in_tail : forall maxb pinfo los nts M
   M' lc1 gl v als lc2 gvs1 gv1 t mp2 align mps2 vp S Ps F
   (Hwfvp: wf_value S (module_intro los nts Ps) F vp (typ_pointer t))
@@ -1682,13 +1587,30 @@ Qed.
 Definition wf_use_in_tail (pinfo:PhiInfo) (v:value) :=
 used_in_value (PI_id pinfo) v = false.
 
+Lemma lookupTypViaIDFromFdef__lookupInsnViaIDFromFdef: forall F pid ty
+  (Huniq: uniqFdef F)
+  (Hlkupty: lookupTypViaIDFromFdef F pid = Some ty),
+  exists insn, 
+    lookupInsnViaIDFromFdef F pid = Some insn /\ getInsnTyp insn = Some ty.
+Admitted.
+
+Lemma vm_matches_typ__eq__snd: forall gv1 mc 
+  (Hmatch : Forall2 vm_matches_typ gv1 mc), snd (split gv1) = mc.
+Proof.
+  induction 1; simpl; subst; auto.
+    destruct x. inv H.
+    destruct (split l0). auto.
+Qed.
+
 Lemma mstore_preserves_wf_defs_at_head : forall maxb pinfo los nts M
-  M' gl v als lc gvs1 gv1 t mp2 align mps2 vp S Ps F
-  (Hwfvp: wf_value S (module_intro los nts Ps) F vp (typ_pointer t))
-  (Hwfv: wf_value S (module_intro los nts Ps) F v t)
+  M' gl v als lc gvs1 gv1 t mp2 align mps2 vp S Ps (Hwfpi:WF_PhiInfo pinfo)
+  (Huniq: uniqFdef (PI_f pinfo))
+  (Hwfvp: wf_value S (module_intro los nts Ps) (PI_f pinfo) vp (typ_pointer t))
+  (Hwfv: wf_value S (module_intro los nts Ps) (PI_f pinfo) v t)
   (Hgetop': Opsem.getOperandValue (los,nts) vp lc gl = ret mps2)
   (Hgetop: Opsem.getOperandValue (los,nts) v lc gl = ret gvs1)
   (Hinp: mp2 @ mps2) (Hin: gv1 @ gvs1) (Hwfgl: wf_globals maxb gl)
+  (Hmatch: gv_chunks_match_typ (los,nts) gv1 t)
   (Hst: mstore (los,nts) M mp2 t gv1 align = Some M')
   (Hwfu: wf_use_at_head pinfo v)
   (Hwf: wf_defs maxb pinfo (los,nts) M lc als),
@@ -1725,7 +1647,14 @@ Proof.
         rewrite Int.signed_repr; auto.
         rewrite Int.signed_repr in Hst; auto.
         eapply promotable_mstore_aux_preserves_encode_decode_ident; eauto.
-          admit. (* Does Vellvm preserve this?!?!?!?! *)
+          inv Hwfvp.
+          apply lookupTypViaIDFromFdef__lookupInsnViaIDFromFdef in H8; auto.
+          destruct H8 as [insn0 [Hlkupinsn Hinsnty]].
+          apply WF_PhiInfo_spec1 in Huniq; auto.
+          uniq_result. inv Hinsnty.
+          unfold gv_chunks_match_typ in Hmatch. 
+          simpl in Hmatch. rewrite J7 in Hmatch.
+          apply vm_matches_typ__eq__snd; auto.
 
         eapply mstore_preserves_encode_decode_ident in Hst; eauto.
           eapply operand__no_alias_with__head with (mptrs:=mps2)(v:=vp); eauto.
@@ -2290,10 +2219,10 @@ Proof.
 Qed.
 
 Ltac simpl_ctx Hwfcfg Hinv HwfS1 :=
-  destruct Hwfcfg as [_ [_ [HwfSystem HmInS]]];
+  destruct Hwfcfg as [_ [Hwfgl0 [HwfSystem HmInS]]];
   destruct Hinv as
     [Hnonempty [
-     [Hreach1 [HBinF1 [HFinPs1 [_ [_ [l1 [ps1 [cs1' Heq1]]]]]]]]
+     [Hreach1 [HBinF1 [HFinPs1 [Hwflc1 [_ [l1 [ps1 [cs1' Heq1]]]]]]]]
      [HwfEC0 HwfCall]
     ]]; subst;
   fold (@OpsemPP.wf_ECStack DGVs) in HwfEC0;
@@ -3374,7 +3303,12 @@ Case "sStore".
     split.
       eapply impure_cmd_non_updated_preserves_wf_EC with (M:=Mem); eauto.
         intros. subst.
-        eapply mstore_preserves_wf_defs_at_head with (gvs1:=gvs1) in H3; eauto.
+        eapply mstore_preserves_wf_defs_at_head with (gvs1:=gvs1) in H3;
+          eauto using wf_system__uniqFdef.
+
+          eapply OpsemPP.getOperandValue__wf_gvs in Hwfv2; eauto.
+          destruct Hwfv2. eauto.
+
           preservation_tac2.
         eapply mstore_preserves_wf_lc; eauto.
     split.

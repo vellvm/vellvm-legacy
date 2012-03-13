@@ -2256,6 +2256,101 @@ Proof.
         assert (J:=@size_chunk_pos m). omega.
 Qed.
 
+Definition encode_decode_ident_prop
+  (M:mem) (b:Values.block) (ofs:Z) (chunk:AST.memory_chunk) : Prop :=
+forall bs, 
+  bs = Mem.getN (size_chunk_nat chunk) ofs (Mem.mem_contents M b) ->
+  bs = encode_val chunk (decode_val chunk bs).
+
+Fixpoint encode_decode_ident_aux (M:mem) (mc:list AST.memory_chunk) b ofs 
+  : Prop :=
+match mc with
+| nil => True
+| c::mc' => encode_decode_ident_prop M b ofs c /\
+            encode_decode_ident_aux M mc' b (ofs+size_chunk c)%Z
+end.
+
+Definition encode_decode_ident 
+  (TD:TargetData) (M:mem) (ptr:mptr) (t:typ) (a:align) : Prop :=
+match GV2ptr TD (getPointerSize TD) ptr with
+| Some (Vptr b ofs) =>
+  match flatten_typ TD t with
+  | Some mc => encode_decode_ident_aux M mc b (Int.signed 31 ofs)
+  | _ => False
+  end
+| _ => False
+end.
+
+Lemma store_preserves_encode_decode_ident_prop: forall M blk ofs v M' b chunk 
+  ofs1 chunk1 (Hst: Mem.store chunk1 M blk ofs1 v = Some M') (Hneq: blk <> b)
+  (Hid: encode_decode_ident_prop M b ofs chunk),
+  encode_decode_ident_prop M' b ofs chunk.
+Proof.
+  unfold encode_decode_ident_prop in *.
+  intros.
+  apply Hid; auto.
+  erewrite Mem.store_getN_out; eauto.
+Qed.
+
+Lemma store_preserves_encode_decode_ident_aux: forall M blk ofs' M' b chunk v
+  (Hneq: blk <> b) (Hst: Mem.store chunk M blk ofs' v = Some M') mc ofs
+  (Hid: encode_decode_ident_aux M mc b ofs),
+  encode_decode_ident_aux M' mc b ofs.
+Proof.
+  induction mc; simpl; intros; auto.
+    destruct Hid; split; auto.
+      eapply store_preserves_encode_decode_ident_prop; eauto.
+Qed.
+
+Lemma mstore_aux_preserves_encode_decode_ident_aux: forall blk b 
+  (Hneq: blk <> b) mc ofs gv ofs' M M'
+  (Hst: mstore_aux M gv blk ofs' = Some M') 
+  (Hid: encode_decode_ident_aux M mc b ofs),
+  encode_decode_ident_aux M' mc b ofs.
+Proof.
+  induction gv as [|[]]; simpl; intros.
+    uniq_result. auto.
+
+    inv_mbind.
+    eapply IHgv; eauto.
+      eapply store_preserves_encode_decode_ident_aux; eauto.
+Qed.
+
+Lemma no_alias_GV2ptr__neq_blk: forall TD sz0 ptr1 ptr2 b1 i1 b2 i2
+  (H1: GV2ptr TD sz0 ptr1 = ret Vptr b1 i1)
+  (H2: GV2ptr TD sz0 ptr2 = ret Vptr b2 i2)
+  (Hnoalias: no_alias ptr1 ptr2),
+  b1 <> b2.
+Proof.
+  intros.
+  destruct ptr1 as [|[[]][]]; inv H1.
+  destruct ptr2 as [|[[]][]]; inv H2.
+  simpl in Hnoalias. tauto.
+Qed.
+
+Lemma mstore_preserves_encode_decode_ident: forall TD M ptr1 ty al M' ptr2
+  (Hnoalias: no_alias ptr2 ptr1) ty2 gv2 al2
+  (Hid: encode_decode_ident TD M ptr1 ty al) 
+  (Hst: mstore TD M ptr2 ty2 gv2 al2= Some M'),
+  encode_decode_ident TD M' ptr1 ty al.
+Proof.
+  unfold encode_decode_ident. intros.
+  match goal with
+  | Hid: context [GV2ptr ?td ?sz ?ptr] |- _ =>
+      remember (GV2ptr td sz ptr) as R;
+      destruct R as [[]|]; tinv Hid
+  end.
+  match goal with
+  | Hid: context [flatten_typ ?td ?ty] |- _ =>
+      remember (flatten_typ td ty) as R;
+      destruct R as [|]; tinv Hid
+  end.
+  apply store_inv in Hst.
+  destruct Hst as [blk' [ofs' [J4 J5]]].
+  eapply mstore_aux_preserves_encode_decode_ident_aux; 
+    eauto using no_alias_GV2ptr__neq_blk.
+Qed.
+
 End MemProps.
 
 

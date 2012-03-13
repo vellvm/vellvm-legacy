@@ -632,30 +632,6 @@ Proof.
       eapply malloc_preserves_wf_EC_in_tail; eauto.
 Qed.
 
-Ltac destruct_ctx_other :=
-match goal with
-| Hwfcfg : OpsemPP.wf_Config ?cfg,
-  Hwfpp : OpsemPP.wf_State ?cfg _,
-  HwfS1 : wf_State _ _ _ _,
-  Hnoalias : Promotability.wf_State _ _ _ _ |- _ =>
-  destruct Hwfcfg as [_ [_ [HwfSystem HmInS]]];
-  destruct Hwfpp as 
-    [Hnonempty [
-     [Hreach1 [HBinF1 [HFinPs1 [_ [_ [l1 [ps1 [cs1' Heq1]]]]]]]]
-     [HwfEC0 HwfCall]
-    ]]; subst;
-  fold (@OpsemPP.wf_ECStack DGVs) in HwfEC0;
-  destruct HwfS1 as [Hinscope HwfECs]; simpl;
-  simpl in Hinscope, HwfECs;
-  fold wf_ECStack in HwfECs;
-  destruct Hnoalias as
-    [
-      [[Hinscope' _] [HwfECs' HwfHT]]
-      [[Hdisjals _] HwfM]
-    ]; simpl in Hdisjals;
-  fold Promotability.wf_ECStack in HwfECs'
-end.
-
 Lemma free_preserves_wf_EC_in_tail : forall pinfo los nts M EC M' mptr0
   maxb gl (Hwfg: wf_globals maxb gl) Ps S F t
   (Hfree: free (los,nts) M mptr0 = ret M') stinfo mptrs v lc
@@ -763,7 +739,8 @@ Proof.
     eapply wf_defs_updateAddAL; eauto.
 Qed.
 
-Lemma mstore_mload_same: forall td Mem mp2 typ1 gv1 align1 Mem',
+Lemma mstore_mload_same: forall td Mem mp2 typ1 gv1 align1 Mem'
+  (Hmatch: gv_chunks_match_typ td gv1 typ1),
   mstore td Mem mp2 typ1 gv1 align1 = ret Mem' ->
   mload td Mem' mp2 typ1 align1 = ret gv1.
 Proof.
@@ -771,8 +748,17 @@ Proof.
   apply genericvalues.LLVMgv.store_inv in H.
   destruct H as [b0 [ofs0 [J1 J4]]].
   unfold mload.
-  rewrite J1.
-
+  unfold gv_chunks_match_typ in Hmatch.
+  inv_mbind. fill_ctxhole.
+  clear - Hmatch J4.
+  generalize dependent Mem.
+  generalize dependent Mem'.
+  generalize (Int.signed 31 ofs0). clear ofs0.
+  generalize dependent gv1.
+  induction 1; simpl; intros; auto.
+    inv_mbind. inv H. simpl. symmetry_ctx.
+    eapply Mem.load_store_same in HeqR; eauto.
+      apply IHHmatch in H1. fill_ctxhole. 
   (* We know well-formed typ1 must be flattened. But we should prove that
      gv1 must match the list of flattened chunks. !!! *)
 Admitted.
@@ -787,9 +773,12 @@ Lemma mstore_preserves_wf_EC_at_head: forall (maxb : Z) (pinfo : PhiInfo)
   (mps2 : GVsT DGVs) (Huniq: uniqFdef F)
   (H : Opsem.getOperandValue (los,nts) v1 lc gl = ret gvs1)
   (H0 : Opsem.getOperandValue (los,nts) v2 lc gl = ret mps2)
-  (Hwft: wf_value S (module_intro los nts Ps) F v2 (typ_pointer t))
+  (Hwft2: wf_value S (module_intro los nts Ps) F v2 (typ_pointer t))
+  (Hwft1: wf_value S (module_intro los nts Ps) F v1 t)
+  (Hwfgl: genericvalues.LLVMgv.wf_global (los, nts) S gl)
   (H1 : gv1 @ gvs1) (H2 : mp2 @ mps2)
   (H3 : mstore (los,nts) Mem mp2 t gv1 align0 = ret Mem')
+  (Hwflc: OpsemPP.wf_lc (los,nts) F lc)
   (Hinscope' : if fdef_dec (PI_f pinfo) F
                then Promotability.wf_defs maxb pinfo (los,nts) Mem lc als
                else True)
@@ -818,7 +807,7 @@ Proof.
   assert (J2':=J2).
   remember (store_in_cmd (PI_id pinfo) (insn_store sid t v1 v2 align0)) as R.
   destruct R.
-    clear - J2 J3 HeqR H3 H2 H0 H1 H.
+    clear - J2 J3 HeqR H3 H2 H0 H1 H Hwflc Hwft1 Hwfgl.
     unfold follow_alive_store in J3.
     rewrite <- J2 in J3.
     destruct stinfo. simpl in *.
@@ -845,6 +834,8 @@ Proof.
       rewrite H0 in Hlkpa. inv Hlkpa. inv H2. inv H1.
       rewrite Hlkpv in H. inv H.
       eapply mstore_mload_same; eauto.
+        eapply OpsemPP.getOperandValue__wf_gvs in Hlkpv; eauto.
+        inv Hlkpv; eauto.
 
       assert (exists csa', exists c', [c] ++ csa = csa' ++ [c']) as EQ.
         apply head_tail_commut.
@@ -867,6 +858,7 @@ Proof.
       simpl in G3.
       rewrite G3 in HeqR. congruence.
 
+    clear Hwft1 Hwfgl.
     apply follow_alive_store_cons in J2; auto.
     apply Hinscope in J2; auto. simpl in J2.
     destruct (fdef_dec (PI_f pinfo) (PI_f pinfo)); try congruence.
@@ -918,13 +910,6 @@ Proof.
       eapply mstore_preserves_wf_EC_in_tail with (gvs1:=gvs1)(mps2:=mps2)
         in H3; eauto.
 Qed.
-
-Ltac preservation_malloc :=
-  destruct_ctx_other;
-  split; simpl; try solve [
-    eapply malloc_preserves_wf_EC_at_head;
-      eauto using wf_system__wf_fdef, wf_system__uniqFdef |
-    eapply malloc_preserves_wf_ECStack_in_tail; eauto].
 
 Lemma getOperandValue_updateAddAL_nouse: forall TD v lc rid v0 gl gvsv,
   Opsem.getOperandValue TD v (updateAddAL (GVsT DGVs) lc rid v0) gl = ret gvsv ->
@@ -1022,6 +1007,37 @@ Proof.
     apply getOperandValue_updateAddAL_nouse in Hlkv; auto.
     eapply MemProps.callExternalOrIntrinsics_preserves_mload; eauto.
 Qed.
+
+Ltac destruct_ctx_other :=
+match goal with
+| Hwfcfg : OpsemPP.wf_Config ?cfg,
+  Hwfpp : OpsemPP.wf_State ?cfg _,
+  HwfS1 : wf_State _ _ _ _,
+  Hnoalias : Promotability.wf_State _ _ _ _ |- _ =>
+  destruct Hwfcfg as [_ [Hwfgl0 [HwfSystem HmInS]]];
+  destruct Hwfpp as 
+    [Hnonempty [
+     [Hreach1 [HBinF1 [HFinPs1 [Hwflc1 [_ [l1 [ps1 [cs1' Heq1]]]]]]]]
+     [HwfEC0 HwfCall]
+    ]]; subst;
+  fold (@OpsemPP.wf_ECStack DGVs) in HwfEC0;
+  destruct HwfS1 as [Hinscope HwfECs]; simpl;
+  simpl in Hinscope, HwfECs;
+  fold wf_ECStack in HwfECs;
+  destruct Hnoalias as
+    [
+      [[Hinscope' _] [HwfECs' HwfHT]]
+      [[Hdisjals _] HwfM]
+    ]; simpl in Hdisjals;
+  fold Promotability.wf_ECStack in HwfECs'
+end.
+
+Ltac preservation_malloc :=
+  destruct_ctx_other;
+  split; simpl; try solve [
+    eapply malloc_preserves_wf_EC_at_head;
+      eauto using wf_system__wf_fdef, wf_system__uniqFdef |
+    eapply malloc_preserves_wf_ECStack_in_tail; eauto].
 
 Ltac preservation_pure_cmd_updated_case_helper:=
   destruct_ctx_other;
