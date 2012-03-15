@@ -739,6 +739,7 @@ Proof.
     eapply wf_defs_updateAddAL; eauto.
 Qed.
 
+(* should go to memory_props *)
 Lemma mstore_mload_same: forall td Mem mp2 typ1 gv1 align1 Mem'
   (Hmatch: gv_chunks_match_typ td gv1 typ1),
   mstore td Mem mp2 typ1 gv1 align1 = ret Mem' ->
@@ -754,14 +755,22 @@ Proof.
   generalize dependent Mem.
   generalize dependent Mem'.
   generalize (Int.signed 31 ofs0). clear ofs0.
+  assert (gv_has_chunk gv1) as Hchk.
+    admit. (* from OpsemPP *)
   generalize dependent gv1.
+  unfold gv_has_chunk.
   induction 1; simpl; intros; auto.
-    inv_mbind. inv H. simpl. symmetry_ctx.
-    eapply Mem.load_store_same in HeqR; eauto.
-      apply IHHmatch in H1. fill_ctxhole. 
-  (* We know well-formed typ1 must be flattened. But we should prove that
-     gv1 must match the list of flattened chunks. !!! *)
-Admitted.
+    inv_mbind. inv Hchk. inv H. simpl. symmetry_ctx.
+    assert (Mem.load m Mem' b0 z = Some v) as Hld.
+      eapply Mem.load_store_exact_same in HeqR; eauto.
+      rewrite <- HeqR.
+      symmetry.
+      eapply MemProps.mstore_preserves_load; eauto.
+      right. omega.
+
+    apply IHHmatch in H1; auto.  
+    repeat fill_ctxhole.  auto.
+Qed.
 
 Lemma mstore_preserves_wf_EC_at_head: forall (maxb : Z) (pinfo : PhiInfo)
   (stinfo : StoreInfo pinfo) (S : system) los nts

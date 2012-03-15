@@ -2351,6 +2351,25 @@ Proof.
     eauto using no_alias_GV2ptr__neq_blk.
 Qed.
 
+Lemma mstore_preserves_load: forall b1 b2 ofs1 m gv M1 M2 ofs2
+  (Hneq: b1 <> b2 \/ ofs1 + size_chunk m <= ofs2)
+  (Hst: mstore_aux M1 gv b2 ofs2 = ret M2),
+  Mem.load m M1 b1 ofs1 = Mem.load m M2 b1 ofs1.
+Proof.
+  induction gv as [|[]]; simpl; intros; auto.
+    uniq_result. auto.
+
+    inv_mbind'. symmetry_ctx.
+    transitivity (Mem.load m m1 b1 ofs1).
+      eapply Mem.load_store_other in HeqR; eauto.
+      destruct Hneq; auto.
+
+      apply IHgv in H0; auto.
+      destruct Hneq; auto.
+      right.
+      assert (J:=size_chunk_pos m0). omega.
+Qed.
+
 End MemProps.
 
 

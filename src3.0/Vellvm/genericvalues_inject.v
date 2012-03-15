@@ -32,6 +32,9 @@ Inductive gv_inject (mi: meminj) : GenericValue -> GenericValue -> Prop :=
 Hint Constructors gv_inject.
 Hint Unfold MoreMem.meminj_no_overlap MoreMem.meminj_zero_delta.
 
+Definition gv_list_inject (mi: meminj) (gvss1 gvss2: list GenericValue): Prop :=
+List.Forall2 (gv_inject mi) gvss1 gvss2.
+
 Record wf_sb_mi maxb mi Mem1 Mem2 := mk_wf_sb_mi {
   Hno_overlap : MoreMem.meminj_no_overlap mi;
   Hnull : mi Mem.nullptr = Some (Mem.nullptr, 0);

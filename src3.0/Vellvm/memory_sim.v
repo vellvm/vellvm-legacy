@@ -698,5 +698,14 @@ Proof.
     eapply Mem.perm_free_3; eauto.
 Qed.
 
+Lemma val_load_result_inject_2: forall (f : block -> option (block * Z))
+  (v : val) (m : memory_chunk) (Hchk : Val.has_chunk v m)
+  (Hinj : val_inject f (Val.load_result m v) (Val.load_result m v)),
+  val_inject f v v.
+Proof.
+  intros.
+  destruct m, v; try inv Hchk; auto.
+Qed.
+
 End MoreMem.
 

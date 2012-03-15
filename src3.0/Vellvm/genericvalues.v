@@ -31,6 +31,20 @@ Definition mptr := GenericValue.
 Definition null : GenericValue :=
   (Vptr Mem.nullptr (Int.repr 31 0), Mint 31)::nil.
 
+Definition gv_lessdef (gv1 gv2:GenericValue) : Prop :=
+List.Forall2 (fun vm1 vm2 =>
+              let '(v1, cm1) := vm1 in
+              let '(v2, cm2) := vm2 in
+              Val.lessdef v1 v2 /\ cm1 = cm2) gv1 gv2.
+
+Definition gv_has_chunk (gv:GenericValue): Prop :=
+List.Forall (fun vm => 
+             let '(v, mc) := vm in
+             Val.has_chunk v mc) gv.
+
+Definition gv_lessdef_list (gvs1 gvs2:list GenericValue) : Prop :=
+List.Forall2 gv_lessdef gvs1 gvs2.
+
 Fixpoint eq_gv (gv1 gv2:GenericValue) : bool :=
 match gv1, gv2 with
 | nil, nil => true
@@ -134,6 +148,15 @@ Definition flatten_typs (TD:TargetData) (lt:list_typ)
   : option (list memory_chunk) :=
 let '(los, nts) := TD in
 flatten_typs_aux TD (flatten_typ_for_namedts TD los nts) lt.
+
+Definition gv_has_type (TD:LLVMtd.TargetData) (gv:GenericValue) 
+  (t:LLVMsyntax.typ) : Prop :=
+match flatten_typ TD t with
+| None => False
+| Some ts =>
+    List.Forall2 (fun v mc => Val.has_type v (AST.type_of_chunk mc)) 
+                 (fst (List.split gv)) ts
+end.
 
 Definition mc2undefs (mc:list memory_chunk) : GenericValue :=
 List.fold_right 
@@ -2386,5 +2409,11 @@ Proof.
     ].
 Qed.
 
+Lemma gv_lessdef_ref: forall gv, gv_lessdef gv gv.
+Proof.
+  unfold gv_lessdef.
+  induction gv as [|[]]; auto.
+Qed.
+    
 End LLVMgv.
 
