@@ -2309,7 +2309,8 @@ Case "sMalloc". eapply preservation_cmd_updated_case in HwfS1; simpl; eauto.
     apply GVsSig.(gv2gvs__inhabited).
    
     intros gv Hin. unfold gv_chunks_match_typ, vm_matches_typ.
-    apply GVsSig.(none_undef2gvs_inv) in Hin; subst; simpl; auto.
+    apply GVsSig.(none_undef2gvs_inv) in Hin; subst; simpl.
+    constructor; auto. simpl. split; auto. 
       intros mc. congruence.
 
 Case "sFree". eapply preservation_cmd_non_updated_case in HwfS1; eauto.
@@ -2330,7 +2331,8 @@ Case "sAlloca". eapply preservation_cmd_updated_case in HwfS1; simpl; eauto.
     apply GVsSig.(gv2gvs__inhabited).
 
     intros gv Hin. unfold gv_chunks_match_typ, vm_matches_typ.
-    apply GVsSig.(none_undef2gvs_inv) in Hin; subst; simpl; auto.
+    apply GVsSig.(none_undef2gvs_inv) in Hin; subst; simpl.
+    constructor; auto. simpl. split; auto. 
       intros mc. congruence.
 
 Case "sLoad".  eapply preservation_cmd_updated_case in HwfS1; simpl; eauto.

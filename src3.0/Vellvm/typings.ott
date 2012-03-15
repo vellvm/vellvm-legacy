@@ -787,7 +787,7 @@ Jwf_trunc :: '' ::=
 
       % Check typs
       system , (layouts namedts products) , fdef |- value1 : floating_point1
-      system , (layouts namedts) |- floating_point2
+      system , (layouts namedts) |- floating_point1
       % bitwidth of dest typ is less then src typ
       floating_point2 < floating_point1
       % Check invariance for instructions
@@ -824,11 +824,12 @@ Jwf_ext :: '' ::=
 
       % Check typs
       system , (layouts namedts products) , fdef |- value1 : floating_point1
-      system , (layouts namedts) |- floating_point2
+      system , (layouts namedts) |- floating_point1
       % bitwidth of src typ is less then dest typ
       floating_point1 < floating_point2
       % Check invariance for instructions
       fdef , block |-i id = fpext floating_point1 value1 to floating_point2
+      system , (layouts namedts) |- floating_point2
       ------------------------------------------------------------------------------------------------------- :: wf_ext_fp
       system , (layouts namedts products) , fdef , block |-ext id = fpext floating_point1 value1 to floating_point2	
 

@@ -44,8 +44,9 @@ Definition inhabited (gvs : t) : Prop := Ensembles.Inhabited _ gvs.
 Hint Unfold instantiate_gvs inhabited.
 Definition cundef_gvs gv ty : t :=
 match ty with
-| typ_int sz => fun gv => exists z, gv = (Vint sz z, Mint (sz - 1))::nil
-| typ_floatpoint fp_float => fun gv => exists f, gv = (Vfloat f, Mfloat32)::nil
+| typ_int sz => fun gv => exists z, gv = (Vint (sz-1) z, Mint (sz - 1))::nil
+| typ_floatpoint fp_float => 
+    fun gv => exists f, gv = (Val.singleoffloat (Vfloat f), Mfloat32)::nil
 | typ_floatpoint fp_double => fun gv => exists f, gv = (Vfloat f, Mfloat64)::nil
 | typ_pointer _ =>
     fun gv => exists b, exists ofs, gv = (Vptr b ofs, AST.Mint 31)::nil
@@ -56,10 +57,10 @@ Definition undef_gvs gv ty : t :=
 match ty with
 | typ_int sz =>
     Ensembles.Union _ (Singleton _ gv)
-      (fun gv => exists z, gv = (Vint sz z, Mint (sz-1))::nil)
+      (fun gv => exists z, gv = (Vint (sz-1) z, Mint (sz-1))::nil)
 | typ_floatpoint fp_float =>
     Ensembles.Union _ (Singleton _ gv)
-      (fun gv => exists f, gv = (Vfloat f, Mfloat32)::nil)
+      (fun gv => exists f, gv = (Val.singleoffloat (Vfloat f), Mfloat32)::nil)
 | typ_floatpoint fp_double =>
     Ensembles.Union _ (Singleton _ gv)
       (fun gv => exists f, gv = (Vfloat f, Mfloat64)::nil)
@@ -114,8 +115,21 @@ Proof.
   inv_mbind.
   destruct_typ t; simpl in *; uniq_result;
     try solve [inv Heq1; inv Hin; auto].
+
+    inv Heq1; inv Hin. 
+    constructor; auto.
+    split; auto. simpl. split; auto. apply Int.unsigned_range.
+
     destruct f; uniq_result; inv Heq1; inv Hin; eauto.
-    inv Heq1. inv Hin. inv H. auto.
+      constructor; auto.
+      split; auto. simpl. rewrite Float.singleoffloat_idem. auto.
+
+      constructor; auto.
+      split; auto. simpl. auto.
+
+    inv Heq1. inv Hin. inv H. 
+    constructor; auto.
+    split; auto. simpl. auto.
 Qed.
 
 Lemma cundef_gvs__inhabited : forall gv ty, inhabited (cundef_gvs gv ty).
@@ -123,7 +137,7 @@ Proof.
   destruct_typ ty; simpl; 
     try solve [eapply Ensembles.Inhabited_intro; constructor].
     eapply Ensembles.Inhabited_intro.
-      exists (Int.zero s0). auto.
+      exists (Int.zero (s0-1)). auto.
 
     destruct f; try solve [
       eapply Ensembles.Inhabited_intro; exists Float.zero; auto |
@@ -168,18 +182,32 @@ Proof.
   unfold gv_chunks_match_typ, vm_matches_typ in *.
   inv_mbind.
   destruct_typ t; simpl in *; uniq_result; try solve [
-    inv Heq1; inv Hin; eauto |
-    inv Heq1; inv Hin; inv H; try solve [congruence | auto]
+    inv Heq1; inv Hin; eauto
   ].
 
+    inv Heq1; inv Hin; inv H.
+    constructor; auto. 
+    constructor; auto.
+      split; auto. split; auto. apply Int.unsigned_range.
+
     destruct f; uniq_result; try solve [
-      inv Heq1; inv Hin; eauto |
-      inv Heq1; inv Hin; inv H; try solve [congruence | auto]
+      inv Heq1; inv Hin; eauto
     ].
+
+      inv Heq1; inv Hin; inv H.
+      constructor; auto.
+      constructor; auto.
+        split; auto. simpl. rewrite Float.singleoffloat_idem. auto.
+
+      inv Heq1; inv Hin; inv H.
+      constructor; auto.
+      constructor; auto.
+        split; auto. simpl. auto.
 
     inv Heq1; inv Hin; inv H; try solve [congruence | auto].
       match goal with
-      | H1: exists _:_, _ |- _ => inv H1; auto
+      | H1: exists _:_, _ |- _ => inv H1;
+         constructor; try solve [auto | split; simpl; auto]
       end.
 Qed.
 

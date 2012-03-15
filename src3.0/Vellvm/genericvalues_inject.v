@@ -396,7 +396,7 @@ Proof.
   inv J3; auto.
     destruct_typ t1; destruct_typ t2; inv H0; try solve [
       eauto using gv_inject_gundef |
-      unfold val2GV; simpl; destruct (le_lt_dec wz s1); auto
+      unfold val2GV; simpl; destruct (le_lt_dec wz (s1-1)); auto
     ].
 
     destruct_typ t1; destruct_typ t2; inv H0; eauto using gv_inject_gundef.
@@ -404,7 +404,7 @@ Proof.
       | H: context [floating_point_order ?f1 ?f0] |- _ => 
         destruct (floating_point_order f1 f0); inv H; 
            simpl; eauto using gv_inject_gundef;
-        destruct f1; inv H0; unfold val2GV; simpl; eauto using gv_inject_gundef
+        destruct f0; inv H0; unfold val2GV; simpl; eauto using gv_inject_gundef
       end.
  
     inv H0. eauto using gv_inject_gundef.
@@ -562,7 +562,8 @@ Proof.
     destruct fp; inv H1; try solve [eauto using gv_inject_gundef].
        destruct op; 
           try (left; split; auto; apply gv_inject_nptr_val_refl; 
-            try solve [auto | intro; congruence]).
+            try solve [auto | intro; simpl; congruence]).
+
        destruct op; 
           try (left; split; auto; apply gv_inject_nptr_val_refl; 
             try solve [auto | intro; congruence]).
@@ -914,6 +915,7 @@ Proof.
   generalize dependent l0.
   induction H; simpl; auto.
     destruct l0; auto.
+    apply MoreMem.val_inject__has_chunkb with (m:=m) in H; auto.
       congruence.
 Qed.
 
@@ -1046,7 +1048,7 @@ Proof.
       inv H0; eauto using gv_inject_gundef |
       destruct_typ t2; try solve 
         [inv H0; eauto using gv_inject_gundef | 
-         inv H0; destruct (le_lt_dec wz s1); unfold val2GV; simpl; auto]
+         inv H0; destruct (le_lt_dec wz (s1-1)); unfold val2GV; simpl; auto]
     ].
 
     destruct_typ t1; try solve [
@@ -1056,7 +1058,7 @@ Proof.
         match goal with
         | H: context [floating_point_order ?f1 ?f0] |- _ =>
           destruct (floating_point_order f1 f0); try solve [
-            destruct f1; try solve 
+            destruct f0; try solve 
               [inv H0; unfold val2GV; simpl; eauto using gv_inject_gundef] |
             inv H0; eauto using gv_inject_gundef
           ]

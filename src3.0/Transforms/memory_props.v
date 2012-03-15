@@ -211,12 +211,12 @@ Proof.
   destruct v; eauto using undef__no_embedded_ptrs.
     destruct_typ t1; eauto using undef__no_embedded_ptrs.
       destruct_typ t2; eauto using undef__no_embedded_ptrs.
-        inv H. destruct (le_lt_dec wz s1); simpl; auto.
+        inv H. destruct (le_lt_dec wz (s1-1)); simpl; auto.
 
     destruct_typ t1; eauto using undef__no_embedded_ptrs.
       destruct_typ t2; eauto using undef__no_embedded_ptrs.
       destruct (floating_point_order f1 f0); tinv H.
-      destruct f1; inv H; unfold val2GV; simpl; auto.
+      destruct f0; inv H; unfold val2GV; simpl; auto.
 Qed.
 
 Lemma mtrunc_preserves_no_alias: forall td top t1 t2 gv gv' gv0,
@@ -2368,6 +2368,38 @@ Proof.
       destruct Hneq; auto.
       right.
       assert (J:=size_chunk_pos m0). omega.
+Qed.
+
+Lemma mstore_mload_same: forall td Mem mp2 typ1 gv1 align1 Mem'
+  (Hmatch: gv_chunks_match_typ td gv1 typ1),
+  mstore td Mem mp2 typ1 gv1 align1 = ret Mem' ->
+  mload td Mem' mp2 typ1 align1 = ret gv1.
+Proof.
+  intros.
+  apply genericvalues.LLVMgv.store_inv in H.
+  destruct H as [b0 [ofs0 [J1 J4]]].
+  unfold mload.
+  unfold gv_chunks_match_typ in Hmatch.
+  inv_mbind. fill_ctxhole.
+  clear - Hmatch J4.
+  generalize dependent Mem.
+  generalize dependent Mem'.
+  generalize (Int.signed 31 ofs0). clear ofs0.
+  assert (gv_has_chunk gv1) as Hchk.
+    eapply vm_matches_typ__gv_has_chunk; eauto.
+  generalize dependent gv1.
+  unfold gv_has_chunk.
+  induction 1; simpl; intros; auto.
+    inv_mbind. inv Hchk. inv H. simpl. symmetry_ctx.
+    assert (Mem.load m Mem' b0 z = Some v) as Hld.
+      eapply Mem.load_store_exact_same in HeqR; eauto.
+      rewrite <- HeqR.
+      symmetry.
+      eapply mstore_preserves_load; eauto.
+      right. omega.
+
+    apply IHHmatch in H1; auto.  
+    repeat fill_ctxhole.  auto.
 Qed.
 
 End MemProps.

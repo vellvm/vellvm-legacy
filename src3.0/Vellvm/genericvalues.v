@@ -42,6 +42,12 @@ List.Forall (fun vm =>
              let '(v, mc) := vm in
              Val.has_chunk v mc) gv.
 
+Fixpoint gv_has_chunkb (gv : GenericValue) : bool := 
+match gv with
+| nil => true
+| (v,m)::gv' => Val.has_chunkb v m && gv_has_chunkb gv'
+end.
+
 Definition gv_lessdef_list (gvs1 gvs2:list GenericValue) : Prop :=
 List.Forall2 gv_lessdef gvs1 gvs2.
 
@@ -245,8 +251,9 @@ Fixpoint gv_chunks_match_typb_aux (gv:GenericValue) (mcs:list memory_chunk)
   : bool :=
 match gv, mcs with
 | nil, nil => true
-| (_, mc1)::gv', mc2::mcs' => 
-    AST.memory_chunk_eq mc1 mc2 && gv_chunks_match_typb_aux gv' mcs'
+| (v1, mc1)::gv', mc2::mcs' => 
+    AST.memory_chunk_eq mc1 mc2 && Val.has_chunkb v1 mc1 &&
+      gv_chunks_match_typb_aux gv' mcs'
 | _, _ => false
 end.
 
@@ -336,7 +343,7 @@ match GV2val TD gv1 with
 | Some (Vint wz1 i1) =>
     match (t1, t2) with
     | (typ_int sz1, typ_int sz2) =>
-        Some (val2GV TD (Val.trunc (Vint wz1 i1) sz2) (Mint (sz2-1)))
+        Some (val2GV TD (Val.trunc (Vint wz1 i1) (sz2-1)) (Mint (sz2-1)))
     | _ => gundef TD t2
     end
 | Some (Vfloat f) =>
@@ -344,9 +351,9 @@ match GV2val TD gv1 with
     | (typ_floatpoint fp1, typ_floatpoint fp2) =>
         if floating_point_order fp2 fp1
         then
-          match fp2 with
-          | fp_float => Some (val2GV TD (Val.ftrunc (Vfloat f)) Mfloat32)
-          | fp_double => Some (val2GV TD (Val.ftrunc (Vfloat f)) Mfloat64)
+          match fp1 with
+          | fp_double => 
+               Some (val2GV TD (Val.singleoffloat (Vfloat f)) Mfloat32)
           | _ => None (* FIXME: not supported 80 and 128 yet. *)
           end
         else None
@@ -407,7 +414,7 @@ match (GV2val TD gv1, GV2val TD gv2) with
      | fbop_frem => Val.modf (Vfloat f1) (Vfloat f2)
      end in
   match fp with
-  | fp_float => Some (val2GV TD v Mfloat32)
+  | fp_float => Some (val2GV TD (Val.singleoffloat v) Mfloat32)
   | fp_double => Some (val2GV TD v Mfloat64)
   | _ => None (* FIXME: not supported 80 and 128 yet. *)
   end
@@ -498,10 +505,10 @@ match (t1, t2) with
    match (GV2val TD gv1) with
    | Some (Vint wz1 i1) =>
      match op with
-     | extop_z => Some (val2GV TD (Val.zero_ext (Size.to_Z sz2) (Vint wz1 i1))
-                        (Mint (Size.to_nat sz2-1)))
-     | extop_s => Some (val2GV TD (Val.sign_ext (Size.to_Z sz2) (Vint wz1 i1))
-                        (Mint (Size.to_nat sz2-1)))
+     | extop_z => Some (val2GV TD (Val.zero_ext' (sz2-1) (Vint wz1 i1))
+                        (Mint (sz2-1)))
+     | extop_s => Some (val2GV TD (Val.sign_ext' (sz2-1) (Vint wz1 i1))
+                        (Mint (sz2-1)))
      | _ => None
      end
    | _ => gundef TD t2
@@ -514,7 +521,6 @@ match (t1, t2) with
       match op with
       | extop_fp =>
          match fp2 with
-         | fp_float => Some (val2GV TD (Vfloat f1) Mfloat32)
          | fp_double => Some (val2GV TD (Vfloat f1) Mfloat64)
          | _ => None (* FIXME: not supported 80 and 128 yet. *)
          end
@@ -713,7 +719,8 @@ match c with
                typ_int sz)
 | const_floatpoint fp f =>
          match fp with
-         | fp_float => Some (val2GV TD (Vfloat f) Mfloat32, typ_floatpoint fp)
+         | fp_float => Some (val2GV TD (Val.singleoffloat (Vfloat f)) Mfloat32, 
+                             typ_floatpoint fp)
          | fp_double => Some (val2GV TD (Vfloat f) Mfloat64, typ_floatpoint fp)
          | _ => None (* FIXME: not supported 80 and 128 yet. *)
          end
@@ -913,7 +920,7 @@ end
 
 Definition cundef_gv gv t : GenericValue :=
 match t with
-| typ_int sz => (Vint sz (Int.zero sz), Mint (sz -1))::nil
+| typ_int sz => (Vint (sz-1) (Int.zero (sz-1)), Mint (sz -1))::nil
 | typ_floatpoint fp_float => (Vfloat Float.zero, Mfloat32)::nil
 | typ_floatpoint fp_double => (Vfloat Float.zero, Mfloat64)::nil
 | typ_pointer _ => null
@@ -1162,7 +1169,8 @@ match allocas with
 end.
 
 Definition vm_matches_typ :=
-  fun (vm:val*memory_chunk) (mc:memory_chunk) => snd vm = mc.
+  fun (vm:val*memory_chunk) (mc:memory_chunk) => 
+    snd vm = mc /\ Val.has_chunk (fst vm) (snd vm).
 
 Definition gv_chunks_match_typ (TD:TargetData) (gv:GenericValue) (t:typ) 
   : Prop :=
@@ -1443,8 +1451,11 @@ Proof.
       simpl in H.
       apply andb_true_iff in H.
       destruct H as [H1 H2].
+      apply andb_true_iff in H1.
+      destruct H1 as [H1 H3].
       constructor; eauto.
         unfold vm_matches_typ. simpl.
+        split; auto using Val.has_chunkb__has_chunk.
         destruct m, a; tinv H1; auto.
           apply neq_inv in H1. congruence.
 Qed.
@@ -1506,6 +1517,7 @@ Lemma uninits_match_uninitMCs: forall n,
 Proof.
   unfold uninits, uninitMCs, vm_matches_typ.
   induction n; simpl; auto.
+    constructor; simpl; auto.
 Qed.
 
 Lemma match_chunks_app: forall gv2 mcs2 (H2: Forall2 vm_matches_typ gv2 mcs2)
@@ -2346,7 +2358,7 @@ Proof.
   intros. destruct TD.
   unfold gundef in H. simpl in H. inv H. 
   unfold gv_chunks_match_typ, vm_matches_typ. 
-  simpl. constructor; auto.
+  simpl. constructor; simpl; auto.
 Qed.
 
 Lemma micmp_matches_chunks : forall TD cond5 t1 gv1 gv2 gv,
@@ -2372,11 +2384,14 @@ Proof.
   destruct v;
     try solve [inversion H | eapply mcmp_matches_chunks_helper; eauto].
   destruct TD.
-  destruct cond5; inv H; try solve [
-    auto |
-    unfold gv_chunks_match_typ, vm_matches_typ, val2GV; 
-      simpl; constructor; auto
+  Local Opaque Val.cmp Val.cmpu.
+  destruct cond5; inv H; unfold gv_chunks_match_typ, vm_matches_typ, val2GV;
+    simpl; constructor; try solve [
+      auto |
+      split; try solve [auto | apply Val.cmp_has_Mint0 | 
+                        apply Val.cmpu_has_Mint0]
     ].
+  Transparent Val.cmp Val.cmpu.
 Qed.
 
 Lemma mfcmp_matches_chunks : forall TD fcond5 fp gv1 gv2 gv,
@@ -2399,14 +2414,24 @@ Proof.
   destruct v;
     try solve [inversion H | eapply mcmp_matches_chunks_helper; eauto].
   destruct TD.
+  Local Opaque Val.cmpf.
   destruct fp; try solve [
     inv H | 
-    destruct fcond5; inv H; try solve [
+    destruct fcond5; inv H; unfold gv_chunks_match_typ, vm_matches_typ, val2GV;
+      try solve [
       auto |
-      unfold gv_chunks_match_typ, vm_matches_typ, val2GV; 
-        simpl; constructor; auto
+      simpl; constructor; try solve [
+        auto |
+        simpl; split; try solve [auto | apply Val.cmpf_has_Mint0 |
+                                 simpl; split; try solve [
+                                   auto |
+                                   apply Z_mod_lt; apply Int.modulus_pos
+                                ]
+                      ]
+        ]
       ]
     ].
+  Transparent Val.cmpf.
 Qed.
 
 Lemma gv_lessdef_ref: forall gv, gv_lessdef gv gv.
@@ -2415,5 +2440,31 @@ Proof.
   induction gv as [|[]]; auto.
 Qed.
     
+Lemma gv_has_chunkb__gv_has_chunk: forall gv (Hchk: gv_has_chunkb gv), 
+  gv_has_chunk gv.
+Proof.
+  unfold gv_has_chunk.
+  induction gv as [|[]]; simpl; intros; auto.
+    apply andb_true_iff in Hchk.
+    destruct Hchk as [J1 J2].
+    constructor; auto using Val.has_chunkb__has_chunk.
+Qed.
+
+Lemma vm_matches_typ__eq__snd: forall gv1 mc 
+  (Hmatch : Forall2 vm_matches_typ gv1 mc), snd (split gv1) = mc.
+Proof.
+  induction 1; simpl; subst; auto.
+    destruct x. inv H.
+    destruct (split l0). auto.
+Qed.
+
+Lemma vm_matches_typ__gv_has_chunk: forall gv1 mc 
+  (Hmatch : Forall2 vm_matches_typ gv1 mc), gv_has_chunk gv1.
+Proof.
+  unfold gv_has_chunk.
+  induction 1; simpl; subst; auto.
+    destruct x. inv H. constructor; auto.
+Qed.
+
 End LLVMgv.
 

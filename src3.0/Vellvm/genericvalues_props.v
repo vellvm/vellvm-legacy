@@ -292,6 +292,8 @@ repeat match goal with
 | H: wf_styp _ _ (typ_floatpoint fp_x86_fp80) |- _ => inv H
 | H: wf_typ _ _ (typ_floatpoint fp_ppc_fp128) |- _ => inv H
 | H: wf_styp _ _ (typ_floatpoint fp_ppc_fp128) |- _ => inv H
+| e: floating_point_order ?floating_point2 fp_float = true |- _ =>
+     destruct floating_point2; inv e
 end.
 
 Lemma wf_const__wf_typ: forall S TD c ty,
@@ -408,7 +410,7 @@ Case "wfconst_trunc_fp".
     eapply gundef__total; eauto.
   fill_ctxhole.
   destruct (GV2val targetdata5 gv) as [[]|]; eauto.
-  destruct floating_point2; try solve [eauto | elim_wrong_wf_typ].
+  destruct floating_point1; try solve [eauto | elim_wrong_wf_typ].
 Case "wfconst_zext".
   match goal with
   | H0: wf_global _ _ _ |- _ => 
@@ -763,7 +765,7 @@ Proof.
     | H15: _ = _ |- _ => rewrite H15
     end.
     destruct v0; eauto using gundef__total.
-      destruct floating_point2; try solve [eauto | elim_wrong_wf_typ].
+      destruct floating_point1; try solve [eauto | elim_wrong_wf_typ].
 Qed.
 
 Lemma mext_is_total : forall s f b los nts ps id5 eop0 t1 t2 v, 
@@ -1640,12 +1642,11 @@ Proof.
   
     destruct_typ t1; try solve [eapply gundef__getTypeSizeInBits; eauto].
     destruct_typ t2; try solve [eapply gundef__getTypeSizeInBits; eauto].
-    destruct (floating_point_order f1 f0); tinv H1.
-    destruct f1; inv H1.
+    remember (floating_point_order f1 f0) as R.
+    destruct R; tinv H1.
+    destruct f0; inv H1.
+    destruct f1; inv HeqR.
       simpl. exists 32%nat. exists (getFloatAlignmentInfo los 32 true).
-      auto.
-  
-      simpl. exists 64%nat. exists (getFloatAlignmentInfo los 64 true).
       auto.
 Qed.
 
@@ -1677,7 +1678,8 @@ Proof.
       erewrite int_typsize; eauto.
 
     destruct_typ t2; tinv H1.
-    destruct (floating_point_order f f0); tinv H1.
+    remember (floating_point_order f f0) as R.
+    destruct R; tinv H1.
     destruct gv1; 
       try solve [inversion H1 | eapply gundef__getTypeSizeInBits; eauto].
     destruct p.
@@ -1686,7 +1688,6 @@ Proof.
     destruct v; try solve [eapply gundef__getTypeSizeInBits; eauto].
     destruct eop; inv H1.
     destruct f0; inv H2; simpl.
-      exists 32%nat. exists (getFloatAlignmentInfo los 32 true). auto.
       exists 64%nat. exists (getFloatAlignmentInfo los 64 true). auto.
 Qed.
 
@@ -2479,7 +2480,7 @@ Proof.
   intros.
   apply mload_inv in H.
   destruct H as [b [ofs [m [mc [J1 [J2 J3]]]]]]; subst.
-  unfold gv_chunks_match_typ, vm_matches_typ.
+  unfold gv_chunks_match_typ, vm_matches_typ, gv_has_chunk.
   fill_ctxhole.
   generalize dependent (Int.signed 31 ofs).
   generalize dependent gv.
@@ -2487,7 +2488,7 @@ Proof.
   induction mc; intros; inv J3; auto.
     inv_mbind. symmetry_ctx.
     apply IHmc in HeqR0.
-    constructor; auto.
+    constructor; eauto using Mem.load_chunk.
 Qed.
 
 Lemma gundef__matches_chunks : forall td gv t (HeqR: ret gv = gundef td t),
@@ -2495,10 +2496,11 @@ Lemma gundef__matches_chunks : forall td gv t (HeqR: ret gv = gundef td t),
 Proof.
   unfold gundef. intros.
   inv_mbind. symmetry_ctx.
-  unfold gv_chunks_match_typ.
+  unfold gv_chunks_match_typ, gv_has_chunk.
   fill_ctxhole.
   clear. unfold vm_matches_typ.
   induction l0; simpl; auto.
+    constructor; simpl; auto.
 Qed.
 
 Lemma fit_gv__matches_chunks : forall TD gv t gv'
@@ -2572,50 +2574,6 @@ Proof.
   uniq_result. rewrite H0 in H2. congruence.
 Qed.
 
-(*
-Lemma flatten_array_typ_inv : forall TD s t,
-  flatten_typ TD (typ_array s t) -> flatten_typ TD t.
-Proof.
-  intros.
-  simpl in *.
-  unfold getTypeSizeInBits_and_Alignment in *.
-  destruct TD.
-  destruct (_getTypeSizeInBits_and_Alignment l0
-           (_getTypeSizeInBits_and_Alignment_for_namedts l0 n true)
-           true t) as [[]|]; eauto.
-Qed.
-
-Lemma feasible_struct_typ_inv : forall TD ts,
-  feasible_typ TD (typ_struct ts) -> feasible_typs TD ts.
-Proof.
-  intros.
-  unfold feasible_typ in H.
-  unfold feasible_typs.
-  unfold getTypeSizeInBits_and_Alignment in *.
-  destruct TD.
-  simpl in *.
-  destruct (_getListTypeSizeInBits_and_Alignment l0
-           (_getTypeSizeInBits_and_Alignment_for_namedts l0 n true)
-           ts) as [[]|]; eauto.
-Qed.
-
-Lemma feasible_cons_typs_inv : forall TD t lt,
-  feasible_typs TD (Cons_list_typ t lt) -> 
-  feasible_typ TD t /\ feasible_typs TD lt.
-Proof.
-  intros. destruct TD as [los nts].
-  simpl in *. auto.
-Qed.
-
-Lemma feasible_nil_typs: forall TD, feasible_typs TD Nil_list_typ.
-Proof. destruct TD; simpl; auto. Qed.
-
-Lemma feasible_cons_typs: forall TD t lt, 
-  feasible_typs TD (Cons_list_typ t lt) <-> 
-  feasible_typ TD t /\ feasible_typs TD lt.
-Proof. destruct TD; simpl. intros. split; auto. Qed.
-*)
-
 Definition zeroconst2GV_aux__matches_chunks_prop S TD t (H:wf_styp S TD t) := 
   forall los nts acc gv (Heq: TD = (los, nts)) nts' 
   (Hsub:exists nts0, nts'=nts0++nts) (Huniq: uniq nts')
@@ -2651,7 +2609,14 @@ Proof.
     intros; simpl in *; subst; uniq_result; try solve [
       congruence | eauto |
       unfold gv_chunks_match_typ, vm_matches_typ; simpl; unfold val2GV;
-      constructor; auto
+      constructor; try solve [
+        auto |
+        split; try solve [
+          auto |
+          apply Floats.Float.zero_singleoffloat__eq__zero |
+          split; simpl; try solve [auto | apply Z_mod_lt; apply Int.modulus_pos]
+        ]
+      ]
     ].
 
 Case "wf_styp_structure".
@@ -2871,12 +2836,20 @@ Proof.
     destruct_typ t2; try solve [eapply gundef__matches_chunks; eauto].
       inv H1. unfold gv_chunks_match_typ, vm_matches_typ. simpl.
       constructor; auto.
-  
+        split; auto.
+        destruct (le_lt_dec wz (s1-1)); simpl; auto.
+        split; try solve [auto | apply Z_mod_lt; apply Int.modulus_pos].       
+
     destruct_typ t1; try solve [eapply gundef__matches_chunks; eauto].
     destruct_typ t2; try solve [eapply gundef__matches_chunks; eauto].
-    destruct (floating_point_order f1 f0); tinv H1.
-    destruct f1; inv H1;
-      unfold gv_chunks_match_typ, vm_matches_typ; simpl; constructor; auto.
+    remember (floating_point_order f1 f0) as R.
+    destruct R; tinv H1.
+    destruct f0; inv H1.
+    destruct f1; inv HeqR.
+      unfold gv_chunks_match_typ, vm_matches_typ; simpl.
+      constructor; auto.
+        split; auto.
+        simpl. rewrite Floats.Float.singleoffloat_idem. auto.
 Qed.
 
 Lemma mext_matches_chunks : forall S td eop t1 t2 gv1 gv2
@@ -2892,8 +2865,14 @@ Proof.
     destruct gv1; 
       try solve [inversion H1 | eapply gundef__matches_chunks; eauto].
     destruct v; try solve [eapply gundef__matches_chunks; eauto].
+Local Opaque Val.zero_ext' Val.sign_ext'.
     destruct eop; inv H1;
-      unfold gv_chunks_match_typ, vm_matches_typ; simpl; constructor; auto.
+      unfold gv_chunks_match_typ, vm_matches_typ; constructor; try solve [
+        auto |
+        split; try solve [auto | simpl; apply Val.zero_ext'_has_chunk
+                               | simpl; apply Val.sign_ext'_has_chunk]
+      ].
+Transparent Val.zero_ext' Val.sign_ext'.
 
     destruct_typ t2; tinv H1.
     destruct (floating_point_order f f0); tinv H1.
@@ -2905,7 +2884,8 @@ Proof.
     destruct v; try solve [eapply gundef__matches_chunks; eauto].
     destruct eop; inv H1.
     destruct f0; inv H0; simpl;
-      unfold gv_chunks_match_typ, vm_matches_typ; simpl; constructor; auto.
+      unfold gv_chunks_match_typ, vm_matches_typ; simpl; constructor; 
+        simpl; auto.
 Qed.
 
 Lemma extractGenericValue_matches_chunks : forall S td t1 gv1 const_list typ' gv
@@ -2981,8 +2961,21 @@ Proof.
   assert (S (Size.to_nat (wz + 1)%nat - 1) = wz + 1)%nat as EQ.
     unfold Size.to_nat. omega.
   destruct td.
-  destruct bop5; inv H1;
-    unfold gv_chunks_match_typ, vm_matches_typ; simpl; constructor; auto.
+Local Opaque Val.add Val.sub Val.mul Val.divu Val.divs Val.modu Val.mods
+  Val.shl Val.shrx Val.shr Val.and Val.or Val.xor.
+  assert (Size.to_nat (wz + 1)%nat - 1 = wz)%nat as EQ'. 
+    rewrite <- EQ. unfold Size.to_nat. omega.
+  clear EQ. 
+  destruct bop5; inversion H1; subst gv;
+    unfold gv_chunks_match_typ, vm_matches_typ; simpl; 
+    rewrite EQ'; constructor; try solve 
+      [auto | split; simpl; auto using Val.add_has_chunk1,
+        Val.sub_has_chunk1, Val.mul_has_chunk1, Val.divu_has_chunk1, 
+        Val.divs_has_chunk1, Val.modu_has_chunk1, Val.mods_has_chunk1,
+        Val.shl_has_chunk1, Val.shrx_has_chunk1, Val.shr_has_chunk1,
+        Val.and_has_chunk1, Val.or_has_chunk1, Val.xor_has_chunk1].
+Transparent Val.add Val.sub Val.mul Val.divu Val.divs Val.modu Val.mods
+  Val.shl Val.shrx Val.shr Val.and Val.or Val.xor.
 Qed.
 
 Lemma mfbop_matches_chunks : forall S td fbop5 f gv1 gv2 gv
@@ -3009,9 +3002,24 @@ Proof.
   destruct f; 
     try solve [inversion H1 | eapply gundef__matches_chunks; eauto].
     destruct fbop5; inv H1; simpl;
-      unfold gv_chunks_match_typ, vm_matches_typ; simpl; constructor; auto.
+      unfold gv_chunks_match_typ, vm_matches_typ; simpl; constructor;
+        try solve [auto | simpl; rewrite Floats.Float.singleoffloat_idem; auto].
+
     destruct fbop5; inv H1; simpl;
-      unfold gv_chunks_match_typ, vm_matches_typ; simpl; constructor; auto.
+      unfold gv_chunks_match_typ, vm_matches_typ; simpl; constructor; 
+        try solve [auto | repeat split; auto].
+Qed.
+
+Lemma mgep_has_chunk: forall TD t ma idxs v,
+  mgep TD t ma idxs = Some v ->
+  Val.has_chunk v (AST.Mint 31).
+Proof.
+  unfold mgep.
+  intros.
+  destruct ma; tinv H.
+  destruct idxs; tinv H.
+  inv_mbind. uniq_result.
+  simpl. auto.
 Qed.
 
 Definition const2GV__matches_chunks_Prop S TD c t (H:wf_const S TD c t) := 
@@ -3058,6 +3066,8 @@ Case "wfconst_int".
     destruct targetdata5.
     unfold gv_chunks_match_typ, val2GV, vm_matches_typ. simpl.
     constructor; auto.
+      split; auto. split; auto. 
+      unfold Int.repr. simpl. apply Z_mod_lt; apply Int.modulus_pos.
 
 Case "wfconst_floatingpoint".
   destruct targetdata5.
@@ -3065,7 +3075,13 @@ Case "wfconst_floatingpoint".
     split; try solve [
       auto |
       unfold gv_chunks_match_typ, val2GV, vm_matches_typ; simpl;
-        constructor; auto
+        constructor; try solve [
+          auto| 
+          split; try solve [auto |
+            simpl; try solve 
+             [auto | rewrite Floats.Float.singleoffloat_idem; auto]
+          ]
+        ]
     ].
 
 Case "wfconst_undef".
@@ -3079,6 +3095,7 @@ Case "wfconst_null".
   split; auto.
     unfold gv_chunks_match_typ, val2GV, vm_matches_typ. simpl.
     constructor; auto.
+      split; auto. split; auto.
 
 Case "wfconst_array". Focus.
   inv_mbind.
@@ -3105,7 +3122,7 @@ Case "wfconst_array". Focus.
     split; auto.
       unfold gv_chunks_match_typ, val2GV, vm_matches_typ. simpl.
       destruct targetdata5.
-      constructor; auto.
+      constructor; auto. split; auto. split; auto.
 
     split; auto.
     destruct (@H system5 targetdata5 gl) as [J1 J2]; try solve 
@@ -3255,14 +3272,17 @@ Case "wfconst_ptrtoint". Focus.
   destruct targetdata5. 
   destruct (_const2GV (l0, l1) gl const5) as [[]|]; inv H0.
   split; auto.
-    unfold gv_chunks_match_typ, vm_matches_typ. simpl. auto.
+    unfold gv_chunks_match_typ, vm_matches_typ. simpl. 
+    constructor; auto. split; auto.  split; auto.
+      
 Unfocus.
 
 Case "wfconst_inttoptr". Focus.
   destruct targetdata5. 
   destruct (_const2GV (l0, l1) gl const5) as [[]|]; inv H0.
   split; auto.
-    unfold gv_chunks_match_typ, vm_matches_typ. simpl. auto.
+    unfold gv_chunks_match_typ, vm_matches_typ. simpl. 
+    constructor; auto. split; auto.  split; auto.
 Unfocus.
 
 Case "wfconst_bitcast". Focus.
@@ -3312,7 +3332,9 @@ Case "wfconst_gep". Focus.
           destruct R4; inv e0. 
           unfold ptr2GV, val2GV.
           unfold gv_chunks_match_typ, vm_matches_typ. simpl.
-          destruct targetdata5. simpl. auto.
+          destruct targetdata5. simpl. 
+          constructor; auto. split; auto.
+          simpl. eapply mgep_has_chunk; eauto.
 Unfocus.
 
 Case "wfconst_select". Focus.
@@ -3519,10 +3541,18 @@ Lemma cundef_gv__matches_chunks : forall S TD gv t,
   gv_chunks_match_typ TD (cundef_gv gv t) t.
 Proof.
   unfold gv_chunks_match_typ, vm_matches_typ. destruct TD.
-  intros.
+  intros. inv_mbind.
   destruct_typ t; simpl in *; auto.
-    destruct f; inv H0; auto.
-    unfold null. auto.
+    inv HeqR. constructor; auto. split; auto.
+    simpl. split; auto. apply Z_mod_lt; apply Int.modulus_pos.
+
+    destruct f; inv HeqR; uniq_result.
+      constructor; auto. split; auto. simpl.
+        rewrite <- Floats.Float.zero_singleoffloat__eq__zero. auto.
+      constructor; auto. split; auto. simpl. auto.
+
+    inv HeqR. unfold null. constructor; auto.
+    split; auto. simpl. auto.
 Qed.
 
 Lemma cgv2gv__matches_chunks : forall S TD gv t,
@@ -3587,8 +3617,11 @@ Proof.
   unfold LLVMgv.GEP. intros.
   destruct (GV2ptr TD (getPointerSize TD) mp);eauto using gundef__matches_chunks.
   destruct (GVs2Nats TD vidxs); eauto using gundef__matches_chunks.
-  destruct (mgep TD t v l0); eauto using gundef__matches_chunks.
+  remember (mgep TD t v l0) as R.
+  destruct R; eauto using gundef__matches_chunks.
   uniq_result.
   unfold gv_chunks_match_typ, vm_matches_typ. destruct TD. simpl.
-  unfold ptr2GV, val2GV. simpl. auto.
+  unfold ptr2GV, val2GV. simpl.
+  constructor; auto. split; auto. simpl. 
+  eapply mgep_has_chunk; eauto.
 Qed.

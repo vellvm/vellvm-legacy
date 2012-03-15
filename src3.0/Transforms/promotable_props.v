@@ -1594,14 +1594,6 @@ Lemma lookupTypViaIDFromFdef__lookupInsnViaIDFromFdef: forall F pid ty
     lookupInsnViaIDFromFdef F pid = Some insn /\ getInsnTyp insn = Some ty.
 Admitted.
 
-Lemma vm_matches_typ__eq__snd: forall gv1 mc 
-  (Hmatch : Forall2 vm_matches_typ gv1 mc), snd (split gv1) = mc.
-Proof.
-  induction 1; simpl; subst; auto.
-    destruct x. inv H.
-    destruct (split l0). auto.
-Qed.
-
 Lemma mstore_preserves_wf_defs_at_head : forall maxb pinfo los nts M
   M' gl v als lc gvs1 gv1 t mp2 align mps2 vp S Ps (Hwfpi:WF_PhiInfo pinfo)
   (Huniq: uniqFdef (PI_f pinfo))

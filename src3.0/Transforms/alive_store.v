@@ -739,39 +739,6 @@ Proof.
     eapply wf_defs_updateAddAL; eauto.
 Qed.
 
-(* should go to memory_props *)
-Lemma mstore_mload_same: forall td Mem mp2 typ1 gv1 align1 Mem'
-  (Hmatch: gv_chunks_match_typ td gv1 typ1),
-  mstore td Mem mp2 typ1 gv1 align1 = ret Mem' ->
-  mload td Mem' mp2 typ1 align1 = ret gv1.
-Proof.
-  intros.
-  apply genericvalues.LLVMgv.store_inv in H.
-  destruct H as [b0 [ofs0 [J1 J4]]].
-  unfold mload.
-  unfold gv_chunks_match_typ in Hmatch.
-  inv_mbind. fill_ctxhole.
-  clear - Hmatch J4.
-  generalize dependent Mem.
-  generalize dependent Mem'.
-  generalize (Int.signed 31 ofs0). clear ofs0.
-  assert (gv_has_chunk gv1) as Hchk.
-    admit. (* from OpsemPP *)
-  generalize dependent gv1.
-  unfold gv_has_chunk.
-  induction 1; simpl; intros; auto.
-    inv_mbind. inv Hchk. inv H. simpl. symmetry_ctx.
-    assert (Mem.load m Mem' b0 z = Some v) as Hld.
-      eapply Mem.load_store_exact_same in HeqR; eauto.
-      rewrite <- HeqR.
-      symmetry.
-      eapply MemProps.mstore_preserves_load; eauto.
-      right. omega.
-
-    apply IHHmatch in H1; auto.  
-    repeat fill_ctxhole.  auto.
-Qed.
-
 Lemma mstore_preserves_wf_EC_at_head: forall (maxb : Z) (pinfo : PhiInfo)
   (stinfo : StoreInfo pinfo) (S : system) los nts
   (Ps : list product) (gl : GVMap) (fs : GVMap) (Hwfg : wf_globals maxb gl)
@@ -842,7 +809,7 @@ Proof.
       simpl in *.
       rewrite H0 in Hlkpa. inv Hlkpa. inv H2. inv H1.
       rewrite Hlkpv in H. inv H.
-      eapply mstore_mload_same; eauto.
+      eapply MemProps.mstore_mload_same; eauto.
         eapply OpsemPP.getOperandValue__wf_gvs in Hlkpv; eauto.
         inv Hlkpv; eauto.
 

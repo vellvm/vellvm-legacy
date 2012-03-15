@@ -841,12 +841,13 @@ Proof.
   destruct_typ t; simpl;
     try solve [intros gvs1 J; inv J;
                try solve [constructor |
-               exists (Int.zero s0); auto |
+               exists (Int.zero (s0-1)); auto |
                exists Mem.nullptr; exists (Int.repr 31 0); auto]].
   destruct f; simpl;
     try solve [intros gvs1 J; inv J;
                try solve [constructor |
-               exists Float.zero; auto]].
+               exists Float.zero; 
+               try rewrite <- Float.zero_singleoffloat__eq__zero; auto]].
 Qed.
 
 Lemma element_of__lift_op1 : forall f xs1 xs2 t ys1,

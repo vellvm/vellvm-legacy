@@ -707,5 +707,10 @@ Proof.
   destruct m, v; try inv Hchk; auto.
 Qed.
 
+Lemma val_inject__has_chunkb: forall mi v1 v2 m
+  (H : val_inject mi v1 v2),
+  Val.has_chunkb v1 m = Val.has_chunkb v2 m.
+Proof. intros. inv H; auto. Qed.
+
 End MoreMem.
 
