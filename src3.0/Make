@@ -120,6 +120,7 @@
 ./Transforms/dse.v
 ./Transforms/dae.v
 ./Transforms/dae_wfS.v
+./Transforms/sas_msim.v
 ./Transforms/sas.v
 ./Transforms/laa.v
 ./Transforms/die.v

@@ -22,6 +22,9 @@ Require Import Coq.Bool.Sumbool.
 Require Import symexe_tactic.
 Require Import sb_metadata.
 
+Ltac repeat_bsplit :=
+  repeat (bsplit; auto using eq_sumbool2bool_true).
+
 Export SimpleSE.
 
 (* Correctness of the cmds validator *)

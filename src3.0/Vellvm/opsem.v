@@ -16,6 +16,7 @@ Require Import infrastructure_props.
 Require Import typings.
 Require Import events.
 Require Import external_intrinsics.
+Require Import genericvalues_inject.
 
 (************** GVs Interface ******************)
 
@@ -320,6 +321,16 @@ bGlobals            : GVMap;
 bFunTable           : GVMap;
 bCurFunction        : fdef
 }.
+
+Definition ftable_simulation mi fs1 fs2 : Prop :=
+  forall fv1 fv2, gv_inject mi fv1 fv2 ->
+    lookupFdefViaGVFromFunTable fs1 fv1 =
+    lookupFdefViaGVFromFunTable fs2 fv2.
+
+Axiom inject_incr__preserves__ftable_simulation: forall mi mi' fs1 fs2,
+  ftable_simulation mi fs1 fs2 ->
+  inject_incr mi mi' ->
+  ftable_simulation mi' fs1 fs2.
 
 End OpsemAux.
 

@@ -21,11 +21,6 @@ Import SB_ds_pass.
 Definition sb_fnattrs := fnattrs_intro linkage_external visibility_default
   callconv_ccc nil nil.
 
-Axiom inject_incr__preserves__fable_simulation : forall mi fs1 fs2 mi',
-  inject_incr mi mi' ->
-  ftable_simulation mi fs1 fs2 ->
-  ftable_simulation mi' fs1 fs2.
-
 Definition gmmd_args v :=
   ((p8,nil,v)::(p8,nil,vnullp8):: (i32,nil,vint1)::(p32,nil,vnullp32)
    :: @nil param).

@@ -253,7 +253,7 @@ Proof.
   repeat (split; eauto 2 using inject_incr__preserves__als_simulation,
                               cmds_at_block_tail_next, cmds_at_block_tails_next,
                               inject_incr__preserves__sbECs_simulate_ECs_tail,
-                              inject_incr__preserves__fable_simulation).
+                              OpsemAux.inject_incr__preserves__ftable_simulation).
     exists ex_ids. exists rm2.
     exists ex_ids5. exists ex_ids4. exists cs2'. exists cs23.
     repeat (
@@ -486,7 +486,7 @@ Proof.
   repeat (split; eauto 2 using inject_incr__preserves__als_simulation,
                               cmds_at_block_tail_next, cmds_at_block_tails_next,
                               inject_incr__preserves__sbECs_simulate_ECs_tail,
-                              inject_incr__preserves__fable_simulation).
+                              OpsemAux.inject_incr__preserves__ftable_simulation).
     exists ex_ids. exists rm2.
     exists ex_ids5. exists ex_ids4. exists cs2'. exists cs23.
     repeat (
@@ -905,7 +905,7 @@ Proof.
   repeat (split; eauto 2 using inject_incr__preserves__als_simulation,
                               cmds_at_block_tail_next, cmds_at_block_tails_next,
                               inject_incr__preserves__sbECs_simulate_ECs_tail,
-                              inject_incr__preserves__fable_simulation).
+                              OpsemAux.inject_incr__preserves__ftable_simulation).
 
   exists ex_ids. exists rm2.
   exists ex_ids5. exists ex_ids4. exists cs2'. exists cs23.
@@ -1056,7 +1056,7 @@ Proof.
   repeat (split; eauto 2 using inject_incr__preserves__als_simulation,
                               cmds_at_block_tail_next, cmds_at_block_tails_next,
                               inject_incr__preserves__sbECs_simulate_ECs_tail,
-                              inject_incr__preserves__fable_simulation).
+                              OpsemAux.inject_incr__preserves__ftable_simulation).
   exists ex_ids. exists rm2.
   exists ex_ids5. exists ex_ids4. exists cs2'. exists cs23.
   split; auto.
@@ -1283,7 +1283,7 @@ Proof.
          split; eauto 2 using inject_incr__preserves__als_simulation,
                               cmds_at_block_tail_next, cmds_at_block_tails_next,
                               inject_incr__preserves__sbECs_simulate_ECs_tail,
-                              inject_incr__preserves__fable_simulation
+                              OpsemAux.inject_incr__preserves__ftable_simulation
     end).
 
   exists ex_ids. exists rm2.

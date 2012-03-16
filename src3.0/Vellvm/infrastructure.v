@@ -161,6 +161,11 @@ Definition getBlockIDs (b:block) : list atom :=
 let '(block_intro _ ps cs _) := b in
 getPhiNodesIDs ps ++ getCmdsIDs cs.
 
+Definition label_of_block (b:block) : l :=
+match b with
+| block_intro l1 _ _ _ => l1
+end.
+
 Fixpoint getArgsIDs (la:args) : list atom :=
 match la with
 | nil => nil

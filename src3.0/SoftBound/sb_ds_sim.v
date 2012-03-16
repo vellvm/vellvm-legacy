@@ -101,11 +101,6 @@ Fixpoint als_simulation (mi:MoreMem.meminj) (als1 als2:list mblock) : Prop :=
   | _ => False
   end.
 
-Definition label_of_block (b:block) : l :=
-match b with
-| block_intro l1 _ _ _ => l1
-end.
-
 Definition is_user_function fh1 :=
 match fh1 with
 | (fheader_intro _ _ fid _ _) => isCallLib fid = false
@@ -191,11 +186,6 @@ Definition sbECs_simulate_ECs (TD:TargetData) Ps1 gl (mi:MoreMem.meminj)
   | _, _ => False
   end.
 
-Definition ftable_simulation mi fs1 fs2 : Prop :=
-  forall fv1 fv2, gv_inject mi fv1 fv2 ->
-    OpsemAux.lookupFdefViaGVFromFunTable fs1 fv1 =
-    OpsemAux.lookupFdefViaGVFromFunTable fs2 fv2.
-
 Definition sbState_simulates_State (mi:MoreMem.meminj) (mgb:Values.block)
   (sbCfg:OpsemAux.Config) (sbSt:SBspec.State)
   (Cfg:OpsemAux.Config) (St:Opsem.State) : Prop :=
@@ -212,7 +202,7 @@ let '(OpsemAux.mkCfg S2 TD2 Ps2 gl2 fs2) := Cfg in
       trans_products nts Ps1 = Some Ps2 /\
       sbECs_simulate_ECs TD1 Ps1 gl1 mi ECs1 ECs2 /\
       gl1 = gl2 /\
-      ftable_simulation mi fs1 fs2 /\
+      OpsemAux.ftable_simulation mi fs1 fs2 /\
       wf_globals mgb gl1 /\
       wf_sb_mi mgb mi M1 M2 /\
       mem_simulation mi TD1 mgb MM1 M1 M2

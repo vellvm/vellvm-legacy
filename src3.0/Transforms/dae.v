@@ -139,12 +139,6 @@ MoreMem.mem_inj mi Mem1 Mem2 /\
 (forall blk, ~ isnt_alloca_in_ECs pinfo ecs blk -> mi blk = None) /\
 wf_sb_mi mgb mi Mem1 Mem2.
 
-(* Copied from sb_ds_sim *)
-Definition ftable_simulation mi fs1 fs2 : Prop :=
-  forall fv1 fv2, gv_inject mi fv1 fv2 ->
-    OpsemAux.lookupFdefViaGVFromFunTable fs1 fv1 =
-    OpsemAux.lookupFdefViaGVFromFunTable fs2 fv2.
-
 Definition State_simulation (pinfo: PhiInfo) mgb (mi:MoreMem.meminj)
   (Cfg1:OpsemAux.Config) (St1:Opsem.State)
   (Cfg2:OpsemAux.Config) (St2:Opsem.State) : Prop :=
@@ -155,7 +149,7 @@ match (St1, St2) with
     TD1 = TD2 /\
     products_simulation pinfo Ps1 Ps2 /\
     ECs_simulation pinfo mi ECs1 ECs2 /\
-    gl1 = gl2 /\ ftable_simulation mi fs1 fs2 /\
+    gl1 = gl2 /\ OpsemAux.ftable_simulation mi fs1 fs2 /\
     mem_simulation pinfo mgb mi (strip_ECs ECs1) M1 M2
 end.
 
@@ -468,7 +462,7 @@ Opaque Mem.alloc.
       destruct (zeq b (Mem.nextblock Mem1)); subst; eauto.
         assert (J'':=J').
         apply mi_globals in J'.
-        destruct (SBspecMetadata.valid_block_dec Mem1 (Mem.nextblock Mem1)).
+        destruct (Mem.valid_block_dec Mem1 (Mem.nextblock Mem1)).
           apply Mem.fresh_block_alloc in H1.
           contradict H1; auto.
 
@@ -588,61 +582,6 @@ Proof.
         intros. apply J. simpl; auto.
 Qed.
 
-(* copied from sb_ds_trans_axiom.v *)
-Axiom inject_incr__preserves__ftable_simulation: forall mi mi' fs1 fs2,
-  ftable_simulation mi fs1 fs2 ->
-  inject_incr mi mi' ->
-  ftable_simulation mi' fs1 fs2.
-
-(* The sb_ds_trans_lib.mem_simulation__free should use this lemma. *)
-Lemma mem_inj__free : forall mi Mem0 M2 Mem' mgb hi lo
-  (b2 : Values.block) (delta : Z) blk,
-  wf_sb_mi mgb mi Mem0 M2 ->
-  MoreMem.mem_inj mi Mem0 M2 ->
-  Mem.free Mem0 blk lo hi = ret Mem' ->
-  (lo, hi) = Mem.bounds Mem0 blk ->
-  mi blk = ret (b2, delta) ->
-  exists Mem2',
-    Mem.free M2 b2 (lo+delta) (hi+delta) = ret Mem2' /\
-    wf_sb_mi mgb mi Mem' Mem2' /\
-    MoreMem.mem_inj mi Mem' Mem2'.
-Proof.
-  intros mi Mem0 M2 Mem' mgb hi lo b2 delta blk Hwfmi Hmsim1 H0 HeqR2 H4.
-  assert ({ Mem2':Mem.mem | Mem.free M2 b2 (lo+delta) (hi+delta) = ret Mem2'})
-    as J.
-    apply Mem.range_perm_free.
-    apply Mem.free_range_perm in H0.
-    clear - H0 Hmsim1 H4.
-    unfold Mem.range_perm in *.
-    intros ofs J.
-    assert (lo <= ofs - delta < hi) as J'.
-      auto with zarith.
-    apply H0 in J'.
-    eapply MoreMem.perm_inj in J'; eauto.
-    assert (ofs - delta + delta = ofs) as EQ. auto with zarith.
-    rewrite EQ in J'. auto.
-  destruct J as [Mem2' J].
-  exists Mem2'. split; auto.
-  split.
-  SCase "wfmi".
-    clear - Hwfmi H0 J H4.
-    inversion_clear Hwfmi.
-    split; eauto with mem.
-    SSCase "Hmap3".
-      intros. erewrite Mem.nextblock_free in H; eauto.
-    SSCase "Hmap4".
-      intros. erewrite Mem.nextblock_free; eauto.
-    SSCase "bounds".
-      intros. apply mi_bounds in H.
-      erewrite Mem.bounds_free; eauto.
-      erewrite Mem.bounds_free with (m2:=Mem2'); eauto.
-
-  SCase "msim".
-    clear - Hmsim1 Hwfmi H0 J H4.
-    inv Hwfmi.
-    eapply MoreMem.free_inj; eauto.
-Qed.
-
 Lemma mem_simulation__free : forall mi TD Mem1 Mem2 Mem1' Mem2'
   ECs1 pinfo maxb lc1 F ptr1 ptr2
   (Hmsim : mem_simulation pinfo maxb mi ((F, lc1) :: ECs1) Mem1 Mem2)
@@ -698,33 +637,6 @@ Proof.
   split; auto.
   split; auto.
     eapply isnt_alloca_in_ECs_tail; eauto.
-Qed.
-
-Lemma mem_inj__pfree : forall mi Mem0 M2 Mem' mgb hi lo
-  (b2 : Values.block) (delta : Z) blk,
-  wf_sb_mi mgb mi Mem0 M2 ->
-  MoreMem.mem_inj mi Mem0 M2 ->
-  Mem.free Mem0 blk lo hi = ret Mem' ->
-  (lo, hi) = Mem.bounds Mem0 blk ->
-  mi blk = None ->
-  wf_sb_mi mgb mi Mem' M2 /\ MoreMem.mem_inj mi Mem' M2.
-Proof.
-  intros mi Mem0 M2 Mem' mgb hi lo b2 delta blk Hwfmi Hmsim1 H0 HeqR2 H4.
-  split.
-  SCase "wfmi".
-    clear - Hwfmi H0 H4.
-    inversion_clear Hwfmi.
-    split; eauto with mem.
-    SSCase "Hmap3".
-      intros. erewrite Mem.nextblock_free in H; eauto.
-    SSCase "bounds".
-      intros. apply mi_bounds in H.
-      erewrite Mem.bounds_free; eauto.
-
-  SCase "msim".
-    clear - Hmsim1 Hwfmi H0 H4.
-    inv Hwfmi.
-    eapply MoreMem.free_left_nonmap_inj; eauto.
 Qed.
 
 Lemma mem_simulation__pfree : forall mi TD Mem1 Mem2 Mem1' ECs1 pinfo maxb lc1
@@ -1477,7 +1389,7 @@ Proof.
     eapply cmds_simulation_elim_cons_inv; eauto.
     eapply inject_incr__preserves__ECs_simulation; eauto.
       eapply malloc__isnt_alloca_in_ECs; eauto.
-    eapply inject_incr__preserves__ftable_simulation; eauto.
+    eapply OpsemAux.inject_incr__preserves__ftable_simulation; eauto.
 Qed.
 
 Lemma not_removable_State_inv: forall pinfo St,
@@ -1790,222 +1702,6 @@ Proof.
   intros. destruct H as [_ [_ H]]; auto.
 Qed.
 
-(* The sb_ds_trans_lib.mem_simulation__malloc should use this lemma. *)
-Lemma mem_inj__malloc : forall mi TD Mem Mem2 tsz gn align0 Mem' mb mgb,
-  wf_sb_mi mgb mi Mem Mem2 ->
-  MoreMem.mem_inj mi Mem Mem2 ->
-  malloc TD Mem tsz gn align0 = ret (Mem', mb) ->
-  exists mi', exists Mem2', exists mb',
-    malloc TD Mem2 tsz gn align0 = ret (Mem2', mb') /\
-    wf_sb_mi mgb mi' Mem' Mem2' /\
-    MoreMem.mem_inj mi' Mem' Mem2' /\
-    Values.inject_incr mi mi' /\
-    mi' mb = Some (mb', 0) /\
-    (forall b, b <> mb -> mi b = mi' b).
-Proof.
-  intros mi TD Mem Mem2 tsz gn align0 Mem' mb mgb Hwfmi Hmsim Halloc.
-  unfold malloc in *.
-  remember (GV2int TD Size.ThirtyTwo gn) as R.
-  destruct R; try solve [inversion Halloc].
-  remember (Mem.alloc Mem 0 (Size.to_Z tsz * z)) as R1.
-  destruct R1 as [Mem1 mb1].
-  destruct (zle 0 (Size.to_Z tsz * z)); inv Halloc.
-  remember (Mem.alloc Mem2 0 (Size.to_Z tsz * z)) as R2.
-  destruct R2 as [Mem2' mb2].
-  exists (fun b => if zeq b mb then Some (mb2,0%Z) else mi b).
-  exists Mem2'. exists mb2.
-  split; auto.
-  assert (inject_incr mi (fun b : Z => if zeq b mb then ret (mb2, 0) else mi b))
-    as Hinject_incr.
-    unfold inject_incr.
-    intros b b' d H.
-    destruct (zeq b mb); subst; auto.
-      clear - Hwfmi H HeqR1.
-      symmetry in HeqR1.
-      apply Mem.alloc_result in HeqR1. subst.
-      destruct Hwfmi as [_ _ Hmap1 _].
-      assert (mi (Mem.nextblock Mem) = None) as J.
-        apply Hmap1; auto with zarith.
-      rewrite H in J. inversion J.
-
-  split; auto.
-  Case "wfmi".
-    clear - Hwfmi HeqR2 HeqR1.
-    destruct Hwfmi as [Hno_overlap Hnull Hmap1 Hmap2 mi_freeblocks
-      mi_mappedblocks mi_range_block mi_bounds mi_globals].
-    symmetry in HeqR2, HeqR1.
-    assert (J:=HeqR2).
-    apply Mem.nextblock_alloc in HeqR2.
-    split.
-    SCase "no_overlap".
-      clear - Hno_overlap J Hmap2.
-      unfold MoreMem.meminj_no_overlap in *.
-      intros.
-      destruct (zeq b1 mb); subst.
-        destruct (zeq b2 mb); subst.
-          contradict H; auto.
-
-          inv H0.
-          apply Hmap2 in H1.
-          apply Mem.alloc_result in J.
-          subst. clear - H1. intro J. subst. contradict H1; zauto.
-        destruct (zeq b2 mb); subst; eauto.
-          inv H1.
-          apply Hmap2 in H0.
-          apply Mem.alloc_result in J.
-          subst. clear - H0. intro J. subst. contradict H0; zauto.
-    SCase "null".
-      destruct (zeq Mem.nullptr mb); subst; auto.
-        apply Mem.alloc_result in HeqR1.
-        assert(J':=@Mem.nextblock_pos Mem).
-        rewrite <- HeqR1 in J'.
-        unfold Mem.nullptr in J'.
-        contradict J'; zauto.
-    SCase "map1".
-      intros b H2.
-      assert (J':=HeqR1).
-      apply Mem.alloc_result in J'.
-      apply Mem.nextblock_alloc in HeqR1.
-      rewrite HeqR1 in H2.
-      destruct (zeq b mb); subst; zeauto.
-        contradict H2; zauto.
-    SCase "map2".
-      intros b1 b delta2 J'.
-      rewrite HeqR2.
-      destruct (zeq b1 mb); subst; zeauto.
-        inv J'.
-        apply Mem.alloc_result in J.
-        subst.
-        auto with zarith.
-    SCase "freeblocks".
-      intros b J'.
-      destruct (zeq b mb); subst.
-        apply Mem.valid_new_block in HeqR1.
-        contradict HeqR1; auto.
-
-        apply mi_freeblocks.
-          intro J1. apply J'.
-          eapply Mem.valid_block_alloc; eauto.
-    SCase "mappedblocks".
-      intros b b' delta J'.
-      destruct (zeq b mb); subst.
-        inv J'.
-        apply Mem.valid_new_block in J; auto.
-        eapply Mem.valid_block_alloc; eauto.
-    SCase "range_block".
-      intros b b' delta J'.
-      destruct (zeq b mb); inv J'; subst; eauto.
-    SCase "bounds".
-      intros b b' delta J'.
-      erewrite Mem.bounds_alloc; eauto.
-      erewrite Mem.bounds_alloc with (m2:=Mem2'); eauto.
-      unfold eq_block.
-      destruct (zeq b mb); subst.
-        inv J'.
-        destruct (zeq b' b'); subst; auto.
-          contradict n; auto.
-
-        destruct (zeq b' mb2); subst; eauto.
-          apply Hmap2 in J'.
-          apply Mem.alloc_result in J.
-          rewrite J in J'. contradict J'; zauto.
-    SCase "globals".
-      intros b J'.
-      destruct (zeq b mb); subst; eauto.
-        assert (J'':=J').
-        apply mi_globals in J'.
-        destruct (SBspecMetadata.valid_block_dec Mem mb).
-          apply Mem.fresh_block_alloc in HeqR1.
-          contradict HeqR1; auto.
-
-          apply mi_freeblocks in n.
-          rewrite n in J'. inversion J'.
-
-  split; auto.
-  Case "msim".
-      destruct Hmsim.
-      apply MoreMem.mk_mem_inj.
-      SSCase "mi_access".
-        intros b1 b2 d c ofs p J1 J2.
-        destruct (zeq b1 mb); subst; inv J1.
-        SSSCase "b1=mb".
-          symmetry in HeqR1.
-          symmetry in HeqR2.
-          destruct J2 as [J21 J22].
-          assert (0 <= ofs /\ ofs + size_chunk c <= Size.to_Z tsz * z) as EQ.
-            destruct (Z_le_dec 0 ofs).
-              destruct (Z_le_dec (ofs + size_chunk c) (Size.to_Z tsz * z)); auto.
-                apply Mem.perm_alloc_3 with (ofs:=ofs+size_chunk c-1) (p:=p) in
-                  HeqR1; auto with zarith.
-                unfold Mem.range_perm in J21.
-                assert (ofs <= ofs + size_chunk c - 1 < ofs + size_chunk c) as J.
-                  assert (J':=@Memdata.size_chunk_pos c).
-                  auto with zarith.
-                apply J21 in J.
-                contradict J; auto.
-              apply Mem.perm_alloc_3 with (ofs:=ofs) (p:=p) in HeqR1;
-                auto with zarith.
-              unfold Mem.range_perm in J21.
-              assert (ofs <= ofs < ofs + size_chunk c) as J.
-                assert (J':=@Memdata.size_chunk_pos c).
-                auto with zarith.
-              apply J21 in J.
-              contradict J; auto.
-
-          apply Mem.valid_access_alloc_same with (chunk:=c)(ofs:=ofs+0) in HeqR2;
-            auto with zarith.
-            eapply Mem.valid_access_implies; eauto using perm_F_any.
-
-        SSSCase "b1<>mb".
-          eapply Mem.valid_access_alloc_other; eauto.
-          eapply Mem.valid_access_alloc_inv with (b:=mb)(lo:=0)
-            (hi:=Size.to_Z tsz * z)(p:=p) in J2; eauto.
-          destruct (eq_block); subst; try solve [eauto | contradict n; auto].
-
-      SSCase "mi_memval".
-Transparent Mem.alloc.
-        intros b1 ofs b2 d J1 J2.
-        injection HeqR1. intros NEXT MEM.
-        injection HeqR2. intros NEXT2 MEM2.
-        destruct Mem2. destruct Mem2'. destruct Mem. destruct Mem'.
-        inv MEM.
-        inv MEM2. clear HeqR1 HeqR2.
-        simpl in *.
-        unfold Mem.perm in *. simpl in *.
-        clear maxaddress_pos0 conversion_props0 maxaddress_pos2
-              conversion_props2.
-        unfold update.
-        destruct (zeq b1 nextblock1); subst; inv J1.
-        SSSCase "b1=nextblock1".
-          destruct (zeq b2 b2) as [e | n];
-            try solve [contradict n; auto].
-          apply MoreMem.memval_inject_undef.
-
-        SSSCase "b1<>mb".
-          destruct (zeq b2 nextblock); subst.
-            clear - H0 Hwfmi.
-            destruct Hwfmi. simpl in *.
-            apply Hmap2 in H0.
-            contradict H0; auto with zarith.
-
-            apply MoreMem.memval_inject_incr with (f:=mi); auto.
-              apply mi_memval; auto.
-                clear - J2 n.
-                unfold update in J2.
-                destruct (zeq b1 nextblock1); subst;
-                  try solve [auto | contradict n; auto].
-
-Global Opaque Mem.alloc.
-
-  split; auto.
-  split.
-    destruct (zeq mb mb); auto.
-      contradict n; auto.
-    intros.
-    destruct (zeq b mb); subst; auto.
-      contradict H; auto.
-Qed.
-
 Lemma mem_simulation__malloc : forall mi TD Mem1 Mem2 tsz gn Mem1' Mem2' mb1
   mb2 ECs1 pinfo maxb lc1 t id0 align0 F gn' ecs EC
   (Hprom: Promotability.wf_ECStack maxb pinfo TD Mem1 (EC::ECs1))
@@ -2143,57 +1839,6 @@ Proof.
   uniq_result. auto.
 Qed.
 
-(* sb_ds_trans_lib.simulation_mstore_aux should use this *)
-Lemma mem_inj_mstore_aux : forall b b2 delta mi mgb
-  (H1 : mi b = ret (b2, delta)) gv ofs gv2 Mem0 Mem2 Mem0'
-  (Hwfmi : wf_sb_mi mgb mi Mem0 Mem2)
-  (Hmsim : MoreMem.mem_inj mi Mem0 Mem2)
-  (Hinj : gv_inject mi gv gv2)
-  (Hmstores : mstore_aux Mem0 gv b ofs = ret Mem0'),
-   exists Mem2',
-     mstore_aux Mem2 gv2 b2 (ofs + delta) = ret Mem2' /\
-     wf_sb_mi mgb mi Mem0' Mem2' /\
-     MoreMem.mem_inj mi Mem0' Mem2'.
-Proof.
-  induction gv; simpl; intros.
-    inv Hmstores. inv Hinj. simpl. eauto.
-
-    destruct a. inv Hinj.
-    remember (Mem.store m Mem0 b ofs v) as R1.
-    destruct R1 as [M|]; tinv Hmstores.
-    symmetry in HeqR1.
-    inv Hwfmi.
-    assert (Hmstore0 := HeqR1).
-    eapply MoreMem.store_mapped_inj with (f:=mi)(m2:=Mem2) in HeqR1;
-      try solve [eauto | inversion Hwfmi; eauto].
-    destruct HeqR1 as [Mem2' [Hmstore Hminj]].
-    simpl. rewrite Hmstore.
-    assert (ofs + delta + size_chunk m = ofs + size_chunk m + delta) as EQ. ring.
-    rewrite EQ.
-    apply IHgv with (Mem0:=M); auto.
-    Case "wf_sb_mi".
-      split; auto.
-      SCase "Hnext1".
-        erewrite <- Mem.nextblock_store with (m1:=Mem0) in Hmap1; eauto.
-      SCase "Hnext2".
-        intros b1 b0 delta2 J.
-        apply Hmap2 in J.
-        apply Mem.nextblock_store in Hmstore.
-        rewrite Hmstore. auto.
-      SCase "mi_freeblocks0".
-        intros b0 J. apply mi_freeblocks. intro J'. apply J.
-        eapply Mem.store_valid_block_1; eauto.
-      SCase "mi_mappedblocks0".
-        intros b0 b' delta0 J.
-        eapply Mem.store_valid_block_1; eauto.
-      SCase "mi_bounds".
-        intros b0 b' delta0 J.
-        apply mi_bounds in J.
-        apply Mem.bounds_store with (b':=b0) in Hmstore0; auto.
-        rewrite Hmstore0. rewrite J.
-        erewrite Mem.bounds_store with (m2:=Mem2'); eauto.
-Qed.
-
 Lemma simulation__mstore : forall mi TD pinfo Mem1 Mem2 gvp1 gv1 gvp2
   gv2 Mem1' Mem2' maxb F t align0 lc ECs,
   wf_sb_mi maxb mi Mem1 Mem2 ->
@@ -2225,7 +1870,7 @@ Qed.
 
 Lemma lookupFdefViaPtr__simulation : forall pinfo Ps1 Ps2 fptr1 fptr2 f1 f2 fs1
   fs2 mi,
-  ftable_simulation mi fs1 fs2 ->
+  OpsemAux.ftable_simulation mi fs1 fs2 ->
   OpsemAux.lookupFdefViaPtr Ps2 fs2 fptr2 = Some f2 ->
   products_simulation pinfo Ps1 Ps2 ->
   gv_inject mi fptr1 fptr2 ->
@@ -2239,7 +1884,7 @@ Proof.
   remember (OpsemAux.lookupFdefViaGVFromFunTable fs2 fptr2) as R2.
   destruct R2 as [fid2|]; inv H0.
   eapply products_simulation__fdef_simulation; eauto.
-  unfold ftable_simulation in H.
+  unfold OpsemAux.ftable_simulation in H.
   erewrite H in HeqR1; eauto.
   rewrite <- HeqR2 in HeqR1. inv HeqR1. auto.
 Qed.
@@ -2516,7 +2161,7 @@ Qed.
 Lemma lookupFdefViaPtr__simulation_l2r : forall pinfo Ps1 Ps2 fptr1 fptr2 f1
   fs1 fs2 mi f2,
   products_simulation pinfo Ps1 Ps2 ->
-  ftable_simulation mi fs1 fs2 ->
+  OpsemAux.ftable_simulation mi fs1 fs2 ->
   gv_inject mi fptr1 fptr2 ->
   OpsemAux.lookupFdefViaPtr Ps1 fs1 fptr1 = Some f1 ->
   OpsemAux.lookupExFdecViaPtr Ps2 fs2 fptr2 = Some f2 ->
@@ -2533,7 +2178,7 @@ Proof.
   destruct R3; inv H4.
   eapply products_simulation__fdef_simulation_l2r in H5; eauto.
   destruct H5 as [f2' [J1 J2]].
-  unfold ftable_simulation in H0.
+  unfold OpsemAux.ftable_simulation in H0.
   erewrite H0 in HeqR1; eauto.
   rewrite <- HeqR1 in HeqR2. inv HeqR2.
   rewrite J1 in HeqR3. inv HeqR3.
@@ -2542,7 +2187,7 @@ Qed.
 Lemma lookupExFdecViaPtr__simulation : forall pinfo Ps1 Ps2 fptr1 fptr2 f1
   f2 fs1 fs2 mi,
   products_simulation pinfo Ps1 Ps2 ->
-  ftable_simulation mi fs1 fs2 ->
+  OpsemAux.ftable_simulation mi fs1 fs2 ->
   gv_inject mi fptr1 fptr2 ->
   OpsemAux.lookupExFdecViaPtr Ps1 fs1 fptr1 = Some f1 ->
   OpsemAux.lookupExFdecViaPtr Ps2 fs2 fptr2 = Some f2 ->
@@ -2558,7 +2203,7 @@ Proof.
   destruct R2 as [fid2|]; inv H3.
   remember (lookupFdefViaIDFromProducts Ps2 fid2) as R4.
   destruct R4; tinv H4. symmetry_ctx.
-  unfold ftable_simulation in H0.
+  unfold OpsemAux.ftable_simulation in H0.
   erewrite H0 in HeqR1; eauto.
   rewrite HeqR2 in HeqR1. inv HeqR1.
   eapply products_simulation__fdec_simulation; eauto.
@@ -2567,7 +2212,7 @@ Qed.
 Lemma lookupFdefViaPtr__simulation_r2l : forall pinfo Ps1 Ps2 fptr1 fptr2 f1
   fs1 fs2 mi f2,
   products_simulation pinfo Ps1 Ps2 ->
-  ftable_simulation mi fs1 fs2 ->
+  OpsemAux.ftable_simulation mi fs1 fs2 ->
   gv_inject mi fptr1 fptr2 ->
   OpsemAux.lookupFdefViaPtr Ps2 fs2 fptr2 = Some f2 ->
   OpsemAux.lookupExFdecViaPtr Ps1 fs1 fptr1 = Some f1 ->
@@ -2584,7 +2229,7 @@ Proof.
   destruct R3; inv H4.
   eapply products_simulation__fdef_simulation_r2l in H5; eauto.
   destruct H5 as [f2' [J1 J2]].
-  unfold ftable_simulation in H0.
+  unfold OpsemAux.ftable_simulation in H0.
   erewrite H0 in HeqR2; eauto.
   rewrite <- HeqR2 in HeqR1. inv HeqR1.
   rewrite J1 in HeqR3. inv HeqR3.
@@ -3019,7 +2664,7 @@ SCase "sMalloc".
     eapply reg_simulation__malloc; eauto.
     eapply inject_incr__preserves__ECs_simulation; eauto.
       eapply malloc__isnt_alloca_in_ECs; eauto.
-    eapply inject_incr__preserves__ftable_simulation; eauto.
+    eapply OpsemAux.inject_incr__preserves__ftable_simulation; eauto.
 
 SCase "sFree".
   destruct_ctx_other.
@@ -3047,7 +2692,7 @@ SCase "sAlloca".
     eapply reg_simulation__malloc; eauto.
     eapply inject_incr__preserves__ECs_simulation; eauto.
       eapply malloc__isnt_alloca_in_ECs; eauto.
-    eapply inject_incr__preserves__ftable_simulation; eauto.
+    eapply OpsemAux.inject_incr__preserves__ftable_simulation; eauto.
 
 SCase "sLoad".
   destruct_ctx_other.
@@ -3209,7 +2854,7 @@ SCase "sExCall".
   exists mi'.
   repeat_solve.
     eapply inject_incr__preserves__ECs_simulation; eauto.
-    eapply inject_incr__preserves__ftable_simulation; eauto.
+    eapply OpsemAux.inject_incr__preserves__ftable_simulation; eauto.
 
 Transparent inscope_of_tmn inscope_of_cmd.
 

@@ -87,3 +87,7 @@ let l2 := fresh "l2" in
 let l3 := fresh "l3" in
 let i0 := fresh "i0" in
 destruct tmn as [id5 t value5 | id5 | id5 value5 l2 l3 | i0 l2 | ].
+
+Ltac repeat_bsplit :=
+  repeat (bsplit; auto using eq_sumbool2bool_true).
+

@@ -14,6 +14,7 @@ Require Import memory_props.
 Require Import mem2reg.
 Require Import program_sim.
 Require Import trans_tactic.
+Require Import sas_msim.
 
 Definition sas (sid1 sid2: id) (v1 v2:value) (cs2:cmds) (b:block)
   (pinfo:PhiInfo) : Prop :=
@@ -131,6 +132,10 @@ forall gvsa (Heq: Opsem.CurFunction ec0 = PI_f pinfo)
 Definition undead_head_tail (pinfo:PhiInfo) (sasinfo: SASInfo pinfo) ptr
   (ecs':list Opsem.ExecutionContext) : Prop :=
   forall ec0 (Hin: In ec0 ecs'), undead_head_in_tail pinfo sasinfo ptr ec0.
+
+(*Definition 
+Record mem_inj (f: meminj) (b:block) (lo hi:Z) (m1 m2: mem) : Prop :=
+*)
 
 Definition Mem_simulation (pinfo:PhiInfo) (sasinfo: SASInfo pinfo) TD
   (ecs1:list Opsem.ExecutionContext) Mem1 Mem2 : Prop :=
@@ -821,6 +826,18 @@ match goal with
   uniq_result
 end.
 
+(* go to vellvm_tactics *)
+Ltac destruct_if' :=
+match goal with
+| H: context [(if ?lk then _ else _)] |- _ =>
+  match type of lk with
+  | sumbool (@eq ?t ?e ?e) (not (@eq ?t ?e ?e)) => 
+      destruct lk; try congruence
+  | _ => destruct_if
+  end
+| |- _ => destruct_if
+end.
+
 Lemma sas_is_sim : forall maxb pinfo (sasinfo: SASInfo pinfo) Cfg1 St1 Cfg2 St2
   (Hwfpi: WF_PhiInfo pinfo) 
   (Hwfcfg: OpsemPP.wf_Config Cfg1) (Hwfpp: OpsemPP.wf_State Cfg1 St1) 
@@ -1190,14 +1207,17 @@ SCase "sStore".
       eapply MemProps.mstore_preserves_mload_inv in H3; eauto.
       destruct H28 as [gvs3 [Hld2' H28]].
       destruct H3 as [gvs4 [Hld1' H3]].
-      admit. (* we need lower simulation between memory states. *)
-(*
-      eapply Hmsim2 with (ptr:=ptr)(ty:=ty)(al:=al); eauto.
+      destruct (id_dec sid (SAS_sid2 pinfo sasinfo)); subst.
+        (* We should prove that M[pid].range = [0, PINFO.t),
+           so, when store update M[pid], all data in the range are updated.
+        *)
+        admit.
 
-      eapply no_alias_head_tail_irrel in Hnalias; eauto; simpl; auto.
-        (* two cases, if ptr overlaps with stored ptr or not *)
-        admit. admit.
-*)
+        eapply Hmsim2 with (ptr:=ptr)(ty:=ty)(al:=al)(gvs1:=gvs4)(gvs2:=gvs3) 
+          in Hld1'; eauto.
+          admit.
+          eapply undead_head_tail_update in Hnalias; eauto.
+
 SCase "sGEP". abstract (destruct_ctx_other; dse_is_sim_common_case).
 SCase "sTrunc". abstract (destruct_ctx_other; dse_is_sim_common_case).
 SCase "sExt". abstract (destruct_ctx_other; dse_is_sim_common_case).

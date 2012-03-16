@@ -3431,6 +3431,14 @@ Proof.
       tauto.
 Qed.
 
+Lemma getValueViaBlockFromValuels__eql : forall B1 B2 vls,
+  label_of_block B1 = label_of_block B2 ->
+  getValueViaBlockFromValuels vls B1 = getValueViaBlockFromValuels vls B2.
+Proof.
+  intros.
+  destruct B1. destruct B2. simpl in H. subst. simpl. auto.
+Qed.
+
 
 
 

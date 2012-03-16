@@ -2,38 +2,6 @@ Require Import vellvm.
 Require Import genericvalues.
 Require Import sb_def.
 
-Ltac zauto := auto with zarith.
-
-Tactic Notation "bdestruct" ident(H) "as" ident(J1) ident(J2) :=
-     apply andb_true_iff in H; destruct H as [J1 J2].
-
-Tactic Notation "bdestruct3" ident(H) "as" ident(J1) ident(J2) ident(J3) :=
-     bdestruct H as H J3;
-     bdestruct H as J1 J2.
-
-Tactic Notation "bdestruct4" ident(H) "as" ident(J1) ident(J2) ident(J3) ident(J4) :=
-     bdestruct3 H as H J3 J4;
-     bdestruct H as J1 J2.
-
-Tactic Notation "bdestruct5" ident(H) "as" ident(J1) ident(J2) ident(J3) ident(J4) ident(J5) :=
-     bdestruct4 H as H J3 J4 J5;
-     bdestruct H as J1 J2.
-
-Ltac bdestructn H Js :=
-  match Js with
-  | nil => idtac
-  | ?J::nil => rename H into J
-  | ?J::?Js' => apply andb_true_iff in H; destruct H as [H J]; bdestructn H Js
-  end.
-
-Ltac bsplit :=
-  eapply andb_true_iff; split.
-
-Ltac repeat_bsplit :=
-  repeat (bsplit; auto using eq_sumbool2bool_true).
-
-Ltac zeauto := eauto with zarith.
-
 Module SBspecMetadata.
 
 Export SBspec.
@@ -446,14 +414,6 @@ Proof.
   unfold blk_temporal_safe.
   destruct (Mem.bounds M b).
   apply Mem.perm_dec.
-Qed.
-
-Lemma valid_block_dec : forall M b,
-  {Mem.valid_block M b} + { ~ Mem.valid_block M b}.
-Proof.
-  intros M b.
-  unfold Mem.valid_block.
-  apply Z_lt_dec; auto.
 Qed.
 
 (***********************************************)

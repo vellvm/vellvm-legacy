@@ -2162,6 +2162,26 @@ Proof.
   exists b. exists i0. split; auto.
 Qed.
 
+Lemma mstore_inversion : forall Mem2 t align0 TD gvp2 Mem2'
+  (gv2 : GenericValue)
+  (H21 : mstore TD Mem2 gvp2 t gv2 align0 = ret Mem2'),
+  exists b, exists ofs, exists cm,
+    gvp2 = (Vptr b ofs,cm)::nil /\
+    mstore_aux Mem2 gv2 b (Int.signed 31 ofs) = ret Mem2'.
+Proof.
+  intros.
+  unfold mstore in H21.
+  remember (GV2ptr TD (getPointerSize TD) gvp2) as R.
+  destruct R; try solve [inversion H21].
+  destruct v; try solve [inversion H21].
+  unfold GV2ptr in HeqR.
+  destruct gvp2; try solve [inversion HeqR].
+  destruct p.
+  destruct v; try solve [inversion HeqR].
+  destruct gvp2; inv HeqR.
+  exists b0. exists i1. exists m. eauto.
+Qed.
+
 Lemma initLocals_spec : forall TD la gvs id1 lc,
   In id1 (getArgsIDs la) ->
   initLocals TD la gvs = Some lc ->

@@ -192,3 +192,29 @@ Tactic Notation "eapply_clear" hyp(H1) "in" hyp(H2) :=
 Tactic Notation "apply_clear" hyp(H1) "in" hyp(H2) :=
   apply H1 in H2; auto; clear H1.
 
+Tactic Notation "bdestruct" ident(H) "as" ident(J1) ident(J2) :=
+     apply andb_true_iff in H; destruct H as [J1 J2].
+
+Tactic Notation "bdestruct3" ident(H) "as" ident(J1) ident(J2) ident(J3) :=
+     bdestruct H as H J3;
+     bdestruct H as J1 J2.
+
+Tactic Notation "bdestruct4" ident(H) "as" ident(J1) ident(J2) ident(J3) ident(J4) :=
+     bdestruct3 H as H J3 J4;
+     bdestruct H as J1 J2.
+
+Tactic Notation "bdestruct5" ident(H) "as" ident(J1) ident(J2) ident(J3) ident(J4) ident(J5) :=
+     bdestruct4 H as H J3 J4 J5;
+     bdestruct H as J1 J2.
+
+Ltac bdestructn H Js :=
+  match Js with
+  | nil => idtac
+  | ?J::nil => rename H into J
+  | ?J::?Js' => apply andb_true_iff in H; destruct H as [H J]; bdestructn H Js
+  end.
+
+Ltac bsplit :=
+  eapply andb_true_iff; split.
+
+
