@@ -405,6 +405,7 @@ Lemma malloc_preserves_wf_EC_at_head : forall pinfo los nts Ps M
   (Hwfpi:WF_PhiInfo pinfo) s als'
   M' gl als lc t mb id0 align0 F gn tsz l1 ps1 cs1' cs tmn
   (HwfF: wf_fdef s (module_intro los nts Ps) F) (HuniqF: uniqFdef F)
+  (Hsz: getTypeAllocSize (los, nts) t = ret tsz)
   (Hal: malloc (los,nts) M tsz gn align0 = ret (M', mb)) alinfo c
   (HBinF: blockInFdefB
              (block_intro l1 ps1 (cs1' ++ c :: cs)
@@ -450,7 +451,9 @@ Proof.
 
         SCase "c = alloca".
           inv Hid.
-          clear - J2' J3 HwfF Hal. unfold follow_alive_alloca in J3.
+          assert (wf_typ s (los,nts) t) as Hwft. 
+            admit. (* wf *)
+          clear - J2' J3 HwfF Hal Hsz Hwft. unfold follow_alive_alloca in J3.
           rewrite <- J2' in J3.
           destruct alinfo. simpl in *. subst.
           destruct AI_alive0 as [J1 [J5 [cs1 [cs2 J4]]]].
@@ -461,9 +464,10 @@ Proof.
           rewrite lookupAL_updateAddAL_eq in Hlkpa. inv Hlkpa.
           simpl in Hlkpv.
           anti_simpl_env.
-          admit. (* 1) this is a memory prop: load.malloc = undef?
-                    2) need to provide the relations between tsz/gn/align0 with
-                         pinfo *)
+          assert (t = PI_typ pinfo) as Heqt.
+            admit. (* WF_PhiInfo *)
+          subst.
+          eapply malloc_mload_undef; eauto.
 
   Case "id0 <> PI_id pinfo".
     apply getCmdLoc_getCmdID in Hid. subst.

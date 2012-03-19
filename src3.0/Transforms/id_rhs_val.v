@@ -1193,7 +1193,7 @@ Proof.
   rewrite J.
   intros EQ gvs1 gvs2 Hinscope1 Hinscope2 Hget1 Hget2.
   clear - Huniq EQ Hget1 Hinit.
-  admit. (* lid cannot be in lc *)
+  admit. (* lid cannot be in lc, << *)
 Qed.
 
 Lemma s_genInitState__id_rhs_val: forall S main VarArgs cfg IS pinfo v1 v2

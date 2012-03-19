@@ -4490,7 +4490,7 @@ Lemma phinodes_placement_wfS: forall rd f Ps1 Ps2 los nts pid ty al
       (Ps1 ++
        product_fdef (phinodes_placement f rd pid ty al (successors f)
                     (make_predecessors (successors f))) :: Ps2)].
-Admitted.
+Admitted. (* WF prev *)
 
 Lemma phinodes_placement_wfPI: forall rd f Ps1 Ps2 los nts pid ty al
   num l0 ps0 cs0 tmn0 dones (Hreach: ret rd = dtree.reachablity_analysis f)
@@ -4507,19 +4507,19 @@ Lemma phinodes_placement_wfPI: forall rd f Ps1 Ps2 los nts pid ty al
     PI_typ := ty;
     PI_num := num;
     PI_align := al |}.
-Admitted.
+Admitted. (* WF prev *)
 
 Lemma phinodes_placement_reachablity_analysis: forall f rd pid ty al,
   dtree.reachablity_analysis f =
   dtree.reachablity_analysis
      (phinodes_placement f rd pid ty al (successors f)
         (make_predecessors (successors f))).
-Admitted.
+Admitted. (* WF prev *)
 
 Lemma phinodes_placement_reachablity_successors: forall f rd pid ty al,
   successors f =
   successors
     (phinodes_placement f rd pid ty al (successors f)
        (make_predecessors (successors f))).
-Admitted.
+Admitted. (* WF prev *)
 

@@ -1,0 +1,36 @@
+1) memory alignment
+  promotable_props
+
+2) admitted cases in main(top) simulation lemmas
+  las laa
+
+3) properties of LASInfo/LAAInfo/SASInfo
+  las laa sas
+
+4) reachable <-> reachavlity_analysis
+   palloca_props
+
+5) properties of find_promotable_alloca
+  palloca_props promotable_props phiplacement_bsim alive_alive dae primitives
+
+6) domination
+  alive_store alive_alloca id_rhs_val las laa
+
+6) infrastructure
+  promotable_props alive_store dae program_sim
+
+6) WF preservation
+  phiplacement_bsim alive_store las laa dae sas mem2reg_correct die subst
+
+6) typings (uniqness, wf)
+  alive_alloca las laa dae sas
+
+6) fdef/prod-simulation
+  las laa sas 
+
+7) redundancy
+  alive_store and alive_alloca 
+  laa and las
+  fdef/prod-simulation in all passes
+
+

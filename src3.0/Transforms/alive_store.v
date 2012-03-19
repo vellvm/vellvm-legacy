@@ -272,11 +272,11 @@ Proof.
 
         admit. (* ~ l >> l *)
 
-        admit. (* reach *)
+        admit. (* >> reach *)
 
-      simpl. admit. (* Hin *)
+      simpl. admit. (* infra *)
 
-    admit. (* Hin *)
+    admit. (* infra *)
 Qed.
 
 Lemma preservation_return : forall maxb pinfo stinfo (HwfPI : WF_PhiInfo pinfo)

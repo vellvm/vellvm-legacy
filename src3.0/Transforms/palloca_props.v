@@ -1085,7 +1085,7 @@ Qed.
 
 Lemma reachable__reachablity_analysis: forall f rd a,
   reachable f a -> reachablity_analysis f = Some rd -> In a rd.
-Admitted.
+Admitted. (* reachable *)
 
 Lemma reachable_blk_has_newids : forall pinfo l1,
   WF_PhiInfo pinfo ->
@@ -1720,7 +1720,7 @@ Lemma find_promotable_alloca__WF_PhiInfo: forall rd f l0 ps0 cs0 tmn0
   (pid : id) (ty : typ) num (al : align) dones
   (Hfind : find_promotable_alloca f cs0 dones = ret (pid, ty, num, al)),
   WF_PhiInfo (mkPhiInfo f rd pid ty num al).
-Admitted.
+Admitted. (* find_promotable_alloca *)
 
 Definition update_pinfo (pinfo:PhiInfo) (f:fdef) : PhiInfo :=
 (mkPhiInfo f
