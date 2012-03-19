@@ -75,17 +75,9 @@ Proof.
   destruct J as [EQ1 EQ2]; subst. clear H2.
   edestruct H1 as [csa [csb [EQ1 EQ2]]]; eauto. clear H1.
   subst. inv H.
-  rewrite_env
-    (((cs2 ++
-       insn_alloca (PI_id pinfo) (PI_typ pinfo)
-               (PI_num pinfo) (PI_align pinfo) :: csa) ++ csb) ++ cs4) in H4.
-  rewrite_env (((cs0 ++ [c]) ++ csb) ++ cs4) in H4.
-  apply app_inv_tail in H4.
-  apply app_inv_tail in H4.
+  anti_simpl_env.
   destruct csa.
-    simpl_env in H4.
-    apply app_inj_tail in H4.
-    destruct H4 as [EQ1 EQ2]; subst.
+    anti_simpl_env.
     contradict Hneq; auto.
 
     assert (exists csa', exists c2, [c0] ++ csa = csa' ++ [c2]) as EQ.
@@ -93,11 +85,7 @@ Proof.
     destruct EQ as [csa' [c2 EQ]].
     simpl_env in H4.
     rewrite EQ in H4.
-    rewrite_env ((cs2 ++
-      insn_alloca (PI_id pinfo) (PI_typ pinfo)
-               (PI_num pinfo) (PI_align pinfo) :: csa') ++ [c2]) in H4.
-    apply app_inj_tail in H4.
-    destruct H4 as [EQ1 EQ2]; subst.
+    anti_simpl_env.
     exists csa'. exists (c2::csb). simpl_env.
     rewrite_env (([c0] ++ csa) ++ csb).
     rewrite EQ. simpl_env.
@@ -199,24 +187,7 @@ Proof.
   assert (J':=J).
   apply J3 in J.
   destruct J as [csa [csb [EQ1 EQ2]]]; subst.
-  rewrite_env (
-    (cs1 ++
-     insn_alloca (PI_id pinfo) (PI_typ pinfo) (PI_num pinfo)
-         (PI_align pinfo) :: (csa ++ csb)) ++ cs3
-    ) in J'.
-  apply app_inv_tail in J'.
-  rewrite_env (
-    (cs1 ++
-     insn_alloca (PI_id pinfo) (PI_typ pinfo) (PI_num pinfo)
-         (PI_align pinfo) :: csa) ++ csb
-    ) in J'.
-  symmetry in J'.
-  apply app_inv_tail_nil in J'.
-  assert (
-    In (insn_alloca (PI_id pinfo) (PI_typ pinfo) (PI_num pinfo)
-         (PI_align pinfo)) nil) as Hin.
-    rewrite <- J'. apply in_middle.
-  inv Hin.
+  anti_simpl_env.
 Qed.
 
 Ltac preservation_sBranch :=
@@ -489,15 +460,8 @@ Proof.
                     unfold wf_defs. intros.
           rewrite lookupAL_updateAddAL_eq in Hlkpa. inv Hlkpa.
           simpl in Hlkpv.
-          rewrite_env (((cs1' ++ [insn_alloca (PI_id pinfo) t0 v a]) ++ csb)
-                       ++ cs2) in J4.
-          rewrite_env (((cs1 ++
-                       insn_alloca (PI_id pinfo) (PI_typ pinfo) (PI_num pinfo)
-                         (PI_align pinfo) ::
-                       csa) ++ csb) ++ cs2) in J4.
-          apply app_inv_tail in J4.
-          apply app_inv_tail in J4.
-          admit. (* 1) this is a memory prop.
+          anti_simpl_env.
+          admit. (* 1) this is a memory prop: load.malloc = undef?
                     2) need to provide the relations between tsz/gn/align0 with
                          pinfo *)
 
@@ -723,28 +687,17 @@ Proof.
     assert (EQ':=EQ).
     apply J3 in EQ. clear J3.
     destruct EQ as [csa [csb [EQ1 EQ2]]]; subst.
-    rewrite_env (((cs1' ++ [insn_store sid t v1 v2 align0]) ++ csb) ++ cs2) in
-      EQ'.
-    rewrite_env (((cs1 ++ [insn_alloca (PI_id pinfo) (PI_typ pinfo)
-                 (PI_num pinfo) (PI_align pinfo)] ++ csa) ++ csb) ++ cs2) in EQ'.
-    apply app_inv_tail in EQ'.
-    apply app_inv_tail in EQ'.
+    anti_simpl_env.
     destruct csa.
-      simpl_env in EQ'.
-      apply app_inj_tail in EQ'.
-      destruct EQ' as [EQ1 EQ2]; subst.
-      inv EQ2.
+      anti_simpl_env. congruence.
 
       assert (exists csa', exists c', [c] ++ csa = csa' ++ [c']) as EQ.
         apply head_tail_commut.
       destruct EQ as [csa' [c' EQ]].
       simpl_env in EQ'.
       rewrite EQ in EQ'.
-      rewrite_env ((cs1 ++ [insn_alloca (PI_id pinfo) (PI_typ pinfo)
-                 (PI_num pinfo) (PI_align pinfo)] ++ csa') ++ [c']) in EQ'.
-      apply app_inj_tail in EQ'.
-      destruct EQ' as [EQ1 EQ2]; subst.
-      simpl in EQ.
+      anti_simpl_env. 
+      rewrite_env (([c] ++ csa) ++ csb) in G2.
       rewrite EQ in G2.
       simpl_env in G2.
       apply store_in_cmds_app in G2.

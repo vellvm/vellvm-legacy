@@ -265,81 +265,62 @@ Proof.
   eapply vm_matches_typ__sizeMC_eq_sizeGenericValue; eauto.
 Qed.
 
-Lemma mstore_removable_mem_simulation: forall los nts M1 mp2 gv1 a M1' pinfo lc2 
-  gl2 B1 cs1 tmn2 als2 ECs1 M2 t v sasinfo v0 Ps
-  (Huniq: uniqFdef (PI_f pinfo))
-  (HBinF1 : blockInFdefB B1 (PI_f pinfo) = true)
+Lemma SAS_sid1_is_in_SAS_tail: forall (pinfo : PhiInfo) (sasinfo : SASInfo pinfo)
+  (tmn2 : terminator) (lc2 : Opsem.GVsMap) (als2 : list mblock) (los : layouts)
+  (nts : namedts) (B : block) (align0 : align) (v1 : value) (cs : list cmd)
+  (b' : Values.block)
   (Heq3 : exists l1 : l,
            exists ps1 : phinodes,
              exists cs11 : list cmd,
-               B1 =
+               B =
                block_intro l1 ps1
-                 (cs11 ++ insn_store (SAS_sid1 pinfo sasinfo) t v v0 a :: cs1)
+                 (cs11 ++
+                  insn_store (SAS_sid1 pinfo sasinfo) 
+                    (PI_typ pinfo) v1 (value_id (PI_id pinfo)) align0 :: cs)
                  tmn2)
-  (H23: mstore (los,nts) M1 mp2 t gv1 a = ret M1')
-  (H20 : @Opsem.getOperandValue DGVs (los,nts) v0 lc2 gl2 = ret mp2)
-  (H19 : Opsem.getOperandValue (los,nts) v lc2 gl2 = ret gv1) S
-  (Hwfg : wf_global (los, nts) S gl2)
-  (Hwflc1 : OpsemPP.wf_lc (los, nts) (PI_f pinfo) lc2)
-  (Hwfv : wf_value S (module_intro los nts Ps) (PI_f pinfo) v t)
-  (Hmsim: mem_simulation pinfo sasinfo (los,nts)
-            ({|
-             Opsem.CurFunction := PI_f pinfo;
-             Opsem.CurBB := B1;
-             Opsem.CurCmds := insn_store (SAS_sid1 pinfo sasinfo) t v v0 a
-                              :: cs1;
-             Opsem.Terminator := tmn2;
-             Opsem.Locals := lc2;
-             Opsem.Allocas := als2 |} :: ECs1) M1 M2),
-  mem_simulation pinfo sasinfo (los,nts)
-            ({|
-             Opsem.CurFunction := PI_f pinfo;
-             Opsem.CurBB := B1;
-             Opsem.CurCmds := cs1;
-             Opsem.Terminator := tmn2;
-             Opsem.Locals := lc2;
-             Opsem.Allocas := als2 |} :: ECs1) M1' M2.
+  (H25 : lookupAL (GVsT DGVs) lc2 (PI_id pinfo) =
+        ret ($ blk2GV (los, nts) b' # typ_pointer (PI_typ pinfo) $)) y
+  (Hin: in_SAS_tail pinfo sasinfo y (los, nts)
+     {|
+     Opsem.CurFunction := PI_f pinfo;
+     Opsem.CurBB := B;
+     Opsem.CurCmds := cs;
+     Opsem.Terminator := tmn2;
+     Opsem.Locals := lc2;
+     Opsem.Allocas := als2 |}),
+  y = Some b'.
 Proof.
   intros.
-  destruct Hmsim as [Hmsim1 [Hmsim3 Hmsim2]].
-  split.
-    apply MemProps.nextblock_mstore in H23.
-    rewrite <- H23. auto.
-  split.
-    intro b'.    
-    eapply MemProps.bounds_mstore in H23; eauto.
-    rewrite <- H23. eauto.
-    
-    unfold sas_mem_inj in *. inv_mbind.
-    intros ombs Hin.
-    inv Hin.
-    assert (in_SAS_tails pinfo sasinfo (None::l') (los,nts)
-             ({|
-              Opsem.CurFunction := PI_f pinfo;
-              Opsem.CurBB := B1;
-              Opsem.CurCmds := insn_store (SAS_sid1 pinfo sasinfo) t v v0 a
-                               :: cs1;
-              Opsem.Terminator := tmn2;
-              Opsem.Locals := lc2;
-              Opsem.Allocas := als2 |} :: ECs1)) as Hin.
-      constructor; auto using SAS_sid1_isnt_in_SAS_tail.
-    apply Hmsim2 in Hin. clear Hmsim2.
-    simpl in Hin.
-    assert (v0 = value_id (PI_id pinfo) /\ t = PI_typ pinfo) as EQ.
-      admit. (* by sasinfo *)
-    destruct EQ; subst. simpl in H20.
-    assert (exists mb, mp2 = 
-              ($ (blk2GV (los,nts) mb) # (typ_pointer (PI_typ pinfo)) $)) as EQ.
-      admit. (* by promotable *)
-    destruct EQ as [mb EQ]; subst.
-    assert (y = Some mb) as EQ.
-      admit. (* by H1 H20 *)
+  destruct Hin as [J1 _]. simpl in *.
+  rewrite H25 in J1. clear H25.
+  apply J1. clear J1.
+  destruct Heq3 as [l1 [ps1 [cs11 Heq3]]]. subst.
+  split; auto. 
+  assert (block_intro l1 ps1
+            (cs11 ++
+              insn_store (SAS_sid1 pinfo sasinfo) (PI_typ pinfo) v1
+              (value_id (PI_id pinfo)) align0 :: cs) tmn2 = 
+            SAS_block pinfo sasinfo) as EQ.
+    admit. (* uniqness SAS *)
+  simpl.
+  split; auto.
+    unfold cs_follow_dead_store.
+    rewrite <- EQ.
+    intros.
+    clear - EQ H.
+    destruct sasinfo. simpl in *.
+    destruct SAS_prop0 as [J1 [J2 J3]].
     subst.
-    assert (n = sizeGenericValue gv1) as EQ.
-      eapply wf__getTypeStoreSize_eq_sizeGenericValue; eauto.
-    subst.
-    simpl.
-    eapply SASmsim.mstore_inside_inj_left; eauto.
+    destruct J3 as [cs5 [cs4 J3]].
+    assert (cs11 = cs1 /\ cs = SAS_tail0 ++ cs3) as EQ'.
+      admit. (* uniqness *)
+    destruct EQ'; subst. clear H.
+    assert (cs5 = cs1 /\ SAS_tail0 ++ 
+             insn_store SAS_sid4 (PI_typ pinfo) SAS_value3
+               (value_id (PI_id pinfo)) (PI_align pinfo) :: cs4 = cs3) as EQ'.
+      admit. (* uniqness *)
+    destruct EQ'; subst. clear J3.
+    exists nil. exists SAS_tail0. simpl_env. auto.
 Qed.
 
 Lemma cmds_simulation_elim_cons_inv: forall (pinfo : PhiInfo) sasinfo
@@ -459,7 +440,7 @@ Proof.
   destruct csa.
     assert (c = insn_store SAS_sid3 (PI_typ pinfo) SAS_value3
                   (value_id (PI_id pinfo)) (PI_align pinfo)) as EQ.
-      admit. (* list *)
+      anti_simpl_env. auto.
     subst. simpl in H. congruence.
 
     assert (exists csa', c0 :: csa = csa' ++ [c]) as EQ.
@@ -1306,7 +1287,7 @@ Proof.
       intros.
       assert (cs2=insn_store SAS_sid4 PI_typ SAS_value4 (value_id PI_id) PI_align
                     :: cs3 ) as EQ.
-        admit.
+        admit. (* uniqness *)
       subst.
       exists l4. exists l3. auto.
 
@@ -1751,7 +1732,7 @@ Proof.
   destruct (@J3 cs1 (insn_store SAS_sid4 (PI_typ pinfo) SAS_value4 
                     (value_id (PI_id pinfo)) (PI_align pinfo) :: cs3))
     as [csa [csb [J6 J7]]]; simpl_env; auto.
-    admit. (* list *)
+    anti_simpl_env. 
 Qed.
 
 Lemma SAS_sid2_is_in_SAS_tail: forall (pinfo : PhiInfo) (sasinfo : SASInfo pinfo)
@@ -1970,6 +1951,88 @@ Proof.
         eapply in_SAS_tail_update; eauto using unremovable_loc__neq__SAS_sid1.
       apply_clear Hmsim2 in Hin.
       eapply SASmsim.mstore_aux_inject_id_mapped_inj2; eauto.
+Qed.
+
+Lemma mstore_removable_mem_simulation: forall los nts M1 mp2 gv1 a M1' pinfo lc2 
+  gl2 B1 cs1 tmn2 als2 ECs1 M2 t v sasinfo v0 Ps
+  (Huniq: uniqFdef (PI_f pinfo))
+  (HBinF1 : blockInFdefB B1 (PI_f pinfo) = true)
+  (Heq3 : exists l1 : l,
+           exists ps1 : phinodes,
+             exists cs11 : list cmd,
+               B1 =
+               block_intro l1 ps1
+                 (cs11 ++ insn_store (SAS_sid1 pinfo sasinfo) t v v0 a :: cs1)
+                 tmn2) maxb
+  (Hinscope' : if fdef_dec (PI_f pinfo) (PI_f pinfo)
+              then Promotability.wf_defs maxb pinfo (los, nts) M1 lc2 als2
+              else True)
+  (H23: mstore (los,nts) M1 mp2 t gv1 a = ret M1')
+  (H20 : @Opsem.getOperandValue DGVs (los,nts) v0 lc2 gl2 = ret mp2)
+  (H19 : Opsem.getOperandValue (los,nts) v lc2 gl2 = ret gv1) S
+  (Hwfg : wf_global (los, nts) S gl2)
+  (Hwflc1 : OpsemPP.wf_lc (los, nts) (PI_f pinfo) lc2)
+  (Hwfv : wf_value S (module_intro los nts Ps) (PI_f pinfo) v t)
+  (Hmsim: mem_simulation pinfo sasinfo (los,nts)
+            ({|
+             Opsem.CurFunction := PI_f pinfo;
+             Opsem.CurBB := B1;
+             Opsem.CurCmds := insn_store (SAS_sid1 pinfo sasinfo) t v v0 a
+                              :: cs1;
+             Opsem.Terminator := tmn2;
+             Opsem.Locals := lc2;
+             Opsem.Allocas := als2 |} :: ECs1) M1 M2),
+  mem_simulation pinfo sasinfo (los,nts)
+            ({|
+             Opsem.CurFunction := PI_f pinfo;
+             Opsem.CurBB := B1;
+             Opsem.CurCmds := cs1;
+             Opsem.Terminator := tmn2;
+             Opsem.Locals := lc2;
+             Opsem.Allocas := als2 |} :: ECs1) M1' M2.
+Proof.
+  intros.
+  destruct Hmsim as [Hmsim1 [Hmsim3 Hmsim2]].
+  split.
+    apply MemProps.nextblock_mstore in H23.
+    rewrite <- H23. auto.
+  split.
+    intro b'.    
+    eapply MemProps.bounds_mstore in H23; eauto.
+    rewrite <- H23. eauto.
+    
+    unfold sas_mem_inj in *. inv_mbind.
+    intros ombs Hin.
+    inv Hin.
+    assert (in_SAS_tails pinfo sasinfo (None::l') (los,nts)
+             ({|
+              Opsem.CurFunction := PI_f pinfo;
+              Opsem.CurBB := B1;
+              Opsem.CurCmds := insn_store (SAS_sid1 pinfo sasinfo) t v v0 a
+                               :: cs1;
+              Opsem.Terminator := tmn2;
+              Opsem.Locals := lc2;
+              Opsem.Allocas := als2 |} :: ECs1)) as Hin.
+      constructor; auto using SAS_sid1_isnt_in_SAS_tail.
+    apply Hmsim2 in Hin. clear Hmsim2.
+    simpl in Hin.
+    assert (v0 = value_id (PI_id pinfo) /\ t = PI_typ pinfo) as EQ.
+      admit. (* by sasinfo *)
+    destruct EQ; subst. simpl in H20.
+    assert (exists mb, mp2 = 
+              ($ (blk2GV (los,nts) mb) # (typ_pointer (PI_typ pinfo)) $)) as EQ.
+      destruct (fdef_dec (PI_f pinfo) (PI_f pinfo)); try congruence.
+      apply Hinscope' in H20.
+      destruct H20 as [[_ [[mb [H20 _]] _]] _]. eauto.
+    destruct EQ as [mb EQ]; subst.
+    assert (y = Some mb) as EQ.
+      eapply SAS_sid1_is_in_SAS_tail; eauto.
+    subst.
+    assert (n = sizeGenericValue gv1) as EQ.
+      eapply wf__getTypeStoreSize_eq_sizeGenericValue; eauto.
+    subst.
+    simpl.
+    eapply SASmsim.mstore_inside_inj_left; eauto.
 Qed.
 
 Lemma sas_is_sim : forall maxb pinfo (sasinfo: SASInfo pinfo) Cfg1 St1 Cfg2 St2

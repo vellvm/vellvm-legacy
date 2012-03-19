@@ -97,3 +97,25 @@ Ltac get_wf_value_for_simop' :=
     inv HBinF'
   end.
 
+Ltac anti_simpl_env :=
+simpl_env in *;
+repeat match goal with
+| H: ?A ++ ?B ++ ?C = _ |- _ => rewrite_env ((A++B)++C) in H
+| H: ?A ++ ?B ++ ?C ++ ?D = _ |- _ => rewrite_env (((A++B)++C)++D) in H
+| H: ?A ++ ?B ++ ?C ++ ?D ++ ?E = _ |- _ =>rewrite_env ((((A++B)++C)++D)++E) in H
+| H: _ = ?A ++ ?B ++ ?C |- _ => rewrite_env ((A++B)++C) in H
+| H: _ = ?A ++ ?B ++ ?C ++ ?D |- _ => rewrite_env (((A++B)++C)++D) in H
+| H: _ = ?A ++ ?B ++ ?C ++ ?D ++ ?E |- _ =>rewrite_env ((((A++B)++C)++D)++E) in H
+end;
+repeat match goal with
+| H: _ ++ ?A = _ ++ ?A |- _ => apply app_inv_tail in H
+| H: _ ++ [?a] = _ ++ [?b] |- _ => apply app_inj_tail in H; destruct H; subst
+| H: ?A = _ ++ ?A |- _ => symmetry in H; apply app_inv_tail_nil in H
+| H: _ ++ ?A = ?A |- _ => apply app_inv_tail_nil in H
+| H: (_++[_])++_ = nil |- _ => 
+    contradict H; simpl_env; simpl; apply app_cons_not_nil
+| H: _++[_]++_ = nil |- _ => contradict H; simpl; apply app_cons_not_nil
+| H: ?A++[?a] = nil |- _ => 
+       rewrite_env (A++[a]++nil) in H;
+       contradict H; simpl; apply app_cons_not_nil
+end.
