@@ -2294,3 +2294,21 @@ Proof.
       eapply simulation___cundef_gv; eauto.
 Qed.
 
+Lemma gv_inject_id__eq: forall gv1 gv2, 
+  gv_inject inject_id gv1 gv2 -> gv1 = gv2.
+Proof.
+  induction 1; auto.
+    inv H; auto.
+    inv H1. rewrite Int.add_zero; auto.
+Qed.
+
+Lemma gv_inject_id__refl: forall gvs, gv_inject inject_id gvs gvs.
+Proof.
+  induction gvs as [|[]]; auto.
+    constructor; auto.
+    destruct v; try constructor.
+      econstructor.
+        unfold inject_id. eauto.
+        rewrite Int.add_zero; auto.
+Qed.
+

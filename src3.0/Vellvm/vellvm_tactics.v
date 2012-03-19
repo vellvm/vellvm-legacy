@@ -217,4 +217,14 @@ Ltac bdestructn H Js :=
 Ltac bsplit :=
   eapply andb_true_iff; split.
 
+Ltac destruct_if' :=
+match goal with
+| H: context [(if ?lk then _ else _)] |- _ =>
+  match type of lk with
+  | sumbool (@eq ?t ?e ?e) (not (@eq ?t ?e ?e)) => 
+      destruct lk; try congruence
+  | _ => destruct_if
+  end
+| |- _ => destruct_if
+end.
 

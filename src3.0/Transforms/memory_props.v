@@ -2402,6 +2402,56 @@ Proof.
     repeat fill_ctxhole.  auto.
 Qed.
 
+Lemma bounds_mstore_aux: forall b gvs M ofs M',
+  mstore_aux M gvs b ofs = ret M' ->
+  forall b', Mem.bounds M b' = Mem.bounds M' b'.
+Proof.
+  induction gvs as [|[]]; simpl; intros.
+    inv H. auto.
+
+    inv_mbind'.
+    eapply IHgvs in H1; eauto.
+    symmetry in HeqR.
+    eapply Mem.bounds_store in HeqR; eauto.
+    rewrite <- HeqR. eauto.
+Qed.
+
+Lemma bounds_mstore: forall TD M gv1 M' mp2 t align0,
+  mstore TD M mp2 t gv1 align0 = ret M' ->
+  forall b', Mem.bounds M b' = Mem.bounds M' b'.
+Proof.
+  intros.
+  apply store_inv in H.
+  destruct H as [blk' [ofs' [J1 J2]]].
+  eapply bounds_mstore_aux in J2; eauto.
+Qed.
+
+Lemma bounds_mfree: forall TD M1 ptr M2,
+  free TD M1 ptr = ret M2 ->
+  forall b, Mem.bounds M2 b = Mem.bounds M1 b.
+Proof.
+  intros.
+  apply free_inv in H.
+  destruct H as [blk [ofs [lo [hi [J1 [J2 [J3 J4]]]]]]].
+  eapply Mem.bounds_free; eauto.
+Qed.
+
+Lemma bounds_malloc: forall TD M tsz gn M' align0 mb
+  (H: malloc TD M tsz gn align0 = ret (M', mb)),
+  exists n,
+    GV2int TD Size.ThirtyTwo gn = Some n /\
+    forall b' : Values.block,
+       Mem.bounds M' b' =
+       (if eq_block b' mb then (0, Size.to_Z tsz * n) else Mem.bounds M b').
+Proof.
+  intros.
+  apply malloc_inv in H.
+  destruct H as [n [J1 [J2 J3]]].
+  exists n.
+  split; auto.
+    eapply Mem.bounds_alloc; eauto.
+Qed.
+
 End MemProps.
 
 

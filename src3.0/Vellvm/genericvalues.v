@@ -2486,5 +2486,14 @@ Proof.
     destruct x. inv H. constructor; auto.
 Qed.
 
+Lemma vm_matches_typ__sizeMC_eq_sizeGenericValue: forall gvs mcs 
+  (Hmatch : Forall2 vm_matches_typ gvs mcs), 
+  sizeMC mcs = sizeGenericValue gvs.
+Proof.
+  induction 1; simpl; subst; auto.
+    destruct x. inv H.
+    simpl. congruence.
+Qed.
+
 End LLVMgv.
 
