@@ -28,7 +28,7 @@ Makefile.coq: Make
 	coq_makefile -f Make -o Makefile.coq
 	sed -e 's/-slash //' -i Makefile.coq
 
-%.vo: Makefile.coq
+%.vo: Makefile.coq Vellvm/syntax.v Vellvm/typings.v
 	+$(MAKECOQ) "$@"
 
 ocaml: theories extraction
@@ -53,8 +53,7 @@ ocamlclean:
 
 Vellvm/syntax.v : Vellvm/syntax.ott
 	cd Vellvm && \
-	$(OTT) -i syntax.ott -o syntax.v && \
-	./fixott.py syntax.v
+	$(OTT) -coq_expand_list_types true -i syntax.ott -o syntax.v
 
 Vellvm/typings.v: Vellvm/syntax.ott Vellvm/typings.ott
 	cd Vellvm && \
