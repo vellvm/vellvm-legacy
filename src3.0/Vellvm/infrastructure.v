@@ -172,12 +172,17 @@ match la with
 | (_,id1)::la' => id1::getArgsIDs la'
 end.
 
-  Definition getInsnID (i:insn) : option id :=
-  match i with
-  | insn_phinode p => Some (getPhiNodeID p)
-  | insn_cmd c => getCmdID c
-  | insn_terminator t => None
-  end.
+Definition getArgsIDsOfFdef (f:fdef) : list atom :=
+match f with
+| fdef_intro (fheader_intro _ _ _ la _) _ => getArgsIDs la
+end.
+
+Definition getInsnID (i:insn) : option id :=
+match i with
+| insn_phinode p => Some (getPhiNodeID p)
+| insn_cmd c => getCmdID c
+| insn_terminator t => None
+end.
 
 Lemma getCmdLoc_getCmdID : forall a i0,
   getCmdID a = Some i0 ->
@@ -760,13 +765,14 @@ match li with
     else lookupPhiNodeViaIDFromPhiNodes li' id0
 end.
 
-Definition lookupInsnViaIDFromBlock (b:block) (id:id) : option insn :=
+Definition lookupInsnViaIDFromBlock (b:block) (id0:id) : option insn :=
 match b with
-| block_intro l ps cs t =>
-  match (lookupPhiNodeViaIDFromPhiNodes ps id) with
+| block_intro _ ps cs t =>
+  match (lookupPhiNodeViaIDFromPhiNodes ps id0) with
   | None =>
-      match (lookupCmdViaIDFromCmds cs id) with
-      | None => None
+      match (lookupCmdViaIDFromCmds cs id0) with
+      | None => if (eq_dec (getTerminatorID t) id0) 
+                then Some (insn_terminator t) else None
       | Some c => Some (insn_cmd c)
       end
   | Some re => Some (insn_phinode re)
@@ -795,6 +801,18 @@ match la with
 end.
 
 (* Block lookup from ID *)
+
+Fixpoint getCmdsLocs (cs:list cmd) : ids :=
+match cs with
+| nil => nil
+| c::cs' => getCmdLoc c::getCmdsLocs cs'
+end.
+
+Definition getBlockLocs b : ids :=
+match b with
+| block_intro l ps cs t =>
+  getPhiNodesIDs ps++getCmdsLocs cs++(getTerminatorID t::nil)
+end.
 
 Fixpoint lookupBlockViaIDFromBlocks (lb:blocks) (id1:id) : option block :=
 match lb with
@@ -1404,18 +1422,6 @@ end.
 
 (*************************************************)
 (*         Uniq                                  *)
-
-Fixpoint getCmdsLocs (cs:list cmd) : ids :=
-match cs with
-| nil => nil
-| c::cs' => getCmdLoc c::getCmdsLocs cs'
-end.
-
-Definition getBlockLocs b : ids :=
-match b with
-| block_intro l ps cs t =>
-  getPhiNodesIDs ps++getCmdsLocs cs++(getTerminatorID t::nil)
-end.
 
 Fixpoint getBlocksLocs bs : ids :=
 match bs with

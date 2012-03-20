@@ -31,6 +31,9 @@ match goal with
    remember lk as R; destruct R; try inv H
 | H: context [if ?lk then _ else _] |- _ =>
    remember lk as R; destruct R; try inv H
+| |- context [(if ?lk then _ else _)] => 
+   remember lk as R; destruct R; subst; auto
+| |- context [if ?lk then _ else _] => remember lk as R; destruct R; subst; auto
 end.
 
 Ltac destruct_let :=

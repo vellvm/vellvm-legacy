@@ -571,9 +571,6 @@ Proof.
   rewrite NEXT. apply sym_not_equal. eauto with mem. 
 Qed.
 
-Definition inj_offset_aligned (delta: Z) (size: Z) : Prop :=
-  forall chunk, size_chunk chunk <= size -> (align_chunk chunk | delta).
-
 Lemma free_right_inj:
   forall f m1 m2 b lo hi m2',
   mem_inj f m1 m2 ->

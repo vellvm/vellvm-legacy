@@ -1053,6 +1053,16 @@ fold_left (inscope_of_block f l1) els
   (Some (getPhiNodesIDs ps ++ cmds_dominates_cmd cs id0 ++ getArgsIDs la))
 .
 
+Definition idDominates (f:fdef) (id1 id2: id) : Prop :=
+match lookupBlockViaIDFromFdef f id2 with
+| Some b2 =>
+    match inscope_of_id f b2 id2 with
+    | Some ids2 => In id1 ids2
+    | None => False
+    end
+| None => False
+end.
+
 Definition inscope_of_cmd (f:fdef) (b1:block) (c:cmd) : option (list atom) :=
 let id0 := getCmdLoc c in inscope_of_id f b1 id0.
 
@@ -1438,6 +1448,614 @@ Proof.
             apply ListSet.set_add_intro; auto.
 
       rewrite fold_left__none in Hfold. inversion Hfold.
+Qed.
+
+Lemma cmds_dominates_cmd_spec : forall id2 id0 cs,
+  In id2 (cmds_dominates_cmd cs id0) -> In id2 (getCmdsIDs cs).
+Proof.
+  induction cs; simpl; intros; auto.
+    destruct (eq_atom_dec (getCmdLoc a) id0); subst.
+      inv H.
+
+      remember (getCmdID a) as R.
+      symmetry in HeqR.
+      destruct R; auto.
+        apply getCmdLoc_getCmdID in HeqR.
+        simpl in *.
+        destruct H; auto.
+Qed.
+
+Lemma cmds_dominates_cmd_spec' : forall ids1 id2 cs id0,
+  In id2 (ids1 ++ cmds_dominates_cmd cs id0) ->
+  In id2 (ids1 ++ getCmdsIDs cs).
+Proof.
+  intros.
+  apply in_app_or in H.
+  apply in_or_app.
+  destruct H as [H | H]; auto.
+  right. eapply cmds_dominates_cmd_spec; eauto.
+Qed.
+
+Lemma insnDominates_spec4 : forall b i0 insn2,
+  insnDominates i0 insn2 b -> In i0 (getBlockIDs b).
+Proof.
+  unfold insnDominates.
+  destruct b. intros.
+  destruct insn2; tinv H.
+    destruct H as [[ps1 [p1 [ps2 [J1 J2]]]] |
+                   [cs1 [c1 [cs2 [cs3 [J1 J2]]]]]]; subst; simpl.
+      apply in_or_app.
+      left. rewrite getPhiNodesIDs_app.
+      apply in_or_app.
+      right. simpl. auto.
+
+      apply in_or_app.
+      right. apply InGetCmdsIDs_middle'; auto.
+
+    destruct H as [[[cs1 [c1 [cs2 [J1 J2]]]] |
+                    [ps1 [p1 [ps2 [J1 J2]]]]] Heq]; subst; simpl.
+      apply in_or_app.
+      right. apply InGetCmdsIDs_middle'; auto.
+
+      apply in_or_app.
+      left. apply InGetPhiNodesIDs_middle; auto.
+Qed.
+
+Lemma insnDominates_spec3 : forall F b i0 insn2,
+  uniqFdef F ->
+  blockInFdefB b F = true ->
+  insnDominates i0 insn2 b ->
+  lookupBlockViaIDFromFdef F i0 = ret b.
+Proof.
+  intros.
+  eapply inGetBlockIDs__lookupBlockViaIDFromFdef; eauto.
+  apply insnDominates_spec4 in H1; auto.
+Qed.
+
+Lemma cmds_dominates_cmd_inv: forall id2 cs id1,
+  In id1 (getCmdsLocs cs) ->
+  In id2 (cmds_dominates_cmd cs id1) ->
+  exists cs1, exists c, exists cs2,
+    cs = cs1 ++ c :: cs2 /\
+    In id2 (getCmdsLocs cs1) /\
+    getCmdLoc c = id1.
+Proof.
+  induction cs; simpl; intros.
+    inv H0.
+
+    destruct (eq_atom_dec (getCmdLoc a) id1); subst.
+      inv H0.
+
+      destruct H as [H | H]; subst.
+        congruence.
+
+        remember (getCmdID a) as R.
+        destruct R.
+          symmetry in HeqR.
+
+          simpl in H0.
+          destruct H0 as [H0 | H0]; subst.
+            apply in_getCmdsLocs_inv in H.
+            destruct H as [cs1 [c [cs2 [J1 J2]]]]; subst.
+            exists (a::cs1). exists c. exists cs2.
+            simpl. erewrite getCmdLoc_getCmdID; eauto.
+
+            apply IHcs in H0; auto.
+            destruct H0 as [cs1 [c [cs2 [J1 [J2 J3]]]]]; subst.
+            exists (a::cs1). exists c. exists cs2.
+            simpl. eauto.
+
+          apply IHcs in H0; auto.
+          destruct H0 as [cs1 [c [cs2 [J1 [J2 J3]]]]]; subst.
+          exists (a::cs1). exists c. exists cs2.
+          simpl. eauto.
+Qed.
+
+Lemma cmds_dominates_cmd_spec3: forall cs1 c cs2 id1,
+  NoDup (getCmdsLocs (cs1 ++ c :: cs2)) -> getCmdID c = ret id1 ->
+  cmds_dominates_cmd (cs1++c::cs2) id1 = getCmdsIDs cs1.
+Proof.
+  induction cs1; simpl; intros.
+    apply getCmdLoc_getCmdID in H0. subst.
+    destruct (eq_atom_dec (getCmdLoc c) (getCmdLoc c)); auto.
+      congruence.
+
+    destruct (eq_atom_dec (getCmdLoc a) id1); subst.
+      apply getCmdLoc_getCmdID in H0.
+      inv H.
+      rewrite <- H0 in H3.
+      contradict H3. rewrite getCmdsLocs_app.
+      apply in_or_app. simpl. auto.
+
+      inv H.
+      destruct (getCmdID a).
+        eapply IHcs1 in H4; eauto.
+        rewrite H4. auto.
+
+        eapply IHcs1 in H4; eauto.
+Qed.
+
+Lemma cmds_dominates_cmd_spec5: forall cs id1,
+  ~ In id1 (getCmdsLocs cs) ->
+  cmds_dominates_cmd cs id1 = getCmdsIDs cs.
+Proof.
+  induction cs; simpl; intros; auto.
+    destruct (eq_atom_dec (getCmdLoc a) id1); subst.
+      contradict H. auto.
+
+      remember (getCmdID a) as R.
+      destruct R; auto.
+      rewrite IHcs; auto.
+Qed.
+
+Lemma insnDominates_trans: forall id1 p c t id2 l1 instr
+  (G : In id2 (getCmdsLocs c))
+  (H : In id1 (getPhiNodesIDs p ++ cmds_dominates_cmd c id2))
+  (H3 : NoDup (getBlockLocs (block_intro l1 p c t)))
+  (H1 : insnDominates id2 instr (block_intro l1 p c t)),
+  insnDominates id1 instr (block_intro l1 p c t).
+Proof.
+  intros.
+  apply in_app_or in H.
+  destruct H as [H | H]; simpl in *.
+    destruct instr; auto.
+      left. apply in_getPhiNodesIDs_inv; auto.
+
+      destruct H1 as [H1 Heq]; subst.
+      split; auto.
+      right. apply in_getPhiNodesIDs_inv; auto.
+
+    destruct instr; auto.
+      right.
+      destruct H1 as [[ps1 [p1 [ps2 [J1 J2]]]] |
+                      [cs1 [c1 [cs2 [cs3 [J1 J2]]]]]]; subst; simpl.
+        apply NoDup_disjoint with (i0:=getPhiNodeID p1) in H3; auto.
+          contradict H3.
+          rewrite getPhiNodesIDs_app.
+          apply in_or_app. right. simpl. auto.
+
+          apply in_or_app. left. auto.
+
+        apply NoDup_inv in H3. destruct H3 as [_ H3].
+        apply NoDup_inv in H3. destruct H3 as [H3 _].
+        rewrite cmds_dominates_cmd_spec3 in H; auto.
+        apply in_getCmdsIDs_inv in H.
+        destruct H as [cs6 [c3 [cs7 [J6 J7]]]]; subst.
+        exists cs6. exists c3. exists (cs7 ++ c1 :: cs2). exists cs3.
+        simpl_env. split; auto.
+
+      destruct H1 as [[[cs1 [c1 [cs2 [J1 J2]]]] |
+                       [ps1 [p1 [ps2 [J1 J2]]]]] Heq]; subst; simpl.
+        apply NoDup_inv in H3. destruct H3 as [_ H3].
+        apply NoDup_inv in H3. destruct H3 as [H3 _].
+        rewrite cmds_dominates_cmd_spec3 in H; auto.
+        apply in_getCmdsIDs_inv in H.
+        destruct H as [cs6 [c3 [cs7 [J6 J7]]]]; subst.
+        split; auto. left.
+        exists cs6. exists c3. exists (cs7 ++ c1 :: cs2).
+        simpl_env. split; auto.
+
+        apply NoDup_disjoint with (i0:=getPhiNodeID p1) in H3; auto.
+          contradict H3.
+          rewrite getPhiNodesIDs_app.
+          apply in_or_app. right. simpl. auto.
+
+          apply in_or_app. left. auto.
+Qed.
+
+Lemma insnDominates_spec1 : forall c1 block',
+  NoDup (getBlockLocs block') -> insnInBlockB (insn_cmd c1) block' ->
+  ~ insnDominates (getCmdLoc c1) (insn_cmd c1) block'.
+Proof.
+  intros. intro J.
+  unfold insnDominates in J.
+  destruct block'.
+  destruct J as [[ps1 [p1 [ps2 [J1 J2]]]] | [cs1 [c2 [cs2 [cs3 [J1 J2]]]]]];
+    subst; simpl in *.
+    apply NoDup_disjoint with (i0:=getPhiNodeID p1) in H; auto.
+      apply H. apply InGetPhiNodesIDs_middle.
+      rewrite J2. apply getCmdLoc_in_getCmdsLocs'; auto.
+
+    apply getCmdLoc_getCmdID in J2.
+    apply NoDup_inv in H. destruct H as [_ H].
+    apply NoDup_inv in H. destruct H as [H _].
+    rewrite_env ((cs1 ++ c2 :: cs2) ++ c1 :: cs3) in H.
+    rewrite getCmdsLocs_app in H.
+    apply NoDup_disjoint with (i0:=getCmdLoc c2) in H; auto.
+      apply H. apply InGetCmdsLocs_middle.
+      rewrite J2. simpl. auto.
+Qed.
+
+Lemma insnDominates_spec2 : forall c1 c2 block',
+  NoDup (getBlockLocs block') ->
+  insnInBlockB (insn_cmd c1) block' ->
+  insnInBlockB (insn_cmd c2) block' ->
+  insnDominates (getCmdLoc c1) (insn_cmd c2) block' ->
+  ~ insnDominates (getCmdLoc c2) (insn_cmd c1) block'.
+Proof.
+  unfold insnDominates. destruct block'. intros.
+  destruct H2 as [[ps1 [p1 [ps2 [J1 J2]]]] | [cs1 [c2' [cs2 [cs3 [J1 J2]]]]]];
+    subst; simpl in *.
+    apply NoDup_disjoint with (i0:=getPhiNodeID p1) in H; auto.
+      contradict H. apply InGetPhiNodesIDs_middle.
+      rewrite J2. apply getCmdLoc_in_getCmdsLocs'; auto.
+
+    intros J.
+    destruct J as [[ps3 [p4 [ps5 [J3 J4]]]] | [cs3' [c3 [cs4 [cs5 [J3 J4]]]]]];
+      subst.
+      apply NoDup_disjoint with (i0:=getPhiNodeID p4) in H; auto.
+        contradict H. apply InGetPhiNodesIDs_middle.
+        rewrite J4. apply getCmdLoc_in_getCmdsLocs'; auto.
+
+      apply getCmdLoc_getCmdID in J2.
+      apply getCmdLoc_getCmdID in J4.
+      apply NoDup_inv in H. destruct H as [_ H].
+      apply NoDup_inv in H. destruct H as [H _].
+      assert (H':=H).
+      apply InCmdsB_in in H0.
+      apply getCmdsLocs_uniq with (c1:=c1)(c2:=c2') in H; auto using in_middle.
+      rewrite J3 in H'.
+      assert (H'':=H').
+      apply getCmdsLocs_uniq with (c1:=c2)(c2:=c3) in H'; auto using in_middle.
+        subst.
+        rewrite <- J3 in H''.
+        rewrite_env ((cs1 ++ c2' :: cs2) ++ c3 :: cs3) in J3.
+        rewrite_env ((cs1 ++ c2' :: cs2) ++ c3 :: cs3) in H''.
+        apply in_middle_inv in J3; auto.
+        destruct J3 as [Heq1 Heq2]; subst.
+        rewrite getCmdsLocs_app in H''.
+        apply NoDup_disjoint with (i0:=getCmdLoc c2') in H''; auto.
+          contradict H''. apply InGetCmdsLocs_middle.
+          rewrite_env ((c3 :: cs4) ++ c2' :: cs5). apply InGetCmdsLocs_middle.
+
+        rewrite <- J3. rewrite_env ((cs1 ++ c2' :: cs2) ++ c2 :: cs3).
+        auto using in_middle.
+Qed.
+
+Lemma insnDominates_spec5: forall F1 b c instr,
+  uniqFdef F1 ->
+  blockInFdefB b F1 ->
+  insnDominates (getCmdLoc c) instr b ->
+  lookupBlockViaIDFromFdef F1 (getCmdLoc c) = Some b.
+Proof.
+  intros. eapply insnDominates_spec3; eauto.
+Qed.
+
+Lemma cmds_dominates_cmd__insnDominates: forall F1 c1 l0 p c0 t c
+  (Huniq : uniqFdef F1)
+  (H : insnInFdefBlockB (insn_cmd c1) F1 (block_intro l0 p c0 t) = true)
+  (Hin' : In c c0) (Hsome: getCmdID c1 <> None)
+  (Hin : In (getCmdLoc c1)
+          (getPhiNodesIDs p ++ cmds_dominates_cmd c0 (getCmdLoc c))),
+  insnDominates (getCmdLoc c1) (insn_cmd c) (block_intro l0 p c0 t).
+Proof.
+  simpl. intros.
+  apply in_app_or in Hin.
+  apply andb_true_iff in H.
+  destruct H as [J1 J2].
+  apply uniqFdef__uniqBlockLocs in J2; auto.
+  simpl in J2.
+  destruct Hin as [Hin | Hin].
+    apply NoDup_disjoint' with (i0:=getCmdLoc c1) in J2; auto.
+    contradict J2. apply in_or_app.
+    apply InCmdsB_InCmdsLocs in J1; auto.
+    assert (J3:=Hin').
+    apply getCmdLoc_in_getCmdsLocs in Hin'.
+    apply cmds_dominates_cmd_inv in Hin; auto.
+    destruct Hin as [cs1 [c2 [cs2 [Heq [Hin J]]]]]; subst.
+
+    apply NoDup_inv in J2. destruct J2 as [_ J2].
+    apply NoDup_inv in J2. destruct J2 as [J2 _].
+    apply InCmdsB_in in J1.
+    assert (J2':=J2).
+    apply getCmdsLocs_uniq with (c1:=c)(c2:=c2) in J2'; auto using in_middle.
+    subst.
+    apply nodup_getCmdsLocs_in_first with (c1:=c1) in J2; auto.
+    apply in_split in J2. destruct J2 as [cs3 [c0 cs4]]; subst.
+    right.
+    exists cs3. exists c1. exists c0. exists cs2.
+    rewrite getCmdID_getCmdLoc; auto. simpl_env. split; auto.
+Qed.
+
+Lemma fold_left__init : forall f l1 r ls0 init,
+  fold_left (inscope_of_block f l1) ls0 (Some init) = Some r ->
+  incl init r.
+Proof.
+  induction ls0; simpl; intros.
+    inv H. apply incl_refl; auto.
+
+    destruct (lookupBlockViaLabelFromFdef f a).
+      destruct (eq_atom_dec a l1); subst; auto.
+        apply IHls0 in H.
+        intros x J. apply H. apply in_or_app. auto.
+
+      rewrite fold_left__none in H. inv H.
+Qed.
+
+Lemma fold_left__intro: forall f (Huniq: uniqFdef f) l1 bs_contents l2 B
+  r init,
+  In l2 (ListSet.set_diff eq_atom_dec bs_contents [l1]) ->
+  lookupBlockViaLabelFromFdef f l2 = ret B ->
+  fold_left (inscope_of_block f l1) bs_contents (Some init) = Some r ->
+  incl (getBlockIDs B) r.
+Proof.
+  induction bs_contents; simpl; intros.
+    inv H.
+
+    destruct (eq_atom_dec a l1); subst.
+      remember (lookupBlockViaLabelFromFdef f l1) as R.
+      destruct R; eauto.
+        rewrite fold_left__none in H1. inv H1.
+
+      apply ListSet.set_add_elim in H.
+      destruct H as [H | H]; subst.
+        rewrite H0 in H1.
+        apply fold_left__init in H1.
+        intros x J. apply H1. apply in_or_app. auto.
+
+        remember (lookupBlockViaLabelFromFdef f a) as R.
+        destruct R.
+          eapply IHbs_contents in H1; eauto.
+          rewrite fold_left__none in H1. inv H1.
+Qed.
+
+Lemma cmds_dominates_cmd_spec2: forall cs cs' id1,
+  In id1 (getCmdsIDs cs) ->
+  cmds_dominates_cmd (cs++cs') id1 = cmds_dominates_cmd cs id1.
+Proof.
+  induction cs; simpl; intros.
+    inv H.
+
+    destruct (eq_atom_dec (getCmdLoc a) id1); subst; auto.
+    remember (getCmdID a) as R.
+    destruct R; eauto.
+      symmetry in HeqR.
+      apply getCmdLoc_getCmdID in HeqR. subst.
+      simpl in H.
+      destruct H as [H | H]; subst; try congruence.
+      rewrite IHcs; auto.
+Qed.
+
+Lemma cmds_dominates_cmd_trans : forall id1 id2 ps1 cs1 c cs
+  (G: In id1 (getCmdsLocs (cs1 ++ c :: cs))) (Hsome: getCmdID c <> None),
+  NoDup (getPhiNodesIDs ps1 ++ getCmdsLocs (cs1 ++ c :: cs)) ->
+  In id1 (getPhiNodesIDs ps1 ++
+          cmds_dominates_cmd (cs1 ++ c :: cs) (getCmdLoc c)) ->
+  In id2 (getPhiNodesIDs ps1 ++
+          cmds_dominates_cmd (cs1 ++ c :: cs) id1) ->
+  In id2 (getPhiNodesIDs ps1 ++
+          cmds_dominates_cmd (cs1 ++ c :: cs) (getCmdLoc c)).
+Proof.
+  intros.
+  apply in_or_app.
+  apply in_app_or in H1.
+  apply in_app_or in H0.
+  destruct H1 as [H1 | H1]; auto.
+  destruct H0 as [H0 | H0]; auto.
+    eapply NoDup_disjoint' in H; eauto.
+    apply cmds_dominates_cmd_inv in H1; auto.
+    destruct H1 as [cs2 [c0 [cs3 [J1 [J2 J3]]]]]; subst.
+    rewrite J1 in H.
+    contradict H. apply getCmdLoc_in_getCmdsLocs. apply in_middle.
+
+    apply NoDup_inv in H. destruct H as [J1 J2].
+    rewrite cmds_dominates_cmd_spec3 in H0; eauto using getCmdID_getCmdLoc.
+    rewrite cmds_dominates_cmd_spec2 with (cs:=cs1) in H1; auto.
+    right.
+    rewrite cmds_dominates_cmd_spec3; eauto using getCmdID_getCmdLoc.
+    apply cmds_dominates_cmd_spec in H1; auto.
+Qed.
+
+Lemma cmds_dominates_cmd_spec'' : forall ids1 id2 cs id0 tl1 
+  (Hnin: ~ In id2 tl1),
+  In id2 (ids1 ++ cmds_dominates_cmd cs id0 ++ tl1) ->
+  In id2 (ids1 ++ getCmdsIDs cs).
+Proof.
+  intros.
+  rewrite_env ((ids1 ++ cmds_dominates_cmd cs id0) ++ tl1) in H.
+  apply in_app_or in H.
+  destruct H as [H | H]; try congruence.
+  apply cmds_dominates_cmd_spec' in H. auto.
+Qed.
+
+Lemma idDominates__lookupBlockViaIDFromFdef : forall f id1 id2
+  (Huniq: uniqFdef f) (Hnotin: ~ In id1 (getArgsIDsOfFdef f)),
+  idDominates f id1 id2 ->
+  exists b1, lookupBlockViaIDFromFdef f id1 = ret b1.
+Proof.
+  intros.
+  unfold idDominates in H.
+  remember (lookupBlockViaIDFromFdef f id2) as R.
+  destruct R; tinv H.
+  remember (inscope_of_id f b id2) as R.
+  destruct R; tinv H.
+  unfold inscope_of_id in HeqR0.
+  destruct b.
+  remember (Maps.AMap.get l1 (dom_analyze f)) as R.
+  destruct R. destruct f as [[fa ty fid la va] bs].
+  symmetry in HeqR0.
+  apply fold_left__spec in HeqR0.
+  destruct HeqR0 as [J1 [J2 J3]].
+  apply J3 in H.
+  destruct H as [H | [b2 [l2 [H1 [H2 H3]]]]].
+    exists (block_intro l1 p c t).
+    symmetry in HeqR.
+    apply lookupBlockViaIDFromFdef__blockInFdefB in HeqR.
+    apply inGetBlockIDs__lookupBlockViaIDFromFdef; auto.
+    simpl. eapply cmds_dominates_cmd_spec''; eauto.
+    
+    exists b2.
+    apply lookupBlockViaLabelFromFdef__blockInFdefB in H2; auto.
+    apply inGetBlockIDs__lookupBlockViaIDFromFdef; auto.
+Qed.
+
+Lemma idDominates__blockDominates : forall f b1 b2 id1 id2
+  (Hdom : idDominates f id1 id2) (HuniqF: uniqFdef f) 
+  (Hnotin: ~ In id1 (getArgsIDsOfFdef f))
+  (H : lookupBlockViaIDFromFdef f id2 = ret b2)
+  (J : lookupBlockViaIDFromFdef f id1 = ret b1),
+  blockDominates f b1 b2.
+Proof.
+  unfold idDominates, blockDominates in *. intros.
+  rewrite H in Hdom.
+  remember (inscope_of_id f b2 id2) as R2.
+  destruct R2; tinv Hdom.
+  unfold inscope_of_id in *.
+  destruct b1. destruct b2.
+  remember (Maps.AMap.get l2 (dom_analyze f)) as R.
+  destruct R. destruct f as [[fa ty fid la va] bs].
+  symmetry in HeqR2.
+  apply fold_left__spec in HeqR2.
+  destruct HeqR2 as [J1 [J2 J3]].
+  apply J3 in Hdom.
+  destruct Hdom as [Hdom | [b1 [l1' [H4 [H5 H6]]]]].
+    right.
+    apply lookupBlockViaIDFromFdef__blockInFdefB in H.
+    apply block_eq1 with (b2:=block_intro l2 p0 c0 t0) in J; eauto.
+      inv J; auto.
+      simpl. eapply cmds_dominates_cmd_spec''; eauto.
+
+    left.
+    assert (block_intro l1 p c t = b1 /\ l1' = l1) as J'.
+      destruct b1. apply lookupBlockViaLabelFromFdef_inv in H5; auto.
+      destruct H5 as [Heq H5]; subst.
+      clear - H6 J HuniqF H5.
+      eapply block_eq1 in J; eauto. inv J; auto.
+    destruct J' as [Heq1 Heq2]; subst.
+    apply ListSet.set_diff_elim1 in H4; auto.
+Qed.
+
+(*
+Lemma idDominates__lookupIDFromFdef : forall f id1 id2 (Huniq: uniqFdef f),
+  idDominates f id1 id2 ->
+  lookupIDFromFdef f id1 = ret tt.
+Proof.
+  unfold idDominates. intros.
+  remember (lookupBlockViaIDFromFdef f id2) as R.
+  destruct R; tinv H.
+  remember (inscope_of_id f b id2) as R.
+  destruct R; tinv H.
+  unfold inscope_of_id in HeqR0.
+  destruct b.
+  remember (Maps.AMap.get l1 (dom_analyze f)) as R.
+  destruct R.
+  symmetry in HeqR0.
+  apply fold_left__spec in HeqR0.
+  destruct HeqR0 as [J1 [J2 J3]].
+  apply J3 in H.
+  destruct H as [H | [b2 [l2 [H1 [H2 H3]]]]].
+    symmetry in HeqR.
+    apply lookupBlockViaIDFromFdef__blockInFdefB in HeqR.
+    eapply inGetBlockIDs__lookupIDFromFdef in HeqR; eauto.
+    simpl. eapply cmds_dominates_cmd_spec'; eauto.
+
+    apply lookupBlockViaLabelFromFdef__blockInFdefB in H2; auto.
+    eapply inGetBlockIDs__lookupIDFromFdef in H2; eauto.
+Qed.
+*)
+
+Lemma idDominates_insnDominates__blockDominates : forall f id1 id2 b1 b instr
+  (Hnotin: ~ In id1 (getArgsIDsOfFdef f)),
+  idDominates f id1 id2 ->
+  lookupBlockViaIDFromFdef f id1 = ret b1 ->
+  insnDominates id2 instr b ->
+  blockInFdefB b f = true ->
+  uniqFdef f ->
+  blockDominates f b1 b.
+Proof.
+  intros. eapply idDominates__blockDominates; eauto.
+  destruct b. eapply insnDominates_spec3 in H1; eauto.
+Qed.
+
+Lemma idDominates_insnDominates__insnDominates : forall f id1 id2 b instr
+  (Hnotin: ~ In id1 (getArgsIDsOfFdef f))
+  (G: exists c2, lookupInsnViaIDFromFdef f id2 = Some (insn_cmd c2)),
+  idDominates f id1 id2 ->
+  lookupBlockViaIDFromFdef f id1 = ret b ->
+  insnDominates id2 instr b ->
+  blockInFdefB b f = true ->
+  uniqFdef f ->
+  insnDominates id1 instr b.
+Proof.
+  intros.
+  unfold idDominates in H.
+  remember (lookupBlockViaIDFromFdef f id2) as R.
+  destruct R; tinv H.
+  remember (inscope_of_id f b0 id2) as R.
+  destruct R; tinv H.
+  unfold inscope_of_id in HeqR0.
+  destruct b0.
+  remember (Maps.AMap.get l1 (dom_analyze f)) as R.
+  destruct R.
+  symmetry in HeqR0. destruct f as [[fa ty fid la va] bs].
+  apply fold_left__spec in HeqR0.
+  destruct HeqR0 as [J1 [J2 J3]].
+  apply J3 in H.
+  destruct H as [H | [b2 [l2 [H1' [H2' H3']]]]].
+    symmetry in HeqR.
+    apply lookupBlockViaIDFromFdef__blockInFdefB in HeqR.
+    apply block_eq1 with (b2:=block_intro l1 p c t) in H0; eauto.
+      subst.
+      apply uniqFdef__uniqBlockLocs in H2; auto.
+      eapply insnDominates_trans; eauto.
+        apply insnDominates_spec4 in H1. simpl in H1.
+        eapply lookupCmdViaIDFromFdef_spec in HeqR; eauto.
+        solve_in_list.
+
+        simpl in Hnotin. solve_in_list.
+
+      simpl.
+      eapply cmds_dominates_cmd_spec'' in H; eauto.
+
+    eapply insnDominates_spec3 in H1; eauto.
+    rewrite <- HeqR in H1. inv H1.
+    destruct b2.
+    apply lookupBlockViaLabelFromFdef_inv in H2'; auto.
+    destruct H2' as [Heq H2']; subst.
+    apply block_eq1 with (b2:=block_intro l3 p0 c0 t0) in H0; auto.
+    inv H0.
+    apply ListSet.set_diff_elim2 in H1'.
+    contradict H1'; simpl; auto.
+Qed.
+
+Lemma idDominates_insnDominates__insnOrBlockStrictDominates :
+forall f id1 id2 b1 b instr
+  (Hnotin: ~ In id1 (getArgsIDsOfFdef f))
+  (G : exists c2, lookupInsnViaIDFromFdef f id2 = ret insn_cmd c2),
+  idDominates f id1 id2 ->
+  lookupBlockViaIDFromFdef f id1 = ret b1 ->
+  insnDominates id2 instr b ->
+  blockInFdefB b f = true ->
+  uniqFdef f ->
+  insnDominates id1 instr b \/ blockStrictDominates f b1 b.
+Proof.
+  intros.
+  assert (H1':=H1).
+  eapply idDominates_insnDominates__blockDominates in H1; eauto.
+  destruct b1, b.
+  destruct (l_dec l0 l1); subst.
+    left.
+    assert (block_intro l1 p c t = block_intro l1 p0 c0 t0) as EQ.
+      apply lookupBlockViaIDFromFdef__blockInFdefB in H0.
+      eapply blockInFdefB_uniq with (ps1:=p) in H2; eauto.
+      destruct H2 as [A [B C]]; subst; auto.
+    inv EQ.
+    eapply idDominates_insnDominates__insnDominates in H0; eauto.
+
+    right.
+    unfold blockStrictDominates.
+    unfold blockDominates in H1.
+    destruct (Maps.AMap.get l1 (dom_analyze f)).
+    destruct H1; subst; auto.
+      congruence.
+Qed.
+
+Lemma inscope_of_id__idDominates : forall l0 f b2 id2 i0
+  (HeqR0 : ret l0 = inscope_of_id f b2 id2) (Hin: In i0 l0)
+  (Hlk : lookupBlockViaIDFromFdef f id2 = ret b2),
+  idDominates f i0 id2.
+Proof.
+  intros. unfold idDominates. rewrite Hlk. rewrite <- HeqR0. auto.
 Qed.
 
 Inductive wf_phi_operands (f:fdef) (b:block) (id0:id) (t0:typ) :
