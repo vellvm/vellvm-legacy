@@ -11,15 +11,15 @@ OCAMLBUILD_OPT=-no-hygiene -no-links -j 0 -build-dir _build \
 COQLIBS=-I Vellvm/ -I Vellvm/ott -I Vellvm/monads -I Vellvm/compcert \
 	-I Vellvm/GraphBasics -I Transforms -I TV -I SoftBound \
 	-I $(METALIB)
+MAKECOQ=make -f Makefile.coq COQLIBS="$(COQLIBS)"
 
 all: theories extraction ocaml
 
-theories: Makefile.coq
-	+make -C ./Vellvm
-	+make -f Makefile.coq COQLIBS="$(COQLIBS)"
+theories: Makefile.coq Vellvm/syntax.v Vellvm/typings.v
+	+$(MAKECOQ)
 
 extraction: theories
-	+make -C Extraction        
+	+make -C Extraction
 	+cd Extraction; ./fixextract.py; cd ..
 
 # For some reason, the -slash option of coqdep is generating
@@ -29,7 +29,7 @@ Makefile.coq: Make
 	sed -e 's/-slash //' -i Makefile.coq
 
 %.vo: Makefile.coq
-	make -f Makefile.coq "$@"
+	+$(MAKECOQ) "$@"
 
 ocaml: theories extraction
 	+make -f Makefile.ocaml -C Extraction
@@ -40,7 +40,8 @@ ocaml: theories extraction
 	ocamlbuild $(OCAMLBUILD_OPT) Parser/main.d.byte
 
 clean:
-	+make -C ./Vellvm clean
+	rm -rf Vellvm/main.pdf Vellvm/main.log Vellvm/main.aux \
+		Vellvm/syntax.v Vellvm/typings.v Vellvm/m_*.ott
 	+make -f Makefile.coq clean
 	+make -C ./Extraction clean
 	+make -f Makefile.ocaml -C Extraction clean
@@ -49,5 +50,29 @@ clean:
 ocamlclean:
 	+make -C ./Extraction -f Makefile.ocaml clean
 	ocamlbuild -clean
+
+Vellvm/syntax.v : Vellvm/syntax.ott
+	cd Vellvm && \
+	$(OTT) -i syntax.ott -o syntax.v && \
+	./fixott.py syntax.v
+
+Vellvm/typings.v: Vellvm/syntax.ott Vellvm/typings.ott
+	cd Vellvm && \
+	$(OTT) -merge false -coq_expand_list_types true \
+            -i syntax.ott -o _tmp_syntax.v \
+	    -i typings.ott -o typings.v && \
+	rm _tmp_syntax.v
+
+Vellvm/def.tex: Vellvm/syntax.ott Vellvm/m_typings.ott Vellvm/main.tex
+	cd Vellvm && \
+	$(OTT) -merge false -o def.tex \
+          -tex_show_meta false \
+          -tex_wrap false \
+            syntax.ott m_typings.ott
+
+Vellvm/main.pdf: Vellvm/def.tex Vellvm/main.tex Vellvm/macros.sty
+	cd Vellvm && \
+	pdflatex main.tex && \
+	pdflatex main.tex
 
 .PHONY: all clean ocamlclean ocaml theories extraction
