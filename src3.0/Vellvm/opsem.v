@@ -447,21 +447,17 @@ end.
 
 (**************************************)
 (* Realized by libffi in LLVM *)
-Definition exCallUpdateLocals TD (ft:typ) (noret:bool) (rid:id)
+Definition exCallUpdateLocals TD (rt:typ) (noret:bool) (rid:id)
   (oResult:option GenericValue) (lc :GVsMap) : option GVsMap :=
   match noret with
   | false =>
       match oResult with
       | None => None
       | Some Result =>
-          match ft with
-          | typ_function t _ _ =>
-            match fit_gv TD t Result with
-            | Some gr => Some (updateAddAL _ lc rid ($ gr # t $))
+            match fit_gv TD rt Result with
+            | Some gr => Some (updateAddAL _ lc rid ($ gr # rt $))
             | _ => None
             end
-          | _ => None
-          end
       end
   | true => Some lc
   end.
@@ -596,16 +592,12 @@ Definition returnUpdateLocals (TD:TargetData) (c':cmd) (Result:value)
   match (getOperandValue TD Result lc gl) with
   | Some gr =>
       match c' with
-      | insn_call id0 false _ t _ _ =>
-        match t with
-        | typ_function ct _ _ =>
+      | insn_call id0 false _ ct _ _ _ =>
            match (GVsSig.(lift_op1) (fit_gv TD ct) gr ct) with
            | Some gr' => Some (updateAddAL _ lc' id0 gr')
            | _ => None
            end
-        | _ => None
-        end
-      | insn_call _ _ _ _ _ _ => Some lc'
+      | insn_call _ _ _ _ _ _ _ => Some lc'
       | _=> None
       end
   | None => None
@@ -674,11 +666,11 @@ Inductive sInsn : Config -> State -> State -> trace -> Prop :=
     E0 
 
 | sExtractValue : forall S TD Ps F B lc gl fs id t v gvs gvs' idxs EC cs tmn
-                          Mem als,
+                          Mem als t',
   getOperandValue TD v lc gl = Some gvs ->
   extractGenericValue TD t gvs idxs = Some gvs' ->
   sInsn (mkCfg S TD Ps gl fs)
-    (mkState ((mkEC F B ((insn_extractvalue id t v idxs)::cs) tmn lc als)::EC)
+    (mkState ((mkEC F B ((insn_extractvalue id t v idxs t')::cs) tmn lc als)::EC)
                Mem)
     (mkState ((mkEC F B cs tmn (updateAddAL _ lc id gvs') als)::EC) Mem)
     E0
@@ -817,7 +809,7 @@ Inductive sInsn : Config -> State -> State -> trace -> Prop :=
     E0
 
 | sCall : forall S TD Ps F B lc gl fs rid noret ca fid fv lp cs tmn fptrs fptr
-                      lc' l' ps' cs' tmn' EC rt la va lb Mem als ft fa gvs,
+                 lc' l' ps' cs' tmn' EC rt la va lb Mem als rt1 va1 fa gvs,
   (* only look up the current module for the time being,
      do not support linkage. *)
   getOperandValue TD fv lc gl = Some fptrs ->
@@ -829,16 +821,16 @@ Inductive sInsn : Config -> State -> State -> trace -> Prop :=
   params2GVs TD lp lc gl = Some gvs ->
   initLocals TD la gvs = Some lc' ->
   sInsn (mkCfg S TD Ps gl fs)
-    (mkState ((mkEC F B ((insn_call rid noret ca ft fv lp)::cs) tmn
+    (mkState ((mkEC F B ((insn_call rid noret ca rt1 va1 fv lp)::cs) tmn
                        lc als)::EC) Mem)
     (mkState ((mkEC (fdef_intro (fheader_intro fa rt fid la va) lb)
                        (block_intro l' ps' cs' tmn') cs' tmn' lc' nil)::
-              (mkEC F B ((insn_call rid noret ca ft fv lp)::cs) tmn
+              (mkEC F B ((insn_call rid noret ca rt1 va1 fv lp)::cs) tmn
                        lc als)::EC) Mem)
     E0 
 
 | sExCall : forall S TD Ps F B lc gl fs rid noret ca fid fv lp cs tmn EC dck
-                  rt la Mem als oresult Mem' lc' va ft fa gvs fptr fptrs gvss tr,
+       rt la Mem als oresult Mem' lc' va rt1 va1 fa gvs fptr fptrs gvss tr,
   (* only look up the current module for the time being,
      do not support linkage.
      FIXME: should add excall to trace
@@ -851,9 +843,9 @@ Inductive sInsn : Config -> State -> State -> trace -> Prop :=
   gvs @@ gvss ->
   callExternalOrIntrinsics TD gl Mem fid rt (args2Typs la) dck gvs = 
     Some (oresult, tr, Mem') ->
-  exCallUpdateLocals TD ft noret rid oresult lc = Some lc' ->
+  exCallUpdateLocals TD rt1 noret rid oresult lc = Some lc' ->
   sInsn (mkCfg S TD Ps gl fs)
-    (mkState ((mkEC F B ((insn_call rid noret ca ft fv lp)::cs) tmn
+    (mkState ((mkEC F B ((insn_call rid noret ca rt1 va1 fv lp)::cs) tmn
                        lc als)::EC) Mem)
     (mkState ((mkEC F B cs tmn lc' als)::EC) Mem')
     tr
@@ -1002,7 +994,7 @@ Inductive s_goeswrong : system -> id -> list GVs -> trace -> State -> Prop :=
 (***************************************************************)
 (* deterministic big-step *)
 
-Definition callUpdateLocals (TD:TargetData) ft (noret:bool) (rid:id)
+Definition callUpdateLocals (TD:TargetData) rt (noret:bool) (rid:id)
   (oResult:option value) (lc lc':GVsMap) (gl:GVMap) : option GVsMap :=
     match noret with
     | false =>
@@ -1011,14 +1003,10 @@ Definition callUpdateLocals (TD:TargetData) ft (noret:bool) (rid:id)
         | Some Result =>
           match getOperandValue TD Result lc' gl with
           | Some gr =>
-            match ft with
-            | typ_function t _ _ =>
-              match (GVsSig.(lift_op1) (fit_gv TD t) gr t) with
+              match (GVsSig.(lift_op1) (fit_gv TD rt) gr rt) with
               | Some gr' => Some (updateAddAL _ lc rid gr')
               | None => None
               end
-            | _ => None
-            end
           | None => None
           end
         end
@@ -1082,11 +1070,11 @@ Inductive bInsn :
     E0 
 
 | bExtractValue : forall S TD Ps F B lc gl fs id t v gv gv' idxs cs tmn
-                          Mem als,
+                          Mem als t',
   getOperandValue TD v lc gl = Some gv ->
   extractGenericValue TD t gv idxs = Some gv' ->
   bInsn (mkbCfg S TD Ps gl fs F)
-    (mkbEC B ((insn_extractvalue id t v idxs)::cs) tmn lc als Mem)
+    (mkbEC B ((insn_extractvalue id t v idxs t')::cs) tmn lc als Mem)
     (mkbEC B cs tmn (updateAddAL _ lc id gv') als Mem)
     E0 
 
@@ -1213,17 +1201,17 @@ Inductive bInsn :
     E0
 
 | bCall : forall S TD Ps F B lc gl fs rid noret ca rt fv lp cs tmn
-                       Rid oResult tr B' lc' Mem Mem' als' als Mem'' lc'' ft,
+            Rid oResult tr B' lc' Mem Mem' als' als Mem'' lc'' rt1 va1,
   bFdef fv rt lp S TD Ps lc gl fs Mem lc' als' Mem' B' Rid oResult tr ->
   free_allocas TD Mem' als' = Some Mem'' ->
-  callUpdateLocals TD ft noret rid oResult lc lc' gl = Some lc'' ->
+  callUpdateLocals TD rt1 noret rid oResult lc lc' gl = Some lc'' ->
   bInsn (mkbCfg S TD Ps gl fs F)
-    (mkbEC B ((insn_call rid noret ca ft fv lp)::cs) tmn lc als Mem)
+    (mkbEC B ((insn_call rid noret ca rt1 va1 fv lp)::cs) tmn lc als Mem)
     (mkbEC B cs tmn lc'' als Mem'')
     tr
 
 | bExCall : forall S TD Ps F B lc gl fs rid noret fv fid lp cs tmn dck
-               rt la va Mem als oresult Mem' lc' ft fa ca gvs fptr fptrs gvss tr,
+    rt la va Mem als oresult Mem' lc' rt1 va1 fa ca gvs fptr fptrs gvss tr,
   (* only look up the current module for the time being,
      do not support linkage.
      FIXME: should add excall to trace
@@ -1236,9 +1224,9 @@ Inductive bInsn :
   gvs @@ gvss ->
   callExternalOrIntrinsics TD gl Mem fid rt (args2Typs la) dck gvs = 
     Some (oresult, tr, Mem') ->
-  exCallUpdateLocals TD ft noret rid oresult lc = Some lc' ->
+  exCallUpdateLocals TD rt1 noret rid oresult lc = Some lc' ->
   bInsn (mkbCfg S TD Ps gl fs F)
-    (mkbEC B ((insn_call rid noret ca ft fv lp)::cs) tmn lc als Mem)
+    (mkbEC B ((insn_call rid noret ca rt1 va1 fv lp)::cs) tmn lc als Mem)
     (mkbEC B cs tmn lc' als Mem')
     tr
 
@@ -1291,10 +1279,10 @@ with bFdef : value -> typ -> params -> system -> TargetData -> products ->
 
 CoInductive bInsnInf : bConfig -> bExecutionContext -> traceinf -> Prop :=
 | bCallInsnInf : forall S TD Ps F B lc gl fs rid noret ca rt fv lp cs tmn
-                       tr Mem als ft,
+                       tr Mem als rt1 va1,
   bFdefInf fv rt lp S TD Ps lc gl fs Mem tr ->
   bInsnInf (mkbCfg S TD Ps gl fs F)
-    (mkbEC B ((insn_call rid noret ca ft fv lp)::cs) tmn lc als Mem) tr
+    (mkbEC B ((insn_call rid noret ca rt1 va1 fv lp)::cs) tmn lc als Mem) tr
 
 with bopInf : bConfig -> bExecutionContext -> traceinf -> Prop :=
 | bopInf_insn : forall cfg state1 t1,

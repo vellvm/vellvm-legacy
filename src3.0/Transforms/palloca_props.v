@@ -289,8 +289,10 @@ Proof.
         eapply unused_in_phis__unused_in_phi in J3; eauto.
 
         destruct R2; inv HeqR.
-        clear - J2 HeqR2. simpl.
-        eapply unused_in_cmds__unused_in_cmd in J2; eauto.
+          clear - J2 HeqR2. simpl.
+          eapply unused_in_cmds__unused_in_cmd in J2; eauto.
+
+          destruct_if. simpl. auto.
 
       apply IHbs in H0; auto.
 Qed.
@@ -1556,11 +1558,11 @@ Proof.
     right. apply nth_list_sz_value__valueInListValue in H; auto.
 Qed.
 
-Lemma WF_PhiInfo_spec12: forall pinfo l1 ps1 cs1 rid noret0 ca ft fv lp cs2 tmn
+Lemma WF_PhiInfo_spec12: forall pinfo l1 ps1 cs1 rid noret0 ca rt1 va1 fv lp cs2 tmn
   F1 S m (HwfF: wf_fdef S m F1),
   WF_PhiInfo pinfo ->
   blockInFdefB
-    (block_intro l1 ps1 (cs1 ++ insn_call rid noret0 ca ft fv lp :: cs2) tmn)
+    (block_intro l1 ps1 (cs1 ++ insn_call rid noret0 ca rt1 va1 fv lp :: cs2) tmn)
     F1 = true ->
   if fdef_dec (PI_f pinfo) F1 then
     fold_left

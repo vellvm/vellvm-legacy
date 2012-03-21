@@ -165,7 +165,7 @@ Ltac next_insn :=
 
     | |- context [ Opsem.sop_star _
        (Opsem.mkState
-         ((Opsem.mkEC _ _ (insn_call _ true _ _ _ _ :: _) _ _ _)::_) _
+         ((Opsem.mkEC _ _ (insn_call _ true _ _ _ _ _ :: _) _ _ _)::_) _
        ) _ _ ] =>
     apply Opsem.sop_star_cons with (state2:=
       Opsem.mkState

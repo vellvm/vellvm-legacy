@@ -914,9 +914,9 @@ Jwf_insn :: '' ::=
       system , targetdata |- typ'
       targetdata = (layouts namedts)
       % Check invariance for instructions
-      fdef , block |-i id = extractvalue typ value </ constj // j />
+      fdef , block |-i id = extractvalue typ value </ constj // j /> typ'
       -------------------------------------------------------------------------------------- :: wf_insn_extractvalue
-      system , (layouts namedts products) , fdef , block |- id = extractvalue typ value </ constj // j />
+      system , (layouts namedts products) , fdef , block |- id = extractvalue typ value </ constj // j /> typ'
 
       % Check typs
       system , (layouts namedts products) , fdef |- value : typ
@@ -1070,7 +1070,6 @@ Jwf_insn :: '' ::=
       {{ FunctionType.getNumParams [[:user_syntax__typ:typ1]] = Some (length [[params]]) }}
       % Verify that all arguments to the call match the function type...
       params <-> </ (typj' attributesj' valuej'') // j />
-      typ0 = typ1 ( </ typj' // j /> varg )
       system , (layouts namedts) |- typ1
       </ system , module , fdef |- valuej'' : typj' // j />
       % instructions returning void cannot have a name
@@ -1081,9 +1080,9 @@ Jwf_insn :: '' ::=
       %   Open soooon...
       %
       % Check invariance for instructions
-      fdef , block |-i id = noret clattrs call typ0 value0 params
+      fdef , block |-i id = noret clattrs call typ1 varg value0 params
       ------------------------------------------------------------------------------------------------------------------- :: wf_insn_call
-      system , module , fdef , block |- id = noret clattrs call typ0 value0 params
+      system , module , fdef , block |- id = noret clattrs call typ1 varg value0 params
 
 defns
 Jwf_cmds :: '' ::=

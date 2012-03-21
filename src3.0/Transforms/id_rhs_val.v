@@ -56,7 +56,7 @@ Definition eval_rhs TD (M:mem) gl (lc:DGVMap) (c:cmd) gv : Prop :=
 match c with
 | insn_bop _ bop0 sz v1 v2 => BOP TD lc gl bop0 sz v1 v2 = Some gv
 | insn_fbop _ fbop fp v1 v2 => FBOP TD lc gl fbop fp v1 v2  = Some gv
-| insn_extractvalue id t v idxs =>
+| insn_extractvalue id t v idxs t' =>
     exists gv0, Opsem.getOperandValue TD v lc gl = Some gv0 /\
                 extractGenericValue TD t gv0 idxs = Some gv
 | insn_insertvalue _ t v t' v' idxs =>
@@ -150,7 +150,7 @@ vev_ECStack v1 v2 F td M gl ecs.
 
 Definition sustable_cmd (c:cmd) : Prop :=
 match c with
-| insn_call _ _ _ _ _ _ => False
+| insn_call _ _ _ _ _ _ _ => False
 | insn_free _ _ _ => False
 | insn_store _ _ _ _ _ => False
 | _ => True
@@ -913,7 +913,7 @@ Focus.
 
     destruct cs'; simpl_env in *.
     SSSCase "1.1.1".
-        assert (~ In (getCmdLoc (insn_call i0 n c t v p)) (getCmdsLocs cs2'))
+        assert (~ In (getCmdLoc (insn_call i0 n c t0 v0 v p)) (getCmdsLocs cs2'))
           as Hnotin.
           eapply wf_system__uniq_block with (f:=F') in HwfSystem; eauto.
           simpl in HwfSystem.
@@ -933,11 +933,10 @@ Focus.
         destruct R1; try solve [inv H1].
         destruct R.
           destruct n; inv HeqR.
-          destruct_typ t; tinv H1.
           remember (lift_op1 DGVs (fit_gv (los, nts) t0) g t0) as R2.
           destruct R2; inv H1.
           change i0 with
-            (getCmdLoc (insn_call i0 false c (typ_function t0 lt0 v0) v p)); auto.
+            (getCmdLoc (insn_call i0 false c t0 v0 v p)); auto.
           eapply wf_defs_updateAddAL; eauto.
             simpl. apply in_middle.
 
@@ -946,7 +945,7 @@ Focus.
           eapply wf_defs_eq; eauto.
 
     SSSCase "1.1.2".
-        assert (NoDup (getCmdsLocs (cs2' ++ [insn_call i0 n c t v p] ++ [c0] ++
+        assert (NoDup (getCmdsLocs (cs2' ++ [insn_call i0 n c t0 v0 v p] ++ [c0] ++
           cs'))) as Hnodup.
           eapply wf_system__uniq_block with (f:=F') in HwfSystem; eauto.
           simpl in HwfSystem.
@@ -963,11 +962,10 @@ Focus.
         destruct R1; try solve [inv H1].
         destruct R.
           destruct n; inv HeqR.
-          destruct_typ t; tinv H1.
           remember (lift_op1 DGVs (fit_gv (los, nts) t0) g t0) as R2.
           destruct R2; inv H1.
           change i0 with
-            (getCmdLoc (insn_call i0 false c (typ_function t0 lt0 v0) v p)); auto.
+            (getCmdLoc (insn_call i0 false c t0 v0 v p)); auto.
           eapply wf_defs_updateAddAL; eauto.
             simpl. apply in_middle.
 
@@ -1155,8 +1153,7 @@ Case "sExCall".
     destruct noret0; try solve [
       inv H5; eapply preservation_cmd_non_updated_case in HwfS1; eauto; auto |
       destruct oresult; tinv H5;
-      destruct ft; tinv H5;
-      remember (fit_gv (los, nts) ft g) as R;
+      remember (fit_gv (los, nts) rt1 g) as R;
       destruct R; inv H5;
       eapply preservation_cmd_updated_case with (Mem1:=Mem') in HwfS1; 
         simpl; eauto; simpl; auto]

@@ -213,9 +213,7 @@ Definition returnUpdateLocals (TD:TargetData) (c':cmd) (rt:typ) (Result:value)
   match returnResult TD rt Result lc rm gl with
   | Some (gr,md) =>
       match c' with
-      | insn_call id0 false _ t _ _ =>
-        match t with
-        | typ_function ct _ _ =>
+      | insn_call id0 false _ ct _ _ _ =>
            match (GVsSig.(lift_op1) (fit_gv TD ct) gr ct) with
            | Some gr' =>
               if isPointerTypB ct then
@@ -224,15 +222,13 @@ Definition returnUpdateLocals (TD:TargetData) (c':cmd) (rt:typ) (Result:value)
                 Some (updateAddAL _ lc' id0 gr', rm')
            | _ => None
            end
-        | _ => None
-        end
-      | insn_call _ _ _ _ _ _ => Some (lc', rm')
+      | insn_call _ _ _ _ _ _ _ => Some (lc', rm')
       | _ => None
       end
   | _ => None
   end.
 
-Definition exCallUpdateLocals TD (ft:typ) (noret:bool) (rid:id)
+Definition exCallUpdateLocals TD (rt:typ) (noret:bool) (rid:id)
   (oResult:option GenericValue) (lc :GVsMap) (rm:rmetadata)
   : option (GVsMap*rmetadata) :=
   match noret with
@@ -240,18 +236,14 @@ Definition exCallUpdateLocals TD (ft:typ) (noret:bool) (rid:id)
       match oResult with
       | None => None
       | Some Result =>
-          match ft with
-          | typ_function t _ _ =>
-            match fit_gv TD t Result with
+            match fit_gv TD rt Result with
             | Some gr =>
-                if isPointerTypB t then
-                     Some (updateAddAL _ lc rid ($ gr # t $),
+                if isPointerTypB rt then
+                     Some (updateAddAL _ lc rid ($ gr # rt $),
                            updateAddAL _ rm rid null_md)
-                else Some (updateAddAL _ lc rid ($ gr # t $), rm)
+                else Some (updateAddAL _ lc rid ($ gr # rt $), rm)
             | _ => None
             end
-          | _ => None
-          end
       end
   | true => Some (lc, rm)
   end.
@@ -351,11 +343,11 @@ Inductive sInsn_delta : Config -> State -> State -> trace -> Prop :=
       Mem MM)
     (mkState ((mkEC F B cs tmn lc' rm als)::EC) Mem MM) E0
 
-| sExtractValue : forall cfg F B lc rm id t v lc' idxs EC cs tmn
+| sExtractValue : forall cfg F B lc rm id t v lc' idxs EC cs tmn t'
     Mem MM als,
   sInsn_delta cfg
     (mkState
-      ((mkEC F B ((insn_extractvalue id t v idxs)::cs) tmn lc rm als)::EC)
+      ((mkEC F B ((insn_extractvalue id t v idxs t')::cs) tmn lc rm als)::EC)
       Mem MM)
     (mkState ((mkEC F B cs tmn lc' rm als)::EC) Mem MM) E0
 
@@ -565,24 +557,24 @@ Inductive sInsn_delta : Config -> State -> State -> trace -> Prop :=
       Mem MM) E0
 
 | sCall : forall S TD Ps F B lc rm gl fs rid noret ca fid fv lp cs tmn ogvs
-             ft l' ps' cs' tmn' EC fa rt la va lb Mem MM als rm' lc',
+              rt1 va1 l' ps' cs' tmn' EC fa rt la va lb Mem MM als rm' lc',
   (* only look up the current module for the time being,
      do not support linkage. *)
   params2GVs TD lp lc gl rm = Some ogvs ->
   initLocals TD la ogvs = Some (lc', rm') ->
   sInsn_delta (mkCfg S TD Ps gl fs)
     (mkState
-      ((mkEC F B ((insn_call rid noret ca ft fv lp)::cs) tmn lc rm als)
+      ((mkEC F B ((insn_call rid noret ca rt1 va1 fv lp)::cs) tmn lc rm als)
         ::EC) Mem MM)
     (mkState
       ((mkEC (fdef_intro (fheader_intro fa rt fid la va) lb)
                 (block_intro l' ps' cs' tmn') cs' tmn'
                 lc' rm' nil)::
-       (mkEC F B ((insn_call rid noret ca ft fv lp)::cs) tmn lc rm als)
+       (mkEC F B ((insn_call rid noret ca rt1 va1 fv lp)::cs) tmn lc rm als)
          ::EC) Mem MM) E0
 
 | sExCall : forall S TD Ps F B lc rm gl fs rid noret ca fid fv lp cs tmn EC dck
-        gvss fptr fptrs rt fa ft la va Mem als oresult Mem' lc' rm' MM gvs tr,
+     gvss fptr fptrs rt fa rt1 va1 la va Mem als oresult Mem' lc' rm' MM gvs tr,
   (* only look up the current module for the time being,
      do not support linkage.
      FIXME: should add excall to trace
@@ -595,11 +587,12 @@ Inductive sInsn_delta : Config -> State -> State -> trace -> Prop :=
   gvs @@ gvss ->
   callExternalOrIntrinsics 
     TD gl Mem fid rt (args2Typs la) dck gvs = Some (oresult, tr, Mem') ->
-  exCallUpdateLocals TD ft noret rid oresult lc rm = Some (lc',rm') ->
+  exCallUpdateLocals TD rt1 noret rid oresult lc rm = Some (lc',rm') ->
   sInsn_delta (mkCfg S TD Ps gl fs)
     (mkState
-      ((mkEC F B ((insn_call rid noret ca ft fv lp)::cs) tmn lc rm als)
-       ::EC) Mem MM)
+      ((mkEC F B 
+         ((insn_call rid noret ca rt1 va1 fv lp)::cs) tmn lc rm als)
+         ::EC) Mem MM)
     (mkState ((mkEC F B cs tmn lc' rm' als)::EC) Mem' MM) tr
 .
 

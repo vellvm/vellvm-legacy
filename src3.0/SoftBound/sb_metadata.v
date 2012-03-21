@@ -1148,9 +1148,8 @@ Proof.
     destruct_cmd c'; try solve [inv H1; auto].
     destruct n; try solve [inv H1; auto].
     unfold isPointerTypB in H1.
-    destruct t; try solve [inv H1; auto].
-    destruct (lift_op1 GVsSig (fit_gv (los, nts) t) g t); tinv H1.
-    destruct t; inv H1; auto.
+    destruct (lift_op1 GVsSig (fit_gv (los, nts) t0) g t0); tinv H1.
+    destruct t0; inv H1; auto.
       intros x blk bofs eofs Hlk.
       destruct (eq_atom_dec i0 x); subst.
         rewrite lookupAL_updateAddAL_eq in Hlk.
@@ -1164,9 +1163,8 @@ Proof.
     destruct_cmd c'; try solve [inv H1; auto].
     destruct n; try solve [inv H1; auto].
     unfold isPointerTypB in H1.
-    destruct t; try solve [inv H1; auto].
-    destruct (lift_op1 GVsSig (fit_gv (los, nts) t) g t); tinv H1.
-    destruct t; inv H1; auto.
+    destruct (lift_op1 GVsSig (fit_gv (los, nts) t0) g t0); tinv H1.
+    destruct t0; inv H1; auto.
       intros x blk bofs eofs Hlk.
       destruct (eq_atom_dec i0 x); subst.
         rewrite lookupAL_updateAddAL_eq in Hlk.

@@ -61,7 +61,7 @@ match tmn with
 | insn_return _ _ _ | insn_return_void _ =>
     match ecs with
     | nil => True
-    | mkEC f' b' (insn_call _ _ _ _ _ _ ::_) tmn' lc' rm' als'::ecs' =>
+    | mkEC f' b' (insn_call _ _ _ _ _ _ _ ::_) tmn' lc' rm' als'::ecs' =>
         True
     | _ => False
     end
@@ -300,25 +300,19 @@ Proof.
     destruct R3 as [[md ?]|]; inv H0.
     destruct_cmd c'; inv H1; auto.
     destruct n; inv H0; auto.
-    destruct_typ t; tinv H1.
     destruct (lift_op1 GVsSig (fit_gv (los, nts) t0) g t0); tinv H1.
     inv Hwfc. uniq_result. 
-    assert (lookupTypViaIDFromFdef F' i0 = Some typ1) as J.
+    assert (lookupTypViaIDFromFdef F' i0 = Some t0) as J.
       eapply uniqF__lookupTypViaIDFromFdef with
-        (c:=insn_call i0 false c
-                 (typ_function typ1
-                    (make_list_typ
-                       (map_list_typ_attributes_value
-                          (fun (typ_' : typ) attr (_ : value) => typ_')
-                          typ'_attributes'_value''_list)) varg5) v
+        (c:=insn_call i0 false c t0 v0 v
                  (map_list_typ_attributes_value
                     (fun (typ_' : typ) attr (value_'' : value) =>
                      (typ_', attr, value_'')) typ'_attributes'_value''_list))
-        (i0:=i0)(t0:=typ1)in HBinF2; eauto.
+        (i0:=i0)(t0:=t0)in HBinF2; eauto.
         apply in_or_app. right. simpl. auto.
     clear HBinF2.
     simpl in H1.
-    remember (isPointerTypB typ1) as R.
+    remember (isPointerTypB t0) as R.
     destruct R; inv H1.
       intros x gvx tx Hin Htyp.
       destruct (eq_atom_dec x i0); subst.
@@ -336,25 +330,19 @@ Proof.
 
     destruct_cmd c'; try solve [inv H0; auto].
     destruct n; inv H0; auto.
-    destruct_typ t; tinv H1.
     destruct (lift_op1 GVsSig (fit_gv (los, nts) t0) g t0); tinv H1.
     inv Hwfc. uniq_result.
-    assert (lookupTypViaIDFromFdef F' i0 = Some typ1) as J.
+    assert (lookupTypViaIDFromFdef F' i0 = Some t0) as J.
       eapply uniqF__lookupTypViaIDFromFdef with
-        (c:=insn_call i0 false c
-                 (typ_function typ1
-                    (make_list_typ
-                       (map_list_typ_attributes_value
-                          (fun (typ_' : typ) attr (_ : value) => typ_')
-                          typ'_attributes'_value''_list)) varg5) v
+        (c:=insn_call i0 false c t0 v0 v
                  (map_list_typ_attributes_value
                     (fun (typ_' : typ) attr (value_'' : value) =>
                      (typ_', attr, value_'')) typ'_attributes'_value''_list))
-        (i0:=i0)(t0:=typ1) in HBinF2; eauto.
+        (i0:=i0)(t0:=t0) in HBinF2; eauto.
         apply in_or_app. right. simpl. auto.
     clear HBinF2.
     simpl in H1.
-    remember (isPointerTypB typ1) as R.
+    remember (isPointerTypB t0) as R.
     destruct R; inv H1.
       intros x gvx tx Hin Htyp.
       destruct (eq_atom_dec x i0); subst.
@@ -629,7 +617,7 @@ Qed.
 
 (* extract/insert values are not supported. *)
 Axiom extractValue_preserves_wf_rmap : forall los nts Mem0 v lc gl
-  t gv idxs gv' rm fs EC B S Ps F MM id0 als tmn cs
+  t gv idxs gv' rm fs EC B S Ps F MM id0 als tmn cs t'
   (H : getOperandValue (los, nts) v lc gl = ret gv)
   (H0 : extractGenericValue (los, nts) t gv idxs = ret gv')
   (HwfS1 : wf_State {|
@@ -641,7 +629,7 @@ Axiom extractValue_preserves_wf_rmap : forall los nts Mem0 v lc gl
             ECS := {|
                    CurFunction := F;
                    CurBB := B;
-                   CurCmds := insn_extractvalue id0 t v idxs :: cs;
+                   CurCmds := insn_extractvalue id0 t v idxs t' :: cs;
                    Terminator := tmn;
                    Locals := lc;
                    Rmap := rm;
@@ -1226,7 +1214,9 @@ Case "sCall".
     exists l'. exists ps'. exists nil. simpl_env. auto.
     eauto.
 
-  apply mismatch_cons_false in H27. inv H27.
+  match goal with
+  | H27: ?A = _::?A |- _ => apply mismatch_cons_false in H27; inv H27
+  end.
 Unfocus.
 
 Case "sExCall".
@@ -1252,8 +1242,7 @@ Case "sExCall".
             | None => _
             end = Some _ |- _ =>
         destruct oresult; tinv H6;
-        destruct ft; tinv H6;
-        remember (fit_gv (los, nts) ft g) as R;
+        remember (fit_gv (los, nts) rt1 g) as R;
         destruct R; tinv H6
       end.
       assert (HwfS1':=HwfS1).
@@ -1261,11 +1250,10 @@ Case "sExCall".
       destruct HwfS1' as [_ [_ Hwfc]].
       inv Hwfc.
       match goal with
-      | H20: typ_function _ _ _ = typ_function _ _ _,
-        H12: module_intro _ _ _ = module_intro _ _ _,
-        H25: wf_insn_base _ _ _ |- _ => inv H20; inv H12; inv H25
+      | H12: module_intro _ _ _ = module_intro _ _ _,
+        H25: wf_insn_base _ _ _ |- _ => inv H12; inv H25
       end.
-      remember (isPointerTypB typ1) as R.
+      remember (isPointerTypB rt1) as R.
       match goal with
       | H6 : (if _ then _ else _) = _ |- _ => destruct R; inv H6; auto  end.
         apply updateAddAL_ptr__wf_rmap; auto.
@@ -1286,8 +1274,7 @@ Case "sExCall".
             | None => _
             end = Some _ |- _ =>
         destruct oresult; tinv H6;
-        destruct ft; tinv H6;
-        remember (fit_gv (los, nts) ft g) as R;
+        remember (fit_gv (los, nts) rt1 g) as R;
         destruct R; tinv H6
       end.
       assert (HwfS1':=HwfS1).
@@ -1295,11 +1282,10 @@ Case "sExCall".
       destruct HwfS1' as [_ [_ Hwfc]].
       inv Hwfc.
       match goal with
-      | H20: typ_function _ _ _ = typ_function _ _ _,
-        H12: module_intro _ _ _ = module_intro _ _ _,
-        H25: wf_insn_base _ _ _ |- _ => inv H20; inv H12; inv H25
+      | H12: module_intro _ _ _ = module_intro _ _ _,
+        H25: wf_insn_base _ _ _ |- _ => inv H12; inv H25
       end.
-      remember (isPointerTypB typ1) as R.
+      remember (isPointerTypB rt1) as R.
       match goal with
       | H6 : (if _ then _ else _) = _ |- _ => destruct R; inv H6; auto  end.
         apply adding_null_preserves_wf_rmetadata; auto.
@@ -1588,18 +1574,17 @@ Proof.
   eapply initializeFrameValues__total_aux; eauto.
 Qed.
 
-Lemma exCallUpdateLocals_isnt_stuck : forall TD t n i0 o lc rm lc',
-  @Opsem.exCallUpdateLocals GVsSig TD t n i0 o lc = Some lc' ->
-  exists rm', exCallUpdateLocals TD t n i0 o lc rm = Some (lc', rm').
+Lemma exCallUpdateLocals_isnt_stuck : forall TD rt n i0 o lc rm lc',
+  @Opsem.exCallUpdateLocals GVsSig TD rt n i0 o lc = Some lc' ->
+  exists rm', exCallUpdateLocals TD rt n i0 o lc rm = Some (lc', rm').
 Proof.
   intros.
   unfold Opsem.exCallUpdateLocals in H.
   unfold exCallUpdateLocals.
   destruct n; inv H; eauto.
   destruct o; tinv H1.
-  destruct t; tinv H1.
-  destruct (fit_gv TD t g); inv H1; eauto.
-  destruct (isPointerTypB t); eauto.
+  destruct (fit_gv TD rt g); inv H1; eauto.
+  destruct (isPointerTypB rt); eauto.
 Qed.
 
 Fixpoint proper_aligned (mcs:list AST.memory_chunk) (ofs:Z) : Prop :=
@@ -1947,7 +1932,7 @@ match cfg with
   end \/
   match S with
   | {| ECS :=
-         {| CurCmds := insn_call i0 n _ ft v p::_ ;
+         {| CurCmds := insn_call i0 n _ rt1 _ v p::_ ;
             Locals := lc; Rmap := rm |} :: _;
        Mem := M |} =>
        match getOperandValue td v lc gl with
@@ -1962,7 +1947,7 @@ match cfg with
                   match external_intrinsics.callExternalOrIntrinsics
                           td gl M fid rt (args2Typs la) dck gvs with
                   | Some (oresult, _, _) =>
-                     match exCallUpdateLocals td ft n i0 oresult lc rm with
+                     match exCallUpdateLocals td rt1 n i0 oresult lc rm with
                      | None => True
                      | _ => False
                      end
@@ -2015,17 +2000,16 @@ Proof.
     destruct ECS0; simpl in *; auto.
 Qed.
 
-Lemma llvm_exCallUpdateLocals__sb_exCallUpdateLocals : forall TD t n i0 o lc rm,
-  @Opsem.exCallUpdateLocals GVsSig TD t n i0 o lc = None ->
-  exCallUpdateLocals TD t n i0 o lc rm = None.
+Lemma llvm_exCallUpdateLocals__sb_exCallUpdateLocals : forall TD rt n i0 o lc rm,
+  @Opsem.exCallUpdateLocals GVsSig TD rt n i0 o lc = None ->
+  exCallUpdateLocals TD rt n i0 o lc rm = None.
 Proof.
   intros.
   unfold Opsem.exCallUpdateLocals in H.
   unfold exCallUpdateLocals.
   destruct n; tinv H.
   destruct o; tinv H; auto.
-  destruct t; tinv H; auto.
-  destruct (fit_gv TD t g); tinv H; auto.
+  destruct (fit_gv TD rt g); tinv H; auto.
 Qed.
 
 Lemma load_progress : forall s los nts ps f b i0 t v a cs tmn lc rm als ecs gl
@@ -2442,7 +2426,7 @@ Proof.
              end =>
           destruct ef as [[[o ?] ?]|]; try solve [inversion Hundef | undefbehave]
         end.
-        remember (Opsem.exCallUpdateLocals (los, nts) t n i0 o lc) as R.
+        remember (Opsem.exCallUpdateLocals (los, nts) t0 n i0 o lc) as R.
         destruct R; try solve [inversion Hundef | undefbehave].
         rewrite llvm_exCallUpdateLocals__sb_exCallUpdateLocals; auto.
 Qed.
@@ -2569,7 +2553,10 @@ Proof.
                 [l1' [ps1' [cs1' Heq']]]]]]]]]]
               [HwfECs HwfCall']]; subst.
           eapply wf_system__wf_cmd in HbInF'; eauto using in_middle.
-          inv HbInF'. inv H5.
+          inv HbInF'. 
+          match goal with
+          | H6: module_intro _ _ _ = module_intro _ _ _ |- _ => inv H6
+          end.
           destruct_typ t; inv HeqHptr.
           assert (wf_insn s (module_intro layouts5 namedts5 products5) f
             (block_intro l1 ps1 (cs1 ++ nil)
@@ -2583,14 +2570,13 @@ Proof.
               try solve [eauto | inv Hwfc; eauto].
           destruct J2 as [md J2]. rewrite J2.
           destruct n; inv H17; eauto.
-          destruct (lift_op1 GVsSig (fit_gv (layouts5, namedts5) typ1) g typ1);
+          destruct (lift_op1 GVsSig (fit_gv (layouts5, namedts5) t1) g t1);
             inv H0.
-          destruct (isPointerTypB typ1); eauto.
+          destruct (isPointerTypB t1); eauto.
 
           destruct n; inv H17; eauto.
-          destruct t0; tinv H0; eauto.
-          destruct (lift_op1 GVsSig (fit_gv (los, nts) t0) g t0); inv H0.
-          destruct (isPointerTypB t0); eauto.
+          destruct (lift_op1 GVsSig (fit_gv (los, nts) t1) g t1); inv H0.
+          destruct (isPointerTypB t1); eauto.
 
       destruct Hretup as [rm'' Hretup].
       right. left.
@@ -2808,8 +2794,11 @@ Proof.
       matched_params gvs gvss) as G.
       eapply params2GVs_isnt_stuck; eauto.
     destruct G as [gvss [G G']].
-    eapply initLocal__total in H25; eauto.
-    destruct H25 as [rm' H25].
+    match goal with
+    | H25: Opsem.initLocals _ _ _ = _ |- _ =>
+      eapply initLocal__total in H25; eauto;
+      destruct H25 as [rm' H25]
+    end.
     left.
     exists
          {|
@@ -2819,8 +2808,8 @@ Proof.
                {|
                 CurFunction := f;
                 CurBB := block_intro l1 ps1
-                           (cs1 ++ insn_call i0 n c0 t v p :: cs) tmn;
-                CurCmds := insn_call i0 n c0 t v p :: cs;
+                           (cs1 ++ insn_call i0 n c0 t0 v0 v p :: cs) tmn;
+                CurCmds := insn_call i0 n c0 t0 v0 v p :: cs;
                 Terminator := tmn;
                 Locals := lc;
                 Rmap := rm;

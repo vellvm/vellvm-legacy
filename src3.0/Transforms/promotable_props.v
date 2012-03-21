@@ -637,7 +637,6 @@ Proof.
   destruct n.
     inv H0; auto.
 
-    destruct t; tinv H0.
     inv_mbind.
     apply updateAddAL__wf_lc; auto.
     intros. subst. symmetry in HeqR.
@@ -782,7 +781,6 @@ Proof.
   destruct n.
     inv H3; auto.
 
-    destruct t; tinv H3.
     inv_mbind.
     apply updateAddAL__wf_ECStack_head_tail; auto.
     intros. subst. symmetry in HeqR.
@@ -879,11 +877,11 @@ Local Opaque inscope_of_tmn inscope_of_cmd.
 
     remember (getCmdID c') as R.
     destruct_cmd c'; try solve [inversion H].
-    assert (In (insn_call i0 n c t v p)
-      (cs2'++[insn_call i0 n c t v p] ++ cs')) as HinCs.
+    assert (In (insn_call i0 n c t0 v0 v p)
+      (cs2'++[insn_call i0 n c t0 v0 v p] ++ cs')) as HinCs.
       apply in_or_app. right. simpl. auto.
     assert (Hwfc := HBinF2).
-    eapply wf_system__wf_cmd with (c:=insn_call i0 n c t v p) in Hwfc; eauto.
+    eapply wf_system__wf_cmd with (c:=insn_call i0 n c t0 v0 v p) in Hwfc; eauto.
     assert (wf_fdef S (module_intro los nts Ps) (PI_f pinfo)) as HwfF.
       eapply wf_system__wf_fdef; eauto.
     assert (uniqFdef (PI_f pinfo)) as HuniqF.
@@ -900,7 +898,7 @@ Local Opaque inscope_of_tmn inscope_of_cmd.
     eapply free_allocas_preserves_wf_defs in Hinscope2; eauto. clear Hnodup.
     destruct cs'.
     SSSSCase "cs' = nil".
-      assert (~ In (getCmdLoc (insn_call i0 n c t v p)) (getCmdsLocs cs2'))
+      assert (~ In (getCmdLoc (insn_call i0 n c t0 v0 v p)) (getCmdsLocs cs2'))
         as Hnotin.
         eapply preservation_helper1; eauto.
 
@@ -910,9 +908,7 @@ Local Opaque inscope_of_tmn inscope_of_cmd.
       destruct R.
       SSSSSCase "c' defines a variable".
         destruct n; inv HeqR.
-        destruct t; tinv H1.
-
-        remember (MDGVs.lift_op1 (fit_gv (los, nts) t) g t) as R2.
+        remember (MDGVs.lift_op1 (fit_gv (los, nts) t0) g t0) as R2.
         destruct R2; inv H1.
         apply wf_defs_updateAddAL; auto.
           split.
@@ -927,7 +923,7 @@ Local Opaque inscope_of_tmn inscope_of_cmd.
         destruct n; inv HeqR. inv H1. auto.
 
     SSSSCase "cs' <> nil".
-      assert (NoDup (getCmdsLocs (cs2' ++ [insn_call i0 n c t v p] ++ [c0] ++
+      assert (NoDup (getCmdsLocs (cs2' ++ [insn_call i0 n c t0 v0 v p] ++ [c0] ++
         cs'))) as Hnodup.
         eapply preservation_helper2; eauto.
 
@@ -937,14 +933,12 @@ Local Opaque inscope_of_tmn inscope_of_cmd.
       destruct R.
       SSSSSCase "c' defines a variable".
         destruct n; inv HeqR.
-        destruct t; tinv H1.
-        remember (MDGVs.lift_op1 (fit_gv (los, nts) t) g t) as R2.
+        remember (MDGVs.lift_op1 (fit_gv (los, nts) t0) g t0) as R2.
         destruct R2; inv H1.
         inv Hwfc. 
         match goal with
-        | H15: typ_function _ _ _ = typ_function _ _ _,
-          H7: module_intro _ _ _ = module_intro _ _ _,
-          H20: wf_insn_base _ _ _ |- _ => inv H15; inv H7; inv H20
+        | H7: module_intro _ _ _ = module_intro _ _ _,
+          H20: wf_insn_base _ _ _ |- _ => inv H7; inv H20
         end.
         apply wf_defs_updateAddAL; auto.
           split.
@@ -2270,12 +2264,12 @@ Ltac preservation_tac4 :=
 Lemma preservation_Call: forall (maxb : Z) (pinfo : PhiInfo)
   (F : fdef) (B : block) (lc : Opsem.GVsMap) (rid : id) (noret0 : noret)
   (ca : clattrs) (fv : value) (lp : params) (cs : list cmd) (tmn : terminator)
-  (EC : list Opsem.ExecutionContext) (Mem : mem) (als : list mblock) (ft : typ)
-  ECs cfg S los nts Ps gl fs
+  (EC : list Opsem.ExecutionContext) (Mem : mem) (als : list mblock)
+  rt1 va1 ECs cfg S los nts Ps gl fs
   (EQ1 : cfg = OpsemAux.mkCfg S (los, nts) Ps gl fs)
   (EQ2 : ECs = {| Opsem.CurFunction := F;
                  Opsem.CurBB := B;
-                 Opsem.CurCmds := insn_call rid noret0 ca ft fv lp :: cs;
+                 Opsem.CurCmds := insn_call rid noret0 ca rt1 va1 fv lp :: cs;
                  Opsem.Terminator := tmn;
                  Opsem.Locals := lc;
                  Opsem.Allocas := als |} :: EC)
@@ -2424,11 +2418,11 @@ Local Opaque inscope_of_tmn inscope_of_cmd.
       destruct (fdef_dec (PI_f pinfo) F'); subst; auto.
       remember (getCmdID c') as R.
       destruct_cmd c'; try solve [inversion H].
-      assert (In (insn_call i0 n c t v p)
-        (cs2'++[insn_call i0 n c t v p] ++ cs')) as HinCs.
+      assert (In (insn_call i0 n c t0 v0 v p)
+        (cs2'++[insn_call i0 n c t0 v0 v p] ++ cs')) as HinCs.
         apply in_or_app. right. simpl. auto.
       assert (Hwfc := HBinF2).
-      eapply wf_system__wf_cmd with (c:=insn_call i0 n c t v p) in Hwfc; eauto.
+      eapply wf_system__wf_cmd with (c:=insn_call i0 n c t0 v0 v p) in Hwfc; eauto.
       assert (wf_fdef S (module_intro los nts Ps) (PI_f pinfo)) as HwfF.
         eapply wf_system__wf_fdef; eauto.
       assert (uniqFdef (PI_f pinfo)) as HuniqF.
@@ -3078,7 +3072,7 @@ Axiom callExternalFunction_preserves_wf_ECStack : forall maxb pinfo ECs TD M
   wf_ECStack maxb pinfo TD M' ECs.
 
 Axiom callExternalProc_preserves_wf_EC : forall maxb pinfo TD M M' rid
-  als F B cs tmn gl gvss gvs fid oresult lp (lc:DGVMap) fv ft ca dck
+  als F B cs tmn gl gvss gvs fid oresult lp (lc:DGVMap) fv rt1 va1 ca dck
   (Hwflc: wf_lc M lc) (Hwfgl: wf_globals maxb gl) (H3 : gvs @@ gvss)
   (J1: Opsem.params2GVs TD lp lc gl = ret gvss) tret targs tr
   (J3: callExternalOrIntrinsics TD gl M fid tret targs dck gvs = 
@@ -3086,7 +3080,7 @@ Axiom callExternalProc_preserves_wf_EC : forall maxb pinfo TD M M' rid
   (HwfEC: wf_ExecutionContext maxb pinfo TD M 
             {| Opsem.CurFunction := F;
                Opsem.CurBB := B;
-               Opsem.CurCmds := insn_call rid true ca ft fv lp :: cs;
+               Opsem.CurCmds := insn_call rid true ca rt1 va1 fv lp :: cs;
                Opsem.Terminator := tmn;
                Opsem.Locals := lc;
                Opsem.Allocas := als |}),
@@ -3124,16 +3118,16 @@ Axiom callExternalFun_preserves_wf_ECStack_head_tail : forall maxb pinfo
     (updateAddAL (GVsT DGVs) lc rid ($ g0 # ft $)) ECs.
 
 Axiom callExternalFun_preserves_wf_EC : forall maxb pinfo TD M M' rid
-  als F B cs tmn gl gvss gvs fid result lp (lc:DGVMap) fv ft ca g0 dck
+  als F B cs tmn gl gvss gvs fid result lp (lc:DGVMap) fv rt1 va1 ca g0 dck
   (Hwflc: wf_lc M lc) (Hwfgl: wf_globals maxb gl) (H3 : gvs @@ gvss)
   (J1: Opsem.params2GVs TD lp lc gl = ret gvss) tret targs tr
   (J3: callExternalOrIntrinsics TD gl M fid tret targs dck gvs = 
     ret (Some result, tr, M'))
-  (HeqR : ret g0 = fit_gv TD ft result)
+  (HeqR : ret g0 = fit_gv TD rt1 result)
   (HwfEC: wf_ExecutionContext maxb pinfo TD M 
             {| Opsem.CurFunction := F;
                Opsem.CurBB := B;
-               Opsem.CurCmds := insn_call rid false ca ft fv lp :: cs;
+               Opsem.CurCmds := insn_call rid false ca rt1 va1 fv lp :: cs;
                Opsem.Terminator := tmn;
                Opsem.Locals := lc;
                Opsem.Allocas := als |}),
@@ -3142,7 +3136,7 @@ Axiom callExternalFun_preserves_wf_EC : forall maxb pinfo TD M M' rid
       Opsem.CurBB := B;
       Opsem.CurCmds := cs;
       Opsem.Terminator := tmn;
-      Opsem.Locals := (updateAddAL (GVsT DGVs) lc rid ($ g0 # ft $));
+      Opsem.Locals := (updateAddAL (GVsT DGVs) lc rid ($ g0 # rt1 $));
       Opsem.Allocas := als |}.
 
 Ltac preservation_tac0:=
@@ -3419,8 +3413,7 @@ Case "sExCall".
           | None => _
           end = Some _ |- _ => 
       destruct oresult; tinv H6;
-      destruct ft; tinv H6;
-      remember (fit_gv (los, nts) ft g) as R;
+      remember (fit_gv (los, nts) rt1 g) as R;
       destruct R; inv H6
     end.
     split.

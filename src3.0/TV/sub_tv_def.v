@@ -58,8 +58,9 @@ Module SBsyntax.
 *)
 
 Inductive call : Set :=
- | insn_call_nptr : id -> noret -> clattrs -> typ -> value -> params -> call
- | insn_call_ptr : id -> noret -> clattrs -> typ -> value -> params ->
+ | insn_call_nptr : 
+     id -> noret -> clattrs -> typ -> varg -> value -> params -> call
+ | insn_call_ptr : id -> noret -> clattrs -> typ -> varg -> value -> params ->
                 id -> id -> id -> id -> id -> id -> id ->
                 const -> const -> const -> call.
 
@@ -74,13 +75,13 @@ Definition cpars c1 c2 :=
   Cons_list_sz_value sz32 (value_const c1)
   (Cons_list_sz_value sz32 (value_const c2) Nil_list_sz_value).
 
-Definition call_ptr rid nr tc t v p sid id1 id2 id3 id4 id5 id6 c0 c1 c2:=
+Definition call_ptr rid nr tc t va v p sid id1 id2 id3 id4 id5 id6 c0 c1 c2:=
 let vret := value_id sid in
 let tret := typ_pointer (typ_struct
   (Cons_list_typ (typ_pointer t)
   (Cons_list_typ (typ_pointer p8)
   (Cons_list_typ (typ_pointer p8) Nil_list_typ)))) in
-(insn_call_nptr rid nr tc t v ((tret,nil,vret)::p),
+(insn_call_nptr rid nr tc t va v ((tret,nil,vret)::p),
  insn_gep id1 false tret vret (cpars c0 c0) t::
  insn_load id2 pp32 (value_id id1) Align.One::
  insn_gep id3 false tret vret (cpars c0 c1) p8::
@@ -152,9 +153,9 @@ Definition modules : Set := (list module).
 Definition system : Set := modules.
 
 Definition isCall_inv : forall (c:cmd), isCall c = true ->
-  id * noret * clattrs * typ * value * params.
+  id * noret * clattrs * typ * varg * value * params.
 destruct c; intros H; try solve [inversion H].
-  split; auto.
+  repeat (split; auto).
 Defined.
 
 (*
@@ -265,7 +266,7 @@ match cs with
       (mkSB (mkNB c isnotcall::nbs) call0::sbs', nbs0)
     end
   | right iscall =>
-    let '(id1, nr1, tc1, t1, v1, pa1) := isCall_inv c iscall in
+    let '(id1, nr1, tc1, t1, va1, v1, pa1) := isCall_inv c iscall in
     let '(sbs, nbs0, ic) :=
 (*
     The [c] is in the output program. So we don't know if it returns pointer
@@ -283,13 +284,13 @@ match cs with
           match (gen_icall nts pa1 c1 c2 c3 c4 c5 c6) with
           | Some (pa1',id12,id11,id21,id31,id41,id51,id61,cst0,cst1,cst2,rt) =>
              (of_llvm_cmds nts cs'',
-              insn_call_ptr id1 nr1 tc1 rt v1 pa1'
+              insn_call_ptr id1 nr1 tc1 t1 va1 v1 pa1'
               id12 id11 id21 id31 id41 id51 id61 cst0 cst1 cst2)
-          | None => (of_llvm_cmds nts cs', insn_call_nptr id1 nr1 tc1 t1 v1 pa1)
+          | None => (of_llvm_cmds nts cs', insn_call_nptr id1 nr1 tc1 t1 va1 v1 pa1)
           end
-        | _ => (of_llvm_cmds nts cs', insn_call_nptr id1 nr1 tc1 t1 v1 pa1)
+        | _ => (of_llvm_cmds nts cs', insn_call_nptr id1 nr1 tc1 t1 va1 v1 pa1)
         end
-      else (of_llvm_cmds nts cs', insn_call_nptr id1 nr1 tc1 t1 v1 pa1)
+      else (of_llvm_cmds nts cs', insn_call_nptr id1 nr1 tc1 t1 va1 v1 pa1)
     in (mkSB nil ic::sbs, nbs0)
   end
 end.
@@ -426,14 +427,14 @@ List.map of_llvm_module s.
 
 Definition call_to_llvm_cmds (c:call) : cmds :=
 match c with
-| insn_call_nptr rid nr ca t v p => [insn_call rid nr ca t v p]
-| insn_call_ptr rid nr tc t v p sid id1 id2 id3 id4 id5 id6 c0 c1 c2 =>
+| insn_call_nptr rid nr ca t va v p => [insn_call rid nr ca t va v p]
+| insn_call_ptr rid nr tc t va v p sid id1 id2 id3 id4 id5 id6 c0 c1 c2 =>
   let vret := value_id sid in
   let tret := typ_pointer (typ_struct
     (Cons_list_typ (typ_pointer t)
     (Cons_list_typ (typ_pointer p8)
     (Cons_list_typ (typ_pointer p8) Nil_list_typ)))) in
-  (insn_call rid nr tc t v ((tret,nil,vret)::p)::
+  (insn_call rid nr tc t va v ((tret,nil,vret)::p)::
    insn_gep id1 false tret vret (cpars c0 c0) t::
    insn_load id2 pp32 (value_id id1) Align.One::
    insn_gep id3 false tret vret (cpars c0 c1) p8::
@@ -782,12 +783,12 @@ Inductive dbCmd : TargetData -> GVMap ->
     (insn_fbop id fbop fp v1 v2)
     (updateAddAL _ lc id gv3) als Mem
     E0 SBSE.Rok
-| dbExtractValue : forall TD lc gl id t v gv gv' Mem als idxs,
+| dbExtractValue : forall TD lc gl id t v gv gv' Mem als idxs t',
   getOperandValue TD v lc gl = Some gv ->
   extractGenericValue TD t gv idxs = Some gv' ->
   dbCmd TD gl
     lc als Mem
-    (insn_extractvalue id t v idxs)
+    (insn_extractvalue id t v idxs t')
     (updateAddAL _ lc id gv') als Mem
     E0 SBSE.Rok
 | dbInsertValue : forall TD lc gl id t v t' v' gv gv' gv'' idxs Mem als,
@@ -897,7 +898,7 @@ Inductive dbCmd : TargetData -> GVMap ->
      else updateAddAL _ lc id gv1) als Mem
     E0 SBSE.Rok
 | dbLib : forall TD lc gl rid noret tailc ft fid
-                          lp rt Mem oresult Mem' als r lc' gvs,
+                          lp rt va Mem oresult Mem' als r lc' gvs,
   (* Like isCall, we only consider direct call to libraries. Function pointers
      are conservatively taken as non-lib. The dbCmd is defined to prove the
      correctness of TV. So it should be as "weak" as the TV. *)
@@ -907,7 +908,7 @@ Inductive dbCmd : TargetData -> GVMap ->
   exCallUpdateLocals TD ft noret rid oresult lc = Some lc' ->
   dbCmd TD gl
     lc als Mem
-    (insn_call rid noret tailc rt (value_const (const_gid ft fid)) lp)
+    (insn_call rid noret tailc rt va (value_const (const_gid ft fid)) lp)
     lc' als Mem'
     E0 r
 .
@@ -998,13 +999,13 @@ Inductive dbCall : system -> TargetData -> list product -> GVMap ->
                    call ->
                    GVMap -> list mblock -> mem ->
                    trace -> Result -> Prop :=
-| dbCall_internal : forall S TD Ps lc gl fs rid noret tailc rt fv lp
+| dbCall_internal : forall S TD Ps lc gl fs rid noret tailc rt va fv lp
                        Rid oResult tr lc' Mem Mem' als' Mem'' B' r als lc'',
   dbFdef fv rt lp S TD Ps lc gl fs Mem lc' als' Mem' B' Rid oResult tr r ->
   free_allocas TD Mem' als' = Some Mem'' ->
   callUpdateLocals TD rt noret rid oResult lc lc' gl = Some lc'' ->
   dbCall S TD Ps fs gl lc als Mem
-    (insn_call_nptr rid noret tailc rt fv lp)
+    (insn_call_nptr rid noret tailc rt va fv lp)
     lc'' als Mem'' tr r
 
 | dbCall_external : forall S TD Ps lc gl fs rid noret tailc fv fid dck
@@ -1020,27 +1021,27 @@ Inductive dbCall : system -> TargetData -> list product -> GVMap ->
     TD gl Mem fid rt (args2Typs la) dck gvs = Some (oresult, tr, Mem') ->
   exCallUpdateLocals TD rt noret rid oresult lc = Some lc' ->
   dbCall S TD Ps fs gl lc als Mem
-    (insn_call_nptr rid noret tailc rt fv lp)
+    (insn_call_nptr rid noret tailc rt va fv lp)
     lc' als Mem' tr Rok
 
 | dbiCall : forall S TD Ps lc1 als1 gl fs Mem1 lc2 als2 Mem2
-    tr1 lc3 Mem3 tr2 rid nr tc t v p sid id1 id2 id3 id4 id5 id6 call0
+    tr1 lc3 Mem3 tr2 rid nr tc t va v p sid id1 id2 id3 id4 id5 id6 call0
     cst0 cst1 cst2 cs,
-  call_ptr rid nr tc t v p sid id1 id2 id3 id4 id5 id6 cst0 cst1 cst2 =
+  call_ptr rid nr tc t va v p sid id1 id2 id3 id4 id5 id6 cst0 cst1 cst2 =
     (call0, cs) ->
   dbCall S TD Ps fs gl lc1 als1 Mem1 call0 lc2 als1 Mem2 tr1 Rok ->
   dbCmds TD gl lc2 als1 Mem2 cs lc3 als2 Mem3 tr2 Rok ->
   dbCall S TD Ps fs gl lc1 als1 Mem1
-    (insn_call_ptr rid nr tc t v p sid id1 id2 id3 id4 id5 id6 cst0 cst1 cst2)
+    (insn_call_ptr rid nr tc t va v p sid id1 id2 id3 id4 id5 id6 cst0 cst1 cst2)
     lc3 als2 Mem3 (Eapp tr1 tr2) Rok
 
 | dbiCall_abort : forall S TD Ps lc1 als1 gl fs Mem1 lc2 Mem2
-    tr1 rid nr tc t v p sid id1 id2 id3 id4 id5 id6 cst0 cst1 cst2 call0 cs,
-  call_ptr rid nr tc t v p sid id1 id2 id3 id4 id5 id6 cst0 cst1 cst2 =
+    tr1 rid nr tc t va v p sid id1 id2 id3 id4 id5 id6 cst0 cst1 cst2 call0 cs,
+  call_ptr rid nr tc t va v p sid id1 id2 id3 id4 id5 id6 cst0 cst1 cst2 =
     (call0, cs) ->
   dbCall S TD Ps fs gl lc1 als1 Mem1 call0 lc2 als1 Mem2 tr1 Rabort ->
   dbCall S TD Ps fs gl lc1 als1 Mem1
-    (insn_call_ptr rid nr tc t v p sid id1 id2 id3 id4 id5 id6 cst0 cst1 cst2)
+    (insn_call_ptr rid nr tc t va v p sid id1 id2 id3 id4 id5 id6 cst0 cst1 cst2)
     lc2 als1 Mem2 tr1 Rabort
 
 with dbSubblock : system -> TargetData -> list product -> GVMap -> GVMap ->

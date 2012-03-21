@@ -47,7 +47,7 @@ Definition pure_cmd (c:cmd) : Prop :=
 match c with
 | insn_bop _ _ _ _ _
 | insn_fbop _ _ _ _ _
-| insn_extractvalue _ _ _ _
+| insn_extractvalue _ _ _ _ _
 | insn_insertvalue _ _ _ _ _ _
 | insn_trunc _ _ _ _ _
 | insn_ext _ _ _ _ _
@@ -61,7 +61,7 @@ Definition eval_rhs TD gl (lc:GVsMap) (c:cmd) (gv:GVs) : Prop :=
 match c with
 | insn_bop _ bop0 sz v1 v2 => BOP TD lc gl bop0 sz v1 v2 = Some gv
 | insn_fbop _ fbop fp v1 v2 => FBOP TD lc gl fbop fp v1 v2  = Some gv
-| insn_extractvalue id t v idxs =>
+| insn_extractvalue id t v idxs _ =>
     exists gv0, getOperandValue TD v lc gl = Some gv0 /\
                 extractGenericValue TD t gv0 idxs = Some gv
 | insn_insertvalue _ t v t' v' idxs =>
@@ -834,7 +834,7 @@ match tmn with
 | insn_return _ _ _ | insn_return_void _ =>
     match ecs with
     | nil => True
-    | mkEC f' b' (insn_call _ _ _ _ _ _ ::_) tmn' lc' als'::ecs'
+    | mkEC f' b' (insn_call _ _ _ _ _ _ _ ::_) tmn' lc' als'::ecs'
         => True
     | _ => False
     end
@@ -1406,29 +1406,30 @@ Lemma extractvalue__wf_gvs : forall
   id1 t idxs gv TD gl gv0
   (J1 : getOperandValue TD v lc gl = Some gv0)
   (J2 : extractGenericValue TD t gv0 idxs = Some gv)
-  (Huniq : uniqFdef F1) l3 ps1 cs1' cs1 tmn1
+  (Huniq : uniqFdef F1) l3 ps1 cs1' cs1 tmn1 t'
   (Hreach: isReachableFromEntry F1
-    (block_intro l3 ps1 (cs1' ++ insn_extractvalue id1 t v idxs :: cs1) tmn1))
+    (block_intro l3 ps1 (cs1' ++ insn_extractvalue id1 t v idxs t' :: cs1) tmn1))
   (Hin : blockInFdefB
-          (block_intro l3 ps1 (cs1' ++ insn_extractvalue id1 t v idxs :: cs1) tmn1)
+          (block_intro l3 ps1 
+            (cs1' ++ insn_extractvalue id1 t v idxs t' :: cs1) tmn1)
           F1 = true),
   wf_GVs TD gl F1 lc id1 gv.
 Proof.
   intros.
   destruct F1 as [fh1 bs1].
   assert (lookupInsnViaIDFromBlocks bs1 id1 =
-    Some (insn_cmd (insn_extractvalue id1 t v idxs))) as Hlk1.
+    Some (insn_cmd (insn_extractvalue id1 t v idxs t'))) as Hlk1.
     apply uniqF__uniqBlocks in Huniq. inv Huniq.
     eapply InBlocksB__lookupInsnViaIDFromBlocks; eauto.
   intros c1 Hlkc1.
-  assert (c1 = insn_extractvalue id1 t v idxs) as EQ.
+  assert (c1 = insn_extractvalue id1 t v idxs t') as EQ.
     eapply uniqFdef__lookupInsnViaIDFromBlocks in Hlk1; eauto.
   subst.
   split.
     simpl. exists gv0. split; auto.
 
     intros.
-    assert (block_intro l3 ps1 (cs1' ++ insn_extractvalue id1 t v idxs :: cs1)
+    assert (block_intro l3 ps1 (cs1' ++ insn_extractvalue id1 t v idxs t' :: cs1)
       tmn1 = b1) as EQ.
       eapply blockInFdefB__cmdInFdefBlockB__eqBlock; eauto using in_middle.
     subst. auto.
@@ -1917,13 +1918,14 @@ Case "sReturn".
     split; auto.
 
     remember (getCmdID c') as R.
-    destruct c' as [ | | | | | | | | | | | | | | | | i0 n c t v p]; 
+    destruct c' as [ | | | | | | | | | | | | | | | | i0 n c rt va v p]; 
       try solve [inversion H].
-    assert (In (insn_call i0 n c t v p)
-      (cs2'++[insn_call i0 n c t v p] ++ cs')) as HinCs.
+    assert (In (insn_call i0 n c rt va v p)
+      (cs2'++[insn_call i0 n c rt va v p] ++ cs')) as HinCs.
       apply in_or_app. right. simpl. auto.
     assert (Hwfc := HBinF2).
-    eapply wf_system__wf_cmd with (c:=insn_call i0 n c t v p) in Hwfc; eauto.
+    eapply wf_system__wf_cmd with (c:=insn_call i0 n c rt va v p) in Hwfc; 
+      eauto.
     assert (wf_fdef S (module_intro los nts Ps) F') as HwfF.
       eapply wf_system__wf_fdef; eauto.
     assert (uniqFdef F') as HuniqF.
@@ -1932,8 +1934,8 @@ Case "sReturn".
     SSCase "1.1".
       destruct cs'; simpl_env in *.
       SSSCase "1.1.1".
-        assert (~ In (getCmdLoc (insn_call i0 n c t v p)) (getCmdsLocs cs2'))
-          as Hnotin.
+        assert (~ In (getCmdLoc (insn_call i0 n c rt va v p)) 
+          (getCmdsLocs cs2')) as Hnotin.
           eapply wf_system__uniq_block with (f:=F') in HwfSystem; eauto.
           simpl in HwfSystem.
           apply NoDup_inv in HwfSystem.
@@ -1952,12 +1954,10 @@ Case "sReturn".
         destruct R1; try solve [inv H1].
         destruct R.
           destruct n; inv HeqR.
-          destruct_typ t; tinv H1.
-          remember (GVsSig.(lift_op1) (fit_gv (los, nts) t0) g t0) as R2.
+          remember (GVsSig.(lift_op1) (fit_gv (los, nts) rt) g rt) as R2.
           destruct R2; inv H1.
           change i0 with
-            (getCmdLoc (insn_call i0 false c (typ_function t0 lt0 v0) v p)); 
-            auto.
+            (getCmdLoc (insn_call i0 false c rt va v p)); auto.
           eapply wf_defs_updateAddAL; eauto.
             simpl. apply In_InCmdsB. apply in_middle.
             apply wf_impure_id__wf_gvs; auto.
@@ -1970,8 +1970,8 @@ Case "sReturn".
           eapply wf_defs_eq; eauto.
 
       SSSCase "1.1.2".
-        assert (NoDup (getCmdsLocs (cs2' ++ [insn_call i0 n c t v p] ++ [c0] ++
-          cs'))) as Hnodup.
+        assert (NoDup (getCmdsLocs (cs2' ++ [insn_call i0 n c rt va v p] ++ 
+          [c0] ++ cs'))) as Hnodup.
           eapply wf_system__uniq_block with (f:=F') in HwfSystem; eauto.
           simpl in HwfSystem.
           apply NoDup_inv in HwfSystem.
@@ -1987,17 +1987,11 @@ Case "sReturn".
         destruct R1; try solve [inv H1].
         destruct R.
           destruct n; inv HeqR.
-          destruct_typ t; tinv H1.
-          remember (GVsSig.(lift_op1) (fit_gv (los, nts) t0) g t0) as R2.
+          remember (GVsSig.(lift_op1) (fit_gv (los, nts) rt) g rt) as R2.
           destruct R2; inv H1.
           inv Hwfc. uniq_result.
           change i0 with
-            (getCmdLoc (insn_call i0 false c
-              (typ_function typ1
-                 (make_list_typ
-                    (map_list_typ_attributes_value
-                       (fun (typ_' : typ) attr (_ : value) => typ_')
-                       typ'_attributes'_value''_list)) varg5) v
+            (getCmdLoc (insn_call i0 false c rt va v
               (map_list_typ_attributes_value
                  (fun (typ_' : typ) attr (value_'' : value) =>
                     (typ_', attr, value_''))
@@ -2008,12 +2002,7 @@ Case "sReturn".
               simpl. intros c1 Hlkc1. intros b1 J.
               clear - Hreach2 J HuniqF Hlkc1 HBinF2.
               eapply isReachableFromEntry_helper with (cs2:=[c0]++cs')
-                (cs1:=cs2')(c1:=insn_call i0 false c
-                     (typ_function typ1
-                        (make_list_typ
-                           (map_list_typ_attributes_value
-                              (fun (typ_' : typ) attr (_ : value) => typ_')
-                              typ'_attributes'_value''_list)) varg5) v
+                (cs1:=cs2')(c1:=insn_call i0 false c rt va v
                      (map_list_typ_attributes_value
                         (fun (typ_' : typ) attr (value_'' : value) =>
                           (typ_', attr, value_''))
@@ -2413,8 +2402,7 @@ Case "sExCall".
           | None => _
           end = _ |- _ =>
       destruct oresult; tinv H6;
-      destruct ft; tinv H6;
-      remember (fit_gv (los, nts) ft g) as R;
+      remember (fit_gv (los, nts) rt1 g) as R;
       destruct R; inv H6
     end.
     eapply preservation_impure_cmd_updated_case in HwfS1; simpl; eauto.

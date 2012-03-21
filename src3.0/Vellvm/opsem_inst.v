@@ -165,8 +165,7 @@ Proof.
   rewrite J1.
   destruct_cmd c; tinv H1.
   destruct n; inv H1; eauto.
-  destruct t; tinv H3.
-  remember (lift_op1 _ (fit_gv TD t) g t) as R.
+  remember (lift_op1 _ (fit_gv TD t0) g t0) as R.
   destruct R as [gr'|]; inv H3.
   symmetry in HeqR.
   eapply element_of__lift_op1 in HeqR; eauto.
@@ -531,11 +530,11 @@ Proof.
 Qed.
 
 Lemma instantiate_locals__exCallUpdateLocals : forall TD lc1 lc2 lc1' rid oResult
-    nr ft,
+    nr rt,
   instantiate_locals lc1 lc2 ->
-  exCallUpdateLocals TD ft nr rid oResult lc1 = ret lc1' ->
+  exCallUpdateLocals TD rt nr rid oResult lc1 = ret lc1' ->
   exists lc2',
-    exCallUpdateLocals TD ft nr rid oResult lc2 = ret lc2' /\
+    exCallUpdateLocals TD rt nr rid oResult lc2 = ret lc2' /\
     instantiate_locals lc1' lc2'.
 Proof.
   intros.
@@ -543,9 +542,8 @@ Proof.
   unfold exCallUpdateLocals.
   destruct nr; inv H0; eauto.
   destruct oResult; inv H2; eauto.
-  destruct ft; inv H1; eauto.
-  remember (fit_gv TD ft g) as R.
-  destruct R; inv H2.
+  remember (fit_gv TD rt g) as R.
+  destruct R; inv H1.
   eauto using instantiate_locals__updateAddAL, element_of__gv2gvs.
 Qed.
 
@@ -781,7 +779,7 @@ Case "sCall". simpl_nd_llvmds.
     ((mkEC (fdef_intro (fheader_intro fa rt fid la va) lb)
                        (block_intro l' ps' cs' tmn') cs' tmn' lc2'
                        nil)::
-     (mkEC f1' b1' (insn_call rid noret0 ca ft fv lp :: cs) tmn1'
+     (mkEC f1' b1' (insn_call rid noret0 ca rt1 va1 fv lp :: cs) tmn1'
       lc1' als1') ::ECs') M').
   split; eauto using element_of__incl.
     repeat (split; auto).

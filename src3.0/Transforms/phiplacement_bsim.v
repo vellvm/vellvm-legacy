@@ -138,7 +138,7 @@ Definition EC_simulation_tail (TD:TargetData) Ps1 (pinfo: PhiInfo)
   (EC1 EC2:Opsem.ExecutionContext) (M2:mem) : Prop :=
   match (EC1, EC2) with
   | (Opsem.mkEC f1 b1 cs1 tmn1 lc1 als1,
-     Opsem.mkEC f2 b2 ((insn_call _ _ _ _ _ _ as c2)::cs2) tmn2 lc2 als2) =>
+     Opsem.mkEC f2 b2 ((insn_call _ _ _ _ _ _ _ as c2)::cs2) tmn2 lc2 als2) =>
        let '(los, nts) := TD in
        blockInFdefB b1 f1 = true /\
        InProductsB (product_fdef f1) Ps1 = true /\
@@ -879,16 +879,16 @@ Proof.
     simpl. eapply simulation__lookupAL; eauto.
 Qed.
 
-Lemma returnUpdateLocals_rsim : forall pinfo TD i0 n c t v p Result lc2 lc2' gl2
+Lemma returnUpdateLocals_rsim : forall pinfo TD i0 n c t0 v0 v p Result lc2 lc2' gl2
   lc2'' F F' lc1' lc1
   (Hntmp: if fdef_dec (PI_f pinfo) F then value_has_no_tmps pinfo Result
           else True)
-  (H1 : Opsem.returnUpdateLocals TD (insn_call i0 n c t v p) Result lc2
+  (H1 : Opsem.returnUpdateLocals TD (insn_call i0 n c t0 v0 v p) Result lc2
          lc2' gl2 = ret lc2'')
   (Hrsim : reg_simulation pinfo F lc1 lc2)
   (Hrsim' : reg_simulation pinfo F' lc1' lc2'),
   exists lc1'',
-    Opsem.returnUpdateLocals TD (insn_call i0 n c t v p) Result lc1 lc1' gl2
+    Opsem.returnUpdateLocals TD (insn_call i0 n c t0 v0 v p) Result lc1 lc1' gl2
       = ret lc1'' /\ reg_simulation pinfo F' lc1'' lc2''.
 Proof.
   unfold Opsem.returnUpdateLocals in *.
@@ -897,7 +897,6 @@ Proof.
   erewrite simulation__getOperandValue; eauto.
   rewrite <- HeqR.
   destruct n; inv H0; eauto.
-    destruct t; tinv H1.
     inv_mbind'.
     exists (updateAddAL (GVsT DGVs) lc1' i0 g0).
     split; auto.
@@ -3460,7 +3459,7 @@ Lemma phinodes_placement_is_correct__dsCall: forall (maxb : Values.block)
   (S : system) (TD : TargetData) (Ps : products) (F : fdef) (B : block)
   (lc : Opsem.GVsMap) (gl : GVMap) (fs : GVMap) (rid : id) (noret0 : noret)
   (ca : clattrs) (fv : value) (lp : params) (cs : list cmd) (tmn : terminator)
-  (EC : list Opsem.ExecutionContext) (Mem : mem) (als : list mblock) (ft : typ)
+  (EC : list Opsem.ExecutionContext) (Mem : mem) (als : list mblock) rt1 va1
   Cfg2
   (EQ : Cfg2 = {| OpsemAux.CurSystem := S;
                   OpsemAux.CurTargetData := TD;
@@ -3472,7 +3471,7 @@ Lemma phinodes_placement_is_correct__dsCall: forall (maxb : Values.block)
            Opsem.ECS := {|
                         Opsem.CurFunction := F;
                         Opsem.CurBB := B;
-                        Opsem.CurCmds := insn_call rid noret0 ca ft fv lp
+                        Opsem.CurCmds := insn_call rid noret0 ca rt1 va1 fv lp
                                          :: cs;
                         Opsem.Terminator := tmn;
                         Opsem.Locals := lc;
@@ -3504,7 +3503,7 @@ Lemma phinodes_placement_is_correct__dsCall: forall (maxb : Values.block)
                     :: {|
                        Opsem.CurFunction := F;
                        Opsem.CurBB := B;
-                       Opsem.CurCmds := insn_call rid noret0 ca ft fv lp
+                       Opsem.CurCmds := insn_call rid noret0 ca rt1 va1 fv lp
                                         :: cs;
                        Opsem.Terminator := tmn;
                        Opsem.Locals := lc;
@@ -3556,8 +3555,8 @@ Proof.
          ::
          (Opsem.mkEC (PI_f pinfo)
            (block_intro l1 ps1
-             (cs11 ++ insn_call rid noret0 ca ft fv lp :: cs1') tmn)
-           (insn_call rid noret0 ca ft fv lp :: cs1') tmn lc1 als)
+             (cs11 ++ insn_call rid noret0 ca rt1 va1 fv lp :: cs1') tmn)
+           (insn_call rid noret0 ca rt1 va1 fv lp :: cs1') tmn lc1 als)
          ::ECs1) Mem).
     split.
     SSCase "opsem".
@@ -3615,8 +3614,8 @@ Proof.
          ::
          (Opsem.mkEC F1
            (block_intro l1 ps1
-             (cs11 ++ insn_call rid noret0 ca ft fv lp :: cs1') tmn)
-           (insn_call rid noret0 ca ft fv lp :: cs1') tmn lc1 als)
+             (cs11 ++ insn_call rid noret0 ca rt1 va1 fv lp :: cs1') tmn)
+           (insn_call rid noret0 ca rt1 va1 fv lp :: cs1') tmn lc1 als)
          ::ECs1) Mem).
     split.
     SSCase "opsem".
@@ -3641,20 +3640,18 @@ Proof.
         eapply entry_cmds_simulation; eauto.
 Qed.
 
-Lemma simulation__exCallUpdateLocals: forall pinfo F1 lc1 lc2 td ft noret0 rid
+Lemma simulation__exCallUpdateLocals: forall pinfo F1 lc1 lc2 td rt noret0 rid
   oresult lc2' (Hrsim: reg_simulation pinfo F1 lc1 lc2)
-  (Hexcall: Opsem.exCallUpdateLocals td ft noret0 rid oresult lc2 = ret lc2'),
+  (Hexcall: Opsem.exCallUpdateLocals td rt noret0 rid oresult lc2 = ret lc2'),
   exists lc1',
-    Opsem.exCallUpdateLocals td ft noret0 rid oresult lc1 = ret lc1' /\
+    Opsem.exCallUpdateLocals td rt noret0 rid oresult lc1 = ret lc1' /\
     reg_simulation pinfo F1 lc1' lc2'.
 Proof.
   unfold Opsem.exCallUpdateLocals in *.
   intros.
   destruct noret0; inv Hexcall; eauto.
   inv_mbind'.
-  destruct ft; tinv H1.
-  inv_mbind'.
-  exists (updateAddAL (GVsT DGVs) lc1 rid ($ g0 # ft $)).
+  exists (updateAddAL (GVsT DGVs) lc1 rid ($ g0 # rt $)).
   split; auto.
     apply reg_simulation__updateAddAL; auto.
 Qed.
@@ -3735,7 +3732,7 @@ Lemma phinodes_placement_is_correct__dsExCall: forall (maxb : Values.block)
   (lc : Opsem.GVsMap) (gl : GVMap) (fs : GVMap) (rid : id) (noret0 : bool)
   (ca : clattrs) (fv : value) (lp : params) (cs : list cmd) (tmn : terminator)
   (EC : list Opsem.ExecutionContext) (Mem : mem) (als : list mblock)
-  (ft : typ) Cfg2
+  rt1 va1 Cfg2
   (EQ : Cfg2 = {| OpsemAux.CurSystem := S;
                   OpsemAux.CurTargetData := TD;
                   OpsemAux.CurProducts := Ps;
@@ -3746,7 +3743,7 @@ Lemma phinodes_placement_is_correct__dsExCall: forall (maxb : Values.block)
            Opsem.ECS := {|
                         Opsem.CurFunction := F;
                         Opsem.CurBB := B;
-                        Opsem.CurCmds := insn_call rid noret0 ca ft fv lp
+                        Opsem.CurCmds := insn_call rid noret0 ca rt1 va1 fv lp
                                          :: cs;
                         Opsem.Terminator := tmn;
                         Opsem.Locals := lc;
@@ -3762,7 +3759,7 @@ Lemma phinodes_placement_is_correct__dsExCall: forall (maxb : Values.block)
   (H3 : gvs @@ gvss) tr
   (H4 : callExternalOrIntrinsics TD gl Mem fid rt (args2Typs la) dck gvs = 
           ret (oresult, tr, Mem'))
-  (H5 : Opsem.exCallUpdateLocals TD ft noret0 rid oresult lc = ret lc'),
+  (H5 : Opsem.exCallUpdateLocals TD rt1 noret0 rid oresult lc = ret lc'),
   exists St1' : Opsem.State,
      Opsem.sop_plus Cfg1 St1 St1' tr /\
      State_simulation pinfo Cfg1 St1' Cfg2
@@ -3793,7 +3790,7 @@ Proof.
         ((Opsem.mkEC
            (PI_f pinfo)
            (block_intro l1 ps1
-             (cs11 ++ insn_call rid noret0 ca ft fv lp :: cs1')
+             (cs11 ++ insn_call rid noret0 ca rt1 va1 fv lp :: cs1')
              tmn)
            cs1' tmn lc1' als)::ECs1) Mem').
     split.
@@ -3832,7 +3829,7 @@ Proof.
         ((Opsem.mkEC
            F1
            (block_intro l1 ps1
-             (cs11 ++ insn_call rid noret0 ca ft fv lp :: cs1')
+             (cs11 ++ insn_call rid noret0 ca rt1 va1 fv lp :: cs1')
              tmn)
            cs1' tmn lc1' als)::ECs1) Mem').
     split.

@@ -582,13 +582,13 @@ Proof.
          tv_fdef__is__correct_prop.
 Case "dbCall_internal".
   intros S TD Ps lc gl fs rid noret0 tailc0 rt fid lp Rid oResult tr lc' Mem0
-    Mem' als' Mem'' B' lc'' ft d H e HisCall Hcall S2 Ps2 los nts H0 H1 H2 H3 H4
+    Mem' als' Mem'' B' lc'' rt1 va1 d H e HisCall Hcall S2 Ps2 los nts H0 H1 H2 H3 H4
     H5 H6 HH.
   inversion d; subst.
     eapply H with (S2:=S2)(Ps2:=Ps2) in H7; eauto.
     clear H.
     destruct H7 as [lb2 [B2' [n [slc [J1 [J2 [J3 [J4 [J5 [J6 HeqEnv]]]]]]]]]].
-    destruct (@eqAL_callUpdateLocals' DGVs (los, nts) ft noret0 rid (Some Result)
+    destruct (@eqAL_callUpdateLocals' DGVs (los, nts) rt1 noret0 rid (Some Result)
       lc lc' gl lc slc lc'' (@eqAL_refl _ lc) (@eqAL_sym _ slc lc' HeqEnv) Hcall)
       as [lc2'' [J7 J8]].
     exists lc2''. split; eauto using eqAL_sym.
@@ -596,15 +596,15 @@ Case "dbCall_internal".
     eapply H with (S2:=S2)(Ps2:=Ps2) in H7; eauto.
     clear H.
     destruct H7 as [lb2 [B2' [n [slc [J1 [J2 [J3 [J4 [J5 [J6 HeqEnv]]]]]]]]]].
-    destruct (@eqAL_callUpdateLocals' DGVs (los, nts) ft noret0 rid None
+    destruct (@eqAL_callUpdateLocals' DGVs (los, nts) rt1 noret0 rid None
       lc lc' gl lc slc lc'' (@eqAL_refl _ lc) (@eqAL_sym _ slc lc' HeqEnv) Hcall)
       as [lc2'' [J7 J8]].
     exists lc2''. split; eauto using eqAL_sym.
 
 Case "dbCall_external".
   intros S TD Ps lc gl fs rid noret0 tailc0 fv fid fptr dck lp rt la va Mem0
-    oresult Mem' lc' ft fa gvs Hget Hex Hpars Hexcall HisCall S2 Ps2 los nts H0
-    H1 H2 H3 H4 H5 H6 H7 H8.
+    oresult Mem' lc' rt1 va1 fa gvs Hget Hex Hpars Hexcall HisCall S2 Ps2 los nts 
+    H0 H1 H2 H3 H4 H5 H6 H7 H8.
   exists lc'.
   split; auto using (@eqAL_exCallUpdateLocals DGVs), eqAL_refl.
    eapply dbCall_external with (fid:=fid)(la:=la)(va:=va)(rt:=rt)(fa:=fa); eauto.

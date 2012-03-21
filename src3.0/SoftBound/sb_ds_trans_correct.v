@@ -27,7 +27,7 @@ Lemma SBpass_is_correct__dsCall : forall (mi : MoreMem.meminj)
   (mgb : Values.block)
   (St : Opsem.State) (S : system) (TD : TargetData) (Ps : list product)
   (F : fdef) (B : block) (lc : DGVMap) (rm : SBspecAux.rmetadata) (gl : GVMap)
-  (fs : GVMap) rid noret0 ca ft fv lp
+  (fs : GVMap) rid noret0 ca rt1 va1 fv lp
   (EC : list SBspec.ExecutionContext) (cs : list cmd) (tmn : terminator)
   (Mem0 : mem) (MM : SBspecAux.mmetadata) (als : list mblock) Cfg
   (Hsim : sbState_simulates_State mi mgb {|
@@ -39,7 +39,7 @@ Lemma SBpass_is_correct__dsCall : forall (mi : MoreMem.meminj)
            ECS := {|
                   CurFunction := F;
                   CurBB := B;
-                  CurCmds := insn_call rid noret0 ca ft fv lp :: cs;
+                  CurCmds := insn_call rid noret0 ca rt1 va1 fv lp :: cs;
                   Terminator := tmn;
                   Locals := lc;
                   Rmap := rm;
@@ -77,7 +77,7 @@ Lemma SBpass_is_correct__dsCall : forall (mi : MoreMem.meminj)
                 :: {|
                    CurFunction := F;
                    CurBB := B;
-                   CurCmds := insn_call rid noret0 ca ft fv lp :: cs;
+                   CurCmds := insn_call rid noret0 ca rt1 va1 fv lp :: cs;
                    Terminator := tmn;
                    Locals := lc;
                    Rmap := rm;
@@ -92,23 +92,23 @@ Proof.
   simpl in Htcmd.
   remember (trans_params rm2 lp 1) as R.
   destruct R as [cs1|]; try solve [inversion Htcmd].
-  remember (call_suffix rid noret0 ca ft fv lp rm2) as R1.
+  remember (call_suffix rid noret0 ca rt1 va1 fv lp rm2) as R1.
   destruct R1 as [cs2|]; try solve [inversion Htcmd].
   inv Htcmd.
   unfold call_suffix in HeqR1.
-  remember (if negb noret0 && isReturnPointerTypB ft
+  remember (if negb noret0 && isReturnPointerTypB rt1
              then
               match lookupAL (id * id) rm2 rid with
               | ret (bid0, eid0) =>
-                  ret (insn_call bid0 false attrs gsb_typ gsb_fn
+                  ret (insn_call bid0 false attrs gsb_typ None gsb_fn
                          ((i32,nil,vint0) :: nil)
-                       :: insn_call eid0 false attrs gse_typ gse_fn
+                       :: insn_call eid0 false attrs gse_typ None gse_fn
                             ((i32,nil,vint0) :: nil)
-                          :: insn_call fake_id true attrs dstk_typ dstk_fn
+                          :: insn_call fake_id true attrs dstk_typ None dstk_fn
                                nil :: nil)
               | merror => merror
               end
-             else ret [insn_call fake_id true attrs dstk_typ dstk_fn nil]) as R2.
+             else ret [insn_call fake_id true attrs dstk_typ None dstk_fn nil]) as R2.
   destruct R2 as [cs22|]; inv HeqR1.
 
   assert (Hlkf:=H).
@@ -132,7 +132,8 @@ Proof.
      assert (Hop:=Hlkf').
      replace LLVMgv.getOperandValue with (@Opsem.getOperandValue DGVs) in Hget2;
        auto.
-     eapply shadow_stack_init with (S2:=S2)(B2:=B2)(ft:=ft)(cs2':=cs2')(lc':=lc')
+     eapply shadow_stack_init with (S2:=S2)(B2:=B2)(cs2':=cs2')(lc':=lc')
+       (rt1:=rt1)(va1:=va1)
        (rm':=rm')(gl:=gl2)(mi:=mi)(lp:=lp)(cs1:=cs1)(rm2:=rm2)(Mem0:=Mem0)
        (MM:=MM)(noret0:=noret0)(M2:=M2)(ex_ids3:=ex_ids3)(ogvs:=ogvs)(mgb:=mgb)
        (lb:=lb)(als2:=als2)(tmn2:=tmn2)(ca:=ca)(rid:=rid)(cs22:=cs22)(cs23:=cs23)
@@ -146,7 +147,7 @@ Proof.
         cs4
       tmn1 lc2' nil)::
       (Opsem.mkEC (fdef_intro fh2 bs2) B2
-        (insn_call rid noret0 ca ft (wrap_call fv) lp :: cs22 ++ cs2' ++ cs23)
+        (insn_call rid noret0 ca rt1 va1 (wrap_call fv) lp :: cs22 ++ cs2' ++ cs23)
       tmn2 lc2 als2):: ECs2) M2').
      exists mi.
      split; auto.
@@ -170,12 +171,12 @@ Proof.
        exists l2. exists ps2.
        exists
            (cs21 ++
-            ((insn_call fake_id true attrs astk_typ astk_fn
+            ((insn_call fake_id true attrs astk_typ None astk_fn
                 (val32 (Z_of_nat (length lp + 1)) :: nil)
               :: cs1))).
        simpl_env. auto.
        exists ex_ids. exists rm2. exists ex_ids5. exists ex_ids4.
-       exists (insn_call rid noret0 ca ft (wrap_call fv) lp :: cs22).
+       exists (insn_call rid noret0 ca rt1 va1 (wrap_call fv) lp :: cs22).
        exists cs2'. exists cs23.
        repeat (split; auto).
          unfold call_suffix.
@@ -187,7 +188,7 @@ Lemma SBpass_is_correct__dsExCall : forall (mi : MoreMem.meminj)
   (mgb : Values.block)
   (St : Opsem.State) (S : system) (TD : TargetData) (Ps : list product)
   (F : fdef) (B : block) (lc : DGVMap) (rm : SBspecAux.rmetadata) (gl : GVMap)
-  (fs : GVMap) rid noret0 ca ft fv lp
+  (fs : GVMap) rid noret0 ca rt1 va1 fv lp
   (EC : list SBspec.ExecutionContext) (cs : list cmd) (tmn : terminator)
   (Mem0 : mem) (MM : SBspecAux.mmetadata) (als : list mblock) Cfg
   (Hsim : sbState_simulates_State mi mgb {|
@@ -199,7 +200,7 @@ Lemma SBpass_is_correct__dsExCall : forall (mi : MoreMem.meminj)
            ECS := {|
                   CurFunction := F;
                   CurBB := B;
-                  CurCmds := insn_call rid noret0 ca ft fv lp :: cs;
+                  CurCmds := insn_call rid noret0 ca rt1 va1 fv lp :: cs;
                   Terminator := tmn;
                   Locals := lc;
                   Rmap := rm;
@@ -215,7 +216,7 @@ Lemma SBpass_is_correct__dsExCall : forall (mi : MoreMem.meminj)
   (H0 : LLVMgv.params2GVs TD lp lc gl = ret gvs) tr
   (H1 : callExternalOrIntrinsics
           TD gl Mem0 fid rt (args2Typs la) dck gvs = ret (oresult, tr, Mem'))
-  (H2 : exCallUpdateLocals TD ft noret0 rid oresult lc rm = ret (lc', rm')),
+  (H2 : exCallUpdateLocals TD rt1 noret0 rid oresult lc rm = ret (lc', rm')),
    exists St' : Opsem.State,
      exists mi' : MoreMem.meminj,
        Opsem.sop_star Cfg St St' tr /\
@@ -243,23 +244,23 @@ Proof.
   simpl in Htcmd.
   remember (trans_params rm2 lp 1) as R.
   destruct R as [cs1|]; try solve [inversion Htcmd].
-  remember (call_suffix rid noret0 ca ft fv lp rm2) as R1.
+  remember (call_suffix rid noret0 ca rt1 va1 fv lp rm2) as R1.
   destruct R1 as [cs2|]; try solve [inversion Htcmd].
   inv Htcmd.
   unfold call_suffix in HeqR1.
-  remember (if negb noret0 && isReturnPointerTypB ft
+  remember (if negb noret0 && isReturnPointerTypB rt1
              then
               match lookupAL (id * id) rm2 rid with
               | ret (bid0, eid0) =>
-                  ret (insn_call bid0 false attrs gsb_typ gsb_fn
+                  ret (insn_call bid0 false attrs gsb_typ None gsb_fn
                          ((i32,nil,vint0) :: nil)
-                       :: insn_call eid0 false attrs gse_typ gse_fn
+                       :: insn_call eid0 false attrs gse_typ None gse_fn
                             ((i32,nil,vint0) :: nil)
-                          :: insn_call fake_id true attrs dstk_typ dstk_fn
+                          :: insn_call fake_id true attrs dstk_typ None dstk_fn
                                nil :: nil)
               | merror => merror
               end
-             else ret [insn_call fake_id true attrs dstk_typ dstk_fn nil]) as R2.
+             else ret [insn_call fake_id true attrs dstk_typ None dstk_fn nil]) as R2.
   destruct R2 as [cs22|]; inv HeqR1.
 
   assert (Hlkf:=H).
@@ -273,8 +274,8 @@ Proof.
 
      simpl_env. simpl.
      assert (Hop:=Hlkf').
-     eapply shadow_stack_exfdec with (S2:=S2)(B2:=B2)(ft:=ft)(cs2':=cs2')
-       (lc':=lc')(oresult:=oresult)(bs1:=bs1)(fh1:=fh1)(lc:=lc)
+     eapply shadow_stack_exfdec with (S2:=S2)(B2:=B2)(rt1:=rt1)(va1:=va1)
+       (cs2':=cs2')(lc':=lc')(oresult:=oresult)(bs1:=bs1)(fh1:=fh1)(lc:=lc)
        (rm':=rm')(mi:=mi)(lp:=lp)(cs1:=cs1)(rm2:=rm2)(Mem0:=Mem0)
        (MM:=MM)(noret0:=noret0)(M2:=M2)(gvs:=gvs)(Mem':=Mem')
        (mgb:=mgb)(als2:=als2)(tmn2:=tmn2)(ca:=ca)(rid:=rid)(cs22:=cs22)
@@ -288,15 +289,15 @@ Proof.
      clear Hop.
      repeat (split; auto).
        clear - Heqb1. destruct Heqb1 as [l1 [ps1 [cs11 Heqb1]]]; subst.
-       exists l1. exists ps1. exists (cs11++[insn_call rid noret0 ca ft fv lp]).
+       exists l1. exists ps1. exists (cs11++[insn_call rid noret0 ca rt1 va1 fv lp]).
        simpl_env. auto.
 
        clear - Heqb2. destruct Heqb2 as [l2 [ps2 [cs2 Heqb2]]]; subst.
        exists l2. exists ps2.
        exists (cs2 ++
-           ((insn_call fake_id true attrs astk_typ astk_fn
+           ((insn_call fake_id true attrs astk_typ None astk_fn
             (val32 (Z_of_nat (length lp + 1)) :: nil)
-           :: cs1 ++ insn_call rid noret0 ca ft (wrap_call fv) lp :: cs22))).
+           :: cs1 ++ insn_call rid noret0 ca rt1 va1 (wrap_call fv) lp :: cs22))).
        simpl_env. auto.
        exists ex_ids. exists rm2. exists ex_ids5. exists ex_ids4.
        exists cs2'. exists cs23.
@@ -623,7 +624,7 @@ Ltac ret_insn :=
   | |- context [ Opsem.sop_star _
        (Opsem.mkState
          (_::
-         (Opsem.mkEC ?F ?B (insn_call _ false _ _ _ _::?cs) ?tmn ?lc ?als)::
+         (Opsem.mkEC ?F ?B (insn_call _ false _ _ _ _ _ ::?cs) ?tmn ?lc ?als)::
          ?ECs2) _)
        (Opsem.mkState
            ((Opsem.mkEC _ _ _ _ (updateAddALs ?T ?lc ((?k,?v)::_)) _)::_)
@@ -724,9 +725,9 @@ Proof.
 
   assert (exists bv2, exists ev2, exists bgv2, exists egv2,
     exists blk1, exists bofs1, exists eofs1,
-    cs23 =(insn_call fake_id true attrs ssb_typ ssb_fn
+    cs23 =(insn_call fake_id true attrs ssb_typ None ssb_fn
              ((p8,nil,bv2) :: (i32,nil,vint0) :: nil)
-           :: insn_call fake_id true attrs sse_typ sse_fn
+           :: insn_call fake_id true attrs sse_typ None sse_fn
                 ((p8,nil,ev2) :: (i32,nil,vint0) :: nil) :: nil) /\
     Opsem.params2GVs (los, nts) ((p8,nil,bv2) :: (i32,nil,vint0) :: nil) lc2 gl2 =
       munit (bgv2 :: int2GV 0 :: nil) /\
@@ -814,7 +815,6 @@ Proof.
   SCase "nret = false".
     assert (In i0 (getFdefLocs (fdef_intro fh1' bs1'))) as Hin.
       eauto using getCmdID_in_getFdefLocs.
-    destruct t; tinv H1.
     remember (lift_op1 DGVs (fit_gv (los, nts) t) gr t) as Fit.
     destruct Fit; tinv H1. simpl in Hcall'.
     symmetry in Heqogr.
@@ -827,6 +827,7 @@ Proof.
     eapply simulation__fit_gv in HeqFit; eauto.
     destruct HeqFit as [gr2' [HeqFit HinjFit]].
 
+    unfold isReturnPointerTypB in *.
     destruct (isPointerTypB t); inv H1.
     SSCase "ct is ptr".
       remember (lookupAL (id * id) rm2' i0) as R.

@@ -99,14 +99,13 @@ Proof.
   rewrite J1.
   destruct_cmd c; tinv H1.
   destruct n; inv H1; eauto.
-  destruct t; tinv H3.
-  remember (lift_op1 _ (fit_gv TD t) gr t) as R.
+  remember (lift_op1 _ (fit_gv TD t0) gr t0) as R.
   destruct R as [gr'|]; inv H3.
   symmetry in HeqR.
   eapply element_of__lift_op1 in HeqR; eauto.
   destruct HeqR as [ys2 [J3 J4]]. rewrite J3.
   exists (updateAddAL _ lc2' i0 ys2).
-  destruct (isPointerTypB t); inv H2;
+  destruct (isPointerTypB t0); inv H2;
     eauto using @instantiate_locals__updateAddAL.
 Qed.
 
@@ -298,11 +297,11 @@ Proof.
 Qed.
 
 Lemma instantiate_locals__exCallUpdateLocals : forall TD lc1 lc2 lc1' rid oResult
-    nr ft rm rm',
+    nr rt rm rm',
   instantiate_locals lc1 lc2 ->
-  @exCallUpdateLocals DGVs TD ft nr rid oResult lc1 rm = ret (lc1',rm') ->
+  @exCallUpdateLocals DGVs TD rt nr rid oResult lc1 rm = ret (lc1',rm') ->
   exists lc2',
-    @exCallUpdateLocals NDGVs TD ft nr rid oResult lc2 rm = ret (lc2',rm') /\
+    @exCallUpdateLocals NDGVs TD rt nr rid oResult lc2 rm = ret (lc2',rm') /\
     instantiate_locals lc1' lc2'.
 Proof.
   intros.
@@ -310,11 +309,10 @@ Proof.
   unfold exCallUpdateLocals.
   destruct nr; inv H0; eauto.
   destruct oResult; inv H2; eauto.
-  destruct ft; inv H1; eauto using @instantiate_locals__updateAddAL.
-  remember (fit_gv TD ft g) as R.
-  destruct R; tinv H2.
-  exists (updateAddAL _ lc2 rid (gv2gvs _ g0 ft)).
-  destruct (isPointerTypB ft); inv H2; eauto using
+  remember (fit_gv TD rt g) as R.
+  destruct R; tinv H1.
+  exists (updateAddAL _ lc2 rid (gv2gvs _ g0 rt)).
+  destruct (isPointerTypB rt); inv H1; eauto using
     @instantiate_locals__updateAddAL.
 Qed.
 
@@ -333,30 +331,27 @@ Proof.
     destruct_cmd c'; tinv H.
     destruct n; try solve [inversion H; auto].
     unfold prop_reg_metadata in H.
-    destruct t; try solve [inversion H; auto].
-    destruct (lift_op1 _ (fit_gv TD' t) g t); tinv H.
-    destruct t; try solve [inversion H; auto].
+    destruct (lift_op1 _ (fit_gv TD' t0) g t0); tinv H.
+    destruct t0; try solve [inversion H; auto].
 
     destruct_cmd c'; try solve [inversion H; auto].
     destruct n; try solve [inversion H; auto].
     unfold prop_reg_metadata in H.
-    destruct t; try solve [inversion H; auto].
-    destruct (lift_op1 _ (fit_gv TD' t) g t); tinv H.
-    destruct t; try solve [inversion H; auto].
+    destruct (lift_op1 _ (fit_gv TD' t0) g t0); tinv H.
+    destruct t0; try solve [inversion H; auto].
 Qed.
 
-Lemma exCallUpdateLocals_sim : forall TD ft noret rid oResult lc rm lc'' rm'',
-  @exCallUpdateLocals NDGVs TD ft noret rid oResult lc rm = ret (lc'', rm'') ->
-  Opsem.exCallUpdateLocals TD ft noret rid oResult lc = ret lc''.
+Lemma exCallUpdateLocals_sim : forall TD rt noret rid oResult lc rm lc'' rm'',
+  @exCallUpdateLocals NDGVs TD rt noret rid oResult lc rm = ret (lc'', rm'') ->
+  Opsem.exCallUpdateLocals TD rt noret rid oResult lc = ret lc''.
 Proof.
   intros.
   unfold exCallUpdateLocals in H.
   unfold Opsem.exCallUpdateLocals.
   destruct noret0; try solve [inversion H; auto].
   destruct oResult; try solve [inversion H; auto].
-  destruct ft; try solve [inversion H; auto].
-  destruct (fit_gv TD ft g); tinv H; auto.
-  destruct (isPointerTypB ft); inversion H; auto.
+  destruct (fit_gv TD rt g); tinv H; auto.
+  destruct (isPointerTypB rt); inversion H; auto.
 Qed.
 
 Lemma getIncomingValuesForBlockFromPHINodes_sim : forall ps TD' b1' gl' lc1'
@@ -909,8 +904,11 @@ Case "sSelect_ptr". simpl_nd_sbds.
   instantiate_dsInsn_tac. rewrite H25.
     destruct (isGVZero TD c); auto using @instantiate_locals__updateAddAL.
 Case "sCall". simpl_nd_sbds.
-  apply lookupFdefViaPtr_inversion in H35.
-  destruct H35 as [fn [J1 J2]].
+  match goal with
+  | H35: lookupFdefViaPtr _ _ _ = _ |- _ =>
+    apply lookupFdefViaPtr_inversion in H35;
+    destruct H35 as [fn [J1 J2]]
+  end.
   eapply instantiate_locals__getOperandValue in H8; eauto.
   destruct H8 as [gvs2 [J11 J12]].
   eapply instantiate_locals__params2GVs in H; eauto.
@@ -922,7 +920,7 @@ Case "sCall". simpl_nd_sbds.
                        (block_intro l' ps' cs' tmn') cs' tmn'
                        lc2' rm'
                        nil)::
-     (mkEC f1' b1' (insn_call rid noret0 ca ft fv lp :: cs) tmn1'
+     (mkEC f1' b1' (insn_call rid noret0 ca rt1 va1 fv lp :: cs) tmn1'
       lc1' rm1' als1') ::ECs') M' MM').
   instantiate_dsInsn_tac.
     simpl.
@@ -932,7 +930,9 @@ Case "sCall". simpl_nd_sbds.
       unfold lookupFdefViaPtr.
       rewrite J1. simpl. rewrite J2. auto.
 
-  apply mismatch_cons_false in H27. inv H27.
+  match goal with
+  | H27: ?A = _::?A |- _ => apply mismatch_cons_false in H27; inv H27
+  end.
 
 Case "sExCall".
   match goal with

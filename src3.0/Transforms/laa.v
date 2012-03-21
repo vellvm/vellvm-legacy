@@ -893,7 +893,7 @@ Lemma params2GVs_sim_aux : forall
   (ps : list product)
   (f : fdef)
   (i0 : id)
-  n c t v p2
+  n c t0 v0 v p2
   (cs : list cmd)
   (tmn : terminator)
   lc (gl : GVMap) 
@@ -903,15 +903,15 @@ Lemma params2GVs_sim_aux : forall
   (ps1 : phinodes)
   (cs1 : list cmd)
   (Hreach : isReachableFromEntry f
-             (block_intro l1 ps1 (cs1 ++ insn_call i0 n c t v p2 :: cs) tmn))
+             (block_intro l1 ps1 (cs1 ++ insn_call i0 n c t0 v0 v p2 :: cs) tmn))
   (HbInF : blockInFdefB
-            (block_intro l1 ps1 (cs1 ++ insn_call i0 n c t v p2 :: cs) tmn) f =
+            (block_intro l1 ps1 (cs1 ++ insn_call i0 n c t0 v0 v p2 :: cs) tmn) f =
           true)
   (l0 : list atom)
   (HeqR : ret l0 =
          inscope_of_cmd f
-           (block_intro l1 ps1 (cs1 ++ insn_call i0 n c t v p2 :: cs) tmn)
-           (insn_call i0 n c t v p2))
+           (block_intro l1 ps1 (cs1 ++ insn_call i0 n c t0 v0 v p2 :: cs) tmn)
+           (insn_call i0 n c t0 v0 v p2))
   (Hinscope : id_rhs_val.wf_defs (value_id (LAA_lid pinfo laainfo))
            [! pinfo !] (PI_f pinfo) (los, nts) gl f lc l0)
   p22 p22' gvs gvs'
@@ -925,7 +925,7 @@ Proof.
     apply pars_simulation_nil_inv in Hpasim. subst.
     simpl in *. congruence.
 
-    destruct a as [[t0 attr0] v0].
+    destruct a as [[ty0 attr0] vl0].
     destruct Hex as [p21 Hex]; subst.
     apply pars_simulation_cons_inv in Hpasim.
     destruct Hpasim as [p1' [ps2' [EQ [Hpsim' Hpasim']]]]; subst.
@@ -936,15 +936,15 @@ Proof.
       apply par_simulation__value_simulation in Hpsim'.
       eapply getOperandValue_inCmdOperands_sim in Hpsim'; eauto.
         simpl. unfold valueInParams. right.
-        assert (J:=@in_split_r _ _ (p21 ++ (t0, attr0, v0) :: p22)
-          (t0, attr0, v0)).
-        remember (split (p21 ++ (t0, attr0, v0) :: p22)) as R.
+        assert (J:=@in_split_r _ _ (p21 ++ (ty0, attr0, vl0) :: p22)
+          (ty0, attr0, vl0)).
+        remember (split (p21 ++ (ty0, attr0, vl0) :: p22)) as R.
         destruct R.
         simpl in J. apply J.
         apply In_middle.
     subst.
     erewrite <- IHp22 with (gvs':=l2); eauto.
-      exists (p21 ++ [(t0, attr0,v0)]). simpl_env. auto.
+      exists (p21 ++ [(ty0, attr0,vl0)]). simpl_env. auto.
 Qed.
 
 (* same to las' *)
@@ -954,7 +954,7 @@ Lemma params2GVs_sim : forall
   (ps : list product)
   (f : fdef)
   (i0 : id)
-  n c t v p2
+  n c t0 v0 v p2
   (cs : list cmd)
   (tmn : terminator)
   lc (gl : GVMap) 
@@ -964,15 +964,15 @@ Lemma params2GVs_sim : forall
   (ps1 : phinodes)
   (cs1 : list cmd)
   (Hreach : isReachableFromEntry f
-             (block_intro l1 ps1 (cs1 ++ insn_call i0 n c t v p2 :: cs) tmn))
+             (block_intro l1 ps1 (cs1 ++ insn_call i0 n c t0 v0 v p2 :: cs) tmn))
   (HbInF : blockInFdefB
-            (block_intro l1 ps1 (cs1 ++ insn_call i0 n c t v p2 :: cs) tmn) f =
+            (block_intro l1 ps1 (cs1 ++ insn_call i0 n c t0 v0 v p2 :: cs) tmn) f =
           true)
   (l0 : list atom)
   (HeqR : ret l0 =
          inscope_of_cmd f
-           (block_intro l1 ps1 (cs1 ++ insn_call i0 n c t v p2 :: cs) tmn)
-           (insn_call i0 n c t v p2))
+           (block_intro l1 ps1 (cs1 ++ insn_call i0 n c t0 v0 v p2 :: cs) tmn)
+           (insn_call i0 n c t0 v0 v p2))
   (Hinscope : id_rhs_val.wf_defs (value_id (LAA_lid pinfo laainfo))
            [! pinfo !] (PI_f pinfo) (los, nts) gl f lc l0)
   p2' gvs gvs'
@@ -1132,12 +1132,11 @@ Case "sReturn".
     unfold Opsem.returnUpdateLocals in H1, H27.
     inv_mbind'.
     destruct_cmd c1'; tinv H0.
-    assert (i0 = i1 /\ n = n0 /\ t0 = t) as EQ.
+    assert (i0 = i1 /\ n = n0 /\ t0 = t1) as EQ.
       unfold cmd_simulation in Hcsim2';
       destruct (fdef_dec (PI_f pinfo) F'); inv Hcsim2'; auto.
     destruct EQ as [Heq1 [Heq2 Heq3]]; subst.
     destruct n0; try solve [inv H0; inv H2; auto].
-    destruct t; tinv H0.
     inv_mbind'.
     symmetry_ctx.
     eapply getOperandValue_inTmnOperands_sim in HeqR0; eauto
@@ -1365,7 +1364,7 @@ Case "sCall".
   destruct Hcssim2 as [c1' [cs3' [Heq [Hcsim2 Hcssim2]]]]; subst.
 
   assert (exists fv', exists lp',
-    c1' = insn_call rid noret0 ca ft fv' lp' /\
+    c1' = insn_call rid noret0 ca rt1 va1 fv' lp' /\
     value_simulation pinfo laainfo F fv fv' /\
     pars_simulation pinfo laainfo F lp lp') as Hcmd.
     clear - Hcsim2.
@@ -1404,7 +1403,7 @@ Case "sCall".
       inv_mfalse; symmetry_ctx.
       eapply params2GVs_sim; eauto.
     subst.
-    clear - H4 H31 Hfsim1.
+    clear - H4 H32 Hfsim1.
     apply fdef_simulation_inv in Hfsim1.
     destruct Hfsim1 as [Heq _]. inv Heq. uniq_result.
     auto.
@@ -1418,13 +1417,13 @@ Case "sCall".
     eapply getOperandValue_inCmdOperands_sim with (v':=fv') in H;
       try (eauto || simpl; auto).
   subst. clear H.
-  clear - H28 H1 Hpsim.
+  clear - H29 H1 Hpsim.
 
   eapply lookupFdefViaPtr__simulation_l2r in H1; eauto.
   destruct H1 as [f2 [H1 H2]].
-  apply OpsemAux.lookupExFdecViaPtr_inversion in H28.
+  apply OpsemAux.lookupExFdecViaPtr_inversion in H29.
   apply OpsemAux.lookupFdefViaPtr_inversion in H1.
-  destruct H28 as [fn [J1 [J2 J3]]].
+  destruct H29 as [fn [J1 [J2 J3]]].
   destruct H1 as [fn' [J4 J5]].
   uniq_result.
 
@@ -1436,7 +1435,7 @@ Case "sExCall".
   destruct Hcssim2 as [c1' [cs3' [Heq [Hcsim2 Hcssim2]]]]; subst.
 
   assert (exists fv', exists lp',
-    c1' = insn_call rid noret0 ca ft fv' lp' /\
+    c1' = insn_call rid noret0 ca rt1 va1 fv' lp' /\
     value_simulation pinfo laainfo F fv fv' /\
     pars_simulation pinfo laainfo F lp lp') as Hcmd.
     clear - Hcsim2.

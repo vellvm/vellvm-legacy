@@ -1962,7 +1962,7 @@ Proof.
       inv H. auto using incl_refl.
 
     destruct (trans_params rm p 1) as [?|]; inv H.
-    destruct (call_suffix i0 n c0 t v p rm); inv H1.
+    destruct (call_suffix i0 n c0 t0 v0 v p rm); inv H1.
     auto using incl_refl.
 Qed.
 

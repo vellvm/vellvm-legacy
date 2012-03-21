@@ -26,8 +26,8 @@ match c with
     insn_bop id0 t0 bop0 (v1{[v'//id']}) (v2{[v'//id']})
 | insn_fbop id0 fbop0 fp0 v1 v2 =>
     insn_fbop id0 fbop0 fp0 (v1{[v'//id']}) (v2{[v'//id']})
-| insn_extractvalue id0 t v cnts =>
-    insn_extractvalue id0 t (v{[v'//id']}) cnts
+| insn_extractvalue id0 t v cnts t' =>
+    insn_extractvalue id0 t (v{[v'//id']}) cnts t'
 | insn_insertvalue id0 t1 v1 t2 v2 cnts =>
     insn_insertvalue id0 t1 (v1{[v'//id']}) t2 (v2{[v'//id']}) cnts
 | insn_malloc id0 t v al => insn_malloc id0 t (v{[v'//id']}) al
@@ -47,8 +47,8 @@ match c with
     insn_fcmp id0 fcond0 fp0 (v1{[v'//id']}) (v2{[v'//id']})
 | insn_select id0 v0 t0 v1 v2 =>
     insn_select id0 (v0{[v'//id']}) t0 (v1{[v'//id']}) (v2{[v'//id']})
-| insn_call id0 noret0 cl0 t1 v1 ps =>
-    insn_call id0 noret0 cl0 t1 (v1{[v'//id']})
+| insn_call id0 noret0 cl0 rt1 va1 v1 ps =>
+    insn_call id0 noret0 cl0 rt1 va1 (v1{[v'//id']})
       (List.map (fun p => let '(t, v):=p in (t, v{[v'//id']})) ps)
 end.
 
@@ -174,7 +174,7 @@ match c with
 | insn_icmp _ _ _ v1 v2
 | insn_fcmp _ _ _ v1 v2 =>
     used_in_value id' v1 || used_in_value id' v2
-| insn_extractvalue _ _ v _
+| insn_extractvalue _ _ v _ _
 | insn_malloc _ _ v _
 | insn_free _ _ v
 | insn_alloca _ _ v _
@@ -187,7 +187,7 @@ match c with
     used_in_value id' v || used_in_list_value id' vs
 | insn_select _ v0 _ v1 v2 =>
     used_in_value id' v0 || used_in_value id' v1 || used_in_value id' v2
-| insn_call _ _ _ _ v1 ps =>
+| insn_call _ _ _ _ _ v1 ps =>
     used_in_value id' v1 ||
     (List.fold_left (fun acc p => let '(_, v):=p in used_in_value id' v || acc)
       ps false)
@@ -298,8 +298,8 @@ match c with
 | insn_fbop id0 fbop0 fp0 v1 v2 =>
     insn_fbop (rename_id id1 id2 id0) fbop0 fp0
       (rename_value id1 id2 v1) (rename_value id1 id2 v2)
-| insn_extractvalue id0 t v cnts =>
-    insn_extractvalue (rename_id id1 id2 id0) t (rename_value id1 id2 v) cnts
+| insn_extractvalue id0 t v cnts t' =>
+    insn_extractvalue (rename_id id1 id2 id0) t (rename_value id1 id2 v) cnts t'
 | insn_insertvalue id0 t1 v1 t2 v2 cnts =>
     insn_insertvalue (rename_id id1 id2 id0) t1 (rename_value id1 id2 v1) t2
       (rename_value id1 id2 v2) cnts
@@ -332,8 +332,9 @@ match c with
 | insn_select id0 v0 t0 v1 v2 =>
     insn_select (rename_id id1 id2 id0) (rename_value id1 id2 v0) t0
       (rename_value id1 id2 v1) (rename_value id1 id2 v2)
-| insn_call id0 noret0 cl0 t1 v1 ps =>
-    insn_call (rename_id id1 id2 id0) noret0 cl0 t1 (rename_value id1 id2 v1)
+| insn_call id0 noret0 cl0 rt1 va1 v1 ps =>
+    insn_call (rename_id id1 id2 id0) noret0 cl0 rt1 va1 
+      (rename_value id1 id2 v1)
       (List.map (fun p => let '(t, v):=p in (t, (rename_value id1 id2 v))) ps)
 end.
 
@@ -392,7 +393,7 @@ Definition gen_fresh_cmd (id0:id) (c:cmd) : cmd :=
 match c with
 | insn_bop _ t0 bop0 v1 v2 => insn_bop id0 t0 bop0 v1 v2
 | insn_fbop _ fbop0 fp0 v1 v2 => insn_fbop id0 fbop0 fp0 v1 v2
-| insn_extractvalue _ t v cnts => insn_extractvalue id0 t v cnts
+| insn_extractvalue _ t v cnts t' => insn_extractvalue id0 t v cnts t'
 | insn_insertvalue _ t1 v1 t2 v2 cnts => insn_insertvalue id0 t1 v1 t2 v2 cnts
 | insn_malloc _ t v al => insn_malloc id0 t v al
 | insn_free _ t v => insn_free id0 t v
@@ -406,7 +407,7 @@ match c with
 | insn_icmp _ t0 cond0 v1 v2 => insn_icmp id0 t0 cond0 v1 v2
 | insn_fcmp _ fcond0 fp0 v1 v2 => insn_fcmp id0 fcond0 fp0 v1 v2
 | insn_select _ v0 t0 v1 v2 => insn_select id0 v0 t0 v1 v2
-| insn_call _ noret0 cl0 t1 v1 ps => insn_call id0 noret0 cl0 t1 v1 ps
+| insn_call _ noret0 cl0 rt1 va1 v1 ps => insn_call id0 noret0 cl0 rt1 va1 v1 ps
 end.
 
 Definition motion_block (l1:l) (n:nat) (newid:id) (c:cmd) (b:block) : block :=

@@ -364,7 +364,7 @@ match (tsts1, tsts2) with
 end.
 
 Inductive scall : Set :=
-| stmn_call : id -> noret -> clattrs -> typ -> sterm ->
+| stmn_call : id -> noret -> clattrs -> typ -> varg -> sterm ->
     list (typ*attributes*sterm) -> scall
 .
 
@@ -372,7 +372,7 @@ Definition se_call : forall (st : sstate)(i:cmd)(iscall:isCall i = true), scall.
 Proof.
   intros. unfold isCall in iscall.
   destruct_cmd i0; try solve [inversion iscall].
-  apply (@stmn_call i1 n c t (value2Sterm st.(STerms) v)
+  apply (@stmn_call i1 n c t0 v0 (value2Sterm st.(STerms) v)
                       (list_param__list_typ_subst_sterm p st.(STerms))).
 Defined.
 
@@ -385,7 +385,7 @@ Defined.
  * system calls, say atoi from tailcall to non-tailcall.
  *)
 Definition tv_scall Ps1 Ps2 fid (c1:scall) (c2:sicall) :=
-  let '(stmn_call rid1 nr1 _ ty1 t1 tsts1) := c1 in
+  let '(stmn_call rid1 nr1 _ ty1 _ t1 tsts1) := c1 in
   match c2 with
   | stmn_icall_nptr rid2 nr2 _ ty2 t2 tsts2 =>
     tv_id fid rid1 rid2 &&
@@ -907,7 +907,7 @@ match (tsts1, tsts2) with
 end.
 
 Definition rtv_scall Ps1 Ps2 fid r (c1:scall) (c2:sicall) : option renaming :=
-  let '(stmn_call rid1 nr1 _ ty1 t1 tsts1) := c1 in
+  let '(stmn_call rid1 nr1 _ ty1 _ t1 tsts1) := c1 in
   match c2 with
   | stmn_icall_nptr rid2 nr2 _ ty2 t2 tsts2 =>
     if ((sumbool2bool _ _ (noret_dec nr1 nr2)) && tv_typ ty1 ty2) then

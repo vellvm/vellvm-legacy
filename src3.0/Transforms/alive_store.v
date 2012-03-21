@@ -371,9 +371,7 @@ Proof.
       destruct R.
       SSSSSCase "c' defines a variable".
         destruct n; inv HeqR.
-        destruct t; tinv H1.
-
-        remember (lift_op1 DGVs (fit_gv (los, nts) t) g t) as R2.
+        remember (lift_op1 DGVs (fit_gv (los, nts) t0) g t0) as R2.
         destruct R2; inv H1.
         apply wf_defs_updateAddAL; auto.
           eapply WF_PhiInfo_spec10 in HBinF1; eauto.
@@ -865,22 +863,22 @@ Proof.
 Qed.
 
 Lemma callExternalFunction_preserves_wf_ECStack_at_head: forall Mem fid gvs
-  oresult Mem' pinfo stinfo gl rid noret0 ca ft fv lp cs lc lc' als tmn
+  oresult Mem' pinfo stinfo gl rid noret0 ca rt1 va1 fv lp cs lc lc' als tmn
   cs1' l1 ps1 F s los nts dck Ps (Hwfpi : WF_PhiInfo pinfo) tret targs tr
   (HwfF: wf_fdef s (module_intro los nts Ps) F) (HuniqF: uniqFdef F)
   (H4 : callExternalOrIntrinsics (los,nts) gl Mem fid tret targs dck gvs 
           = ret (oresult, tr, Mem'))
-  (H5 : Opsem.exCallUpdateLocals (los,nts) ft noret0 rid oresult lc = ret lc')
+  (H5 : Opsem.exCallUpdateLocals (los,nts) rt1 noret0 rid oresult lc = ret lc')
   (HBinF : blockInFdefB 
-             (block_intro l1 ps1 (cs1' ++ insn_call rid noret0 ca ft fv lp :: cs) tmn)
+             (block_intro l1 ps1 (cs1' ++ insn_call rid noret0 ca rt1 va1 fv lp :: cs) tmn)
              F = true)
   (Hinscope : wf_ExecutionContext pinfo stinfo (los,nts) Mem gl
                {|
                Opsem.CurFunction := F;
                Opsem.CurBB := block_intro l1 ps1
                                 (cs1' ++
-                                 insn_call rid noret0 ca ft fv lp :: cs) tmn;
-               Opsem.CurCmds := insn_call rid noret0 ca ft fv lp :: cs;
+                                 insn_call rid noret0 ca rt1 va1 fv lp :: cs) tmn;
+               Opsem.CurCmds := insn_call rid noret0 ca rt1 va1 fv lp :: cs;
                Opsem.Terminator := tmn;
                Opsem.Locals := lc;
                Opsem.Allocas := als |}),
@@ -888,7 +886,7 @@ Lemma callExternalFunction_preserves_wf_ECStack_at_head: forall Mem fid gvs
      {|
      Opsem.CurFunction := F;
      Opsem.CurBB := block_intro l1 ps1
-                      (cs1' ++ insn_call rid noret0 ca ft fv lp :: cs) tmn;
+                      (cs1' ++ insn_call rid noret0 ca rt1 va1 fv lp :: cs) tmn;
      Opsem.CurCmds := cs;
      Opsem.Terminator := tmn;
      Opsem.Locals := lc';
@@ -908,8 +906,7 @@ Proof.
     eapply MemProps.callExternalOrIntrinsics_preserves_mload; eauto.
 
     destruct oresult; inv H5.
-    destruct ft; tinv H0.
-    remember (fit_gv (los,nts) ft g) as R.
+    remember (fit_gv (los,nts) rt1 g) as R.
     destruct R; inv H0.
     assert (rid <> PI_id pinfo) as Hneq.
       eapply WF_PhiInfo_spec10 in HBinF; eauto.

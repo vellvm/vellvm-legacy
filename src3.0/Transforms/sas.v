@@ -1096,10 +1096,10 @@ Proof.
 Qed.
 
 Lemma mem_simulation__return: forall (pinfo : PhiInfo) (sasinfo : SASInfo pinfo)
-  (lc2 : Opsem.GVsMap) (als2 : list mblock) (tmn3 : terminator) 
+  (lc2 : Opsem.GVsMap) (als2 : list mblock) (tmn3 : terminator) t0 v0 
   (lc3 : Opsem.GVsMap) (als3 : list mblock) (M2 : mem) (los : layouts) 
   (nts : namedts) (F : fdef) (rid : id) tmn (F' : fdef) (B' : block) (i0 : id)
-  (n : noret) (c : clattrs) (t : typ) (v : value) (p : params) (cs' : list cmd)
+  (n : noret) (c : clattrs) (v : value) (p : params) (cs' : list cmd)
   (EC : list Opsem.ExecutionContext) (Mem : mem) (l3 : l) (ps3 : phinodes)
   (cs0 : list cmd) (Mem' : mem)
   (H0 : free_allocas (los, nts) Mem als2 = ret Mem')
@@ -1107,7 +1107,7 @@ Lemma mem_simulation__return: forall (pinfo : PhiInfo) (sasinfo : SASInfo pinfo)
             exists ps1 : phinodes,
               exists cs11 : list cmd,
                 B' =
-                block_intro l1 ps1 (cs11 ++ insn_call i0 n c t v p :: cs')
+                block_intro l1 ps1 (cs11 ++ insn_call i0 n c t0 v0 v p :: cs')
                   tmn3)
   (Hmsim : mem_simulation pinfo sasinfo (los, nts)
             ({|
@@ -1120,7 +1120,7 @@ Lemma mem_simulation__return: forall (pinfo : PhiInfo) (sasinfo : SASInfo pinfo)
              :: {|
                 Opsem.CurFunction := F';
                 Opsem.CurBB := B';
-                Opsem.CurCmds := insn_call i0 n c t v p :: cs';
+                Opsem.CurCmds := insn_call i0 n c t0 v0 v p :: cs';
                 Opsem.Terminator := tmn3;
                 Opsem.Locals := lc3;
                 Opsem.Allocas := als3 |} :: EC) Mem M2)
@@ -2345,12 +2345,12 @@ SCase "sCall".
 
   uniq_result.
 
-  clear - H28 H1 Hpsim.
+  clear - H29 H1 Hpsim.
   eapply lookupFdefViaPtr__simulation_l2r in H1; eauto.
   destruct H1 as [f2 [H1 H2]].
-  apply OpsemAux.lookupExFdecViaPtr_inversion in H28.
+  apply OpsemAux.lookupExFdecViaPtr_inversion in H29.
   apply OpsemAux.lookupFdefViaPtr_inversion in H1.
-  destruct H28 as [fn [J1 [J2 J3]]].
+  destruct H29 as [fn [J1 [J2 J3]]].
   destruct H1 as [fn' [J4 J5]].
   uniq_result.
 

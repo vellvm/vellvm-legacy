@@ -3166,62 +3166,80 @@ Proof.
       destruct J; subst; auto.
 Qed.
 
-(*
+Lemma getCmdTyp__total: forall c, getCmdTyp c <> None.
+Proof. 
+  destruct c; simpl; try congruence.
+    destruct_if; congruence.
+Qed.
+
 Lemma lookupTypViaIDFromCmds__NotInCmdLocs : forall cs id1,
   lookupTypViaIDFromCmds cs id1 = None ->
   ~ In id1 (getCmdsLocs cs).
 Proof.
   induction cs; intros; simpl in *; auto.
     unfold lookupTypViaIDFromCmd in *.
-    destruct (getCmdTyp a).
+    remember (getCmdTyp a) as R.
+    destruct R.
       destruct (@eq_dec id (@EqDec_eq_of_EqDec id EqDec_atom) id1 (getCmdLoc a));
         subst.
         congruence.
 
         apply IHcs in H. intro J.
         destruct J; subst; auto.
-      apply IHcs in H. intro J.
-      destruct J; subst; auto.
+
+      symmetry in HeqR. contradict HeqR. apply getCmdTyp__total.
 Qed.
 
-Lemma lookupIDFromBlock__notInBlock : forall b i0,
-  lookupIDFromBlock b i0 = None ->
-  ~ In i0 (getBlockIDs b).
+Lemma lookupTypViaIDFromTerminator__neq : forall tmn id1,
+  lookupTypViaIDFromTerminator tmn id1 = None ->
+  id1 <> (getTerminatorID tmn).
+Proof.
+  intros.
+  unfold lookupTypViaIDFromTerminator in *.
+  destruct_if. auto.
+Qed.
+
+Lemma lookupTypViaIDFromBlock__notInBlock : forall b i0,
+  lookupTypViaIDFromBlock b i0 = None ->
+  ~ In i0 (getBlockLocs b).
 Proof.
   destruct b. simpl; intros; auto.
-    remember (lookupIDFromPhiNodes p i0) as R.
+    remember (lookupTypViaIDFromPhiNodes p i0) as R.
     destruct R.
       inv H.
-      remember (lookupIDFromCmds c i0) as R.
+      remember (lookupTypViaIDFromCmds c i0) as R.
       destruct R.
         inv H.
         symmetry in HeqR, HeqR0.
-        apply lookupIDFromPhiNodes__NotInPhiNodesIDs in HeqR.
-        apply lookupIDFromCmds__NotInCmdLocs in HeqR0.
+        apply lookupTypViaIDFromPhiNodes__NotInPhiNodesIDs in HeqR.
+        apply lookupTypViaIDFromCmds__NotInCmdLocs in HeqR0.
         intro J. apply in_app_or in J. destruct J; auto.
-        apply in_getCmdsIDs__in_getCmdsLocs in H0; auto.
+        
+        apply lookupTypViaIDFromTerminator__neq in H.
+        apply in_app_or in H0.
+        destruct H0 as [H0 | H0]; auto.
+          simpl in H0. destruct H0 as [H0 | H0]; auto.
 Qed.
 
-Lemma inGetBlockIDs__lookupIDFromFdef: forall f id1 b,
-  In id1 (getBlockIDs b) ->
+Lemma inGetBlockLocs__lookupTypViaIDFromFdef: forall f id1 b,
+  In id1 (getBlockLocs b) ->
   blockInFdefB b f = true ->
-  lookupIDFromFdef f id1 = Some tt.
+  exists t, lookupTypViaIDFromFdef f id1 = Some t.
 Proof.
-  destruct f as [bs]. simpl.
-  induction bs; simpl; intros.
-    inv H0.
+  destruct f as [[fa ty fid la va] bs]. simpl. intros.
+  destruct (lookupTypViaIDFromArgs la id1); eauto.
+  induction bs as [|a bs]; simpl in *; intros.
+    congruence.
 
-    remember (lookupIDFromBlock a id1) as R.
-    destruct R.
-    destruct u; auto.
+    remember (lookupTypViaIDFromBlock a id1) as R.
+    destruct R; eauto.
     apply orb_true_iff in H0.
     destruct H0 as [H0 | H0]; eauto.
       apply blockEqB_inv in H0. subst.
       symmetry in HeqR.
-      apply lookupIDFromBlock__notInBlock in HeqR.
+      apply lookupTypViaIDFromBlock__notInBlock in HeqR.
       contradict H; auto.
 Qed.
-*)
 
 Lemma in_getPhiNodesIDs_inv: forall id1 p,
   In id1 (getPhiNodesIDs p) ->

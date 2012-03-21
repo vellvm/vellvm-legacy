@@ -755,9 +755,9 @@ Proof.
 Qed.
 
 Lemma free_allocas_return_sim : forall TD mgb F
-  Result lc F' i0 n c t v p lc' ECs lc'' gl2 pinfo
+  Result lc F' i0 n c t0 v0 v p lc' ECs lc'' gl2 pinfo
   (Hneq: PI_f pinfo <> F' \/ PI_id pinfo <> i0)
-  (Hupdate: Opsem.returnUpdateLocals TD (insn_call i0 n c t v p) Result lc lc'
+  (Hupdate: Opsem.returnUpdateLocals TD (insn_call i0 n c t0 v0 v p) Result lc lc'
               gl2 = ret lc'') mi
   als M1 als2 M2 M1' M2'
   (Hmsim: mem_simulation pinfo mgb mi ((F, lc) :: (F', lc') :: ECs)
@@ -772,7 +772,6 @@ Proof.
   unfold Opsem.returnUpdateLocals in Hupdate.
   inv_mbind'.
   destruct n; inv H0; auto.
-  destruct t; inv H1; auto.
   inv_mbind'.
   eapply mem_simulation__update_non_palloca; eauto.
 Qed.
@@ -795,9 +794,9 @@ Proof.
 Qed.
 
 Lemma returnUpdateLocals_als_simulation: forall pinfo mi F' lc' als' als3 TD i0 n
-  c t v p Result lc gl2 lc'' (Hsim: als_simulation pinfo mi F' lc' als' als3)
+  c t0 v0 v p Result lc gl2 lc'' (Hsim: als_simulation pinfo mi F' lc' als' als3)
   (Hprop: PI_f pinfo <> F' \/ PI_id pinfo <> i0)
-  (Hupdate: Opsem.returnUpdateLocals TD (insn_call i0 n c t v p) Result lc lc'
+  (Hupdate: Opsem.returnUpdateLocals TD (insn_call i0 n c t0 v0 v p) Result lc lc'
               gl2 = ret lc''),
   als_simulation pinfo mi F' lc'' als' als3.
 Proof.
@@ -805,7 +804,6 @@ Proof.
   unfold Opsem.returnUpdateLocals in Hupdate.
   inv_mbind'.
   destruct n; inv H0; auto.
-  destruct t; inv H1; auto.
   inv_mbind'.
   apply als_simulation_update_lc; auto.
 Qed.
@@ -922,16 +920,16 @@ Opaque lift_op1.
 Qed.
 
 Lemma returnUpdateLocals_reg_simulation: forall pinfo mi F' lc' los nts i0 n
-  c t v p Result lc gl lc'' lc3 lc''0 lc2 F Mem1 Mem2 maxb S Ps rt
+  c t0 v0 v p Result lc gl lc'' lc3 lc''0 lc2 F Mem1 Mem2 maxb S Ps rt
   (Hv: wf_value S (module_intro los nts Ps) F Result rt)
   (Hwfg: wf_globals maxb gl) (Hwfmi: wf_sb_mi maxb mi Mem1 Mem2)
   (Hprop: PI_f pinfo <> F' \/ PI_id pinfo <> i0)
   (Hprop': value_doesnt_use_pid pinfo F Result)
   (Hsim: reg_simulation pinfo mi F' lc' lc3)
   (Hsim': reg_simulation pinfo mi F lc lc2)
-  (Hupdate: Opsem.returnUpdateLocals (los,nts) (insn_call i0 n c t v p) Result lc
+  (Hupdate: Opsem.returnUpdateLocals (los,nts) (insn_call i0 n c t0 v0 v p) Result lc
               lc' gl = ret lc'')
-  (Hupdate': Opsem.returnUpdateLocals (los,nts) (insn_call i0 n c t v p) Result 
+  (Hupdate': Opsem.returnUpdateLocals (los,nts) (insn_call i0 n c t0 v0 v p) Result 
                lc2 lc3 gl = ret lc''0),
   reg_simulation pinfo mi F' lc'' lc''0.
 Proof.
@@ -940,7 +938,6 @@ Proof.
   inv_mbind'. symmetry_ctx.
   eapply simulation__getOperandValue in HeqR; eauto.
   destruct n; uniq_result; auto.
-  destruct t; tinv H0.
   inv_mbind'. symmetry_ctx.
   apply reg_simulation_update_non_palloca; auto.
   eapply simulation__lift_opt1; eauto.
@@ -1897,10 +1894,10 @@ Definition params_dont_use_pid pinfo F (ps:params) :=
 
 Lemma used_in_fdef__params_dont_use_pid: forall (l3 : l)
   (ps1 : phinodes) (cs : cmds) (v : value) (tmn1 : terminator) (F: fdef) pinfo
-  cs11 rid noret0 ca ft fv lp cs,
+  cs11 rid noret0 ca rt1 va1 fv lp cs,
   used_in_fdef (PI_id pinfo) (PI_f pinfo) = false ->
   blockInFdefB
-    (block_intro l3 ps1 (cs11 ++ insn_call rid noret0 ca ft fv lp :: cs) tmn1) F
+    (block_intro l3 ps1 (cs11 ++ insn_call rid noret0 ca rt1 va1 fv lp :: cs) tmn1) F
       = true ->
   params_dont_use_pid pinfo F lp.
 Proof.
@@ -2517,7 +2514,7 @@ SCase "sReturn".
 Focus.
 
   destruct_ctx_return.
-  assert (PI_f pinfo <> F' \/ PI_id pinfo <> getCmdLoc (insn_call i0 n c t v p))
+  assert (PI_f pinfo <> F' \/ PI_id pinfo <> getCmdLoc (insn_call i0 n c t0 v0 v p))
     as Hneq.
     admit. (* wf-formedness *)
   apply cmds_simulation_nelim_cons_inv in Hcssim2'; auto.
@@ -2539,7 +2536,7 @@ Unfocus.
 SCase "sReturnVoid".
 Focus.
   destruct_ctx_return.
-  assert (PI_f pinfo <> F' \/ PI_id pinfo <> getCmdLoc (insn_call i0 n c t v p))
+  assert (PI_f pinfo <> F' \/ PI_id pinfo <> getCmdLoc (insn_call i0 n c t0 v0 v p))
     as Hneq.
     admit. (* wf-formedness *)
   apply cmds_simulation_nelim_cons_inv in Hcssim2'; auto.

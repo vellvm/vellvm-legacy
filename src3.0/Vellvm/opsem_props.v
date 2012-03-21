@@ -34,10 +34,10 @@ Notation "gv @ gvs" :=
 Notation "$ gv # t $" := (GVsSig.(gv2gvs) gv t) (at level 41).
 
 Lemma func_callUpdateLocals_is_returnUpdateLocals :
-  forall TD rid noret0 tailc0 ft fid lp Result lc lc' gl,
-  @returnUpdateLocals GVsSig TD (insn_call rid noret0 tailc0 ft fid lp) Result
-    lc lc' gl =
-  callUpdateLocals TD ft noret0 rid (Some Result) lc' lc gl.
+  forall TD rid noret0 tailc0 rt va fid lp Result lc lc' gl,
+  @returnUpdateLocals GVsSig TD 
+    (insn_call rid noret0 tailc0 rt va fid lp) Result lc lc' gl =
+  callUpdateLocals TD rt noret0 rid (Some Result) lc' lc gl.
 Proof.
   intros.
   unfold returnUpdateLocals.
@@ -45,8 +45,8 @@ Proof.
   destruct noret0; auto.
 Qed.
 
-Lemma proc_callUpdateLocals_is_id : forall TD ft rid noret0 lc lc' gl lc'',
-  @callUpdateLocals GVsSig TD ft noret0 rid None lc' lc gl = Some lc'' ->
+Lemma proc_callUpdateLocals_is_id : forall TD rt rid noret0 lc lc' gl lc'',
+  @callUpdateLocals GVsSig TD rt noret0 rid None lc' lc gl = Some lc'' ->
   lc' = lc'' /\ noret0 = true.
 Proof.
   intros.
@@ -343,7 +343,8 @@ Proof.
     inversion b; subst.
     SCase "bFdef_func".
     assert (Hlookup:=H0).
-    apply H with (ECs:=(mkEC F0 B0 ((insn_call rid noret0 ca ft fv lp)::cs')
+    apply H with (ECs:=(mkEC F0 B0 
+                         ((insn_call rid noret0 ca rt1 va1 fv lp)::cs')
                          tmn0 lc0 als0)::ECs) in H0; auto. clear H.
     destruct H0 as [fptr' [fa0 [fid0 [la0 [va0 [lb0 [l0 [ps0 [cs0 [tmn0' [gvs0
       [lc0' [J1 [J2 [J3 [J4 [J5 J6]]]]]]]]]]]]]]]]].
@@ -351,8 +352,9 @@ Proof.
     apply sop_plus_cons with
      (state2:=mkState ((mkEC (fdef_intro (fheader_intro fa0 rt fid0 la0 va0) lb0)
                              (block_intro l0 ps0 cs0 tmn0') cs0 tmn0' lc0' nil)::
-                        (mkEC F0 B0 ((insn_call rid noret0 ca ft fv lp)::cs')
-                         tmn0 lc0 als0)::ECs) Mem1); eauto.
+                        (mkEC F0 B0 
+                          ((insn_call rid noret0 ca rt1 va1 fv lp)::cs')
+                          tmn0 lc0 als0)::ECs) Mem1); eauto.
     rewrite <- E0_right.
     apply sop_star_trans with
      (state2:=mkState ((mkEC (fdef_intro (fheader_intro fa0 rt fid0 la0 va0) lb0)
@@ -360,15 +362,17 @@ Proof.
                                 (insn_return Rid rt Result)) nil
                                 (insn_return Rid rt Result) lc'
                                 als')::
-                        (mkEC F0 B0 ((insn_call rid noret0 ca ft fv lp)::cs')
-                         tmn0 lc0 als0)::ECs) Mem'); auto.
+                        (mkEC F0 B0 
+                          ((insn_call rid noret0 ca rt1 va1 fv lp)::cs')
+                          tmn0 lc0 als0)::ECs) Mem'); auto.
       apply sInsn__implies__sop_star.
         apply sReturn; auto.
           erewrite func_callUpdateLocals_is_returnUpdateLocals; eauto.
 
     SCase "bFdef_proc".
     assert (Hlookup:=H0).
-    apply H with (ECs:=(mkEC F0 B0 ((insn_call rid noret0 ca ft fv lp)::cs')
+    apply H with (ECs:=(mkEC F0 B0 
+                         ((insn_call rid noret0 ca rt1 va1 fv lp)::cs')
                          tmn0 lc0 als0)::ECs) in H0; auto. clear H.
     destruct H0 as [fptr' [fa0 [fid0 [la0 [va0 [lb0 [l0 [ps0 [cs0 [tmn0' [gvs0
       [lc0'' [J1 [J2 [J3 [J4 [J5 J6]]]]]]]]]]]]]]]]].
@@ -376,7 +380,8 @@ Proof.
     apply sop_plus_cons with
      (state2:=mkState ((mkEC (fdef_intro (fheader_intro fa0 rt fid0 la0 va0) lb0)
                             (block_intro l0 ps0 cs0 tmn0') cs0 tmn0' lc0'' nil)::
-                        (mkEC F0 B0 ((insn_call rid noret0 ca ft fv lp)::cs')
+                        (mkEC F0 B0 
+                         ((insn_call rid noret0 ca rt1 va1 fv lp)::cs')
                          tmn0 lc0 als0)::ECs) Mem1); eauto.
     rewrite <- E0_right.
     apply proc_callUpdateLocals_is_id in e0.
@@ -385,7 +390,8 @@ Proof.
      (state2:=mkState ((mkEC (fdef_intro (fheader_intro fa0 rt fid0 la0 va0) lb0)
                                (block_intro l'' ps'' cs'' (insn_return_void Rid))
                                 nil (insn_return_void Rid) lc' als')::
-                        (mkEC F0 B0 ((insn_call rid true ca ft fv lp)::cs')
+                        (mkEC F0 B0 
+                         ((insn_call rid true ca rt1 va1 fv lp)::cs')
                          tmn0 lc'0 als0)::ECs) Mem'); auto.
 
   Case "bops_cons".
@@ -678,8 +684,9 @@ Proof.
       (state2:=mkState ((mkEC (fdef_intro (fheader_intro fa rt fid la va)lb)
                                (block_intro l' ps' cs' tmn') cs' tmn' lc1
                                nil)::
-                        (mkEC F B ((insn_call rid noret0 ca ft fv lp)::cs0)
-                         tmn lc als)::ECs) Mem);
+                        (mkEC F B 
+                          ((insn_call rid noret0 ca rt1 va1 fv lp)::cs0)
+                          tmn lc als)::ECs) Mem);
       try solve [clear CIH_bFdefInf CIH_bInsnInf; eauto].
       inv HbFdefInf.
       eapply CIH_bFdefInf with (fid:=fid)(l':=l')(ps':=ps')(cs':=cs')(tmn':=tmn')
@@ -753,8 +760,9 @@ Proof.
     (state2:=mkState ((mkEC (fdef_intro (fheader_intro fa rt fid la va)lb)
                              (block_intro l' ps' cs' tmn') cs' tmn' lc1
                              nil)::
-                      (mkEC F B ((insn_call rid noret0 ca ft fv lp)::cs0)
-                       tmn lc als)::ECs) Mem);
+                      (mkEC F B 
+                        ((insn_call rid noret0 ca rt1 va1 fv lp)::cs0)
+                        tmn lc als)::ECs) Mem);
     try solve [clear CIH_bInsnInf; eauto].
     eapply bFdefInf_bopInf__implies__sop_diverges with (l':=l')(ps':=ps')
       (cs':=cs')(tmn':=tmn')(la:=la)(va:=va)(lb:=lb)(fa:=fa)(gvs:=gvs)(lc1:=lc1)
@@ -1033,17 +1041,17 @@ Qed.
 *)
 
 Lemma eqAL_callUpdateLocals : forall TD noret0 rid oResult lc1 lc2 gl lc1'
-  lc2' ft,
+  lc2' rt,
   eqAL _ lc1 lc1' ->
   eqAL _ lc2 lc2' ->
-  match (@callUpdateLocals GVsSig  TD ft noret0 rid oResult lc1 lc2 gl,
-         callUpdateLocals TD ft noret0 rid oResult lc1' lc2' gl) with
+  match (@callUpdateLocals GVsSig TD rt noret0 rid oResult lc1 lc2 gl,
+         callUpdateLocals TD rt noret0 rid oResult lc1' lc2' gl) with
   | (Some lc, Some lc') => eqAL _ lc lc'
   | (None, None) => True
   | _ => False
   end.
 Proof.
-  intros TD noret0 rid oResult lc1 lc2 gl lc1' lc2' ft H1 H2.
+  intros TD noret0 rid oResult lc1 lc2 gl lc1' lc2' rt H1 H2.
     unfold callUpdateLocals.
     destruct noret0; auto.
       destruct oResult; simpl; auto.
@@ -1056,13 +1064,11 @@ Proof.
         destruct v as [i0|c]; simpl.
           rewrite H2.
           destruct (lookupAL _ lc2' i0); auto.
-          destruct ft; auto.
-          destruct (GVsSig.(lift_op1) (fit_gv TD ft) g ft);
+          destruct (GVsSig.(lift_op1) (fit_gv TD rt) g rt);
             auto using eqAL_updateAddAL.
 
           destruct (@const2GV GVsSig TD gl c); auto using eqAL_updateAddAL.
-          destruct ft; auto.
-          destruct (GVsSig.(lift_op1) (fit_gv TD ft) g ft);
+          destruct (GVsSig.(lift_op1) (fit_gv TD rt) g rt);
             auto using eqAL_updateAddAL.
 Qed.
 
@@ -1127,21 +1133,20 @@ Proof.
       erewrite IHlp; eauto.
 Qed.
 
-Lemma eqAL_exCallUpdateLocals : forall TD noret0 rid oResult lc lc' ft,
+Lemma eqAL_exCallUpdateLocals : forall TD noret0 rid oResult lc lc' rt,
   eqAL _ lc lc' ->
-  match (@exCallUpdateLocals GVsSig TD ft noret0 rid oResult lc,
-         exCallUpdateLocals TD ft noret0 rid oResult lc') with
+  match (@exCallUpdateLocals GVsSig TD rt noret0 rid oResult lc,
+         exCallUpdateLocals TD rt noret0 rid oResult lc') with
   | (Some lc1, Some lc1') => eqAL _ lc1 lc1'
   | (None, None) => True
   | _ => False
   end.
 Proof.
-  intros TD noret0 rid oResult lc lc' ft H1.
+  intros TD noret0 rid oResult lc lc' rt H1.
     unfold exCallUpdateLocals.
     destruct noret0; auto.
     destruct oResult; auto.
-    destruct ft; auto.
-    destruct (fit_gv TD ft g); auto using eqAL_updateAddAL.
+    destruct (fit_gv TD rt g); auto using eqAL_updateAddAL.
 Qed.
 
 Lemma eqAL_callUpdateLocals' : forall TD ft noret0 rid oResult lc1 lc2 gl lc1'
@@ -1176,9 +1181,9 @@ Proof.
   exists g. auto.
 Qed.
 
-Lemma exCallUpdateLocals_uniq : forall TD ft noret0 rid oresult lc lc',
+Lemma exCallUpdateLocals_uniq : forall TD rt noret0 rid oresult lc lc',
   uniq lc ->
-  @exCallUpdateLocals GVsSig TD ft noret0 rid oresult lc = Some lc' ->
+  @exCallUpdateLocals GVsSig TD rt noret0 rid oresult lc = Some lc' ->
   uniq lc'.
 Proof.
   intros.
@@ -1187,14 +1192,13 @@ Proof.
     inversion H0; subst; auto.
 
     destruct oresult; try solve [inversion H0].
-    destruct ft; try solve [inversion H0].
-    destruct (fit_gv TD ft g); inversion H0; subst.
+    destruct (fit_gv TD rt g); inversion H0; subst.
       apply updateAddAL_uniq; auto.
 Qed.
 
-Lemma callUpdateLocals_uniq : forall TD ft noret0 rid oresult lc lc' gl lc'',
+Lemma callUpdateLocals_uniq : forall TD rt noret0 rid oresult lc lc' gl lc'',
   uniq lc ->
-  @callUpdateLocals GVsSig TD ft noret0 rid oresult lc lc' gl = Some lc'' ->
+  @callUpdateLocals GVsSig TD rt noret0 rid oresult lc lc' gl = Some lc'' ->
   uniq lc''.
 Proof.
   intros.
@@ -1205,8 +1209,7 @@ Proof.
 
     destruct oresult; try solve [inversion H0; subst; auto].
     destruct (getOperandValue TD v lc' gl); tinv H0.
-    destruct ft; tinv H0.
-    destruct (lift_op1 _ (fit_gv TD ft) g ft); inv H0.
+    destruct (lift_op1 _ (fit_gv TD rt) g rt); inv H0.
       apply updateAddAL_uniq; auto.
 Qed.
 

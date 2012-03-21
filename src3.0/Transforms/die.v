@@ -15,7 +15,7 @@ match c with
 | insn_alloca _ _ _ _
 | insn_malloc _ _ _ _
 | insn_store _ _ _ _ _
-| insn_call _ _ _ _ _ _ => False
+| insn_call _ _ _ _ _ _ _ => False
 | _ => True
 end.
 

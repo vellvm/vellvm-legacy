@@ -318,10 +318,10 @@ Inductive sicall : Set :=
 
 Definition se_icall (st:sstate) (i:SBsyntax.call) : sicall :=
 match i with
-| SBsyntax.insn_call_nptr id0 nr ca t0 v0 p0 =>
+| SBsyntax.insn_call_nptr id0 nr ca t0 va0 v0 p0 =>
     stmn_icall_nptr id0 nr ca t0 (value2Sterm st.(STerms) v0)
       (list_param__list_typ_subst_sterm p0 st.(STerms))
-| SBsyntax.insn_call_ptr id0 nr ca t0 v0 p0 sid id1 id2 id3 id4 id5 id6
+| SBsyntax.insn_call_ptr id0 nr ca t0 va0 v0 p0 sid id1 id2 id3 id4 id5 id6
     cst0 cst1 cts2 =>
     stmn_icall_ptr id0 nr ca t0 (value2Sterm st.(STerms) v0)
       (list_param__list_typ_subst_sterm p0 st.(STerms))

@@ -125,7 +125,8 @@ Proof.
     split; eauto.
 
   Case "insn_extractvalue".
-    assert (i0 `in` dom (STerms (se_cmd sstate1 (mkNB (insn_extractvalue i0 t v l2) nc))) `union` dom lc0) as J.
+    assert (i0 `in` dom (STerms (se_cmd sstate1 
+       (mkNB (insn_extractvalue i0 t v l2 t0) nc))) `union` dom lc0) as J.
       apply in_dom_ext_right.
       simpl. apply in_updateAddAL_eq; auto.
     apply Hsterms_denote21 in J.
@@ -866,7 +867,8 @@ Proof.
             rewrite lookupAL_rollbackAL_neq with (id0:=i0)(lc0:=lc0) in id'_in_env2; auto.
 
   Case "insn_extractvalue".
-    assert (i0 `in` dom (STerms (se_cmd (se_cmds sstate_init nbs) (mkNB (insn_extractvalue i0 t v l2) nc))) `union` dom lc0) as J.
+    assert (i0 `in` dom (STerms (se_cmd (se_cmds sstate_init nbs) 
+      (mkNB (insn_extractvalue i0 t v l2 t0) nc))) `union` dom lc0) as J.
       apply in_dom_ext_right.
       simpl. apply in_updateAddAL_eq; auto.
     apply Hsterms_denote1 in J.
@@ -879,8 +881,8 @@ Proof.
     assert (smap_denotes_gvmap TD lc0 gl Mem0
               (STerms (se_cmds sstate_init nbs))
               (rollbackAL _ lc2 i0 lc0)) as env0_denote_env1.
-      apply smap_denotes_gvmap_rollbackEnv with (c:=insn_extractvalue i0 t v l2)(nc:=nc)(i0:=i0)(lc2:=lc2)(gv3:=gv3);
-        try solve [auto | split; auto].
+      apply smap_denotes_gvmap_rollbackEnv with (c:=insn_extractvalue i0 t v l2 t0)
+        (nc:=nc)(i0:=i0)(lc2:=lc2)(gv3:=gv3); try solve [auto | split; auto].
     rewrite E0_right.
     split.
       split; auto.
@@ -1742,9 +1744,9 @@ Proof.
         simpl in H. simpl.
         apply se_cmd__denotes__op_cmd__case0 in H; auto.
         destruct H as [[i0_isnt_id' id'_in] | EQ]; subst.
-            apply se_cmds_denotes__composes__prefix_last__case1 with (nbs:=nbs)(nc:=nc)(lc1:=lc1)(Mem1:=Mem1)(c:=insn_extractvalue i0 t v l2)(i0:=i0); try solve [auto | split; auto].
+            apply se_cmds_denotes__composes__prefix_last__case1 with (nbs:=nbs)(nc:=nc)(lc1:=lc1)(Mem1:=Mem1)(c:=insn_extractvalue i0 t v l2 t0)(i0:=i0); try solve [auto | split; auto].
 
-            assert (id' `in` dom (STerms (se_cmd sstate_init (mkNB (insn_extractvalue id' t v l2) nc))) `union` dom lc1) as binds_id'_extractvalue.
+            assert (id' `in` dom (STerms (se_cmd sstate_init (mkNB (insn_extractvalue id' t v l2 t0) nc))) `union` dom lc1) as binds_id'_extractvalue.
               simpl. auto.
             apply Hsterms_denote21 in binds_id'_extractvalue.
             simpl in binds_id'_extractvalue.

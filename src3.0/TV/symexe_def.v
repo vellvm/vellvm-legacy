@@ -32,7 +32,7 @@ Mem            : mem
 
 Definition isCall (i:cmd) : bool :=
 match i with
-| insn_call _ _ _ _ _ _ => true
+| insn_call _ _ _ _ _ _ _ => true
 | _ => false
 end.
 
@@ -55,12 +55,12 @@ Inductive dbCmd : TargetData -> GVMap ->
     (insn_fbop id fbop fp v1 v2)
     (updateAddAL _ lc id gv3) als Mem
     E0
-| dbExtractValue : forall TD lc gl id t v gv gv' Mem als idxs,
+| dbExtractValue : forall TD lc gl id t v gv gv' Mem als idxs t',
   getOperandValue TD v lc gl = Some gv ->
   extractGenericValue TD t gv idxs = Some gv' ->
   dbCmd TD gl
     lc als Mem
-    (insn_extractvalue id t v idxs)
+    (insn_extractvalue id t v idxs t')
     (updateAddAL _ lc id gv') als Mem
     E0
 | dbInsertValue : forall TD lc gl id t v t' v' gv gv' gv'' idxs Mem als,
@@ -221,15 +221,16 @@ Inductive dbCall : system -> TargetData -> list product -> GVMap ->
                    DGVMap -> mem ->
                    trace -> Prop :=
 | dbCall_internal : forall S TD Ps lc gl fs rid noret tailc rt fv lp
-                       Rid oResult tr lc' Mem Mem' als' Mem'' B' lc'' ft,
+               Rid oResult tr lc' Mem Mem' als' Mem'' B' lc'' rt1 va1,
   dbFdef fv rt lp S TD Ps lc gl fs Mem lc' als' Mem' B' Rid oResult tr ->
   free_allocas TD Mem' als' = Some Mem'' ->
-  isCall (insn_call rid noret tailc ft fv lp) = true ->
-  callUpdateLocals TD ft noret rid oResult lc lc' gl = Some lc'' ->
-  dbCall S TD Ps fs gl lc Mem (insn_call rid noret tailc ft fv lp) lc'' Mem'' tr
+  isCall (insn_call rid noret tailc rt1 va1 fv lp) = true ->
+  callUpdateLocals TD rt1 noret rid oResult lc lc' gl = Some lc'' ->
+  dbCall S TD Ps fs gl lc Mem 
+    (insn_call rid noret tailc rt1 va1 fv lp) lc'' Mem'' tr
 
 | dbCall_external : forall S TD Ps lc gl fs rid noret ca fv fid fptr dck
-                          lp rt la va Mem oresult Mem' lc' ft fa gvs tr,
+                   lp rt la va Mem oresult Mem' lc' rt1 va1 fa gvs tr,
   (* only look up the current module for the time being,
      do not support linkage.
      FIXME: should add excall to trace
@@ -240,10 +241,10 @@ Inductive dbCall : system -> TargetData -> list product -> GVMap ->
   params2GVs TD lp lc gl = Some gvs ->
   callExternalOrIntrinsics
     TD gl Mem fid rt (args2Typs la) dck gvs = Some (oresult, tr, Mem') ->
-  isCall (insn_call rid noret ca ft fv lp) = true ->
-  exCallUpdateLocals TD ft noret rid oresult lc = Some lc' ->
-  dbCall S TD Ps fs gl lc Mem (insn_call rid noret ca ft fv lp) lc' Mem'
-    tr
+  isCall (insn_call rid noret ca rt1 va1 fv lp) = true ->
+  exCallUpdateLocals TD rt1 noret rid oresult lc = Some lc' ->
+  dbCall S TD Ps fs gl lc Mem 
+    (insn_call rid noret ca rt1 va1 fv lp) lc' Mem' tr
 
 with dbSubblock : system -> TargetData -> list product -> GVMap -> GVMap ->
                   DGVMap -> list mblock -> mem ->
@@ -672,8 +673,8 @@ match list_param1 with
       (list_param__list_typ_subst_sterm list_param1' sm)
 end.
 
-Definition se_call : forall i id0 noret0 tailc0 ft fv lp,
-  i=insn_call id0 noret0 tailc0 ft fv lp ->
+Definition se_call : forall i id0 noret0 tailc0 rt1 va1 fv lp,
+  i=insn_call id0 noret0 tailc0 rt1 va1 fv lp ->
   isCall i = false ->
   sstate.
 Proof.
@@ -701,7 +702,7 @@ match c with
                  st.(SMem)
                  st.(SFrame)
                  st.(SEffects))
- | insn_extractvalue id0 t1 v1 cs3 => fun _ =>
+ | insn_extractvalue id0 t1 v1 cs3 _ => fun _ =>
        (mkSstate (updateAddAL _ st.(STerms) id0
                    (sterm_extractvalue t1
                      (value2Sterm st.(STerms) v1)
@@ -814,9 +815,9 @@ match c with
                  st.(SMem)
                  st.(SFrame)
                  st.(SEffects))
-  | insn_call id0 noret0 tailc0 ft fv lp =>
-    fun (EQ:i=insn_call id0 noret0 tailc0 ft fv lp ) =>
-    se_call i id0 noret0 tailc0 ft fv lp EQ notcall
+  | insn_call id0 noret0 tailc0 rt1 va1 fv lp =>
+    fun (EQ:i=insn_call id0 noret0 tailc0 rt1 va1 fv lp ) =>
+    se_call i id0 noret0 tailc0 rt1 va1 fv lp EQ notcall
   end) (@refl_equal _ i)
 end.
 

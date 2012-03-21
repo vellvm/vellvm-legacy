@@ -675,7 +675,6 @@ Focus.
         inv_mbind'.
         destruct n; inv H2.
           eapply no_alias_head_tail_irrel; eauto.
-          destruct t; tinv H1.
           inv_mbind'.
           eapply no_alias_head_tail_update in Hnalias; eauto; simpl; auto.
           intros.
@@ -958,14 +957,18 @@ SCase "sCall".
   SSCase "sExCall".
 
   uniq_result.
-
-  clear - H28 H1 Hpsim.
-  eapply lookupFdefViaPtr__simulation_l2r in H1; eauto.
-  destruct H1 as [f2 [H1 H2]].
-  apply OpsemAux.lookupExFdecViaPtr_inversion in H28.
-  apply OpsemAux.lookupFdefViaPtr_inversion in H1.
-  destruct H28 as [fn [J1 [J2 J3]]].
-  destruct H1 as [fn' [J4 J5]].
+  match goal with
+  | H1: OpsemAux.lookupFdefViaPtr ?Ps ?fs2 ?fptr = _,
+    H29 : OpsemAux.lookupExFdecViaPtr ?Ps2 ?fs2 ?fptr = _,
+    Hpsim : products_simulation _ ?Ps ?Ps2 |- _ =>
+  clear - H29 H1 Hpsim;
+  eapply lookupFdefViaPtr__simulation_l2r in H1; eauto;
+  destruct H1 as [f2 [H1 H2]];
+  apply OpsemAux.lookupExFdecViaPtr_inversion in H29;
+  apply OpsemAux.lookupFdefViaPtr_inversion in H1;
+  destruct H29 as [fn [J1 [J2 J3]]];
+  destruct H1 as [fn' [J4 J5]]
+  end.
   uniq_result.
 
 SCase "sExCall".

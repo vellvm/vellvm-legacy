@@ -417,7 +417,7 @@ Lemma SBpass_is_correct__dsExtractValue : forall (mi : MoreMem.meminj)
   (mgb : Values.block)
   (St : Opsem.State) (S : system) (TD : TargetData) (Ps : list product)
   (F : fdef) (B : block) (lc : DGVMap) (rm : SBspecAux.rmetadata) (gl : GVMap)
-  (fs : GVMap) (id0 : id) t (v : value) idxs
+  (fs : GVMap) (id0 : id) t (v : value) idxs t'
   (EC : list SBspec.ExecutionContext) (cs : list cmd) (tmn : terminator)
   (Mem : mem) (MM : SBspecAux.mmetadata) (als : list mblock) Cfg
   (Hsim : sbState_simulates_State mi mgb {|
@@ -429,7 +429,7 @@ Lemma SBpass_is_correct__dsExtractValue : forall (mi : MoreMem.meminj)
            SBspec.ECS := {|
                           SBspec.CurFunction := F;
                           SBspec.CurBB := B;
-                          SBspec.CurCmds := insn_extractvalue id0 t v idxs
+                          SBspec.CurCmds := insn_extractvalue id0 t v idxs t'
                                              :: cs;
                           SBspec.Terminator := tmn;
                           SBspec.Locals := lc;

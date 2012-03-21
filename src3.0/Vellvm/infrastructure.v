@@ -31,7 +31,6 @@ Definition id_dec : forall x y : id, {x=y} + {x<>y} := eq_atom_dec.
 Definition l_dec : forall x y : l, {x=y} + {x<>y} := eq_atom_dec.
 Definition inbounds_dec : forall x y : inbounds, {x=y} + {x<>y} := bool_dec.
 Definition tailc_dec : forall x y : tailc, {x=y} + {x<>y} := bool_dec.
-Definition varg_dec : forall x y : varg, {x=y} + {x<>y} := bool_dec.
 Definition noret_dec : forall x y : noret, {x=y} + {x<>y} := bool_dec.
 
 (**********************************)
@@ -65,7 +64,7 @@ Definition noret_dec : forall x y : noret, {x=y} + {x<>y} := bool_dec.
   | insn_fbop id _ _ _ _ => id
   (* | insn_extractelement id typ0 id0 c1 => id *)
   (* | insn_insertelement id typ0 id0 typ1 v1 c2 => id *)
-  | insn_extractvalue id typs id0 c1 => id
+  | insn_extractvalue id typs id0 c1 _ => id
   | insn_insertvalue id typs id0 typ1 v1 c2 => id
   | insn_malloc id _ _ _ => id
   | insn_free id _ _ => id
@@ -79,7 +78,7 @@ Definition noret_dec : forall x y : noret, {x=y} + {x<>y} := bool_dec.
   | insn_icmp id cond typ v1 v2 => id
   | insn_fcmp id cond typ v1 v2 => id
   | insn_select id v0 typ v1 v2 => id
-  | insn_call id _ _ typ v0 paraml => id
+  | insn_call id _ _ _ _ v0 paraml => id
   end.
 
   Definition getTerminatorID (i:terminator) : id :=
@@ -127,7 +126,7 @@ Definition noret_dec : forall x y : noret, {x=y} + {x<>y} := bool_dec.
   | insn_fbop id _ _ _ _ => Some id
   (* | insn_extractelement id typ0 id0 c1 => id *)
   (* | insn_insertelement id typ0 id0 typ1 v1 c2 => id *)
-  | insn_extractvalue id typs id0 c1 => Some id
+  | insn_extractvalue id typs id0 c1 _ => Some id
   | insn_insertvalue id typs id0 typ1 v1 c2 => Some id
   | insn_malloc id _ _ _ => Some id
   | insn_free id _ _ => None
@@ -141,7 +140,7 @@ Definition noret_dec : forall x y : noret, {x=y} + {x<>y} := bool_dec.
   | insn_icmp id cond typ v1 v2 => Some id
   | insn_fcmp id cond typ v1 v2 => Some id
   | insn_select id v0 typ v1 v2 => Some id
-  | insn_call id nr _ typ v0 paraml => if nr then None else Some id
+  | insn_call id nr _ _ _ v0 paraml => if nr then None else Some id
   end.
 
 Fixpoint getCmdsIDs (cs:cmds) : list atom :=
@@ -311,26 +310,22 @@ match i with
 (*
 | insn_extractelement _ typ _ _ => getElementTyp typ
 | insn_insertelement _ typ _ _ _ _ => typ *)
-| insn_extractvalue _ typ _ idxs => getSubTypFromConstIdxs idxs typ
+| insn_extractvalue _ typ _ idxs typ' => Some typ'
 | insn_insertvalue _ typ _ _ _ _ => Some typ
 | insn_malloc _ typ _ _ => Some (typ_pointer typ)
 | insn_free _ typ _ => Some typ_void
 | insn_alloca _ typ _ _ => Some (typ_pointer typ)
 | insn_load _ typ _ _ => Some typ
 | insn_store _ _ _ _ _ => Some typ_void
-| insn_gep _ _ typ _ idxs _ => getGEPTyp idxs typ
+| insn_gep _ _ typ _ idxs typ' => Some (typ_pointer typ')
 | insn_trunc _ _ _ _ typ => Some typ
 | insn_ext _ _ _ _ typ2 => Some typ2
 | insn_cast _ _ _ _ typ => Some typ
 | insn_icmp _ _ _ _ _ => Some (typ_int Size.One)
 | insn_fcmp _ _ _ _ _ => Some (typ_int Size.One)
 | insn_select _ _ typ _ _ => Some typ
-| insn_call _ true _ typ _ _ => Some typ_void
-| insn_call _ false _ typ _ _ =>
-    match typ with
-    | typ_function t _ _ => Some t
-    | _ => None
-    end
+| insn_call _ true _ _ _ _ _ => Some typ_void
+| insn_call _ false _ rt _ _ _ => Some rt
 end.
 
 Definition getTerminatorTyp (i:terminator) : typ :=
@@ -397,7 +392,7 @@ match i with
 (* | insn_extractelement _ _ v _ => getValueIDs v
 | insn_insertelement _ _ v1 _ v2 _ => getValueIDs v1 ++ getValueIDs v2
 *)
-| insn_extractvalue _ _ v _ => getValueIDs v
+| insn_extractvalue _ _ v _ _ => getValueIDs v
 | insn_insertvalue _ _ v1 _ v2 _ => getValueIDs v1 ++ getValueIDs v2
 | insn_malloc _ _ v _ => getValueIDs v
 | insn_free _ _ v => getValueIDs v
@@ -412,7 +407,7 @@ match i with
 | insn_icmp _ _ _ v1 v2 => getValueIDs v1 ++ getValueIDs v2
 | insn_fcmp _ _ _ v1 v2 => getValueIDs v1 ++ getValueIDs v2
 | insn_select _ v0 _ v1 v2 => getValueIDs v0 ++ getValueIDs v1 ++ getValueIDs v2
-| insn_call _ _ _ _ v0 lp => getValueIDs v0 ++ getParamsOperand lp
+| insn_call _ _ _ _ _ v0 lp => getValueIDs v0 ++ getParamsOperand lp
 end.
 
 Definition valueInListValue (v0:value) (vs:list_sz_value) : Prop :=
@@ -425,7 +420,7 @@ Definition valueInCmdOperands (v0:value) (i:cmd) : Prop :=
 match i with
 | insn_bop _ _ _ v1 v2 => v0 = v1 \/ v0 = v2
 | insn_fbop _ _ _ v1 v2 => v0 = v1 \/ v0 = v2
-| insn_extractvalue _ _ v _ => v0 = v
+| insn_extractvalue _ _ v _ _ => v0 = v
 | insn_insertvalue _ _ v1 _ v2 _ => v0 = v1 \/ v0 = v2
 | insn_malloc _ _ v _ => v0 = v
 | insn_free _ _ v => v0 = v
@@ -439,7 +434,7 @@ match i with
 | insn_icmp _ _ _ v1 v2 => v0 = v1 \/ v0 = v2
 | insn_fcmp _ _ _ v1 v2 => v0 = v1 \/ v0 = v2
 | insn_select _ v1 _ v2 v3 => v0 = v1 \/ v0 = v2 \/ v0 = v3
-| insn_call _ _ _ _ v1 lp => v0 = v1 \/ valueInParams v0 lp
+| insn_call _ _ _ _ _ v1 lp => v0 = v1 \/ valueInParams v0 lp
 end.
 
 Definition valueInTmnOperands (v0:value) (i:terminator) : Prop :=
@@ -489,7 +484,7 @@ match i with
 (* | insn_extractelement _ _ _ _ => nil
 | insn_insertelement _ _ _ _ _ _ => nil
 *)
-| insn_extractvalue _ _ _ _ => nil
+| insn_extractvalue _ _ _ _ _ => nil
 | insn_insertvalue _ _ _ _ _ _ => nil
 | insn_malloc _ _ _ _ => nil
 | insn_free _ _ _ => nil
@@ -503,7 +498,7 @@ match i with
 | insn_icmp _ _ _ _ _ => nil
 | insn_fcmp _ _ _ _ _ => nil
 | insn_select _ _ _ _ _ => nil
-| insn_call _ _ _ _ _ _ => nil
+| insn_call _ _ _ _ _ _ _ => nil
 end.
 
 Definition getTerminatorLabels (i:terminator) : ls :=
@@ -669,7 +664,7 @@ end.
 
 Definition getCalledValue i : option value :=
 match i with
-| insn_cmd (insn_call _ _ _ _ v0 _) => Some v0
+| insn_cmd (insn_call _ _ _ _ _ v0 _) => Some v0
 | _ => None
 end.
 
@@ -682,8 +677,8 @@ end.
 Definition getCallerReturnID (Caller:cmd) : option id :=
 match Caller with
 (* | insn_invoke i _ _ _ _ _ => Some i *)
-| insn_call id true _ _ _ _ => None
-| insn_call id false _ _ _ _ => Some id
+| insn_call fid true _ _ _ _ _ => None
+| insn_call fid false _ _ _ _ _ => Some fid
 | _ => None
 end.
 
@@ -1259,7 +1254,7 @@ end.
 
 Definition _isCallInsnB (i:cmd) : bool :=
 match i with
-| insn_call _ _ _ _ _ _ => true
+| insn_call _ _ _ _ _ _ _ => true
 | _ => false
 end.
 
@@ -1543,16 +1538,21 @@ Proof.
   decide equality.
 Qed.
 
-Definition typ_dec_prop (t1:typ) := forall t2, {t1=t2} + {~t1=t2}.
-Definition list_typ_dec_prop (lt1:list_typ) :=
-  forall lt2, {lt1=lt2} + {~lt1=lt2}.
-
 Ltac done_right := right; intro J; inversion J; subst; auto.
 
 Ltac destruct_top_tac :=
   match goal with
   | |- { _ = ?t2 } + { _ <> ?t2 } => destruct t2; try solve [auto | done_right]
   end.
+
+Lemma varg_dec : forall x y : varg, {x=y} + {x<>y}.
+Proof.
+  destruct x, y; try solve [auto | done_right].
+  match goal with
+  | |- context [{Some ?s1 = Some ?s2} + {Some ?s1 <> Some ?s2}] =>
+       destruct (@Size.dec s1 s2); try solve [auto | done_right]
+  end.
+Qed.
 
 Ltac destruct_wrt_type1 a1 a2:=
   match type of a1 with
@@ -1598,6 +1598,10 @@ Ltac typ_mutrec_dec_subs_tac :=
   destruct_dec_tac destruct_wrt_type.
 
 Ltac typ_mutrec_dec_tac := destruct_top_tac; typ_mutrec_dec_subs_tac.
+
+Definition typ_dec_prop (t1:typ) := forall t2, {t1=t2} + {~t1=t2}.
+Definition list_typ_dec_prop (lt1:list_typ) :=
+  forall lt2, {lt1=lt2} + {~lt1=lt2}.
 
 Lemma typ_mutrec_dec :
   (forall t1, typ_dec_prop t1) *
@@ -1794,12 +1798,15 @@ Proof.
     try solve [done_right | auto | abstract insn_dec_tac].
   Case "insn_call".
     match goal with
-    | |- {insn_call ?i0 ?n ?c ?t ?v ?p = insn_call ?i1 ?n0 ?c0 ?t0 ?v0 ?p0} +
-         {insn_call ?i0 ?n ?c ?t ?v ?p <> insn_call ?i1 ?n0 ?c0 ?t0 ?v0 ?p0} =>
+    | |- {insn_call ?i0 ?n ?c ?rt ?va ?v ?p = 
+            insn_call ?i1 ?n0 ?c0 ?rt0 ?va0 ?v0 ?p0} +
+         {insn_call ?i0 ?n ?c ?rt ?va ?v ?p <> 
+            insn_call ?i1 ?n0 ?c0 ?rt0 ?va0 ?v0 ?p0} =>
       destruct_wrt_type3 i0 i1; subst; try solve [done_right];
       destruct_wrt_type3 v v0; subst; try solve [done_right];
       destruct_wrt_type3 n n0; subst; try solve [done_right];
-      destruct_wrt_type3 t t0; subst; try solve [done_right];
+      destruct_wrt_type3 rt rt0; subst; try solve [done_right];
+      destruct_wrt_type3 va va0; subst; try solve [done_right];
       destruct_wrt_type3 p p0; subst; try solve [done_right];
       destruct c as [tailc5 callconv5 attributes1 attributes2];
       destruct c0 as [tailc0 callconv0 attributes0 attributes3];

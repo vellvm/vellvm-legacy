@@ -21,7 +21,7 @@ Definition cmds_from_block (f:fdef) (lbl:l) : option cmds :=
 Inductive rhs : Set :=
     rhs_bop : bop -> sz -> value -> value -> rhs
   | rhs_fbop : fbop -> floating_point -> value -> value -> rhs
-  | rhs_extractvalue : typ -> value -> list_const -> rhs
+  | rhs_extractvalue : typ -> value -> list_const -> typ -> rhs
   | rhs_insertvalue : typ -> value -> typ -> value -> list_const -> rhs
   | rhs_malloc : typ -> value -> align -> rhs
   | rhs_free : typ -> value -> rhs
@@ -35,7 +35,7 @@ Inductive rhs : Set :=
   | rhs_icmp : cond -> typ -> value -> value -> rhs
   | rhs_fcmp : fcond -> floating_point -> value -> value -> rhs
   | rhs_select : value -> typ -> value -> value -> rhs
-  | rhs_call : noret -> clattrs -> typ -> value -> params -> rhs
+  | rhs_call : noret -> clattrs -> typ -> varg -> value -> params -> rhs
 .
 
 Tactic Notation "rhs_cases" tactic(first) tactic(c) :=
@@ -52,7 +52,7 @@ Definition rhs_of_cmd (c: cmd) : rhs :=
 match c with
 | insn_bop _ bop0 sz v1 v2 => rhs_bop bop0 sz v1 v2
 | insn_fbop _ fbop0 fp0 v1 v2 => rhs_fbop fbop0 fp0 v1 v2
-| insn_extractvalue _ t v cnts => rhs_extractvalue t v cnts
+| insn_extractvalue _ t v cnts t' => rhs_extractvalue t v cnts t'
 | insn_insertvalue _ t1 v1 t2 v2 cnts => rhs_insertvalue t1 v1 t2 v2 cnts
 | insn_malloc _ t v al => rhs_malloc t v al
 | insn_free _ t v => rhs_free t v
@@ -66,7 +66,7 @@ match c with
 | insn_icmp _ t0 cnd0 v1 v2 => rhs_icmp t0 cnd0 v1 v2
 | insn_fcmp _ fcond0 fp0 v1 v2 => rhs_fcmp fcond0 fp0 v1 v2
 | insn_select _ v0 t0 v1 v2 => rhs_select v0 t0 v1 v2
-| insn_call _ noret0 cl0 t1 v1 ps => rhs_call noret0 cl0 t1 v1 ps
+| insn_call _ noret0 cl0 t1 va1 v1 ps => rhs_call noret0 cl0 t1 va1 v1 ps
 end.
 
 Lemma rhs_dec : forall (r1 r2:rhs), {r1=r2}+{~r1=r2}.
@@ -83,8 +83,9 @@ Proof.
     destruct (@value_dec v v1); subst; try solve [done_right].
     destruct (@value_dec v0 v2); subst; try solve [auto | done_right].
   Case "rhs_extractvalue".
-    destruct (@typ_dec t t0); subst; try solve [done_right].
+    destruct (@typ_dec t t1); subst; try solve [done_right].
     destruct (@value_dec v v0); subst; try solve [done_right].
+    destruct (@typ_dec t0 t2); subst; try solve [done_right].
     destruct (@list_const_dec l0 l1); subst; try solve [auto | done_right].
   Case "rhs_insertvalue".
     destruct (@typ_dec t t1); subst; try solve [done_right].
@@ -149,11 +150,12 @@ Proof.
     destruct (@value_dec v0 v3); subst; try solve [done_right].
     destruct (@value_dec v1 v4); subst; try solve [auto | done_right].
   Case "rhs_call".
-    destruct (@value_dec v v0); subst; try solve [done_right].
+    destruct (@value_dec v0 v2); subst; try solve [done_right].
     destruct (@noret_dec n n0); subst; try solve [done_right].
     destruct c as [t1 c a a0 p]. destruct c0 as [t2 c0 a1 a2 p0].
     destruct (@tailc_dec t1 t2); subst; try solve [done_right].
     destruct (@typ_dec t t0); subst; try solve [done_right].
+    destruct (@varg_dec v v1); subst; try solve [done_right].
     destruct (@callconv_dec c c0); subst; try solve [done_right].
     destruct (@attributes_dec a a1); subst; try solve [done_right].
     destruct (@attributes_dec a0 a2); subst; try solve [done_right].
@@ -164,7 +166,7 @@ Definition pure_cmd (c:cmd) : bool :=
 match c with
 | insn_bop _ _ _ _ _
 | insn_fbop _ _ _ _ _
-| insn_extractvalue _ _ _ _
+| insn_extractvalue _ _ _ _ _
 | insn_insertvalue _ _ _ _ _ _
 | insn_gep _ _ _ _ _ _
 | insn_trunc _ _ _ _ _
@@ -193,7 +195,7 @@ match c with
     Some (const_bop bop0 c1 c2)
 | insn_fbop _ fbop0 _ (value_const c1) (value_const c2) =>
     Some (const_fbop fbop0 c1 c2)
-| insn_extractvalue _ _ (value_const c0) cnts =>
+| insn_extractvalue _ _ (value_const c0) cnts _ =>
     Some (const_extractvalue c0 cnts)
 | insn_insertvalue _ _ (value_const c1) _ (value_const c2) cnts =>
     Some (const_insertvalue c1 c2 cnts)
@@ -216,7 +218,7 @@ match c with
     Some (const_fcmp fcond0 c1 c2)
 | insn_select _ (value_const c0) _ (value_const c1) (value_const c2) =>
     Some (const_select c0 c1 c2)
-| insn_call _ _ _ _ _ _ => None
+| insn_call _ _ _ _ _ _ _ => None
 | _ => None
 end.
 
@@ -313,7 +315,7 @@ List.fold_left
      | Some (pv2, t2) => is_no_alias pv1 t1 pv2 t2
      | None =>
          match c with
-         | insn_call _ _ _ _ _ _ => false
+         | insn_call _ _ _ _ _ _ _ => false
          | _ => true
          end
      end
@@ -516,7 +518,7 @@ else
         end
     | _ =>
        match c with
-       | insn_call _ _ _ _ _ _ => (f, changed, kill_loadstores inscope)
+       | insn_call _ _ _ _ _ _ _ => (f, changed, kill_loadstores inscope)
        | _ => (f, changed, inscope)
        end
     end

@@ -49,8 +49,8 @@ Axiom isCallLib : id -> bool.
  * be the same. *)
 Definition isCall (i:cmd) : bool :=
 match i with
-| insn_call _ _ _ _ (value_const (const_gid _ fid)) _ => negb (isCallLib fid)
-| insn_call _ _ _ _ _ _ => true
+| insn_call _ _ _ _ _ (value_const (const_gid _ fid)) _ => negb (isCallLib fid)
+| insn_call _ _ _ _ _ _ _ => true
 | _ => false
 end.
 
@@ -335,8 +335,8 @@ Inductive sterminator : Set :=
 Inductive scall : Set :=
 (* FIXME: the value should be a sterm!!! *)
 | stmn_call :
-    id -> noret -> clattrs -> typ -> value -> list (typ*attributes*sterm) ->
-      scall
+    id -> noret -> clattrs -> typ -> varg -> value -> 
+      list (typ*attributes*sterm) -> scall
 .
 
 Definition smap := list (atom*sterm).
@@ -411,8 +411,8 @@ Fixpoint app_list_value (l0 m:list_value) {struct l0} : list_value :=
   | Cons_list_value h tl_ => Cons_list_value h (app_list_value tl_ m)
   end.
 
-Definition se_lib : forall i id0 noret0 tailc0 ft fv lp (st:sstate),
-  i=insn_call id0 noret0 tailc0 ft fv lp ->
+Definition se_lib : forall i id0 noret0 tailc0 rt1 va1 fv lp (st:sstate),
+  i=insn_call id0 noret0 tailc0 rt1 va1 fv lp ->
   isCall i = false ->
   sstate.
 Proof.
@@ -457,7 +457,7 @@ match c with
                  st.(SMem)
                  st.(SFrame)
                  st.(SEffects))
- | insn_extractvalue id0 t1 v1 cs3 => fun _ =>
+ | insn_extractvalue id0 t1 v1 cs3 _ => fun _ =>
        (mkSstate (updateAddAL _ st.(STerms) id0
                    (sterm_extractvalue t1
                      (value2Sterm st.(STerms) v1)
@@ -571,9 +571,9 @@ match c with
                  st.(SMem)
                  st.(SFrame)
                  st.(SEffects))
-  | insn_call id0 noret0 tailc0 ft fv lp =>
-    fun (EQ:i=insn_call id0 noret0 tailc0 ft fv lp ) =>
-    se_lib i id0 noret0 tailc0 ft fv lp st EQ notcall
+  | insn_call id0 noret0 tailc0 rt1 va1 fv lp =>
+    fun (EQ:i=insn_call id0 noret0 tailc0 rt1 va1 fv lp ) =>
+    se_lib i id0 noret0 tailc0 rt1 va1 fv lp st EQ notcall
   end) (@refl_equal _ i)
 end.
 
@@ -623,7 +623,8 @@ Definition se_call : forall (st : sstate) (i:cmd) (iscall:isCall i = true), scal
 Proof.
   intros. unfold isCall in iscall.
   destruct_cmd i0; try solve [inversion iscall].
-  apply (@stmn_call i1 n c t v (list_param__list_typ_subst_sterm p st.(STerms))).
+  apply (@stmn_call i1 n c t0 v0 v 
+          (list_param__list_typ_subst_sterm p st.(STerms))).
 Defined.
 
 (* Definions below have not been used yet. *)
@@ -936,7 +937,8 @@ Proof.
   decide equality.
     destruct (@list_typ_attributes_sterm_dec l0 l1);
       subst; try solve [auto | done_right].
-    destruct (@value_dec v v0); subst; try solve [auto | done_right].
+    destruct (@value_dec v0 v2); subst; try solve [auto | done_right].
+    destruct (@varg_dec v v1); subst; try solve [auto | done_right].
     destruct (@typ_dec t t0); subst; try solve [auto | done_right].
 
     destruct c as [tailc5 callconv5 attributes1 attributes2].

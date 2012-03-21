@@ -45,85 +45,85 @@ Parameter gse_fid : id.
 Parameter astk_fid : id.
 Parameter dstk_fid : id.
 
-Definition assert_typ : typ :=
-  typ_function typ_void
+Definition assert_typ : typ := typ_void.
+ (* typ_function typ_void
         (Cons_list_typ p8
         (Cons_list_typ p8
         (Cons_list_typ p8
         (Cons_list_typ i32
-        (Cons_list_typ i32 Nil_list_typ))))) false.
+        (Cons_list_typ i32 Nil_list_typ))))) None. *)
 
 Definition assert_fn : value :=
   value_const (const_gid assert_typ assert_fid).
 
-Definition gmb_typ : typ :=
-  typ_function p8
+Definition gmb_typ : typ := p8.
+ (* typ_function p8
         (Cons_list_typ p8
         (Cons_list_typ p8
         (Cons_list_typ i32
-        (Cons_list_typ p32 Nil_list_typ)))) false.
+        (Cons_list_typ p32 Nil_list_typ)))) None. *)
 
 Definition gmb_fn : value :=
   value_const (const_gid gmb_typ gmb_fid).
 
-Definition gme_typ : typ :=
-  typ_function p8
+Definition gme_typ : typ := p8.
+ (* typ_function p8
         (Cons_list_typ p8
         (Cons_list_typ p8
         (Cons_list_typ i32
-        (Cons_list_typ p32 Nil_list_typ)))) false.
+        (Cons_list_typ p32 Nil_list_typ)))) None. *)
 
 Definition gme_fn : value :=
   value_const (const_gid gme_typ gme_fid).
 
-Definition smmd_typ : typ :=
-  typ_function typ_void
+Definition smmd_typ : typ := typ_void.
+ (* typ_function typ_void
         (Cons_list_typ p8
         (Cons_list_typ p8
         (Cons_list_typ p8
         (Cons_list_typ p8
         (Cons_list_typ i32
-        (Cons_list_typ i32 Nil_list_typ)))))) false.
+        (Cons_list_typ i32 Nil_list_typ)))))) None. *)
 
 Definition smmd_fn : value :=
   value_const (const_gid smmd_typ smmd_fid).
 
-Definition ssb_typ : typ :=
-  typ_function typ_void
+Definition ssb_typ : typ := typ_void.
+ (* typ_function typ_void
         (Cons_list_typ p8
-        (Cons_list_typ i32 Nil_list_typ)) false.
+        (Cons_list_typ i32 Nil_list_typ)) None. *)
 
 Definition ssb_fn : value :=
   value_const (const_gid ssb_typ ssb_fid).
 
-Definition sse_typ : typ :=
-  typ_function typ_void
+Definition sse_typ : typ := typ_void.
+ (* typ_function typ_void
         (Cons_list_typ p8
-        (Cons_list_typ i32 Nil_list_typ)) false.
+        (Cons_list_typ i32 Nil_list_typ)) None. *)
 
 Definition sse_fn : value :=
   value_const (const_gid sse_typ sse_fid).
 
-Definition gsb_typ : typ :=
-  typ_function p8 (Cons_list_typ i32 Nil_list_typ) false.
+Definition gsb_typ : typ := p8.
+ (* typ_function p8 (Cons_list_typ i32 Nil_list_typ) None. *)
 
 Definition gsb_fn : value :=
   value_const (const_gid gsb_typ gsb_fid).
 
-Definition gse_typ  : typ :=
- typ_function p8 (Cons_list_typ i32 Nil_list_typ) false.
+Definition gse_typ  : typ := p8.
+ (* typ_function p8 (Cons_list_typ i32 Nil_list_typ) None. *)
 
 Definition gse_fn : value :=
   value_const (const_gid gse_typ gse_fid).
 
-Definition astk_typ : typ :=
-  typ_function typ_void (Cons_list_typ i32 Nil_list_typ) false.
+Definition astk_typ : typ := typ_void.
+ (* typ_function typ_void (Cons_list_typ i32 Nil_list_typ) None. *)
 
 Definition astk_fn : value :=
   value_const (const_gid astk_typ astk_fid).
 
-Definition dstk_typ : typ :=
-  typ_function typ_void Nil_list_typ false.
+Definition dstk_typ : typ := typ_void.
+ (* typ_function typ_void Nil_list_typ None. *)
 
 Definition dstk_fn : value :=
   value_const (const_gid dstk_typ dstk_fid).
@@ -150,7 +150,7 @@ match i with
 (*
 | insn_extractelement _ typ _ _ => getElementTyp typ
 | insn_insertelement _ typ _ _ _ _ => typ *)
-| insn_extractvalue _ typ _ idxs =>
+| insn_extractvalue _ typ _ idxs _ =>
     do t <- Constant.typ2utyp nts typ;
     getSubTypFromConstIdxs idxs t
 | insn_insertvalue _ typ _ _ _ _ => Some typ
@@ -166,12 +166,8 @@ match i with
 | insn_icmp _ _ _ _ _ => Some (typ_int Size.One)
 | insn_fcmp _ _ _ _ _ => Some (typ_int Size.One)
 | insn_select _ _ typ _ _ => Some typ
-| insn_call _ true _ typ _ _ => Some typ_void
-| insn_call _ false _ typ _ _ =>
-    match typ with
-    | typ_function t _ _ => Some t
-    | _ => None
-    end
+| insn_call _ true _ _ _ _ _ => Some typ_void
+| insn_call _ false _ rt va _ _ => Some rt
 end.
 
 Definition rmap := list (id*(id*id)).
@@ -298,11 +294,11 @@ Definition val32 z := (i32,@nil attribute,
                              (INTEGER.of_Z 32%Z z false)))).
 
 Definition call_set_shadowstack bv0 ev0 idx cs : cmds :=
-  insn_call fake_id true attrs ssb_typ ssb_fn
+  insn_call fake_id true attrs ssb_typ None ssb_fn
       ((p8,nil,bv0)::
        (val32 idx)::
        nil)::
-  insn_call fake_id true attrs sse_typ sse_fn
+  insn_call fake_id true attrs sse_typ None sse_fn
       ((p8,nil,ev0)::
        (val32 idx)::
        nil)::cs.
@@ -330,30 +326,27 @@ match v with
 end.
 
 Definition isReturnPointerTypB t0 : bool :=
-match t0 with
-| typ_function t0 _ _ => isPointerTypB t0
-| _ => false
-end.
+isPointerTypB t0.
 
-Definition call_suffix i0 nr ca t0 v p rm : option cmds :=
+Definition call_suffix i0 nr ca t0 va0 v p rm : option cmds :=
   let optcs' :=
     if negb nr && isReturnPointerTypB t0 then
       match (lookupAL _ rm i0) with
       | Some (bid0, eid0) =>
           Some (
-            insn_call bid0 false attrs gsb_typ gsb_fn
+            insn_call bid0 false attrs gsb_typ None gsb_fn
               ((i32,nil,vint0)::nil)::
-            insn_call eid0 false attrs gse_typ gse_fn
+            insn_call eid0 false attrs gse_typ None gse_fn
               ((i32,nil,vint0)::nil)::
-            insn_call fake_id true attrs dstk_typ dstk_fn nil::
+            insn_call fake_id true attrs dstk_typ None dstk_fn nil::
             nil)
       | None => None
       end
     else
-      Some [insn_call fake_id true attrs dstk_typ dstk_fn nil]
+      Some [insn_call fake_id true attrs dstk_typ None dstk_fn nil]
   in
   match optcs' with
-  | Some cs' => Some ([insn_call i0 nr ca t0 (wrap_call v) p]++cs')
+  | Some cs' => Some ([insn_call i0 nr ca t0 va0 (wrap_call v) p]++cs')
   | None => None
   end.
 
@@ -385,13 +378,13 @@ match c with
           match lookupAL _ rm id0 with
           | Some (bid0, eid0) =>
                    (Some
-                     (insn_call bid0 false attrs gmb_typ gmb_fn
+                     (insn_call bid0 false attrs gmb_typ None gmb_fn
                        ((p8,nil,(value_id ptmp))::
                         (p8,nil,vnullp8)::
                         (i32,nil,vint1)::
                         (p32,nil,vnullp32)::
                         nil)::
-                      insn_call eid0 false attrs gme_typ gme_fn
+                      insn_call eid0 false attrs gme_typ None gme_fn
                        ((p8,nil,(value_id ptmp))::
                         (p8,nil,vnullp8)::
                         (i32,nil,vint1)::
@@ -406,7 +399,7 @@ match c with
       | Some cs =>
         Some (ex_ids,
          insn_cast ptmp castop_bitcast (typ_pointer t2) v2 p8::
-         insn_call fake_id true attrs assert_typ assert_fn
+         insn_call fake_id true attrs assert_typ None assert_fn
            ((p8,nil,bv)::
             (p8,nil,ev)::
             (p8,nil,(value_id ptmp))::
@@ -426,7 +419,7 @@ match c with
           match get_reg_metadata rm v1 with
           | Some (bv0, ev0) =>
               Some
-                (insn_call fake_id true attrs smmd_typ smmd_fn
+                (insn_call fake_id true attrs smmd_typ None smmd_fn
                   ((p8,nil,(value_id ptmp))::
                    (p8,nil,bv0)::
                    (p8,nil,ev0)::
@@ -443,7 +436,7 @@ match c with
       | Some cs =>
         Some (ex_ids,
          insn_cast ptmp castop_bitcast (typ_pointer t0) v2 p8::
-         insn_call fake_id true attrs assert_typ assert_fn
+         insn_call fake_id true attrs assert_typ None assert_fn
            ((p8,nil,bv)::
             (p8,nil,ev)::
             (p8,nil,(value_id ptmp))::
@@ -493,12 +486,12 @@ match c with
       end
     else Some (ex_ids, [c])
 
-| insn_call i0 n ca t0 v p =>
-    match trans_params rm p 1%Z, call_suffix i0 n ca t0 v p rm with
+| insn_call i0 n ca t0 va0 v p =>
+    match trans_params rm p 1%Z, call_suffix i0 n ca t0 va0 v p rm with
     | Some cs, Some cs' =>
         Some (ex_ids,
               insn_call fake_id true attrs
-                astk_typ astk_fn
+                astk_typ None astk_fn
                 (val32 (Z_of_nat (length p+1))::
                 nil)::
               cs++cs')
@@ -561,18 +554,18 @@ Definition trans_terminator (rm:rmap) (tmn1:terminator) : option cmds :=
       match get_reg_metadata rm v0 with
       | Some (bv, ev) =>
           Some (
-           insn_call fake_id true attrs ssb_typ ssb_fn
+           insn_call fake_id true attrs ssb_typ None ssb_fn
              ((p8,nil,bv)::(i32,nil,vint0)::nil)::
-           insn_call fake_id true attrs sse_typ sse_fn
+           insn_call fake_id true attrs sse_typ None sse_fn
              ((p8,nil,ev)::(i32,nil,vint0)::nil)::
            nil)
       | None => None
       end
     else
       Some (
-        insn_call fake_id true attrs ssb_typ ssb_fn
+        insn_call fake_id true attrs ssb_typ None ssb_fn
           ((p8,nil,vnullp8)::(i32,nil,vint0)::nil)::
-        insn_call fake_id true attrs sse_typ sse_fn
+        insn_call fake_id true attrs sse_typ None sse_fn
           ((p8,nil,vnullp8)::(i32,nil,vint0)::nil)::
         nil)
   | _ => Some nil
@@ -613,11 +606,11 @@ end.
 
 Definition call_get_shadowstack bid0 eid0 idx cs : cmds :=
   insn_call bid0 false attrs
-    gsb_typ gsb_fn
+    gsb_typ None gsb_fn
       ((i32,nil,(value_const (const_int Size.ThirtyTwo
         (INTEGER.of_Z 32%Z idx false))))::nil)::
   insn_call eid0 false attrs
-    gse_typ gse_fn
+    gse_typ None gse_fn
       ((i32,nil,(value_const (const_int Size.ThirtyTwo
         (INTEGER.of_Z 32%Z idx false))))::nil)::
   cs.

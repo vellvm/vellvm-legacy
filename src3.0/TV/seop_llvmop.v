@@ -653,7 +653,7 @@ Case "bExtractValue".
   exists (updateAddAL _ lc0 id0 gv'). exists als0. exists Mem1.
   exists cs1. split; auto.
   right. left.
-  exists (insn_extractvalue id0 t v idxs).
+  exists (insn_extractvalue id0 t v idxs t').
   split; eauto.
 
 Case "bInsertValue".
@@ -768,7 +768,7 @@ Case "bCall".
   exists als0. exists Mem''.
   exists cs1. split; auto.
     right. right.
-    exists (insn_call rid noret0 ca ft fv lp).
+    exists (insn_call rid noret0 ca rt1 va1 fv lp).
     split; eauto.
 
 Case "bExCall".
@@ -776,7 +776,7 @@ Case "bExCall".
   exists als0. exists Mem'.
   exists cs1. split; auto.
   right. right.
-  exists (insn_call rid noret0 ca ft fv lp).
+  exists (insn_call rid noret0 ca rt1 va1 fv lp).
   split; eauto.
 
 Case "bops_nil".

@@ -99,7 +99,7 @@ Definition EC_simulation_head (TD:TargetData) Ps1 (pinfo: PhiInfo)
 Definition EC_simulation_tail (TD:TargetData) Ps1 (pinfo: PhiInfo)
   (EC1 EC2:Opsem.ExecutionContext) : Prop :=
   match (EC1, EC2) with
-  | (Opsem.mkEC f1 b1 ((insn_call _ _ _ _ _ _ as c1)::cs1) tmn1 lc1 als1,
+  | (Opsem.mkEC f1 b1 ((insn_call _ _ _ _ _ _ _ as c1)::cs1) tmn1 lc1 als1,
      Opsem.mkEC f2 b2 cs2 tmn2 lc2 als2) =>
        let '(los, nts) := TD in
        blockInFdefB b1 f1 = true /\
@@ -206,14 +206,14 @@ Proof.
     apply J1 in HeqR; auto.
 Qed.
 
-Lemma returnUpdateLocals_rsim : forall TD i0 n c t v p Result lc lc' gl2
+Lemma returnUpdateLocals_rsim : forall TD i0 n c t0 v0 v p Result lc lc' gl2
   lc'' F F' lc2' lc2
-  (H1 : Opsem.returnUpdateLocals TD (insn_call i0 n c t v p) Result lc
+  (H1 : Opsem.returnUpdateLocals TD (insn_call i0 n c t0 v0 v p) Result lc
          lc' gl2 = ret lc'')
   (Hrsim : reg_simulation F lc lc2)
   (Hrsim' : reg_simulation F' lc' lc2'),
   exists lc2'',
-    Opsem.returnUpdateLocals TD (insn_call i0 n c t v p) Result lc2 lc2' gl2
+    Opsem.returnUpdateLocals TD (insn_call i0 n c t0 v0 v p) Result lc2 lc2' gl2
       = ret lc2'' /\ reg_simulation F' lc'' lc2''.
 Proof.
   unfold Opsem.returnUpdateLocals in *.
@@ -222,10 +222,8 @@ Proof.
   destruct R; inv H1.
     destruct n; inv H0.
     erewrite simulation__getOperandValue; eauto.
-
-    destruct t; tinv H1.
     erewrite simulation__getOperandValue; eauto.
-    destruct (lift_op1 DGVs (fit_gv TD t) g t); inv H1.
+    destruct (lift_op1 DGVs (fit_gv TD t0) g t0); inv H1.
     exists (updateAddAL (GVsT DGVs) lc2' i0 g0).
     split; auto.
       destruct Hrsim' as [J1 J2].

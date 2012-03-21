@@ -97,7 +97,7 @@ match state with
       do gv3 <- FBOP TD lc gl fbop0 fp0 v1 v2;
          ret ((mkState ((mkEC F B cs tmn (updateAddAL _ lc id0 gv3) 
               als)::EC) Mem0), E0)         
-    | insn_extractvalue id0 t v idxs =>
+    | insn_extractvalue id0 t v idxs _ =>
       do gv <- getOperandValue TD v lc gl;
       do gv' <- extractGenericValue TD t gv idxs;
          ret ((mkState ((mkEC F B cs tmn (updateAddAL _ lc id0 gv')
@@ -179,7 +179,7 @@ match state with
                 (if isGVZero TD cond0 then updateAddAL _ lc id0 gv2
                  else updateAddAL _ lc id0 gv1) als)::EC) Mem0),
              E0)  
-    | insn_call rid noret0 tailc0 ft fv lp =>
+    | insn_call rid noret0 tailc0 rt1 va1 fv lp =>
       (* only look up the current module for the time being,
          do not support linkage. *)
       do fptr <- getOperandValue TD fv lc gl;
@@ -194,7 +194,7 @@ match state with
               match (external_intrinsics.callExternalOrIntrinsics 
                       TD gl Mem0 fid rt' (args2Typs la) dck gvs) with
               | Some (oresult, tr, Mem1) =>
-                do lc' <- exCallUpdateLocals TD ft noret0 rid oresult lc;
+                do lc' <- exCallUpdateLocals TD rt1 noret0 rid oresult lc;
                 ret ((mkState ((mkEC F B cs tmn lc' als)::EC) Mem1),
                      tr)
               | None => None
@@ -213,7 +213,8 @@ match state with
                       (fheader_intro fa rt fid la va) lb)
                       (block_intro l' ps' cs' tmn') cs' tmn' lc0
                       nil)::
-                    (mkEC F B ((insn_call rid noret0 tailc0 ft fv lp)::cs) tmn
+                    (mkEC F B 
+                      ((insn_call rid noret0 tailc0 rt1 va1 fv lp)::cs) tmn
                       lc als)::EC) Mem0),
                     E0)
             end
@@ -343,10 +344,10 @@ Proof.
       Case "insn_unreachable".
         inversion HinterInsn.
 
-      destruct c as [i0 b s v v0|i0 f f0 v v0|i0 t v l0|i0 t v t0 v0 l0|
+      destruct c as [i0 b s v v0|i0 f f0 v v0|i0 t v l0|i0 t v t0 v0 l0 t1|
                      i0 t v a|i0 t v|i0 t v a|i0 t v a|i0 t v v0 a|i0 i1 t v l0|
                      i0 t t0 v t1|i0 e t v t0|i0 c t v t0|i0 c t v v0|
-                     i0 f f0 v v0|i0 v t v0 v1|i0 n c t v p].
+                     i0 f f0 v v0|i0 v t v0 v1|i0 n c rt1 va1 v p].
 
       Case "insn_bop".
         remember (BOP CurTargetData0 lc Globals0 b s v v0) as R1.
@@ -501,7 +502,7 @@ Proof.
                 remember ef as R3; 
                 destruct R3 as [[[oresult tr5] Mem1]|]; tinv HinterInsn
             end.
-            remember (exCallUpdateLocals CurTargetData0 t n i0 oresult lc) as R4.
+            remember (exCallUpdateLocals CurTargetData0 rt1 n i0 oresult lc) as R4.
             destruct R4; inv HinterInsn.
             eapply sExCall; eauto using dos_in_list_gvs_intro.
               unfold lookupExFdecViaPtr.

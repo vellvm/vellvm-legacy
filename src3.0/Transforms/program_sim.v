@@ -289,7 +289,7 @@ Proof.
                end |- _ => remember ef as R
           end.
           destruct R as [[[o ?]]|].
-            remember (Opsem.exCallUpdateLocals CurTargetData t n i0 o Locals)
+            remember (Opsem.exCallUpdateLocals CurTargetData t0 n i0 o Locals)
               as R.
             destruct R; tinv Hundef.
             inv Hop.

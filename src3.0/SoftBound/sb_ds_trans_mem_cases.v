@@ -1170,7 +1170,7 @@ Proof.
     Opsem.sInsn (opsem.OpsemAux.mkCfg S2 (los, nts) Ps2 gl2 fs2)
       (Opsem.mkState
           ((Opsem.mkEC (fdef_intro fh2 bs2) B2
-              (insn_call fake_id true attrs smmd_typ smmd_fn
+              (insn_call fake_id true attrs smmd_typ None smmd_fn
                 ((p8,nil,value_id ptmp) :: (p8,nil,bv2') :: (p8,nil,ev2')
                     :: (p8,nil,vnullp8) :: (i32,nil,vint1) :: (i32,nil,vint1)
                     :: nil)::
@@ -1238,7 +1238,7 @@ Proof.
     apply Opsem.sop_star_cons with (state2:=
       (Opsem.mkState
           ((Opsem.mkEC (fdef_intro fh2 bs2) B2
-              (insn_call fake_id true attrs smmd_typ smmd_fn
+              (insn_call fake_id true attrs smmd_typ None smmd_fn
                 ((p8,nil,value_id ptmp) :: (p8,nil,bv2') :: (p8,nil,ev2')
                     :: (p8,nil,vnullp8) :: (i32,nil,vint1) :: (i32,nil,vint1)
                     :: nil)::

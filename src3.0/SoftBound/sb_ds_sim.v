@@ -69,13 +69,13 @@ MoreMem.mem_inj mi Mem1 Mem2 /\
   Opsem.sop_star (OpsemAux.mkCfg S TD Ps gl fs)
     (Opsem.mkState
       ((Opsem.mkEC F B
-        (insn_call bid0 false attrs gmb_typ gmb_fn
+        (insn_call bid0 false attrs gmb_typ None gmb_fn
                        ((p8,nil,v)::
                         (p8,nil,vnullp8)::
                         (i32,nil,vint1)::
                         (p32,nil,vnullp32)::
                         nil)::
-         insn_call eid0 false attrs gme_typ gme_fn
+         insn_call eid0 false attrs gme_typ None gme_fn
                        ((p8,nil,v)::
                         (p8,nil,vnullp8)::
                         (i32,nil,vint1)::
@@ -109,7 +109,7 @@ end.
 Definition sbEC_simulates_EC_tail (TD:TargetData) Ps1 gl (mi:MoreMem.meminj)
   (sbEC:SBspec.ExecutionContext) (EC:Opsem.ExecutionContext) : Prop :=
   match (sbEC, EC) with
-  | (SBspec.mkEC f1 b1 ((insn_call i0 nr ca t0 v p)::cs13) tmn1 lc1 rm1 als1,
+  | (SBspec.mkEC f1 b1 ((insn_call i0 nr ca t0 va0 v p)::cs13) tmn1 lc1 rm1 als1,
      Opsem.mkEC f2 b2 cs2 tmn2 lc2 als2) =>
        let '(fdef_intro fh1 bs1) := f1 in
        let '(fdef_intro fh2 bs2) := f2 in
@@ -120,8 +120,8 @@ Definition sbEC_simulates_EC_tail (TD:TargetData) Ps1 gl (mi:MoreMem.meminj)
        trans_fdef nts f1 = Some f2 /\
        tmn1 = tmn2 /\ als_simulation mi als1 als2 /\
        (label_of_block b1 = label_of_block b2) /\
-       (exists l1, exists ps1, exists cs11,
-         b1 = block_intro l1 ps1 (cs11++(insn_call i0 nr ca t0 v p)::cs13) tmn1)
+       (exists l1, exists ps1, exists cs11, b1 = 
+         block_intro l1 ps1 (cs11++(insn_call i0 nr ca t0 va0 v p)::cs13) tmn1)
          /\
        (exists l2, exists ps2, exists cs21,
          b2 = block_intro l2 ps2 (cs21++cs2) tmn2) /\
@@ -130,7 +130,7 @@ Definition sbEC_simulates_EC_tail (TD:TargetData) Ps1 gl (mi:MoreMem.meminj)
          gen_metadata_fdef nts (getFdefLocs f1) nil f1 = Some (ex_ids, rm2) /\
          reg_simulation mi TD gl f1 rm1 rm2 lc1 lc2 /\
          incl ex_ids ex_ids3 /\
-         call_suffix i0 nr ca t0 v p rm2 = Some cs22 /\
+         call_suffix i0 nr ca t0 va0 v p rm2 = Some cs22 /\
          (*wf_freshs ex_ids3 cs13 rm2 /\*)
          trans_cmds ex_ids3 rm2 cs13 = Some (ex_ids4,cs23) /\
          trans_terminator rm2 tmn1 = Some cs24 /\
@@ -214,9 +214,9 @@ match (ogvs, cs) with
 | (nil, nil) => True
 | ((gv, Some (mkMD blk bofs eofs))::ogvs, c1::c2::cs') =>
     exists bv2, exists ev2, exists bgv2, exists egv2,
-      c1 = insn_call fake_id true attrs ssb_typ ssb_fn
+      c1 = insn_call fake_id true attrs ssb_typ None ssb_fn
                  ((p8,nil,bv2)::(val32 n)::nil) /\
-      c2 = insn_call fake_id true attrs sse_typ sse_fn
+      c2 = insn_call fake_id true attrs sse_typ None sse_fn
                  ((p8,nil,ev2)::(val32 n)::nil) /\
       getOperandValue TD bv2 lc2 gl = Some bgv2 /\
       getOperandValue TD ev2 lc2 gl = Some egv2 /\

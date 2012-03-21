@@ -503,7 +503,7 @@ let re :=List.fold_left
            | None =>
                match find_uses_in_fdef cid f with
                | insn_cmd 
-                   (insn_call rid _ _ _ (value_const (const_gid _ fid)) _)
+                   (insn_call rid _ _ _ _ (value_const (const_gid _ fid)) _)
                    ::nil =>
                    if is_llvm_dbg_declare fid then 
                      Some (bldst, Some cid, Some rid)
