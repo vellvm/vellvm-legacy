@@ -1740,4 +1740,614 @@ Proof.
   intros. simpl in H. unfold wf_use_at_head. auto.
 Qed.
 
+(***************************************************************************)
+(*           pid is not defined until the allocation in entry              *)
 
+(* 
+      ---------------------------------
+      |               cs0             |
+      ---------------------------------
+      | csa  | csb  | [palloca] | cs3 |
+      ---------------------------------
+      |      cs1    |                 |
+      ---------------------------------
+      |      |         cs             |
+      ---------------------------------        
+*)
+Definition before_palloca (pinfo:PhiInfo) (cs:cmds) : Prop :=
+match getEntryBlock (PI_f pinfo) with
+| Some (block_intro _ _ cs0 _) =>
+  forall cs1 cs3,
+  cs0 =
+    cs1 ++
+    insn_alloca (PI_id pinfo) (PI_typ pinfo) (PI_num pinfo) (PI_align pinfo) ::
+    cs3 ->
+  (exists csa, exists csb,
+    cs1 = csa ++ csb /\ 
+    cs = csb ++ 
+         insn_alloca (PI_id pinfo) (PI_typ pinfo) (PI_num pinfo) 
+           (PI_align pinfo) :: cs3)
+| _ => True
+end.
+
+Lemma before_palloca_cons: forall pinfo c cs l0 ps0 cs0 tmn0,
+  getEntryBlock (PI_f pinfo) =
+    Some (block_intro l0 ps0 (cs0++c::cs) tmn0) ->
+  before_palloca pinfo cs ->
+  before_palloca pinfo (c::cs).
+Proof.
+  unfold before_palloca.
+  intros. rewrite H in H0. rewrite H.
+  intros cs1 cs3 Heq.
+  assert (Heq':=Heq).
+  apply_clear H0 in Heq.
+  destruct Heq as [csa [csb [J1 J2]]]; subst.
+  assert (cs0 ++ [c] = csa) as J.
+    anti_simpl_env. auto.
+  subst.
+  exists cs0. exists (c::csb). simpl_env. split; auto.
+Qed.
+
+Definition wf_defs (pinfo:PhiInfo) (lc:@Opsem.GVsMap DGVs) : Prop :=
+lookupAL _ lc (PI_id pinfo) = None.
+
+Definition wf_ExecutionContext (pinfo:PhiInfo) (ec:Opsem.ExecutionContext) 
+  : Prop :=
+Opsem.CurFunction ec = PI_f pinfo ->
+getEntryBlock (PI_f pinfo) = Some (Opsem.CurBB ec) ->
+before_palloca pinfo (Opsem.CurCmds ec) ->
+wf_defs pinfo (Opsem.Locals ec).
+
+Fixpoint wf_ECStack (pinfo:PhiInfo) (ecs:Opsem.ECStack) : Prop :=
+match ecs with
+| nil => True
+| ec::ecs' => wf_ExecutionContext pinfo ec /\ wf_ECStack pinfo ecs'
+end.
+
+Definition wf_State (pinfo:PhiInfo) (S:Opsem.State) : Prop :=
+wf_ECStack pinfo (Opsem.ECS S).
+
+Lemma wf_defs_updateAddAL: forall pinfo lc' i1 gv1 (Hwfpi: WF_PhiInfo pinfo)
+  (HwfDef: wf_defs pinfo lc') (Hneq: i1 <> PI_id pinfo),
+  wf_defs pinfo (updateAddAL _ lc' i1 gv1).
+Proof.
+  intros. unfold wf_defs in *. intros.
+  rewrite <- lookupAL_updateAddAL_neq; auto.
+Qed.
+
+Lemma preservation_return : forall pinfo (HwfPI : WF_PhiInfo pinfo)
+  F B rid RetTy Result lc F' B' c' cs' tmn' lc' EC Mem als als' cfg
+  EC1 EC2
+  (EQ1:EC1 = {| Opsem.CurFunction := F;
+                Opsem.CurBB := B;
+                Opsem.CurCmds := nil;
+                Opsem.Terminator := insn_return rid RetTy Result;
+                Opsem.Locals := lc;
+                Opsem.Allocas := als |})
+  (EQ2:EC2 = {| Opsem.CurFunction := F';
+                Opsem.CurBB := B';
+                Opsem.CurCmds := c' :: cs';
+                Opsem.Terminator := tmn';
+                Opsem.Locals := lc';
+                Opsem.Allocas := als' |})
+  Mem' lc'' (H : Instruction.isCallInst c' = true)
+  (H1 : Opsem.returnUpdateLocals
+          (OpsemAux.CurTargetData cfg) c'
+            Result lc lc' (OpsemAux.Globals cfg) = ret lc'')
+  (Hwfcfg : OpsemPP.wf_Config cfg)  
+  (Hwfpp : OpsemPP.wf_State cfg
+           {| Opsem.ECS := EC1 :: EC2 :: EC;
+              Opsem.Mem := Mem |})
+  (HwfS1 : wf_State pinfo
+            {| Opsem.ECS := EC1 :: EC2 :: EC;
+               Opsem.Mem := Mem |}),
+  wf_State pinfo
+     {| Opsem.ECS :=
+             {| Opsem.CurFunction := F';
+                Opsem.CurBB := B';
+                Opsem.CurCmds := cs';
+                Opsem.Terminator := tmn';
+                Opsem.Locals := lc'';
+                Opsem.Allocas := als' |} :: EC;
+        Opsem.Mem := Mem' |}.
+Proof.
+  intros. subst. destruct cfg as [S [los nts] Ps gl fs].
+  destruct Hwfcfg as [_ [_ [HwfSystem HmInS]]].
+  destruct Hwfpp as 
+    [_ [_ 
+     [
+       [
+         [_ [HBinF1 [HFinPs1 [_ [_ [l2 [ps2 [cs2' Heq2]]]]]]]]
+         _
+       ]
+       _
+     ]
+    ]]; subst.
+  destruct HwfS1 as [Hinscope1 [Hinscope2 HwfECs]]. simpl.
+  fold wf_ECStack in HwfECs. simpl in *.
+  split; auto.
+    SSCase "wf_EC".
+    intros J1 J2 J3. simpl in J1, J2, J3. simpl. subst.
+    assert (before_palloca pinfo (c' :: cs')) as Hin.
+      eapply before_palloca_cons; eauto.
+    destruct_cmd c'; tinv H.
+    unfold wf_ExecutionContext in *. simpl in Hinscope1, Hinscope2.
+    unfold Opsem.returnUpdateLocals in H1.
+    remember (Opsem.getOperandValue (los,nts) Result lc gl) as R1.
+    destruct R1; tinv H1.
+    destruct n; inv H1.
+      apply Hinscope2; auto.
+
+      remember (lift_op1 DGVs (fit_gv (los, nts) t0) g t0) as R2.
+      destruct R2; inv H2.
+      apply wf_defs_updateAddAL; auto.
+        eapply WF_PhiInfo_spec10 in HBinF1; eauto using wf_system__uniqFdef.
+Qed.
+
+Lemma preservation_return_void : forall pinfo
+  (HwfPI : WF_PhiInfo pinfo)
+  F B rid lc F' B' c' cs' tmn' lc' EC Mem als als' cfg EC1 EC2
+  (EQ1:EC1 = {| Opsem.CurFunction := F;
+                Opsem.CurBB := B;
+                Opsem.CurCmds := nil;
+                Opsem.Terminator := insn_return_void rid;
+                Opsem.Locals := lc;
+                Opsem.Allocas := als |})
+  (EQ2:EC2 = {| Opsem.CurFunction := F';
+                Opsem.CurBB := B';
+                Opsem.CurCmds := c' :: cs';
+                Opsem.Terminator := tmn';
+                Opsem.Locals := lc';
+                Opsem.Allocas := als' |})
+  (Hwfcfg : OpsemPP.wf_Config cfg)
+  (Hwfpp : OpsemPP.wf_State cfg
+           {| Opsem.ECS := EC1 :: EC2 :: EC;
+              Opsem.Mem := Mem |})
+  Mem' (H : Instruction.isCallInst c' = true)
+  (HwfS1 : wf_State pinfo
+            {| Opsem.ECS := EC1 :: EC2 :: EC;
+               Opsem.Mem := Mem |}),
+  wf_State pinfo
+     {| Opsem.ECS :=
+             {| Opsem.CurFunction := F';
+                Opsem.CurBB := B';
+                Opsem.CurCmds := cs';
+                Opsem.Terminator := tmn';
+                Opsem.Locals := lc';
+                Opsem.Allocas := als' |} :: EC;
+        Opsem.Mem := Mem' |}.
+Proof.
+  intros. subst. destruct cfg as [S [los nts] Ps gl fs].
+  destruct Hwfcfg as [_ [_ [HwfSystem HmInS]]].
+  destruct Hwfpp as 
+    [_ [_ 
+     [
+       [
+         [_ [HBinF1 [HFinPs1 [_ [_ [l2 [ps2 [cs2' Heq2]]]]]]]]
+         _
+       ]
+       _
+     ]
+    ]]; subst.
+
+  destruct HwfS1 as [Hinscope1 [Hinscope2 HwfECs]]. simpl.
+  simpl in Hinscope1, Hinscope2, HwfECs.
+  fold wf_ECStack in HwfECs.
+
+  split; auto.
+    SSCase "wf_EC".
+    intros J1 J2 J3. simpl in J1, J2, J3. simpl. subst.
+    assert (before_palloca pinfo (c' :: cs')) as Hin.
+      eapply before_palloca_cons; eauto.
+    destruct_cmd c'; tinv H.
+    unfold wf_ExecutionContext in *. simpl in Hinscope1, Hinscope2.
+    auto.
+Qed.
+
+Lemma preservation_cmd_updated_case : forall (F : fdef)(B : block)
+  (lc : @Opsem.GVsMap DGVs)(gv3 : GVsT DGVs) (cs : list cmd) (tmn : terminator) 
+  id0 c0 Mem0 als ECs pinfo Mem1 als'
+  (HwfPI : WF_PhiInfo pinfo) (Hid : Some id0 = getCmdID c0) EC
+  (Heq: EC = {| Opsem.CurFunction := F;
+                Opsem.CurBB := B;
+                Opsem.CurCmds := c0 :: cs;
+                Opsem.Terminator := tmn;
+                Opsem.Locals := lc;
+                Opsem.Allocas := als |}) cfg
+  (Hwfpp : OpsemPP.wf_State cfg
+           {| Opsem.ECS := EC :: ECs;
+              Opsem.Mem := Mem0 |})
+  (HwfS1 : wf_State pinfo
+            {| Opsem.ECS := EC :: ECs;
+               Opsem.Mem := Mem0 |})
+  (Hneq :  F = PI_f pinfo -> id0 <> PI_id pinfo),
+  wf_State pinfo
+     {|
+     Opsem.ECS := {|
+            Opsem.CurFunction := F;
+            Opsem.CurBB := B;
+            Opsem.CurCmds := cs;
+            Opsem.Terminator := tmn;
+            Opsem.Locals := updateAddAL (GVsT DGVs) lc id0 gv3;
+            Opsem.Allocas := als' |} :: ECs;
+     Opsem.Mem := Mem1 |}.
+Proof.
+  intros. subst.
+  destruct cfg as [S [los nts] Ps gl fs].
+  destruct Hwfpp as 
+    [Hnonempty [
+     [Hreach1 [HBinF1 [HFinPs1 [_ [_ [l1 [ps1 [cs1' Heq1]]]]]]]]
+     [HwfEC0 HwfCall]
+    ]]; subst.
+  fold (@OpsemPP.wf_ECStack DGVs) in HwfEC0.
+  destruct HwfS1 as [Hinscope HwfECs]. simpl.
+  simpl in Hinscope, HwfECs.
+  fold wf_ECStack in HwfECs.
+  split; auto.
+    intros J1 J2 J3. simpl in J1, J2, J3. simpl. subst.
+    unfold wf_ExecutionContext in *. simpl in Hinscope.
+    eapply wf_defs_updateAddAL; eauto.
+    apply Hinscope; auto.
+      eapply before_palloca_cons; eauto.
+Qed.
+
+Lemma preservation_mem_updated_case : forall (F : fdef)(B : block)
+  (lc : @Opsem.GVsMap DGVs)(gv3 : GVsT DGVs) (cs : list cmd) (tmn : terminator) 
+  c0 Mem0 als Mem1 als' ECs pinfo EC
+  (Heq: EC = {| Opsem.CurFunction := F;
+                Opsem.CurBB := B;
+                Opsem.CurCmds := c0 :: cs;
+                Opsem.Terminator := tmn;
+                Opsem.Locals := lc;
+                Opsem.Allocas := als |}) cfg
+  (Hwfpp : OpsemPP.wf_State cfg
+           {| Opsem.ECS := EC :: ECs;
+              Opsem.Mem := Mem0 |})
+  (HwfS1 : wf_State pinfo
+            {| Opsem.ECS := EC :: ECs;
+               Opsem.Mem := Mem0 |}),
+  wf_State pinfo
+     {|
+     Opsem.ECS := {|
+            Opsem.CurFunction := F;
+            Opsem.CurBB := B;
+            Opsem.CurCmds := cs;
+            Opsem.Terminator := tmn;
+            Opsem.Locals := lc;
+            Opsem.Allocas := als' |} :: ECs;
+     Opsem.Mem := Mem1 |}.
+Proof.
+  intros. subst.
+  destruct cfg as [S [los nts] Ps gl fs].
+  destruct Hwfpp as 
+    [Hnonempty [
+     [Hreach1 [HBinF1 [HFinPs1 [_ [_ [l1 [ps1 [cs1' Heq1]]]]]]]]
+     [HwfEC0 HwfCall]
+    ]]; subst.
+  fold (@OpsemPP.wf_ECStack DGVs) in HwfEC0.
+  destruct HwfS1 as [Hinscope HwfECs]. simpl.
+  fold wf_ECStack in HwfECs.
+  split; auto.
+    intros J1 J2 J3. simpl in J1, J2, J3. simpl. subst.
+    apply Hinscope; auto. simpl.
+      eapply before_palloca_cons; eauto.
+Qed.
+
+Ltac destruct_ctx_other :=
+match goal with
+| Hwfcfg : OpsemPP.wf_Config ?cfg,
+  Hwfpp : OpsemPP.wf_State ?cfg _,
+  HwfS1 : wf_State _ _ |- _ =>
+  let l5:=fresh "l5" in
+  let ps5:=fresh "ps5" in
+  let cs5:=fresh "cs5" in
+  destruct Hwfcfg as [_ [Hwfgl0 [HwfSystem HmInS]]];
+  destruct Hwfpp as 
+    [Hnonempty [
+     [Hreach1 [HBinF1 [HFinPs1 [_ [_ [l5 [ps5 [cs5 Heq1]]]]]]]]
+     [HwfEC0 HwfCall]
+    ]]; subst;
+  fold (@OpsemPP.wf_ECStack DGVs) in HwfEC0;
+  destruct HwfS1 as [Hinscope HwfECs]; simpl;
+  simpl in Hinscope, HwfECs;
+  fold wf_ECStack in HwfECs
+end.
+
+(* go to typings_props *)
+Lemma entryBlock_has_no_pred: forall s m F B l0 l3 ps cs tmn
+  (HwfF: wf_fdef s m F) (Hentry:  getEntryBlock F = Some B) (Huniq:uniqFdef F)
+  (HBinF : blockInFdefB (block_intro l3 ps cs tmn) F = true)
+  (Hsucc : In l0 (successors_terminator tmn))
+  (Hlkup: lookupBlockViaLabelFromFdef F l0 = Some B),
+  False.
+Proof.
+  intros. 
+  destruct B as [l1 ps1 cs1 tmn1].
+  apply lookupBlockViaLabelFromFdef_inv in Hlkup; auto.
+  destruct Hlkup as [EQ HBinF']; subst.
+  destruct F as [fh bs]. 
+  simpl in HBinF. clear HBinF'.
+  eapply getEntryBlock_inv in Hentry; eauto.
+Qed.
+
+Ltac preservation_sBranch:=
+  destruct_ctx_other;
+  split; try solve [
+    auto |
+    intros J1 J2 J3; simpl in *; subst;
+    elimtype False;
+      match goal with
+      | H: Some _ = (if ?e then _ else _) |- _ => destruct e
+      | |- _ => idtac
+      end;
+      eapply entryBlock_has_no_pred; eauto using wf_system__wf_fdef,
+                                                 wf_system__uniqFdef;
+                                     simpl; auto
+  ].
+
+Ltac id_neq_pid_tac :=
+match goal with
+| |- _ <> PI_id _ =>
+     intros; subst;
+     match goal with
+     | HBinF1: blockInFdefB _ _ = true |- _ =>
+       eapply WF_PhiInfo_spec10 in HBinF1; eauto using wf_system__uniqFdef
+     end
+end.
+
+Ltac preservation_pure_cmd_updated_case := abstract
+  (eapply preservation_cmd_updated_case; eauto; try solve
+    [simpl; auto | destruct_ctx_other; intro; id_neq_pid_tac]).
+
+Lemma arguments_dont_define_pid: forall pinfo fa rt fid la va bs TD gvs lc
+  (HwfP: WF_PhiInfo pinfo)
+  (Huniq: uniqFdef (fdef_intro (fheader_intro fa rt fid la va) bs))
+  (Heq: fdef_intro (fheader_intro fa rt fid la va) bs = PI_f pinfo)
+  (Hinit: Opsem.initLocals TD la gvs = ret lc),
+  wf_defs pinfo lc.
+Proof.
+  intros.
+  unfold wf_defs.
+  remember (lookupAL (GVsT DGVs) lc (PI_id pinfo)) as R.
+  destruct R as [gv|]; auto.
+  symmetry_ctx.
+  eapply OpsemProps.In_initLocals__In_getArgsIDs in HeqR; eauto.
+  rewrite Heq in Huniq.
+  apply WF_PhiInfo_spec1 in HwfP; auto.
+  rewrite <- Heq in Huniq.
+  eapply IngetArgsIDs__lookupCmdViaIDFromFdef in Huniq; eauto.
+  congruence.
+Qed.
+
+Lemma WF_PhiInfo_spec13: forall pinfo l5 ps5 cs5 cs tmn t v align0
+  (HwfP: WF_PhiInfo pinfo) (Huniq: uniqFdef (PI_f pinfo))
+  (Hentry: 
+    getEntryBlock (PI_f pinfo) =
+    ret block_intro l5 ps5 
+          (cs5 ++ insn_alloca (PI_id pinfo) t v align0 :: cs) tmn),
+  t = PI_typ pinfo /\ v = PI_num pinfo /\ align0 = PI_align pinfo.
+Proof.
+  intros.
+  apply WF_PhiInfo_spec1 in HwfP; auto.
+  apply entryBlockInFdef in Hentry.
+  eapply IngetCmdsIDs__lookupCmdViaIDFromFdef in Hentry; 
+    eauto using in_middle.
+  simpl in Hentry.
+  uniq_result. auto.
+Qed.
+
+Lemma preservation : forall pinfo cfg S1 S2 tr
+  (Hwfcfg: OpsemPP.wf_Config cfg) (Hwfpp: OpsemPP.wf_State cfg S1) 
+  (HwfPI: WF_PhiInfo pinfo) (HsInsn: Opsem.sInsn cfg S1 S2 tr)
+  (HwfS1: wf_State pinfo S1), wf_State pinfo S2.
+Proof.
+  intros.
+  (sInsn_cases (induction HsInsn) Case); destruct TD as [los nts]; simpl HwfS1.
+
+Case "sReturn". abstract (eapply preservation_return; eauto; simpl; auto).
+Case "sReturnVoid". 
+  abstract (eapply preservation_return_void; eauto; simpl; auto).
+Case "sBranch". abstract preservation_sBranch.
+Case "sBranch_uncond". abstract preservation_sBranch.
+Case "sBop". preservation_pure_cmd_updated_case.
+Case "sFBop". preservation_pure_cmd_updated_case.
+Case "sExtractValue". preservation_pure_cmd_updated_case.
+Case "sInsertValue". preservation_pure_cmd_updated_case.
+Case "sMalloc". preservation_pure_cmd_updated_case.
+Case "sFree". abstract (eapply preservation_mem_updated_case; eauto).
+Case "sAlloca". 
+  assert ((F = PI_f pinfo -> id0 <> PI_id pinfo) \/
+          (F = PI_f pinfo -> id0 = PI_id pinfo)) as J. 
+    destruct (id_dec id0 (PI_id pinfo)); tauto.
+  destruct J as [J | J].
+    preservation_pure_cmd_updated_case.
+
+    abstract (
+    destruct_ctx_other;
+    split; try solve [
+      auto |
+      intros J1 J2 J3; simpl in J1, J2, J3; simpl; subst;
+      rewrite J in J2; auto;
+      unfold before_palloca in J3;
+      rewrite J2 in J3;
+      assert (uniqFdef (PI_f pinfo)) as Huniq; 
+        try solve [match goal with
+                   | |- uniqFdef _ => eauto using wf_system__uniqFdef
+                   end];
+      apply WF_PhiInfo_spec13 in J2; auto;
+      destruct J2 as [A [B C]]; subst;
+      destruct (@J3 cs5 cs) as [csa [csb [EQ1 EQ2]]]; auto;
+      anti_simpl_env
+    ]).
+Case "sLoad". preservation_pure_cmd_updated_case.
+Case "sStore". abstract (eapply preservation_mem_updated_case; eauto).
+Case "sGEP". preservation_pure_cmd_updated_case.
+Case "sTrunc". preservation_pure_cmd_updated_case.
+Case "sExt". preservation_pure_cmd_updated_case.
+Case "sCast". preservation_pure_cmd_updated_case.
+Case "sIcmp". preservation_pure_cmd_updated_case.
+Case "sFcmp". preservation_pure_cmd_updated_case.
+Case "sSelect". destruct (isGVZero (los, nts) c); preservation_pure_cmd_updated_case.
+Case "sCall".
+  abstract (
+  destruct_ctx_other;
+  split; try solve [
+    auto |
+    intros J1 J2 J3; simpl in J1, J2, J3; simpl;
+      apply OpsemAux.lookupFdefViaPtr_inv in H1; auto;
+      eapply arguments_dont_define_pid; eauto using wf_system__uniqFdef |
+    split; auto
+  ]).
+Case "sExCall". 
+  abstract( 
+  destruct_ctx_other;
+  split; try solve [
+    auto |
+    intros J1 J2 J3; simpl in J1, J2, J3; simpl; subst;
+    assert (wf_defs pinfo lc) as Hwd; try solve [
+      match goal with
+      | |- wf_defs _ _ =>
+        apply Hinscope; simpl; try solve 
+          [auto | eapply before_palloca_cons; eauto]
+      end
+    ];
+    unfold Opsem.exCallUpdateLocals in *;
+    destruct_if; try solve [
+      auto |
+      inv_mbind; try solve [
+       auto |
+       eapply wf_defs_updateAddAL; try solve [eauto | id_neq_pid_tac]
+      ]
+    ]
+  ]).
+Qed.
+
+(* go to infra *)
+Lemma getCmdID_in_getCmdsIDs : forall cs i0 c,
+  getCmdID c = Some i0 ->
+  In c cs ->
+  In i0 (getCmdsIDs cs).
+Proof.
+  induction cs; intros.
+    inv H0.
+
+    simpl in *.
+    destruct H0 as [H0 | H0]; subst.
+      rewrite H. simpl. auto.
+      
+      apply IHcs in H; auto.
+      destruct (getCmdID a); simpl; auto.
+Qed.
+
+(* go to infra *)
+Lemma getCmdID_in_getBlocksIDs : forall i0 c l0 ps0 cs0 tmn0,
+  getCmdID c = Some i0 ->
+  In c cs0 ->
+  In i0 (getBlockIDs (block_intro l0 ps0 cs0 tmn0)).
+Proof.
+  intros. 
+  simpl. 
+  apply in_or_app. right.
+  eapply getCmdID_in_getCmdsIDs; eauto.
+Qed.
+
+Lemma WF_PhiInfo_spec14: forall pinfo l1 ps1 cs11 t v align0 cs tmn2
+  (Hwfpi: WF_PhiInfo pinfo) (Huniq: uniqFdef (PI_f pinfo))
+  (HBinF: blockInFdefB (block_intro l1 ps1
+                 (cs11 ++ insn_alloca (PI_id pinfo) t v align0 :: cs) tmn2)
+               (PI_f pinfo) = true),
+  getEntryBlock (PI_f pinfo) =
+    ret block_intro l1 ps1
+         (cs11 ++ insn_alloca (PI_id pinfo) t v align0 :: cs) tmn2.
+Proof.
+  intros.
+  destruct Hwfpi as [Hwfpi _].
+  unfold promotable_alloca in Hwfpi.
+  inv_mbind. symmetry_ctx.
+  destruct b as [l0 ps0 cs0 tmn0].
+  f_equal.
+  eapply block_eq1 with (id0:=PI_id pinfo); eauto.
+    apply entryBlockInFdef in HeqR.
+    eapply inGetBlockIDs__lookupBlockViaIDFromFdef; eauto.
+    apply find_promotable_alloca_spec in Hwfpi.
+    destruct Hwfpi as [J _].
+    eapply getCmdID_in_getBlocksIDs; eauto. 
+      simpl; auto.
+
+    eapply getCmdID_in_getBlocksIDs; eauto using in_middle.
+      simpl; auto.
+Qed.
+
+(* go to infra *)
+Lemma uniqFdef_cmds_split_middle: forall (cs2 cs2' : list cmd) (c : cmd) 
+  (cs1 cs1' : list cmd) F l0 ps0 tmn0
+  (Huniq: uniqFdef F)
+  (HBinF: blockInFdefB (block_intro l0 ps0 (cs1 ++ c :: cs2) tmn0) F = true)
+  (H: cs1 ++ c :: cs2 = cs1' ++ c :: cs2'), cs1 = cs1' /\ cs2 = cs2'.
+Proof.
+  intros.
+  apply uniqFdef__blockInFdefB__nodup_cmds in HBinF; auto.
+  apply NoDup_cmds_split_middle in H; auto.
+Qed.
+
+Lemma WF_PhiInfo_spec15: forall (pinfo : PhiInfo) (tmn2 : terminator)
+  (lc2 : Opsem.GVsMap) (als2 : list mblock) (Hwfpi : WF_PhiInfo pinfo)
+  (B : block) (t : typ) (v : value)
+  (align0 : align) (EC : list Opsem.ExecutionContext) (cs : list cmd)
+  (Mem : mem) 
+  (Heq3 : exists l1 : l,
+           exists ps1 : phinodes,
+             exists cs11 : list cmd,
+               B =
+               block_intro l1 ps1
+                 (cs11 ++ insn_alloca (PI_id pinfo) t v align0 :: cs) tmn2)
+  (HBinF1 : blockInFdefB B (PI_f pinfo) = true)
+  (Hpalloca : wf_State pinfo
+               {|
+               Opsem.ECS := {|
+                            Opsem.CurFunction := PI_f pinfo;
+                            Opsem.CurBB := B;
+                            Opsem.CurCmds := insn_alloca 
+                                               (PI_id pinfo) t v align0 :: cs;
+                            Opsem.Terminator := tmn2;
+                            Opsem.Locals := lc2;
+                            Opsem.Allocas := als2 |} :: EC;
+               Opsem.Mem := Mem |})
+  (Huniq : uniqFdef (PI_f pinfo)),
+  lookupAL (GVsT DGVs) lc2 (PI_id pinfo) = merror.
+Proof.
+  intros.
+  destruct Hpalloca as [Hpalloca _].
+  destruct Heq3 as [l1 [ps1 [cs11 Heq3]]]; subst.
+  assert (getEntryBlock (PI_f pinfo) = 
+    Some 
+      (block_intro l1 ps1
+        (cs11 ++ insn_alloca (PI_id pinfo) t v align0 :: cs) tmn2))
+    as Hentry.
+    apply WF_PhiInfo_spec14; auto.
+  assert (G:=Hentry).
+  apply WF_PhiInfo_spec13 in G; auto.
+  destruct G as [A [B C]]; subst.
+  apply Hpalloca; simpl; auto.
+    unfold before_palloca.
+    fill_ctxhole.
+    intros.
+    assert (cs11 = cs1 /\ cs = cs3) as G.
+      eapply uniqFdef_cmds_split_middle; eauto.
+    destruct G; subst.
+    exists cs1. exists nil. auto.
+Qed.
+
+Lemma s_genInitState__palloca: forall S main VarArgs cfg IS pinfo
+  (Hwfpi: WF_PhiInfo pinfo) (Hwfs: wf_system S)
+  (Hinit : @Opsem.s_genInitState DGVs S main VarArgs Mem.empty = ret (cfg, IS)),
+  wf_State pinfo IS.
+Proof.
+  intros.
+  simpl_s_genInitState.
+  split; simpl; auto.
+    intros J1 J2 J3. simpl in *.
+    apply getParentOfFdefFromSystem__moduleInProductsInSystemB in HeqR0.
+    destruct HeqR0.
+    eapply arguments_dont_define_pid; eauto using wf_system__uniqFdef.
+Qed.

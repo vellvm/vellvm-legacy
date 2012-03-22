@@ -227,10 +227,6 @@ Proof.
     inv Hin.
 Qed.
 
-Lemma no_alias_dec: forall gvs1 gvs2,
-  MemProps.no_alias gvs1 gvs2 \/ ~ MemProps.no_alias gvs1 gvs2.
-Admitted.
-
 Lemma load_free_allocas_none: forall TD M1 M2 mb als ofs m ty al
   (Hfree : free_allocas TD M1 als = ret M2)
   (Hin : In mb als),
@@ -252,7 +248,7 @@ Proof.
   unfold no_alias_head_in_tail. intros.
   rewrite Heq in EQ1. subst.
   destruct (fdef_dec (PI_f pinfo) (PI_f pinfo)); try congruence.
-  destruct (no_alias_dec ptr gvsa) as [Hnalias' | Halias]; auto.
+  destruct (MemProps.no_alias_dec ptr gvsa) as [Hnalias' | Halias]; auto.
   apply Hinscope1' in Hlkup.
   destruct Hlkup as [[_ [[mb [EQ [Hin _]]] _]] _]; subst.
   assert (Hld1':=Hld1).
@@ -349,7 +345,7 @@ Qed.
 Lemma no_alias_head_tail_update :
   forall pinfo ptr EC1 EC2 ECs
   (EQ: Opsem.CurFunction EC1 = Opsem.CurFunction EC2)
-  (Hp: forall gvsa
+  (Hp: forall gvsa (EQ': Opsem.CurFunction EC1 = PI_f pinfo)
    (Hlkup: lookupAL (GVsT DGVs) (Opsem.Locals EC2) (PI_id pinfo) = ret gvsa),
    lookupAL (GVsT DGVs) (Opsem.Locals EC1) (PI_id pinfo) = ret gvsa)
   (Hnalias: no_alias_head_tail pinfo ptr (EC1 :: ECs)),
@@ -544,7 +540,6 @@ Lemma lookupExFdecViaPtr__simulation_l2r : forall pinfo Ps1 Ps2 fptr f fs,
   OpsemAux.lookupExFdecViaPtr Ps2 fs fptr = Some f.
 Admitted.
 
-
 Lemma no_alias_head_tail_cons_and: forall pinfo ptr EC ECs,
   no_alias_head_tail pinfo ptr (EC :: ECs) ->
   no_alias_head_in_tail pinfo ptr EC /\ no_alias_head_tail pinfo ptr ECs.
@@ -590,6 +585,7 @@ Lemma dse_is_sim : forall maxb pinfo Cfg1 St1 Cfg2 St2
   (Hnld: load_in_fdef (PI_id pinfo) (PI_f pinfo) = false)
   (Hwfcfg: OpsemPP.wf_Config Cfg1) (Hwfpp: OpsemPP.wf_State Cfg1 St1)
   (Hnoalias: Promotability.wf_State maxb pinfo Cfg1 St1)
+  (Hpalloca: palloca_props.wf_State pinfo St1)
   (Hsim: State_simulation pinfo Cfg1 St1 Cfg2 St2),
   (forall (Hrem: removable_State pinfo St1) St1' tr1
      (Hop1: Opsem.sInsn Cfg1 St1 St1' tr1),
@@ -789,13 +785,20 @@ SCase "sMalloc".
       rewrite <- H2. rewrite <- H25. rewrite Hmsim1. auto.
 
       intros.
-      eapply Hmsim2 with (ptr:=ptr)(ty:=ty)(al:=al); eauto.
-      eapply no_alias_head_tail_update in Hnalias; eauto; simpl; auto.
-        intros. admit. (* id <> palloca *)
-
+      eapply MemProps.malloc_preserves_mload_inv in Hld1; eauto.
+      eapply MemProps.malloc_preserves_mload_inv in Hld2; eauto.
+      destruct (@MemProps.no_alias_with_blk_dec mb ptr) 
+        as [Halias_mb | Hnalias_mb].
+        destruct Hld1 as [[Hld1 _]|[_ G]]; try congruence.
+        destruct Hld2 as [[Hld2 _]|[_ G]]; try congruence.
+        eapply no_alias_head_tail_update in Hnalias; eauto; simpl; auto.
+          intros. admit. (* id <> palloca *)
+        
+        destruct Hld1 as [[_ G]|[Hld1 _]]; try congruence.
+        destruct Hld2 as [[_ G]|[Hld2 _]]; try congruence.
         (* two cases, if ptr is mb or not,
-           malloc_preserves_mload_inv needs to be extended. *)
-        admit. admit.
+           malloc_preserves_mload_inv needs to be extended to match chunks!. *)
+        admit.
 
 SCase "sFree".
 
@@ -839,14 +842,30 @@ SCase "sAlloca".
       rewrite <- H2. rewrite <- H25. rewrite Hmsim1. auto.
 
       intros.
-      eapply Hmsim2 with (ptr:=ptr)(ty:=ty)(al:=al); eauto.
-      eapply no_alias_head_tail_update in Hnalias; eauto; simpl; auto.
-        intros.
-        admit. (* if id = palloca, then lc2 cannot contain pid *)
+      eapply MemProps.malloc_preserves_mload_inv in Hld1; eauto.
+      eapply MemProps.malloc_preserves_mload_inv in Hld2; eauto.
+      destruct (@MemProps.no_alias_with_blk_dec mb ptr) 
+        as [Halias_mb | Hnalias_mb].
+        destruct Hld1 as [[Hld1 _]|[_ G]]; try congruence.
+        destruct Hld2 as [[Hld2 _]|[_ G]]; try congruence.
+        eapply no_alias_head_tail_update in Hnalias; eauto; simpl; auto.
+        destruct (id_dec id0 (PI_id pinfo)); subst.
+          intros gvsa Heq Hlkup; subst.
+          assert (uniqFdef (PI_f pinfo)) as Huniq.
+            eauto using wf_system__uniqFdef.
+          clear - Hlkup Hpalloca HBinF1 Heq3 Huniq Hwfpi.
+          assert (lookupAL (GVsT DGVs) lc2 (PI_id pinfo) = None) as Hnone.
+            eapply WF_PhiInfo_spec15; eauto.
+          congruence.
 
+          intros.
+          rewrite <- lookupAL_updateAddAL_neq; auto.
+        
+        destruct Hld1 as [[_ G]|[Hld1 _]]; try congruence.
+        destruct Hld2 as [[_ G]|[Hld2 _]]; try congruence.
         (* two cases, if ptr is mb or not,
-           malloc_preserves_mload_inv needs to be extended. *)
-        admit. admit.
+           malloc_preserves_mload_inv needs to be extended to match chunks!. *)
+        admit.
 
 SCase "sLoad".
   destruct_ctx_other.
@@ -893,7 +912,7 @@ SCase "sStore".
       intros.
       eapply Hmsim2 with (ptr:=ptr)(ty:=ty)(al:=al); eauto.
       eapply no_alias_head_tail_irrel in Hnalias; eauto; simpl; auto.
-        (* two cases, if ptr overlaps with stored ptr or not *)
+        (* same to sas, we should use lower msim *)
         admit. admit.
 
 SCase "sGEP". abstract (destruct_ctx_other; dse_is_sim_common_case).
@@ -1048,6 +1067,7 @@ Lemma sop_star__dse_State_simulation: forall pinfo  cfg1 IS1 cfg2 IS2 tr
   (Hnld: load_in_fdef (PI_id pinfo) (PI_f pinfo) = false) maxb
   (Hwfg: MemProps.wf_globals maxb (OpsemAux.Globals cfg1)) (Hless: 0 <= maxb)
   (Hnoalias: Promotability.wf_State maxb pinfo cfg1 IS1)
+  (Hpalloca: palloca_props.wf_State pinfo IS1)
   (Hstsim : State_simulation pinfo cfg1 IS1 cfg2 IS2)
   (Hopstar : Opsem.sop_star cfg2 IS2 FS2 tr),
   exists FS1, Opsem.sop_star cfg1 IS1 FS1 tr /\
@@ -1070,6 +1090,8 @@ Proof.
         apply OpsemPP.preservation in Hop1; auto.
       assert (Promotability.wf_State maxb pinfo cfg1 IS1') as Hnoalias'.
         eapply Promotability.preservation in Hop1; eauto.
+      assert (palloca_props.wf_State pinfo IS1') as Hpalloca'.
+        eapply palloca_props.preservation in Hop1; eauto.
       eapply dse_is_sim in Hstsim; eauto.
       destruct Hstsim as [Hstsim1 Hstsim2].
       destruct (@removable_State_dec pinfo IS1) as [Hrm | Hnrm].
@@ -1092,6 +1114,7 @@ Lemma sop_div__dse_State_simulation: forall pinfo cfg1 IS1 cfg2 IS2 tr
   (Hnld: load_in_fdef (PI_id pinfo) (PI_f pinfo) = false) maxb
   (Hwfg: MemProps.wf_globals maxb (OpsemAux.Globals cfg1)) (Hless: 0 <= maxb)
   (Hnoalias: Promotability.wf_State maxb pinfo cfg1 IS1)
+  (Hpalloca: palloca_props.wf_State pinfo IS1)
   (Hstsim : State_simulation pinfo cfg1 IS1 cfg2 IS2)
   (Hopstar : Opsem.sop_diverges cfg2 IS2 tr),
   Opsem.sop_diverges cfg1 IS1 tr.
@@ -1134,6 +1157,8 @@ Proof.
               Promotability.wf_State maxb pinfo cfg1 IS1) as Hprom.
       eapply Promotability.s_genInitState__wf_globals_promotable; eauto.
     destruct Hprom as [maxb [Hwfg [Hless Hprom]]].
+    assert (palloca_props.wf_State pinfo IS1) as Hpalloca.
+      eapply palloca_props.s_genInitState__palloca; eauto.
     eapply sop_star__dse_State_simulation in Hstsim; eauto; try tauto.
     destruct Hstsim as [FS1 [Hopstar1 Hstsim']].
     eapply s_isFinialState__dse_State_simulation in Hstsim'; eauto.
@@ -1150,6 +1175,8 @@ Proof.
               Promotability.wf_State maxb pinfo cfg1 IS1) as Hprom.
       eapply Promotability.s_genInitState__wf_globals_promotable; eauto.
     destruct Hprom as [maxb [Hwfg [Hless Hprom]]].
+    assert (palloca_props.wf_State pinfo IS1) as Hpalloca.
+      eapply palloca_props.s_genInitState__palloca; eauto.
     eapply sop_div__dse_State_simulation in Hstsim; eauto.
     destruct Hstsim as [FS1 Hopdiv1].
     econstructor; eauto.

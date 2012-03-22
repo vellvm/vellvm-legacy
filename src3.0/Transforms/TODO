@@ -1,41 +1,49 @@
 1) memory alignment
-  promotable_props
-  STATUS: axioms
+   promotable_props
+   STATUS: axioms
 
 2) admitted cases in main(top) simulation lemmas (0.5W):0.5W
-  las laa
-  STATUS: done
+   las laa
+   STATUS: done
 
 2) properties of LASInfo/LAAInfo/SASInfo (0.5W):1D
-  las laa sas
-  STATUS: las/laa are partially done
+   las laa sas
+   STATUS: las/laa are partially done
 
-4) memory simulation needs to be lowered.
+4) show that before the alloca, [|pid|] = None (0.5W):0.75D
+   sas dse
+   STATUS: done
+
+5) memory simulation needs to be lowered (0.5W).
    dse
 
-5) reachable <-> reachavlity_analysis (1W)
+6) reachable <-> reachavlity_analysis (1W)
    palloca_props
 
-6) properties of find_promotable_alloca (0.5W)
+7) properties of find_promotable_alloca (0.5W)
   palloca_props promotable_props phiplacement_bsim alive_alive dae primitives 
   dse
 
-7) domination (2W)
+8) domination (2W)
   alive_store alive_alloca id_rhs_val las laa
 
-7) infrastructure (0.5W)
+9) infrastructure (0.5W)
   promotable_props alive_store dae program_sim
 
-7) WF preservation (2.5W)
-  phiplacement_bsim alive_store las laa dae sas mem2reg_correct die subst dse
-
-7) typings (uniqness, wf) (0.5W)
+9) typings (uniqness, wf) (0.5W)
   alive_alloca las laa dae sas
 
-7) fdef/prod-simulation (0.5W)
+11) fdef/prod-simulation (0.5W)
   las laa sas dse
 
-12) redundancy
+12) WF preservation (2.5W)
+  phiplacement_bsim alive_store las laa dae sas mem2reg_correct die subst dse
+
+13) phinode elimination (infinite)
+
+14) pruned SSA (infinite)
+
+15) redundancy
   alive_store and alive_alloca 
   laa and las
   fdef/prod-simulation in all passes

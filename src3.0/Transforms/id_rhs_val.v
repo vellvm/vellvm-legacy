@@ -7,6 +7,8 @@ Require Import Iteration.
 Require Import Maps.
 Require Import opsem_props.
 Require Import trans_tactic.
+Require Import palloca_props.
+Require Import program_sim.
 
 Definition DGVMap := @Opsem.GVsMap DGVs.
 
@@ -1140,9 +1142,6 @@ Case "sExCall".
         simpl; eauto; simpl; auto]
   end).
 Qed.
-
-Require Import palloca_props.
-Require Import program_sim.
 
 Lemma initLocals__id_rhs_val_wf_defs : forall pinfo fid l' fa rt la va
   lb gvs lc CurLayouts CurNamedts initGlobal v1 v2 (Hwfpi: WF_PhiInfo pinfo)

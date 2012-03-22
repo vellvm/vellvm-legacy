@@ -8,9 +8,9 @@ Require Import Maps.
 Require Import opsem_props.
 Require Import promotable_props.
 Require Import primitives.
+Require Import palloca_props.
 Require Import alive_store.
 Require Import id_rhs_val.
-Require Import palloca_props.
 Require Import mem2reg.
 Require Import program_sim.
 Require Import memory_props.

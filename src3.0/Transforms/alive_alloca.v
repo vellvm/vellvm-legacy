@@ -66,8 +66,7 @@ Proof.
   destruct AI_alive0 as [J1 [J2 [cs1 [cs3 J3]]]]; subst.
   intros.
   assert (cs1 = cs2 /\ cs3 = cs4) as J.
-    apply uniqFdef__blockInFdefB__nodup_cmds in J1; auto.
-    apply NoDup_cmds_split_middle in H2; auto.
+    eapply uniqFdef_cmds_split_middle in H2; eauto.
     destruct H2 as [G1 G2].
     split; auto.
       apply app_inv_head in G2; auto.

@@ -452,8 +452,7 @@ Proof.
 Qed.
 
 Lemma EC_follow_dead_store_tail: forall pinfo sasinfo c cs B tmn3 lc1 als3 als3'
-  lc2 F,
-  getCmdLoc c <> SAS_sid2 pinfo sasinfo ->
+  lc2 F (Heq: PI_f pinfo = F -> getCmdLoc c <> SAS_sid2 pinfo sasinfo),
   ~ EC_follow_dead_store pinfo sasinfo
       {| Opsem.CurFunction := F;
          Opsem.CurBB := B;
@@ -470,7 +469,7 @@ Lemma EC_follow_dead_store_tail: forall pinfo sasinfo c cs B tmn3 lc1 als3 als3'
          Opsem.Allocas := als3' |}.
 Proof.
   intros.
-  intro J. apply H0.
+  intro J. apply H.
   destruct J as [J1 [J2 J3]]. simpl in *.
   split; auto.
   split; auto.
@@ -479,8 +478,7 @@ Proof.
 Qed.
 
 Lemma EC_follow_dead_store_tail':forall pinfo sasinfo c cs B tmn3 lc1 als3 als3'
-  lc2 F,
-  getCmdLoc c <> SAS_sid2 pinfo sasinfo ->
+  lc2 F (Heq: PI_f pinfo = F -> getCmdLoc c <> SAS_sid2 pinfo sasinfo),
   EC_follow_dead_store pinfo sasinfo
       {| Opsem.CurFunction := F;
          Opsem.CurBB := B;
@@ -497,7 +495,7 @@ Lemma EC_follow_dead_store_tail':forall pinfo sasinfo c cs B tmn3 lc1 als3 als3'
          Opsem.Allocas := als3 |}.
 Proof.
   intros.
-  destruct H0 as [J1 [J2 J3]]. simpl in *. subst.
+  destruct H as [J1 [J2 J3]]. simpl in *. subst.
   split; auto.
   split; auto.
     simpl.
@@ -507,8 +505,8 @@ Qed.
 Lemma EC_follow_dead_store_tail'':forall pinfo sasinfo c cs B tmn3 lc1 als3 als3'
   lc2 F
   (Hex: exists l0, exists ps0, exists cs0,
-          B = block_intro l0 ps0 (cs0++c::cs) tmn3),
-  getCmdLoc c <> SAS_sid1 pinfo sasinfo ->
+          B = block_intro l0 ps0 (cs0++c::cs) tmn3)
+  (Heq: PI_f pinfo = F -> getCmdLoc c <> SAS_sid1 pinfo sasinfo),
   EC_follow_dead_store pinfo sasinfo
       {| Opsem.CurFunction := F;
          Opsem.CurBB := B;
@@ -525,7 +523,7 @@ Lemma EC_follow_dead_store_tail'':forall pinfo sasinfo c cs B tmn3 lc1 als3 als3
          Opsem.Allocas := als3 |}.
 Proof.
   intros.
-  destruct H0 as [J1 [J2 J3]]. simpl in *. subst.
+  destruct H as [J1 [J2 J3]]. simpl in *. subst.
   split; auto.
   split; auto.
     simpl.
@@ -744,8 +742,10 @@ Lemma in_SAS_tail_update :
   (Hneq': PI_f pinfo = F -> getCmdLoc c <> SAS_sid1 pinfo sasinfo)
   (Hex: exists l0, exists ps0, exists cs0,
           B = block_intro l0 ps0 (cs0++c::cs) tmn3)
-  (Hp: lookupAL (GVsT DGVs) lc2 (PI_id pinfo) =
-            lookupAL (GVsT DGVs) lc1 (PI_id pinfo))
+  (Hp: forall gvs, 
+         PI_f pinfo = F -> 
+         lookupAL (GVsT DGVs) lc2 (PI_id pinfo) = Some gvs ->
+         lookupAL (GVsT DGVs) lc1 (PI_id pinfo) = Some gvs)
   (H1: in_SAS_tail pinfo sasinfo omb TD 
       {| Opsem.CurFunction := F;
          Opsem.CurBB := B;
@@ -765,15 +765,17 @@ Proof.
   destruct H1 as [H11 H12].
   split; simpl in *.
     intros.
-    rewrite Hp.
-    apply H11; auto.
-    eapply EC_follow_dead_store_tail'; eauto.
-      destruct H. eauto.
+    assert (exists gvs, lookupAL (GVsT DGVs) lc2 (PI_id pinfo) = Some gvs) as G.
+      admit. (* H => we follow the dead store, so pid must be inscope! *)
+    destruct G as [gvs G]. rewrite G.
+    apply EC_follow_dead_store_tail' with (lc1:=lc1)(als3:=als3) in H; auto.
+    assert (W:=H). destruct W as [W _]. simpl in W.
+    apply_clear H11 in H.
+    apply_clear Hp in G. rewrite G in H. auto.
 
     intros. apply H12.
     intro G. apply H.
     eapply EC_follow_dead_store_tail''; eauto.
-      destruct G. eauto.
 Qed.
 
 Lemma mem_simulation_update_locals :
@@ -782,8 +784,10 @@ Lemma mem_simulation_update_locals :
   (Hneq': PI_f pinfo = F -> getCmdLoc c <> SAS_sid1 pinfo sasinfo)
   (Hex: exists l0, exists ps0, exists cs0,
           B = block_intro l0 ps0 (cs0++c::cs) tmn3)
-  (Hp: lookupAL (GVsT DGVs) lc1 (PI_id pinfo) =
-         lookupAL (GVsT DGVs) lc2 (PI_id pinfo))
+  (Hp: forall gvs, 
+         PI_f pinfo = F -> 
+         lookupAL (GVsT DGVs) lc1 (PI_id pinfo) = Some gvs ->
+         lookupAL (GVsT DGVs) lc2 (PI_id pinfo) = Some gvs)
   (Hmsim: mem_simulation pinfo sasinfo TD 
             ({| Opsem.CurFunction := F;
                 Opsem.CurBB := B;
@@ -1142,40 +1146,9 @@ Proof.
     eapply mem_simulation_update_locals in Hmsim; eauto.
       admit. (* id <> sid2 *)
       admit. (* id <> sid1 *)
+      congruence.
     apply in_SAS_tail_nil.
 Qed. 
-
-Ltac dse_is_sim_common_case :=
-match goal with
-| Hex: exists _:_, exists _:_, exists _:_, _=block_intro _ _ (_++_::_) _,      
-  Hcssim2: cmds_simulation _ _ _ _ _,
-  Hop2: Opsem.sInsn _ _ _ _,
-  Hmsim: mem_simulation _ _ _ _ _ _ |- _ =>
-  apply cmds_simulation_nelim_cons_inv in Hcssim2; simpl; try solve 
-    [eauto using unremovable_loc__neq__SAS_sid1];
-  destruct Hcssim2 as [cs3' [Heq Hcssim2]]; subst;
-  inv Hop2; uniq_result;
-  repeat_solve;
-  match goal with
-  | |- mem_simulation _ _ _
-         ({|Opsem.CurFunction := _;
-            Opsem.CurBB := _;
-            Opsem.CurCmds := _;
-            Opsem.Terminator := _;
-            Opsem.Locals:= ?lc';
-            Opsem.Allocas:=?als'|}::_) _ _ =>
-      apply mem_simulation_update_locals with (lc2:=lc') (als3':=als') in Hmsim; 
-        simpl; try solve [
-          eauto using unremovable_loc__neq__SAS_sid1,
-                      unremovable_loc__neq__SAS_sid2 |
-          match goal with
-          | |- lookupAL _ ?lc ?id1 =
-                 lookupAL _ (updateAddAL _ ?lc _ _ ) ?id1 =>
-               admit  (* id <> palloca *)
-          end
-        ]
-  end
-end.
 
 Lemma mem_simulation__malloc: forall (pinfo : PhiInfo) (sasinfo : SASInfo pinfo)
   (tmn2 : terminator) (lc2 : Opsem.GVsMap) (als2 als2': list mblock)
@@ -1188,6 +1161,22 @@ Lemma mem_simulation__malloc: forall (pinfo : PhiInfo) (sasinfo : SASInfo pinfo)
                B =
                block_intro l1 ps1 (cs11 ++ c :: cs)
                  tmn2)
+  (Hmalloc: match c with
+            | insn_malloc _ _ _ _ | insn_alloca _ _ _ _ => True
+            | _ => False
+            end) (Hwfpi: WF_PhiInfo pinfo)
+  (Hexeq: exists l1 : l, exists ps1 : phinodes,exists cs11 : list cmd,
+              B = block_intro l1 ps1 (cs11 ++ c :: cs) tmn2)
+  (HBinF: blockInFdefB B F = true) (Huniq: uniqFdef F)
+  (Hpalloca : palloca_props.wf_State pinfo
+                ({| Opsem.ECS := {|
+                         Opsem.CurFunction := F;
+                         Opsem.CurBB := B;
+                         Opsem.CurCmds := c :: cs;
+                         Opsem.Terminator := tmn2;
+                         Opsem.Locals := lc2;
+                         Opsem.Allocas := als2 |} :: EC;
+                    Opsem.Mem := Mem |}))
   (Hmsim : mem_simulation pinfo sasinfo (los, nts)
             ({|
              Opsem.CurFunction := F;
@@ -1253,12 +1242,23 @@ Proof.
                 ($ blk2GV (los, nts) mb # typ_pointer t $)) (als3:=als2); 
         eauto using unremovable_loc__neq__SAS_sid1, 
                     unremovable_loc__neq__SAS_sid2.
-        admit. (* id <> pid *)
+
+        intros gv Heq Hlkup; subst.
+        destruct c; tinv Hmalloc; simpl in *; inv Hid.
+          admit. (* malloc <> pid *)
+
+          destruct (id_dec id0 (PI_id pinfo)); subst.
+            assert (lookupAL (GVsT DGVs) lc2 (PI_id pinfo) = None) as Hnone.
+              clear - Hpalloca Hwfpi HBinF Huniq Hexeq.
+              eapply WF_PhiInfo_spec15 in Hpalloca; eauto.
+            congruence.
+
+            rewrite <- lookupAL_updateAddAL_neq; auto.
 Qed.
 
 Lemma list_suffix_dec: forall A (Hdec: forall (x y : A), {x = y}+{x <> y})
   (l1 l2: list A), (exists l3, l1 = l3 ++ l2) \/ (~ exists l3, l1 = l3 ++ l2).
-Admitted.
+Admitted. (* list *)
 
 Lemma cs_follow_dead_store_dec: forall (pinfo : PhiInfo) 
   (sasinfo : SASInfo pinfo) (EC : @Opsem.ExecutionContext DGVs)
@@ -1297,7 +1297,7 @@ Proof.
                      (value_id PI_id) PI_align :: cs3))
         as [csa1 [csb1 [J1 J2]]]; subst; auto.
       clear J.
-      assert (l3 = csb1) as EQ. admit.
+      assert (l3 = csb1) as EQ. admit. (* list *)
       subst.
       apply J'. exists csa1. auto.
 
@@ -2034,11 +2034,72 @@ Proof.
     eapply SASmsim.mstore_inside_inj_left; eauto.
 Qed.
 
+Ltac dse_is_sim_common_case :=
+match goal with
+| Hex: exists _:_, exists _:_, exists _:_, _=block_intro _ _ (_++_::_) _,      
+  Hcssim2: cmds_simulation _ _ _ _ _,
+  Hop2: Opsem.sInsn _ _ _ _,
+  Hmsim: mem_simulation _ _ _ _ _ _ |- _ =>
+  apply cmds_simulation_nelim_cons_inv in Hcssim2; simpl; try solve 
+    [eauto using unremovable_loc__neq__SAS_sid1];
+  destruct Hcssim2 as [cs3' [Heq Hcssim2]]; subst;
+  inv Hop2; uniq_result;
+  repeat_solve;
+  match goal with
+  | |- mem_simulation _ _ _
+         ({|Opsem.CurFunction := _;
+            Opsem.CurBB := _;
+            Opsem.CurCmds := _;
+            Opsem.Terminator := _;
+            Opsem.Locals:= ?lc';
+            Opsem.Allocas:=?als'|}::_) _ _ =>
+      apply mem_simulation_update_locals with (lc2:=lc') (als3':=als') in Hmsim; 
+        simpl; try solve [
+          eauto using unremovable_loc__neq__SAS_sid1,
+                      unremovable_loc__neq__SAS_sid2 |
+          intros;
+          match goal with
+          | H : lookupAL _ ?lc ?id1 = Some ?gvs |-
+                lookupAL _ (updateAddAL _ ?lc _ _ ) ?id1 = Some ?gvs =>
+               admit  (* id <> palloca *)
+          end
+        ]
+  end
+end.
+
+Ltac dse_is_sim_malloc :=
+  destruct_ctx_other;
+  match goal with 
+  | Hcssim2: cmds_simulation _ _ _ _ _,
+    Hop2: Opsem.sInsn _ _ _ _ |- _ =>
+    apply cmds_simulation_nelim_cons_inv in Hcssim2; simpl;
+      try solve [eauto using unremovable_loc__neq__SAS_sid1];
+    destruct Hcssim2 as [cs3' [Heq Hcssim2]]; subst;
+    inv Hop2; uniq_result
+  end;
+  match goal with
+  | Hmsim: mem_simulation _ _ _ _ ?M1 ?M2,
+    H25: malloc _ ?M1 _ _ _ = Some (_, ?mb),
+    H2: malloc _ ?M2 _ _ _ = Some (_, ?mb0) |- _ =>
+    assert (mb0 = mb) as EQ; try solve [
+      match goal with
+      | |- _ = _ =>
+        destruct Hmsim as [Hmsim _];
+        apply MemProps.malloc_result in H25;
+        apply MemProps.malloc_result in H2; subst; auto
+      end
+    ]
+  end;
+  subst;
+  repeat_solve;
+    eapply mem_simulation__malloc; eauto using wf_system__uniqFdef; simpl; auto.
+
 Lemma sas_is_sim : forall maxb pinfo (sasinfo: SASInfo pinfo) Cfg1 St1 Cfg2 St2
   (Hwfpi: WF_PhiInfo pinfo) 
   (Hwfmg: MemProps.wf_globals maxb (OpsemAux.Globals Cfg1)) 
   (Hwfcfg: OpsemPP.wf_Config Cfg1) (Hwfpp: OpsemPP.wf_State Cfg1 St1) 
   (Hnoalias: Promotability.wf_State maxb pinfo Cfg1 St1) 
+  (Hpalloca: palloca_props.wf_State pinfo St1) 
   (Hsim: State_simulation pinfo sasinfo Cfg1 St1 Cfg2 St2),
   (forall (Hrem: removable_State pinfo sasinfo St1) St1' tr1
      (Hop1: Opsem.sInsn Cfg1 St1 St1' tr1),
@@ -2189,23 +2250,7 @@ SCase "sBop". abstract (destruct_ctx_other; dse_is_sim_common_case).
 SCase "sFBop". abstract (destruct_ctx_other; dse_is_sim_common_case).
 SCase "sExtractValue". abstract (destruct_ctx_other; dse_is_sim_common_case).
 SCase "sInsertValue". abstract (destruct_ctx_other; dse_is_sim_common_case).
-SCase "sMalloc".
-  destruct_ctx_other.
-
-  apply cmds_simulation_nelim_cons_inv in Hcssim2; simpl;
-    try solve [eauto using unremovable_loc__neq__SAS_sid1].
-  destruct Hcssim2 as [cs3' [Heq Hcssim2]]; subst;
-  inv Hop2; uniq_result.
-
-  assert (mb0 = mb) as EQ.
-    destruct Hmsim as [Hmsim _].
-    apply MemProps.malloc_result in H25.
-    apply MemProps.malloc_result in H2. subst. auto.
-  subst.
-  repeat_solve.
-    clear - H2 H25 Heq3 Hnrem Hmsim.
-    eapply mem_simulation__malloc; eauto; simpl; auto.
-
+SCase "sMalloc". abstract (dse_is_sim_malloc).
 SCase "sFree".
   destruct_ctx_other.
 
@@ -2222,23 +2267,7 @@ SCase "sFree".
                                              unremovable_loc__neq__SAS_sid2.
         simpl. admit. (* uniqness *)
 
-SCase "sAlloca".
-
-  destruct_ctx_other.
-
-  apply cmds_simulation_nelim_cons_inv in Hcssim2; simpl;
-    try solve [eauto using unremovable_loc__neq__SAS_sid1].
-  destruct Hcssim2 as [cs3' [Heq Hcssim2]]; subst;
-  inv Hop2; uniq_result.
-
-  assert (mb0 = mb) as EQ.
-    destruct Hmsim as [Hmsim _].
-    apply MemProps.malloc_result in H25.
-    apply MemProps.malloc_result in H2. subst. auto.
-  subst.
-  repeat_solve.
-    clear - H2 H25 Heq3 Hnrem Hmsim.
-    eapply mem_simulation__malloc; eauto; simpl; auto.
+SCase "sAlloca". abstract (dse_is_sim_malloc).
 
 SCase "sLoad".
   destruct_ctx_other.
@@ -2431,6 +2460,7 @@ Lemma sop_star__sas_State_simulation: forall pinfo sasinfo cfg1 IS1 cfg2 IS2 tr
   (Hwfcfg: OpsemPP.wf_Config cfg1) maxb
   (Hwfg: MemProps.wf_globals maxb (OpsemAux.Globals cfg1)) (Hless: 0 <= maxb)
   (Hnoalias: Promotability.wf_State maxb pinfo cfg1 IS1)
+  (Hpalloca: palloca_props.wf_State pinfo IS1) 
   (Hstsim : State_simulation pinfo sasinfo cfg1 IS1 cfg2 IS2)
   (Hopstar : Opsem.sop_star cfg2 IS2 FS2 tr),
   exists FS1, Opsem.sop_star cfg1 IS1 FS1 tr /\
@@ -2453,6 +2483,8 @@ Proof.
         apply OpsemPP.preservation in Hop1; auto.
       assert (Promotability.wf_State maxb pinfo cfg1 IS1') as Hnoalias'.
         eapply Promotability.preservation in Hop1; eauto; try tauto.
+      assert (palloca_props.wf_State pinfo IS1') as Hpalloca'.
+        eapply palloca_props.preservation in Hop1; eauto.
       eapply sas_is_sim in Hstsim; eauto.
       destruct Hstsim as [Hstsim1 Hstsim2].
       destruct (@removable_State_dec pinfo sasinfo IS1) as [Hrm | Hnrm].
@@ -2475,6 +2507,7 @@ Lemma sop_div__sas_State_simulation: forall pinfo laainfo cfg1 IS1 cfg2 IS2 tr
   (Hwfpi: WF_PhiInfo pinfo) (Hwfpp: OpsemPP.wf_State cfg1 IS1) maxb
   (Hwfg: MemProps.wf_globals maxb (OpsemAux.Globals cfg1)) (Hless: 0 <= maxb)
   (Hnoalias: Promotability.wf_State maxb pinfo cfg1 IS1)
+  (Hpalloca: palloca_props.wf_State pinfo IS1)
   (Hstsim : State_simulation pinfo laainfo cfg1 IS1 cfg2 IS2)
   (Hopstar : Opsem.sop_diverges cfg2 IS2 tr),
   Opsem.sop_diverges cfg1 IS1 tr.
@@ -2558,6 +2591,8 @@ Proof.
               Promotability.wf_State maxb pinfo cfg1 IS1) as Hprom.
       eapply Promotability.s_genInitState__wf_globals_promotable; eauto.
     destruct Hprom as [maxb [Hwfg [Hless Hprom]]].
+    assert (palloca_props.wf_State pinfo IS1) as Hpalloca.
+      eapply palloca_props.s_genInitState__palloca; eauto.
     eapply sop_star__sas_State_simulation in Hstsim; eauto; try tauto.
     destruct Hstsim as [FS1 [Hopstar1 Hstsim']].
     eapply s_isFinialState__sas_State_simulation in Hstsim'; eauto.
@@ -2574,6 +2609,8 @@ Proof.
               Promotability.wf_State maxb pinfo cfg1 IS1) as Hprom.
       eapply Promotability.s_genInitState__wf_globals_promotable; eauto.
     destruct Hprom as [maxb [Hwfg [Hless Hprom]]].
+    assert (palloca_props.wf_State pinfo IS1) as Hpalloca.
+      eapply palloca_props.s_genInitState__palloca; eauto.
     eapply sop_div__sas_State_simulation in Hstsim; eauto; try tauto.
     destruct Hstsim as [FS1 Hopdiv1].
     econstructor; eauto.
