@@ -1,11 +1,14 @@
 1) memory alignment
   promotable_props
+  STATUS: axioms
 
-2) admitted cases in main(top) simulation lemmas (1W)
+2) admitted cases in main(top) simulation lemmas (0.5W):0.5W
   las laa
+  STATUS: done
 
-2) properties of LASInfo/LAAInfo/SASInfo (0.5W)
+2) properties of LASInfo/LAAInfo/SASInfo (0.5W):1D
   las laa sas
+  STATUS: las/laa are partially done
 
 4) memory simulation needs to be lowered.
    dse
@@ -17,7 +20,7 @@
   palloca_props promotable_props phiplacement_bsim alive_alive dae primitives 
   dse
 
-7) domination (1.5W)
+7) domination (2W)
   alive_store alive_alloca id_rhs_val las laa
 
 7) infrastructure (0.5W)

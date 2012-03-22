@@ -10,6 +10,7 @@ Require Import trans_tactic.
 
 Definition DGVMap := @Opsem.GVsMap DGVs.
 
+(* go to analysis.v *)
 Definition value_in_scope (v0:value) (ids0:ids) : Prop :=
 match v0 with
 | value_const _ => True
@@ -25,6 +26,7 @@ forall gvs1 gvs2,
   Opsem.getOperandValue TD v2 lc gl = Some gvs2 ->
   gvs1 = gvs2.
 
+(* go to analysis.v *)
 Definition inscope_of_ec (ec:@Opsem.ExecutionContext DGVs) : option ids :=
 let '(Opsem.mkEC f b cs tmn lc als) := ec in
 match cs with
@@ -98,6 +100,7 @@ match c with
 | _ => True (* We may also consider call/excall, but ignore them so far *)
 end.
 
+(* Invariant: in f, v2 >> v1 /\ v1 is defined by c => [|v1|] = [|v2|] *)
 Definition vev_defs (v1 v2:value) F TD M gl (f:fdef) (lc:DGVMap) c ids0: Prop :=
   F = f ->
   (value_in_scope v2 ids0 ->
@@ -110,18 +113,7 @@ Definition vev_defs (v1 v2:value) F TD M gl (f:fdef) (lc:DGVMap) c ids0: Prop :=
            else True
        end
    | _ => True
-   end) /\
-  (value_in_scope v1 ids0 ->
-   match Opsem.getOperandValue TD v1 lc gl with
-   | Some gv1 =>
-       match v2 with
-       | value_const _ => True
-       | value_id id2 =>
-           if (id2 == getCmdLoc c) then eval_rhs TD M gl lc c gv1
-           else True
-       end
-   | _ => True
-  end).
+   end).
 
 Definition vev_ExecutionContext v1 v2 F TD M gl (ec:Opsem.ExecutionContext)
   : Prop :=
@@ -148,7 +140,7 @@ let '(OpsemAux.mkCfg s td _ gl _ ) := cfg in
 let '(Opsem.mkState ecs M) := S in
 vev_ECStack v1 v2 F td M gl ecs.
 
-Definition sustable_cmd (c:cmd) : Prop :=
+Definition substable_cmd (c:cmd) : Prop :=
 match c with
 | insn_call _ _ _ _ _ _ _ => False
 | insn_free _ _ _ => False
@@ -161,13 +153,23 @@ match v with
 | value_const _ => True
 | value_id vid =>
     match lookupInsnViaIDFromFdef f vid with
-    | Some (insn_cmd c) => sustable_cmd c
+    | Some (insn_cmd c) => substable_cmd c
     | _ => False
     end
 end.
 
+(* go to analysis.v 
+   v1 >> v2 == id1 >> id2 \/ v1 is constant
+*)
+Definition valueDominates (f:fdef) (v1 v2:value) : Prop :=
+match v1, v2 with
+| value_id id1, value_id id2 => idDominates f id1 id2
+| value_const _, _ => True
+| _, _ => False
+end.
+
 Definition substable_values TD gl (f:fdef) (v1 v2:value) : Prop :=
-substable_value f v1 /\ substable_value f v2 /\
+substable_value f v1 /\ valueDominates f v2 v1 /\
 match v1, v2 with
 | value_const vc1, value_const vc2 =>
     @Opsem.const2GV DGVs TD gl vc1 = Opsem.const2GV TD gl vc2
@@ -175,7 +177,7 @@ match v1, v2 with
 end.
 
 Lemma eval_rhs_det: forall td M gl lc c gv1 gv2,
-  sustable_cmd c ->
+  substable_cmd c ->
   eval_rhs td M gl lc c gv1 -> eval_rhs td M gl lc c gv2 -> gv1 = gv2.
 Proof.
   destruct c; simpl; intros; destruct_exists; destruct_ands;
@@ -183,9 +185,10 @@ Proof.
 Qed.
 
 Lemma wf_defs_updateAddAL: forall v1 v2 F td Mem gl F' lc' c ids1 ids2 g0
-  (Huniq: uniqFdef F') l1 ps1 cs1 tmn1
+  (Huniq: uniqFdef F') l1 ps1 cs1 tmn1 
   (H : blockInFdefB (block_intro l1 ps1 cs1 tmn1) F' = true)
   (H0 : In c cs1)
+  (Hinscope: ret ids1 = inscope_of_cmd F' (block_intro l1 ps1 cs1 tmn1) c)
   (Hvals : substable_values td gl F v1 v2)
   (Hvinscope2 : vev_defs v1 v2 F td Mem gl F' lc' c ids1)
   (Hinscope2' : wf_defs v1 v2 F td gl F' lc' ids1)
@@ -193,11 +196,12 @@ Lemma wf_defs_updateAddAL: forall v1 v2 F td Mem gl F' lc' c ids1 ids2 g0
   (Heval: eval_rhs td Mem gl lc' c g0),
   wf_defs v1 v2 F td gl F' (updateAddAL _ lc' (getCmdLoc c) g0) ids2.
 Proof.
+Local Opaque inscope_of_cmd.
   intros.
   destruct Heq as [Hinc1 Hinc2].
-  destruct Hvals as [Hval1 [Hval2 _]].
+  destruct Hvals as [Hval1 [Hdom _]].
   intros EQ gvsa gvsb Hina Hinb Hgeta Hgetb; subst.
-  destruct Hvinscope2 as [J1 J2]; auto.
+  unfold vev_defs in Hvinscope2.
   unfold wf_defs in Hinscope2'.
   destruct v1 as [vid1 | vc1]; simpl in *.
   Case "v1 = vid1".
@@ -215,36 +219,33 @@ Proof.
 
         SSSCase "vid2 <> c".
           rewrite <- lookupAL_updateAddAL_neq in Hgetb; auto.
-          rewrite Hgetb in J1.
           assert (In vid2 ids1) as Hin.
             apply Hinc2 in Hinb. simpl in Hinb.
             destruct Hinb; subst; try congruence; auto.
+          apply Hvinscope2 in Hin; auto. rewrite Hgetb in Hin.
           erewrite IngetCmdsIDs__lookupCmdViaIDFromFdef in Hval1; eauto.
           eapply eval_rhs_det; eauto.
 
       SSCase "vid1 <> c".
         rewrite <- lookupAL_updateAddAL_neq in Hgeta; auto.
-        rewrite Hgeta in J2.
         assert (In vid1 ids1) as Hin.
           apply Hinc2 in Hina. simpl in Hina.
           destruct Hina; subst; try congruence; auto.
         destruct (vid2 == getCmdLoc c); subst.
         SSSCase "vid2 == c".
-          rewrite lookupAL_updateAddAL_eq in Hgetb.
-          inv Hgetb.
-          erewrite IngetCmdsIDs__lookupCmdViaIDFromFdef in Hval2; eauto.
-          eapply eval_rhs_det; eauto.
+	  admit. (* vid1 in ids1 ==> vid1 >> c
+                    vid2 == c ==> vid1 >> vid2!! *)
 
         SSSCase "vid2 <> c".
           rewrite <- lookupAL_updateAddAL_neq in Hgetb; auto.
-          rewrite Hgetb in J1.
+          rewrite Hgetb in Hvinscope2.
           assert (In vid2 ids1) as Hin'.
             apply Hinc2 in Hinb. simpl in Hinb.
             destruct Hinb; subst; try congruence; auto.
           eauto.
 
     SCase "v2 = vc2".
-      rewrite Hgetb in J1.
+      rewrite Hgetb in Hvinscope2.
       destruct (vid1 == getCmdLoc c); subst.
       SSCase "vid1 == c".
         rewrite lookupAL_updateAddAL_eq in Hgeta.
@@ -260,22 +261,10 @@ Proof.
         eapply Hinscope2'; eauto.
 
   Case "v1 = vc1".
-    rewrite Hgeta in J2.
     destruct v2 as [vid2 | vc2]; simpl in *; eauto.
     SCase "v2 = vid1".
-      destruct (vid2 == getCmdLoc c); subst.
-      SSCase "vid2 == c".
-        rewrite lookupAL_updateAddAL_eq in Hgetb.
-        inv Hgetb.
-        erewrite IngetCmdsIDs__lookupCmdViaIDFromFdef in Hval2; eauto.
-        eapply eval_rhs_det; eauto.
-
-      SSCase "vid2 <> c".
-        rewrite <- lookupAL_updateAddAL_neq in Hgetb; auto.
-        assert (In vid2 ids1) as Hin.
-          apply Hinc2 in Hinb. simpl in Hinb.
-          destruct Hinb; subst; try congruence; auto.
-        eapply Hinscope2'; eauto.
+      tauto.
+Transparent inscope_of_cmd.
 Qed.
 
 Lemma wf_defs_eq : forall ids2 ids1 v1 v2 F td gl F' lc',
@@ -461,7 +450,7 @@ Lemma wf_defs_br_aux : forall v1 v2 F0 TD gl S M lc l' ps' cs' lc' F tmn' b
   (Hinc : incl (ListSet.set_diff eq_atom_dec ids0' (getPhiNodesIDs ps')) t),
   wf_defs v1 v2 F0 TD gl F lc' ids0'.
 Proof.
-  intros. destruct Hvals as [Hval1 [Hval2 _]].
+  intros. destruct Hvals as [Hval1 [Hdom _]].
   unfold Opsem.switchToNewBasicBlock in Hswitch. simpl in Hswitch.
   intros EQ gvs1 gvs2 Hin1 Hin2 Hget1 Hget2; subst.
   remember (Opsem.getIncomingValuesForBlockFromPHINodes TD ps' b gl lc) as R1.
@@ -481,7 +470,10 @@ Proof.
     destruct v2 as [vid2 | vc2]; simpl in *; eauto.
     SCase "v2 = vid2".
       assert (~ In vid2 (getPhiNodesIDs ps')) as Hnotin2.
-        eapply substable_value_isnt_phi; eauto.
+        admit. (* vid1 in ids0' /\ vid1 notin ps' /\ vid2 in ps' ==>  
+                    v1d1 >> vid2 !!
+                  But, we should extend idDominates to allow PHI to prove this!
+               *)
       assert (Hnotin2' := Hnotin2).
       apply ListSet.set_diff_intro with (x:=ids0')(Aeq_dec:=eq_atom_dec)
         in Hnotin2; auto.
@@ -493,15 +485,7 @@ Proof.
   Case "v1 = vc1".
     destruct v2 as [vid2 | vc2]; simpl in *; eauto.
     SCase "v2 = vid2".
-      assert (~ In vid2 (getPhiNodesIDs ps')) as Hnotin.
-        eapply substable_value_isnt_phi; eauto.
-      assert (Hnotin' := Hnotin).
-      apply ListSet.set_diff_intro with (x:=ids0')(Aeq_dec:=eq_atom_dec)
-        in Hnotin; auto.
-      apply Hinc in Hnotin. assert (HeqR1':=HeqR1).
-      eapply OpsemProps.getIncomingValuesForBlockFromPHINodes_spec8 in HeqR1;
-        eauto.
-      eapply OpsemProps.updateValuesForNewBlock_spec7 in Hget2; eauto.
+      tauto.
 Qed.
 
 Lemma inscope_of_tmn_br_aux : forall S M F l3 ps cs tmn ids0 l' ps' cs' tmn'
@@ -865,17 +849,14 @@ Lemma preservation_dbCall_case : forall fid fa rt la va lb td lc gl
   wf_defs v1 v2 F td gl
     (fdef_intro (fheader_intro fa rt fid la va) lb) lc (getArgsIDs la).
 Proof.
-  intros. destruct Hvals as [Hval1 [Hval2 Hcst]].
+  intros. destruct Hvals as [Hval1 [Hdom Hcst]].
   assert (incl nil (bound_blocks lb)) as J.
     intros x J. inv J.
   intros EQ gvs1 gvs2 Hin1 Hin2 Hget1 Hget2; subst.
   destruct v1 as [vid1 | vc1].
     eapply substable_value_isnt_arg in Hval1; eauto.
     simpl in Hin1. congruence.
-  destruct v2 as [vid2 | vc2].
-    eapply substable_value_isnt_arg in Hval2; eauto.
-    simpl in Hin2. congruence.
-
+  destruct v2 as [vid2 | vc2]; try tauto.
     simpl in *. rewrite Hget1 in Hcst. rewrite Hget2 in Hcst. congruence.
 Qed.
 
@@ -1165,6 +1146,7 @@ Require Import program_sim.
 
 Lemma initLocals__id_rhs_val_wf_defs : forall pinfo fid l' fa rt la va
   lb gvs lc CurLayouts CurNamedts initGlobal v1 v2 (Hwfpi: WF_PhiInfo pinfo)
+  (Hdom: valueDominates (PI_f pinfo) v2 v1)
   (Huniq: uniqFdef (fdef_intro (fheader_intro fa rt fid la va) lb))
   (Hinit : Opsem.initLocals
      (OpsemAux.initTargetData CurLayouts CurNamedts Mem.empty)
@@ -1186,15 +1168,14 @@ Proof.
     intros x J. inv J.
   apply fold_left__bound_blocks with (fh:=fheader_intro fa rt fid la va)(l0:=l')
     (init:=getArgsIDs la) in J.
-  destruct J as [r J]. unfold l in *.
-  rewrite J.
+  destruct J as [r J]. unfold l in *. simpl in *. uniq_result.
   intros EQ gvs1 gvs2 Hinscope1 Hinscope2 Hget1 Hget2.
-  clear - Huniq EQ Hget1 Hinit.
-  admit. (* lid cannot be in lc, << *)
+  admit. (* in la, there are no domination relations. *)
 Qed.
 
 Lemma s_genInitState__id_rhs_val: forall S main VarArgs cfg IS pinfo v1 v2
   (HwfS : wf_system S) (Hwfpi: WF_PhiInfo pinfo) 
+  (Hdom: valueDominates (PI_f pinfo) v2 v1)
   (Hinit : @Opsem.s_genInitState DGVs S main VarArgs Mem.empty = ret (cfg, IS)),
   wf_State v1 v2 (PI_f pinfo) cfg IS.
 Proof.

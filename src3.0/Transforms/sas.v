@@ -8,7 +8,6 @@ Require Import Maps.
 Require Import opsem_props.
 Require Import promotable_props.
 Require Import primitives.
-Require Import id_rhs_val.
 Require Import palloca_props.
 Require Import memory_props.
 Require Import mem2reg.
