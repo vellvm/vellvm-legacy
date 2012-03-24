@@ -14,18 +14,19 @@
    sas dse
    STATUS: done
 
-5) memory simulation needs to be lowered (0.5W).
+5) memory simulation needs to be lowered (0.5W):1.25D
    dse
+   STATUS: done
 
-6) reachable <-> reachavlity_analysis (1W)
+6) domination (2W)
+  alive_store alive_alloca id_rhs_val las laa
+
+7) reachable <-> reachavlity_analysis (1W)
    palloca_props
 
-7) properties of find_promotable_alloca (0.5W)
+8) properties of find_promotable_alloca (0.5W)
   palloca_props promotable_props phiplacement_bsim alive_alive dae primitives 
   dse
-
-8) domination (2W)
-  alive_store alive_alloca id_rhs_val las laa
 
 9) infrastructure (0.5W)
   promotable_props alive_store dae program_sim
@@ -36,16 +37,19 @@
 11) fdef/prod-simulation (0.5W)
   las laa sas dse
 
-12) WF preservation (2.5W)
+11) step-simulation by measure (refer to phiplacement_bsim) (1D)
+
+13) WF preservation (2.5W)
   phiplacement_bsim alive_store las laa dae sas mem2reg_correct die subst dse
 
-13) phinode elimination (infinite)
+14) phinode elimination (infinite)
 
-14) pruned SSA (infinite)
+15) pruned SSA (infinite)---ADCE
 
-15) redundancy
+16) redundancy
   alive_store and alive_alloca 
   laa and las
   fdef/prod-simulation in all passes
+  sas and dse
 
 

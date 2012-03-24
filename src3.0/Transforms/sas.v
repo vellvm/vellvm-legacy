@@ -137,14 +137,6 @@ Definition in_SAS_tails (pinfo:PhiInfo) (sasinfo: SASInfo pinfo) ombs TD
 List.Forall2 (fun ec omb => 
               in_SAS_tail pinfo sasinfo omb TD ec) ecs ombs.
 
-Fixpoint ombs__ignores (tsz:Z) (ombs: list (option Values.block))
-  : list (Values.block*Z*Z) :=
-match ombs with
-| nil => nil
-| Some mb::ombs' => (mb, 0, tsz)::ombs__ignores tsz ombs'
-| None::ombs' => ombs__ignores tsz ombs'
-end.
-
 Definition sas_mem_inj (pinfo:PhiInfo) (sasinfo: SASInfo pinfo) 
   (ecs1:list Opsem.ExecutionContext) (TD:TargetData) (m1 m2: mem) : Prop :=
 match getTypeStoreSize TD (PI_typ pinfo) with
@@ -233,35 +225,6 @@ Proof.
     clear J3.
     simpl_env in J4. simpl_env in J7. rewrite <- J7 in J4.
     admit. (* uniqness *)
-Qed.
-
-Lemma wf__getTypeStoreSize_eq_sizeGenericValue: forall (gl2 : GVMap)
-  (lc2 : Opsem.GVsMap) (S : system) (los : layouts) (nts : namedts)
-  (Ps : list product) (v1 : value) (gv1 : GenericValue)
-  (Hwfg : wf_global (los, nts) S gl2) (n : nat) t
-  (HeqR : ret n = getTypeStoreSize (los, nts) t) F
-  (H24 : @Opsem.getOperandValue DGVs (los, nts) v1 lc2 gl2 = ret gv1)
-  (Hwflc1 : OpsemPP.wf_lc (los, nts) F lc2)
-  (Hwfv : wf_value S (module_intro los nts Ps) F v1 t),
-  n = sizeGenericValue gv1.
-Proof.
-  intros.
-  eapply OpsemPP.getOperandValue__wf_gvs in Hwflc1; eauto.
-  inv Hwflc1.
-  assert (gv1 @ gv1) as Hinst. auto.
-  apply H2 in Hinst.
-  unfold gv_chunks_match_typ in Hinst.
-  clear - Hinst HeqR Hwfv. inv_mbind.
-  apply wf_value__wf_typ in Hwfv. destruct Hwfv as [J1 J2].
-  symmetry in HeqR0.
-  eapply flatten_typ__getTypeSizeInBits in HeqR0; eauto.
-  destruct HeqR0 as [sz [al [A B]]].          
-  unfold getTypeAllocSize, getTypeStoreSize, getABITypeAlignment,
-         getTypeSizeInBits, getAlignment, 
-         getTypeSizeInBits_and_Alignment in HeqR.
-  rewrite A in HeqR.
-  inv HeqR. rewrite B.
-  eapply vm_matches_typ__sizeMC_eq_sizeGenericValue; eauto.
 Qed.
 
 Lemma SAS_sid1_is_in_SAS_tail: forall (pinfo : PhiInfo) (sasinfo : SASInfo pinfo)
@@ -984,7 +947,7 @@ match goal with
   apply cmds_simulation_nelim_cons_inv in Hcssim2'; try solve [
     auto |
     try match goal with
-        | |- _ = _ -> _ <> _ => admit
+        | |- _ = _ -> _ <> _ => admit (* rid <> pid *)
         end ];
   destruct Hcssim2' as [cs3' [Heq Hcssim2']]; subst;
   inv Hop2;
@@ -1363,34 +1326,16 @@ Lemma in_SAS_tail__wf_ECStack_head_in_tail__no_alias_with_blk: forall
   MemProps.no_alias_with_blk gv2 mb.
 Proof.
   intros.
-  destruct H as [H1 H2]. destruct EC. simpl in *.
+  destruct H as [H1 H2]. simpl in *.
   unfold Promotability.wf_ECStack_head_in_tail in Hnals1.
-  destruct (@EC_follow_dead_store_dec pinfo sasinfo 
-               {| Opsem.CurFunction := CurFunction;
-                  Opsem.CurBB := CurBB;
-                  Opsem.CurCmds := CurCmds;
-                  Opsem.Terminator := Terminator;
-                  Opsem.Locals := Locals;
-                  Opsem.Allocas := Allocas |}) as [J | J].
+  destruct (@EC_follow_dead_store_dec pinfo sasinfo EC) as [J | J].
     assert (G:=J).
     destruct G as [J1 [J2 J3]]. simpl in *. subst.
     apply_clear H1 in J.
-    remember (lookupAL (GVsT DGVs) Locals (PI_id pinfo)) as R.
+    remember (lookupAL (GVsT DGVs) (Opsem.Locals EC) (PI_id pinfo)) as R.
     destruct R as [[|[[]][]]|]; tinv J.
     inv J. symmetry in HeqR.
-    destruct (@Hnals1 ((Vptr b i0, m) :: nil)) as [J5 [J2 J4]]; auto.
-    destruct v as [id2 | c2]; simpl in *.
-      apply J2 in Hget.
-      simpl in Hget. tauto.
-
-      inv Hwfv.
-      destruct J5 as [mb [J6 [J7 _]]].
-      rewrite Promotability.simpl_blk2GV in J6. inv J6.
-      symmetry in Hget.
-      eapply Promotability.const2GV_disjoint_with_runtime_alloca with (t:=t) 
-        (mb:=mb) in Hget; eauto.
-      rewrite Promotability.simpl_blk2GV in Hget. 
-      simpl in Hget. tauto.
+    eapply wf_ECStack_head_in_tail__no_alias_with_blk; eauto.
     
     apply_clear H2 in J. congruence.
 Qed.
@@ -1440,23 +1385,7 @@ Proof.
     remember (lookupAL (GVsT DGVs) (Opsem.Locals EC) (PI_id pinfo)) as R.
     destruct R as [[|[[]][]]|]; inv J.
     clear J2. symmetry in HeqR.
-    apply_clear Hinscope in HeqR.
-    destruct HeqR as [J1 J2].
-    destruct v as [id2 | c2].
-      apply J2 in Hget.
-      unfold Promotability.wf_non_alloca_GVs in Hget.
-      simpl in Hneq.
-      destruct (id_dec id2 (PI_id pinfo)); tinv Hneq.
-      simpl in Hget. tauto.
-
-      unfold Promotability.wf_alloca_GVs in J1.
-      destruct J1 as [_ [[mb [J6 [_ [J7 _]]]] _]].
-      rewrite Promotability.simpl_blk2GV in J6. inv J6.
-      symmetry in Hget. inv Hwfv.
-      eapply Promotability.const2GV_disjoint_with_runtime_alloca with (t:=t) 
-        (mb:=mb) in Hget; eauto.
-      rewrite Promotability.simpl_blk2GV in Hget. 
-      simpl in Hget. tauto.
+    eapply wf_defs__no_alias_with_blk; eauto.
     
     apply_clear J2 in J. congruence.
 Qed.
@@ -2196,7 +2125,7 @@ Focus.
     destruct (isGVZero (los, nts) c); eauto using fdef_sim__block_sim.
   assert (uniqFdef F) as Huniq. eauto using wf_system__uniqFdef.
   assert (blockInFdefB (block_intro l' ps' cs' tmn') F) as HBinF1'.
-    admit.
+    admit. (* infra *)
   assert (Hbsim':=Hbsim).
   apply block_simulation_inv in Hbsim'; auto.
   destruct Hbsim' as [Heq1 [Heq2 [Hcssim' Heq5]]]; subst.
@@ -2227,7 +2156,7 @@ Focus.
     eauto using fdef_sim__block_sim.
   assert (uniqFdef F) as Huniq. eauto using wf_system__uniqFdef.
   assert (blockInFdefB (block_intro l' ps' cs' tmn') F) as HBinF1'.
-    admit.
+    admit. (* infra *)
   assert (Hbsim':=Hbsim).
   apply block_simulation_inv in Hbsim'; auto.
   destruct Hbsim' as [Heq1 [Heq2 [Hcssim' Heq5]]]; subst.

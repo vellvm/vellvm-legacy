@@ -1068,12 +1068,9 @@ Lemma malloc_extends_wf_rmetadata : forall
 Proof.
   intros.
   subst.
-  unfold malloc in H1.
-  rewrite H2 in H1.
-  destruct (zle 0 (Size.to_Z tsz * n)); try solve [inversion H1].
-  remember (Mem.alloc Mem0 0 (Size.to_Z tsz * n)) as R.
-  inversion H1. clear H1. subst.
-  clear H2.
+  apply malloc_inv in H1.
+  destruct H1 as [z0 [G1 [z H0]]].
+  uniq_result. 
   intros i0 blk bofs eofs J.
   destruct (@id_dec id0 i0); subst.
   SCase "id0=i0".
@@ -1098,12 +1095,6 @@ Proof.
           zauto.
 
           rewrite Int.signed_zero in J1; zauto.
-(*
-          rewrite Int.signed_repr in J1; zauto. clear.
-          assert (J1:=@Int.min_signed_neg 31).
-          assert (J2:=@Int.max_signed_pos 31).
-          zauto.
-*)
           simpl. rewrite bytesize_chunk_7_eq_1.
           destruct J1 as [_ J1].
           unfold Int.signed in J1.
@@ -1580,11 +1571,9 @@ Lemma malloc_extends_wf_mmetadata : forall
 Proof.
   intros.
   invert_prop_reg_metadata. clear H3.
-  unfold malloc in H1.
-  rewrite H2 in H1.
-  destruct (zle 0 (Size.to_Z tsz * n)); try solve [inversion H1].
-  remember (Mem.alloc Mem0 0 (Size.to_Z tsz * n)) as R.
-  inversion H1. clear H1. subst.
+  apply malloc_inv in H1.
+  destruct H1 as [z0 [G1 [G2 G3]]].
+  uniq_result.
   intros b ofs blk bofs eofs J.
   assert (J':=@Hwfm b ofs blk bofs eofs J). clear Hwfm.
   eapply alloc_preserves_wf_data; eauto.

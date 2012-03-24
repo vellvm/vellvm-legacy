@@ -4585,3 +4585,18 @@ Proof.
       exists (a::cs1). exists c. exists cs2. auto.
 Qed.
 
+Lemma lookupInsnViaIDFromFdef__lookupTypViaIDFromFdef: forall F id0 c 
+  (Huniq: uniqFdef F)
+  (Hlkup: lookupInsnViaIDFromFdef F id0 = Some (insn_cmd c)) 
+  (Hc: getCmdID c = Some id0) t0 (Ht: getCmdTyp c = Some t0),
+  lookupTypViaIDFromFdef F id0 = Some t0.
+Proof.
+  intros.
+  apply lookupInsnViaIDFromFdef__insnInFdefBlockB in Hlkup.
+  destruct Hlkup as [b1 G]. simpl in G.
+  apply andb_true_iff in G. destruct G as [G1 G2].
+  destruct b1. simpl in G1.
+  apply InCmdsB_in in G1.
+  eapply uniqF__lookupTypViaIDFromFdef in G1; simpl; eauto.
+Qed.
+

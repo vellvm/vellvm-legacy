@@ -342,7 +342,7 @@ Proof.
   intros.
   unfold malloc in *.
   inv_mbind'. symmetry_ctx.
-  destruct (zle 0 (Size.to_Z tsz * z)); tinv H0.
+  destruct (zlt 0 (Size.to_Z tsz * z)); tinv H0.
   remember (Mem.alloc Mem1 0 (Size.to_Z tsz * z)) as R.
   inv H0.
   assert (Hresult := H1). apply Mem.alloc_result in Hresult. subst.
@@ -1728,7 +1728,7 @@ Proof.
   inv_mbind''. symmetry_ctx.
   apply simulation__eq__GV2int with (TD:=TD)(sz:=Size.ThirtyTwo) in Hsim; eauto.
   rewrite Hsim in HeqR. rewrite HeqR in HeqR0. inv HeqR0.
-  destruct (zle 0 (Size.to_Z tsz * z0)).
+  destruct (zlt 0 (Size.to_Z tsz * z0)).
     rewrite H1 in H0. inv H0.
     exists mi'.
     split.
@@ -2576,7 +2576,7 @@ Focus.
   subst.
 
   assert (blockInFdefB (block_intro l'0 ps'0 cs' tmn'0) F) as HBinF1'.
-    admit.
+    admit. (* infra *)
   assert (reg_simulation pinfo mi F lc' lc'0) as Hlcsim2'.
     assert (HBinF1'':=HBinF1').
     eapply wf_system__blockInFdefB__wf_block in HBinF1''; eauto.     
@@ -2619,7 +2619,7 @@ Focus.
   subst.
 
   assert (blockInFdefB (block_intro l'0 ps'0 cs' tmn'0) F) as HBinF1'.
-    admit.
+    admit. (*infra *)
   assert (reg_simulation pinfo mi F lc' lc'0) as Hlcsim2'.
     assert (HBinF1'':=HBinF1').
     eapply wf_system__blockInFdefB__wf_block in HBinF1''; eauto.     

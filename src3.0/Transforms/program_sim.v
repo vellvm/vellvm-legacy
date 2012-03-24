@@ -66,8 +66,7 @@ Lemma initLocals__wf_defs: forall CurLayouts CurNamedts VarArgs lc f t fid la v
 Proof.
   intros.
   assert (ps0=nil) as EQ.
-    admit.
-    (* eapply entryBlock_has_no_phinodes with (s:=S); eauto. *)
+    admit. (* eapply entryBlock_has_no_phinodes with (s:=S); eauto. *)
   subst.
   apply dom_entrypoint in Hentry.
   destruct cs0.

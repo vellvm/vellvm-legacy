@@ -2452,6 +2452,66 @@ Proof.
     eapply Mem.bounds_alloc; eauto.
 Qed.
 
+Lemma perm_mfree_2: forall TD M1 M2 ptr (Hfree : free TD M1 ptr = ret M2),
+  exists b, exists i, 
+    GV2ptr TD (getPointerSize TD) ptr = Some (Vptr b i) /\
+    forall lo hi, 
+      Mem.bounds M1 b = (lo, hi) ->
+      forall ofs p, lo <= ofs < hi -> ~Mem.perm M2 b ofs p.
+Proof.
+  intros.
+  apply free_inv in Hfree.
+  destruct Hfree as [blk [ofs [hi [lo [J1 [J2 [J3 J4]]]]]]].
+  exists blk. exists ofs.
+  split; auto.
+    intros.
+    rewrite <- J3 in H. inv H.
+    eapply Mem.perm_free_2; eauto.
+Qed.
+
+Lemma perm_mfree_3: forall TD M1 M2 ptr (Hfree : free TD M1 ptr = ret M2) b ofs p,
+  Mem.perm M2 b ofs p -> Mem.perm M1 b ofs p.
+Proof.
+  intros.
+  apply free_inv in Hfree.
+  destruct Hfree as [blk [ofs' [hi [lo [J1 [J2 [J3 J4]]]]]]].
+  eapply Mem.perm_free_3; eauto.
+Qed.
+
+(* go to mem prop *)
+Lemma perm_mfree_alloca_3: forall TD b ofs p als M1 M2 
+  (Hfree : free_allocas TD M1 als = ret M2),
+  Mem.perm M2 b ofs p -> Mem.perm M1 b ofs p.
+Proof.
+  induction als; simpl; intros.
+    congruence.
+
+    inv_mbind.
+    eapply IHals in H1; eauto using perm_mfree_3.
+Qed.
+
+(* go to mem prop *)
+Lemma perm_mfree_alloca_2: forall TD als M1 M2 
+  (Hfree : free_allocas TD M1 als = ret M2),
+  forall b lo hi, 
+    In b als -> Mem.bounds M1 b = (lo, hi) ->
+    forall ofs p, lo <= ofs < hi -> ~Mem.perm M2 b ofs p.
+Proof.
+  induction als; simpl; intros.
+    congruence.
+
+    inv_mbind. symmetry_ctx.
+    destruct H as [H | H]; subst.
+      destruct TD. unfold free in HeqR. simpl in HeqR.
+      rewrite H0 in HeqR.
+      eapply Mem.perm_free_2 with (p:=p) in HeqR; eauto.
+      intro J.
+      eapply perm_mfree_alloca_3 in H3; eauto.
+
+      apply bounds_mfree with (b:=b) in HeqR; auto.
+      eapply IHals; eauto. congruence.
+Qed.
+
 End MemProps.
 
 

@@ -1133,7 +1133,7 @@ Definition malloc (TD:TargetData) (M:mem) (bsz:sz) (gn:GenericValue) (al:align)
   : option (mem * mblock)%type :=
 match GV2int TD Size.ThirtyTwo gn with
 | Some n =>
-    if (Coqlib.zle 0 ((Size.to_Z bsz) * n)) then
+    if (Coqlib.zlt 0 ((Size.to_Z bsz) * n)) then
       Some (Mem.alloc M 0 ((Size.to_Z bsz) * n))
     else None
 | None => None
@@ -1141,7 +1141,7 @@ end.
 
 Definition malloc_one (TD:TargetData) (M:mem) (bsz:sz) (al:align)
   : option (mem * mblock)%type :=
-if (Coqlib.zle 0 (Size.to_Z bsz)) then
+if (Coqlib.zlt 0 (Size.to_Z bsz)) then
   Some (Mem.alloc M 0 (Size.to_Z bsz))
 else None.
 
@@ -2137,13 +2137,13 @@ Qed.
 Lemma malloc_inv : forall TD Mem0 tsz gn align0 Mem' mb,
   malloc TD Mem0 tsz gn align0 = ret (Mem', mb) ->
   exists n, GV2int TD Size.ThirtyTwo gn = Some n /\
-    (0 <= (Size.to_Z tsz) * n)%Z /\
+    (0 < (Size.to_Z tsz) * n)%Z /\
     Mem.alloc Mem0 0 (Size.to_Z tsz * n) = (Mem', mb).
 Proof.
   intros.
   unfold malloc in H.
   destruct (GV2int TD Size.ThirtyTwo gn); try solve [inversion H; subst].
-  destruct (Coqlib.zle 0 (Size.to_Z tsz * z)); inversion H; subst.
+  destruct (Coqlib.zlt 0 (Size.to_Z tsz * z)); inversion H; subst.
   exists z.
   destruct (Mem.alloc Mem0 0 (Size.to_Z tsz * z)).
   repeat (split; auto).

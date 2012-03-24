@@ -2119,6 +2119,23 @@ Proof.
   congruence.
 Qed.
 
+Lemma WF_PhiInfo_spec17: forall pinfo l5 ps5 cs5 cs tmn t v align0
+  (HwfP: WF_PhiInfo pinfo) (Huniq: uniqFdef (PI_f pinfo))
+  (HBinF: 
+    blockInFdefB
+      (block_intro l5 ps5 
+          (cs5 ++ insn_alloca (PI_id pinfo) t v align0 :: cs) tmn)
+      (PI_f pinfo) = true),
+  t = PI_typ pinfo /\ v = PI_num pinfo /\ align0 = PI_align pinfo.
+Proof.
+  intros.
+  apply WF_PhiInfo_spec1 in HwfP; auto.
+  eapply IngetCmdsIDs__lookupCmdViaIDFromFdef in HBinF; 
+    eauto using in_middle.
+  simpl in HBinF.
+  uniq_result. auto.
+Qed.
+
 Lemma WF_PhiInfo_spec13: forall pinfo l5 ps5 cs5 cs tmn t v align0
   (HwfP: WF_PhiInfo pinfo) (Huniq: uniqFdef (PI_f pinfo))
   (Hentry: 
@@ -2128,12 +2145,8 @@ Lemma WF_PhiInfo_spec13: forall pinfo l5 ps5 cs5 cs tmn t v align0
   t = PI_typ pinfo /\ v = PI_num pinfo /\ align0 = PI_align pinfo.
 Proof.
   intros.
-  apply WF_PhiInfo_spec1 in HwfP; auto.
   apply entryBlockInFdef in Hentry.
-  eapply IngetCmdsIDs__lookupCmdViaIDFromFdef in Hentry; 
-    eauto using in_middle.
-  simpl in Hentry.
-  uniq_result. auto.
+  eapply WF_PhiInfo_spec17 in HwfP; eauto.
 Qed.
 
 Lemma preservation : forall pinfo cfg S1 S2 tr
@@ -2336,6 +2349,24 @@ Proof.
       eapply uniqFdef_cmds_split_middle; eauto.
     destruct G; subst.
     exists cs1. exists nil. auto.
+Qed.
+
+Lemma WF_PhiInfo_spec16: forall pinfo S los nts Ps,
+  WF_PhiInfo pinfo ->
+  wf_fdef S (module_intro los nts Ps) (PI_f pinfo) ->
+  exists sz, exists al,
+    getTypeSizeInBits_and_Alignment (los,nts) true (PI_typ pinfo) = 
+      Some (sz, al) /\ 
+    (sz > 0)%nat /\ (al > 0)%nat.
+Proof.
+  intros.
+  simpl_WF_PhiInfo.
+  destruct H as [J1 J2].
+  symmetry in HeqR.
+  apply entryBlockInFdef in HeqR.
+  eapply wf_fdef__wf_cmd in HeqR; eauto.
+  inv HeqR.
+  eapply wf_typ__getTypeSizeInBits_and_Alignment in H12; eauto.
 Qed.
 
 Lemma s_genInitState__palloca: forall S main VarArgs cfg IS pinfo

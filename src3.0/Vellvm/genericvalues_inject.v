@@ -1980,7 +1980,7 @@ Proof.
   destruct R; try solve [inversion Halloc].
   remember (Mem.alloc Mem 0 (Size.to_Z tsz * z)) as R1.
   destruct R1 as [Mem1 mb1].
-  destruct (zle 0 (Size.to_Z tsz * z)); inv Halloc.
+  destruct (zlt 0 (Size.to_Z tsz * z)); inv Halloc.
   remember (Mem.alloc Mem2 0 (Size.to_Z tsz * z)) as R2.
   destruct R2 as [Mem2' mb2].
   exists (fun b => if zeq b mb then Some (mb2,0%Z) else mi b).

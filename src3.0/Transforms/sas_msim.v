@@ -6,7 +6,9 @@ Require Import AST.
 Require Import Znumtheory.
 Require Import memory_sim.
 Require Import vellvm.
+Require Import memory_props.
 Require Import promotable_props.
+Require Import genericvalues.
 Require Import genericvalues_inject.
 
 Module SASmsim.
@@ -793,6 +795,26 @@ Proof.
   split; omega.
 Qed.
 
+Lemma mstore_inside_inj_left': forall (TD : TargetData) (M1 : mem)
+  (gv1 : GenericValue) (a : align) (M1' : mem) t
+  (M2 : mem) igns (mb : mblock)
+  (H23 : mstore TD M1 ($ blk2GV TD mb # typ_pointer t $) t gv1 a = ret M1')
+  (Hin : mem_inj inject_id 
+          ((mb, 0, Size.to_Z (sizeGenericValue gv1))::igns) M1 M2),
+  mem_inj inject_id ((mb, 0, Size.to_Z (sizeGenericValue gv1))::igns) M1' M2.
+Proof.
+  intros.
+  apply mstore_inversion in H23.
+  rewrite Promotability.simpl_blk2GV in H23.
+  destruct H23 as [b [ofs [cm [J1 J2]]]].
+  inv J1.
+  rewrite Int.signed_repr in J2; auto using Promotability.min_le_zero_le_max.
+  eapply mstore_aux_inside_inj_left; eauto.
+    unfold in_ignores_with_size.
+    simpl. exists b. exists 0. exists (Size.to_Z (sizeGenericValue gv1)).
+    split; auto. split; auto. unfold Size.to_Z. split; omega.
+Qed.
+
 Lemma alloc_inject_id_inj:
   forall igns m1 m2 lo hi b1 b2 m1' m2'
   (Heq: nextblock m1 = nextblock m2)
@@ -985,6 +1007,27 @@ Proof.
     apply mi_memval0; auto using notin_ignores__add_empty.
 Qed.
 
+Lemma mem_inj__remove_unperm_igns: forall f b lo hi igns n1 n2
+  (Hmsim : mem_inj f ((b, lo, hi) :: igns) n1 n2)
+  (Hunperm: forall ofs p, lo <= ofs < hi -> ~Mem.perm n1 b ofs p),
+  mem_inj f igns n1 n2.
+Proof.
+  intros.
+  inv Hmsim.
+  constructor; auto.
+    intros.
+    apply mi_memval0; auto. clear mi_memval0.
+      unfold notin_ignores in *.
+      constructor; auto.
+        destruct (Z_eq_dec b1 b); subst; auto.
+          right.
+          split; auto.
+            destruct (Z_lt_dec ofs lo); subst; auto.
+            destruct (Z_ge_dec ofs hi); subst; auto.
+              contradict H0.
+              apply Hunperm. omega.
+Qed.
+
 Lemma mstore_aux_inside_inj2: forall igns f b1 b2 delta
   (Hp: MoreMem.meminj_no_overlap f)
   (Hf: f b1 = Some (b2, delta)) gvs1 gvs2 m1 n1 m2 n2 ofs
@@ -1016,3 +1059,109 @@ Proof.
 Qed.
 
 End SASmsim.
+
+Fixpoint ombs__ignores (tsz:Z) (ombs: list (option Values.block))
+  : list (Values.block*Z*Z) :=
+match ombs with
+| nil => nil
+| Some mb::ombs' => (mb, 0, tsz)::ombs__ignores tsz ombs'
+| None::ombs' => ombs__ignores tsz ombs'
+end.
+
+(* go to vellvm? *)
+Lemma wf__getTypeStoreSize_eq_sizeGenericValue: forall (gl2 : GVMap)
+  (lc2 : Opsem.GVsMap) (S : system) (los : layouts) (nts : namedts)
+  (Ps : list product) (v1 : value) (gv1 : GenericValue)
+  (Hwfg : LLVMgv.wf_global (los, nts) S gl2) (n : nat) t
+  (HeqR : ret n = getTypeStoreSize (los, nts) t) F
+  (H24 : @Opsem.getOperandValue DGVs (los, nts) v1 lc2 gl2 = ret gv1)
+  (Hwflc1 : OpsemPP.wf_lc (los, nts) F lc2)
+  (Hwfv : wf_value S (module_intro los nts Ps) F v1 t),
+  n = sizeGenericValue gv1.
+Proof.
+  intros.
+  eapply OpsemPP.getOperandValue__wf_gvs in Hwflc1; eauto.
+  inv Hwflc1.
+  assert (gv1 @ gv1) as Hinst. auto.
+  apply H2 in Hinst.
+  unfold gv_chunks_match_typ in Hinst.
+  clear - Hinst HeqR Hwfv. inv_mbind.
+  apply wf_value__wf_typ in Hwfv. destruct Hwfv as [J1 J2].
+  symmetry in HeqR0.
+  eapply flatten_typ__getTypeSizeInBits in HeqR0; eauto.
+  destruct HeqR0 as [sz [al [A B]]].          
+  unfold getTypeAllocSize, getTypeStoreSize, getABITypeAlignment,
+         getTypeSizeInBits, getAlignment, 
+         getTypeSizeInBits_and_Alignment in HeqR.
+  rewrite A in HeqR.
+  inv HeqR. rewrite B.
+  eapply vm_matches_typ__sizeMC_eq_sizeGenericValue; eauto.
+Qed.
+
+Lemma wf_ECStack_head_in_tail__no_alias_with_blk: 
+  forall (pinfo : palloca_props.PhiInfo)
+  (lc2 : AssocList (GVsT DGVs)) (gv2 : GVsT DGVs) (S : system) (los : layouts)
+  (nts : namedts) (Ps : products) (Mem : Memory.mem) (F : fdef) (t : typ)
+  (v : value) (gl : GVMap) (Hwfv : wf_value S (module_intro los nts Ps) F v t)
+  (maxb : Values.block) (Hget : getOperandValue (los, nts) v lc2 gl = ret gv2)
+  (EC : Opsem.ExecutionContext) (Hwfg: MemProps.wf_globals maxb gl)
+  (Hnals1 : Promotability.wf_ECStack_head_in_tail maxb pinfo 
+             (los, nts) Mem lc2 EC)
+  (b : Values.block) (i0 : int32) (m : AST.memory_chunk)
+  (HeqR : lookupAL (GVsT DGVs) (Opsem.Locals EC) (palloca_props.PI_id pinfo) =
+          ret ((Vptr b i0, m) :: nil))
+  (G : Opsem.CurFunction EC = palloca_props.PI_f pinfo),
+  MemProps.no_alias_with_blk gv2 b.
+Proof.
+  intros.
+  destruct EC. simpl in *.
+  destruct (@Hnals1 ((Vptr b i0, m) :: nil)) as [J5 [J2 J4]]; auto.
+  destruct v as [id2 | c2]; simpl in *.
+    apply J2 in Hget.
+    simpl in Hget. tauto.
+  
+    inv Hwfv.
+    destruct J5 as [mb [J6 [[J7 _] _]]].
+    rewrite Promotability.simpl_blk2GV in J6. inv J6.
+    symmetry in Hget.
+    eapply Promotability.const2GV_disjoint_with_runtime_alloca with (t:=t) 
+      (mb:=mb) in Hget; eauto.
+    rewrite Promotability.simpl_blk2GV in Hget. 
+    simpl in Hget. tauto.
+Qed.
+
+Lemma wf_defs__no_alias_with_blk: forall (pinfo : palloca_props.PhiInfo) 
+  (los : layouts)
+  (nts : namedts) (maxb : Values.block) (Mem : mem) (EC : Opsem.ExecutionContext)
+  (gv2 : GenericValue) (gl : GVMap) (Hwfg : MemProps.wf_globals maxb gl)
+  (v : value) (S : system) (t : typ) (Ps : products)
+  (Hneq : primitives.used_in_value (palloca_props.PI_id pinfo) v = false)
+  (Hget : getOperandValue (los, nts) v (@Opsem.Locals DGVs EC) gl = ret gv2)
+  (Hwfv : wf_value S (module_intro los nts Ps) (Opsem.CurFunction EC) v t)
+  (b : Values.block) (i0 : int32) (m : AST.memory_chunk)
+  (HeqR : lookupAL (GVsT DGVs) (Opsem.Locals EC) (palloca_props.PI_id pinfo) =
+            ret ((Vptr b i0, m) :: nil))
+  (Hinscope : Promotability.wf_defs maxb pinfo (los, nts) Mem
+               (Opsem.Locals EC) (Opsem.Allocas EC))
+  (G : Opsem.CurFunction EC = palloca_props.PI_f pinfo),
+  MemProps.no_alias_with_blk gv2 b.
+Proof.
+  intros.
+  apply_clear Hinscope in HeqR.
+  destruct HeqR as [J1 J2].
+  destruct v as [id2 | c2].
+    apply J2 in Hget.
+    unfold Promotability.wf_non_alloca_GVs in Hget.
+    simpl in Hneq.
+    destruct (id_dec id2 (palloca_props.PI_id pinfo)); tinv Hneq.
+    simpl in Hget. tauto.
+  
+    unfold Promotability.wf_alloca_GVs in J1.
+    destruct J1 as [_ [[mb [J6 [_ [[J7 _] _]]]] _]].
+    rewrite Promotability.simpl_blk2GV in J6. inv J6.
+    symmetry in Hget. inv Hwfv.
+    eapply Promotability.const2GV_disjoint_with_runtime_alloca with (t:=t) 
+      (mb:=mb) in Hget; eauto.
+    rewrite Promotability.simpl_blk2GV in Hget. 
+    simpl in Hget. tauto.
+Qed.
