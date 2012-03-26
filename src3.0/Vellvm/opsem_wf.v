@@ -555,121 +555,30 @@ Proof.
     simpl in Huniq. destruct Huniq.
     eapply dom_successors; eauto.
 
+  assert (J1:=inbound').
+  apply fold_left__bound_blocks with (init:=getPhiNodesIDs ps' ++
+    getArgsIDs la)(fh:=fheader_intro f t i0 la va)(bs:=bs) (l0:=l') in J1.
+  destruct J1 as [r J1].
+  exists r. 
+
+  assert (incl (ListSet.set_diff eq_atom_dec r (getPhiNodesIDs ps')) ids0)
+    as Jinc.
+    clear - Hinscope J1 Hsub HBinF Huniq.
+    eapply inscope_of_tmn__inscope_of_cmd_at_beginning in J1; eauto. 
+
   destruct cs'.
   Case "cs'=nil".
-    assert (J1:=inbound').
-    apply fold_left__bound_blocks with (init:=getPhiNodesIDs ps' ++
-      getCmdsIDs nil ++ getArgsIDs la)(fh:=fheader_intro f t i0 la va)(bs:=bs)
-      (l0:=l') in J1.
-    destruct J1 as [r J1].
-    exists r. split; auto.
-
-    assert (incl (ListSet.set_diff eq_atom_dec r (getPhiNodesIDs ps')) ids0)
-      as Jinc.
-      clear - Hinscope J1 Hsub HBinF Huniq.
-      apply fold_left__spec in J1.
-      symmetry in Hinscope.
-      apply fold_left__spec in Hinscope.
-      destruct J1 as [J1 [J2 J3]].
-      destruct Hinscope as [J4 [J5 J6]].
-      intros id1 J.
-      assert (J':=J).
-      apply ListSet.set_diff_elim1 in J.
-      apply ListSet.set_diff_elim2 in J'.
-      apply J3 in J.
-      destruct J as [J | J].
-      SCase "id1 in init and the current block".
-        simpl in J.
-        apply in_app_or in J.
-        destruct J as [J | J]; try solve [contradict J; auto].
-        apply J4.
-        apply in_or_app. right.
-        apply in_or_app; auto.
-      SCase "id1 in strict dominating blocks".
-        destruct J as [b1 [l1 [J8 [J9 J10]]]].
-        assert (In l1 contents') as J8'.
-          clear - J8.
-          apply ListSet.set_diff_elim1 in J8. auto.
-        apply Hsub in J8'.
-          destruct (eq_atom_dec l1 l3); subst.
-            simpl in J9.
-            assert (b1=block_intro l3 ps cs tmn) as EQ.
-              clear - J9 HBinF Huniq. destruct Huniq.
-              eapply InBlocksB__lookupAL; eauto.
-            subst.
-            simpl in J10.
-            apply J4.
-            rewrite_env
-              ((getPhiNodesIDs ps ++ getCmdsIDs cs) ++ getArgsIDs la).
-            apply in_or_app; auto.
-
-            apply J5 in J9; auto.
-              simpl in J8'.
-              destruct J8' as [J8' | J8']; try solve [contradict n; auto].
-              apply ListSet.set_diff_intro; auto.
-                intro J. simpl in J.
-                destruct J as [J | J]; auto.
-
+    simpl. 
+    split; auto.
     split; auto.
       eapply wf_defs_br_aux; eauto.
 
   Case "cs'<>nil".
-    assert (J1:=inbound').
     unfold cmds_dominates_cmd. simpl.
     destruct (eq_atom_dec (getCmdLoc c) (getCmdLoc c)) as [_ | n];
       try solve [contradict n; auto].
     simpl_env.
-    apply fold_left__bound_blocks with (init:=getPhiNodesIDs ps' ++
-      getArgsIDs la)(fh:=fheader_intro f t i0 la va)(bs:=bs)(l0:=l') in J1.
-    destruct J1 as [r J1].
-    exists r. split; auto.
-
-    assert (incl (ListSet.set_diff eq_atom_dec r (getPhiNodesIDs ps')) ids0)
-      as Jinc.
-      clear - Hinscope J1 Hsub HBinF Huniq.
-      apply fold_left__spec in J1.
-      symmetry in Hinscope.
-      apply fold_left__spec in Hinscope.
-      destruct J1 as [J1 [J2 J3]].
-      destruct Hinscope as [J4 [J5 J6]].
-      intros id1 J.
-      assert (J':=J).
-      apply ListSet.set_diff_elim1 in J.
-      apply ListSet.set_diff_elim2 in J'.
-      apply J3 in J.
-      destruct J as [J | J].
-      SCase "id1 in init and the current block".
-        simpl in J.
-        apply in_app_or in J.
-        destruct J as [J | J]; try solve [contradict J; auto].
-        apply J4.
-        apply in_or_app. right.
-        apply in_or_app; auto.
-      SCase "id1 in strict dominating blocks".
-        destruct J as [b1 [l1 [J8 [J9 J10]]]].
-        assert (In l1 contents') as J8'.
-          clear - J8.
-          apply ListSet.set_diff_elim1 in J8. auto.
-        apply Hsub in J8'.
-          destruct (eq_atom_dec l1 l3); subst.
-            simpl in J9.
-            assert (b1=block_intro l3 ps cs tmn) as EQ.
-              clear - J9 HBinF Huniq. destruct Huniq.
-              eapply InBlocksB__lookupAL; eauto.
-            subst.
-            simpl in J10.
-            apply J4.
-            rewrite_env
-              ((getPhiNodesIDs ps ++ getCmdsIDs cs) ++ getArgsIDs la).
-            apply in_or_app; auto.
-
-            apply J5 in J9; auto.
-              simpl in J8'.
-              destruct J8' as [J8' | J8']; try solve [contradict n; auto].
-              apply ListSet.set_diff_intro; auto.
-                intro J. simpl in J.
-                destruct J as [J | J]; auto.
-
+    split; auto.
     split; auto.
       eapply wf_defs_br_aux; eauto.
 Qed.
@@ -2535,50 +2444,8 @@ Proof.
   apply wf_operand_list__elim with (f1:=f)(b1:=block_intro l1 ps1 cs1 tmn1)
     (insn1:=insn_terminator tmn1)(id1:=id1) in H6; auto.
 
-  inv H6.
-  clear - H11 HwfDefs Hinscope H0 Hreach H9 HuniqF H HwfF.
   eapply wf_defs_elim; eauto.
-    unfold inscope_of_tmn in Hinscope.
-    destruct f as [f b]. destruct f as [f t i0 a v].
-    remember ((dom_analyze (fdef_intro (fheader_intro f t i0 a v) b)) !! l1)
-      as R.
-    destruct R.
-    symmetry in Hinscope.
-    apply fold_left__spec in Hinscope.
-    destruct H11 as [J' | [J' | J']]; try solve [contradict J'; auto].
-      destruct Hinscope as [Hinscope _].
-      apply Hinscope.
-      destruct J' as [J' _].
-      destruct J' as [[cs2 [c1 [cs3 [J1 J2]]]] | [ps2 [p1 [ps3 [J1 J2]]]]];
-        subst.
-        rewrite getCmdsIDs_app. simpl. rewrite J2.
-        apply in_or_app. right.
-        apply in_or_app. left.
-        apply in_or_app. right. simpl. auto.
-
-        rewrite getPhiNodesIDs_app. simpl.
-        apply in_or_app. left.
-        apply in_or_app. right. simpl. auto.
-
-     unfold blockStrictDominates in J'.
-     rewrite <- HeqR in J'.
-     destruct block' as [l0 p c t0].
-     assert (In l0 (ListSet.set_diff eq_atom_dec bs_contents [l1])) as J.
-       simpl in Hreach.
-       apply insnInFdefBlockB__blockInFdefB in H.
-       eapply sdom_isnt_refl with (l':=l0) in Hreach; eauto.
-         apply ListSet.set_diff_intro; auto.
-           simpl. intro J. destruct J as [J | J]; auto.
-         rewrite <- HeqR. simpl. auto.
-     destruct Hinscope as [_ [Hinscope _]].
-     assert (
-       lookupBlockViaLabelFromFdef (fdef_intro (fheader_intro f t i0 a v) b) l0 =
-       ret block_intro l0 p c t0) as J1.
-       apply blockInFdefB_lookupBlockViaLabelFromFdef; auto.
-         eapply lookupBlockViaIDFromFdef__blockInFdefB; eauto.
-     apply Hinscope with (b1:=block_intro l0 p c t0) in J; auto.
-       apply J.
-       eapply lookupBlockViaIDFromFdef__InGetBlockIDs; eauto.
+    eapply terminator_operands__in_scope; eauto.
 Qed.
 
 Lemma state_cmd_typing : forall TD s m f b c defs id1 lc,
@@ -2615,60 +2482,8 @@ Proof.
   apply wf_operand_list__elim with (f1:=f)(b1:=b)(insn1:=insn_cmd c)(id1:=id1)
     in H6; auto.
 
-  inv H6.
   eapply wf_defs_elim; eauto.
-    unfold inscope_of_cmd, inscope_of_id in Hinscope.
-    destruct b as [l0 ? ? ?]. destruct f as [f b]. destruct f as [f t0 i0 a v].
-    remember ((dom_analyze (fdef_intro (fheader_intro f t0 i0 a v) b)) !! l0)
-      as R.
-    destruct R.
-    symmetry in Hinscope.
-    apply fold_left__spec in Hinscope.
-    destruct H11 as [J' | [J' | J']]; try solve [contradict J'; auto].
-      destruct Hinscope as [Hinscope _].
-      apply Hinscope.
-      simpl in J'.
-      destruct J' as [[ps2 [p1 [ps3 [J1 J2]]]] | [cs1 [c1 [cs2 [cs3 [J1 J2]]]]]];
-        subst.
-
-        rewrite getPhiNodesIDs_app. simpl.
-        apply in_or_app. left.
-        apply in_or_app. right. simpl. auto.
-
-        clear - J2 Hnodup.
-        apply in_or_app. right.
-        apply in_or_app. left.
-          simpl in Hnodup. apply NoDup_inv in Hnodup.
-          destruct Hnodup as [_ Hnodup].
-          apply NoDup_inv in Hnodup.
-          destruct Hnodup as [Hnodup _].
-          rewrite_env ((cs1 ++ c1 :: cs2) ++ c :: cs3).
-          rewrite_env ((cs1 ++ c1 :: cs2) ++ c :: cs3) in Hnodup.
-          apply NoDup__In_cmds_dominates_cmd; auto.
-            rewrite getCmdsIDs_app.
-            apply in_or_app. right. simpl. rewrite J2. simpl. auto.
-
-     clear H0 HwfDefs.
-     unfold blockStrictDominates in J'.
-     rewrite <- HeqR in J'.
-     destruct block' as [l1 p0 c1 t1].
-     assert (In l1 (ListSet.set_diff eq_atom_dec bs_contents [l0])) as J.
-       simpl in Hreach.
-       apply insnInFdefBlockB__blockInFdefB in H.
-       eapply sdom_isnt_refl with (l':=l1) in Hreach; eauto.
-         apply ListSet.set_diff_intro; auto.
-           simpl. intro J. destruct J as [J | J]; auto.
-         rewrite <- HeqR. simpl. auto.
-
-     destruct Hinscope as [_ [Hinscope _]].
-     assert (
-       lookupBlockViaLabelFromFdef (fdef_intro (fheader_intro f t0 i0 a v) b) l1
-         = ret block_intro l1 p0 c1 t1) as J1.
-       apply blockInFdefB_lookupBlockViaLabelFromFdef; auto.
-         eapply lookupBlockViaIDFromFdef__blockInFdefB; eauto.
-     apply Hinscope with (b1:=block_intro l1 p0 c1 t1) in J; auto.
-       apply J.
-       eapply lookupBlockViaIDFromFdef__InGetBlockIDs; eauto.
+    eapply cmd_operands__in_scope; eauto.
 Qed.
 
 Lemma const2GV_isnt_stuck : forall TD S gl c t,
@@ -2902,76 +2717,11 @@ Proof.
     Case "vid".
       assert (exists gv1, lookupAL _ lc vid = Some gv1) as J1.
         Focus.
-        match goal with
-        | H13: wf_phinode _ _ _ |- _ => destruct H13 as [Hwfops Hwfvls]
-        end.
-        assert (Hnth:=J).
-        eapply getValueViaLabelFromValuels__nth_list_value_l in Hnth; eauto.
-        destruct Hnth as [n Hnth].
-        assert (HwfV:=J).
-        eapply wf_value_list__getValueViaLabelFromValuels__wf_value in HwfV; eauto.
-        eapply wf_phi_operands__elim in Hwfops; eauto.
-        destruct Hwfops as [vb [b1 [Hlkvb [Hlkb1 Hdom]]]].
-        assert (b1 = block_intro l1 ps1 cs1 tmn1)
-          as EQ.
-          clear - Hlkb1 HbInF HuniqF.
-          apply blockInFdefB_lookupBlockViaLabelFromFdef in HbInF; auto.
-          rewrite HbInF in Hlkb1. inv Hlkb1; auto.
-
-        subst.
-        clear - Hdom Hinscope HeqR J Hreach H2 HbInF Hlkvb Hlkb1 HuniqF.
-        destruct Hdom as [J3 | J3]; try solve [contradict Hreach; auto].
-        clear Hreach.
-        unfold blockDominates in J3.
-        destruct vb as [l3 p c t1].
-        unfold inscope_of_tmn in HeqR.
-        destruct f as [f b]. destruct f as [f t2 i0 a v].
-        remember ((dom_analyze (fdef_intro (fheader_intro f t2 i0 a v) b)) !! l1)
-          as R1.
-        destruct R1.
-        symmetry in HeqR.
-        apply fold_left__spec in HeqR.
-        destruct (eq_atom_dec l3 l1); subst.
-        SCase "l3=l1".
-          destruct HeqR as [HeqR _].
-          assert (In vid t) as G.
-            clear - J HeqR Hlkb1 J3 Hlkvb HbInF HuniqF.
-            assert (J':=Hlkvb).
-            apply lookupBlockViaIDFromFdef__blockInFdefB in Hlkvb.
-            apply lookupBlockViaLabelFromFdef_inv in Hlkb1; auto.
-            destruct Hlkb1 as [J1 J2].
-            eapply blockInFdefB_uniq in J2; eauto.
-            destruct J2 as [J2 [J4 J5]]; subst.
-            apply lookupBlockViaIDFromFdef__InGetBlockIDs in J'.
-            simpl in J'.
-            apply HeqR.
-            rewrite_env ((getPhiNodesIDs ps1 ++ getCmdsIDs cs1)++getArgsIDs a).
-            apply in_or_app; auto.
-          apply wf_defs_elim with (id1:=vid) in Hinscope; auto.
-          destruct Hinscope as [? [gv1 [? [Hinscope ?]]]].
-          exists gv1. auto.
-
-        SCase "l3<>l1".
-          destruct J3 as [J3 | Heq]; subst; try congruence.
-          assert (In l3 (ListSet.set_diff eq_atom_dec bs_contents [l1])) as G.
-            apply ListSet.set_diff_intro; auto.
-              simpl. intro JJ. destruct JJ as [JJ | JJ]; auto.
-          assert (
-            lookupBlockViaLabelFromFdef
-              (fdef_intro (fheader_intro f t2 i0 a v) b) l3 =
-              ret block_intro l3 p c t1) as J1.
-            clear - Hlkvb HuniqF.
-            apply lookupBlockViaIDFromFdef__blockInFdefB in Hlkvb.
-            apply blockInFdefB_lookupBlockViaLabelFromFdef in Hlkvb; auto.
-          destruct HeqR as [_ [HeqR _]].
-          apply HeqR in J1; auto.
-          assert (In vid t) as InVid.
-            clear - J1 HeqR Hlkb1 J3 Hlkvb HbInF HuniqF.
-            apply J1.
-            apply lookupBlockViaIDFromFdef__InGetBlockIDs in Hlkvb; auto.
-          apply wf_defs_elim with (id1:=vid) in Hinscope; auto.
-          destruct Hinscope as [? [gv1 [? [Hinscope ?]]]].
-          exists gv1. auto.
+        assert (In vid t) as K.
+          eapply incoming_value__in_scope; eauto.
+        apply wf_defs_elim with (id1:=vid) in Hinscope; auto.
+        destruct Hinscope as [? [gv1 [? [Hinscope ?]]]].
+        exists gv1. auto.
         Unfocus.
 
       destruct J1 as [gv1 J1].
