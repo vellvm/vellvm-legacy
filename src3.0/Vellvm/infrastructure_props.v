@@ -3573,6 +3573,24 @@ Proof.
       (getPhiNodeID a) i0); inv H; eauto.
 Qed.
 
+Lemma InGetPhiNodesIDs_middle: forall ps1 p1 ps2,
+  In (getPhiNodeID p1) (getPhiNodesIDs (ps1 ++ p1 :: ps2)).
+Proof.
+  intros.
+  rewrite getPhiNodesIDs_app. apply in_or_app. simpl. auto.
+Qed.
+
+Lemma getPhiNodeID_in_getPhiNodesIDs : forall ps p,
+  In p ps ->
+  In (getPhiNodeID p) (getPhiNodesIDs ps).
+Proof.
+  induction ps; intros.
+    inversion H.
+
+    simpl in *.
+    destruct H as [H | H]; subst; eauto.
+Qed.
+
 Ltac solve_in_list :=
 repeat match goal with
 | H1: ~ In ?id0 (?A ++ ?C) |- ~ In ?id0 ?A => intro Q; apply H1
@@ -3628,12 +3646,35 @@ repeat match goal with
     apply lookupBlockViaIDFromFdef__InGetBlockIDs in H;
     apply in_getBlockIDs__in_getBlockLocs; auto
 | H1: In ?p ?ps |- InPhiNodesB ?p ?ps = true => apply In_InPhiNodesB; auto
+| H1: InPhiNodesB ?p ?ps = true |- In ?p ?ps => apply InPhiNodesB_In; auto
 | H1: lookupPhiNodeViaIDFromPhiNodes ?ps _ = Some ?p |- In ?p ?ps =>
     apply lookupPhiNodeViaIDFromPhiNodes__InPhiNodes in H1; auto
 | H1: lookupPhiNodeViaIDFromPhiNodes ?ps _ = Some ?p |- 
     InPhiNodesB ?p ?ps = true =>
     apply In_InPhiNodesB; 
     apply lookupPhiNodeViaIDFromPhiNodes__InPhiNodes in H1; auto
+| H1: In ?a (getPhiNodesIDs ?ps) |- In ?a (getBlockLocs (block_intro _ ?ps _ _)) =>
+    simpl; apply in_or_app; auto
+| HBinF : InBlocksB ?b ?bs = true, Hin : In ?i1 (getBlockLocs ?b) |-
+  In ?i1 (getBlocksLocs ?bs) =>
+  eapply in_getBlockLocs__in_getBlocksLocs in HBinF; eauto
+| HBinF : blockInFdefB ?b (fdef_intro _ ?bs) = true, Hin : In ?i1 (getBlockLocs ?b) |-
+  In ?i1 (getBlocksLocs ?bs) =>
+  simpl in HBinF; eapply in_getBlockLocs__in_getBlocksLocs in HBinF; eauto
+| H1: In ?id0 ?C |- In ?id0 (?A ++ ?B ++ ?C) =>
+    apply in_or_app; right; apply in_or_app; right; auto
+| |- In (getPhiNodeID ?p1) (getPhiNodesIDs (_ ++ ?p1 :: _) ++ _) =>
+  apply in_or_app; left; apply InGetPhiNodesIDs_middle; auto
+| H : insnInBlockB (insn_cmd ?c) (block_intro _ _ ?cs _) = true |- In ?c ?cs =>
+  simpl in H
+| H : In ?c ?cs |- cmdInBlockB ?c (block_intro _ _ ?cs _) => 
+  simpl; apply In_InCmdsB; auto
+| |- InPhiNodesB ?p (_++?p::_) = true => apply In_InPhiNodesB
+| H : In ?p ?ps |- In (getPhiNodeID ?p) (getPhiNodesIDs ?ps) =>
+  apply getPhiNodeID_in_getPhiNodesIDs; auto
+| H: In ?p ?ps |- 
+  In (getPhiNodeID ?p) (getBlockLocs (block_intro _ ?ps1 _ _)) =>
+  simpl; apply in_or_app; left
 end.
 
 Lemma lookupBlockViaIDFromBlocks__in_getBlocksLocs: forall b1 id1 bs,
@@ -4204,13 +4245,6 @@ Proof.
         apply NoDup_split in Huniq. tauto.
 Qed.
 
-Lemma InGetPhiNodesIDs_middle: forall ps1 p1 ps2,
-  In (getPhiNodeID p1) (getPhiNodesIDs (ps1 ++ p1 :: ps2)).
-Proof.
-  intros.
-  rewrite getPhiNodesIDs_app. apply in_or_app. simpl. auto.
-Qed.
-
 Lemma getCmdLoc_in_getCmdsLocs': forall c1 cs ls
   (H0 : InCmdsB c1 cs), In (getCmdLoc c1) (getCmdsLocs cs ++ ls).
 Proof.
@@ -4600,17 +4634,6 @@ Proof.
     rewrite IHvls1; auto.
 Qed.
 
-Lemma getPhiNodeID_in_getPhiNodesIDs : forall ps p,
-  In p ps ->
-  In (getPhiNodeID p) (getPhiNodesIDs ps).
-Proof.
-  induction ps; intros.
-    inversion H.
-
-    simpl in *.
-    destruct H as [H | H]; subst; eauto.
-Qed.
-
 Lemma terminatorInBlockB__inGetBlockLocs: forall t b,
   terminatorInBlockB t b -> In (getTerminatorID t) (getBlockLocs b).
 Proof.
@@ -4932,14 +4955,22 @@ match goal with
   =>
   apply insnInFdefBlockB__blockInFdefB in H2;
   apply uniqFdef__uniqBlockLocs in H2; auto
+| J1 : NoDup (getBlockLocs (block_intro _ ?ps1 _ _)) |- 
+  NoDup (getPhiNodesIDs ?ps1) =>
+  simpl in J1; apply NoDup_inv in J1; destruct J1; auto
 end.
 
 Ltac solve_blockInFdefB :=
 match goal with
 | H2: insnInFdefBlockB _ ?F ?b = true |- blockInFdefB ?b ?F = true =>
   apply insnInFdefBlockB__blockInFdefB in H2; auto
-| H2 : lookupBlockViaIDFromFdef ?F _ = Some ?B |- blockInFdefB ?b ?F = true =>
+| H2 : lookupBlockViaIDFromFdef ?F _ = Some ?b |- blockInFdefB ?b ?F = true =>
   apply lookupBlockViaIDFromFdef__blockInFdefB in H2; auto
+| H1 : uniqFdef ?F,
+  H2 : Some ?b = lookupBlockViaLabelFromFdef ?F _ |- blockInFdefB ?b ?F = true =>
+  symmetry in H2;
+  apply lookupBlockViaLabelFromFdef_inv in H2; auto;
+  destruct H2 as [EQ99 H2]; subst; auto
 end.
 
 Lemma IngetTmnID__lookupTmnViaIDFromFdef: forall l1 ps1 cs1 tmn1 f
@@ -5030,5 +5061,169 @@ Proof.
       exists b. apply insnInFdefBlockB_intro; auto.
       simpl. simpl in J2.
       apply orb_true_iff; auto.
+Qed.
+
+Lemma IngetCmdsIDs__lookupCmdViaIDFromFdef': forall f c b
+  (Huniq: uniqFdef f)
+  (H : insnInFdefBlockB (insn_cmd c) f b = true),
+  lookupInsnViaIDFromFdef f (getCmdLoc c) = Some (insn_cmd c).
+Proof.
+  intros.
+  apply destruct_insnInFdefBlockB in H.
+  destruct H. destruct b. 
+  eapply IngetCmdsIDs__lookupCmdViaIDFromFdef; eauto.
+    solve_in_list.
+Qed.
+
+Ltac solve_lookupInsnViaIDFromFdef :=
+match goal with
+| Huniq: uniqFdef ?f, 
+  H: insnInFdefBlockB (insn_cmd ?c) ?f ?b = true |- 
+  lookupInsnViaIDFromFdef ?f (getCmdLoc ?c) = Some (insn_cmd ?c) =>
+  eapply IngetCmdsIDs__lookupCmdViaIDFromFdef'; eauto
+| Huniq: uniqFdef ?f, 
+  H: blockInFdefB (block_intro _ _ ?cs _) ?f = true,
+  H1: In ?c ?cs |- 
+  lookupInsnViaIDFromFdef ?f (getCmdLoc ?c) = Some (insn_cmd ?c) =>
+  eapply IngetCmdsIDs__lookupCmdViaIDFromFdef; eauto
+end.
+
+Lemma getBlocksLocs__notin__getArgsIDs: forall f b (Huniq : uniqFdef f)
+  (HBinF: blockInFdefB b f = true) i0 (Hin: In i0 (getBlockLocs b)),
+  ~ In i0 (getArgsIDsOfFdef f).
+Proof.
+  destruct f as [[]].
+  intros. 
+  destruct Huniq as [Huniq1 Huniq2].
+  eapply NoDup_disjoint; eauto. 
+  solve_in_list.
+Qed.
+
+Lemma In_getBlockIDs__insnInBlockB: forall i0 b,
+  In i0 (getBlockIDs b) -> 
+  exists instr, insnInBlockB instr b = true /\ getInsnID instr = Some i0.
+Proof.
+  destruct b. simpl.
+  intro J.
+  apply in_app_or in J.
+  destruct J as [J | J].
+    apply in_getPhiNodesIDs_inv in J.
+    destruct J as [ps1 [p1 [ps2 [EQ Hin]]]]; subst.
+    exists (insn_phinode p1). simpl.
+    split; auto.
+      solve_in_list.
+
+    apply in_getCmdsIDs_inv in J.
+    destruct J as [cs1 [c1 [cs2 [EQ Hin]]]]; subst.
+    exists (insn_cmd c1). simpl.
+    split; auto.
+      solve_in_list.
+Qed.
+
+Lemma lookupBlockViaIDFromFdef__insnInBlockB: forall f i0 b
+  (Hlkup: lookupBlockViaIDFromFdef f i0 = Some b),
+  exists instr : insn,
+    insnInBlockB instr b = true /\
+    getInsnID instr = Some i0.
+Proof.
+  destruct f as [fh bs].
+  induction bs; simpl; intros.
+    congruence.
+
+    destruct_if.
+      apply In_getBlockIDs__insnInBlockB; auto.
+      eauto.
+Qed.
+     
+Lemma IngetPhiNodesIDs__lookupPhiNodeViaIDFromPhiNodes': forall p1 ps1
+  (Huniq: NoDup (getPhiNodesIDs ps1)) (H0 : In p1 ps1),
+  lookupPhiNodeViaIDFromPhiNodes ps1 (getPhiNodeID p1) = Some p1.
+Proof.
+  induction ps1; simpl; intros.
+    inv H0.
+
+    destruct H0 as [H0 | H0]; subst.
+      destruct (@eq_dec id (EqDec_eq_of_EqDec id EqDec_atom) 
+        (getPhiNodeID p1) (getPhiNodeID p1)); auto.
+        congruence.
+      inv Huniq.
+      destruct (@eq_dec id (EqDec_eq_of_EqDec id EqDec_atom) 
+        (getPhiNodeID a) (getPhiNodeID p1)); auto.
+        contradict H2. rewrite e. solve_in_list.
+Qed.
+
+Lemma IngetPhiNodesIDs__lookupPhinodeViaIDFromFdef': forall p l1 ps1 cs1 tmn1 f
+  (Huniq: uniqFdef f)
+  (H : blockInFdefB (block_intro l1 ps1 cs1 tmn1) f = true)
+  (H0 : In p ps1),
+  lookupInsnViaIDFromFdef f (getPhiNodeID p) = Some (insn_phinode p).
+Proof.
+  destruct f as [[] bs]. simpl. intros.
+  destruct Huniq as [_ Huniq].
+  apply NoDup_split in Huniq.
+  destruct Huniq as [_ Huniq].
+  generalize dependent l1.
+  generalize dependent ps1.
+  generalize dependent cs1.
+  generalize dependent tmn1.
+  induction bs as [|a0 bs]; simpl; intros.
+    inv H.
+
+    simpl in Huniq.
+    apply NoDup_split' in Huniq.
+    destruct Huniq as [J1 [J2 J3]].
+    apply orb_true_iff in H.
+    destruct H as [H | H].
+      apply blockEqB_inv in H.
+      subst. simpl.
+      rewrite IngetPhiNodesIDs__lookupPhiNodeViaIDFromPhiNodes'; auto.
+      solve_NoDup.
+
+      assert (~ In (getPhiNodeID p) (getBlockLocs a0)) as Hnotin.
+        intro J. apply J3 in J. apply J.
+        eapply in_getBlockLocs__in_getBlocksLocs in H; eauto.
+        solve_in_list.
+      rewrite notin__lookupInsnViaIDFromBlock_none; auto.
+      eapply IHbs; eauto.
+Qed.
+
+Lemma IngetInsnsLocs__lookupInsnViaIDFromFdef: forall f instr b
+  (Huniq: uniqFdef f)
+  (H : insnInFdefBlockB instr f b = true),
+  lookupInsnViaIDFromFdef f (getInsnLoc instr) = Some instr.
+Proof.
+  intros.
+  apply destruct_insnInFdefBlockB in H.
+  destruct H. destruct b. 
+  destruct instr; simpl in H.
+    eapply IngetPhiNodesIDs__lookupPhinodeViaIDFromFdef'; eauto. solve_in_list.
+    eapply IngetCmdsIDs__lookupCmdViaIDFromFdef; eauto. solve_in_list.
+
+    apply terminatorEqB_inv in H. subst.
+    eapply IngetTmnID__lookupTmnViaIDFromFdef; eauto.
+Qed.
+
+Lemma getInsnID__getInsnLoc: forall instr id0
+  (Hsome: getInsnID instr = Some id0), getInsnLoc instr = id0.
+Proof. 
+  destruct instr; simpl; intros; try congruence.
+    eapply getCmdID__getCmdLoc; eauto.
+Qed.
+
+Lemma lookupBlockViaIDFromFdef__lookupInsnViaIDFromFdef: forall f i0 b
+  (Hlkup: lookupBlockViaIDFromFdef f i0 = Some b) (Huniq: uniqFdef f),
+  exists instr : insn,
+    lookupInsnViaIDFromFdef f i0  = Some instr /\ getInsnID instr = Some i0.
+Proof.
+  intros.
+  assert (G:=Hlkup).
+  apply lookupBlockViaIDFromFdef__insnInBlockB in G.
+  apply lookupBlockViaIDFromFdef__blockInFdefB in Hlkup.
+  destruct G as [instr [G1 G2]].
+  exists instr.
+  split; auto.
+    apply getInsnID__getInsnLoc in G2. subst.
+    eapply IngetInsnsLocs__lookupInsnViaIDFromFdef with (b:=b); eauto 1.
+    apply insnInFdefBlockB_intro; auto.
 Qed.
 

@@ -115,14 +115,9 @@ Proof.
   simpl in LAS_BInF0. auto.
 Qed.  
 
-Lemma LAS_value__exists: forall pinfo lasinfo s m 
-  (HwfF: wf_fdef s m (PI_f pinfo)) (Huniq: uniqFdef (PI_f pinfo)),
-  match LAS_value pinfo lasinfo with
-  | value_id vid =>
-      exists c, lookupInsnViaIDFromFdef (PI_f pinfo) vid = ret insn_cmd c /\
-                getCmdLoc c = vid
-  | _ => True
-  end.
+Lemma LAS_value_is_substing: forall S m pinfo lasinfo
+  (Huniq : uniqFdef (PI_f pinfo)) (HwfF : wf_fdef S m (PI_f pinfo)),
+  substing_value (PI_f pinfo) (LAS_value pinfo lasinfo).
 Proof.
   intros.
   assert (G:=Huniq).
@@ -130,6 +125,7 @@ Proof.
   eapply wf_fdef__wf_insn_base in G; eauto.
   destruct G as [b HwfI].
   inv HwfI.
+  unfold substing_value.
   destruct (LAS_value pinfo lasinfo) as [vid|]; auto.
   match goal with
   | H5: getInsnOperands (insn_cmd ?c) = _ |- _ =>
@@ -144,7 +140,30 @@ Proof.
         ]
   end.
   inv H6. 
-Admitted. (*idDominates_inscope_of_cmd__inscope_of_cmd should allow 1st be noncmd*)
+  destruct H10 as [[block' [H10 G]] | H10]; auto.
+    right. exists block'. split; auto.
+    admit. (* wf, reach *)
+Qed.
+
+Lemma LAS_value__exists: forall pinfo lasinfo s m 
+  (HwfF: wf_fdef s m (PI_f pinfo)) (Huniq: uniqFdef (PI_f pinfo)),
+  match LAS_value pinfo lasinfo with
+  | value_id vid =>
+      In vid (getArgsIDsOfFdef (PI_f pinfo)) \/
+      exists instr, 
+        lookupInsnViaIDFromFdef (PI_f pinfo) vid = ret instr /\
+        getInsnID instr = Some vid
+  | _ => True
+  end.
+Proof.
+  intros.
+  apply LAS_value_is_substing with (lasinfo:=lasinfo) in HwfF; auto.
+  unfold substing_value in HwfF.
+  destruct (LAS_value pinfo lasinfo); auto.
+  destruct HwfF as [J | [b [J _]]]; auto.
+  right.
+    eapply lookupBlockViaIDFromFdef__lookupInsnViaIDFromFdef; eauto.
+Qed.
 
 Lemma LAS_block__reachable: forall pinfo lasinfo,
   isReachableFromEntry (PI_f pinfo) (LAS_block pinfo lasinfo).
@@ -236,9 +255,6 @@ Proof.
         rewrite_env ((A ++ b :: C) ++ d :: E) in H
   end. 
   destruct LAS_value0 as [LAS_vid0|]; try solve [simpl; auto];
-    try match goal with
-    | Hsval: exists _:_, _/\_ |- _ => destruct Hsval as [c [Hlkup EQ]]; subst
-    end;
     split; try solve [
       auto |
       try match goal with
@@ -257,6 +273,20 @@ Proof.
                (value_id (PI_id pinfo)) (PI_align pinfo)); eauto 1
       end
     ].
+
+    destruct Hsval as [Hinargs | [instr [Hlkup Heq]]].
+      eapply in_getArgsIDsOfFdef__inscope_of_id; eauto.
+      destruct instr; tinv Heq.
+        admit. (* idDominates_inscope_of_cmd__inscope_of_cmd should allow phinodes *)
+
+        apply getCmdID__getCmdLoc in Heq. subst.       
+        match goal with
+        | H : context [(_++?c1::_)++_::_] |- _ =>
+         eapply idDominates_inscope_of_cmd__inscope_of_cmd 
+          with (c0:=c1)
+               (c:=insn_load LAS_lid0 (PI_typ pinfo) 
+                 (value_id (PI_id pinfo)) (PI_align pinfo)); eauto 1
+        end.
 Qed.
 
 Lemma LAS_value__dominates__LAS_lid: forall S m pinfo lasinfo
@@ -277,16 +307,6 @@ Proof.
   intros.
   eapply LAS_value_PI_id__dominate__LAS_lid; eauto.
 Qed.
-
-Lemma LAS_value_is_substing: forall S m pinfo lasinfo
-  (Huniq : uniqFdef (PI_f pinfo)) (HwfF : wf_fdef S m (PI_f pinfo)),
-  substing_value (PI_f pinfo) (LAS_value pinfo lasinfo).
-Proof.
-  intros.
-  destruct_lasinfo.
-  unfold substing_value.
-  destruct LAS_value0 as [vid|]; auto.
-Admitted. (* wf, reach *)
 
 Lemma LAS_substable_values : forall S los nts Ps gl pinfo lasinfo
   (Huniq: uniqFdef (PI_f pinfo)) 
@@ -742,11 +762,17 @@ Proof.
   assert (Hsval:=@LAS_value__exists pinfo lasinfo _ _ HwfF Huniq).
   destruct (LAS_value pinfo lasinfo); auto.
   simpl in Hdom. symmetry in HeqR.
-  destruct Hsval as [cv [Hlkc EQ]]; subst.
-  eapply idDominates_inscope_of_tmn__inscope_of_tmn
-    with (c0:=insn_load (LAS_lid pinfo lasinfo) (PI_typ pinfo) 
-           (value_id (PI_id pinfo)) (PI_align pinfo)) in HeqR; eauto 1.
-    symmetry. apply lookup_LAS_lid__load; auto.
+  destruct Hsval as [Hinargs | [instr [Hlkc EQ]]]; subst.
+    eapply in_getArgsIDsOfFdef__inscope_of_tmn; eauto.
+
+    destruct instr; tinv EQ.
+      admit. (* idDominates phis *)
+
+      apply getCmdID__getCmdLoc in EQ. subst.       
+      eapply idDominates_inscope_of_tmn__inscope_of_tmn
+        with (c0:=insn_load (LAS_lid pinfo lasinfo) (PI_typ pinfo) 
+             (value_id (PI_id pinfo)) (PI_align pinfo)) in HeqR; eauto 1.
+      symmetry. apply lookup_LAS_lid__load; auto.
 Qed.
 
 Lemma getOperandValue_inTmnOperands_sim : forall los nts s ps gl pinfo 
@@ -811,12 +837,18 @@ Proof.
   assert (Hsval:=@LAS_value__exists pinfo lasinfo _ _ HwfF Huniq).
   destruct (LAS_value pinfo lasinfo); auto.
   simpl in Hdom. symmetry in HeqR.
-  destruct Hsval as [cv [Hlkc EQ]]; subst.
-  eapply idDominates_inscope_of_cmd__inscope_of_cmd 
-    with (c:=c)
-         (c0:=insn_load (LAS_lid pinfo lasinfo) (PI_typ pinfo) 
-           (value_id (PI_id pinfo)) (PI_align pinfo)) in HeqR; eauto 1.
-    symmetry. apply lookup_LAS_lid__load; auto.
+  destruct Hsval as [Hinargs | [instr [Hlkc EQ]]]; subst.
+    eapply in_getArgsIDsOfFdef__inscope_of_cmd; eauto.
+
+    destruct instr; tinv EQ.
+      admit. (* idDominates phis *)
+
+      apply getCmdID__getCmdLoc in EQ. subst.       
+      eapply idDominates_inscope_of_cmd__inscope_of_cmd 
+        with (c:=c)
+             (c0:=insn_load (LAS_lid pinfo lasinfo) (PI_typ pinfo) 
+             (value_id (PI_id pinfo)) (PI_align pinfo)) in HeqR; eauto 1.
+      symmetry. apply lookup_LAS_lid__load; auto.
 Qed.
 
 Lemma getOperandValue_inCmdOperands_sim : forall los nts s gl pinfo lasinfo

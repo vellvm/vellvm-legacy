@@ -1046,11 +1046,10 @@ Definition inscope_of_block (f:fdef) (l1:l) (opt_ctx:option (list atom)) (lbl:l)
 
 Definition inscope_of_id (f:fdef) (b1:block) (id0:id) : option (list atom) :=
 let '(block_intro l1 ps cs _) := b1 in
-let '(fdef_intro (fheader_intro _ _ _ la _) _) := f in
 let 'dt := dom_analyze f in
 let '(Dominators.mkBoundedSet els _) := AMap.get l1 dt in
 fold_left (inscope_of_block f l1) els
-  (Some (getPhiNodesIDs ps ++ cmds_dominates_cmd cs id0 ++ getArgsIDs la))
+  (Some (getPhiNodesIDs ps ++ cmds_dominates_cmd cs id0 ++ getArgsIDsOfFdef f))
 .
 
 Definition idDominates (f:fdef) (id1 id2: id) : Prop :=
@@ -1069,11 +1068,10 @@ let id0 := getCmdLoc c in inscope_of_id f b1 id0.
 Definition inscope_of_tmn (f:fdef) (b1:block) (tmn:terminator)
   : option (list atom) :=
 let '(block_intro l1 ps cs _) := b1 in
-let '(fdef_intro (fheader_intro _ _ _ la _) _) := f in
 let 'dt := dom_analyze f in
 let '(Dominators.mkBoundedSet els _) := AMap.get l1 dt in
 fold_left (inscope_of_block f l1) els
-  (Some (getPhiNodesIDs ps ++ getCmdsIDs cs ++ getArgsIDs la))
+  (Some (getPhiNodesIDs ps ++ getCmdsIDs cs ++ getArgsIDsOfFdef f))
 .
 
 Definition defs_dominate (f:fdef) (curb incomingb:block) (i:insn)
@@ -2411,17 +2409,17 @@ Proof.
     with (fh:=fheader_intro fa ty fid la va)(l0:=l0)
     (init:=getPhiNodesIDs p ++ cmds_dominates_cmd c id0 ++ getArgsIDs la) 
     in bs_bound; eauto.
-  destruct bs_bound.
-  congruence.
+  destruct bs_bound. simpl. congruence.
 Qed.
 
 Inductive wf_phi_operands (f:fdef) (b:block) (id0:id) (t0:typ) :
     list_value_l -> Prop :=
 | wf_phi_operands_nil : wf_phi_operands f b id0 t0 Nil_list_value_l
-| wf_phi_operands_cons_vid : forall vid1 l1 vls b1 vb,
-    lookupBlockViaIDFromFdef f vid1 = Some vb ->
+| wf_phi_operands_cons_vid : forall vid1 l1 vls b1,    
     lookupBlockViaLabelFromFdef f l1 = Some b1 ->
-    blockDominates f vb b1 \/ (not (isReachableFromEntry f b)) ->
+    ((exists vb, lookupBlockViaIDFromFdef f vid1 = Some vb /\ 
+       (blockDominates f vb b1 \/ not (isReachableFromEntry f b))) \/ 
+     In vid1 (getArgsIDsOfFdef f)) ->
     wf_phi_operands f b id0 t0 vls ->
     wf_phi_operands f b id0 t0 (Cons_list_value_l (value_id vid1) l1 vls)
 | wf_phi_operands_cons_vc : forall c1 l1 vls,

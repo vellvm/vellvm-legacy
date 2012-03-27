@@ -344,7 +344,8 @@ formula :: 'formula_' ::=
   | init_locals gl lc fdef = lc'      ::   :: initlocals
   | typ_eq_list_typ namedts typ </ typj // j /> :: :: typ_eq_list_typ
       {{ coq typ_eq_list_typ [[namedts]] [[typ]] [[ </ typj // j /> ]] = true }}
-
+  | check_operand fdef block insn id' ::   :: checkoperand
+      {{ coq ((exists block', lookupBlockViaIDFromFdef [[fdef]] [[id']] = Some block' /\ (insnDominates [[id']] [[insn]] [[block]] \/ blockStrictDominates [[fdef]] block' [[block]] \/ (not (isReachableFromEntry [[fdef]] [[block]])))) \/ In [[id']] (getArgsIDsOfFdef [[fdef]])) }}
 
 parsing
 formula_true left formula_not
@@ -687,9 +688,8 @@ Jwf_operand :: '' ::=
       insn in fdef , block
       getInsnOperands insn = ids
       id' in ids
-      lookupBlockViaIDFromFdef fdef id' = block'
       notT isPhiNode insn
-      (insnDominates id' insn block \/ blockStrictDominates fdef block' block \/ (not (isReachableFromEntry fdef block)))
+      check_operand fdef block insn id'
       -------------------------------------------------------- :: wf_operand_intro
       fdef , block , insn |- id'
 
