@@ -683,10 +683,17 @@ Lemma unremovable_loc__neq__SAS_sid1: forall pinfo sasinfo F B c cs tmn2 lc2
                  Opsem.Mem := Mem |})
   (EQ : id0 = getCmdLoc c),
   PI_f pinfo = F -> id0 <> SAS_sid1 pinfo sasinfo.
+Proof.
+  simpl. intros.
+  intro J. subst.
 Admitted.
 
 Lemma unremovable_loc__neq__SAS_sid2: forall pinfo sasinfo F B c cs tmn2 lc2
   als2 EC Mem id0
+  (Hnst: match c with
+         | insn_store _ _ _ _ _ => False
+         | _ => True
+         end)
   (Hnrem : ~ removable_State pinfo sasinfo
                {|Opsem.ECS := {| Opsem.CurFunction := F;
                                  Opsem.CurBB := B;
@@ -697,6 +704,9 @@ Lemma unremovable_loc__neq__SAS_sid2: forall pinfo sasinfo F B c cs tmn2 lc2
                  Opsem.Mem := Mem |})
   (EQ : Some id0 = getCmdID c),
   PI_f pinfo = F -> id0 <> SAS_sid2 pinfo sasinfo.
+Proof.
+  simpl. intros.
+  intro J. subst.
 Admitted.
 
 Lemma in_SAS_tail_update :
@@ -705,10 +715,9 @@ Lemma in_SAS_tail_update :
   (Hneq': PI_f pinfo = F -> getCmdLoc c <> SAS_sid1 pinfo sasinfo)
   (Hex: exists l0, exists ps0, exists cs0,
           B = block_intro l0 ps0 (cs0++c::cs) tmn3)
-  (Hp: forall gvs, 
-         PI_f pinfo = F -> 
-         lookupAL (GVsT DGVs) lc2 (PI_id pinfo) = Some gvs ->
-         lookupAL (GVsT DGVs) lc1 (PI_id pinfo) = Some gvs)
+  (Hp: PI_f pinfo = F -> 
+       lookupAL (GVsT DGVs) lc2 (PI_id pinfo) =
+         lookupAL (GVsT DGVs) lc1 (PI_id pinfo))
   (H1: in_SAS_tail pinfo sasinfo omb TD 
       {| Opsem.CurFunction := F;
          Opsem.CurBB := B;
@@ -726,17 +735,13 @@ Lemma in_SAS_tail_update :
 Proof.
   intros.
   destruct H1 as [H11 H12].
-  split; simpl in *.
-    intros.
-    assert (exists gvs, lookupAL (GVsT DGVs) lc2 (PI_id pinfo) = Some gvs) as G.
-      admit. (* H => we follow the dead store, so pid must be inscope! *)
-    destruct G as [gvs G]. rewrite G.
-    apply EC_follow_dead_store_tail' with (lc1:=lc1)(als3:=als3) in H; auto.
+  split; simpl in *; intros H.
     assert (W:=H). destruct W as [W _]. simpl in W.
-    apply_clear H11 in H.
-    apply_clear Hp in G. rewrite G in H. auto.
+    rewrite Hp; try congruence.
+    apply EC_follow_dead_store_tail' with (lc1:=lc1)(als3:=als3) in H; auto.
+    apply H11; auto.
 
-    intros. apply H12.
+    apply H12.
     intro G. apply H.
     eapply EC_follow_dead_store_tail''; eauto.
 Qed.
@@ -747,10 +752,9 @@ Lemma mem_simulation_update_locals :
   (Hneq': PI_f pinfo = F -> getCmdLoc c <> SAS_sid1 pinfo sasinfo)
   (Hex: exists l0, exists ps0, exists cs0,
           B = block_intro l0 ps0 (cs0++c::cs) tmn3)
-  (Hp: forall gvs, 
-         PI_f pinfo = F -> 
-         lookupAL (GVsT DGVs) lc1 (PI_id pinfo) = Some gvs ->
-         lookupAL (GVsT DGVs) lc2 (PI_id pinfo) = Some gvs)
+  (Hp: PI_f pinfo = F -> 
+       lookupAL (GVsT DGVs) lc1 (PI_id pinfo) =
+         lookupAL (GVsT DGVs) lc2 (PI_id pinfo))
   (Hmsim: mem_simulation pinfo sasinfo TD 
             ({| Opsem.CurFunction := F;
                 Opsem.CurBB := B;
@@ -1109,7 +1113,6 @@ Proof.
     eapply mem_simulation_update_locals in Hmsim; eauto.
       admit. (* id <> sid2 *)
       admit. (* id <> sid1 *)
-      congruence.
     apply in_SAS_tail_nil.
 Qed. 
 
@@ -1195,28 +1198,46 @@ Proof.
       apply malloc_inv in H25. destruct H25 as [n0' [J1' [J2' J3']]].
       rewrite J1 in J1'. inv J1'.
       eapply SASmsim.alloc_inject_id_inj with (m1:=Mem)(m2:=M2); eauto.
-      apply Hmsim2.
-      eapply in_SAS_tails__replace_head in Hin'; eauto.
-      intros.
       assert (ret getCmdLoc c = getCmdID c) as G.
         erewrite getCmdLoc_getCmdID; eauto.
-      apply in_SAS_tail_update with 
-        (lc1:=updateAddAL (GVsT DGVs) lc2 id0
-                ($ blk2GV (los, nts) mb # typ_pointer t $)) (als3:=als2); 
-        eauto using unremovable_loc__neq__SAS_sid1, 
-                    unremovable_loc__neq__SAS_sid2.
-
-        intros gv Heq Hlkup; subst.
+      destruct (id_dec id0 (PI_id pinfo)); subst.
         destruct c; tinv Hmalloc; simpl in *; inv Hid.
           admit. (* malloc <> pid *)
 
-          destruct (id_dec id0 (PI_id pinfo)); subst.
-            assert (lookupAL (GVsT DGVs) lc2 (PI_id pinfo) = None) as Hnone.
-              clear - Hpalloca Hwfpi HBinF Huniq Hexeq.
-              eapply WF_PhiInfo_spec15 in Hpalloca; eauto.
-            congruence.
+          inv Hin'.
+          assert (in_SAS_tails pinfo sasinfo (None::l') (los, nts)
+             ({|
+              Opsem.CurFunction := F;
+              Opsem.CurBB := B;
+              Opsem.CurCmds := insn_alloca (PI_id pinfo) t0 v a :: cs;
+              Opsem.Terminator := tmn2;
+              Opsem.Locals := lc2;
+              Opsem.Allocas := als2 |} :: EC)) as Hin.
+            unfold in_SAS_tails.
+            constructor; auto.
+              split; simpl; intros; auto.
+                destruct H as [H _]. simpl in H. subst.
+                assert (lookupAL (GVsT DGVs) lc2 (PI_id pinfo) = None) as Hnone.
+                  clear - Hpalloca Hwfpi HBinF Huniq Hexeq.
+                  eapply WF_PhiInfo_spec15 in Hpalloca; eauto.
+                rewrite Hnone. auto.
+           apply_clear Hmsim2 in Hin.
+           simpl in Hin. 
+           simpl.
+           destruct y; auto.
+             simpl_env.
+             apply SASmsim.mem_inj_ignores_weaken; auto.
 
-            rewrite <- lookupAL_updateAddAL_neq; auto.
+        apply Hmsim2.
+        eapply in_SAS_tails__replace_head in Hin'; eauto.
+        intros.
+        apply in_SAS_tail_update with 
+          (lc1:=updateAddAL (GVsT DGVs) lc2 id0
+                ($ blk2GV (los, nts) mb # typ_pointer t $)) (als3:=als2); 
+          eauto using unremovable_loc__neq__SAS_sid1.
+          eapply unremovable_loc__neq__SAS_sid2; eauto.
+            destruct c; tinv Hmalloc; auto.
+          rewrite <- lookupAL_updateAddAL_neq; auto.
 Qed.
 
 Lemma list_suffix_dec: forall A (Hdec: forall (x y : A), {x = y}+{x <> y})
@@ -1984,12 +2005,12 @@ match goal with
             Opsem.Allocas:=?als'|}::_) _ _ =>
       apply mem_simulation_update_locals with (lc2:=lc') (als3':=als') in Hmsim; 
         simpl; try solve [
-          eauto using unremovable_loc__neq__SAS_sid1,
-                      unremovable_loc__neq__SAS_sid2 |
+          eauto using unremovable_loc__neq__SAS_sid1 |
+          eapply unremovable_loc__neq__SAS_sid2; eauto; simpl; auto |
           intros;
           match goal with
-          | H : lookupAL _ ?lc ?id1 = Some ?gvs |-
-                lookupAL _ (updateAddAL _ ?lc _ _ ) ?id1 = Some ?gvs =>
+          | |- lookupAL _ ?lc ?id1 =
+                lookupAL _ (updateAddAL _ ?lc _ _ ) ?id1=>
                admit  (* id <> palloca *)
           end
         ]
@@ -2214,7 +2235,8 @@ SCase "sLoad".
   subst.
   repeat_solve.
     eapply mem_simulation_update_locals in Hmsim; simpl; 
-      eauto using unremovable_loc__neq__SAS_sid1, unremovable_loc__neq__SAS_sid2.
+      eauto using unremovable_loc__neq__SAS_sid1.
+      eapply unremovable_loc__neq__SAS_sid2; eauto; simpl; auto.
       admit. (* lid <> pid *)
 
 SCase "sStore".
@@ -2249,11 +2271,13 @@ SCase "sSelect".
   repeat_solve.
     destruct (isGVZero (los,nts) c).
       eapply mem_simulation_update_locals in Hmsim; simpl; 
-        eauto using unremovable_loc__neq__SAS_sid1, unremovable_loc__neq__SAS_sid2.
+        eauto using unremovable_loc__neq__SAS_sid1.
+        eapply unremovable_loc__neq__SAS_sid2; eauto; simpl; auto.
         simpl. intros.
         admit. (* lid <> pid *)
       eapply mem_simulation_update_locals in Hmsim; simpl;
-        eauto using unremovable_loc__neq__SAS_sid1, unremovable_loc__neq__SAS_sid2.
+        eauto using unremovable_loc__neq__SAS_sid1.
+        eapply unremovable_loc__neq__SAS_sid2; eauto; simpl; auto.
         simpl. intros.
         admit. (* lid <> pid *)
 

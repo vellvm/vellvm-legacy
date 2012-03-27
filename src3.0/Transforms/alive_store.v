@@ -228,8 +228,84 @@ match goal with
     inv J3]
 end.
 
-Lemma alive_store_doesnt_use_its_followers: forall l1 ps1 cs1' c cs tmn id0
-  pinfo stinfo s m (Huniq: uniqFdef (PI_f pinfo)),
+Ltac destruct_stinfo :=
+match goal with
+| stinfo: StoreInfo _ |- _ =>
+  destruct stinfo as [SI_id0 SI_value0 SI_tail0
+                       [SI_l0 SI_ps0 SI_cs0 SI_tmn0] SI_prop0];
+  simpl in *;
+  destruct SI_prop0 as 
+    [SI_BInF0 [SI_stincmds0 [SI_cs1 [SI_cs3 SI_EQ]]]]; subst; simpl
+end.
+
+Lemma alive_store_doesnt_use_its_followers_and_pid: forall l1 ps1 cs1' c cs tmn 
+  id0 pinfo stinfo s m (Huniq: uniqFdef (PI_f pinfo)),
+  wf_fdef s m (PI_f pinfo) -> 
+  block_intro l1 ps1 (cs1' ++ c :: cs) tmn = SI_block pinfo stinfo ->
+  getCmdID c = Some id0 ->
+  follow_alive_store pinfo stinfo (c::cs) ->
+  used_in_value id0 (SI_value pinfo stinfo) = false /\ id0 <> PI_id pinfo.
+Proof.
+  intros.
+  assert (exists ids1, ret ids1 = 
+    inscope_of_id (PI_f pinfo) (SI_block pinfo stinfo) (getCmdLoc c) /\
+    In (SI_id pinfo stinfo) ids1) as Hinscope.
+    admit. (* inscope_of_id should consider non-returned cmd *)
+  assert (Hreach: isReachableFromEntry (PI_f pinfo) (SI_block pinfo stinfo)).
+    admit. (* mem2reg should only work for reachable blocks *)
+Local Opaque inscope_of_id isReachableFromEntry.
+  unfold follow_alive_store in H2.
+  rewrite <- H0 in H2.
+  destruct_stinfo. inv H0.
+  assert (J4':=H6).
+  apply_clear H2 in H6.
+  destruct H6 as [csa [csb [EQ1 EQ2]]]; subst.
+  rewrite EQ1 in J4'. 
+  anti_simpl_env. subst.
+  simpl in SI_BInF0.
+  assert (J1':=SI_BInF0).
+  eapply wf_fdef__wf_cmd in SI_BInF0; eauto using in_middle.
+  inv SI_BInF0.
+  match goal with | H13: wf_insn_base _ _ _ |- _ => inv H13 end.
+  destruct Hinscope as [ids1 [Hinscope Hin]].
+  assert (H0':=H0).
+  apply destruct_insnInFdefBlockB in H0'. destruct H0' as [HcInB HcInF].
+  rewrite <- EQ1 in *. 
+  assert (In c
+     (SI_cs1 ++
+      insn_store SI_id0 (PI_typ pinfo) SI_value0
+        (value_id (PI_id pinfo)) (PI_align pinfo) :: 
+      csa ++ c :: cs)) as Hin'.
+    apply in_or_app. right. simpl. right. apply in_middle.
+  eapply cmd_doesnt_use_nondom_operands 
+    with (c1:=insn_store SI_id0 (PI_typ pinfo) SI_value0
+                 (value_id (PI_id pinfo)) (PI_align pinfo))
+    (b1:=block_intro SI_l0 SI_ps0
+            (SI_cs1 ++
+             insn_store SI_id0 (PI_typ pinfo) SI_value0
+               (value_id (PI_id pinfo)) (PI_align pinfo) :: 
+             csa ++ c :: cs) SI_tmn0)
+    (l3:=SI_l0)(ps1:=SI_ps0)
+    (cs:=SI_cs1 ++
+             insn_store SI_id0 (PI_typ pinfo) SI_value0
+               (value_id (PI_id pinfo)) (PI_align pinfo) :: 
+             csa ++ c :: cs)(tmn1:=SI_tmn0) in Hinscope; eauto 1.
+    clear - Hinscope H1.
+    rewrite getCmdID__getCmdLoc with (id0:=id0) in Hinscope; auto.
+    destruct SI_value0 as [i0|].
+      simpl in Hinscope. simpl. 
+      destruct (id_dec i0 id0); subst.
+        tauto.
+        destruct (id_dec id0 (PI_id pinfo)); subst; auto.
+      simpl in Hinscope. simpl. 
+      destruct (id_dec id0 (PI_id pinfo)); subst; auto.
+      
+    simpl_env. simpl. auto.
+    simpl_env. simpl. solve_in_list.
+Qed.
+
+Lemma alive_store_doesnt_use_its_followers: forall l1 ps1 cs1' c cs tmn 
+  id0 pinfo stinfo s m (Huniq: uniqFdef (PI_f pinfo)),
   wf_fdef s m (PI_f pinfo) -> 
   block_intro l1 ps1 (cs1' ++ c :: cs) tmn = SI_block pinfo stinfo ->
   getCmdID c = Some id0 ->
@@ -237,45 +313,8 @@ Lemma alive_store_doesnt_use_its_followers: forall l1 ps1 cs1' c cs tmn id0
   used_in_value id0 (SI_value pinfo stinfo) = false.
 Proof.
   intros.
-  unfold follow_alive_store in H2.
-  rewrite <- H0 in H2.
-  destruct stinfo. simpl in *.
-  rewrite <- H0 in SI_alive0.
-  destruct SI_alive0 as [J1 [J5 [cs1 [cs2 J4]]]].
-  assert (J4':=J4).
-  apply H2 in J4. clear H2.
-  destruct J4 as [csa [csb [EQ1 EQ2]]]; subst.
-  rewrite EQ1 in J4'.
-  anti_simpl_env. subst.
-  simpl_env in J1. simpl in J1.
-  assert (J1':=J1).
-  eapply wf_fdef__wf_cmd in J1; eauto using in_middle.
-  inv J1.
-  match goal with | H13: wf_insn_base _ _ _ |- _ => inv H13 end.
-  destruct SI_value0 as [i0|]; auto.
-  apply wf_operand_list__elim with (id1:=i0)(f1:=PI_f pinfo)
-    (b1:=block_intro l1 ps1
-                  (cs1 ++
-                   insn_store SI_id0 (PI_typ pinfo)
-                     (value_id i0) (value_id (PI_id pinfo))
-                     (PI_align pinfo) :: csa ++ c :: cs) tmn)
-    (insn1:=insn_cmd
-                  (insn_store SI_id0 (PI_typ pinfo)
-                     (value_id i0) (value_id (PI_id pinfo))
-                     (PI_align pinfo))) in H8; auto.
-    inv H8.
-    apply inGetBlockIDs__lookupBlockViaIDFromFdef with (id1:=i0) in J1'; auto.
-      rewrite J1' in H14. inv H14.
-      destruct H16 as [H16 | [H16 | H16]].
-        admit. (* >> *)
-
-        admit. (* ~ l >> l *)
-
-        admit. (* >> reach *)
-
-      simpl. admit. (* infra *)
-
-    admit. (* infra *)
+  eapply alive_store_doesnt_use_its_followers_and_pid in H0; eauto.
+  tauto.
 Qed.
 
 Lemma preservation_return : forall maxb pinfo stinfo (HwfPI : WF_PhiInfo pinfo)
@@ -512,6 +551,7 @@ Proof.
   intros J1 J2 J3. simpl in J1, J2, J3. simpl. subst.
   assert (J2':=J2).
   apply follow_alive_store_cons in J2; auto.
+  assert (Hfollow:=J2).
   assert (used_in_value id0 (SI_value pinfo stinfo) = false) as Hnuse.
     eapply alive_store_doesnt_use_its_followers; eauto.
   apply Hinscope in J2; auto. simpl in J2.
@@ -527,28 +567,8 @@ Proof.
         eapply WF_PhiInfo_spec10 in HBinF; eauto.
 
         inv Hid.
-        clear - J2' J3 HwfF. unfold follow_alive_store in J3.
-        rewrite <- J2' in J3.
-        destruct stinfo. simpl in *.
-        rewrite <- J2' in SI_alive0.
-        destruct SI_alive0 as [J1 [J5 [cs1 [cs2 J4]]]].
-        assert (J4':=J4).
-        apply J3 in J4. clear J3.
-        destruct J4 as [csa [csb [EQ1 EQ2]]]; subst.
-        anti_simpl_env.
-        destruct csa.
-          anti_simpl_env. congruence.
-
-          assert (exists csa', exists c', [c] ++ csa = csa' ++ [c']) as EQ.
-            apply head_tail_commut.
-          destruct EQ as [csa' [c' EQ]].
-          rewrite_env (cs1 ++
-                         insn_store SI_id0 (PI_typ pinfo) SI_value0
-                           (value_id (PI_id pinfo)) (PI_align pinfo) ::
-                         [c] ++ csa) in J4'.
-          rewrite EQ in J4'.
-          anti_simpl_env. 
-          admit. (* >>, see alive_store_doesnt_use_its_followers *)
+        clear - J2' J3 HwfF Hfollow HuniqF. 
+        eapply alive_store_doesnt_use_its_followers_and_pid in J2'; simpl; eauto.
 Qed.
 
 Lemma malloc_preserves_wf_EC_in_tail : forall pinfo td M
@@ -1060,6 +1080,6 @@ Lemma s_genInitState__alive_store: forall S main VarArgs cfg IS pinfo stinfo
   (HwfS : wf_system S) (Hwfpi: WF_PhiInfo pinfo) 
   (Hinit : @Opsem.s_genInitState DGVs S main VarArgs Mem.empty = ret (cfg, IS)),
   wf_State pinfo stinfo cfg IS.
-Admitted.
+Admitted.  (* WF init *)
 
 

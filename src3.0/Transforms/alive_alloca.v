@@ -981,5 +981,5 @@ Lemma s_genInitState__alive_alloca: forall S main VarArgs cfg IS pinfo alinfo
   (HwfS : wf_system S) (Hwfpi: WF_PhiInfo pinfo) 
   (Hinit : @Opsem.s_genInitState DGVs S main VarArgs Mem.empty = ret (cfg, IS)),
   wf_State pinfo alinfo cfg IS.
-Admitted.
+Admitted. (* WF init *)
 

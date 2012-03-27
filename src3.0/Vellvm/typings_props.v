@@ -3665,3 +3665,133 @@ Proof.
         with (bs_contents:=bs_contents); eauto.
 Qed.
 
+Lemma make_list_fdef_block_insn_id_spec: forall id1 f b instr id_list,
+  In id1 (unmake_list_id id_list) ->
+  In (f, b, instr, id1)
+     (unmake_list_fdef_block_insn_id
+        (make_list_fdef_block_insn_id
+           (map_list_id
+              (fun id_ : id =>
+               (f, b, instr, id_))
+              id_list))).
+Proof.
+  induction id_list; simpl; intros; auto.
+    destruct H as [H | H]; subst; auto.
+Qed.
+
+Lemma cmd_operands__in_scope': forall (S : system) (m : module) c b f
+  (HwfF : wf_fdef S m f) (Huniq : uniqFdef f) (Hreach : isReachableFromEntry f b)
+  (HBinF: blockInFdefB b f = true) (HCinB: cmdInBlockB c b = true) id0
+  (Heq: getCmdLoc c = id0) (l0 : list atom)
+  (HeqR : ret l0 = inscope_of_id f b id0) id1 (Hin: In id1 (getCmdOperands c)),
+  In id1 l0.
+Proof.
+  intros.
+  destruct b.
+  assert (HBinF':=HBinF).
+  apply IngetCmdsIDs__lookupCmdViaIDFromFdef with 
+    (c1:=c) in HBinF; try solve [auto | solve_in_list].
+  eapply wf_fdef__wf_insn_base in HBinF; eauto.
+  destruct HBinF as [b1 Hwfi].
+  inv Hwfi.
+  match goal with
+  | _: _ = inscope_of_id _ ?b _ |- _ =>
+    assert (b1 = b) as HeqB
+  end.
+    eapply block_eq2 with (id1:=getCmdLoc c); try solve [
+      eauto 1 | solve_blockInFdefB
+      ].
+    apply insnInFdefBlockB__insnInBlockB in H.
+    simpl in H.
+    apply cmdInBlockB__inGetBlockLocs in H; auto.
+
+    simpl. apply in_or_app. right. apply in_or_app. left. 
+    solve_in_list.
+
+  subst.
+  match goal with
+  | _: _ = inscope_of_id _ ?b _ |- _ =>
+  apply wf_operand_list__elim with (f1:=f)(b1:=b)
+    (insn1:=insn_cmd c) (id1:=id1)
+    in H6; try solve [
+      auto |
+      apply make_list_fdef_block_insn_id_spec; try solve 
+        [match goal with
+         | EQ: ?A = ?B |- In _ ?B => rewrite <- EQ; simpl; auto
+         end]
+      ]
+  end.
+  eapply cmd_operands__in_scope; eauto; simpl; auto.
+    solve_NoDup.
+Qed.
+
+Lemma wf_fdef__wf_insn_base' : forall S M F id1 instr
+  (HwfF: wf_fdef S M F) (HnPhi:~ isPhiNode instr)
+  (Hlkup: lookupInsnViaIDFromFdef F id1 = ret instr),
+  exists b1, wf_insn_base F b1 instr.
+Proof.
+  intros.
+  apply lookupInsnViaIDFromFdef__insnInFdefBlockB' in Hlkup.
+  destruct Hlkup as [b Hlkup]. exists b.
+  apply destruct_insnInFdefBlockB in Hlkup.
+  destruct Hlkup as [J1 J2].
+  destruct b.
+  destruct instr. 
+    contradict HnPhi. constructor.
+
+    apply InCmdsB_in in J1.
+    eapply wf_fdef__wf_cmd in J2; eauto.
+    apply wf_insn__wf_insn_base in J2; auto.
+
+    simpl in J1. apply terminatorEqB_inv in J1. subst.
+    eapply wf_fdef__wf_tmn in J2; eauto.
+    apply wf_insn__wf_insn_base in J2; auto.
+Qed.
+
+Lemma terminator_operands__in_scope': forall (S : system) (m : module) l0 ps0 cs0 
+  t0 f (HwfF : wf_fdef S m f) (Huniq : uniqFdef f) 
+  (Hreach : isReachableFromEntry f (block_intro l0 ps0 cs0 t0))
+  (HBinF: blockInFdefB (block_intro l0 ps0 cs0 t0) f = true)
+  (l1 : list atom) 
+  (HeqR : ret l1 = inscope_of_tmn f (block_intro l0 ps0 cs0 t0) t0) id1 
+  (Hin: In id1 (getTerminatorOperands t0)),
+  In id1 l1.
+Proof.
+  intros.
+  assert (HBinF':=HBinF).
+  apply IngetTmnID__lookupTmnViaIDFromFdef in HBinF;
+    try solve [auto | solve_in_list].
+  eapply wf_fdef__wf_insn_base' in HBinF; try solve [eauto | intro J; inv J].
+  destruct HBinF as [b1 Hwfi].
+  inv Hwfi.
+  match goal with
+  | _: _ = inscope_of_tmn _ ?b _ |- _ =>
+    assert (b1 = b) as HeqB
+  end.
+    eapply block_eq2 with (id1:=getTerminatorID t0); try solve [
+      eauto 1 | solve_blockInFdefB
+      ].
+    apply insnInFdefBlockB__insnInBlockB in H.
+    simpl in H.
+    destruct b1. simpl in H.
+    apply terminatorEqB_inv in H. subst.
+    simpl. solve_in_list.
+
+    simpl. solve_in_list.
+
+  subst.
+  match goal with
+  | _: _ = inscope_of_tmn _ ?b _ |- _ =>
+  apply wf_operand_list__elim with (f1:=f)(b1:=b)
+    (insn1:=insn_terminator t0) (id1:=id1)
+    in H6; try solve [
+      auto |
+      apply make_list_fdef_block_insn_id_spec; try solve 
+        [match goal with
+         | EQ: ?A = ?B |- In _ ?B => rewrite <- EQ; simpl; auto
+         end]
+      ]
+  end.
+  eapply terminator_operands__in_scope; eauto; simpl; auto.
+Qed.
+

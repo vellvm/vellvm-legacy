@@ -2401,6 +2401,20 @@ Proof.
     destruct Huniq'. auto.
 Qed.
 
+Lemma inscope_of_id__total: forall f b id0, inscope_of_id f b id0 <> None.
+Proof.
+  unfold inscope_of_id. 
+  destruct f as [[fa ty fid la va] bs]. destruct b.
+  intros. 
+  destruct ((dom_analyze (fdef_intro (fheader_intro fa ty fid la va) bs)) !! l0).
+  eapply fold_left__bound_blocks 
+    with (fh:=fheader_intro fa ty fid la va)(l0:=l0)
+    (init:=getPhiNodesIDs p ++ cmds_dominates_cmd c id0 ++ getArgsIDs la) 
+    in bs_bound; eauto.
+  destruct bs_bound.
+  congruence.
+Qed.
+
 Inductive wf_phi_operands (f:fdef) (b:block) (id0:id) (t0:typ) :
     list_value_l -> Prop :=
 | wf_phi_operands_nil : wf_phi_operands f b id0 t0 Nil_list_value_l

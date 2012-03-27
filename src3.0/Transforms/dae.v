@@ -1329,6 +1329,7 @@ Lemma dae_is_sim_removable_state: forall (maxb : Values.block) (pinfo : PhiInfo)
   (Hnoalias : Promotability.wf_State maxb pinfo Cfg1 St1)
   (Hsim : State_simulation pinfo maxb mi Cfg1 St1 Cfg2 St2)
   (Hrem : removable_State pinfo St1) (St1' : Opsem.State) (tr1 : trace)
+  (Hpalloca : palloca_props.wf_State pinfo St1)
   (Hop1 : Opsem.sInsn Cfg1 St1 St1' tr1),
   exists mi' : MoreMem.meminj,
     State_simulation pinfo maxb mi' Cfg1 St1' Cfg2 St2 /\
@@ -1381,7 +1382,7 @@ Proof.
   exists mi'.
   repeat_solve.
     eapply als_simulation_update_palloca; eauto.
-      admit. (*dom*)
+      eapply WF_PhiInfo_spec15 in Hpalloca; eauto using wf_system__uniqFdef.
     eapply reg_simulation_update_palloca; eauto.
     eapply cmds_simulation_elim_cons_inv; eauto.
     eapply inject_incr__preserves__ECs_simulation; eauto.
@@ -2486,6 +2487,7 @@ Lemma dae_is_sim : forall maxb pinfo mi Cfg1 St1 Cfg2 St2
   (Hinbd: 0 <= maxb) (Hnuse: used_in_fdef (PI_id pinfo) (PI_f pinfo) = false)
   (Hwfcfg: OpsemPP.wf_Config Cfg1) (Hwfpp: OpsemPP.wf_State Cfg1 St1)
   (Hnoalias: Promotability.wf_State maxb pinfo Cfg1 St1)
+  (Hpalloca: palloca_props.wf_State pinfo St1)
   (Hsim: State_simulation pinfo maxb mi Cfg1 St1 Cfg2 St2),
   (forall (Hrem: removable_State pinfo St1) St1' tr1
      (Hop1: Opsem.sInsn Cfg1 St1 St1' tr1),
@@ -2894,6 +2896,7 @@ Lemma sop_star__dae_State_simulation: forall pinfo mi cfg1 IS1 cfg2 IS2 tr
   (Hless: 0 <= maxb) (Hnuse: used_in_fdef (PI_id pinfo) (PI_f pinfo) = false)
   (Hwfgs: MemProps.wf_globals maxb (OpsemAux.Globals cfg1))
   (Hnoalias: Promotability.wf_State maxb pinfo cfg1 IS1)
+  (Hpalloca: palloca_props.wf_State pinfo IS1)
   (Hstsim : State_simulation pinfo maxb mi cfg1 IS1 cfg2 IS2)
   (Hopstar : Opsem.sop_star cfg2 IS2 FS2 tr),
   exists FS1, exists mi', Opsem.sop_star cfg1 IS1 FS1 tr /\
@@ -2918,6 +2921,8 @@ Proof.
         apply OpsemPP.preservation in Hop1; auto.
       assert (Promotability.wf_State maxb pinfo cfg1 IS1') as Hnoalias'.
         eapply Promotability.preservation in Hop1; eauto.
+      assert (palloca_props.wf_State pinfo IS1') as Hpalloca'.
+        eapply palloca_props.preservation in Hop1; eauto.
       eapply dae_is_sim in Hstsim; eauto; try tauto.
       destruct Hstsim as [Hstsim1 Hstsim2].
       destruct (@removable_State_dec pinfo IS1) as [Hrm | Hnrm].
@@ -2944,6 +2949,7 @@ Lemma sop_div__dae_State_simulation: forall pinfo cfg1 IS1 cfg2 IS2 tr
   (Hless: 0 <= maxb) (Hnuse: used_in_fdef (PI_id pinfo) (PI_f pinfo) = false)
   (Hwfgs: MemProps.wf_globals maxb (OpsemAux.Globals cfg1))
   (Hnoalias: Promotability.wf_State maxb pinfo cfg1 IS1)
+  (Hpalloca: palloca_props.wf_State pinfo IS1)
   (Hstsim : State_simulation pinfo maxb mi cfg1 IS1 cfg2 IS2)
   (Hopstar : Opsem.sop_diverges cfg2 IS2 tr),
   Opsem.sop_diverges cfg1 IS1 tr.
@@ -2982,6 +2988,8 @@ Proof.
       [maxb [mi [cfg1 [IS1 [Hinit1 [Hstsim [Hwfg [Hwfgs [Hless Hprom]]]]]]]]].
     assert (OpsemPP.wf_Config cfg1 /\ OpsemPP.wf_State cfg1 IS1) as Hwfst.
       eapply s_genInitState__opsem_wf; eauto.
+    assert (palloca_props.wf_State pinfo IS1) as Hpalloca.
+      eapply palloca_props.s_genInitState__palloca; eauto.
     eapply sop_star__dae_State_simulation in Hstsim; eauto; try tauto.
     destruct Hstsim as [FS1 [mi' [Hopstar1 [Hstsim' Hinc]]]].
     eapply s_isFinialState__dae_State_simulation in Hstsim'; eauto.
@@ -2994,6 +3002,8 @@ Proof.
       [maxb [mi [cfg1 [IS1 [Hinit1 [Hstsim [Hwfg [Hwfgs [Hless Hprom]]]]]]]]].
     assert (OpsemPP.wf_State cfg1 IS1) as Hwfst.
       eapply s_genInitState__opsem_wf; eauto.
+    assert (palloca_props.wf_State pinfo IS1) as Hpalloca.
+      eapply palloca_props.s_genInitState__palloca; eauto.
     eapply sop_div__dae_State_simulation in Hstsim; eauto.
     destruct Hstsim as [FS1 Hopdiv1].
     econstructor; eauto.

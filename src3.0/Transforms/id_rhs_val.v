@@ -160,6 +160,15 @@ match v with
     end
 end.
 
+Definition substing_value (f:fdef) (v:value) : Prop :=
+match v with
+| value_const _ => True
+| value_id vid =>
+    In vid (getArgsIDsOfFdef f) \/
+    exists b, lookupBlockViaIDFromFdef f vid = Some b /\ 
+              isReachableFromEntry f b
+end.
+
 (* go to analysis.v 
    v1 >> v2 == id1 >> id2 \/ v1 is constant
 *)
@@ -171,7 +180,7 @@ match v1, v2 with
 end.
 
 Definition substable_values TD gl (f:fdef) (v1 v2:value) : Prop :=
-substable_value f v1 /\ valueDominates f v2 v1 /\
+substable_value f v1 /\ substing_value f v2 /\ valueDominates f v2 v1 /\
 match v1, v2 with
 | value_const vc1, value_const vc2 =>
     @Opsem.const2GV DGVs TD gl vc1 = Opsem.const2GV TD gl vc2
@@ -186,8 +195,36 @@ Proof.
     try solve [uniq_result; auto | tauto].
 Qed.
 
+Lemma inscope_of_cmd__idDominates : forall l0 f b c i0
+  (HeqR0 : ret l0 = inscope_of_cmd f b c) (Hin: In i0 l0) 
+  (Hsome: getCmdID c <> None) (Huniq: uniqFdef f)
+  (HbInF: blockInFdefB b f = true) (HcInB: cmdInBlockB c b = true),
+  idDominates f i0 (getCmdLoc c).
+Proof.
+  unfold inscope_of_cmd.
+  intros. 
+  eapply inscope_of_id__idDominates in HeqR0; eauto.
+  apply inGetBlockIDs__lookupBlockViaIDFromFdef; auto.
+    admit. (* infra *)
+Qed.
+
+Lemma idDominates_acyclic: forall s m f (HwfF:wf_fdef s m f)
+  (HuniqF: uniqFdef f) id1 id2 
+  (Hdom1: idDominates f id1 id2) (Hdom2: idDominates f id2 id1)
+  (Hsubst: In id1 (getArgsIDsOfFdef f) \/
+      exists b, lookupBlockViaIDFromFdef f id1 = Some b /\ 
+                isReachableFromEntry f b),
+  False.
+Admitted. (* iDom is acyclic *)
+
+(* go to infra *)
+Lemma in__cmdInBlockB: forall c l1 ps1 cs1 tmn1,
+  In c cs1 ->
+  cmdInBlockB c (block_intro l1 ps1 cs1 tmn1) = true.
+Proof. simpl. intros. solve_in_list. Qed.
+
 Lemma wf_defs_updateAddAL: forall v1 v2 F td Mem gl F' lc' c ids1 ids2 g0
-  (Huniq: uniqFdef F') l1 ps1 cs1 tmn1 
+  s m (HwfF: wf_fdef s m F') (Huniq: uniqFdef F') l1 ps1 cs1 tmn1 
   (H : blockInFdefB (block_intro l1 ps1 cs1 tmn1) F' = true)
   (H0 : In c cs1)
   (Hinscope: ret ids1 = inscope_of_cmd F' (block_intro l1 ps1 cs1 tmn1) c)
@@ -195,13 +232,13 @@ Lemma wf_defs_updateAddAL: forall v1 v2 F td Mem gl F' lc' c ids1 ids2 g0
   (Hvinscope2 : vev_defs v1 v2 F td Mem gl F' lc' c ids1)
   (Hinscope2' : wf_defs v1 v2 F td gl F' lc' ids1)
   (Heq : AtomSet.set_eq _ (getCmdLoc c::ids1) ids2)
-  (Heval: eval_rhs td Mem gl lc' c g0),
+  (Heval: eval_rhs td Mem gl lc' c g0) (Hsome: getCmdID c <> None),
   wf_defs v1 v2 F td gl F' (updateAddAL _ lc' (getCmdLoc c) g0) ids2.
 Proof.
 Local Opaque inscope_of_cmd.
   intros.
   destruct Heq as [Hinc1 Hinc2].
-  destruct Hvals as [Hval1 [Hdom _]].
+  destruct Hvals as [Hval1 [Hval2 [Hdom _]]].
   intros EQ gvsa gvsb Hina Hinb Hgeta Hgetb; subst.
   unfold vev_defs in Hvinscope2.
   unfold wf_defs in Hinscope2'.
@@ -235,8 +272,12 @@ Local Opaque inscope_of_cmd.
           destruct Hina; subst; try congruence; auto.
         destruct (vid2 == getCmdLoc c); subst.
         SSSCase "vid2 == c".
-	  admit. (* vid1 in ids1 ==> vid1 >> c
-                    vid2 == c ==> vid1 >> vid2!! *)
+	  (* vid1 in ids1 ==> vid1 >> c
+             vid2 == c ==> vid1 >> vid2. Cycle!! *)
+          elimtype False.
+          apply inscope_of_cmd__idDominates with (i0:=vid1) in Hinscope; 
+            auto using in__cmdInBlockB.
+          eapply idDominates_acyclic; eauto.
 
         SSSCase "vid2 <> c".
           rewrite <- lookupAL_updateAddAL_neq in Hgetb; auto.
@@ -310,96 +351,6 @@ match goal with
   simpl in Hinscope1', Hinscope2'
 end.
 
-(* From OpsemDom, should go to Vellvm *)
-Lemma isReachableFromEntry_successors : forall S M f l3 ps cs tmn l' b'
-  (Hreach : isReachableFromEntry f (block_intro l3 ps cs tmn))
-  (HBinF : blockInFdefB (block_intro l3 ps cs tmn) f = true)
-  (HwfF : wf_fdef S M f) (Huniq : uniqFdef f)
-  (Hsucc : In l' (successors_terminator tmn))
-  (Hlkup : lookupBlockViaLabelFromFdef f l' = Some b'),
-  isReachableFromEntry f b'.
-Proof.
-  intros.
-  unfold isReachableFromEntry in *. destruct b'.
-  apply lookupBlockViaLabelFromFdef_inv in Hlkup; auto.
-  destruct Hlkup as [Hlkup _]. subst.
-  eapply reachable_successors; eauto.
-Qed.
-
-(* OpsemPP, and OpsemDom should also reuse the lemma. *)
-Lemma inscope_tmn_to_tmn : forall (f : fnattrs) (t : typ) (i0 : id) (a : args)
-  (v : varg) (bs : blocks) (l3 : l) (ps : phinodes) (cs : cmds)
-  (tmn : terminator) (ids0 : list atom) (l' : l) (ps' : phinodes)
-  (HuniqF : uniqFdef (fdef_intro (fheader_intro f t i0 a v) bs))
-  (HBinF : blockInFdefB (block_intro l3 ps cs tmn)
-            (fdef_intro (fheader_intro f t i0 a v) bs) = true)
-  (contents3 : set atom)
-  (Hinscope : ret ids0 =
-             fold_left
-               (inscope_of_block (fdef_intro (fheader_intro f t i0 a v) bs)
-                  l3) contents3
-               (ret (getPhiNodesIDs ps ++ getCmdsIDs cs ++ getArgsIDs a)))
-  (contents' : set atom)
-  (Hsub : incl contents' (l3 :: contents3))
-  (r : list atom)
-  (J1 : fold_left
-         (inscope_of_block (fdef_intro (fheader_intro f t i0 a v) bs) l')
-         contents'
-         (ret (getPhiNodesIDs ps' ++ getCmdsIDs nil ++ getArgsIDs a)) =
-       ret r),
-  incl (set_diff eq_atom_dec r (getPhiNodesIDs ps')) ids0.
-Proof.
-  intros.
-      apply fold_left__spec in J1.
-      symmetry in Hinscope.
-      apply fold_left__spec in Hinscope.
-      destruct J1 as [J1 [J2 J3]].
-      destruct Hinscope as [J4 [J5 J6]].
-      intros id1 J.
-      assert (J':=J).
-      apply ListSet.set_diff_elim1 in J.
-      apply ListSet.set_diff_elim2 in J'.
-      apply J3 in J.
-      destruct J as [J | J].
-      SCase "id1 in init and the current block".
-        simpl in J.
-        apply in_app_or in J.
-        destruct J as [J | J]; try solve [contradict J; auto].
-        apply J4.
-        apply in_or_app. right.
-        apply in_or_app; auto.
-
-      SCase "id1 in strict dominating blocks".
-        destruct J as [b1 [l1 [J8 [J9 J10]]]].
-        assert (In l1 contents') as J8'.
-          clear - J8.
-          apply ListSet.set_diff_elim1 in J8. auto.
-        apply Hsub in J8'.
-          destruct (eq_atom_dec l1 l3); subst.
-            simpl in J9.
-            assert (b1=block_intro l3 ps cs tmn) as EQ.
-              clear - J9 HBinF HuniqF. apply uniqF__uniqBlocks in HuniqF.
-              eapply InBlocksB__lookupAL; eauto.
-            subst.
-            simpl in J10.
-            apply J4.
-            rewrite_env
-              ((getPhiNodesIDs ps ++ getCmdsIDs cs) ++ getArgsIDs a).
-            apply in_or_app; auto.
-
-            apply J5 in J9; auto.
-              simpl in J8'.
-              destruct J8' as [J8' | J8']; try solve [contradict n; auto].
-              apply ListSet.set_diff_intro; auto.
-                intro J. simpl in J.
-                destruct J as [J | J]; auto.
-Qed.
-
-(* From OpsemDom *)
-Definition getArgsIDsFromFdef (f:fdef) : list atom :=
-let '(fdef_intro (fheader_intro _ _ _ la _) _) := f in
-getArgsIDs la.
-
 Lemma substable_value_isnt_phi: forall F l' ps' cs' tmn' vid1
   (HuniqF: uniqFdef F)
   (Hlk: Some (block_intro l' ps' cs' tmn') = lookupBlockViaLabelFromFdef F l')
@@ -448,11 +399,11 @@ Lemma wf_defs_br_aux : forall v1 v2 F0 TD gl S M lc l' ps' cs' lc' F tmn' b
              DomDS.L.bs_contents := contents';
              DomDS.L.bs_bound := inbound' |} = (dom_analyze F) !! l')
   (Hinscope : (fold_left (inscope_of_block F l') contents'
-    (ret (getPhiNodesIDs ps' ++ getArgsIDsFromFdef F)) = ret ids0'))
+    (ret (getPhiNodesIDs ps' ++ getArgsIDsOfFdef F)) = ret ids0'))
   (Hinc : incl (ListSet.set_diff eq_atom_dec ids0' (getPhiNodesIDs ps')) t),
   wf_defs v1 v2 F0 TD gl F lc' ids0'.
 Proof.
-  intros. destruct Hvals as [Hval1 [Hdom _]].
+  intros. destruct Hvals as [Hval1 [Hval2 [Hdom _]]].
   unfold Opsem.switchToNewBasicBlock in Hswitch. simpl in Hswitch.
   intros EQ gvs1 gvs2 Hin1 Hin2 Hget1 Hget2; subst.
   remember (Opsem.getIncomingValuesForBlockFromPHINodes TD ps' b gl lc) as R1.
@@ -535,41 +486,30 @@ Proof.
     as Hreach'.
     eapply isReachableFromEntry_successors in Hlkup; eauto.
 
+  assert (J1:=inbound'). destruct fh as [f t i0 a v].
+  apply fold_left__bound_blocks with (init:=getPhiNodesIDs ps' ++
+    getArgsIDs a)(bs:=bs)(l0:=l') (fh:=fheader_intro f t i0 a v) in J1; auto.
+  destruct J1 as [r J1].
+  exists r. 
+
+  assert (incl (ListSet.set_diff eq_atom_dec r (getPhiNodesIDs ps')) ids0)
+    as Jinc.
+    clear - Hinscope J1 Hsub HBinF HuniqF.
+    eapply inscope_of_tmn__inscope_of_cmd_at_beginning in J1; eauto. 
+
   destruct cs'.
   Case "cs'=nil".
-    assert (J1:=inbound'). destruct fh as [f t i0 a v].
-    apply fold_left__bound_blocks with (init:=getPhiNodesIDs ps' ++
-      getCmdsIDs nil ++ getArgsIDs a)(bs:=bs)(l0:=l')
-      (fh:=fheader_intro f t i0 a v) in J1; auto.
-    destruct J1 as [r J1].
-    exists r. split; auto.
-
-    assert (incl (ListSet.set_diff eq_atom_dec r (getPhiNodesIDs ps')) ids0)
-      as Jinc.
-      clear - Hinscope J1 Hsub HBinF HuniqF.
-      eapply inscope_tmn_to_tmn; eauto.
-
+    simpl.
+    split; auto.
     split; auto.
       subst. simpl in J1. simpl_env in J1.
       eapply wf_defs_br_aux in Hswitch; eauto.
 
   Case "cs'<>nil".
-    assert (J1:=inbound').
     unfold cmds_dominates_cmd. simpl.
     destruct (eq_atom_dec (getCmdLoc c) (getCmdLoc c)) as [_ | n];
       try solve [contradict n; auto].
-    simpl_env.  destruct fh as [f t i0 a v].
-    apply fold_left__bound_blocks with (init:=getPhiNodesIDs ps' ++
-      getCmdsIDs nil ++ getArgsIDs a)(bs:=bs)
-      (fh:=fheader_intro f t i0 a v)(l0:=l') in J1.
-    destruct J1 as [r J1].
-    exists r. split; auto.
-
-    assert (incl (ListSet.set_diff eq_atom_dec r (getPhiNodesIDs ps')) ids0)
-      as Jinc.
-      clear - Hinscope J1 Hsub HBinF HuniqF.
-      eapply inscope_tmn_to_tmn; eauto.
-
+    split; auto.
     split; auto.
       subst. eapply wf_defs_br_aux in Hswitch; eauto.
 Qed.
@@ -725,7 +665,7 @@ Local Opaque inscope_of_cmd inscope_of_tmn.
           eauto.
         rewrite <- Hid' in J2.
         assert (HwfF:=HFinPs1). eapply wf_system__wf_fdef in HwfF; eauto.
-        eapply wf_defs_updateAddAL; eauto.
+        eapply wf_defs_updateAddAL; try solve [eauto | congruence].
 
       Case "1.1.2".
         assert (NoDup (getCmdsLocs (cs1' ++ [c0] ++ [c] ++ cs))) as Hnodup.
@@ -745,7 +685,7 @@ Local Opaque inscope_of_cmd inscope_of_tmn.
           eauto.
         rewrite <- Hid' in J2.
         assert (HwfF:=HFinPs1). eapply wf_system__wf_fdef in HwfF; eauto.
-        eapply wf_defs_updateAddAL; eauto.
+        eapply wf_defs_updateAddAL; try solve [eauto | congruence].
 Transparent inscope_of_cmd inscope_of_tmn.
 Qed.
 
@@ -851,7 +791,7 @@ Lemma preservation_dbCall_case : forall fid fa rt la va lb td lc gl
   wf_defs v1 v2 F td gl
     (fdef_intro (fheader_intro fa rt fid la va) lb) lc (getArgsIDs la).
 Proof.
-  intros. destruct Hvals as [Hval1 [Hdom Hcst]].
+  intros. destruct Hvals as [Hval1 [Hval2 [Hdom Hcst]]].
   assert (incl nil (bound_blocks lb)) as J.
     intros x J. inv J.
   intros EQ gvs1 gvs2 Hin1 Hin2 Hget1 Hget2; subst.
@@ -893,11 +833,14 @@ Focus.
     destruct_cmd c'; try solve [inversion H].
     assert (uniqFdef F') as HuniqF.
       eapply wf_system__uniqFdef; eauto.
+    assert (wf_fdef S (module_intro los nts Ps) F') as HwfF.
+      eapply wf_system__wf_fdef; eauto.
 
     destruct cs'; simpl_env in *.
     SSSCase "1.1.1".
         assert (~ In (getCmdLoc (insn_call i0 n c t0 v0 v p)) (getCmdsLocs cs2'))
-          as Hnotin.
+          as Hnotin. (* this code should be pulled out as lemmas from 
+                        opsem_wf/dom, and other proofs in mem2reg. *)
           eapply wf_system__uniq_block with (f:=F') in HwfSystem; eauto.
           simpl in HwfSystem.
           apply NoDup_inv in HwfSystem.
@@ -920,7 +863,7 @@ Focus.
           destruct R2; inv H1.
           change i0 with
             (getCmdLoc (insn_call i0 false c t0 v0 v p)); auto.
-          eapply wf_defs_updateAddAL; eauto.
+          eapply wf_defs_updateAddAL; try solve [eauto | simpl; congruence].
             simpl. apply in_middle.
 
           destruct n; inv HeqR. inv H1.
@@ -949,7 +892,7 @@ Focus.
           destruct R2; inv H1.
           change i0 with
             (getCmdLoc (insn_call i0 false c t0 v0 v p)); auto.
-          eapply wf_defs_updateAddAL; eauto.
+          eapply wf_defs_updateAddAL; try solve [eauto | simpl; congruence].
             simpl. apply in_middle.
 
           destruct n; inv HeqR. inv H1.
@@ -1143,9 +1086,19 @@ Case "sExCall".
   end).
 Qed.
 
+Lemma substing_vid__notin__args: forall f i0, 
+  substing_value f (value_id i0) ->
+  ~ value_in_scope (value_id i0) (getArgsIDsOfFdef f).
+Admitted. (* infra *)
+
+Lemma substable_vid__notin__args: forall f i0, 
+  substable_value f (value_id i0) ->
+  ~ value_in_scope (value_id i0) (getArgsIDsOfFdef f).
+Admitted. (* infra *)
+
 Lemma initLocals__id_rhs_val_wf_defs : forall pinfo fid l' fa rt la va
   lb gvs lc CurLayouts CurNamedts initGlobal v1 v2 (Hwfpi: WF_PhiInfo pinfo)
-  (Hdom: valueDominates (PI_f pinfo) v2 v1)
+  (Hsubst:substable_values (CurLayouts,CurNamedts) initGlobal (PI_f pinfo) v1 v2)
   (Huniq: uniqFdef (fdef_intro (fheader_intro fa rt fid la va) lb))
   (Hinit : Opsem.initLocals
      (OpsemAux.initTargetData CurLayouts CurNamedts Mem.empty)
@@ -1169,12 +1122,18 @@ Proof.
     (init:=getArgsIDs la) in J.
   destruct J as [r J]. unfold l in *. simpl in *. uniq_result.
   intros EQ gvs1 gvs2 Hinscope1 Hinscope2 Hget1 Hget2.
-  admit. (* in la, there are no domination relations. *)
+  destruct Hsubst as [Hval1 [Hval2 [Hdom Hcst]]].
+  rewrite EQ in Hval2, Hval1.
+  destruct v1, v2; tinv Hdom.
+    apply substing_vid__notin__args in Hval2. tauto. 
+    apply substable_vid__notin__args in Hval1. tauto.
+    simpl in *. unfold OpsemAux.initTargetData in *. congruence.
 Qed.
 
 Lemma s_genInitState__id_rhs_val: forall S main VarArgs cfg IS pinfo v1 v2
   (HwfS : wf_system S) (Hwfpi: WF_PhiInfo pinfo) 
-  (Hdom: valueDominates (PI_f pinfo) v2 v1)
+  (Hsubst:substable_values (OpsemAux.CurTargetData cfg)
+                           (OpsemAux.Globals cfg) (PI_f pinfo) v1 v2)
   (Hinit : @Opsem.s_genInitState DGVs S main VarArgs Mem.empty = ret (cfg, IS)),
   wf_State v1 v2 (PI_f pinfo) cfg IS.
 Proof.
