@@ -140,9 +140,7 @@ Proof.
         ]
   end.
   inv H6. 
-  destruct H10 as [[block' [H10 G]] | H10]; auto.
-    right. exists block'. split; auto.
-    admit. (* wf, reach *)
+  destruct H10 as [[block' [H10 G]] | H10]; eauto.
 Qed.
 
 Lemma LAS_value__exists: forall pinfo lasinfo s m 
@@ -160,63 +158,51 @@ Proof.
   apply LAS_value_is_substing with (lasinfo:=lasinfo) in HwfF; auto.
   unfold substing_value in HwfF.
   destruct (LAS_value pinfo lasinfo); auto.
-  destruct HwfF as [J | [b [J _]]]; auto.
+  destruct HwfF as [J | [b J]]; auto.
   right.
     eapply lookupBlockViaIDFromFdef__lookupInsnViaIDFromFdef; eauto.
 Qed.
 
-Lemma LAS_block__reachable: forall pinfo lasinfo,
-  isReachableFromEntry (PI_f pinfo) (LAS_block pinfo lasinfo).
-Admitted. (* las reachable *)
-
 Lemma LAS_value_PI_id__dominate__LAS_sid: forall S m pinfo lasinfo
-  (HwfF: wf_fdef S m (PI_f pinfo)) (Huniq: uniqFdef (PI_f pinfo)), 
-  match LAS_value pinfo lasinfo with
-  | value_id vid => 
-      idDominates (PI_f pinfo) vid (LAS_sid pinfo lasinfo)
-  | _ => True
-  end /\
-  idDominates (PI_f pinfo) (PI_id pinfo) (LAS_sid pinfo lasinfo).
+  (HwfF: wf_fdef S m (PI_f pinfo)) (Huniq: uniqFdef (PI_f pinfo))
+  (Hreach: isReachableFromEntry (PI_f pinfo) (LAS_block pinfo lasinfo)) ids0
+  (Hinscope: Some ids0 = inscope_of_id (PI_f pinfo) (LAS_block pinfo lasinfo) 
+               (LAS_sid pinfo lasinfo)),
+  value_in_scope (LAS_value pinfo lasinfo) ids0 /\
+  value_in_scope (value_id (PI_id pinfo)) ids0.
 Proof.
   intros.
-  assert (Hreach:=@LAS_block__reachable pinfo lasinfo).
-  assert (lookupBlockViaIDFromFdef (PI_f pinfo) (LAS_sid pinfo lasinfo)
-    = Some (LAS_block pinfo lasinfo)) as Hlksid.
-    admit. (* inscope_of_id should consider non-returned cmd *)
+Local Opaque inscope_of_id.
   destruct_lasinfo. simpl in *.
   unfold idDominates.
-  match goal with
-  | LAS_BInF0: blockInFdefB ?b0 _ = true |- _ =>
-    assert (J:=@inscope_of_id__total (PI_f pinfo) b0 LAS_sid0);
-    remember (inscope_of_id (PI_f pinfo) b0 LAS_sid0) as R;
-    destruct R; try congruence
-  end.
-  rewrite Hlksid. rewrite <- HeqR.
-  destruct LAS_value0 as [LAS_vid0|]; split; try solve [
+  destruct LAS_value0 as [LAS_vid0|]; simpl; split; try solve [
     auto |
     match goal with
-    | H : context [_++?c0::_++_::_] |- _ =>
+    | HeqR : _ = inscope_of_id _ _ _, H : context [_++?c0::_++_::_] |- _ =>
       eapply cmd_operands__in_scope' with (c:=c0) in HeqR; eauto 1; 
         try solve [simpl; auto | solve_in_list]
     end
   ].
+Transparent inscope_of_id.
 Qed.
 
 Lemma LAS_value__dominates__LAS_sid: forall S m pinfo lasinfo
-  (HwfF: wf_fdef S m (PI_f pinfo)) (Huniq: uniqFdef (PI_f pinfo)), 
-  match LAS_value pinfo lasinfo with
-  | value_id vid => 
-      idDominates (PI_f pinfo) vid (LAS_sid pinfo lasinfo)
-  | _ => True
-  end.
+  (HwfF: wf_fdef S m (PI_f pinfo)) (Huniq: uniqFdef (PI_f pinfo))
+  (Hreach: isReachableFromEntry (PI_f pinfo) (LAS_block pinfo lasinfo)) ids0
+  (Hinscope: Some ids0 = inscope_of_id (PI_f pinfo) (LAS_block pinfo lasinfo) 
+               (LAS_sid pinfo lasinfo)),
+  value_in_scope (LAS_value pinfo lasinfo) ids0.
 Proof.
   intros.
   eapply LAS_value_PI_id__dominate__LAS_sid; eauto.
 Qed.
 
 Lemma PI_id__dominates__LAS_sid: forall S m pinfo lasinfo
-  (HwfF: wf_fdef S m (PI_f pinfo)) (Huniq: uniqFdef (PI_f pinfo)), 
-  idDominates (PI_f pinfo) (PI_id pinfo) (LAS_sid pinfo lasinfo).
+  (HwfF: wf_fdef S m (PI_f pinfo)) (Huniq: uniqFdef (PI_f pinfo))
+  (Hreach: isReachableFromEntry (PI_f pinfo) (LAS_block pinfo lasinfo)) ids0
+  (Hinscope: Some ids0 = inscope_of_id (PI_f pinfo) (LAS_block pinfo lasinfo) 
+               (LAS_sid pinfo lasinfo)),
+  value_in_scope (value_id (PI_id pinfo)) ids0.
 Proof.
   intros.
   eapply LAS_value_PI_id__dominate__LAS_sid; eauto.
@@ -226,18 +212,17 @@ Lemma LAS_value_PI_id__dominate__LAS_lid: forall S m pinfo lasinfo
   (HwfF: wf_fdef S m (PI_f pinfo)) (Huniq: uniqFdef (PI_f pinfo)),
   valueDominates (PI_f pinfo) (LAS_value pinfo lasinfo) 
     (value_id (LAS_lid pinfo lasinfo)) /\
-  forall (Hwfpi: WF_PhiInfo pinfo),
-    valueDominates (PI_f pinfo) (value_id (PI_id pinfo)) 
-      (value_id (LAS_lid pinfo lasinfo)).
+  valueDominates (PI_f pinfo) (value_id (PI_id pinfo)) 
+    (value_id (LAS_lid pinfo lasinfo)).
 Proof.
+Local Opaque inscope_of_id.
   intros.
   assert (Hin:=@LAS_lid__in_LAS_block_IDs pinfo lasinfo).
-  assert (Hreach:=@LAS_block__reachable pinfo lasinfo).
   assert (Hlkst:=lookup_LAS_sid__store pinfo lasinfo Huniq).
   assert (Hsval:=@LAS_value__exists pinfo lasinfo _ _ HwfF Huniq).
   assert (Hidom12:=
-            @LAS_value_PI_id__dominate__LAS_sid S m pinfo lasinfo HwfF Huniq).
-  destruct Hidom12 as [Hidom1 Hidom2].
+            @LAS_value_PI_id__dominate__LAS_sid S m pinfo lasinfo HwfF 
+              Huniq).
   destruct_lasinfo. simpl in *.
   unfold valueDominates, idDominates.
   match goal with
@@ -245,11 +230,14 @@ Proof.
     rewrite inGetBlockIDs__lookupBlockViaIDFromFdef with (b:=b0); auto;
     assert (J:=@inscope_of_id__total (PI_f pinfo) b0 LAS_lid0);
     remember (inscope_of_id (PI_f pinfo) b0 LAS_lid0) as R;
-    destruct R; try congruence
+    destruct R; try congruence;
+    assert (J':=@inscope_of_id__total (PI_f pinfo) b0 LAS_sid0);
+    remember (inscope_of_id (PI_f pinfo) b0 LAS_sid0) as R';
+    destruct R'; try congruence;
+    assert (NoDup (getBlockLocs b0)) as Hnodup; try solve [solve_NoDup]
   end.
+  eapply inscope_of_id__append_cmds in HeqR; eauto.
   clear Hin.
-  assert (In LAS_sid0 l0) as Hinscope.
-    admit. (* inscope_of_id should consider non-returned cmd *)
   repeat match goal with
   | H: context [?A ++ ?b :: ?C ++ ?d :: ?E] |- _ =>
         rewrite_env ((A ++ b :: C) ++ d :: E) in H
@@ -257,33 +245,18 @@ Proof.
   destruct LAS_value0 as [LAS_vid0|]; try solve [simpl; auto];
     split; try solve [
       auto |
-      try match goal with
-      | |- _ -> _ =>
-        intro Hwfpi;
-        apply WF_PhiInfo_spec1 in Hwfpi; auto;
-        replace (PI_id pinfo) with 
-          (getCmdLoc (insn_alloca (PI_id pinfo) (PI_typ pinfo) 
-          (PI_num pinfo) (PI_align pinfo))); auto 
-      end;
+      intro Hreach0;
       match goal with
-      | H : context [(_++?c1::_)++_::_] |- _ =>
-       eapply idDominates_inscope_of_cmd__inscope_of_cmd 
-        with (instr0:=insn_cmd c1)
-             (c:=insn_load LAS_lid0 (PI_typ pinfo) 
-               (value_id (PI_id pinfo)) (PI_align pinfo)); eauto 1
+      | Hdom12: reachable ?f ?l0 -> _,
+        Hreach0: forall _:_, Some (block_intro ?l0 ?ps ?cs ?tmn) = _ -> 
+                 isReachableFromEntry ?f _ |- _ =>
+        assert (isReachableFromEntry f (block_intro l0 ps cs tmn)) as Hreach; 
+        eauto; simpl in Hreach;
+        simpl in Hdom12; edestruct Hdom12 as [Hdom1 Hdom2]; eauto;
+        apply HeqR; solve_in_list
       end
-    ].
-
-    destruct Hsval as [Hinargs | [instr [Hlkup Heq]]]; try solve [
-      eapply in_getArgsIDsOfFdef__inscope_of_id; eauto |
-      match goal with
-      | H : context [(_++?c1::_)++_::_] |- _ =>
-       eapply idDominates_inscope_of_cmd__inscope_of_cmd 
-        with (instr0:=insn_cmd c1)
-             (c:=insn_load LAS_lid0 (PI_typ pinfo) 
-               (value_id (PI_id pinfo)) (PI_align pinfo)); eauto 1
-      end
-    ].
+   ].
+Transparent inscope_of_id.
 Qed.
 
 Lemma LAS_value__dominates__LAS_lid: forall S m pinfo lasinfo
@@ -296,9 +269,8 @@ Proof.
 Qed.
 
 Lemma PI_id__dominates__LAS_lid: forall S m pinfo lasinfo
-  (HwfF: wf_fdef S m (PI_f pinfo)) (Huniq: uniqFdef (PI_f pinfo))
-  (Hwfpi: WF_PhiInfo pinfo),
-    valueDominates (PI_f pinfo) (value_id (PI_id pinfo)) 
+  (HwfF: wf_fdef S m (PI_f pinfo)) (Huniq: uniqFdef (PI_f pinfo)),
+   valueDominates (PI_f pinfo) (value_id (PI_id pinfo)) 
       (value_id (LAS_lid pinfo lasinfo)).
 Proof.
   intros.
@@ -378,51 +350,74 @@ Lemma LAS_block_spec: forall (pinfo : PhiInfo) (lasinfo : LASInfo pinfo)
   LAS_block pinfo lasinfo.
 Proof.
   intros.
-      assert (In
-        (LAS_lid pinfo lasinfo)
-        (getBlockIDs
-          (block_intro l' ps'
-            (cs' ++
-              insn_load (LAS_lid pinfo lasinfo) (PI_typ pinfo)
-              (value_id (PI_id pinfo)) (PI_align pinfo) :: CurCmds)
-            Terminator))) as Hin.
-        simpl.
-        rewrite getCmdsIDs_app.
-        simpl.
-        rewrite_env ((getPhiNodesIDs ps' ++ getCmdsIDs cs') ++
-                      LAS_lid pinfo lasinfo :: getCmdsIDs CurCmds).
-        apply in_middle.
+  assert (In
+    (LAS_lid pinfo lasinfo)
+    (getBlockIDs
+      (block_intro l' ps'
+        (cs' ++
+          insn_load (LAS_lid pinfo lasinfo) (PI_typ pinfo)
+          (value_id (PI_id pinfo)) (PI_align pinfo) :: CurCmds)
+        Terminator))) as Hin.
+    simpl.
+    rewrite getCmdsIDs_app.
+    simpl.
+    rewrite_env ((getPhiNodesIDs ps' ++ getCmdsIDs cs') ++
+                  LAS_lid pinfo lasinfo :: getCmdsIDs CurCmds).
+    apply in_middle.
+  
+  apply inGetBlockIDs__lookupBlockViaIDFromFdef with
+    (id1:=LAS_lid pinfo lasinfo) in HbInF; auto.
+  clear Hin.
+  destruct lasinfo. simpl in *.
+  destruct LAS_block0 as [l1 p ? t].
+  destruct LAS_prop0 as [J1 [J2 [cs1 [cs3 J3]]]]. subst.
+  assert (In LAS_lid0
+    (getBlockIDs
+      (block_intro l1 p
+         (cs1 ++
+          insn_store LAS_sid0 (PI_typ pinfo)
+            LAS_value0 (value_id (PI_id pinfo)) (PI_align pinfo)
+          :: (LAS_tail0 ++
+              [insn_load LAS_lid0
+                 (PI_typ pinfo) (value_id (PI_id pinfo))
+                 (PI_align pinfo)] ++ cs3)) t))) as Hin.
+    simpl.
+    apply in_or_app. right.
+    rewrite getCmdsIDs_app.
+    apply in_or_app. right.
+    simpl. rewrite getCmdsIDs_app.
+    apply in_or_app. right. simpl. auto.
+  
+  eapply inGetBlockIDs__lookupBlockViaIDFromFdef with
+    (id1:=LAS_lid0) in J1; eauto.
+  rewrite HbInF in J1. inv J1. auto.
+Qed.
 
-      apply inGetBlockIDs__lookupBlockViaIDFromFdef with
-        (id1:=LAS_lid pinfo lasinfo) in HbInF; auto.
-      clear Hin.
-      destruct lasinfo. simpl in *.
-      destruct LAS_block0 as [l1 p ? t].
-      destruct LAS_prop0 as [J1 [J2 [cs1 [cs3 J3]]]]. subst.
-      assert (In LAS_lid0
-        (getBlockIDs
-          (block_intro l1 p
-             (cs1 ++
-              insn_store LAS_sid0 (PI_typ pinfo)
-                LAS_value0 (value_id (PI_id pinfo)) (PI_align pinfo)
-              :: (LAS_tail0 ++
-                  [insn_load LAS_lid0
-                     (PI_typ pinfo) (value_id (PI_id pinfo))
-                     (PI_align pinfo)] ++ cs3)) t))) as Hin.
-        simpl.
-        apply in_or_app. right.
-        rewrite getCmdsIDs_app.
-        apply in_or_app. right.
-        simpl. rewrite getCmdsIDs_app.
-        apply in_or_app. right. simpl. auto.
+Lemma lookup_LAS_lid__LAS_block: forall pinfo lasinfo
+  (Huniq: uniqFdef (PI_f pinfo)),
+  lookupBlockViaIDFromFdef (PI_f pinfo) (LAS_lid pinfo lasinfo) =
+    ret (LAS_block pinfo lasinfo).
+Proof.
+  intros.
+  apply inGetBlockIDs__lookupBlockViaIDFromFdef; auto.
+    apply LAS_lid__in_LAS_block_IDs.
+    destruct_lasinfo. auto.
+Qed.
 
-      eapply inGetBlockIDs__lookupBlockViaIDFromFdef with
-        (id1:=LAS_lid0) in J1; eauto.
-      rewrite HbInF in J1. inv J1. auto.
+Lemma LAS_block__reachable: forall (pinfo : PhiInfo) (lasinfo : LASInfo pinfo)
+  (Huniq : uniqFdef (PI_f pinfo))
+  (Hreach : isReachableFromEntry (PI_f pinfo) (LAS_block pinfo lasinfo)),
+  forall b2 : block,
+    lookupBlockViaIDFromFdef (PI_f pinfo) (LAS_lid pinfo lasinfo) = ret b2 ->
+    isReachableFromEntry (PI_f pinfo) b2.
+Proof.
+  intros.
+  rewrite lookup_LAS_lid__LAS_block in H; auto.
+  inv H. auto.
 Qed.
 
 Lemma las__alive_store__vev_EC: forall pinfo lasinfo los nts M gl ps ec s 
-  (Hwfs: wf_system s) (Hwfpi: WF_PhiInfo pinfo)
+  (Hwfs: wf_system s)
   (HmInS: moduleInSystemB (module_intro los nts ps) s = true)
   (Hwfpp: OpsemPP.wf_ExecutionContext (los,nts) ps ec) stinfo Hp
   (Hlas2st : exist _ stinfo Hp = lasinfo__stinfo pinfo lasinfo),
@@ -537,13 +532,18 @@ Proof.
   simpl.
   unfold alive_store.wf_defs in G.
   assert (exists gvsa, lookupAL (GVsT DGVs) Locals (PI_id pinfo) = ret gvsa) as G2.
-    clear - Hinscope HeqR HwfF Hwfpi Huniq Heq HbInF.
-    rewrite Heq in *. 
+    rewrite Heq in *. rewrite J3 in Hreach.
+    clear - Hinscope HeqR HwfF Huniq Heq HbInF Hreach.
     assert (List.In (PI_id pinfo) l0) as Hin.
       (* pid >> LAS_lid *)
       eapply PI_id__dominates__LAS_lid with (lasinfo:=lasinfo) in HwfF; eauto.
       simpl in HwfF.
-      unfold idDominates in HwfF. unfold inscope_of_cmd in HeqR. simpl in HeqR.
+      assert (forall b2 : block,
+        lookupBlockViaIDFromFdef (PI_f pinfo) (LAS_lid pinfo lasinfo) =
+        ret b2 -> isReachableFromEntry (PI_f pinfo) b2) as Hreach'.
+        apply LAS_block__reachable; auto.
+      apply_clear HwfF in Hreach'.
+      unfold idDominates in Hreach'. unfold inscope_of_cmd in HeqR. simpl in HeqR.
       inv_mbind. symmetry_ctx.
       assert (b = SI_block pinfo stinfo) as HeqB.
         eapply block_eq2 with (id1:=LAS_lid pinfo lasinfo) ; eauto 1.
@@ -565,7 +565,7 @@ Proof.
 Qed.
 
 Lemma las__alive_store__vev_ECStack: forall pinfo lasinfo los nts M gl ps s
-  (Hwfs: wf_system s) stinfo Hp (Hwfpi: WF_PhiInfo pinfo)
+  (Hwfs: wf_system s) stinfo Hp 
   (HmInS: moduleInSystemB (module_intro los nts ps) s = true)
   (Hlas2st : exist _ stinfo Hp = lasinfo__stinfo pinfo lasinfo)
   ECs (Hwfpp: OpsemPP.wf_ECStack (los,nts) ps ECs),
@@ -580,7 +580,7 @@ Proof.
       eapply las__alive_store__vev_EC; eauto.
 Qed.
 
-Lemma las__alive_store__vev: forall pinfo lasinfo cfg S (Hwfpi: WF_PhiInfo pinfo)
+Lemma las__alive_store__vev: forall pinfo lasinfo cfg S
   (Hwfcfg: OpsemPP.wf_Config cfg) (Hwfpp: OpsemPP.wf_State cfg S) stinfo Hp
   (Hlas2st : exist _ stinfo Hp = lasinfo__stinfo pinfo lasinfo),
   alive_store.wf_State pinfo stinfo cfg S ->
@@ -747,6 +747,7 @@ Lemma LAS_value_doms_LAS_lid__lid_in_tmn_scope____LAS_value_inscope: forall
   (HwfF : wf_fdef s m (PI_f pinfo))
   (Huniq : uniqFdef (PI_f pinfo))
   (Hreach : isReachableFromEntry (PI_f pinfo) (block_intro l1 ps1 cs1 tmn))
+  (Hreach': isReachableFromEntry (PI_f pinfo) (LAS_block pinfo lasinfo))
   (HbInF : blockInFdefB (block_intro l1 ps1 cs1 tmn) (PI_f pinfo) = true)
   (HeqR : ret l0 =
           inscope_of_tmn (PI_f pinfo) (block_intro l1 ps1 cs1 tmn) tmn)
@@ -761,6 +762,9 @@ Proof.
   simpl in Hdom. symmetry in HeqR.
   destruct Hsval as [Hinargs | [instr [Hlkc EQ]]]; subst.
     eapply in_getArgsIDsOfFdef__inscope_of_tmn; eauto.
+
+    assert (idDominates (PI_f pinfo) i0 (LAS_lid pinfo lasinfo)) as Hidom.
+      apply Hdom. apply LAS_block__reachable; auto.
     eapply idDominates_inscope_of_tmn__inscope_of_tmn
         with (instr0:=insn_cmd 
                (insn_load (LAS_lid pinfo lasinfo) (PI_typ pinfo) 
@@ -805,8 +809,10 @@ Proof.
       apply valueInTmnOperands__InOps; auto.
   eapply Hinscope in Hget; eauto.
     (* lv >> lid /\ lid is inscope ==> lv is inscope *)
-   clear - HwfF Huniq Hreach HbInF HeqR Hin.
-   eapply LAS_value_doms_LAS_lid__lid_in_tmn_scope____LAS_value_inscope; eauto.
+    assert(Hreach': isReachableFromEntry (PI_f pinfo) (LAS_block pinfo lasinfo)).
+      admit. (* lid in scope, reachable *)
+    clear - HwfF Huniq Hreach HbInF HeqR Hin Hreach'.
+    eapply LAS_value_doms_LAS_lid__lid_in_tmn_scope____LAS_value_inscope; eauto.
 Qed.
 
 Lemma LAS_value_doms_LAS_lid__lid_in_cmd_scope____LAS_value_inscope: forall
@@ -816,6 +822,7 @@ Lemma LAS_value_doms_LAS_lid__lid_in_cmd_scope____LAS_value_inscope: forall
   (Huniq : uniqFdef (PI_f pinfo))
   (Hreach : isReachableFromEntry (PI_f pinfo)
              (block_intro l1 ps1 (cs1 ++ c :: cs) tmn))
+  (Hreach': isReachableFromEntry (PI_f pinfo) (LAS_block pinfo lasinfo))
   (HbInF : blockInFdefB (block_intro l1 ps1 (cs1 ++ c :: cs) tmn) (PI_f pinfo) =
            true)
   (HeqR : ret l0 =
@@ -832,6 +839,9 @@ Proof.
   simpl in Hdom. symmetry in HeqR.
   destruct Hsval as [Hinargs | [instr [Hlkc EQ]]]; subst.
     eapply in_getArgsIDsOfFdef__inscope_of_cmd; eauto.
+
+    assert (idDominates (PI_f pinfo) i0 (LAS_lid pinfo lasinfo)) as Hidom.
+      apply Hdom. apply LAS_block__reachable; auto.
     eapply idDominates_inscope_of_cmd__inscope_of_cmd 
       with (c:=c)
            (instr0:=insn_cmd (insn_load (LAS_lid pinfo lasinfo) 
@@ -879,8 +889,10 @@ Proof.
       apply valueInCmdOperands__InOps; auto.
   eapply Hinscope in Hget; eauto.
     (* lv >> lid /\ lid is inscope ==> lv is inscope *)
-   clear - HwfF Huniq Hreach HbInF HeqR Hin.
-   eapply LAS_value_doms_LAS_lid__lid_in_cmd_scope____LAS_value_inscope; eauto.
+    assert(Hreach': isReachableFromEntry (PI_f pinfo) (LAS_block pinfo lasinfo)).
+      admit. (* lid in scope, reachable *)
+    clear - HwfF Huniq Hreach HbInF HeqR Hin Hreach'.
+    eapply LAS_value_doms_LAS_lid__lid_in_cmd_scope____LAS_value_inscope; eauto.
 Qed.
 
 Lemma phis_simulation_nil_inv: forall pinfo lasinfo f1 ps,
@@ -979,6 +991,8 @@ Proof.
   assert (In (LAS_lid pinfo lasinfo) t) as Hid2InScope.
     eapply incoming_value__in_scope in H7; eauto.
   eapply Hinscope in HeqR1; eauto.
+  assert(Hreach0: isReachableFromEntry (PI_f pinfo) (LAS_block pinfo lasinfo)).
+    admit. (* lid in scope, reachable *)
   eapply LAS_value_doms_LAS_lid__lid_in_tmn_scope____LAS_value_inscope; eauto.
 Qed.
 

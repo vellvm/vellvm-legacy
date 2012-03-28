@@ -175,10 +175,30 @@ match dts1, dts2 with
   set_eq _ els1 els2
 end.
 
+Ltac solve_set_eq :=
+repeat match goal with
+| |- set_eq _ ?a ?a => apply set_eq_refl
+| H : set_eq _ ?bs_contents ?bs_contents0,
+  H0 : set_eq _ ?bs_contents1 ?bs_contents2 |-
+  set_eq _ (set_inter _ ?bs_contents ?bs_contents1)
+     (set_inter _ ?bs_contents0 ?bs_contents2) =>
+  apply set_eq_inter; auto
+| |- set_eq _ (?pc :: _) (?pc :: _) => simpl_env
+| |- set_eq _ (?pc ++ _) (?pc ++ _) => apply set_eq_app
+| H : set_eq _ ?bs_contents ?bs_contents0 |- 
+      set_eq _ ?bs_contents ?bs_contents0 => exact H
+| H0 : set_eq _ ?C ?D, EQ : set_eq _ ?A ?B, e : set_eq _ ?C ?A |- 
+  set_eq _ ?D ?B =>
+  eauto using set_eq_trans, set_eq_sym
+| H0 : set_eq _ ?A ?B, EQ : set_eq _ ?C ?D, e : set_eq _ ?B ?D |- 
+  set_eq _ ?A ?C =>
+  eauto using set_eq_trans, set_eq_sym
+end.
+
 Lemma eq_dts_prop1 : forall bd,
   eq_dts bd bd (DomDS.L.bot bd) (DomDS.L.bot bd).
 Proof.
-  intros. simpl. auto using set_eq_refl.
+  intros. simpl. solve_set_eq.
 Qed.
 
 Lemma eq_dts_prop2 : forall bd x1 x2 y1 y2,
@@ -188,7 +208,7 @@ Lemma eq_dts_prop2 : forall bd x1 x2 y1 y2,
 Proof.
   intros.
   destruct x1. destruct x2. destruct y1. destruct y2. simpl in *.
-  apply set_eq_inter; auto.
+  solve_set_eq.
 Qed.
 
 Lemma eq_dts_prop3 : forall bd x1 x2 pc,
@@ -199,7 +219,7 @@ Proof.
   unfold transfer. unfold Dominators.add.
   destruct x1, x2.
   destruct (in_dec eq_atom_dec pc bd); simpl in *; auto.
-    simpl_env. apply set_eq_app; auto using set_eq_refl.
+    solve_set_eq.
 Qed.
 
 Lemma eq_dts_prop4 : forall bd x1 x2 y1 y2,
@@ -214,7 +234,7 @@ Proof.
     set_eq atom (ListSet.set_inter eq_atom_dec bs_contents1 bs_contents)
       (ListSet.set_inter eq_atom_dec bs_contents2 bs_contents0)
   ) as EQ.
-    apply set_eq_inter; auto.
+    solve_set_eq.
   unfold DomDS.L.beq.
   destruct (
     DomDS.L.eq_dec bd
@@ -251,7 +271,7 @@ Proof.
                                bs_bound2 eq_refl bs_contents0 bs_bound0
                                eq_refl |});
       simpl in *; auto.
-      contradict n; eauto using set_eq_trans, set_eq_sym.
+      contradict n. solve_set_eq.
     destruct (
       DomDS.L.eq_dec bd
          {|
@@ -270,7 +290,7 @@ Proof.
                                bs_bound2 eq_refl bs_contents0 bs_bound0
                                eq_refl |});
       simpl in *; auto.
-    contradict n; eauto using set_eq_trans, set_eq_sym.
+      contradict n. solve_set_eq.
 Qed.
 
 Hint Resolve eq_dts_prop1 eq_dts_prop2 eq_dts_prop3 eq_dts_prop4: eq_dts_db.
@@ -1076,7 +1096,10 @@ end.
 (* v1 >> v2 == id1 >> id2 \/ v1 is constant *)
 Definition valueDominates (f:fdef) (v1 v2:value) : Prop :=
 match v1, v2 with
-| value_id id1, value_id id2 => idDominates f id1 id2
+| value_id id1, value_id id2 => 
+   (forall b2, lookupBlockViaIDFromFdef f id2 = Some b2->
+               isReachableFromEntry f b2) ->
+   idDominates f id1 id2
 | value_const _, _ => True
 | _, _ => False
 end.
@@ -1148,8 +1171,7 @@ Proof.
     destruct (eq_atom_dec (getCmdLoc a) (getCmdLoc c'));
       try solve [contradict e; auto].
     destruct R1; auto.
-      simpl_env.
-      apply set_eq_app; auto using set_eq_refl.
+      simpl_env. solve_set_eq.
 Qed.
 
 Definition opt_set_eq (ops1 ops2:option (list atom)) : Prop :=
@@ -2558,6 +2580,99 @@ Proof.
     split_NoDup.
     inv Huniq3.
     apply H1. solve_in_list.
+Qed.
+
+Lemma inscope_of_id__append_cmds: forall l0 ps0 cs1 c2 cs3 c4 cs5 tmn0 l2 l4 f
+  (Huniq: NoDup 
+           (getBlockLocs 
+             (block_intro l0 ps0 (cs1 ++ c2 :: cs3 ++ c4 :: cs5) tmn0)))
+  (HeqR4 : ret l4 =
+         inscope_of_id f
+           (block_intro l0 ps0 (cs1 ++ c2 :: cs3 ++ c4 :: cs5) tmn0) 
+           (getCmdLoc c4))
+  (HeqR2 : ret l2 =
+         inscope_of_id f
+           (block_intro l0 ps0 (cs1 ++ c2 :: cs3 ++ c4 :: cs5) tmn0) 
+           (getCmdLoc c2)),
+  AtomSet.set_eq _ (l2 ++ getCmdsIDs (c2::cs3)) l4.
+Proof.
+  unfold inscope_of_id, init_scope.
+  intros.
+  remember ((dom_analyze f) !! l0) as R.
+  destruct R.
+  assert (~ In (getCmdLoc c4) (getPhiNodesIDs ps0)) as Hin4.
+    simpl in Huniq. 
+    eapply NoDup_disjoint; eauto.
+    solve_in_list.
+  assert (~ In (getCmdLoc c2) (getPhiNodesIDs ps0)) as Hin2.
+    simpl in Huniq. 
+    eapply NoDup_disjoint; eauto.
+    solve_in_list.
+  destruct_if; try tauto.
+  destruct_if; try tauto.
+  simpl in Huniq. split_NoDup.
+  rewrite cmds_dominates_cmd_spec3 in H0; auto.
+  rewrite_env ((cs1 ++ c2 :: cs3) ++ c4 :: cs5) in H1.
+  rewrite_env ((cs1 ++ c2 :: cs3) ++ c4 :: cs5) in Huniq.
+  rewrite cmds_dominates_cmd_spec3 in H1; auto.
+  rewrite getCmdsIDs_app in H1.
+  symmetry_ctx.
+  apply fold_left__opt_union with (init2:=getCmdsIDs (c2 :: cs3)) in H0.
+  destruct H0 as [r2 [J1 J2]].
+  apply fold_left__opt_set_eq with 
+    (init2:=getPhiNodesIDs ps0 ++
+               (getCmdsIDs cs1 ++ getCmdsIDs (c2 :: cs3)) ++
+               getArgsIDsOfFdef f) in J1; auto.
+    destruct J1 as [r3 [J3 J4]].
+    uniq_result.
+    eapply AtomSet.set_eq_trans; eauto.
+
+    simpl_env.
+    apply AtomSet.set_eq_app; auto using AtomSet.set_eq_refl.
+    apply AtomSet.set_eq_app; auto using AtomSet.set_eq_refl.
+    auto using AtomSet.set_eq_swap.
+Qed.
+
+Lemma inscope_of_cmd_at_beginning__idDominates__phinode : forall f l' contents' 
+  pid (inbound' : incl contents' (bound_fdef f)) ids0 i0 ps' cs' tmn' 
+  (Heqdefs' : {|
+             DomDS.L.bs_contents := contents';
+             DomDS.L.bs_bound := inbound' |} = (dom_analyze f) !! l')
+  (Hinscope : fold_left (inscope_of_block f l') contents'
+               (ret (getPhiNodesIDs ps' ++ getArgsIDsOfFdef f)) = 
+             ret ids0) (Hin1: In i0 ids0) 
+  (Huniq: uniqFdef f) (Hnotin: ~ In i0 (getPhiNodesIDs ps'))
+  (Hin1: In pid (getPhiNodesIDs ps'))
+  (Hlkup: ret block_intro l' ps' cs' tmn' = lookupBlockViaLabelFromFdef f l'),
+  idDominates f i0 pid.
+Proof.
+  intros.
+  unfold idDominates.
+  assert (lookupBlockViaIDFromFdef f pid = Some (block_intro l' ps' cs' tmn'))
+    as Hlkup'.
+    apply inGetBlockIDs__lookupBlockViaIDFromFdef; auto.
+      simpl. solve_in_list.
+      solve_blockInFdefB.
+  fill_ctxhole.
+  unfold inscope_of_id, init_scope.
+  destruct_if; try solve [contradict Hin0; auto].
+  rewrite <- Heqdefs'. 
+  assert (exists r,
+    fold_left (inscope_of_block f l') contents' (ret getArgsIDsOfFdef f) 
+      = Some r) as G.
+    destruct f.
+    apply fold_left__bound_blocks; auto.
+  destruct G as [r G]. rewrite G.
+  apply fold_left__opt_union with (init2:=getPhiNodesIDs ps') in G.
+  destruct G as [r' [G1 G2]].
+  apply fold_left__opt_set_eq with 
+    (init2:=getPhiNodesIDs ps' ++ getArgsIDsOfFdef f) in G1;
+    auto using AtomSet.set_eq_swap.
+  destruct G1 as [r'' [G3 G1]].
+  uniq_result.
+  apply G1 in Hin1.
+  apply G2 in Hin1.
+  solve_in_list.    
 Qed.
 
 Inductive wf_phi_operands (f:fdef) (b:block) (id0:id) (t0:typ) :

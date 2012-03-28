@@ -178,11 +178,7 @@ Proof.
   simpl. auto.
 Qed.
 
-Lemma LAA_block__reachable: forall pinfo laainfo,
-  isReachableFromEntry (PI_f pinfo) (LAA_block pinfo laainfo).
-Admitted. (* reach *)
-
-Lemma LAA_lid__in__LAA_block: forall pinfo laainfo 
+Lemma lookup_LAA_lid__LAA_block: forall pinfo laainfo 
   (Huniq: uniqFdef (PI_f pinfo)),
   lookupBlockViaIDFromFdef (PI_f pinfo) (LAA_lid pinfo laainfo)
     = Some (LAA_block pinfo laainfo).
@@ -195,13 +191,13 @@ Qed.
 
 Lemma PI_id__dominates__LAA_lid: forall S m pinfo laainfo
   (HwfF: wf_fdef S m (PI_f pinfo)) (Huniq: uniqFdef (PI_f pinfo))
+  (Hreach: isReachableFromEntry (PI_f pinfo) (LAA_block pinfo laainfo))
   (Hwfpi: WF_PhiInfo pinfo),
     valueDominates (PI_f pinfo) (value_id (PI_id pinfo)) 
       (value_id (LAA_lid pinfo laainfo)).
 Proof.
   intros.
-  assert (Hreach:=@LAA_block__reachable pinfo laainfo).
-  assert (Hlksid:=@LAA_lid__in__LAA_block pinfo laainfo Huniq).
+  assert (Hlksid:=@lookup_LAA_lid__LAA_block pinfo laainfo Huniq).
   destruct_laainfo. simpl in *.
   unfold idDominates.
   match goal with
@@ -216,6 +212,18 @@ Proof.
       eapply cmd_operands__in_scope' with (c:=c0) in HeqR; eauto 1; 
         try solve [simpl; auto | solve_in_list]
   end.
+Qed.
+
+Lemma LAA_block__reachable: forall (pinfo : PhiInfo) (laainfo : LAAInfo pinfo)
+  (Huniq : uniqFdef (PI_f pinfo))
+  (Hreach : isReachableFromEntry (PI_f pinfo) (LAA_block pinfo laainfo)),
+  forall b2 : block,
+    lookupBlockViaIDFromFdef (PI_f pinfo) (LAA_lid pinfo laainfo) = ret b2 ->
+    isReachableFromEntry (PI_f pinfo) b2.
+Proof.
+  intros.
+  rewrite lookup_LAA_lid__LAA_block in H; auto.
+  inv H. auto.
 Qed.
 
 Lemma laa__alive_alloca__vev_EC: forall pinfo laainfo los nts M gl ps ec s 
@@ -333,13 +341,18 @@ Proof.
     lookupAL (GVsT DGVs) Locals (PI_id pinfo) = ret gvsa /\
     Opsem.getOperandValue (los,nts) [! pinfo !] Locals gl =
       ret gvsv) as G2.
-    clear - Hinscope HeqR HwfF Hwfg Huniq Hwfpi Heq HbInF.
-    rewrite Heq in *. 
+    rewrite Heq in *. rewrite J3 in Hreach.
+    clear - Hinscope HeqR HwfF Hwfg Huniq Hwfpi Heq HbInF Hreach.
     assert (List.In (PI_id pinfo) l0) as Hin.
       (* pid >> LAA_lid *)
       eapply PI_id__dominates__LAA_lid with (laainfo:=laainfo) in HwfF; eauto.
       simpl in HwfF.
-      unfold idDominates in HwfF. unfold inscope_of_cmd in HeqR. simpl in HeqR.
+      assert (forall b2 : block,
+        lookupBlockViaIDFromFdef (PI_f pinfo) (LAA_lid pinfo laainfo) =
+        ret b2 -> isReachableFromEntry (PI_f pinfo) b2) as Hreach'.
+        apply LAA_block__reachable; auto.
+      apply_clear HwfF in Hreach'.
+      unfold idDominates in Hreach'. unfold inscope_of_cmd in HeqR. simpl in HeqR.
       inv_mbind. symmetry_ctx.
       assert (b = AI_block pinfo alinfo) as HeqB.
         eapply block_eq2 with (id1:=LAA_lid pinfo laainfo) ; eauto 1.
@@ -1793,7 +1806,7 @@ Lemma sop_div__laa_State_simulation: forall pinfo laainfo cfg1 IS1 cfg2 IS2 tr
   (Hstsim : State_simulation pinfo laainfo cfg1 IS1 cfg2 IS2)
   (Hopstar : Opsem.sop_diverges cfg2 IS2 tr),
   Opsem.sop_diverges cfg1 IS1 tr.
-Admitted.
+Admitted. (* sop div *)
 
 Lemma LAA_value__dominates__LAA_lid: forall pinfo lasinfo,
   valueDominates (PI_f pinfo) [! pinfo !] (value_id (LAA_lid pinfo lasinfo)).

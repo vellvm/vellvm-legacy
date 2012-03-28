@@ -239,7 +239,9 @@ match goal with
 end.
 
 Lemma alive_store_doesnt_use_its_followers_and_pid: forall l1 ps1 cs1' c cs tmn 
-  id0 pinfo stinfo s m (Huniq: uniqFdef (PI_f pinfo)),
+  id0 pinfo stinfo s m (Huniq: uniqFdef (PI_f pinfo))
+  (Hreach: isReachableFromEntry (PI_f pinfo) 
+             (block_intro l1 ps1 (cs1' ++ c :: cs) tmn)),
   wf_fdef s m (PI_f pinfo) -> 
   block_intro l1 ps1 (cs1' ++ c :: cs) tmn = SI_block pinfo stinfo ->
   getCmdID c = Some id0 ->
@@ -247,8 +249,6 @@ Lemma alive_store_doesnt_use_its_followers_and_pid: forall l1 ps1 cs1' c cs tmn
   used_in_value id0 (SI_value pinfo stinfo) = false /\ id0 <> PI_id pinfo.
 Proof.
   intros.
-  assert (Hreach: isReachableFromEntry (PI_f pinfo) (SI_block pinfo stinfo)).
-    admit. (* mem2reg should only work for reachable blocks *)
 Local Opaque isReachableFromEntry.
   unfold follow_alive_store in H2.
   rewrite <- H0 in H2.
@@ -287,7 +287,9 @@ Local Opaque isReachableFromEntry.
 Qed.
 
 Lemma alive_store_doesnt_use_its_followers: forall l1 ps1 cs1' c cs tmn 
-  id0 pinfo stinfo s m (Huniq: uniqFdef (PI_f pinfo)),
+  id0 pinfo stinfo s m (Huniq: uniqFdef (PI_f pinfo))
+  (Hreach: isReachableFromEntry (PI_f pinfo) 
+             (block_intro l1 ps1 (cs1' ++ c :: cs) tmn)),
   wf_fdef s m (PI_f pinfo) -> 
   block_intro l1 ps1 (cs1' ++ c :: cs) tmn = SI_block pinfo stinfo ->
   getCmdID c = Some id0 ->
@@ -346,7 +348,7 @@ Proof.
     [_ [_ 
      [
        [
-         [_ [HBinF1 [HFinPs1 [_ [_ [l2 [ps2 [cs2' Heq2]]]]]]]]
+         [Hreach1 [HBinF1 [HFinPs1 [_ [_ [l2 [ps2 [cs2' Heq2]]]]]]]]
          _
        ]
        _
@@ -450,7 +452,7 @@ Proof.
     [_ [_ 
      [
        [
-         [_ [HBinF1 [HFinPs1 [_ [_ [l2 [ps2 [cs2' Heq2]]]]]]]]
+         [Hreach1 [HBinF1 [HFinPs1 [_ [_ [l2 [ps2 [cs2' Heq2]]]]]]]]
          _
        ]
        _
@@ -508,6 +510,8 @@ Lemma malloc_preserves_wf_EC_at_head : forall pinfo los nts Ps M
            | insn_malloc _ _ _ _ | insn_alloca _ _ _ _ => True
            | _ => False
            end)
+  (Hreach: isReachableFromEntry F
+             (block_intro l1 ps1 (cs1' ++ c :: cs) tmn))
   (Hinscope : wf_ExecutionContext pinfo stinfo (los,nts) M gl
                {|
                Opsem.CurFunction := F;
@@ -549,7 +553,6 @@ Proof.
         eapply WF_PhiInfo_spec10 in HBinF; eauto.
 
         inv Hid.
-        clear - J2' J3 HwfF Hfollow HuniqF. 
         eapply alive_store_doesnt_use_its_followers_and_pid in J2'; simpl; eauto.
 Qed.
 
@@ -871,8 +874,12 @@ Lemma callExternalFunction_preserves_wf_ECStack_at_head: forall Mem fid gvs
           = ret (oresult, tr, Mem'))
   (H5 : Opsem.exCallUpdateLocals (los,nts) rt1 noret0 rid oresult lc = ret lc')
   (HBinF : blockInFdefB 
-             (block_intro l1 ps1 (cs1' ++ insn_call rid noret0 ca rt1 va1 fv lp :: cs) tmn)
+             (block_intro l1 ps1 
+               (cs1' ++ insn_call rid noret0 ca rt1 va1 fv lp :: cs) tmn)
              F = true)
+  (Hreach: isReachableFromEntry F
+             (block_intro l1 ps1 
+               (cs1' ++ insn_call rid false ca rt1 va1 fv lp :: cs) tmn))
   (Hinscope : wf_ExecutionContext pinfo stinfo (los,nts) Mem gl
                {|
                Opsem.CurFunction := F;

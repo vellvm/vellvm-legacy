@@ -3907,44 +3907,41 @@ Qed.
 Lemma idDominates_acyclic: forall s m f (HwfF:wf_fdef s m f)
   (HuniqF: uniqFdef f) id1 id2 
   (Hdom1: idDominates f id1 id2) (Hdom2: idDominates f id2 id1)
-  (Hsubst: In id1 (getArgsIDsOfFdef f) \/
-      exists b, lookupBlockViaIDFromFdef f id1 = Some b /\ 
-                isReachableFromEntry f b),
+  (Hreach: (forall b, lookupBlockViaIDFromFdef f id1 = Some b ->
+                      isReachableFromEntry f b)),
   False.
 Proof.
   unfold idDominates, inscope_of_id.
   intros.
   inv_mbind.
-  destruct Hsubst as [Hinargs | [b1 [EQ Hreach]]].
-    contradict Hinargs.
+  symmetry_ctx.
+  assert (isReachableFromEntry f b) as Hreachable by auto.
+  clear Hreach.
+  assert (blockInFdefB b0 f = true) as HBinF0.
+    solve_blockInFdefB.
+  assert (blockInFdefB b f = true) as HBinF1.
+    solve_blockInFdefB.
+  destruct b0 as [l2 ps2 cs2 tmn2].
+  destruct b as [l3 ps3 cs3 tmn3].
+  remember ((dom_analyze f) !! l2) as R2.
+  remember ((dom_analyze f) !! l3) as R3.
+  destruct R2, R3. 
+  apply fold_left__spec in HeqR2.
+  apply fold_left__spec in HeqR0.
+  destruct HeqR2 as [_ [_ HeqR2]].
+  destruct HeqR0 as [_ [_ HeqR0]].
+  apply_clear HeqR2 in Hdom1.
+  apply_clear HeqR0 in Hdom2.
+  assert (~ In id1 (getArgsIDsOfFdef f)) as Hnotin1.
     solve_notin_getArgsIDs.
-
-    inv EQ. symmetry_ctx.
-    assert (blockInFdefB b0 f = true) as HBinF0.
-      solve_blockInFdefB.
-    assert (blockInFdefB b1 f = true) as HBinF1.
-      solve_blockInFdefB.
-    destruct b0 as [l2 ps2 cs2 tmn2].
-    destruct b1 as [l3 ps3 cs3 tmn3].
-    remember ((dom_analyze f) !! l2) as R2.
-    remember ((dom_analyze f) !! l3) as R3.
-    destruct R2, R3. 
-    apply fold_left__spec in HeqR2.
-    apply fold_left__spec in HeqR0.
-    destruct HeqR2 as [_ [_ HeqR2]].
-    destruct HeqR0 as [_ [_ HeqR0]].
-    apply_clear HeqR2 in Hdom1.
-    apply_clear HeqR0 in Hdom2.
-    assert (~ In id1 (getArgsIDsOfFdef f)) as Hnotin1.
-      solve_notin_getArgsIDs.
-    assert (~ In id2 (getArgsIDsOfFdef f)) as Hnotin2.
-      solve_notin_getArgsIDs.
-    assert (In id2 (getBlockLocs (block_intro l2 ps2 cs2 tmn2))) as Hin9.
-      solve_in_list.
-    assert (In id1 (getBlockLocs (block_intro l3 ps3 cs3 tmn3))) as Hin10.
-      solve_in_list.
-    destruct Hdom1 as [Hdom1 | [b1 [a1 [J1 [J2 J3]]]]].
-    Case "local".
+  assert (~ In id2 (getArgsIDsOfFdef f)) as Hnotin2.
+    solve_notin_getArgsIDs.
+  assert (In id2 (getBlockLocs (block_intro l2 ps2 cs2 tmn2))) as Hin9.
+    solve_in_list.
+  assert (In id1 (getBlockLocs (block_intro l3 ps3 cs3 tmn3))) as Hin10.
+    solve_in_list.
+  destruct Hdom1 as [Hdom1 | [b1 [a1 [J1 [J2 J3]]]]].
+  Case "local".
       unfold init_scope in Hdom1.
       destruct_if; try tauto.
       assert (block_intro l2 ps2 cs2 tmn2 = 
@@ -3989,7 +3986,7 @@ Proof.
         destruct J5; subst.
         apply ListSet.set_diff_elim2 in J4; auto.
         simpl in J4. auto.
-    Case "remote".
+  Case "remote".
       assert (b1 = block_intro l3 ps3 cs3 tmn3) as EQ.
         eapply block_eq2 with (id1:=id1); eauto 1.
           solve_blockInFdefB.

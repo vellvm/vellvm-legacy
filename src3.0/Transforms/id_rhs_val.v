@@ -157,8 +157,7 @@ match v with
 | value_const _ => True
 | value_id vid =>
     In vid (getArgsIDsOfFdef f) \/
-    exists b, lookupBlockViaIDFromFdef f vid = Some b /\ 
-              isReachableFromEntry f b
+    exists b, lookupBlockViaIDFromFdef f vid = Some b
 end.
 
 Definition substable_values TD gl (f:fdef) (v1 v2:value) : Prop :=
@@ -231,7 +230,11 @@ Local Opaque inscope_of_cmd.
           elimtype False.
           apply inscope_of_cmd__idDominates with (i0:=vid1) in Hinscope; 
             auto using in__cmdInBlockB.
-          eapply idDominates_acyclic; eauto.
+          assert (forall b : block,
+                    lookupBlockViaIDFromFdef F' vid1 = ret b ->
+                    isReachableFromEntry F' b) as Hinv.
+            admit. (* by Hin, vid1 in scope, so it is reachable. *)
+          eapply idDominates_acyclic in Hinv; eauto.
 
         SSSCase "vid2 <> c".
           rewrite <- lookupAL_updateAddAL_neq in Hgetb; auto.
@@ -336,48 +339,6 @@ Proof.
   rewrite J in Hvals. auto.
 Qed.
 
-Lemma inscope_of_cmd_at_beginning__idDominates__phinode : forall f l' contents' 
-  pid (inbound' : incl contents' (bound_fdef f)) ids0 i0 ps' cs' tmn' 
-  (Heqdefs' : {|
-             DomDS.L.bs_contents := contents';
-             DomDS.L.bs_bound := inbound' |} = (dom_analyze f) !! l')
-  (Hinscope : fold_left (inscope_of_block f l') contents'
-               (ret (getPhiNodesIDs ps' ++ getArgsIDsOfFdef f)) = 
-             ret ids0) (Hin1: In i0 ids0) 
-  (Huniq: uniqFdef f) (Hnotin: ~ In i0 (getPhiNodesIDs ps'))
-  (Hin1: In pid (getPhiNodesIDs ps'))
-  (Hlkup: ret block_intro l' ps' cs' tmn' = lookupBlockViaLabelFromFdef f l'),
-  idDominates f i0 pid.
-Proof.
-  intros.
-  unfold idDominates.
-  assert (lookupBlockViaIDFromFdef f pid = Some (block_intro l' ps' cs' tmn'))
-    as Hlkup'.
-    apply inGetBlockIDs__lookupBlockViaIDFromFdef; auto.
-      simpl. solve_in_list.
-      solve_blockInFdefB.
-  fill_ctxhole.
-  unfold inscope_of_id, init_scope.
-  destruct_if; try solve [contradict Hin0; auto].
-  rewrite <- Heqdefs'. 
-  assert (exists r,
-    fold_left (inscope_of_block f l') contents' (ret getArgsIDsOfFdef f) 
-      = Some r) as G.
-    destruct f.
-    apply fold_left__bound_blocks; auto.
-  destruct G as [r G]. rewrite G.
-  apply fold_left__opt_union with (init2:=getPhiNodesIDs ps') in G.
-  destruct G as [r' [G1 G2]].
-  apply fold_left__opt_set_eq with 
-    (init2:=getPhiNodesIDs ps' ++ getArgsIDsOfFdef f) in G1;
-    auto using AtomSet.set_eq_swap.
-  destruct G1 as [r'' [G3 G1]].
-  uniq_result.
-  apply G1 in Hin1.
-  apply G2 in Hin1.
-  solve_in_list.    
-Qed.
-
 Lemma wf_defs_br_aux : forall v1 v2 F0 TD gl S M lc l' ps' cs' lc' F tmn' b
   (Hreach : isReachableFromEntry F b)
   (Hreach': isReachableFromEntry F (block_intro l' ps' cs' tmn'))
@@ -424,7 +385,11 @@ Proof.
         intro Hin.
         eapply inscope_of_cmd_at_beginning__idDominates__phinode
           with (i0:=vid1) in Hinscope; eauto.
-        eapply idDominates_acyclic with (id1:=vid2); eauto.
+        assert (forall b : block,
+                  lookupBlockViaIDFromFdef F vid1 = ret b ->
+                  isReachableFromEntry F b) as Hinv.
+          admit. (* by Hnotin1, vid1 in scope, so it is reachable. *)
+        eapply idDominates_acyclic in Hinv; eauto. 
 
       assert (Hnotin2' := Hnotin2).
       apply ListSet.set_diff_intro with (x:=ids0')(Aeq_dec:=eq_atom_dec)
