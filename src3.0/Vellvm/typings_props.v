@@ -4031,3 +4031,72 @@ Proof.
           apply ListSet.set_diff_elim1 in J1; auto.
 Qed.
 
+Lemma any_cmd_doesnt_use_following_operands: forall
+  (F1 : fdef) (l3 : l) (ps1 : phinodes) (cs : list cmd)
+  (tmn1 : terminator) (c : cmd)
+  (Hreach : isReachableFromEntry F1 (block_intro l3 ps1 cs tmn1))
+  (HBinF1 : blockInFdefB (block_intro l3 ps1 cs tmn1) F1 = true)
+  s m (HwfF1 : wf_fdef s m F1) (Huniq: uniqFdef F1)
+  (c1 : cmd) cs1 cs2 cs3 
+  (Hfollow: cs = cs1 ++ c1 :: cs2 ++ c :: cs3)
+  (id_list : list_id)
+  (H2 : wf_operand_list
+         (make_list_fdef_block_insn_id
+            (map_list_id (fun id_ : id => 
+              (F1, (block_intro l3 ps1 cs tmn1), insn_cmd c1, id_)) id_list)))
+  (H1 : getInsnOperands (insn_cmd c1) = unmake_list_id id_list),
+  ~ In (getCmdLoc c) (getCmdOperands c1).
+Proof.
+  intros. subst.
+  destruct (in_dec id_dec (getCmdLoc c) (getCmdOperands c1)); auto.
+  assert (exists n, nth_list_id n id_list = Some (getCmdLoc c)) as Hnth.
+    eapply getCmdOperands__nth_list_id; eauto.
+  destruct Hnth as [n' Hnth].
+  eapply wf_operand_list__wf_operand in Hnth; eauto.
+  inv Hnth.
+  match goal with
+  | H10: (exists _:_, _) \/ In _ (getArgsIDsOfFdef _) |- _ =>
+     destruct H10 as [[block' [Hlk H10]] | H10]
+  end.
+  Case "id1 isnt args".
+  assert (In (getCmdLoc c)
+     (getCmdsLocs (cs1 ++ c1 :: cs2 ++ c :: cs3) ++
+      getTerminatorID tmn1 :: nil)) as Hin.
+    apply in_or_app. left.
+    apply getCmdLoc_in_getCmdsLocs. solve_in_list.
+  assert (~ In (getCmdLoc c) (getPhiNodesIDs ps1)) as Hnotin.
+    apply uniqFdef__uniqBlockLocs in HBinF1; auto.
+    simpl in HBinF1. 
+    eapply NoDup_disjoint in HBinF1; eauto. 
+  match goal with
+  | H7: _ \/ _ \/ _ |- _ =>
+    destruct H7 as [H7 | [H7 | H7]]; auto
+  end.
+  SCase "1".
+    assert (NoDup (getBlockLocs 
+      (block_intro l3 ps1 (cs1 ++ c1 :: cs2 ++ c :: cs3) tmn1))) as Hnodup.
+      solve_NoDup.
+    elimtype False.
+    eapply insnDominates_spec7; eauto.
+  
+  SCase "2".
+    assert (block' = block_intro l3 ps1 (cs1 ++ c1 :: cs2 ++ c :: cs3) tmn1) 
+      as EQ.
+      eapply block_eq2 with (id1:=getCmdLoc c); eauto 1.
+        solve_blockInFdefB.
+        solve_in_list.
+        simpl. solve_in_list.
+    subst.
+    contradict H5.
+    eapply blockStrictDominates_isnt_refl; eauto.
+  Case "id1 is args".
+    contradict H5.
+    replace (getCmdLoc c) with (getInsnLoc (insn_cmd c)); auto.
+    match goal with
+    | H: blockInFdefB ?b1 _ = true |- _ => 
+      eapply getInsnLoc__notin__getArgsIDs'' with (b:=b1); eauto 1
+    end.
+      apply insnInFdefBlockB_intro; auto.
+      simpl. solve_in_list.
+Qed.
+

@@ -3838,6 +3838,14 @@ repeat match goal with
   HbInF : blockInFdefB ?b ?f = true, HcInB : cmdInBlockB ?c ?b = true |-
   In (getCmdLoc ?c) (getBlockIDs ?b) =>
   eapply getCmdLoc__in__getBlockIDs in HbInF; eauto
+| |- In (getCmdLoc ?c) (getCmdsLocs (_ ++ ?c :: _ ++ _ :: _)) =>
+  apply getCmdLoc_in_getCmdsLocs
+| |- In (getCmdLoc ?c) (getCmdsLocs (_ ++ _ :: _ ++ ?c :: _)) =>
+  apply getCmdLoc_in_getCmdsLocs
+| |- In (getCmdLoc ?c) (getCmdsLocs (_ ++ _ :: _ ++ ?c :: _) ++ _) =>
+  apply in_or_app; left
+| |- In (getCmdLoc ?c) (_ ++ getCmdsLocs (_ ++ _ :: _ ++ ?c :: _) ++ _) =>
+  apply in_or_app; right; apply in_or_app; left
 end.
 
 Lemma lookupBlockViaIDFromBlocks__in_getBlocksLocs: forall b1 id1 bs,

@@ -247,13 +247,9 @@ Lemma alive_store_doesnt_use_its_followers_and_pid: forall l1 ps1 cs1' c cs tmn
   used_in_value id0 (SI_value pinfo stinfo) = false /\ id0 <> PI_id pinfo.
 Proof.
   intros.
-  assert (exists ids1, ret ids1 = 
-    inscope_of_id (PI_f pinfo) (SI_block pinfo stinfo) (getCmdLoc c) /\
-    In (SI_id pinfo stinfo) ids1) as Hinscope.
-    admit. (* inscope_of_id should consider non-returned cmd *)
   assert (Hreach: isReachableFromEntry (PI_f pinfo) (SI_block pinfo stinfo)).
     admit. (* mem2reg should only work for reachable blocks *)
-Local Opaque inscope_of_id isReachableFromEntry.
+Local Opaque isReachableFromEntry.
   unfold follow_alive_store in H2.
   rewrite <- H0 in H2.
   destruct_stinfo. inv H0.
@@ -267,41 +263,27 @@ Local Opaque inscope_of_id isReachableFromEntry.
   eapply wf_fdef__wf_cmd in SI_BInF0; eauto using in_middle.
   inv SI_BInF0.
   match goal with | H13: wf_insn_base _ _ _ |- _ => inv H13 end.
-  destruct Hinscope as [ids1 [Hinscope Hin]].
   assert (H0':=H0).
   apply destruct_insnInFdefBlockB in H0'. destruct H0' as [HcInB HcInF].
   rewrite <- EQ1 in *. 
-  assert (In c
-     (SI_cs1 ++
-      insn_store SI_id0 (PI_typ pinfo) SI_value0
-        (value_id (PI_id pinfo)) (PI_align pinfo) :: 
-      csa ++ c :: cs)) as Hin'.
-    apply in_or_app. right. simpl. right. apply in_middle.
-  eapply cmd_doesnt_use_nondom_operands 
+  eapply any_cmd_doesnt_use_following_operands 
     with (c1:=insn_store SI_id0 (PI_typ pinfo) SI_value0
                  (value_id (PI_id pinfo)) (PI_align pinfo))
-    (b1:=block_intro SI_l0 SI_ps0
-            (SI_cs1 ++
-             insn_store SI_id0 (PI_typ pinfo) SI_value0
-               (value_id (PI_id pinfo)) (PI_align pinfo) :: 
-             csa ++ c :: cs) SI_tmn0)
     (l3:=SI_l0)(ps1:=SI_ps0)
+    (c:=c)
     (cs:=SI_cs1 ++
              insn_store SI_id0 (PI_typ pinfo) SI_value0
                (value_id (PI_id pinfo)) (PI_align pinfo) :: 
-             csa ++ c :: cs)(tmn1:=SI_tmn0) in Hinscope; eauto 1.
-    clear - Hinscope H1.
-    rewrite getCmdID__getCmdLoc with (id0:=id0) in Hinscope; auto.
+             csa ++ c :: cs)(tmn1:=SI_tmn0) in H8; eauto 1.
+    clear - H8 H1.
+    rewrite getCmdID__getCmdLoc with (id0:=id0) in H8; auto.
     destruct SI_value0 as [i0|].
-      simpl in Hinscope. simpl. 
+      simpl in H8. simpl. 
       destruct (id_dec i0 id0); subst.
         tauto.
         destruct (id_dec id0 (PI_id pinfo)); subst; auto.
-      simpl in Hinscope. simpl. 
+      simpl in H8. simpl. 
       destruct (id_dec id0 (PI_id pinfo)); subst; auto.
-      
-    simpl_env. simpl. auto.
-    simpl_env. simpl. solve_in_list.
 Qed.
 
 Lemma alive_store_doesnt_use_its_followers: forall l1 ps1 cs1' c cs tmn 

@@ -2519,6 +2519,47 @@ Proof.
   solve_in_list.
 Qed.
 
+Lemma insnDominates_spec7: forall (l3 : l) (ps1 : phinodes) (tmn1 : terminator)
+  (c : cmd) (c1 : cmd) (cs1 : list cmd) (cs2 : list cmd) (cs3 : list cmd)
+  (H5 : insnDominates (getCmdLoc c) (insn_cmd c1)
+         (block_intro l3 ps1 (cs1 ++ c1 :: cs2 ++ c :: cs3) tmn1))
+  (Hnodup : NoDup
+             (getBlockLocs
+                (block_intro l3 ps1 (cs1 ++ c1 :: cs2 ++ c :: cs3) tmn1))),
+  False.
+Proof.
+  intros.
+  assert (In (getCmdLoc c)
+     (getCmdsLocs (cs1 ++ c1 :: cs2 ++ c :: cs3) ++
+      getTerminatorID tmn1 :: nil)) as Hin.
+    solve_in_list.
+  simpl in H5.
+  destruct H5 as [[ps2 [p1 [ps3 [EQ1 EQ2]]]] | 
+                  [cs4 [c2 [cs5 [cs6 [EQ1 EQ2]]]]]]; subst.
+    simpl in Hnodup.
+    apply NoDup_disjoint with (i0:=getPhiNodeID p1) in Hnodup.
+      contradict Hnodup.
+      solve_in_list.
+      rewrite EQ2. auto.
+
+    apply getCmdID__getCmdLoc in EQ2. 
+    simpl in Hnodup.
+    split_NoDup.
+    assert (G:=Huniq1).
+    apply NoDup_getCmdsLocs_prop with (c1:=c2)(c2:=c) in G; try solve
+      [auto | solve_in_list | rewrite EQ1; solve_in_list].
+    subst.
+    rewrite_env ((cs1 ++ c1 :: cs2) ++ c :: cs3) in EQ1.    
+    rewrite_env ((cs1 ++ c1 :: cs2) ++ c :: cs3) in Huniq1.    
+    apply NoDup_cmds_split_middle in EQ1; auto.
+    destruct EQ1; subst.
+    simpl_env in Huniq1.
+    rewrite getCmdsLocs_app in Huniq1.
+    split_NoDup.
+    inv Huniq3.
+    apply H1. solve_in_list.
+Qed.
+
 Inductive wf_phi_operands (f:fdef) (b:block) (id0:id) (t0:typ) :
     list_value_l -> Prop :=
 | wf_phi_operands_nil : wf_phi_operands f b id0 t0 Nil_list_value_l
