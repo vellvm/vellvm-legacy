@@ -12,13 +12,6 @@ Require Import program_sim.
 
 Definition DGVMap := @Opsem.GVsMap DGVs.
 
-(* go to analysis.v *)
-Definition value_in_scope (v0:value) (ids0:ids) : Prop :=
-match v0 with
-| value_const _ => True
-| value_id vid => In vid ids0
-end.
-
 Definition wf_defs (v1 v2:value) F TD gl (f:fdef) (lc:DGVMap) ids0: Prop :=
 F = f ->
 forall gvs1 gvs2,
@@ -28,7 +21,6 @@ forall gvs1 gvs2,
   Opsem.getOperandValue TD v2 lc gl = Some gvs2 ->
   gvs1 = gvs2.
 
-(* go to analysis.v *)
 Definition inscope_of_ec (ec:@Opsem.ExecutionContext DGVs) : option ids :=
 let '(Opsem.mkEC f b cs tmn lc als) := ec in
 match cs with
@@ -169,16 +161,6 @@ match v with
               isReachableFromEntry f b
 end.
 
-(* go to analysis.v 
-   v1 >> v2 == id1 >> id2 \/ v1 is constant
-*)
-Definition valueDominates (f:fdef) (v1 v2:value) : Prop :=
-match v1, v2 with
-| value_id id1, value_id id2 => idDominates f id1 id2
-| value_const _, _ => True
-| _, _ => False
-end.
-
 Definition substable_values TD gl (f:fdef) (v1 v2:value) : Prop :=
 substable_value f v1 /\ substing_value f v2 /\ valueDominates f v2 v1 /\
 match v1, v2 with
@@ -194,34 +176,6 @@ Proof.
   destruct c; simpl; intros; destruct_exists; destruct_ands;
     try solve [uniq_result; auto | tauto].
 Qed.
-
-Lemma inscope_of_cmd__idDominates : forall l0 f b c i0
-  (HeqR0 : ret l0 = inscope_of_cmd f b c) (Hin: In i0 l0) 
-  (Hsome: getCmdID c <> None) (Huniq: uniqFdef f)
-  (HbInF: blockInFdefB b f = true) (HcInB: cmdInBlockB c b = true),
-  idDominates f i0 (getCmdLoc c).
-Proof.
-  unfold inscope_of_cmd.
-  intros. 
-  eapply inscope_of_id__idDominates in HeqR0; eauto.
-  apply inGetBlockIDs__lookupBlockViaIDFromFdef; auto.
-    admit. (* infra *)
-Qed.
-
-Lemma idDominates_acyclic: forall s m f (HwfF:wf_fdef s m f)
-  (HuniqF: uniqFdef f) id1 id2 
-  (Hdom1: idDominates f id1 id2) (Hdom2: idDominates f id2 id1)
-  (Hsubst: In id1 (getArgsIDsOfFdef f) \/
-      exists b, lookupBlockViaIDFromFdef f id1 = Some b /\ 
-                isReachableFromEntry f b),
-  False.
-Admitted. (* iDom is acyclic *)
-
-(* go to infra *)
-Lemma in__cmdInBlockB: forall c l1 ps1 cs1 tmn1,
-  In c cs1 ->
-  cmdInBlockB c (block_intro l1 ps1 cs1 tmn1) = true.
-Proof. simpl. intros. solve_in_list. Qed.
 
 Lemma wf_defs_updateAddAL: forall v1 v2 F td Mem gl F' lc' c ids1 ids2 g0
   s m (HwfF: wf_fdef s m F') (Huniq: uniqFdef F') l1 ps1 cs1 tmn1 
@@ -382,6 +336,48 @@ Proof.
   rewrite J in Hvals. auto.
 Qed.
 
+Lemma inscope_of_cmd_at_beginning__idDominates__phinode : forall f l' contents' 
+  pid (inbound' : incl contents' (bound_fdef f)) ids0 i0 ps' cs' tmn' 
+  (Heqdefs' : {|
+             DomDS.L.bs_contents := contents';
+             DomDS.L.bs_bound := inbound' |} = (dom_analyze f) !! l')
+  (Hinscope : fold_left (inscope_of_block f l') contents'
+               (ret (getPhiNodesIDs ps' ++ getArgsIDsOfFdef f)) = 
+             ret ids0) (Hin1: In i0 ids0) 
+  (Huniq: uniqFdef f) (Hnotin: ~ In i0 (getPhiNodesIDs ps'))
+  (Hin1: In pid (getPhiNodesIDs ps'))
+  (Hlkup: ret block_intro l' ps' cs' tmn' = lookupBlockViaLabelFromFdef f l'),
+  idDominates f i0 pid.
+Proof.
+  intros.
+  unfold idDominates.
+  assert (lookupBlockViaIDFromFdef f pid = Some (block_intro l' ps' cs' tmn'))
+    as Hlkup'.
+    apply inGetBlockIDs__lookupBlockViaIDFromFdef; auto.
+      simpl. solve_in_list.
+      solve_blockInFdefB.
+  fill_ctxhole.
+  unfold inscope_of_id, init_scope.
+  destruct_if; try solve [contradict Hin0; auto].
+  rewrite <- Heqdefs'. 
+  assert (exists r,
+    fold_left (inscope_of_block f l') contents' (ret getArgsIDsOfFdef f) 
+      = Some r) as G.
+    destruct f.
+    apply fold_left__bound_blocks; auto.
+  destruct G as [r G]. rewrite G.
+  apply fold_left__opt_union with (init2:=getPhiNodesIDs ps') in G.
+  destruct G as [r' [G1 G2]].
+  apply fold_left__opt_set_eq with 
+    (init2:=getPhiNodesIDs ps' ++ getArgsIDsOfFdef f) in G1;
+    auto using AtomSet.set_eq_swap.
+  destruct G1 as [r'' [G3 G1]].
+  uniq_result.
+  apply G1 in Hin1.
+  apply G2 in Hin1.
+  solve_in_list.    
+Qed.
+
 Lemma wf_defs_br_aux : forall v1 v2 F0 TD gl S M lc l' ps' cs' lc' F tmn' b
   (Hreach : isReachableFromEntry F b)
   (Hreach': isReachableFromEntry F (block_intro l' ps' cs' tmn'))
@@ -423,10 +419,13 @@ Proof.
     destruct v2 as [vid2 | vc2]; simpl in *; eauto.
     SCase "v2 = vid2".
       assert (~ In vid2 (getPhiNodesIDs ps')) as Hnotin2.
-        admit. (* vid1 in ids0' /\ vid1 notin ps' /\ vid2 in ps' ==>  
-                    v1d1 >> vid2 !!
-                  But, we should extend idDominates to allow PHI to prove this!
-               *)
+        (* vid1 in ids0' /\ vid1 notin ps' /\ vid2 in ps' ==>  
+           v1d1 >> vid2 !! *)
+        intro Hin.
+        eapply inscope_of_cmd_at_beginning__idDominates__phinode
+          with (i0:=vid1) in Hinscope; eauto.
+        eapply idDominates_acyclic with (id1:=vid2); eauto.
+
       assert (Hnotin2' := Hnotin2).
       apply ListSet.set_diff_intro with (x:=ids0')(Aeq_dec:=eq_atom_dec)
         in Hnotin2; auto.
@@ -506,6 +505,11 @@ Proof.
       eapply wf_defs_br_aux in Hswitch; eauto.
 
   Case "cs'<>nil".
+    assert (~ In (getCmdLoc c) (getPhiNodesIDs ps')) as Hnotin.
+      apply uniqFdef__uniqBlockLocs in J; auto.
+      simpl in J. 
+      eapply NoDup_disjoint in J; simpl; eauto.
+    rewrite init_scope_spec1; auto.
     unfold cmds_dominates_cmd. simpl.
     destruct (eq_atom_dec (getCmdLoc c) (getCmdLoc c)) as [_ | n];
       try solve [contradict n; auto].
@@ -642,19 +646,11 @@ Local Opaque inscope_of_cmd inscope_of_tmn.
       assert (cmdInBlockB c0 (block_intro l1' ps1' (cs1' ++ c0 :: cs) tmn)
                = true) as Hin.
         simpl. apply In_InCmdsB. apply in_middle.
+      assert (NoDup (getBlockLocs (block_intro l1' ps1' (cs1' ++ c0 :: cs) tmn))) 
+        as Hnotin.
+        eapply wf_system__uniq_block with (f:=F0) in HwfSystem; eauto.
       destruct cs; simpl_env in *.
       Case "1.1.1".
-        assert (~ In (getCmdLoc c0) (getCmdsLocs cs1')) as Hnotin.
-          eapply wf_system__uniq_block with (f:=F0) in HwfSystem; eauto.
-          simpl in HwfSystem.
-          apply NoDup_inv in HwfSystem.
-          destruct HwfSystem as [_ J].
-          apply NoDup_inv in J.
-          destruct J as [J _].
-          rewrite getCmdsLocs_app in J.
-          simpl in J.
-          apply NoDup_last_inv in J. auto.
-
         apply inscope_of_cmd_tmn in HeqR1; auto.
         destruct HeqR1 as [ids2 [J1 J2]].
         rewrite <- J1.
@@ -668,13 +664,6 @@ Local Opaque inscope_of_cmd inscope_of_tmn.
         eapply wf_defs_updateAddAL; try solve [eauto | congruence].
 
       Case "1.1.2".
-        assert (NoDup (getCmdsLocs (cs1' ++ [c0] ++ [c] ++ cs))) as Hnodup.
-          eapply wf_system__uniq_block with (f:=F0) in HwfSystem; eauto.
-          simpl in HwfSystem.
-          apply NoDup_inv in HwfSystem.
-          destruct HwfSystem as [_ J].
-          apply NoDup_inv in J.
-          destruct J as [J _]. auto.
         apply inscope_of_cmd_cmd in HeqR1; auto.
         destruct HeqR1 as [ids2 [J1 J2]].
         rewrite <- J1.
@@ -740,19 +729,11 @@ Local Opaque inscope_of_cmd inscope_of_tmn.
       as R1.
     destruct R1; try solve [inversion Hinscope1].
     unfold wf_ExecutionContext. simpl.
+    assert (NoDup (getBlockLocs (block_intro l1' ps1' (cs1' ++ c0 :: cs) tmn))) 
+      as Hnotin.
+      eapply wf_system__uniq_block with (f:=F0) in HwfSystem; eauto.
     destruct cs; simpl_env in *.
     Case "1.1.1".
-        assert (~ In (getCmdLoc c0) (getCmdsLocs cs1')) as Hnotin.
-          eapply wf_system__uniq_block with (f:=F0) in HwfSystem; eauto.
-          simpl in HwfSystem.
-          apply NoDup_inv in HwfSystem.
-          destruct HwfSystem as [_ J].
-          apply NoDup_inv in J.
-          destruct J as [J _].
-          rewrite getCmdsLocs_app in J.
-          simpl in J.
-          apply NoDup_last_inv in J. auto.
-
         apply inscope_of_cmd_tmn in HeqR1; auto.
         destruct HeqR1 as [ids2 [J1 J2]].
         rewrite <- J1.
@@ -765,13 +746,6 @@ Local Opaque inscope_of_cmd inscope_of_tmn.
         eapply wf_defs_eq; eauto.
 
     Case "1.1.2".
-        assert (NoDup (getCmdsLocs (cs1' ++ [c0] ++ [c] ++ cs))) as Hnodup.
-          eapply wf_system__uniq_block with (f:=F0) in HwfSystem; eauto.
-          simpl in HwfSystem.
-          apply NoDup_inv in HwfSystem.
-          destruct HwfSystem as [_ J].
-          apply NoDup_inv in J.
-          destruct J as [J _]. auto.
         apply inscope_of_cmd_cmd in HeqR1; auto.
         destruct HeqR1 as [ids2 [J1 J2]].
         rewrite <- J1.
@@ -836,20 +810,13 @@ Focus.
     assert (wf_fdef S (module_intro los nts Ps) F') as HwfF.
       eapply wf_system__wf_fdef; eauto.
 
+    assert (NoDup (getBlockLocs 
+                     (block_intro l2 ps2
+                        (cs2' ++ insn_call i0 n c t0 v0 v p :: cs') tmn'))) 
+      as Hnotin.
+      eapply wf_system__uniq_block with (f:=F') in HwfSystem; eauto.
     destruct cs'; simpl_env in *.
     SSSCase "1.1.1".
-        assert (~ In (getCmdLoc (insn_call i0 n c t0 v0 v p)) (getCmdsLocs cs2'))
-          as Hnotin. (* this code should be pulled out as lemmas from 
-                        opsem_wf/dom, and other proofs in mem2reg. *)
-          eapply wf_system__uniq_block with (f:=F') in HwfSystem; eauto.
-          simpl in HwfSystem.
-          apply NoDup_inv in HwfSystem.
-          destruct HwfSystem as [_ J].
-          apply NoDup_inv in J.
-          destruct J as [J _].
-          rewrite getCmdsLocs_app in J.
-          simpl in J.
-          apply NoDup_last_inv in J. auto.
         assert (HeqR2':=HeqR2).
         apply inscope_of_cmd_tmn in HeqR2; auto.
         destruct HeqR2 as [ids2 [J1 J2]].
@@ -871,14 +838,6 @@ Focus.
           eapply wf_defs_eq; eauto.
 
     SSSCase "1.1.2".
-        assert (NoDup (getCmdsLocs (cs2' ++ [insn_call i0 n c t0 v0 v p] ++ [c0] ++
-          cs'))) as Hnodup.
-          eapply wf_system__uniq_block with (f:=F') in HwfSystem; eauto.
-          simpl in HwfSystem.
-          apply NoDup_inv in HwfSystem.
-          destruct HwfSystem as [_ J].
-          apply NoDup_inv in J.
-          destruct J as [J _]. auto.
         assert (HeqR2':=HeqR2).
         apply inscope_of_cmd_cmd in HeqR2; auto.
         destruct HeqR2 as [ids2 [J1 J2]].
@@ -916,18 +875,12 @@ Focus.
   split; auto.
     unfold wf_ExecutionContext. simpl.
     apply HwfCall' in HBinF1. simpl in HBinF1.
+    assert (NoDup (getBlockLocs 
+                     (block_intro l2 ps2 (cs2' ++ c' :: cs') tmn'))) 
+      as Hnotin.
+      eapply wf_system__uniq_block with (f:=F') in HwfSystem; eauto.
     destruct cs'; simpl_env in *.
     SSSCase "1.1.1".
-        assert (~ In (getCmdLoc c') (getCmdsLocs cs2')) as Hnotin.
-          eapply wf_system__uniq_block with (f:=F') in HwfSystem; eauto.
-          simpl in HwfSystem.
-          apply NoDup_inv in HwfSystem.
-          destruct HwfSystem as [_ J].
-          apply NoDup_inv in J.
-          destruct J as [J _].
-          rewrite getCmdsLocs_app in J.
-          simpl in J.
-          apply NoDup_last_inv in J. auto.
         clear - HeqR2 Hinscope2 H HwfCall' HBinF1 Hnotin H1 Hinscope2'.
         apply inscope_of_cmd_tmn in HeqR2; auto.
         destruct HeqR2 as [ids2 [J1 J2]].
@@ -939,14 +892,7 @@ Focus.
         eapply wf_defs_eq; eauto.
 
     SSSCase "1.1.2".
-        assert (NoDup (getCmdsLocs (cs2' ++ [c'] ++ [c] ++ cs'))) as Hnodup.
-          eapply wf_system__uniq_block with (f:=F') in HwfSystem; eauto.
-          simpl in HwfSystem.
-          apply NoDup_inv in HwfSystem.
-          destruct HwfSystem as [_ J].
-          apply NoDup_inv in J.
-          destruct J as [J _]. auto.
-        clear - HeqR2 Hinscope2 H HwfCall' HBinF1 Hnodup H1 Hinscope2'.
+        clear - HeqR2 Hinscope2 H HwfCall' HBinF1 Hnotin H1 Hinscope2'.
         apply inscope_of_cmd_cmd in HeqR2; auto.
         destruct HeqR2 as [ids2 [J1 J2]].
         rewrite <- J1.
@@ -1063,6 +1009,7 @@ Transparent inscope_of_tmn inscope_of_cmd.
       eapply preservation_dbCall_case; eauto.
 
       unfold inscope_of_cmd, inscope_of_id.
+      rewrite init_scope_spec1; auto.
       remember ((dom_analyze (fdef_intro (fheader_intro fa rt fid la va) lb))
         !! l') as R.
       destruct R. simpl. simpl in H2. subst. simpl.
@@ -1086,15 +1033,15 @@ Case "sExCall".
   end).
 Qed.
 
-Lemma substing_vid__notin__args: forall f i0, 
-  substing_value f (value_id i0) ->
-  ~ value_in_scope (value_id i0) (getArgsIDsOfFdef f).
-Admitted. (* infra *)
-
-Lemma substable_vid__notin__args: forall f i0, 
+Lemma substable_vid__notin__args: forall f i0 (Huniq: uniqFdef f), 
   substable_value f (value_id i0) ->
   ~ value_in_scope (value_id i0) (getArgsIDsOfFdef f).
-Admitted. (* infra *)
+Proof.
+  simpl. intros.
+  remember (lookupInsnViaIDFromFdef f i0) as R.
+  destruct R as [[]|]; tinv H.
+  eapply getInsnLoc__notin__getArgsIDs'; eauto.
+Qed.
 
 Lemma initLocals__id_rhs_val_wf_defs : forall pinfo fid l' fa rt la va
   lb gvs lc CurLayouts CurNamedts initGlobal v1 v2 (Hwfpi: WF_PhiInfo pinfo)
@@ -1124,9 +1071,10 @@ Proof.
   intros EQ gvs1 gvs2 Hinscope1 Hinscope2 Hget1 Hget2.
   destruct Hsubst as [Hval1 [Hval2 [Hdom Hcst]]].
   rewrite EQ in Hval2, Hval1.
-  destruct v1, v2; tinv Hdom.
-    apply substing_vid__notin__args in Hval2. tauto. 
-    apply substable_vid__notin__args in Hval1. tauto.
+  assert (uniqFdef (PI_f pinfo)) as Huniq'. 
+    rewrite EQ. simpl. auto.
+  destruct v1, v2; tinv Hdom;
+    try solve [apply substable_vid__notin__args in Hval1; try solve [auto | tauto]].
     simpl in *. unfold OpsemAux.initTargetData in *. congruence.
 Qed.
 
@@ -1160,6 +1108,7 @@ Transparent inscope_of_tmn inscope_of_cmd.
       eapply initLocals__id_rhs_val_wf_defs; eauto.
 
       unfold inscope_of_cmd, inscope_of_id.
+      rewrite init_scope_spec1; auto.
       remember ((dom_analyze (fdef_intro (fheader_intro f t i0 a v) b))
         !! l0) as R.
       destruct R. simpl. simpl in HeqR2. subst.

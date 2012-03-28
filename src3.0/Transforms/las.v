@@ -268,25 +268,22 @@ Proof.
       match goal with
       | H : context [(_++?c1::_)++_::_] |- _ =>
        eapply idDominates_inscope_of_cmd__inscope_of_cmd 
-        with (c0:=c1)
+        with (instr0:=insn_cmd c1)
              (c:=insn_load LAS_lid0 (PI_typ pinfo) 
                (value_id (PI_id pinfo)) (PI_align pinfo)); eauto 1
       end
     ].
 
-    destruct Hsval as [Hinargs | [instr [Hlkup Heq]]].
-      eapply in_getArgsIDsOfFdef__inscope_of_id; eauto.
-      destruct instr; tinv Heq.
-        admit. (* idDominates_inscope_of_cmd__inscope_of_cmd should allow phinodes *)
-
-        apply getCmdID__getCmdLoc in Heq. subst.       
-        match goal with
-        | H : context [(_++?c1::_)++_::_] |- _ =>
-         eapply idDominates_inscope_of_cmd__inscope_of_cmd 
-          with (c0:=c1)
-               (c:=insn_load LAS_lid0 (PI_typ pinfo) 
-                 (value_id (PI_id pinfo)) (PI_align pinfo)); eauto 1
-        end.
+    destruct Hsval as [Hinargs | [instr [Hlkup Heq]]]; try solve [
+      eapply in_getArgsIDsOfFdef__inscope_of_id; eauto |
+      match goal with
+      | H : context [(_++?c1::_)++_::_] |- _ =>
+       eapply idDominates_inscope_of_cmd__inscope_of_cmd 
+        with (instr0:=insn_cmd c1)
+             (c:=insn_load LAS_lid0 (PI_typ pinfo) 
+               (value_id (PI_id pinfo)) (PI_align pinfo)); eauto 1
+      end
+    ].
 Qed.
 
 Lemma LAS_value__dominates__LAS_lid: forall S m pinfo lasinfo
@@ -764,14 +761,10 @@ Proof.
   simpl in Hdom. symmetry in HeqR.
   destruct Hsval as [Hinargs | [instr [Hlkc EQ]]]; subst.
     eapply in_getArgsIDsOfFdef__inscope_of_tmn; eauto.
-
-    destruct instr; tinv EQ.
-      admit. (* idDominates phis *)
-
-      apply getCmdID__getCmdLoc in EQ. subst.       
-      eapply idDominates_inscope_of_tmn__inscope_of_tmn
-        with (c0:=insn_load (LAS_lid pinfo lasinfo) (PI_typ pinfo) 
-             (value_id (PI_id pinfo)) (PI_align pinfo)) in HeqR; eauto 1.
+    eapply idDominates_inscope_of_tmn__inscope_of_tmn
+        with (instr0:=insn_cmd 
+               (insn_load (LAS_lid pinfo lasinfo) (PI_typ pinfo) 
+                  (value_id (PI_id pinfo)) (PI_align pinfo))) in HeqR; eauto 1.
       symmetry. apply lookup_LAS_lid__load; auto.
 Qed.
 
@@ -839,15 +832,11 @@ Proof.
   simpl in Hdom. symmetry in HeqR.
   destruct Hsval as [Hinargs | [instr [Hlkc EQ]]]; subst.
     eapply in_getArgsIDsOfFdef__inscope_of_cmd; eauto.
-
-    destruct instr; tinv EQ.
-      admit. (* idDominates phis *)
-
-      apply getCmdID__getCmdLoc in EQ. subst.       
-      eapply idDominates_inscope_of_cmd__inscope_of_cmd 
-        with (c:=c)
-             (c0:=insn_load (LAS_lid pinfo lasinfo) (PI_typ pinfo) 
-             (value_id (PI_id pinfo)) (PI_align pinfo)) in HeqR; eauto 1.
+    eapply idDominates_inscope_of_cmd__inscope_of_cmd 
+      with (c:=c)
+           (instr0:=insn_cmd (insn_load (LAS_lid pinfo lasinfo) 
+             (PI_typ pinfo) (value_id (PI_id pinfo)) (PI_align pinfo))) in HeqR; 
+      eauto 1.
       symmetry. apply lookup_LAS_lid__load; auto.
 Qed.
 

@@ -284,7 +284,7 @@ Proof.
     apply Hwfdfs in Hlk; auto.
       intros c1 Hlkc1.
       assert (~ In id1 (getArgsIDsOfFdef F)) as Hnotina.
-        apply getCmdLoc__notin__getArgsIDs' in Hlkc1; auto.
+        apply getInsnLoc__notin__getArgsIDs' in Hlkc1; auto.
       destruct (@Hlk c1) as [Hlkc1' Hreach'']; auto.
       split; auto.
       apply eval_rhs_updateValuesForNewBlock; auto.
@@ -360,6 +360,11 @@ Proof.
       eapply wf_defs_br_aux in Hswitch; eauto.
 
   Case "cs'<>nil".
+    assert (~ In (getCmdLoc c) (getPhiNodesIDs ps')) as Hnotin.
+      apply uniqFdef__uniqBlockLocs in J; auto.
+      simpl in J. 
+      eapply NoDup_disjoint in J; simpl; eauto.
+    rewrite init_scope_spec1; auto.
     unfold cmds_dominates_cmd. simpl.
     destruct (eq_atom_dec (getCmdLoc c) (getCmdLoc c)) as [_ | n];
       try solve [contradict n; auto].
@@ -782,19 +787,11 @@ Proof.
       assert (cmdInBlockB c0 (block_intro l3 ps3 (cs3' ++ c0 :: cs) tmn) = true)
         as Hin.
         simpl. apply In_InCmdsB. apply in_middle.
+      assert (NoDup (getBlockLocs (block_intro l3 ps3 (cs3' ++ c0 :: cs) tmn))) 
+        as Hnotin.
+        eapply wf_system__uniq_block with (f:=F) in HwfSystem; eauto.
       destruct cs; simpl_env in *.
       Case "1.1.1".
-        assert (~ In (getCmdLoc c0) (getCmdsLocs cs3')) as Hnotin.
-          eapply wf_system__uniq_block with (f:=F) in HwfSystem; eauto.
-          simpl in HwfSystem.
-          apply NoDup_inv in HwfSystem.
-          destruct HwfSystem as [_ J].
-          apply NoDup_inv in J.
-          destruct J as [J _].
-          rewrite getCmdsLocs_app in J.
-          simpl in J.
-          apply NoDup_last_inv in J. auto.
-
         apply inscope_of_cmd_tmn in HeqR1; auto.
         destruct HeqR1 as [ids2 [J1 J2]].
         rewrite <- J1.
@@ -808,13 +805,6 @@ Proof.
         eapply wf_defs_updateAddAL; eauto.
 
       Case "1.1.2".
-        assert (NoDup (getCmdsLocs (cs3' ++ [c0] ++ [c] ++ cs))) as Hnodup.
-          eapply wf_system__uniq_block with (f:=F) in HwfSystem; eauto.
-          simpl in HwfSystem.
-          apply NoDup_inv in HwfSystem.
-          destruct HwfSystem as [_ J].
-          apply NoDup_inv in J.
-          destruct J as [J _]. auto.
         apply inscope_of_cmd_cmd in HeqR1; auto.
         destruct HeqR1 as [ids2 [J1 J2]].
         rewrite <- J1.
@@ -1173,19 +1163,11 @@ Proof.
     as R1.
   destruct R1; try solve [inversion Hinscope1].
   repeat (split; try solve [auto]).
+      assert (NoDup (getBlockLocs (block_intro l3 ps3 (cs3' ++ c0 :: cs) tmn))) 
+        as Hnotin.
+        eapply wf_system__uniq_block with (f:=F) in HwfSystem; eauto.
       destruct cs; simpl_env in *.
       Case "1.1.1".
-        assert (~ In (getCmdLoc c0) (getCmdsLocs cs3')) as Hnotin.
-          eapply wf_system__uniq_block with (f:=F) in HwfSystem; eauto.
-          simpl in HwfSystem.
-          apply NoDup_inv in HwfSystem.
-          destruct HwfSystem as [_ J].
-          apply NoDup_inv in J.
-          destruct J as [J _].
-          rewrite getCmdsLocs_app in J.
-          simpl in J.
-          apply NoDup_last_inv in J. auto.
-
         apply inscope_of_cmd_tmn in HeqR1; auto.
         destruct HeqR1 as [ids2 [J1 J2]].
         rewrite <- J1.
@@ -1198,13 +1180,6 @@ Proof.
         eapply wf_defs_eq; eauto.
 
       Case "1.1.2".
-        assert (NoDup (getCmdsLocs (cs3' ++ [c0] ++ [c] ++ cs))) as Hnodup.
-          eapply wf_system__uniq_block with (f:=F) in HwfSystem; eauto.
-          simpl in HwfSystem.
-          apply NoDup_inv in HwfSystem.
-          destruct HwfSystem as [_ J].
-          apply NoDup_inv in J.
-          destruct J as [J _]. auto.
         apply inscope_of_cmd_cmd in HeqR1; auto.
         destruct HeqR1 as [ids2 [J1 J2]].
         rewrite <- J1.
@@ -1234,7 +1209,7 @@ Proof.
   intros id1 gvs1 Hin Hlklc.
   intros x Hlkx. 
   contradict Hin.
-    apply getCmdLoc__notin__getArgsIDs' in Hlkx; auto.
+    apply getInsnLoc__notin__getArgsIDs' in Hlkx; auto.
 Qed.
 
 Definition wf_impure_id (f:fdef) (id1:id) : Prop :=
@@ -1327,19 +1302,11 @@ Proof.
       assert (cmdInBlockB c0 (block_intro l3 ps3 (cs3' ++ c0 :: cs) tmn) = true)
         as Hin.
         simpl. apply In_InCmdsB. apply in_middle.
+      assert (NoDup (getBlockLocs (block_intro l3 ps3 (cs3' ++ c0 :: cs) tmn))) 
+        as Hnotin.
+        eapply wf_system__uniq_block with (f:=F) in HwfSystem; eauto.
       destruct cs; simpl_env in *.
       Case "1.1.1".
-        assert (~ In (getCmdLoc c0) (getCmdsLocs cs3')) as Hnotin.
-          eapply wf_system__uniq_block with (f:=F) in HwfSystem; eauto.
-          simpl in HwfSystem.
-          apply NoDup_inv in HwfSystem.
-          destruct HwfSystem as [_ J].
-          apply NoDup_inv in J.
-          destruct J as [J _].
-          rewrite getCmdsLocs_app in J.
-          simpl in J.
-          apply NoDup_last_inv in J. auto.
-
         apply inscope_of_cmd_tmn in HeqR1; auto.
         destruct HeqR1 as [ids2 [J1 J2]].
         rewrite <- J1.
@@ -1354,13 +1321,6 @@ Proof.
           eapply wf_impure_id__wf_gvs; eauto.
 
       Case "1.1.2".
-        assert (NoDup (getCmdsLocs (cs3' ++ [c0] ++ [c] ++ cs))) as Hnodup.
-          eapply wf_system__uniq_block with (f:=F) in HwfSystem; eauto.
-          simpl in HwfSystem.
-          apply NoDup_inv in HwfSystem.
-          destruct HwfSystem as [_ J].
-          apply NoDup_inv in J.
-          destruct J as [J _]. auto.
         apply inscope_of_cmd_cmd in HeqR1; auto.
         destruct HeqR1 as [ids2 [J1 J2]].
         rewrite <- J1.
@@ -1446,19 +1406,13 @@ Case "sReturn".
       eapply wf_system__uniqFdef; eauto.
 
     SSCase "1.1".
+      assert (NoDup (getBlockLocs 
+                       (block_intro l2 ps2
+                          (cs2' ++ insn_call i0 n c rt va v p :: cs') tmn'))) 
+        as Hnotin.
+        eapply wf_system__uniq_block with (f:=F') in HwfSystem; eauto.
       destruct cs'; simpl_env in *.
       SSSCase "1.1.1".
-        assert (~ In (getCmdLoc (insn_call i0 n c rt va v p)) 
-          (getCmdsLocs cs2')) as Hnotin.
-          eapply wf_system__uniq_block with (f:=F') in HwfSystem; eauto.
-          simpl in HwfSystem.
-          apply NoDup_inv in HwfSystem.
-          destruct HwfSystem as [_ J].
-          apply NoDup_inv in J.
-          destruct J as [J _].
-          rewrite getCmdsLocs_app in J.
-          simpl in J.
-          apply NoDup_last_inv in J. auto.
         assert (HeqR2':=HeqR2).
         apply inscope_of_cmd_tmn in HeqR2; auto.
         destruct HeqR2 as [ids2 [J1 J2]].
@@ -1486,14 +1440,6 @@ Case "sReturn".
           eapply wf_defs_eq; eauto.
 
       SSSCase "1.1.2".
-        assert (NoDup (getCmdsLocs (cs2' ++ [insn_call i0 n c rt va v p] ++ 
-          [c0] ++ cs'))) as Hnodup.
-          eapply wf_system__uniq_block with (f:=F') in HwfSystem; eauto.
-          simpl in HwfSystem.
-          apply NoDup_inv in HwfSystem.
-          destruct HwfSystem as [_ J].
-          apply NoDup_inv in J.
-          destruct J as [J _]. auto.
         assert (HeqR2':=HeqR2).
         apply inscope_of_cmd_cmd in HeqR2; auto.
         destruct HeqR2 as [ids2 [J1 J2]].
@@ -1565,18 +1511,12 @@ Case "sReturnVoid".
     split; auto.
     SSCase "1.1".
       apply HwfCall' in HBinF1. simpl in HBinF1.
+      assert (NoDup (getBlockLocs 
+                       (block_intro l2 ps2 (cs2' ++ c' :: cs') tmn'))) 
+        as Hnotin.
+        eapply wf_system__uniq_block with (f:=F') in HwfSystem; eauto.
       destruct cs'; simpl_env in *.
       SSSCase "1.1.1".
-        assert (~ In (getCmdLoc c') (getCmdsLocs cs2')) as Hnotin.
-          eapply wf_system__uniq_block with (f:=F') in HwfSystem; eauto.
-          simpl in HwfSystem.
-          apply NoDup_inv in HwfSystem.
-          destruct HwfSystem as [_ J].
-          apply NoDup_inv in J.
-          destruct J as [J _].
-          rewrite getCmdsLocs_app in J.
-          simpl in J.
-          apply NoDup_last_inv in J. auto.
         clear - HeqR2 Hinscope2 H HwfCall' HBinF1 Hnotin H1.
         apply inscope_of_cmd_tmn in HeqR2; auto.
         destruct HeqR2 as [ids2 [J1 J2]].
@@ -1588,14 +1528,7 @@ Case "sReturnVoid".
         eapply wf_defs_eq; eauto.
 
       SSSCase "1.1.2".
-        assert (NoDup (getCmdsLocs (cs2' ++ [c'] ++ [c] ++ cs'))) as Hnodup.
-          eapply wf_system__uniq_block with (f:=F') in HwfSystem; eauto.
-          simpl in HwfSystem.
-          apply NoDup_inv in HwfSystem.
-          destruct HwfSystem as [_ J].
-          apply NoDup_inv in J.
-          destruct J as [J _]. auto.
-        clear - HeqR2 Hinscope2 H HwfCall' HBinF1 Hnodup H1.
+        clear - HeqR2 Hinscope2 H HwfCall' HBinF1 Hnotin H1.
         apply inscope_of_cmd_cmd in HeqR2; auto.
         destruct HeqR2 as [ids2 [J1 J2]].
         rewrite <- J1.
@@ -1889,6 +1822,7 @@ Case "sCall".
         eapply preservation_dbCall_case; eauto.
 
         unfold inscope_of_cmd, inscope_of_id.
+        rewrite init_scope_spec1; auto.
         remember ((dom_analyze (fdef_intro (fheader_intro fa rt fid la va) lb))
           !! l') as R.
         destruct R. simpl. simpl in H2. subst. simpl.

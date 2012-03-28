@@ -984,7 +984,7 @@ Ltac preservation_pure_cmd_updated_case:=
     [simpl; auto | preservation_pure_cmd_updated_case_helper]).
 
 Ltac free_preserves_wf_EC_at_head :=
-match goal with
+  match goal with
 | Hinscope: wf_ExecutionContext ?pinfo _ _ _ _ _ |- _ =>
   intros J1 J2 J3; simpl in J1, J2, J3; simpl; subst;
   assert (J2':=J2);
