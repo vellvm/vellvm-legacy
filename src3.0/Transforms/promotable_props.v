@@ -2121,9 +2121,13 @@ Proof.
     destruct Hal as [n' [J1 [J2 J3]]].
     uniq_result.
     assert (K:=@Z_of_nat_ge_0 tsz).
-    unfold Size.to_Z in *. 
-    assert (0 < n) as K'. psatz Z.
-    psatz Z.
+    unfold Size.to_Z in *.
+    assert (0 < n) as K'.
+    destruct n as [|n|n]; destruct (Z_of_nat tsz) as [|tsz'|tsz']; 
+      simpl in J2, K; try discriminate; try reflexivity.
+      unfold Zge in K. contradict K. trivial.
+    rewrite <- Zmult_1_r.
+    apply Zmult_ge_compat; omega.
 Qed.
 
 Lemma alloca_preserves_wf_defs_at_head : forall maxb pinfo los nts M

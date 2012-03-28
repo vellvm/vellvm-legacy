@@ -98,7 +98,8 @@ Proof.
   induction n; intros; simpl; eauto using gv_inject_app.
 Qed.
 
-Definition zeroconst2GV_aux__gv_inject_refl_prop S TD t (H:wf_styp S TD t) := 
+Definition zeroconst2GV_aux__gv_inject_refl_prop S TD t :=
+  wf_styp S TD t ->
   forall los nts acc (Heq: TD = (los, nts)) nts' 
   (Hsub:exists nts0, nts'=nts0++nts) (Huniq: uniq nts')
   maxb mi Mem1 Mem2 gv (Hwfsim: wf_sb_mi maxb mi Mem1 Mem2)
@@ -109,7 +110,8 @@ Definition zeroconst2GV_aux__gv_inject_refl_prop S TD t (H:wf_styp S TD t) :=
   (Hz: zeroconst2GV_aux (los, nts') acc t = Some gv),
   gv_inject mi gv gv.
   
-Definition zeroconsts2GV_aux__gv_inject_refl_prop sdt (H:wf_styp_list sdt):=
+Definition zeroconsts2GV_aux__gv_inject_refl_prop sdt :=
+  wf_styp_list sdt ->
   let 'lsdt := unmake_list_system_targetdata_typ sdt in
   let '(lsd, lt) := split lsdt in
   forall S TD los nts acc (Heq: TD = (los, nts)) nts' 
@@ -124,8 +126,8 @@ Definition zeroconsts2GV_aux__gv_inject_refl_prop sdt (H:wf_styp_list sdt):=
   gv_inject mi gv gv.
 
 Lemma zeroconst2GV_aux__gv_inject_refl_mutrec :
-  (forall S TD t H, zeroconst2GV_aux__gv_inject_refl_prop S TD t H) /\
-  (forall sdt H, zeroconsts2GV_aux__gv_inject_refl_prop sdt H).
+  (forall S TD t, zeroconst2GV_aux__gv_inject_refl_prop S TD t) /\
+  (forall sdt, zeroconsts2GV_aux__gv_inject_refl_prop sdt).
 Proof.
   (wfstyp_cases (apply wf_styp_mutind; 
     unfold zeroconst2GV_aux__gv_inject_refl_prop, 
@@ -149,13 +151,13 @@ Case "wf_styp_structure".
     eapply wf_styp__feasible_typ_aux_mutrec_struct; eauto.
   subst. 
   inv_mbind. symmetry_ctx.
-  eapply H in HeqR0; eauto 2.
+  eapply H1 in HeqR0; eauto 2.
   destruct g as [|]; uniq_result; try solve [auto using gv_inject_uninits].
   
 Case "wf_styp_array".
   destruct sz5 as [|s]; try solve [uniq_result; auto using gv_inject_uninits].
   inv_mbind. symmetry_ctx.
-  eapply_clear H in HeqR; eauto 1.
+  eapply_clear H0 in HeqR; eauto 1.
   apply gv_inject_app; auto.
     apply gv_inject_app; auto.
       apply gv_inject_uninits.
@@ -174,10 +176,10 @@ Case "wf_styp_cons".
   destruct R as [lsd lt]. simpl.
   intros. subst.
   apply eq_system_targetdata_cons_inv in Heq'. 
-  destruct Heq' as [H2 [EQ1 EQ2]]; subst.
+  destruct Heq' as [H4 [EQ1 EQ2]]; subst.
   inv_mbind. symmetry_ctx.
-  eapply H in HeqR1; eauto 1. clear H.
-  eapply H0 in HeqR0; eauto 1. clear H0.
+  eapply H0 in HeqR1; eauto 1. clear H0.
+  eapply H2 in HeqR0; eauto 1. clear H2.
   apply gv_inject_app; auto.
   apply gv_inject_app; auto.
     apply gv_inject_uninits.
@@ -1351,14 +1353,16 @@ Proof.
   apply gv_inject_app; auto.
 Qed.
 
-Definition sb_mem_inj__const2GV_prop S TD c t (H:wf_const S TD c t) := 
+Definition sb_mem_inj__const2GV_prop S TD c t :=
+  wf_const S TD c t ->
   forall maxb mi Mem1 Mem2 gl gv t',
   wf_sb_mi maxb mi Mem1 Mem2 ->
   wf_globals maxb gl -> 
   _const2GV TD gl c = Some (gv,t') ->
   t = t' /\ gv_inject mi gv gv.
 
-Definition sb_mem_inj__list_const2GV_prop sdct (H:wf_const_list sdct) := 
+Definition sb_mem_inj__list_const2GV_prop sdct :=
+  wf_const_list sdct ->
   let 'lsdct := unmake_list_system_targetdata_const_typ sdct in
   let '(lsdc, lt) := split lsdct in
   let '(lsd, lc) := split lsdc in
@@ -1378,8 +1382,8 @@ Definition sb_mem_inj__list_const2GV_prop sdct (H:wf_const_list sdct) :=
   ).
 
 Lemma sb_mem_inj__const2GV_mutrec :
-  (forall S td c t H, sb_mem_inj__const2GV_prop S td c t H) /\
-  (forall sdct H, sb_mem_inj__list_const2GV_prop sdct H).
+  (forall S td c t, sb_mem_inj__const2GV_prop S td c t) /\
+  (forall sdct, sb_mem_inj__list_const2GV_prop sdct).
 Proof.
   (wfconst_cases (apply wf_const_mutind; 
                     unfold sb_mem_inj__const2GV_prop, 
@@ -1388,7 +1392,7 @@ Proof.
 Case "wfconst_zero".
   inv_mbind. eauto using zeroconst2GV__gv_inject_refl.
 Case "wfconst_floatingpoint".
-  destruct floating_point5; inv H1; unfold val2GV; simpl; auto.
+  destruct floating_point5; inv H2; unfold val2GV; simpl; auto.
 Case "wfconst_undef".
   inv_mbind.  split; eauto using gv_inject_gundef.
 Case "wfconst_null".
@@ -1396,7 +1400,7 @@ Case "wfconst_null".
     unfold val2GV; simpl; auto.
     apply gv_inject_cons; auto.
     apply MoreMem.val_inject_ptr with (delta:=0); auto.
-    destruct H. auto.
+    destruct H0. auto.
 Case "wfconst_array". Focus.
   inv_mbind.
   remember (split
@@ -1416,19 +1420,19 @@ Case "wfconst_array". Focus.
         | 0%nat => _
         | S _ => _ 
         end = _ |- _ => 
-  rewrite e in H3; unfold Size.to_nat in *;
+  rewrite H1 in H3; unfold Size.to_nat in *;
   destruct sz5; inv H3
   end.
     eauto using gv_inject_uninits.
 
-    destruct (@H system5 maxb mi Mem1 Mem2 targetdata5 gl) as [J1 J2]; 
+    destruct (@H0 system5 maxb mi Mem1 Mem2 targetdata5 gl) as [J1 J2]; 
       try solve 
       [destruct targetdata5; eauto using const2GV_typsize_mutind_array'].
     symmetry_ctx.
     assert (make_list_const lc = const_list) as EQ.
       eapply make_list_const_spec2; eauto.
     rewrite <- EQ in HeqR. subst.
-    rewrite length_unmake_make_list_const in e. 
+    rewrite length_unmake_make_list_const in H1. 
     apply J1 in HeqR; eauto using make_list_const_spec4.
 Unfocus.
 
@@ -1449,19 +1453,18 @@ Case "wfconst_struct". Focus.
            (make_list_const
               (map_list_const_typ (fun (const_ : const) (_ : typ) => const_)
                  const_typ_list))) as R1.
-  destruct R1 as [[gv0 ts]|]; inv H2.
-  destruct (@H system5 maxb mi Mem1 Mem2 (layouts5, namedts5) gl) as [J1 J2];
+  destruct R1 as [[gv0 ts]|]; inv H7.
+  destruct (@H0 system5 maxb mi Mem1 Mem2 (layouts5, namedts5) gl) as [J1 J2];
     eauto using const2GV_typsize_mutind_struct'.
   symmetry in HeqR1.
   erewrite <- map_list_const_typ_spec2 in HeqR1; eauto.
-  erewrite <- map_list_const_typ_spec1 in e; eauto.
+  erewrite <- map_list_const_typ_spec1 in H2; eauto.
   apply J2 in HeqR1; eauto.
-  clear J1 J2 H.
   destruct HeqR1 as [J6 J7]; subst.
   match goal with
-  | H2: (if _ then _ else _) = _ |- _ => rewrite e in H2
+  | H2': (if _ then _ else _) = _ |- _ => rewrite H2 in H2'
   end.
-  destruct gv0; inv H4; eauto.
+  destruct gv0; inv H9; eauto.
     split; auto using gv_inject_uninits.
 Unfocus.
 
@@ -1470,49 +1473,49 @@ Case "wfconst_gid".
 
 Case "wfconst_trunc_int".
   inv_mbind. symmetry_ctx.
-  eapply H in HeqR; eauto. destruct HeqR.
+  eapply H0 in HeqR; eauto. destruct HeqR.
   split; auto.
     eapply simulation__mtrunc_refl in HeqR0; eauto.
 
 Case "wfconst_trunc_fp".
   inv_mbind. symmetry_ctx.
-  eapply H in HeqR; eauto. destruct HeqR.
+  eapply H0 in HeqR; eauto. destruct HeqR.
   split; auto.
     eapply simulation__mtrunc_refl in HeqR0; eauto.
 
 Case "wfconst_zext".
   inv_mbind. symmetry_ctx.
-  eapply H in HeqR; eauto. destruct HeqR.
+  eapply H0 in HeqR; eauto. destruct HeqR.
   split; auto.
     eapply simulation__mext_refl in HeqR0; eauto.
 
 Case "wfconst_sext".
   inv_mbind. symmetry_ctx.
-  eapply H in HeqR; eauto. destruct HeqR.
+  eapply H0 in HeqR; eauto. destruct HeqR.
   split; auto.
     eapply simulation__mext_refl in HeqR0; eauto.
 
 Case "wfconst_fpext".
   inv_mbind. symmetry_ctx.
-  eapply H in HeqR; eauto. destruct HeqR.
+  eapply H0 in HeqR; eauto. destruct HeqR.
   split; auto.
     eapply simulation__mext_refl in HeqR0; eauto.
 
 Case "wfconst_ptrtoint".
   inv_mbind. symmetry_ctx.
-  eapply H in HeqR; eauto. destruct HeqR.
+  eapply H0 in HeqR; eauto. destruct HeqR.
   split; auto.
     eauto using gv_inject_gundef.
 
 Case "wfconst_inttoptr".
   inv_mbind. symmetry_ctx.
-  eapply H in HeqR; eauto. destruct HeqR.
+  eapply H0 in HeqR; eauto. destruct HeqR.
   split; auto.
     eauto using gv_inject_gundef.
 
 Case "wfconst_bitcast".
   inv_mbind. symmetry_ctx.
-  eapply H in HeqR; eauto. destruct HeqR.
+  eapply H0 in HeqR; eauto. destruct HeqR.
   split; auto.
     assert (mcast targetdata5 castop_bitcast t (typ_pointer typ2) g = ret gv) 
       as J.
@@ -1521,18 +1524,18 @@ Case "wfconst_bitcast".
 
 Case "wfconst_gep". Focus.
   remember (_const2GV targetdata5 gl const_5) as R1.
-  destruct R1 as [[gv1 t1]|]; tinv H3.
+  destruct R1 as [[gv1 t1]|]; tinv H9.
   symmetry in HeqR1.
-  eapply H in HeqR1; eauto. destruct HeqR1. 
-  destruct t1; tinv H3.
+  eapply H0 in HeqR1; eauto. destruct HeqR1. 
+  destruct t1; tinv H9.
   remember (getConstGEPTyp const_list (typ_pointer t1)) as R2.
-  destruct R2; tinv H3.
+  destruct R2; tinv H9.
   remember (GV2ptr targetdata5 (getPointerSize targetdata5) gv1) as R3.
-  destruct R3; tinv H3.
+  destruct R3; tinv H9.
     remember (intConsts2Nats targetdata5 const_list) as R4.
-    destruct R4; tinv H3.
+    destruct R4; tinv H9.
       remember (mgep targetdata5 t1 v l0) as R5.
-      destruct R5; inv H3.
+      destruct R5; inv H9.
         symmetry_ctx. uniq_result.
         eapply simulation__mgep_refl with (mi:=mi) in HeqR5; 
           eauto using GV2ptr_refl.
@@ -1553,68 +1556,68 @@ Case "wfconst_select".
 Case "wfconst_icmp".
   inv_mbind. 
   symmetry_ctx.
-  eapply H in HeqR; eauto. clear H.
-  eapply H0 in HeqR0; eauto. clear H0.
+  eapply H0 in HeqR; eauto. clear H0.
+  eapply H2 in HeqR0; eauto. clear H2.
   destruct HeqR. destruct HeqR0.
   split; eauto 2 using simulation__micmp_refl.
 
 Case "wfconst_fcmp".
-  inv_mbind. destruct t; tinv H5.
+  inv_mbind. destruct t; tinv H11.
   inv_mbind. 
   symmetry_ctx.
-  eapply H in HeqR; eauto. clear H.
-  eapply H0 in HeqR0; eauto. clear H0.
+  eapply H1 in HeqR; eauto. clear H1.
+  eapply H3 in HeqR0; eauto. clear H3.
   destruct HeqR. destruct HeqR0.
   split; eauto 2 using simulation__mfcmp_refl.
 
 Case "wfconst_extractvalue". 
   remember (_const2GV targetdata5 gl const_5) as R.
-  destruct R as [[gv1 t1]|]; tinv H3.
+  destruct R as [[gv1 t1]|]; tinv H10.
   inv_mbind. symmetry_ctx.
-  eapply H in HeqR; eauto. destruct HeqR. subst. 
-  destruct e0 as [idxs [o [J3 J4]]].
+  eapply H0 in HeqR; eauto. destruct HeqR. subst. 
+  destruct H6 as [idxs [o [J3 J4]]].
   eapply getSubTypFromConstIdxs__mgetoffset in HeqR0; eauto.
   subst.
   split; auto.
     eapply simulation__extractGenericValue_refl; eauto.
 Case "wfconst_insertvalue". 
   remember (_const2GV targetdata5 gl const_5) as R1.
-  destruct R1 as [[gv1 t1]|]; tinv H4.
+  destruct R1 as [[gv1 t1]|]; tinv H12.
   remember (_const2GV targetdata5 gl const') as R2.
-  destruct R2 as [[gv2 t2]|]; tinv H4.
+  destruct R2 as [[gv2 t2]|]; tinv H12.
   remember (insertGenericValue targetdata5 t1 gv1 const_list t2 gv2) as R3.
-  destruct R3; inv H4. symmetry_ctx.
-  eapply H in HeqR1; eauto.
+  destruct R3; inv H12. symmetry_ctx.
+  eapply H0 in HeqR1; eauto.
   destruct HeqR1 as [J1 J2]; subst.
-  eapply H0 in HeqR2; eauto.
+  eapply H2 in HeqR2; eauto.
   destruct HeqR2 as [J3 J4]; subst.
   split; auto.
     eapply simulation__insertGenericValue_refl in HeqR3; eauto.
 Case "wfconst_bop".
   remember (_const2GV targetdata5 gl const1) as R1.
   remember (_const2GV targetdata5 gl const2) as R2.
-  destruct R1 as [[gv1 t1]|]; tinv H3.
-  destruct_typ t1; tinv H3.
-  destruct R2 as [[gv2 t2]|]; tinv H3.
+  destruct R1 as [[gv1 t1]|]; tinv H6.
+  destruct_typ t1; tinv H6.
+  destruct R2 as [[gv2 t2]|]; tinv H6.
   remember (mbop targetdata5 bop5 s0 gv1 gv2) as R3.
-  destruct R3; inv H3. symmetry_ctx.
-  eapply H in HeqR1; eauto.
+  destruct R3; inv H6. symmetry_ctx.
+  eapply H0 in HeqR1; eauto.
   destruct HeqR1; subst.
-  eapply H0 in HeqR2; eauto.
+  eapply H2 in HeqR2; eauto.
   destruct HeqR2; subst.
   split; auto.
     eapply simulation__mbop_refl in HeqR3; eauto.
 Case "wfconst_fbop".
   remember (_const2GV targetdata5 gl const1) as R1.
   remember (_const2GV targetdata5 gl const2) as R2.
-  destruct R1 as [[gv1 t1]|]; tinv H3.
-  destruct_typ t1; tinv H3.
-  destruct R2 as [[gv2 t2]|]; tinv H3.
+  destruct R1 as [[gv1 t1]|]; tinv H6.
+  destruct_typ t1; tinv H6.
+  destruct R2 as [[gv2 t2]|]; tinv H6.
   remember (mfbop targetdata5 fbop5 f gv1 gv2) as R3.
-  destruct R3; inv H3. symmetry_ctx.
-  eapply H in HeqR1; eauto.
+  destruct R3; inv H6. symmetry_ctx.
+  eapply H0 in HeqR1; eauto.
   destruct HeqR1; subst.
-  eapply H0 in HeqR2; eauto.
+  eapply H2 in HeqR2; eauto.
   destruct HeqR2; subst.
   split; auto.
     eapply simulation__mfbop_refl in HeqR3; eauto.
@@ -1650,9 +1653,9 @@ Case "wfconst_cons".
     apply wf_list_targetdata_typ_cons_inv' in HwfTD.
     destruct HwfTD as [J1 [J2 J3]]; subst.
     symmetry in HeqR'.
-    eapply H in HeqR'; eauto.
+    eapply H0 in HeqR'; eauto.
     destruct HeqR' as [J5 J6]; subst.
-    eapply H0 in J1; eauto. destruct J1 as [J1 _]. clear H H0.
+    eapply H2 in J1; eauto. destruct J1 as [J1 _]. clear H0 H2.
     symmetry in HeqR.
     apply J1 in HeqR; auto.
       apply gv_inject_app; eauto.
@@ -1669,9 +1672,9 @@ Case "wfconst_cons".
     apply wf_list_targetdata_typ_cons_inv' in HwfTD.
     destruct HwfTD as [J1' [J2' J3]]; subst.
     symmetry in HeqR'.
-    eapply H in HeqR'; eauto.
+    eapply H0 in HeqR'; eauto.
     destruct HeqR' as [J5 J6]; subst.
-    eapply H0 in J1'; eauto. destruct J1' as [_ J1']. clear H H0.
+    eapply H2 in J1'; eauto. destruct J1' as [_ J1']. clear H0 H2.
     symmetry in HeqR.
     apply J1' in HeqR; auto.
     destruct HeqR as [J7 J8]; subst.

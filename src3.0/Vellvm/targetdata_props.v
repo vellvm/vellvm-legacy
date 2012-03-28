@@ -341,15 +341,16 @@ Proof.
       uniq_result. eauto.
 Qed.
 
-Definition wf_styp__feasible_typ_aux_Prop S TD t (H: wf_styp S TD t) := 
-  forall los nts 
+Definition wf_styp__feasible_typ_aux_Prop S TD t :=
+  forall (H : wf_styp S TD t) los nts 
   (Hnc: forall id5, lookupAL _ nts id5 <> None ->
         exists P, 
           lookupAL _ (feasible_typ_for_namedts los nts) id5 = Some P /\ P),
   TD = (los, nts) ->
   LLVMtd.feasible_typ_aux los (feasible_typ_for_namedts los nts) t.
 
-Definition wf_styp_list__feasible_typs_aux_Prop sdt (H:wf_styp_list sdt) := 
+Definition wf_styp_list__feasible_typs_aux_Prop sdt :=
+  forall (H : wf_styp_list sdt),
   let 'lsdt := unmake_list_system_targetdata_typ sdt in
   let '(lsd, lt) := split lsdt in
   forall S TD los nts
@@ -362,8 +363,8 @@ Definition wf_styp_list__feasible_typs_aux_Prop sdt (H:wf_styp_list sdt) :=
     (make_list_typ lt).
 
 Lemma wf_styp__feasible_typ_aux_mutrec :
-  (forall S TD t H, wf_styp__feasible_typ_aux_Prop S TD t H) /\
-  (forall sdt H, wf_styp_list__feasible_typs_aux_Prop sdt H).
+  (forall S TD t, wf_styp__feasible_typ_aux_Prop S TD t) /\
+  (forall sdt, wf_styp_list__feasible_typs_aux_Prop sdt).
 Proof. 
   (wfstyp_cases (apply wf_styp_mutind; 
                  unfold wf_styp__feasible_typ_aux_Prop, 
@@ -383,18 +384,18 @@ Case "wf_styp_structure".
   assert (eq_system_targetdata system5 (los, nts) lsd) as EQ2.
     eapply wf_styp__feasible_typ_aux_mutrec_struct; eauto.
   subst.
-  eapply H; eauto. 
+  eapply H1; eauto. 
 
 Case "wf_styp_namedt".
-  apply Hnc in n.
-  destruct n as [P [n1 n2]]. fill_ctxhole. auto.
+  apply Hnc in H.
+  destruct H as [P [n1 n2]]. fill_ctxhole. auto.
 
 Case "wf_styp_cons".
   remember (split (unmake_list_system_targetdata_typ l')) as R.
   destruct R as [lsd lt]. simpl.
   intros. subst.
-  apply eq_system_targetdata_cons_inv in H2. 
-  destruct H2 as [H2 [EQ1 EQ2]]; subst.
+  apply eq_system_targetdata_cons_inv in H4. 
+  destruct H4 as [H4 [EQ1 EQ2]]; subst.
   split; eauto.
 Qed.
 
@@ -463,14 +464,16 @@ Proof.
   simpl. auto.
 Qed.
 
-Definition wf_zeroconst2GV_aux_total_prop S TD t (H: wf_styp S TD t) := 
+Definition wf_zeroconst2GV_aux_total_prop S TD t :=
+  wf_styp S TD t ->
   forall acc los nts' (Hty: feasible_typ (los, nts') t) nts 
   (Heq: TD = (los, nts))
   (Hnc: forall id5, lookupAL _ nts id5 <> None ->
         exists gv5, lookupAL _ acc id5 = Some (Some gv5)),
   exists gv, zeroconst2GV_aux (los, nts') acc t = Some gv.
 
-Definition wf_zeroconsts2GV_aux_total_prop sdt (H:wf_styp_list sdt) := 
+Definition wf_zeroconsts2GV_aux_total_prop sdt :=
+  wf_styp_list sdt ->
   let 'lsdt := unmake_list_system_targetdata_typ sdt in
   let '(lsd, lt) := split lsdt in
   forall S TD acc los nts' (Hty: feasible_typs (los, nts') (make_list_typ lt))
@@ -481,8 +484,8 @@ Definition wf_zeroconsts2GV_aux_total_prop sdt (H:wf_styp_list sdt) :=
   exists gvn, zeroconsts2GV_aux (los, nts') acc (make_list_typ lt) = Some gvn.
 
 Lemma wf_zeroconst2GV_aux_total_mutrec :
-  (forall S T t H, wf_zeroconst2GV_aux_total_prop S T t H) /\
-  (forall sdt H, wf_zeroconsts2GV_aux_total_prop sdt H).
+  (forall S T t, wf_zeroconst2GV_aux_total_prop S T t) /\
+  (forall sdt, wf_zeroconsts2GV_aux_total_prop sdt).
 Proof.
 Local Opaque feasible_typ feasible_typs.
   (wfstyp_cases (apply wf_styp_mutind; 
@@ -504,7 +507,7 @@ Case "wf_styp_structure".
     eapply wf_styp__feasible_typ_aux_mutrec_struct; eauto.
   subst.
   apply feasible_struct_typ_inv in Hty.
-  eapply H in Hty; eauto. 
+  eapply H1 in Hty; eauto. 
   fill_ctxhole. destruct x; eauto.
 
 Case "wf_styp_array". 
@@ -512,12 +515,12 @@ Case "wf_styp_array".
   assert (J:=Hty).
   apply feasible_typ_inv'' in J.
   destruct J as [ssz [asz [J1 J2]]].
-  eapply H in Hty; eauto.
+  eapply H0 in Hty; eauto.
   repeat fill_ctxhole.
   destruct sz5; eauto.
 
 Case "wf_styp_namedt". 
-  apply Hnc in n.
+  apply Hnc in H.
   fill_ctxhole. eauto.
 
 Case "wf_styp_cons".
@@ -526,13 +529,13 @@ Case "wf_styp_cons".
   simpl. intros. subst.
   apply feasible_cons_typs_inv in Hty.
   destruct Hty as [J3 J4].
-  apply eq_system_targetdata_cons_inv in H1. 
-  destruct H1 as [H1 [EQ1 EQ2]]; subst.
+  apply eq_system_targetdata_cons_inv in H3. 
+  destruct H3 as [H3 [EQ1 EQ2]]; subst.
   assert (J:=J3).
   apply feasible_typ_inv'' in J.
   destruct J as [ssz [asz [J6 J5]]].
-  eapply_clear H in J3; eauto.
-  eapply_clear H0 in J4; eauto.
+  eapply_clear H0 in J3; eauto.
+  eapply_clear H2 in J4; eauto.
   repeat fill_ctxhole. eauto.
 Transparent feasible_typ feasible_typs.
 Qed.
@@ -685,7 +688,8 @@ Proof.
 Qed.
 
 Definition wf_styp__getTypeSizeInBits_and_Alignment_prop' 
-  S TD t (H: wf_styp S TD t) := 
+  S TD t :=
+  wf_styp S TD t ->
   forall los nts nm2
   (Hnc: forall id5, lookupAL _ nts id5 <> None ->
         exists sz0 : nat, exists al : nat,
@@ -697,7 +701,8 @@ Definition wf_styp__getTypeSizeInBits_and_Alignment_prop'
     (sz > 0)%nat /\ (al > 0)%nat.
 
 Definition wf_list_styp__getListTypeSizeInBits_and_Alignment_prop' 
-  sdt (H:wf_styp_list sdt) := 
+  sdt :=
+  wf_styp_list sdt ->
   let 'lsdt := unmake_list_system_targetdata_typ sdt in
   let '(lsd, lt) := split lsdt in
   forall S TD los nts nm2
@@ -713,8 +718,8 @@ Definition wf_list_styp__getListTypeSizeInBits_and_Alignment_prop'
     ((sz > 0)%nat -> (al > 0)%nat).
 
 Lemma wf_styp__getTypeSizeInBits_and_Alignment_mutrec' :
-  (forall S TD t H, wf_styp__getTypeSizeInBits_and_Alignment_prop' S TD t H) /\
-  (forall sdt H, wf_list_styp__getListTypeSizeInBits_and_Alignment_prop' sdt H).
+  (forall S TD t, wf_styp__getTypeSizeInBits_and_Alignment_prop' S TD t) /\
+  (forall sdt, wf_list_styp__getListTypeSizeInBits_and_Alignment_prop' sdt).
 Proof.
   (wfstyp_cases (apply wf_styp_mutind;
     unfold wf_styp__getTypeSizeInBits_and_Alignment_prop', 
@@ -751,14 +756,14 @@ Case "wf_styp_structure".
   assert (eq_system_targetdata system5 (los, nts) lsd) as EQ2.
     eapply wf_styp__feasible_typ_aux_mutrec_struct; eauto.
   subst.
-  eapply H in Hnc; eauto.
+  eapply H1 in Hnc; eauto.
   destruct Hnc as [sz [al [J1 J2]]]. fill_ctxhole.
   destruct sz.
     exists 8%nat. exists 1%nat. split; auto. omega.
     exists (S sz0). exists al. split; auto. omega.
 
 Case "wf_styp_array".
-  eapply H in Hnc; eauto.
+  eapply H0 in Hnc; eauto.
   destruct Hnc as [sz [al [J1 [J2 J3]]]].
   fill_ctxhole.
   destruct sz5 as [|s].
@@ -796,10 +801,10 @@ Case "wf_styp_cons".
   remember (split (unmake_list_system_targetdata_typ l')) as R.
   destruct R as [lsd lt]. simpl.
   intros. subst.
-  apply eq_system_targetdata_cons_inv in H2. 
-  destruct H2 as [H2 [EQ1 EQ2]]; subst.
-  edestruct H as [sz1 [al1 [J11 [J12 J13]]]]; eauto.
-  edestruct H0 as [sz2 [al2 [J22 J23]]]; eauto.
+  apply eq_system_targetdata_cons_inv in H4. 
+  destruct H4 as [H4 [EQ1 EQ2]]; subst.
+  edestruct H0 as [sz1 [al1 [J11 [J12 J13]]]]; eauto.
+  edestruct H2 as [sz2 [al2 [J22 J23]]]; eauto.
   repeat fill_ctxhole.
   destruct (le_lt_dec al1 al2); eauto.
     exists (sz2 +

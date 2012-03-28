@@ -122,6 +122,21 @@ Proof.
       right. apply IHps. trivial.
 Qed.
 
+(*
+(* Move to typing_props *)
+Lemma wf_namedts_independent :
+  forall (sys1 sys2 : system) (p : layouts * namedts),
+    wf_namedts sys1 p -> wf_namedts sys2 p.
+Proof.
+  intros sys1 sys2 p Hwf. destruct p as [los nts].
+  inversion Hwf as [? ? ? Hnts Htarget]. subst.
+  constructor; trivial. clear Hwf Htarget.
+
+  induction Hnts as [|ts sys1 i nts Hnts IH Hwf]. constructor.
+  constructor. trivial.
+  eapply wf_typ_independent. eauto.
+Qed.
+*)
 Lemma dae_wfS: forall
   (id0 : id) (f :fdef) (pinfo : PhiInfo)
   (los : layouts) (nts : namedts) (Ps1 Ps2 : list product)
@@ -132,21 +147,17 @@ Lemma dae_wfS: forall
   wf_system
     [module_intro los nts (Ps1 ++ product_fdef (remove_fdef id0 f) :: Ps2)].
 Proof.
+Admitted.
 (*
-   TODO: port to 3.0
-
   intros. apply wf_system_intro.
 
     apply wf_modules_cons; [|apply wf_modules_nil].
-    constructor.
+    constructor; try (left; trivial).
 
-      constructor.
-      inversion HwfS as [ms H _]. subst.
-      inversion H as [|sys m ms Hm Hms]. subst.
-      inversion Hm as [? ? ? ? Hnames Hin Hprods]. subst.
-      inversion Hnames as [? ? ? Hty Htarget]. subst.
-
-      left. trivial.
+      inversion HwfS as [ms Hms _]. subst. clear HwfS.
+      inversion Hms as [|? m ? Hm _]. subst. clear Hms.
+      inversion Hm as [? ? ? ? Hnames _ _]. subst. clear Hm.
+      eapply wf_namedts_independent. eauto.
 
       apply in_module_wf_prods. intros p Hin.
       unfold is_true in Hin. rewrite InProductsB_In in Hin.
@@ -159,15 +170,16 @@ Proof.
       clear Hin. destruct Hin' as [Hp | Hp].
 
         match goal with
-          | H : wf_system nil [?m] |- _ =>
+          | H : wf_system [?m] |- _ =>
             match m with
               | module_intro _ _ ?ps =>
-                assert (wf_prod nil [m] m p);
+                assert (wf_prod [m] m p);
                 [apply wf_prods__wf_prod with ps | idtac]
             end
         end.
 
-          inversion HwfS. inversion H. inversion H7. trivial.
+
+          inversion HwfS. inversion H. inversion H5. trivial.
 
           rewrite InProductsB_In. rewrite in_app.
           destruct Hp; auto. repeat right. trivial.
@@ -176,8 +188,8 @@ Proof.
 
         subst p. apply wf_prod_function_def. apply wf_g_intro.
         match goal with
-          | H : wf_system nil [?m] |- _ =>
-            assert (Hf : wf_fdef nil [m] m f)
+          | H : wf_system [?m] |- _ =>
+            assert (Hf : wf_fdef [m] m f)
         end.
 
           apply wf_system__wf_fdef. trivial.
@@ -190,7 +202,7 @@ Proof.
         admit.
 
     split; simpl; trivial.
-    inversion HwfS as [ins sys _ H]. subst ins sys.
+    inversion HwfS as [sys _ H]. subst sys.
     destruct H as [[Huniq [H1 H2]] _]. repeat split; trivial; clear H1.
 
       clear H2. apply Forall_forall. intros p Hin.
@@ -202,7 +214,7 @@ Proof.
 
         rewrite <- Hin. apply remove_fdef__uniqFdef.
         match goal with
-          | H : wf_system nil [?m] |- _ =>
+          | H : wf_system [?m] |- _ =>
             apply (uniqSystem__uniqFdef [m] f m)
         end. inversion HwfS. subst. trivial.
         apply andb_true_intro. split.
@@ -223,4 +235,3 @@ Proof.
       apply NoDup_cons; trivial.
 Qed.
 *)
-Admitted.

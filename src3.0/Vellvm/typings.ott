@@ -632,7 +632,7 @@ Jwf_const :: '' ::=
       system , targetdata |- typ''
       % Check indexs
       checkIndexes targetdata typ </ constj // j /> = typ'
-      system , targetdata |- typ' 
+      system , targetdata |- typ'
       --------------------------------------------------------------------- :: wf_const_extractvalue
       system , targetdata |-c extractvalue const </ constj // j /> : typ'
 
@@ -732,8 +732,8 @@ Jwf_insn_base :: '' ::=
 defns
 Jwf_cast :: '' ::=
       defn
-      system , module , fdef , block |-cast insn :: :: wf_cast :: '' 
-      {{ com cast [[insn]] is well-formed w.r.t [[block]] in [[fdef]] in [[module]] [[system]] }} by  
+      system , module , fdef , block |-cast insn :: :: wf_cast :: ''
+      {{ com cast [[insn]] is well-formed w.r.t [[block]] in [[fdef]] in [[module]] [[system]] }} by
 
       % Check typs
       system , (layouts namedts products) , fdef |- value1 : typ *
@@ -741,7 +741,7 @@ Jwf_cast :: '' ::=
       % Check invariance for instructions
       fdef , block |-i id = ptrtoint ( typ * ) value1 to ( int sz )
       ------------------------------------------------------------------------------------------------------- :: wf_cast_ptrtoint
-      system , (layouts namedts products) , fdef , block |-cast id = ptrtoint ( typ * ) value1 to ( int sz )	
+      system , (layouts namedts products) , fdef , block |-cast id = ptrtoint ( typ * ) value1 to ( int sz )
 
 
       % Check typs
@@ -767,13 +767,13 @@ Jwf_cast :: '' ::=
       fdef , block |-i id = bitcast typ1* value1 to typ2*
       system , (layouts namedts) |- typ2*
       --------------------------------------------------------------------------------------------- :: wf_cast_bitcast
-      system , (layouts namedts products) , fdef , block |-cast id = bitcast typ1* value1 to typ2*		
+      system , (layouts namedts products) , fdef , block |-cast id = bitcast typ1* value1 to typ2*
 
 defns
 Jwf_trunc :: '' ::=
       defn
-      system , module , fdef , block |-trunc insn :: :: wf_trunc :: '' 
-      {{ com trunc [[insn]] is well-formed w.r.t [[block]] in [[fdef]] in [[module]] [[system]] }} by  
+      system , module , fdef , block |-trunc insn :: :: wf_trunc :: ''
+      {{ com trunc [[insn]] is well-formed w.r.t [[block]] in [[fdef]] in [[module]] [[system]] }} by
 
       % Check typs
       system , (layouts namedts products) , fdef |- value1 : int sz1
@@ -783,7 +783,7 @@ Jwf_trunc :: '' ::=
       % Check invariance for instructions
       fdef , block |-i id = trunc_int ( int sz1 ) value1 to ( int sz2 )
       ----------------------------------------------------------------------------------------------- :: wf_trunc_int
-      system , (layouts namedts products) , fdef , block |-trunc id = trunc_int ( int sz1 ) value1 to ( int sz2 )	
+      system , (layouts namedts products) , fdef , block |-trunc id = trunc_int ( int sz1 ) value1 to ( int sz2 )
 
       % Check typs
       system , (layouts namedts products) , fdef |- value1 : floating_point1
@@ -794,13 +794,13 @@ Jwf_trunc :: '' ::=
       fdef , block |-i id = trunc_fp floating_point1 value1 to floating_point2
       system , (layouts namedts) |- floating_point2
       ----------------------------------------------------------------------------------------------- :: wf_trunc_fp
-      system , (layouts namedts products) , fdef , block |-trunc id = trunc_fp floating_point1 value1 to floating_point2	
+      system , (layouts namedts products) , fdef , block |-trunc id = trunc_fp floating_point1 value1 to floating_point2
 
 defns
 Jwf_ext :: '' ::=
       defn
-      system , module , fdef , block |-ext insn :: :: wf_ext :: '' 
-      {{ com ext [[insn]] is well-formed w.r.t [[block]] in [[fdef]] in [[module]] [[system]] }} by  
+      system , module , fdef , block |-ext insn :: :: wf_ext :: ''
+      {{ com ext [[insn]] is well-formed w.r.t [[block]] in [[fdef]] in [[module]] [[system]] }} by
 
       % Check typs
       system , (layouts namedts products) , fdef |- value1 : int sz1
@@ -810,7 +810,7 @@ Jwf_ext :: '' ::=
       % Check invariance for instructions
       fdef , block |-i id = zext ( int sz1 ) value1 to ( int sz2 )
       ------------------------------------------------------------------------------------------------------- :: wf_ext_z
-      system , (layouts namedts products) , fdef , block |-ext id = zext ( int sz1 ) value1 to ( int sz2 )	
+      system , (layouts namedts products) , fdef , block |-ext id = zext ( int sz1 ) value1 to ( int sz2 )
 
       % Check typs
       system , (layouts namedts products) , fdef |- value1 : int sz1
@@ -820,7 +820,7 @@ Jwf_ext :: '' ::=
       % Check invariance for instructions
       fdef , block |-i id = sext ( int sz1 ) value1 to ( int sz2 )
       ------------------------------------------------------------------------------------------------------- :: wf_ext_s
-      system , (layouts namedts products) , fdef , block |-ext id = sext ( int sz1 ) value1 to ( int sz2 )	
+      system , (layouts namedts products) , fdef , block |-ext id = sext ( int sz1 ) value1 to ( int sz2 )
 
       % Check typs
       system , (layouts namedts products) , fdef |- value1 : floating_point1
@@ -831,13 +831,13 @@ Jwf_ext :: '' ::=
       fdef , block |-i id = fpext floating_point1 value1 to floating_point2
       system , (layouts namedts) |- floating_point2
       ------------------------------------------------------------------------------------------------------- :: wf_ext_fp
-      system , (layouts namedts products) , fdef , block |-ext id = fpext floating_point1 value1 to floating_point2	
+      system , (layouts namedts products) , fdef , block |-ext id = fpext floating_point1 value1 to floating_point2
 
 defns
 Jwf_insn :: '' ::=
       defn
-      system , module , fdef , block |- insn :: :: wf_insn :: '' 
-      {{ com [[insn]] is well-formed w.r.t [[block]] in [[fdef]] in [[module]] [[system]] }} by  
+      system , module , fdef , block |- insn :: :: wf_insn :: ''
+      {{ com [[insn]] is well-formed w.r.t [[block]] in [[fdef]] in [[module]] [[system]] }} by
 
       % Check typs
       system , module , fdef |- value : typ
@@ -865,14 +865,14 @@ Jwf_insn :: '' ::=
       % Check invariance for instructions
       fdef , block |-i id = br value l1 l2
       -------------------------------------------------------------------------------------- :: wf_insn_br
-      system , module , fdef , block |- id = br value l1 l2	
+      system , module , fdef , block |- id = br value l1 l2
 
       % Check labels
       lookupBlockViaLabelFromFdef fdef l = block
       % Check invariance for instructions
       fdef , block |-i id = br l
       -------------------------------------------------------------------------------------- :: wf_insn_br_uncond
-      system , module, fdef , block |- id = br l		
+      system , module, fdef , block |- id = br l
 
       % fdef , block |-i id = invoke typ0 id0 params to l1 unwind l2
       % -------------------------------------------------------------------------------------- :: wf_insn_invoke
@@ -943,7 +943,7 @@ Jwf_insn :: '' ::=
       % Check invariance for instructions
       fdef , block |-i id = malloc typ value align
       --------------------------------------------------------------------------------------------------- :: wf_insn_malloc
-      system , (layouts namedts products) , fdef , block |- id = malloc typ value align 
+      system , (layouts namedts products) , fdef , block |- id = malloc typ value align
 
       % Check typs
       system , module , fdef |- value : typ*
@@ -964,7 +964,7 @@ Jwf_insn :: '' ::=
       % Check invariance for instructions
       fdef , block |-i id = alloca typ value align
       -------------------------------------------------------------------------------------------------- :: wf_insn_alloca
-      system , (layouts namedts products) , fdef , block |- id = alloca typ value align 
+      system , (layouts namedts products) , fdef , block |- id = alloca typ value align
 
       % Load operand must be a pointer.
       system , (layouts namedts products) , fdef |- value1 : typ1*
@@ -972,7 +972,7 @@ Jwf_insn :: '' ::=
       % Check invariance for instructions
       fdef , block |-i id = load (typ1*) value1 align
       ------------------------------------------------------------------------------------------------------- :: wf_insn_load
-      system , (layouts namedts products) , fdef , block |- id = load (typ1*) value1 align		
+      system , (layouts namedts products) , fdef , block |- id = load (typ1*) value1 align
 
       % Store operand must be a pointer.
       system , (layouts namedts products) , fdef |- value1 : typ
@@ -1115,7 +1115,7 @@ Jwf_phinodes :: '' ::=
 defns
 Jwf_block :: '' ::=
       defn
-      system , module , fdef |- block :: :: wf_block :: '' 
+      system , module , fdef |- block :: :: wf_block :: ''
       {{ com [[block]] is well-formed w.r.t. [[fdef]] in [[module]] [[system]] }} by
 
       % Inclusion
@@ -1160,8 +1160,8 @@ Jwf_fheader :: '' ::=
 
       % Check function arguments.
       args <-> </ (typj attributesj idj) // j />
-      </ system , targetdata |- typj // j />      
-      % Functions may not have common linkage 
+      </ system , targetdata |- typj // j />
+      % Functions may not have common linkage
       %
       % Formal arguments must match # of arguments for function type!
       %
@@ -1214,8 +1214,8 @@ Jwf_fdef :: '' ::=
       (define ( fnattrs typ id ( args varg ) ) { blocks } ) in system , (layouts namedts products)
       % header
       system , (layouts namedts) |- fnattrs typ id ( args varg )
-      % Check the entry node 
-      % Entry block to function must not have predecessors! 
+      % Check the entry node
+      % Entry block to function must not have predecessors!
       getEntryBlock (define ( fnattrs typ id ( args varg ) ) { blocks }) = block
       {{ genBlockUseDef_fdef [[:user_syntax__fdef:define fheader { blocks }]] = [[usedef_block]] }}
       {{ hasNonePredecessor [[:user_syntax__block:block]] [[usedef_block]] = true }}
@@ -1250,7 +1250,7 @@ Jwf_prod :: '' ::=
       {{ com [[product]] is well-formed w.r.t. [[module]] [[system]]}} by
 
       system , module |-g gvar
-      system , module |-v gvar      
+      system , module |-v gvar
       ------------------------------------------------ :: wf_prod_global_var
       system , module |- gvar
 
@@ -1262,10 +1262,10 @@ Jwf_prod :: '' ::=
       system , module |-g fdef
       system , module |-f fdef
       ---------------------------------------------- :: wf_prod_function_def
-      system , module |- fdef   
+      system , module |- fdef
 
       % -------------------------------------- :: wf_prod_namedtype
-      % system , module |- namedt     
+      % system , module |- namedt
 
 defns
 Jwf_prods :: '' ::=
@@ -1315,7 +1315,7 @@ Jwf_modules :: '' ::=
       ----------------------------- :: wf_modules_nil
       system |- []
 
-      system |- module 
+      system |- module
       system |- modules
       ----------------------------------------------- :: wf_modules_cons
       system |- module , modules
@@ -1346,8 +1346,8 @@ Tactic Notation "wfconst_cases" tactic(first) tactic(c) :=
     c "wfconst_insertvalue" | c "wfconst_bop" | c "wfconst_fbop" |
     c "wfconst_nil" | c "wfconst_cons" ].
 
-Scheme wf_const_ind2 := Induction for wf_const Sort Prop
-  with wf_const_list_ind2 := Induction for wf_const_list Sort Prop.
+Scheme wf_const_ind2 := Minimality for wf_const Sort Prop
+  with wf_const_list_ind2 := Minimality for wf_const_list Sort Prop.
 
 Combined Scheme wf_const_mutind from wf_const_ind2, wf_const_list_ind2.
 
@@ -1358,8 +1358,8 @@ Tactic Notation "wfstyp_cases" tactic(first) tactic(c) :=
     c "wf_styp_pointer" | c "wf_styp_namedt" | c "wf_styp_nil" |
     c  "wf_styp_cons" ].
 
-Scheme wf_styp_ind2 := Induction for wf_styp Sort Prop
-  with wf_styp_list_ind2 := Induction for wf_styp_list Sort Prop.
+Scheme wf_styp_ind2 := Minimality for wf_styp Sort Prop
+  with wf_styp_list_ind2 := Minimality for wf_styp_list Sort Prop.
 
 Combined Scheme wf_styp_mutind from wf_styp_ind2, wf_styp_list_ind2.
 

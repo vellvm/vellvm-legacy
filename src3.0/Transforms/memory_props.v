@@ -1617,8 +1617,8 @@ Proof.
          apply uninits_valid_ptrs.
 Qed.
 
-Definition zeroconst2GV_aux_disjoint_with_runtime_ptr_prop S td (t:typ) 
-  (H:wf_styp S td t) :=
+Definition zeroconst2GV_aux_disjoint_with_runtime_ptr_prop S td (t:typ) :=
+  wf_styp S td t ->
   forall los nts acc (Heq: td = (los, nts)) nts' 
   (Hsub:exists nts0, nts'=nts0++nts) (Huniq: uniq nts')
   maxb gl g mb ofs m
@@ -1631,8 +1631,8 @@ Definition zeroconst2GV_aux_disjoint_with_runtime_ptr_prop S td (t:typ)
           no_alias gv5 [(Vptr mb ofs, m)] /\ valid_ptrs (maxb + 1) gv5),
   no_alias g [(Vptr mb ofs, m)] /\ valid_ptrs (maxb + 1) g.
 
-Definition zeroconsts2GV_aux_disjoint_with_runtime_ptr_prop sdt 
-  (H:wf_styp_list sdt) :=
+Definition zeroconsts2GV_aux_disjoint_with_runtime_ptr_prop sdt :=
+  wf_styp_list sdt ->
   let 'lsdt := unmake_list_system_targetdata_typ sdt in
   let '(lsd, lt) := split lsdt in
   forall S td los nts acc (Heq: td = (los, nts)) nts' 
@@ -1648,8 +1648,8 @@ Definition zeroconsts2GV_aux_disjoint_with_runtime_ptr_prop sdt
   no_alias g [(Vptr mb ofs, m)] /\ valid_ptrs (maxb + 1) g.
 
 Lemma zeroconst2GV_aux_disjoint_with_runtime_ptr_mutrec :
-  (forall S TD t H, zeroconst2GV_aux_disjoint_with_runtime_ptr_prop S TD t H) /\
-  (forall sdt H, zeroconsts2GV_aux_disjoint_with_runtime_ptr_prop sdt H).
+  (forall S TD t, zeroconst2GV_aux_disjoint_with_runtime_ptr_prop S TD t) /\
+  (forall sdt, zeroconsts2GV_aux_disjoint_with_runtime_ptr_prop sdt).
 Proof.
   (wfstyp_cases (apply wf_styp_mutind; 
     unfold zeroconst2GV_aux_disjoint_with_runtime_ptr_prop, 
@@ -1676,14 +1676,14 @@ Case "wf_styp_structure".
     eapply wf_styp__feasible_typ_aux_mutrec_struct; eauto.
   subst. 
   inv_mbind. symmetry_ctx.
-  eapply H in HeqR0; eauto 2.
-  destruct g0; inv H1; auto.
+  eapply H1 in HeqR0; eauto 2.
+  destruct g0; inv H3; auto.
 
 Case "wf_styp_array".
   destruct sz5 as [|s]; 
     try solve [inv Hc2g; auto using uninits_valid_ptrs__disjoint_with_ptr].
     inv_mbind'. symmetry_ctx.
-    eapply H with (ofs:=ofs)(m:=m) in HeqR; eauto.
+    eapply H0 with (ofs:=ofs)(m:=m) in HeqR; eauto.
     assert (no_alias
       (g0 ++ uninits (Size.to_nat s0 - sizeGenericValue g0))
       [(Vptr mb ofs, m)] /\
@@ -1722,10 +1722,10 @@ Local Opaque no_alias valid_ptrs.
   destruct R as [lsd lt]. simpl.
   intros. subst. 
   apply eq_system_targetdata_cons_inv in Heq'. 
-  destruct Heq' as [H2 [EQ1 EQ2]]; subst. uniq_result.
+  destruct Heq' as [H4 [EQ1 EQ2]]; subst. uniq_result.
   inv_mbind. symmetry_ctx.
-  eapply H in HeqR1; eauto 1. clear H.
-  eapply H0 in HeqR0; eauto 1. clear H0.
+  eapply H0 in HeqR1; eauto 1. clear H0.
+  eapply H2 in HeqR0; eauto 1. clear H2.
   destruct HeqR1. destruct HeqR0.
   split.
     apply no_alias_app; auto.
@@ -1841,16 +1841,16 @@ Proof.
     assert (H1:=@H b i0). congruence.
 Qed.
 
-Definition const2GV_disjoint_with_runtime_ptr_prop S td c t 
-  (H:wf_const S td c t) :=
+Definition const2GV_disjoint_with_runtime_ptr_prop S td c t :=
+  wf_const S td c t ->
   forall maxb gl g mb t0 ofs m
   (Hwfg: wf_globals maxb gl)
   (Hc2g : _const2GV td gl c = ret (g, t0))
   (Hle: maxb < mb),
   t = t0 /\ no_alias g [(Vptr mb ofs, m)] /\ valid_ptrs (maxb+1) g.
 
-Definition list_const2GV_disjoint_with_runtime_ptr_prop sdct 
-  (H:wf_const_list sdct) :=
+Definition list_const2GV_disjoint_with_runtime_ptr_prop sdct :=
+  wf_const_list sdct ->
   let 'lsdct := unmake_list_system_targetdata_const_typ sdct in
   let '(lsdc, lt) := split lsdct in
   let '(lsd, lc) := split lsdc in
@@ -1871,8 +1871,8 @@ Definition list_const2GV_disjoint_with_runtime_ptr_prop sdct
   ).
 
 Lemma const2GV_disjoint_with_runtime_ptr_mutrec :
-  (forall S td c t H, const2GV_disjoint_with_runtime_ptr_prop S td c t H) /\
-  (forall sdct H, list_const2GV_disjoint_with_runtime_ptr_prop sdct H).
+  (forall S td c t, const2GV_disjoint_with_runtime_ptr_prop S td c t) /\
+  (forall sdct, list_const2GV_disjoint_with_runtime_ptr_prop sdct).
 Proof.
   (wfconst_cases (apply wf_const_mutind; 
                   unfold const2GV_disjoint_with_runtime_ptr_prop, 
@@ -1911,19 +1911,19 @@ Case "wfconst_array". Focus.
         | 0%nat => _
         | S _ => _ 
         end = _ |- _ => 
-  rewrite e in H3; unfold Size.to_nat in *;
+  rewrite H1 in H3; unfold Size.to_nat in *;
   destruct sz5; inv H3; split; auto
   end.
     simpl. auto.
 
-    destruct (@H system5 targetdata5 maxb gl mb ofs m) as [J1 J2]; 
+    destruct (@H0 system5 targetdata5 maxb gl mb ofs m) as [J1 J2]; 
       try solve 
       [destruct targetdata5; eauto using const2GV_typsize_mutind_array'].
     symmetry_ctx.
     assert (make_list_const lc = const_list) as EQ.
       eapply make_list_const_spec2; eauto.
     rewrite <- EQ in HeqR. subst.
-    rewrite length_unmake_make_list_const in e. 
+    rewrite length_unmake_make_list_const in H1. 
     apply J1 in HeqR; eauto using make_list_const_spec4.
 Unfocus.
 
@@ -1940,15 +1940,15 @@ Case "wfconst_struct". Focus.
   destruct R' as [lsd lc].
   remember (split lsd) as R''.
   destruct R'' as [ls ld].
-  destruct (@H system5 (layouts5, namedts5) maxb gl mb ofs m) as [J1 J2];
+  destruct (@H0 system5 (layouts5, namedts5) maxb gl mb ofs m) as [J1 J2];
     eauto using const2GV_typsize_mutind_struct'.
   destruct_if.
-  destruct g0; inv H2.
+  destruct g0; inv H5.
     split; simpl; auto.
     split; auto.
       symmetry in HeqR.
       erewrite <- map_list_const_typ_spec2 in HeqR; eauto.
-      erewrite <- map_list_const_typ_spec1 in e; eauto.
+      erewrite <- map_list_const_typ_spec1 in H2; eauto.
       apply J2 in HeqR.
       destruct HeqR as [J5 [J6 J7]]; subst.
       split; eauto using uninits_valid_ptrs__disjoint_with_ptr.
@@ -1994,7 +1994,7 @@ Case "wfconst_inttoptr".
     eauto using undef_valid_ptrs.
 Case "wfconst_bitcast".
   symmetry_ctx.
-  eapply H in HeqR; eauto. destruct HeqR as [J1 [J2 J3]].
+  eapply H0 in HeqR; eauto. destruct HeqR as [J1 [J2 J3]].
   assert (mcast targetdata5 castop_bitcast t (typ_pointer typ2) g0 = ret g) 
     as J.
     simpl. auto.
@@ -2004,16 +2004,16 @@ Case "wfconst_bitcast".
     eapply mcast_preserves_valid_ptrs; eauto.
 Case "wfconst_gep". Focus.
   symmetry in HeqR.
-  eapply H with (ofs:=ofs)(m:=m) in HeqR; eauto.
+  eapply H0 with (ofs:=ofs)(m:=m) in HeqR; eauto.
   destruct HeqR as [J1 [J2 J3]]; subst.
   remember (getConstGEPTyp const_list (typ_pointer typ5)) as R2.
-  destruct R2; tinv H2. uniq_result.
+  destruct R2; tinv H8. uniq_result.
   remember (GV2ptr targetdata5 (getPointerSize targetdata5) g0) as R3.
-  destruct R3; tinv H2.
+  destruct R3; tinv H8.
     remember (intConsts2Nats targetdata5 const_list) as R4.
-    destruct R4; tinv H2.
+    destruct R4; tinv H8.
       remember (mgep targetdata5 typ5 v l0) as R5.
-      destruct R5; inv H2.
+      destruct R5; inv H8.
         symmetry_ctx. uniq_result. 
         split; auto.
         split.
@@ -2037,16 +2037,16 @@ Case "wfconst_icmp".
     eapply micmp_preserves_no_alias; eauto.
     eapply micmp_preserves_valid_ptrs; eauto.
 Case "wfconst_fcmp".
-  destruct t; tinv H2. inv_mbind'.
+  destruct t; tinv H8. inv_mbind'.
   split; auto.
   split.
     eapply mfcmp_preserves_no_alias; eauto.
     eapply mfcmp_preserves_valid_ptrs; eauto.
 Case "wfconst_extractvalue".
   symmetry_ctx.
-  eapply H in HeqR; eauto.
+  eapply H0 in HeqR; eauto.
   destruct HeqR as [J1 [J2 J3]]; subst.
-  destruct e0 as [idxs [o [J5 J4]]].
+  destruct H6 as [idxs [o [J5 J4]]].
   eapply getSubTypFromConstIdxs__mgetoffset in HeqR0; eauto.
   subst.
   split; auto.
@@ -2055,8 +2055,8 @@ Case "wfconst_extractvalue".
     eapply extractGenericValue_preserves_valid_ptrs; eauto.
 Case "wfconst_insertvalue".
   symmetry_ctx.
-  eapply H in HeqR; eauto. clear H.
-  eapply H0 in HeqR0; eauto. clear H0 H1.
+  eapply H0 in HeqR; eauto. clear H0.
+  eapply H2 in HeqR0; eauto. clear H2 H3.
   destruct HeqR as [J1 [J2 J3]]; subst.
   destruct HeqR0 as [J4 [J5 J6]]; subst.
   split; auto.
@@ -2065,11 +2065,11 @@ Case "wfconst_insertvalue".
     eapply insertGenericValue_preserves_no_alias in HeqR1; eauto.
     eapply insertGenericValue_preserves_valid_ptrs in HeqR1; eauto.
 Case "wfconst_bop".
-  destruct t; tinv H2. inv_mbind'.
+  destruct t; tinv H5. inv_mbind'.
   symmetry_ctx. 
-  eapply H with (ofs:=ofs)(m:=m) in HeqR; eauto.
+  eapply H0 with (ofs:=ofs)(m:=m) in HeqR; eauto.
   destruct HeqR as [J1 [J2 J3]]; subst.
-  eapply H0 with (ofs:=ofs)(m:=m) in HeqR0; eauto.
+  eapply H2 with (ofs:=ofs)(m:=m) in HeqR0; eauto.
   destruct HeqR0 as [J4 [J5 J6]]; subst.
   uniq_result.
   split; auto.
@@ -2077,11 +2077,11 @@ Case "wfconst_bop".
     eapply mbop_preserves_no_alias; eauto.
     eapply mbop_preserves_valid_ptrs; eauto.
 Case "wfconst_fbop".
-  destruct t; tinv H2. inv_mbind'.
+  destruct t; tinv H5. inv_mbind'.
   symmetry_ctx. 
-  eapply H with (ofs:=ofs)(m:=m) in HeqR; eauto.
+  eapply H0 with (ofs:=ofs)(m:=m) in HeqR; eauto.
   destruct HeqR as [J1 [J2 J3]]; subst.
-  eapply H0 with (ofs:=ofs)(m:=m) in HeqR0; eauto.
+  eapply H2 with (ofs:=ofs)(m:=m) in HeqR0; eauto.
   destruct HeqR0 as [J4 [J5 J6]]; subst.
   uniq_result.
   split; auto.
@@ -2107,14 +2107,14 @@ Local Opaque no_alias.
   remember (split lsd) as R3.
   destruct R3 as [ls ld].
   split; intros; simpl in *; inv_mbind'.
-    destruct (typ_dec t t0); tinv H3.
+    destruct (typ_dec t t0); tinv H5.
     inv_mbind'. symmetry_ctx.
     apply wf_list_targetdata_typ_cons_inv' in Hwfls.
     destruct Hwfls as [J1 [J2 J3]]; subst.
-    eapply H with (ofs:=ofs)(m:=m) in HeqR0; eauto.
+    eapply H0 with (ofs:=ofs)(m:=m) in HeqR0; eauto.
     destruct HeqR0 as [J5 [J6 J7]]; subst.
-    eapply H0 with (ofs:=ofs)(m:=m) in HeqR; eauto. 
-    destruct HeqR as [J8 J9]. clear H H0.
+    eapply H2 with (ofs:=ofs)(m:=m) in HeqR; eauto. 
+    destruct HeqR as [J8 J9]. clear H0 H2.
     split.
       apply no_alias_app; auto.
         apply no_alias_app; auto.
@@ -2126,10 +2126,10 @@ Local Opaque no_alias.
     apply wf_list_targetdata_typ_cons_inv' in Hwfls.
     destruct Hwfls as [J1' [J2' J3]]; subst.
     symmetry_ctx.
-    eapply H with (ofs:=ofs)(m:=m) in HeqR0; eauto.
+    eapply H0 with (ofs:=ofs)(m:=m) in HeqR0; eauto.
     destruct HeqR0 as [J5 [J6 J7]]; subst.
-    eapply H0 with (ofs:=ofs)(m:=m) in HeqR; eauto. 
-    destruct HeqR as [J8 [J9 J10]]; subst. clear H H0.
+    eapply H2 with (ofs:=ofs)(m:=m) in HeqR; eauto. 
+    destruct HeqR as [J8 [J9 J10]]; subst. clear H0 H2.
     split; auto.
     split.
       apply no_alias_app; auto.
