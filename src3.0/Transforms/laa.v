@@ -364,7 +364,7 @@ Proof.
       subst. congruence.
 
     eapply OpsemPP.wf_defs_elim in Hin; eauto.
-    destruct Hin as [? [gvs1 [? [Hin ?]]]].
+    destruct Hin as [? [? [gvs1 [? [Hin ?]]]]].
     simpl.
     assert (wf_const s (los,nts) (const_undef (PI_typ pinfo)) (PI_typ pinfo)) 
       as Hwfc.

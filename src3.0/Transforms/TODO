@@ -18,8 +18,9 @@
    dse
    STATUS: done
 
-6) domination (2W)
+6) domination (2W):6D
   alive_store alive_alloca id_rhs_val las laa
+   STATUS: done
 
 7) reachable <-> reachavlity_analysis (1W)
    palloca_props

@@ -224,7 +224,7 @@ Local Opaque inscope_of_id.
             @LAS_value_PI_id__dominate__LAS_sid S m pinfo lasinfo HwfF 
               Huniq).
   destruct_lasinfo. simpl in *.
-  unfold valueDominates, idDominates.
+  unfold valueDominates, idDominates, id_in_reachable_block.
   match goal with
   | LAS_BInF0: blockInFdefB ?b0 _ = true |- _ =>
     rewrite inGetBlockIDs__lookupBlockViaIDFromFdef with (b:=b0); auto;
@@ -407,11 +407,9 @@ Qed.
 Lemma LAS_block__reachable: forall (pinfo : PhiInfo) (lasinfo : LASInfo pinfo)
   (Huniq : uniqFdef (PI_f pinfo))
   (Hreach : isReachableFromEntry (PI_f pinfo) (LAS_block pinfo lasinfo)),
-  forall b2 : block,
-    lookupBlockViaIDFromFdef (PI_f pinfo) (LAS_lid pinfo lasinfo) = ret b2 ->
-    isReachableFromEntry (PI_f pinfo) b2.
+  id_in_reachable_block (PI_f pinfo) (LAS_lid pinfo lasinfo).
 Proof.
-  intros.
+  unfold id_in_reachable_block. intros.
   rewrite lookup_LAS_lid__LAS_block in H; auto.
   inv H. auto.
 Qed.
@@ -555,7 +553,7 @@ Proof.
       subst. congruence.
 
     eapply OpsemPP.wf_defs_elim in Hin; eauto.
-    destruct Hin as [? [gvs1 [? [Hin ?]]]].
+    destruct Hin as [? [? [gvs1 [? [Hin ?]]]]].
     eauto.
   destruct G2 as [gvsa G2].
   rewrite J2 in G. assert (G2':=G2).
@@ -772,6 +770,14 @@ Proof.
       symmetry. apply lookup_LAS_lid__load; auto.
 Qed.
 
+Lemma LAS_block__reachable': forall (pinfo : PhiInfo) (lasinfo : LASInfo pinfo)
+  (Huniq : uniqFdef (PI_f pinfo))
+  (Hreach: id_in_reachable_block (PI_f pinfo) (LAS_lid pinfo lasinfo)),
+  isReachableFromEntry (PI_f pinfo) (LAS_block pinfo lasinfo).
+Proof.
+  intros. apply Hreach. apply lookup_LAS_lid__LAS_block; auto.
+Qed.
+
 Lemma getOperandValue_inTmnOperands_sim : forall los nts s ps gl pinfo 
   lasinfo (f : fdef) (Hwfg : wf_global (los,nts) s gl) 
   (HwfF: wf_fdef s (module_intro los nts ps) f) (Huniq: uniqFdef f)
@@ -787,6 +793,7 @@ Lemma getOperandValue_inTmnOperands_sim : forall los nts s ps gl pinfo
   (Hinscope : id_rhs_val.wf_defs (value_id (LAS_lid pinfo lasinfo))
                      (LAS_value pinfo lasinfo) (PI_f pinfo)
                      (los, nts) gl f lc l0)
+  (Hinscope' : @OpsemPP.wf_defs DGVs (los, nts) f lc l0)
   (v v' : value)
   (Hvincs : valueInTmnOperands v tmn) gv gv'
   (Hget' : getOperandValue (los, nts) v' lc gl = Some gv')
@@ -810,7 +817,9 @@ Proof.
   eapply Hinscope in Hget; eauto.
     (* lv >> lid /\ lid is inscope ==> lv is inscope *)
     assert(Hreach': isReachableFromEntry (PI_f pinfo) (LAS_block pinfo lasinfo)).
-      admit. (* lid in scope, reachable *)
+      (* lid in scope, reachable *)
+      apply LAS_block__reachable'; auto.
+      eapply OpsemPP.wf_defs_elim in Hinscope'; eauto. tauto.
     clear - HwfF Huniq Hreach HbInF HeqR Hin Hreach'.
     eapply LAS_value_doms_LAS_lid__lid_in_tmn_scope____LAS_value_inscope; eauto.
 Qed.
@@ -866,6 +875,7 @@ Lemma getOperandValue_inCmdOperands_sim : forall los nts s gl pinfo lasinfo
   (Hinscope : id_rhs_val.wf_defs (value_id (LAS_lid pinfo lasinfo))
                      (LAS_value pinfo lasinfo) (PI_f pinfo)
                      (los, nts) gl f lc l0)
+  (Hinscope' : @OpsemPP.wf_defs DGVs (los, nts) f lc l0)
   (v v' : value)
   (Hvincs : valueInCmdOperands v c) gv gv'
   (Hget' : getOperandValue (los, nts) v' lc gl = Some gv')
@@ -890,7 +900,9 @@ Proof.
   eapply Hinscope in Hget; eauto.
     (* lv >> lid /\ lid is inscope ==> lv is inscope *)
     assert(Hreach': isReachableFromEntry (PI_f pinfo) (LAS_block pinfo lasinfo)).
-      admit. (* lid in scope, reachable *)
+      (* lid in scope, reachable *)
+      apply LAS_block__reachable'; auto.
+      eapply OpsemPP.wf_defs_elim in Hinscope'; eauto. tauto.
     clear - HwfF Huniq Hreach HbInF HeqR Hin Hreach'.
     eapply LAS_value_doms_LAS_lid__lid_in_cmd_scope____LAS_value_inscope; eauto.
 Qed.
@@ -962,6 +974,7 @@ Lemma getValueViaLabelFromValuels_getOperandValue_sim : forall
   (Hinscope : id_rhs_val.wf_defs (value_id (LAS_lid pinfo lasinfo))
                      (LAS_value pinfo lasinfo) (PI_f pinfo)
                      (los, nts) gl f lc t)
+  (Hinscope' : @OpsemPP.wf_defs DGVs (los, nts) f lc t)
   (ps' : phinodes) (cs' : cmds) (tmn' : terminator)
   (i0 : id) (l2 : list_value_l) (ps2 : list phinode)
   (Hreach : isReachableFromEntry f (block_intro l0 ps' cs' tmn'))
@@ -992,7 +1005,9 @@ Proof.
     eapply incoming_value__in_scope in H7; eauto.
   eapply Hinscope in HeqR1; eauto.
   assert(Hreach0: isReachableFromEntry (PI_f pinfo) (LAS_block pinfo lasinfo)).
-    admit. (* lid in scope, reachable *)
+    (* lid in scope, reachable *)
+    apply LAS_block__reachable'; auto.
+    eapply OpsemPP.wf_defs_elim in Hinscope'; eauto. tauto.
   eapply LAS_value_doms_LAS_lid__lid_in_tmn_scope____LAS_value_inscope; eauto.
 Qed.
 
@@ -1008,6 +1023,7 @@ Lemma getIncomingValuesForBlockFromPHINodes_sim : forall
   (Hinscope : id_rhs_val.wf_defs (value_id (LAS_lid pinfo lasinfo))
                      (LAS_value pinfo lasinfo) (PI_f pinfo)
                      (los, nts) gl f lc t)
+  (Hinscope' : @OpsemPP.wf_defs DGVs (los, nts) f lc t)
   (ps' : phinodes)
   (cs' : cmds)
   (tmn' : terminator)
@@ -1072,6 +1088,7 @@ Lemma switchToNewBasicBlock_sim : forall
   (Hinscope : id_rhs_val.wf_defs (value_id (LAS_lid pinfo lasinfo))
                      (LAS_value pinfo lasinfo) (PI_f pinfo)
                      (los, nts) gl f lc t)
+  (Hinscope' : @OpsemPP.wf_defs DGVs (los, nts) f lc t)
   (ps2 : phinodes) (cs2 : cmds) (tmn2 : terminator)
   (Hsucc : In l2 (successors_terminator tmn1))
   (Hreach : isReachableFromEntry f (block_intro l2 ps2 cs2 tmn2))
@@ -1223,6 +1240,7 @@ Lemma params2GVs_sim_aux : forall
            (insn_call i0 n c t0 v0 v p2))
   (Hinscope : id_rhs_val.wf_defs (value_id (LAS_lid pinfo lasinfo))
            (LAS_value pinfo lasinfo) (PI_f pinfo) (los, nts) gl f lc l0)
+  (Hinscope' : @OpsemPP.wf_defs DGVs (los, nts) f lc l0)
   p22 p22' gvs gvs'
   (Hex : exists p21, p2 = p21 ++ p22)
   (Hp2gv : Opsem.params2GVs (los, nts) p22 lc gl = Some gvs)
@@ -1283,6 +1301,7 @@ Lemma params2GVs_sim : forall
            (insn_call i0 n c t0 v0 v p2))
   (Hinscope : id_rhs_val.wf_defs (value_id (LAS_lid pinfo lasinfo))
            (LAS_value pinfo lasinfo) (PI_f pinfo) (los, nts) gl f lc l0)
+  (Hinscope' : @OpsemPP.wf_defs DGVs (los, nts) f lc l0)
   p2' gvs gvs'
   (Hp2gv : Opsem.params2GVs (los, nts) p2 lc gl = Some gvs)
   (Hp2gv' : Opsem.params2GVs (los, nts) p2' lc gl = Some gvs')
@@ -1326,7 +1345,7 @@ match goal with
   destruct Hwfcfg as [_ [Hwfg [HwfSystem HmInS]]];
   destruct Hwfpp as 
     [_ [
-     [Hreach1 [HBinF1 [HFinPs1 _]]] 
+     [Hreach1 [HBinF1 [HFinPs1 [_ [Hinscope1 _]]]]] 
      [HwfECs Hwfcall]]
     ]; subst;
   fold (@OpsemPP.wf_ECStack DGVs) in HwfECs;
@@ -1365,7 +1384,7 @@ match goal with
   destruct Hwfcfg as [_ [Hwfg [HwfSystem HmInS]]];
   destruct Hwfpp as 
     [_ [
-     [Hreach1 [HBinF1 [HFinPs1 _]]] 
+     [Hreach1 [HBinF1 [HFinPs1 [_ [Hinscope1 _]]]]] 
      [ _ HwfCall'
      ]]
     ]; subst;
@@ -1633,7 +1652,7 @@ Case "sReturn".
 
   assert (lc'' = lc''0) as EQ.
     clear - H27 H1 Hcsim2' Hvsim2 Hinscope1' HwfSystem HmInS Hreach1 HBinF1
-      HFinPs1 Hwfg.
+      HFinPs1 Hwfg Hinscope1.
     unfold Opsem.returnUpdateLocals in H1, H27.
     inv_mbind'.
     destruct_cmd c1'; tinv H0.

@@ -184,6 +184,7 @@ Lemma wf_defs_updateAddAL: forall v1 v2 F td Mem gl F' lc' c ids1 ids2 g0
   (Hvals : substable_values td gl F v1 v2)
   (Hvinscope2 : vev_defs v1 v2 F td Mem gl F' lc' c ids1)
   (Hinscope2' : wf_defs v1 v2 F td gl F' lc' ids1)
+  (Hinscope2'' : OpsemPP.wf_defs td F' lc' ids1)
   (Heq : AtomSet.set_eq _ (getCmdLoc c::ids1) ids2)
   (Heval: eval_rhs td Mem gl lc' c g0) (Hsome: getCmdID c <> None),
   wf_defs v1 v2 F td gl F' (updateAddAL _ lc' (getCmdLoc c) g0) ids2.
@@ -230,10 +231,9 @@ Local Opaque inscope_of_cmd.
           elimtype False.
           apply inscope_of_cmd__idDominates with (i0:=vid1) in Hinscope; 
             auto using in__cmdInBlockB.
-          assert (forall b : block,
-                    lookupBlockViaIDFromFdef F' vid1 = ret b ->
-                    isReachableFromEntry F' b) as Hinv.
-            admit. (* by Hin, vid1 in scope, so it is reachable. *)
+          assert (id_in_reachable_block F' vid1) as Hinv.
+            (* vid1 in scope, so it is reachable. *)
+            eapply OpsemPP.wf_defs_elim in Hinscope2''; eauto. tauto.
           eapply idDominates_acyclic in Hinv; eauto.
 
         SSSCase "vid2 <> c".
@@ -348,6 +348,7 @@ Lemma wf_defs_br_aux : forall v1 v2 F0 TD gl S M lc l' ps' cs' lc' F tmn' b
   (t : list atom)
   (Hvals : substable_values TD gl F0 v1 v2)
   (Hwfdfs : wf_defs v1 v2 F0 TD gl F lc t)
+  (Hwfdfs' : OpsemPP.wf_defs TD F lc t)
   (ids0' : list atom)
   (HwfF : wf_fdef S M F) (HuniqF: uniqFdef F)
   (contents' : ListSet.set atom)
@@ -385,10 +386,9 @@ Proof.
         intro Hin.
         eapply inscope_of_cmd_at_beginning__idDominates__phinode
           with (i0:=vid1) in Hinscope; eauto.
-        assert (forall b : block,
-                  lookupBlockViaIDFromFdef F vid1 = ret b ->
-                  isReachableFromEntry F b) as Hinv.
-          admit. (* by Hnotin1, vid1 in scope, so it is reachable. *)
+        assert (id_in_reachable_block F vid1) as Hinv.
+          (* vid1 in scope, so it is reachable. *)
+          eapply OpsemPP.wf_defs_elim in Hwfdfs'; eauto. tauto.
         eapply idDominates_acyclic in Hinv; eauto. 
 
       assert (Hnotin2' := Hnotin2).
@@ -407,7 +407,8 @@ Qed.
 
 Lemma inscope_of_tmn_br_aux : forall S M F l3 ps cs tmn ids0 l' ps' cs' tmn'
   l0 lc lc' gl TD (Hreach : isReachableFromEntry F (block_intro l3 ps cs tmn))
-  v1 v2 F0 (Hvals : substable_values TD gl F0 v1 v2),
+  v1 v2 F0 (Hvals : substable_values TD gl F0 v1 v2) 
+  (Hwfdfs': OpsemPP.wf_defs TD F lc ids0),
 wf_fdef S M F -> 
 uniqFdef F ->
 blockInFdefB (block_intro l3 ps cs tmn) F = true ->
@@ -425,8 +426,8 @@ exists ids0',
   incl (ListSet.set_diff eq_atom_dec ids0' (getPhiNodesIDs ps')) ids0 /\
   wf_defs v1 v2 F0 TD gl F lc' ids0'.
 Proof.
-  intros S M F l3 ps cs tmn ids0 l' ps' cs' tmn' l0 lc lc' gl TD Hreach v1 v2
-    F0 Hvals HwfF HuniqF HBinF Hsucc Hinscope Hlkup Hswitch Hwfdfs.
+  intros S M F l3 ps cs tmn ids0 l' ps' cs' tmn' l0 lc lc' gl TD Hreach Hwfdfs'
+    v1 v2 F0 Hvals HwfF HuniqF HBinF Hsucc Hinscope Hlkup Hswitch Hwfdfs.
   symmetry in Hlkup.
   assert (J:=Hlkup).
   apply lookupBlockViaLabelFromFdef_inv in J; auto.
@@ -484,7 +485,8 @@ Proof.
 Qed.
 
 Lemma inscope_of_tmn_br_uncond : forall v1 v2 F0 S M F l3 ps cs ids0 l' ps' 
-  cs' tmn' l0 lc lc' bid TD gl (Hvals : substable_values TD gl F0 v1 v2),
+  cs' tmn' l0 lc lc' bid TD gl (Hvals : substable_values TD gl F0 v1 v2)
+  (Hwfdfs': OpsemPP.wf_defs TD F lc ids0),
 isReachableFromEntry F (block_intro l3 ps cs (insn_br_uncond bid l0)) ->
 wf_fdef S M F -> uniqFdef F ->
 blockInFdefB (block_intro l3 ps cs (insn_br_uncond bid l0)) F = true ->
@@ -508,7 +510,8 @@ Proof.
 Qed.
 
 Lemma inscope_of_tmn_br : forall v1 v2 F0 S M F l0 ps cs bid l1 l2 ids0 l' 
-  ps' cs' tmn' Cond c lc lc' gl TD (Hvals : substable_values TD gl F0 v1 v2),
+  ps' cs' tmn' Cond c lc lc' gl TD (Hvals : substable_values TD gl F0 v1 v2)
+  (Hwfdfs': OpsemPP.wf_defs TD F lc ids0),
 isReachableFromEntry F (block_intro l0 ps cs (insn_br bid Cond l1 l2)) ->
 wf_fdef S M F -> uniqFdef F ->
 blockInFdefB (block_intro l0 ps cs (insn_br bid Cond l1 l2)) F = true ->

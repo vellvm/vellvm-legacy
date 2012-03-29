@@ -1093,12 +1093,15 @@ match lookupBlockViaIDFromFdef f id2 with
 | None => False
 end.
 
+Definition id_in_reachable_block (f:fdef) (id2:id) : Prop :=
+forall b2, lookupBlockViaIDFromFdef f id2 = Some b2 ->
+           isReachableFromEntry f b2.
+
 (* v1 >> v2 == id1 >> id2 \/ v1 is constant *)
 Definition valueDominates (f:fdef) (v1 v2:value) : Prop :=
 match v1, v2 with
 | value_id id1, value_id id2 => 
-   (forall b2, lookupBlockViaIDFromFdef f id2 = Some b2->
-               isReachableFromEntry f b2) ->
+   id_in_reachable_block f id2 ->
    idDominates f id1 id2
 | value_const _, _ => True
 | _, _ => False
@@ -2673,6 +2676,28 @@ Proof.
   apply G1 in Hin1.
   apply G2 in Hin1.
   solve_in_list.    
+Qed.
+
+Lemma block_id_in_reachable_block: forall (f : fdef) (id1 : atom) b
+  (Huniq : uniqFdef f) (Hin: In id1 (getBlockIDs b)) 
+  (Hreach : isReachableFromEntry f b) (Hbinf : blockInFdefB b f),
+  id_in_reachable_block f id1.
+Proof.
+  intros.
+  intros b0 Hlkb0.
+  assert (b0 = b) as EQ.
+    eapply block_eq2 with (id1:=id1); eauto 1.
+      solve_blockInFdefB. solve_in_list. solve_in_list.
+  subst. auto.
+Qed.
+
+Lemma arg_id_in_reachable_block: forall f id1 (Huniq: uniqFdef f)
+  (Hin : In id1 (getArgsIDsOfFdef f)),
+  id_in_reachable_block f id1.
+Proof.
+  unfold id_in_reachable_block.
+  intros.
+  contradict Hin. solve_notin_getArgsIDs.
 Qed.
 
 Inductive wf_phi_operands (f:fdef) (b:block) (id0:id) (t0:typ) :

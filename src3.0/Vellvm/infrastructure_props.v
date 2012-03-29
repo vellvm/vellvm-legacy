@@ -3846,6 +3846,12 @@ repeat match goal with
   apply in_or_app; left
 | |- In (getCmdLoc ?c) (_ ++ getCmdsLocs (_ ++ _ :: _ ++ ?c :: _) ++ _) =>
   apply in_or_app; right; apply in_or_app; left
+| |- In ?id1 (getPhiNodesIDs (_ ++ insn_phi ?id1 _ _ :: _) ++ _) =>
+  simpl; apply in_or_app; left; rewrite getPhiNodesIDs_app; simpl
+| |- InCmdsB ?c (?A ++ [?c]) = true => 
+  apply In_InCmdsB; rewrite_env (A++c::nil)
+| |- InCmdsB ?c (?A ++ [?c] ++ ?B ) = true =>
+  apply In_InCmdsB; rewrite_env (A++c::B)
 end.
 
 Lemma lookupBlockViaIDFromBlocks__in_getBlocksLocs: forall b1 id1 bs,
