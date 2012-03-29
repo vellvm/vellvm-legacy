@@ -70,6 +70,7 @@
 ./Vellvm/syntax.v
 ./Vellvm/targetdata_props.v
 ./Vellvm/targetdata.v
+./Vellvm/typing_rules.v
 ./Vellvm/typings_props.v
 ./Vellvm/typings.v
 ./Vellvm/vellvm_tactics.v
