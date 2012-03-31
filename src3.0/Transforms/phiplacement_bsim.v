@@ -14,6 +14,7 @@ Require Import palloca_props.
 Require Import program_sim.
 Require Import memory_props.
 Require Import trans_tactic.
+Require Import top_sim.
 
 Import Promotability.
 
@@ -97,23 +98,6 @@ Definition block_simulation (pinfo: PhiInfo) f1 b1 b2: Prop :=
        (PI_newids pinfo) (PI_succs pinfo) (PI_preds pinfo) b1 = b2
   else b1 = b2.
 
-Definition products_simulation (pinfo: PhiInfo) Ps1 Ps2: Prop :=
-List.Forall2
-  (fun P1 P2 =>
-   match P1, P2 with
-   | product_fdef f1, product_fdef f2 => fdef_simulation pinfo f1 f2
-   | _, _ => P1 = P2
-   end) Ps1 Ps2.
-
-Definition system_simulation (pinfo: PhiInfo) S1 S2: Prop :=
-List.Forall2
-  (fun M1 M2 =>
-   match M1, M2 with
-   | module_intro los1 nts1 Ps1, module_intro los2 nts2 Ps2 =>
-       los1 = los2 /\ nts1 = nts2 /\
-       products_simulation pinfo Ps1 Ps2
-   end) S1 S2.
-
 Definition EC_simulation_head (TD:TargetData) Ps1 (pinfo: PhiInfo)
   (EC1 EC2:Opsem.ExecutionContext) (M2:mem) : Prop :=
   match (EC1, EC2) with
@@ -174,6 +158,39 @@ match ECs1, ECs2 with
     ECs_simulation_tail TD Ps1 pinfo ECs1' ECs2' M2
 | _, _ => False
 end.
+
+Lemma fdef_simulation__eq_fheader: forall pinfo f1 f2
+  (H: fdef_simulation pinfo f1 f2),
+  fheaderOfFdef f1 = fheaderOfFdef f2.
+Proof.
+  unfold fdef_simulation.
+  intros.
+  destruct (fdef_dec (PI_f pinfo) f1); inv H; auto.
+    destruct (PI_f pinfo) as [fh b]; simpl.
+    destruct_let; auto.
+Qed.
+
+Lemma fdef_simulation__det_right: forall pinfo f f1 f2,
+  fdef_simulation pinfo f f1 ->
+  fdef_simulation pinfo f f2 ->
+  f1 = f2.
+Proof.
+  unfold fdef_simulation.
+  intros.
+  destruct_if; congruence.
+Qed.
+
+Definition Fsim (pinfo: PhiInfo) := mkFunSim 
+(fdef_simulation pinfo)
+(fdef_simulation__eq_fheader pinfo)
+(fdef_simulation__det_right pinfo)
+.
+
+Definition system_simulation pinfo S1 S2 := 
+  @TopSim.system_simulation (Fsim pinfo) S1 S2.
+
+Definition products_simulation pinfo S1 S2 := 
+  @TopSim.products_simulation (Fsim pinfo) S1 S2.
 
 Definition State_simulation (pinfo: PhiInfo)
   (Cfg1:OpsemAux.Config) (St1:Opsem.State)
@@ -3254,54 +3271,6 @@ Proof.
   phinodes_placement_is_correct__common.
 Qed.
 
-Lemma fdef_simulation__inv: forall pinfo f1 f2,
-  fdef_simulation pinfo f1 f2 -> getFdefID f1 = getFdefID f2.
-Proof.
-  unfold fdef_simulation.
-  intros.
-  destruct (fdef_dec (PI_f pinfo) f1); inv H; auto.
-    destruct (PI_f pinfo) as [[? ? ? a ?] b]; simpl.
-    destruct (gen_fresh_ids (PI_rd pinfo) (getArgsIDs a ++ getBlocksLocs b)).
-    auto.
-Qed.
-
-Lemma products_simulation__fdef_simulation : forall pinfo fid f2 Ps1 Ps2,
-  products_simulation pinfo Ps1 Ps2 ->
-  lookupFdefViaIDFromProducts Ps2 fid = ret f2 ->
-  exists f1,
-    lookupFdefViaIDFromProducts Ps1 fid = ret f1 /\
-    fdef_simulation pinfo f1 f2.
-Proof.
-  induction Ps1; simpl; intros Ps2 J1 J2.
-    inv J1. inv J2.
-
-    inv J1. simpl in J2.
-    remember (lookupFdefViaIDFromProduct y fid) as R.
-    destruct R; inv J2.
-      destruct a as [?|f0|f0]; subst; tinv HeqR.
-      destruct y as [?|?|f5]; subst; tinv HeqR.
-      simpl in HeqR. simpl.
-      destruct (getFdefID f5 == fid); inv HeqR.
-      exists f0.
-      split; auto.
-        apply fdef_simulation__inv in H1.
-        destruct (getFdefID f0 == getFdefID f5); auto.
-        rewrite H1 in n. congruence.
-
-      destruct a as [?|f0|f0]; subst; simpl; try eapply IHPs1; eauto.  
-      destruct y as [?|?|f5]; subst; tinv H1.
-      simpl in *.
-      destruct (getFdefID f5 == fid); inv HeqR.
-      eapply IHPs1 in H0; eauto.
-      destruct H0 as [f1 [J1 J2]].
-      exists f1.
-      split; auto.
-        apply fdef_simulation__inv in H1.
-        rewrite H1.
-        destruct (getFdefID f5 == fid); auto.
-          subst. congruence.
-Qed.
-
 Lemma lookupFdefViaPtr__simulation : forall TD gl F1 lc1 lc2 f2 fv Ps1 Ps2 fptr
   fs pinfo
   (Hntmp:if fdef_dec (PI_f pinfo) F1 then value_has_no_tmps pinfo fv else True),
@@ -3315,14 +3284,9 @@ Lemma lookupFdefViaPtr__simulation : forall TD gl F1 lc1 lc2 f2 fv Ps1 Ps2 fptr
     fdef_simulation pinfo f1 f2.
 Proof.
   intros.
-  unfold OpsemAux.lookupFdefViaPtr in *.
-  remember (OpsemAux.lookupFdefViaGVFromFunTable fs fptr) as R2.
-  destruct R2 as [fid|]; inv H1.
+  eapply TopSim.lookupFdefViaPtr__simulation_r2l in H1; eauto.
   erewrite <- simulation__getOperandValue in H0; eauto.
-  simpl.
-  eapply products_simulation__fdef_simulation in H4; eauto.
-  destruct H4 as [f1 [J3 J4]].
-  eauto.
+  destruct H1 as [f1 [J3 J4]]. eauto.
 Qed.
 
 Lemma getEntryBlock__simulation: forall pinfo f1 f2 b2
@@ -3656,50 +3620,6 @@ Proof.
     apply reg_simulation__updateAddAL; auto.
 Qed.
 
-Lemma products_simulation__fdef_None : forall pinfo fid Ps1 Ps2,
-  products_simulation pinfo Ps1 Ps2 ->
-  lookupFdefViaIDFromProducts Ps2 fid = merror ->
-  lookupFdefViaIDFromProducts Ps1 fid = merror.
-Proof.
-  induction Ps1; simpl; intros Ps2 J1 J2; auto.
-    inv J1. simpl in J2.
-    remember (lookupFdefViaIDFromProduct y fid) as R.
-    destruct R; inv J2.
-    rewrite H0.
-    apply IHPs1 in H0; auto.
-    rewrite H0.
-    destruct a as [?|?|f]; subst; simpl in *; auto.
-    destruct (getFdefID f == fid); subst; auto.
-    destruct y as [?|f0|f0]; subst; tinv H1.
-    simpl in *.
-    apply fdef_simulation__inv in H1.
-    destruct (getFdefID f0 == getFdefID f); try congruence.
-Qed.
-
-Lemma products_simulation__fdec : forall pinfo fid f Ps1 Ps2,
-  products_simulation pinfo Ps1 Ps2 ->
-  lookupFdecViaIDFromProducts Ps2 fid = ret f ->
-  lookupFdecViaIDFromProducts Ps1 fid = ret f.
-Proof.
-  induction Ps1; simpl; intros Ps2 J1 J2.
-    inv J1. inv J2.
-
-    inv J1. simpl in J2.
-    remember (lookupFdecViaIDFromProduct y fid) as R.
-    destruct R; inv J2.
-      destruct a; subst; tinv HeqR.
-        rewrite <- HeqR. auto.
-      destruct y; subst; tinv HeqR.
-      inv H1.
-
-      assert (H0':=H0).
-      apply IHPs1 in H0; auto.
-      rewrite H0.
-      destruct a as [?|f0|f0]; subst; simpl in *; auto.
-      destruct (getFdecID f0 == fid); inv HeqR.
-      auto.
-Qed.
-
 Lemma lookupExFdecViaPtr__simulation: forall TD gl F1 lc1 lc2 f fv Ps1 Ps2 fptr
   fs pinfo
   (Hntmp:if fdef_dec (PI_f pinfo) F1 then value_has_no_tmps pinfo fv else True),
@@ -3711,18 +3631,8 @@ Lemma lookupExFdecViaPtr__simulation: forall TD gl F1 lc1 lc2 f fv Ps1 Ps2 fptr
   OpsemAux.lookupExFdecViaPtr Ps1 fs fptr = Some f.
 Proof.
   intros.
-  unfold OpsemAux.lookupExFdecViaPtr in *.
-  remember (OpsemAux.lookupFdefViaGVFromFunTable fs fptr) as R2.
-  destruct R2 as [fid|]; inv H1.
+  eapply TopSim.lookupExFdecViaPtr__simulation_r2l in H1; eauto.
   erewrite <- simulation__getOperandValue in H0; eauto.
-  simpl.
-  split; auto.
-  remember (lookupFdefViaIDFromProducts Ps2 fid) as R.
-  destruct R; tinv H4.
-  symmetry in HeqR.
-  erewrite products_simulation__fdef_None; eauto.
-  rewrite H4.
-  eapply products_simulation__fdec; eauto.
 Qed.
 
 Lemma phinodes_placement_is_correct__dsExCall: forall (maxb : Values.block)
@@ -3978,214 +3888,6 @@ Proof.
     split; auto.
 Qed.
 
-Lemma system_simulation__fdef_simulation : forall pinfo fid f2 S1 S2
-  (Hssim: system_simulation pinfo S1 S2)
-  (Hlkup: lookupFdefViaIDFromSystem S2 fid = ret f2),
-  exists f1, 
-    lookupFdefViaIDFromSystem S1 fid = ret f1 /\
-    fdef_simulation pinfo f1 f2.
-Proof.
-  induction 1; simpl; intros.
-    inv Hlkup.
-
-    match goal with
-    | H: match ?x with
-         | module_intro _ _ _ => 
-             match ?y with | module_intro _ _ _ => _ end
-         end |- _ => 
-        destruct x as [los1 nts1 Ps1]; destruct y as [los2 nts2 Ps2];
-        destruct H as [J1 [J2 J3]]; subst
-    end.
-    simpl in *.
-
-   destruct_match.
-     eapply products_simulation__fdef_simulation in HeqR; eauto.
-     destruct HeqR as [f1 [J1 J2]].
-     fill_ctxhole. eauto.
-
-     symmetry in HeqR.
-     eapply products_simulation__fdef_None in HeqR; eauto.
-     fill_ctxhole. eauto.
-Qed.
-
-Definition module_simulation pinfo (M1 M2: module) : Prop :=
-match M1, M2 with
-| module_intro los1 nts1 Ps1, module_intro los2 nts2 Ps2 =>
-    los1 = los2 /\ nts1 = nts2 /\ 
-    products_simulation pinfo Ps1 Ps2
-end.
-
-Lemma fdef_simulation__eq_fheader: forall pinfo f1 f2
-  (H: fdef_simulation pinfo f1 f2),
-  fheaderOfFdef f1 = fheaderOfFdef f2.
-Proof.
-  unfold fdef_simulation.
-  intros.
-  destruct (fdef_dec (PI_f pinfo) f1); inv H; auto.
-    destruct (PI_f pinfo) as [fh b]; simpl.
-    destruct_let; auto.
-Qed.
-
-Lemma products_simulation__eq_getFdefsIDs: forall pinfo Ps1 Ps2
-  (Hpsim: products_simulation pinfo Ps1 Ps2),
-  getFdefsIDs Ps1 = getFdefsIDs Ps2.
-Proof.
-  intros.
-  induction Hpsim; intros; auto.
-    destruct x; subst; simpl; auto.
-    destruct y; tinv H.
-    destruct f as [[]]. destruct f0 as [[]]. 
-    apply fdef_simulation__inv in H. congruence.
-Qed.
-
-Lemma fdef_simulation__det_right: forall pinfo f f1 f2,
-  fdef_simulation pinfo f f1 ->
-  fdef_simulation pinfo f f2 ->
-  f1 = f2.
-Proof.
-  unfold fdef_simulation.
-  intros.
-  destruct_if; congruence.
-Qed.
-
-Lemma products_fdef_simulation__InProductsB_forward: forall pinfo f1 f2 Ps1 Ps2,
-  products_simulation pinfo Ps1 Ps2 ->
-  InProductsB (product_fdef f1) Ps1 = true ->
-  fdef_simulation pinfo f1 f2 ->
-  InProductsB (product_fdef f2) Ps2 = true.
-Proof.
-  induction 1; simpl; intros; auto.
-    destruct x; subst; simpl.
-      rewrite productNEqB_intro in H1; try congruence.
-      rewrite productNEqB_intro; try congruence.
-      rewrite orb_false_l in H1.
-      rewrite orb_false_l. auto.
-
-      rewrite productNEqB_intro in H1; try congruence.
-      rewrite productNEqB_intro; try congruence.
-      rewrite orb_false_l in H1.
-      rewrite orb_false_l. auto.
-
-      destruct y; tinv H.
-      apply orb_true_iff in H1.
-      destruct H1 as [H1 | H1].
-        apply productEqB_inv in H1. inv H1.
-        erewrite fdef_simulation__det_right with (f1:=f0)(f2:=f2)(f:=f); eauto.
-        rewrite productEqB_refl. auto.
-
-        rewrite IHForall2; auto.
-        apply orb_true_r.
-Qed.
-
-Lemma system_simulation__getParentOfFdefFromSystem: forall pinfo S1 S2 f1 f2 m2
-  fid (Hsim: system_simulation pinfo S1 S2)
-  (Hfsim: fdef_simulation pinfo f1 f2)
-  (Hparent: getParentOfFdefFromSystem f2 S2 = Some m2)
-  (Hlkup: lookupFdefViaIDFromSystem S1 fid = ret f1),
-  exists m1, getParentOfFdefFromSystem f1 S1 = Some m1 /\
-             module_simulation pinfo m1 m2.
-Proof.
-  intros.
-  assert (J:=Hlkup).
-  apply lookupFdefViaIDFromSystem_ideq in J. subst.
-  induction Hsim; simpl in *; intros.
-    congruence.
-
-    match goal with
-    | H: match ?x with
-         | module_intro _ _ _ => 
-             match ?y with | module_intro _ _ _ => _ end
-         end |- _ => 
-        destruct x as [los1 nts1 Ps1]; destruct y as [los2 nts2 Ps2];
-        destruct H as [J1 [J2 J3]]; subst
-    end.
-    simpl in *.
-    assert (J:=Hfsim).
-    apply fdef_simulation__inv in J.
-    destruct_if.
-      destruct_match; simpl in e.       
-        exists (module_intro los2 nts2 Ps1).
-        split; simpl; auto.
-          match goal with
-          | |- (if ?e then _ else _ ) = _ => destruct e; auto
-          end.
-          simpl in e0. 
-          apply lookupFdefViaIDFromProducts__InProductsB in HeqR0.
-          congruence.
-
-          match goal with
-          | e: InProductsB (product_fdef ?f2) ?Ps2 = true,
-            HeqR0: None = lookupFdefViaIDFromProducts ?Ps1 (getFdefID ?f1),
-            J3: products_simulation _ ?Ps1 ?Ps2,
-            J: getFdefID ?f1 = getFdefID ?f2 |- _ =>
-            symmetry in HeqR0;
-            apply lookupFdefViaIDFromProducts__notin_getFdefsIDs in HeqR0;
-            assert (Hin:=e);  
-            apply InProductsB__in_getFdefsIDs in Hin;
-            apply products_simulation__eq_getFdefsIDs in J3;
-            simpl in Hin; rewrite J in HeqR0; congruence
-          end.
-
-      simpl in e.       
-      destruct_match.
-        apply lookupFdefViaIDFromProducts__InProductsB in HeqR0.
-        eapply products_fdef_simulation__InProductsB_forward in HeqR0; eauto.
-        congruence.
-
-        apply IHHsim in H0; auto.
-        destruct H0 as [m1 [J1 J2]].
-        exists m1.
-          split; auto. 
-          match goal with
-          | |- (if ?e then _ else _ ) = _ => destruct e; auto
-          end.
-          simpl in e0. 
-          assert (Hin:=e0).  
-          apply InProductsB__in_getFdefsIDs in Hin.
-          symmetry in HeqR0.
-          apply lookupFdefViaIDFromProducts__notin_getFdefsIDs in HeqR0.
-          simpl in Hin. rewrite J in HeqR0. congruence.
-Qed.
-
-Lemma genGlobalAndInitMem_spec_aux: forall pinfo td ps1 ps2 ,
-  products_simulation pinfo ps1 ps2 ->
-  forall gl fs M gl2 fs2 M2,
-  OpsemAux.genGlobalAndInitMem td ps2 gl fs M =
-    ret (gl2, fs2, M2) ->
-  exists gl1, exists fs1, exists M1,
-    OpsemAux.genGlobalAndInitMem td ps1 gl fs M =
-      ret (gl1, fs1, M1) /\ gl1 = gl2 /\ fs1 = fs2 /\ M1 = M2.
-Proof.
-  induction 1; intros.
-    fill_ctxhole. eauto 7.
-
-    destruct x; subst; simpl in *.
-      match goal with
-      | g:gvar |- _ => destruct g
-      end; inv_mbind; try destruct_let; eauto.
-        destruct f as [[]].
-        inv_mbind. eauto.
-
-      destruct f as [[]].
-      destruct y; simpl in *; tinv H.
-      destruct f0 as [[]].
-      inv_mbind. 
-      apply fdef_simulation__eq_fheader in H.
-      inv H. symmetry_ctx. fill_ctxhole. eauto.
-Qed.
-
-Lemma genGlobalAndInitMem_spec: forall pinfo td ps1 ps2 gl2 fs2 M2,
-  OpsemAux.genGlobalAndInitMem td ps2 nil nil Mem.empty =
-    ret (gl2, fs2, M2) ->
-  products_simulation pinfo ps1 ps2 ->
-  exists gl1, exists fs1, exists M1,
-    OpsemAux.genGlobalAndInitMem td ps1 nil nil Mem.empty =
-      ret (gl1, fs1, M1) /\ gl1 = gl2 /\ fs1 = fs2 /\ M1 = M2.
-Proof.
-  intros.
-  eapply genGlobalAndInitMem_spec_aux; eauto.
-Qed.
-
 Lemma s_genInitState__phiplacement_State_simulation: 
   forall pinfo S1 S2 main VarArgs cfg2 IS2
   (Hwfs1: wf_system S1) (Hwfphi: WF_PhiInfo pinfo)
@@ -4204,13 +3906,14 @@ Proof.
   destruct f as [[fa rt fid la va] bs].
   inv_mbind'. symmetry_ctx.
   assert (HlkF2FromS2:=HeqR).
-  eapply system_simulation__fdef_simulation in HeqR; eauto.
-  destruct HeqR as [f1 [HlkF1fromS1 Hfsim]]. fill_ctxhole.
-  eapply system_simulation__getParentOfFdefFromSystem in HeqR0; eauto.
+  eapply TopSim.system_simulation__fdef_simulation_r2l in HeqR; eauto.
+  destruct HeqR as [f1 [HlkF1fromS1 Hfsim]]. simpl in Hfsim.
+  fill_ctxhole.
+  eapply TopSim.system_simulation__getParentOfFdefFromSystem in HeqR0; eauto.
   destruct HeqR0 as [m1 [J1 J2]].
   fill_ctxhole. destruct m1 as [los1 nts1 ps1].
   destruct J2 as [J2 [J3 J4]]; subst.
-  eapply genGlobalAndInitMem_spec in HeqR1; eauto.
+  eapply TopSim.genGlobalAndInitMem_spec in HeqR1; eauto.
   destruct HeqR1 as [gl1 [fs1 [M1 [HeqR1 [EQ1 [EQ2 EQ3]]]]]]; subst.
   fill_ctxhole.
   assert (J:=HeqR2).
@@ -4244,7 +3947,7 @@ Proof.
     eapply entry_cmds_simulation; eauto using wf_system__wf_fdef.
 Qed.
 
-Lemma s_isFinialState__phiplacement_State_simulation:
+Lemma s_isFinialState__phiplacement_State_simulation_r2l:
   forall pinfo cfg1 FS1 cfg2 FS2 r
   (Hwfpi: WF_PhiInfo pinfo) 
   (Hstsim : State_simulation pinfo cfg1 FS1 cfg2 FS2)
@@ -4283,6 +3986,183 @@ Proof.
       end.
 
     assumption.
+Qed.
+
+Lemma simulation__lookup_pid: forall pinfo Locals Locals0
+  (Huniq : uniqFdef (PI_f pinfo)) (Hwfpi : WF_PhiInfo pinfo)
+  (Hsim: reg_simulation pinfo (PI_f pinfo) Locals Locals0),
+  lookupAL _ Locals (PI_id pinfo) = lookupAL _ Locals0 (PI_id pinfo).
+Proof.
+  intros.
+  eapply simulation__lookupAL; eauto.
+    destruct_if; try congruence.
+    eapply WF_PhiInfo_spec18; auto.
+Qed.
+
+Lemma cmds_simulation_nil_inv': forall pinfo TD Mem0 Locals0 F l1 ps1
+  cs1 tmn1 cs
+  (Hsim: cmds_simulation pinfo TD Mem0 Locals0 F
+           (block_intro l1 ps1 cs1 tmn1) nil cs),
+  if (fdef_dec (PI_f pinfo) F) then
+    forall c (Hin: In c cs),
+      exists i1, exists i2, exists i3, 
+      ret (i1, i2, i3) = (PI_newids pinfo) ! l1 /\
+      (c = insn_store i3 (PI_typ pinfo) (value_id i2)
+              (value_id (PI_id pinfo)) (PI_align pinfo) \/
+       c = insn_load i1 (PI_typ pinfo) (value_id (PI_id pinfo))
+              (PI_align pinfo))
+  else cs = nil.
+Proof.
+  intros.
+  unfold cmds_simulation in Hsim.
+  destruct (fdef_dec (PI_f pinfo) F); subst; auto.
+  intros.
+  remember ((PI_newids pinfo) ! l1) as R.
+  destruct R as [[[i1 i2] i3]|]; subst; tinv Hin.
+  exists i1. exists i2. exists i3.
+  split; auto.
+  destruct Hsim as [J1 [J2 _]].
+  remember ((PI_preds pinfo) ! l1) as R1.
+  remember ((PI_succs pinfo) ! l1) as R2.
+
+Ltac cmds_simulation_nil_inv'_tac :=
+match goal with
+| Hin: In _ ?cs, HeqR2 : ?R2 = (PI_succs _) ! _ |- _ =>
+  destruct R2 as [[]|]; tinv Hin; simpl in Hin; 
+     destruct Hin as [Hin | Hin]; auto; try tauto;
+     try solve [destruct Hin as [Hin | Hin]; auto; try tauto]
+end.
+
+  destruct (list_eq_dec cmd_dec cs1 nil) as [e | n].
+    clear J2. apply_clear J1 in e. 
+    destruct e as [e _].
+
+    destruct e as [e | [[_ e] | [_ [_ e]]]]; subst cs.
+      destruct R1 as [[]|]; cmds_simulation_nil_inv'_tac.
+      cmds_simulation_nil_inv'_tac.
+      inv Hin.
+    
+    clear J1. apply_clear J2 in n.  
+    destruct n as [J3 | [J3 [J4 J5]]]; subst cs; tinv Hin.
+    cmds_simulation_nil_inv'_tac.
+Qed.
+
+Lemma block_sim__pres__blockInFdefB: forall pinfo f1 f2 b1 b2
+  (Hwfpi: WF_PhiInfo pinfo) (Hfsim: fdef_simulation pinfo f1 f2)
+  (Hbsim: block_simulation pinfo f1 b1 b2) (HBinF: blockInFdefB b1 f1),
+  blockInFdefB b2 f2.
+Proof.
+  unfold fdef_simulation, block_simulation.
+  destruct f1 as [f b], f2. simpl.
+  intros. 
+  destruct (fdef_dec (PI_f pinfo) (fdef_intro f b)); subst.
+    destruct f as [f t i0 a v]. 
+    remember (gen_fresh_ids (PI_rd pinfo) (getArgsIDs a ++ getBlocksLocs b)) 
+      as R.
+    destruct R. 
+    inv Hfsim.
+    unfold phinodes_placement_blocks, PI_newids, getFdefLocs.
+    rewrite e. rewrite <- HeqR.
+    apply InBlocksB_map; auto.
+
+    inv Hfsim. auto.
+Qed.
+
+Lemma s_isFinialState__phiplacement_State_simulation_None_r2l:
+  forall pinfo cfg1 FS1 cfg2 FS2 maxb
+  (Hwfpi: WF_PhiInfo pinfo) (Hundef: @OpsemPP.undefined_state DGVs cfg2 FS2)
+  (Hpp: @OpsemPP.wf_State DGVs cfg2 FS2) (Hcfg: OpsemPP.wf_Config cfg2)
+  (Hstsim : State_simulation pinfo cfg1 FS1 cfg2 FS2)
+  (Hnoalias: Promotability.wf_State maxb pinfo cfg1 FS1)
+  (Hfinal: Opsem.s_isFinialState cfg2 FS2 = None),
+  Opsem.s_isFinialState cfg1 FS1 = None.
+Proof.
+  destruct cfg1, cfg2, FS1, FS2.
+  destruct CurTargetData as [los nts].
+  simpl. intros.
+  destruct Hstsim as [J1 [J2 [J3 [J4 [J5 [J6 [J7 [J8 J9]]]]]]]]; subst.
+  destruct ECS as [|[]]; tinv J6; auto.
+  destruct ECS0 as [|[]]; tinv J6.
+  destruct J6 as [J61 J62].
+  destruct CurCmds; auto.
+  unfold EC_simulation_head in J61.
+  destruct J61 as [G1 [G2 [G3 [G4 [G5 [G6 [
+                    [? [? [? G7]]] [
+                    [? [? [? G8]]] [G9 G10]]]]]]]]]; subst.
+  destruct CurCmds0.
+    assert (HwfF := J1).
+    eapply wf_system__wf_fdef with (f:=CurFunction) in HwfF; eauto.
+    destruct Terminator0; try solve [
+      auto |
+      destruct ECS; auto;
+      destruct ECS0; tinv J62; try solve [
+        auto |
+        erewrite simulation__getOperandValue with (lc2:=Locals0); eauto;
+        match goal with
+        | _:blockInFdefB (block_intro ?l0 ?ps ?cs ?tmn) _ = _ |- _ =>
+          eapply original_values_arent_tmps with 
+            (instr:=insn_terminator tmn)
+            (B:=block_intro l0 ps cs tmn); eauto;
+            try solve [
+              simpl; apply andb_true_iff;
+              split; try solve [auto | apply terminatorEqB_refl] |
+              simpl; auto
+          ]
+        end
+      ]
+   ].
+
+  destruct Hnoalias as [Hnoalias _].
+  simpl in Hnoalias. destruct Hnoalias as [[Hnoalias _] _].
+  apply cmds_simulation_nil_inv' in G10.
+  destruct_if; try congruence.
+  assert (Huniq: uniqFdef (PI_f pinfo)). 
+    rewrite e. eauto using wf_system__uniqFdef.
+   
+Ltac s_isFinialState__phiplacement_State_simulation'_tac :=
+repeat match goal with
+| Hundef: _ \/ _ |- _ => destruct Hundef as [Hundef | Hundef]; try tauto
+| Hundef: match ?Terminator0 with
+          | insn_return _ _ _ => False
+          | insn_return_void _ => False
+          | insn_br _ _ _ _ => False
+          | insn_br_uncond _ _ => False
+          | insn_unreachable _ => False
+          end |- _ => 
+   destruct Terminator0; try tauto
+| Hundef: match _ with
+          | Some _ => _
+          | None => _
+          end |- _ =>
+  inv_mbind;
+  try (destruct Hundef as [gv1 [gv2 [J13 [J14 J15]]]]; inv J13; inv J14);
+  try (destruct Hundef as [gv [J13 J14]]; inv J13);
+  inv_mbind;
+  elimtype False; try solve [
+    eapply WF_PhiInfo_spec19; 
+      try solve [eauto | erewrite simulation__lookup_pid; eauto]
+  ]
+end.
+
+  destruct (@G10 c) as [i1 [i2 [i3 [J11 [J12 | J12]]]]]; subst; simpl; auto.
+    s_isFinialState__phiplacement_State_simulation'_tac.
+      eapply WF_PhiInfo_spec20; 
+        try solve [eauto | erewrite simulation__lookup_pid; eauto].
+
+      destruct Hpp as [_ [Hpp _]].
+      simpl in Hpp.
+      destruct Hpp as [_ [W1 [W2 [Hwflc _]]]].
+      destruct Hcfg as [_ [Hwfg [Hwfs W3]]].
+      symmetry in HeqR0.
+      eapply OpsemPP.getOperandValue__wf_gvs with (t:=PI_typ pinfo)
+        (ps:=CurProducts0) in HeqR0; eauto.
+        inv HeqR0. apply H2. auto.
+        eapply block_sim__pres__blockInFdefB in G6; eauto.
+        eapply wf_system__wf_fdef in W2; eauto.
+        eapply wf_fdef__wf_cmd in G6; eauto using in_middle.
+        inv G6; auto.
+
+    s_isFinialState__phiplacement_State_simulation'_tac.
 Qed.
 
 Section TOPSIM.
@@ -4409,10 +4289,322 @@ Proof.
         apply In_middle.
 Qed.
 
+Lemma phinodes_placement_wfS: forall rd f Ps1 Ps2 los nts pid ty al
+  num l0 ps0 cs0 tmn0 dones (Hreach: ret rd = dtree.reachablity_analysis f)
+  (Hentry: getEntryBlock f = Some (block_intro l0 ps0 cs0 tmn0))
+  (Hfind: find_promotable_alloca f cs0 dones = Some (pid, ty, num, al))
+  (HwfS :
+     wf_system 
+       [module_intro los nts (Ps1 ++ product_fdef f :: Ps2)]),
+  wf_system 
+    [module_intro los nts
+      (Ps1 ++
+       product_fdef (phinodes_placement f rd pid ty al (successors f)
+                    (make_predecessors (successors f))) :: Ps2)].
+Admitted. (* WF prev *)
+
+Ltac uniq_result :=
+repeat match goal with
+| H1 : ?f ?a ?b ?c ?d = _,
+  H2 : ?f ?a ?b ?c ?d = _ |- _ =>
+  rewrite H1 in H2; inv H2
+| H1 : ?f ?a ?b ?c = _,
+  H2 : ?f ?a ?b ?c = _ |- _ =>
+  rewrite H1 in H2; inv H2
+| H1 : ?f ?a ?b = _,
+  H2 : ?f ?a ?b = _ |- _ =>
+  rewrite H1 in H2; inv H2
+| H1 : ?f ?a = _,
+  H2 : ?f ?a = _ |- _ =>
+  rewrite H1 in H2; inv H2
+| H : ?f _ = ?f _ |- _ => inv H
+| H : ?f _ _ = ?f _ _ |- _ => inv H
+| H : ?f _ _ _ = ?f _ _ _ |- _ => inv H
+| H : ?f _ _ _ _ = ?f _ _ _ _ |- _ => inv H
+| H : ?f _ _ _ _ _ = ?f _ _ _ _ _ |- _ => inv H
+| H : False |- _ => inv H
+| H : (_, _) = (_, _) |- _ => inv H
+end.
+
+Lemma simulation__exCallUpdateLocals_None: forall pinfo F1 lc1 lc2 td rt noret0 rid
+  oresult (Hrsim: reg_simulation pinfo F1 lc1 lc2)
+  (Hexcall: Opsem.exCallUpdateLocals td rt noret0 rid oresult lc2 = None),
+  Opsem.exCallUpdateLocals td rt noret0 rid oresult lc1 = None.
+Proof.
+  unfold Opsem.exCallUpdateLocals in *.
+  intros.
+  destruct noret0; inv Hexcall.
+  destruct oresult; auto.
+  destruct (fit_gv td rt g); auto.
+    congruence.
+Qed.
+
+Lemma undefined_state__phinodes_placement_simulation_r2l: forall pinfo cfg1 St1 
+  cfg2 St2 (Hwfpi: WF_PhiInfo pinfo) maxb
+  (Hnoalias: Promotability.wf_State maxb pinfo cfg1 St1)
+  (Hundef: OpsemPP.undefined_state cfg2 St2) (Hwfpp: OpsemPP.wf_State cfg2 St2) 
+  (Hwfcfg: OpsemPP.wf_Config cfg2)
+  (Hsim: State_simulation pinfo cfg1 St1 cfg2 St2),
+  OpsemPP.undefined_state cfg1 St1.
+Proof.
+  intros.
+  unfold OpsemPP.undefined_state in Hundef.
+  destruct cfg2 as [S2 [los2 nts2] gl2 fs2].
+  destruct cfg1 as [S1 [los1 nts1] gl1 fs1].
+  repeat match goal with
+  | Hundef : _ \/ _ |- _ => destruct Hundef as [Hundef | Hundef]
+  end.
+  Case "1".
+
+Ltac phinodes_placement_undef_tac10:=
+      match goal with 
+      | H15: exists _:_, exists _:_, exists _:_, ?b = block_intro _ _ _ ?tmn |-
+         exists _:_, exists _:_, exists _:_, exists _:_,  
+           ?b = block_intro _ _ _ _ =>
+         destruct H15 as [A [B [C H15]]]; subst;
+         exists A; exists B; exists C; exists tmn; auto
+      end.
+
+Ltac phinodes_placement_undef_tac0:=
+  match goal with 
+  | Hsim: cmds_simulation _ _ _ _ _ _ _ (_::_) |- _ =>
+    apply cmds_simulation_non_ldst_cons_inv in Hsim; try solve [
+      simpl; auto | phinodes_placement_undef_tac10
+    ];
+    destruct Hsim as [cs1' [EQ1 Hsim]]; subst
+  end.
+
+Ltac phinodes_placement_undef_tac1:=
+  match goal with
+  | Hsim: State_simulation _ _ ?St1 _ ?St2, 
+    Hwfpp : OpsemPP.wf_State _ ?St2 |- _ =>
+    destruct St2 as [[|[? ? [|CurCmds] [] ?] [|[]]] ?]; try tauto;
+    destruct CurCmds; try tauto;
+    destruct St1 as [ECS ?];
+    destruct Hsim as [? [? [? [X [? [Hsim [? [? ?]]]]]]]]; subst;
+    uniq_result;
+    destruct ECS as [|[] ECS]; try tauto;
+    destruct Hsim as [Hsim Hsim'];
+    destruct ECS as [|[] ECS]; try tauto;
+    unfold EC_simulation_head in Hsim;
+    destruct Hsim as [? [? [? [? [? [? [? [? [? Hsim]]]]]]]]]; subst;
+    apply cmds_simulation_nil_inv in Hsim; subst;
+    destruct Hwfpp as [_ [_ [_ Hwfpp]]];
+    match goal with
+    | H9: block_simulation _ _ ?CurBB1 ?CurBB, c: cmd,
+      H11: exists _:_, exists _:_, exists _:_, ?CurBB = _ |- _ =>
+      destruct H11 as [l2 [ps2 [cs21 H11]]]; subst;
+      eapply block_sim__pres__blockInFdefB in H9; eauto;
+      apply Hwfpp in H9;
+      destruct c; tinv H9
+    end;
+    unfold ECs_simulation_tail in Hsim';
+    unfold EC_simulation_tail in Hsim';
+    destruct Hsim' as [[? [? [? [? [? [? [? [? [? Hsim']]]]]]]]] _]; subst;
+    phinodes_placement_undef_tac0;
+    simpl; auto
+  end.
+
+    phinodes_placement_undef_tac1.
+
+  Case "2". phinodes_placement_undef_tac1.
+  Case "3".
+
+Ltac phinodes_placement_undef_tac2:=
+  match goal with
+  | Hsim: State_simulation _ _ ?St1 _ _ |- _ =>
+    destruct St1 as [ECS ?];
+    destruct Hsim as [? [? [? [X [? [Hsim [? [? ?]]]]]]]]; subst;
+    uniq_result;
+    destruct ECS as [|[? [? ? ? ?] ? ? ?]]; try tauto;
+    destruct Hsim as [Hsim _];
+    unfold EC_simulation_head in Hsim;
+    destruct Hsim as [? [? [? [? [? [? [? [? [? Hsim]]]]]]]]]; subst
+  end.
+
+    destruct St2 as [[|[? [? ? ? tmn] CurCmds tmn' ?] ?] ?]; try tauto.
+    destruct tmn; try tauto.
+    destruct CurCmds; try tauto.
+    destruct tmn'; try tauto.
+
+    phinodes_placement_undef_tac2.
+    apply cmds_simulation_nil_inv in Hsim; subst.
+    simpl.
+    apply block_simulation__inv in H8. destruct H8; subst. auto.
+
+  Case "4".
+
+Ltac phinodes_placement_undef_tac41 :=
+  match goal with 
+  | HbInF: block_simulation _ _ ?b _,
+    H: exists _:_, exists _:_, exists _:_,
+         ?b = block_intro _ _ (_ ++ ?c :: _) _ |- _ =>
+    eapply original_values_arent_tmps with 
+      (B:=b)(instr:=insn_cmd c); eauto 2 using wf_system__wf_fdef;
+      try solve [simpl; auto |
+                apply insnInFdefBlockB_intro; auto;
+                destruct H as [l2 [ps1 [cs11 H]]]; inv H;
+                simpl; solve_in_list]
+  end.
+
+Ltac phinodes_placement_undef_tac4 :=
+simpl; symmetry_ctx;
+erewrite simulation__getOperandValue; try solve 
+  [eauto | phinodes_placement_undef_tac41].
+
+Ltac phinodes_placement_undef_tac3 Hundef :=
+match goal with
+| Hwfpp: OpsemPP.wf_State _ ?St2 |- _ =>
+    destruct St2 as [[|[? ? [|[] CurCmds] tmn' ?] ?] ?]; try tauto;
+      inv_mbind; destruct Hundef as [gn [EQ Hundef]]; inv EQ; inv_mbind;
+      phinodes_placement_undef_tac2;
+      phinodes_placement_undef_tac0;
+      phinodes_placement_undef_tac4
+end.
+
+    phinodes_placement_undef_tac3 Hundef;
+      repeat fill_ctxhole; right; right; right; left; exists gn;
+      fill_ctxhole; auto.
+ 
+  Case "5".
+    phinodes_placement_undef_tac3 Hundef.
+      repeat fill_ctxhole; right; right; right; right; left; exists gn;
+      fill_ctxhole; auto.
+
+  Case "6".
+    destruct St2 as [[|[? ? [|[] CurCmds] tmn' ?] ?] ?]; try tauto.
+      inv_mbind; destruct Hundef as [gn [EQ Hundef]]; inv EQ; inv_mbind.
+      phinodes_placement_undef_tac2.
+      right; right; right; right. right. left.
+      destruct (fdef_dec (PI_f pinfo) CurFunction0); subst.
+        destruct (is_temporary_dec i0 (PI_newids pinfo)) as [e | n].
+          apply cmds_simulation_same_tail_inv in Hsim; auto.
+            destruct Hsim as 
+              [lid [pid [sid [EQ1 [EQ2 [EQ3 [EQ4 [EQ5 EQ6]]]]]]]]; subst.
+            inv EQ4.
+            elimtype False.
+            destruct Hnoalias as [Hnoalias _].
+            simpl in Hnoalias. destruct Hnoalias as [[Hnoalias _] _].
+            destruct_if; try congruence.
+            eapply WF_PhiInfo_spec19; 
+              try solve [eauto using wf_system__wf_fdef | 
+                         erewrite simulation__lookup_pid; 
+                           eauto using wf_system__uniqFdef].
+
+            phinodes_placement_undef_tac10.
+
+          apply cmds_simulation_same_cons_inv in Hsim; auto.
+            destruct Hsim as [cs1' [EQ Hsim']]; subst.
+            phinodes_placement_undef_tac4.
+            repeat fill_ctxhole. 
+            exists gn; fill_ctxhole; auto.
+
+            phinodes_placement_undef_tac10.
+           
+        apply cmds_simulation_other_cons_inv in Hsim; auto.
+        destruct Hsim as [cs1' [EQ Hsim']]; subst.
+        phinodes_placement_undef_tac4.
+          repeat fill_ctxhole. 
+          exists gn; fill_ctxhole; auto.
+
+  Case "7".
+    destruct St2 as [[|[? ? [|[] CurCmds] tmn' ?] ?] ?]; try tauto.
+      inv_mbind; destruct Hundef as [gv [mgv [EQ1 [EQ2 Hundef]]]]; 
+      inv EQ1; inv EQ2; inv_mbind.
+      phinodes_placement_undef_tac2.
+      right; right; right; right. right. right. left.
+      destruct (fdef_dec (PI_f pinfo) CurFunction0); subst.
+        destruct (is_temporary_dec i0 (PI_newids pinfo)) as [e | n].
+          apply cmds_simulation_same_head_inv in Hsim; auto.
+            destruct Hsim as 
+              [l2 [ps1 [tmn1 [lid [pid [sid 
+                [EQ1 [EQ2 [EQ3 [EQ4 [EQ5 EQ6]]]]]]]]]]]; subst.
+            uniq_result.
+            elimtype False.
+            destruct Hnoalias as [Hnoalias _].
+            simpl in Hnoalias. destruct Hnoalias as [[Hnoalias _] _].
+            destruct_if; try congruence.
+            eapply WF_PhiInfo_spec20; 
+              try solve [eauto using wf_system__wf_fdef | 
+                         erewrite simulation__lookup_pid; 
+                           eauto using wf_system__uniqFdef].
+
+                destruct Hwfpp as [_ [Hwfpp _]].
+                simpl in Hwfpp.
+                destruct Hwfpp as [_ [W1 [W2 [Hwflc _]]]].
+                destruct Hwfcfg as [_ [Hwfg [W3 W4]]].
+                symmetry in HeqR.
+                eapply OpsemPP.getOperandValue__wf_gvs with (t:=PI_typ pinfo)
+                  (ps:=gl2) in HeqR; eauto.
+                  inv HeqR. apply H13. auto.
+                  destruct H10 as [l3 [ps3 [cs3 H10]]]; subst.
+                  eapply wf_system__wf_fdef in W4; eauto 2.
+                  eapply wf_fdef__wf_cmd in W1; eauto using in_middle.
+                  inv W1; auto.
+
+            phinodes_placement_undef_tac10.
+
+          apply cmds_simulation_same_cons_inv in Hsim; auto.
+            destruct Hsim as [cs1' [EQ Hsim']]; subst.
+            phinodes_placement_undef_tac4. fill_ctxhole.
+            phinodes_placement_undef_tac4. fill_ctxhole.
+            exists gv. exists mgv. fill_ctxhole; auto.
+            phinodes_placement_undef_tac10.
+           
+        apply cmds_simulation_other_cons_inv in Hsim; auto.
+          destruct Hsim as [cs1' [EQ Hsim']]; subst.
+          phinodes_placement_undef_tac4. fill_ctxhole.
+          phinodes_placement_undef_tac4. fill_ctxhole.
+          exists gv. exists mgv. fill_ctxhole; auto.
+
+  Case "8".
+    destruct St2 as [[|[? ? [|[] CurCmds] tmn' ?] ?] ?]; try tauto.
+    phinodes_placement_undef_tac2.
+    right; right; right; right. right. right. right.
+    phinodes_placement_undef_tac0.
+    phinodes_placement_undef_tac4. inv_mbind.
+    exists g. split; auto.
+    destruct Hundef as [fptr [EQ Hundef]]; inv EQ.
+    inv_mbind. 
+    erewrite TopSim.lookupFdefViaPtr__simulation_None_l2r; eauto.
+
+    remember (OpsemAux.lookupExFdecViaPtr gl2 FunTable fptr) as R.
+    destruct R as [[[]]|].
+      assert (OpsemAux.lookupExFdecViaPtr gl1 FunTable fptr = 
+        Some (fdec_intro (fheader_intro f t1 i1 a v1) d)) as K.
+        symmetry in HeqR1.
+        eapply lookupExFdecViaPtr__simulation in HeqR1; eauto.
+          tauto.
+          phinodes_placement_undef_tac41.
+      fill_ctxhole.
+      inv_mbind.
+      erewrite params2GVs__simulation; eauto.
+        fill_ctxhole. exists l2.
+        split; auto.
+        destruct Hundef as [gvs [EQ Hundef]].
+        dgvs_instantiate_inv.
+        remember (callExternalOrIntrinsics (los2, nts2) fs2 Mem i1 t1
+                   (args2Typs a) d l2) as R.
+        destruct R as [[[]]|]; auto.
+        inv_mbind.
+        erewrite simulation__exCallUpdateLocals_None; eauto.
+
+        match goal with
+        | H9: block_simulation _ _ ?CurBB1 _,
+          H11: exists _:_, exists _:_, exists _:_, ?CurBB1 = _ |- _ =>
+           destruct H11 as [l3 [ps3 [cs31 H11]]]; inv H11
+        end.
+        eapply WF_PhiInfo_spec12; eauto 2 using wf_system__wf_fdef.
+
+      erewrite TopSim.lookupExFdecViaPtr__simulation_None_r2l; eauto.
+Qed.
+
 Lemma phinodes_placement_sim: forall rd f Ps1 Ps2 los nts main VarArgs pid ty al
   num l0 ps0 cs0 tmn0 dones (Hreach: ret rd = dtree.reachablity_analysis f)
   (Hentry: getEntryBlock f = Some (block_intro l0 ps0 cs0 tmn0))
   (Hfind: find_promotable_alloca f cs0 dones = Some (pid, ty, num, al))
+  (Hok: defined_program [module_intro los nts (Ps1 ++ product_fdef f :: Ps2)] 
+          main VarArgs)
   (HwfS :
      wf_system 
        [module_intro los nts (Ps1 ++ product_fdef f :: Ps2)]),
@@ -4425,6 +4617,7 @@ Lemma phinodes_placement_sim: forall rd f Ps1 Ps2 los nts main VarArgs pid ty al
     main VarArgs.
 Proof.
   intros.
+  assert (Hfind':=Hfind).
   eapply find_promotable_alloca__WF_PhiInfo in Hfind; eauto.
   set (pinfo:={|PI_f := f; PI_rd := rd; PI_id := pid;
                 PI_typ := ty; PI_num := num; PI_align := al |}).
@@ -4440,54 +4633,62 @@ Proof.
     repeat split; auto.
     unfold products_simulation.
     simpl in Huniq. destruct Huniq as [[_ [_ Huniq]] _].
-    unfold fdef_simulation.
+    unfold TopSim.products_simulation. simpl. unfold fdef_simulation.
     apply uniq_products_phiplacement_simulation; auto.
-  constructor.
-    intros tr t Hconv.
-    inv Hconv.
-    eapply s_genInitState__phiplacement_State_simulation in H; eauto.
-    destruct H as [cfg1 [IS1 [Hinit1 Hstsim]]].    
-    assert (OpsemPP.wf_Config cfg1 /\ OpsemPP.wf_State cfg1 IS1) as Hwfst. 
-      eapply s_genInitState__opsem_wf; eauto.
+
+Ltac phinodes_placement_init := 
+match goal with
+| H: Opsem.s_genInitState ?s _ _ _ = _, _: WF_PhiInfo ?pinfo |- _ =>
+    eapply s_genInitState__phiplacement_State_simulation in H; eauto;
+    destruct H as [cfg1 [IS1 [Hinit1 Hstsim]]];
+    assert (OpsemPP.wf_Config cfg1 /\ OpsemPP.wf_State cfg1 IS1) as Hwfst;
+      try solve [eapply s_genInitState__opsem_wf; eauto];
     assert (exists maxb,
               MemProps.wf_globals maxb (OpsemAux.Globals cfg1) /\ 0 <= maxb /\
-              Promotability.wf_State maxb pinfo cfg1 IS1) as Hprom.
-      eapply s_genInitState__wf_globals_promotable; eauto; try tauto.
-    destruct Hprom as [maxb [Hwfg [Hless Hprom]]].
+              Promotability.wf_State maxb pinfo cfg1 IS1) as Hprom; 
+      try solve [eapply s_genInitState__wf_globals_promotable; eauto; try tauto];
+    destruct Hprom as [maxb [Hwfg [Hless Hprom]]]
+end.
+
+  constructor; auto.
+    intros tr t Hconv.
+    inv Hconv.
+    phinodes_placement_init. 
     eapply sop_star__phiplacement_State_simulation in Hstsim; eauto; try tauto.
     destruct Hstsim as [FS1 [Hopstar1 Hstsim']].
-    eapply s_isFinialState__phiplacement_State_simulation in Hstsim'; eauto.
+    eapply s_isFinialState__phiplacement_State_simulation_r2l in Hstsim'; eauto.
     econstructor; eauto.
 
     intros tr Hdiv.
     inv Hdiv.
-    eapply s_genInitState__phiplacement_State_simulation in H; eauto.
-    destruct H as [cfg1 [IS1 [Hinit Hstsim]]].  
-    assert (OpsemPP.wf_Config cfg1 /\ OpsemPP.wf_State cfg1 IS1) as Hwfst. 
-      eapply s_genInitState__opsem_wf; eauto.
-    assert (exists maxb,
-              MemProps.wf_globals maxb (OpsemAux.Globals cfg1) /\ 0 <= maxb /\
-              Promotability.wf_State maxb pinfo cfg1 IS1).
-      eapply s_genInitState__wf_globals_promotable; eauto.
-    destruct H as [maxb [Hwfg [Hless Hprom]]].
+    phinodes_placement_init.
     eapply sop_div__phiplacement_State_simulation in Hstsim; eauto; try tauto.
     destruct Hstsim as [FS1 Hopdiv1].
     econstructor; eauto.
-Qed.
 
-Lemma phinodes_placement_wfS: forall rd f Ps1 Ps2 los nts pid ty al
-  num l0 ps0 cs0 tmn0 dones (Hreach: ret rd = dtree.reachablity_analysis f)
-  (Hentry: getEntryBlock f = Some (block_intro l0 ps0 cs0 tmn0))
-  (Hfind: find_promotable_alloca f cs0 dones = Some (pid, ty, num, al))
-  (HwfS :
-     wf_system 
-       [module_intro los nts (Ps1 ++ product_fdef f :: Ps2)]),
-  wf_system 
-    [module_intro los nts
-      (Ps1 ++
-       product_fdef (phinodes_placement f rd pid ty al (successors f)
-                    (make_predecessors (successors f))) :: Ps2)].
-Admitted. (* WF prev *)
+    intros tr t Hgowrong.
+    inv Hgowrong.
+    assert (OpsemPP.wf_Config cfg /\ OpsemPP.wf_State cfg t) as HwfSt.
+      eapply s_genInitState__opsem_wf in H; eauto using phinodes_placement_wfS.
+      destruct H as [Hcfg2 HwfSt2].
+      apply OpsemPP.preservation_star in H0; auto.
+    assert (OpsemPP.undefined_state cfg t) as Hundef.
+      apply stuck__undefined_state in H2; try solve [auto | tauto].
+    phinodes_placement_init.
+    eapply sop_star__phiplacement_State_simulation in Hstsim; eauto; try tauto.
+    destruct Hstsim as [FS1 [Hopstar1 Hstsim']].
+    eapply Promotability.preservation_star in Hprom; eauto; try tauto.
+    assert (OpsemPP.undefined_state cfg1 FS1) as Hundef'.
+      eapply undefined_state__phinodes_placement_simulation_r2l in Hundef; 
+        try solve [eauto | tauto].
+    assert (Opsem.s_isFinialState cfg1 FS1 = merror) as Hfinal'.
+      eapply s_isFinialState__phiplacement_State_simulation_None_r2l in H2; 
+        try solve [eauto | tauto].
+        eapply phinodes_placement_wfS in HwfS; eauto.
+    apply undefined_state__stuck' in Hundef'.
+    exists tr. exists FS1.
+    econstructor; eauto.
+Qed.
 
 Lemma phinodes_placement_wfPI: forall rd f Ps1 Ps2 los nts pid ty al
   num l0 ps0 cs0 tmn0 dones (Hreach: ret rd = dtree.reachablity_analysis f)

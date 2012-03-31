@@ -111,8 +111,8 @@
 ./Transforms/gvn.v
 ./Transforms/mem2reg.v
 ./Transforms/promotable_props.v
+./Transforms/top_sim.v
 ./Transforms/phiplacement_bsim.v
-./Transforms/phiplacement_fsim.v
 ./Transforms/memory_props.v
 ./Transforms/palloca_props.v
 ./Transforms/alive_store.v

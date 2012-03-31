@@ -16,6 +16,7 @@ Require Import genericvalues_inject.
 Require Import sb_metadata.
 Require Import program_sim.
 Require Import trans_tactic.
+Require Import top_sim.
 
 Definition fdef_simulation (pinfo: PhiInfo) f1 f2 : Prop :=
   if (fdef_dec (PI_f pinfo) f1) then
@@ -32,22 +33,37 @@ Definition block_simulation (pinfo: PhiInfo) (f1:fdef) b1 b2 : Prop :=
     remove_block (PI_id pinfo) b1 = b2
   else b1 = b2.
 
+Lemma fdef_simulation__eq_fheader: forall pinfo f1 f2
+  (H: fdef_simulation pinfo f1 f2),
+  fheaderOfFdef f1 = fheaderOfFdef f2.
+Proof.
+  unfold fdef_simulation.
+  intros.
+  destruct (fdef_dec (PI_f pinfo) f1); inv H; auto.
+    destruct (PI_f pinfo) as [fh b]; simpl; auto.
+Qed.
+
+Lemma fdef_simulation__det_right: forall pinfo f f1 f2,
+  fdef_simulation pinfo f f1 ->
+  fdef_simulation pinfo f f2 ->
+  f1 = f2.
+Proof.
+  unfold fdef_simulation.
+  intros.
+  destruct_if; congruence.
+Qed.
+
+Definition Fsim (pinfo: PhiInfo) := mkFunSim 
+(fdef_simulation pinfo)
+(fdef_simulation__eq_fheader pinfo)
+(fdef_simulation__det_right pinfo)
+.
+
 Definition products_simulation (pinfo: PhiInfo) Ps1 Ps2 : Prop :=
-List.Forall2
-  (fun P1 P2 =>
-   match P1, P2 with
-   | product_fdef f1, product_fdef f2 => fdef_simulation pinfo f1 f2
-   | _, _ => P1 = P2
-   end) Ps1 Ps2.
+@TopSim.products_simulation (Fsim pinfo) Ps1 Ps2.
 
 Definition system_simulation (pinfo: PhiInfo) S1 S2 : Prop :=
-List.Forall2
-  (fun M1 M2 =>
-   match M1, M2 with
-   | module_intro los1 nts1 Ps1, module_intro los2 nts2 Ps2 =>
-       los1 = los2 /\ nts1 = nts2 /\
-       products_simulation pinfo Ps1 Ps2
-   end) S1 S2.
+@TopSim.system_simulation (Fsim pinfo) S1 S2.
 
 Definition is_alloca_in_EC (pinfo: PhiInfo) F1 (lc1:@Opsem.GVsMap DGVs)
   (blk1: mblock) : bool :=
@@ -264,41 +280,6 @@ Proof.
         try congruence.
         clear.
         induction bs2; simpl; constructor; auto.
-Qed.
-
-Lemma products_simulation__fdef_simulation : forall pinfo fid Ps1 Ps2
-  (Hsim: products_simulation pinfo Ps1 Ps2) f1 f2,
-  lookupFdefViaIDFromProducts Ps2 fid = Some f2 ->
-  lookupFdefViaIDFromProducts Ps1 fid = Some f1 ->
-  fdef_simulation pinfo f1 f2.
-Proof.
-  intros pinfo fid Ps1 Ps2 Hsim.
-  induction Hsim; simpl; intros.
-    inv H.
-
-    destruct x as [?|?|f];
-    destruct y as [?|?|f0]; inv H0; inv H1; eauto; try congruence.
-    destruct (getFdefID f0 == fid); subst.
-      inv H3.
-      destruct (getFdefID f == getFdefID f2).
-        inv H2. auto.
-
-        destruct f2 as [[]], f1 as [[]].
-        apply lookupFdefViaIDFromProducts_ideq in H2.
-        simpl in H2. subst.
-        destruct f.
-        apply fdef_simulation_inv in H.
-        destruct H as [H _]; subst.
-        contradict n; auto.
-    destruct (getFdefID f == fid); subst; auto.
-      inv H2.
-      destruct f2 as [[]], f1 as [[]].
-      apply lookupFdefViaIDFromProducts_ideq in H3.
-      simpl in H3. subst.
-      destruct f0.
-      apply fdef_simulation_inv in H.
-      destruct H as [H _]; subst.
-      contradict n; auto.
 Qed.
 
 Lemma fdef_simulation__entry_block_simulation: forall pinfo F1 F2 B1 B2,
@@ -1866,27 +1847,6 @@ Proof.
   split; auto.
 Qed.
 
-Lemma lookupFdefViaPtr__simulation : forall pinfo Ps1 Ps2 fptr1 fptr2 f1 f2 fs1
-  fs2 mi,
-  OpsemAux.ftable_simulation mi fs1 fs2 ->
-  OpsemAux.lookupFdefViaPtr Ps2 fs2 fptr2 = Some f2 ->
-  products_simulation pinfo Ps1 Ps2 ->
-  gv_inject mi fptr1 fptr2 ->
-  OpsemAux.lookupFdefViaPtr Ps1 fs1 fptr1 = Some f1 ->
-  fdef_simulation pinfo f1 f2.
-Proof.
-  intros.
-  unfold OpsemAux.lookupFdefViaPtr in *.
-  remember (OpsemAux.lookupFdefViaGVFromFunTable fs1 fptr1) as R1.
-  destruct R1 as [fid1|]; inv H3.
-  remember (OpsemAux.lookupFdefViaGVFromFunTable fs2 fptr2) as R2.
-  destruct R2 as [fid2|]; inv H0.
-  eapply products_simulation__fdef_simulation; eauto.
-  unfold OpsemAux.ftable_simulation in H.
-  erewrite H in HeqR1; eauto.
-  rewrite <- HeqR2 in HeqR1. inv HeqR1. auto.
-Qed.
-
 Definition params_dont_use_pid pinfo F (ps:params) :=
   PI_f pinfo <> F \/
   List.fold_left
@@ -2063,174 +2023,6 @@ Proof.
   rewrite_env (nil++la).
   eapply reg_simulation__initializeFrameValues; eauto.
   apply reg_simulation_nil; auto.
-Qed.
-
-Lemma products_simulation__fdec_simulation : forall pinfo fid Ps1 Ps2
-  (Hsim: products_simulation pinfo Ps1 Ps2) f1 f2,
-  lookupFdecViaIDFromProducts Ps2 fid = Some f2 ->
-  lookupFdecViaIDFromProducts Ps1 fid = Some f1 ->
-  f1 = f2.
-Proof.
-  intros pinfo fid Ps1 Ps2 Hsim.
-  induction Hsim; simpl; intros.
-    inv H.
-
-    destruct x as [?|f|?];
-    destruct y as [?|f0|?]; inv H0; inv H1; eauto; try congruence.
-    destruct (getFdecID f0 == fid); subst.
-      inv H3.
-      destruct (getFdecID f == getFdecID f2).
-        inv H2. inv H. auto.
-
-        destruct f2 as [[]], f1 as [[]].
-        apply lookupFdecViaIDFromProducts_ideq in H2.
-        simpl in H2. subst.
-        destruct f.
-        inv H.
-        contradict n; auto.
-    destruct (getFdecID f == fid); subst; auto.
-      inv H2.
-      destruct f2 as [[]], f1 as [[]].
-      apply lookupFdecViaIDFromProducts_ideq in H3.
-      simpl in H3. subst.
-      destruct f0.
-      inv H.
-      contradict n; auto.
-Qed.
-
-Lemma products_simulation__fdef_simulation_l2r : forall pinfo fid Ps1 Ps2
-  (Hsim: products_simulation pinfo Ps1 Ps2) f1,
-  lookupFdefViaIDFromProducts Ps1 fid = Some f1 ->
-  exists f2,
-    lookupFdefViaIDFromProducts Ps2 fid = Some f2 /\
-    fdef_simulation pinfo f1 f2.
-Proof.
-  intros pinfo fid Ps1 Ps2 Hsim.
-  induction Hsim; simpl; intros.
-    inv H.
-
-    destruct x as [?|?|f];
-    destruct y as [?|?|f0]; inv H0; eauto; try congruence.
-    destruct (getFdefID f == fid); subst.
-      inv H2. simpl.
-      destruct (getFdefID f0 == getFdefID f1); eauto.
-        apply IHHsim. simpl.
-        destruct f0 as [[]], f1 as [[]].
-        apply fdef_simulation_inv in H.
-        destruct H as [H _]. inv H.
-        contradict n; auto.
-    simpl.
-    destruct (getFdefID f0 == fid); subst; auto.
-      destruct f0 as [[]], f as [[]].
-      apply fdef_simulation_inv in H.
-      destruct H as [H _]. inv H.
-      contradict n; auto.
-Qed.
-
-Lemma products_simulation__fdef_simulation_r2l : forall pinfo fid Ps1 Ps2
-  (Hsim: products_simulation pinfo Ps1 Ps2) f2,
-  lookupFdefViaIDFromProducts Ps2 fid = Some f2 ->
-  exists f1,
-    lookupFdefViaIDFromProducts Ps1 fid = Some f1 /\
-    fdef_simulation pinfo f1 f2.
-Proof.
-  intros pinfo fid Ps1 Ps2 Hsim.
-  induction Hsim; simpl; intros.
-    inv H.
-
-    destruct x as [?|?|f];
-    destruct y as [?|?|f0]; inv H0; eauto; try congruence.
-    destruct (getFdefID f0 == fid); subst.
-      inv H2. simpl.
-      destruct (getFdefID f == getFdefID f2); eauto.
-        apply IHHsim. simpl.
-        destruct f as [[]], f2 as [[]].
-        apply fdef_simulation_inv in H.
-        destruct H as [H _]. inv H.
-        contradict n; auto.
-    simpl.
-    destruct (getFdefID f == fid); subst; auto.
-      destruct f as [[]], f0 as [[]].
-      apply fdef_simulation_inv in H.
-      destruct H as [H _]. inv H.
-      contradict n; auto.
-Qed.
-
-Lemma lookupFdefViaPtr__simulation_l2r : forall pinfo Ps1 Ps2 fptr1 fptr2 f1
-  fs1 fs2 mi f2,
-  products_simulation pinfo Ps1 Ps2 ->
-  OpsemAux.ftable_simulation mi fs1 fs2 ->
-  gv_inject mi fptr1 fptr2 ->
-  OpsemAux.lookupFdefViaPtr Ps1 fs1 fptr1 = Some f1 ->
-  OpsemAux.lookupExFdecViaPtr Ps2 fs2 fptr2 = Some f2 ->
-  False.
-Proof.
-  intros.
-  unfold OpsemAux.lookupFdefViaPtr in *.
-  remember (OpsemAux.lookupFdefViaGVFromFunTable fs1 fptr1) as R1.
-  destruct R1 as [fid1|]; inv H2.
-  unfold OpsemAux.lookupExFdecViaPtr in *.
-  remember (OpsemAux.lookupFdefViaGVFromFunTable fs2 fptr2) as R2.
-  destruct R2 as [fid2|]; inv H3.
-  remember (lookupFdefViaIDFromProducts Ps2 fid2) as R3.
-  destruct R3; inv H4.
-  eapply products_simulation__fdef_simulation_l2r in H5; eauto.
-  destruct H5 as [f2' [J1 J2]].
-  unfold OpsemAux.ftable_simulation in H0.
-  erewrite H0 in HeqR1; eauto.
-  rewrite <- HeqR1 in HeqR2. inv HeqR2.
-  rewrite J1 in HeqR3. inv HeqR3.
-Qed.
-
-Lemma lookupExFdecViaPtr__simulation : forall pinfo Ps1 Ps2 fptr1 fptr2 f1
-  f2 fs1 fs2 mi,
-  products_simulation pinfo Ps1 Ps2 ->
-  OpsemAux.ftable_simulation mi fs1 fs2 ->
-  gv_inject mi fptr1 fptr2 ->
-  OpsemAux.lookupExFdecViaPtr Ps1 fs1 fptr1 = Some f1 ->
-  OpsemAux.lookupExFdecViaPtr Ps2 fs2 fptr2 = Some f2 ->
-  f1 = f2.
-Proof.
-  intros.
-  unfold OpsemAux.lookupExFdecViaPtr in *.
-  remember (OpsemAux.lookupFdefViaGVFromFunTable fs1 fptr1) as R1.
-  destruct R1 as [fid1|]; inv H2.
-  remember (lookupFdefViaIDFromProducts Ps1 fid1) as R3.
-  destruct R3; tinv H5.
-  remember (OpsemAux.lookupFdefViaGVFromFunTable fs2 fptr2) as R2.
-  destruct R2 as [fid2|]; inv H3.
-  remember (lookupFdefViaIDFromProducts Ps2 fid2) as R4.
-  destruct R4; tinv H4. symmetry_ctx.
-  unfold OpsemAux.ftable_simulation in H0.
-  erewrite H0 in HeqR1; eauto.
-  rewrite HeqR2 in HeqR1. inv HeqR1.
-  eapply products_simulation__fdec_simulation; eauto.
-Qed.
-
-Lemma lookupFdefViaPtr__simulation_r2l : forall pinfo Ps1 Ps2 fptr1 fptr2 f1
-  fs1 fs2 mi f2,
-  products_simulation pinfo Ps1 Ps2 ->
-  OpsemAux.ftable_simulation mi fs1 fs2 ->
-  gv_inject mi fptr1 fptr2 ->
-  OpsemAux.lookupFdefViaPtr Ps2 fs2 fptr2 = Some f2 ->
-  OpsemAux.lookupExFdecViaPtr Ps1 fs1 fptr1 = Some f1 ->
-  False.
-Proof.
-  intros.
-  unfold OpsemAux.lookupFdefViaPtr in *.
-  remember (OpsemAux.lookupFdefViaGVFromFunTable fs2 fptr2) as R1.
-  destruct R1 as [fid2|]; inv H2.
-  unfold OpsemAux.lookupExFdecViaPtr in *.
-  remember (OpsemAux.lookupFdefViaGVFromFunTable fs1 fptr1) as R2.
-  destruct R2 as [fid1|]; inv H3.
-  remember (lookupFdefViaIDFromProducts Ps1 fid1) as R3.
-  destruct R3; inv H4.
-  eapply products_simulation__fdef_simulation_r2l in H5; eauto.
-  destruct H5 as [f2' [J1 J2]].
-  unfold OpsemAux.ftable_simulation in H0.
-  erewrite H0 in HeqR2; eauto.
-  rewrite <- HeqR2 in HeqR1. inv HeqR1.
-  rewrite J1 in HeqR3. inv HeqR3.
 Qed.
 
 Axiom callExternalFunction__mem_simulation: forall pinfo mi M1 M2 fid0 gvs1
@@ -2765,8 +2557,8 @@ SCase "sCall".
     simulation__getOperandValue_tac2.
 
   assert (Hfsim1:=Hpsim).
-  eapply lookupFdefViaPtr__simulation in Hfsim1; eauto. 
-
+  eapply TopSim.lookupFdefViaPtr_inj__simulation in Hfsim1; eauto. 
+  simpl in Hfsim1.
   assert (Hbsim1:=Hfsim1).
   eapply fdef_simulation__entry_block_simulation in Hbsim1; eauto.
   assert (Hbsim1':=Hbsim1).
@@ -2810,7 +2602,7 @@ SCase "sCall".
     destruct G.
     simulation__getOperandValue_tac2.
 
-  eapply lookupFdefViaPtr__simulation_l2r in H1; eauto.
+  eapply TopSim.lookupFdefViaPtr_inj__simulation_l2r in H1; eauto.
   uniq_result.
 
 SCase "sExCall".
@@ -2831,7 +2623,7 @@ SCase "sExCall".
     destruct G.
     simulation__getOperandValue_tac2.
 
-  eapply lookupFdefViaPtr__simulation_r2l in H1; eauto.
+  eapply TopSim.lookupFdefViaPtr_inj__simulation_r2l in H1; eauto.
   uniq_result.
 
   SSCase "sExCall".
@@ -2844,7 +2636,7 @@ SCase "sExCall".
     destruct G.
     simulation__getOperandValue_tac2.
 
-  eapply lookupExFdecViaPtr__simulation with (fs1:=fs) (fs2:=fs2) in H1; eauto.
+  eapply TopSim.lookupExFdecViaPtr_inj__simulation in Hfptr_sim; eauto.
   uniq_result.
 
   match goal with | H1 : fdec_intro _ _ = fdec_intro _ _ |- _ => inv H1 end.
@@ -2872,21 +2664,44 @@ Lemma s_genInitState__dae_State_simulation: forall pinfo S1 S2 main VarArgs cfg2
     Promotability.wf_State maxb pinfo cfg1 IS1.
 Admitted.
 
-Lemma s_isFinialState__dae_State_simulation: forall maxb mi pinfo cfg1 FS1 cfg2
+Lemma s_isFinialState__dae_State_simulation_l2r: forall maxb mi pinfo cfg1 FS1 cfg2
   FS2 r (Hstsim : State_simulation pinfo maxb mi cfg1 FS1 cfg2 FS2)
+  (Hfinal: Opsem.s_isFinialState cfg1 FS1 = ret r),
+  Opsem.s_isFinialState cfg2 FS2 = ret r.
+Admitted.
+
+Lemma s_isFinialState__dae_State_simulation_l2r': forall maxb mi pinfo cfg1 FS1 cfg2
+  FS2 (Hstsim : State_simulation pinfo maxb mi cfg1 FS1 cfg2 FS2)
+  (Hfinal: Opsem.s_isFinialState cfg1 FS1 <> None),
+  Opsem.s_isFinialState cfg2 FS2 <> None.
+Admitted.
+
+Lemma s_isFinialState__dae_State_simulation_r2l:
+  forall pinfo cfg1 FS1 cfg2 FS2 r maxb mi 
+  (Hstsim : State_simulation pinfo maxb mi cfg1 FS1 cfg2 FS2)
   (Hfinal: Opsem.s_isFinialState cfg2 FS2 = ret r),
-  Opsem.s_isFinialState cfg1 FS1 = ret r.
+  exists FS1', exists mi',
+    Opsem.sop_star cfg1 FS1 FS1' E0 /\
+    State_simulation pinfo maxb mi cfg1 FS1' cfg2 FS2 /\
+    Opsem.s_isFinialState cfg1 FS1' = ret r /\
+    Values.inject_incr mi mi'.
 Admitted.
 
-Lemma opsem_s_isFinialState__dae_State_simulation: forall
-  pinfo maxb mi cfg1 FS1 cfg2 FS2
-  (Hstsim : State_simulation pinfo maxb mi cfg1 FS1 cfg2 FS2),
-  Opsem.s_isFinialState cfg1 FS1 = Opsem.s_isFinialState cfg2 FS2.
+Lemma s_isFinialState__dae_State_simulation_None_r2l:
+  forall pinfo cfg1 FS1 cfg2 FS2 maxb mi
+  (Hstsim : State_simulation pinfo maxb mi cfg1 FS1 cfg2 FS2)
+  (Hfinal: Opsem.s_isFinialState cfg2 FS2 = None),
+  Opsem.s_isFinialState cfg1 FS1 = None.
 Admitted.
 
-Lemma undefined_state__dae_State_simulation: forall pinfo maxb mi cfg1 St1 cfg2
+Lemma undefined_state__dae_State_simulation_l2r: forall pinfo maxb mi cfg1 St1 cfg2
   St2 (Hstsim : State_simulation pinfo maxb mi cfg1 St1 cfg2 St2),
   OpsemPP.undefined_state cfg1 St1 -> OpsemPP.undefined_state cfg2 St2.
+Admitted.
+
+Lemma undefined_state__dae_State_simulation_r2l: forall pinfo maxb mi cfg1 St1 cfg2
+  St2 (Hstsim : State_simulation pinfo maxb mi cfg1 St1 cfg2 St2),
+  OpsemPP.undefined_state cfg2 St2 -> OpsemPP.undefined_state cfg1 St1.
 Admitted.
 
 Lemma sop_star__dae_State_simulation: forall pinfo mi cfg1 IS1 cfg2 IS2 tr
@@ -2913,8 +2728,7 @@ Proof.
     assert (J:=Hwfpp).
     apply OpsemPP.progress in J; auto.
     destruct J as [Hfinal1 | [[IS1' [tr0 Hop1]] | Hundef1]].
-      apply opsem_s_isFinialState__dae_State_simulation in Hstsim.
-      rewrite Hstsim in Hfinal1.
+      eapply s_isFinialState__dae_State_simulation_l2r' in Hstsim; eauto 1.
       contradict H; eauto using s_isFinialState__stuck.
 
       assert (OpsemPP.wf_Config cfg1/\ OpsemPP.wf_State cfg1 IS1') as Hwfpp'.
@@ -2939,7 +2753,7 @@ Proof.
         split; eauto.
           eapply inject_incr_trans; eauto.
 
-      eapply undefined_state__dae_State_simulation in Hstsim; eauto.
+      eapply undefined_state__dae_State_simulation_l2r in Hstsim; eauto.
       contradict H; eauto using undefined_state__stuck.
 Qed.
 
@@ -2955,10 +2769,24 @@ Lemma sop_div__dae_State_simulation: forall pinfo cfg1 IS1 cfg2 IS2 tr
   Opsem.sop_diverges cfg1 IS1 tr.
 Admitted.
 
+Lemma dae_wfS: forall
+  (id0 : id) (f :fdef) (pinfo : PhiInfo)
+  (los : layouts) (nts : namedts) (Ps1 Ps2 : list product)
+  (Hwfpi: WF_PhiInfo pinfo)
+  (HwfS: wf_system [module_intro los nts (Ps1 ++ product_fdef f :: Ps2)])
+  (Hnuse: used_in_fdef (PI_id pinfo) (PI_f pinfo) = false)
+  (Heq1: f = PI_f pinfo) (Heq2: id0 = PI_id pinfo),
+  wf_system
+    [module_intro los nts (Ps1 ++ product_fdef (remove_fdef id0 f) :: Ps2)].
+Proof.
+Admitted.
+
 Lemma dae_sim: forall id0 f pinfo los nts Ps1 Ps2 main VarArgs
   (Hwfpi: WF_PhiInfo pinfo)
   (HwfS: wf_system [module_intro los nts (Ps1 ++ product_fdef f :: Ps2)])
   (Hnuse: used_in_fdef (PI_id pinfo) (PI_f pinfo) = false)
+  (Hok: defined_program [module_intro los nts (Ps1 ++ product_fdef f :: Ps2)]
+          main VarArgs)
   (Heq1: f = PI_f pinfo) (Heq2: id0 = PI_id pinfo),
   program_sim
     [module_intro los nts
@@ -2973,38 +2801,63 @@ Proof.
     [module_intro los nts
       (Ps1 ++ product_fdef (remove_fdef (PI_id pinfo) (PI_f pinfo)) :: Ps2)])
     as Hssim.
-    unfold system_simulation.
     constructor; auto.
     repeat split; auto.
-    unfold products_simulation.
     simpl in Huniq. destruct Huniq as [[_ [_ Huniq]] _].
+    unfold TopSim.products_simulation. simpl. unfold system_simulation.
     apply uniq_products_simulation; auto.
 
-  constructor.
+  constructor; auto.
     intros tr t Hconv.
     inv Hconv.
-    eapply s_genInitState__dae_State_simulation in H; eauto.
+
+Ltac dae_sim_init :=
+match goal with
+| H: Opsem.s_genInitState _ _ _ _ = _, pinfo: PhiInfo |- _ =>
+    eapply s_genInitState__dae_State_simulation in H; eauto;
     destruct H as
-      [maxb [mi [cfg1 [IS1 [Hinit1 [Hstsim [Hwfg [Hwfgs [Hless Hprom]]]]]]]]].
-    assert (OpsemPP.wf_Config cfg1 /\ OpsemPP.wf_State cfg1 IS1) as Hwfst.
-      eapply s_genInitState__opsem_wf; eauto.
-    assert (palloca_props.wf_State pinfo IS1) as Hpalloca.
-      eapply palloca_props.s_genInitState__palloca; eauto.
+      [maxb [mi [cfg1 [IS1 [Hinit1 [Hstsim [Hwfg [Hwfgs [Hless Hprom]]]]]]]]];
+    assert (OpsemPP.wf_Config cfg1/\ OpsemPP.wf_State cfg1 IS1) as Hwfst;
+      try solve [eapply s_genInitState__opsem_wf; eauto];
+    assert (palloca_props.wf_State pinfo IS1) as Hpalloca;
+      try solve [eapply palloca_props.s_genInitState__palloca; eauto]
+end.
+
+    dae_sim_init.
     eapply sop_star__dae_State_simulation in Hstsim; eauto; try tauto.
     destruct Hstsim as [FS1 [mi' [Hopstar1 [Hstsim' Hinc]]]].
-    eapply s_isFinialState__dae_State_simulation in Hstsim'; eauto.
+    eapply s_isFinialState__dae_State_simulation_r2l in Hstsim'; eauto.
+    destruct Hstsim' as [FS1' [mi'' [Hopstar1' [Hstsim'' [Hfinal Hinc']]]]].
+    assert (Opsem.sop_star cfg1 IS1 FS1' tr) as Hopstar1''.
+      rewrite <- E0_right.
+      eapply OpsemProps.sop_star_trans; eauto.
     econstructor; eauto.
 
     intros tr Hdiv.
     inv Hdiv.
-    eapply s_genInitState__dae_State_simulation in H; eauto.
-    destruct H as
-      [maxb [mi [cfg1 [IS1 [Hinit1 [Hstsim [Hwfg [Hwfgs [Hless Hprom]]]]]]]]].
-    assert (OpsemPP.wf_State cfg1 IS1) as Hwfst.
-      eapply s_genInitState__opsem_wf; eauto.
-    assert (palloca_props.wf_State pinfo IS1) as Hpalloca.
-      eapply palloca_props.s_genInitState__palloca; eauto.
-    eapply sop_div__dae_State_simulation in Hstsim; eauto.
+    dae_sim_init.
+    eapply sop_div__dae_State_simulation in Hstsim; try solve [eauto | tauto].
     destruct Hstsim as [FS1 Hopdiv1].
+    econstructor; eauto.
+
+    intros tr t Hgowrong.
+    inv Hgowrong.
+    assert (OpsemPP.wf_Config cfg /\ OpsemPP.wf_State cfg t) as HwfSt.
+      eapply s_genInitState__opsem_wf in H; eauto using dae_wfS.
+      destruct H as [Hcfg2 HwfSt2].
+      apply OpsemPP.preservation_star in H0; auto.
+    assert (OpsemPP.undefined_state cfg t) as Hundef.
+      apply stuck__undefined_state in H2; try solve [auto | tauto].
+    dae_sim_init.
+    eapply sop_star__dae_State_simulation in Hstsim; eauto; try tauto.
+    destruct Hstsim as [FS1 [mi' [Hopstar1 [Hstsim' Hinc]]]].
+    assert (OpsemPP.undefined_state cfg1 FS1) as Hundef'.
+      eapply undefined_state__dae_State_simulation_r2l in Hundef; 
+        try solve [eauto | tauto].
+    assert (Opsem.s_isFinialState cfg1 FS1 = merror) as Hfinal'.
+      eapply s_isFinialState__dae_State_simulation_None_r2l in H2; 
+        try solve [eauto | tauto].
+    apply undefined_state__stuck' in Hundef'.
+    exists tr. exists FS1.
     econstructor; eauto.
 Qed.

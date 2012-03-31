@@ -987,7 +987,7 @@ Inductive s_goeswrong : system -> id -> list GVs -> trace -> State -> Prop :=
   s_genInitState s main VarArgs Mem.empty = Some (cfg, IS) ->
   sop_star cfg IS FS tr ->
   stuck_state cfg FS ->
-  s_isFinialState cfg FS <> None ->
+  s_isFinialState cfg FS = None ->
   s_goeswrong s main VarArgs tr FS
 .
 
@@ -1357,7 +1357,7 @@ Inductive b_goeswrong :
   b_genInitState s main VarArgs Mem.empty = Some (cfg, IS) ->
   bops cfg IS FS tr ->
   stuck_bstate cfg FS ->
-  b_isFinialState cfg FS <> None ->
+  b_isFinialState cfg FS = None ->
   b_goeswrong s main VarArgs tr FS
 .
 

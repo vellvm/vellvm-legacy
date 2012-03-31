@@ -3590,5 +3590,50 @@ Proof.
     intros. inv H.
 Qed.
 
+Lemma WF_PhiInfo_spec19: forall (pinfo : PhiInfo) (Locals : Opsem.GVsMap)
+  Allocas0 (Mem0 : mem) (Hwfpi : WF_PhiInfo pinfo) TD maxb
+  (Hnoalias : wf_defs maxb pinfo TD Mem0 Locals Allocas0) 
+  (gv : GenericValue)
+  (HeqR3 : merror = mload TD Mem0 gv (PI_typ pinfo) (PI_align pinfo))
+  (HeqR2 : ret gv = lookupAL _ Locals (PI_id pinfo)),
+  False.
+Proof.
+  intros.
+  symmetry in HeqR2.
+  apply Hnoalias in HeqR2.
+  unfold wf_alloca_GVs in HeqR2. rewrite <- HeqR3 in HeqR2.
+  destruct HeqR2 as [[_ [_ [_ [gv' HeqR2]]]] _]. congruence.
+Qed.
+
+Lemma valid_mload__valid_mstore: forall td gv1 t m gv2 al gv'
+  (Hmatch: gv_chunks_match_typ td gv1 t)
+  (Hld: mload td m gv2 t al = ret gv'),
+  exists m', mstore td m gv2 t gv1 al = Some m'.
+Proof.
+  unfold mstore, gv_chunks_match_typ.
+  intros.
+  apply mload_inv in Hld.
+  destruct Hld as [b [ofs [m0 [mc [J1 [J2 J3]]]]]]; subst. 
+  simpl. rewrite J2 in Hmatch.
+  (* we should prove that promotable location is writable*)
+Admitted.
+
+Lemma WF_PhiInfo_spec20: forall (pinfo : PhiInfo) (Locals : Opsem.GVsMap)
+  Allocas0 (Mem0 : mem) (Hwfpi : WF_PhiInfo pinfo) TD maxb
+  (Hnoalias : wf_defs maxb pinfo TD Mem0 Locals Allocas0) 
+  (gv1 gv2 : GenericValue) (Hmatch: gv_chunks_match_typ TD gv1 (PI_typ pinfo))
+  (HeqR3 : merror = mstore TD Mem0 gv2 (PI_typ pinfo) gv1 (PI_align pinfo))
+  (HeqR2 : ret gv2 = lookupAL _ Locals (PI_id pinfo)),
+  False.
+Proof.
+  intros.
+  symmetry in HeqR2.
+  apply Hnoalias in HeqR2.
+  unfold wf_alloca_GVs in HeqR2. 
+  destruct HeqR2 as [[_ [_ [_ [gv' HeqR2]]]] _]. 
+  eapply valid_mload__valid_mstore in HeqR2; eauto.
+  destruct HeqR2. congruence.
+Qed.
+
 End Promotability.
 

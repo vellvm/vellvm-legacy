@@ -105,6 +105,22 @@ Proof.
      apply hasNonPredecessor__mono in J1; eauto.
 Qed.
 
+Lemma entryBlock_has_no_pred: forall s m F B l0 l3 ps cs tmn
+  (HwfF: wf_fdef s m F) (Hentry:  getEntryBlock F = Some B) (Huniq:uniqFdef F)
+  (HBinF : blockInFdefB (block_intro l3 ps cs tmn) F = true)
+  (Hsucc : In l0 (successors_terminator tmn))
+  (Hlkup: lookupBlockViaLabelFromFdef F l0 = Some B),
+  False.
+Proof.
+  intros. 
+  destruct B as [l1 ps1 cs1 tmn1].
+  apply lookupBlockViaLabelFromFdef_inv in Hlkup; auto.
+  destruct Hlkup as [EQ HBinF']; subst.
+  destruct F as [fh bs]. 
+  simpl in HBinF. clear HBinF'.
+  eapply getEntryBlock_inv in Hentry; eauto.
+Qed.
+
 Lemma wf_modules__wf_module : forall S ms m,
   wf_modules S ms ->
   moduleInSystemB m ms ->

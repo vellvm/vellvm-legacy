@@ -5417,3 +5417,54 @@ Lemma in__cmdInBlockB: forall c l1 ps1 cs1 tmn1,
   cmdInBlockB c (block_intro l1 ps1 cs1 tmn1) = true.
 Proof. simpl. intros. solve_in_list. Qed.
 
+Lemma getCmdID_in_getCmdsIDs : forall cs i0 c,
+  getCmdID c = Some i0 ->
+  In c cs ->
+  In i0 (getCmdsIDs cs).
+Proof.
+  induction cs; intros.
+    inv H0.
+
+    simpl in *.
+    destruct H0 as [H0 | H0]; subst.
+      rewrite H. simpl. auto.
+      
+      apply IHcs in H; auto.
+      destruct (getCmdID a); simpl; auto.
+Qed.
+
+Lemma getCmdID_in_getBlocksIDs : forall i0 c l0 ps0 cs0 tmn0,
+  getCmdID c = Some i0 ->
+  In c cs0 ->
+  In i0 (getBlockIDs (block_intro l0 ps0 cs0 tmn0)).
+Proof.
+  intros. 
+  simpl. 
+  apply in_or_app. right.
+  eapply getCmdID_in_getCmdsIDs; eauto.
+Qed.
+
+Lemma uniqFdef_cmds_split_middle: forall (cs2 cs2' : list cmd) (c : cmd) 
+  (cs1 cs1' : list cmd) F l0 ps0 tmn0
+  (Huniq: uniqFdef F)
+  (HBinF: blockInFdefB (block_intro l0 ps0 (cs1 ++ c :: cs2) tmn0) F = true)
+  (H: cs1 ++ c :: cs2 = cs1' ++ c :: cs2'), cs1 = cs1' /\ cs2 = cs2'.
+Proof.
+  intros.
+  apply uniqFdef__blockInFdefB__nodup_cmds in HBinF; auto.
+  apply NoDup_cmds_split_middle in H; auto.
+Qed.
+
+Lemma InBlocksB_map: forall b f bs (HBinF : InBlocksB b bs),
+  InBlocksB (f b) (List.map f bs).
+Proof.
+  induction bs; simpl; intros; auto.
+    binvt HBinF as HBinF HBinF.
+      apply blockEqB_inv in HBinF. subst.
+      apply orb_true_iff.
+      left. apply blockEqB_refl.
+    
+      apply orb_true_iff.
+      right. apply IHbs in HBinF. auto.
+Qed.
+

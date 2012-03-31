@@ -1702,18 +1702,31 @@ Lemma WF_PhiInfo_spec11: forall pinfo l1 ps1 cs1 c cs2 tmn,
   WF_PhiInfo pinfo ->
   blockInFdefB (block_intro l1 ps1 (cs1 ++ c :: cs2) tmn) (PI_f pinfo) = true
     ->
-  match c with
-  | insn_alloca _ _ _ _ => False
-  | _ => True
-  end ->
   not_temporaries (getCmdLoc c) (PI_newids pinfo).
 Proof.
   intros.
   eapply getCmdLoc_in_getFdefLocs in H0; eauto.
   destruct (is_temporary_dec (getCmdLoc c) (PI_newids pinfo)); auto.
   destruct H as [J1 J2].
-  apply gen_fresh_ids__spec in H2; auto.
+  apply gen_fresh_ids__spec in H1; auto.
   contradict H0; auto.
+Qed.
+
+Lemma WF_PhiInfo_spec18: forall pinfo (Hwfpi: WF_PhiInfo pinfo) 
+  (Huniq: uniqFdef (PI_f pinfo)),
+  not_temporaries (PI_id pinfo) (PI_newids pinfo).
+Proof.
+  intros.
+  apply WF_PhiInfo_spec1 in Huniq; auto.
+  apply lookupInsnViaIDFromFdef__insnInFdefBlockB in Huniq.
+  destruct Huniq as [b Huniq].
+  apply destruct_insnInFdefBlockB in Huniq.  
+  destruct b as [l0 ps0 cs0 tmn0].
+  simpl in Huniq. destruct Huniq as [HcInB HbInF]. 
+  apply InCmdsB_in in HcInB.
+  apply in_split in HcInB.
+  destruct HcInB as [cs1 [cs2 HcInB]]; subst.
+  eapply WF_PhiInfo_spec11 in HbInF; eauto.
 Qed.
 
 Lemma find_promotable_alloca__WF_PhiInfo: forall rd f l0 ps0 cs0 tmn0
@@ -2053,23 +2066,6 @@ match goal with
   fold wf_ECStack in HwfECs
 end.
 
-(* go to typings_props *)
-Lemma entryBlock_has_no_pred: forall s m F B l0 l3 ps cs tmn
-  (HwfF: wf_fdef s m F) (Hentry:  getEntryBlock F = Some B) (Huniq:uniqFdef F)
-  (HBinF : blockInFdefB (block_intro l3 ps cs tmn) F = true)
-  (Hsucc : In l0 (successors_terminator tmn))
-  (Hlkup: lookupBlockViaLabelFromFdef F l0 = Some B),
-  False.
-Proof.
-  intros. 
-  destruct B as [l1 ps1 cs1 tmn1].
-  apply lookupBlockViaLabelFromFdef_inv in Hlkup; auto.
-  destruct Hlkup as [EQ HBinF']; subst.
-  destruct F as [fh bs]. 
-  simpl in HBinF. clear HBinF'.
-  eapply getEntryBlock_inv in Hentry; eauto.
-Qed.
-
 Ltac preservation_sBranch:=
   destruct_ctx_other;
   split; try solve [
@@ -2235,35 +2231,6 @@ Case "sExCall".
   ]).
 Qed.
 
-(* go to infra *)
-Lemma getCmdID_in_getCmdsIDs : forall cs i0 c,
-  getCmdID c = Some i0 ->
-  In c cs ->
-  In i0 (getCmdsIDs cs).
-Proof.
-  induction cs; intros.
-    inv H0.
-
-    simpl in *.
-    destruct H0 as [H0 | H0]; subst.
-      rewrite H. simpl. auto.
-      
-      apply IHcs in H; auto.
-      destruct (getCmdID a); simpl; auto.
-Qed.
-
-(* go to infra *)
-Lemma getCmdID_in_getBlocksIDs : forall i0 c l0 ps0 cs0 tmn0,
-  getCmdID c = Some i0 ->
-  In c cs0 ->
-  In i0 (getBlockIDs (block_intro l0 ps0 cs0 tmn0)).
-Proof.
-  intros. 
-  simpl. 
-  apply in_or_app. right.
-  eapply getCmdID_in_getCmdsIDs; eauto.
-Qed.
-
 Lemma WF_PhiInfo_spec14: forall pinfo l1 ps1 cs11 t v align0 cs tmn2
   (Hwfpi: WF_PhiInfo pinfo) (Huniq: uniqFdef (PI_f pinfo))
   (HBinF: blockInFdefB (block_intro l1 ps1
@@ -2289,18 +2256,6 @@ Proof.
 
     eapply getCmdID_in_getBlocksIDs; eauto using in_middle.
       simpl; auto.
-Qed.
-
-(* go to infra *)
-Lemma uniqFdef_cmds_split_middle: forall (cs2 cs2' : list cmd) (c : cmd) 
-  (cs1 cs1' : list cmd) F l0 ps0 tmn0
-  (Huniq: uniqFdef F)
-  (HBinF: blockInFdefB (block_intro l0 ps0 (cs1 ++ c :: cs2) tmn0) F = true)
-  (H: cs1 ++ c :: cs2 = cs1' ++ c :: cs2'), cs1 = cs1' /\ cs2 = cs2'.
-Proof.
-  intros.
-  apply uniqFdef__blockInFdefB__nodup_cmds in HBinF; auto.
-  apply NoDup_cmds_split_middle in H; auto.
 Qed.
 
 Lemma WF_PhiInfo_spec15: forall (pinfo : PhiInfo) (tmn2 : terminator)

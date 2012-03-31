@@ -15,6 +15,7 @@ Require Import mem2reg.
 Require Import program_sim.
 Require Import memory_props.
 Require Import trans_tactic.
+Require Import top_sim.
 
 (* We define a special las used by mem2reg that only considers local commands.
    In general, it should be extended to the las defined w.r.t domination and
@@ -614,24 +615,39 @@ Definition block_simulation (pinfo: PhiInfo) (lasinfo: LASInfo pinfo) f1 b1 b2
     subst_block (LAS_lid pinfo lasinfo) (LAS_value pinfo lasinfo) b1 = b2
   else b1 = b2.
 
-Definition products_simulation (pinfo: PhiInfo) (lasinfo: LASInfo pinfo) Ps1 Ps2
-  : Prop :=
-List.Forall2
-  (fun P1 P2 =>
-   match P1, P2 with
-   | product_fdef f1, product_fdef f2 => fdef_simulation pinfo lasinfo f1 f2
-   | _, _ => P1 = P2
-   end) Ps1 Ps2.
+Lemma fdef_simulation__eq_fheader: forall pinfo lasinfo f1 f2
+  (H: fdef_simulation pinfo lasinfo f1 f2),
+  fheaderOfFdef f1 = fheaderOfFdef f2.
+Proof.
+  unfold fdef_simulation.
+  intros.
+  destruct (fdef_dec (PI_f pinfo) f1); inv H; auto.
+    destruct (PI_f pinfo) as [fh b]; simpl; auto.
+Qed.
 
-Definition system_simulation (pinfo: PhiInfo) (lasinfo: LASInfo pinfo) S1 S2
-  : Prop :=
-List.Forall2
-  (fun M1 M2 =>
-   match M1, M2 with
-   | module_intro los1 nts1 Ps1, module_intro los2 nts2 Ps2 =>
-       los1 = los2 /\ nts1 = nts2 /\
-       products_simulation pinfo lasinfo Ps1 Ps2
-   end) S1 S2.
+Lemma fdef_simulation__det_right: forall pinfo lasinfo f f1 f2,
+  fdef_simulation pinfo lasinfo f f1 ->
+  fdef_simulation pinfo lasinfo f f2 ->
+  f1 = f2.
+Proof.
+  unfold fdef_simulation.
+  intros.
+  destruct_if; congruence.
+Qed.
+
+Definition Fsim (pinfo: PhiInfo) (lasinfo: LASInfo pinfo) := mkFunSim 
+(fdef_simulation pinfo lasinfo)
+(fdef_simulation__eq_fheader pinfo lasinfo)
+(fdef_simulation__det_right pinfo lasinfo)
+.
+
+Definition products_simulation (pinfo: PhiInfo) (lasinfo: LASInfo pinfo) 
+  Ps1 Ps2 : Prop :=
+@TopSim.products_simulation (Fsim pinfo lasinfo) Ps1 Ps2.
+
+Definition system_simulation (pinfo: PhiInfo) (lasinfo: LASInfo pinfo) 
+  S1 S2 : Prop :=
+@TopSim.system_simulation (Fsim pinfo lasinfo) S1 S2.
 
 Definition phis_simulation (pinfo: PhiInfo) (lasinfo: LASInfo pinfo) (f1:fdef)
   ps1 ps2 : Prop :=
@@ -1141,27 +1157,6 @@ Definition pars_simulation (pinfo: PhiInfo) (lasinfo: LASInfo pinfo) (f1:fdef)
     = ps2
   else ps1 = ps2.
 
-Lemma products_simulation__fdef_simulation : forall pinfo lasinfo Ps1 Ps2 fid f1
-  f2,
-  lookupFdefViaIDFromProducts Ps2 fid = Some f2 ->
-  lookupFdefViaIDFromProducts Ps1 fid = Some f1 ->
-  products_simulation pinfo lasinfo Ps1 Ps2 ->
-  fdef_simulation pinfo lasinfo f1 f2.
-Admitted. (* prod sim *)
-
-Lemma lookupFdefViaPtr__simulation : forall pinfo lasinfo Ps1 Ps2 fptr f1 f2 fs,
-  OpsemAux.lookupFdefViaPtr Ps2 fs fptr = Some f2 ->
-  products_simulation pinfo lasinfo Ps1 Ps2 ->
-  OpsemAux.lookupFdefViaPtr Ps1 fs fptr = Some f1 ->
-  fdef_simulation pinfo lasinfo f1 f2.
-Proof.
-  intros.
-  unfold OpsemAux.lookupFdefViaPtr in *.
-  remember (OpsemAux.lookupFdefViaGVFromFunTable fs fptr) as R2.
-  destruct R2 as [fid|]; inv H1. simpl in H.
-  eapply products_simulation__fdef_simulation in H0; eauto.
-Qed.
-
 Lemma fdef_simulation__entry_block_simulation: forall pinfo lasinfo F1 F2 B1 B2,
   fdef_simulation pinfo lasinfo F1 F2 ->
   getEntryBlock F1 = ret B1 ->
@@ -1312,20 +1307,6 @@ Proof.
   eapply params2GVs_sim_aux; eauto.
     exists nil. auto.
 Qed.
-
-Lemma lookupFdefViaPtr__simulation_l2r : forall pinfo lasinfo Ps1 Ps2 fptr f1 fs,
-  products_simulation pinfo lasinfo Ps1 Ps2 ->
-  OpsemAux.lookupFdefViaPtr Ps1 fs fptr = Some f1 ->
-  exists f2,
-    OpsemAux.lookupFdefViaPtr Ps2 fs fptr = Some f2 /\
-    fdef_simulation pinfo lasinfo f1 f2.
-Admitted. (* fsim *)
-
-Lemma lookupExFdecViaPtr__simulation_l2r : forall pinfo lasinfo Ps1 Ps2 fptr f fs,
-  products_simulation pinfo lasinfo Ps1 Ps2 ->
-  OpsemAux.lookupExFdecViaPtr Ps1 fs fptr = Some f ->
-  OpsemAux.lookupExFdecViaPtr Ps2 fs fptr = Some f.
-Admitted. (* fsim *)
 
 Ltac destruct_ctx_other :=
 match goal with
@@ -1848,8 +1829,8 @@ Case "sCall".
   subst. clear H.
 
   assert (Hfsim1:=Hpsim).
-  eapply lookupFdefViaPtr__simulation in Hfsim1; eauto.
-
+  eapply TopSim.lookupFdefViaPtr__simulation in Hfsim1; eauto.
+  simpl in Hfsim1.
   assert (Hbsim1:=Hfsim1).
   eapply fdef_simulation__entry_block_simulation in Hbsim1; eauto.
   assert (Hbsim1':=Hbsim1).
@@ -1878,7 +1859,7 @@ Case "sCall".
   subst. clear H.
   clear - H29 H1 Hpsim.
 
-  eapply lookupFdefViaPtr__simulation_l2r in H1; eauto.
+  eapply TopSim.lookupFdefViaPtr__simulation_l2r in H1; eauto.
   destruct H1 as [f2 [H1 H2]].
   apply OpsemAux.lookupExFdecViaPtr_inversion in H29.
   apply OpsemAux.lookupFdefViaPtr_inversion in H1.
@@ -1923,7 +1904,8 @@ Case "sExCall".
     H1: OpsemAux.lookupExFdecViaPtr ?Ps _ _ = _,
     H30: OpsemAux.lookupFdefViaPtr ?Ps2 _ _ = _ |- _ =>
     clear - H30 H1 Hpsim;
-    eapply lookupExFdecViaPtr__simulation_l2r in H1; eauto;
+    eapply TopSim.lookupExFdecViaPtr__simulation_l2r in H1; eauto;
+    simpl in H1;
     apply OpsemAux.lookupExFdecViaPtr_inversion in H1;
     apply OpsemAux.lookupFdefViaPtr_inversion in H30;
     destruct H1 as [fn [J1 [J2 J3]]];
@@ -1943,7 +1925,7 @@ Case "sExCall".
   subst. clear H.
 
   assert (Hlkdec:=Hpsim).
-  eapply lookupExFdecViaPtr__simulation_l2r in Hlkdec; eauto.
+  eapply TopSim.lookupExFdecViaPtr__simulation_l2r in Hlkdec; eauto.
 
   assert (gvss = gvss0) as EQ.
     inv_mfalse; symmetry_ctx.
@@ -1966,21 +1948,20 @@ Lemma s_genInitState__las_State_simulation: forall pinfo lasinfo S1 S2 main
     State_simulation pinfo lasinfo cfg1 IS1 cfg2 IS2.
 Admitted.  (* lasinfo *)
 
-Lemma s_isFinialState__las_State_simulation: forall pinfo lasinfo cfg1 FS1 cfg2
-  FS2 r (Hstsim : State_simulation pinfo lasinfo cfg1 FS1 cfg2 FS2)
-  (Hfinal: Opsem.s_isFinialState cfg2 FS2 = ret r),
-  Opsem.s_isFinialState cfg1 FS1 = ret r.
-Admitted.  (* las sim *)
-
-Lemma opsem_s_isFinialState__las_State_simulation: forall
+Lemma s_isFinialState__las_State_simulation: forall
   pinfo lasinfo cfg1 FS1 cfg2 FS2
   (Hstsim : State_simulation pinfo lasinfo cfg1 FS1 cfg2 FS2),
   Opsem.s_isFinialState cfg1 FS1 = Opsem.s_isFinialState cfg2 FS2.
 Admitted.  (* las sim *)
 
-Lemma undefined_state__las_State_simulation: forall pinfo lasinfo cfg1 St1 cfg2
-  St2 (Hstsim : State_simulation pinfo lasinfo cfg1 St1 cfg2 St2),
+Lemma undefined_state__las_State_simulation_l2r: forall pinfo lasinfo cfg1 St1 
+  cfg2 St2 (Hstsim : State_simulation pinfo lasinfo cfg1 St1 cfg2 St2),
   OpsemPP.undefined_state cfg1 St1 -> OpsemPP.undefined_state cfg2 St2.
+Admitted.  (* las sim *)
+
+Lemma undefined_state__las_State_simulation_r2l: forall pinfo lasinfo cfg1 St1 
+  cfg2 St2 (Hstsim : State_simulation pinfo lasinfo cfg1 St1 cfg2 St2),
+  OpsemPP.undefined_state cfg2 St2 -> OpsemPP.undefined_state cfg1 St1.
 Admitted.  (* las sim *)
 
 Lemma find_st_ld__lasinfo: forall l0 ps0 cs0 tmn0 i0 v cs (pinfo:PhiInfo) dones
@@ -2020,7 +2001,7 @@ Proof.
     assert (J:=Hwfpp).
     apply OpsemPP.progress in J; auto.
     destruct J as [Hfinal1 | [[IS1' [tr0 Hop1]] | Hundef1]].
-      apply opsem_s_isFinialState__las_State_simulation in Hstsim.
+      apply s_isFinialState__las_State_simulation in Hstsim.
       rewrite Hstsim in Hfinal1.
       contradict H; eauto using s_isFinialState__stuck.
 
@@ -2043,7 +2024,7 @@ Proof.
       exists FS1.
       split; eauto.
 
-      eapply undefined_state__las_State_simulation in Hstsim; eauto.
+      eapply undefined_state__las_State_simulation_l2r in Hstsim; eauto.
       contradict H; eauto using undefined_state__stuck.
 Qed.
 
@@ -2063,125 +2044,6 @@ Lemma sop_div__las_State_simulation: forall pinfo lasinfo cfg1 IS1 cfg2 IS2 tr
   (Hopstar : Opsem.sop_diverges cfg2 IS2 tr),
   Opsem.sop_diverges cfg1 IS1 tr.
 Admitted. (* sop_div *)
-
-Lemma las_sim: forall (los : layouts) (nts : namedts) (fh : fheader)
-  (dones : list id) (pinfo: PhiInfo) (main : id) (VarArgs : list (GVsT DGVs))
-  (bs1 : list block) (l0 : l) (ps0 : phinodes) (cs0 : cmds) (tmn0 : terminator)
-  (bs2 : list block) (Ps1 : list product) (Ps2 : list product) (i0 : id)
-  (v : value) (cs : cmds) (Hwfpi: WF_PhiInfo pinfo)
-  (Hst : ret inl (i0, v, cs) = find_init_stld cs0 (PI_id pinfo) dones)
-  (i1 : id) (Hld : ret inl i1 = find_next_stld cs (PI_id pinfo))
-  (HwfS :
-     wf_system 
-       [module_intro los nts
-         (Ps1 ++
-          product_fdef
-            (fdef_intro fh (bs1 ++ block_intro l0 ps0 cs0 tmn0 :: bs2))
-          :: Ps2)])
-  (Heq: PI_f pinfo = fdef_intro fh (bs1 ++ block_intro l0 ps0 cs0 tmn0 :: bs2)),
-  program_sim
-    [module_intro los nts
-      (Ps1 ++
-       product_fdef
-         (subst_fdef i1 v
-            (fdef_intro fh (bs1 ++ block_intro l0 ps0 cs0 tmn0 :: bs2))) :: Ps2)]
-    [module_intro los nts
-      (Ps1 ++
-       product_fdef (fdef_intro fh (bs1 ++ block_intro l0 ps0 cs0 tmn0 :: bs2))
-       :: Ps2)]
-    main VarArgs.
-Proof.
-  intros.
-  assert (blockInFdefB (block_intro l0 ps0 cs0 tmn0) (PI_f pinfo) = true)
-    as HBinF.
-    rewrite Heq. simpl. apply InBlocksB_middle.
-  eapply find_st_ld__lasinfo in HBinF; eauto.
-  destruct HBinF as [lasinfo [J1 [J2 [J3 J4]]]]; subst.
-  assert (Huniq:=HwfS). apply wf_system__uniqSystem in Huniq; auto.
-  assert (system_simulation pinfo lasinfo
-     [module_intro los nts
-        (Ps1 ++
-         product_fdef
-           (fdef_intro fh (bs1 ++ block_intro l0 ps0 cs0 tmn0 :: bs2)) :: Ps2)]
-     [module_intro los nts
-        (Ps1 ++
-         product_fdef
-           (subst_fdef (LAS_lid pinfo lasinfo) (LAS_value pinfo lasinfo)
-              (fdef_intro fh (bs1 ++ block_intro l0 ps0 cs0 tmn0 :: bs2)))
-         :: Ps2)]) as Hssim.
-    unfold system_simulation.
-    constructor; auto.
-    repeat split; auto.
-    unfold products_simulation.
-    simpl in Huniq. destruct Huniq as [[_ [_ Huniq]] _].
-    apply uniq_products_simulation; auto.
-
-  assert (wf_fdef [module_intro los nts (Ps1++product_fdef (PI_f pinfo)::Ps2)]
-            (module_intro los nts (Ps1++product_fdef (PI_f pinfo)::Ps2)) 
-            (PI_f pinfo)) as HwfF.
-    admit. (* wfF *)
-  assert (uniqFdef (PI_f pinfo)) as HuniqF.
-    admit. (* wfF *)
-  constructor.
-    intros tr t Hconv.
-    inv Hconv.
-    eapply s_genInitState__las_State_simulation in H; eauto.
-    destruct H as [cfg1 [IS1 [Hinit Hstsim]]].    
-    assert (OpsemPP.wf_Config cfg1 /\ OpsemPP.wf_State cfg1 IS1) as Hwfst. 
-      eapply s_genInitState__opsem_wf; eauto.
-    assert (substable_values (OpsemAux.CurTargetData cfg1) (OpsemAux.Globals cfg1)
-      (PI_f pinfo) (value_id (LAS_lid pinfo lasinfo)) (LAS_value pinfo lasinfo)) 
-      as Hdom.
-      assert ((los,nts) = OpsemAux.CurTargetData cfg1) as EQ.
-        admit. (* prop of initState *)
-      rewrite <- EQ.
-      eapply LAS_substable_values; eauto.
-    assert (id_rhs_val.wf_State (value_id (LAS_lid pinfo lasinfo))
-              (LAS_value pinfo lasinfo) (PI_f pinfo) cfg1 IS1) as Hisrhsval.
-      eapply s_genInitState__id_rhs_val; eauto.
-    assert (exists maxb,
-              MemProps.wf_globals maxb (OpsemAux.Globals cfg1) /\ 0 <= maxb /\
-              Promotability.wf_State maxb pinfo cfg1 IS1) as Hprom.
-      eapply Promotability.s_genInitState__wf_globals_promotable; eauto.
-    destruct Hprom as [maxb [Hwfg [Hless Hprom]]].
-    remember (lasinfo__stinfo pinfo lasinfo) as R.
-    destruct R as [stinfo Hp].
-    assert (alive_store.wf_State pinfo stinfo cfg1 IS1) as Halst.
-      eapply s_genInitState__alive_store; eauto.
-    eapply sop_star__las_State_simulation in Hstsim; eauto; try tauto.
-    destruct Hstsim as [FS1 [Hopstar1 Hstsim']].
-    eapply s_isFinialState__las_State_simulation in Hstsim'; eauto.
-    econstructor; eauto.
-
-    intros tr Hdiv.
-    inv Hdiv.
-    eapply s_genInitState__las_State_simulation in H; eauto.
-    destruct H as [cfg1 [IS1 [Hinit Hstsim]]].  
-    assert (OpsemPP.wf_Config cfg1 /\ OpsemPP.wf_State cfg1 IS1) as Hwfst. 
-      eapply s_genInitState__opsem_wf; eauto.
-    assert (substable_values (OpsemAux.CurTargetData cfg1) (OpsemAux.Globals cfg1)
-      (PI_f pinfo) (value_id (LAS_lid pinfo lasinfo)) (LAS_value pinfo lasinfo)) 
-      as Hdom.
-      assert ((los,nts) = OpsemAux.CurTargetData cfg1) as EQ.
-        admit. (* prop of initState *)
-      rewrite <- EQ.
-      eapply LAS_substable_values; eauto.
-    assert (id_rhs_val.wf_State (value_id (LAS_lid pinfo lasinfo))
-              (LAS_value pinfo lasinfo) (PI_f pinfo) cfg1 IS1) as Hisrhsval.
-      eapply s_genInitState__id_rhs_val; eauto.
-    assert (exists maxb,
-              MemProps.wf_globals maxb (OpsemAux.Globals cfg1) /\ 0 <= maxb /\
-              Promotability.wf_State maxb pinfo cfg1 IS1) as Hprom.
-      eapply Promotability.s_genInitState__wf_globals_promotable; eauto.
-    destruct Hprom as [maxb [Hwfg [Hless Hprom]]].
-    remember (lasinfo__stinfo pinfo lasinfo) as R.
-    destruct R as [stinfo Hp].
-    assert (alive_store.wf_State pinfo stinfo cfg1 IS1) as Halst.
-      eapply s_genInitState__alive_store; eauto.
-    eapply sop_div__las_State_simulation in Hstsim; eauto; try tauto.
-    destruct Hstsim as [FS1 Hopdiv1].
-    econstructor; eauto.
-Qed.
 
 Lemma las_wfS: forall (los : layouts) (nts : namedts) (fh : fheader)
   (dones : list id) (pinfo: PhiInfo)
@@ -2206,6 +2068,133 @@ Lemma las_wfS: forall (los : layouts) (nts : namedts) (fh : fheader)
            (fdef_intro fh (bs1 ++ block_intro l0 ps0 cs0 tmn0 :: bs2))) :: Ps2)].
 Proof.
 Admitted.  (* WF prev *)
+
+Lemma las_sim: forall (los : layouts) (nts : namedts) (fh : fheader)
+  (dones : list id) (pinfo: PhiInfo) (main : id) (VarArgs : list (GVsT DGVs))
+  (bs1 : list block) (l0 : l) (ps0 : phinodes) (cs0 : cmds) (tmn0 : terminator)
+  (bs2 : list block) (Ps1 : list product) (Ps2 : list product) (i0 : id)
+  (v : value) (cs : cmds) (Hwfpi: WF_PhiInfo pinfo)
+  (Hst : ret inl (i0, v, cs) = find_init_stld cs0 (PI_id pinfo) dones)
+  (i1 : id) (Hld : ret inl i1 = find_next_stld cs (PI_id pinfo))
+  S2 (Heq2: S2=[module_intro los nts
+                (Ps1 ++
+                  product_fdef
+                    (fdef_intro fh (bs1 ++ block_intro l0 ps0 cs0 tmn0 :: bs2))
+                  :: Ps2)])
+  (Hok: defined_program S2 main VarArgs)
+  (HwfS : wf_system S2)
+  (Heq: PI_f pinfo = fdef_intro fh (bs1 ++ block_intro l0 ps0 cs0 tmn0 :: bs2)),
+  program_sim
+    [module_intro los nts
+      (Ps1 ++
+       product_fdef
+         (subst_fdef i1 v
+            (fdef_intro fh (bs1 ++ block_intro l0 ps0 cs0 tmn0 :: bs2))) :: Ps2)]
+    S2 main VarArgs.
+Proof.
+  intros. subst.
+  assert (blockInFdefB (block_intro l0 ps0 cs0 tmn0) (PI_f pinfo) = true)
+    as HBinF.
+    rewrite Heq. simpl. apply InBlocksB_middle.
+  eapply find_st_ld__lasinfo in HBinF; eauto.
+  destruct HBinF as [lasinfo [J1 [J2 [J3 J4]]]]; subst.
+  assert (Huniq:=HwfS). apply wf_system__uniqSystem in Huniq; auto.
+  assert (system_simulation pinfo lasinfo
+     [module_intro los nts
+        (Ps1 ++
+         product_fdef
+           (fdef_intro fh (bs1 ++ block_intro l0 ps0 cs0 tmn0 :: bs2)) :: Ps2)]
+     [module_intro los nts
+        (Ps1 ++
+         product_fdef
+           (subst_fdef (LAS_lid pinfo lasinfo) (LAS_value pinfo lasinfo)
+              (fdef_intro fh (bs1 ++ block_intro l0 ps0 cs0 tmn0 :: bs2)))
+         :: Ps2)]) as Hssim.
+    constructor; auto.
+    repeat split; auto.
+    simpl in Huniq. destruct Huniq as [[_ [_ Huniq]] _].
+    unfold TopSim.products_simulation. unfold fsim. unfold Fsim.
+    apply uniq_products_simulation; auto.
+
+  assert (wf_fdef [module_intro los nts (Ps1++product_fdef (PI_f pinfo)::Ps2)]
+            (module_intro los nts (Ps1++product_fdef (PI_f pinfo)::Ps2)) 
+            (PI_f pinfo)) as HwfF.
+    admit. (* wfF *)
+  assert (uniqFdef (PI_f pinfo)) as HuniqF.
+    admit. (* wfF *)
+  constructor; auto.
+    intros tr t Hconv.
+    inv Hconv.
+
+Ltac las_sim_init :=
+match goal with
+| H: Opsem.s_genInitState [module_intro ?los ?nts _] _ _ _ = _,  
+  pinfo: PhiInfo, lasinfo: LASInfo _
+  |- _ =>
+    eapply s_genInitState__las_State_simulation in H; eauto;
+    destruct H as [cfg1 [IS1 [Hinit Hstsim]]];
+    assert (OpsemPP.wf_Config cfg1 /\ OpsemPP.wf_State cfg1 IS1) as Hwfst;
+      try solve [eapply s_genInitState__opsem_wf; eauto];
+    assert (substable_values (OpsemAux.CurTargetData cfg1) (OpsemAux.Globals cfg1)
+      (PI_f pinfo) (value_id (LAS_lid pinfo lasinfo)) (LAS_value pinfo lasinfo)) 
+      as Hdom; try solve [
+      assert ((los,nts) = OpsemAux.CurTargetData cfg1) as EQ;
+        try solve [eapply s_genInitState__targedata; eauto];
+      rewrite <- EQ;
+      eapply LAS_substable_values; eauto
+      ];
+    assert (id_rhs_val.wf_State (value_id (LAS_lid pinfo lasinfo))
+              (LAS_value pinfo lasinfo) (PI_f pinfo) cfg1 IS1) as Hisrhsval;
+      try solve [eapply s_genInitState__id_rhs_val; eauto];
+    assert (exists maxb,
+              MemProps.wf_globals maxb (OpsemAux.Globals cfg1) /\ 0 <= maxb /\
+              Promotability.wf_State maxb pinfo cfg1 IS1) as Hprom;
+      try solve [eapply Promotability.s_genInitState__wf_globals_promotable; eauto];
+    destruct Hprom as [maxb [Hwfg [Hless Hprom]]];
+    remember (lasinfo__stinfo pinfo lasinfo) as R;
+    destruct R as [stinfo Hp];
+    assert (alive_store.wf_State pinfo stinfo cfg1 IS1) as Halst;
+      try solve [eapply s_genInitState__alive_store; eauto]
+end.
+
+    las_sim_init.
+    eapply sop_star__las_State_simulation in Hstsim; eauto; try tauto.
+    destruct Hstsim as [FS1 [Hopstar1 Hstsim']].
+    match goal with
+    | H1: Opsem.s_isFinialState _ _ = _ |- _ =>
+      erewrite <- s_isFinialState__las_State_simulation in H1; eauto
+    end.
+    econstructor; eauto.
+
+    intros tr Hdiv.
+    inv Hdiv.
+    las_sim_init.
+    eapply sop_div__las_State_simulation in Hstsim; eauto; try tauto.
+    destruct Hstsim as [FS1 Hopdiv1].
+    econstructor; eauto.
+
+    intros tr t Hgowrong.
+    inv Hgowrong.
+    assert (OpsemPP.wf_Config cfg /\ OpsemPP.wf_State cfg t) as HwfSt.
+      eapply s_genInitState__opsem_wf in H; eauto using las_wfS.
+      destruct H as [Hcfg2 HwfSt2].
+      apply OpsemPP.preservation_star in H0; auto.
+    assert (OpsemPP.undefined_state cfg t) as Hundef.
+      apply stuck__undefined_state in H2; try solve [auto | tauto].
+    las_sim_init.
+    eapply sop_star__las_State_simulation in Hstsim; eauto; try tauto.
+    destruct Hstsim as [FS1 [Hopstar1 Hstsim']].
+    eapply Promotability.preservation_star in Hprom; eauto; try tauto.
+    assert (OpsemPP.undefined_state cfg1 FS1) as Hundef'.
+      eapply undefined_state__las_State_simulation_r2l in Hundef; 
+        try solve [eauto | tauto].
+    assert (Opsem.s_isFinialState cfg1 FS1 = merror) as Hfinal'.
+      erewrite <- s_isFinialState__las_State_simulation in H2; 
+        try solve [eauto | tauto].
+    apply undefined_state__stuck' in Hundef'.
+    exists tr. exists FS1.
+    econstructor; eauto.
+Qed.
 
 Lemma las_wfPI: forall (los : layouts) (nts : namedts) (fh : fheader)
   (dones : list id) (pinfo: PhiInfo)

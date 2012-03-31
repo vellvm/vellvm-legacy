@@ -3,6 +3,12 @@ Require Import opsem_props.
 Require Import memory_props.
 Require Import trans_tactic.
 
+Definition undefined_program (P:system) (main:id) (VarArgs:list (GVsT DGVs)) :=
+  exists tr, exists St, Opsem.s_goeswrong P main VarArgs tr St.
+
+Definition defined_program (P:system) (main:id) (VarArgs:list (GVsT DGVs)) :=
+  ~ (undefined_program P main VarArgs).
+
 Inductive program_sim (P1 P2:system) (main:id) (VarArgs:list (GVsT DGVs)) :
    Prop :=
 | program_sim_intro: 
@@ -12,12 +18,18 @@ Inductive program_sim (P1 P2:system) (main:id) (VarArgs:list (GVsT DGVs)) :
     (forall Tr, 
       Opsem.s_diverges P1 main VarArgs Tr -> 
       Opsem.s_diverges P2 main VarArgs Tr) ->
+    (forall tr1 St1, 
+      Opsem.s_goeswrong P1 main VarArgs tr1 St1 -> 
+      undefined_program P2 main VarArgs) -> 
+    defined_program P2 main VarArgs ->
     program_sim P1 P2 main VarArgs
 .
 
-Lemma program_sim_refl: forall P main VarArgs, program_sim P P main VarArgs.
+Lemma program_sim_refl: forall P main VarArgs 
+  (Hok: defined_program P main VarArgs), program_sim P P main VarArgs.
 Proof.
-  intros. apply program_sim_intro; intros; auto.
+  intros. apply program_sim_intro; intros; eauto.
+    exists tr1. exists St1. auto.
 Qed.
 
 Lemma program_sim_trans: forall P1 P2 P3 main VarArgs
@@ -26,6 +38,16 @@ Lemma program_sim_trans: forall P1 P2 P3 main VarArgs
   program_sim P1 P3 main VarArgs.
 Proof.
   intros. inv Hsim1. inv Hsim2. constructor; intros; eauto.
+    apply H1 in H7. unfold defined_program in H2. tauto. 
+Qed.
+
+Lemma program_sim__preserves__defined_program: forall P1 P2 main VarArgs
+  (Hok: defined_program P2 main VarArgs) (Hsim: program_sim P1 P2 main VarArgs),
+  defined_program P1 main VarArgs.
+Proof.
+  intros. inv Hsim. intro Hbad. 
+  destruct Hbad as [tr1 [St1 Hbad]]. unfold defined_program in H2. 
+  apply H1 in Hbad. tauto.
 Qed.
 
 Axiom genGlobalAndInitMem__wf_global: forall initGlobal initFunTable initMem
@@ -34,57 +56,6 @@ Axiom genGlobalAndInitMem__wf_global: forall initGlobal initFunTable initMem
     (OpsemAux.initTargetData CurLayouts CurNamedts Mem.empty) CurProducts
       nil nil Mem.empty = ret (initGlobal, initFunTable, initMem) ->
   wf_global (CurLayouts, CurNamedts) S initGlobal.
-
-Lemma initLocals__wf_defs: forall CurLayouts CurNamedts VarArgs lc f t fid la v
-  bs (Hinit : @Opsem.initLocals DGVs
-                (OpsemAux.initTargetData CurLayouts CurNamedts Mem.empty) la
-                VarArgs = ret lc) l0 ps0 cs0 tmn0
-  (Hentry : getEntryBlock (fdef_intro (fheader_intro f t fid la v) bs) =
-              ret block_intro l0 ps0 cs0 tmn0),
-  match cs0 with
-  | nil =>
-      match
-        inscope_of_tmn (fdef_intro (fheader_intro f t fid la v) bs)
-          (block_intro l0 ps0 cs0 tmn0) tmn0
-      with
-      | ret ids0 =>
-          OpsemPP.wf_defs (CurLayouts, CurNamedts)
-            (fdef_intro (fheader_intro f t fid la v) bs) lc ids0
-      | merror => False
-      end
-  | c :: _ =>
-      match
-        inscope_of_cmd (fdef_intro (fheader_intro f t fid la v) bs)
-          (block_intro l0 ps0 cs0 tmn0) c
-      with
-      | ret ids0 =>
-          OpsemPP.wf_defs (CurLayouts, CurNamedts)
-            (fdef_intro (fheader_intro f t fid la v) bs) lc ids0
-      | merror => False
-      end
-  end.
-Proof.
-  intros.
-  assert (ps0=nil) as EQ.
-    admit. (* eapply entryBlock_has_no_phinodes with (s:=S); eauto. *)
-  subst.
-  apply dom_entrypoint in Hentry.
-  destruct cs0.
-    unfold inscope_of_tmn.
-    remember (Maps.AMap.get l0 (dom_analyze 
-               (fdef_intro (fheader_intro f t fid la v) bs))) as R.
-    destruct R. simpl in Hentry. subst.
-    simpl. admit. (* See preservation_dbCall_case *)
-
-    unfold inscope_of_cmd, inscope_of_id.
-    remember (Maps.AMap.get l0 (dom_analyze 
-               (fdef_intro (fheader_intro f t fid la v) bs))) as R.
-    destruct R. simpl in Hentry. subst.
-    simpl. 
-    destruct (eq_atom_dec (getCmdLoc c) (getCmdLoc c)) as [|n];
-         try solve [contradict n; auto].
-    simpl. admit. (* See preservation_dbCall_case *)
-Qed.
 
 (* OpsemPP.initLocals__wf_lc needs wf_params that is for params.
    At initialization, we only have args...
@@ -113,17 +84,10 @@ Proof.
   assert (HeqR0':=HeqR0).
   apply getParentOfFdefFromSystem__moduleInProductsInSystemB in HeqR0'.
   destruct HeqR0' as [HMinS HinPs].
-  assert (uniqFdef (fdef_intro (fheader_intro f t i0 a v) b)) as Huniq.
-    eapply wf_system__uniqFdef; eauto.
-  assert (wf_fdef S (module_intro CurLayouts CurNamedts CurProducts) 
-      (fdef_intro (fheader_intro f t i0 a v) b)) as HwfF.
-    eapply wf_system__wf_fdef; eauto.
   assert (wf_namedts S (CurLayouts, CurNamedts)) as Hwfnts.
     inv HwfS.
     eapply wf_modules__wf_module in HMinS; eauto.
     inv HMinS; auto.
-Local Opaque inscope_of_tmn inscope_of_cmd.
-  simpl.
   split.
   split; auto.
   split.
@@ -132,20 +96,21 @@ Local Opaque inscope_of_tmn inscope_of_cmd.
   split; auto.
     intro J. congruence.
   split.
-    split.
-      eapply reachable_entrypoint; eauto.
-    split.
-      apply entryBlockInFdef in HeqR2. simpl in HeqR2. auto.
-    split; auto.
-    split.
-      eapply main_wf_params in HeqR0; eauto.
-      eapply OpsemPP.initLocals__wf_lc; eauto.
-    split.
-      eapply initLocals__wf_defs; eauto.
-      exists l0. exists ps0. exists nil. auto.
+    eapply main_wf_params in HeqR0; eauto.
+    eapply OpsemPP.wf_ExecutionContext__at_beginning_of_function; eauto.
+    simpl.
     split; auto.
       intros. destruct b0 as [? ? ? t0]. destruct t0; auto.
-Transparent inscope_of_tmn inscope_of_cmd.
+Qed.
+
+Lemma s_genInitState__targedata: forall los nts Ps main VarArgs cfg1 IS1,
+  @Opsem.s_genInitState DGVs
+            [module_intro los nts Ps] main VarArgs Mem.empty = ret (cfg1, IS1) ->
+  (los,nts) = OpsemAux.CurTargetData cfg1.
+Proof.
+  intros.
+  simpl_s_genInitState.
+  destruct_if. auto.
 Qed.
 
 Axiom genGlobalAndInitMem__wf_globals_Mem: forall initGlobal initFunTable initMem
@@ -304,6 +269,18 @@ Proof.
             symmetry_ctx. uniq_result. uniq_result'.
 Qed.
 
+Lemma undefined_state__stuck': forall St cfg
+  (Hundef : @OpsemPP.undefined_state DGVs cfg St),
+  Opsem.stuck_state cfg St.
+Proof.
+  intros.
+  unfold Opsem.stuck_state.
+  intro J. destruct J as [St' [tr J]].
+  revert J.
+  apply undefined_state__stuck; auto.
+Qed.
+
+(* go to infra *)
 Lemma wf_system__uniqSystem: forall S, wf_system S -> uniqSystem S.
 Proof.
   intros.
@@ -347,6 +324,18 @@ Proof.
         contradict H2.
         rewrite getProductsIDs_app. simpl.
         apply In_middle.
+Qed.
+
+Lemma stuck__undefined_state: forall St cfg
+  (HwfCfg: OpsemPP.wf_Config cfg) (Hst: OpsemPP.wf_State cfg St) 
+  (Hstck: @Opsem.stuck_state DGVs cfg St)
+  (Hnfinal: @Opsem.s_isFinialState DGVs cfg St = None),
+  @OpsemPP.undefined_state DGVs cfg St.
+Proof.
+  intros.
+  apply OpsemPP.progress in Hst; auto.
+  destruct Hst as [Hfinal | [Hstep | Hundef]]; try tauto.
+  unfold Opsem.stuck_state in Hstck. tauto.
 Qed.
 
 Require Import mem2reg.

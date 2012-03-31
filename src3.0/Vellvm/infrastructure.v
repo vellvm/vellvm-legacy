@@ -171,6 +171,11 @@ match la with
 | (_,id1)::la' => id1::getArgsIDs la'
 end.
 
+Definition getArgsOfFdef (f:fdef) : args :=
+match f with
+| fdef_intro (fheader_intro _ _ _ la _) _ => la
+end.
+
 Definition getArgsIDsOfFdef (f:fdef) : list atom :=
 match f with
 | fdef_intro (fheader_intro _ _ _ la _) _ => getArgsIDs la

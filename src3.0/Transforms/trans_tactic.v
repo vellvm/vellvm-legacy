@@ -36,7 +36,7 @@ Ltac simpl_s_genInitState :=
     inv_mbind'
   end;
   match goal with
-  | H: ret ?m = getParentOfFdefFromSystem _ _ |- _ =>
+  | m : module |- _ =>
     destruct m as [CurLayouts CurNamedts CurProducts];
     inv_mbind'
   end;

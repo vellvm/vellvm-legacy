@@ -1860,6 +1860,61 @@ Ltac destruct_wfCfgState HwfCfg HwfS1 :=
          [Hreach1 [HBinF1 [HFinPs1 [Hwflc1 [Hinscope1 [l3 [ps3 [cs3' Heq1]]]]]]]]
          [HwfEC HwfCall]]]; subst.
 
+Lemma wf_ExecutionContext__at_beginning_of_function: forall
+  (S : system) (los : layouts) (nts : namedts) 
+  (Ps : products) (HwfSystem : wf_system S)
+  (HmInS : moduleInSystemB (module_intro los nts Ps) S = true)
+  (fid : id) (lp : params) (lc' : GVsMap) (l' : l) (ps' : phinodes)
+  (cs' : cmds) (tmn' : terminator) f (gvs : list GVs)
+  (H2 : getEntryBlock f =
+       ret block_intro l' ps' cs' tmn')
+  (H4 : initLocals (los, nts) (getArgsOfFdef f) gvs = ret lc')
+  (HFinPs' : InProductsB (product_fdef f) Ps = true)
+  (JJ : wf_params (los, nts) gvs lp),
+  wf_ExecutionContext (los, nts) Ps
+     {|
+     CurFunction := f;
+     CurBB := block_intro l' ps' cs' tmn';
+     CurCmds := cs';
+     Terminator := tmn';
+     Locals := lc';
+     Allocas := nil |}.
+Proof.
+  intros.
+    assert (uniqFdef f) as Huniq.
+      eapply wf_system__uniqFdef; eauto.
+    assert (wf_fdef S (module_intro los nts Ps) f) as HwfF.
+      eapply wf_system__wf_fdef; eauto.
+    split.
+      simpl. eapply reachable_entrypoint; eauto.
+    split.
+      apply entryBlockInFdef in H2; auto.
+    split; auto.
+    split.
+      destruct f as [[]]. eapply initLocals__wf_lc; eauto.
+    split.
+     assert (ps'=nil) as EQ.
+       eapply entryBlock_has_no_phinodes with (s:=S); eauto.
+     subst.
+     apply dom_entrypoint in H2.
+     destruct cs'.
+       unfold inscope_of_tmn.
+       remember ((dom_analyze f) !! l') as R.
+       destruct R. simpl in H2. subst.
+       destruct f as [[]].
+       eapply preservation_dbCall_case; eauto using wf_params_spec.
+
+       unfold inscope_of_cmd, inscope_of_id.
+       rewrite init_scope_spec1; auto.
+       remember ((dom_analyze f) !! l') as R.
+       destruct R. simpl. simpl in H2. subst.
+       destruct (eq_atom_dec (getCmdLoc c) (getCmdLoc c)) as [|n];
+         try solve [contradict n; auto].
+       destruct f as [[]].
+       eapply preservation_dbCall_case; eauto using wf_params_spec.
+    exists l'. exists ps'. exists nil. simpl_env. auto.
+Qed.
+
 Lemma preservation : forall cfg S1 S2 tr (HwfCfg: wf_Config cfg),
   sInsn cfg S1 S2 tr -> wf_State cfg S1 -> wf_State cfg S2.
 Proof.
@@ -2319,45 +2374,12 @@ Case "sCall".
   split. intros; congruence.
   split; auto.
   SCase "1".
-    assert (uniqFdef (fdef_intro (fheader_intro fa rt fid la va) lb)) as Huniq.
-      eapply wf_system__uniqFdef; eauto.
-    assert (wf_fdef S (module_intro los nts Ps)
-      (fdef_intro (fheader_intro fa rt fid la va) lb)) as HwfF.
-      eapply wf_system__wf_fdef; eauto.
     assert (wf_params (los,nts) gvs lp) as JJ.
       eapply wf_system__wf_cmd in HBinF1; eauto using in_middle.
       inv HBinF1.
       eapply params2GVs_wf_gvs; eauto.
-
-    split.
-      simpl. eapply reachable_entrypoint; eauto.
-    split.
-     apply entryBlockInFdef in H2; auto.
-    split; auto.
-    split.
-     eapply initLocals__wf_lc; eauto.
-    split.
-     assert (ps'=nil) as EQ.
-       eapply entryBlock_has_no_phinodes with (s:=S); eauto.
-     subst.
-     apply dom_entrypoint in H2.
-     destruct cs'.
-       unfold inscope_of_tmn.
-       remember ((dom_analyze (fdef_intro (fheader_intro fa rt fid la va) lb))
-         !! l') as R.
-       destruct R. simpl in H2. subst.
-       eapply preservation_dbCall_case; eauto using wf_params_spec.
-
-       unfold inscope_of_cmd, inscope_of_id.
-       rewrite init_scope_spec1; auto.
-       remember ((dom_analyze (fdef_intro (fheader_intro fa rt fid la va) lb))
-         !! l') as R.
-       destruct R. simpl. simpl in H2. subst.
-       destruct (eq_atom_dec (getCmdLoc c) (getCmdLoc c)) as [|n];
-         try solve [contradict n; auto].
-       eapply preservation_dbCall_case; eauto using wf_params_spec.
-
-    exists l'. exists ps'. exists nil. simpl_env. auto.
+    clear - JJ HwfSystem HmInS HFinPs' H2 H4.
+    eapply wf_ExecutionContext__at_beginning_of_function; eauto.
   split.
   SCase "2".
     repeat (split; auto). eauto.

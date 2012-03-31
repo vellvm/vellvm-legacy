@@ -40,14 +40,16 @@
 
 11) step-simulation by measure (refer to phiplacement_bsim) (1D)
 
-13) WF preservation (2.5W)
+13) proving DIE (2D)
+
+14) WF preservation (2.5W)
   phiplacement_bsim alive_store las laa dae sas mem2reg_correct die subst dse
 
-14) phinode elimination (infinite)
+15) phinode elimination (infinite)
 
-15) pruned SSA (infinite)---ADCE
+16) pruned SSA (infinite)---ADCE
 
-16) redundancy
+17) redundancy
   alive_store and alive_alloca 
   laa and las
   fdef/prod-simulation in all passes
