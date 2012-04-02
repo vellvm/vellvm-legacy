@@ -338,6 +338,44 @@ Proof.
   unfold Opsem.stuck_state in Hstck. tauto.
 Qed.
 
+Definition sop_goeswrong cfg IS : Prop :=
+exists FS, exists tr, 
+  @Opsem.sop_star DGVs cfg IS FS tr /\ Opsem.stuck_state cfg FS /\ 
+  Opsem.s_isFinialState cfg FS = None.
+
+Lemma sop_goeswrong__step: forall cfg St St' tr
+  (Hok: ~ sop_goeswrong cfg St) (Hop: Opsem.sInsn cfg St St' tr),
+  ~ sop_goeswrong cfg St'.
+Proof.
+  intros.
+  intro J.
+  destruct J as [FS [tr' [J1 [J2 J3]]]].
+  apply Hok.
+  exists FS. exists (tr ** tr'). 
+  split; eauto. 
+Qed.
+
+Lemma sop_goeswrong__star: forall cfg St St' tr
+  (Hop: Opsem.sop_star cfg St St' tr) (Hok: ~ sop_goeswrong cfg St) ,
+  ~ sop_goeswrong cfg St'.
+Proof.
+  induction 1; auto.
+  intro J.
+  apply IHHop.
+  eapply sop_goeswrong__step; eauto.
+Qed.
+
+Lemma defined_program__doesnt__go_wrong: forall S main VarArgs cfg IS,
+  defined_program S main VarArgs ->
+  Opsem.s_genInitState S main VarArgs Mem.empty = Some (cfg, IS) ->
+  ~ sop_goeswrong cfg IS.
+Proof.
+  unfold defined_program, undefined_program.
+  intros. intro J.
+  apply H. destruct J as [FS [tr [J1 [J2 J3]]]].
+  exists tr. exists FS. econstructor; eauto.
+Qed.
+
 Require Import mem2reg.
 
 Lemma elim_stld_cmds_unchanged: forall f' dones' f cs0 pid dones,

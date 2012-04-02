@@ -2231,6 +2231,19 @@ Case "sExCall".
   ]).
 Qed.
 
+Lemma preservation_star : forall pinfo cfg S1 S2 tr
+  (Hwfcfg: OpsemPP.wf_Config cfg) (Hwfpp: OpsemPP.wf_State cfg S1) 
+  (HwfPI: WF_PhiInfo pinfo) (Hstar: Opsem.sop_star cfg S1 S2 tr)
+  (HwfS1: wf_State pinfo S1), 
+  wf_State pinfo S2.
+Proof.
+  intros.
+  induction Hstar; auto.
+    apply IHHstar.
+      eapply OpsemPP.preservation; eauto.
+      eapply preservation; eauto.
+Qed.  
+
 Lemma WF_PhiInfo_spec14: forall pinfo l1 ps1 cs11 t v align0 cs tmn2
   (Hwfpi: WF_PhiInfo pinfo) (Huniq: uniqFdef (PI_f pinfo))
   (HBinF: blockInFdefB (block_intro l1 ps1
