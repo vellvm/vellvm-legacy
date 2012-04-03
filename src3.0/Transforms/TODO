@@ -35,10 +35,21 @@
 9) typings (uniqness, wf) (0.5W)
   alive_alloca las laa dae sas
 
-11) fdef/prod-simulation (0.5W)
+11.1) fdef/prod-simulation (0.5W)
   las laa sas dse
+  STATUS: Done 1D
 
-11) step-simulation by measure (refer to phiplacement_bsim) (1D)
+11.2) undef/final:4D
+  STATUS: Done 
+  
+11.3) init:
+  STATUS: partial
+
+11.4) step-simulation by measure (refer to phiplacement_bsim) (1D)
+
+11.5) palloca is freeable (1D)
+
+11.6) return value should be casted into eventgv (1D)
 
 13) proving DIE (2D)
 

@@ -561,7 +561,7 @@ Proof.
   unfold store_in_cmds.
   intros.
   rewrite fold_left_app.
-Admitted.
+Admitted. (* infra *)
 
 Lemma used_in_blocks_cons_inv : forall bs5 id0 b5,
   fold_left (fun (re : bool) b => re || used_in_block id0 b)

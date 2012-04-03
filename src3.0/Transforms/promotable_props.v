@@ -3615,8 +3615,7 @@ Proof.
   apply mload_inv in Hld.
   destruct Hld as [b [ofs [m0 [mc [J1 [J2 J3]]]]]]; subst. 
   simpl. rewrite J2 in Hmatch.
-  (* we should prove that promotable location is writable*)
-Admitted.
+Admitted.  (* we should prove that promotable location is writable*)
 
 Lemma WF_PhiInfo_spec20: forall (pinfo : PhiInfo) (Locals : Opsem.GVsMap)
   Allocas0 (Mem0 : mem) (Hwfpi : WF_PhiInfo pinfo) TD maxb

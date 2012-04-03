@@ -435,6 +435,26 @@ Proof.
   eapply products_simulation__fdef_simulation in H0; eauto.
 Qed.
 
+Lemma lookupFdefViaPtr_inj__simulation_l2r' : forall Ps1 Ps2 fptr1 fptr2 f1 fs1
+  fs2 mi,
+  OpsemAux.ftable_simulation mi fs1 fs2 ->
+  products_simulation Ps1 Ps2 ->
+  gv_inject mi fptr1 fptr2 ->
+  OpsemAux.lookupFdefViaPtr Ps1 fs1 fptr1 = Some f1 ->
+  exists f2, 
+    OpsemAux.lookupFdefViaPtr Ps2 fs2 fptr2 = Some f2 /\ FSim.(fsim) f1 f2.
+Proof.
+  intros.
+  unfold OpsemAux.lookupFdefViaPtr in *.
+  remember (OpsemAux.lookupFdefViaGVFromFunTable fs1 fptr1) as R1.
+  destruct R1 as [fid1|]; inv H2.
+  eapply products_simulation__fdef_simulation_l2r in H0; eauto.
+  destruct H0 as [f2 [J1 J2]].
+  exists f2. 
+  unfold OpsemAux.ftable_simulation in H.
+  erewrite H in HeqR1; eauto. rewrite <- HeqR1. simpl. auto.
+Qed.
+
 Lemma lookupFdefViaPtr_inj__simulation : forall Ps1 Ps2 fptr1 fptr2 f1 f2 fs1
   fs2 mi,
   OpsemAux.ftable_simulation mi fs1 fs2 ->
@@ -445,15 +465,21 @@ Lemma lookupFdefViaPtr_inj__simulation : forall Ps1 Ps2 fptr1 fptr2 f1 f2 fs1
   FSim.(fsim) f1 f2.
 Proof.
   intros.
-  unfold OpsemAux.lookupFdefViaPtr in *.
-  remember (OpsemAux.lookupFdefViaGVFromFunTable fs1 fptr1) as R1.
-  destruct R1 as [fid1|]; inv H3.
-  remember (OpsemAux.lookupFdefViaGVFromFunTable fs2 fptr2) as R2.
-  destruct R2 as [fid2|]; inv H0.
-  eapply products_simulation__fdef_simulation; eauto.
-  unfold OpsemAux.ftable_simulation in H.
-  erewrite H in HeqR1; eauto.
-  rewrite <- HeqR2 in HeqR1. inv HeqR1. auto.
+  eapply lookupFdefViaPtr_inj__simulation_l2r' in H1; eauto.
+  destruct H1 as [f2' [J1 J2]].
+  uniq_result. auto.
+Qed.
+
+Lemma products_simulation__fdec_simulation_l2r : forall fid Ps1 Ps2
+  (Hsim: products_simulation Ps1 Ps2) f1,
+  lookupFdecViaIDFromProducts Ps1 fid = Some f1 ->
+  lookupFdecViaIDFromProducts Ps2 fid = Some f1.
+Proof.
+  intros fid Ps1 Ps2 Hsim.
+  induction Hsim; simpl; intros; auto.
+    destruct x as [?|f|?]; destruct y as [?|f0|?]; subst; simpl; tinv H; auto.
+    inv H. simpl in H0.
+    destruct (getFdecID f0 == fid); subst; auto.
 Qed.
 
 Lemma products_simulation__fdec_simulation : forall fid Ps1 Ps2
@@ -462,31 +488,9 @@ Lemma products_simulation__fdec_simulation : forall fid Ps1 Ps2
   lookupFdecViaIDFromProducts Ps1 fid = Some f1 ->
   f1 = f2.
 Proof.
-  intros fid Ps1 Ps2 Hsim.
-  induction Hsim; simpl; intros.
-    inv H.
-
-    destruct x as [?|f|?];
-    destruct y as [?|f0|?]; inv H0; inv H1; eauto; try congruence.
-    destruct (getFdecID f0 == fid); subst.
-      inv H3.
-      destruct (getFdecID f == getFdecID f2).
-        inv H2. inv H. auto.
-
-        destruct f2 as [[]], f1 as [[]].
-        apply lookupFdecViaIDFromProducts_ideq in H2.
-        simpl in H2. subst.
-        destruct f.
-        inv H.
-        contradict n; auto.
-    destruct (getFdecID f == fid); subst; auto.
-      inv H2.
-      destruct f2 as [[]], f1 as [[]].
-      apply lookupFdecViaIDFromProducts_ideq in H3.
-      simpl in H3. subst.
-      destruct f0.
-      inv H.
-      contradict n; auto.
+  intros.
+  eapply products_simulation__fdec_simulation_l2r in Hsim; eauto. 
+  congruence.
 Qed.
 
 Lemma lookupFdefViaPtr_inj__simulation_l2r : forall Ps1 Ps2 fptr1 fptr2 f1
@@ -515,6 +519,30 @@ Proof.
   rewrite J1 in HeqR3. inv HeqR3.
 Qed.
 
+Lemma lookupExFdecViaPtr_inj__simulation_l2r' : forall Ps1 Ps2 fptr1 fptr2 f1
+  fs1 fs2 mi,
+  products_simulation Ps1 Ps2 ->
+  OpsemAux.ftable_simulation mi fs1 fs2 ->
+  gv_inject mi fptr1 fptr2 ->
+  OpsemAux.lookupExFdecViaPtr Ps1 fs1 fptr1 = Some f1 ->
+  OpsemAux.lookupExFdecViaPtr Ps2 fs2 fptr2 = Some f1.
+Proof.
+  intros.
+  unfold OpsemAux.lookupExFdecViaPtr in *.
+  remember (OpsemAux.lookupFdefViaGVFromFunTable fs1 fptr1) as R1.
+  destruct R1 as [fid1|]; inv H2.
+  remember (lookupFdefViaIDFromProducts Ps1 fid1) as R3.
+  destruct R3; tinv H4. symmetry_ctx.
+  unfold OpsemAux.ftable_simulation in H0.
+  erewrite H0 in HeqR1; eauto.
+  rewrite HeqR1. simpl.
+  assert (H':=H).
+  eapply products_simulation__fdef_None_l2r in H'; eauto.
+  fill_ctxhole.
+  eapply products_simulation__fdec_simulation_l2r in H; eauto.
+  congruence.
+Qed.
+
 Lemma lookupExFdecViaPtr_inj__simulation : forall Ps1 Ps2 fptr1 fptr2 f1
   f2 fs1 fs2 mi,
   products_simulation Ps1 Ps2 ->
@@ -525,19 +553,8 @@ Lemma lookupExFdecViaPtr_inj__simulation : forall Ps1 Ps2 fptr1 fptr2 f1
   f1 = f2.
 Proof.
   intros.
-  unfold OpsemAux.lookupExFdecViaPtr in *.
-  remember (OpsemAux.lookupFdefViaGVFromFunTable fs1 fptr1) as R1.
-  destruct R1 as [fid1|]; inv H2.
-  remember (lookupFdefViaIDFromProducts Ps1 fid1) as R3.
-  destruct R3; tinv H5.
-  remember (OpsemAux.lookupFdefViaGVFromFunTable fs2 fptr2) as R2.
-  destruct R2 as [fid2|]; inv H3.
-  remember (lookupFdefViaIDFromProducts Ps2 fid2) as R4.
-  destruct R4; tinv H4. symmetry_ctx.
-  unfold OpsemAux.ftable_simulation in H0.
-  erewrite H0 in HeqR1; eauto.
-  rewrite HeqR2 in HeqR1. inv HeqR1.
-  eapply products_simulation__fdec_simulation; eauto.
+  eapply lookupExFdecViaPtr_inj__simulation_l2r' in H0; eauto.
+  congruence.
 Qed.
 
 Lemma lookupFdefViaPtr_inj__simulation_r2l : forall Ps1 Ps2 fptr1 fptr2 f1

@@ -575,6 +575,41 @@ Proof.
         intros. apply J. simpl; auto.
 Qed.
 
+Lemma mem_simulation__free_l2r : forall mi TD Mem1 Mem2 Mem1'
+  ECs1 pinfo maxb lc1 F ptr1 ptr2
+  (Hmsim : mem_simulation pinfo maxb mi ((F, lc1) :: ECs1) Mem1 Mem2)
+  (Hsim: gv_inject mi ptr1 ptr2)
+  (Hmlc: free TD Mem1 ptr1 = ret Mem1'),
+  exists Mem2', 
+    free TD Mem2 ptr2 = ret Mem2' /\
+    mem_simulation pinfo maxb mi ((F, lc1) :: ECs1) Mem1' Mem2'.
+Proof.
+  intros.
+  destruct Hmsim as [J1 [J2 J3]].
+  apply free_inv in Hmlc.
+  destruct Hmlc as [blk [ofs [hi [lo [H1 [H2 [H3 H4]]]]]]].
+  unfold GV2ptr in *.
+  destruct ptr1 as [|[[]][]]; inv H1.
+  inv Hsim. inv H7. inv H6.
+  eapply mem_inj__free in H4; eauto.
+  destruct H4 as [Mem2'' [J4 [J5 J6]]].
+  match goal with 
+  | H1: mi ?blk = Some (_, _), H3: (_,_) = Mem.bounds _ ?blk |- _ =>
+    assert (H6':=H1);
+    apply (mi_range_block maxb mi Mem1 Mem2 J3) in H1; subst;
+    apply (mi_bounds maxb mi Mem1 Mem2 J3) in H6';
+    rewrite H6' in H3
+  end.
+  assert (lo + 0 = lo) as EQ1. omega.
+  assert (hi + 0 = hi) as EQ2. omega.
+  rewrite EQ1 in J4. rewrite EQ2 in J4. clear EQ1 EQ2.
+  exists Mem2''. 
+  unfold free, mem_simulation. simpl.
+  split; auto.
+    rewrite Int.add_zero. rewrite H2. rewrite <- H3.
+    destruct_if; congruence.
+Qed.
+
 Lemma mem_simulation__free : forall mi TD Mem1 Mem2 Mem1' Mem2'
   ECs1 pinfo maxb lc1 F ptr1 ptr2
   (Hmsim : mem_simulation pinfo maxb mi ((F, lc1) :: ECs1) Mem1 Mem2)
@@ -584,26 +619,9 @@ Lemma mem_simulation__free : forall mi TD Mem1 Mem2 Mem1' Mem2'
   mem_simulation pinfo maxb mi ((F, lc1) :: ECs1) Mem1' Mem2'.
 Proof.
   intros.
-  destruct Hmsim as [J1 [J2 J3]].
-  apply free_inv in Hmlc.
-  apply free_inv in Hmlc'.
-  destruct Hmlc as [blk [ofs [hi [lo [H1 [H2 [H3 H4]]]]]]].
-  destruct Hmlc' as [blk' [ofs' [hi' [lo' [H1' [H2' [H3' H4']]]]]]].
-  unfold GV2ptr in *.
-  destruct ptr1 as [|[[]][]]; inv H1.
-  destruct ptr2 as [|[[]][]]; inv H1'.
-  inv Hsim. inv H1.
-  eapply mem_inj__free in H4; eauto.
-  destruct H4 as [Mem2'' [J4 [J5 J6]]].
-  assert (H6':=H6).
-  apply (mi_range_block maxb mi Mem1 Mem2 J3) in H6. subst.
-  apply (mi_bounds maxb mi Mem1 Mem2 J3) in H6'.
-  rewrite H6' in H3. rewrite <- H3 in H3'. inv H3'.
-  assert (lo + 0 = lo) as EQ1. omega.
-  assert (hi + 0 = hi) as EQ2. omega.
-  rewrite EQ1 in J4. rewrite EQ2 in J4. clear EQ1 EQ2.
-  rewrite J4 in H4'. inv H4'.
-  split; auto.
+  eapply mem_simulation__free_l2r in Hmsim; eauto.
+  destruct Hmsim as [Mem2'' [J1 J2]].
+  uniq_result. auto.
 Qed.
 
 Lemma isnt_alloca_in_ECs_tail: forall pinfo (mi:MoreMem.meminj) EC1 EC2 ECs ,
@@ -648,6 +666,49 @@ Proof.
   split; auto.
 Qed.
 
+Lemma mem_simulation__free_allocas_l2r : forall TD mgb F lc EC pinfo mi
+  als1 M1 als2 M2 M1'
+  (Hfree1: free_allocas TD M1 als1 = Some M1')
+  (Hmsim: mem_simulation pinfo mgb mi ((F,lc)::EC) M1 M2)
+  (Halsim: als_simulation pinfo mi F lc als1 als2),
+  exists M2', 
+    free_allocas TD M2 als2 = Some M2' /\
+    mem_simulation pinfo mgb mi ((F,lc)::EC) M1' M2'.
+Proof.
+  induction als1; destruct als2; simpl; intros.
+    uniq_result. eauto.
+    uniq_result.
+
+    inv_mbind''. uniq_result.
+    destruct Halsim as [J1 J2].
+    exists M2. split; auto.
+    eapply mem_simulation__pfree with (Mem1':=m) in Hmsim; eauto.
+    eapply IHals1 in Hmsim; eauto.
+    destruct Hmsim as [M2' [J3 J4]].
+    simpl in J3. congruence.
+
+    inv_mbind''. symmetry_ctx.
+    remember (is_alloca_in_EC pinfo F lc a) as R.
+    destruct R; destruct Halsim as [Halsim1 Halsim2].
+      eapply mem_simulation__pfree in Hmsim; eauto.
+      eapply IHals1 in Hmsim; eauto. simpl in Hmsim. eauto.
+
+      assert (gv_inject mi (blk2GV TD a) (blk2GV TD m)) as Hinj.
+        unfold blk2GV, ptr2GV, val2GV. simpl.
+        constructor; auto.
+          assert (Int.repr 31 0 = Int.add 31 (Int.repr 31 0) (Int.repr 31 0))
+            as EQ.
+            rewrite Int.add_zero. auto.
+          rewrite EQ at 2.
+          econstructor; eauto.
+      eapply mem_simulation__free_l2r with (ptr1:=blk2GV TD a) 
+        (ptr2:=blk2GV TD m) in Hmsim; eauto.
+      destruct Hmsim as [Mem2' [J1 Hmsim]].
+      eapply IHals1 in Hmsim; eauto.
+      destruct Hmsim as [Mem2'' [J2 Hmsim]].
+      exists Mem2''. fill_ctxhole. split; auto.
+Qed.
+
 Lemma mem_simulation__free_allocas : forall TD mgb F lc EC pinfo mi
   als1 M1 als2 M2 M1'
   (Hfree1: free_allocas TD M1 als1 = Some M1')
@@ -656,32 +717,10 @@ Lemma mem_simulation__free_allocas : forall TD mgb F lc EC pinfo mi
   (Hfree2: free_allocas TD M2 als2 = Some M2'),
   mem_simulation pinfo mgb mi ((F,lc)::EC) M1' M2'.
 Proof.
-  induction als1; destruct als2; simpl; intros.
-    uniq_result. auto.
-    uniq_result.
-
-    inv_mbind''. uniq_result.
-    destruct Halsim as [J1 J2].
-    eapply IHals1 with (M1:=m)(M2:=M2'); eauto.
-    eapply mem_simulation__pfree in Hmsim; eauto.
-
-    inv_mbind''. symmetry_ctx.
-    remember (is_alloca_in_EC pinfo F lc a) as R.
-    destruct R; destruct Halsim as [Halsim1 Halsim2].
-      eapply mem_simulation__pfree in Hmsim; eauto.
-      eapply IHals1 with (M1:=m1)(M2:=M2); eauto.
-      simpl. rewrite HeqR. auto.
-
-      eapply IHals1 with (M1:=m1)(M2:=m0); eauto.
-      eapply mem_simulation__free with (ptr1:=blk2GV TD a) (ptr2:=blk2GV TD m)
-        in Hmsim; eauto.
-      unfold blk2GV, ptr2GV, val2GV. simpl.
-      constructor; auto.
-        assert (Int.repr 31 0 = Int.add 31 (Int.repr 31 0) (Int.repr 31 0))
-          as EQ.
-          rewrite Int.add_zero. auto.
-        rewrite EQ at 2.
-        econstructor; eauto.
+  intros.
+  eapply mem_simulation__free_allocas_l2r in Hmsim; eauto.
+  destruct Hmsim as [M2'' [J1 J2]].
+  uniq_result. auto.
 Qed.
 
 Lemma free_allocas_return_void_sim : forall TD mgb F lc F' lc' EC pinfo mi
@@ -1693,6 +1732,68 @@ Proof.
   intros. destruct H as [_ [_ H]]; auto.
 Qed.
 
+Lemma mem_simulation__malloc_l2r' : forall mi TD Mem1 Mem2 tsz gn Mem1' mb1
+  pinfo maxb align0 gn' ecs 
+  (Hmsim : mem_simulation pinfo maxb mi ecs Mem1 Mem2)
+  (Hsim: gv_inject mi gn gn')
+  (Hmlc: malloc TD Mem1 tsz gn align0 = ret (Mem1', mb1)),
+  exists Mem2', exists mi', exists mb2,
+    malloc TD Mem2 tsz gn' align0 = ret (Mem2', mb2) /\
+    MoreMem.mem_inj mi' Mem1' Mem2' /\
+    wf_sb_mi maxb mi' Mem1' Mem2' /\
+    Values.inject_incr mi mi' /\
+    mi' mb1 = Some (mb2, 0) /\
+    (forall b, b <> mb1 -> mi b = mi' b).
+Proof.
+  intros.
+  destruct Hmsim as [Hmsim1 [Hmsim2 Hmsim3]].
+  eapply mem_inj__malloc in Hmsim1; eauto.
+  destruct Hmsim1 as [mi' [Mem2'' [mb' [J1 [J2 [J3 [J4 [J5 J6]]]]]]]].
+  exists Mem2''. exists mi'. exists mb'.
+  split.
+    unfold malloc in J1. unfold malloc.
+    inv_mbind. symmetry_ctx.
+    apply simulation__eq__GV2int with (TD:=TD)(sz:=Size.ThirtyTwo) in Hsim; 
+      eauto.
+    rewrite Hsim in HeqR. rewrite HeqR. auto.
+  split; auto.
+Qed.
+
+Lemma mem_simulation__malloc_l2r : forall mi TD Mem1 Mem2 tsz gn Mem1' mb1
+  ECs1 pinfo maxb lc1 t id0 align0 F gn' ecs EC
+  (Hprom: Promotability.wf_ECStack maxb pinfo TD Mem1 (EC::ECs1))
+  (Hnrem : PI_f pinfo <> F \/ PI_id pinfo <> id0)
+  (Heq1: F = Opsem.CurFunction EC) (Heq2: lc1 = Opsem.Locals EC)
+  (Heq3: ecs = strip_ECs (EC::ECs1))
+  (Hmsim : mem_simulation pinfo maxb mi ecs Mem1 Mem2)
+  (Hsim: gv_inject mi gn gn')
+  (Hmlc: malloc TD Mem1 tsz gn align0 = ret (Mem1', mb1)),
+  exists Mem2', exists mi', exists mb2,
+    malloc TD Mem2 tsz gn' align0 = ret (Mem2', mb2) /\
+    mem_simulation pinfo maxb mi'
+      ((F,
+        updateAddAL (GVsT DGVs) lc1 id0
+          ($ blk2GV TD mb1 # typ_pointer t $))::strip_ECs ECs1)
+      Mem1' Mem2' /\
+    Values.inject_incr mi mi' /\
+    mi' mb1 = Some (mb2, 0) /\
+    (forall b, b <> mb1 -> mi b = mi' b).
+Proof.
+  intros.
+  assert (Hmsim':=Hmsim).
+  eapply mem_simulation__malloc_l2r' in Hmsim'; eauto.
+  destruct Hmsim' as [Mem2' [mi' [mb2 [J1 [J2 [J3 [J4 [J5 J6]]]]]]]].
+  destruct Hmsim as [_ [Hmsim2 _]].
+  exists Mem2'. exists mi'. exists mb2.
+  split; auto.
+  split; auto.
+    split; auto.
+    split; auto.
+      eapply isnt_alloca_in_ECs_update_non_palloca; eauto.
+      intros. subst.
+      eapply malloc__isnt_alloca_in_ECs in Hprom; eauto.
+Qed.
+
 Lemma mem_simulation__malloc : forall mi TD Mem1 Mem2 tsz gn Mem1' Mem2' mb1
   mb2 ECs1 pinfo maxb lc1 t id0 align0 F gn' ecs EC
   (Hprom: Promotability.wf_ECStack maxb pinfo TD Mem1 (EC::ECs1))
@@ -1714,26 +1815,9 @@ Lemma mem_simulation__malloc : forall mi TD Mem1 Mem2 tsz gn Mem1' Mem2' mb1
     (forall b, b <> mb1 -> mi b = mi' b).
 Proof.
   intros.
-  destruct Hmsim as [Hmsim1 [Hmsim2 Hmsim3]].
-  eapply mem_inj__malloc in Hmsim1; eauto.
-  destruct Hmsim1 as [mi' [Mem2'' [mb' [J1 [J2 [J3 [J4 [J5 J6]]]]]]]].
-  assert (Hmlc0:=Hmlc).
-  unfold malloc in Hmlc, Hmlc', J1.
-  inv_mbind''. symmetry_ctx.
-  apply simulation__eq__GV2int with (TD:=TD)(sz:=Size.ThirtyTwo) in Hsim; eauto.
-  rewrite Hsim in HeqR. rewrite HeqR in HeqR0. inv HeqR0.
-  destruct (zlt 0 (Size.to_Z tsz * z0)).
-    rewrite H1 in H0. inv H0.
-    exists mi'.
-    split.
-      split; auto.
-      split; auto.
-        eapply isnt_alloca_in_ECs_update_non_palloca; eauto.
-        intros.
-        eapply malloc__isnt_alloca_in_ECs in Hprom; eauto.
-    split; auto.
-
-    congruence.
+  eapply mem_simulation__malloc_l2r in Hmsim; eauto.
+  destruct Hmsim as [Mem2'0 [mi' [mb3 [J1 [J2 [J3 J4]]]]]].
+  uniq_result. eauto.
 Qed.
 
 Lemma als_simulation__malloc: forall pinfo F lc mi id0 mi' Mem1 Mem1' mb TD
@@ -1802,37 +1886,79 @@ Proof.
       econstructor; eauto.
 Qed.
 
+Lemma simulation__mload_l2r : forall mi TD pinfo maxb Mem1 Mem2 gvp1 align0 gv1 
+  t gvp2 st,
+  mem_simulation pinfo maxb mi st Mem1 Mem2 ->
+  mload TD Mem1 gvp1 t align0 = ret gv1 ->
+  gv_inject mi gvp1 gvp2 ->
+  exists gv2, 
+    mload TD Mem2 gvp2 t align0 = ret gv2 /\
+    gv_inject mi gv1 gv2.
+Proof.
+  intros mi TD pinfo max Mem1 Mem2 gvp1 align0 gv1 t gvp2 st Hmsim
+  Hmload1 Hginject.
+  apply mload_inv in Hmload1.
+  destruct Hmload1 as [b1 [ofs1 [m1 [mc1 [Heq1 [Hflat1 Hmload1]]]]]]; subst.
+  inv Hginject. inv H3. inv H4.
+  destruct Hmsim as [Hmsim [_ Hwfmi]].
+  eapply simulation_mload_aux in Hmload1; eauto.
+  destruct Hmload1 as [gv2' [Hmload1 Hinj]].
+  exists gv2'.
+  split; auto.
+    unfold mload. simpl. fill_ctxhole. 
+    inv Hwfmi.
+    apply mi_range_block in H1. subst.
+    rewrite Int.add_zero.
+    assert (Int.signed 31 ofs1 + 0 = Int.signed 31 ofs1) as EQ. zauto.
+    congruence.
+Qed.
+
 Lemma simulation__mload : forall mi TD pinfo maxb Mem1 Mem2 gvp1 align0 gv1 gv2 t
   gvp2 st,
-  wf_sb_mi maxb mi Mem1 Mem2 ->
   mem_simulation pinfo maxb mi st Mem1 Mem2 ->
   mload TD Mem1 gvp1 t align0 = ret gv1 ->
   mload TD Mem2 gvp2 t align0 = ret gv2 ->
   gv_inject mi gvp1 gvp2 ->
   gv_inject mi gv1 gv2.
 Proof.
-  intros mi TD pinfo max Mem1 Mem2 gvp1 align0 gv1 gv2 t gvp2 st Hwfmi Hmsim
+  intros mi TD pinfo max Mem1 Mem2 gvp1 align0 gv1 gv2 t gvp2 st Hmsim
   Hmload1 Hmload2 Hginject.
-  apply mload_inv in Hmload1.
-  destruct Hmload1 as [b1 [ofs1 [m1 [mc1 [Heq1 [Hflat1 Hmload1]]]]]]; subst.
-  apply mload_inv in Hmload2.
-  destruct Hmload2 as [b2 [ofs2 [m2 [mc2 [Heq2 [Hflat2 Hmload2]]]]]]; subst.
-  uniq_result.
-  inv Hginject. inv H1.
-  destruct Hmsim as [Hmsim _].
-  eapply simulation_mload_aux in Hmload1; eauto.
-  destruct Hmload1 as [gv2' [Hmload1 Hinj]].
-  inv Hwfmi.
-  apply mi_range_block in H3. subst.
-  rewrite Int.add_zero in Hmload2.
-  assert (Int.signed 31 ofs1 + 0 = Int.signed 31 ofs1) as EQ. zauto.
-  rewrite EQ in Hmload1.
+  eapply simulation__mload_l2r in Hmsim; eauto.
+  destruct Hmsim as [gv2' [J1 J2]].
   uniq_result. auto.
+Qed.
+
+Lemma simulation__mstore_l2r : forall mi TD pinfo Mem1 Mem2 gvp1 gv1 gvp2
+  gv2 Mem1' maxb F t align0 lc ECs,
+  mem_simulation pinfo maxb mi ((F,lc) :: strip_ECs ECs) Mem1 Mem2 ->
+  mstore TD Mem1 gvp1 t gv1 align0 = ret Mem1' ->
+  gv_inject mi gvp1 gvp2 ->
+  gv_inject mi gv1 gv2 ->
+  exists Mem2', 
+    mstore TD Mem2 gvp2 t gv2 align0 = ret Mem2' /\
+    mem_simulation pinfo maxb mi ((F, lc) :: strip_ECs ECs) Mem1' Mem2'.
+Proof.
+  intros mi TD pinfo Mem1 Mem2 gvp1 gv1 gvp2 gv2 Mem1' maxb F t align0 lc
+    ECs Hmsim Hmstore1 Hginject1 Hginject2.
+  apply mstore_inversion in Hmstore1.
+  destruct Hmstore1 as [b1 [ofs1 [cm1 [Heq1 Hmstore1]]]]; subst.
+  inv Hginject1. inv H3. inv H4.
+  destruct Hmsim as [Hmsim1 [Hmsim2 Hwfmi]].
+  eapply mem_inj_mstore_aux in Hmstore1; eauto.
+  destruct Hmstore1 as [Mem2'' [Hmstore1 [Hwfmi' Hmsim']]].
+  unfold mstore. simpl.
+  inv Hwfmi.
+  apply mi_range_block in H1. subst.
+  rewrite Int.add_zero.
+  assert (Int.signed 31 ofs1 + 0 = Int.signed 31 ofs1) as EQ. zauto.
+  rewrite EQ in Hmstore1.
+  exists Mem2''.
+  split; auto.
+  split; auto.
 Qed.
 
 Lemma simulation__mstore : forall mi TD pinfo Mem1 Mem2 gvp1 gv1 gvp2
   gv2 Mem1' Mem2' maxb F t align0 lc ECs,
-  wf_sb_mi maxb mi Mem1 Mem2 ->
   mem_simulation pinfo maxb mi ((F,lc) :: strip_ECs ECs) Mem1 Mem2 ->
   mstore TD Mem1 gvp1 t gv1 align0 = ret Mem1' ->
   mstore TD Mem2 gvp2 t gv2 align0 = ret Mem2' ->
@@ -1841,22 +1967,10 @@ Lemma simulation__mstore : forall mi TD pinfo Mem1 Mem2 gvp1 gv1 gvp2
   mem_simulation pinfo maxb mi ((F, lc) :: strip_ECs ECs) Mem1' Mem2'.
 Proof.
   intros mi TD pinfo Mem1 Mem2 gvp1 gv1 gvp2 gv2 Mem1' Mem2' maxb F t align0 lc
-    ECs Hwfmi Hmsim Hmstore1 Hmstore2 Hginject1 Hginject2.
-  apply mstore_inversion in Hmstore1.
-  destruct Hmstore1 as [b1 [ofs1 [cm1 [Heq1 Hmstore1]]]]; subst.
-  apply mstore_inversion in Hmstore2.
-  destruct Hmstore2 as [b2 [ofs2 [cm2 [Heq2 Hmstore2]]]]; subst.
-  inv Hginject1. inv H1.
-
-  destruct Hmsim as [Hmsim1 [Hmsim2 Hmsim3]].
-  eapply mem_inj_mstore_aux in Hmstore1; eauto.
-  destruct Hmstore1 as [Mem2'' [Hmstore1 [Hwfmi' Hmsim']]].
-  inv Hwfmi.
-  apply mi_range_block in H3. subst.
-  rewrite Int.add_zero in Hmstore2.
-  assert (Int.signed 31 ofs1 + 0 = Int.signed 31 ofs1) as EQ. zauto.
-  rewrite EQ in Hmstore1. uniq_result.
-  split; auto.
+    ECs Hmsim Hmstore1 Hmstore2 Hginject1 Hginject2.
+  eapply simulation__mstore_l2r in Hmsim; eauto.
+  destruct Hmsim as [Mem2'' [J1 J2]].
+  uniq_result. auto.
 Qed.
 
 Definition params_dont_use_pid pinfo F (ps:params) :=
@@ -2037,7 +2151,32 @@ Proof.
   apply reg_simulation_nil; auto.
 Qed.
 
-Axiom callExternalFunction__mem_simulation: forall pinfo mi M1 M2 fid0 gvs1
+Axiom callExternalFunction__mem_simulation_l2r: forall pinfo mi M1 M2 fid0 gvs1
+  gvs2 oresult1 M1' mgb gl lc1 lc2 TD F rid noret0 ft lp
+  EC lc1' als1 als2 dck tret targs tr1,
+  mem_simulation pinfo mgb mi ((F,lc1) :: strip_ECs EC) M1 M2 ->
+  reg_simulation pinfo mi F lc1 lc2 ->
+  Opsem.params2GVs TD lp lc1 gl = ret gvs1 ->
+  Opsem.params2GVs TD lp lc2 gl = ret gvs2 ->
+  callExternalOrIntrinsics TD gl M1 fid0 tret targs dck
+    gvs1 = ret (oresult1, tr1, M1') ->
+  Opsem.exCallUpdateLocals TD ft noret0 rid oresult1 lc1 = ret lc1' ->
+  als_simulation pinfo mi F lc1 als1 als2 ->
+  exists tr2, exists M2', exists lc2', exists oresult2, exists mi',
+    callExternalOrIntrinsics TD gl M2 fid0 tret targs dck
+      gvs2 = ret (oresult2, tr2, M2') /\
+    Opsem.exCallUpdateLocals TD ft noret0 rid oresult2 lc2 = ret lc2' /\
+    tr1 = tr2 /\
+    oresult1 = oresult2 /\
+    mem_simulation pinfo mgb mi'
+      ((F,lc1') :: strip_ECs EC) M1' M2' /\ Values.inject_incr mi mi' /\
+    als_simulation pinfo mi' F lc1' als1 als2 /\
+    reg_simulation pinfo mi' F lc1' lc2' /\
+    (forall blk : mblock,
+       ~ isnt_alloca_in_ECs pinfo (strip_ECs EC) blk ->
+       mi blk = merror -> mi' blk = merror).
+
+Lemma callExternalFunction__mem_simulation: forall pinfo mi M1 M2 fid0 gvs1
   gvs2 oresult1 M1' oresult2 M2' mgb gl lc1 lc2 TD F rid noret0 ft lp
   EC lc1' lc2' als1 als2 dck tret targs tr1 tr2,
   mem_simulation pinfo mgb mi ((F,lc1) :: strip_ECs EC) M1 M2 ->
@@ -2061,6 +2200,13 @@ Axiom callExternalFunction__mem_simulation: forall pinfo mi M1 M2 fid0 gvs1
     (forall blk : mblock,
        ~ isnt_alloca_in_ECs pinfo (strip_ECs EC) blk ->
        mi blk = merror -> mi' blk = merror).
+Proof.
+  intros.
+  eapply callExternalFunction__mem_simulation_l2r in H; eauto.
+  destruct H as [tr2' [M2'' [lc2'' [or2' [mi'' [J1 [J2 [J3 [J4 [J5 [J6 [J7 [J8 J9]]]]]]]]]]]]].
+  uniq_result. 
+  split; auto. split; auto. exists mi''. eauto.
+Qed.
 
 Ltac get_wf_value_for_simop :=
   match goal with
@@ -2722,7 +2868,7 @@ Proof.
     exists l0. exists ps2. exists nil. auto.
     exists l0. exists ps0. exists nil. auto.
 *)
-Admitted.
+Admitted. (* init *)
 
 Ltac inTmnOp_isnt_stuck v H3 Hwfcfg1 Hwfpp1 :=
 match type of Hwfpp1 with
@@ -3039,9 +3185,60 @@ Case "unremovable".
     split; auto. 
 Qed.
 
+Lemma cmds_simulation_nil_inv' : forall (pinfo : PhiInfo) 
+  (f1 : fdef) (cs1 : list cmd) b1 tmn1 lc1 als1 ECS Mem1
+  (Hnrem : ~
+          removable_State pinfo
+            {|
+            Opsem.ECS := {|
+                         Opsem.CurFunction := f1;
+                         Opsem.CurBB := b1;
+                         Opsem.CurCmds := cs1;
+                         Opsem.Terminator := tmn1;
+                         Opsem.Locals := lc1;
+                         Opsem.Allocas := als1 |} :: ECS;
+            Opsem.Mem := Mem1 |}),
+  cmds_simulation pinfo f1 cs1 nil -> cs1 = nil.
+Proof.
+  simpl.
+  unfold cmds_simulation. intros.
+  destruct_if; auto.
+  destruct cs1; auto.
+  destruct_if; try tauto.
+  simpl in H1.
+  destruct ((id_dec (getCmdLoc c) (PI_id pinfo))); simpl in *; congruence.
+Qed.
+
+Lemma cmds_simulation_cons_inv' : forall (pinfo : PhiInfo) 
+  (f1 : fdef) b1 lc1 cs tmn1 als1 c cs2 ECS Mem1
+  (Hnrem : ~
+          removable_State pinfo
+            {|
+            Opsem.ECS := {|
+                         Opsem.CurFunction := f1;
+                         Opsem.CurBB := b1;
+                         Opsem.CurCmds := cs;
+                         Opsem.Terminator := tmn1;
+                         Opsem.Locals := lc1;
+                         Opsem.Allocas := als1 |} :: ECS;
+            Opsem.Mem := Mem1 |}),
+  cmds_simulation pinfo f1 cs (c::cs2) -> 
+   exists cs1, 
+     cs = c::cs1 /\
+     cmds_simulation pinfo f1 cs1 cs2.
+Proof.
+  simpl.
+  unfold cmds_simulation. intros.
+  destruct_if; eauto.
+  destruct cs; inv H1.
+  destruct (id_dec (PI_id pinfo) (getCmdLoc c0)); try tauto.
+  destruct (id_dec (getCmdLoc c0) (PI_id pinfo)); simpl in *; try congruence.
+  inv H0. eauto.
+Qed.
+
 Ltac undefined_state__State_simulation_r2l_tac1 :=
   match goal with
-  | Hstsim: State_simulation _ _ _ ?St1 _ ?St2 |- _ =>
+  | Hstsim: State_simulation _ _ _ _ ?St1 _ ?St2 |- _ =>
     destruct St2 as [[|[? ? [|CurCmds] [] ?] [|[]]] ?]; try tauto;
     destruct CurCmds; try tauto;
     destruct St1 as [ECS ?];
@@ -3058,7 +3255,7 @@ Ltac undefined_state__State_simulation_r2l_tac1 :=
 
 Ltac undefined_state__State_simulation_r2l_tac3 :=
   match goal with
-  | Hstsim: State_simulation _ _ _ ?St1 _ ?St2 |- _ =>
+  | Hstsim: State_simulation _ _ _ _ ?St1 _ ?St2 |- _ =>
     destruct St2 as [[|[? [? ? ? tmn] CurCmds tmn' ?] ?] ?]; try tauto;
     destruct tmn; try tauto;
     destruct CurCmds; try tauto;
@@ -3074,7 +3271,7 @@ Ltac undefined_state__State_simulation_r2l_tac3 :=
 
 Ltac undefined_state__State_simulation_r2l_tac41 :=
   match goal with
-  | Hstsim: State_simulation _ _ _ ?St1 ?cfg2 ?St2 |- _ =>
+  | Hstsim: State_simulation _ _ _ _ ?St1 ?cfg2 ?St2 |- _ =>
     destruct St1 as [ECS ?];
     destruct Hstsim as [X [? [Hstsim [? [? ?]]]]]; subst;
     inv X;
@@ -3083,19 +3280,26 @@ Ltac undefined_state__State_simulation_r2l_tac41 :=
     destruct Hstsim as [? [? [? [? [H4 [H5 [? Hstsim]]]]]]]; subst
   end. 
 
-(*
-Ltac undefined_state__la_State_simulation_r2l_tac42 := 
-repeat match goal with
+Ltac undefined_state__d_State_simulation_r2l_tac43 := 
+      match goal with
+      | Hstsim: cmds_simulation _ _ _ (_::_) |- _ =>
+      eapply cmds_simulation_cons_inv' in Hstsim; eauto; subst;
+      destruct Hstsim as [c1' [J2 J3]]; subst
+     end.
+
+Ltac undefined_state__d_State_simulation_r2l_tac42 v' := 
+match goal with
 | Hwfcfg1: OpsemPP.wf_Config ?cfg1, Hwfpp1: OpsemPP.wf_State ?cfg1 ?St1, 
-  HwfS1: wf_State _ _ _ ?cfg1 ?St1, 
-  Hvsim: value_simulation _ _ _ ?v0 ?v,
-  _: ret ?gn = Opsem.getOperandValue ?td ?v ?Locals ?fs2,
-  _: block_simulation _ _ _ ?b _,
+  _: ret ?gn = Opsem.getOperandValue ?td v' ?Locals ?fs2,
+  H2: mem_simulation _ _ _ _ _ _,
+  _: reg_simulation _ ?mi ?f ?Locals0 ?Locals,
+  _: block_simulation _ ?f ?b _,
   H4: exists _:_, exists _:_, exists _:_, ?b = _ |- _ =>
     let G := fresh "G" in
     let gvs := fresh "gvs" in
+    let EQ := fresh "EQ" in
     assert (exists gvs, Opsem.getOperandValue td
-       v0 Locals fs2 = Some gvs) as G; try solve [
+      v' Locals0 fs2 = Some gvs) as G; try solve [
       destruct H4 as [l5 [ps2 [cs21 H4]]]; subst;
       destruct Hwfcfg1 as [_ [Hwfg1 [Hwfs1 HmInS1]]];
       destruct Hwfpp1 as [_ [[Hreach1 [HbInF1 [HfInPs1 [_ [Hinscope1 _]]]]] _]];
@@ -3103,30 +3307,44 @@ repeat match goal with
       eapply OpsemPP.getOperandValue_inCmdOps_isnt_stuck; eauto 1; simpl; auto
     ];
     destruct G as [gvs G];
-    assert (gvs = gn) as EQ; try solve [
+    assert (gv_inject mi gvs gn) as EQ; try solve [
       destruct H4 as [l1 [ps1 [cs11 H4]]]; subst;
       destruct Hwfcfg1 as [_ [Hwfg1 [Hwfs1 HmInS1]]];
-      destruct Hwfpp1 as [_ [[Hreach1 [HbInF1 [HfInPs1 [_ [Hinscope1 _]]]]] _]];
-      destruct HwfS1 as [HwfS1 _];
-      unfold wf_ExecutionContext, inscope_of_ec in HwfS1;
-      inv_mbind;
-      eapply getOperandValue_inCmdOperands_sim; 
-        eauto 2 using wf_system__wf_fdef, wf_system__uniqFdef; simpl; auto
-    ];
-    subst;
-    clear Hvsim
+      destruct Hwfpp1 as [_ [[_ [HbInF1 [HfInPs1 _]]] _]];
+      destruct H2 as [H21 [H22 H23]];
+      eapply simulation__getOperandValue with (v:=v'); try solve [
+        eauto |
+        eapply used_in_fdef__cmd_value_doesnt_use_pid; eauto using in_middle;
+          simpl; auto |
+        eapply wf_system__wf_fdef in HfInPs1; eauto;
+        eapply wf_fdef__wf_cmd in HbInF1; eauto using in_middle;
+        inv HbInF1; eauto 2
+      ]
+    ]
 end.
 
-Ltac undefined_state__la_State_simulation_r2l_tac43 := 
-      match goal with
-      | Hstsim: cmds_simulation _ _ _ _ (_::_) |- _ =>
-      apply cmds_simulation_cons_inv' in Hstsim; subst;
-      destruct Hstsim as [c1' [cs2' [J1 [J2 J3]]]]; subst;
-      apply cmd_simulation__cmd_simulation' in J2;
-      inv J2;
-      undefined_state__la_State_simulation_r2l_tac42
-     end.
-*)
+Lemma stacked_frame__unremovable: forall cfg EC1 EC2 ECS Mem0 pinfo
+  (HBinF: match Opsem.CurBB EC1 with 
+   | block_intro _ _ _ (insn_return _ _ _) => True
+   | block_intro _ _ _ (insn_return_void _) => True
+   | _ => False
+   end)
+  (Hwfpp1 : OpsemPP.wf_State cfg
+             {| Opsem.ECS := EC1 :: EC2 :: ECS; Opsem.Mem := Mem0 |}),
+  ~ removable_State pinfo
+     {| Opsem.ECS := EC2 :: ECS; Opsem.Mem := Mem0 |}.
+Proof.
+  intros.
+  destruct EC1, EC2; simpl in *. destruct cfg. destruct CurTargetData.
+  destruct Hwfpp1 as 
+     [_ [[_ [HbInF1 [_ [_ [_ _]]]]] [_ Hiscall]]].
+  apply Hiscall in HbInF1.
+  destruct CurBB as [? ? ? []]; tinv HBinF.
+    destruct CurCmds0 as [|[]]; tinv HbInF1.
+      simpl. admit. (*uniqness*)
+    destruct CurCmds0 as [|[]]; tinv HbInF1.
+      simpl. admit. (*uniqness*)
+Qed.
 
 Lemma undefined_state__dae_State_simulation_r2l': forall pinfo maxb mi cfg1 St1 cfg2
   St2 (Hstsim : State_simulation pinfo maxb mi cfg1 St1 cfg2 St2)
@@ -3139,8 +3357,6 @@ Lemma undefined_state__dae_State_simulation_r2l': forall pinfo maxb mi cfg1 St1 
   (Hnrem: ~removable_State pinfo St1) 
   (Hundef: OpsemPP.undefined_state cfg2 St2),
   OpsemPP.undefined_state cfg1 St1.
-Admitted.
-(*
 Proof.
   intros.
   unfold OpsemPP.undefined_state in Hundef.
@@ -3152,59 +3368,80 @@ Proof.
   Case "1".
 
     undefined_state__State_simulation_r2l_tac1.
-    apply cmds_simulation_nil_inv' in Hstsim; subst.
-    apply cmds_simulation_cons_inv' in Hstsim'.
-    destruct Hstsim' as [c1' [cs1' [J1 [J2 J3]]]]; subst.
+    eapply cmds_simulation_nil_inv' in Hstsim; eauto; subst.
+    assert (Hnrem' : ~
+          removable_State pinfo
+            {|
+            Opsem.ECS := {|
+                            Opsem.CurFunction := CurFunction2;
+                            Opsem.CurBB := CurBB2;
+                            Opsem.CurCmds := CurCmds1;
+                            Opsem.Terminator := Terminator;
+                            Opsem.Locals := Locals2;
+                            Opsem.Allocas := Allocas2 |} :: ECS;
+            Opsem.Mem := Mem0 |}).
+      clear - Hwfpp1 H5.
+      destruct H5 as [l5 [ps5 [cs5 H5]]]; subst.
+      eapply stacked_frame__unremovable; eauto; simpl; auto.
+    eapply cmds_simulation_cons_inv' in Hnrem'; eauto.
+    destruct Hnrem' as [cs1' [J1 J3]]; subst.
     left. 
-    unfold tmn_simulation in Htmn. 
-    destruct_if; subst; simpl; auto.
-    match goal with
-    | H11: subst_tmn _ _ ?tmn = insn_return _ _ _ |- _ => 
-      destruct tmn; inv H11; auto
-    end.
+    remember (free_allocas (los2, nts2) Mem0 Allocas1) as R.
+    destruct R; auto.
+    symmetry in HeqR. simpl in H2.
+    eapply mem_simulation__free_allocas_l2r in HeqR; eauto.
+    destruct HeqR as [M2' [Hfree [Hmsim']]].
+    congruence.
 
   Case "2".
     undefined_state__State_simulation_r2l_tac1.
-    apply cmds_simulation_nil_inv' in Hstsim; subst.
-    apply cmds_simulation_cons_inv' in Hstsim'.
-    destruct Hstsim' as [c1' [cs1' [J1 [J2 J3]]]]; subst.
-    right. left.
-    assert (getCallerReturnID c = getCallerReturnID c1') as EQ.
-      unfold cmd_simulation in J2. subst. clear.
-      destruct_if; auto.
-      destruct c1'; auto.
-    rewrite <- EQ.
-    clear - Htmn Hundef.
-    unfold tmn_simulation in Htmn. 
-    destruct (fdef_dec (PI_f pinfo) CurFunction1); subst; simpl; auto.
-    match goal with
-    | H11: subst_tmn _ _ ?tmn = insn_return_void _ |- _ => 
-      destruct tmn; inv H11; auto
-    end.
+    eapply cmds_simulation_nil_inv' in Hstsim; eauto; subst.
+    assert (Hnrem' : ~
+          removable_State pinfo
+            {|
+            Opsem.ECS := {|
+                            Opsem.CurFunction := CurFunction2;
+                            Opsem.CurBB := CurBB2;
+                            Opsem.CurCmds := CurCmds1;
+                            Opsem.Terminator := Terminator;
+                            Opsem.Locals := Locals2;
+                            Opsem.Allocas := Allocas2 |} :: ECS;
+            Opsem.Mem := Mem0 |}).
+      clear - Hwfpp1 H5.
+      destruct H5 as [l5 [ps5 [cs5 H5]]]; subst.
+      eapply stacked_frame__unremovable; eauto; simpl; auto.
+    eapply cmds_simulation_cons_inv' in Hnrem'; eauto.
+    destruct Hnrem' as [cs1' [J1 J3]]; subst.
+    right. left. 
+    destruct Hundef as [Hundef | Hundef]; auto.
+    left.
+    remember (free_allocas (los2, nts2) Mem0 Allocas1) as R.
+    destruct R; auto.
+    symmetry in HeqR. simpl in H2.
+    eapply mem_simulation__free_allocas_l2r in HeqR; eauto.
+    destruct HeqR as [M2' [Hfree [Hmsim']]].
+    congruence.
 
   Case "3".
-
     undefined_state__State_simulation_r2l_tac3.
-    apply cmds_simulation_nil_inv' in Hstsim. subst.
+    eapply cmds_simulation_nil_inv' in Hstsim; eauto; subst.
     right. right. left.
-    simpl. 
-    unfold tmn_simulation in Htmn. 
-    destruct_if; subst; simpl; auto.
-    match goal with
-    | H11: subst_tmn _ _ ?tmn = insn_unreachable _ |- _ => 
-      destruct tmn; inv H11; auto
-    end.
+    destruct H5 as [l6 [ps6 [cs6 H5]]]; subst. auto.
 
   Case "4".
-
-    right; right; right; left;
+    right; right; right; left.
     destruct St2 as [[|[? ? [|[] CurCmds] tmn' Locals] ?] ?]; try solve [
       tauto |
-
       inv_mbind; destruct Hundef as [gn [EQ Hundef]]; inv EQ; inv_mbind;
       undefined_state__State_simulation_r2l_tac41;
-      undefined_state__la_State_simulation_r2l_tac43;
-        repeat fill_ctxhole; exists gn; fill_ctxhole; auto
+      undefined_state__d_State_simulation_r2l_tac43;
+      undefined_state__d_State_simulation_r2l_tac42 v;
+      repeat fill_ctxhole; exists gvs; split; auto;
+      remember (malloc (los2, nts2) Mem0 s gvs a) as R;
+      destruct R as [[]|]; auto;
+      symmetry in HeqR2;
+      eapply mem_simulation__malloc_l2r' in HeqR2; eauto 2;
+      destruct HeqR2 as [Mem2' [mi' [mb2 [J1 [J2 [J13 J4]]]]]]; congruence
     ].
 
   Case "5".
@@ -3212,16 +3449,30 @@ Proof.
     destruct St2 as [[|[? ? [|[] CurCmds] tmn' ?] ?] ?]; try tauto.
     inv_mbind; destruct Hundef as [gn [EQ Hundef]]; inv EQ; inv_mbind.
     undefined_state__State_simulation_r2l_tac41.
-    undefined_state__la_State_simulation_r2l_tac43.
-    repeat fill_ctxhole; exists gn; fill_ctxhole; auto.
-
+    undefined_state__d_State_simulation_r2l_tac43.
+    undefined_state__d_State_simulation_r2l_tac42 v.
+    repeat fill_ctxhole; exists gvs. split; auto.
+    remember (free (los2, nts2) Mem0 gvs) as R.
+    destruct R; auto.
+    symmetry in HeqR1. simpl in H2.
+    eapply mem_simulation__free_l2r in HeqR1; eauto.
+    destruct HeqR1 as [M2' [Hfree [Hmsim']]].
+    congruence.
+   
   Case "6".
     right. right. right. right. right. left.
     destruct St2 as [[|[? ? [|[] CurCmds] tmn' ?] ?] ?]; try tauto.
     inv_mbind; destruct Hundef as [gvs [EQ Hundef]]; inv EQ; inv_mbind.
     undefined_state__State_simulation_r2l_tac41.
-    undefined_state__la_State_simulation_r2l_tac43. 
-    repeat fill_ctxhole; exists gvs; fill_ctxhole; auto.
+    undefined_state__d_State_simulation_r2l_tac43. 
+    undefined_state__d_State_simulation_r2l_tac42 v.
+    repeat fill_ctxhole; exists gvs0. split; auto.
+    remember (mload (los2, nts2) Mem0 gvs0 t a) as R.
+    destruct R; auto.
+    symmetry in HeqR1. simpl in H2.
+    eapply simulation__mload_l2r in HeqR1; eauto.
+    destruct HeqR1 as [gv2 [Hload Hinj]].
+    congruence.
 
   Case "7".
     right. right. right. right. right. right. left.
@@ -3229,8 +3480,17 @@ Proof.
     inv_mbind; destruct Hundef as [gv [mgv [EQ1 [EQ2 Hundef]]]]; 
       inv EQ1; inv EQ2; inv_mbind.
     undefined_state__State_simulation_r2l_tac41.
-    undefined_state__la_State_simulation_r2l_tac43. 
-    repeat fill_ctxhole; exists gv; exists mgv; fill_ctxhole; auto.
+    undefined_state__d_State_simulation_r2l_tac43. 
+    undefined_state__d_State_simulation_r2l_tac42 v.
+    undefined_state__d_State_simulation_r2l_tac42 v0.
+    repeat fill_ctxhole; exists gvs; exists gvs0.
+    split; auto.
+    remember (mstore (los2, nts2) Mem0 gvs0 t gvs a) as R.
+    destruct R; auto.
+    symmetry in HeqR2. simpl in H2.
+    eapply simulation__mstore_l2r in HeqR2; eauto.
+    destruct HeqR2 as [M2' [Hstore Hinj]].
+    congruence.
 
   Case "8".
     destruct St2 as [[|[? ? [|[] CurCmds] tmn' ?] ?] ?]; try tauto.
@@ -3239,20 +3499,33 @@ Proof.
     inv_mbind.
     destruct Hundef as [fptr [EQ Hundef]]; inv EQ.
     inv_mbind.
-    apply cmds_simulation_cons_inv' in Hstsim; subst;
-    destruct Hstsim as [c1' [cs2' [J1 [J2 J3]]]]; subst.
-    apply cmd_simulation__cmd_simulation' in J2;
-    inv J2.  
-    undefined_state__la_State_simulation_r2l_tac42.
+    eapply cmds_simulation_cons_inv' in Hstsim; subst; eauto.
+    destruct Hstsim as [cs2' [J1 J2]]; subst.
+    undefined_state__d_State_simulation_r2l_tac42 v0.
+      destruct H4 as [l1 [ps1 [cs11 H4]]]; subst.
+      destruct Hwfcfg1 as [_ [Hwfg1 [Hwfs1 HmInS1]]].
+      destruct Hwfpp1 as [_ [[_ [HbInF1 [HfInPs1 _]]] _]].
+      destruct H2 as [H21 [H22 H23]].
+      assert (exists t, wf_value S1 (module_intro los2 nts2 gl1) CurFunction0 v0 t) 
+        as Hwfv.
+        eapply wf_system__wf_fdef in HfInPs1; eauto.
+        eapply wf_fdef__wf_cmd in HbInF1; eauto using in_middle.
+        eapply wf_cmd__wf_value in HbInF1; eauto; simpl; auto.
+      destruct Hwfv as [tv Hwfv].
+      eapply simulation__getOperandValue with (v:=v0); try solve [
+        eauto 2 |
+        eapply used_in_fdef__cmd_value_doesnt_use_pid; eauto 4 using in_middle;
+          simpl; auto
+      ].
     repeat fill_ctxhole.
-    exists fptr. split; auto.
+    exists gvs. split; auto.
     remember (OpsemAux.lookupExFdecViaPtr gl2 FunTable fptr) as R.
     destruct R as [[[]]|].
       inv_mbind.
-      destruct Hundef as [gvs0 [EQ Hundef]].
+      destruct Hundef as [gvs0 [EQ' Hundef]].
       dgvs_instantiate_inv.
       assert (exists gvs, 
-                Opsem.params2GVs (los2,nts2) lp0 Locals fs2 = Some gvs) as G'.
+                Opsem.params2GVs (los2,nts2) p Locals0 fs2 = Some gvs) as G'.
         destruct H4 as [l5 [ps2 [cs21 H4]]]; subst.
         destruct Hwfcfg1 as [_ [Hwfg1 [Hwfs1 HmInS1]]];
         destruct Hwfpp1 as [_ [[Hreach1 [HbInF1 [HfInPs1 [_ [Hinscope1 _]]]]] _]].
@@ -3260,27 +3533,50 @@ Proof.
         eapply OpsemPP.params2GVs_isnt_stuck; eauto 1; simpl; auto.
           exists nil. auto.
       destruct G' as [gvs' G'].
-      assert (gvs' = l1) as EQ.
+      assert (Forall2 (fun gv1 gv2 : GenericValue => gv_inject mi gv1 gv2) gvs' l1) 
+        as EQ2.
         destruct H4 as [l5 [ps1 [cs11 H4]]]; subst;
         destruct Hwfcfg1 as [_ [Hwfg1 [Hwfs1 HmInS1]]];
         destruct Hwfpp1 as [_ [[Hreach1 [HbInF1 [HfInPs1 [_ [Hinscope1 _]]]]] _]];
-        destruct HwfS1 as [HwfS1 _];
-        unfold wf_ExecutionContext, inscope_of_ec in HwfS1;
-        inv_mbind.
-        eapply params2GVs_sim; 
+        inv_mbind. destruct H2 as [_ [_ H2]].
+        eapply wf_system__wf_fdef in HfInPs1; eauto.
+        assert (Hwfc:=HbInF1).
+        eapply wf_fdef__wf_cmd in Hwfc; eauto using in_middle.
+        inv Hwfc.
+        eapply reg_simulation__params2GVs; 
           eauto 2 using wf_system__wf_fdef, wf_system__uniqFdef; 
             try solve [simpl; auto].
-      subst.
+          eapply used_in_fdef__params_dont_use_pid; eauto 1.
       repeat fill_ctxhole.
-      erewrite TopSim.lookupFdefViaPtr__simulation_None_l2r; eauto.
-      erewrite TopSim.lookupExFdecViaPtr__simulation_r2l; eauto.
-      simpl.
-      exists l1. split; auto.
-    
-      erewrite TopSim.lookupFdefViaPtr__simulation_None_l2r; eauto.
-      erewrite TopSim.lookupExFdecViaPtr__simulation_None_r2l; eauto.
+      remember (OpsemAux.lookupFdefViaPtr gl1 FunTable0 gvs) as R.
+      destruct R.
+        eapply TopSim.lookupFdefViaPtr_inj__simulation_l2r in H; eauto.
+        remember (OpsemAux.lookupExFdecViaPtr gl1 FunTable0 gvs) as R.
+        destruct R; auto. 
+        eapply TopSim.lookupExFdecViaPtr_inj__simulation_l2r' in H; eauto.
+        rewrite <- HeqR1 in H. inv H. 
+        exists gvs'. split; auto.
+        remember (callExternalOrIntrinsics (los2, nts2) fs2 Mem0 i1 t0 
+          (args2Typs a) d gvs') as R.
+        destruct R as [[[]]|]; auto.
+        remember (Opsem.exCallUpdateLocals (los2, nts2) t n i0 o Locals0) as R.
+        destruct R; auto.
+        simpl in H2.
+        eapply callExternalFunction__mem_simulation_l2r in H2; eauto.
+        destruct H2 as [tr2 [M2' [lc2' [oresult2 [mi' 
+          [W1 [W2 [W3 [W4 [W5 [W6 [W7 [W8 W9]]]]]]]]]]]]]; subst.
+        rewrite W1 in Hundef. rewrite W2 in Hundef. auto.
+
+      remember (OpsemAux.lookupFdefViaPtr gl1 FunTable0 gvs) as R.
+      destruct R.
+        eapply TopSim.lookupFdefViaPtr_inj__simulation_l2r' in H; eauto.
+        destruct H as [f2 [J1 J3]]. congruence.
+
+        remember (OpsemAux.lookupExFdecViaPtr gl1 FunTable0 gvs) as R.
+        destruct R; auto. 
+        eapply TopSim.lookupExFdecViaPtr_inj__simulation_l2r' in H; eauto.
+        rewrite <- HeqR1 in H. inv H. 
 Qed.
-*)
 
 Lemma undefined_state__dae_State_simulation_r2l: forall pinfo cfg1 St1 cfg2
   St2 maxb mi 
@@ -3474,7 +3770,7 @@ Lemma sop_div__dae_State_simulation: forall pinfo cfg1 IS1 cfg2 IS2 tr
   (Hstsim : State_simulation pinfo maxb mi cfg1 IS1 cfg2 IS2)
   (Hopstar : Opsem.sop_diverges cfg2 IS2 tr),
   Opsem.sop_diverges cfg1 IS1 tr.
-Admitted.
+Admitted. (* sop div *)
 
 Lemma dae_wfS: forall
   (id0 : id) (f :fdef) (pinfo : PhiInfo)
@@ -3486,7 +3782,7 @@ Lemma dae_wfS: forall
   wf_system
     [module_intro los nts (Ps1 ++ product_fdef (remove_fdef id0 f) :: Ps2)].
 Proof.
-Admitted.
+Admitted. (* prev WF *)
 
 Lemma dae_sim: forall id0 f pinfo los nts Ps1 Ps2 main VarArgs
   (Hwfpi: WF_PhiInfo pinfo)
