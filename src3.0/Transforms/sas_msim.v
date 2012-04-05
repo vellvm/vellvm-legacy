@@ -1192,6 +1192,15 @@ Proof.
     apply gv_inject_id__refl; auto.
 Qed.
 
+Lemma from_MoreMem_inj: forall m1 m2 mi ogns
+  (Hmsim: MoreMem.mem_inj mi m1 m2),
+  mem_inj mi ogns m1 m2.
+Proof.
+  intros.
+  inv Hmsim.
+  constructor; auto.
+Qed.
+
 End SASmsim.
 
 Fixpoint ombs__ignores (tsz:Z) (ombs: list (option Values.block))

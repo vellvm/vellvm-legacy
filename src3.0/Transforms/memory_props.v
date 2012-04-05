@@ -1,4 +1,5 @@
 Require Import vellvm.
+Require Import memory_sim.
 
 Module MemProps.
 
@@ -2510,6 +2511,37 @@ Proof.
 
       apply bounds_mfree with (b:=b) in HeqR; auto.
       eapply IHals; eauto. congruence.
+Qed.
+
+Definition inject_init (maxb:Z) : MoreMem.meminj :=
+fun (b:Values.block) => 
+if zle b maxb then Some (b, 0)
+else None.
+
+Lemma inject_init__inject_id: forall mb b1 b2 delta,
+  inject_init mb b1 = ret (b2, delta) ->
+  inject_id b1 = ret (b2, delta).
+Proof.
+  unfold inject_init.
+  intros.
+  destruct_if; auto.
+Qed.
+
+Lemma memval_inject_init__memval_inject_id: forall mb mv1 mv2
+  (Hminj: MoreMem.memval_inject (inject_init mb) mv1 mv2),
+  MoreMem.memval_inject inject_id mv1 mv2.
+Proof.
+  destruct 1; try constructor.
+    apply inject_init__inject_id in H; auto.
+    econstructor; eauto.
+Qed.
+
+Lemma redundant__wf_globals: forall maxb gl, 
+  wf_globals maxb gl ->
+  genericvalues_inject.wf_globals maxb gl.
+Proof.
+  intros. destruct H.
+  induction gl; auto.
 Qed.
 
 End MemProps.

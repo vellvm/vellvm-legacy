@@ -1,5 +1,6 @@
 Require Import vellvm.
 Require Import opsem_props.
+Require Import memory_sim.
 Require Import memory_props.
 Require Import trans_tactic.
 
@@ -113,17 +114,34 @@ Proof.
   destruct_if. auto.
 Qed.
 
-Axiom genGlobalAndInitMem__wf_globals_Mem: forall initGlobal initFunTable initMem
-  CurLayouts CurNamedts CurProducts la lc (VarArgs : list (GVsT DGVs)),
+Axiom genGlobalAndInitMem__wf_globals_Mem: forall 
+  (initGlobal initFunTable : GVMap) (initMem : mem)
+  (CurLayouts : layouts) (CurNamedts : namedts)
+  (CurProducts : list product) (la : args) (lc : Opsem.GVsMap)
+  (VarArgs : list (GVsT DGVs)),
   OpsemAux.genGlobalAndInitMem
-    (OpsemAux.initTargetData CurLayouts CurNamedts Mem.empty) CurProducts
-      nil nil Mem.empty = ret (initGlobal, initFunTable, initMem) ->
-  Opsem.initLocals (OpsemAux.initTargetData CurLayouts CurNamedts Mem.empty) la
-            VarArgs = ret lc ->
+         (OpsemAux.initTargetData CurLayouts CurNamedts Mem.empty)
+         CurProducts nil nil Mem.empty =
+    ret (initGlobal, initFunTable, initMem) ->
+  Opsem.initLocals
+    (OpsemAux.initTargetData CurLayouts CurNamedts Mem.empty) la VarArgs =
+    ret lc ->
   MemProps.wf_lc initMem lc /\
-  exists maxb : Z, MemProps.wf_globals maxb initGlobal /\ 0 <= maxb /\
-    MemProps.wf_Mem maxb
-      (OpsemAux.initTargetData CurLayouts CurNamedts Mem.empty) initMem.
+  (MemProps.wf_globals (Mem.nextblock initMem - 1) initGlobal /\
+   MemProps.wf_Mem (Mem.nextblock initMem - 1)
+     (OpsemAux.initTargetData CurLayouts CurNamedts Mem.empty) initMem) /\
+  MoreMem.mem_inj (MemProps.inject_init (Mem.nextblock initMem - 1)) 
+    initMem initMem /\
+  genericvalues_inject.wf_sb_mi (Mem.nextblock initMem - 1) 
+    (MemProps.inject_init (Mem.nextblock initMem - 1)) initMem initMem /\
+  OpsemAux.ftable_simulation (MemProps.inject_init (Mem.nextblock initMem - 1))
+    initFunTable initFunTable /\
+  (forall i0 gv, 
+     lookupAL (GVsT DGVs) lc i0 = ret gv ->
+     genericvalues_inject.gv_inject 
+       (MemProps.inject_init (Mem.nextblock initMem - 1)) gv gv) /\
+  MoreMem.mem_inj inject_id initMem initMem /\
+  OpsemAux.ftable_simulation inject_id initFunTable initFunTable.
 
 Lemma s_isFinialState__stuck: forall St1 St2 cfg tr
   (Hfinal : @Opsem.s_isFinialState DGVs cfg St1 <> None),

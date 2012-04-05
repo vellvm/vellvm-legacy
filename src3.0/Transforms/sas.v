@@ -799,12 +799,34 @@ Proof.
     eapply in_SAS_tail_update; eauto.
 Qed.
 
+Lemma getEntryBlock__simulation: forall pinfo sasinfo f1 f2 b2,
+  getEntryBlock f2 = Some b2 ->
+  fdef_simulation pinfo sasinfo f1 f2 ->
+  exists b1, getEntryBlock f1 = Some b1 /\ 
+    block_simulation pinfo sasinfo f1 b1 b2.
+Proof.
+  unfold fdef_simulation.
+  unfold block_simulation.
+  intros.
+  destruct (fdef_dec (PI_f pinfo) f1); inv H0; eauto.
+    remember (PI_f pinfo) as R1.
+    destruct R1 as [[? ? ? a ?] b]; simpl in *.
+    destruct b; simpl in *; inv H.
+    exists b. 
+    split; auto.
+Qed.
+
 Lemma fdef_simulation__entry_block_simulation: forall pinfo sasinfo F1 F2 B1 B2,
   fdef_simulation pinfo sasinfo F1 F2 ->
   getEntryBlock F1 = ret B1 ->
   getEntryBlock F2 = ret B2 ->
   block_simulation pinfo sasinfo F1 B1 B2.
-Admitted. (* fsim *)
+Proof.
+  intros.
+  eapply getEntryBlock__simulation in H1; eauto.
+  destruct H1 as [b1 [J1 J2]].
+  uniq_result. auto.
+Qed.
 
 Lemma fdef_simulation_inv: forall pinfo sasinfo fh1 fh2 bs1 bs2,
   fdef_simulation pinfo sasinfo (fdef_intro fh1 bs1) (fdef_intro fh2 bs2) ->
@@ -2452,13 +2474,72 @@ Lemma sas_wfS: forall (los : layouts) (nts : namedts) (fh : fheader)
 Admitted. (* prev WF *)
 
 Lemma s_genInitState__sas_State_simulation: forall pinfo sasinfo S1 S2 main
-  VarArgs cfg2 IS2,
-  system_simulation pinfo sasinfo S1 S2 ->
-  Opsem.s_genInitState S2 main VarArgs Mem.empty = ret (cfg2, IS2) ->
+  VarArgs cfg2 IS2 (Hssim: system_simulation pinfo sasinfo S1 S2)
+  (Hwfpi: WF_PhiInfo pinfo) (HwfS1: wf_system S1)
+  (Hinit: Opsem.s_genInitState S2 main VarArgs Mem.empty = ret (cfg2, IS2)),
   exists cfg1, exists IS1,
     Opsem.s_genInitState S1 main VarArgs Mem.empty = ret (cfg1, IS1) /\
     State_simulation pinfo sasinfo cfg1 IS1 cfg2 IS2.
-Admitted. (* init *)
+Proof.
+  unfold Opsem.s_genInitState.
+  intros.
+  inv_mbind'.
+  destruct m as [los nts ps].
+  inv_mbind'.
+  destruct b as [l0 ps0 cs0 tmn0].
+  destruct f as [[fa rt fid la va] bs].
+  inv_mbind'. symmetry_ctx.
+  assert (HlkF2FromS2:=HeqR).
+  eapply TopSim.system_simulation__fdef_simulation_r2l in HeqR; eauto.
+  destruct HeqR as [f1 [HlkF1fromS1 Hfsim]]. simpl in Hfsim.
+  fill_ctxhole.
+  eapply TopSim.system_simulation__getParentOfFdefFromSystem in HeqR0; eauto.
+  destruct HeqR0 as [m1 [J1 J2]].
+  fill_ctxhole. destruct m1 as [los1 nts1 ps1].
+  destruct J2 as [J2 [J3 J4]]; subst.
+  eapply TopSim.genGlobalAndInitMem_spec in HeqR1; eauto.
+  destruct HeqR1 as [gl1 [fs1 [M1 [HeqR1 [EQ1 [EQ2 EQ3]]]]]]; subst.
+  fill_ctxhole.
+  assert (J:=HeqR2).
+  eapply getEntryBlock__simulation in J; eauto.
+  destruct J as [b1 [J5 J6]].
+  fill_ctxhole.
+  destruct b1 as [l2 ps2 cs2 tmn2].
+  destruct f1 as [[fa1 rt1 fid1 la1 va1] bs1].
+  assert (J:=Hfsim).
+  apply fdef_simulation__eq_fheader in J.
+  inv J.
+  fill_ctxhole. eauto.
+  match goal with
+  | |- exists _:_, exists _:_, Some (?A, ?B) = _ /\ _ => exists A; exists B
+  end.
+  match goal with 
+  | H: getParentOfFdefFromSystem _ _ = _ |- _ =>
+    apply getParentOfFdefFromSystem__moduleInProductsInSystemB in H;
+    destruct H as [HMinS HinPs]
+  end.
+  assert (J:=J6).
+  apply block_simulation_inv in J; 
+    eauto using entryBlockInFdef, wf_system__uniqFdef.
+  destruct J as [J1 [J2 [J3 J7]]]; subst.
+  assert (blockInFdefB (block_intro l0 ps0 cs0 tmn0)
+           (fdef_intro (fheader_intro fa rt fid la va) bs) = true) as HBinF.
+    apply entryBlockInFdef; auto.
+  split; auto.
+  eapply genGlobalAndInitMem__wf_globals_Mem in HeqR1; eauto.
+  destruct HeqR1 as [J7 [J8 [J9 [J10 [J11 [J12 [J13 J14]]]]]]].
+  repeat (split; auto).
+    exists l0. exists ps0. exists nil. auto.
+    exists l0. exists ps0. exists nil. auto.
+
+    unfold sas_mem_inj. 
+    assert (exists tsz, getTypeStoreSize (OpsemAux.initTargetData los nts Mem.empty)
+             (PI_typ pinfo) = Some tsz) as Htsz.
+      admit. (* When dse runs PI_f must be in the system, see mem2reg_correct *)
+    destruct Htsz as [tsz Htsz]. fill_ctxhole.
+    intros.
+    eapply SASmsim.from_MoreMem_inj; eauto.
+Qed.
 
 Ltac inTmnOp_isnt_stuck v H3 Hwfcfg1 Hwfpp1 :=
 match type of Hwfpp1 with

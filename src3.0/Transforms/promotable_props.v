@@ -3561,21 +3561,21 @@ Qed.
 
 Opaque lift_op1. 
 
-Lemma s_genInitState__wf_globals_promotable: forall S main VarArgs cfg IS pinfo
+Lemma s_genInitState__wf_globals_promotable': forall S main VarArgs cfg IS pinfo
   (Hinit : @Opsem.s_genInitState DGVs S main VarArgs Mem.empty = ret (cfg, IS)),
-  exists maxb,
-    MemProps.wf_globals maxb (OpsemAux.Globals cfg) /\ 0 <= maxb /\
-    Promotability.wf_State maxb pinfo cfg IS.
+  MemProps.wf_globals (Mem.nextblock (Opsem.Mem IS) - 1) (OpsemAux.Globals cfg) 
+    /\ 0 <= Mem.nextblock (Opsem.Mem IS) - 1 /\
+  Promotability.wf_State (Mem.nextblock (Opsem.Mem IS) - 1) pinfo cfg IS.
 Proof.
   intros.
   simpl_s_genInitState.
   simpl.
   assert (HeqR1':=HeqR1).
   eapply genGlobalAndInitMem__wf_globals_Mem in HeqR1'; eauto.
-  destruct HeqR1' as [Hwflc [maxb [Hwfg [Hless HwfM]]]].
-  exists maxb.
+  destruct HeqR1' as [Hwflc [[Hwfg HwfM] _]].
   split; auto.
-  split; auto.
+  split.
+    assert (J:=Mem.nextblock_pos m). omega.
   split.
     split.
       split; auto.
@@ -3588,6 +3588,18 @@ Proof.
   split; auto.
     split; auto.
     intros. inv H.
+Qed.
+
+Lemma s_genInitState__wf_globals_promotable: forall S main VarArgs cfg IS pinfo
+  (Hinit : @Opsem.s_genInitState DGVs S main VarArgs Mem.empty = ret (cfg, IS)),
+  exists maxb,
+    MemProps.wf_globals maxb (OpsemAux.Globals cfg) /\ 0 <= maxb /\
+    Promotability.wf_State maxb pinfo cfg IS.
+Proof.
+  intros.
+  apply s_genInitState__wf_globals_promotable' with (pinfo:=pinfo) in Hinit; 
+    auto.
+  destruct Hinit as [J1 [J2 J3]]. eauto.
 Qed.
 
 Lemma WF_PhiInfo_spec19: forall (pinfo : PhiInfo) (Locals : Opsem.GVsMap)

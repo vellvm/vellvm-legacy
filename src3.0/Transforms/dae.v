@@ -2809,47 +2809,45 @@ Transparent inscope_of_tmn inscope_of_cmd.
 
 Qed.
 
-Lemma s_genInitState__dae_State_simulation: forall pinfo S1 S2 main VarArgs cfg2
+Lemma s_genInitState__dae_State_simulation': forall pinfo S1 S2 main VarArgs cfg2
   IS2 (Hssym: system_simulation pinfo S1 S2)
   (Hinit: Opsem.s_genInitState S2 main VarArgs Mem.empty = ret (cfg2, IS2)),
-  exists maxb, exists mi, exists cfg1, exists IS1,
+  exists cfg1, exists IS1,
     Opsem.s_genInitState S1 main VarArgs Mem.empty = ret (cfg1, IS1) /\
-    State_simulation pinfo maxb mi cfg1 IS1 cfg2 IS2 /\
-    genericvalues_inject.wf_globals maxb (OpsemAux.Globals cfg1) /\
-    MemProps.wf_globals maxb (OpsemAux.Globals cfg1) /\
-    0 <= maxb /\
-    Promotability.wf_State maxb pinfo cfg1 IS1.
+    State_simulation pinfo (Mem.nextblock (Opsem.Mem IS1) - 1)
+      (MemProps.inject_init (Mem.nextblock (Opsem.Mem IS1) - 1)) cfg1 IS1 cfg2 IS2 /\
+    genericvalues_inject.wf_globals (Mem.nextblock (Opsem.Mem IS1) - 1) 
+      (OpsemAux.Globals cfg1).
 Proof.
-  unfold Opsem.s_genInitState.
-  intros.
-  inv_mbind'.
-  destruct m as [los nts ps].
-  inv_mbind'.
-  destruct b as [l0 ps0 cs0 tmn0].
-  destruct f as [[fa rt fid la va] bs].
-  inv_mbind'. symmetry_ctx.
-  assert (HlkF2FromS2:=HeqR).
-  eapply TopSim.system_simulation__fdef_simulation_r2l in HeqR; eauto.
-  destruct HeqR as [f1 [HlkF1fromS1 Hfsim]]. simpl in Hfsim.
-  fill_ctxhole.
-  eapply TopSim.system_simulation__getParentOfFdefFromSystem in HeqR0; eauto.
-  destruct HeqR0 as [m1 [J1 J2]].
-  fill_ctxhole. destruct m1 as [los1 nts1 ps1].
-  destruct J2 as [J2 [J3 J4]]; subst.
-  eapply TopSim.genGlobalAndInitMem_spec in HeqR1; eauto.
-  destruct HeqR1 as [gl1 [fs1 [M1 [HeqR1 [EQ1 [EQ2 EQ3]]]]]]; subst.
-  fill_ctxhole.
-  assert (J:=HeqR2).
-  eapply getEntryBlock__simulation in J; eauto.
-  destruct J as [b1 [J5 J6]].
-  fill_ctxhole.
-  destruct b1 as [l2 ps2 cs2 tmn2].
-  destruct f1 as [[fa1 rt1 fid1 la1 va1] bs1].
-  assert (J:=Hfsim).
-  apply fdef_simulation__eq_fheader in J.
-  inv J.
-  fill_ctxhole.
-(*
+    unfold Opsem.s_genInitState.
+    intros.
+    inv_mbind'.
+    destruct m as [los nts ps].
+    inv_mbind'.
+    destruct b as [l0 ps0 cs0 tmn0].
+    destruct f as [[fa rt fid la va] bs].
+    inv_mbind'. symmetry_ctx.
+    assert (HlkF2FromS2:=HeqR).
+    eapply TopSim.system_simulation__fdef_simulation_r2l in HeqR; eauto.
+    destruct HeqR as [f1 [HlkF1fromS1 Hfsim]]. simpl in Hfsim.
+    fill_ctxhole.
+    eapply TopSim.system_simulation__getParentOfFdefFromSystem in HeqR0; eauto.
+    destruct HeqR0 as [m1 [J1 J2]].
+    fill_ctxhole. destruct m1 as [los1 nts1 ps1].
+    destruct J2 as [J2 [J3 J4]]; subst.
+    eapply TopSim.genGlobalAndInitMem_spec in HeqR1; eauto.
+    destruct HeqR1 as [gl1 [fs1 [M1 [HeqR1 [EQ1 [EQ2 EQ3]]]]]]; subst.
+    fill_ctxhole.
+    assert (J:=HeqR2).
+    eapply getEntryBlock__simulation in J; eauto.
+    destruct J as [b1 [J5 J6]].
+    fill_ctxhole.
+    destruct b1 as [l2 ps2 cs2 tmn2].
+    destruct f1 as [[fa1 rt1 fid1 la1 va1] bs1].
+    assert (J:=Hfsim).
+    apply fdef_simulation__eq_fheader in J.
+    inv J.
+    fill_ctxhole. eauto.
   match goal with
   | |- exists _:_, exists _:_, Some (?A, ?B) = _ /\ _ => exists A; exists B
   end.
@@ -2864,11 +2862,60 @@ Proof.
   assert (blockInFdefB (block_intro l0 ps0 cs0 tmn0)
            (fdef_intro (fheader_intro fa rt fid la va) bs) = true) as HBinF.
     apply entryBlockInFdef; auto.
-  repeat (split; auto).
+  split; auto.
+  eapply genGlobalAndInitMem__wf_globals_Mem in HeqR1; eauto.
+  destruct HeqR1 as [J7 [J8 [J9 [J10 [J11 [J12 [J13 J14]]]]]]].
+  split.
+    simpl.
+    repeat (split; auto).
     exists l0. exists ps2. exists nil. auto.
     exists l0. exists ps0. exists nil. auto.
-*)
-Admitted. (* init *)
+      unfold reg_simulation.
+      destruct_if.
+        intros.
+        destruct_if.
+          intros. uniq_result. eauto.
+        intros. uniq_result. eauto.
+        
+      intros.
+      contradict H. 
+      unfold isnt_alloca_in_ECs, is_alloca_in_EC.
+      intros. simpl in Hin.
+      destruct Hin as [HIn | Hin]; try tauto.
+      inv HIn. 
+      destruct_if.
+      assert (lookupAL (GVsT DGVs) lc (PI_id pinfo) = None) as Hnoin.
+        admit. (* pld <> args *)
+      fill_ctxhole. auto.
+
+    simpl.
+    apply MemProps.redundant__wf_globals; auto. 
+    tauto.
+Qed.
+
+Lemma s_genInitState__dae_State_simulation: forall pinfo S1 S2 main VarArgs cfg2
+  IS2 (Hssym: system_simulation pinfo S1 S2)
+  (Hinit: Opsem.s_genInitState S2 main VarArgs Mem.empty = ret (cfg2, IS2)),
+  exists maxb, exists mi, exists cfg1, exists IS1,
+    Opsem.s_genInitState S1 main VarArgs Mem.empty = ret (cfg1, IS1) /\
+    State_simulation pinfo maxb mi cfg1 IS1 cfg2 IS2 /\
+    genericvalues_inject.wf_globals maxb (OpsemAux.Globals cfg1) /\
+    MemProps.wf_globals maxb (OpsemAux.Globals cfg1) /\
+    0 <= maxb /\
+    Promotability.wf_State maxb pinfo cfg1 IS1.
+Proof.
+  intros.
+  eapply s_genInitState__dae_State_simulation' in Hinit; eauto.
+  destruct Hinit as [cfg1 [IS1 [J1 [J2 J3]]]].
+  exists (Mem.nextblock (Opsem.Mem IS1) - 1).
+  exists (MemProps.inject_init (Mem.nextblock (Opsem.Mem IS1) - 1)).
+  exists cfg1. exists IS1.
+  split; auto.
+  split; auto.
+  split; auto.
+    eapply Promotability.s_genInitState__wf_globals_promotable' with (S:=S1)
+      (main:=main)(VarArgs:=VarArgs); eauto.
+Qed.
 
 Ltac inTmnOp_isnt_stuck v H3 Hwfcfg1 Hwfpp1 :=
 match type of Hwfpp1 with
