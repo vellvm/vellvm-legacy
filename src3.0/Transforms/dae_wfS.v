@@ -4,7 +4,6 @@ Require Import ListSet.
 Require Import Maps.
 Require Import Lattice.
 Require Import Iteration.
-Require Import Maps.
 Require Import opsem_props.
 Require Import promotable_props.
 Require Import primitives.

@@ -13,14 +13,19 @@ Require Import mem2reg.
 Require Import memory_props.
 Require Import program_sim.
 Require Import subst.
-Require Import las.
-Require Import laa.
-(*Require Import dae_wfS.*)
-Require Import dae.
-Require Import dse.
+Require Import las_wfS.
+Require Import las_top.
+Require Import laa_wfS.
+Require Import laa_top.
+Require Import dae_wfS.
+Require Import dae_top.
+Require Import dse_wfS.
+Require Import dse_top.
 Require Import die.
-Require Import sas.
-Require Import phiplacement_bsim.
+Require Import sas_top.
+Require Import sas_wfS.
+Require Import phiplacement_bsim_wfS.
+Require Import phiplacement_bsim_top.
 
 (* We are proving the macro-based m2r pass *)
 Parameter does_macro_m2r_is_true: mem2reg.does_macro_m2r tt = true.

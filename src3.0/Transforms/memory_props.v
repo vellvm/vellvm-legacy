@@ -2663,6 +2663,23 @@ Proof.
     omega.
 Qed.
 
+Lemma mload_aux_mstore_aux_same: forall b0 mc Mem gv1 ofs0 Mem'
+  (Hid: encode_decode_ident_aux Mem mc b0 ofs0),
+  mstore_aux Mem gv1 b0 ofs0 = ret Mem' ->
+  mload_aux Mem mc b0 ofs0 = ret gv1 ->
+  Mem = Mem'.
+Proof.
+  induction mc; simpl; intros.
+    inv H0. inv H. auto.
+
+    inv_mbind'.
+    simpl in *.
+    inv_mbind'. destruct Hid as [Hid1 Hid2].
+    unfold encode_decode_ident_prop in Hid1.
+    eapply Mem.load_store_same' with (m2:=m) in Hid1; eauto. subst.
+    apply IHmc in H1; auto.
+Qed.
+
 End MemProps.
 
 
